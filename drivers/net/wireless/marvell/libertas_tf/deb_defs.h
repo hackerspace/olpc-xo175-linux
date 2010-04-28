@@ -12,6 +12,9 @@
 
 #include <linux/spinlock.h>
 
+#undef pr_fmt
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
 #ifdef CONFIG_LIBERTAS_THINFIRM_DEBUG
 #define DEBUG
 #define PROC_DEBUG
