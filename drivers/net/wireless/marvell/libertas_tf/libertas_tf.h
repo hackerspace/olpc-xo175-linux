@@ -256,6 +256,14 @@ struct lbtf_private {
 
 	/* Most recently reported noise in dBm */
 	s8 noise;
+	
+	/* Command responses sent from the hardware to the driver */
+	int cur_cmd_retcode;
+	u8 resp_idx;
+	u8 resp_buf[2][LBS_UPLD_SIZE];
+	u32 resp_len[2];
+
+	
 };
 
 /* 802.11-related definitions */
