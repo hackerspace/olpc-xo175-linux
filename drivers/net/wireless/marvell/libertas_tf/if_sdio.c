@@ -280,7 +280,7 @@ static int if_sdio_prog_helper(struct if_sdio_card *card)
 	firmware = fw->data;
 	size = fw->size;
 
-	lbtf_deb_sdio("Firmware size: %d", size);
+	lbtf_deb_sdio("Helper size: %d", size);
 
 	while (size) {
 		ret = if_sdio_wait_status(card, FW_DL_READY_STATUS);
@@ -360,10 +360,120 @@ out:
 static int if_sdio_prog_real(struct if_sdio_card *card)
 {
 	int ret;
+	const struct firmware *fw;
+	unsigned long timeout;
+	u8 *chunk_buffer;
+	u32 chunk_size;
+	const u8 *firmware;
+	size_t size, req_size;
 
 	lbtf_deb_enter(LBTF_DEB_SDIO);
 
+	ret = request_firmware(&fw, card->firmware, &card->func->dev);
+	if (ret) {
+		pr_err("can't load firmware\n");
+		goto out;
+	}
 
+	chunk_buffer = kzalloc(512, GFP_KERNEL);
+	if (!chunk_buffer) {
+		ret = -ENOMEM;
+		goto release_fw;
+	}
+
+	sdio_claim_host(card->func);
+
+	ret = sdio_set_block_size(card->func, 32);
+	if (ret)
+		goto release;
+
+	firmware = fw->data;
+	size = fw->size;
+
+	lbtf_deb_sdio("Firmware size: %d", size);
+
+	while (size) {
+		ret = if_sdio_wait_status(card, FW_DL_READY_STATUS);
+		if (ret)
+			goto release;
+
+		req_size = sdio_readb(card->func, IF_SDIO_RD_BASE, &ret);
+		if (ret)
+			goto release;
+
+		req_size |= sdio_readb(card->func, IF_SDIO_RD_BASE + 1, &ret) << 8;
+		if (ret)
+			goto release;
+/*
+		lbtf_deb_sdio("firmware wants %d bytes\n", (int)req_size);
+*/
+		if (req_size == 0) {
+			lbtf_deb_sdio("firmware helper gave up early\n");
+			ret = -EIO;
+			goto release;
+		}
+
+		if (req_size & 0x01) {
+			lbtf_deb_sdio("firmware helper signalled error\n");
+			ret = -EIO;
+			goto release;
+		}
+
+		if (req_size > size)
+			req_size = size;
+
+		while (req_size) {
+			chunk_size = min(req_size, (size_t)512);
+
+			memcpy(chunk_buffer, firmware, chunk_size);
+/*
+			lbtf_deb_sdio("sending %d bytes (%d bytes) chunk\n",
+				chunk_size, (chunk_size + 31) / 32 * 32);
+*/
+			ret = sdio_writesb(card->func, card->ioport,
+				chunk_buffer, roundup(chunk_size, 32));
+			if (ret)
+				goto release;
+
+			firmware += chunk_size;
+			size -= chunk_size;
+			req_size -= chunk_size;
+		}
+	}
+
+	ret = 0;
+
+	lbtf_deb_sdio("waiting for firmware to boot...\n");
+
+	/* wait for the firmware to boot */
+	timeout = jiffies + HZ;
+	while (1) {
+		u16 scratch;
+
+		scratch = if_sdio_read_scratch(card, &ret);
+		if (ret)
+			goto release;
+
+		if (scratch == IF_SDIO_FIRMWARE_OK)
+			break;
+
+		if (time_after(jiffies, timeout)) {
+			ret = -ETIMEDOUT;
+			goto release;
+		}
+
+		msleep(10);
+	}
+
+	ret = 0;
+
+release:
+	sdio_release_host(card->func);
+	kfree(chunk_buffer);
+release_fw:
+	release_firmware(fw);
+
+out:
 	if (ret)
 		pr_err("failed to load firmware\n");
 
@@ -397,11 +507,13 @@ static int if_sdio_prog_firmware(struct if_sdio_card *card)
 	if (ret)
 		goto out;
 
-	lbtf_deb_sdio("helper firmware loaded\n");
+	lbtf_deb_sdio("Helper firmware loaded\n");
 
-// 	ret = if_sdio_prog_real(card);
-// 	if (ret)
-// 		goto out;
+	ret = if_sdio_prog_real(card);
+	if (ret)
+		goto out;
+
+	lbtf_deb_sdio("Firmware loaded\n");
 
 success:
 	sdio_claim_host(card->func);
