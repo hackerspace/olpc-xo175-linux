@@ -171,6 +171,8 @@ static int if_sdio_wait_status(struct if_sdio_card *card, const u8 condition)
 	unsigned long timeout;
 	int ret = 0;
 
+//	lbtf_deb_enter(LBTF_DEB_SDIO);
+
 	timeout = jiffies + HZ;
 	while (1) {
 		status = sdio_readb(card->func, IF_SDIO_STATUS, &ret);
@@ -182,6 +184,8 @@ static int if_sdio_wait_status(struct if_sdio_card *card, const u8 condition)
 			return -ETIMEDOUT;
 		mdelay(1);
 	}
+
+//	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
 	return ret;
 }
 
@@ -488,7 +492,6 @@ static int if_sdio_prog_firmware(struct if_sdio_card *card)
 	u16 scratch;
 
 	lbtf_deb_enter(LBTF_DEB_SDIO);
-
 	sdio_claim_host(card->func);
 	scratch = if_sdio_read_scratch(card, &ret);
 	sdio_release_host(card->func);
@@ -518,8 +521,14 @@ static int if_sdio_prog_firmware(struct if_sdio_card *card)
 success:
 	sdio_claim_host(card->func);
 	sdio_set_block_size(card->func, IF_SDIO_BLOCK_SIZE);
+
+	/*
+	 * Enable interrupts now that everything is set up
+	 */
+	sdio_writeb(card->func, 0x0f, IF_SDIO_H_INT_MASK, &ret);
 	sdio_release_host(card->func);
-	ret = 0;
+	if (ret)
+		pr_err("Error enabling interrupts: %d", ret);
 
 out:
 	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
@@ -576,6 +585,19 @@ static int if_sdio_reset_deep_sleep_wakeup(struct lbtf_private *priv)
 
 }
 
+static int if_sdio_reset_device(struct if_sdio_card *card)
+{
+	int ret;
+
+	lbtf_deb_enter(LBTF_DEB_SDIO);
+
+	ret = 0;
+
+	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
+
+	return ret;
+}
+
 /*******************************************************************/
 /* SDIO callbacks                                                  */
 /*******************************************************************/
@@ -584,12 +606,12 @@ static void if_sdio_interrupt(struct sdio_func *func)
 {
 	int ret;
 
-	lbtf_deb_enter(LBTF_DEB_SDIO);
+//	lbtf_deb_enter(LBTF_DEB_SDIO);
 
 
 	ret = 0;
 
-	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
+//	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
 }
 
 static int if_sdio_probe(struct sdio_func *func,
@@ -723,12 +745,35 @@ static int if_sdio_probe(struct sdio_func *func,
 			func->class, func->vendor, func->device,
 			model, (unsigned)card->ioport);
 
-	ret = if_sdio_prog_firmware(card);
-	if (ret)
+	priv = lbtf_add_card(card, &func->dev);
+	if (!priv) {
+		ret = -ENOMEM;
 		goto reclaim;
+	}
 
+	card->priv = priv;
+	priv->card = card;
 
-//----
+	priv->hw_host_to_card = if_sdio_host_to_card;
+	priv->hw_prog_firmware = if_sdio_prog_firmware;
+	priv->enter_deep_sleep = if_sdio_enter_deep_sleep;
+	priv->exit_deep_sleep = if_sdio_exit_deep_sleep;
+	priv->reset_deep_sleep_wakeup = if_sdio_reset_deep_sleep_wakeup;
+	priv->hw_reset_device = if_sdio_reset_device;
+
+	sdio_claim_host(func);
+// 	/*
+// 	 * Get rx_unit if the chip is SD8688 or newer.
+// 	 * SD8385 & SD8686 do not have rx_unit.
+// 	 */
+// 	if ((card->model != IF_SDIO_MODEL_8385)
+// 			&& (card->model != IF_SDIO_MODEL_8686))
+// 		card->rx_unit = if_sdio_read_rx_unit(card);
+// 	else
+		card->rx_unit = 0;
+
+	sdio_release_host(func);
+
 out:
 	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
 
@@ -775,8 +820,8 @@ static void if_sdio_remove(struct sdio_func *func)
 
 	lbtf_deb_sdio("call remove card\n");
 //	lbtf_stop_card(card->priv);
-//	lbtf_remove_card(card->priv);
-//	card->priv->surpriseremoved = 1;
+	lbtf_remove_card(card->priv);
+	card->priv->surpriseremoved = 1;
 
 	flush_workqueue(card->workqueue);
 	destroy_workqueue(card->workqueue);
@@ -834,7 +879,7 @@ static int __init if_sdio_init_module(void)
 
 	printk(KERN_INFO "libertas_tf_sdio: Libertas Thinfirmware SDIO driver\n");
 	printk(KERN_INFO "libertas_tf_sdio: Copyright cozybit Inc.\n");
-	printk(KERN_INFO "libertas_tf_sdio: buildstamp: 4\n");
+	printk(KERN_INFO "libertas_tf_sdio: buildstamp: 6\n");
 
 	ret = sdio_register_driver(&if_sdio_driver);
 

@@ -190,8 +190,11 @@ struct lbtf_private {
 	struct work_struct tx_work;
 	/** Hardware access */
 	int (*hw_host_to_card) (struct lbtf_private *priv, u8 type, u8 *payload, u16 nb);
-	int (*hw_prog_firmware) (struct if_usb_card *cardp);
-	int (*hw_reset_device) (struct if_usb_card *cardp);
+	int (*hw_prog_firmware) (void *cardp);
+	int (*hw_reset_device) (void *cardp);
+	int (*enter_deep_sleep) (struct lbtf_private *priv);
+	int (*exit_deep_sleep) (struct lbtf_private *priv);
+	int (*reset_deep_sleep_wakeup) (struct lbtf_private *priv);
 
 
 	/** Wlan adapter data structure*/

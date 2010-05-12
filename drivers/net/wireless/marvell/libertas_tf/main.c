@@ -299,12 +299,19 @@ static int lbtf_op_start(struct ieee80211_hw *hw)
 
 	lbtf_deb_enter(LBTF_DEB_MACOPS);
 
-	if (!priv->fw_ready)
+	if (!priv->fw_ready) {
+		lbtf_deb_main("Going to upload fw...");
 		/* Upload firmware */
 		if (priv->hw_prog_firmware(card))
 			goto err_prog_firmware;
+		else
+			priv->fw_ready = 1;
+	} else {
+		lbtf_deb_main("FW was already ready...");
+	}
 
 	/* poke the firmware */
+	lbtf_deb_main("Poking fw...");
 	priv->capability = WLAN_CAPABILITY_SHORT_PREAMBLE;
 	priv->radioon = RADIO_ON;
 	priv->mac_control = CMD_ACT_MAC_RX_ON | CMD_ACT_MAC_TX_ON;
@@ -318,7 +325,21 @@ static int lbtf_op_start(struct ieee80211_hw *hw)
 		goto err_prog_firmware;
 	}
 
-	printk(KERN_INFO "libertastf: Marvell WLAN 802.11 thinfirm adapter\n");
+// 	/*
+// 	 * FUNC_INIT is required for SD8688 WLAN/BT multiple functions
+// 	 */
+// 	if (card->model == IF_SDIO_MODEL_8688) {
+// 		struct cmd_header cmd;
+//
+// 		memset(&cmd, 0, sizeof(cmd));
+//
+// 		lbtf_deb_sdio("send function INIT command\n");
+// 		if (__lbtf_cmd(priv, CMD_FUNC_INIT, &cmd, sizeof(cmd),
+// 				lbtf_cmd_copyback, (unsigned long) &cmd))
+// 			pr_alert("CMD_FUNC_INIT cmd failed\n");
+// 	}
+
+	printk(KERN_INFO "libertas_tf: Marvell WLAN 802.11 thinfirm adapter\n");
 	lbtf_deb_leave(LBTF_DEB_MACOPS);
 	return 0;
 
