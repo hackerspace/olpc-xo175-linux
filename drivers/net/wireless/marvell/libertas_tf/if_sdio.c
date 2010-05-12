@@ -128,6 +128,33 @@ static u16 if_sdio_read_scratch(struct if_sdio_card *card, int *err)
 /********************************************************************/
 /* I/O                                                              */
 /********************************************************************/
+static u16 if_sdio_read_rx_len(struct if_sdio_card *card, int *err)
+{
+	int ret;
+	u16 rx_len;
+
+	switch (card->model) {
+	case IF_SDIO_MODEL_8385:
+	case IF_SDIO_MODEL_8686:
+		rx_len = if_sdio_read_scratch(card, &ret);
+		break;
+	case IF_SDIO_MODEL_8688:
+	default: /* for newer chipsets */
+		rx_len = sdio_readb(card->func, IF_SDIO_RX_LEN, &ret);
+		if (!ret)
+			rx_len <<= card->rx_unit;
+		else
+			rx_len = 0xffff;	/* invalid length */
+
+		break;
+	}
+
+	if (err)
+		*err = ret;
+
+	return rx_len;
+}
+
 static int if_sdio_handle_cmd(struct if_sdio_card *card,
 		u8 *buffer, unsigned size)
 {
@@ -264,79 +291,79 @@ static int if_sdio_wait_status(struct if_sdio_card *card, const u8 condition)
 static int if_sdio_card_to_host(struct if_sdio_card *card)
 {
 	int ret;
-// 	u16 size, type, chunk;
+	u16 size, type, chunk;
 
 	lbtf_deb_enter(LBTF_DEB_SDIO);
 
 
-// 	size = if_sdio_read_rx_len(card, &ret);
-// 	if (ret)
-// 		goto out;
-// 
-// 	if (size < 4) {
-// 		lbs_deb_sdio("invalid packet size (%d bytes) from firmware\n",
-// 			(int)size);
-// 		ret = -EINVAL;
-// 		goto out;
-// 	}
-// 
-// 	ret = if_sdio_wait_status(card, IF_SDIO_IO_RDY);
-// 	if (ret)
-// 		goto out;
-// 
-// 	/*
-// 	 * The transfer must be in one transaction or the firmware
-// 	 * goes suicidal. There's no way to guarantee that for all
-// 	 * controllers, but we can at least try.
-// 	 */
-// 	chunk = sdio_align_size(card->func, size);
-// 
-// 	ret = sdio_readsb(card->func, card->buffer, card->ioport, chunk);
-// 	if (ret)
-// 		goto out;
-// 
-// 	chunk = card->buffer[0] | (card->buffer[1] << 8);
-// 	type = card->buffer[2] | (card->buffer[3] << 8);
-// 
-// 	lbs_deb_sdio("packet of type %d and size %d bytes\n",
-// 		(int)type, (int)chunk);
-// 
-// 	if (chunk > size) {
-// 		lbs_deb_sdio("packet fragment (%d > %d)\n",
-// 			(int)chunk, (int)size);
-// 		ret = -EINVAL;
-// 		goto out;
-// 	}
-// 
-// 	if (chunk < size) {
-// 		lbs_deb_sdio("packet fragment (%d < %d)\n",
-// 			(int)chunk, (int)size);
-// 	}
-// 
-// 	switch (type) {
-// 	case MVMS_CMD:
-// 		ret = if_sdio_handle_cmd(card, card->buffer + 4, chunk - 4);
-// 		if (ret)
-// 			goto out;
-// 		break;
-// 	case MVMS_DAT:
-// 		ret = if_sdio_handle_data(card, card->buffer + 4, chunk - 4);
-// 		if (ret)
-// 			goto out;
-// 		break;
-// 	case MVMS_EVENT:
-// 		ret = if_sdio_handle_event(card, card->buffer + 4, chunk - 4);
-// 		if (ret)
-// 			goto out;
-// 		break;
-// 	default:
-// 		lbs_deb_sdio("invalid type (%d) from firmware\n",
-// 				(int)type);
-// 		ret = -EINVAL;
-// 		goto out;
-// 	}
-// 
-// out:
+	size = if_sdio_read_rx_len(card, &ret);
+	if (ret)
+		goto out;
+
+	if (size < 4) {
+		lbtf_deb_sdio("invalid packet size (%d bytes) from firmware\n",
+			(int)size);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	ret = if_sdio_wait_status(card, IF_SDIO_IO_RDY);
+	if (ret)
+		goto out;
+
+	/*
+	 * The transfer must be in one transaction or the firmware
+	 * goes suicidal. There's no way to guarantee that for all
+	 * controllers, but we can at least try.
+	 */
+	chunk = sdio_align_size(card->func, size);
+
+	ret = sdio_readsb(card->func, card->buffer, card->ioport, chunk);
+	if (ret)
+		goto out;
+
+	chunk = card->buffer[0] | (card->buffer[1] << 8);
+	type = card->buffer[2] | (card->buffer[3] << 8);
+
+	lbtf_deb_sdio("packet of type %d and size %d bytes\n",
+		(int)type, (int)chunk);
+
+	if (chunk > size) {
+		lbtf_deb_sdio("packet fragment (%d > %d)\n",
+			(int)chunk, (int)size);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	if (chunk < size) {
+		lbtf_deb_sdio("packet fragment (%d < %d)\n",
+			(int)chunk, (int)size);
+	}
+
+	switch (type) {
+	case MVMS_CMD:
+		ret = if_sdio_handle_cmd(card, card->buffer + 4, chunk - 4);
+		if (ret)
+			goto out;
+		break;
+	case MVMS_DAT:
+		ret = if_sdio_handle_data(card, card->buffer + 4, chunk - 4);
+		if (ret)
+			goto out;
+		break;
+	case MVMS_EVENT:
+		ret = if_sdio_handle_event(card, card->buffer + 4, chunk - 4);
+		if (ret)
+			goto out;
+		break;
+	default:
+		lbtf_deb_sdio("invalid type (%d) from firmware\n",
+				(int)type);
+		ret = -EINVAL;
+		goto out;
+	}
+
+out:
 	if (ret)
 		pr_err("problem fetching packet from firmware\n");
 
