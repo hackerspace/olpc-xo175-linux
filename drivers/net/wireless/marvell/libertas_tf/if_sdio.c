@@ -131,12 +131,33 @@ static u16 if_sdio_read_scratch(struct if_sdio_card *card, int *err)
 static int if_sdio_handle_cmd(struct if_sdio_card *card,
 		u8 *buffer, unsigned size)
 {
-	struct lbtf_private *priv = card->priv;
+// 	struct lbtf_private *priv = card->priv;
 	int ret;
+// 	unsigned long flags;
+// 	u8 i;
 
 	lbtf_deb_enter(LBTF_DEB_SDIO);
 
-
+// 	if (size > LBS_CMD_BUFFER_SIZE) {
+// 		lbs_deb_sdio("response packet too large (%d bytes)\n",
+// 			(int)size);
+// 		ret = -E2BIG;
+// 		goto out;
+// 	}
+// 
+// 	spin_lock_irqsave(&priv->driver_lock, flags);
+// 
+// 	i = (priv->resp_idx == 0) ? 1 : 0;
+// 	BUG_ON(priv->resp_len[i]);
+// 	priv->resp_len[i] = size;
+// 	memcpy(priv->resp_buf[i], buffer, size);
+// 	lbs_notify_command_response(priv, i);
+// 
+// 	spin_unlock_irqrestore(&card->priv->driver_lock, flags);
+// 
+// 	ret = 0;
+// 
+// out:
 	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
 	return ret;
 }
@@ -145,9 +166,35 @@ static int if_sdio_handle_data(struct if_sdio_card *card,
 		u8 *buffer, unsigned size)
 {
 	int ret;
+// 	struct sk_buff *skb;
+// 	char *data;
 
 	lbtf_deb_enter(LBTF_DEB_SDIO);
 
+// 	if (size > MRVDRV_ETH_RX_PACKET_BUFFER_SIZE) {
+// 		lbs_deb_sdio("response packet too large (%d bytes)\n",
+// 			(int)size);
+// 		ret = -E2BIG;
+// 		goto out;
+// 	}
+// 
+// 	skb = dev_alloc_skb(MRVDRV_ETH_RX_PACKET_BUFFER_SIZE + NET_IP_ALIGN);
+// 	if (!skb) {
+// 		ret = -ENOMEM;
+// 		goto out;
+// 	}
+// 
+// 	skb_reserve(skb, NET_IP_ALIGN);
+// 
+// 	data = skb_put(skb, size);
+// 
+// 	memcpy(data, buffer, size);
+// 
+// 	lbs_process_rxed_packet(card->priv, skb);
+// 
+// 	ret = 0;
+// 
+// out:
 	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
 
 	return ret;
@@ -157,9 +204,34 @@ static int if_sdio_handle_event(struct if_sdio_card *card,
 		u8 *buffer, unsigned size)
 {
 	int ret = 0;
+// 	u32 event;
 
 	lbtf_deb_enter(LBTF_DEB_SDIO);
 
+// 	if (card->model == IF_SDIO_MODEL_8385) {
+// 		event = sdio_readb(card->func, IF_SDIO_EVENT, &ret);
+// 		if (ret)
+// 			goto out;
+// 
+// 		/* right shift 3 bits to get the event id */
+// 		event >>= 3;
+// 	} else {
+// 		if (size < 4) {
+// 			lbs_deb_sdio("event packet too small (%d bytes)\n",
+// 				(int)size);
+// 			ret = -EINVAL;
+// 			goto out;
+// 		}
+// 		event = buffer[3] << 24;
+// 		event |= buffer[2] << 16;
+// 		event |= buffer[1] << 8;
+// 		event |= buffer[0] << 0;
+// 	}
+// 
+// 	lbs_queue_event(card->priv, event & 0xFF);
+	ret = 0;
+
+out:
 	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
 
 	return ret;
@@ -192,10 +264,79 @@ static int if_sdio_wait_status(struct if_sdio_card *card, const u8 condition)
 static int if_sdio_card_to_host(struct if_sdio_card *card)
 {
 	int ret;
+// 	u16 size, type, chunk;
 
 	lbtf_deb_enter(LBTF_DEB_SDIO);
 
 
+// 	size = if_sdio_read_rx_len(card, &ret);
+// 	if (ret)
+// 		goto out;
+// 
+// 	if (size < 4) {
+// 		lbs_deb_sdio("invalid packet size (%d bytes) from firmware\n",
+// 			(int)size);
+// 		ret = -EINVAL;
+// 		goto out;
+// 	}
+// 
+// 	ret = if_sdio_wait_status(card, IF_SDIO_IO_RDY);
+// 	if (ret)
+// 		goto out;
+// 
+// 	/*
+// 	 * The transfer must be in one transaction or the firmware
+// 	 * goes suicidal. There's no way to guarantee that for all
+// 	 * controllers, but we can at least try.
+// 	 */
+// 	chunk = sdio_align_size(card->func, size);
+// 
+// 	ret = sdio_readsb(card->func, card->buffer, card->ioport, chunk);
+// 	if (ret)
+// 		goto out;
+// 
+// 	chunk = card->buffer[0] | (card->buffer[1] << 8);
+// 	type = card->buffer[2] | (card->buffer[3] << 8);
+// 
+// 	lbs_deb_sdio("packet of type %d and size %d bytes\n",
+// 		(int)type, (int)chunk);
+// 
+// 	if (chunk > size) {
+// 		lbs_deb_sdio("packet fragment (%d > %d)\n",
+// 			(int)chunk, (int)size);
+// 		ret = -EINVAL;
+// 		goto out;
+// 	}
+// 
+// 	if (chunk < size) {
+// 		lbs_deb_sdio("packet fragment (%d < %d)\n",
+// 			(int)chunk, (int)size);
+// 	}
+// 
+// 	switch (type) {
+// 	case MVMS_CMD:
+// 		ret = if_sdio_handle_cmd(card, card->buffer + 4, chunk - 4);
+// 		if (ret)
+// 			goto out;
+// 		break;
+// 	case MVMS_DAT:
+// 		ret = if_sdio_handle_data(card, card->buffer + 4, chunk - 4);
+// 		if (ret)
+// 			goto out;
+// 		break;
+// 	case MVMS_EVENT:
+// 		ret = if_sdio_handle_event(card, card->buffer + 4, chunk - 4);
+// 		if (ret)
+// 			goto out;
+// 		break;
+// 	default:
+// 		lbs_deb_sdio("invalid type (%d) from firmware\n",
+// 				(int)type);
+// 		ret = -EINVAL;
+// 		goto out;
+// 	}
+// 
+// out:
 	if (ret)
 		pr_err("problem fetching packet from firmware\n");
 
@@ -544,11 +685,79 @@ static int if_sdio_host_to_card(struct lbtf_private *priv,
 		u8 type, u8 *buf, u16 nb)
 {
 	int ret;
-
+	struct if_sdio_card *card;
+	struct if_sdio_packet *packet, *cur;
+	u16 size;
+	unsigned long flags;
 
 	lbtf_deb_enter_args(LBTF_DEB_SDIO, "type %d, bytes %d", type, nb);
 
+	card = priv->card;
 
+	if (nb > (65536 - sizeof(struct if_sdio_packet) - 4)) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	/*
+	 * The transfer must be in one transaction or the firmware
+	 * goes suicidal. There's no way to guarantee that for all
+	 * controllers, but we can at least try.
+	 */
+	size = sdio_align_size(card->func, nb + 4);
+
+	packet = kzalloc(sizeof(struct if_sdio_packet) + size,
+			GFP_ATOMIC);
+	if (!packet) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	packet->next = NULL;
+	packet->nb = size;
+
+	/*
+	 * SDIO specific header.
+	 */
+	packet->buffer[0] = (nb + 4) & 0xff;
+	packet->buffer[1] = ((nb + 4) >> 8) & 0xff;
+	packet->buffer[2] = type;
+	packet->buffer[3] = 0;
+
+	memcpy(packet->buffer + 4, buf, nb);
+
+	spin_lock_irqsave(&card->lock, flags);
+
+	if (!card->packets)
+		card->packets = packet;
+	else {
+		cur = card->packets;
+		while (cur->next)
+			cur = cur->next;
+		cur->next = packet;
+	}
+
+	/* TODO: the dndl_sent has to do with sleep stuff.  
+	 * Commented out till we add that.
+	 */
+	switch (type) {
+	case MVMS_CMD:
+// 		priv->dnld_sent = DNLD_CMD_SENT;
+// 		break;
+	case MVMS_DAT:
+// 		priv->dnld_sent = DNLD_DATA_SENT;
+		break;
+	default:
+		lbtf_deb_sdio("unknown packet type %d\n", (int)type);
+	}
+
+	spin_unlock_irqrestore(&card->lock, flags);
+
+	queue_work(card->workqueue, &card->packet_worker);
+
+	ret = 0;
+
+out:
 	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
 
 	return ret;
@@ -605,13 +814,42 @@ static int if_sdio_reset_device(struct if_sdio_card *card)
 static void if_sdio_interrupt(struct sdio_func *func)
 {
 	int ret;
+	struct if_sdio_card *card;
+	u8 cause;
 
-//	lbtf_deb_enter(LBTF_DEB_SDIO);
+	lbtf_deb_enter(LBTF_DEB_SDIO);
 
+	card = sdio_get_drvdata(func);
+
+	cause = sdio_readb(card->func, IF_SDIO_H_INT_STATUS, &ret);
+	if (ret)
+		goto out;
+
+	lbtf_deb_sdio("interrupt: 0x%X\n", (unsigned)cause);
+
+	sdio_writeb(card->func, ~cause, IF_SDIO_H_INT_STATUS, &ret);
+	if (ret)
+		goto out;
+
+// 	/*
+// 	 * Ignore the define name, this really means the card has
+// 	 * successfully received the command.
+// 	 */
+// 	card->priv->is_activity_detected = 1;
+// 	if (cause & IF_SDIO_H_INT_DNLD)
+// 		lbtf_host_to_card_done(card->priv);
+// 
+
+	if (cause & IF_SDIO_H_INT_UPLD) {
+		ret = if_sdio_card_to_host(card);
+		if (ret)
+			goto out;
+	}
 
 	ret = 0;
 
-//	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
+out:
+	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
 }
 
 static int if_sdio_probe(struct sdio_func *func,
