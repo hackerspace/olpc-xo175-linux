@@ -97,6 +97,34 @@ struct if_sdio_card {
 	u8			rx_unit;
 };
 
+static int if_sdio_enable_interrupts(struct if_sdio_card *card)
+{
+	int ret;
+
+	lbtf_deb_enter(LBTF_DEB_SDIO);
+
+	sdio_claim_host(card->func);
+	sdio_writeb(card->func, 0x0f, IF_SDIO_H_INT_MASK, &ret);
+	sdio_release_host(card->func);
+
+	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
+	return (ret);
+}
+
+static int if_sdio_disable_interrupts(struct if_sdio_card *card)
+{
+	int ret;
+
+	lbtf_deb_enter(LBTF_DEB_SDIO);
+
+	sdio_claim_host(card->func);
+	sdio_writeb(card->func, 0x00, IF_SDIO_H_INT_MASK, &ret);
+	sdio_release_host(card->func);
+
+	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
+	return (ret);
+}
+
 /*
  *  For SD8385/SD8686, this function reads firmware status after
  *  the image is downloaded, or reads RX packet length when
@@ -660,6 +688,14 @@ static int if_sdio_prog_firmware(struct if_sdio_card *card)
 	u16 scratch;
 
 	lbtf_deb_enter(LBTF_DEB_SDIO);
+
+	/*
+	 * Disable interrupts
+	 */
+	ret = if_sdio_disable_interrupts(card);
+	if (ret)
+		pr_warning("unabled to disable interrupts: %d", ret);
+
 	sdio_claim_host(card->func);
 	scratch = if_sdio_read_scratch(card, &ret);
 	sdio_release_host(card->func);
@@ -687,16 +723,18 @@ static int if_sdio_prog_firmware(struct if_sdio_card *card)
 	lbtf_deb_sdio("Firmware loaded\n");
 
 success:
-	sdio_claim_host(card->func);
-	sdio_set_block_size(card->func, IF_SDIO_BLOCK_SIZE);
-
 	/*
 	 * Enable interrupts now that everything is set up
 	 */
-	sdio_writeb(card->func, 0x0f, IF_SDIO_H_INT_MASK, &ret);
-	sdio_release_host(card->func);
-	if (ret)
+	ret = if_sdio_enable_interrupts(card);
+	if (ret) {
 		pr_err("Error enabling interrupts: %d", ret);
+		goto out;
+	}
+
+	sdio_claim_host(card->func);
+	sdio_set_block_size(card->func, IF_SDIO_BLOCK_SIZE);
+	sdio_release_host(card->func);
 
 out:
 	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
@@ -821,18 +859,26 @@ static int if_sdio_reset_deep_sleep_wakeup(struct lbtf_private *priv)
 
 }
 
-static int if_sdio_reset_device(struct if_sdio_card *card)
+static void if_sdio_reset_device(struct if_sdio_card *card)
 {
-	int ret;
+	struct cmd_ds_802_11_reset cmd;
 
 	lbtf_deb_enter(LBTF_DEB_SDIO);
 
-	ret = 0;
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.hdr.command = cpu_to_le16(CMD_802_11_RESET);
+	cmd.hdr.size = cpu_to_le16(sizeof(cmd));
+	cmd.action = cpu_to_le16(CMD_ACT_HALT);
 
-	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
+	if_sdio_host_to_card(card->priv, MVMS_CMD, (u8 *) &cmd, sizeof(cmd));
 
-	return ret;
+	msleep(100);
+
+	lbtf_deb_leave(LBTF_DEB_SDIO);
+
+	return;
 }
+EXPORT_SYMBOL_GPL(if_sdio_reset_device);
 
 /*******************************************************************/
 /* SDIO callbacks                                                  */
@@ -1082,6 +1128,8 @@ static void if_sdio_remove(struct sdio_func *func)
 	lbtf_deb_enter(LBTF_DEB_SDIO);
 
 	card = sdio_get_drvdata(func);
+
+	if_sdio_reset_device(card);
 
 	lbtf_deb_sdio("call remove card\n");
 //	lbtf_stop_card(card->priv);
