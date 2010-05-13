@@ -18,7 +18,7 @@
 
 /* thinfirm version: 5.132.X.pX */
 #define LBTF_FW_VER_MIN		0x05840300
-#define LBTF_FW_VER_MAX		0x0584ffff
+#define LBTF_FW_VER_MAX		0x0900ffff
 #define QOS_CONTROL_LEN		2
 
 /* Module parameters */
