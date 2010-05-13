@@ -218,35 +218,35 @@ static int if_sdio_handle_data(struct if_sdio_card *card,
 		u8 *buffer, unsigned size)
 {
 	int ret;
-// 	struct sk_buff *skb;
-// 	char *data;
+	struct sk_buff *skb;
+	char *data;
 
 	lbtf_deb_enter(LBTF_DEB_SDIO);
 
-// 	if (size > MRVDRV_ETH_RX_PACKET_BUFFER_SIZE) {
-// 		lbs_deb_sdio("response packet too large (%d bytes)\n",
-// 			(int)size);
-// 		ret = -E2BIG;
-// 		goto out;
-// 	}
-// 
-// 	skb = dev_alloc_skb(MRVDRV_ETH_RX_PACKET_BUFFER_SIZE + NET_IP_ALIGN);
-// 	if (!skb) {
-// 		ret = -ENOMEM;
-// 		goto out;
-// 	}
-// 
-// 	skb_reserve(skb, NET_IP_ALIGN);
-// 
-// 	data = skb_put(skb, size);
-// 
-// 	memcpy(data, buffer, size);
-// 
-// 	lbs_process_rxed_packet(card->priv, skb);
-// 
-// 	ret = 0;
-// 
-// out:
+	if (size > MRVDRV_ETH_RX_PACKET_BUFFER_SIZE) {
+		lbtf_deb_sdio("response packet too large (%d bytes)\n",
+			(int)size);
+		ret = -E2BIG;
+		goto out;
+	}
+
+	skb = dev_alloc_skb(MRVDRV_ETH_RX_PACKET_BUFFER_SIZE + NET_IP_ALIGN);
+	if (!skb) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	skb_reserve(skb, NET_IP_ALIGN);
+
+	data = skb_put(skb, size);
+
+	memcpy(data, buffer, size);
+
+	lbtf_rx(card->priv, skb);
+
+	ret = 0;
+
+out:
 	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
 
 	return ret;
@@ -256,30 +256,32 @@ static int if_sdio_handle_event(struct if_sdio_card *card,
 		u8 *buffer, unsigned size)
 {
 	int ret = 0;
-// 	u32 event;
+	u32 event;
 
 	lbtf_deb_enter(LBTF_DEB_SDIO);
 
-// 	if (card->model == IF_SDIO_MODEL_8385) {
-// 		event = sdio_readb(card->func, IF_SDIO_EVENT, &ret);
-// 		if (ret)
-// 			goto out;
-// 
-// 		/* right shift 3 bits to get the event id */
-// 		event >>= 3;
-// 	} else {
-// 		if (size < 4) {
-// 			lbs_deb_sdio("event packet too small (%d bytes)\n",
-// 				(int)size);
-// 			ret = -EINVAL;
-// 			goto out;
-// 		}
-// 		event = buffer[3] << 24;
-// 		event |= buffer[2] << 16;
-// 		event |= buffer[1] << 8;
-// 		event |= buffer[0] << 0;
-// 	}
-// 
+	if (card->model == IF_SDIO_MODEL_8385) {
+		event = sdio_readb(card->func, IF_SDIO_EVENT, &ret);
+		if (ret)
+			goto out;
+
+		/* right shift 3 bits to get the event id */
+		event >>= 3;
+	} else {
+		if (size < 4) {
+			lbtf_deb_sdio("event packet too small (%d bytes)\n",
+				(int)size);
+			ret = -EINVAL;
+			goto out;
+		}
+		event = buffer[3] << 24;
+		event |= buffer[2] << 16;
+		event |= buffer[1] << 8;
+		event |= buffer[0] << 0;
+	}
+
+	lbtf_deb_sdio("**EVENT** 0x%X\n", event);
+
 // 	lbs_queue_event(card->priv, event & 0xFF);
 	ret = 0;
 
