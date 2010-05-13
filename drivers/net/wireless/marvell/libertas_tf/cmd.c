@@ -103,7 +103,7 @@ int lbtf_update_hw_spec(struct lbtf_private *priv)
 	priv->fwrelease = (priv->fwrelease << 8) |
 		(priv->fwrelease >> 24 & 0xff);
 
-	printk(KERN_INFO "libertastf: %pM, fw %u.%u.%up%u, cap 0x%08x\n",
+	printk(KERN_INFO "libertas_tf: %pM, fw %u.%u.%up%u, cap 0x%08x\n",
 		cmd.permanentaddr,
 		priv->fwrelease >> 24 & 0xff,
 		priv->fwrelease >> 16 & 0xff,
@@ -254,7 +254,7 @@ static void lbtf_submit_command(struct lbtf_private *priv,
 
 	lbtf_deb_cmd("DNLD_CMD: command 0x%04x, seq %d, size %d\n",
 		     command, le16_to_cpu(cmd->seqnum), cmdsize);
-	lbtf_deb_hex(LBTF_DEB_CMD, "DNLD_CMD", (void *) cmdnode->cmdbuf, cmdsize);
+	lbtf_deb_hex(LBTF_DEB_CMD, "DNLD_CMD ", (void *) cmdnode->cmdbuf, cmdsize);
 
 	ret = priv->hw_host_to_card(priv, MVMS_CMD, (u8 *) cmd, cmdsize);
 	spin_unlock_irqrestore(&priv->driver_lock, flags);
