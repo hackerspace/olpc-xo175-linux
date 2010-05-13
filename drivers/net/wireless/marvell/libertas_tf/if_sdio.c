@@ -186,33 +186,32 @@ static u16 if_sdio_read_rx_len(struct if_sdio_card *card, int *err)
 static int if_sdio_handle_cmd(struct if_sdio_card *card,
 		u8 *buffer, unsigned size)
 {
-// 	struct lbtf_private *priv = card->priv;
+	struct lbtf_private *priv = card->priv;
 	int ret;
-// 	unsigned long flags;
-// 	u8 i;
+	unsigned long flags;
+	u8 i;
 
 	lbtf_deb_enter(LBTF_DEB_SDIO);
 
-// 	if (size > LBS_CMD_BUFFER_SIZE) {
-// 		lbs_deb_sdio("response packet too large (%d bytes)\n",
-// 			(int)size);
-// 		ret = -E2BIG;
-// 		goto out;
-// 	}
-// 
-// 	spin_lock_irqsave(&priv->driver_lock, flags);
-// 
-// 	i = (priv->resp_idx == 0) ? 1 : 0;
-// 	BUG_ON(priv->resp_len[i]);
-// 	priv->resp_len[i] = size;
-// 	memcpy(priv->resp_buf[i], buffer, size);
-// 	lbs_notify_command_response(priv, i);
-// 
-// 	spin_unlock_irqrestore(&card->priv->driver_lock, flags);
-// 
-// 	ret = 0;
-// 
-// out:
+	BUG_ON(!in_interrupt());
+
+	if (size > LBS_CMD_BUFFER_SIZE) {
+		lbtf_deb_sdio("response packet too large (%d bytes)\n",
+			(int)size);
+		ret = -E2BIG;
+		goto out;
+	}
+
+	spin_lock_irqsave(&priv->driver_lock, flags);
+
+	memcpy(priv->cmd_resp_buff, buffer, size);
+	lbtf_cmd_response_rx(priv);
+
+	spin_unlock_irqrestore(&card->priv->driver_lock, flags);
+
+	ret = 0;
+
+out:
 	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
 	return ret;
 }
