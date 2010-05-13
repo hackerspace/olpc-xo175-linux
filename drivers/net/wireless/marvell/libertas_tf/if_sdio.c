@@ -1126,8 +1126,6 @@ static void if_sdio_remove(struct sdio_func *func)
 
 	card = sdio_get_drvdata(func);
 
-	if_sdio_reset_device(card);
-
 	lbtf_deb_sdio("call remove card\n");
 //	lbtf_stop_card(card->priv);
 	lbtf_remove_card(card->priv);
