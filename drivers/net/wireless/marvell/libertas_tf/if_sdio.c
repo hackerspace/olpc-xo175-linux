@@ -193,8 +193,6 @@ static int if_sdio_handle_cmd(struct if_sdio_card *card,
 
 	lbtf_deb_enter(LBTF_DEB_SDIO);
 
-	BUG_ON(!in_interrupt());
-
 	if (size > LBS_CMD_BUFFER_SIZE) {
 		lbtf_deb_sdio("response packet too large (%d bytes)\n",
 			(int)size);
