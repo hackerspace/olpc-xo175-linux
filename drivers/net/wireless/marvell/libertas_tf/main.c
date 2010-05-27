@@ -225,6 +225,8 @@ static void lbtf_op_tx(struct ieee80211_hw *hw,
 {
 	struct lbtf_private *priv = hw->priv;
 
+	lbtf_deb_enter(LBTF_DEB_TX);
+
 	priv->skb_to_tx = skb;
 	queue_work(lbtf_wq, &priv->tx_work);
 	/*
@@ -232,6 +234,8 @@ static void lbtf_op_tx(struct ieee80211_hw *hw,
 	 * there are no buffered multicast frames to send
 	 */
 	ieee80211_stop_queues(priv->hw);
+
+	lbtf_deb_leave(LBTF_DEB_TX);
 }
 
 static void lbtf_tx_work(struct work_struct *work)
@@ -246,9 +250,15 @@ static void lbtf_tx_work(struct work_struct *work)
 
 	lbtf_deb_enter(LBTF_DEB_MACOPS | LBTF_DEB_TX);
 
-	if ((priv->vif->type == NL80211_IFTYPE_AP) &&
-	    (!skb_queue_empty(&priv->bc_ps_buf)))
+// lbtf_deb_tx("priv: %p", priv);
+// lbtf_deb_tx("priv->vif: %p", priv->vif);
+// lbtf_deb_tx("&(priv->bc_ps_buf): %p", &priv->bc_ps_buf);
+
+	if (priv->vif &&
+		 (priv->vif->type == NL80211_IFTYPE_AP) &&
+		 (!skb_queue_empty(&priv->bc_ps_buf))) {
 		skb = skb_dequeue(&priv->bc_ps_buf);
+	}
 	else if (priv->skb_to_tx) {
 		skb = priv->skb_to_tx;
 		priv->skb_to_tx = NULL;
@@ -278,7 +288,9 @@ static void lbtf_tx_work(struct work_struct *work)
 	txpd->tx_packet_length = cpu_to_le16(len);
 	txpd->tx_packet_location = cpu_to_le32(sizeof(struct txpd));
 	lbtf_deb_hex(LBTF_DEB_TX, "TX Data ", skb->data, min_t(unsigned int, skb->len, 100));
-	BUG_ON(priv->tx_skb);
+
+	WARN_ON(priv->tx_skb);
+
 	spin_lock_irq(&priv->driver_lock);
 	priv->tx_skb = skb;
 	err = priv->hw_host_to_card(priv, MVMS_DAT, skb->data, skb->len);
@@ -288,6 +300,7 @@ static void lbtf_tx_work(struct work_struct *work)
 		priv->tx_skb = NULL;
 		pr_err("TX error: %d", err);
 	}
+	lbtf_deb_tx("TX success");
 	lbtf_deb_leave(LBTF_DEB_MACOPS | LBTF_DEB_TX);
 }
 
@@ -325,21 +338,9 @@ static int lbtf_op_start(struct ieee80211_hw *hw)
 		goto err_prog_firmware;
 	}
 
-// 	/*
-// 	 * FUNC_INIT is required for SD8688 WLAN/BT multiple functions
-// 	 */
-// 	if (card->model == IF_SDIO_MODEL_8688) {
-// 		struct cmd_header cmd;
-//
-// 		memset(&cmd, 0, sizeof(cmd));
-//
-// 		lbtf_deb_sdio("send function INIT command\n");
-// 		if (__lbtf_cmd(priv, CMD_FUNC_INIT, &cmd, sizeof(cmd),
-// 				lbtf_cmd_copyback, (unsigned long) &cmd))
-// 			pr_alert("CMD_FUNC_INIT cmd failed\n");
-// 	}
-
 	printk(KERN_INFO "libertas_tf: Marvell WLAN 802.11 thinfirm adapter\n");
+	ieee80211_wake_queues(priv->hw);
+
 	lbtf_deb_leave(LBTF_DEB_MACOPS);
 	return 0;
 
@@ -358,6 +359,8 @@ static void lbtf_op_stop(struct ieee80211_hw *hw)
 	struct cmd_ctrl_node *cmdnode;
 
 	lbtf_deb_enter(LBTF_DEB_MACOPS);
+
+	ieee80211_stop_queues(priv->hw);
 
 	/* Flush pending command nodes */
 	spin_lock_irqsave(&priv->driver_lock, flags);
@@ -610,7 +613,7 @@ int lbtf_rx(struct lbtf_private *priv, struct sk_buff *skb)
 
 	lbtf_deb_rx("rx data: skb->len-sizeof(RxPd) = %d-%zd = %zd\n",
 	       skb->len, sizeof(struct rxpd), skb->len - sizeof(struct rxpd));
-	lbtf_deb_hex(LBTF_DEB_RX, "RX Data", skb->data,
+	lbtf_deb_hex(LBTF_DEB_RX, "RX Data ", skb->data,
 	             min_t(unsigned int, skb->len, 100));
 
 	ieee80211_rx_irqsafe(priv->hw, skb);
@@ -724,6 +727,33 @@ void lbtf_send_tx_feedback(struct lbtf_private *priv, u8 retrycnt, u8 fail)
 		queue_work(lbtf_wq, &priv->tx_work);
 }
 EXPORT_SYMBOL_GPL(lbtf_send_tx_feedback);
+
+void lbtf_host_to_card_done(struct lbtf_private *priv )
+{
+	lbtf_deb_enter(LBTF_DEB_MAIN);
+
+// 	lbtf_deb_main("priv: %p", priv);
+// 	lbtf_deb_main("priv->hw: %p", priv->hw);
+// 	lbtf_deb_main("priv->tx_skb: %p", priv->tx_skb);
+// 	lbtf_deb_main("priv->skb_to_tx: %p", priv->skb_to_tx);
+
+	if (priv->tx_skb) {
+		ieee80211_tx_status_irqsafe(priv->hw, priv->tx_skb);
+		priv->tx_skb = NULL;
+		lbtf_deb_main("Got done on packet.");
+	} else {
+		lbtf_deb_main("Got done on command.");
+	}
+
+	if (!priv->skb_to_tx && skb_queue_empty(&priv->bc_ps_buf)) {
+		ieee80211_wake_queues(priv->hw);
+	} else {
+		queue_work(lbtf_wq, &priv->tx_work);
+	}
+
+	lbtf_deb_leave(LBTF_DEB_THREAD);
+}
+EXPORT_SYMBOL_GPL(lbtf_host_to_card_done);
 
 void lbtf_bcn_sent(struct lbtf_private *priv)
 {

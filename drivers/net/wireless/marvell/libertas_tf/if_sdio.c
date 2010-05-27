@@ -99,6 +99,7 @@ struct if_sdio_card {
 
 static int if_sdio_enable_interrupts(struct if_sdio_card *card)
 {
+//	struct if_sdio_card *card = priv->card;
 	int ret;
 
 	lbtf_deb_enter(LBTF_DEB_SDIO);
@@ -693,7 +694,7 @@ static int if_sdio_prog_firmware(struct if_sdio_card *card)
 	 */
 	ret = if_sdio_disable_interrupts(card);
 	if (ret)
-		pr_warning("unabled to disable interrupts: %d", ret);
+		pr_warning("unable to disable interrupts: %d", ret);
 
 	sdio_claim_host(card->func);
 	scratch = if_sdio_read_scratch(card, &ret);
@@ -903,14 +904,14 @@ static void if_sdio_interrupt(struct sdio_func *func)
 	if (ret)
 		goto out;
 
-// 	/*
-// 	 * Ignore the define name, this really means the card has
-// 	 * successfully received the command.
-// 	 */
-// 	card->priv->is_activity_detected = 1;
-// 	if (cause & IF_SDIO_H_INT_DNLD)
-// 		lbtf_host_to_card_done(card->priv);
-// 
+	/*
+	 * Ignore the define name, this really means the card has
+	 * successfully received the command.
+	 */
+//	card->priv->is_activity_detected = 1;
+	if (cause & IF_SDIO_H_INT_DNLD)
+		lbtf_host_to_card_done(card->priv);
+
 
 	if (cause & IF_SDIO_H_INT_UPLD) {
 		ret = if_sdio_card_to_host(card);
@@ -1129,7 +1130,7 @@ static void if_sdio_remove(struct sdio_func *func)
 	card = sdio_get_drvdata(func);
 
 	lbtf_deb_sdio("call remove card\n");
-//	lbtf_stop_card(card->priv);
+//	lbtf_op_stop(card->priv);
 	lbtf_remove_card(card->priv);
 	card->priv->surpriseremoved = 1;
 
@@ -1139,6 +1140,7 @@ static void if_sdio_remove(struct sdio_func *func)
 	sdio_claim_host(func);
 	sdio_release_irq(func);
 	sdio_disable_func(func);
+	sdio_set_drvdata(func, NULL);
 	sdio_release_host(func);
 
 	while (card->packets) {

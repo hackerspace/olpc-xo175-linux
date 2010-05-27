@@ -195,7 +195,8 @@ struct lbtf_private {
 	int (*enter_deep_sleep) (struct lbtf_private *priv);
 	int (*exit_deep_sleep) (struct lbtf_private *priv);
 	int (*reset_deep_sleep_wakeup) (struct lbtf_private *priv);
-
+	int (*enable_interrupts) (struct lbtf_private *priv);
+	int (*disable_interrupts) (struct lbtf_private *priv);
 
 	/** Wlan adapter data structure*/
 	/** STATUS variables */
@@ -502,6 +503,7 @@ int lbtf_remove_card(struct lbtf_private *priv);
 int lbtf_start_card(struct lbtf_private *priv);
 int lbtf_rx(struct lbtf_private *priv, struct sk_buff *skb);
 void lbtf_send_tx_feedback(struct lbtf_private *priv, u8 retrycnt, u8 fail);
+void lbtf_host_to_card_done(struct lbtf_private *priv );
 void lbtf_bcn_sent(struct lbtf_private *priv);
 
 /* support functions for cmd.c */
