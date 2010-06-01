@@ -709,6 +709,9 @@ static int if_sdio_prog_firmware(struct if_sdio_card *card)
 	if (scratch == IF_SDIO_FIRMWARE_OK) {
 		lbtf_deb_sdio("firmware already loaded\n");
 		goto success;
+	} else if ((card->model == IF_SDIO_MODEL_8686) && (scratch > 0)) {
+		lbtf_deb_sdio("firmware may be running\n");
+		goto success;
 	}
 
 	ret = if_sdio_prog_helper(card);

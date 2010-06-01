@@ -342,6 +342,9 @@ static int lbtf_op_start(struct ieee80211_hw *hw)
 	}
 
 	printk(KERN_INFO "libertas_tf: Marvell WLAN 802.11 thinfirm adapter\n");
+
+	SET_IEEE80211_PERM_ADDR(hw, priv->current_addr);
+
 	ieee80211_wake_queues(priv->hw);
 
 	lbtf_deb_leave(LBTF_DEB_MACOPS);
@@ -391,6 +394,7 @@ static void lbtf_op_stop(struct ieee80211_hw *hw)
 static int lbtf_op_add_interface(struct ieee80211_hw *hw,
 			struct ieee80211_vif *vif)
 {
+	u8 null_addr[ETH_ALEN] = {0};
 	struct lbtf_private *priv = hw->priv;
 	lbtf_deb_enter(LBTF_DEB_MACOPS);
 	if (priv->vif != NULL)
@@ -409,7 +413,12 @@ static int lbtf_op_add_interface(struct ieee80211_hw *hw,
 		priv->vif = NULL;
 		return -EOPNOTSUPP;
 	}
-	lbtf_set_mac_address(priv, (u8 *) vif->addr);
+
+	if (!ether_addr_equal(null_addr, vif->addr) != 0) {
+		lbtf_deb_macops("Setting mac addr: %pM\n", vif->addr);
+		lbtf_set_mac_address(priv, (u8 *) vif->addr);
+	}
+
 	lbtf_deb_leave(LBTF_DEB_MACOPS);
 	return 0;
 }
