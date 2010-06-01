@@ -97,9 +97,9 @@ struct if_sdio_card {
 	u8			rx_unit;
 };
 
-static int if_sdio_enable_interrupts(struct if_sdio_card *card)
+static int if_sdio_enable_interrupts(struct lbtf_private *priv)
 {
-//	struct if_sdio_card *card = priv->card;
+	struct if_sdio_card *card = priv->card;
 	int ret;
 
 	lbtf_deb_enter(LBTF_DEB_SDIO);
@@ -112,8 +112,9 @@ static int if_sdio_enable_interrupts(struct if_sdio_card *card)
 	return (ret);
 }
 
-static int if_sdio_disable_interrupts(struct if_sdio_card *card)
+static int if_sdio_disable_interrupts(struct lbtf_private *priv)
 {
+	struct if_sdio_card *card = priv->card;
 	int ret;
 
 	lbtf_deb_enter(LBTF_DEB_SDIO);
@@ -692,7 +693,7 @@ static int if_sdio_prog_firmware(struct if_sdio_card *card)
 	/*
 	 * Disable interrupts
 	 */
-	ret = if_sdio_disable_interrupts(card);
+	ret = if_sdio_disable_interrupts(card->priv);
 	if (ret)
 		pr_warning("unable to disable interrupts: %d", ret);
 
@@ -726,7 +727,7 @@ success:
 	/*
 	 * Enable interrupts now that everything is set up
 	 */
-	ret = if_sdio_enable_interrupts(card);
+	ret = if_sdio_enable_interrupts(card->priv);
 	if (ret) {
 		pr_err("Error enabling interrupts: %d", ret);
 		goto out;
@@ -1071,6 +1072,8 @@ static int if_sdio_probe(struct sdio_func *func,
 	priv->exit_deep_sleep = if_sdio_exit_deep_sleep;
 	priv->reset_deep_sleep_wakeup = if_sdio_reset_deep_sleep_wakeup;
 	priv->hw_reset_device = if_sdio_reset_device;
+	priv->enable_interrupts = if_sdio_enable_interrupts;
+	priv->disable_interrupts = if_sdio_disable_interrupts;
 
 	sdio_claim_host(func);
 // 	/*

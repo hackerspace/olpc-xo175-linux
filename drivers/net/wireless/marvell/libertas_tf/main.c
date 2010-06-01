@@ -174,12 +174,12 @@ static void command_timer_fn(struct timer_list *t)
 	spin_lock_irqsave(&priv->driver_lock, flags);
 
 	if (!priv->cur_cmd) {
-		printk(KERN_DEBUG "libertastf: command timer expired; "
+		printk(KERN_DEBUG "libertas_tf: command timer expired; "
 				  "no pending command\n");
 		goto out;
 	}
 
-	printk(KERN_DEBUG "libertas: command %x timed out\n",
+	printk(KERN_DEBUG "libertas_tf: command %x timed out\n",
 		le16_to_cpu(priv->cur_cmd->cmdbuf->command));
 
 	priv->cmd_timed_out = 1;
@@ -320,6 +320,9 @@ static int lbtf_op_start(struct ieee80211_hw *hw)
 		else
 			priv->fw_ready = 1;
 	} else {
+		if (priv->enable_interrupts) {
+			priv->enable_interrupts(priv);
+		}
 		lbtf_deb_main("FW was already ready...");
 	}
 
@@ -345,7 +348,7 @@ static int lbtf_op_start(struct ieee80211_hw *hw)
 	return 0;
 
 err_prog_firmware:
-	priv->hw_reset_device(card);
+//	priv->hw_reset_device(card);
 	lbtf_deb_leave_args(LBTF_DEB_MACOPS, "error programming fw; ret=%d", ret);
 	return ret;
 }
@@ -377,6 +380,10 @@ static void lbtf_op_stop(struct ieee80211_hw *hw)
 		dev_kfree_skb_any(skb);
 	priv->radioon = RADIO_OFF;
 	lbtf_set_radio_control(priv);
+
+	if (priv->disable_interrupts) {
+		priv->disable_interrupts(priv);
+	}
 
 	lbtf_deb_leave(LBTF_DEB_MACOPS);
 }
