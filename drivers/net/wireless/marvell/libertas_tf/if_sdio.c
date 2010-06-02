@@ -2,7 +2,7 @@
  *  linux/drivers/net/wireless/libertas_tf/if_sdio.c
  *
  *  Copyright (C) 2010, cozybit Inc.
- *  
+ *
  * Portions Copyright 2007-2008 Pierre Ossman
  * Inspired by if_cs.c, Copyright 2007 Holger Schurig
  *
@@ -422,6 +422,13 @@ static void if_sdio_host_to_card_worker(struct work_struct *work)
 		if (!packet)
 			break;
 
+		// Check for removed device
+		if (card->priv->surpriseremoved) {
+			lbtf_deb_sdio("Device removed\n");
+			kfree(packet);
+			break;
+		}
+
 		sdio_claim_host(card->func);
 
 		ret = if_sdio_wait_status(card, IF_SDIO_IO_RDY);
@@ -806,7 +813,7 @@ static int if_sdio_host_to_card(struct lbtf_private *priv,
 		cur->next = packet;
 	}
 
-	/* TODO: the dndl_sent has to do with sleep stuff.  
+	/* TODO: the dndl_sent has to do with sleep stuff.
 	 * Commented out till we add that.
 	 */
 	switch (type) {
@@ -1135,10 +1142,10 @@ static void if_sdio_remove(struct sdio_func *func)
 
 	card = sdio_get_drvdata(func);
 
-	lbtf_deb_sdio("call remove card\n");
-//	lbtf_op_stop(card->priv);
-	lbtf_remove_card(card->priv);
 	card->priv->surpriseremoved = 1;
+
+	lbtf_deb_sdio("call remove card\n");
+	lbtf_remove_card(card->priv);
 
 	flush_workqueue(card->workqueue);
 	destroy_workqueue(card->workqueue);

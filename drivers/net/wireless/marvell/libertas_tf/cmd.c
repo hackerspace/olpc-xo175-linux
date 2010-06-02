@@ -674,6 +674,12 @@ int __lbtf_cmd(struct lbtf_private *priv, uint16_t command,
 
 	lbtf_deb_enter(LBTF_DEB_HOST);
 
+	if (priv->surpriseremoved) {
+		lbtf_deb_host("CMD: card removed\n");
+		cmdnode = ERR_PTR(-ENOENT);
+		goto done;
+	}
+
 	cmdnode = __lbtf_cmd_async(priv, command, in_cmd, in_cmd_size,
 				  callback, callback_arg);
 	if (IS_ERR(cmdnode)) {

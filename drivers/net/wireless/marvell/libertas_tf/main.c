@@ -366,7 +366,7 @@ static void lbtf_op_stop(struct ieee80211_hw *hw)
 
 	lbtf_deb_enter(LBTF_DEB_MACOPS);
 
-	ieee80211_stop_queues(priv->hw);
+	ieee80211_stop_queues(hw);
 
 	/* Flush pending command nodes */
 	spin_lock_irqsave(&priv->driver_lock, flags);
@@ -701,7 +701,6 @@ done:
 	return priv;
 }
 EXPORT_SYMBOL_GPL(lbtf_add_card);
-
 
 int lbtf_remove_card(struct lbtf_private *priv)
 {
