@@ -58,6 +58,8 @@ struct if_sdio_model {
 	const char *firmware;
 };
 
+extern unsigned int lbtf_reset_fw;
+
 static struct if_sdio_model if_sdio_models[] = {
 	{
 		/* 8686 */
@@ -690,6 +692,8 @@ out:
 	return ret;
 }
 
+static void if_sdio_reset_device(struct if_sdio_card *card);
+
 static int if_sdio_prog_firmware(struct if_sdio_card *card)
 {
 	int ret;
@@ -708,17 +712,35 @@ static int if_sdio_prog_firmware(struct if_sdio_card *card)
 	scratch = if_sdio_read_scratch(card, &ret);
 	sdio_release_host(card->func);
 
+	lbtf_deb_sdio("firmware status = %#x\n", scratch);
+	lbtf_deb_sdio("scratch ret = %d\n", ret);
+
 	if (ret)
 		goto out;
-
-	lbtf_deb_sdio("firmware status = %#x\n", scratch);
 
 	if (scratch == IF_SDIO_FIRMWARE_OK) {
 		lbtf_deb_sdio("firmware already loaded\n");
 		goto success;
 	} else if ((card->model == IF_SDIO_MODEL_8686) && (scratch > 0)) {
 		lbtf_deb_sdio("firmware may be running\n");
-		goto success;
+		if( lbtf_reset_fw == 0 ) {
+			goto success;
+		} else {
+			int i = 0;
+			lbtf_deb_sdio("attempting to reset and reload firmware\n");
+
+//			ret = if_sdio_enable_interrupts(card->priv);
+// 			if (ret) {
+// 				pr_err("Error enabling interrupts: %d", ret);
+// 				goto out;
+// 			}
+
+			if_sdio_reset_device(card);
+			lbtf_reset_fw=0;
+
+			ret = if_sdio_prog_firmware(card);
+			goto out;
+		}
 	}
 
 	ret = if_sdio_prog_helper(card);
@@ -883,7 +905,7 @@ static void if_sdio_reset_device(struct if_sdio_card *card)
 
 	if_sdio_host_to_card(card->priv, MVMS_CMD, (u8 *) &cmd, sizeof(cmd));
 
-	msleep(100);
+	msleep(1000);
 
 	lbtf_deb_leave(LBTF_DEB_SDIO);
 
@@ -906,10 +928,12 @@ static void if_sdio_interrupt(struct sdio_func *func)
 	card = sdio_get_drvdata(func);
 
 	cause = sdio_readb(card->func, IF_SDIO_H_INT_STATUS, &ret);
+	lbtf_deb_sdio("interrupt: 0x%X\n", (unsigned)cause);
+	lbtf_deb_sdio("interrupt ret: 0x%X\n", ret);
 	if (ret)
 		goto out;
 
-	lbtf_deb_sdio("interrupt: 0x%X\n", (unsigned)cause);
+//	lbtf_deb_sdio("interrupt: 0x%X\n", (unsigned)cause);
 
 	sdio_writeb(card->func, ~cause, IF_SDIO_H_INT_STATUS, &ret);
 	if (ret)

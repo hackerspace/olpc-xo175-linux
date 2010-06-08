@@ -26,6 +26,10 @@ unsigned int lbtf_debug;
 EXPORT_SYMBOL_GPL(lbtf_debug);
 module_param_named(libertas_tf_debug, lbtf_debug, int, 0644);
 
+unsigned int lbtf_reset_fw;
+EXPORT_SYMBOL_GPL(lbtf_reset_fw);
+module_param_named(libertas_tf_reset_fw, lbtf_reset_fw, int, 0644);
+
 struct workqueue_struct *lbtf_wq;
 
 static const struct ieee80211_channel lbtf_channels[] = {
