@@ -80,6 +80,7 @@ enum lbtf_mode {
 	LBTF_PASSIVE_MODE,
 	LBTF_STA_MODE,
 	LBTF_AP_MODE,
+	LBTF_FULLMAC_MODE,
 };
 
 /** Card Event definition */

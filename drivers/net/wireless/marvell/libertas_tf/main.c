@@ -154,6 +154,7 @@ static int lbtf_setup_firmware(struct lbtf_private *priv)
 
 	lbtf_set_mac_control(priv);
 	lbtf_set_radio_control(priv);
+	lbtf_set_mode(priv, LBTF_PASSIVE_MODE);
 
 	ret = 0;
 done:
