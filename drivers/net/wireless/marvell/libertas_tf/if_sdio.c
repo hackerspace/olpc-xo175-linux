@@ -96,12 +96,15 @@ struct if_sdio_card {
 	struct workqueue_struct	*workqueue;
 	struct work_struct	packet_worker;
 
+	u8 hw_addr[ETH_ALEN];
+	u32 fwrelease;
+	u32 fwcapinfo;
+
 	u8			rx_unit;
 };
 
-static int if_sdio_enable_interrupts(struct lbtf_private *priv)
+static int _if_sdio_enable_interrupts(struct if_sdio_card *card)
 {
-	struct if_sdio_card *card = priv->card;
 	int ret;
 
 	lbtf_deb_enter(LBTF_DEB_SDIO);
@@ -114,9 +117,14 @@ static int if_sdio_enable_interrupts(struct lbtf_private *priv)
 	return (ret);
 }
 
-static int if_sdio_disable_interrupts(struct lbtf_private *priv)
+static int if_sdio_enable_interrupts(struct lbtf_private *priv)
 {
 	struct if_sdio_card *card = priv->card;
+	return _if_sdio_enable_interrupts(card);
+}
+
+static int _if_sdio_disable_interrupts(struct if_sdio_card *card)
+{
 	int ret;
 
 	lbtf_deb_enter(LBTF_DEB_SDIO);
@@ -127,6 +135,12 @@ static int if_sdio_disable_interrupts(struct lbtf_private *priv)
 
 	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
 	return (ret);
+}
+
+static int if_sdio_disable_interrupts(struct lbtf_private *priv)
+{
+	struct if_sdio_card *card = priv->card;
+	return _if_sdio_disable_interrupts(card);
 }
 
 /*
@@ -193,7 +207,6 @@ static int if_sdio_handle_cmd(struct if_sdio_card *card,
 	struct lbtf_private *priv = card->priv;
 	int ret;
 	unsigned long flags;
-	u8 i;
 
 	lbtf_deb_enter(LBTF_DEB_SDIO);
 
@@ -425,10 +438,14 @@ static void if_sdio_host_to_card_worker(struct work_struct *work)
 			break;
 
 		// Check for removed device
-		if (card->priv->surpriseremoved) {
-			lbtf_deb_sdio("Device removed\n");
-			kfree(packet);
-			break;
+		if (card->priv) {
+			if (card->priv->surpriseremoved) {
+				lbtf_deb_sdio("Device removed\n");
+				kfree(packet);
+				break;
+			}
+		} else {
+			lbtf_deb_sdio("host->card called during init, assuming device exists");
 		}
 
 		sdio_claim_host(card->func);
@@ -704,7 +721,7 @@ static int if_sdio_prog_firmware(struct if_sdio_card *card)
 	/*
 	 * Disable interrupts
 	 */
-	ret = if_sdio_disable_interrupts(card->priv);
+	ret = _if_sdio_disable_interrupts(card);
 	if (ret)
 		pr_warning("unable to disable interrupts: %d", ret);
 
@@ -726,7 +743,6 @@ static int if_sdio_prog_firmware(struct if_sdio_card *card)
 		if( lbtf_reset_fw == 0 ) {
 			goto success;
 		} else {
-			int i = 0;
 			lbtf_deb_sdio("attempting to reset and reload firmware\n");
 
 //			ret = if_sdio_enable_interrupts(card->priv);
@@ -756,15 +772,6 @@ static int if_sdio_prog_firmware(struct if_sdio_card *card)
 	lbtf_deb_sdio("Firmware loaded\n");
 
 success:
-	/*
-	 * Enable interrupts now that everything is set up
-	 */
-	ret = if_sdio_enable_interrupts(card->priv);
-	if (ret) {
-		pr_err("Error enabling interrupts: %d", ret);
-		goto out;
-	}
-
 	sdio_claim_host(card->func);
 	sdio_set_block_size(card->func, IF_SDIO_BLOCK_SIZE);
 	sdio_release_host(card->func);
@@ -779,18 +786,15 @@ out:
 /* Libertas callbacks                                              */
 /*******************************************************************/
 
-static int if_sdio_host_to_card(struct lbtf_private *priv,
+static int _if_sdio_host_to_card(struct if_sdio_card *card,
 		u8 type, u8 *buf, u16 nb)
 {
 	int ret;
-	struct if_sdio_card *card;
 	struct if_sdio_packet *packet, *cur;
 	u16 size;
 	unsigned long flags;
 
 	lbtf_deb_enter_args(LBTF_DEB_SDIO, "type %d, bytes %d", type, nb);
-
-	card = priv->card;
 
 	if (nb > (65536 - sizeof(struct if_sdio_packet) - 4)) {
 		ret = -EINVAL;
@@ -835,6 +839,27 @@ static int if_sdio_host_to_card(struct lbtf_private *priv,
 		cur->next = packet;
 	}
 
+	spin_unlock_irqrestore(&card->lock, flags);
+
+	queue_work(card->workqueue, &card->packet_worker);
+
+	ret = 0;
+
+out:
+	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
+
+	return ret;
+}
+
+static int if_sdio_host_to_card(struct lbtf_private *priv,
+		u8 type, u8 *buf, u16 nb)
+{
+	struct if_sdio_card *card;
+	unsigned long flags;
+
+	card = priv->card;
+
+	spin_lock_irqsave(&card->lock, flags);
 	/* TODO: the dndl_sent has to do with sleep stuff.
 	 * Commented out till we add that.
 	 */
@@ -848,17 +873,9 @@ static int if_sdio_host_to_card(struct lbtf_private *priv,
 	default:
 		lbtf_deb_sdio("unknown packet type %d\n", (int)type);
 	}
-
 	spin_unlock_irqrestore(&card->lock, flags);
 
-	queue_work(card->workqueue, &card->packet_worker);
-
-	ret = 0;
-
-out:
-	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
-
-	return ret;
+	return _if_sdio_host_to_card(card, type, buf, nb);
 }
 
 static int if_sdio_enter_deep_sleep(struct lbtf_private *priv)
@@ -871,7 +888,6 @@ static int if_sdio_enter_deep_sleep(struct lbtf_private *priv)
 
 static int if_sdio_exit_deep_sleep(struct lbtf_private *priv)
 {
-	struct if_sdio_card *card = priv->card;
 	int ret = -1;
 
 	lbtf_deb_enter(LBTF_DEB_SDIO);
@@ -882,14 +898,12 @@ static int if_sdio_exit_deep_sleep(struct lbtf_private *priv)
 
 static int if_sdio_reset_deep_sleep_wakeup(struct lbtf_private *priv)
 {
-	struct if_sdio_card *card = priv->card;
 	int ret = -1;
 
 	lbtf_deb_enter(LBTF_DEB_SDIO);
 
 	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
 	return ret;
-
 }
 
 static void if_sdio_reset_device(struct if_sdio_card *card)
@@ -903,7 +917,7 @@ static void if_sdio_reset_device(struct if_sdio_card *card)
 	cmd.hdr.size = cpu_to_le16(sizeof(cmd));
 	cmd.action = cpu_to_le16(CMD_ACT_HALT);
 
-	if_sdio_host_to_card(card->priv, MVMS_CMD, (u8 *) &cmd, sizeof(cmd));
+	_if_sdio_host_to_card(card, MVMS_CMD, (u8 *) &cmd, sizeof(cmd));
 
 	msleep(1000);
 
@@ -912,6 +926,157 @@ static void if_sdio_reset_device(struct if_sdio_card *card)
 	return;
 }
 EXPORT_SYMBOL_GPL(if_sdio_reset_device);
+
+/**
+ *  lbtf_update_hw_spec: Updates the hardware details.
+ *
+ *  @priv    	A pointer to struct lbtf_private structure
+ *
+ *  Returns: 0 on success, error on failure
+ */
+int if_sdio_update_hw_spec(struct if_sdio_card *card)
+{
+	struct cmd_ds_get_hw_spec cmd;
+	int ret = -1;
+	unsigned long timeout;
+	u16 size, type, chunk;
+	int wait_cmd_done = 0;
+
+	lbtf_deb_enter(LBTF_DEB_SDIO);
+
+	/* Send hw spec command */
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.hdr.size = cpu_to_le16(sizeof(cmd));
+	cmd.hdr.command = cpu_to_le16(CMD_GET_HW_SPEC);
+	memcpy(cmd.permanentaddr, card->hw_addr, ETH_ALEN);
+	ret = _if_sdio_host_to_card(card, MVMS_CMD, (u8 *) &cmd, sizeof(cmd));
+	if (ret) {
+		goto out;
+	}
+
+	/* Wait for and retrieve response */
+	timeout = jiffies + HZ;
+	while (wait_cmd_done < 1) {
+		/* Wait for response to cmd */
+		sdio_claim_host(card->func);
+		ret = if_sdio_wait_status(card, IF_SDIO_UL_RDY);
+		sdio_release_host(card->func);
+		if (ret) {
+			/* time-out */
+			lbtf_deb_sdio("error waiting on IO ready");
+			goto out;
+		}
+
+		/* get the rx size */
+		sdio_claim_host(card->func);
+		size = if_sdio_read_rx_len(card, &ret);
+		sdio_release_host(card->func);
+		if (ret)
+			goto out;
+
+		if (size == 0) {
+		} else if (size < 4) {
+			lbtf_deb_sdio("invalid packet size (%d bytes) from firmware\n",
+				(int)size);
+			ret = -EINVAL;
+			goto out;
+		} else /* size > 4 */ {
+			/*
+			 * Get command response.
+			 *
+			 * The transfer must be in one transaction or the firmware
+			 * goes suicidal. There's no way to guarantee that for all
+			 * controllers, but we can at least try.
+			 */
+			sdio_claim_host(card->func);
+			chunk = sdio_align_size(card->func, size);
+
+			ret = sdio_readsb(card->func, card->buffer, card->ioport, chunk);
+			sdio_release_host(card->func);
+			if (ret)
+				goto out;
+
+			chunk = card->buffer[0] | (card->buffer[1] << 8);
+			type = card->buffer[2] | (card->buffer[3] << 8);
+
+			lbtf_deb_sdio("packet of type %d and size %d bytes\n",
+				(int)type, (int)chunk);
+
+			lbtf_deb_hex(LBTF_DEB_SDIO, "SDIO Rx: ", card->buffer,
+						 min_t(unsigned int, size, 100));
+
+			if (chunk > size) {
+				lbtf_deb_sdio("packet fragment (%d > %d)\n",
+					(int)chunk, (int)size);
+				ret = -EINVAL;
+				goto out;
+			}
+
+			if (chunk < size) {
+				lbtf_deb_sdio("packet fragment (%d < %d)\n",
+					(int)chunk, (int)size);
+			}
+
+			switch (type) {
+			case MVMS_DAT:
+				lbtf_deb_sdio("Got MVMS_DAT");
+				continue;
+			case MVMS_CMD:
+				lbtf_deb_sdio("Got MVMS_CMD");
+				memcpy(&cmd, card->buffer +4, sizeof(cmd));
+				wait_cmd_done = 1;
+				break;
+			case MVMS_EVENT:
+				lbtf_deb_sdio("Got MVMS_EVENT");
+				continue;
+			default:
+				lbtf_deb_sdio("invalid type (%d) from firmware\n",
+						(int)type);
+				ret = -EINVAL;
+				goto out;
+			}
+		} /* size > 4 */
+
+		if (!wait_cmd_done) {
+			if (time_after(jiffies, timeout)) {
+				ret = -ETIMEDOUT;
+				pr_warning("Update hw spec cmd timed out\n");
+				ret = -1;
+				goto out;
+			}
+
+			msleep(10);
+		}
+	}
+
+	lbtf_deb_sdio("Got hw spec command response");
+
+	/* Process cmd return */
+	card->fwcapinfo = le32_to_cpu(cmd.fwcapinfo);
+
+	/* The firmware release is in an interesting format: the patch
+	 * level is in the most significant nibble ... so fix that: */
+	card->fwrelease = le32_to_cpu(cmd.fwrelease);
+	card->fwrelease = (card->fwrelease << 8) |
+		(card->fwrelease >> 24 & 0xff);
+
+	printk(KERN_INFO "libertas_tf_sdio: %pM, fw %u.%u.%up%u, cap 0x%08x\n",
+		cmd.permanentaddr,
+		card->fwrelease >> 24 & 0xff,
+		card->fwrelease >> 16 & 0xff,
+		card->fwrelease >>  8 & 0xff,
+		card->fwrelease       & 0xff,
+		card->fwcapinfo);
+	lbtf_deb_sdio("GET_HW_SPEC: hardware interface 0x%x, hardware spec 0x%04x\n",
+		    cmd.hwifversion, cmd.version);
+
+	memmove(card->hw_addr, cmd.permanentaddr, ETH_ALEN);
+
+out:
+	lbtf_deb_leave(LBTF_DEB_SDIO);
+	return ret;
+}
+
 
 /*******************************************************************/
 /* SDIO callbacks                                                  */
@@ -945,8 +1110,8 @@ static void if_sdio_interrupt(struct sdio_func *func)
 	 */
 //	card->priv->is_activity_detected = 1;
 	if (cause & IF_SDIO_H_INT_DNLD)
-		lbtf_host_to_card_done(card->priv);
-
+		if (card->priv)
+			lbtf_host_to_card_done(card->priv);
 
 	if (cause & IF_SDIO_H_INT_UPLD) {
 		ret = if_sdio_card_to_host(card);
@@ -1091,7 +1256,26 @@ static int if_sdio_probe(struct sdio_func *func,
 			func->class, func->vendor, func->device,
 			model, (unsigned)card->ioport);
 
-	priv = lbtf_add_card(card, &func->dev);
+	/* Upload firmware */
+	lbtf_deb_sdio("Going to upload fw...");
+	if (if_sdio_prog_firmware(card))
+		goto reclaim;
+
+	/*
+	 * We need to get the hw spec here because we must have the
+	 * MAC address before we call lbtf_add_card
+	 *
+	 * Read priv address from HW
+	 */
+	memset(card->hw_addr, 0xff, ETH_ALEN);
+	ret = if_sdio_update_hw_spec(card);
+	if (ret) {
+		ret = -1;
+		pr_err("Error fetching MAC address from hardware.");
+		goto reclaim;
+	}
+
+	priv = lbtf_add_card(card, &func->dev, card->hw_addr);
 	if (!priv) {
 		ret = -ENOMEM;
 		goto reclaim;
@@ -1101,7 +1285,6 @@ static int if_sdio_probe(struct sdio_func *func,
 	priv->card = card;
 
 	priv->hw_host_to_card = if_sdio_host_to_card;
-	priv->hw_prog_firmware = if_sdio_prog_firmware;
 	priv->enter_deep_sleep = if_sdio_enter_deep_sleep;
 	priv->exit_deep_sleep = if_sdio_exit_deep_sleep;
 	priv->reset_deep_sleep_wakeup = if_sdio_reset_deep_sleep_wakeup;
@@ -1121,6 +1304,16 @@ static int if_sdio_probe(struct sdio_func *func,
 		card->rx_unit = 0;
 
 	sdio_release_host(func);
+
+	/*
+	 * Enable interrupts now that everything is set up
+	 */
+	ret = _if_sdio_enable_interrupts(card);
+	if (ret) {
+		pr_err("Error enabling interrupts: %d", ret);
+	}
+
+	priv->fw_ready = 1;
 
 out:
 	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);

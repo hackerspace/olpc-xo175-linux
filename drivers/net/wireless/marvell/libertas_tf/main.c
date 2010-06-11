@@ -146,14 +146,15 @@ static int lbtf_setup_firmware(struct lbtf_private *priv)
 	int ret = -1;
 
 	lbtf_deb_enter(LBTF_DEB_FW);
+
 	/*
 	 * Read priv address from HW
 	 */
 	eth_broadcast_addr(priv->current_addr);
 	ret = lbtf_update_hw_spec(priv);
 	if (ret) {
-		ret = -1;
-		goto done;
+		   ret = -1;
+		   goto done;
 	}
 
 	lbtf_set_mac_control(priv);
@@ -161,6 +162,7 @@ static int lbtf_setup_firmware(struct lbtf_private *priv)
 	lbtf_set_mode(priv, LBTF_PASSIVE_MODE);
 
 	ret = 0;
+
 done:
 	lbtf_deb_leave_args(LBTF_DEB_FW, "ret: %d", ret);
 	return ret;
@@ -317,18 +319,20 @@ static int lbtf_op_start(struct ieee80211_hw *hw)
 
 	lbtf_deb_enter(LBTF_DEB_MACOPS);
 
-	if (!priv->fw_ready) {
-		lbtf_deb_main("Going to upload fw...");
-		/* Upload firmware */
-		if (priv->hw_prog_firmware(card))
-			goto err_prog_firmware;
-		else
-			priv->fw_ready = 1;
-	} else {
-		if (priv->enable_interrupts) {
-			priv->enable_interrupts(priv);
+	if (priv->hw_prog_firmware) {
+		if (!priv->fw_ready) {
+			lbtf_deb_main("Going to upload fw...");
+			/* Upload firmware */
+			if (priv->hw_prog_firmware(card))
+				goto err_prog_firmware;
+			else
+				priv->fw_ready = 1;
+		} else {
+			if (priv->enable_interrupts) {
+				priv->enable_interrupts(priv);
+			}
+			lbtf_deb_main("FW was already ready...");
 		}
-		lbtf_deb_main("FW was already ready...");
 	}
 
 	/* poke the firmware */
@@ -423,6 +427,7 @@ static int lbtf_op_add_interface(struct ieee80211_hw *hw,
 		lbtf_deb_macops("Setting mac addr: %pM\n", vif->addr);
 		lbtf_set_mac_address(priv, (u8 *) vif->addr);
 	}
+
 
 	lbtf_deb_leave(LBTF_DEB_MACOPS);
 	return 0;
@@ -651,7 +656,7 @@ EXPORT_SYMBOL_GPL(lbtf_rx);
  *
  *  Returns: pointer to struct lbtf_priv.
  */
-struct lbtf_private *lbtf_add_card(void *card, struct device *dmdev)
+struct lbtf_private *lbtf_add_card(void *card, struct device *dmdev, u8 mac_addr[ETH_ALEN])
 {
 	struct ieee80211_hw *hw;
 	struct lbtf_private *priv = NULL;
@@ -691,6 +696,11 @@ struct lbtf_private *lbtf_add_card(void *card, struct device *dmdev)
 
 	INIT_WORK(&priv->cmd_work, lbtf_cmd_work);
 	INIT_WORK(&priv->tx_work, lbtf_tx_work);
+
+	printk(KERN_INFO "libertas_tf: Marvell WLAN 802.11 thinfirm adapter\n");
+
+	SET_IEEE80211_PERM_ADDR(hw, mac_addr);
+
 	if (ieee80211_register_hw(hw))
 		goto err_init_adapter;
 
