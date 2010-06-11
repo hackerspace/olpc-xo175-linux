@@ -299,7 +299,20 @@ static int if_sdio_handle_event(struct if_sdio_card *card,
 
 	lbtf_deb_sdio("**EVENT** 0x%X\n", event);
 
-// 	lbs_queue_event(card->priv, event & 0xFF);
+	// SDd: I don't know if this is valid for the sdio case.  Might be an
+	// ommision in the libertas driver, or might not be useful/valid in sdio.
+	if (event & 0xffff0000) {
+			u16 tmp;
+			u8 retrycnt;
+			u8 failure;
+
+			tmp = event >> 16;
+			retrycnt = tmp & 0x00ff;
+			failure = (tmp & 0xff00) >> 8;
+			lbtf_send_tx_feedback(card->priv, retrycnt, failure);
+		} else if (event == LBTF_EVENT_BCN_SENT)
+			lbtf_bcn_sent(card->priv);
+
 	ret = 0;
 
 out:
@@ -1106,7 +1119,7 @@ static void if_sdio_interrupt(struct sdio_func *func)
 
 	/*
 	 * Ignore the define name, this really means the card has
-	 * successfully received the command.
+	 * successfully received the command or packet.
 	 */
 //	card->priv->is_activity_detected = 1;
 	if (cause & IF_SDIO_H_INT_DNLD)
