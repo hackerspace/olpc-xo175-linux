@@ -319,20 +319,20 @@ static int lbtf_op_start(struct ieee80211_hw *hw)
 
 	lbtf_deb_enter(LBTF_DEB_MACOPS);
 
-	if (priv->hw_prog_firmware) {
-		if (!priv->fw_ready) {
-			lbtf_deb_main("Going to upload fw...");
-			/* Upload firmware */
+	if (!priv->fw_ready) {
+		lbtf_deb_main("Going to upload fw...");
+		/* Upload firmware */
+		if (priv->hw_prog_firmware) {
 			if (priv->hw_prog_firmware(card))
 				goto err_prog_firmware;
 			else
 				priv->fw_ready = 1;
-		} else {
-			if (priv->enable_interrupts) {
-				priv->enable_interrupts(priv);
-			}
-			lbtf_deb_main("FW was already ready...");
 		}
+	} else {
+		if (priv->enable_interrupts) {
+			priv->enable_interrupts(priv);
+		}
+		lbtf_deb_main("FW was already ready...");
 	}
 
 	/* poke the firmware */
