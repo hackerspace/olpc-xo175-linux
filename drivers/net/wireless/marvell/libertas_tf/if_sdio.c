@@ -154,7 +154,7 @@ static u16 if_sdio_read_scratch(struct if_sdio_card *card, int *err)
 	int ret;
 	u16 scratch;
 
-	lbtf_deb_enter(LBTF_DEB_SDIO);
+	lbtf_deb_enter(LBTF_DEB_SCRATCH);
 
 	scratch = sdio_readb(card->func, card->scratch_reg, &ret);
 	if (!ret)
@@ -167,7 +167,7 @@ static u16 if_sdio_read_scratch(struct if_sdio_card *card, int *err)
 	if (ret)
 		return 0xffff;
 
-	lbtf_deb_leave_args(LBTF_DEB_SDIO, "scratch %x", scratch);
+	lbtf_deb_leave_args(LBTF_DEB_SCRATCH, "scratch %x", scratch);
 	return scratch;
 }
 
@@ -238,7 +238,7 @@ static int if_sdio_handle_data(struct if_sdio_card *card,
 	struct sk_buff *skb;
 	char *data;
 
-	lbtf_deb_enter(LBTF_DEB_SDIO);
+	lbtf_deb_enter(LBTF_DEB_INT);
 
 	if (size > MRVDRV_ETH_RX_PACKET_BUFFER_SIZE) {
 		lbtf_deb_sdio("response packet too large (%d bytes)\n",
@@ -264,7 +264,7 @@ static int if_sdio_handle_data(struct if_sdio_card *card,
 	ret = 0;
 
 out:
-	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
+	lbtf_deb_leave_args(LBTF_DEB_INT, "ret %d", ret);
 
 	return ret;
 }
@@ -297,7 +297,7 @@ static int if_sdio_handle_event(struct if_sdio_card *card,
 		event |= buffer[0] << 0;
 	}
 
-	lbtf_deb_sdio("**EVENT** 0x%X\n", event);
+	lbtf_deb_stats("**EVENT** 0x%X\n", event);
 
 	// SDd: I don't know if this is valid for the sdio case.  Might be an
 	// ommision in the libertas driver, or might not be useful/valid in sdio.
@@ -309,7 +309,14 @@ static int if_sdio_handle_event(struct if_sdio_card *card,
 			tmp = event >> 16;
 			retrycnt = tmp & 0x00ff;
 			failure = (tmp & 0xff00) >> 8;
+			lbtf_deb_stats("Got feedback event. retry: %d, failure: %d", retrycnt, failure);
+			// The firmware always sends us failure == 0 and retrycnt == 10.
+			// thus this is not useful.  Problem is, I think we need this for mesh
+			// mode.  For now, I'm going to comment this out to avoid other issues
+			// and at least make the basic functional case work.
+			/*
 			lbtf_send_tx_feedback(card->priv, retrycnt, failure);
+			*/
 		} else if (event == LBTF_EVENT_BCN_SENT)
 			lbtf_bcn_sent(card->priv);
 
@@ -350,7 +357,7 @@ static int if_sdio_card_to_host(struct if_sdio_card *card)
 	int ret;
 	u16 size, type, chunk;
 
-	lbtf_deb_enter(LBTF_DEB_SDIO);
+	lbtf_deb_enter(LBTF_DEB_INT);
 
 
 	size = if_sdio_read_rx_len(card, &ret);
@@ -382,7 +389,7 @@ static int if_sdio_card_to_host(struct if_sdio_card *card)
 	chunk = card->buffer[0] | (card->buffer[1] << 8);
 	type = card->buffer[2] | (card->buffer[3] << 8);
 
-	lbtf_deb_sdio("packet of type %d and size %d bytes\n",
+	lbtf_deb_int("packet of type %d and size %d bytes\n",
 		(int)type, (int)chunk);
 
 	if (chunk > size) {
@@ -424,7 +431,7 @@ out:
 	if (ret)
 		pr_err("problem fetching packet from firmware\n");
 
-	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
+	lbtf_deb_leave_args(LBTF_DEB_INT, "ret %d", ret);
 
 	return ret;
 }
@@ -1101,17 +1108,15 @@ static void if_sdio_interrupt(struct sdio_func *func)
 	struct if_sdio_card *card;
 	u8 cause;
 
-	lbtf_deb_enter(LBTF_DEB_SDIO);
+	lbtf_deb_enter(LBTF_DEB_INT);
 
 	card = sdio_get_drvdata(func);
 
 	cause = sdio_readb(card->func, IF_SDIO_H_INT_STATUS, &ret);
-	lbtf_deb_sdio("interrupt: 0x%X\n", (unsigned)cause);
-	lbtf_deb_sdio("interrupt ret: 0x%X\n", ret);
+	lbtf_deb_int("interrupt: 0x%X\n", (unsigned)cause);
+	lbtf_deb_int("interrupt ret: 0x%X\n", ret);
 	if (ret)
 		goto out;
-
-//	lbtf_deb_sdio("interrupt: 0x%X\n", (unsigned)cause);
 
 	sdio_writeb(card->func, ~cause, IF_SDIO_H_INT_STATUS, &ret);
 	if (ret)
@@ -1135,7 +1140,7 @@ static void if_sdio_interrupt(struct sdio_func *func)
 	ret = 0;
 
 out:
-	lbtf_deb_leave_args(LBTF_DEB_SDIO, "ret %d", ret);
+	lbtf_deb_leave_args(LBTF_DEB_INT, "ret %d", ret);
 }
 
 static int if_sdio_probe(struct sdio_func *func,

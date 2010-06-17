@@ -737,24 +737,37 @@ EXPORT_SYMBOL_GPL(lbtf_remove_card);
 
 void lbtf_send_tx_feedback(struct lbtf_private *priv, u8 retrycnt, u8 fail)
 {
-	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(priv->tx_skb);
+	struct ieee80211_tx_info *info;
+	lbtf_deb_enter(LBTF_DEB_MAIN);
 
-	ieee80211_tx_info_clear_status(info);
-	/*
-	 * Commented out, otherwise we never go beyond 1Mbit/s using mac80211
-	 * default pid rc algorithm.
-	 *
-	 * info->status.retry_count = MRVL_DEFAULT_RETRIES - retrycnt;
-	 */
-	if (!(info->flags & IEEE80211_TX_CTL_NO_ACK) && !fail)
-		info->flags |= IEEE80211_TX_STAT_ACK;
-	skb_pull(priv->tx_skb, sizeof(struct txpd));
-	ieee80211_tx_status_irqsafe(priv->hw, priv->tx_skb);
-	priv->tx_skb = NULL;
-	if (!priv->skb_to_tx && skb_queue_empty(&priv->bc_ps_buf))
-		ieee80211_wake_queues(priv->hw);
-	else
-		queue_work(lbtf_wq, &priv->tx_work);
+	if(priv->tx_skb == 0) {
+		lbtf_deb_stats("tx_skb is null");
+	} else {
+
+		lbtf_deb_stats("tx_skb is ok");
+
+		info = IEEE80211_SKB_CB(priv->tx_skb);
+		ieee80211_tx_info_clear_status(info);
+		/*
+		 * Commented out, otherwise we never go beyond 1Mbit/s using mac80211
+		 * default pid rc algorithm.
+		 *
+		 * info->status.retry_count = MRVL_DEFAULT_RETRIES - retrycnt;
+		 */
+		if (!(info->flags & IEEE80211_TX_CTL_NO_ACK) && !fail) {
+			info->flags |= IEEE80211_TX_STAT_ACK;
+		}
+		skb_pull(priv->tx_skb, sizeof(struct txpd));
+		ieee80211_tx_status_irqsafe(priv->hw, priv->tx_skb);
+	}
+
+		priv->tx_skb = NULL;
+		if (!priv->skb_to_tx && skb_queue_empty(&priv->bc_ps_buf))
+			ieee80211_wake_queues(priv->hw);
+		else
+			queue_work(lbtf_wq, &priv->tx_work);
+
+	lbtf_deb_leave(LBTF_DEB_MAIN);
 }
 EXPORT_SYMBOL_GPL(lbtf_send_tx_feedback);
 
