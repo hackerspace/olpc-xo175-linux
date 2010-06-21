@@ -288,12 +288,14 @@ static void lbtf_tx_work(struct work_struct *work)
 	/* Activate per-packet rate selection */
 	txpd->tx_control |= cpu_to_le32(MRVL_PER_PACKET_RATE |
 			     ieee80211_get_tx_rate(priv->hw, info)->hw_value);
+	lbtf_deb_tx("tx_control: %x", txpd->tx_control );
 
 	/* copy destination address from 802.11 header */
 	memcpy(txpd->tx_dest_addr_high, skb->data + sizeof(struct txpd) + 4,
 		ETH_ALEN);
 	txpd->tx_packet_length = cpu_to_le16(len);
 	txpd->tx_packet_location = cpu_to_le32(sizeof(struct txpd));
+
 	lbtf_deb_hex(LBTF_DEB_TX, "TX Data ", skb->data, min_t(unsigned int, skb->len, 100));
 
 	WARN_ON(priv->tx_skb);
@@ -781,17 +783,9 @@ void lbtf_host_to_card_done(struct lbtf_private *priv )
 // 	lbtf_deb_main("priv->skb_to_tx: %p", priv->skb_to_tx);
 
 	if (priv->tx_skb) {
-		ieee80211_tx_status_irqsafe(priv->hw, priv->tx_skb);
-		priv->tx_skb = NULL;
 		lbtf_deb_main("Got done on packet.");
 	} else {
 		lbtf_deb_main("Got done on command.");
-	}
-
-	if (!priv->skb_to_tx && skb_queue_empty(&priv->bc_ps_buf)) {
-		ieee80211_wake_queues(priv->hw);
-	} else {
-		queue_work(lbtf_wq, &priv->tx_work);
 	}
 
 	lbtf_deb_leave(LBTF_DEB_THREAD);
