@@ -356,7 +356,7 @@ void lbtf_set_bssid(struct lbtf_private *priv, bool activate, const u8 *bssid)
 {
 	struct cmd_ds_set_bssid cmd;
 	lbtf_deb_enter(LBTF_DEB_CMD);
-
+	lbtf_deb_cmd("Set BSSID: %pM a: %d", bssid, activate);
 	cmd.hdr.size = cpu_to_le16(sizeof(cmd));
 	cmd.activate = activate ? 1 : 0;
 	if (activate)

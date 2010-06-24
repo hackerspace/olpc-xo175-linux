@@ -315,8 +315,11 @@ static int if_sdio_handle_event(struct if_sdio_card *card,
 			// mode.  For now, I'm going to comment this out to avoid other issues
 			// and at least make the basic functional case work.
 			lbtf_send_tx_feedback(card->priv, retrycnt, failure);
-		} else if (event == LBTF_EVENT_BCN_SENT)
+		} else if (event == LBTF_EVENT_BCN_SENT) {
 			lbtf_bcn_sent(card->priv);
+		} else {
+			lbtf_deb_stats("UNKNOWN HOST EVENT: 0x%x", event);
+		}
 
 	ret = 0;
 

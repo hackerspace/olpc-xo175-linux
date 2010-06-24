@@ -264,6 +264,7 @@ static void lbtf_tx_work(struct work_struct *work)
 	if (priv->vif &&
 		 (priv->vif->type == NL80211_IFTYPE_AP) &&
 		 (!skb_queue_empty(&priv->bc_ps_buf))) {
+		lbtf_deb_tx("bc_ps_buf");
 		skb = skb_dequeue(&priv->bc_ps_buf);
 	}
 	else if (priv->skb_to_tx) {
@@ -298,15 +299,13 @@ static void lbtf_tx_work(struct work_struct *work)
 
 	lbtf_deb_hex(LBTF_DEB_TX, "TX Data ", skb->data, min_t(unsigned int, skb->len, 100));
 
-	WARN_ON(priv->tx_skb);
-
 	spin_lock_irq(&priv->driver_lock);
-	priv->tx_skb = skb;
+	skb_queue_tail(&priv->tx_skb_buf, skb);
 	err = priv->hw_host_to_card(priv, MVMS_DAT, skb->data, skb->len);
 	spin_unlock_irq(&priv->driver_lock);
 	if (err) {
 		dev_kfree_skb_any(skb);
-		priv->tx_skb = NULL;
+		skb_dequeue_tail(&priv->tx_skb_buf);
 		pr_err("TX error: %d", err);
 	}
 	lbtf_deb_tx("TX success");
@@ -408,8 +407,10 @@ static int lbtf_op_add_interface(struct ieee80211_hw *hw,
 	u8 null_addr[ETH_ALEN] = {0};
 	struct lbtf_private *priv = hw->priv;
 	lbtf_deb_enter(LBTF_DEB_MACOPS);
-	if (priv->vif != NULL)
+	if (priv->vif != NULL) {
+		lbtf_deb_macops("priv->vif != NULL");
 		return -EOPNOTSUPP;
+	}
 
 	priv->vif = vif;
 	switch (vif->type) {
@@ -422,6 +423,7 @@ static int lbtf_op_add_interface(struct ieee80211_hw *hw,
 		break;
 	default:
 		priv->vif = NULL;
+		lbtf_deb_macops("Unsupported interface mode: %d", vif->type);
 		return -EOPNOTSUPP;
 	}
 
@@ -536,7 +538,10 @@ static void lbtf_op_bss_info_changed(struct ieee80211_hw *hw,
 	struct sk_buff *beacon;
 	lbtf_deb_enter(LBTF_DEB_MACOPS);
 
-	if (changes & (BSS_CHANGED_BEACON | BSS_CHANGED_BEACON_INT)) {
+	lbtf_deb_macops("bss info changed: 0x%x", changes);
+	if (changes & (BSS_CHANGED_BEACON | 
+	               BSS_CHANGED_BEACON_INT | 
+	               BSS_CHANGED_BEACON_ENABLED)) {
 		switch (priv->vif->type) {
 		case NL80211_IFTYPE_AP:
 		case NL80211_IFTYPE_MESH_POINT:
@@ -544,9 +549,27 @@ static void lbtf_op_bss_info_changed(struct ieee80211_hw *hw,
 			if (beacon) {
 				lbtf_beacon_set(priv, beacon);
 				kfree_skb(beacon);
-				lbtf_beacon_ctrl(priv, 1,
+				priv->beacon_enable = bss_conf->enable_beacon;
+				priv->beacon_int = bss_conf->beacon_int;
+				lbtf_set_bssid(priv, 1, bss_conf->bssid);
+				lbtf_beacon_ctrl(priv, bss_conf->enable_beacon,
 						 bss_conf->beacon_int);
 			}
+			break;
+		default:
+			break;
+		}
+	}
+
+	if (changes & (BSS_CHANGED_BEACON_INT | 
+	               BSS_CHANGED_BEACON_ENABLED)) {
+		switch (priv->vif->type) {
+		case NL80211_IFTYPE_AP:
+		case NL80211_IFTYPE_MESH_POINT:
+				priv->beacon_enable = bss_conf->enable_beacon;
+				priv->beacon_int = bss_conf->beacon_int;
+				lbtf_beacon_ctrl(priv, bss_conf->enable_beacon,
+						 bss_conf->beacon_int);
 			break;
 		default:
 			break;
@@ -676,6 +699,7 @@ struct lbtf_private *lbtf_add_card(void *card, struct device *dmdev, u8 mac_addr
 	priv->hw = hw;
 	priv->card = card;
 	priv->tx_skb = NULL;
+	priv->tx_skb_old = NULL;
 
 	hw->queues = 1;
 	ieee80211_hw_set(hw, HOST_BROADCAST_PS_BUFFERING);
@@ -689,8 +713,11 @@ struct lbtf_private *lbtf_add_card(void *card, struct device *dmdev, u8 mac_addr
 	hw->wiphy->bands[NL80211_BAND_2GHZ] = &priv->band;
 	hw->wiphy->interface_modes =
 		BIT(NL80211_IFTYPE_STATION) |
-		BIT(NL80211_IFTYPE_ADHOC);
+		BIT(NL80211_IFTYPE_ADHOC) |
+		BIT(NL80211_IFTYPE_AP) |
+		BIT(NL80211_IFTYPE_MESH_POINT);
 	skb_queue_head_init(&priv->bc_ps_buf);
+	skb_queue_head_init(&priv->tx_skb_buf);
 
 	wiphy_ext_feature_set(hw->wiphy, NL80211_EXT_FEATURE_CQM_RSSI_LIST);
 
@@ -740,15 +767,20 @@ EXPORT_SYMBOL_GPL(lbtf_remove_card);
 void lbtf_send_tx_feedback(struct lbtf_private *priv, u8 retrycnt, u8 fail)
 {
 	struct ieee80211_tx_info *info;
+	struct sk_buff *skb = NULL;
 	lbtf_deb_enter(LBTF_DEB_MAIN);
 
-	if(priv->tx_skb == 0) {
-		lbtf_deb_stats("tx_skb is null");
+	if (!skb_queue_empty(&priv->tx_skb_buf)) {
+		skb = skb_dequeue(&priv->tx_skb_buf);
+	}
+	
+	if(skb == 0) {
+		lbtf_deb_stats("skb is null");
 	} else {
 
-		lbtf_deb_stats("tx_skb is ok");
+		lbtf_deb_stats("skb is ok");
 
-		info = IEEE80211_SKB_CB(priv->tx_skb);
+		info = IEEE80211_SKB_CB(skb);
 		ieee80211_tx_info_clear_status(info);
 		/*
 		 * Commented out, otherwise we never go beyond 1Mbit/s using mac80211
@@ -759,15 +791,14 @@ void lbtf_send_tx_feedback(struct lbtf_private *priv, u8 retrycnt, u8 fail)
 		if (!(info->flags & IEEE80211_TX_CTL_NO_ACK) && !fail) {
 			info->flags |= IEEE80211_TX_STAT_ACK;
 		}
-		skb_pull(priv->tx_skb, sizeof(struct txpd));
-		ieee80211_tx_status_irqsafe(priv->hw, priv->tx_skb);
+		skb_pull(skb, sizeof(struct txpd));
+		ieee80211_tx_status_irqsafe(priv->hw, skb);
 	}
 
-		priv->tx_skb = NULL;
-		if (!priv->skb_to_tx && skb_queue_empty(&priv->bc_ps_buf))
-			ieee80211_wake_queues(priv->hw);
-		else
-			queue_work(lbtf_wq, &priv->tx_work);
+	if (!priv->skb_to_tx && skb_queue_empty(&priv->bc_ps_buf))
+		ieee80211_wake_queues(priv->hw);
+	else
+		queue_work(lbtf_wq, &priv->tx_work);
 
 	lbtf_deb_leave(LBTF_DEB_MAIN);
 }
@@ -788,13 +819,25 @@ void lbtf_host_to_card_done(struct lbtf_private *priv )
 		lbtf_deb_main("Got done on command.");
 	}
 
-	lbtf_deb_leave(LBTF_DEB_THREAD);
+	lbtf_deb_leave(LBTF_DEB_MAIN);
 }
 EXPORT_SYMBOL_GPL(lbtf_host_to_card_done);
 
 void lbtf_bcn_sent(struct lbtf_private *priv)
 {
 	struct sk_buff *skb = NULL;
+
+	lbtf_deb_enter(LBTF_DEB_MAIN);
+
+	if (!priv) {
+		lbtf_deb_main("got bcn sent with priv == NULL");
+		return;
+	}
+
+	if (!priv->vif) {
+		lbtf_deb_main("got bcn sent with vif == NULL");
+		return;
+	}
 
 	if (priv->vif->type != NL80211_IFTYPE_AP)
 		return;
@@ -815,9 +858,12 @@ void lbtf_bcn_sent(struct lbtf_private *priv)
 	skb = ieee80211_beacon_get(priv->hw, priv->vif);
 
 	if (skb) {
-		lbtf_beacon_set(priv, skb);
+ 		lbtf_beacon_set(priv, skb);
 		kfree_skb(skb);
+ 		lbtf_beacon_ctrl(priv, priv->beacon_enable, priv->beacon_int);
 	}
+
+	lbtf_deb_leave(LBTF_DEB_MAIN);
 }
 EXPORT_SYMBOL_GPL(lbtf_bcn_sent);
 

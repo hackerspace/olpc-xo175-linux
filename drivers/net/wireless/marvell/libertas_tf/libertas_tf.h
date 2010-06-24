@@ -241,6 +241,8 @@ struct lbtf_private {
 
 	struct sk_buff *skb_to_tx;
 	struct sk_buff *tx_skb;
+	struct sk_buff *tx_skb_old;
+	struct sk_buff_head tx_skb_buf;
 
 	/** NIC Operation characteristics */
 	u16 mac_control;
@@ -267,6 +269,10 @@ struct lbtf_private {
 	u8 resp_idx;
 	u8 resp_buf[2][LBS_UPLD_SIZE];
 	u32 resp_len[2];
+	
+	/* beacon status info */
+	bool beacon_enable;
+	u16 beacon_int;
 
 
 };
