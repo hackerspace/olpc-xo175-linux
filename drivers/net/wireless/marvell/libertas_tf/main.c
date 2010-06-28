@@ -748,9 +748,17 @@ EXPORT_SYMBOL_GPL(lbtf_add_card);
 
 int lbtf_remove_card(struct lbtf_private *priv)
 {
+	struct sk_buff *skb = NULL;
 	struct ieee80211_hw *hw = priv->hw;
 
 	lbtf_deb_enter(LBTF_DEB_MAIN);
+
+	ieee80211_stop_queues(priv->hw);
+
+	while (!skb_queue_empty(&priv->tx_skb_buf)) {
+		skb = skb_dequeue(&priv->tx_skb_buf);
+		dev_kfree_skb_any(skb);
+	}
 
 	priv->surpriseremoved = 1;
 	del_timer(&priv->command_timer);
