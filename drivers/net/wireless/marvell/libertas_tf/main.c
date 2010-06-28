@@ -307,8 +307,11 @@ static void lbtf_tx_work(struct work_struct *work)
 		dev_kfree_skb_any(skb);
 		skb_dequeue_tail(&priv->tx_skb_buf);
 		pr_err("TX error: %d", err);
+	} else {
+		if (LBS_NUM_BUFFERS > skb_queue_len(&priv->tx_skb_buf))
+			ieee80211_wake_queues(priv->hw);
+		lbtf_deb_tx("TX success");
 	}
-	lbtf_deb_tx("TX success");
 	lbtf_deb_leave(LBTF_DEB_MACOPS | LBTF_DEB_TX);
 }
 

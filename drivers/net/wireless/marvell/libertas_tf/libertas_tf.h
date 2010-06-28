@@ -104,6 +104,7 @@ enum lbtf_mode {
 #define LBS_CMD_BUFFER_SIZE             (2 * 1024)
 #define MRVDRV_MAX_CHANNEL_SIZE		14
 #define MRVDRV_SNAP_HEADER_LEN          8
+#define LBS_NUM_BUFFERS				7
 
 #define	LBS_UPLD_SIZE			2312
 #define DEV_NAME_LEN			32
