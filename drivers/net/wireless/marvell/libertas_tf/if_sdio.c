@@ -310,10 +310,6 @@ static int if_sdio_handle_event(struct if_sdio_card *card,
 			retrycnt = tmp & 0x00ff;
 			failure = (tmp & 0xff00) >> 8;
 			lbtf_deb_stats("Got feedback event. retry: %d, failure: %d", retrycnt, failure);
-			// The firmware always sends us failure == 0 and retrycnt == 10.
-			// thus this is not useful.  Problem is, I think we need this for mesh
-			// mode.  For now, I'm going to comment this out to avoid other issues
-			// and at least make the basic functional case work.
 			lbtf_send_tx_feedback(card->priv, retrycnt, failure);
 		} else if (event == LBTF_EVENT_BCN_SENT) {
 			lbtf_bcn_sent(card->priv);
