@@ -1303,7 +1303,6 @@ static int if_sdio_probe(struct sdio_func *func,
 	priv->enter_deep_sleep = if_sdio_enter_deep_sleep;
 	priv->exit_deep_sleep = if_sdio_exit_deep_sleep;
 	priv->reset_deep_sleep_wakeup = if_sdio_reset_deep_sleep_wakeup;
-	priv->hw_reset_device = if_sdio_reset_device;
 	priv->enable_interrupts = if_sdio_enable_interrupts;
 	priv->disable_interrupts = if_sdio_disable_interrupts;
 
@@ -1326,6 +1325,7 @@ static int if_sdio_probe(struct sdio_func *func,
 	ret = _if_sdio_enable_interrupts(card);
 	if (ret) {
 		pr_err("Error enabling interrupts: %d", ret);
+		goto err_activate_card;
 	}
 
 	priv->fw_ready = 1;
