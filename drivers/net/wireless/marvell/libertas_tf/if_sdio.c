@@ -971,6 +971,8 @@ int if_sdio_update_hw_spec(struct if_sdio_card *card)
 		goto out;
 	}
 
+	flush_workqueue(card->workqueue);
+
 	/* Wait for and retrieve response */
 	timeout = jiffies + HZ;
 	while (wait_cmd_done < 1) {
