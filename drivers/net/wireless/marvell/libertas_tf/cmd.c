@@ -743,10 +743,12 @@ int lbtf_process_rx_command(struct lbtf_private *priv)
 	respcmd = le16_to_cpu(resp->command);
 	result = le16_to_cpu(resp->result);
 
+#ifdef CONFIG_LIBERTAS_THINFIRM_DEBUG
 	if (net_ratelimit())
 		pr_info("libertastf: cmd response 0x%04x, seq %d, size %d\n",
 			respcmd, le16_to_cpu(resp->seqnum),
 			le16_to_cpu(resp->size));
+#endif
 
 	if (resp->seqnum != priv->cur_cmd->cmdbuf->seqnum) {
 		spin_unlock_irqrestore(&priv->driver_lock, flags);
