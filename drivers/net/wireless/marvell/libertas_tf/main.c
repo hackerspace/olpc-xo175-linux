@@ -203,6 +203,8 @@ static int lbtf_init_adapter(struct lbtf_private *priv)
 	mutex_init(&priv->lock);
 
 	priv->vif = NULL;
+	priv->sec_vif = NULL;
+	priv->mode = LBTF_FULLMAC_MODE;
 	timer_setup(&priv->command_timer, command_timer_fn, 0);
 
 	INIT_LIST_HEAD(&priv->cmdfreeq);
@@ -408,15 +410,31 @@ static void lbtf_op_stop(struct ieee80211_hw *hw)
 static int lbtf_op_add_interface(struct ieee80211_hw *hw,
 			struct ieee80211_vif *vif)
 {
+	struct ieee80211_vif **priv_vif = NULL;
 	u8 null_addr[ETH_ALEN] = {0};
 	struct lbtf_private *priv = hw->priv;
 	lbtf_deb_enter(LBTF_DEB_MACOPS);
 	if (priv->vif != NULL) {
 		lbtf_deb_macops("priv->vif != NULL");
-		return -EOPNOTSUPP;
-	}
+		if (priv->sec_vif != NULL)
+			return -EOPNOTSUPP;
+		else {
+			/* Check types of primary and secondary vif.  We only support
+			 * simultaneous STA and Mesh vifs
+			 */
+			if (!((priv->vif->type == NL80211_IFTYPE_STATION &&
+			       vif->type == NL80211_IFTYPE_MESH_POINT) ||
+			      (priv->vif->type == NL80211_IFTYPE_MESH_POINT &&
+			       vif->type == NL80211_IFTYPE_STATION)))
+				return -EOPNOTSUPP;
+			else {
+				priv_vif = &priv->sec_vif;
+			}
+		}
+	} else
+		priv_vif = &priv->vif;
 
-	priv->vif = vif;
+	*priv_vif = vif;
 	switch (vif->type) {
 	case NL80211_IFTYPE_MESH_POINT:
 	case NL80211_IFTYPE_AP:
@@ -424,17 +442,21 @@ static int lbtf_op_add_interface(struct ieee80211_hw *hw,
 		lbtf_set_mode(priv, LBTF_AP_MODE);
 		break;
 	case NL80211_IFTYPE_STATION:
-		lbtf_set_mode(priv, LBTF_STA_MODE);
+		if (priv->mode != NL80211_IFTYPE_MESH_POINT)
+			lbtf_set_mode(priv, LBTF_STA_MODE);
 		break;
 	default:
-		priv->vif = NULL;
+		*priv_vif = NULL;
 		lbtf_deb_macops("Unsupported interface mode: %d", vif->type);
 		return -EOPNOTSUPP;
 	}
 
 	if (!ether_addr_equal(null_addr, vif->addr) != 0) {
 		lbtf_deb_macops("Setting mac addr: %pM\n", vif->addr);
-		lbtf_set_mac_address(priv, (u8 *) vif->addr);
+		if (priv->sec_vif != NULL)
+			lbtf_add_mac_address(priv, (u8 *) vif->addr);
+		else
+			lbtf_set_mac_address(priv, (u8 *) vif->addr);
 	}
 
 
@@ -442,18 +464,36 @@ static int lbtf_op_add_interface(struct ieee80211_hw *hw,
 	return 0;
 }
 
+struct ieee80211_vif **_lbtf_choose_vif(struct ieee80211_vif *vif, 
+			struct lbtf_private *priv)
+{
+	struct ieee80211_vif ** priv_vif = NULL;
+	if (priv->sec_vif != NULL && priv->sec_vif == vif)
+		priv_vif = &priv->sec_vif;
+	else if (priv->vif != NULL && priv->vif == vif)
+		priv_vif = &priv->vif;
+
+	return priv_vif;
+}
+
 static void lbtf_op_remove_interface(struct ieee80211_hw *hw,
 			struct ieee80211_vif *vif)
 {
 	struct lbtf_private *priv = hw->priv;
+	struct ieee80211_vif **priv_vif;
 	lbtf_deb_enter(LBTF_DEB_MACOPS);
 
-	if (priv->vif->type == NL80211_IFTYPE_AP ||
-	    priv->vif->type == NL80211_IFTYPE_MESH_POINT)
+	if (!(priv_vif = _lbtf_choose_vif(vif, priv))) {
+		lbtf_deb_macops("vif not found\n");
+		return;
+	}
+
+	if ((*priv_vif)->type == NL80211_IFTYPE_AP ||
+	    (*priv_vif)->type == NL80211_IFTYPE_MESH_POINT)
 		lbtf_beacon_ctrl(priv, 0, 0);
 	lbtf_set_mode(priv, LBTF_PASSIVE_MODE);
 	lbtf_set_bssid(priv, 0, NULL);
-	priv->vif = NULL;
+	*priv_vif = NULL;
 	lbtf_deb_leave(LBTF_DEB_MACOPS);
 }
 
@@ -546,13 +586,19 @@ static void lbtf_op_bss_info_changed(struct ieee80211_hw *hw,
 {
 	struct lbtf_private *priv = hw->priv;
 	struct sk_buff *beacon;
+	struct ieee80211_vif **priv_vif;
 	lbtf_deb_enter(LBTF_DEB_MACOPS);
+
+	if (!(priv_vif = _lbtf_choose_vif(vif, priv))) {
+		lbtf_deb_macops("vif not found\n");
+		return;
+	}
 
 	lbtf_deb_macops("bss info changed: 0x%x", changes);
 	if (changes & (BSS_CHANGED_BEACON | 
 	               BSS_CHANGED_BEACON_INT | 
 	               BSS_CHANGED_BEACON_ENABLED)) {
-		switch (priv->vif->type) {
+		switch (priv->mode) {
 		case NL80211_IFTYPE_AP:
 		case NL80211_IFTYPE_MESH_POINT:
 			beacon = ieee80211_beacon_get(hw, vif);
@@ -572,7 +618,7 @@ static void lbtf_op_bss_info_changed(struct ieee80211_hw *hw,
 
 	if (changes & (BSS_CHANGED_BEACON_INT | 
 	               BSS_CHANGED_BEACON_ENABLED)) {
-		switch (priv->vif->type) {
+		switch (priv->mode) {
 		case NL80211_IFTYPE_AP:
 		case NL80211_IFTYPE_MESH_POINT:
 				priv->beacon_enable = bss_conf->enable_beacon;

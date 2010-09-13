@@ -349,6 +349,7 @@ void lbtf_set_mode(struct lbtf_private *priv, enum lbtf_mode mode)
 	lbtf_deb_wext("Switching to mode: 0x%x\n", mode);
 	lbtf_cmd_async(priv, CMD_802_11_SET_MODE, &cmd.hdr, sizeof(cmd));
 
+	priv->mode = mode;
 	lbtf_deb_leave(LBTF_DEB_WEXT);
 }
 
@@ -366,19 +367,29 @@ void lbtf_set_bssid(struct lbtf_private *priv, bool activate, const u8 *bssid)
 	lbtf_deb_leave(LBTF_DEB_CMD);
 }
 
-int lbtf_set_mac_address(struct lbtf_private *priv, uint8_t *mac_addr)
+int _lbtf_change_mac_address(struct lbtf_private *priv, uint8_t *mac_addr, int action)
 {
 	struct cmd_ds_802_11_mac_address cmd;
 	lbtf_deb_enter(LBTF_DEB_CMD);
 
 	cmd.hdr.size = cpu_to_le16(sizeof(cmd));
-	cmd.action = cpu_to_le16(CMD_ACT_SET);
+	cmd.action = cpu_to_le16(action);
 
 	memcpy(cmd.macadd, mac_addr, ETH_ALEN);
 
 	lbtf_cmd_async(priv, CMD_802_11_MAC_ADDRESS, &cmd.hdr, sizeof(cmd));
 	lbtf_deb_leave(LBTF_DEB_CMD);
 	return 0;
+}
+
+int lbtf_set_mac_address(struct lbtf_private *priv, uint8_t *mac_addr)
+{
+	return _lbtf_change_mac_address( priv, mac_addr, CMD_ACT_SET );
+}
+
+int lbtf_add_mac_address(struct lbtf_private *priv, uint8_t *mac_addr)
+{
+	return _lbtf_change_mac_address( priv, mac_addr, CMD_ACT_ADD );
 }
 
 int lbtf_set_radio_control(struct lbtf_private *priv)

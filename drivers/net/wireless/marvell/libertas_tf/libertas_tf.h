@@ -46,6 +46,8 @@
 
 #define CMD_ACT_GET			0x0000
 #define CMD_ACT_SET			0x0001
+#define CMD_ACT_ADD			0x0002
+#define CMD_ACT_REMOVE		0x0004
 
 /* Define action or option for CMD_802_11_RESET */
 #define CMD_ACT_HALT			0x0003
@@ -187,6 +189,8 @@ struct lbtf_private {
 	   bit1 1/0=cmd_sent/cmd_tx_done,
 	   all other bits reserved 0 */
 	struct ieee80211_vif *vif;
+	struct ieee80211_vif *sec_vif;  /* only allow a single secondary vif */
+	enum lbtf_mode mode;
 
 	struct work_struct cmd_work;
 	struct work_struct tx_work;
@@ -490,6 +494,7 @@ int lbtf_cmd_set_mac_multicast_addr(struct lbtf_private *priv);
 void lbtf_set_mode(struct lbtf_private *priv, enum lbtf_mode mode);
 void lbtf_set_bssid(struct lbtf_private *priv, bool activate, const u8 *bssid);
 int lbtf_set_mac_address(struct lbtf_private *priv, uint8_t *mac_addr);
+int lbtf_add_mac_address(struct lbtf_private *priv, uint8_t *mac_addr);
 
 int lbtf_set_channel(struct lbtf_private *priv, u8 channel);
 
