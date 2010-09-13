@@ -756,9 +756,10 @@ int lbtf_process_rx_command(struct lbtf_private *priv)
 
 #ifdef CONFIG_LIBERTAS_THINFIRM_DEBUG
 	if (net_ratelimit())
-		pr_info("libertastf: cmd response 0x%04x, seq %d, size %d\n",
+		pr_info("libertastf: cmd response 0x%04x, seq %d, size %d, result %d\n",
 			respcmd, le16_to_cpu(resp->seqnum),
-			le16_to_cpu(resp->size));
+			le16_to_cpu(resp->size),
+			result);
 #endif
 
 	if (resp->seqnum != priv->cur_cmd->cmdbuf->seqnum) {
