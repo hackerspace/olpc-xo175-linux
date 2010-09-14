@@ -442,7 +442,7 @@ static int lbtf_op_add_interface(struct ieee80211_hw *hw,
 		lbtf_set_mode(priv, LBTF_AP_MODE);
 		break;
 	case NL80211_IFTYPE_STATION:
-		if (priv->mode != NL80211_IFTYPE_MESH_POINT)
+		if (priv->mode != LBTF_AP_MODE)
 			lbtf_set_mode(priv, LBTF_STA_MODE);
 		break;
 	default:
