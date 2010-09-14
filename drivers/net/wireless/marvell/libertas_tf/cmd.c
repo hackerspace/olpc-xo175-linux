@@ -392,6 +392,11 @@ int lbtf_add_mac_address(struct lbtf_private *priv, uint8_t *mac_addr)
 	return _lbtf_change_mac_address( priv, mac_addr, CMD_ACT_ADD );
 }
 
+int lbtf_remove_mac_address(struct lbtf_private *priv, uint8_t *mac_addr)
+{
+	return _lbtf_change_mac_address( priv, mac_addr, CMD_ACT_REMOVE );
+}
+
 int lbtf_set_radio_control(struct lbtf_private *priv)
 {
 	int ret = 0;

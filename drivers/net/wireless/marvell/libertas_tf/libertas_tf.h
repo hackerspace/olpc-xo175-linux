@@ -495,6 +495,7 @@ void lbtf_set_mode(struct lbtf_private *priv, enum lbtf_mode mode);
 void lbtf_set_bssid(struct lbtf_private *priv, bool activate, const u8 *bssid);
 int lbtf_set_mac_address(struct lbtf_private *priv, uint8_t *mac_addr);
 int lbtf_add_mac_address(struct lbtf_private *priv, uint8_t *mac_addr);
+int lbtf_remove_mac_address(struct lbtf_private *priv, uint8_t *mac_addr);
 
 int lbtf_set_channel(struct lbtf_private *priv, u8 channel);
 

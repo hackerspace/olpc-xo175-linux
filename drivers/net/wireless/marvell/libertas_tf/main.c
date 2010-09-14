@@ -465,13 +465,19 @@ static int lbtf_op_add_interface(struct ieee80211_hw *hw,
 }
 
 struct ieee80211_vif **_lbtf_choose_vif(struct ieee80211_vif *vif, 
-			struct lbtf_private *priv)
+			struct lbtf_private *priv, struct ieee80211_vif **other_vif)
 {
 	struct ieee80211_vif ** priv_vif = NULL;
-	if (priv->sec_vif != NULL && priv->sec_vif == vif)
+	if (priv->sec_vif != NULL && priv->sec_vif == vif) {
 		priv_vif = &priv->sec_vif;
-	else if (priv->vif != NULL && priv->vif == vif)
+		if (other_vif)
+			*other_vif = priv->vif;
+	}
+	else if (priv->vif != NULL && priv->vif == vif) {
 		priv_vif = &priv->vif;
+		if (other_vif)
+			*other_vif = priv->sec_vif;
+	}
 
 	return priv_vif;
 }
@@ -481,9 +487,10 @@ static void lbtf_op_remove_interface(struct ieee80211_hw *hw,
 {
 	struct lbtf_private *priv = hw->priv;
 	struct ieee80211_vif **priv_vif;
+	struct ieee80211_vif *other_vif;
 	lbtf_deb_enter(LBTF_DEB_MACOPS);
 
-	if (!(priv_vif = _lbtf_choose_vif(vif, priv))) {
+	if (!(priv_vif = _lbtf_choose_vif(vif, priv,&other_vif))) {
 		lbtf_deb_macops("vif not found\n");
 		return;
 	}
@@ -491,9 +498,30 @@ static void lbtf_op_remove_interface(struct ieee80211_hw *hw,
 	if ((*priv_vif)->type == NL80211_IFTYPE_AP ||
 	    (*priv_vif)->type == NL80211_IFTYPE_MESH_POINT)
 		lbtf_beacon_ctrl(priv, 0, 0);
-	lbtf_set_mode(priv, LBTF_PASSIVE_MODE);
-	lbtf_set_bssid(priv, 0, NULL);
+
+	if (other_vif) {
+		switch (other_vif->type) {
+		case NL80211_IFTYPE_MESH_POINT:
+		case NL80211_IFTYPE_AP:
+		case NL80211_IFTYPE_ADHOC:
+			lbtf_set_mode(priv, LBTF_AP_MODE);
+			lbtf_set_bssid(priv, 0, NULL);
+			break;
+		case NL80211_IFTYPE_STATION:
+			lbtf_set_mode(priv, LBTF_STA_MODE);
+			break;
+		default:
+			lbtf_deb_macops("Unsupported interface mode: %d", other_vif->type);
+		}
+	} else {
+		lbtf_set_mode(priv, LBTF_PASSIVE_MODE);
+		lbtf_set_bssid(priv, 0, NULL);
+	}
 	*priv_vif = NULL;
+
+	if (priv_vif == &priv->sec_vif)
+		lbtf_remove_mac_address(priv, (u8 *) vif->addr);
+
 	lbtf_deb_leave(LBTF_DEB_MACOPS);
 }
 
@@ -587,9 +615,10 @@ static void lbtf_op_bss_info_changed(struct ieee80211_hw *hw,
 	struct lbtf_private *priv = hw->priv;
 	struct sk_buff *beacon;
 	struct ieee80211_vif **priv_vif;
+	struct ieee80211_vif *other_vif;
 	lbtf_deb_enter(LBTF_DEB_MACOPS);
 
-	if (!(priv_vif = _lbtf_choose_vif(vif, priv))) {
+	if (!(priv_vif = _lbtf_choose_vif(vif, priv, &other_vif))) {
 		lbtf_deb_macops("vif not found\n");
 		return;
 	}
@@ -599,8 +628,7 @@ static void lbtf_op_bss_info_changed(struct ieee80211_hw *hw,
 	               BSS_CHANGED_BEACON_INT | 
 	               BSS_CHANGED_BEACON_ENABLED)) {
 		switch (priv->mode) {
-		case NL80211_IFTYPE_AP:
-		case NL80211_IFTYPE_MESH_POINT:
+		case LBTF_AP_MODE:
 			beacon = ieee80211_beacon_get(hw, vif);
 			if (beacon) {
 				lbtf_beacon_set(priv, beacon);
@@ -619,8 +647,7 @@ static void lbtf_op_bss_info_changed(struct ieee80211_hw *hw,
 	if (changes & (BSS_CHANGED_BEACON_INT | 
 	               BSS_CHANGED_BEACON_ENABLED)) {
 		switch (priv->mode) {
-		case NL80211_IFTYPE_AP:
-		case NL80211_IFTYPE_MESH_POINT:
+		case LBTF_AP_MODE:
 				priv->beacon_enable = bss_conf->enable_beacon;
 				priv->beacon_int = bss_conf->beacon_int;
 				lbtf_beacon_ctrl(priv, bss_conf->enable_beacon,
@@ -886,9 +913,22 @@ void lbtf_host_to_card_done(struct lbtf_private *priv )
 }
 EXPORT_SYMBOL_GPL(lbtf_host_to_card_done);
 
+struct ieee80211_vif **_lbtf_choose_vif_by_type(enum nl80211_iftype type,
+			struct lbtf_private *priv)
+{
+	struct ieee80211_vif ** priv_vif = NULL;
+	if (priv->sec_vif != NULL && priv->sec_vif->type == type)
+		priv_vif = &priv->sec_vif;
+	else if (priv->vif != NULL && priv->vif->type == type)
+		priv_vif = &priv->vif;
+
+	return priv_vif;
+}
+
 void lbtf_bcn_sent(struct lbtf_private *priv)
 {
 	struct sk_buff *skb = NULL;
+	struct ieee80211_vif ** priv_vif = NULL;
 
 	lbtf_deb_enter(LBTF_DEB_MAIN);
 
@@ -897,18 +937,22 @@ void lbtf_bcn_sent(struct lbtf_private *priv)
 		return;
 	}
 
-	if (!priv->vif) {
-		lbtf_deb_main("got bcn sent with vif == NULL");
+	if (!(priv_vif = _lbtf_choose_vif_by_type(NL80211_IFTYPE_AP, priv))) {
+			if (!(priv_vif = _lbtf_choose_vif_by_type(NL80211_IFTYPE_MESH_POINT, priv))) {
+				lbtf_deb_macops("vif not found\n");
+				return;
+			}
 		return;
 	}
 
-	if (priv->vif->type != NL80211_IFTYPE_AP)
+	if ((*priv_vif)->type != NL80211_IFTYPE_AP &&
+		(*priv_vif)->type != NL80211_IFTYPE_MESH_POINT)
 		return;
 
 	if (skb_queue_empty(&priv->bc_ps_buf)) {
 		bool tx_buff_bc = false;
 
-		while ((skb = ieee80211_get_buffered_bc(priv->hw, priv->vif))) {
+		while ((skb = ieee80211_get_buffered_bc(priv->hw, (*priv_vif)))) {
 			skb_queue_tail(&priv->bc_ps_buf, skb);
 			tx_buff_bc = true;
 		}
@@ -918,7 +962,7 @@ void lbtf_bcn_sent(struct lbtf_private *priv)
 		}
 	}
 
-	skb = ieee80211_beacon_get(priv->hw, priv->vif);
+	skb = ieee80211_beacon_get(priv->hw, (*priv_vif));
 
 	if (skb) {
  		lbtf_beacon_set(priv, skb);
