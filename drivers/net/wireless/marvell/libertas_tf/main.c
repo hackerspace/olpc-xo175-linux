@@ -627,8 +627,9 @@ static void lbtf_op_bss_info_changed(struct ieee80211_hw *hw,
 	if (changes & (BSS_CHANGED_BEACON | 
 	               BSS_CHANGED_BEACON_INT | 
 	               BSS_CHANGED_BEACON_ENABLED)) {
-		switch (priv->mode) {
-		case LBTF_AP_MODE:
+		switch (vif->type) {
+		case NL80211_IFTYPE_AP:
+		case NL80211_IFTYPE_MESH_POINT:
 			beacon = ieee80211_beacon_get(hw, vif);
 			if (beacon) {
 				lbtf_beacon_set(priv, beacon);
@@ -646,8 +647,9 @@ static void lbtf_op_bss_info_changed(struct ieee80211_hw *hw,
 
 	if (changes & (BSS_CHANGED_BEACON_INT | 
 	               BSS_CHANGED_BEACON_ENABLED)) {
-		switch (priv->mode) {
-		case LBTF_AP_MODE:
+		switch (vif->type) {
+		case NL80211_IFTYPE_AP:
+		case NL80211_IFTYPE_MESH_POINT:
 				priv->beacon_enable = bss_conf->enable_beacon;
 				priv->beacon_int = bss_conf->beacon_int;
 				lbtf_beacon_ctrl(priv, bss_conf->enable_beacon,
