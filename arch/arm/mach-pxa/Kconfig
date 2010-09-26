@@ -662,7 +662,7 @@ config CPU_PXA935
 
 config PXA95x
 	bool
-	select CPU_PJ4
+	select CPU_PJ4 if !(CPU_XSCALE || CPU_XSC3)
 	select MULTI_IRQ_HANDLER
 	select PXA_SSP
 	help
