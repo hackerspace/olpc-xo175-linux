@@ -237,7 +237,7 @@ static struct clk_lookup pxa95x_clkregs[] = {
 void __init pxa95x_init_irq(void)
 {
 	pxa_init_irq(96, NULL);
-	pxa_init_gpio(IRQ_GPIO_2_x, 2, 127, NULL);
+	pxa_init_gpio(IRQ_GPIO_2_x, 2, 191, NULL);
 }
 
 /*
