@@ -104,6 +104,7 @@
  *  PXA935	B0	0x56056936	0x6E653013
  *  PXA935	B1	0x56056938	0x8E653013
  */
+extern unsigned int pxa_chip_id;
 #ifdef CONFIG_PXA25x
 #define __cpu_is_pxa210(id)				\
 	({						\
@@ -196,12 +197,12 @@
 #endif
 
 #ifdef CONFIG_CPU_PXA955
-#define __cpu_is_pxa955(id)				\
-	({						\
-		unsigned int _id = (id) >> 4 & 0xfff;	\
-		_id == 0x581 || _id == 0xc08		\
-			|| _id == 0xb76;		\
-	})
+#define __cpu_is_pxa955(id)                             	\
+	({                                              	\
+		unsigned int _id = (id) >> 4 & 0xfff;		\
+		(_id == 0x581 || _id == 0xc08 || _id == 0xb76)	\
+		&& (((pxa_chip_id >> 8) & 0xff) == 0x26);	\
+	 })
 #else
 #define __cpu_is_pxa955(id)	(0)
 #endif

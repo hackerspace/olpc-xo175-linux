@@ -32,6 +32,10 @@
 
 #include "generic.h"
 
+/* chip id is introduced from PXA95x */
+unsigned int pxa_chip_id;
+EXPORT_SYMBOL(pxa_chip_id);
+
 void clear_reset_status(unsigned int mask)
 {
 	if (cpu_is_pxa2xx())
@@ -75,8 +79,11 @@ EXPORT_SYMBOL(get_clk_frequency_khz);
 /*
  * Intel PXA2xx internal register mapping.
  *
- * Note: virtual 0xfffe0000-0xffffffff is reserved for the vector table
+ * Note 1: virtual 0xfffe0000-0xffffffff is reserved for the vector table
  *       and cache flush area.
+ *
+ * Note 2: virtual 0xfb000000-0xfb00ffff is reserved for PXA95x
+ *
  */
 static struct map_desc common_io_desc[] __initdata = {
   	{	/* Devs */
@@ -84,6 +91,11 @@ static struct map_desc common_io_desc[] __initdata = {
 		.pfn		= __phys_to_pfn(0x40000000),
 		.length		= 0x02000000,
 		.type		= MT_DEVICE
+	}, {	/* Sys */
+		.virtual	= 0xfb000000,
+		.pfn		= __phys_to_pfn(0x46000000),
+		.length		= 0x00010000,
+		.type		= MT_DEVICE,
 	}, {	/* UNCACHED_PHYS_0 */
 		.virtual	= 0xff000000,
 		.pfn		= __phys_to_pfn(0x00000000),
@@ -95,4 +107,7 @@ static struct map_desc common_io_desc[] __initdata = {
 void __init pxa_map_io(void)
 {
 	iotable_init(ARRAY_AND_SIZE(common_io_desc));
+
+	if (!cpu_is_pxa2xx() || !cpu_is_pxa3xx() || !cpu_is_pxa93x())
+		pxa_chip_id = __raw_readl(0xfb00ff80);
 }
