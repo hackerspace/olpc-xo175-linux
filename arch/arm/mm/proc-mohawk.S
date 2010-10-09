@@ -90,6 +90,9 @@ ENTRY(cpu_mohawk_do_idle)
 	mov	r0, #0
 	mcr	p15, 0, r0, c7, c10, 4		@ drain write buffer
 	mcr	p15, 0, r0, c7, c0, 4		@ wait for interrupt
+	mov	r0, #25
+1:	subs	r0, r0, #1
+	bne	1b
 	mov	pc, lr
 
 /*
