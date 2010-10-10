@@ -12,6 +12,7 @@
 
 #include <linux/init.h>
 #include <linux/kernel.h>
+#include <linux/platform_device.h>
 #include <linux/i2c.h>
 #include <linux/i2c/pxa-i2c.h>
 #include <linux/mfd/88pm860x.h>
@@ -25,6 +26,7 @@
 #include <mach/mfp-pxa930.h>
 #include <mach/gpio.h>
 
+#include "devices.h"
 #include "generic.h"
 
 #define SAARB_NR_IRQS	(IRQ_BOARD_START + 40)
@@ -95,10 +97,16 @@ static struct i2c_board_info saarb_i2c_info[] = {
 	},
 };
 
+static struct platform_device *devices[] __initdata = {
+	&pxa95x_device_i2c1,
+	&pxa95x_device_i2c2,
+	&pxa95x_device_i2c3,
+};
+
 static void __init saarb_init(void)
 {
 	pxa_set_ffuart_info(NULL);
-	pxa_set_i2c_info(NULL);
+	platform_add_devices(ARRAY_AND_SIZE(devices));
 	i2c_register_board_info(0, ARRAY_AND_SIZE(saarb_i2c_info));
 }
 
