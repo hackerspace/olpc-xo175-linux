@@ -679,6 +679,10 @@ static DEFINE_PXA3_CKEN(pxa95x_ssp3, SSP3, 13000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_ssp4, SSP4, 13000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_pwm0, PWM0, 13000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_pwm1, PWM1, 13000000, 0);
+static DEFINE_PXA3_CKEN(pxa95x_sdh0, PXA95x_MMC1, 200000000, 0);
+static DEFINE_PXA3_CKEN(pxa95x_sdh1, PXA95x_MMC2, 200000000, 0);
+static DEFINE_PXA3_CKEN(pxa95x_sdh2, PXA95x_MMC3, 200000000, 0);
+static DEFINE_PXA3_CKEN(pxa95x_sdh3, PXA95x_MMC4, 200000000, 0);
 
 static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_pout, NULL, "CLK_POUT"),
@@ -704,6 +708,10 @@ static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_ihdmi, NULL, "PXA95x_iHDMICLK"),
 	INIT_CLKREG(&clk_pxa95x_lcd, "pxa95x-fb", "PXA95x_LCDCLK"),
 	INIT_CLKREG(&clk_pxa95x_axi, NULL, "AXICLK"),
+	INIT_CLKREG(&clk_pxa95x_sdh0, "sdhci-pxav2.0", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_pxa95x_sdh1, "sdhci-pxav2.1", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_pxa95x_sdh2, "sdhci-pxav2.2", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_pxa95x_sdh3, "sdhci-pxav2.3", "PXA-SDHCLK"),
 };
 
 void __init pxa95x_init_irq(void)

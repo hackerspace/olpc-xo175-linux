@@ -1069,8 +1069,126 @@ void __init pxa2xx_set_spi_info(unsigned id, struct pxa2xx_spi_master *info)
 }
 
 #if defined(CONFIG_PXA95x)
-static u64 pxa95x_i2c1_dma_mask = DMA_BIT_MASK(32);
 
+/*mci0,1,2,3 corresponds to 1,2,3,4 in spec*/
+static struct resource pxa95x_resources_mci0[] = {
+	[0] = {
+		.start	= 0x55000000,
+		.end	= 0x550fffff,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= IRQ_PXA935_MMC0,
+		.end	= IRQ_PXA935_MMC0,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device pxa95x_device_mci0 = {
+	.name		= "sdhci-pxav2",
+	.id		= 0,
+	.dev		= {
+		.dma_mask = &pxamci_dmamask,
+		.coherent_dma_mask = 0xffffffff,
+	},
+	.num_resources	= ARRAY_SIZE(pxa95x_resources_mci0),
+	.resource	= pxa95x_resources_mci0,
+};
+
+static struct resource pxa95x_resources_mci1[] = {
+	[0] = {
+		.start	= 0x55100000,
+		.end	= 0x551fffff,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= IRQ_PXA935_MMC1,
+		.end	= IRQ_PXA935_MMC1,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device pxa95x_device_mci1 = {
+	.name		= "sdhci-pxav2",
+	.id		= 1,
+	.dev		= {
+		.dma_mask = &pxamci_dmamask,
+		.coherent_dma_mask = 0xffffffff,
+	},
+	.num_resources	= ARRAY_SIZE(pxa95x_resources_mci1),
+	.resource	= pxa95x_resources_mci1,
+};
+
+static struct resource pxa95x_resources_mci2[] = {
+	[0] = {
+		.start	= 0x55200000,
+		.end	= 0x552fffff,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= IRQ_PXA935_MMC2,
+		.end	= IRQ_PXA935_MMC2,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device pxa95x_device_mci2 = {
+	.name		= "sdhci-pxav2",
+	.id		= 2,
+	.dev		= {
+		.dma_mask = &pxamci_dmamask,
+		.coherent_dma_mask = 0xffffffff,
+	},
+	.num_resources	= ARRAY_SIZE(pxa95x_resources_mci2),
+	.resource	= pxa95x_resources_mci2,
+};
+
+static struct resource pxa95x_resources_mci3[] = {
+	[0] = {
+		.start	= 0x55300000,
+		.end	= 0x553fffff,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= IRQ_PXA955_MMC3,
+		.end	= IRQ_PXA955_MMC3,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device pxa95x_device_mci3 = {
+	.name		= "sdhci-pxav2",
+	.id		= 3,
+	.dev		= {
+		.dma_mask = &pxamci_dmamask,
+		.coherent_dma_mask = 0xffffffff,
+	},
+	.num_resources	= ARRAY_SIZE(pxa95x_resources_mci3),
+	.resource	= pxa95x_resources_mci3,
+};
+
+void __init pxa95x_set_mci_info(int id, void *info)
+{
+	struct platform_device *d = NULL;
+
+	switch (id) {
+	case 0:
+		d = &pxa95x_device_mci0; break;
+	case 1:
+		d = &pxa95x_device_mci1; break;
+	case 2:
+		d = &pxa95x_device_mci2; break;
+	case 3:
+		d = &pxa95x_device_mci3; break;
+	default:
+		return;
+	}
+	pxa_register_device(d, info);
+}
+
+
+
+static u64 pxa95x_i2c1_dma_mask = DMA_BIT_MASK(32);
 static struct resource pxa95x_resources_i2c1[] = {
 	{
 		.start	= 0x40301680,

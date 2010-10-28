@@ -49,3 +49,4 @@ extern struct platform_device pxa95x_device_i2c2;
 extern struct platform_device pxa95x_device_i2c3;
 
 void __init pxa_register_device(struct platform_device *dev, void *data);
+extern void __init pxa95x_set_mci_info(int id, void *info);
