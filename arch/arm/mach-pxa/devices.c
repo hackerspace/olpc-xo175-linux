@@ -1173,4 +1173,123 @@ struct platform_device pxa95x_device_i2c3 = {
 	.resource	= pxa95x_resources_i2c3,
 	.num_resources	= ARRAY_SIZE(pxa95x_resources_i2c3),
 };
+
+
+static struct resource pxa95xfb_resources[] = {
+	[0] = {
+		.start  = 0x44100000,
+		.end    = 0x4410ffff,
+		.flags  = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start  = IRQ_LCDGLOBAL,
+		.end    = IRQ_LCDGLOBAL,
+		.flags  = IORESOURCE_IRQ,
+	},
+	[2] = {
+		.start  = IRQ_LCDPARALLEL,
+		.end    = IRQ_LCDPARALLEL,
+		.flags  = IORESOURCE_IRQ,
+	},
+	[3] = {
+		.start	= IRQ_DSI0,
+		.end	= IRQ_DSI0,
+		.flags	= IORESOURCE_IRQ,
+	},
+	[4] = {
+		.start	= IRQ_DSI1,
+		.end	= IRQ_DSI1,
+		.flags	= IORESOURCE_IRQ,
+	},
+	[5] = {/*todo: */
+		.start	= IRQ_DSI0,
+		.end	= IRQ_DSI0,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+static struct resource pxa95xfb_ovly_resources[] = {
+	[0] = {
+		.start  = 0x44100000,
+		.end    = 0x4410ffff,
+		.flags  = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start  = IRQ_LCDGLOBAL,
+		.end    = IRQ_LCDGLOBAL,
+		.flags  = IORESOURCE_IRQ,
+	},
+	[2] = {
+		.start  = IRQ_LCDPARALLEL,
+		.end    = IRQ_LCDPARALLEL,
+		.flags  = IORESOURCE_IRQ,
+	},
+	[3] = {
+		.start	= IRQ_DSI0,
+		.end	= IRQ_DSI0,
+		.flags	= IORESOURCE_IRQ,
+	},
+	[4] = {
+		.start	= IRQ_DSI1,
+		.end	= IRQ_DSI1,
+		.flags	= IORESOURCE_IRQ,
+	},
+	[5] = {/*todo: */
+		.start	= IRQ_DSI0,
+		.end	= IRQ_DSI0,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+
+struct platform_device pxa95x_device_fb = {
+	.name           = "pxa95x-fb",
+	.id             = -1,
+	.dev            = {
+		.dma_mask       = &fb_dma_mask,
+		.coherent_dma_mask = 0xffffffff,
+	},
+	.num_resources  = ARRAY_SIZE(pxa95xfb_resources),
+	.resource       = pxa95xfb_resources,
+};
+
+struct platform_device pxa95x_device_fb_ovly[] = {
+	[0] = {
+		.name           = "pxa95xfb-ovly",
+		.id             = 0,
+		.dev            = {
+			.dma_mask       = &fb_dma_mask,
+			.coherent_dma_mask = 0xffffffff,
+		},
+		.num_resources  = ARRAY_SIZE(pxa95xfb_ovly_resources),
+		.resource       = pxa95xfb_ovly_resources,
+	},
+	[1] = {
+		.name           = "pxa95xfb-ovly",
+		.id             = 1,
+		.dev            = {
+			.dma_mask       = &fb_dma_mask,
+			.coherent_dma_mask = 0xffffffff,
+		},
+		.num_resources  = ARRAY_SIZE(pxa95xfb_ovly_resources),
+		.resource       = pxa95xfb_ovly_resources,
+	},
+
+};
+
+void __init set_pxa95x_fb_info(void *info)
+{
+	pxa_register_device(&pxa95x_device_fb, info);
+}
+
+void __init set_pxa95x_fb_ovly_info(void *info, int id)
+{
+	pxa_register_device(&pxa95x_device_fb_ovly[id], info);
+}
+
+void __init set_pxa95x_fb_parent(struct device *parent_dev)
+{
+	pxa95x_device_fb.dev.parent = parent_dev;
+}
+
 #endif

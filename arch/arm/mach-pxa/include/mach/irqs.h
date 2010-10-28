@@ -43,7 +43,7 @@
 #define IRQ_USIM	PXA_IRQ(15)     /* Smart Card interface interrupt (PXA27x) */
 #define IRQ_NSSP	PXA_IRQ(16)	/* Network SSP Service Request (PXA25x) */
 #define IRQ_SSP2	PXA_IRQ(16)	/* SSP2 interrupt (PXA27x) */
-#define	IRQ_LCD		PXA_IRQ(17)	/* LCD Controller Service Request */
+#define	IRQ_LCD		PXA_IRQ(17)	/* LCD Controller Service Request (PXA2xx, PXA3xx, PXA93x)*/
 #define	IRQ_I2C		PXA_IRQ(18)	/* I2C Service Request */
 #define	IRQ_ICP		PXA_IRQ(19)	/* ICP Transmit/Receive/Error */
 #define IRQ_ACIPC2	PXA_IRQ(19)	/* AP-CP Communication (PXA930) */
@@ -79,16 +79,18 @@
 #define IRQ_DMEMC	PXA_IRQ(51)	/* Dynamic Memory Controller */
 #define IRQ_MMC3	PXA_IRQ(55)	/* MMC3 Controller (PXA310) */
 #define IRQ_I2C3	PXA_IRQ(61)	/* I2C3 Controller (PXA955) */
-
+#define IRQ_DSI1	PXA_IRQ(62)	/* DSI1 converter IRQ (PXA95x) */
+#define IRQ_DSI0	PXA_IRQ(63)	/* DSI0 converter IRQ (PXA95x) */
 #define IRQ_U2O		PXA_IRQ(64)	/* USB OTG 2.0 Controller (PXA935) */
 #define IRQ_U2H		PXA_IRQ(65)	/* USB Host 2.0 Controller (PXA935) */
+#define IRQ_LCDPARALLEL	PXA_IRQ(68)	/* Parallel converter IRQ (PXA95x) */
+#define IRQ_LCDGLOBAL	PXA_IRQ(69)	/* LCD controler global IRQ (PXA95x) */
 #define IRQ_PXA935_MMC0	PXA_IRQ(72)	/* MMC0 Controller (PXA935) */
 #define IRQ_PXA935_MMC1	PXA_IRQ(73)	/* MMC1 Controller (PXA935) */
 #define IRQ_PXA935_MMC2	PXA_IRQ(74)	/* MMC2 Controller (PXA935) */
 #define IRQ_PXA955_MMC3	PXA_IRQ(75)	/* MMC3 Controller (PXA955) */
 #define IRQ_I2C2	PXA_IRQ(78)	/* I2C2 Controller (PXA955) */
 #define IRQ_U2P		PXA_IRQ(93)	/* USB PHY D+/D- Lines (PXA935) */
-
 #define PXA_GPIO_IRQ_BASE	PXA_IRQ(96)
 #define PXA_GPIO_IRQ_NUM	(192)
 

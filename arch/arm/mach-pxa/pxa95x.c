@@ -20,6 +20,8 @@
 #include <linux/io.h>
 #include <linux/syscore_ops.h>
 #include <linux/memblock.h>
+#include <linux/sysdev.h>
+#include <linux/delay.h>
 
 #include <asm/hardware/cache-tauros2.h>
 
@@ -35,6 +37,7 @@
 #include "generic.h"
 #include "devices.h"
 #include "clock.h"
+#include "dsi_hdmi_pll.h"
 
 static struct mfp_addr_map pxa95x_mfp_addr_map[] __initdata = {
 
@@ -224,8 +227,443 @@ const struct clkops clk_pxa95x_tout_s0_ops = {
 	.enable		= clk_tout_s0_enable,
 	.disable	= clk_tout_s0_disable,
 };
+#define MIPI_BANDGAP_CONTROL	(1 << 10)
+static volatile u32 *gen_reg4;
+#define GEN_REG4 0x42404078
+void set_mipi_reference_control(void)
+{
+	if (!gen_reg4)
+		gen_reg4 = ioremap_nocache(GEN_REG4, 0x4);
+	*gen_reg4 |= (MIPI_BANDGAP_CONTROL);
+	udelay(1);
+	pr_info("set mipi band gap reference control bit\n");
+}
 
-static DEFINE_CK(pxa95x_lcd, LCD, &clk_pxa3xx_hsio_ops);
+static int dsi_enable_status;
+static int csi_enable_status;
+static int hdmi_enable_status;
+
+void clear_mipi_reference_control(void)
+{
+	if ((dsi_enable_status == 0)
+			&& (csi_enable_status == 0)
+			&& (hdmi_enable_status == 0)) {
+		if (!gen_reg4)
+			gen_reg4 = ioremap_nocache(GEN_REG4, 0x4);
+		*gen_reg4 &= ~(MIPI_BANDGAP_CONTROL);
+		pr_info("clear mipi band gap reference control bit\n");
+	}
+}
+
+
+u32 get_mipi_reference_control(void)
+{
+	if (!gen_reg4)
+		gen_reg4 = ioremap_nocache(GEN_REG4, 0x4);
+	return *gen_reg4;
+}
+
+
+static void clk_pxa95x_dsi_enable(struct clk *dsi_clk)
+{
+	set_mipi_reference_control();
+	dsi_enable_status = 1;
+
+	if (!cpu_is_pxa970()) {
+		struct DSIRegisters  *p_Regs =
+			get_dsi_pll(dsi_clk->cken == CKEN_DSI_TX2);
+		/*Enable PLL with internal timer*/
+		p_Regs->DSI_REG3 = 0x05cc60a2;
+		p_Regs->DSI_REG1 =
+			DSI_REG1_DSIx_PLL_LOCK_SEL
+			| DSI_REG1_DSIx_PLL_ON;
+	}
+
+	pr_info("dsi clock enable\n");
+	CKENC |= 1 << (dsi_clk->cken - 64);
+
+	return;
+}
+
+static void clk_pxa95x_dsi_disable(struct clk *dsi_clk)
+{
+	CKENC &= ~(1 << (dsi_clk->cken - 64));
+
+	if (!cpu_is_pxa970()) {
+		struct DSIRegisters  *p_Regs =
+			get_dsi_pll(dsi_clk->cken == CKEN_DSI_TX2);
+		/*Disable PLL with internal timer*/
+		/* JIRA: MG1-1265 dis pll could only be disabled
+		   by setting reg3 to this value */
+		p_Regs->DSI_REG3 = 0x040c60a2;
+		p_Regs->DSI_REG1 =
+			DSI_REG1_DSIx_PLL_LOCK_SEL;
+	}
+
+	dsi_enable_status = 0;
+	clear_mipi_reference_control();
+
+	return;
+}
+
+/* refdiv, fbdiv, vcodiv_sel_se, vco_vrng, kvco_range */
+static struct DSI_PLL_PARAMETERS_NEVO LCD_DSI_PLL_Freq_202 = {3, 140, 7, 0, 1};
+static struct DSI_PLL_PARAMETERS_NEVO LCD_DSI_PLL_Freq_217 = {3, 150, 7, 0, 1};
+static struct DSI_PLL_PARAMETERS_NEVO LCD_DSI_PLL_Freq_594 = {3, 171, 3, 1, 2};
+static void dsi_set_clock_nevo(u32 dsi_clk_val)
+{
+	struct DSIRegisters_Nevo  *p_Regs = get_dsi_pll_nevo();
+	u32 fbdiv, refdiv, outdiv, vcodiv_sel_se, kvco_range, vco_vrng, kvco;
+
+	/*
+	 * This code only allow DSI clock frequencies from the
+	 * values defined in LCD_Controller_DSI_Clock enum.
+	 * It is possible to remove this limitation and work
+	 * directly with continuous numerical values. HOWEVER,
+	 * if doing so PHY timing configuration MUST ALSO
+	 * BE MODIFIED with the needed calcultaion to comply
+	 * with non-fixed values.
+	 * */
+	/*Make sure dsi_clk is within range*/
+	if (dsi_clk_val > 624) {
+		pr_err("%s: BAD clock value used\n", __func__);
+		return;
+	}
+
+	/*Disable PLL with internal timer*/
+	p_Regs->DSI_NEVO_PU = 0;
+
+	/*Set default values*/
+	refdiv = 0x1;/*Always Set to 00001*/
+	if (dsi_clk_val < 150) {
+		outdiv = 1;
+		dsi_clk_val *= 2;
+	} else {
+		outdiv = 0;
+	}
+	/* For several frequencys, use optimal parameters from the table -
+	   else, calculate according to spec */
+	if (dsi_clk_val == 202) {
+		refdiv = LCD_DSI_PLL_Freq_202.refdiv;
+		fbdiv = LCD_DSI_PLL_Freq_202.fbdiv;
+		vcodiv_sel_se = LCD_DSI_PLL_Freq_202.vcodiv_sel_se;
+		vco_vrng = LCD_DSI_PLL_Freq_202.vco_vrng;
+		kvco_range = LCD_DSI_PLL_Freq_202.kvco_range;
+	} else if (dsi_clk_val == 217) {
+		refdiv = LCD_DSI_PLL_Freq_217.refdiv;
+		fbdiv = LCD_DSI_PLL_Freq_217.fbdiv;
+		vcodiv_sel_se = LCD_DSI_PLL_Freq_217.vcodiv_sel_se;
+		vco_vrng = LCD_DSI_PLL_Freq_217.vco_vrng;
+		kvco_range = LCD_DSI_PLL_Freq_217.kvco_range;
+	} else if (dsi_clk_val == 594) {
+		refdiv = LCD_DSI_PLL_Freq_594.refdiv;
+		fbdiv = LCD_DSI_PLL_Freq_594.fbdiv;
+		vcodiv_sel_se = LCD_DSI_PLL_Freq_594.vcodiv_sel_se;
+		vco_vrng = LCD_DSI_PLL_Freq_594.vco_vrng;
+		kvco_range = LCD_DSI_PLL_Freq_594.kvco_range;
+	} else {
+		/* Step 1 - Choose REFDIV[4:0] for the reference clock divider
+		   (M) */
+		refdiv = 3; /*default settings for all frequencies */
+
+		/* Step 2 - Choose VCODIV_SEL_DIFF[3:0] for the differential
+		   clock CLKOUTP/CLKOUTN */
+		/* Step 3 - Choose KVCO[3:0] to get the right VCO frequency
+		   This is only in the case of freq lower then 1200 */
+		if (dsi_clk_val < 1200) {
+			kvco = dsi_calc_kvco(dsi_clk_val, &kvco_range,
+					&vcodiv_sel_se);
+		} else {
+			kvco_range = dsi_get_kvco_range(dsi_clk_val);
+			kvco = dsi_clk_val;
+			vcodiv_sel_se = 0;
+		}
+
+		/* Step 4 - Choose KVCO[3:0] to get the right VCO frequency */
+		vco_vrng = kvco_range - 1;
+
+		/* Step 5 - Choose FBDIV[8:0] for feedback divider (N)
+		   to satisfy FVCO = (REFCLK / M) * N */
+
+		/*Calculate FBDIV according to dsi_clk_val*/
+		fbdiv = dsi_calc_fbdiv_Nevo(refdiv, kvco);
+	}
+
+	/*Assemble REG2 value*/
+	p_Regs->DSI_NEVO_CONFIG =
+		DSI_NEVO_CONFIG_VCODIV_SEL_SE(vcodiv_sel_se)
+		| DSI_NEVO_CONFIG_VCO_VRNG(vco_vrng)
+		| DSI_NEVO_CONFIG_KVCO(kvco_range)
+		| DSI_NEVO_CONFIG_OUTDIV(outdiv)
+		| DSI_NEVO_CONFIG_FBDIV(fbdiv)
+		| DSI_NEVO_CONFIG_REFDIV(refdiv);
+
+	/*Enable PLL with internal timer*/
+	p_Regs->DSI_NEVO_PU = DSI_NEVO_PU_PLL_ON;
+
+	/*Need to at least wait 100us*/
+	mdelay(1);
+
+	dsi_pll_locked_Nevo(10, p_Regs);
+	return;
+}
+
+static void dsi_set_clock_pv2(u32 dsi_clk_val, u32 converter)
+{
+	struct DSIRegisters  *p_Regs = get_dsi_pll(converter);
+	u32 fbdiv, refdiv, outdiv, cksel;
+
+	/*
+	 * This code only allow DSI clock frequencies from the
+	 * values defined in LCD_Controller_DSI_Clock enum.
+	 * It is possible to remove this limitation and work
+	 * directly with continuous numerical values. HOWEVER,
+	 * if doing so PHY timing configuration MUST ALSO
+	 * BE MODIFIED with the needed calcultaion to comply
+	 * with non-fixed values.
+	 * */
+	/*Make sure dsi_clk is within range*/
+	if (dsi_clk_val > 624) {
+		pr_err("%s: BAD clock value used\n", __func__);
+		return;
+	}
+
+	/*Disable PLL with internal timer*/
+	p_Regs->DSI_REG1 =
+		DSI_REG1_DSIx_PLL_LOCK_SEL;
+
+	/*Set default values*/
+	refdiv = 0x1;/*Always Set to 00001*/
+	if (dsi_clk_val > 200) {
+		outdiv = 0xF;
+		if (dsi_clk_val < 400)
+			cksel = 0x1;
+		else
+			cksel = 0x0;
+	} else {
+		outdiv = 16 - (200/dsi_clk_val);
+		cksel = 0x0;
+	}
+
+	/*Calculate FBDIV according to dsi_clk_val*/
+	fbdiv = dsi_calc_fbdiv(dsi_clk_val, outdiv, cksel);
+
+	/*Assemble REG2 value*/
+	p_Regs->DSI_REG2 = DSI_REG2_DEFAULT
+		| DSI_REG2_CK_SEL(cksel)
+		| DSI_REG2_OUTDIV(outdiv)
+		| DSI_REG2_FBDIV(fbdiv)
+		| DSI_REG2_REFDIV(refdiv);
+
+	/*Enable PLL with internal timer*/
+	p_Regs->DSI_REG1 =
+		DSI_REG1_DSIx_PLL_LOCK_SEL
+		| DSI_REG1_DSIx_PLL_ON;
+
+	/*Need to at least wait 100us*/
+	mdelay(1);
+	return;
+}
+
+
+static int clk_pxa95x_dsi_setrate(struct clk *dsi_clk, unsigned long rate)
+{
+	int mrate = rate/1000000;
+	if (cpu_is_pxa970())
+		dsi_set_clock_nevo(mrate);
+	else
+		dsi_set_clock_pv2(mrate, (dsi_clk->cken == CKEN_DSI_TX2));
+	return 0;
+
+}
+
+/* TODO: hdmi cken? */
+static void clk_pxa95x_ihdmi_enable(struct clk *hdmi_clk)
+{
+	set_mipi_reference_control();
+	dsi_enable_status = 1;
+}
+
+static void clk_pxa95x_ihdmi_disable(struct clk *hdmi_clk)
+{
+	struct HDMIRegisters *p_Regs = get_ihdmi_pll();
+
+	p_Regs->HDMI_PLL_PU = 0;
+	mdelay(1);
+	hdmi_enable_status = 0;
+	clear_mipi_reference_control();
+}
+
+/* place real turn on when setrate: enable -> setrate */
+static struct HDMI_PLL_PARAMETERS hdmi_pll_freq_126 = {
+	0x2, 0x4, 0x3, 77, 0x2, 0x0188D};
+static struct HDMI_PLL_PARAMETERS hdmi_pll_freq_136 = {
+	0x2, 0x4, 0x3, 83, 0x2, 0x003CC};
+static struct HDMI_PLL_PARAMETERS hdmi_pll_freq_271 = {
+	0x2, 0x4, 0x4, 83, 0x2, 0x003CC};
+static struct HDMI_PLL_PARAMETERS hdmi_pll_freq_371 = {
+	0x2, 0x4, 0x2, 114, 0x2, 0x084B};
+static struct HDMI_PLL_PARAMETERS hdmi_pll_freq_742 = {
+	0x2, 0x4, 0x1, 114, 0x2, 0x084B};
+static int clk_pxa95x_ihdmi_setrate(struct clk *clk, unsigned long rate)
+{
+	struct HDMIRegisters *p_Regs = get_ihdmi_pll();
+	u32 hdmi_clk = rate/1000000;
+
+	struct HDMI_PLL_PARAMETERS *para;
+
+	/* Make sure hdmi_clk is within range. */
+	if (hdmi_clk > 800) {
+		pr_err("%s HDMI clock not within range!!\n", __func__);
+		return 0;
+	}
+
+	/* Initilize the phy */
+
+	/* Reset the phy */
+	p_Regs->HDMI_PHY_CTL2 = 0x5;
+	p_Regs->HDMI_PHY_CTL1 &= (0xFFF8007F);
+	p_Regs->HDMI_PHY_CTL1 &=
+		~(HDMI_PHY_CTL1_REG_PD_IREF(0)
+		| HDMI_PHY_CTL1_REG_PD_TX(0xf));
+	p_Regs->HDMI_PHY_CTL1 |= HDMI_PHY_CTL1_REG_RESET_TX_OFF;
+	mdelay(1);
+	p_Regs->HDMI_PHY_CTL1 &= HDMI_PHY_CTL1_REG_RESET_TX_ON;
+	/* Reset the vpll HW state machine */
+	p_Regs->HDMI_PLL_DEBUG2 &= ~HDMI_PLL_DEBUG2_PLL_CTRL_RSTN;
+	mdelay(1);
+	/* Disable PLL */
+	p_Regs->HDMI_PLL_PU = 0;
+	mdelay(1);
+	/* Release reset the vpll HW state machine */
+	p_Regs->HDMI_PLL_DEBUG2 |= HDMI_PLL_DEBUG2_PLL_CTRL_RSTN;
+	mdelay(1);
+	/* Enable PLL */
+	/* p_Regs->HDMI_PLL_PU = HDMI_PLL_PWR_PLL_ON; */
+
+	/* For several frequencys, use optimal parameters from the table
+	   - else, calculate according to spec */
+	switch (hdmi_clk) {
+	case 126:
+		para = &hdmi_pll_freq_126;
+		break;
+	case 136:
+		para = &hdmi_pll_freq_136;
+		break;
+	case 271:
+		para = &hdmi_pll_freq_271;
+		break;
+	case 371:
+		para = &hdmi_pll_freq_371;
+		break;
+	case 742:
+		para = &hdmi_pll_freq_742;
+		break;
+	default:
+		pr_err("%s Unknown freq value!\n", __func__);
+		return 1;
+		break;
+	}
+
+	/* Set HDMI PLL registers and enable panel and hdmi */
+	p_Regs->HDMI_PLL_CONFIG1 =
+			HDMI_PLL_CONFIG1_REFDIV(para->refdiv)
+			|HDMI_PLL_CONFIG1_FBDIV(para->fbdiv)
+			|HDMI_PLL_CONFIG1_POSTDIV_SEL(para->postdiv_sel)
+			|HDMI_PLL_CONFIG1_KVCO(para->kvco)
+			|HDMI_PLL_CONFIG1_INTPI(para->intpi)
+			|HDMI_PLL_CONFIG1_EN_HDMI
+			|HDMI_PLL_CONFIG1_EN_PANEL;
+
+	p_Regs->HDMI_PLL_CONFIG3 =
+		HDMI_PLL_CONFIG3_FREQ_OFFSET_INNER(para->freq_offset_inner);
+
+	/* Enable PLL */
+	p_Regs->HDMI_PLL_PU = HDMI_PLL_PWR_PLL_ON;
+	/* p_Regs->HDMI_PLL_CONFIG1 |=
+		HDMI_PLL_CONFIG1_VPLL_CAL_START; */
+
+	mdelay(10);
+
+	/* Wait until PLL is locked */
+	return !hdmi_pll_locked(10, p_Regs);
+
+}
+
+static void clk_pxa95x_lcd_enable(struct clk *lcd_clk)
+{
+	CKENC |= (1 << (CKEN_DISPLAY - 64)) | (1 << (CKEN_PIXEL - 64));
+}
+
+static void clk_pxa95x_lcd_disable(struct clk *dsi_clk)
+{
+	CKENC &= ~((1 << (CKEN_DISPLAY - 64))
+		| (1 << (CKEN_PIXEL - 64)));
+}
+
+static void clk_axi_enable(struct clk *clk)
+{
+	CKENC |= (1 << (CKEN_AXI - 64)) | (1 << (CKEN_AXI_2X -64));
+}
+
+static void clk_axi_disable(struct clk *clk)
+{
+	/* we are checking that all clients of the AXI island have turned off
+	*  their AXI clock enable. onlt if all clients are off we can turn off
+	* the AXI clock.
+	*/
+	if (!(CKENC & ((1 << (CKEN_MMC4_BUS - 64))
+		| (1 << (CKEN_MMC3_BUS - 64))
+		| (1 << (CKEN_MMC2_BUS - 64))
+		| (1 << (CKEN_MMC1_BUS - 64))
+		| (1 << (CKEN_USB_BUS - 64))
+		| (1 << (CKEN_USBH_BUS - 64))
+		| (1 << (CKEN_GC_1X - 64))
+		| (1 << (CKEN_GC_1X - 64))
+		| (1 << (CKEN_DSI_TX1 - 64))
+		| (1 << (CKEN_DSI_TX2 - 64))
+		| (1 << (CKEN_DISPLAY - 64))
+		| (1 << (CKEN_SCI1 - 64))
+		| (1 << (CKEN_SCI2 - 64))
+		| (1 << (CKEN_CSI_TX - 64))
+		| (1 << (CKEN_PXA95x_MMC1 - 64))
+		| (1 << (CKEN_PXA95x_MMC2 - 64))
+		| (1 << (CKEN_PXA95x_MMC3 - 64))
+		| (1 << (CKEN_PXA95x_MMC4 - 64))
+		))
+		&& !(CKENB & ((1 << (CKEN_HSI - 32))
+			| (1 << (CKEN_VMETA - 32)))))
+		/* turning off AXI clock. */
+		CKENC &= ~(1 << (CKEN_AXI - 64) | (1 << (CKEN_AXI_2X -64)));
+}
+
+static const struct clkops clk_pxa95x_dsi_ops = {
+	.enable		= clk_pxa95x_dsi_enable,
+	.disable	= clk_pxa95x_dsi_disable,
+	.setrate	= clk_pxa95x_dsi_setrate,
+};
+
+static const struct clkops clk_pxa95x_ihdmi_ops = {
+	.enable		= clk_pxa95x_ihdmi_enable,
+	.disable	= clk_pxa95x_ihdmi_disable,
+	.setrate	= clk_pxa95x_ihdmi_setrate,
+};
+
+static const struct clkops clk_pxa95x_lcd_ops = {
+	.enable		= clk_pxa95x_lcd_enable,
+	.disable	= clk_pxa95x_lcd_disable,
+};
+
+static const struct clkops clk_axi_ops = {
+	.enable		= clk_axi_enable,
+	.disable	= clk_axi_disable,
+};
+
+static DEFINE_CK(pxa95x_dsi0, DSI_TX1, &clk_pxa95x_dsi_ops);
+static DEFINE_CK(pxa95x_dsi1, DSI_TX2, &clk_pxa95x_dsi_ops);
+static DEFINE_CK(pxa95x_ihdmi, DISPLAY, &clk_pxa95x_ihdmi_ops);
+static DEFINE_CK(pxa95x_lcd, DISPLAY, &clk_pxa95x_lcd_ops);
+static DEFINE_CK(pxa95x_axi, AXI, &clk_axi_ops);
 static DEFINE_CLK(pxa95x_pout, &clk_pxa3xx_pout_ops, 13000000, 70);
 static DEFINE_CLK(pxa95x_tout_s0, &clk_pxa95x_tout_s0_ops, 13000000, 70);
 static DEFINE_PXA3_CKEN(pxa95x_ffuart, FFUART, 14857000, 1);
@@ -242,13 +680,11 @@ static DEFINE_PXA3_CKEN(pxa95x_ssp4, SSP4, 13000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_pwm0, PWM0, 13000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_pwm1, PWM1, 13000000, 0);
 
-
 static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_pout, NULL, "CLK_POUT"),
 	INIT_CLKREG(&clk_pxa95x_tout_s0, NULL, "CLK_TOUT_S0"),
 	/* Power I2C clock is always on */
 	INIT_CLKREG(&clk_dummy, "pxa3xx-pwri2c.1", NULL),
-	INIT_CLKREG(&clk_pxa95x_lcd, "pxa2xx-fb", NULL),
 	INIT_CLKREG(&clk_pxa95x_ffuart, "pxa2xx-uart.0", NULL),
 	INIT_CLKREG(&clk_pxa95x_btuart, "pxa2xx-uart.1", NULL),
 	INIT_CLKREG(&clk_pxa95x_stuart, "pxa2xx-uart.2", NULL),
@@ -263,6 +699,11 @@ static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_ssp4, "pxa27x-ssp.3", NULL),
 	INIT_CLKREG(&clk_pxa95x_pwm0, "pxa27x-pwm.0", NULL),
 	INIT_CLKREG(&clk_pxa95x_pwm1, "pxa27x-pwm.1", NULL),
+	INIT_CLKREG(&clk_pxa95x_dsi0, NULL, "PXA95x_DSI0CLK"),
+	INIT_CLKREG(&clk_pxa95x_dsi1, NULL, "PXA95x_DSI1CLK"),
+	INIT_CLKREG(&clk_pxa95x_ihdmi, NULL, "PXA95x_iHDMICLK"),
+	INIT_CLKREG(&clk_pxa95x_lcd, "pxa95x-fb", "PXA95x_LCDCLK"),
+	INIT_CLKREG(&clk_pxa95x_axi, NULL, "AXICLK"),
 };
 
 void __init pxa95x_init_irq(void)
