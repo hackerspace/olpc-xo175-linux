@@ -123,7 +123,6 @@ static void timer_set_mode(enum clock_event_mode mode,
 static struct clock_event_device ckevt = {
 	.name		= "clockevent",
 	.features	= CLOCK_EVT_FEAT_ONESHOT,
-	.shift		= 32,
 	.rating		= 200,
 	.set_next_event	= timer_set_next_event,
 	.set_mode	= timer_set_mode,
@@ -177,7 +176,8 @@ void __init timer_init(int irq)
 
 	init_sched_clock(&cd, mmp_update_sched_clock, 32, CLOCK_TICK_RATE);
 
-	ckevt.mult = div_sc(CLOCK_TICK_RATE, NSEC_PER_SEC, ckevt.shift);
+	clocksource_calc_mult_shift(&cksrc, CLOCK_TICK_RATE, 4);
+	clockevents_calc_mult_shift(&ckevt, CLOCK_TICK_RATE, 4);
 	ckevt.max_delta_ns = clockevent_delta2ns(MAX_DELTA, &ckevt);
 	ckevt.min_delta_ns = clockevent_delta2ns(MIN_DELTA, &ckevt);
 	ckevt.cpumask = cpumask_of(0);
