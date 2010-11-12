@@ -20,6 +20,8 @@
 #include <linux/io.h>
 #include <linux/syscore_ops.h>
 
+#include <asm/hardware/cache-tauros2.h>
+
 #include <mach/hardware.h>
 #include <mach/gpio.h>
 #include <mach/pxa3xx-regs.h>
@@ -293,6 +295,9 @@ static int __init pxa95x_init(void)
 	int ret = 0, i;
 
 	if (cpu_is_pxa95x()) {
+#ifdef CONFIG_CACHE_TAUROS2
+		tauros2_init();
+#endif
 		mfp_init_base(io_p2v(MFPR_BASE));
 		if (cpu_is_pxa970())
 			mfp_init_addr(pxa970_mfp_addr_map);
