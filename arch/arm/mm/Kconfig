@@ -845,6 +845,20 @@ config CACHE_TAUROS2
 	  This option enables the Tauros2 L2 cache controller (as
 	  found on PJ1/PJ4).
 
+config CACHE_TAUROS2_PREFETCH_OFF
+	bool "Disable prefetch mode for L2 cache"
+	depends on CACHE_TAUROS2
+	default y
+	help
+	  Say Y if you want to disable L2 cache prefetch feature
+
+config CACHE_TAUROS2_LINEFILL_BURST8
+	bool "Enable L2 Fill Burst Length 8 of Tauros2 L2 controller"
+	depends on CACHE_TAUROS2 && !CACHE_TAUROS2_PREFETCH_OFF
+	default n
+	help
+	  Say Y if you want to enable L2 line fill burst length to 8
+
 config CACHE_XSC3L2
 	bool "Enable the L2 cache on XScale3"
 	depends on CPU_XSC3
