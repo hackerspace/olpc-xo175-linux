@@ -27,9 +27,11 @@
 #include <linux/err.h>
 #include <linux/input/matrix_keypad.h>
 #include <linux/slab.h>
+#include <linux/proc_fs.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
+#include <asm/uaccess.h>
 
 #include <mach/hardware.h>
 #include <plat/pxa27x_keypad.h>
@@ -455,6 +457,54 @@ static const struct dev_pm_ops pxa27x_keypad_pm_ops = {
 };
 #endif
 
+#ifdef	CONFIG_PROC_FS
+#define INPUT_LEN 100
+static int pxa27x_keypad_write_proc(struct file *file,
+		const char __user *buffer,  unsigned long count, void *data)
+{
+	struct input_dev *dev = data;
+	char input[INPUT_LEN];
+	int key;
+	int i;
+
+	if (count >= INPUT_LEN)
+		return -EINVAL;
+	if (copy_from_user(input, buffer, count))
+		return -EFAULT;
+	input[count] = 0;
+	i = sscanf(input, "%d", &key);
+	printk("\nreport key: %d\n", key);
+
+	set_bit(key, dev->keybit);
+	input_report_key(dev, key, 1);
+	input_sync(dev);
+	input_report_key(dev, key, 0);
+	input_sync(dev);
+
+	return count;
+}
+
+static void pxa27x_keypad_create_proc_file(void *data)
+{
+	struct proc_dir_entry *proc_file =
+		create_proc_entry("driver/pxa27x-keypad", 0644, NULL);
+
+	if (proc_file) {
+		proc_file->write_proc = pxa27x_keypad_write_proc;
+		proc_file->data = data;
+	}else {
+		printk(KERN_INFO "proc file create failed!\n");
+	}
+}
+
+extern struct proc_dir_entry proc_root;
+static void pxa27x_keypad_remove_proc_file(void)
+{
+	remove_proc_entry("driver/pxa27x-keypad", &proc_root);
+}
+#endif
+
+
 static int __devinit pxa27x_keypad_probe(struct platform_device *pdev)
 {
 	struct pxa27x_keypad_platform_data *pdata = pdev->dev.platform_data;
@@ -551,7 +601,7 @@ static int __devinit pxa27x_keypad_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, keypad);
 	device_init_wakeup(&pdev->dev, 1);
-
+	pxa27x_keypad_create_proc_file(input_dev);
 	return 0;
 
 failed_free_irq:
@@ -573,6 +623,7 @@ static int __devexit pxa27x_keypad_remove(struct platform_device *pdev)
 	struct pxa27x_keypad *keypad = platform_get_drvdata(pdev);
 	struct resource *res;
 
+	pxa27x_keypad_remove_proc_file();
 	free_irq(keypad->irq, pdev);
 	clk_put(keypad->clk);
 
