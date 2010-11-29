@@ -859,6 +859,13 @@ config CACHE_TAUROS2_LINEFILL_BURST8
 	help
 	  Say Y if you want to enable L2 line fill burst length to 8
 
+config CACHE_TAUROS2_WRITEBUFFER_COALESCING_OFF
+	bool "Disable write buffer coalescing for L2 cache"
+	depends on CACHE_TAUROS2
+	default n
+	help
+	  Say Y if you want to enable L2 cache write buffer coalescing feature
+
 config CACHE_XSC3L2
 	bool "Enable the L2 cache on XScale3"
 	depends on CPU_XSC3

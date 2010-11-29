@@ -188,6 +188,37 @@ static void __init tauros2_set_burst8(void)
 }
 #endif
 
+#ifndef CONFIG_CACHE_TAUROS2_WRITEBUFFER_COALESCING_OFF
+static void __init tauros2_set_writebuffer_coalescing(void)
+{
+	u32 u;
+
+	/*
+	 * Read the CPU Extra Features register and verify that the
+	 * Enable write buffer coalescing bit is set.
+	 */
+	u = read_extra_features();
+	if (!(u & 0x100)) {
+		write_extra_features(u | 0x100);
+	}
+}
+#else
+static void __init tauros2_set_writebuffer_coalescing(void)
+{
+	u32 u;
+
+	/*
+	 * Read the CPU Extra Features register and verify that the
+	 * Enable write buffer coalescing bit is clear.
+	 */
+	u = read_extra_features();
+	if (u & 0x100) {
+		write_extra_features(u & ~(0x100));
+		printk(KERN_INFO "Tauros2: Disabling L2 write buffer coalescing \n");
+	}
+}
+#endif
+
 static inline int __init cpuid_scheme(void)
 {
 	return !!((processor_id & 0x000f0000) == 0x000f0000);
@@ -222,6 +253,7 @@ void __init tauros2_init(void)
 
 	tauros2_set_prefetch();
 	tauros2_set_burst8();
+	tauros2_set_writebuffer_coalescing();
 
 #ifdef CONFIG_CPU_32v5
 	if ((processor_id & 0xff0f0000) == 0x56050000) {
