@@ -47,9 +47,9 @@ MODULE_ALIAS("platform:pxa2xx-spi");
 
 #define DMA_INT_MASK		(DCSR_ENDINTR | DCSR_STARTINTR | DCSR_BUSERR)
 #define RESET_DMA_CHANNEL	(DCSR_NODESC | DMA_INT_MASK)
-#define IS_DMA_ALIGNED(x)	((((u32)(x)) & 0x07) == 0)
+#define IS_DMA_ALIGNED(x)	((((u32)(x)) & 0x3F) == 0)
 #define MAX_DMA_LEN		8191
-#define DMA_ALIGNMENT		8
+#define DMA_ALIGNMENT		64
 
 /*
  * for testing SSCR1 changes that require SSP restart, basically
@@ -1544,7 +1544,8 @@ static int __devinit pxa2xx_spi_probe(struct platform_device *pdev)
 	}
 
 	/* Allocate master with space for drv_data and null dma buffer */
-	master = spi_alloc_master(dev, sizeof(struct driver_data) + 16);
+	master = spi_alloc_master(dev,
+		sizeof(struct driver_data) + DMA_ALIGNMENT);
 	if (!master) {
 		dev_err(&pdev->dev, "cannot alloc spi_master\n");
 		pxa_ssp_free(ssp);
@@ -1570,7 +1571,7 @@ static int __devinit pxa2xx_spi_probe(struct platform_device *pdev)
 
 	drv_data->ssp_type = ssp->type;
 	drv_data->null_dma_buf = (u32 *)ALIGN((u32)((u32)drv_data +
-						sizeof(struct driver_data)), 8);
+				sizeof(struct driver_data)), DMA_ALIGNMENT);
 
 	drv_data->ioaddr = ssp->mmio_base;
 	drv_data->ssdr_physical = ssp->phys_base + SSDR;
