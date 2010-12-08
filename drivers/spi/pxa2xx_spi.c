@@ -1569,7 +1569,7 @@ static int __devinit pxa2xx_spi_probe(struct platform_device *pdev)
 	master->transfer = transfer;
 
 	drv_data->ssp_type = ssp->type;
-	drv_data->null_dma_buf = (u32 *)ALIGN((u32)(drv_data +
+	drv_data->null_dma_buf = (u32 *)ALIGN((u32)((u32)drv_data +
 						sizeof(struct driver_data)), 8);
 
 	drv_data->ioaddr = ssp->mmio_base;
