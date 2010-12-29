@@ -1120,3 +1120,11 @@ config PXA168_V4L2_OVERLAY
           overlay controller.
 
 endif # VIDEO_DISPLAY_DRIVERS
+
+config HDMI_SI9226
+        tristate "hdmi interface chip SI9226 support"
+        depends on I2C && FB_PXA95x
+        ---help---
+          This is a SI9226 hdmi chip driver for PXA95x platform.
+          This chip converts parallel signal to hdmi signal.
+          This chip is registered as an i2c client.

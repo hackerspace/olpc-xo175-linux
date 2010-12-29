@@ -185,6 +185,8 @@ obj-$(CONFIG_VIDEO_SAA7164)     += saa7164/
 
 obj-$(CONFIG_VIDEO_IR_I2C)  += ir-kbd-i2c.o
 
+obj-$(CONFIG_HDMI_SI9226)     += si9226_hdmi.o
+
 obj-y	+= davinci/
 
 obj-$(CONFIG_CMMB)		+= cmmb/
