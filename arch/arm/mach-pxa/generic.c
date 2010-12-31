@@ -104,6 +104,27 @@ static struct map_desc common_io_desc[] __initdata = {
 	}
 };
 
+/* Board ID based on BOAR= cmdline token get from OBM */
+static long g_board_id = -1;
+static int __init set_board_id(char *p)
+{
+	int ret;
+	ret = strict_strtol(p, 16, &g_board_id);
+	if (ret < 0) {
+		printk(KERN_ERR "%s g_board_id is not right\n", __func__);
+		return ret;
+	}
+	printk(KERN_INFO "%s g_board_id = %ld\n", __func__, g_board_id);
+	return 1;
+}
+__setup("BOAR=", set_board_id);
+
+long get_board_id(void)
+{
+	return g_board_id;
+}
+EXPORT_SYMBOL(get_board_id);
+
 void __init pxa_map_io(void)
 {
 	iotable_init(ARRAY_AND_SIZE(common_io_desc));
