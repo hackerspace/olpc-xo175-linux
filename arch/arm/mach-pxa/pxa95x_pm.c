@@ -1986,8 +1986,7 @@ static int __init pxa95x_pm_init(void)
 #ifdef CONFIG_IPM
 	unsigned int oscc, dmemvlr;
 
-	/* need enable this in suspend patch */
-	/*suspend_set_ops(&pxa95x_pm_ops);*/
+	suspend_set_ops(&pxa95x_pm_ops);
 
 #ifdef CONFIG_IPM_DEEPIDLE
 	enable_deepidle |= IDLE_D0CS;

@@ -18,6 +18,11 @@
 #include <linux/workqueue.h>
 #include <linux/wakelock.h>
 
+#ifdef CONFIG_PXA95x_SUSPEND
+#include <linux/pxa95x_freeze.h>
+extern int android_freezer_disable;
+#endif
+
 /* 
  * Timeout for stopping processes
  */
@@ -152,6 +157,23 @@ int freeze_processes(void)
 {
 	int error;
 
+#ifdef CONFIG_PXA95x_SUSPEND
+	if (android_freezer_disable == 1) {
+		printk(KERN_INFO "Freezer disabled!\n");
+		return 0;
+	}
+
+	printk("Freezing user space processes ... ");
+	error = try_to_freeze_tasks(true);
+	if (error)
+		goto Exit;
+	printk("done.\n");
+
+	if (android_freezer_debug & FRZ_DEBUG_DISPLAY_TASK)
+		FRZ_process_show(1);
+	if (android_freezer_debug & FRZ_DEBUG_CHECK_FREEZE_TASKS)
+		FRZ_process_unfreezable_list_check();
+#else
 	printk("Freezing user space processes ... ");
 	error = try_to_freeze_tasks(true);
 	if (error)
@@ -162,6 +184,7 @@ int freeze_processes(void)
 	error = try_to_freeze_tasks(false);
 	if (error)
 		goto Exit;
+#endif
 	printk("done.");
 
 	oom_killer_disable();
@@ -194,6 +217,13 @@ static void thaw_tasks(bool nosig_only)
 
 void thaw_processes(void)
 {
+#ifdef CONFIG_PXA95x_SUSPEND
+	if (android_freezer_disable == 1) {
+		printk(KERN_INFO "Freezer disabled! no need resume ...\n");
+		return;
+	}
+#endif
+
 	oom_killer_enable();
 
 	printk("Restarting tasks ... ");
