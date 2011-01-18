@@ -15,7 +15,6 @@
  * published by the Free Software Foundation.
  */
 
-
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/init.h>
@@ -35,14 +34,24 @@
 
 #include <mach/hardware.h>
 #include <plat/pxa27x_keypad.h>
+#ifdef CONFIG_PXA95x
+#include <linux/notifier.h>
+#include <linux/timer.h>
+#include <mach/dvfm.h>
+#include <mach/pxa95x_dvfm.h>
+#include <mach/pxa95x_pm.h>
+#include <linux/init.h>
+#include <linux/workqueue.h>
+#endif
+
 /*
  * Keypad Controller registers
  */
-#define KPC             0x0000 /* Keypad Control register */
-#define KPDK            0x0008 /* Keypad Direct Key register */
-#define KPREC           0x0010 /* Keypad Rotary Encoder register */
-#define KPMK            0x0018 /* Keypad Matrix Key register */
-#define KPAS            0x0020 /* Keypad Automatic Scan register */
+#define KPC             0x0000	/* Keypad Control register */
+#define KPDK            0x0008	/* Keypad Direct Key register */
+#define KPREC           0x0010	/* Keypad Rotary Encoder register */
+#define KPMK            0x0018	/* Keypad Matrix Key register */
+#define KPAS            0x0020	/* Keypad Automatic Scan register */
 
 /* Keypad Automatic Scan Multiple Key Presser register 0-3 */
 #define KPASMKP0        0x0028
@@ -52,27 +61,27 @@
 #define KPKDI           0x0048
 
 /* bit definitions */
-#define KPC_MKRN(n)	((((n) - 1) & 0x7) << 26) /* matrix key row number */
-#define KPC_MKCN(n)	((((n) - 1) & 0x7) << 23) /* matrix key column number */
-#define KPC_DKN(n)	((((n) - 1) & 0x7) << 6)  /* direct key number */
+#define KPC_MKRN(n)	((((n) - 1) & 0x7) << 26)	/* matrix key row number */
+#define KPC_MKCN(n)	((((n) - 1) & 0x7) << 23)	/* matrix key column number */
+#define KPC_DKN(n)	((((n) - 1) & 0x7) << 6)	/* direct key number */
 
-#define KPC_AS          (0x1 << 30)  /* Automatic Scan bit */
-#define KPC_ASACT       (0x1 << 29)  /* Automatic Scan on Activity */
-#define KPC_MI          (0x1 << 22)  /* Matrix interrupt bit */
-#define KPC_IMKP        (0x1 << 21)  /* Ignore Multiple Key Press */
+#define KPC_AS          (0x1 << 30)	/* Automatic Scan bit */
+#define KPC_ASACT       (0x1 << 29)	/* Automatic Scan on Activity */
+#define KPC_MI          (0x1 << 22)	/* Matrix interrupt bit */
+#define KPC_IMKP        (0x1 << 21)	/* Ignore Multiple Key Press */
 
 #define KPC_MS(n)	(0x1 << (13 + (n)))	/* Matrix scan line 'n' */
 #define KPC_MS_ALL      (0xff << 13)
 
-#define KPC_ME          (0x1 << 12)  /* Matrix Keypad Enable */
-#define KPC_MIE         (0x1 << 11)  /* Matrix Interrupt Enable */
-#define KPC_DK_DEB_SEL	(0x1 <<  9)  /* Direct Keypad Debounce Select */
-#define KPC_DI          (0x1 <<  5)  /* Direct key interrupt bit */
-#define KPC_RE_ZERO_DEB (0x1 <<  4)  /* Rotary Encoder Zero Debounce */
-#define KPC_REE1        (0x1 <<  3)  /* Rotary Encoder1 Enable */
-#define KPC_REE0        (0x1 <<  2)  /* Rotary Encoder0 Enable */
-#define KPC_DE          (0x1 <<  1)  /* Direct Keypad Enable */
-#define KPC_DIE         (0x1 <<  0)  /* Direct Keypad interrupt Enable */
+#define KPC_ME          (0x1 << 12)	/* Matrix Keypad Enable */
+#define KPC_MIE         (0x1 << 11)	/* Matrix Interrupt Enable */
+#define KPC_DK_DEB_SEL	(0x1 <<  9)	/* Direct Keypad Debounce Select */
+#define KPC_DI          (0x1 <<  5)	/* Direct key interrupt bit */
+#define KPC_RE_ZERO_DEB (0x1 <<  4)	/* Rotary Encoder Zero Debounce */
+#define KPC_REE1        (0x1 <<  3)	/* Rotary Encoder1 Enable */
+#define KPC_REE0        (0x1 <<  2)	/* Rotary Encoder0 Enable */
+#define KPC_DE          (0x1 <<  1)	/* Direct Keypad Enable */
+#define KPC_DIE         (0x1 <<  0)	/* Direct Keypad interrupt Enable */
 
 #define KPDK_DKP        (0x1 << 31)
 #define KPDK_DK(n)	((n) & 0xff)
@@ -101,6 +110,25 @@
 #define MAX_MATRIX_KEY_NUM	(MAX_MATRIX_KEY_ROWS * MAX_MATRIX_KEY_COLS)
 #define MAX_KEYPAD_KEYS		(MAX_MATRIX_KEY_NUM + MAX_DIRECT_KEY_NUM)
 
+#ifdef CONFIG_PXA95x
+#define D2_STABLE_JIFFIES               10
+static int keypad_notifier_freq(struct notifier_block *nb,
+				unsigned long val, void *data);
+
+static struct notifier_block notifier_freq_block = {
+	.notifier_call = keypad_notifier_freq,
+};
+
+static struct dvfm_lock dvfm_lock = {
+	.lock = __SPIN_LOCK_UNLOCKED(dvfm_lock.lock),
+	.dev_idx = -1,
+	.count = 0,
+};
+
+static struct timer_list kp_timer;
+static void unset_dvfm_constraint(void);
+#endif
+
 struct pxa27x_keypad {
 	struct pxa27x_keypad_platform_data *pdata;
 
@@ -118,6 +146,12 @@ struct pxa27x_keypad {
 	uint32_t direct_key_state;
 
 	unsigned int direct_key_mask;
+#ifdef CONFIG_PXA95x
+	struct notifier_block notifier_freq_block;
+	struct work_struct keypad_lpm_work;
+	struct workqueue_struct *keypad_lpm_wq;
+#endif
+
 };
 static struct pxa27x_keypad *g_pxa27x_keypad;
 
@@ -346,7 +380,7 @@ static void clear_wakeup_event(struct pxa27x_keypad *keypad)
 	struct pxa27x_keypad_platform_data *pdata = keypad->pdata;
 
 	if (pdata->clear_wakeup_event)
-		(pdata->clear_wakeup_event)();
+		(pdata->clear_wakeup_event) ();
 }
 
 static irqreturn_t pxa27x_keypad_irq_handler(int irq, void *dev_id)
@@ -375,7 +409,7 @@ static void pxa27x_keypad_config(struct pxa27x_keypad *keypad)
 	if (pdata->matrix_key_rows && pdata->matrix_key_cols) {
 		kpc |= KPC_ASACT | KPC_MIE | KPC_ME | KPC_MS_ALL;
 		kpc |= KPC_MKRN(pdata->matrix_key_rows) |
-		       KPC_MKCN(pdata->matrix_key_cols);
+		    KPC_MKCN(pdata->matrix_key_cols);
 	}
 
 	/* enable rotary key, debounce interval same as direct keys */
@@ -429,6 +463,91 @@ static void pxa27x_keypad_close(struct input_dev *dev)
 	clk_disable(keypad->clk);
 }
 
+#ifdef CONFIG_PXA95x
+
+static void set_dvfm_constraint(void)
+{
+	spin_lock_irqsave(&dvfm_lock.lock, dvfm_lock.flags);
+	if (dvfm_lock.count++ == 0) {
+		/* Disable lowpower mode */
+		dvfm_disable_op_name("D1", dvfm_lock.dev_idx);
+		dvfm_disable_op_name("D2", dvfm_lock.dev_idx);
+		dvfm_disable_op_name("CG", dvfm_lock.dev_idx);
+	}
+	spin_unlock_irqrestore(&dvfm_lock.lock, dvfm_lock.flags);
+}
+
+static void unset_dvfm_constraint(void)
+{
+	spin_lock_irqsave(&dvfm_lock.lock, dvfm_lock.flags);
+	if (dvfm_lock.count == 0) {
+		printk(KERN_WARNING "Keypad constraint has been removed.\n");
+	} else if (--dvfm_lock.count == 0) {
+		/* Enable lowpower mode */
+		dvfm_enable_op_name("D1", dvfm_lock.dev_idx);
+		dvfm_enable_op_name("D2", dvfm_lock.dev_idx);
+		dvfm_enable_op_name("CG", dvfm_lock.dev_idx);
+	}
+	spin_unlock_irqrestore(&dvfm_lock.lock, dvfm_lock.flags);
+}
+
+static void pxa27x_keypad_timeout(struct work_struct *work)
+{
+	set_dvfm_constraint();
+	mod_timer(&kp_timer, jiffies + D2_STABLE_JIFFIES);
+}
+
+/*
+ * FIXME: Here a timer is used to disable entering D1/D2 for a while.
+ * Because keypad event wakeup system from D1/D2 mode. But keypad device
+ * can't detect the interrupt since it's in standby state.
+ * Keypad device need time to detect it again. So we use a timer here.
+ * D1/D2 idle is determined by idle time. It's better to comine these
+ * timers together.
+ */
+static void keypad_timer_handler(unsigned long data)
+{
+	unset_dvfm_constraint();
+}
+
+extern void get_wakeup_source(pm_wakeup_src_t *);
+
+static int keypad_notifier_freq(struct notifier_block *nb,
+				unsigned long val, void *data)
+{
+	struct dvfm_freqs *freqs = (struct dvfm_freqs *)data;
+	struct op_info *new = NULL;
+	struct dvfm_md_opt *op;
+	pm_wakeup_src_t src;
+	struct pxa27x_keypad *keypad = g_pxa27x_keypad;
+
+	if (freqs)
+		new = &freqs->new_info;
+	else
+		return 0;
+
+	op = (struct dvfm_md_opt *)new->op;
+	if (val == DVFM_FREQ_POSTCHANGE) {
+		if ((op->power_mode == POWER_MODE_D1) ||
+		    (op->power_mode == POWER_MODE_D2) ||
+		    (op->power_mode == POWER_MODE_CG)) {
+			get_wakeup_source(&src);
+			if (src.bits.mkey || src.bits.dkey) {
+				/* If keypad event happens and wake system
+				 * from D1/D2. Disable D1/D2 to make keypad
+				 * work for a while.
+				 */
+				if (likely(keypad->keypad_lpm_wq)) {
+					queue_work(keypad->keypad_lpm_wq,
+						   &keypad->keypad_lpm_work);
+				}
+			}
+		}
+	}
+	return 0;
+}
+#endif
+
 #ifdef CONFIG_PM
 static int pxa27x_keypad_suspend(struct device *dev)
 {
@@ -468,15 +587,16 @@ static int pxa27x_keypad_resume(struct device *dev)
 }
 
 static const struct dev_pm_ops pxa27x_keypad_pm_ops = {
-	.suspend	= pxa27x_keypad_suspend,
-	.resume		= pxa27x_keypad_resume,
+	.suspend = pxa27x_keypad_suspend,
+	.resume = pxa27x_keypad_resume,
 };
 #endif
 
 #ifdef	CONFIG_PROC_FS
 #define INPUT_LEN 100
 static int pxa27x_keypad_write_proc(struct file *file,
-		const char __user *buffer,  unsigned long count, void *data)
+				    const char __user *buffer,
+				    unsigned long count, void *data)
 {
 	struct input_dev *dev = data;
 	char input[INPUT_LEN];
@@ -501,7 +621,7 @@ static int pxa27x_keypad_write_proc(struct file *file,
 }
 
 static int pxa27x_keypad_read_proc(char *page, char **start, off_t off,
-			  int count, int *eof, void *data)
+				   int count, int *eof, void *data)
 {
 	int num_keys_pressed = 0;
 	struct pxa27x_keypad *keypad = g_pxa27x_keypad;
@@ -516,13 +636,13 @@ static int pxa27x_keypad_read_proc(char *page, char **start, off_t off,
 static void pxa27x_keypad_create_proc_file(void *data)
 {
 	struct proc_dir_entry *proc_file =
-		create_proc_entry("driver/pxa27x-keypad", 0644, NULL);
+	    create_proc_entry("driver/pxa27x-keypad", 0644, NULL);
 
 	if (proc_file) {
 		proc_file->write_proc = pxa27x_keypad_write_proc;
-		proc_file->read_proc  = pxa27x_keypad_read_proc;
+		proc_file->read_proc = pxa27x_keypad_read_proc;
 		proc_file->data = data;
-	}else {
+	} else {
 		printk(KERN_INFO "proc file create failed!\n");
 	}
 }
@@ -533,7 +653,6 @@ static void pxa27x_keypad_remove_proc_file(void)
 	remove_proc_entry("driver/pxa27x-keypad", &proc_root);
 }
 #endif
-
 
 static int __devinit pxa27x_keypad_probe(struct platform_device *pdev)
 {
@@ -624,7 +743,21 @@ static int __devinit pxa27x_keypad_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to request IRQ\n");
 		goto failed_put_clk;
 	}
+#ifdef CONFIG_PXA95x
 
+	dvfm_register("Keypad", &dvfm_lock.dev_idx);
+	dvfm_register_notifier(&notifier_freq_block, DVFM_FREQUENCY_NOTIFIER);
+
+	INIT_WORK(&keypad->keypad_lpm_work, pxa27x_keypad_timeout);
+	keypad->keypad_lpm_wq = create_workqueue("keypad_rx_lpm_wq");
+	if (unlikely(keypad->keypad_lpm_wq == NULL))
+		pr_info("[keypad] warning: create work queue failed\n");
+
+	init_timer(&kp_timer);
+	kp_timer.function = keypad_timer_handler;
+	kp_timer.data = 0;
+
+#endif
 	/* Register the input device */
 	error = input_register_device(input_dev);
 	if (error) {
@@ -664,6 +797,12 @@ static int __devexit pxa27x_keypad_remove(struct platform_device *pdev)
 	input_unregister_device(keypad->input_dev);
 	iounmap(keypad->mmio_base);
 
+#ifdef CONFIG_PXA95x
+	dvfm_unregister_notifier(&notifier_freq_block, DVFM_FREQUENCY_NOTIFIER);
+	dvfm_unregister("Keypad", &dvfm_lock.dev_idx);
+	if (likely(keypad->keypad_lpm_wq))
+		destroy_workqueue(keypad->keypad_lpm_wq);
+#endif
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	release_mem_region(res->start, resource_size(res));
 
@@ -677,15 +816,15 @@ static int __devexit pxa27x_keypad_remove(struct platform_device *pdev)
 MODULE_ALIAS("platform:pxa27x-keypad");
 
 static struct platform_driver pxa27x_keypad_driver = {
-	.probe		= pxa27x_keypad_probe,
-	.remove		= __devexit_p(pxa27x_keypad_remove),
-	.driver		= {
-		.name	= "pxa27x-keypad",
-		.owner	= THIS_MODULE,
+	.probe = pxa27x_keypad_probe,
+	.remove = __devexit_p(pxa27x_keypad_remove),
+	.driver = {
+		   .name = "pxa27x-keypad",
+		   .owner = THIS_MODULE,
 #ifdef CONFIG_PM
-		.pm	= &pxa27x_keypad_pm_ops,
+		   .pm = &pxa27x_keypad_pm_ops,
 #endif
-	},
+		   },
 };
 
 static int __init pxa27x_keypad_init(void)
