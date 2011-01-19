@@ -220,9 +220,32 @@ void mmc_wait_for_req(struct mmc_host *host, struct mmc_request *mrq)
 	mrq->done_data = &complete;
 	mrq->done = mmc_wait_done;
 
-	mmc_start_request(host, mrq);
+	do {
+		mmc_start_request(host, mrq);
 
-	wait_for_completion(&complete);
+		wait_for_completion(&complete);
+
+		/*
+		 *  Slow down the clock and resend the request for crc error
+		 */
+		if ((mrq->cmd->error == -EILSEQ)
+			|| (mrq->data && (mrq->data->error == -EILSEQ))) {
+			/*
+			 * If the clock is too slow, the performance is very
+			 * poor, just return error.
+			 */
+			if (host->ios.clock <= 3000000) {
+				printk(KERN_WARNING "SD clock is too slow!\n");
+				break;
+			}
+
+			printk(KERN_WARNING "%s: CRC error! slow the clock to %d\n",
+					mmc_hostname(host), host->ios.clock/2);
+			mmc_set_clock(host, host->ios.clock/2);
+		} else {
+			break;
+		}
+	} while (1);
 }
 
 EXPORT_SYMBOL(mmc_wait_for_req);
