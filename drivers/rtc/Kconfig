@@ -800,6 +800,16 @@ config RTC_DRV_SA1100
 	  To compile this driver as a module, choose M here: the
 	  module will be called rtc-sa1100.
 
+config RTC_DRV_MMP
+	tristate "MMP2/MMP3 On-Chip RTC"
+	depends on ARCH_MMP
+	help
+	  If you say Y here you will get access to the real time clock
+	  built into your MMP2/MMP3 CPU.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called rtc-mmp.
+
 config RTC_DRV_SH
 	tristate "SuperH On-Chip RTC"
 	depends on RTC_CLASS && SUPERH && HAVE_CLK
