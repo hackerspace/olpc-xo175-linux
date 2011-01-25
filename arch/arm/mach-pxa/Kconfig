@@ -716,4 +716,9 @@ config PXA_HAVE_ISA_IRQS
 config PXA310_ULPI
 	bool
 
+config PXA_RAMDUMP
+	default y
+	depends on PXA95x
+	bool "RAMDUMP debug capability"
+
 endif

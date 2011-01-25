@@ -109,4 +109,6 @@ led-$(CONFIG_ARCH_PXA_IDP)	+= leds-idp.o
 
 obj-$(CONFIG_LEDS)		+= $(led-y)
 
+obj-$(CONFIG_PXA_RAMDUMP)	+= ramdump.o
+
 obj-$(CONFIG_TOSA_BT)		+= tosa-bt.o
