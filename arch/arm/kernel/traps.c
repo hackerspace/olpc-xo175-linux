@@ -35,6 +35,10 @@
 
 #include "signal.h"
 
+#ifdef CONFIG_PXA_RAMDUMP
+#include "mach/ramdump.h"
+#endif
+
 static const char *handler[]= { "prefetch abort", "data abort", "address exception", "interrupt" };
 
 void *vectors_page;
@@ -252,6 +256,9 @@ static int __die(const char *str, int err, struct thread_info *thread, struct pt
 		dump_instr(KERN_EMERG, regs);
 	}
 
+#ifdef CONFIG_PXA_RAMDUMP
+	ramdump_save_dynamic_context(str, err, thread, regs);
+#endif
 	return ret;
 }
 
