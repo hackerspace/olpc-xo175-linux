@@ -700,6 +700,12 @@ int mmc_sd_get_cid(struct mmc_host *host, u32 ocr, u32 *cid, u32 *rocr)
 	 * block-addressed SDHC cards.
 	 */
 	err = mmc_send_if_cond(host, ocr);
+	if (err) {
+		/* Some high capacity SD card may fail to respond first CMD8,
+		 * so re-try it.
+		 */
+		err = mmc_send_if_cond(host, ocr);
+	}
 	if (!err)
 		ocr |= SD_OCR_CCS;
 
