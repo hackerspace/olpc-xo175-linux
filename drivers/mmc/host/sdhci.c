@@ -2263,6 +2263,7 @@ int sdhci_suspend_host(struct sdhci_host *host, pm_message_t state)
 	if (ret)
 		return ret;
 
+	sdhci_clear_set_irqs(host, SDHCI_INT_ALL_MASK, 0);
 	free_irq(host->irq, host);
 
 	if (host->vmmc)
