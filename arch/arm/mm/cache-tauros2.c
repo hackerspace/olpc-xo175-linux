@@ -257,16 +257,14 @@ void __init tauros2_init(void)
 
 #ifdef CONFIG_CPU_32v5
 	if ((processor_id & 0xff0f0000) == 0x56050000) {
-		u32 feat;
-
 		/*
-		 * v5 CPUs with Tauros2 have the L2 cache enable bit
-		 * located in the CPU Extra Features register.
+		 * When Tauros2 is used in an ARMv5 system, the L2
+		 * enable bit is in the ARMv5 ARM-mandated position
+		 * (bit [26] of the System Control Register).
 		 */
-		feat = read_extra_features();
-		if (!(feat & 0x00400000)) {
+		if (!(get_cr() & 0x04000000)) {
 			printk(KERN_INFO "Tauros2: Enabling L2 cache.\n");
-			write_extra_features(feat | 0x00400000);
+			adjust_cr(0x04000000, 0x04000000);
 		}
 
 		mode = "ARMv5";
