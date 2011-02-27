@@ -119,6 +119,7 @@ struct pxa27x_keypad {
 
 	unsigned int direct_key_mask;
 };
+static struct pxa27x_keypad *g_pxa27x_keypad;
 
 static void pxa27x_keypad_build_keycode(struct pxa27x_keypad *keypad)
 {
@@ -494,6 +495,19 @@ static int pxa27x_keypad_write_proc(struct file *file,
 	return count;
 }
 
+static int pxa27x_keypad_read_proc(char *page, char **start, off_t off,
+			  int count, int *eof, void *data)
+{
+	int num_keys_pressed = 0;
+	struct pxa27x_keypad *keypad = g_pxa27x_keypad;
+	uint32_t kpas = keypad_readl(KPAS);
+	int ret = 0;
+
+	num_keys_pressed = KPAS_MUKP(kpas);
+	ret = sprintf(page, "num_keys_pressed = %d\n", num_keys_pressed);
+	return ret;
+}
+
 static void pxa27x_keypad_create_proc_file(void *data)
 {
 	struct proc_dir_entry *proc_file =
@@ -501,6 +515,7 @@ static void pxa27x_keypad_create_proc_file(void *data)
 
 	if (proc_file) {
 		proc_file->write_proc = pxa27x_keypad_write_proc;
+		proc_file->read_proc  = pxa27x_keypad_read_proc;
 		proc_file->data = data;
 	}else {
 		printk(KERN_INFO "proc file create failed!\n");
@@ -615,6 +630,7 @@ static int __devinit pxa27x_keypad_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, keypad);
 	device_init_wakeup(&pdev->dev, 0);
 	pxa27x_keypad_create_proc_file(input_dev);
+	g_pxa27x_keypad = keypad;
 	return 0;
 
 failed_free_irq:
