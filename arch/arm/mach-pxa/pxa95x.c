@@ -46,6 +46,9 @@
 #include "clock.h"
 #include "dsi_hdmi_pll.h"
 
+#define PECR_IE(n)	((1 << ((n) * 2)) << 28)
+#define PECR_IS(n)	((1 << ((n) * 2)) << 29)
+
 static int boot_flash_type;
 int pxa_boot_flash_type_get(void)
 {
@@ -998,10 +1001,64 @@ static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_csi_tx_esc, NULL, "CSI_TX_ESC"),
 };
 
+static void pxa_ack_ext_wakeup(struct irq_data *d)
+{
+	PECR |= PECR_IS(d->irq - IRQ_WAKEUP0);
+}
+
+static void pxa_mask_ext_wakeup(struct irq_data *d)
+{
+	ICMR2 &= ~(1 << ((d->irq - PXA_IRQ(0)) & 0x1f));
+	PECR &= ~PECR_IE(d->irq - IRQ_WAKEUP0);
+}
+
+static void pxa_unmask_ext_wakeup(struct irq_data *d)
+{
+	ICMR2 |= 1 << ((d->irq - PXA_IRQ(0)) & 0x1f);
+	PECR |= PECR_IE(d->irq - IRQ_WAKEUP0);
+}
+
+static int pxa_set_ext_wakeup_type(struct irq_data *d, unsigned int flow_type)
+{
+	if (flow_type & IRQ_TYPE_EDGE_RISING)
+		PWER |= 1 << (d->irq - IRQ_WAKEUP0);
+
+	if (flow_type & IRQ_TYPE_EDGE_FALLING)
+		PWER |= 1 << (d->irq - IRQ_WAKEUP0 + 2);
+
+	return 0;
+}
+
+static struct irq_chip pxa_ext_wakeup_chip = {
+	.name           = "WAKEUP",
+	.irq_ack            = pxa_ack_ext_wakeup,
+	.irq_mask           = pxa_mask_ext_wakeup,
+	.irq_unmask         = pxa_unmask_ext_wakeup,
+	.irq_set_type       = pxa_set_ext_wakeup_type,
+};
+
+/*
+ *  * For pxa95x, it's not necessary to use irq to wakeup system.
+ *   */
+int pxa95x_set_wake(struct irq_data *d, unsigned int on)
+{
+	return 0;
+}
+
+static void __init pxa_init_ext_wakeup_irq(set_wake_t fn)
+{
+	irq_set_chip_and_handler(IRQ_WAKEUP0, &pxa_ext_wakeup_chip,
+			handle_edge_irq);
+	set_irq_flags(IRQ_WAKEUP0, IRQF_VALID);
+	pxa_ext_wakeup_chip.irq_set_wake = fn;
+}
+
 void __init pxa95x_init_irq(void)
 {
-	pxa_init_irq(96, NULL);
-	pxa_init_gpio(IRQ_GPIO_2_x, 2, 191, NULL);
+	pxa_init_irq(96, pxa95x_set_wake);
+	if (!cpu_is_pxa978())
+		pxa_init_ext_wakeup_irq(pxa95x_set_wake);
+	pxa_init_gpio(IRQ_GPIO_2_x, 2, 191, pxa95x_set_wake);
 }
 
 /*
