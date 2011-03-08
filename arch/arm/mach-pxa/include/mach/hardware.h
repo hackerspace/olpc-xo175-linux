@@ -238,6 +238,27 @@ extern unsigned int pxa_chip_id;
 		&& (((pxa_chip_id >> 4) & 0xfff) == 0x26A));	\
 	})
 
+#define __cpu_is_pxa968(id)                             	\
+	({                                              	\
+		unsigned int _id = (id) >> 4 & 0xfff;		\
+		(_id == 0x581 )					\
+		&& (((pxa_chip_id >> 8) & 0xff) == 0x28);	\
+	 })
+
+#define __cpu_is_pxa968_Ax(id)					\
+	({							\
+		unsigned int _id = (id) >> 4 & 0xfff;		\
+		((_id == 0x581 && ((id & 0xf) == 5))		\
+		 && (((pxa_chip_id >> 4) & 0xfff) == 0x282));	\
+	})
+
+#define __cpu_is_pxa968_Bx(id)					\
+	({							\
+		unsigned int _id = (id) >> 4 & 0xfff;		\
+		(_id == 0x581)					\
+		&& (((pxa_chip_id >> 4) & 0xfff) == 0x284);	\
+	 })
+
 #else
 #define __cpu_is_pxa955(id)	(0)
 #define __cpu_is_pxa955_Cx(id)	(0)
@@ -245,6 +266,9 @@ extern unsigned int pxa_chip_id;
 #define __cpu_is_pxa955_Dx(id)	(0)
 #define __cpu_is_pxa955_E0(id)	(0)
 #define __cpu_is_pxa955_Ex(id)	(0)
+#define __cpu_is_pxa968(id)	(0)
+#define __cpu_is_pxa968_Ax(id)	(0)
+#define __cpu_is_pxa968_Bx(id)	(0)
 #endif
 
 #define cpu_is_pxa210()					\
@@ -301,6 +325,10 @@ extern unsigned int pxa_chip_id;
 	({						\
 		__cpu_is_pxa955(read_cpuid_id());	\
 	})
+#define cpu_is_pxa968()					\
+	({						\
+		__cpu_is_pxa968(read_cpuid_id());	\
+	})
 
 #define cpu_is_pxa955_Cx()				\
 	({						\
@@ -327,6 +355,20 @@ extern unsigned int pxa_chip_id;
 		__cpu_is_pxa955_Ex(read_cpuid_id());	\
 	})
 
+#define cpu_is_pxa968()					\
+	({						\
+		__cpu_is_pxa968(read_cpuid_id());	\
+	})
+
+#define cpu_is_pxa968_Ax()				\
+	({						\
+		__cpu_is_pxa968_Ax(read_cpuid_id());	\
+	})
+
+#define cpu_is_pxa968_Bx()				\
+	({						\
+		__cpu_is_pxa968_Bx(read_cpuid_id());	\
+	})
 
 /*
  * CPUID Core Generation Bit
@@ -367,7 +409,8 @@ extern unsigned int pxa_chip_id;
 #ifdef CONFIG_PXA95x
 #define __cpu_is_pxa95x(id)				\
 	({						\
-		__cpu_is_pxa955(id);			\
+		__cpu_is_pxa955(id)			\
+			|| __cpu_is_pxa968(id);		\
 	})
 #else
 #define __cpu_is_pxa95x(id)	(0)
