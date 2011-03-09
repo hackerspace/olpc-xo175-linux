@@ -49,6 +49,7 @@
 
 #ifdef CONFIG_PXA95x
 #include <mach/dvfm.h>
+#include <mach/pxa95x_dvfm.h>
 #endif
 
 #define	DMA_BLOCK	UART_XMIT_SIZE
@@ -68,6 +69,8 @@ struct uart_pxa_port {
 	struct timer_list	pxa_timer;
 #ifdef CONFIG_PXA95x
 	int			dvfm_dev_idx[2];
+	struct notifier_block	notifier_freq_block;
+	struct work_struct	uart_rx_lpm_work;
 #else
 	struct wake_lock idle_lock[2];
 #endif
@@ -412,17 +415,17 @@ static inline irqreturn_t serial_pxa_irq(int irq, void *dev_id)
 	if (iir & UART_IIR_NO_INT)
 		return IRQ_NONE;
 
+	/* timer is not active */
+	if (!mod_timer(&up->pxa_timer, jiffies + PXA_TIMER_TIMEOUT)) {
+#ifdef CONFIG_PXA95x
+		dvfm_disable_lowpower(up->dvfm_dev_idx[PXA_UART_RX]);
+#else
+		wake_lock(&up->idle_lock[PXA_UART_RX]);
+#endif
+	}
+
 	lsr = serial_in(up, UART_LSR);
 	if (up->dma_enable) {
-		/* timer is not active */
-		if (mod_timer(&up->pxa_timer, jiffies + PXA_TIMER_TIMEOUT)) {
-#ifdef CONFIG_PXA95x
-			dvfm_disable_lowpower(up->dvfm_dev_idx[PXA_UART_RX]);
-#else
-			wake_lock(&up->idle_lock[PXA_UART_RX]);
-#endif
-		}
-
 		if (UART_LSR_FIFOE & lsr)
 			pxa_uart_receive_dma_err(up, &lsr);
 
@@ -1374,6 +1377,54 @@ static void pxa_timer_handler(unsigned long data)
 #endif
 }
 
+#ifdef CONFIG_PXA95x
+
+extern void get_wakeup_source(pm_wakeup_src_t *);
+
+static void uart_rx_lpm_handler(struct work_struct *work)
+{
+	struct uart_pxa_port *up =
+	    container_of(work, struct uart_pxa_port, uart_rx_lpm_work);
+
+	mod_timer(&up->pxa_timer, jiffies + PXA_TIMER_TIMEOUT);
+	dvfm_disable_lowpower(up->dvfm_dev_idx[PXA_UART_RX]);
+}
+
+static int uart_notifier_freq(struct notifier_block *nb,
+				unsigned long val, void *data)
+{
+	struct dvfm_freqs *freqs = (struct dvfm_freqs *)data;
+	struct op_info *new = NULL;
+	struct dvfm_md_opt *opt;
+	pm_wakeup_src_t src;
+	struct uart_pxa_port *sport;
+
+	if (freqs)
+		new = &freqs->new_info;
+	else
+		return 0;
+
+	sport = container_of(nb, struct uart_pxa_port, notifier_freq_block);
+	if (val != DVFM_FREQ_POSTCHANGE)
+		return 0;
+
+	opt = new->op;
+	if ((opt->power_mode != POWER_MODE_D1) &&
+	    (opt->power_mode != POWER_MODE_D2) &&
+	    (opt->power_mode != POWER_MODE_CG))
+		return 0;
+
+	get_wakeup_source(&src);
+
+	if ((src.bits.uart1 && sport->port.irq == IRQ_FFUART) ||
+	    (src.bits.uart2 && sport->port.irq == IRQ_STUART)) {
+		schedule_work(&sport->uart_rx_lpm_work);
+	}
+
+	return 0;
+}
+#endif
+
 static int serial_pxa_probe(struct platform_device *dev)
 {
 	struct uart_pxa_port *sport;
@@ -1453,6 +1504,13 @@ static int serial_pxa_probe(struct platform_device *dev)
 #endif
 	}
 
+#ifdef CONFIG_PXA95x
+	sport->notifier_freq_block.notifier_call = uart_notifier_freq;
+	dvfm_register_notifier(&sport->notifier_freq_block,
+				DVFM_FREQUENCY_NOTIFIER);
+	INIT_WORK(&sport->uart_rx_lpm_work, uart_rx_lpm_handler);
+#endif
+
 	init_timer(&sport->pxa_timer);
 	sport->pxa_timer.function = pxa_timer_handler;
 	sport->pxa_timer.data = (long)sport;
@@ -1474,6 +1532,8 @@ static int serial_pxa_probe(struct platform_device *dev)
 #ifdef CONFIG_PXA95x
 	dvfm_unregister(sport->name, &(sport->dvfm_dev_idx[PXA_UART_RX]));
 	dvfm_unregister(sport->name, &(sport->dvfm_dev_idx[PXA_UART_TX]));
+	dvfm_unregister_notifier(&sport->notifier_freq_block,
+			DVFM_FREQUENCY_NOTIFIER);
 #else
 	wake_lock_destroy(&sport->idle_lock[PXA_UART_RX]);
 	wake_lock_destroy(&sport->idle_lock[PXA_UART_TX]);
@@ -1491,6 +1551,8 @@ static int serial_pxa_remove(struct platform_device *dev)
 #ifdef CONFIG_PXA95x
 	dvfm_unregister(sport->name, &(sport->dvfm_dev_idx[PXA_UART_RX]));
 	dvfm_unregister(sport->name, &(sport->dvfm_dev_idx[PXA_UART_TX]));
+	dvfm_unregister_notifier(&sport->notifier_freq_block,
+			DVFM_FREQUENCY_NOTIFIER);
 #else
 	wake_lock_destroy(&sport->idle_lock[PXA_UART_RX]);
 	wake_lock_destroy(&sport->idle_lock[PXA_UART_TX]);
