@@ -1222,7 +1222,12 @@ static int __init pxa95x_init(void)
 			| (1 << CKEN_SSP1) | (1 << CKEN_SSP2)
 			| (1 << CKEN_SSP3) | (1 << CKEN_SSP4)
 			| (1 << CKEN_MSL0) | (1 << CKEN_BTUART)
-			| (1 << CKEN_FFUART) | (1 << CKEN_STUART)
+#ifndef CONFIG_DEBUG_LL
+			/* Do not kill UART, otherwise nothing appears on the
+			 * terminal until console becomes functional. */
+			| (1 << CKEN_FFUART)
+#endif
+			| (1 << CKEN_STUART)
 			| (1 << CKEN_KEYPAD) | (1 << CKEN_TPM));
 
 	CKENB &= ~((1 << (CKEN_I2C - 32))
