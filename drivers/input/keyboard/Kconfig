@@ -403,6 +403,15 @@ config KEYBOARD_PXA27x
 	  To compile this driver as a module, choose M here: the
 	  module will be called pxa27x_keypad.
 
+config C_TEC_OPTIC_TP
+	tristate "SAAR C optic track pad driver"
+	depends on PXA95x
+	default n
+	help
+	Say Y here if you want to enable support for C Tec optic track pad controller.
+	this will add optical trackpad as keypad input to the system.
+	the driver is i2c based. need to define the i2c slave address in the platform file
+
 config KEYBOARD_PXA930_ROTARY
 	tristate "PXA930/PXA935 Enhanced Rotary Controller Support"
 	depends on CPU_PXA930 || CPU_PXA935
