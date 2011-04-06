@@ -210,6 +210,10 @@ static void pxa27x_keypad_scan_matrix(struct pxa27x_keypad *keypad)
 		goto scan;
 	}
 
+	/* do not scan more than two keys to avoid fake key */
+	if (num_keys_pressed > 2)
+		return;
+
 	if (num_keys_pressed > 1) {
 		uint32_t kpasmkp0 = keypad_readl(KPASMKP0);
 		uint32_t kpasmkp1 = keypad_readl(KPASMKP1);
