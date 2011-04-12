@@ -443,6 +443,10 @@ int videobuf_reqbufs(struct videobuf_queue *q,
 	unsigned int size, count;
 	int retval;
 
+	if(req->count == 0) {
+		INIT_LIST_HEAD(&q->stream);
+		return videobuf_mmap_free(q);
+	}
 	if (req->count < 1) {
 		dprintk(1, "reqbufs: count invalid (%d)\n", req->count);
 		return -EINVAL;
