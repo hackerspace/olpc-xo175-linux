@@ -102,6 +102,15 @@
  */
 #define IRQ_BOARD_START		(PXA_GPIO_IRQ_BASE + PXA_GPIO_IRQ_NUM)
 
-#define NR_IRQS			(IRQ_BOARD_START)
+/*
+ *  NR_IRQ shall include all of the IRQs, including GPIO, PMIC, etc.
+ *  e.g, if we use 88pm860x, we needed 22 extended IRQs. Currently,we
+ *  think 64 is enough for MGx/Nevo platforms.
+ */
+#ifdef CONFIG_MFD_88PM860X
+#define NR_IRQS			(IRQ_BOARD_START+64)
+#else
+#define NR_IRQS			IRQ_BOARD_START
+#endif
 
 #endif /* __ASM_MACH_IRQS_H */
