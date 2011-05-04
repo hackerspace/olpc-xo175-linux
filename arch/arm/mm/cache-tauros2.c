@@ -15,10 +15,13 @@
  */
 
 #include <linux/init.h>
+#include <linux/io.h>
 #include <asm/cacheflush.h>
 #include <asm/cputype.h>
 #include <asm/hardware/cache-tauros2.h>
-
+#ifdef CONFIG_ARCH_PXA
+#include <mach/hardware.h>
+#endif
 
 /*
  * When Tauros2 is used on a CPU that supports the v7 hierarchical
@@ -124,9 +127,8 @@ static inline void __init write_extra_features(u32 u)
 	__asm__("mcr p15, 1, %0, c15, c1, 0" : : "r" (u));
 }
 
-#ifdef CONFIG_CACHE_TAUROS2_PREFETCH_OFF
 /* disable L2 prefetch */
-static void __init tauros2_set_prefetch(void)
+static void __init tauros2_disable_prefetch(void)
 {
 	u32 u;
 
@@ -136,13 +138,14 @@ static void __init tauros2_set_prefetch(void)
 	 */
 	u = read_extra_features();
 	if (!(u & 0x01000000)) {
-		printk(KERN_INFO "Tauros2: Disabling L2 prefetch.\n");
 		write_extra_features(u | 0x01000000);
 	}
+	printk(KERN_INFO "Tauros2: Disabling L2 prefetch.\n");
 }
-#else
+
 /* enable L2 prefetch */
-static void __init tauros2_set_prefetch(void)
+#ifndef CONFIG_CACHE_TAUROS2_PREFETCH_OFF
+static void __init tauros2_enable_prefetch(void)
 {
 	u32 u;
 
@@ -154,11 +157,12 @@ static void __init tauros2_set_prefetch(void)
 	if ((u & 0x01000000)) {
 		write_extra_features(u & 0xfeffffff);
 	}
+	printk(KERN_INFO "Tauros2: Enable L2 prefetch. \n");
 }
 #endif
 
-#ifdef CONFIG_TAUROS2_LINEFILL_BURST8
-static void __init tauros2_set_burst8(void)
+#ifdef CONFIG_CACHE_TAUROS2_LINEFILL_BURST8
+static void __init tauros2_enable_burst8(void)
 {
 	u32 u;
 
@@ -170,9 +174,11 @@ static void __init tauros2_set_burst8(void)
 	if (!(u & 0x00100000)) {
 		write_extra_features(u | 0x00100000);
 	}
+	printk(KERN_INFO "Tauros2: Enable L2 Burst Length 8\n");
 }
-#else
-static void __init tauros2_set_burst8(void)
+#endif
+
+static void __init tauros2_disable_burst8(void)
 {
 	u32 u;
 
@@ -182,14 +188,13 @@ static void __init tauros2_set_burst8(void)
 	 */
 	u = read_extra_features();
 	if (u & 0x00100000) {
-		printk(KERN_INFO "Tauros2: Disabling L2 Burst Length 8 \n");
 		write_extra_features(u & 0xffefffff);
 	}
+	printk(KERN_INFO "Tauros2: Disable L2 Burst Length 8\n");
 }
-#endif
 
 #ifndef CONFIG_CACHE_TAUROS2_WRITEBUFFER_COALESCING_OFF
-static void __init tauros2_set_writebuffer_coalescing(void)
+static void __init tauros2_enable_writebuffer_coalescing(void)
 {
 	u32 u;
 
@@ -201,9 +206,11 @@ static void __init tauros2_set_writebuffer_coalescing(void)
 	if (!(u & 0x100)) {
 		write_extra_features(u | 0x100);
 	}
+	printk(KERN_INFO "Tauros2: Enable L2 write buffer coalescing \n");
 }
 #else
-static void __init tauros2_set_writebuffer_coalescing(void)
+
+static void __init tauros2_disable_writebuffer_coalescing(void)
 {
 	u32 u;
 
@@ -214,8 +221,8 @@ static void __init tauros2_set_writebuffer_coalescing(void)
 	u = read_extra_features();
 	if (u & 0x100) {
 		write_extra_features(u & ~(0x100));
-		printk(KERN_INFO "Tauros2: Disabling L2 write buffer coalescing \n");
 	}
+	printk(KERN_INFO "Tauros2: Disabling L2 write buffer coalescing \n");
 }
 #endif
 
@@ -247,13 +254,55 @@ static inline void __init write_actlr(u32 actlr)
 	__asm__("mcr p15, 0, %0, c1, c0, 1\n" : : "r" (actlr));
 }
 
+static void enable_extra_feature(void)
+{
+#ifndef CONFIG_CACHE_TAUROS2_PREFETCH_OFF
+	tauros2_enable_prefetch();
+#else
+	tauros2_disable_prefetch();
+#endif
+
+#ifdef CONFIG_CACHE_TAUROS2_LINEFILL_BURST8
+	tauros2_enable_burst8();
+#else
+	tauros2_disable_burst8();
+#endif
+
+#ifndef CONFIG_CACHE_TAUROS2_WRITEBUFFER_COALESCING_OFF
+	tauros2_enable_writebuffer_coalescing();
+#else
+	tauros2_disable_writebuffer_coalescing();
+#endif
+}
+
+static void disable_extra_feature(void)
+{
+	tauros2_disable_prefetch();
+	tauros2_disable_burst8();
+}
+
 void __init tauros2_init(void)
 {
 	char *mode;
 
-	tauros2_set_prefetch();
-	tauros2_set_burst8();
-	tauros2_set_writebuffer_coalescing();
+#ifdef CONFIG_ARCH_PXA
+	if (cpu_is_pxa95x()) {/* for MG1, MG2, Nevo only */
+		/*
+		 For MG1 >= C2 and MG2 >= B0, enable extra feature by kernel config
+		 Otherwise, disable all extra features in old stepping.
+		 TODO: Add cpu_is_pxa998(), currently, we have issues.
+		 */
+		if (cpu_is_pxa955_C2() || cpu_is_pxa955_Dx() || cpu_is_pxa955_Ex() ||
+			cpu_is_pxa968_Bx() ||
+			cpu_is_pxa970()
+			)
+			enable_extra_feature();
+		else
+			disable_extra_feature();
+	}
+	else
+#endif
+		enable_extra_feature();
 
 #ifdef CONFIG_CPU_32v5
 	if ((processor_id & 0xff0f0000) == 0x56050000) {
