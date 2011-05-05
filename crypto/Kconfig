@@ -487,6 +487,14 @@ config CRYPTO_AES
 
 	  See <http://csrc.nist.gov/CryptoToolkit/aes/> for more information.
 
+config CRYPTO_AES_MV
+	tristate "AES cipher algorithms by Marvell"
+	select CRYPTO_ALGAPI
+	help
+	  AES cipher algorithms optimized by Marvell
+
+	  The AES specifies three key sizes: 128, 192 and 256 bits
+
 config CRYPTO_AES_586
 	tristate "AES cipher algorithms (i586)"
 	depends on (X86 || UML_X86) && !64BIT
