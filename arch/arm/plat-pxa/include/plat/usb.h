@@ -10,6 +10,8 @@
 #ifndef __MV_PLATFORM_USB_H
 #define __MV_PLATFORM_USB_H
 
+#include <linux/usb/mv_usb.h>
+
 enum pxa_ehci_type {
 	EHCI_UNDEFINED = 0,
 	PXA_U2OEHCI,  /* pxa 168, 9xx */
@@ -44,6 +46,8 @@ struct mv_usb_platform_data {
 	int     (*phy_init)(unsigned int regbase);
 	void    (*phy_deinit)(unsigned int regbase);
 	int	(*set_vbus)(unsigned int vbus);
+	int	(*private_init)(struct mv_op_regs *opregs,
+					unsigned int phyregs);
 };
 
 #endif
