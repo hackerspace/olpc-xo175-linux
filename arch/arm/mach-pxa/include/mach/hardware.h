@@ -203,8 +203,48 @@ extern unsigned int pxa_chip_id;
 		(_id == 0x581 || _id == 0xc08 || _id == 0xb76)	\
 		&& (((pxa_chip_id >> 8) & 0xff) == 0x26);	\
 	 })
+/* pid: pxa955_Cx = 0x266x */
+#define __cpu_is_pxa955_Cx(id)					\
+	({							\
+		unsigned int _id = (id) >> 4 & 0xfff;		\
+		((_id == 0x581 && ((id & 0xf) == 4)) 		\
+		 && (((pxa_chip_id >> 4) & 0xfff) == 0x266));	\
+	})
+/* pid: pxa955_C2 = 0x2662 */
+#define __cpu_is_pxa955_C2(id)					\
+	({							\
+		unsigned int _id = (id) >> 4 & 0xfff;		\
+		((_id == 0x581 && ((id & 0xf) == 4)) 		\
+		 && (((pxa_chip_id >> 0) & 0xffff) == 0x2662));	\
+	})
+#define __cpu_is_pxa955_Dx(id)					\
+	({							\
+		unsigned int _id = (id) >> 4 & 0xfff;		\
+		((_id == 0x581 && ((id & 0xf) == 4))		\
+		&& (((pxa_chip_id >> 4) & 0xfff) == 0x268));	\
+	})
+
+#define __cpu_is_pxa955_E0(id)					\
+	({							\
+		unsigned int _id = (id) >> 4 & 0xfff;		\
+		((_id == 0x581 && ((id & 0xf) == 4))		\
+		&& (((pxa_chip_id) & 0xffff) == 0x26A2));	\
+	})
+
+#define __cpu_is_pxa955_Ex(id)					\
+	({							\
+		unsigned int _id = (id) >> 4 & 0xfff;		\
+		((_id == 0x581 && ((id & 0xf) == 4))		\
+		&& (((pxa_chip_id >> 4) & 0xfff) == 0x26A));	\
+	})
+
 #else
 #define __cpu_is_pxa955(id)	(0)
+#define __cpu_is_pxa955_Cx(id)	(0)
+#define __cpu_is_pxa955_C2(id)	(0)
+#define __cpu_is_pxa955_Dx(id)	(0)
+#define __cpu_is_pxa955_E0(id)	(0)
+#define __cpu_is_pxa955_Ex(id)	(0)
 #endif
 
 #define cpu_is_pxa210()					\
@@ -260,6 +300,31 @@ extern unsigned int pxa_chip_id;
 #define cpu_is_pxa955()					\
 	({						\
 		__cpu_is_pxa955(read_cpuid_id());	\
+	})
+
+#define cpu_is_pxa955_Cx()				\
+	({						\
+		__cpu_is_pxa955_Cx(read_cpuid_id());	\
+	})
+
+#define cpu_is_pxa955_C2()				\
+	({						\
+		__cpu_is_pxa955_C2(read_cpuid_id());	\
+	})
+
+#define cpu_is_pxa955_Dx()				\
+	({						\
+		__cpu_is_pxa955_Dx(read_cpuid_id());	\
+	})
+
+#define cpu_is_pxa955_E0()				\
+	({						\
+		__cpu_is_pxa955_E0(read_cpuid_id());	\
+	})
+
+#define cpu_is_pxa955_Ex()				\
+	({						\
+		__cpu_is_pxa955_Ex(read_cpuid_id());	\
 	})
 
 
