@@ -16,3 +16,4 @@ obj-$(CONFIG_PXA_SSP)		+= ssp.o
 ifeq ($(CONFIG_ANDROID_PMEM),y)
 obj-$(CONFIG_ANDROID_PMEM)	+= pmem.o
 endif
+obj-y				+= reg_rw.o
