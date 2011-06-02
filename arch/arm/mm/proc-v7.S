@@ -72,7 +72,9 @@ ENDPROC(cpu_v7_reset)
  *	IRQs are already disabled.
  */
 ENTRY(cpu_v7_do_idle)
+#ifndef CONFIG_CPU_PJ4B
 	dsb					@ WFI may enter a low-power mode
+#endif
 	wfi
 	mov	pc, lr
 ENDPROC(cpu_v7_do_idle)
