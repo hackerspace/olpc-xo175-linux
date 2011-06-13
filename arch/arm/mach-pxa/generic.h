@@ -30,6 +30,7 @@ extern void __init pxa27x_map_io(void);
 extern void __init pxa3xx_map_io(void);
 
 extern unsigned int get_clk_frequency_khz(int info);
+extern void pxa95x_handle_irq_intc(struct pt_regs *);
 
 #define SET_BANK(__nr,__start,__size) \
 	mi->bank[__nr].start = (__start), \

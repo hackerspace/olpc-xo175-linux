@@ -659,6 +659,7 @@ config CPU_PXA935
 config PXA95x
 	bool
 	select CPU_PJ4
+	select MULTI_IRQ_HANDLER
 	help
 	  Select code specific to PXA95x variants
 
