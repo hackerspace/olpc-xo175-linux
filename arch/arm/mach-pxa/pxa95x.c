@@ -207,8 +207,24 @@ static struct mfp_addr_map pxa970_mfp_addr_map[] __initdata = {
 	MFP_ADDR_END,
 };
 
+static void clk_tout_s0_enable(struct clk *clk)
+{
+	OSCC |= OSCC_TENS0;
+}
+
+static void clk_tout_s0_disable(struct clk *clk)
+{
+	OSCC &= ~OSCC_TENS0;
+}
+
+const struct clkops clk_pxa95x_tout_s0_ops = {
+	.enable		= clk_tout_s0_enable,
+	.disable	= clk_tout_s0_disable,
+};
+
 static DEFINE_CK(pxa95x_lcd, LCD, &clk_pxa3xx_hsio_ops);
 static DEFINE_CLK(pxa95x_pout, &clk_pxa3xx_pout_ops, 13000000, 70);
+static DEFINE_CLK(pxa95x_tout_s0, &clk_pxa95x_tout_s0_ops, 13000000, 70);
 static DEFINE_PXA3_CKEN(pxa95x_ffuart, FFUART, 14857000, 1);
 static DEFINE_PXA3_CKEN(pxa95x_btuart, BTUART, 14857000, 1);
 static DEFINE_PXA3_CKEN(pxa95x_stuart, STUART, 14857000, 1);
@@ -223,6 +239,7 @@ static DEFINE_PXA3_CKEN(pxa95x_pwm1, PWM1, 13000000, 0);
 
 static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_pout, NULL, "CLK_POUT"),
+	INIT_CLKREG(&clk_pxa95x_tout_s0, NULL, "CLK_TOUT_S0"),
 	/* Power I2C clock is always on */
 	INIT_CLKREG(&clk_dummy, "pxa3xx-pwri2c.1", NULL),
 	INIT_CLKREG(&clk_pxa95x_lcd, "pxa2xx-fb", NULL),
