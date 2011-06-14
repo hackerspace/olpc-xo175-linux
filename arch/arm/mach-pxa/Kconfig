@@ -660,6 +660,7 @@ config PXA95x
 	bool
 	select CPU_PJ4
 	select MULTI_IRQ_HANDLER
+	select PXA_SSP
 	help
 	  Select code specific to PXA95x variants
 
