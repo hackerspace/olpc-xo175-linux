@@ -201,6 +201,12 @@ static struct mfp_addr_map pxa95x_mfp_addr_map[] __initdata = {
 	MFP_ADDR_END,
 };
 
+static struct mfp_addr_map pxa970_mfp_addr_map[] __initdata = {
+	MFP_ADDR_X(GPIO0, GPIO191, 0x208),
+
+	MFP_ADDR_END,
+};
+
 static DEFINE_CK(pxa95x_lcd, LCD, &clk_pxa3xx_hsio_ops);
 static DEFINE_CLK(pxa95x_pout, &clk_pxa3xx_pout_ops, 13000000, 70);
 static DEFINE_PXA3_CKEN(pxa95x_ffuart, FFUART, 14857000, 1);
@@ -266,7 +272,10 @@ static int __init pxa95x_init(void)
 
 	if (cpu_is_pxa95x()) {
 		mfp_init_base(io_p2v(MFPR_BASE));
-		mfp_init_addr(pxa95x_mfp_addr_map);
+		if (cpu_is_pxa970())
+			mfp_init_addr(pxa970_mfp_addr_map);
+		else
+			mfp_init_addr(pxa95x_mfp_addr_map);
 
 		reset_status = ARSR;
 
