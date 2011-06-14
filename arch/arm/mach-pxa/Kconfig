@@ -676,6 +676,13 @@ config CPU_PXA998
 	help
 	  PXA998 (codename Eshel)
 
+config CPU_PXA970
+	bool
+	select PXA95x
+	select PREEMPT_NOTIFIERS
+	help
+	  PXA970 (codename Nevo)
+
 config PXA_SHARP_C7xx
 	bool
 	select SHARPSL_PM
