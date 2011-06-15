@@ -48,6 +48,12 @@ static struct pm860x_backlight_pdata saarb_backlight[] = {
 		.iset	= PM8606_WLED_CURRENT(8),
 		.flags	= PM8606_BACKLIGHT1,
 	},
+	{
+		/*keypad backlight data*/
+		.id	= PM8606_ID_BACKLIGHT,
+		.iset	= PM8606_WLED_CURRENT(8),
+		.flags	= PM8606_BACKLIGHT2,
+	},
 };
 
 static struct pm860x_led_pdata saarb_led[] = {
