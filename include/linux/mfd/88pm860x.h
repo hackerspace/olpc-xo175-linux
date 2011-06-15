@@ -153,6 +153,15 @@ enum {
 #define PM8607_INT_MASK_2		(0x07)
 #define PM8607_INT_MASK_3		(0x08)
 
+#define PM8607_INT_STS3_PEN		(1 << 1)
+#define PM8607_INT_EN_PEN		(1 << 1)
+#define PM8607_INT_EN_HEADSET		(1 << 2)
+#define PM8607_INT_EN_HOOK		(1 << 3)
+#define PM8607_INT_EN_MICIN		(1 << 4)
+#define PM8607_INT_EN_CHG_FAIL		(1 << 5)
+#define PM8607_INT_EN_CHG_DONE		(1 << 6)
+#define PM8607_INT_EN_CHG_IOVER		(1 << 7)
+
 /* Regulator Control Registers */
 #define PM8607_LDO1			(0x10)
 #define PM8607_LDO2			(0x11)
@@ -203,6 +212,23 @@ enum {
 #define PM8607_TSI_PREBIAS		(0x55)	/* prebias time */
 #define PM8607_PD_PREBIAS		(0x56)	/* prebias time */
 #define PM8607_GPADC_MISC1		(0x57)
+
+/* bit definitions of touch meas enable register 3 */
+#define PM8607_MEAS_EN3_PENDET	(1 << 3)
+#define PM8607_MEAS_EN3_TSIX	(1 << 4)
+#define PM8607_MEAS_EN3_TSIY	(1 << 5)
+#define PM8607_MEAS_EN3_TSIZ1	(1 << 6)
+#define PM8607_MEAS_EN3_TSIZ2	(1 << 7)
+
+/* Touch Registers */
+#define PM8607_MEAS_TSIX_1		(0x8D)
+#define PM8607_MEAS_TSIX_2		(0x8E)
+#define PM8607_MEAS_TSIY_1		(0x8F)
+#define PM8607_MEAS_TSIY_2		(0x90)
+#define PM8607_MEAS_TSIZ1_1		(0x91)
+#define PM8607_MEAS_TSIZ1_2		(0x92)
+#define PM8607_MEAS_TSIZ2_1		(0x93)
+#define PM8607_MEAS_TSIZ2_2		(0x94)
 
 /* RTC Control Registers */
 #define PM8607_RTC1			(0xA0)
@@ -263,6 +289,21 @@ enum {
 #define PM8607_PD_PREBIAS_MASK		(0x1F << 0)
 #define PM8607_PD_PRECHG_MASK		(7 << 5)
 
+#define PM8607_DEBOUNCE_REG		0x0A
+#define PM8607_DEBOUNCE_PEN_DET(x) (x << 0)
+#define PM8607_DEBOUNCE_CHG(x)     (x << 2)
+#define PM8607_DEBOUNCE_EXTON(x)   (x << 4)
+#define PM8607_DEBOUNCE_ONKEY(x)   (x << 6)
+
+#define PM8607_PEN_DEBOUNCE_MASK	0x03
+
+#define PM8607_MEASOFFTIME1_BAT_DET_EN_A1 	(1 << 0)
+#define PM8607_MEASOFFTIME1MEAS_OFFTIME1_A1(x)	(x << 1)
+#define PM8607_MEASOFFTIME1MEAS_DOUBLE_TSI_B	(1 << 0)
+#define PM8607_MEASOFFTIME1MEAS_EN_SLP_B	(1 << 1)
+#define PM8607_MEASOFFTIME1MEAS_OFFTIME1_B(x)	(x << 2)
+
+
 /* Interrupt Number in 88PM8607 */
 enum {
 	PM8607_IRQ_ONKEY,
@@ -293,6 +334,9 @@ enum {
 	PM8607_CHIP_A0 = 0x40,
 	PM8607_CHIP_A1 = 0x41,
 	PM8607_CHIP_B0 = 0x48,
+	PM8607_CHIP_C0 = 0x50,
+	PM8607_CHIP_C1 = 0x51,
+	PM8607_CHIP_END = PM8607_CHIP_C1
 };
 
 struct pm860x_chip {
