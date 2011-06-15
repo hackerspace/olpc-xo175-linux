@@ -45,7 +45,7 @@ static struct pm860x_touch_pdata saarb_touch = {
 static struct pm860x_backlight_pdata saarb_backlight[] = {
 	{
 		.id	= PM8606_ID_BACKLIGHT,
-		.iset	= PM8606_WLED_CURRENT(24),
+		.iset	= PM8606_WLED_CURRENT(8),
 		.flags	= PM8606_BACKLIGHT1,
 	},
 	{},
