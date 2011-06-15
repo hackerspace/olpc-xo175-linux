@@ -162,6 +162,9 @@ enum {
 #define PM8607_INT_EN_CHG_DONE		(1 << 6)
 #define PM8607_INT_EN_CHG_IOVER		(1 << 7)
 
+/* Wakeup Registers */
+#define PM8607_RESET_OUT		(0x09)
+
 /* Regulator Control Registers */
 #define PM8607_LDO1			(0x10)
 #define PM8607_LDO2			(0x11)
@@ -202,6 +205,19 @@ enum {
 #define PM8607_VIBRATOR_SET		(0x28)
 #define PM8607_VIBRATOR_PWM		(0x29)
 
+/* power up log register*/
+#define PM8607_POWER_UP_LOG		(0x3F)
+
+/* Charger Control Registers */
+#define PM8607_CCNT			(0x47)
+#define PM8607_CHG_CTRL1		(0x48)
+#define PM8607_CHG_CTRL2		(0x49)
+#define PM8607_CHG_CTRL3		(0x4A)
+#define PM8607_CHG_CTRL4		(0x4B)
+#define PM8607_CHG_CTRL5		(0x4C)
+#define PM8607_CHG_CTRL6		(0x4D)
+#define PM8607_CHG_CTRL7		(0x4E)
+
 /* GPADC Registers */
 #define PM8607_GP_BIAS1			(0x4F)
 #define PM8607_MEAS_EN1			(0x50)
@@ -229,6 +245,54 @@ enum {
 #define PM8607_MEAS_TSIZ1_2		(0x92)
 #define PM8607_MEAS_TSIZ2_1		(0x93)
 #define PM8607_MEAS_TSIZ2_2		(0x94)
+
+/* Battery Monitor Registers */
+#define PM8607_GP_BIAS2			(0x5A)
+#define PM8607_VBAT_LOWTH		(0x5B)
+#define PM8607_VCHG_LOWTH		(0x5C)
+#define PM8607_VSYS_LOWTH		(0x5D)
+#define PM8607_TINT_LOWTH		(0x5E)
+#define PM8607_GPADC0_LOWTH		(0x5F)
+#define PM8607_GPADC1_LOWTH		(0x60)
+#define PM8607_GPADC2_LOWTH		(0x61)
+#define PM8607_GPADC3_LOWTH		(0x62)
+#define PM8607_VBAT_HIGHTH		(0x63)
+#define PM8607_VCHG_HIGHTH		(0x64)
+#define PM8607_VSYS_HIGHTH		(0x65)
+#define PM8607_TINT_HIGHTH		(0x66)
+#define PM8607_GPADC0_HIGHTH		(0x67)
+#define PM8607_GPADC1_HIGHTH		(0x68)
+#define PM8607_GPADC2_HIGHTH		(0x69)
+#define PM8607_GPADC3_HIGHTH		(0x6A)
+#define PM8607_IBAT_MEAS1		(0x6B)
+#define PM8607_IBAT_MEAS2		(0x6C)
+#define PM8607_VBAT_MEAS1		(0x6D)
+#define PM8607_VBAT_MEAS2		(0x6E)
+#define PM8607_VCHG_MEAS1		(0x6F)
+#define PM8607_VCHG_MEAS2		(0x70)
+#define PM8607_VSYS_MEAS1		(0x71)
+#define PM8607_VSYS_MEAS2		(0x72)
+#define PM8607_TINT_MEAS1		(0x73)
+#define PM8607_TINT_MEAS2		(0x74)
+#define PM8607_GPADC0_MEAS1		(0x75)
+#define PM8607_GPADC0_MEAS2		(0x76)
+#define PM8607_GPADC1_MEAS1		(0x77)
+#define PM8607_GPADC1_MEAS2		(0x78)
+#define PM8607_GPADC2_MEAS1		(0x79)
+#define PM8607_GPADC2_MEAS2		(0x7A)
+#define PM8607_GPADC3_MEAS1		(0x7B)
+#define PM8607_GPADC3_MEAS2		(0x7C)
+#define PM8607_CCNT_MEAS1		(0x95)
+#define PM8607_CCNT_MEAS2		(0x96)
+#define PM8607_VBAT_AVG			(0x97)
+#define PM8607_VCHG_AVG			(0x98)
+#define PM8607_VSYS_AVG			(0x99)
+#define PM8607_VBAT_MIN			(0x9A)
+#define PM8607_VCHG_MIN			(0x9B)
+#define PM8607_VSYS_MIN			(0x9C)
+#define PM8607_VBAT_MAX			(0x9D)
+#define PM8607_VCHG_MAX			(0x9E)
+#define PM8607_VSYS_MAX			(0x9F)
 
 /* RTC Control Registers */
 #define PM8607_RTC1			(0xA0)
@@ -304,6 +368,9 @@ enum {
 #define PM8607_MEASOFFTIME1MEAS_OFFTIME1_B(x)	(x << 2)
 
 
+#define PM860X_TEMP_TINT		(0)
+#define PM860X_TEMP_TBAT		(1)
+
 /* Interrupt Number in 88PM8607 */
 enum {
 	PM8607_IRQ_ONKEY,
@@ -328,6 +395,7 @@ enum {
 	PM8607_IRQ_CHG_FAIL,
 	PM8607_IRQ_CHG_DONE,
 	PM8607_IRQ_CHG_FAULT,
+	PM8607_MAX_IRQ,
 };
 
 enum {
@@ -338,6 +406,17 @@ enum {
 	PM8607_CHIP_C1 = 0x51,
 	PM8607_CHIP_D0 = 0x58,
 	PM8607_CHIP_END = PM8607_CHIP_D0
+};
+
+enum enum_result {
+	ENUMERATION_START	= 0,
+	ENUMERATION_500MA,
+};
+
+enum enum_charger_type {
+	USB_CHARGER		= 0,
+	AC_STANDARD_CHARGER,
+	AC_OTHER_CHARGER,
 };
 
 struct pm860x_chip {
@@ -393,7 +472,7 @@ struct pm860x_touch_pdata {
 };
 
 struct pm860x_power_pdata {
-	unsigned	fast_charge;	/* charge current */
+	void (*disable_rf_fn)(void);/* disable rf for battery calibration */
 };
 
 struct pm860x_platform_data {
@@ -431,5 +510,10 @@ extern int pm860x_page_set_bits(struct i2c_client *, int, unsigned char,
 extern int pm860x_device_init(struct pm860x_chip *chip,
 			      struct pm860x_platform_data *pdata) __devinit ;
 extern void pm860x_device_exit(struct pm860x_chip *chip) __devexit ;
+
+extern int pm860x_calc_resistor(void);
+extern void pm860x_set_charger_type(enum enum_charger_type type );
+extern int pm860x_battery_update_soc(void);
+extern void pm860x_set_vbus_output(int);
 
 #endif /* __LINUX_MFD_88PM860X_H */
