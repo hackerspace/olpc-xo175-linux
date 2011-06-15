@@ -48,7 +48,6 @@ static struct pm860x_backlight_pdata saarb_backlight[] = {
 		.iset	= PM8606_WLED_CURRENT(8),
 		.flags	= PM8606_BACKLIGHT1,
 	},
-	{},
 };
 
 static struct pm860x_led_pdata saarb_led[] = {
@@ -88,6 +87,8 @@ static struct pm860x_platform_data saarb_pm8607_info = {
 	.irq_base	= IRQ_BOARD_START,
 
 	.i2c_port	= GI2C_PORT,
+	.num_leds	= ARRAY_SIZE(saarb_led),
+	.num_backlights	= ARRAY_SIZE(saarb_backlight),
 };
 
 static struct i2c_board_info saarb_i2c_info[] = {
