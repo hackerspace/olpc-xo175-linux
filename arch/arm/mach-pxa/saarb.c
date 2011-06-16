@@ -84,10 +84,35 @@ static struct pm860x_led_pdata saarb_led[] = {
 	},
 };
 
+static int cm3601_request_resource(unsigned char gpio_num, char *name)
+{
+	int ret = 0;
+	ret = gpio_request(mfp_to_gpio(gpio_num), name);
+	if (ret) {
+		printk(KERN_ERR "%s: can't request GPIO %d.\n", __func__,gpio_num);
+		return -1;
+	}
+	return ret;
+}
+
+static void cm3601_release_resource(unsigned char gpio_num){
+	gpio_free(gpio_num);
+}
+
+static struct pm860x_cm3601_pdata cm3601_platform_info = {
+	.gpio_en	= MFP_PIN_GPIO51,
+	.gpio_out	= MFP_PIN_GPIO50,
+	.request_source	= cm3601_request_resource,
+	.release_source	= cm3601_release_resource,
+};
+
 static struct pm860x_platform_data saarb_pm8607_info = {
 	.touch		= &saarb_touch,
 	.backlight	= &saarb_backlight[0],
 	.led		= &saarb_led[0],
+#if defined(CONFIG_SENSORS_CM3601)
+	.cm3601		= &cm3601_platform_info,
+#endif
 	.companion_addr	= 0x10,
 	.irq_mode	= 0,
 	.irq_base	= IRQ_BOARD_START,
