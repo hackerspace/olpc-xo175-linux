@@ -338,6 +338,14 @@ ENTRY(cpu_mohawk_set_pte_ext)
 	mcr	p15, 0, r0, c7, c10, 4		@ drain WB
 	mov	pc, lr
 
+.globl	cpu_mohawk_suspend_size
+.equ	cpu_mohawk_suspend_size, 0
+ENTRY(cpu_mohawk_do_suspend)
+	mov	pc, lr
+
+ENTRY(cpu_mohawk_do_resume)
+	mov	pc, lr
+
 	__CPUINIT
 
 	.type	__mohawk_setup, #function
