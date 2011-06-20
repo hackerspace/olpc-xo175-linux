@@ -118,14 +118,32 @@ static struct pm860x_backlight_pdata ttc_dkb_backlight[] = {
 	},
 };
 
+static struct pm860x_led_pdata ttc_dkb_led[] = {
+	{
+		.id	= PM8606_ID_LED,
+		.iset	= PM8606_LED_CURRENT(12),
+		.flags	= PM8606_LED1_RED,
+	}, {
+		.id	= PM8606_ID_LED,
+		.iset	= PM8606_LED_CURRENT(12),
+		.flags	= PM8606_LED1_GREEN,
+	}, {
+		.id	= PM8606_ID_LED,
+		.iset	= PM8606_LED_CURRENT(12),
+		.flags	= PM8606_LED1_BLUE,
+	},
+};
+
 static struct pm860x_platform_data ttc_dkb_pm8607_info = {
 	.backlight	= &ttc_dkb_backlight[0],
+	.led		= &ttc_dkb_led[0],
 	.companion_addr	= 0x11,
 	.irq_mode	= 0,
 	.irq_base	= IRQ_BOARD_START,
 
 	.i2c_port	= GI2C_PORT,
 	.num_backlights	= ARRAY_SIZE(ttc_dkb_backlight),
+	.num_leds	= ARRAY_SIZE(ttc_dkb_led),
 };
 
 static struct i2c_board_info ttc_dkb_i2c_info[] = {
