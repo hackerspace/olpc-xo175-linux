@@ -453,4 +453,25 @@ config GPIO_TPS65910
 	help
 	  Select this option to enable GPIO driver for the TPS65910
 	  chip family.
+
+config GPIO_PCA9575
+	tristate "PCA9575 I/O ports"
+	depends on I2C
+	help
+	  Say yes here to provide access to several register-oriented
+	  SMBus I/O expanders, made mostly by NXP or TI.  Compatible
+	  models include:
+
+	  16 bits:	pca9575
+
+	  This driver can also be built as a module.  If so, the module
+	  will be called pca9575
+
+config GPIO_PCA9575_GENERIC_IRQ
+	bool "Generic IRQ support for PCA9575"
+	depends on GPIO_PCA9575=y && GENERIC_HARDIRQS
+	help
+	  Say yes here to support the Generic IRQ for the PCA9575 on-chip
+	  GPIO lines. Only pin-changed IRQs (IRQ_TYPE_EDGE_BOTH) are
+	  supported in hardware.
 endif
