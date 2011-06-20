@@ -15,6 +15,7 @@
 #include <linux/mtd/partitions.h>
 #include <linux/mtd/onenand.h>
 #include <linux/interrupt.h>
+#include <linux/mfd/88pm860x.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -109,6 +110,23 @@ static struct platform_device ttc_dkb_device_onenand = {
 	},
 };
 
+static struct pm860x_platform_data ttc_dkb_pm8607_info = {
+	.companion_addr	= 0x11,
+	.irq_mode	= 0,
+	.irq_base	= IRQ_BOARD_START,
+
+	.i2c_port	= GI2C_PORT,
+};
+
+static struct i2c_board_info ttc_dkb_i2c_info[] = {
+	{
+		.type		= "88PM860x",
+		.addr		= 0x34,
+		.platform_data	= &ttc_dkb_pm8607_info,
+		.irq		= IRQ_PXA910_PMIC_INT,
+	},
+};
+
 static struct platform_device *ttc_dkb_devices[] = {
 	&ttc_dkb_device_onenand,
 };
@@ -119,6 +137,8 @@ static void __init ttc_dkb_init(void)
 
 	/* on-chip devices */
 	pxa910_add_uart(1);
+
+	pxa910_add_twsi(0, NULL, ARRAY_AND_SIZE(ttc_dkb_i2c_info));
 
 	/* off-chip devices */
 	platform_add_devices(ARRAY_AND_SIZE(ttc_dkb_devices));
