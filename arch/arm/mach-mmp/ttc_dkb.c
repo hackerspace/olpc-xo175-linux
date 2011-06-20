@@ -110,12 +110,22 @@ static struct platform_device ttc_dkb_device_onenand = {
 	},
 };
 
+static struct pm860x_backlight_pdata ttc_dkb_backlight[] = {
+	{
+		.id	= PM8606_ID_BACKLIGHT,
+		.iset	= PM8606_WLED_CURRENT(4),
+		.flags	= PM8606_BACKLIGHT1,
+	},
+};
+
 static struct pm860x_platform_data ttc_dkb_pm8607_info = {
+	.backlight	= &ttc_dkb_backlight[0],
 	.companion_addr	= 0x11,
 	.irq_mode	= 0,
 	.irq_base	= IRQ_BOARD_START,
 
 	.i2c_port	= GI2C_PORT,
+	.num_backlights	= ARRAY_SIZE(ttc_dkb_backlight),
 };
 
 static struct i2c_board_info ttc_dkb_i2c_info[] = {
