@@ -16,6 +16,8 @@
 #include <linux/mtd/onenand.h>
 #include <linux/interrupt.h>
 #include <linux/mfd/88pm860x.h>
+#include <linux/i2c/pca9575.h>
+#include <linux/gpio.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -146,6 +148,14 @@ static struct pm860x_platform_data ttc_dkb_pm8607_info = {
 	.num_leds	= ARRAY_SIZE(ttc_dkb_led),
 };
 
+#if defined(CONFIG_GPIO_PCA9575)
+static struct pca9575_platform_data pca9575_data[] = {
+	[0] = {
+		.gpio_base      = GPIO_EXT1(0),
+	},
+};
+#endif
+
 static struct i2c_board_info ttc_dkb_i2c_info[] = {
 	{
 		.type		= "88PM860x",
@@ -153,6 +163,14 @@ static struct i2c_board_info ttc_dkb_i2c_info[] = {
 		.platform_data	= &ttc_dkb_pm8607_info,
 		.irq		= IRQ_PXA910_PMIC_INT,
 	},
+#if defined(CONFIG_GPIO_PCA9575)
+	{
+		.type           = "pca9575",
+		.addr           = 0x20,
+		.irq            = IRQ_GPIO(19),
+		.platform_data  = &pca9575_data,
+	},
+#endif
 };
 
 static struct platform_device *ttc_dkb_devices[] = {

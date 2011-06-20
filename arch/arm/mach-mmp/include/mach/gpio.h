@@ -33,4 +33,7 @@
 #define GPCR(x)		GPIO_REG(BANK_OFF(gpio_to_bank(x)) + 0x24)
 
 #include <plat/gpio.h>
+
+#define GPIO_EXT0(x)	(NR_BUILTIN_GPIO + (x))
+#define GPIO_EXT1(x)	(NR_BUILTIN_GPIO + 16 + (x))
 #endif /* __ASM_MACH_GPIO_H */
