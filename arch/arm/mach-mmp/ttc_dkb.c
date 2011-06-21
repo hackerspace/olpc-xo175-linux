@@ -59,6 +59,19 @@ static unsigned long ttc_dkb_pin_config[] __initdata = {
 	DF_WEn_DF_WEn,
 	DF_REn_DF_REn,
 	DF_RDY0_DF_RDY0,
+
+	/*keypad*/
+	GPIO00_KP_MKIN0,
+	GPIO01_KP_MKOUT0,
+	GPIO02_KP_MKIN1,
+	GPIO03_KP_MKOUT1,
+	GPIO04_KP_MKIN2,
+	GPIO05_KP_MKOUT2,
+	GPIO06_KP_MKIN3,
+	GPIO07_KP_MKOUT3,
+	GPIO08_KP_MKIN4,
+	GPIO09_KP_MKOUT4,
+	GPIO12_KP_MKIN6,
 };
 
 static struct mtd_partition ttc_dkb_onenand_partitions[] = {
@@ -111,6 +124,52 @@ static struct platform_device ttc_dkb_device_onenand = {
 	.dev		= {
 		.platform_data	= &ttc_dkb_onenand_info,
 	},
+};
+
+static unsigned int ttc_dkb_matrix_key_map[] = {
+	KEY(0, 0, KEY_BACKSPACE),
+	KEY(0, 1, KEY_END),
+	KEY(0, 2, KEY_RIGHTCTRL),
+	KEY(0, 3, KEY_0),
+	KEY(0, 4, KEY_1),
+
+	KEY(1, 0, KEY_MENU),
+	KEY(1, 1, KEY_HOME),
+	KEY(1, 2, KEY_SEND),
+	KEY(1, 3, KEY_8),
+	KEY(1, 4, KEY_9),
+
+	KEY(2, 0, KEY_OK),
+	KEY(2, 1, KEY_2),
+	KEY(2, 2, KEY_3),
+	KEY(2, 3, KEY_4),
+	KEY(2, 4, KEY_5),
+
+	KEY(3, 0, KEY_6),
+	KEY(3, 1, KEY_VOLUMEUP),
+	KEY(3, 2, KEY_7),
+	KEY(3, 3, KEY_VOLUMEDOWN),
+	KEY(3, 4, KEY_RECORD),
+
+	KEY(4, 0, KEY_KPASTERISK),
+	KEY(4, 1, KEY_KPDOT),
+	KEY(4, 2, KEY_F2),
+	KEY(4, 3, KEY_CAMERA),
+	KEY(4, 4, KEY_CAMERA),
+
+	KEY(6, 0, KEY_F1),
+	KEY(6, 1, KEY_UP),
+	KEY(6, 2, KEY_DOWN),
+	KEY(6, 3, KEY_LEFT),
+	KEY(6, 4, KEY_RIGHT),
+};
+
+static struct pxa27x_keypad_platform_data ttc_dkb_keypad_info __initdata = {
+	.matrix_key_rows	= 7,
+	.matrix_key_cols	= 5,
+	.matrix_key_map		= ttc_dkb_matrix_key_map,
+	.matrix_key_map_size	= ARRAY_SIZE(ttc_dkb_matrix_key_map),
+	.debounce_interval	= 30,
 };
 
 static struct pm860x_backlight_pdata ttc_dkb_backlight[] = {
@@ -200,6 +259,8 @@ static void __init ttc_dkb_init(void)
 
 	/* on-chip devices */
 	pxa910_add_uart(1);
+
+	pxa910_add_keypad(&ttc_dkb_keypad_info);
 
 	pxa910_add_twsi(0, NULL, ARRAY_AND_SIZE(ttc_dkb_i2c_info));
 
