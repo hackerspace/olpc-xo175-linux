@@ -25,6 +25,17 @@
 #define AXI_VIRT_BASE		0xfe200000
 #define AXI_PHYS_SIZE		0x00200000
 
+#ifdef CONFIG_CPU_MMP3
+#define PGU_PHYS_BASE		0xe0000000
+#define PGU_VIRT_BASE		0xfe400000
+#define PGU_PHYS_SIZE		0x00100000
+
+#define SCU_VIRT_BASE		(PGU_VIRT_BASE)
+#define GIC_DIST_VIRT_BASE	(PGU_VIRT_BASE + 0x1000)
+#define GIC_CPU_VIRT_BASE	(PGU_VIRT_BASE + 0x0100)
+#define TWD_VIRT_BASE		(PGU_VIRT_BASE + 0x600)
+#endif
+
 /* Static Memory Controller - Chip Select 0 and 1 */
 #define SMC_CS0_PHYS_BASE	0x80000000
 #define SMC_CS0_PHYS_SIZE	0x10000000

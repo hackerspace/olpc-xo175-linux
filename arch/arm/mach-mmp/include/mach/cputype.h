@@ -52,4 +52,13 @@ static inline int cpu_is_mmp2(void)
 #define cpu_is_mmp2()	(0)
 #endif
 
+#ifdef CONFIG_CPU_MMP3
+static inline int cpu_is_mmp3(void)
+{
+	return (((read_cpuid_id() >> 8) & 0xff) == 0x58);
+}
+#else
+#define cpu_is_mmp3(id)	(0)
+#endif
+
 #endif /* __ASM_MACH_CPUTYPE_H */

@@ -6,7 +6,7 @@
  * published by the Free Software Foundation.
  */
 
-#ifdef CONFIG_CPU_MMP2
+#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 #define CLOCK_TICK_RATE		6500000
 #else
 #define CLOCK_TICK_RATE		3250000

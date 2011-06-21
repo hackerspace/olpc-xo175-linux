@@ -537,7 +537,7 @@ config ARCH_ORION5X
 	  Orion-2 (5281), Orion-1-90 (6183).
 
 config ARCH_MMP
-	bool "Marvell PXA168/910/MMP2"
+	bool "Marvell PXA168/910/MMP2/MMP3"
 	depends on MMU
 	select ARCH_REQUIRE_GPIOLIB
 	select CLKDEV_LOOKUP
@@ -547,7 +547,7 @@ config ARCH_MMP
 	select PLAT_PXA
 	select SPARSE_IRQ
 	help
-	  Support for Marvell's PXA168/PXA910(MMP) and MMP2 processor line.
+	  Support for Marvell's PXA168/PXA910(MMP), MMP2 and MMP3 processor line.
 
 config ARCH_KS8695
 	bool "Micrel/Kendin KS8695"

@@ -96,4 +96,10 @@ config CPU_MMP2
 	select CPU_PJ4
 	help
 	  Select code specific to MMP2. MMP2 is ARMv7 compatible.
+
+config CPU_MMP3
+	 bool
+	 select CPU_PJ4B
+	 help
+	   Select code specific to MMP3.
 endif

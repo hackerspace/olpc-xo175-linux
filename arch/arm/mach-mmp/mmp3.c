@@ -1,0 +1,321 @@
+/*
+ * linux/arch/arm/mach-mmp/mmp3.c
+ *
+ * code name MMP3
+ *
+ * Copyright (C) 2009 Marvell International Ltd.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/init.h>
+#include <linux/io.h>
+#include <linux/delay.h>
+
+#include <asm/smp_twd.h>
+#include <asm/mach/time.h>
+#include <asm/hardware/gic.h>
+
+#include <mach/addr-map.h>
+#include <mach/regs-apbc.h>
+#include <mach/regs-apmu.h>
+#include <mach/regs-mpmu.h>
+#include <mach/cputype.h>
+#include <mach/irqs.h>
+#include <mach/gpio.h>
+#include <mach/dma.h>
+#include <mach/devices.h>
+#include <mach/mmp3.h>
+
+#include <linux/platform_device.h>
+
+#include <plat/mfp.h>
+
+#include "common.h"
+#include "clock.h"
+
+#define MFPR_VIRT_BASE	(APB_VIRT_BASE + 0x1e000)
+
+#define APMASK(i)	(GPIO_REGS_VIRT + BANK_OFF(i) + 0x9c)
+
+static struct mfp_addr_map mmp3_addr_map[] __initdata = {
+	MFP_ADDR_X(GPIO0, GPIO58, 0x54),
+	MFP_ADDR_X(GPIO59, GPIO73, 0x280),
+	MFP_ADDR_X(GPIO74, GPIO101, 0x170),
+	MFP_ADDR_X(GPIO102, GPIO103, 0x0),
+	MFP_ADDR_X(GPIO115, GPIO122, 0x260),
+	MFP_ADDR_X(GPIO124, GPIO141, 0xc),
+	MFP_ADDR_X(GPIO143, GPIO151, 0x220),
+	MFP_ADDR_X(GPIO152, GPIO153, 0x248),
+	MFP_ADDR_X(GPIO154, GPIO155, 0x254),
+
+	MFP_ADDR(GPIO142, 0x8),
+	MFP_ADDR(GPIO114, 0x164),
+	MFP_ADDR(GPIO123, 0x148),
+
+	MFP_ADDR(GPIO168, 0x1e0),
+	MFP_ADDR(GPIO167, 0x1e4),
+	MFP_ADDR(GPIO166, 0x1e8),
+	MFP_ADDR(GPIO165, 0x1ec),
+	MFP_ADDR(GPIO107, 0x1f0),
+	MFP_ADDR(GPIO106, 0x1f4),
+	MFP_ADDR(GPIO105, 0x1f8),
+	MFP_ADDR(GPIO104, 0x1fc),
+	MFP_ADDR(GPIO111, 0x200),
+	MFP_ADDR(GPIO164, 0x204),
+	MFP_ADDR(GPIO163, 0x208),
+	MFP_ADDR(GPIO162, 0x20c),
+	MFP_ADDR(GPIO161, 0x210),
+	MFP_ADDR(GPIO110, 0x214),
+	MFP_ADDR(GPIO109, 0x218),
+	MFP_ADDR(GPIO108, 0x21c),
+	MFP_ADDR(GPIO110, 0x214),
+	MFP_ADDR(GPIO112, 0x244),
+	MFP_ADDR(GPIO160, 0x250),
+	MFP_ADDR(GPIO113, 0x25c),
+	/* FIXME: Zx does not have this pin, define here will not impact */
+	MFP_ADDR(GPIO171, 0x2c8),
+
+	MFP_ADDR_X(TWSI1_SCL, TWSI1_SDA, 0x140),
+	MFP_ADDR_X(TWSI4_SCL, TWSI4_SDA, 0x2bc),
+	MFP_ADDR(PMIC_INT, 0x2c4),
+	MFP_ADDR(CLK_REQ, 0x160),
+
+	MFP_ADDR_END,
+};
+
+static void __init mmp3_init_gpio(void)
+{
+	int i;
+
+	/* enable GPIO clock */
+	__raw_writel(APBC_APBCLK | APBC_FNCLK, APBC_MMP2_GPIO);
+
+	/* unmask GPIO edge detection for all 6 banks -- APMASKx */
+	for (i = 0; i < 6; i++)
+		__raw_writel(0xffffffff, APMASK(i));
+
+	pxa_init_gpio(IRQ_MMP3_GPIO, 0, 167, NULL);
+}
+
+static void uart_clk_enable(struct clk *clk)
+{
+	uint32_t clk_rst;
+
+	clk_rst = __raw_readl(clk->clk_rst);
+	clk_rst |= APBC_FNCLK;
+	__raw_writel(clk_rst, clk->clk_rst);
+	mdelay(1);
+
+	clk_rst |= APBC_APBCLK;
+	__raw_writel(clk_rst, clk->clk_rst);
+	mdelay(1);
+
+	clk_rst &= ~(APBC_RST);
+	__raw_writel(clk_rst, clk->clk_rst);
+}
+
+static void uart_clk_disable(struct clk *clk)
+{
+	__raw_writel(0, clk->clk_rst);
+	mdelay(1);
+}
+
+static int uart_clk_setrate(struct clk *clk, unsigned long val)
+{
+	uint32_t clk_rst;
+
+	if (val == clk->rate) {
+		/* choose vctcxo */
+		clk_rst = __raw_readl(clk->clk_rst);
+		clk_rst &= ~(APBC_FNCLKSEL(0x7));
+		clk_rst |= APBC_FNCLKSEL(0x1);
+		__raw_writel(clk_rst, clk->clk_rst);
+
+	} else if (val > clk->rate) {
+		/* set m/n for high speed */
+		unsigned int numer = 27;
+		unsigned int denom = 16;
+
+		/*
+		 *      n/d = base_clk/(2*out_clk)
+		 *      base_clk = 199.33M, out_clk=199.33*16/27/2=59.06M
+		 *      buadrate = clk/(16*divisor)
+		 */
+
+		/* Bit(s) PMUM_SUCCR_RSRV_31_29 reserved */
+		/* UART Clock Generation Programmable Divider Numerator Value */
+#define PMUM_SUCCR_UARTDIVN_MSK                 (0x1fff << 16)
+#define PMUM_SUCCR_UARTDIVN_BASE                16
+		/* Bit(s) PMUM_SUCCR_RSRV_15_13 reserved */
+		/* UART Clock Generation Programmable Divider Denominator Value */
+#define PMUM_SUCCR_UARTDIVD_MSK                 (0x1fff)
+#define PMUM_SUCCR_UARTDIVD_BASE                0
+
+		clk_rst = __raw_readl(MPMU_SUCCR);
+		clk_rst &=
+		    ~(PMUM_SUCCR_UARTDIVN_MSK + PMUM_SUCCR_UARTDIVD_MSK);
+		clk_rst |=
+		    (numer << PMUM_SUCCR_UARTDIVN_BASE) | (denom <<
+							   PMUM_SUCCR_UARTDIVD_BASE);
+		__raw_writel(clk_rst, MPMU_SUCCR);
+
+		/* choose programmable clk */
+		clk_rst = __raw_readl(clk->clk_rst);
+		clk_rst &= ~(APBC_FNCLKSEL(0x7));
+		__raw_writel(clk_rst, clk->clk_rst);
+	}
+
+	return 0;
+}
+
+struct clkops uart_clk_ops = {
+	.enable = uart_clk_enable,
+	.disable = uart_clk_disable,
+	.setrate = uart_clk_setrate,
+};
+
+void __init mmp3_init_irq(void)
+{
+	gic_init(0, 29, (void __iomem *) GIC_DIST_VIRT_BASE, (void __iomem *) GIC_CPU_VIRT_BASE);
+
+	mmp3_init_gic();
+}
+
+/* APB peripheral clocks */
+static APBC_CLK_OPS(uart1, MMP2_UART1, 1, 26000000, &uart_clk_ops);
+static APBC_CLK_OPS(uart2, MMP2_UART2, 1, 26000000, &uart_clk_ops);
+static APBC_CLK_OPS(uart3, MMP2_UART3, 1, 26000000, &uart_clk_ops);
+static APBC_CLK_OPS(uart4, MMP2_UART4, 1, 26000000, &uart_clk_ops);
+
+static APBC_CLK(twsi1, MMP2_TWSI1, 0, 26000000);
+static APBC_CLK(twsi2, MMP2_TWSI2, 0, 26000000);
+static APBC_CLK(twsi3, MMP2_TWSI3, 0, 26000000);
+static APBC_CLK(twsi4, MMP2_TWSI4, 0, 26000000);
+static APBC_CLK(twsi5, MMP2_TWSI5, 0, 26000000);
+static APBC_CLK(twsi6, MMP2_TWSI6, 0, 26000000);
+static APBC_CLK(pwm1, MMP2_PWM0, 0, 26000000);
+static APBC_CLK(pwm2, MMP2_PWM1, 0, 26000000);
+static APBC_CLK(pwm3, MMP2_PWM2, 0, 26000000);
+static APBC_CLK(pwm4, MMP2_PWM3, 0, 26000000);
+static APBC_CLK(keypad, MMP2_KPC, 0, 32768);
+static APMU_CLK(nand, NAND, 0xbf, 100000000);
+
+static struct clk_lookup mmp3_clkregs[] = {
+	INIT_CLKREG(&clk_uart1, "pxa2xx-uart.0", NULL),
+	INIT_CLKREG(&clk_uart2, "pxa2xx-uart.1", NULL),
+	INIT_CLKREG(&clk_uart3, "pxa2xx-uart.2", NULL),
+	INIT_CLKREG(&clk_uart4, "pxa2xx-uart.3", NULL),
+	INIT_CLKREG(&clk_twsi1, "pxa2xx-i2c.0", NULL),
+	INIT_CLKREG(&clk_twsi2, "pxa2xx-i2c.1", NULL),
+	INIT_CLKREG(&clk_twsi3, "pxa2xx-i2c.2", NULL),
+	INIT_CLKREG(&clk_twsi4, "pxa2xx-i2c.3", NULL),
+	INIT_CLKREG(&clk_twsi5, "pxa2xx-i2c.4", NULL),
+	INIT_CLKREG(&clk_twsi6, "pxa2xx-i2c.5", NULL),
+	INIT_CLKREG(&clk_pwm1, "mmp2-pwm.0", NULL),
+	INIT_CLKREG(&clk_pwm2, "mmp2-pwm.1", NULL),
+	INIT_CLKREG(&clk_pwm3, "mmp2-pwm.2", NULL),
+	INIT_CLKREG(&clk_pwm4, "mmp2-pwm.3", NULL),
+	INIT_CLKREG(&clk_keypad, "pxa27x-keypad", NULL),
+	INIT_CLKREG(&clk_nand, "pxa3xx-nand", NULL),
+};
+
+static void __init mmp3_timer_init(void)
+{
+	uint32_t clk_rst;
+
+#ifdef CONFIG_LOCAL_TIMERS
+	twd_base = (void __iomem *)TWD_VIRT_BASE;
+#endif
+	/* this is early, we have to initialize the CCU registers by
+	 * ourselves instead of using clk_* API. Clock rate is defined
+	 * by APBC_TIMERS_FNCLKSEL and enabled free-running
+	 */
+	__raw_writel(APBC_APBCLK | APBC_RST, APBC_MMP2_TIMERS);
+
+	/* 6.5MHz, bus/functional clock enabled, release reset */
+	clk_rst = APBC_APBCLK | APBC_FNCLK | APBC_FNCLKSEL(1);
+	__raw_writel(clk_rst, APBC_MMP2_TIMERS);
+
+	timer_init(IRQ_MMP3_TIMER1, IRQ_MMP3_TIMER2);
+}
+
+struct sys_timer mmp3_timer = {
+	.init   = mmp3_timer_init,
+};
+
+#define PJ4B_WCB_MIN_MSK	(0x3f)
+#define PJ4B_WCB_MIN_SHFT	(1)
+#define PJ4B_WCB_MAX_MSK	(0x3f)
+#define PJ4B_WCB_MAX_SHFT	(7)
+#define PJ4B_WCB_EVCT_MSK	(0x7fff)
+#define PJ4B_WCB_EVCT_SHFT	(13)
+#define OMITFLD			((unsigned long)-1)
+#define UPDATE_ON_VALID(lval, rval, msk, shft)		\
+	do if (rval != OMITFLD) {			\
+		lval &= ~((msk) << (shft));		\
+		lval |= (((rval) & (msk)) << (shft));	\
+	} while (0)
+
+static unsigned long pj4b_wcb_config(unsigned long min, unsigned long max,
+			unsigned long evct)
+{
+	register unsigned long regval;
+	__asm__("mrc p15, 1, %0, c15, c2, 1" : "=r" (regval));
+	UPDATE_ON_VALID(regval, min, PJ4B_WCB_MIN_MSK, PJ4B_WCB_MIN_SHFT);
+	UPDATE_ON_VALID(regval, max, PJ4B_WCB_MAX_MSK, PJ4B_WCB_MAX_SHFT);
+	UPDATE_ON_VALID(regval, evct, PJ4B_WCB_EVCT_MSK, PJ4B_WCB_EVCT_SHFT);
+	__asm__("mcr p15, 1, %0, c15, c2, 1" : : "r" (regval));
+	return regval;
+}
+
+static int __init mmp3_init(void)
+{
+	/*
+	  let's make minimum WCB open entries to 2 to boost memory access
+	*/
+	pj4b_wcb_config(2, OMITFLD, OMITFLD);
+
+	mfp_init_base(MFPR_VIRT_BASE);
+	mfp_init_addr(mmp3_addr_map);
+
+	mmp3_init_gpio();
+
+	clkdev_add_table(ARRAY_AND_SIZE(mmp3_clkregs));
+
+	return 0;
+}
+
+postcore_initcall(mmp3_init);
+
+/* on-chip devices */
+MMP3_DEVICE(uart1, "pxa2xx-uart", 0, UART1, 0xd4030000, 0x30, 4, 5);
+MMP3_DEVICE(uart2, "pxa2xx-uart", 1, UART2, 0xd4017000, 0x30, 20, 21);
+MMP3_DEVICE(uart3, "pxa2xx-uart", 2, UART3, 0xd4018000, 0x30, 22, 23);
+MMP3_DEVICE(uart4, "pxa2xx-uart", 3, UART4, 0xd4016000, 0x30, 18, 19);
+MMP3_DEVICE(nand, "pxa3xx-nand", -1, NAND, 0xd4283000, 0x100, 28, 29);
+MMP3_DEVICE(twsi1, "pxa2xx-i2c", 0, TWSI1, 0xd4011000, 0x70);
+MMP3_DEVICE(twsi2, "pxa2xx-i2c", 1, TWSI2, 0xd4031000, 0x70);
+MMP3_DEVICE(twsi3, "pxa2xx-i2c", 2, TWSI3, 0xd4032000, 0x70);
+MMP3_DEVICE(twsi4, "pxa2xx-i2c", 3, TWSI4, 0xd4033000, 0x70);
+MMP3_DEVICE(twsi5, "pxa2xx-i2c", 4, TWSI5, 0xd4033800, 0x70);
+MMP3_DEVICE(twsi6, "pxa2xx-i2c", 5, TWSI6, 0xd4034000, 0x70);
+MMP3_DEVICE(pwm1, "mmp2-pwm", 0, NONE, 0xd401a000, 0x10);
+MMP3_DEVICE(pwm2, "mmp2-pwm", 1, NONE, 0xd401a400, 0x10);
+MMP3_DEVICE(pwm3, "mmp2-pwm", 2, NONE, 0xd401a800, 0x10);
+MMP3_DEVICE(pwm4, "mmp2-pwm", 3, NONE, 0xd401ac00, 0x10);
+MMP3_DEVICE(keypad, "pxa27x-keypad", -1, KEYPAD, 0xd4012000, 0x4c);
+
+void mmp3_clear_keypad_wakeup(void)
+{
+	uint32_t val;
+	uint32_t mask = (1 << 5);
+
+	/* wake event clear is needed in order to clear keypad interrupt */
+	val = __raw_readl(APMU_WAKE_CLR);
+	__raw_writel(val | mask, APMU_WAKE_CLR);
+}
