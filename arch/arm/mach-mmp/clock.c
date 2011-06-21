@@ -65,9 +65,16 @@ static void apmu_clk_disable(struct clk *clk)
 	__raw_writel(0, clk->clk_rst);
 }
 
+static int apmu_clk_setrate(struct clk *clk, unsigned long rate)
+{
+	__raw_writel(rate, clk->clk_rst);
+	return 0;
+}
+
 struct clkops apmu_clk_ops = {
 	.enable		= apmu_clk_enable,
 	.disable	= apmu_clk_disable,
+	.setrate	= apmu_clk_setrate,
 };
 
 static DEFINE_SPINLOCK(clocks_lock);
