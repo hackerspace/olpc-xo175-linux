@@ -77,6 +77,11 @@ config MACH_TETON_BGA
 	  Say 'Y' here if you want to support the Marvell PXA168-based
 	  Teton BGA Development Board.
 
+config MACH_ABILENE
+	bool "Marvell's MMP3 Abliene Development Board"
+	select CPU_MMP3
+	select ARM_GIC
+
 endmenu
 
 config CPU_PXA168
