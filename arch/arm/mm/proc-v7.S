@@ -280,6 +280,7 @@ cpu_resume_l1_flags:
  *	- cache type register is implemented
  */
 __v7_ca9mp_setup:
+__v7_setup:
 #ifdef CONFIG_SMP
 	ALT_SMP(mrc	p15, 0, r0, c1, c0, 1)
 	ALT_UP(mov	r0, #(1 << 6))		@ fake it for UP
@@ -287,7 +288,6 @@ __v7_ca9mp_setup:
 	orreq	r0, r0, #(1 << 6) | (1 << 0)	@ Enable SMP/nAMP mode and
 	mcreq	p15, 0, r0, c1, c0, 1		@ TLB ops broadcasting
 #endif
-__v7_setup:
 #ifdef CONFIG_PJ4_RETURNSTACK_ISSUE
 	mrc	p15, 1, r0, c15, c1, 1
 	bic	r0, r0, #0x1			@disable return stack
