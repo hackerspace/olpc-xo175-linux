@@ -35,6 +35,10 @@
 #include <mach/cputype.h>
 #include <asm/mach/time.h>
 
+#ifdef CONFIG_LOCAL_TIMERS
+#include <asm/localtimer.h>
+#endif
+
 #include "clock.h"
 
 #define TIMERS_VIRT_BASE	TIMERS1_VIRT_BASE
