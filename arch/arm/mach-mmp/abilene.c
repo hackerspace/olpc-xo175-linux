@@ -95,8 +95,25 @@ static unsigned long abilene_pin_config[] __initdata = {
 	GPIO17_KP_DKIN1 | MFP_PULL_HIGH,
 	GPIO18_KP_DKIN2 | MFP_PULL_HIGH,
 	GPIO19_KP_DKIN3 | MFP_PULL_HIGH,
+	GPIO20_KP_DKIN4 | MFP_PULL_HIGH,
+	GPIO22_KP_DKIN6 | MFP_PULL_HIGH,
 
 	PMIC_PMIC_INT | MFP_LPM_EDGE_FALL,
+};
+
+static struct pxa27x_keypad_platform_data mmp3_keypad_info = {
+	.direct_key_map = {
+		KEY_BACK,
+		KEY_MENU,
+		KEY_HOME,
+		KEY_SEARCH,
+		KEY_VOLUMEUP,
+		KEY_RESERVED,
+		KEY_VOLUMEDOWN,
+	},
+	.direct_key_num = 7,
+	.debounce_interval = 30,
+	.active_low = 1,
 };
 
 static void __init abilene_init(void)
@@ -105,6 +122,8 @@ static void __init abilene_init(void)
 
 	/* on-chip devices */
 	mmp3_add_uart(3);
+
+	mmp3_add_keypad(&mmp3_keypad_info);
 
 	platform_device_register(&mmp3_device_rtc);
 }
