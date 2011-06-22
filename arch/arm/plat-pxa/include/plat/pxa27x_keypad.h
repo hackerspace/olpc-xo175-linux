@@ -44,6 +44,8 @@ struct pxa27x_keypad_platform_data {
 	/* direct keys */
 	int		direct_key_num;
 	unsigned int	direct_key_map[MAX_DIRECT_KEY_NUM];
+	/* key polarity */
+	int active_low;
 
 	/* rotary encoders 0 */
 	int		enable_rotary0;

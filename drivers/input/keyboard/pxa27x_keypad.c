@@ -313,7 +313,11 @@ static void pxa27x_keypad_scan_direct(struct pxa27x_keypad *keypad)
 	if (pdata->enable_rotary0 || pdata->enable_rotary1)
 		pxa27x_keypad_scan_rotary(keypad);
 
-	new_state = KPDK_DK(kpdk) & keypad->direct_key_mask;
+	if (pdata->active_low)
+		new_state = ~KPDK_DK(kpdk) & keypad->direct_key_mask;
+	else
+		new_state = KPDK_DK(kpdk) & keypad->direct_key_mask;
+
 	bits_changed = keypad->direct_key_state ^ new_state;
 
 	if (bits_changed == 0)
