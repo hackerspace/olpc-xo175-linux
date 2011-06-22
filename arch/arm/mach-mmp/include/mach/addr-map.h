@@ -34,6 +34,10 @@
 #define GIC_DIST_VIRT_BASE	(PGU_VIRT_BASE + 0x1000)
 #define GIC_CPU_VIRT_BASE	(PGU_VIRT_BASE + 0x0100)
 #define TWD_VIRT_BASE		(PGU_VIRT_BASE + 0x600)
+
+#define SL2C_PHYS_BASE		0xd0020000
+#define SL2C_VIRT_BASE		0xfe800000
+#define SL2C_PHYS_SIZE		SZ_8K
 #endif
 
 /* Static Memory Controller - Chip Select 0 and 1 */

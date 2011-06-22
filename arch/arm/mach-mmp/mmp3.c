@@ -19,6 +19,7 @@
 #include <asm/smp_twd.h>
 #include <asm/mach/time.h>
 #include <asm/hardware/gic.h>
+#include <asm/hardware/cache-l2x0.h>
 
 #include <mach/addr-map.h>
 #include <mach/regs-apbc.h>
@@ -224,6 +225,50 @@ static struct clk_lookup mmp3_clkregs[] = {
 	INIT_CLKREG(&clk_nand, "pxa3xx-nand", NULL),
 };
 
+#ifdef CONFIG_CACHE_L2X0
+static void mmp3_init_l2x0(void)
+{
+	void __iomem *l2x0_base = ioremap(SL2C_PHYS_BASE, SZ_4K);
+	if (IS_ERR(l2x0_base)) {
+		printk(KERN_ERR "L2 map failed %ld\n", PTR_ERR(l2x0_base));
+	} else {
+		/* Auxiliary Control:
+		   TODO: According to the manual, this register should be
+			written in secure access, we may need to move the
+			configuration in early stage of boot if TZ enabled
+
+		   [ 0.. 2]	cycles of latency of data RAM read
+		   [ 3.. 5]	cycles of latency of data RAM write
+		   [ 6.. 8]	cycles of latency of tag RAM
+		   [ 9..11]	cycles of latency of dirty RAM
+		   [12]		exclusive cache op, 0:disable,1:enable
+		   [13..16]	associativity
+		   [17..19]	way-size
+		   [20]		event monitor bus enable
+		   [21]		parity enable
+		   [22]		shared attribute override enable
+		   [23..24]	force write allocate
+				0: use AWCACHE
+				1: force no WA
+				2: force WA on
+				3: internal mapped
+		   [25]		reserved, SBO/RAO
+		   [26]		Non-secure lockdown enable
+		   [27]		Non-secure interrupt access enable
+		   [28..31]	reserved, SBZ
+		*/
+		/*
+		   forece NO WA, for A0 memory performance, bug in WA
+		   64KB way-size
+		   clear bit[16] to make sure l2x0_init call take it as 8-way
+		*/
+		l2x0_init(l2x0_base, 0x00860000, 0xE200FFFF);
+	}
+}
+#else
+static void mmp3_init_l2x0(void) {}
+#endif
+
 static void __init mmp3_timer_init(void)
 {
 	uint32_t clk_rst;
@@ -279,6 +324,8 @@ static int __init mmp3_init(void)
 	  let's make minimum WCB open entries to 2 to boost memory access
 	*/
 	pj4b_wcb_config(2, OMITFLD, OMITFLD);
+
+	mmp3_init_l2x0();
 
 	mfp_init_base(MFPR_VIRT_BASE);
 	mfp_init_addr(mmp3_addr_map);
