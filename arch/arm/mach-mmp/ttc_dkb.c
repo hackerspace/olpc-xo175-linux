@@ -251,6 +251,7 @@ static struct i2c_board_info ttc_dkb_i2c_info[] = {
 
 static struct platform_device *ttc_dkb_devices[] = {
 	&ttc_dkb_device_onenand,
+	&pxa910_device_rtc,
 };
 
 static void __init ttc_dkb_init(void)
