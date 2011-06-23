@@ -54,6 +54,10 @@ config MACH_SAARB
 	bool "PXA955 Handheld Platform (aka SAARB)"
 	select CPU_PXA955
 
+config MACH_NEVOSAARC
+	bool "PXA970 Handheld Platform (aka SAARC2)"
+	select CPU_PXA970
+
 comment "Third Party Dev Platforms (sorted by vendor name)"
 
 config ARCH_PXA_IDP
