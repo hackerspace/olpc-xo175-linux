@@ -19,6 +19,7 @@
 #define OWER		__REG(0x40A00018)  /* OS Timer Watchdog Enable Register */
 #define OIER		__REG(0x40A0001C)  /* OS Timer Interrupt Enable Register */
 
+#define OSSR_M4		(1 << 4)	/* Match status channel 4 */
 #define OSSR_M3		(1 << 3)	/* Match status channel 3 */
 #define OSSR_M2		(1 << 2)	/* Match status channel 2 */
 #define OSSR_M1		(1 << 1)	/* Match status channel 1 */
@@ -26,6 +27,7 @@
 
 #define OWER_WME	(1 << 0)	/* Watchdog Match Enable */
 
+#define OIER_E4		(1 << 4)	/* Interrupt enable channel 4 */
 #define OIER_E3		(1 << 3)	/* Interrupt enable channel 3 */
 #define OIER_E2		(1 << 2)	/* Interrupt enable channel 2 */
 #define OIER_E1		(1 << 1)	/* Interrupt enable channel 1 */
