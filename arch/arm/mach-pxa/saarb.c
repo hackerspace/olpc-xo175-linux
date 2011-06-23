@@ -26,6 +26,8 @@
 #include <mach/mfp-pxa930.h>
 #include <mach/gpio.h>
 
+#include <plat/pxa27x_keypad.h>
+
 #include "devices.h"
 #include "generic.h"
 
@@ -103,11 +105,60 @@ static struct platform_device *devices[] __initdata = {
 	&pxa95x_device_i2c3,
 };
 
+#if defined(CONFIG_KEYBOARD_PXA27x) || defined(CONFIG_KEYBOARD_PXA27x_MODULE)
+static unsigned int matrix_key_map[] = {
+	/* KEY(row, col, key_code) */
+	KEY(1, 3, KEY_0), KEY(0, 0, KEY_1), KEY(1, 0, KEY_2), KEY(2, 0, KEY_3),
+	KEY(0, 1, KEY_4), KEY(1, 1, KEY_5), KEY(2, 1, KEY_6), KEY(0, 2, KEY_7),
+	KEY(1, 2, KEY_8), KEY(2, 2, KEY_9),
+
+	KEY(0, 3, KEY_KPASTERISK), 	/* * */
+	KEY(2, 3, KEY_KPDOT),   	/* # */
+
+	KEY(4, 0, KEY_HOME),
+	KEY(3, 3, KEY_END),
+	KEY(4, 1, KEY_BACK),
+
+	KEY(3, 2, KEY_SEND),
+
+	KEY(4, 4, KEY_SELECT),    /* volume rocker push */
+	KEY(3, 4, KEY_VOLUMEUP),
+	KEY(2, 4, KEY_VOLUMEDOWN),
+
+	KEY(3, 0, KEY_F22),	/* soft1 */
+	KEY(3, 1, KEY_F23),	/* soft2 */
+
+	KEY(1, 4, KEY_CAMERA),      /* camera full push */
+	KEY(0, 4, KEY_ZOOM),		/* camera half push */
+
+	KEY(4, 3, KEY_WWW),		/* surf button */
+	KEY(4, 2, KEY_OK),		/* ok button */
+
+	KEY(0, 5, KEY_ENTER),       /* joystick push */
+	KEY(4, 5, KEY_LEFT),
+	KEY(3, 5, KEY_RIGHT),
+	KEY(2, 5, KEY_UP),
+	KEY(1, 5, KEY_DOWN),
+};
+
+static struct pxa27x_keypad_platform_data keypad_info = {
+	.matrix_key_rows	= 5,
+	.matrix_key_cols	= 6,
+	.matrix_key_map		= matrix_key_map,
+	.matrix_key_map_size	= ARRAY_SIZE(matrix_key_map),
+	.debounce_interval	= 30,
+};
+#endif /* CONFIG_KEYBOARD_PXA27x || CONFIG_KEYBOARD_PXA27x_MODULE */
+
+
 static void __init saarb_init(void)
 {
 	pxa_set_ffuart_info(NULL);
 	platform_add_devices(ARRAY_AND_SIZE(devices));
 	i2c_register_board_info(0, ARRAY_AND_SIZE(saarb_i2c_info));
+#if defined(CONFIG_KEYBOARD_PXA27x) || defined(CONFIG_KEYBOARD_PXA27x_MODULE)
+	pxa_set_keypad_info(&keypad_info);
+#endif
 }
 
 MACHINE_START(SAARB, "PXA955 Handheld Platform (aka SAARB)")
