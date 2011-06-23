@@ -152,6 +152,9 @@ static struct mfd_cell rtc_devs[] = {
 	{"88pm860x-rtc", -1,},
 };
 
+static struct mfd_cell cm3601_devs[] = {
+	{"cm3601", -1,},
+};
 
 struct pm860x_irq_data {
 	int	reg;
@@ -703,6 +706,23 @@ static void __devinit device_codec_init(struct pm860x_chip *chip,
 		dev_err(chip->dev, "Failed to add codec subdev\n");
 }
 
+static void __devinit device_cm3601_init(struct pm860x_chip *chip,
+					struct pm860x_platform_data *pdata)
+{
+	int ret;
+
+	if ((pdata == NULL) || (pdata->cm3601 == NULL))
+		return;
+
+	cm3601_devs[0].platform_data = pdata->cm3601;
+        cm3601_devs[0].pdata_size = sizeof(struct pm860x_cm3601_pdata);
+	ret = mfd_add_devices(chip->dev, 0, &cm3601_devs[0],
+			      ARRAY_SIZE(cm3601_devs), NULL,
+			      chip->irq_base);
+	if (ret < 0)
+		dev_err(chip->dev, "Failed to add cm3601 subdev\n");
+}
+
 static void __devinit device_8607_init(struct pm860x_chip *chip,
 				       struct i2c_client *i2c,
 				       struct pm860x_platform_data *pdata)
@@ -770,6 +790,7 @@ static void __devinit device_8607_init(struct pm860x_chip *chip,
 	device_touch_init(chip, pdata);
 	device_power_init(chip, pdata);
 	device_codec_init(chip, pdata);
+	device_cm3601_init(chip, pdata);
 out:
 	return;
 }

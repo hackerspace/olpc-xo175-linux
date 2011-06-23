@@ -229,6 +229,17 @@ enum {
 #define PM8607_PD_PREBIAS		(0x56)	/* prebias time */
 #define PM8607_GPADC_MISC1		(0x57)
 
+/* bit definitions of  MEAS_EN1*/
+#define PM8607_MEAS_EN1_VBAT           (1 << 0)
+#define PM8607_MEAS_EN1_VCHG           (1 << 1)
+#define PM8607_MEAS_EN1_VSYS           (1 << 2)
+#define PM8607_MEAS_EN1_TINT           (1 << 3)
+#define PM8607_MEAS_EN1_RFTMP          (1 << 4)
+#define PM8607_MEAS_EN1_TBAT           (1 << 5)
+#define PM8607_MEAS_EN1_GPADC2        	(1 << 6)
+#define PM8607_MEAS_EN1_GPADC3         (1 << 7)
+
+
 /* bit definitions of touch meas enable register 3 */
 #define PM8607_MEAS_EN3_PENDET	(1 << 3)
 #define PM8607_MEAS_EN3_TSIX	(1 << 4)
@@ -293,6 +304,13 @@ enum {
 #define PM8607_VBAT_MAX			(0x9D)
 #define PM8607_VCHG_MAX			(0x9E)
 #define PM8607_VSYS_MAX			(0x9F)
+
+#define PM8607_GPADC_MISC2         0x59
+#define PM8607_GPADC0_GP_BIAS_A0	(1 << 0)
+#define PM8607_GPADC1_GP_BIAS_A1	(1 << 1)
+#define PM8607_GPADC2_GP_BIAS_A2	(1 << 2)
+#define PM8607_GPADC3_GP_BIAS_A3	(1 << 3)
+#define PM8607_GPADC2_GP_BIAS_OUT2	(1 << 6)
 
 /* RTC Control Registers */
 #define PM8607_RTC1			(0xA0)
@@ -475,6 +493,15 @@ struct pm860x_power_pdata {
 	void (*disable_rf_fn)(void);/* disable rf for battery calibration */
 };
 
+struct pm860x_cm3601_pdata
+{
+	unsigned char	gpio_en;	/*gpio number*/
+	unsigned char	gpio_out;	/*gpio number*/
+	int		(*request_source)(unsigned char gpio_num, char *name);
+	void 		(*release_source)(unsigned char gpio_num);
+};
+
+
 struct pm860x_platform_data {
 	struct pm860x_backlight_pdata	*backlight;
 	struct pm860x_led_pdata		*led;
@@ -482,6 +509,7 @@ struct pm860x_platform_data {
 	struct pm860x_touch_pdata	*touch;
 	struct pm860x_power_pdata	*power;
 	struct regulator_init_data	*regulator;
+	struct pm860x_cm3601_pdata	*cm3601;
 
 	unsigned short	companion_addr;	/* I2C address of companion chip */
 	int		i2c_port;	/* Controlled by GI2C or PI2C */

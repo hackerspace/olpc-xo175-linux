@@ -1385,4 +1385,12 @@ config SENSORS_ATK0110
 
 endif # ACPI
 
+config SENSORS_CM3601
+	tristate "Light sensor and Proximity sensor"
+	depends on INPUT
+	default y
+	help
+	  This driver provides support for the CM3601 light sensor and proximity sensor
+	  which connected with SANREMO-B0 GPADC3 and GPIO50.
+
 endif # HWMON
