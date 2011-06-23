@@ -757,6 +757,12 @@ static void __devinit device_8607_init(struct pm860x_chip *chip,
 	if (ret < 0)
 		goto out;
 
+	chip->monitor_wqueue = create_singlethread_workqueue("88pm860x");
+	if (!chip->monitor_wqueue) {
+		ret = -ESRCH;
+		goto out;
+	}
+
 	device_regulator_init(chip, pdata);
 	device_rtc_init(chip, pdata);
 	device_onkey_init(chip, pdata);
@@ -799,6 +805,8 @@ int __devinit pm860x_device_init(struct pm860x_chip *chip,
 
 void __devexit pm860x_device_exit(struct pm860x_chip *chip)
 {
+	flush_workqueue(chip->monitor_wqueue);
+	destroy_workqueue(chip->monitor_wqueue);
 	device_irq_exit(chip);
 	mfd_remove_devices(chip->dev);
 }

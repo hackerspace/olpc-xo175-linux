@@ -353,7 +353,7 @@ struct pm860x_chip {
 	int			irq_base;
 	int			core_irq;
 	unsigned char		chip_version;
-
+	struct workqueue_struct	*monitor_wqueue;
 };
 
 enum {
