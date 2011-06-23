@@ -84,7 +84,8 @@ static struct resource battery_resources[] __devinitdata = {
 static struct resource charger_resources[] __devinitdata = {
 	{PM8607_IRQ_CHG,  PM8607_IRQ_CHG,  "charger detect",  IORESOURCE_IRQ,},
 	{PM8607_IRQ_CHG_DONE,  PM8607_IRQ_CHG_DONE,  "charging done",       IORESOURCE_IRQ,},
-	{PM8607_IRQ_CHG_FAULT, PM8607_IRQ_CHG_FAULT, "charging timeout",    IORESOURCE_IRQ,},
+	{PM8607_IRQ_CHG_FAIL, PM8607_IRQ_CHG_FAIL, "charging timeout",    IORESOURCE_IRQ,},
+	{PM8607_IRQ_CHG_FAULT, PM8607_IRQ_CHG_FAULT, "charging fault",    IORESOURCE_IRQ,},
 	{PM8607_IRQ_GPADC1,    PM8607_IRQ_GPADC1,    "battery temperature", IORESOURCE_IRQ,},
 	{PM8607_IRQ_VBAT, PM8607_IRQ_VBAT, "battery voltage", IORESOURCE_IRQ,},
 	{PM8607_IRQ_VCHG, PM8607_IRQ_VCHG, "vchg voltage",    IORESOURCE_IRQ,},
