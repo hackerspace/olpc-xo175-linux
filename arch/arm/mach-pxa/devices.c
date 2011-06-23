@@ -1067,3 +1067,110 @@ void __init pxa2xx_set_spi_info(unsigned id, struct pxa2xx_spi_master *info)
 	pd->dev.platform_data = info;
 	platform_device_add(pd);
 }
+
+#if defined(CONFIG_PXA95x)
+static u64 pxa95x_i2c1_dma_mask = DMA_BIT_MASK(32);
+
+static struct resource pxa95x_resources_i2c1[] = {
+	{
+		.start	= 0x40301680,
+		.end	= 0x403016e3,
+		.flags	= IORESOURCE_MEM,
+	}, {
+		.start	= IRQ_I2C,
+		.end	= IRQ_I2C,
+		.flags	= IORESOURCE_IRQ,
+	}, {
+		/* DRCMR for RX */
+		.start	= 43,
+		.end	= 43,
+		.flags	= IORESOURCE_DMA,
+	}, {
+		/* DRCMR for TX */
+		.start	= 44,
+		.end	= 44,
+		.flags	= IORESOURCE_DMA,
+	},
+};
+
+struct platform_device pxa95x_device_i2c1 = {
+	.name		= "pxa95x-i2c",
+	.id		= 0,
+	.dev		= {
+		.dma_mask = &pxa95x_i2c1_dma_mask,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	},
+	.resource	= pxa95x_resources_i2c1,
+	.num_resources	= ARRAY_SIZE(pxa95x_resources_i2c1),
+};
+
+static u64 pxa95x_i2c2_dma_mask = DMA_BIT_MASK(32);
+
+static struct resource pxa95x_resources_i2c2[] = {
+	{
+		.start	= 0x40401680,
+		.end	= 0x404016e3,
+		.flags	= IORESOURCE_MEM,
+	}, {
+		.start	= IRQ_I2C2,
+		.end	= IRQ_I2C2,
+		.flags	= IORESOURCE_IRQ,
+	}, {
+		/* DRCMR for RX */
+		.start	= 41,
+		.end	= 41,
+		.flags	= IORESOURCE_DMA,
+	}, {
+		/* DRCMR for TX */
+		.start	= 42,
+		.end	= 42,
+		.flags	= IORESOURCE_DMA,
+	},
+};
+
+struct platform_device pxa95x_device_i2c2 = {
+	.name		= "pxa95x-i2c",
+	.id		= 1,
+	.dev		= {
+		.dma_mask = &pxa95x_i2c2_dma_mask,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	},
+	.resource	= pxa95x_resources_i2c2,
+	.num_resources	= ARRAY_SIZE(pxa95x_resources_i2c2),
+};
+
+static u64 pxa95x_i2c3_dma_mask = DMA_BIT_MASK(32);
+
+static struct resource pxa95x_resources_i2c3[] = {
+	{
+		.start	= 0x40801680,
+		.end	= 0x408016e3,
+		.flags	= IORESOURCE_MEM,
+	}, {
+		.start	= IRQ_I2C3,
+		.end	= IRQ_I2C3,
+		.flags	= IORESOURCE_IRQ,
+	}, {
+		/* DRCMR for RX */
+		.start	= 39,
+		.end	= 39,
+		.flags	= IORESOURCE_DMA,
+	}, {
+		/* DRCMR for TX */
+		.start	= 40,
+		.end	= 40,
+		.flags	= IORESOURCE_DMA,
+	},
+};
+
+struct platform_device pxa95x_device_i2c3 = {
+	.name		= "pxa95x-i2c",
+	.id		= 2,
+	.dev		= {
+		.dma_mask = &pxa95x_i2c3_dma_mask,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	},
+	.resource	= pxa95x_resources_i2c3,
+	.num_resources	= ARRAY_SIZE(pxa95x_resources_i2c3),
+};
+#endif

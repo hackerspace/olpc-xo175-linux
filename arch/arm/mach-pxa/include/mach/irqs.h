@@ -78,6 +78,7 @@
 #define IRQ_WAKEUP1	PXA_IRQ(50)	/* EXT_WAKEUP1 */
 #define IRQ_DMEMC	PXA_IRQ(51)	/* Dynamic Memory Controller */
 #define IRQ_MMC3	PXA_IRQ(55)	/* MMC3 Controller (PXA310) */
+#define IRQ_I2C3	PXA_IRQ(61)	/* I2C3 Controller (PXA955) */
 
 #define IRQ_U2O		PXA_IRQ(64)	/* USB OTG 2.0 Controller (PXA935) */
 #define IRQ_U2H		PXA_IRQ(65)	/* USB Host 2.0 Controller (PXA935) */
@@ -85,6 +86,7 @@
 #define IRQ_PXA935_MMC1	PXA_IRQ(73)	/* MMC1 Controller (PXA935) */
 #define IRQ_PXA935_MMC2	PXA_IRQ(74)	/* MMC2 Controller (PXA935) */
 #define IRQ_PXA955_MMC3	PXA_IRQ(75)	/* MMC3 Controller (PXA955) */
+#define IRQ_I2C2	PXA_IRQ(78)	/* I2C2 Controller (PXA955) */
 #define IRQ_U2P		PXA_IRQ(93)	/* USB PHY D+/D- Lines (PXA935) */
 
 #define PXA_GPIO_IRQ_BASE	PXA_IRQ(96)

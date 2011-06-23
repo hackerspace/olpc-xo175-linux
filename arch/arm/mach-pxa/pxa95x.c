@@ -228,7 +228,9 @@ static DEFINE_CLK(pxa95x_tout_s0, &clk_pxa95x_tout_s0_ops, 13000000, 70);
 static DEFINE_PXA3_CKEN(pxa95x_ffuart, FFUART, 14857000, 1);
 static DEFINE_PXA3_CKEN(pxa95x_btuart, BTUART, 14857000, 1);
 static DEFINE_PXA3_CKEN(pxa95x_stuart, STUART, 14857000, 1);
-static DEFINE_PXA3_CKEN(pxa95x_i2c, I2C, 32842000, 0);
+static DEFINE_PXA3_CKEN(pxa95x_i2c1, I2C, 32842000, 0);
+static DEFINE_PXA3_CKEN(pxa95x_i2c2, I2C2, 32842000, 0);
+static DEFINE_PXA3_CKEN(pxa95x_i2c3, I2C3, 32842000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_keypad, KEYPAD, 32768, 0);
 static DEFINE_PXA3_CKEN(pxa95x_ssp1, SSP1, 13000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_ssp2, SSP2, 13000000, 0);
@@ -236,6 +238,7 @@ static DEFINE_PXA3_CKEN(pxa95x_ssp3, SSP3, 13000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_ssp4, SSP4, 13000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_pwm0, PWM0, 13000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_pwm1, PWM1, 13000000, 0);
+
 
 static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_pout, NULL, "CLK_POUT"),
@@ -247,7 +250,9 @@ static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_btuart, "pxa2xx-uart.1", NULL),
 	INIT_CLKREG(&clk_pxa95x_stuart, "pxa2xx-uart.2", NULL),
 	INIT_CLKREG(&clk_pxa95x_stuart, "pxa2xx-ir", "UARTCLK"),
-	INIT_CLKREG(&clk_pxa95x_i2c, "pxa2xx-i2c.0", NULL),
+	INIT_CLKREG(&clk_pxa95x_i2c1, "pxa95x-i2c.0", NULL),
+	INIT_CLKREG(&clk_pxa95x_i2c2, "pxa95x-i2c.1", NULL),
+	INIT_CLKREG(&clk_pxa95x_i2c3, "pxa95x-i2c.2", NULL),
 	INIT_CLKREG(&clk_pxa95x_keypad, "pxa27x-keypad", NULL),
 	INIT_CLKREG(&clk_pxa95x_ssp1, "pxa27x-ssp.0", NULL),
 	INIT_CLKREG(&clk_pxa95x_ssp2, "pxa27x-ssp.1", NULL),
