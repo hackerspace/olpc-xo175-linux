@@ -587,9 +587,6 @@ static int __devinit pxa27x_keypad_probe(struct platform_device *pdev)
 	set_bit(EV_KEY, input_dev->evbit);
 	set_bit(EV_REL, input_dev->evbit);
 	set_bit(EV_ABS, input_dev->evbit);
-	bitmap_fill(input_dev->keybit, KEY_MAX);
-	bitmap_fill(input_dev->relbit, REL_MAX);
-	bitmap_fill(input_dev->absbit, ABS_MAX);
 
 	error = request_irq(irq, pxa27x_keypad_irq_handler, IRQF_DISABLED,
 			    pdev->name, keypad);
