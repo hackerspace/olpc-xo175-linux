@@ -14,7 +14,7 @@
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
 #include <linux/i2c.h>
-#include <linux/i2c/pxa-i2c.h>
+#include <linux/i2c/pxa95x-i2c.h>
 #include <linux/mfd/88pm860x.h>
 
 #include <asm/mach-types.h>
@@ -97,6 +97,22 @@ static struct pm860x_platform_data saarb_pm8607_info = {
 	.num_backlights	= ARRAY_SIZE(saarb_backlight),
 };
 
+static struct i2c_pxa_platform_data i2c1_pdata = {
+	.use_pio        = 0,
+	.flags		= PXA_I2C_HIGH_MODE | PXA_I2C_FAST_MODE | PXA_I2C_USING_FIFO_PIO_MODE,
+	.master_code	= (0x08 | 0x06), /*8 -highest, 0xF -lowest arbitration*/
+};
+
+static struct i2c_pxa_platform_data i2c2_pdata = {
+	.use_pio	= 0,
+	.flags		= PXA_I2C_FAST_MODE | PXA_I2C_USING_FIFO_PIO_MODE,
+};
+
+static struct i2c_pxa_platform_data i2c3_pdata = {
+	.use_pio        = 0,
+	.flags          = PXA_I2C_FAST_MODE | PXA_I2C_USING_FIFO_PIO_MODE,
+};
+
 static struct i2c_board_info saarb_i2c_info[] = {
 	{
 		.type		= "88PM860x",
@@ -161,6 +177,12 @@ static struct pxa27x_keypad_platform_data keypad_info = {
 static void __init saarb_init(void)
 {
 	pxa_set_ffuart_info(NULL);
+	platform_device_add_data(&pxa95x_device_i2c1, &i2c1_pdata,
+				 sizeof(i2c1_pdata));
+	platform_device_add_data(&pxa95x_device_i2c2, &i2c2_pdata,
+				 sizeof(i2c2_pdata));
+	platform_device_add_data(&pxa95x_device_i2c3, &i2c3_pdata,
+				 sizeof(i2c3_pdata));
 	platform_add_devices(ARRAY_AND_SIZE(devices));
 	i2c_register_board_info(0, ARRAY_AND_SIZE(saarb_i2c_info));
 #if defined(CONFIG_KEYBOARD_PXA27x) || defined(CONFIG_KEYBOARD_PXA27x_MODULE)
