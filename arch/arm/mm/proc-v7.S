@@ -288,6 +288,11 @@ __v7_ca9mp_setup:
 	mcreq	p15, 0, r0, c1, c0, 1		@ TLB ops broadcasting
 #endif
 __v7_setup:
+#ifdef CONFIG_PJ4_RETURNSTACK_ISSUE
+	mrc	p15, 1, r0, c15, c1, 1
+	bic	r0, r0, #0x1			@disable return stack
+	mcr	p15, 1, r0, c15, c1, 1
+#endif
 	adr	r12, __v7_setup_stack		@ the local stack
 	stmia	r12, {r0-r5, r7, r9, r11, lr}
 	bl	v7_flush_dcache_all
