@@ -924,3 +924,10 @@ config PJ4_RETURNSTACK_ISSUE
 	help
 		This option enables the workaround for Marvell PJ4 to disable return
 		stack which might cause system unstable.
+
+config DISABLE_CWF
+	bool "Disable critical word first sequencing"
+	depends on CPU_PJ4B && SMP
+	default y
+	help
+	  This option disables critical word first sequencing.
