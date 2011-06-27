@@ -219,5 +219,6 @@ MACHINE_START(NEVOSAARC, "PXA970 Handheld Platform (aka SAAR C2)")
 	.init_irq	= pxa95x_init_irq,
 	.handle_irq	= pxa95x_handle_irq_intc,
 	.timer		= &pxa_timer,
+	.reserve	= pxa95x_mem_reserve,
 	.init_machine	= init,
 MACHINE_END
