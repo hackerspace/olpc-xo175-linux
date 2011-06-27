@@ -62,6 +62,8 @@ extern unsigned pxa3xx_get_clk_frequency_khz(int);
 #define pxa3xx_get_clk_frequency_khz(x)		(0)
 #endif
 
+extern void pxa95x_mem_reserve(void);
+
 extern struct syscore_ops pxa_irq_syscore_ops;
 extern struct syscore_ops pxa_gpio_syscore_ops;
 extern struct syscore_ops pxa2xx_mfp_syscore_ops;

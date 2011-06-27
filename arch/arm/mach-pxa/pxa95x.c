@@ -19,6 +19,7 @@
 #include <linux/irq.h>
 #include <linux/io.h>
 #include <linux/syscore_ops.h>
+#include <linux/memblock.h>
 
 #include <asm/hardware/cache-tauros2.h>
 
@@ -330,3 +331,54 @@ static int __init pxa95x_init(void)
 }
 
 postcore_initcall(pxa95x_init);
+
+#define CP_MEM_MAX_SEGMENTS 2
+unsigned _cp_area_addr[CP_MEM_MAX_SEGMENTS];
+unsigned _cp_area_size[CP_MEM_MAX_SEGMENTS+1]; /* last entry 0 */
+static int __init setup_cpmem(char *p)
+{
+	unsigned long size, start = 0xa7000000;
+	int seg;
+
+	size  = memparse(p, &p);
+	if (*p == '@')
+		start = memparse(p + 1, &p);
+
+	for (seg = 0; seg < CP_MEM_MAX_SEGMENTS; seg++)
+		if (!_cp_area_size[seg])
+			break;
+	BUG_ON(seg == CP_MEM_MAX_SEGMENTS);
+	_cp_area_addr[seg] = (unsigned)start;
+	_cp_area_size[seg] = (unsigned)size;
+	return 0;
+}
+early_param("cpmem", setup_cpmem);
+
+unsigned cp_area_addr(void)
+{
+	/* _cp_area_addr[] contain actual CP region addresses for reservation.
+	This function returns the address of the first region, which is
+	the main one used for AP-CP interface, aligned to 16MB.
+	The AP-CP interface code takes care of the offsets inside the region,
+	including the non-CP area at the beginning of the 16MB aligned range. */
+	return _cp_area_addr[0]&0xFF000000;
+}
+
+void pxa95x_cpmem_reserve(void)
+{
+	int seg;
+
+	for (seg = 0; seg < CP_MEM_MAX_SEGMENTS; seg++) {
+		if (_cp_area_size[seg] != 0) {
+			BUG_ON(memblock_reserve(_cp_area_addr[seg], _cp_area_size[seg]));
+			printk(KERN_INFO "Reserving CP memory: %dM at %.8x\n",
+				(unsigned)_cp_area_size[seg]/0x100000,
+				(unsigned)_cp_area_addr[seg]);
+		}
+	}
+}
+
+void pxa95x_mem_reserve(void)
+{
+	pxa95x_cpmem_reserve();
+}
