@@ -1036,6 +1036,20 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *req)
 		} else if (disable_multi == 1)
 			disable_multi = 0;
 
+#if defined(CONFIG_SMP) && defined(CONFIG_ARM)
+		/*
+		 * The data may still only in the D-cache for read.
+		 * Here add the D-cache flush to sync the I/D cache.
+		 */
+		if (rq_data_dir(req) == READ) {
+			struct req_iterator iter;
+			struct bio_vec *bvec;
+			rq_for_each_segment(bvec, req, iter)
+				if (!test_and_set_bit(PG_dcache_clean,
+						&bvec->bv_page->flags))
+					flush_dcache_page(bvec->bv_page);
+		}
+#endif
 		/*
 		 * A block was successfully transferred.
 		 */
