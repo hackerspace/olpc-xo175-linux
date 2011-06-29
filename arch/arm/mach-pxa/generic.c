@@ -108,11 +108,6 @@ static struct map_desc common_io_desc[] __initdata = {
 		.pfn		= __phys_to_pfn(0x46000000),
 		.length		= 0x00010000,
 		.type		= MT_DEVICE,
-	}, {	/* UNCACHED_PHYS_0 */
-		.virtual	= 0xff000000,
-		.pfn		= __phys_to_pfn(0x00000000),
-		.length		= 0x00100000,
-		.type		= MT_DEVICE
 	}, {
 		/* Mem Ctl */
 		.virtual	= SMEMC_VIRT,
