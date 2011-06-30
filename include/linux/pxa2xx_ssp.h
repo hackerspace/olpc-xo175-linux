@@ -206,4 +206,9 @@ static inline u32 pxa_ssp_read_reg(struct ssp_device *dev, u32 reg)
 
 struct ssp_device *pxa_ssp_request(int port, const char *label);
 void pxa_ssp_free(struct ssp_device *);
+int pxa_ssp_write_word(struct ssp_device *ssp, u32 data);
+int pxa_ssp_read_word(struct ssp_device *ssp, u32 *data);
+int pxa_ssp_flush(struct ssp_device *ssp);
+void pxa_ssp_enable(struct ssp_device *ssp);
+void pxa_ssp_disable(struct ssp_device *ssp);
 #endif

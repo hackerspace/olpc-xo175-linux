@@ -34,6 +34,137 @@
 #include <asm/irq.h>
 #include <mach/hardware.h>
 
+static const int SSP_TIMEOUT = 100000;
+
+/**
+ * ssp_write_word - write a word to the SSP port
+ * @data: 32-bit, MSB justified data to write.
+ *
+ * Wait for a free entry in the SSP transmit FIFO, and write a data
+ * word to the SSP port.
+ *
+ * The caller is expected to perform the necessary locking.
+ *
+ * Returns:
+ *   %-ETIMEDOUT	timeout occurred
+ *   0			success
+ */
+int pxa_ssp_write_word(struct ssp_device *ssp, u32 data)
+{
+	int timeout = SSP_TIMEOUT;
+
+	while (!(pxa_ssp_read_reg(ssp, SSSR) & SSSR_TNF)) {
+		if (!--timeout)
+			return -ETIMEDOUT;
+		cpu_relax();
+	}
+
+	pxa_ssp_write_reg(ssp, SSDR, data);
+
+	return 0;
+}
+EXPORT_SYMBOL(pxa_ssp_write_word);
+
+/**
+ * ssp_read_word - read a word from the SSP port
+ *
+ * Wait for a data word in the SSP receive FIFO, and return the
+ * received data.  Data is LSB justified.
+ *
+ * Note: Currently, if data is not expected to be received, this
+ * function will wait for ever.
+ *
+ * The caller is expected to perform the necessary locking.
+ *
+ * Returns:
+ *   %-ETIMEDOUT	timeout occurred
+ *   32-bit data	success
+ */
+int pxa_ssp_read_word(struct ssp_device *ssp, u32 *data)
+{
+	int timeout = SSP_TIMEOUT;
+
+	while (!(pxa_ssp_read_reg(ssp, SSSR) & SSSR_RNE)) {
+		if (!--timeout)
+			return -ETIMEDOUT;
+		cpu_relax();
+	}
+
+	*data = pxa_ssp_read_reg(ssp, SSDR);
+	return 0;
+}
+EXPORT_SYMBOL(pxa_ssp_read_word);
+
+
+/**
+ * ssp_flush - flush the transmit and receive FIFOs
+ *
+ * Wait for the SSP to idle, and ensure that the receive FIFO
+ * is empty.
+ *
+ * The caller is expected to perform the necessary locking.
+ */
+int pxa_ssp_flush(struct ssp_device *ssp)
+{
+	int timeout = SSP_TIMEOUT * 2;
+
+#ifdef CONFIG_PXA3xx
+	/* ensure TX FIFO is empty instead of not full */
+	if (cpu_is_pxa3xx()) {
+		while (pxa_ssp_read_reg(ssp, SSSR) & 0xf00) {
+			if (!--timeout)
+				return -ETIMEDOUT;
+			cpu_relax();
+		}
+		timeout = SSP_TIMEOUT * 2;
+	}
+#endif
+
+	do {
+		while (pxa_ssp_read_reg(ssp, SSSR) & SSSR_RNE) {
+			if (!--timeout)
+				return -ETIMEDOUT;
+			(void)pxa_ssp_read_reg(ssp, SSDR);
+		}
+		if (!--timeout)
+			return -ETIMEDOUT;
+	} while (pxa_ssp_read_reg(ssp, SSSR) & SSSR_BSY);
+
+	return 0;
+}
+EXPORT_SYMBOL(pxa_ssp_flush);
+
+/**
+ * ssp_enable - enable the SSP port
+ *
+ * Turn on the SSP port.
+ */
+void pxa_ssp_enable(struct ssp_device *ssp)
+{
+	uint32_t sscr0;
+
+	sscr0 = pxa_ssp_read_reg(ssp, + SSCR0);
+	sscr0 |= SSCR0_SSE;
+	pxa_ssp_write_reg(ssp, SSCR0, sscr0);
+}
+EXPORT_SYMBOL(pxa_ssp_enable);
+
+
+/**
+ * ssp_disable - shut down the SSP port
+ *
+ * Turn off the SSP port, optionally powering it down.
+ */
+void pxa_ssp_disable(struct ssp_device *ssp)
+{
+	uint32_t sscr0;
+
+	sscr0 = pxa_ssp_read_reg(ssp, SSCR0);
+	sscr0 &= ~SSCR0_SSE;
+	pxa_ssp_write_reg(ssp, SSCR0, sscr0);
+}
+EXPORT_SYMBOL(pxa_ssp_disable);
+
 static DEFINE_MUTEX(ssp_lock);
 static LIST_HEAD(ssp_list);
 
