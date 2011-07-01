@@ -639,6 +639,7 @@ __u32 lcdc_get_fr_addr(struct pxa95xfb_info *fbi);
 void lcdc_set_lcd_controller(struct pxa95xfb_info *fbi);
 int lcdc_wait_for_vsync(struct pxa95xfb_info *fbi);
 void lcdc_correct_pixclock(struct fb_videomode * m);
+void *lcdc_alloc_framebuffer(size_t size, dma_addr_t *dma);
 
 void converter_openclose(struct pxa95xfb_info *fbi, int open);
 void converter_init(struct pxa95xfb_info *fbi);

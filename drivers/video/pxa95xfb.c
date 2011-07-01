@@ -2175,6 +2175,32 @@ int lcdc_wait_for_vsync(struct pxa95xfb_info *fbi)
 	return ret;
 }
 
+void *lcdc_alloc_framebuffer(size_t size, dma_addr_t *dma)
+{
+	int nr, i = 0;
+	struct page **pages;
+	void * start;
+
+	nr = size >> PAGE_SHIFT;
+	start = alloc_pages_exact(size, GFP_KERNEL | __GFP_ZERO);
+	if (start == NULL)
+		return NULL;
+
+	*dma = virt_to_phys(start);
+	pages = vmalloc(sizeof(struct page *) * nr);
+	if (pages == NULL)
+		return NULL;
+
+	while (i < nr) {
+		pages[i] = phys_to_page(*dma + (i << PAGE_SHIFT));
+		i++;
+	}
+	start = vmap(pages, nr, 0, pgprot_writecombine(pgprot_kernel));
+
+	vfree(pages);
+	return start;
+}
+
 int pxa95xfb_check_var(struct fb_var_screeninfo *var,
 		struct fb_info *info)
 {
@@ -2505,32 +2531,6 @@ static struct fb_ops pxa95xfb_gfx_ops = {
 	.fb_imageblit	= cfb_imageblit,
 };
 
-static void *pxa95xfb_alloc_framebuffer(size_t size, dma_addr_t *dma)
-{
-	int nr, i = 0;
-	struct page **pages;
-	void * start;
-
-	nr = size >> PAGE_SHIFT;
-	start = alloc_pages_exact(size, GFP_KERNEL | __GFP_ZERO);
-	if (start == NULL)
-		return NULL;
-
-	*dma = virt_to_phys(start);
-	pages = vmalloc(sizeof(struct page *) * nr);
-	if (pages == NULL)
-		return NULL;
-
-	while (i < nr) {
-		pages[i] = phys_to_page(*dma + (i << PAGE_SHIFT));
-		i++;
-	}
-	start = vmap(pages, nr, 0, pgprot_writecombine(pgprot_kernel));
-
-	vfree(pages);
-	return start;
-}
-
 static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 {
 	struct pxa95xfb_mach_info *mi;
@@ -2657,13 +2657,17 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 
 	/* Allocate framebuffer memory: size = modes xy *4 .*/
 	fbi->fb_size = PAGE_ALIGN(mi->modes[0].xres * mi->modes[0].yres * 8 + PAGE_SIZE);
-	fbi->fb_start = pxa95xfb_alloc_framebuffer(fbi->fb_size,
-				&fbi->fb_start_dma) + PAGE_SIZE;
+	fbi->fb_start = lcdc_alloc_framebuffer(fbi->fb_size + PAGE_SIZE,
+				&fbi->fb_start_dma);
 	if (fbi->fb_start == NULL) {
 		ret = -ENOMEM;
 		goto failed;
 	}
 	/* the buffer may be very large, s do not depends on CONSISTENT_DMA_SIZE */
+	memset(fbi->fb_start, 0, fbi->fb_size);
+	fbi->fb_start = fbi->fb_start + PAGE_SIZE;
+	fbi->fb_start_dma = fbi->fb_start_dma + PAGE_SIZE;
+	memset(fbi->fb_start, 0xf8, fbi->fb_size);
 
 	/* Initialise static fb parameters.*/
 	info->flags = FBINFO_DEFAULT | FBINFO_PARTIAL_PAN_OK |

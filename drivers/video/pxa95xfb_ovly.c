@@ -692,9 +692,8 @@ static int __devinit pxa95xfb_vid_probe(struct platform_device *pdev)
 		fbi->fb_size = PAGE_ALIGN(mi->modes[0].xres * mi->modes[0].yres * 2 + PAGE_SIZE);
 	else
 		fbi->fb_size = PAGE_ALIGN(mi->modes[0].xres * mi->modes[0].yres * 4 + PAGE_SIZE);
-	fbi->fb_start = dma_alloc_writecombine(fbi->dev, fbi->fb_size + PAGE_SIZE,
-			&fbi->fb_start_dma,
-			GFP_KERNEL);
+	fbi->fb_start = lcdc_alloc_framebuffer(fbi->fb_size + PAGE_SIZE,
+				&fbi->fb_start_dma);
 	if (fbi->fb_start == NULL) {
 		ret = -ENOMEM;
 		goto failed_free_clk;
