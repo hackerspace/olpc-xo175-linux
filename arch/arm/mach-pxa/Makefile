@@ -6,6 +6,7 @@
 obj-y				+= clock.o devices.o generic.o irq.o \
 				   time.o reset.o
 obj-$(CONFIG_PM)		+= pm.o sleep.o standby.o
+obj-$(CONFIG_FB_PXA95x)		+= panel_settings.o
 
 ifeq ($(CONFIG_CPU_FREQ),y)
 obj-$(CONFIG_PXA25x)		+= cpufreq-pxa2xx.o
