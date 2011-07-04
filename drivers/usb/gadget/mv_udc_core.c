@@ -25,6 +25,8 @@
 #include <asm/system.h>
 #include <asm/unaligned.h>
 
+#include <plat/usb.h>
+
 #include "mv_udc.h"
 
 #define DRIVER_DESC		"Marvell PXA USB Device Controller driver"
@@ -987,6 +989,22 @@ static struct usb_ep_ops mv_ep_ops = {
 	.fifo_flush	= mv_ep_fifo_flush,	/* flush fifo */
 };
 
+static void udc_clock_enable(struct mv_udc *udc)
+{
+	unsigned int i;
+
+	for (i = 0; i < udc->clknum; i++)
+		clk_enable(udc->clk[i]);
+}
+
+static void udc_clock_disable(struct mv_udc *udc)
+{
+	unsigned int i;
+
+	for (i = 0; i < udc->clknum; i++)
+		clk_disable(udc->clk[i]);
+}
+
 static void udc_stop(struct mv_udc *udc)
 {
 	u32 tmp;
@@ -1880,6 +1898,7 @@ static void gadget_release(struct device *_dev)
 static int mv_udc_remove(struct platform_device *dev)
 {
 	struct mv_udc *udc = the_controller;
+	int clk_i;
 
 	DECLARE_COMPLETION(done);
 
@@ -1898,6 +1917,11 @@ static int mv_udc_remove(struct platform_device *dev)
 	if (udc->irq)
 		free_irq(udc->irq, &dev->dev);
 
+	if (udc->pdata->phy_deinit)
+		udc->pdata->phy_deinit(udc->phy_regs);
+
+	udc_clock_disable(udc);
+
 	if (udc->cap_regs)
 		iounmap(udc->cap_regs);
 	udc->cap_regs = NULL;
@@ -1911,6 +1935,9 @@ static int mv_udc_remove(struct platform_device *dev)
 		kfree(udc->status_req);
 	}
 
+	for (clk_i = 0; clk_i <= udc->clknum; clk_i++)
+		clk_put(udc->clk[clk_i]);
+
 	device_unregister(&udc->gadget.dev);
 
 	/* free dev, wait for the release() finished */
@@ -1923,12 +1950,21 @@ static int mv_udc_remove(struct platform_device *dev)
 
 int mv_udc_probe(struct platform_device *dev)
 {
-	struct mv_udc *udc;
+	struct mv_usb_platform_data *pdata = dev->dev.platform_data;
+	struct mv_udc *udc = NULL;
 	int retval = 0;
+	int clk_i = 0;
 	struct resource *r;
 	size_t size;
 
-	udc = kzalloc(sizeof *udc, GFP_KERNEL);
+	if (pdata == NULL) {
+		dev_err(&dev->dev, "missing platform_data\n");
+		retval = -ENODEV;
+		goto err_pdata;
+	}
+
+	size = sizeof(*udc) + sizeof(struct clk *) * pdata->clknum;
+	udc = kzalloc(size, GFP_KERNEL);
 	if (udc == NULL) {
 		dev_err(&dev->dev, "failed to allocate memory for udc\n");
 		retval = -ENOMEM;
@@ -1938,11 +1974,15 @@ int mv_udc_probe(struct platform_device *dev)
 	spin_lock_init(&udc->lock);
 
 	udc->dev = dev;
+	udc->pdata = dev->dev.platform_data;
 
-	udc->clk = clk_get(&dev->dev, "U2OCLK");
-	if (IS_ERR(udc->clk)) {
-		retval = PTR_ERR(udc->clk);
-		goto err_get_clk;
+	udc->clknum = pdata->clknum;
+	for (clk_i = 0; clk_i < udc->clknum; clk_i++) {
+		udc->clk[clk_i] = clk_get(&dev->dev, pdata->clkname[clk_i]);
+		if (IS_ERR(udc->clk[clk_i])) {
+			retval = PTR_ERR(udc->clk[clk_i]);
+			goto err_get_clk;
+		}
 	}
 
 	r = platform_get_resource_byname(udc->dev, IORESOURCE_MEM, "capregs");
@@ -1975,11 +2015,13 @@ int mv_udc_probe(struct platform_device *dev)
 	}
 
 	/* we will acces controller register, so enable the clk */
-	clk_enable(udc->clk);
-	retval = mv_udc_phy_init(udc->phy_regs);
-	if (retval) {
-		dev_err(&dev->dev, "phy initialization error %d\n", retval);
-		goto err_phy_init;
+	udc_clock_enable(udc);
+	if (pdata->phy_init) {
+		retval = pdata->phy_init(udc->phy_regs);
+		if (retval) {
+			dev_err(&dev->dev, "phy init error %d\n", retval);
+			goto err_phy_init;
+		}
 	}
 
 	udc->op_regs = (struct mv_op_regs __iomem *)((u32)udc->cap_regs
@@ -2090,7 +2132,9 @@ err_alloc_dtd_pool:
 	dma_free_coherent(&dev->dev, udc->ep_dqh_size,
 		udc->ep_dqh, udc->ep_dqh_dma);
 err_alloc_dqh:
-	clk_disable(udc->clk);
+	if (udc->pdata->phy_deinit)
+		udc->pdata->phy_deinit(udc->phy_regs);
+	udc_clock_disable(udc);
 err_phy_init:
 	iounmap((void *)udc->phy_regs);
 err_map_phy_regs:
@@ -2099,10 +2143,12 @@ err_get_phy_regs:
 err_map_cap_regs:
 err_get_cap_regs:
 err_get_clk:
-	clk_put(udc->clk);
+	for (clk_i--; clk_i >= 0; clk_i--)
+		clk_put(udc->clk[clk_i]);
 	the_controller = NULL;
 	kfree(udc);
 err_alloc_private:
+err_pdata:
 	return retval;
 }
 
@@ -2121,10 +2167,12 @@ static int mv_udc_resume(struct device *_dev)
 	struct mv_udc *udc = the_controller;
 	int retval;
 
-	retval = mv_udc_phy_init(udc->phy_regs);
-	if (retval) {
-		dev_err(_dev, "phy initialization error %d\n", retval);
-		return retval;
+	if (udc->pdata->phy_init) {
+		retval = udc->pdata->phy_init(udc->phy_regs);
+		if (retval) {
+			dev_err(_dev, "phy init error %d in resume\n", retval);
+			return retval;
+		}
 	}
 	udc_reset(udc);
 	ep0_reset(udc);

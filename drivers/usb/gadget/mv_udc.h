@@ -201,7 +201,12 @@ struct mv_udc {
 				remote_wakeup:1,
 				softconnected:1,
 				force_fs:1;
-	struct clk		*clk;
+
+	struct mv_usb_platform_data     *pdata;
+
+	/* some SOC has mutiple clock sources for USB*/
+	unsigned int    clknum;
+	struct clk      *clk[0];
 };
 
 /* endpoint data structure */
