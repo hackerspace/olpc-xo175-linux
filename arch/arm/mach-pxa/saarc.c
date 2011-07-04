@@ -120,6 +120,8 @@ static struct pm860x_platform_data pm8607_info = {
 #if defined(CONFIG_SENSORS_CM3601)
 	.cm3601		= &cm3601_platform_info,
 #endif
+	.companion_addr	= 0x10,
+
 	.irq_mode	= 0,
 	.irq_base	= IRQ_BOARD_START,
 
