@@ -1932,7 +1932,7 @@ int mv_udc_probe(struct platform_device *dev)
 	if (udc == NULL) {
 		dev_err(&dev->dev, "failed to allocate memory for udc\n");
 		retval = -ENOMEM;
-		goto error;
+		goto err_alloc_private;
 	}
 
 	spin_lock_init(&udc->lock);
@@ -1942,14 +1942,14 @@ int mv_udc_probe(struct platform_device *dev)
 	udc->clk = clk_get(&dev->dev, "U2OCLK");
 	if (IS_ERR(udc->clk)) {
 		retval = PTR_ERR(udc->clk);
-		goto error;
+		goto err_get_clk;
 	}
 
-	r = platform_get_resource_byname(udc->dev, IORESOURCE_MEM, "u2o");
+	r = platform_get_resource_byname(udc->dev, IORESOURCE_MEM, "capregs");
 	if (r == NULL) {
 		dev_err(&dev->dev, "no I/O memory resource defined\n");
 		retval = -ENODEV;
-		goto error;
+		goto err_get_cap_regs;
 	}
 
 	udc->cap_regs = (struct mv_cap_regs __iomem *)
@@ -1957,21 +1957,21 @@ int mv_udc_probe(struct platform_device *dev)
 	if (udc->cap_regs == NULL) {
 		dev_err(&dev->dev, "failed to map I/O memory\n");
 		retval = -EBUSY;
-		goto error;
+		goto err_map_cap_regs;
 	}
 
-	r = platform_get_resource_byname(udc->dev, IORESOURCE_MEM, "u2ophy");
+	r = platform_get_resource_byname(udc->dev, IORESOURCE_MEM, "phyregs");
 	if (r == NULL) {
 		dev_err(&dev->dev, "no phy I/O memory resource defined\n");
 		retval = -ENODEV;
-		goto error;
+		goto err_get_phy_regs;
 	}
 
 	udc->phy_regs = (unsigned int)ioremap(r->start, resource_size(r));
 	if (udc->phy_regs == 0) {
 		dev_err(&dev->dev, "failed to map phy I/O memory\n");
 		retval = -EBUSY;
-		goto error;
+		goto err_map_phy_regs;
 	}
 
 	/* we will acces controller register, so enable the clk */
@@ -1979,7 +1979,7 @@ int mv_udc_probe(struct platform_device *dev)
 	retval = mv_udc_phy_init(udc->phy_regs);
 	if (retval) {
 		dev_err(&dev->dev, "phy initialization error %d\n", retval);
-		goto error;
+		goto err_phy_init;
 	}
 
 	udc->op_regs = (struct mv_op_regs __iomem *)((u32)udc->cap_regs
@@ -1987,7 +1987,7 @@ int mv_udc_probe(struct platform_device *dev)
 			& CAPLENGTH_MASK));
 	udc->max_eps = readl(&udc->cap_regs->dccparams) & DCCPARAMS_DEN_MASK;
 
-	size = udc->max_eps * sizeof(struct mv_dqh) *2;
+	size = udc->max_eps * sizeof(struct mv_dqh) * 2;
 	size = (size + DQH_ALIGNMENT - 1) & ~(DQH_ALIGNMENT - 1);
 	udc->ep_dqh = dma_alloc_coherent(&dev->dev, size,
 					&udc->ep_dqh_dma, GFP_KERNEL);
@@ -1995,7 +1995,7 @@ int mv_udc_probe(struct platform_device *dev)
 	if (udc->ep_dqh == NULL) {
 		dev_err(&dev->dev, "allocate dQH memory failed\n");
 		retval = -ENOMEM;
-		goto error;
+		goto err_alloc_dqh;
 	}
 	udc->ep_dqh_size = size;
 
@@ -2008,15 +2008,15 @@ int mv_udc_probe(struct platform_device *dev)
 
 	if (!udc->dtd_pool) {
 		retval = -ENOMEM;
-		goto error;
+		goto err_alloc_dtd_pool;
 	}
 
-	size = udc->max_eps * sizeof(struct mv_ep) *2;
+	size = udc->max_eps * sizeof(struct mv_ep) * 2;
 	udc->eps = kzalloc(size, GFP_KERNEL);
 	if (udc->eps == NULL) {
 		dev_err(&dev->dev, "allocate ep memory failed\n");
 		retval = -ENOMEM;
-		goto error;
+		goto err_alloc_eps;
 	}
 
 	/* initialize ep0 status request structure */
@@ -2024,7 +2024,7 @@ int mv_udc_probe(struct platform_device *dev)
 	if (!udc->status_req) {
 		dev_err(&dev->dev, "allocate status_req memory failed\n");
 		retval = -ENOMEM;
-		goto error;
+		goto err_alloc_status_req;
 	}
 	INIT_LIST_HEAD(&udc->status_req->queue);
 
@@ -2041,15 +2041,16 @@ int mv_udc_probe(struct platform_device *dev)
 	if (r == NULL) {
 		dev_err(&dev->dev, "no IRQ resource defined\n");
 		retval = -ENODEV;
-		goto error;
+		goto err_get_irq;
 	}
 	udc->irq = r->start;
 	if (request_irq(udc->irq, mv_udc_irq,
 		IRQF_DISABLED | IRQF_SHARED, driver_name, udc)) {
 		dev_err(&dev->dev, "Request irq %d for UDC failed\n",
 			udc->irq);
+		udc->irq = 0;
 		retval = -ENODEV;
-		goto error;
+		goto err_request_irq;
 	}
 
 	/* initialize gadget structure */
@@ -2068,17 +2069,40 @@ int mv_udc_probe(struct platform_device *dev)
 
 	retval = device_register(&udc->gadget.dev);
 	if (retval)
-		goto error;
+		goto err_register_gadget_device;
 
 	eps_init(udc);
 
 	the_controller = udc;
 
-	goto out;
-error:
-	if (udc)
-		mv_udc_remove(udc->dev);
-out:
+	return 0;
+
+err_register_gadget_device:
+	free_irq(udc->irq, &dev->dev);
+err_request_irq:
+err_get_irq:
+	kfree(udc->status_req);
+err_alloc_status_req:
+	kfree(udc->eps);
+err_alloc_eps:
+	dma_pool_destroy(udc->dtd_pool);
+err_alloc_dtd_pool:
+	dma_free_coherent(&dev->dev, udc->ep_dqh_size,
+		udc->ep_dqh, udc->ep_dqh_dma);
+err_alloc_dqh:
+	clk_disable(udc->clk);
+err_phy_init:
+	iounmap((void *)udc->phy_regs);
+err_map_phy_regs:
+err_get_phy_regs:
+	iounmap(udc->cap_regs);
+err_map_cap_regs:
+err_get_cap_regs:
+err_get_clk:
+	clk_put(udc->clk);
+	the_controller = NULL;
+	kfree(udc);
+err_alloc_private:
 	return retval;
 }
 
