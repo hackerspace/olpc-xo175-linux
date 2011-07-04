@@ -67,6 +67,7 @@ struct uart_pxa_port {
 	char			*name;
 
 	struct timer_list	pxa_timer;
+	struct work_struct	uart_tx_lpm_work;
 #ifdef CONFIG_PXA95x
 	int			dvfm_dev_idx[2];
 	struct notifier_block	notifier_freq_block;
@@ -687,11 +688,8 @@ static void pxa_uart_transmit_dma(int channel, void *data)
 	if ((dcsr & DCSR_ENDINTR) || (dcsr & DCSR_STOPSTATE)) {
 		if (dcsr & DCSR_STOPSTATE) {
 			DCSR(channel) &= ~DCSR_STOPSTATE;
-#ifdef CONFIG_PXA95x
-			dvfm_enable_lowpower(up->dvfm_dev_idx[PXA_UART_TX]);
-#else
-			wake_unlock(&up->idle_lock[PXA_UART_TX]);
-#endif
+
+			schedule_work(&up->uart_tx_lpm_work);
 		}
 
 		if (dcsr & DCSR_ENDINTR)
@@ -930,6 +928,8 @@ static void serial_pxa_shutdown(struct uart_port *port)
 {
 	struct uart_pxa_port *up = (struct uart_pxa_port *)port;
 	unsigned long flags;
+
+	flush_work(&up->uart_tx_lpm_work);
 
 	free_irq(up->port.irq, up);
 
@@ -1377,6 +1377,21 @@ static void pxa_timer_handler(unsigned long data)
 #endif
 }
 
+static void uart_tx_lpm_handler(struct work_struct *work)
+{
+	struct uart_pxa_port *up =
+	    container_of(work, struct uart_pxa_port, uart_tx_lpm_work);
+
+	/* Polling until TX FIFO is empty */
+	while(!(serial_in(up, UART_LSR) & UART_LSR_TEMT))
+		msleep(1);
+#ifdef CONFIG_PXA95x
+	dvfm_enable_lowpower(up->dvfm_dev_idx[PXA_UART_TX]);
+#else
+	wake_unlock(&up->idle_lock[PXA_UART_TX]);
+#endif
+}
+
 #ifdef CONFIG_PXA95x
 
 extern void get_wakeup_source(pm_wakeup_src_t *);
@@ -1510,6 +1525,7 @@ static int serial_pxa_probe(struct platform_device *dev)
 				DVFM_FREQUENCY_NOTIFIER);
 	INIT_WORK(&sport->uart_rx_lpm_work, uart_rx_lpm_handler);
 #endif
+	INIT_WORK(&sport->uart_tx_lpm_work, uart_tx_lpm_handler);
 
 	init_timer(&sport->pxa_timer);
 	sport->pxa_timer.function = pxa_timer_handler;
