@@ -1,3 +1,12 @@
+/*
+ * Copyright (C) 2011 Marvell International Ltd. All rights reserved.
+ *
+ * This program is free software; you can redistribute  it and/or modify it
+ * under  the terms of  the GNU General  Public License as published by the
+ * Free Software Foundation;  either version 2 of the  License, or (at your
+ * option) any later version.
+ */
+
 #include <linux/module.h>
 #include <linux/pci.h>
 #include <linux/dma-mapping.h>
@@ -22,6 +31,7 @@
 #include <linux/irq.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
+#include <linux/usb/mv_usb.h>
 #include <asm/system.h>
 #include <asm/unaligned.h>
 
