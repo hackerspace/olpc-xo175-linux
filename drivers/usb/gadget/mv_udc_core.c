@@ -1985,9 +1985,15 @@ static void irq_process_error(struct mv_udc *udc)
 static irqreturn_t mv_udc_irq(int irq, void *dev)
 {
 	struct mv_udc *udc = (struct mv_udc *)dev;
-	u32 status, intr;
+	u32 status, intr, usbmode;
 
 	spin_lock(&udc->lock);
+
+	usbmode = readl(&udc->op_regs->usbmode);
+	if ((usbmode & USBMODE_CTRL_MODE_MASK) != USBMODE_CTRL_MODE_DEVICE) {
+		spin_unlock(&udc->lock);
+		return IRQ_NONE;
+	}
 
 	status = readl(&udc->op_regs->usbsts);
 	intr = readl(&udc->op_regs->usbintr);
