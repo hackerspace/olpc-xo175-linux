@@ -16,6 +16,8 @@
 #include <linux/i2c.h>
 #include <linux/i2c/pxa95x-i2c.h>
 #include <linux/mfd/88pm860x.h>
+#include <linux/clk.h>
+#include <linux/delay.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -25,11 +27,14 @@
 #include <mach/mfp.h>
 #include <mach/mfp-pxa930.h>
 #include <mach/gpio.h>
+#include <mach/pxa95xfb.h>
 
 #include <plat/pxa27x_keypad.h>
 
 #include "devices.h"
 #include "generic.h"
+
+#include "panel_settings.h"
 
 #define SAARB_NR_IRQS	(IRQ_BOARD_START + 40)
 
@@ -207,6 +212,139 @@ static struct pxa27x_keypad_platform_data keypad_info = {
 };
 #endif /* CONFIG_KEYBOARD_PXA27x || CONFIG_KEYBOARD_PXA27x_MODULE */
 
+#if defined(CONFIG_FB_PXA95x)
+static void panel_reset(void)
+{
+	int reset_pin;
+	int err;
+
+	reset_pin = mfp_to_gpio(MFP_PIN_GPIO20);
+	err = gpio_request(reset_pin, "DSI Reset");
+	if (err) {
+		gpio_free(reset_pin);
+		pr_err("Request GPIO failed, gpio: %d return :%d\n",
+		       reset_pin, err);
+		return;
+	}
+	gpio_direction_output(reset_pin, 1);
+	mdelay(1);
+	gpio_direction_output(reset_pin, 0);
+	mdelay(1);
+	gpio_direction_output(reset_pin, 1);
+	mdelay(10);
+	gpio_free(reset_pin);
+}
+
+static void panel_power(int on)
+{
+	if (get_board_id() >= OBM_SAAR_B_MG2_B0_V15_BOARD)
+		panel_power_trulywvga(1, on);
+	else
+		panel_power_tc3587(1, on);
+}
+
+static struct pxa95xfb_mach_info lcd_info __initdata = {
+	.id                     = "Base",
+	.modes                  = video_modes_tc3587,
+	.num_modes              = ARRAY_SIZE(video_modes_tc3587),
+	.pix_fmt_in             = PIX_FMTIN_RGB_16,
+	.pix_fmt_out            = PIX_FMTOUT_16_RGB565,
+	.panel_type             = LCD_Controller_Active,
+	.window                 = 0,
+	.mixer_id               = 1,
+	.zorder                 = 1,
+	.converter              = LCD_M2DSI1,
+	.output                 = OUTPUT_PANEL,
+	.active                 = 1,
+	.panel_power            = panel_power,
+	.reset	                = panel_reset,
+	.invert_pixclock        = 1,
+};
+
+static struct pxa95xfb_mach_info lcd_ovly_info __initdata = {
+	.id                     = "Ovly",
+	.modes                  = video_modes_tc3587,
+	.num_modes              = ARRAY_SIZE(video_modes_tc3587),
+	.pix_fmt_in             = PIX_FMTIN_RGB_16,
+	.pix_fmt_out            = PIX_FMTOUT_16_RGB565,
+	.panel_type             = LCD_Controller_Active,
+	.window                 = 4,
+	.mixer_id               = 1,
+	.zorder                 = 0,
+	.converter              = LCD_M2DSI1,
+	.output                 = OUTPUT_PANEL,
+	.active                 = 1,
+	.panel_power            = panel_power,
+	.reset                  = panel_reset,
+	.invert_pixclock	= 1,
+};
+
+static struct pxa95xfb_mach_info lcd_info_wvga /*__initdata*/ = {
+	.id = "Base",
+	.modes = video_modes_trulywvga,
+	.num_modes = ARRAY_SIZE(video_modes_trulywvga),
+	.pix_fmt_in = PIX_FMTIN_RGB_16,
+	.pix_fmt_out = PIX_FMTOUT_24_RGB888,
+	.panel_type = LCD_Controller_Active,
+	.window = 0,
+	.mixer_id = 0,
+	.zorder = 1,
+	.converter = LCD_M2PARALELL_CONVERTER,
+	.output = OUTPUT_PANEL,
+	.active = 1,
+	.panel_power = panel_power,
+	.invert_pixclock = 1,
+	.reset = panel_reset,
+};
+
+static struct pxa95xfb_mach_info lcd_ovly_info_wvga /*__initdata*/ = {
+	.id = "Ovly",
+	.modes = video_modes_trulywvga,
+	.num_modes = ARRAY_SIZE(video_modes_trulywvga),
+	.pix_fmt_in = PIX_FMTIN_RGB_16,
+	.pix_fmt_out = PIX_FMTOUT_24_RGB888,
+	.panel_type = LCD_Controller_Active,
+	.window = 4,
+	.mixer_id = 0,
+	.zorder = 0,
+	.converter = LCD_M2PARALELL_CONVERTER,
+	.output = OUTPUT_PANEL,
+	.active = 1,
+	.panel_power = panel_power,
+	.invert_pixclock = 1,
+	.reset = panel_reset,
+};
+
+static struct pxa95xfb_mach_info hdmi_ovly_info __initdata = {
+	.id                     = "HDMI-Ovly",
+	.modes                  = video_modes_si9226,
+	.num_modes              = ARRAY_SIZE(video_modes_si9226),
+	.pix_fmt_in             = PIX_FMTIN_YUV420,
+	.pix_fmt_out            = PIX_FMTOUT_24_RGB888,
+	.panel_type             = LCD_Controller_Active,
+	/*as hdmi-ovly use same win4 with lcd-ovly, they should not open at the same time*/
+	.window                 = 4,
+	.mixer_id               = 0,
+	.zorder                 = 1,
+	.converter              = LCD_M2PARALELL_CONVERTER,
+	.output                 = OUTPUT_HDMI,
+	.active                 = 1,
+	.invert_pixclock        = 1,
+};
+
+
+static void __init init_lcd(void)
+{
+	if (get_board_id() >= OBM_SAAR_B_MG2_B0_V15_BOARD) {
+		set_pxa95x_fb_info(&lcd_info_wvga);
+		set_pxa95x_fb_ovly_info(&lcd_ovly_info_wvga, 0);
+	} else {
+		set_pxa95x_fb_info(&lcd_info);
+		set_pxa95x_fb_ovly_info(&lcd_ovly_info, 0);
+	}
+}
+#endif
+
 
 static void __init saarb_init(void)
 {
@@ -222,6 +360,11 @@ static void __init saarb_init(void)
 #if defined(CONFIG_KEYBOARD_PXA27x) || defined(CONFIG_KEYBOARD_PXA27x_MODULE)
 	pxa_set_keypad_info(&keypad_info);
 #endif
+
+#if defined(CONFIG_FB_PXA95x)
+	init_lcd();
+#endif
+
 }
 
 MACHINE_START(SAARB, "PXA955 Handheld Platform (aka SAARB)")
