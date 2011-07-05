@@ -34,6 +34,7 @@
 
 #include "devices.h"
 #include "generic.h"
+#include "panel_settings.h"
 
 #define NEVOSAARC_NR_IRQS	(IRQ_BOARD_START + 40)
 
@@ -195,6 +196,77 @@ static struct pxa27x_keypad_platform_data keypad_info = {
 };
 #endif /* CONFIG_KEYBOARD_PXA27x || CONFIG_KEYBOARD_PXA27x_MODULE */
 
+#if defined(CONFIG_FB_PXA95x)
+static void panel_power(int on)
+{
+	panel_power_trulywvga(1, on);
+}
+
+static void panel_reset(void)
+{
+	int reset_pin;
+	int err;
+
+	reset_pin = mfp_to_gpio(MFP_PIN_GPIO23);
+	err = gpio_request(reset_pin, "DSI Reset");
+	if (err) {
+		gpio_free(reset_pin);
+		printk(KERN_ERR "Request GPIO failed, gpio: %d return :%d\n",
+		       reset_pin, err);
+		return;
+	}
+	gpio_direction_output(reset_pin, 1);
+	mdelay(1);
+	gpio_direction_output(reset_pin, 0);
+	mdelay(1);
+	gpio_direction_output(reset_pin, 1);
+	mdelay(10);
+	gpio_free(reset_pin);
+}
+
+static struct pxa95xfb_mach_info lcd_info /*__initdata*/ = {
+	.id = "Base",
+	.modes = video_modes_trulywvga,
+	.num_modes = ARRAY_SIZE(video_modes_trulywvga),
+	.pix_fmt_in = PIX_FMTIN_RGB_16,
+	.pix_fmt_out = PIX_FMTOUT_24_RGB888,
+	.panel_type = LCD_Controller_Active,
+	.window = 0,
+	.mixer_id = 0,
+	.zorder = 1,
+	.converter = LCD_M2PARALELL_CONVERTER,
+	.output = OUTPUT_PANEL,
+	.active = 1,
+	.panel_power = panel_power,
+	.invert_pixclock = 1,
+	.reset = panel_reset,
+};
+
+static struct pxa95xfb_mach_info lcd_ovly_info /*__initdata*/ = {
+	.id = "Ovly",
+	.modes = video_modes_trulywvga,
+	.num_modes = ARRAY_SIZE(video_modes_trulywvga),
+	.pix_fmt_in = PIX_FMTIN_RGB_16,
+	.pix_fmt_out = PIX_FMTOUT_24_RGB888,
+	.panel_type = LCD_Controller_Active,
+	.window = 4,
+	.mixer_id = 0,
+	.zorder = 0,
+	.converter = LCD_M2PARALELL_CONVERTER,
+	.output = OUTPUT_PANEL,
+	.active = 1,
+	.panel_power = panel_power,
+	.invert_pixclock = 1,
+	.reset = panel_reset,
+};
+
+static void __init init_lcd(void)
+{
+	set_pxa95x_fb_info(&lcd_info);
+	set_pxa95x_fb_ovly_info(&lcd_ovly_info, 0);
+}
+#endif
+
 static void __init init(void)
 {
 	pxa_set_ffuart_info(NULL);
@@ -211,6 +283,11 @@ static void __init init(void)
 #if defined(CONFIG_KEYBOARD_PXA27x) || defined(CONFIG_KEYBOARD_PXA27x_MODULE)
 	pxa_set_keypad_info(&keypad_info);
 #endif
+
+#if defined(CONFIG_FB_PXA95x)
+	init_lcd();
+#endif
+
 }
 
 MACHINE_START(NEVOSAARC, "PXA970 Handheld Platform (aka SAAR C2)")
