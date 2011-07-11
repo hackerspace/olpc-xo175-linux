@@ -15,6 +15,8 @@
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/delay.h>
+#include <linux/dma-mapping.h>
+#include <linux/usb/mv_usb.h>
 
 #include <asm/smp_twd.h>
 #include <asm/mach/time.h>
@@ -31,6 +33,7 @@
 #include <mach/dma.h>
 #include <mach/devices.h>
 #include <mach/mmp3.h>
+#include <mach/regs-usb.h>
 
 #include <linux/platform_device.h>
 
@@ -436,3 +439,117 @@ struct platform_device mmp3_device_rtc = {
 	.num_resources  = ARRAY_SIZE(mmp3_resource_rtc),
 };
 
+#ifdef CONFIG_USB_SUPPORT
+static u64 usb_dma_mask = ~(u32)0;
+
+#ifdef CONFIG_USB_PXA_U2O
+struct resource mmp3_u2o_resources[] = {
+	/* regbase */
+	[0] = {
+		.start	= PXA168_U2O_REGBASE + U2x_CAPREGS_OFFSET,
+		.end	= PXA168_U2O_REGBASE + USB_REG_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "capregs",
+	},
+	/* phybase */
+	[1] = {
+		.start	= PXA168_U2O_PHYBASE,
+		.end	= PXA168_U2O_PHYBASE + USB_PHY_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "phyregs",
+	},
+	[2] = {
+		.start	= IRQ_MMP3_USB_OTG,
+		.end	= IRQ_MMP3_USB_OTG,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mmp3_device_u2o = {
+	.name		= "pxa-u2o",
+	.id		= -1,
+	.resource	= mmp3_u2o_resources,
+	.num_resources	= ARRAY_SIZE(mmp3_u2o_resources),
+	.dev		=  {
+		.dma_mask		= &usb_dma_mask,
+		.coherent_dma_mask	= 0xffffffff,
+	}
+};
+#endif
+
+#ifdef CONFIG_USB_EHCI_PXA
+#ifdef CONFIG_USB_EHCI_PXA_U2O
+struct resource mmp3_u2oehci_resources[] = {
+	/* regbase */
+	[0] = {
+		.start	= PXA168_U2O_REGBASE + U2x_CAPREGS_OFFSET,
+		.end	= PXA168_U2O_REGBASE + USB_REG_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "capregs",
+	},
+	/* phybase */
+	[1] = {
+		.start	= PXA168_U2O_PHYBASE,
+		.end	= PXA168_U2O_PHYBASE + USB_PHY_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "phyregs",
+	},
+	[2] = {
+		.start	= IRQ_MMP3_USB_OTG,
+		.end	= IRQ_MMP3_USB_OTG,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mmp3_device_u2oehci = {
+	.name		= "pxa-u2oehci",
+	.id		= -1,
+	.dev		= {
+		.dma_mask		= &usb_dma_mask,
+		.coherent_dma_mask	= 0xffffffff,
+	},
+
+	.num_resources	= ARRAY_SIZE(mmp3_u2oehci_resources),
+	.resource	= mmp3_u2oehci_resources,
+};
+
+#ifdef CONFIG_USB_PXA_U2O_OTG
+struct resource mmp3_u2ootg_resources[] = {
+	/* regbase */
+	[0] = {
+		.start	= PXA168_U2O_REGBASE + U2x_CAPREGS_OFFSET,
+		.end	= PXA168_U2O_REGBASE + USB_REG_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "capregs",
+	},
+	/* phybase */
+	[1] = {
+		.start	= PXA168_U2O_PHYBASE,
+		.end	= PXA168_U2O_PHYBASE + USB_PHY_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "phyregs",
+	},
+	[2] = {
+		.start	= IRQ_MMP3_USB_OTG,
+		.end	= IRQ_MMP3_USB_OTG,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mmp3_device_u2ootg = {
+	.name		= "pxa-otg",
+	.id		= -1,
+	.dev		= {
+		.dma_mask		= &usb_dma_mask,
+		.coherent_dma_mask	= 0xffffffff,
+	},
+
+	.num_resources	= ARRAY_SIZE(mmp3_u2ootg_resources),
+	.resource	= mmp3_u2ootg_resources,
+};
+
+#endif	/* CONFIG_USB_PXA_U2O_OTG */
+#endif  /* CONFIG_USB_EHCI_PXA_U2O */
+
+#endif  /* CONFIG_USB_EHCI_PXA */
+#endif  /* CONFIG_USB_SUPPORT */

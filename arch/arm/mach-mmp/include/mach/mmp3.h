@@ -37,6 +37,9 @@ extern struct pxa_device_desc mmp3_device_pwm4;
 extern struct pxa_device_desc mmp3_device_keypad;
 
 extern struct platform_device mmp3_device_rtc;
+extern struct platform_device mmp3_device_u2o;
+extern struct platform_device mmp3_device_u2ootg;
+extern struct platform_device mmp3_device_u2oehci;
 
 static inline int mmp3_add_uart(int id)
 {
