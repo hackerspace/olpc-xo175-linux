@@ -207,6 +207,31 @@ int pxa_usb_phy_init(unsigned int base)
 	return 0;
 }
 #endif
-
 #endif
+
+#ifdef CONFIG_USB_EHCI_PXA_U2H_HSIC
+#ifdef CONFIG_CPU_MMP3
+int mmp3_hsic_phy_init(unsigned int base)
+{
+	u32 val;
+	unsigned int otgphy;
+
+	otgphy = (unsigned int) ioremap_nocache(PXA168_U2O_PHYBASE,
+						USB_PHY_RANGE);
+	if (otgphy == 0)
+		printk(KERN_ERR "%s: ioremap error\n", __func__);
+	pxa_usb_phy_init(otgphy);
+
+	printk(KERN_INFO "%s: init\n", __func__);
+	/* Enable hsic phy */
+	val = __raw_readl(base + HSIC_CTRL);
+	val |= (HSIC_CTRL_HSIC_ENABLE | HSIC_CTRL_PLL_BYPASS);
+	__raw_writel(val, base + HSIC_CTRL);
+
+	iounmap((void __iomem *)otgphy);
+	return 0;
+}
+#endif
+#endif
+
 #endif

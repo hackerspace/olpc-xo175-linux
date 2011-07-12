@@ -403,5 +403,11 @@
 /* PMIC */
 #define PMIC_PMIC_INT		MFP_CFG(PMIC_INT, AF0)
 
+/* HSCI1 VBUS_EN - Abilene A0 Board */
+#define GPIO62_VBUS_EN		MFP_CFG(GPIO62, AF0)
+/* HSIC1 RESET - Abilene A0 Board */
+#define GPIO96_HSIC_RESET	(MFP_CFG_DRV(GPIO96, AF0, MEDIUM) \
+				| MFP_LPM_DRIVE_LOW)
+
 #endif /* __ASM_MACH_MFP_MMP2_H */
 

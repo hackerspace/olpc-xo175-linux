@@ -551,5 +551,104 @@ struct platform_device mmp3_device_u2ootg = {
 #endif	/* CONFIG_USB_PXA_U2O_OTG */
 #endif  /* CONFIG_USB_EHCI_PXA_U2O */
 
+#ifdef CONFIG_USB_EHCI_PXA_U2H_HSIC
+static struct resource mmp3_hsic1_resources[] = {
+	/* reg base */
+	[0] = {
+		.start	= MMP3_HSIC1_REGBASE + U2x_CAPREGS_OFFSET,
+		.end	= MMP3_HSIC1_REGBASE + USB_REG_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "capregs",
+	},
+	/* phybase */
+	[1] = {
+		.start	= MMP3_HSIC1_PHYBASE,
+		.end	= MMP3_HSIC1_PHYBASE + USB_PHY_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "phyregs",
+	},
+	[2] = {
+		.start	= IRQ_MMP3_USB_HS1,
+		.end	= IRQ_MMP3_USB_HS1,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mmp3_hsic1_device = {
+	.name		= "mmp3-hsic",
+	.id		= -1,
+	.dev		= {
+		.dma_mask		= &usb_dma_mask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+	},
+
+	.num_resources	= ARRAY_SIZE(mmp3_hsic1_resources),
+	.resource	= mmp3_hsic1_resources,
+};
+
+int mmp3_hsic_private_init(struct mv_op_regs *opregs, unsigned int phyregs)
+{
+	u32 hsic_int;
+	u32 status;
+	int count;
+
+	hsic_int = __raw_readl(phyregs + HSIC_INT);
+	status = __raw_readl(&opregs->portsc[0]);
+	/*disable connect irq*/
+	hsic_int &= ~HSIC_INT_CONNECT_INT_EN;
+	__raw_writel(hsic_int, phyregs + HSIC_INT);
+
+	/* enable port power and reserved bit 25 */
+	status = __raw_readl(&opregs->portsc[0]);
+	status |= (0x00001000) | (1 << 25);
+	/* Clear bits 30:31 for HSIC to be enabled */
+	status &= ~(0x3 << 30);
+	__raw_writel(status, &opregs->portsc[0]);
+
+	/* test mode: force enable hs */
+	status = __raw_readl(&opregs->portsc[0]);
+	status &= ~(0xf << 16);
+	status |= (0x5 << 16);
+	__raw_writel(status, &opregs->portsc[0]);
+
+	/* disable test mode */
+	status = __raw_readl(&opregs->portsc[0]);
+	status &= ~(0xf << 16);
+	__raw_writel(status, &opregs->portsc[0]);
+
+	/* check HS ready */
+	count = 0x10000;
+	do {
+		hsic_int = __raw_readl(phyregs + HSIC_INT);
+		status = __raw_readl(&opregs->portsc[0]);
+		count--;
+	} while ((count >= 0) && !(hsic_int & HSIC_INT_HS_READY)
+		&& !(hsic_int & HSIC_INT_CONNECT));
+	if (count <= 0) {
+		printk(KERN_INFO "HSIC_INT_HS_READY not set: hsic_int 0x%x\n",
+			hsic_int);
+		return -EAGAIN;
+	}
+
+	/* issue port reset */
+	status = __raw_readl(&opregs->portsc[0]);
+	status |= (1<<8);
+	__raw_writel(status, &opregs->portsc[0]);
+
+	/* check reset done */
+	count = 0x10000;
+	do {
+		status = __raw_readl(&opregs->portsc[0]);
+		count--;
+	} while ((count >= 0) && !(status & (1<<8)));
+	if (count <= 0) {
+		printk(KERN_INFO "port reset not done: portsc 0x%x\n", status);
+		return -EAGAIN;
+	}
+	return 0;
+}
+
+#endif  /* CONFIG_USB_EHCI_PXA_U2H_HSIC */
+
 #endif  /* CONFIG_USB_EHCI_PXA */
 #endif  /* CONFIG_USB_SUPPORT */

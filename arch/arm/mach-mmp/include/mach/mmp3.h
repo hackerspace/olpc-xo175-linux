@@ -40,6 +40,7 @@ extern struct platform_device mmp3_device_rtc;
 extern struct platform_device mmp3_device_u2o;
 extern struct platform_device mmp3_device_u2ootg;
 extern struct platform_device mmp3_device_u2oehci;
+extern struct platform_device mmp3_hsic1_device;
 
 static inline int mmp3_add_uart(int id)
 {
