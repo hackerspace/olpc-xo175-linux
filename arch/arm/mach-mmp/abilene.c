@@ -311,6 +311,80 @@ static struct mv_usb_platform_data mmp3_usb_pdata = {
 };
 #endif
 
+#ifdef CONFIG_USB_EHCI_PXA_U2H_HSIC
+extern int mmp3_hsic_phy_init(unsigned int base);
+extern int mmp3_hsic_private_init(struct mv_op_regs *opregs,
+					unsigned int phyregs);
+
+static int mmp3_hsic1_reset(void)
+{
+	int reset;
+	reset = mfp_to_gpio(GPIO96_HSIC_RESET);
+
+	if (gpio_request(reset, "hsic reset")) {
+		pr_err("Failed to request hsic reset gpio\n");
+		return -EIO;
+	}
+
+	gpio_direction_output(reset, 0);
+	mdelay(100);
+	gpio_direction_output(reset, 1);
+
+	gpio_free(reset);
+	return 0;
+}
+
+static int mmp3_hsic1_set_vbus(unsigned int vbus)
+{
+	static struct regulator *ldo5;
+	int gpio = mfp_to_gpio(GPIO62_VBUS_EN);
+
+	printk(KERN_INFO "%s: set %d\n", __func__, vbus);
+	if (!ldo5) {
+		ldo5 = regulator_get(NULL, "v_ldo5");
+		if (IS_ERR(ldo5)) {
+			printk(KERN_INFO "ldo5 not found\n");
+			return -EIO;
+		}
+		regulator_set_voltage(ldo5, 1200000, 1200000);
+		regulator_enable(ldo5);
+		printk(KERN_INFO "%s: enable regulator\n", __func__);
+	}
+
+	/* 5V power supply to external port */
+	if (gpio_request(gpio, "HSIC1 VBUS Enable")) {
+		printk(KERN_INFO "gpio %d request failed\n", gpio);
+		return -1;
+	}
+
+	if (vbus)
+		gpio_direction_output(gpio, 1);
+	else
+		gpio_direction_output(gpio, 0);
+
+	gpio_free(gpio);
+
+	mmp3_hsic1_reset();
+	return 0;
+}
+
+static char *mmp3_hsic1_clock_name[] = {
+	[0] = "U2OCLK",
+	[1] = "HSIC1CLK",
+};
+
+static struct mv_usb_platform_data mmp3_hsic1_pdata = {
+	.clknum		= 2,
+	.clkname	= mmp3_hsic1_clock_name,
+	.vbus		= NULL,
+	.mode		= MV_USB_MODE_HOST,
+	.phy_init	= mmp3_hsic_phy_init,
+	.set_vbus	= mmp3_hsic1_set_vbus,
+	.private_init	= mmp3_hsic_private_init,
+};
+
+#endif
+
 #endif
 
 static void __init abilene_init(void)
@@ -342,6 +416,11 @@ static void __init abilene_init(void)
 	mmp3_device_u2ootg.dev.platform_data = (void *)&mmp3_usb_pdata;
 	platform_device_register(&mmp3_device_u2ootg);
 #endif
+#endif
+
+#ifdef CONFIG_USB_EHCI_PXA_U2H_HSIC
+	mmp3_hsic1_device.dev.platform_data = (void *)&mmp3_hsic1_pdata;
+	platform_device_register(&mmp3_hsic1_device);
 #endif
 }
 
