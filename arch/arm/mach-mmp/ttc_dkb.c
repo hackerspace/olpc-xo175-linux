@@ -60,6 +60,9 @@ static unsigned long ttc_dkb_pin_config[] __initdata = {
 	DF_REn_DF_REn,
 	DF_RDY0_DF_RDY0,
 
+	/* one wire */
+	ONEWIRE_CLK_REQ,
+
 	/*keypad*/
 	GPIO00_KP_MKIN0,
 	GPIO01_KP_MKOUT0,
@@ -260,6 +263,7 @@ static void __init ttc_dkb_init(void)
 
 	/* on-chip devices */
 	pxa910_add_uart(1);
+	pxa910_add_1wire();
 
 	pxa910_add_keypad(&ttc_dkb_keypad_info);
 
