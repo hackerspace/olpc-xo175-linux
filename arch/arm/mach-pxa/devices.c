@@ -17,6 +17,7 @@
 #include <mach/camera.h>
 #include <mach/audio.h>
 #include <mach/hardware.h>
+#include <mach/soc_vmeta.h>
 #include <plat/pxa3xx_nand.h>
 
 #include "devices.h"
@@ -1411,3 +1412,42 @@ void __init set_pxa95x_fb_parent(struct device *parent_dev)
 }
 
 #endif
+
+#if defined(CONFIG_UIO_VMETA)
+static struct resource pxa95x_vmeta_resources[3] = {
+	[0] = {
+		.start = 0x58400000,
+		.end   = 0x587fffff,
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = IRQ_VMETA_FUNC,
+		.end   = IRQ_VMETA_FUNC,
+		.flags = IORESOURCE_IRQ,
+	},
+	[2] = {
+		.start = IRQ_VMETA_BUS,
+		.end   = IRQ_VMETA_BUS,
+		.flags = IORESOURCE_IRQ,
+	}
+};
+
+static u64 pxa95x_vmeta_dma_mask = DMA_BIT_MASK(32);
+struct platform_device pxa95x_device_vmeta = {
+	.name           = UIO_VMETA_NAME,
+	.id             = 0,
+	.dev            = {
+		.dma_mask = &pxa95x_vmeta_dma_mask,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	},
+	.resource       = pxa95x_vmeta_resources,
+	.num_resources  = ARRAY_SIZE(pxa95x_vmeta_resources),
+};
+
+void __init pxa95x_set_vmeta_info(void* info)
+{
+	pxa_register_device(&pxa95x_device_vmeta, info);
+}
+
+#endif /*CONFIG_UIO_VMETA*/
+

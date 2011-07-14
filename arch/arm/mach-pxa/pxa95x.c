@@ -22,6 +22,7 @@
 #include <linux/memblock.h>
 #include <linux/sysdev.h>
 #include <linux/delay.h>
+#include <linux/uio_vmeta.h>
 
 #include <asm/hardware/cache-tauros2.h>
 
@@ -33,6 +34,7 @@
 #include <mach/pm.h>
 #include <mach/dma.h>
 #include <mach/regs-intc.h>
+#include <mach/soc_vmeta.h>
 
 #include "generic.h"
 #include "devices.h"
@@ -683,6 +685,7 @@ static DEFINE_PXA3_CKEN(pxa95x_sdh0, PXA95x_MMC1, 200000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_sdh1, PXA95x_MMC2, 200000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_sdh2, PXA95x_MMC3, 200000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_sdh3, PXA95x_MMC4, 200000000, 0);
+static DEFINE_PXA3_CKEN(pxa95x_vmeta, VMETA, 312000000, 0);
 
 static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_pout, NULL, "CLK_POUT"),
@@ -703,6 +706,7 @@ static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_ssp4, "pxa27x-ssp.3", NULL),
 	INIT_CLKREG(&clk_pxa95x_pwm0, "pxa27x-pwm.0", NULL),
 	INIT_CLKREG(&clk_pxa95x_pwm1, "pxa27x-pwm.1", NULL),
+	INIT_CLKREG(&clk_pxa95x_vmeta, NULL, "VMETA_CLK"),
 	INIT_CLKREG(&clk_pxa95x_dsi0, NULL, "PXA95x_DSI0CLK"),
 	INIT_CLKREG(&clk_pxa95x_dsi1, NULL, "PXA95x_DSI1CLK"),
 	INIT_CLKREG(&clk_pxa95x_ihdmi, NULL, "PXA95x_iHDMICLK"),
@@ -774,12 +778,167 @@ static int __init pxa95x_init(void)
 		register_syscore_ops(&pxa3xx_clock_syscore_ops);
 
 		ret = platform_add_devices(devices, ARRAY_SIZE(devices));
+		/* Set vmeta clock as 312MHz always */
+		ACCR |=  0x00200000;
 	}
 
 	return ret;
 }
 
 postcore_initcall(pxa95x_init);
+
+/*
+return: -1 -- failure:exceed limit; >=0 -- success;
+These two functions shall be different on different platforms.
+*/
+
+int pxa95x_vmeta_increase_core_freq(const struct vmeta_instance *vi,
+						const int step)
+{
+	if (vi->vop >= VMETA_OP_VGA
+	&& vi->vop <= (VMETA_OP_VGA+2-step)) { /* VGA:1,2,3 */
+		return vi->vop+step;
+	} else if (vi->vop >= VMETA_OP_720P
+		&& vi->vop <= (VMETA_OP_720P+2-step)) {/* 720p: 8,9,10 */
+		return vi->vop+step;
+	}
+
+	return -1;
+}
+
+int pxa95x_vmeta_decrease_core_freq(const struct vmeta_instance *vi,
+					const int step)
+{
+	if (vi->vop >= (VMETA_OP_VGA+step) && vi->vop <= VMETA_OP_VGA+2) {
+		return vi->vop - step;
+	} else if (vi->vop >= (VMETA_OP_720P+step)
+		&& vi->vop <= VMETA_OP_720P+2) {
+		return vi->vop - step;
+	}
+
+	return -1;
+}
+
+int pxa95x_vmeta_clean_dvfm_constraint(struct vmeta_instance *vi, int idx)
+{
+	dvfm_disable_op_name("208M_HF", idx);
+	dvfm_disable_op_name("416M_VGA", idx);
+	dvfm_enable_op_name("416M", idx);
+	return 0;
+}
+
+int pxa95x_vmeta_init_dvfm_constraint(struct vmeta_instance *vi, int idx)
+{
+	dvfm_disable_op_name("208M_HF", idx);
+	dvfm_disable_op_name("416M_VGA", idx);
+	return 0;
+}
+
+/*
+resolution <= VGA          -- 1~3	208M_HF, 416M_VGA, 624M
+VGA < resolution <=720p    -- 8~10	416M, 624M, 806M
+resolution > 720p          -- 806M
+*/
+int pxa95x_vmeta_set_dvfm_constraint(struct vmeta_instance *vi, int idx)
+{
+	if ((vi->vop < VMETA_OP_MIN || vi->vop > VMETA_OP_MAX)
+		&& vi->vop != VMETA_OP_INVALID) {
+		printk(KERN_ERR "unsupport vmeta vop=%d\n", vi->vop);
+		return -1;
+	}
+
+	dvfm_disable_lowpower(idx);
+
+	dvfm_disable_op_name("156M", idx);
+	dvfm_disable_op_name("156M_HF", idx);
+	dvfm_disable_op_name("988M", idx);
+
+	vi->vop_real = vi->vop;
+	printk(KERN_DEBUG "set dvfm vop_real=%d\n", vi->vop_real);
+	switch (vi->vop_real) {
+	case VMETA_OP_VGA:
+		dvfm_enable_op_name("208M_HF", idx);
+		dvfm_enable_op_name("416M_VGA", idx);
+		dvfm_disable_op_name("416M", idx);
+		break;
+	case VMETA_OP_VGA+1:
+		dvfm_disable_op_name("416M", idx);
+		dvfm_enable_op_name("416M_VGA", idx);
+		dvfm_disable_op_name("208M_HF", idx);
+		break;
+	case VMETA_OP_VGA+2:
+		dvfm_disable_op_name("416M", idx);
+		dvfm_disable_op_name("208M_HF", idx);
+		dvfm_disable_op_name("416M_VGA", idx);
+		break;
+	case VMETA_OP_720P:
+	case VMETA_OP_INVALID:
+		dvfm_disable_op_name("208M_HF", idx);
+		dvfm_disable_op_name("416M_VGA", idx);
+		break;
+	case VMETA_OP_720P+1:
+		dvfm_disable_op_name("208M_HF", idx);
+		dvfm_disable_op_name("416M_VGA", idx);
+		dvfm_disable_op_name("416M", idx);
+		break;
+	case VMETA_OP_720P+2:
+	default:
+		dvfm_disable_op_name("208M_HF", idx);
+		dvfm_disable_op_name("416M_VGA", idx);
+		dvfm_disable_op_name("416M", idx);
+		dvfm_disable_op_name("624M", idx);
+		break;
+	}
+
+	return 0;
+}
+
+int pxa95x_vmeta_unset_dvfm_constraint(struct vmeta_instance *vi, int idx)
+{
+	dvfm_enable_lowpower(idx);
+
+	dvfm_enable_op_name("156M", idx);
+	dvfm_enable_op_name("156M_HF", idx);
+	dvfm_enable_op_name("624M", idx);
+	dvfm_enable_op_name("988M", idx);
+
+	/* It's already power off, e.g. in pause case */
+	if (vi->power_status == 0)
+		vi->vop_real = VMETA_OP_INVALID;
+
+	printk(KERN_DEBUG "unset dvfm vop_real=%d\n", vi->vop_real);
+	switch (vi->vop_real) {
+	case VMETA_OP_VGA:
+	case VMETA_OP_VGA+1:
+	case VMETA_OP_VGA+2:
+		dvfm_disable_op_name("416M", idx);
+		dvfm_enable_op_name("208M_HF", idx);
+		dvfm_enable_op_name("416M_VGA", idx);
+		break;
+	case VMETA_OP_720P:
+	case VMETA_OP_720P+1:
+	case VMETA_OP_720P+2:
+	case VMETA_OP_INVALID:
+	default:
+		dvfm_disable_op_name("208M_HF", idx);
+		dvfm_disable_op_name("416M_VGA", idx);
+		dvfm_enable_op_name("416M", idx);
+		break;
+	}
+
+	vi->vop_real = VMETA_OP_INVALID;
+
+	return 0;
+}
+
+irqreturn_t pxa95x_vmeta_bus_irq_handler(int irq, void *dev_id)
+{
+	struct vmeta_instance *vi = (struct vmeta_instance *)dev_id;
+
+	printk(KERN_ERR "VMETA: bus error detected\n");
+	uio_event_notify(&vi->uio_info);
+	return IRQ_HANDLED;
+}
 
 #define CP_MEM_MAX_SEGMENTS 2
 unsigned _cp_area_addr[CP_MEM_MAX_SEGMENTS];
