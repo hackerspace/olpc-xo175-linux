@@ -789,6 +789,13 @@ config SOC_CAMERA_OV5642
 	help
 	  Support for the OmniVision OV5642 5M camera (soc-camera arch).
 
+config SOC_CAMERA_OV7690
+	tristate "ov7690 support"
+	depends on SOC_CAMERA_OV5642 && I2C
+	default n
+	help
+	  Support for the OmniVision OV7690 VGA camera (soc-camera arch).
+
 config SOC_CAMERA_IMX074
 	tristate "imx074 support"
 	depends on SOC_CAMERA && I2C
