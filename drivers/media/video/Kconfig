@@ -782,6 +782,13 @@ config SOC_CAMERA
 	  over a bus like PCI or USB. For example some i2c camera connected
 	  directly to the data bus of an SoC.
 
+config SOC_CAMERA_OV5642
+	tristate "ov5642 support"
+	depends on SOC_CAMERA && I2C
+	default y
+	help
+	  Support for the OmniVision OV5642 5M camera (soc-camera arch).
+
 config SOC_CAMERA_IMX074
 	tristate "imx074 support"
 	depends on SOC_CAMERA && I2C
