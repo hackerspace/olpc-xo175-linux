@@ -1421,6 +1421,55 @@ void __init set_pxa95x_fb_parent(struct device *parent_dev)
 	pxa95x_device_fb.dev.parent = parent_dev;
 }
 
+/* two cam, to be continued */
+/* IRQ: CI0, 76; CI1, 77*/
+static struct resource pxa95x_resource_cam0[] = {
+	[0] = {
+		.start	= 0x50000000,
+		.end	= 0x5000ffff,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= 76,
+		.end	= 76,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+static struct resource pxa95x_resource_cam1[] = {
+	[0] = {
+		.start	= 0x50010000,
+		.end	= 0x5001ffff,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= 77,
+		.end	= 77,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+static u64 cam_dma_mask = ~(u32)0;
+struct platform_device pxa95x_device_cam0 = {
+	.name		= "pxa95x-camera",
+	.id		= 0,
+	.dev		= {
+		.dma_mask	= &cam_dma_mask,
+		.coherent_dma_mask = 0xffffffff,
+	},
+	.resource	= pxa95x_resource_cam0,
+	.num_resources	= ARRAY_SIZE(pxa95x_resource_cam0),
+};
+struct platform_device pxa95x_device_cam1 = {
+	.name		= "pxa95x-camera",
+	.id		= 1,
+	.dev		= {
+		.dma_mask	= &cam_dma_mask,
+		.coherent_dma_mask = 0xffffffff,
+	},
+	.resource	= pxa95x_resource_cam1,
+	.num_resources	= ARRAY_SIZE(pxa95x_resource_cam1),
+};
+
 #endif
 
 #if defined(CONFIG_UIO_VMETA)
