@@ -28,7 +28,7 @@
 #include <linux/clk.h>
 #include <linux/err.h>
 #include <linux/platform_device.h>
-#include <linux/spi/pxa2xx_spi.h>
+#include <linux/pxa2xx_ssp.h>
 #include <linux/io.h>
 
 #include <asm/irq.h>
