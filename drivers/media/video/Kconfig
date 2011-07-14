@@ -900,6 +900,15 @@ config VIDEO_PXA27x
 	---help---
 	  This is a v4l2 driver for the PXA27x Quick Capture Interface
 
+config VIDEO_PXA955
+	tristate "Marvell PXA955 Camera Driver (soc-camera+subdev)"
+	depends on VIDEO_DEV && PXA95x && SOC_CAMERA
+	select VIDEOBUF_DMA_CONTIG
+	default y
+	---help---
+	  This is a v4l2 driver for the Marvell PXA955 Quick Capture
+	  Interface based on SOC_camera/subdev architecture.
+
 config VIDEO_SH_MOBILE_CSI2
 	tristate "SuperH Mobile MIPI CSI-2 Interface driver"
 	depends on VIDEO_DEV && SOC_CAMERA && HAVE_CLK
