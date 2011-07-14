@@ -109,6 +109,15 @@ config HTC_I2CPLD
 	  This device provides input and output GPIOs through an I2C
 	  interface to one or more sub-chips.
 
+config PXA_DS1WM
+	tristate "PXA_DS1WM chip support"
+	select MFD_CORE
+	help
+	  This supports for w1 master controller of Marvell PXA9XX processor
+	  IC. The core driver provides register access for PXA_DS1WM, Actual
+	  functionality is handled by the ds1wm drivers, so if activate w1
+	  master ,it also enable ds1wm simutaneously.
+
 config UCB1400_CORE
 	tristate "Philips UCB1400 Core driver"
 	depends on AC97_BUS
