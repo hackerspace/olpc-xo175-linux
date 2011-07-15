@@ -5,6 +5,10 @@
 # Common support (must be linked before board specific support)
 obj-y				+= clock.o devices.o generic.o irq.o \
 				   time.o reset.o
+ifeq ($(CONFIG_PXA95x), y)
+obj-$(CONFIG_PM)               += pxa95x_pm.o
+endif
+
 obj-$(CONFIG_PM)		+= pm.o sleep.o standby.o
 obj-$(CONFIG_FB_PXA95x)		+= panel_settings.o
 
