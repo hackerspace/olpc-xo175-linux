@@ -94,6 +94,23 @@ config UIO_NETX
 	  To compile this driver as a module, choose M here; the module
 	  will be called uio_netx.
 
+config UIO_VMETA
+	tristate "Vmeta UIO device driver"
+	depends on UIO && (PXA95x || CPU_MMP3)
+	default n
+	help
+	  Userspace IO interface to the Marvell multi-format video
+	  decoder engine.
+
+	  If you compile this as a module, it will be called uio_vmeta.
+
+config VMETA_POLLING_MODE
+	tristate "Vmeta poll mode"
+	depends on UIO_VMETA
+	default n
+	help
+	  Enable Vmeta interrupt mode by default. If it is set to y, it will be the polling mode.
+
 config UIO_PRUSS
 	tristate "Texas Instruments PRUSS driver"
 	depends on ARCH_DAVINCI_DA850
