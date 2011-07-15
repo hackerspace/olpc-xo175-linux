@@ -103,6 +103,30 @@ static unsigned long abilene_pin_config[] __initdata = {
 	PMIC_PMIC_INT | MFP_LPM_EDGE_FALL,
 };
 
+static unsigned long mmc1_pin_config[] __initdata = {
+	GPIO131_MMC1_DAT3,
+	GPIO132_MMC1_DAT2,
+	GPIO133_MMC1_DAT1,
+	GPIO134_MMC1_DAT0,
+	GPIO136_MMC1_CMD,
+	GPIO135_MMC1_CLK,
+	GPIO140_MMC1_CD | MFP_PULL_HIGH,
+	GPIO141_MMC1_WP | MFP_PULL_HIGH,
+};
+
+static unsigned long mmc3_pin_config[] __initdata = {
+	GPIO161_MMC3_DAT7,
+	GPIO145_MMC3_DAT6,
+	GPIO162_MMC3_DAT5,
+	GPIO146_MMC3_DAT4,
+	GPIO163_MMC3_DAT3,
+	GPIO108_MMC3_DAT2,
+	GPIO164_MMC3_DAT1,
+	GPIO109_MMC3_DAT0,
+	GPIO111_MMC3_CMD,
+	GPIO110_MMC3_CLK,
+};
+
 static struct pxa27x_keypad_platform_data mmp3_keypad_info = {
 	.direct_key_map = {
 		KEY_BACK,
@@ -247,6 +271,27 @@ static struct i2c_board_info abilene_twsi1_info[] = {
 	},
 };
 
+#ifdef CONFIG_MMC_SDHCI_PXAV3
+#include <linux/mmc/host.h>
+static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc0 = {
+	.clk_delay_cycles	= 0x1F,
+};
+
+static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc2 = {
+	.flags		= PXA_FLAG_SD_8_BIT_CAPABLE_SLOT,
+	.clk_delay_cycles	= 0xF,
+};
+
+static void __init abilene_init_mmc(void)
+{
+	mfp_config(ARRAY_AND_SIZE(mmc3_pin_config));
+	mmp3_add_sdh(2, &mmp3_sdh_platdata_mmc2); /* eMMC */
+
+	mfp_config(ARRAY_AND_SIZE(mmc1_pin_config));
+	mmp3_add_sdh(0, &mmp3_sdh_platdata_mmc0); /* SD/MMC */
+}
+#endif /* CONFIG_MMC_SDHCI_PXAV3 */
+
 static void __init abilene_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(abilene_pin_config));
@@ -256,6 +301,10 @@ static void __init abilene_init(void)
 	mmp3_add_twsi(1, NULL, ARRAY_AND_SIZE(abilene_twsi1_info));
 
 	mmp3_add_keypad(&mmp3_keypad_info);
+
+#ifdef CONFIG_MMC_SDHCI_PXAV3
+	abilene_init_mmc();
+#endif /* CONFIG_MMC_SDHCI_PXAV3 */
 
 	platform_device_register(&mmp3_device_rtc);
 }
