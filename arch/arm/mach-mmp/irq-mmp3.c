@@ -65,8 +65,7 @@ static void _name_##_irq_demux(unsigned int irq, struct irq_desc *desc)	\
 	unsigned long status, mask, n;					\
 	struct irq_chip *chip = irq_get_chip(irq);			\
 									\
-	if (chip->irq_ack)							\
-		chip->irq_ack(&desc->irq_data);						\
+	chained_irq_enter(chip, desc);					\
 	mask = __raw_readl(prefix##_MASK);				\
 	while (1) {							\
 		status = __raw_readl(prefix##_STATUS) & ~mask;		\
@@ -78,7 +77,7 @@ static void _name_##_irq_demux(unsigned int irq, struct irq_desc *desc)	\
 			n = find_next_bit(&status, BITS_PER_LONG, n+1);	\
 		}							\
 	}								\
-	chip->irq_unmask(&desc->irq_data);						\
+	chained_irq_exit(chip, desc);					\
 }									\
 
 static struct irq_chip icu_mux_irq_chip = {
