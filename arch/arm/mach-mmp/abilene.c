@@ -29,6 +29,7 @@
 #include <mach/mmp3.h>
 #include <mach/irqs.h>
 #include <mach/regs-mpmu.h>
+#include <plat/usb.h>
 
 #include "common.h"
 
@@ -292,6 +293,26 @@ static void __init abilene_init_mmc(void)
 }
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
 
+#ifdef CONFIG_USB_SUPPORT
+
+#if defined(CONFIG_USB_PXA_U2O) || defined(CONFIG_USB_EHCI_PXA_U2O)
+extern int pxa_usb_phy_init(unsigned int base);
+
+static char *mmp3_usb_clock_name[] = {
+	[0] = "U2OCLK",
+};
+static struct mv_usb_platform_data mmp3_usb_pdata = {
+	.clknum		= 1,
+	.clkname	= mmp3_usb_clock_name,
+	.vbus		= NULL,
+	.mode		= MV_USB_MODE_OTG,
+	.phy_init	= pxa_usb_phy_init,
+	.set_vbus	= NULL,
+};
+#endif
+
+#endif
+
 static void __init abilene_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(abilene_pin_config));
@@ -307,6 +328,21 @@ static void __init abilene_init(void)
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
 
 	platform_device_register(&mmp3_device_rtc);
+
+#ifdef CONFIG_USB_PXA_U2O
+	mmp3_device_u2o.dev.platform_data = (void *)&mmp3_usb_pdata;
+	platform_device_register(&mmp3_device_u2o);
+#endif
+
+#ifdef CONFIG_USB_EHCI_PXA_U2O
+	mmp3_device_u2oehci.dev.platform_data = (void *)&mmp3_usb_pdata;
+	platform_device_register(&mmp3_device_u2oehci);
+
+#ifdef CONFIG_USB_PXA_U2O_OTG
+	mmp3_device_u2ootg.dev.platform_data = (void *)&mmp3_usb_pdata;
+	platform_device_register(&mmp3_device_u2ootg);
+#endif
+#endif
 }
 
 MACHINE_START(ABILENE, "Abilene")
