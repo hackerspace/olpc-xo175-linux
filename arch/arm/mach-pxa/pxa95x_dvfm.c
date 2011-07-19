@@ -36,6 +36,7 @@
 #include <mach/pxa95x_dvfm.h>
 #include <mach/debug_pm.h>
 #include <asm/io.h>
+#include <asm/mach/map.h>
 #ifdef CONFIG_ISPT
 #include <mach/pxa_ispt.h>
 #endif
@@ -1441,6 +1442,9 @@ static int set_ddr_208Mhz(struct pxa95x_dvfm_info *info,
  * register info.And we can remove *reg_new here, and convert dvfm_md_opt to
  * it in the routine. That will make it much more clear.
  */
+static u32 *dummy_addr, *mc_base;
+extern void write_accr_accr1(u32, u32, u32, u32, u32, u32, u32, u32, u32);
+static u32 sram_size, sram_map;
 static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 			   struct dvfm_md_opt *new)
 {
@@ -1512,16 +1516,23 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 	}
 	accr &= ~(mask | mask2);
 	accr |= data | data2;
-	__raw_writel(accr, info->clkmgr_base + ACCR_OFF);
-	__raw_writel(accr1, info->clkmgr_base + ACCR1_OFF);
+	if (cpu_is_pxa978()) {
+		write_accr_accr1((u32) sram_map + 0x9000,
+				(u32) sram_map + 0xa000 - 4, accr, accr1,
+				mask, data, (u32) info->clkmgr_base,
+				(u32) mc_base, (u32) dummy_addr);
+	} else {
+		__raw_writel(accr, info->clkmgr_base + ACCR_OFF);
+		__raw_writel(accr1, info->clkmgr_base + ACCR1_OFF);
 
-	/* wait until ACSR is changed */
-	do {
-		accr = __raw_readl(info->clkmgr_base + ACCR_OFF);
-		acsr = __raw_readl(info->clkmgr_base + ACSR_OFF);
-	} while ((((accr & mask) != data) || ((acsr & mask) != data)) ||
-		 ((accr & ACCR_AXIFS_MASK) >> ACCR_AXIFS_OFFSET !=
-		  (acsr & ACSR_AXIFS_MASK) >> ACSR_AXIFS_OFFSET));
+		/* wait until ACSR is changed */
+		do {
+			accr = __raw_readl(info->clkmgr_base + ACCR_OFF);
+			acsr = __raw_readl(info->clkmgr_base + ACSR_OFF);
+		} while ((((accr & mask) != data) || ((acsr & mask) != data)) ||
+				((accr & ACCR_AXIFS_MASK) >> ACCR_AXIFS_OFFSET !=
+				 (acsr & ACSR_AXIFS_MASK) >> ACSR_AXIFS_OFFSET));
+	}
 	do {
 		accr = __raw_readl(info->clkmgr_base + ACCR_OFF);
 		acsr = __raw_readl(info->clkmgr_base + ACSR_OFF);
@@ -3202,12 +3213,23 @@ static void pxa95x_d0cs_wakeup_init(struct pxa95x_dvfm_info *info)
 }
 
 extern unsigned int pxa_chip_id;
+#define ISRAM_START 0x5c000000
+extern void pxa95x_init_sram(unsigned int);
 static int pxa95x_freq_probe(struct platform_device *pdev)
 {
 	struct resource *res;
 	struct pxa95x_freq_mach_info *pdata;
 	struct pxa95x_dvfm_info *info;
 	int rc, user_index = -1;
+
+	/* dummy_addr = ioremap(0x80000000, 4); */
+
+	mc_base = ioremap(0x56a00000, 0x1000);
+
+	sram_size = (128 * 1024);
+	sram_map = __arm_ioremap(ISRAM_START, sram_size, MT_MEMORY_ITCM);
+
+	pxa95x_init_sram((unsigned int) sram_map + 0x9000);
 
 	/* initialize the information necessary to frequency/voltage change
 	 * operation */

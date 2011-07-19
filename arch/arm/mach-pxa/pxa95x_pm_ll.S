@@ -38,6 +38,17 @@ error_ret:
 	nop
 	beq	error_ret
 
+/* write_accr_accr1
+ *
+ * Entry point for update accr and accr1 without access DDR
+ */
+	.text
+	.align 5
+ENTRY(write_accr_accr1)
+/* lr register will be the instruction just after invoke of
+ * write_accr_accr1 */
+	b	enter_sram
+
 /* pxa95x_cpu_standby()
  *
  * Entry point for entering standby(S0D2C2).
@@ -90,6 +101,126 @@ ENTRY(pxa95x_cpu_sleep)
 ENTRY(pxa95x_cpu_deepsleep)
 	b	pm_enter_deep_sleep
 
+
+@******************************************************************************
+@
+@ pxa95x_init_sram
+@
+@ Copy standby code into ISRAM
+@
+@ Inputs:
+@	r0 = Start address of relocated program
+@
+@ Outputs:
+@	None
+@
+
+ENTRY(pxa95x_init_sram)
+	stmfd	sp!, {r0 - r12, lr}
+	ldr	r3, =pm_enter_sram_start
+	ldr	r4, =pm_enter_sram_end
+
+rel_sram:
+	ldmia	r3!, {r5 - r12}
+	stmia	r0!, {r5 - r12}
+	cmp	r3, r4
+	ble	rel_sram
+
+	ldmfd	sp!, {r0 - r12, pc}
+
+@	r0: start address
+@	r1: stack address
+@	r2: accr value
+@	r3: accr1 value
+@	r4: mask value
+@	r5: data value
+@	r6: ACCU base address
+@	r7: MC base address
+@	r8: dummy_read address
+enter_sram:
+	@ save registers on stack
+	stmfd	sp!, {r0 - r12, lr}
+	@ load the left arguments into registers
+	add	r12, sp, #56
+        ldmfd   r12!, {r4 - r8}
+	mov	r12, sp			@ save sp in r12
+	mov	sp, r1			@ set up new stack address
+	stmfd	sp!, {lr}		@ store the return address
+
+	@ Load ACCR & ACCR1 & dummy_read into TLB
+	@ only one from each page (4KB)
+	ldr	r9, [r6]		@ load ACCR address into TLB
+	@ldr	r10, [r6, #0x4]		@ load ACSR address into TLB
+	ldr	r11, [r6, #0x20]	@ load ACCR1 address into TLB
+	ldr	r9, [r7, #0x7e0]	@ load SDRAM CTL address into TLB
+	@ldr	r10, [r7, #0x410]	@ load User Init Comm address into TLB
+	@ldr	r9, [r7, #0x1B0]	@ load DRAM Status address into TLB
+	@ldr	r11, [r8]		@ load dummy_read address into TLB
+
+	mov	pc, r0			@ jump to relocated program
+
+pm_enter_sram_start:
+	@ Block all requests
+@ Don't: reg-table will block
+@	ldr	r9, [r7, #0x7e0]
+@	orr	r9, r9, #0xf00
+@	str	r9, [r7, #0x7e0]
+	@ THIS CODE MIGHT BE CACHEABLE.
+	@ Have to prevent potential L2 allocation and L2 eviction as a result
+	@ Disable L2
+	mrc     p15, 0, r8, c1, c0, 1
+	bic     r10, r8, #2
+	mcr     p15, 0, r10, c1, c0, 1
+	isb
+
+	str	r2, [r6]		@ write ACCR
+	str	r3, [r6, #0x20]		@ write ACCR1
+
+retry:	ldr	r9, [r6]		@ read ACCR
+	ldr	r10, [r6, #0x4]		@ read ACSR
+	and	r11, r4, r9
+	cmp	r11, r5
+	bne	retry
+	and	r11, r4, r10
+	cmp	r11, r5
+	bne	retry
+	ubfx	r9, r9, #28, #2
+	ubfx	r10, r10, #21, #2
+	cmp	r9, r10
+	bne	retry
+
+	@ Polling when DDR is in self-refresh mode
+SR:	ldr	r9, [r7, #0x1B0]
+	tst	r9, #0x10
+	bne	SR
+
+	@ Issue MRW to LPDDR2 to update the RL
+	mov	r9, #0x3000000
+	orr	r9, r9, #0x20000
+	orr	r10, r9, #1
+	str	r10, [r7, #0x410]
+	orr	r10, r9, #2
+	str	r10, [r7, #0x410]
+
+       @ Unblock all requests
+	ldr	r9, [r7, #0x7e0]
+	bic	r9, r9, #0xf00
+	bic	r9, r9, #0x1
+	str	r9, [r7, #0x7e0]
+
+	dsb
+	@ldr	r10, [r8]		@ dummy read
+	@dmb
+	@ Restore L2
+	mcr     p15, 0, r8, c1, c0, 1
+	isb
+
+	ldmfd	sp!, {lr}
+	mov	sp, r12				@ restore stack address
+
+        ldmfd   sp!, {r0 - r12, pc}
+pm_enter_sram_end:
+	nop
 
 @*****************************************************************************
 @ pm_checksum_calculate
