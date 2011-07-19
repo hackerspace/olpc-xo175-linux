@@ -80,6 +80,7 @@ config MACH_TETON_BGA
 config MACH_ABILENE
 	bool "Marvell's MMP3 Abliene Development Board"
 	select CPU_MMP3
+	select HAVE_PWM
 	select ARM_GIC
 
 endmenu

@@ -19,6 +19,7 @@
 #include <linux/delay.h>
 #include <linux/smc91x.h>
 #include <linux/mfd/max8925.h>
+#include <linux/pwm_backlight.h>
 #include <linux/regulator/machine.h>
 
 #include <asm/mach-types.h>
@@ -58,6 +59,9 @@ static unsigned long abilene_pin_config[] __initdata = {
 	/* TWSI3 */
 	GPIO71_TWSI3_SCL,
 	GPIO72_TWSI3_SDA,
+
+	/*PWM3*/
+	GPIO53_PWM3,
 
 	/* SSPA1 (I2S) */
 	GPIO23_GPIO,
@@ -272,6 +276,23 @@ static struct i2c_board_info abilene_twsi1_info[] = {
 	},
 };
 
+static struct platform_pwm_backlight_data abilene_lcd_backlight_data = {
+	/* primary backlight */
+	.pwm_id = 2,
+	.max_brightness = 100,
+	.dft_brightness = 50,
+	.pwm_period_ns = 2000000,
+};
+
+static struct platform_device abilene_lcd_backlight_devices = {
+	.name = "pwm-backlight",
+	.id = 2,
+	.dev = {
+		.platform_data = &abilene_lcd_backlight_data,
+	},
+};
+
+
 #ifdef CONFIG_MMC_SDHCI_PXAV3
 #include <linux/mmc/host.h>
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc0 = {
@@ -396,6 +417,10 @@ static void __init abilene_init(void)
 	mmp3_add_twsi(1, NULL, ARRAY_AND_SIZE(abilene_twsi1_info));
 
 	mmp3_add_keypad(&mmp3_keypad_info);
+
+	/* backlight */
+	mmp3_add_pwm(3);
+	platform_device_register(&abilene_lcd_backlight_devices);
 
 #ifdef CONFIG_MMC_SDHCI_PXAV3
 	abilene_init_mmc();
