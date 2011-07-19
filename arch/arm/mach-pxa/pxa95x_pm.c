@@ -34,17 +34,23 @@
 #include <mach/mfp-pxa3xx.h>
 #include <mach/gpio.h>
 #include <mach/pxa95x_pm.h>
+#include <mach/soc_vmeta.h>
 #ifdef CONFIG_ARMV7_OS_SAVE_AND_RESTORE
 #include <asm/hardware/armv7_jtag.h>
 #endif
 
-#define VMETA_PWR_ENABLE        0x1
-#define VMETA_PWR_DISABLE       0x0
+unsigned int user_index;
 void vmeta_pwr(unsigned int enableDisable)
 {
 	unsigned int vmpwr = 0;
+	static unsigned int onetime;
 	vmpwr = VMPWR;
 
+	if (onetime == 0) {
+		onetime = 1;
+		dvfm_enable_op_name("208M_HF", user_index);
+		dvfm_enable_op_name("416M_VGA", user_index);
+	}
 	if (VMETA_PWR_ENABLE == enableDisable) {
 		if (vmpwr & VMPWR_PWR_ST)
 			return;	/*Pwr is already on */
