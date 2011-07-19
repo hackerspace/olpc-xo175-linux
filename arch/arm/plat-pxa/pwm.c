@@ -92,7 +92,7 @@ int pwm_config(struct pwm_device *pwm, int duty_ns, int period_ns)
 	 * before writing to the registers
 	 */
 	clk_enable(pwm->clk);
-	__raw_writel(prescale, pwm->mmio_base + PWMCR);
+	__raw_writel(prescale | PWMCR_SD, pwm->mmio_base + PWMCR);
 	__raw_writel(dc, pwm->mmio_base + PWMDCR);
 	__raw_writel(pv, pwm->mmio_base + PWMPCR);
 	clk_disable(pwm->clk);
