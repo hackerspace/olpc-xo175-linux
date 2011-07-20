@@ -31,6 +31,7 @@
 #include <mach/addr-map.h>
 #include <mach/regs-timers.h>
 #include <mach/regs-apbc.h>
+#include <mach/regs-mpmu.h>
 #include <mach/irqs.h>
 #include <mach/cputype.h>
 #include <asm/mach/time.h>
@@ -41,10 +42,31 @@
 
 #include "clock.h"
 
+#define GEN_TMR_REG_BASE0 (APB_VIRT_BASE + 0x80000)
+#define GEN_TMR_CFG (GEN_TMR_REG_BASE0 + 0xB0)
+
 #define TIMERS_VIRT_BASE	TIMERS1_VIRT_BASE
 
 #define MAX_DELTA		(0xfffffffe)
 #define MIN_DELTA		(32)
+
+#define US2CYC_SCALE_FACTOR	10
+
+static unsigned long us2cyc_scale;
+
+static void __init set_us2cyc_scale(unsigned long cyc_rate)
+{
+	unsigned long long v = (unsigned long long)cyc_rate <<
+				US2CYC_SCALE_FACTOR;
+	do_div(v, USEC_PER_SEC);
+	us2cyc_scale = v;
+}
+
+unsigned long us2cyc(unsigned long usecs)
+{
+	return ((unsigned long long)usecs * us2cyc_scale) >>
+				US2CYC_SCALE_FACTOR;
+}
 
 static DEFINE_CLOCK_DATA(cd);
 
@@ -246,9 +268,40 @@ static struct irqaction timer_32k_irq = {
 	.dev_id		= &ckevt,
 };
 
+static void generic_timer_access(void)
+{
+	__raw_writel(0xbaba, CP_TIMERS2_VIRT_BASE + TMR_WFAR);
+	__raw_writel(0xeb10, CP_TIMERS2_VIRT_BASE + TMR_WSAR);
+}
+
+static void generic_timer_config(void)
+{
+	unsigned int value;
+
+	__raw_writel(0x10, MPMU_CPRR);
+	/* set the clock select as 3.25M */
+	generic_timer_access();
+	value = __raw_readl(GEN_TMR_CFG);
+	value &= ~(0x3 << 4);
+	generic_timer_access();
+	__raw_writel(value, GEN_TMR_CFG);
+
+	/* set the count enable */
+	generic_timer_access();
+	value = __raw_readl(GEN_TMR_CFG);
+	value |= 0x3;
+	generic_timer_access();
+	__raw_writel(value, GEN_TMR_CFG);
+}
+
 void __init timer_init(int irq0, int irq1)
 {
 	timer_config();
+
+#ifdef CONFIG_CPU_MMP3
+	generic_timer_config();
+	set_us2cyc_scale(CLOCK_TICK_RATE / 2);
+#endif
 
 #ifdef CONFIG_PXA_32KTIMER
 	init_sched_clock(&cd, mmp_update_sched_clock, 32, 32768);

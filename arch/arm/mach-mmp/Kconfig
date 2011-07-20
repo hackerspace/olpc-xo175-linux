@@ -112,6 +112,7 @@ config CPU_MMP2
 config CPU_MMP3
 	 bool
 	 select CPU_PJ4B
+	 select ARCH_PROVIDES_UDELAY
 	 help
 	   Select code specific to MMP3.
 endif
