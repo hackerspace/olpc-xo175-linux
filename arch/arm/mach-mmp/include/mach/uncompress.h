@@ -41,7 +41,8 @@ static inline void arch_decomp_setup(void)
 	UART = (unsigned long *)UART2_BASE;
 
 	if (machine_is_avengers_lite() || machine_is_marvell_jasper()
-		|| machine_is_brownstone() || machine_is_abilene())
+		|| machine_is_brownstone() || machine_is_abilene()
+		|| machine_is_yellowstone())
 		UART = (unsigned long *)UART3_BASE;
 }
 

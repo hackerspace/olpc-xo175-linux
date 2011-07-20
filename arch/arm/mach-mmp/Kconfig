@@ -83,6 +83,12 @@ config MACH_ABILENE
 	select HAVE_PWM
 	select ARM_GIC
 
+config MACH_YELLOWSTONE
+	bool "Marvell's MMP3 YellowStone Development Board"
+	select CPU_MMP3
+	select HAVE_PWM
+	select ARM_GIC
+
 endmenu
 
 config CPU_PXA168

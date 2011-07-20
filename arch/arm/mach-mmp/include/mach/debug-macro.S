@@ -14,7 +14,7 @@
 		.macro	addruart, rp, rv
 		ldr	\rp, =APB_PHYS_BASE		@ physical
 		ldr	\rv, =APB_VIRT_BASE		@ virtual
-#if defined(CONFIG_MACH_ABILENE)
+#if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_YELLOWSTONE)
 		orr	\rp, \rp, #0x00018000
 		orr	\rv, \rv, #0x00018000
 #else
