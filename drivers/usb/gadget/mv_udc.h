@@ -74,6 +74,8 @@ struct mv_udc {
 	struct workqueue_struct	*qwork;
 	unsigned int		power;
 
+	struct otg_transceiver	*transceiver;
+
 	struct mv_usb_platform_data	*pdata;
 
 	/* some SOC has mutiple clock sources for USB*/

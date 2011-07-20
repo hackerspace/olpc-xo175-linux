@@ -1440,9 +1440,24 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 		return retval;
 	}
 
+	if (udc->transceiver) {
+		retval = otg_set_peripheral(udc->transceiver, &udc->gadget);
+		if (retval) {
+			dev_err(&udc->dev->dev,
+				"unable to register peripheral to otg\n");
+			if (driver->unbind) {
+				driver->unbind(&udc->gadget);
+				udc->gadget.dev.driver = NULL;
+				udc->driver = NULL;
+			}
+			return retval;
+		}
+	}
+
 	/* pullup is always on*/
 	mv_udc_pullup(&udc->gadget, 1);
 
+	/* when transceiver is not NULL, qwork is NULL*/
 	if (udc->qwork)
 		queue_work(udc->qwork, &udc->vbus_work);
 
@@ -2129,7 +2144,8 @@ static __devexit int mv_udc_remove(struct platform_device *dev)
 		destroy_workqueue(udc->qwork);
 	}
 
-	if (udc->pdata && udc->pdata->vbus && udc->clock_gating)
+	if (udc->pdata && udc->pdata->vbus
+		&& udc->transceiver == NULL && udc->clock_gating)
 		free_irq(udc->pdata->vbus->irq, &dev->dev);
 
 	/* free memory allocated in probe */
@@ -2200,6 +2216,11 @@ static int __devinit mv_udc_probe(struct platform_device *dev)
 
 	udc->dev = dev;
 	udc->pdata = dev->dev.platform_data;
+
+#ifdef CONFIG_USB_OTG
+	if (pdata->mode == MV_USB_MODE_OTG)
+		udc->transceiver = otg_get_transceiver();
+#endif
 
 	udc->clknum = pdata->clknum;
 	for (clk_i = 0; clk_i < udc->clknum; clk_i++) {
@@ -2348,10 +2369,14 @@ static int __devinit mv_udc_probe(struct platform_device *dev)
 	eps_init(udc);
 
 	/*
-	* if have VBUS detect: we can disable/enable clock on demand.
-	*/
-	if (pdata->vbus) {
+	 * 1. VBUS detect: we can disable/enable clock on demand.
+	 * 2. OTG enable: we can disable/enable clock on demand.
+	 * 3. No VBUS detect with OTG: we have to enable clock all the time.
+	 */
+	if (pdata->vbus || udc->transceiver)
 		udc->clock_gating = 1;
+
+	if (pdata->vbus && udc->transceiver == NULL) {
 		retval = request_threaded_irq(pdata->vbus->irq, NULL,
 				mv_udc_vbus_irq, IRQF_ONESHOT, "vbus", udc);
 		if (retval) {
