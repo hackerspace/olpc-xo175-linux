@@ -282,68 +282,6 @@ struct pxa_i2c {
  */
 #define I2C_PXA_SLAVE_ADDR      0xFF /* instead 1 */
 
-/**************************** DEBUG ***********************************/
-/** DBG_GPIO
- *
- *  The GPIOS are correct for SAAR platform only and may differe on otheer platforms
- *
- * GPIO:52 is used for the debugging on SAAR board (J9 B27)
- * For GPIOs <63:32>
- *    MFPR=0x40e102C4: 0xA840
- *    Registers are GPDRx where x=1
- *    Bit_in_reg=52-32=20   = (1<<20)
- *    GSDR1=0x40E00404  SET  Direction 1=Output
- *    GPDR1=0x40E00010       Direction to Read DIR status
- *    GPSR1=0x40E0001C  SET  Output to 1   (D10 led ON)
- *    GPCR1=0x40E00028  CLR  Output to 0   (D10 led OFF)
- *---------------
- * GPIO:51: bit 19 = (1<<19)  ; MFPR=0x40e102C0 (J9 B23)
- **/
-/*#define DBG_GPIO*/
-#ifdef  DBG_GPIO
-
-void DBG_GPIO_CFG(void) {
-	if(__raw_readl((void *)&(__REG(0x40e102C4))) != 0x0000A840)
-		__raw_writel(0x0000A840, (void *)&(__REG(0x40e102C4)));  /*MFPR*/
-	if(!(__raw_readl((void *)&(__REG(0x40E00010))) & (1<<20)))
-		__raw_writel((1<<20), (void *)&(__REG(0x40E00404)));  /*Direction SET*/
-
-	if((__raw_readl((void *)&(__REG(0x40e102C0))) != 0x0000A840)
-			|| (! (__raw_readl((void *)&(__REG(0x40E00010))) & (1<<19))) )
-	{
-		__raw_writel(0x0000A840, (void *)&(__REG(0x40e102C0)));  /*MFPR*/
-		__raw_writel((1<<19), (void *)&(__REG(0x40E00404)));  /*Direction SET*/
-		__raw_writel((1<<19), (void *)&(__REG(0x40E00028)));  /*init-state off*/
-	}
-}
-
-#define DBG_GPIO_DRV_IN()    /*__raw_writel((1<<20), (void *)&(__REG(0x40E00028))) off*/
-#define DBG_GPIO_DRV_OUT()   /*__raw_writel((1<<20), (void *)&(__REG(0x40E0001C))) on*/
-/*#define DBG_GPIO_IRQH_IN()   __raw_writel((1<<20), (void *)&(__REG(0x40E0001C))) on*/
-/*#define DBG_GPIO_IRQH_OUT()  __raw_writel((1<<20), (void *)&(__REG(0x40E00028))) off*/
-
-#define DBG_GPIO_IRQH_IN()   __raw_writel((1<<20), (void *)&(__REG(0x40E00028))) /*off*/
-#define DBG_GPIO_IRQH_OUT()  __raw_writel((1<<20), (void *)&(__REG(0x40E0001C))) /*on*/
-
-#define DBG_GPIO_ERR_ON()    __raw_writel((1<<19), (void *)&(__REG(0x40E0001C))) /*on*/
-#define DBG_GPIO_ERR_OFF()   __raw_writel((1<<19), (void *)&(__REG(0x40E00028))) /*off*/
-#define DBG_GPIO_WAIT_ON()  /* __raw_writel((1<<19), (void *)&(__REG(0x40E0001C))) on*/
-#define DBG_GPIO_WAIT_OFF() /* __raw_writel((1<<19), (void *)&(__REG(0x40E00028))) off*/
-
-#else/*DBG_GPIO*/
-
-#define DBG_GPIO_CFG()
-#define DBG_GPIO_DRV_IN()
-#define DBG_GPIO_DRV_OUT()
-#define DBG_GPIO_IRQH_IN()
-#define DBG_GPIO_IRQH_OUT()
-#define DBG_GPIO_ERR_ON()
-#define DBG_GPIO_ERR_OFF()
-#define DBG_GPIO_WAIT_ON()
-#define DBG_GPIO_WAIT_OFF()
-
-#endif/*DBG_GPIO*/
-
 #ifdef DEBUG
 
 struct bits {
@@ -464,16 +402,8 @@ static void i2c_pxa_show_state(struct pxa_i2c *i2c, int lno, const char *fname)
 #define NUM_RETRIES_ON_BUS_BUSY    125   /* (3ctrl+4data bytes)*9bits / 2bitsAccessDelay * FAST_SLOW_RATE*/
 #define NUM_RETRIES_EXHAUSTED        3
 
-#define OSCR_MASK		(~1UL)
 
-#define CUSTOMIZATION_PER_SLAVE_DEVICE
 
-#if !defined (CUSTOMIZATION_PER_SLAVE_DEVICE)
-#define i2c_pxa_msg_parse(A,B,C)            /* */
-#define i2c_pxa_custom_nack_is_ok(I2C)   (0)
-#define i2c_pxa_custom_clock_adj(I2C)      I2C->icr_backup
-#define CUSTOM_BYTE2BYTE_DELAY(I2C)         /* */
-#else
 /**********************************************************************
 *        CUSTOMIZATION PER SLAVE DEVICE
 ***********************************************************************/
@@ -629,41 +559,14 @@ static int i2c_pxa_custom_clock_adj(struct pxa_i2c *i2c)
 	return i2c->icr_backup; /* not changed */
 }
 
-#ifndef CUSTOM_BYTE2BYTE_DELAY_IN_USE
-#define CUSTOM_BYTE2BYTE_DELAY(I2C)    /* */
-#else
-#define CUSTOM_BYTE2BYTE_DELAY(I2C)    i2c_pxa_custom_byte2byte_delay(I2C)
-static void i2c_pxa_custom_byte2byte_delay(struct pxa_i2c *i2c)
-{
-	struct i2c_algo_custom *p = i2c_pxa_custom_hit(i2c);
-	if(p == NULL) return;
-
-	if(p->byte2byte_delay) {
-		udelay(100);
-	}
-	return;
-}
-#endif/*CUSTOM_BYTE2BYTE_DELAY*/
-
 /*** END CUSOTMIZATION DATA AND PROCEDURES *****************************/
-#endif/*CUSTOMIZATION_PER_SLAVE_DEVICE*/
+
 
 #ifdef	CONFIG_PROC_FS
 #define	I2C_PXA_PROC_FILE          "driver/i2c-pxa"
 #define	I2C_PXA_PROC_NUM_DEVS      3
 static struct proc_dir_entry *i2c_pxa_proc_file;
 static struct pxa_i2c *proc_i2c[I2C_PXA_PROC_NUM_DEVS];
-static int    err_simulate;
-
-#define DEBUG_ERR_SIMULATE       0xF9 /*Non-exist slave device address */
-static void i2c_pxa_buserr_simulate(struct i2c_msg *msg, int num)
-{
-	if(err_simulate) {
-		int i =  (num > 1)  ?  1 : 0;
-		msg[i].addr = DEBUG_ERR_SIMULATE;
-		err_simulate--;
-	}
-}
 
 static ssize_t i2c_pxa_proc_read(struct file *filp,
 		char *buffer, size_t count, loff_t *offset)
@@ -692,13 +595,11 @@ static ssize_t i2c_pxa_proc_write(struct file *filp,
 				"    i2c0hs                force I2C clock to HigSpeed+Fast\n"
 				"    trace <bus 0/1/2> <level 0/err/all>  extended trace\n"
 				"                          for example:   trace 0 err\n"
-#if defined (CUSTOMIZATION_PER_SLAVE_DEVICE)
+
 				"   Force clock only for specified NN hexAddress Slave-Device\n"
 				"    slave.fast_NN   force  to 400kHz\n"
 				"    slave.slow_NN   force  to 100kHz\n"
 				"    slave.nocl_NN   NO force\n"
-#endif
-				"    err1       simulate one Bus-Error=accessToNonExist\n"
 	  );
 	} else if (strncmp(messages, "i2c0slow", 5) == 0) {
 		proc_i2c[0]->icr_backup &= ~(1 << 15);
@@ -729,7 +630,6 @@ static ssize_t i2c_pxa_proc_write(struct file *filp,
 		}
 		proc_i2c[bus]->dbg_trace = messages[6+2];
 
-#if defined (CUSTOMIZATION_PER_SLAVE_DEVICE)
 	} else if (strncmp(messages, "slave.",6) == 0) {
 		u8   clck_op=0xFF; /*invalid*/
 		if (strncmp(messages, "slave.fast_",11) == 0)
@@ -755,9 +655,7 @@ static ssize_t i2c_pxa_proc_write(struct file *filp,
 		}
 		if (clck_op == 0xFF)
 			printk("\n Incorrect format. Use ? for help\n");
-#endif/*CUSTOMIZATION_PER_SLAVE_DEVICE*/
-	} else if (strncmp(messages, "err1", 4) == 0) {
-		err_simulate = 1;
+
 	} else {
 		printk("\n Unknown command\n");
 	}
@@ -856,7 +754,6 @@ static void unset_dvfm_constraint(struct pxa_i2c *i2c)
 	spin_unlock(&i2c->dvfm_lock.lock);
 }
 
-#define eedbg(lvl, x...) do { if ((lvl) < 1) { printk(KERN_DEBUG "" x); } } while(0)
 
 #define ICR_LOG      i2c->icrlog[0]
 #define ISR_LOG      i2c->isrlog[0]
@@ -938,137 +835,8 @@ static void i2c_pxa_abort(struct pxa_i2c *i2c, int full)
 		mdelay(1); /*udelay(MAX_TRANSACT_TIME_US);*/
 }
 
-/***== Check Bus-Busy - 2 procedures:********************/
-/*  is_bus_busy()*/
-/*  is_busy_now() =  is_bus_busy() + read_ISR - ISR_UB*/
-/********************************************************/
-#ifdef CONFIG_I2C_PXA_SLAVE
-static int is_bus_busy(u32 isr)
-{
-	int ret = 0;
-
-	if (isr & (ISR_IBB | ISR_UB | ISR_EBB))
-		ret = 1;
-
-	return ret;
-}
-
-static int is_busy_now(struct pxa_i2c *i2c)
-{
-	u32 isr;
-	int ret = 0;
-
-	isr = readl(_ISR(i2c));
-	if (isr & (ISR_IBB | ISR_EBB))
-		ret = 1;
-
-	return ret;
-}
-
-static int i2c_pxa_set_master(struct pxa_i2c *i2c)
-{
-	u32 isr;
-
-	if (i2c_debug)
-		dev_dbg(&i2c->adap.dev, "setting to bus master\n");
-
-	isr = readl(_ISR(i2c));
-	if (is_bus_busy(isr)) {
-		dev_dbg(&i2c->adap.dev, "%s: unit is busy\n", __func__);
-		if (i2c_debug > 1)
-			dev_dbg(&i2c->adap.dev, "%s: %ld: ISR=%08x, ICR=%08x, IBMR=%02x\n",
-					__func__, (long)jiffies, readl(_ISR(i2c)),
-					readl(_ICR(i2c)), readl(_IBMR(i2c)));
-
-		if (isr & ISR_SAD) {
-			if (i2c_debug > 0)
-				dev_dbg(&i2c->adap.dev, "%s: Slave detected\n",
-						__func__);
-		}
-		return I2C_RETRY;
-	} else if (readl(_IBMR(i2c)) == I2C_IBMR_IDLE) {
-		/* wait for unit and bus being not busy, and we also do a
-		 * quick check of the i2c lines themselves to ensure they've
-		 * gone high...
-		 */
-		if (i2c_debug > 0)
-			dev_dbg(&i2c->adap.dev, "%s: done\n", __func__);
-		/* set as master */
-		writel(readl(_ICR(i2c)) | ICR_SCLE, _ICR(i2c));
-		return 0;
-	}
-	if (i2c_debug > 0)
-		dev_dbg(&i2c->adap.dev, "%s: did not free\n", __func__);
-
-	return I2C_RETRY;
-}
-
-static int i2c_pxa_wait_slave(struct pxa_i2c *i2c)
-{
-	unsigned long timeout = jiffies + HZ*1;
-	u32 isr;
-	/* wait for stop */
-
-	show_state(i2c);
-
-	while (time_before(jiffies, timeout)) {
-		if (i2c_debug > 1)
-			dev_dbg(&i2c->adap.dev, "%s: %ld: ISR=%08x, ICR=%08x, IBMR=%02x\n",
-					__func__, (long)jiffies, readl(_ISR(i2c)), readl(_ICR(i2c)), readl(_IBMR(i2c)));
-
-		isr = readl(_ISR(i2c));
-		if (!is_bus_busy(isr) || (isr & ISR_SAD)
-				|| ((readl(_ICR(i2c)) & ICR_SCLE) == 0)) {
-			if (i2c_debug > 1)
-				dev_dbg(&i2c->adap.dev, "%s: done\n", __func__);
-			return 1;
-		}
-
-		msleep(1);
-	}
-
-	if (i2c_debug > 0)
-		dev_dbg(&i2c->adap.dev, "%s: did not free\n", __func__);
-	return 0;
-}
-
-/*
- * clear the hold on the bus, and take of anything else
- * that has been configured
- */
-static void i2c_pxa_set_slave(struct pxa_i2c *i2c, int errcode)
-{
-	show_state(i2c);
-
-	if (errcode < 0) {
-		udelay(i2c->access2_delay);   /* simple delay */
-	} else {
-		/* we need to wait for the stop condition to end */
-
-		/* if we where in stop, then clear... */
-		if (readl(_ICR(i2c)) & ICR_STOP) {
-			udelay(i2c->access2_delay);
-			writel(readl(_ICR(i2c)) & ~ICR_STOP, _ICR(i2c));
-		}
-
-		if (!i2c_pxa_wait_slave(i2c)) {
-			dev_err(&i2c->adap.dev, "%s: wait timedout\n",
-					__func__);
-			return;
-		}
-	}
-
-	writel(readl(_ICR(i2c)) & ~(ICR_STOP|ICR_ACKNAK|ICR_MA), _ICR(i2c));
-	writel(readl(_ICR(i2c)) & ~ICR_SCLE, _ICR(i2c));
-
-	if (i2c_debug) {
-		dev_dbg(&i2c->adap.dev, "ICR now %08x, ISR %08x\n", readl(_ICR(i2c)), readl(_ISR(i2c)));
-		decode_ICR(readl(_ICR(i2c)));
-	}
-}
-#else
 #define i2c_pxa_set_slave(i2c, err)	do { } while (0)
-#endif/*CONFIG_I2C_PXA_SLAVE*/
+
 
 /* Restart HW controller.
  * Depending upon full=2/1/0 calls or not for Master-Abort procedure.
@@ -1352,26 +1120,6 @@ static inline unsigned int i2c_pxa_addr_byte(struct i2c_msg *msg)
 		addr |= 1;
 
 	return addr;
-}
-
-static inline void i2c_pxa_start_message(struct pxa_i2c *i2c)
-{
-	u32 icr;
-
-	/*
-	 * Step 1: target slave address into IDBR
-	 */
-	writel(i2c_pxa_addr_byte(i2c->msg), _IDBR(i2c));
-
-	/*
-	 * Step 2: initiate the write.
-	 *   Do NOT enable ICR_ALDIE so HW will resolve Arbitration automatically
-	 */
-	icr = readl(_ICR(i2c)) & ~(ICR_STOP | ICR_ALDIE);
-	ICR_LOG = icr;
-	icr |= ICR_START | ICR_TB | ICR_MSDE | ICR_SDA_FIX;
-
-	writel(icr, _ICR(i2c));
 }
 
 static inline void i2c_pxa_stop_message(struct pxa_i2c *i2c)
@@ -1998,10 +1746,8 @@ static void i2c_pxa_irq_txempty(struct pxa_i2c *i2c, u32 isr)
 		}
 		if ((i2c->msg_ptr != 0) || (i2c->msg_idx != 0))
 		{
-			DBG_GPIO_ERR_ON();
 			i2c_pxa_scream_blue_murder(i2c, "INFO but not error\n"
 				"i2c: Arbitration Loss Detected, go with RETRY");
-			DBG_GPIO_ERR_OFF();
 			i2c_pxa_master_complete(i2c, I2C_RETRY);
 		}
 		else
@@ -2026,9 +1772,7 @@ static void i2c_pxa_irq_txempty(struct pxa_i2c *i2c, u32 isr)
 		 */
 		if (i2c->msg_ptr == 0 && i2c->msg_idx == 0)
 		{
-			DBG_GPIO_ERR_ON();
 			i2c_pxa_scream_blue_murder(i2c, "Bus ERROR or no answer from slave-device");
-			DBG_GPIO_ERR_OFF();
 		} else {
 			if (i2c_pxa_custom_nack_is_ok(i2c)) {
 				writel(ISR_BED, _ISR(i2c));
@@ -2171,9 +1915,6 @@ static irqreturn_t i2c_pxa_handler(int this_irq, void *dev_id)
 	struct pxa_i2c *i2c = dev_id;
 	u32 isr, dbgCntr = 0;
 
-	CUSTOM_BYTE2BYTE_DELAY(i2c);
-
-	DBG_GPIO_IRQH_IN();
 	isr = readl(_ISR(i2c));
 	ISR_LOG = isr;
 
@@ -2237,7 +1978,6 @@ static irqreturn_t i2c_pxa_handler(int this_irq, void *dev_id)
 		i2c_pxa_master_complete(i2c, I2C_NULL_BUFFER);
 	}
 
-	DBG_GPIO_IRQH_OUT();
 
 	if ((jiffies-begin_ts) >= 2) {
 		char buf[80];
@@ -2644,9 +2384,6 @@ static int i2c_pxa_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num
 
 	/* Do not config ACCR1 frequency here; it is done by i2c_pxa_reset()*/
 
-#if defined(DEBUG_ERR_SIMULATE)
-	i2c_pxa_buserr_simulate(msgs, num);
-#endif
 	i2c_pxa_msg_parse(i2c, msgs, num);
 
 	if (i2c->dbg_trace == 'a') {
@@ -2658,8 +2395,6 @@ static int i2c_pxa_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num
 	clk_enable(i2c->clk);   //Possible but not must
 
 	ENTRY_CNTR++;
-	DBG_GPIO_CFG();
-	DBG_GPIO_DRV_IN();
 
 	i2c_pxa_unit_restart(i2c, 0); /*Reset since we could be after D2*/
 
@@ -2716,7 +2451,6 @@ out:
 
 	clk_disable(i2c->clk);   //Possible but not must
 	unset_dvfm_constraint(i2c);
-	DBG_GPIO_DRV_OUT();
 
 	if (i2c->err_extend_trace) {
 		i2c->err_extend_trace = 0;
@@ -2961,12 +2695,11 @@ static int i2c_pxa_probe(struct platform_device *dev)
 		}
 	}
 
-#if defined (CUSTOMIZATION_PER_SLAVE_DEVICE)
+
 	if((i2c->adap.nr == 0) || (i2c->adap.nr == 1) || (i2c->adap.nr == 2))
 		i2c->p_custom = &i2c_pxa_custom[0];
 	else
 		i2c->p_custom = NULL;
-#endif
 	i2c_pxa_reset(i2c);
 
 	i2c->adap.algo_data = i2c;
@@ -2992,7 +2725,6 @@ static int i2c_pxa_probe(struct platform_device *dev)
 	create_i2c_pxa_proc_file(i2c, i2c->adap.nr);
 #endif
 
-	/*DBG_GPIO_CFG();*/
 	clk_disable(i2c->clk);
 
 	return 0;
