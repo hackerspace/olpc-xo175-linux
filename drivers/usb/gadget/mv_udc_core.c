@@ -2457,7 +2457,26 @@ static int mv_udc_suspend(struct device *_dev)
 {
 	struct mv_udc *udc = the_controller;
 
-	udc_stop(udc);
+	/* if OTG is enabled, the following will be done at OTG driver*/
+	if (udc->transceiver || udc->pdata->vbus == NULL)
+		return 0;
+
+	if (udc->pdata->vbus->poll() == VBUS_HIGH) {
+		dev_info(&udc->dev,
+			"USB cable connected while suspending!\n");
+		return -EAGAIN;
+	}
+
+	/*
+	* only cable is unplugged, udc can suspend.
+	* So do not care about clock_gating == 1.
+	*/
+	if (udc->clock_gating == 0) {
+		if (udc->pdata->phy_deinit)
+			udc->pdata->phy_deinit(udc->phy_regs);
+
+		udc_clock_disable(udc);
+	}
 
 	return 0;
 }
@@ -2467,16 +2486,25 @@ static int mv_udc_resume(struct device *_dev)
 	struct mv_udc *udc = the_controller;
 	int retval;
 
-	if (udc->pdata->phy_init) {
-		retval = udc->pdata->phy_init(udc->phy_regs);
-		if (retval) {
-			dev_err(_dev, "phy init error %d in resume\n", retval);
-			return retval;
+	/*
+	* only cable is unplugged, udc can suspend.
+	* So do not care about clock_gating == 1.
+	*/
+	if (udc->clock_gating == 0) {
+		udc_clock_enable(udc);
+		if (udc->pdata->phy_init) {
+			retval = udc->pdata->phy_init(udc->phy_regs);
+			if (retval) {
+				dev_err(&udc->dev,
+					"init phy error %d when resume back\n",
+					retval);
+				return retval;
+			}
 		}
+		udc_reset(udc);
+		ep0_reset(udc);
+		udc_start(udc);
 	}
-	udc_reset(udc);
-	ep0_reset(udc);
-	udc_start(udc);
 
 	return 0;
 }
