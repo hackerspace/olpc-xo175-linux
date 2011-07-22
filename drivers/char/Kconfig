@@ -625,6 +625,14 @@ config RAMOOPS
 	  This enables panic and oops messages to be logged to a circular
 	  buffer in RAM where it can be read back at some later point.
 
+config VIBRATOR_88PM860x
+        tristate "88pm860x based vibrator"
+        depends on MFD_88PM860X
+	depends on ANDROID_TIMED_OUTPUT
+        default y
+        help
+          Say Y here if you want to enable 88pm860x vibrator driver
+
 config MSM_SMD_PKT
 	bool "Enable device interface for some SMD packet ports"
 	default n
