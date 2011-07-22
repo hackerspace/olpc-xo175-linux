@@ -68,12 +68,15 @@ static struct resource onkey_resources[] __devinitdata = {
 static struct resource codec_resources[] __devinitdata = {
 	/* Headset microphone insertion or removal */
 	{PM8607_IRQ_MICIN,   PM8607_IRQ_MICIN,   "micin",   IORESOURCE_IRQ,},
-	/* Hook-switch press or release */
-	{PM8607_IRQ_HOOK,    PM8607_IRQ_HOOK,    "hook",    IORESOURCE_IRQ,},
-	/* Headset insertion or removal */
-	{PM8607_IRQ_HEADSET, PM8607_IRQ_HEADSET, "headset", IORESOURCE_IRQ,},
 	/* Audio short */
 	{PM8607_IRQ_AUDIO_SHORT, PM8607_IRQ_AUDIO_SHORT, "audio-short", IORESOURCE_IRQ,},
+};
+
+static struct resource headset_resources[] __devinitdata = {
+	/* Headset insertion or removal */
+	{PM8607_IRQ_HEADSET, PM8607_IRQ_HEADSET, "headset", IORESOURCE_IRQ,},
+	/* Hook-switch press or release */
+	{PM8607_IRQ_HOOK,    PM8607_IRQ_HOOK,    "hook",    IORESOURCE_IRQ,},
 };
 
 static struct resource battery_resources[] __devinitdata = {
@@ -154,6 +157,10 @@ static struct mfd_cell rtc_devs[] = {
 
 static struct mfd_cell cm3601_devs[] = {
 	{"cm3601", -1,},
+};
+
+static struct mfd_cell headset_devs[] = {
+	{"88pm860x-headset", -1,},
 };
 
 struct pm860x_irq_data {
@@ -723,6 +730,21 @@ static void __devinit device_cm3601_init(struct pm860x_chip *chip,
 		dev_err(chip->dev, "Failed to add cm3601 subdev\n");
 }
 
+static void __devinit device_headset_init(struct pm860x_chip *chip,
+						struct pm860x_platform_data *pdata)
+{
+	int ret;
+
+	headset_devs[0].num_resources = ARRAY_SIZE(headset_resources);
+	headset_devs[0].resources = &headset_resources[0];
+	headset_devs[0].platform_data = pdata->headset;
+	headset_devs[0].pdata_size = sizeof(struct pm860x_headset_pdata);
+	ret = mfd_add_devices(chip->dev, 0, &headset_devs[0],
+				ARRAY_SIZE(headset_devs), &headset_resources[0], 0);
+	if (ret < 0)
+		dev_err(chip->dev, "Failed to add headset subdev\n");
+}
+
 static void __devinit device_8607_init(struct pm860x_chip *chip,
 				       struct i2c_client *i2c,
 				       struct pm860x_platform_data *pdata)
@@ -791,6 +813,7 @@ static void __devinit device_8607_init(struct pm860x_chip *chip,
 	device_power_init(chip, pdata);
 	device_codec_init(chip, pdata);
 	device_cm3601_init(chip, pdata);
+	device_headset_init(chip, pdata);
 out:
 	return;
 }

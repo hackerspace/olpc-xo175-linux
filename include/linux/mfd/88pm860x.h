@@ -13,6 +13,7 @@
 #define __LINUX_MFD_88PM860X_H
 
 #include <linux/interrupt.h>
+#include <linux/switch.h>
 
 #define MFD_NAME_SIZE		(40)
 
@@ -501,6 +502,10 @@ struct pm860x_cm3601_pdata
 	void 		(*release_source)(unsigned char gpio_num);
 };
 
+struct pm860x_headset_pdata{
+	int		headset_flag;
+	struct gpio_switch_platform_data	headset_data[2];
+};
 
 struct pm860x_platform_data {
 	struct pm860x_backlight_pdata	*backlight;
@@ -510,6 +515,7 @@ struct pm860x_platform_data {
 	struct pm860x_power_pdata	*power;
 	struct regulator_init_data	*regulator;
 	struct pm860x_cm3601_pdata	*cm3601;
+	struct pm860x_headset_pdata		*headset;
 
 	unsigned short	companion_addr;	/* I2C address of companion chip */
 	int		i2c_port;	/* Controlled by GI2C or PI2C */
