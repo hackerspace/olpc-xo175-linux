@@ -344,13 +344,36 @@ extern int pxa_usb_phy_init(unsigned int base);
 static char *mmp3_usb_clock_name[] = {
 	[0] = "U2OCLK",
 };
+
+static int pxa_usb_set_vbus(unsigned int vbus)
+{
+	int gpio = mfp_to_gpio(GPIO62_VBUS_EN);
+
+	printk(KERN_INFO "%s: set %d\n", __func__, vbus);
+
+	/* 5V power supply to external port */
+	if (gpio_request(gpio, "OTG VBUS Enable")) {
+		printk(KERN_INFO "gpio %d request failed\n", gpio);
+		return -1;
+	}
+
+	if (vbus)
+		gpio_direction_output(gpio, 1);
+	else
+		gpio_direction_output(gpio, 0);
+
+	gpio_free(gpio);
+
+	return 0;
+}
+
 static struct mv_usb_platform_data mmp3_usb_pdata = {
 	.clknum		= 1,
 	.clkname	= mmp3_usb_clock_name,
 	.vbus		= NULL,
 	.mode		= MV_USB_MODE_OTG,
 	.phy_init	= pxa_usb_phy_init,
-	.set_vbus	= NULL,
+	.set_vbus	= pxa_usb_set_vbus,
 };
 #endif
 
