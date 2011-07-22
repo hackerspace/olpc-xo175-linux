@@ -2462,7 +2462,7 @@ static int mv_udc_suspend(struct device *_dev)
 		return 0;
 
 	if (udc->pdata->vbus->poll() == VBUS_HIGH) {
-		dev_info(&udc->dev,
+		dev_info(&udc->dev->dev,
 			"USB cable connected while suspending!\n");
 		return -EAGAIN;
 	}
@@ -2495,7 +2495,7 @@ static int mv_udc_resume(struct device *_dev)
 		if (udc->pdata->phy_init) {
 			retval = udc->pdata->phy_init(udc->phy_regs);
 			if (retval) {
-				dev_err(&udc->dev,
+				dev_err(&udc->dev->dev,
 					"init phy error %d when resume back\n",
 					retval);
 				return retval;
