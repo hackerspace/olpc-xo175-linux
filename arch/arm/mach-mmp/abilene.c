@@ -380,34 +380,30 @@ static int mmp3_hsic1_reset(void)
 static int mmp3_hsic1_set_vbus(unsigned int vbus)
 {
 	static struct regulator *ldo5;
-	int gpio = mfp_to_gpio(GPIO62_VBUS_EN);
 
 	printk(KERN_INFO "%s: set %d\n", __func__, vbus);
-	if (!ldo5) {
-		ldo5 = regulator_get(NULL, "v_ldo5");
-		if (IS_ERR(ldo5)) {
-			printk(KERN_INFO "ldo5 not found\n");
-			return -EIO;
+	if (vbus) {
+		if (!ldo5) {
+			ldo5 = regulator_get(NULL, "v_ldo5");
+			if (IS_ERR(ldo5)) {
+				printk(KERN_INFO "ldo5 not found\n");
+				return -EIO;
+			}
+			regulator_set_voltage(ldo5, 1200000, 1200000);
+			regulator_enable(ldo5);
+			printk(KERN_INFO "%s: enable regulator\n", __func__);
+			udelay(2);
 		}
-		regulator_set_voltage(ldo5, 1200000, 1200000);
-		regulator_enable(ldo5);
-		printk(KERN_INFO "%s: enable regulator\n", __func__);
+
+		mmp3_hsic1_reset();
+	} else {
+		if (ldo5) {
+			regulator_disable(ldo5);
+			regulator_put(ldo5);
+			ldo5 = NULL;
+		}
 	}
 
-	/* 5V power supply to external port */
-	if (gpio_request(gpio, "HSIC1 VBUS Enable")) {
-		printk(KERN_INFO "gpio %d request failed\n", gpio);
-		return -1;
-	}
-
-	if (vbus)
-		gpio_direction_output(gpio, 1);
-	else
-		gpio_direction_output(gpio, 0);
-
-	gpio_free(gpio);
-
-	mmp3_hsic1_reset();
 	return 0;
 }
 
