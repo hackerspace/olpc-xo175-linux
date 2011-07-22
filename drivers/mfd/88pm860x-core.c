@@ -514,6 +514,93 @@ static void device_irq_exit(struct pm860x_chip *chip)
 		free_irq(chip->core_irq, chip);
 }
 
+static u16 pm8606_ref_gp_and_osc_vote;
+static u8 pm8606_ref_gp_and_osc_status;
+#define PM8606_REF_GP_OSC_OFF         0
+#define PM8606_REF_GP_OSC_ON          1
+#define PM8606_REF_GP_OSC_UNKNOWN     2
+
+int pm8606_ref_gp_and_osc_get(struct pm860x_chip *chip, u16 client)
+{
+	int ret = -EIO;
+	struct i2c_client *i2c = (chip->id == CHIP_PM8606) ?
+		chip->client : chip->companion;
+
+	dev_dbg(chip->dev, "%s(B): client=0x%x\n", __func__, client);
+	dev_dbg(chip->dev, "%s(B): vote=0x%x status=%d\n",
+			__func__, pm8606_ref_gp_and_osc_vote,
+			pm8606_ref_gp_and_osc_status);
+
+	/* Update voting status */
+	pm8606_ref_gp_and_osc_vote |= client;
+	/* If reference group is off - turn on*/
+	if (pm8606_ref_gp_and_osc_status != PM8606_REF_GP_OSC_ON) {
+		do {
+			pm8606_ref_gp_and_osc_status =
+				PM8606_REF_GP_OSC_UNKNOWN;
+
+			/* Enable Reference group Vsys */
+			if (pm860x_set_bits(i2c, PM8606_VSYS,
+					PM8606_VSYS_EN, PM8606_VSYS_EN))
+				break;
+			/*Enable Internal Oscillator */
+			if (pm860x_set_bits(i2c, PM8606_MISC,
+					PM8606_MISC_OSC_EN, PM8606_MISC_OSC_EN))
+				break;
+
+			/* Update status (only if writes succeed) */
+			pm8606_ref_gp_and_osc_status = PM8606_REF_GP_OSC_ON;
+			ret = 0;
+		} while (0);
+	} else
+		ret = 0;
+
+	dev_dbg(chip->dev, "%s(A): vote=0x%x status=%d ret=%d\n",
+			__func__, pm8606_ref_gp_and_osc_vote,
+			pm8606_ref_gp_and_osc_status, ret);
+	return ret;
+}
+
+int pm8606_ref_gp_and_osc_release(struct pm860x_chip *chip, u16 client)
+{
+	int ret = -EIO;
+	struct i2c_client *i2c = (chip->id == CHIP_PM8606) ?
+		chip->client : chip->companion;
+
+	dev_dbg(chip->dev, "%s(B): client=0x%x\n", __func__, client);
+	dev_dbg(chip->dev, "%s(B): vote=0x%x status=%d\n",
+			__func__, pm8606_ref_gp_and_osc_vote,
+			pm8606_ref_gp_and_osc_status);
+
+	/*Update voting status */
+	pm8606_ref_gp_and_osc_vote &= ~(client);
+	/* If reference group is off and this is the last client to release
+	 * - turn off */
+	if ((pm8606_ref_gp_and_osc_status != PM8606_REF_GP_OSC_OFF) &&
+			(pm8606_ref_gp_and_osc_vote == REF_GP_NO_CLIENTS)) {
+		do {
+			pm8606_ref_gp_and_osc_status =
+				PM8606_REF_GP_OSC_UNKNOWN;
+			/* Disable Reference group Vsys */
+			if (pm860x_set_bits(i2c, PM8606_VSYS,
+					PM8606_VSYS_EN, 0))
+				break;
+			/* Disable Internal Oscillator */
+			if (pm860x_set_bits(i2c, PM8606_MISC,
+					PM8606_MISC_OSC_EN, 0))
+				break;
+			pm8606_ref_gp_and_osc_status = PM8606_REF_GP_OSC_OFF;
+			ret = 0;
+		} while (0);
+	} else
+		ret = 0;
+
+	dev_dbg(chip->dev, "%s(A): vote=0x%x status=%d ret=%d\n",
+			__func__, pm8606_ref_gp_and_osc_vote,
+			pm8606_ref_gp_and_osc_status, ret);
+	return ret;
+}
+
 static void __devinit device_bk_init(struct pm860x_chip *chip,
 				     struct pm860x_platform_data *pdata)
 {
@@ -547,6 +634,18 @@ static void __devinit device_bk_init(struct pm860x_chip *chip,
 			}
 		}
 	}
+}
+
+static void __devinit device_8606_oscillator_vsys_init(struct i2c_client *i2c)
+{
+	/* init portofino reference group voting and status */
+	/* Disable Reference group Vsys */
+	pm860x_set_bits(i2c, PM8606_VSYS, PM8606_VSYS_EN, 0);
+	/* Disable Internal Oscillator */
+	pm860x_set_bits(i2c, PM8606_MISC, PM8606_MISC_OSC_EN, 0);
+
+	pm8606_ref_gp_and_osc_vote = REF_GP_NO_CLIENTS;
+	pm8606_ref_gp_and_osc_status = PM8606_REF_GP_OSC_OFF;
 }
 
 static void __devinit device_led_init(struct pm860x_chip *chip,
@@ -827,6 +926,7 @@ int __devinit pm860x_device_init(struct pm860x_chip *chip,
 	case CHIP_PM8606:
 		device_bk_init(chip, pdata);
 		device_led_init(chip, pdata);
+		device_8606_oscillator_vsys_init(chip->client);
 		break;
 	case CHIP_PM8607:
 		device_8607_init(chip, chip->client, pdata);
@@ -838,6 +938,7 @@ int __devinit pm860x_device_init(struct pm860x_chip *chip,
 		case CHIP_PM8607:
 			device_bk_init(chip, pdata);
 			device_led_init(chip, pdata);
+			device_8606_oscillator_vsys_init(chip->client);
 			break;
 		case CHIP_PM8606:
 			device_8607_init(chip, chip->companion, pdata);

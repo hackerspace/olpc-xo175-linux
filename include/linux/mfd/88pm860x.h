@@ -463,6 +463,18 @@ enum {
 #define PM860X_TEMP_TINT		(0)
 #define PM860X_TEMP_TBAT		(1)
 
+/* Clients of reference group and 8MHz oscillator in 88PM8606 */
+enum levante_ref_gp_and_osc_clients {
+	REF_GP_NO_CLIENTS       = 0,
+	WLED1_DUTY              = (1<<0), /*PF 0x02.7:0*/
+	WLED2_DUTY              = (1<<1), /*PF 0x04.7:0*/
+	WLED3_DUTY              = (1<<2), /*PF 0x06.7:0*/
+	RGB1_ENABLE             = (1<<3), /*PF 0x07.1*/
+	RGB2_ENABLE             = (1<<4), /*PF 0x07.2*/
+	LDO_VBR_EN              = (1<<5), /*PF 0x12.0*/
+	REF_GP_MAX_CLIENT       = 0xFFFF
+};
+
 /* Interrupt Number in 88PM8607 */
 enum {
 	PM8607_IRQ_ONKEY,
@@ -599,6 +611,8 @@ struct pm860x_platform_data {
 	int		num_regulators;
 };
 
+extern int pm8606_ref_gp_and_osc_get(struct pm860x_chip *, u16);
+extern int pm8606_ref_gp_and_osc_release(struct pm860x_chip *, u16);
 extern int pm860x_reg_read(struct i2c_client *, int);
 extern int pm860x_reg_write(struct i2c_client *, int, unsigned char);
 extern int pm860x_bulk_read(struct i2c_client *, int, int, unsigned char *);
