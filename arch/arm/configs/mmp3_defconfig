@@ -1132,6 +1132,7 @@ CONFIG_USB_GADGET_DUALSPEED=y
 # CONFIG_USB_MASS_STORAGE is not set
 # CONFIG_USB_G_SERIAL is not set
 # CONFIG_USB_G_PRINTER is not set
+CONFIG_USB_G_ANDROID=y
 # CONFIG_USB_CDC_COMPOSITE is not set
 # CONFIG_USB_G_MULTI is not set
 # CONFIG_USB_G_HID is not set
@@ -1205,7 +1206,8 @@ CONFIG_LEDS_TRIGGER_TIMER=y
 # iptables trigger is under Netfilter config (LED target)
 #
 # CONFIG_NFC_DEVICES is not set
-# CONFIG_SWITCH is not set
+CONFIG_SWITCH=y
+# CONFIG_SWITCH_GPIO is not set
 # CONFIG_ACCESSIBILITY is not set
 CONFIG_RTC_LIB=y
 # CONFIG_RTC_CLASS is not set
