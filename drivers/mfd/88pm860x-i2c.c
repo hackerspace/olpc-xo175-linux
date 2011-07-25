@@ -15,6 +15,8 @@
 #include <linux/mfd/88pm860x.h>
 #include <linux/slab.h>
 
+static struct i2c_client *pm8607_i2c_client;
+
 static inline int pm860x_read_device(struct i2c_client *i2c,
 				     int reg, int bytes, void *dest)
 {
@@ -77,6 +79,46 @@ int pm860x_reg_write(struct i2c_client *i2c, int reg,
 	return ret;
 }
 EXPORT_SYMBOL(pm860x_reg_write);
+
+int pm860x_codec_reg_read(int reg)
+{
+	struct pm860x_chip *chip = i2c_get_clientdata(pm8607_i2c_client);
+	unsigned char data = 0;
+	int ret;
+
+	mutex_lock(&chip->io_lock);
+	ret = pm860x_read_device(pm8607_i2c_client, reg, 1, &data);
+	mutex_unlock(&chip->io_lock);
+
+	if (ret < 0)
+		return ret;
+	else
+		return (int)data;
+}
+EXPORT_SYMBOL(pm860x_codec_reg_read);
+
+int pm860x_codec_reg_write(int reg, unsigned char data)
+{
+	struct pm860x_chip *chip = i2c_get_clientdata(pm8607_i2c_client);
+	int ret;
+
+	mutex_lock(&chip->io_lock);
+	ret = pm860x_write_device(pm8607_i2c_client, reg, 1, &data);
+	mutex_unlock(&chip->io_lock);
+
+	return ret;
+}
+EXPORT_SYMBOL(pm860x_codec_reg_write);
+
+int pm860x_codec_reg_set_bits(int reg, unsigned char mask,
+			unsigned char data)
+{
+	int ret;
+	/*we have mutex protection in pm860x_set_bits()*/
+	ret = pm860x_set_bits(pm8607_i2c_client, reg, mask, data);
+	return ret;
+}
+EXPORT_SYMBOL(pm860x_codec_reg_set_bits);
 
 int pm860x_bulk_read(struct i2c_client *i2c, int reg,
 		     int count, unsigned char *buf)
@@ -274,6 +316,7 @@ static int __devinit pm860x_probe(struct i2c_client *client,
 
 	chip->id = verify_addr(client);
 	chip->client = client;
+	pm8607_i2c_client = client;
 	i2c_set_clientdata(client, chip);
 	chip->dev = &client->dev;
 	mutex_init(&chip->io_lock);

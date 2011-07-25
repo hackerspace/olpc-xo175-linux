@@ -615,6 +615,9 @@ extern int pm8606_ref_gp_and_osc_get(struct pm860x_chip *, u16);
 extern int pm8606_ref_gp_and_osc_release(struct pm860x_chip *, u16);
 extern int pm860x_reg_read(struct i2c_client *, int);
 extern int pm860x_reg_write(struct i2c_client *, int, unsigned char);
+extern int pm860x_codec_reg_read(int reg);
+extern int pm860x_codec_reg_write(int reg, unsigned char data);
+extern int pm860x_codec_reg_set_bits(int reg, unsigned char mask, unsigned char data);
 extern int pm860x_bulk_read(struct i2c_client *, int, int, unsigned char *);
 extern int pm860x_bulk_write(struct i2c_client *, int, int, unsigned char *);
 extern int pm860x_set_bits(struct i2c_client *, int, unsigned char,
