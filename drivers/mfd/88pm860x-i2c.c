@@ -20,18 +20,16 @@ static struct i2c_client *pm8607_i2c_client;
 static inline int pm860x_read_device(struct i2c_client *i2c,
 				     int reg, int bytes, void *dest)
 {
-	unsigned char data;
 	int ret;
-
-	data = (unsigned char)reg;
-	ret = i2c_master_send(i2c, &data, 1);
-	if (ret < 0)
-		return ret;
-
-	ret = i2c_master_recv(i2c, dest, bytes);
-	if (ret < 0)
-		return ret;
-	return 0;
+	if (bytes > 1)
+		ret = i2c_smbus_read_i2c_block_data(i2c, reg, bytes, dest);
+	else {
+		ret = i2c_smbus_read_byte_data(i2c, reg);
+		if (ret < 0)
+			return ret;
+		*(unsigned char *)dest = (unsigned char)ret;
+	}
+	return ret;
 }
 
 static inline int pm860x_write_device(struct i2c_client *i2c,
