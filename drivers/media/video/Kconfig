@@ -923,6 +923,16 @@ config VIDEO_PXA955
 	  This is a v4l2 driver for the Marvell PXA955 Quick Capture
 	  Interface based on SOC_camera/subdev architecture.
 
+config VIDEO_MV
+        tristate "Marvell CCIC driver based on SOC_CAMERA"
+        depends on VIDEO_DEV && SOC_CAMERA
+        select VIDEOBUF_DMA_CONTIG
+	---help---
+          This is a v4l2 driver for the Marvell CCIC
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called mv_camera.
+
 config VIDEO_SH_MOBILE_CSI2
 	tristate "SuperH Mobile MIPI CSI-2 Interface driver"
 	depends on VIDEO_DEV && SOC_CAMERA && HAVE_CLK
