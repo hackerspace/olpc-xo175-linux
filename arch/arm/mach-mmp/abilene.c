@@ -295,8 +295,30 @@ static struct platform_device abilene_lcd_backlight_devices = {
 
 #ifdef CONFIG_MMC_SDHCI_PXAV3
 #include <linux/mmc/host.h>
+static void abilene_sd_signal_1v8(int set)
+{
+	static struct regulator *v_ldo_sd;
+	int vol;
+
+	v_ldo_sd = regulator_get(NULL, "v_ldo11");
+	if (IS_ERR(v_ldo_sd)) {
+		printk(KERN_ERR "Failed to get v_ldo11\n");
+		return;
+	}
+
+	vol = set ? 1800000 : 3000000;
+	regulator_set_voltage(v_ldo_sd, vol, vol);
+	regulator_enable(v_ldo_sd);
+
+	mmp3_io_domain_1v8(AIB_SDMMC_IO_REG, set);
+
+	msleep(10);
+	regulator_put(v_ldo_sd);
+}
+
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc0 = {
 	.clk_delay_cycles	= 0x1F,
+	.signal_1v8		= abilene_sd_signal_1v8,
 };
 
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc2 = {
