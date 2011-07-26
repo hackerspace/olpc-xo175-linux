@@ -11,9 +11,23 @@ extern void __init mmp3_init_irq(void);
 #include <linux/i2c/pxa-i2c.h>
 #include <mach/devices.h>
 #include <mach/cputype.h>
+#include <mach/regs-apbc.h>
 #include <plat/pxa27x_keypad.h>
 #include <plat/pxa3xx_nand.h>
 #include <linux/platform_data/pxa_sdhci.h>
+
+#define IOPWRDOM_VIRT_BASE	(APB_VIRT_BASE + 0x1e800)
+#define PAD_1V8			(1 << 2)
+#define PAD_POWERDOWN		(1 << 0)
+#define AIB_HSIC3_IO_REG	0x0000
+#define AIB_HSIC2_IO_REG	0x0004
+#define AIB_GPIO2_IO_REG	0x000C
+#define AIB_GPIO3_IO_REG	0x0010
+#define AIB_TWSI_IO_REG		0x0014
+#define AIB_SDMMC_IO_REG	0x001c
+#define AIB_NAND_IO_REG		0x0020
+#define AIB_USIM_IO_REG		0x002c
+#define AIB_BB_IO_REG		0x0030
 
 extern struct pxa_device_desc mmp3_device_uart1;
 extern struct pxa_device_desc mmp3_device_uart2;
@@ -41,6 +55,24 @@ extern struct platform_device mmp3_device_u2o;
 extern struct platform_device mmp3_device_u2ootg;
 extern struct platform_device mmp3_device_u2oehci;
 extern struct platform_device mmp3_hsic1_device;
+
+static inline void mmp3_io_domain_1v8(u16 reg, int set)
+{
+	u32 tmp;
+
+	writel(MAGIC_ASFAR, APBC_MMP2_ASFAR);
+	writel(MAGIC_ASSAR, APBC_MMP2_ASSAR);
+	tmp = readl(IOPWRDOM_VIRT_BASE + reg);
+
+	if (set)
+		tmp |= PAD_1V8;
+	else
+		tmp &= ~PAD_1V8;
+
+	writel(MAGIC_ASFAR, APBC_MMP2_ASFAR);
+	writel(MAGIC_ASSAR, APBC_MMP2_ASSAR);
+	writel(tmp, IOPWRDOM_VIRT_BASE + reg);
+}
 
 static inline int mmp3_add_uart(int id)
 {
