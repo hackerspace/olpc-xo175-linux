@@ -12,4 +12,10 @@ config SWITCH_GPIO
 	help
 	  Say Y here to enable GPIO based switch support.
 
+config SWITCH_HEADSET
+        tristate "Headset Swith support"
+        depends on GENERIC_GPIO
+        help
+          Say Y here to enable headset & hook switch support.
+
 endif # SWITCH
