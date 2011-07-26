@@ -1508,6 +1508,10 @@ static int sdhci_start_signal_voltage_switch(struct mmc_host *mmc,
 	if (host->version < SDHCI_SPEC_300)
 		return 0;
 
+	/* May need to apply soc/platfrom settings for the voltage switch*/
+	if (host->ops->signal_vol_change)
+		host->ops->signal_vol_change(host, ios->signal_voltage);
+
 	/*
 	 * We first check whether the request is to set signalling voltage
 	 * to 3.3V. If so, we change the voltage to 3.3V and return quickly.
