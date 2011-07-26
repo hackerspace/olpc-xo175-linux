@@ -30,6 +30,7 @@
 #include <mach/gpio.h>
 #include <mach/pxa95xfb.h>
 #include <mach/soc_vmeta.h>
+#include <linux/switch.h>
 
 #include <plat/pxa27x_keypad.h>
 
@@ -120,7 +121,23 @@ static struct pm860x_cm3601_pdata cm3601_platform_info = {
 	.request_source	= cm3601_request_resource,
 	.release_source	= cm3601_release_resource,
 };
-
+static struct pm860x_headset_pdata headset_platform_info	 = {
+	.headset_flag = 0,
+	/* headset switch */
+	.headset_data[0].name = "h2w",
+	.headset_data[0].gpio = 0,
+	.headset_data[0].name_on = NULL,
+	.headset_data[0].name_off = NULL,
+	.headset_data[0].state_on = NULL,
+	.headset_data[0].state_off = NULL,
+	/* hook switch */
+	.headset_data[1].name = "h3w",
+	.headset_data[1].gpio = 0,
+	.headset_data[1].name_on = NULL,
+	.headset_data[1].name_off = NULL,
+	.headset_data[1].state_on = NULL,
+	.headset_data[1].state_off = NULL,
+};
 static struct pm860x_platform_data saarb_pm8607_info = {
 	.touch		= &saarb_touch,
 	.backlight	= &saarb_backlight[0],
@@ -129,6 +146,7 @@ static struct pm860x_platform_data saarb_pm8607_info = {
 #if defined(CONFIG_SENSORS_CM3601)
 	.cm3601		= &cm3601_platform_info,
 #endif
+	.headset	= &headset_platform_info,
 	.companion_addr	= 0x10,
 	.irq_mode	= 0,
 	.irq_base	= IRQ_BOARD_START,
