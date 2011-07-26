@@ -39,6 +39,7 @@
  * @host_caps: Standard MMC host capabilities bit field.
  * @quirks: quirks of platfrom
  * @pm_caps: pm_caps of platfrom
+ * @signal_1v8: signaling change to 1.8V
  */
 struct sdhci_pxa_platdata {
 	unsigned int	flags;
@@ -51,6 +52,7 @@ struct sdhci_pxa_platdata {
 	unsigned int	host_caps;
 	unsigned int	quirks;
 	unsigned int	pm_caps;
+	void	(*signal_1v8)(int set);
 };
 
 struct sdhci_pxa {

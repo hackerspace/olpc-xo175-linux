@@ -157,10 +157,20 @@ static int pxav3_set_uhs_signaling(struct sdhci_host *host, unsigned int uhs)
 	return 0;
 }
 
+static void pxav3_signal_vol_change(struct sdhci_host *host, u8 vol)
+{
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+
+	if (pdata && pdata->signal_1v8)
+		pdata->signal_1v8(MMC_SIGNAL_VOLTAGE_180 == vol);
+}
+
 static struct sdhci_ops pxav3_sdhci_ops = {
 	.platform_reset_exit = pxav3_set_private_registers,
 	.set_uhs_signaling = pxav3_set_uhs_signaling,
 	.platform_send_init_74_clocks = pxav3_gen_init_74_clocks,
+	.signal_vol_change = pxav3_signal_vol_change,
 };
 
 static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
