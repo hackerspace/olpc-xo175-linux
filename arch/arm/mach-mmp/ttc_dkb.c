@@ -19,6 +19,7 @@
 #include <linux/mfd/88pm860x.h>
 #include <linux/i2c/pca9575.h>
 #include <linux/i2c/pca953x.h>
+#include <linux/i2c/elan_touch.h>
 #include <linux/gpio.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/pxa2xx_spi.h>
@@ -351,6 +352,30 @@ static struct pca953x_platform_data max7312_data[] = {
 };
 #endif
 
+#if defined(CONFIG_TOUCHSCREEN_ELAN)
+static int touch_io_power_onoff(int on)
+{
+	unsigned int tp_logic_en;
+	tp_logic_en = GPIO_EXT0(MFP_PIN_GPIO15);
+
+	if (gpio_request(tp_logic_en, "TP_LOGIC_EN")) {
+		printk(KERN_ERR "Request GPIO failed,"
+			"gpio: %d\n", tp_logic_en);
+		return -EIO;
+	}
+
+	if (on)
+		gpio_direction_output(tp_logic_en, 1);
+	else
+		gpio_direction_output(tp_logic_en, 0);
+
+	gpio_free(tp_logic_en);
+	return 0;
+}
+static struct elan_touch_platform_data elan_touch_data = {
+	.power = touch_io_power_onoff,
+};
+#endif
 static struct i2c_board_info ttc_dkb_i2c_info[] = {
 	{
 		.type		= "88PM860x",
@@ -372,6 +397,14 @@ static struct i2c_board_info ttc_dkb_i2c_info[] = {
 		.addr           = 0x23,
 		.irq            = IRQ_GPIO(80),
 		.platform_data  = &max7312_data,
+	},
+#endif
+#if defined(CONFIG_TOUCHSCREEN_ELAN)
+	{
+		.type		= "elan_touch",
+		.addr		= 0x8,
+		.irq		= gpio_to_irq(45),
+		.platform_data	= &elan_touch_data,
 	},
 #endif
 };
