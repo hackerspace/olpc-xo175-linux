@@ -848,25 +848,25 @@ static void __devinit device_8607_init(struct pm860x_chip *chip,
 				       struct i2c_client *i2c,
 				       struct pm860x_platform_data *pdata)
 {
-	int data, ret;
+	int data, ret, pmic_id;
 
 	ret = pm860x_reg_read(i2c, PM8607_CHIP_ID);
 	if (ret < 0) {
 		dev_err(chip->dev, "Failed to read CHIP ID: %d\n", ret);
 		goto out;
 	}
-	switch (ret & PM8607_VERSION_MASK) {
-	case 0x40:
-	case 0x50:
+
+	pmic_id = ret & PM8607_VERSION_MASK;
+
+	if  ((pmic_id >= PM8607_CHIP_A0) && (pmic_id <= PM8607_CHIP_END)) {
+		chip->chip_version = ret;
 		dev_info(chip->dev, "Marvell 88PM8607 (ID: %02x) detected\n",
-			 ret);
-		break;
-	default:
-		dev_err(chip->dev, "Failed to detect Marvell 88PM8607. "
-			"Chip ID: %02x\n", ret);
+				ret);
+	} else {
+		dev_err(chip->dev, "Failed to detect Marvell 88PM8607:Chip ID: %02x\n",
+		ret);
 		goto out;
 	}
-
 	ret = pm860x_reg_read(i2c, PM8607_BUCK3);
 	if (ret < 0) {
 		dev_err(chip->dev, "Failed to read BUCK3 register: %d\n", ret);
