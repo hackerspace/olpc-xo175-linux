@@ -36,6 +36,7 @@
 #include "devices.h"
 #include "generic.h"
 #include "panel_settings.h"
+#include <linux/switch.h>
 
 #define NEVOSAARC_NR_IRQS	(IRQ_BOARD_START + 40)
 
@@ -115,12 +116,31 @@ static struct pm860x_cm3601_pdata cm3601_platform_info = {
 };
 #endif
 
+static struct pm860x_headset_pdata headset_platform_info	 = {
+	.headset_flag = 0,
+	/* headset switch */
+	.headset_data[0].name = "h2w",
+	.headset_data[0].gpio = 0,
+	.headset_data[0].name_on = NULL,
+	.headset_data[0].name_off = NULL,
+	.headset_data[0].state_on = NULL,
+	.headset_data[0].state_off = NULL,
+	/* hook switch */
+	.headset_data[1].name = "h3w",
+	.headset_data[1].gpio = 0,
+	.headset_data[1].name_on = NULL,
+	.headset_data[1].name_off = NULL,
+	.headset_data[1].state_on = NULL,
+	.headset_data[1].state_off = NULL,
+};
+
 static struct pm860x_platform_data pm8607_info = {
 	.backlight	= &backlight[0],
 	.led		= &led[0],
 #if defined(CONFIG_SENSORS_CM3601)
 	.cm3601		= &cm3601_platform_info,
 #endif
+	.headset = &headset_platform_info,
 	.companion_addr	= 0x10,
 
 	.irq_mode	= 0,
