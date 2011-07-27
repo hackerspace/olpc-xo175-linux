@@ -190,7 +190,7 @@ static int pxa_irq_suspend(void)
 	for (i = 0; i < pxa_internal_irq_nr / 32; i++) {
 		void __iomem *base = irq_base(i);
 
-		saved_icmr[i] = __raw_readl(base + ICMR);
+		saved_icmr[i >> 5] = __raw_readl(base + ICMR);
 		__raw_writel(0, base + ICMR);
 	}
 
@@ -209,7 +209,7 @@ static void pxa_irq_resume(void)
 	for (i = 0; i < pxa_internal_irq_nr / 32; i++) {
 		void __iomem *base = irq_base(i);
 
-		__raw_writel(saved_icmr[i], base + ICMR);
+		__raw_writel(saved_icmr[i >> 5], base + ICMR);
 		__raw_writel(0, base + ICLR);
 	}
 
