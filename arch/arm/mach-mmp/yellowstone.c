@@ -323,6 +323,7 @@ static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc0 = {
 
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc2 = {
 	.flags		= PXA_FLAG_SD_8_BIT_CAPABLE_SLOT,
+	.host_caps	= MMC_CAP_1_8V_DDR,
 };
 
 static void __init yellowstone_init_mmc(void)
