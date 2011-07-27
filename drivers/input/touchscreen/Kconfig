@@ -11,6 +11,15 @@ menuconfig INPUT_TOUCHSCREEN
 
 if INPUT_TOUCHSCREEN
 
+config TOUCHSCREEN_SSD2531
+	tristate "ssd2531 i2c based multitouch screen"
+        depends on INPUT_EVDEV
+        default n
+        help
+          this will enable the i2c based ssd2531 multituch driver
+          need to set i2c slave address in board config
+          Say Y here if you want to enable ssd2531 i2c based multitouch driver
+
 config TOUCHSCREEN_88PM860X
 	tristate "Marvell 88PM860x touchscreen"
 	depends on MFD_88PM860X
