@@ -139,10 +139,47 @@ struct smsspi_dev {
  * if the chip_xxx return 0, it is OK, other is not OK
  */
 
+static int chip_power_reset(struct smsspi_dev *drv_info)
+{
+#ifdef DRIVER_HANDLE_GPIO
+	int chip_rst;
+	int rst_loop;
+	sms_info("sms smschipreset\n");
+	chip_rst = drv_info->gpio_reset;
+	if (gpio_request(chip_rst, "cmmb rst")) {
+		pr_warning("failed to request GPIO for CMMB RST\n");
+		return -EIO;
+	}
+
+	/* reset chip twice,work around to fix reset fail sometimes */
+	rst_loop = 2;
+	while (rst_loop--) {
+		/* reset cmmb, keep low for about 1ms */
+		gpio_direction_output(chip_rst, 0);
+		msleep(10);		/* 10ms enough */
+
+		/* get cmmb go out of reset state */
+		gpio_direction_output(chip_rst, 1);
+		/* wait for at least 100ms after reset*/
+		msleep(100);
+	}
+
+	gpio_free(chip_rst);
+	return 0;
+#else
+	struct cmmb_platform_data *pdata;
+	pdata = drv_info->spi->dev.platform_data;
+	if (!pdata || !pdata->power_reset)
+		return -EIO;
+	pdata->power_reset();
+	return 0;
+#endif
+}
+
 static int chip_power_on(struct smsspi_dev *drv_info)
 {
 #ifdef DRIVER_HANDLE_GPIO
-	int chip_en, chip_rst;
+	int chip_en;
 
 	chip_en = drv_info->gpio_power;
 	if (gpio_request(chip_en, "cmmb power")) {
@@ -150,28 +187,14 @@ static int chip_power_on(struct smsspi_dev *drv_info)
 		return -EIO;
 	}
 	gpio_direction_output(chip_en, 0);
-	msleep(100);
+	msleep(100);	/* TODO:Check with HW Engineer */
 
 	gpio_direction_output(chip_en, 1);
 	gpio_free(chip_en);
 
-	msleep(100);
+	msleep(100);	/* TODO:Check with HW Engineer */
 
-	chip_rst = drv_info->gpio_reset;
-	if (gpio_request(chip_rst, "cmmb rst")) {
-		pr_warning("failed to request GPIO for CMMB RST\n");
-
-		return -EIO;
-	}
-
-	/* reset cmmb, keep low for about 1ms */
-	gpio_direction_output(chip_rst, 0);
-	msleep(100);
-
-	/* get cmmb go out of reset state */
-	gpio_direction_output(chip_rst, 1);
-	gpio_free(chip_rst);
-	return 0;
+	return chip_power_reset(drv_info);
 #else
 	struct cmmb_platform_data *pdata;
 
@@ -197,7 +220,7 @@ static int chip_power_down(struct smsspi_dev *drv_info)
 
 	gpio_direction_output(chip_en, 0);
 	gpio_free(chip_en);
-	msleep(100);
+	msleep(100);	/* TODO:Check with HW Engineer */
 
 	return 0;
 #else
@@ -208,35 +231,6 @@ static int chip_power_down(struct smsspi_dev *drv_info)
 		return -EIO;
 	pdata->power_off();
 
-	return 0;
-#endif
-}
-
-static int chip_power_reset(struct smsspi_dev *drv_info)
-{
-#ifdef DRIVER_HANDLE_GPIO
-	int chip_rst;
-	sms_info("sms smschipreset\n");
-	chip_rst = drv_info->gpio_reset;
-	if (gpio_request(chip_rst, "cmmb rst")) {
-		pr_warning("failed to request GPIO for CMMB RST\n");
-		return -EIO;
-	}
-
-	/* reset cmmb, keep low for about 1ms */
-	gpio_direction_output(chip_rst, 0);
-	msleep(10);		/* 10ms enough */
-
-	/* get cmmb go out of reset state */
-	gpio_direction_output(chip_rst, 1);
-	gpio_free(chip_rst);
-	return 0;
-#else
-	struct cmmb_platform_data *pdata;
-	pdata = drv_info->spi->dev.platform_data;
-	if (!pdata || !pdata->power_reset)
-		return -EIO;
-	pdata->power_reset();
 	return 0;
 #endif
 }
