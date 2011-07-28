@@ -19,6 +19,13 @@
 #include <linux/mfd/core.h>
 #include <linux/mfd/88pm860x.h>
 
+#ifdef CONFIG_RTC_MON
+#include <mach/88pm860x-rtc.h>
+#include <mach/regs-rtc.h>
+#include <linux/miscdevice.h>
+DECLARE_WAIT_QUEUE_HEAD(rtc_update_head);
+#endif
+
 #define VRTC_CALIBRATION
 
 struct pm860x_rtc_info {
@@ -55,6 +62,63 @@ struct pm860x_rtc_info {
 #define RTC1_USE_XO		(1 << 7)
 
 #define VRTC_CALIB_INTERVAL	(HZ * 60 * 10)		/* 10 minutes */
+
+static struct platform_device *g_pdev;
+static int pm860x_rtc_read_time(struct device *dev, struct rtc_time *tm);
+
+#ifdef CONFIG_RTC_MON
+static long pm860x_rtcmon_ioctl(struct file *file, unsigned int cmd,
+					unsigned long arg)
+{
+	void __user *uarg = (void __user *)arg;
+	struct rtc_time tm = {0};
+	int ret = 0;
+	lock_kernel();
+	switch (cmd) {
+	case RTC_CHANGE_SUB:
+		{
+			DEFINE_WAIT(wait);
+			prepare_to_wait(&rtc_update_head,
+					&wait, TASK_INTERRUPTIBLE);
+			schedule();
+			finish_wait(&rtc_update_head, &wait);
+		}
+		ret = pm860x_rtc_read_time(&g_pdev->dev, &tm);
+		if (ret < 0)
+			pr_info( \
+			"pxa_rtcmon_ioctl::pm860x_rtc_read_time fail]\n");
+		else
+			pr_info( \
+			"pxa_rtcmon_ioctl::pm860x_rtc_read_time=%d:%d:%d\n",
+			tm.tm_hour, tm.tm_min, tm.tm_sec);
+		ret = copy_to_user(uarg, &tm, sizeof(struct rtc_time));
+		if (ret)
+			ret = -EFAULT;
+		break;
+	default:
+		pr_info( \
+		"pxa_rtcmon_ioctl:default\n");
+		ret = -ENOIOCTLCMD;
+	}
+	unlock_kernel();
+	return ret;
+}
+
+static int pm860x_rtcmon_open(struct inode *inode, struct file *file)
+{
+	pr_info( \
+	"pm860x_rtcmon_open::nothing done here\n");
+	return 0;
+}
+
+static int pm860x_rtcmon_release(struct inode *inode, struct file *file)
+{
+	pr_info( \
+	"pm860x_rtcmon_release::nothing done here\n");
+	return 0;
+}
+#endif
+
 
 static irqreturn_t rtc_update_handler(int irq, void *data)
 {
@@ -156,6 +220,11 @@ static int pm860x_rtc_set_time(struct device *dev, struct rtc_time *tm)
 
 	if (info->sync)
 		info->sync(ticks);
+#ifdef CONFIG_RTC_MON
+	/* Update all subscribed about RTC set */
+	wake_up_all(&rtc_update_head);
+	pr_info("rtc_update_head\n");
+#endif
 	return 0;
 }
 
@@ -235,6 +304,22 @@ static const struct rtc_class_ops pm860x_rtc_ops = {
 	.set_alarm	= pm860x_rtc_set_alarm,
 	.alarm_irq_enable = pm860x_rtc_alarm_irq_enable,
 };
+
+#ifdef CONFIG_RTC_MON
+static const struct file_operations pm860x_rtcmon_fops = {
+	.owner                          = THIS_MODULE,
+	.open                           = pm860x_rtcmon_open,
+	.release                        = pm860x_rtcmon_release,
+	.unlocked_ioctl         = pm860x_rtcmon_ioctl,
+};
+static struct miscdevice rtcmon_miscdev = {
+	.minor          = MISC_DYNAMIC_MINOR,
+	.name           = "rtcmon",
+	.fops           = &pm860x_rtcmon_fops,
+};
+#endif
+
+
 
 #ifdef VRTC_CALIBRATION
 static void calibrate_vrtc_work(struct work_struct *work)
@@ -358,6 +443,14 @@ static int __devinit pm860x_rtc_probe(struct platform_device *pdev)
 		goto out_rtc;
 	}
 
+#ifdef CONFIG_RTC_MON
+	ret = misc_register(&rtcmon_miscdev);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "Failed to register rtcmon: %d\n", ret);
+		goto out_rtc;
+	} else
+		pr_info("CONFIG_RTC_MON is on\n");
+#endif
 	/*
 	 * enable internal XO instead of internal 3.25MHz clock since it can
 	 * free running in PMIC power-down state.
@@ -419,6 +512,10 @@ module_init(pm860x_rtc_init);
 static void __exit pm860x_rtc_exit(void)
 {
 	platform_driver_unregister(&pm860x_rtc_driver);
+#ifdef CONFIG_RTC_MON
+	misc_deregister(&rtcmon_miscdev);
+#endif
+
 }
 module_exit(pm860x_rtc_exit);
 
