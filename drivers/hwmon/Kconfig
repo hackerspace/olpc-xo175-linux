@@ -1412,4 +1412,8 @@ config SENSORS_LIS331DL_POSITION
 		6: bottom. lower-right
 		7: bottom. lower-left
 
+config SENSORS_ORIENTATION
+	tristate "Yamaha Orientation Sensor"
+	depends on I2C && SENSORS_YAS529 && SENSORS_LIS331DL
+
 endif # HWMON
