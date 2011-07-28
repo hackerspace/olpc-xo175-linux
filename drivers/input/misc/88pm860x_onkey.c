@@ -68,8 +68,6 @@ static irqreturn_t pm860x_onkey_handler(int irq, void *data)
 	input_report_key(info->idev, KEY_POWER, ret);
 	input_sync(info->idev);
 
-	/* Enable 8-second long onkey detection */
-	pm860x_set_bits(info->i2c, PM8607_WAKEUP, 3, LONG_ONKEY_EN);
 	return IRQ_HANDLED;
 }
 
@@ -159,6 +157,9 @@ static int __devinit pm860x_onkey_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, info);
 	device_init_wakeup(&pdev->dev, 1);
+	/* Enable 8-second long onkey detection */
+	pm860x_set_bits(info->i2c, PM8607_WAKEUP, 3, LONG_ONKEY_EN);
+
 	return 0;
 
 out_irq:
