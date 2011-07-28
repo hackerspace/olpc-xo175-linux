@@ -579,7 +579,7 @@ static int __devinit pxa27x_keypad_probe(struct platform_device *pdev)
 
 	input_set_drvdata(input_dev, keypad);
 
-	input_dev->evbit[0] = BIT_MASK(EV_KEY) | BIT_MASK(EV_REP);
+	input_dev->evbit[0] = BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS);
 	input_set_capability(input_dev, EV_MSC, MSC_SCAN);
 
 	pxa27x_keypad_build_keycode(keypad);
