@@ -166,6 +166,9 @@ static void android_work(struct work_struct *data)
 	char *configured[2]   = { "USB_STATE=CONFIGURED", NULL };
 	unsigned long flags;
 
+	if (!cdev)
+		return;
+
 	spin_lock_irqsave(&cdev->lock, flags);
         if (cdev->config) {
 		spin_unlock_irqrestore(&cdev->lock, flags);
