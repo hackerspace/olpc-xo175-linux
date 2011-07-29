@@ -1422,4 +1422,12 @@ config SENSORS_CWMI
 	help
 		This driver provides support for CWMI.
 
+config SENSORS_CWGD
+	tristate "CyWee CWGD 3-axis digital Gyroscope"
+	depends on I2C && INPUT
+	help
+		This driver provides support for CWGD.
+
+
+
 endif # HWMON
