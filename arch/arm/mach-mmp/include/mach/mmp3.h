@@ -12,6 +12,7 @@ extern void __init mmp3_init_irq(void);
 #include <mach/devices.h>
 #include <mach/cputype.h>
 #include <mach/regs-apbc.h>
+#include <mach/pxa168fb.h>
 #include <plat/pxa27x_keypad.h>
 #include <plat/pxa3xx_nand.h>
 #include <linux/platform_data/pxa_sdhci.h>
@@ -49,6 +50,7 @@ extern struct pxa_device_desc mmp3_device_pwm2;
 extern struct pxa_device_desc mmp3_device_pwm3;
 extern struct pxa_device_desc mmp3_device_pwm4;
 extern struct pxa_device_desc mmp3_device_keypad;
+extern struct pxa_device_desc mmp3_device_fb;
 
 extern struct platform_device mmp3_device_rtc;
 extern struct platform_device mmp3_device_u2o;
@@ -157,6 +159,11 @@ static inline int mmp3_add_pwm(int id)
 	}
 
 	return pxa_register_device(d, NULL, 0);
+}
+
+static inline int mmp3_add_fb(struct pxa168fb_mach_info *mi)
+{
+	return pxa_register_device(&mmp3_device_fb, mi, sizeof(*mi));
 }
 
 extern void mmp3_clear_keypad_wakeup(void);

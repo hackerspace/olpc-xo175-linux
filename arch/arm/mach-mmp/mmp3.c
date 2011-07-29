@@ -249,6 +249,124 @@ struct clkops hsic_clk_ops = {
 	.disable        = hsic_clk_disable,
 };
 
+static void turn_on_pll3(void)
+{
+	u32 tmp = __raw_readl(PMUM_PLL3_CTRL2);
+
+	/* set SEL_VCO_CLK_SE in PMUM_PLL3_CTRL2 register*/
+	__raw_writel(tmp | 0x00000001, PMUM_PLL3_CTRL2);
+
+	/* PLL3 control register 1 - program VCODIV_SEL_SE = 2,
+	 * ICP = 4, KVCO = 5 and VCRNG = 4*/
+	__raw_writel(0x05290499, PMUM_PLL3_CTRL1);
+
+	/*MPMU_PLL3CR: Program PLL3 VCO for 2.0Ghz -REFD = 3;*/
+	tmp = (__raw_readl(APMU_USBFSIC) >> 8) & 0xF;
+	if (tmp == 0xD)
+		/* 26MHz ref clock to HDMI\DSI\USB PLLs,
+		 * MPMU_PLL3CR ;FBD = 0xE6
+		 */
+		__raw_writel(0x001B9A00, PMUM_PLL3_CR);
+	else
+		/* 25MHz ref clock to HDMI\DSI\USB PLLs,
+		 * MPMU_PLL3CR ;FBD = 0xF6
+		 */
+		__raw_writel(0x001BdA00, PMUM_PLL3_CR);
+
+	/* PLL3 Control register -Enable SW PLL3*/
+	tmp = __raw_readl(PMUM_PLL3_CR);
+	__raw_writel(tmp | 0x00000100, PMUM_PLL3_CR);
+
+	/* wait for PLLs to lock*/
+	udelay(500);
+
+	/* PMUM_PLL3_CTRL1: take PLL3 out of reset*/
+	tmp = __raw_readl(PMUM_PLL3_CTRL1);
+	__raw_writel(tmp | 0x20000000, PMUM_PLL3_CTRL1);
+
+	udelay(500);
+}
+
+static void turn_off_pll3(void)
+{
+	u32 tmp = __raw_readl(PMUM_PLL3_CR);
+
+	/* PLL3 Control register -disable SW PLL3*/
+	__raw_writel(tmp & ~0x00000100, PMUM_PLL3_CR);
+
+	/* wait for PLLs to lock*/
+	udelay(500);
+
+	/* PMUM_PLL3_CTRL1: put PLL3 into reset*/
+	tmp = __raw_readl(PMUM_PLL3_CTRL1);
+	__raw_writel(tmp & ~0x20000000, PMUM_PLL3_CTRL1);
+
+	udelay(500);
+}
+
+static void lcd_pn1_clk_enable(struct clk *clk)
+{
+	u32 tmp;
+
+	/* DSI clock enable*/
+	turn_on_pll3();
+
+	tmp = __raw_readl(clk->clk_rst);
+	tmp |= 0x103f;
+	__raw_writel(tmp, clk->clk_rst);
+}
+
+static void lcd_pn1_clk_disable(struct clk *clk)
+{
+	u32 tmp = __raw_readl(clk->clk_rst);
+	/* tmp &= ~0xf9fff; */
+	tmp &= ~0x1038; /* release from reset to keep register setting */
+	__raw_writel(tmp, clk->clk_rst);
+
+	/* DSI clock disable*/
+	turn_off_pll3();
+}
+
+static int lcd_clk_setrate(struct clk *clk, unsigned long val)
+{
+	u32 tmp = __raw_readl(clk->clk_rst);
+	/* u32 pll2clk = pll2_get_clk(); */
+
+	tmp &= ~((0x1f << 15) | (0xf << 8) | (0x3 << 6));
+	tmp |= (0x1a << 15);
+
+	switch (val) {
+	case 400000000:
+		/* DSP1clk = PLL1/2 = 400MHz */
+		tmp |= (0x2 << 8) | (0x0 << 6);
+		break;
+	case 500000000:
+		/* DSP1clk = PLL2/x, about 500MHz, temply workaround */
+		tmp |= (0x2 << 8) | (0x2 << 6);
+		break;
+	default:
+		printk(KERN_ERR"%s %d not supported\n", __func__, (int) val);
+		return -1;
+	}
+
+	__raw_writel(tmp, clk->clk_rst);
+	return 0;
+}
+
+static unsigned long lcd_clk_getrate(struct clk *clk)
+{
+	u32 lcdclk = clk->rate;
+
+	return lcdclk;
+}
+
+struct clkops lcd_pn1_clk_ops = {
+	.enable = lcd_pn1_clk_enable,
+	.disable = lcd_pn1_clk_disable,
+	.setrate = lcd_clk_setrate,
+	.getrate = lcd_clk_getrate,
+};
+
 void __init mmp3_init_irq(void)
 {
 	gic_init(0, 29, (void __iomem *) GIC_DIST_VIRT_BASE, (void __iomem *) GIC_CPU_VIRT_BASE);
@@ -283,6 +401,7 @@ static APMU_CLK_OPS(sdh0, SDH0, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(sdh1, SDH1, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(sdh2, SDH2, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(sdh3, SDH3, 0x1b, 200000000, &sdhc_clk_ops);
+static APMU_CLK_OPS(lcd, LCD, 0, 500000000, &lcd_pn1_clk_ops);
 
 static struct clk_lookup mmp3_clkregs[] = {
 	INIT_CLKREG(&clk_uart1, "pxa2xx-uart.0", NULL),
@@ -295,6 +414,7 @@ static struct clk_lookup mmp3_clkregs[] = {
 	INIT_CLKREG(&clk_twsi4, "pxa2xx-i2c.3", NULL),
 	INIT_CLKREG(&clk_twsi5, "pxa2xx-i2c.4", NULL),
 	INIT_CLKREG(&clk_twsi6, "pxa2xx-i2c.5", NULL),
+	INIT_CLKREG(&clk_lcd, NULL, "LCDCLK"),
 	INIT_CLKREG(&clk_pwm1, "mmp2-pwm.0", NULL),
 	INIT_CLKREG(&clk_pwm2, "mmp2-pwm.1", NULL),
 	INIT_CLKREG(&clk_pwm3, "mmp2-pwm.2", NULL),
@@ -445,6 +565,7 @@ MMP3_DEVICE(pwm2, "mmp2-pwm", 1, NONE, 0xd401a400, 0x10);
 MMP3_DEVICE(pwm3, "mmp2-pwm", 2, NONE, 0xd401a800, 0x10);
 MMP3_DEVICE(pwm4, "mmp2-pwm", 3, NONE, 0xd401ac00, 0x10);
 MMP3_DEVICE(keypad, "pxa27x-keypad", -1, KEYPAD, 0xd4012000, 0x4c);
+MMP3_DEVICE(fb, "pxa168-fb", 0, LCD, 0xd420b000, 0x500);
 
 void mmp3_clear_keypad_wakeup(void)
 {
