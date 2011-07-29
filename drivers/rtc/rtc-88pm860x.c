@@ -369,6 +369,35 @@ out:
 }
 #endif
 
+#ifdef CONFIG_PM
+static int pm860x_rtc_suspend(struct device *dev)
+{
+	struct pm860x_rtc_info *info = dev_get_drvdata(dev);
+
+	if (device_may_wakeup(dev)) {
+		enable_irq_wake(info->chip->core_irq);
+		enable_irq_wake(info->irq);
+	}
+	return 0;
+}
+
+static int pm860x_rtc_resume(struct device *dev)
+{
+	struct pm860x_rtc_info *info = dev_get_drvdata(dev);
+
+	if (device_may_wakeup(dev)) {
+		disable_irq_wake(info->chip->core_irq);
+		disable_irq_wake(info->irq);
+	}
+	return 0;
+}
+
+static struct dev_pm_ops pm860x_rtc_pm_ops = {
+	.suspend	= pm860x_rtc_suspend,
+	.resume		= pm860x_rtc_resume,
+};
+#endif
+
 static int __devinit pm860x_rtc_probe(struct platform_device *pdev)
 {
 	struct pm860x_chip *chip = dev_get_drvdata(pdev->dev.parent);
@@ -469,6 +498,8 @@ static int __devinit pm860x_rtc_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&info->calib_work, calibrate_vrtc_work);
 	schedule_delayed_work(&info->calib_work, VRTC_CALIB_INTERVAL);
 #endif	/* VRTC_CALIBRATION */
+	device_init_wakeup(&pdev->dev, 1);
+
 	return 0;
 out_rtc:
 	free_irq(info->irq, info);
@@ -498,6 +529,9 @@ static struct platform_driver pm860x_rtc_driver = {
 	.driver		= {
 		.name	= "88pm860x-rtc",
 		.owner	= THIS_MODULE,
+#ifdef CONFIG_PM
+		.pm	= &pm860x_rtc_pm_ops,
+#endif
 	},
 	.probe		= pm860x_rtc_probe,
 	.remove		= __devexit_p(pm860x_rtc_remove),
