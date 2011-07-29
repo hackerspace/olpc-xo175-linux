@@ -289,7 +289,7 @@ static unsigned int pm860x_read_reg_cache(struct snd_soc_codec *codec,
 
 	BUG_ON(reg >= REG_CACHE_SIZE);
 
-	if (pm860x_volatile(reg))
+	if (!pm860x_volatile(reg))
 		return cache[reg];
 
 	reg += REG_CACHE_BASE;
