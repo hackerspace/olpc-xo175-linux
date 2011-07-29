@@ -1416,4 +1416,10 @@ config SENSORS_ORIENTATION
 	tristate "Yamaha Orientation Sensor"
 	depends on I2C && SENSORS_YAS529 && SENSORS_LIS331DL
 
+config SENSORS_CWMI
+	tristate "CyWee CWMI 6-axis motion sensor"
+	depends on I2C && INPUT
+	help
+		This driver provides support for CWMI.
+
 endif # HWMON
