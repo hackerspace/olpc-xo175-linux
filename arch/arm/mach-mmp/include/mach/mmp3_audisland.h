@@ -1,0 +1,11 @@
+#ifndef __MACH_MMP3_AUDISLAND_H
+#define __MACH_MMP3_AUDISLAND_H
+
+#define AUD_PHYS_BASE		0xc0ffd000
+#define AUD_VIRT_BASE		0xfeffd000
+#define AUD_PHYS_SIZE		0x00003000
+#define AUD_PHYS_BASE2		0xc0140000
+#define AUD_VIRT_BASE2		0xfef40000
+#define AUD_PHYS_SIZE2		0x00010000
+
+#endif /* __MACH_MMP3_AUDISLAND_H */
