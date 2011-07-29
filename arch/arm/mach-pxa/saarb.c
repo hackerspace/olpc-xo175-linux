@@ -18,6 +18,7 @@
 #include <linux/mfd/88pm860x.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
+#include <linux/platform_data/pxa_sdhci.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -364,6 +365,19 @@ static void __init init_lcd(void)
 }
 #endif
 
+#if defined(CONFIG_MMC_SDHCI_PXAV2)
+static struct sdhci_pxa_platdata mci0_platform_data = {
+	.flags	= PXA_FLAG_CARD_PERMANENT | PXA_FLAG_SD_8_BIT_CAPABLE_SLOT,
+};
+
+static void __init init_mmc(void)
+{
+	/*add emmc only, need to add sdcard and sdio later*/
+	pxa95x_set_mci_info(0, &mci0_platform_data);
+}
+
+#endif
+
 
 static void __init saarb_init(void)
 {
@@ -387,6 +401,10 @@ static void __init saarb_init(void)
 
 #if defined(CONFIG_FB_PXA95x)
 	init_lcd();
+#endif
+
+#if defined(CONFIG_MMC_SDHCI_PXAV2)
+	init_mmc();
 #endif
 
 }
