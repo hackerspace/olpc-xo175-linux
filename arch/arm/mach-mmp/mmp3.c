@@ -34,6 +34,7 @@
 #include <mach/devices.h>
 #include <mach/mmp3.h>
 #include <mach/regs-usb.h>
+#include <mach/mmp2_dma.h>
 
 #include <linux/platform_device.h>
 
@@ -660,6 +661,8 @@ static int __init mmp3_init(void)
 	mfp_init_addr(mmp3_addr_map);
 
 	mmp3_init_gpio();
+
+	pxa688_init_dma(IRQ_MMP3_DMA_RIQ);
 
 	clkdev_add_table(ARRAY_AND_SIZE(mmp3_clkregs));
 
