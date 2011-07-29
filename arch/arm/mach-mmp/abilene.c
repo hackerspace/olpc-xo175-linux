@@ -524,6 +524,10 @@ static void __init abilene_init(void)
 
 	platform_device_register(&mmp3_device_rtc);
 
+	/* audio sspa support */
+	mmp3_add_sspa(1);
+	mmp3_add_sspa(2);
+
 #ifdef CONFIG_USB_PXA_U2O
 	mmp3_device_u2o.dev.platform_data = (void *)&mmp3_usb_pdata;
 	platform_device_register(&mmp3_device_u2o);
