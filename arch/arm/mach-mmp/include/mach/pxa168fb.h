@@ -230,11 +230,19 @@ struct _sColorKeyNAlpha {
 	unsigned int V_ColorAlpha;
 };
 
+struct _sDualInfo {
+	unsigned int rotate;
+	FBVideoMode videoMode;
+	struct _sVideoBufferAddr videoBufferAddr;
+};
+
 struct _sOvlySurface {
 	FBVideoMode videoMode;
 	struct _sViewPortInfo viewPortInfo;
 	struct _sViewPortOffset viewPortOffset;
 	struct _sVideoBufferAddr videoBufferAddr;
+	/* field used for lcd mirror mode */
+	struct _sDualInfo dualInfo;
 	unsigned int user_data[4];
 };
 
@@ -346,6 +354,8 @@ struct pxa168fb_info {
 	unsigned char		*buf_waitlist[MAX_QUEUE_NUM];
 	unsigned char		*buf_current;
 	unsigned char		*buf_retired;
+	unsigned int		buf_flipped;
+	unsigned int		buf_displayed;
 	dma_addr_t		fb_start_dma;
 	void			*fb_start;
 	int			fb_size;
@@ -373,6 +383,8 @@ struct pxa168fb_info {
 	int                     debug;
 	unsigned		is_blanked:1,
 				surface_set:1,
+				ckalpha_set:1,
+				update_addr:1,
 				active:1;
 
 	/* lock for variables, e.g. active */
@@ -552,12 +564,18 @@ struct pxa168fb_mach_info {
 
 struct fbi_info {
 	struct pxa168fb_info *fbi[3];
+	/* panel path resolution */
 	int	xres;
 	int	yres;
-	int	xres_z;
-	int	yres_z;
+	/* panel path */
 	int	bpp;
 	int	xres_virtual;
+	/* TV path resolution & position */
+	int	xres_z;
+	int	yres_z;
+	int	left_z;
+	int	top_z;
+	unsigned int	rotate_addr;
 	/* flag for overlay buffer management:
 	 *	0: wait_for_vsync at GET_FREELIST;
 	 *	1: wait_peer @ pxa168fb_ovly_isr */

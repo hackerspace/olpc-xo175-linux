@@ -1301,6 +1301,19 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 			isr, gfx, vid, imask); */
 		irq_status_clear(0, gfx | vid | err);
 
+		/* video layer */
+		if (vid) {
+			for (id = 0; id < 2; id++) {
+				sts = imask & vid & vid_imask(id);
+				if (sts)
+#ifdef CONFIG_PXA168_V4L2_OVERLAY
+					pxa168_ovly_isr(id);
+#else
+					pxa168fb_ovly_isr(id);
+#endif
+			}
+		}
+
 		/* graphics layer */
 		if (gfx) {
 			for (id = 0; id < 2; id++) {
