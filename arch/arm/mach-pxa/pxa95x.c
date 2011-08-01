@@ -686,6 +686,7 @@ static DEFINE_PXA3_CKEN(pxa95x_sdh1, PXA95x_MMC2, 200000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_sdh2, PXA95x_MMC3, 200000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_sdh3, PXA95x_MMC4, 200000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_vmeta, VMETA, 312000000, 0);
+static DEFINE_PXA3_CKEN(pxa95x_abu, ABU, 20000000, 0);
 
 static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_pout, NULL, "CLK_POUT"),
@@ -716,6 +717,7 @@ static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_sdh1, "sdhci-pxav2.1", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_pxa95x_sdh2, "sdhci-pxav2.2", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_pxa95x_sdh3, "sdhci-pxav2.3", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_pxa95x_abu, NULL, "PXA95X_ABUCLK"),
 };
 
 void __init pxa95x_init_irq(void)
@@ -742,6 +744,8 @@ static struct platform_device *devices[] __initdata = {
 	&pxa3xx_device_ssp4,
 	&pxa27x_device_pwm0,
 	&pxa27x_device_pwm1,
+	&pxa_device_asoc_abu,
+	&pxa_device_asoc_abu_platform,
 };
 
 static int __init pxa95x_init(void)

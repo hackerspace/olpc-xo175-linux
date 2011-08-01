@@ -40,10 +40,12 @@ extern struct platform_device pxa3xx_device_i2c_power;
 extern struct platform_device pxa3xx_device_gcu;
 
 extern struct platform_device pxa_device_asoc_platform;
+extern struct platform_device pxa_device_asoc_abu_platform;
 extern struct platform_device pxa_device_asoc_ssp1;
 extern struct platform_device pxa_device_asoc_ssp2;
 extern struct platform_device pxa_device_asoc_ssp3;
 extern struct platform_device pxa_device_asoc_ssp4;
+extern struct platform_device pxa_device_asoc_abu;
 extern struct platform_device pxa95x_device_i2c1;
 extern struct platform_device pxa95x_device_i2c2;
 extern struct platform_device pxa95x_device_i2c3;

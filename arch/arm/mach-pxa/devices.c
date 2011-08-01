@@ -377,8 +377,18 @@ struct platform_device pxa_device_asoc_ssp4 = {
 	.id		= 3,
 };
 
+struct platform_device pxa_device_asoc_abu = {
+	.name		= "pxa95x-abu-dai",
+	.id		= -1,
+};
+
 struct platform_device pxa_device_asoc_platform = {
 	.name		= "pxa-pcm-audio",
+	.id		= -1,
+};
+
+struct platform_device pxa_device_asoc_abu_platform = {
+	.name		= "pxa95x-pcm-abu",
 	.id		= -1,
 };
 
