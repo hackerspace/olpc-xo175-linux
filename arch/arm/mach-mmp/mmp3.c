@@ -123,6 +123,7 @@ static void uart_clk_enable(struct clk *clk)
 	__raw_writel(clk_rst, clk->clk_rst);
 }
 
+
 static void uart_clk_disable(struct clk *clk)
 {
 	__raw_writel(0, clk->clk_rst);
@@ -167,12 +168,12 @@ static int uart_clk_setrate(struct clk *clk, unsigned long val)
 		    (numer << PMUM_SUCCR_UARTDIVN_BASE) | (denom <<
 							   PMUM_SUCCR_UARTDIVD_BASE);
 		__raw_writel(clk_rst, MPMU_SUCCR);
-
 		/* choose programmable clk */
 		clk_rst = __raw_readl(clk->clk_rst);
 		clk_rst &= ~(APBC_FNCLKSEL(0x7));
 		__raw_writel(clk_rst, clk->clk_rst);
 	}
+
 
 	return 0;
 }
@@ -367,6 +368,126 @@ struct clkops lcd_pn1_clk_ops = {
 	.getrate = lcd_clk_getrate,
 };
 
+#define GC_CLK_DIV(n)	((n & 0xF) << 24)
+#define GC_CLK_DIV_GET(n)	((n >> 24) & 0xF)
+#define GC_CLK_DIV_MSK	GC_CLK_DIV(0xF)
+#define GC360_CLK_EN	(1 << 23)
+#define GC360_SW_RST	(1 << 22)
+#define GC360_CLK_SRC_SE(n)	((n & 3) << 20)
+#define GC360_CLK_SRC_SE_MSK	GC360_CLK_SRC_SE(3)
+#define		CS_PLL1		0
+#define		CS_PLL2		1
+#define		CS_PLL1_COP	2
+#define		CS_PLL2_COP	3
+#define GC360_AXICLK_EN	(1 << 19)
+#define GC360_AXI_RST	(1 << 18)
+#define GC_PWRUP(n)		((n & 3) << 9)
+#define GC_PWRUP_MSK	GC_PWRUP(3)
+#define		PWR_OFF		0
+#define		PWR_SLOW_RAMP	1
+#define		PWR_ON		3
+#define GC_ISB			(1 << 8)
+#define GC_CLK_SRC_SEL(n)	((n & 3) << 6)
+#define GC_CLK_SRC_SEL_MSK	GC_CLK_SRC_SEL(3)
+#define GC_ACLK_SEL(n)	((n & 3) << 4)
+#define GC_ACLK_SEL_MSK	GC_ACLK_SEL(3)
+#define		PLL1D4		0
+#define		PLL1D6		1
+#define		PLL1D2		2
+#define		PLL2D2		3
+#define GC_CLK_EN		(1 << 3)
+#define GC_AXICLK_EN	(1 << 2)
+#define GC_RST			(1 << 1)
+#define GC_AXI_RST		(1 << 0)
+
+#define GC_CLK_RATE(div, src, aclk) (GC_CLK_DIV(div) |\
+	GC_CLK_SRC_SEL(src) | GC_ACLK_SEL(aclk))
+
+#define GC_CLK_RATE_MSK	(GC_CLK_DIV_MSK |\
+	GC_CLK_SRC_SEL_MSK | GC_ACLK_SEL_MSK)
+
+#define GC_SET_BITS(set, clear)	{\
+	unsigned long tmp;\
+	tmp = __raw_readl(clk->clk_rst);\
+	tmp &= ~clear;\
+	tmp |= set;\
+	__raw_writel(tmp, clk->clk_rst);\
+}
+
+struct clk_gc_cfg {
+	unsigned long rate;
+	unsigned long cfg;
+};
+
+static struct clk_gc_cfg mmp3_gc_clk[] = {
+	{ 99000000,	GC_CLK_RATE(8,	CS_PLL1,	PLL1D6) }, /* 0 */
+	{ 199000000,	GC_CLK_RATE(4,	CS_PLL1,	PLL1D4) }, /* 1 */
+	{ 354000000,	GC_CLK_RATE(3,	CS_PLL1_COP,	PLL1D2) }, /* 2 */
+	{ 398000000,	GC_CLK_RATE(2,	CS_PLL1,	PLL1D2) }, /* 3 */
+	{ 531000000,	GC_CLK_RATE(2,	CS_PLL1_COP,	PLL1D2) }, /* 4 */
+	{ 667000000,	GC_CLK_RATE(2,	CS_PLL2,	PLL2D2) }, /* 5 */
+	{ 797000000,	GC_CLK_RATE(1,	CS_PLL1,	PLL1D2) }, /* 6 */
+	{ 889000000,	GC_CLK_RATE(1,	CS_PLL2_COP,	PLL2D2) }, /* 7 */
+	{ 1063000000,	GC_CLK_RATE(1,	CS_PLL1_COP,	PLL1D2) }, /* 8 */
+	{ 1334000000,	GC_CLK_RATE(1,	CS_PLL2_COP,	PLL2D2) }, /* 9 */
+};
+
+#define SZ_GC_TABLE (sizeof(mmp3_gc_clk)/sizeof(struct clk_gc_cfg))
+
+unsigned long gc_clk_rate_index = 3;
+
+static void gc_clk_enable(struct clk *clk)
+{
+	unsigned long gc_rate;
+
+	GC_SET_BITS(GC_PWRUP(PWR_SLOW_RAMP), -1);
+	GC_SET_BITS(GC_PWRUP(PWR_ON), GC_PWRUP_MSK);
+
+	gc_rate = mmp3_gc_clk[gc_clk_rate_index].cfg;
+	gc_rate &= GC_CLK_RATE_MSK;
+	GC_SET_BITS(gc_rate, GC_CLK_RATE_MSK);
+
+	GC_SET_BITS(GC_CLK_EN, 0);
+	udelay(100);
+
+	GC_SET_BITS(GC_AXICLK_EN, 0);
+	udelay(100);
+
+	GC_SET_BITS(GC_ISB, 0);
+	GC_SET_BITS(GC_RST, 0);
+	GC_SET_BITS(GC_AXI_RST, 0);
+}
+
+static void gc_clk_disable(struct clk *clk)
+{
+	GC_SET_BITS(0, GC_ISB);
+	GC_SET_BITS(0, GC_RST | GC_AXI_RST);
+	GC_SET_BITS(0, GC_CLK_EN | GC_AXICLK_EN);
+	GC_SET_BITS(0, GC_PWRUP_MSK);
+}
+
+static int gc_clk_setrate(struct clk *clk, unsigned long rate)
+{
+	unsigned long i;
+
+	for (i=0; (i < SZ_GC_TABLE) && (rate > mmp3_gc_clk[i].rate); i++);
+	gc_clk_rate_index = i;
+
+	return 0;
+}
+
+static unsigned long gc_clk_getrate(struct clk *clk)
+{
+	return mmp3_gc_clk[gc_clk_rate_index].rate;
+}
+
+struct clkops gc_clk_ops = {
+	.enable		= gc_clk_enable,
+	.disable	= gc_clk_disable,
+	.setrate	= gc_clk_setrate,
+	.getrate	= gc_clk_getrate,
+};
+
 void __init mmp3_init_irq(void)
 {
 	gic_init(0, 29, (void __iomem *) GIC_DIST_VIRT_BASE, (void __iomem *) GIC_CPU_VIRT_BASE);
@@ -402,6 +523,7 @@ static APMU_CLK_OPS(sdh1, SDH1, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(sdh2, SDH2, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(sdh3, SDH3, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(lcd, LCD, 0, 500000000, &lcd_pn1_clk_ops);
+static APMU_CLK_OPS(gc, GC, 0, 0, &gc_clk_ops);
 
 static struct clk_lookup mmp3_clkregs[] = {
 	INIT_CLKREG(&clk_uart1, "pxa2xx-uart.0", NULL),
@@ -428,6 +550,7 @@ static struct clk_lookup mmp3_clkregs[] = {
 	INIT_CLKREG(&clk_rtc, "mmp-rtc", NULL),
 	INIT_CLKREG(&clk_u2o, NULL, "U2OCLK"),
 	INIT_CLKREG(&clk_hsic1, NULL, "HSIC1CLK"),
+	INIT_CLKREG(&clk_gc, NULL, "GCCLK"),
 };
 
 #ifdef CONFIG_CACHE_L2X0
@@ -481,6 +604,7 @@ static void __init mmp3_timer_init(void)
 #ifdef CONFIG_LOCAL_TIMERS
 	twd_base = (void __iomem *)TWD_VIRT_BASE;
 #endif
+
 	/* this is early, we have to initialize the CCU registers by
 	 * ourselves instead of using clk_* API. Clock rate is defined
 	 * by APBC_TIMERS_FNCLKSEL and enabled free-running
