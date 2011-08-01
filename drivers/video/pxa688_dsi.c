@@ -40,7 +40,6 @@
 #include <mach/irqs.h>
 #include <mach/pxa168fb.h>
 #include <mach/hardware.h>
-#include <mach/cputype.h>
 #include <mach/gpio.h>
 
 #include <asm/mach-types.h>
@@ -130,40 +129,6 @@ void pxa168fb_dsi_send(struct pxa168fb_info *fbi, void *value)
 	/* send out the packet */
 	tmp = 0xC8000000 | count; writel(tmp, &dsi->cmd0);
 	pr_debug("write count is 0x%08x\r\n", tmp);
-
-	/* XM: workaround for race condition before A2 stepping */
-	if (cpu_is_mmp2_a0() || cpu_is_mmp2_a1() ||
-		cpu_is_mmp2_z0() || cpu_is_mmp2_z1()) {
-		unsigned int count = 0;
-
-		for (count = 0; count < 10; count++) {
-			/* reg@0xa8 is a register for debugging purpose; it is
-			 * a reflection of the dsi logic and phy interface */
-			reg = readl(fbi->dsi1_reg_base + 0xa8);
-
-			if (firstPacket != reg) {
-				/* adjust clk phase used for dsi buffer index so
-				 * that dsi sends the right packet. The data are
-				 * still retained in DSI buffer after sending */
-				pr_debug("dsi LP racing condition w/a\r\n");
-				count = 0;
-
-				/* Adjust clk phase */
-				sclk_div_set(fbi->id, 2); mdelay(4);
-				sclk_div_set(fbi->id, 6);
-
-				/* Reset dsi module */
-				reg = readl(&dsi->ctrl0) | (0x1 << 31);
-				writel(reg, &dsi->ctrl0); msleep(1);
-				reg &= ~(0x1 << 31);
-				writel(reg, &dsi->ctrl0); msleep(1);
-
-				/* send out the packet again */
-				writel(tmp, &dsi->cmd0);
-			} else
-				break;
-		}
-	}
 
 	/* wait for completion */
 	while (readl(&dsi->cmd0) & 0x80000000)
@@ -405,10 +370,7 @@ void dsi_set_controller(struct pxa168fb_info *fbi)
 	 * done below). In a later stepping of the processor this workaround
 	 * will not be required.
 	 */
-	if (cpu_is_mmp2_z0() || cpu_is_mmp2_z1())
-		writel(((0xa) << 16) | (v_total), &dsi_lcd->timing2);
-	else
-		writel(((var->yres)<<16) | (v_total), &dsi_lcd->timing2);
+	writel(((var->yres)<<16) | (v_total), &dsi_lcd->timing2);
 
 	writel(((var->vsync_len) << 16) | (var->upper_margin),
 		 &dsi_lcd->timing3);
@@ -469,11 +431,7 @@ void dsi_set_controller(struct pxa168fb_info *fbi)
 	writel(reg, &dsi->ctrl0);
 	mdelay(100);
 
-	/* FIXME - second part of the workaround */
-	if (cpu_is_mmp2_z0() || cpu_is_mmp2_z1())
-		writel(((var->yres - 2)<<16) | (v_total), &dsi_lcd->timing2);
-	else
-		writel(((var->yres)<<16) | (v_total), &dsi_lcd->timing2);
+	writel(((var->yres)<<16) | (v_total), &dsi_lcd->timing2);
 }
 
 ssize_t dsi_show(struct device *dev, struct device_attribute *attr,
