@@ -4,12 +4,16 @@ snd-soc-pxa2xx-ac97-objs := pxa2xx-ac97.o
 snd-soc-pxa2xx-i2s-objs := pxa2xx-i2s.o
 snd-soc-pxa-ssp-objs := pxa-ssp.o
 snd-soc-mmp3-objs := mmp2-sspa.o mmp2-squ.o
+snd-soc-pxa95x-abu-objs := pxa95x-abu.o
+snd-soc-pxa95x-pcm-abu-objs := pxa95x-pcm-abu.o
 
 obj-$(CONFIG_SND_PXA2XX_SOC) += snd-soc-pxa2xx.o
 obj-$(CONFIG_SND_PXA2XX_SOC_AC97) += snd-soc-pxa2xx-ac97.o
 obj-$(CONFIG_SND_PXA2XX_SOC_I2S) += snd-soc-pxa2xx-i2s.o
 obj-$(CONFIG_SND_PXA_SOC_SSP) += snd-soc-pxa-ssp.o
 obj-$(CONFIG_SND_MMP3_SOC) += snd-soc-mmp3.o
+obj-$(CONFIG_SND_PXA95X_SOC_ABU) += snd-soc-pxa95x-abu.o
+obj-$(CONFIG_SND_PXA95X_SOC_ABU) += snd-soc-pxa95x-pcm-abu.o
 
 # PXA Machine Support
 snd-soc-corgi-objs := corgi.o

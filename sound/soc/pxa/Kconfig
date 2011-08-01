@@ -26,6 +26,13 @@ config SND_PXA_SOC_SSP
 	tristate
 	select PXA_SSP
 
+config SND_PXA95X_SOC_ABU
+	tristate "SoC Audio for ABU of Marvell PXA95x chip"
+	depends on PXA95x
+	help
+	  Say Y if you want to add support for the Audio Buffer
+	  Unit(ABU) on Marvell PXA95x chip.
+
 config SND_PXA2XX_SOC_CORGI
 	tristate "SoC Audio support for Sharp Zaurus SL-C7x0"
 	depends on SND_PXA2XX_SOC && PXA_SHARP_C7xx
@@ -120,7 +127,7 @@ config SND_PXA2XX_SOC_PALM27X
 
 config SND_SOC_SAARB
 	tristate "SoC Audio support for Marvell Saarb"
-	depends on SND_PXA2XX_SOC && MACH_SAARB
+	depends on MACH_SAARB
 	select SND_PXA_SOC_SSP
 	select SND_SOC_88PM860X
 	help
