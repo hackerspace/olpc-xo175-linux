@@ -114,9 +114,9 @@ static struct snd_soc_dai_link saarb_dai[] = {
 	{
 		.name		= "88PM860x I2S",
 		.stream_name	= "I2S Audio",
-		.cpu_dai_name	= "pxa-ssp-dai.1",
+		.cpu_dai_name	= "pxa95x-abu-dai",
 		.codec_dai_name	= "88pm860x-i2s",
-		.platform_name	= "pxa-pcm-audio",
+		.platform_name	= "pxa95x-pcm-abu",
 		.codec_name	= "88pm860x-codec",
 		.init		= saarb_pm860x_init,
 		.ops		= &saarb_i2s_ops,
