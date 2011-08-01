@@ -633,5 +633,13 @@ config MSM_SMD_PKT
 	  Enables userspace clients to read and write to some packet SMD
 	  ports via device interface for MSM chipset.
 
+config PXA9XX_ACIPC
+	tristate "PXA910,PXA93x,PXA95x AC-IPC Driver"
+	depends on CPU_PXA910 || PXA93x || PXA95x
+	help
+	  Please say Y here if want to support Application to Communication
+	  Intel-Processor Communication on PXA910,PXA93x,PXA95x chip
+
+
 endmenu
 
