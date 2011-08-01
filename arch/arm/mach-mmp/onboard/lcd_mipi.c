@@ -570,6 +570,7 @@ void __init abilene_add_lcd_mipi(void)
 
 	/* add frame buffer drivers */
 	mmp3_add_fb(fb);
+	mmp3_add_fb_ovly(ovly);
 }
 
 void __init yellowstone_add_lcd_mipi(void)
@@ -603,4 +604,5 @@ void __init yellowstone_add_lcd_mipi(void)
 
 	/* add frame buffer drivers */
 	mmp3_add_fb(fb);
+	mmp3_add_fb_ovly(ovly);
 }
