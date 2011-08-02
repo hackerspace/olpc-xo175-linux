@@ -942,6 +942,9 @@ static __devinit int pm860x_charger_probe(struct platform_device *pdev)
 	}
 	info->dev = &pdev->dev;
 
+	/* set init value for the case we are not using battery*/
+	set_vchg_threshold(info, VCHG_NORMAL_LOW, VCHG_OVP_LOW);
+
 #if !defined(CONFIG_USB_GADGET_PXA_U2O)
 	ret = request_threaded_irq(info->irq[0], NULL,
 				   pm860x_charger_handler,
