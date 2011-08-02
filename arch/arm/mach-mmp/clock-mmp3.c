@@ -645,6 +645,27 @@ struct clkops apbc_clk_ops = {
 	.parent = _parent,				\
 }
 
+static void uart_clk_init(struct clk *clk)
+{
+	clk->mul = clk->div = 1;
+	/*
+	 * Bit(s) PMUM_SUCCR_RSRV_31_29 reserved
+	 * UART Clock Generation Programmable Divider
+	 * Numerator Value
+	 */
+	clk->reg_data[DIV][CONTROL].reg = MPMU_SUCCR;
+	clk->reg_data[DIV][CONTROL].reg_shift = 16;
+	clk->reg_data[DIV][CONTROL].reg_mask = 0x1fff;
+	/*
+	 * Bit(s) PMUM_SUCCR_RSRV_15_13 reserved
+	 * UART Clock Generation Programmable Divider
+	 * Denominator Value
+	 */
+	clk->reg_data[MUL][CONTROL].reg = MPMU_SUCCR;
+	clk->reg_data[MUL][CONTROL].reg_shift = 0;
+	clk->reg_data[MUL][CONTROL].reg_mask = 0x1fff;
+}
+
 static int uart_clk_enable(struct clk *clk)
 {
 	uint32_t clk_rst;
@@ -661,6 +682,19 @@ static int uart_clk_enable(struct clk *clk)
 	clk_rst &= ~(APBC_RST);
 	__raw_writel(clk_rst, clk->clk_rst);
 
+	if (clk->rate == clk_get_rate(&mmp3_clk_vctcxo)) {
+		/* choose vctcxo */
+		clk_rst = __raw_readl(clk->clk_rst);
+		clk_rst &= ~(APBC_FNCLKSEL(0x7));
+		clk_rst |= APBC_FNCLKSEL(0x1);
+		__raw_writel(clk_rst, clk->clk_rst);
+	} else {
+		/* choose programmable clk */
+		clk_rst = __raw_readl(clk->clk_rst);
+		clk_rst &= ~(APBC_FNCLKSEL(0x7));
+		__raw_writel(clk_rst, clk->clk_rst);
+	}
+
 	return 0;
 }
 
@@ -670,18 +704,32 @@ static void uart_clk_disable(struct clk *clk)
 	mdelay(1);
 }
 
+static long uart_clk_round_rate(struct clk *clk, unsigned long rate)
+{
+	unsigned long parent_rate;
+
+	if (rate >= clk_get_rate(&mmp3_clk_vctcxo)) {
+		parent_rate = clk_get_rate(&mmp3_clk_pll1_d_4);
+		return parent_rate * 16 / 27 / 2;
+	} else
+		return clk_get_rate(&mmp3_clk_vctcxo);
+}
+
 static int uart_clk_setrate(struct clk *clk, unsigned long val)
 {
 	uint32_t clk_rst;
 
-	if (val == clk->rate) {
+	if (val == clk_get_rate(&mmp3_clk_vctcxo)) {
 		/* choose vctcxo */
 		clk_rst = __raw_readl(clk->clk_rst);
 		clk_rst &= ~(APBC_FNCLKSEL(0x7));
 		clk_rst |= APBC_FNCLKSEL(0x1);
 		__raw_writel(clk_rst, clk->clk_rst);
 
-	} else if (val > clk->rate) {
+		clk->div = clk->mul = 1;
+
+		clk_reparent(clk, &mmp3_clk_vctcxo);
+	} else {
 		/* set m/n for high speed */
 		unsigned int numer = 27;
 		unsigned int denom = 16;
@@ -692,42 +740,34 @@ static int uart_clk_setrate(struct clk *clk, unsigned long val)
 		 * buadrate = clk/(16*divisor)
 		 */
 
-		/*
-		 * Bit(s) PMUM_SUCCR_RSRV_31_29 reserved
-		 * UART Clock Generation Programmable Divider
-		 * Numerator Value
-		 */
-#define PMUM_SUCCR_UARTDIVN_MSK                 (0x1fff << 16)
-#define PMUM_SUCCR_UARTDIVN_BASE                16
-		/*
-		 * Bit(s) PMUM_SUCCR_RSRV_15_13 reserved
-		 * UART Clock Generation Programmable Divider
-		 * Denominator Value
-		 */
-#define PMUM_SUCCR_UARTDIVD_MSK                 (0x1fff)
-#define PMUM_SUCCR_UARTDIVD_BASE                0
-
-		clk_rst = __raw_readl(MPMU_SUCCR);
-		clk_rst &=
-		    ~(PMUM_SUCCR_UARTDIVN_MSK + PMUM_SUCCR_UARTDIVD_MSK);
-		clk_rst |=
-		    (numer << PMUM_SUCCR_UARTDIVN_BASE) |
-		    (denom << PMUM_SUCCR_UARTDIVD_BASE);
-		__raw_writel(clk_rst, MPMU_SUCCR);
+		clk_rst = __raw_readl(clk->reg_data[DIV][CONTROL].reg);
+		clk_rst &= ~(clk->reg_data[DIV][CONTROL].reg_mask <<
+				clk->reg_data[DIV][CONTROL].reg_shift);
+		clk_rst |= numer << clk->reg_data[DIV][CONTROL].reg_shift;
+		clk_rst &= ~(clk->reg_data[MUL][CONTROL].reg_mask <<
+				clk->reg_data[MUL][CONTROL].reg_shift);
+		clk_rst |= denom << clk->reg_data[MUL][CONTROL].reg_shift;
+		__raw_writel(clk_rst, clk->reg_data[DIV][CONTROL].reg);
 
 		/* choose programmable clk */
 		clk_rst = __raw_readl(clk->clk_rst);
 		clk_rst &= ~(APBC_FNCLKSEL(0x7));
 		__raw_writel(clk_rst, clk->clk_rst);
-	}
 
+		clk->div = numer * 2;
+		clk->mul = denom;
+
+		clk_reparent(clk, &mmp3_clk_pll1_d_4);
+	}
 
 	return 0;
 }
 
 struct clkops uart_clk_ops = {
+	.init = uart_clk_init,
 	.enable = uart_clk_enable,
 	.disable = uart_clk_disable,
+	.round_rate = uart_clk_round_rate,
 	.setrate = uart_clk_setrate,
 };
 
