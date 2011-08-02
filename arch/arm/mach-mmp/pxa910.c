@@ -32,6 +32,8 @@
 #include "clock.h"
 
 #define MFPR_VIRT_BASE	(APB_VIRT_BASE + 0x1e000)
+#define RIPC0_VIRT_BASE	(APB_VIRT_BASE + 0x3D000)
+#define RIPC0_STATUS	(RIPC0_VIRT_BASE + 0x00)
 
 static struct mfp_addr_map pxa910_mfp_addr_map[] __initdata =
 {
@@ -101,6 +103,22 @@ void __init pxa910_init_irq(void)
 {
 	icu_init_irq();
 	pxa910_init_gpio();
+}
+
+void pxa910_ripc_lock(void)
+{
+	while (__raw_readl(RIPC0_STATUS))
+		cpu_relax();
+}
+
+int pxa910_ripc_trylock(void)
+{
+	return !__raw_readl(RIPC0_STATUS);
+}
+
+void pxa910_ripc_unlock(void)
+{
+	__raw_writel(1, RIPC0_STATUS);
 }
 
 /* APB peripheral clocks */

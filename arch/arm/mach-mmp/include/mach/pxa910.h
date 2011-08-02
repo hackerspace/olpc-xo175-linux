@@ -5,6 +5,9 @@ struct sys_timer;
 
 extern struct sys_timer pxa910_timer;
 extern void __init pxa910_init_irq(void);
+extern void pxa910_ripc_lock(void);
+extern void pxa910_ripc_unlock(void);
+extern int pxa910_ripc_trylock(void);
 
 #include <linux/i2c.h>
 #include <linux/i2c/pxa-i2c.h>
