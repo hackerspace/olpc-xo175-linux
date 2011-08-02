@@ -39,6 +39,8 @@
 #include <asm/hardware/armv7_jtag.h>
 #endif
 
+static struct clk *clk_pout;
+
 unsigned int user_index;
 void vmeta_pwr(unsigned int enableDisable)
 {
@@ -92,3 +94,16 @@ void gc_pwr(int enableDisable)
 }
 EXPORT_SYMBOL(gc_pwr);
 
+static int __init pxa95x_pm_init(void)
+{
+	clk_pout = clk_get(NULL, "CLK_POUT");
+	if (IS_ERR(clk_pout)) {
+		pr_err("pxa95x_pm: get CLK_POUT failed\n");
+		clk_pout = NULL;
+	}
+
+	if (clk_pout)
+		clk_enable(clk_pout);
+	return 0;
+}
+late_initcall(pxa95x_pm_init);
