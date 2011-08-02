@@ -787,6 +787,105 @@ static void rtc_clk_disable(struct clk *clk)
 	__raw_writel(0, clk->clk_rst);
 }
 
+static void nand_clk_init(struct clk *clk)
+{
+	clk->div = 8;
+	clk->mul = 1;
+
+	/* by default select pll1 as clock source and divider 8 */
+	clk->enable_val = 0x80;
+}
+
+static int nand_clk_enable(struct clk *clk)
+{
+	__raw_writel(clk->enable_val | 0x2d, clk->clk_rst);
+
+	return 0;
+}
+
+static void nand_clk_disable(struct clk *clk)
+{
+	__raw_writel(0x0, clk->clk_rst);
+}
+
+static long nand_clk_round_rate(struct clk *clk, unsigned long rate)
+{
+	if (rate <= clk_get_rate(&mmp3_clk_vctcxo) / 2)
+		return clk_get_rate(&mmp3_clk_vctcxo) / 2; /* 13M */
+	else if (rate <= clk_get_rate(&mmp3_clk_pll1) / 12)
+		return clk_get_rate(&mmp3_clk_pll1) / 12; /* 67M */
+	else if (rate <= clk_get_rate(&mmp3_clk_pll1) / 8)
+		return clk_get_rate(&mmp3_clk_pll1) / 8; /* 100M */
+	else if (rate <= clk_get_rate(&mmp3_clk_pll2) / 12)
+		return clk_get_rate(&mmp3_clk_pll2) / 12; /* 111M */
+	else if (rate <= clk_get_rate(&mmp3_clk_pll1) / 6)
+		return clk_get_rate(&mmp3_clk_pll1) / 6; /* 133M */
+	else if (rate <= clk_get_rate(&mmp3_clk_pll2) / 8)
+		return clk_get_rate(&mmp3_clk_pll2) / 8; /* 167M */
+	else if (rate <= clk_get_rate(&mmp3_clk_pll1) / 4)
+		return clk_get_rate(&mmp3_clk_pll1) / 4; /* 200M */
+	else
+		return clk_get_rate(&mmp3_clk_pll2) / 6; /* 222M */
+}
+
+static int nand_clk_setrate(struct clk *clk, unsigned long rate)
+{
+	if (rate == clk_get_rate(&mmp3_clk_vctcxo) / 2) {
+		clk->enable_val = 0x1c0;
+		clk->div = 2;
+		clk->mul = 1;
+		clk_reparent(clk, &mmp3_clk_vctcxo);
+	} else if (rate == clk_get_rate(&mmp3_clk_pll1) / 12) {
+		clk->enable_val = 0xc0;
+		clk->div = 12;
+		clk->mul = 1;
+		clk_reparent(clk, &mmp3_clk_pll1);
+	} else if (rate == clk_get_rate(&mmp3_clk_pll1) / 8) {
+		clk->enable_val = 0x80;
+		clk->div = 8;
+		clk->mul = 1;
+		clk_reparent(clk, &mmp3_clk_pll1);
+	} else if (rate == clk_get_rate(&mmp3_clk_pll2) / 12) {
+		clk->enable_val = 0x180;
+		clk->div = 12;
+		clk->mul = 1;
+		clk_reparent(clk, &mmp3_clk_pll2);
+	} else if (rate == clk_get_rate(&mmp3_clk_pll1) / 6) {
+		clk->enable_val = 0x40;
+		clk->div = 6;
+		clk->mul = 1;
+		clk_reparent(clk, &mmp3_clk_pll1);
+	} else if (rate == clk_get_rate(&mmp3_clk_pll2) / 8) {
+		clk->enable_val = 0x140;
+		clk->div = 8;
+		clk->mul = 1;
+		clk_reparent(clk, &mmp3_clk_pll2);
+	} else if (rate == clk_get_rate(&mmp3_clk_pll1) / 4) {
+		clk->enable_val = 0x0;
+		clk->div = 4;
+		clk->mul = 1;
+		clk_reparent(clk, &mmp3_clk_pll1);
+	} else if (rate == clk_get_rate(&mmp3_clk_pll2) / 6) {
+		clk->enable_val = 0x100;
+		clk->div = 6;
+		clk->mul = 1;
+		clk_reparent(clk, &mmp3_clk_pll2);
+	} else {
+		pr_err("%s: unexpected clock rate %ld\n", __func__, rate);
+		BUG();
+	}
+
+	return 0;
+}
+
+struct clkops nand_clk_ops = {
+	.init = nand_clk_init,
+	.enable = nand_clk_enable,
+	.disable = nand_clk_disable,
+	.round_rate = nand_clk_round_rate,
+	.setrate = nand_clk_setrate,
+};
+
 struct clkops rtc_clk_ops = {
 	.enable = rtc_clk_enable,
 	.disable = rtc_clk_disable,
@@ -1284,14 +1383,14 @@ static struct clk mmp3_list_clks[] = {
 			1, 26000000, &mmp3_clk_vctcxo, &uart_clk_ops),
 	APBC_CLK_OPS("rtc", "mmp-rtc", NULL, MMP2_RTC,
 			0, 32768, &mmp3_clk_32k, &rtc_clk_ops),
-	APMU_CLK("nand", "pxa3xx-nand", NULL, NAND,
-			0xbf, 100000000, NULL),
 	APMU_CLK("u2o", NULL, "U2OCLK", USB,
 			0x9, 480000000, NULL),
 	APMU_CLK("ccic_gate", "mv-camera.0", "CCICGATECLK", CCIC_GATE,
 			0xffff, 0, NULL),
 	APMU_CLK("ccic_gate", "mv-camera.1", "CCICGATECLK", CCIC_GATE,
 			0xffff, 0, NULL),
+	APMU_CLK_OPS("nand", "pxa3xx-nand", NULL, NAND,
+			0xbf, 100000000, &mmp3_clk_pll1, &nand_clk_ops),
 	APMU_CLK_OPS("gc", NULL, "GCCLK", GC,
 			0, 0, NULL, &gc1000_clk_ops),
 #ifdef CONFIG_UIO_VMETA
