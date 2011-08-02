@@ -109,6 +109,12 @@ static unsigned long abilene_pin_config[] __initdata = {
 
 	PMIC_PMIC_INT | MFP_LPM_EDGE_FALL,
 	GPIO128_LCD_RST,
+
+	/* OTG vbus enable signal */
+	GPIO62_VBUS_EN,
+
+	/* HSIC1 reset pin*/
+	GPIO96_HSIC_RESET,
 };
 
 static unsigned long mmc1_pin_config[] __initdata = {
