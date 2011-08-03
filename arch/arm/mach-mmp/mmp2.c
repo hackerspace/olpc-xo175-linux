@@ -203,7 +203,7 @@ static void __init mmp2_timer_init(void)
 	clk_rst = APBC_APBCLK | APBC_FNCLK | APBC_FNCLKSEL(1);
 	__raw_writel(clk_rst, APBC_MMP2_TIMERS);
 
-	timer_init(IRQ_MMP2_TIMER1);
+	timer_init(IRQ_MMP2_TIMER1, IRQ_MMP2_TIMER2);
 }
 
 struct sys_timer mmp2_timer = {
