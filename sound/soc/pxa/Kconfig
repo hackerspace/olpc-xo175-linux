@@ -191,3 +191,31 @@ config SND_PXA2XX_SOC_IMOTE2
        help
          Say Y if you want to add support for SoC audio on the
 	 IMote 2.
+
+menu "SoC Audio for the Marvell MMPx"
+config SND_MMP3_SOC
+	tristate "SoC Audio for the Marvell MMPx chip"
+	depends on ARCH_MMP && SND
+	select SND_PCM
+	help
+	  Say Y or M if you want to add support for codecs attached to
+	  the MMP3 AC97, I2S, SSP or SSPA interface. You will also need
+	  to select the audio interfaces to support below.
+
+config SND_MMP3_SOC_MMP3ASOC
+        bool "SoC Audio support for MMP3 aSoc"
+	depends on SND_MMP3_SOC
+	select MFD_WM8994
+	select SND_SOC_WM8994
+	select REGULATOR_FIXED_VOLTAGE
+	help
+	  Say Y if you want to add support for SoC audio on MMP3
+
+config SND_WM8994_MASTER_MODE
+        bool "Audio wm8994 master mode"
+	depends on SND_MMP3_SOC
+	select SND_SOC_WM8994
+	help
+	  Say Y if you want to add support for SoC audio master mode on MMP3
+
+endmenu
