@@ -263,9 +263,21 @@ static struct i2c_board_info ttc_dkb_i2c_info[] = {
 };
 
 static struct i2c_pxa_platform_data dkb_i2c_pdata = {
+	.fast_mode		 = 1,
+	/* ilcr:fs mode b17~9=0x22,about 380K, standard mode b8~0=0x7E,100K */
+	.ilcr			 = 0x082C447E,
+	/* iwcr:b5~0=b01010 recommended value according to spec*/
 	.hardware_lock		= pxa910_ripc_lock,
 	.hardware_unlock	= pxa910_ripc_unlock,
 	.hardware_trylock	= pxa910_ripc_trylock,
+};
+
+static struct i2c_pxa_platform_data ttc_dkb_pwr_i2c_pdata = {
+	.fast_mode		 = 1,
+	/* ilcr:fs mode b17~9=0x22,about 380K, standard mode b8~0=0x7E,100K */
+	.ilcr			 = 0x082C447E,
+	/* iwcr:b5~0=b01010 recommended value according to spec*/
+	.iwcr			= 0x0000142A,
 };
 
 static struct platform_device *ttc_dkb_devices[] = {
