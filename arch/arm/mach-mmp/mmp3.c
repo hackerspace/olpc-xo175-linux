@@ -649,6 +649,21 @@ static unsigned long pj4b_wcb_config(unsigned long min, unsigned long max,
 	return regval;
 }
 
+struct platform_device mmp3_device_asoc_sspa1 = {
+	.name		= "mmp3-sspa-dai",
+	.id		= 0,
+};
+
+struct platform_device mmp3_device_asoc_sspa2 = {
+	.name		= "mmp3-sspa-dai",
+	.id		= 1,
+};
+
+struct platform_device mmp3_device_asoc_platform = {
+	.name		= "mmp3-pcm-audio",
+	.id		= -1,
+};
+
 static int __init mmp3_init(void)
 {
 	/*
@@ -664,6 +679,9 @@ static int __init mmp3_init(void)
 	mmp3_init_gpio();
 
 	pxa688_init_dma(IRQ_MMP3_DMA_RIQ);
+
+	platform_device_register(&mmp3_device_asoc_sspa1);
+	platform_device_register(&mmp3_device_asoc_platform);
 
 	clkdev_add_table(ARRAY_AND_SIZE(mmp3_clkregs));
 

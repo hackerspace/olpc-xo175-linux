@@ -16,6 +16,7 @@
 #include <asm/mach/map.h>
 #include <mach/addr-map.h>
 #include <mach/cputype.h>
+#include <mach/mmp3_audisland.h>
 
 #include "common.h"
 
@@ -41,6 +42,16 @@ static struct map_desc standard_io_desc[] __initdata = {
 		.virtual	= PGU_VIRT_BASE,
 		.length		= PGU_PHYS_SIZE,
 		.type		= MT_DEVICE,
+	}, {
+		.pfn            = __phys_to_pfn(AUD_PHYS_BASE),
+		.virtual        = AUD_VIRT_BASE,
+		.length         = AUD_PHYS_SIZE,
+		.type           = MT_DEVICE,
+	}, {
+		.pfn            = __phys_to_pfn(AUD_PHYS_BASE2),
+		.virtual        = AUD_VIRT_BASE2,
+		.length         = AUD_PHYS_SIZE2,
+		.type           = MT_DEVICE,
 #endif
 	},
 };
