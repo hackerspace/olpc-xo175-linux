@@ -96,6 +96,11 @@ static struct clk mmp3_clk_32k = {
 	.rate = 32768,
 	.ops = NULL,
 };
+static struct clk mmp3_clk_pll1_d_4 = {
+	.name = "pll1_d_4",
+	.rate = 200000000,
+	.ops = NULL,
+};
 
 static struct clk_mux_sel mux_pll1_pll2_vctcxo[] = {
 	{.input = &mmp3_clk_pll1_d_2, .value = 0},
@@ -569,6 +574,7 @@ static struct clk *mmp3_clks_ptr[] = {
 	&mmp3_clk_axi_root,
 	&mmp3_clk_axi1,
 	&mmp3_clk_axi2,
+	&mmp3_clk_pll1_d_4,
 };
 
 static int apbc_clk_enable(struct clk *clk)
