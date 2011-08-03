@@ -71,6 +71,42 @@ int __init pxa_register_device(struct pxa_device_desc *desc,
 	return platform_device_add(pdev);
 }
 
+#if defined(CONFIG_PXA9XX_ACIPC)
+/* PXA910 AC-IPC */
+static struct resource pxa910_resource_acipc[] = {
+	[0] = {
+		.start  = 0xD401D000,
+		.end    = 0xD401D0ff,
+		.flags  = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start  = IRQ_PXA910_IPC_AP0,
+		.end    = IRQ_PXA910_IPC_AP0,
+		.flags  = IORESOURCE_IRQ,
+		.name   = "IPC_AP_DATAACK",
+	},
+	[2] = {
+		.start  = IRQ_PXA910_IPC_AP1,
+		.end    = IRQ_PXA910_IPC_AP1,
+		.flags  = IORESOURCE_IRQ,
+		.name   = "IPC_AP_SET_CMD",
+	},
+	[3] = {
+		.start  = IRQ_PXA910_IPC_AP2,
+		.end    = IRQ_PXA910_IPC_AP2,
+		.flags  = IORESOURCE_IRQ,
+		.name   = "IPC_AP_SET_MSG",
+	},
+};
+
+struct platform_device pxa910_device_acipc = {
+	.name           = "pxa9xx-acipc",
+	.id             = -1,
+	.resource       = pxa910_resource_acipc,
+	.num_resources  = ARRAY_SIZE(pxa910_resource_acipc),
+};
+#endif
+
 #if defined(CONFIG_USB) || defined(CONFIG_USB_GADGET)
 
 /*****************************************************************************
