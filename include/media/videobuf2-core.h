@@ -62,7 +62,8 @@ struct vb2_mem_ops {
 	void		(*put)(void *buf_priv);
 
 	void		*(*get_userptr)(void *alloc_ctx, unsigned long vaddr,
-					unsigned long size, int write);
+					unsigned long size, int write,
+					unsigned int flags);
 	void		(*put_userptr)(void *buf_priv);
 
 	void		*(*vaddr)(void *buf_priv);

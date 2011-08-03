@@ -757,7 +757,7 @@ static int __qbuf_userptr(struct vb2_buffer *vb, struct v4l2_buffer *b)
 			mem_priv = q->mem_ops->get_userptr(q->alloc_ctx[plane],
 							planes[plane].m.userptr,
 							planes[plane].length,
-							write);
+							write, b->flags);
 			if (IS_ERR(mem_priv)) {
 				dprintk(1, "qbuf: failed acquiring userspace "
 						"memory for plane %d\n", plane);

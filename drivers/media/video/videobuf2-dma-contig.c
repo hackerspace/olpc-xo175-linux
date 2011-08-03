@@ -111,7 +111,8 @@ static int vb2_dma_contig_mmap(void *buf_priv, struct vm_area_struct *vma)
 }
 
 static void *vb2_dma_contig_get_userptr(void *alloc_ctx, unsigned long vaddr,
-					unsigned long size, int write)
+					unsigned long size, int write,
+					unsigned int flags)
 {
 	struct vb2_dc_buf *buf;
 	struct vm_area_struct *vma;
@@ -122,18 +123,23 @@ static void *vb2_dma_contig_get_userptr(void *alloc_ctx, unsigned long vaddr,
 	if (!buf)
 		return ERR_PTR(-ENOMEM);
 
-	ret = vb2_get_contig_userptr(vaddr, size, &vma, &paddr);
-	if (ret) {
-		printk(KERN_ERR "Failed acquiring VMA for vaddr 0x%08lx\n",
-				vaddr);
-		kfree(buf);
-		return ERR_PTR(ret);
+	if (flags & V4L2_BUF_FLAG_PHYADDR) {
+		buf->size = size;
+		buf->paddr = vaddr;
+		buf->vma = 0;
+	} else {
+		ret = vb2_get_contig_userptr(vaddr, size, &vma, &paddr);
+		if (ret) {
+			printk(KERN_ERR "Failed acquiring VMA for vaddr 0x%08lx\n",
+					vaddr);
+			kfree(buf);
+			return ERR_PTR(ret);
+		}
+
+		buf->size = size;
+		buf->paddr = paddr;
+		buf->vma = vma;
 	}
-
-	buf->size = size;
-	buf->paddr = paddr;
-	buf->vma = vma;
-
 	return buf;
 }
 
