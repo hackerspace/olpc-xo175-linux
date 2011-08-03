@@ -164,6 +164,15 @@ static struct clk_lookup pxa910_clkregs[] = {
 	INIT_CLKREG(&clk_sdh2, "sdhci-pxav2.2", "PXA-SDHCLK"),
 };
 
+/*
+ * ACIPC clock is initialized by CP, enable the clock by default
+ * and this clock is always enabled.
+ */
+static void pxa910_init_acipc_clock(void)
+{
+	__raw_writel(0x3, APBC_PXA910_IPC);
+}
+
 static int __init pxa910_init(void)
 {
 	if (cpu_is_pxa910()) {
@@ -171,6 +180,9 @@ static int __init pxa910_init(void)
 		mfp_init_addr(pxa910_mfp_addr_map);
 		pxa_init_dma(IRQ_PXA910_DMA_INT0, 32);
 		clkdev_add_table(ARRAY_AND_SIZE(pxa910_clkregs));
+
+		/* enable ac-ipc clock */
+		pxa910_init_acipc_clock();
 	}
 
 	return 0;
