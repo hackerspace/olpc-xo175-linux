@@ -96,10 +96,83 @@ static struct clk mmp3_clk_32k = {
 	.rate = 32768,
 	.ops = NULL,
 };
+
 static struct clk mmp3_clk_pll1_d_4 = {
 	.name = "pll1_d_4",
 	.rate = 200000000,
 	.ops = NULL,
+};
+
+static int mmp3_clk_pll3_enable(struct clk *clk)
+{
+	u32 tmp = __raw_readl(PMUM_PLL3_CTRL2);
+
+	/* set SEL_VCO_CLK_SE in PMUM_PLL3_CTRL2 register */
+	__raw_writel(tmp | 0x00000001, PMUM_PLL3_CTRL2);
+
+	/*
+	 * PLL3 control register 1 - program VCODIV_SEL_SE = 2,
+	 * ICP = 4, KVCO = 5 and VCRNG = 4
+	 */
+	__raw_writel(0x05290499, PMUM_PLL3_CTRL1);
+
+	/* MPMU_PLL3CR: Program PLL3 VCO for 2.0Ghz -REFD = 3 */
+	tmp = (__raw_readl(APMU_FSIC3_CLK_RES_CTRL) >> 8) & 0xF;
+	if (tmp == 0xD)
+		/*
+		 * 26MHz ref clock to HDMI\DSI\USB PLLs,
+		 * MPMU_PLL3CR ;FBD = 0xE6
+		 */
+		__raw_writel(0x001B9A00, PMUM_PLL3_CR);
+	else
+		/*
+		 * 25MHz ref clock to HDMI\DSI\USB PLLs,
+		 * MPMU_PLL3CR ;FBD = 0xF6
+		 */
+		__raw_writel(0x001BdA00, PMUM_PLL3_CR);
+
+	/* PLL3 Control register -Enable SW PLL3 */
+	tmp = __raw_readl(PMUM_PLL3_CR);
+	__raw_writel(tmp | 0x00000100, PMUM_PLL3_CR);
+
+	/* wait for PLLs to lock */
+	udelay(500);
+
+	/* PMUM_PLL3_CTRL1: take PLL3 out of reset */
+	tmp = __raw_readl(PMUM_PLL3_CTRL1);
+	__raw_writel(tmp | 0x20000000, PMUM_PLL3_CTRL1);
+
+	udelay(500);
+
+	return 0;
+}
+
+static void mmp3_clk_pll3_disable(struct clk *clk)
+{
+	u32 tmp = __raw_readl(PMUM_PLL3_CR);
+
+	/* PLL3 Control register, disable SW PLL3 */
+	__raw_writel(tmp & ~0x00000100, PMUM_PLL3_CR);
+
+	/* wait for PLLs to lock */
+	udelay(500);
+
+	/* PMUM_PLL3_CTRL1: put PLL3 into reset */
+	tmp = __raw_readl(PMUM_PLL3_CTRL1);
+	__raw_writel(tmp & ~0x20000000, PMUM_PLL3_CTRL1);
+
+	udelay(500);
+}
+
+static struct clkops mmp3_clk_pll3_ops = {
+	.enable = mmp3_clk_pll3_enable,
+	.disable = mmp3_clk_pll3_disable,
+};
+
+static struct clk mmp3_clk_pll3 = {
+	.name = "pll3",
+	.rate = 1000000000,
+	.ops = &mmp3_clk_pll3_ops,
 };
 
 static struct clk_mux_sel mux_pll1_pll2_vctcxo[] = {
@@ -575,6 +648,7 @@ static struct clk *mmp3_clks_ptr[] = {
 	&mmp3_clk_axi1,
 	&mmp3_clk_axi2,
 	&mmp3_clk_pll1_d_4,
+	&mmp3_clk_pll3,
 };
 
 static int apbc_clk_enable(struct clk *clk)
