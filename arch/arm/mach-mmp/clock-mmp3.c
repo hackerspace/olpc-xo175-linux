@@ -73,10 +73,74 @@ static struct clk mmp3_clk_pll1 = {
 	.ops = NULL,
 };
 
+static int mmp3_clk_pll2_enable(struct clk *clk)
+{
+	u32 value;
+
+	/* disable PLL2 */
+	value = __raw_readl(MPMU_PLL2CR);
+	value &= ~(1 << 8);
+	__raw_writel(value, MPMU_PLL2CR);
+
+	/* select VCO as clock source */
+	value = __raw_readl(MPMU_PLL2_CTRL2);
+	value |= 1 << 0;
+	__raw_writel(value, MPMU_PLL2_CTRL2);
+
+	/*
+	 * PLL2 control register 1 - program VCODIV_SEL_SE = 0,
+	 * ICP = 4, KVCO = 1 and VCRNG = 0
+	 */
+	__raw_writel(0x01090099, MPMU_PLL2_CTRL1);
+	/* MPMU_PLL2CR: Program PLL2 VCO for 1334Mhz -REFD = 3, FBD = 0x9A */
+	__raw_writel(0x001A6A00, MPMU_PLL2CR);
+
+	/* enable PLL2 */
+	value = __raw_readl(MPMU_PLL2CR);
+	value |= 1 << 8;
+	__raw_writel(value, MPMU_PLL2CR);
+
+	udelay(500);
+
+	/* take PLL2 out of reset */
+	value = __raw_readl(MPMU_PLL2_CTRL1);
+	value |= 1 << 29;
+	__raw_writel(value, MPMU_PLL2_CTRL1);
+
+	udelay(500);
+
+	return 0;
+}
+
+static void mmp3_clk_pll2_disable(struct clk *clk)
+{
+	u32 value;
+
+	/* PLL2 Control register, disable SW PLL2 */
+	value = __raw_readl(MPMU_PLL2CR);
+	value &= ~(1 << 8);
+	__raw_writel(value, MPMU_PLL2CR);
+
+	/* wait for PLLs to lock */
+	udelay(500);
+
+	/* MPMU_PLL2_CTRL1: put PLL2 into reset */
+	value = __raw_readl(MPMU_PLL2_CTRL1);
+	value = ~(1 << 29);
+	__raw_writel(value, MPMU_PLL2_CTRL1);
+
+	udelay(500);
+}
+
+static struct clkops mmp3_clk_pll2_ops = {
+	.enable = mmp3_clk_pll2_enable,
+	.disable = mmp3_clk_pll2_disable,
+};
+
 static struct clk mmp3_clk_pll2 = {
 	.name = "pll2",
 	.rate = 1334000000,
-	.ops = NULL,
+	.ops = &mmp3_clk_pll2_ops,
 };
 
 static int mmp3_clk_pll1_clkoutp_enable(struct clk *clk)
