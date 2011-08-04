@@ -79,10 +79,43 @@ static struct clk mmp3_clk_pll2 = {
 	.ops = NULL,
 };
 
+static int mmp3_clk_pll1_clkoutp_enable(struct clk *clk)
+{
+	u32 value = __raw_readl(PMUM_PLL_DIFF_CTRL);
+	/* Set PLL1 CLKOUTP post VCO divider as 1.5 */
+	value &= ~(0xf << 0);
+	value |= 1 << 0;
+	value |= 1 << 4;
+	__raw_writel(value, PMUM_PLL_DIFF_CTRL);
+
+	return 0;
+}
+
+static void mmp3_clk_pll1_clkoutp_disable(struct clk *clk)
+{
+	u32 value = __raw_readl(PMUM_PLL_DIFF_CTRL);
+	__raw_writel(value & ~(1 << 4), PMUM_PLL_DIFF_CTRL);
+}
+
+static struct clkops mmp3_clk_pll1_clkoutp_ops = {
+	.enable = mmp3_clk_pll1_clkoutp_enable,
+	.disable = mmp3_clk_pll1_clkoutp_disable,
+};
+
+/*
+ * NOTE: actually pll1_clkoutp and pll1 share the same clock source
+ * pll1_VCO, which is 1600MHz. And pll1 has a post didiver 2, pll1_clkoutp
+ * has a post didiver 1.5. Since we don't expose pll1_VCO as a visible
+ * clock, here we use pll1 as its parent to workaround. So we have to
+ * set the div as 3 and mul as 4.
+ */
 static struct clk mmp3_clk_pll1_clkoutp = {
 	.name = "pll1_clkoutp",
-	.rate = 1062000000,
-	.ops = NULL,
+	.rate = 1066000000,
+	.parent = &mmp3_clk_pll1,
+	.mul = 4,
+	.div = 3,
+	.ops = &mmp3_clk_pll1_clkoutp_ops,
 };
 
 static struct clk mmp3_clk_vctcxo = {
