@@ -722,6 +722,174 @@ static struct clk mmp3_clk_cpu = {
 	.ops = &clk_cpu_ops,
 };
 
+
+#define GC_CLK_DIV(n)		((n & 0xF) << 24)
+#define GC_CLK_DIV_GET(n)	((n >> 24) & 0xF)
+#define GC_CLK_DIV_MSK		GC_CLK_DIV(0xF)
+#define GC_PWRUP(n)		((n & 3) << 9)
+#define GC_PWRUP_MSK		GC_PWRUP(3)
+#define		PWR_OFF		0
+#define		PWR_SLOW_RAMP	1
+#define		PWR_ON		3
+#define GC_ISB			(1 << 8)
+#define GC_CLK_SRC_SEL(n)	((n & 3) << 6)
+#define GC_CLK_SRC_SEL_MSK	GC_CLK_SRC_SEL(3)
+#define		CS_PLL1		0
+#define		CS_PLL2		1
+#define		CS_PLL1_COP	2
+#define		CS_PLL2_COP	3
+#define GC_ACLK_SEL(n)		((n & 3) << 4)
+#define GC_ACLK_SEL_MSK		GC_ACLK_SEL(3)
+#define		PLL1D4		0
+#define		PLL1D6		1
+#define		PLL1D2		2
+#define		PLL2D2		3
+#define GC_CLK_EN		(1 << 3)
+#define GC_AXICLK_EN		(1 << 2)
+#define GC_RST			(1 << 1)
+#define GC_AXI_RST		(1 << 0)
+
+#define GC_CLK_RATE(div, src, aclk) (GC_CLK_DIV(div) |\
+	GC_CLK_SRC_SEL(src) | GC_ACLK_SEL(aclk))
+
+#define GC_CLK_RATE_MSK	(GC_CLK_DIV_MSK |\
+	GC_CLK_SRC_SEL_MSK | GC_ACLK_SEL_MSK)
+
+#define GC_SET_BITS(set, clear)	{\
+	unsigned long tmp;\
+	tmp = __raw_readl(clk->clk_rst);\
+	tmp &= ~clear;\
+	tmp |= set;\
+	__raw_writel(tmp, clk->clk_rst);\
+}
+
+static void gc_clk_init(struct clk *clk)
+{
+	clk->rate = clk_get_rate(&mmp3_clk_pll1_clkoutp)/2;
+	clk->enable_val = PLL1D2; /* reuse this field for the ACLK setting */
+	clk->div = 2;
+	clk->mul = 1;
+	clk_reparent(clk, &mmp3_clk_pll1_clkoutp);
+}
+
+static int gc_clk_enable(struct clk *clk)
+{
+	unsigned long gc_rate_cfg;
+	unsigned long i;
+
+	/* TODO may need to request for different core voltage according to
+	 * different gc clock rate.
+	 */
+
+	GC_SET_BITS(GC_PWRUP(PWR_SLOW_RAMP), -1);
+	GC_SET_BITS(GC_PWRUP(PWR_ON), GC_PWRUP_MSK);
+
+	i = 0;
+	while ((clk->inputs[i].input != clk->parent) && clk->inputs[i].input)
+		i++;
+
+	if (clk->inputs[i].input == 0) {
+		pr_err("%s: unexpected gc clock source\n", __func__);
+		return -1;
+	}
+
+	gc_rate_cfg = GC_CLK_RATE(clk->div,
+		clk->inputs[i].value, clk->enable_val);
+	gc_rate_cfg &= GC_CLK_RATE_MSK;
+	GC_SET_BITS(gc_rate_cfg, GC_CLK_RATE_MSK);
+
+	GC_SET_BITS(GC_CLK_EN, 0);
+	udelay(100);
+
+	GC_SET_BITS(GC_AXICLK_EN, 0);
+	udelay(100);
+
+	GC_SET_BITS(GC_ISB, 0);
+	GC_SET_BITS(GC_RST, 0);
+	GC_SET_BITS(GC_AXI_RST, 0);
+
+	return 0;
+}
+
+static void gc_clk_disable(struct clk *clk)
+{
+	GC_SET_BITS(0, GC_ISB);
+	GC_SET_BITS(0, GC_RST | GC_AXI_RST);
+	GC_SET_BITS(0, GC_CLK_EN | GC_AXICLK_EN);
+	GC_SET_BITS(0, GC_PWRUP_MSK);
+}
+
+static long gc_clk_round_rate(struct clk *clk, unsigned long rate)
+{
+	if (rate <= clk_get_rate(&mmp3_clk_pll1)/8)
+		return clk_get_rate(&mmp3_clk_pll1)/8; /* 100M */
+	else if (rate <= clk_get_rate(&mmp3_clk_pll1)/4)
+		return clk_get_rate(&mmp3_clk_pll1)/4; /* 200M */
+	else if (rate <= clk_get_rate(&mmp3_clk_pll1_clkoutp)/3)
+		return clk_get_rate(&mmp3_clk_pll1_clkoutp)/3; /* 354M */
+	else if (rate <= clk_get_rate(&mmp3_clk_pll1)/2)
+		return clk_get_rate(&mmp3_clk_pll1)/2; /* 400M */
+	else
+		return clk_get_rate(&mmp3_clk_pll1_clkoutp)/2; /* 531M */
+}
+
+static int gc_clk_setrate(struct clk *clk, unsigned long rate)
+{
+	clk->mul = 1;
+	if (rate == clk_get_rate(&mmp3_clk_pll1)/8) {
+		clk->enable_val = PLL1D6;
+		clk->div = 8;
+		clk_reparent(clk, &mmp3_clk_pll1);
+	} else if (rate == clk_get_rate(&mmp3_clk_pll1)/4) {
+		clk->enable_val = PLL1D4;
+		clk->div = 4;
+		clk_reparent(clk, &mmp3_clk_pll1);
+	} else if (rate == clk_get_rate(&mmp3_clk_pll1_clkoutp)/3) {
+		clk->enable_val = PLL1D2;
+		clk->div = 3;
+		clk_reparent(clk, &mmp3_clk_pll1_clkoutp);
+	} else if (rate == clk_get_rate(&mmp3_clk_pll1)/2) {
+		clk->enable_val = PLL1D2;
+		clk->div = 2;
+		clk_reparent(clk, &mmp3_clk_pll1);
+	} else if (rate == clk_get_rate(&mmp3_clk_pll1_clkoutp)/2) {
+		clk->enable_val = PLL1D2;
+		clk->div = 2;
+		clk_reparent(clk, &mmp3_clk_pll1_clkoutp);
+	} else {
+		pr_err("%s: unexpected gc clock rate %ld\n", __func__, rate);
+		BUG();
+	}
+
+	return 0;
+}
+
+struct clkops gc_clk_ops = {
+	.init		= gc_clk_init,
+	.enable		= gc_clk_enable,
+	.disable	= gc_clk_disable,
+	.setrate	= gc_clk_setrate,
+	.round_rate	= gc_clk_round_rate,
+	.set_parent	= mmp3_clk_set_parent,
+};
+
+static struct clk_mux_sel gc_mux_pll1_pll2[] = {
+	{.input = &mmp3_clk_pll1, .value = 0},
+	{.input = &mmp3_clk_pll2, .value = 1},
+	{.input = &mmp3_clk_pll1_clkoutp, .value = 2},
+	{0, 0},
+};
+
+static struct clk mmp3_clk_gc = {
+	.name = "gc",
+	.inputs = gc_mux_pll1_pll2,
+	.lookup = {
+		.con_id = "GCCLK",
+	},
+	.clk_rst = (void __iomem *)APMU_GC,
+	.ops = &gc_clk_ops,
+};
+
 static struct clk *mmp3_clks_ptr[] = {
 	&mmp3_clk_pll1_d_2,
 	&mmp3_clk_pll1,
@@ -746,6 +914,7 @@ static struct clk *mmp3_clks_ptr[] = {
 	&mmp3_clk_axi2,
 	&mmp3_clk_pll1_d_4,
 	&mmp3_clk_pll3,
+	&mmp3_clk_gc,
 };
 
 static int apbc_clk_enable(struct clk *clk)
@@ -1115,121 +1284,6 @@ struct clkops apmu_clk_ops = {
 	.ops = _ops,						\
 }
 
-static int gc1000_clk_enable(struct clk *clk)
-{
-	u32 tmp;
-
-	/* [GC_PWRUP]=1, GC module slow ramp */
-	tmp = (1 << 9);
-	__raw_writel(tmp, clk->clk_rst);
-
-	tmp = __raw_readl(clk->clk_rst);
-	/* [GC_PWRUP]=3, GC module power on */
-	tmp |= (3 << 9);
-	__raw_writel(tmp, clk->clk_rst);
-
-	tmp = __raw_readl(clk->clk_rst);
-	/* [GC_ACLK_SEL]=0, PLL2 divided by 2 */
-	tmp &= ~(3 << 4);
-	tmp |= (3 << 4);
-	/* [CLK_GC_SRC_SEL]=0, clk_gc source select PLL2 */
-	tmp &= ~(3 << 6);
-	tmp |= (1 << 6);
-	/* [GC_CLK_DIV]=2, input pll clock to gc clock ratio,
-		divide by 2, PLL2Freq/2 MHz */
-	tmp &= ~(0xF << 24);
-	tmp |= (2 << 24);
-	__raw_writel(tmp, clk->clk_rst);
-
-	tmp = __raw_readl(clk->clk_rst);
-	/* [GC_CLK_EN]=1, Peripheral clock enable */
-	tmp |= (1 << 3);
-	__raw_writel(tmp, clk->clk_rst);
-
-	udelay(100);
-
-	tmp = __raw_readl(clk->clk_rst);
-	/* [GC_AXICLK_EN]=1, AXI clock enable */
-	tmp |= (1 << 2);
-	__raw_writel(tmp, clk->clk_rst);
-
-	udelay(100);
-
-	tmp = __raw_readl(clk->clk_rst);
-	/* [GC_ISB]=1, Isolation disable (normal mode) */
-	tmp |= (1 << 8);
-	__raw_writel(tmp, clk->clk_rst);
-
-	tmp = __raw_readl(clk->clk_rst);
-	/* [GC_RST]=1, release GC controller from reset */
-	tmp |= (1 << 1);
-	__raw_writel(tmp, clk->clk_rst);
-
-	tmp = __raw_readl(clk->clk_rst);
-	/* [GC_AXI_RST]=1, release GC controller AXI from reset */
-	tmp |= (1 << 0);
-	__raw_writel(tmp, clk->clk_rst);
-
-	return 0;
-}
-
-static void gc1000_clk_disable(struct clk *clk)
-{
-	u32 tmp;
-
-	tmp = __raw_readl(clk->clk_rst);
-	/* [GC_ISB]=0, Isolation enable (power down mode) */
-	tmp &= ~(1 << 8);
-	__raw_writel(tmp, clk->clk_rst);
-
-	tmp = __raw_readl(clk->clk_rst);
-	/* [GC_RST]=0, hold GC controller in reset */
-	/* [GC_AXI_RST]=0, hold GC controller AXI in reset */
-	tmp &= ~((1 << 0) | (1 << 1));
-	__raw_writel(tmp, clk->clk_rst);
-
-	tmp = __raw_readl(clk->clk_rst);
-	/* [GC_CLK_EN]=0, Peripheral clock disable */
-	/* [GC_AXICLK_EN]=0, AXI clock disable */
-	tmp &= ~((1 << 2) | (1 << 3));
-	__raw_writel(tmp, clk->clk_rst);
-
-	tmp = __raw_readl(clk->clk_rst);
-	/* [GC_PWRUP]=0, GC module power off */
-	tmp &= ~(3 << 9);
-	__raw_writel(tmp, clk->clk_rst);
-}
-
-static int gc1000_clk_setrate(struct clk *clk, unsigned long target_rate)
-{
-	return 0;
-}
-
-static unsigned long gc1000_clk_getrate(struct clk *clk)
-{
-	u32 tmp, gc_clk, div;
-
-	tmp = __raw_readl(clk->clk_rst);
-	div = (tmp >> 24) & 0xF;
-
-	if (div == 0) {
-		printk(KERN_ERR "gc clock div 0, error!!\n");
-		return 0;
-	}
-
-	/* clock input from PLL1, it's 800MHz */
-	gc_clk = 800000000 / div;
-
-	return gc_clk;
-}
-
-struct clkops gc1000_clk_ops = {
-	.enable		= gc1000_clk_enable,
-	.disable	= gc1000_clk_disable,
-	.setrate	= gc1000_clk_setrate,
-	.getrate	= gc1000_clk_getrate,
-};
-
 #ifdef CONFIG_UIO_VMETA
 
 static int vmeta_clk_enable(struct clk *clk)
@@ -1562,8 +1616,6 @@ static struct clk mmp3_list_clks[] = {
 			0xffff, 0, NULL),
 	APMU_CLK_OPS("nand", "pxa3xx-nand", NULL, NAND,
 			0xbf, 100000000, &mmp3_clk_pll1, &nand_clk_ops),
-	APMU_CLK_OPS("gc", NULL, "GCCLK", GC,
-			0, 0, NULL, &gc1000_clk_ops),
 #ifdef CONFIG_UIO_VMETA
 	APMU_CLK_OPS("vmeta", NULL, "VMETA_CLK", VMETA,
 			0, 0, NULL, &vmeta_clk_ops),
