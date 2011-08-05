@@ -31,6 +31,7 @@
 #include <mach/irqs.h>
 #include <mach/regs-mpmu.h>
 #include <mach/tc35876x.h>
+#include <mach/uio_hdmi.h>
 #include <plat/usb.h>
 
 #include "common.h"
@@ -478,6 +479,14 @@ static struct mv_usb_platform_data mmp3_hsic1_pdata = {
 
 #endif
 
+#ifdef CONFIG_UIO_HDMI
+static struct uio_hdmi_platform_data mmp3_hdmi_info __initdata = {
+	.sspa_reg_base = 0xD42A0C00,
+	/* Fix me: gpio 59 lpm pull ? */
+	.gpio = mfp_to_gpio(GPIO59_HDMI_DET),
+};
+#endif
+
 #endif
 
 static void __init yellowstone_init(void)
@@ -496,6 +505,11 @@ static void __init yellowstone_init(void)
 	yellowstone_add_lcd_mipi();
 	mmp3_add_tv_out();
 #endif
+
+#ifdef CONFIG_UIO_HDMI
+	mmp3_add_hdmi(&mmp3_hdmi_info);
+#endif
+
 	/* backlight */
 	mmp3_add_pwm(3);
 	platform_device_register(&yellowstone_lcd_backlight_devices);
