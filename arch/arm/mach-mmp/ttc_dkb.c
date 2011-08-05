@@ -188,6 +188,15 @@ static struct pxa27x_keypad_platform_data ttc_dkb_keypad_info __initdata = {
 	.debounce_interval	= 30,
 };
 
+static struct pm860x_touch_pdata ttc_dkb_touch = {
+	.gpadc_prebias	= 1,
+	.slot_cycle	= 1,
+	.tsi_prebias	= 6,
+	.pen_prebias	= 16,
+	.pen_prechg	= 2,
+	.res_x		= 300,
+};
+
 static struct pm860x_backlight_pdata ttc_dkb_backlight[] = {
 	{
 		.id	= PM8606_ID_BACKLIGHT,
@@ -215,6 +224,7 @@ static struct pm860x_led_pdata ttc_dkb_led[] = {
 static struct pm860x_platform_data ttc_dkb_pm8607_info = {
 	.backlight	= &ttc_dkb_backlight[0],
 	.led		= &ttc_dkb_led[0],
+	.touch		= &ttc_dkb_touch,
 	.companion_addr	= 0x11,
 	.irq_mode	= 0,
 	.irq_base	= IRQ_BOARD_START,
