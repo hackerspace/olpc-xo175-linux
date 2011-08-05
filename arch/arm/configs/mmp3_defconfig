@@ -907,6 +907,7 @@ CONFIG_MFD_CORE=y
 # CONFIG_HTC_EGPIO is not set
 # CONFIG_HTC_PASIC3 is not set
 # CONFIG_HTC_I2CPLD is not set
+# CONFIG_PXA_DS1WM is not set
 # CONFIG_TPS6105X is not set
 # CONFIG_TPS65010 is not set
 # CONFIG_TPS6507X is not set
@@ -1213,7 +1214,11 @@ CONFIG_RTC_LIB=y
 # CONFIG_RTC_CLASS is not set
 # CONFIG_DMADEVICES is not set
 # CONFIG_AUXDISPLAY is not set
-# CONFIG_UIO is not set
+CONFIG_UIO=y
+# CONFIG_UIO_PDRV is not set
+# CONFIG_UIO_PDRV_GENIRQ is not set
+# CONFIG_UIO_VMETA is not set
+CONFIG_UIO_HDMI=y
 # CONFIG_STAGING is not set
 CONFIG_CLKDEV_LOOKUP=y
 
