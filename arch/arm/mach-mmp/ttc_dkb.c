@@ -8,6 +8,7 @@
  *  publishhed by the Free Software Foundation.
  */
 
+#include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
@@ -19,8 +20,10 @@
 #include <linux/i2c/pca9575.h>
 #include <linux/i2c/pca953x.h>
 #include <linux/gpio.h>
+#include <linux/proc_fs.h>
 
 #include <asm/mach-types.h>
+#include <asm/uaccess.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/flash.h>
 #include <mach/addr-map.h>
@@ -257,6 +260,173 @@ static struct platform_device *ttc_dkb_devices[] = {
 	&pxa910_device_rtc,
 };
 
+/* GPS: power on/off control */
+static void gps_power_on(void)
+{
+	unsigned int gps_ldo, gps_rst_n;
+
+	gps_ldo = (is_td_dkb) ? GPIO_EXT1(8) : GPIO_EXT1(7);
+	if (gpio_request(gps_ldo, "gpio_gps_ldo")) {
+		pr_err("Request GPIO failed, gpio: %d\n", gps_ldo);
+		return;
+	}
+
+	gps_rst_n = (is_td_dkb) ? GPIO_EXT1(11) : mfp_to_gpio(MFP_PIN_GPIO15);
+	if (gpio_request(gps_rst_n, "gpio_gps_rst")) {
+		pr_err("Request GPIO failed, gpio: %d\n", gps_rst_n);
+		goto out;
+	}
+
+	gpio_direction_output(gps_ldo, 0);
+	gpio_direction_output(gps_rst_n, 0);
+	mdelay(1);
+	gpio_direction_output(gps_ldo, 1);
+
+	pr_info("sirf gps chip powered on\n");
+
+	gpio_free(gps_rst_n);
+out:
+	gpio_free(gps_ldo);
+	return;
+}
+
+static void gps_power_off(void)
+{
+	unsigned int gps_ldo, gps_rst_n, gps_on;
+
+	gps_ldo = (is_td_dkb) ? GPIO_EXT1(8) : GPIO_EXT1(7);
+	if (gpio_request(gps_ldo, "gpio_gps_ldo")) {
+		pr_err("Request GPIO failed, gpio: %d\n", gps_ldo);
+		return;
+	}
+
+	gps_on = (is_td_dkb) ? GPIO_EXT1(10) : GPIO_EXT1(1);
+	if (gpio_request(gps_on, "gpio_gps_on")) {
+		pr_err("Request GPIO failed,gpio: %d\n", gps_on);
+		goto out1;
+	}
+
+	gps_rst_n = (is_td_dkb) ? GPIO_EXT1(11) : mfp_to_gpio(MFP_PIN_GPIO15);
+	if (gpio_request(gps_rst_n, "gpio_gps_rst")) {
+		pr_debug("Request GPIO failed, gpio: %d\n", gps_rst_n);
+		goto out2;
+	}
+
+	gpio_direction_output(gps_ldo, 0);
+	gpio_direction_output(gps_rst_n, 0);
+	gpio_direction_output(gps_on, 0);
+
+	pr_info("sirf gps chip powered off\n");
+
+	gpio_free(gps_rst_n);
+out2:
+	gpio_free(gps_on);
+out1:
+	gpio_free(gps_ldo);
+	return;
+}
+
+static void gps_reset(int flag)
+{
+	unsigned int gps_rst_n;
+
+	gps_rst_n = (is_td_dkb) ? GPIO_EXT1(11) : mfp_to_gpio(MFP_PIN_GPIO15);
+	if (gpio_request(gps_rst_n, "gpio_gps_rst")) {
+		pr_err("Request GPIO failed, gpio: %d\n", gps_rst_n);
+		return;
+	}
+
+	gpio_direction_output(gps_rst_n, flag);
+	gpio_free(gps_rst_n);
+	pr_info("sirf gps chip reset\n");
+}
+
+static void gps_on_off(int flag)
+{
+	unsigned int gps_on;
+
+	gps_on = (is_td_dkb) ? GPIO_EXT1(10) : GPIO_EXT1(1);
+	if (gpio_request(gps_on, "gpio_gps_on")) {
+		pr_err("Request GPIO failed, gpio: %d\n", gps_on);
+		return;
+	}
+	gpio_direction_output(gps_on, flag);
+	gpio_free(gps_on);
+	pr_info("sirf gps chip offon\n");
+}
+
+#if defined(CONFIG_PROC_FS)
+
+#define SIRF_STATUS_LEN	16
+static char sirf_status[SIRF_STATUS_LEN] = "off";
+
+static ssize_t sirf_read_proc(char *page, char **start, off_t off,
+		int count, int *eof, void *data)
+{
+	int len = strlen(sirf_status);
+
+	sprintf(page, "%s\n", sirf_status);
+	return len + 1;
+}
+
+static ssize_t sirf_write_proc(struct file *filp,
+		const char *buff, size_t len, loff_t *off)
+{
+	char messages[256];
+	int flag, ret;
+	char buffer[7];
+
+	if (len > 255)
+		len = 255;
+
+	memset(messages, 0, sizeof(messages));
+
+	if (!buff || copy_from_user(messages, buff, len))
+		return -EFAULT;
+
+	if (strlen(messages) > (SIRF_STATUS_LEN - 1)) {
+		pr_warning("[ERROR] messages too long! (%d) %s\n",
+			strlen(messages), messages);
+		return -EFAULT;
+	}
+
+	if (strncmp(messages, "off", 3) == 0) {
+		strcpy(sirf_status, "off");
+		gps_power_off();
+	} else if (strncmp(messages, "on", 2) == 0) {
+		strcpy(sirf_status, "on");
+		gps_power_on();
+	} else if (strncmp(messages, "reset", 5) == 0) {
+		strcpy(sirf_status, messages);
+		ret = sscanf(messages, "%s %d", buffer, &flag);
+		if (ret == 2)
+			gps_reset(flag);
+	} else if (strncmp(messages, "sirfon", 6) == 0) {
+		strcpy(sirf_status, messages);
+		ret = sscanf(messages, "%s %d", buffer, &flag);
+		if (ret == 2)
+			gps_on_off(flag);
+	} else
+		pr_info("usage: echo {on/off} > /proc/driver/sirf\n");
+
+	return len;
+}
+
+static void create_sirf_proc_file(void)
+{
+	struct proc_dir_entry *sirf_proc_file = NULL;
+
+	sirf_proc_file = create_proc_entry("driver/sirf", 0644, NULL);
+	if (!sirf_proc_file) {
+		pr_err("sirf proc file create failed!\n");
+		return;
+	}
+
+	sirf_proc_file->read_proc = sirf_read_proc;
+	sirf_proc_file->write_proc = (write_proc_t  *)sirf_write_proc;
+}
+#endif
+
 static void __init ttc_dkb_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(ttc_dkb_pin_config));
@@ -271,6 +441,11 @@ static void __init ttc_dkb_init(void)
 
 	/* off-chip devices */
 	platform_add_devices(ARRAY_AND_SIZE(ttc_dkb_devices));
+
+#if defined(CONFIG_PROC_FS)
+	/* create proc for sirf GPS control */
+	create_sirf_proc_file();
+#endif
 }
 
 MACHINE_START(TTC_DKB, "PXA910-based TTC_DKB Development Platform")
