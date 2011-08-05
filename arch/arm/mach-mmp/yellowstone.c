@@ -338,6 +338,11 @@ static struct i2c_board_info yellowstone_twsi5_info[] = {
 #endif
 };
 
+static struct i2c_board_info yellowstone_twsi6_info[] = {
+	{
+	},
+};
+
 #ifdef CONFIG_MMC_SDHCI_PXAV3
 #include <linux/mmc/host.h>
 static void yellowstone_sd_signal_1v8(int set)
@@ -483,6 +488,7 @@ static void __init yellowstone_init(void)
 	mmp3_add_uart(3);
 	mmp3_add_twsi(1, NULL, ARRAY_AND_SIZE(yellowstone_twsi1_info));
 	mmp3_add_twsi(5, NULL, ARRAY_AND_SIZE(yellowstone_twsi5_info));
+	mmp3_add_twsi(6, NULL, ARRAY_AND_SIZE(yellowstone_twsi6_info));
 
 	mmp3_add_keypad(&mmp3_keypad_info);
 
