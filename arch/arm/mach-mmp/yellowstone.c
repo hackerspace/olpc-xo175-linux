@@ -488,6 +488,7 @@ static void __init yellowstone_init(void)
 
 #ifdef CONFIG_FB_PXA168
 	yellowstone_add_lcd_mipi();
+	mmp3_add_tv_out();
 #endif
 	/* backlight */
 	mmp3_add_pwm(3);
