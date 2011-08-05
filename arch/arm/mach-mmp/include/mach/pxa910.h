@@ -26,6 +26,7 @@ extern struct pxa_device_desc pxa910_device_keypad;
 extern struct pxa_device_desc pxa910_device_sdh0;
 extern struct pxa_device_desc pxa910_device_sdh1;
 extern struct pxa_device_desc pxa910_device_sdh2;
+extern struct pxa_device_desc pxa910_device_cnm;
 
 extern struct platform_device pxa910_device_rtc;
 extern struct platform_device pxa910_device_1wire;
@@ -116,6 +117,11 @@ static inline int pxa910_add_sdh(int id, struct sdhci_pxa_platdata *data)
 	}
 
 	return pxa_register_device(d, data, sizeof(*data));
+}
+
+static inline int pxa910_add_cnm(void)
+{
+	return pxa_register_device(&pxa910_device_cnm, NULL, 0);
 }
 
 #endif /* __ASM_MACH_PXA910_H */
