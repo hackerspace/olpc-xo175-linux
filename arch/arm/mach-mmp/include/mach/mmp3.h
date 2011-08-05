@@ -13,6 +13,7 @@ extern void __init mmp3_init_irq(void);
 #include <mach/cputype.h>
 #include <mach/regs-apbc.h>
 #include <mach/pxa168fb.h>
+#include <mach/uio_hdmi.h>
 #include <plat/pxa27x_keypad.h>
 #include <plat/pxa3xx_nand.h>
 #include <linux/platform_data/pxa_sdhci.h>
@@ -53,6 +54,7 @@ extern struct pxa_device_desc mmp3_device_keypad;
 extern struct pxa_device_desc mmp3_device_fb;
 extern struct pxa_device_desc mmp3_device_fb_ovly;
 extern struct pxa_device_desc mmp3_device_fb_tv;
+extern struct pxa_device_desc mmp3_device_hdmi;
 
 extern struct platform_device mmp3_device_rtc;
 extern struct platform_device mmp3_device_u2o;
@@ -176,6 +178,11 @@ static inline int mmp3_add_fb_ovly(struct pxa168fb_mach_info *mi)
 static inline int mmp3_add_fb_tv(struct pxa168fb_mach_info *mi)
 {
        return pxa_register_device(&mmp3_device_fb_tv, mi, sizeof(*mi));
+}
+
+static inline int mmp3_add_hdmi(struct uio_hdmi_platform_data *data)
+{
+        return pxa_register_device(&mmp3_device_hdmi, data, sizeof(*data));
 }
 
 extern void mmp3_clear_keypad_wakeup(void);
