@@ -34,6 +34,13 @@
 
 #define TTCDKB_NR_IRQS		(IRQ_BOARD_START + 24)
 
+static int is_td_dkb;
+static int __init td_dkb_setup(char *__unused)
+{
+	return is_td_dkb = 1;
+}
+__setup("td_dkb", td_dkb_setup);
+
 static unsigned long ttc_dkb_pin_config[] __initdata = {
 	/* UART2 */
 	GPIO47_UART2_RXD,
