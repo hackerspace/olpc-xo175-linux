@@ -52,6 +52,7 @@ extern struct pxa_device_desc mmp3_device_pwm4;
 extern struct pxa_device_desc mmp3_device_keypad;
 extern struct pxa_device_desc mmp3_device_fb;
 extern struct pxa_device_desc mmp3_device_fb_ovly;
+extern struct pxa_device_desc mmp3_device_fb_tv;
 
 extern struct platform_device mmp3_device_rtc;
 extern struct platform_device mmp3_device_u2o;
@@ -170,6 +171,11 @@ static inline int mmp3_add_fb(struct pxa168fb_mach_info *mi)
 static inline int mmp3_add_fb_ovly(struct pxa168fb_mach_info *mi)
 {
 	return pxa_register_device(&mmp3_device_fb_ovly, mi, sizeof(*mi));
+}
+
+static inline int mmp3_add_fb_tv(struct pxa168fb_mach_info *mi)
+{
+       return pxa_register_device(&mmp3_device_fb_tv, mi, sizeof(*mi));
 }
 
 extern void mmp3_clear_keypad_wakeup(void);

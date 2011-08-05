@@ -691,6 +691,7 @@ MMP3_DEVICE(pwm4, "mmp2-pwm", 3, NONE, 0xd401ac00, 0x10);
 MMP3_DEVICE(keypad, "pxa27x-keypad", -1, KEYPAD, 0xd4012000, 0x4c);
 MMP3_DEVICE(fb, "pxa168-fb", 0, LCD, 0xd420b000, 0x500);
 MMP3_DEVICE(fb_ovly, "pxa168fb_ovly", 0, LCD, 0xd420b000, 0x500);
+MMP3_DEVICE(fb_tv, "pxa168-fb", 1, LCD, 0xd420b000, 0x500);
 
 void mmp3_clear_keypad_wakeup(void)
 {
