@@ -111,6 +111,13 @@ config VMETA_POLLING_MODE
 	help
 	  Enable Vmeta interrupt mode by default. If it is set to y, it will be the polling mode.
 
+config UIO_HDMI
+	tristate "Userspace HDMI driver"
+	depends on UIO && (CPU_MMP2 || CPU_MMP3)
+	default y
+	help
+	  Userspace IO interface to the Marvell hdmi controller.
+
 config UIO_PRUSS
 	tristate "Texas Instruments PRUSS driver"
 	depends on ARCH_DAVINCI_DA850
