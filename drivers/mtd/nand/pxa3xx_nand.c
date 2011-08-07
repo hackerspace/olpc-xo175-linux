@@ -22,7 +22,9 @@
 #include <linux/io.h>
 #include <linux/irq.h>
 #include <linux/slab.h>
+#include <linux/highmem.h>
 
+#include <asm/cacheflush.h>
 #include <mach/dma.h>
 #include <plat/pxa3xx_nand.h>
 
@@ -245,6 +247,57 @@ const char *mtd_names[] = {"pxa3xx_nand-0", "pxa3xx_nand-1", NULL};
 /* convert nano-seconds to nand flash controller clock cycles */
 #define ns2cycle(ns, clk)	(int)((ns) * (clk / 1000000) / 1000)
 
+static dma_addr_t map_addr(struct pxa3xx_nand_info *info, void *buf,
+			   size_t sz, int dir)
+{
+	struct device *dev = &info->pdev->dev;
+	struct page *page;
+	/* if not cache aligned, don't use dma */
+	if (((size_t)buf & 0x1f) || (sz & 0x1f))
+		return ~0;
+#ifdef CONFIG_HIGHMEM
+	if ((size_t)buf >= PKMAP_ADDR(0)
+	    && (size_t)buf < PKMAP_ADDR(LAST_PKMAP)) {
+		page = pte_page(pkmap_page_table[PKMAP_NR((size_t)buf)]);
+		return dma_map_page(dev, page, (size_t)buf & (PAGE_SIZE - 1),
+				    sz, dir);
+	}
+#endif
+	if (buf >= high_memory) {
+		if (((size_t) buf & PAGE_MASK) !=
+		    ((size_t) (buf + sz - 1) & PAGE_MASK))
+			return ~0;
+
+		page = vmalloc_to_page(buf);
+		if (!page)
+			return ~0;
+
+		if (cache_is_vivt())
+			dmac_map_area(buf, sz, dir);
+		buf = page_address(page) + ((size_t)buf & ~PAGE_MASK);
+	}
+
+	return dma_map_single(dev, buf, sz, dir);
+}
+
+static void unmap_addr(struct device *dev, dma_addr_t buf, void *orig_buf,
+		       size_t sz, int dir)
+{
+	if (!buf)
+		return;
+#ifdef CONFIG_HIGHMEM
+	if (orig_buf >= high_memory) {
+		dma_unmap_page(dev, buf, sz, dir);
+		return;
+	} else if ((size_t)orig_buf >= PKMAP_ADDR(0)
+		   && (size_t)orig_buf < PKMAP_ADDR(LAST_PKMAP)) {
+		dma_unmap_page(dev, buf, sz, dir);
+		return;
+	}
+#endif
+	dma_unmap_single(dev, buf, sz, dir);
+}
+
 static void pxa3xx_nand_set_timing(struct pxa3xx_nand_host *host,
 				   const struct pxa3xx_nand_timing *t)
 {
@@ -374,22 +427,52 @@ static void handle_data_pio(struct pxa3xx_nand_info *info)
 
 static void start_data_dma(struct pxa3xx_nand_info *info)
 {
-	struct pxa_dma_desc *desc = info->data_desc;
-	int dma_len = ALIGN(info->data_size + info->oob_size, 32);
+	struct pxa_dma_desc *desc, *desc_oob;
+	struct pxa3xx_nand_host *host = info->host[info->cs];
+	struct mtd_info *mtd = host->mtd;
+	unsigned int data_len = ALIGN(info->data_size, 32);
+	unsigned int oob_len = ALIGN(info->oob_size, 32);
+	dma_addr_t oob_phys;
 
-	desc->ddadr = DDADR_STOP;
-	desc->dcmd = DCMD_ENDIRQEN | DCMD_WIDTH4 | DCMD_BURST32 | dma_len;
+	desc = info->data_desc;
+	desc->dcmd = DCMD_ENDIRQEN | DCMD_WIDTH4 | DCMD_BURST32;
+	if (oob_len) {
+		/*
+		 * Calculate out oob phys position by nand_buffers structure
+		 * and how oob_poi get its value
+		 */
+		oob_phys = info->data_desc_addr + DMA_H_SIZE
+			+ (NAND_MAX_OOBSIZE * 2) + mtd->writesize;
+		desc->ddadr = info->data_desc_addr
+				+ sizeof(struct pxa_dma_desc);
+		desc_oob = desc + 1;
+		desc_oob->ddadr = DDADR_STOP;
+		desc_oob->dcmd = desc->dcmd;
+	} else
+		desc->ddadr = DDADR_STOP;
 
 	switch (info->state) {
 	case STATE_DMA_WRITING:
 		desc->dsadr = info->data_buff_phys;
 		desc->dtadr = info->mmio_phys + NDDB;
-		desc->dcmd |= DCMD_INCSRCADDR | DCMD_FLOWTRG;
+		desc->dcmd |= DCMD_INCSRCADDR | DCMD_FLOWTRG | data_len;
+		if (oob_len) {
+			desc_oob->dsadr = oob_phys;
+			desc_oob->dcmd |= DCMD_INCSRCADDR
+					| DCMD_FLOWTRG | oob_len;
+			desc_oob->dtadr = desc->dtadr;
+		}
 		break;
 	case STATE_DMA_READING:
 		desc->dtadr = info->data_buff_phys;
 		desc->dsadr = info->mmio_phys + NDDB;
-		desc->dcmd |= DCMD_INCTRGADDR | DCMD_FLOWSRC;
+		desc->dcmd |= DCMD_INCTRGADDR | DCMD_FLOWSRC | data_len;
+		if (oob_len) {
+			desc_oob->dtadr = oob_phys;
+			desc_oob->dcmd |= DCMD_INCTRGADDR
+					| DCMD_FLOWSRC | oob_len;
+			desc_oob->dsadr = desc->dsadr;
+		}
 		break;
 	default:
 		dev_err(&info->pdev->dev, "%s: invalid state %d\n", __func__,
@@ -687,6 +770,7 @@ static void pxa3xx_nand_write_page_hwecc(struct mtd_info *mtd,
 {
 	struct pxa3xx_nand_host *host = mtd->priv;
 	struct pxa3xx_nand_info *info = host->info_data;
+	dma_addr_t mapped_addr = 0;
 
 	if (is_buf_blank((uint8_t *)buf, mtd->writesize) &&
 	    is_buf_blank(info->oob_buff, mtd->oobsize)) {
@@ -695,12 +779,18 @@ static void pxa3xx_nand_write_page_hwecc(struct mtd_info *mtd,
 	}
 
 	if (use_dma) {
-		chip->write_buf(mtd, buf, mtd->writesize);
-		chip->write_buf(mtd, chip->oob_poi, mtd->oobsize);
-	} else {
-		info->data_buff = (uint8_t *)buf;
-		info->oob_buff = chip->oob_poi;
+		mapped_addr = map_addr(info, (void *)buf,
+				       mtd->writesize, DMA_TO_DEVICE);
+		if (dma_mapping_error(&info->pdev->dev, mapped_addr))
+			info->use_dma = 0;
+		else {
+			info->use_dma = 1;
+			info->data_buff_phys = mapped_addr;
+		}
 	}
+
+	info->data_buff = (uint8_t *)buf;
+	info->oob_buff = chip->oob_poi;
 }
 
 static void nand_read_page(struct mtd_info *mtd, uint8_t *buf, int page)
@@ -708,13 +798,28 @@ static void nand_read_page(struct mtd_info *mtd, uint8_t *buf, int page)
 	struct pxa3xx_nand_host *host = mtd->priv;
 	struct nand_chip *chip = mtd->priv;
 	struct pxa3xx_nand_info *info = host->info_data;
+	dma_addr_t mapped_addr = 0;
 
-	if (!use_dma) {
-		info->data_buff = buf;
-		info->oob_buff = chip->oob_poi;
+	info->use_dma = use_dma;
+	if (!buf)
+		info->data_buff_phys = info->data_desc_addr + DMA_H_SIZE
+				       + (NAND_MAX_OOBSIZE * 2);
+	else if (use_dma) {
+		mapped_addr = map_addr(info, (void *)buf,
+				       mtd->writesize, DMA_FROM_DEVICE);
+		if (dma_mapping_error(&info->pdev->dev, mapped_addr))
+			info->use_dma = 0;
+		else
+			info->data_buff_phys = mapped_addr;
 	}
 
+	info->data_buff = (buf) ? buf : chip->buffers->databuf;
+	info->oob_buff = chip->oob_poi;
+
 	pxa3xx_nand_cmdfunc(mtd, NAND_CMD_RNDOUT, 0, page);
+	if (mapped_addr)
+		unmap_addr(&info->pdev->dev, mapped_addr,
+			   buf, mtd->writesize, DMA_FROM_DEVICE);
 	if (info->retcode == ERR_SBERR) {
 		switch (info->use_ecc) {
 		case 1:
@@ -741,10 +846,6 @@ static int pxa3xx_nand_read_page_hwecc(struct mtd_info *mtd,
 		struct nand_chip *chip, uint8_t *buf, int page)
 {
 	nand_read_page(mtd, buf, page);
-	if (use_dma) {
-		chip->read_buf(mtd, buf, mtd->writesize);
-		chip->read_buf(mtd, chip->oob_poi, mtd->oobsize);
-	}
 	return 0;
 }
 
@@ -820,6 +921,10 @@ static int pxa3xx_nand_waitfunc(struct mtd_info *mtd, struct nand_chip *this)
 {
 	struct pxa3xx_nand_host *host = mtd->priv;
 	struct pxa3xx_nand_info *info = host->info_data;
+
+	if ((info->command == NAND_CMD_PAGEPROG) && info->use_dma)
+		unmap_addr(&info->pdev->dev, info->data_buff_phys,
+			   info->data_buff, mtd->writesize, DMA_TO_DEVICE);
 
 	/* pxa3xx_nand_send_command has waited for command complete */
 	if (this->state == FL_WRITING || this->state == FL_ERASING) {
