@@ -32,6 +32,7 @@
 #include <mach/regs-mpmu.h>
 #include <mach/tc35876x.h>
 #include <plat/usb.h>
+#include <mach/sram.h>
 
 #include "common.h"
 #include "onboard.h"
@@ -139,6 +140,11 @@ static unsigned long mmc3_pin_config[] __initdata = {
 	GPIO109_MMC3_DAT0,
 	GPIO111_MMC3_CMD,
 	GPIO110_MMC3_CLK,
+};
+
+static struct sram_bank mmp3_audiosram_info = {
+	.pool_name = "audio sram",
+	.step = AUDIO_SRAM_GRANULARITY,
 };
 
 static struct pxa27x_keypad_platform_data mmp3_keypad_info = {
@@ -527,6 +533,7 @@ static void __init abilene_init(void)
 	/* audio sspa support */
 	mmp3_add_sspa(1);
 	mmp3_add_sspa(2);
+	mmp3_add_audiosram(&mmp3_audiosram_info);
 
 #ifdef CONFIG_USB_PXA_U2O
 	mmp3_device_u2o.dev.platform_data = (void *)&mmp3_usb_pdata;
