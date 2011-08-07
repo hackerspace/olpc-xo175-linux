@@ -702,6 +702,7 @@ MMP3_DEVICE(sspa1, "mmp2-sspa", 0, SSPA1, 0xc0ffdc00, 0xb0, ADMA1_CH_1,
 	    ADMA1_CH_0);
 MMP3_DEVICE(sspa2, "mmp2-sspa", 1, SSPA2, 0xc0ffdd00, 0xb0, ADMA2_CH_1,
 	    ADMA2_CH_0);
+MMP3_DEVICE(audiosram, "mmp-sram", 0, NONE, 0xd1030000, 0x20000);
 
 void mmp3_clear_keypad_wakeup(void)
 {

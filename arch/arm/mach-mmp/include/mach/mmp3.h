@@ -17,6 +17,7 @@ extern void __init mmp3_init_irq(void);
 #include <plat/pxa27x_keypad.h>
 #include <plat/pxa3xx_nand.h>
 #include <linux/platform_data/pxa_sdhci.h>
+#include <mach/sram.h>
 
 #define IOPWRDOM_VIRT_BASE	(APB_VIRT_BASE + 0x1e800)
 #define PAD_1V8			(1 << 2)
@@ -60,6 +61,7 @@ extern struct pxa_device_desc mmp3_device_hdmi;
 extern struct platform_device mmp3_device_rtc;
 extern struct pxa_device_desc mmp3_device_sspa1;
 extern struct pxa_device_desc mmp3_device_sspa2;
+extern struct pxa_device_desc mmp3_device_audiosram;
 extern struct platform_device mmp3_device_u2o;
 extern struct platform_device mmp3_device_u2ootg;
 extern struct platform_device mmp3_device_u2oehci;
@@ -198,6 +200,11 @@ static inline int mmp3_add_keypad(struct pxa27x_keypad_platform_data *data)
 {
 	data->clear_wakeup_event = mmp3_clear_keypad_wakeup;
 	return pxa_register_device(&mmp3_device_keypad, data, sizeof(*data));
+}
+
+static inline int mmp3_add_audiosram(struct sram_bank *data)
+{
+	return pxa_register_device(&mmp3_device_audiosram, data, sizeof(*data));
 }
 
 static inline int mmp3_add_sspa(int id)
