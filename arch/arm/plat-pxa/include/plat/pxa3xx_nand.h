@@ -60,10 +60,19 @@ struct pxa3xx_nand_platform_data {
 	 * Controller and the Data Flash Controller,  the arbiter
 	 * controls the ownership of the bus
 	 */
-	int	enable_arbiter;
-
+#define ARBI_EN		(1 << 0)
 	/* allow platform code to keep OBM/bootloader defined NFC config */
-	int	keep_config;
+#define CONFIG_KEEP	(1 << 1)
+	/* whether disable dma operation by default */
+#define DMA_DIS		(1 << 2)
+	/* whether current nand controller ip support naked command */
+#define NAKED_CMD	(1 << 3)
+	/*
+	 * for the scenario that smc and nand controller share the dfi bus,
+	 * ensure nand cs don't assert when smc has the bus
+	 */
+#define FORCE_CS	(1 << 4)
+	int	attr;
 
 	/* indicate how many chip selects will be used */
 	int	num_cs;

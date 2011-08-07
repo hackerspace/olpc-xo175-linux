@@ -51,8 +51,7 @@
 #define NDCR_DWIDTH_M		(0x1 << 26)
 #define NDCR_PAGE_SZ		(0x1 << 24)
 #define NDCR_NCSX		(0x1 << 23)
-#define NDCR_ND_MODE		(0x3 << 21)
-#define NDCR_NAND_MODE   	(0x0)
+#define NDCR_FORCE_CSX          (0x1 << 21)
 #define NDCR_CLR_PG_CNT		(0x1 << 20)
 #define NDCR_STOP_ON_UNCOR	(0x1 << 19)
 #define NDCR_RD_ID_CNT_MASK	(0x7 << 16)
@@ -191,7 +190,7 @@ MODULE_PARM_DESC(use_dma, "enable DMA for data transferring to/from NAND HW");
 
 /*
  * Default NAND flash controller configuration setup by the
- * bootloader. This configuration is used only when pdata->keep_config is set
+ * bootloader. This configuration is used only when CONFIG_KEEP attr is set
  */
 static struct pxa3xx_nand_cmdset default_cmdset = {
 	.read1		= 0x3000,
@@ -831,7 +830,8 @@ static int pxa3xx_nand_config_flash(struct pxa3xx_nand_info *info,
 	else
 		host->row_addr_cycles = 2;
 
-	ndcr |= (pdata->enable_arbiter) ? NDCR_ND_ARB_EN : 0;
+	ndcr |= (pdata->attr & ARBI_EN) ? NDCR_ND_ARB_EN : 0;
+	ndcr |= (pdata->attr & FORCE_CS) ? NDCR_FORCE_CSX : 0;
 	ndcr |= (host->col_addr_cycles == 2) ? NDCR_RA_START : 0;
 	ndcr |= (f->page_per_block == 64) ? NDCR_PG_PER_BLK : 0;
 	ndcr |= (f->page_size == 2048) ? NDCR_PAGE_SZ : 0;
@@ -850,7 +850,7 @@ static int pxa3xx_nand_config_flash(struct pxa3xx_nand_info *info,
 static int pxa3xx_nand_detect_config(struct pxa3xx_nand_info *info)
 {
 	/*
-	 * We set 0 by hard coding here, for we don't support keep_config
+	 * We set 0 by hard coding here, for we don't support CONFIG_KEEP
 	 * when there is more than one chip attached to the controller
 	 */
 	struct pxa3xx_nand_host *host = info->host[0];
@@ -943,7 +943,7 @@ static int pxa3xx_nand_scan(struct mtd_info *mtd)
 	uint64_t chipsize;
 	int i, ret, num;
 
-	if (pdata->keep_config && !pxa3xx_nand_detect_config(info))
+	if ((pdata->attr & CONFIG_KEEP) && !pxa3xx_nand_detect_config(info))
 		goto KEEP_CONFIG;
 
 	ret = pxa3xx_nand_sensing(info);
@@ -1212,6 +1212,9 @@ static int pxa3xx_nand_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "no platform data defined\n");
 		return -ENODEV;
 	}
+
+	if (pdata->attr & DMA_DIS)
+		use_dma = 0;
 
 	ret = alloc_nand_resource(pdev);
 	if (ret) {

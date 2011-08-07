@@ -365,7 +365,7 @@ static struct mtd_partition zylonite_nand_partitions[] = {
 };
 
 static struct pxa3xx_nand_platform_data zylonite_nand_info = {
-	.enable_arbiter	= 1,
+	.attr		= ARBI_EN,
 	.num_cs		= 1,
 	.parts[0]	= zylonite_nand_partitions,
 	.nr_parts[0]	= ARRAY_SIZE(zylonite_nand_partitions),

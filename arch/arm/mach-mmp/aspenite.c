@@ -166,8 +166,8 @@ static struct mtd_partition aspenite_nand_partitions[] = {
 };
 
 static struct pxa3xx_nand_platform_data aspenite_nand_info = {
-	.enable_arbiter	= 1,
-	.num_cs = 1,
+	.attr		= ARBI_EN | NAKED_CMD,
+	.num_cs		= 1,
 	.parts[0]	= aspenite_nand_partitions,
 	.nr_parts[0]	= ARRAY_SIZE(aspenite_nand_partitions),
 };
