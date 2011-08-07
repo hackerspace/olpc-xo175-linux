@@ -2013,6 +2013,12 @@ static int pxa168fb_mode_switch(int mode)
 	switch (mode) {
 	case 0:
 		if (fb_mode) {
+			/* turn off video layer */
+#ifdef CONFIG_PXA168_V4L2_OVERLAY
+			pxa168_ovly_dual(0);
+#else
+			pxa168fb_ovly_dual(0);
+#endif
 			fb_mode = mode;
 			fbi->fb_start_dma = fbi->fb_start_dma_bak;
 			fbi->fb_start = fbi->fb_start_bak;
@@ -2028,6 +2034,12 @@ static int pxa168fb_mode_switch(int mode)
 			fbi->fb_start_dma = fbi_base->fb_start_dma;
 			fbi->fb_start = fbi_base->fb_start;
 			pxa168fb_set_par(info_base);
+			/* turn on video layer */
+#ifdef CONFIG_PXA168_V4L2_OVERLAY
+			pxa168_ovly_dual(1);
+#else
+			pxa168fb_ovly_dual(1);
+#endif
 		}
 		break;
 	default:

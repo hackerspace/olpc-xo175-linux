@@ -185,6 +185,7 @@ obj-y	+= davinci/
 obj-$(CONFIG_CMMB)		+= cmmb/
 
 obj-$(CONFIG_ARCH_OMAP)	+= omap/
+obj-$(CONFIG_PXA168_V4L2_OVERLAY)  += pxa168_overlay.o
 
 EXTRA_CFLAGS += -Idrivers/media/dvb/dvb-core
 EXTRA_CFLAGS += -Idrivers/media/dvb/frontends

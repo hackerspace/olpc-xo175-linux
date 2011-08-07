@@ -1060,3 +1060,23 @@ config VIDEO_MEM2MEM_TESTDEV
 
 
 endif # V4L_MEM2MEM_DRIVERS
+
+menuconfig VIDEO_DISPLAY_DRIVERS
+	bool "Video display adapters"
+	depends on VIDEO_V4L2
+	default y
+	---help---
+	  Say Y here to enable selecting the video adapters for PXA168.
+
+if VIDEO_DISPLAY_DRIVERS && VIDEO_V4L2
+
+config PXA168_V4L2_OVERLAY
+	tristate "Marvell PXA168 LCD Controller overlay support"
+	select VIDEOBUF2_DMA_CONTIG
+	select VIDEOBUF2_CORE
+	depends on VIDEO_V4L2
+        ---help---
+          This is a video4linux2 driver for the Marvell PXA168 LCD
+          overlay controller.
+
+endif # VIDEO_DISPLAY_DRIVERS
