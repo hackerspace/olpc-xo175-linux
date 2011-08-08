@@ -344,6 +344,7 @@ struct _pxa168fb_cmu_pip {
 struct pxa168fb_info {
 	struct device		*dev;
 	struct clk		*clk;
+	struct clk		*sclk;
 	int                     id;
 	void			*reg_base;
 	void			*dsi1_reg_base;

@@ -626,12 +626,20 @@ static void set_clock_divider(struct pxa168fb_info *fbi)
 	u64 div_result;
 	u32 x = 0;
 
+	if ((fbi->sclk != NULL && var->pixclock)) {
+		div_result = 1000000000000ll;
+		do_div(div_result, var->pixclock);
+		needed_pixclk = (u32)div_result;
+		clk_set_rate(fbi->sclk, needed_pixclk);
+		clk_enable(fbi->sclk);
+		return;
+	}
 	/* check whether divider is fixed by platform */
 	if (mi->sclk_div) {
 		writel(mi->sclk_div, fbi->reg_base + clk_div(fbi->id));
 		if (!var->pixclock) {
 			divider_int = mi->sclk_div & CLK_INT_DIV_MASK;
-			x = clk_get_rate(fbi->clk) / divider_int / 1000;
+			x = clk_get_rate(fbi->sclk) / divider_int / 1000;
 			var->pixclock = 1000000000 / x;
 			pr_debug("%s pixclock %d x %d divider_int %d\n",
 				__func__, var->pixclock, x, divider_int);
@@ -659,7 +667,7 @@ static void set_clock_divider(struct pxa168fb_info *fbi)
 	do_div(div_result, var->pixclock);
 	needed_pixclk = (u32)div_result;
 
-	divider_int = clk_get_rate(fbi->clk) / needed_pixclk;
+	divider_int = clk_get_rate(fbi->sclk) / needed_pixclk;
 
 	/* check whether divisor is too small. */
 	if (divider_int < 2) {
@@ -2170,6 +2178,7 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	struct pxa168fb_info *fbi = 0;
 	struct resource *res;
 	struct clk *clk;
+	struct clk *sclk;
 	int irq, irq_enable_mask, ret = 0;
 	struct dsi_info *di;
 	static int proc_inited;
@@ -2190,6 +2199,12 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	if (IS_ERR(clk)) {
 		dev_err(&pdev->dev, "unable to get LCDCLK");
 		return PTR_ERR(clk);
+	}
+
+	sclk = clk_get(&pdev->dev, "LCDSCLK");
+	if (IS_ERR(sclk)) {
+		dev_info(&pdev->dev, "do not have LCDSCLK\n");
+		sclk = NULL;
 	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -2235,6 +2250,7 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	fbi->fb_info = info;
 	platform_set_drvdata(pdev, fbi);
 	fbi->clk = clk;
+	fbi->sclk = sclk;
 	fbi->dev = &pdev->dev;
 	fbi->fb_info->dev = &pdev->dev;
 	fbi->is_blanked = 0;

@@ -16,7 +16,6 @@
 static struct fb_videomode video_modes_abilene[] = {
 	/* innolux WVGA mode info */
 	[0] = {
-		.pixclock = 62500,
 		.refresh = 60,
 		.xres = 1280,
 		.yres = 720,
@@ -33,8 +32,7 @@ static struct fb_videomode video_modes_abilene[] = {
 static struct fb_videomode video_modes_yellowstone[] = {
 	/* innolux WVGA mode info */
 	[0] = {
-		.pixclock = 62500,
-		.refresh = 60,
+		.refresh = 54,
 		.xres = 1280,
 		.yres = 800,
 		.hsync_len = 2,
