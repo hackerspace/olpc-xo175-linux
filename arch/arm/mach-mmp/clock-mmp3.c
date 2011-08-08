@@ -1071,6 +1071,114 @@ static struct clk mmp3_clk_lcd1 = {
 			{APMU_LCD_CLK_RES_CTRL, 8, 0xf} } },
 };
 
+#define LCD_SCLK_DIV	(APB_VIRT_BASE + 0x0020B1A8)
+
+static int lcd_sclk_enable(struct clk *clk)
+{
+	u32 val;
+
+	val = __raw_readl(clk->reg_data[SOURCE][CONTROL].reg);
+	/* enable path clock */
+	val &= ~(1 << 28);
+	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+
+	return 0;
+}
+
+static void lcd_sclk_disable(struct clk *clk)
+{
+	u32 val;
+
+	val = __raw_readl(clk->reg_data[SOURCE][CONTROL].reg);
+	/* disable path clock */
+	val |= (1 << 28);
+	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+}
+
+static long lcd_sclk_round_rate(struct clk *clk, unsigned long rate)
+{
+	/*
+	 * lcd sclk actually has five clock souce: axi, display 1,
+	 * display 2, HDMI PLL and PLL3. Here we just fix it to be
+	 * PLL3 since it makes things simple and PLL3 satisfy it well.
+	 */
+	int i;
+	unsigned long parent_rate = clk_get_rate(&mmp3_clk_pll3);
+
+	/* the divider is from 2 to 255 */
+	for (i = 3; i < 256; i++) {
+		if (rate > parent_rate / i)
+			break;
+	}
+
+	return parent_rate / (i - 1);
+}
+
+static int lcd_sclk_setrate(struct clk *clk, unsigned long rate)
+{
+	const struct clk_mux_sel *sel;
+	unsigned long parent_rate = clk_get_rate(&mmp3_clk_pll3);
+	u32 val = __raw_readl(clk->reg_data[SOURCE][CONTROL].reg);
+
+	clk->mul = 1;
+	clk->div = parent_rate / rate;
+
+	clk_reparent(clk, &mmp3_clk_pll3);
+
+	val &= ~(clk->reg_data[DIV][CONTROL].reg_mask
+		 << clk->reg_data[DIV][CONTROL].reg_shift);
+	val |= clk->div
+	    << clk->reg_data[DIV][CONTROL].reg_shift;
+
+	for (sel = clk->inputs; sel->input != 0; sel++) {
+		if (sel->input == &mmp3_clk_pll3)
+			break;
+	}
+	if (sel->input == 0) {
+		pr_err("lcd: no matched input for this parent!\n");
+		BUG();
+	}
+
+	val &= ~(clk->reg_data[SOURCE][CONTROL].reg_mask
+		<< clk->reg_data[SOURCE][CONTROL].reg_shift);
+	val |= sel->value
+		<< clk->reg_data[SOURCE][CONTROL].reg_shift;
+
+	val |= 0x10001200;
+	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+
+	return 0;
+}
+
+struct clkops lcd_sclk_ops = {
+	.enable = lcd_sclk_enable,
+	.disable = lcd_sclk_disable,
+	.round_rate = lcd_sclk_round_rate,
+	.setrate = lcd_sclk_setrate,
+};
+
+/* Note: does not expose AXI/Display 2/HDMI PLL */
+static struct clk_mux_sel lcd_sclk_mux[] = {
+	{.input = &mmp3_clk_lcd1, .value = 1},
+	{.input = &mmp3_clk_pll3, .value = 7},
+	{0, 0},
+};
+
+static struct clk mmp3_lcd_sclk = {
+	.name = "lcd_sclk",
+	.lookup = {
+		.dev_id = "pxa168-fb.0",
+		.con_id = "LCDSCLK",
+	},
+	.ops = &lcd_sclk_ops,
+	.inputs = lcd_sclk_mux,
+	.reg_data = {
+		     { {LCD_SCLK_DIV, 29, 0x7},
+			{LCD_SCLK_DIV, 29, 0x7} },
+		     {{LCD_SCLK_DIV, 0, 0xff},
+			{LCD_SCLK_DIV, 0, 0xff} } },
+};
+
 static struct clk *mmp3_clks_ptr[] = {
 	&mmp3_clk_pll1_d_2,
 	&mmp3_clk_pll1,
@@ -1097,6 +1205,7 @@ static struct clk *mmp3_clks_ptr[] = {
 	&mmp3_clk_pll3,
 	&mmp3_clk_gc,
 	&mmp3_clk_lcd1,
+	&mmp3_lcd_sclk,
 };
 
 static int apbc_clk_enable(struct clk *clk)
