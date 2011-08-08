@@ -153,6 +153,8 @@ static struct irqaction pxa_ost4_irq = {
 	.dev_id		= &ckevt_pxa_osmr,
 };
 
+extern void rtc_calib_init(void);
+
 static void __init pxa_timer_init(void)
 {
 	unsigned long clock_tick_rate = get_clock_tick_rate();
@@ -184,6 +186,9 @@ static void __init pxa_timer_init(void)
 	clocksource_mmio_init((void __iomem *)&OSCR4, "oscr4", 32768, 200, 32,
 		clocksource_mmio_readl_up);
 	clockevents_register_device(&ckevt_pxa_osmr);
+
+	rtc_calib_init();
+
 }
 
 #ifdef CONFIG_PM

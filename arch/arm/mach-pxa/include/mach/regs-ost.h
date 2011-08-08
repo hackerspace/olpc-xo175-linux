@@ -12,12 +12,26 @@
 #define OSMR2		__REG(0x40A00008)  /* */
 #define OSMR3		__REG(0x40A0000C)  /* */
 #define OSMR4		__REG(0x40A00080)  /* */
+#define OSMR11		__REG(0x40A0009C)  /* */
 #define OSCR		__REG(0x40A00010)  /* OS Timer Counter Register */
+#define OSNR		__REG(0x40A00020)  /* OS Timer snapshot Register */
 #define OSCR4		__REG(0x40A00040)  /* OS Timer Counter Register */
+#define OSCR10		__REG(0x40A00058)  /* OS Timer Counter Register */
+#define OSCR11		__REG(0x40A0005C)  /* OS Timer Counter Register */
 #define OMCR4		__REG(0x40A000C0)  /* */
+#define OMCR10		__REG(0x40A000D8)  /* OS timer Match Controll Register */
+#define OMCR11		__REG(0x40A000DC)  /* OS timer Match Controll Register */
 #define OSSR		__REG(0x40A00014)  /* OS Timer Status Register */
 #define OWER		__REG(0x40A00018)  /* OS Timer Watchdog Enable Register */
 #define OIER		__REG(0x40A0001C)  /* OS Timer Interrupt Enable Register */
+
+#define OST_C0		(1 << 0)
+#define OST_C1		(1 << 1)
+#define OST_C2		(1 << 2)
+#define OST_C3		(1 << 3)
+#define OST_C4		(1 << 4)
+#define OST_C10		(1 << 10)
+#define OST_C11		(1 << 11)
 
 #define OSSR_M4		(1 << 4)	/* Match status channel 4 */
 #define OSSR_M3		(1 << 3)	/* Match status channel 3 */
