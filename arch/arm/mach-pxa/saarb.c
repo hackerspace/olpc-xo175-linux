@@ -427,7 +427,7 @@ static void __init saarb_init(void)
 
 }
 
-MACHINE_START(SAARB, "PXA955 Handheld Platform (aka SAARB)")
+MACHINE_START(SAARB, "PXA968 (PXA955) Handheld Platform (aka SAARB)")
 	.boot_params    = 0xa0000100,
 	.map_io         = pxa_map_io,
 	.nr_irqs	= SAARB_NR_IRQS,
