@@ -47,9 +47,19 @@ static int __init td_dkb_setup(char *__unused)
 __setup("td_dkb", td_dkb_setup);
 
 static unsigned long ttc_dkb_pin_config[] __initdata = {
-	/* UART2 */
-	GPIO47_UART2_RXD,
-	GPIO48_UART2_TXD,
+	/* UART2 GPS UART */
+	GPIO43_UART2_RXD,
+	GPIO44_UART2_TXD,
+
+	/* UART0 FFUART */
+	GPIO47_UART0_RXD,
+	GPIO48_UART0_TXD,
+
+	/* UART1 BT_UART */
+	GPIO29_UART1_CTS,
+	GPIO30_UART1_RTS,
+	GPIO31_UART1_TXD,
+	GPIO32_UART1_RXD,
 
 	/* DFI */
 	DF_IO0_ND_IO0,
@@ -764,7 +774,9 @@ static void __init ttc_dkb_init(void)
 	mfp_config(ARRAY_AND_SIZE(ttc_dkb_pin_config));
 
 	/* on-chip devices */
+	pxa910_add_uart(0);
 	pxa910_add_uart(1);
+	pxa910_add_uart(2);
 	pxa910_add_1wire();
 
 	pxa910_add_keypad(&ttc_dkb_keypad_info);
