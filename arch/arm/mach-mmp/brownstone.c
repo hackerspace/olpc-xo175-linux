@@ -26,6 +26,7 @@
 #include <mach/mfp-mmp2.h>
 #include <mach/mmp2.h>
 #include <mach/irqs.h>
+#include <plat/usb.h>
 
 #include "common.h"
 
@@ -180,6 +181,25 @@ static struct sdhci_pxa_platdata mmp2_sdh_platdata_mmc0 = {
 	.max_speed	= 25000000,
 };
 
+#ifdef CONFIG_USB_SUPPORT
+
+#if defined(CONFIG_USB_PXA_U2O)
+extern int pxa_usb_phy_init(unsigned int base);
+static char *mmp2_usb_clock_name[] = {
+	[0] = "U2OCLK",
+};
+static struct mv_usb_platform_data mmp2_usb_pdata = {
+	.clknum		= 1,
+	.clkname	= mmp2_usb_clock_name,
+	.vbus		= NULL,
+	.mode		= MV_USB_MODE_OTG,
+	.phy_init	= pxa_usb_phy_init,
+	.set_vbus	= NULL,
+};
+#endif
+
+#endif
+
 static void __init brownstone_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(brownstone_pin_config));
@@ -189,6 +209,10 @@ static void __init brownstone_init(void)
 	mmp2_add_uart(3);
 	mmp2_add_twsi(1, NULL, ARRAY_AND_SIZE(brownstone_twsi1_info));
 	mmp2_add_sdhost(0, &mmp2_sdh_platdata_mmc0); /* SD/MMC */
+#ifdef CONFIG_USB_PXA_U2O
+	mmp2_device_u2o.dev.platform_data = (void *)&mmp2_usb_pdata;
+	platform_device_register(&mmp2_device_u2o);
+#endif
 
 	/* enable 5v regulator */
 	platform_device_register(&brownstone_v_5vp_device);
