@@ -24,6 +24,8 @@
 #include <linux/spi/pxa2xx_spi.h>
 #include <linux/spi/cmmb.h>
 #include <linux/proc_fs.h>
+#include <linux/regulator/machine.h>
+#include <linux/regulator/consumer.h>
 
 #include <asm/mach-types.h>
 #include <asm/uaccess.h>
@@ -221,10 +223,84 @@ static struct pm860x_led_pdata ttc_dkb_led[] = {
 	},
 };
 
+static struct regulator_consumer_supply ttc_dkb_regulator_supply[] = {
+	[PM8607_ID_BUCK1]	= REGULATOR_SUPPLY("v_buck1", NULL),
+	[PM8607_ID_BUCK3]	= REGULATOR_SUPPLY("v_buck3", NULL),
+	[PM8607_ID_LDO1]	= REGULATOR_SUPPLY("v_ldo1", NULL),
+	[PM8607_ID_LDO2]	= REGULATOR_SUPPLY("v_ldo2", NULL),
+	[PM8607_ID_LDO3]	= REGULATOR_SUPPLY("v_ldo3", NULL),
+	[PM8607_ID_LDO4]	= REGULATOR_SUPPLY("v_ldo4", NULL),
+	[PM8607_ID_LDO5]	= REGULATOR_SUPPLY("v_ldo5", NULL),
+	[PM8607_ID_LDO6]	= REGULATOR_SUPPLY("v_ldo6", NULL),
+	[PM8607_ID_LDO7]	= REGULATOR_SUPPLY("v_ldo7", NULL),
+	[PM8607_ID_LDO8]	= REGULATOR_SUPPLY("v_ldo8", NULL),
+	[PM8607_ID_LDO9]	= REGULATOR_SUPPLY("v_ldo9", NULL),
+	[PM8607_ID_LDO10]	= REGULATOR_SUPPLY("v_ldo10", NULL),
+	[PM8607_ID_LDO12]	= REGULATOR_SUPPLY("v_ldo12", NULL),
+	[PM8607_ID_LDO13]	= REGULATOR_SUPPLY("v_ldo13", NULL),
+	[PM8607_ID_LDO14]	= REGULATOR_SUPPLY("v_ldo14", NULL),
+};
+static int regulator_index[] = {
+	PM8607_ID_BUCK1,
+	PM8607_ID_BUCK2,
+	PM8607_ID_BUCK3,
+	PM8607_ID_LDO1,
+	PM8607_ID_LDO2,
+	PM8607_ID_LDO3,
+	PM8607_ID_LDO4,
+	PM8607_ID_LDO5,
+	PM8607_ID_LDO6,
+	PM8607_ID_LDO7,
+	PM8607_ID_LDO8,
+	PM8607_ID_LDO9,
+	PM8607_ID_LDO10,
+	PM8607_ID_LDO11,
+	PM8607_ID_LDO12,
+	PM8607_ID_LDO13,
+	PM8607_ID_LDO14,
+	PM8607_ID_LDO15,
+};
+#define DKB_REG_INIT(_name, _min, _max, _always, _boot)			\
+{									\
+	.constraints = {						\
+		.name		= __stringify(_name),			\
+		.min_uV		= _min,					\
+		.max_uV		= _max,					\
+		.always_on	= _always,				\
+		.boot_on	= _boot,				\
+		.valid_ops_mask	= REGULATOR_CHANGE_VOLTAGE		\
+				| REGULATOR_CHANGE_STATUS,		\
+	},								\
+	.num_consumer_supplies	= 1,					\
+	.consumer_supplies	=					\
+			&ttc_dkb_regulator_supply[PM8607_ID_##_name],	\
+	.driver_data		= &regulator_index[PM8607_ID_##_name],  \
+}
+
+static struct regulator_init_data ttc_dkb_regulator_init_data[] = {
+	DKB_REG_INIT(BUCK1, 1000000, 1500000, 1, 1),
+	DKB_REG_INIT(BUCK3, 1000000, 3000000, 1, 1),
+	DKB_REG_INIT(LDO1, 1200000, 2800000, 1, 1),
+	DKB_REG_INIT(LDO2, 1800000, 3300000, 1, 1),
+	DKB_REG_INIT(LDO3, 1800000, 3300000, 1, 1),
+	DKB_REG_INIT(LDO4, 1800000, 3300000, 1, 1),
+	DKB_REG_INIT(LDO5, 2900000, 3300000, 1, 1),
+	DKB_REG_INIT(LDO6, 1800000, 3300000, 1, 1),
+	DKB_REG_INIT(LDO7, 1800000, 2900000, 1, 1),
+	DKB_REG_INIT(LDO8, 1800000, 2900000, 1, 1),
+	DKB_REG_INIT(LDO9, 1800000, 3300000, 1, 1),
+	DKB_REG_INIT(LDO10, 1200000, 3300000, 1, 1),
+	DKB_REG_INIT(LDO12, 1200000, 3300000, 0, 1),
+	DKB_REG_INIT(LDO13, 1200000, 3000000, 0, 1),
+	DKB_REG_INIT(LDO14, 1800000, 3300000, 0, 1),
+};
+
+
 static struct pm860x_platform_data ttc_dkb_pm8607_info = {
 	.backlight	= &ttc_dkb_backlight[0],
 	.led		= &ttc_dkb_led[0],
 	.touch		= &ttc_dkb_touch,
+	.regulator	= &ttc_dkb_regulator_init_data[0],
 	.companion_addr	= 0x11,
 	.irq_mode	= 0,
 	.irq_base	= IRQ_BOARD_START,
@@ -232,6 +308,7 @@ static struct pm860x_platform_data ttc_dkb_pm8607_info = {
 	.i2c_port	= GI2C_PORT,
 	.num_backlights	= ARRAY_SIZE(ttc_dkb_backlight),
 	.num_leds	= ARRAY_SIZE(ttc_dkb_led),
+	.num_regulators	= ARRAY_SIZE(ttc_dkb_regulator_init_data),
 };
 
 #if defined(CONFIG_GPIO_PCA9575)
