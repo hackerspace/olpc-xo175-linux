@@ -122,8 +122,9 @@ void pxa910_ripc_unlock(void)
 }
 
 /* APB peripheral clocks */
-static APBC_CLK(uart1, PXA910_UART0, 1, 14745600);
-static APBC_CLK(uart2, PXA910_UART1, 1, 14745600);
+static APBC_CLK(uart0, PXA910_UART0, 1, 14745600);
+static APBC_CLK(uart1, PXA910_UART1, 1, 14745600);
+static APBC_CLK(uart2, PXA910_UART2, 1, 14745600);
 static APBC_CLK(twsi0, PXA910_TWSI0, 0, 33000000);
 static APBC_CLK(twsi1, PXA910_TWSI1, 0, 33000000);
 static APBC_CLK(pwm1, PXA910_PWM1, 1, 13000000);
@@ -144,8 +145,9 @@ static APMU_CLK(sdh2, SDH2, 0x001b, 44500000);
 
 /* device and clock bindings */
 static struct clk_lookup pxa910_clkregs[] = {
-	INIT_CLKREG(&clk_uart1, "pxa2xx-uart.0", NULL),
-	INIT_CLKREG(&clk_uart2, "pxa2xx-uart.1", NULL),
+	INIT_CLKREG(&clk_uart0, "pxa2xx-uart.0", NULL),
+	INIT_CLKREG(&clk_uart1, "pxa2xx-uart.1", NULL),
+	INIT_CLKREG(&clk_uart2, "pxa2xx-uart.2", NULL),
 	INIT_CLKREG(&clk_twsi0, "pxa910-i2c.0", NULL),
 	INIT_CLKREG(&clk_twsi1, "pxa910-i2c.1", NULL),
 	INIT_CLKREG(&clk_pwm1, "pxa910-pwm.0", NULL),
@@ -209,19 +211,19 @@ struct sys_timer pxa910_timer = {
 
 /* NOTE: there are totally 3 UARTs on PXA910:
  *
- *   UART1   - Slow UART (can be used both by AP and CP)
- *   UART2/3 - Fast UART
+ *   UART2   - Slow UART (can be used both by AP and CP)
+ *   UART0/1 - Fast UART
  *
  * To be backward compatible with the legacy FFUART/BTUART/STUART sequence,
  * they are re-ordered as:
  *
- *   pxa910_device_uart1 - UART2 as FFUART
- *   pxa910_device_uart2 - UART3 as BTUART
- *
- * UART1 is not used by AP for the moment.
+ *   pxa910_device_uart0 - UART0 as FFUART
+ *   pxa910_device_uart1 - UART1 as BTUART
+ *   pxa910_device_uart2 - UART2 as GPS
  */
-PXA910_DEVICE(uart1, "pxa2xx-uart", 0, UART2, 0xd4017000, 0x30, 21, 22);
-PXA910_DEVICE(uart2, "pxa2xx-uart", 1, UART3, 0xd4018000, 0x30, 23, 24);
+PXA910_DEVICE(uart0, "pxa2xx-uart", 0, UART0, 0xd4017000, 0x30, 21, 22);
+PXA910_DEVICE(uart1, "pxa2xx-uart", 1, UART1, 0xd4018000, 0x30, 23, 24);
+PXA910_DEVICE(uart2, "pxa2xx-uart", 2, UART2, 0xd4036000, 0x30, 4, 5);
 PXA910_DEVICE(twsi0, "pxa910-i2c", 0, TWSI0, 0xd4011000, 0x40);
 PXA910_DEVICE(twsi1, "pxa910-i2c", 1, TWSI1, 0xd4037000, 0x40);
 PXA910_DEVICE(pwm1, "pxa910-pwm", 0, NONE, 0xd401a000, 0x10);

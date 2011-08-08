@@ -82,8 +82,8 @@
 #define IRQ_PXA910_IPC_CP3		24
 #define IRQ_PXA910_CNM			25
 #define IRQ_PXA910_L2_DDR		26
-#define IRQ_PXA910_UART2		27
-#define IRQ_PXA910_UART3		28
+#define IRQ_PXA910_UART0		27
+#define IRQ_PXA910_UART1		28
 #define IRQ_PXA910_AP2_TIMER1		29
 #define IRQ_PXA910_AP2_TIMER2		30
 #define IRQ_PXA910_CP2_TIMER1		31
@@ -109,7 +109,7 @@
 #define IRQ_PXA910_USB2			51
 #define IRQ_PXA910_TWSI1		54
 #define IRQ_PXA910_CP_GPIO		55
-#define IRQ_PXA910_UART1		59	/* Slow UART */
+#define IRQ_PXA910_UART2		59	/* Slow UART */
 #define IRQ_PXA910_AP_PMU		60
 #define IRQ_PXA910_SM_INT		63	/* from PinMux */
 

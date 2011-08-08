@@ -17,6 +17,7 @@ extern int pxa910_ripc_trylock(void);
 #include <linux/spi/pxa2xx_spi.h>
 #include <linux/platform_data/pxa_sdhci.h>
 
+extern struct pxa_device_desc pxa910_device_uart0;
 extern struct pxa_device_desc pxa910_device_uart1;
 extern struct pxa_device_desc pxa910_device_uart2;
 extern struct pxa_device_desc pxa910_device_twsi0;
@@ -46,6 +47,7 @@ static inline int pxa910_add_uart(int id)
 	struct pxa_device_desc *d = NULL;
 
 	switch (id) {
+	case 0: d = &pxa910_device_uart0; break;
 	case 1: d = &pxa910_device_uart1; break;
 	case 2: d = &pxa910_device_uart2; break;
 	}
