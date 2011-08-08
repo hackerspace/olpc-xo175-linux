@@ -443,7 +443,7 @@ static void __init ttc_dkb_init(void)
 	pxa910_add_1wire();
 
 	pxa910_add_keypad(&ttc_dkb_keypad_info);
-
+	pxa910_add_cnm();
 	pxa910_add_twsi(0, NULL, ARRAY_AND_SIZE(ttc_dkb_i2c_info));
 
 	/* off-chip devices */
