@@ -292,6 +292,10 @@ void VFP_bounce(u32 trigger, u32 fpexc, struct pt_regs *regs)
 {
 	u32 fpscr, orig_fpscr, fpsid, exceptions;
 
+	/* Adjust saved PC for thumb-2 user program */
+	if (regs->ARM_cpsr & PSR_T_BIT)
+		regs->ARM_pc += 2;
+
 	pr_debug("VFP: bounce: trigger %08x fpexc %08x\n", trigger, fpexc);
 
 	/*
