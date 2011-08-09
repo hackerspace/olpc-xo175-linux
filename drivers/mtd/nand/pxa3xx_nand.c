@@ -331,7 +331,14 @@ static void pxa3xx_nand_set_timing(struct pxa3xx_nand_host *host,
 {
 	struct pxa3xx_nand_info *info = host->info_data;
 	unsigned long nand_clk = clk_get_rate(info->clk);
-	uint32_t ndtr0, ndtr1;
+	struct pxa3xx_nand_platform_data *pdata;
+	uint32_t ndtr0, ndtr1, tr;
+
+	pdata = info->pdev->dev.platform_data;
+	if (pdata->attr & NAKED_CMD)
+		tr = 0;
+	else
+		tr = t->tR;
 
 	ndtr0 = NDTR0_tCH(ns2cycle(t->tCH, nand_clk)) |
 		NDTR0_tCS(ns2cycle(t->tCS, nand_clk)) |
@@ -340,7 +347,7 @@ static void pxa3xx_nand_set_timing(struct pxa3xx_nand_host *host,
 		NDTR0_tRH(ns2cycle(t->tRH, nand_clk)) |
 		NDTR0_tRP(ns2cycle(t->tRP, nand_clk));
 
-	ndtr1 = NDTR1_tR(ns2cycle(t->tR, nand_clk)) |
+	ndtr1 = NDTR1_tR(ns2cycle(tr, nand_clk)) |
 		NDTR1_tWHR(ns2cycle(t->tWHR, nand_clk)) |
 		NDTR1_tAR(ns2cycle(t->tAR, nand_clk));
 
