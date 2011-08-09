@@ -31,7 +31,8 @@ struct pxa3xx_nand_cmdset {
 
 struct pxa3xx_nand_flash {
 	char		*name;
-	uint32_t	chip_id;
+	uint16_t	chip_id;
+	uint16_t	ext_id;
 	unsigned int	page_per_block; /* Pages per block (PG_PER_BLK) */
 	unsigned int	page_size;	/* Page size in bytes (PAGE_SZ) */
 	unsigned int	flash_width;	/* Width of Flash memory (DWIDTH_M) */

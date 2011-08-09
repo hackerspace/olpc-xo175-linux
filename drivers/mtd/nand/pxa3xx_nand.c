@@ -244,15 +244,16 @@ static struct pxa3xx_nand_timing timing[] = {
 };
 
 static struct pxa3xx_nand_flash builtin_flash_types[] = {
-{ "DEFAULT FLASH",      0,   0, 2048,  8,  8, 0,    0, &timing[0] },
-{ "64MiB 16-bit",  0x46ec,  32,  512, 16, 16, 1, 4096, &timing[1] },
-{ "256MiB 8-bit",  0xdaec,  64, 2048,  8,  8, 1, 2048, &timing[1] },
-{ "4GiB 8-bit",    0xd7ec, 128, 4096,  8,  8, 4, 8192, &timing[1] },
-{ "128MiB 8-bit",  0xa12c,  64, 2048,  8,  8, 1, 1024, &timing[2] },
-{ "128MiB 16-bit", 0xb12c,  64, 2048, 16, 16, 1, 1024, &timing[2] },
-{ "512MiB 8-bit",  0xdc2c,  64, 2048,  8,  8, 1, 4096, &timing[2] },
-{ "512MiB 16-bit", 0xcc2c,  64, 2048, 16, 16, 1, 4096, &timing[2] },
-{ "256MiB 16-bit", 0xba20,  64, 2048, 16, 16, 1, 2048, &timing[3] },
+{ "DEFAULT FLASH",      0,      0,   0, 2048,  8,  8, 0,    0, &timing[0] },
+{ "64MiB 16-bit",  0x46ec, 0xffff,  32,  512, 16, 16, 1, 4096, &timing[1] },
+{ "256MiB 8-bit",  0xdaec, 0xffff,  64, 2048,  8,  8, 1, 2048, &timing[1] },
+{ "4GiB 8-bit",    0xd7ec, 0xb655, 128, 4096,  8,  8, 4, 8192, &timing[1] },
+{ "4GiB 8-bit",    0xd7ec, 0x29d5, 128, 4096,  8,  8, 8, 8192, &timing[1] },
+{ "128MiB 8-bit",  0xa12c, 0xffff,  64, 2048,  8,  8, 1, 1024, &timing[2] },
+{ "128MiB 16-bit", 0xb12c, 0xffff,  64, 2048, 16, 16, 1, 1024, &timing[2] },
+{ "512MiB 8-bit",  0xdc2c, 0xffff,  64, 2048,  8,  8, 1, 4096, &timing[2] },
+{ "512MiB 16-bit", 0xcc2c, 0xffff,  64, 2048, 16, 16, 1, 4096, &timing[2] },
+{ "256MiB 16-bit", 0xba20, 0xffff,  64, 2048, 16, 16, 1, 2048, &timing[3] },
 };
 
 /* Define a default flash type setting serve as flash detecting only */
@@ -1259,7 +1260,7 @@ static int pxa3xx_nand_scan(struct mtd_info *mtd)
 	struct nand_flash_dev pxa3xx_flash_ids[2], *def = NULL;
 	const struct pxa3xx_nand_flash *f = NULL;
 	struct nand_chip *chip = mtd->priv;
-	uint32_t id = -1;
+	uint16_t *id;
 	uint64_t chipsize;
 	int i, ret, num;
 
@@ -1275,9 +1276,10 @@ static int pxa3xx_nand_scan(struct mtd_info *mtd)
 	}
 
 	chip->cmdfunc(mtd, NAND_CMD_READID, 0, 0);
-	id = *((uint16_t *)(info->data_buff));
-	if (id != 0)
-		dev_info(&info->pdev->dev, "Detect a flash id %x\n", id);
+	id = (uint16_t *)(info->data_buff);
+	if (id[0] != 0)
+		dev_info(&info->pdev->dev, "Detect a flash id %x:%x\n",
+				id[0], id[1]);
 	else {
 		dev_warn(&info->pdev->dev,
 			 "Read out ID 0, potential timing set wrong!!\n");
@@ -1293,7 +1295,7 @@ static int pxa3xx_nand_scan(struct mtd_info *mtd)
 			f = &builtin_flash_types[i - pdata->num_flash + 1];
 
 		/* find the chip in default list */
-		if (f->chip_id == id)
+		if ((f->chip_id == id[0]) && ((f->ext_id & id[1]) == id[1]))
 			break;
 	}
 
