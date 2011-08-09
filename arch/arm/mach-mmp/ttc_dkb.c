@@ -262,6 +262,12 @@ static struct i2c_board_info ttc_dkb_i2c_info[] = {
 #endif
 };
 
+static struct i2c_pxa_platform_data dkb_i2c_pdata = {
+	.hardware_lock		= pxa910_ripc_lock,
+	.hardware_unlock	= pxa910_ripc_unlock,
+	.hardware_trylock	= pxa910_ripc_trylock,
+};
+
 static struct platform_device *ttc_dkb_devices[] = {
 	&ttc_dkb_device_onenand,
 	&pxa910_device_rtc,
@@ -444,7 +450,7 @@ static void __init ttc_dkb_init(void)
 
 	pxa910_add_keypad(&ttc_dkb_keypad_info);
 	pxa910_add_cnm();
-	pxa910_add_twsi(0, NULL, ARRAY_AND_SIZE(ttc_dkb_i2c_info));
+	pxa910_add_twsi(0, &dkb_i2c_pdata, ARRAY_AND_SIZE(ttc_dkb_i2c_info));
 
 	/* off-chip devices */
 	platform_add_devices(ARRAY_AND_SIZE(ttc_dkb_devices));
