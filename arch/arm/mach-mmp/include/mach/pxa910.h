@@ -14,6 +14,7 @@ extern int pxa910_ripc_trylock(void);
 #include <mach/devices.h>
 #include <plat/pxa3xx_nand.h>
 #include <plat/pxa27x_keypad.h>
+#include <linux/spi/pxa2xx_spi.h>
 #include <linux/platform_data/pxa_sdhci.h>
 
 extern struct pxa_device_desc pxa910_device_uart1;
@@ -24,6 +25,9 @@ extern struct pxa_device_desc pxa910_device_pwm1;
 extern struct pxa_device_desc pxa910_device_pwm2;
 extern struct pxa_device_desc pxa910_device_pwm3;
 extern struct pxa_device_desc pxa910_device_pwm4;
+extern struct pxa_device_desc pxa910_device_ssp0;
+extern struct pxa_device_desc pxa910_device_ssp1;
+extern struct pxa_device_desc pxa910_device_ssp2;
 extern struct pxa_device_desc pxa910_device_nand;
 extern struct pxa_device_desc pxa910_device_keypad;
 extern struct pxa_device_desc pxa910_device_sdh0;
@@ -85,6 +89,42 @@ static inline int pxa910_add_pwm(int id)
 	}
 
 	return pxa_register_device(d, NULL, 0);
+}
+
+static inline int pxa910_add_ssp(int id)
+{
+	struct pxa_device_desc *d = NULL;
+
+	switch (id) {
+	case 0:
+		d = &pxa910_device_ssp0;
+		break;
+	case 1:
+		d = &pxa910_device_ssp1;
+		break;
+	case 2:
+		d = &pxa910_device_ssp2;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return pxa_register_device(d, NULL, 0);
+}
+
+static inline int pxa910_add_spi(int id, struct pxa2xx_spi_master *pdata)
+{
+	struct platform_device *pd;
+
+	pd = platform_device_alloc("pxa2xx-spi", id);
+	if (pd == NULL) {
+		pr_err("pxa2xx-spi: failed to allocate device (id=%d)\n", id);
+		return -ENOMEM;
+	}
+
+	platform_device_add_data(pd, pdata, sizeof(*pdata));
+
+	return platform_device_add(pd);
 }
 
 static inline int pxa910_add_nand(struct pxa3xx_nand_platform_data *info)
