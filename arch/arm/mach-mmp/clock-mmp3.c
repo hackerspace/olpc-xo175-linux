@@ -1179,6 +1179,255 @@ static struct clk mmp3_lcd_sclk = {
 			{LCD_SCLK_DIV, 0, 0xff} } },
 };
 
+static void sdhc_clk_init(struct clk *clk)
+{
+	const struct clk_mux_sel *sel;
+	u32 val = 0;
+
+	clk->mul = 1;
+	clk->div = 1;
+
+	clk_reparent(clk, &mmp3_clk_pll1_d_4);
+
+	val &= ~(clk->reg_data[DIV][CONTROL].reg_mask
+		 << clk->reg_data[DIV][CONTROL].reg_shift);
+	val |= clk->div
+	    << clk->reg_data[DIV][CONTROL].reg_shift;
+
+	for (sel = clk->inputs; sel->input != 0; sel++) {
+		if (sel->input == &mmp3_clk_pll1_d_4)
+			break;
+	}
+	if (sel->input == 0) {
+		pr_err("sdh: no matched input for this parent!\n");
+		BUG();
+	}
+
+	val &= ~(clk->reg_data[SOURCE][CONTROL].reg_mask
+		<< clk->reg_data[SOURCE][CONTROL].reg_shift);
+	val |= sel->value
+		<< clk->reg_data[SOURCE][CONTROL].reg_shift;
+
+	clk->enable_val = val;
+}
+
+static int sdhc_clk_enable(struct clk *clk)
+{
+	u32 val;
+
+	val = clk->enable_val | 0x1b;
+	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+
+	return 0;
+}
+
+static void sdhc_clk_disable(struct clk *clk)
+{
+	__raw_writel(0, clk->reg_data[SOURCE][CONTROL].reg);
+}
+
+static long sdhc_clk_round_rate(struct clk *clk, unsigned long rate)
+{
+	/*
+	 * SDH has four clock source: PLL1, PLL1/2, PLL1/4 and PLL2.
+	 * Here PLL1/2 is not used since PLL1 and PLL1/4 can cover it.
+	 * Only use PLL2 as clock source if the rate is larger than PLL1.
+	 */
+	int i;
+	unsigned long parent_rate;
+
+	/* for those which is less than pll1/4, use pll1/4 as clock source */
+	if (rate <= clk_get_rate(&mmp3_clk_pll1_d_4)) {
+		parent_rate = clk_get_rate(&mmp3_clk_pll1_d_4);
+		for (i = 2; i < 16; i++) {
+			if (rate > parent_rate / i)
+				break;
+		}
+
+		return parent_rate / (i - 1);
+	/* else for those which is less than pll1, use pll1 as clock source */
+	} else if (rate <= clk_get_rate(&mmp3_clk_pll1)) {
+		parent_rate = clk_get_rate(&mmp3_clk_pll1);
+		for (i = 2; i < 16; i++) {
+			if (rate > parent_rate / i)
+				break;
+		}
+
+		return parent_rate / (i - 1);
+	/* else for those which is larger than pll1, use pll2 as clock source */
+	} else {
+		parent_rate = clk_get_rate(&mmp3_clk_pll2);
+		for (i = 2; i < 16; i++) {
+			if (rate > parent_rate / i)
+				break;
+		}
+	}
+		return parent_rate / (i - 1);
+}
+
+static int sdhc_clk_setrate(struct clk *clk, unsigned long rate)
+{
+	unsigned long parent_rate;
+	const struct clk_mux_sel *sel;
+	u32 val = 0;
+
+	if (rate <= clk_get_rate(&mmp3_clk_pll1_d_4)) {
+		parent_rate = clk_get_rate(&mmp3_clk_pll1_d_4);
+		clk->mul = 1;
+		clk->div = parent_rate / rate;
+
+		clk_reparent(clk, &mmp3_clk_pll1_d_4);
+
+		val &= ~(clk->reg_data[DIV][CONTROL].reg_mask
+			 << clk->reg_data[DIV][CONTROL].reg_shift);
+		val |= clk->div
+		    << clk->reg_data[DIV][CONTROL].reg_shift;
+
+		for (sel = clk->inputs; sel->input != 0; sel++) {
+			if (sel->input == &mmp3_clk_pll1_d_4)
+				break;
+		}
+		if (sel->input == 0) {
+			pr_err("sdh: no matched input for this parent!\n");
+			BUG();
+		}
+
+		val &= ~(clk->reg_data[SOURCE][CONTROL].reg_mask
+			<< clk->reg_data[SOURCE][CONTROL].reg_shift);
+		val |= sel->value
+			<< clk->reg_data[SOURCE][CONTROL].reg_shift;
+	} else if (rate <= clk_get_rate(&mmp3_clk_pll1)) {
+		parent_rate = clk_get_rate(&mmp3_clk_pll1);
+		clk->mul = 1;
+		clk->div = parent_rate / rate;
+
+		clk_reparent(clk, &mmp3_clk_pll1);
+
+		val &= ~(clk->reg_data[DIV][CONTROL].reg_mask
+			 << clk->reg_data[DIV][CONTROL].reg_shift);
+		val |= clk->div
+		    << clk->reg_data[DIV][CONTROL].reg_shift;
+
+		for (sel = clk->inputs; sel->input != 0; sel++) {
+			if (sel->input == &mmp3_clk_pll1)
+				break;
+		}
+		if (sel->input == 0) {
+			pr_err("sdh: no matched input for this parent!\n");
+			BUG();
+		}
+
+		val &= ~(clk->reg_data[SOURCE][CONTROL].reg_mask
+			<< clk->reg_data[SOURCE][CONTROL].reg_shift);
+		val |= sel->value
+			<< clk->reg_data[SOURCE][CONTROL].reg_shift;
+	} else if (rate <= clk_get_rate(&mmp3_clk_pll2)) {
+		parent_rate = clk_get_rate(&mmp3_clk_pll2);
+		clk->mul = 1;
+		clk->div = parent_rate / rate;
+
+		clk_reparent(clk, &mmp3_clk_pll2);
+
+		val &= ~(clk->reg_data[DIV][CONTROL].reg_mask
+			 << clk->reg_data[DIV][CONTROL].reg_shift);
+		val |= clk->div
+		    << clk->reg_data[DIV][CONTROL].reg_shift;
+
+		for (sel = clk->inputs; sel->input != 0; sel++) {
+			if (sel->input == &mmp3_clk_pll2)
+				break;
+		}
+		if (sel->input == 0) {
+			pr_err("sdh: no matched input for this parent!\n");
+			BUG();
+		}
+
+		val &= ~(clk->reg_data[SOURCE][CONTROL].reg_mask
+			<< clk->reg_data[SOURCE][CONTROL].reg_shift);
+		val |= sel->value
+			<< clk->reg_data[SOURCE][CONTROL].reg_shift;
+	}
+
+	clk->enable_val = val;
+
+	return 0;
+}
+
+struct clkops sdhc_clk_ops = {
+	.init = sdhc_clk_init,
+	.enable = sdhc_clk_enable,
+	.disable = sdhc_clk_disable,
+	.round_rate = sdhc_clk_round_rate,
+	.setrate = sdhc_clk_setrate,
+};
+
+static struct clk_mux_sel sdhc_clk_mux[] = {
+	{.input = &mmp3_clk_pll1_d_4, .value = 0},
+	{.input = &mmp3_clk_pll2, .value = 1},
+	{.input = &mmp3_clk_pll1, .value = 3},
+	{0, 0},
+};
+
+static struct clk mmp3_clk_sdh0 = {
+	.name = "sdh0",
+	.lookup = {
+		.dev_id = "sdhci-pxav3.0",
+		.con_id = "PXA-SDHCLK",
+	},
+	.ops = &sdhc_clk_ops,
+	.inputs = sdhc_clk_mux,
+	.reg_data = {
+		     { {APMU_SDH0, 8, 0x3},
+			{APMU_SDH0, 8, 0x3} },
+		     {{APMU_SDH0, 10, 0xf},
+			{APMU_SDH0, 10, 0xf} } },
+};
+
+static struct clk mmp3_clk_sdh1 = {
+	.name = "sdh1",
+	.lookup = {
+		.dev_id = "sdhci-pxav3.1",
+		.con_id = "PXA-SDHCLK",
+	},
+	.ops = &sdhc_clk_ops,
+	.inputs = sdhc_clk_mux,
+	.reg_data = {
+		     { {APMU_SDH1, 8, 0x3},
+			{APMU_SDH1, 8, 0x3} },
+		     {{APMU_SDH1, 10, 0xf},
+			{APMU_SDH1, 10, 0xf} } },
+};
+
+static struct clk mmp3_clk_sdh2 = {
+	.name = "sdh2",
+	.lookup = {
+		.dev_id = "sdhci-pxav3.2",
+		.con_id = "PXA-SDHCLK",
+	},
+	.ops = &sdhc_clk_ops,
+	.inputs = sdhc_clk_mux,
+	.reg_data = {
+		     { {APMU_SDH2, 8, 0x3},
+			{APMU_SDH2, 8, 0x3} },
+		     {{APMU_SDH2, 10, 0xf},
+			{APMU_SDH2, 10, 0xf} } },
+};
+
+static struct clk mmp3_clk_sdh3 = {
+	.name = "sdh3",
+	.lookup = {
+		.dev_id = "sdhci-pxav3.3",
+		.con_id = "PXA-SDHCLK",
+	},
+	.ops = &sdhc_clk_ops,
+	.inputs = sdhc_clk_mux,
+	.reg_data = {
+		     { {APMU_SDH3, 8, 0x3},
+			{APMU_SDH3, 8, 0x3} },
+		     {{APMU_SDH3, 10, 0xf},
+			{APMU_SDH3, 10, 0xf} } },
+};
+
 static struct clk *mmp3_clks_ptr[] = {
 	&mmp3_clk_pll1_d_2,
 	&mmp3_clk_pll1,
@@ -1206,6 +1455,10 @@ static struct clk *mmp3_clks_ptr[] = {
 	&mmp3_clk_gc,
 	&mmp3_clk_lcd1,
 	&mmp3_lcd_sclk,
+	&mmp3_clk_sdh0,
+	&mmp3_clk_sdh1,
+	&mmp3_clk_sdh2,
+	&mmp3_clk_sdh3,
 };
 
 static int apbc_clk_enable(struct clk *clk)
@@ -1645,31 +1898,6 @@ struct clkops vmeta_clk_ops = {
 };
 #endif
 
-static int sdhc_clk_enable(struct clk *clk)
-{
-	uint32_t clk_rst;
-
-	clk_rst  =  __raw_readl(clk->clk_rst);
-	clk_rst |= clk->enable_val;
-	__raw_writel(clk_rst, clk->clk_rst);
-
-	return 0;
-}
-
-static void sdhc_clk_disable(struct clk *clk)
-{
-	uint32_t clk_rst;
-
-	clk_rst  =  __raw_readl(clk->clk_rst);
-	clk_rst &= ~clk->enable_val;
-	__raw_writel(clk_rst, clk->clk_rst);
-}
-
-struct clkops sdhc_clk_ops = {
-	.enable		= sdhc_clk_enable,
-	.disable	= sdhc_clk_disable,
-};
-
 static int ccic_rst_clk_enable(struct clk *clk)
 {
 	__raw_writel(0x2e838, clk->clk_rst);
@@ -1789,14 +2017,6 @@ static struct clk mmp3_list_clks[] = {
 	APMU_CLK_OPS("vmeta", NULL, "VMETA_CLK", VMETA,
 			0, 0, NULL, &vmeta_clk_ops),
 #endif
-	APMU_CLK_OPS("sdh0", "sdhci-pxa.0", "PXA-SDHCLK", SDH0,
-			0x1b, 200000000, NULL, &sdhc_clk_ops),
-	APMU_CLK_OPS("sdh1", "sdhci-pxa.1", "PXA-SDHCLK", SDH1,
-			0x1b, 200000000, NULL, &sdhc_clk_ops),
-	APMU_CLK_OPS("sdh2", "sdhci-pxa.2", "PXA-SDHCLK", SDH2,
-			0x1b, 200000000, NULL, &sdhc_clk_ops),
-	APMU_CLK_OPS("sdh3", "sdhci-pxa.3", "PXA-SDHCLK", SDH3,
-			0x1b, 200000000, NULL, &sdhc_clk_ops),
 	APMU_CLK_OPS("ccic_rst", "mv-camera.0", "CCICRSTCLK", CCIC_RST,
 			0, 312000000, NULL, &ccic_rst_clk_ops),
 	APMU_CLK_OPS("ccic_rst", "mv-camera.1", "CCICRSTCLK", CCIC_RST,
