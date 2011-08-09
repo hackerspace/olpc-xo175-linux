@@ -19,6 +19,7 @@
 #include <linux/slab.h>
 
 #include <mach/gpio.h>
+#include <asm/mach/irq.h>
 
 int pxa_last_gpio;
 
@@ -206,7 +207,9 @@ static void pxa_gpio_demux_handler(unsigned int irq, struct irq_desc *desc)
 	struct pxa_gpio_chip *c;
 	int loop, gpio, gpio_base, n;
 	unsigned long gedr;
+	struct irq_chip *chip = irq_get_chip(irq);
 
+	chained_irq_enter(chip, desc);
 	do {
 		loop = 0;
 		for_each_gpio_chip(gpio, c) {
@@ -225,6 +228,7 @@ static void pxa_gpio_demux_handler(unsigned int irq, struct irq_desc *desc)
 			}
 		}
 	} while (loop);
+	chained_irq_exit(chip, desc);
 }
 
 static void pxa_ack_muxed_gpio(struct irq_data *d)
