@@ -570,7 +570,12 @@ void __init abilene_add_lcd_mipi(void)
 
 	/* add frame buffer drivers */
 	mmp3_add_fb(fb);
+	/* add overlay driver */
+#ifdef CONFIG_PXA168_V4L2_OVERLAY
+	mmp3_add_v4l2_ovly(ovly);
+#else
 	mmp3_add_fb_ovly(ovly);
+#endif
 }
 
 void __init yellowstone_add_lcd_mipi(void)
@@ -604,7 +609,12 @@ void __init yellowstone_add_lcd_mipi(void)
 
 	/* add frame buffer drivers */
 	mmp3_add_fb(fb);
+	/* add overlay driver */
+#ifdef CONFIG_PXA168_V4L2_OVERLAY
+	mmp3_add_v4l2_ovly(ovly);
+#else
 	mmp3_add_fb_ovly(ovly);
+#endif
 }
 
 static struct fb_videomode tv_video_modes[] = {
