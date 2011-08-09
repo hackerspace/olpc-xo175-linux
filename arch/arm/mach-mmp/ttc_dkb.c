@@ -20,6 +20,9 @@
 #include <linux/i2c/pca9575.h>
 #include <linux/i2c/pca953x.h>
 #include <linux/gpio.h>
+#include <linux/spi/spi.h>
+#include <linux/spi/pxa2xx_spi.h>
+#include <linux/spi/cmmb.h>
 #include <linux/proc_fs.h>
 
 #include <asm/mach-types.h>
@@ -285,6 +288,181 @@ static struct platform_device *ttc_dkb_devices[] = {
 	&pxa910_device_rtc,
 };
 
+#if (defined CONFIG_CMMB)
+
+static unsigned long cmmb_pin_config[] = {
+	GPIO33_SSP0_CLK,
+	GPIO35_SSP0_RXD,
+	GPIO36_SSP0_TXD,
+};
+
+static struct pxa2xx_spi_master pxa_ssp_master_info = {
+	.num_chipselect = 1,
+	.enable_dma = 1,
+};
+
+static int cmmb_power_reset(void)
+{
+	int cmmb_rst;
+
+	cmmb_rst = GPIO_EXT1(7);
+
+	if (gpio_request(cmmb_rst, "cmmb rst")) {
+		pr_warning("failed to request GPIO for CMMB RST\n");
+		return -EIO;
+	}
+
+	/* reset cmmb, keep low for about 1ms */
+	gpio_direction_output(cmmb_rst, 0);
+	msleep(100);
+
+	/* get cmmb go out of reset state */
+	gpio_direction_output(cmmb_rst, 1);
+	gpio_free(cmmb_rst);
+
+	return 0;
+}
+
+static int cmmb_power_on(void)
+{
+	int cmmb_en, cmmb_rst;
+
+	cmmb_en = GPIO_EXT1(6);
+	if (gpio_request(cmmb_en, "cmmb power")) {
+		pr_warning("[ERROR] failed to request GPIO for CMMB POWER\n");
+		return -EIO;
+	}
+	gpio_direction_output(cmmb_en, 0);
+	msleep(100);
+
+	gpio_direction_output(cmmb_en, 1);
+	gpio_free(cmmb_en);
+
+	msleep(100);
+
+	cmmb_power_reset();
+
+	return 0;
+}
+
+static int cmmb_power_off(void)
+{
+	int cmmb_en;
+
+	cmmb_en = GPIO_EXT1(6);
+
+	if (gpio_request(cmmb_en, "cmmb power")) {
+		pr_warning("failed to request GPIO for CMMB POWER\n");
+		return -EIO;
+	}
+
+	gpio_direction_output(cmmb_en, 0);
+	gpio_free(cmmb_en);
+	msleep(100);
+
+	return 0;
+}
+/*.
+ ** Add two functions: cmmb_cs_assert and cmmb_cs_deassert.
+ ** Provide the capbility that
+ ** cmmb driver can handle the SPI_CS by itself.
+ **/
+static int cmmb_cs_assert(void)
+{
+	int cs;
+	cs = mfp_to_gpio(GPIO34_SSP0_FRM);
+	gpio_direction_output(cs, 0);
+	return 0;
+}
+
+static int cmmb_cs_deassert(void)
+{
+	int cs;
+	cs = mfp_to_gpio(GPIO34_SSP0_FRM);
+	gpio_direction_output(cs, 1);
+	return 0;
+}
+
+static struct cmmb_platform_data cmmb_info = {
+	.power_on = cmmb_power_on,
+	.power_off = cmmb_power_off,
+	.power_reset = cmmb_power_reset,
+	.cs_assert = cmmb_cs_assert,
+	.cs_deassert = cmmb_cs_deassert,
+
+	.gpio_power = GPIO_EXT1(6),
+	.gpio_reset = GPIO_EXT1(7),
+	.gpio_cs = mfp_to_gpio(GPIO34_SSP0_FRM),
+	.gpio_defined = 1,
+};
+
+static void cmmb_if101_cs(u32 cmd)
+{
+/* Because in CMMB read/write,the max data size is more than 8kB
+ * 8k = max data length per dma transfer for pxaxxx
+ * But till now,The spi_read/write driver doesn't support muti DMA cycles
+ *
+ * Here the spi_read/write will not affect the SPI_CS,but provides
+ * cs_assert and cs_deassert in the struct cmmb_platform_data
+ *
+ * And cmmb driver can/should control SPI_CS by itself
+ */
+}
+
+static struct pxa2xx_spi_chip cmmb_if101_chip = {
+	.rx_threshold   = 1,
+	.tx_threshold   = 1,
+	.cs_control     = cmmb_if101_cs,
+};
+
+/* bus_num must match id in pxa2xx_set_spi_info() call */
+static struct spi_board_info spi_board_info[] __initdata = {
+	{
+		.modalias		= "cmmb_if",
+		.platform_data	= &cmmb_info,
+		.controller_data	= &cmmb_if101_chip,
+		.irq			= gpio_to_irq(mfp_to_gpio(GPIO14_GPIO)),
+		.max_speed_hz	= 8000000,
+		.bus_num		= 1,
+		.chip_select	= 0,
+		.mode			= SPI_MODE_0,
+	},
+};
+
+static void __init ttc_dkb_init_spi(void)
+{
+	int err;
+	int cmmb_int, cmmb_cs;
+
+	mfp_config(ARRAY_AND_SIZE(cmmb_pin_config));
+	cmmb_cs = mfp_to_gpio(GPIO34_SSP0_FRM);
+	err = gpio_request(cmmb_cs, "cmmb cs");
+	if (err) {
+		pr_warning("[ERROR] failed to request GPIO for CMMB CS\n");
+		return;
+	}
+	gpio_direction_output(cmmb_cs, 1);
+
+	cmmb_int = mfp_to_gpio(GPIO14_GPIO);
+
+	err = gpio_request(cmmb_int, "cmmb irq");
+	if (err) {
+		pr_warning("[ERROR] failed to request GPIO for CMMB IRQ\n");
+		return;
+	}
+	gpio_direction_input(cmmb_int);
+
+	pxa910_add_ssp(0);
+	pxa910_add_spi(1, &pxa_ssp_master_info);
+	if (spi_register_board_info(spi_board_info,
+			ARRAY_SIZE(spi_board_info))) {
+		pr_warning("[ERROR] failed to register spi device.\n");
+		return;
+	}
+}
+
+#endif /*defined CONFIG_CMMB*/
+
 /* GPS: power on/off control */
 static void gps_power_on(void)
 {
@@ -470,6 +648,12 @@ static void __init ttc_dkb_init(void)
 #if defined(CONFIG_PROC_FS)
 	/* create proc for sirf GPS control */
 	create_sirf_proc_file();
+#endif
+
+#if (defined CONFIG_CMMB)
+	 /* spi device */
+	if (is_td_dkb)
+		ttc_dkb_init_spi();
 #endif
 }
 
