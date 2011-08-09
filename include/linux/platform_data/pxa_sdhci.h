@@ -53,10 +53,16 @@ struct sdhci_pxa_platdata {
 	unsigned int	quirks;
 	unsigned int	pm_caps;
 	void	(*signal_1v8)(int set);
+#ifdef CONFIG_SD8XXX_RFKILL
+	/*for sd8688-rfkill device*/
+	struct mmc_host **pmmc;
+#endif
 };
 
 struct sdhci_pxa {
 	u8	clk_enable;
 	u8	power_mode;
+
+	struct sdhci_pxa_platdata       *pdata;
 };
 #endif /* _PXA_SDHCI_H_ */
