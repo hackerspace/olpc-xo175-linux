@@ -36,6 +36,7 @@ struct pxa3xx_nand_flash {
 	unsigned int	page_size;	/* Page size in bytes (PAGE_SZ) */
 	unsigned int	flash_width;	/* Width of Flash memory (DWIDTH_M) */
 	unsigned int	dfc_width;	/* Width of flash controller(DWIDTH_C) */
+	unsigned int	ecc_strength;   /* How strong ecc should be applied */
 	unsigned int	num_blocks;	/* Number of physical blocks in Flash */
 
 	struct pxa3xx_nand_timing *timing;	/* NAND Flash timing */

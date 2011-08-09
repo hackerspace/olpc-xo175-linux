@@ -33,6 +33,9 @@
 #define PAGE_CHUNK_SIZE		(2048)
 #define OOB_CHUNK_SIZE		(64)
 #define CMD_POOL_SIZE		(5)
+#define BCH_THRESHOLD           (8)
+#define BCH_STRENGTH		(4)
+#define HAMMING_STRENGTH	(1)
 #define DMA_H_SIZE		(sizeof(struct pxa_dma_desc)*2)
 
 /* registers and bit definitions */
@@ -43,6 +46,7 @@
 #define NDPCR		(0x18) /* Page Count Register */
 #define NDBDR0		(0x1C) /* Bad Block Register 0 */
 #define NDBDR1		(0x20) /* Bad Block Register 1 */
+#define NDECCCTRL	(0x28) /* ECC Control Register */
 #define NDDB		(0x40) /* Data Buffer */
 #define NDCB0		(0x48) /* Command Buffer0 */
 #define NDCB1		(0x4C) /* Command Buffer1 */
@@ -69,7 +73,9 @@
 #define NDCR_RDYM               (0x1 << 11)
 #define NDCR_INT_MASK           (0xFFF)
 
-#define NDSR_MASK		(0xfff)
+#define NDSR_MASK		(0xffffffff)
+#define NDSR_ERR_CNT_MASK       (0x1F << 16)
+#define NDSR_ERR_CNT(x)         (((x) << 16) & NDSR_ERR_CNT_MASK)
 #define NDSR_RDY                (0x1 << 12)
 #define NDSR_FLASH_RDY          (0x1 << 11)
 #define NDSR_CS0_PAGED		(0x1 << 10)
@@ -99,6 +105,13 @@
 #define NDCB0_CMD2_MASK		(0xff << 8)
 #define NDCB0_CMD1_MASK		(0xff)
 #define NDCB0_ADDR_CYC_SHIFT	(16)
+
+/* ECC Control Register */
+#define NDECCCTRL_ECC_SPARE_MSK (0xFF << 7)
+#define NDECCCTRL_ECC_SPARE(x)  (((x) << 7) & NDECCCTRL_ECC_SPARE_MSK)
+#define NDECCCTRL_ECC_THR_MSK   (0x3F << 1)
+#define NDECCCTRL_ECC_THRESH(x) (((x) << 1) & NDECCCTRL_ECC_THR_MSK)
+#define NDECCCTRL_BCH_EN        (0x1)
 
 /* macros for registers read/write */
 #define nand_writel(info, off, val)	\
@@ -138,7 +151,7 @@ struct pxa3xx_nand_host {
 
 	/* page size of attached chip */
 	unsigned int		page_size;
-	int			use_ecc;
+	unsigned int		ecc_strength;
 	int			cs;
 
 	/* calculated from pxa3xx_nand_flash data */
@@ -182,7 +195,8 @@ struct pxa3xx_nand_info {
 	unsigned int		page_size;	/* page size of attached chip */
 
 	int			retcode;
-	int			use_ecc;	/* use HW ECC ? */
+	unsigned int		ecc_strength;
+	unsigned int		bad_count;
 	int			use_dma;	/* use DMA ? */
 	int			is_ready;
 
@@ -230,15 +244,15 @@ static struct pxa3xx_nand_timing timing[] = {
 };
 
 static struct pxa3xx_nand_flash builtin_flash_types[] = {
-{ "DEFAULT FLASH",      0,   0, 2048,  8,  8,    0, &timing[0] },
-{ "64MiB 16-bit",  0x46ec,  32,  512, 16, 16, 4096, &timing[1] },
-{ "256MiB 8-bit",  0xdaec,  64, 2048,  8,  8, 2048, &timing[1] },
-{ "4GiB 8-bit",    0xd7ec, 128, 4096,  8,  8, 8192, &timing[1] },
-{ "128MiB 8-bit",  0xa12c,  64, 2048,  8,  8, 1024, &timing[2] },
-{ "128MiB 16-bit", 0xb12c,  64, 2048, 16, 16, 1024, &timing[2] },
-{ "512MiB 8-bit",  0xdc2c,  64, 2048,  8,  8, 4096, &timing[2] },
-{ "512MiB 16-bit", 0xcc2c,  64, 2048, 16, 16, 4096, &timing[2] },
-{ "256MiB 16-bit", 0xba20,  64, 2048, 16, 16, 2048, &timing[3] },
+{ "DEFAULT FLASH",      0,   0, 2048,  8,  8, 0,    0, &timing[0] },
+{ "64MiB 16-bit",  0x46ec,  32,  512, 16, 16, 1, 4096, &timing[1] },
+{ "256MiB 8-bit",  0xdaec,  64, 2048,  8,  8, 1, 2048, &timing[1] },
+{ "4GiB 8-bit",    0xd7ec, 128, 4096,  8,  8, 4, 8192, &timing[1] },
+{ "128MiB 8-bit",  0xa12c,  64, 2048,  8,  8, 1, 1024, &timing[2] },
+{ "128MiB 16-bit", 0xb12c,  64, 2048, 16, 16, 1, 1024, &timing[2] },
+{ "512MiB 8-bit",  0xdc2c,  64, 2048,  8,  8, 1, 4096, &timing[2] },
+{ "512MiB 16-bit", 0xcc2c,  64, 2048, 16, 16, 1, 4096, &timing[2] },
+{ "256MiB 16-bit", 0xba20,  64, 2048, 16, 16, 1, 2048, &timing[3] },
 };
 
 /* Define a default flash type setting serve as flash detecting only */
@@ -348,11 +362,31 @@ static void pxa3xx_set_datasize(struct pxa3xx_nand_info *info)
 	}
 
 	if (host->page_size < PAGE_CHUNK_SIZE) {
-		info->oob_size = (info->use_ecc) ? 8 : 16;
+		switch (info->ecc_strength) {
+		case 0:
+			info->oob_size = 16;
+			break;
+		case HAMMING_STRENGTH:
+			info->oob_size = 8;
+			break;
+		default:
+			dev_err(&info->pdev->dev, "Don't support BCH on "
+				"small page device!!!\n");
+			BUG();
+		}
 		return;
 	}
 
-	info->oob_size = (info->use_ecc) ? 40 : 64;
+	switch (info->ecc_strength) {
+	case 0:
+		info->oob_size = 64;
+		break;
+	case HAMMING_STRENGTH:
+		info->oob_size = 40;
+		break;
+	default:
+		info->oob_size = 32;
+	}
 }
 
 /**
@@ -364,15 +398,24 @@ static void pxa3xx_set_datasize(struct pxa3xx_nand_info *info)
 static void pxa3xx_nand_start(struct pxa3xx_nand_info *info)
 {
 	struct pxa3xx_nand_host *host = info->host[info->cs];
-	uint32_t ndcr;
+	uint32_t ndcr, ndeccctrl = 0;
 
 	ndcr = host->reg_ndcr;
-	ndcr |= info->use_ecc ? NDCR_ECC_EN : 0;
 	ndcr |= info->use_dma ? NDCR_DMA_EN : 0;
 	ndcr |= NDCR_ND_RUN;
+	switch (info->ecc_strength) {
+	default:
+		ndeccctrl |= NDECCCTRL_BCH_EN;
+		ndeccctrl |= NDECCCTRL_ECC_THRESH(BCH_THRESHOLD);
+	case HAMMING_STRENGTH:
+		ndcr |= NDCR_ECC_EN;
+	case 0:
+		break;
+	}
 
 	/* clear status bits and run */
 	nand_writel(info, NDCR, 0);
+	nand_writel(info, NDECCCTRL, ndeccctrl);
 	nand_writel(info, NDSR, NDSR_MASK);
 	nand_writel(info, NDCR, ndcr);
 }
@@ -643,11 +686,22 @@ static int prepare_command_pool(struct pxa3xx_nand_info *info, int command,
 	switch (command) {
 	case NAND_CMD_PAGEPROG:
 	case NAND_CMD_RNDOUT:
-		info->use_ecc = 1;
 		pxa3xx_set_datasize(info);
 		chunks = (host->page_size < PAGE_CHUNK_SIZE) ?
 			 1 : (host->page_size / PAGE_CHUNK_SIZE);
+		if (host->ecc_strength > BCH_STRENGTH) {
+			i = host->ecc_strength / BCH_STRENGTH;
+			info->data_size /= i;
+			ndcb0 |= NDCB0_LEN_OVRD;
+			chunks *= i;
+		}
 		break;
+	case NAND_CMD_READOOB:
+		if (host->ecc_strength > BCH_STRENGTH) {
+			printk(KERN_ERR "we don't support oob command if use"
+					" 8bit per 512bytes ecc feature!!\n");
+			BUG();
+		}
 	default:
 		i = (uint32_t)(&info->retcode) - (uint32_t)info;
 		memset(&info->retcode, 0, sizeof(*info) - i);
@@ -665,6 +719,7 @@ static int prepare_command_pool(struct pxa3xx_nand_info *info, int command,
 	case NAND_CMD_READ0:
 	case NAND_CMD_SEQIN:
 	case NAND_CMD_READOOB:
+		info->ecc_strength = host->ecc_strength;
 		/* small page addr setting */
 		if (unlikely(host->page_size < PAGE_CHUNK_SIZE)) {
 			info->ndcb1 = ((page_addr & 0xFFFFFF) << 8)
@@ -923,12 +978,15 @@ static void nand_read_page(struct mtd_info *mtd, uint8_t *buf, int page)
 		unmap_addr(&info->pdev->dev, mapped_addr,
 			   buf, mtd->writesize, DMA_FROM_DEVICE);
 	if (info->retcode == ERR_SBERR) {
-		switch (info->use_ecc) {
-		case 1:
-			mtd->ecc_stats.corrected++;
-			break;
-		case 0:
+		switch (info->ecc_strength) {
 		default:
+			if (info->bad_count > BCH_THRESHOLD)
+				mtd->ecc_stats.corrected +=
+					(info->bad_count - BCH_THRESHOLD);
+			break;
+		case HAMMING_STRENGTH:
+			mtd->ecc_stats.corrected++;
+		case 0:
 			break;
 		}
 	} else if (info->retcode == ERR_DBERR) {
@@ -1063,6 +1121,12 @@ static int pxa3xx_nand_config_flash(struct pxa3xx_nand_info *info,
 		return -EINVAL;
 	}
 
+	if (f->ecc_strength != 0 && f->ecc_strength != HAMMING_STRENGTH
+	    && (f->ecc_strength % BCH_STRENGTH != 0)) {
+		printk(KERN_ERR "ECC strength definition error, please recheck!!\n");
+		return -EINVAL;
+	}
+	host->ecc_strength = f->ecc_strength;
 	/* calculate flash information */
 	host->cmdset = &default_cmdset;
 	host->page_size = f->page_size;
@@ -1102,7 +1166,9 @@ static int pxa3xx_nand_config_flash(struct pxa3xx_nand_info *info,
 		ndcr |= NDCR_PAGE_SZ;
 
 	ndcr |= NDCR_RD_ID_CNT(host->read_id_bytes);
-	ndcr |= NDCR_SPARE_EN; /* enable spare by default */
+	/* only enable spare area when ecc strength is lower than 8bits */
+	if (f->ecc_strength <= BCH_STRENGTH)
+		ndcr |= NDCR_SPARE_EN;
 
 	host->reg_ndcr = ndcr;
 
@@ -1117,8 +1183,9 @@ static int pxa3xx_nand_detect_config(struct pxa3xx_nand_info *info)
 	 * when there is more than one chip attached to the controller
 	 */
 	struct pxa3xx_nand_host *host = info->host[0];
-	uint32_t ndcr = nand_readl(info, NDCR);
+	uint32_t ndcr = nand_readl(info, NDCR), ndeccctrl;
 
+	ndeccctrl = nand_readl(info, NDECCCTRL);
 	if (ndcr & NDCR_PAGE_SZ) {
 		host->page_size = 2048;
 		host->read_id_bytes = 4;
@@ -1128,6 +1195,8 @@ static int pxa3xx_nand_detect_config(struct pxa3xx_nand_info *info)
 	}
 
 	host->reg_ndcr = ndcr & ~NDCR_INT_MASK;
+	host->ecc_strength = (ndeccctrl & NDECCCTRL_BCH_EN) ?
+			     BCH_STRENGTH : HAMMING_STRENGTH;
 	host->cmdset = &default_cmdset;
 
 	host->ndtr0cs0 = nand_readl(info, NDTR0CS0);
@@ -1388,7 +1457,7 @@ static int alloc_nand_resource(struct platform_device *pdev)
 	}
 
 	/* initialize all interrupts to be disabled */
-	disable_int(info, NDSR_MASK);
+	disable_int(info, NDCR_INT_MASK);
 
 	ret = request_irq(irq, pxa3xx_nand_irq, IRQF_DISABLED,
 			  pdev->name, info);
