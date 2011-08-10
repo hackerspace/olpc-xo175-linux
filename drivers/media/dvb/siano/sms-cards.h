@@ -83,7 +83,8 @@ struct sms_board {
 	enum sms_device_type_st type;
 	char *name, *fw[DEVICE_MODE_MAX];
 	struct sms_board_gpio_cfg board_cfg;
-	enum ir_kb_type ir_kb_type;
+	/* enum ir_kb_type ir_kb_type; */
+	char *rc_codes;
 	char intf_num;
 	int default_mode;
 	unsigned int mtu;

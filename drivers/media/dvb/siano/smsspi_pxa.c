@@ -513,7 +513,7 @@ static int __devinit sms_probe(struct spi_device *spi)
 	chip_alloc_dma_bufs(drv_info);
 
 #if 1
-	set_irq_type(spi->irq, IRQ_TYPE_EDGE_RISING);
+	irq_set_irq_type(spi->irq, IRQ_TYPE_EDGE_RISING);
 	/*IRQ_TYPE_EDGE_FALLING */
 
 	ret = request_irq(spi->irq, spibus_interrupt,

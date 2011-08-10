@@ -562,7 +562,7 @@ void smschar_reset_device(void)
 		smschar_unregister_client(&smschar_devices[i]);
 }
 
-static int smschar_ioctl(struct inode *inode, struct file *file,
+static long smschar_ioctl(struct file *file,
 			 unsigned int cmd, unsigned long arg)
 {
 	struct smschar_device_t *dev = file->private_data;
@@ -705,7 +705,7 @@ const struct file_operations smschar_fops = {
 	.release = smschar_release,
 	.mmap = smschar_mmap,
 	.poll = smschar_poll,
-	.ioctl = smschar_ioctl,
+	.unlocked_ioctl = smschar_ioctl,
 };
 
 static int smschar_setup_cdev(struct smschar_device_t *dev, int index)
