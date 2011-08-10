@@ -75,6 +75,20 @@ static unsigned long ttc_dkb_pin_config[] __initdata = {
 	DF_REn_DF_REn,
 	DF_RDY0_DF_RDY0,
 
+	/* mmc */
+	MMC1_DAT7_MMC1_DAT7,
+	MMC1_DAT6_MMC1_DAT6,
+	MMC1_DAT5_MMC1_DAT5,
+	MMC1_DAT4_MMC1_DAT4,
+	MMC1_DAT3_MMC1_DAT3,
+	MMC1_DAT2_MMC1_DAT2,
+	MMC1_DAT1_MMC1_DAT1,
+	MMC1_DAT0_MMC1_DAT0,
+	MMC1_CMD_MMC1_CMD,
+	MMC1_CLK_MMC1_CLK,
+	MMC1_CD_MMC1_CD | MFP_PULL_HIGH,
+	MMC1_WP_MMC1_WP | MFP_PULL_LOW,
+
 	/* one wire */
 	ONEWIRE_CLK_REQ,
 
@@ -550,6 +564,34 @@ static void __init ttc_dkb_init_spi(void)
 
 #endif /*defined CONFIG_CMMB*/
 
+/* MMC0 controller for SD-MMC */
+static struct sdhci_pxa_platdata pxa910_sdh_platdata_mmc0 = {
+	.flags			= PXA_FLAG_ENABLE_CLOCK_GATING,
+	.clk_delay_sel		= 1,
+	.clk_delay_cycles	= 2,
+};
+
+static void __init pxa910_init_mmc(void)
+{
+	unsigned long sd_pwr_cfg = GPIO15_MMC1_POWER;
+	int sd_pwr_en = 0;
+
+	if (is_td_dkb) {
+		mfp_config(&sd_pwr_cfg, 1);
+		sd_pwr_en = mfp_to_gpio(sd_pwr_cfg);
+
+		if (gpio_request(sd_pwr_en, "SD Power Ctrl")) {
+			printk(KERN_ERR "Failed to request SD_PWR_EN(gpio %d)\n", sd_pwr_en);
+			sd_pwr_en = 0;
+		} else {
+			gpio_direction_output(sd_pwr_en, 1);
+			gpio_free(sd_pwr_en);
+		}
+	}
+
+	pxa910_add_sdh(0, &pxa910_sdh_platdata_mmc0); /* SD/MMC */
+}
+
 /* GPS: power on/off control */
 static void gps_power_on(void)
 {
@@ -728,6 +770,10 @@ static void __init ttc_dkb_init(void)
 	pxa910_add_keypad(&ttc_dkb_keypad_info);
 	pxa910_add_cnm();
 	pxa910_add_twsi(0, &dkb_i2c_pdata, ARRAY_AND_SIZE(ttc_dkb_i2c_info));
+
+#if defined(CONFIG_MMC_SDHCI_PXAV2)
+	pxa910_init_mmc();
+#endif
 
 	/* off-chip devices */
 	platform_add_devices(ARRAY_AND_SIZE(ttc_dkb_devices));
