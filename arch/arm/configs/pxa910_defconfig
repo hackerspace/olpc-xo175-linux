@@ -273,6 +273,8 @@ CONFIG_PXA_32KTIMER=y
 # CONFIG_MACH_AVENGERS_LITE is not set
 CONFIG_MACH_TTC_DKB=y
 # CONFIG_MACH_TETON_BGA is not set
+# CONFIG_MACH_ABILENE is not set
+# CONFIG_MACH_YELLOWSTONE is not set
 CONFIG_CPU_PXA910=y
 
 #
@@ -492,8 +494,11 @@ CONFIG_WIRELESS=y
 # CFG80211 needs to be enabled for MAC80211
 #
 # CONFIG_WIMAX is not set
-# CONFIG_RFKILL is not set
+CONFIG_RFKILL=y
+CONFIG_RFKILL_LEDS=y
+CONFIG_RFKILL_INPUT=y
 # CONFIG_RFKILL_REGULATOR is not set
+# CONFIG_RFKILL_GPIO is not set
 # CONFIG_NET_9P is not set
 # CONFIG_CAIF is not set
 # CONFIG_CEPH_LIB is not set
@@ -520,7 +525,45 @@ CONFIG_EXTRA_FIRMWARE=""
 # CONFIG_PARPORT is not set
 # CONFIG_BLK_DEV is not set
 # CONFIG_SENSORS_LIS3LV02D is not set
-# CONFIG_MISC_DEVICES is not set
+CONFIG_MISC_DEVICES=y
+# CONFIG_AD525X_DPOT is not set
+# CONFIG_ANDROID_PMEM is not set
+# CONFIG_INTEL_MID_PTI is not set
+# CONFIG_ICS932S401 is not set
+# CONFIG_ENCLOSURE_SERVICES is not set
+# CONFIG_KERNEL_DEBUGGER_CORE is not set
+# CONFIG_APDS9802ALS is not set
+# CONFIG_ISL29003 is not set
+# CONFIG_ISL29020 is not set
+# CONFIG_SENSORS_TSL2550 is not set
+# CONFIG_SENSORS_BH1780 is not set
+# CONFIG_SENSORS_BH1770 is not set
+# CONFIG_SENSORS_APDS990X is not set
+# CONFIG_HMC6352 is not set
+# CONFIG_SENSORS_AK8975 is not set
+# CONFIG_DS1682 is not set
+# CONFIG_UID_STAT is not set
+# CONFIG_BMP085 is not set
+# CONFIG_WL127X_RFKILL is not set
+# CONFIG_APANIC is not set
+# CONFIG_TC35876X is not set
+CONFIG_SD8XXX_RFKILL=y
+# CONFIG_C2PORT is not set
+
+#
+# EEPROM support
+#
+# CONFIG_EEPROM_AT24 is not set
+# CONFIG_EEPROM_LEGACY is not set
+# CONFIG_EEPROM_MAX6875 is not set
+# CONFIG_EEPROM_93CX6 is not set
+# CONFIG_IWMC3200TOP is not set
+
+#
+# Texas Instruments shared transport line discipline
+#
+# CONFIG_TI_ST is not set
+# CONFIG_SENSORS_LIS3_I2C is not set
 CONFIG_HAVE_IDE=y
 # CONFIG_IDE is not set
 
@@ -565,6 +608,8 @@ CONFIG_SMC91X=y
 # CONFIG_NETDEV_10000 is not set
 CONFIG_WLAN=y
 # CONFIG_WIFI_CONTROL_FUNC is not set
+# CONFIG_BCM4329 is not set
+# CONFIG_BCMDHD is not set
 # CONFIG_HOSTAP is not set
 
 #
