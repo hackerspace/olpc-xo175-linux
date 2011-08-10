@@ -243,6 +243,11 @@ static unsigned int ttc_dkb_matrix_key_map[] = {
 	KEY(6, 4, KEY_RIGHT),
 };
 
+static struct pxa3xx_nand_platform_data dkb_nand_info = {
+	.attr		= ARBI_EN | NAKED_CMD,
+	.num_cs		= 1,
+};
+
 static struct pxa27x_keypad_platform_data ttc_dkb_keypad_info __initdata = {
 	.matrix_key_rows	= 7,
 	.matrix_key_cols	= 5,
@@ -905,6 +910,7 @@ static void __init ttc_dkb_init(void)
 	pxa910_add_uart(1);
 	pxa910_add_uart(2);
 	pxa910_add_1wire();
+	pxa910_add_nand(&dkb_nand_info);
 
 	pxa910_add_keypad(&ttc_dkb_keypad_info);
 	pxa910_add_cnm();
