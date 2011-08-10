@@ -241,6 +241,7 @@ static struct pxa3xx_nand_timing timing[] = {
 	{ 10,  0, 20,  40, 30,  40, 11123, 110, 10, },
 	{ 10, 25, 15,  25, 15,  30, 25000,  60, 10, },
 	{ 10, 35, 15,  25, 15,  25, 25000,  60, 10, },
+	{ 10, 35, 15,  25, 15,  25, 25000,  60, 10, },
 };
 
 static struct pxa3xx_nand_flash builtin_flash_types[] = {
@@ -253,7 +254,9 @@ static struct pxa3xx_nand_flash builtin_flash_types[] = {
 { "128MiB 16-bit", 0xb12c, 0xffff,  64, 2048, 16, 16, 1, 1024, &timing[2] },
 { "512MiB 8-bit",  0xdc2c, 0xffff,  64, 2048,  8,  8, 1, 4096, &timing[2] },
 { "512MiB 16-bit", 0xcc2c, 0xffff,  64, 2048, 16, 16, 1, 4096, &timing[2] },
+{ "1GiB 8-bit",    0x382c, 0xffff, 128, 4096,  8,  8, 4, 2048, &timing[2] },
 { "256MiB 16-bit", 0xba20, 0xffff,  64, 2048, 16, 16, 1, 2048, &timing[3] },
+{ "512MiB 16-bit", 0xbcad, 0xffff,  64, 2048, 16, 16, 1, 4096, &timing[4] },
 };
 
 /* Define a default flash type setting serve as flash detecting only */
