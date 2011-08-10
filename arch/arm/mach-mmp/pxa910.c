@@ -27,6 +27,7 @@
 
 #include <linux/platform_device.h>
 #include <linux/mfd/ds1wm.h>
+#include <linux/memblock.h>
 
 #include "common.h"
 #include "clock.h"
@@ -274,4 +275,33 @@ void pxa910_clear_keypad_wakeup(void)
 	/* wake event clear is needed in order to clear keypad interrupt */
 	val = __raw_readl(APMU_WAKE_CLR);
 	__raw_writel(val | mask, APMU_WAKE_CLR);
+}
+
+static unsigned _cp_area_addr;
+static unsigned _cp_area_size;
+static int __init setup_cpmem(char *p)
+{
+	unsigned long size, start = 0x7000000;
+	size = memparse(p, &p);
+	if (*p == '@')
+		start = memparse(p + 1, &p);
+
+	_cp_area_addr = (unsigned)start;
+	_cp_area_size = (unsigned)size;
+
+	return 0;
+}
+early_param("cpmem", setup_cpmem);
+
+static void __init pxa910_reserve_cpmem_memblock(void)
+{
+	if (!_cp_area_size)
+		return;
+
+	BUG_ON(memblock_reserve(_cp_area_addr, _cp_area_size) != 0);
+	memblock_free(_cp_area_addr, _cp_area_size);
+	memblock_remove(_cp_area_addr, _cp_area_size);
+	printk(KERN_INFO "Reserving CP memory: %dM at %.8x\n",
+				(unsigned)_cp_area_size/0x100000,
+				(unsigned)_cp_area_addr);
 }
