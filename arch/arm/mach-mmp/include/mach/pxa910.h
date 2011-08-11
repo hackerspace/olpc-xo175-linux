@@ -41,6 +41,7 @@ extern struct platform_device pxa910_device_1wire;
 extern struct platform_device pxa910_device_acipc;
 
 extern void pxa910_clear_keypad_wakeup(void);
+extern void __init pxa910_reserve(void);
 
 static inline int pxa910_add_uart(int id)
 {

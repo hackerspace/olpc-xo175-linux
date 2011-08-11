@@ -305,3 +305,10 @@ static void __init pxa910_reserve_cpmem_memblock(void)
 				(unsigned)_cp_area_size/0x100000,
 				(unsigned)_cp_area_addr);
 }
+
+void __init pxa910_reserve(void)
+{
+	/* Reserve memory for CP */
+	pxa910_reserve_cpmem_memblock();
+
+}
