@@ -58,6 +58,8 @@ extern struct pxa_device_desc mmp3_device_fb_tv;
 extern struct pxa_device_desc mmp3_device_hdmi;
 
 extern struct platform_device mmp3_device_rtc;
+extern struct pxa_device_desc mmp3_device_sspa1;
+extern struct pxa_device_desc mmp3_device_sspa2;
 extern struct platform_device mmp3_device_u2o;
 extern struct platform_device mmp3_device_u2ootg;
 extern struct platform_device mmp3_device_u2oehci;
@@ -196,6 +198,24 @@ static inline int mmp3_add_keypad(struct pxa27x_keypad_platform_data *data)
 {
 	data->clear_wakeup_event = mmp3_clear_keypad_wakeup;
 	return pxa_register_device(&mmp3_device_keypad, data, sizeof(*data));
+}
+
+static inline int mmp3_add_sspa(int id)
+{
+	struct pxa_device_desc *d = NULL;
+
+	switch (id) {
+	case 1:
+		d = &mmp3_device_sspa1;
+		break;
+	case 2:
+		d = &mmp3_device_sspa2;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return pxa_register_device(d, NULL, 0);
 }
 
 #endif /* __ASM_MACH_MMP2_H */
