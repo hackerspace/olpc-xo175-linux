@@ -27,6 +27,9 @@
 #include <asm/cacheflush.h>
 #include <mach/dma.h>
 #include <plat/pxa3xx_nand.h>
+#ifdef CONFIG_PXA3XX_BBM
+#include <plat/pxa3xx_bbm.h>
+#endif
 
 #define	CHIP_DELAY_TIMEOUT	(2 * HZ/10)
 #define NAND_STOP_DELAY		(2 * HZ/50)
@@ -896,6 +899,20 @@ static void pxa3xx_nand_cmdfunc(struct mtd_info *mtd, unsigned command,
 	struct pxa3xx_nand_host *host = mtd->priv;
 	struct pxa3xx_nand_info *info = host->info_data;
 	int ret, exec_cmd;
+#ifdef CONFIG_PXA3XX_BBM
+	struct pxa3xx_bbm *pxa3xx_bbm = mtd->bbm;
+	loff_t addr;
+
+	if (pxa3xx_bbm && (command == NAND_CMD_READOOB
+			|| command == NAND_CMD_READ0
+			|| command == NAND_CMD_SEQIN
+			|| command == NAND_CMD_ERASE1)) {
+
+		addr = (loff_t)page_addr << mtd->writesize_shift;
+		addr = pxa3xx_bbm->search(mtd, addr);
+		page_addr = addr >> mtd->writesize_shift;
+	}
+#endif
 
 	/*
 	 * if this is a x16 device ,then convert the input
@@ -1466,6 +1483,11 @@ static int alloc_nand_resource(struct platform_device *pdev)
 		chip->read_buf		= pxa3xx_nand_read_buf;
 		chip->write_buf		= pxa3xx_nand_write_buf;
 		chip->verify_buf	= pxa3xx_nand_verify_buf;
+#ifdef CONFIG_PXA3XX_BBM
+		chip->scan_bbt		= pxa3xx_scan_bbt;
+		chip->block_markbad	= pxa3xx_block_markbad;
+		chip->block_bad		= pxa3xx_block_bad;
+#endif
 	}
 
 	/* initialize all interrupts to be disabled */
@@ -1534,8 +1556,14 @@ static int pxa3xx_nand_remove(struct platform_device *pdev)
 	clk_disable(info->clk);
 	clk_put(info->clk);
 
-	for (cs = 0; cs < pdata->num_cs; cs++)
-		nand_release(info->host[cs]->mtd);
+	for (cs = 0; cs < pdata->num_cs; cs++) {
+		struct mtd_info *mtd = info->host[cs]->mtd;
+#ifdef CONFIG_PXA3XX_BBM
+		if (mtd->bbm)
+			((struct pxa3xx_bbm *)mtd->bbm)->uninit(mtd);
+#endif
+		nand_release(mtd);
+	}
 	kfree(info);
 	return 0;
 }
@@ -1544,7 +1572,11 @@ static int pxa3xx_nand_probe(struct platform_device *pdev)
 {
 	struct pxa3xx_nand_platform_data *pdata;
 	struct pxa3xx_nand_info *info;
+	struct mtd_info *mtd;
 	int ret, cs, probe_success;
+#ifdef CONFIG_PXA3XX_BBM
+	loff_t reserved_sz;
+#endif
 
 	pdata = pdev->dev.platform_data;
 	if (!pdata) {
@@ -1565,17 +1597,25 @@ static int pxa3xx_nand_probe(struct platform_device *pdev)
 	probe_success = 0;
 	for (cs = 0; cs < pdata->num_cs; cs++) {
 		info->cs = cs;
-		ret = pxa3xx_nand_scan(info->host[cs]->mtd);
+		mtd = info->host[cs]->mtd;
+		ret = pxa3xx_nand_scan(mtd);
 		if (ret) {
 			dev_warn(&pdev->dev, "failed to scan nand at cs %d\n",
 				cs);
 			continue;
 		}
 
-		ret = mtd_device_parse_register(info->host[cs]->mtd, NULL, 0,
+#ifdef CONFIG_PXA3XX_BBM
+		reserved_sz =
+			((struct pxa3xx_bbm *)mtd->bbm)->reserved_sz(mtd);
+#endif
+		ret = mtd_device_parse_register(mtd, NULL, 0,
 				pdata->parts[cs], pdata->nr_parts[cs]);
 		if (!ret)
 			probe_success = 1;
+#ifdef CONFIG_PXA3XX_BBM
+		mtd->size += reserved_sz;
+#endif
 	}
 
 	if (!probe_success) {
