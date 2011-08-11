@@ -121,6 +121,25 @@ static unsigned long ttc_dkb_pin_config[] __initdata = {
 	GPIO12_KP_MKIN6,
 };
 
+static unsigned long ttc_rf_pin_config[] = {
+	/* GSM */
+	GPIO110_GPIO110 | MFP_PULL_LOW,
+	GPIO111_GPIO111 | MFP_PULL_LOW,
+	GPIO112_GPIO112 | MFP_PULL_LOW,
+	GPIO113_GPIO113 | MFP_PULL_LOW,
+	GPIO114_GPIO114 | MFP_PULL_LOW,
+	GPIO115_GPIO115 | MFP_PULL_LOW,
+	GPIO116_GPIO116 | MFP_PULL_LOW,
+	/*TDS-CDMA*/
+	GPIO60_GPIO60 | MFP_PULL_LOW,
+	GPIO61_GPIO61,
+	GPIO62_GPIO62,
+	GPIO63_GPIO63,
+	GPIO64_GPIO64,
+	GPIO65_GPIO65,
+	GPIO66_GPIO66,
+};
+
 static struct mtd_partition ttc_dkb_onenand_partitions[] = {
 	{
 		.name		= "bootloader",
@@ -324,11 +343,21 @@ static struct regulator_init_data ttc_dkb_regulator_init_data[] = {
 	DKB_REG_INIT(LDO14, 1800000, 3300000, 0, 1),
 };
 
+/* RF has leak current when battery calibration */
+void ttc_disable_rf(void){
+	/* disable rf */
+	mfp_config(ARRAY_AND_SIZE(ttc_rf_pin_config));
+}
+
+struct pm860x_power_pdata ttc_dkb_power = {
+	.disable_rf_fn  = ttc_disable_rf,
+};
 
 static struct pm860x_platform_data ttc_dkb_pm8607_info = {
 	.backlight	= &ttc_dkb_backlight[0],
 	.led		= &ttc_dkb_led[0],
 	.touch		= &ttc_dkb_touch,
+	.power		= &ttc_dkb_power,
 	.regulator	= &ttc_dkb_regulator_init_data[0],
 	.companion_addr	= 0x11,
 	.irq_mode	= 0,
