@@ -771,6 +771,8 @@ static void __init ttc_dkb_init(void)
 	pxa910_add_cnm();
 	pxa910_add_twsi(0, &dkb_i2c_pdata, ARRAY_AND_SIZE(ttc_dkb_i2c_info));
 
+	pxa910_add_acipc();
+
 #if defined(CONFIG_MMC_SDHCI_PXAV2)
 	pxa910_init_mmc();
 #endif
