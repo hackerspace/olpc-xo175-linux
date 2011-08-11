@@ -230,6 +230,11 @@ static void pxa910_init_acipc_clock(void)
 	__raw_writel(0x3, APBC_PXA910_IPC);
 }
 
+static void pxa910_init_ripc_clock(void)
+{
+        __raw_writel(0x0, APBC_PXA910_RIPC);
+}
+
 static int __init pxa910_init(void)
 {
 	if (cpu_is_pxa910()) {
@@ -240,6 +245,7 @@ static int __init pxa910_init(void)
 
 		/* enable ac-ipc clock */
 		pxa910_init_acipc_clock();
+		pxa910_init_ripc_clock();
 	}
 
 	dmc_membase = ioremap(0xb0000000, 0x00001000);
