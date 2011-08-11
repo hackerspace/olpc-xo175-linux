@@ -190,6 +190,7 @@ enum {
 #define PM8607_BUCK2			(0x25)
 #define PM8607_BUCK3			(0x26)
 #define PM8607_BUCK_CONTROLS		(0x27)
+#define PM8607_VIBRA_SET		(0x28)
 #define PM8607_SUPPLIES_EN11		(0x2B)
 #define PM8607_SUPPLIES_EN12		(0x2C)
 #define PM8607_GROUP1			(0x2D)
@@ -200,6 +201,20 @@ enum {
 #define PM8607_GROUP6			(0x32)
 #define PM8607_SUPPLIES_EN21		(0x33)
 #define PM8607_SUPPLIES_EN22		(0x34)
+#define PM8607_LP_CONFIG1		(0x35)
+#define PM8607_LP_CONFIG2		(0x36)
+#define PM8607_LP_CONFIG3		(0x39)
+
+/* headset/mic detection Control Registers */
+#define PM8607_MIC_DECTION		(0x37)
+#define PM8607_HEADSET_DECTION	(0x38)
+
+/* bit definitions of  MEAS_EN1*/
+#define PM8607_MIC_DET_EN_MIC_DET	(1 << 0)
+#define PM8607_HEADSET_EN_HS_DET	(1 << 0)
+#define PM8607_ADC_EN_MIC2_BIAS		(0x3 << 5)
+#define PM8607_HEADSET_BTN_DBNC		(0x3 << 3)
+#define PM8607_HEADSET_PERIOD		(0x3 << 1)
 
 /* headset/mic detection Control Registers */
 #define PM8607_MIC_DECTION			(0x37)
@@ -215,6 +230,8 @@ enum {
 /* Vibrator Control Registers */
 #define PM8607_VIBRATOR_SET		(0x28)
 #define PM8607_VIBRATOR_PWM		(0x29)
+
+#define PM8607_MISC2			(0x42)
 
 /* power up log register*/
 #define PM8607_POWER_UP_LOG		(0x3F)

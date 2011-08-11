@@ -293,6 +293,81 @@ static struct pxa27x_keypad_platform_data ttc_dkb_keypad_info __initdata = {
 	.debounce_interval	= 30,
 };
 
+static int ttc_dkb_pm860x_fixup(struct pm860x_chip *chip,
+			struct pm860x_platform_data *pdata)
+{
+	int data;
+	/*
+	Check testpage 0xD7:bit[0~1],if it is b00 or b11, that's to say
+	2LSB of 0xD7 is maybe broken, will reset 0xD0~0xD7 to its default
+	in test page by set 0xE1:b[7~6]=b00 for loading OTP;
+	Besides, 0xE1:b[5~0] work as a counter to record times of D7 broken
+	*/
+	data = pm860x_page_reg_read(chip->client, 0xD7);
+	data &= 0x3;
+	if (data == 0x0 || data == 0x3) {
+		data = pm860x_page_reg_read(chip->client, 0xE1);
+		data &= 0x3F;
+		if (data < 0x3F)
+			data += 1;
+		pm860x_page_reg_write(chip->client, 0xE1, data);
+		data = pm860x_page_reg_read(chip->client, 0xE1);
+		dev_dbg(chip->dev, "detect 0xD7 broken counter: %d", data);
+	}
+	/*confirm the interrupt mask*/
+	pm860x_reg_write(chip->client, PM8607_INT_MASK_1, 0x00);
+	pm860x_reg_write(chip->client, PM8607_INT_MASK_2, 0x00);
+	pm860x_reg_write(chip->client, PM8607_INT_MASK_3, 0x00);
+
+	pm860x_reg_write(chip->client, PM8607_INT_STATUS1, 0x3f);
+	pm860x_reg_write(chip->client, PM8607_INT_STATUS1, 0xff);
+	pm860x_reg_write(chip->client, PM8607_INT_STATUS1, 0xff);
+
+	/* disable LDO5 turn on/off by LDO3_EN */
+	pm860x_reg_write(chip->client, PM8607_MISC2,
+	pm860x_reg_read(chip->client, PM8607_MISC2)|0x80);
+	/* enable LDO5 for AVDD_USB */
+	pm860x_reg_write(chip->client, PM8607_SUPPLIES_EN11,
+	pm860x_reg_read(chip->client, PM8607_SUPPLIES_EN11)|0x80);
+
+	/* init GPADC*/
+	pm860x_reg_write(chip->client, PM8607_GPADC_MISC1, 0x0b);
+	/* init power mode*/
+	pm860x_reg_write(chip->client, PM8607_SLEEP_MODE1, 0xaa);
+	pm860x_reg_write(chip->client, PM8607_SLEEP_MODE2, 0xaa);
+	pm860x_reg_write(chip->client, PM8607_SLEEP_MODE3, 0xa2);
+	/* set LDO14_SLP to be active in sleep mode */
+	if (is_td_dkb)
+		pm860x_reg_write(chip->client, PM8607_SLEEP_MODE4, 0x38);
+	else
+		pm860x_reg_write(chip->client, PM8607_SLEEP_MODE4, 0x3a);
+
+	/* set vbuck1 0.9v in sleep*/
+	pm860x_reg_write(chip->client, PM8607_SLEEP_BUCK1, 0x24);
+	pm860x_reg_write(chip->client, PM8607_SLEEP_BUCK2, 0x24);
+	/*RTC to use ext 32k clk*/
+	pm860x_set_bits(chip->client, PM8607_RTC1, 1<<6, 1<<6);
+	/*Enable RTC to use ext 32k clk*/
+	pm860x_set_bits(chip->client, PM8607_RTC_MISC2, 0x7, 0x2);
+
+	/* shut down LDO13 for no use on pxa920 */
+	pm860x_reg_write(chip->client, PM8607_VIBRA_SET, 0x0c);
+	/* audio save power */
+	pm860x_reg_write(chip->client, PM8607_LP_CONFIG1, 0x40);
+	/*to save pmic leakage*/
+	pm860x_reg_write(chip->client, PM8607_LP_CONFIG3, 0x80);
+	pm860x_reg_write(chip->client, PM8607_B0_MISC1, 0x80);
+	pm860x_reg_write(chip->client, PM8607_MEAS_OFF_TIME1, 0x2);
+	/* config sanremo Buck Controls Register to its default value
+	to save 0.04mA in suspend. */
+	pm860x_reg_write(chip->client, PM8607_BUCK_CONTROLS, 0x2b);
+	pm860x_reg_write(chip->client, PM8607_LP_CONFIG2, 0x98);
+
+	/* force LDO4 be active in sleep mode, required by CP */
+	pm860x_set_bits(chip->client, PM8607_SLEEP_MODE2, 3 << 4, 3 << 4);
+	return 0;
+}
+
 static struct pm860x_touch_pdata ttc_dkb_touch = {
 	.gpadc_prebias	= 1,
 	.slot_cycle	= 1,
@@ -431,6 +506,7 @@ static struct pm860x_platform_data ttc_dkb_pm8607_info = {
 	.power		= &ttc_dkb_power,
 	.rtc		= &ttc_dkb_rtc,
 	.regulator	= &ttc_dkb_regulator_init_data[0],
+	.fixup		= ttc_dkb_pm860x_fixup,
 	.companion_addr	= 0x11,
 	.irq_mode	= 0,
 	.irq_base	= IRQ_BOARD_START,
