@@ -549,6 +549,7 @@ config ARCH_MMP
 	select TICK_ONESHOT
 	select PLAT_PXA
 	select SPARSE_IRQ
+	select ARCH_HAS_CPUFREQ
 	select GENERIC_ALLOCATOR
 	help
 	  Support for Marvell's PXA168/PXA910(MMP), MMP2 and MMP3 processor line.
@@ -1949,6 +1950,12 @@ config CPU_FREQ_S3C24XX_DEBUGFS
 	help
 	  Export status information via debugfs.
 
+config CPU_FREQ_MMP3
+	bool "MMP3 CPUFREQ support"
+	depends on CPU_FREQ && CPU_MMP3
+	default y
+	help
+	  Say 'Y' here if you want CPUFREQ on MMP3 processor
 endif
 
 source "drivers/cpuidle/Kconfig"
