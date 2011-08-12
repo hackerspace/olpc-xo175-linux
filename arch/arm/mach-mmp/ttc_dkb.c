@@ -119,6 +119,11 @@ static unsigned long ttc_dkb_pin_config[] __initdata = {
 	GPIO08_KP_MKIN4,
 	GPIO09_KP_MKOUT4,
 	GPIO12_KP_MKIN6,
+
+	/* AGPS GPIO */
+	GPIO45_GPIO45, /*share with TPO reset*/
+	/* RDA8207 XOUT2_EN enable signal for AGPS clock */
+	GPIO113_GPS_CLKEN | MFP_PULL_HIGH,
 };
 
 static unsigned long ttc_rf_pin_config[] = {
