@@ -36,6 +36,7 @@
 #include <mach/irqs.h>
 #include <mach/regs-mpmu.h>
 #include <mach/tc35876x.h>
+#include <plat/pmem.h>
 #include <plat/usb.h>
 #include <mach/sram.h>
 #include <mach/uio_hdmi.h>
@@ -926,6 +927,10 @@ static void __init abilene_init(void)
 	mmp3_add_pwm(3);
 	platform_device_register(&abilene_lcd_backlight_devices);
 
+#ifdef CONFIG_ANDROID_PMEM
+	pxa_add_pmem();
+#endif
+
 #ifdef CONFIG_MMC_SDHCI_PXAV3
 	abilene_init_mmc();
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
@@ -976,5 +981,6 @@ MACHINE_START(ABILENE, "Abilene")
 	.nr_irqs	= ABILENE_NR_IRQS,
 	.init_irq	= mmp3_init_irq,
 	.timer		= &mmp3_timer,
+	.reserve	= mmp3_reserve,
 	.init_machine	= abilene_init,
 MACHINE_END
