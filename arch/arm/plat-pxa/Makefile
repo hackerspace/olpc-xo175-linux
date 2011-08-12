@@ -11,3 +11,7 @@ obj-$(CONFIG_ARCH_MMP)		+= mfp.o
 
 obj-$(CONFIG_HAVE_PWM)		+= pwm.o
 obj-$(CONFIG_PXA_SSP)		+= ssp.o
+#Support for PMEM
+ifeq ($(CONFIG_ANDROID_PMEM),y)
+obj-$(CONFIG_ANDROID_PMEM)	+= pmem.o
+endif
