@@ -194,6 +194,7 @@ struct pxa_i2c {
 #define I2C_PXA_SLAVE_ADDR      0x1
 
 #define DEBUG 0
+static void i2c_pxa_reset(struct pxa_i2c *i2c);
 
 #ifdef DEBUG
 
@@ -275,6 +276,9 @@ static void i2c_pxa_show_state(struct pxa_i2c *i2c, int lno, const char *fname)
 static void i2c_pxa_scream_blue_murder(struct pxa_i2c *i2c, const char *why)
 {
 	unsigned int i;
+	struct i2c_pxa_platform_data *plat =
+		(i2c->adap.dev.parent)->platform_data;
+
 	printk(KERN_ERR"i2c: <%s> slave_0x%x error: %s\n", i2c->adap.name,
 		i2c->req_slave_addr >> 1, why);
 	printk(KERN_ERR "i2c: msg_num: %d msg_idx: %d msg_ptr: %d\n",
@@ -286,6 +290,12 @@ static void i2c_pxa_scream_blue_murder(struct pxa_i2c *i2c, const char *why)
 	for (i = 0; i < i2c->irqlogidx; i++)
 		printk("[%08x:%08x] ", i2c->isrlog[i], i2c->icrlog[i]);
 	printk("\n");
+	if (strcmp(why, "exhausted retries") != 0) {
+		if (plat && plat->i2c_bus_reset)
+			plat->i2c_bus_reset();
+		/* reset i2c contorler when it's fail */
+		i2c_pxa_reset(i2c);
+	}
 }
 
 #else /* ifdef DEBUG */
