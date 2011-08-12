@@ -24,6 +24,7 @@
 #include <linux/i2c/tpk_r800.h>
 #include <linux/mfd/wm8994/pdata.h>
 #include <linux/regulator/fixed.h>
+#include <linux/switch.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -672,6 +673,46 @@ static void abilene_fixed_regulator(void)
 	platform_add_devices(fixed_rdev, ARRAY_SIZE(fixed_rdev));
 }
 
+#if defined(CONFIG_SWITCH_HEADSET_HOST_GPIO)
+static struct gpio_switch_platform_data headset_switch_device_data = {
+	.name = "h2w",
+	.gpio = mfp_to_gpio(GPIO23_GPIO),
+	.name_on = NULL,
+	.name_off = NULL,
+	.state_on = NULL,
+	.state_off = NULL,
+};
+
+static struct platform_device headset_switch_device = {
+	.name            = "headset",
+	.id              = 0,
+	.dev             = {
+		.platform_data = &headset_switch_device_data,
+	},
+};
+
+static int wm8994_gpio_irq(void)
+{
+	int gpio = mfp_to_gpio(GPIO23_GPIO);
+
+	if (gpio_request(gpio, "wm8994 irq")) {
+		printk(KERN_INFO "gpio %d request failed\n", gpio);
+		return -1;
+	}
+
+	gpio_direction_input(gpio);
+	mdelay(1);
+	gpio_free(gpio);
+	return 0;
+}
+
+static void __init abilene_init_headset(void)
+{
+	wm8994_gpio_irq();
+	platform_device_register(&headset_switch_device);
+}
+#endif
+
 static void __init abilene_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(abilene_pin_config));
@@ -703,6 +744,10 @@ static void __init abilene_init(void)
 	mmp3_add_sspa(1);
 	mmp3_add_sspa(2);
 	mmp3_add_audiosram(&mmp3_audiosram_info);
+
+#if defined(CONFIG_SWITCH_HEADSET_HOST_GPIO)
+	abilene_init_headset();
+#endif
 
 #ifdef CONFIG_USB_PXA_U2O
 	mmp3_device_u2o.dev.platform_data = (void *)&mmp3_usb_pdata;
