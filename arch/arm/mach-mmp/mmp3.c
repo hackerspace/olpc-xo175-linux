@@ -40,6 +40,7 @@
 #include <linux/platform_device.h>
 
 #include <plat/mfp.h>
+#include <plat/pmem.h>
 
 #include "common.h"
 #include "clock.h"
@@ -93,6 +94,12 @@ static struct mfp_addr_map mmp3_addr_map[] __initdata = {
 
 	MFP_ADDR_END,
 };
+
+void __init mmp3_reserve(void)
+{
+	/*reserve memory for pmem*/
+	pxa_reserve_pmem_memblock();
+}
 
 static void __init mmp3_init_gpio(void)
 {

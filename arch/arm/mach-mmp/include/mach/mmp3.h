@@ -6,6 +6,7 @@ struct sys_timer;
 extern struct sys_timer mmp3_timer;
 extern void __init mmp3_init_gic(void);
 extern void __init mmp3_init_irq(void);
+extern void __init mmp3_reserve(void);
 
 #include <linux/i2c.h>
 #include <linux/i2c/pxa-i2c.h>
