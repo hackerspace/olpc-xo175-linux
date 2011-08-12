@@ -36,6 +36,9 @@
 #include <mach/addr-map.h>
 #include <mach/mfp-pxa910.h>
 #include <mach/pxa910.h>
+#include <mach/regs-usb.h>
+
+#include <plat/usb.h>
 
 #include "common.h"
 
@@ -900,6 +903,72 @@ static void __init tds_mfp_init(void)
 	}
 }
 
+#ifdef CONFIG_USB_SUPPORT
+
+#if defined(CONFIG_USB_PXA_U2O) || defined(CONFIG_USB_EHCI_PXA_U2O)
+
+extern int pxa_usb_phy_init(unsigned int base);
+
+static char *pxa910_usb_clock_name[] = {
+	[0] = "U2OCLK",
+};
+
+#define STATUS2_VBUS	(1 << 4)
+static int ttc_usb_vbus_poll(void)
+{
+	int ret = 0;
+
+	ret = pm860x_codec_reg_read(PM8607_STATUS_2);
+	if (ret < 0)
+		return ret;
+
+	if (ret & STATUS2_VBUS)
+		ret = VBUS_HIGH;
+	else
+		ret = VBUS_LOW;
+
+	return ret;
+}
+
+static struct mv_usb_addon_irq ttc_usb_vbus = {
+	.irq	= IRQ_BOARD_START + PM8607_IRQ_CHG,
+	.poll	= ttc_usb_vbus_poll,
+};
+
+#define MISC1_GPIO2_DIR		(1 << 5)
+#define MISC1_GPIO2_VAL		(1 << 6)
+static int ttc_usb_set_vbus(unsigned int on)
+{
+	int ret, data;
+
+	ret = pm860x_codec_reg_read(PM8607_A1_MISC1);
+	if (ret < 0)
+		return ret;
+
+	data = MISC1_GPIO2_DIR | ret;
+	if (on)
+		data |= MISC1_GPIO2_VAL;
+	else
+		data &= ~MISC1_GPIO2_VAL;
+
+	ret = pm860x_codec_reg_write(PM8607_A1_MISC1, data);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+static struct mv_usb_platform_data ttc_usb_pdata = {
+	.clknum		= 1,
+	.clkname	= pxa910_usb_clock_name,
+	.vbus		= &ttc_usb_vbus,
+	.mode		= MV_USB_MODE_OTG,
+	.phy_init	= pxa_usb_phy_init,
+	.set_vbus	= ttc_usb_set_vbus,
+};
+#endif
+#endif
+
 static void __init ttc_dkb_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(ttc_dkb_pin_config));
@@ -934,6 +1003,20 @@ static void __init ttc_dkb_init(void)
 	 /* spi device */
 	if (is_td_dkb)
 		ttc_dkb_init_spi();
+#endif
+
+#ifdef CONFIG_USB_PXA_U2O
+	pxa168_device_u2o.dev.platform_data = &ttc_usb_pdata;
+	platform_device_register(&pxa168_device_u2o);
+#endif
+
+#ifdef CONFIG_USB_EHCI_PXA_U2O
+	pxa168_device_u2oehci.dev.platform_data = &ttc_usb_pdata;
+	platform_device_register(&pxa168_device_u2oehci);
+#ifdef CONFIG_USB_PXA_U2O_OTG
+	pxa168_device_u2ootg.dev.platform_data = &ttc_usb_pdata;
+	platform_device_register(&pxa168_device_u2ootg);
+#endif
 #endif
 }
 
