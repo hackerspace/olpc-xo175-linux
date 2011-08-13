@@ -36,6 +36,9 @@
 #define RIPC0_VIRT_BASE	(APB_VIRT_BASE + 0x3D000)
 #define RIPC0_STATUS	(RIPC0_VIRT_BASE + 0x00)
 
+unsigned char __iomem *dmc_membase;
+EXPORT_SYMBOL(dmc_membase);
+
 static struct mfp_addr_map pxa910_mfp_addr_map[] __initdata =
 {
 	MFP_ADDR_X(GPIO0, GPIO54, 0xdc),
@@ -221,6 +224,7 @@ static int __init pxa910_init(void)
 		pxa910_init_acipc_clock();
 	}
 
+	dmc_membase = ioremap(0xb0000000, 0x00001000);
 	return 0;
 }
 postcore_initcall(pxa910_init);
