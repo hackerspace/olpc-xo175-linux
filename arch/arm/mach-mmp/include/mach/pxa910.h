@@ -12,6 +12,7 @@ extern int pxa910_ripc_trylock(void);
 #include <linux/i2c.h>
 #include <linux/i2c/pxa-i2c.h>
 #include <mach/devices.h>
+#include <mach/pxa168fb.h>
 #include <plat/pxa3xx_nand.h>
 #include <plat/pxa27x_keypad.h>
 #include <linux/spi/pxa2xx_spi.h>
@@ -35,6 +36,8 @@ extern struct pxa_device_desc pxa910_device_sdh0;
 extern struct pxa_device_desc pxa910_device_sdh1;
 extern struct pxa_device_desc pxa910_device_sdh2;
 extern struct pxa_device_desc pxa910_device_cnm;
+extern struct pxa_device_desc pxa910_device_fb;
+extern struct pxa_device_desc pxa910_device_fb_ovly;
 
 extern struct platform_device pxa910_device_rtc;
 extern struct platform_device pxa910_device_1wire;
@@ -179,6 +182,16 @@ static inline void pxa910_add_acipc(void)
 	if (ret)
 		dev_err(&pxa910_device_acipc.dev,
 			"unable to register device: %d\n", ret);
+}
+
+static inline int pxa910_add_fb(struct pxa168fb_mach_info *mi)
+{
+	return pxa_register_device(&pxa910_device_fb, mi, sizeof(*mi));
+}
+
+static inline int pxa910_add_fb_ovly(struct pxa168fb_mach_info *mi)
+{
+	return pxa_register_device(&pxa910_device_fb_ovly, mi, sizeof(*mi));
 }
 
 #endif /* __ASM_MACH_PXA910_H */

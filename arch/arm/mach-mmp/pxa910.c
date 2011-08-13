@@ -86,6 +86,35 @@ static struct mfp_addr_map pxa910_mfp_addr_map[] __initdata =
 	MFP_ADDR_END,
 };
 
+static void lcd_clk_enable(struct clk *clk)
+{
+	__raw_writel(clk->enable_val, clk->clk_rst);
+}
+static void lcd_clk_disable(struct clk *clk)
+{
+	u32 tmp = __raw_readl(clk->clk_rst);
+	tmp &= ~0x38;	/* release from reset to keep register setting */
+	__raw_writel(tmp, clk->clk_rst);
+}
+
+static int lcd_clk_setrate(struct clk *clk, unsigned long val)
+{
+	__raw_writel(val, clk->clk_rst);
+	return 0;
+}
+static unsigned long lcd_clk_getrate(struct clk *clk)
+{
+	unsigned long rate = clk->rate;
+	return rate;
+}
+
+struct clkops lcd_pn1_clk_ops = {
+	.enable		= lcd_clk_enable,
+	.disable	= lcd_clk_disable,
+	.setrate	= lcd_clk_setrate,
+	.getrate	= lcd_clk_getrate,
+};
+
 #define APMASK(i)	(GPIO_REGS_VIRT + BANK_OFF(i) + 0x09c)
 
 static void __init pxa910_init_gpio(void)
@@ -145,6 +174,7 @@ static APMU_CLK(u2o, USB, 0x1b, 480000000);
 static APMU_CLK(sdh0, SDH0, 0x001b, 44500000);
 static APMU_CLK(sdh1, SDH1, 0x001b, 44500000);
 static APMU_CLK(sdh2, SDH2, 0x001b, 44500000);
+static APMU_CLK_OPS(lcd, LCD, 0x003f, 312000000, &lcd_pn1_clk_ops);
 
 /* device and clock bindings */
 static struct clk_lookup pxa910_clkregs[] = {
@@ -167,6 +197,7 @@ static struct clk_lookup pxa910_clkregs[] = {
 	INIT_CLKREG(&clk_sdh0, "sdhci-pxav2.0", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_sdh1, "sdhci-pxav2.1", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_sdh2, "sdhci-pxav2.2", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_lcd, NULL, "LCDCLK"),
 };
 
 /*
@@ -242,6 +273,8 @@ PXA910_DEVICE(sdh0, "sdhci-pxav2", 0, MMC, 0xd4280000, 0x120);
 PXA910_DEVICE(sdh1, "sdhci-pxav2", 1, MMC, 0xd4280800, 0x120);
 PXA910_DEVICE(sdh2, "sdhci-pxav2", 2, MMC, 0xd4281000, 0x120);
 PXA910_DEVICE(cnm, "pxa-cnm", -1, CNM, 0xd420d000, 0x1000);
+PXA910_DEVICE(fb, "pxa168-fb", 0, LCD, 0xd420b000, 0x1ec);
+PXA910_DEVICE(fb_ovly, "pxa168fb_ovly", 0, LCD, 0xd420b000, 0x1ec);
 
 static struct resource pxa910_resource_rtc[] = {
 	{ 0xd4010000, 0xd40100ff, NULL, IORESOURCE_MEM, },
