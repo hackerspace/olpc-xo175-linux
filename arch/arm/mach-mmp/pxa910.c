@@ -26,6 +26,7 @@
 #include <mach/gpio.h>
 #include <mach/dma.h>
 #include <mach/devices.h>
+#include <mach/pxa910-squ.h>
 
 #include <linux/platform_device.h>
 #include <linux/mfd/ds1wm.h>
@@ -278,6 +279,7 @@ static int __init pxa910_init(void)
 		mfp_init_base(MFPR_VIRT_BASE);
 		mfp_init_addr(pxa910_mfp_addr_map);
 		pxa_init_dma(IRQ_PXA910_DMA_INT0, 32);
+		pxa910_init_squ(2);
 		clkdev_add_table(ARRAY_AND_SIZE(pxa910_clkregs));
 
 		/* enable ac-ipc clock */
