@@ -215,6 +215,7 @@ enum {
 	MFP_PIN_GPIO189,
 	MFP_PIN_GPIO190,
 	MFP_PIN_GPIO191,
+	MFP_PIN_GPIO_MAX,
 
 	MFP_PIN_GPIO255 = 255,
 
@@ -378,14 +379,17 @@ typedef unsigned long mfp_cfg_t;
 #define MFP_DS13X		(0x7 << 13)
 #define MFP_DS_MASK		(0x7 << 13)
 #define MFP_DS(x)		(((x) >> 13) & 0x7)
+#define MFP_VERY_SLOW		MFP_DS01X
+#define MFP_SLOW		MFP_DS02X
+#define MFP_MEDIUM		MFP_DS03X
+#define MFP_FAST		MFP_DS04X
 
-#define MFP_LPM_DEFAULT		(0x0 << 16)
+#define MFP_LPM_DEFAULT		(0x5 << 16)
 #define MFP_LPM_DRIVE_LOW	(0x1 << 16)
 #define MFP_LPM_DRIVE_HIGH	(0x2 << 16)
 #define MFP_LPM_PULL_LOW	(0x3 << 16)
 #define MFP_LPM_PULL_HIGH	(0x4 << 16)
 #define MFP_LPM_FLOAT		(0x5 << 16)
-#define MFP_LPM_INPUT		(0x6 << 16)
 #define MFP_LPM_STATE_MASK	(0x7 << 16)
 #define MFP_LPM_STATE(x)	(((x) >> 16) & 0x7)
 
@@ -423,7 +427,8 @@ typedef unsigned long mfp_cfg_t;
 	((MFP_CFG_DEFAULT & ~(MFP_AF_MASK | MFP_DS_MASK | MFP_LPM_STATE_MASK)) |\
 	 (MFP_PIN(MFP_PIN_##pin) | MFP_##af | MFP_##drv | MFP_LPM_##lpm))
 
-#if defined(CONFIG_PXA3xx) || defined(CONFIG_PXA95x) || defined(CONFIG_ARCH_MMP)
+#if defined(CONFIG_PXA3xx) || defined(CONFIG_PXA93x)			\
+	|| defined(CONFIG_PXA95x) || defined(CONFIG_ARCH_MMP)
 /*
  * each MFP pin will have a MFPR register, since the offset of the
  * register varies between processors, the processor specific code
@@ -470,6 +475,6 @@ void mfp_write(int mfp, unsigned long mfpr_val);
 void mfp_config(unsigned long *mfp_cfgs, int num);
 void mfp_config_run(void);
 void mfp_config_lpm(void);
-#endif /* CONFIG_PXA3xx || CONFIG_PXA95x || CONFIG_ARCH_MMP */
+#endif /* CONFIG_PXA3xx || CONFIG_PXA93x || CONFIG_PXA95x || CONFIG_ARCH_MMP */
 
 #endif /* __ASM_PLAT_MFP_H */
