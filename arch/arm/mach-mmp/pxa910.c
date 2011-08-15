@@ -39,8 +39,10 @@
 static struct mfp_addr_map pxa910_mfp_addr_map[] __initdata =
 {
 	MFP_ADDR_X(GPIO0, GPIO54, 0xdc),
+	MFP_ADDR_X(GPIO55, GPIO66, 0x2f0),
 	MFP_ADDR_X(GPIO67, GPIO98, 0x1b8),
 	MFP_ADDR_X(GPIO100, GPIO109, 0x238),
+	MFP_ADDR_X(GPIO110, GPIO116, 0x298),
 
 	MFP_ADDR(GPIO123, 0xcc),
 	MFP_ADDR(GPIO124, 0xd0),
