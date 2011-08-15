@@ -212,7 +212,7 @@ int pxa168fb_spi_send(struct pxa168fb_info *fbi, void *value,
 				fbi->reg_base + SPU_IOPAD_CONTROL);
 
 		if (spi_gpio_cs != -1)
-			gpio_set_value(spi_gpio_cs, 0);
+			gpio_direction_output(spi_gpio_cs, 0);
 
 		irq_status_clear(fbi->id, SPI_IRQ_MASK);
 
@@ -249,7 +249,7 @@ int pxa168fb_spi_send(struct pxa168fb_info *fbi, void *value,
 		x &= ~0x1;
 		writel(x, fbi->reg_base + LCD_SPU_SPI_CTRL);
 		if (spi_gpio_cs != -1)
-			gpio_set_value(spi_gpio_cs, 1);
+			gpio_direction_output(spi_gpio_cs, 1);
 		if ((iopad & CFG_IOPADMODE_MASK) != PIN_MODE_DUMB_18_SPI)
 			writel(iopad, fbi->reg_base + SPU_IOPAD_CONTROL);
 	}
