@@ -18,6 +18,7 @@ extern int pxa910_ripc_trylock(void);
 #include <plat/pxa27x_keypad.h>
 #include <linux/spi/pxa2xx_spi.h>
 #include <linux/platform_data/pxa_sdhci.h>
+#include <mach/sram.h>
 
 extern struct pxa_device_desc pxa910_device_uart0;
 extern struct pxa_device_desc pxa910_device_uart1;
@@ -31,6 +32,7 @@ extern struct pxa_device_desc pxa910_device_pwm4;
 extern struct pxa_device_desc pxa910_device_ssp0;
 extern struct pxa_device_desc pxa910_device_ssp1;
 extern struct pxa_device_desc pxa910_device_ssp2;
+extern struct pxa_device_desc pxa910_device_audiosram;
 extern struct pxa_device_desc pxa910_device_nand;
 extern struct pxa_device_desc pxa910_device_keypad;
 extern struct pxa_device_desc pxa910_device_sdh0;
@@ -124,6 +126,12 @@ static inline int pxa910_add_ssp(int id)
 	}
 
 	return pxa_register_device(d, NULL, 0);
+}
+
+static inline int pxa910_add_audiosram(struct sram_bank *data)
+{
+	return pxa_register_device(&pxa910_device_audiosram, data,
+				   sizeof(*data));
 }
 
 static inline int pxa910_add_spi(int id, struct pxa2xx_spi_master *pdata)
