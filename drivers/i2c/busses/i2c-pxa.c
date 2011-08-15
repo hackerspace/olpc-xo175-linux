@@ -36,6 +36,7 @@
 #include <linux/slab.h>
 #include <linux/io.h>
 #include <linux/i2c/pxa-i2c.h>
+#include <linux/wakelock.h>
 
 #include <asm/irq.h>
 
@@ -178,6 +179,8 @@ struct pxa_i2c {
 	unsigned int		fast_mode :1;
 	unsigned int		ilcr;
 	unsigned int		iwcr;
+	struct wake_lock	idle_lock;
+	struct wake_lock	suspend_lock;
 };
 
 #define _IBMR(i2c)	((i2c)->reg_ibmr)
@@ -746,6 +749,9 @@ static int i2c_pxa_do_pio_xfer(struct pxa_i2c *i2c,
 	i2c->msg_ptr = 0;
 	i2c->irqlogidx = 0;
 
+	wake_lock(&i2c->idle_lock);
+	wake_lock(&i2c->suspend_lock);
+
 	i2c_pxa_start_message(i2c);
 
 	while (i2c->msg_num > 0 && --timeout) {
@@ -754,6 +760,9 @@ static int i2c_pxa_do_pio_xfer(struct pxa_i2c *i2c,
 	}
 
 	i2c_pxa_stop_message(i2c);
+
+	wake_unlock(&i2c->idle_lock);
+	wake_unlock(&i2c->suspend_lock);
 
 	/*
 	 * We place the return code in i2c->msg_idx.
@@ -804,6 +813,9 @@ static int i2c_pxa_do_xfer(struct pxa_i2c *i2c, struct i2c_msg *msg, int num)
 	i2c->msg_ptr = 0;
 	i2c->irqlogidx = 0;
 
+	wake_lock(&i2c->idle_lock);
+	wake_lock(&i2c->suspend_lock);
+
 	i2c_pxa_start_message(i2c);
 
 	spin_unlock_irq(&i2c->lock);
@@ -813,6 +825,9 @@ static int i2c_pxa_do_xfer(struct pxa_i2c *i2c, struct i2c_msg *msg, int num)
 	 */
 	timeout = wait_event_timeout(i2c->wait, i2c->msg_num == 0, HZ * 1);
 	i2c_pxa_stop_message(i2c);
+
+	wake_unlock(&i2c->idle_lock);
+	wake_unlock(&i2c->suspend_lock);
 
 	/*
 	 * We place the return code in i2c->msg_idx.
@@ -1122,6 +1137,11 @@ static int i2c_pxa_probe(struct platform_device *dev)
 	i2c->adap.owner   = THIS_MODULE;
 	i2c->adap.retries = 3;
 
+	wake_lock_init(&i2c->idle_lock, WAKE_LOCK_IDLE,
+			(const char *)i2c->adap.name);
+	wake_lock_init(&i2c->suspend_lock, WAKE_LOCK_SUSPEND,
+			(const char *)i2c->adap.name);
+
 	spin_lock_init(&i2c->lock);
 	init_waitqueue_head(&i2c->wait);
 
@@ -1233,7 +1253,9 @@ eclk:
 	kfree(i2c);
 emalloc:
 	release_mem_region(res->start, resource_size(res));
-	return ret;
+	wake_lock_destroy(&i2c->idle_lock);
+	wake_lock_destroy(&i2c->suspend_lock);
+return ret;
 }
 
 static int __exit i2c_pxa_remove(struct platform_device *dev)
@@ -1241,6 +1263,9 @@ static int __exit i2c_pxa_remove(struct platform_device *dev)
 	struct pxa_i2c *i2c = platform_get_drvdata(dev);
 
 	platform_set_drvdata(dev, NULL);
+
+	wake_lock_destroy(&i2c->idle_lock);
+	wake_lock_destroy(&i2c->suspend_lock);
 
 	i2c_del_adapter(&i2c->adap);
 	if (!i2c->use_pio)
