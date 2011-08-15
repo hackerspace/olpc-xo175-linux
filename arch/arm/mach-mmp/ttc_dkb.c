@@ -1462,6 +1462,9 @@ static void __init ttc_dkb_init(void)
 	pxa910_add_1wire();
 	pxa910_add_nand(&dkb_nand_info);
 
+	/* add ssp2 and gssp for audio */
+	pxa910_add_ssp(1);
+	pxa910_add_ssp(4);
 	pxa910_add_audiosram(&pxa910_audiosram_info);
 
 	pxa910_add_keypad(&ttc_dkb_keypad_info);
