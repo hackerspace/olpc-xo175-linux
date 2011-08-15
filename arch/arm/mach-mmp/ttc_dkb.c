@@ -145,6 +145,14 @@ static unsigned long ttc_rf_pin_config[] = {
 	GPIO66_GPIO66,
 };
 
+static unsigned long tds_pin_config[] __initdata = {
+	GPIO55_TDS_LNACTRL,
+	GPIO57_TDS_TRXSW,
+	GPIO58_TDS_RXREV,
+	GPIO59_TDS_TXREV,
+	GPIO60_TD_GPIO60 | MFP_PULL_HIGH,
+};
+
 static struct mtd_partition ttc_dkb_onenand_partitions[] = {
 	{
 		.name		= "bootloader",
@@ -880,9 +888,17 @@ static void create_sirf_proc_file(void)
 }
 #endif
 
+static void __init tds_mfp_init(void)
+{
+	if (is_td_dkb) {
+		mfp_config(ARRAY_AND_SIZE(tds_pin_config));
+	}
+}
+
 static void __init ttc_dkb_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(ttc_dkb_pin_config));
+	tds_mfp_init();
 
 	/* on-chip devices */
 	pxa910_add_uart(0);
