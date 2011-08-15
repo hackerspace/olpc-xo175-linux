@@ -210,8 +210,8 @@ static void __init brownstone_init(void)
 	mmp2_add_twsi(1, NULL, ARRAY_AND_SIZE(brownstone_twsi1_info));
 	mmp2_add_sdhost(0, &mmp2_sdh_platdata_mmc0); /* SD/MMC */
 #ifdef CONFIG_USB_PXA_U2O
-	mmp2_device_u2o.dev.platform_data = (void *)&mmp2_usb_pdata;
-	platform_device_register(&mmp2_device_u2o);
+	pxa168_device_u2o.dev.platform_data = (void *)&mmp2_usb_pdata;
+	platform_device_register(&pxa168_device_u2o);
 #endif
 
 	/* enable 5v regulator */
