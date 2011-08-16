@@ -21,6 +21,7 @@
 #include <linux/mfd/max8925.h>
 #include <linux/pwm_backlight.h>
 #include <linux/regulator/machine.h>
+#include <linux/i2c/tpk_r800.h>
 #include <linux/mfd/wm8994/pdata.h>
 #include <linux/regulator/fixed.h>
 
@@ -351,6 +352,32 @@ static void __init abilene_init_mmc(void)
 }
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
 
+#if defined(CONFIG_TOUCHSCREEN_TPK_R800)
+static int tpk_r800_set_power(int on)
+{
+	struct regulator *vcc = NULL;
+
+	vcc = regulator_get(NULL, "v_ldo8");
+	if (IS_ERR(vcc)) {
+		pr_err("%s can't open!\n", "v_ldo8");
+		return -EIO;
+	}
+
+	if (on) {
+		regulator_enable(vcc);
+		regulator_set_voltage(vcc, 2800000, 2800000);
+	} else
+		regulator_force_disable(vcc);
+
+	regulator_put(vcc);
+	return 1;
+}
+
+static struct touchscreen_platform_data tpk_r800_data = {
+	.set_power      = tpk_r800_set_power,
+};
+#endif
+
 #ifdef CONFIG_USB_SUPPORT
 
 #if defined(CONFIG_USB_PXA_U2O) || defined(CONFIG_USB_EHCI_PXA_U2O)
@@ -502,6 +529,14 @@ static struct i2c_board_info abilene_twsi5_info[] = {
 		.type		= "tc35876x",
 		.addr		= 0x0f,
 		.platform_data	= &tc358765_data,
+	},
+#endif
+#if defined(CONFIG_TOUCHSCREEN_TPK_R800)
+	{
+		.type		= "tpk_r800",
+		.addr		= 0x10,
+		.irq		= IRQ_GPIO(101),
+		.platform_data	= &tpk_r800_data,
 	},
 #endif
 };
