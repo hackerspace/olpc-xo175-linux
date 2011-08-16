@@ -542,6 +542,11 @@ static struct i2c_board_info abilene_twsi5_info[] = {
 #endif
 };
 
+static struct i2c_board_info abilene_twsi6_info[] = {
+	{
+	},
+};
+
 static struct regulator_consumer_supply abilene_wm8994_regulator_supply[] = {
 	[0] = {
 		.supply = "AVDD1",
@@ -739,6 +744,7 @@ static void __init abilene_init(void)
 	platform_device_register(&mmp3_device_rtc);
 
 	mmp3_add_twsi(3, NULL, ARRAY_AND_SIZE(abilene_twsi3_info));
+	mmp3_add_twsi(6, NULL, ARRAY_AND_SIZE(abilene_twsi6_info));
 	abilene_fixed_regulator();
 
 	/* audio sspa support */
