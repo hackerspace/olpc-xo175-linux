@@ -32,3 +32,4 @@ obj-$(CONFIG_MACH_YELLOWSTONE)	+= yellowstone.o
 obj-$(CONFIG_CPU_FREQ_MMP3)	+= cpufreq-mmp3.o
 obj-$(CONFIG_CPU_IDLE)		+= cpuidle-mmp3.o
 obj-$(CONFIG_CPU_FREQ_PXA910)	+= cpufreq-pxa910.o acpuclock-pxa910.o acpuclock-pxa910_ll.o
+obj-$(CONFIG_SUSPEND)		+= pxa910_pm.o
