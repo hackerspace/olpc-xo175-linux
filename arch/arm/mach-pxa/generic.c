@@ -101,6 +101,12 @@ static struct map_desc common_io_desc[] __initdata = {
 		.pfn		= __phys_to_pfn(0x00000000),
 		.length		= 0x00100000,
 		.type		= MT_DEVICE
+	}, {
+		/* Mem Ctl */
+		.virtual	= SMEMC_VIRT,
+		.pfn		= __phys_to_pfn(PXA3XX_SMEMC_BASE),
+		.length		= 0x00200000,
+		.type		= MT_DEVICE
 	}
 };
 
