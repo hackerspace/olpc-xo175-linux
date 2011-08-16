@@ -725,6 +725,7 @@ static void __init abilene_init(void)
 	mmp3_add_keypad(&mmp3_keypad_info);
 #ifdef CONFIG_FB_PXA168
 	abilene_add_lcd_mipi();
+	mmp3_add_tv_out();
 #endif
 
 	/* backlight */
