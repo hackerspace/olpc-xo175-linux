@@ -8,6 +8,9 @@
 #define MFP_DRIVE_MEDIUM	(0x4 << 13)
 #define MFP_DRIVE_FAST		(0x6 << 13)
 
+/* TPO touch */
+#define GPIO45_GPIO		MFP_CFG(GPIO45, AF0)
+
 /* UART0 */
 #define GPIO47_UART0_RXD	MFP_CFG(GPIO47, AF6)
 #define GPIO48_UART0_TXD	MFP_CFG(GPIO48, AF6)

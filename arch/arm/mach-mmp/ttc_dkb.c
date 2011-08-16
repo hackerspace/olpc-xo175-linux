@@ -49,6 +49,9 @@ static int __init td_dkb_setup(char *__unused)
 __setup("td_dkb", td_dkb_setup);
 
 static unsigned long ttc_dkb_pin_config[] __initdata = {
+	/* GPS GPIO */
+	GPIO45_GPIO, /*share with TPO reset*/
+
 	/* UART2 GPS UART */
 	GPIO43_UART2_RXD,
 	GPIO44_UART2_TXD,
@@ -423,6 +426,13 @@ static struct i2c_board_info ttc_dkb_i2c_info[] = {
 		.addr           = 0x23,
 		.irq            = IRQ_GPIO(80),
 		.platform_data  = &max7312_data,
+	},
+#endif
+#if defined(CONFIG_TOUCHSCREEN_TPO)
+	{
+		.type		= "tpo_touch",
+		.addr		= 0x18,
+		.irq		= gpio_to_irq(45),
 	},
 #endif
 #if defined(CONFIG_TOUCHSCREEN_FT5306)
