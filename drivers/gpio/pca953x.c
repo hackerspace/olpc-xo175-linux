@@ -602,6 +602,11 @@ pca953x_get_alt_pdata(struct i2c_client *client)
 static int __devinit device_pca953x_init(struct pca953x_chip *chip, int invert)
 {
 	int ret;
+	uint16_t val = 0;
+
+	ret = pca953x_read_reg(chip, PCA953X_INPUT, &val);
+	if (ret)
+		goto out;
 
 	ret = pca953x_read_reg(chip, PCA953X_OUTPUT, &chip->reg_output);
 	if (ret)
