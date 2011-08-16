@@ -31,6 +31,12 @@
 #define APMU_SDH2	APMU_REG(0x0e8)
 #define APMU_SDH3	APMU_REG(0x0ec)
 
+/* CNM clock and power on/off register*/
+#define APMU_DX8_CLK_RES_CTRL   APMU_REG(0x00a4)
+#define APMU_PWR_CTRL_REG       APMU_REG(0x00d8)
+#define APMU_PWR_BLK_TMR_REG    APMU_REG(0x00dc)
+#define APMU_PWR_STATUS_REG     APMU_REG(0x00f0)
+
 #define APMU_FNCLK_EN	(1 << 4)
 #define APMU_AXICLK_EN	(1 << 3)
 #define APMU_FNRST_DIS	(1 << 1)
