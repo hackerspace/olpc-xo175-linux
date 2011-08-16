@@ -155,7 +155,7 @@ static int soc_camera_try_fmt(struct soc_camera_device *icd,
 		pixfmtstr(pix->pixelformat), pix->width, pix->height);
 
 	pix->bytesperline = 0;
-	pix->sizeimage = 0;
+/*	pix->sizeimage = 0; */
 
 	ret = ici->ops->try_fmt(icd, f);
 	if (ret < 0)
