@@ -23,6 +23,12 @@ config TOUCHSCREEN_88PM860X
 	  To compile this driver as a module, choose M here: the
 	  module will be called 88pm860x-ts.
 
+config TOUCHSCREEN_TPO
+	bool "TPO Touchscreen interface support"
+	depends on I2C
+	help
+	  Say Y here to enable support for the TPO touchscreen controller.
+
 config TOUCHSCREEN_FT5306
 	tristate "FT5306 Touchscreen interface support"
 	depends on I2C
