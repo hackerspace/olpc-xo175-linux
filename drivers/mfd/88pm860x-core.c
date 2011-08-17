@@ -66,8 +66,6 @@ static struct resource onkey_resources[] __devinitdata = {
 };
 
 static struct resource codec_resources[] __devinitdata = {
-	/* Headset microphone insertion or removal */
-	{PM8607_IRQ_MICIN,   PM8607_IRQ_MICIN,   "micin",   IORESOURCE_IRQ,},
 	/* Audio short */
 	{PM8607_IRQ_AUDIO_SHORT, PM8607_IRQ_AUDIO_SHORT, "audio-short", IORESOURCE_IRQ,},
 };
