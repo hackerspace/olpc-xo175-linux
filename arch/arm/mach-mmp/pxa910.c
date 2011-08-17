@@ -22,13 +22,13 @@
 #include <mach/irqs.h>
 #include <mach/gpio.h>
 #include <mach/dma.h>
-#include <mach/mfp.h>
 #include <mach/devices.h>
 
 #include <linux/platform_device.h>
 #include <linux/mfd/ds1wm.h>
 #include <linux/memblock.h>
 
+#include <plat/mfp.h>
 #include "common.h"
 #include "clock.h"
 
