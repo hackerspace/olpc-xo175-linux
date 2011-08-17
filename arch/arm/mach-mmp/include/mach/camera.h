@@ -1,9 +1,12 @@
 #ifndef __ASM_ARCH_CAMERA_H__
 #define __ASM_ARCH_CAMERA_H__
 
-#define MAX_CAM_CLK 3
 struct mv_cam_pdata {
-	struct clk	*clk[MAX_CAM_CLK];
+#ifdef CONFIG_CPU_MMP3
+	struct clk	*clk;
+#else
+	struct clk	*clk[3];
+#endif
 	char		*name;
 	int		clk_enabled;
 	int		dphy[3];

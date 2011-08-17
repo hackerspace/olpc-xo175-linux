@@ -1670,6 +1670,213 @@ static struct clk mmp3_clk_vmeta = {
 };
 #endif
 
+static void ccic_clk_init(struct clk *clk)
+{
+	const struct clk_mux_sel *sel;
+	u32 val = 0;
+
+	/* by default select pll1/2 as clock source and divider 1 */
+	clk->mul = 1;
+	clk->div = 1;
+
+	clk_reparent(clk, &mmp3_clk_pll1_d_2);
+
+	val &= ~(clk->reg_data[DIV][CONTROL].reg_mask
+		 << clk->reg_data[DIV][CONTROL].reg_shift);
+	val |= clk->div
+	    << clk->reg_data[DIV][CONTROL].reg_shift;
+
+	for (sel = clk->inputs; sel->input != 0; sel++) {
+		if (sel->input == &mmp3_clk_pll1_d_2)
+			break;
+	}
+	if (sel->input == 0) {
+		pr_err("ccic: no matched input for this parent!\n");
+		BUG();
+	}
+
+	val &= ~(clk->reg_data[SOURCE][CONTROL].reg_mask
+		<< clk->reg_data[SOURCE][CONTROL].reg_shift);
+	val |= sel->value
+		<< clk->reg_data[SOURCE][CONTROL].reg_shift;
+
+	/* use fixed value 0x1a for CCIC_PHYSLOW_PRER */
+	clk->enable_val = val | (0x1a << 10);
+	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+}
+
+static int ccic_clk_enable(struct clk *clk)
+{
+	u32 val = clk->enable_val;
+
+	/* enable clocks */
+	val |= 0x10038;
+	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+
+	/* release reset */
+	val |= 0x8307;
+	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+
+	/* enable MIPI DPHY CSI2's DVDD and AVDD */
+	val = __raw_readl(APMU_CCIC_DBG);
+	val |= (1 << 25) | (1 << 27);
+	__raw_writel(val, APMU_CCIC_DBG);
+
+	return 0;
+}
+
+static void ccic_clk_disable(struct clk *clk)
+{
+	u32 val;
+
+	__raw_writel(0, clk->reg_data[SOURCE][CONTROL].reg);
+
+	/* disable MIPI DPHY CSI2's DVDD and AVDD */
+	val = __raw_readl(APMU_CCIC_DBG);
+	val &= ~((1 << 25) | (1 << 27));
+	__raw_writel(val, APMU_CCIC_DBG);
+}
+
+static long ccic_clk_round_rate(struct clk *clk, unsigned long rate)
+{
+	/*
+	 * CCIC has four clock source: PLL1/2, PLL1/16, and VCTCXO.
+	 * Here PLL1/16 is not used since PLL1/2 and VCTCXO can cover it.
+	 * Only use PLL1/2 as clock source if the rate is larger than VCTCXO.
+	 */
+	int i;
+	unsigned long parent_rate;
+
+	/* for those which is less than vctcxo, use vctcxo as clock source */
+	if (rate <= clk_get_rate(&mmp3_clk_vctcxo)) {
+		parent_rate = clk_get_rate(&mmp3_clk_vctcxo);
+		for (i = 2; i < 16; i++) {
+			if (rate > parent_rate / i)
+				break;
+		}
+
+		return parent_rate / (i - 1);
+	/* else use pll1/2 as clock source */
+	} else {
+		parent_rate = clk_get_rate(&mmp3_clk_pll1_d_2);
+		for (i = 2; i < 16; i++) {
+			if (rate > parent_rate / i)
+				break;
+		}
+	}
+		return parent_rate / (i - 1);
+}
+
+static int ccic_clk_setrate(struct clk *clk, unsigned long rate)
+{
+	unsigned long parent_rate;
+	const struct clk_mux_sel *sel;
+	u32 val = 0;
+
+	if (rate <= clk_get_rate(&mmp3_clk_vctcxo)) {
+		parent_rate = clk_get_rate(&mmp3_clk_vctcxo);
+		clk->mul = 1;
+		clk->div = parent_rate / rate;
+
+		clk_reparent(clk, &mmp3_clk_vctcxo);
+
+		val &= ~(clk->reg_data[DIV][CONTROL].reg_mask
+			 << clk->reg_data[DIV][CONTROL].reg_shift);
+		val |= clk->div
+		    << clk->reg_data[DIV][CONTROL].reg_shift;
+
+		for (sel = clk->inputs; sel->input != 0; sel++) {
+			if (sel->input == &mmp3_clk_vctcxo)
+				break;
+		}
+		if (sel->input == 0) {
+			pr_err("ccic: no matched input for this parent!\n");
+			BUG();
+		}
+
+		val &= ~(clk->reg_data[SOURCE][CONTROL].reg_mask
+			<< clk->reg_data[SOURCE][CONTROL].reg_shift);
+		val |= sel->value
+			<< clk->reg_data[SOURCE][CONTROL].reg_shift;
+	} else if (rate <= clk_get_rate(&mmp3_clk_pll1_d_2)) {
+		parent_rate = clk_get_rate(&mmp3_clk_pll1_d_2);
+		clk->mul = 1;
+		clk->div = parent_rate / rate;
+
+		clk_reparent(clk, &mmp3_clk_pll1_d_2);
+
+		val &= ~(clk->reg_data[DIV][CONTROL].reg_mask
+			 << clk->reg_data[DIV][CONTROL].reg_shift);
+		val |= clk->div
+		    << clk->reg_data[DIV][CONTROL].reg_shift;
+
+		for (sel = clk->inputs; sel->input != 0; sel++) {
+			if (sel->input == &mmp3_clk_pll2)
+				break;
+		}
+		if (sel->input == 0) {
+			pr_err("ccic: no matched input for this parent!\n");
+			BUG();
+		}
+
+		val &= ~(clk->reg_data[SOURCE][CONTROL].reg_mask
+			<< clk->reg_data[SOURCE][CONTROL].reg_shift);
+		val |= sel->value
+			<< clk->reg_data[SOURCE][CONTROL].reg_shift;
+	}
+
+	/* use fixed value 0x1a for CCIC_PHYSLOW_PRER */
+	clk->enable_val = val | (0x1a << 10);
+	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+
+	return 0;
+}
+
+
+struct clkops ccic_clk_ops = {
+	.init = ccic_clk_init,
+	.enable = ccic_clk_enable,
+	.disable = ccic_clk_disable,
+	.round_rate = ccic_clk_round_rate,
+	.setrate = ccic_clk_setrate,
+};
+
+static struct clk_mux_sel ccic_clk_mux[] = {
+	{.input = &mmp3_clk_pll1_d_2, .value = 0},
+	{.input = &mmp3_clk_vctcxo, .value = 2},
+	{0, 0},
+};
+
+static struct clk mmp3_clk_ccic1 = {
+	.name = "ccic1",
+	.lookup = {
+		.dev_id = "mv-camera.0",
+		.con_id = "CCICRSTCLK",
+	},
+	.ops = &ccic_clk_ops,
+	.inputs = ccic_clk_mux,
+	.reg_data = {
+		     { {APMU_CCIC_RST, 6, 0x3},
+			{APMU_CCIC_RST, 6, 0x3} },
+		     {{APMU_CCIC_RST, 17, 0xf},
+			{APMU_CCIC_RST, 17, 0xf} } },
+};
+
+static struct clk mmp3_clk_ccic2 = {
+	.name = "ccic2",
+	.lookup = {
+		.dev_id = "mv-camera.1",
+		.con_id = "CCICRSTCLK",
+	},
+	.ops = &ccic_clk_ops,
+	.inputs = ccic_clk_mux,
+	.reg_data = {
+		     { {APMU_CCIC_RST, 6, 0x3},
+			{APMU_CCIC_RST, 6, 0x3} },
+		     {{APMU_CCIC_RST, 17, 0xf},
+			{APMU_CCIC_RST, 17, 0xf} } },
+};
+
 static struct clk *mmp3_clks_ptr[] = {
 	&mmp3_clk_pll1_d_2,
 	&mmp3_clk_pll1,
@@ -1703,6 +1910,8 @@ static struct clk *mmp3_clks_ptr[] = {
 	&mmp3_clk_sdh3,
 	&mmp3_clk_disp1_axi,
 	&mmp3_clk_hdmi,
+	&mmp3_clk_ccic1,
+	&mmp3_clk_ccic2,
 #ifdef CONFIG_UIO_VMETA
 	&mmp3_clk_vmeta,
 #endif
@@ -2076,54 +2285,6 @@ struct clkops apmu_clk_ops = {
 }
 
 
-static int ccic_rst_clk_enable(struct clk *clk)
-{
-	__raw_writel(0x2e838, clk->clk_rst);
-	__raw_writel(0x3e909, clk->clk_rst);
-	__raw_writel(0x3eb39, clk->clk_rst);
-	__raw_writel(0x3eb3f, clk->clk_rst);
-#if 0
-	__raw_writel(0x000387FF, clk->clk_rst);
-#endif
-
-	return 0;
-}
-
-static void ccic_rst_clk_disable(struct clk *clk)
-{
-	__raw_writel(0x3eb3f, clk->clk_rst);
-	__raw_writel(0x3eb39, clk->clk_rst);
-	__raw_writel(0x3e909, clk->clk_rst);
-	__raw_writel(0x2e838, clk->clk_rst);
-	__raw_writel(0x0, clk->clk_rst);
-}
-
-struct clkops ccic_rst_clk_ops = {
-	.enable         = ccic_rst_clk_enable,
-	.disable        = ccic_rst_clk_disable,
-};
-
-static int ccic_dbg_clk_enable(struct clk *clk)
-{
-	u32 tmp = __raw_readl(clk->clk_rst);
-	tmp |= (1 << 25) | (1 << 27);
-	__raw_writel(tmp, clk->clk_rst);
-
-	return 0;
-}
-
-static void ccic_dbg_clk_disable(struct clk *clk)
-{
-	u32 tmp = __raw_readl(clk->clk_rst);
-	tmp &= ~((1 << 25) | (1 << 27));
-	__raw_writel(tmp, clk->clk_rst);
-}
-
-struct clkops ccic_dbg_clk_ops = {
-	.enable         = ccic_dbg_clk_enable,
-	.disable        = ccic_dbg_clk_disable,
-};
-
 /* usb: hsic clock */
 static int hsic_clk_enable(struct clk *clk)
 {
@@ -2185,20 +2346,8 @@ static struct clk mmp3_list_clks[] = {
 			0, 32768, &mmp3_clk_32k, &rtc_clk_ops),
 	APMU_CLK("u2o", NULL, "U2OCLK", USB,
 			0x9, 480000000, NULL),
-	APMU_CLK("ccic_gate", "mv-camera.0", "CCICGATECLK", CCIC_GATE,
-			0xffff, 0, NULL),
-	APMU_CLK("ccic_gate", "mv-camera.1", "CCICGATECLK", CCIC_GATE,
-			0xffff, 0, NULL),
 	APMU_CLK_OPS("nand", "pxa3xx-nand", NULL, NAND,
 			0xbf, 100000000, &mmp3_clk_pll1, &nand_clk_ops),
-	APMU_CLK_OPS("ccic_rst", "mv-camera.0", "CCICRSTCLK", CCIC_RST,
-			0, 312000000, NULL, &ccic_rst_clk_ops),
-	APMU_CLK_OPS("ccic_rst", "mv-camera.1", "CCICRSTCLK", CCIC_RST,
-			0, 312000000, NULL, &ccic_rst_clk_ops),
-	APMU_CLK_OPS("ccic_dbg", "mv-camera.0", "CCICDBGCLK", CCIC_DBG,
-			0, 312000000, NULL, &ccic_dbg_clk_ops),
-	APMU_CLK_OPS("ccic_dbg", "mv-camera.1", "CCICDBGCLK", CCIC_DBG,
-			0, 312000000, NULL, &ccic_dbg_clk_ops),
 	APMU_CLK_OPS("hsic1", NULL, "HSIC1CLK", USBHSIC1,
 			0x1b, 480000000, NULL, &hsic_clk_ops),
 };

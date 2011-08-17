@@ -255,30 +255,18 @@ static int pxa2128_cam_clk_init(struct device *dev, int init)
 {
 	struct mv_cam_pdata *data = dev->platform_data;
 	if ((!data->clk_enabled) && init) {
-		data->clk[0] = clk_get(dev, "CCICGATECLK");
-		if (IS_ERR(data->clk[1])) {
-			dev_err(dev, "Could not get gateclk\n");
-			return PTR_ERR(data->clk[1]);
-		}
-		data->clk[1] = clk_get(dev, "CCICRSTCLK");
-		if (IS_ERR(data->clk[0])) {
+		data->clk = clk_get(dev, "CCICRSTCLK");
+		if (IS_ERR(data->clk)) {
 			dev_err(dev, "Could not get rstclk\n");
-			return PTR_ERR(data->clk[0]);
+			return PTR_ERR(data->clk);
 		}
-		data->clk[2] = clk_get(dev, "CCICDBGCLK");
-		if (IS_ERR(data->clk[2])) {
-			dev_err(dev, "Could not get lcd clk\n");
-			return PTR_ERR(data->clk[2]);
-		}
-		data->clk_enabled = 3;
+		data->clk_enabled = 1;
 
 		return 0;
 	}
 
 	if (!init && data->clk_enabled) {
-		clk_put(data->clk[0]);
-		clk_put(data->clk[1]);
-		clk_put(data->clk[2]);
+		clk_put(data->clk);
 		return 0;
 	}
 	return -EFAULT;
@@ -287,15 +275,10 @@ static int pxa2128_cam_clk_init(struct device *dev, int init)
 static void pxa2128_cam_set_clk(struct device *dev, int on)
 {
 	struct mv_cam_pdata *data = dev->platform_data;
-	if (on) {
-		clk_enable(data->clk[0]);
-		clk_enable(data->clk[1]);
-		clk_enable(data->clk[2]);
-	} else {
-		clk_disable(data->clk[0]);
-		clk_disable(data->clk[1]);
-		clk_disable(data->clk[2]);
-	}
+	if (on)
+		clk_enable(data->clk);
+	else
+		clk_disable(data->clk);
 }
 
 static int get_mclk_src(int src)
