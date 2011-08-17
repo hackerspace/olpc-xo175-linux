@@ -66,3 +66,4 @@ obj-$(CONFIG_JS_RTC)		+= js-rtc.o
 js-rtc-y = rtc.o
 
 obj-$(CONFIG_PXA9XX_ACIPC)  += pxa9xx_acipc.o
+obj-$(CONFIG_PXA910_IRE)	+= pxa910_ire.o

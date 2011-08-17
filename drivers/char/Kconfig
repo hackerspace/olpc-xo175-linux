@@ -640,6 +640,10 @@ config PXA9XX_ACIPC
 	  Please say Y here if want to support Application to Communication
 	  Intel-Processor Communication on PXA910,PXA93x,PXA95x chip
 
+config PXA910_IRE
+        tristate "image rotation engine"
+        depends on CPU_PXA910
+        help
+          Please say Y here if want to support image rotation engine
 
 endmenu
-
