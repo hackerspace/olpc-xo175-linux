@@ -36,6 +36,7 @@
 #include <asm/mach/arch.h>
 #include <asm/mach/flash.h>
 #include <mach/addr-map.h>
+#include <mach/gpio.h>
 #include <mach/mfp-pxa910.h>
 #include <mach/pxa910.h>
 #include <mach/sram.h>
@@ -51,6 +52,7 @@
 #include <mach/regs-apbc.h>
 #include <mach/regs-apmu.h>
 #include <linux/switch.h>
+#include <mach/pxa910_pm.h>
 
 #include "common.h"
 #include "onboard.h"
@@ -238,6 +240,57 @@ static struct sram_bank pxa910_audiosram_info = {
 	.pool_name = "audio sram",
 	.step = AUDIO_SRAM_GRANULARITY,
 };
+
+#ifdef CONFIG_PM
+static unsigned long ttc_lpm_pin_config[] = {
+	/* Set all I2S pads as input to avoid 8787 leakage */
+	GPIO21_GPIO21 | MFP_MEDIUM,
+	GPIO22_GPIO22 | MFP_MEDIUM,
+	GPIO23_GPIO23 | MFP_MEDIUM,
+	GPIO24_GPIO24 | MFP_MEDIUM,
+
+	/* save VCC_IO_GPIO1 0.25mA */
+	GPIO01_KP_MKOUT0 | MFP_MEDIUM | MFP_PULL_HIGH,
+	GPIO03_KP_MKOUT1 | MFP_MEDIUM | MFP_PULL_HIGH,
+	GPIO05_KP_MKOUT2 | MFP_MEDIUM | MFP_PULL_HIGH,
+	GPIO07_KP_MKOUT3 | MFP_MEDIUM | MFP_PULL_HIGH,
+	GPIO09_KP_MKOUT4 | MFP_MEDIUM | MFP_PULL_HIGH,
+	GPIO10_GPIO10    | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO46_GPIO46    | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO49_GPIO49    | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO51_GPIO51    | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO52_GPIO52    | MFP_MEDIUM | MFP_PULL_LOW,
+
+	/* save VCC_IO_GPIO3 0.14mA */
+	GPIO81_LCD_FCLK     | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO82_LCD_LCLK     | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO83_LCD_PCLK     | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO84_LCD_DENA     | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO85_LCD_DD0      | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO86_LCD_DD1      | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO87_LCD_DD2      | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO88_LCD_DD3      | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO89_LCD_DD4      | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO90_LCD_DD5      | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO91_LCD_DD6      | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO92_LCD_DD7      | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO93_LCD_DD8      | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO94_LCD_DD9      | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO95_LCD_DD10     | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO96_LCD_DD11     | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO97_LCD_DD12     | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO98_LCD_DD13     | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO100_LCD_DD14    | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO101_LCD_DD15    | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO102_LCD_DD16    | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO103_LCD_DD17    | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO104_LCD_SPIDOUT | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO105_LCD_SPIDIN  | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO106_LCD_RESET   | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO107_LCD_CS1     | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO108_LCD_DCLK    | MFP_MEDIUM | MFP_PULL_LOW,
+};
+#endif
 
 static struct mtd_partition ttc_dkb_onenand_partitions[] = {
 	{
@@ -1252,6 +1305,54 @@ static void __init pxa910_init_mmc(void)
 	pxa910_add_sdh(0, &pxa910_sdh_platdata_mmc0); /* SD/MMC */
 }
 
+#ifdef CONFIG_PM
+static void mfp_gpio3_power_up(void)
+{
+	__raw_writel(FIRST_SECURITY_VALUE, APBC_PXA910_ASFAR);
+	__raw_writel(SECOND_SECURITY_VALUE, APBC_PXA910_ASSAR);
+	__raw_writel(AIB_POWER_TURNON, AIB_GPIO3_IO);
+}
+
+static void mfp_gpio3_power_down(void)
+{
+	__raw_writel(FIRST_SECURITY_VALUE, APBC_PXA910_ASFAR);
+	__raw_writel(SECOND_SECURITY_VALUE, APBC_PXA910_ASSAR);
+	__raw_writel(AIB_POWER_SHUTDOWN, AIB_GPIO3_IO);
+}
+
+static unsigned long GPIO[110];
+static int ttc_pin_lpm_config(void)
+{
+	unsigned int index = 0, i = 0;
+
+	for (index = MFP_PIN_GPIO0; index <= MFP_PIN_GPIO109; index++)
+		GPIO[i++] = mfp_read(index);
+
+	/* MFP config for power save */
+	mfp_config(ARRAY_AND_SIZE(ttc_lpm_pin_config));
+	/* turn off GPIO3 power domain */
+	mfp_gpio3_power_down();
+	return 0;
+}
+
+static int ttc_pin_restore(void)
+{
+	unsigned int index = 0, i = 0;
+
+	for (index = MFP_PIN_GPIO0; index <= MFP_PIN_GPIO109; index++)
+		mfp_write(index, GPIO[i++]);
+
+	/*turn on GPIO3 power domain*/
+	mfp_gpio3_power_up();
+	return 0;
+}
+
+static struct pxa910_peripheral_config_ops config_ops = {
+	.pin_lpm_config = ttc_pin_lpm_config,
+	.pin_restore    = ttc_pin_restore,
+};
+#endif
+
 /* GPS: power on/off control */
 static void gps_power_on(void)
 {
@@ -1594,6 +1695,10 @@ static void __init ttc_dkb_init(void)
 #if defined(CONFIG_VIDEO_MV)
 	mfp_config(ARRAY_AND_SIZE(ccic_dvp_pin_config));
 	pxa910_add_cam(&mv_cam_data);
+#endif
+
+#ifdef CONFIG_PM
+	pxa910_power_config_register(&config_ops);
 #endif
 }
 
