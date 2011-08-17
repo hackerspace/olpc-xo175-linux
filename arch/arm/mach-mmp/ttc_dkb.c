@@ -28,6 +28,8 @@
 #include <linux/proc_fs.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/consumer.h>
+#include <linux/clk.h>
+#include <linux/io.h>
 
 #include <asm/mach-types.h>
 #include <asm/uaccess.h>
@@ -41,6 +43,10 @@
 
 #include <plat/usb.h>
 #include <mach/regs-rtc.h>
+#include <mach/camera.h>
+#include <media/soc_camera.h>
+#include <mach/regs-apbc.h>
+#include <mach/regs-apmu.h>
 
 #include "common.h"
 #include "onboard.h"
@@ -193,6 +199,24 @@ static unsigned long tds_pin_config[] __initdata = {
 	GPIO59_TDS_TXREV,
 	GPIO60_TD_GPIO60 | MFP_PULL_HIGH,
 };
+
+#if defined(CONFIG_VIDEO_MV)
+static unsigned long ccic_dvp_pin_config[] __initdata = {
+
+	GPIO67_CCIC_IN7,
+	GPIO68_CCIC_IN6,
+	GPIO69_CCIC_IN5,
+	GPIO70_CCIC_IN4,
+	GPIO71_CCIC_IN3,
+	GPIO72_CCIC_IN2,
+	GPIO73_CCIC_IN1,
+	GPIO74_CCIC_IN0,
+	GPIO75_CAM_HSYNC,
+	GPIO76_CAM_VSYNC,
+	GPIO77_CAM_MCLK,
+	GPIO78_CAM_PCLK,
+};
+#endif
 
 static struct mtd_partition ttc_dkb_onenand_partitions[] = {
 	{
@@ -709,9 +733,248 @@ static struct i2c_pxa_platform_data ttc_dkb_pwr_i2c_pdata = {
 	.iwcr			= 0x0000142A,
 };
 
+#if defined(CONFIG_VIDEO_MV) && defined(CONFIG_GPIO_PCA953X)
+static int cam_ldo12_1p2v_enable(int on)
+{
+	static struct regulator *r_vcam;
+	static int f_enabled;
+	if (on && (!f_enabled)) {
+		r_vcam = regulator_get(NULL, "v_ldo12");
+		if (IS_ERR(r_vcam)) {
+			r_vcam = NULL;
+			return -EIO;
+		} else {
+			regulator_set_voltage(r_vcam, 1200000, 1200000);
+			regulator_enable(r_vcam);
+			f_enabled = 1;
+		}
+	}
+
+	if (f_enabled && (!on)) {
+		if (r_vcam) {
+			regulator_disable(r_vcam);
+			regulator_put(r_vcam);
+			f_enabled = 0;
+			r_vcam = NULL;
+		}
+	}
+	return 0;
+}
+
+static int camera_sensor_power(struct device *dev, int on)
+{
+	unsigned int cam_pwr;
+	unsigned int cam_reset;
+	unsigned int cam_afen;
+	int sensor = 1;
+	/* actually, no small power down pin needed */
+	cam_pwr = sensor ? GPIO_EXT0(6) : 0;
+	cam_reset = sensor ? GPIO_EXT0(4) : GPIO_EXT0(14);
+	cam_afen = mfp_to_gpio(MFP_PIN_GPIO49);
+
+	if (cam_pwr)
+		if (gpio_request(cam_pwr, "CAM_PWR")) {
+			printk(KERN_ERR "Request GPIO failed,"
+					"gpio: %d\n", cam_pwr);
+			return -EIO;
+		}
+
+	if (gpio_request(cam_reset, "CAM_RESET")) {
+		printk(KERN_ERR "Request GPIO failed,"
+			"gpio: %d\n", cam_reset);
+		return -EIO;
+	}
+	if (gpio_request(cam_afen, "CAM_RESET")) {
+		printk(KERN_ERR "Request GPIO failed,"
+			"gpio: %d\n", cam_afen);
+		return -EIO;
+	}
+
+	if (on) {
+		gpio_direction_output(cam_afen, 1);
+		mdelay(1);
+		if (cam_pwr)
+			gpio_direction_output(cam_pwr, 0);
+		mdelay(1);
+		gpio_direction_output(cam_reset, 0);
+		mdelay(1);
+		gpio_direction_output(cam_reset, 1);
+		mdelay(1);
+		/* set MIPI_AVDD1P2V for MIPI IO */
+		cam_ldo12_1p2v_enable(1);
+		mdelay(1);
+	} else {
+		gpio_direction_output(cam_reset, 0);
+		mdelay(1);
+		gpio_direction_output(cam_reset, 1);
+		if (cam_pwr)
+			gpio_direction_output(cam_pwr, 1);
+		gpio_direction_output(cam_afen, 0);
+		cam_ldo12_1p2v_enable(0);
+	}
+	if (cam_pwr)
+		gpio_free(cam_pwr);
+	gpio_free(cam_reset);
+	gpio_free(cam_afen);
+	return 0;
+}
+
+static struct i2c_board_info dkb_i2c_camera[] = {
+	{
+		I2C_BOARD_INFO("ov5642", 0x3c),
+	},
+};
+
+static struct soc_camera_link iclink_ov5642_dvp = {
+	.bus_id         = 0,            /* Must match with the camera ID */
+	.power          = camera_sensor_power,
+	.board_info     = &dkb_i2c_camera[0],
+	.i2c_adapter_id = 0,
+ /* .flags = SOCAM_MIPI, */
+	.module_name    = "ov5642",
+	.priv	= "pxa910-dvp",
+};
+
+static struct platform_device dkb_ov5642_dvp = {
+	.name   = "soc-camera-pdrv",
+	.id     = 0,
+	.dev    = {
+		.platform_data = &iclink_ov5642_dvp,
+	},
+};
+
+static unsigned long CAM_GPIO[14];
+static void pxa910_cam_ctrl_power(int on)
+{
+	unsigned int pin_index = 0, i = 0;
+	/*on=0, power save*/
+	if (!on) {
+		for (pin_index = MFP_PIN_GPIO67;
+				pin_index <= MFP_PIN_GPIO80; pin_index++)
+			CAM_GPIO[i++] = mfp_read(pin_index);
+
+		/* save VCC_IO_GPIO2 0.05mA */
+		mfp_write(MFP_PIN_GPIO67, 0xb8c1);
+		mfp_write(MFP_PIN_GPIO68, 0xb8c1);
+		mfp_write(MFP_PIN_GPIO69, 0xb8c1);
+		mfp_write(MFP_PIN_GPIO70, 0xb8c1);
+		mfp_write(MFP_PIN_GPIO71, 0xb8c1);
+		mfp_write(MFP_PIN_GPIO72, 0xb8c1);
+		mfp_write(MFP_PIN_GPIO73, 0xb8c1);
+		mfp_write(MFP_PIN_GPIO74, 0xb8c1);
+		mfp_write(MFP_PIN_GPIO75, 0xb8c1);
+		mfp_write(MFP_PIN_GPIO76, 0xb8c1);
+		mfp_write(MFP_PIN_GPIO77, 0xb8c1);
+		mfp_write(MFP_PIN_GPIO78, 0xb8c1);
+		mfp_write(MFP_PIN_GPIO79, 0xc8c0);
+		mfp_write(MFP_PIN_GPIO80, 0x1880);
+
+		__raw_writel(FIRST_SECURITY_VALUE, APBC_PXA910_ASFAR);
+		__raw_writel(SECOND_SECURITY_VALUE, APBC_PXA910_ASSAR);
+		__raw_writel(AIB_POWER_SHUTDOWN, AIB_GPIO2_IO);
+	} else {
+		/* restore pin value*/
+		for (pin_index = MFP_PIN_GPIO67;
+				pin_index <= MFP_PIN_GPIO80; pin_index++)
+			mfp_write(pin_index, CAM_GPIO[i++]);
+		/*turn on GPIO2 power domain*/
+		__raw_writel(FIRST_SECURITY_VALUE, APBC_PXA910_ASFAR);
+		__raw_writel(SECOND_SECURITY_VALUE, APBC_PXA910_ASSAR);
+		__raw_writel(AIB_POWER_TURNON, AIB_GPIO2_IO);
+	}
+}
+
+static int pxa910_cam_clk_init(struct device *dev, int init)
+{
+	struct mv_cam_pdata *data = dev->platform_data;
+	if ((!data->clk_enabled) && init) {
+		data->clk[0] = clk_get(dev, "CCICGATECLK");
+		if (IS_ERR(data->clk[1])) {
+			dev_err(dev, "Could not get gateclk\n");
+			return PTR_ERR(data->clk[1]);
+		}
+		data->clk[1] = clk_get(dev, "CCICRSTCLK");
+		if (IS_ERR(data->clk[0])) {
+			dev_err(dev, "Could not get rstclk\n");
+			return PTR_ERR(data->clk[0]);
+		}
+		data->clk[2] = clk_get(dev, "LCDCLK");
+		if (IS_ERR(data->clk[2])) {
+			dev_err(dev, "Could not get lcd clk\n");
+			return PTR_ERR(data->clk[2]);
+		}
+		data->clk_enabled = 3;
+
+		return 0;
+	}
+
+	if (!init && data->clk_enabled) {
+		clk_put(data->clk[0]);
+		clk_put(data->clk[1]);
+		clk_put(data->clk[2]);
+		return 0;
+	}
+	return -EFAULT;
+}
+
+static void pxa910_cam_set_clk(struct device *dev, int on)
+{
+	struct mv_cam_pdata *data = dev->platform_data;
+	if (on == 1) {
+		clk_enable(data->clk[0]);
+		if (data->bus_type == SOCAM_MIPI) {
+			clk_set_rate(data->clk[1], 0x6a3f);
+			__raw_writel(0x06000000 | __raw_readl(APMU_CCIC_DBG),
+					APMU_CCIC_DBG);
+		} else {
+			clk_set_rate(data->clk[1], 0x01f);
+		}
+		clk_enable(data->clk[2]);
+	} else {
+		clk_disable(data->clk[0]);
+		clk_set_rate(data->clk[1], 0x6800);
+		__raw_writel((~0x06000000) & __raw_readl(APMU_CCIC_DBG),
+				APMU_CCIC_DBG);
+		clk_disable(data->clk[2]);
+	}
+}
+
+static int get_mclk_src(int src)
+{
+	switch (src) {
+	case 3:
+		return 312;
+	case 2:
+		return 312;
+	default:
+		return 52;
+	}
+
+	return 0;
+}
+
+struct mv_cam_pdata mv_cam_data = {
+	.name = "TD/TTC",
+	.clk_enabled = 0,
+	/*.dphy = {0x1b0b, 0x33, 0x1a03}, */
+	.qos_req_min = 624,
+	.dma_burst = 64,
+	/*.bus_type = SOCAM_MIPI, */
+	.mclk_min = 24,
+	.mclk_src = 2,
+	.controller_power = pxa910_cam_ctrl_power,
+	.init_clk = pxa910_cam_clk_init,
+	.enable_clk = pxa910_cam_set_clk,
+	.get_mclk_src = get_mclk_src,
+};
+#else
+struct mv_cam_pdata mv_cam_data;
+#endif
+
 static struct platform_device *ttc_dkb_devices[] = {
 	&ttc_dkb_device_onenand,
 	&pxa910_device_rtc,
+	&dkb_ov5642_dvp,
 };
 
 #if (defined CONFIG_CMMB)
@@ -1244,6 +1507,10 @@ static void __init ttc_dkb_init(void)
 	pxa168_device_u2ootg.dev.platform_data = &ttc_usb_pdata;
 	platform_device_register(&pxa168_device_u2ootg);
 #endif
+#endif
+#if defined(CONFIG_VIDEO_MV)
+	mfp_config(ARRAY_AND_SIZE(ccic_dvp_pin_config));
+	pxa910_add_cam(&mv_cam_data);
 #endif
 }
 

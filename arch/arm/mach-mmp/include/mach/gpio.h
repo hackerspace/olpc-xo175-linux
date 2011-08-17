@@ -36,4 +36,14 @@
 
 #define GPIO_EXT0(x)	(NR_BUILTIN_GPIO + (x))
 #define GPIO_EXT1(x)	(NR_BUILTIN_GPIO + 16 + (x))
+
+/* I/O Domains Power Control Registers*/
+#define AIB_IO_POWER_VIRT_ADDR (APB_VIRT_BASE + 0x1e800)
+#define AIB_GPIO2_IO (AIB_IO_POWER_VIRT_ADDR+0xC)
+#define AIB_GPIO3_IO (AIB_IO_POWER_VIRT_ADDR+0x10)
+#define AIB_POWER_SHUTDOWN 0x0
+#define AIB_POWER_TURNON 0x1
+#define FIRST_SECURITY_VALUE  0xBABA
+#define SECOND_SECURITY_VALUE 0xEB10
+
 #endif /* __ASM_MACH_GPIO_H */
