@@ -72,6 +72,12 @@ struct smschar_device_t smschar_pnp_device;
 static int g_pnp_status_changed;
 wait_queue_head_t g_pnp_event;
 
+#define SMS_DEV_CREATE
+
+#ifdef SMS_DEV_CREATE
+static struct class *smschr_dev_class;
+#endif
+
 static struct mutex g_smschar_pollwait_lock;
 
 /*
@@ -676,6 +682,14 @@ static int smschar_setup_cdev(struct smschar_device_t *dev, int index)
 	kobject_set_name(&dev->cdev.kobj, "Siano_sms%d", index);
 	rc = cdev_add(&dev->cdev, devno, 1);
 
+#ifdef SMS_DEV_CREATE
+	if (!index)
+		device_create(smschr_dev_class, NULL, devno, NULL, "mdtvctrl");
+	else
+		device_create(smschr_dev_class, NULL, devno, NULL, "mdtv%d",
+			      index);
+#endif
+	sms_info("exiting %p %d, rc %d", dev, index, rc);
 	return rc;
 }
 
@@ -792,12 +806,28 @@ int smschar_register(void)
 
 	smscore_register_power_mode_handler(smschar_power_mode_handler);
 
+#ifdef SMS_DEV_CREATE
+	smschr_dev_class = class_create(THIS_MODULE, "smsmdtv");
+	if (IS_ERR(smschr_dev_class)) {
+		sms_err("Could not create sms char device class\n");
+		return -1;
+	}
+	sms_info("create smsmdtv class\n");
+#endif
+
 	return smscore_register_hotplug(smschar_hotplug);
 }
 
 void smschar_unregister(void)
 {
 	dev_t devno = MKDEV(smschar_major, smschar_minor);
+
+#ifdef SMS_DEV_CREATE
+	int i;
+	for (i = 0; i < SMSCHAR_NR_DEVS; i++)
+		device_destroy(smschr_dev_class, MKDEV(smschar_major, i));
+	class_destroy(smschr_dev_class);
+#endif
 
 	unregister_chrdev_region(devno, SMSCHAR_NR_DEVS);
 	smscore_unregister_hotplug(smschar_hotplug);
