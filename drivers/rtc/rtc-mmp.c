@@ -228,7 +228,11 @@ static int mmp_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	ret = rtc_tm_to_time(tm, &time);
 	if (ret == 0)
 		RCNR = time;
-
+	/*
+	 * According to spec, delay more
+	 * than two 32K clock cycles
+	 */
+	udelay(200);
 	return ret;
 }
 
@@ -350,7 +354,6 @@ static int mmp_rtc_probe(struct platform_device *pdev)
 		ret = -ENXIO;
 		goto err;
 	}
-	disable_irq(irq_alrm);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res == NULL) {
