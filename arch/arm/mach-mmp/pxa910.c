@@ -193,7 +193,7 @@ static struct clk_lookup pxa910_clkregs[] = {
 	INIT_CLKREG(&clk_ssp1, "pxa910-ssp.0", NULL),
 	INIT_CLKREG(&clk_ssp2, "pxa910-ssp.1", NULL),
 	INIT_CLKREG(&clk_nand, "pxa3xx-nand", NULL),
-	INIT_CLKREG(&clk_u2o, "pxa-u2o", "U2OCLK"),
+	INIT_CLKREG(&clk_u2o, NULL, "U2OCLK"),
 	INIT_CLKREG(&clk_keypad, "pxa27x-keypad", NULL),
 	INIT_CLKREG(&clk_rtc, NULL, "MMP-RTC"),
 	INIT_CLKREG(&clk_1wire, NULL, "PXA-W1"),
