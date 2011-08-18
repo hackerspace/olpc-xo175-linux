@@ -342,6 +342,19 @@ static struct platform_device smsspi_device = {
 		},
 };
 
+void *smsspi_get_dev(void)
+{
+	sms_info("smsspi_get_dev  entering.. spi_dev: %x\n",
+				(unsigned int)spi_dev->phy_dev);
+	return spi_dev->phy_dev;
+}
+
+void smsspi_save_dev(void *dev)
+{
+	sms_info("smsspi_save_dev  entering.. %x\n", (unsigned int)dev);
+	spi_dev->phy_dev = dev;
+}
+
 int smsspi_register(void)
 {
 	struct smsdevice_params_t params;
@@ -353,6 +366,9 @@ int smsspi_register(void)
 
 	spi_device = kmalloc(sizeof(struct _spi_device_st), GFP_KERNEL);
 	spi_dev = spi_device;
+
+	ret = pxa_spi_register();
+	sms_info("pxa_spi_register  finish...");
 
 	INIT_LIST_HEAD(&spi_device->txqueue);
 
@@ -459,6 +475,8 @@ void smsspi_unregister(void)
 	/* stop interrupts */
 	smsspiphy_deinit(spi_device->phy_dev);
 	smscore_unregister_device(spi_device->coredev);
+
+	pxa_spi_unregister();
 
 	dma_free_coherent(NULL, TX_BUFFER_SIZE, spi_device->txbuf,
 			  spi_device->txbuf_phy_addr);
