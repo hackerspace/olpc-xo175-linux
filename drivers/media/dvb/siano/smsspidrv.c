@@ -411,18 +411,24 @@ int smsspi_register(void)
 
 	PDEBUG("entering\n");
 
-	spi_device = kmalloc(sizeof(struct _spi_device_st), GFP_KERNEL);
+	spi_device = kzalloc(sizeof(struct _spi_device_st), GFP_KERNEL);
+	if (spi_device == NULL) {
+		ret = -ENOMEM;
+		goto malloc_error;
+	}
 	spi_dev = spi_device;
 
 	ret = pxa_spi_register();
-	sms_info("pxa_spi_register  finish...");
+	sms_info("pxa_spi_register finish. ret=%d", ret);
+	if (ret < 0)
+		goto pxa_spi_error;
 
 	INIT_LIST_HEAD(&spi_device->txqueue);
 
 	ret = platform_device_register(&smsspi_device);
 	if (ret < 0) {
 		PERROR("platform_device_register failed\n");
-		return ret;
+		goto platform_error;
 	}
 
 	spi_device->txbuf =
@@ -441,6 +447,7 @@ int smsspi_register(void)
 	    smsspiphy_init(NULL, smsspi_int_handler, spi_device);
 	if (spi_device->phy_dev == 0) {
 		printk(KERN_INFO "%s smsspiphy_init(...) failed\n", __func__);
+		ret = -ENODEV;
 		goto phy_error;
 	}
 
@@ -514,6 +521,13 @@ phy_error:
 txbuf_error:
 	platform_device_unregister(&smsspi_device);
 
+platform_error:
+	pxa_spi_unregister();
+
+pxa_spi_error:
+	kfree(spi_device);
+
+malloc_error:
 	PDEBUG("exiting error %d\n", ret);
 
 	return ret;
