@@ -487,6 +487,7 @@ static struct elan_touch_platform_data elan_touch_data = {
 	.power = touch_io_power_onoff,
 };
 #endif
+static unsigned long lis33ldl_min_delay = 50;
 static struct i2c_board_info ttc_dkb_i2c_info[] = {
 	{
 		.type		= "88PM860x",
@@ -531,6 +532,13 @@ static struct i2c_board_info ttc_dkb_i2c_info[] = {
 		.addr		= 0x8,
 		.irq		= gpio_to_irq(45),
 		.platform_data	= &elan_touch_data,
+	},
+#endif
+#if defined(CONFIG_SENSORS_LIS331DL)
+	{
+		.type           = "lis331dl",
+		.addr           =  0x1c,
+		.platform_data  = &lis33ldl_min_delay,
 	},
 #endif
 };
