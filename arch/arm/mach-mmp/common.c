@@ -21,9 +21,13 @@
 #include "common.h"
 
 #define MMP_CHIPID	(AXI_VIRT_BASE + 0x82c00)
+#define MMP_FUSEID	(AXI_VIRT_BASE + 0x1498)
 
 unsigned int mmp_chip_id;
 EXPORT_SYMBOL(mmp_chip_id);
+
+unsigned int mmp_fuse_id;
+EXPORT_SYMBOL(mmp_fuse_id);
 
 static struct map_desc standard_io_desc[] __initdata = {
 	{
@@ -62,4 +66,5 @@ void __init mmp_map_io(void)
 
 	/* this is early, initialize mmp_chip_id here */
 	mmp_chip_id = __raw_readl(MMP_CHIPID);
+	mmp_fuse_id = __raw_readl(MMP_FUSEID);
 }
