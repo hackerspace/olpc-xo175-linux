@@ -336,6 +336,9 @@ static int __devinit pm860x_probe(struct i2c_client *client,
 		i2c_set_clientdata(chip->companion, chip);
 	}
 
+	if (pdata->fixup)
+		pdata->fixup(chip, pdata);
+
 	pm860x_device_init(chip, pdata);
 	return 0;
 }

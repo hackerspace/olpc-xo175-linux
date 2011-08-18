@@ -608,6 +608,8 @@ struct pm860x_platform_data {
 	int		num_leds;
 	int		num_backlights;
 	int		num_regulators;
+	int		(*fixup)(struct pm860x_chip *,
+			struct pm860x_platform_data *);
 };
 
 extern int pm8606_ref_gp_and_osc_get(struct pm860x_chip *, u16);
