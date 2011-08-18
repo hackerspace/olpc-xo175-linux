@@ -195,16 +195,28 @@ EXPORT_SYMBOL_GPL(sdhci_pltfm_unregister);
 int sdhci_pltfm_suspend(struct platform_device *dev, pm_message_t state)
 {
 	struct sdhci_host *host = platform_get_drvdata(dev);
+	int ret = 0;
 
-	return sdhci_suspend_host(host, state);
+	if (device_may_wakeup(&dev->dev))
+		enable_irq_wake(host->irq);
+
+	ret = sdhci_suspend_host(host, state);
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(sdhci_pltfm_suspend);
 
 int sdhci_pltfm_resume(struct platform_device *dev)
 {
 	struct sdhci_host *host = platform_get_drvdata(dev);
+	int ret = 0;
 
-	return sdhci_resume_host(host);
+	ret = sdhci_resume_host(host);
+
+	if (device_may_wakeup(&dev->dev))
+		disable_irq_wake(host->irq);
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(sdhci_pltfm_resume);
 #endif	/* CONFIG_PM */

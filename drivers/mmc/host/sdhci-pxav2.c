@@ -184,6 +184,8 @@ static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, host);
 	pxa->pdata = pdata;
+
+	device_init_wakeup(&pdev->dev, 0);
 #ifdef CONFIG_SD8XXX_RFKILL
 	if (pxa->pdata->pmmc)
 		*pxa->pdata->pmmc = host->mmc;

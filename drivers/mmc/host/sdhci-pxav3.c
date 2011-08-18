@@ -236,6 +236,8 @@ static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, host);
 
+	device_init_wakeup(&pdev->dev, 0);
+
 	return 0;
 
 err_add_host:
