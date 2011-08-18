@@ -72,7 +72,11 @@ struct mv_udc {
 
 	struct work_struct	vbus_work;
 	struct workqueue_struct	*qwork;
+
 	unsigned int		power;
+	unsigned long		charger_type;
+	struct delayed_work	charger_work;
+	struct delayed_work	delayed_charger_work;
 
 	struct otg_transceiver	*transceiver;
 

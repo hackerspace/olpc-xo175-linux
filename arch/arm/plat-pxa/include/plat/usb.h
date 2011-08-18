@@ -30,6 +30,17 @@ enum {
 	VBUS_HIGH	= 1 << 0,
 };
 
+enum charger_type {
+	NULL_CHARGER            = 0,
+	DEFAULT_CHARGER,
+	VBUS_CHARGER,
+	AC_CHARGER_STANDARD,
+	AC_CHARGER_OTHER,
+};
+
+extern int mv_udc_register_client(struct notifier_block *nb);
+extern int mv_udc_unregister_client(struct notifier_block *nb);
+
 struct mv_usb_addon_irq {
 	unsigned int	irq;
 	int		(*poll)(void);

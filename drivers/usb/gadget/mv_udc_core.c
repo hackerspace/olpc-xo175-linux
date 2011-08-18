@@ -57,6 +57,8 @@
 #define LOOPS_USEC		(1 << LOOPS_USEC_SHIFT)
 #define LOOPS(timeout)		((timeout) >> LOOPS_USEC_SHIFT)
 
+#define	ENUMERATION_DELAY	(10 * HZ)
+
 static const char driver_name[] = "mv_udc";
 static const char driver_desc[] = DRIVER_DESC;
 
@@ -66,6 +68,7 @@ int mv_usb_otgsc;
 
 static void nuke(struct mv_ep *ep, int status);
 static void stop_activity(struct mv_udc *udc, struct usb_gadget_driver *driver);
+static void call_charger_notifier(struct mv_udc *udc);
 
 /* for endpoint 0 operations */
 static const struct usb_endpoint_descriptor mv_ep0_desc = {
@@ -1215,8 +1218,15 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 		udc->vbus_active);
 
 	udc->vbus_active = (is_active != 0);
-	if (udc->vbus_active == 0)
+
+	if (udc->vbus_active) {
+		udc->charger_type = DEFAULT_CHARGER;
+		schedule_delayed_work(&udc->charger_work, HZ >> 3);
+	} else {
 		udc->power = 0;
+		udc->charger_type = NULL_CHARGER;
+		schedule_delayed_work(&udc->charger_work, 0);
+	}
 
 	/*
 	* 1. No VBUS detect with OTG: we have to enable clock all the time.
@@ -1251,12 +1261,7 @@ static int mv_udc_vbus_draw(struct usb_gadget *gadget, unsigned mA)
 	struct mv_udc *udc;
 
 	udc = container_of(gadget, struct mv_udc, gadget);
-
-	if (mA) {
-		udc->power = mA;
-		if (udc->qwork)
-			queue_work(udc->qwork, &udc->vbus_work);
-	}
+	udc->power = mA;
 
 	return 0;
 }
@@ -1454,7 +1459,7 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 		}
 	}
 
-	/* pullup is always on*/
+	/* pullup is always on */
 	mv_udc_pullup(&udc->gadget, 1);
 
 	/* when transceiver is not NULL, qwork is NULL*/
@@ -1692,6 +1697,16 @@ out:
 	return;
 }
 
+static int is_set_configuration(struct usb_ctrlrequest *setup)
+{
+	if ((setup->bRequestType & USB_TYPE_MASK) == USB_TYPE_STANDARD)
+		if (setup->bRequest == USB_REQ_SET_CONFIGURATION)
+			return 1;
+
+	return 0;
+}
+
+
 static void handle_setup_packet(struct mv_udc *udc, u8 ep_num,
 	struct usb_ctrlrequest *setup)
 {
@@ -1750,6 +1765,11 @@ static void handle_setup_packet(struct mv_udc *udc, u8 ep_num,
 				ep0_stall(udc);
 			spin_lock(&udc->lock);
 			udc->ep0_state = WAIT_FOR_OUT_STATUS;
+		}
+
+		if (is_set_configuration(setup)) {
+			udc->charger_type = VBUS_CHARGER;
+			schedule_delayed_work(&udc->charger_work, 0);
 		}
 	}
 }
@@ -2082,7 +2102,18 @@ static BLOCKING_NOTIFIER_HEAD(mv_udc_notifier_list);
 /* For any user that care about USB udc events, for example the charger*/
 int mv_udc_register_client(struct notifier_block *nb)
 {
-	return blocking_notifier_chain_register(&mv_udc_notifier_list, nb);
+	struct mv_udc *udc = the_controller;
+	int ret = 0;
+
+	if (!udc)
+		return -ENODEV;
+
+	ret = blocking_notifier_chain_register(&mv_udc_notifier_list, nb);
+	if (ret)
+		return ret;
+
+	call_charger_notifier(udc);
+	return 0;
 }
 EXPORT_SYMBOL(mv_udc_register_client);
 
@@ -2091,6 +2122,54 @@ int mv_udc_unregister_client(struct notifier_block *nb)
 	return blocking_notifier_chain_unregister(&mv_udc_notifier_list, nb);
 }
 EXPORT_SYMBOL(mv_udc_unregister_client);
+
+static void call_charger_notifier(struct mv_udc *udc)
+{
+	blocking_notifier_call_chain(&mv_udc_notifier_list,
+				udc->charger_type, &udc->power);
+}
+
+static void do_charger_work(struct work_struct *work)
+{
+	struct mv_udc *udc = NULL;
+	u32 val = 0;
+	u32 charger_mask = PORTSCX_PORT_DM | PORTSCX_PORT_DP;
+
+	udc = container_of(work, struct mv_udc, charger_work.work);
+	val = readl(&udc->op_regs->portsc) & charger_mask;
+
+	if (udc->charger_type != VBUS_CHARGER
+		&& udc->charger_type != NULL_CHARGER) {
+		if (val == charger_mask)
+			udc->charger_type = AC_CHARGER_STANDARD;
+		else {
+			udc->charger_type = DEFAULT_CHARGER;
+			schedule_delayed_work(&udc->delayed_charger_work,
+						ENUMERATION_DELAY);
+		}
+	}
+
+	call_charger_notifier(udc);
+}
+
+static void do_delayed_work(struct work_struct *work)
+{
+	struct mv_udc *udc = NULL;
+	u32 val = 0;
+	u32 charger_mask = PORTSCX_PORT_DM | PORTSCX_PORT_DP;
+
+	udc = container_of(work, struct mv_udc, delayed_charger_work.work);
+	val = readl(&udc->op_regs->portsc) & charger_mask;
+
+	if (udc->charger_type == DEFAULT_CHARGER) {
+		if (val == charger_mask)
+			udc->charger_type = AC_CHARGER_STANDARD;
+		else
+			udc->charger_type = AC_CHARGER_OTHER;
+
+		call_charger_notifier(udc);
+	}
+}
 
 static irqreturn_t mv_udc_vbus_irq(int irq, void *dev)
 {
@@ -2114,19 +2193,11 @@ static void mv_udc_vbus_work(struct work_struct *work)
 
 	vbus = udc->pdata->vbus->poll();
 	dev_info(&udc->dev->dev, "vbus is %d\n", vbus);
-	if (vbus == VBUS_HIGH) {
-		/* VBUS just be detected, and we do not complete enumeration*/
-		if (udc->power == 0)
-			mv_udc_vbus_session(&udc->gadget, 1);
-		else
-			/* After enumeration, we have gotten the power*/
-			blocking_notifier_call_chain(&mv_udc_notifier_list,
-							VBUS_HIGH, &udc->power);
-	} else if (vbus == VBUS_LOW) {
+
+	if (vbus == VBUS_HIGH)
+		mv_udc_vbus_session(&udc->gadget, 1);
+	else if (vbus == VBUS_LOW)
 		mv_udc_vbus_session(&udc->gadget, 0);
-		blocking_notifier_call_chain(&mv_udc_notifier_list,
-						VBUS_LOW, NULL);
-	}
 }
 
 /* release device structure */
@@ -2403,6 +2474,10 @@ static int __devinit mv_udc_probe(struct platform_device *dev)
 
 		INIT_WORK(&udc->vbus_work, mv_udc_vbus_work);
 	}
+
+	INIT_DELAYED_WORK(&udc->charger_work, do_charger_work);
+	INIT_DELAYED_WORK(&udc->delayed_charger_work, do_delayed_work);
+	udc->charger_type = NULL_CHARGER;
 
 	/*
 	* For saving power disable clk. When clock is disabled,
