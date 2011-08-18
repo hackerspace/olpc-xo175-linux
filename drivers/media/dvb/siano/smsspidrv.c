@@ -42,8 +42,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #define SMS_INTR_PIN			4	/*0 for nova sip, 26 for vega */
 #define TX_BUFFER_SIZE			0x200
+
+#ifdef RX_64K_MODE
+#define RX_BUFFER_SIZE			(0x10000 + SPI_PACKET_SIZE + 0x100)
+#define NUM_RX_BUFFERS			10
+#else
 #define RX_BUFFER_SIZE			(0x1000 + SPI_PACKET_SIZE + 0x100)
 #define NUM_RX_BUFFERS			72
+#endif
 
 struct _spi_device_st {
 	struct _spi_dev dev;

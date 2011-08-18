@@ -36,8 +36,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "smscharioctl.h"
 
 /* max number of packets allowed to be pending on queue*/
+#ifdef RX_64K_MODE
+#define SMS_CHR_MAX_Q_LEN	6
+#define SMSCHAR_NR_DEVS		17
+#else
 #define SMS_CHR_MAX_Q_LEN	15
 #define SMSCHAR_NR_DEVS		17
+#endif
 
 struct smschar_device_t {
 	struct cdev cdev;	/*!< Char device structure */

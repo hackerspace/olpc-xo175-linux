@@ -343,6 +343,7 @@ int smscore_register_device(struct smsdevice_params_t *params,
 	init_completion(&dev->gpio_get_level_done);
 	init_completion(&dev->ir_init_done);
 	init_completion(&dev->device_ready_done);
+	init_completion(&dev->rx_64k_done);
 
 	/* Buffer management */
 	init_waitqueue_head(&dev->buffer_mng_waitq);
@@ -918,6 +919,29 @@ static char *smscore_fw_lkup[][SMS_NUM_OF_DEVICE_TYPES] = {
 		"none", "atsc_denver.inp", "none"}
 };
 
+#ifdef RX_64K_MODE
+int smscore_64Kmode_req(struct smscore_device_t *coredev)
+{
+	char msgbuff[252];
+	int rc = 0;
+	struct SmsMsgData_ST *p64KMsg = (struct SmsMsgData_ST *)msgbuff;
+
+	p64KMsg->xMsgHeader.msgType = MSG_SMS_SET_MAX_TX_MSG_LEN_REQ;
+	p64KMsg->xMsgHeader.msgSrcId = SMS_HOST_INTERNAL;
+	p64KMsg->xMsgHeader.msgDstId = HIF_TASK;
+	p64KMsg->xMsgHeader.msgFlags = 0;
+	p64KMsg->xMsgHeader.msgLength =
+		sizeof(struct SmsMsgData_ST) + sizeof(unsigned long);
+	p64KMsg->msgData[0] = 64*1024;
+
+	smsendian_handle_tx_message((struct SmsMsgHdr_ST *)p64KMsg);
+	rc = smscore_sendrequest_and_wait(coredev, p64KMsg,
+				p64KMsg->xMsgHeader.msgLength,
+				&coredev->rx_64k_done);
+	return 0;
+}
+#endif
+
 /**
  * get firmware file name from one of the two mechanisms : sms_boards or
  * smscore_fw_lkup.
@@ -1056,6 +1080,11 @@ int smscore_set_device_mode(struct smscore_device_t *coredev, int mode)
 		rc = smscore_init_device(coredev, mode);
 		if (rc < 0)
 			sms_err("device init failed, rc %d.", rc);
+
+		#ifdef RX_64K_MODE
+			smscore_64Kmode_req(coredev);
+		#endif
+
 	} else {
 		if (mode < DEVICE_MODE_DVBT || mode > DEVICE_MODE_DVBT_BDA) {
 			sms_err("invalid mode specified %d", mode);
@@ -1293,6 +1322,9 @@ void smscore_onresponse(struct smscore_device_t *coredev,
 			break;
 		case MSG_SMS_DATA_DOWNLOAD_RES:
 			complete(&coredev->data_download_done);
+			break;
+		case MSG_SMS_SET_MAX_TX_MSG_LEN_RES:
+			complete(&coredev->rx_64k_done);
 			break;
 		case MSG_SW_RELOAD_EXEC_RES:
 			sms_debug("MSG_SW_RELOAD_EXEC_RES");

@@ -46,6 +46,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 #endif
 
+#define RX_64K_MODE		/* for 64K RX data */
+
 #define SMS_PROTOCOL_MAX_RAOUNDTRIP_MS			(10000)
 #define SMS_ALLOC_ALIGNMENT				128
 #define SMS_DMA_ALIGNMENT				16
@@ -180,6 +182,7 @@ struct smscore_device_t {
 	struct completion resume_done, device_ready_done;
 	struct completion gpio_configuration_done, gpio_set_level_done;
 	struct completion gpio_get_level_done, ir_init_done;
+	struct completion rx_64k_done;
 
 	/* Buffer management */
 	wait_queue_head_t buffer_mng_waitq;

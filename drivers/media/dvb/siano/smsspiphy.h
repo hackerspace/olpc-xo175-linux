@@ -22,8 +22,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef __SMS_SPI_PHY_H__
 #define __SMS_SPI_PHY_H__
 
-#define RX_64K_MODE		/* for 64K RX data */
-
 int pxa_spi_register(void);
 void pxa_spi_unregister(void);
 
