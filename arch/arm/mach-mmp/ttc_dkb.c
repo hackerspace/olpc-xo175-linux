@@ -1004,8 +1004,10 @@ static struct mv_usb_platform_data ttc_usb_pdata = {
 /*
  * for wvga panel:
  * 1: truly wvga panel
+ * 2: sharp wvga panel
  */
 #define TRULY_WVGA_PANEL 1
+#define SHARP_WVGA_PANEL 2
 static int wvga_lcd = 0;
 static int __init wvga_lcd_setup(char *str)
 {
@@ -1052,6 +1054,9 @@ static void __init ttc_dkb_init(void)
 	if (TRULY_WVGA_PANEL == is_wvga_lcd()) {
 		dkb_add_lcd_truly();
 		pr_info("LCD: truly WVGA panel selected.\n");
+	} else if (SHARP_WVGA_PANEL == is_wvga_lcd()) {
+		dkb_add_lcd_sharp();
+		pr_info("LCD: sharp WVGA panel selected.\n");
 	} else
 		dkb_add_lcd_tpo();
 #endif
