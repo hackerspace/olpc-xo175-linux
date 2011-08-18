@@ -18,4 +18,19 @@ config SWITCH_HEADSET
         help
           Say Y here to enable headset & hook switch support.
 
+config SWITCH_HEADSET_HOST_GPIO
+	bool "Headset Switch Host GPIO support"
+	depends on MACH_ABILENE || MACH_YELLOWSTONE
+	help
+	  To support headset switch (detection), this option must
+	  be selected. This option makes Host GPIO to be configured
+	  as input to receive the interrupt.
+
+config SWITCH_WM8994_HEADSET
+	tristate "Headset Swith support"
+	depends on GENERIC_GPIO
+	depends on SWITCH_HEADSET_HOST_GPIO
+	  help
+	  Say Y here to enable wm8994 headset switch support.
+
 endif # SWITCH

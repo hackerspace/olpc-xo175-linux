@@ -38,6 +38,9 @@ struct gpio_switch_platform_data {
 	/* if NULL, "0" or "1" will be printed */
 	const char *state_on;
 	const char *state_off;
+
+	int stay_on;
+	int invert;
 };
 
 extern int switch_dev_register(struct switch_dev *sdev);
@@ -49,5 +52,6 @@ static inline int switch_get_state(struct switch_dev *sdev)
 }
 
 extern void switch_set_state(struct switch_dev *sdev, int state);
+extern int (*headset_detect_func)(void);
 
 #endif /* __LINUX_SWITCH_H__ */

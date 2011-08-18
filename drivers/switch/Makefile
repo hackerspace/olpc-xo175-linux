@@ -2,4 +2,5 @@
 obj-$(CONFIG_SWITCH)		+= switch_class.o
 obj-$(CONFIG_SWITCH_GPIO)	+= switch_gpio.o
 obj-$(CONFIG_SWITCH_HEADSET)    += 88pm860x_headset.o
+obj-$(CONFIG_SWITCH_WM8994_HEADSET)   += switch_headset.o
 

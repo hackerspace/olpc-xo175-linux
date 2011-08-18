@@ -33,6 +33,7 @@
 
 #include <asm/mach-types.h>
 #include <linux/io.h>
+#include <linux/switch.h>
 
 #include <linux/uaccess.h>
 #include <plat/ssp.h>
@@ -159,7 +160,9 @@ static const struct snd_soc_dapm_route mmp3asoc_dapm_routes[] = {
 	{"IN1RN", NULL, "Headset Mic"},
 
 	{"DMIC1DAT", NULL, "MICBIAS1"},
-	{"MICBIAS1", NULL, "Main Mic"},
+	{"MICBIAS1", NULL, "MICBIAS2"},
+	{"MICBIAS2", NULL, "MICBIAS"},
+	{"MICBIAS", NULL, "Main Mic"},
 };
 
 static const char *const jack_function[] = {
@@ -177,6 +180,66 @@ static const struct snd_kcontrol_new mmp3asoc_wm8994_controls[] = {
 	SOC_ENUM_EXT("Speaker Function", mmp3asoc_enum[1],
 		     mmp3asoc_get_spk, mmp3asoc_set_spk),
 };
+
+#ifdef CONFIG_SWITCH_WM8994_HEADSET
+static struct snd_soc_codec *mmp3asoc_wm8994_codec;
+
+int wm8994_headset_detect(void)
+{
+	struct snd_soc_codec *codec;
+	int status1, status2, reg;
+	int ret = 0;
+
+	codec = mmp3asoc_wm8994_codec;
+	if (codec == NULL)
+		return 0;
+
+	/* disable interrupt, mask interrupt mask */
+	snd_soc_write(codec, WM8994_INTERRUPT_CONTROL, 0x1);
+	/* mask MICBIAS interrupt */
+	snd_soc_write(codec, WM8994_INTERRUPT_STATUS_2_MASK,
+			 0xffff);
+
+	status1 = snd_soc_read(codec, WM8994_INTERRUPT_STATUS_1);
+	status2 = snd_soc_read(codec, WM8994_INTERRUPT_STATUS_2);
+
+	reg = snd_soc_read(codec, WM8994_INTERRUPT_RAW_STATUS_2);
+
+	switch (reg & (WM8994_MIC2_SHRT_STS | WM8994_MIC2_DET_STS)) {
+	case WM8994_MIC2_DET_STS:
+		ret = 1;
+		break;
+	case (WM8994_MIC2_SHRT_STS | WM8994_MIC2_DET_STS):
+		ret = 2;
+		break;
+	default:
+		break;
+	}
+
+	/* clear all irqs */
+	snd_soc_write(codec, WM8994_INTERRUPT_RAW_STATUS_2, 0);
+	snd_soc_write(codec, WM8994_INTERRUPT_STATUS_1, status1);
+	snd_soc_write(codec, WM8994_INTERRUPT_STATUS_2, status2);
+
+	/* enable interrupt, unmask interrupt mask */
+	snd_soc_write(codec, WM8994_INTERRUPT_CONTROL, 0x0);
+	/* unmask MICBIAS interrupt */
+	snd_soc_write(codec, WM8994_INTERRUPT_STATUS_2_MASK,
+			 0xffe7);
+
+	/* reset clocking to make sure trigger irq */
+	snd_soc_update_bits(codec, WM8994_CLOCKING_2,
+			WM8994_DBCLK_DIV_MASK |
+			WM8994_TOCLK_DIV_MASK,
+			(2 << WM8994_DBCLK_DIV_SHIFT) |
+			(4 << WM8994_TOCLK_DIV_SHIFT));
+
+	snd_soc_update_bits(codec, WM8994_CLOCKING_1,
+			WM8994_TOCLK_ENA_MASK,
+			WM8994_TOCLK_ENA);
+	return ret;
+}
+#endif
 
 static int codec_hdmi_init(struct snd_soc_codec *codec)
 {
@@ -316,6 +379,53 @@ static int codec_wm8994_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_nc_pin(dapm, "IN2RP:VXRP");
 
 	snd_soc_dapm_sync(dapm);
+#ifdef CONFIG_SWITCH_WM8994_HEADSET
+	mmp3asoc_wm8994_codec = codec;
+	headset_detect_func = wm8994_headset_detect;
+
+	snd_soc_update_bits(codec, WM8994_CLOCKING_2,
+			    WM8994_DBCLK_DIV_MASK |
+			    WM8994_TOCLK_DIV_MASK,
+			    (2 << WM8994_DBCLK_DIV_SHIFT) |
+			    (4 << WM8994_TOCLK_DIV_SHIFT));
+
+	snd_soc_update_bits(codec, WM8994_CLOCKING_1,
+			    WM8994_TOCLK_ENA_MASK,
+			    WM8994_TOCLK_ENA);
+
+	snd_soc_update_bits(codec, WM8994_IRQ_DEBOUNCE,
+			    WM8994_MIC2_DET_DB_MASK |
+			    WM8994_MIC2_SHRT_DB_MASK,
+			    WM8994_MIC2_DET_DB |
+			    WM8994_MIC2_SHRT_DB);
+
+	/* 3. GPIO setup */
+	/* 3.1 setup the GPIOn as IRQ output */
+	snd_soc_write(codec, WM8994_GPIO_1, 0x0003);
+
+	snd_soc_update_bits(codec, WM8994_MICBIAS,
+			    WM8994_MICD_ENA_MASK |
+			    WM8994_MICD_SCTHR_MASK,
+			    WM8994_MICD_ENA |
+			    (1 << WM8994_MICD_SCTHR_SHIFT));
+
+	/* turn on micbias 1/2 always */
+	snd_soc_update_bits(codec, WM8994_POWER_MANAGEMENT_1,
+			    WM8994_MICB1_ENA_MASK |
+			    WM8994_MICB2_ENA_MASK,
+			    WM8994_MICB1_ENA |
+			    WM8994_MICB2_ENA);
+
+	/* unmask mic2 shrt and det int */
+	snd_soc_update_bits(codec, WM8994_INTERRUPT_STATUS_2_MASK,
+			    WM8994_IM_MIC2_SHRT_EINT_MASK |
+			    WM8994_IM_MIC2_DET_EINT_MASK, 0);
+
+	/* unmask int */
+	snd_soc_update_bits(codec, WM8994_INTERRUPT_CONTROL,
+			    WM8994_IM_IRQ_MASK, 0);
+
+#endif
 
 	/* need to enable Reg(0x302) bit 13, bit 12 for wm8994 master */
 	snd_soc_update_bits(codec, WM8994_AIF1_MASTER_SLAVE,
@@ -350,6 +460,7 @@ static int mmp3asoc_wm8994_startup(struct snd_pcm_substream *substream)
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+	struct snd_soc_codec *codec = rtd->codec;
 
 	/* For PCM stream, it's actually 32 bits, including 16 bits valid
 	 * data, and 16 bits 0. Need to change to SNDRV_PCM_FMTBIT_S32_LE
