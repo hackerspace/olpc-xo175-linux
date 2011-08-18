@@ -104,11 +104,35 @@ static struct pm_qos_object network_throughput_pm_qos = {
 };
 
 
+static BLOCKING_NOTIFIER_HEAD(cpu_freq_min_notifier);
+static struct pm_qos_object cpu_freq_min_pm_qos = {
+	.requests = PLIST_HEAD_INIT(cpu_freq_min_pm_qos.requests),
+	.notifiers = &cpu_freq_min_notifier,
+	.name = "cpu_freq_min",
+	.default_value = 0,
+	.target_value = 0,
+	.type = PM_QOS_MAX,
+};
+
+
+static BLOCKING_NOTIFIER_HEAD(cpu_freq_disable_notifier);
+static struct pm_qos_object cpu_freq_disable_pm_qos = {
+	.requests = PLIST_HEAD_INIT(cpu_freq_disable_pm_qos.requests),
+	.notifiers = &cpu_freq_disable_notifier,
+	.name = "cpu_freq_disable",
+	.default_value = 0,
+	.target_value = 0,
+	.type = PM_QOS_MAX,
+};
+
+
 static struct pm_qos_object *pm_qos_array[] = {
 	&null_pm_qos,
 	&cpu_dma_pm_qos,
 	&network_lat_pm_qos,
-	&network_throughput_pm_qos
+	&network_throughput_pm_qos,
+	&cpu_freq_min_pm_qos,
+	&cpu_freq_disable_pm_qos
 };
 
 static ssize_t pm_qos_power_write(struct file *filp, const char __user *buf,
@@ -474,6 +498,14 @@ static int __init pm_qos_power_init(void)
 	if (ret < 0)
 		printk(KERN_ERR
 			"pm_qos_param: network_throughput setup failed\n");
+	ret = register_pm_qos_misc(&cpu_freq_min_pm_qos);
+	if (ret < 0)
+		printk(KERN_ERR
+			"pm_qos_param: cpu_freq_min setup failed\n");
+	ret = register_pm_qos_misc(&cpu_freq_disable_pm_qos);
+	if (ret < 0)
+		printk(KERN_ERR
+			"pm_qos_param: cpu_freq_disable setup failed\n");
 
 	return ret;
 }
