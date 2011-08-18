@@ -1001,6 +1001,27 @@ static struct mv_usb_platform_data ttc_usb_pdata = {
 #endif
 #endif
 
+/*
+ * for wvga panel:
+ * 1: truly wvga panel
+ */
+#define TRULY_WVGA_PANEL 1
+static int wvga_lcd = 0;
+static int __init wvga_lcd_setup(char *str)
+{
+	int n;
+	if (!get_option(&str, &n))
+		return 0;
+	wvga_lcd = n;
+	return 1;
+}
+__setup("wvga_lcd=", wvga_lcd_setup);
+
+static int is_wvga_lcd(void)
+{
+	return wvga_lcd;
+}
+
 static void __init ttc_dkb_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(ttc_dkb_pin_config));
@@ -1028,7 +1049,11 @@ static void __init ttc_dkb_init(void)
 
 #ifdef CONFIG_FB_PXA168
 	mfp_config(ARRAY_AND_SIZE(lcd_tpo_pin_config));
-	dkb_add_lcd_tpo();
+	if (TRULY_WVGA_PANEL == is_wvga_lcd()) {
+		dkb_add_lcd_truly();
+		pr_info("LCD: truly WVGA panel selected.\n");
+	} else
+		dkb_add_lcd_tpo();
 #endif
 
 #if defined(CONFIG_PROC_FS)
