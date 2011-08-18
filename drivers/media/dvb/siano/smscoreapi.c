@@ -343,6 +343,8 @@ int smscore_register_device(struct smsdevice_params_t *params,
 	init_completion(&dev->gpio_get_level_done);
 	init_completion(&dev->ir_init_done);
 	init_completion(&dev->device_ready_done);
+	init_completion(&dev->loopback_res_done);
+	init_completion(&dev->powerdown_res_done);
 	init_completion(&dev->rx_64k_done);
 
 	/* Buffer management */
@@ -942,6 +944,31 @@ int smscore_64Kmode_req(struct smscore_device_t *coredev)
 }
 #endif
 
+int smscore_powerdown_req(struct smscore_device_t *coredev)
+{
+	char msgbuff[252];
+	struct SmsMsgData_ST *Msg = (struct SmsMsgData_ST *)msgbuff;
+
+	if (coredev->powerdown_mode_supported) {
+		Msg->xMsgHeader.msgType = MSG_SMS_POWER_DOWN_REQ;
+		Msg->xMsgHeader.msgSrcId = SMS_HOST_INTERNAL;
+		Msg->xMsgHeader.msgDstId = HIF_TASK;
+		Msg->xMsgHeader.msgFlags = 0;
+		Msg->xMsgHeader.msgLength =
+			sizeof(struct SmsMsgData_ST) + sizeof(unsigned long);
+
+		smsendian_handle_tx_message((struct SmsMsgHdr_ST *)Msg);
+		smscore_sendrequest_and_wait(coredev, Msg,
+					Msg->xMsgHeader.msgLength,
+					&coredev->powerdown_res_done);
+
+		coredev->powerdown_mode_supported = 0;
+		} else
+			sms_info("Do not support PowerDownMode now");
+
+	return 0;
+}
+
 /**
  * get firmware file name from one of the two mechanisms : sms_boards or
  * smscore_fw_lkup.
@@ -1011,7 +1038,22 @@ int smscore_init_device(struct smscore_device_t *coredev, int mode)
 					  msg, msg->xMsgHeader.msgLength,
 					  &coredev->init_device_done);
 
+	sms_info("sms   MSG_SMS_INIT_DEVICE_REQ return: %d", rc);
+	if (rc < 0) {
+		sms_info("sendrequest returned error %d", rc);
 	kfree(buffer);
+	return rc;
+	}
+	SMS_INIT_MSG(&msg->xMsgHeader,
+		MSG_SMS_GET_VERSION_EX_REQ, sizeof(struct SmsMsgHdr_ST));
+	msg->msgData[0] = 0;
+	smsendian_handle_tx_message((struct SmsMsgHdr_ST *)msg);
+	rc = smscore_sendrequest_and_wait(coredev,
+		msg, msg->xMsgHeader.msgLength, &coredev->version_ex_done);
+
+	sms_info("sms   MSG_SMS_GET_VERSION_EX_REQ return: %d", rc);
+	kfree(buffer);
+
 	return rc;
 }
 
@@ -1303,12 +1345,25 @@ void smscore_onresponse(struct smscore_device_t *coredev,
 				ver->SupportedProtocols,
 				ver->RomVersionMajor,
 				ver->RomVersionMinor);
+			sms_debug("FW version: %s\n", (char *)ver->TextLabel);
+
+			/* from "SIANO,CMMB-MING-IX,2.9.12",
+				support powerdown mode */
+			if (!strncmp(ver->TextLabel,
+					"SIANO,CMMB-MING-IX", 18)) {
+				coredev->powerdown_mode_supported = 1;
+			} else {
+				coredev->powerdown_mode_supported = 0;
+			}
+
+			sms_debug("powerdown_mode_supported: %d\n",
+					coredev->powerdown_mode_supported);
 
 			coredev->mode = ver->FirmwareId == 255 ?
-			    DEVICE_MODE_NONE : ver->FirmwareId;
-			coredev->modes_supported =
-				ver->SupportedProtocols;
-
+					DEVICE_MODE_NONE : ver->FirmwareId;
+			coredev->modes_supported = ver->SupportedProtocols;
+			sms_info("coredev->modes_supported: %d******mode: %d\n",
+				coredev->modes_supported, coredev->mode);
 			complete(&coredev->version_ex_done);
 			break;
 		}
@@ -1325,6 +1380,10 @@ void smscore_onresponse(struct smscore_device_t *coredev,
 			break;
 		case MSG_SMS_SET_MAX_TX_MSG_LEN_RES:
 			complete(&coredev->rx_64k_done);
+			break;
+		case MSG_SMS_POWER_DOWN_RES:
+			coredev->powerdown_mode_supported = 0;
+			complete(&coredev->powerdown_res_done);
 			break;
 		case MSG_SW_RELOAD_EXEC_RES:
 			sms_debug("MSG_SW_RELOAD_EXEC_RES");
@@ -1364,6 +1423,12 @@ void smscore_onresponse(struct smscore_device_t *coredev,
 				     (int)phdr->msgLength
 				     - sizeof(struct SmsMsgHdr_ST));
 			break;
+		case MSG_SMS_LOOPBACK_RES:
+		{
+			sms_debug("MSG_SMS_LOOPBACK_RES\n");
+			complete(&coredev->loopback_res_done);
+			break;
+		}
 		default:
 #if 0
 			sms_info("no client (%p) or error (%d), "

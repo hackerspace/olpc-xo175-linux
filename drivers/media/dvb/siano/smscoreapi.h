@@ -175,6 +175,8 @@ struct smscore_device_t {
 	postload_t postload_handler;
 
 	int mode, modes_supported;
+	unsigned char powerdown_mode_supported;
+	unsigned char powerdown;
 
 	/* host <--> device messages */
 	struct completion version_ex_done, data_download_done, trigger_done;
@@ -182,7 +184,7 @@ struct smscore_device_t {
 	struct completion resume_done, device_ready_done;
 	struct completion gpio_configuration_done, gpio_set_level_done;
 	struct completion gpio_get_level_done, ir_init_done;
-	struct completion rx_64k_done;
+	struct completion loopback_res_done, rx_64k_done, powerdown_res_done;
 
 	/* Buffer management */
 	wait_queue_head_t buffer_mng_waitq;
@@ -797,6 +799,7 @@ int smscore_gpio_set_level(struct smscore_device_t *coredev, u8 PinNum,
 int smscore_gpio_get_level(struct smscore_device_t *coredev, u8 PinNum,
 			   u8 *level);
 
+int smscore_powerdown_req(struct smscore_device_t *coredev);
 void smscore_set_board_id(struct smscore_device_t *core, int id);
 int smscore_get_board_id(struct smscore_device_t *core);
 int smscore_set_power_mode(enum sms_power_mode_st mode);
