@@ -51,7 +51,7 @@
 #define   IRQ_TWSIR       0x00000200    /* TWSI read */
 #define   IRQ_TWSIE       0x00000400    /* TWSI error */
 #define   TWSIIRQS (IRQ_TWSIW|IRQ_TWSIR|IRQ_TWSIE)
-#define   FRAMEIRQS (IRQ_EOF0|IRQ_EOF1|IRQ_EOF2 | IRQ_OVERFLOW)
+#define   FRAMEIRQS_EOF (IRQ_EOF0|IRQ_EOF1|IRQ_EOF2 | IRQ_OVERFLOW)
 #define   ALLIRQS (TWSIIRQS|FRAMEIRQS|IRQ_OVERFLOW)
 #define REG_IRQMASK	0x2c	/* IRQ mask - same bits as IRQSTAT */
 #define REG_IRQSTAT	0x30	/* IRQ status / clear */
@@ -110,6 +110,7 @@
 #define   CO_SOF_NOSYNC	  0x40000000	/* Use inband active signaling */
 
 
+#define REG_CTRL3	0x1EC
 #define REG_CTRL1	0x40	/* Control 1 */
 #define   C1_444ALPHA	  0x00f00000	/* Alpha field in RGB444 */
 #define   C1_ALPHA_SHFT	  20
@@ -124,12 +125,5 @@
 #define REG_CLKCTRL	0x88	/* Clock control */
 #define   CLK_DIV_MASK	  0x0000ffff	/* Upper bits RW "reserved" */
 
+#endif
 
-/*
- * Useful stuff that probably belongs somewhere global.
- */
-#define VGA_WIDTH	640
-#define VGA_HEIGHT	480
-#define CIF_WIDTH	352
-#define CIF_HEIGHT	288
-#endif /*__MV_CAMERA_H */
