@@ -13,6 +13,7 @@ extern int pxa910_ripc_trylock(void);
 #include <linux/i2c/pxa-i2c.h>
 #include <mach/devices.h>
 #include <mach/pxa168fb.h>
+#include <mach/camera.h>
 #include <plat/pxa3xx_nand.h>
 #include <plat/pxa27x_keypad.h>
 #include <linux/spi/pxa2xx_spi.h>
@@ -39,6 +40,7 @@ extern struct pxa_device_desc pxa910_device_cnm;
 extern struct pxa_device_desc pxa910_device_fb;
 extern struct pxa_device_desc pxa910_device_fb_ovly;
 extern struct pxa_device_desc pxa910_device_ire;
+extern struct pxa_device_desc pxa910_device_camera;
 
 extern struct platform_device pxa910_device_rtc;
 extern struct platform_device pxa910_device_1wire;
@@ -202,6 +204,11 @@ static inline int pxa910_add_fb_ovly(struct pxa168fb_mach_info *mi)
 static inline int pxa910_add_ire(void)
 {
 	return pxa_register_device(&pxa910_device_ire, NULL, 0);
+}
+
+static inline int pxa910_add_cam(struct mv_cam_pdata *cam)
+{
+	return pxa_register_device(&pxa910_device_camera, cam, sizeof(*cam));
 }
 
 #endif /* __ASM_MACH_PXA910_H */

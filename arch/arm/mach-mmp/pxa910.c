@@ -195,6 +195,8 @@ static APMU_CLK(sdh1, SDH1, 0x001b, 44500000);
 static APMU_CLK(sdh2, SDH2, 0x001b, 44500000);
 static APMU_CLK_OPS(lcd, LCD, 0x003f, 312000000, &lcd_pn1_clk_ops);
 static APMU_CLK(ire, IRE, 0x9, 0);
+static APMU_CLK(ccic_rst, CCIC_RST, 0x0, 312000000);
+static APMU_CLK(ccic_gate, CCIC_GATE, 0xfff, 0);
 
 /* device and clock bindings */
 static struct clk_lookup pxa910_clkregs[] = {
@@ -219,6 +221,8 @@ static struct clk_lookup pxa910_clkregs[] = {
 	INIT_CLKREG(&clk_sdh2, "sdhci-pxav2.2", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_lcd, NULL, "LCDCLK"),
 	INIT_CLKREG(&clk_ire, "pxa910-ire.0", NULL),
+	INIT_CLKREG(&clk_ccic_rst, "mv-camera.0", "CCICRSTCLK"),
+	INIT_CLKREG(&clk_ccic_gate, "mv-camera.0", "CCICGATECLK"),
 };
 
 /*
@@ -304,6 +308,7 @@ PXA910_DEVICE(cnm, "pxa-cnm", -1, CNM, 0xd420d000, 0x1000);
 PXA910_DEVICE(fb, "pxa168-fb", 0, LCD, 0xd420b000, 0x1ec);
 PXA910_DEVICE(fb_ovly, "pxa168fb_ovly", 0, LCD, 0xd420b000, 0x1ec);
 PXA910_DEVICE(ire, "pxa910-ire", 0, IRE, 0xd420C000, 0x90);
+PXA910_DEVICE(camera, "mv-camera", 0, CCIC, 0xd420a000, 0xfff);
 
 static struct resource pxa910_resource_rtc[] = {
 	{ 0xd4010000, 0xd40100ff, NULL, IORESOURCE_MEM, },
