@@ -85,6 +85,27 @@ struct pmem_bits {
 	unsigned order:7;		/* size of the region in pmem space */
 };
 
+struct pmem_bitmap {
+	/* number of entries in the pmem space */
+	unsigned long num_entries;
+	/* the bitmap for the region indicating which entries are allocated
+	 * and which are free */
+	struct pmem_bits *bits;
+	/* pmem_sem protects the bitmap array
+	 * a write lock should be held when modifying entries in bitmap
+	 * a read lock should be held when reading data from bits or
+	 * dereferencing a pointer into bitmap
+	 *
+	 * pmem_data->sem protects the pmem data of a particular file
+	 * Many of the function that require the pmem_data->sem have a non-
+	 * locking version for when the caller is already holding that sem.
+	 *
+	 * IF YOU TAKE BOTH LOCKS TAKE THEM IN THIS ORDER:
+	 * down(pmem_data->sem) => down(bitmap_sem)
+	 */
+	struct rw_semaphore sem;
+};
+
 struct pmem_region_node {
 	struct pmem_region region;
 	struct list_head list;
@@ -102,19 +123,17 @@ struct pmem_region_node {
 
 struct pmem_info {
 	struct miscdevice dev;
-	/* physical start address of the remaped pmem space */
+	/* physical start address of the pmem space */
 	unsigned long base;
 	/* total size of the pmem space */
 	unsigned long size;
-	/* number of entries in the pmem space */
-	unsigned long num_entries;
 	/* pfn of the garbage page in memory */
 	unsigned long garbage_pfn;
 	/* index of the garbage page in the pmem space */
 	int garbage_index;
 	/* the bitmap for the region indicating which entries are allocated
 	 * and which are free */
-	struct pmem_bits *bitmap;
+	struct pmem_bitmap *bitmap;
 	/* indicates the region should not be managed with an allocator */
 	unsigned no_allocator;
 	/* indicates maps of this region should be cached, if a mix of
@@ -130,19 +149,6 @@ struct pmem_info {
 	 * needed */
 	struct mutex data_list_lock;
 	struct list_head data_list;
-	/* pmem_sem protects the bitmap array
-	 * a write lock should be held when modifying entries in bitmap
-	 * a read lock should be held when reading data from bits or
-	 * dereferencing a pointer into bitmap
-	 *
-	 * pmem_data->sem protects the pmem data of a particular file
-	 * Many of the function that require the pmem_data->sem have a non-
-	 * locking version for when the caller is already holding that sem.
-	 *
-	 * IF YOU TAKE BOTH LOCKS TAKE THEM IN THIS ORDER:
-	 * down(pmem_data->sem) => down(bitmap_sem)
-	 */
-	struct rw_semaphore bitmap_sem;
 
 	long (*ioctl)(struct file *, unsigned int, unsigned long);
 	int (*release)(struct inode *, struct file *);
@@ -151,8 +157,8 @@ struct pmem_info {
 static struct pmem_info pmem[PMEM_MAX_DEVICES];
 static int id_count;
 
-#define PMEM_IS_FREE(id, index) !(pmem[id].bitmap[index].allocated)
-#define PMEM_ORDER(id, index) pmem[id].bitmap[index].order
+#define PMEM_IS_FREE(id, index) (!(pmem[id].bitmap->bits[index].allocated))
+#define PMEM_ORDER(id, index) pmem[id].bitmap->bits[index].order
 #define PMEM_BUDDY_INDEX(id, index) (index ^ (1 << PMEM_ORDER(id, index)))
 #define PMEM_NEXT_INDEX(id, index) (index + (1 << PMEM_ORDER(id, index)))
 #define PMEM_OFFSET(index) (index * PMEM_MIN_ALLOC)
@@ -241,7 +247,7 @@ static int pmem_free(int id, int index)
 		return 0;
 	}
 	/* clean up the bitmap, merging any buddies */
-	pmem[id].bitmap[curr].allocated = 0;
+	pmem[id].bitmap->bits[curr].allocated = 0;
 	/* find a slots buddy Buddy# = Slot# ^ (1 << order)
 	 * if the buddy is also free merge them
 	 * repeat until the buddy is not free or end of the bitmap is reached
@@ -256,7 +262,7 @@ static int pmem_free(int id, int index)
 		} else {
 			break;
 		}
-	} while (curr < pmem[id].num_entries);
+	} while (curr < pmem[id].bitmap->num_entries);
 
 	return 0;
 }
@@ -295,9 +301,9 @@ static int pmem_release(struct inode *inode, struct file *file)
 
 	/* if its not a conencted file and it has an allocation, free it */
 	if (!(PMEM_FLAGS_CONNECTED & data->flags) && has_allocation(file)) {
-		down_write(&pmem[id].bitmap_sem);
+		down_write(&pmem[id].bitmap->sem);
 		ret = pmem_free(id, data->index);
-		up_write(&pmem[id].bitmap_sem);
+		up_write(&pmem[id].bitmap->sem);
 	}
 
 	/* if this file is a submap (mapped, connected file), downref the
@@ -379,7 +385,7 @@ static int pmem_allocate(int id, unsigned long len)
 	/* caller should hold the write lock on pmem_sem! */
 	/* return the corresponding pdata[] entry */
 	int curr = 0;
-	int end = pmem[id].num_entries;
+	int end = pmem[id].bitmap->num_entries;
 	int best_fit = -1;
 	unsigned long order = pmem_order(len);
 
@@ -432,7 +438,7 @@ static int pmem_allocate(int id, unsigned long len)
 		buddy = PMEM_BUDDY_INDEX(id, best_fit);
 		PMEM_ORDER(id, buddy) = PMEM_ORDER(id, best_fit);
 	}
-	pmem[id].bitmap[best_fit].allocated = 1;
+	pmem[id].bitmap->bits[best_fit].allocated = 1;
 	return best_fit;
 }
 
@@ -616,9 +622,9 @@ static int pmem_mmap(struct file *file, struct vm_area_struct *vma)
 	}
 	/* if file->private_data == unalloced, alloc*/
 	if (data && data->index == -1) {
-		down_write(&pmem[id].bitmap_sem);
+		down_write(&pmem[id].bitmap->sem);
 		index = pmem_allocate(id, vma->vm_end - vma->vm_start);
-		up_write(&pmem[id].bitmap_sem);
+		up_write(&pmem[id].bitmap->sem);
 		data->index = index;
 	}
 	/* either no space was available or an error occured */
@@ -1159,7 +1165,9 @@ static long pmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			if (has_allocation(file))
 				return -EINVAL;
 			data = (struct pmem_data *)file->private_data;
+			down_write(&pmem[id].bitmap->sem);
 			data->index = pmem_allocate(id, arg);
+			up_write(&pmem[id].bitmap->sem);
 			break;
 		}
 	case PMEM_CONNECT:
@@ -1259,7 +1267,6 @@ int pmem_setup(struct android_pmem_platform_data *pdata,
 	pmem[id].size = pdata->size;
 	pmem[id].ioctl = ioctl;
 	pmem[id].release = release;
-	init_rwsem(&pmem[id].bitmap_sem);
 	mutex_init(&pmem[id].data_list_lock);
 	INIT_LIST_HEAD(&pmem[id].data_list);
 	pmem[id].dev.name = pdata->name;
@@ -1273,23 +1280,52 @@ int pmem_setup(struct android_pmem_platform_data *pdata,
 		printk(KERN_ALERT "Unable to register pmem driver!\n");
 		goto err_cant_register_device;
 	}
-	pmem[id].num_entries = pmem[id].size / PMEM_MIN_ALLOC;
 
-	pmem[id].bitmap = kmalloc(pmem[id].num_entries *
-				  sizeof(struct pmem_bits), GFP_KERNEL);
+	/*
+	 * pmem nodes share single memory heap
+	 * 1. all the pmem nodes refer to same bitmaps
+	 * 2. size !=0: master node, need to setup bitmaps, pdata shall
+	 *   contain the heap base, size
+	 * 3. size ==0: secondary node
+	 */
+	if (!pdata->size) {
+		int master = pdata->start;
+		if (pdata->no_allocator != 0 ||
+			master >= id || master < 0 ||
+			pmem[master].size == 0 ||
+			pmem[master].no_allocator != 0) {
+			printk(KERN_ALERT "Invalid pmem parameters!\n");
+			goto err_cant_register_device;
+		}
+		/* share same heap with master node */
+		pmem[id].base = pmem[master].base;
+		pmem[id].size = pmem[master].size;
+		pmem[id].bitmap = pmem[master].bitmap;
+		goto done;
+	}
+
+	/* Now setup master node */
+	pmem[id].bitmap = kzalloc(sizeof(struct pmem_bitmap), GFP_KERNEL);
 	if (!pmem[id].bitmap)
+		goto err_no_mem_for_bitmap;
+
+	pmem[id].bitmap->num_entries = pmem[id].size / PMEM_MIN_ALLOC;
+
+	pmem[id].bitmap->bits = kzalloc(pmem[id].bitmap->num_entries *
+				  sizeof(struct pmem_bits), GFP_KERNEL);
+	if (!pmem[id].bitmap->bits)
 		goto err_no_mem_for_metadata;
 
-	memset(pmem[id].bitmap, 0, sizeof(struct pmem_bits) *
-					  pmem[id].num_entries);
-
-	for (i = sizeof(pmem[id].num_entries) * 8 - 1; i >= 0; i--) {
-		if ((pmem[id].num_entries) &  1<<i) {
+	for (i = sizeof(pmem[id].bitmap->num_entries) * 8 - 1; i >= 0; i--) {
+		if ((pmem[id].bitmap->num_entries) &  1<<i) {
 			PMEM_ORDER(id, index) = i;
 			index = PMEM_NEXT_INDEX(id, index);
 		}
 	}
 
+	init_rwsem(&pmem[id].bitmap->sem);
+
+done:
 	pmem[id].garbage_pfn = page_to_pfn(alloc_page(GFP_KERNEL));
 	if (pmem[id].no_allocator)
 		pmem[id].allocated = 0;
@@ -1300,6 +1336,8 @@ int pmem_setup(struct android_pmem_platform_data *pdata,
 #endif
 	return 0;
 err_no_mem_for_metadata:
+	kfree(pmem[id].bitmap);
+err_no_mem_for_bitmap:
 	misc_deregister(&pmem[id].dev);
 err_cant_register_device:
 	return -1;
