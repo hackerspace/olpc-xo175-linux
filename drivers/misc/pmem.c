@@ -853,10 +853,16 @@ void sync_pmem_file(struct file *file, unsigned long offset, unsigned long len,
 	down_read(&data->sem);
 	vaddr = pmem_start_vaddr(id, data);
 	addr = pmem_start_addr(id, data);
-	/* if this isn't a submmapped file, flush the whole thing */
+	/*
+	 * if this isn't a submmapped file, don't flush the whole thing
+	 * but only to required area.
+	 * we do have some limitations in application, which will ask
+	 * the driver to flush/invalidate/clean part of the whole area.
+	 */
 	if (unlikely(!(data->flags & PMEM_FLAGS_CONNECTED))) {
-		unsigned long len = pmem_len(id, data);
-		sync_pmem_area(vaddr, addr, len, cmd, dir);
+		if ((offset + len) <= pmem_len(id, data))
+			sync_pmem_area(vaddr + offset, addr + offset, len,
+					cmd, dir);
 		goto end;
 	}
 	/* otherwise, flush the region of the file we are drawing */
