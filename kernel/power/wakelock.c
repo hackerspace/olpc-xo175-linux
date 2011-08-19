@@ -224,6 +224,35 @@ static void print_active_locks(int type)
 	}
 }
 
+int dump_active_locks(int type, char *buf)
+{
+	struct wake_lock *lock;
+	bool print_expired = true;
+	int len = 0;
+
+	BUG_ON(type >= WAKE_LOCK_TYPE_COUNT);
+	list_for_each_entry(lock, &active_wake_locks[type], link) {
+		if (lock->flags & WAKE_LOCK_AUTO_EXPIRE) {
+			long timeout = lock->expires - jiffies;
+			if (timeout > 0)
+				len += sprintf(buf + len,
+					"active wake lock %s, time left %ld\n",
+					lock->name, timeout);
+			else if (print_expired)
+				len += sprintf(buf + len,
+					"wake lock %s, expired\n", lock->name);
+		} else {
+			len += sprintf(buf + len, "active wake lock %s\n",
+				lock->name);
+			if (!(debug_mask & DEBUG_EXPIRE))
+				print_expired = false;
+		}
+	}
+
+	return len;
+}
+
+
 static long has_wake_lock_locked(int type)
 {
 	struct wake_lock *lock, *n;
