@@ -75,6 +75,9 @@ int get_pmem_file(int fd, unsigned long *start, unsigned long *vstart,
 int get_pmem_user_addr(struct file *file, unsigned long *start,
 		       unsigned long *end);
 void put_pmem_file(struct file* file);
+int get_pmem_area(int minor, struct pmem_region *index,
+	unsigned long *start, void **vstart);
+int put_pmem_area(int minor, struct pmem_region *index, void *vstart);
 void sync_pmem_area(void *vaddr, unsigned long addr, unsigned long len,
 		unsigned int cmd, enum dma_data_direction dir);
 void sync_pmem_file(struct file *file, unsigned long start, unsigned long len,
@@ -94,6 +97,10 @@ static inline int get_pmem_file(int fd, unsigned long *start,
 static inline int get_pmem_user_addr(struct file *file, unsigned long *start,
 				     unsigned long *end) { return -ENOSYS; }
 static inline void put_pmem_file(struct file* file) { return; }
+static inline int get_pmem_area(int minor, struct pmem_region *region,
+	unsigned long *start, void **vstart) { return -ENOSYS; }
+static inline int put_pmem_area(int minor, struct pmem_region *region,
+	void *vstart) { return -ENOSYS; }
 static inline void sync_pmem_area(void *vaddr, unsigned long addr,
 		unsigned long len, unsigned int cmd,
 		enum dma_data_direction dir) { return; }

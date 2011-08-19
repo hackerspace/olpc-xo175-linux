@@ -491,6 +491,47 @@ static unsigned long pmem_len(int id, struct pmem_data *data)
 		return PMEM_LEN(id, data->index);
 }
 
+/*
+ * get_pmem_area: allocate continous memory from pmem heap;
+ *
+ * NOTE: get_pmem_area user shall take care of memory mapping and cache
+ * coherency maintanence itself. pmem driver _doesn't_ create mapping,
+ * nor maintain cache coherency for the allocated memory
+ */
+int get_pmem_area(int id, struct pmem_region *region,
+	unsigned long *start, void **vstart)
+{
+	int index;
+	if (!((id < PMEM_MAX_DEVICES) && region && start))
+		return -EINVAL;
+	down_write(&pmem[id].bitmap->sem);
+	index = pmem_allocate(id, region->len);
+	up_write(&pmem[id].bitmap->sem);
+	if (index < 0)
+		return index;
+	*start = PMEM_START_ADDR(id, index);
+	/* FIXME - don't care vstart */
+	region->offset = index;
+	return 0;
+}
+EXPORT_SYMBOL(get_pmem_area);
+
+/*
+ * put_pmem_area: free the memory to pmem heap;
+ */
+int put_pmem_area(int id, struct pmem_region *region, void *vstart)
+{
+	int ret;
+	if (!((id < PMEM_MAX_DEVICES) && region))
+		return -EINVAL;
+	/* FIXME - don't care vstart */
+	down_write(&pmem[id].bitmap->sem);
+	ret = pmem_free(id, region->offset);
+	up_write(&pmem[id].bitmap->sem);
+	return ret;
+}
+EXPORT_SYMBOL(put_pmem_area);
+
 static int pmem_map_garbage(int id, struct vm_area_struct *vma,
 			    struct pmem_data *data, unsigned long offset,
 			    unsigned long len)
