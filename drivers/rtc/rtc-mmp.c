@@ -46,7 +46,7 @@
 #define RTC_DEF_TRIM		0
 
 static unsigned long epoch = 1900;	/* year corresponding to 0x00	*/
-static void __iomem *rtc_base;
+void __iomem *rtc_base;
 static int irq_1hz = -1, irq_alrm = -1;
 static unsigned long rtc_freq = 1024;
 static struct rtc_time rtc_alarm;

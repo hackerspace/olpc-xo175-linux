@@ -37,8 +37,10 @@
 #include <mach/mfp-pxa910.h>
 #include <mach/pxa910.h>
 #include <mach/regs-usb.h>
+#include <mach/regs-rtc.h>
 
 #include <plat/usb.h>
+#include <mach/regs-rtc.h>
 
 #include "common.h"
 #include "onboard.h"
@@ -397,7 +399,8 @@ static struct regulator_init_data ttc_dkb_regulator_init_data[] = {
 };
 
 /* RF has leak current when battery calibration */
-void ttc_disable_rf(void){
+static void ttc_disable_rf(void)
+{
 	/* disable rf */
 	mfp_config(ARRAY_AND_SIZE(ttc_rf_pin_config));
 }
@@ -406,11 +409,27 @@ struct pm860x_power_pdata ttc_dkb_power = {
 	.disable_rf_fn  = ttc_disable_rf,
 };
 
+#ifdef CONFIG_RTC_DRV_MMP
+static int sync_time_to_soc(unsigned int ticks)
+{
+	RCNR = ticks;
+	return 0;
+}
+#endif
+
+struct pm860x_rtc_pdata ttc_dkb_rtc = {
+	.vrtc		= 1,
+#ifdef CONFIG_RTC_DRV_MMP
+	.sync		= sync_time_to_soc,
+#endif
+};
+
 static struct pm860x_platform_data ttc_dkb_pm8607_info = {
 	.backlight	= &ttc_dkb_backlight[0],
 	.led		= &ttc_dkb_led[0],
 	.touch		= &ttc_dkb_touch,
 	.power		= &ttc_dkb_power,
+	.rtc		= &ttc_dkb_rtc,
 	.regulator	= &ttc_dkb_regulator_init_data[0],
 	.companion_addr	= 0x11,
 	.irq_mode	= 0,

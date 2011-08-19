@@ -21,4 +21,6 @@
 #define RTSR_HZ		(1 << 1)	/* HZ rising-edge detected */
 #define RTSR_AL		(1 << 0)	/* RTC alarm detected */
 
+extern void __iomem *rtc_base;
+
 #endif /* __ASM_MACH_REGS_RTC_H */
