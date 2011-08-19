@@ -48,7 +48,7 @@ struct android_pmem_platform_data
 	 * cached and uncached is desired, set this and open the device with
 	 * O_SYNC to get an uncached region */
 	unsigned cached;
-	/* The MSM7k has bits to enable a write buffer in the bus controller*/
+	/* set to enable write-buffer for the maps of this region */
 	unsigned buffered;
 };
 

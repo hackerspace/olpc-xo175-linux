@@ -440,12 +440,13 @@ static pgprot_t pmem_access_prot(struct file *file, pgprot_t vma_prot)
 {
 	int id = get_id(file);
 #ifdef pgprot_noncached
-	if (pmem[id].cached == 0 || file->f_flags & O_SYNC)
+	if ((pmem[id].cached == 0 && pmem[id].buffered == 0) ||
+		file->f_flags & O_SYNC)
 		return pgprot_noncached(vma_prot);
 #endif
-#ifdef pgprot_ext_buffered
-	else if (pmem[id].buffered)
-		return pgprot_ext_buffered(vma_prot);
+#ifdef pgprot_writecombine
+	if (pmem[id].cached == 0 && pmem[id].buffered)
+		return pgprot_writecombine(vma_prot);
 #endif
 	return vma_prot;
 }
@@ -1264,7 +1265,8 @@ int pmem_setup(struct android_pmem_platform_data *pdata,
 	pmem[id].dev.name = pdata->name;
 	pmem[id].dev.minor = id;
 	pmem[id].dev.fops = &pmem_fops;
-	printk(KERN_INFO "%s: %d init\n", pdata->name, pdata->cached);
+	printk(KERN_INFO "%s: %d %d init\n", pdata->name, pdata->cached,\
+		pdata->buffered);
 
 	err = misc_register(&pmem[id].dev);
 	if (err) {
