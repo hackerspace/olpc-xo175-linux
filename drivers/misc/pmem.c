@@ -479,7 +479,7 @@ static void *pmem_start_vaddr(int id, struct pmem_data *data)
 static unsigned long pmem_len(int id, struct pmem_data *data)
 {
 	if (pmem[id].no_allocator)
-		return data->index;
+		return (unsigned long)data->index;
 	else
 		return PMEM_LEN(id, data->index);
 }
