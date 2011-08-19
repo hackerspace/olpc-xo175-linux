@@ -805,7 +805,30 @@ void put_pmem_file(struct file *file)
 	fput(file);
 }
 
-void flush_pmem_file(struct file *file, unsigned long offset, unsigned long len)
+void sync_pmem_area(void *vaddr, unsigned long addr, unsigned long len,
+		unsigned int cmd, enum dma_data_direction dir)
+{
+	switch (cmd) {
+	case PMEM_CACHE_FLUSH:
+		dmac_flush_range(vaddr, vaddr + len);
+		outer_flush_range(addr, addr + len);
+		break;
+	case PMEM_MAP_REGION:
+		dmac_map_area(vaddr, len, dir);
+		if (dir == DMA_FROM_DEVICE)
+			outer_inv_range(addr, addr + len);
+		else
+			outer_clean_range(addr, addr + len);
+		break;
+	case PMEM_UNMAP_REGION:
+		if (dir != DMA_TO_DEVICE)
+			outer_inv_range(addr, addr + len);
+		dmac_unmap_area(vaddr, len, dir);
+	}
+}
+
+void sync_pmem_file(struct file *file, unsigned long offset, unsigned long len,
+	unsigned int cmd, enum dma_data_direction dir)
 {
 	struct pmem_data *data;
 	int id;
@@ -813,7 +836,10 @@ void flush_pmem_file(struct file *file, unsigned long offset, unsigned long len)
 	unsigned long addr;
 	struct pmem_region_node *region_node;
 	struct list_head *elt;
-	void *flush_start, *flush_end;
+
+	/* No need for cache coherency maintanence*/
+	if (arch_is_coherent())
+		return;
 
 	if (!is_pmem_file(file) || !has_allocation(file)) {
 		return;
@@ -830,8 +856,7 @@ void flush_pmem_file(struct file *file, unsigned long offset, unsigned long len)
 	/* if this isn't a submmapped file, flush the whole thing */
 	if (unlikely(!(data->flags & PMEM_FLAGS_CONNECTED))) {
 		unsigned long len = pmem_len(id, data);
-		dmac_flush_range(vaddr, vaddr + len);
-		outer_flush_range(addr, addr + len);
+		sync_pmem_area(vaddr, addr, len, cmd, dir);
 		goto end;
 	}
 	/* otherwise, flush the region of the file we are drawing */
@@ -840,18 +865,20 @@ void flush_pmem_file(struct file *file, unsigned long offset, unsigned long len)
 		if ((offset >= region_node->region.offset) &&
 		    ((offset + len) <= (region_node->region.offset +
 			region_node->region.len))) {
-			unsigned long flush_pstart, flush_pend;
-			flush_start = vaddr + region_node->region.offset;
-			flush_end = flush_start + region_node->region.len;
-			dmac_flush_range(flush_start, flush_end);
-			flush_pstart = addr + region_node->region.offset,
-			flush_pend = flush_pstart + region_node->region.len;
-			outer_flush_range(flush_pstart, flush_pend);
+
+			sync_pmem_area(vaddr + region_node->region.offset,
+				addr + region_node->region.offset,
+				region_node->region.len, cmd, dir);
 			break;
 		}
 	}
 end:
 	up_read(&data->sem);
+}
+
+void flush_pmem_file(struct file *file, unsigned long offset, unsigned long len)
+{
+	sync_pmem_file(file, offset, len, PMEM_CACHE_FLUSH, 0);
 }
 
 static int pmem_connect(unsigned long connect, struct file *file)
@@ -1193,6 +1220,19 @@ static long pmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			flush_pmem_file(file, region.offset, region.len);
 			break;
 		}
+	case PMEM_MAP_REGION:
+	case PMEM_UNMAP_REGION:
+		{
+			struct pmem_sync_region sync;
+			DLOG("streaming\n");
+			if (copy_from_user(&sync, (void __user *)arg,
+					sizeof(struct pmem_sync_region)))
+				return -EFAULT;
+			sync_pmem_file(file, sync.region.offset,
+				sync.region.len, cmd, sync.dir);
+			break;
+		}
+
 	default:
 		if (pmem[id].ioctl)
 			return pmem[id].ioctl(file, cmd, arg);
