@@ -78,6 +78,9 @@ struct clk {
 
 	unsigned long rate;
 
+#ifdef CONFIG_LOCKDEP
+	struct lock_class_key lockdep_key;
+#endif
 	/*
 	 * This is for the old MMP clock implementation
 	 * will remove them later

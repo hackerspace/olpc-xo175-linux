@@ -48,10 +48,25 @@ static inline bool clk_cansleep(struct clk *c)
 			spin_unlock_irqrestore(&c->spinlock, flags);	\
 	} while (0)
 
+#ifdef CONFIG_LOCKDEP
+
+#define clock_set_lockdep_class(c, lock)				\
+	do {								\
+		lockdep_set_class(lock, &c->lockdep_key);		\
+	} while (0)
+
+#else
+
+#define clock_set_lockdep_class(c, lock)	do {} while (0)
+
+#endif
+
 static inline void clk_lock_init(struct clk *c)
 {
 	mutex_init(&c->mutex);
+	clock_set_lockdep_class(c, &c->mutex);
 	spin_lock_init(&c->spinlock);
+	clock_set_lockdep_class(c, &c->spinlock);
 }
 
 static void __clk_set_cansleep(struct clk *c)
