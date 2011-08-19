@@ -794,6 +794,7 @@ void flush_pmem_file(struct file *file, unsigned long offset, unsigned long len)
 	struct pmem_data *data;
 	int id;
 	void *vaddr;
+	unsigned long addr;
 	struct pmem_region_node *region_node;
 	struct list_head *elt;
 	void *flush_start, *flush_end;
@@ -809,9 +810,12 @@ void flush_pmem_file(struct file *file, unsigned long offset, unsigned long len)
 
 	down_read(&data->sem);
 	vaddr = pmem_start_vaddr(id, data);
+	addr = pmem_start_addr(id, data);
 	/* if this isn't a submmapped file, flush the whole thing */
 	if (unlikely(!(data->flags & PMEM_FLAGS_CONNECTED))) {
-		dmac_flush_range(vaddr, vaddr + pmem_len(id, data));
+		unsigned long len = pmem_len(id, data);
+		dmac_flush_range(vaddr, vaddr + len);
+		outer_flush_range(addr, addr + len);
 		goto end;
 	}
 	/* otherwise, flush the region of the file we are drawing */
@@ -820,9 +824,13 @@ void flush_pmem_file(struct file *file, unsigned long offset, unsigned long len)
 		if ((offset >= region_node->region.offset) &&
 		    ((offset + len) <= (region_node->region.offset +
 			region_node->region.len))) {
+			unsigned long flush_pstart, flush_pend;
 			flush_start = vaddr + region_node->region.offset;
 			flush_end = flush_start + region_node->region.len;
 			dmac_flush_range(flush_start, flush_end);
+			flush_pstart = addr + region_node->region.offset,
+			flush_pend = flush_pstart + region_node->region.len;
+			outer_flush_range(flush_pstart, flush_pend);
 			break;
 		}
 	}
