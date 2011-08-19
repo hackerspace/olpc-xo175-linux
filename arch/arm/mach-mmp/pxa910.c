@@ -18,6 +18,7 @@
 #include <mach/addr-map.h>
 #include <mach/regs-apbc.h>
 #include <mach/regs-apmu.h>
+#include <mach/regs-mpmu.h>
 #include <mach/cputype.h>
 #include <mach/irqs.h>
 #include <mach/gpio.h>
@@ -135,6 +136,29 @@ struct clkops nand_clk_ops = {
 	.disable    = nand_clk_disable,
 };
 
+static void vctcxo_clk_enable(struct clk *clk)
+{
+	uint32_t clk_rst;
+
+	clk_rst = __raw_readl(clk->clk_rst);
+	clk_rst |= clk->enable_val;
+	__raw_writel(clk_rst, clk->clk_rst);
+}
+
+static void vctcxo_clk_disable(struct clk *clk)
+{
+	uint32_t clk_rst;
+
+	clk_rst = __raw_readl(clk->clk_rst);
+	clk_rst &= ~clk->enable_val;
+	__raw_writel(clk_rst, clk->clk_rst);
+}
+
+struct clkops vctcxo_clk_ops = {
+	.enable		= vctcxo_clk_enable,
+	.disable	= vctcxo_clk_disable,
+};
+
 #define APMASK(i)	(GPIO_REGS_VIRT + BANK_OFF(i) + 0x09c)
 
 static void __init pxa910_init_gpio(void)
@@ -199,6 +223,8 @@ static APMU_CLK(ire, IRE, 0x9, 0);
 static APMU_CLK(ccic_rst, CCIC_RST, 0x0, 312000000);
 static APMU_CLK(ccic_gate, CCIC_GATE, 0xfff, 0);
 
+static MPMU_CLK_OPS(vctcxo, VRCR, 1, 26000000, &vctcxo_clk_ops);
+
 /* device and clock bindings */
 static struct clk_lookup pxa910_clkregs[] = {
 	INIT_CLKREG(&clk_uart0, "pxa2xx-uart.0", NULL),
@@ -224,6 +250,7 @@ static struct clk_lookup pxa910_clkregs[] = {
 	INIT_CLKREG(&clk_ire, "pxa910-ire.0", NULL),
 	INIT_CLKREG(&clk_ccic_rst, "mv-camera.0", "CCICRSTCLK"),
 	INIT_CLKREG(&clk_ccic_gate, "mv-camera.0", "CCICGATECLK"),
+	INIT_CLKREG(&clk_vctcxo, NULL, "VCTCXO"),
 };
 
 /*

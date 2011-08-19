@@ -60,6 +60,14 @@ struct clk clk_##_name = {					\
 		.ops		= _ops,				\
 }
 
+#define MPMU_CLK_OPS(_name, _reg, _eval, _rate, _ops)		\
+struct clk clk_##_name = {					\
+		.clk_rst	= (void __iomem *)MPMU_##_reg,	\
+		.enable_val	= _eval,			\
+		.rate		= _rate,			\
+		.ops		= _ops,				\
+}
+
 #define INIT_CLKREG(_clk, _devname, _conname)			\
 	{							\
 		.clk		= _clk,				\
