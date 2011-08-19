@@ -609,13 +609,22 @@ static int pmem_mmap(struct file *file, struct vm_area_struct *vma)
 
 	data = (struct pmem_data *)file->private_data;
 	down_write(&data->sem);
-	/* check this file isn't already mmaped, for submaps check this file
-	 * has never been mmaped */
-	if ((data->flags & PMEM_FLAGS_SUBMAP) ||
-	    (data->flags & PMEM_FLAGS_UNSUBMAP)) {
+	if (data->flags & PMEM_FLAGS_UNSUBMAP) {
+		/*
+		 * if this file has been mmaped, downref the task struct
+		 * for re-mmap
+		 */
+		if (data->flags & PMEM_FLAGS_SUBMAP) {
+			put_task_struct(data->task);
+			data->task = NULL;
+			data->flags &= ~(PMEM_FLAGS_SUBMAP);
+		}
+		data->flags &= ~(PMEM_FLAGS_UNSUBMAP);
+	} else if (data->flags & PMEM_FLAGS_SUBMAP) {
+		/* check this file isn't already mmaped */
 #if PMEM_DEBUG
-		printk(KERN_ERR "pmem: you can only mmap a pmem file once, "
-		       "this file is already mmaped. %x\n", data->flags);
+		printk(KERN_ERR "pmem: this file is already mmaped. %x\n",
+				data->flags);
 #endif
 		ret = -EINVAL;
 		goto error;
