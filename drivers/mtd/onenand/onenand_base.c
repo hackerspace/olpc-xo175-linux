@@ -228,13 +228,16 @@ static int onenand_bufferram_address(struct onenand_chip *this, int block)
  *
  * Setup Start Address 8 Register (F107h)
  */
-static int onenand_page_address(int page, int sector)
+static int onenand_page_address(struct onenand_chip *this, int page, int sector)
 {
 	/* Flash Page Address, Flash Sector Address */
 	int fpa, fsa;
 
 	fpa = page & ONENAND_FPA_MASK;
 	fsa = sector & ONENAND_FSA_MASK;
+
+	if (ONENAND_IS_4KB_PAGE(this))
+		fsa |= ((sector & ONENAND_4K_FSA_MSB_MASK) << ONENAND_4K_FSA_MSB_SHIFT);
 
 	return ((fpa << ONENAND_FPA_SHIFT) | fsa);
 }
@@ -473,7 +476,7 @@ static int onenand_command(struct mtd_info *mtd, int cmd, loff_t addr, size_t le
 		}
 
 		/* Write 'FPA, FSA' of Flash */
-		value = onenand_page_address(page, sectors);
+		value = onenand_page_address(this, page, sectors);
 		this->write_word(value, this->base + ONENAND_REG_START_ADDRESS8);
 
 		/* Write 'BSA, BSC' of DataRAM */

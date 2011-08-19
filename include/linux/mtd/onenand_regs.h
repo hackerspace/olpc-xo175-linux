@@ -105,6 +105,8 @@
 #define ONENAND_FPA_MASK		(0x7f)
 #define ONENAND_FPA_SHIFT		(2)
 #define ONENAND_FSA_MASK		(0x03)
+#define ONENAND_4K_FSA_MSB_MASK		(0x04)
+#define ONENAND_4K_FSA_MSB_SHIFT	(15)
 
 /*
  * Start Buffer Register F200h (R/W)
