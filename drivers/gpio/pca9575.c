@@ -45,6 +45,7 @@ struct pca9575_chip {
 
 	struct i2c_client *client;
 	struct gpio_chip gpio_chip;
+	struct mutex lock;
 #ifdef CONFIG_GPIO_PCA9575_GENERIC_IRQ
 	uint16_t last_input;
 	/*
@@ -109,17 +110,20 @@ static int pca9575_gpio_direction_input(struct gpio_chip *gc, unsigned off)
 {
 	struct pca9575_chip *chip;
 	uint16_t reg_val;
-	int ret;
+	int ret = 0;
 
 	chip = container_of(gc, struct pca9575_chip, gpio_chip);
 
+	mutex_lock(&chip->lock);
 	reg_val = chip->reg_direction | (1u << off);
 	ret = pca9575_write_reg(chip, PCA9575_CFG, reg_val);
 	if (ret)
-		return ret;
+		goto input;
 
 	chip->reg_direction = reg_val;
-	return 0;
+input:
+	mutex_unlock(&chip->lock);
+	return ret;
 }
 
 static int pca9575_gpio_direction_output(struct gpio_chip *gc,
@@ -127,10 +131,11 @@ static int pca9575_gpio_direction_output(struct gpio_chip *gc,
 {
 	struct pca9575_chip *chip;
 	uint16_t reg_val;
-	int ret;
+	int ret = 0;
 
 	chip = container_of(gc, struct pca9575_chip, gpio_chip);
 
+	mutex_lock(&chip->lock);
 	/* set output level */
 	if (val)
 		reg_val = chip->reg_output | (1u << off);
@@ -139,11 +144,11 @@ static int pca9575_gpio_direction_output(struct gpio_chip *gc,
 
 	ret = pca9575_write_reg(chip, PCA9575_OUT, reg_val);
 	if (ret)
-		return ret;
+		goto output;
 	/*If output value equals to 1, pull up, or 0, pull down to save current eakage*/
 	ret = pca9575_write_reg(chip, PCA9575_PUPD, reg_val);
 	if (ret)
-		return ret;
+		goto output;
 
 	chip->reg_output = reg_val;
 
@@ -151,10 +156,12 @@ static int pca9575_gpio_direction_output(struct gpio_chip *gc,
 	reg_val = chip->reg_direction & ~(1u << off);
 	ret = pca9575_write_reg(chip, PCA9575_CFG, reg_val);
 	if (ret)
-		return ret;
+		goto output;
 
 	chip->reg_direction = reg_val;
-	return 0;
+output:
+	mutex_unlock(&chip->lock);
+	return ret;
 }
 
 static int pca9575_gpio_get_value(struct gpio_chip *gc, unsigned off)
@@ -185,6 +192,7 @@ static void pca9575_gpio_set_value(struct gpio_chip *gc, unsigned off, int val)
 
 	chip = container_of(gc, struct pca9575_chip, gpio_chip);
 
+	mutex_lock(&chip->lock);
 	if (val)
 		reg_val = chip->reg_output | (1u << off);
 	else
@@ -192,12 +200,14 @@ static void pca9575_gpio_set_value(struct gpio_chip *gc, unsigned off, int val)
 
 	ret = pca9575_write_reg(chip, PCA9575_OUT, reg_val);
 	if (ret)
-		return;
+		goto set_value;
 	ret = pca9575_write_reg(chip, PCA9575_PUPD, reg_val);
 	if (ret)
-		return;
+		goto set_value;
 
 	chip->reg_output = reg_val;
+set_value:
+	mutex_unlock(&chip->lock);
 }
 
 static void pca9575_setup_gpio(struct pca9575_chip *chip, int gpios)
@@ -427,6 +437,7 @@ static int __devinit pca9575_probe(struct i2c_client *client,
 	/*To enable register 6, 7 to controll pull up and pull down*/
 	pca9575_write_reg(chip, PCA9575_BKEN, 0x202);
 
+	mutex_init(&chip->lock);
 	ret = gpiochip_add(&chip->gpio_chip);
 	if (ret)
 		goto out_failed;
