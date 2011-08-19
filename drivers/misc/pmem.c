@@ -104,8 +104,6 @@ struct pmem_info {
 	struct miscdevice dev;
 	/* physical start address of the remaped pmem space */
 	unsigned long base;
-	/* vitual start address of the remaped pmem space */
-	unsigned char __iomem *vbase;
 	/* total size of the pmem space */
 	unsigned long size;
 	/* number of entries in the pmem space */
@@ -161,9 +159,6 @@ static int id_count;
 #define PMEM_START_ADDR(id, index) (PMEM_OFFSET(index) + pmem[id].base)
 #define PMEM_LEN(id, index) ((1 << PMEM_ORDER(id, index)) * PMEM_MIN_ALLOC)
 #define PMEM_END_ADDR(id, index) (PMEM_START_ADDR(id, index) + \
-	PMEM_LEN(id, index))
-#define PMEM_START_VADDR(id, index) (PMEM_OFFSET(id, index) + pmem[id].vbase)
-#define PMEM_END_VADDR(id, index) (PMEM_START_VADDR(id, index) + \
 	PMEM_LEN(id, index))
 #define PMEM_REVOKED(data) (data->flags & PMEM_FLAGS_REVOKED)
 #define PMEM_IS_PAGE_ALIGNED(addr) (!((addr) & (~PAGE_MASK)))
@@ -466,7 +461,19 @@ static unsigned long pmem_start_addr(int id, struct pmem_data *data)
 
 static void *pmem_start_vaddr(int id, struct pmem_data *data)
 {
-	return pmem_start_addr(id, data) - pmem[id].base + pmem[id].vbase;
+	struct file *master_file;
+	int put_needed;
+
+	if ((!data->vma) && (PMEM_FLAGS_CONNECTED && data->flags)) {
+		/* check master file memory mapping instead */
+		master_file = fget_light(data->master_fd, &put_needed);
+		if (master_file && data->master_file == master_file)
+			data = (struct pmem_data *) master_file->private_data;
+		fput_light(master_file, put_needed);
+	}
+
+	BUG_ON(!data || !data->vma);
+	return (void *) data->vma->vm_start;
 }
 
 static unsigned long pmem_len(int id, struct pmem_data *data)
@@ -657,7 +664,6 @@ static int pmem_mmap(struct file *file, struct vm_area_struct *vma)
 		data->flags |= PMEM_FLAGS_SUBMAP;
 		get_task_struct(current->group_leader);
 		data->task = current->group_leader;
-		data->vma = vma;
 #if PMEM_DEBUG
 		data->pid = current->pid;
 #endif
@@ -672,6 +678,7 @@ static int pmem_mmap(struct file *file, struct vm_area_struct *vma)
 		data->flags |= PMEM_FLAGS_MASTERMAP;
 		data->pid = current->pid;
 	}
+	data->vma = vma;
 	vma->vm_ops = &vm_ops;
 error:
 	up_write(&data->sem);
@@ -1273,20 +1280,6 @@ int pmem_setup(struct android_pmem_platform_data *pdata,
 		}
 	}
 
-	if (pmem[id].cached)
-		pmem[id].vbase = ioremap_cached(pmem[id].base,
-						pmem[id].size);
-#ifdef ioremap_ext_buffered
-	else if (pmem[id].buffered)
-		pmem[id].vbase = ioremap_ext_buffered(pmem[id].base,
-						      pmem[id].size);
-#endif
-	else
-		pmem[id].vbase = ioremap(pmem[id].base, pmem[id].size);
-
-	if (pmem[id].vbase == 0)
-		goto error_cant_remap;
-
 	pmem[id].garbage_pfn = page_to_pfn(alloc_page(GFP_KERNEL));
 	if (pmem[id].no_allocator)
 		pmem[id].allocated = 0;
@@ -1296,8 +1289,6 @@ int pmem_setup(struct android_pmem_platform_data *pdata,
 			    &debug_fops);
 #endif
 	return 0;
-error_cant_remap:
-	kfree(pmem[id].bitmap);
 err_no_mem_for_metadata:
 	misc_deregister(&pmem[id].dev);
 err_cant_register_device:
