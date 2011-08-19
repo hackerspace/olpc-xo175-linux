@@ -16,10 +16,13 @@
 #include <linux/slab.h>
 #include <linux/power_supply.h>
 #include <linux/mfd/88pm860x.h>
-#include <asm/div64.h>
 #include <linux/delay.h>
 #include <linux/proc_fs.h>
+
+#include <plat/usb.h>
 #include <asm/uaccess.h>
+#include <asm/div64.h>
+
 
 /* bit definitions of Status Query Interface 2 */
 #define STATUS2_CHG		(1 << 2)
@@ -28,7 +31,11 @@
 #define RESET_SW_PD		(1 << 7)
 
 /* bit definitions of PreReg 1 */
-#define PREREG1_1500MA		(0x0E)
+#define PREREG1_90MA		(0x0)
+#define PREREG1_180MA		(0x1)
+#define PREREG1_450MA		(0x4)
+#define PREREG1_540MA		(0x5)
+#define PREREG1_1350MA		(0xE)
 #define PREREG1_VSYS_4_5V	(3 << 4)
 
 /* bit definitions of Charger Control 1 Register */
@@ -41,7 +48,8 @@
 #define CC1_VFCHG_4_2V		(9 << 4)
 
 /* bit definitions of Charger Control 2 Register */
-#define CC2_ICHG_500MA		(9)
+#define CC2_ICHG_100MA		(0x1)
+#define CC2_ICHG_500MA		(0x9)
 #define CC2_ICHG_1000MA		(0x13)
 
 /* bit definitions of Charger Control 3 Register */
@@ -106,16 +114,16 @@ struct pm860x_charger_info {
 	struct power_supply	usb;
 	struct power_supply	ac;
 	struct mutex		lock;
-	struct work_struct	vbus_work;
+	struct notifier_block	nb;
 	int			irq_nums;
 	int			irq[7];
-	unsigned		state : 3;	/* fsm state */
-	unsigned		charge_type : 2;
-	unsigned		online : 1; /* PC usb*/
-	unsigned		present : 1;	/* battery present */
-	unsigned 		allowed : 1;
-	unsigned		vbus_output : 1; /* usb host */
-	unsigned		bc_short;	/*1 disable 0 enable */
+	int			charge_current;
+	unsigned		state:3;	/* fsm state */
+	unsigned		charge_type:3;
+	unsigned		online:1;	/* PC usb*/
+	unsigned		present:1;	/* battery present */
+	unsigned		allowed:1;
+	unsigned		bc_short:1;	/*1 disable 0 enable */
 };
 
 static char *pm860x_supplied_to[] = {
@@ -132,109 +140,89 @@ static void set_vchg_threshold(struct pm860x_charger_info *info,
 				int min, int max);
 static int measure_vchg(struct pm860x_charger_info *info, int *data);
 
-void pm860x_set_charger_type(enum enum_charger_type type)
+static int pm860x_charger_notifier(struct notifier_block *nb,
+		unsigned long type, void *power)
 {
-	struct power_supply *psy;
-	union power_supply_propval data;
 	struct pm860x_charger_info *info = ginfo;
-	int ret = -EINVAL;
-	int vbatt, type_changed = 0;
+	unsigned long old_type = info->charge_type;
+	int restart_chg = 0, chg_current;
 
-	psy = power_supply_get_by_name(pm860x_supplied_to[0]);
-	if (!psy)
-		goto out;
-	ret = psy->get_property(psy, POWER_SUPPLY_PROP_VOLTAGE_NOW, &data);
-	if (ret)
-		goto out;
-	vbatt = data.intval / 1000;
+	chg_current = *(int *)(power);
 
-	dev_dbg(info->dev, "charger type : %s detect...\n",
-		(type == USB_CHARGER) ? "usb" : "ac");
+	dev_info(info->dev, "charger: type: %lu, old_type: %lu, current: %d\n",
+		type, old_type, chg_current);
 
 	mutex_lock(&info->lock);
-	info->online = 1;
-	if (info->charge_type != type) {
-		switch (type) {
-		case USB_CHARGER:
-			info->charge_type = USB_CHARGER;
-			break;
-		case AC_STANDARD_CHARGER:
-			info->charge_type = AC_STANDARD_CHARGER;
-			break;
-		case AC_OTHER_CHARGER:
-			info->charge_type = AC_OTHER_CHARGER;
-			break;
-		default:
-			break;
-		}
-		type_changed = 1;
-	}
-	if (info->state == FSM_FASTCHARGE && type_changed) {
+
+	switch (type) {
+	case NULL_CHARGER:
+		info->charge_type = NULL_CHARGER;
+		info->online = 0;
 		info->allowed = 0;
-		mutex_unlock(&info->lock);
+		break;
+	case DEFAULT_CHARGER:
+		info->charge_type = DEFAULT_CHARGER;
+		info->charge_current = 500;
+		info->online = 1;
+		info->allowed = 1;
+		break;
+	case VBUS_CHARGER:
+		info->charge_type = VBUS_CHARGER;
+		if (chg_current == 500) {
+			if (info->charge_current == 500)
+				goto out_lock;
+		} else if (chg_current == 100)
+			info->charge_current = 100;
+		info->online = 1;
+		info->allowed = 0;
+		restart_chg = 1;
+		break;
+	case AC_CHARGER_STANDARD:
+		info->charge_type = AC_CHARGER_STANDARD;
+		info->charge_current = 500;
+		if (type == old_type)
+			goto out_lock;
+		info->online = 1;
+		info->allowed = 1;
+		break;
+	case AC_CHARGER_OTHER:
+		info->charge_type = AC_CHARGER_OTHER;
+		if (old_type == DEFAULT_CHARGER)
+			goto out_lock;
+		info->charge_current = 500;
+		info->online = 1;
+		info->allowed = 0;
+		restart_chg = 1;
+		break;
+	default:
+		dev_warn(info->dev, "charger wrong type: %lu\n", type);
+		goto out_lock;
+	}
+
+	mutex_unlock(&info->lock);
+
+	if (restart_chg) {
 		set_charging_fsm(info);
+		dev_info(info->dev, "charge restart for current change\n");
 		mutex_lock(&info->lock);
 		info->allowed = 1;
 		mutex_unlock(&info->lock);
 		set_charging_fsm(info);
 	} else {
-		mutex_unlock(&info->lock);
+		set_charging_fsm(info);
 	}
-	if (info->charge_type == USB_CHARGER)
+
+	power_supply_changed(&info->usb);
+	power_supply_changed(&info->ac);
+	return 0;
+out_lock:
+	mutex_unlock(&info->lock);
+	if (info->charge_type == VBUS_CHARGER)
 		power_supply_changed(&info->usb);
 	else
 		power_supply_changed(&info->ac);
-out:
-	return;
+	return 0;
 }
-
-static void pm860x_vbus_work(struct work_struct *work)
-{
-	struct pm860x_charger_info *info = container_of(work,
-		struct pm860x_charger_info, vbus_work);
-	int ret;
-
-	mutex_lock(&info->lock);
-	if (info->vbus_output) {
-		info->online = 0;
-		/* disable VCHG interrupt */
-		disable_irq(info->irq[6]);
-	} else {
-		ret = pm860x_reg_read(info->i2c, PM8607_STATUS_2);
-		if (ret < 0) {
-			mutex_unlock(&info->lock);
-			goto out;
-		}
-		if (ret & STATUS2_CHG)
-			info->online = 1;
-		else
-			info->online = 0;
-		enable_irq(info->irq[6]);
-	}
-	mutex_unlock(&info->lock);
-	dev_dbg(info->dev, "VBUS output:%d, Charger:%s\n", info->vbus_output,
-		(info->online) ? "online" : "N/A");
-out:
-	set_charging_fsm(info);
-}
-
-void pm860x_set_vbus_output(int enable)
-{
-	struct pm860x_charger_info *info = ginfo;
-
-	mutex_lock(&info->lock);
-	if (enable)
-		enable = 1;
-	/* avoid to enable or disable twice */
-	if (info->vbus_output == enable) {
-		mutex_unlock(&info->lock);
-		return;
-	}
-	info->vbus_output = enable;
-	mutex_unlock(&info->lock);
-	queue_work(info->chip->monitor_wqueue, &info->vbus_work);
-}
-EXPORT_SYMBOL(pm860x_set_vbus_output);
 
 irqreturn_t pm860x_charger_handler(int irq, void *data)
 {
@@ -260,7 +248,7 @@ irqreturn_t pm860x_charger_handler(int irq, void *data)
 
 	set_charging_fsm(info);
 
-	if (info->charge_type == USB_CHARGER)
+	if (info->charge_type == VBUS_CHARGER)
 		power_supply_changed(&info->usb);
 	else
 		power_supply_changed(&info->ac);
@@ -434,8 +422,12 @@ static int pm860x_usb_get_prop(struct power_supply *psy,
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
-		if (info->charge_type == USB_CHARGER)
+		switch (info->charge_type) {
+		case VBUS_CHARGER:
+		case DEFAULT_CHARGER:
 			type_usb = 1;
+			break;
+		}
 		val->intval = info->online && type_usb;
 		break;
 	default:
@@ -458,8 +450,8 @@ static int pm860x_ac_get_prop(struct power_supply *psy,
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
 		switch (info->charge_type) {
-		case AC_STANDARD_CHARGER:
-		case AC_OTHER_CHARGER:
+		case AC_CHARGER_STANDARD:
+		case AC_CHARGER_OTHER:
 			type_ac = 1;
 			break;
 		}
@@ -544,7 +536,7 @@ static int start_precharge(struct pm860x_charger_info *info)
 	set_vbatt_threshold(info, 0, 0);
 
 	ret = pm860x_reg_write(info->i2c_8606, PM8606_PREREGULATORA,
-			       PREREG1_1500MA | PREREG1_VSYS_4_5V);
+			       PREREG1_1350MA | PREREG1_VSYS_4_5V);
 	if (ret < 0)
 		goto out;
 	/* stop charging */
@@ -581,27 +573,49 @@ static int start_fastcharge(struct pm860x_charger_info *info)
 	int ret;
 
 	dev_dbg(info->dev, "Start Fast-charging!\n");
-	set_vchg_threshold(info, VCHG_NORMAL_LOW, VCHG_NORMAL_HIGH);
 	pm860x_calc_resistor();
 
-	ret = pm860x_reg_write(info->i2c_8606, PM8606_PREREGULATORA,
-			       PREREG1_1500MA | PREREG1_VSYS_4_5V);
-	if (ret < 0)
-		goto out;
 	/* set fastcharge termination current & voltage, disable charging */
 	ret = pm860x_reg_write(info->i2c, PM8607_CHG_CTRL1,
 			       CC1_MODE_OFF | CC1_ITERM_60MA | CC1_VFCHG_4_2V);
 	if (ret < 0)
 		goto out;
 	switch (info->charge_type) {
-	case USB_CHARGER:
-	case AC_STANDARD_CHARGER:
+	case DEFAULT_CHARGER:
+	case AC_CHARGER_OTHER:
+		ret = pm860x_reg_write(info->i2c_8606, PM8606_PREREGULATORA,
+			       PREREG1_540MA | PREREG1_VSYS_4_5V);
+		if (ret < 0)
+			goto out;
 		ret = pm860x_set_bits(info->i2c, PM8607_CHG_CTRL2, 0x1f,
 				      CC2_ICHG_500MA);
 		break;
-	case AC_OTHER_CHARGER:
+	case VBUS_CHARGER:
+		if (info->charge_current == 500) {
+			ret = pm860x_reg_write(info->i2c_8606,
+				PM8606_PREREGULATORA, PREREG1_540MA |
+				PREREG1_VSYS_4_5V);
+			if (ret < 0)
+				goto out;
+			ret = pm860x_set_bits(info->i2c, PM8607_CHG_CTRL2, 0x1f,
+					      CC2_ICHG_500MA);
+		} else if (info->charge_current == 100) {
+			ret = pm860x_reg_write(info->i2c_8606,
+				PM8606_PREREGULATORA, PREREG1_90MA |
+				PREREG1_VSYS_4_5V);
+			if (ret < 0)
+				goto out;
+			ret = pm860x_set_bits(info->i2c, PM8607_CHG_CTRL2, 0x1f,
+					      CC2_ICHG_100MA);
+		}
+		break;
+	case AC_CHARGER_STANDARD:
+		ret = pm860x_reg_write(info->i2c_8606, PM8606_PREREGULATORA,
+			       PREREG1_540MA | PREREG1_VSYS_4_5V);
+		if (ret < 0)
+			goto out;
 		ret = pm860x_set_bits(info->i2c, PM8607_CHG_CTRL2, 0x1f,
-				      CC2_ICHG_1000MA);
+				      CC2_ICHG_500MA);
 		break;
 	default:
 		ret = -EINVAL;
@@ -630,8 +644,8 @@ static int start_fastcharge(struct pm860x_charger_info *info)
 			      CC7_BAT_REM_EN | CC7_IFSM_EN);
 	if (ret < 0)
 		goto out;
-	/*hw fix workaround: disable BC_SHORT by setting in testpage,
-	only occur before sanremo C1*/
+	/* hw fix workaround: disable BC_SHORT by setting in testpage,
+	only occur before sanremo C1 */
 	if((info->chip->chip_version <= PM8607_CHIP_C1) && !info->bc_short){
 		info->bc_short = 1;/* disable bc_short mechanism*/
 		buf[0] = buf[2] = 0x0;
@@ -645,6 +659,8 @@ static int start_fastcharge(struct pm860x_charger_info *info)
 	/* trigger fastcharge */
 	ret = pm860x_set_bits(info->i2c, PM8607_CHG_CTRL1, 3,
 			      CC1_MODE_FASTCHARGE);
+	/* vchg threshold setting */
+	set_vchg_threshold(info, VCHG_NORMAL_LOW, VCHG_NORMAL_HIGH);
 out:
 	return ret;
 }
@@ -658,7 +674,7 @@ static int stop_charge(struct pm860x_charger_info *info, int vbatt)
 	}
 	/*hw fix workaround: enable bc_short again after fast charge finished*/
 	if((info->chip->chip_version <= PM8607_CHIP_C1) && info->bc_short){
-		info->bc_short = 0;/* enable bc_short mechanism*/
+		info->bc_short = 0;/* enable bc_short mechanism */
 		msleep(2);
 		pm860x_page_reg_write(info->i2c, 0xCF, 0x0);
 	}
@@ -795,7 +811,7 @@ static int pm860x_init_charger(struct pm860x_charger_info *info)
 		info->online = 0;
 		info->allowed = 0;
 	}
-	info->charge_type = USB_CHARGER;
+	info->charge_type = DEFAULT_CHARGER;
 	mutex_unlock(&info->lock);
 
 	set_charging_fsm(info);
@@ -926,7 +942,7 @@ static __devinit int pm860x_charger_probe(struct platform_device *pdev)
 	}
 	info->dev = &pdev->dev;
 
-#if !defined(CONFIG_USB_VBUS_88PM860X)
+#if !defined(CONFIG_USB_GADGET_PXA_U2O)
 	ret = request_threaded_irq(info->irq[0], NULL,
 				   pm860x_charger_handler,
 				   IRQF_ONESHOT, "usb supply detect", info);
@@ -1015,11 +1031,21 @@ static __devinit int pm860x_charger_probe(struct platform_device *pdev)
 		goto out_nums;
 
 	pm860x_init_charger(info);
-	INIT_WORK(&info->vbus_work, pm860x_vbus_work);
+
+	/* register notification from USB*/
+	info->nb.notifier_call = pm860x_charger_notifier;
+#ifdef	CONFIG_USB_GADGET_PXA_U2O
+	ret = mv_udc_register_client(&info->nb);
+	if (ret < 0) {
+		dev_err(chip->dev, "Failed to register  client: %d\n", ret);
+		goto out_nums;
+	}
+#endif
 	device_init_wakeup(&pdev->dev, 1);
 #ifdef	CONFIG_PROC_FS
 	create_pm860x_power_proc_file();
 #endif
+
 	return 0;
 
 out_nums:
@@ -1035,8 +1061,10 @@ out_irq3:
 out_irq2:
 	free_irq(info->irq[1], info);
 out_irq1:
-#if !defined(CONFIG_USB_VBUS_88PM860X)
+#if !defined(CONFIG_USB_GADGET_PXA_U2O)
 	free_irq(info->irq[0], info);
+#else
+	mv_udc_unregister_client(&info->nb);
 #endif
 out_dev:
 	device_remove_file(&pdev->dev, &dev_attr_stop);
@@ -1050,12 +1078,14 @@ static int __devexit pm860x_charger_remove(struct platform_device *pdev)
 	struct pm860x_charger_info *info = platform_get_drvdata(pdev);
 	int i;
 
-	cancel_work_sync(&info->vbus_work);
 	flush_workqueue(info->chip->monitor_wqueue);
 	platform_set_drvdata(pdev, NULL);
 	power_supply_unregister(&info->usb);
-#if !defined(CONFIG_USB_VBUS_88PM860X)
+	power_supply_unregister(&info->ac);
+#if !defined(CONFIG_USB_GADGET_PXA_U2O)
 	free_irq(info->irq[0], info);
+#else
+	mv_udc_unregister_client(&info->nb);
 #endif
 	for (i = 1; i < info->irq_nums; i++)
 		free_irq(info->irq[i], info);
@@ -1083,7 +1113,7 @@ static int pm860x_charger_suspend(struct device *dev)
 	if (device_may_wakeup(dev)) {
 		enable_irq_wake(info->chip->core_irq);
 		for (i = 0; i < info->irq_nums; i++) {
-#if defined(CONFIG_USB_VBUS_88PM860X)
+#if defined(CONFIG_USB_GADGET_PXA_U2O)
 			/* this IRQ should be handled in VBUS driver */
 			if (i == 0)
 				continue;
@@ -1105,7 +1135,7 @@ static int pm860x_charger_resume(struct device *dev)
 	if (device_may_wakeup(dev)) {
 		disable_irq_wake(info->chip->core_irq);
 		for (i = 0; i < info->irq_nums; i++) {
-#if defined(CONFIG_USB_VBUS_88PM860X)
+#if defined(CONFIG_USB_GADGET_PXA_U2O)
 			if (i == 0)
 				continue;
 #endif
