@@ -37,6 +37,7 @@
 #include <mach/tc35876x.h>
 #include <plat/usb.h>
 #include <mach/sram.h>
+#include <mach/uio_hdmi.h>
 
 #include "common.h"
 #include "onboard.h"
@@ -718,6 +719,14 @@ static void __init abilene_init_headset(void)
 }
 #endif
 
+#ifdef CONFIG_UIO_HDMI
+static struct uio_hdmi_platform_data mmp3_hdmi_info __initdata = {
+	.sspa_reg_base = 0xD42A0C00,
+	/* Fix me: gpio 59 lpm pull ? */
+	.gpio = mfp_to_gpio(GPIO59_HDMI_DET),
+};
+#endif
+
 static void __init abilene_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(abilene_pin_config));
@@ -733,6 +742,9 @@ static void __init abilene_init(void)
 	mmp3_add_tv_out();
 #endif
 
+#ifdef CONFIG_UIO_HDMI
+	mmp3_add_hdmi(&mmp3_hdmi_info);
+#endif
 	/* backlight */
 	mmp3_add_pwm(3);
 	platform_device_register(&abilene_lcd_backlight_devices);
