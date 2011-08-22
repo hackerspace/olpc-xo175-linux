@@ -21,8 +21,10 @@
 #include <linux/list.h>
 #include <linux/mutex.h>
 #include <linux/debugfs.h>
+#include <linux/delay.h>
 #include <linux/android_pmem.h>
 #include <linux/mempolicy.h>
+#include <linux/oom.h>
 #include <linux/sched.h>
 #include <asm/io.h>
 #include <asm/uaccess.h>
@@ -148,6 +150,7 @@ struct pmem_info {
 	int (*release)(struct inode *, struct file *);
 };
 
+static DEFINE_MUTEX(pmem_oom_lock);
 static struct pmem_info pmem[PMEM_MAX_DEVICES];
 static int id_count;
 
@@ -428,13 +431,15 @@ static unsigned long pmem_order(unsigned long len)
 	return i;
 }
 
-static int pmem_allocate(int id, unsigned long len)
+static int pmem_out_of_memory(int);
+
+static int __pmem_allocate(int id, unsigned long len)
 {
 	/* caller should hold the write lock on pmem_sem! */
 	/* return the corresponding pdata[] entry */
 	int curr = 0;
 	int end = pmem[id].bitmap->num_entries;
-	int best_fit = -1, compound_fit = -1;
+	int best_fit, compound_fit;
 	int pages = 0;
 	unsigned long order = pmem_order(len);
 
@@ -449,6 +454,9 @@ static int pmem_allocate(int id, unsigned long len)
 	if (order > PMEM_MAX_ORDER)
 		return -1;
 
+	best_fit = -1;
+	compound_fit = -1;
+	curr = 0;
 	/*
 	 * look through the bitmap:
 	 * 	if you find a free slot of the correct order use it
@@ -493,7 +501,7 @@ static int pmem_allocate(int id, unsigned long len)
 	 */
 	if (best_fit < 0) {
 		dev_err(pmem[id].dev, "pmem: no space left to allocate!\n");
-		return -1;
+		return -EAGAIN;
 	}
 
 	/*
@@ -522,8 +530,29 @@ static int pmem_allocate(int id, unsigned long len)
 		pmem[id].bitmap->bits[curr].compound = (pages > 0) ? 1 : 0;
 		curr = PMEM_NEXT_INDEX(id, curr);
 	}
-	dump_bitmap(id);
 	return best_fit;
+}
+
+static int pmem_allocate(int id, unsigned long len)
+{
+	int ret, min_adj = 8;
+	ret = __pmem_allocate(id, len);
+
+	/* min_adj -- [0 forgound], [1 visible] */
+	while ((ret == -EAGAIN) && (--min_adj > 1)) {
+		pmem_out_of_memory(min_adj);
+		msleep(20);
+		dev_dbg(pmem[id].dev, "Try to re-allocate %lu bytes memory\n",
+				len);
+
+		ret = __pmem_allocate(id, len);
+	}
+	if (ret == -EAGAIN)
+		dev_warn(pmem[id].dev, "Failed to re-allocate %lu bytes "
+				"memory\n", len);
+
+	dump_bitmap(id);
+	return ret;
 }
 
 static pgprot_t pmem_access_prot(struct file *file, pgprot_t vma_prot)
@@ -1359,6 +1388,75 @@ static long pmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		return -EINVAL;
 	}
 	return 0;
+}
+
+/*
+ * Raise the dying task to the lowest priority of realtime task if necessary.
+ */
+static void boost_dying_task_prio(struct task_struct *p)
+{
+	struct sched_param param;
+
+	if (!rt_task(p)) {
+		param.sched_priority = 1;
+		sched_setscheduler_nocheck(p, SCHED_FIFO, &param);
+	}
+}
+
+static int pmem_oom_killer(int adj)
+{
+	struct task_struct *p, *selected = NULL;
+	struct signal_struct *sig;
+	int selected_oom_adj;
+
+	read_lock(&tasklist_lock);
+	for_each_process(p) {
+		task_lock(p);
+		sig = p->signal;
+		if (!p->mm || !sig || p->exit_state || sig->oom_adj < adj) {
+			task_unlock(p);
+			continue;
+		}
+		selected = p;
+		selected_oom_adj = sig->oom_adj;
+		task_unlock(p);
+		break;
+	}
+	if (!selected)
+		goto out;
+	printk(KERN_INFO "PMEM oom killer: %d (%s), adj %d\n",
+		selected->pid, selected->comm, selected_oom_adj);
+	/* check flag that is signed by OOM-KILLER */
+	if (!test_tsk_thread_flag(selected, TIF_MEMDIE)) {
+		selected->rt.time_slice = HZ;
+		set_tsk_thread_flag(selected, TIF_MEMDIE);
+		force_sig(SIGKILL, selected);
+	}
+	boost_dying_task_prio(selected);
+	read_unlock(&tasklist_lock);
+
+	return 0;
+out:
+	read_unlock(&tasklist_lock);
+	return -EAGAIN;
+}
+
+static int pmem_out_of_memory(int level)
+{
+	int ret = -EAGAIN, min_adj, i;
+
+	mutex_lock(&pmem_oom_lock);
+	/* kill all hide and background application in android */
+	for (min_adj = OOM_ADJUST_MAX + 1, i = 0; min_adj > level; ) {
+		ret = pmem_oom_killer(min_adj);
+		if (ret == -EAGAIN)
+			min_adj--;
+		else if (!ret)
+			i++;
+	}
+	mutex_unlock(&pmem_oom_lock);
+	pr_info("%d processes are killed\n", i);
+	return ret;
 }
 
 #if PMEM_DEBUG
