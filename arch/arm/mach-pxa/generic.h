@@ -106,6 +106,12 @@ extern struct syscore_ops pxa_gpio_syscore_ops;
 extern struct syscore_ops pxa2xx_mfp_syscore_ops;
 extern struct syscore_ops pxa3xx_mfp_syscore_ops;
 
+#ifdef CONFIG_MTD_ONENAND_PXA3xx
+#include <plat/pxa3xx_onenand.h>
+extern void __init pxa3xx_set_onenand_info(struct pxa3xx_onenand_platform_data *info);
+void onenand_init(int sync_enable);
+#endif
+
 void __init pxa_set_ffuart_info(void *info);
 void __init pxa_set_btuart_info(void *info);
 void __init pxa_set_stuart_info(void *info);

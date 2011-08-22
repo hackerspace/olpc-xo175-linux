@@ -29,6 +29,9 @@
 #include <mach/gpio.h>
 #include <mach/smemc.h>
 #include <mach/pxa3xx-regs.h>
+#include <mach/part_table.h>
+
+#include <plat/pxa3xx_onenand.h>
 
 #include "generic.h"
 
@@ -109,6 +112,71 @@ static struct map_desc common_io_desc[] __initdata = {
 		.type		= MT_DEVICE
 	}
 };
+
+#if (defined(CONFIG_MTD_ONENAND) || defined(CONFIG_MTD_ONENAND_MODULE))
+
+extern void onenand_mmcontrol_smc_cfg(void);
+extern void onenand_sync_clk_cfg(void);
+
+static void __attribute__ ((unused)) onenand_mmcontrol(struct mtd_info *mtd, int sync_read)
+{
+	struct onenand_chip *this = mtd->priv;
+	unsigned int syscfg;
+
+	if (sync_read) {
+		onenand_mmcontrol_smc_cfg();
+		syscfg = this->read_word(this->base + ONENAND_REG_SYS_CFG1);
+		syscfg &= (~(0x07<<9));
+		/* 16 words for one burst */
+		syscfg |= 0x03<<9;
+		this->write_word((syscfg | sync_read), this->base + ONENAND_REG_SYS_CFG1);
+	} else {
+		syscfg = this->read_word(this->base + ONENAND_REG_SYS_CFG1);
+		this->write_word((syscfg & ~sync_read), this->base + ONENAND_REG_SYS_CFG1);
+	}
+}
+
+static struct pxa3xx_onenand_platform_data onenand_platinfo;
+static int set_partition_info(u32 flash_size, u32 page_size, struct pxa3xx_onenand_platform_data *pdata)
+{
+	int found = -EINVAL;
+	if (256 == flash_size) {
+		pdata->parts = android_256m_4k_page_partitions;
+		pdata->nr_parts = ARRAY_SIZE(android_256m_4k_page_partitions);
+		found = 0;
+	} else if (512 == flash_size) {
+		pdata->parts = android_512m_4k_page_partitions;
+		pdata->nr_parts = ARRAY_SIZE(android_512m_4k_page_partitions);
+		found = 0;
+	}
+
+	if (0 != found)
+		printk(KERN_ERR"***************no proper partition table *************\n");
+
+	return found;
+}
+void onenand_init(int sync_enable)
+{
+	u32 temp;
+	if (sync_enable) {
+		onenand_sync_clk_cfg();
+		temp  = ACCR;
+		/*
+		* bit25~bit23
+		* 000 78Mhz, 010 104Mhz, 100 156Mhz
+		*/
+		temp &= (~(7 << 23));
+		temp |= 0x02<<23;
+		ACCR = temp;  /*106Mhz*/
+		onenand_platinfo.mmcontrol = onenand_mmcontrol;
+	}
+	onenand_platinfo.set_partition_info = set_partition_info;
+	pxa3xx_set_onenand_info(&onenand_platinfo);
+}
+#else
+void onenand_init(int sync_enable) {}
+#endif
+
 
 /* Board ID based on BOAR= cmdline token get from OBM */
 static long g_board_id = -1;

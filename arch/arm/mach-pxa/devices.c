@@ -19,6 +19,7 @@
 #include <mach/hardware.h>
 #include <mach/soc_vmeta.h>
 #include <plat/pxa3xx_nand.h>
+#include <plat/pxa3xx_onenand.h>
 
 #include "devices.h"
 #include "generic.h"
@@ -1020,6 +1021,33 @@ struct platform_device pxa3xx_device_nand = {
 void __init pxa3xx_set_nand_info(struct pxa3xx_nand_platform_data *info)
 {
 	pxa_register_device(&pxa3xx_device_nand, info);
+}
+
+/* pxa3xx onenand resource */
+static u64 pxa3xx_onenand_dma_mask = DMA_BIT_MASK(32);
+
+static struct resource pxa3xx_resources_onenand[] = {
+	[0] = {
+		.start  = 0x10000000,
+		.end    = 0x100fffff,
+		.flags  = IORESOURCE_MEM,
+	},
+};
+
+struct platform_device pxa3xx_device_onenand = {
+	.name		= "pxa3xx-onenand",
+	.id		= -1,
+	.dev		=  {
+		.dma_mask	= &pxa3xx_onenand_dma_mask,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	},
+	.resource	= pxa3xx_resources_onenand,
+	.num_resources	= ARRAY_SIZE(pxa3xx_resources_onenand),
+};
+
+void __init pxa3xx_set_onenand_info(struct pxa3xx_onenand_platform_data *info)
+{
+	pxa_register_device(&pxa3xx_device_onenand, info);
 }
 
 static u64 pxa3xx_ssp4_dma_mask = DMA_BIT_MASK(32);
