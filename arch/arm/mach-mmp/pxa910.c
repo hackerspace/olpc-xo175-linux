@@ -15,6 +15,8 @@
 #include <linux/io.h>
 
 #include <asm/mach/time.h>
+#include <asm/hardware/cache-tauros2.h>
+
 #include <mach/addr-map.h>
 #include <mach/regs-apbc.h>
 #include <mach/regs-apmu.h>
@@ -270,6 +272,9 @@ static void pxa910_init_ripc_clock(void)
 static int __init pxa910_init(void)
 {
 	if (cpu_is_pxa910()) {
+#ifdef CONFIG_CACHE_TAUROS2
+		tauros2_init();
+#endif
 		mfp_init_base(MFPR_VIRT_BASE);
 		mfp_init_addr(pxa910_mfp_addr_map);
 		pxa_init_dma(IRQ_PXA910_DMA_INT0, 32);
