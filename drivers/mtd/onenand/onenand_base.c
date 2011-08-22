@@ -37,6 +37,12 @@
 
 #include <plat/pxa3xx_onenand.h>
 
+#ifdef CONFIG_MTD_ONENAND_PXA3xx
+extern void pxa3xx_onenand_get_device(struct mtd_info *mtd);
+extern void pxa3xx_onenand_release_device(struct mtd_info *mtd);
+#endif
+
+
 /*
  * Multiblock erase if number of blocks to erase is 2 or more.
  * Maximum number of blocks for simultaneous erase is 64.
@@ -988,6 +994,9 @@ static int onenand_get_device(struct mtd_info *mtd, int new_state)
 {
 	struct onenand_chip *this = mtd->priv;
 	DECLARE_WAITQUEUE(wait, current);
+#ifdef CONFIG_MTD_ONENAND_PXA3xx
+	pxa3xx_onenand_get_device(mtd);
+#endif
 
 	/*
 	 * Grab the lock and see if the device is available
@@ -1032,6 +1041,9 @@ static void onenand_release_device(struct mtd_info *mtd)
 	this->state = FL_READY;
 	wake_up(&this->wq);
 	spin_unlock(&this->chip_lock);
+#ifdef CONFIG_MTD_ONENAND_PXA3xx
+	pxa3xx_onenand_release_device(mtd);
+#endif
 }
 
 /**
