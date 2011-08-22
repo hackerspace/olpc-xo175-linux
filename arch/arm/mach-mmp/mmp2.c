@@ -26,7 +26,7 @@
 #include <mach/cputype.h>
 #include <mach/irqs.h>
 #include <mach/dma.h>
-#include <mach/mfp.h>
+#include <plat/mfp.h>
 #include <mach/gpio.h>
 #include <mach/devices.h>
 #include <mach/mmp2.h>

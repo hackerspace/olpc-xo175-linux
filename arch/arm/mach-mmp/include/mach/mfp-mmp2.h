@@ -1,12 +1,7 @@
 #ifndef __ASM_MACH_MFP_MMP2_H
 #define __ASM_MACH_MFP_MMP2_H
 
-#include <mach/mfp.h>
-
-#define MFP_DRIVE_VERY_SLOW	(0x0 << 13)
-#define MFP_DRIVE_SLOW		(0x2 << 13)
-#define MFP_DRIVE_MEDIUM	(0x4 << 13)
-#define MFP_DRIVE_FAST		(0x6 << 13)
+#include <plat/mfp.h>
 
 /* GPIO */
 #define GPIO0_GPIO	MFP_CFG(GPIO0, AF0)
