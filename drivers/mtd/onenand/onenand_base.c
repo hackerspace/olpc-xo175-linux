@@ -3971,6 +3971,7 @@ static int onenand_probe(struct mtd_info *mtd)
 	return 0;
 }
 
+#ifndef CONFIG_PXA95x_SUSPEND
 /**
  * onenand_suspend - [MTD Interface] Suspend the OneNAND flash
  * @param mtd		MTD device structure
@@ -3994,6 +3995,7 @@ static void onenand_resume(struct mtd_info *mtd)
 		printk(KERN_ERR "%s: resume() called for the chip which is not "
 				"in suspended state\n", __func__);
 }
+#endif
 
 /**
  * onenand_scan - [OneNAND Interface] Scan for the OneNAND device
@@ -4150,8 +4152,10 @@ int onenand_scan(struct mtd_info *mtd, int maxchips)
 	mtd->sync = onenand_sync;
 	mtd->lock = onenand_lock;
 	mtd->unlock = onenand_unlock;
+#ifndef CONFIG_PXA95x_SUSPEND
 	mtd->suspend = onenand_suspend;
 	mtd->resume = onenand_resume;
+#endif
 	mtd->block_isbad = onenand_block_isbad;
 	mtd->block_markbad = onenand_block_markbad;
 	mtd->owner = THIS_MODULE;
