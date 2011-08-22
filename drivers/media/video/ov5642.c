@@ -449,6 +449,7 @@ static int ov5642_load_fw(struct v4l2_subdev *sd)
 		dev_err(&client->dev, "ov5642 driver needs platform data\n");
 		return -EINVAL;
 	}
+#ifdef CONFIG_PXA95x
 	pdata = icl->priv;
 	if (pdata != NULL) {
 		char name[32];
@@ -458,6 +459,10 @@ static int ov5642_load_fw(struct v4l2_subdev *sd)
 		else
 			strcat(name, "-dvp");
 		ret = select_bus_type(name);
+#else
+	if (icl->priv) {
+		ret = select_bus_type(icl->priv);
+#endif
 		if (ret) {
 			dev_err(&client->dev, "need know interface type\n");
 			return ret;
