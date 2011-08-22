@@ -654,6 +654,7 @@ extern int pm860x_device_init(struct pm860x_chip *chip,
 extern void pm860x_device_exit(struct pm860x_chip *chip) __devexit ;
 
 extern int pm860x_calc_resistor(void);
+extern void pm860x_system_poweroff(void);
 extern void pm860x_set_charger_type(enum enum_charger_type type );
 extern int pm860x_battery_update_soc(void);
 extern void pm860x_set_vbus_output(int);
