@@ -16,6 +16,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/io.h>
 #include <linux/gpio.h>
+#include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/smc91x.h>
 #include <linux/mfd/max8925.h>
@@ -38,6 +39,7 @@
 #include <plat/usb.h>
 #include <mach/sram.h>
 #include <mach/uio_hdmi.h>
+#include <media/soc_camera.h>
 
 #include "common.h"
 #include "onboard.h"
@@ -75,6 +77,10 @@ static unsigned long abilene_pin_config[] __initdata = {
 	GPIO26_I2S_SYNC,
 	GPIO27_I2S_DATA_OUT,
 	GPIO28_I2S_SDATA_IN,
+
+	/* camera */
+	GPIO67_GPIO,
+	GPIO73_CAM_MCLK,
 
 	/* DFI */
 	GPIO168_DFI_D0,
@@ -149,6 +155,178 @@ static struct sram_bank mmp3_audiosram_info = {
 	.pool_name = "audio sram",
 	.step = AUDIO_SRAM_GRANULARITY,
 };
+
+#if defined(CONFIG_VIDEO_MV)
+/* soc  camera */
+static int camera_sensor_power(struct device *dev, int on)
+{
+	static struct regulator *v_ldo14;
+	static struct regulator *v_ldo15;
+	static int f_enabled;
+	int cam_enable = mfp_to_gpio(MFP_PIN_GPIO67);
+
+	if (gpio_request(cam_enable, "CAM_ENABLE_HI_SENSOR")) {
+		printk(KERN_ERR "Request GPIO failed, gpio: %d\n", cam_enable);
+		return -EIO;
+	}
+
+	/* enable voltage for camera sensor OV5642 */
+	/* v_ldo14 3.0v */
+	/* v_ldo15 2.8v */
+	if (on && (!f_enabled)) {
+		v_ldo14 = regulator_get(NULL, "v_ldo14");
+		if (IS_ERR(v_ldo14)) {
+			v_ldo14 = NULL;
+			return -EIO;
+		} else {
+			regulator_set_voltage(v_ldo14, 3000000, 3000000);
+			regulator_enable(v_ldo14);
+			f_enabled = 1;
+		}
+
+		v_ldo15 = regulator_get(NULL, "v_ldo15");
+		if (IS_ERR(v_ldo15)) {
+			v_ldo15 = NULL;
+			return -EIO;
+		} else {
+			regulator_set_voltage(v_ldo15, 2800000, 2800000);
+			regulator_enable(v_ldo15);
+			f_enabled = 1;
+		}
+	}
+
+	if (f_enabled && (!on)) {
+		if (v_ldo14) {
+			regulator_disable(v_ldo14);
+			regulator_put(v_ldo14);
+			v_ldo14 = NULL;
+		}
+		if (v_ldo15) {
+			regulator_disable(v_ldo15);
+			regulator_put(v_ldo15);
+			v_ldo15 = NULL;
+		}
+		f_enabled = 0;
+	}	/* actually, no small power down pin needed */
+
+	/* pull up camera pwdn pin to disable camera sensor */
+	gpio_direction_output(cam_enable, 1);
+	mdelay(1);
+	/* pull down camera pwdn pin to enable camera sensor */
+	gpio_direction_output(cam_enable, 0);
+
+	gpio_free(cam_enable);
+	msleep(100);
+
+	return 0;
+}
+
+static struct i2c_board_info abilene_i2c_camera[] = {
+	{
+		I2C_BOARD_INFO("ov5642", 0x3c),
+	},
+};
+
+static struct soc_camera_link iclink_ov5642 = {
+	.bus_id         = 0,            /* Must match with the camera ID */
+	.power          = camera_sensor_power,
+	.board_info     = &abilene_i2c_camera[0],
+	.i2c_adapter_id = 2,
+	.flags = SOCAM_MIPI,
+	.module_name    = "ov5642",
+	.priv = "pxa2128-mipi",
+};
+
+static struct platform_device abilene_ov5642 = {
+	.name   = "soc-camera-pdrv",
+	.id     = 0,
+	.dev    = {
+		.platform_data = &iclink_ov5642,
+	},
+};
+
+static void pxa2128_cam_ctrl_power(int on)
+{
+	return;
+}
+
+static int pxa2128_cam_clk_init(struct device *dev, int init)
+{
+	struct mv_cam_pdata *data = dev->platform_data;
+	if ((!data->clk_enabled) && init) {
+		data->clk[0] = clk_get(dev, "CCICGATECLK");
+		if (IS_ERR(data->clk[1])) {
+			dev_err(dev, "Could not get gateclk\n");
+			return PTR_ERR(data->clk[1]);
+		}
+		data->clk[1] = clk_get(dev, "CCICRSTCLK");
+		if (IS_ERR(data->clk[0])) {
+			dev_err(dev, "Could not get rstclk\n");
+			return PTR_ERR(data->clk[0]);
+		}
+		data->clk[2] = clk_get(dev, "CCICDBGCLK");
+		if (IS_ERR(data->clk[2])) {
+			dev_err(dev, "Could not get lcd clk\n");
+			return PTR_ERR(data->clk[2]);
+		}
+		data->clk_enabled = 3;
+
+		return 0;
+	}
+
+	if (!init && data->clk_enabled) {
+		clk_put(data->clk[0]);
+		clk_put(data->clk[1]);
+		clk_put(data->clk[2]);
+		return 0;
+	}
+	return -EFAULT;
+}
+
+static void pxa2128_cam_set_clk(struct device *dev, int on)
+{
+	struct mv_cam_pdata *data = dev->platform_data;
+	if (on) {
+		clk_enable(data->clk[0]);
+		clk_enable(data->clk[1]);
+		clk_enable(data->clk[2]);
+	} else {
+		clk_disable(data->clk[0]);
+		clk_disable(data->clk[1]);
+		clk_disable(data->clk[2]);
+	}
+}
+
+static int get_mclk_src(int src)
+{
+	switch (src) {
+	case 3:
+		return 400;
+	case 2:
+		return 400;
+	default:
+		BUG();
+	}
+
+	return 0;
+}
+
+static struct mv_cam_pdata mv_cam_data = {
+	.name = "ABILENE",
+	.clk_enabled = 0,
+	.dphy = {0x1b0b, 0x33, 0x1a03},
+	.qos_req_min = 0,
+	.dma_burst = 128,
+	.bus_type = SOCAM_MIPI,
+	.mclk_min = 26,
+	.mclk_src = 3,
+	.controller_power = pxa2128_cam_ctrl_power,
+	.init_clk = pxa2128_cam_clk_init,
+	.enable_clk = pxa2128_cam_set_clk,
+	.get_mclk_src = get_mclk_src,
+};
+/* sensor init over */
+#endif
 
 static struct pxa27x_keypad_platform_data mmp3_keypad_info = {
 	.direct_key_map = {
@@ -309,7 +487,6 @@ static struct platform_device abilene_lcd_backlight_devices = {
 		.platform_data = &abilene_lcd_backlight_data,
 	},
 };
-
 
 #ifdef CONFIG_MMC_SDHCI_PXAV3
 #include <linux/mmc/host.h>
@@ -752,6 +929,11 @@ static void __init abilene_init(void)
 #ifdef CONFIG_MMC_SDHCI_PXAV3
 	abilene_init_mmc();
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
+
+#if defined(CONFIG_VIDEO_MV)
+	platform_device_register(&abilene_ov5642);
+	mmp3_add_cam(0, &mv_cam_data);
+#endif
 
 	platform_device_register(&mmp3_device_rtc);
 
