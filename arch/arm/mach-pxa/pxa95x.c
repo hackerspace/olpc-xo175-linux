@@ -215,6 +215,53 @@ static struct mfp_addr_map pxa970_mfp_addr_map[] __initdata = {
 	MFP_ADDR_END,
 };
 
+void clk_pxa95x_smc_enable(struct clk *smc_clk)
+{
+	CKENA |= (1 << CKEN_SMC);
+}
+
+void clk_pxa95x_smc_disable(struct clk *smc_clk)
+{
+	CKENA &= ~(1 << CKEN_SMC);
+}
+
+/*
+ * Return the Static Memory Controller clock frequency
+ */
+static unsigned long clk_pxa95x_smc_getrate(struct clk *clk)
+{
+	unsigned long acsr;
+	unsigned int ro_s, smc_s, smc_clk = 0;
+
+	acsr = ACSR;
+
+	ro_s = (acsr >> 26) & 0x1;
+	if (ro_s) {
+		smc_clk = 15 * 1000 * 1000;
+	} else {
+		smc_s = (acsr >> 23) & 0x3;
+		switch (smc_s) {
+		case 0x0:
+			smc_clk = 78 * 1000 * 1000;
+			break;
+		case 0x2:
+			smc_clk = 104 * 1000 * 1000;
+			break;
+		case 0x5:
+			smc_clk = 208 * 1000 * 1000;
+			break;
+		}
+	}
+
+	return smc_clk;
+}
+
+static const struct clkops clk_pxa95x_smc_ops = {
+	.enable		= clk_pxa95x_smc_enable,
+	.disable	= clk_pxa95x_smc_disable,
+	.getrate	= clk_pxa95x_smc_getrate,
+};
+
 static void clk_tout_s0_enable(struct clk *clk)
 {
 	OSCC |= OSCC_TENS0;
@@ -666,6 +713,7 @@ static DEFINE_CK(pxa95x_dsi1, DSI_TX2, &clk_pxa95x_dsi_ops);
 static DEFINE_CK(pxa95x_ihdmi, DISPLAY, &clk_pxa95x_ihdmi_ops);
 static DEFINE_CK(pxa95x_lcd, DISPLAY, &clk_pxa95x_lcd_ops);
 static DEFINE_CK(pxa95x_axi, AXI, &clk_axi_ops);
+static DEFINE_CK(pxa95x_smc, SMC, &clk_pxa95x_smc_ops);
 static DEFINE_CLK(pxa95x_pout, &clk_pxa3xx_pout_ops, 13000000, 70);
 static DEFINE_CLK(pxa95x_tout_s0, &clk_pxa95x_tout_s0_ops, 13000000, 70);
 static DEFINE_PXA3_CKEN(pxa95x_ffuart, FFUART, 14857000, 1);
@@ -687,6 +735,7 @@ static DEFINE_PXA3_CKEN(pxa95x_sdh2, PXA95x_MMC3, 200000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_sdh3, PXA95x_MMC4, 200000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_vmeta, VMETA, 312000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_abu, ABU, 20000000, 0);
+
 
 static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_pout, NULL, "CLK_POUT"),
@@ -718,6 +767,7 @@ static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_sdh2, "sdhci-pxav2.2", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_pxa95x_sdh3, "sdhci-pxav2.3", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_pxa95x_abu, NULL, "PXA95X_ABUCLK"),
+	INIT_CLKREG(&clk_pxa95x_smc, NULL, "SMCCLK"),
 };
 
 void __init pxa95x_init_irq(void)
