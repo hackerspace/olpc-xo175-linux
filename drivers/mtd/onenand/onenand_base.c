@@ -35,6 +35,8 @@
 
 #include <asm/io.h>
 
+#include <plat/pxa3xx_onenand.h>
+
 /*
  * Multiblock erase if number of blocks to erase is 2 or more.
  * Maximum number of blocks for simultaneous erase is 64.
@@ -373,8 +375,23 @@ EXPORT_SYMBOL(flexonenand_region);
  */
 static int onenand_command(struct mtd_info *mtd, int cmd, loff_t addr, size_t len)
 {
+	struct pxa3xx_onenand_info *info =
+		container_of(mtd, struct pxa3xx_onenand_info, mtd);
 	struct onenand_chip *this = mtd->priv;
 	int value, block, page;
+	loff_t reloc_block_addr;
+	loff_t oldaddr = addr;
+
+	if (info->bbm && info->bbm->is_init && info->bbm->search) {
+		block = (int)(addr >> this->erase_shift);
+		reloc_block_addr = info->bbm->search(mtd, addr);
+		addr = (reloc_block_addr |
+			(addr & ((1 << this->erase_shift) - 1)));
+		if (oldaddr != addr)
+			pr_debug("relocate block %d to %d\n",
+				(int)(oldaddr >> this->erase_shift),
+				(int)(addr >> this->erase_shift));
+	}
 
 	/* Address translation */
 	switch (cmd) {
@@ -2251,10 +2268,8 @@ static int onenand_write_oob(struct mtd_info *mtd, loff_t to,
 static int onenand_block_isbad_nolock(struct mtd_info *mtd, loff_t ofs, int allowbbt)
 {
 	struct onenand_chip *this = mtd->priv;
-	struct bbm_info *bbm = this->bbm;
 
-	/* Return info from the table */
-	return bbm->isbad_bbt(mtd, ofs, allowbbt);
+	return this->block_bad(mtd, ofs, allowbbt);
 }
 
 
@@ -2543,6 +2558,11 @@ static int onenand_erase(struct mtd_info *mtd, struct erase_info *instr)
 
 	/* Deselect and wake up anyone waiting on the device */
 	onenand_release_device(mtd);
+	if (ret && (this->options & ONENAND_RELOC_IFBAD)) {
+		this->block_markbad(mtd, addr);
+		instr->state = MTD_ERASE_DONE;
+		ret = 0;
+	}
 
 	/* Do call back function */
 	if (!ret) {
@@ -3464,6 +3484,10 @@ static void onenand_check_features(struct mtd_info *mtd)
 		this->options &= ~ONENAND_HAS_CONT_LOCK;
 		this->options |= ONENAND_HAS_UNLOCK_ALL;
 	}
+
+#ifdef CONFIG_PXA3XX_BBM
+	this->options |= ONENAND_RELOC_IFBAD;
+#endif
 
 	if (this->options & ONENAND_HAS_CONT_LOCK)
 		printk(KERN_DEBUG "Lock scheme is Continuous Lock\n");
