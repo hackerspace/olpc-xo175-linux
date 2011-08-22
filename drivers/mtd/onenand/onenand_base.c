@@ -3949,6 +3949,8 @@ static int onenand_probe(struct mtd_info *mtd)
 		this->density_mask = this->chipsize >> (this->erase_shift + 1);
 	/* It's real page size */
 	this->writesize = mtd->writesize;
+	mtd->writesize_shift = this->page_shift;
+	mtd->erasesize_shift = this->erase_shift;
 
 	/* REVISIT: Multichip handling */
 
