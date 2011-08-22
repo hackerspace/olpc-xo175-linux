@@ -875,7 +875,7 @@ CONFIG_MTD_BLOCK=y
 # CONFIG_SM_FTL is not set
 # CONFIG_MTD_OOPS is not set
 # CONFIG_MTD_SWAP is not set
-# CONFIG_PXA3XX_BBM is not set
+CONFIG_PXA3XX_BBM=y
 
 #
 # RAM/ROM/Flash chip drivers
