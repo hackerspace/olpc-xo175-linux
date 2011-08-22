@@ -890,12 +890,67 @@ static struct clk mmp3_clk_gc = {
 	.ops = &gc_clk_ops,
 };
 
+static int disp1_axi_clk_enable(struct clk *clk)
+{
+	u32 val = __raw_readl(clk->clk_rst);
+
+	/* enable Display1 AXI clock */
+	val |= (1<<3);
+	__raw_writel(val, clk->clk_rst);
+
+	/* release from reset */
+	val |= 1;
+	__raw_writel(val, clk->clk_rst);
+	return 0;
+}
+
+static void disp1_axi_clk_disable(struct clk *clk)
+{
+	u32 val = __raw_readl(clk->clk_rst);
+
+	/* reset display1 AXI clock */
+	val &= ~1;
+	__raw_writel(val, clk->clk_rst);
+
+	/* disable display1 AXI clock */
+	val &= ~(1<<3);
+	__raw_writel(val, clk->clk_rst);
+}
+
+struct clkops disp1_axi_clk_ops = {
+	.enable		= disp1_axi_clk_enable,
+	.disable	= disp1_axi_clk_disable,
+};
+
+static struct clk mmp3_clk_disp1_axi = {
+	.name = "disp1_axi",
+	.lookup = {
+		.con_id = "DISP1AXI",
+	},
+	.clk_rst = (void __iomem *)APMU_LCD_CLK_RES_CTRL,
+	.ops = &disp1_axi_clk_ops,
+};
+
+static struct clk *disp_depend_clk[] = {
+	&mmp3_clk_disp1_axi,
+};
+
 static int lcd_pn1_clk_enable(struct clk *clk)
 {
 	u32 val;
 
 	val = __raw_readl(clk->reg_data[SOURCE][CONTROL].reg);
-	val |= 0x103f;
+
+	/* enable Display1 peripheral clock */
+	val |= (1 << 4);
+	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+
+	/* enable DSI clock */
+	val |= (1 << 12) | (1 << 5);
+	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+
+	/* release from reset */
+	val |= (1 << 1) | (1 << 2);
 	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
 
 	return 0;
@@ -906,7 +961,13 @@ static void lcd_pn1_clk_disable(struct clk *clk)
 	u32 val;
 
 	val = __raw_readl(clk->reg_data[SOURCE][CONTROL].reg);
-	val &= ~0x1038; /* release from reset to keep register setting */
+
+	/* disable DSI clock */
+	val &= ~((1<<12) | (1<<5));
+	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+
+	/* disable Display1 peripheral clock */
+	val &= ~(1<<4);
 	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
 }
 
@@ -1063,12 +1124,50 @@ static struct clk mmp3_clk_lcd1 = {
 		.con_id = "LCDCLK",
 	},
 	.ops = &lcd_pn1_clk_ops,
+	.dependence = disp_depend_clk,
+	.dependence_count = ARRAY_SIZE(disp_depend_clk),
 	.inputs = lcd_pn1_clk_mux,
 	.reg_data = {
 		     { {APMU_LCD_CLK_RES_CTRL, 6, 0x3},
 			{APMU_LCD_CLK_RES_CTRL, 6, 0x3} },
 		     {{APMU_LCD_CLK_RES_CTRL, 8, 0xf},
 			{APMU_LCD_CLK_RES_CTRL, 8, 0xf} } },
+};
+
+static int hdmi_clk_enable(struct clk *clk)
+{
+	/*
+	 *hdmi clock enable is done by user space,
+	 * to control it's dependence clock disp1_clk
+	 * here we must define this clk_enable function
+	 */
+	return 0;
+};
+
+static void hdmi_clk_disable(struct clk *clk)
+{
+	/*
+	 * hdmi clock disable is done by user space,
+	 * to control it's dependence clock disp1_clk
+	 * here we must define this clk_disable function
+	 */
+
+	return;
+};
+
+struct clkops hdmi_clk_ops = {
+	.enable = hdmi_clk_enable,
+	.disable = hdmi_clk_disable,
+};
+
+static struct clk mmp3_clk_hdmi = {
+	.name = "hdmi",
+	.lookup = {
+		.con_id = "HDMICLK",
+	},
+	.ops = &hdmi_clk_ops,
+	.dependence = disp_depend_clk,
+	.dependence_count = ARRAY_SIZE(disp_depend_clk),
 };
 
 #define LCD_SCLK_DIV	(APB_VIRT_BASE + 0x0020B1A8)
@@ -1459,6 +1558,8 @@ static struct clk *mmp3_clks_ptr[] = {
 	&mmp3_clk_sdh1,
 	&mmp3_clk_sdh2,
 	&mmp3_clk_sdh3,
+	&mmp3_clk_disp1_axi,
+	&mmp3_clk_hdmi,
 };
 
 static int apbc_clk_enable(struct clk *clk)
