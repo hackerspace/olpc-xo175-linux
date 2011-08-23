@@ -1069,6 +1069,10 @@ static void __init ttc_dkb_init(void)
 
 	pxa910_add_acipc();
 
+#ifdef CONFIG_PXA910_IRE
+	pxa910_add_ire();
+#endif
+
 #if defined(CONFIG_MMC_SDHCI_PXAV2)
 	pxa910_init_mmc();
 #endif
