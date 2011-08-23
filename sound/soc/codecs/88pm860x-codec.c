@@ -275,6 +275,7 @@ static int pm860x_volatile(unsigned int reg)
 	BUG_ON(reg >= REG_CACHE_SIZE);
 
 	switch (reg) {
+	case PM860X_EAR_CTRL_2:
 	case PM860X_AUDIO_SUPPLIES_2:
 		return 1;
 	}

@@ -199,6 +199,28 @@ config SND_PXA2XX_SOC_IMOTE2
          Say Y if you want to add support for SoC audio on the
 	 IMote 2.
 
+menu "SoC Audio for the Marvell PXA910"
+config SND_PXA910_SOC
+	tristate "SoC Audio for the Marvell PXA910 chip"
+	depends on ARCH_MMP && SND
+	select SND_PCM
+	help
+	  Say Y or M if you want to add support for codecs attached to
+	  the PXA3xx AC97, I2S or SSP interface. You will also need
+	  to select the audio interfaces to support below.
+
+config SND_PXA910_SOC_TTC_DKB
+        bool "SoC Audio support for TTC DKB"
+	depends on SND_PXA910_SOC && MACH_TTC_DKB
+	select PXA_SSP
+	select SND_PXA_SOC_SSP
+	select SND_PXA2XX_LIB
+	select SND_SOC_88PM860X
+	help
+	  Say Y if you want to add support for SoC audio on TTC DKB
+
+endmenu
+
 menu "SoC Audio for the Marvell MMPx"
 config SND_MMP3_SOC
 	tristate "SoC Audio for the Marvell MMPx chip"
