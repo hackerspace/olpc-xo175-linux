@@ -39,6 +39,7 @@
 #include <mach/mfp-pxa910.h>
 #include <mach/pxa910.h>
 #include <mach/sram.h>
+#include <mach/regs-mpmu.h>
 #include <mach/regs-usb.h>
 #include <mach/regs-rtc.h>
 
@@ -124,6 +125,18 @@ static unsigned long ttc_dkb_pin_config[] __initdata = {
 
 	/* one wire */
 	ONEWIRE_CLK_REQ,
+
+	/* SSP1 (I2S) */
+	GPIO24_SSP1_SDATA_IN,
+	GPIO21_SSP1_BITCLK,
+	GPIO22_SSP1_SYNC,
+	GPIO23_SSP1_DATA_OUT,
+	/* GSSP */
+	GPIO25_GSSP_BITCLK,
+	GPIO26_GSSP_SYNC,
+	GPIO27_GSSP_TXD,
+	GPIO28_GSSP_RXD,
+	VCXO_REQ,
 
 	/*keypad*/
 	GPIO00_KP_MKIN0,
@@ -1466,6 +1479,8 @@ static void __init ttc_dkb_init(void)
 	pxa910_add_ssp(1);
 	pxa910_add_ssp(4);
 	pxa910_add_audiosram(&pxa910_audiosram_info);
+	/* enable vcxo for audio */
+	__raw_writel(0x1, MPMU_VRCR);
 
 	pxa910_add_keypad(&ttc_dkb_keypad_info);
 	pxa910_add_cnm();
