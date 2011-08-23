@@ -38,6 +38,7 @@ extern struct pxa_device_desc pxa910_device_sdh2;
 extern struct pxa_device_desc pxa910_device_cnm;
 extern struct pxa_device_desc pxa910_device_fb;
 extern struct pxa_device_desc pxa910_device_fb_ovly;
+extern struct pxa_device_desc pxa910_device_ire;
 
 extern struct platform_device pxa910_device_rtc;
 extern struct platform_device pxa910_device_1wire;
@@ -196,6 +197,11 @@ static inline int pxa910_add_fb(struct pxa168fb_mach_info *mi)
 static inline int pxa910_add_fb_ovly(struct pxa168fb_mach_info *mi)
 {
 	return pxa_register_device(&pxa910_device_fb_ovly, mi, sizeof(*mi));
+}
+
+static inline int pxa910_add_ire(void)
+{
+	return pxa_register_device(&pxa910_device_ire, NULL, 0);
 }
 
 #endif /* __ASM_MACH_PXA910_H */
