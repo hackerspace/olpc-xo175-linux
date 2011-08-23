@@ -429,10 +429,11 @@ static int pxa27x_keypad_suspend(struct device *dev)
 	struct platform_device *pdev = to_platform_device(dev);
 	struct pxa27x_keypad *keypad = platform_get_drvdata(pdev);
 
-	clk_disable(keypad->clk);
-
 	if (device_may_wakeup(&pdev->dev))
 		enable_irq_wake(keypad->irq);
+	else {
+		clk_disable(keypad->clk);
+	}
 
 	return 0;
 }
@@ -445,16 +446,17 @@ static int pxa27x_keypad_resume(struct device *dev)
 
 	if (device_may_wakeup(&pdev->dev))
 		disable_irq_wake(keypad->irq);
+	else {
+		mutex_lock(&input_dev->mutex);
 
-	mutex_lock(&input_dev->mutex);
+		if (input_dev->users) {
+			/* Enable unit clock */
+			clk_enable(keypad->clk);
+			pxa27x_keypad_config(keypad);
+		}
 
-	if (input_dev->users) {
-		/* Enable unit clock */
-		clk_enable(keypad->clk);
-		pxa27x_keypad_config(keypad);
+		mutex_unlock(&input_dev->mutex);
 	}
-
-	mutex_unlock(&input_dev->mutex);
 
 	return 0;
 }
