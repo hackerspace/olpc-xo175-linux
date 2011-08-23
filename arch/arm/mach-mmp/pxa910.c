@@ -118,6 +118,22 @@ struct clkops lcd_pn1_clk_ops = {
 	.getrate	= lcd_clk_getrate,
 };
 
+static void nand_clk_enable(struct clk *clk)
+{
+	__raw_writel(0x19b, clk->clk_rst);
+}
+
+static void nand_clk_disable(struct clk *clk)
+{
+	/* only disable peripheral clock */
+	__raw_writel(0x18b, clk->clk_rst);
+}
+
+struct clkops nand_clk_ops = {
+	.enable     = nand_clk_enable,
+	.disable    = nand_clk_disable,
+};
+
 #define APMASK(i)	(GPIO_REGS_VIRT + BANK_OFF(i) + 0x09c)
 
 static void __init pxa910_init_gpio(void)
@@ -172,7 +188,7 @@ static APBC_CLK(rtc, PXA910_RTC, 0x8, 1);
 static APBC_CLK(keypad, PXA910_KPC, 0, 32000);
 static APBC_CLK(1wire,  PXA910_ONEWIRE,  0, 26000000);
 
-static APMU_CLK(nand, NAND, 0x19b, 156000000);
+static APMU_CLK_OPS(nand, NAND, 0x019b, 156000000, &nand_clk_ops);
 static APMU_CLK(u2o, USB, 0x1b, 480000000);
 static APMU_CLK(sdh0, SDH0, 0x001b, 44500000);
 static APMU_CLK(sdh1, SDH1, 0x001b, 44500000);

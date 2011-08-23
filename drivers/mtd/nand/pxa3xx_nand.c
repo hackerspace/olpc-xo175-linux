@@ -1645,6 +1645,7 @@ static int pxa3xx_nand_suspend(struct platform_device *pdev, pm_message_t state)
 		mtd->suspend(mtd);
 	}
 
+	clk_disable(info->clk);
 	return 0;
 }
 
@@ -1665,7 +1666,7 @@ static int pxa3xx_nand_resume(struct platform_device *pdev)
 	 * to current chip select at the beginning of cmdfunc
 	 */
 	info->cs = 0xff;
-
+	clk_enable(info->clk);
 	/*
 	 * As the spec says, the NDSR would be updated to 0x1800 when
 	 * doing the nand_clk disable/enable.
