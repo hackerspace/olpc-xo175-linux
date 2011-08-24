@@ -29,7 +29,7 @@
 #include <asm/cacheflush.h>
 
 #define PMEM_MAX_DEVICES 10
-#define PMEM_MAX_ORDER 128
+#define PMEM_MAX_ORDER 64
 #define PMEM_MIN_ALLOC PAGE_SIZE
 
 #define PMEM_DEBUG 1
@@ -82,7 +82,9 @@ struct pmem_data {
 
 struct pmem_bits {
 	unsigned allocated:1;		/* 1 if allocated, 0 if free */
-	unsigned order:7;		/* size of the region in pmem space */
+	unsigned compound:1;		/* 1 if the next index belongs to
+					   a compound allocation, 0 if no */ 
+	unsigned order:6;		/* size of the region in pmem space */
 };
 
 struct pmem_bitmap {
@@ -239,7 +241,7 @@ static int is_master_owner(struct file *file)
 static int pmem_free(int id, int index)
 {
 	/* caller should hold the write lock on pmem_sem! */
-	int buddy, curr = index;
+	int buddy = index, curr;
 	DLOG("index %d\n", index);
 
 	if (pmem[id].no_allocator) {
@@ -247,8 +249,14 @@ static int pmem_free(int id, int index)
 		return 0;
 	}
 	/* clean up the bitmap, merging any buddies */
-	pmem[id].bitmap->bits[curr].allocated = 0;
-	/* find a slots buddy Buddy# = Slot# ^ (1 << order)
+	do {
+		curr = buddy;
+		pmem[id].bitmap->bits[curr].allocated = 0;
+		buddy = PMEM_NEXT_INDEX(id, curr);
+		DLOG("free %d %d\n", curr, pmem[id].bitmap->bits[curr].compound);
+	} while (pmem[id].bitmap->bits[curr].compound);
+	/*
+	 * find a slots buddy Buddy# = Slot# ^ (1 << order)
 	 * if the buddy is also free merge them
 	 * repeat until the buddy is not free or end of the bitmap is reached
 	 */
@@ -386,8 +394,8 @@ static int pmem_allocate(int id, unsigned long len)
 	/* return the corresponding pdata[] entry */
 	int curr = 0;
 	int end = pmem[id].bitmap->num_entries;
-	int best_fit = -1;
-	unsigned long order = pmem_order(len);
+	int best_fit = -1, compound_fit = -1;
+	unsigned long order = pmem_order(len), mask, remains;
 
 	if (pmem[id].no_allocator) {
 		DLOG("no allocator");
@@ -401,26 +409,49 @@ static int pmem_allocate(int id, unsigned long len)
 		return -1;
 	DLOG("order %lx\n", order);
 
-	/* look through the bitmap:
+	/*
+	 * look through the bitmap:
 	 * 	if you find a free slot of the correct order use it
-	 * 	otherwise, use the best fit (smallest with size > order) slot
+	 *	otherwise,
+	 *	1. find continuous free slots whose summation of order/len
+	 *	   meets the requirement.
+	 * 	2. use the best fit (smallest with size > order) slot
 	 */
 	while (curr < end) {
 		if (PMEM_IS_FREE(id, curr)) {
-			if (PMEM_ORDER(id, curr) == (unsigned char)order) {
+			unsigned long curr_order = PMEM_ORDER(id, curr);
+			if (curr_order == (unsigned char)order) {
 				/* set the not free bit and clear others */
 				best_fit = curr;
 				break;
 			}
-			if (PMEM_ORDER(id, curr) > (unsigned char)order &&
-			    (best_fit < 0 ||
-			     PMEM_ORDER(id, curr) < PMEM_ORDER(id, best_fit)))
-				best_fit = curr;
-		}
+			if (curr_order > (unsigned char)order) {
+				if (best_fit < 0 ||
+				    curr_order < PMEM_ORDER(id, best_fit))
+					best_fit = curr;
+				compound_fit = -1;
+			} else {
+				if (compound_fit < 0) {
+					remains =len;
+					compound_fit = curr;
+				}
+				mask = 1 << curr_order;
+				if (remains & mask)
+					remains &= ~mask;
+				else
+					remains &= ~(mask - 1);
+				if (!remains) {
+					best_fit = compound_fit;
+					break;
+				}
+			}
+		} else
+			compound_fit = -1;
 		curr = PMEM_NEXT_INDEX(id, curr);
 	}
 
-	/* if best_fit < 0, there are no suitable slots,
+	/*
+	 *if best_fit < 0, there are no suitable slots,
 	 * return an error
 	 */
 	if (best_fit < 0) {
@@ -428,17 +459,34 @@ static int pmem_allocate(int id, unsigned long len)
 		return -1;
 	}
 
-	/* now partition the best fit:
+	/*
+	 * now partition the best fit:
+	 * 1. order > length
 	 * 	split the slot into 2 buddies of order - 1
-	 * 	repeat until the slot is of the correct order
+	 * 2. order & length
+	 *	mark allocated
+	 *	mark compound if there remains un-allocation
+	 * 	go ahead with the next index
 	 */
-	while (PMEM_ORDER(id, best_fit) > (unsigned char)order) {
-		int buddy;
-		PMEM_ORDER(id, best_fit) -= 1;
-		buddy = PMEM_BUDDY_INDEX(id, best_fit);
-		PMEM_ORDER(id, buddy) = PMEM_ORDER(id, best_fit);
+	curr = best_fit;
+	while (len) {
+		while (!(len >> PMEM_ORDER(id, curr))) {
+			int buddy;
+			PMEM_ORDER(id, curr) -= 1;
+			buddy = PMEM_BUDDY_INDEX(id, curr);
+			PMEM_ORDER(id, buddy) = PMEM_ORDER(id, curr);
+		}
+		mask = 1<<PMEM_ORDER(id, curr);
+		DLOG("allocated %d mask %lx order %d\n",
+		     best_fit, mask, PMEM_ORDER(id, best_fit));
+		if (len & mask)
+			len &= ~mask;
+		else
+			len &= ~(mask - 1);
+		pmem[id].bitmap->bits[curr].allocated = 1;
+		pmem[id].bitmap->bits[curr].compound = (len != 0);
+		curr = PMEM_NEXT_INDEX(id, curr);
 	}
-	pmem[id].bitmap->bits[best_fit].allocated = 1;
 	return best_fit;
 }
 
@@ -463,7 +511,22 @@ static unsigned long pmem_start_addr(int id, struct pmem_data *data)
 		return PMEM_START_ADDR(id, 0);
 	else
 		return PMEM_START_ADDR(id, data->index);
+}
 
+static unsigned long pmem_len(int id, struct pmem_data *data)
+{
+	if (pmem[id].no_allocator)
+		return (unsigned long)data->index;
+	else {
+		unsigned long len = 0;
+		int next = data->index, curr;
+		do {
+			curr = next;
+			next = PMEM_NEXT_INDEX(id, curr);
+			len += PMEM_LEN(id, curr);
+		} while (pmem[id].bitmap->bits[curr].compound);
+		return len;
+	}
 }
 
 static void *pmem_start_vaddr(int id, struct pmem_data *data)
@@ -481,14 +544,6 @@ static void *pmem_start_vaddr(int id, struct pmem_data *data)
 
 	BUG_ON(!data || !data->vma);
 	return (void *) data->vma->vm_start;
-}
-
-static unsigned long pmem_len(int id, struct pmem_data *data)
-{
-	if (pmem[id].no_allocator)
-		return (unsigned long)data->index;
-	else
-		return PMEM_LEN(id, data->index);
 }
 
 /*
