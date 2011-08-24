@@ -117,6 +117,12 @@ static unsigned long yellowstone_pin_config[] __initdata = {
 	PMIC_PMIC_INT | MFP_LPM_EDGE_FALL,
 
 	GPIO128_LCD_RST,
+
+	/* OTG vbus enable signal */
+	GPIO82_VBUS_EN,
+
+	/* HSIC1 reset pin*/
+	GPIO96_HSIC_RESET,
 };
 
 static unsigned long mmc1_pin_config[] __initdata = {
@@ -567,6 +573,7 @@ static void __init yellowstone_init_mmc(void)
 }
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
 
+
 #ifdef CONFIG_USB_SUPPORT
 
 #if defined(CONFIG_USB_PXA_U2O) || defined(CONFIG_USB_EHCI_PXA_U2O)
@@ -575,13 +582,36 @@ extern int pxa_usb_phy_init(unsigned int base);
 static char *mmp3_usb_clock_name[] = {
 	[0] = "U2OCLK",
 };
+
+static int pxa_usb_set_vbus(unsigned int vbus)
+{
+	int gpio = mfp_to_gpio(GPIO82_VBUS_EN);
+
+	printk(KERN_INFO "%s: set %d\n", __func__, vbus);
+
+	/* 5V power supply to external port */
+	if (gpio_request(gpio, "OTG VBUS Enable")) {
+		printk(KERN_INFO "gpio %d request failed\n", gpio);
+		return -1;
+	}
+
+	if (vbus)
+		gpio_direction_output(gpio, 1);
+	else
+		gpio_direction_output(gpio, 0);
+
+	gpio_free(gpio);
+
+	return 0;
+}
+
 static struct mv_usb_platform_data mmp3_usb_pdata = {
 	.clknum		= 1,
 	.clkname	= mmp3_usb_clock_name,
 	.vbus		= NULL,
 	.mode		= MV_USB_MODE_OTG,
 	.phy_init	= pxa_usb_phy_init,
-	.set_vbus	= NULL,
+	.set_vbus	= pxa_usb_set_vbus,
 };
 #endif
 
@@ -611,34 +641,30 @@ static int mmp3_hsic1_reset(void)
 static int mmp3_hsic1_set_vbus(unsigned int vbus)
 {
 	static struct regulator *ldo5;
-	int gpio = mfp_to_gpio(GPIO62_VBUS_EN);
 
 	printk(KERN_INFO "%s: set %d\n", __func__, vbus);
-	if (!ldo5) {
-		ldo5 = regulator_get(NULL, "v_ldo5");
-		if (IS_ERR(ldo5)) {
-			printk(KERN_INFO "ldo5 not found\n");
-			return -EIO;
+	if (vbus) {
+		if (!ldo5) {
+			ldo5 = regulator_get(NULL, "v_ldo5");
+			if (IS_ERR(ldo5)) {
+				printk(KERN_INFO "ldo5 not found\n");
+				return -EIO;
+			}
+			regulator_set_voltage(ldo5, 1200000, 1200000);
+			regulator_enable(ldo5);
+			printk(KERN_INFO "%s: enable regulator\n", __func__);
+			udelay(2);
 		}
-		regulator_set_voltage(ldo5, 1200000, 1200000);
-		regulator_enable(ldo5);
-		printk(KERN_INFO "%s: enable regulator\n", __func__);
+
+		mmp3_hsic1_reset();
+	} else {
+		if (ldo5) {
+			regulator_disable(ldo5);
+			regulator_put(ldo5);
+			ldo5 = NULL;
+		}
 	}
 
-	/* 5V power supply to external port */
-	if (gpio_request(gpio, "HSIC1 VBUS Enable")) {
-		printk(KERN_INFO "gpio %d request failed\n", gpio);
-		return -1;
-	}
-
-	if (vbus)
-		gpio_direction_output(gpio, 1);
-	else
-		gpio_direction_output(gpio, 0);
-
-	gpio_free(gpio);
-
-	mmp3_hsic1_reset();
 	return 0;
 }
 
@@ -658,6 +684,8 @@ static struct mv_usb_platform_data mmp3_hsic1_pdata = {
 };
 
 #endif
+#endif
+
 
 #ifdef CONFIG_UIO_HDMI
 static struct uio_hdmi_platform_data mmp3_hdmi_info __initdata = {
@@ -665,8 +693,6 @@ static struct uio_hdmi_platform_data mmp3_hdmi_info __initdata = {
 	/* Fix me: gpio 59 lpm pull ? */
 	.gpio = mfp_to_gpio(GPIO59_HDMI_DET),
 };
-#endif
-
 #endif
 
 static void __init yellowstone_init(void)

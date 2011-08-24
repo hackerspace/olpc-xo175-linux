@@ -398,6 +398,9 @@
 /* OTG VBUS_EN - Abilene A0 Board */
 #define GPIO62_VBUS_EN		MFP_CFG(GPIO62, AF0)
 
+/* OTG VBUS_EN - YellowStone A0 Board */
+#define GPIO82_VBUS_EN		MFP_CFG(GPIO82, AF0)
+
 /* HSIC1 RESET - Abilene A0 Board */
 #define GPIO96_HSIC_RESET	MFP_CFG(GPIO96, AF0) | MFP_LPM_DRIVE_LOW
 
