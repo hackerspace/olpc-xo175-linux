@@ -29,6 +29,7 @@
 #include <linux/memblock.h>
 
 #include <plat/mfp.h>
+#include <plat/pmem.h>
 #include "common.h"
 #include "clock.h"
 
@@ -380,4 +381,8 @@ void __init pxa910_reserve(void)
 	/* Reserve memory for CP */
 	pxa910_reserve_cpmem_memblock();
 
+#ifdef CONFIG_ANDROID_PMEM
+	/* Reserve memory for pmem */
+	pxa_reserve_pmem_memblock();
+#endif
 }
