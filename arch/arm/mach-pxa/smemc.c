@@ -13,7 +13,7 @@
 
 DEFINE_MUTEX(smc_lock);
 
-#ifdef CONFIG_PM
+#if defined(CONFIG_PM) && !defined(CONFIG_PXA95x)
 static unsigned long msc[2];
 static unsigned long sxcnfg, memclkcfg;
 static unsigned long csadrcfg[4];
