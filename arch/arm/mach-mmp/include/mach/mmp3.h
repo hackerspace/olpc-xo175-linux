@@ -18,6 +18,7 @@ extern void __init mmp3_init_irq(void);
 #include <plat/pxa3xx_nand.h>
 #include <linux/platform_data/pxa_sdhci.h>
 #include <mach/sram.h>
+#include <mach/camera.h>
 
 #define IOPWRDOM_VIRT_BASE	(APB_VIRT_BASE + 0x1e800)
 #define PAD_1V8			(1 << 2)
@@ -47,6 +48,8 @@ extern struct pxa_device_desc mmp3_device_sdh0;
 extern struct pxa_device_desc mmp3_device_sdh1;
 extern struct pxa_device_desc mmp3_device_sdh2;
 extern struct pxa_device_desc mmp3_device_sdh3;
+extern struct pxa_device_desc mmp3_device_camera0;
+extern struct pxa_device_desc mmp3_device_camera1;
 extern struct pxa_device_desc mmp3_device_pwm1;
 extern struct pxa_device_desc mmp3_device_pwm2;
 extern struct pxa_device_desc mmp3_device_pwm3;
@@ -123,6 +126,22 @@ static inline int mmp3_add_twsi(int id, struct i2c_pxa_platform_data *data,
 		return ret;
 
 	return pxa_register_device(d, data, sizeof(*data));
+}
+
+static inline int mmp3_add_cam(int id, struct mv_cam_pdata *cam)
+{
+	struct pxa_device_desc *d = NULL;
+
+	switch (id) {
+	case 0:
+		d = &mmp3_device_camera0; break;
+	case 1:
+		d = &mmp3_device_camera1; break;
+	default:
+		return -EINVAL;
+	}
+
+	return pxa_register_device(d, cam, sizeof(*cam));
 }
 
 static inline int mmp3_add_nand(struct pxa3xx_nand_platform_data *info)

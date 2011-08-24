@@ -17,9 +17,10 @@
 #define APMU_REG(x)	(APMU_VIRT_BASE + (x))
 
 /* Clock Reset Control */
+#define APMU_CCIC_GATE	APMU_REG(0x028)
 #define APMU_IRE	APMU_REG(0x048)
 #define APMU_LCD	APMU_REG(0x04c)
-#define APMU_CCIC	APMU_REG(0x050)
+#define APMU_CCIC_RST	APMU_REG(0x050)
 #define APMU_SDH0	APMU_REG(0x054)
 #define APMU_SDH1	APMU_REG(0x058)
 #define APMU_USB	APMU_REG(0x05c)

@@ -490,6 +490,47 @@ struct clkops gc_clk_ops = {
 	.getrate	= gc_clk_getrate,
 };
 
+static void ccic_dbg_clk_enable(struct clk *clk)
+{
+	u32 tmp = __raw_readl(clk->clk_rst);
+	tmp |= (1<<25) | (1<<27);
+	__raw_writel(tmp, clk->clk_rst);
+}
+
+static void ccic_dbg_clk_disable(struct clk *clk)
+{
+	u32 tmp = __raw_readl(clk->clk_rst);
+	tmp &= ~((1<<25) | (1<<27));
+	__raw_writel(tmp, clk->clk_rst);
+}
+
+struct clkops ccic_dbg_clk_ops = {
+	.enable         = ccic_dbg_clk_enable,
+	.disable        = ccic_dbg_clk_disable,
+};
+
+static void ccic_rst_clk_enable(struct clk *clk)
+{
+	__raw_writel(0x2e838, clk->clk_rst);
+	__raw_writel(0x3e909, clk->clk_rst);
+	__raw_writel(0x3eb39, clk->clk_rst);
+	__raw_writel(0x3eb3f, clk->clk_rst);
+}
+
+static void ccic_rst_clk_disable(struct clk *clk)
+{
+	__raw_writel(0x3eb3f, clk->clk_rst);
+	__raw_writel(0x3eb39, clk->clk_rst);
+	__raw_writel(0x3e909, clk->clk_rst);
+	__raw_writel(0x2e838, clk->clk_rst);
+	__raw_writel(0x0, clk->clk_rst);
+}
+
+struct clkops ccic_rst_clk_ops = {
+	.enable         = ccic_rst_clk_enable,
+	.disable        = ccic_rst_clk_disable,
+};
+
 void __init mmp3_init_irq(void)
 {
 	gic_init(0, 29, (void __iomem *) GIC_DIST_VIRT_BASE, (void __iomem *) GIC_CPU_VIRT_BASE);
@@ -526,6 +567,9 @@ static APMU_CLK_OPS(sdh2, SDH2, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(sdh3, SDH3, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(lcd, LCD, 0, 500000000, &lcd_pn1_clk_ops);
 static APMU_CLK_OPS(gc, GC, 0, 0, &gc_clk_ops);
+static APMU_CLK_OPS(ccic_rst, CCIC_RST, 0, 312000000, &ccic_rst_clk_ops);
+static APMU_CLK_OPS(ccic_dbg, CCIC_DBG, 0, 312000000, &ccic_dbg_clk_ops);
+static APMU_CLK(ccic_gate, CCIC_GATE, 0xffff, 0);
 
 static struct clk_lookup mmp3_clkregs[] = {
 	INIT_CLKREG(&clk_uart1, "pxa2xx-uart.0", NULL),
@@ -549,6 +593,12 @@ static struct clk_lookup mmp3_clkregs[] = {
 	INIT_CLKREG(&clk_sdh1, "sdhci-pxav3.1", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_sdh2, "sdhci-pxav3.2", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_sdh3, "sdhci-pxav3.3", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_ccic_rst, "mv-camera.0", "CCICRSTCLK"),
+	INIT_CLKREG(&clk_ccic_rst, "mv-camera.1", "CCICRSTCLK"),
+	INIT_CLKREG(&clk_ccic_dbg, "mv-camera.0", "CCICDBGCLK"),
+	INIT_CLKREG(&clk_ccic_dbg, "mv-camera.1", "CCICDBGCLK"),
+	INIT_CLKREG(&clk_ccic_gate, "mv-camera.0", "CCICGATECLK"),
+	INIT_CLKREG(&clk_ccic_gate, "mv-camera.1", "CCICGATECLK"),
 	INIT_CLKREG(&clk_rtc, "mmp-rtc", NULL),
 	INIT_CLKREG(&clk_u2o, NULL, "U2OCLK"),
 	INIT_CLKREG(&clk_hsic1, NULL, "HSIC1CLK"),
@@ -721,6 +771,8 @@ MMP3_DEVICE(sspa1, "mmp2-sspa", 0, SSPA1, 0xc0ffdc00, 0xb0, ADMA1_CH_1,
 MMP3_DEVICE(sspa2, "mmp2-sspa", 1, SSPA2, 0xc0ffdd00, 0xb0, ADMA2_CH_1,
 	    ADMA2_CH_0);
 MMP3_DEVICE(audiosram, "mmp-sram", 0, NONE, 0xd1030000, 0x20000);
+MMP3_DEVICE(camera0, "mv-camera", 0, CCIC1, 0xd420a000, 0x2ff);
+MMP3_DEVICE(camera1, "mv-camera", 1, CCIC2, 0xd420a800, 0x2ff);
 
 void mmp3_clear_keypad_wakeup(void)
 {
