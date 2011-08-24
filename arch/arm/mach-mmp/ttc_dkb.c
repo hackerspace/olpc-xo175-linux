@@ -96,6 +96,10 @@ static unsigned long ttc_dkb_pin_config[] __initdata = {
 	DF_REn_DF_REn,
 	DF_RDY0_DF_RDY0,
 
+	/* I2C */
+	GPIO53_CI2C_SCL,
+	GPIO54_CI2C_SDA,
+
 	/* mmc */
 	MMC1_DAT7_MMC1_DAT7,
 	MMC1_DAT6_MMC1_DAT6,
@@ -638,6 +642,54 @@ static struct i2c_board_info ttc_dkb_i2c_info[] = {
 #endif
 };
 
+/* workaround for reset i2c bus by GPIO53 -SCL, GPIO54 -SDA */
+static void i2c_pxa_bus_reset(void)
+{
+	unsigned long i2c_mfps[] = {
+		GPIO53_GPIO53,		/* SCL */
+		GPIO54_GPIO54,		/* SDA */
+	};
+	unsigned long mfp_pin[ARRAY_SIZE(i2c_mfps)];
+	int ccnt;
+
+	if (gpio_request(MFP_PIN_GPIO53, "SCL")) {
+		pr_err("Failed to request GPIO for SCL pin!\n");
+		goto out;
+	}
+	if (gpio_request(MFP_PIN_GPIO54, "SDA")) {
+		pr_err("Failed to request GPIO for SDA pin!\n");
+		goto out_sda;
+	}
+	pr_info("\t<<<i2c bus reseting>>>\n");
+	/* set mfp pins to gpio */
+	mfp_pin[0] = mfp_read(MFP_PIN_GPIO53);
+	mfp_pin[1] = mfp_read(MFP_PIN_GPIO54);
+	mfp_config(ARRAY_AND_SIZE(i2c_mfps));
+
+	gpio_direction_input(MFP_PIN_GPIO54);
+	for (ccnt = 20; ccnt; ccnt--) {
+		gpio_direction_output(MFP_PIN_GPIO53, ccnt & 0x01);
+		udelay(4);
+	}
+	gpio_direction_output(MFP_PIN_GPIO53, 0);
+	udelay(4);
+	gpio_direction_output(MFP_PIN_GPIO54, 0);
+	udelay(4);
+	/* stop signal */
+	gpio_direction_output(MFP_PIN_GPIO53, 1);
+	udelay(4);
+	gpio_direction_output(MFP_PIN_GPIO54, 1);
+	udelay(4);
+
+	mfp_write(MFP_PIN_GPIO53, mfp_pin[0]);
+	mfp_write(MFP_PIN_GPIO54, mfp_pin[1]);
+	gpio_free(MFP_PIN_GPIO54);
+out_sda:
+	gpio_free(MFP_PIN_GPIO53);
+out:
+	return;
+}
+
 static struct i2c_pxa_platform_data dkb_i2c_pdata = {
 	.fast_mode		 = 1,
 	/* ilcr:fs mode b17~9=0x22,about 380K, standard mode b8~0=0x7E,100K */
@@ -646,6 +698,7 @@ static struct i2c_pxa_platform_data dkb_i2c_pdata = {
 	.hardware_lock		= pxa910_ripc_lock,
 	.hardware_unlock	= pxa910_ripc_unlock,
 	.hardware_trylock	= pxa910_ripc_trylock,
+	.i2c_bus_reset		= i2c_pxa_bus_reset,
 };
 
 static struct i2c_pxa_platform_data ttc_dkb_pwr_i2c_pdata = {
