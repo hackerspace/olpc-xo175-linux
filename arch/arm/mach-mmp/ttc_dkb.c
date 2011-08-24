@@ -42,6 +42,7 @@
 #include <mach/regs-rtc.h>
 
 #include <plat/usb.h>
+#include <plat/pmem.h>
 #include <mach/regs-rtc.h>
 #include <mach/camera.h>
 #include <media/soc_camera.h>
@@ -1467,6 +1468,10 @@ static void __init ttc_dkb_init(void)
 
 #if defined(CONFIG_MMC_SDHCI_PXAV2)
 	pxa910_init_mmc();
+#endif
+
+#ifdef CONFIG_ANDROID_PMEM
+	pxa_add_pmem();
 #endif
 
 	/* off-chip devices */
