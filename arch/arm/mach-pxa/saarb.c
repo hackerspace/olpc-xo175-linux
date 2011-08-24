@@ -632,6 +632,8 @@ static void __init saarb_init(void)
 	init_mmc();
 #endif
 
+	/* Init boot flash - sync mode in case of ONENAND */
+	pxa_boot_flash_init(1);
 }
 
 MACHINE_START(SAARB, "PXA968 (PXA955) Handheld Platform (aka SAARB)")

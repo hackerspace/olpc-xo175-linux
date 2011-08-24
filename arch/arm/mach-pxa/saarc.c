@@ -388,6 +388,8 @@ static void __init init(void)
 	init_lcd();
 #endif
 
+	/* Init boot flash - sync mode in case of ONENAND */
+	pxa_boot_flash_init(1);
 }
 
 MACHINE_START(NEVOSAARC, "PXA970 Handheld Platform (aka SAAR C2)")
