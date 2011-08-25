@@ -573,6 +573,22 @@ static void __init init_mmc(void)
 
 #endif
 
+#if defined(CONFIG_SENSORS_LIS331DL)
+static unsigned long lis33ldl_min_delay = 20;
+#endif
+
+static struct i2c_board_info i2c2_info[] = {
+
+#if defined(CONFIG_SENSORS_LIS331DL)
+	{
+		.type		= "lis331dl",
+		.addr		= 0x1c,
+		.platform_data	= &lis33ldl_min_delay,
+	},
+#endif
+
+};
+
 
 static void __init saarb_init(void)
 {
@@ -585,6 +601,7 @@ static void __init saarb_init(void)
 				 sizeof(i2c3_pdata));
 	platform_add_devices(ARRAY_AND_SIZE(devices));
 	i2c_register_board_info(0, ARRAY_AND_SIZE(saarb_i2c_info));
+	i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info));
 
 #if defined(CONFIG_UIO_VMETA)
 	init_vmeta();
