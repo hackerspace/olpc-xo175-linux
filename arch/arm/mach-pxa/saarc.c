@@ -20,6 +20,8 @@
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/mmc/sdhci.h>
+#include <linux/cwmi.h>
+#include <linux/cwgd.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -159,6 +161,58 @@ static struct i2c_board_info i2c1_info[] = {
 		.platform_data	= &pm8607_info,
 		.irq		= gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO83)),
 	},
+};
+
+
+static struct cwmi_platform_data cwmi_acc_data = {
+	.set_power = NULL,
+	.axes = {
+		1, 0, 0,
+		0, -1, 0,
+		0, 0, 1},
+};
+
+static struct cwmi_platform_data cwmi_mag_data = {
+	.set_power = NULL,
+	.axes = {
+		-1, 0, 0,
+		0, 1, 0,
+		0, 0, -1},
+};
+
+static struct cwgd_platform_data cwgd_plat_data = {
+	.set_power = NULL,
+	.axes = {
+		-1, 0, 0,
+		0, 1, 0,
+		0, 0, -1},
+};
+
+static struct i2c_board_info i2c3_info[] = {
+#if defined(CONFIG_SENSORS_CWMI)
+	{
+	 .type = "cwmi_acc",
+	 .addr = 0x19,		/* Write addr 0x32, read addr 0x33 */
+	 .irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO11)),
+	 .platform_data = &cwmi_acc_data,
+	 },
+
+	{
+	 .type = "cwmi_mag",
+	 .addr = 0x1e,		/*write addr 0x3C, read addr 0x3D */
+	 .irq = 0,/*gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO10)),*/
+	 .platform_data = &cwmi_mag_data,
+	 },
+#endif
+#if defined(CONFIG_SENSORS_CWGD)
+	{
+	 .type = "cwgd",
+	 .addr = 0x69,		/*R1 mount(High) write=0xD2, Read=0xD3 */
+	 .irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO9)),
+	 .platform_data = &cwgd_plat_data,
+	 },
+#endif
+
 };
 
 static struct i2c_pxa_platform_data i2c1_pdata = {
@@ -320,6 +374,7 @@ static void __init init(void)
 
 	platform_add_devices(ARRAY_AND_SIZE(devices));
 	i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_info));
+	i2c_register_board_info(2, ARRAY_AND_SIZE(i2c3_info));
 
 #if defined(CONFIG_UIO_VMETA)
 	init_vmeta();
