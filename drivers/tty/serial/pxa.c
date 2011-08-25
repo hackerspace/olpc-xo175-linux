@@ -47,7 +47,9 @@
 #include <linux/wakelock.h>
 #include <mach/dma.h>
 
+#ifdef CONFIG_PXA95x
 #include <mach/dvfm.h>
+#endif
 
 #define	DMA_BLOCK	UART_XMIT_SIZE
 
