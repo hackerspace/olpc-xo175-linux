@@ -269,7 +269,8 @@ int sdio_claim_irq(struct sdio_func *func, sdio_irq_handler_t *handler)
 	ret = sdio_card_irq_get(func->card);
 	if (ret)
 		func->irq_handler = NULL;
-	sdio_single_irq_set(func->card);
+	/* FIXME commented this line why we need this on 3.0 kernel ?*/
+	/* sdio_single_irq_set(func->card); */
 
 	return ret;
 }
@@ -294,7 +295,8 @@ int sdio_release_irq(struct sdio_func *func)
 	if (func->irq_handler) {
 		func->irq_handler = NULL;
 		sdio_card_irq_put(func->card);
-		sdio_single_irq_set(func->card);
+		/* FIXME commented this line why we need this on 3.0 kernel ?*/
+		/* sdio_single_irq_set(func->card); */
 	}
 
 	ret = mmc_io_rw_direct(func->card, 0, 0, SDIO_CCCR_IENx, 0, &reg);
