@@ -242,25 +242,33 @@ static int is_master_owner(struct file *file)
 static int pmem_free(int id, int index)
 {
 	/* caller should hold the write lock on pmem_sem! */
-	int buddy = index, curr;
+	int buddy, curr;
+	int compound;
 	DLOG("index %d\n", index);
 
 	if (pmem[id].no_allocator) {
 		pmem[id].allocated = 0;
 		return 0;
 	}
-	/* clean up the bitmap, merging any buddies */
+
+	/* clean up the bitmap */
+	curr = index;
 	do {
-		curr = buddy;
+		compound = pmem[id].bitmap->bits[curr].compound;
 		pmem[id].bitmap->bits[curr].allocated = 0;
-		buddy = PMEM_NEXT_INDEX(id, curr);
-		DLOG("free %d %d\n", curr, pmem[id].bitmap->bits[curr].compound);
-	} while (pmem[id].bitmap->bits[curr].compound);
+		pmem[id].bitmap->bits[curr].compound = 0;
+		curr = PMEM_NEXT_INDEX(id, curr);
+		DLOG("free %d %d\n", curr, compound);
+	} while (compound);
+
 	/*
 	 * find a slots buddy Buddy# = Slot# ^ (1 << order)
 	 * if the buddy is also free merge them
 	 * repeat until the buddy is not free or end of the bitmap is reached
+	 * or next block is not free (since compound page is introduced, next
+	 * block may be less than current block)
 	 */
+	curr = index;
 	do {
 		buddy = PMEM_BUDDY_INDEX(id, curr);
 		if (PMEM_IS_FREE(id, buddy) &&
@@ -269,7 +277,9 @@ static int pmem_free(int id, int index)
 			PMEM_ORDER(id, curr)++;
 			curr = min(buddy, curr);
 		} else {
-			break;
+			curr = PMEM_NEXT_INDEX(id, curr);
+			if (!PMEM_IS_FREE(id, curr))
+				break;
 		}
 	} while (curr < pmem[id].bitmap->num_entries);
 
