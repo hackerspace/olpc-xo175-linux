@@ -91,6 +91,7 @@ static struct mfp_addr_map pxa910_mfp_addr_map[] __initdata =
 	MFP_ADDR(SM_RDY, 0x80),
 
 	MFP_ADDR_X(MMC1_DAT7, MMC1_WP, 0x84),
+	MFP_ADDR(VCXOREQ, 0xd4),
 
 	MFP_ADDR_END,
 };
@@ -308,6 +309,26 @@ static void pxa910_init_ripc_clock(void)
         __raw_writel(0x0, APBC_PXA910_RIPC);
 }
 
+struct platform_device pxa910_device_asoc_ssp1 = {
+	.name		= "pxa-ssp-dai",
+	.id		= 1,
+};
+
+struct platform_device pxa910_device_asoc_gssp = {
+	.name		= "pxa-ssp-dai",
+	.id		= 4,
+};
+
+struct platform_device pxa910_device_asoc_pcm = {
+	.name		= "pxa-pcm-audio",
+	.id		= -1,
+};
+
+struct platform_device pxa910_device_asoc_squ = {
+	.name		= "pxa910-squ-audio",
+	.id		= -1,
+};
+
 static int __init pxa910_init(void)
 {
 	if (cpu_is_pxa910()) {
@@ -318,6 +339,12 @@ static int __init pxa910_init(void)
 		mfp_init_addr(pxa910_mfp_addr_map);
 		pxa_init_dma(IRQ_PXA910_DMA_INT0, 32);
 		pxa910_init_squ(2);
+
+		platform_device_register(&pxa910_device_asoc_ssp1);
+		platform_device_register(&pxa910_device_asoc_gssp);
+		platform_device_register(&pxa910_device_asoc_pcm);
+		platform_device_register(&pxa910_device_asoc_squ);
+
 		clkdev_add_table(ARRAY_AND_SIZE(pxa910_clkregs));
 
 		/* enable ac-ipc clock */

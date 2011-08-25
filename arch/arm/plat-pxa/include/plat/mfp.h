@@ -309,6 +309,9 @@ enum {
 	MFP_PIN_MMC1_CD,
 	MFP_PIN_MMC1_WP,
 
+	/* additional pins on PXA910 */
+	MFP_PIN_VCXOREQ,
+
 	/* additional pins on PXA930 */
 	MFP_PIN_GSIM_UIO,
 	MFP_PIN_GSIM_UCLK,
