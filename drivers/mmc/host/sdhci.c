@@ -1465,6 +1465,21 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 out:
 	mmiowb();
 	spin_unlock_irqrestore(&host->lock, flags);
+
+	if (host->vsdio) {
+		if (ios->power_mode != host->power_mode_old) {
+			if (ios->power_mode == MMC_POWER_OFF) {
+				regulator_disable(host->vsdio);
+				DBG("%s: regulator vsdio is disabled\n", mmc_hostname(host->mmc));
+			}
+			if (ios->power_mode == MMC_POWER_UP) {
+				regulator_enable(host->vsdio);
+				DBG("%s: regulator vsdio is enabled\n", mmc_hostname(host->mmc));
+			}
+		}
+
+		host->power_mode_old = ios->power_mode;
+	}
 }
 
 static int check_ro(struct sdhci_host *host)
@@ -2830,6 +2845,13 @@ int sdhci_add_host(struct sdhci_host *host)
 		regulator_enable(host->vmmc);
 	}
 
+	host->vsdio = regulator_get(mmc_dev(mmc), "vsdio");
+	if (IS_ERR(host->vsdio))
+		host->vsdio = NULL;
+	else
+		printk(KERN_INFO "%s: vsdio regulator found\n",
+			mmc_hostname(mmc));
+
 	sdhci_init(host, 0);
 
 #ifdef CONFIG_MMC_DEBUG
@@ -2920,6 +2942,9 @@ void sdhci_remove_host(struct sdhci_host *host, int dead)
 		regulator_disable(host->vmmc);
 		regulator_put(host->vmmc);
 	}
+
+	if (host->vsdio)
+		regulator_put(host->vsdio);
 
 	kfree(host->adma_desc);
 	kfree(host->align_buffer);

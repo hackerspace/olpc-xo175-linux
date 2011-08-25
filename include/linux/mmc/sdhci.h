@@ -94,6 +94,8 @@ struct sdhci_host {
 	const struct sdhci_ops *ops;	/* Low level hw interface */
 
 	struct regulator *vmmc;	/* Power regulator */
+	struct regulator *vsdio;	/* sdio Power regulator */
+	unsigned char power_mode_old;	/* power supply mode */
 
 	/* Internal data */
 	struct mmc_host *mmc;	/* MMC structure */
