@@ -15,6 +15,9 @@
 
 #define APBC_VIRT_BASE	(APB_VIRT_BASE + 0x015000)
 #define APBC_REG(x)	(APBC_VIRT_BASE + (x))
+/* add for AP controls GSSP device */
+#define CPBC_VIRT_BASE	(APB_VIRT_BASE + 0x03b000)
+#define CPBC_REG(x)	(CPBC_VIRT_BASE + (x))
 
 /*
  * APB clock register offsets for PXA168
@@ -76,6 +79,9 @@
 #define APBC_PXA910_SSP3	APBC_REG(0x04c)
 #define APBC_PXA910_ASFAR	APBC_REG(0x050)
 #define APBC_PXA910_ASSAR	APBC_REG(0x054)
+/* GBS: clock for GSSP */
+#define APBC_PXA910_GBS		CPBC_REG(0x00c)
+#define APBC_PXA910_GCER	CPBC_REG(0x034)
 
 /*
  * APB Clock register offsets for MMP2

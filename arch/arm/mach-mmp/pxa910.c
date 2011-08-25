@@ -13,6 +13,7 @@
 #include <linux/init.h>
 #include <linux/list.h>
 #include <linux/io.h>
+#include <linux/delay.h>
 
 #include <asm/mach/time.h>
 #include <asm/hardware/cache-tauros2.h>
@@ -200,6 +201,41 @@ void pxa910_ripc_unlock(void)
 	__raw_writel(1, RIPC0_STATUS);
 }
 
+/* gssp clk ops: gssp is shared between AP and CP */
+static void gssp_clk_enable(struct clk *clk)
+{
+	unsigned int gcer;
+	/* GPB bus select: choose APB */
+	__raw_writel(0x1, APBC_PXA910_GBS);
+	/* GSSP clock control register: GCER */
+	gcer = __raw_readl(clk->clk_rst) & ~(0x3 << 8);
+	/* choose I2S clock */
+	gcer |= APBC_FNCLK | (0x0 << 8);
+	__raw_writel(gcer, clk->clk_rst);
+	udelay(10);
+	gcer |= APBC_APBCLK;
+	__raw_writel(gcer, clk->clk_rst);
+	udelay(10);
+	gcer &= ~APBC_RST;
+	__raw_writel(gcer, clk->clk_rst);
+	pr_debug("gssp clk is open\n");
+}
+
+static void gssp_clk_disable(struct clk *clk)
+{
+	unsigned int gcer;
+	gcer = __raw_readl(clk->clk_rst);
+	gcer &= ~APBC_APBCLK;
+	__raw_writel(gcer, clk->clk_rst);
+	__raw_writel(0x0, APBC_PXA910_GBS);
+	pr_debug("gssp clk is closed\n");
+}
+
+struct clkops gssp_clk_ops = {
+	.enable = gssp_clk_enable,
+	.disable = gssp_clk_disable,
+	};
+
 /* APB peripheral clocks */
 static APBC_CLK(uart0, PXA910_UART0, 1, 14745600);
 static APBC_CLK(uart1, PXA910_UART1, 1, 14745600);
@@ -225,6 +261,7 @@ static APMU_CLK_OPS(lcd, LCD, 0x003f, 312000000, &lcd_pn1_clk_ops);
 static APMU_CLK(ire, IRE, 0x9, 0);
 static APMU_CLK(ccic_rst, CCIC_RST, 0x0, 312000000);
 static APMU_CLK(ccic_gate, CCIC_GATE, 0xfff, 0);
+static APBC_CLK_OPS(gssp, PXA910_GCER, 0, 0, &gssp_clk_ops);
 
 static MPMU_CLK_OPS(vctcxo, VRCR, 1, 26000000, &vctcxo_clk_ops);
 
@@ -241,6 +278,7 @@ static struct clk_lookup pxa910_clkregs[] = {
 	INIT_CLKREG(&clk_pwm4, "pxa910-pwm.3", NULL),
 	INIT_CLKREG(&clk_ssp1, "pxa910-ssp.0", NULL),
 	INIT_CLKREG(&clk_ssp2, "pxa910-ssp.1", NULL),
+	INIT_CLKREG(&clk_gssp, "pxa910-ssp.4", NULL),
 	INIT_CLKREG(&clk_nand, "pxa3xx-nand", NULL),
 	INIT_CLKREG(&clk_u2o, NULL, "U2OCLK"),
 	INIT_CLKREG(&clk_keypad, "pxa27x-keypad", NULL),
@@ -334,6 +372,7 @@ PXA910_DEVICE(pwm4, "pxa910-pwm", 3, NONE, 0xd401ac00, 0x10);
 PXA910_DEVICE(ssp0, "pxa910-ssp", 0, SSP1, 0xd401b000, 0x90, 52, 53);
 PXA910_DEVICE(ssp1, "pxa910-ssp", 1, SSP2, 0xd42a0c00, 0x90, 1, 2);
 PXA910_DEVICE(ssp2, "pxa910-ssp", 2, SSP3, 0xd401C000, 0x90, 60, 61);
+PXA910_DEVICE(gssp, "pxa910-ssp", 4, GSSP, 0xd4039000, 0x90, 6, 7);
 PXA910_DEVICE(audiosram, "mmp-sram", 0, NONE, 0xd100a000, 0x15000);
 PXA910_DEVICE(nand, "pxa3xx-nand", -1, NAND, 0xd4283000, 0x80, 97, 99);
 PXA910_DEVICE(keypad, "pxa27x-keypad", -1, KEYPAD, 0xd4012000, 0x4c);

@@ -32,6 +32,7 @@ extern struct pxa_device_desc pxa910_device_pwm4;
 extern struct pxa_device_desc pxa910_device_ssp0;
 extern struct pxa_device_desc pxa910_device_ssp1;
 extern struct pxa_device_desc pxa910_device_ssp2;
+extern struct pxa_device_desc pxa910_device_gssp;
 extern struct pxa_device_desc pxa910_device_audiosram;
 extern struct pxa_device_desc pxa910_device_nand;
 extern struct pxa_device_desc pxa910_device_keypad;
@@ -120,6 +121,9 @@ static inline int pxa910_add_ssp(int id)
 		break;
 	case 2:
 		d = &pxa910_device_ssp2;
+		break;
+	case 4:
+		d = &pxa910_device_gssp;
 		break;
 	default:
 		return -EINVAL;
