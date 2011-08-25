@@ -562,7 +562,7 @@ static void __init init_lcd(void)
 
 #if defined(CONFIG_MMC_SDHCI_PXAV2)
 static struct sdhci_pxa_platdata mci0_platform_data = {
-	.flags	= PXA_FLAG_CARD_PERMANENT | PXA_FLAG_SD_8_BIT_CAPABLE_SLOT,
+	.flags	= PXA_FLAG_CARD_PERMANENT,
 };
 
 static void __init init_mmc(void)
