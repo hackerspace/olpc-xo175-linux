@@ -239,6 +239,35 @@ static int is_master_owner(struct file *file)
 	return ret;
 }
 
+static int dump_bitmap(int id)
+{
+	int col = 0, i, n = 0;
+	char *buf;
+
+	buf = kzalloc(PAGE_SIZE, GFP_KERNEL);
+	if (buf == NULL)
+		goto out;
+
+	n += sprintf(buf + n, "\n[Used:Compound:Order]\n");
+	for (i = 0; i < pmem[id].bitmap->num_entries;) {
+		n += sprintf(buf + n, "[%d:%d:%d] ",
+				pmem[id].bitmap->bits[i].allocated,
+				pmem[id].bitmap->bits[i].compound,
+				pmem[id].bitmap->bits[i].order);
+		i += 1 << pmem[id].bitmap->bits[i].order;
+		if (++col == 8) {
+			col = 0;
+			n += sprintf(buf + n, "\n");
+		}
+	}
+	n += sprintf(buf + n, "\n");
+
+	DLOG("%s", buf);
+	kfree(buf);
+out:
+	return n;
+}
+
 static int pmem_free(int id, int index)
 {
 	/* caller should hold the write lock on pmem_sem! */
@@ -282,6 +311,7 @@ static int pmem_free(int id, int index)
 				break;
 		}
 	} while (curr < pmem[id].bitmap->num_entries);
+	dump_bitmap(id);
 
 	return 0;
 }
@@ -493,6 +523,7 @@ static int pmem_allocate(int id, unsigned long len)
 		pmem[id].bitmap->bits[curr].compound = (pages > 0) ? 1 : 0;
 		curr = PMEM_NEXT_INDEX(id, curr);
 	}
+	dump_bitmap(id);
 	return best_fit;
 }
 
