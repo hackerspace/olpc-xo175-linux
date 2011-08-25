@@ -38,6 +38,7 @@
 #include <mach/addr-map.h>
 #include <mach/mfp-pxa910.h>
 #include <mach/pxa910.h>
+#include <mach/sram.h>
 #include <mach/regs-usb.h>
 #include <mach/regs-rtc.h>
 
@@ -218,6 +219,11 @@ static unsigned long ccic_dvp_pin_config[] __initdata = {
 	GPIO78_CAM_PCLK,
 };
 #endif
+
+static struct sram_bank pxa910_audiosram_info = {
+	.pool_name = "audio sram",
+	.step = AUDIO_SRAM_GRANULARITY,
+};
 
 static struct mtd_partition ttc_dkb_onenand_partitions[] = {
 	{
@@ -1455,6 +1461,8 @@ static void __init ttc_dkb_init(void)
 	pxa910_add_uart(2);
 	pxa910_add_1wire();
 	pxa910_add_nand(&dkb_nand_info);
+
+	pxa910_add_audiosram(&pxa910_audiosram_info);
 
 	pxa910_add_keypad(&ttc_dkb_keypad_info);
 	pxa910_add_cnm();
