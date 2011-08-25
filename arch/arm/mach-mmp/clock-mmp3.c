@@ -1527,6 +1527,149 @@ static struct clk mmp3_clk_sdh3 = {
 			{APMU_SDH3, 10, 0xf} } },
 };
 
+#ifdef CONFIG_UIO_VMETA
+
+#define VMETA_PLL1		0
+#define VMETA_PLL2		1
+#define VMETA_PLL1_OUTP		2
+
+static void vmeta_clk_init(struct clk *clk)
+{
+	clk->rate = clk_get_rate(&mmp3_clk_pll1)/2; /* 400MHz */
+	clk->enable_val = VMETA_PLL1;
+	clk->div = 2;
+	clk->mul = 1;
+	clk_reparent(clk, &mmp3_clk_pll1);
+}
+
+static int vmeta_clk_enable(struct clk *clk)
+{
+	int reg;
+
+	clk_reparent(clk, clk->inputs[clk->enable_val].input);
+
+	reg = readl(clk->clk_rst);
+	reg &= ~APMU_VMETA_CLK_SEL_MASK;
+	reg &= ~APMU_VMETA_CLK_DIV_MASK;
+	reg |= (clk->inputs[clk->enable_val].value) << APMU_VMETA_CLK_SEL_SHIFT;
+	reg |= (clk->div) << APMU_VMETA_CLK_DIV_SHIFT;
+
+	writel(reg, clk->clk_rst);
+	reg = readl(clk->clk_rst);
+
+	reg |= APMU_VMETA_AXICLK_EN;
+	writel(reg, clk->clk_rst);
+	reg = readl(clk->clk_rst);
+
+	reg |= APMU_VMETA_CLK_EN;
+	writel(reg, clk->clk_rst);
+	reg = readl(clk->clk_rst);
+
+	reg &= ~APMU_VMETA_AXI_RST;
+	writel(reg, clk->clk_rst);
+	reg = readl(clk->clk_rst);
+	reg |= APMU_VMETA_AXI_RST;
+	writel(reg, clk->clk_rst);
+	reg = readl(clk->clk_rst);
+
+	reg &= ~APMU_VMETA_RST;
+	writel(reg, clk->clk_rst);
+	reg = readl(clk->clk_rst);
+	reg |= APMU_VMETA_RST;
+	writel(reg, clk->clk_rst);
+	reg = readl(clk->clk_rst);
+
+	return 0;
+}
+
+static void vmeta_clk_disable(struct clk *clk)
+{
+	int reg;
+
+	reg = readl(clk->clk_rst);
+	reg &= ~APMU_VMETA_AXI_RST;
+	writel(reg, clk->clk_rst);
+	reg &= ~APMU_VMETA_RST;
+	writel(reg, clk->clk_rst);
+
+	reg = readl(clk->clk_rst);
+	reg &= ~APMU_VMETA_AXICLK_EN;
+	writel(reg, clk->clk_rst);
+	reg &= ~APMU_VMETA_CLK_EN;
+	writel(reg, clk->clk_rst);
+}
+
+static long vmeta_clk_round_rate(struct clk *clk, unsigned long rate)
+{
+	if (rate <= clk_get_rate(&mmp3_clk_pll1)/4)
+		return clk_get_rate(&mmp3_clk_pll1)/4; /* 200M */
+	else if (rate <= clk_get_rate(&mmp3_clk_pll1_clkoutp)/4)
+		return clk_get_rate(&mmp3_clk_pll1_clkoutp)/4; /* 266M */
+	else if (rate <= clk_get_rate(&mmp3_clk_pll1)/2)
+		return clk_get_rate(&mmp3_clk_pll1)/2; /* 400M */
+	else if (rate <= clk_get_rate(&mmp3_clk_pll1_clkoutp)/2)
+		return clk_get_rate(&mmp3_clk_pll1_clkoutp)/2; /* 532M */
+	else
+		return clk_get_rate(&mmp3_clk_pll2)/2; /* 667M */
+}
+
+static int vmeta_clk_setrate(struct clk *clk, unsigned long rate)
+{
+	clk->mul = 1;
+	if (rate == clk_get_rate(&mmp3_clk_pll1)/4) {
+		clk->enable_val = VMETA_PLL1;
+		clk->div = 4;
+		clk_reparent(clk, &mmp3_clk_pll1);
+	} else if (rate == clk_get_rate(&mmp3_clk_pll1_clkoutp)/4) {
+		clk->enable_val = VMETA_PLL1_OUTP;
+		clk->div = 4;
+		clk_reparent(clk, &mmp3_clk_pll1_clkoutp);
+	} else if (rate == clk_get_rate(&mmp3_clk_pll1)/2) {
+		clk->enable_val = VMETA_PLL1;
+		clk->div = 2;
+		clk_reparent(clk, &mmp3_clk_pll1);
+	} else if (rate == clk_get_rate(&mmp3_clk_pll1_clkoutp)/2) {
+		clk->enable_val = VMETA_PLL1_OUTP;
+		clk->div = 2;
+		clk_reparent(clk, &mmp3_clk_pll1_clkoutp);
+	} else if (rate == clk_get_rate(&mmp3_clk_pll2)/2) {
+		clk->enable_val = VMETA_PLL2;
+		clk->div = 2;
+		clk_reparent(clk, &mmp3_clk_pll2);
+	} else {
+		pr_err("%s: unexpected vmeta clock rate %ld\n", __func__, rate);
+		BUG();
+	}
+
+	return 0;
+}
+
+struct clkops vmeta_clk_ops = {
+	.init		= vmeta_clk_init,
+	.enable		= vmeta_clk_enable,
+	.disable	= vmeta_clk_disable,
+	.setrate	= vmeta_clk_setrate,
+	.round_rate	= vmeta_clk_round_rate,
+};
+
+static struct clk_mux_sel vmeta_mux_pll1_pll2[] = {
+	{.input = &mmp3_clk_pll1, .value = 0},
+	{.input = &mmp3_clk_pll2, .value = 1},
+	{.input = &mmp3_clk_pll1_clkoutp, .value = 2},
+	{0, 0},
+};
+
+static struct clk mmp3_clk_vmeta = {
+	.name = "vmeta",
+	.inputs = vmeta_mux_pll1_pll2,
+	.lookup = {
+		.con_id = "VMETA_CLK",
+	},
+	.clk_rst = (void __iomem *)APMU_VMETA_CLK_RES_CTRL,
+	.ops = &vmeta_clk_ops,
+};
+#endif
+
 static struct clk *mmp3_clks_ptr[] = {
 	&mmp3_clk_pll1_d_2,
 	&mmp3_clk_pll1,
@@ -1560,6 +1703,9 @@ static struct clk *mmp3_clks_ptr[] = {
 	&mmp3_clk_sdh3,
 	&mmp3_clk_disp1_axi,
 	&mmp3_clk_hdmi,
+#ifdef CONFIG_UIO_VMETA
+	&mmp3_clk_vmeta,
+#endif
 };
 
 static int apbc_clk_enable(struct clk *clk)
@@ -1929,75 +2075,6 @@ struct clkops apmu_clk_ops = {
 	.ops = _ops,						\
 }
 
-#ifdef CONFIG_UIO_VMETA
-
-static int vmeta_clk_enable(struct clk *clk)
-{
-	int reg;
-
-	reg = readl(APMU_VMETA_CLK_RES_CTRL);
-
-	reg &= ~APMU_VMETA_CLK_SEL_MASK;
-	reg &= ~APMU_VMETA_CLK_DIV_MASK;
-	reg |= APMU_VMETA_CLK_PLL2;
-	reg |= APMU_VMETA_CLK_DIV_2;
-
-	writel(reg, APMU_VMETA_CLK_RES_CTRL);
-	reg = readl(APMU_VMETA_CLK_RES_CTRL);
-
-	reg |= APMU_VMETA_AXICLK_EN;
-	writel(reg, APMU_VMETA_CLK_RES_CTRL);
-	reg = readl(APMU_VMETA_CLK_RES_CTRL);
-
-	reg |= APMU_VMETA_CLK_EN;
-	writel(reg, APMU_VMETA_CLK_RES_CTRL);
-	reg = readl(APMU_VMETA_CLK_RES_CTRL);
-
-	reg &= ~APMU_VMETA_AXI_RST;
-	writel(reg, APMU_VMETA_CLK_RES_CTRL);
-	reg = readl(APMU_VMETA_CLK_RES_CTRL);
-	reg |= APMU_VMETA_AXI_RST;
-	writel(reg, APMU_VMETA_CLK_RES_CTRL);
-	reg = readl(APMU_VMETA_CLK_RES_CTRL);
-
-	reg &= ~APMU_VMETA_RST;
-	writel(reg, APMU_VMETA_CLK_RES_CTRL);
-	reg = readl(APMU_VMETA_CLK_RES_CTRL);
-	reg |= APMU_VMETA_RST;
-	writel(reg, APMU_VMETA_CLK_RES_CTRL);
-	reg = readl(APMU_VMETA_CLK_RES_CTRL);
-
-	return 0;
-}
-
-static void vmeta_clk_disable(struct clk *clk)
-{
-	int reg;
-
-	reg = readl(APMU_VMETA_CLK_RES_CTRL);
-	reg &= ~APMU_VMETA_AXI_RST;
-	writel(reg, APMU_VMETA_CLK_RES_CTRL);
-	reg &= ~APMU_VMETA_RST;
-	writel(reg, APMU_VMETA_CLK_RES_CTRL);
-
-	reg = readl(APMU_VMETA_CLK_RES_CTRL);
-	reg &= ~APMU_VMETA_AXICLK_EN;
-	writel(reg, APMU_VMETA_CLK_RES_CTRL);
-	reg &= ~APMU_VMETA_CLK_EN;
-	writel(reg, APMU_VMETA_CLK_RES_CTRL);
-}
-
-static int vmeta_clk_setrate(struct clk *clk, unsigned long rate)
-{
-	return 0;
-}
-
-struct clkops vmeta_clk_ops = {
-	.enable         = vmeta_clk_enable,
-	.disable        = vmeta_clk_disable,
-	.setrate        = vmeta_clk_setrate,
-};
-#endif
 
 static int ccic_rst_clk_enable(struct clk *clk)
 {
@@ -2114,10 +2191,6 @@ static struct clk mmp3_list_clks[] = {
 			0xffff, 0, NULL),
 	APMU_CLK_OPS("nand", "pxa3xx-nand", NULL, NAND,
 			0xbf, 100000000, &mmp3_clk_pll1, &nand_clk_ops),
-#ifdef CONFIG_UIO_VMETA
-	APMU_CLK_OPS("vmeta", NULL, "VMETA_CLK", VMETA,
-			0, 0, NULL, &vmeta_clk_ops),
-#endif
 	APMU_CLK_OPS("ccic_rst", "mv-camera.0", "CCICRSTCLK", CCIC_RST,
 			0, 312000000, NULL, &ccic_rst_clk_ops),
 	APMU_CLK_OPS("ccic_rst", "mv-camera.1", "CCICRSTCLK", CCIC_RST,

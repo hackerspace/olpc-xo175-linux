@@ -83,6 +83,33 @@
 
 #define APMU_PXA910_KP_WAKE_CLR		(1 << 3)
 
+#define APMU_VMETA_CLK_RES_CTRL	APMU_VMETA
+/* VMeta Technology Power Mode */
+#define APMU_VMETA_CLK_DIV_MASK			(0xF << 16)
+#define APMU_VMETA_CLK_DIV_1			(0x1 << 16)
+#define APMU_VMETA_CLK_DIV_2                    (0x2 << 16)
+#define APMU_VMETA_CLK_DIV_4                    (0x4 << 16)
+#define APMU_VMETA_CLK_DIV_8                    (0x8 << 16)
+#define APMU_VMETA_CLK_DIV_SHIFT		16
+#define APMU_VMETA_CLK_PLL2			(0x1 << 6)
+#define APMU_VMETA_CLK_SEL_SHIFT		6
+/* VMeta Technology Power Up */
+#define APMU_VMETA_PWRUP_ON			(3 << 9)
+#define APMU_VMETA_PWRUP_SLOW_RAMP		(1 << 9)
+#define APMU_VMETA_PWRUP_MASK			(3 << 9)
+/* VMeta Technology Isolation Enable */
+#define APMU_VMETA_ISB				(1 << 8)
+/* VMeta Technology Clock Select */
+#define APMU_VMETA_CLK_SEL_MASK			(3 << 6)
+/* VMeta Technology Peripheral Clock Enable */
+#define APMU_VMETA_CLK_EN			(1 << 4)
+/* VMeta Technology AXI Clock Enable */
+#define APMU_VMETA_AXICLK_EN			(1 << 3)
+/* VMeta Technology Peripheral Reset 1 */
+#define APMU_VMETA_RST				(1 << 1)
+/* VMeta Technology AXI Reset */
+#define APMU_VMETA_AXI_RST			(1 << 0)
+
 /* USB HSIC/FSIC*/
 #define APMU_USBHSIC1   APMU_REG(0x0f8)
 #define APMU_USBHSIC2   APMU_REG(0x0fc)
