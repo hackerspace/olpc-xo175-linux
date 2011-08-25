@@ -83,7 +83,7 @@ void sync_pmem_area(void *vaddr, unsigned long addr, unsigned long len,
 void sync_pmem_file(struct file *file, unsigned long start, unsigned long len,
 		unsigned int cmd, enum dma_data_direction dir);
 void flush_pmem_file(struct file *file, unsigned long start, unsigned long len);
-int pmem_setup(struct android_pmem_platform_data *pdata,
+int pmem_setup(struct android_pmem_platform_data *pdata, struct device *dev,
 	       long (*ioctl)(struct file *, unsigned int, unsigned long),
 	       int (*release)(struct inode *, struct file *));
 int pmem_remap(struct pmem_region *region, struct file *file,
@@ -110,8 +110,9 @@ static inline void sync_pmem_file(struct file *file, unsigned long start,
 static inline void flush_pmem_file(struct file *file, unsigned long start,
 				   unsigned long len) { return; }
 static inline int pmem_setup(struct android_pmem_platform_data *pdata,
-	      long (*ioctl)(struct file *, unsigned int, unsigned long),
-	      int (*release)(struct inode *, struct file *)) { return -ENOSYS; }
+		struct device *dev,
+		long (*ioctl)(struct file *, unsigned int, unsigned long),
+		int (*release)(struct inode *, struct file *)) { return -ENOSYS; }
 
 static inline int pmem_remap(struct pmem_region *region, struct file *file,
 			     unsigned operation) { return -ENOSYS; }

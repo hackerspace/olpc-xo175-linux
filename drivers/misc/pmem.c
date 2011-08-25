@@ -114,18 +114,8 @@ struct pmem_region_node {
 	struct list_head list;
 };
 
-#define PMEM_DEBUG_MSGS 0
-#if PMEM_DEBUG_MSGS
-#define DLOG(fmt,args...) \
-	do { printk(KERN_INFO "[%s:%s:%d] "fmt, __FILE__, __func__, __LINE__, \
-		    ##args); } \
-	while (0)
-#else
-#define DLOG(x...) do {} while (0)
-#endif
-
 struct pmem_info {
-	struct miscdevice dev;
+	struct miscdevice mdev;
 	/* physical start address of the pmem space */
 	unsigned long base;
 	/* total size of the pmem space */
@@ -152,6 +142,7 @@ struct pmem_info {
 	 * needed */
 	struct mutex data_list_lock;
 	struct list_head data_list;
+	struct device *dev;
 
 	long (*ioctl)(struct file *, unsigned int, unsigned long);
 	int (*release)(struct inode *, struct file *);
@@ -201,7 +192,7 @@ int is_pmem_file(struct file *file)
 	if (unlikely(id >= PMEM_MAX_DEVICES))
 		return 0;
 	if (unlikely(file->f_dentry->d_inode->i_rdev !=
-	     MKDEV(MISC_MAJOR, pmem[id].dev.minor)))
+	     MKDEV(MISC_MAJOR, pmem[id].mdev.minor)))
 		return 0;
 	return 1;
 }
@@ -213,7 +204,7 @@ static int has_allocation(struct file *file)
 	int id = get_id(file);
 
 	if (unlikely(!file->private_data ||
-		file->private_data == &pmem[id].dev))
+		file->private_data == &pmem[id].mdev))
 		return 0;
 	data = (struct pmem_data *)file->private_data;
 	if (unlikely(data->index < 0))
@@ -226,6 +217,7 @@ static int is_master_owner(struct file *file)
 	struct file *master_file;
 	struct pmem_data *data;
 	int put_needed, ret = 0;
+ 	int id = get_id(file);
 
 	if (!is_pmem_file(file) || !has_allocation(file))
 		return 0;
@@ -235,6 +227,11 @@ static int is_master_owner(struct file *file)
 	master_file = fget_light(data->master_fd, &put_needed);
 	if (master_file && data->master_file == master_file)
 		ret = 1;
+	else {
+		dev_err(pmem[id].dev, "pmem: master_file(0x%x) is NULL or not "
+			"aligned\n", (unsigned int)master_file);
+		return 0;
+	}
 	fput_light(master_file, put_needed);
 	return ret;
 }
@@ -262,7 +259,7 @@ static int dump_bitmap(int id)
 	}
 	n += sprintf(buf + n, "\n");
 
-	DLOG("%s", buf);
+	dev_dbg(pmem[id].dev, "%s", buf);
 	kfree(buf);
 out:
 	return n;
@@ -273,7 +270,6 @@ static int pmem_free(int id, int index)
 	/* caller should hold the write lock on pmem_sem! */
 	int buddy, curr;
 	int compound;
-	DLOG("index %d\n", index);
 
 	if (pmem[id].no_allocator) {
 		pmem[id].allocated = 0;
@@ -287,7 +283,8 @@ static int pmem_free(int id, int index)
 		pmem[id].bitmap->bits[curr].allocated = 0;
 		pmem[id].bitmap->bits[curr].compound = 0;
 		curr = PMEM_NEXT_INDEX(id, curr);
-		DLOG("free %d %d\n", curr, compound);
+		dev_dbg(pmem[id].dev, "free addr:0x%x order:%d, compound:%d\n",
+			curr, PMEM_ORDER(id, curr), compound);
 	} while (compound);
 
 	/*
@@ -386,14 +383,16 @@ static int pmem_open(struct inode *inode, struct file *file)
 	int id = get_id(file);
 	int ret = 0;
 
-	DLOG("current %u file %p(%d)\n", current->pid, file, file_count(file));
+	dev_dbg(pmem[id].dev, "current %u file %p(%ld)\n",
+		current->pid, file, file_count(file));
 	/* setup file->private_data to indicate its unmapped */
 	/*  you can only open a pmem device one time */
-	if (file->private_data != NULL && file->private_data != &pmem[id].dev)
+	if (file->private_data != NULL && file->private_data != &pmem[id].mdev)
 		return -1;
 	data = kmalloc(sizeof(struct pmem_data), GFP_KERNEL);
 	if (!data) {
-		printk("pmem: unable to allocate memory for pmem metadata.");
+		dev_err(pmem[id].dev, "pmem: unable to allocate memory for "
+			"pmem metadata.");
 		return -1;
 	}
 	data->flags = 0;
@@ -440,7 +439,7 @@ static int pmem_allocate(int id, unsigned long len)
 	unsigned long order = pmem_order(len);
 
 	if (pmem[id].no_allocator) {
-		DLOG("no allocator");
+		dev_dbg(pmem[id].dev, "no allocator");
 		if ((len > pmem[id].size) || pmem[id].allocated)
 			return -1;
 		pmem[id].allocated = 1;
@@ -449,7 +448,6 @@ static int pmem_allocate(int id, unsigned long len)
 
 	if (order > PMEM_MAX_ORDER)
 		return -1;
-	DLOG("order %lx\n", order);
 
 	/*
 	 * look through the bitmap:
@@ -494,7 +492,7 @@ static int pmem_allocate(int id, unsigned long len)
 	 * return an error
 	 */
 	if (best_fit < 0) {
-		printk("pmem: no space left to allocate!\n");
+		dev_err(pmem[id].dev, "pmem: no space left to allocate!\n");
 		return -1;
 	}
 
@@ -516,7 +514,8 @@ static int pmem_allocate(int id, unsigned long len)
 			buddy = PMEM_BUDDY_INDEX(id, curr);
 			PMEM_ORDER(id, buddy) = PMEM_ORDER(id, curr);
 		}
-		DLOG("pages:%d, cur order:%d, request order:%d\n",
+		dev_dbg(pmem[id].dev, "pages:%d, allocated order:%d, "
+			"request order:%lu\n",
 			pages, PMEM_ORDER(id, curr), pmem_order(len));
 		pages = pages - (1 << PMEM_ORDER(id, curr));
 		pmem[id].bitmap->bits[curr].allocated = 1;
@@ -644,7 +643,7 @@ static int pmem_unmap_pfn_range(int id, struct vm_area_struct *vma,
 				unsigned long len)
 {
 	int garbage_pages;
-	DLOG("unmap offset %lx len %lx\n", offset, len);
+	dev_dbg(pmem[id].dev, "unmap offset %lx len %lx\n", offset, len);
 
 	BUG_ON(!PMEM_IS_PAGE_ALIGNED(len));
 
@@ -658,7 +657,7 @@ static int pmem_map_pfn_range(int id, struct vm_area_struct *vma,
 			      struct pmem_data *data, unsigned long offset,
 			      unsigned long len)
 {
-	DLOG("map offset %lx len %lx\n", offset, len);
+	dev_dbg(pmem[id].dev, "map offset %lx len %lx\n", offset, len);
 	BUG_ON(!PMEM_IS_PAGE_ALIGNED(vma->vm_start));
 	BUG_ON(!PMEM_IS_PAGE_ALIGNED(vma->vm_end));
 	BUG_ON(!PMEM_IS_PAGE_ALIGNED(len));
@@ -692,11 +691,12 @@ static void pmem_vma_close(struct vm_area_struct *vma)
 {
 	struct file *file = vma->vm_file;
 	struct pmem_data *data = file->private_data;
+ 	int id = get_id(file);
 
-	DLOG("current %u ppid %u file %p count %d\n", current->pid,
-	     current->parent->pid, file, file_count(file));
+	dev_dbg(pmem[id].dev, "current %u ppid %u file %p count %ld\n",
+		current->pid, current->parent->pid, file, file_count(file));
 	if (unlikely(!is_pmem_file(file) || !has_allocation(file))) {
-		printk(KERN_WARNING "pmem: something is very wrong, you are "
+		dev_warn(pmem[id].dev, "pmem: something is wrong, you are "
 		       "closing a vm backing an allocation that doesn't "
 		       "exist!\n");
 		return;
@@ -725,10 +725,8 @@ static int pmem_mmap(struct file *file, struct vm_area_struct *vma)
 	int ret = 0, id = get_id(file);
 
 	if (vma->vm_pgoff || !PMEM_IS_PAGE_ALIGNED(vma_size)) {
-#if PMEM_DEBUG
-		printk(KERN_ERR "pmem: mmaps must be at offset zero, aligned"
-				" and a multiple of pages_size.\n");
-#endif
+		dev_err(pmem[id].dev, "pmem: mmaps must be at offset zero, "
+			"aligned and a multiple of pages_size.\n");
 		return -EINVAL;
 	}
 
@@ -747,10 +745,8 @@ static int pmem_mmap(struct file *file, struct vm_area_struct *vma)
 		data->flags &= ~(PMEM_FLAGS_UNSUBMAP);
 	} else if (data->flags & PMEM_FLAGS_SUBMAP) {
 		/* check this file isn't already mmaped */
-#if PMEM_DEBUG
-		printk(KERN_ERR "pmem: this file is already mmaped. %x\n",
-				data->flags);
-#endif
+		dev_err(pmem[id].dev, "pmem: this file is already mmaped. "
+			"flags:%x\n", data->flags);
 		ret = -EINVAL;
 		goto error;
 	}
@@ -764,16 +760,15 @@ static int pmem_mmap(struct file *file, struct vm_area_struct *vma)
 	/* either no space was available or an error occured */
 	if (!has_allocation(file)) {
 		ret = -EINVAL;
-		printk("pmem: could not find allocation for map.\n");
+		dev_err(pmem[id].dev, "pmem: could not find allocation for "
+			"map.\n");
 		goto error;
 	}
 
 	if (pmem_len(id, data) < vma_size) {
-#if PMEM_DEBUG
-		printk(KERN_WARNING "pmem: mmap size [%lu] does not match"
+		dev_warn(pmem[id].dev, "pmem: mmap size [%lu] does not match"
 		       "size of backing region [%lu].\n", vma_size,
 		       pmem_len(id, data));
-#endif
 		ret = -EINVAL;
 		goto error;
 	}
@@ -787,15 +782,16 @@ static int pmem_mmap(struct file *file, struct vm_area_struct *vma)
 		struct pmem_region_node *region_node;
 		struct list_head *elt;
 		if (pmem_map_garbage(id, vma, data, 0, vma_size)) {
-			printk("pmem: mmap failed in kernel!\n");
+			dev_info(pmem[id].dev,
+				"pmem: mmap failed in kernel!\n");
 			ret = -EAGAIN;
 			goto error;
 		}
 		list_for_each(elt, &data->region_list) {
 			region_node = list_entry(elt, struct pmem_region_node,
 						 list);
-			DLOG("remapping file: %p %lx %lx\n", file,
-				region_node->region.offset,
+			dev_dbg(pmem[id].dev, "remapping file: %p %lx %lx\n",
+				file, region_node->region.offset,
 				region_node->region.len);
 			if (pmem_remap_pfn_range(id, vma, data,
 						 region_node->region.offset,
@@ -810,11 +806,12 @@ static int pmem_mmap(struct file *file, struct vm_area_struct *vma)
 #if PMEM_DEBUG
 		data->pid = current->pid;
 #endif
-		DLOG("submmapped file %p vma %p pid %u\n", file, vma,
-		     current->pid);
+		dev_dbg(pmem[id].dev, "submmapped file %p vma %p pid %u\n",
+			file, vma, current->pid);
 	} else {
 		if (pmem_map_pfn_range(id, vma, data, 0, vma_size)) {
-			printk(KERN_INFO "pmem: mmap failed in kernel!\n");
+			dev_info(pmem[id].dev,
+				"pmem: mmap failed in kernel!\n");
 			ret = -EAGAIN;
 			goto error;
 		}
@@ -834,11 +831,10 @@ int get_pmem_user_addr(struct file *file, unsigned long *start,
 		   unsigned long *len)
 {
 	struct pmem_data *data;
+	int id = get_id(file);
 	if (!is_pmem_file(file) || !has_allocation(file)) {
-#if PMEM_DEBUG
-		printk(KERN_INFO "pmem: requested pmem data from invalid"
-				  "file.\n");
-#endif
+		dev_info(pmem[id].dev,
+			"pmem: requested pmem data from invalid file.\n");
 		return -1;
 	}
 	data = (struct pmem_data *)file->private_data;
@@ -858,7 +854,7 @@ int get_pmem_addr(struct file *file, unsigned long *start,
 		  unsigned long *vstart, unsigned long *len)
 {
 	struct pmem_data *data;
-	int id;
+	int id = get_id(file);
 
 	if (!is_pmem_file(file) || !has_allocation(file)) {
 		return -1;
@@ -866,13 +862,10 @@ int get_pmem_addr(struct file *file, unsigned long *start,
 
 	data = (struct pmem_data *)file->private_data;
 	if (data->index == -1) {
-#if PMEM_DEBUG
-		printk(KERN_INFO "pmem: requested pmem data from file with no "
-		       "allocation.\n");
+		dev_info(pmem[id].dev, "pmem: requested pmem data from file "
+			"with no allocation.\n");
 		return -1;
-#endif
 	}
-	id = get_id(file);
 
 	down_read(&data->sem);
 	*start = pmem_start_addr(id, data);
@@ -923,7 +916,7 @@ void put_pmem_file(struct file *file)
 	down_write(&data->sem);
 	if (data->ref == 0) {
 		printk("pmem: pmem_put > pmem_get %s (pid %d)\n",
-		       pmem[id].dev.name, data->pid);
+		       pmem[id].mdev.name, data->pid);
 		BUG();
 	}
 	data->ref--;
@@ -1019,28 +1012,28 @@ static int pmem_connect(unsigned long connect, struct file *file)
 	struct pmem_data *data = (struct pmem_data *)file->private_data;
 	struct pmem_data *src_data;
 	struct file *src_file;
-	int ret = 0, put_needed;
+	int ret = 0, put_needed, id = get_id(file);
 
 	down_write(&data->sem);
 	/* retrieve the src file and check it is a pmem file with an alloc */
 	src_file = fget_light(connect, &put_needed);
-	DLOG("connect %p to %p\n", file, src_file);
+	dev_dbg(pmem[id].dev, "connect %p to %p\n", file, src_file);
 	if (!src_file) {
-		printk("pmem: src file not found!\n");
+		dev_info(pmem[id].dev, "pmem: src file not found!\n");
 		ret = -EINVAL;
 		goto err_no_file;
 	}
 	if (unlikely(!is_pmem_file(src_file) || !has_allocation(src_file))) {
-		printk(KERN_INFO "pmem: src file is not a pmem file or has no "
-		       "alloc!\n");
+		dev_info(pmem[id].dev, "pmem: src file is not a pmem file or "
+			"has no alloc!\n");
 		ret = -EINVAL;
 		goto err_bad_file;
 	}
 	src_data = (struct pmem_data *)src_file->private_data;
 
 	if (has_allocation(file) && (data->index != src_data->index)) {
-		printk("pmem: file is already mapped but doesn't match this"
-		       " src_file!\n");
+		dev_info(pmem[id].dev, "pmem: file is already mapped but "
+			"doesn't match this src_file!\n");
 		ret = -EINVAL;
 		goto err_bad_file;
 	}
@@ -1070,6 +1063,7 @@ static int pmem_lock_data_and_mm(struct file *file, struct pmem_data *data,
 				 struct mm_struct **locked_mm)
 {
 	int ret = 0;
+	int id = get_id(file);
 	struct mm_struct *mm = NULL;
 	*locked_mm = NULL;
 lock_mm:
@@ -1077,9 +1071,8 @@ lock_mm:
 	if (PMEM_IS_SUBMAP(data)) {
 		mm = get_task_mm(data->task);
 		if (!mm) {
-#if PMEM_DEBUG
-			printk("pmem: can't remap task is gone!\n");
-#endif
+			dev_info(pmem[id].dev,
+				"pmem: can't remap task is gone!\n");
 			up_read(&data->sem);
 			return -1;
 		}
@@ -1128,10 +1121,8 @@ int pmem_remap(struct pmem_region *region, struct file *file,
 	/* pmem region must be aligned on a page boundry */
 	if (unlikely(!PMEM_IS_PAGE_ALIGNED(region->offset) ||
 		 !PMEM_IS_PAGE_ALIGNED(region->len))) {
-#if PMEM_DEBUG
-		printk("pmem: request for unaligned pmem suballocation "
-		       "%lx %lx\n", region->offset, region->len);
-#endif
+		dev_info(pmem[id].dev, "pmem: request for unaligned pmem "
+			"suballocation %lx %lx\n", region->offset, region->len);
 		return -EINVAL;
 	}
 
@@ -1147,9 +1138,8 @@ int pmem_remap(struct pmem_region *region, struct file *file,
 	/* only the owner of the master file can remap the client fds
 	 * that back in it */
 	if (!is_master_owner(file)) {
-#if PMEM_DEBUG
-		printk("pmem: remap requested from non-master process\n");
-#endif
+		dev_info(pmem[id].dev, "pmem: remap requested from "
+			"non-master process\n");
 		ret = -EINVAL;
 		goto err;
 	}
@@ -1158,9 +1148,8 @@ int pmem_remap(struct pmem_region *region, struct file *file,
 	if (unlikely((region->offset > pmem_len(id, data)) ||
 		     (region->len > pmem_len(id, data)) ||
 		     (region->offset + region->len > pmem_len(id, data)))) {
-#if PMEM_DEBUG
-		printk(KERN_INFO "pmem: suballoc doesn't fit in src_file!\n");
-#endif
+		dev_info(pmem[id].dev, "pmem: suballoc doesn't fit "
+			"in src_file!\n");
 		ret = -EINVAL;
 		goto err;
 	}
@@ -1170,9 +1159,8 @@ int pmem_remap(struct pmem_region *region, struct file *file,
 			      GFP_KERNEL);
 		if (!region_node) {
 			ret = -ENOMEM;
-#if PMEM_DEBUG
-			printk(KERN_INFO "No space to allocate metadata!");
-#endif
+			dev_info(pmem[id].dev, "No space to allocate "
+				"metadata!");
 			goto err;
 		}
 		region_node->region = *region;
@@ -1191,10 +1179,8 @@ int pmem_remap(struct pmem_region *region, struct file *file,
 			}
 		}
 		if (!found) {
-#if PMEM_DEBUG
-			printk("pmem: Unmap region does not map any mapped "
-				"region!");
-#endif
+			dev_info(pmem[id].dev, "pmem: Unmap region does "
+				"not map any mapped region!");
 			ret = -EINVAL;
 			goto err;
 		}
@@ -1258,7 +1244,8 @@ static void pmem_get_size(struct pmem_region *region, struct file *file)
 		region->offset = pmem_start_addr(id, data);
 		region->len = pmem_len(id, data);
 	}
-	DLOG("offset %lx len %lx\n", region->offset, region->len);
+	dev_dbg(pmem[id].dev, "offset %lx len %lx\n",
+		region->offset, region->len);
 }
 
 
@@ -1271,7 +1258,7 @@ static long pmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case PMEM_GET_PHYS:
 		{
 			struct pmem_region region;
-			DLOG("get_phys\n");
+			dev_dbg(pmem[id].dev, "get_phys\n");
 			if (!has_allocation(file)) {
 				region.offset = 0;
 				region.len = 0;
@@ -1280,8 +1267,9 @@ static long pmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				region.offset = pmem_start_addr(id, data);
 				region.len = pmem_len(id, data);
 			}
-			printk(KERN_DEBUG "pmem: request for physical address of pmem region "
-					"from process %d.\n", current->pid);
+			dev_dbg(pmem[id].dev, "pmem: request for physical "
+				"address of pmem region from process %d.\n",
+				current->pid);
 			if (copy_to_user((void __user *)arg, &region,
 						sizeof(struct pmem_region)))
 				return -EFAULT;
@@ -1310,7 +1298,7 @@ static long pmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case PMEM_GET_SIZE:
 		{
 			struct pmem_region region;
-			DLOG("get_size\n");
+			dev_dbg(pmem[id].dev, "get_size\n");
 			pmem_get_size(&region, file);
 			if (copy_to_user((void __user *)arg, &region,
 						sizeof(struct pmem_region)))
@@ -1320,7 +1308,7 @@ static long pmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case PMEM_GET_TOTAL_SIZE:
 		{
 			struct pmem_region region;
-			DLOG("get total size\n");
+			dev_dbg(pmem[id].dev, "get total size\n");
 			region.offset = 0;
 			get_id(file);
 			region.len = pmem[id].size;
@@ -1340,13 +1328,12 @@ static long pmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			break;
 		}
 	case PMEM_CONNECT:
-		DLOG("connect\n");
+		dev_dbg(pmem[id].dev, "connect\n");
 		return pmem_connect(arg, file);
 		break;
 	case PMEM_CACHE_FLUSH:
 		{
 			struct pmem_region region;
-			DLOG("flush\n");
 			if (copy_from_user(&region, (void __user *)arg,
 					   sizeof(struct pmem_region)))
 				return -EFAULT;
@@ -1357,7 +1344,7 @@ static long pmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case PMEM_UNMAP_REGION:
 		{
 			struct pmem_sync_region sync;
-			DLOG("streaming\n");
+			dev_dbg(pmem[id].dev, "streaming\n");
 			if (copy_from_user(&sync, (void __user *)arg,
 					sizeof(struct pmem_sync_region)))
 				return -EFAULT;
@@ -1392,7 +1379,7 @@ static ssize_t debug_read(struct file *file, char __user *buf, size_t count,
 	static char buffer[4096];
 	int n = 0;
 
-	DLOG("debug open\n");
+	dev_dbg(pmem[id].dev, "debug open\n");
 	n = scnprintf(buffer, debug_bufmax,
 		      "pid #: mapped regions (offset, len) (offset,len)...\n");
 
@@ -1433,7 +1420,7 @@ static struct miscdevice pmem_dev = {
 };
 #endif
 
-int pmem_setup(struct android_pmem_platform_data *pdata,
+int pmem_setup(struct android_pmem_platform_data *pdata, struct device *dev,
 	       long (*ioctl)(struct file *, unsigned int, unsigned long),
 	       int (*release)(struct inode *, struct file *))
 {
@@ -1442,6 +1429,7 @@ int pmem_setup(struct android_pmem_platform_data *pdata,
 	int id = id_count;
 	id_count++;
 
+	pmem[id].dev = dev;
 	pmem[id].no_allocator = pdata->no_allocator;
 	pmem[id].cached = pdata->cached;
 	pmem[id].buffered = pdata->buffered;
@@ -1451,15 +1439,15 @@ int pmem_setup(struct android_pmem_platform_data *pdata,
 	pmem[id].release = release;
 	mutex_init(&pmem[id].data_list_lock);
 	INIT_LIST_HEAD(&pmem[id].data_list);
-	pmem[id].dev.name = pdata->name;
-	pmem[id].dev.minor = id;
-	pmem[id].dev.fops = &pmem_fops;
-	printk(KERN_INFO "%s: %d %d init\n", pdata->name, pdata->cached,\
-		pdata->buffered);
+	pmem[id].mdev.name = pdata->name;
+	pmem[id].mdev.minor = id;
+	pmem[id].mdev.fops = &pmem_fops;
+	dev_info(pmem[id].dev, "%s: %d %d init\n", pdata->name,
+		pdata->cached, pdata->buffered);
 
-	err = misc_register(&pmem[id].dev);
+	err = misc_register(&pmem[id].mdev);
 	if (err) {
-		printk(KERN_ALERT "Unable to register pmem driver!\n");
+		dev_err(pmem[id].dev, "Unable to register pmem driver!\n");
 		goto err_cant_register_device;
 	}
 
@@ -1476,7 +1464,7 @@ int pmem_setup(struct android_pmem_platform_data *pdata,
 			master >= id || master < 0 ||
 			pmem[master].size == 0 ||
 			pmem[master].no_allocator != 0) {
-			printk(KERN_ALERT "Invalid pmem parameters!\n");
+			dev_err(pmem[id].dev, "Invalid pmem parameters!\n");
 			goto err_cant_register_device;
 		}
 		/* share same heap with master node */
@@ -1520,7 +1508,7 @@ done:
 err_no_mem_for_metadata:
 	kfree(pmem[id].bitmap);
 err_no_mem_for_bitmap:
-	misc_deregister(&pmem[id].dev);
+	misc_deregister(&pmem[id].mdev);
 err_cant_register_device:
 	return -1;
 }
@@ -1534,7 +1522,7 @@ static int pmem_probe(struct platform_device *pdev)
 		return -1;
 	}
 	pdata = pdev->dev.platform_data;
-	return pmem_setup(pdata, NULL, NULL);
+	return pmem_setup(pdata, &pdev->dev, NULL, NULL);
 }
 
 
@@ -1542,7 +1530,7 @@ static int pmem_remove(struct platform_device *pdev)
 {
 	int id = pdev->id;
 	__free_page(pfn_to_page(pmem[id].garbage_pfn));
-	misc_deregister(&pmem[id].dev);
+	misc_deregister(&pmem[id].mdev);
 	return 0;
 }
 
