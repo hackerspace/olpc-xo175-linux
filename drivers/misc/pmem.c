@@ -31,6 +31,7 @@
 #define PMEM_MAX_DEVICES 10
 #define PMEM_MAX_ORDER 64
 #define PMEM_MIN_ALLOC PAGE_SIZE
+#define PMEM_MIN_SHIFT PAGE_SHIFT
 
 #define PMEM_DEBUG 1
 
@@ -395,7 +396,8 @@ static int pmem_allocate(int id, unsigned long len)
 	int curr = 0;
 	int end = pmem[id].bitmap->num_entries;
 	int best_fit = -1, compound_fit = -1;
-	unsigned long order = pmem_order(len), mask, remains;
+	int pages = 0;
+	unsigned long order = pmem_order(len);
 
 	if (pmem[id].no_allocator) {
 		DLOG("no allocator");
@@ -432,15 +434,12 @@ static int pmem_allocate(int id, unsigned long len)
 				compound_fit = -1;
 			} else {
 				if (compound_fit < 0) {
-					remains =len;
+					pages = ALIGN(len, PMEM_MIN_ALLOC)
+						>> PMEM_MIN_SHIFT;
 					compound_fit = curr;
 				}
-				mask = 1 << curr_order;
-				if (remains & mask)
-					remains &= ~mask;
-				else
-					remains &= ~(mask - 1);
-				if (!remains) {
+				pages = pages - (1 << curr_order);
+				if (pages <= 0) {
 					best_fit = compound_fit;
 					break;
 				}
@@ -469,22 +468,19 @@ static int pmem_allocate(int id, unsigned long len)
 	 * 	go ahead with the next index
 	 */
 	curr = best_fit;
-	while (len) {
-		while (!(len >> PMEM_ORDER(id, curr))) {
+	pages = ALIGN(len, PMEM_MIN_ALLOC) >> PMEM_MIN_SHIFT;
+	while (pages > 0) {
+		while (pages < (1 << PMEM_ORDER(id, curr))) {
 			int buddy;
 			PMEM_ORDER(id, curr) -= 1;
 			buddy = PMEM_BUDDY_INDEX(id, curr);
 			PMEM_ORDER(id, buddy) = PMEM_ORDER(id, curr);
 		}
-		mask = 1<<PMEM_ORDER(id, curr);
-		DLOG("allocated %d mask %lx order %d\n",
-		     best_fit, mask, PMEM_ORDER(id, best_fit));
-		if (len & mask)
-			len &= ~mask;
-		else
-			len &= ~(mask - 1);
+		DLOG("pages:%d, cur order:%d, request order:%d\n",
+			pages, PMEM_ORDER(id, curr), pmem_order(len));
+		pages = pages - (1 << PMEM_ORDER(id, curr));
 		pmem[id].bitmap->bits[curr].allocated = 1;
-		pmem[id].bitmap->bits[curr].compound = (len != 0);
+		pmem[id].bitmap->bits[curr].compound = (pages > 0) ? 1 : 0;
 		curr = PMEM_NEXT_INDEX(id, curr);
 	}
 	return best_fit;
