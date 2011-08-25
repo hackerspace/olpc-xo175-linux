@@ -17,6 +17,8 @@
 #include <linux/spinlock.h>
 #include <linux/clkdev.h>
 
+#include <plat/dvfs.h>
+
 struct clk_mux_sel {
 	struct clk *input;
 	u32 value;
@@ -51,6 +53,7 @@ struct clk {
 	/* node for master clocks list */
 	struct list_head node;
 	struct clk_lookup lookup;
+	struct dvfs *dvfs;
 
 	bool cansleep;
 	bool dynamic_change;
@@ -96,5 +99,11 @@ void clk_init(struct clk *clk);
 int clk_reparent(struct clk *c, struct clk *parent);
 void clk_set_cansleep(struct clk *c);
 unsigned long clk_get_rate_locked(struct clk *c);
+struct clk *get_clock_by_name(const char *name);
+
+static inline bool clk_is_dvfs(struct clk *c)
+{
+	return (c->dvfs != NULL);
+}
 
 #endif

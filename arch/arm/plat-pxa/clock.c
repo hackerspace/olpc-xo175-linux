@@ -159,6 +159,12 @@ int clk_enable(struct clk *c)
 
 	clk_lock_save(c, flags);
 
+	if (clk_is_dvfs(c)) {
+		ret = dvfs_set_rate(c, clk_get_rate_locked(c));
+		if (ret)
+			goto out;
+	}
+
 	if (c->refcnt == 0) {
 		while (dependence_count != 0) {
 			dependence_count--;
@@ -223,6 +229,9 @@ void clk_disable(struct clk *c)
 	}
 	c->refcnt--;
 
+	if (clk_is_dvfs(c) && c->refcnt == 0)
+		dvfs_set_rate(c, 0);
+
 	clk_unlock_restore(c, flags);
 }
 EXPORT_SYMBOL(clk_disable);
@@ -230,8 +239,7 @@ EXPORT_SYMBOL(clk_disable);
 int clk_set_rate(struct clk *c, unsigned long rate)
 {
 	int ret = 0;
-	unsigned long flags;
-	long new_rate;
+	unsigned long flags, new_rate, old_rate;
 
 	clk_lock_save(c, flags);
 
@@ -245,6 +253,8 @@ int clk_set_rate(struct clk *c, unsigned long rate)
 		goto out;
 	}
 
+	old_rate = clk_get_rate_locked(c);
+
 	if (c->ops && c->ops->round_rate) {
 		new_rate = c->ops->round_rate(c, rate);
 
@@ -256,11 +266,24 @@ int clk_set_rate(struct clk *c, unsigned long rate)
 		rate = new_rate;
 	}
 
+	if (clk_is_dvfs(c) && c->refcnt > 0 && rate > old_rate) {
+		ret = dvfs_set_rate(c, rate);
+		if (ret)
+			goto out;
+	}
+
 	ret = c->ops->setrate(c, rate);
 	if (ret)
 		goto out;
-	else
-		c->rate = rate;
+
+	c->rate = rate;
+
+	if (clk_is_dvfs(c) && c->refcnt > 0 && rate < old_rate) {
+		ret = dvfs_set_rate(c, rate);
+		if (ret)
+			goto out;
+	}
+
 out:
 	clk_unlock_restore(c, flags);
 	return ret;
@@ -285,7 +308,7 @@ EXPORT_SYMBOL(clk_get_rate);
 int clk_set_parent(struct clk *c, struct clk *parent)
 {
 	int ret = 0;
-	unsigned long flags;
+	unsigned long flags, new_rate, old_rate;
 
 	clk_lock_save(c, flags);
 
@@ -294,9 +317,24 @@ int clk_set_parent(struct clk *c, struct clk *parent)
 		goto out;
 	}
 
+	new_rate = clk_predict_rate_from_parent(c, parent);
+	old_rate = clk_get_rate_locked(c);
+
+	if (c->ops && c->ops->getrate)
+		new_rate = c->ops->getrate(c);
+
+	if (clk_is_dvfs(c) && c->refcnt > 0 && new_rate > old_rate) {
+		ret = dvfs_set_rate(c, new_rate);
+		if (ret)
+			goto out;
+	}
+
 	ret = c->ops->set_parent(c, parent);
 	if (ret)
 		goto out;
+
+	if (clk_is_dvfs(c) && c->refcnt > 0 && new_rate < old_rate)
+		ret = dvfs_set_rate(c, new_rate);
 
 out:
 	clk_unlock_restore(c, flags);
@@ -330,3 +368,17 @@ out:
 }
 EXPORT_SYMBOL(clk_round_rate);
 
+struct clk *get_clock_by_name(const char *name)
+{
+	struct clk *c;
+	struct clk *ret = NULL;
+	mutex_lock(&clock_list_lock);
+	list_for_each_entry(c, &clocks, node) {
+		if (strcmp(c->name, name) == 0) {
+			ret = c;
+			break;
+		}
+	}
+	mutex_unlock(&clock_list_lock);
+	return ret;
+}
