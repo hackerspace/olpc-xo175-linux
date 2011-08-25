@@ -179,13 +179,17 @@ static void pxa_ssp_set_scr(struct ssp_device *ssp, u32 div)
 {
 	u32 sscr0 = pxa_ssp_read_reg(ssp, SSCR0);
 
+#if defined(CONFIG_PXA25x)
 	if (cpu_is_pxa25x() && ssp->type == PXA25x_SSP) {
 		sscr0 &= ~0x0000ff00;
 		sscr0 |= ((div - 2)/2) << 8; /* 2..512 */
 	} else {
+#endif
 		sscr0 &= ~0x000fff00;
 		sscr0 |= (div - 1) << 8;     /* 1..4096 */
+#if defined(CONFIG_PXA25x)
 	}
+#endif
 	pxa_ssp_write_reg(ssp, SSCR0, sscr0);
 }
 
@@ -197,9 +201,11 @@ static u32 pxa_ssp_get_scr(struct ssp_device *ssp)
 	u32 sscr0 = pxa_ssp_read_reg(ssp, SSCR0);
 	u32 div;
 
+#if defined(CONFIG_PXA25x)
 	if (cpu_is_pxa25x() && ssp->type == PXA25x_SSP)
 		div = ((sscr0 >> 8) & 0xff) * 2 + 2;
 	else
+#endif
 		div = ((sscr0 >> 8) & 0xfff) + 1;
 	return div;
 }
@@ -227,9 +233,11 @@ static int pxa_ssp_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
 		break;
 	case PXA_SSP_CLK_PLL:
 		/* Internal PLL is fixed */
+#if defined(CONFIG_PXA25x)
 		if (cpu_is_pxa25x())
 			priv->sysclk = 1843200;
 		else
+#endif
 			priv->sysclk = 13000000;
 		break;
 	case PXA_SSP_CLK_EXT:
@@ -251,12 +259,16 @@ static int pxa_ssp_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
 
 	/* The SSP clock must be disabled when changing SSP clock mode
 	 * on PXA2xx.  On PXA3xx it must be enabled when doing so. */
+#if defined(CONFIG_PXA3xx)
 	if (!cpu_is_pxa3xx())
 		clk_disable(ssp->clk);
+#endif
 	val = pxa_ssp_read_reg(ssp, SSCR0) | sscr0;
 	pxa_ssp_write_reg(ssp, SSCR0, val);
+#if defined(CONFIG_PXA3xx)
 	if (!cpu_is_pxa3xx())
 		clk_enable(ssp->clk);
+#endif
 
 	return 0;
 }
