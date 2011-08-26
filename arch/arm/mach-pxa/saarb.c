@@ -587,6 +587,13 @@ static struct i2c_board_info i2c2_info[] = {
 	},
 #endif
 
+#if defined(CONFIG_SENSORS_YAS529)
+	{
+		.type		= "yas529",
+		.addr		= 0x2e,
+	},
+#endif
+
 };
 
 
