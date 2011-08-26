@@ -255,6 +255,34 @@ static int __devexit sdhci_pxav2_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+int sdhci_pxav2_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	struct sdhci_host *host = platform_get_drvdata(pdev);
+	int ret = 0;
+
+	if (device_may_wakeup(&pdev->dev))
+		enable_irq_wake(host->irq);
+
+	ret = sdhci_suspend_host(host, state);
+
+	return ret;
+}
+
+int sdhci_pxav2_resume(struct platform_device *pdev)
+{
+	struct sdhci_host *host = platform_get_drvdata(pdev);
+	int ret = 0;
+
+	ret = sdhci_resume_host(host);
+
+	if (device_may_wakeup(&pdev->dev))
+		disable_irq_wake(host->irq);
+
+	return ret;
+}
+#endif	/* CONFIG_PM */
+
 static struct platform_driver sdhci_pxav2_driver = {
 	.driver		= {
 		.name	= "sdhci-pxav2",
@@ -263,8 +291,8 @@ static struct platform_driver sdhci_pxav2_driver = {
 	.probe		= sdhci_pxav2_probe,
 	.remove		= __devexit_p(sdhci_pxav2_remove),
 #ifdef CONFIG_PM
-	.suspend	= sdhci_pltfm_suspend,
-	.resume		= sdhci_pltfm_resume,
+	.suspend	= sdhci_pxav2_suspend,
+	.resume		= sdhci_pxav2_resume,
 #endif
 };
 static int __init sdhci_pxav2_init(void)
