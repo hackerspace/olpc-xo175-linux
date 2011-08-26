@@ -159,8 +159,99 @@ static struct platform_device brownstone_v_5vp_device = {
 	},
 };
 
+static struct regulator_consumer_supply regulator_supply[] = {
+	[MAX8925_ID_SD1]	= REGULATOR_SUPPLY("v_sd1", NULL),
+	[MAX8925_ID_SD2]	= REGULATOR_SUPPLY("v_sd2", NULL),
+	[MAX8925_ID_SD3]	= REGULATOR_SUPPLY("v_sd3", NULL),
+	[MAX8925_ID_LDO1]	= REGULATOR_SUPPLY("v_ldo1", NULL),
+	[MAX8925_ID_LDO2]	= REGULATOR_SUPPLY("v_ldo2", NULL),
+	[MAX8925_ID_LDO3]	= REGULATOR_SUPPLY("v_ldo3", NULL),
+	[MAX8925_ID_LDO4]	= REGULATOR_SUPPLY("v_ldo4", NULL),
+	[MAX8925_ID_LDO5]	= REGULATOR_SUPPLY("v_ldo5", NULL),
+	[MAX8925_ID_LDO6]	= REGULATOR_SUPPLY("v_ldo6", NULL),
+	[MAX8925_ID_LDO7]	= REGULATOR_SUPPLY("v_ldo7", NULL),
+	[MAX8925_ID_LDO8]	= REGULATOR_SUPPLY("v_ldo8", NULL),
+	[MAX8925_ID_LDO9]	= REGULATOR_SUPPLY("v_ldo9", NULL),
+	[MAX8925_ID_LDO10]	= REGULATOR_SUPPLY("v_ldo10", NULL),
+	[MAX8925_ID_LDO11]	= REGULATOR_SUPPLY("vmmc", "sdhci-pxa.0"),
+	[MAX8925_ID_LDO12]	= REGULATOR_SUPPLY("v_ldo12", NULL),
+	[MAX8925_ID_LDO13]	= REGULATOR_SUPPLY("v_ldo13", NULL),
+	[MAX8925_ID_LDO14]	= REGULATOR_SUPPLY("v_ldo14", NULL),
+	[MAX8925_ID_LDO15]	= REGULATOR_SUPPLY("v_ldo15", NULL),
+	[MAX8925_ID_LDO16]	= REGULATOR_SUPPLY("v_ldo16", NULL),
+	[MAX8925_ID_LDO17]	= REGULATOR_SUPPLY("v_ldo17", NULL),
+	[MAX8925_ID_LDO18]	= REGULATOR_SUPPLY("v_ldo18", NULL),
+	[MAX8925_ID_LDO19]	= REGULATOR_SUPPLY("v_ldo19", NULL),
+	[MAX8925_ID_LDO20]	= REGULATOR_SUPPLY("v_ldo20", NULL),
+};
+
+#define REG_INIT(_name, _min, _max, _always, _boot)		\
+{								\
+	.constraints = {					\
+		.name		= __stringify(_name),		\
+		.min_uV		= _min,				\
+		.max_uV		= _max,				\
+		.always_on	= _always,			\
+		.boot_on	= _boot,			\
+		.valid_ops_mask	= REGULATOR_CHANGE_VOLTAGE	\
+				| REGULATOR_CHANGE_STATUS,	\
+	},							\
+	.num_consumer_supplies	= 1,				\
+	.consumer_supplies	= &regulator_supply[MAX8925_ID_##_name], \
+}
+
+static struct regulator_init_data regulator_data[] = {
+	[MAX8925_ID_SD1] = REG_INIT(SD1, 637500, 1425000, 1, 1),
+	[MAX8925_ID_SD2] = REG_INIT(SD2, 650000, 2225000, 1, 1),
+	[MAX8925_ID_SD3] = REG_INIT(SD3, 750000, 3900000, 1, 1),
+	[MAX8925_ID_LDO1] = REG_INIT(LDO1, 750000, 3900000, 0, 0),
+	[MAX8925_ID_LDO2] = REG_INIT(LDO2, 650000, 2250000, 1, 1),
+	[MAX8925_ID_LDO3] = REG_INIT(LDO3, 650000, 2250000, 0, 0),
+	[MAX8925_ID_LDO4] = REG_INIT(LDO4, 750000, 3900000, 1, 1),
+	[MAX8925_ID_LDO5] = REG_INIT(LDO5, 750000, 3900000, 0, 0),
+	[MAX8925_ID_LDO6] = REG_INIT(LDO6, 750000, 3900000, 0, 0),
+	[MAX8925_ID_LDO7] = REG_INIT(LDO7, 750000, 3900000, 0, 0),
+	[MAX8925_ID_LDO8] = REG_INIT(LDO8, 750000, 3900000, 0, 0),
+	[MAX8925_ID_LDO9] = REG_INIT(LDO9, 750000, 3900000, 1, 1),
+	[MAX8925_ID_LDO10] = REG_INIT(LDO10, 750000, 3900000, 0, 0),
+	[MAX8925_ID_LDO11] = REG_INIT(LDO11, 2800000, 2800000, 0, 0),
+	[MAX8925_ID_LDO12] = REG_INIT(LDO12, 750000, 3900000, 0, 0),
+	[MAX8925_ID_LDO13] = REG_INIT(LDO13, 750000, 1500000, 0, 0),
+	[MAX8925_ID_LDO14] = REG_INIT(LDO14, 750000, 3000000, 0, 0),
+	[MAX8925_ID_LDO15] = REG_INIT(LDO15, 750000, 2800000, 0, 0),
+	[MAX8925_ID_LDO16] = REG_INIT(LDO16, 750000, 3900000, 0, 0),
+	[MAX8925_ID_LDO17] = REG_INIT(LDO17, 650000, 2250000, 0, 0),
+	[MAX8925_ID_LDO18] = REG_INIT(LDO18, 650000, 2250000, 0, 0),
+	[MAX8925_ID_LDO19] = REG_INIT(LDO19, 750000, 3900000, 0, 0),
+	[MAX8925_ID_LDO20] = REG_INIT(LDO20, 750000, 3900000, 0, 0),
+};
+
 static struct max8925_platform_data brownstone_max8925_info = {
 	.irq_base		= IRQ_BOARD_START,
+
+	.regulator[MAX8925_ID_SD1] = &regulator_data[MAX8925_ID_SD1],
+	.regulator[MAX8925_ID_SD2] = &regulator_data[MAX8925_ID_SD2],
+	.regulator[MAX8925_ID_SD3] = &regulator_data[MAX8925_ID_SD3],
+	.regulator[MAX8925_ID_LDO1] = &regulator_data[MAX8925_ID_LDO1],
+	.regulator[MAX8925_ID_LDO2] = &regulator_data[MAX8925_ID_LDO2],
+	.regulator[MAX8925_ID_LDO3] = &regulator_data[MAX8925_ID_LDO3],
+	.regulator[MAX8925_ID_LDO4] = &regulator_data[MAX8925_ID_LDO4],
+	.regulator[MAX8925_ID_LDO5] = &regulator_data[MAX8925_ID_LDO5],
+	.regulator[MAX8925_ID_LDO6] = &regulator_data[MAX8925_ID_LDO6],
+	.regulator[MAX8925_ID_LDO7] = &regulator_data[MAX8925_ID_LDO7],
+	.regulator[MAX8925_ID_LDO8] = &regulator_data[MAX8925_ID_LDO8],
+	.regulator[MAX8925_ID_LDO9] = &regulator_data[MAX8925_ID_LDO9],
+	.regulator[MAX8925_ID_LDO10] = &regulator_data[MAX8925_ID_LDO10],
+	.regulator[MAX8925_ID_LDO11] = &regulator_data[MAX8925_ID_LDO11],
+	.regulator[MAX8925_ID_LDO12] = &regulator_data[MAX8925_ID_LDO12],
+	.regulator[MAX8925_ID_LDO13] = &regulator_data[MAX8925_ID_LDO13],
+	.regulator[MAX8925_ID_LDO14] = &regulator_data[MAX8925_ID_LDO14],
+	.regulator[MAX8925_ID_LDO15] = &regulator_data[MAX8925_ID_LDO15],
+	.regulator[MAX8925_ID_LDO16] = &regulator_data[MAX8925_ID_LDO16],
+	.regulator[MAX8925_ID_LDO17] = &regulator_data[MAX8925_ID_LDO17],
+	.regulator[MAX8925_ID_LDO18] = &regulator_data[MAX8925_ID_LDO18],
+	.regulator[MAX8925_ID_LDO19] = &regulator_data[MAX8925_ID_LDO19],
+	.regulator[MAX8925_ID_LDO20] = &regulator_data[MAX8925_ID_LDO20],
 };
 
 static struct i2c_board_info brownstone_twsi1_info[] = {
@@ -216,6 +307,7 @@ static void __init brownstone_init(void)
 
 	/* enable 5v regulator */
 	platform_device_register(&brownstone_v_5vp_device);
+
 }
 
 MACHINE_START(BROWNSTONE, "Brownstone Development Platform")
