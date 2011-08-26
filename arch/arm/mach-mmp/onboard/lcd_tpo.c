@@ -215,7 +215,7 @@ static struct fb_videomode video_modes[] = {
 
 #define		LCD_ISR_CLEAR_MASK		0xffff00cc
 
-static struct pxa168fb_mach_info dkb_tpo_lcd_info __initdata = {
+static struct pxa168fb_mach_info dkb_tpo_lcd_info = {
 	.id                     = "Base",
 	.modes                  = video_modes,
 	.sclk_div               = 0x4000001f,
@@ -236,7 +236,7 @@ static struct pxa168fb_mach_info dkb_tpo_lcd_info __initdata = {
 	.max_fb_size            = ALIGN(320, 4) * ALIGN(480 , 4) * 4 + 4096,
 };
 
-static struct pxa168fb_mach_info dkb_tpo_lcd_ovly_info __initdata = {
+static struct pxa168fb_mach_info dkb_tpo_lcd_ovly_info = {
 	.id                     = "Ovly",
 	.modes                  = video_modes,
 	.num_modes              = ARRAY_SIZE(video_modes),

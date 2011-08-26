@@ -480,7 +480,7 @@ static int dsi_init(struct pxa168fb_info *fbi)
 
 #define		LCD_ISR_CLEAR_MASK		0xffff00cc
 
-static struct pxa168fb_mach_info mipi_lcd_info __initdata = {
+static struct pxa168fb_mach_info mipi_lcd_info = {
 	.id = "GFX Layer",
 	.num_modes = 0,
 	.modes = NULL,
@@ -512,7 +512,7 @@ static struct pxa168fb_mach_info mipi_lcd_info __initdata = {
 	.sclk_src = 500000000,
 };
 
-static struct pxa168fb_mach_info mipi_lcd_ovly_info __initdata = {
+static struct pxa168fb_mach_info mipi_lcd_ovly_info = {
 	.id = "Video Layer",
 	.num_modes = 0,
 	.modes = NULL,
