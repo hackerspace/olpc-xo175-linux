@@ -16,6 +16,8 @@
 #include <linux/io.h>
 #include <linux/platform_device.h>
 #include <linux/usb/mv_usb.h>
+#include <linux/delay.h>
+#include <linux/clk.h>
 
 #include <asm/hardware/cache-tauros2.h>
 
@@ -141,6 +143,51 @@ struct clkops sdhc_clk_ops = {
 	.disable	= sdhc_clk_disable,
 };
 
+static struct clk clk_pwm1;
+static void pwm2_clk_enable(struct clk *clk)
+{
+	uint32_t clk_rst;
+
+	/* FIXME enable pwm1 clock because of dependency */
+	clk_enable(&clk_pwm1);
+
+	clk_rst = __raw_readl(clk->clk_rst);
+
+	clk_rst &= ~(APBC_FNCLKSEL(0x7));
+	clk_rst |= APBC_FNCLK | APBC_FNCLKSEL(clk->fnclksel);
+	__raw_writel(clk_rst, clk->clk_rst);
+	mdelay(1);
+
+	clk_rst |= APBC_APBCLK;
+	__raw_writel(clk_rst, clk->clk_rst);
+	mdelay(1);
+
+	clk_rst &= ~(APBC_RST);
+	__raw_writel(clk_rst, clk->clk_rst);
+}
+
+static void pwm2_clk_disable(struct clk *clk)
+{
+	uint32_t clk_rst;
+
+	clk_rst = __raw_readl(clk->clk_rst);
+
+	clk_rst &= APBC_APBCLK;
+	__raw_writel(clk_rst, clk->clk_rst);
+	mdelay(1);
+
+	__raw_writel(0, clk->clk_rst);
+	mdelay(1);
+
+	/* FIXME disable pwm1 clock because of dependency */
+	clk_disable(&clk_pwm1);
+}
+
+struct clkops pwm2_clk_ops = {
+	.enable		= pwm2_clk_enable,
+	.disable	= pwm2_clk_disable,
+};
+
 /* APB peripheral clocks */
 static APBC_CLK(uart1, MMP2_UART1, 1, 26000000);
 static APBC_CLK(uart2, MMP2_UART2, 1, 26000000);
@@ -152,6 +199,10 @@ static APBC_CLK(twsi3, MMP2_TWSI3, 0, 26000000);
 static APBC_CLK(twsi4, MMP2_TWSI4, 0, 26000000);
 static APBC_CLK(twsi5, MMP2_TWSI5, 0, 26000000);
 static APBC_CLK(twsi6, MMP2_TWSI6, 0, 26000000);
+static APBC_CLK(pwm1, MMP2_PWM0, 0, 26000000);
+static APBC_CLK_OPS(pwm2, MMP2_PWM1, 0, 26000000, &pwm2_clk_ops);
+static APBC_CLK(pwm3, MMP2_PWM2, 0, 26000000);
+static APBC_CLK(pwm4, MMP2_PWM3, 0, 26000000);
 
 static APMU_CLK(nand, NAND, 0xbf, 100000000);
 static APMU_CLK(u2o, USB, 0x9, 480000000);
@@ -177,6 +228,10 @@ static struct clk_lookup mmp2_clkregs[] = {
 	INIT_CLKREG(&clk_sdh2, "sdhci-pxa.2", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_sdh3, "sdhci-pxa.3", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_u2o, NULL, "U2OCLK"),
+	INIT_CLKREG(&clk_pwm1, "mmp2-pwm.0", NULL),
+	INIT_CLKREG(&clk_pwm2, "mmp2-pwm.1", NULL),
+	INIT_CLKREG(&clk_pwm3, "mmp2-pwm.2", NULL),
+	INIT_CLKREG(&clk_pwm4, "mmp2-pwm.3", NULL),
 };
 
 static int __init mmp2_init(void)
@@ -231,3 +286,7 @@ MMP2_DEVICE(sdh0, "sdhci-pxa", 0, MMC, 0xd4280000, 0x120);
 MMP2_DEVICE(sdh1, "sdhci-pxa", 1, MMC2, 0xd4280800, 0x120);
 MMP2_DEVICE(sdh2, "sdhci-pxa", 2, MMC3, 0xd4281000, 0x120);
 MMP2_DEVICE(sdh3, "sdhci-pxa", 3, MMC4, 0xd4281800, 0x120);
+MMP2_DEVICE(pwm1, "mmp2-pwm", 0, NONE, 0xd401a000, 0x10);
+MMP2_DEVICE(pwm2, "mmp2-pwm", 1, NONE, 0xd401a400, 0x10);
+MMP2_DEVICE(pwm3, "mmp2-pwm", 2, NONE, 0xd401a800, 0x10);
+MMP2_DEVICE(pwm4, "mmp2-pwm", 3, NONE, 0xd401ac00, 0x10);

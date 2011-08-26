@@ -28,6 +28,10 @@ extern struct pxa_device_desc mmp2_device_sdh0;
 extern struct pxa_device_desc mmp2_device_sdh1;
 extern struct pxa_device_desc mmp2_device_sdh2;
 extern struct pxa_device_desc mmp2_device_sdh3;
+extern struct pxa_device_desc mmp2_device_pwm1;
+extern struct pxa_device_desc mmp2_device_pwm2;
+extern struct pxa_device_desc mmp2_device_pwm3;
+extern struct pxa_device_desc mmp2_device_pwm4;
 
 extern struct platform_device pxa168_device_u2o;
 
@@ -85,6 +89,22 @@ static inline int mmp2_add_sdhost(int id, struct sdhci_pxa_platdata *data)
 	}
 
 	return pxa_register_device(d, data, sizeof(*data));
+}
+
+static inline int mmp2_add_pwm(int id)
+{
+	struct pxa_device_desc *d = NULL;
+
+	switch (id) {
+	case 1: d = &mmp2_device_pwm1; break;
+	case 2: d = &mmp2_device_pwm2; break;
+	case 3: d = &mmp2_device_pwm3; break;
+	case 4: d = &mmp2_device_pwm4; break;
+	default:
+			return -EINVAL;
+	}
+
+	return pxa_register_device(d, NULL, 0);
 }
 
 #endif /* __ASM_MACH_MMP2_H */
