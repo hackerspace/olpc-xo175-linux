@@ -47,6 +47,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #endif
 
 #define RX_64K_MODE		/* for 64K RX data */
+#define ALLOC_COMMON_BUF_MULTIPLE	1
 
 #define SMS_PROTOCOL_MAX_RAOUNDTRIP_MS			(10000)
 #define SMS_ALLOC_ALIGNMENT				128
@@ -174,7 +175,10 @@ struct smscore_device_t {
 	void *common_buffer;
 	int common_buffer_size;
 	dma_addr_t common_buffer_phys;
-
+#if (ALLOC_COMMON_BUF_MULTIPLE  > 0)
+	struct smscore_buffer_t *buf_array_p;
+	int buf_num;
+#endif
 	void *context;
 	struct device *device;
 
