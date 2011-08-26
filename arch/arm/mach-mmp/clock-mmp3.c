@@ -1,0 +1,1300 @@
+/*
+ *  linux/arch/arm/mach-mmp/clock-mmp3.c
+ *
+ *  Author:	Raul Xiong <xjian@marvell.com>
+ *		Alan Zhu <wzhu10@marvell.com>
+ *  Copyright:	(C) 2011 Marvell International Ltd.
+ *
+ *  based on arch/arm/mach-tegra/tegra2_clocks.c
+ *	 Copyright (C) 2010 Google, Inc. by Colin Cross <ccross@google.com>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  published by the Free Software Foundation.
+ */
+
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/list.h>
+#include <linux/spinlock.h>
+#include <linux/clk.h>
+#include <linux/io.h>
+#include <linux/delay.h>
+#include <mach/mmp3_pm.h>
+#include <mach/regs-apbc.h>
+#include <mach/regs-apmu.h>
+#include <mach/regs-mpmu.h>
+#include <plat/clock.h>
+#include "common.h"
+
+#define CORE_NUM			3
+#define PMUA_CC				APMU_REG(0x4)
+#define PMUA_CC_2			APMU_REG(0x150)
+#define PMUA_CC_3			APMU_REG(0x188)
+#define PMUA_BUS			APMU_REG(0x6c)
+#define PMUA_DM_CC			APMU_REG(0xc)
+#define PMUA_DM_2_CC			APMU_REG(0x158)
+
+#define MMP3_PROTECT_CC(x)		(((x) & 0x0003fe3f) | 0x00bc0000)
+#define MMP3_PROTECT_CC2(x)		((x) & 0xfffffe07)
+#define MMP3_PROTECT_CC3(x)		((x) & 0x0effff1f)
+#define MMP3_PROTECT_BUSCLKRST(x)	((x) & 0x000001c3)
+#define MMP3_PROTECT_FCCR(x)		((x) & 0xff83ffff)
+
+/* Dynamic Frequency Change Part */
+enum {
+	MMP3_FREQ_OP_GET = 0,
+	MMP3_FREQ_OP_UPDATE = 1,
+	MMP3_FREQ_OP_SHOW = 2,
+
+	MMP3_FREQ_PH_D_BY_4 = 1,
+	MMP3_FREQ_PH_D_BY_6 = 2,
+	MMP3_FREQ_PH_D_BY_8 = 3,
+	MMP3_FREQ_PH_D_BY_10 = 4,
+	MMP3_FREQ_PH_D_BY_12 = 5,
+	MMP3_FREQ_PH_D_BY_14 = 6,
+	MMP3_FREQ_PH_D_BY_15 = 7,
+
+	MMP3_FREQCH_VOLTING = (1u << 27),
+	MMP3_FREQCH_CORE = (1u << 24),
+	MMP3_FREQCH_DRAM = (9u << 22),	/* both channel */
+	MMP3_FREQCH_AXI = (1u << 26),
+};
+
+static struct clk mmp3_clk_pll1_d_2 = {
+	.name = "pll1_d_2",
+	.rate = 400000000,
+	.ops = NULL,
+};
+
+static struct clk mmp3_clk_pll1 = {
+	.name = "pll1",
+	.rate = 800000000,
+	.ops = NULL,
+};
+
+static struct clk mmp3_clk_pll2 = {
+	.name = "pll2",
+	.rate = 1334000000,
+	.ops = NULL,
+};
+
+static struct clk mmp3_clk_pll1_clkoutp = {
+	.name = "pll1_clkoutp",
+	.rate = 1062000000,
+	.ops = NULL,
+};
+
+static struct clk mmp3_clk_vctcxo = {
+	.name = "vctcxo",
+	.rate = 26000000,
+	.ops = NULL,
+};
+
+static struct clk mmp3_clk_32k = {
+	.name = "32k",
+	.rate = 32768,
+	.ops = NULL,
+};
+
+static struct clk_mux_sel mux_pll1_pll2_vctcxo[] = {
+	{.input = &mmp3_clk_pll1_d_2, .value = 0},
+	{.input = &mmp3_clk_pll1, .value = 1},
+	{.input = &mmp3_clk_pll2, .value = 2},
+	{.input = &mmp3_clk_pll1_clkoutp, .value = 3},
+	{.input = &mmp3_clk_vctcxo, .value = 4},
+	{0, 0},
+};
+
+static void mmp3_core_clk_trigger_change(void)
+{
+	u32 val;
+	val = __raw_readl(PMUA_CC);
+	val = MMP3_PROTECT_CC(val);	/* set reserved */
+	val = val | MMP3_FREQCH_CORE | MMP3_FREQCH_VOLTING;
+	/* A0 need to all cores run, we use coherent broadcasts */
+	dsb();
+	/* trigger change */
+	__raw_writel(val, PMUA_CC);
+	/* done, PJ_RD_STATUS should have been cleared by HW */
+}
+
+static void mmp3_clk_source_init(struct clk *c)
+{
+	u32 val, source;
+	const struct clk_mux_sel *sel;
+
+	c->dynamic_change = 1;
+	c->mul = 1;
+	c->div = 1;
+
+	val = __raw_readl(c->reg_data[SOURCE][STATUS].reg);
+	source = (val >> c->reg_data[SOURCE][STATUS].reg_shift)
+	    & c->reg_data[SOURCE][STATUS].reg_mask;
+	for (sel = c->inputs; sel->input != NULL; sel++) {
+		if (sel->value == source)
+			break;
+	}
+	BUG_ON(sel->input == NULL);
+	c->parent = sel->input;
+}
+
+static int mmp3_clk_set_parent(struct clk *c, struct clk *p)
+{
+	u32 val;
+	const struct clk_mux_sel *sel;
+
+	val = __raw_readl(c->reg_data[SOURCE][CONTROL].reg);
+	for (sel = c->inputs; sel->input != NULL; sel++) {
+		if (sel->input == p) {
+			if (c->reg_data[SOURCE][CONTROL].reg == MPMU_FCCR)
+				val = MMP3_PROTECT_FCCR(val);
+			else if (c->reg_data[SOURCE][CONTROL].reg == PMUA_BUS)
+				val = MMP3_PROTECT_BUSCLKRST(val);
+			val &= ~(c->reg_data[SOURCE][CONTROL].reg_mask
+				 << c->reg_data[SOURCE][CONTROL].reg_shift);
+			val |= sel->value
+			    << c->reg_data[SOURCE][CONTROL].reg_shift;
+			__raw_writel(val, c->reg_data[SOURCE][CONTROL].reg);
+			/*
+			 * FIXME: DO NOT trigger here since
+			 * we will triggered the changes together later
+			 */
+			/* mmp3_core_clk_trigger_change(); */
+			clk_reparent(c, p);
+			return 0;
+		}
+	}
+
+	return -EINVAL;
+}
+
+static struct clkops mmp3_clk_root_ops = {
+	.init = mmp3_clk_source_init,
+	.set_parent = mmp3_clk_set_parent,
+};
+
+static struct clk mmp3_clk_core_root = {
+	.name = "core_root",
+	.inputs = mux_pll1_pll2_vctcxo,
+	.ops = &mmp3_clk_root_ops,
+	.reg_data = {
+		     { {MPMU_FCCR, 29, 0x7}, {MPMU_FCCR, 29, 0x7} },
+		     { {0, 0, 0}, {0, 0, 0} } },
+};
+
+static void mmp3_clk_div_init(struct clk *c)
+{
+	u32 val;
+
+	c->dynamic_change = 1;
+	c->mul = 1;
+
+	val = __raw_readl(c->reg_data[DIV][STATUS].reg);
+	c->div = ((val >> c->reg_data[DIV][STATUS].reg_shift)
+		  & c->reg_data[DIV][STATUS].reg_mask) + 1;
+}
+
+static int mmp3_clk_set_rate(struct clk *c, unsigned long rate)
+{
+	int i;
+	int max_div = c->reg_data[DIV][CONTROL].reg_mask + 1;
+	u32 val = __raw_readl(c->reg_data[DIV][CONTROL].reg);
+	unsigned long parent_rate = clk_get_rate(c->parent);
+
+	for (i = 1; i <= max_div; i++) {
+		if (rate == parent_rate / i) {
+			if (c->reg_data[DIV][CONTROL].reg == PMUA_CC)
+				val = MMP3_PROTECT_CC(val);
+			else if (c->reg_data[DIV][CONTROL].reg == PMUA_CC_2)
+				val = MMP3_PROTECT_CC2(val);
+			else if (c->reg_data[DIV][CONTROL].reg == PMUA_CC_3)
+				val = MMP3_PROTECT_CC3(val);
+
+			val &= ~(c->reg_data[DIV][CONTROL].reg_mask
+				 << c->reg_data[DIV][CONTROL].reg_shift);
+			val |= (i - 1) << c->reg_data[DIV][CONTROL].reg_shift;
+			__raw_writel(val, c->reg_data[DIV][CONTROL].reg);
+			/*
+			 * FIXME: DO NOT trigger here since
+			 * we will triggered the changes together later
+			 */
+			/* mmp3_core_clk_trigger_change(); */
+			c->div = i;
+			c->mul = 1;
+			return 0;
+		}
+	}
+	return -EINVAL;
+}
+
+static struct clkops mmp3_clk_div_ops = {
+	.init = mmp3_clk_div_init,
+	.setrate = mmp3_clk_set_rate,
+};
+
+static struct clk mmp3_clk_virtual_pj = {
+	.name = "pj",
+	.parent = &mmp3_clk_core_root,
+	.ops = &mmp3_clk_div_ops,
+	.reg_data = {
+		     { {0, 0, 0}, {0, 0, 0} },
+		     { {PMUA_DM_CC, 0, 0x7}, {PMUA_CC, 0, 0x7} } },
+};
+
+static struct clk mmp3_clk_mp1 = {
+	.name = "mp1",
+	.parent = &mmp3_clk_virtual_pj,
+	.ops = &mmp3_clk_div_ops,
+	.reg_data = {
+		     { {0, 0, 0}, {0, 0, 0} },
+		     { {PMUA_DM_2_CC, 9, 0xf}, {PMUA_CC_2, 9, 0xf} } },
+};
+
+static struct clk mmp3_clk_mp2 = {
+	.name = "mp2",
+	.parent = &mmp3_clk_virtual_pj,
+	.ops = &mmp3_clk_div_ops,
+	.reg_data = {
+		     { {0, 0, 0}, {0, 0, 0} },
+		     { {PMUA_DM_2_CC, 13, 0xf}, {PMUA_CC_2, 13, 0xf} } },
+};
+
+static struct clk mmp3_clk_mm = {
+	.name = "mm",
+	.parent = &mmp3_clk_virtual_pj,
+	.ops = &mmp3_clk_div_ops,
+	.reg_data = {
+		     { {0, 0, 0}, {0, 0, 0} },
+		     { {PMUA_DM_2_CC, 17, 0xf}, {PMUA_CC_2, 17, 0xf} } },
+};
+
+static struct clk mmp3_clk_aclk = {
+	.name = "aclk",
+	.parent = &mmp3_clk_virtual_pj,
+	.ops = &mmp3_clk_div_ops,
+	.reg_data = {
+		     { {0, 0, 0}, {0, 0, 0} },
+		     { {PMUA_DM_2_CC, 21, 0xf}, {PMUA_CC_2, 21, 0xf} } },
+};
+
+static void mmp3_core_periph_init(struct clk *c)
+{
+	u32 val, div_val;
+
+	c->dynamic_change = 1;
+	c->mul = 1;
+
+	val = __raw_readl(c->reg_data[DIV][STATUS].reg);
+	div_val = (val >> c->reg_data[DIV][STATUS].reg_shift)
+	    & c->reg_data[DIV][STATUS].reg_mask;
+	if (div_val != 7)
+		c->div = (div_val + 1) * 2;
+	else
+		c->div = 15;
+}
+
+static int mmp3_core_periph_set_rate(struct clk *c, unsigned long rate)
+{
+	int i;
+	int max_div = 15;
+	u32 val = __raw_readl(c->reg_data[DIV][CONTROL].reg);
+	unsigned long parent_rate = clk_get_rate(c->parent);
+
+	for (i = 4; i < max_div; i += 2) {
+		if (rate == parent_rate / i) {
+			val = MMP3_PROTECT_CC(val);
+			val &= ~(c->reg_data[DIV][CONTROL].reg_mask
+				 << c->reg_data[DIV][CONTROL].reg_shift);
+			val |= (i / 2 - 1)
+			    << c->reg_data[DIV][CONTROL].reg_shift;
+			__raw_writel(val, c->reg_data[DIV][CONTROL].reg);
+			/*
+			 * FIXME: DO NOT trigger here since
+			 * we will triggered the changes together later
+			 */
+			/* mmp3_core_clk_trigger_change(); */
+			c->div = i;
+			c->mul = 1;
+			return 0;
+		}
+	}
+
+	if (rate == parent_rate / max_div) {
+		val = MMP3_PROTECT_CC(val);
+		val &= ~(c->reg_data[DIV][CONTROL].reg_mask
+			 << c->reg_data[DIV][CONTROL].reg_shift);
+		val |= 7 << c->reg_data[DIV][CONTROL].reg_shift;
+		__raw_writel(val, c->reg_data[DIV][CONTROL].reg);
+		/*
+		 * FIXME: DO NOT trigger here since
+		 * we will triggered the changes together later
+		 */
+		/* mmp3_core_clk_trigger_change(); */
+		c->div = max_div;
+		c->mul = 1;
+		return 0;
+	}
+
+	return -EINVAL;
+}
+
+static struct clkops mmp3_core_periph_ops = {
+	.init = mmp3_core_periph_init,
+	.setrate = mmp3_core_periph_set_rate,
+};
+
+static struct clk mmp3_clk_core_periph = {
+	.name = "periph",
+	.parent = &mmp3_clk_core_root,
+	.ops = &mmp3_core_periph_ops,
+	.reg_data = {
+		     { {0, 0, 0}, {0, 0, 0} },
+		     { {PMUA_DM_2_CC, 25, 0x7}, {PMUA_CC, 9, 0x7} } },
+};
+
+static struct clk mmp3_clk_atclk = {
+	.name = "atclk",
+	.parent = &mmp3_clk_core_root,
+	.ops = &mmp3_clk_div_ops,
+	.reg_data = {
+		     { {0, 0, 0}, {0, 0, 0} },
+		     { {PMUA_DM_CC, 3, 0x7}, {PMUA_CC, 3, 0x7} } },
+};
+
+static struct {
+	struct clk *source_clk;
+	unsigned long pj_rate;
+	unsigned long mp1_rate;
+	unsigned long mp2_rate;
+	unsigned long mm_rate;
+	unsigned long aclk_rate;
+	unsigned long ph_rate;
+	unsigned long atclk_rate;
+} mmp3_op_table[] = {
+	{
+	&mmp3_clk_pll1_d_2, 200000000, 200000000,
+		    200000000, 200000000, 200000000, 100000000, 200000000}, {
+	&mmp3_clk_pll1, 400000000, 400000000,
+		    400000000, 400000000, 400000000, 200000000, 400000000}, {
+	&mmp3_clk_pll1, 800000000, 800000000,
+		    800000000, 400000000, 400000000, 200000000, 400000000}, {
+	&mmp3_clk_pll1_clkoutp, 1062000000, 1062000000,
+		    1062000000, 531000000, 531000000, 177000000, 354000000}, {
+	    /* must be the last line! */
+	NULL, 0, 0, 0, 0, 0, 0, 0} };
+
+static void mmp3_cpu_clk_init(struct clk *c)
+{
+	c->dynamic_change = 1;
+	c->mul = 1;
+	c->div = 1;
+}
+
+static int mmp3_cpu_clk_set_rate(struct clk *c, unsigned long rate)
+{
+	int ret, index, i;
+
+	for (i = 0; mmp3_op_table[i].source_clk != NULL; i++) {
+		if (mmp3_op_table[i].mp1_rate >= rate) {
+			index = i;
+			break;
+		}
+	}
+	if (mmp3_op_table[i].source_clk == NULL)
+		return -EINVAL;
+
+	/* obtain FC onwership, should always pass */
+	i = 1000;
+	while ((__raw_readl(PMUA_DM_CC) & (1u << 24)) != 0) {
+		i--;
+		if (i <= 0) {
+			pr_err("Cannot gain owner of PMU DFC\n");
+			return -EAGAIN;
+		}
+	}
+
+	ret = clk_set_parent(&mmp3_clk_core_root,
+			     mmp3_op_table[index].source_clk);
+	if (ret)
+		return ret;
+
+	ret = clk_set_rate(&mmp3_clk_virtual_pj, mmp3_op_table[index].pj_rate);
+	if (ret)
+		return ret;
+
+	ret = clk_set_rate(&mmp3_clk_mp1, mmp3_op_table[index].mp1_rate);
+	if (ret)
+		return ret;
+
+	ret = clk_set_rate(&mmp3_clk_mp2, mmp3_op_table[index].mp2_rate);
+	if (ret)
+		return ret;
+
+	ret = clk_set_rate(&mmp3_clk_mm, mmp3_op_table[index].mm_rate);
+	if (ret)
+		return ret;
+
+	ret = clk_set_rate(&mmp3_clk_aclk, mmp3_op_table[index].aclk_rate);
+	if (ret)
+		return ret;
+
+	ret = clk_set_rate(&mmp3_clk_core_periph, mmp3_op_table[index].ph_rate);
+	if (ret)
+		return ret;
+
+	ret = clk_set_rate(&mmp3_clk_atclk, mmp3_op_table[index].atclk_rate);
+	if (ret)
+		return ret;
+
+	mmp3_core_clk_trigger_change();
+
+	return 0;
+}
+
+static struct clkops mmp3_cpu_ops = {
+	.init = mmp3_cpu_clk_init,
+	.setrate = mmp3_cpu_clk_set_rate,
+};
+
+static struct clk mmp3_clk_virtual_cpu __maybe_unused = {
+	.name = "cpu",
+	.parent = &mmp3_clk_virtual_pj,
+	.ops = &mmp3_cpu_ops,
+};
+
+/* ddr clock definitions */
+static struct clk mmp3_clk_ddr_root = {
+	.name = "ddr_root",
+	.inputs = mux_pll1_pll2_vctcxo,
+	.ops = &mmp3_clk_root_ops,
+	.reg_data = {
+		     { {MPMU_FCCR, 23, 0x7}, {MPMU_FCCR, 23, 0x7} },
+		     { {0, 0, 0}, {0, 0, 0} } },
+};
+
+static struct clk mmp3_clk_ddr1 = {
+	.name = "ddr1",
+	.parent = &mmp3_clk_ddr_root,
+	.ops = &mmp3_clk_div_ops,
+	.reg_data = {
+		     { {0, 0, 0}, {0, 0, 0} },
+		     { {PMUA_DM_CC, 12, 0x7}, {PMUA_CC, 12, 0x7} } },
+};
+
+static struct clk mmp3_clk_ddr2 = {
+	.name = "ddr2",
+	.parent = &mmp3_clk_ddr_root,
+	.ops = &mmp3_clk_div_ops,
+	.reg_data = {
+		     { {0, 0, 0}, {0, 0, 0} },
+		     { {PMUA_DM_CC, 9, 0x7}, {PMUA_CC_3, 17, 0x7} } },
+};
+
+/* axi clock definitions */
+static struct clk mmp3_clk_axi_root = {
+	.name = "axi_root",
+	.inputs = mux_pll1_pll2_vctcxo,
+	.ops = &mmp3_clk_root_ops,
+	.reg_data = {
+		     { {PMUA_BUS, 6, 0x7}, {PMUA_BUS, 6, 0x7} },
+		     { {0, 0, 0}, {0, 0, 0} } },
+};
+
+static struct clk mmp3_clk_axi1 = {
+	.name = "axi1",
+	.parent = &mmp3_clk_axi_root,
+	.ops = &mmp3_clk_div_ops,
+	.reg_data = {
+		     { {0, 0, 0}, {0, 0, 0} },
+		     { {PMUA_DM_CC, 15, 0x7}, {PMUA_CC, 15, 0x7} } },
+};
+
+static struct clk mmp3_clk_axi2 = {
+	.name = "axi2",
+	.parent = &mmp3_clk_axi_root,
+	.ops = &mmp3_clk_div_ops,
+	.reg_data = {
+		     { {0, 0, 0}, {0, 0, 0} },
+		     { {PMUA_DM_2_CC, 0, 0x7}, {PMUA_CC_2, 0, 0x7} } },
+};
+
+static int clk_cpu_setrate(struct clk *clk, unsigned long val)
+{
+	/*
+	 * FIXME this need change when smp process id to real process id
+	 * mapping is ready, then we can do frequency table for each core
+	 * currently the mapping depends on which core to boot.
+	 * Also currently we assume only MP1/2 are active and they always runs
+	 * at the same frequency. so we only use and trigger DFC target on MP1
+	 */
+	mmp3_setfreq(MMP3_CLK_MP1, val);
+	return 0;
+}
+
+static unsigned long clk_cpu_getrate(struct clk *clk)
+{
+	return mmp3_getfreq(MMP3_CLK_MP1);
+}
+
+static struct clkops clk_cpu_ops = {
+	.setrate = clk_cpu_setrate,
+	.getrate = clk_cpu_getrate,
+};
+
+static struct clk mmp3_clk_cpu = {
+	.name = "cpu",
+	.ops = &clk_cpu_ops,
+};
+
+static struct clk *mmp3_clks_ptr[] = {
+	&mmp3_clk_pll1_d_2,
+	&mmp3_clk_pll1,
+	&mmp3_clk_pll2,
+	&mmp3_clk_pll1_clkoutp,
+	&mmp3_clk_vctcxo,
+	&mmp3_clk_32k,
+	&mmp3_clk_core_root,
+	&mmp3_clk_virtual_pj,
+	&mmp3_clk_mp1,
+	&mmp3_clk_mp2,
+	&mmp3_clk_mm,
+	&mmp3_clk_cpu,
+	&mmp3_clk_aclk,
+	&mmp3_clk_core_periph,
+	&mmp3_clk_atclk,
+	&mmp3_clk_ddr_root,
+	&mmp3_clk_ddr1,
+	&mmp3_clk_ddr2,
+	&mmp3_clk_axi_root,
+	&mmp3_clk_axi1,
+	&mmp3_clk_axi2,
+};
+
+static int apbc_clk_enable(struct clk *clk)
+{
+	unsigned long data;
+
+	data = __raw_readl(clk->clk_rst) & ~(APBC_FNCLKSEL(7));
+	data |= APBC_FNCLK | APBC_FNCLKSEL(clk->fnclksel);
+	__raw_writel(data, clk->clk_rst);
+	/*
+	 * delay two cycles of the solwest clock between the APB bus clock
+	 * and the functional module clock.
+	 */
+	udelay(10);
+
+	data |= APBC_APBCLK;
+	__raw_writel(data, clk->clk_rst);
+	udelay(10);
+
+	data &= ~APBC_RST;
+	__raw_writel(data, clk->clk_rst);
+
+	return 0;
+}
+
+static void apbc_clk_disable(struct clk *clk)
+{
+	unsigned long data;
+
+	data = __raw_readl(clk->clk_rst) & ~(APBC_FNCLK | APBC_FNCLKSEL(7));
+	__raw_writel(data, clk->clk_rst);
+	udelay(10);
+
+	data &= ~APBC_APBCLK;
+	__raw_writel(data, clk->clk_rst);
+}
+
+struct clkops apbc_clk_ops = {
+	.enable = apbc_clk_enable,
+	.disable = apbc_clk_disable,
+};
+
+#define APBC_CLK(_name, _dev, _con, _reg, _fnclksel, _rate, _parent)\
+{							\
+	.name = _name,					\
+	.lookup = {					\
+		.dev_id = _dev,				\
+		.con_id = _con,				\
+	},						\
+	.clk_rst = (void __iomem *)APBC_##_reg,		\
+	.fnclksel = _fnclksel,				\
+	.rate = _rate,					\
+	.ops = &apbc_clk_ops,				\
+	.parent = _parent,				\
+}
+
+#define APBC_CLK_OPS(_name, _dev, _con, _reg, _fnclksel, _rate, _parent, _ops)\
+{							\
+	.name = _name,					\
+	.lookup = {					\
+		.dev_id = _dev,				\
+		.con_id = _con,				\
+	},						\
+	.clk_rst = (void __iomem *)APBC_##_reg,		\
+	.fnclksel = _fnclksel,				\
+	.rate = _rate,					\
+	.ops = _ops,					\
+	.parent = _parent,				\
+}
+
+static int uart_clk_enable(struct clk *clk)
+{
+	uint32_t clk_rst;
+
+	clk_rst = __raw_readl(clk->clk_rst);
+	clk_rst |= APBC_FNCLK;
+	__raw_writel(clk_rst, clk->clk_rst);
+	mdelay(1);
+
+	clk_rst |= APBC_APBCLK;
+	__raw_writel(clk_rst, clk->clk_rst);
+	mdelay(1);
+
+	clk_rst &= ~(APBC_RST);
+	__raw_writel(clk_rst, clk->clk_rst);
+
+	return 0;
+}
+
+static void uart_clk_disable(struct clk *clk)
+{
+	__raw_writel(0, clk->clk_rst);
+	mdelay(1);
+}
+
+static int uart_clk_setrate(struct clk *clk, unsigned long val)
+{
+	uint32_t clk_rst;
+
+	if (val == clk->rate) {
+		/* choose vctcxo */
+		clk_rst = __raw_readl(clk->clk_rst);
+		clk_rst &= ~(APBC_FNCLKSEL(0x7));
+		clk_rst |= APBC_FNCLKSEL(0x1);
+		__raw_writel(clk_rst, clk->clk_rst);
+
+	} else if (val > clk->rate) {
+		/* set m/n for high speed */
+		unsigned int numer = 27;
+		unsigned int denom = 16;
+
+		/*
+		 * n/d = base_clk/(2*out_clk)
+		 * base_clk = 199.33M, out_clk=199.33*16/27/2=59.06M
+		 * buadrate = clk/(16*divisor)
+		 */
+
+		/*
+		 * Bit(s) PMUM_SUCCR_RSRV_31_29 reserved
+		 * UART Clock Generation Programmable Divider
+		 * Numerator Value
+		 */
+#define PMUM_SUCCR_UARTDIVN_MSK                 (0x1fff << 16)
+#define PMUM_SUCCR_UARTDIVN_BASE                16
+		/*
+		 * Bit(s) PMUM_SUCCR_RSRV_15_13 reserved
+		 * UART Clock Generation Programmable Divider
+		 * Denominator Value
+		 */
+#define PMUM_SUCCR_UARTDIVD_MSK                 (0x1fff)
+#define PMUM_SUCCR_UARTDIVD_BASE                0
+
+		clk_rst = __raw_readl(MPMU_SUCCR);
+		clk_rst &=
+		    ~(PMUM_SUCCR_UARTDIVN_MSK + PMUM_SUCCR_UARTDIVD_MSK);
+		clk_rst |=
+		    (numer << PMUM_SUCCR_UARTDIVN_BASE) |
+		    (denom << PMUM_SUCCR_UARTDIVD_BASE);
+		__raw_writel(clk_rst, MPMU_SUCCR);
+
+		/* choose programmable clk */
+		clk_rst = __raw_readl(clk->clk_rst);
+		clk_rst &= ~(APBC_FNCLKSEL(0x7));
+		__raw_writel(clk_rst, clk->clk_rst);
+	}
+
+
+	return 0;
+}
+
+struct clkops uart_clk_ops = {
+	.enable = uart_clk_enable,
+	.disable = uart_clk_disable,
+	.setrate = uart_clk_setrate,
+};
+
+static int rtc_clk_enable(struct clk *clk)
+{
+	uint32_t clk_rst;
+
+	clk_rst = APBC_APBCLK | APBC_FNCLK | APBC_FNCLKSEL(clk->fnclksel);
+	clk_rst |= 1 << 7;
+	__raw_writel(clk_rst, clk->clk_rst);
+
+	return 0;
+}
+
+static void rtc_clk_disable(struct clk *clk)
+{
+	__raw_writel(0, clk->clk_rst);
+}
+
+struct clkops rtc_clk_ops = {
+	.enable = rtc_clk_enable,
+	.disable = rtc_clk_disable,
+};
+
+static int apmu_clk_enable(struct clk *clk)
+{
+	__raw_writel(clk->enable_val, clk->clk_rst);
+
+	return 0;
+}
+
+static void apmu_clk_disable(struct clk *clk)
+{
+	__raw_writel(0, clk->clk_rst);
+}
+
+static int apmu_clk_setrate(struct clk *clk, unsigned long rate)
+{
+	__raw_writel(rate, clk->clk_rst);
+
+	return 0;
+}
+
+struct clkops apmu_clk_ops = {
+	.enable = apmu_clk_enable,
+	.disable = apmu_clk_disable,
+	.setrate = apmu_clk_setrate,
+};
+
+#define APMU_CLK(_name, _dev, _con, _reg, _eval, _rate, _parent)\
+{								\
+	.name = _name,						\
+	.lookup = {						\
+		.dev_id = _dev,					\
+		.con_id = _con,					\
+	},							\
+	.clk_rst = (void __iomem *)APMU_##_reg,			\
+	.enable_val = _eval,					\
+	.rate = _rate,						\
+	.ops = &apmu_clk_ops,					\
+	.parent = _parent,					\
+}
+
+#define APMU_CLK_OPS(_name, _dev, _con, _reg, _eval, _rate, _parent, _ops)\
+{								\
+	.name = _name,						\
+	.lookup = {						\
+		.dev_id = _dev,					\
+		.con_id = _con,					\
+	},							\
+	.clk_rst = (void __iomem *)APMU_##_reg,			\
+	.enable_val = _eval,					\
+	.rate = _rate,						\
+	.parent = _parent,					\
+	.ops = _ops,						\
+}
+
+static int gc1000_clk_enable(struct clk *clk)
+{
+	u32 tmp;
+
+	/* [GC_PWRUP]=1, GC module slow ramp */
+	tmp = (1 << 9);
+	__raw_writel(tmp, clk->clk_rst);
+
+	tmp = __raw_readl(clk->clk_rst);
+	/* [GC_PWRUP]=3, GC module power on */
+	tmp |= (3 << 9);
+	__raw_writel(tmp, clk->clk_rst);
+
+	tmp = __raw_readl(clk->clk_rst);
+	/* [GC_ACLK_SEL]=0, PLL2 divided by 2 */
+	tmp &= ~(3 << 4);
+	tmp |= (3 << 4);
+	/* [CLK_GC_SRC_SEL]=0, clk_gc source select PLL2 */
+	tmp &= ~(3 << 6);
+	tmp |= (1 << 6);
+	/* [GC_CLK_DIV]=2, input pll clock to gc clock ratio,
+		divide by 2, PLL2Freq/2 MHz */
+	tmp &= ~(0xF << 24);
+	tmp |= (2 << 24);
+	__raw_writel(tmp, clk->clk_rst);
+
+	tmp = __raw_readl(clk->clk_rst);
+	/* [GC_CLK_EN]=1, Peripheral clock enable */
+	tmp |= (1 << 3);
+	__raw_writel(tmp, clk->clk_rst);
+
+	udelay(100);
+
+	tmp = __raw_readl(clk->clk_rst);
+	/* [GC_AXICLK_EN]=1, AXI clock enable */
+	tmp |= (1 << 2);
+	__raw_writel(tmp, clk->clk_rst);
+
+	udelay(100);
+
+	tmp = __raw_readl(clk->clk_rst);
+	/* [GC_ISB]=1, Isolation disable (normal mode) */
+	tmp |= (1 << 8);
+	__raw_writel(tmp, clk->clk_rst);
+
+	tmp = __raw_readl(clk->clk_rst);
+	/* [GC_RST]=1, release GC controller from reset */
+	tmp |= (1 << 1);
+	__raw_writel(tmp, clk->clk_rst);
+
+	tmp = __raw_readl(clk->clk_rst);
+	/* [GC_AXI_RST]=1, release GC controller AXI from reset */
+	tmp |= (1 << 0);
+	__raw_writel(tmp, clk->clk_rst);
+
+	return 0;
+}
+
+static void gc1000_clk_disable(struct clk *clk)
+{
+	u32 tmp;
+
+	tmp = __raw_readl(clk->clk_rst);
+	/* [GC_ISB]=0, Isolation enable (power down mode) */
+	tmp &= ~(1 << 8);
+	__raw_writel(tmp, clk->clk_rst);
+
+	tmp = __raw_readl(clk->clk_rst);
+	/* [GC_RST]=0, hold GC controller in reset */
+	/* [GC_AXI_RST]=0, hold GC controller AXI in reset */
+	tmp &= ~((1 << 0) | (1 << 1));
+	__raw_writel(tmp, clk->clk_rst);
+
+	tmp = __raw_readl(clk->clk_rst);
+	/* [GC_CLK_EN]=0, Peripheral clock disable */
+	/* [GC_AXICLK_EN]=0, AXI clock disable */
+	tmp &= ~((1 << 2) | (1 << 3));
+	__raw_writel(tmp, clk->clk_rst);
+
+	tmp = __raw_readl(clk->clk_rst);
+	/* [GC_PWRUP]=0, GC module power off */
+	tmp &= ~(3 << 9);
+	__raw_writel(tmp, clk->clk_rst);
+}
+
+static int gc1000_clk_setrate(struct clk *clk, unsigned long target_rate)
+{
+	return 0;
+}
+
+static unsigned long gc1000_clk_getrate(struct clk *clk)
+{
+	u32 tmp, gc_clk, div;
+
+	tmp = __raw_readl(clk->clk_rst);
+	div = (tmp >> 24) & 0xF;
+
+	if (div == 0) {
+		printk(KERN_ERR "gc clock div 0, error!!\n");
+		return 0;
+	}
+
+	/* clock input from PLL1, it's 800MHz */
+	gc_clk = 800000000 / div;
+
+	return gc_clk;
+}
+
+struct clkops gc1000_clk_ops = {
+	.enable		= gc1000_clk_enable,
+	.disable	= gc1000_clk_disable,
+	.setrate	= gc1000_clk_setrate,
+	.getrate	= gc1000_clk_getrate,
+};
+
+#ifdef CONFIG_UIO_VMETA
+
+static int vmeta_clk_enable(struct clk *clk)
+{
+	int reg;
+
+	reg = readl(APMU_VMETA_CLK_RES_CTRL);
+
+	reg &= ~APMU_VMETA_CLK_SEL_MASK;
+	reg &= ~APMU_VMETA_CLK_DIV_MASK;
+	reg |= APMU_VMETA_CLK_PLL2;
+	reg |= APMU_VMETA_CLK_DIV_2;
+
+	writel(reg, APMU_VMETA_CLK_RES_CTRL);
+	reg = readl(APMU_VMETA_CLK_RES_CTRL);
+
+	reg |= APMU_VMETA_AXICLK_EN;
+	writel(reg, APMU_VMETA_CLK_RES_CTRL);
+	reg = readl(APMU_VMETA_CLK_RES_CTRL);
+
+	reg |= APMU_VMETA_CLK_EN;
+	writel(reg, APMU_VMETA_CLK_RES_CTRL);
+	reg = readl(APMU_VMETA_CLK_RES_CTRL);
+
+	reg &= ~APMU_VMETA_AXI_RST;
+	writel(reg, APMU_VMETA_CLK_RES_CTRL);
+	reg = readl(APMU_VMETA_CLK_RES_CTRL);
+	reg |= APMU_VMETA_AXI_RST;
+	writel(reg, APMU_VMETA_CLK_RES_CTRL);
+	reg = readl(APMU_VMETA_CLK_RES_CTRL);
+
+	reg &= ~APMU_VMETA_RST;
+	writel(reg, APMU_VMETA_CLK_RES_CTRL);
+	reg = readl(APMU_VMETA_CLK_RES_CTRL);
+	reg |= APMU_VMETA_RST;
+	writel(reg, APMU_VMETA_CLK_RES_CTRL);
+	reg = readl(APMU_VMETA_CLK_RES_CTRL);
+
+	return 0;
+}
+
+static void vmeta_clk_disable(struct clk *clk)
+{
+	int reg;
+
+	reg = readl(APMU_VMETA_CLK_RES_CTRL);
+	reg &= ~APMU_VMETA_AXI_RST;
+	writel(reg, APMU_VMETA_CLK_RES_CTRL);
+	reg &= ~APMU_VMETA_RST;
+	writel(reg, APMU_VMETA_CLK_RES_CTRL);
+
+	reg = readl(APMU_VMETA_CLK_RES_CTRL);
+	reg &= ~APMU_VMETA_AXICLK_EN;
+	writel(reg, APMU_VMETA_CLK_RES_CTRL);
+	reg &= ~APMU_VMETA_CLK_EN;
+	writel(reg, APMU_VMETA_CLK_RES_CTRL);
+}
+
+static int vmeta_clk_setrate(struct clk *clk, unsigned long rate)
+{
+	return 0;
+}
+
+struct clkops vmeta_clk_ops = {
+	.enable         = vmeta_clk_enable,
+	.disable        = vmeta_clk_disable,
+	.setrate        = vmeta_clk_setrate,
+};
+#endif
+
+
+
+static void turn_on_pll3(void)
+{
+	u32 tmp = __raw_readl(PMUM_PLL3_CTRL2);
+
+	/* set SEL_VCO_CLK_SE in PMUM_PLL3_CTRL2 register*/
+	__raw_writel(tmp | 0x00000001, PMUM_PLL3_CTRL2);
+
+	/* PLL3 control register 1 - program VCODIV_SEL_SE = 2,
+	 * ICP = 4, KVCO = 5 and VCRNG = 4*/
+	__raw_writel(0x05290499, PMUM_PLL3_CTRL1);
+
+	/*MPMU_PLL3CR: Program PLL3 VCO for 2.0Ghz -REFD = 3;*/
+	tmp = (__raw_readl(APMU_FSIC3_CLK_RES_CTRL) >> 8) & 0xF;
+	if (tmp == 0xD)
+		/* 26MHz ref clock to HDMI\DSI\USB PLLs,
+		 * MPMU_PLL3CR ;FBD = 0xE6
+		 */
+		__raw_writel(0x001B9A00, PMUM_PLL3_CR);
+	else
+		/* 25MHz ref clock to HDMI\DSI\USB PLLs,
+		 * MPMU_PLL3CR ;FBD = 0xF6
+		 */
+		__raw_writel(0x001BdA00, PMUM_PLL3_CR);
+
+	/* PLL3 Control register -Enable SW PLL3*/
+	tmp = __raw_readl(PMUM_PLL3_CR);
+	__raw_writel(tmp | 0x00000100, PMUM_PLL3_CR);
+
+	/* wait for PLLs to lock*/
+	udelay(500);
+
+	/* PMUM_PLL3_CTRL1: take PLL3 out of reset*/
+	tmp = __raw_readl(PMUM_PLL3_CTRL1);
+	__raw_writel(tmp | 0x20000000, PMUM_PLL3_CTRL1);
+
+	udelay(500);
+}
+
+static void turn_off_pll3(void)
+{
+	u32 tmp = __raw_readl(PMUM_PLL3_CR);
+
+	/* PLL3 Control register -disable SW PLL3*/
+	__raw_writel(tmp & ~0x00000100, PMUM_PLL3_CR);
+
+	/* wait for PLLs to lock*/
+	udelay(500);
+
+	/* PMUM_PLL3_CTRL1: put PLL3 into reset*/
+	tmp = __raw_readl(PMUM_PLL3_CTRL1);
+	__raw_writel(tmp & ~0x20000000, PMUM_PLL3_CTRL1);
+
+	udelay(500);
+}
+
+static int lcd_pn1_clk_enable(struct clk *clk)
+{
+	u32 tmp;
+
+	/* DSI clock enable*/
+	turn_on_pll3();
+
+	tmp = __raw_readl(clk->clk_rst);
+	tmp |= 0x103f;
+	__raw_writel(tmp, clk->clk_rst);
+
+	return 0;
+}
+
+static void lcd_pn1_clk_disable(struct clk *clk)
+{
+	u32 tmp = __raw_readl(clk->clk_rst);
+	/* tmp &= ~0xf9fff; */
+	tmp &= ~0x1038; /* release from reset to keep register setting */
+	__raw_writel(tmp, clk->clk_rst);
+
+	/* DSI clock disable*/
+	turn_off_pll3();
+}
+
+static int lcd_clk_setrate(struct clk *clk, unsigned long val)
+{
+	u32 tmp = __raw_readl(clk->clk_rst);
+	/* u32 pll2clk = pll2_get_clk(); */
+
+	tmp &= ~((0x1f << 15) | (0xf << 8) | (0x3 << 6));
+	tmp |= (0x1a << 15);
+
+	switch (val) {
+	case 400000000:
+		/* DSP1clk = PLL1/2 = 400MHz */
+		tmp |= (0x2 << 8) | (0x0 << 6);
+		break;
+	case 500000000:
+		/* DSP1clk = PLL2/x, about 500MHz, temply workaround */
+		tmp |= (0x2 << 8) | (0x2 << 6);
+		break;
+	default:
+		printk(KERN_ERR"%s %d not supported\n", __func__, (int) val);
+		return -1;
+	}
+
+	__raw_writel(tmp, clk->clk_rst);
+	return 0;
+}
+
+static unsigned long lcd_clk_getrate(struct clk *clk)
+{
+	u32 lcdclk = clk->rate;
+
+	return lcdclk;
+}
+
+struct clkops lcd_pn1_clk_ops = {
+	.enable = lcd_pn1_clk_enable,
+	.disable = lcd_pn1_clk_disable,
+	.setrate = lcd_clk_setrate,
+	.getrate = lcd_clk_getrate,
+};
+
+static int sdhc_clk_enable(struct clk *clk)
+{
+	uint32_t clk_rst;
+
+	clk_rst  =  __raw_readl(clk->clk_rst);
+	clk_rst |= clk->enable_val;
+	__raw_writel(clk_rst, clk->clk_rst);
+
+	return 0;
+}
+
+static void sdhc_clk_disable(struct clk *clk)
+{
+	uint32_t clk_rst;
+
+	clk_rst  =  __raw_readl(clk->clk_rst);
+	clk_rst &= ~clk->enable_val;
+	__raw_writel(clk_rst, clk->clk_rst);
+}
+
+struct clkops sdhc_clk_ops = {
+	.enable		= sdhc_clk_enable,
+	.disable	= sdhc_clk_disable,
+};
+
+static int ccic_rst_clk_enable(struct clk *clk)
+{
+	__raw_writel(0x2e838, clk->clk_rst);
+	__raw_writel(0x3e909, clk->clk_rst);
+	__raw_writel(0x3eb39, clk->clk_rst);
+	__raw_writel(0x3eb3f, clk->clk_rst);
+#if 0
+	__raw_writel(0x000387FF, clk->clk_rst);
+#endif
+
+	return 0;
+}
+
+static void ccic_rst_clk_disable(struct clk *clk)
+{
+	__raw_writel(0x3eb3f, clk->clk_rst);
+	__raw_writel(0x3eb39, clk->clk_rst);
+	__raw_writel(0x3e909, clk->clk_rst);
+	__raw_writel(0x2e838, clk->clk_rst);
+	__raw_writel(0x0, clk->clk_rst);
+}
+
+struct clkops ccic_rst_clk_ops = {
+	.enable         = ccic_rst_clk_enable,
+	.disable        = ccic_rst_clk_disable,
+};
+
+static int ccic_dbg_clk_enable(struct clk *clk)
+{
+	u32 tmp = __raw_readl(clk->clk_rst);
+	tmp |= (1 << 25) | (1 << 27);
+	__raw_writel(tmp, clk->clk_rst);
+
+	return 0;
+}
+
+static void ccic_dbg_clk_disable(struct clk *clk)
+{
+	u32 tmp = __raw_readl(clk->clk_rst);
+	tmp &= ~((1 << 25) | (1 << 27));
+	__raw_writel(tmp, clk->clk_rst);
+}
+
+struct clkops ccic_dbg_clk_ops = {
+	.enable         = ccic_dbg_clk_enable,
+	.disable        = ccic_dbg_clk_disable,
+};
+
+/* usb: hsic clock */
+static int hsic_clk_enable(struct clk *clk)
+{
+	uint32_t clk_rst;
+
+	clk_rst  =  __raw_readl(clk->clk_rst);
+	clk_rst |= 0x1b;
+	__raw_writel(clk_rst, clk->clk_rst);
+
+	return 0;
+}
+
+static void hsic_clk_disable(struct clk *clk)
+{
+	uint32_t clk_rst;
+
+	clk_rst  =  __raw_readl(clk->clk_rst);
+	clk_rst &= ~0x18;
+	__raw_writel(clk_rst, clk->clk_rst);
+}
+
+struct clkops hsic_clk_ops = {
+	.enable		= hsic_clk_enable,
+	.disable	= hsic_clk_disable,
+};
+
+static struct clk mmp3_list_clks[] = {
+	APBC_CLK("twsi1", "pxa2xx-i2c.0", NULL, MMP2_TWSI1,
+			0, 26000000, &mmp3_clk_vctcxo),
+	APBC_CLK("twsi2", "pxa2xx-i2c.1", NULL, MMP2_TWSI2,
+			0, 26000000, &mmp3_clk_vctcxo),
+	APBC_CLK("twsi3", "pxa2xx-i2c.2", NULL, MMP2_TWSI3,
+			0, 26000000, &mmp3_clk_vctcxo),
+	APBC_CLK("twsi4", "pxa2xx-i2c.3", NULL, MMP2_TWSI4,
+			0, 26000000, &mmp3_clk_vctcxo),
+	APBC_CLK("twsi5", "pxa2xx-i2c.4", NULL, MMP2_TWSI5,
+			0, 26000000, &mmp3_clk_vctcxo),
+	APBC_CLK("twsi6", "pxa2xx-i2c.5", NULL, MMP2_TWSI6,
+			0, 26000000, &mmp3_clk_vctcxo),
+	APBC_CLK("pwm1", "mmp2-pwm.0", NULL, MMP2_PWM0,
+			0, 26000000, &mmp3_clk_vctcxo),
+	APBC_CLK("pwm2", "mmp2-pwm.1", NULL, MMP2_PWM1,
+			0, 26000000, &mmp3_clk_vctcxo),
+	APBC_CLK("pwm3", "mmp2-pwm.2", NULL, MMP2_PWM2,
+			0, 26000000, &mmp3_clk_vctcxo),
+	APBC_CLK("pwm4", "mmp2-pwm.3", NULL, MMP2_PWM3,
+			0, 26000000, &mmp3_clk_vctcxo),
+	APBC_CLK("keypad", "pxa27x-keypad", NULL, MMP2_KPC,
+			0, 32768, &mmp3_clk_32k),
+	APBC_CLK_OPS("uart1", "pxa2xx-uart.0", NULL, MMP2_UART1,
+			1, 26000000, &mmp3_clk_vctcxo, &uart_clk_ops),
+	APBC_CLK_OPS("uart2", "pxa2xx-uart.1", NULL, MMP2_UART2,
+			1, 26000000, &mmp3_clk_vctcxo, &uart_clk_ops),
+	APBC_CLK_OPS("uart3", "pxa2xx-uart.2", NULL, MMP2_UART3,
+			1, 26000000, &mmp3_clk_vctcxo, &uart_clk_ops),
+	APBC_CLK_OPS("uart4", "pxa2xx-uart.3", NULL, MMP2_UART4,
+			1, 26000000, &mmp3_clk_vctcxo, &uart_clk_ops),
+	APBC_CLK_OPS("rtc", "mmp-rtc", NULL, MMP2_RTC,
+			0, 32768, &mmp3_clk_32k, &rtc_clk_ops),
+	APMU_CLK("nand", "pxa3xx-nand", NULL, NAND,
+			0xbf, 100000000, NULL),
+	APMU_CLK("u2o", NULL, "U2OCLK", USB,
+			0x9, 480000000, NULL),
+	APMU_CLK("ccic_gate", "mv-camera.0", "CCICGATECLK", CCIC_GATE,
+			0xffff, 0, NULL),
+	APMU_CLK("ccic_gate", "mv-camera.1", "CCICGATECLK", CCIC_GATE,
+			0xffff, 0, NULL),
+	APMU_CLK_OPS("gc", NULL, "GCCLK", GC,
+			0, 0, NULL, &gc1000_clk_ops),
+#ifdef CONFIG_UIO_VMETA
+	APMU_CLK_OPS("vmeta", NULL, "VMETA_CLK", VMETA,
+			0, 0, NULL, &vmeta_clk_ops),
+#endif
+	APMU_CLK_OPS("lcd", NULL, "LCDCLK", LCD_CLK_RES_CTRL,
+			0, 500000000, NULL, &lcd_pn1_clk_ops),
+	APMU_CLK_OPS("sdh0", "sdhci-pxa.0", "PXA-SDHCLK", SDH0,
+			0x1b, 200000000, NULL, &sdhc_clk_ops),
+	APMU_CLK_OPS("sdh1", "sdhci-pxa.1", "PXA-SDHCLK", SDH1,
+			0x1b, 200000000, NULL, &sdhc_clk_ops),
+	APMU_CLK_OPS("sdh2", "sdhci-pxa.2", "PXA-SDHCLK", SDH2,
+			0x1b, 200000000, NULL, &sdhc_clk_ops),
+	APMU_CLK_OPS("sdh3", "sdhci-pxa.3", "PXA-SDHCLK", SDH3,
+			0x1b, 200000000, NULL, &sdhc_clk_ops),
+	APMU_CLK_OPS("ccic_rst", "mv-camera.0", "CCICRSTCLK", CCIC_RST,
+			0, 312000000, NULL, &ccic_rst_clk_ops),
+	APMU_CLK_OPS("ccic_rst", "mv-camera.1", "CCICRSTCLK", CCIC_RST,
+			0, 312000000, NULL, &ccic_rst_clk_ops),
+	APMU_CLK_OPS("ccic_dbg", "mv-camera.0", "CCICDBGCLK", CCIC_DBG,
+			0, 312000000, NULL, &ccic_dbg_clk_ops),
+	APMU_CLK_OPS("ccic_dbg", "mv-camera.1", "CCICDBGCLK", CCIC_DBG,
+			0, 312000000, NULL, &ccic_dbg_clk_ops),
+	APMU_CLK_OPS("hsic1", NULL, "HSIC1CLK", USBHSIC1,
+			0x1b, 480000000, NULL, &hsic_clk_ops),
+};
+
+static void mmp3_init_one_clock(struct clk *c)
+{
+	clk_init(c);
+	INIT_LIST_HEAD(&c->shared_bus_list);
+	if (!c->lookup.dev_id && !c->lookup.con_id)
+		c->lookup.con_id = c->name;
+	c->lookup.clk = c;
+	clkdev_add(&c->lookup);
+}
+
+static int __init mmp3_clk_init(void)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(mmp3_clks_ptr); i++)
+		mmp3_init_one_clock(mmp3_clks_ptr[i]);
+	for (i = 0; i < ARRAY_SIZE(mmp3_list_clks); i++)
+		mmp3_init_one_clock(&mmp3_list_clks[i]);
+
+	return 0;
+}
+
+postcore_initcall(mmp3_clk_init);
+
