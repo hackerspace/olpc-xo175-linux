@@ -35,6 +35,11 @@
 #include <asm/irq.h>
 #include <asm/delay.h>
 
+#ifdef CONFIG_PXA95x
+#include <mach/dvfm.h>
+#else
+#include <linux/wakelock.h>
+#endif
 
 MODULE_AUTHOR("Stephen Street");
 MODULE_DESCRIPTION("PXA2xx SSP SPI Controller");
@@ -172,6 +177,63 @@ struct chip_data {
 	int (*read)(struct driver_data *drv_data);
 	void (*cs_control)(u32 command);
 };
+
+#ifdef CONFIG_PXA95x
+static int dvfm_dev_idx;
+#else
+static struct wake_lock idle_lock;
+static struct wake_lock suspend_lock;
+#endif
+static int constraint_is_set;
+
+static void set_dvfm_constraint(void)
+{
+	if (constraint_is_set == 0) {
+		constraint_is_set = 1;
+#ifdef CONFIG_PXA95x
+		/* Disable Low power mode */
+		dvfm_disable_lowpower(dvfm_dev_idx);
+#else
+		wake_lock(&idle_lock);
+		wake_lock(&suspend_lock);
+#endif
+	}
+}
+
+static void unset_dvfm_constraint(void)
+{
+	if (constraint_is_set) {
+		constraint_is_set = 0;
+#ifdef CONFIG_PXA95x
+		/* Enable Low power mode*/
+		dvfm_enable_lowpower(dvfm_dev_idx);
+#else
+		wake_unlock(&suspend_lock);
+		wake_unlock(&idle_lock);
+#endif
+	}
+}
+
+static void init_dvfm_constraint()
+{
+	constraint_is_set = 0;
+#ifdef CONFIG_PXA95x
+	dvfm_register("SPI", &dvfm_dev_idx);
+#else
+	wake_lock_init(&idle_lock, WAKE_LOCK_IDLE, "pxa2xx_spi_idle");
+	wake_lock_init(&suspend_lock, WAKE_LOCK_SUSPEND, "pxa2xx_spi_idle");
+#endif
+}
+
+static void deinit_dvfm_constraint()
+{
+#ifdef CONFIG_PXA95x
+	dvfm_unregister("SPI", &dvfm_dev_idx);
+#else
+	wake_lock_destroy(&idle_lock);
+	wake_lock_destroy(&suspend_lock);
+#endif
+}
 
 static void pump_messages(struct work_struct *work);
 
@@ -503,6 +565,8 @@ static void giveback(struct driver_data *drv_data)
 		msg->complete(msg->context);
 
 	drv_data->cur_chip = NULL;
+
+	unset_dvfm_constraint();
 }
 
 static int wait_ssp_rx_stall(void const __iomem *ioaddr)
@@ -1169,6 +1233,8 @@ static void pump_transfers(unsigned long data)
 			write_SSTO(chip->timeout, reg);
 	}
 
+	set_dvfm_constraint();	/*disable system to idle while DMA */
+
 	cs_assert(drv_data);
 
 	/* after chip select, release the data by enabling service
@@ -1806,12 +1872,16 @@ static struct platform_driver driver = {
 
 static int __init pxa2xx_spi_init(void)
 {
+	init_dvfm_constraint();
+
 	return platform_driver_register(&driver);
 }
 subsys_initcall(pxa2xx_spi_init);
 
 static void __exit pxa2xx_spi_exit(void)
 {
+	deinit_dvfm_constraint();
+
 	platform_driver_unregister(&driver);
 }
 module_exit(pxa2xx_spi_exit);
