@@ -50,7 +50,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #define SMS_PROTOCOL_MAX_RAOUNDTRIP_MS			(10000)
 #define SMS_ALLOC_ALIGNMENT				128
-#define SMS_DMA_ALIGNMENT				16
+#define SMS_DMA_ALIGNMENT				64
 #define SMS_ALIGN_ADDRESS(addr) \
 	((((uintptr_t)(addr)) + (SMS_DMA_ALIGNMENT-1)) & ~(SMS_DMA_ALIGNMENT-1))
 
@@ -58,11 +58,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define SMS_ROM_NO_RESPONSE				2
 #define SMS_DEVICE_NOT_READY				0x8000000
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 10)
-#define REQUEST_FIRMWARE_SUPPORTED
-#else
-#define DEFAULT_FW_FILE_PATH "/lib/firmware"
-#endif
+#undef  REQUEST_FIRMWARE_SUPPORTED
+#define DEFAULT_FW_FILE_PATH "/etc/firmware/cmmb"
 
 enum sms_device_type_st {
 	SMS_UNKNOWN_TYPE = -1,
