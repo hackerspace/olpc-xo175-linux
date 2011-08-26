@@ -618,6 +618,10 @@ static void __init saarb_init(void)
 	pxa_set_keypad_info(&keypad_info);
 #endif
 
+#if defined(CONFIG_SENSORS_ORIENTATION)
+	platform_device_register_simple("orientation", 0, NULL, 0);
+#endif
+
 	init_cam();
 
 #if defined(CONFIG_FB_PXA95x)
