@@ -122,6 +122,7 @@ obj-$(CONFIG_SENSORS_WM8350)	+= wm8350-hwmon.o
 obj-$(CONFIG_SENSORS_CWMI)      += cwmi.o
 obj-$(CONFIG_SENSORS_CWGD)      += cwgd.o
 obj-$(CONFIG_SENSORS_YAS529)	+= yas529.o
+obj-$(CONFIG_SENSORS_CM3623)	+= cm3623.o
 
 obj-$(CONFIG_SENSORS_ORIENTATION) += orientation.o
 

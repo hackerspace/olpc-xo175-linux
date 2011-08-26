@@ -1309,6 +1309,16 @@ config SENSORS_WM831X
 	  This driver can also be built as a module.  If so, the module
 	  will be called wm831x-hwmon.
 
+config SENSORS_CM3623
+	tristate "CM3623 light and proximity sensor"
+	depends on I2C && INPUT
+	help
+	  If you say yes here you get support for the hardware
+	  monitoring functionality of the Capella sensor chip.
+
+	  This driver provides support for CM3623, which include light
+	  sensor and proximity sensor.
+
 config SENSORS_WM8350
 	tristate "Wolfson Microelectronics WM835x"
 	depends on MFD_WM8350
