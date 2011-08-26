@@ -92,8 +92,19 @@ void __init pxa_reserve_pmem_memblock(void)
 				__func__, pmem_reserve_size);
 		return;
 	}
+	/* FIXME:
+	 * - memblock_free: remove the allocated buffer from the reserved
+	 *   region, Which means it will be not reserved.
+	 * - memblock_remove: remove the allocated buffer from the memory
+	 *   available to kernel, and the pages will not be mapped.
+	 *
+	 * ARM DMA APIs requires the DMA buffer pages to be mapped in kernel,
+	 * or it will do cache flush on the invalid virtual address.
+	 */
+#if 0
 	memblock_free(pmem_reserve_pa, pmem_reserve_size);
 	memblock_remove(pmem_reserve_pa, pmem_reserve_size);
+#endif
 }
 
 void __init pxa_add_pmem(void)
