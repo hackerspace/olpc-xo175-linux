@@ -226,6 +226,8 @@ static struct _rx_buffer_st *smsspi_common_find_msg(struct _spi_dev *dev,
 
 				buf = smsspi_handle_unused_bytes_buf(dev, buf,
 						offset, len, *unused_bytes);
+				if (buf == NULL)
+					return NULL;
 
 				dev->cb.msg_found_cb(dev->context,
 						     dev->rxPacket.msg_buf,
@@ -346,6 +348,11 @@ void smsspi_common_transfer_msg(struct _spi_dev *dev, struct _spi_msg *txmsg,
 		tmp_buf =
 		    smsspi_common_find_msg(dev, buf, offset, len,
 					   &unused_bytes, &missing_bytes);
+		if (tmp_buf == NULL) {
+			PRN_ERR((TXT("No enough buffer.\n")));
+			break;
+		}
+
 		if (bytes_to_transfer)
 			bytes_to_transfer -= len;
 

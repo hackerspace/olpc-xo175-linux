@@ -180,6 +180,46 @@ static void spi_worker_thread(void *arg)
 
 }
 
+static void smsspidrv_powerreset(void *context)
+{
+	struct _spi_device_st *spi_device;
+	spi_device = (struct _spi_device_st *) context;
+
+	smschipreset(spi_device->phy_dev);
+}
+
+static void smsspidrv_poweron(void *context)
+{
+	struct _spi_device_st *spi_device;
+	spi_device = (struct _spi_device_st *) context;
+
+	smschipon(spi_device->phy_dev);
+}
+
+static void smsspidrv_poweroff(void *context)
+{
+	struct _spi_device_st *spi_device;
+	spi_device = (struct _spi_device_st *) context;
+
+	smschipoff(spi_device->phy_dev);
+}
+
+static void smsspidrv_suspend(void *context)
+{
+	struct _spi_device_st *spi_device;
+	spi_device = (struct _spi_device_st *) context;
+
+	smsspibus_ssp_suspend(spi_device->phy_dev);
+}
+
+static void smsspidrv_resume(void *context)
+{
+	struct _spi_device_st *spi_device;
+	spi_device = (struct _spi_device_st *) context;
+
+	smsspibus_ssp_resume(spi_device->phy_dev);
+}
+
 static void msg_found(void *context, void *buf, int offset, int len)
 {
 	struct _spi_device_st *spi_device = (struct _spi_device_st *)context;
@@ -288,7 +328,8 @@ static int smsspi_write(void *context, void *txbuf, size_t len)
 		   and do not padd it */
 		msg.alignment = 4;
 		msg.add_preamble = 0;
-		msg.prewrite = smschipreset;
+		/*Jacky Jin change the below because of context*/
+		msg.prewrite = smsspidrv_powerreset;
 	} else {
 		msg.alignment = SPI_PACKET_SIZE;
 		msg.add_preamble = 1;
@@ -317,7 +358,7 @@ struct _rx_buffer_st *allocate_rx_buf(void *context, int size)
 	/* note: this is not mistake! the rx_buffer_st is identical to part of
 	   smscore_buffer_t and we return the address of the start of the
 	   identical part */
-	return (struct _rx_buffer_st *)&buf->p;
+	return buf ? (struct _rx_buffer_st *) &buf->p : NULL;
 }
 
 static void free_rx_buf(void *context, struct _rx_buffer_st *buf)
@@ -434,6 +475,11 @@ int smsspi_register(void)
 		params.flags = SMS_DEVICE_FAMILY2 | SMS_DEVICE_NOT_READY;
 		params.preload_handler = smsspi_preload;
 		params.postload_handler = smsspi_postload;
+		params.power_ctrl.chip_reset_handler = smsspidrv_powerreset;
+		params.power_ctrl.chip_poweron_handler = smsspidrv_poweron;
+		params.power_ctrl.chip_poweroff_handler = smsspidrv_poweroff;
+		params.power_ctrl.bus_suspend_handler = smsspidrv_suspend;
+		params.power_ctrl.bus_resume_handler = smsspidrv_resume;
 	}
 
 	ret = smscore_register_device(&params, &spi_device->coredev);

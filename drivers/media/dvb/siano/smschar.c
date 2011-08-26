@@ -553,6 +553,15 @@ static unsigned int smschar_poll(struct file *file,
 	return events;
 }
 
+void smschar_reset_device(void)
+{
+	int i;
+
+	sms_info(">>>\n");
+	for (i = 0 ; i < SMSCHAR_NR_DEVS; i++)
+		smschar_unregister_client(&smschar_devices[i]);
+}
+
 static int smschar_ioctl(struct inode *inode, struct file *file,
 			 unsigned int cmd, unsigned long arg)
 {
@@ -597,7 +606,10 @@ static int smschar_ioctl(struct inode *inode, struct file *file,
 		{
 			sms_debug("SMSCHAR_STARTUP\n");
 			dev->coredev->powerdown = 0;
-			/* TODO:need to update */
+			/*Add this for Restart smschip*/
+			smscore_poweron(dev->coredev);
+			smscore_reset(dev->coredev);
+			smscore_resume(dev->coredev);
 			return 0;
 		}
 	case SMSCHAR_SET_DEVICE_MODE:
@@ -667,7 +679,12 @@ static int smschar_ioctl(struct inode *inode, struct file *file,
 				break;
 			dev->coredev->powerdown = 1;
 			smscore_powerdown_req(dev->coredev);
-			/* TODO: update here */
+			/* Add here to power off chip */
+			smscore_suspend(dev->coredev);
+
+			smschar_reset_device();
+			smscore_poweroff(dev->coredev);
+
 			return  smscore_reset_device_drvs(dev->coredev);
 		}
 	default:

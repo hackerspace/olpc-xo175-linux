@@ -69,6 +69,51 @@ struct smscore_client_t {
 	onremove_t onremove_handler;
 };
 
+int smscore_reset(struct smscore_device_t *coredev)
+{
+#ifdef SMS_SPI_PXA310_DRV
+	if (coredev->power_ctrl.chip_reset_handler)
+		coredev->power_ctrl.chip_reset_handler(coredev->context);
+#endif
+	return 0;
+}
+
+int smscore_poweron(struct smscore_device_t *coredev)
+{
+#ifdef SMS_SPI_PXA310_DRV
+	if (coredev->power_ctrl.chip_poweron_handler)
+		coredev->power_ctrl.chip_poweron_handler(coredev->context);
+#endif
+	return 0;
+}
+
+int smscore_poweroff(struct smscore_device_t *coredev)
+{
+#ifdef SMS_SPI_PXA310_DRV
+	if (coredev->power_ctrl.chip_poweroff_handler)
+		coredev->power_ctrl.chip_poweroff_handler(coredev->context);
+#endif
+	return 0;
+}
+
+int smscore_suspend(struct smscore_device_t *coredev)
+{
+#ifdef SMS_SPI_PXA310_DRV
+	if (coredev->power_ctrl.bus_suspend_handler)
+		coredev->power_ctrl.bus_suspend_handler(coredev->context);
+#endif
+	return 0;
+}
+
+int smscore_resume(struct smscore_device_t *coredev)
+{
+#ifdef SMS_SPI_PXA310_DRV
+	if (coredev->power_ctrl.bus_resume_handler)
+		coredev->power_ctrl.bus_resume_handler(coredev->context);
+#endif
+	return 0;
+}
+
 void smscore_set_board_id(struct smscore_device_t *core, int id)
 {
 	core->board_id = id;
@@ -386,7 +431,9 @@ int smscore_register_device(struct smsdevice_params_t *params,
 	dev->sendrequest_handler = params->sendrequest_handler;
 	dev->preload_handler = params->preload_handler;
 	dev->postload_handler = params->postload_handler;
-
+#ifdef SMS_SPI_PXA310_DRV
+	dev->power_ctrl = params->power_ctrl;
+#endif
 	dev->device_flags = params->flags;
 	strcpy(dev->devpath, params->devpath);
 

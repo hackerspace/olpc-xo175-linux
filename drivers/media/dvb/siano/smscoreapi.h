@@ -102,6 +102,12 @@ typedef int (*postload_t) (void *context);
 typedef int (*onresponse_t) (void *context, struct smscore_buffer_t *cb);
 typedef void (*onremove_t) (void *context);
 
+typedef void (*chipreset_t)(void *context);
+typedef void (*chippoweron_t)(void *context);
+typedef void (*chippoweroff_t)(void *context);
+typedef void (*bus_suspend_t)(void *context);
+typedef void (*bus_resume_t)(void *context);
+
 struct smsmdtv_version_t {
 	int major;
 	int minor;
@@ -120,6 +126,14 @@ struct smscore_buffer_t {
 	unsigned long offset_in_common;
 };
 
+struct smschip_power_t {
+	chipreset_t chip_reset_handler;
+	chippoweron_t chip_poweron_handler;
+	chippoweroff_t chip_poweroff_handler;
+	bus_suspend_t bus_suspend_handler;
+	bus_resume_t bus_resume_handler;
+};
+
 struct smsdevice_params_t {
 	struct device *device;
 
@@ -134,7 +148,9 @@ struct smsdevice_params_t {
 	sendrequest_t sendrequest_handler;
 	preload_t preload_handler;
 	postload_t postload_handler;
-
+#ifdef SMS_SPI_PXA310_DRV
+	struct smschip_power_t power_ctrl;
+#endif
 	void *context;
 	enum sms_device_type_st device_type;
 };
@@ -173,7 +189,9 @@ struct smscore_device_t {
 	sendrequest_t sendrequest_handler;
 	preload_t preload_handler;
 	postload_t postload_handler;
-
+#ifdef SMS_SPI_PXA310_DRV
+	struct smschip_power_t power_ctrl;
+#endif
 	int mode, modes_supported;
 	unsigned char powerdown_mode_supported;
 	unsigned char powerdown;
@@ -799,6 +817,12 @@ int smscore_gpio_set_level(struct smscore_device_t *coredev, u8 PinNum,
 			   u8 NewLevel);
 int smscore_gpio_get_level(struct smscore_device_t *coredev, u8 PinNum,
 			   u8 *level);
+
+int smscore_reset(struct smscore_device_t *coredev);
+int smscore_poweron(struct smscore_device_t *coredev);
+int smscore_poweroff(struct smscore_device_t *coredev);
+int smscore_suspend(struct smscore_device_t *coredev);
+int smscore_resume(struct smscore_device_t *coredev);
 
 int smscore_powerdown_req(struct smscore_device_t *coredev);
 void smscore_set_board_id(struct smscore_device_t *core, int id);
