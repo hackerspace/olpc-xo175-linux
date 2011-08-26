@@ -19,6 +19,7 @@
 #include <linux/regulator/max8649.h>
 #include <linux/regulator/fixed.h>
 #include <linux/mfd/max8925.h>
+#include <linux/pwm_backlight.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -104,6 +105,9 @@ static unsigned long brownstone_pin_config[] __initdata = {
 
 	/* 5V regulator */
 	GPIO89_GPIO,
+
+	/* Backlight */
+	GPIO53_PWM3,
 };
 
 static struct regulator_consumer_supply max8649_supply[] = {
@@ -291,6 +295,22 @@ static struct mv_usb_platform_data mmp2_usb_pdata = {
 
 #endif
 
+static struct platform_pwm_backlight_data brownstone_lcd_backlight_data = {
+	/* primary backlight */
+	.pwm_id			= 2,
+	.max_brightness	= 100,
+	.dft_brightness	= 50,
+	.pwm_period_ns	= 2000000,
+};
+
+static struct platform_device brownstone_lcd_backlight_devices = {
+	.name		= "pwm-backlight",
+	.id			= 0,
+	.dev		= {
+		.platform_data = &brownstone_lcd_backlight_data,
+	},
+};
+
 static void __init brownstone_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(brownstone_pin_config));
@@ -308,6 +328,9 @@ static void __init brownstone_init(void)
 	/* enable 5v regulator */
 	platform_device_register(&brownstone_v_5vp_device);
 
+	/* backlight */
+	mmp2_add_pwm(3);
+	platform_device_register(&brownstone_lcd_backlight_devices);
 }
 
 MACHINE_START(BROWNSTONE, "Brownstone Development Platform")

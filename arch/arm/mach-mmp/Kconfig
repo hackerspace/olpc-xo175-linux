@@ -41,6 +41,7 @@ config MACH_BROWNSTONE
 	bool "Marvell's Brownstone Development Platform"
 	depends on !CPU_MOHAWK
 	select CPU_MMP2
+	select HAVE_PWM
 	help
 	  Say 'Y' here if you want to support the Marvell MMP2-based
 	  Brown Development Platform.
