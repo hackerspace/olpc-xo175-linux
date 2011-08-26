@@ -279,6 +279,8 @@ MMP3_DEVICE(fb, "pxa168-fb", 0, LCD, 0xd420b000, 0x500);
 MMP3_DEVICE(fb_ovly, "pxa168fb_ovly", 0, LCD, 0xd420b000, 0x500);
 MMP3_DEVICE(v4l2_ovly, "pxa168-v4l2_ovly", 0, LCD, 0xd420b000, 0x500);
 MMP3_DEVICE(fb_tv, "pxa168-fb", 1, LCD, 0xd420b000, 0x500);
+MMP3_DEVICE(fb_tv_ovly, "pxa168fb_ovly", 1, LCD, 0xd420b000, 0x500);
+MMP3_DEVICE(v4l2_tv_ovly, "pxa168-v4l2_ovly", 1, LCD, 0xd420b000, 0x500);
 MMP3_DEVICE(hdmi, "mmp3-hdmi", -1, HDMI, 0xd420b000, 0x1fff);
 MMP3_DEVICE(sspa1, "mmp2-sspa", 0, SSPA1, 0xc0ffdc00, 0xb0, ADMA1_CH_1,
 	    ADMA1_CH_0);

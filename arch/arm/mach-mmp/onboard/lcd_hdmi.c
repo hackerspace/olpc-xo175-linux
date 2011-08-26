@@ -208,10 +208,39 @@ static struct pxa168fb_mach_info tv_out_info = {
 	.sclk_src = 500000000,
 };
 
+static struct pxa168fb_mach_info tv_out_ovly_info = {
+	.id = "TV Video Layer",
+	.num_modes = ARRAY_SIZE(tv_video_modes),
+	.modes = tv_video_modes,
+	.pix_fmt = PIX_FMT_RGB565,
+	.panel_rgb_reverse_lanes = 0,
+	.invert_composite_blank = 0,
+	.invert_pix_val_ena = 0,
+	.invert_pixclock = 0,
+	.panel_rbswap = 0,
+	.active = 1,
+	.enable_lcd = 1,
+	.spi_gpio_cs = -1,
+	.spi_gpio_reset = -1,
+	.mmap = 0,
+	.max_fb_size = TV_FB_XRES * TV_FB_YRES * 8 + 4096,
+	.vdma_enable = 1,
+};
+
+
+
 void __init mmp3_add_tv_out(void)
 {
 	struct pxa168fb_mach_info *fb = &tv_out_info;
+	struct pxa168fb_mach_info *ovly = &tv_out_ovly_info;
 
 	/* add frame buffer drivers */
 	mmp3_add_fb_tv(fb);
+
+	/* add overlay driver */
+#ifdef CONFIG_PXA168_V4L2_OVERLAY
+	mmp3_add_v4l2_tv_ovly(ovly);
+#else
+	mmp3_add_fb_tv_ovly(ovly);
+#endif
 }
