@@ -1310,7 +1310,6 @@ int pxa95x_vmeta_set_dvfm_constraint(struct vmeta_instance *vi, int idx)
 	dvfm_disable_op_name("988M", idx);
 
 	vi->vop_real = vi->vop;
-	printk(KERN_DEBUG "set dvfm vop_real=%d\n", vi->vop_real);
 	switch (vi->vop_real) {
 	case VMETA_OP_VGA:
 		dvfm_enable_op_name("208M_HF", idx);
@@ -1362,7 +1361,6 @@ int pxa95x_vmeta_unset_dvfm_constraint(struct vmeta_instance *vi, int idx)
 	if (vi->power_status == 0)
 		vi->vop_real = VMETA_OP_INVALID;
 
-	printk(KERN_DEBUG "unset dvfm vop_real=%d\n", vi->vop_real);
 	switch (vi->vop_real) {
 	case VMETA_OP_VGA:
 	case VMETA_OP_VGA+1:
