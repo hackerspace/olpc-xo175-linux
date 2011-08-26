@@ -743,6 +743,7 @@ extern int smscore_load_firmware(struct smscore_device_t *coredev,
 				 char *filename,
 				 loadfirmware_t loadfirmware_handler);
 
+extern int smscore_reset_device_drvs(struct smscore_device_t *coredev);
 extern int smscore_set_device_mode(struct smscore_device_t *coredev, int mode);
 extern int smscore_get_device_mode(struct smscore_device_t *coredev);
 

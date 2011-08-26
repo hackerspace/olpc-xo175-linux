@@ -593,6 +593,13 @@ static int smschar_ioctl(struct inode *inode, struct file *file,
 	}
 
 	switch (cmd) {
+	case SMSCHAR_STARTUP:
+		{
+			sms_debug("SMSCHAR_STARTUP\n");
+			dev->coredev->powerdown = 0;
+			/* TODO:need to update */
+			return 0;
+		}
 	case SMSCHAR_SET_DEVICE_MODE:
 		return smscore_set_device_mode(dev->coredev, (int)arg);
 
@@ -653,7 +660,16 @@ static int smschar_ioctl(struct inode *inode, struct file *file,
 			return smschar_send_fw_file(dev,
 				(struct smschar_send_fw_file_ioctl_t *)up);
 		}
-
+	case  SMSCHAR_TERMINATE:
+		{
+			sms_debug("TERMINATE: %d\n", dev->coredev->powerdown);
+			if (dev->coredev->powerdown)
+				break;
+			dev->coredev->powerdown = 1;
+			smscore_powerdown_req(dev->coredev);
+			/* TODO: update here */
+			return  smscore_reset_device_drvs(dev->coredev);
+		}
 	default:
 		return -ENOIOCTLCMD;
 	}

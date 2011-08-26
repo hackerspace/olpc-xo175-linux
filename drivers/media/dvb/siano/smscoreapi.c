@@ -1057,6 +1057,19 @@ int smscore_init_device(struct smscore_device_t *coredev, int mode)
 	return rc;
 }
 
+int smscore_reset_device_drvs(struct smscore_device_t *coredev)
+{
+	int rc = 0;
+	sms_debug("currnet device mode to %d##%d",
+	coredev->mode, coredev->modes_supported);
+	coredev->mode = DEVICE_MODE_NONE;
+	coredev->modes_supported = DEVICE_MODE_DVBT;
+	coredev->device_flags = SMS_DEVICE_FAMILY2 |
+	SMS_DEVICE_NOT_READY | SMS_ROM_NO_RESPONSE;
+
+	return rc;
+}
+
 /**
  * calls device handler to change mode of operation
  * NOTE: stellar/usb may disconnect when changing mode
