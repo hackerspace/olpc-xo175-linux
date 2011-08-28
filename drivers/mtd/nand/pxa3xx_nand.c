@@ -1468,6 +1468,9 @@ static int alloc_nand_resource(struct platform_device *pdev)
 		chip->options = NAND_NO_AUTOINCR;
 		chip->options |= NAND_NO_READRDY;
 		chip->options |= NAND_OWN_BUFFERS;
+#ifdef CONFIG_PXA3XX_BBM
+		chip->options |= BBT_RELOCATION_IFBAD;
+#endif
 		chip->buffers = (struct nand_buffers *)
 				((void *)info->data_desc + DMA_H_SIZE);
 		chip->ecc.read_page	= pxa3xx_nand_read_page_hwecc;

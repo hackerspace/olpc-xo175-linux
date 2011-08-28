@@ -2644,6 +2644,12 @@ erase_exit:
 
 	/* Deselect and wake up anyone waiting on the device */
 	nand_release_device(mtd);
+	if (ret && (chip->options & BBT_RELOCATION_IFBAD)) {
+		chip->block_markbad(mtd, (loff_t)(page & chip->pagemask)
+				<< chip->page_shift);
+		instr->state = MTD_ERASE_DONE;
+		ret = 0;
+	}
 
 	/* Do call back function */
 	if (!ret)
