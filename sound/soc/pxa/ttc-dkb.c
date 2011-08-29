@@ -94,21 +94,21 @@ static struct snd_soc_ops ttc_pm860x_machine_ops = {
 /* ttc/td-dkb digital audio interface glue - connects codec <--> CPU */
 static struct snd_soc_dai_link ttc_pm860x_hifi_dai[] = {
 {
-	 .name = "88pm860x pcm",
-	 .stream_name = "audio capture",
-	 .codec_name = "88pm860x-codec",
-	 .platform_name = "pxa-pcm-audio",
-	 .cpu_dai_name = "pxa-ssp-dai.4",
-	 .codec_dai_name = "88pm860x-pcm",
-	 .ops = &ttc_pm860x_machine_ops,
-},
-{
 	 .name = "88pm860x i2s",
 	 .stream_name = "audio playback",
 	 .codec_name = "88pm860x-codec",
 	 .platform_name = "pxa910-squ-audio",
 	 .cpu_dai_name = "pxa-ssp-dai.1",
 	 .codec_dai_name = "88pm860x-i2s",
+	 .ops = &ttc_pm860x_machine_ops,
+},
+{
+	 .name = "88pm860x pcm",
+	 .stream_name = "audio capture",
+	 .codec_name = "88pm860x-codec",
+	 .platform_name = "pxa-pcm-audio",
+	 .cpu_dai_name = "pxa-ssp-dai.4",
+	 .codec_dai_name = "88pm860x-pcm",
 	 .ops = &ttc_pm860x_machine_ops,
 },
 };
