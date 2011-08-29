@@ -234,7 +234,14 @@ static struct mfp_addr_map pxa95x_mfp_addr_map[] __initdata = {
 };
 
 static struct mfp_addr_map pxa978_mfp_addr_map[] __initdata = {
-	MFP_ADDR_X(GPIO0, GPIO191, 0x208),
+	/* MFP Pins*/
+	MFP_ADDR_X(GPIO0, GPIO132, 0x208),
+
+	/* RF MFP Pins */
+	MFP_ADDR_X(RF_MFP0, RF_MFP30, 0x460),
+
+	/* MEM MFP Pins */
+	MFP_ADDR_X(MEM_MFP0, MEM_MFP39, 0x500),
 
 	MFP_ADDR_END,
 };
