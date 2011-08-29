@@ -1205,8 +1205,10 @@ static struct snd_soc_dai_ops pm860x_i2s_dai_ops = {
 	.set_sysclk	= pm860x_set_dai_sysclk,
 };
 
-#define PM860X_RATES	(SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000 |	\
+#define PM860X_TX_RATES	(SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000 |	\
 			 SNDRV_PCM_RATE_32000 | SNDRV_PCM_RATE_48000)
+#define PM860X_RX_RATES	(SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000 |	\
+			 SNDRV_PCM_RATE_32000)
 
 static struct snd_soc_dai_driver pm860x_dai[] = {
 	{
@@ -1217,7 +1219,7 @@ static struct snd_soc_dai_driver pm860x_dai[] = {
 			.stream_name	= "PCM Playback",
 			.channels_min	= 2,
 			.channels_max	= 2,
-			.rates		= PM860X_RATES,
+			.rates		= PM860X_RX_RATES,
 			.formats	= SNDRV_PCM_FORMAT_S16_LE | \
 					  SNDRV_PCM_FORMAT_S18_3LE,
 		},
@@ -1225,7 +1227,7 @@ static struct snd_soc_dai_driver pm860x_dai[] = {
 			.stream_name	= "PCM Capture",
 			.channels_min	= 2,
 			.channels_max	= 2,
-			.rates		= PM860X_RATES,
+			.rates		= PM860X_TX_RATES,
 			.formats	= SNDRV_PCM_FORMAT_S16_LE | \
 					  SNDRV_PCM_FORMAT_S18_3LE,
 		},
