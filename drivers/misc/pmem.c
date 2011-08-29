@@ -593,15 +593,7 @@ static int pmem_remap_pfn_range(int id, struct vm_area_struct *vma,
 static void pmem_vma_open(struct vm_area_struct *vma)
 {
 	struct file *file = vma->vm_file;
-	struct pmem_data *data = file->private_data;
-	int id = get_id(file);
-	/* this should never be called as we don't support copying pmem
-	 * ranges via fork */
 	BUG_ON(!has_allocation(file));
-	down_write(&data->sem);
-	/* remap the garbage pages, forkers don't get access to the data */
-	pmem_unmap_pfn_range(id, vma, data, 0, vma->vm_start - vma->vm_end);
-	up_write(&data->sem);
 }
 
 static void pmem_vma_close(struct vm_area_struct *vma)
@@ -696,6 +688,8 @@ static int pmem_mmap(struct file *file, struct vm_area_struct *vma)
 
 	vma->vm_pgoff = pmem_start_addr(id, data) >> PAGE_SHIFT;
 	vma->vm_page_prot = pmem_access_prot(file, vma->vm_page_prot);
+	/* Don't copy - forkers don't get access to the data */
+	vma->vm_flags |= VM_DONTCOPY;
 
 	if (data->flags & PMEM_FLAGS_CONNECTED) {
 		struct pmem_region_node *region_node;
