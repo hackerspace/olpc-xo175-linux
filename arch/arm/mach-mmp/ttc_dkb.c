@@ -50,6 +50,7 @@
 #include <media/soc_camera.h>
 #include <mach/regs-apbc.h>
 #include <mach/regs-apmu.h>
+#include <linux/switch.h>
 
 #include "common.h"
 #include "onboard.h"
@@ -547,6 +548,24 @@ struct pm860x_rtc_pdata ttc_dkb_rtc = {
 #endif
 };
 
+static struct pm860x_headset_pdata headset_platform_info = {
+	.headset_flag = 1,
+	/* headset switch */
+	.headset_data[0].name = "h2w",
+	.headset_data[0].gpio = 0,
+	.headset_data[0].name_on = NULL,
+	.headset_data[0].name_off = NULL,
+	.headset_data[0].state_on = NULL,
+	.headset_data[0].state_off = NULL,
+	/* hook switch */
+	.headset_data[1].name = "h3w",
+	.headset_data[1].gpio = 0,
+	.headset_data[1].name_on = NULL,
+	.headset_data[1].name_off = NULL,
+	.headset_data[1].state_on = NULL,
+	.headset_data[1].state_off = NULL,
+};
+
 static struct pm860x_platform_data ttc_dkb_pm8607_info = {
 	.backlight	= &ttc_dkb_backlight[0],
 	.led		= &ttc_dkb_led[0],
@@ -555,6 +574,7 @@ static struct pm860x_platform_data ttc_dkb_pm8607_info = {
 	.rtc		= &ttc_dkb_rtc,
 	.regulator	= &ttc_dkb_regulator_init_data[0],
 	.fixup		= ttc_dkb_pm860x_fixup,
+	.headset	= &headset_platform_info,
 	.companion_addr	= 0x11,
 	.irq_mode	= 0,
 	.irq_base	= IRQ_BOARD_START,
