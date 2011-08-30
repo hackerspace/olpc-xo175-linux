@@ -20,6 +20,7 @@
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/platform_data/pxa_sdhci.h>
+#include <linux/regulator/machine.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -145,11 +146,62 @@ static struct pm860x_headset_pdata headset_platform_info	 = {
 	.headset_data[1].state_on = NULL,
 	.headset_data[1].state_off = NULL,
 };
-static struct pm860x_platform_data saarb_pm8607_info = {
+
+/* TODO: check the regulator data carefully */
+static struct regulator_consumer_supply regulator_supply[PM8607_ID_RG_MAX];
+static struct regulator_init_data regulator_data[PM8607_ID_RG_MAX];
+
+static int regulator_index[] = {
+	PM8607_ID_BUCK1,
+	PM8607_ID_BUCK2,
+	PM8607_ID_BUCK3,
+	PM8607_ID_LDO1,
+	PM8607_ID_LDO2,
+	PM8607_ID_LDO3,
+	PM8607_ID_LDO4,
+	PM8607_ID_LDO5,
+	PM8607_ID_LDO6,
+	PM8607_ID_LDO7,
+	PM8607_ID_LDO8,
+	PM8607_ID_LDO9,
+	PM8607_ID_LDO10,
+	PM8607_ID_LDO11,
+	PM8607_ID_LDO12,
+	PM8607_ID_LDO13,
+	PM8607_ID_LDO14,
+	PM8607_ID_LDO15,
+};
+
+#define REG_SUPPLY_INIT(_id, _name, _dev_name)		\
+{							\
+	int _i = _id;				\
+	regulator_supply[_i].supply		= _name;		\
+	regulator_supply[_i].dev_name	= _dev_name;	\
+}
+
+#define REG_INIT(_id, _name, _min, _max, _always, _boot)\
+{									\
+	int _i = _id;				\
+	regulator_data[_i].constraints.name	=	__stringify(_name);	\
+	regulator_data[_i].constraints.min_uV	= _min;	\
+	regulator_data[_i].constraints.max_uV	= _max;	\
+	regulator_data[_i].constraints.always_on	= _always;	\
+	regulator_data[_i].constraints.boot_on	= _boot;	\
+	regulator_data[_i].constraints.valid_ops_mask	=	\
+		REGULATOR_CHANGE_VOLTAGE | REGULATOR_CHANGE_STATUS;	\
+	regulator_data[_i].num_consumer_supplies	= 1;	\
+	regulator_data[_i].consumer_supplies	=	\
+		&regulator_supply[PM8607_ID_##_name];	\
+	regulator_data[_i].driver_data	=	\
+		&regulator_index[PM8607_ID_##_name];	\
+}
+
+static struct pm860x_platform_data pm8607_info = {
 	.touch		= &saarb_touch,
 	.backlight	= &saarb_backlight[0],
 	.led		= &saarb_led[0],
 	.power		= &power,
+	.regulator	= regulator_data,
 #if defined(CONFIG_SENSORS_CM3601)
 	.cm3601		= &cm3601_platform_info,
 #endif
@@ -162,6 +214,43 @@ static struct pm860x_platform_data saarb_pm8607_info = {
 	.num_leds	= ARRAY_SIZE(saarb_led),
 	.num_backlights	= ARRAY_SIZE(saarb_backlight),
 };
+
+static void regulator_init(void)
+{
+	int i = 0;
+
+	switch (get_board_id()) {
+	case OBM_SAAR_B_MG1_C0_V12_BOARD:
+		REG_SUPPLY_INIT(PM8607_ID_LDO12, "v_hdmi", "1-003b");
+		REG_SUPPLY_INIT(PM8607_ID_LDO13, "v_gps", NULL);
+		REG_SUPPLY_INIT(PM8607_ID_LDO14, "vmmc", "sdhci-pxav2.1");
+
+		REG_INIT(i++, LDO12, 1200000, 3300000, 0, 0);
+		REG_INIT(i++, LDO13, 1200000, 3300000, 0, 0);
+		REG_INIT(i++, LDO14, 1800000, 3300000, 0, 0);
+
+		printk(KERN_INFO "%s: select saarb v12 ldo map\n", __func__);
+	break;
+	case OBM_SAAR_B_MG2_A0_V13_BOARD:
+	case OBM_SAAR_B_MG2_A0_V14_BOARD:
+	case OBM_SAAR_B_MG2_B0_V15_BOARD:
+	case OBM_SAAR_B_MG2_C0_V26_BOARD:
+		REG_SUPPLY_INIT(PM8607_ID_LDO9, "vmmc", "sdhci-pxav2.1");
+		REG_SUPPLY_INIT(PM8607_ID_LDO13, "v_cam", NULL);
+		REG_SUPPLY_INIT(PM8607_ID_LDO14, "v_gps", NULL);
+
+		REG_INIT(i++, LDO9, 1800000, 3300000, 0, 0);
+		REG_INIT(i++, LDO13, 1200000, 3300000, 0, 0);
+		REG_INIT(i++, LDO14, 1800000, 3300000, 0, 0);
+		printk(KERN_INFO "%s: select saarb v13 ldo map\n", __func__);
+	break;
+	default:
+		printk(KERN_ERR "%s: The board type is not defined!\n ", __func__);
+		BUG();
+	}
+
+	pm8607_info.num_regulators = i;
+}
 
 static struct i2c_pxa_platform_data i2c1_pdata = {
 	.use_pio        = 0,
@@ -183,7 +272,7 @@ static struct i2c_board_info saarb_i2c_info[] = {
 	{
 		.type		= "88PM860x",
 		.addr		= 0x34,
-		.platform_data	= &saarb_pm8607_info,
+		.platform_data	= &pm8607_info,
 		.irq		= gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO83)),
 	},
 };
@@ -639,6 +728,8 @@ static struct i2c_board_info i2c2_info[] = {
 
 static void __init saarb_init(void)
 {
+	regulator_init();
+
 	pxa_set_ffuart_info(NULL);
 	platform_device_add_data(&pxa95x_device_i2c1, &i2c1_pdata,
 				 sizeof(i2c1_pdata));
