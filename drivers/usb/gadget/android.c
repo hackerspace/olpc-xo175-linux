@@ -55,6 +55,8 @@
 #include "f_rndis.c"
 #include "rndis.c"
 #include "u_ether.c"
+#include "pxa910_u_serial.c"
+#include "pxa910_f_diag.c"
 
 MODULE_AUTHOR("Mike Lockwood");
 MODULE_DESCRIPTION("Android Composite USB Driver");
@@ -188,6 +190,33 @@ static void android_work(struct work_struct *data)
 	}
 }
 
+/* Marvell diag function initialization */
+static int marvell_diag_function_init(struct android_usb_function *f,
+					struct usb_composite_dev *cdev)
+{
+	return 0;
+}
+
+static void marvell_diag_function_cleanup(struct android_usb_function *f)
+{
+	return;
+}
+
+int marvell_diag_function_bind_config(struct android_usb_function *f,
+					struct usb_configuration *c)
+{
+	int ret = gser_bind_config(c, 0);
+	if (ret == 0)
+		marvell_diag_gserial_setup(c->cdev->gadget, 1);
+	return ret;
+}
+
+static struct android_usb_function marvell_diag_function = {
+	.name	= "marvell_diag",
+	.init = marvell_diag_function_init,
+	.cleanup	= marvell_diag_function_cleanup,
+	.bind_config	= marvell_diag_function_bind_config,
+};
 
 /*-------------------------------------------------------------------------*/
 /* Supported functions initialization */
@@ -649,6 +678,7 @@ static struct android_usb_function accessory_function = {
 
 
 static struct android_usb_function *supported_functions[] = {
+	&marvell_diag_function,
 	&adb_function,
 	&acm_function,
 	&mtp_function,
