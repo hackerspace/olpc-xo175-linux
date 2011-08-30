@@ -22,7 +22,7 @@
 #define MHZ_TO_KHZ	1000
 
 int pxa910_get_freq(void);
-int pxa910_set_freq(int index);
+
 void gc_aclk_fc(void);
 extern u32 get_pll2_freq(void);
 

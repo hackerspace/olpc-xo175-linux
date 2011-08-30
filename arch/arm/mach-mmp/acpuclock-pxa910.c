@@ -1156,16 +1156,10 @@ static void set_freq(struct pxa910_md_opt *old, struct pxa910_md_opt *new)
 		__raw_writel(temp, APMU_DEBUG);
 }
 
-int pxa910_set_freq(int index)
+static int pxa910_set_freq(int index)
 {
 	struct pxa910_md_opt *md_new, *md_old;
 	int ret = 0;
-	mutex_lock(&freqs_mutex);
-
-	if (constraint_cpufreq_disable != 0) {
-		ret = -EAGAIN;
-		goto out;
-	}
 
 	md_new = &op_array[index];
 	if (md_new->pclk < constraint_min_freq || md_new == cur_md)
@@ -1198,7 +1192,6 @@ int pxa910_set_freq(int index)
 		}
 	}
 out:
-	mutex_unlock(&freqs_mutex);
 	return ret;
 }
 
@@ -1247,6 +1240,23 @@ void gc_aclk_fc(void)
 
 #define SRAM_ADDR_END 0xd1020000
 
+static void freq_notify_and_change(unsigned int tb_index)
+{
+	struct cpufreq_freqs freqs;
+
+	if (constraint_cpufreq_disable != 0)
+		return ;
+
+	freqs.old = pxa910_get_freq() * MHZ_TO_KHZ;
+	freqs.new = op_array[tb_index].pclk * MHZ_TO_KHZ;
+	freqs.cpu = smp_processor_id();
+
+	cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
+	pxa910_set_freq(tb_index);
+	freqs.new = pxa910_get_freq() * MHZ_TO_KHZ;
+	cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
+}
+
 static int cpufreq_min_notify(struct notifier_block *b,
 			      unsigned long min, void *v)
 {
@@ -1264,8 +1274,8 @@ static int cpufreq_min_notify(struct notifier_block *b,
 
 	for (i = 0; i < op_array_size; i++) {
 		if (op_array[i].pclk >= min) {
+			freq_notify_and_change(i);
 			mutex_unlock(&freqs_mutex);
-			pxa910_set_freq(i);
 			return NOTIFY_OK;
 		}
 	}
@@ -1304,8 +1314,8 @@ static int cpufreq_disable_notify(struct notifier_block *b,
 		if (unlikely(tgt_freq != cur_md->pclk)) {
 			for (i = 0; i < op_array_size; i++) {
 				if (op_array[i].pclk >= tgt_freq) {
+					freq_notify_and_change(i);
 					mutex_unlock(&freqs_mutex);
-					pxa910_set_freq(i);
 					return NOTIFY_OK;
 				}
 			}

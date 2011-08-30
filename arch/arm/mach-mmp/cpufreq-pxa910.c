@@ -41,7 +41,6 @@ static int pxa910_cpufreq_target(struct cpufreq_policy *policy,
 			unsigned int target_freq, unsigned int relation)
 {
 	int index;
-	struct cpufreq_freqs freqs;
 	struct cpufreq_frequency_table *table =
 		cpufreq_frequency_get_table(smp_processor_id());
 
@@ -54,18 +53,12 @@ static int pxa910_cpufreq_target(struct cpufreq_policy *policy,
 	if (policy->cur == table[index].frequency)
 		return 0;
 
-	freqs.old = policy->cur;
-	freqs.new = table[index].frequency;
-	freqs.cpu = smp_processor_id();
-
 #ifdef CONFIG_CPU_FREQ_DEBUG
 	pr_info("target_freq is %d, index is %d\n", target_freq, index);
 #endif
 
-	cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
-	pm_qos_update_request(&cpufreq_qos_req_min, freqs.new/1000);
-	freqs.new = pxa910_cpufreq_get(0);
-	cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
+	pm_qos_update_request(&cpufreq_qos_req_min, table[index].frequency/1000);
+
 	return 0;
 }
 
