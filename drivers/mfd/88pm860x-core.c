@@ -70,6 +70,10 @@ static struct resource codec_resources[] __devinitdata = {
 	{PM8607_IRQ_AUDIO_SHORT, PM8607_IRQ_AUDIO_SHORT, "audio-short", IORESOURCE_IRQ,},
 };
 
+static struct resource vibrator_resources[] __devinitdata = {
+	{PM8606_VIBRATORA, PM8606_VIBRATORB, "android-vibrator", IORESOURCE_IO,},
+};
+
 static struct resource headset_resources[] __devinitdata = {
 	/* Headset insertion or removal */
 	{PM8607_IRQ_HEADSET, PM8607_IRQ_HEADSET, "headset", IORESOURCE_IRQ,},
@@ -159,6 +163,10 @@ static struct mfd_cell cm3601_devs[] = {
 
 static struct mfd_cell headset_devs[] = {
 	{"88pm860x-headset", -1,},
+};
+
+static struct mfd_cell vibrator_devs[] = {
+	{"android-vibrator", -1,},
 };
 
 struct pm860x_irq_data {
@@ -649,6 +657,20 @@ static void __devinit device_8606_oscillator_vsys_init(struct i2c_client *i2c)
 	pm8606_ref_gp_and_osc_status = PM8606_REF_GP_OSC_OFF;
 }
 
+static void __devinit device_vibrator_init(struct pm860x_chip *chip,
+					struct pm860x_platform_data *pdata)
+{
+	int ret;
+	vibrator_devs[0].num_resources = 1,
+	vibrator_devs[0].resources = &vibrator_resources[0],
+	ret = mfd_add_devices(chip->dev, 0, &vibrator_devs[0],
+				ARRAY_SIZE(vibrator_devs),
+				&vibrator_resources[0], 0);
+	if (ret < 0)
+		dev_err(chip->dev, "Failed to add vibrator subdev\n");
+}
+
+
 static void __devinit device_led_init(struct pm860x_chip *chip,
 				      struct pm860x_platform_data *pdata)
 {
@@ -927,6 +949,7 @@ int __devinit pm860x_device_init(struct pm860x_chip *chip,
 	case CHIP_PM8606:
 		device_bk_init(chip, pdata);
 		device_led_init(chip, pdata);
+		device_vibrator_init(chip, pdata);
 		device_8606_oscillator_vsys_init(chip->client);
 		break;
 	case CHIP_PM8607:
@@ -939,6 +962,7 @@ int __devinit pm860x_device_init(struct pm860x_chip *chip,
 		case CHIP_PM8607:
 			device_bk_init(chip, pdata);
 			device_led_init(chip, pdata);
+			device_vibrator_init(chip, pdata);
 			device_8606_oscillator_vsys_init(chip->client);
 			break;
 		case CHIP_PM8606:
