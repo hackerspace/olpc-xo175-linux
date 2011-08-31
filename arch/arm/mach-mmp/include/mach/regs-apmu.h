@@ -49,4 +49,9 @@
 
 #define APMU_PXA910_KP_WAKE_CLR		(1 << 3)
 
+/* USB HSIC/FSIC*/
+#define APMU_USBHSIC1   APMU_REG(0x0f8)
+#define APMU_USBHSIC2   APMU_REG(0x0fc)
+#define APMU_USBFSIC    APMU_REG(0x100)
+
 #endif /* __ASM_MACH_REGS_APMU_H */

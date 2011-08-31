@@ -225,6 +225,30 @@ struct clkops rtc_clk_ops = {
 	.disable        = rtc_clk_disable,
 };
 
+/* usb: hsic clock */
+static void hsic_clk_enable(struct clk *clk)
+{
+	uint32_t clk_rst;
+
+	clk_rst  =  __raw_readl(clk->clk_rst);
+	clk_rst |= 0x1b;
+	__raw_writel(clk_rst, clk->clk_rst);
+}
+
+static void hsic_clk_disable(struct clk *clk)
+{
+	uint32_t clk_rst;
+
+	clk_rst  =  __raw_readl(clk->clk_rst);
+	clk_rst &= ~0x18;
+	__raw_writel(clk_rst, clk->clk_rst);
+}
+
+struct clkops hsic_clk_ops = {
+	.enable         = hsic_clk_enable,
+	.disable        = hsic_clk_disable,
+};
+
 void __init mmp3_init_irq(void)
 {
 	gic_init(0, 29, (void __iomem *) GIC_DIST_VIRT_BASE, (void __iomem *) GIC_CPU_VIRT_BASE);
@@ -250,7 +274,11 @@ static APBC_CLK(pwm2, MMP2_PWM1, 0, 26000000);
 static APBC_CLK(pwm3, MMP2_PWM2, 0, 26000000);
 static APBC_CLK(pwm4, MMP2_PWM3, 0, 26000000);
 static APBC_CLK(keypad, MMP2_KPC, 0, 32768);
+
 static APMU_CLK(nand, NAND, 0xbf, 100000000);
+static APMU_CLK(u2o, USB, 0x9, 480000000);
+
+static APMU_CLK_OPS(hsic1, USBHSIC1, 0x1b, 480000000, &hsic_clk_ops);
 static APMU_CLK_OPS(sdh0, SDH0, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(sdh1, SDH1, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(sdh2, SDH2, 0x1b, 200000000, &sdhc_clk_ops);
@@ -278,6 +306,8 @@ static struct clk_lookup mmp3_clkregs[] = {
 	INIT_CLKREG(&clk_sdh2, "sdhci-pxav3.2", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_sdh3, "sdhci-pxav3.3", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_rtc, "mmp-rtc", NULL),
+	INIT_CLKREG(&clk_u2o, NULL, "U2OCLK"),
+	INIT_CLKREG(&clk_hsic1, NULL, "HSIC1CLK"),
 };
 
 #ifdef CONFIG_CACHE_L2X0
