@@ -259,12 +259,23 @@ static int __devexit sdhci_pxav2_remove(struct platform_device *pdev)
 int sdhci_pxav2_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct sdhci_host *host = platform_get_drvdata(pdev);
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
 	int ret = 0;
 
 	if (device_may_wakeup(&pdev->dev))
 		enable_irq_wake(host->irq);
 
 	ret = sdhci_suspend_host(host, state);
+	if (ret)
+		return ret;
+
+	if (pdata->lp_switch) {
+		ret = pdata->lp_switch(1, (int)host->mmc->card);
+		if (ret) {
+			sdhci_resume_host(host);
+			dev_err(&pdev->dev, "fail to switch gpio, resume..\n");
+		}
+	}
 
 	return ret;
 }
@@ -272,7 +283,11 @@ int sdhci_pxav2_suspend(struct platform_device *pdev, pm_message_t state)
 int sdhci_pxav2_resume(struct platform_device *pdev)
 {
 	struct sdhci_host *host = platform_get_drvdata(pdev);
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
 	int ret = 0;
+
+	if (pdata->lp_switch)
+		pdata->lp_switch(0, (int)host->mmc->card);
 
 	ret = sdhci_resume_host(host);
 
