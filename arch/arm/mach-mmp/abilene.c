@@ -21,6 +21,8 @@
 #include <linux/mfd/max8925.h>
 #include <linux/pwm_backlight.h>
 #include <linux/regulator/machine.h>
+#include <linux/mfd/wm8994/pdata.h>
+#include <linux/regulator/fixed.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -55,9 +57,6 @@ static unsigned long abilene_pin_config[] __initdata = {
 	/* TWSI2 */
 	GPIO43_TWSI2_SCL,
 	GPIO44_TWSI2_SDA,
-	/* TWSI3 */
-	GPIO71_TWSI3_SCL,
-	GPIO72_TWSI3_SDA,
 
 	/* TWSI3 */
 	GPIO71_TWSI3_SCL,
@@ -109,6 +108,7 @@ static unsigned long abilene_pin_config[] __initdata = {
 	GPIO22_KP_DKIN6 | MFP_PULL_HIGH,
 
 	PMIC_PMIC_INT | MFP_LPM_EDGE_FALL,
+	GPIO06_WM8994_LDOEN,
 	GPIO128_LCD_RST,
 
 	/* OTG vbus enable signal */
@@ -506,6 +506,137 @@ static struct i2c_board_info abilene_twsi5_info[] = {
 #endif
 };
 
+static struct regulator_consumer_supply abilene_wm8994_regulator_supply[] = {
+	[0] = {
+		.supply = "AVDD1",
+		},
+	[1] = {
+		.supply = "DCVDD",
+		},
+};
+
+struct regulator_init_data abilene_wm8994_regulator_init_data[] = {
+	[0] = {
+		.constraints = {
+				.name = "wm8994-ldo1",
+				.min_uV = 2400000,
+				.max_uV = 3100000,
+				.always_on = 1,
+				.boot_on = 1,
+				},
+		.num_consumer_supplies = 1,
+		.consumer_supplies = &abilene_wm8994_regulator_supply[0],
+		},
+	[1] = {
+		.constraints = {
+				.name = "wm8994-ldo2",
+				.min_uV = 900000,
+				.max_uV = 1200000,
+				.always_on = 1,
+				.boot_on = 1,
+				},
+		.num_consumer_supplies = 1,
+		.consumer_supplies = &abilene_wm8994_regulator_supply[1],
+		},
+};
+
+struct wm8994_pdata abilene_wm8994_pdata = {
+	.ldo[0] = {
+			.enable = mfp_to_gpio(GPIO06_WM8994_LDOEN),
+			.init_data = &abilene_wm8994_regulator_init_data[0],
+			.supply = "AVDD1",
+
+		},
+	.ldo[1] = {
+		.enable = 0,
+		.init_data = &abilene_wm8994_regulator_init_data[1],
+		.supply = "DCVDD",
+
+		},
+};
+
+static struct regulator_consumer_supply abilene_fixed_regulator_supply[] = {
+	[0] = {
+		.supply = "SPKVDD1",
+		},
+	[1] = {
+		.supply = "SPKVDD2",
+		},
+};
+
+static struct i2c_board_info abilene_twsi3_info[] = {
+	{
+	 .type = "wm8994",
+	 .addr = 0x1a,
+	 .platform_data = &abilene_wm8994_pdata,
+	 },
+};
+
+struct regulator_init_data abilene_fixed_regulator_init_data[] = {
+	[0] = {
+		.constraints = {
+				.name = "wm8994-SPK1",
+				.always_on = 1,
+				.boot_on = 1,
+				},
+		.num_consumer_supplies = 1,
+		.consumer_supplies = &abilene_fixed_regulator_supply[0],
+		},
+	[1] = {
+		.constraints = {
+				.name = "wm8994-SPK2",
+				.always_on = 1,
+				.boot_on = 1,
+				},
+		.num_consumer_supplies = 1,
+		.consumer_supplies = &abilene_fixed_regulator_supply[1],
+		},
+};
+
+struct fixed_voltage_config abilene_fixed_pdata[2] = {
+	[0] = {
+		.supply_name = "SPKVDD1",
+		.microvolts = 3700000,
+		.init_data = &abilene_fixed_regulator_init_data[0],
+		.gpio = -1,
+		},
+	[1] = {
+		.supply_name = "SPKVDD2",
+		.microvolts = 3700000,
+		.init_data = &abilene_fixed_regulator_init_data[1],
+		.gpio = -1,
+		},
+};
+
+static struct platform_device fixed_device[] = {
+	[0] = {
+		.name = "reg-fixed-voltage",
+		.id = 0,
+		.dev = {
+			.platform_data = &abilene_fixed_pdata[0],
+			},
+		.num_resources = 0,
+		},
+	[1] = {
+		.name = "reg-fixed-voltage",
+		.id = 1,
+		.dev = {
+			.platform_data = &abilene_fixed_pdata[1],
+			},
+		.num_resources = 0,
+		},
+};
+
+static struct platform_device *fixed_rdev[] __initdata = {
+	&fixed_device[0],
+	&fixed_device[1],
+};
+
+static void abilene_fixed_regulator(void)
+{
+	platform_add_devices(fixed_rdev, ARRAY_SIZE(fixed_rdev));
+}
+
 static void __init abilene_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(abilene_pin_config));
@@ -529,6 +660,9 @@ static void __init abilene_init(void)
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
 
 	platform_device_register(&mmp3_device_rtc);
+
+	mmp3_add_twsi(3, NULL, ARRAY_AND_SIZE(abilene_twsi3_info));
+	abilene_fixed_regulator();
 
 	/* audio sspa support */
 	mmp3_add_sspa(1);
