@@ -30,6 +30,23 @@ static struct fb_videomode video_modes_abilene[] = {
 		},
 };
 
+static struct fb_videomode video_modes_yellowstone[] = {
+	/* innolux WVGA mode info */
+	[0] = {
+		.pixclock = 62500,
+		.refresh = 60,
+		.xres = 1280,
+		.yres = 800,
+		.hsync_len = 2,
+		.left_margin = 64,
+		.right_margin = 64,
+		.vsync_len = 2,
+		.upper_margin = 8,
+		.lower_margin = 8,
+		.sync = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
+		},
+};
+
 static struct dsi_info dsiinfo = {
 	.id = 1,
 	.lanes = 2,
@@ -533,6 +550,39 @@ void __init abilene_add_lcd_mipi(void)
 	fb->num_modes = ARRAY_SIZE(video_modes_abilene);
 	fb->modes = video_modes_abilene;
 	fb->max_fb_size = video_modes_abilene[0].xres *
+		video_modes_abilene[0].xres * 8 + 4096;
+	ovly->num_modes = fb->num_modes;
+	ovly->modes = fb->modes;
+	ovly->max_fb_size = fb->max_fb_size;
+
+	dmc_membase = ioremap(DDR_MEM_CTRL_BASE, 0x30);
+	CSn_NO_COL = __raw_readl(dmc_membase + SDRAM_CONFIG_TYPE1_CS0) >> 4;
+	CSn_NO_COL &= 0xF;
+	if (CSn_NO_COL <= 0x2) {
+		/*
+		 *If DDR page size < 4KB,
+		 *select no crossing 1KB boundary check
+		 */
+		fb->io_pad_ctrl |= CFG_BOUNDARY_1KB;
+		ovly->io_pad_ctrl |= CFG_BOUNDARY_1KB;
+	}
+	iounmap(dmc_membase);
+
+	/* add frame buffer drivers */
+	mmp3_add_fb(fb);
+}
+
+void __init yellowstone_add_lcd_mipi(void)
+{
+	unsigned char __iomem *dmc_membase;
+	unsigned int CSn_NO_COL;
+
+	struct pxa168fb_mach_info *fb = &mipi_lcd_info, *ovly =
+	    &mipi_lcd_ovly_info;
+
+	fb->num_modes = ARRAY_SIZE(video_modes_yellowstone);
+	fb->modes = video_modes_yellowstone;
+	fb->max_fb_size = video_modes_yellowstone[0].xres *
 		video_modes_abilene[0].xres * 8 + 4096;
 	ovly->num_modes = fb->num_modes;
 	ovly->modes = fb->modes;
