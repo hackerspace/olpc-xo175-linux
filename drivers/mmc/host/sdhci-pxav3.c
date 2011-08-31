@@ -166,11 +166,31 @@ static void pxav3_signal_vol_change(struct sdhci_host *host, u8 vol)
 		pdata->signal_1v8(MMC_SIGNAL_VOLTAGE_180 == vol);
 }
 
+static void pxav3_access_constrain(struct sdhci_host *host, unsigned int ac)
+{
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+
+	if (!pdata)
+		return;
+
+#ifdef CONFIG_WAKELOCK
+	if (ac) {
+		wake_lock(&pdata->idle_lock);
+		wake_lock(&pdata->suspend_lock);
+	} else {
+		wake_unlock(&pdata->idle_lock);
+		wake_unlock(&pdata->suspend_lock);
+	}
+#endif
+}
+
 static struct sdhci_ops pxav3_sdhci_ops = {
 	.platform_reset_exit = pxav3_set_private_registers,
 	.set_uhs_signaling = pxav3_set_uhs_signaling,
 	.platform_send_init_74_clocks = pxav3_gen_init_74_clocks,
 	.signal_vol_change = pxav3_signal_vol_change,
+	.access_constrain = pxav3_access_constrain,
 };
 
 static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
@@ -224,6 +244,13 @@ static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 			host->mmc->caps |= pdata->host_caps;
 		if (pdata->pm_caps)
 			host->mmc->pm_caps |= pdata->pm_caps;
+
+	#ifdef CONFIG_WAKELOCK
+		wake_lock_init(&pdata->idle_lock, WAKE_LOCK_IDLE,
+			(const char *)mmc_hostname(host->mmc));
+		wake_lock_init(&pdata->suspend_lock, WAKE_LOCK_SUSPEND,
+			(const char *)mmc_hostname(host->mmc));
+	#endif
 	}
 
 	host->ops = &pxav3_sdhci_ops;
@@ -244,6 +271,10 @@ err_add_host:
 	clk_disable(clk);
 	clk_put(clk);
 err_clk_get:
+#ifdef CONFIG_WAKELOCK
+	wake_lock_destroy(&pdata->idle_lock);
+	wake_lock_destroy(&pdata->suspend_lock);
+#endif
 	sdhci_pltfm_free(pdev);
 	kfree(pxa);
 	return ret;
@@ -256,6 +287,11 @@ static int __devexit sdhci_pxav3_remove(struct platform_device *pdev)
 	struct sdhci_pxa *pxa = pltfm_host->priv;
 
 	sdhci_remove_host(host, 1);
+
+#ifdef CONFIG_WAKELOCK
+	wake_lock_destroy(&pxa->pdata->idle_lock);
+	wake_lock_destroy(&pxa->pdata->suspend_lock);
+#endif
 
 	clk_disable(pltfm_host->clk);
 	clk_put(pltfm_host->clk);
