@@ -47,4 +47,6 @@ struct mvisp_platform_data {
 	struct mvisp_v4l2_subdevs_group *subdev_group;
 };
 
+void __init mmp_register_dxoisp(void *pdata);
+
 #endif

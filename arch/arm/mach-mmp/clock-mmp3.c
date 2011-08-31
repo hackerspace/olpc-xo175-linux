@@ -1649,6 +1649,279 @@ static struct clk mmp3_clk_sdh3 = {
 			{APMU_SDH3, 10, 0xf} } },
 };
 
+#ifdef CONFIG_VIDEO_MVISP
+
+#define DXOISP_PLL1		1
+#define DXOISP_PLL2		2
+
+static void dxoisp_clk_init(struct clk *clk)
+{
+	clk->rate = clk_get_rate(&mmp3_clk_pll1)/2; /* 400MHz */
+	clk->enable_val = DXOISP_PLL1;
+	clk->div = 2;
+	clk->mul = 1;
+	clk_reparent(clk, &mmp3_clk_pll1);
+}
+
+static int dxoisp_clk_enable(struct clk *clk)
+{
+	int reg;
+
+	clk_reparent(clk, clk->inputs[clk->enable_val].input);
+
+	reg = readl(APMU_ISPPWR);
+	reg |= 0x1 << 9;
+	writel(reg, APMU_ISPPWR);
+	mdelay(10);
+	reg |= 0x3 << 9;
+	writel(reg, APMU_ISPPWR);
+	mdelay(10);
+	reg |= 0x1 << 8;
+	writel(reg, APMU_ISPPWR);
+	mdelay(10);
+
+	reg = readl(APMU_ISPCLK);
+	reg &= ~0xF00;
+	reg |= (clk->div) << 8;
+	writel(reg, APMU_ISPCLK);
+	reg &= ~0xC0;
+	reg |= (clk->enable_val) << 6;
+	writel(reg, APMU_ISPCLK);
+
+	reg |= 0x1 << 4;
+	writel(reg, APMU_ISPCLK);
+	mdelay(10);
+	reg |= 0x1 << 3;
+	writel(reg, APMU_ISPCLK);
+	mdelay(10);
+
+	reg = readl(APMU_CCIC_RST);
+	reg |= 0x1 << 16;
+	writel(reg, APMU_CCIC_RST);
+	mdelay(10);
+	reg |= 0x1 << 15;
+	writel(reg, APMU_CCIC_RST);
+
+	reg = readl(APMU_ISPCLK);
+	reg |= 0x1 << 1;
+	writel(reg, APMU_ISPCLK);
+	mdelay(10);
+	reg |= 0x1 << 0;
+	writel(reg, APMU_ISPCLK);
+
+	return 0;
+}
+
+static void dxoisp_clk_disable(struct clk *clk)
+{
+	int reg;
+
+	reg = readl(APMU_ISPCLK);
+	reg &= ~(0x1 << 1);
+	writel(reg, APMU_ISPCLK);
+	mdelay(10);
+	reg &= ~(0x1 << 0);
+	writel(reg, APMU_ISPCLK);
+	mdelay(10);
+
+	reg &= ~(0x1 << 4);
+	writel(reg, APMU_ISPCLK);
+	mdelay(10);
+	reg &= ~(0x1 << 3);
+	writel(reg, APMU_ISPCLK);
+	mdelay(10);
+
+	reg = readl(APMU_ISPCLK);
+
+	reg = readl(APMU_CCIC_RST);
+	reg &= ~(0x1 << 16);
+	writel(reg, APMU_CCIC_RST);
+	mdelay(10);
+	reg &= ~(0x1 << 15);
+	writel(reg, APMU_CCIC_RST);
+
+	reg = readl(APMU_ISPPWR);
+	reg &= ~(0x1 << 8);
+	writel(reg, APMU_ISPPWR);
+	mdelay(10);
+	reg &= ~(0x3 << 9);
+	writel(reg, APMU_ISPPWR);
+
+}
+
+static long dxoisp_clk_round_rate(struct clk *clk, unsigned long rate)
+{
+	if (rate <= clk_get_rate(&mmp3_clk_pll1)/4)
+		return clk_get_rate(&mmp3_clk_pll1)/4; /* 200M */
+	else
+		return clk_get_rate(&mmp3_clk_pll1)/2; /* 400M */
+}
+
+static int dxoisp_clk_setrate(struct clk *clk, unsigned long rate)
+{
+	clk->mul = 1;
+	if (rate == clk_get_rate(&mmp3_clk_pll1)/4) {
+		clk->enable_val = DXOISP_PLL1;
+		clk->div = 4;
+		clk_reparent(clk, &mmp3_clk_pll1);
+	} else if (rate == clk_get_rate(&mmp3_clk_pll1)/2) {
+		clk->enable_val = DXOISP_PLL1;
+		clk->div = 2;
+		clk_reparent(clk, &mmp3_clk_pll1);
+	} else {
+		pr_err("%s: unexpected dxoisp clock rate %ld\n",
+			__func__, rate);
+		BUG();
+	}
+
+	return 0;
+}
+
+struct clkops dxoisp_clk_ops = {
+	.init		= dxoisp_clk_init,
+	.enable		= dxoisp_clk_enable,
+	.disable	= dxoisp_clk_disable,
+	.setrate	= dxoisp_clk_setrate,
+	.round_rate	= dxoisp_clk_round_rate,
+};
+
+static struct clk_mux_sel dxoisp_mux_pll1_pll2[] = {
+	{.input = &mmp3_clk_pll1, .value = 0},
+	{.input = &mmp3_clk_pll2, .value = 1},
+	{0, 0},
+};
+
+static struct clk mmp3_clk_dxoisp = {
+	.name = "dxoisp",
+	.inputs = dxoisp_mux_pll1_pll2,
+	.lookup = {
+		.con_id = "ISP-CLK",
+	},
+	.clk_rst = (void __iomem *)APMU_ISPCLK,
+	.ops = &dxoisp_clk_ops,
+};
+
+#define DXOCCIC_PLL1_DIV2		0
+
+static void dxoccic_clk_init(struct clk *clk)
+{
+	clk->rate = clk_get_rate(&mmp3_clk_pll1)/2; /* 400MHz */
+	clk->enable_val = DXOCCIC_PLL1_DIV2;
+	clk->div = 1;
+	clk->mul = 1;
+	clk_reparent(clk, &mmp3_clk_pll1);
+}
+
+static int dxoccic_clk_enable(struct clk *clk)
+{
+	int reg;
+
+	clk_reparent(clk, clk->inputs[clk->enable_val].input);
+
+	reg = readl(clk->clk_rst);
+
+	/* Select PLL1/2 as CCIC clock source */
+	reg &= ~(0x3 << 6);
+	reg |= (clk->enable_val) << 6;
+	/* Select CCIC Clock Divider to 1 */
+	reg |= (clk->div) << 17;
+	/* Select PHY SLOW Divider to 26 */
+	reg |= (0x1A << 10);
+	writel(reg, clk->clk_rst);
+
+	/* Enable PHY SLOW clock */
+	reg |= (0x1 << 9);
+	/* Enable PHY clock */
+	reg |= (0x1 << 5);
+	/* Enable CCIC clock */
+	reg |= (0x1 << 4);
+	/* Enable AXI clock */
+	reg |= (0x1 << 3);
+	writel(reg, clk->clk_rst);
+
+	/* Deassert RST for PHY SLOW clock */
+	reg |= (0x1 << 8);
+	/* Deassert RST for PHY clock */
+	reg |= (0x1 << 2);
+	/* Deassert RST for CCIC clock */
+	reg |= (0x1 << 1);
+	/* Deassert RST for AXI clock */
+	reg |= (0x1 << 0);
+	writel(reg, clk->clk_rst);
+
+
+	reg = readl(APMU_CCIC_DBG);
+	reg |= (1 << 25) | (1 << 27);
+	writel(reg, APMU_CCIC_DBG);
+
+	reg = 0xFFFF;
+	writel(reg, APMU_CCIC_GATE);
+
+	return 0;
+}
+
+static void dxoccic_clk_disable(struct clk *clk)
+{
+	int reg;
+
+	reg = readl(clk->clk_rst);
+	reg &= ~0x1;
+	writel(reg, clk->clk_rst);
+	reg &= ~0x2;
+	writel(reg, clk->clk_rst);
+
+	reg = readl(clk->clk_rst);
+	reg &= ~0x8;
+	writel(reg, clk->clk_rst);
+	reg &= ~0x10;
+	writel(reg, clk->clk_rst);
+}
+
+static long dxoccic_clk_round_rate(struct clk *clk, unsigned long rate)
+{
+	return clk_get_rate(&mmp3_clk_pll1)/2; /* 400M */
+}
+
+static int dxoccic_clk_setrate(struct clk *clk, unsigned long rate)
+{
+	clk->mul = 1;
+	if (rate == clk_get_rate(&mmp3_clk_pll1)/2) {
+		clk->enable_val = DXOCCIC_PLL1_DIV2;
+		clk->div = 1;
+		clk_reparent(clk, &mmp3_clk_pll1);
+	} else {
+		pr_err("%s: unexpected dxoccic clock rate %ld\n",
+			__func__, rate);
+		BUG();
+	}
+
+	return 0;
+}
+
+struct clkops dxoccic_clk_ops = {
+	.init		= dxoccic_clk_init,
+	.enable		= dxoccic_clk_enable,
+	.disable	= dxoccic_clk_disable,
+	.setrate	= dxoccic_clk_setrate,
+	.round_rate	= dxoccic_clk_round_rate,
+};
+
+static struct clk_mux_sel dxoccic_mux_pll1_pll2[] = {
+	{.input = &mmp3_clk_pll1, .value = 0},
+	{0, 0},
+};
+
+static struct clk mmp3_clk_dxoccic = {
+	.name = "dxoccic",
+	.inputs = dxoccic_mux_pll1_pll2,
+	.lookup = {
+		.con_id = "CCIC-CLK",
+	},
+	.clk_rst = (void __iomem *)APMU_CCIC_RST,
+	.ops = &dxoccic_clk_ops,
+};
+#endif
+
 #ifdef CONFIG_UIO_VMETA
 
 #define VMETA_PLL1		0
@@ -2035,6 +2308,10 @@ static struct clk *mmp3_clks_ptr[] = {
 	&mmp3_clk_ccic2,
 #ifdef CONFIG_UIO_VMETA
 	&mmp3_clk_vmeta,
+#endif
+#ifdef CONFIG_VIDEO_MVISP
+	&mmp3_clk_dxoisp,
+	&mmp3_clk_dxoccic,
 #endif
 };
 

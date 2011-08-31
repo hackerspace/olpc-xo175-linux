@@ -43,6 +43,9 @@
 #define APMU_VMETA	APMU_REG(0x0A4)
 #define APMU_SMC	APMU_REG(0x0d4)
 
+#define APMU_ISPPWR	APMU_REG(0x1FC)
+#define APMU_ISPCLK	APMU_REG(0x224)
+
 #define APMU_CP_CCR             APMU_REG(0x0000)
 #define APMU_CCR                APMU_REG(0x0004)
 #define APMU_CP_CCSR            APMU_REG(0x0008)

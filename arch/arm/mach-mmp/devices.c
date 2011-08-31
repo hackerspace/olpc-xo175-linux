@@ -17,6 +17,7 @@
 #include <mach/regs-usb.h>
 #include <mach/soc_vmeta.h>
 #include <mach/regs-pmu.h>
+#include <mach/isp_dev.h>
 
 int __init pxa_register_device(struct pxa_device_desc *desc,
 				void *data, size_t size)
@@ -451,6 +452,69 @@ struct platform_device pxa168_device_u2oehci = {
 	.num_resources	= ARRAY_SIZE(pxa168_u2oehci_resources),
 	.resource	= pxa168_u2oehci_resources,
 };
+
+#ifdef CONFIG_VIDEO_MVISP
+static struct resource mmp_dxoisp_resources[] = {
+	[0] = {
+		.start = 0xD4215000,
+		.end   = 0xD4215D0B,
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = 0xF0200000,
+		.end   = 0xF023FFFF,
+		.flags = IORESOURCE_MEM,
+	},
+	[2] = {
+		.start = 0xD420A000,
+		.end   = 0xD420A23F,
+		.flags = IORESOURCE_MEM,
+	},
+	[3] = {
+		.start = 0xD420A800,
+		.end   = 0xD420AA3F,
+		.flags = IORESOURCE_MEM,
+	},
+	[4] = {
+		.start = IRQ_MMP3_ISP_DMA,
+		.end   = IRQ_MMP3_ISP_DMA,
+		.flags = IORESOURCE_IRQ,
+	},
+	[5] = {
+		.start = IRQ_MMP3_DXO_ISP,
+		.end   = IRQ_MMP3_DXO_ISP,
+		.flags = IORESOURCE_IRQ,
+	},
+	[6] = {
+		.start = IRQ_MMP3_CCIC1,
+		.end   = IRQ_MMP3_CCIC1,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mmp_device_dxoisp = {
+	.name           = "mvisp",
+	.id             = 0,
+	.dev            = {
+		.dma_mask = DMA_BIT_MASK(32),
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	},
+	.resource       = mmp_dxoisp_resources,
+	.num_resources  = ARRAY_SIZE(mmp_dxoisp_resources),
+};
+
+void __init mmp_register_dxoisp(void *data)
+{
+	int ret;
+
+	mmp_device_dxoisp.dev.platform_data = data;
+
+	ret = platform_device_register(&mmp_device_dxoisp);
+	if (ret)
+		dev_err(&(mmp_device_dxoisp.dev),
+			"unable to register dxo device: %d\n", ret);
+}
+#endif
 
 #ifdef CONFIG_UIO_VMETA
 static struct resource mmp_vmeta_resources[3] = {
