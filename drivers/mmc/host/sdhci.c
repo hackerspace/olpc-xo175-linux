@@ -256,6 +256,18 @@ static void sdhci_led_control(struct led_classdev *led,
 }
 #endif
 
+/**
+ *	sdhci_access_constrain - set the constrain before accessing the host to
+ *	make sure that the clock/system power are ready for the next operations
+ *	and release the constrain after the operation finish to save power.
+ *	@ac: access constrain config, 0/1 to set/release the constrain.
+ */
+inline void sdhci_access_constrain(struct sdhci_host *host, unsigned int ac)
+{
+	if (host->ops->access_constrain)
+		host->ops->access_constrain(host, ac);
+}
+
 /*****************************************************************************\
  *                                                                           *
  * Core functions                                                            *
@@ -1211,6 +1223,8 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 
 	WARN_ON(host->mrq != NULL);
 
+	sdhci_access_constrain(host, 1);
+
 #ifndef SDHCI_USE_LEDS_CLASS
 	sdhci_activate_led(host);
 #endif
@@ -1279,6 +1293,8 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 
 	if (host->flags & SDHCI_DEVICE_DEAD)
 		goto out;
+
+	sdhci_access_constrain(host, 1);
 
 	/*
 	 * Reset the chip on each power off.
@@ -1419,6 +1435,7 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	if(host->quirks & SDHCI_QUIRK_RESET_CMD_DATA_ON_IOS)
 		sdhci_reset(host, SDHCI_RESET_CMD | SDHCI_RESET_DATA);
 
+	sdhci_access_constrain(host, 0);
 out:
 	mmiowb();
 	spin_unlock_irqrestore(&host->lock, flags);
@@ -1430,6 +1447,7 @@ static int check_ro(struct sdhci_host *host)
 	int is_readonly;
 
 	spin_lock_irqsave(&host->lock, flags);
+	sdhci_access_constrain(host, 1);
 
 	if (host->flags & SDHCI_DEVICE_DEAD)
 		is_readonly = 0;
@@ -1439,6 +1457,7 @@ static int check_ro(struct sdhci_host *host)
 		is_readonly = !(sdhci_readl(host, SDHCI_PRESENT_STATE)
 				& SDHCI_WRITE_PROTECT);
 
+	sdhci_access_constrain(host, 0);
 	spin_unlock_irqrestore(&host->lock, flags);
 
 	/* This quirk needs to be replaced by a callback-function later */
@@ -1905,6 +1924,7 @@ static void sdhci_tasklet_finish(unsigned long param)
 #ifndef SDHCI_USE_LEDS_CLASS
 	sdhci_deactivate_led(host);
 #endif
+	sdhci_access_constrain(host, 0);
 
 	mmiowb();
 	spin_unlock_irqrestore(&host->lock, flags);
