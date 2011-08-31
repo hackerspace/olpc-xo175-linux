@@ -84,6 +84,14 @@ static struct pm860x_led_pdata saarb_led[] = {
 	},
 };
 
+static void disable_rf(void)
+{
+}
+
+static struct pm860x_power_pdata power = {
+	.disable_rf_fn  = disable_rf,
+};
+
 static int cm3601_request_resource(unsigned char gpio_num, char *name)
 {
 	int ret = 0;
@@ -110,6 +118,7 @@ static struct pm860x_platform_data saarb_pm8607_info = {
 	.touch		= &saarb_touch,
 	.backlight	= &saarb_backlight[0],
 	.led		= &saarb_led[0],
+	.power		= &power,
 #if defined(CONFIG_SENSORS_CM3601)
 	.cm3601		= &cm3601_platform_info,
 #endif
