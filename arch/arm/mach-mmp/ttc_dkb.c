@@ -41,6 +41,7 @@
 #include <plat/usb.h>
 
 #include "common.h"
+#include "onboard.h"
 
 #define TTCDKB_NR_IRQS		(IRQ_BOARD_START + 24)
 
@@ -127,6 +128,37 @@ static unsigned long ttc_dkb_pin_config[] __initdata = {
 	GPIO45_GPIO45, /*share with TPO reset*/
 	/* RDA8207 XOUT2_EN enable signal for AGPS clock */
 	GPIO113_GPS_CLKEN | MFP_PULL_HIGH,
+};
+
+static unsigned long lcd_tpo_pin_config[] __initdata = {
+	GPIO81_LCD_FCLK,
+	GPIO82_LCD_LCLK,
+	GPIO83_LCD_PCLK,
+	GPIO84_LCD_DENA,
+	GPIO85_LCD_DD0,
+	GPIO86_LCD_DD1,
+	GPIO87_LCD_DD2,
+	GPIO88_LCD_DD3,
+	GPIO89_LCD_DD4,
+	GPIO90_LCD_DD5,
+	GPIO91_LCD_DD6,
+	GPIO92_LCD_DD7,
+	GPIO93_LCD_DD8,
+	GPIO94_LCD_DD9,
+	GPIO95_LCD_DD10,
+	GPIO96_LCD_DD11,
+	GPIO97_LCD_DD12,
+	GPIO98_LCD_DD13,
+	GPIO100_LCD_DD14,
+	GPIO101_LCD_DD15,
+	GPIO102_LCD_DD16,
+	GPIO103_LCD_DD17,
+
+	GPIO104_LCD_SPIDOUT,
+	GPIO105_LCD_SPIDIN,
+	GPIO106_LCD_RESET,
+	GPIO107_LCD_CS1,
+	GPIO108_LCD_DCLK,
 };
 
 static unsigned long ttc_rf_pin_config[] = {
@@ -993,6 +1025,11 @@ static void __init ttc_dkb_init(void)
 
 	/* off-chip devices */
 	platform_add_devices(ARRAY_AND_SIZE(ttc_dkb_devices));
+
+#ifdef CONFIG_FB_PXA168
+	mfp_config(ARRAY_AND_SIZE(lcd_tpo_pin_config));
+	dkb_add_lcd_tpo();
+#endif
 
 #if defined(CONFIG_PROC_FS)
 	/* create proc for sirf GPS control */
