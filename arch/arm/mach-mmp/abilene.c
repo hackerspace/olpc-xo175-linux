@@ -30,9 +30,11 @@
 #include <mach/mmp3.h>
 #include <mach/irqs.h>
 #include <mach/regs-mpmu.h>
+#include <mach/tc35876x.h>
 #include <plat/usb.h>
 
 #include "common.h"
+#include "onboard.h"
 
 #define ABILENE_NR_IRQS		(IRQ_BOARD_START + 64)
 
@@ -106,6 +108,7 @@ static unsigned long abilene_pin_config[] __initdata = {
 	GPIO22_KP_DKIN6 | MFP_PULL_HIGH,
 
 	PMIC_PMIC_INT | MFP_LPM_EDGE_FALL,
+	GPIO128_LCD_RST,
 };
 
 static unsigned long mmc1_pin_config[] __initdata = {
@@ -449,6 +452,48 @@ static struct mv_usb_platform_data mmp3_hsic1_pdata = {
 
 #endif
 
+#if defined(CONFIG_TC35876X)
+/* force LDO3 & LDO17 always on */
+int tc358765_init(void)
+{
+	struct regulator *vcc = NULL;
+	int ret = 0;
+	/* enable LDO for MIPI bridge */
+	vcc = regulator_get(NULL, "v_ldo17");
+	if (IS_ERR(vcc))
+		vcc = NULL;
+	else {
+		regulator_enable(vcc);
+		ret = regulator_set_voltage(vcc, 1200000, 1200000);
+	}
+	vcc = regulator_get(NULL, "v_ldo3");
+	if (IS_ERR(vcc))
+		vcc = NULL;
+	else {
+		regulator_enable(vcc);
+		ret = regulator_set_voltage(vcc, 1200000, 1200000);
+	}
+
+	return 0;
+}
+
+static struct tc35876x_platform_data tc358765_data = {
+	.platform_init = tc358765_init,
+	.id = TC358765_CHIPID,
+	.id_reg = TC358765_CHIPID_REG,
+};
+#endif
+
+static struct i2c_board_info abilene_twsi5_info[] = {
+#if defined(CONFIG_TC35876X)
+	{
+		.type		= "tc35876x",
+		.addr		= 0x0f,
+		.platform_data	= &tc358765_data,
+	},
+#endif
+};
+
 static void __init abilene_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(abilene_pin_config));
@@ -456,8 +501,12 @@ static void __init abilene_init(void)
 	/* on-chip devices */
 	mmp3_add_uart(3);
 	mmp3_add_twsi(1, NULL, ARRAY_AND_SIZE(abilene_twsi1_info));
+	mmp3_add_twsi(5, NULL, ARRAY_AND_SIZE(abilene_twsi5_info));
 
 	mmp3_add_keypad(&mmp3_keypad_info);
+#ifdef CONFIG_FB_PXA168
+	abilene_add_lcd_mipi();
+#endif
 
 	/* backlight */
 	mmp3_add_pwm(3);
