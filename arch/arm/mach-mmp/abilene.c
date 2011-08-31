@@ -39,6 +39,7 @@
 #include <plat/pmem.h>
 #include <plat/usb.h>
 #include <mach/sram.h>
+#include <mach/axis_sensor.h>
 #include <mach/uio_hdmi.h>
 #include <media/soc_camera.h>
 
@@ -68,6 +69,10 @@ static unsigned long abilene_pin_config[] __initdata = {
 	GPIO71_TWSI3_SCL,
 	GPIO72_TWSI3_SDA,
 
+	/* TWSI4 */
+	TWSI4_SCL,
+	TWSI4_SDA,
+
 	/*PWM3*/
 	GPIO53_PWM3,
 
@@ -78,6 +83,9 @@ static unsigned long abilene_pin_config[] __initdata = {
 	GPIO26_I2S_SYNC,
 	GPIO27_I2S_DATA_OUT,
 	GPIO28_I2S_SDATA_IN,
+
+	/* CM3623 INT */
+	GPIO138_GPIO | MFP_PULL_HIGH,
 
 	/* camera */
 	GPIO67_GPIO,
@@ -445,6 +453,71 @@ static struct max8925_platform_data abilene_max8925_info = {
 	.regulator[MAX8925_ID_LDO18] = &regulator_data[MAX8925_ID_LDO18],
 	.regulator[MAX8925_ID_LDO19] = &regulator_data[MAX8925_ID_LDO19],
 	.regulator[MAX8925_ID_LDO20] = &regulator_data[MAX8925_ID_LDO20],
+};
+
+static int cm3623_set_power(int on)
+{
+	static struct regulator *v_ldo8;
+	static int enabled;
+	int changed = 0;
+
+	if (on && (!enabled)) {
+		v_ldo8 = regulator_get(NULL, "v_ldo8");
+		if (IS_ERR(v_ldo8)) {
+			v_ldo8 = NULL;
+			return -EIO;
+		} else {
+			regulator_set_voltage(v_ldo8, 2800000, 2800000);
+			regulator_enable(v_ldo8);
+			enabled = 1;
+			changed = 1;
+		}
+	}
+	if ((!on) && enabled) {
+		regulator_disable(v_ldo8);
+		regulator_put(v_ldo8);
+		v_ldo8 = NULL;
+		enabled = 0;
+		changed = 1;
+	}
+	if (changed)
+		msleep(100);
+
+	return 0;
+}
+
+static struct axis_sensor_platform_data cm3623_platform_data = {
+	.set_power	= cm3623_set_power,
+};
+
+static struct i2c_board_info abilene_twsi4_info[] = {
+#if defined(CONFIG_SENSORS_CM3623)
+	{
+		.type		= "cm3623_ps",
+		.addr		= (0xB0>>1),
+		.platform_data	= &cm3623_platform_data,
+	},
+	{
+		.type		= "cm3623_als_msb",
+		.addr		= (0x20>>1),
+		.platform_data	= &cm3623_platform_data,
+	},
+	{
+		.type		= "cm3623_als_lsb",
+		.addr		= (0x22>>1),
+		.platform_data	= &cm3623_platform_data,
+	},
+	{
+		.type		= "cm3623_int",
+		.addr		= (0x18>>1),
+		.platform_data	= &cm3623_platform_data,
+	},
+	{
+		.type		= "cm3623_ps_threshold",
+		.addr		= (0xB2>>1),
+		.platform_data  = &cm3623_platform_data,
+	},
+#endif
 };
 
 static struct i2c_board_info abilene_twsi1_info[] = {
@@ -895,6 +968,7 @@ static void __init abilene_init(void)
 	/* on-chip devices */
 	mmp3_add_uart(3);
 	mmp3_add_twsi(1, NULL, ARRAY_AND_SIZE(abilene_twsi1_info));
+	mmp3_add_twsi(4, NULL, ARRAY_AND_SIZE(abilene_twsi4_info));
 	mmp3_add_twsi(5, NULL, ARRAY_AND_SIZE(abilene_twsi5_info));
 
 	mmp3_add_keypad(&mmp3_keypad_info);
