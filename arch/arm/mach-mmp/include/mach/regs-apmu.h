@@ -47,4 +47,6 @@
 #define APMU_PXA168_SD2_WAKE_CLR	(1 << 1)
 #define APMU_PXA168_SD1_WAKE_CLR	(1 << 0)
 
+#define APMU_PXA910_KP_WAKE_CLR		(1 << 3)
+
 #endif /* __ASM_MACH_REGS_APMU_H */

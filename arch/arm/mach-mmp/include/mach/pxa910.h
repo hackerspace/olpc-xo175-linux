@@ -10,6 +10,7 @@ extern void __init pxa910_init_irq(void);
 #include <linux/i2c/pxa-i2c.h>
 #include <mach/devices.h>
 #include <plat/pxa3xx_nand.h>
+#include <plat/pxa27x_keypad.h>
 
 extern struct pxa_device_desc pxa910_device_uart1;
 extern struct pxa_device_desc pxa910_device_uart2;
@@ -20,6 +21,9 @@ extern struct pxa_device_desc pxa910_device_pwm2;
 extern struct pxa_device_desc pxa910_device_pwm3;
 extern struct pxa_device_desc pxa910_device_pwm4;
 extern struct pxa_device_desc pxa910_device_nand;
+extern struct pxa_device_desc pxa910_device_keypad;
+
+extern void pxa910_clear_keypad_wakeup(void);
 
 static inline int pxa910_add_uart(int id)
 {
@@ -76,4 +80,11 @@ static inline int pxa910_add_nand(struct pxa3xx_nand_platform_data *info)
 {
 	return pxa_register_device(&pxa910_device_nand, info, sizeof(*info));
 }
+
+static inline int pxa910_add_keypad(struct pxa27x_keypad_platform_data *data)
+{
+	data->clear_wakeup_event = pxa910_clear_keypad_wakeup;
+	return pxa_register_device(&pxa910_device_keypad, data, sizeof(*data));
+}
+
 #endif /* __ASM_MACH_PXA910_H */
