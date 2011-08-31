@@ -25,6 +25,7 @@
 #include <mach/addr-map.h>
 #include <mach/regs-apbc.h>
 #include <mach/regs-apmu.h>
+#include <mach/regs-mpmu.h>
 #include <mach/cputype.h>
 #include <mach/irqs.h>
 #include <mach/dma.h>
@@ -188,6 +189,234 @@ struct clkops pwm2_clk_ops = {
 	.disable	= pwm2_clk_disable,
 };
 
+static unsigned long pll_clk_calculate(u32 refdiv, u32 fbdiv)
+{
+	u32 input_clk;
+	u32 output_clk;
+	u32 M, N;
+
+	switch (refdiv) {
+	case 3:
+		M = 5;
+		input_clk = 19200000;
+		break;
+	case 4:
+		M = 6;
+		input_clk = 26000000;
+		break;
+	default:
+		printk(KERN_WARNING "The PLL REFDIV should be 0x03 or 0x04\n");
+		return 0;
+	}
+
+	N = fbdiv + 2;
+	output_clk = input_clk/10 * N / M *10;
+	return output_clk;
+}
+
+static unsigned long pll1_get_clk(void)
+{
+	u32 mpmu_fccr;
+	u32 mpmu_posr;
+	u32 refdiv;
+	u32 fbdiv;
+	u32 pll1_en;
+
+	mpmu_fccr = __raw_readl(MPMU_FCCR);
+	pll1_en   = (mpmu_fccr >> 14) & 0x1;
+	mpmu_posr = __raw_readl(MPMU_POSR);
+
+	if (pll1_en) {
+		refdiv    = (mpmu_posr >> 9) & 0x1f;
+		fbdiv     = mpmu_posr & 0x1ff;
+		return pll_clk_calculate(refdiv, fbdiv);
+	} else {
+		return 797330000;
+	}
+}
+
+static unsigned long pll2_get_clk(void)
+{
+	u32 mpmu_posr;
+	u32 refdiv;
+	u32 fbdiv;
+
+	mpmu_posr = __raw_readl(MPMU_POSR);
+	refdiv      = (mpmu_posr >> 23) & 0x1f;
+	fbdiv       = (mpmu_posr >> 14) & 0x1ff;
+	return pll_clk_calculate(refdiv, fbdiv);
+}
+
+static void disp1_axi_clk_enable(struct clk *clk)
+{
+	u32 tmp = __raw_readl(clk->clk_rst);
+
+	/* enable Display1 AXI clock */
+	tmp |= (1<<3);
+	__raw_writel(tmp, clk->clk_rst);
+
+	/* release from reset */
+	tmp |= 1;
+	__raw_writel(tmp, clk->clk_rst);
+}
+
+static void disp1_axi_clk_disable(struct clk *clk)
+{
+	u32 tmp = __raw_readl(clk->clk_rst);
+
+	/* reset display1 AXI clock */
+	tmp &= ~1;
+	__raw_writel(tmp, clk->clk_rst);
+
+	/* disable display1 AXI clock */
+	tmp &= ~(1<<3);
+	__raw_writel(tmp, clk->clk_rst);
+}
+
+struct clkops disp1_axi_clk_ops = {
+	.enable		= disp1_axi_clk_enable,
+	.disable	= disp1_axi_clk_disable,
+};
+static struct clk clk_disp1_axi;
+
+static void lcd_pn1_clk_enable(struct clk *clk)
+{
+	u32 tmp = __raw_readl(clk->clk_rst);
+
+	/* enable Display1 peripheral clock */
+	tmp |= (1<<4);
+	__raw_writel(tmp, clk->clk_rst);
+
+	/* enable DSI clock */
+	tmp |= (1<<12) | (1<<5);
+	__raw_writel(tmp, clk->clk_rst);
+
+	/* release from reset */
+	tmp |= 7;
+	__raw_writel(tmp, clk->clk_rst);
+
+	/* enable display1 AXI clock */
+	clk_enable(&clk_disp1_axi);
+}
+static void lcd_pn1_clk_disable(struct clk *clk)
+{
+	u32 tmp;
+
+	/* reset & disable axi clk first, otherwise panel may resume error */
+	clk_disable(&clk_disp1_axi);
+
+	tmp = __raw_readl(clk->clk_rst);
+	/* disable DSI clock */
+	tmp &= ~((1<<12) | (1<<5));
+	__raw_writel(tmp, clk->clk_rst);
+
+	/* disable Display1 peripheral clock */
+	tmp &= ~(1<<4);
+	__raw_writel(tmp, clk->clk_rst);
+}
+
+static int lcd_clk_setrate(struct clk *clk, unsigned long val)
+{
+	u32 tmp = __raw_readl(clk->clk_rst);
+	u32 pll2clk = pll2_get_clk();
+
+	tmp &= ~((0x1f << 15) | (0xf << 8) | (0x3 << 6) | (1<<20));
+	tmp |= (0x1a << 15);
+
+	switch (val) {
+	case 260000000:
+		/* enable PLL1/1.5 divider */
+		__raw_writel(0x1, MPMU_PLL1_CTRL);
+
+		/* DSP1clk = PLL1/1.5/2 = 533MHz */
+		tmp |= (0x2 << 8) | (0x2 << 6 | 1 << 20);
+		break;
+	case 400000000:
+		/* DSP1clk = PLL1/2 = 400MHz */
+		tmp |= (0x2 << 8) | (0x0 << 6);
+		break;
+	case 520000000:
+		/* DSP1clk = PLL2/x = 500MHz */
+		pr_debug("%s pll2clk: %d\n\n\n", __func__, pll2clk);
+		if (pll2clk > 900000000)
+			tmp |= (0x2 << 8) | (0x2 << 6);
+		else
+			tmp |= (0x1 << 8) | (0x2 << 6);
+		break;
+	case 800000000:
+		/* DSP1clk = PLL1 = 800MHz */
+		tmp |= (0x1 << 8) | (0x0 << 6);
+		break;
+
+	default:
+		printk("%s %d not supported\n", __func__, (int)val);
+		return -1;
+	}
+
+	__raw_writel(tmp, clk->clk_rst);
+	return 0;
+}
+static unsigned long lcd_clk_getrate(struct clk *clk)
+{
+	u32 lcdclk = __raw_readl(clk->clk_rst);
+	u32 div = (lcdclk >> 8) & 0xf;
+	u32 src = (lcdclk >> 6) & 0x3;
+	u32 sel = (lcdclk >> 20) & 1;
+	u32 pll1clk;
+	u32 pll2clk;
+
+	pll1clk = pll1_get_clk();
+	pll2clk = pll2_get_clk();
+
+	pr_debug("%s pll1clk %d pll2clk %d\n", __func__, pll1clk, pll2clk);
+	if (sel) {
+		switch (src) {
+			case 2: /* PLL1/1.5 */
+				lcdclk = pll1clk*2/3;
+				break;
+			case 3: /* PLL2/1.5 */
+				lcdclk = pll2clk*2/3;
+				break;
+			case 0: /* USB PLL */
+			case 1:
+				lcdclk = 480000000;
+				break;
+			default:
+				break;
+			}
+	} else {
+		switch (src) {
+			case 0: /* PLL1 */
+				lcdclk = pll1clk;
+				break;
+			case 1: /* PLL1/16 */
+				lcdclk = pll1clk/16;
+				break;
+			case 2: /* PLL2 */
+				lcdclk = pll2clk;
+				break;
+			case 3: /* PLL2/2 */
+				lcdclk = 66000000;
+				break;
+			default:
+				break;
+			}
+	}
+
+	lcdclk /= div;
+
+	pr_debug("lcd clk get %d (clkrst 0x%x div %d src %d sel %d)\n",
+		lcdclk, __raw_readl(clk->clk_rst), div, src, sel);
+	return lcdclk;
+}
+
+struct clkops lcd_pn1_clk_ops = {
+	.enable		= lcd_pn1_clk_enable,
+	.disable	= lcd_pn1_clk_disable,
+	.setrate	= lcd_clk_setrate,
+	.getrate	= lcd_clk_getrate,
+};
+
 /* APB peripheral clocks */
 static APBC_CLK(uart1, MMP2_UART1, 1, 26000000);
 static APBC_CLK(uart2, MMP2_UART2, 1, 26000000);
@@ -210,6 +439,8 @@ static APMU_CLK_OPS(sdh0, SDH0, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(sdh1, SDH1, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(sdh2, SDH2, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(sdh3, SDH3, 0x1b, 200000000, &sdhc_clk_ops);
+static APMU_CLK_OPS(disp1_axi, LCD, 0, 0, &disp1_axi_clk_ops);
+static APMU_CLK_OPS(lcd, LCD, 0, 0, &lcd_pn1_clk_ops);
 
 static struct clk_lookup mmp2_clkregs[] = {
 	INIT_CLKREG(&clk_uart1, "pxa2xx-uart.0", NULL),
@@ -232,6 +463,8 @@ static struct clk_lookup mmp2_clkregs[] = {
 	INIT_CLKREG(&clk_pwm2, "mmp2-pwm.1", NULL),
 	INIT_CLKREG(&clk_pwm3, "mmp2-pwm.2", NULL),
 	INIT_CLKREG(&clk_pwm4, "mmp2-pwm.3", NULL),
+	INIT_CLKREG(&clk_disp1_axi, NULL, "DISP1AXICLK"),
+	INIT_CLKREG(&clk_lcd, NULL, "LCDCLK"),
 };
 
 static int __init mmp2_init(void)
@@ -290,3 +523,4 @@ MMP2_DEVICE(pwm1, "mmp2-pwm", 0, NONE, 0xd401a000, 0x10);
 MMP2_DEVICE(pwm2, "mmp2-pwm", 1, NONE, 0xd401a400, 0x10);
 MMP2_DEVICE(pwm3, "mmp2-pwm", 2, NONE, 0xd401a800, 0x10);
 MMP2_DEVICE(pwm4, "mmp2-pwm", 3, NONE, 0xd401ac00, 0x10);
+MMP2_DEVICE(fb, "pxa168-fb", 0, LCD, 0xd420b000, 0x500);
