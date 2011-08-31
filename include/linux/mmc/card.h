@@ -216,6 +216,9 @@ struct mmc_card {
 	unsigned int		sd_bus_speed;	/* Bus Speed Mode set for the card */
 
 	struct dentry		*debugfs_root;
+	/* external interrupt arrived after sdio function suspended */
+	u8                      pending_interrupt;
+	u8                      disabled;
 };
 
 /*

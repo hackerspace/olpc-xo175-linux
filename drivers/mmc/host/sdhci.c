@@ -25,6 +25,7 @@
 
 #include <linux/mmc/mmc.h>
 #include <linux/mmc/host.h>
+#include <linux/mmc/card.h>
 
 #include "sdhci.h"
 
@@ -2110,9 +2111,12 @@ static void sdhci_data_irq(struct sdhci_host *host, u32 intmask)
 		host->data->error = -EIO;
 	}
 
-	if (host->data->error)
+	if (host->data->error) {
+		printk(KERN_ERR "%s: Data Error = %d, intmask = %08X\n",
+			__func__, host->data->error, intmask);
+		sdhci_dumpregs(host);
 		sdhci_finish_data(host);
-	else {
+	} else {
 		if (intmask & (SDHCI_INT_DATA_AVAIL | SDHCI_INT_SPACE_AVAIL))
 			sdhci_transfer_pio(host);
 
@@ -2263,11 +2267,34 @@ int sdhci_suspend_host(struct sdhci_host *host, pm_message_t state)
 	if (ret)
 		return ret;
 
+	mmc_claim_host(host->mmc);
+	if (host->mmc->card && host->mmc->card->pending_interrupt) {
+		DBG("%s: wake up event before card disabled, resume\n",
+				mmc_hostname(host->mmc));
+		host->mmc->card->pending_interrupt = 0;
+		sdhci_enable_card_detection(host);
+		mmc_resume_host(host->mmc);
+		mmc_release_host(host->mmc);
+		return  -EBUSY;
+	}
+	if (host->mmc->card)
+		host->mmc->card->disabled = 1;
+
 	sdhci_clear_set_irqs(host, SDHCI_INT_ALL_MASK, 0);
 	free_irq(host->irq, host);
 
 	if (host->vmmc)
 		ret = regulator_disable(host->vmmc);
+
+	mmc_release_host(host->mmc);
+
+	if (host->mmc->card && host->mmc->card->pending_interrupt) {
+		DBG("*** %s wake up event after suspend, resuming to handle"
+				"it\n", mmc_hostname(host->mmc));
+		host->mmc->card->pending_interrupt = 0;
+		sdhci_resume_host(host);
+		ret = -EBUSY;
+	}
 
 	return ret;
 }
@@ -2290,6 +2317,10 @@ int sdhci_resume_host(struct sdhci_host *host)
 			host->ops->enable_dma(host);
 	}
 
+	if (host->mmc->card) {
+		host->mmc->card->disabled = 0;
+	}
+
 	ret = request_irq(host->irq, sdhci_irq, IRQF_SHARED,
 			  mmc_hostname(host->mmc), host);
 	if (ret)
@@ -2300,6 +2331,9 @@ int sdhci_resume_host(struct sdhci_host *host)
 
 	ret = mmc_resume_host(host->mmc);
 	sdhci_enable_card_detection(host);
+
+	if (host->mmc->card)
+		host->mmc->card->pending_interrupt = 0;
 
 	/* Set the re-tuning expiration flag */
 	if ((host->version >= SDHCI_SPEC_300) && host->tuning_count &&

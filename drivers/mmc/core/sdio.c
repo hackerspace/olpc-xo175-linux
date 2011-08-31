@@ -632,6 +632,14 @@ static int mmc_sdio_suspend(struct mmc_host *host)
 
 	for (i = 0; i < host->card->sdio_funcs; i++) {
 		struct sdio_func *func = host->card->sdio_func[i];
+		/* cancel suspend once we detect external wake up source */
+		if (host->card->pending_interrupt) {
+			host->card->pending_interrupt = 0;
+			err = -EBUSY;
+			printk(KERN_ALERT "%s: wake up event after device suspended\n",
+				mmc_hostname(host));
+			break;
+		}
 		if (func && sdio_func_present(func) && func->dev.driver) {
 			const struct dev_pm_ops *pmops = func->dev.driver->pm;
 			if (!pmops || !pmops->suspend || !pmops->resume) {
@@ -641,10 +649,13 @@ static int mmc_sdio_suspend(struct mmc_host *host)
 				err = pmops->suspend(&func->dev);
 			if (err)
 				break;
+			else
+				func->suspended = 1;
 		}
 	}
 	while (err && --i >= 0) {
 		struct sdio_func *func = host->card->sdio_func[i];
+		func->suspended = 0;
 		if (func && sdio_func_present(func) && func->dev.driver) {
 			const struct dev_pm_ops *pmops = func->dev.driver->pm;
 			pmops->resume(&func->dev);
@@ -699,6 +710,7 @@ static int mmc_sdio_resume(struct mmc_host *host)
 	 */
 	for (i = 0; !err && i < host->card->sdio_funcs; i++) {
 		struct sdio_func *func = host->card->sdio_func[i];
+		func->suspended = 0;
 		if (func && sdio_func_present(func) && func->dev.driver) {
 			const struct dev_pm_ops *pmops = func->dev.driver->pm;
 			err = pmops->resume(&func->dev);
