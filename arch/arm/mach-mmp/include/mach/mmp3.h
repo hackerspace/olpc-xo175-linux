@@ -13,6 +13,7 @@ extern void __init mmp3_init_irq(void);
 #include <mach/cputype.h>
 #include <plat/pxa27x_keypad.h>
 #include <plat/pxa3xx_nand.h>
+#include <linux/platform_data/pxa_sdhci.h>
 
 extern struct pxa_device_desc mmp3_device_uart1;
 extern struct pxa_device_desc mmp3_device_uart2;
@@ -25,6 +26,10 @@ extern struct pxa_device_desc mmp3_device_twsi4;
 extern struct pxa_device_desc mmp3_device_twsi5;
 extern struct pxa_device_desc mmp3_device_twsi6;
 extern struct pxa_device_desc mmp3_device_nand;
+extern struct pxa_device_desc mmp3_device_sdh0;
+extern struct pxa_device_desc mmp3_device_sdh1;
+extern struct pxa_device_desc mmp3_device_sdh2;
+extern struct pxa_device_desc mmp3_device_sdh3;
 extern struct pxa_device_desc mmp3_device_pwm1;
 extern struct pxa_device_desc mmp3_device_pwm2;
 extern struct pxa_device_desc mmp3_device_pwm3;
@@ -76,6 +81,22 @@ static inline int mmp3_add_twsi(int id, struct i2c_pxa_platform_data *data,
 static inline int mmp3_add_nand(struct pxa3xx_nand_platform_data *info)
 {
 	return pxa_register_device(&mmp3_device_nand, info, sizeof(*info));
+}
+
+static inline int mmp3_add_sdh(int id, struct sdhci_pxa_platdata *data)
+{
+	struct pxa_device_desc *d = NULL;
+
+	switch (id) {
+	case 0: d = &mmp3_device_sdh0; break;
+	case 1: d = &mmp3_device_sdh1; break;
+	case 2: d = &mmp3_device_sdh2; break;
+	case 3: d = &mmp3_device_sdh3; break;
+	default:
+		return -EINVAL;
+	}
+
+	return pxa_register_device(d, data, sizeof(*data));
 }
 
 static inline int mmp3_add_pwm(int id)

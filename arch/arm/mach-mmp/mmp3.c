@@ -194,6 +194,29 @@ static void rtc_clk_disable(struct clk *clk)
 	__raw_writel(0, clk->clk_rst);
 }
 
+static void sdhc_clk_enable(struct clk *clk)
+{
+	uint32_t clk_rst;
+
+	clk_rst  =  __raw_readl(clk->clk_rst);
+	clk_rst |= clk->enable_val;
+	__raw_writel(clk_rst, clk->clk_rst);
+}
+
+static void sdhc_clk_disable(struct clk *clk)
+{
+	uint32_t clk_rst;
+
+	clk_rst  =  __raw_readl(clk->clk_rst);
+	clk_rst &= ~clk->enable_val;
+	__raw_writel(clk_rst, clk->clk_rst);
+}
+
+struct clkops sdhc_clk_ops = {
+	.enable		= sdhc_clk_enable,
+	.disable	= sdhc_clk_disable,
+};
+
 struct clkops rtc_clk_ops = {
 	.enable         = rtc_clk_enable,
 	.disable        = rtc_clk_disable,
@@ -225,6 +248,10 @@ static APBC_CLK(pwm3, MMP2_PWM2, 0, 26000000);
 static APBC_CLK(pwm4, MMP2_PWM3, 0, 26000000);
 static APBC_CLK(keypad, MMP2_KPC, 0, 32768);
 static APMU_CLK(nand, NAND, 0xbf, 100000000);
+static APMU_CLK_OPS(sdh0, SDH0, 0x1b, 200000000, &sdhc_clk_ops);
+static APMU_CLK_OPS(sdh1, SDH1, 0x1b, 200000000, &sdhc_clk_ops);
+static APMU_CLK_OPS(sdh2, SDH2, 0x1b, 200000000, &sdhc_clk_ops);
+static APMU_CLK_OPS(sdh3, SDH3, 0x1b, 200000000, &sdhc_clk_ops);
 
 static struct clk_lookup mmp3_clkregs[] = {
 	INIT_CLKREG(&clk_uart1, "pxa2xx-uart.0", NULL),
@@ -243,6 +270,10 @@ static struct clk_lookup mmp3_clkregs[] = {
 	INIT_CLKREG(&clk_pwm4, "mmp2-pwm.3", NULL),
 	INIT_CLKREG(&clk_keypad, "pxa27x-keypad", NULL),
 	INIT_CLKREG(&clk_nand, "pxa3xx-nand", NULL),
+	INIT_CLKREG(&clk_sdh0, "sdhci-pxav3.0", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_sdh1, "sdhci-pxav3.1", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_sdh2, "sdhci-pxav3.2", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_sdh3, "sdhci-pxav3.3", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_rtc, "mmp-rtc", NULL),
 };
 
@@ -366,6 +397,10 @@ MMP3_DEVICE(uart2, "pxa2xx-uart", 1, UART2, 0xd4017000, 0x30, 20, 21);
 MMP3_DEVICE(uart3, "pxa2xx-uart", 2, UART3, 0xd4018000, 0x30, 22, 23);
 MMP3_DEVICE(uart4, "pxa2xx-uart", 3, UART4, 0xd4016000, 0x30, 18, 19);
 MMP3_DEVICE(nand, "pxa3xx-nand", -1, NAND, 0xd4283000, 0x100, 28, 29);
+MMP3_DEVICE(sdh0, "sdhci-pxav3", 0, MMC, 0xd4280000, 0x120);
+MMP3_DEVICE(sdh1, "sdhci-pxav3", 1, MMC2, 0xd4280800, 0x120);
+MMP3_DEVICE(sdh2, "sdhci-pxav3", 2, MMC3, 0xd4281000, 0x120);
+MMP3_DEVICE(sdh3, "sdhci-pxav3", 3, MMC4, 0xd4281800, 0x120);
 MMP3_DEVICE(twsi1, "pxa2xx-i2c", 0, TWSI1, 0xd4011000, 0x70);
 MMP3_DEVICE(twsi2, "pxa2xx-i2c", 1, TWSI2, 0xd4031000, 0x70);
 MMP3_DEVICE(twsi3, "pxa2xx-i2c", 2, TWSI3, 0xd4032000, 0x70);
