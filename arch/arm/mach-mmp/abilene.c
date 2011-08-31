@@ -47,6 +47,8 @@
 #include <mach/regs-mpmu.h>
 #include <mach/soc_vmeta.h>
 #include <mach/tc35876x.h>
+#include <mach/camera.h>
+#include <mach/isp_dev.h>
 #include <plat/pmem.h>
 #include <plat/usb.h>
 #include <mach/sram.h>
@@ -197,6 +199,121 @@ static struct sram_bank mmp3_videosram_info = {
 	.pool_name = "mmp-videosram",
 	.step = VIDEO_SRAM_GRANULARITY,
 };
+
+#ifdef CONFIG_VIDEO_MVISP_OV8820
+static int ov8820_sensor_power_on(int on, int flag)
+{
+	struct regulator *v_ldo14;
+	struct regulator *v_ldo15;
+	struct regulator *v_ldo3;
+	int sensor_power = mfp_to_gpio(MFP_PIN_GPIO67);
+
+	if (gpio_request(sensor_power, "CAM_ENABLE_HI_SENSOR"))
+		return -EIO;
+
+	v_ldo14 = regulator_get(NULL, "v_ldo14");
+	if (IS_ERR(v_ldo14)) {
+		v_ldo14 = NULL;
+		return -EIO;
+	}
+	v_ldo15 = regulator_get(NULL, "v_ldo15");
+	if (IS_ERR(v_ldo15)) {
+		v_ldo15 = NULL;
+		return -EIO;
+	}
+	v_ldo3 = regulator_get(NULL, "v_ldo3");
+	if (IS_ERR(v_ldo3)) {
+		v_ldo3 = NULL;
+		return -EIO;
+	}
+
+	/* Enable voltage for camera sensor OV8820 */
+	/* v_ldo14 3.0v (AFVCC 2.8 - 3.3V, 3.3V recommended */
+	/* v_ldo15 2.8v (AVDD 2.6 - 3.1V)*/
+	/* v_ldo3 MIPI BRIDGE CHIP PLL, 1.2V */
+	if (on) {
+		regulator_set_voltage(v_ldo14, 3000000, 3000000);
+		regulator_enable(v_ldo14);
+		regulator_set_voltage(v_ldo15, 2800000, 2800000);
+		regulator_enable(v_ldo15);
+		regulator_set_voltage(v_ldo3, 1200000, 1200000);
+		regulator_enable(v_ldo15);
+	} else {
+		regulator_disable(v_ldo14);
+		regulator_disable(v_ldo15);
+		regulator_disable(v_ldo3);
+	}
+
+       /* sensor_power is low active, reset the sensor now*/
+	gpio_direction_output(sensor_power, 0);
+	mdelay(20);
+	/* sensor_power is low active, enable the sensor now*/
+	gpio_direction_output(sensor_power, 1);
+	gpio_free(sensor_power);
+
+	regulator_put(v_ldo14);
+	regulator_put(v_ldo15);
+	regulator_put(v_ldo3);
+	msleep(100);
+
+	return 0;
+}
+
+static struct sensor_platform_data ov8820_platdata = {
+	.id = 0,
+	.power_on = ov8820_sensor_power_on,
+	.platform_set = NULL,
+};
+
+static struct i2c_board_info ov8820_info = {
+	.type = "ov8820",
+	.addr = 0x36,
+	.platform_data = &ov8820_platdata,
+};
+
+static struct mvisp_subdev_i2c_board_info ov8820_isp_info[] = {
+	[0] = {
+		.board_info = &ov8820_info,
+		.i2c_adapter_id = 2,
+	},
+	[1] = {
+		.board_info = NULL,
+		.i2c_adapter_id = 0,
+	},
+};
+
+static struct mvisp_v4l2_subdevs_group dxoisp_subdevs_group[] = {
+	[0] = {
+		.i2c_board_info = ov8820_isp_info,
+		.if_type = ISP_INTERFACE_CCIC_1,
+	},
+	[1] = {
+		.i2c_board_info = NULL,
+		.if_type = 0,
+	},
+};
+#endif
+
+#ifdef CONFIG_VIDEO_MVISP
+#ifndef CONFIG_VIDEO_MVISP_OV8820
+static struct mvisp_v4l2_subdevs_group dxoisp_subdevs_group[] = {
+	[0] = {
+		.i2c_board_info = NULL,
+		.if_type = 0,
+	},
+};
+#endif
+
+static struct mvisp_platform_data mmp_dxoisp_sensor_data = {
+	.subdev_group = dxoisp_subdevs_group,
+};
+
+static void __init mmp_init_dxoisp(void)
+{
+	mmp_register_dxoisp(&mmp_dxoisp_sensor_data);
+}
+#endif
+
 
 #ifdef CONFIG_UIO_VMETA
 static struct vmeta_plat_data mmp_vmeta_plat_data = {
@@ -1250,6 +1367,10 @@ static void __init abilene_init(void)
 #endif
 #ifdef CONFIG_UIO_VMETA
 	mmp_init_vmeta();
+#endif
+
+#ifdef CONFIG_VIDEO_MVISP
+	mmp_init_dxoisp();
 #endif
 
 #ifdef CONFIG_MMC_SDHCI_PXAV3
