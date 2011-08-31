@@ -118,6 +118,9 @@ static APBC_CLK(1wire,  PXA910_ONEWIRE,  0, 26000000);
 
 static APMU_CLK(nand, NAND, 0x19b, 156000000);
 static APMU_CLK(u2o, USB, 0x1b, 480000000);
+static APMU_CLK(sdh0, SDH0, 0x001b, 44500000);
+static APMU_CLK(sdh1, SDH1, 0x001b, 44500000);
+static APMU_CLK(sdh2, SDH2, 0x001b, 44500000);
 
 /* device and clock bindings */
 static struct clk_lookup pxa910_clkregs[] = {
@@ -134,6 +137,9 @@ static struct clk_lookup pxa910_clkregs[] = {
 	INIT_CLKREG(&clk_keypad, "pxa27x-keypad", NULL),
 	INIT_CLKREG(&clk_rtc, NULL, "MMP-RTC"),
 	INIT_CLKREG(&clk_1wire, NULL, "PXA-W1"),
+	INIT_CLKREG(&clk_sdh0, "sdhci-pxav2.0", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_sdh1, "sdhci-pxav2.1", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_sdh2, "sdhci-pxav2.2", "PXA-SDHCLK"),
 };
 
 static int __init pxa910_init(void)
@@ -190,6 +196,9 @@ PXA910_DEVICE(pwm3, "pxa910-pwm", 2, NONE, 0xd401a800, 0x10);
 PXA910_DEVICE(pwm4, "pxa910-pwm", 3, NONE, 0xd401ac00, 0x10);
 PXA910_DEVICE(nand, "pxa3xx-nand", -1, NAND, 0xd4283000, 0x80, 97, 99);
 PXA910_DEVICE(keypad, "pxa27x-keypad", -1, KEYPAD, 0xd4012000, 0x4c);
+PXA910_DEVICE(sdh0, "sdhci-pxav2", 0, MMC, 0xd4280000, 0x120);
+PXA910_DEVICE(sdh1, "sdhci-pxav2", 1, MMC, 0xd4280800, 0x120);
+PXA910_DEVICE(sdh2, "sdhci-pxav2", 2, MMC, 0xd4281000, 0x120);
 
 static struct resource pxa910_resource_rtc[] = {
 	{ 0xd4010000, 0xd40100ff, NULL, IORESOURCE_MEM, },

@@ -11,6 +11,7 @@ extern void __init pxa910_init_irq(void);
 #include <mach/devices.h>
 #include <plat/pxa3xx_nand.h>
 #include <plat/pxa27x_keypad.h>
+#include <linux/platform_data/pxa_sdhci.h>
 
 extern struct pxa_device_desc pxa910_device_uart1;
 extern struct pxa_device_desc pxa910_device_uart2;
@@ -22,6 +23,9 @@ extern struct pxa_device_desc pxa910_device_pwm3;
 extern struct pxa_device_desc pxa910_device_pwm4;
 extern struct pxa_device_desc pxa910_device_nand;
 extern struct pxa_device_desc pxa910_device_keypad;
+extern struct pxa_device_desc pxa910_device_sdh0;
+extern struct pxa_device_desc pxa910_device_sdh1;
+extern struct pxa_device_desc pxa910_device_sdh2;
 
 extern struct platform_device pxa910_device_rtc;
 extern struct platform_device pxa910_device_1wire;
@@ -97,6 +101,21 @@ static inline void pxa910_add_1wire(void)
 	if (ret)
 		dev_err(&pxa910_device_1wire.dev,
 			"unable to register device: %d\n", ret);
+}
+
+static inline int pxa910_add_sdh(int id, struct sdhci_pxa_platdata *data)
+{
+	struct pxa_device_desc *d = NULL;
+
+	switch (id) {
+	case 0: d = &pxa910_device_sdh0; break;
+	case 1: d = &pxa910_device_sdh1; break;
+	case 2: d = &pxa910_device_sdh2; break;
+	default:
+		return -EINVAL;
+	}
+
+	return pxa_register_device(d, data, sizeof(*data));
 }
 
 #endif /* __ASM_MACH_PXA910_H */
