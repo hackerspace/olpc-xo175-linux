@@ -24,6 +24,7 @@ extern struct pxa_device_desc pxa910_device_nand;
 extern struct pxa_device_desc pxa910_device_keypad;
 
 extern struct platform_device pxa910_device_rtc;
+extern struct platform_device pxa910_device_1wire;
 
 extern void pxa910_clear_keypad_wakeup(void);
 
@@ -87,6 +88,15 @@ static inline int pxa910_add_keypad(struct pxa27x_keypad_platform_data *data)
 {
 	data->clear_wakeup_event = pxa910_clear_keypad_wakeup;
 	return pxa_register_device(&pxa910_device_keypad, data, sizeof(*data));
+}
+
+static inline void pxa910_add_1wire(void)
+{
+	int ret;
+	ret = platform_device_register(&pxa910_device_1wire);
+	if (ret)
+		dev_err(&pxa910_device_1wire.dev,
+			"unable to register device: %d\n", ret);
 }
 
 #endif /* __ASM_MACH_PXA910_H */

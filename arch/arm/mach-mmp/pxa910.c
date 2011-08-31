@@ -26,6 +26,7 @@
 #include <mach/devices.h>
 
 #include <linux/platform_device.h>
+#include <linux/mfd/ds1wm.h>
 
 #include "common.h"
 #include "clock.h"
@@ -113,6 +114,7 @@ static APBC_CLK(pwm3, PXA910_PWM3, 1, 13000000);
 static APBC_CLK(pwm4, PXA910_PWM4, 1, 13000000);
 static APBC_CLK(rtc, PXA910_RTC, 0x8, 1);
 static APBC_CLK(keypad, PXA910_KPC, 0, 32000);
+static APBC_CLK(1wire,  PXA910_ONEWIRE,  0, 26000000);
 
 static APMU_CLK(nand, NAND, 0x19b, 156000000);
 static APMU_CLK(u2o, USB, 0x1b, 480000000);
@@ -131,6 +133,7 @@ static struct clk_lookup pxa910_clkregs[] = {
 	INIT_CLKREG(&clk_u2o, "pxa-u2o", "U2OCLK"),
 	INIT_CLKREG(&clk_keypad, "pxa27x-keypad", NULL),
 	INIT_CLKREG(&clk_rtc, NULL, "MMP-RTC"),
+	INIT_CLKREG(&clk_1wire, NULL, "PXA-W1"),
 };
 
 static int __init pxa910_init(void)
@@ -199,6 +202,19 @@ struct platform_device pxa910_device_rtc = {
 	.id		= -1,
 	.resource	= pxa910_resource_rtc,
 	.num_resources	= ARRAY_SIZE(pxa910_resource_rtc),
+};
+
+static struct resource pxa910_resource_1wire[] = {
+	{ 0xd4011800, 0xd4011814, NULL, IORESOURCE_MEM, },
+	{ IRQ_PXA910_ONEWIRE, IRQ_PXA910_ONEWIRE, NULL,	\
+	IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHEDGE, },
+};
+
+struct platform_device pxa910_device_1wire = {
+	.name		= "pxa-w1",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(pxa910_resource_1wire),
+	.resource	= pxa910_resource_1wire,
 };
 
 void pxa910_clear_keypad_wakeup(void)
