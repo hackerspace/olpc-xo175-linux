@@ -4,10 +4,7 @@
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/partitions.h>
 #include <linux/mtd/onenand.h>
-
-#ifdef CONFIG_PXA3XX_BBM
 #include <plat/pxa3xx_bbm.h>
-#endif
 
 #define MAX_DMA_CHANNEL		4
 #define ONENAND_RAM_SIZE        (1 << 11)
