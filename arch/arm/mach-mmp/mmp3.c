@@ -180,6 +180,25 @@ struct clkops uart_clk_ops = {
 	.setrate = uart_clk_setrate,
 };
 
+static void rtc_clk_enable(struct clk *clk)
+{
+	uint32_t clk_rst;
+
+	clk_rst = APBC_APBCLK | APBC_FNCLK | APBC_FNCLKSEL(clk->fnclksel);
+	clk_rst |= 1 << 7;
+	__raw_writel(clk_rst, clk->clk_rst);
+}
+
+static void rtc_clk_disable(struct clk *clk)
+{
+	__raw_writel(0, clk->clk_rst);
+}
+
+struct clkops rtc_clk_ops = {
+	.enable         = rtc_clk_enable,
+	.disable        = rtc_clk_disable,
+};
+
 void __init mmp3_init_irq(void)
 {
 	gic_init(0, 29, (void __iomem *) GIC_DIST_VIRT_BASE, (void __iomem *) GIC_CPU_VIRT_BASE);
@@ -192,6 +211,7 @@ static APBC_CLK_OPS(uart1, MMP2_UART1, 1, 26000000, &uart_clk_ops);
 static APBC_CLK_OPS(uart2, MMP2_UART2, 1, 26000000, &uart_clk_ops);
 static APBC_CLK_OPS(uart3, MMP2_UART3, 1, 26000000, &uart_clk_ops);
 static APBC_CLK_OPS(uart4, MMP2_UART4, 1, 26000000, &uart_clk_ops);
+static APBC_CLK_OPS(rtc, MMP2_RTC, 0, 32768, &rtc_clk_ops);
 
 static APBC_CLK(twsi1, MMP2_TWSI1, 0, 26000000);
 static APBC_CLK(twsi2, MMP2_TWSI2, 0, 26000000);
@@ -223,6 +243,7 @@ static struct clk_lookup mmp3_clkregs[] = {
 	INIT_CLKREG(&clk_pwm4, "mmp2-pwm.3", NULL),
 	INIT_CLKREG(&clk_keypad, "pxa27x-keypad", NULL),
 	INIT_CLKREG(&clk_nand, "pxa3xx-nand", NULL),
+	INIT_CLKREG(&clk_rtc, "mmp-rtc", NULL),
 };
 
 #ifdef CONFIG_CACHE_L2X0
@@ -366,3 +387,17 @@ void mmp3_clear_keypad_wakeup(void)
 	val = __raw_readl(APMU_WAKE_CLR);
 	__raw_writel(val | mask, APMU_WAKE_CLR);
 }
+
+static struct resource mmp3_resource_rtc[] = {
+	{ 0xd4010000, 0xd40100ff, NULL, IORESOURCE_MEM, },
+	{ IRQ_MMP3_RTC, IRQ_MMP3_RTC, NULL, IORESOURCE_IRQ, },
+	{ IRQ_MMP3_RTC_ALARM, IRQ_MMP3_RTC_ALARM, NULL, IORESOURCE_IRQ, },
+};
+
+struct platform_device mmp3_device_rtc = {
+	.name           = "mmp-rtc",
+	.id             = -1,
+	.resource       = mmp3_resource_rtc,
+	.num_resources  = ARRAY_SIZE(mmp3_resource_rtc),
+};
+
