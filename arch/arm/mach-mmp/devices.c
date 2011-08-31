@@ -13,6 +13,7 @@
 
 #include <asm/irq.h>
 #include <mach/devices.h>
+#include <mach/cputype.h>
 #include <mach/regs-usb.h>
 #include <mach/regs-pmu.h>
 
@@ -245,9 +246,10 @@ int pxa_usb_phy_init(unsigned int base)
 }
 #endif
 
-#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_PXA168)
+#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_PXA168) \
+	|| defined(CONFIG_CPU_PXA910)
 
-int pxa_usb_phy_init(unsigned base)
+int pxa_usb_phy_init(unsigned int base)
 {
 	static int init_done;
 	int loops;
@@ -258,6 +260,11 @@ int pxa_usb_phy_init(unsigned base)
 	}
 
 	/* Initialize the USB PHY power */
+	if (cpu_is_pxa910()) {
+		u2o_set(base, UTMI_CTRL, (1<<UTMI_CTRL_INPKT_DELAY_SOF_SHIFT)
+			| (1<<UTMI_CTRL_PU_REF_SHIFT));
+	}
+
 	u2o_set(base, UTMI_CTRL, 1<<UTMI_CTRL_PLL_PWR_UP_SHIFT);
 	u2o_set(base, UTMI_CTRL, 1<<UTMI_CTRL_PWR_UP_SHIFT);
 
@@ -288,11 +295,23 @@ int pxa_usb_phy_init(unsigned base)
 		| 2<<UTMI_REG_SQ_LENGTH_SHIFT);
 
 	/* UTMI_IVREF */
-	/* fixing Microsoft Altair board interface with NEC hub issue -
-	 * Set UTMI_IVREF from 0x4a3 to 0x4bf */
-	u2o_write(base, UTMI_IVREF, 0x4bf);
+	if (cpu_is_pxa168() || cpu_is_mmp2())
+		/* fixing Microsoft Altair board interface with NEC hub issue -
+		 * Set UTMI_IVREF from 0x4a3 to 0x4bf */
+		u2o_write(base, UTMI_IVREF, 0x4bf);
 
 	/* calibration */
+	loops = 0;
+	while ((u2o_get(base, UTMI_PLL) & PLL_READY) == 0) {
+		mdelay(1);
+		loops++;
+		if (loops > 100) {
+			printk(KERN_WARNING "calibrate timeout, UTMI_PLL %x\n",
+				u2o_get(base, UTMI_PLL));
+			break;
+		}
+	}
+
 	/* toggle VCOCAL_START bit of UTMI_PLL */
 	udelay(200);
 	u2o_set(base, UTMI_PLL, VCOCAL_START);
@@ -305,20 +324,24 @@ int pxa_usb_phy_init(unsigned base)
 	udelay(40);
 	u2o_clear(base, UTMI_TX, REG_RCAL_START);
 	udelay(200);
+
 	/* Make sure PHY PLL is ready */
 	loops = 0;
 	while ((u2o_get(base, UTMI_PLL) & PLL_READY) == 0) {
 		mdelay(1);
 		loops++;
 		if (loops > 100) {
-			printk(KERN_WARNING "PLL_READY not set after 100mS.");
+			printk(KERN_WARNING "calibrate timeout, UTMI_PLL %x\n",
+				u2o_get(base, UTMI_PLL));
 			break;
 		}
 	}
 
-	u2o_set(base, UTMI_RESERVE, 1<<5);
-	/* Turn on UTMI PHY OTG extension */
-	u2o_write(base, UTMI_OTG_ADDON, 1);
+	if (cpu_is_pxa168() || cpu_is_mmp2()) {
+		u2o_set(base, UTMI_RESERVE, 1 << 5);
+		/* Turn on UTMI PHY OTG extension */
+		u2o_write(base, UTMI_OTG_ADDON, 1);
+	}
 
 	init_done = 1;
 	return 0;
@@ -353,3 +376,119 @@ int mmp3_hsic_phy_init(unsigned int base)
 #endif
 
 #endif
+
+#ifdef CONFIG_USB_SUPPORT
+static u64 usb_dma_mask = ~(u32)0;
+
+#ifdef CONFIG_USB_PXA_U2O
+struct resource pxa168_u2o_resources[] = {
+	/* regbase */
+	[0] = {
+		.start	= PXA168_U2O_REGBASE + U2x_CAPREGS_OFFSET,
+		.end	= PXA168_U2O_REGBASE + USB_REG_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "capregs",
+	},
+	/* phybase */
+	[1] = {
+		.start	= PXA168_U2O_PHYBASE,
+		.end	= PXA168_U2O_PHYBASE + USB_PHY_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "phyregs",
+	},
+	[2] = {
+		.start	= IRQ_PXA168_USB1,
+		.end	= IRQ_PXA168_USB1,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device pxa168_device_u2o = {
+	.name		= "pxa-u2o",
+	.id		= -1,
+	.resource	= pxa168_u2o_resources,
+	.num_resources	= ARRAY_SIZE(pxa168_u2o_resources),
+	.dev		=  {
+		.dma_mask	= &usb_dma_mask,
+		.coherent_dma_mask = 0xffffffff,
+	}
+};
+
+#endif /* CONFIG_USB_PXA_U2O */
+
+#ifdef CONFIG_USB_EHCI_PXA
+#ifdef CONFIG_USB_EHCI_PXA_U2O
+struct resource pxa168_u2oehci_resources[] = {
+	/* regbase */
+	[0] = {
+		.start	= PXA168_U2O_REGBASE + U2x_CAPREGS_OFFSET,
+		.end	= PXA168_U2O_REGBASE + USB_REG_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "capregs",
+	},
+	/* phybase */
+	[1] = {
+		.start	= PXA168_U2O_PHYBASE,
+		.end	= PXA168_U2O_PHYBASE + USB_PHY_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "phyregs",
+	},
+	[2] = {
+		.start	= IRQ_PXA168_USB1,
+		.end	= IRQ_PXA168_USB1,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device pxa168_device_u2oehci = {
+	.name		= "pxa-u2oehci",
+	.id		= 0,
+	.dev		= {
+		.dma_mask		= &usb_dma_mask,
+		.coherent_dma_mask	= 0xffffffff,
+	},
+
+	.num_resources	= ARRAY_SIZE(pxa168_u2oehci_resources),
+	.resource	= pxa168_u2oehci_resources,
+};
+
+#if defined(CONFIG_USB_PXA_U2O_OTG)
+struct resource pxa168_u2ootg_resources[] = {
+	/* regbase */
+	[0] = {
+		.start	= PXA168_U2O_REGBASE + U2x_CAPREGS_OFFSET,
+		.end	= PXA168_U2O_REGBASE + USB_REG_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "capregs",
+	},
+	/* phybase */
+	[1] = {
+		.start	= PXA168_U2O_PHYBASE,
+		.end	= PXA168_U2O_PHYBASE + USB_PHY_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "phyregs",
+	},
+	[2] = {
+		.start	= IRQ_PXA168_USB1,
+		.end	= IRQ_PXA168_USB1,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device pxa168_device_u2ootg = {
+	.name		= "pxa-otg",
+	.id		= -1,
+	.dev  = {
+		.dma_mask          = &usb_dma_mask,
+		.coherent_dma_mask = 0xffffffff,
+	},
+
+	.num_resources	= ARRAY_SIZE(pxa168_u2ootg_resources),
+	.resource      = pxa168_u2ootg_resources,
+};
+#endif /* CONFIG_USB_PXA_U2O_OTG */
+
+#endif
+#endif
+#endif
+

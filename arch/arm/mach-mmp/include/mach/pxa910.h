@@ -43,6 +43,10 @@ extern struct platform_device pxa910_device_rtc;
 extern struct platform_device pxa910_device_1wire;
 extern struct platform_device pxa910_device_acipc;
 
+extern struct platform_device pxa168_device_u2o;
+extern struct platform_device pxa168_device_u2ootg;
+extern struct platform_device pxa168_device_u2oehci;
+
 extern void pxa910_clear_keypad_wakeup(void);
 extern void __init pxa910_reserve(void);
 
