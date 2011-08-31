@@ -23,6 +23,8 @@ extern struct pxa_device_desc pxa910_device_pwm4;
 extern struct pxa_device_desc pxa910_device_nand;
 extern struct pxa_device_desc pxa910_device_keypad;
 
+extern struct platform_device pxa910_device_rtc;
+
 extern void pxa910_clear_keypad_wakeup(void);
 
 static inline int pxa910_add_uart(int id)
