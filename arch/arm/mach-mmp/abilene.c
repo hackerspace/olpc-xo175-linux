@@ -105,6 +105,8 @@ static void __init abilene_init(void)
 
 	/* on-chip devices */
 	mmp3_add_uart(3);
+
+	platform_device_register(&mmp3_device_rtc);
 }
 
 MACHINE_START(ABILENE, "Abilene")
