@@ -83,6 +83,12 @@
 
 #define APMU_PXA910_KP_WAKE_CLR		(1 << 3)
 
+#define APMU_GC_156M		0x0
+#define APMU_GC_312M		0x40
+#define APMU_GC_PLL2		0x80
+#define APMU_GC_PLL2_DIV2	0xc0
+#define APMU_GC_624M		0xc0 /* added according to Aspen SW spec v2.8*/
+
 #define APMU_VMETA_CLK_RES_CTRL	APMU_VMETA
 /* VMeta Technology Power Mode */
 #define APMU_VMETA_CLK_DIV_MASK			(0xF << 16)

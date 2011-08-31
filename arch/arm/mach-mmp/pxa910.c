@@ -37,10 +37,12 @@
 #include <plat/pmem.h>
 #include "common.h"
 #include "clock.h"
+#include "acpuclock.h"
 
 #define MFPR_VIRT_BASE	(APB_VIRT_BASE + 0x1e000)
 #define RIPC0_VIRT_BASE	(APB_VIRT_BASE + 0x3D000)
 #define RIPC0_STATUS	(RIPC0_VIRT_BASE + 0x00)
+#define FAB_CTRL	(AXI_VIRT_BASE + 0x260)
 
 unsigned char __iomem *dmc_membase;
 EXPORT_SYMBOL(dmc_membase);
@@ -95,6 +97,154 @@ static struct mfp_addr_map pxa910_mfp_addr_map[] __initdata =
 
 	MFP_ADDR_END,
 };
+
+static u32 gc_current_clk_rate_flag;
+
+#define MCB_CNTRL5_OFF 0x550
+#define MCB_GC_SW_BYPASS (1<<2)
+
+void gc_fc_ack_bypass(int bypass)
+{
+	unsigned int temp;
+
+	temp = __raw_readl(dmc_membase + MCB_CNTRL5_OFF);
+	if (bypass)
+		__raw_writel(temp | MCB_GC_SW_BYPASS, dmc_membase + MCB_CNTRL5_OFF);
+	else
+		__raw_writel(temp & ~MCB_GC_SW_BYPASS, dmc_membase + MCB_CNTRL5_OFF);
+}
+
+static void gc500_clk_enable(struct clk *clk)
+{
+	u32 tmp = __raw_readl(clk->clk_rst);
+	__raw_writel(tmp | 0x38, clk->clk_rst);
+	gc_fc_ack_bypass(0);
+}
+
+static void gc500_clk_disable(struct clk *clk)
+{
+	u32 tmp = __raw_readl(clk->clk_rst);
+	gc_fc_ack_bypass(1);
+	__raw_writel(tmp & (~0x38), clk->clk_rst);
+}
+
+void gc_pwr(int power_on)
+{
+	if (power_on) {
+		u32 tmp = __raw_readl(APMU_GC);
+
+		tmp &= 0xc0;
+		tmp |= gc_current_clk_rate_flag;
+		__raw_writel(tmp | 0x1238, APMU_GC);	/* on1 */
+		udelay(200); /* at least 200 us */
+		__raw_writel(tmp | 0x1638, APMU_GC);	/* on2 */
+		/* release function reset */
+		__raw_writel(tmp | 0x163a, APMU_GC);
+		udelay(100); /* at least 48 cycles */
+		/* aReset hReset and disable isolation */
+		__raw_writel(tmp | 0x173f, APMU_GC);
+
+		gc_fc_ack_bypass(0);
+	} else {
+		gc_fc_ack_bypass(1);
+		__raw_writel(0x738, APMU_GC);	/* reset AXI/AHB/function */
+		udelay(100);
+		__raw_writel(0x638, APMU_GC);	/* enable isolation */
+		__raw_writel(0x238, APMU_GC);	/* off2 */
+		__raw_writel(0x038, APMU_GC);	/* off1 */
+
+		__raw_writel(0x0, APMU_GC);	/* all clear for power */
+	}
+}
+EXPORT_SYMBOL(gc_pwr);
+
+struct gc_rate_table {
+	unsigned long	rate;
+	unsigned int	flag;
+};
+
+static struct gc_rate_table gc500_rates [] = {
+	/* put highest rate at the top of the table */
+	{
+		.rate	=	500500000,
+		.flag	=	APMU_GC_PLL2_DIV2,
+	},
+	{
+		.rate	=	403000000,
+		.flag	=	APMU_GC_PLL2_DIV2,
+	},
+	{
+		.rate	=	312000000,
+		.flag	=	APMU_GC_312M,
+	},
+	{
+		.rate	=	156000000,
+		.flag	=	APMU_GC_156M,
+	},
+};
+
+static int gc_lookaround_rate(unsigned long gc_clk2x, u32 *flag)
+{
+	int i;
+
+	for (i=0; i<ARRAY_SIZE(gc500_rates); i++) {
+		if (gc_clk2x >= gc500_rates[i].rate)
+			break;
+	}
+	if (i==ARRAY_SIZE(gc500_rates)) i--;
+	*flag = gc500_rates[i].flag;
+	return gc500_rates[i].rate;
+}
+
+static int gc500_clk_setrate(struct clk *clk, unsigned long gc_clk2x)
+{
+	u32 tmp, flag;
+	unsigned long pll2freq, rate;
+
+	/* For pxa918, fix gc rate to 156MHZ */
+	if (cpu_is_pxa918())
+		rate = gc_lookaround_rate(312000000, &flag);
+	/* For pxa921, fix gc rate to 250MHZ */
+	else if (cpu_is_pxa921())
+		rate = gc_lookaround_rate(500500000, &flag);
+	/* For pxa920, gc clk can be selected freely */
+	else
+		rate = gc_lookaround_rate(gc_clk2x, &flag);
+
+	if (rate > 312000000) {
+		/* Note: get_pll2_freq use MHz instead of Hz */
+		pll2freq = get_pll2_freq()*1000000;
+		if (unlikely(pll2freq/2 != rate)) {
+			printk(KERN_INFO "gc_clk2x will use %ldHz instead of %ldHz\n",
+				pll2freq/2, rate);
+			rate = pll2freq/2;
+		}
+		gc_aclk_fc();
+	}
+
+	printk("\nGC clk is %ldHz\n", rate);
+	clk->rate = rate;
+	__raw_writel(0xf, APMU_GC_PD);
+	tmp = __raw_readl(clk->clk_rst);
+	tmp &= ~0xc0;
+	tmp |= flag;
+	__raw_writel(tmp, clk->clk_rst);
+	gc_current_clk_rate_flag = flag;
+	return 0;
+}
+
+static unsigned long gc500_clk_getrate(struct clk *clk)
+{
+	return clk->rate;
+}
+
+struct clkops gc500_clk_ops = {
+	.enable		= gc500_clk_enable,
+	.disable	= gc500_clk_disable,
+	.setrate	= gc500_clk_setrate,
+	.getrate	= gc500_clk_getrate,
+};
+
 
 static void lcd_clk_enable(struct clk *clk)
 {
@@ -262,6 +412,7 @@ static APMU_CLK_OPS(lcd, LCD, 0x003f, 312000000, &lcd_pn1_clk_ops);
 static APMU_CLK(ire, IRE, 0x9, 0);
 static APMU_CLK(ccic_rst, CCIC_RST, 0x0, 312000000);
 static APMU_CLK(ccic_gate, CCIC_GATE, 0xfff, 0);
+static APMU_CLK_OPS(gc, GC, 0, 0, &gc500_clk_ops);
 static APBC_CLK_OPS(gssp, PXA910_GCER, 0, 0, &gssp_clk_ops);
 
 static MPMU_CLK_OPS(vctcxo, VRCR, 1, 26000000, &vctcxo_clk_ops);
@@ -292,6 +443,7 @@ static struct clk_lookup pxa910_clkregs[] = {
 	INIT_CLKREG(&clk_ire, "pxa910-ire.0", NULL),
 	INIT_CLKREG(&clk_ccic_rst, "mv-camera.0", "CCICRSTCLK"),
 	INIT_CLKREG(&clk_ccic_gate, "mv-camera.0", "CCICGATECLK"),
+	INIT_CLKREG(&clk_gc, NULL, "GCCLK"),
 	INIT_CLKREG(&clk_vctcxo, NULL, "VCTCXO"),
 };
 
@@ -345,6 +497,8 @@ static int __init pxa910_init(void)
 		platform_device_register(&pxa910_device_asoc_pcm);
 		platform_device_register(&pxa910_device_asoc_squ);
 
+		/* Enable AXI write request for gc500 */
+		__raw_writel(__raw_readl(FAB_CTRL) | 0x8, FAB_CTRL);
 		clkdev_add_table(ARRAY_AND_SIZE(pxa910_clkregs));
 
 		/* enable ac-ipc clock */
