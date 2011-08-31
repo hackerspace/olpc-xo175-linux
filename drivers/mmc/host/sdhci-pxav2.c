@@ -114,10 +114,30 @@ static u32 pxav2_get_max_clock(struct sdhci_host *host)
 	return clk_get_rate(pltfm_host->clk);
 }
 
+static void pxav2_access_constrain(struct sdhci_host *host, unsigned int ac)
+{
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+
+	if (!pdata)
+		return;
+
+#ifdef CONFIG_WAKELOCK
+	if (ac) {
+		wake_lock(&pdata->idle_lock);
+		wake_lock(&pdata->suspend_lock);
+	} else {
+		wake_unlock(&pdata->idle_lock);
+		wake_unlock(&pdata->suspend_lock);
+	}
+#endif
+}
+
 static struct sdhci_ops pxav2_sdhci_ops = {
 	.get_max_clock = pxav2_get_max_clock,
 	.platform_reset_exit = pxav2_set_private_registers,
 	.platform_8bit_width = pxav2_mmc_set_width,
+	.access_constrain = pxav2_access_constrain,
 };
 
 static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
@@ -172,6 +192,13 @@ static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
 			host->mmc->caps |= pdata->host_caps;
 		if (pdata->pm_caps)
 			host->mmc->pm_caps |= pdata->pm_caps;
+
+	#ifdef CONFIG_WAKELOCK
+		wake_lock_init(&pdata->idle_lock, WAKE_LOCK_IDLE,
+			(const char *)mmc_hostname(host->mmc));
+		wake_lock_init(&pdata->suspend_lock, WAKE_LOCK_SUSPEND,
+			(const char *)mmc_hostname(host->mmc));
+	#endif
 	}
 
 	host->ops = &pxav2_sdhci_ops;
@@ -196,6 +223,10 @@ err_add_host:
 	clk_disable(clk);
 	clk_put(clk);
 err_clk_get:
+#ifdef CONFIG_WAKELOCK
+	wake_lock_destroy(&pdata->idle_lock);
+	wake_lock_destroy(&pdata->suspend_lock);
+#endif
 	sdhci_pltfm_free(pdev);
 	kfree(pxa);
 	return ret;
@@ -208,6 +239,11 @@ static int __devexit sdhci_pxav2_remove(struct platform_device *pdev)
 	struct sdhci_pxa *pxa = pltfm_host->priv;
 
 	sdhci_remove_host(host, 1);
+
+#ifdef CONFIG_WAKELOCK
+	wake_lock_destroy(&pxa->pdata->idle_lock);
+	wake_lock_destroy(&pxa->pdata->suspend_lock);
+#endif
 
 	clk_disable(pltfm_host->clk);
 	clk_put(pltfm_host->clk);

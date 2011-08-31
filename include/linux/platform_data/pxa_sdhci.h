@@ -14,6 +14,10 @@
 #ifndef _PXA_SDHCI_H_
 #define _PXA_SDHCI_H_
 
+#ifdef CONFIG_WAKELOCK
+#include <linux/wakelock.h>
+#endif
+
 /* pxa specific flag */
 /* Require clock free running */
 #define PXA_FLAG_ENABLE_CLOCK_GATING (1<<0)
@@ -40,6 +44,8 @@
  * @quirks: quirks of platfrom
  * @pm_caps: pm_caps of platfrom
  * @signal_1v8: signaling change to 1.8V
+ * @idle_lock: wake lock for idle
+ * @suspend_lock: wake lock for suspend
  */
 struct sdhci_pxa_platdata {
 	unsigned int	flags;
@@ -53,6 +59,10 @@ struct sdhci_pxa_platdata {
 	unsigned int	quirks;
 	unsigned int	pm_caps;
 	void	(*signal_1v8)(int set);
+#ifdef CONFIG_WAKELOCK
+	struct wake_lock	idle_lock;
+	struct wake_lock	suspend_lock;
+#endif
 #ifdef CONFIG_SD8XXX_RFKILL
 	/*for sd8688-rfkill device*/
 	struct mmc_host **pmmc;
