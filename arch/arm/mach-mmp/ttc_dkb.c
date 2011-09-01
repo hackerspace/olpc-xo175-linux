@@ -860,11 +860,18 @@ static int camera_sensor_power(struct device *dev, int on)
 }
 
 static struct i2c_board_info dkb_i2c_camera[] = {
+#ifdef CONFIG_SOC_CAMERA_OV5642
 	{
 		I2C_BOARD_INFO("ov5642", 0x3c),
 	},
+#elif CONFIG_SOC_CAMERA_OV5640
+	{
+		I2C_BOARD_INFO("ov5640", 0x3c),
+	},
+#endif
 };
 
+#ifdef CONFIG_SOC_CAMERA_OV5642
 static struct soc_camera_link iclink_ov5642_dvp = {
 	.bus_id         = 0,            /* Must match with the camera ID */
 	.power          = camera_sensor_power,
@@ -882,6 +889,23 @@ static struct platform_device dkb_ov5642_dvp = {
 		.platform_data = &iclink_ov5642_dvp,
 	},
 };
+#elif CONFIG_SOC_CAMERA_OV5640
+static struct soc_camera_link iclink_ov5640_dvp = {
+	.bus_id         = 0,            /* Must match with the camera ID */
+	.power          = camera_sensor_power,
+	.board_info     = &dkb_i2c_camera[0],
+	.i2c_adapter_id = 0,
+	.module_name    = "ov5640",
+};
+
+static struct platform_device dkb_ov5640_dvp = {
+	.name   = "soc-camera-pdrv",
+	.id     = 0,
+	.dev    = {
+		.platform_data = &iclink_ov5640_dvp,
+	},
+};
+#endif
 
 static unsigned long CAM_GPIO[14];
 static void pxa910_cam_ctrl_power(int on)
@@ -1006,6 +1030,10 @@ struct mv_cam_pdata mv_cam_data = {
 	.init_clk = pxa910_cam_clk_init,
 	.enable_clk = pxa910_cam_set_clk,
 	.get_mclk_src = get_mclk_src,
+#ifdef CONFIG_SOC_CAMERA_OV5640
+	.bus_type = SOCAM_MIPI,
+	.dphy = {0x0a06, 0x33, 0x0a00},
+#endif
 };
 #else
 struct mv_cam_pdata mv_cam_data;
@@ -1014,7 +1042,11 @@ struct mv_cam_pdata mv_cam_data;
 static struct platform_device *ttc_dkb_devices[] = {
 	&ttc_dkb_device_onenand,
 	&pxa910_device_rtc,
+#ifdef CONFIG_SOC_CAMERA_OV5642
 	&dkb_ov5642_dvp,
+#elif CONFIG_SOC_CAMERA_OV5640
+	&dkb_ov5640_dvp,
+#endif
 };
 
 #if (defined CONFIG_CMMB)
