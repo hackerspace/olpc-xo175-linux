@@ -235,7 +235,7 @@ struct lsm303dlhc_acc_data {
 
 
 static int lsm303dlhc_acc_i2c_read(struct lsm303dlhc_acc_data *acc,
-				u8 * buf, int len)
+				u8 *buf, int len)
 {
 	int err;
 	int tries = 0;
@@ -311,13 +311,13 @@ static int lsm303dlhc_acc_hw_init(struct lsm303dlhc_acc_data *acc)
 	buf[0] = WHO_AM_I;
 	err = lsm303dlhc_acc_i2c_read(acc, buf, 1);
 	if (err < 0) {
-	dev_warn(&acc->client->dev, "Error reading WHO_AM_I: is device "
+		dev_warn(&acc->client->dev, "Error reading WHO_AM_I: is device "
 		"available/working?\n");
 		goto err_firstread;
 	} else
 		acc->hw_working = 1;
 	if (buf[0] != WHOAMI_LSM303DLHC_ACC) {
-	dev_err(&acc->client->dev,
+		dev_err(&acc->client->dev,
 		"device unknown. Expected: 0x%x,"
 		" Replies: 0x%x\n", WHOAMI_LSM303DLHC_ACC, buf[0]);
 		err = -1; /* choose the right coded error */
@@ -403,17 +403,17 @@ static void lsm303dlhc_acc_device_power_off(struct lsm303dlhc_acc_data *acc)
 		dev_err(&acc->client->dev, "soft power off failed: %d\n", err);
 
 	if (acc->pdata->power_off) {
-		if(acc->pdata->gpio_int1 >= 0)
+		if (acc->pdata->gpio_int1 >= 0)
 			disable_irq_nosync(acc->irq1);
-		if(acc->pdata->gpio_int2 >= 0)
+		if (acc->pdata->gpio_int2 >= 0)
 			disable_irq_nosync(acc->irq2);
 		acc->pdata->power_off();
 		acc->hw_initialized = 0;
 	}
 	if (acc->hw_initialized) {
-		if(acc->pdata->gpio_int1 >= 0)
+		if (acc->pdata->gpio_int1 >= 0)
 			disable_irq_nosync(acc->irq1);
-		if(acc->pdata->gpio_int2 >= 0)
+		if (acc->pdata->gpio_int2 >= 0)
 			disable_irq_nosync(acc->irq2);
 		acc->hw_initialized = 0;
 	}
@@ -431,9 +431,9 @@ static int lsm303dlhc_acc_device_power_on(struct lsm303dlhc_acc_data *acc)
 					"power_on failed: %d\n", err);
 			return err;
 		}
-		if(acc->pdata->gpio_int1 >= 0)
+		if (acc->pdata->gpio_int1 >= 0)
 			enable_irq(acc->irq1);
-		if(acc->pdata->gpio_int2 >= 0)
+		if (acc->pdata->gpio_int2 >= 0)
 			enable_irq(acc->irq2);
 	}
 
@@ -446,9 +446,9 @@ static int lsm303dlhc_acc_device_power_on(struct lsm303dlhc_acc_data *acc)
 	}
 
 	if (acc->hw_initialized) {
-		if(acc->pdata->gpio_int1 >= 0)
+		if (acc->pdata->gpio_int1 >= 0)
 			enable_irq(acc->irq1);
-		if(acc->pdata->gpio_int2 >= 0)
+		if (acc->pdata->gpio_int2 >= 0)
 			enable_irq(acc->irq2);
 	}
 	return 0;
@@ -486,7 +486,7 @@ static void lsm303dlhc_acc_irq1_work_func(struct work_struct *work)
 	;
 	/*  */
 	printk(KERN_INFO "%s: IRQ1 triggered\n", LSM303DLHC_ACC_DEV_NAME);
-exit:
+/*exit:*/
 	enable_irq(acc->irq1);
 }
 
@@ -501,14 +501,14 @@ static void lsm303dlhc_acc_irq2_work_func(struct work_struct *work)
 	/*  */
 
 	printk(KERN_INFO "%s: IRQ2 triggered\n", LSM303DLHC_ACC_DEV_NAME);
-exit:
+/*exit:*/
 	enable_irq(acc->irq2);
 }
 
 static int lsm303dlhc_acc_update_g_range(struct lsm303dlhc_acc_data *acc,
 							u8 new_g_range)
 {
-	int err=-1;
+	int err = -1;
 
 	u8 sensitivity;
 	u8 buf[2];
@@ -580,7 +580,7 @@ static int lsm303dlhc_acc_update_odr(struct lsm303dlhc_acc_data *acc,
 	 * odr_table vector from the end (shortest interval) backward (longest
 	 * interval), to support the poll_interval requested by the system.
 	 * It must be the longest interval lower then the poll interval.*/
-	for (i = ARRAY_SIZE(lsm303dlhc_acc_odr_table) - 1; i >= 0; i--){
+	for (i = ARRAY_SIZE(lsm303dlhc_acc_odr_table) - 1; i >= 0; i--) {
 		if ((lsm303dlhc_acc_odr_table[i].cutoff_ms <= poll_interval_ms)
 								|| (i == 0))
 			break;
@@ -624,7 +624,7 @@ static int lsm303dlhc_acc_register_write(struct lsm303dlhc_acc_data *acc,
 			return err;
 	return err;
 }
-
+/*
 static int lsm303dlhc_acc_register_read(struct lsm303dlhc_acc_data *acc,
 							u8 *buf, u8 reg_address)
 {
@@ -650,7 +650,7 @@ static int lsm303dlhc_acc_register_update(struct lsm303dlhc_acc_data *acc,
 	}
 	return err;
 }
-
+*/
 static int lsm303dlhc_acc_get_acceleration_data(struct lsm303dlhc_acc_data *acc,
 		int *xyz)
 {
@@ -757,10 +757,10 @@ static int write_reg(struct device *dev, const char *buf, u8 reg,
 	if (strict_strtoul(buf, 16, &val))
 		return -EINVAL;
 
-	new_val=((u8) val & mask);
+	new_val = ((u8) val & mask);
 	x[0] = reg;
 	x[1] = new_val;
-	err = lsm303dlhc_acc_register_write(acc, x,reg,new_val);
+	err = lsm303dlhc_acc_register_write(acc, x, reg, new_val);
 	if (err < 0)
 		return err;
 	acc->resume_state[resumeIndex] = new_val;
@@ -790,7 +790,7 @@ static ssize_t attr_set_polling_rate(struct device *dev,
 		return -EINVAL;
 	if (!interval_ms)
 		return -EINVAL;
-	interval_ms = max((unsigned int)interval_ms,acc->pdata->min_interval);
+	interval_ms = max((unsigned int)interval_ms, acc->pdata->min_interval);
 	mutex_lock(&acc->lock);
 	acc->pdata->poll_interval = interval_ms;
 	lsm303dlhc_acc_update_odr(acc, interval_ms);
@@ -886,25 +886,25 @@ static ssize_t attr_set_duration1(struct device *dev,
 static ssize_t attr_get_duration1(struct device *dev,
 		struct device_attribute *attr,	char *buf)
 {
-	return read_single_reg(dev,buf,INT_DUR1);
+	return read_single_reg(dev, buf, INT_DUR1);
 }
 
 static ssize_t attr_set_thresh1(struct device *dev,
 		struct device_attribute *attr,	const char *buf, size_t size)
 {
-	return write_reg(dev,buf, INT_THS1, INT1_THRESHOLD_MASK,RES_INT_THS1);
+	return write_reg(dev, buf, INT_THS1, INT1_THRESHOLD_MASK, RES_INT_THS1);
 }
 
 static ssize_t attr_get_thresh1(struct device *dev,
 		struct device_attribute *attr,	char *buf)
 {
-	return read_single_reg(dev,buf,INT_THS1);
+	return read_single_reg(dev, buf, INT_THS1);
 }
 
 static ssize_t attr_get_source1(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	return read_single_reg(dev,buf,INT_SRC1);
+	return read_single_reg(dev, buf, INT_SRC1);
 }
 
 static ssize_t attr_set_click_cfg(struct device *dev,
@@ -1178,7 +1178,6 @@ static int lsm303dlhc_acc_input_init(struct lsm303dlhc_acc_data *acc)
 	acc->input_dev->open = lsm303dlhc_acc_input_open;
 	acc->input_dev->close = lsm303dlhc_acc_input_close;
 	acc->input_dev->name = LSM303DLHC_ACC_DEV_NAME;
-	//acc->input_dev->name = "accelerometer";
 	acc->input_dev->id.bustype = BUS_I2C;
 	acc->input_dev->dev.parent = &acc->client->dev;
 
@@ -1304,7 +1303,7 @@ static int lsm303dlhc_acc_probe(struct i2c_client *client,
 		}
 	}
 
-	if(acc->pdata->gpio_int1 >= 0){
+	if (acc->pdata->gpio_int1 >= 0) {
 		acc->irq1 = gpio_to_irq(acc->pdata->gpio_int1);
 		printk(KERN_INFO "%s: %s has set irq1 to irq: %d "
 							"mapped on gpio:%d\n",
@@ -1312,7 +1311,7 @@ static int lsm303dlhc_acc_probe(struct i2c_client *client,
 							acc->pdata->gpio_int1);
 	}
 
-	if(acc->pdata->gpio_int2 >= 0){
+	if (acc->pdata->gpio_int2 >= 0) {
 		acc->irq2 = gpio_to_irq(acc->pdata->gpio_int2);
 		printk(KERN_INFO "%s: %s has set irq2 to irq: %d "
 							"mapped on gpio:%d\n",
@@ -1382,7 +1381,7 @@ static int lsm303dlhc_acc_probe(struct i2c_client *client,
 	/* As default, do not report information */
 	atomic_set(&acc->enabled, 0);
 
-	if(acc->pdata->gpio_int1 >= 0){
+	if (acc->pdata->gpio_int1 >= 0) {
 		INIT_WORK(&acc->irq1_work, lsm303dlhc_acc_irq1_work_func);
 		acc->irq1_work_queue =
 			create_singlethread_workqueue("lsm303dlhc_acc_wq1");
@@ -1401,7 +1400,7 @@ static int lsm303dlhc_acc_probe(struct i2c_client *client,
 		disable_irq_nosync(acc->irq1);
 	}
 
-	if(acc->pdata->gpio_int2 >= 0){
+	if (acc->pdata->gpio_int2 >= 0) {
 		INIT_WORK(&acc->irq2_work, lsm303dlhc_acc_irq2_work_func);
 		acc->irq2_work_queue =
 			create_singlethread_workqueue("lsm303dlhc_acc_wq2");
@@ -1429,12 +1428,12 @@ static int lsm303dlhc_acc_probe(struct i2c_client *client,
 	return 0;
 
 err_destoyworkqueue2:
-	if(acc->pdata->gpio_int2 >= 0)
+	if (acc->pdata->gpio_int2 >= 0)
 		destroy_workqueue(acc->irq2_work_queue);
 err_free_irq1:
 	free_irq(acc->irq1, acc);
 err_destoyworkqueue1:
-	if(acc->pdata->gpio_int1 >= 0)
+	if (acc->pdata->gpio_int1 >= 0)
 		destroy_workqueue(acc->irq1_work_queue);
 err_remove_sysfs_int:
 	sysfs_remove_group(&acc->input_dev->dev.kobj,
@@ -1450,7 +1449,6 @@ exit_kfree_pdata:
 	kfree(acc->pdata);
 err_mutexunlock:
 	mutex_unlock(&acc->lock);
-//err_freedata:
 	kfree(acc);
 exit_check_functionality_failed:
 	printk(KERN_ERR "%s: Driver Init failed\n", LSM303DLHC_ACC_DEV_NAME);
@@ -1462,13 +1460,13 @@ static int __devexit lsm303dlhc_acc_remove(struct i2c_client *client)
 
 	struct lsm303dlhc_acc_data *acc = i2c_get_clientdata(client);
 
-	if(acc->pdata->gpio_int1 >= 0){
+	if (acc->pdata->gpio_int1 >= 0) {
 		free_irq(acc->irq1, acc);
 		gpio_free(acc->pdata->gpio_int1);
 		destroy_workqueue(acc->irq1_work_queue);
 	}
 
-	if(acc->pdata->gpio_int2 >= 0){
+	if (acc->pdata->gpio_int2 >= 0) {
 		free_irq(acc->irq2, acc);
 		gpio_free(acc->pdata->gpio_int2);
 		destroy_workqueue(acc->irq2_work_queue);

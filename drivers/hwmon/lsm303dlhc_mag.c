@@ -51,11 +51,11 @@
 #define OUT_X_M			0x03
 
 /* Magnetic Sensor Operation Mode */
-#define NORMAL_MODE     	0x00
-#define POS_BIAS         	0x01
-#define NEG_BIAS         	0x02
-#define CC_MODE          	0x00
-#define SLEEP_MODE        	0x03
+#define NORMAL_MODE		0x00
+#define POS_BIAS		0x01
+#define NEG_BIAS		0x02
+#define CC_MODE			0x00
+#define SLEEP_MODE		0x03
 
 /* Magnetometer X-Y sensitivity  */
 #define XY_SENSITIVITY_1_3	1055	/* XY sensitivity at 1.3G */
@@ -241,7 +241,7 @@ int lsm303dlhc_mag_update_odr(struct lsm303dlhc_mag_data *mag,
 	int i;
 	u8 config[2];
 
-	for (i = ARRAY_SIZE(odr_table) -1; i >0; i--) {
+	for (i = ARRAY_SIZE(odr_table) - 1; i > 0; i--) {
 		if (odr_table[i].poll_rate_ms <= poll_interval)
 			break;
 	}
@@ -417,7 +417,7 @@ static ssize_t attr_get_polling_rate(struct device *dev,
 				     char *buf)
 {
 	int val;
-	struct input_polled_dev *input_poll_dev = dev_get_drvdata(dev);/*see polled dev driver*/
+	struct input_polled_dev *input_poll_dev = dev_get_drvdata(dev);
 	struct lsm303dlhc_mag_data *mag = input_poll_dev->private;
 
 	mutex_lock(&mag->lock);
@@ -438,7 +438,7 @@ static ssize_t attr_set_polling_rate(struct device *dev,
 		return -EINVAL;
 	if (!interval_ms)
 		return -EINVAL;
-	interval_ms = max((unsigned int)interval_ms,mag->pdata->min_interval);
+	interval_ms = max((unsigned int)interval_ms, mag->pdata->min_interval);
 	mutex_lock(&mag->lock);
 	mag->input_poll_dev->poll_interval = interval_ms;
 	lsm303dlhc_mag_update_odr(mag, interval_ms);
@@ -544,8 +544,8 @@ static ssize_t attr_get_mag_data(struct device *dev,
 	if (ret >= 0)
 		return sprintf(buf, "%d %d %d\n", xyz[0], xyz[1], xyz[2]);
 	else
-		return sprintf(buf, "get error ret = %d %d %d %d\n", ret, xyz[0], \
-				xyz[1], xyz[2]);
+		return sprintf(buf, "get error ret = %d %d %d %d\n", \
+				ret, xyz[0], xyz[1], xyz[2]);
 }
 
 #ifdef DEBUG
@@ -654,7 +654,7 @@ static void lsm303dlhc_mag_input_poll_func(struct input_polled_dev *dev)
 
 int lsm303dlhc_mag_input_open(struct input_dev *input)
 {
-	struct input_polled_dev *polldev = (struct input_dev *)input;
+	struct input_polled_dev *polldev = (struct input_polled_dev *)input;
 	struct lsm303dlhc_mag_data *mag = polldev->private;
 	if (NULL != mag) {
 		dev_info(&mag->client->dev, "lsm303dlhc_mag_input_open\n");
@@ -667,7 +667,7 @@ int lsm303dlhc_mag_input_open(struct input_dev *input)
 
 void lsm303dlhc_mag_input_close(struct input_dev *dev)
 {
-	struct input_polled_dev *polldev = (struct input_dev *)dev;
+	struct input_polled_dev *polldev = (struct input_polled_dev *)dev;
 	struct lsm303dlhc_mag_data *mag = polldev->private;
 	if (NULL != mag) {
 		dev_info(&mag->client->dev, "lsm303dlhc_mag_input_close\n");
@@ -726,8 +726,10 @@ static int lsm303dlhc_mag_input_init(struct lsm303dlhc_mag_data *mag)
 	mag->input_poll_dev->private = mag;
 	mag->input_poll_dev->poll = lsm303dlhc_mag_input_poll_func;
 	mag->input_poll_dev->poll_interval = mag->pdata->poll_interval;
-	mag->input_poll_dev->open = lsm303dlhc_mag_input_open;
-	mag->input_poll_dev->close = lsm303dlhc_mag_input_close;
+	mag->input_poll_dev->open = \
+		(void (*)(struct input_polled_dev *dev))lsm303dlhc_mag_input_open;
+	mag->input_poll_dev->close = \
+		(void (*)(struct input_polled_dev *dev))lsm303dlhc_mag_input_close;
 
 	input = mag->input_poll_dev->input;
 
@@ -904,8 +906,8 @@ static int lsm303dlhc_mag_remove(struct i2c_client *client)
 static int lsm303dlhc_mag_suspend(struct device *dev)
 {
 #ifdef CONFIG_SUSPEND
-	struct i2c_client *client = to_i2c_client(dev);
-	struct lsm303dlhc_data *mag = i2c_get_clientdata(client);
+	/*struct i2c_client *client = to_i2c_client(dev);
+	struct lsm303dlhc_data *mag = i2c_get_clientdata(client);*/
 #ifdef DEBUG
 	pr_info("lsm303dlhc_suspend\n");
 #endif /* DEBUG */
@@ -917,8 +919,8 @@ static int lsm303dlhc_mag_suspend(struct device *dev)
 static int lsm303dlhc_mag_resume(struct device *dev)
 {
 #ifdef CONFIG_SUSPEND
-	struct i2c_client *client = to_i2c_client(dev);
-	struct lsm303dlhc_data *mag = i2c_get_clientdata(client);
+	/*struct i2c_client *client = to_i2c_client(dev);
+	struct lsm303dlhc_data *mag = i2c_get_clientdata(client);*/
 #ifdef DEBUG
 	pr_info("lsm303dlhc_resume\n");
 #endif /* DEBUG */
@@ -934,7 +936,7 @@ static const struct i2c_device_id lsm303dlhc_mag_id[] = {
 
 MODULE_DEVICE_TABLE(i2c, lsm303dlhc_mag_id);
 
-static struct dev_pm_ops lsm303dlhc_pm = {
+static const struct dev_pm_ops lsm303dlhc_pm = {
 	.suspend = lsm303dlhc_mag_suspend,
 	.resume = lsm303dlhc_mag_resume,
 };

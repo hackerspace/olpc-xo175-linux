@@ -90,7 +90,7 @@
 #define	RESUME_ENTRIES		5
 
 
-//#define DEBUG 1
+/*#define DEBUG 1*/
 
 /** Registers Contents */
 #define WHOAMI_L3G4200D		0x00D3	/* Expected content for WAI register*/
@@ -157,7 +157,7 @@ static int l3g4200d_i2c_read(struct l3g4200d_data *gyro,
 	err = i2c_transfer(gyro->client->adapter, msgs, 2);
 
 	if (err != 2) {
-		dev_err(&gyro->client->dev, "read transfer error: %d\n",err);
+		dev_err(&gyro->client->dev, "read transfer error: %d\n", err);
 		return -EIO;
 	}
 
@@ -249,8 +249,8 @@ static int l3g4200d_update_fs_range(struct l3g4200d_data *gyro,
 		return res;
 	}
 	gyro->resume_state[RES_CTRL_REG4] =
-		((FS_MASK & new_fs ) |
-		( ~FS_MASK & gyro->resume_state[RES_CTRL_REG4]));
+		((FS_MASK & new_fs) |
+		(~FS_MASK & gyro->resume_state[RES_CTRL_REG4]));
 
 	return res;
 }
@@ -259,7 +259,7 @@ static int l3g4200d_update_fs_range(struct l3g4200d_data *gyro,
 static int l3g4200d_selftest(struct l3g4200d_data *gyro, u8 enable)
 {
 	int err = -1;
-	u8 buf[2] = {0x00,0x00};
+	u8 buf[2] = {0x00, 0x00};
 	char reg_address, mask, bit_values;
 
 	reg_address = CTRL_REG4;
@@ -277,7 +277,7 @@ static int l3g4200d_selftest(struct l3g4200d_data *gyro, u8 enable)
 		if (err < 0)
 			return err;
 		gyro->resume_state[RES_CTRL_REG4] = ((mask & bit_values) |
-				( ~mask & gyro->resume_state[RES_CTRL_REG4]));
+				(~mask & gyro->resume_state[RES_CTRL_REG4]));
 	}
 	return err;
 }
@@ -291,10 +291,8 @@ static int l3g4200d_update_odr(struct l3g4200d_data *gyro,
 	u8 config[2];
 
 	for (i = ARRAY_SIZE(odr_table) - 1; i >= 0; i--) {
-		if ((odr_table[i].poll_rate_ms <= poll_interval) || (i == 0)){
+		if ((odr_table[i].poll_rate_ms <= poll_interval) || (i == 0))
 			break;
-		}
-
 	}
 
 	config[1] = odr_table[i].mask;
@@ -305,7 +303,7 @@ static int l3g4200d_update_odr(struct l3g4200d_data *gyro,
 	if (atomic_read(&gyro->enabled)) {
 		config[0] = CTRL_REG1;
 		err = l3g4200d_i2c_write(gyro, config, 1);
-		pr_info("%s, result err:%d\n",L3G4200D_GYR_DEV_NAME,err);/////////////////////////
+		pr_info("%s, result err:%d\n", L3G4200D_GYR_DEV_NAME, err);
 		if (err < 0)
 			return err;
 		gyro->resume_state[RES_CTRL_REG1] = config[1];
@@ -456,7 +454,7 @@ static ssize_t attr_polling_rate_show(struct device *dev,
 				     char *buf)
 {
 	int val;
-	struct input_polled_dev *input_poll_dev = dev_get_drvdata(dev);/*see polled dev driver*/
+	struct input_polled_dev *input_poll_dev = dev_get_drvdata(dev);
 	struct l3g4200d_data *gyro = input_poll_dev->private;
 
 	mutex_lock(&gyro->lock);
@@ -477,7 +475,7 @@ static ssize_t attr_polling_rate_store(struct device *dev,
 		return -EINVAL;
 	if (!interval_ms)
 		return -EINVAL;
-	interval_ms = max((unsigned int)interval_ms,gyro->pdata->min_interval);
+	interval_ms = max((unsigned int)interval_ms, gyro->pdata->min_interval);
 	mutex_lock(&gyro->lock);
 	gyro->input_poll_dev->poll_interval = interval_ms;
 	gyro->pdata->poll_interval = interval_ms;
@@ -601,7 +599,8 @@ static ssize_t attr_get_data(struct device *dev,
 	if (err < 0)
 		return sprintf(buf, "get_gyroscope_data failed\n");
 	else
-		return sprintf(buf, "%d %d %d\n", data_out.x, data_out.y, data_out.z);
+		return sprintf(buf, "%d %d %d\n", \
+				data_out.x, data_out.y, data_out.z);
 }
 
 #ifdef DEBUG
@@ -717,7 +716,7 @@ static void l3g4200d_input_poll_func(struct input_polled_dev *dev)
 
 int l3g4200d_input_open(struct input_dev *input)
 {
-	struct input_polled_dev *polldev = (struct input_dev *)input;
+	struct input_polled_dev *polldev = (struct input_polled_dev *)input;
 	struct l3g4200d_data *gyro = polldev->private;
 	dev_info(&gyro->client->dev, "l3g4200d_input_open\n");
 	return l3g4200d_enable(gyro);
@@ -725,7 +724,7 @@ int l3g4200d_input_open(struct input_dev *input)
 
 void l3g4200d_input_close(struct input_dev *dev)
 {
-	struct input_polled_dev *polldev = (struct input_dev *)dev;
+	struct input_polled_dev *polldev = (struct input_polled_dev *)dev;
 	struct l3g4200d_data *gyro = polldev->private;
 	dev_info(&gyro->client->dev, "l3g4200d_input_close\n");
 	l3g4200d_disable(gyro);
@@ -790,8 +789,10 @@ static int l3g4200d_input_init(struct l3g4200d_data *gyro)
 	gyro->input_poll_dev->private = gyro;
 	gyro->input_poll_dev->poll = l3g4200d_input_poll_func;
 	gyro->input_poll_dev->poll_interval = gyro->pdata->poll_interval;
-	gyro->input_poll_dev->open = l3g4200d_input_open;
-	gyro->input_poll_dev->close = l3g4200d_input_close;
+	gyro->input_poll_dev->open = \
+		(void (*)(struct input_polled_dev *dev))l3g4200d_input_open;
+	gyro->input_poll_dev->close = \
+		(void (*)(struct input_polled_dev *dev))l3g4200d_input_close;
 
 	input = gyro->input_poll_dev->input;
 
@@ -978,8 +979,8 @@ static int l3g4200d_remove(struct i2c_client *client)
 static int l3g4200d_suspend(struct device *dev)
 {
 #ifdef CONFIG_SUSPEND
-	struct i2c_client *client = to_i2c_client(dev);
-	struct l3g4200d_data *gyro = i2c_get_clientdata(client);
+	/*struct i2c_client *client = to_i2c_client(dev);
+	struct l3g4200d_data *gyro = i2c_get_clientdata(client);*/
 #ifdef DEBUG
 	pr_info(KERN_INFO "l3g4200d_suspend\n");
 #endif /* DEBUG */
@@ -991,8 +992,8 @@ static int l3g4200d_suspend(struct device *dev)
 static int l3g4200d_resume(struct device *dev)
 {
 #ifdef CONFIG_SUSPEND
-	struct i2c_client *client = to_i2c_client(dev);
-	struct l3g4200d_data *gyro = i2c_get_clientdata(client);
+	/*struct i2c_client *client = to_i2c_client(dev);
+	struct l3g4200d_data *gyro = i2c_get_clientdata(client);*/
 #ifdef DEBUG
 	pr_info(KERN_INFO "l3g4200d_resume\n");
 #endif /*DEBUG */
@@ -1009,7 +1010,7 @@ static const struct i2c_device_id l3g4200d_id[] = {
 
 MODULE_DEVICE_TABLE(i2c, l3g4200d_id);
 
-static struct dev_pm_ops l3g4200d_pm = {
+static const struct dev_pm_ops l3g4200d_pm = {
 	.suspend = l3g4200d_suspend,
 	.resume = l3g4200d_resume,
 };
