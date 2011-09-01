@@ -941,6 +941,8 @@ static int mv_camera_querycap(struct soc_camera_host *ici,
 
 	if (id.ident == V4L2_IDENT_OV5642)
 		strcpy(cap->driver, "ov5642");
+	else if (id.ident == V4L2_IDENT_OV5640)
+		strcpy(cap->driver, "ov5640");
 	else
 		strcpy(cap->driver, "unknow sensor");
 	return 0;
