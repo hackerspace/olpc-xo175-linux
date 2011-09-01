@@ -138,7 +138,7 @@ struct acipc_ioctl_arg {
 };
 
 /*declared the export APIs for TD telephony*/
-#if defined(CONFIG_CPU_PXA910)
+#if defined(CONFIG_CPU_PXA910) || defined(CONFIG_CPU_PXA970)
 extern enum acipc_return_code ACIPCEventBind(u32 user_event,
 					     acipc_rec_event_callback cb,
 					     enum acipc_callback_mode cb_mode,
