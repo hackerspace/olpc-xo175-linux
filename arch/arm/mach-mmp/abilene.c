@@ -26,6 +26,13 @@
 #include <linux/mfd/wm8994/pdata.h>
 #include <linux/regulator/fixed.h>
 #include <linux/switch.h>
+#if defined(CONFIG_SENSORS_LSM303DLHC_ACC) || \
+	defined(CONFIG_SENSORS_LSM303DLHC_MAG)
+#include <linux/i2c/lsm303dlhc.h>
+#endif
+#if defined(CONFIG_SENSORS_L3G4200D_GYR)
+#include <linux/i2c/l3g4200d.h>
+#endif
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -455,6 +462,50 @@ static struct max8925_platform_data abilene_max8925_info = {
 	.regulator[MAX8925_ID_LDO20] = &regulator_data[MAX8925_ID_LDO20],
 };
 
+#if defined(CONFIG_SENSORS_LSM303DLHC_ACC)
+static struct lsm303dlhc_acc_platform_data lsm303dlhc_acc_data = {
+	.poll_interval = 1000,
+	.min_interval = 10,
+	.g_range = LSM303DLHC_ACC_G_2G,
+	.axis_map_x = 1,
+	.axis_map_y = 0,
+	.axis_map_z = 2,
+	.negate_x = 0,
+	.negate_y = 1,
+	.negate_z = 1,
+	.gpio_int1 = -EINVAL,
+	.gpio_int2 = -EINVAL,
+};
+#endif
+
+#if defined(CONFIG_SENSORS_LSM303DLHC_MAG)
+static struct lsm303dlhc_mag_platform_data lsm303dlhc_mag_data = {
+	.poll_interval = 1000,
+	.min_interval = 10,
+	.h_range = LSM303DLHC_H_2_5G,
+	.axis_map_x = 1,
+	.axis_map_y = 0,
+	.axis_map_z = 2,
+	.negate_x = 0,
+	.negate_y = 1,
+	.negate_z = 0,
+};
+#endif
+
+#if defined(CONFIG_SENSORS_L3G4200D_GYR)
+static struct l3g4200d_gyr_platform_data l3g4200d_gyr_data = {
+	.poll_interval = 1000,
+	.min_interval = 10,
+	.fs_range = L3G4200D_GYR_FS_2000DPS,
+	.axis_map_x = 0,
+	.axis_map_y = 1,
+	.axis_map_z = 2,
+	.negate_x = 0,
+	.negate_y = 0,
+	.negate_z = 0,
+};
+#endif
+
 static int cm3623_set_power(int on)
 {
 	static struct regulator *v_ldo8;
@@ -516,6 +567,27 @@ static struct i2c_board_info abilene_twsi4_info[] = {
 		.type		= "cm3623_ps_threshold",
 		.addr		= (0xB2>>1),
 		.platform_data  = &cm3623_platform_data,
+	},
+#endif
+#if defined(CONFIG_SENSORS_LSM303DLHC_ACC)
+	{
+		.type           = LSM303DLHC_ACC_DEV_NAME,
+		.addr           = (0x32>>1),
+		.platform_data  = &lsm303dlhc_acc_data,
+	},
+#endif
+#if defined(CONFIG_SENSORS_LSM303DLHC_MAG)
+	{
+		.type           = LSM303DLHC_MAG_DEV_NAME,
+		.addr           = (0x3C>>1),
+		.platform_data  = &lsm303dlhc_mag_data,
+	},
+#endif
+#if defined(CONFIG_SENSORS_L3G4200D_GYR)
+	{
+		.type           = L3G4200D_GYR_DEV_NAME,
+		.addr           = (0xD2>>1),
+		.platform_data  = &l3g4200d_gyr_data,
 	},
 #endif
 };
