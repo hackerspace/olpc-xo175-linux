@@ -392,9 +392,11 @@ static int lsm303dlhc_mag_enable(struct lsm303dlhc_mag_data *mag)
 			atomic_set(&mag->enabled, 0);
 			return err;
 		}
+		/*
 		schedule_delayed_work(&mag->input_poll_dev->work,
 				      msecs_to_jiffies(mag->
 						       pdata->poll_interval));
+		*/
 	}
 
 	return 0;
@@ -403,7 +405,7 @@ static int lsm303dlhc_mag_enable(struct lsm303dlhc_mag_data *mag)
 static int lsm303dlhc_mag_disable(struct lsm303dlhc_mag_data *mag)
 {
 	if (atomic_cmpxchg(&mag->enabled, 1, 0)) {
-		cancel_delayed_work_sync(&mag->input_poll_dev->work);
+		/*cancel_delayed_work_sync(&mag->input_poll_dev->work);*/
 		lsm303dlhc_mag_device_power_off(mag);
 	}
 
@@ -518,6 +520,21 @@ static ssize_t attr_set_enable(struct device *dev,
 	return size;
 }
 
+static ssize_t attr_get_mag_data(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int xyz[3] = {0};
+	struct lsm303dlhc_mag_data *mag = dev_get_drvdata(dev);
+	if (!atomic_read(&mag->enabled))
+		return sprintf(buf, "enable the device first\n");
+	int ret = lsm303dlhc_mag_get_data(mag, xyz);
+	if (ret >= 0)
+		return sprintf(buf, "%d %d %d\n", xyz[0], xyz[1], xyz[2]);
+	else
+		return sprintf(buf, "get error ret = %d %d %d %d\n", ret, xyz[0], \
+				xyz[1], xyz[2]);
+}
+
 #ifdef DEBUG
 static ssize_t attr_reg_set(struct device *dev, struct device_attribute *attr,
 				const char *buf, size_t size)
@@ -576,6 +593,7 @@ static struct device_attribute attributes[] = {
 	__ATTR(pollrate_ms, 0666, attr_get_polling_rate, attr_set_polling_rate),
 	__ATTR(range, 0666, attr_get_range, attr_set_range),
 	__ATTR(enable_device, 0666, attr_get_enable, attr_set_enable),
+	__ATTR(mag_data, 0666, attr_get_mag_data, NULL),
 #ifdef DEBUG
 	__ATTR(reg_value, 0600, attr_reg_get, attr_reg_set),
 	__ATTR(reg_addr, 0200, NULL, attr_addr_set),
@@ -625,16 +643,28 @@ static void lsm303dlhc_mag_input_poll_func(struct input_polled_dev *dev)
 
 int lsm303dlhc_mag_input_open(struct input_dev *input)
 {
-	struct lsm303dlhc_mag_data *mag = input_get_drvdata(input);
-
-	return lsm303dlhc_mag_enable(mag);
+	struct input_polled_dev *polldev = (struct input_dev *)input;
+	struct lsm303dlhc_mag_data *mag = polldev->private;
+	if (NULL != mag) {
+		dev_info(&mag->client->dev, "lsm303dlhc_mag_input_open\n");
+		return lsm303dlhc_mag_enable(mag);
+	} else{
+		dev_err(&mag->client->dev, "mag private data NULL");
+		return -EINVAL;
+	}
 }
 
 void lsm303dlhc_mag_input_close(struct input_dev *dev)
 {
-	struct lsm303dlhc_mag_data *mag = input_get_drvdata(dev);
-
-	lsm303dlhc_mag_disable(mag);
+	struct input_polled_dev *polldev = (struct input_dev *)dev;
+	struct lsm303dlhc_mag_data *mag = polldev->private;
+	if (NULL != mag) {
+		dev_info(&mag->client->dev, "lsm303dlhc_mag_input_close\n");
+		return lsm303dlhc_mag_disable(mag);
+	} else{
+		dev_err(&mag->client->dev, "mag private data NULL");
+		return -EINVAL;
+	}
 }
 
 static int lsm303dlhc_mag_validate_pdata(struct lsm303dlhc_mag_data *mag)
@@ -686,11 +716,10 @@ static int lsm303dlhc_mag_input_init(struct lsm303dlhc_mag_data *mag)
 	mag->input_poll_dev->private = mag;
 	mag->input_poll_dev->poll = lsm303dlhc_mag_input_poll_func;
 	mag->input_poll_dev->poll_interval = mag->pdata->poll_interval;
+	mag->input_poll_dev->open = lsm303dlhc_mag_input_open;
+	mag->input_poll_dev->close = lsm303dlhc_mag_input_close;
 
 	input = mag->input_poll_dev->input;
-
-	input->open = lsm303dlhc_mag_input_open;
-	input->close = lsm303dlhc_mag_input_close;
 
 	input->id.bustype = BUS_I2C;
 	input->dev.parent = &mag->client->dev;
