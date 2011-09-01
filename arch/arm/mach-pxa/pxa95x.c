@@ -35,6 +35,7 @@
 #include <mach/dma.h>
 #include <mach/regs-intc.h>
 #include <mach/soc_vmeta.h>
+#include <mach/usb-regs.h>
 
 #include <plat/pmem.h>
 
@@ -703,6 +704,54 @@ static void clk_axi_disable(struct clk *clk)
 		CKENC &= ~(1 << (CKEN_AXI - 64) | (1 << (CKEN_AXI_2X -64)));
 }
 
+static void clk_imu_axi_enable(struct clk *clk)
+{
+	CKENC |= (1 << (CKEN_IMU - 64));
+}
+
+static void clk_imu_axi_disable(struct clk *clk)
+{
+	/* we are checking that all clients of the AXI island have turned off
+	*  their AXI clock enable. onlt if all clients are off we can turn off
+	* the AXI IMU clock.
+	*/
+	if (!(CKENC & ((1 << (CKEN_MMC1_BUS - 64))
+			| (1 << (CKEN_MMC2_BUS - 64))
+			| (1 << (CKEN_MMC3_BUS - 64))
+			| (1 << (CKEN_USB_BUS - 64))
+			| (1 << (CKEN_USBH_BUS - 64))
+			| (1 << (CKEN_MMC4_BUS - 64))
+			| (1 << (CKEN_PXA95x_MMC1 - 64))
+			| (1 << (CKEN_PXA95x_MMC2 - 64))
+			| (1 << (CKEN_PXA95x_MMC3 - 64))
+			| (1 << (CKEN_PXA95x_MMC4 - 64))
+			)))
+		/* turning off IMU_AXI clock. */
+		CKENC &= ~(1 << (CKEN_IMU - 64));
+}
+
+static void clk_pxa9xx_u2o_enable(struct clk *clk)
+{
+	local_irq_disable();
+
+	CKENC |= (1 << (CKEN_USB_PRL - 64)) | (1 << (CKEN_USB_BUS - 64));
+	/* ACCR1 */
+	ACCR1 |= ACCR1_PU_OTG|ACCR1_PU_PLL|ACCR1_PU;
+
+	local_irq_enable();
+}
+
+static void clk_pxa9xx_u2o_disable(struct clk *clk)
+{
+	local_irq_disable();
+
+	CKENC &= ~((1 << (CKEN_USB_PRL - 64)) | (1 << (CKEN_USB_BUS - 64)));
+	/* ACCR1 */
+	ACCR1 &= ~(ACCR1_PU_OTG|ACCR1_PU_PLL|ACCR1_PU);
+
+	local_irq_enable();
+}
+
 static const struct clkops clk_pxa95x_dsi_ops = {
 	.enable		= clk_pxa95x_dsi_enable,
 	.disable	= clk_pxa95x_dsi_disable,
@@ -725,12 +774,24 @@ static const struct clkops clk_axi_ops = {
 	.disable	= clk_axi_disable,
 };
 
+static const struct clkops clk_imu_axi_ops = {
+	.enable     = clk_imu_axi_enable,
+	.disable    = clk_imu_axi_disable,
+};
+
+static const struct clkops clk_pxa9xx_u2o_ops = {
+	.enable     = clk_pxa9xx_u2o_enable,
+	.disable    = clk_pxa9xx_u2o_disable,
+};
+
 static DEFINE_CK(pxa95x_dsi0, DSI_TX1, &clk_pxa95x_dsi_ops);
 static DEFINE_CK(pxa95x_dsi1, DSI_TX2, &clk_pxa95x_dsi_ops);
 static DEFINE_CK(pxa95x_ihdmi, DISPLAY, &clk_pxa95x_ihdmi_ops);
 static DEFINE_CK(pxa95x_lcd, DISPLAY, &clk_pxa95x_lcd_ops);
 static DEFINE_CK(pxa95x_axi, AXI, &clk_axi_ops);
 static DEFINE_CK(pxa95x_smc, SMC, &clk_pxa95x_smc_ops);
+static DEFINE_CK(pxa95x_imu, IMU, &clk_imu_axi_ops);
+static DEFINE_CK(pxa95x_u2o, USB_PRL, &clk_pxa9xx_u2o_ops);
 static DEFINE_CLK(pxa95x_pout, &clk_pxa3xx_pout_ops, 13000000, 70);
 static DEFINE_CLK(pxa95x_tout_s0, &clk_pxa95x_tout_s0_ops, 13000000, 70);
 static DEFINE_PXA3_CKEN(pxa95x_ffuart, FFUART, 14857000, 1);
@@ -779,6 +840,8 @@ static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_ihdmi, NULL, "PXA95x_iHDMICLK"),
 	INIT_CLKREG(&clk_pxa95x_lcd, "pxa95x-fb", "PXA95x_LCDCLK"),
 	INIT_CLKREG(&clk_pxa95x_axi, NULL, "AXICLK"),
+	INIT_CLKREG(&clk_pxa95x_imu, NULL, "IMUCLK"),
+	INIT_CLKREG(&clk_pxa95x_u2o, NULL, "U2OCLK"),
 	INIT_CLKREG(&clk_pxa95x_sdh0, "sdhci-pxav2.0", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_pxa95x_sdh1, "sdhci-pxav2.1", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_pxa95x_sdh2, "sdhci-pxav2.2", "PXA-SDHCLK"),
@@ -858,6 +921,72 @@ static int __init pxa95x_init(void)
 
 postcore_initcall(pxa95x_init);
 
+#ifdef CONFIG_USB_PXA_U2O
+unsigned u2o_get(unsigned base, unsigned offset)
+{
+	return readl(base + offset);
+}
+
+void u2o_set(unsigned base, unsigned offset, unsigned value)
+{
+	volatile unsigned int reg;
+	reg = readl(base + offset);
+	reg |= value;
+	writel(reg, base + offset);
+	__raw_readl(base + offset);
+}
+
+void u2o_clear(unsigned base, unsigned offset, unsigned value)
+{
+	volatile unsigned int reg;
+	reg = readl(base + offset);
+	reg &= ~value;
+	writel(reg, base + offset);
+	__raw_readl(base + offset);
+}
+
+void u2o_write(unsigned base, unsigned offset, unsigned value)
+{
+	writel(value, base + offset);
+	__raw_readl(base + offset);
+}
+
+int pxa9xx_usb_phy_init(unsigned int base)
+{
+	/* linux kernel is not allowed to override usb phy settings */
+	/* these settings configured only by obm (or bootrom)       */
+	static int init_done;
+	unsigned int ulTempAccr1;
+	unsigned int ulTempCkenC;
+
+	if (init_done)
+		printk(KERN_DEBUG "re-init phy\n");
+
+	ulTempAccr1 = ACCR1;
+	ulTempCkenC = CKENC;
+
+	ACCR1 |= (1<<10);
+	CKENC |= (1<<10);
+
+	/* Not safe. Sync risk */
+	if ((ulTempAccr1 & (1<<10)) == 0)
+		ACCR1 &= ~(1<<10);
+
+	if ((ulTempCkenC & (1<<10)) == 0)
+		CKENC &= ~(1<<10);
+
+	/* override usb phy setting to mach values set by obm */
+	u2o_write(base, U2PPLL, 0xfe819eeb);
+	u2o_write(base, U2PTX, 0x41c10fc2);
+	u2o_write(base, U2PRX, 0xe31d02e9);
+	u2o_write(base, U2IVREF, 0x2000017e);
+
+	u2o_write(base, U2PRS, 0x00008000);
+
+	init_done = 1;
+	return 0;
+}
+#endif
 /*
 return: -1 -- failure:exceed limit; >=0 -- success;
 These two functions shall be different on different platforms.

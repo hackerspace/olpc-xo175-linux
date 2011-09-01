@@ -111,6 +111,7 @@ extern unsigned pxa3xx_get_clk_frequency_khz(int);
 #endif
 
 extern void pxa95x_mem_reserve(void);
+extern int pxa9xx_usb_phy_init(unsigned int base);
 
 extern struct syscore_ops pxa_irq_syscore_ops;
 extern struct syscore_ops pxa_gpio_syscore_ops;

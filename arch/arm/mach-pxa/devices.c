@@ -18,6 +18,7 @@
 #include <mach/audio.h>
 #include <mach/hardware.h>
 #include <mach/soc_vmeta.h>
+#include <mach/usb-regs.h>
 #include <plat/pxa3xx_nand.h>
 #include <plat/pxa3xx_onenand.h>
 
@@ -1538,3 +1539,42 @@ void __init pxa95x_set_vmeta_info(void* info)
 
 #endif /*CONFIG_UIO_VMETA*/
 
+#ifdef CONFIG_USB_PXA_U2O
+/********************************************************************
+ * The registers read/write routines
+ ********************************************************************/
+
+static u64 u2o_dma_mask = DMA_BIT_MASK(32);
+
+static struct resource pxa9xx_u2o_resources[] = {
+	[0] = {
+		.start	= PXA935_U2O_REGBASE + 0x100,
+		.end	= PXA935_U2O_REGBASE + USB_REG_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "capregs",
+	},
+	[1] = {
+		.start	= PXA935_U2O_PHYBASE,
+		.end	= PXA935_U2O_PHYBASE + USB_PHY_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "phyregs",
+	},
+	[2] = {
+		.start	= IRQ_U2O,
+		.end	= IRQ_U2O,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device pxa9xx_device_u2o = {
+	.name		= "pxa-u2o",
+	.id		= -1,
+	.dev		= {
+		.dma_mask	= &u2o_dma_mask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+	},
+	.num_resources	= ARRAY_SIZE(pxa9xx_u2o_resources),
+	.resource	= pxa9xx_u2o_resources,
+};
+
+#endif
