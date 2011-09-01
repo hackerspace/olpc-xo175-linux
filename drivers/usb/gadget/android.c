@@ -57,6 +57,8 @@
 #include "u_ether.c"
 #include "pxa910_u_serial.c"
 #include "pxa910_f_diag.c"
+#include "pxa910_f_modem.c"
+
 
 MODULE_AUTHOR("Mike Lockwood");
 MODULE_DESCRIPTION("Android Composite USB Driver");
@@ -189,6 +191,34 @@ static void android_work(struct work_struct *data)
 		spin_unlock_irqrestore(&cdev->lock, flags);
 	}
 }
+
+/* Marvell modem function initialization */
+static int marvell_modem_function_init(struct android_usb_function *f,
+			struct usb_composite_dev *cdev)
+{
+	return 0;
+}
+
+static void marvell_modem_function_cleanup(struct android_usb_function *f)
+{
+	return;
+}
+
+int marvell_modem_function_bind_config(struct android_usb_function *f,
+			struct usb_configuration *c)
+{
+	int ret = marvell_acm_bind_config(c, 0);
+	if (ret == 0)
+		marvell_modem_gserial_setup(c->cdev->gadget, 1);
+	return ret;
+}
+
+static struct android_usb_function marvell_modem_function = {
+	.name           = "marvell_modem",
+	.init           = marvell_modem_function_init,
+	.cleanup        = marvell_modem_function_cleanup,
+	.bind_config    = marvell_modem_function_bind_config,
+};
 
 /* Marvell diag function initialization */
 static int marvell_diag_function_init(struct android_usb_function *f,
@@ -678,6 +708,7 @@ static struct android_usb_function accessory_function = {
 
 
 static struct android_usb_function *supported_functions[] = {
+	&marvell_modem_function,
 	&marvell_diag_function,
 	&adb_function,
 	&acm_function,
