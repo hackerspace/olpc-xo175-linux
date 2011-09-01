@@ -12,6 +12,7 @@
 
 #include <linux/init.h>
 #include <linux/kernel.h>
+#include <linux/dma-mapping.h>
 #include <linux/platform_device.h>
 #include <linux/i2c.h>
 #include <linux/i2c/pxa95x-i2c.h>
@@ -34,9 +35,12 @@
 #include <media/soc_camera.h>
 #include <linux/switch.h>
 
+#include <mach/pxa3xx-regs.h>
+#include <mach/usb-regs.h>
 #include <plat/pxa27x_keypad.h>
 #include <plat/pmem.h>
 
+#include <plat/usb.h>
 #include "devices.h"
 #include "generic.h"
 
@@ -207,6 +211,41 @@ static struct platform_device *devices[] __initdata = {
 	&pxa95x_device_i2c2,
 	&pxa95x_device_i2c3,
 };
+
+#if defined(CONFIG_USB_PXA_U2O) || defined(CONFIG_USB_EHCI_PXA_U2O)
+#define STATUS2_VBUS        (1 << 4)
+
+static int	read_vbus_val()
+{
+	int ret;
+	ret = pm860x_codec_reg_read(2);
+	if (ret & STATUS2_VBUS)
+		ret = VBUS_HIGH;
+	else
+		ret = VBUS_LOW;
+	return ret;
+}
+
+static char *pxa9xx_usb_clock_name[] = {
+	[0] = "AXICLK",
+	[1] = "IMUCLK",
+	[2] = "U2OCLK",
+};
+
+static struct mv_usb_addon_irq pmic_vbus = {
+	.irq	= IRQ_BOARD_START + PM8607_IRQ_CHG,
+	.poll	= read_vbus_val,
+};
+
+static struct mv_usb_platform_data pxa9xx_usb_pdata = {
+	.clknum		= 3,
+	.clkname	= pxa9xx_usb_clock_name,
+	.vbus		= &pmic_vbus,
+	.mode		= MV_USB_MODE_OTG,
+	.phy_init	= pxa9xx_usb_phy_init,
+	.set_vbus	= NULL,
+};
+#endif
 
 #if defined(CONFIG_KEYBOARD_PXA27x) || defined(CONFIG_KEYBOARD_PXA27x_MODULE)
 static unsigned int matrix_key_map[] = {
@@ -639,6 +678,10 @@ static void __init saarb_init(void)
 
 	/* Init boot flash - sync mode in case of ONENAND */
 	pxa_boot_flash_init(1);
+#ifdef CONFIG_USB_PXA_U2O
+	pxa9xx_device_u2o.dev.platform_data = (void *)&pxa9xx_usb_pdata;
+	platform_device_register(&pxa9xx_device_u2o);
+#endif
 }
 
 MACHINE_START(SAARB, "PXA968 (PXA955) Handheld Platform (aka SAARB)")
