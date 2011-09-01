@@ -1442,6 +1442,24 @@ config SENSORS_LIS331DL_POSITION
 		6: bottom. lower-right
 		7: bottom. lower-left
 
+config SENSORS_LSM303DLHC_ACC
+	tristate "LSM303DLHC accelerator sensor"
+	depends on I2C && INPUT
+	help
+	  This driver provides support for LSM303DLHC sensor-accelerator feature.
+
+config SENSORS_LSM303DLHC_MAG
+	tristate "LSM303DLHC magnetic sensor"
+	depends on I2C && INPUT
+	help
+	  This driver provides support for LSM303DLHC snesor-magnetic feature.
+
+config SENSORS_L3G4200D_GYR
+	tristate "L3G4200D gyroscope sensor"
+	depends on I2C && INPUT
+	help
+	  This driver provides support for L3G4200D gyroscope sensor.
+
 config SENSORS_ORIENTATION
 	tristate "Yamaha Orientation Sensor"
 	depends on I2C && SENSORS_YAS529 && SENSORS_LIS331DL
