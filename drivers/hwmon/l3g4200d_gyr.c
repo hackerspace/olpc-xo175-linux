@@ -573,6 +573,22 @@ static ssize_t attr_set_selftest(struct device *dev,
 	return size;
 }
 
+static ssize_t attr_get_data(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct l3g4200d_data *gyro = dev_get_drvdata(dev);
+	struct l3g4200d_triple data_out;
+	int err;
+	if (!atomic_read(&gyro->enabled))
+		return sprintf(buf, "enable the device first\n");
+
+	err = l3g4200d_get_data(gyro, &data_out);
+	if (err < 0)
+		return sprintf(buf, "get_gyroscope_data failed\n");
+	else
+		return sprintf(buf, "%d %d %d\n", data_out.x, data_out.y, data_out.z);
+}
+
 #ifdef DEBUG
 static ssize_t attr_reg_set(struct device *dev, struct device_attribute *attr,
 				const char *buf, size_t size)
@@ -633,6 +649,7 @@ static struct device_attribute attributes[] = {
 	__ATTR(range, 0666, attr_range_show, attr_range_store),
 	__ATTR(enable_device, 0666, attr_enable_show, attr_enable_store),
 	__ATTR(enable_selftest, 0666, attr_get_selftest, attr_set_selftest),
+	__ATTR(gyo_data, 0666, attr_get_data, NULL),
 #ifdef DEBUG
 	__ATTR(reg_value, 0600, attr_reg_get, attr_reg_set),
 	__ATTR(reg_addr, 0200, NULL, attr_addr_set),
@@ -686,15 +703,17 @@ static void l3g4200d_input_poll_func(struct input_polled_dev *dev)
 
 int l3g4200d_input_open(struct input_dev *input)
 {
-	struct l3g4200d_data *gyro = input_get_drvdata(input);
-
+	struct input_polled_dev *polldev = (struct input_dev *)input;
+	struct l3g4200d_data *gyro = polldev->private;
+	dev_info(&gyro->client->dev, "l3g4200d_input_open\n");
 	return l3g4200d_enable(gyro);
 }
 
 void l3g4200d_input_close(struct input_dev *dev)
 {
-	struct l3g4200d_data *gyro = input_get_drvdata(dev);
-
+	struct input_polled_dev *polldev = (struct input_dev *)dev;
+	struct l3g4200d_data *gyro = polldev->private;
+	dev_info(&gyro->client->dev, "l3g4200d_input_close\n");
 	l3g4200d_disable(gyro);
 }
 
@@ -757,11 +776,10 @@ static int l3g4200d_input_init(struct l3g4200d_data *gyro)
 	gyro->input_poll_dev->private = gyro;
 	gyro->input_poll_dev->poll = l3g4200d_input_poll_func;
 	gyro->input_poll_dev->poll_interval = gyro->pdata->poll_interval;
+	gyro->input_poll_dev->open = l3g4200d_input_open;
+	gyro->input_poll_dev->close = l3g4200d_input_close;
 
 	input = gyro->input_poll_dev->input;
-
-	input->open = l3g4200d_input_open;
-	input->close = l3g4200d_input_close;
 
 	input->id.bustype = BUS_I2C;
 	input->dev.parent = &gyro->client->dev;
