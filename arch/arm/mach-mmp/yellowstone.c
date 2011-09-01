@@ -22,6 +22,13 @@
 #include <linux/mfd/max8925.h>
 #include <linux/pwm_backlight.h>
 #include <linux/regulator/machine.h>
+#if defined(CONFIG_SENSORS_LSM303DLHC_ACC) || \
+	defined(CONFIG_SENSORS_LSM303DLHC_MAG)
+#include <linux/i2c/lsm303dlhc.h>
+#endif
+#if defined(CONFIG_SENSORS_L3G4200D_GYR)
+#include <linux/i2c/l3g4200d.h>
+#endif
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -64,6 +71,10 @@ static unsigned long yellowstone_pin_config[] __initdata = {
 	/* TWSI3 */
 	GPIO71_TWSI3_SCL,
 	GPIO72_TWSI3_SDA,
+
+	/* TWSI4 */
+	TWSI4_SCL,
+	TWSI4_SDA,
 
 	/*PWM3*/
 	GPIO53_PWM3,
@@ -447,7 +458,72 @@ static struct i2c_board_info yellowstone_twsi1_info[] = {
 	},
 };
 
+#if defined(CONFIG_SENSORS_LSM303DLHC_ACC)
+static struct lsm303dlhc_acc_platform_data lsm303dlhc_acc_data = {
+	.poll_interval = 1000,
+	.min_interval = 10,
+	.g_range = LSM303DLHC_ACC_G_2G,
+	.axis_map_x = 0,
+	.axis_map_y = 1,
+	.axis_map_z = 2,
+	.negate_x = 0,
+	.negate_y = 0,
+	.negate_z = 0,
+	.gpio_int1 = -EINVAL,
+	.gpio_int2 = -EINVAL,
+};
+#endif
+
+#if defined(CONFIG_SENSORS_LSM303DLHC_MAG)
+static struct lsm303dlhc_mag_platform_data lsm303dlhc_mag_data = {
+	.poll_interval = 1000,
+	.min_interval = 10,
+	.h_range = LSM303DLHC_H_2_5G,
+	.axis_map_x = 0,
+	.axis_map_y = 1,
+	.axis_map_z = 2,
+	.negate_x = 0,
+	.negate_y = 0,
+	.negate_z = 0,
+};
+#endif
+
+#if defined(CONFIG_SENSORS_L3G4200D_GYR)
+static struct l3g4200d_gyr_platform_data l3g4200d_gyr_data = {
+	.poll_interval = 1000,
+	.min_interval = 10,
+	.fs_range = L3G4200D_GYR_FS_2000DPS,
+	.axis_map_x = 0,
+	.axis_map_y = 1,
+	.axis_map_z = 2,
+	.negate_x = 0,
+	.negate_y = 0,
+	.negate_z = 0,
+};
+#endif
+
 static struct i2c_board_info yellowstone_twsi4_info[] = {
+#if defined(CONFIG_SENSORS_LSM303DLHC_ACC)
+	{
+		.type           = LSM303DLHC_ACC_DEV_NAME,
+		.addr           = (0x32>>1),
+		.platform_data  = &lsm303dlhc_acc_data,
+	},
+#endif
+#if defined(CONFIG_SENSORS_LSM303DLHC_MAG)
+	{
+		.type           = LSM303DLHC_MAG_DEV_NAME,
+		.addr           = (0x3C>>1),
+		.platform_data  = &lsm303dlhc_mag_data,
+	},
+#endif
+#if defined(CONFIG_SENSORS_L3G4200D_GYR)
+	{
+		.type           = L3G4200D_GYR_DEV_NAME,
+		.addr           = (0xD2>>1),
+		.platform_data  = &l3g4200d_gyr_data,
+	},
+#endif
 };
 
 static struct platform_pwm_backlight_data yellowstone_lcd_backlight_data = {
