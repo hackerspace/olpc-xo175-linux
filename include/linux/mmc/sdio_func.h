@@ -172,4 +172,12 @@ extern void sdio_f0_writeb(struct sdio_func *func, unsigned char b,
 extern mmc_pm_flag_t sdio_get_host_pm_caps(struct sdio_func *func);
 extern int sdio_set_host_pm_flags(struct sdio_func *func, mmc_pm_flag_t flags);
 
+/* It is preferred that sdio function driver call this function to mark its
+ *  * state in order to stop system suspend in the first place if wake up event
+ *   * arrives after sdio function driver suspened. */
+static inline void sdio_func_suspended(struct sdio_func *func)
+{
+	func->suspended = MMC_PM_FUNC_SUSPENDED;
+}
+
 #endif /* LINUX_MMC_SDIO_FUNC_H */
