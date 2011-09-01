@@ -456,7 +456,9 @@ static ssize_t attr_polling_rate_show(struct device *dev,
 				     char *buf)
 {
 	int val;
-	struct l3g4200d_data *gyro = dev_get_drvdata(dev);
+	struct input_polled_dev *input_poll_dev = dev_get_drvdata(dev);/*see polled dev driver*/
+	struct l3g4200d_data *gyro = input_poll_dev->private;
+
 	mutex_lock(&gyro->lock);
 	val = gyro->input_poll_dev->poll_interval;
 	mutex_unlock(&gyro->lock);
@@ -467,7 +469,8 @@ static ssize_t attr_polling_rate_store(struct device *dev,
 				     struct device_attribute *attr,
 				     const char *buf, size_t size)
 {
-	struct l3g4200d_data *gyro = dev_get_drvdata(dev);
+	struct input_polled_dev *input_poll_dev = dev_get_drvdata(dev);
+	struct l3g4200d_data *gyro = input_poll_dev->private;
 	unsigned long interval_ms;
 
 	if (strict_strtoul(buf, 10, &interval_ms))
@@ -486,9 +489,11 @@ static ssize_t attr_polling_rate_store(struct device *dev,
 static ssize_t attr_range_show(struct device *dev,
 			       struct device_attribute *attr, char *buf)
 {
-	struct l3g4200d_data *gyro = dev_get_drvdata(dev);
+	struct input_polled_dev *input_poll_dev = dev_get_drvdata(dev);
+	struct l3g4200d_data *gyro = input_poll_dev->private;
 	int range = 0;
 	char val;
+
 	mutex_lock(&gyro->lock);
 	val = gyro->pdata->fs_range;
 	switch (val) {
@@ -510,8 +515,10 @@ static ssize_t attr_range_store(struct device *dev,
 			      struct device_attribute *attr,
 			      const char *buf, size_t size)
 {
-	struct l3g4200d_data *gyro = dev_get_drvdata(dev);
+	struct input_polled_dev *input_poll_dev = dev_get_drvdata(dev);
+	struct l3g4200d_data *gyro = input_poll_dev->private;
 	unsigned long val;
+
 	if (strict_strtoul(buf, 10, &val))
 		return -EINVAL;
 	mutex_lock(&gyro->lock);
@@ -524,8 +531,10 @@ static ssize_t attr_range_store(struct device *dev,
 static ssize_t attr_enable_show(struct device *dev,
 			       struct device_attribute *attr, char *buf)
 {
-	struct l3g4200d_data *gyro = dev_get_drvdata(dev);
+	struct input_polled_dev *input_poll_dev = dev_get_drvdata(dev);
+	struct l3g4200d_data *gyro = input_poll_dev->private;
 	int val = atomic_read(&gyro->enabled);
+
 	return sprintf(buf, "%d\n", val);
 }
 
@@ -533,7 +542,8 @@ static ssize_t attr_enable_store(struct device *dev,
 			       struct device_attribute *attr,
 			       const char *buf, size_t size)
 {
-	struct l3g4200d_data *gyro = dev_get_drvdata(dev);
+	struct input_polled_dev *input_poll_dev = dev_get_drvdata(dev);
+	struct l3g4200d_data *gyro = input_poll_dev->private;
 	unsigned long val;
 
 	if (strict_strtoul(buf, 10, &val))
@@ -551,7 +561,9 @@ static ssize_t attr_get_selftest(struct device *dev,
 			       struct device_attribute *attr, char *buf)
 {
 	int val;
-	struct l3g4200d_data *gyro = dev_get_drvdata(dev);
+	struct input_polled_dev *input_poll_dev = dev_get_drvdata(dev);
+	struct l3g4200d_data *gyro = input_poll_dev->private;
+
 	mutex_lock(&gyro->lock);
 	val = gyro->selftest_enabled;
 	mutex_unlock(&gyro->lock);
@@ -562,7 +574,8 @@ static ssize_t attr_set_selftest(struct device *dev,
 			       struct device_attribute *attr,
 			       const char *buf, size_t size)
 {
-	struct l3g4200d_data *gyro = dev_get_drvdata(dev);
+	struct input_polled_dev *input_poll_dev = dev_get_drvdata(dev);
+	struct l3g4200d_data *gyro = input_poll_dev->private;
 	unsigned long val;
 
 	if (strict_strtoul(buf, 10, &val))
@@ -576,11 +589,13 @@ static ssize_t attr_set_selftest(struct device *dev,
 static ssize_t attr_get_data(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	struct l3g4200d_data *gyro = dev_get_drvdata(dev);
+	struct input_polled_dev *input_poll_dev = dev_get_drvdata(dev);
+	struct l3g4200d_data *gyro = input_poll_dev->private;
 	struct l3g4200d_triple data_out;
 	int err;
+
 	if (!atomic_read(&gyro->enabled))
-		return sprintf(buf, "enable the device first\n");
+		return sprintf(buf, "0 0 0\n");
 
 	err = l3g4200d_get_data(gyro, &data_out);
 	if (err < 0)
@@ -594,7 +609,8 @@ static ssize_t attr_reg_set(struct device *dev, struct device_attribute *attr,
 				const char *buf, size_t size)
 {
 	int rc;
-	struct l3g4200d_data *gyro = dev_get_drvdata(dev);
+	struct input_polled_dev *input_poll_dev = dev_get_drvdata(dev);
+	struct l3g4200d_data *gyro = input_poll_dev->private;
 	u8 x[2];
 	unsigned long val;
 
@@ -612,7 +628,8 @@ static ssize_t attr_reg_get(struct device *dev, struct device_attribute *attr,
 				char *buf)
 {
 	ssize_t ret;
-	struct l3g4200d_data *gyro = dev_get_drvdata(dev);
+	struct input_polled_dev *input_poll_dev = dev_get_drvdata(dev);
+	struct l3g4200d_data *gyro = input_poll_dev->private;
 	int rc;
 	u8 data;
 
@@ -627,7 +644,8 @@ static ssize_t attr_reg_get(struct device *dev, struct device_attribute *attr,
 static ssize_t attr_addr_set(struct device *dev, struct device_attribute *attr,
 				const char *buf, size_t size)
 {
-	struct l3g4200d_data *gyro = dev_get_drvdata(dev);
+	struct input_polled_dev *input_poll_dev = dev_get_drvdata(dev);
+	struct l3g4200d_data *gyro = input_poll_dev->private;
 	unsigned long val;
 
 	if (strict_strtoul(buf, 16, &val))
@@ -643,41 +661,37 @@ static ssize_t attr_addr_set(struct device *dev, struct device_attribute *attr,
 }
 #endif /* DEBUG */
 
-static struct device_attribute attributes[] = {
-	__ATTR(pollrate_ms, 0666, attr_polling_rate_show,
-						attr_polling_rate_store),
-	__ATTR(range, 0666, attr_range_show, attr_range_store),
-	__ATTR(enable_device, 0666, attr_enable_show, attr_enable_store),
-	__ATTR(enable_selftest, 0666, attr_get_selftest, attr_set_selftest),
-	__ATTR(gyo_data, 0666, attr_get_data, NULL),
+static DEVICE_ATTR(interval, S_IRUGO|S_IWUGO,
+		attr_polling_rate_show, attr_polling_rate_store);
+static DEVICE_ATTR(range, S_IRUGO|S_IWUGO,
+		attr_range_show, attr_range_store);
+static DEVICE_ATTR(active, S_IRUGO|S_IWUGO,
+		attr_enable_show, attr_enable_store);
+static DEVICE_ATTR(enable_selftest, S_IRUGO|S_IWUGO,
+		attr_get_selftest, attr_set_selftest);
+static DEVICE_ATTR(data, S_IRUGO, attr_get_data, NULL);
 #ifdef DEBUG
-	__ATTR(reg_value, 0600, attr_reg_get, attr_reg_set),
-	__ATTR(reg_addr, 0200, NULL, attr_addr_set),
+static DEVICE_ATTR(reg_value, S_IRUGO|S_IWUGO,
+		attr_reg_get, attr_reg_set);
+static DEVICE_ATTR(reg_addr, S_IWUGO, NULL, attr_addr_set);
 #endif
+
+static struct attribute *l3g4200d_attributes[] = {
+	&dev_attr_interval.attr,
+	&dev_attr_range.attr,
+	&dev_attr_active.attr,
+	&dev_attr_enable_selftest.attr,
+	&dev_attr_data.attr,
+#ifdef DEBUG
+	&dev_attr_reg_value.attr,
+	&dev_attr_reg_addr.attr,
+#endif
+	NULL
 };
 
-static int create_sysfs_interfaces(struct device *dev)
-{
-	int i;
-	for (i = 0; i < ARRAY_SIZE(attributes); i++)
-		if (device_create_file(dev, attributes + i))
-			goto error;
-	return 0;
-
-error:
-	for ( ; i >= 0; i--)
-		device_remove_file(dev, attributes + i);
-	dev_err(dev, "%s:Unable to create interface\n", __func__);
-	return -1;
-}
-
-static int remove_sysfs_interfaces(struct device *dev)
-{
-	int i;
-	for (i = 0; i < ARRAY_SIZE(attributes); i++)
-		device_remove_file(dev, attributes + i);
-	return 0;
-}
+static struct attribute_group l3g4200d_attribute_group = {
+		.attrs = l3g4200d_attributes
+};
 
 static void l3g4200d_input_poll_func(struct input_polled_dev *dev)
 {
@@ -906,7 +920,8 @@ static int l3g4200d_probe(struct i2c_client *client,
 	if (err < 0)
 		goto err3;
 
-	err = create_sysfs_interfaces(&client->dev);
+	err = sysfs_create_group(&gyro->input_poll_dev->input->dev.kobj,
+			&l3g4200d_attribute_group);
 	if (err < 0) {
 		dev_err(&client->dev,
 			"%s device register failed\n", L3G4200D_GYR_DEV_NAME);
@@ -953,8 +968,8 @@ static int l3g4200d_remove(struct i2c_client *client)
 #endif
 	l3g4200d_input_cleanup(gyro);
 	l3g4200d_device_power_off(gyro);
-	remove_sysfs_interfaces(&client->dev);
-
+	sysfs_remove_group(&gyro->input_poll_dev->input->dev.kobj,
+		&l3g4200d_attribute_group);
 	kfree(gyro->pdata);
 	kfree(gyro);
 	return 0;

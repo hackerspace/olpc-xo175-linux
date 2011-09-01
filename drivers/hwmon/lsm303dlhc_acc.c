@@ -982,7 +982,6 @@ static ssize_t attr_get_acc_data(struct device *dev,
 			acc->xyz[1], acc->xyz[2]);
 }
 
-
 #ifdef DEBUG
 /* PAY ATTENTION: These DEBUG funtions don't manage resume_state */
 static ssize_t attr_reg_set(struct device *dev, struct device_attribute *attr,
@@ -1035,51 +1034,61 @@ static ssize_t attr_addr_set(struct device *dev, struct device_attribute *attr,
 }
 #endif
 
-static struct device_attribute attributes[] = {
-
-	__ATTR(pollrate_ms, 0664, attr_get_polling_rate, attr_set_polling_rate),
-	__ATTR(range, 0664, attr_get_range, attr_set_range),
-	__ATTR(enable_device, 0664, attr_get_enable, attr_set_enable),
-	__ATTR(int1_config, 0664, attr_get_intconfig1, attr_set_intconfig1),
-	__ATTR(int1_duration, 0664, attr_get_duration1, attr_set_duration1),
-	__ATTR(int1_threshold, 0664, attr_get_thresh1, attr_set_thresh1),
-	__ATTR(int1_source, 0444, attr_get_source1, NULL),
-	__ATTR(click_config, 0664, attr_get_click_cfg, attr_set_click_cfg),
-	__ATTR(click_source, 0444, attr_get_click_source, NULL),
-	__ATTR(click_threshold, 0664, attr_get_click_ths, attr_set_click_ths),
-	__ATTR(click_timelimit, 0664, attr_get_click_tlim, attr_set_click_tlim),
-	__ATTR(click_timelatency, 0664, attr_get_click_tlat,
-							attr_set_click_tlat),
-	__ATTR(click_timewindow, 0664, attr_get_click_tw, attr_set_click_tw),
-	__ATTR(acc_data, 0644, attr_get_acc_data, NULL),
+static DEVICE_ATTR(interval, S_IRUGO|S_IWUGO,
+		attr_get_polling_rate, attr_set_polling_rate);
+static DEVICE_ATTR(range, S_IRUGO|S_IWUGO,
+		attr_get_range, attr_set_range);
+static DEVICE_ATTR(active, S_IRUGO|S_IWUGO,
+		attr_get_enable, attr_set_enable);
+static DEVICE_ATTR(data, S_IRUGO, attr_get_acc_data, NULL);
+static DEVICE_ATTR(int1_config, S_IRUGO|S_IWUGO,
+		attr_get_intconfig1, attr_set_intconfig1);
+static DEVICE_ATTR(int1_duration, S_IRUGO|S_IWUGO,
+		attr_get_duration1, attr_set_duration1);
+static DEVICE_ATTR(int1_threshold, S_IRUGO|S_IWUGO,
+		attr_get_thresh1, attr_set_thresh1);
+static DEVICE_ATTR(int1_source, S_IRUGO, attr_get_source1, NULL);
+static DEVICE_ATTR(click_config, S_IRUGO|S_IWUGO,
+		attr_get_click_cfg, attr_set_click_cfg);
+static DEVICE_ATTR(click_source, S_IRUGO, attr_get_click_source, NULL);
+static DEVICE_ATTR(click_threshold, S_IRUGO|S_IWUGO,
+		attr_get_click_ths, attr_set_click_ths);
+static DEVICE_ATTR(click_timelimit, S_IRUGO|S_IWUGO,
+		attr_get_click_tlim, attr_set_click_tlim);
+static DEVICE_ATTR(click_timelatency, S_IRUGO|S_IWUGO,
+		attr_get_click_tlat, attr_set_click_tlat);
+static DEVICE_ATTR(click_timewindow, S_IRUGO|S_IWUGO,
+		attr_get_click_tw, attr_set_click_tw);
 #ifdef DEBUG
-	__ATTR(reg_value, 0600, attr_reg_get, attr_reg_set),
-	__ATTR(reg_addr, 0200, NULL, attr_addr_set),
+static DEVICE_ATTR(reg_value, S_IRUGO|S_IWUGO,
+		attr_reg_get, attr_reg_set);
+static DEVICE_ATTR(reg_addr, S_IWUGO, NULL, attr_addr_set);
 #endif
+static struct attribute *lsm303dlhc_acc_attributes[] = {
+	&dev_attr_interval.attr,
+	&dev_attr_range.attr,
+	&dev_attr_active.attr,
+	&dev_attr_data.attr,
+	&dev_attr_int1_config.attr,
+	&dev_attr_int1_duration.attr,
+	&dev_attr_int1_threshold.attr,
+	&dev_attr_int1_source.attr,
+	&dev_attr_click_config.attr,
+	&dev_attr_click_source.attr,
+	&dev_attr_click_threshold.attr,
+	&dev_attr_click_timelimit.attr,
+	&dev_attr_click_timelatency.attr,
+	&dev_attr_click_timewindow.attr,
+#ifdef DEBUG
+	&dev_attr_reg_value.attr,
+	&dev_attr_reg_addr.attr,
+#endif
+	NULL
 };
 
-static int create_sysfs_interfaces(struct device *dev)
-{
-	int i;
-	for (i = 0; i < ARRAY_SIZE(attributes); i++)
-		if (device_create_file(dev, attributes + i))
-			goto error;
-	return 0;
-
-error:
-	for ( ; i >= 0; i--)
-		device_remove_file(dev, attributes + i);
-	dev_err(dev, "%s:Unable to create interface\n", __func__);
-	return -1;
-}
-
-static int remove_sysfs_interfaces(struct device *dev)
-{
-	int i;
-	for (i = 0; i < ARRAY_SIZE(attributes); i++)
-		device_remove_file(dev, attributes + i);
-	return 0;
-}
+static struct attribute_group lsm303dlhc_acc_attribute_group = {
+	.attrs = lsm303dlhc_acc_attributes
+};
 
 static void lsm303dlhc_acc_input_work_func(struct work_struct *work)
 {
@@ -1359,7 +1368,8 @@ static int lsm303dlhc_acc_probe(struct i2c_client *client,
 	}
 
 
-	err = create_sysfs_interfaces(&client->dev);
+	err = sysfs_create_group(&acc->input_dev->dev.kobj,
+			&lsm303dlhc_acc_attribute_group);
 	if (err < 0) {
 		dev_err(&client->dev,
 		   "device LSM303DLHC_ACC_DEV_NAME sysfs register failed\n");
@@ -1427,7 +1437,8 @@ err_destoyworkqueue1:
 	if(acc->pdata->gpio_int1 >= 0)
 		destroy_workqueue(acc->irq1_work_queue);
 err_remove_sysfs_int:
-	remove_sysfs_interfaces(&client->dev);
+	sysfs_remove_group(&acc->input_dev->dev.kobj,
+		&lsm303dlhc_acc_attribute_group);
 err_input_cleanup:
 	lsm303dlhc_acc_input_cleanup(acc);
 err_power_off:
@@ -1465,7 +1476,8 @@ static int __devexit lsm303dlhc_acc_remove(struct i2c_client *client)
 
 	lsm303dlhc_acc_input_cleanup(acc);
 	lsm303dlhc_acc_device_power_off(acc);
-	remove_sysfs_interfaces(&client->dev);
+	sysfs_remove_group(&acc->input_dev->dev.kobj,
+		&lsm303dlhc_acc_attribute_group);
 
 	if (acc->pdata->exit)
 		acc->pdata->exit();
