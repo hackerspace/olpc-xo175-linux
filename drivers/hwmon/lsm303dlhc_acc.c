@@ -226,6 +226,7 @@ struct lsm303dlhc_acc_data {
 	int irq2;
 	struct work_struct irq2_work;
 	struct workqueue_struct *irq2_work_queue;
+	int xyz[3];
 
 #ifdef DEBUG
 	u8 reg_addr;
@@ -650,8 +651,6 @@ static int lsm303dlhc_acc_register_update(struct lsm303dlhc_acc_data *acc,
 	return err;
 }
 
-
-
 static int lsm303dlhc_acc_get_acceleration_data(struct lsm303dlhc_acc_data *acc,
 		int *xyz)
 {
@@ -682,6 +681,9 @@ static int lsm303dlhc_acc_get_acceleration_data(struct lsm303dlhc_acc_data *acc,
 	xyz[2] = ((acc->pdata->negate_z) ? (-hw_d[acc->pdata->axis_map_z])
 		   : (hw_d[acc->pdata->axis_map_z]));
 
+	acc->xyz[0] = xyz[0];
+	acc->xyz[1] = xyz[1];
+	acc->xyz[2] = xyz[2];
 	#ifdef DEBUG
 	/*
 		printk(KERN_INFO "%s read x=%d, y=%d, z=%d\n",
@@ -972,6 +974,14 @@ static ssize_t attr_get_click_tw(struct device *dev,
 	return read_single_reg(dev, buf, TT_TLAT);
 }
 
+static ssize_t attr_get_acc_data(struct device *dev,
+		       struct device_attribute *attr,  char *buf)
+{
+	struct lsm303dlhc_acc_data *acc = dev_get_drvdata(dev);
+	return sprintf(buf, "%d %d %d\n", acc->xyz[0], \
+			acc->xyz[1], acc->xyz[2]);
+}
+
 
 #ifdef DEBUG
 /* PAY ATTENTION: These DEBUG funtions don't manage resume_state */
@@ -1041,7 +1051,7 @@ static struct device_attribute attributes[] = {
 	__ATTR(click_timelatency, 0664, attr_get_click_tlat,
 							attr_set_click_tlat),
 	__ATTR(click_timewindow, 0664, attr_get_click_tw, attr_set_click_tw),
-
+	__ATTR(acc_data, 0644, attr_get_acc_data, NULL),
 #ifdef DEBUG
 	__ATTR(reg_value, 0600, attr_reg_get, attr_reg_set),
 	__ATTR(reg_addr, 0200, NULL, attr_addr_set),
@@ -1096,14 +1106,14 @@ static void lsm303dlhc_acc_input_work_func(struct work_struct *work)
 int lsm303dlhc_acc_input_open(struct input_dev *input)
 {
 	struct lsm303dlhc_acc_data *acc = input_get_drvdata(input);
-
+	dev_info(&acc->client->dev, "lsm303dlhc_acc_input_open\n");
 	return lsm303dlhc_acc_enable(acc);
 }
 
 void lsm303dlhc_acc_input_close(struct input_dev *dev)
 {
 	struct lsm303dlhc_acc_data *acc = input_get_drvdata(dev);
-
+	dev_info(&acc->client->dev, "lsm303dlhc_acc_input_close\n");
 	lsm303dlhc_acc_disable(acc);
 }
 
