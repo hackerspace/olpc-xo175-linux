@@ -15,6 +15,7 @@
 #include <linux/platform_device.h>
 #include <linux/mfd/88pm860x.h>
 #include <linux/slab.h>
+#include <linux/clk.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -23,6 +24,7 @@
 #include <sound/initval.h>
 #include <sound/jack.h>
 #include <trace/events/asoc.h>
+#include <linux/delay.h>
 
 #include "88pm860x-codec.h"
 
@@ -145,6 +147,7 @@ struct pm860x_priv {
 	struct i2c_client	*i2c;
 	struct pm860x_chip	*chip;
 	struct pm860x_det	det;
+	struct clk			*clk;
 
 	int			irq[IRQ_NUM];
 	unsigned char		name[IRQ_NUM][MAX_NAME_LEN];
@@ -1336,6 +1339,93 @@ int pm860x_mic_jack_detect(struct snd_soc_codec *codec,
 }
 EXPORT_SYMBOL_GPL(pm860x_mic_jack_detect);
 
+static int pm860x_audio_suspend(struct snd_soc_codec *codec, pm_message_t state)
+{
+	struct pm860x_priv *pm860x_audio = snd_soc_codec_get_drvdata(codec);
+	int status1, status2;
+
+	status1 = pm860x_read_reg_cache(codec, PM860X_ADC_EN_1);
+	status2 = pm860x_read_reg_cache(codec, PM860X_ADC_EN_2);
+
+	/*make sure that we are not using PCM interface or AUX input,
+	  consider the case if we suspend during a voice call or FM radio*/
+	if (((status2 & (1 << 0)) == 0) && ((status1 & (1 << 4)) == 0)) {
+		/* write these two registers to reset all the audio registers,
+			need to observe whether will get pop and click
+			And should write audio regitster before audio section
+			is turned off */
+		pm860x_write_reg_cache(codec, PM860X_AUDIO_SUPPLIES_2, 0x00);
+		pm860x_reg_write(codec->control_data, PM8607_MISC2, 0x10);
+		pm860x_reg_write(codec->control_data, PM8607_MISC2, 0x00);
+		if (pm860x_audio->clk)
+			clk_disable(pm860x_audio->clk);
+	}
+
+	return 0;
+}
+
+
+static int pm860x_audio_resume(struct snd_soc_codec *codec)
+{
+	struct pm860x_priv *pm860x_audio = snd_soc_codec_get_drvdata(codec);
+	u8 *cache = codec->reg_cache;
+	int i, status1, status2;
+
+	status1 = pm860x_read_reg_cache(codec, PM860X_ADC_EN_1);
+	status2 = pm860x_read_reg_cache(codec, PM860X_ADC_EN_2);
+
+	if (((status2 & (1 << 0)) == 0) && pm860x_audio->clk &&
+			((status1 & (1 << 4)) == 0))
+		clk_enable(pm860x_audio->clk);
+
+	/* if no audio path need to be enabled or we did not really
+		uspend since we are in a voice call */
+	status1 = pm860x_reg_read(codec->control_data, PM8607_MISC2);
+	if ((status1 & (1 << 5)) && (status1 & (1 << 3)) &&
+			((status2 & (1 << 0)) == 0)) {
+		/* set some registers first, to avoid pop and click */
+		/* in order to trun on audio section, AUDIO_PU,
+			AUDIO_RSTB and PLL_PU should be set to 1 */
+		pm860x_reg_write(codec->control_data, PM8607_MISC2, status1);
+
+		/* The audio I2C registers (register addresses 0x0 to 0xEE) are
+			essible for read or write activity 160 usec after
+			AUDIO_PU set to '1' */
+		msleep(1);
+
+		/* enable LDO15, enable audio charge pump, audio is active */
+		status1 = pm860x_read_reg_cache(codec, PM860X_AUDIO_SUPPLIES_2);
+		pm860x_write_reg_cache(codec, PM860X_AUDIO_SUPPLIES_2, status1);
+
+		if (status2 & (1 << 3)) {
+			/* Enable DAC always for avoid noise */
+			pm860x_write_reg_cache(codec, PM860X_DAC_EN_2, 0x38);
+		}
+
+		status1 = pm860x_read_reg_cache(codec, PM860X_EAR_CTRL_2);
+		/* apply changes */
+		pm860x_write_reg_cache(codec, PM860X_EAR_CTRL_2,
+			status1 & (~(1 << 2)));
+		pm860x_write_reg_cache(codec, PM860X_EAR_CTRL_2,
+			status1 | (1 << 2));
+
+		/* restore the registers */
+		for (i = 0; i < REG_CACHE_SIZE; i++) {
+			if (i != PM860X_AUDIO_SUPPLIES_2)
+				pm860x_write_reg_cache(codec, i, cache[i]);
+		}
+
+		status1 = pm860x_read_reg_cache(codec, PM860X_EAR_CTRL_2);
+		/* apply changes */
+		pm860x_write_reg_cache(codec, PM860X_EAR_CTRL_2,
+			status1 & (~(1 << 2)));
+		pm860x_write_reg_cache(codec, PM860X_EAR_CTRL_2,
+			status1 | (1 << 2));
+	}
+
+	return 0;
+}
+
 static int pm860x_probe(struct snd_soc_codec *codec)
 {
 	struct pm860x_priv *pm860x = snd_soc_codec_get_drvdata(codec);
@@ -1395,6 +1485,8 @@ static struct snd_soc_codec_driver soc_codec_dev_pm860x = {
 	.remove		= pm860x_remove,
 	.read		= pm860x_read_reg_cache,
 	.write		= pm860x_write_reg_cache,
+	.suspend	= pm860x_audio_suspend,
+	.resume		= pm860x_audio_resume,
 	.reg_cache_size	= REG_CACHE_SIZE,
 	.reg_word_size	= sizeof(u8),
 	.set_bias_level	= pm860x_set_bias_level,
@@ -1414,6 +1506,15 @@ static int __devinit pm860x_codec_probe(struct platform_device *pdev)
 	pm860x->chip = chip;
 	pm860x->i2c = (chip->id == CHIP_PM8607) ? chip->client
 			: chip->companion;
+
+	pm860x->clk = clk_get(NULL, "VCTCXO");
+	if (IS_ERR(pm860x->clk)) {
+		pr_err("unable to get VCTCXO\n");
+		pm860x->clk = NULL;
+	}
+	if (pm860x->clk)
+		clk_enable(pm860x->clk);
+
 	platform_set_drvdata(pdev, pm860x);
 
 	for (i = 0; i < IRQ_NUM; i++) {
