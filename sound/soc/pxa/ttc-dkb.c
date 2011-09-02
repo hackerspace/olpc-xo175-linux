@@ -34,6 +34,9 @@
 #include <linux/uaccess.h>
 #include <plat/ssp.h>
 #include <mach/regs-mpmu.h>
+#include <sound/pcm_params.h>
+#include "../codecs/88pm860x-codec.h"
+#include "pxa-ssp.h"
 
 /*
  * SSP audio private data
@@ -91,6 +94,35 @@ static struct snd_soc_ops ttc_pm860x_machine_ops = {
 	.prepare = ttc_pm860x_hifi_prepare,
 };
 
+static int ttc_pm860x_init(struct snd_soc_pcm_runtime *rtd)
+{
+	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_dapm_context *dapm = &codec->dapm;
+
+	/* do not use DAPM, set all pin to NC */
+	/* input widget */
+	snd_soc_dapm_nc_pin(dapm, "AUX1");
+	snd_soc_dapm_nc_pin(dapm, "AUX2");
+	snd_soc_dapm_nc_pin(dapm, "MIC1P");
+	snd_soc_dapm_nc_pin(dapm, "MIC1N");
+	snd_soc_dapm_nc_pin(dapm, "MIC2P");
+	snd_soc_dapm_nc_pin(dapm, "MIC2N");
+	snd_soc_dapm_nc_pin(dapm, "MIC3P");
+	snd_soc_dapm_nc_pin(dapm, "MIC3N");
+
+	/* output widget */
+	snd_soc_dapm_nc_pin(dapm, "HS1");
+	snd_soc_dapm_nc_pin(dapm, "HS2");
+	snd_soc_dapm_nc_pin(dapm, "LINEOUT1");
+	snd_soc_dapm_nc_pin(dapm, "LINEOUT2");
+	snd_soc_dapm_nc_pin(dapm, "EARP");
+	snd_soc_dapm_nc_pin(dapm, "EARN");
+	snd_soc_dapm_nc_pin(dapm, "LSP");
+	snd_soc_dapm_nc_pin(dapm, "LSN");
+
+	return snd_soc_dapm_sync(dapm);
+}
+
 /* ttc/td-dkb digital audio interface glue - connects codec <--> CPU */
 static struct snd_soc_dai_link ttc_pm860x_hifi_dai[] = {
 {
@@ -100,6 +132,7 @@ static struct snd_soc_dai_link ttc_pm860x_hifi_dai[] = {
 	 .platform_name = "pxa910-squ-audio",
 	 .cpu_dai_name = "pxa-ssp-dai.1",
 	 .codec_dai_name = "88pm860x-i2s",
+	 .init = ttc_pm860x_init,
 	 .ops = &ttc_pm860x_machine_ops,
 },
 {
@@ -109,6 +142,7 @@ static struct snd_soc_dai_link ttc_pm860x_hifi_dai[] = {
 	 .platform_name = "pxa-pcm-audio",
 	 .cpu_dai_name = "pxa-ssp-dai.4",
 	 .codec_dai_name = "88pm860x-pcm",
+	 .init = ttc_pm860x_init,
 	 .ops = &ttc_pm860x_machine_ops,
 },
 };
