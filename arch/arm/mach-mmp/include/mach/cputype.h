@@ -44,13 +44,13 @@ static inline int cpu_is_pxa910(void)
 static inline int cpu_is_pxa921(void)
 {
 	return (cpu_is_pxa910() &&
-		((mmp_fuse_id & 0xff00000) == 0x0300000));
+		((mmp_fuse_id & 0x0000f000) == 0x00003000));
 }
 
 static inline int cpu_is_pxa918(void)
 {
 	return (cpu_is_pxa910() &&
-		((mmp_fuse_id & 0xff00000) == 0x3300000));
+		((mmp_fuse_id & 0x03000000) == 0x03000000));
 }
 
 #else
