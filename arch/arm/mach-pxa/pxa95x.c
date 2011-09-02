@@ -36,6 +36,8 @@
 #include <mach/regs-intc.h>
 #include <mach/soc_vmeta.h>
 
+#include <plat/pmem.h>
+
 #include "generic.h"
 #include "devices.h"
 #include "clock.h"
@@ -1045,6 +1047,7 @@ void pxa95x_cpmem_reserve(void)
 {
 	int seg;
 
+	/* reserve cpmem */
 	for (seg = 0; seg < CP_MEM_MAX_SEGMENTS; seg++) {
 		if (_cp_area_size[seg] != 0) {
 			BUG_ON(memblock_reserve(_cp_area_addr[seg], _cp_area_size[seg]));
@@ -1053,6 +1056,11 @@ void pxa95x_cpmem_reserve(void)
 				(unsigned)_cp_area_addr[seg]);
 		}
 	}
+
+#ifdef CONFIG_ANDROID_PMEM
+	/* reserve pmem */
+	pxa_reserve_pmem_memblock();
+#endif
 }
 
 void pxa95x_mem_reserve(void)

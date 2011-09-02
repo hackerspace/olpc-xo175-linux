@@ -34,6 +34,7 @@
 #include <mach/soc_vmeta.h>
 
 #include <plat/pxa27x_keypad.h>
+#include <plat/pmem.h>
 
 #include "devices.h"
 #include "generic.h"
@@ -375,6 +376,10 @@ static void __init init(void)
 	platform_add_devices(ARRAY_AND_SIZE(devices));
 	i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_info));
 	i2c_register_board_info(2, ARRAY_AND_SIZE(i2c3_info));
+
+#ifdef CONFIG_ANDROID_PMEM
+	pxa_add_pmem();
+#endif
 
 #if defined(CONFIG_UIO_VMETA)
 	init_vmeta();
