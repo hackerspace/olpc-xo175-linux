@@ -41,6 +41,21 @@
 #include "clock.h"
 #include "dsi_hdmi_pll.h"
 
+static int boot_flash_type;
+int pxa_boot_flash_type_get(void)
+{
+	return boot_flash_type;
+}
+
+static int __init setup_boot_flash_type(char *p)
+{
+	boot_flash_type  = memparse(p, &p);
+	printk(KERN_INFO "setup_boot_flash_type: boot_flash_type=%d",
+		boot_flash_type);
+	return 1;
+}
+__setup("FLAS=", setup_boot_flash_type);
+
 static struct mfp_addr_map pxa95x_mfp_addr_map[] __initdata = {
 
 	MFP_ADDR(GPIO0, 0x02e0),
@@ -1044,3 +1059,32 @@ void pxa95x_mem_reserve(void)
 {
 	pxa95x_cpmem_reserve();
 }
+
+void pxa_boot_flash_init(int sync_mode)
+{
+	int boot_flash_type;
+
+	/* Get boot flash type from OBM */
+	boot_flash_type = pxa_boot_flash_type_get();
+	switch (boot_flash_type) {
+	case NAND_FLASH:
+#ifdef CONFIG_MTD_NAND
+		nand_init();
+#endif
+		break;
+	case ONENAND_FLASH:
+#ifdef CONFIG_MTD_ONENAND
+		/* 1 sync read, 0  async read */
+		onenand_init(sync_mode);
+#endif
+		break;
+	case SDMMC_FLASH:
+		/* ShukiZ: TODO, check how to init
+			eMMC vs. external MMC device */
+		break;
+	default:
+		printk(KERN_ERR "boot flash type not supported: %d",
+			boot_flash_type);
+	}
+}
+EXPORT_SYMBOL(pxa_boot_flash_init);

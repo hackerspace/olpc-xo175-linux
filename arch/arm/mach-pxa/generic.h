@@ -69,6 +69,17 @@ typedef enum {
 } BOARD_ID_TYPE;
 long get_board_id(void);
 
+/* Flash Types */
+enum {
+	CS0_XIP_FLASH	= 1,
+	CS2_XIP_FLASH	= 2,
+	NAND_FLASH	= 3,
+	ONENAND_FLASH	= 4,
+	MSYS_DOC_FLASH	= 5,
+	SDMMC_FLASH	= 6,
+	SPI_FLASH	= 7
+};
+
 #define SET_BANK(__nr,__start,__size) \
 	mi->bank[__nr].start = (__start), \
 	mi->bank[__nr].size = (__size)
@@ -111,6 +122,8 @@ extern struct syscore_ops pxa3xx_mfp_syscore_ops;
 extern void __init pxa3xx_set_onenand_info(struct pxa3xx_onenand_platform_data *info);
 void onenand_init(int sync_enable);
 #endif
+
+void pxa_boot_flash_init(int sync_mode);
 
 void __init pxa_set_ffuart_info(void *info);
 void __init pxa_set_btuart_info(void *info);
