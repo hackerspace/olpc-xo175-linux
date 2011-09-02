@@ -14,6 +14,8 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/io.h>
+#include <linux/platform_device.h>
+#include <linux/usb/mv_usb.h>
 
 #include <asm/hardware/cache-tauros2.h>
 
@@ -28,6 +30,7 @@
 #include <mach/gpio.h>
 #include <mach/devices.h>
 #include <mach/mmp2.h>
+#include <mach/regs-usb.h>
 
 #include "common.h"
 #include "clock.h"
@@ -151,6 +154,7 @@ static APBC_CLK(twsi5, MMP2_TWSI5, 0, 26000000);
 static APBC_CLK(twsi6, MMP2_TWSI6, 0, 26000000);
 
 static APMU_CLK(nand, NAND, 0xbf, 100000000);
+static APMU_CLK(u2o, USB, 0x9, 480000000);
 static APMU_CLK_OPS(sdh0, SDH0, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(sdh1, SDH1, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(sdh2, SDH2, 0x1b, 200000000, &sdhc_clk_ops);
@@ -172,6 +176,7 @@ static struct clk_lookup mmp2_clkregs[] = {
 	INIT_CLKREG(&clk_sdh1, "sdhci-pxa.1", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_sdh2, "sdhci-pxa.2", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_sdh3, "sdhci-pxa.3", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_u2o, NULL, "U2OCLK"),
 };
 
 static int __init mmp2_init(void)
@@ -227,3 +232,42 @@ MMP2_DEVICE(sdh1, "sdhci-pxa", 1, MMC2, 0xd4280800, 0x120);
 MMP2_DEVICE(sdh2, "sdhci-pxa", 2, MMC3, 0xd4281000, 0x120);
 MMP2_DEVICE(sdh3, "sdhci-pxa", 3, MMC4, 0xd4281800, 0x120);
 
+#ifdef CONFIG_USB_SUPPORT
+static u64 usb_dma_mask = ~(u32)0;
+
+#ifdef CONFIG_USB_PXA_U2O
+struct resource pxa168_u2o_resources[] = {
+	/* regbase */
+	[0] = {
+		.start	= PXA168_U2O_REGBASE + U2x_CAPREGS_OFFSET,
+		.end	= PXA168_U2O_REGBASE + USB_REG_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "capregs",
+	},
+	/* phybase */
+	[1] = {
+		.start	= PXA168_U2O_PHYBASE,
+		.end	= PXA168_U2O_PHYBASE + USB_PHY_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "phyregs",
+	},
+	[2] = {
+		.start	= IRQ_PXA168_USB1,
+		.end	= IRQ_PXA168_USB1,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mmp2_device_u2o = {
+	.name		= "pxa-u2o",
+	.id		= -1,
+	.resource	= pxa168_u2o_resources,
+	.num_resources	= ARRAY_SIZE(pxa168_u2o_resources),
+	.dev		=  {
+		.dma_mask		= &usb_dma_mask,
+		.coherent_dma_mask	= 0xffffffff,
+	}
+};
+#endif
+
+#endif  /* CONFIG_USB_SUPPORT */

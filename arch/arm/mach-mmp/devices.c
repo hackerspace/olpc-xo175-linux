@@ -113,6 +113,7 @@ void u2o_write(unsigned int base, unsigned int offset, unsigned int value)
 #if defined(CONFIG_USB_PXA_U2O) || defined(CONFIG_USB_EHCI_PXA_U2O)
 
 #ifdef CONFIG_CPU_MMP3
+
 int pxa_usb_phy_init(unsigned int base)
 {
 	static int init_done = 0;
@@ -206,6 +207,87 @@ int pxa_usb_phy_init(unsigned int base)
 	init_done = 1;
 	return 0;
 }
+#endif
+
+#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_PXA168)
+
+int pxa_usb_phy_init(unsigned base)
+{
+	static int init_done;
+	int loops;
+
+	if (init_done) {
+		printk(KERN_DEBUG "re-init phy\n\n");
+		/* return; */
+	}
+
+	/* Initialize the USB PHY power */
+	u2o_set(base, UTMI_CTRL, 1<<UTMI_CTRL_PLL_PWR_UP_SHIFT);
+	u2o_set(base, UTMI_CTRL, 1<<UTMI_CTRL_PWR_UP_SHIFT);
+
+	/* UTMI_PLL settings */
+	u2o_clear(base, UTMI_PLL, UTMI_PLL_PLLVDD18_MASK
+		| UTMI_PLL_PLLVDD12_MASK | UTMI_PLL_PLLCALI12_MASK
+		| UTMI_PLL_FBDIV_MASK | UTMI_PLL_REFDIV_MASK
+		| UTMI_PLL_ICP_MASK | UTMI_PLL_KVCO_MASK);
+
+	u2o_set(base, UTMI_PLL, 0xee<<UTMI_PLL_FBDIV_SHIFT
+		| 0xb<<UTMI_PLL_REFDIV_SHIFT | 3<<UTMI_PLL_PLLVDD18_SHIFT
+		| 3<<UTMI_PLL_PLLVDD12_SHIFT | 3<<UTMI_PLL_PLLCALI12_SHIFT
+		| 1<<UTMI_PLL_ICP_SHIFT | 3<<UTMI_PLL_KVCO_SHIFT);
+
+	/* UTMI_TX */
+	u2o_clear(base, UTMI_TX, UTMI_TX_REG_EXT_FS_RCAL_EN_MASK
+		| UTMI_TX_TXVDD12_MASK | UTMI_TX_CK60_PHSEL_MASK
+		| UTMI_TX_IMPCAL_VTH_MASK | UTMI_TX_REG_EXT_FS_RCAL_MASK
+		| UTMI_TX_AMP_MASK);
+	u2o_set(base, UTMI_TX, 3<<UTMI_TX_TXVDD12_SHIFT
+		| 4<<UTMI_TX_CK60_PHSEL_SHIFT | 4<<UTMI_TX_IMPCAL_VTH_SHIFT
+		| 8<<UTMI_TX_REG_EXT_FS_RCAL_SHIFT | 3<<UTMI_TX_AMP_SHIFT);
+
+	/* UTMI_RX */
+	u2o_clear(base, UTMI_RX, UTMI_RX_SQ_THRESH_MASK
+		| UTMI_REG_SQ_LENGTH_MASK);
+	u2o_set(base, UTMI_RX, 7<<UTMI_RX_SQ_THRESH_SHIFT
+		| 2<<UTMI_REG_SQ_LENGTH_SHIFT);
+
+	/* UTMI_IVREF */
+	/* fixing Microsoft Altair board interface with NEC hub issue -
+	 * Set UTMI_IVREF from 0x4a3 to 0x4bf */
+	u2o_write(base, UTMI_IVREF, 0x4bf);
+
+	/* calibration */
+	/* toggle VCOCAL_START bit of UTMI_PLL */
+	udelay(200);
+	u2o_set(base, UTMI_PLL, VCOCAL_START);
+	udelay(40);
+	u2o_clear(base, UTMI_PLL, VCOCAL_START);
+
+	/* toggle REG_RCAL_START bit of UTMI_TX */
+	udelay(200);
+	u2o_set(base, UTMI_TX, REG_RCAL_START);
+	udelay(40);
+	u2o_clear(base, UTMI_TX, REG_RCAL_START);
+	udelay(200);
+	/* Make sure PHY PLL is ready */
+	loops = 0;
+	while ((u2o_get(base, UTMI_PLL) & PLL_READY) == 0) {
+		mdelay(1);
+		loops++;
+		if (loops > 100) {
+			printk(KERN_WARNING "PLL_READY not set after 100mS.");
+			break;
+		}
+	}
+
+	u2o_set(base, UTMI_RESERVE, 1<<5);
+	/* Turn on UTMI PHY OTG extension */
+	u2o_write(base, UTMI_OTG_ADDON, 1);
+
+	init_done = 1;
+	return 0;
+}
+
 #endif
 #endif
 

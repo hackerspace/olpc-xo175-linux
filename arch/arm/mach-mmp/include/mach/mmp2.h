@@ -29,6 +29,8 @@ extern struct pxa_device_desc mmp2_device_sdh1;
 extern struct pxa_device_desc mmp2_device_sdh2;
 extern struct pxa_device_desc mmp2_device_sdh3;
 
+extern struct platform_device mmp2_device_u2o;
+
 static inline int mmp2_add_uart(int id)
 {
 	struct pxa_device_desc *d = NULL;
