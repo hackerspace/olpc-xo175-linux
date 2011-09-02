@@ -66,6 +66,16 @@ static int __init td_dkb_setup(char *__unused)
 }
 __setup("td_dkb", td_dkb_setup);
 
+static int emmc_boot;
+static int __init emmc_setup(char *__unused)
+{
+#if defined(CONFIG_MMC_SDHCI_PXAV2)
+	emmc_boot = 1;
+#endif
+	return 1;
+}
+__setup("emmc_boot", emmc_setup);
+
 static unsigned long ttc_dkb_pin_config[] __initdata = {
 	/* GPS GPIO */
 	GPIO45_GPIO, /*share with TPO reset*/
