@@ -143,6 +143,12 @@ config SND_SOC_TAVOREVB3
 	  Say Y if you want to add support for SoC audio on the
 	  Marvell Saarb reference platform.
 
+config SND_PXA95X_DAPM_ENABLE
+	bool "Enable DAPM for Marvell PXA95x platforms"
+	depends on SND_SOC_SAARB || SND_SOC_TAVOREVB3
+	help
+	  Say Y if you want to enable DAPM on Marvell PXA95x platforms
+
 config SND_SOC_ZYLONITE
 	tristate "SoC Audio support for Marvell Zylonite"
 	depends on SND_PXA2XX_SOC && MACH_ZYLONITE

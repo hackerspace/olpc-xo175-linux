@@ -29,6 +29,7 @@ static int saarb_pm860x_init(struct snd_soc_pcm_runtime *rtd);
 
 static struct platform_device *saarb_snd_device;
 
+#ifdef CONFIG_SND_PXA95X_DAPM_ENABLE
 static struct snd_soc_jack hs_jack, mic_jack;
 
 static struct snd_soc_jack_pin hs_jack_pins[] = {
@@ -73,6 +74,7 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"MIC3N", NULL, "Mic3 Bias"},
 	{"Mic3 Bias", NULL, "Ext Mic 3"},
 };
+#endif
 
 static int saarb_i2s_hw_params(struct snd_pcm_substream *substream,
 				struct snd_pcm_hw_params *params)
@@ -135,6 +137,7 @@ static int saarb_pm860x_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
 	int ret;
 
+#ifdef CONFIG_SND_PXA95X_DAPM_ENABLE
 	snd_soc_dapm_new_controls(dapm, saarb_dapm_widgets,
 				  ARRAY_SIZE(saarb_dapm_widgets));
 	snd_soc_dapm_add_routes(dapm, audio_map, ARRAY_SIZE(audio_map));
@@ -165,7 +168,34 @@ static int saarb_pm860x_init(struct snd_soc_pcm_runtime *rtd)
 	pm860x_hs_jack_detect(codec, &hs_jack, SND_JACK_HEADPHONE,
 			      SND_JACK_BTN_0, SND_JACK_BTN_1, SND_JACK_BTN_2);
 	pm860x_mic_jack_detect(codec, &hs_jack, SND_JACK_MICROPHONE);
+
 	return 0;
+#else
+	/* do not use DAPM, set all pin to NC */
+	/* input widget */
+	snd_soc_dapm_nc_pin(dapm, "AUX1");
+	snd_soc_dapm_nc_pin(dapm, "AUX2");
+	snd_soc_dapm_nc_pin(dapm, "MIC1P");
+	snd_soc_dapm_nc_pin(dapm, "MIC1N");
+	snd_soc_dapm_nc_pin(dapm, "MIC2P");
+	snd_soc_dapm_nc_pin(dapm, "MIC2N");
+	snd_soc_dapm_nc_pin(dapm, "MIC3P");
+	snd_soc_dapm_nc_pin(dapm, "MIC3N");
+
+	/* output widget */
+	snd_soc_dapm_nc_pin(dapm, "HS1");
+	snd_soc_dapm_nc_pin(dapm, "HS2");
+	snd_soc_dapm_nc_pin(dapm, "LINEOUT1");
+	snd_soc_dapm_nc_pin(dapm, "LINEOUT2");
+	snd_soc_dapm_nc_pin(dapm, "EARP");
+	snd_soc_dapm_nc_pin(dapm, "EARN");
+	snd_soc_dapm_nc_pin(dapm, "LSP");
+	snd_soc_dapm_nc_pin(dapm, "LSN");
+
+	ret = snd_soc_dapm_sync(dapm);
+
+	return ret;
+#endif
 }
 
 static int __init saarb_init(void)
