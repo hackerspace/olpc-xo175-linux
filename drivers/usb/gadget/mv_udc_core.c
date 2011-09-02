@@ -2500,12 +2500,15 @@ static int __devinit mv_udc_probe(struct platform_device *dev)
 	return 0;
 
 err_create_qwork:
-	free_irq(pdata->vbus->irq, &dev->dev);
+	if (udc->pdata && udc->pdata->vbus
+		&& udc->transceiver == NULL && udc->clock_gating)
+		free_irq(pdata->vbus->irq, &dev->dev);
 	device_unregister(&udc->gadget.dev);
 err_register_gadget_device:
 	free_irq(udc->irq, &dev->dev);
 err_request_irq:
 err_get_irq:
+	kfree(udc->status_req->req.buf);
 	kfree(udc->status_req);
 err_alloc_status_req:
 	kfree(udc->eps);
