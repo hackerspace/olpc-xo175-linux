@@ -286,6 +286,36 @@ __v7_setup:
 	orr	r0, r0, #(1 << 11)		@ PJ4B NEON enable bit
 	mcr	p15, 1, r0, c15, c1, 1
 #endif
+#if defined(CONFIG_CPU_MMP3) && defined(CONFIG_NEON)
+	mrc	p15, 0, r5, c1, c0, 2		@ Read coprocessor access
+	mov	r0, r5
+	orr	r0, r0, #0x00f00000		@ Allow access to cp10 and cp11
+	mcr	p15, 0, r0, c1, c0, 2		@ Enable CP10, CP11 coprocessor access
+	mov	r0, #0
+	mcr	p15, 0, r0, c7, c5, 4		@ Flush prefetch buffer
+	mrc	p10, 7, r0, c8, c0, 0
+	orr	r0, r0, #0x40000000
+	mcr	p10, 7, r0, c8, c0, 0		@ Enable FPEXC.EN bit
+	isb
+	mov	r0, #1
+	mcr	p10, 7, r0, c9, c0, 0		@ Enable dual-issue feature in FPCFG.bit0
+	/* Continuous 6 VMOV instructions to initialize the unused second pipe */
+	.word	0xeeb00b00			@ VMOV.F64 d0, #2.00000000
+	.word	0xeeb00b00
+	.word	0xeeb00b00
+	.word	0xeeb00b00
+	.word	0xeeb00b00
+	.word	0xeeb00b00
+	mov	r0, #0
+	mcr	p10, 7, r0, c9, c0, 0		@ Disable dual-issue feature in FPCFG.bit0
+	isb
+	mrc	p10, 7, r0, c8, c0, 0
+	bic	r0, r0, #0x40000000
+	mcr	p10, 7, r0, c8, c0, 0		@ Disable FPEXC.EN bit
+	mcr	p15, 0, r5, c1, c0, 2		@ Disable CP10, CP11 coprocessor access
+	mov	r0, #0
+	mcr	p15, 0, r0, c7, c5, 4		@ Flush prefetch buffer
+#endif
 #ifdef CONFIG_SMP
 	ALT_SMP(mrc	p15, 0, r0, c1, c0, 1)
 	ALT_UP(mov	r0, #(1 << 6))		@ fake it for UP
