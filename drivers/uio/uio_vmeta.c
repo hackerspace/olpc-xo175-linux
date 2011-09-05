@@ -22,7 +22,9 @@
 
 #include <mach/hardware.h>
 #include <mach/soc_vmeta.h>
+#ifdef CONFIG_DVFM
 #include <mach/dvfm.h>
+#endif
 
 #define CONFIG_MEM_FOR_MULTIPROCESS
 #define VDEC_HW_CONTEXT_SIZE	SZ_512K
@@ -91,14 +93,17 @@ static int vmeta_priv_unlock(struct vmeta_instance *vi)
 	}
 }
 
+#ifdef CONFIG_DVFM
 static struct dvfm_lock dvfm_lock = {
 	.lock = __SPIN_LOCK_UNLOCKED(dvfm_lock.lock),
 	.dev_idx = -1,
 	.count = 0,
 };
+#endif
 
 static void set_dvfm_constraint(struct vmeta_instance *vi)
 {
+#ifdef CONFIG_DVFM
 	int ret = 0;
 	spin_lock_irqsave(&dvfm_lock.lock, dvfm_lock.flags);
 	if (dvfm_lock.count++ == 0) {
@@ -122,10 +127,12 @@ static void set_dvfm_constraint(struct vmeta_instance *vi)
 	} else
 		dvfm_lock.count--;
 	spin_unlock_irqrestore(&dvfm_lock.lock, dvfm_lock.flags);
+#endif
 }
 
 static void __unset_dvfm_constraint(struct vmeta_instance *vi)
 {
+#ifdef CONFIG_DVFM
 	int ret;
 	spin_lock_irqsave(&dvfm_lock.lock, dvfm_lock.flags);
 	if (dvfm_lock.count == 0) {
@@ -144,10 +151,12 @@ static void __unset_dvfm_constraint(struct vmeta_instance *vi)
 		}
 	}
 	spin_unlock_irqrestore(&dvfm_lock.lock, dvfm_lock.flags);
+#endif
 }
 
 static void unset_dvfm_constraint(struct vmeta_instance *vi)
 {
+#ifdef CONFIG_DVFM
 	spin_lock_irqsave(&dvfm_lock.lock, dvfm_lock.flags);
 	if (dvfm_lock.count == 0) {
 		spin_unlock_irqrestore(&dvfm_lock.lock, dvfm_lock.flags);
@@ -161,6 +170,7 @@ static void unset_dvfm_constraint(struct vmeta_instance *vi)
 	} else
 		dvfm_lock.count++;
 	spin_unlock_irqrestore(&dvfm_lock.lock, dvfm_lock.flags);
+#endif
 }
 
 static void vmeta_power_timer_handler(unsigned long data)
@@ -304,10 +314,12 @@ static int vmeta_power_off(struct vmeta_instance *vi)
 	vmeta_pwr(VMETA_PWR_DISABLE);
 	vi->power_status = 0;
 
+#ifdef CONFIG_DVFM
 	if (vi->plat_data->clean_dvfm_constraint) {
 		vi->plat_data->clean_dvfm_constraint(vi, dvfm_lock.dev_idx);
 		printk(KERN_INFO "vmeta op clean up\n");
 	}
+#endif
 
 	mutex_unlock(&vi->mutex);
 	return 0;
@@ -762,9 +774,11 @@ static int vmeta_probe(struct platform_device *pdev)
 			}
 		}
 	}
+
+#ifdef CONFIG_DVFM
 	if (vi->plat_data->init_dvfm_constraint)
 		vi->plat_data->init_dvfm_constraint(vi, dvfm_lock.dev_idx);
-
+#endif
 	vmeta_inst = vi;
 	return 0;
 
@@ -855,17 +869,21 @@ static struct platform_driver vmeta_driver = {
 
 static int __init vmeta_init(void)
 {
+#ifdef CONFIG_DVFM
 	int ret;
 	ret = dvfm_register("VMETA", &dvfm_lock.dev_idx);
 	if (ret)
 		printk(KERN_ERR "vmeta dvfm register fail(%d)\n", ret);
+#endif
 
 	return platform_driver_register(&vmeta_driver);
 }
 
 static void __exit vmeta_exit(void)
 {
+#ifdef CONFIG_DVFM
 	dvfm_unregister("VMETA", &dvfm_lock.dev_idx);
+#endif
 	platform_driver_unregister(&vmeta_driver);
 }
 
