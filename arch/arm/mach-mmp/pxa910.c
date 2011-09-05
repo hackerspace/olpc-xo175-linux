@@ -32,6 +32,8 @@
 #include <linux/platform_device.h>
 #include <linux/mfd/ds1wm.h>
 #include <linux/memblock.h>
+#include <linux/clk.h>
+#include <linux/err.h>
 
 #include <plat/mfp.h>
 #include <plat/pmem.h>
@@ -387,16 +389,115 @@ struct clkops gssp_clk_ops = {
 	.disable = gssp_clk_disable,
 	};
 
+static void pwm_clk_enable(struct clk *clk)
+{
+	struct clk *clk_apb = NULL, *clk_share = NULL;
+	unsigned long data;
+
+	data = __raw_readl(clk->clk_rst) & ~(APBC_FNCLKSEL(7));
+	data |= APBC_FNCLK | APBC_FNCLKSEL(clk->fnclksel);
+	__raw_writel(data, clk->clk_rst);
+	/*
+	 * delay two cycles of the solwest clock between the APB bus clock
+	 * and the functional module clock.
+	 */
+	udelay(10);
+
+	if (!strcmp(clk->name, "pwm0")) {
+		clk_share = clk_get_sys("pxa910-pwm.1", NULL);
+		BUG_ON(IS_ERR(clk_share));
+		clk_apb = clk;
+	} else if (!strcmp(clk->name, "pwm1")) {
+		clk_share = clk_get_sys("pxa910-pwm.0", NULL);
+		BUG_ON(IS_ERR(clk_share));
+		clk_apb = clk_share;
+	} else if (!strcmp(clk->name, "pwm2")) {
+		clk_share = clk_get_sys("pxa910-pwm.3", NULL);
+		BUG_ON(IS_ERR(clk_share));
+		clk_apb = clk;
+	} else if (!strcmp(clk->name, "pwm3")) {
+		clk_share = clk_get_sys("pxa910-pwm.2", NULL);
+		BUG_ON(IS_ERR(clk_share));
+		clk_apb = clk_share;
+	}
+	if ((clk->enabled + clk_share->enabled) == 1) {
+		data = __raw_readl(clk_apb->clk_rst);
+		data |= APBC_APBCLK;
+		__raw_writel(data, clk_apb->clk_rst);
+		udelay(10);
+		if (!strcmp(clk->name, clk_apb->name)) {
+			data = __raw_readl(clk->clk_rst);
+			data &= ~APBC_RST;
+			__raw_writel(data, clk->clk_rst);
+		} else {
+			data = __raw_readl(clk->clk_rst);
+			data &= ~APBC_RST;
+			__raw_writel(data, clk->clk_rst);
+			data = __raw_readl(clk_apb->clk_rst);
+			data &= ~APBC_RST;
+			__raw_writel(data, clk_apb->clk_rst);
+		}
+	}
+}
+
+static void pwm_clk_disable(struct clk *clk)
+{
+	struct clk *clk_apb = NULL, *clk_share = NULL;
+	unsigned long data;
+
+	data = __raw_readl(clk->clk_rst) & ~(APBC_FNCLK | APBC_FNCLKSEL(7));
+	__raw_writel(data, clk->clk_rst);
+	udelay(10);
+
+	if (!strcmp(clk->name, "pwm0")) {
+		clk_share = clk_get_sys("pxa910-pwm.1", NULL);
+		BUG_ON(IS_ERR(clk_share));
+		clk_apb = clk;
+	} else if (!strcmp(clk->name, "pwm1")) {
+		clk_share = clk_get_sys("pxa910-pwm.0", NULL);
+		BUG_ON(IS_ERR(clk_share));
+		clk_apb = clk_share;
+	} else if (!strcmp(clk->name, "pwm2")) {
+		clk_share = clk_get_sys("pxa910-pwm.3", NULL);
+		BUG_ON(IS_ERR(clk_share));
+		clk_apb = clk;
+	} else if (!strcmp(clk->name, "pwm3")) {
+		clk_share = clk_get_sys("pxa910-pwm.2", NULL);
+		BUG_ON(IS_ERR(clk_share));
+		clk_apb = clk_share;
+	}
+
+	if ((clk->enabled + clk_share->enabled) == 0) {
+		data = __raw_readl(clk_apb->clk_rst);
+		data &= ~APBC_APBCLK;
+		__raw_writel(data, clk_apb->clk_rst);
+	}
+}
+
+struct clkops pwm_clk_ops = {
+	.enable = pwm_clk_enable,
+	.disable = pwm_clk_disable,
+};
+
+#define APBC_CLK_PWM_OPS(_name, _reg, _fnclksel, _rate, _ops)	\
+	struct clk clk_##_name = {				\
+		.name		= #_name,			\
+		.clk_rst	= (void __iomem *)APBC_##_reg,	\
+		.fnclksel	= _fnclksel,			\
+		.rate		= _rate,			\
+		.ops		= _ops,				\
+	}
+
 /* APB peripheral clocks */
 static APBC_CLK(uart0, PXA910_UART0, 1, 14745600);
 static APBC_CLK(uart1, PXA910_UART1, 1, 14745600);
 static APBC_CLK(uart2, PXA910_UART2, 1, 14745600);
 static APBC_CLK(twsi0, PXA910_TWSI0, 0, 33000000);
 static APBC_CLK(twsi1, PXA910_TWSI1, 0, 33000000);
-static APBC_CLK(pwm1, PXA910_PWM1, 1, 13000000);
-static APBC_CLK(pwm2, PXA910_PWM2, 1, 13000000);
-static APBC_CLK(pwm3, PXA910_PWM3, 1, 13000000);
-static APBC_CLK(pwm4, PXA910_PWM4, 1, 13000000);
+static APBC_CLK_PWM_OPS(pwm0, PXA910_PWM1, 0, 13000000, &pwm_clk_ops);
+static APBC_CLK_PWM_OPS(pwm1, PXA910_PWM2, 0, 13000000, &pwm_clk_ops);
+static APBC_CLK_PWM_OPS(pwm2, PXA910_PWM3, 0, 13000000, &pwm_clk_ops);
+static APBC_CLK_PWM_OPS(pwm3, PXA910_PWM4, 0, 13000000, &pwm_clk_ops);
 static APBC_CLK(ssp1, PXA910_SSP1, 4, 3250000);
 static APBC_CLK(ssp2, PXA910_SSP2, 0, 0);
 static APBC_CLK(rtc, PXA910_RTC, 0x8, 1);
@@ -424,10 +525,10 @@ static struct clk_lookup pxa910_clkregs[] = {
 	INIT_CLKREG(&clk_uart2, "pxa2xx-uart.2", NULL),
 	INIT_CLKREG(&clk_twsi0, "pxa910-i2c.0", NULL),
 	INIT_CLKREG(&clk_twsi1, "pxa910-i2c.1", NULL),
-	INIT_CLKREG(&clk_pwm1, "pxa910-pwm.0", NULL),
-	INIT_CLKREG(&clk_pwm2, "pxa910-pwm.1", NULL),
-	INIT_CLKREG(&clk_pwm3, "pxa910-pwm.2", NULL),
-	INIT_CLKREG(&clk_pwm4, "pxa910-pwm.3", NULL),
+	INIT_CLKREG(&clk_pwm0, "pxa910-pwm.0", NULL),
+	INIT_CLKREG(&clk_pwm1, "pxa910-pwm.1", NULL),
+	INIT_CLKREG(&clk_pwm2, "pxa910-pwm.2", NULL),
+	INIT_CLKREG(&clk_pwm3, "pxa910-pwm.3", NULL),
 	INIT_CLKREG(&clk_ssp1, "pxa910-ssp.0", NULL),
 	INIT_CLKREG(&clk_ssp2, "pxa910-ssp.1", NULL),
 	INIT_CLKREG(&clk_gssp, "pxa910-ssp.4", NULL),

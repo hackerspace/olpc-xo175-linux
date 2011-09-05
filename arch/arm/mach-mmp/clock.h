@@ -17,6 +17,7 @@ struct clkops {
 
 struct clk {
 	const struct clkops	*ops;
+	const char	*name;
 
 	void __iomem	*clk_rst;	/* clock reset control register */
 	int		fnclksel;	/* functional clock select (APBC) */
