@@ -1535,11 +1535,11 @@ static struct clk mmp3_clk_sdh3 = {
 
 static void vmeta_clk_init(struct clk *clk)
 {
-	clk->rate = clk_get_rate(&mmp3_clk_pll1)/2; /* 400MHz */
-	clk->enable_val = VMETA_PLL1;
+	clk->rate = clk_get_rate(&mmp3_clk_pll1_clkoutp)/2; /* 533MHz */
+	clk->enable_val = VMETA_PLL1_OUTP;
 	clk->div = 2;
 	clk->mul = 1;
-	clk_reparent(clk, &mmp3_clk_pll1);
+	clk_reparent(clk, &mmp3_clk_pll1_clkoutp);
 }
 
 static int vmeta_clk_enable(struct clk *clk)
@@ -1608,7 +1608,7 @@ static long vmeta_clk_round_rate(struct clk *clk, unsigned long rate)
 	else if (rate <= clk_get_rate(&mmp3_clk_pll1)/2)
 		return clk_get_rate(&mmp3_clk_pll1)/2; /* 400M */
 	else if (rate <= clk_get_rate(&mmp3_clk_pll1_clkoutp)/2)
-		return clk_get_rate(&mmp3_clk_pll1_clkoutp)/2; /* 532M */
+		return clk_get_rate(&mmp3_clk_pll1_clkoutp)/2; /* 533M */
 	else
 		return clk_get_rate(&mmp3_clk_pll2)/2; /* 667M */
 }
