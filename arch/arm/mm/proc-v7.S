@@ -281,6 +281,11 @@ cpu_resume_l1_flags:
  */
 __v7_ca9mp_setup:
 __v7_setup:
+#if defined(CONFIG_CPU_PJ4B) && defined(CONFIG_NEON)
+	mrc	p15, 1, r0, c15, c1, 1
+	orr	r0, r0, #(1 << 11)		@ PJ4B NEON enable bit
+	mcr	p15, 1, r0, c15, c1, 1
+#endif
 #ifdef CONFIG_SMP
 	ALT_SMP(mrc	p15, 0, r0, c1, c0, 1)
 	ALT_UP(mov	r0, #(1 << 6))		@ fake it for UP
