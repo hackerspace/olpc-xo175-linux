@@ -222,6 +222,10 @@ static int use_dma = 1;
 module_param(use_dma, bool, 0444);
 MODULE_PARM_DESC(use_dma, "enable DMA for data transferring to/from NAND HW");
 
+static int use_polling = 0;
+module_param(use_polling, bool, 0444);
+MODULE_PARM_DESC(use_polling, "Use full polling mode");
+
 /*
  * Default NAND flash controller configuration setup by the
  * bootloader. This configuration is used only when CONFIG_KEEP attr is set
@@ -417,6 +421,7 @@ static void pxa3xx_nand_start(struct pxa3xx_nand_info *info)
 	ndcr = host->reg_ndcr;
 	ndcr |= info->use_dma ? NDCR_DMA_EN : 0;
 	ndcr |= NDCR_ND_RUN;
+	ndcr |= use_polling ? NDCR_INT_MASK : 0;
 	switch (info->ecc_strength) {
 	default:
 		ndeccctrl |= NDECCCTRL_BCH_EN;
@@ -511,7 +516,9 @@ static void start_data_dma(struct pxa3xx_nand_info *info)
 	dma_addr_t oob_phys;
 
 	desc = info->data_desc;
-	desc->dcmd = DCMD_ENDIRQEN | DCMD_WIDTH4 | DCMD_BURST32;
+	desc->dcmd = DCMD_WIDTH4 | DCMD_BURST32;
+	if (!use_polling)
+		desc->dcmd |= DCMD_ENDIRQEN;
 	if (oob_len) {
 		/*
 		 * Calculate out oob phys position by nand_buffers structure
@@ -561,9 +568,8 @@ static void start_data_dma(struct pxa3xx_nand_info *info)
 	DCSR(info->data_dma_ch) |= DCSR_RUN;
 }
 
-static void pxa3xx_nand_data_dma_irq(int channel, void *data)
+static inline void dma_complete(int channel, struct pxa3xx_nand_info *info)
 {
-	struct pxa3xx_nand_info *info = data;
 	uint32_t dcsr;
 
 	dcsr = DCSR(channel);
@@ -576,13 +582,21 @@ static void pxa3xx_nand_data_dma_irq(int channel, void *data)
 	info->state = STATE_DMA_DONE;
 	info->data_column += info->data_size;
 	info->oob_column += info->oob_size;
-	enable_int(info, NDCR_INT_MASK);
+}
+
+static void pxa3xx_nand_data_dma_irq(int channel, void *data)
+{
+	struct pxa3xx_nand_info *info = data;
+
+	dma_complete(channel, info);
+
+	if (!use_polling)
+		enable_int(info, NDCR_INT_MASK);
 	nand_writel(info, NDSR, NDSR_WRDREQ | NDSR_RDDREQ);
 }
 
-static irqreturn_t pxa3xx_nand_irq(int irq, void *devid)
+static int pxa3xx_nand_transaction(struct pxa3xx_nand_info *info)
 {
-	struct pxa3xx_nand_info *info = devid;
 	unsigned int status, is_completed = 0;
 	unsigned int ready, cmd_done, ndcb1, ndcb2;
 
@@ -607,7 +621,13 @@ static irqreturn_t pxa3xx_nand_irq(int irq, void *devid)
 			info->state = (status & NDSR_RDDREQ) ?
 				      STATE_DMA_READING : STATE_DMA_WRITING;
 			start_data_dma(info);
-			goto NORMAL_IRQ_EXIT;
+			if (use_polling) {
+				while (!(DCSR(info->data_dma_ch) & DCSR_STOPSTATE))
+					;
+				dma_complete(info->data_dma_ch, info);
+			}
+			else
+				goto NORMAL_IRQ_EXIT;
 		} else {
 			info->state = (status & NDSR_RDDREQ) ?
 				      STATE_PIO_READING : STATE_PIO_WRITING;
@@ -618,14 +638,16 @@ static irqreturn_t pxa3xx_nand_irq(int irq, void *devid)
 		info->is_ready = 1;
 		info->state = STATE_READY;
 		if (info->wait_ready[info->cmd_seqs]) {
-			enable_int(info, NDCR_INT_MASK);
+			if (!use_polling)
+				enable_int(info, NDCR_INT_MASK);
 			if (info->cmd_seqs == info->total_cmds)
 				is_completed = 1;
 		}
 	}
 
 	if (info->wait_ready[info->cmd_seqs] && info->state != STATE_READY) {
-		disable_int(info, NDCR_INT_MASK & ~NDCR_RDYM);
+		if (!use_polling)
+			disable_int(info, NDCR_INT_MASK & ~NDCR_RDYM);
 		goto NORMAL_IRQ_EXIT;
 	}
 
@@ -662,12 +684,37 @@ static irqreturn_t pxa3xx_nand_irq(int irq, void *devid)
 
 	/* clear NDSR to let the controller exit the IRQ */
 	nand_writel(info, NDSR, status);
-	if (is_completed)
-		complete(&info->cmd_complete);
 NORMAL_IRQ_EXIT:
+	return is_completed;
+}
+
+static irqreturn_t pxa3xx_nand_irq(int irq, void *devid)
+{
+	struct pxa3xx_nand_info *info = devid;
+	if (pxa3xx_nand_transaction(info))
+		complete(&info->cmd_complete);
 	return IRQ_HANDLED;
 }
 
+static int pxa3xx_nand_polling(struct pxa3xx_nand_info *info)
+{
+	int ret = 0, old = 0;
+	unsigned long timeout = ~0, i;
+
+	for (i = 0; i < timeout; i++) {
+		ret = nand_readl(info, NDSR);
+		if (old != ret) {
+			old = ret;
+			if (ret)
+				ret = pxa3xx_nand_transaction(info);
+
+			if (ret)
+				break;
+		}
+	}
+
+	return ret;
+}
 static inline int is_buf_blank(uint8_t *buf, size_t len)
 {
 	for (; len > 0; len--)
@@ -876,6 +923,7 @@ static int prepare_command_pool(struct pxa3xx_nand_info *info, int command,
 		cmd = host->cmdset->reset;
 		info->ndcb0[0] |= NDCB0_CMD_TYPE(5)
 				| cmd;
+		info->wait_ready[1] = 1;
 
 		break;
 
@@ -939,8 +987,11 @@ static void pxa3xx_nand_cmdfunc(struct mtd_info *mtd, unsigned command,
 		init_completion(&info->cmd_complete);
 		pxa3xx_nand_start(info);
 
-		ret = wait_for_completion_timeout(&info->cmd_complete,
-				CHIP_DELAY_TIMEOUT);
+		if (!use_polling)
+			ret = wait_for_completion_timeout(&info->cmd_complete,
+					CHIP_DELAY_TIMEOUT);
+		else
+			ret = pxa3xx_nand_polling(info);
 		if (!ret) {
 			dev_err(&info->pdev->dev, "Wait time out!!!\n");
 			/* Stop State Machine for next command cycle */
@@ -1589,6 +1640,9 @@ static int pxa3xx_nand_probe(struct platform_device *pdev)
 
 	if (pdata->attr & DMA_DIS)
 		use_dma = 0;
+
+	if (pdata->attr & POLLING)
+		use_polling = 1;
 
 	ret = alloc_nand_resource(pdev);
 	if (ret) {

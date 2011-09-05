@@ -74,6 +74,8 @@ struct pxa3xx_nand_platform_data {
 	 * ensure nand cs don't assert when smc has the bus
 	 */
 #define FORCE_CS	(1 << 4)
+	/* whether use polling mode */
+#define POLLING		(1 << 5)
 	int	attr;
 
 	/* indicate how many chip selects will be used */
