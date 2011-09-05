@@ -30,6 +30,8 @@
 #ifdef CONFIG_PXA3XX_BBM
 #include <plat/pxa3xx_bbm.h>
 #endif
+#include <linux/wakelock.h>
+#include <linux/pm_qos_params.h>
 
 #define	CHIP_DELAY_TIMEOUT	(2 * HZ/10)
 #define NAND_STOP_DELAY		(2 * HZ/50)
@@ -284,6 +286,9 @@ const char *mtd_names[] = {"pxa3xx_nand-0", "pxa3xx_nand-1", NULL};
 
 /* convert nano-seconds to nand flash controller clock cycles */
 #define ns2cycle(ns, clk)	(int)((ns) * (clk / 1000000) / 1000)
+static struct wake_lock idle_lock;
+static struct pm_qos_request_list pxa3xx_nand_qos_disable_cpufreq;
+static struct pm_qos_request_list pxa3xx_nand_qos_req_min;
 
 static dma_addr_t map_addr(struct pxa3xx_nand_info *info, void *buf,
 			   size_t sz, int dir)
@@ -941,6 +946,31 @@ static int prepare_command_pool(struct pxa3xx_nand_info *info, int command,
 	return exec_cmd;
 }
 
+static DEFINE_MUTEX(nand_constraints_lock);
+static struct work_struct release_constraints_work;
+static int constraint_is_set;
+
+void release_constraints_work_func(struct work_struct *work)
+{
+	mutex_lock(&nand_constraints_lock);
+
+	constraint_is_set = 0;
+	pm_qos_update_request(&pxa3xx_nand_qos_disable_cpufreq,
+			PM_QOS_DEFAULT_VALUE);
+	pm_qos_update_request(&pxa3xx_nand_qos_req_min, PM_QOS_DEFAULT_VALUE);
+	wake_unlock(&idle_lock);
+	mutex_unlock(&nand_constraints_lock);
+}
+
+static void timer_nand_constraints(unsigned long data)
+{
+	schedule_work(&release_constraints_work);
+	return;
+
+}
+static DEFINE_TIMER(constraints_timer, timer_nand_constraints, 0, 0);
+static int constraint_timeout;
+
 static void pxa3xx_nand_cmdfunc(struct mtd_info *mtd, unsigned command,
 				int column, int page_addr)
 {
@@ -962,6 +992,15 @@ static void pxa3xx_nand_cmdfunc(struct mtd_info *mtd, unsigned command,
 	}
 #endif
 
+	mutex_lock(&nand_constraints_lock);
+	mod_timer(&constraints_timer, jiffies + constraint_timeout);
+
+	if (constraint_is_set == 0) {
+		constraint_is_set = 1;
+		wake_lock(&idle_lock);
+		pm_qos_update_request(&pxa3xx_nand_qos_req_min, 312);
+		pm_qos_update_request(&pxa3xx_nand_qos_disable_cpufreq, 1);
+	}
 	/*
 	 * if this is a x16 device ,then convert the input
 	 * "byte" address into a "word" address appropriate
@@ -999,6 +1038,7 @@ static void pxa3xx_nand_cmdfunc(struct mtd_info *mtd, unsigned command,
 		}
 	}
 	info->state = STATE_IDLE;
+	mutex_unlock(&nand_constraints_lock);
 }
 
 static void pxa3xx_nand_write_page_hwecc(struct mtd_info *mtd,
@@ -1638,6 +1678,8 @@ static int pxa3xx_nand_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
+	INIT_WORK(&release_constraints_work, release_constraints_work_func);
+	constraint_timeout = usecs_to_jiffies(1000);
 	if (pdata->attr & DMA_DIS)
 		use_dma = 0;
 
@@ -1755,12 +1797,18 @@ static struct platform_driver pxa3xx_nand_driver = {
 
 static int __init pxa3xx_nand_init(void)
 {
+	wake_lock_init(&idle_lock, WAKE_LOCK_IDLE, "pxa3xx_nand_idle");
+	pm_qos_add_request(&pxa3xx_nand_qos_req_min,
+			   PM_QOS_CPUFREQ_MIN, PM_QOS_DEFAULT_VALUE);
+	pm_qos_add_request(&pxa3xx_nand_qos_disable_cpufreq,
+			   PM_QOS_CPUFREQ_DISABLE, PM_QOS_DEFAULT_VALUE);
 	return platform_driver_register(&pxa3xx_nand_driver);
 }
 module_init(pxa3xx_nand_init);
 
 static void __exit pxa3xx_nand_exit(void)
 {
+	wake_lock_destroy(&idle_lock);
 	platform_driver_unregister(&pxa3xx_nand_driver);
 }
 module_exit(pxa3xx_nand_exit);
