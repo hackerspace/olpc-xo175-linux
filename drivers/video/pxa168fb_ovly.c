@@ -1633,9 +1633,11 @@ again:
 		if (!val || fbi->new_addr[0]) {
 			dma_ctrl_set(fbi->id, 0, mask, val);
 			/* in case already suspended, save in sw */
-			gfx_info.fbi[fbi->id]->dma_ctrl0 &= ~mask;
-		} else
-			ret = -EAGAIN;
+			if (!val)
+				gfx_info.fbi[fbi->id]->dma_ctrl0 &= ~mask;
+			else
+				gfx_info.fbi[fbi->id]->dma_ctrl0 |= mask;
+		}
 
 		pr_info("SWITCH_VID_OVLY fbi %d active %d, val %d\n",
 			fbi->id, fbi->active, val);

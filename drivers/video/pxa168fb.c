@@ -1690,9 +1690,6 @@ static int _pxa168fb_suspend(struct pxa168fb_info *fbi)
 	fbi->dma_ctrl0 = dma_ctrl_read(fbi->id, 0);
 	dma_ctrl_set(fbi->id, 0, CFG_GRA_ENA_MASK, 0);
 
-	/*If if video is playing, hide it in early suspend*/
-	dma_ctrl_set(fbi->id, 0, CFG_DMA_ENA_MASK, 0);
-
 	/*Before disable lcd clk, disable all lcd interrupts*/
 	fbi->irq_mask = readl(fbi->reg_base + SPU_IRQ_ENA);
 	irq_mask_set(fbi->id, 0xffffffff, 0);
@@ -1740,7 +1737,7 @@ static int _pxa168fb_resume(struct pxa168fb_info *fbi)
 	/*After enable lcd clk, restore lcd interrupts*/
 	irq_mask_set(fbi->id, 0xffffffff, fbi->irq_mask);
 
-	/* restore graphics dma after resume */
+	/* restore dma after resume */
 	dma_ctrl_write(fbi->id, 0, fbi->dma_ctrl0);
 	fbi->active = 1;
 
