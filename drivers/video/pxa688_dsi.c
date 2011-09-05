@@ -188,6 +188,22 @@ void dsi_cclk_set(struct pxa168fb_info *fbi, int en)
 	mdelay(100);
 }
 
+void dsi_lanes_enable(struct pxa168fb_info *fbi, int en)
+{
+	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
+	struct dsi_regs *dsi = (struct dsi_regs *)mi->dsi->regs;
+	struct dsi_info *di = mi->dsi;
+	u32 reg = readl(&dsi->phy_ctrl2);
+
+	if (en)
+		reg |= (dsi_lane[di->lanes] << 4);
+	else
+		reg &= ~(dsi_lane[di->lanes] << 4);
+
+	pr_debug("%s %d: phy_ctrl2 0x%x\n", __func__, en, reg);
+	writel(reg, &dsi->phy_ctrl2);
+}
+
 void dsi_set_dphy(struct pxa168fb_info *fbi)
 {
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;

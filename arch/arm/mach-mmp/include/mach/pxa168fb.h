@@ -637,6 +637,7 @@ extern void dsi_cclk_set(struct pxa168fb_info *fbi, int en);
 extern void dsi_set_dphy(struct pxa168fb_info *fbi);
 extern void dsi_reset(struct pxa168fb_info *fbi, int hold);
 extern void dsi_set_controller(struct pxa168fb_info *fbi);
+extern void dsi_lanes_enable(struct pxa168fb_info *fbi, int en);
 
 /* VDMA related */
 extern u32 vdma_paddr;
