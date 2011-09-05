@@ -383,7 +383,7 @@ static unsigned int ttc_dkb_matrix_key_map[] = {
 };
 
 static struct pxa3xx_nand_platform_data dkb_nand_info = {
-	.attr		= ARBI_EN | NAKED_CMD,
+	.attr		= ARBI_EN | NAKED_CMD | POLLING,
 	.num_cs		= 1,
 };
 
