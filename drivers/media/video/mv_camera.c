@@ -980,6 +980,13 @@ static int mv_camera_set_parm(struct soc_camera_device *icd,
 
 static const struct soc_mbus_pixelfmt ccic_formats[] = {
 	{
+		.fourcc = V4L2_PIX_FMT_UYVY,
+		.name = "YUV422PACKED",
+		.bits_per_sample = 8,
+		.packing = SOC_MBUS_PACKING_2X8_PADLO,
+		.order = SOC_MBUS_ORDER_LE,
+	},
+	{
 		.fourcc = V4L2_PIX_FMT_YUV422P,
 		.name = "YUV422PLANAR",
 		.bits_per_sample = 8,
@@ -991,13 +998,6 @@ static const struct soc_mbus_pixelfmt ccic_formats[] = {
 		.name = "YUV420PLANAR",
 		.bits_per_sample = 12,
 		.packing = SOC_MBUS_PACKING_NONE,
-		.order = SOC_MBUS_ORDER_LE,
-	},
-	{
-		.fourcc = V4L2_PIX_FMT_UYVY,
-		.name = "YUV422PACKED",
-		.bits_per_sample = 8,
-		.packing = SOC_MBUS_PACKING_2X8_PADLO,
 		.order = SOC_MBUS_ORDER_LE,
 	},
 };
