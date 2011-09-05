@@ -47,11 +47,32 @@
 #include <media/v4l2-dev.h>
 #include <media/videobuf2-dma-contig.h>
 #include <media/v4l2-chip-ident.h>
+#include <linux/pm_qos_params.h>
 
 #include <mach/camera.h>
 #include "mv_camera.h"
 
 static struct wake_lock idle_lock;
+static struct pm_qos_request_list mv_camera_qos_req_min;
+static struct pm_qos_request_list mv_camera_qos_disable_cpufreq;
+
+static void set_power_constraint(int min)
+{
+	if (!min)
+		return;
+	pm_qos_update_request(&mv_camera_qos_req_min, min);
+	pm_qos_update_request(&mv_camera_qos_disable_cpufreq, 1);
+}
+
+static void unset_power_constraint(int min)
+{
+	if (!min)
+		return;
+	pm_qos_update_request(&mv_camera_qos_req_min, PM_QOS_DEFAULT_VALUE);
+	pm_qos_update_request(&mv_camera_qos_disable_cpufreq,
+			PM_QOS_DEFAULT_VALUE);
+}
+
 #define MV_CAM_DRV_NAME "mv-camera"
 
 #define pixfmtstr(x) (x) & 0xff, ((x) >> 8) & 0xff, ((x) >> 16) & 0xff, \
@@ -754,6 +775,7 @@ static int mv_camera_add_device(struct soc_camera_device *icd)
 #ifdef CONFIG_PM
 	mcam->controller_power(1);
 #endif
+	set_power_constraint(mcam->qos_req_min);
 	wake_lock(&idle_lock);
 	pcdev->icd = icd;
 	pcdev->state = S_IDLE;
@@ -777,6 +799,7 @@ static void mv_camera_remove_device(struct soc_camera_device *icd)
 	ccic_disable_clk(pcdev);
 	pcdev->icd = NULL;
 	wake_unlock(&idle_lock);
+	unset_power_constraint(mcam->qos_req_min);
 #ifdef CONFIG_PM
 	mcam->controller_power(0);
 #endif
@@ -1176,6 +1199,10 @@ static struct platform_driver mv_camera_driver = {
 static int __init mv_camera_init(void)
 {
 	wake_lock_init(&idle_lock, WAKE_LOCK_IDLE, "mv_camera_idle");
+	pm_qos_add_request(&mv_camera_qos_req_min, PM_QOS_CPUFREQ_MIN,
+			PM_QOS_DEFAULT_VALUE);
+	pm_qos_add_request(&mv_camera_qos_disable_cpufreq,
+			PM_QOS_CPUFREQ_DISABLE, PM_QOS_DEFAULT_VALUE);
 	return platform_driver_register(&mv_camera_driver);
 }
 
