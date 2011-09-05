@@ -35,6 +35,7 @@
 #include <mach/mmp3.h>
 #include <mach/mmp2_dma.h>
 #include <mach/regs-usb.h>
+#include <mach/soc_vmeta.h>
 #include <mach/mmp2_dma.h>
 
 #include <linux/platform_device.h>
@@ -527,3 +528,51 @@ int mmp3_hsic_private_init(struct mv_op_regs *opregs, unsigned int phyregs)
 
 #endif  /* CONFIG_USB_EHCI_PXA */
 #endif  /* CONFIG_USB_SUPPORT */
+#ifdef CONFIG_UIO_VMETA
+/* vmeta soc specific functions */
+int mmp__vmeta_set_dvfm_constraint(int idx)
+{
+	return 0;
+	/*dvfm_disable(idx);*/
+}
+
+int mmp__vmeta_unset_dvfm_constraint(int idx)
+{
+	return 0;
+	/*dvfm_enable(idx);*/
+}
+void vmeta_pwr(unsigned int enableDisable)
+{
+	unsigned int reg_vmpwr = 0;
+	reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
+	if (VMETA_PWR_ENABLE == enableDisable) {
+		if (reg_vmpwr & (APMU_VMETA_PWRUP_ON|APMU_VMETA_ISB))
+			return; /*Pwr is already on*/
+
+		reg_vmpwr |= APMU_VMETA_PWRUP_SLOW_RAMP;
+		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
+		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
+		mdelay(1);
+
+		reg_vmpwr |= APMU_VMETA_PWRUP_ON;
+		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
+		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
+		mdelay(1);
+
+		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
+
+		reg_vmpwr |= APMU_VMETA_ISB;
+		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
+	} else if (VMETA_PWR_DISABLE == enableDisable) {
+		if ((reg_vmpwr & (APMU_VMETA_PWRUP_ON|APMU_VMETA_ISB)) == 0)
+			return; /*Pwr is already off*/
+
+		reg_vmpwr &= ~APMU_VMETA_ISB;
+		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
+
+		reg_vmpwr &= ~APMU_VMETA_PWRUP_ON;
+		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
+	}
+}
+
+#endif

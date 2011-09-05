@@ -15,6 +15,7 @@
 #include <mach/devices.h>
 #include <mach/cputype.h>
 #include <mach/regs-usb.h>
+#include <mach/soc_vmeta.h>
 #include <mach/regs-pmu.h>
 
 int __init pxa_register_device(struct pxa_device_desc *desc,
@@ -346,7 +347,6 @@ int pxa_usb_phy_init(unsigned int base)
 	init_done = 1;
 	return 0;
 }
-
 #endif
 #endif
 
@@ -452,6 +452,47 @@ struct platform_device pxa168_device_u2oehci = {
 	.resource	= pxa168_u2oehci_resources,
 };
 
+#ifdef CONFIG_UIO_VMETA
+static struct resource mmp_vmeta_resources[3] = {
+	[0] = {
+		.start = 0xF0400000,
+		.end   = 0xF07FFFFF,
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = IRQ_MMP3_VMETA,
+		.end   = IRQ_MMP3_VMETA,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mmp_device_vmeta = {
+	.name           = UIO_VMETA_NAME,
+	.id             = 0,
+	.dev            = {
+		.dma_mask = DMA_BIT_MASK(32),
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	},
+	.resource       = mmp_vmeta_resources,
+	.num_resources  = ARRAY_SIZE(mmp_vmeta_resources),
+};
+
+void __init mmp_register_vmeta(struct platform_device *dev, void *data)
+{
+	int ret;
+
+	dev->dev.platform_data = data;
+
+	ret = platform_device_register(dev);
+	if (ret)
+		dev_err(&dev->dev, "unable to register vmeta device: %d\n", ret);
+}
+
+void __init mmp_set_vmeta_info(void* info)
+{
+	mmp_register_vmeta(&mmp_device_vmeta, info);
+}
+#endif
 #if defined(CONFIG_USB_PXA_U2O_OTG)
 struct resource pxa168_u2ootg_resources[] = {
 	/* regbase */
