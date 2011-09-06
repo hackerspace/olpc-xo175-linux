@@ -85,7 +85,6 @@ static int ps_register_device(struct i2c_client *client)
 	cm3623_dev.g_ps->phys       = "Proximity-sensor/input0";
 	cm3623_dev.g_ps->id.bustype = BUS_I2C;
 	cm3623_dev.g_ps->id.vendor  = 0;
-	cm3623_dev.g_ps->dev.parent = &client->dev;
 
 	__set_bit(EV_ABS, cm3623_dev.g_ps->evbit);
 	__set_bit(ABS_DISTANCE, cm3623_dev.g_ps->absbit);
@@ -101,6 +100,7 @@ static int ps_register_device(struct i2c_client *client)
 		input_free_device(cm3623_dev.g_ps);
 		cm3623_dev.g_ps = NULL;
 	}
+	cm3623_dev.g_ps->dev.parent = &client->dev;
 	return err;
 }
 
@@ -117,7 +117,6 @@ static int als_register_device(struct i2c_client *client)
 	cm3623_dev.g_als->phys       = "ligt-sensor/input0";
 	cm3623_dev.g_als->id.bustype = BUS_I2C;
 	cm3623_dev.g_als->id.vendor  = 0;
-	cm3623_dev.g_als->dev.parent = &client->dev;
 
 	__set_bit(EV_ABS, cm3623_dev.g_als->evbit);
 	__set_bit(ABS_X, cm3623_dev.g_als->absbit);
@@ -132,6 +131,7 @@ static int als_register_device(struct i2c_client *client)
 		cm3623_dev.g_als = NULL;
 	}
 
+	cm3623_dev.g_als->dev.parent = &client->dev;
 	return err;
 }
 
