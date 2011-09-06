@@ -182,7 +182,6 @@ struct chip_data {
 static int dvfm_dev_idx;
 #else
 static struct wake_lock idle_lock;
-static struct wake_lock suspend_lock;
 #endif
 static int constraint_is_set;
 
@@ -195,7 +194,6 @@ static void set_dvfm_constraint(void)
 		dvfm_disable_lowpower(dvfm_dev_idx);
 #else
 		wake_lock(&idle_lock);
-		wake_lock(&suspend_lock);
 #endif
 	}
 }
@@ -208,7 +206,6 @@ static void unset_dvfm_constraint(void)
 		/* Enable Low power mode*/
 		dvfm_enable_lowpower(dvfm_dev_idx);
 #else
-		wake_unlock(&suspend_lock);
 		wake_unlock(&idle_lock);
 #endif
 	}
@@ -221,7 +218,6 @@ static void init_dvfm_constraint()
 	dvfm_register("SPI", &dvfm_dev_idx);
 #else
 	wake_lock_init(&idle_lock, WAKE_LOCK_IDLE, "pxa2xx_spi_idle");
-	wake_lock_init(&suspend_lock, WAKE_LOCK_SUSPEND, "pxa2xx_spi_idle");
 #endif
 }
 
@@ -231,7 +227,6 @@ static void deinit_dvfm_constraint()
 	dvfm_unregister("SPI", &dvfm_dev_idx);
 #else
 	wake_lock_destroy(&idle_lock);
-	wake_lock_destroy(&suspend_lock);
 #endif
 }
 
