@@ -20,12 +20,14 @@
 #include <mach/uio_hdmi.h>
 #include <linux/earlysuspend.h>
 #include <mach/addr-map.h>
+#include <linux/clk.h>
 
 static atomic_t hdmi_state = ATOMIC_INIT(0);
 static int early_suspend_flag = 0;
 static atomic_t edge_lock = ATOMIC_INIT(0);
 
 struct hdmi_instance {
+	struct clk *clk;
 	void *reg_base;
 	void *sspa1_reg_base;
 	unsigned int gpio;
@@ -122,6 +124,24 @@ static void hdmi_late_resume(struct early_suspend *h)
 }
 #endif
 
+static int hdmi_suspend(struct platform_device *pdev, pm_message_t mesg)
+{
+	struct hdmi_instance *hi = platform_get_drvdata(pdev);
+
+	clk_disable(hi->clk);
+	pdev->dev.power.power_state = mesg;
+
+	return 0;
+}
+
+static int hdmi_resume(struct platform_device *pdev)
+{
+	struct hdmi_instance *hi = platform_get_drvdata(pdev);
+
+	clk_enable(hi->clk);
+	return 0;
+}
+
 #if 0
 static atomic_t edge_lock = ATOMIC_INIT(0);
 static void hdmi_switch_work(struct work_struct *work)
@@ -184,6 +204,7 @@ static int hdmi_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct hdmi_instance *hi;
 	int ret;
+	struct clk *clk;
 	struct uio_hdmi_platform_data *pdata;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -191,6 +212,12 @@ static int hdmi_probe(struct platform_device *pdev)
 	if (res == NULL) {
 		printk(KERN_ERR "hdmi_probe: no memory resources given");
 		return -ENODEV;
+	}
+
+	clk = clk_get(NULL, "HDMICLK");
+	if (IS_ERR(clk)) {
+		dev_err(&pdev->dev, "unable to get HDMICLK");
+		return PTR_ERR(clk);
 	}
 
 	hi = kzalloc(sizeof(*hi), GFP_KERNEL);
@@ -219,6 +246,7 @@ static int hdmi_probe(struct platform_device *pdev)
 	hi->uio_info.irq_flags = IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING;
 	hi->uio_info.handler = hpd_handler;
 	hi->gpio = pdata->gpio;
+	hi->clk = clk;
 
 	ret = gpio_request(pdata->gpio, pdev->name);
 	if (ret < 0)
@@ -250,9 +278,11 @@ static int hdmi_probe(struct platform_device *pdev)
 		goto out_free;
 	}
 
+	clk_enable(hi->clk);
+
 	/* Check HDMI cable when boot up */
 	ret = gpio_get_value(hi->gpio);
-	printk(KERN_INFO"%s hpd 0x%x------------\n", __func__, ret);
+	pr_info("%s hpd 0x%x------------\n", __func__, ret);
 	if (ret == 0) {
 		atomic_set(&hdmi_state, 1);
 		atomic_set(&edge_lock, 1);
@@ -270,6 +300,8 @@ static int hdmi_probe(struct platform_device *pdev)
 	return 0;
 
 out_free:
+	clk_disable(hi->clk);
+	clk_put(hi->clk);
 	kfree(hi);
 
 	return ret;
@@ -282,6 +314,10 @@ static struct platform_driver hdmi_driver = {
 		.name	= "mmp3-hdmi",
 		.owner	= THIS_MODULE,
 	},
+#ifdef CONFIG_PM
+	.suspend = hdmi_suspend,
+	.resume  = hdmi_resume,
+#endif
 };
 
 static void __init hdmi_exit(void)
