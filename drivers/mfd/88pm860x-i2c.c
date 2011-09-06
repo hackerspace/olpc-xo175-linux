@@ -172,8 +172,8 @@ static int read_device(struct i2c_client *i2c, int reg,
 	unsigned char msgbuf0[I2C_SMBUS_BLOCK_MAX + 3];
 	unsigned char msgbuf1[I2C_SMBUS_BLOCK_MAX + 2];
 	struct i2c_adapter *adap = i2c->adapter;
-	struct i2c_msg msg[2] = {{i2c->addr, i2c->flags, 1, msgbuf0},
-				 {i2c->addr, i2c->flags | I2C_M_RD, 0, msgbuf1},
+	struct i2c_msg msg[2] = {{i2c->addr, 0, 1, msgbuf0},
+				 {i2c->addr, I2C_M_RD, 0, msgbuf1},
 				};
 	int num = 1, ret = 0;
 
@@ -203,7 +203,7 @@ static int write_device(struct i2c_client *i2c, int reg,
 	buf[0] = (unsigned char)reg;
 	memcpy(&buf[1], src, bytes);
 	msg.addr = i2c->addr;
-	msg.flags = i2c->flags;
+	msg.flags = 0;
 	msg.len = bytes + 1;
 	msg.buf = buf;
 
