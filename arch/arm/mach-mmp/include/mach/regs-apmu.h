@@ -57,6 +57,7 @@
 #define APMU_PWR_STATUS_REG     APMU_REG(0x00f0)
 
 #define APMU_FSIC3_CLK_RES_CTRL APMU_REG(0x0100)
+#define APMU_LCD2_CLK_RES_CTRL  APMU_REG(0x0110)
 
 /* CNM clock and power on/off register*/
 #define APMU_DX8_CLK_RES_CTRL   APMU_REG(0x00a4)

@@ -1883,6 +1883,12 @@ config PXA688_DSI
         bool "MMP2/MMP3 LCD DSI support"
         depends on FB && (CPU_MMP3 || CPU_MMP2)
 
+config PXA688_VDMA
+	tristate "MMP2 VDMA support"
+	depends on FB && (CPU_MMP2 || CPU_MMP3)
+	help
+	  Say Y here if you want to enable VDMA for MMP2 and MMP3
+
 config FB_PXA
 	tristate "PXA LCD framebuffer support"
 	depends on FB && ARCH_PXA
