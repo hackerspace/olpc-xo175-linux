@@ -172,6 +172,11 @@ static struct sram_bank mmp3_audiosram_info = {
 	.step = AUDIO_SRAM_GRANULARITY,
 };
 
+static struct sram_bank mmp3_videosram_info = {
+	.pool_name = "mmp-videosram",
+	.step = VIDEO_SRAM_GRANULARITY,
+};
+
 #if defined(CONFIG_VIDEO_MV)
 /* soc  camera */
 static int camera_sensor_power(struct device *dev, int on)
@@ -1060,6 +1065,8 @@ static void __init abilene_init(void)
 	mmp3_add_twsi(5, NULL, ARRAY_AND_SIZE(abilene_twsi5_info));
 
 	mmp3_add_keypad(&mmp3_keypad_info);
+
+	mmp3_add_videosram(&mmp3_videosram_info);
 #ifdef CONFIG_FB_PXA168
 	abilene_add_lcd_mipi();
 	mmp3_add_tv_out();
