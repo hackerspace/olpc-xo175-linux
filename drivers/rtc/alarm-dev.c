@@ -89,16 +89,30 @@ static long alarm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	switch (ANDROID_ALARM_BASE_CMD(cmd)) {
 	case ANDROID_ALARM_CLEAR(0):
-		spin_lock_irqsave(&alarm_slock, flags);
-		pr_alarm(IO, "alarm %d clear\n", alarm_type);
-		alarm_try_to_cancel(&alarms[alarm_type]);
-		if (alarm_pending) {
-			alarm_pending &= ~alarm_type_mask;
-			if (!alarm_pending && !wait_pending)
-				wake_unlock(&alarm_wake_lock);
+		switch (alarm_type) {
+		case ANDROID_ALARM_POWER_UP:
+			/* disable power up alarm interrupt */
+			rv = alarm_irq_enable(0);
+			break;
+		case ANDROID_ALARM_RTC_WAKEUP:
+		case ANDROID_ALARM_RTC:
+		case ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP:
+		case ANDROID_ALARM_ELAPSED_REALTIME:
+		case ANDROID_ALARM_SYSTEMTIME:
+			spin_lock_irqsave(&alarm_slock, flags);
+			pr_alarm(IO, "alarm %d clear\n", alarm_type);
+			alarm_try_to_cancel(&alarms[alarm_type]);
+			if (alarm_pending) {
+				alarm_pending &= ~alarm_type_mask;
+				if (!alarm_pending && !wait_pending)
+					wake_unlock(&alarm_wake_lock);
+			}
+			alarm_enabled &= ~alarm_type_mask;
+			spin_unlock_irqrestore(&alarm_slock, flags);
+			break;
+		default:
+			break;
 		}
-		alarm_enabled &= ~alarm_type_mask;
-		spin_unlock_irqrestore(&alarm_slock, flags);
 		break;
 
 	case ANDROID_ALARM_SET_OLD:

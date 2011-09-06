@@ -477,6 +477,17 @@ int alarm_set_rtc_ring(struct timespec alarm_time)
 	return 0;
 }
 
+int alarm_irq_enable(unsigned int enabled)
+{
+	int err;
+	if (alarm_rtc_pwr_up != NULL) {
+		err = rtc_alarm_irq_enable(alarm_rtc_pwr_up, enabled);
+		if (err < 0)
+			return err;
+	}
+	return 0;
+}
+
 int alarm_read_rtc_ring(int *flag, unsigned long *alarm_time)
 {
 	struct rtc_wkalrm rtc_alarm;

@@ -78,6 +78,8 @@ int alarm_set_rtc(const struct timespec ts);
 /*set alarm to rtc for power up*/
 int alarm_set_rtc_ring(struct timespec alarm_time);
 int alarm_read_rtc_ring(int *flag, unsigned long *alarm_time);
+/*enable disable power up alarm interrupt */
+int alarm_irq_enable(unsigned int enabled);
 #endif
 
 enum android_alarm_return_flags {
