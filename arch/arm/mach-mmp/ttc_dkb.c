@@ -175,6 +175,19 @@ static unsigned long ttc_dkb_pin_config[] __initdata = {
 	GPIO113_GPS_CLKEN | MFP_PULL_HIGH,
 };
 
+static unsigned long emmc_pin_config[] __initdata = {
+	MMC3_DAT7_MMC3_DAT7,
+	MMC3_DAT6_MMC3_DAT6,
+	MMC3_DAT5_MMC3_DAT5,
+	MMC3_DAT4_MMC3_DAT4,
+	MMC3_DAT3_MMC3_DAT3,
+	MMC3_DAT2_MMC3_DAT2,
+	MMC3_DAT1_MMC3_DAT1,
+	MMC3_DAT0_MMC3_DAT0,
+	MMC3_CMD_MMC3_CMD,
+	MMC3_CLK_MMC3_CLK,
+};
+
 static unsigned long lcd_tpo_pin_config[] __initdata = {
 	GPIO81_LCD_FCLK,
 	GPIO82_LCD_LCLK,
@@ -1313,6 +1326,14 @@ static struct sdhci_pxa_platdata pxa910_sdh_platdata_mmc0 = {
 	.clk_delay_cycles	= 2,
 };
 
+/* MMC2 controller for eMMC */
+static struct sdhci_pxa_platdata pxa910_sdh_platdata_mmc2 = {
+	.flags			= PXA_FLAG_CARD_PERMANENT
+					| PXA_FLAG_SD_8_BIT_CAPABLE_SLOT,
+	.clk_delay_sel		= 1,
+	.clk_delay_cycles	= 2,
+};
+
 static void __init pxa910_init_mmc(void)
 {
 	unsigned long sd_pwr_cfg = GPIO15_MMC1_POWER;
@@ -1330,6 +1351,16 @@ static void __init pxa910_init_mmc(void)
 			gpio_free(sd_pwr_en);
 		}
 	}
+
+	if (emmc_boot)
+		mfp_config(ARRAY_AND_SIZE(emmc_pin_config));
+
+	/* Always register SDHC2 as we need to support both PXA920 (no eMMC)
++	 * and PXA921 (with eMMC). Otherwise the controller device number will
++	 * be different on two platform, which causes Android cannot mount SD
++	 * card correctly.
++	 */
+	pxa910_add_sdh(2, &pxa910_sdh_platdata_mmc2); /* eMMC */
 
 	pxa910_add_sdh(0, &pxa910_sdh_platdata_mmc0); /* SD/MMC */
 }
@@ -1655,7 +1686,9 @@ static void __init ttc_dkb_init(void)
 	pxa910_add_uart(1);
 	pxa910_add_uart(2);
 	pxa910_add_1wire();
-	pxa910_add_nand(&dkb_nand_info);
+
+	if (!emmc_boot)
+		pxa910_add_nand(&dkb_nand_info);
 
 	/* add ssp2 and gssp for audio */
 	pxa910_add_ssp(1);
