@@ -16,4 +16,6 @@
 #define GC_PWR_ENABLE           (1)
 #define GC_PWR_DISABLE          (0)
 
+extern void gc_pwr(int enableDisable);
+
 #endif

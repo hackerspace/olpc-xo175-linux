@@ -752,6 +752,20 @@ static void clk_pxa9xx_u2o_disable(struct clk *clk)
 	local_irq_enable();
 }
 
+static void clk_gcu_enable(struct clk *clk)
+{
+	clk_axi_enable(clk);
+        CKENC |= (1 << (CKEN_GC_1X - 64));
+        CKENC |= (1 << (CKEN_GC_2X - 64));
+}
+
+static void clk_gcu_disable(struct clk *clk)
+{
+        CKENC &= ~(1 << (CKEN_GC_1X - 64));
+        CKENC &= ~(1 << (CKEN_GC_2X - 64));
+	clk_axi_disable(clk);
+}
+
 static const struct clkops clk_pxa95x_dsi_ops = {
 	.enable		= clk_pxa95x_dsi_enable,
 	.disable	= clk_pxa95x_dsi_disable,
@@ -784,6 +798,11 @@ static const struct clkops clk_pxa9xx_u2o_ops = {
 	.disable    = clk_pxa9xx_u2o_disable,
 };
 
+static const struct clkops clk_gcu_ops = {
+        .enable         = clk_gcu_enable,
+        .disable        = clk_gcu_disable,
+};
+
 static DEFINE_CK(pxa95x_dsi0, DSI_TX1, &clk_pxa95x_dsi_ops);
 static DEFINE_CK(pxa95x_dsi1, DSI_TX2, &clk_pxa95x_dsi_ops);
 static DEFINE_CK(pxa95x_ihdmi, DISPLAY, &clk_pxa95x_ihdmi_ops);
@@ -792,6 +811,7 @@ static DEFINE_CK(pxa95x_axi, AXI, &clk_axi_ops);
 static DEFINE_CK(pxa95x_smc, SMC, &clk_pxa95x_smc_ops);
 static DEFINE_CK(pxa95x_imu, IMU, &clk_imu_axi_ops);
 static DEFINE_CK(pxa95x_u2o, USB_PRL, &clk_pxa9xx_u2o_ops);
+static DEFINE_CK(pxa95x_gcu, GC_1X, &clk_gcu_ops);
 static DEFINE_CLK(pxa95x_pout, &clk_pxa3xx_pout_ops, 13000000, 70);
 static DEFINE_CLK(pxa95x_tout_s0, &clk_pxa95x_tout_s0_ops, 13000000, 70);
 static DEFINE_PXA3_CKEN(pxa95x_ffuart, FFUART, 14857000, 1);
@@ -842,6 +862,7 @@ static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_axi, NULL, "AXICLK"),
 	INIT_CLKREG(&clk_pxa95x_imu, NULL, "IMUCLK"),
 	INIT_CLKREG(&clk_pxa95x_u2o, NULL, "U2OCLK"),
+        INIT_CLKREG(&clk_pxa95x_gcu, NULL, "GCCLK"),
 	INIT_CLKREG(&clk_pxa95x_sdh0, "sdhci-pxav2.0", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_pxa95x_sdh1, "sdhci-pxav2.1", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_pxa95x_sdh2, "sdhci-pxav2.2", "PXA-SDHCLK"),
