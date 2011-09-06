@@ -70,7 +70,6 @@ struct uart_pxa_port {
 	int			dvfm_dev_idx[2];
 #else
 	struct wake_lock idle_lock[2];
-	struct wake_lock suspend_lock[2];
 #endif
 	int			txdma;
 	int			rxdma;
@@ -421,7 +420,6 @@ static inline irqreturn_t serial_pxa_irq(int irq, void *dev_id)
 			dvfm_disable_lowpower(up->dvfm_dev_idx[PXA_UART_RX]);
 #else
 			wake_lock(&up->idle_lock[PXA_UART_RX]);
-			wake_lock(&up->suspend_lock[PXA_UART_RX]);
 #endif
 		}
 
@@ -545,7 +543,6 @@ static void pxa_uart_transmit_dma_start(struct uart_pxa_port *up, int count)
 	dvfm_disable_lowpower(up->dvfm_dev_idx[PXA_UART_TX]);
 #else
 	wake_lock(&up->idle_lock[PXA_UART_TX]);
-	wake_lock(&up->suspend_lock[PXA_UART_TX]);
 #endif
 
 	DCSR(up->txdma) |= DCSR_RUN;
@@ -691,7 +688,6 @@ static void pxa_uart_transmit_dma(int channel, void *data)
 			dvfm_enable_lowpower(up->dvfm_dev_idx[PXA_UART_TX]);
 #else
 			wake_unlock(&up->idle_lock[PXA_UART_TX]);
-			wake_unlock(&up->suspend_lock[PXA_UART_TX]);
 #endif
 		}
 
@@ -1375,7 +1371,6 @@ static void pxa_timer_handler(unsigned long data)
 	dvfm_enable_lowpower(up->dvfm_dev_idx[PXA_UART_RX]);
 #else
 	wake_unlock(&up->idle_lock[PXA_UART_RX]);
-	wake_unlock(&up->suspend_lock[PXA_UART_RX]);
 #endif
 }
 
@@ -1455,8 +1450,6 @@ static int serial_pxa_probe(struct platform_device *dev)
 #else
 		wake_lock_init(&sport->idle_lock[i], WAKE_LOCK_IDLE,
 				(const char *)dev_name);
-		wake_lock_init(&sport->suspend_lock[i], WAKE_LOCK_SUSPEND,
-				(const char *)dev_name);
 #endif
 	}
 
@@ -1484,8 +1477,6 @@ static int serial_pxa_probe(struct platform_device *dev)
 #else
 	wake_lock_destroy(&sport->idle_lock[PXA_UART_RX]);
 	wake_lock_destroy(&sport->idle_lock[PXA_UART_TX]);
-	wake_lock_destroy(&sport->suspend_lock[PXA_UART_RX]);
-	wake_lock_destroy(&sport->suspend_lock[PXA_UART_TX]);
 #endif
 	clk_put(sport->clk);
  err_free:
@@ -1503,8 +1494,6 @@ static int serial_pxa_remove(struct platform_device *dev)
 #else
 	wake_lock_destroy(&sport->idle_lock[PXA_UART_RX]);
 	wake_lock_destroy(&sport->idle_lock[PXA_UART_TX]);
-	wake_lock_destroy(&sport->suspend_lock[PXA_UART_RX]);
-	wake_lock_destroy(&sport->suspend_lock[PXA_UART_TX]);
 #endif
 
 	platform_set_drvdata(dev, NULL);
