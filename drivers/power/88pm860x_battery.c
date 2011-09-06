@@ -1075,6 +1075,9 @@ static int pm860x_batt_get_prop(struct power_supply *psy,
 			data=0;
 		else if(data > 100)
 			data = 100;
+		/* report fake capacity without battery */
+		if(!info->present)
+			data = 80;
 		val->intval = data;
 		break;
 	case POWER_SUPPLY_PROP_TECHNOLOGY:
@@ -1277,18 +1280,16 @@ int ibat_gain_d5d7_trim2(u16 i_trim)
 				ibat = ibat + (info->offset_ibat & 0xFFFF);
 			else
 				ibat = ibat - (info->offset_ibat & 0xFFFF);
-			if(ibat <= i_trim){
-				temp_i = 256*(i_trim - ibat)/34;
 
-				if(ibat_gain <= temp_i){
-					temp_i = temp_i - ibat_gain;
-					ibat_gain = 0xFFF - temp_i;
-				}
-				else
-					ibat_gain = ibat_gain + temp_i;
-			}
-			else{
+			if (ibat <= i_trim) {
+				temp_i = 256*(i_trim - ibat)/34;
+			} else {
 				temp_i = 256*(ibat - i_trim)/34;
+			}
+			if (ibat_gain <= temp_i) {
+				temp_i = temp_i - ibat_gain;
+				ibat_gain = 0xFFF - temp_i;
+			} else {
 				ibat_gain = ibat_gain - temp_i;
 			}
 
@@ -1560,12 +1561,12 @@ static ssize_t battery_vol_show_attrs(struct device *dev,
 	}
 	if( 3695 < info->calibrate_val.vbat_input && info->calibrate_val.vbat_input < 3705){
 		pm860x_reg_write(info->i2c,PM8607_CHG_CTRL5, info->calibrate_val.vbat_4c[1]);
-        pm860x_reg_write(info->i2c,PM8607_CHG_CTRL1, info->calibrate_val.vbat_48[1]);
+		pm860x_reg_write(info->i2c,PM8607_CHG_CTRL1, info->calibrate_val.vbat_48[1]);
 		pm860x_reg_write(info->chip->companion, PM8606_PREREGULATORA,info->calibrate_val.vbat_temp[1]);
         }
 	if( 4195  < info->calibrate_val.vbat_input && info->calibrate_val.vbat_input < 4205){
 		pm860x_reg_write(info->i2c,PM8607_CHG_CTRL5, info->calibrate_val.vbat_4c[2]);
-		pm860x_reg_write(info->i2c,PM8607_CHG_CTRL1, info->calibrate_val.vbat_48[1]);
+		pm860x_reg_write(info->i2c,PM8607_CHG_CTRL1, info->calibrate_val.vbat_48[2]);
 		pm860x_reg_write(info->chip->companion, PM8606_PREREGULATORA,info->calibrate_val.vbat_temp[2]);
 	}
 	len = sprintf(buf, "%d\n", value);
@@ -1602,9 +1603,9 @@ static ssize_t battery_vol_store_attrs(struct device *dev,
 	}
 	if(3695< info->calibrate_val.vbat_input && info->calibrate_val.vbat_input < 3705){
 		info->calibrate_val.vbat_4c[1] = pm860x_reg_read(info->i2c,PM8607_CHG_CTRL5);
-        pm860x_reg_write(info->i2c,PM8607_CHG_CTRL5,(info->calibrate_val.vbat_4c[1] &0xF0)|0x8);
+		pm860x_reg_write(info->i2c,PM8607_CHG_CTRL5,(info->calibrate_val.vbat_4c[1] &0xF0)|0x8);
 		info->calibrate_val.vbat_48[1] = pm860x_reg_read(info->i2c,PM8607_CHG_CTRL1);
-        pm860x_reg_write(info->i2c,PM8607_CHG_CTRL1, info->calibrate_val.vbat_48[1]&0xFC);
+		pm860x_reg_write(info->i2c,PM8607_CHG_CTRL1, info->calibrate_val.vbat_48[1]&0xFC);
 		info->calibrate_val.vbat_temp[1] = pm860x_reg_read(info->chip->companion, PM8606_PREREGULATORA);
 		pm860x_reg_write(info->chip->companion, PM8606_PREREGULATORA,(0xA0)|0x0E);
 
@@ -1613,7 +1614,7 @@ static ssize_t battery_vol_store_attrs(struct device *dev,
 		info->calibrate_val.vbat_4c[2] = pm860x_reg_read(info->i2c,PM8607_CHG_CTRL5);
 		pm860x_reg_write(info->i2c,PM8607_CHG_CTRL5, (info->calibrate_val.vbat_4c[2]&0xF0)|0x8);
 		info->calibrate_val.vbat_48[2] = pm860x_reg_read(info->i2c,PM8607_CHG_CTRL1);
-        pm860x_reg_write(info->i2c,PM8607_CHG_CTRL1, info->calibrate_val.vbat_48[2]&0xFC);
+		pm860x_reg_write(info->i2c,PM8607_CHG_CTRL1, info->calibrate_val.vbat_48[2]&0xFC);
 		info->calibrate_val.vbat_temp[2] = pm860x_reg_read(info->chip->companion, PM8606_PREREGULATORA);
 		pm860x_reg_write(info->chip->companion, PM8606_PREREGULATORA,(0x50)|0x0E);
 	}
