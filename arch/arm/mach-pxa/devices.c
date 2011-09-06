@@ -826,7 +826,7 @@ struct platform_device pxa27x_device_ssp3 = {
 static struct resource pxa27x_resource_pwm0[] = {
 	[0] = {
 		.start	= 0x40b00000,
-		.end	= 0x40b0001f,
+		.end	= 0x40b00008,
 		.flags	= IORESOURCE_MEM,
 	},
 };
@@ -841,7 +841,7 @@ struct platform_device pxa27x_device_pwm0 = {
 static struct resource pxa27x_resource_pwm1[] = {
 	[0] = {
 		.start	= 0x40c00000,
-		.end	= 0x40c0001f,
+		.end	= 0x40c00008,
 		.flags	= IORESOURCE_MEM,
 	},
 };
@@ -853,6 +853,69 @@ struct platform_device pxa27x_device_pwm1 = {
 	.num_resources	= ARRAY_SIZE(pxa27x_resource_pwm1),
 };
 #endif /* CONFIG_PXA27x || CONFIG_PXA3xx || CONFIG_PXA95x*/
+
+#if defined(CONFIG_PXA95x)
+static struct resource pxa95x_resource_pwm4[] = {
+	[0] = {
+		.start	= 0x42404020,
+		.end	= 0x42404028,
+		.flags	= IORESOURCE_MEM,
+	},
+};
+
+struct platform_device pxa95x_device_pwm4 = {
+	.name		= "pxa95x-pwm",
+	.id		= 4,
+	.resource	= pxa95x_resource_pwm4,
+	.num_resources	= ARRAY_SIZE(pxa95x_resource_pwm4),
+};
+
+static struct resource pxa95x_resource_pwm5[] = {
+	[0] = {
+		.start	= 0x42404030,
+		.end	= 0x42404038,
+		.flags	= IORESOURCE_MEM,
+	},
+};
+
+struct platform_device pxa95x_device_pwm5 = {
+	.name		= "pxa95x-pwm",
+	.id		= 5,
+	.resource	= pxa95x_resource_pwm5,
+	.num_resources	= ARRAY_SIZE(pxa95x_resource_pwm5),
+};
+
+static struct resource pxa95x_resource_pwm6[] = {
+	[0] = {
+		.start	= 0x42404040,
+		.end	= 0x42404048,
+		.flags	= IORESOURCE_MEM,
+	},
+};
+
+struct platform_device pxa95x_device_pwm6 = {
+	.name		= "pxa95x-pwm",
+	.id		= 6,
+	.resource	= pxa95x_resource_pwm6,
+	.num_resources	= ARRAY_SIZE(pxa95x_resource_pwm6),
+};
+
+static struct resource pxa95x_resource_pwm7[] = {
+	[0] = {
+		.start	= 0x42404050,
+		.end	= 0x42404058,
+		.flags	= IORESOURCE_MEM,
+	},
+};
+
+struct platform_device pxa95x_device_pwm7 = {
+	.name		= "pxa95x-pwm",
+	.id		= 7,
+	.resource	= pxa95x_resource_pwm7,
+	.num_resources	= ARRAY_SIZE(pxa95x_resource_pwm7),
+};
+
+#endif
 
 #ifdef CONFIG_PXA3xx
 static struct resource pxa3xx_resources_mci2[] = {

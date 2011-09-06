@@ -835,6 +835,44 @@ static const struct clkops clk_gcu_ops = {
         .disable        = clk_gcu_disable,
 };
 
+#define PWMCCR4 0x42404060
+/* enable PWM SLOW clock */
+void clk_pxa95x_pwm_slow_enable(struct clk *pwm_slow_clk)
+{
+	unsigned char __iomem *pwm_membase;
+	u32 temp = 0;
+
+	pwm_membase = ioremap(PWMCCR4 + pwm_slow_clk->cken, 4);
+	temp = ioread32(pwm_membase);
+	iowrite32(temp | PWMCLKEN_SLOW, pwm_membase);
+	iounmap(pwm_membase);
+}
+
+/* disable PWM SLOW clock */
+void clk_pxa95x_pwm_slow_disable(struct clk *pwm_slow_clk)
+{
+	unsigned char __iomem *pwm_membase;
+	u32 temp = 0;
+
+	pwm_membase = ioremap(PWMCCR4 + pwm_slow_clk->cken, 4);
+	temp = ioread32(pwm_membase);
+	iowrite32(temp & (~(PWMCLKEN_SLOW)), pwm_membase);
+	iounmap(pwm_membase);
+}
+/*
+ * Return the SLOW PWM Controller clock frequency
+ */
+static unsigned long clk_pxa95x_pwm_slow_getrate(struct clk *pwm_slow_clk)
+{
+	return 32768;
+}
+
+static const struct clkops clk_pxa95x_pwm_slow_ops = {
+	.enable         = clk_pxa95x_pwm_slow_enable,
+	.disable        = clk_pxa95x_pwm_slow_disable,
+	.getrate        = clk_pxa95x_pwm_slow_getrate,
+};
+
 static DEFINE_CK(pxa95x_dsi0, DSI_TX1, &clk_pxa95x_dsi_ops);
 static DEFINE_CK(pxa95x_dsi1, DSI_TX2, &clk_pxa95x_dsi_ops);
 static DEFINE_CK(pxa95x_ihdmi, DISPLAY, &clk_pxa95x_ihdmi_ops);
@@ -845,6 +883,10 @@ static DEFINE_CK(pxa95x_imu, IMU, &clk_imu_axi_ops);
 static DEFINE_CK(pxa95x_u2o, USB_PRL, &clk_pxa9xx_u2o_ops);
 static DEFINE_CK(pxa95x_gcu, GC_1X, &clk_gcu_ops);
 static DEFINE_CK(pxa3xx_nand, NAND, &clk_pxa3xx_nand_ops);
+static DEFINE_CK(pxa95x_pwm4, PWM4, &clk_pxa95x_pwm_slow_ops);
+static DEFINE_CK(pxa95x_pwm5, PWM5, &clk_pxa95x_pwm_slow_ops);
+static DEFINE_CK(pxa95x_pwm6, PWM6, &clk_pxa95x_pwm_slow_ops);
+static DEFINE_CK(pxa95x_pwm7, PWM7, &clk_pxa95x_pwm_slow_ops);
 static DEFINE_CLK(pxa95x_pout, &clk_pxa3xx_pout_ops, 13000000, 70);
 static DEFINE_CLK(pxa95x_tout_s0, &clk_pxa95x_tout_s0_ops, 13000000, 70);
 static DEFINE_PXA3_CKEN(pxa95x_ffuart, FFUART, 14857000, 1);
@@ -867,8 +909,6 @@ static DEFINE_PXA3_CKEN(pxa95x_sdh3, PXA95x_MMC4, 200000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_vmeta, VMETA, 312000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_abu, ABU, 20000000, 0);
 
-
-
 static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_pout, NULL, "CLK_POUT"),
 	INIT_CLKREG(&clk_pxa95x_tout_s0, NULL, "CLK_TOUT_S0"),
@@ -888,6 +928,10 @@ static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_ssp4, "pxa27x-ssp.3", NULL),
 	INIT_CLKREG(&clk_pxa95x_pwm0, "pxa27x-pwm.0", NULL),
 	INIT_CLKREG(&clk_pxa95x_pwm1, "pxa27x-pwm.1", NULL),
+	INIT_CLKREG(&clk_pxa95x_pwm4, "pxa95x-pwm.4", NULL),
+	INIT_CLKREG(&clk_pxa95x_pwm5, "pxa95x-pwm.5", NULL),
+	INIT_CLKREG(&clk_pxa95x_pwm6, "pxa95x-pwm.6", NULL),
+	INIT_CLKREG(&clk_pxa95x_pwm7, "pxa95x-pwm.7", NULL),
 	INIT_CLKREG(&clk_pxa95x_vmeta, NULL, "VMETA_CLK"),
 	INIT_CLKREG(&clk_pxa95x_dsi0, NULL, "PXA95x_DSI0CLK"),
 	INIT_CLKREG(&clk_pxa95x_dsi1, NULL, "PXA95x_DSI1CLK"),
@@ -930,6 +974,10 @@ static struct platform_device *devices[] __initdata = {
 	&pxa3xx_device_ssp4,
 	&pxa27x_device_pwm0,
 	&pxa27x_device_pwm1,
+	&pxa95x_device_pwm4,
+	&pxa95x_device_pwm5,
+	&pxa95x_device_pwm6,
+	&pxa95x_device_pwm7,
 	&pxa_device_asoc_abu,
 	&pxa_device_asoc_abu_platform,
 };
