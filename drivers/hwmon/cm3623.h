@@ -99,8 +99,6 @@ struct i2c_cm3623 {
 	struct i2c_client *g_client_ps_threshold;
 	struct input_dev *g_ps;
 	struct input_dev *g_als;
-	struct timer_list timer_ps;
-	struct timer_list timer_als;
 	struct mutex active_lock;
 	unsigned char als_user_count;
 	unsigned char ps_user_count;

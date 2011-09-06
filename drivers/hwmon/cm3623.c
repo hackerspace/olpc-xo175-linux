@@ -37,8 +37,8 @@ static struct early_suspend cm_early_suspend;
 
 static atomic_t suspend_flag = ATOMIC_INIT(0);
 
-static struct work_struct cm3623_als_work;
-static struct work_struct cm3623_ps_work;
+static struct delayed_work cm3623_als_input_work;
+static struct delayed_work cm3623_ps_input_work;
 /*global struct store all input_dev and i2c_client*/
 static struct i2c_cm3623 cm3623_dev = {
 	.g_client_ps_cmd_or_data = NULL,
@@ -134,22 +134,6 @@ static int als_register_device(struct i2c_client *client)
 
 	return err;
 }
-/*Poll the proximity sensor*/
-static void cm3623_ps_timer_func(unsigned long data)
-{
-	schedule_work(&cm3623_ps_work);
-	mod_timer(&cm3623_dev.timer_ps,
-		jiffies + msecs_to_jiffies(cm3623_dev.ps_sample_interval));
-}
-
-
-/*Poll the light sensor*/
-static void cm3623_als_timer_func(unsigned long data)
-{
-	schedule_work(&cm3623_als_work);
-	mod_timer(&cm3623_dev.timer_als, jiffies +
-		msecs_to_jiffies(cm3623_dev.als_sample_interval));
-}
 
 static int active_set(struct device *dev, struct device_attribute *attr,
 		      const char *buf, size_t count)
@@ -181,9 +165,7 @@ static int active_set(struct device *dev, struct device_attribute *attr,
 						__func__, ret);
 					goto out;
 				}
-				setup_timer(&cm3623_dev.timer_als,
-					cm3623_als_timer_func, 0);
-				mod_timer(&cm3623_dev.timer_als, jiffies +
+				schedule_delayed_work(&cm3623_als_input_work,
 					msecs_to_jiffies(cm3623_dev.als_sample_interval));
 				dev_info(dev, "status on\n");
 			}
@@ -191,8 +173,7 @@ static int active_set(struct device *dev, struct device_attribute *attr,
 		} else if (cm3623_dev.als_user_count > 0) {
 			if ((cm3623_dev.als_user_count == 1) &&
 			(!atomic_read(&suspend_flag))) {
-				del_timer_sync(&cm3623_dev.timer_als);
-				flush_work(&cm3623_als_work);
+				cancel_delayed_work_sync(&cm3623_als_input_work);
 				cm3623_dev.g_als_state |= ALS_SD_ALS_SHUTDOWN;
 				ret = i2c_master_send(cm3623_dev.g_client_als_cmd_or_msb,
 					&cm3623_dev.g_als_state, 1);
@@ -223,9 +204,7 @@ static int active_set(struct device *dev, struct device_attribute *attr,
 						__func__, ret);
 					goto out;
 				}
-				setup_timer(&cm3623_dev.timer_ps,
-					cm3623_ps_timer_func, 0);
-				mod_timer(&cm3623_dev.timer_ps, jiffies +
+				schedule_delayed_work(&cm3623_ps_input_work,
 					msecs_to_jiffies(cm3623_dev.ps_sample_interval));
 				dev_info(dev, "status on\n");
 			}
@@ -233,8 +212,7 @@ static int active_set(struct device *dev, struct device_attribute *attr,
 		} else if (cm3623_dev.ps_user_count > 0) {
 			if ((cm3623_dev.ps_user_count == 1) &&
 			(!atomic_read(&suspend_flag))) {
-				del_timer_sync(&cm3623_dev.timer_ps);
-				flush_work(&cm3623_ps_work);
+				cancel_delayed_work_sync(&cm3623_ps_input_work);
 				cm3623_dev.g_ps_state |= PS_SD_PS_SHUTDOWN;
 				ret = i2c_master_send(cm3623_dev.g_client_ps_cmd_or_data,
 					&cm3623_dev.g_ps_state, 1);
@@ -535,6 +513,8 @@ static void cm3623_report_ps_value(struct work_struct *work)
 	cm3623_get_ps(&tmp);
 	input_event(cm3623_dev.g_ps, EV_ABS, ABS_DISTANCE, tmp);
 	input_sync(cm3623_dev.g_ps);
+	schedule_delayed_work(&cm3623_ps_input_work,
+		msecs_to_jiffies(cm3623_dev.ps_sample_interval));
 }
 
 static void cm3623_report_als_value(struct work_struct *work)
@@ -544,6 +524,8 @@ static void cm3623_report_als_value(struct work_struct *work)
 	cm3623_get_als(&tmp);
 	input_event(cm3623_dev.g_als, EV_ABS, ABS_X, tmp);
 	input_sync(cm3623_dev.g_als);
+	schedule_delayed_work(&cm3623_als_input_work,
+		msecs_to_jiffies(cm3623_dev.als_sample_interval));
 }
 
 
@@ -574,8 +556,7 @@ static void cm3623_early_suspend(struct early_suspend *h)
 	atomic_set(&suspend_flag, 1);
 
 	if (cm3623_dev.als_user_count > 0) {
-		del_timer_sync(&cm3623_dev.timer_als);
-		flush_work(&cm3623_als_work);
+		cancel_delayed_work_sync(&cm3623_als_input_work);
 		cm3623_dev.g_als_state |= ALS_SD_ALS_SHUTDOWN;
 		ret = i2c_master_send(cm3623_dev.g_client_als_cmd_or_msb,
 			&cm3623_dev.g_als_state, 1);
@@ -588,8 +569,7 @@ static void cm3623_early_suspend(struct early_suspend *h)
 	}
 
 	if (cm3623_dev.ps_user_count > 0) {
-		del_timer_sync(&cm3623_dev.timer_ps);
-		flush_work(&cm3623_ps_work);
+		cancel_delayed_work_sync(&cm3623_ps_input_work);
 		cm3623_dev.g_ps_state |= PS_SD_PS_SHUTDOWN;
 		ret = i2c_master_send(cm3623_dev.g_client_ps_cmd_or_data,
 			&cm3623_dev.g_ps_state, 1);
@@ -628,8 +608,7 @@ static void cm3623_late_resume(struct early_suspend *h)
 			printk(KERN_WARNING "%s: cannot enable cm3623\n",
 				__func__);
 		}
-		setup_timer(&cm3623_dev.timer_ps, cm3623_ps_timer_func, 0);
-		mod_timer(&cm3623_dev.timer_ps, jiffies +
+		schedule_delayed_work(&cm3623_ps_input_work,
 			msecs_to_jiffies(cm3623_dev.ps_sample_interval));
 	}
 
@@ -644,8 +623,7 @@ static void cm3623_late_resume(struct early_suspend *h)
 				"%s: cannot enable cm3623 ret = %d\n",
 				__func__, ret);
 		}
-		setup_timer(&cm3623_dev.timer_als, cm3623_als_timer_func, 0);
-		mod_timer(&cm3623_dev.timer_als, jiffies +
+		schedule_delayed_work(&cm3623_als_input_work,
 			msecs_to_jiffies(cm3623_dev.als_sample_interval));
 	}
 
@@ -716,8 +694,8 @@ static int cm3623_probe(struct i2c_client *client,
 	set_als_interval(cm3623_dev.als_sample_interval);
 	set_ps_interval(cm3623_dev.ps_sample_interval);
 
-	INIT_WORK(&cm3623_als_work, cm3623_report_als_value);
-	INIT_WORK(&cm3623_ps_work, cm3623_report_ps_value);
+	INIT_DELAYED_WORK(&cm3623_als_input_work, cm3623_report_als_value);
+	INIT_DELAYED_WORK(&cm3623_ps_input_work, cm3623_report_ps_value);
 	mutex_init(&cm3623_dev.active_lock);
 
 	ret = ps_register_device(cm3623_dev.g_client_ps_cmd_or_data);
@@ -743,12 +721,10 @@ static int cm3623_remove(struct i2c_client *client)
 {
 	if (!strcmp(client->name, "cm3623_ps")) {
 		cm3623_remove_ps_fs();
-		del_timer_sync(&cm3623_dev.timer_ps);
-		flush_work(&cm3623_ps_work);
+		cancel_delayed_work_sync(&cm3623_ps_input_work);
 	} else if (!strcmp(client->name, "cm3623_als_msb")) {
 		cm3623_remove_als_fs();
-		del_timer_sync(&cm3623_dev.timer_als);
-		flush_work(&cm3623_als_work);
+		cancel_delayed_work_sync(&cm3623_als_input_work);
 	}
 
 	if (!strcmp(client->name, "cm3623_ps"))
