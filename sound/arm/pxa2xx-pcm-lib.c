@@ -14,9 +14,25 @@
 #include <sound/pxa2xx-lib.h>
 
 #include <mach/dma.h>
+#ifdef CONFIG_PXA95x
+#include <mach/dvfm.h>
+#endif
 
 #include "pxa2xx-pcm.h"
 
+static void pxa2xx_pcm_enable_lpm(int enable)
+{
+#ifdef CONFIG_PXA95x
+	static int pxa2xx_pcm_dvfm_idx;
+	if (!pxa2xx_pcm_dvfm_idx)
+		dvfm_register("pxa2xx_pcm", &pxa2xx_pcm_dvfm_idx);
+
+	if (enable)
+		dvfm_enable_lowpower(pxa2xx_pcm_dvfm_idx);
+	else
+		dvfm_disable_lowpower(pxa2xx_pcm_dvfm_idx);
+#endif
+}
 static const struct snd_pcm_hardware pxa2xx_pcm_hardware = {
 	.info			= SNDRV_PCM_INFO_MMAP |
 				  SNDRV_PCM_INFO_MMAP_VALID |
@@ -93,6 +109,7 @@ int pxa2xx_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+		pxa2xx_pcm_enable_lpm(0);
 		DDADR(prtd->dma_ch) = prtd->dma_desc_array_phys;
 		DCSR(prtd->dma_ch) |= DCSR_RUN;
 		break;
@@ -101,6 +118,7 @@ int pxa2xx_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		DCSR(prtd->dma_ch) &= ~DCSR_RUN;
+		pxa2xx_pcm_enable_lpm(1);
 		break;
 
 	default:
