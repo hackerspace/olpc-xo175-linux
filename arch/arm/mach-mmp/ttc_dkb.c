@@ -421,6 +421,20 @@ static int ttc_dkb_pm860x_fixup(struct pm860x_chip *chip,
 		data = pm860x_page_reg_read(chip->client, 0xE1);
 		dev_dbg(chip->dev, "detect 0xD7 broken counter: %d", data);
 	}
+	/*
+	 * Check whether 0xD3.0(plat_det_dis)is set, it means dedicated fused
+	 * version of saremo for TD. Then Clear 0xE1[7-6] for reload OTP.
+	 */
+	data = pm860x_page_reg_read(chip->client, 0xD3);
+	if (data & 1) {
+		dev_dbg(chip->dev, "Detect [0xD3]:0x%x\n", data);
+		data = pm860x_page_reg_read(chip->client, 0xE1);
+		data &= 0x3F;
+		pm860x_page_reg_write(chip->client, 0xE1, data);
+		data = pm860x_page_reg_read(chip->client, 0xE1);
+		dev_dbg(chip->dev, "Update [0xE1]: 0x%x\n", data);
+	}
+
 	/*confirm the interrupt mask*/
 	pm860x_reg_write(chip->client, PM8607_INT_MASK_1, 0x00);
 	pm860x_reg_write(chip->client, PM8607_INT_MASK_2, 0x00);
