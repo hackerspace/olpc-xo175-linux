@@ -84,6 +84,11 @@ static unsigned long ttc_dkb_pin_config[] __initdata = {
 	GPIO31_UART1_TXD,
 	GPIO32_UART1_RXD,
 
+	/* GPIO */
+	GPIO16_GPIO16,
+	GPIO18_GPIO18,
+	GPIO19_GPIO19,
+
 	/* DFI */
 	DF_IO0_ND_IO0,
 	DF_IO1_ND_IO1,
