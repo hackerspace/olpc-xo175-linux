@@ -75,4 +75,12 @@ static inline int cpu_is_mmp3(void)
 #define cpu_is_mmp3(id)	(0)
 #endif
 
+static inline int cpu_is_mmp3_a0(void)
+{
+	if (cpu_is_mmp3() && ((mmp_chip_id & 0x00ff0000) == 0x00a00000))
+		return 1;
+	else
+		return 0;
+}
+
 #endif /* __ASM_MACH_CPUTYPE_H */

@@ -24,6 +24,7 @@
 #include <mach/regs-apbc.h>
 #include <mach/regs-apmu.h>
 #include <mach/regs-mpmu.h>
+#include <mach/cputype.h>
 #include <plat/clock.h>
 #include "common.h"
 
@@ -908,12 +909,17 @@ static void disp1_axi_clk_disable(struct clk *clk)
 {
 	u32 val = __raw_readl(clk->clk_rst);
 
-	/* reset display1 AXI clock */
-	val &= ~1;
-	__raw_writel(val, clk->clk_rst);
-
-	/* disable display1 AXI clock */
-	val &= ~(1<<3);
+	/*
+	 * disable display1 AXI clock:
+	 * In MMP3 A0, display1 AXI clock enable and reset
+	 * are connected opposite at the bus clock module,
+	 * so on A0, bit[0]: control axi clock enable/disable;
+	 * bit[3]: axi clock reset control. From B0, will fix back.
+	 */
+	if (cpu_is_mmp3_a0())
+		val &= ~1;
+	else
+		val &= ~(1<<3);
 	__raw_writel(val, clk->clk_rst);
 }
 
