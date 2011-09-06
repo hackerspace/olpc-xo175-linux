@@ -289,6 +289,7 @@ MMP3_DEVICE(sspa2, "mmp2-sspa", 1, SSPA2, 0xc0ffdd00, 0xb0, ADMA2_CH_1,
 MMP3_DEVICE(audiosram, "mmp-sram", 0, NONE, 0xd1030000, 0x20000);
 MMP3_DEVICE(camera0, "mv-camera", 0, CCIC1, 0xd420a000, 0x2ff);
 MMP3_DEVICE(camera1, "mv-camera", 1, CCIC2, 0xd420a800, 0x2ff);
+MMP3_DEVICE(videosram, "mmp-sram", 1, NONE, 0xd1020000, 0x10000);
 
 void mmp3_clear_keypad_wakeup(void)
 {

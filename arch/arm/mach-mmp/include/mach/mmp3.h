@@ -63,6 +63,7 @@ extern struct pxa_device_desc mmp3_device_fb_tv;
 extern struct pxa_device_desc mmp3_device_fb_tv_ovly;
 extern struct pxa_device_desc mmp3_device_v4l2_tv_ovly;
 extern struct pxa_device_desc mmp3_device_hdmi;
+extern struct pxa_device_desc mmp3_device_videosram;
 
 extern struct platform_device mmp3_device_rtc;
 extern struct pxa_device_desc mmp3_device_sspa1;
@@ -255,6 +256,11 @@ static inline int mmp3_add_sspa(int id)
 	}
 
 	return pxa_register_device(d, NULL, 0);
+}
+
+static inline int mmp3_add_videosram(struct sram_bank *data)
+{
+	return pxa_register_device(&mmp3_device_videosram, data, sizeof(*data));
 }
 
 #endif /* __ASM_MACH_MMP2_H */
