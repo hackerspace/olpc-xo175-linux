@@ -61,6 +61,8 @@ struct mv_udc {
 
 	unsigned int		dev_addr;	/* Device USB address */
 
+	unsigned int		test_mode;	/* the selected test mode */
+
 	int			errors;
 	unsigned		softconnect:1,
 				vbus_active:1,
@@ -108,6 +110,7 @@ struct mv_req {
 	struct mv_dtd		*dtd, *head, *tail;
 	struct mv_ep		*ep;
 	struct list_head	queue;
+	unsigned int		test_mode;	/* the selected test mode */
 	unsigned		dtd_count;
 	unsigned		mapped:1;
 };
