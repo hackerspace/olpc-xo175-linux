@@ -482,9 +482,6 @@ static int __devinit device_irq_init(struct pm860x_chip *chip,
 	desc = irq_to_desc(chip->core_irq);
 	pm860x_irq_chip.irq_set_wake = desc->irq_data.chip->irq_set_wake;
 
-	desc = irq_to_desc(chip->core_irq);
-	pm860x_irq_chip.irq_set_wake = desc->irq_data.chip->irq_set_wake;
-
 	/* register IRQ by genirq */
 	for (i = 0; i < ARRAY_SIZE(pm860x_irqs); i++) {
 		__irq = i + chip->irq_base;
