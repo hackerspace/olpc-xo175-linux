@@ -854,6 +854,22 @@ static struct i2c_board_info abilene_twsi6_info[] = {
 	},
 };
 
+static int wm8994_ldoen(void)
+{
+	int gpio = mfp_to_gpio(GPIO06_WM8994_LDOEN);
+
+	if (gpio_request(gpio, "wm8994 ldoen gpio")) {
+		printk(KERN_INFO "gpio %d request failed\n", gpio);
+		return -1;
+	}
+
+	gpio_direction_output(gpio, 1);
+	mdelay(1);
+	gpio_free(gpio);
+
+	return 0;
+}
+
 static struct regulator_consumer_supply abilene_wm8994_regulator_supply[] = {
 	[0] = {
 		.supply = "AVDD1",
@@ -890,7 +906,7 @@ struct regulator_init_data abilene_wm8994_regulator_init_data[] = {
 
 struct wm8994_pdata abilene_wm8994_pdata = {
 	.ldo[0] = {
-			.enable = mfp_to_gpio(GPIO06_WM8994_LDOEN),
+			.enable = 0,
 			.init_data = &abilene_wm8994_regulator_init_data[0],
 			.supply = "AVDD1",
 
@@ -1074,6 +1090,7 @@ static void __init abilene_init(void)
 	mmp3_add_twsi(3, NULL, ARRAY_AND_SIZE(abilene_twsi3_info));
 	mmp3_add_twsi(6, NULL, ARRAY_AND_SIZE(abilene_twsi6_info));
 	abilene_fixed_regulator();
+	wm8994_ldoen();
 
 	/* audio sspa support */
 	mmp3_add_sspa(1);
