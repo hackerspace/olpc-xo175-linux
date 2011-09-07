@@ -22,6 +22,8 @@
 #include <linux/mfd/max8925.h>
 #include <linux/pwm_backlight.h>
 #include <linux/regulator/machine.h>
+#include <linux/regulator/driver.h>
+#include <linux/regulator/ds4432.h>
 #include <linux/i2c/tpk_r800.h>
 #include <linux/mfd/wm8994/pdata.h>
 #include <linux/regulator/fixed.h>
@@ -873,8 +875,56 @@ static struct i2c_board_info abilene_twsi5_info[] = {
 #endif
 };
 
+static int max17083_ds4432_convert(int path, int mode,
+			int iparam, int *oparam) {
+	if (mode == DS4432_DCDC_VOLTAGE_TO_CURRENT)
+		*oparam = (iparam - 1275000) / 100; /* vV -> 10 nA */
+	else
+		*oparam = iparam * 100 + 1275000; /* 10 nA -> vV */
+	return 0;
+}
+
+static struct regulator_consumer_supply ds4432_supply[] = {
+	REGULATOR_SUPPLY("vcc_main", NULL),
+};
+
+static struct ds4432_dac_data ds4432_data[] = {
+	[0] = {
+		.initdat = {
+			.constraints    = {
+				.name           = "vcc_main range",
+				.min_uV         = 903000,
+				.max_uV         = 1349400,
+				.always_on      = 1,
+				.boot_on        = 1,
+				.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
+			},
+			.num_consumer_supplies  = 1,
+			.consumer_supplies      = &ds4432_supply[0],
+		},
+		.name = "max17083+ds4432",
+		.type = REGULATOR_VOLTAGE,
+		.dac_path = 1,
+		.cstep_10nA = 62, /* (0.997/(16*100000))*100000000 10nA */
+		.param_convert = max17083_ds4432_convert,
+	},
+	/* ds4432 has two paths, we may register two here, however
+	   the two seems to be tied together on current board. we need to
+	   keep one unused and the other to do real control
+	*/
+};
+
+static struct ds4432_platform_data abilene_ds4432_info = {
+	.regulator_count = sizeof(ds4432_data)/sizeof(ds4432_data[0]),
+	.regulators = ds4432_data,
+
+};
+
 static struct i2c_board_info abilene_twsi6_info[] = {
 	{
+		.type		= "ds4432",
+		.addr		= 0x48,
+		.platform_data	= &abilene_ds4432_info,
 	},
 };
 
