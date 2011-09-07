@@ -153,6 +153,7 @@ struct pmem_info {
 static DEFINE_MUTEX(pmem_oom_lock);
 static struct pmem_info pmem[PMEM_MAX_DEVICES];
 static int id_count;
+static int debug_bitmap = 0, ctl_killer = 1;
 
 #define PMEM_IS_FREE(id, index) (!(pmem[id].bitmap->bits[index].allocated))
 #define PMEM_ORDER(id, index) pmem[id].bitmap->bits[index].order
@@ -243,6 +244,9 @@ static int dump_bitmap(int id)
 {
 	int col = 0, i, n = 0;
 	char *buf;
+
+	if (!debug_bitmap)
+		return 0;
 
 	buf = kzalloc(PAGE_SIZE, GFP_KERNEL);
 	if (buf == NULL)
@@ -538,6 +542,9 @@ static int pmem_allocate(int id, unsigned long len)
 	int ret, min_adj = 8;
 	ret = __pmem_allocate(id, len);
 
+	if (!ctl_killer)
+		goto out;
+
 	/* min_adj -- [0 forgound], [1 visible] */
 	while ((ret == -EAGAIN) && (--min_adj > 1)) {
 		pmem_out_of_memory(min_adj);
@@ -551,6 +558,7 @@ static int pmem_allocate(int id, unsigned long len)
 		dev_warn(pmem[id].dev, "Failed to re-allocate %lu bytes "
 				"memory\n", len);
 
+out:
 	dump_bitmap(id);
 	return ret;
 }
@@ -1486,7 +1494,21 @@ static ssize_t debug_read(struct file *file, char __user *buf, size_t count,
 	int n = 0;
 
 	dev_dbg(pmem[id].dev, "debug open\n");
-	n = scnprintf(buffer, debug_bufmax,
+	n += scnprintf(buffer + n, debug_bufmax,
+			"----control interface-----\n");
+	n += scnprintf(buffer + n, debug_bufmax,
+			"echo [num] > [this node]\n");
+	n += scnprintf(buffer + n, debug_bufmax,
+			"num:0 -- Disable bitmap dumping.\n");
+	n += scnprintf(buffer + n, debug_bufmax,
+			"num:1 -- Enable bitmap dumping.\n");
+	n += scnprintf(buffer + n, debug_bufmax,
+			"num:2 -- Disable OOM killer in PMEM.\n");
+	n += scnprintf(buffer + n, debug_bufmax,
+			"num:3 -- Enable OOM killer in PMEM.\n");
+	n += scnprintf(buffer + n, debug_bufmax,
+			"\n\n----dump interface----\n");
+	n += scnprintf(buffer + n, debug_bufmax,
 		      "pid #: mapped regions (offset, len) (offset,len)...\n");
 
 	mutex_lock(&pmem[id].data_list_lock);
@@ -1513,7 +1535,38 @@ static ssize_t debug_read(struct file *file, char __user *buf, size_t count,
 	return simple_read_from_buffer(buf, count, ppos, buffer, n);
 }
 
+static ssize_t debug_write(struct file *file, const char __user *ubuf,
+			   size_t count, loff_t *ppos)
+{
+	char buf[16];
+	int ret;
+	long i;
+
+	memset(buf, 0, sizeof(buf));
+	if (copy_from_user(&buf, ubuf, min_t(size_t, sizeof(buf) - 1, count)))
+		return -EFAULT;
+	ret = strict_strtol(buf, 10, &i);
+	if (ret)
+		return ret;
+	switch (i) {
+	case 0:
+		debug_bitmap = 0;
+		break;
+	case 1:
+		debug_bitmap = 1;
+		break;
+	case 2:
+		ctl_killer = 0;
+		break;
+	case 3:
+		ctl_killer = 1;
+		break;
+	}
+	return count;
+}
+
 static struct file_operations debug_fops = {
+	.write = debug_write,
 	.read = debug_read,
 	.open = debug_open,
 };
@@ -1607,8 +1660,9 @@ done:
 		pmem[id].allocated = 0;
 
 #if PMEM_DEBUG
-	debugfs_create_file(pdata->name, S_IFREG | S_IRUGO, NULL, (void *)id,
-			    &debug_fops);
+	/* configure debugfs node as both read and write */
+	debugfs_create_file(pdata->name, S_IFREG | S_IRUGO | S_IWUGO, NULL,
+			    (void *)id, &debug_fops);
 #endif
 	return 0;
 err_no_mem_for_metadata:
