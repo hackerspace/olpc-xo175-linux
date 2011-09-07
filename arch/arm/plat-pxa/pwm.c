@@ -32,6 +32,7 @@ static const struct platform_device_id pwm_id_table[] = {
 	{ "pxa168-pwm", 1 },
 	{ "pxa910-pwm", 1 },
 	{ "mmp2-pwm"  , 0 },
+	{ "pxa95x-pwm", 0 },
 	{ },
 };
 MODULE_DEVICE_TABLE(platform, pwm_id_table);
