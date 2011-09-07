@@ -205,7 +205,6 @@ static struct pxa168fb_mach_info tv_out_info = {
 	.mmap = 0,
 	.max_fb_size = TV_FB_XRES * TV_FB_YRES * 8 + 4096,
 	.phy_type = DPI,
-	.sclk_src = 500000000,
 	.vdma_enable = 0,
 };
 

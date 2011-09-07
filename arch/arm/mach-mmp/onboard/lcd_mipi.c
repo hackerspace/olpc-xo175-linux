@@ -18,7 +18,7 @@ static struct fb_videomode video_modes_abilene[] = {
 		.yres = 720,
 		.hsync_len = 2,
 		.left_margin = 10,
-		.right_margin = 116,
+		.right_margin = 216,
 		.vsync_len = 2,
 		.upper_margin = 10,
 		.lower_margin = 4,
@@ -27,9 +27,9 @@ static struct fb_videomode video_modes_abilene[] = {
 };
 
 static struct fb_videomode video_modes_yellowstone[] = {
-	/* innolux WVGA mode info */
 	[0] = {
-		.refresh = 54,
+		 /* panel refresh rate should <= 55(Hz) */
+		.refresh = 55,
 		.xres = 1280,
 		.yres = 800,
 		.hsync_len = 2,
@@ -42,12 +42,17 @@ static struct fb_videomode video_modes_yellowstone[] = {
 		},
 };
 
+/*
+ * dsi bpp : rgb_mode
+ *    16   : DSI_LCD_INPUT_DATA_RGB_MODE_565;
+ *    24   : DSI_LCD_INPUT_DATA_RGB_MODE_888;
+ */
 static struct dsi_info dsiinfo = {
 	.id = 1,
-	.lanes = 2,
-	.bpp = 24,
+	.lanes = 4,
+	.bpp = 16,
 	.rgb_mode = DSI_LCD_INPUT_DATA_RGB_MODE_565,
-	.burst_mode = DSI_BURST_MODE_SYNC_EVENT,
+	.burst_mode = DSI_BURST_MODE_BURST,
 	.hbp_en = 1,
 	.hfp_en = 1,
 };
@@ -56,10 +61,6 @@ static int tc358765_reset(struct pxa168fb_info *fbi)
 {
 	int gpio;
 
-	/*
-	 * FIXME: It is board related, baceuse zx will be replaced soon,
-	 * it is temproary distinguished by cpu
-	 */
 	gpio = mfp_to_gpio(GPIO128_LCD_RST);
 
 	if (gpio_request(gpio, "lcd reset gpio")) {
@@ -321,7 +322,7 @@ static struct pxa168fb_mach_info mipi_lcd_info = {
 	.id = "GFX Layer",
 	.num_modes = 0,
 	.modes = NULL,
-	.sclk_div = 0xE0001210,
+	.sclk_div = 0xE0001108,
 	.pix_fmt = PIX_FMT_RGB565,
 	.isr_clear_mask	= LCD_ISR_CLEAR_MASK,
 	/* don't care about io_pin_allocation_mode and dumb_mode
@@ -349,7 +350,7 @@ static struct pxa168fb_mach_info mipi_lcd_info = {
 	.xcvr_reset = tc358765_reset,
 	.dsi = &dsiinfo,
 	.pxa168fb_lcd_power = &abilene_lcd_power,
-	.sclk_src = 500000000,
+	.sclk_src = 520000000,
 };
 
 static struct pxa168fb_mach_info mipi_lcd_ovly_info = {
@@ -372,6 +373,78 @@ static struct pxa168fb_mach_info mipi_lcd_ovly_info = {
 	.vdma_enable = 0,
 };
 
+#define     DSI1_BITCLK(div)			((div)<<8)
+#define     DSI1_BITCLK_DIV_MASK		0x00000F00
+#define     CLK_INT_DIV(div)			(div)
+#define     CLK_INT_DIV_MASK			0x000000FF
+static void calculate_lcd_sclk(struct pxa168fb_mach_info *mi)
+{
+	struct dsi_info *di = mi->dsi;
+	struct fb_videomode *modes = &mi->modes[0];
+	u32 total_w, total_h, pclk2bclk_rate, byteclk, bitclk,
+	    pclk_div, bitclk_div = 1;
+
+	if (!di)
+		return;
+
+	if (di->lanes == 4) {
+		if (di->bpp == 16)
+			modes->right_margin = 325;
+		else if (di->bpp == 24)
+			modes->right_margin = 206;
+	} else if (di->lanes == 2) {
+		if (di->bpp == 16)
+			modes->right_margin = 179;
+		else if (di->bpp == 24)
+			modes->right_margin = 116;
+	}
+
+	/*
+	 * When DSI is used to refresh panel, the timing configuration should
+	 * follow the rules below:
+	 * 1.Because Async fifo exists between the pixel clock and byte clock
+	 *   domain, so there is no strict ratio requirement between pix_clk
+	 *   and byte_clk, we just need to meet the following inequation to
+	 *   promise the data supply from LCD controller:
+	 *   pix_clk * (nbytes/pixel) >= byte_clk * lane_num
+	 *   (nbyte/pixel: the real byte in DSI transmission)
+	 *   a)16-bit format n = 2; b) 18-bit packed format n = 18/8 = 9/4;
+	 *   c)18-bit unpacked format  n=3; d)24-bit format  n=3;
+	 *   if lane_num = 1 or 2, we can configure pix_clk/byte_clk = 1:1 >
+	 *   lane_num/nbytes/pixel
+	 *   if lane_num = 3 or 4, we can configure pix_clk/byte_clk = 2:1 >
+	 *   lane_num/nbytes/pixel
+	 * 2.The horizontal sync for LCD is synchronized from DSI,
+	 *    so the refresh rate calculation should base on the
+	 *    configuration of DSI.
+	 *    byte_clk = (h_total * nbytes/pixel) * v_total * fps / lane_num;
+	 */
+	total_w = modes->xres + modes->left_margin +
+		 modes->right_margin + modes->hsync_len;
+	total_h = modes->yres + modes->upper_margin +
+		 modes->lower_margin + modes->vsync_len;
+
+	pclk2bclk_rate = (di->lanes > 2) ? 2 : 1;
+	byteclk = ((total_w * (di->bpp >> 3)) * total_h *
+			 modes->refresh) / di->lanes;
+	bitclk = byteclk << 3;
+
+	/* The minimum of DSI pll is 150MHz */
+	if (bitclk < 150000000)
+		bitclk_div = 150000000 / bitclk + 1;
+
+	mi->sclk_src = bitclk * bitclk_div;
+	/*
+	 * mi->sclk_src = pclk * pclk_div;
+	 * pclk / bitclk  = pclk / (8 * byteclk) = pclk2bclk_rate / 8;
+	 * pclk_div / bitclk_div = 8 / pclk2bclk_rate;
+	 */
+	pclk_div = (bitclk_div << 3) / pclk2bclk_rate;
+
+	mi->sclk_div &= ~(DSI1_BITCLK_DIV_MASK | CLK_INT_DIV_MASK);
+	mi->sclk_div |= DSI1_BITCLK(bitclk_div) | CLK_INT_DIV(pclk_div);
+}
+
 #define DDR_MEM_CTRL_BASE 0xD0000000
 #define SDRAM_CONFIG_TYPE1_CS0 0x20
 void __init abilene_add_lcd_mipi(void)
@@ -389,6 +462,11 @@ void __init abilene_add_lcd_mipi(void)
 	ovly->num_modes = fb->num_modes;
 	ovly->modes = fb->modes;
 	ovly->max_fb_size = fb->max_fb_size;
+
+	/* Re-calculate lcd clk source and divider
+	 * according to dsi lanes and output format.
+	 */
+	calculate_lcd_sclk(fb);
 
 	dmc_membase = ioremap(DDR_MEM_CTRL_BASE, 0x30);
 	CSn_NO_COL = __raw_readl(dmc_membase + SDRAM_CONFIG_TYPE1_CS0) >> 4;
@@ -428,6 +506,11 @@ void __init yellowstone_add_lcd_mipi(void)
 	ovly->num_modes = fb->num_modes;
 	ovly->modes = fb->modes;
 	ovly->max_fb_size = fb->max_fb_size;
+
+	/* Re-calculate lcd clk source and divider
+	 * according to dsi lanes and output format.
+	 */
+	calculate_lcd_sclk(fb);
 
 	dmc_membase = ioremap(DDR_MEM_CTRL_BASE, 0x30);
 	CSn_NO_COL = __raw_readl(dmc_membase + SDRAM_CONFIG_TYPE1_CS0) >> 4;

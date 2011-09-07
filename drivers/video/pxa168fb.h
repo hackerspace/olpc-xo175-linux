@@ -512,6 +512,8 @@ struct lcd_regs {
 #define  SCLK_DISABLE				(1<<28)
 #define	 CLK_FRACDIV(frac)			((frac)<<16)
 #define	 CLK_FRACDIV_MASK			0x0FFF0000
+#define	 DSI1_BITCLK_DIV(div)			(div<<8)
+#define	 DSI1_BITCLK_DIV_MASK			0x00000F00
 #define	 CLK_INT_DIV(div)			(div)
 #define	 CLK_INT_DIV_MASK			0x000000FF
 

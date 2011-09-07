@@ -203,31 +203,88 @@ static struct clk mmp3_clk_pll1_d_4 = {
 
 static int mmp3_clk_pll3_enable(struct clk *clk)
 {
-	u32 tmp = __raw_readl(PMUM_PLL3_CTRL2);
+	u64 div_result;
+	u32 tmp, pll3_ctrl1, pll3_cr, FBDIV;
+	u8 VCODIV_SEL_SE, KVCO, VCO_VRNG, REFDIV = 0x3;
+	unsigned long parent_rate, rate = clk->rate;
 
+	tmp = (__raw_readl(APMU_FSIC3_CLK_RES_CTRL) >> 8) & 0xF;
+	if (tmp == 0xD)
+		parent_rate = clk_get_rate(&mmp3_clk_vctcxo);
+	else {
+		pr_err("Fatal error: pll3 has error clock input config\n");
+		BUG_ON(1);
+	}
+
+	/* PLL3 control register 1 - program ICP = 4 */
+	pll3_ctrl1 = 0x01010099;
+
+	/* 1.2GHz ~2.4GHz */
+	if ((rate >= 1200000000UL) && (rate <= 2400000000UL))
+		VCODIV_SEL_SE = 0x0 ;
+	else if (rate >= 800000000UL) { /* 800MHz */
+		rate /= 2;
+		VCODIV_SEL_SE = 0x1;
+	} else if (rate >= 600000000UL) /* 600MHz */
+		VCODIV_SEL_SE = 0x2;
+	else if (rate >= 480000000UL) { /* 480MHz */
+		rate /= 2;
+		VCODIV_SEL_SE = 0x3;
+	} else if (rate >= 400000000UL) /* 400MHz */
+		VCODIV_SEL_SE = 0x4;
+	else if (rate >= 300000000UL)   /* 300MHz */
+		VCODIV_SEL_SE = 0x5;
+	else if (rate >= 240000000UL)   /* 240MHz */
+		VCODIV_SEL_SE = 0x6;
+	else if (rate >= 200000000UL)   /* 200MHz */
+		VCODIV_SEL_SE = 0x7;
+	else if (rate >= 150000000UL)   /* 150MHz */
+		VCODIV_SEL_SE = 0x8;
+	else {
+		pr_err("Fatal error: pll3 config out of range\n");
+		BUG_ON(1);
+	}
+
+	/* rate = VCO/post_div, post_div = clk->div / REFDIV / (?2:1)*/
+	rate *= (clk->div / REFDIV);
+	if (rate > 1200000000UL && rate <= 1360000000UL)
+		KVCO = 0x1;
+	else if (rate > 1360000000UL && rate <= 1530000000UL)
+		KVCO = 0x2;
+	else if (rate > 1530000000UL && rate <= 1700000000UL)
+		KVCO = 0x3;
+	else if (rate > 1700000000UL && rate <= 1900000000UL)
+		KVCO = 0x4;
+	else if (rate > 1900000000UL && rate <= 2100000000UL)
+		KVCO = 0x5;
+	else if (rate > 2100000000UL && rate <= 2300000000UL)
+		KVCO = 0x6;
+	else if (rate > 2300000000UL && rate <= 2400000000UL)
+		KVCO = 0x7;
+	else
+		KVCO = 0x6;
+
+	if (KVCO >= 0x1 && KVCO <= 0x6)
+		VCO_VRNG = KVCO - 1;
+	else
+		VCO_VRNG = 0x5;
+
+	pll3_ctrl1 |= (VCODIV_SEL_SE << 25 | KVCO << 19 | VCO_VRNG << 8);
+
+	div_result = (u64)rate * REFDIV;
+	do_div(div_result, parent_rate);
+	FBDIV = div_result & 0x1ff;
+	pll3_cr = (REFDIV << 19) | (FBDIV << 10) | (0x1 << 9);
+
+	tmp = __raw_readl(PMUM_PLL3_CTRL2);
 	/* set SEL_VCO_CLK_SE in PMUM_PLL3_CTRL2 register */
 	__raw_writel(tmp | 0x00000001, PMUM_PLL3_CTRL2);
 
-	/*
-	 * PLL3 control register 1 - program VCODIV_SEL_SE = 2,
-	 * ICP = 4, KVCO = 5 and VCRNG = 4
-	 */
-	__raw_writel(0x05290499, PMUM_PLL3_CTRL1);
+	/* PLL3 control register 1 ICP = 4.*/
+	__raw_writel(pll3_ctrl1, PMUM_PLL3_CTRL1);
 
-	/* MPMU_PLL3CR: Program PLL3 VCO for 2.0Ghz -REFD = 3 */
-	tmp = (__raw_readl(APMU_FSIC3_CLK_RES_CTRL) >> 8) & 0xF;
-	if (tmp == 0xD)
-		/*
-		 * 26MHz ref clock to HDMI\DSI\USB PLLs,
-		 * MPMU_PLL3CR ;FBD = 0xE6
-		 */
-		__raw_writel(0x001B9A00, PMUM_PLL3_CR);
-	else
-		/*
-		 * 25MHz ref clock to HDMI\DSI\USB PLLs,
-		 * MPMU_PLL3CR ;FBD = 0xF6
-		 */
-		__raw_writel(0x001BdA00, PMUM_PLL3_CR);
+	/* MPMU_PLL3CR: Program PLL3 VCO */
+	__raw_writel(pll3_cr, PMUM_PLL3_CR);
 
 	/* PLL3 Control register -Enable SW PLL3 */
 	tmp = __raw_readl(PMUM_PLL3_CR);
@@ -262,16 +319,95 @@ static void mmp3_clk_pll3_disable(struct clk *clk)
 	udelay(500);
 }
 
-static struct clkops mmp3_clk_pll3_ops = {
-	.enable = mmp3_clk_pll3_enable,
-	.disable = mmp3_clk_pll3_disable,
-};
+static long mmp3_clk_pll3_round_rate(struct clk *clk, unsigned long rate)
+{
+	unsigned int fb_div, post_div, ref_div = 0x3;
+	unsigned long parent_rate, rate_rounded;
+	u64 div_result;
+	u32 tmp = (__raw_readl(APMU_FSIC3_CLK_RES_CTRL) >> 8) & 0xF;
 
-static struct clk mmp3_clk_pll3 = {
-	.name = "pll3",
-	.rate = 1000000000,
-	.ops = &mmp3_clk_pll3_ops,
-};
+	if (tmp == 0xD)
+		parent_rate = clk_get_rate(&mmp3_clk_vctcxo);
+	else {
+		pr_err("Fatal error: pll3 has error clock input config");
+		BUG_ON(1);
+	}
+
+	/* 1.2GHz ~2.4GHz */
+	if (rate >= 1200000000UL && rate <= 2400000000UL)
+		post_div = 1;
+	else if (rate >= 800000000UL) /* 800MHz */
+		post_div = 3;         /* post divider actually is 1.5; */
+	else if (rate >= 600000000UL) /* 600MHz */
+		post_div = 2;
+	else if (rate >= 480000000UL) /* 480MHz */
+		post_div = 5;         /* post divider actually is 2.5; */
+	else if (rate >= 400000000UL) /* 400MHz */
+		post_div = 3;
+	else if (rate >= 300000000UL) /* 300MHz */
+		post_div = 4;
+	else if (rate >= 240000000UL) /* 240MHz */
+		post_div = 5;
+	else if (rate >= 200000000UL) /* 200MHz */
+		post_div = 6;
+	else if (rate >= 150000000UL) /* 150MHz */
+		post_div = 8;
+	else {
+		pr_err("Fatal error: pll3 config out of range\n");
+		BUG_ON(1);
+	}
+
+	div_result = ((u64)rate) * ref_div * post_div;
+	div_result += parent_rate / 2; /* to round the FBDIV */
+	do_div(div_result, parent_rate);
+	fb_div = div_result;
+
+	div_result = ((u64)parent_rate) * fb_div;
+	do_div(div_result, (ref_div * post_div));
+	rate_rounded = div_result;
+
+	return rate_rounded;
+}
+
+static int mmp3_clk_pll3_setrate(struct clk *clk, unsigned long rate)
+{
+	unsigned long parent_rate;
+	u64 div_result;
+	unsigned int ref_div = 0x3;
+	clk->div = 0;
+
+	parent_rate = clk_get_rate(&mmp3_clk_vctcxo);
+
+	if (rate >= 1200000000UL && rate <= 2400000000UL)  /* 1.2GHz ~2.4GHz */
+		clk->div = 1;
+	else if (rate >= 800000000UL) /* 800MHz */
+		clk->div = 3;
+	else if (rate >= 600000000UL) /* 600MHz */
+		clk->div = 2;
+	else if (rate >= 480000000UL) /* 480MHz */
+		clk->div = 5;
+	else if (rate >= 400000000UL) /* 400MHz */
+		clk->div = 3;
+	else if (rate >= 300000000UL) /* 300MHz */
+		clk->div = 4;
+	else if (rate >= 240000000UL) /* 240MHz */
+		clk->div = 5;
+	else if (rate >= 200000000UL) /* 200MHz */
+		clk->div = 6;
+	else if (rate >= 150000000UL) /* 150MHz */
+		clk->div = 8;
+	else {
+		pr_err("Fatal error: pll3 config out of range\n");
+		BUG_ON(1);
+	}
+	clk->div *= ref_div;
+	div_result = ((u64)rate) * clk->div;
+	div_result += parent_rate / 2; /* to round the mul */
+	do_div(div_result, parent_rate);
+	clk->mul = div_result;
+
+	return 0;
+}
 
 static struct clk_mux_sel mux_pll1_pll2_vctcxo[] = {
 	{.input = &mmp3_clk_pll1_d_2, .value = 0},
@@ -941,7 +1077,7 @@ static struct clk *disp_depend_clk[] = {
 	&mmp3_clk_disp1_axi,
 };
 
-static int lcd_pn1_clk_enable(struct clk *clk)
+static int disp1_clk_enable(struct clk *clk)
 {
 	u32 val;
 
@@ -951,37 +1087,29 @@ static int lcd_pn1_clk_enable(struct clk *clk)
 	val |= (1 << 4);
 	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
 
-	/* enable DSI clock */
-	val |= (1 << 12) | (1 << 5);
-	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
-
 	/* release from reset */
-	val |= (1 << 1) | (1 << 2);
+	val |= (1 << 1);
 	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
 
 	return 0;
 }
 
-static void lcd_pn1_clk_disable(struct clk *clk)
+static void disp1_clk_disable(struct clk *clk)
 {
 	u32 val;
 
 	val = __raw_readl(clk->reg_data[SOURCE][CONTROL].reg);
-
-	/* disable DSI clock */
-	val &= ~((1<<12) | (1<<5));
-	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
 
 	/* disable Display1 peripheral clock */
 	val &= ~(1<<4);
 	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
 }
 
-static long lcd_clk_round_rate(struct clk *clk, unsigned long rate)
+static long disp1_clk_round_rate(struct clk *clk, unsigned long rate)
 {
 	/*
-	 * lcd actually has four clock source: pll1, pll1/16, pll2 and vctcxo.
-	 * the range of the divider is 1 to 15.
+	 * disp1 clock actually has four clock source: pll1, pll1/16, pll2
+	 * and vctcxo.The range of the divider is 1 to 15.
 	 * here the policy is try to not use pll2 as possile as it can.
 	 * since the divider can be as large as 15 so it don't need pll1/16
 	 * as the clock source. For the very low rate requirement, we can
@@ -1013,20 +1141,11 @@ static long lcd_clk_round_rate(struct clk *clk, unsigned long rate)
 		return clk_get_rate(&mmp3_clk_pll2);
 }
 
-#define LCD_PN1_DSI_PHYSLOW_PRER	0x1A
-#define LCD_PN1_DSI_PHYSLOW_PRER_SHIFT	15
-#define LCD_PN1_DSI_PHYSLOW_PRER_MASK	0x1F
-
-static int lcd_clk_setrate(struct clk *clk, unsigned long rate)
+static int disp1_clk_setrate(struct clk *clk, unsigned long rate)
 {
 	unsigned long parent_rate;
 	const struct clk_mux_sel *sel;
 	u32 val = __raw_readl(clk->reg_data[SOURCE][CONTROL].reg);
-
-	/* use fixed prescaler for DSI PHY slow clock */
-	val &= ~(LCD_PN1_DSI_PHYSLOW_PRER_MASK <<
-			LCD_PN1_DSI_PHYSLOW_PRER_SHIFT);
-	val |= (LCD_PN1_DSI_PHYSLOW_PRER << LCD_PN1_DSI_PHYSLOW_PRER_SHIFT);
 
 	if (rate <= clk_get_rate(&mmp3_clk_vctcxo)) {
 		parent_rate = clk_get_rate(&mmp3_clk_vctcxo);
@@ -1110,6 +1229,99 @@ static int lcd_clk_setrate(struct clk *clk, unsigned long rate)
 	return 0;
 }
 
+struct clkops disp1_clk_ops = {
+	.enable = disp1_clk_enable,
+	.disable = disp1_clk_disable,
+	.round_rate = disp1_clk_round_rate,
+	.setrate = disp1_clk_setrate,
+};
+
+static struct clk_mux_sel disp1_clk_mux[] = {
+	{.input = &mmp3_clk_pll1, .value = 0},
+	{.input = &mmp3_clk_pll2, .value = 2},
+	{.input = &mmp3_clk_vctcxo, .value = 3},
+	{0, 0},
+};
+/*
+ * Disp1 clock can be one of the source for lcd,
+ * Just now we didn't select it as clock source for lcd,
+ * but use DSI PLL(PLL3).
+ */
+static struct clk mmp3_clk_disp1 = {
+	.name = "disp1",
+	.lookup = {
+		.con_id = "DISP1_CLK",
+	},
+	.ops = &disp1_clk_ops,
+	.dependence = disp_depend_clk,
+	.dependence_count = ARRAY_SIZE(disp_depend_clk),
+	.inputs = disp1_clk_mux,
+	.reg_data = {
+		     { {APMU_LCD_CLK_RES_CTRL, 6, 0x3},
+			{APMU_LCD_CLK_RES_CTRL, 6, 0x3} },
+		     {{APMU_LCD_CLK_RES_CTRL, 8, 0xf},
+			{APMU_LCD_CLK_RES_CTRL, 8, 0xf} } },
+};
+
+#define LCD_PN1_DSI_PHYSLOW_PRER	0x1A
+#define LCD_PN1_DSI_PHYSLOW_PRER_SHIFT	15
+#define LCD_PN1_DSI_PHYSLOW_PRER_MASK	0x1F
+
+static int lcd_pn1_clk_enable(struct clk *clk)
+{
+	u32 val;
+
+	val = __raw_readl(clk->reg_data[SOURCE][CONTROL].reg);
+	/* enable DSI clock */
+	val |= (1 << 12) | (1 << 5);
+	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+
+	/* release from reset */
+	val |= (1 << 1) | (1 << 2);
+	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+
+	/* use fixed prescaler for DSI PHY slow clock */
+	val &= ~(LCD_PN1_DSI_PHYSLOW_PRER_MASK <<
+		LCD_PN1_DSI_PHYSLOW_PRER_SHIFT);
+	val |= (LCD_PN1_DSI_PHYSLOW_PRER << LCD_PN1_DSI_PHYSLOW_PRER_SHIFT);
+	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+
+	/*
+	 * Here we fix the lcd clock souce as DSI PLL(PLL3). Because it
+	 * provides a more flexible clocking options for the DSI interface
+	 * which has very peculiar frequency requirements driven by the
+	 * display panel parameters. So enable the pll3 clk here.
+	 */
+	mmp3_clk_pll3_enable(clk);
+
+	return 0;
+}
+
+static void lcd_pn1_clk_disable(struct clk *clk)
+{
+	u32 val;
+
+	/* lcd clock source is fixed as DSI PLL(PLL3), so disable pll3 clk */
+	mmp3_clk_pll3_disable(clk);
+
+	val = __raw_readl(clk->reg_data[SOURCE][CONTROL].reg);
+	/* disable DSI clock */
+	val &= ~((1<<12) | (1<<5));
+	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+}
+
+static long lcd_clk_round_rate(struct clk *clk, unsigned long rate)
+{
+	/* lcd clock source is fixed as DSI PLL(PLL3), so round pll3 clk */
+	return mmp3_clk_pll3_round_rate(clk, rate);
+}
+
+static int lcd_clk_setrate(struct clk *clk, unsigned long rate)
+{
+	/* lcd clock source is fixed as DSI PLL(PLL3), so set pll3 clk rate */
+	return mmp3_clk_pll3_setrate(clk, rate);
+}
+
 struct clkops lcd_pn1_clk_ops = {
 	.enable = lcd_pn1_clk_enable,
 	.disable = lcd_pn1_clk_disable,
@@ -1118,12 +1330,17 @@ struct clkops lcd_pn1_clk_ops = {
 };
 
 static struct clk_mux_sel lcd_pn1_clk_mux[] = {
-	{.input = &mmp3_clk_pll1, .value = 0},
-	{.input = &mmp3_clk_pll2, .value = 2},
-	{.input = &mmp3_clk_vctcxo, .value = 3},
+	{.input = &mmp3_clk_vctcxo, 0},
 	{0, 0},
 };
 
+/*
+ * lcd clk actually has five clock souce: axi, display 1,
+ * display 2, HDMI PLL and DSI PLL(PLL3). Here we just fix it to be
+ * PLL3 since it provides a more flexible clocking options for the
+ * DSI interface which has very peculiar frequency requirements driven
+ * by the display panel parameters. And PLL3 satisfy the LCD/DSI very well.
+ */
 static struct clk mmp3_clk_lcd1 = {
 	.name = "lcd1",
 	.lookup = {
@@ -1144,7 +1361,7 @@ static int hdmi_clk_enable(struct clk *clk)
 {
 	/*
 	 *hdmi clock enable is done by user space,
-	 * to control it's dependence clock disp1_clk
+	 * to control it's dependence clock disp1_axi
 	 * here we must define this clk_enable function
 	 */
 	return 0;
@@ -1154,7 +1371,7 @@ static void hdmi_clk_disable(struct clk *clk)
 {
 	/*
 	 * hdmi clock disable is done by user space,
-	 * to control it's dependence clock disp1_clk
+	 * to control it's dependence clock disp1_axi
 	 * here we must define this clk_disable function
 	 */
 
@@ -1174,114 +1391,6 @@ static struct clk mmp3_clk_hdmi = {
 	.ops = &hdmi_clk_ops,
 	.dependence = disp_depend_clk,
 	.dependence_count = ARRAY_SIZE(disp_depend_clk),
-};
-
-#define LCD_SCLK_DIV	(APB_VIRT_BASE + 0x0020B1A8)
-
-static int lcd_sclk_enable(struct clk *clk)
-{
-	u32 val;
-
-	val = __raw_readl(clk->reg_data[SOURCE][CONTROL].reg);
-	/* enable path clock */
-	val &= ~(1 << 28);
-	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
-
-	return 0;
-}
-
-static void lcd_sclk_disable(struct clk *clk)
-{
-	u32 val;
-
-	val = __raw_readl(clk->reg_data[SOURCE][CONTROL].reg);
-	/* disable path clock */
-	val |= (1 << 28);
-	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
-}
-
-static long lcd_sclk_round_rate(struct clk *clk, unsigned long rate)
-{
-	/*
-	 * lcd sclk actually has five clock souce: axi, display 1,
-	 * display 2, HDMI PLL and PLL3. Here we just fix it to be
-	 * PLL3 since it makes things simple and PLL3 satisfy it well.
-	 */
-	int i;
-	unsigned long parent_rate = clk_get_rate(&mmp3_clk_pll3);
-
-	/* the divider is from 2 to 255 */
-	for (i = 3; i < 256; i++) {
-		if (rate > parent_rate / i)
-			break;
-	}
-
-	return parent_rate / (i - 1);
-}
-
-static int lcd_sclk_setrate(struct clk *clk, unsigned long rate)
-{
-	const struct clk_mux_sel *sel;
-	unsigned long parent_rate = clk_get_rate(&mmp3_clk_pll3);
-	u32 val = __raw_readl(clk->reg_data[SOURCE][CONTROL].reg);
-
-	clk->mul = 1;
-	clk->div = parent_rate / rate;
-
-	clk_reparent(clk, &mmp3_clk_pll3);
-
-	val &= ~(clk->reg_data[DIV][CONTROL].reg_mask
-		 << clk->reg_data[DIV][CONTROL].reg_shift);
-	val |= clk->div
-	    << clk->reg_data[DIV][CONTROL].reg_shift;
-
-	for (sel = clk->inputs; sel->input != 0; sel++) {
-		if (sel->input == &mmp3_clk_pll3)
-			break;
-	}
-	if (sel->input == 0) {
-		pr_err("lcd: no matched input for this parent!\n");
-		BUG();
-	}
-
-	val &= ~(clk->reg_data[SOURCE][CONTROL].reg_mask
-		<< clk->reg_data[SOURCE][CONTROL].reg_shift);
-	val |= sel->value
-		<< clk->reg_data[SOURCE][CONTROL].reg_shift;
-
-	val |= 0x10001200;
-	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
-
-	return 0;
-}
-
-struct clkops lcd_sclk_ops = {
-	.enable = lcd_sclk_enable,
-	.disable = lcd_sclk_disable,
-	.round_rate = lcd_sclk_round_rate,
-	.setrate = lcd_sclk_setrate,
-};
-
-/* Note: does not expose AXI/Display 2/HDMI PLL */
-static struct clk_mux_sel lcd_sclk_mux[] = {
-	{.input = &mmp3_clk_lcd1, .value = 1},
-	{.input = &mmp3_clk_pll3, .value = 7},
-	{0, 0},
-};
-
-static struct clk mmp3_lcd_sclk = {
-	.name = "lcd_sclk",
-	.lookup = {
-		.dev_id = "pxa168-fb.0",
-		.con_id = "LCDSCLK",
-	},
-	.ops = &lcd_sclk_ops,
-	.inputs = lcd_sclk_mux,
-	.reg_data = {
-		     { {LCD_SCLK_DIV, 29, 0x7},
-			{LCD_SCLK_DIV, 29, 0x7} },
-		     {{LCD_SCLK_DIV, 0, 0xff},
-			{LCD_SCLK_DIV, 0, 0xff} } },
 };
 
 static void sdhc_clk_init(struct clk *clk)
@@ -1906,10 +2015,9 @@ static struct clk *mmp3_clks_ptr[] = {
 	&mmp3_clk_axi1,
 	&mmp3_clk_axi2,
 	&mmp3_clk_pll1_d_4,
-	&mmp3_clk_pll3,
 	&mmp3_clk_gc,
+	&mmp3_clk_disp1,
 	&mmp3_clk_lcd1,
-	&mmp3_lcd_sclk,
 	&mmp3_clk_sdh0,
 	&mmp3_clk_sdh1,
 	&mmp3_clk_sdh2,

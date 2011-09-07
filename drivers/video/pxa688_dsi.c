@@ -84,7 +84,6 @@ void pxa168fb_dsi_send(struct pxa168fb_info *fbi, void *value)
 	u8 *dsi_cmd = (u8 *)&dsi_cmd_tmp[1];
 	unsigned int firstTimeFlag = 1, firstPacket = 0;
 	volatile int loop = 0, tmp = 0, bc = 0, dsiAddr = 0, wAddr = 0;
-	volatile unsigned int reg;
 
 	pr_debug("count is %d\r\n", count);
 
