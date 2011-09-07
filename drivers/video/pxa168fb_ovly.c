@@ -2534,8 +2534,12 @@ static int pxa168fb_set_par(struct fb_info *fi)
 
 #ifdef CONFIG_PXA688_VDMA
 	if (mi->vdma_enable && fbi->surface.viewPortInfo.rotation) {
-		vdma_lines = pxa688fb_vdma_get_linenum(fbi);
-		pxa688fb_vdma_set(fbi, vdma_paddr, vdma_lines, 1);
+		mi->vdma_lines = pxa688fb_vdma_get_linenum(fbi, 1,
+			fbi->surface.viewPortInfo.rotation);
+		pxa688fb_vdma_set(fbi, mi->sram_paddr, mi->vdma_lines,
+			1, fbi->surface.videoMode,
+			fbi->surface.viewPortInfo.rotation,
+			fbi->surface.viewPortInfo.yuv_format);
 	} else if (mi->vdma_enable) {
 		val = vdma_ctrl_read(fbi) & 1;
 		if (val)

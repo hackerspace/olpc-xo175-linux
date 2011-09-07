@@ -1242,11 +1242,7 @@ struct dsi_regs {
 
 
 /* VDMA */
-#define VDMA_ARBR_CTRL		0x300
-#define VDMA_IRQR		0x304
-#define VDMA_IRQM		0x308
-#define VDMA_IRQS		0x30C
-#define VDMA_MDMA_ARBR_CTRL	0x310
+struct vdma_ch_regs {
 #define VDMA_DC_SADDR_1		0x320
 #define VDMA_DC_SADDR_2		0x3A0
 #define VDMA_DC_SZ_1		0x324
@@ -1261,6 +1257,13 @@ struct dsi_regs {
 #define VDMA_DA_2		0x3B4
 #define VDMA_SZ_1		0x338
 #define VDMA_SZ_2		0x3B8
+	u32	dc_saddr;
+	u32	dc_size;
+	u32	ctrl;
+	u32	src_size;
+	u32	src_addr;
+	u32	dst_addr;
+	u32	dst_size;
 #define VDMA_PITCH_1		0x33C
 #define VDMA_PITCH_2		0x3BC
 #define VDMA_ROT_CTRL_1		0x340
@@ -1269,6 +1272,29 @@ struct dsi_regs {
 #define VDMA_RAM_CTRL0_2	0x3C4
 #define VDMA_RAM_CTRL1_1	0x348
 #define VDMA_RAM_CTRL1_2	0x3C8
+	u32	pitch;
+	u32	rot_ctrl;
+	u32	ram_ctrl0;
+	u32	ram_ctrl1;
+
+};
+struct vdma_regs {
+#define VDMA_ARBR_CTRL		0x300
+#define VDMA_IRQR		0x304
+#define VDMA_IRQM		0x308
+#define VDMA_IRQS		0x30C
+#define VDMA_MDMA_ARBR_CTRL	0x310
+	u32	arbr_ctr;
+	u32	irq_raw;
+	u32	irq_mask;
+	u32	irq_status;
+	u32	mdma_arbr_ctrl;
+	u32	reserved[3];
+
+	struct vdma_ch_regs	ch1;
+	u32	reserved2[21];
+	struct vdma_ch_regs	ch2;
+};
 
 /* CMU */
 #define CMU_PIP_DE_H_CFG	0x0008

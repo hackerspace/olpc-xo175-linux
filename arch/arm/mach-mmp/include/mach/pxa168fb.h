@@ -537,6 +537,9 @@ struct pxa168fb_mach_info {
 	 * vdma option
 	 */
 	unsigned int vdma_enable;
+	unsigned int vdma_lines;
+	unsigned int sram_paddr;
+	unsigned int sram_size;
 
 	/*
 	 * power on/off function.
@@ -610,6 +613,7 @@ struct fbi_info {
 
 extern int fb_mode;
 extern struct device_attribute dev_attr_dsi;
+extern struct device_attribute dev_attr_vdma;
 extern struct fbi_info gfx_info;
 extern struct lcd_regs *get_regs(int id);
 extern struct cmu_calibration cmu_cal[3];
@@ -640,15 +644,14 @@ extern void dsi_set_controller(struct pxa168fb_info *fbi);
 extern void dsi_lanes_enable(struct pxa168fb_info *fbi, int en);
 
 /* VDMA related */
-extern u32 vdma_paddr;
-extern unsigned int vdma_lines;
-extern unsigned int sram_freebytes;
 extern void pxa688_vdma_clkset(int en);
-extern u32 pxa688fb_vdma_squ_malloc(void);
+extern u32 pxa688fb_vdma_squ_malloc(unsigned *psize);
 extern void pxa688fb_vdma_set(struct pxa168fb_info *fbi, u32 psqu,
-			 unsigned int lines, unsigned int layer);
+				 unsigned int lines, unsigned int layer,
+				 int vmode, int rotation, unsigned format);
 extern void pxa688fb_vdma_release(struct pxa168fb_info *fbi);
-extern int pxa688fb_vdma_get_linenum(struct pxa168fb_info *fbi);
+extern int pxa688fb_vdma_get_linenum(struct pxa168fb_info *fbi,
+					 int video, int angle);
 extern u32 vdma_ctrl_read(struct pxa168fb_info *fbi);
 extern void vdma_ctrl_write(struct pxa168fb_info *fbi, int value);
 

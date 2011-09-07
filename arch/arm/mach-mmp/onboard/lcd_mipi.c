@@ -502,6 +502,9 @@ static struct pxa168fb_mach_info mipi_lcd_info = {
 	.spi_gpio_cs = -1,
 	.spi_gpio_reset = -1,
 	.mmap = 1,
+	.vdma_enable = 1,
+	.sram_paddr = 0,
+	.sram_size  = 30 * 1024,
 	.max_fb_size = 0,
 	.phy_type = DSI2DPI,
 	.phy_init = dsi_init,
@@ -529,7 +532,7 @@ static struct pxa168fb_mach_info mipi_lcd_ovly_info = {
 	.spi_gpio_reset = -1,
 	.mmap = 0,
 	.max_fb_size = 0,
-	.vdma_enable = 1,
+	.vdma_enable = 0,
 };
 
 #define DDR_MEM_CTRL_BASE 0xD0000000
