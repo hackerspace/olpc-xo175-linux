@@ -46,7 +46,6 @@
  * @signal_1v8: signaling change to 1.8V
  * @lp_switch(): slot operations needed while going in/out low-power mode
  * @idle_lock: wake lock for idle
- * @suspend_lock: wake lock for suspend
  */
 struct sdhci_pxa_platdata {
 	unsigned int	flags;
@@ -63,7 +62,6 @@ struct sdhci_pxa_platdata {
 	int	(*lp_switch)(unsigned int on, int with_card);
 #ifdef CONFIG_WAKELOCK
 	struct wake_lock	idle_lock;
-	struct wake_lock	suspend_lock;
 #endif
 #ifdef CONFIG_SD8XXX_RFKILL
 	/*for sd8688-rfkill device*/

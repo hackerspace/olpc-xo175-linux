@@ -123,13 +123,10 @@ static void pxav2_access_constrain(struct sdhci_host *host, unsigned int ac)
 		return;
 
 #ifdef CONFIG_WAKELOCK
-	if (ac) {
+	if (ac)
 		wake_lock(&pdata->idle_lock);
-		wake_lock(&pdata->suspend_lock);
-	} else {
+	else
 		wake_unlock(&pdata->idle_lock);
-		wake_unlock(&pdata->suspend_lock);
-	}
 #endif
 }
 
@@ -196,8 +193,6 @@ static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
 	#ifdef CONFIG_WAKELOCK
 		wake_lock_init(&pdata->idle_lock, WAKE_LOCK_IDLE,
 			(const char *)mmc_hostname(host->mmc));
-		wake_lock_init(&pdata->suspend_lock, WAKE_LOCK_SUSPEND,
-			(const char *)mmc_hostname(host->mmc));
 	#endif
 	}
 
@@ -225,7 +220,6 @@ err_add_host:
 err_clk_get:
 #ifdef CONFIG_WAKELOCK
 	wake_lock_destroy(&pdata->idle_lock);
-	wake_lock_destroy(&pdata->suspend_lock);
 #endif
 	sdhci_pltfm_free(pdev);
 	kfree(pxa);
@@ -242,7 +236,6 @@ static int __devexit sdhci_pxav2_remove(struct platform_device *pdev)
 
 #ifdef CONFIG_WAKELOCK
 	wake_lock_destroy(&pxa->pdata->idle_lock);
-	wake_lock_destroy(&pxa->pdata->suspend_lock);
 #endif
 
 	clk_disable(pltfm_host->clk);
