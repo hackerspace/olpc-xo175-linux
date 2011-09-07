@@ -148,12 +148,14 @@ static int preserve_iwmmxt_context(struct iwmmxt_sigframe *frame)
 {
 	char kbuf[sizeof(*frame) + 8];
 	struct iwmmxt_sigframe *kframe;
+	struct thread_info *thread = current_thread_info();
 
 	/* the iWMMXt context must be 64 bit aligned */
 	kframe = (struct iwmmxt_sigframe *)((unsigned long)(kbuf + 8) & ~7);
 	kframe->magic = IWMMXT_MAGIC;
 	kframe->size = IWMMXT_STORAGE_SIZE;
-	iwmmxt_task_copy(current_thread_info(), &kframe->storage);
+	iwmmxt_sync_hwstate(thread);
+	memcpy(&kframe->storage, &thread->fpstate.iwmmxt, sizeof(struct iwmmxt_struct));
 	return __copy_to_user(frame, kframe, sizeof(*frame));
 }
 
@@ -161,6 +163,7 @@ static int restore_iwmmxt_context(struct iwmmxt_sigframe *frame)
 {
 	char kbuf[sizeof(*frame) + 8];
 	struct iwmmxt_sigframe *kframe;
+	struct thread_info *thread = current_thread_info();
 
 	/* the iWMMXt context must be 64 bit aligned */
 	kframe = (struct iwmmxt_sigframe *)((unsigned long)(kbuf + 8) & ~7);
@@ -169,7 +172,8 @@ static int restore_iwmmxt_context(struct iwmmxt_sigframe *frame)
 	if (kframe->magic != IWMMXT_MAGIC ||
 	    kframe->size != IWMMXT_STORAGE_SIZE)
 		return -1;
-	iwmmxt_task_restore(current_thread_info(), &kframe->storage);
+	memcpy(&thread->fpstate.iwmmxt, &kframe->storage, sizeof(struct iwmmxt_struct));
+	iwmmxt_flush_hwstate(thread);
 	return 0;
 }
 

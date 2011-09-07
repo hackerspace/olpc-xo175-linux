@@ -78,21 +78,25 @@ ENTRY(iwmmxt_task_enable)
 	PJ4(orr	r2, r2, #0xf)
 	PJ4(mcr	p15, 0, r2, c1, c0, 2)
 
-	ldr	r3, =concan_owner
+	ldr	r3, last_iwmmxt_context_address
 	add	r0, r10, #TI_IWMMXT_STATE	@ get task Concan save area
 	ldr	r2, [sp, #60]			@ current task pc value
-	ldr	r1, [r3]			@ get current Concan owner
-	str	r0, [r3]			@ this task now owns Concan regs
+	ldr	r11, [r10, #TI_CPU]		@ CPU number
+	ldr	r1, [r3, r11, lsl #2]		@ get current Concan owner
+	str	r0, [r3, r11, lsl #2]		@ this task now owns Concan regs
 	sub	r2, r2, #4			@ adjust pc back
 	str	r2, [sp, #60]
 
 	mrc	p15, 0, r2, c2, c0, 0
 	mov	r2, r2				@ cpwait
 
+	teq	r1, r0				@ the same process?
+	moveq	pc, r9				@ just return, no need reload
 	teq	r1, #0				@ test for last ownership
 	mov	lr, r9				@ normal exit from exception
 	beq	concan_load			@ no owner, skip save
 
+#ifndef CONFIG_SMP
 concan_save:
 
 	tmrc	r2, wCon
@@ -133,6 +137,7 @@ concan_dump:
 
 2:	teq	r0, #0				@ anything to load?
 	moveq	pc, lr
+#endif
 
 concan_load:
 
@@ -169,178 +174,34 @@ concan_load:
 	tmcr	wCon, r2
 	mov	pc, lr
 
-/*
- * Back up Concan regs to save area and disable access to them
- * (mainly for gdb or sleep mode usage)
- *
- * r0 = struct thread_info pointer of target task or NULL for any
- */
+last_iwmmxt_context_address:
+	.word	last_iwmmxt_context
 
-ENTRY(iwmmxt_task_disable)
 
-	stmfd	sp!, {r4, lr}
+ENTRY(iwmmxt_save_state)
+	wstrw	wCSSF, [r0, #MMX_WCSSF]
+	wstrw	wCASF, [r0, #MMX_WCASF]
+	wstrw	wCGR0, [r0, #MMX_WCGR0]
+	wstrw	wCGR1, [r0, #MMX_WCGR1]
+	wstrw	wCGR2, [r0, #MMX_WCGR2]
+	wstrw	wCGR3, [r0, #MMX_WCGR3]
 
-	mrs	ip, cpsr
-	orr	r2, ip, #PSR_I_BIT		@ disable interrupts
-	msr	cpsr_c, r2
+	wstrd	wR0,  [r0, #MMX_WR0]
+	wstrd	wR1,  [r0, #MMX_WR1]
+	wstrd	wR2,  [r0, #MMX_WR2]
+	wstrd	wR3,  [r0, #MMX_WR3]
+	wstrd	wR4,  [r0, #MMX_WR4]
+	wstrd	wR5,  [r0, #MMX_WR5]
+	wstrd	wR6,  [r0, #MMX_WR6]
+	wstrd	wR7,  [r0, #MMX_WR7]
+	wstrd	wR8,  [r0, #MMX_WR8]
+	wstrd	wR9,  [r0, #MMX_WR9]
+	wstrd	wR10, [r0, #MMX_WR10]
+	wstrd	wR11, [r0, #MMX_WR11]
+	wstrd	wR12, [r0, #MMX_WR12]
+	wstrd	wR13, [r0, #MMX_WR13]
+	wstrd	wR14, [r0, #MMX_WR14]
+	wstrd	wR15, [r0, #MMX_WR15]
 
-	ldr	r3, =concan_owner
-	add	r2, r0, #TI_IWMMXT_STATE	@ get task Concan save area
-	ldr	r1, [r3]			@ get current Concan owner
-	teq	r1, #0				@ any current owner?
-	beq	1f				@ no: quit
-	teq	r0, #0				@ any owner?
-	teqne	r1, r2				@ or specified one?
-	bne	1f				@ no: quit
-
-	@ enable access to CP0 and CP1
-	XSC(mrc	p15, 0, r4, c15, c1, 0)
-	XSC(orr	r4, r4, #0xf)
-	XSC(mcr	p15, 0, r4, c15, c1, 0)
-	PJ4(mrc p15, 0, r4, c1, c0, 2)
-	PJ4(orr	r4, r4, #0x3)
-	PJ4(mcr	p15, 0, r4, c1, c0, 2)
-
-	mov	r0, #0				@ nothing to load
-	str	r0, [r3]			@ no more current owner
-	mrc	p15, 0, r2, c2, c0, 0
-	mov	r2, r2				@ cpwait
-	bl	concan_save
-
-	@ disable access to CP0 and CP1
-	XSC(bic	r4, r4, #0x3)
-	XSC(mcr	p15, 0, r4, c15, c1, 0)
-	PJ4(bic	r4, r4, #0xf)
-	PJ4(mcr	p15, 0, r4, c1, c0, 2)
-
-	mrc	p15, 0, r2, c2, c0, 0
-	mov	r2, r2				@ cpwait
-
-1:	msr	cpsr_c, ip			@ restore interrupt mode
-	ldmfd	sp!, {r4, pc}
-
-/*
- * Copy Concan state to given memory address
- *
- * r0 = struct thread_info pointer of target task
- * r1 = memory address where to store Concan state
- *
- * this is called mainly in the creation of signal stack frames
- */
-
-ENTRY(iwmmxt_task_copy)
-
-	mrs	ip, cpsr
-	orr	r2, ip, #PSR_I_BIT		@ disable interrupts
-	msr	cpsr_c, r2
-
-	ldr	r3, =concan_owner
-	add	r2, r0, #TI_IWMMXT_STATE	@ get task Concan save area
-	ldr	r3, [r3]			@ get current Concan owner
-	teq	r2, r3				@ does this task own it...
-	beq	1f
-
-	@ current Concan values are in the task save area
-	msr	cpsr_c, ip			@ restore interrupt mode
-	mov	r0, r1
-	mov	r1, r2
-	mov	r2, #MMX_SIZE
-	b	memcpy
-
-1:	@ this task owns Concan regs -- grab a copy from there
-	mov	r0, #0				@ nothing to load
-	mov	r2, #3				@ save all regs
-	mov	r3, lr				@ preserve return address
-	bl	concan_dump
-	msr	cpsr_c, ip			@ restore interrupt mode
-	mov	pc, r3
-
-/*
- * Restore Concan state from given memory address
- *
- * r0 = struct thread_info pointer of target task
- * r1 = memory address where to get Concan state from
- *
- * this is used to restore Concan state when unwinding a signal stack frame
- */
-
-ENTRY(iwmmxt_task_restore)
-
-	mrs	ip, cpsr
-	orr	r2, ip, #PSR_I_BIT		@ disable interrupts
-	msr	cpsr_c, r2
-
-	ldr	r3, =concan_owner
-	add	r2, r0, #TI_IWMMXT_STATE	@ get task Concan save area
-	ldr	r3, [r3]			@ get current Concan owner
-	bic	r2, r2, #0x7			@ 64-bit alignment
-	teq	r2, r3				@ does this task own it...
-	beq	1f
-
-	@ this task doesn't own Concan regs -- use its save area
-	msr	cpsr_c, ip			@ restore interrupt mode
-	mov	r0, r2
-	mov	r2, #MMX_SIZE
-	b	memcpy
-
-1:	@ this task owns Concan regs -- load them directly
-	mov	r0, r1
-	mov	r1, #0				@ don't clear CUP/MUP
-	mov	r3, lr				@ preserve return address
-	bl	concan_load
-	msr	cpsr_c, ip			@ restore interrupt mode
-	mov	pc, r3
-
-/*
- * Concan handling on task switch
- *
- * r0 = next thread_info pointer
- *
- * Called only from the iwmmxt notifier with task preemption disabled.
- */
-ENTRY(iwmmxt_task_switch)
-
-	XSC(mrc	p15, 0, r1, c15, c1, 0)
-	PJ4(mrc	p15, 0, r1, c1, c0, 2)
-	@ CP0 and CP1 accessible?
-	XSC(tst	r1, #0x3)
-	PJ4(tst	r1, #0xf)
-	bne	1f				@ yes: block them for next task
-
-	ldr	r2, =concan_owner
-	add	r3, r0, #TI_IWMMXT_STATE	@ get next task Concan save area
-	ldr	r2, [r2]			@ get current Concan owner
-	teq	r2, r3				@ next task owns it?
-	movne	pc, lr				@ no: leave Concan disabled
-
-1:	@ flip Conan access
-	XSC(eor	r1, r1, #0x3)
-	XSC(mcr	p15, 0, r1, c15, c1, 0)
-	PJ4(eor r1, r1, #0xf)
-	PJ4(mcr	p15, 0, r1, c1, c0, 2)
-
-	mrc	p15, 0, r1, c2, c0, 0
-	sub	pc, lr, r1, lsr #32		@ cpwait and return
-
-/*
- * Remove Concan ownership of given task
- *
- * r0 = struct thread_info pointer
- */
-ENTRY(iwmmxt_task_release)
-
-	mrs	r2, cpsr
-	orr	ip, r2, #PSR_I_BIT		@ disable interrupts
-	msr	cpsr_c, ip
-	ldr	r3, =concan_owner
-	add	r0, r0, #TI_IWMMXT_STATE	@ get task Concan save area
-	ldr	r1, [r3]			@ get current Concan owner
-	eors	r0, r0, r1			@ if equal...
-	streq	r0, [r3]			@ then clear ownership
-	msr	cpsr_c, r2			@ restore interrupts
 	mov	pc, lr
-
-	.data
-concan_owner:
-	.word	0
 
