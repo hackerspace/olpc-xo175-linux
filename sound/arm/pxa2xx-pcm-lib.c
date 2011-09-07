@@ -91,22 +91,16 @@ int pxa2xx_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
+	case SNDRV_PCM_TRIGGER_RESUME:
+	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		DDADR(prtd->dma_ch) = prtd->dma_desc_array_phys;
-		DCSR(prtd->dma_ch) = DCSR_RUN;
+		DCSR(prtd->dma_ch) |= DCSR_RUN;
 		break;
 
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		DCSR(prtd->dma_ch) &= ~DCSR_RUN;
-		break;
-
-	case SNDRV_PCM_TRIGGER_RESUME:
-		DCSR(prtd->dma_ch) |= DCSR_RUN;
-		break;
-	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		DDADR(prtd->dma_ch) = prtd->dma_desc_array_phys;
-		DCSR(prtd->dma_ch) |= DCSR_RUN;
 		break;
 
 	default:
