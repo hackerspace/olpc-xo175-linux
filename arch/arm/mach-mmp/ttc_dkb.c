@@ -30,7 +30,8 @@
 #include <linux/regulator/consumer.h>
 #include <linux/clk.h>
 #include <linux/io.h>
-
+#include <linux/sd8x_rfkill.h>
+#include <linux/mmc/host.h>
 #include <asm/mach-types.h>
 #include <asm/uaccess.h>
 #include <asm/mach/arch.h>
@@ -140,6 +141,21 @@ static unsigned long ttc_dkb_pin_config[] __initdata = {
 	MMC1_CLK_MMC1_CLK,
 	MMC1_CD_MMC1_CD | MFP_PULL_HIGH,
 	MMC1_WP_MMC1_WP | MFP_PULL_LOW,
+
+	MMC2_DAT3_GPIO_37,
+	MMC2_DAT2_GPIO_38,
+	MMC2_DAT1_GPIO_39,
+	MMC2_DAT0_GPIO_40,
+	MMC2_CMD_GPIO_41,
+	MMC2_CLK_GPIO_42,
+
+	/* wlan_bt */
+	WLAN_PD_GPIO_14,
+	WLAN_RESET_GPIO_20,
+	WIB_EN_GPIO_33,
+	WLAN_BT_RESET_GPIO_34,
+	WLAN_MAC_WAKEUP_GPIO_35,
+	WLAN_LHC_GPIO_36,
 
 	/* one wire */
 	ONEWIRE_CLK_REQ,
@@ -1326,6 +1342,14 @@ static struct sdhci_pxa_platdata pxa910_sdh_platdata_mmc0 = {
 	.clk_delay_cycles	= 2,
 };
 
+static int mmc1_gpio_switch(unsigned int on, int with_card);
+/* MMC1 controller for SDIO */
+static struct sdhci_pxa_platdata pxa910_sdh_platdata_mmc1 = {
+	.flags			= PXA_FLAG_CARD_PERMANENT,
+	.pm_caps		= MMC_PM_KEEP_POWER,
+	.lp_switch              = mmc1_gpio_switch,
+};
+
 /* MMC2 controller for eMMC */
 static struct sdhci_pxa_platdata pxa910_sdh_platdata_mmc2 = {
 	.flags			= PXA_FLAG_CARD_PERMANENT
@@ -1334,11 +1358,171 @@ static struct sdhci_pxa_platdata pxa910_sdh_platdata_mmc2 = {
 	.clk_delay_cycles	= 2,
 };
 
+#define HOST_SLEEP_EN 1
+#if !(HOST_SLEEP_EN)
+int mmc1_gpio_switch(unsigned int on, int with_card) {return 0}
+#else
+#include <linux/wakelock.h>
+static struct wake_lock gpio_wakeup;
+
+static irqreturn_t dat1_gpio_irq(int irq, void *data)
+{
+	unsigned int sec = 10;
+
+	printk(KERN_INFO "%s: set wakelock, timout after %d seconds\n",
+		__func__, sec);
+
+	wake_lock_timeout(&gpio_wakeup, HZ * sec);
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t fake_gpio_irq(int irq, void *data)
+{
+	printk(KERN_INFO "fake_gpio39_irq\n");
+	return IRQ_HANDLED;
+}
+
+static int gpio_wakeup_setup(u32 w_gpio, void *irq_func)
+{
+	int ret;
+
+	if (gpio_request(w_gpio, "SDIO dat1 GPIO Wakeup")) {
+		printk(KERN_ERR "Failed to request GPIO %d "
+				"for SDIO DATA1 GPIO Wakeup\n", w_gpio);
+		return -EIO;
+	}
+	gpio_direction_input(w_gpio);
+
+	ret = request_irq(gpio_to_irq(w_gpio), irq_func,
+		IRQF_NO_SUSPEND | IRQF_TRIGGER_FALLING,
+		"SDIO data1 irq", NULL);
+	if (ret) {
+		printk(KERN_ERR "Request SDIO data1 GPIO irq failed %d\n", ret);
+		return -EIO;
+	}
+	/* detect whether 8787 has interrupted PXA before we request gpio irq */
+	ret = gpio_get_value(w_gpio);
+
+	if (!ret)
+		return -EIO;
+
+	return 0;
+}
+
+static int mmc1_gpio_switch(unsigned int on, int with_card)
+{
+	int ret = 0;
+
+	mfp_cfg_t mfp_cfg_dat1 = MMC2_DAT1_GPIO_39 | MFP_LPM_EDGE_NONE;
+	mfp_cfg_t mfp_cfg_gpio = MMC2_DAT1_IRQ_GPIO_39 | MFP_LPM_EDGE_BOTH \
+				| MFP_PULL_HIGH;
+
+	if (!with_card)
+		return 0;
+
+	if (on) {
+		mfp_config(&mfp_cfg_gpio, 1);
+		ret = gpio_wakeup_setup(mfp_to_gpio(mfp_cfg_gpio),
+				dat1_gpio_irq);
+		enable_irq_wake(gpio_to_irq(mfp_to_gpio(mfp_cfg_gpio)));
+	} else {
+		disable_irq_wake(gpio_to_irq(mfp_to_gpio(mfp_cfg_gpio)));
+		free_irq(gpio_to_irq(mfp_to_gpio(mfp_cfg_gpio)), NULL);
+		gpio_free(39);
+		mfp_config(&mfp_cfg_dat1, 1);
+	}
+	return ret;
+}
+
+int mmc1_idle_switch(u32 on)
+{
+	int ret = 0;
+
+	mfp_cfg_t mfp_cfg_dat1 = MMC2_DAT1_GPIO_39 | MFP_LPM_EDGE_NONE;
+	mfp_cfg_t mfp_cfg_gpio = MMC2_DAT1_IRQ_GPIO_39 | MFP_LPM_EDGE_BOTH \
+				| MFP_PULL_HIGH;
+	struct mmc_host *pmmc = *pxa910_sdh_platdata_mmc1.pmmc;
+
+	if (!pmmc || !pmmc->card || pmmc->suspended)
+		return 0;
+
+	if (on) {
+		mfp_config(&mfp_cfg_gpio, 1);
+		ret = gpio_wakeup_setup(mfp_to_gpio(mfp_cfg_gpio),
+			fake_gpio_irq);
+	} else {
+		free_irq(gpio_to_irq(mfp_to_gpio(mfp_cfg_gpio)), NULL);
+		gpio_free(39);
+		mfp_config(&mfp_cfg_dat1, 1);
+		GPER(39) = GPIO_bit(39);
+	}
+	return ret;
+}
+EXPORT_SYMBOL(mmc1_idle_switch);
+#endif /* HOST_SLEEP_EN */
+
+
+static void ttc_dkb_wifi_set_power(unsigned int on)
+{
+	unsigned  int WIB_EN = 0;
+	unsigned int WLAN_LHC = 0;
+
+	if (is_td_dkb) {
+		WIB_EN = GPIO_EXT1(14);
+		WLAN_LHC = GPIO_EXT1(2);
+	} else {
+		WIB_EN = mfp_to_gpio(WIB_EN_GPIO_33);
+		WLAN_LHC = mfp_to_gpio(WLAN_LHC_GPIO_36);
+	}
+
+	if (gpio_request(WIB_EN, "WIB_EN")) {
+		printk(KERN_ERR "gpio %d request failed\n", WIB_EN);
+		WIB_EN = WLAN_LHC = 0;
+		return;
+	}
+	if (gpio_request(WLAN_LHC, "WLAN_LHC")) {
+		printk(KERN_ERR "gpio %d request failed\n", WLAN_LHC);
+		gpio_free(WIB_EN);
+		WIB_EN = WLAN_LHC = 0;
+		return;
+	}
+
+	if (on) {
+		if (WIB_EN)
+			gpio_direction_output(WIB_EN, 1);
+		if (WLAN_LHC)
+			gpio_direction_output(WLAN_LHC, 1);
+	} else {
+		if (WIB_EN)
+			gpio_direction_output(WIB_EN, 0);
+		if (WLAN_LHC)
+			gpio_direction_output(WLAN_LHC, 0);
+	}
+
+	gpio_free(WIB_EN);
+	gpio_free(WLAN_LHC);
+}
+
 static void __init pxa910_init_mmc(void)
 {
 	unsigned long sd_pwr_cfg = GPIO15_MMC1_POWER;
 	int sd_pwr_en = 0;
+#ifdef CONFIG_SD8XXX_RFKILL
+	int WIB_PDn;
+	int WIB_RESETn;
 
+	if (is_td_dkb) {
+		WIB_PDn = GPIO_EXT1(0);
+		WIB_RESETn = GPIO_EXT1(1);
+	} else {
+		WIB_PDn = mfp_to_gpio(WLAN_PD_GPIO_14);
+		WIB_RESETn = mfp_to_gpio(WLAN_RESET_GPIO_20);
+	}
+
+	add_sd8x_rfkill_device(WIB_PDn, WIB_RESETn,
+			&pxa910_sdh_platdata_mmc1.pmmc, ttc_dkb_wifi_set_power);
+#endif
 	if (is_td_dkb) {
 		mfp_config(&sd_pwr_cfg, 1);
 		sd_pwr_en = mfp_to_gpio(sd_pwr_cfg);
@@ -1363,6 +1547,7 @@ static void __init pxa910_init_mmc(void)
 	pxa910_add_sdh(2, &pxa910_sdh_platdata_mmc2); /* eMMC */
 
 	pxa910_add_sdh(0, &pxa910_sdh_platdata_mmc0); /* SD/MMC */
+	pxa910_add_sdh(1, &pxa910_sdh_platdata_mmc1); /* SDIO wifi */
 }
 
 #ifdef CONFIG_PM

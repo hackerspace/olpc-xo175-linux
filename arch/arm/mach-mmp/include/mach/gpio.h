@@ -31,6 +31,7 @@
 #define GPDR(x)		GPIO_REG(BANK_OFF(gpio_to_bank(x)) + 0x0c)
 #define GPSR(x)		GPIO_REG(BANK_OFF(gpio_to_bank(x)) + 0x18)
 #define GPCR(x)		GPIO_REG(BANK_OFF(gpio_to_bank(x)) + 0x24)
+#define GPER(x)		GPIO_REG(BANK_OFF(gpio_to_bank(x)) + 0x48)
 
 #include <plat/gpio.h>
 
