@@ -53,10 +53,12 @@ config MACH_SAAR
 config MACH_SAARB
 	bool "PXA955 Handheld Platform (aka SAARB)"
 	select CPU_PXA955
+	select HAVE_PWM
 
 config MACH_NEVOSAARC
 	bool "PXA970 Handheld Platform (aka SAARC2)"
 	select CPU_PXA970
+	select HAVE_PWM
 
 comment "Third Party Dev Platforms (sorted by vendor name)"
 
