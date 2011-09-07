@@ -267,6 +267,8 @@ static struct irq_chip pxa_muxed_gpio_chip = {
 	.irq_ack	= pxa_ack_muxed_gpio,
 	.irq_mask	= pxa_mask_muxed_gpio,
 	.irq_unmask	= pxa_unmask_muxed_gpio,
+	.irq_enable	= pxa_unmask_muxed_gpio,
+	.irq_disable	= pxa_mask_muxed_gpio,
 	.irq_set_type	= pxa_gpio_irq_type,
 };
 
