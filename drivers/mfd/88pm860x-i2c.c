@@ -229,6 +229,7 @@ int pm860x_page_reg_read(struct i2c_client *i2c, int reg)
 	ret = read_device(i2c, reg, 1, &data);
 	if (ret >= 0)
 		ret = (int)data;
+	read_device(i2c, 0xFE, 0, &zero);
 	read_device(i2c, 0xFC, 0, &zero);
 	i2c_unlock_adapter(i2c->adapter);
 	mutex_unlock(&chip->io_lock);
@@ -249,6 +250,7 @@ int pm860x_page_reg_write(struct i2c_client *i2c, int reg,
 	read_device(i2c, 0xFB, 0, &zero);
 	read_device(i2c, 0xFF, 0, &zero);
 	ret = write_device(i2c, reg, 1, &data);
+	read_device(i2c, 0xFE, 0, &zero);
 	read_device(i2c, 0xFC, 0, &zero);
 	i2c_unlock_adapter(i2c->adapter);
 	mutex_unlock(&chip->io_lock);
@@ -269,6 +271,7 @@ int pm860x_page_bulk_read(struct i2c_client *i2c, int reg,
 	read_device(i2c, 0xFB, 0, &zero);
 	read_device(i2c, 0xFF, 0, &zero);
 	ret = read_device(i2c, reg, count, buf);
+	read_device(i2c, 0xFE, 0, &zero);
 	read_device(i2c, 0xFC, 0, &zero);
 	i2c_unlock_adapter(i2c->adapter);
 	mutex_unlock(&chip->io_lock);
@@ -289,6 +292,7 @@ int pm860x_page_bulk_write(struct i2c_client *i2c, int reg,
 	read_device(i2c, 0xFB, 0, &zero);
 	read_device(i2c, 0xFF, 0, &zero);
 	ret = write_device(i2c, reg, count, buf);
+	read_device(i2c, 0xFE, 0, &zero);
 	read_device(i2c, 0xFC, 0, &zero);
 	i2c_unlock_adapter(i2c->adapter);
 	mutex_unlock(&chip->io_lock);
@@ -317,6 +321,7 @@ int pm860x_page_set_bits(struct i2c_client *i2c, int reg,
 	ret = write_device(i2c, reg, 1, &value);
 
 out:
+	read_device(i2c, 0xFE, 0, &zero);
 	read_device(i2c, 0xFC, 0, &zero);
 	i2c_unlock_adapter(i2c->adapter);
 	mutex_unlock(&chip->io_lock);
