@@ -40,6 +40,7 @@ static struct irq_chip icu_irq_chip = {
 	.irq_ack	= icu_mask_irq,
 	.irq_mask	= icu_mask_irq,
 	.irq_unmask	= icu_unmask_irq,
+	.irq_disable	= icu_mask_irq,
 #ifdef CONFIG_SUSPEND
 	.irq_set_wake	= pxa910_set_wake,
 #endif

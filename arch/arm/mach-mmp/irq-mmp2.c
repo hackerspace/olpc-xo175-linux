@@ -41,6 +41,7 @@ static struct irq_chip icu_irq_chip = {
 	.irq_mask	= icu_mask_irq,
 	.irq_mask_ack	= icu_mask_irq,
 	.irq_unmask	= icu_unmask_irq,
+	.irq_disable	= icu_mask_irq,
 };
 
 static void pmic_irq_ack(struct irq_data *d)
@@ -90,6 +91,7 @@ static struct irq_chip _name_##_irq_chip = {				\
 	.name		= #_name_,					\
 	.irq_mask	= _name_##_mask_irq,				\
 	.irq_unmask	= _name_##_unmask_irq,				\
+	.irq_disable	= _name_##_mask_irq,				\
 }
 
 SECOND_IRQ_CHIP(pmic, IRQ_MMP2_PMIC_BASE, MMP2_ICU_INT4);
