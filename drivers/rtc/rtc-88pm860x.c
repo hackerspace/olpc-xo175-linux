@@ -276,9 +276,11 @@ static int pm860x_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 		base, data, ticks);
 
 	rtc_time_to_tm(ticks, &now_tm);
+	dev_dbg(info->dev, "%s, now time : %lu\n", __func__, ticks);
 	rtc_next_alarm_time(&alarm_tm, &now_tm, &alrm->time);
 	/* get new ticks for alarm in 24 hours */
 	rtc_tm_to_time(&alarm_tm, &ticks);
+	dev_dbg(info->dev, "%s, alarm time: %lu\n", __func__, ticks);
 	data = ticks - base;
 
 	buf[0] = data & 0xff;
@@ -318,6 +320,7 @@ static struct miscdevice rtcmon_miscdev = {
 	.fops           = &pm860x_rtcmon_fops,
 };
 #endif
+
 
 
 
@@ -401,6 +404,7 @@ static struct dev_pm_ops pm860x_rtc_pm_ops = {
 static int __devinit pm860x_rtc_probe(struct platform_device *pdev)
 {
 	struct pm860x_chip *chip = dev_get_drvdata(pdev->dev.parent);
+	struct pm860x_platform_data *pm860x_pdata;
 	struct pm860x_rtc_pdata *pdata = NULL;
 	struct pm860x_rtc_info *info;
 	struct rtc_time tm;
@@ -498,6 +502,13 @@ static int __devinit pm860x_rtc_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&info->calib_work, calibrate_vrtc_work);
 	schedule_delayed_work(&info->calib_work, VRTC_CALIB_INTERVAL);
 #endif	/* VRTC_CALIBRATION */
+	if (pdev->dev.parent->platform_data) {
+		pm860x_pdata = pdev->dev.parent->platform_data;
+		pdata = pm860x_pdata->rtc;
+		if (pdata)
+			info->rtc_dev->dev.platform_data = &pdata->rtc_wakeup;
+	}
+
 	device_init_wakeup(&pdev->dev, 1);
 
 	return 0;

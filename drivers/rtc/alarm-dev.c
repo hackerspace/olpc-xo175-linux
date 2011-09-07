@@ -24,6 +24,7 @@
 #include <linux/sysdev.h>
 #include <linux/uaccess.h>
 #include <linux/wakelock.h>
+#include <linux/mfd/88pm860x.h>
 
 #define ANDROID_ALARM_PRINT_INFO (1U << 0)
 #define ANDROID_ALARM_PRINT_IO (1U << 1)
@@ -125,6 +126,8 @@ from_old_alarm_set:
 			timespec_to_ktime(new_alarm_time),
 			timespec_to_ktime(new_alarm_time));
 		spin_unlock_irqrestore(&alarm_slock, flags);
+		if (alarm_type == ANDROID_ALARM_POWER_UP)
+			alarm_set_rtc_ring(new_alarm_time);
 		if (ANDROID_ALARM_BASE_CMD(cmd) != ANDROID_ALARM_SET_AND_WAIT(0)
 		    && cmd != ANDROID_ALARM_SET_AND_WAIT_OLD)
 			break;
@@ -163,6 +166,7 @@ from_old_alarm_set:
 	case ANDROID_ALARM_GET_TIME(0):
 		switch (alarm_type) {
 		case ANDROID_ALARM_RTC_WAKEUP:
+		case ANDROID_ALARM_POWER_UP:
 		case ANDROID_ALARM_RTC:
 			getnstimeofday(&tmp_time);
 			break;

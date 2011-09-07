@@ -475,6 +475,8 @@ enum {
 #define PM8607_MEASOFFTIME1MEAS_EN_SLP_B	(1 << 1)
 #define PM8607_MEASOFFTIME1MEAS_OFFTIME1_B(x)	(x << 2)
 
+/* bit define RTC_ALARM_WU */
+#define PM8607_RTC_ALARM_WU		(1 << 4)
 
 #define PM860X_TEMP_TINT		(0)
 #define PM860X_TEMP_TBAT		(1)
@@ -578,6 +580,7 @@ struct pm860x_led_pdata {
 struct pm860x_rtc_pdata {
 	int		(*sync)(unsigned int ticks);
 	int		vrtc;
+	int             rtc_wakeup;
 };
 
 struct pm860x_touch_pdata {

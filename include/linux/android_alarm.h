@@ -26,6 +26,7 @@ enum android_alarm_type {
 	ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP,
 	ANDROID_ALARM_ELAPSED_REALTIME,
 	ANDROID_ALARM_SYSTEMTIME,
+	ANDROID_ALARM_POWER_UP,
 
 	ANDROID_ALARM_TYPE_COUNT,
 
@@ -74,7 +75,9 @@ ktime_t alarm_get_elapsed_realtime(void);
 
 /* set rtc while preserving elapsed realtime */
 int alarm_set_rtc(const struct timespec ts);
-
+/*set alarm to rtc for power up*/
+int alarm_set_rtc_ring(struct timespec alarm_time);
+int alarm_read_rtc_ring(int *flag, unsigned long *alarm_time);
 #endif
 
 enum android_alarm_return_flags {
@@ -85,6 +88,7 @@ enum android_alarm_return_flags {
 	ANDROID_ALARM_ELAPSED_REALTIME_MASK =
 				1U << ANDROID_ALARM_ELAPSED_REALTIME,
 	ANDROID_ALARM_SYSTEMTIME_MASK = 1U << ANDROID_ALARM_SYSTEMTIME,
+	ANDROID_ALARM_POWER_UP_MASK = 1U << ANDROID_ALARM_POWER_UP,
 	ANDROID_ALARM_TIME_CHANGE_MASK = 1U << 16
 };
 

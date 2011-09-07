@@ -750,7 +750,6 @@ static void __devinit device_rtc_init(struct pm860x_chip *chip,
 
 	if ((pdata == NULL))
 		return;
-
 	rtc_devs[0].platform_data = pdata->rtc;
 	rtc_devs[0].pdata_size = sizeof(struct pm860x_rtc_pdata);
 	rtc_devs[0].num_resources = ARRAY_SIZE(rtc_resources);
@@ -877,6 +876,17 @@ static void __devinit device_8607_init(struct pm860x_chip *chip,
 	if (ret < 0) {
 		dev_err(chip->dev, "Failed to read CHIP ID: %d\n", ret);
 		goto out;
+	}
+	/*alarm wake up bit will be clear in device_irq_init(),
+	*read before that*/
+	ret = pm860x_reg_read(i2c, PM8607_RTC1);
+	if (ret < 0) {
+		dev_err(chip->dev, "Failed to read RTC register: %d\n", ret);
+		goto out;
+	}
+	if (ret & PM8607_RTC_ALARM_WU) {
+		if (pdata && pdata->rtc)
+			pdata->rtc->rtc_wakeup = 1;
 	}
 
 	pmic_id = ret & PM8607_VERSION_MASK;
