@@ -340,7 +340,8 @@ static void elan_touch_sleep_early_suspend(struct early_suspend *h)
 			msleep(5);
 			dev_dbg(&touch->i2c->dev,
 				"elan_touch can't enter sleep,retry %d\n", i);
-		}
+		} else
+			break;
 	}
 	if (ret < 0) {
 		dev_err(&touch->i2c->dev, "elan_touch can't enter sleep mode.\n");
@@ -363,9 +364,10 @@ static void elan_touch_normal_late_resume(struct early_suspend *h)
 		ret = elan_touch_write(elong_reset, 4);
 		if (ret < 0) {
 			msleep(5);
-			dev_dbg(&touch->i2dev,
+			dev_dbg(&touch->i2c->dev,
 				"elan_touch reset failed,retry %d\n", i);
-		}
+		} else
+			break;
 	}
 	if (ret < 0)
 		dev_err(&touch->i2c->dev, "elan_touch reset failed.\n");
