@@ -2735,12 +2735,12 @@ static struct fsg_common *fsg_common_init(struct fsg_common *common,
 
 	/* Allocate? */
 	if (!common) {
-		common = kzalloc(sizeof *common, GFP_KERNEL);
+		common = kzalloc(sizeof (struct fsg_common), GFP_KERNEL);
 		if (!common)
 			return ERR_PTR(-ENOMEM);
 		common->free_storage_on_release = 1;
 	} else {
-		memset(common, 0, sizeof *common);
+		memset(common, 0, sizeof (struct fsg_common));
 		common->free_storage_on_release = 0;
 	}
 
