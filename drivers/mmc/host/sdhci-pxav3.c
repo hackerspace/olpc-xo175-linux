@@ -298,7 +298,7 @@ static int __devexit sdhci_pxav3_remove(struct platform_device *pdev)
 
 static struct platform_driver sdhci_pxav3_driver = {
 	.driver		= {
-		.name	= "sdhci-pxav3",
+		.name	= "sdhci-pxa",
 		.owner	= THIS_MODULE,
 	},
 	.probe		= sdhci_pxav3_probe,
