@@ -591,8 +591,8 @@ static int pxa_ssp_hw_params(struct snd_pcm_substream *substream,
 	/* bit size */
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_S16_LE:
-#ifdef CONFIG_PXA3xx
-		if (cpu_is_pxa3xx())
+#if defined (CONFIG_PXA3xx) || defined (CONFIG_PXA95x)
+		if (cpu_is_pxa3xx() || cpu_is_pxa95x())
 			sscr0 |= SSCR0_FPCKE;
 #endif
 		sscr0 |= SSCR0_DataSize(16);

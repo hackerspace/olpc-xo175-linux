@@ -21,13 +21,12 @@
 #include <sound/jack.h>
 
 #include <asm/mach-types.h>
+#include <mach/audio.h>
 
 #include "../codecs/88pm860x-codec.h"
 #include "pxa-ssp.h"
 
 static int saarb_pm860x_init(struct snd_soc_pcm_runtime *rtd);
-
-static struct platform_device *saarb_snd_device;
 
 #ifdef CONFIG_SND_PXA95X_DAPM_ENABLE
 static struct snd_soc_jack hs_jack, mic_jack;
@@ -108,8 +107,49 @@ static int saarb_i2s_hw_params(struct snd_pcm_substream *substream,
 	return ret;
 }
 
+static int saarb_i2s_startup(struct snd_pcm_substream * substream)
+{
+	pxa95x_abu_mfp_init(true);
+	pr_info("[saarb_i2s_startup]: switch to ABU\n");
+	return 0;
+}
+
+static int saarb_hdmi_hw_params(struct snd_pcm_substream *substream,
+				struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	int ret;
+
+	ret = snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_I2S |
+			SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBS_CFS);
+	if (ret < 0)
+		return ret;
+
+	ret = snd_soc_dai_set_sysclk(cpu_dai, PXA_SSP_CLK_AUDIO, 0, 0);
+	if (ret < 0)
+		return ret;
+
+	ret = snd_soc_dai_set_tdm_slot(cpu_dai, 3, 3, 1, 32);
+
+	return ret;
+}
+
+static int saarb_hdmi_startup(struct snd_pcm_substream * substream)
+{
+	pxa95x_abu_mfp_init(false);
+	pr_info("[saarb_hdmi_startup]: switch to SSP2\n");
+	return 0;
+}
+
 static struct snd_soc_ops saarb_i2s_ops = {
 	.hw_params	= saarb_i2s_hw_params,
+	.startup	= saarb_i2s_startup,
+};
+
+static struct snd_soc_ops saarb_hdmi_ops = {
+	.hw_params	= saarb_hdmi_hw_params,
+	.startup	= saarb_hdmi_startup,
 };
 
 static struct snd_soc_dai_link saarb_dai[] = {
@@ -125,10 +165,29 @@ static struct snd_soc_dai_link saarb_dai[] = {
 	},
 };
 
-static struct snd_soc_card snd_soc_card_saarb = {
-	.name = "Saarb",
-	.dai_link = saarb_dai,
-	.num_links = ARRAY_SIZE(saarb_dai),
+static struct snd_soc_dai_link saarb_hdmi_dai[] = {
+	{
+		.name		= "HDMI I2S",
+		.stream_name	= "HDMI I2S Audio",
+		.cpu_dai_name	= "pxa-ssp-dai.1",
+		.codec_dai_name	= "dummy-dai",
+		.platform_name	= "pxa-pcm-audio",
+		.codec_name	= "dummy-codec",
+		.ops		= &saarb_hdmi_ops,
+	},
+};
+
+static struct snd_soc_card snd_soc_card_saarb[] = {
+	{
+		.name = "88pm860x",
+		.dai_link = saarb_dai,
+		.num_links = ARRAY_SIZE(saarb_dai),
+	},
+	{
+		.name = "hdmi",
+		.dai_link = saarb_hdmi_dai,
+		.num_links = ARRAY_SIZE(saarb_hdmi_dai),
+	},
 };
 
 static int saarb_pm860x_init(struct snd_soc_pcm_runtime *rtd)
@@ -198,28 +257,36 @@ static int saarb_pm860x_init(struct snd_soc_pcm_runtime *rtd)
 #endif
 }
 
+static struct platform_device *saarb_snd_device[ARRAY_SIZE(snd_soc_card_saarb)];
+
 static int __init saarb_init(void)
 {
-	int ret;
+	int i, ret = 0;
 
 	if (!machine_is_saarb())
 		return -ENODEV;
-	saarb_snd_device = platform_device_alloc("soc-audio", -1);
-	if (!saarb_snd_device)
-		return -ENOMEM;
 
-	platform_set_drvdata(saarb_snd_device, &snd_soc_card_saarb);
+	for (i = 0; i < ARRAY_SIZE(snd_soc_card_saarb); i++) {
+		saarb_snd_device[i] = platform_device_alloc("soc-audio", i);
+		if (!saarb_snd_device[i])
+			break;
 
-	ret = platform_device_add(saarb_snd_device);
-	if (ret)
-		platform_device_put(saarb_snd_device);
+		platform_set_drvdata(saarb_snd_device[i], &snd_soc_card_saarb[i]);
+
+		ret = platform_device_add(saarb_snd_device[i]);
+		if (ret)
+			platform_device_put(saarb_snd_device[i]);
+	}
 
 	return ret;
 }
 
 static void __exit saarb_exit(void)
 {
-	platform_device_unregister(saarb_snd_device);
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(snd_soc_card_saarb); i++)
+		platform_device_unregister(saarb_snd_device[i]);
 }
 
 module_init(saarb_init);

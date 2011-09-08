@@ -130,6 +130,7 @@ config SND_SOC_SAARB
 	depends on MACH_SAARB
 	select SND_PXA_SOC_SSP
 	select SND_SOC_88PM860X
+	select SND_SOC_HDMI
 	help
 	  Say Y if you want to add support for SoC audio on the
 	  Marvell Saarb reference platform.
