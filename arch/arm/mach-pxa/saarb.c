@@ -689,15 +689,22 @@ static void __init init_lcd(void)
 }
 #endif
 
-#if defined(CONFIG_MMC_SDHCI_PXAV2)
+#if defined(CONFIG_MMC_SDHCI_PXAV2_TAVOR)
 static struct sdhci_pxa_platdata mci0_platform_data = {
-	.flags	= PXA_FLAG_CARD_PERMANENT,
+	.flags	= PXA_FLAG_CARD_PERMANENT | PXA_FLAG_SD_8_BIT_CAPABLE_SLOT,
+};
+
+static struct sdhci_pxa_platdata mci1_platform_data = {
+	.ext_cd_gpio = mfp_to_gpio(MFP_PIN_GPIO47),
+	.ext_cd_gpio_invert = 1,
 };
 
 static void __init init_mmc(void)
 {
 	/*add emmc only, need to add sdcard and sdio later*/
 	pxa95x_set_mci_info(0, &mci0_platform_data);
+	pxa95x_set_mci_info(1, &mci1_platform_data);
+
 }
 
 #endif
@@ -763,7 +770,7 @@ static void __init saarb_init(void)
 	init_lcd();
 #endif
 
-#if defined(CONFIG_MMC_SDHCI_PXAV2)
+#if defined(CONFIG_MMC_SDHCI_PXAV2_TAVOR)
 	init_mmc();
 #endif
 
