@@ -1370,8 +1370,8 @@ clean2:
 clean1:
 #endif
 #ifdef PLATFORM_DRIVER
-	platform_driver_unregister(&PLATFORM_DRIVER);
 clean0:
+	platform_driver_unregister(&PLATFORM_DRIVER);
 #endif
 #ifdef DEBUG
 	debugfs_remove(ehci_debug_root);
