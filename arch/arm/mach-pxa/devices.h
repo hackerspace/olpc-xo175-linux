@@ -47,6 +47,7 @@ extern struct platform_device pxa3xx_device_gcu;
 
 extern struct platform_device pxa_device_asoc_platform;
 extern struct platform_device pxa_device_asoc_abu_platform;
+extern struct platform_device pxa_device_asoc_hdmi_codec;
 extern struct platform_device pxa_device_asoc_ssp1;
 extern struct platform_device pxa_device_asoc_ssp2;
 extern struct platform_device pxa_device_asoc_ssp3;

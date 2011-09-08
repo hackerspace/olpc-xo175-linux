@@ -992,7 +992,11 @@ static struct platform_device *devices[] __initdata = {
 	&pxa95x_device_pwm6,
 	&pxa95x_device_pwm7,
 	&pxa_device_asoc_abu,
+	&pxa_device_asoc_ssp2,
+	&pxa_device_asoc_ssp3,
 	&pxa_device_asoc_abu_platform,
+	&pxa_device_asoc_platform,
+	&pxa_device_asoc_hdmi_codec,
 #if defined(CONFIG_PXA9XX_ACIPC)
 	&pxa930_acipc_device,
 #endif /*CONFIG_PXA9XX_ACIPC*/

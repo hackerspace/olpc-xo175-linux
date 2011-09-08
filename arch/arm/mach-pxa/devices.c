@@ -394,6 +394,11 @@ struct platform_device pxa_device_asoc_abu_platform = {
 	.id		= -1,
 };
 
+struct platform_device pxa_device_asoc_hdmi_codec = {
+	.name		= "dummy-codec",
+	.id		= -1,
+};
+
 static u64 pxaficp_dmamask = ~(u32)0;
 
 struct platform_device pxa_device_ficp = {
