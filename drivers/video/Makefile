@@ -102,6 +102,7 @@ obj-$(CONFIG_FB_ASILIANT)	  += asiliantfb.o
 obj-$(CONFIG_FB_PXA)		  += pxafb.o
 obj-$(CONFIG_FB_PXA168)		  += pxa168fb.o pxa168fb_ovly.o
 obj-$(CONFIG_PXA688_DSI)	  += pxa688_dsi.o
+obj-$(CONFIG_PXA688_CMU)	  += pxa688_cmu.o
 obj-$(CONFIG_PXA688_VDMA)	  += pxa688_vdma.o
 obj-$(CONFIG_PXA3XX_GCU)	  += pxa3xx-gcu.o
 obj-$(CONFIG_FB_PXA95x)		  += pxa95xfb.o pxa95xfb_ovly.o
