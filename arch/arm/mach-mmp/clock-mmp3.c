@@ -1585,7 +1585,7 @@ static struct clk_mux_sel sdhc_clk_mux[] = {
 static struct clk mmp3_clk_sdh0 = {
 	.name = "sdh0",
 	.lookup = {
-		.dev_id = "sdhci-pxav3.0",
+		.dev_id = "sdhci-pxa.0",
 		.con_id = "PXA-SDHCLK",
 	},
 	.ops = &sdhc_clk_ops,
@@ -1600,7 +1600,7 @@ static struct clk mmp3_clk_sdh0 = {
 static struct clk mmp3_clk_sdh1 = {
 	.name = "sdh1",
 	.lookup = {
-		.dev_id = "sdhci-pxav3.1",
+		.dev_id = "sdhci-pxa.1",
 		.con_id = "PXA-SDHCLK",
 	},
 	.ops = &sdhc_clk_ops,
@@ -1615,7 +1615,7 @@ static struct clk mmp3_clk_sdh1 = {
 static struct clk mmp3_clk_sdh2 = {
 	.name = "sdh2",
 	.lookup = {
-		.dev_id = "sdhci-pxav3.2",
+		.dev_id = "sdhci-pxa.2",
 		.con_id = "PXA-SDHCLK",
 	},
 	.ops = &sdhc_clk_ops,
@@ -1630,7 +1630,7 @@ static struct clk mmp3_clk_sdh2 = {
 static struct clk mmp3_clk_sdh3 = {
 	.name = "sdh3",
 	.lookup = {
-		.dev_id = "sdhci-pxav3.3",
+		.dev_id = "sdhci-pxa.3",
 		.con_id = "PXA-SDHCLK",
 	},
 	.ops = &sdhc_clk_ops,
