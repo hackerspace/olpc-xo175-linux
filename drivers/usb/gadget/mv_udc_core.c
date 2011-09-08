@@ -2632,13 +2632,16 @@ static const struct dev_pm_ops mv_udc_pm_ops = {
 
 static void mv_udc_shutdown(struct platform_device *dev)
 {
-       struct mv_udc *udc = platform_get_drvdata(dev);
-       u32     mode;
+	struct mv_udc *udc = the_controller;
+	u32 mode;
 
-       /* reset controller mode to IDLE */
-       mode = readl(&udc->op_regs->usbmode);
-       mode &= ~3;
-       writel(mode, &udc->op_regs->usbmode);
+	if (!udc)
+		return;
+
+	/* reset controller mode to IDLE */
+	mode = readl(&udc->op_regs->usbmode);
+	mode &= ~3;
+	writel(mode, &udc->op_regs->usbmode);
 }
 
 static struct platform_driver udc_driver = {
