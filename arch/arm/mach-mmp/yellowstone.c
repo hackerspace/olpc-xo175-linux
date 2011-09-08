@@ -44,6 +44,7 @@
 #include <mach/uio_hdmi.h>
 #include <plat/usb.h>
 #include <media/soc_camera.h>
+#include <mach/sram.h>
 
 #include "common.h"
 #include "onboard.h"
@@ -803,6 +804,10 @@ static struct uio_hdmi_platform_data mmp3_hdmi_info __initdata = {
 	.gpio = mfp_to_gpio(GPIO59_HDMI_DET),
 };
 #endif
+static struct sram_bank mmp3_videosram_info = {
+	.pool_name = "mmp-videosram",
+	.step = VIDEO_SRAM_GRANULARITY,
+};
 
 static void __init yellowstone_init(void)
 {
@@ -816,7 +821,7 @@ static void __init yellowstone_init(void)
 	mmp3_add_twsi(6, NULL, ARRAY_AND_SIZE(yellowstone_twsi6_info));
 
 	mmp3_add_keypad(&mmp3_keypad_info);
-
+	mmp3_add_videosram(&mmp3_videosram_info);
 #ifdef CONFIG_FB_PXA168
 	yellowstone_add_lcd_mipi();
 	mmp3_add_tv_out();
