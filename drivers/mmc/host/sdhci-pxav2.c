@@ -300,7 +300,7 @@ int sdhci_pxav2_resume(struct platform_device *pdev)
 
 static struct platform_driver sdhci_pxav2_driver = {
 	.driver		= {
-		.name	= "sdhci-pxav2",
+		.name	= "sdhci-pxa",
 		.owner	= THIS_MODULE,
 	},
 	.probe		= sdhci_pxav2_probe,
