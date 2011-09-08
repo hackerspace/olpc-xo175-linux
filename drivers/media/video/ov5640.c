@@ -39,15 +39,35 @@ static struct ov5640_win_size {
 	int width;
 	int height;
 } ov5640_win_sizes[] = {
+	/* QCIF */
+	{
+		.width = 176,
+		.height = 144,
+	},
 	/* QVGA */
 	{
 		.width = 320,
 		.height = 240,
 	},
+	/* 480*320 */
+	{
+		.width = 480,
+		.height = 320,
+	},
 	/* VGA */
 	{
 		.width = 640,
 		.height = 480,
+	},
+	/* D1 */
+	{
+		.width = 720,
+		.height = 480,
+	},
+	/* full */
+	{
+		.width = 2592,
+		.height = 1944,
 	},
 };
 
@@ -57,6 +77,11 @@ static struct ov5640_win_size ov5640_win_sizes_jpeg[] = {
 	{
 		.width = 2592,
 		.height = 1944,
+	},
+	/* 3M */
+	{
+		.width = 2048,
+		.height = 1536,
 	},
 };
 
@@ -286,6 +311,7 @@ static int ov5640_s_fmt(struct v4l2_subdev *sd,
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	const struct ov5640_datafmt *fmt;
 	struct regval_list *pregs = NULL;
+	struct regval_list *pregs_default = NULL;
 
 	fmt = ov5640_find_datafmt(mf->code, ov5640_colour_fmts,
 				   ARRAY_SIZE(ov5640_colour_fmts));
@@ -294,19 +320,38 @@ static int ov5640_s_fmt(struct v4l2_subdev *sd,
 		return -EINVAL;
 	}
 
-	ov5640_write_array(client, init_global_tab);
-
 	switch (mf->code) {
 	case V4L2_MBUS_FMT_UYVY8_2X8:
 	case V4L2_MBUS_FMT_VYUY8_2X8:
 		switch (mf->width) {
+		case 176:
+			pregs_default = init_global_tab;
+			pregs = yuv_QCIF_tab;
+			dev_info(&client->dev, "choose qcif setting!\n");
+			break;
 		case 320:
+			pregs_default = init_global_tab;
 			pregs = yuv_QVGA_tab;
 			dev_info(&client->dev, "choose qvga setting!\n");
 			break;
+		case 480:
+			pregs_default = init_global_tab;
+			pregs = yuv_Wallpaper_tab;
+			dev_info(&client->dev, "choose 480*320 setting!\n");
+			break;
 		case 640:
+			pregs_default = init_global_tab;
 			pregs = yuv_VGA_tab;
 			dev_info(&client->dev, "choose vga setting!\n");
+			break;
+		case 720:
+			pregs_default = init_global_tab;
+			pregs = yuv_D1_tab;
+			dev_info(&client->dev, "choose d1 setting!\n");
+			break;
+		case 2592:
+			pregs = yuv_5M_tab;
+			dev_info(&client->dev, "choose 5M setting!\n");
 			break;
 		default:
 			dev_err(&client->dev, "unsupported YUV size"
@@ -319,8 +364,13 @@ static int ov5640_s_fmt(struct v4l2_subdev *sd,
 	case V4L2_MBUS_FMT_JPEG_1X8:
 		switch (mf->width) {
 		case 2592:
-			pregs = jpg_FULL_tab;
+			pregs_default = jpg_default_tab;
 			dev_info(&client->dev, "choose 5M jpeg setting!\n");
+			break;
+		case 2048:
+			pregs_default = jpg_default_tab;
+			pregs = jpg_QXGA_tab;
+			dev_info(&client->dev, "choose 3M jpeg setting!\n");
 			break;
 		default:
 			dev_info(&client->dev, "unsupported JPEG size!\n");
@@ -333,9 +383,18 @@ static int ov5640_s_fmt(struct v4l2_subdev *sd,
 		dev_err(&client->dev, "unsupported format"
 				"%s %d!\n", __func__, __LINE__);
 		ret = -EINVAL;
+		goto out;
 		break;
 	}
-	ret = ov5640_write_array(client, pregs);
+	if (pregs_default) {
+		ret = ov5640_write_array(client, pregs_default);
+		if (ret < 0) {
+			dev_err(&client->dev, "set default registers err\n");
+			goto out;
+		}
+	}
+	if (pregs)
+		ret = ov5640_write_array(client, pregs);
 out:
 	return ret;
 }
@@ -421,6 +480,9 @@ static int ov5640_load_fw(struct v4l2_subdev *sd)
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	int ret = 0;
 
+	ov5640_write(client, 0x3103, 0x11);
+	ov5640_write(client, 0x3008, 0x82);
+	mdelay(5);
 	ret = ov5640_write_array(client, init_global_tab);
 	return ret;
 }
