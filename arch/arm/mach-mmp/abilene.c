@@ -42,6 +42,7 @@
 #include <mach/mmp3.h>
 #include <mach/irqs.h>
 #include <mach/regs-mpmu.h>
+#include <mach/soc_vmeta.h>
 #include <mach/tc35876x.h>
 #include <plat/pmem.h>
 #include <plat/usb.h>
@@ -176,6 +177,24 @@ static struct sram_bank mmp3_videosram_info = {
 	.pool_name = "mmp-videosram",
 	.step = VIDEO_SRAM_GRANULARITY,
 };
+
+#ifdef CONFIG_UIO_VMETA
+static struct vmeta_plat_data mmp_vmeta_plat_data = {
+	.bus_irq_handler = NULL,
+	.set_dvfm_constraint = NULL,
+	.unset_dvfm_constraint = NULL,
+	.clean_dvfm_constraint = NULL,
+	.init_dvfm_constraint = NULL,
+	.axi_clk_available = 0,
+	.decrease_core_freq = NULL,
+	.increase_core_freq = NULL,
+};
+
+static void __init mmp_init_vmeta(void)
+{
+	mmp_set_vmeta_info(&mmp_vmeta_plat_data);
+}
+#endif
 
 #if defined(CONFIG_VIDEO_MV)
 /* soc  camera */
@@ -1081,6 +1100,9 @@ static void __init abilene_init(void)
 
 #ifdef CONFIG_ANDROID_PMEM
 	pxa_add_pmem();
+#endif
+#ifdef CONFIG_UIO_VMETA
+	mmp_init_vmeta();
 #endif
 
 #ifdef CONFIG_MMC_SDHCI_PXAV3
