@@ -1435,18 +1435,23 @@ static int pxa3xx_nand_scan(struct mtd_info *mtd)
 	chipsize = (uint64_t)f->num_blocks * f->page_per_block * f->page_size;
 	pxa3xx_flash_ids[0].chipsize = chipsize >> 20;
 	pxa3xx_flash_ids[0].erasesize = f->page_size * f->page_per_block;
-	if (f->flash_width == 16)
-		pxa3xx_flash_ids[0].options = NAND_BUSWIDTH_16;
-	else
-		pxa3xx_flash_ids[0].options = 0;
 	pxa3xx_flash_ids[1].name = NULL;
 	def = pxa3xx_flash_ids;
 KEEP_CONFIG:
 	chip->ecc.mode = NAND_ECC_HW;
 	chip->ecc.size = host->page_size;
 
+	chip->options = NAND_NO_AUTOINCR;
+	chip->options |= NAND_NO_READRDY;
+	chip->options |= NAND_OWN_BUFFERS;
+#ifdef CONFIG_PXA3XX_BBM
+	chip->options |= BBT_RELOCATION_IFBAD;
+#endif
 	if (host->reg_ndcr & NDCR_DWIDTH_M)
 		chip->options |= NAND_BUSWIDTH_16;
+
+	if (def)
+		def->options = chip->options;
 
 	if (nand_scan_ident(mtd, 1, def))
 		return -ENODEV;
@@ -1556,12 +1561,6 @@ static int alloc_nand_resource(struct platform_device *pdev)
 		mtd->priv = host;
 		mtd->owner = THIS_MODULE;
 
-		chip->options = NAND_NO_AUTOINCR;
-		chip->options |= NAND_NO_READRDY;
-		chip->options |= NAND_OWN_BUFFERS;
-#ifdef CONFIG_PXA3XX_BBM
-		chip->options |= BBT_RELOCATION_IFBAD;
-#endif
 		chip->buffers = (struct nand_buffers *)
 				((void *)info->data_desc + DMA_H_SIZE);
 		chip->ecc.read_page	= pxa3xx_nand_read_page_hwecc;
