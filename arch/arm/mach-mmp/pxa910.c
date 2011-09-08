@@ -537,9 +537,9 @@ static struct clk_lookup pxa910_clkregs[] = {
 	INIT_CLKREG(&clk_keypad, "pxa27x-keypad", NULL),
 	INIT_CLKREG(&clk_rtc, NULL, "MMP-RTC"),
 	INIT_CLKREG(&clk_1wire, NULL, "PXA-W1"),
-	INIT_CLKREG(&clk_sdh0, "sdhci-pxav2.0", "PXA-SDHCLK"),
-	INIT_CLKREG(&clk_sdh1, "sdhci-pxav2.1", "PXA-SDHCLK"),
-	INIT_CLKREG(&clk_sdh2, "sdhci-pxav2.2", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_sdh0, "sdhci-pxa.0", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_sdh1, "sdhci-pxa.1", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_sdh2, "sdhci-pxa.2", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_lcd, NULL, "LCDCLK"),
 	INIT_CLKREG(&clk_ire, "pxa910-ire.0", NULL),
 	INIT_CLKREG(&clk_ccic_rst, "mv-camera.0", "CCICRSTCLK"),
@@ -658,9 +658,9 @@ PXA910_DEVICE(gssp, "pxa910-ssp", 4, GSSP, 0xd4039000, 0x90, 6, 7);
 PXA910_DEVICE(audiosram, "mmp-sram", 0, NONE, 0xd100a000, 0x15000);
 PXA910_DEVICE(nand, "pxa3xx-nand", -1, NAND, 0xd4283000, 0x80, 97, 99);
 PXA910_DEVICE(keypad, "pxa27x-keypad", -1, KEYPAD, 0xd4012000, 0x4c);
-PXA910_DEVICE(sdh0, "sdhci-pxav2", 0, MMC, 0xd4280000, 0x120);
-PXA910_DEVICE(sdh1, "sdhci-pxav2", 1, MMC, 0xd4280800, 0x120);
-PXA910_DEVICE(sdh2, "sdhci-pxav2", 2, MMC, 0xd4281000, 0x120);
+PXA910_DEVICE(sdh0, "sdhci-pxa", 0, MMC, 0xd4280000, 0x120);
+PXA910_DEVICE(sdh1, "sdhci-pxa", 1, MMC, 0xd4280800, 0x120);
+PXA910_DEVICE(sdh2, "sdhci-pxa", 2, MMC, 0xd4281000, 0x120);
 PXA910_DEVICE(cnm, "pxa-cnm", -1, CNM, 0xd420d000, 0x1000);
 PXA910_DEVICE(fb, "pxa168-fb", 0, LCD, 0xd420b000, 0x1ec);
 PXA910_DEVICE(fb_ovly, "pxa168fb_ovly", 0, LCD, 0xd420b000, 0x1ec);
