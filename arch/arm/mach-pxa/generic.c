@@ -32,7 +32,7 @@
 #include <mach/part_table.h>
 
 #include <plat/pxa3xx_onenand.h>
-
+#include <plat/pxa3xx_nand.h>
 #include "generic.h"
 
 /* chip id is introduced from PXA95x */
@@ -112,6 +112,23 @@ static struct map_desc common_io_desc[] __initdata = {
 		.type		= MT_DEVICE
 	}
 };
+
+#if defined(CONFIG_MTD_NAND)
+static struct pxa3xx_nand_platform_data nand_info = {
+	.attr = ARBI_EN | NAKED_CMD,
+	.num_cs = 1,
+	.parts[0] = android_512m_4k_page_partitions,
+	.nr_parts[0] = ARRAY_SIZE(android_512m_4k_page_partitions),
+};
+
+
+void nand_init(void)
+{
+	pxa3xx_set_nand_info(&nand_info);
+}
+#else
+void nand_init(void) {}
+#endif /* CONFIG_MTD_NAND */
 
 #if (defined(CONFIG_MTD_ONENAND) || defined(CONFIG_MTD_ONENAND_MODULE))
 

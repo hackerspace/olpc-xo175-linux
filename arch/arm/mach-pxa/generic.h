@@ -125,6 +125,7 @@ extern void __init pxa3xx_set_onenand_info(struct pxa3xx_onenand_platform_data *
 void onenand_init(int sync_enable);
 #endif
 
+void nand_init(void);
 void pxa_boot_flash_init(int sync_mode);
 
 void __init pxa_set_ffuart_info(void *info);
