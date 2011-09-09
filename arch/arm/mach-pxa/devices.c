@@ -1125,7 +1125,7 @@ static struct resource pxa95x_resources_mci0[] = {
 };
 
 struct platform_device pxa95x_device_mci0 = {
-	.name		= "sdhci-pxav2",
+	.name		= "sdhci-pxa",
 	.id		= 0,
 	.dev		= {
 		.dma_mask = &pxamci_dmamask,
@@ -1149,7 +1149,7 @@ static struct resource pxa95x_resources_mci1[] = {
 };
 
 struct platform_device pxa95x_device_mci1 = {
-	.name		= "sdhci-pxav2",
+	.name		= "sdhci-pxa",
 	.id		= 1,
 	.dev		= {
 		.dma_mask = &pxamci_dmamask,
@@ -1173,7 +1173,7 @@ static struct resource pxa95x_resources_mci2[] = {
 };
 
 struct platform_device pxa95x_device_mci2 = {
-	.name		= "sdhci-pxav2",
+	.name		= "sdhci-pxa",
 	.id		= 2,
 	.dev		= {
 		.dma_mask = &pxamci_dmamask,
@@ -1197,7 +1197,7 @@ static struct resource pxa95x_resources_mci3[] = {
 };
 
 struct platform_device pxa95x_device_mci3 = {
-	.name		= "sdhci-pxav2",
+	.name		= "sdhci-pxa",
 	.id		= 3,
 	.dev		= {
 		.dma_mask = &pxamci_dmamask,

@@ -223,7 +223,7 @@ static void regulator_init(void)
 	case OBM_SAAR_B_MG1_C0_V12_BOARD:
 		REG_SUPPLY_INIT(PM8607_ID_LDO12, "v_hdmi", "1-003b");
 		REG_SUPPLY_INIT(PM8607_ID_LDO13, "v_gps", NULL);
-		REG_SUPPLY_INIT(PM8607_ID_LDO14, "vmmc", "sdhci-pxav2.1");
+		REG_SUPPLY_INIT(PM8607_ID_LDO14, "vmmc", "sdhci-pxa.1");
 
 		REG_INIT(i++, LDO12, 1200000, 3300000, 0, 0);
 		REG_INIT(i++, LDO13, 1200000, 3300000, 0, 0);
@@ -235,7 +235,7 @@ static void regulator_init(void)
 	case OBM_SAAR_B_MG2_A0_V14_BOARD:
 	case OBM_SAAR_B_MG2_B0_V15_BOARD:
 	case OBM_SAAR_B_MG2_C0_V26_BOARD:
-		REG_SUPPLY_INIT(PM8607_ID_LDO9, "vmmc", "sdhci-pxav2.1");
+		REG_SUPPLY_INIT(PM8607_ID_LDO9, "vmmc", "sdhci-pxa.1");
 		REG_SUPPLY_INIT(PM8607_ID_LDO13, "v_cam", NULL);
 		REG_SUPPLY_INIT(PM8607_ID_LDO14, "v_gps", NULL);
 
