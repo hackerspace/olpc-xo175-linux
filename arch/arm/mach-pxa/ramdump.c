@@ -159,6 +159,18 @@ struct acc_regs {
 	unsigned cfgreg0;	/* MG1 Arbitration Control */
 };
 
+/* Other SoC registers */
+struct soc_regs {
+	unsigned avcr;
+	unsigned ser_fuse_reg2;
+	union {
+		struct {
+			unsigned mdtac;
+			unsigned rcomp;
+		}; /* Tavor DMC */
+	};
+};
+
 /* Main RAMDUMP data structure */
 struct ramdump_state {
 	unsigned rdc_va;	/* RDC header virtual addres */
@@ -188,6 +200,7 @@ struct ramdump_state {
 	struct acc_regs acc;
 	struct l2c_pj4_regs l2cpj4;
 	struct pfm_pj4_regs pfmpj4;
+	struct soc_regs soc;
 } ramdump_data;
 
 static void *isram_va; /* ioremapped va for ISRAM access */
@@ -310,6 +323,17 @@ static void save_peripheral_regs(struct ramdump_state *d)
 	d->acc.d0cken_a = CKENA;
 	d->acc.d0cken_b = CKENB;
 	d->acc.d0cken_c = CKENC;
+#ifdef CONFIG_CPU_PJ4
+	d->acc.cfgreg0 = __REG(0x48100f10);
+#endif
+#ifdef CONFIG_PXA95x
+	d->soc.avcr = __REG(0x40f50094);
+	d->soc.ser_fuse_reg2 = __REG(0x40f50208);
+	if (cpu_is_pxa968() || cpu_is_pxa955()) {
+		d->soc.mdtac = __REG(0x48100010);
+		d->soc.rcomp = __REG(0x48100100);
+	}
+#endif
 }
 
 /************************************************************************/
