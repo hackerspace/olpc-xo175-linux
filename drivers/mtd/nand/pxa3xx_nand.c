@@ -1130,8 +1130,10 @@ static void nand_read_page(struct mtd_info *mtd, uint8_t *buf, int page)
 	else if (use_dma) {
 		mapped_addr = map_addr(info, (void *)buf,
 				       mtd->writesize, DMA_FROM_DEVICE);
-		if (dma_mapping_error(&info->pdev->dev, mapped_addr))
+		if (dma_mapping_error(&info->pdev->dev, mapped_addr)) {
 			info->use_dma = 0;
+			mapped_addr = 0;
+		}
 		else
 			info->data_buff_phys = mapped_addr;
 	}
