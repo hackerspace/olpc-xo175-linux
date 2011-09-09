@@ -822,6 +822,24 @@ static struct i2c_board_info ttc_dkb_i2c_info[] = {
 #endif
 };
 
+static struct i2c_board_info ttc_dkb_pwr_i2c_info[] = {
+#if defined(CONFIG_GPIO_PCA9575)
+	{
+		.type           = "pca9575",
+		.addr           = 0x20,
+		.irq            = IRQ_GPIO(19),
+		.platform_data  = &pca9575_data,
+	},
+#endif
+#if defined(CONFIG_SENSORS_LIS331DL)
+	{
+		.type		= "lis331dl",
+		.addr		=  0x1c,
+		.platform_data	= &lis33ldl_min_delay,
+	},
+#endif
+};
+
 /* workaround for reset i2c bus by GPIO53 -SCL, GPIO54 -SDA */
 static void i2c_pxa_bus_reset(void)
 {
@@ -873,8 +891,9 @@ out:
 static struct i2c_pxa_platform_data dkb_i2c_pdata = {
 	.fast_mode		 = 1,
 	/* ilcr:fs mode b17~9=0x22,about 380K, standard mode b8~0=0x7E,100K */
-	.ilcr			 = 0x082C447E,
+	.ilcr		= 0x082C447E,
 	/* iwcr:b5~0=b01010 recommended value according to spec*/
+	.iwcr		= 0x0000142A,
 	.hardware_lock		= pxa910_ripc_lock,
 	.hardware_unlock	= pxa910_ripc_unlock,
 	.hardware_trylock	= pxa910_ripc_trylock,
@@ -884,9 +903,9 @@ static struct i2c_pxa_platform_data dkb_i2c_pdata = {
 static struct i2c_pxa_platform_data ttc_dkb_pwr_i2c_pdata = {
 	.fast_mode		 = 1,
 	/* ilcr:fs mode b17~9=0x22,about 380K, standard mode b8~0=0x7E,100K */
-	.ilcr			 = 0x082C447E,
+	.ilcr		= 0x082C447E,
 	/* iwcr:b5~0=b01010 recommended value according to spec*/
-	.iwcr			= 0x0000142A,
+	.iwcr		= 0x0000142A,
 };
 
 #if defined(CONFIG_VIDEO_MV) && defined(CONFIG_GPIO_PCA953X)
@@ -2013,6 +2032,18 @@ static void __init ttc_dkb_init(void)
 	pxa910_add_keypad(&ttc_dkb_keypad_info);
 	pxa910_add_cnm();
 	pxa910_add_twsi(0, &dkb_i2c_pdata, ARRAY_AND_SIZE(ttc_dkb_i2c_info));
+	if (emmc_boot) {
+		pxa910_add_twsi(1, &ttc_dkb_pwr_i2c_pdata,
+				ARRAY_AND_SIZE(ttc_dkb_pwr_i2c_info));
+		/* change the adapt id to 1, camera sensor is on pwri2c bus*/
+#ifdef CONFIG_SOC_CAMERA_OV5642
+		((struct soc_camera_link *)(dkb_ov5642_dvp.dev.platform_data))
+			->i2c_adapter_id = 1;
+#elif CONFIG_SOC_CAMERA_OV5640
+		((struct soc_camera_link *)(dkb_ov5640_dvp.dev.platform_data))
+			->i2c_adapter_id = 1;
+#endif
+	}
 
 	pxa910_add_acipc();
 
