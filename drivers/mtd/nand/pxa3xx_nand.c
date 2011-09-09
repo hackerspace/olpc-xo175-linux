@@ -268,6 +268,30 @@ static struct pxa3xx_nand_flash builtin_flash_types[] = {
 { "512MiB 16-bit", 0xbcad, 0xffff,  64, 2048, 16, 16, 1, 4096, &timing[4] },
 };
 
+static struct nand_ecclayout bch_nand_oob_64 = {
+	.eccbytes = 32,
+	.eccpos = {
+		32, 33, 34, 35, 36, 37, 38, 39,
+		40, 41, 42, 43, 44, 45, 46, 47,
+		48, 49, 50, 51, 52, 53, 54, 55,
+		56, 57, 58, 59, 60, 61, 62, 63},
+	.oobfree = { {2, 30} }
+};
+
+static struct nand_ecclayout bch_nand_oob_128 = {
+	.eccbytes = 64,
+	.eccpos = {
+		64, 65, 66, 67, 68, 69, 70, 71,
+		72, 73, 74, 75, 76, 77, 78, 79,
+		80, 81, 82, 83, 84, 85, 86, 87,
+		88, 89, 90, 91, 92, 93, 94, 95,
+		96, 97, 98, 99, 100, 101, 102, 103,
+		104, 105, 106, 107, 108, 109, 110, 111,
+		112, 113, 114, 115, 116, 117, 118, 119,
+		120, 121, 122, 123, 124, 125, 126, 127},
+	.oobfree = { {2, 62} }
+};
+
 /* Define a default flash type setting serve as flash detecting only */
 #define DEFAULT_FLASH_TYPE (&builtin_flash_types[0])
 
@@ -1437,6 +1461,21 @@ static int pxa3xx_nand_scan(struct mtd_info *mtd)
 	pxa3xx_flash_ids[0].erasesize = f->page_size * f->page_per_block;
 	pxa3xx_flash_ids[1].name = NULL;
 	def = pxa3xx_flash_ids;
+
+	if (f->ecc_strength > 1) {
+		switch (f->page_size) {
+		case 2048:
+			chip->ecc.layout = &bch_nand_oob_64;
+			break;
+		case 4096:
+			chip->ecc.layout = &bch_nand_oob_128;
+			break;
+		default:
+			BUG();
+		}
+	}
+
+
 KEEP_CONFIG:
 	chip->ecc.mode = NAND_ECC_HW;
 	chip->ecc.size = host->page_size;
