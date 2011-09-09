@@ -78,7 +78,7 @@ static int pm860x_onkey_suspend(struct device *dev)
 	struct pm860x_chip *chip = dev_get_drvdata(pdev->dev.parent);
 	int irq;
 
-	irq = platform_get_irq(pdev, 0) + chip->irq_base;
+	irq = platform_get_irq(pdev, 0);
 	if (device_may_wakeup(dev)) {
 		enable_irq_wake(chip->core_irq);
 		enable_irq_wake(irq);
@@ -92,7 +92,7 @@ static int pm860x_onkey_resume(struct device *dev)
 	struct pm860x_chip *chip = dev_get_drvdata(pdev->dev.parent);
 	int irq;
 
-	irq = platform_get_irq(pdev, 0) + chip->irq_base;
+	irq = platform_get_irq(pdev, 0);
 	if (device_may_wakeup(dev)) {
 		disable_irq_wake(chip->core_irq);
 		disable_irq_wake(irq);
