@@ -1340,11 +1340,133 @@ static void __init ttc_dkb_init_spi(void)
 
 #endif /*defined CONFIG_CMMB*/
 
+#if defined(CONFIG_MMC_SDHCI_PXAV2)
+static int mmc0_lp_switch(unsigned int on, int with_card)
+{
+	static struct regulator *regulator_sd_pad = NULL;
+	static struct regulator *regulator_sd_slot = NULL;
+	static int sd_pwr_en = 0;
+	int error = 0;
+	int ret = 0;
+
+	/* Clock pin is float by default, it will cause current leak during suspend
+	 * for some SD cards if SD power is always on. So enable internal PULL-UP of
+	 * clock pin during suspend to fix the issue.
+	 */
+	mfp_cfg_t mfp_cfg_mmc0_clk = MMC1_CLK_MMC1_CLK;
+	mfp_cfg_t mfp_cfg_mmc0_clk_sleep = MMC1_CLK_MMC1_CLK | MFP_PULL_HIGH;
+
+	if (on)
+		mfp_config(&mfp_cfg_mmc0_clk_sleep, 1);
+	else
+		mfp_config(&mfp_cfg_mmc0_clk, 1);
+
+	if (!regulator_sd_pad) {
+		/* LDO14, power supply of MMC0 pad */
+		regulator_sd_pad = regulator_get(NULL, "v_ldo14");
+		if (IS_ERR(regulator_sd_pad)) {
+			regulator_sd_pad = NULL;
+		} else {
+			ret = regulator_enable(regulator_sd_pad);
+			if (ret < 0) {
+				printk(KERN_ERR "Failed to enable LDO14, "
+					"SD may not work, ret = %d\n", ret);
+				regulator_sd_pad = NULL;
+			}
+		}
+	}
+
+	if (emmc_boot) {
+		if (!regulator_sd_slot) {
+			/* on PXA920H board, LDO13, power supply of MMC0 slot */
+			regulator_sd_slot = regulator_get(NULL, "v_ldo13");
+			if (IS_ERR(regulator_sd_slot)) {
+				regulator_sd_slot = NULL;
+			} else {
+				ret = regulator_enable(regulator_sd_slot);
+				if (ret < 0) {
+					printk(KERN_ERR "Failed to enable LDO13, "
+						"SD may not work, ret = %d\n", ret);
+					regulator_sd_slot = NULL;
+				}
+			}
+		}
+	} else {
+		if (is_td_dkb) {
+			sd_pwr_en = mfp_to_gpio(GPIO15_MMC1_POWER);
+			if (gpio_request(sd_pwr_en, "SD Power Ctrl")) {
+				printk(KERN_ERR "Failed to request SD_PWR_EN(gpio %d), "
+					"SD card might not work\n", sd_pwr_en);
+				sd_pwr_en = 0;
+			}
+		} else {
+			sd_pwr_en = GPIO_EXT1(5);
+			if (gpio_request(sd_pwr_en, "SD Power Ctrl")) {
+				printk(KERN_ERR "Failed to request SD_PWR_EN(gpio %d), "
+					"SD card might not work\n", sd_pwr_en);
+				sd_pwr_en = 0;
+			}
+		}
+	}
+
+	if (!regulator_sd_pad)
+		error = 1;
+	else {
+		if (emmc_boot) {
+			if (!regulator_sd_slot)
+				error = 1;
+		} else {
+			if (!sd_pwr_en)
+				error = 1;
+		}
+	}
+
+	if (error) {
+		printk(KERN_ERR "Failed to get power control of SD\n");
+		return -EIO;
+	}
+
+	if (on) {
+		if (emmc_boot) {
+			ret = regulator_disable(regulator_sd_slot);
+			if (ret < 0)
+				printk(KERN_ERR "Failed to turn off LDO13 "
+					"for SD slot, ret = %d\n", ret);
+		} else {
+			gpio_direction_output(sd_pwr_en, 0);
+			gpio_free(sd_pwr_en);
+		}
+
+		ret = regulator_disable(regulator_sd_pad);
+		if (ret < 0)
+			printk(KERN_ERR "Failed to turn off LDO14 "
+				"for SD slot, ret = %d\n", ret);
+	} else {
+		if (emmc_boot) {
+			ret = regulator_enable(regulator_sd_slot);
+			if (ret < 0)
+				printk(KERN_ERR "Failed to turn on LDO13, "
+					"SD may not work, ret = %d\n", ret);
+		} else {
+			gpio_direction_output(sd_pwr_en, 1);
+			gpio_free(sd_pwr_en);
+		}
+
+		ret = regulator_enable(regulator_sd_pad);
+		if (ret < 0)
+			printk(KERN_ERR "Failed to turn on LDO14, "
+				"SD may not work, ret = %d\n", ret);
+	}
+
+	return 0;
+}
+
 /* MMC0 controller for SD-MMC */
 static struct sdhci_pxa_platdata pxa910_sdh_platdata_mmc0 = {
 	.flags			= PXA_FLAG_ENABLE_CLOCK_GATING,
 	.clk_delay_sel		= 1,
 	.clk_delay_cycles	= 2,
+	.lp_switch		= mmc0_lp_switch,
 };
 
 static int mmc1_gpio_switch(unsigned int on, int with_card);
@@ -1545,15 +1667,16 @@ static void __init pxa910_init_mmc(void)
 		mfp_config(ARRAY_AND_SIZE(emmc_pin_config));
 
 	/* Always register SDHC2 as we need to support both PXA920 (no eMMC)
-+	 * and PXA921 (with eMMC). Otherwise the controller device number will
-+	 * be different on two platform, which causes Android cannot mount SD
-+	 * card correctly.
-+	 */
+	 * and PXA921 (with eMMC). Otherwise the controller device number will
+	 * be different on two platform, which causes Android cannot mount SD
+	 * card correctly.
+	 */
 	pxa910_add_sdh(2, &pxa910_sdh_platdata_mmc2); /* eMMC */
 
 	pxa910_add_sdh(0, &pxa910_sdh_platdata_mmc0); /* SD/MMC */
 	pxa910_add_sdh(1, &pxa910_sdh_platdata_mmc1); /* SDIO wifi */
 }
+#endif /* MMC_SDHCI_PXAV2 */
 
 #ifdef CONFIG_PM
 static void mfp_gpio3_power_up(void)
