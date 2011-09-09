@@ -741,7 +741,8 @@ static int lsm303dlhc_mag_input_init(struct lsm303dlhc_mag_data *mag)
 	input = mag->input_poll_dev->input;
 
 	input->id.bustype = BUS_I2C;
-	input->dev.parent = &mag->client->dev;
+	/*set parent to NULL: put input device under /sys/devices/virtual*/
+	input->dev.parent = NULL;
 
 	input_set_drvdata(mag->input_poll_dev->input, mag);
 

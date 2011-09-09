@@ -804,7 +804,8 @@ static int l3g4200d_input_init(struct l3g4200d_data *gyro)
 	input = gyro->input_poll_dev->input;
 
 	input->id.bustype = BUS_I2C;
-	input->dev.parent = &gyro->client->dev;
+	/*set parent to NULL: put input device under /sys/devices/virtual*/
+	input->dev.parent = NULL;
 
 	input_set_drvdata(gyro->input_poll_dev->input, gyro);
 

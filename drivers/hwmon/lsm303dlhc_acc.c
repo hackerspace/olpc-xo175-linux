@@ -1186,7 +1186,8 @@ static int lsm303dlhc_acc_input_init(struct lsm303dlhc_acc_data *acc)
 	acc->input_dev->close = lsm303dlhc_acc_input_close;
 	acc->input_dev->name = LSM303DLHC_ACC_DEV_NAME;
 	acc->input_dev->id.bustype = BUS_I2C;
-	acc->input_dev->dev.parent = &acc->client->dev;
+	/*set parent to NULL: put input device under /sys/devices/virtual*/
+	acc->input_dev->dev.parent = NULL;
 
 	input_set_drvdata(acc->input_dev, acc);
 
