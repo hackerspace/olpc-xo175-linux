@@ -435,6 +435,7 @@ static void pxa3xx_set_datasize(struct pxa3xx_nand_info *info)
 		info->oob_size = 32;
 	}
 }
+static void enable_int(struct pxa3xx_nand_info *info, uint32_t int_mask);
 
 /**
  * NOTE: it is a must to set ND_RUN firstly, then write
@@ -450,7 +451,7 @@ static void pxa3xx_nand_start(struct pxa3xx_nand_info *info)
 	ndcr = host->reg_ndcr;
 	ndcr |= info->use_dma ? NDCR_DMA_EN : 0;
 	ndcr |= NDCR_ND_RUN;
-	ndcr |= use_polling ? NDCR_INT_MASK : 0;
+	ndcr |= NDCR_INT_MASK;
 	switch (info->ecc_strength) {
 	default:
 		ndeccctrl |= NDECCCTRL_BCH_EN;
@@ -464,8 +465,10 @@ static void pxa3xx_nand_start(struct pxa3xx_nand_info *info)
 	/* clear status bits and run */
 	nand_writel(info, NDCR, 0);
 	nand_writel(info, NDECCCTRL, ndeccctrl);
-	nand_writel(info, NDSR, NDSR_MASK);
 	nand_writel(info, NDCR, ndcr);
+	nand_writel(info, NDSR, ~NDSR_WRCMDREQ);
+	if (!use_polling)
+		enable_int(info, NDCR_INT_MASK);
 }
 
 static void pxa3xx_nand_stop(struct pxa3xx_nand_info *info)
