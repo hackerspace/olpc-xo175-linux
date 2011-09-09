@@ -280,6 +280,38 @@ static const struct clkops clk_pxa95x_smc_ops = {
 	.getrate	= clk_pxa95x_smc_getrate,
 };
 
+void clk_pxa3xx_cken_nand_enable(struct clk *clk)
+{
+	CKENA |= (1 << CKEN_NAND);
+}
+
+void clk_pxa3xx_cken_nand_disable(struct clk *clk)
+{
+	CKENA &= ~(1 << CKEN_NAND);
+}
+
+/*
+ * Return the NAND clock frequency
+ * PXA320/PXA930:     104 MHz
+ * PXA935/PXA95x:     156 MHz
+ * PXA300/310: 208 MHz
+ */
+static unsigned long clk_pxa3xx_nand_getrate(struct clk *clk)
+{
+	if (cpu_is_pxa320() || cpu_is_pxa930())
+		return 104 * 1000 * 1000;
+	else if (cpu_is_pxa95x() && (!cpu_is_pxa930()))
+		return 156 * 1000 * 1000;
+	else
+		return 208 * 1000 * 1000;
+}
+
+static const struct clkops clk_pxa3xx_nand_ops = {
+	.enable		= clk_pxa3xx_cken_nand_enable,
+	.disable	= clk_pxa3xx_cken_nand_disable,
+	.getrate	= clk_pxa3xx_nand_getrate,
+};
+
 static void clk_tout_s0_enable(struct clk *clk)
 {
 	OSCC |= OSCC_TENS0;
@@ -812,6 +844,7 @@ static DEFINE_CK(pxa95x_smc, SMC, &clk_pxa95x_smc_ops);
 static DEFINE_CK(pxa95x_imu, IMU, &clk_imu_axi_ops);
 static DEFINE_CK(pxa95x_u2o, USB_PRL, &clk_pxa9xx_u2o_ops);
 static DEFINE_CK(pxa95x_gcu, GC_1X, &clk_gcu_ops);
+static DEFINE_CK(pxa3xx_nand, NAND, &clk_pxa3xx_nand_ops);
 static DEFINE_CLK(pxa95x_pout, &clk_pxa3xx_pout_ops, 13000000, 70);
 static DEFINE_CLK(pxa95x_tout_s0, &clk_pxa95x_tout_s0_ops, 13000000, 70);
 static DEFINE_PXA3_CKEN(pxa95x_ffuart, FFUART, 14857000, 1);
@@ -833,6 +866,7 @@ static DEFINE_PXA3_CKEN(pxa95x_sdh2, PXA95x_MMC3, 200000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_sdh3, PXA95x_MMC4, 200000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_vmeta, VMETA, 312000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_abu, ABU, 20000000, 0);
+
 
 
 static struct clk_lookup pxa95x_clkregs[] = {
@@ -869,6 +903,7 @@ static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_sdh3, "sdhci-pxa.3", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_pxa95x_abu, NULL, "PXA95X_ABUCLK"),
 	INIT_CLKREG(&clk_pxa95x_smc, NULL, "SMCCLK"),
+	INIT_CLKREG(&clk_pxa3xx_nand, "pxa3xx-nand", NULL),
 };
 
 void __init pxa95x_init_irq(void)
