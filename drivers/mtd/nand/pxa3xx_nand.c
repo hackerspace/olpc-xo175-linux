@@ -266,6 +266,7 @@ static struct pxa3xx_nand_flash builtin_flash_types[] = {
 { "1GiB 8-bit",    0x382c, 0xffff, 128, 4096,  8,  8, 4, 2048, &timing[2] },
 { "256MiB 16-bit", 0xba20, 0xffff,  64, 2048, 16, 16, 1, 2048, &timing[3] },
 { "512MiB 16-bit", 0xbcad, 0xffff,  64, 2048, 16, 16, 1, 4096, &timing[4] },
+{ "512MiB 16-bit BCH", 0xbc2c, 0x5590, 64, 2048, 16, 16, 4, 4096, &timing[2] },
 };
 
 static struct nand_ecclayout bch_nand_oob_64 = {
