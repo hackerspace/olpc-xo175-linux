@@ -50,6 +50,7 @@
 #include	<linux/gpio.h>
 #include	<linux/interrupt.h>
 #include	<linux/slab.h>
+#include	<linux/earlysuspend.h>
 
 #include	<linux/i2c/lsm303dlhc.h>
 
@@ -228,6 +229,10 @@ struct lsm303dlhc_acc_data {
 	struct workqueue_struct *irq2_work_queue;
 	int xyz[3];
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	struct early_suspend early_suspend;
+#endif
+
 #ifdef DEBUG
 	u8 reg_addr;
 #endif
@@ -306,7 +311,7 @@ static int lsm303dlhc_acc_hw_init(struct lsm303dlhc_acc_data *acc)
 	int err = -1;
 	u8 buf[7];
 
-	printk(KERN_INFO "%s: hw init start\n", LSM303DLHC_ACC_DEV_NAME);
+	printk(KERN_DEBUG "%s: hw init start\n", LSM303DLHC_ACC_DEV_NAME);
 
 	buf[0] = WHO_AM_I;
 	err = lsm303dlhc_acc_i2c_read(acc, buf, 1);
@@ -380,7 +385,7 @@ static int lsm303dlhc_acc_hw_init(struct lsm303dlhc_acc_data *acc)
 		goto err_resume_state;
 
 	acc->hw_initialized = 1;
-	printk(KERN_INFO "%s: hw init done\n", LSM303DLHC_ACC_DEV_NAME);
+	printk(KERN_DEBUG "%s: hw init done\n", LSM303DLHC_ACC_DEV_NAME);
 	return 0;
 
 err_firstread:
@@ -707,6 +712,7 @@ static int lsm303dlhc_acc_enable(struct lsm303dlhc_acc_data *acc)
 	int err;
 
 	if (!atomic_cmpxchg(&acc->enabled, 0, 1)) {
+		acc->pdata->set_power(1, LSM303DLHC_ACC_DEV_NAME);
 		err = lsm303dlhc_acc_device_power_on(acc);
 		if (err < 0) {
 			atomic_set(&acc->enabled, 0);
@@ -724,6 +730,7 @@ static int lsm303dlhc_acc_disable(struct lsm303dlhc_acc_data *acc)
 	if (atomic_cmpxchg(&acc->enabled, 1, 0)) {
 		cancel_delayed_work_sync(&acc->input_work);
 		lsm303dlhc_acc_device_power_off(acc);
+		acc->pdata->set_power(0, LSM303DLHC_ACC_DEV_NAME);
 	}
 
 	return 0;
@@ -1115,14 +1122,14 @@ static void lsm303dlhc_acc_input_work_func(struct work_struct *work)
 int lsm303dlhc_acc_input_open(struct input_dev *input)
 {
 	struct lsm303dlhc_acc_data *acc = input_get_drvdata(input);
-	dev_info(&acc->client->dev, "lsm303dlhc_acc_input_open\n");
+	dev_dbg(&acc->client->dev, "lsm303dlhc_acc_input_open\n");
 	return lsm303dlhc_acc_enable(acc);
 }
 
 void lsm303dlhc_acc_input_close(struct input_dev *dev)
 {
 	struct lsm303dlhc_acc_data *acc = input_get_drvdata(dev);
-	dev_info(&acc->client->dev, "lsm303dlhc_acc_input_close\n");
+	dev_dbg(&acc->client->dev, "lsm303dlhc_acc_input_close\n");
 	lsm303dlhc_acc_disable(acc);
 }
 
@@ -1219,6 +1226,26 @@ static void lsm303dlhc_acc_input_cleanup(struct lsm303dlhc_acc_data *acc)
 	input_unregister_device(acc->input_dev);
 	input_free_device(acc->input_dev);
 }
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void lsm303dlhc_acc_late_resume(struct early_suspend *h)
+{
+	struct lsm303dlhc_acc_data *acc = \
+		container_of(h, struct lsm303dlhc_acc_data, early_suspend);
+
+	if (acc->on_before_suspend)
+		lsm303dlhc_acc_enable(acc);
+}
+
+static void lsm303dlhc_acc_early_suspend(struct early_suspend *h)
+{
+	struct lsm303dlhc_acc_data *acc = \
+		container_of(h, struct lsm303dlhc_acc_data, early_suspend);
+
+	acc->on_before_suspend = atomic_read(&acc->enabled);
+	lsm303dlhc_acc_disable(acc);
+}
+#endif
 
 static int lsm303dlhc_acc_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)
@@ -1419,7 +1446,12 @@ static int lsm303dlhc_acc_probe(struct i2c_client *client,
 		disable_irq_nosync(acc->irq2);
 	}
 
-
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	acc->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
+	acc->early_suspend.suspend = lsm303dlhc_acc_early_suspend;
+	acc->early_suspend.resume = lsm303dlhc_acc_late_resume;
+	register_early_suspend(&acc->early_suspend);
+#endif
 
 	mutex_unlock(&acc->lock);
 
@@ -1485,28 +1517,6 @@ static int __devexit lsm303dlhc_acc_remove(struct i2c_client *client)
 	return 0;
 }
 
-#ifdef CONFIG_PM
-static int lsm303dlhc_acc_resume(struct i2c_client *client)
-{
-	struct lsm303dlhc_acc_data *acc = i2c_get_clientdata(client);
-
-	if (acc->on_before_suspend)
-		return lsm303dlhc_acc_enable(acc);
-	return 0;
-}
-
-static int lsm303dlhc_acc_suspend(struct i2c_client *client, pm_message_t mesg)
-{
-	struct lsm303dlhc_acc_data *acc = i2c_get_clientdata(client);
-
-	acc->on_before_suspend = atomic_read(&acc->enabled);
-	return lsm303dlhc_acc_disable(acc);
-}
-#else
-#define lsm303dlhc_acc_suspend	NULL
-#define lsm303dlhc_acc_resume	NULL
-#endif /* CONFIG_PM */
-
 static const struct i2c_device_id lsm303dlhc_acc_id[]
 		= { { LSM303DLHC_ACC_DEV_NAME, 0 }, { }, };
 
@@ -1520,8 +1530,6 @@ static struct i2c_driver lsm303dlhc_acc_driver = {
 		  },
 	.probe = lsm303dlhc_acc_probe,
 	.remove = __devexit_p(lsm303dlhc_acc_remove),
-	.suspend = lsm303dlhc_acc_suspend,
-	.resume = lsm303dlhc_acc_resume,
 	.id_table = lsm303dlhc_acc_id,
 };
 

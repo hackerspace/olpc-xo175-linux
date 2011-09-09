@@ -35,6 +35,7 @@
 #include <linux/mutex.h>
 #include <linux/input-polldev.h>
 #include <linux/slab.h>
+#include <linux/earlysuspend.h>
 
 #include <linux/i2c/lsm303dlhc.h>
 
@@ -119,6 +120,11 @@ struct lsm303dlhc_mag_data {
 
 	u8 reg_addr;
 	u8 resume_state[3];
+
+	int on_before_suspend;
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	struct early_suspend early_suspend;
+#endif
 };
 
 static int lsm303dlhc_mag_i2c_read(struct lsm303dlhc_mag_data *mag,
@@ -386,7 +392,7 @@ static int lsm303dlhc_mag_enable(struct lsm303dlhc_mag_data *mag)
 	int err;
 
 	if (!atomic_cmpxchg(&mag->enabled, 0, 1)) {
-
+		mag->pdata->set_power(1, LSM303DLHC_MAG_DEV_NAME);
 		err = lsm303dlhc_mag_device_power_on(mag);
 		if (err < 0) {
 			atomic_set(&mag->enabled, 0);
@@ -407,6 +413,7 @@ static int lsm303dlhc_mag_disable(struct lsm303dlhc_mag_data *mag)
 	if (atomic_cmpxchg(&mag->enabled, 1, 0)) {
 		/*cancel_delayed_work_sync(&mag->input_poll_dev->work);*/
 		lsm303dlhc_mag_device_power_off(mag);
+		mag->pdata->set_power(0, LSM303DLHC_MAG_DEV_NAME);
 	}
 
 	return 0;
@@ -657,7 +664,7 @@ int lsm303dlhc_mag_input_open(struct input_dev *input)
 	struct input_polled_dev *polldev = (struct input_polled_dev *)input;
 	struct lsm303dlhc_mag_data *mag = polldev->private;
 	if (NULL != mag) {
-		dev_info(&mag->client->dev, "lsm303dlhc_mag_input_open\n");
+		dev_dbg(&mag->client->dev, "lsm303dlhc_mag_input_open\n");
 		return lsm303dlhc_mag_enable(mag);
 	} else{
 		dev_err(&mag->client->dev, "mag private data NULL");
@@ -670,7 +677,7 @@ void lsm303dlhc_mag_input_close(struct input_dev *dev)
 	struct input_polled_dev *polldev = (struct input_polled_dev *)dev;
 	struct lsm303dlhc_mag_data *mag = polldev->private;
 	if (NULL != mag) {
-		dev_info(&mag->client->dev, "lsm303dlhc_mag_input_close\n");
+		dev_dbg(&mag->client->dev, "lsm303dlhc_mag_input_close\n");
 		lsm303dlhc_mag_disable(mag);
 	} else{
 		dev_err(&mag->client->dev, "mag private data NULL");
@@ -767,6 +774,26 @@ static void lsm303dlhc_mag_input_cleanup(struct lsm303dlhc_mag_data *mag)
 	input_unregister_polled_device(mag->input_poll_dev);
 	input_free_polled_device(mag->input_poll_dev);
 }
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void  lsm303dlhc_mag_early_suspend(struct early_suspend *h)
+{
+	struct lsm303dlhc_mag_data *mag = \
+		container_of(h, struct lsm303dlhc_mag_data, early_suspend);
+
+	mag->on_before_suspend = atomic_read(&mag->enabled);
+	lsm303dlhc_mag_disable(mag);
+}
+
+static void lsm303dlhc_mag_late_resume(struct early_suspend *h)
+{
+	struct lsm303dlhc_mag_data *mag = \
+		container_of(h, struct lsm303dlhc_mag_data, early_suspend);
+
+	if (mag->on_before_suspend)
+		lsm303dlhc_mag_enable(mag);
+}
+#endif
 
 static int lsm303dlhc_mag_probe(struct i2c_client *client,
 			   const struct i2c_device_id *id)
@@ -865,6 +892,13 @@ static int lsm303dlhc_mag_probe(struct i2c_client *client,
 
 	atomic_set(&mag->enabled, 0);
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	mag->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
+	mag->early_suspend.suspend = lsm303dlhc_mag_early_suspend;
+	mag->early_suspend.resume = lsm303dlhc_mag_late_resume;
+	register_early_suspend(&mag->early_suspend);
+#endif
+
 	mutex_unlock(&mag->lock);
 
 	dev_info(&client->dev, "lsm303dlh_mag probed\n");
@@ -903,31 +937,6 @@ static int lsm303dlhc_mag_remove(struct i2c_client *client)
 	return 0;
 }
 
-static int lsm303dlhc_mag_suspend(struct device *dev)
-{
-#ifdef CONFIG_SUSPEND
-	/*struct i2c_client *client = to_i2c_client(dev);
-	struct lsm303dlhc_data *mag = i2c_get_clientdata(client);*/
-#ifdef DEBUG
-	pr_info("lsm303dlhc_suspend\n");
-#endif /* DEBUG */
-	/* TO DO */
-#endif /* CONFIG_SUSPEND */
-	return 0;
-}
-
-static int lsm303dlhc_mag_resume(struct device *dev)
-{
-#ifdef CONFIG_SUSPEND
-	/*struct i2c_client *client = to_i2c_client(dev);
-	struct lsm303dlhc_data *mag = i2c_get_clientdata(client);*/
-#ifdef DEBUG
-	pr_info("lsm303dlhc_resume\n");
-#endif /* DEBUG */
-	/* TO DO */
-#endif /* CONFIG_SUSPEND */
-	return 0;
-}
 
 static const struct i2c_device_id lsm303dlhc_mag_id[] = {
 	{LSM303DLHC_MAG_DEV_NAME, 0},
@@ -936,16 +945,10 @@ static const struct i2c_device_id lsm303dlhc_mag_id[] = {
 
 MODULE_DEVICE_TABLE(i2c, lsm303dlhc_mag_id);
 
-static const struct dev_pm_ops lsm303dlhc_pm = {
-	.suspend = lsm303dlhc_mag_suspend,
-	.resume = lsm303dlhc_mag_resume,
-};
-
 static struct i2c_driver lsm303dlhc_mag_driver = {
 	.driver = {
 			.owner = THIS_MODULE,
 			.name = LSM303DLHC_MAG_DEV_NAME,
-			.pm = &lsm303dlhc_pm,
 		   },
 	.probe = lsm303dlhc_mag_probe,
 	.remove = __devexit_p(lsm303dlhc_mag_remove),

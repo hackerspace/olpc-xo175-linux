@@ -38,6 +38,7 @@
 #include <linux/mutex.h>
 #include <linux/input-polldev.h>
 #include <linux/slab.h>
+#include <linux/earlysuspend.h>
 
 #include <linux/i2c/l3g4200d.h>
 
@@ -132,6 +133,10 @@ struct l3g4200d_data {
 
 	u8 reg_addr;
 	u8 resume_state[RESUME_ENTRIES];
+	int on_before_suspend;
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	struct early_suspend early_suspend;
+#endif
 };
 
 static int l3g4200d_i2c_read(struct l3g4200d_data *gyro,
@@ -362,7 +367,7 @@ static int l3g4200d_hw_init(struct l3g4200d_data *gyro)
 	int err = -1;
 	u8 buf[6];
 
-	pr_info("%s hw init\n", L3G4200D_GYR_DEV_NAME);
+	pr_devel("%s hw init\n", L3G4200D_GYR_DEV_NAME);
 
 	buf[0] = (AUTO_INCREMENT | CTRL_REG1);
 	buf[1] = gyro->resume_state[RES_CTRL_REG1];
@@ -385,7 +390,7 @@ static void l3g4200d_device_power_off(struct l3g4200d_data *dev_data)
 	int err;
 	u8 buf[2];
 
-	pr_info("%s power off\n", L3G4200D_GYR_DEV_NAME);
+	pr_devel("%s power off\n", L3G4200D_GYR_DEV_NAME);
 
 	buf[0] = CTRL_REG1;
 	buf[1] = PM_OFF;
@@ -430,7 +435,7 @@ static int l3g4200d_enable(struct l3g4200d_data *dev_data)
 	int err;
 
 	if (!atomic_cmpxchg(&dev_data->enabled, 0, 1)) {
-
+		dev_data->pdata->set_power(1, L3G4200D_GYR_DEV_NAME);
 		err = l3g4200d_device_power_on(dev_data);
 		if (err < 0) {
 			atomic_set(&dev_data->enabled, 0);
@@ -443,8 +448,10 @@ static int l3g4200d_enable(struct l3g4200d_data *dev_data)
 
 static int l3g4200d_disable(struct l3g4200d_data *dev_data)
 {
-	if (atomic_cmpxchg(&dev_data->enabled, 1, 0))
+	if (atomic_cmpxchg(&dev_data->enabled, 1, 0)) {
 		l3g4200d_device_power_off(dev_data);
+		dev_data->pdata->set_power(0, L3G4200D_GYR_DEV_NAME);
+	}
 
 	return 0;
 }
@@ -718,7 +725,7 @@ int l3g4200d_input_open(struct input_dev *input)
 {
 	struct input_polled_dev *polldev = (struct input_polled_dev *)input;
 	struct l3g4200d_data *gyro = polldev->private;
-	dev_info(&gyro->client->dev, "l3g4200d_input_open\n");
+	dev_dbg(&gyro->client->dev, "l3g4200d_input_open\n");
 	return l3g4200d_enable(gyro);
 }
 
@@ -726,7 +733,7 @@ void l3g4200d_input_close(struct input_dev *dev)
 {
 	struct input_polled_dev *polldev = (struct input_polled_dev *)dev;
 	struct l3g4200d_data *gyro = polldev->private;
-	dev_info(&gyro->client->dev, "l3g4200d_input_close\n");
+	dev_dbg(&gyro->client->dev, "l3g4200d_input_close\n");
 	l3g4200d_disable(gyro);
 }
 
@@ -831,6 +838,26 @@ static void l3g4200d_input_cleanup(struct l3g4200d_data *gyro)
 	input_free_polled_device(gyro->input_poll_dev);
 }
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void  l3g4200d_early_suspend(struct early_suspend *h)
+{
+	struct l3g4200d_data *gyro = \
+		container_of(h, struct l3g4200d_data, early_suspend);
+
+	gyro->on_before_suspend = atomic_read(&gyro->enabled);
+	l3g4200d_disable(gyro);
+}
+
+static void l3g4200d_late_resume(struct early_suspend *h)
+{
+	struct l3g4200d_data *gyro = \
+		container_of(h, struct l3g4200d_data, early_suspend);
+
+	if (gyro->on_before_suspend)
+		l3g4200d_enable(gyro);
+}
+#endif
+
 static int l3g4200d_probe(struct i2c_client *client,
 					const struct i2c_device_id *devid)
 {
@@ -934,6 +961,13 @@ static int l3g4200d_probe(struct i2c_client *client,
 	/* As default, do not report information */
 	atomic_set(&gyro->enabled, 0);
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	gyro->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
+	gyro->early_suspend.suspend = l3g4200d_early_suspend;
+	gyro->early_suspend.resume = l3g4200d_late_resume;
+	register_early_suspend(&gyro->early_suspend);
+#endif
+
 	mutex_unlock(&gyro->lock);
 
 #ifdef DEBUG
@@ -976,33 +1010,6 @@ static int l3g4200d_remove(struct i2c_client *client)
 	return 0;
 }
 
-static int l3g4200d_suspend(struct device *dev)
-{
-#ifdef CONFIG_SUSPEND
-	/*struct i2c_client *client = to_i2c_client(dev);
-	struct l3g4200d_data *gyro = i2c_get_clientdata(client);*/
-#ifdef DEBUG
-	pr_info(KERN_INFO "l3g4200d_suspend\n");
-#endif /* DEBUG */
-	/* TO DO */
-#endif /*CONFIG_SUSPEND*/
-	return 0;
-}
-
-static int l3g4200d_resume(struct device *dev)
-{
-#ifdef CONFIG_SUSPEND
-	/*struct i2c_client *client = to_i2c_client(dev);
-	struct l3g4200d_data *gyro = i2c_get_clientdata(client);*/
-#ifdef DEBUG
-	pr_info(KERN_INFO "l3g4200d_resume\n");
-#endif /*DEBUG */
-	/* TO DO */
-#endif /*CONFIG_SUSPEND*/
-	return 0;
-}
-
-
 static const struct i2c_device_id l3g4200d_id[] = {
 	{ L3G4200D_GYR_DEV_NAME , 0 },
 	{},
@@ -1010,16 +1017,10 @@ static const struct i2c_device_id l3g4200d_id[] = {
 
 MODULE_DEVICE_TABLE(i2c, l3g4200d_id);
 
-static const struct dev_pm_ops l3g4200d_pm = {
-	.suspend = l3g4200d_suspend,
-	.resume = l3g4200d_resume,
-};
-
 static struct i2c_driver l3g4200d_driver = {
 	.driver = {
 			.owner = THIS_MODULE,
 			.name = L3G4200D_GYR_DEV_NAME,
-			.pm = &l3g4200d_pm,
 	},
 	.probe = l3g4200d_probe,
 	.remove = __devexit_p(l3g4200d_remove),
