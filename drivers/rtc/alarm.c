@@ -460,6 +460,7 @@ int alarm_set_rtc_ring(struct timespec alarm_time)
 {
 	struct rtc_wkalrm   rtc_alarm;
 	unsigned long       rtc_alarm_time;
+
 	if (alarm_rtc_pwr_up != NULL) {
 		rtc_alarm_time = alarm_time.tv_sec;
 		pr_alarm(INIT_STATUS, "%s, alarm time: %lu\n",
@@ -474,15 +475,20 @@ int alarm_set_rtc_ring(struct timespec alarm_time)
 int alarm_read_rtc_ring(int *flag, unsigned long *alarm_time)
 {
 	struct rtc_wkalrm rtc_alarm;
+	int ret = 0;
+
 	if (alarm_rtc_pwr_up != NULL) {
 		if (alarm_rtc_pwr_up->dev.platform_data)
 		*flag = *(int *)(alarm_rtc_pwr_up->dev.platform_data);
-		rtc_read_alarm(alarm_rtc_pwr_up, &rtc_alarm);
+		ret = rtc_read_alarm(alarm_rtc_pwr_up, &rtc_alarm);
+		if (ret < 0)
+			goto out;
 		rtc_tm_to_time(&rtc_alarm.time, alarm_time);
 		pr_alarm(INIT_STATUS, "%s, flag: %d, alarm time: %lu\n",
 				__func__, *flag, *alarm_time);
 	}
-	return 0;
+out:
+	return ret;
 }
 
 
