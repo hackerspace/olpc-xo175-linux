@@ -31,8 +31,6 @@
 #define IRQ_NUM			1
 
 #define MAX_NAME_LEN		20
-#define REG_CACHE_SIZE		0x40
-#define REG_CACHE_BASE		0xb0
 
 /* Status Register 1 (0x01) */
 #define REG_STATUS_1		0x01
@@ -143,6 +141,8 @@ struct pm860x_priv {
 	unsigned int		pcmclk;
 	unsigned int		dir;
 	unsigned int		filter;
+	unsigned int		playback_samplerate;
+	unsigned int		capture_samplerate;
 	struct snd_soc_codec	*codec;
 	struct i2c_client	*i2c;
 	struct pm860x_chip	*chip;
@@ -291,6 +291,7 @@ static int pm860x_volatile(unsigned int reg)
 static unsigned int pm860x_read_reg_cache(struct snd_soc_codec *codec,
 					  unsigned int reg)
 {
+	int offset;
 	unsigned char *cache = codec->reg_cache;
 
 	BUG_ON(reg >= REG_CACHE_SIZE);
@@ -298,24 +299,71 @@ static unsigned int pm860x_read_reg_cache(struct snd_soc_codec *codec,
 	if (!pm860x_volatile(reg))
 		return cache[reg];
 
-	reg += REG_CACHE_BASE;
+	if (reg < REG_MISC_SIZE)
+		offset = PM860X_MISC_BASE;
+	else if (reg < REG_CACHE_SIZE)
+		offset = PM860X_AUDIO_BASE - REG_MISC_SIZE;
+	else
+		return -EIO;
 
-	return pm860x_reg_read(codec->control_data, reg);
+	return pm860x_reg_read(codec->control_data, reg + offset);
 }
 
 static int pm860x_write_reg_cache(struct snd_soc_codec *codec,
 				  unsigned int reg, unsigned int value)
 {
+	int offset;
 	unsigned char *cache = codec->reg_cache;
+	struct pm860x_priv *pm860x_audio = snd_soc_codec_get_drvdata(codec);
 
 	BUG_ON(reg >= REG_CACHE_SIZE);
+
+	if (reg == SAMPLE_RATE_SWITCH) {
+		/** Sample Rate Mapping
+		  * 0x0 - 5512HZ
+		  * 0x1 - 8000HZ
+		  * 0x2 - 11025HZ
+		  * 0x3 - 16000HZ
+		  * 0x4 - 22050HZ
+		  * 0x5 - 32000HZ
+		  * 0x6 - 44100HZ
+		  * 0x7 - 48000HZ
+		  * 0x8 - 64000HZ
+		  * 0x9 - 88200HZ
+		  * 0xa - 96000HZ
+		  * 0xb - 176400HZ
+		  * 0xc - 192000HZ
+		 **/
+		pm860x_audio->playback_samplerate = 1 << (value & 0xf);
+		pm860x_audio->capture_samplerate = 1 << ((value >> 4) & 0xf);
+
+		cache[reg] = value;
+		return 0;
+	}
+
+	if (reg < REG_MISC_SIZE)
+		offset = PM860X_MISC_BASE;
+	else if (reg < REG_CACHE_SIZE)
+		offset = PM860X_AUDIO_BASE - REG_MISC_SIZE;
+	else {
+		show_stack(NULL, NULL);
+		return -EIO;
+	}
 
 	if (!pm860x_volatile(reg))
 		cache[reg] = (unsigned char)value;
 
-	reg += REG_CACHE_BASE;
+	if (reg == MISC2) { /* handle PM860X_MISC2 (0x42) register */
+		if ((value & ((1 << 3) | (1 << 4))) == ((1 << 3) | (1 << 4))) {
+			pm860x_reg_write(codec->control_data, reg + offset,
+					 (1 << 3));
+		/* add 160 uSec delay between writing bit 3 and bit 4 (with
+		 * all the others) */
+			udelay(160);
+		}
+	}
 
-	return pm860x_reg_write(codec->control_data, reg, value);
+	return pm860x_reg_write(codec->control_data, reg + offset, value);
 }
 
 static int snd_soc_get_volsw_2r_st(struct snd_kcontrol *kcontrol,
@@ -574,6 +622,89 @@ static const struct snd_kcontrol_new pm860x_snd_controls[] = {
 		 pm860x_spk_ear_opamp_enum),
 	SOC_ENUM("Speaker Amplifier Current", pm860x_spk_pa_enum),
 	SOC_ENUM("Earpiece Amplifier Current", pm860x_ear_pa_enum),
+};
+
+static const struct snd_kcontrol_new pm860x_audio_controls[] = {
+	/* MIsc Register for audio clock configuration */
+	SOC_SINGLE("PM860X_MISC1", MISC1, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_MCLK", MCLK, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_MISC2", MISC2, 0, 0xff, 0),
+
+	/* Audio Register */
+	SOC_SINGLE("PM860X_PLL_CTRL1", PLL_CTRL1, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_PLL_FRAC1", PLL_FRAC1, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_PLL_FRAC2", PLL_FRAC2, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_PLL_FRAC3", PLL_FRAC3, 0, 0xff, 0),
+	/* support dynamically switch sample rate */
+	SOC_SINGLE("PM860X_SAMPLE_RATE_SWITCH", SAMPLE_RATE_SWITCH, 0, 0xff, 0),
+
+	SOC_SINGLE("PM860X_PCM_INTERFACE1", PM860X_PCM_IFACE_1, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_PCM_INTERFACE2", PM860X_PCM_IFACE_2, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_PCM_INTERFACE3", PM860X_PCM_IFACE_3, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_PCM_RATE", PM860X_PCM_RATE, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_ECHO_CANCEL_PATH", PM860X_EC_PATH, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_SIDETONE_GAIN1", PM860X_SIDETONE_L_GAIN, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_SIDETONE_GAIN2", PM860X_SIDETONE_R_GAIN, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_SIDETONE_GAIN3", PM860X_SIDETONE_SHIFT, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_ADC_OFFSET1", PM860X_ADC_OFFSET_1, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_ADC_OFFSET2", PM860X_ADC_OFFSET_2, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_DMIC_DELAY", PM860X_DMIC_DELAY, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_I2S_INTERFACE1", PM860X_I2S_IFACE_1, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_I2S_INTERFACE2", PM860X_I2S_IFACE_2, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_I2S_INTERFACE3", PM860X_I2S_IFACE_3, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_I2S_INTERFACE4", PM860X_I2S_IFACE_4, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_EQUALIZER_N0_1", PM860X_EQUALIZER_N0_1, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_EQUALIZER_N0_2", PM860X_EQUALIZER_N0_2, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_EQUALIZER_N1_1", PM860X_EQUALIZER_N1_1, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_EQUALIZER_N1_2", PM860X_EQUALIZER_N1_2, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_EQUALIZER_D1_1", PM860X_EQUALIZER_D1_1, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_EQUALIZER_D1_2", PM860X_EQUALIZER_D1_2, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_SIDE_TONE1", PM860X_LOFI_GAIN_LEFT, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_SIDE_TONE2", PM860X_LOFI_GAIN_RIGHT, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_LEFT_GAIN1", PM860X_HIFIL_GAIN_LEFT, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_LEFT_GAIN2", PM860X_HIFIL_GAIN_RIGHT, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_RIGHT_GAIN1", PM860X_HIFIR_GAIN_LEFT, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_RIGHT_GAIN2", PM860X_HIFIR_GAIN_RIGHT, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_DAC_OFFSET", PM860X_DAC_OFFSET, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_OFFSET_LEFT1", PM860X_OFFSET_LEFT_1, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_OFFSET_LEFT2", PM860X_OFFSET_LEFT_2, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_OFFSET_RIGHT1", PM860X_OFFSET_RIGHT_1, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_OFFSET_RIGHT2", PM860X_OFFSET_RIGHT_2, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_PM860X_ADC_ANA_1", PM860X_ADC_ANA_1, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_PM860X_ADC_ANA_2", PM860X_ADC_ANA_2, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_PM860X_ADC_ANA_3", PM860X_ADC_ANA_3, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_PM860X_ADC_ANA_4", PM860X_ADC_ANA_4, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_ANALOG_TO_ANALOG", PM860X_ANA_TO_ANA, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_HS1_CTRL", PM860X_HS1_CTRL, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_HS2_CTRL", PM860X_HS2_CTRL, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_LO1_CTRL", PM860X_LO1_CTRL, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_LO2_CTRL", PM860X_LO2_CTRL, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_EAR_SPKR_CTRL1", PM860X_EAR_CTRL_1, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_EAR_SPKR_CTRL2", PM860X_EAR_CTRL_2, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_AUDIO_SUPPLIES1", PM860X_AUDIO_SUPPLIES_1, 0, 0xff,
+		   0),
+	SOC_SINGLE("PM860X_AUDIO_SUPPLIES2", PM860X_AUDIO_SUPPLIES_2, 0, 0xff,
+		   0),
+	SOC_SINGLE("PM860X_ADC_ENABLES1", PM860X_ADC_EN_1, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_ADC_ENABLES2", PM860X_ADC_EN_2, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_DAC_ENABLES1", PM860X_DAC_EN_1, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_DAC_DUMMY", PM860X_DUMMY, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_DAC_ENABLES2", PM860X_DAC_EN_2, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_AUDIO_CAL1", PM860X_AUDIO_CAL_1, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_AUDIO_CAL2", PM860X_AUDIO_CAL_2, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_AUDIO_CAL3", PM860X_AUDIO_CAL_3, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_AUDIO_CAL4", PM860X_AUDIO_CAL_4, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_AUDIO_CAL5", PM860X_AUDIO_CAL_5, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_ANALOG_INPUT_SEL1", PM860X_ANA_INPUT_SEL_1, 0, 0xff,
+		   0),
+	SOC_SINGLE("PM860X_ANALOG_INPUT_SEL2", PM860X_ANA_INPUT_SEL_2, 0, 0xff,
+		   0),
+	SOC_SINGLE("PM860X_MIC_BUTTON_DETECTION", PM860X_PCM_IFACE_4, 0, 0xff,
+		   0),
+	SOC_SINGLE("PM860X_HEADSET_DETECTION", PM860X_I2S_IFACE_5, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_SHORTS", PM860X_SHORTS, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_PLL_ADJ_1", PM860X_PLL_ADJ_1, 0, 0xff, 0),
+	SOC_SINGLE("PM860X_PLL_ADJ_2", PM860X_PLL_ADJ_2, 0, 0xff, 0),
 };
 
 /*
@@ -1448,14 +1579,26 @@ static int pm860x_probe(struct snd_soc_codec *codec)
 
 	pm860x_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
 
-	ret = pm860x_bulk_read(codec->control_data, REG_CACHE_BASE,
-			       REG_CACHE_SIZE, codec->reg_cache);
+	ret = pm860x_bulk_read(codec->control_data, PM860X_MISC_BASE,
+			       REG_MISC_SIZE, codec->reg_cache);
 	if (ret < 0) {
 		dev_err(codec->dev, "Failed to fill register cache: %d\n",
 			ret);
 		goto out;
 	}
 
+	ret = pm860x_bulk_read(codec->control_data, PM860X_AUDIO_BASE,
+			       REG_AUDIO_SIZE,
+			       codec->reg_cache + REG_MISC_SIZE);
+	if (ret < 0) {
+		dev_err(codec->dev, "Failed to fill register cache: %d\n",
+			ret);
+		goto out;
+	}
+
+	/* add below snd ctls to keep align with audio server */
+	snd_soc_add_controls(codec, pm860x_audio_controls,
+			     ARRAY_SIZE(pm860x_audio_controls));
 	snd_soc_add_controls(codec, pm860x_snd_controls,
 			     ARRAY_SIZE(pm860x_snd_controls));
 	snd_soc_dapm_new_controls(dapm, pm860x_dapm_widgets,
