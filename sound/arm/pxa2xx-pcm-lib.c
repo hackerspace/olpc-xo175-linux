@@ -7,6 +7,9 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/dma-mapping.h>
+#ifdef CONFIG_CPU_PXA910
+#include <linux/wakelock.h>
+#endif
 
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -31,6 +34,20 @@ static void pxa2xx_pcm_enable_lpm(int enable)
 		dvfm_enable_lowpower(pxa2xx_pcm_dvfm_idx);
 	else
 		dvfm_disable_lowpower(pxa2xx_pcm_dvfm_idx);
+#endif
+#ifdef CONFIG_CPU_PXA910
+	static int pxa2xx_pcm_idle_init;
+	static struct wake_lock pxa2xx_pcm_idle_lock;
+	if (!pxa2xx_pcm_idle_init) {
+		pxa2xx_pcm_idle_init = 1;
+		wake_lock_init(&pxa2xx_pcm_idle_lock, WAKE_LOCK_IDLE,
+					   "pxa2xx_pcm_idle");
+	}
+
+	if (enable)
+		wake_unlock(&pxa2xx_pcm_idle_lock);
+	else
+		wake_lock(&pxa2xx_pcm_idle_lock);
 #endif
 }
 static const struct snd_pcm_hardware pxa2xx_pcm_hardware = {
