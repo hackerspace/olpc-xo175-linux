@@ -923,7 +923,7 @@ static int prepare_command_pool(struct pxa3xx_nand_info *info, int command,
 	case NAND_CMD_READID:
 		cmd = host->cmdset->read_id;
 		info->buf_count = host->read_id_bytes;
-		info->data_buff = (unsigned char *)chip->buffers;
+		info->data_buff = (unsigned char *)chip->buffers->databuf;
 		info->ndcb0[0] |= NDCB0_CMD_TYPE(3)
 				| NDCB0_ADDR_CYC(1)
 				| cmd;
@@ -933,7 +933,7 @@ static int prepare_command_pool(struct pxa3xx_nand_info *info, int command,
 	case NAND_CMD_STATUS:
 		cmd = host->cmdset->read_status;
 		info->buf_count = 1;
-		info->data_buff = (unsigned char *)chip->buffers;
+		info->data_buff = (unsigned char *)chip->buffers->databuf;
 		info->ndcb0[0] |= NDCB0_CMD_TYPE(4)
 				| NDCB0_ADDR_CYC(1)
 				| cmd;
@@ -971,6 +971,7 @@ static int prepare_command_pool(struct pxa3xx_nand_info *info, int command,
 		break;
 	}
 
+	info->command = command;
 	return exec_cmd;
 }
 
@@ -1096,6 +1097,24 @@ static void pxa3xx_nand_write_page_hwecc(struct mtd_info *mtd,
 	info->data_buff = (uint8_t *)buf;
 	info->oob_buff = chip->oob_poi;
 }
+
+static int pxa3xx_nand_write_oob(struct mtd_info *mtd, struct nand_chip *chip,
+				int page)
+{
+	struct pxa3xx_nand_host *host = mtd->priv;
+	int status = 0;
+
+	chip->cmdfunc(mtd, NAND_CMD_SEQIN, 0, page);
+	memset(chip->buffers->databuf, 0xff, mtd->writesize);
+	pxa3xx_nand_write_page_hwecc(mtd, chip, chip->buffers->databuf);
+	/* Send command to program the OOB data */
+	chip->cmdfunc(mtd, NAND_CMD_PAGEPROG, -1, -1);
+
+	status = chip->waitfunc(mtd, chip);
+
+	return status & NAND_STATUS_FAIL ? -EIO : 0;
+}
+
 
 static void nand_read_page(struct mtd_info *mtd, uint8_t *buf, int page)
 {
@@ -1610,6 +1629,8 @@ static int alloc_nand_resource(struct platform_device *pdev)
 		chip->ecc.read_page_raw = pxa3xx_nand_read_page_hwecc;
 		chip->ecc.read_oob	= pxa3xx_nand_read_oob;
 		chip->ecc.write_page	= pxa3xx_nand_write_page_hwecc;
+		chip->ecc.write_page_raw = pxa3xx_nand_write_page_hwecc;
+		chip->ecc.write_oob     = pxa3xx_nand_write_oob;
 		chip->controller        = &info->controller;
 		chip->waitfunc		= pxa3xx_nand_waitfunc;
 		chip->select_chip	= pxa3xx_nand_select_chip;
