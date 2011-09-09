@@ -461,6 +461,48 @@ static struct i2c_board_info yellowstone_twsi1_info[] = {
 	},
 };
 
+static int motion_sensor_set_power(int on, const char *device_name)
+{
+	static struct regulator *v_ldo8[3];
+	static int is_enabled[3] = {0, 0, 0};
+	int device_index = -1;
+
+#if defined(CONFIG_SENSORS_LSM303DLHC_ACC)
+	if (!strcmp(device_name, LSM303DLHC_ACC_DEV_NAME))
+		device_index = 0;
+#endif
+#if defined(CONFIG_SENSORS_LSM303DLHC_MAG)
+	if (!strcmp(device_name, LSM303DLHC_MAG_DEV_NAME))
+		device_index = 1;
+#endif
+#if defined(CONFIG_SENSORS_L3G4200D_GYR)
+	if (!strcmp(device_name, L3G4200D_GYR_DEV_NAME))
+		device_index = 2;
+#endif
+
+	if ((device_index >= 0) && (device_index <= 2)) {
+		if (on && (!is_enabled[device_index])) {
+			v_ldo8[device_index] = regulator_get(NULL, "v_ldo8");
+			if (IS_ERR(v_ldo8[device_index])) {
+				v_ldo8[device_index] = NULL;
+				return -ENODEV;
+			} else {
+				regulator_set_voltage(v_ldo8[device_index], 2800000, 2800000);
+				regulator_enable(v_ldo8[device_index]);
+				is_enabled[device_index] = 1;
+			}
+		}
+		if ((!on) && is_enabled[device_index]) {
+			regulator_disable(v_ldo8[device_index]);
+			regulator_put(v_ldo8[device_index]);
+			v_ldo8[device_index] = NULL;
+			is_enabled[device_index] = 0;
+		}
+	} else
+		return -EPERM;
+	return 0;
+}
+
 #if defined(CONFIG_SENSORS_LSM303DLHC_ACC)
 static struct lsm303dlhc_acc_platform_data lsm303dlhc_acc_data = {
 	.poll_interval = 1000,
@@ -474,6 +516,7 @@ static struct lsm303dlhc_acc_platform_data lsm303dlhc_acc_data = {
 	.negate_z = 0,
 	.gpio_int1 = -EINVAL,
 	.gpio_int2 = -EINVAL,
+	.set_power = motion_sensor_set_power,
 };
 #endif
 
@@ -488,6 +531,7 @@ static struct lsm303dlhc_mag_platform_data lsm303dlhc_mag_data = {
 	.negate_x = 0,
 	.negate_y = 0,
 	.negate_z = 0,
+	.set_power = motion_sensor_set_power,
 };
 #endif
 
@@ -502,6 +546,7 @@ static struct l3g4200d_gyr_platform_data l3g4200d_gyr_data = {
 	.negate_x = 0,
 	.negate_y = 0,
 	.negate_z = 0,
+	.set_power = motion_sensor_set_power,
 };
 #endif
 

@@ -108,6 +108,7 @@ struct lsm303dlhc_acc_platform_data {
 	void (*exit)(void);
 	int (*power_on)(void);
 	int (*power_off)(void);
+	int (*set_power)(int, const char *);
 
 	/* set gpio_int[1,2] either to the choosen gpio pin number or to -EINVAL
 	 * if leaved unconnected
@@ -136,6 +137,7 @@ struct lsm303dlhc_mag_platform_data {
 	void (*exit)(void);
 	int (*power_on)(void);
 	int (*power_off)(void);
+	int (*set_power)(int, const char *);
 
 };
 #endif	/* __KERNEL__ */

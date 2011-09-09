@@ -61,6 +61,7 @@ struct l3g4200d_gyr_platform_data {
 	void (*exit)(void);
 	int (*power_on)(void);
 	int (*power_off)(void);
+	int (*set_power)(int, const char *);
 	unsigned int poll_interval;
 	unsigned int min_interval;
 
