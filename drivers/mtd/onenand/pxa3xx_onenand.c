@@ -96,9 +96,13 @@ static dma_addr_t map_addr(struct device *dev, void *buf, size_t sz, int dir)
 		if (!page)
 			return ~0;
 
-		if (cache_is_vivt())
+		if (cache_is_vivt()) {
 			dmac_map_area(buf, sz, dir);
-		buf = page_address(page) + ((size_t) buf & ~PAGE_MASK);
+			buf = page_address(page) + ((size_t) buf & ~PAGE_MASK);
+		} else
+			return dma_map_page(dev, page,
+					   (size_t) buf & (PAGE_SIZE - 1),
+					   sz, dir);
 	}
 	return dma_map_single(dev, buf, sz, dir);
 }
