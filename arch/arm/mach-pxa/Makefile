@@ -7,9 +7,9 @@ obj-y				+= clock.o devices.o generic.o irq.o \
 				   time.o reset.o
 ifeq ($(CONFIG_PXA95x), y)
 obj-$(CONFIG_PM)               += pxa95x_pm.o
-endif
-
+else
 obj-$(CONFIG_PM)		+= pm.o sleep.o standby.o
+endif
 obj-$(CONFIG_FB_PXA95x)		+= panel_settings.o
 
 ifeq ($(CONFIG_CPU_FREQ),y)
