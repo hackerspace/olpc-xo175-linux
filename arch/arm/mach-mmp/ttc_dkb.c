@@ -510,8 +510,13 @@ static int ttc_dkb_pm860x_fixup(struct pm860x_chip *chip,
 	/*Enable RTC to use ext 32k clk*/
 	pm860x_set_bits(chip->client, PM8607_RTC_MISC2, 0x7, 0x2);
 
-	/* shut down LDO13 for no use on pxa920 */
-	pm860x_reg_write(chip->client, PM8607_VIBRA_SET, 0x0c);
+	if (emmc_boot)
+		/* on PXA920H board, turn on LDO13 for SD/MMC, 2.8v */
+		pm860x_reg_write(chip->client, PM8607_VIBRA_SET, 0x0b);
+	else
+		/* shut down LDO13 for no use on pxa920 */
+		pm860x_reg_write(chip->client, PM8607_VIBRA_SET, 0x0c);
+
 	/* audio save power */
 	pm860x_reg_write(chip->client, PM8607_LP_CONFIG1, 0x40);
 	/*to save pmic leakage*/
