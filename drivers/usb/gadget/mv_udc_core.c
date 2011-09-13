@@ -2172,7 +2172,9 @@ int mv_udc_register_client(struct notifier_block *nb)
 	if (ret)
 		return ret;
 
-	call_charger_notifier(udc);
+	if (udc->charger_type)
+		call_charger_notifier(udc);
+
 	return 0;
 }
 EXPORT_SYMBOL(mv_udc_register_client);
