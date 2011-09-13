@@ -70,6 +70,8 @@ struct pn544_info {
 	struct mutex mutex; /* Serialize info struct access */
 	u8 *buf;
 	size_t buflen;
+
+	unsigned int remain;	/* remain data in buffer */
 };
 
 static const char reg_vdd_io[]	= "Vdd_IO";
@@ -339,22 +341,23 @@ static ssize_t pn544_read(struct file *file, char __user *buf,
 		goto out;
 	}
 
-	irq = pn544_irq_state(info);
-	if (irq == PN544_NONE) {
-		if (file->f_flags & O_NONBLOCK) {
-			r = -EAGAIN;
-			goto out;
-		}
-
-		if (wait_event_interruptible(info->read_wait,
-					     (info->read_irq == PN544_INT))) {
-			r = -ERESTARTSYS;
-			goto out;
-		}
-	}
-
 	if (info->state == PN544_ST_FW_READY) {
 		len = min(count, info->buflen);
+
+		irq = pn544_irq_state(info);
+		if (irq == PN544_NONE) {
+			if (file->f_flags & O_NONBLOCK) {
+				r = -EAGAIN;
+				goto out;
+			}
+
+			mutex_unlock(&info->mutex);
+			if (wait_event_interruptible(info->read_wait,
+					(info->read_irq == PN544_INT))) {
+				return -ERESTARTSYS;
+			}
+			mutex_lock(&info->mutex);
+		}
 
 		mutex_lock(&info->read_mutex);
 		r = pn544_fw_read(info->i2c_dev, info->buf, len);
@@ -362,7 +365,7 @@ static ssize_t pn544_read(struct file *file, char __user *buf,
 		mutex_unlock(&info->read_mutex);
 
 		if (r < 0) {
-			dev_err(&info->i2c_dev->dev, "FW read failed: %d\n", r);
+			dev_err(&client->dev, "FW read failed: %d\n", r);
 			goto out;
 		}
 
@@ -375,25 +378,55 @@ static ssize_t pn544_read(struct file *file, char __user *buf,
 			goto out;
 		}
 	} else {
-		len = min(count, info->buflen);
+		len = count;
 
-		mutex_lock(&info->read_mutex);
-		r = pn544_i2c_read(info->i2c_dev, info->buf, len);
-		info->read_irq = PN544_NONE;
-		mutex_unlock(&info->read_mutex);
+		if (!info->remain) {
+			irq = pn544_irq_state(info);
+			if (irq == PN544_NONE) {
+				if (file->f_flags & O_NONBLOCK) {
+					r = -EAGAIN;
+					goto out;
+				}
 
-		if (r < 0) {
-			dev_err(&info->i2c_dev->dev, "read failed (%d)\n", r);
-			goto out;
+				mutex_unlock(&info->mutex);
+				if (wait_event_interruptible(info->read_wait,
+					(info->read_irq == PN544_INT))) {
+					return -ERESTARTSYS;
+				}
+				mutex_lock(&info->mutex);
+			}
+
+			mutex_lock(&info->read_mutex);
+			r = pn544_i2c_read(info->i2c_dev, info->buf,
+					info->buflen);
+			info->read_irq = PN544_NONE;
+			mutex_unlock(&info->read_mutex);
+
+			if (r < 0) {
+				dev_err(&client->dev, "read failed (%d)\n", r);
+				goto out;
+			}
+
+			info->remain = r;
+
+			*offset = 0;
+
+			print_hex_dump(KERN_DEBUG, "read: ", DUMP_PREFIX_NONE,
+					16, 2, info->buf, r, false);
+
 		}
-		print_hex_dump(KERN_DEBUG, "read: ", DUMP_PREFIX_NONE,
-			       16, 2, info->buf, r, false);
 
-		*offset += r;
-		if (copy_to_user(buf, info->buf, r)) {
+		if (len > info->remain)
+			len = info->remain;
+
+		if (copy_to_user(buf, info->buf + *offset, len)) {
 			r = -EFAULT;
 			goto out;
 		}
+
+		info->remain -= len;
+		*offset += len;
+		r = len;
 	}
 
 out:
@@ -468,7 +501,7 @@ static ssize_t pn544_write(struct file *file, const char __user *buf,
 		}
 
 		print_hex_dump(KERN_DEBUG, "FW write: ", DUMP_PREFIX_NONE,
-			       16, 2, info->buf, len, false);
+				16, 2, info->buf, len, false);
 
 		fw_len = PN544_FW_HEADER_SIZE + (info->buf[1] << 8) +
 			info->buf[2];
@@ -490,7 +523,7 @@ static ssize_t pn544_write(struct file *file, const char __user *buf,
 		}
 
 		print_hex_dump(KERN_DEBUG, "write: ", DUMP_PREFIX_NONE,
-			       16, 2, info->buf, len, false);
+				16, 2, info->buf, len, false);
 
 		if (len > (info->buf[0] + 1)) /* 1 msg at a time */
 			len  = info->buf[0] + 1;
@@ -560,6 +593,10 @@ static long pn544_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				goto out;
 		}
 		file->f_pos = info->read_offset;
+		break;
+
+	case PN544_SET_PWR:
+		dev_dbg(&client->dev, "%s:  PN544_SET_PWR\n", __func__);
 		break;
 
 	case TCGETS:
@@ -832,6 +869,10 @@ static __devexit int pn544_remove(struct i2c_client *client)
 	dev_dbg(&client->dev, "%s\n", __func__);
 
 	misc_deregister(&info->miscdev);
+
+	mutex_destroy(&info->mutex);
+	mutex_destroy(&info->read_mutex);
+
 	if (pdata->test)
 		device_remove_file(&client->dev, &pn544_attr);
 
@@ -855,6 +896,7 @@ static __devexit int pn544_remove(struct i2c_client *client)
 
 static struct i2c_driver pn544_driver = {
 	.driver = {
+		.owner  = THIS_MODULE,
 		.name = PN544_DRIVER_NAME,
 #ifdef CONFIG_PM
 		.pm = &pn544_pm_ops,
