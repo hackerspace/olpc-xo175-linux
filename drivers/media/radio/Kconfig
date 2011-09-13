@@ -423,6 +423,12 @@ config RADIO_TIMBERDALE
 	  found behind the Timberdale FPGA on the Russellville board.
 	  Enabling this driver will automatically select the DSP and tuner.
 
+config RADIO_MRVL8XXX
+	tristate "Marvell 8xxx Radio card support"
+	depends on VIDEO_V4L2
+	---help---
+	  Choose Y here if you have this FM radio card.
+
 config RADIO_WL1273
 	tristate "Texas Instruments WL1273 I2C FM Radio"
 	depends on I2C && VIDEO_V4L2
