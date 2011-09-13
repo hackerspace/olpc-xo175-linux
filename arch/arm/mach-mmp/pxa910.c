@@ -200,6 +200,7 @@ static int gc_lookaround_rate(unsigned long gc_clk2x, u32 *flag)
 
 static int gc500_clk_setrate(struct clk *clk, unsigned long gc_clk2x)
 {
+#ifdef CONFIG_CPU_FREQ
 	u32 tmp, flag;
 	unsigned long pll2freq, rate;
 
@@ -232,6 +233,7 @@ static int gc500_clk_setrate(struct clk *clk, unsigned long gc_clk2x)
 	tmp |= flag;
 	__raw_writel(tmp, clk->clk_rst);
 	gc_current_clk_rate_flag = flag;
+#endif
 	return 0;
 }
 
