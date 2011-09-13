@@ -251,6 +251,8 @@ static struct pxa3xx_nand_timing timing[] = {
 	{ 10, 25, 15,  25, 15,  30, 25000,  60, 10, },
 	{ 10, 35, 15,  25, 15,  25, 25000,  60, 10, },
 	{  5, 15, 10,  10, 10,  10, 25000,  80,  5, },
+	{  5, 20, 10,  12, 15,  12, 25000,  80, 10, },
+	{ 10, 25, 15,  25, 15,  25, 25000,  80, 10, },
 };
 
 static struct pxa3xx_nand_flash builtin_flash_types[] = {
@@ -267,6 +269,9 @@ static struct pxa3xx_nand_flash builtin_flash_types[] = {
 { "256MiB 16-bit", 0xba20, 0xffff,  64, 2048, 16, 16, 1, 2048, &timing[3] },
 { "512MiB 16-bit", 0xbcad, 0xffff,  64, 2048, 16, 16, 1, 4096, &timing[4] },
 { "512MiB 16-bit BCH", 0xbc2c, 0x5590, 64, 2048, 16, 16, 4, 4096, &timing[2] },
+{ "ST 1Gb 128MiB 8-bit", 0xa120, 0x1500, 64, 2048,  8,  8, 1, 1024, &timing[6] },
+{ "Micron 4bit ECC 1Gb 128MiB 8-bit 1.8V", 0xa12c, 0x1580, 64, 2048,  8,  8, 4, 1024, &timing[5] },
+{ "Hynix 1G 128M 8-bit", 0xa1ad, 0x1500, 64, 2048,  8,  8, 1, 1024, &timing[3] },
 };
 
 static struct nand_ecclayout bch_nand_oob_64 = {
