@@ -481,9 +481,18 @@ static inline u8 l2cap_get_auth_type(struct l2cap_chan *chan)
 	if (chan->chan_type == L2CAP_CHAN_RAW) {
 		switch (chan->sec_level) {
 		case BT_SECURITY_HIGH:
-			return HCI_AT_DEDICATED_BONDING_MITM;
+			return HCI_AT_NO_BONDING_MITM;
 		case BT_SECURITY_MEDIUM:
 			return HCI_AT_DEDICATED_BONDING;
+		case BT_SECURITY_MEDIUM_GENERAL:
+			return HCI_AT_GENERAL_BONDING;
+			break;
+		case BT_SECURITY_HIGH_GENERAL:
+			return HCI_AT_GENERAL_BONDING_MITM;
+			break;
+		case BT_SECURITY_HIGH_NOBOND:
+			return HCI_AT_NO_BONDING_MITM;
+			break;
 		default:
 			return HCI_AT_NO_BONDING;
 		}
@@ -923,9 +932,16 @@ static void l2cap_conn_ready(struct l2cap_conn *conn)
 			l2cap_state_change(chan, BT_CONNECTED);
 			sk->sk_state_change(sk);
 
-		} else if (chan->state == BT_CONNECT)
-			l2cap_do_start(chan);
-
+		} else if (sk->sk_state == BT_CONNECT) {
+			struct l2cap_info_req req;
+			req.type = cpu_to_le16(L2CAP_IT_FEAT_MASK);
+			conn->info_state |= L2CAP_INFO_FEAT_MASK_REQ_SENT;
+			conn->info_ident = l2cap_get_ident(conn);
+			mod_timer(&conn->info_timer,
+				jiffies + msecs_to_jiffies(L2CAP_INFO_TIMEOUT));
+			l2cap_send_cmd(conn, conn->info_ident,
+					L2CAP_INFO_REQ, sizeof(req), &req);
+		}
 		bh_unlock_sock(sk);
 	}
 

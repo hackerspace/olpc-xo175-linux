@@ -62,6 +62,9 @@ struct bt_security {
 #define BT_SECURITY_LOW		1
 #define BT_SECURITY_MEDIUM	2
 #define BT_SECURITY_HIGH	3
+#define BT_SECURITY_MEDIUM_GENERAL 4
+#define BT_SECURITY_HIGH_GENERAL 5
+#define BT_SECURITY_HIGH_NOBOND 6
 
 #define BT_DEFER_SETUP	7
 
