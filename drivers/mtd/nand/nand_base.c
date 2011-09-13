@@ -2729,6 +2729,7 @@ static int nand_block_markbad(struct mtd_info *mtd, loff_t ofs)
 	return chip->block_markbad(mtd, ofs);
 }
 
+#ifndef CONFIG_PXA95x_SUSPEND
 /**
  * nand_suspend - [MTD Interface] Suspend the NAND flash
  * @mtd:	MTD device structure
@@ -2754,6 +2755,7 @@ static void nand_resume(struct mtd_info *mtd)
 		printk(KERN_ERR "%s called for a chip which is not "
 		       "in suspended state\n", __func__);
 }
+#endif
 
 /*
  * Set default functions
@@ -3518,8 +3520,10 @@ int nand_scan_tail(struct mtd_info *mtd)
 	mtd->sync = nand_sync;
 	mtd->lock = NULL;
 	mtd->unlock = NULL;
+#ifndef CONFIG_PXA95x_SUSPEND
 	mtd->suspend = nand_suspend;
 	mtd->resume = nand_resume;
+#endif
 	mtd->block_isbad = nand_block_isbad;
 	mtd->block_markbad = nand_block_markbad;
 	mtd->writebufsize = mtd->writesize;

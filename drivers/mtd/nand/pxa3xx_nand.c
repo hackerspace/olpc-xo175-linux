@@ -1799,7 +1799,7 @@ static int pxa3xx_nand_probe(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_PM
+#if (defined CONFIG_PM) && (!defined CONFIG_PXA95x_SUSPEND)
 static int pxa3xx_nand_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct pxa3xx_nand_info *info = platform_get_drvdata(pdev);
