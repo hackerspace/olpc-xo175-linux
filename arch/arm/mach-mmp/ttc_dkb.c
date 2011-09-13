@@ -2056,7 +2056,9 @@ static void __init ttc_dkb_init(void)
 #endif
 	}
 
+#ifdef CONFIG_PXA9XX_ACIPC
 	pxa910_add_acipc();
+#endif
 
 #ifdef CONFIG_PXA910_IRE
 	pxa910_add_ire();
