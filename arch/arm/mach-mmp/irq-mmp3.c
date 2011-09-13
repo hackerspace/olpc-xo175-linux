@@ -17,6 +17,7 @@
 
 #include <asm/irq.h>
 #include <asm/mach/irq.h>
+#include <asm/hardware/gic.h>
 #include <mach/regs-icu.h>
 
 #include "common.h"
@@ -85,6 +86,9 @@ static struct irq_chip icu_mux_irq_chip = {
 	.irq_mask	= icu_mux_mask_irq,
 	.irq_unmask	= icu_mux_unmask_irq,
 	.irq_disable	= icu_mux_mask_irq,
+#if CONFIG_PM
+	.irq_set_wake	= mmp3_set_wake,
+#endif
 };
 
 DEFINE_ICU_MUX_IRQ(pmic,	IRQ_MMP3_PMIC_BASE,	MMP3_ICU_INT_4);
@@ -132,6 +136,8 @@ void __init mmp3_init_gic(void)
 	__raw_writel(0x1, MMP3_ICU_GBL_IRQ4_MSK);
 	__raw_writel(0x1, MMP3_ICU_GBL_IRQ5_MSK);
 	__raw_writel(0x1, MMP3_ICU_GBL_IRQ6_MSK);
+
+	gic_arch_extn.irq_set_wake = mmp3_set_wake;
 
 	init_mux_irq(&pmic_icu_chip_data, IRQ_MMP3_PMIC_MUX,
 			IRQ_MMP3_PMIC_BASE, 4, pmic_irq_demux);
