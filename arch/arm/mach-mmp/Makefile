@@ -2,7 +2,7 @@
 # Makefile for Marvell's PXA168 processors line
 #
 
-obj-y				+= common.o devices.o time.o reset.o onboard/
+obj-y				+= common.o devices.o reset.o onboard/
 
 # SoC support
 obj-$(CONFIG_CPU_PXA168)	+= pxa168.o irq-pxa168.o
@@ -11,7 +11,12 @@ obj-$(CONFIG_CPU_MMP2)		+= mmp2.o irq-mmp2.o clock.o
 obj-$(CONFIG_CPU_MMP3)		+= mmp3.o irq-mmp3.o mmp2_dma.o mmp2_sspa.o sram.o delay-mmp3.o clock-mmp3.o dvfs-mmp3.o
 obj-$(CONFIG_SMP)		+= platsmp.o headsmp.o
 obj-$(CONFIG_HOTPLUG_CPU)	+= hotplug.o
+ifeq ($(CONFIG_SOC_LOCAL_TIMERS),y)
+obj-y				+= soc_time.o
+else
+obj-y				+= time.o
 obj-$(CONFIG_LOCAL_TIMERS)	+= localtimer.o
+endif
 
 ifeq ($(CONFIG_PM),y)
 obj-$(CONFIG_CPU_MMP3)		+= pm-mmp3.o

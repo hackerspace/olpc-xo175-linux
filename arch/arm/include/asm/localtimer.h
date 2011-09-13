@@ -48,10 +48,7 @@ int local_timer_setup(struct clock_event_device *);
 
 #else
 
-static inline int local_timer_setup(struct clock_event_device *evt)
-{
-	return -ENXIO;
-}
+int local_timer_setup(struct clock_event_device *evt);
 #endif
 
 #endif

@@ -114,6 +114,13 @@ config CPU_MMP3
 	 bool
 	 select CPU_PJ4B
 	 select ARCH_PROVIDES_UDELAY
+	 select SOC_LOCAL_TIMERS if !(LOCAL_TIMERS)
 	 help
 	   Select code specific to MMP3.
+
+config SOC_LOCAL_TIMERS
+	bool
+	help
+		use SOC timers as local timers
+
 endif
