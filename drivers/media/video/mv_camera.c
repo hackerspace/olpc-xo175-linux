@@ -1146,11 +1146,13 @@ static int __devinit mv_camera_probe(struct platform_device *pdev)
 	err = soc_camera_host_register(&pcdev->soc_host);
 	if (err)
 		goto exit_free_irq;
+	ccic_disable_clk(pcdev);
 	return 0;
 
 exit_free_irq:
 	free_irq(pcdev->irq, pcdev);
 	ccic_power_down(pcdev);
+	ccic_disable_clk(pcdev);
 exit_iounmap:
 	iounmap(base);
 exit_release:
