@@ -513,9 +513,6 @@ static int ttc_dkb_pm860x_fixup(struct pm860x_chip *chip,
 	if (emmc_boot)
 		/* on PXA920H board, turn on LDO13 for SD/MMC, 2.8v */
 		pm860x_reg_write(chip->client, PM8607_VIBRA_SET, 0x0b);
-	else
-		/* shut down LDO13 for no use on pxa920 */
-		pm860x_reg_write(chip->client, PM8607_VIBRA_SET, 0x0c);
 
 	/* audio save power */
 	pm860x_reg_write(chip->client, PM8607_LP_CONFIG1, 0x40);
@@ -634,7 +631,7 @@ static struct regulator_init_data ttc_dkb_regulator_init_data[] = {
 	DKB_REG_INIT(LDO9, 1800000, 3300000, 1, 1),
 	DKB_REG_INIT(LDO10, 1200000, 3300000, 1, 1),
 	DKB_REG_INIT(LDO12, 1200000, 3300000, 0, 1),
-	DKB_REG_INIT(LDO13, 1200000, 3000000, 0, 1),
+	DKB_REG_INIT(LDO13, 1200000, 3000000, 0, 0),
 	DKB_REG_INIT(LDO14, 1800000, 3300000, 0, 1),
 };
 
