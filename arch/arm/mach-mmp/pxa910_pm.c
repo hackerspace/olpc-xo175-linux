@@ -82,7 +82,6 @@ int pxa910_set_wake(struct irq_data *data, unsigned int on)
 {
 	int irq = data->irq;
 	struct irq_desc *desc = irq_to_desc(data->irq);
-	unsigned long flags;
 	uint32_t awucrm = 0, apcr = 0;
 
 	if (unlikely(irq >= nr_irqs)) {
@@ -90,7 +89,6 @@ int pxa910_set_wake(struct irq_data *data, unsigned int on)
 		return -EINVAL;
 	}
 
-	raw_spin_lock_irqsave(&desc->lock, flags);
 	if (on) {
 		if (desc->action)
 			desc->action->flags |= IRQF_NO_SUSPEND;
@@ -98,7 +96,6 @@ int pxa910_set_wake(struct irq_data *data, unsigned int on)
 		if (desc->action)
 			desc->action->flags &= ~IRQF_NO_SUSPEND;
 	}
-	raw_spin_unlock_irqrestore(&desc->lock, flags);
 
 	/* setting wakeup sources */
 	switch (irq) {
