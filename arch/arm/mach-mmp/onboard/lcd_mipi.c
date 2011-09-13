@@ -5,6 +5,7 @@
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <mach/mfp-mmp2.h>
+#include <mach/mmp2.h>
 #include <mach/mmp3.h>
 #include <mach/tc35876x.h>
 #include <mach/pxa168fb.h>
@@ -61,7 +62,13 @@ static int tc358765_reset(struct pxa168fb_info *fbi)
 {
 	int gpio;
 
+#ifdef CONFIG_MACH_BROWNSTONE
+	gpio = mfp_to_gpio(GPIO83_LCD_RST);
+#endif
+
+#if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_YELLOWSTONE)
 	gpio = mfp_to_gpio(GPIO128_LCD_RST);
+#endif
 
 	if (gpio_request(gpio, "lcd reset gpio")) {
 		printk(KERN_INFO "gpio %d request failed\n", gpio);
@@ -207,6 +214,42 @@ static int dsi_set_tc358765(struct pxa168fb_info *fbi)
 	/* dump register value */
 	tc358765_dump();
 #endif
+	return 0;
+}
+
+static int lcd_twsi5_set(int en)
+{
+	int gpio;
+	mfp_cfg_t mfp_gpio99_gpio = MFP_CFG_X(GPIO99, AF0, MEDIUM, PULL_HIGH)
+								| MFP_PULL_HIGH;
+	mfp_cfg_t mfp_gpio100_gpio = MFP_CFG_X(GPIO100, AF0, MEDIUM, PULL_HIGH)
+								| MFP_PULL_HIGH;
+	mfp_cfg_t mfp_gpio99_twsi5 = GPIO99_TWSI5_SCL;
+	mfp_cfg_t mfp_gpio100_twsi5 = GPIO100_TWSI5_SDA;
+
+	if (en) {
+		mfp_config(&mfp_gpio99_twsi5, 1);
+		mfp_config(&mfp_gpio100_twsi5, 1);
+	} else {
+		mfp_config(&mfp_gpio99_gpio, 1);
+		mfp_config(&mfp_gpio100_gpio, 1);
+
+		gpio = mfp_to_gpio(GPIO99_GPIO);
+		if (gpio_request(gpio, "gpio99")) {
+			printk(KERN_INFO "gpio %d request failed\n", gpio);
+			return -1;
+		}
+		gpio_direction_output(gpio, 0);
+		gpio_free(gpio);
+
+		gpio = mfp_to_gpio(GPIO100_GPIO);
+		if (gpio_request(gpio, "gpio100")) {
+			printk(KERN_INFO "gpio %d request failed\n", gpio);
+			return -1;
+		}
+		gpio_direction_output(gpio, 0);
+		gpio_free(gpio);
+	}
 	return 0;
 }
 
@@ -446,7 +489,9 @@ static void calculate_lcd_sclk(struct pxa168fb_mach_info *mi)
 }
 
 #define DDR_MEM_CTRL_BASE 0xD0000000
-#define SDRAM_CONFIG_TYPE1_CS0 0x20
+#define SDRAM_CONFIG_TYPE1_CS0 0x20	/* MMP3 */
+
+#ifdef CONFIG_MACH_ABILENE
 void __init abilene_add_lcd_mipi(void)
 {
 	unsigned char __iomem *dmc_membase;
@@ -490,7 +535,9 @@ void __init abilene_add_lcd_mipi(void)
 	mmp3_add_fb_ovly(ovly);
 #endif
 }
+#endif
 
+#ifdef CONFIG_MACH_YELLOWSTONE
 void __init yellowstone_add_lcd_mipi(void)
 {
 	unsigned char __iomem *dmc_membase;
@@ -534,3 +581,210 @@ void __init yellowstone_add_lcd_mipi(void)
 	mmp3_add_fb_ovly(ovly);
 #endif
 }
+#endif
+
+#ifdef CONFIG_MACH_BROWNSTONE
+static struct fb_videomode video_modes_brownstone[] = {
+	[0] = {
+		.refresh	= 60,
+		.xres		= 1280,
+		.yres		= 720,
+		.hsync_len	= 2,
+		.left_margin	= 12,	/* hbp */
+		.right_margin	= 216,	/* hfp */
+		.vsync_len	= 2,
+		.upper_margin	= 10,	/* vbp */
+		.lower_margin	= 4,	/* vfp */
+		.sync		= FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
+	},
+};
+
+static struct regulator *lcd_pwr_ldo17;
+static struct regulator *lcd_pwr_ldo3;
+static struct regulator *led_pwr_v5p;
+
+static int brownstone_lcd_power(struct pxa168fb_info *fbi,
+	unsigned int spi_gpio_cs, unsigned int spi_gpio_reset, int on)
+{
+	int lcd_rst_n = mfp_to_gpio(GPIO83_LCD_RST);
+
+	if (gpio_request(lcd_rst_n, "lcd reset gpio")) {
+		printk(KERN_INFO "gpio %d request failed\n", lcd_rst_n);
+		return -1;
+	}
+
+	if (on) {
+		/* enable regulator LDO17 to power VDDC and VDD_LVDS*_12 */
+		lcd_pwr_ldo17 = regulator_get(NULL, "v_ldo17");
+		if (IS_ERR(lcd_pwr_ldo17)) {
+			lcd_pwr_ldo17 = NULL;
+			printk(KERN_ERR "v_ldo17 can't open!\n");
+			goto out;
+		} else {
+			regulator_set_voltage(lcd_pwr_ldo17, 1200000, 1200000);
+			regulator_enable(lcd_pwr_ldo17);
+		}
+
+		/* enable LDO3 to power AVDD12_DSI */
+		lcd_pwr_ldo3 = regulator_get(NULL, "v_ldo3");
+		if (IS_ERR(lcd_pwr_ldo3)) {
+			lcd_pwr_ldo3 = NULL;
+			printk(KERN_ERR "v_ldo3 can't open!\n");
+			goto out1;
+		} else {
+			regulator_set_voltage(lcd_pwr_ldo3, 1200000, 1200000);
+			regulator_enable(lcd_pwr_ldo3);
+		}
+
+		/* release reset */
+		gpio_direction_output(lcd_rst_n, 1);
+
+		/* enable 5V power supply */
+		led_pwr_v5p = regulator_get(NULL, "v_5vp");
+		if (IS_ERR(led_pwr_v5p)) {
+			led_pwr_v5p = NULL;
+			printk(KERN_ERR "v_5vp can't open!\n");
+			goto out2;
+		} else
+			regulator_enable(led_pwr_v5p);
+
+		/* config mfp GPIO99/GPIO100 as twsi5 */
+		lcd_twsi5_set(1);
+	} else {
+		/* config mfp GPIO99/GPIO100 as normal gpio */
+		lcd_twsi5_set(0);
+
+		/* disable 5V power supply */
+		regulator_disable(led_pwr_v5p);
+		regulator_put(led_pwr_v5p);
+
+		/* keep reset */
+		gpio_direction_output(lcd_rst_n, 0);
+
+		/* disable AVDD12_DSI voltage */
+		regulator_disable(lcd_pwr_ldo3);
+		regulator_put(lcd_pwr_ldo3);
+
+		/* disable regulator LDO17 */
+		regulator_disable(lcd_pwr_ldo17);
+		regulator_put(lcd_pwr_ldo17);
+	}
+
+	gpio_free(lcd_rst_n);
+
+	pr_debug("%s on %d\n", __func__, on);
+	return 0;
+
+out2:
+	regulator_disable(lcd_pwr_ldo3);
+	regulator_put(lcd_pwr_ldo3);
+out1:
+	regulator_disable(lcd_pwr_ldo17);
+	regulator_put(lcd_pwr_ldo17);
+out:
+	gpio_free(lcd_rst_n);
+	return -EIO;
+}
+
+#define LCD_ISR_CLEAR_MASK_PXA168   0xffffffff
+
+static struct pxa168fb_mach_info mmp2_mipi_lcd_info __initdata = {
+	.id			= "GFX Layer",
+	.sclk_src		= 260000000,	/* 266MHz */
+	.sclk_div		= 0x40000108,
+	.num_modes		= ARRAY_SIZE(video_modes_brownstone),
+	.modes			= video_modes_brownstone,
+	.pix_fmt		= PIX_FMT_RGB565,
+	.isr_clear_mask	= LCD_ISR_CLEAR_MASK_PXA168,
+	/*
+	 * don't care about io_pin_allocation_mode and dumb_mode
+	 * since the panel is hard connected with lcd panel path and dsi1 output
+	 */
+	.io_pad_ctrl = CFG_CYC_BURST_LEN16,
+	.panel_rgb_reverse_lanes = 0,
+	.invert_composite_blank = 0,
+	.invert_pix_val_ena     = 0,
+	.invert_pixclock        = 0,
+	.panel_rbswap           = 0,
+	.active			= 1,
+	.spi_gpio_cs            = -1,
+	.spi_gpio_reset         = -1,
+	.mmap			= 1,
+	.max_fb_size		= 1280 * 720 * 8 + 4096,
+	.vdma_enable		= 1,
+	.phy_type		= DSI2DPI,
+	.phy_init		= dsi_init,
+#ifdef CONFIG_TC35876X
+	.dsi2dpi_set		= dsi_set_tc358765,
+	.xcvr_reset		= tc358765_reset,
+#else
+#error Please select CONFIG_TC35876X in menuconfig to enable DSI bridge
+#endif
+	.dsi			= &dsiinfo,
+	.pxa168fb_lcd_power     = &brownstone_lcd_power,
+#ifdef CONFIG_PXA688_CMU
+	.cmu_cal = {{-1, 47, 2, 2},
+		{44, 92, 25, 25},
+		{0, 0, 0, 0}
+	},
+	.cmu_cal_letter_box = {{48, 47, 2, 2},
+		{93, 92, 25, 25},
+		{0, 0, 0, 0}
+	},
+	.ioctl			= pxa688_cmu_ioctl,
+#endif
+};
+
+static struct pxa168fb_mach_info mmp2_mipi_lcd_ovly_info __initdata = {
+	.id			= "Video Layer",
+	.num_modes		= ARRAY_SIZE(video_modes_brownstone),
+	.modes			= video_modes_brownstone,
+	.pix_fmt		= PIX_FMT_RGB565,
+	.panel_rgb_reverse_lanes = 0,
+	.invert_composite_blank = 0,
+	.invert_pix_val_ena     = 0,
+	.invert_pixclock        = 0,
+	.panel_rbswap           = 0,
+	.spi_gpio_cs            = -1,
+	.spi_gpio_reset         = -1,
+	.mmap			= 0,
+	.max_fb_size            = 1280 * 720 * 8 + 4096,
+	.vdma_enable		= 0,
+};
+
+
+#define SDRAM_CONFIG0_TYPE1 0x0020	/* MMP2 */
+
+void __init brownstone_add_lcd_mipi(void)
+{
+	struct dsi_info *dsi = &dsiinfo;
+	unsigned char __iomem *dmc_membase;
+	unsigned int CSn_NO_COL;
+
+	if (dsi->bpp == 24) {
+		mmp2_mipi_lcd_info.sclk_src = 800000000 / (dsi->lanes / 2);
+		dsi->rgb_mode = DSI_LCD_INPUT_DATA_RGB_MODE_888;
+	} else {
+		mmp2_mipi_lcd_info.sclk_src = 520000000 / (dsi->lanes / 2);
+		dsi->rgb_mode = DSI_LCD_INPUT_DATA_RGB_MODE_565;
+		video_modes_brownstone[0].right_margin = (dsi->lanes == 4) ? 315 : 178;
+	}
+	mmp2_mipi_lcd_info.sclk_div = 0x40000100 | ((dsi->lanes == 4) ? 4 : 8);
+
+	dmc_membase = ioremap(DDR_MEM_CTRL_BASE, 0xfff);
+	CSn_NO_COL = __raw_readl(dmc_membase + SDRAM_CONFIG0_TYPE1) >> 4;
+	CSn_NO_COL &= 0xf;
+	if (CSn_NO_COL <= 0x2) {
+		/*
+		*if DDR page size < 4KB, select no crossing 1KB boundary check
+		*/
+		mmp2_mipi_lcd_info.io_pad_ctrl |= CFG_BOUNDARY_1KB;
+	}
+	iounmap(dmc_membase);
+
+#ifdef CONFIG_FB_PXA168
+	/* lcd */
+	mmp2_add_fb(&mmp2_mipi_lcd_info);
+#endif
+}
+#endif
