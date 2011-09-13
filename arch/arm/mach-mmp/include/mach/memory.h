@@ -9,6 +9,10 @@
 #ifndef __ASM_MACH_MEMORY_H
 #define __ASM_MACH_MEMORY_H
 
+#ifdef CONFIG_CRASH_DUMP
+#define PLAT_PHYS_OFFSET	UL(0x06000000)
+#else
 #define PLAT_PHYS_OFFSET	UL(0x00000000)
+#endif
 
 #endif /* __ASM_MACH_MEMORY_H */
