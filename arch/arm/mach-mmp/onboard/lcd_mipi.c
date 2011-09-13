@@ -785,6 +785,7 @@ void __init brownstone_add_lcd_mipi(void)
 #ifdef CONFIG_FB_PXA168
 	/* lcd */
 	mmp2_add_fb(&mmp2_mipi_lcd_info);
+	mmp2_add_fb_ovly(&mmp2_mipi_lcd_ovly_info);
 #endif
 }
 #endif
