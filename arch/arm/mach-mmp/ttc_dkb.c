@@ -431,7 +431,7 @@ static struct pxa3xx_nand_platform_data dkb_nand_info = {
 	.num_cs		= 1,
 };
 
-static struct pxa27x_keypad_platform_data ttc_dkb_keypad_info = {
+static struct pxa27x_keypad_platform_data ttc_dkb_keypad_info __initdata = {
 	.matrix_key_rows	= 7,
 	.matrix_key_cols	= 5,
 	.matrix_key_map		= ttc_dkb_matrix_key_map,
