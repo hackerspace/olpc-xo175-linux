@@ -524,3 +524,4 @@ MMP2_DEVICE(pwm2, "mmp2-pwm", 1, NONE, 0xd401a400, 0x10);
 MMP2_DEVICE(pwm3, "mmp2-pwm", 2, NONE, 0xd401a800, 0x10);
 MMP2_DEVICE(pwm4, "mmp2-pwm", 3, NONE, 0xd401ac00, 0x10);
 MMP2_DEVICE(fb, "pxa168-fb", 0, LCD, 0xd420b000, 0x500);
+MMP2_DEVICE(fb_ovly, "pxa168fb_ovly", 0, LCD, 0xd420b000, 0x500);
