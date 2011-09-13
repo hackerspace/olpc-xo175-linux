@@ -202,54 +202,12 @@ static void __init mmp_init_vmeta(void)
 /* soc  camera */
 static int camera_sensor_power(struct device *dev, int on)
 {
-	static struct regulator *v_ldo14;
-	static struct regulator *v_ldo15;
-	static int f_enabled;
 	int cam_enable = mfp_to_gpio(MFP_PIN_GPIO67);
 
 	if (gpio_request(cam_enable, "CAM_ENABLE_HI_SENSOR")) {
 		printk(KERN_ERR "Request GPIO failed, gpio: %d\n", cam_enable);
 		return -EIO;
 	}
-
-	/* enable voltage for camera sensor OV5642 */
-	/* v_ldo14 3.0v */
-	/* v_ldo15 2.8v */
-	if (on && (!f_enabled)) {
-		v_ldo14 = regulator_get(NULL, "v_ldo14");
-		if (IS_ERR(v_ldo14)) {
-			v_ldo14 = NULL;
-			return -EIO;
-		} else {
-			regulator_set_voltage(v_ldo14, 3000000, 3000000);
-			regulator_enable(v_ldo14);
-			f_enabled = 1;
-		}
-
-		v_ldo15 = regulator_get(NULL, "v_ldo15");
-		if (IS_ERR(v_ldo15)) {
-			v_ldo15 = NULL;
-			return -EIO;
-		} else {
-			regulator_set_voltage(v_ldo15, 2800000, 2800000);
-			regulator_enable(v_ldo15);
-			f_enabled = 1;
-		}
-	}
-
-	if (f_enabled && (!on)) {
-		if (v_ldo14) {
-			regulator_disable(v_ldo14);
-			regulator_put(v_ldo14);
-			v_ldo14 = NULL;
-		}
-		if (v_ldo15) {
-			regulator_disable(v_ldo15);
-			regulator_put(v_ldo15);
-			v_ldo15 = NULL;
-		}
-		f_enabled = 0;
-	}	/* actually, no small power down pin needed */
 
 	/* pull up camera pwdn pin to disable camera sensor */
 	gpio_direction_output(cam_enable, 1);
@@ -295,22 +253,54 @@ static void pxa2128_cam_ctrl_power(int on)
 static int pxa2128_cam_clk_init(struct device *dev, int init)
 {
 	struct mv_cam_pdata *data = dev->platform_data;
-	if ((!data->clk_enabled) && init) {
-		data->clk = clk_get(dev, "CCICRSTCLK");
-		if (IS_ERR(data->clk)) {
-			dev_err(dev, "Could not get rstclk\n");
-			return PTR_ERR(data->clk);
+	static struct regulator *v_ldo14;
+	static struct regulator *v_ldo15;
+	if (init) {
+		if (!data->clk_enabled) {
+			data->clk = clk_get(dev, "CCICRSTCLK");
+			if (IS_ERR(data->clk)) {
+				dev_err(dev, "Could not get rstclk\n");
+				return PTR_ERR(data->clk);
+			}
+			data->clk_enabled = 1;
+
 		}
-		data->clk_enabled = 1;
+		v_ldo14 = regulator_get(NULL, "v_ldo14");
+		if (IS_ERR(v_ldo14)) {
+			v_ldo14 = NULL;
+			return -EIO;
+		} else {
+			regulator_set_voltage(v_ldo14, 3000000, 3000000);
+			regulator_enable(v_ldo14);
+		}
 
-		return 0;
+		v_ldo15 = regulator_get(NULL, "v_ldo15");
+		if (IS_ERR(v_ldo15)) {
+			v_ldo15 = NULL;
+			return -EIO;
+		} else {
+			regulator_set_voltage(v_ldo15, 2800000, 2800000);
+			regulator_enable(v_ldo15);
+		}
+	} else {
+		if (v_ldo14) {
+			regulator_disable(v_ldo14);
+			regulator_put(v_ldo14);
+			v_ldo14 = NULL;
+		}
+		if (v_ldo15) {
+			regulator_disable(v_ldo15);
+			regulator_put(v_ldo15);
+			v_ldo15 = NULL;
+		}
+
+		if (data->clk_enabled) {
+			clk_put(data->clk);
+			return 0;
+		}
 	}
 
-	if (!init && data->clk_enabled) {
-		clk_put(data->clk);
-		return 0;
-	}
-	return -EFAULT;
+	return 0;
 }
 
 static void pxa2128_cam_set_clk(struct device *dev, int on)
