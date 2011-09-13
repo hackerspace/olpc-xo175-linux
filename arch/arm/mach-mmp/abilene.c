@@ -209,14 +209,14 @@ static int camera_sensor_power(struct device *dev, int on)
 		return -EIO;
 	}
 
-	/* pull up camera pwdn pin to disable camera sensor */
-	gpio_direction_output(cam_enable, 1);
-	mdelay(1);
-	/* pull down camera pwdn pin to enable camera sensor */
-	gpio_direction_output(cam_enable, 0);
+	if (on)
+		/* pull down camera pwdn pin to enable camera sensor */
+		gpio_direction_output(cam_enable, 0);
+	else
+		/* pull up camera pwdn pin to disable camera sensor */
+		gpio_direction_output(cam_enable, 1);
 
-	gpio_free(cam_enable);
-	msleep(100);
+	mdelay(10);
 
 	return 0;
 }
