@@ -1591,10 +1591,12 @@ int mmc1_idle_switch(u32 on)
 	mfp_cfg_t mfp_cfg_dat1 = MMC2_DAT1_GPIO_39 | MFP_LPM_EDGE_NONE;
 	mfp_cfg_t mfp_cfg_gpio = MMC2_DAT1_IRQ_GPIO_39 | MFP_LPM_EDGE_BOTH \
 				| MFP_PULL_HIGH;
+#ifdef CONFIG_SD8XXX_RFKILL
 	struct mmc_host *pmmc = *pxa910_sdh_platdata_mmc1.pmmc;
 
 	if (!pmmc || !pmmc->card || pmmc->suspended)
 		return 0;
+#endif
 
 	if (on) {
 		mfp_config(&mfp_cfg_gpio, 1);
