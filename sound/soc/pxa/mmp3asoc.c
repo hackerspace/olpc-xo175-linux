@@ -469,10 +469,6 @@ static int mmp3asoc_wm8994_startup(struct snd_pcm_substream *substream)
 	cpu_dai->driver->capture.formats = SNDRV_PCM_FMTBIT_S32_LE;
 	cpu_dai->driver->playback.rates = MMP3ASOC_SAMPLE_RATES;
 	cpu_dai->driver->capture.rates = MMP3ASOC_SAMPLE_RATES;
-	/* currently wm8994 codec doesn't support SNDRV_PCM_FMTBIT_S32_LE by
-	 * default, manually add this support here. */
-	codec_dai->driver->playback.formats |= SNDRV_PCM_FMTBIT_S32_LE;
-	codec_dai->driver->capture.formats |= SNDRV_PCM_FMTBIT_S32_LE;
 
 	return 0;
 }
