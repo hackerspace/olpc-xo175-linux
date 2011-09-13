@@ -20,6 +20,7 @@
 #include <linux/regulator/fixed.h>
 #include <linux/mfd/max8925.h>
 #include <linux/pwm_backlight.h>
+#include <linux/fb.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -27,9 +28,12 @@
 #include <mach/mfp-mmp2.h>
 #include <mach/mmp2.h>
 #include <mach/irqs.h>
+#include <mach/tc35876x.h>
+#include <mach/pxa168fb.h>
 #include <plat/usb.h>
 
 #include "common.h"
+#include "onboard.h"
 
 #define BROWNSTONE_NR_IRQS	(IRQ_BOARD_START + 40)
 
@@ -43,6 +47,10 @@ static unsigned long brownstone_pin_config[] __initdata = {
 	/* UART3 */
 	GPIO51_UART3_RXD,
 	GPIO52_UART3_TXD,
+
+	/* TWSI5 */
+	GPIO99_TWSI5_SCL,
+	GPIO100_TWSI5_SDA,
 
 	/* DFI */
 	GPIO168_DFI_D0,
@@ -108,6 +116,9 @@ static unsigned long brownstone_pin_config[] __initdata = {
 
 	/* Backlight */
 	GPIO53_PWM3,
+
+	/* LCD */
+	GPIO83_LCD_RST,
 };
 
 static struct regulator_consumer_supply max8649_supply[] = {
@@ -311,6 +322,29 @@ static struct platform_device brownstone_lcd_backlight_devices = {
 	},
 };
 
+#if defined(CONFIG_TC35876X)
+int tc358765_init(void)
+{
+	return 0;
+}
+
+static struct tc35876x_platform_data tc358765_data = {
+	.platform_init = tc358765_init,
+	.id = TC358765_CHIPID,
+	.id_reg = TC358765_CHIPID_REG,
+};
+#endif
+
+static struct i2c_board_info brownstone_twsi5_info[] = {
+#if defined(CONFIG_TC35876X)
+	{
+		.type		= "tc35876x",
+		.addr		= 0x0f,
+		.platform_data	= &tc358765_data,
+	},
+#endif
+};
+
 static void __init brownstone_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(brownstone_pin_config));
@@ -319,6 +353,7 @@ static void __init brownstone_init(void)
 	mmp2_add_uart(1);
 	mmp2_add_uart(3);
 	mmp2_add_twsi(1, NULL, ARRAY_AND_SIZE(brownstone_twsi1_info));
+	mmp2_add_twsi(5, NULL, ARRAY_AND_SIZE(brownstone_twsi5_info));
 	mmp2_add_sdhost(0, &mmp2_sdh_platdata_mmc0); /* SD/MMC */
 #ifdef CONFIG_USB_PXA_U2O
 	pxa168_device_u2o.dev.platform_data = (void *)&mmp2_usb_pdata;
@@ -327,6 +362,10 @@ static void __init brownstone_init(void)
 
 	/* enable 5v regulator */
 	platform_device_register(&brownstone_v_5vp_device);
+
+#ifdef CONFIG_FB_PXA168
+	brownstone_add_lcd_mipi();
+#endif
 
 	/* backlight */
 	mmp2_add_pwm(3);
