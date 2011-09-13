@@ -1396,6 +1396,13 @@ static inline void hci_conn_complete_evt(struct hci_dev *hdev, struct sk_buff *s
 
 	conn = hci_conn_hash_lookup_ba(hdev, ev->link_type, &ev->bdaddr);
 	if (!conn) {
+
+		if (!(conn = hci_conn_add(hdev,ev->link_type,0,&ev->bdaddr))) {
+			BT_ERR("No memory for the new connection");
+			goto unlock;
+		}
+		conn->state = BT_CONNECT;
+
 		if (ev->link_type != SCO_LINK)
 			goto unlock;
 
@@ -1435,10 +1442,10 @@ static inline void hci_conn_complete_evt(struct hci_dev *hdev, struct sk_buff *s
 		}
 
 		/* Set packet type for incoming connection */
-		if (!conn->out && hdev->hci_ver < 3) {
+		if (!conn->out && (conn->type == ACL_LINK)) {
 			struct hci_cp_change_conn_ptype cp;
 			cp.handle = ev->handle;
-			cp.pkt_type = cpu_to_le16(conn->pkt_type);
+			cp.pkt_type = cpu_to_le16(conn->pkt_type & ACL_PTYPE_MASK);
 			hci_send_cmd(hdev, HCI_OP_CHANGE_CONN_PTYPE,
 							sizeof(cp), &cp);
 		}
