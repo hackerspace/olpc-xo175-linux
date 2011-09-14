@@ -62,6 +62,10 @@ static unsigned long brownstone_pin_config[] __initdata = {
 	GPIO43_TWSI2_SCL,
 	GPIO44_TWSI2_SDA,
 
+	/* TWSI6 */
+	GPIO97_TWSI6_SCL,
+	GPIO98_TWSI6_SDA,
+
 	/* DFI */
 	GPIO168_DFI_D0,
 	GPIO167_DFI_D1,
@@ -592,6 +596,11 @@ static struct i2c_board_info brownstone_twsi5_info[] = {
 #endif
 };
 
+static struct i2c_board_info brownstone_twsi6_info[] = {
+	{
+	},
+};
+
 static void __init brownstone_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(brownstone_pin_config));
@@ -603,6 +612,7 @@ static void __init brownstone_init(void)
 	mmp2_add_twsi(2, NULL, ARRAY_AND_SIZE(brownstone_twsi2_info));
 	mmp2_add_twsi(4, NULL, ARRAY_AND_SIZE(brownstone_twsi4_info));
 	mmp2_add_twsi(5, NULL, ARRAY_AND_SIZE(brownstone_twsi5_info));
+	mmp2_add_twsi(6, NULL, ARRAY_AND_SIZE(brownstone_twsi6_info));
 	mmp2_add_sdhost(0, &mmp2_sdh_platdata_mmc0); /* SD/MMC */
 #ifdef CONFIG_USB_PXA_U2O
 	pxa168_device_u2o.dev.platform_data = (void *)&mmp2_usb_pdata;
