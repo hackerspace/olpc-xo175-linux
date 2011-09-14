@@ -35,6 +35,7 @@ extern struct pxa_device_desc mmp2_device_pwm3;
 extern struct pxa_device_desc mmp2_device_pwm4;
 extern struct pxa_device_desc mmp2_device_fb;
 extern struct pxa_device_desc mmp2_device_fb_ovly;
+extern struct pxa_device_desc mmp2_device_fb_tv;
 
 extern struct platform_device pxa168_device_u2o;
 
@@ -120,5 +121,9 @@ static inline int mmp2_add_fb_ovly(struct pxa168fb_mach_info *mi)
 	return pxa_register_device(&mmp2_device_fb_ovly, mi, sizeof(*mi));
 }
 
+static inline int mmp2_add_fb_tv(struct pxa168fb_mach_info *mi)
+{
+       return pxa_register_device(&mmp2_device_fb_tv, mi, sizeof(*mi));
+}
 #endif /* __ASM_MACH_MMP2_H */
 
