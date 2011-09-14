@@ -610,6 +610,11 @@ static int __init alarm_driver_init(void)
 				CLOCK_REALTIME, HRTIMER_MODE_ABS);
 		alarms[i].timer.function = alarm_timer_triggered;
 	}
+	/*power up alarm*/
+	hrtimer_init(&alarms[ANDROID_ALARM_POWER_UP].timer,
+			CLOCK_REALTIME, HRTIMER_MODE_ABS);
+	alarms[ANDROID_ALARM_POWER_UP].timer.function = alarm_timer_triggered;
+
 	hrtimer_init(&alarms[ANDROID_ALARM_SYSTEMTIME].timer,
 		     CLOCK_MONOTONIC, HRTIMER_MODE_ABS);
 	alarms[ANDROID_ALARM_SYSTEMTIME].timer.function = alarm_timer_triggered;
