@@ -938,6 +938,17 @@ struct kimage *kexec_image;
 struct kimage *kexec_crash_image;
 
 static DEFINE_MUTEX(kexec_mutex);
+static void crash_update(struct pt_regs *regs)
+{
+	if (kexec_crash_image) {
+		struct pt_regs fixed_regs;
+
+		crash_setup_regs(&fixed_regs, regs);
+		crash_save_vmcoreinfo();
+		machine_crash_update(&fixed_regs);
+	}
+}
+
 
 SYSCALL_DEFINE4(kexec_load, unsigned long, entry, unsigned long, nr_segments,
 		struct kexec_segment __user *, segments, unsigned long, flags)
@@ -980,6 +991,11 @@ SYSCALL_DEFINE4(kexec_load, unsigned long, entry, unsigned long, nr_segments,
 	 */
 	if (!mutex_trylock(&kexec_mutex))
 		return -EBUSY;
+
+	if (flags & KEXEC_NEED_UPDATE) {
+		crash_update(NULL);
+		goto out;
+	}
 
 	dest_image = &kexec_image;
 	if (flags & KEXEC_ON_CRASH)
