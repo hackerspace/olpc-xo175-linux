@@ -917,6 +917,44 @@ struct platform_device pxa95x_device_pwm7 = {
 
 #endif
 
+#if defined(CONFIG_PXA9XX_ACIPC)
+static u64 pxa930_acipc_dma_mask = DMA_BIT_MASK(32);
+
+static struct resource pxa930_resource_acipc[] = {
+        [0] = {
+                .start  = 0x42403000,
+                .end    = 0x424030ff,
+                .flags  = IORESOURCE_MEM,
+        },
+        [1] = {
+                .start  = IRQ_ACIPC0,
+                .end    = IRQ_ACIPC0,
+                .flags  = IORESOURCE_IRQ,
+        },
+        [2] = {
+                .start  = IRQ_ACIPC1,
+                .end    = IRQ_ACIPC1,
+                .flags  = IORESOURCE_IRQ,
+        },
+        [3] = {
+                .start  = IRQ_ACIPC2,
+                .end    = IRQ_ACIPC2,
+                .flags  = IORESOURCE_IRQ,
+        },
+};
+
+struct platform_device pxa930_acipc_device = {
+        .name           = "pxa9xx-acipc",
+        .id             = -1,
+        .dev            = {
+                .dma_mask = &pxa930_acipc_dma_mask,
+                .coherent_dma_mask = DMA_BIT_MASK(32),
+        },
+        .resource       = pxa930_resource_acipc,
+        .num_resources  = ARRAY_SIZE(pxa930_resource_acipc),
+};
+#endif /*CONFIG_PXA9XX_ACIPC*/
+
 #ifdef CONFIG_PXA3xx
 static struct resource pxa3xx_resources_mci2[] = {
 	[0] = {

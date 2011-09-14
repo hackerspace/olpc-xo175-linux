@@ -38,6 +38,8 @@ extern struct platform_device pxa95x_device_pwm5;
 extern struct platform_device pxa95x_device_pwm6;
 extern struct platform_device pxa95x_device_pwm7;
 
+extern struct platform_device pxa930_acipc_device;
+
 extern struct platform_device pxa3xx_device_nand;
 extern struct platform_device pxa3xx_device_i2c_power;
 
