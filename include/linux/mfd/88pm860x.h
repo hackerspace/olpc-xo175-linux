@@ -568,13 +568,13 @@ struct pm860x_backlight_pdata {
 	int		id;
 	int		pwm;
 	int		iset;
-	unsigned long	flags;
+	int		flags;
 };
 
 struct pm860x_led_pdata {
 	int		id;
 	int		iset;
-	unsigned long	flags;
+	int		flags;
 };
 
 struct pm860x_rtc_pdata {
