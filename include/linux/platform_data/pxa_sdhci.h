@@ -75,4 +75,7 @@ struct sdhci_pxa {
 
 	struct sdhci_pxa_platdata       *pdata;
 };
+#ifdef CONFIG_CPU_PXA910
+int mmc1_idle_switch(u32 on);
+#endif
 #endif /* _PXA_SDHCI_H_ */

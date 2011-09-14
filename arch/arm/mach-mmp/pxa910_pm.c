@@ -41,6 +41,7 @@
 #include <linux/io.h>
 #include <linux/mfd/88pm860x.h>
 #include <mach/mfp-pxa910.h>
+#include <linux/platform_data/pxa_sdhci.h>
 #include <linux/wakelock.h>
 #include "acpuclock.h"
 
@@ -657,15 +658,18 @@ static void pxa910_do_idle(void)
 			apcr = __raw_readl(MPMU_APCR);
 			__raw_writel(0x3a602dc, MPMU_AWUCRM);
 			__raw_writel(apcr & 0xff087fff, MPMU_APCR);
+			if (mmc1_idle_switch(1))
+				goto exit_idle;
 		}
 
 		cpu_do_idle();
-
+exit_idle:
 		awucrs = __raw_readl(MPMU_AWUCRS);
 		if (state == POWER_MODE_SYS_SLEEP) {
 			/* restore wake up sources settings */
 			__raw_writel(awucrm, MPMU_AWUCRM);
 			__raw_writel(apcr, MPMU_APCR);
+			mmc1_idle_switch(0);
 		}
 
 		if (awucrs & (1 << 23))
