@@ -616,6 +616,7 @@ static void __init brownstone_init(void)
 
 #ifdef CONFIG_FB_PXA168
 	brownstone_add_lcd_mipi();
+	mmp2_add_tv_out();
 #endif
 
 	/* backlight */

@@ -4,6 +4,7 @@
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <mach/mfp-mmp2.h>
+#include <mach/mmp2.h>
 #include <mach/mmp3.h>
 #include <mach/pxa168fb.h>
 #include "../common.h"
@@ -186,7 +187,7 @@ static struct fb_videomode tv_video_modes[] = {
 	},
 
 };
-
+#ifdef CONFIG_CPU_MMP3
 static struct pxa168fb_mach_info tv_out_info = {
 	.id = "TV GFX Layer",
 	.num_modes = ARRAY_SIZE(tv_video_modes),
@@ -244,3 +245,43 @@ void __init mmp3_add_tv_out(void)
 	mmp3_add_fb_tv_ovly(ovly);
 #endif
 }
+#endif
+
+#ifdef CONFIG_CPU_MMP2
+#define LCD_ISR_CLEAR_MASK_PXA168   0xffffffff
+static struct pxa168fb_mach_info mmp2_tv_hdmi_info __initdata = {
+	.id			= "GFX Layer - TV",
+	.sclk_div		= 0x5 | (1<<16) | (3<<30), /* HDMI PLL */
+	.num_modes		= ARRAY_SIZE(tv_video_modes),
+	.modes			= tv_video_modes,
+	.pix_fmt		= PIX_FMT_RGB565,
+	.isr_clear_mask	= LCD_ISR_CLEAR_MASK_PXA168,
+	/*
+	 * don't care about io_pin_allocation_mode and dumb_mode
+	 * since the hdmi monitor is hard connected with lcd tv path and hdmi output
+	 */
+	.io_pad_ctrl = CFG_CYC_BURST_LEN16,
+	.panel_rgb_reverse_lanes= 0,
+	.invert_composite_blank = 0,
+	.invert_pix_val_ena     = 0,
+	.invert_pixclock        = 0,
+	.panel_rbswap           = 1,
+	.active			= 1,
+	.spi_gpio_cs            = -1,
+	.spi_gpio_reset         = -1,
+	.mmap			= 0,
+	.max_fb_size		= 1920 * 1080 * 8 + 4096,
+	.vdma_enable		= 0,
+#ifdef CONFIG_PXA688_CMU
+	.ioctl			= pxa688_cmu_ioctl,
+#endif
+};
+
+void __init mmp2_add_tv_out(void)
+{
+	struct pxa168fb_mach_info *fb = &mmp2_tv_hdmi_info;
+
+	/* add frame buffer drivers */
+	mmp2_add_fb_tv(fb);
+}
+#endif
