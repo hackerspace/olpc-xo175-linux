@@ -655,7 +655,12 @@ static int uio_mmap_physical(struct vm_area_struct *vma)
 
 	vma->vm_flags |= VM_IO | VM_RESERVED;
 
+#ifdef CONFIG_CPU_V7
+	vma->vm_page_prot = __pgprot_modify(
+		vma->vm_page_prot, L_PTE_MT_MASK, L_PTE_MT_DEV_SHARED);
+#else
 	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+#endif
 
 	return remap_pfn_range(vma,
 			       vma->vm_start,
