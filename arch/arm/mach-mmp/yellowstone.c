@@ -31,6 +31,7 @@
 #if defined(CONFIG_SENSORS_L3G4200D_GYR)
 #include <linux/i2c/l3g4200d.h>
 #endif
+#include <linux/sd8x_rfkill.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -148,6 +149,20 @@ static unsigned long mmc1_pin_config[] __initdata = {
 	GPIO135_MMC1_CLK,
 	GPIO140_MMC1_CD | MFP_PULL_HIGH,
 	GPIO141_MMC1_WP | MFP_PULL_HIGH,
+};
+
+/* MMC2 is used for WIB card */
+static unsigned long mmc2_pin_config[] __initdata = {
+	GPIO37_MMC2_DAT3,
+	GPIO38_MMC2_DAT2,
+	GPIO39_MMC2_DAT1,
+	GPIO40_MMC2_DAT0,
+	GPIO41_MMC2_CMD,
+	GPIO42_MMC2_CLK,
+
+	/* GPIO used for power */
+	GPIO58_GPIO, /* WIFI_RST_N */
+	GPIO57_GPIO, /* WIFI_PD_N */
 };
 
 static unsigned long mmc3_pin_config[] __initdata = {
@@ -685,6 +700,52 @@ static struct i2c_board_info yellowstone_twsi6_info[] = {
 	},
 };
 
+#ifdef CONFIG_SD8XXX_RFKILL
+static void mmp3_8787_set_power(unsigned int on)
+{
+	static struct regulator *v_ldo19;
+	static struct regulator *v_ldo17;
+	static int f_enabled = 0;
+	/* v_ldo19 3.3v */
+	/* v_ldo17 1.2v for 32k clk pull up*/
+	if (on && (!f_enabled)) {
+		v_ldo17 = regulator_get(NULL, "v_ldo17");
+		if (IS_ERR(v_ldo17)) {
+			v_ldo17 = NULL;
+			printk(KERN_ERR"get v_ldo17 failed %s %d \n", __func__, __LINE__);
+		} else {
+			regulator_set_voltage(v_ldo17, 1200000, 1200000);
+			regulator_enable(v_ldo17);
+			f_enabled = 1;
+		}
+
+		v_ldo19 = regulator_get(NULL, "v_ldo19");
+		if (IS_ERR(v_ldo19)) {
+			v_ldo19 = NULL;
+			printk(KERN_ERR"get v_ldo19 failed %s %d \n", __func__, __LINE__);
+		} else {
+			regulator_set_voltage(v_ldo19, 3300000, 3300000);
+			regulator_enable(v_ldo19);
+			f_enabled = 1;
+		}
+	}
+
+	if (f_enabled && (!on)) {
+		if (v_ldo17) {
+			regulator_disable(v_ldo17);
+			regulator_put(v_ldo17);
+			v_ldo17 = NULL;
+		}
+		if (v_ldo19) {
+			regulator_disable(v_ldo19);
+			regulator_put(v_ldo19);
+			v_ldo19 = NULL;
+		}
+		f_enabled = 0;
+	}
+}
+#endif
+
 #ifdef CONFIG_MMC_SDHCI_PXAV3
 #include <linux/mmc/host.h>
 static void yellowstone_sd_signal_1v8(int set)
@@ -713,6 +774,10 @@ static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc0 = {
 	.signal_1v8		= yellowstone_sd_signal_1v8,
 };
 
+static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc1 = {
+	.flags          = PXA_FLAG_CARD_PERMANENT,
+};
+
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc2 = {
 	.flags		= PXA_FLAG_SD_8_BIT_CAPABLE_SLOT,
 	.host_caps	= MMC_CAP_1_8V_DDR,
@@ -720,11 +785,21 @@ static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc2 = {
 
 static void __init yellowstone_init_mmc(void)
 {
+#ifdef CONFIG_SD8XXX_RFKILL
+	int WIB_PDn = mfp_to_gpio(GPIO57_GPIO);
+	int WIB_RESETn = mfp_to_gpio(GPIO58_GPIO);
+	add_sd8x_rfkill_device(WIB_PDn, WIB_RESETn,\
+			&mmp3_sdh_platdata_mmc1.pmmc, mmp3_8787_set_power);
+#endif
 	mfp_config(ARRAY_AND_SIZE(mmc3_pin_config));
 	mmp3_add_sdh(2, &mmp3_sdh_platdata_mmc2); /* eMMC */
 
 	mfp_config(ARRAY_AND_SIZE(mmc1_pin_config));
 	mmp3_add_sdh(0, &mmp3_sdh_platdata_mmc0); /* SD/MMC */
+
+	/* SDIO for WIFI card */
+	mfp_config(ARRAY_AND_SIZE(mmc2_pin_config));
+	mmp3_add_sdh(1, &mmp3_sdh_platdata_mmc1);
 }
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
 

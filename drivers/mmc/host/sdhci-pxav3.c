@@ -260,6 +260,12 @@ static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 
 	device_init_wakeup(&pdev->dev, 0);
 
+	pxa->pdata = pdata;
+#ifdef CONFIG_SD8XXX_RFKILL
+	if (pxa->pdata->pmmc)
+		*pxa->pdata->pmmc = host->mmc;
+#endif
+
 	return 0;
 
 err_add_host:

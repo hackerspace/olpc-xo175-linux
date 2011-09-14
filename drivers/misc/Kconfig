@@ -546,7 +546,7 @@ config TC35876X
 
 config SD8XXX_RFKILL
         tristate "Rfkill power control for Marvell sd8xxx wlan/bt"
-        depends on MMC_SDHCI_PXAV2
+        depends on MMC_SDHCI_PXAV2 || MMC_SDHCI_PXAV3
         select RFKILL
 	select WIRELESS_EXT
 	select WEXT_PRIV
