@@ -1230,7 +1230,6 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 
 	if (udc->vbus_active) {
 #ifdef CONFIG_ANDROID
-		wake_lock(&idle_lock);
 		wake_lock(&suspend_lock);
 #endif
 		udc->charger_type = DEFAULT_CHARGER;
@@ -1241,7 +1240,8 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 		schedule_delayed_work(&udc->charger_work, 0);
 
 #ifdef CONFIG_ANDROID
-		wake_unlock(&idle_lock);
+		if (wake_lock_active(&idle_lock))
+			wake_unlock(&idle_lock);
 		/* leave some delay for charger driver to do something */
 		wake_lock_timeout(&suspend_lock, HZ);
 #endif
@@ -1828,6 +1828,7 @@ static void handle_setup_packet(struct mv_udc *udc, u8 ep_num,
 		}
 
 		if (is_set_configuration(setup)) {
+			wake_lock(&idle_lock);
 			udc->charger_type = VBUS_CHARGER;
 			schedule_delayed_work(&udc->charger_work, 0);
 		}
