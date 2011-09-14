@@ -1705,6 +1705,7 @@ static void __init pxa910_init_mmc(void)
 
 	pxa910_add_sdh(0, &pxa910_sdh_platdata_mmc0); /* SD/MMC */
 	pxa910_add_sdh(1, &pxa910_sdh_platdata_mmc1); /* SDIO wifi */
+	wake_lock_init(&gpio_wakeup, WAKE_LOCK_SUSPEND, "hs_wakeups");
 }
 #endif /* MMC_SDHCI_PXAV2 */
 
