@@ -1510,11 +1510,17 @@ static struct wake_lock gpio_wakeup;
 
 static irqreturn_t dat1_gpio_irq(int irq, void *data)
 {
-	unsigned int sec = 10;
+	unsigned int sec = 3;
 
 	printk(KERN_INFO "%s: set wakelock, timout after %d seconds\n",
 		__func__, sec);
 
+	/* reset mfp edge status to clear pending wake up source */
+	{
+		u32 mfp = mfp_read(39);
+		mfp_write(39, (1 << 6) | mfp);
+		mfp_write(39, mfp);
+	}
 	wake_lock_timeout(&gpio_wakeup, HZ * sec);
 
 	return IRQ_HANDLED;
@@ -1596,6 +1602,12 @@ int mmc1_idle_switch(u32 on)
 			fake_gpio_irq);
 	} else {
 		free_irq(gpio_to_irq(mfp_to_gpio(mfp_cfg_gpio)), NULL);
+		/* reset mfp edge status to clear pending wake up source */
+		{
+			u32 mfp = mfp_read(39);
+			mfp_write(39, (1 << 6) | mfp);
+			mfp_write(39, mfp);
+		}
 		gpio_free(39);
 		mfp_config(&mfp_cfg_dat1, 1);
 		GPER(39) = GPIO_bit(39);
