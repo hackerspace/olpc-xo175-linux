@@ -1668,8 +1668,10 @@ void mmc_rescan(struct work_struct *work)
 	int i;
 	bool extend_wakelock = false;
 
-	if (host->rescan_disable)
+	if (host->rescan_disable) {
+		host->rescan_delayed = 1;
 		return;
+	}
 
 	mmc_bus_get(host);
 
@@ -1957,7 +1959,7 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 	struct mmc_host *host = container_of(
 		notify_block, struct mmc_host, pm_notify);
 	unsigned long flags;
-
+	u32 rescan_needed = 0;
 
 	switch (mode) {
 	case PM_HIBERNATION_PREPARE:
@@ -1994,10 +1996,14 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 			spin_unlock_irqrestore(&host->lock, flags);
 			break;
 		}
+		if (host->rescan_delayed) {
+			rescan_needed = 1;
+			host->rescan_delayed = 0;
+		}
 		host->rescan_disable = 0;
 		spin_unlock_irqrestore(&host->lock, flags);
-		mmc_detect_change(host, 0);
-
+		if (rescan_needed)
+			mmc_detect_change(host, 0);
 	}
 
 	return 0;
