@@ -21,7 +21,7 @@
 #include <linux/mfd/max8925.h>
 #include <linux/pwm_backlight.h>
 #include <linux/fb.h>
-
+#include <linux/delay.h>
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <mach/addr-map.h>
@@ -31,7 +31,7 @@
 #include <mach/tc35876x.h>
 #include <mach/pxa168fb.h>
 #include <plat/usb.h>
-
+#include <linux/i2c/tpk_r800.h>
 #include "common.h"
 #include "onboard.h"
 
@@ -334,6 +334,32 @@ static struct tc35876x_platform_data tc358765_data = {
 	.id_reg = TC358765_CHIPID_REG,
 };
 #endif
+static int r800_set_power(int on)
+{
+	static struct regulator *v_ldo8;
+
+	if (on) {
+		v_ldo8 = regulator_get(NULL, "v_ldo8");
+		if (IS_ERR(v_ldo8)) {
+			v_ldo8 = NULL;
+			pr_err("%s: enable ldo8 for touch fail!\n", __func__);
+			return -EIO;
+		} else {
+			regulator_set_voltage(v_ldo8, 2800000, 2800000);
+			regulator_enable(v_ldo8);
+		}
+	}
+	else {
+		regulator_disable(v_ldo8);
+		regulator_put(v_ldo8);
+		v_ldo8 = NULL;
+	}
+	msleep(100);
+	return 1;
+}
+static struct touchscreen_platform_data tpk_r800_data = {
+	.set_power  = r800_set_power,
+};
 
 static struct i2c_board_info brownstone_twsi5_info[] = {
 #if defined(CONFIG_TC35876X)
@@ -341,6 +367,14 @@ static struct i2c_board_info brownstone_twsi5_info[] = {
 		.type		= "tc35876x",
 		.addr		= 0x0f,
 		.platform_data	= &tc358765_data,
+	},
+#endif
+#if defined(CONFIG_TOUCHSCREEN_TPK_R800)
+	{
+		.type           = "tpk_r800",
+		.addr           = 0x10,
+		.irq            = IRQ_GPIO(101),
+		.platform_data  = &tpk_r800_data,
 	},
 #endif
 };
