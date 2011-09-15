@@ -1,7 +1,7 @@
 #ifndef __ASM_ARCH_REGS_SSPA_H
 #define __ASM_ARCH_REGS_SSPA_H
 
-#include <mach/mmp3_audisland.h>
+#include <mach/mmp_audisland.h>
 
 #define SSPA1_VIRT_BASE			(AUD_VIRT_BASE + 0xc00)
 #define SSPA2_VIRT_BASE			(AUD_VIRT_BASE + 0xd00)

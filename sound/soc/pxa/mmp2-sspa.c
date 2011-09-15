@@ -34,7 +34,7 @@
 
 #include <linux/io.h>
 #include <mach/regs-sspa.h>
-#include <mach/mmp2_dma.h>
+#include <mach/mmp_dma.h>
 #include <plat/dma.h>
 #include <plat/ssp.h>
 
@@ -259,9 +259,9 @@ mmp2_sspa_get_dma_params(int id, struct ssp_device *sspa, int width, int out)
 		return NULL;
 
 	dma = &mmp2_pcm_adma_params[index];
-	dma->dcmd = (out ? (ADCR_DST_ADDR_HOLD | ADCR_SRC_ADDR_INC) :
-			   (ADCR_SRC_ADDR_HOLD | ADCR_DST_ADDR_INC)) |
-		    ADCR_PACKMOD | ADCR_DMA_BURST_4B | ADCR_FETCHND | width;
+	dma->dcmd = (out ? (TDCR_DSTDIR_ADDR_HOLD | TDCR_SRCDIR_ADDR_INC) :
+			   (TDCR_SRCDIR_ADDR_HOLD | TDCR_DSTDIR_ADDR_INC)) |
+		    TDCR_PACKMOD | TDCR_BURSTSZ_4B | TDCR_FETCHND | width;
 	dma->dma_ch = out ? sspa->drcmr_tx : sspa->drcmr_rx;
 	dma->dev_addr = out ? (sspa->phys_base + SSPA_TXD) :
 			      (sspa->phys_base + SSPA_RXD);
@@ -635,21 +635,21 @@ static int mmp3_sspa_hw_params(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_FORMAT_S8:
 		word_size = SSPA_CTL_8_BITS;
 		bits_per_frame = 16;
-		as_width = ADCR_SSZ_8_BITS;
+		as_width = TDCR_SSZ_8_BITS;
 	case SNDRV_PCM_FORMAT_S16_LE:
 		word_size = SSPA_CTL_16_BITS;
 		bits_per_frame = 32;
-		as_width = ADCR_SSZ_16_BITS;
+		as_width = TDCR_SSZ_16_BITS;
 		break;
 	case SNDRV_PCM_FORMAT_S24_LE:
 		word_size = SSPA_CTL_24_BITS;
 		bits_per_frame = 48;
-		as_width = ADCR_SSZ_24_BITS;
+		as_width = TDCR_SSZ_24_BITS;
 		break;
 	case SNDRV_PCM_FORMAT_S32_LE:
 		word_size = SSPA_CTL_32_BITS;
 		bits_per_frame = 64;
-		as_width = ADCR_SSZ_32_BITS;
+		as_width = TDCR_SSZ_32_BITS;
 		break;
 	default:
 		return -EINVAL;
