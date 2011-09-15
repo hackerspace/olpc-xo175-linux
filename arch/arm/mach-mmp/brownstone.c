@@ -19,6 +19,7 @@
 #include <linux/regulator/max8649.h>
 #include <linux/regulator/fixed.h>
 #include <linux/mfd/max8925.h>
+#include <linux/mfd/wm8994/pdata.h>
 #include <linux/pwm_backlight.h>
 #include <linux/fb.h>
 #include <linux/delay.h>
@@ -57,6 +58,10 @@ static unsigned long brownstone_pin_config[] __initdata = {
 	GPIO99_TWSI5_SCL,
 	GPIO100_TWSI5_SDA,
 
+	/* TWSI2 */
+	GPIO43_TWSI2_SCL,
+	GPIO44_TWSI2_SDA,
+
 	/* DFI */
 	GPIO168_DFI_D0,
 	GPIO167_DFI_D1,
@@ -85,6 +90,7 @@ static unsigned long brownstone_pin_config[] __initdata = {
 
 	/* PMIC */
 	PMIC_PMIC_INT | MFP_LPM_EDGE_FALL,
+	GPIO45_WM8994_LDOEN,
 
 	/* MMC0 */
 	GPIO131_MMC1_DAT3 | MFP_PULL_HIGH,
@@ -115,6 +121,19 @@ static unsigned long brownstone_pin_config[] __initdata = {
 	GPIO111_MMC3_DAT0 | MFP_PULL_HIGH,
 	GPIO112_MMC3_CMD | MFP_PULL_HIGH,
 	GPIO151_MMC3_CLK,
+
+	/* SSPA1 */
+	GPIO24_I2S_SYSCLK,
+	GPIO25_I2S_BITCLK,
+	GPIO26_I2S_SYNC,
+	GPIO27_I2S_DATA_OUT,
+	GPIO28_I2S_SDATA_IN,
+
+	/* SSPA2 */
+	GPIO33_SSPA2_CLK,
+	GPIO34_SSPA2_FRM,
+	GPIO35_SSPA2_TXD,
+	GPIO36_SSPA2_RXD,
 
 	/* 5V regulator */
 	GPIO89_GPIO,
@@ -295,6 +314,126 @@ static struct sdhci_pxa_platdata mmp2_sdh_platdata_mmc0 = {
 	.max_speed	= 25000000,
 };
 
+static struct regulator_consumer_supply wm8994_fixed_voltage0_supplies[] = {
+	REGULATOR_SUPPLY("DBVDD", NULL),
+	REGULATOR_SUPPLY("AVDD2", NULL),
+	REGULATOR_SUPPLY("CPVDD", NULL),
+};
+
+static struct regulator_consumer_supply wm8994_fixed_voltage1_supplies[] = {
+	REGULATOR_SUPPLY("SPKVDD1", NULL),
+	REGULATOR_SUPPLY("SPKVDD2", NULL),
+};
+
+static struct regulator_init_data wm8994_fixed_voltage0_init_data = {
+	.constraints = {
+		.always_on = 1,
+	},
+	.num_consumer_supplies	= ARRAY_SIZE(wm8994_fixed_voltage0_supplies),
+	.consumer_supplies	= wm8994_fixed_voltage0_supplies,
+};
+
+static struct regulator_init_data wm8994_fixed_voltage1_init_data = {
+	.constraints = {
+		.always_on = 1,
+	},
+	.num_consumer_supplies	= ARRAY_SIZE(wm8994_fixed_voltage1_supplies),
+	.consumer_supplies	= wm8994_fixed_voltage1_supplies,
+};
+
+static struct fixed_voltage_config wm8994_fixed_voltage0_config = {
+	.supply_name	= "VCC_1.8V",
+	.microvolts	= 1800000,
+	.gpio		= -EINVAL,
+	.init_data	= &wm8994_fixed_voltage0_init_data,
+};
+
+static struct fixed_voltage_config wm8994_fixed_voltage1_config = {
+	.supply_name	= "V_BAT",
+	.microvolts	= 3700000,
+	.gpio		= -EINVAL,
+	.init_data	= &wm8994_fixed_voltage1_init_data,
+};
+
+static struct platform_device wm8994_fixed_voltage0 = {
+	.name		= "reg-fixed-voltage",
+	.id		= 2,
+	.dev		= {
+		.platform_data	= &wm8994_fixed_voltage0_config,
+	},
+};
+
+static struct platform_device wm8994_fixed_voltage1 = {
+	.name		= "reg-fixed-voltage",
+	.id		= 3,
+	.dev		= {
+		.platform_data	= &wm8994_fixed_voltage1_config,
+	},
+};
+
+static struct regulator_consumer_supply wm8994_avdd1_supply =
+	REGULATOR_SUPPLY("AVDD1", NULL);
+
+static struct regulator_consumer_supply wm8994_dcvdd_supply =
+	REGULATOR_SUPPLY("DCVDD", NULL);
+
+static struct regulator_init_data wm8994_ldo1_data = {
+	.constraints	= {
+		.name		= "AVDD1_3.0V",
+		.valid_ops_mask	= REGULATOR_CHANGE_STATUS,
+		.min_uV		= 2400000,
+		.max_uV		= 3100000,
+	},
+	.num_consumer_supplies	= 1,
+	.consumer_supplies	= &wm8994_avdd1_supply,
+};
+
+static struct regulator_init_data wm8994_ldo2_data = {
+	.constraints	= {
+		.name		= "DCVDD_1.0V",
+		.min_uV		= 900000,
+		.max_uV		= 1200000,
+	},
+	.num_consumer_supplies	= 1,
+	.consumer_supplies	= &wm8994_dcvdd_supply,
+};
+
+static struct wm8994_pdata brownstone_wm8994_pdata = {
+	.gpio_defaults[0] = 0x0003,
+	/* AIF2 voice */
+	.gpio_defaults[2] = 0x8100,
+	.gpio_defaults[3] = 0x8100,
+	.gpio_defaults[4] = 0x8100,
+	.gpio_defaults[5] = 0x8100,
+	.gpio_defaults[6] = 0x0100,
+	/* AIF3 voice */
+	.gpio_defaults[7] = 0x8100,
+	.gpio_defaults[8] = 0x0100,
+	.gpio_defaults[9] = 0x8100,
+	.gpio_defaults[10] = 0x8100,
+
+	.ldo[0]	= { mfp_to_gpio(GPIO45_WM8994_LDOEN), NULL, &wm8994_ldo1_data },
+	.ldo[1]	= { 0, NULL, &wm8994_ldo2_data },
+};
+
+static struct i2c_board_info brownstone_twsi2_info[] = {
+	{
+		.type		= "wm8994",
+		.addr		= 0x1a,
+		.platform_data	= &brownstone_wm8994_pdata,
+	},
+};
+
+static struct platform_device *fixed_rdev[] __initdata = {
+	&wm8994_fixed_voltage0,
+	&wm8994_fixed_voltage1,
+};
+
+static void __init brownstone_fixed_regulator(void)
+{
+	platform_add_devices(fixed_rdev, ARRAY_SIZE(fixed_rdev));
+}
+
 #ifdef CONFIG_USB_SUPPORT
 
 #if defined(CONFIG_USB_PXA_U2O)
@@ -461,6 +600,7 @@ static void __init brownstone_init(void)
 	mmp2_add_uart(1);
 	mmp2_add_uart(3);
 	mmp2_add_twsi(1, NULL, ARRAY_AND_SIZE(brownstone_twsi1_info));
+	mmp2_add_twsi(2, NULL, ARRAY_AND_SIZE(brownstone_twsi2_info));
 	mmp2_add_twsi(4, NULL, ARRAY_AND_SIZE(brownstone_twsi4_info));
 	mmp2_add_twsi(5, NULL, ARRAY_AND_SIZE(brownstone_twsi5_info));
 	mmp2_add_sdhost(0, &mmp2_sdh_platdata_mmc0); /* SD/MMC */
@@ -468,6 +608,8 @@ static void __init brownstone_init(void)
 	pxa168_device_u2o.dev.platform_data = (void *)&mmp2_usb_pdata;
 	platform_device_register(&pxa168_device_u2o);
 #endif
+
+	brownstone_fixed_regulator();
 
 	/* enable 5v regulator */
 	platform_device_register(&brownstone_v_5vp_device);
