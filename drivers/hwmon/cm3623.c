@@ -35,6 +35,7 @@ static struct early_suspend cm_early_suspend;
 #endif
 /* avoid android accessing cm3623 during suspend */
 
+#define NUMTRY 5
 static atomic_t suspend_flag = ATOMIC_INIT(0);
 
 static struct delayed_work cm3623_als_input_work;
@@ -144,15 +145,12 @@ static int active_set(struct device *dev, struct device_attribute *attr,
 
 	mutex_lock(&cm3623_dev.active_lock);
 
-	if (enable && !cm3623_dev.als_user_count && !cm3623_dev.ps_user_count) {
-		if (cm3623_dev.pdata && (cm3623_dev.pdata)->set_power)
-			(cm3623_dev.pdata)->set_power(1);
-	}
-
 	if (!strcmp(client->name, "cm3623_als_msb")) {
 		if (enable) {
 			if ((cm3623_dev.als_user_count == 0) &&
 			(!atomic_read(&suspend_flag))) {
+				if (cm3623_dev.pdata && (cm3623_dev.pdata)->set_power)
+					(cm3623_dev.pdata)->set_power(1);
 				cm3623_dev.g_als_state &= ~ALS_SD_ALS_SHUTDOWN;
 				ret = i2c_master_send(cm3623_dev.g_client_als_cmd_or_msb,
 					&cm3623_dev.g_als_state, 1);
@@ -186,6 +184,8 @@ static int active_set(struct device *dev, struct device_attribute *attr,
 					goto out;
 				}
 				dev_info(dev, "status off\n");
+				if (cm3623_dev.pdata && (cm3623_dev.pdata)->set_power)
+					(cm3623_dev.pdata)->set_power(0);
 			}
 			cm3623_dev.als_user_count--;
 		}
@@ -193,6 +193,8 @@ static int active_set(struct device *dev, struct device_attribute *attr,
 		if (enable) {
 			if ((cm3623_dev.ps_user_count == 0) &&
 			(!atomic_read(&suspend_flag))) {
+				if (cm3623_dev.pdata && (cm3623_dev.pdata)->set_power)
+					(cm3623_dev.pdata)->set_power(1);
 				cm3623_dev.g_ps_state &= ~PS_SD_PS_SHUTDOWN;
 				ret = i2c_master_send(cm3623_dev.g_client_ps_cmd_or_data,
 					&cm3623_dev.g_ps_state, 1);
@@ -225,15 +227,11 @@ static int active_set(struct device *dev, struct device_attribute *attr,
 					goto out;
 				}
 				dev_info(dev, "status off\n");
+				if (cm3623_dev.pdata && (cm3623_dev.pdata)->set_power)
+					(cm3623_dev.pdata)->set_power(0);
 			}
 			cm3623_dev.ps_user_count--;
 		}
-	}
-
-	if (!enable && !cm3623_dev.als_user_count &&
-	!cm3623_dev.ps_user_count) {
-		if (cm3623_dev.pdata && (cm3623_dev.pdata)->set_power)
-			(cm3623_dev.pdata)->set_power(0);
 	}
 
 out:
@@ -319,7 +317,16 @@ static int interval_set(struct device *dev,
 	struct i2c_client *client = to_i2c_client(dev->parent);
 	unsigned int val = 0;
 	char msg[13];
-
+	int i = 0;
+	for (i = 0; i < NUMTRY; i++) {
+		if (!atomic_read(&suspend_flag))
+			break;
+		msleep(100);
+	}
+	if (i ==NUMTRY) {
+		pr_debug("%s:can't set interval during suspend\n", __func__);
+		return 0;
+	}
 	pr_debug("%s: client->name = %s\n", __func__, client->name);
 	if (count > sizeof(msg)-1)
 		count = sizeof(msg)-1;
@@ -362,6 +369,16 @@ static int data_show(struct device *dev,
 {
 	struct i2c_client *client = to_i2c_client(dev->parent);
 	int ret;
+	int i = 0;
+	for (i = 0; i < NUMTRY; i++) {
+		if (!atomic_read(&suspend_flag))
+			break;
+		msleep(100);
+	}
+	if (i == NUMTRY) {
+		pr_debug("%s:can't data show during suspend\n", __func__);
+		return 0;
+	}
 
 	if (!strcmp(client->name, "cm3623_ps")) {
 		unsigned char tmp = 0;
@@ -538,15 +555,6 @@ static int all_devices_ready(void)
 	    cm3623_dev.g_client_ps_threshold != NULL);
 }
 
-static int all_devices_halt(void)
-{
-	return (cm3623_dev.g_client_ps_cmd_or_data == NULL &&
-	    cm3623_dev.g_client_als_cmd_or_msb == NULL &&
-	    cm3623_dev.g_client_init_or_lsb == NULL &&
-	    cm3623_dev.g_client_int == NULL &&
-	    cm3623_dev.g_client_ps_threshold == NULL);
-}
-
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void cm3623_early_suspend(struct early_suspend *h)
 {
@@ -566,6 +574,8 @@ static void cm3623_early_suspend(struct early_suspend *h)
 			printk(KERN_WARNING "%s: cannot disable ALS cm3623\n",
 				__func__);
 		}
+		if (cm3623_dev.pdata && (cm3623_dev.pdata)->set_power)
+			(cm3623_dev.pdata)->set_power(0);
 	}
 
 	if (cm3623_dev.ps_user_count > 0) {
@@ -579,10 +589,9 @@ static void cm3623_early_suspend(struct early_suspend *h)
 			printk(KERN_WARNING "%s: cannot disable PS cm3623\n",
 				__func__);
 		}
+		if (cm3623_dev.pdata && (cm3623_dev.pdata)->set_power)
+			(cm3623_dev.pdata)->set_power(0);
 	}
-
-	if (cm3623_dev.pdata && (cm3623_dev.pdata)->set_power)
-		(cm3623_dev.pdata)->set_power(0);
 
 	mutex_unlock(&cm3623_dev.active_lock);
 }
@@ -593,10 +602,9 @@ static void cm3623_late_resume(struct early_suspend *h)
 
 	mutex_lock(&cm3623_dev.active_lock);
 
-	if (cm3623_dev.pdata && (cm3623_dev.pdata)->set_power)
-		(cm3623_dev.pdata)->set_power(1);
-
 	if (cm3623_dev.ps_user_count > 0) {
+		if (cm3623_dev.pdata && (cm3623_dev.pdata)->set_power)
+			(cm3623_dev.pdata)->set_power(1);
 		cm3623_dev.g_ps_state &= ~PS_SD_PS_SHUTDOWN;
 		ret = i2c_master_send(cm3623_dev.g_client_ps_cmd_or_data,
 			&cm3623_dev.g_ps_state, 1);
@@ -613,6 +621,8 @@ static void cm3623_late_resume(struct early_suspend *h)
 	}
 
 	if (cm3623_dev.als_user_count > 0) {
+		if (cm3623_dev.pdata && (cm3623_dev.pdata)->set_power)
+			(cm3623_dev.pdata)->set_power(1);
 		cm3623_dev.g_als_state &= ~ALS_SD_ALS_SHUTDOWN;
 		ret = i2c_master_send(cm3623_dev.g_client_als_cmd_or_msb,
 			&cm3623_dev.g_als_state, 1);
@@ -714,6 +724,8 @@ static int cm3623_probe(struct i2c_client *client,
 	cm_early_suspend.resume = cm3623_late_resume;
 	register_early_suspend(&cm_early_suspend);
 #endif
+	if (cm3623_dev.pdata && (cm3623_dev.pdata)->set_power)
+		(cm3623_dev.pdata)->set_power(0);
 	return 0;
 }
 
@@ -737,11 +749,6 @@ static int cm3623_remove(struct i2c_client *client)
 		cm3623_dev.g_client_int = NULL;
 	else if (!strcmp(client->name, "cm3623_ps_threshold"))
 		cm3623_dev.g_client_ps_threshold = NULL;
-
-	if (all_devices_halt()) {
-		if (cm3623_dev.pdata && (cm3623_dev.pdata)->set_power)
-			(cm3623_dev.pdata)->set_power(0);
-	}
 
 	return 0;
 }
