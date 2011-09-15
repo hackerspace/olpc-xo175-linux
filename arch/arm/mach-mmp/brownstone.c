@@ -32,6 +32,7 @@
 #include <mach/pxa168fb.h>
 #include <plat/usb.h>
 #include <linux/i2c/tpk_r800.h>
+#include <mach/axis_sensor.h>
 #include "common.h"
 #include "onboard.h"
 
@@ -47,6 +48,10 @@ static unsigned long brownstone_pin_config[] __initdata = {
 	/* UART3 */
 	GPIO51_UART3_RXD,
 	GPIO52_UART3_TXD,
+
+	/* TWSI4 */
+	TWSI4_SCL,
+	TWSI4_SDA,
 
 	/* TWSI5 */
 	GPIO99_TWSI5_SCL,
@@ -119,6 +124,9 @@ static unsigned long brownstone_pin_config[] __initdata = {
 
 	/* LCD */
 	GPIO83_LCD_RST,
+
+	/* CM3623 INT */
+	GPIO92_GPIO | MFP_PULL_HIGH,
 };
 
 static struct regulator_consumer_supply max8649_supply[] = {
@@ -357,8 +365,74 @@ static int r800_set_power(int on)
 	msleep(100);
 	return 1;
 }
+
+static int cm_set_power(int on)
+{
+	static struct regulator *v_ldo8;
+	static int enabled;
+	int changed = 0;
+
+	if (on && (!enabled)) {
+		v_ldo8 = regulator_get(NULL, "v_ldo8");
+		if (IS_ERR(v_ldo8)) {
+			v_ldo8 = NULL;
+			return -EIO;
+		} else {
+			regulator_set_voltage(v_ldo8, 2800000, 2800000);
+			regulator_enable(v_ldo8);
+			enabled = 1;
+			changed = 1;
+		}
+	}
+	if ((!on) && enabled) {
+		regulator_disable(v_ldo8);
+		regulator_put(v_ldo8);
+		v_ldo8 = NULL;
+		enabled = 0;
+		changed = 1;
+	}
+	if (changed)
+		msleep(100);
+	return 0;
+}
+
 static struct touchscreen_platform_data tpk_r800_data = {
 	.set_power  = r800_set_power,
+};
+
+static struct axis_sensor_platform_data cm_platform_data = {
+	.set_power  = cm_set_power,
+};
+
+static struct i2c_board_info brownstone_twsi4_info[] =
+{
+#if defined(CONFIG_SENSORS_CM3623)
+	{
+		.type       = "cm3623_ps",
+		.addr       = (0xB0>>1),
+		.platform_data  = &cm_platform_data,
+	},
+	{
+		.type       = "cm3623_als_msb",
+		.addr       = (0x20>>1),
+		.platform_data  = &cm_platform_data,
+	},
+	{
+		.type       = "cm3623_als_lsb",
+		.addr       = (0x22>>1),
+		.platform_data  = &cm_platform_data,
+	},
+	{
+		.type       = "cm3623_int",
+		.addr       = (0x18>>1),
+		.platform_data  = &cm_platform_data,
+	},
+	{
+		.type       = "cm3623_ps_threshold",
+		.addr       = (0xB2>>1),
+		.platform_data  = &cm_platform_data,
+	},
+#endif
 };
 
 static struct i2c_board_info brownstone_twsi5_info[] = {
@@ -387,6 +461,7 @@ static void __init brownstone_init(void)
 	mmp2_add_uart(1);
 	mmp2_add_uart(3);
 	mmp2_add_twsi(1, NULL, ARRAY_AND_SIZE(brownstone_twsi1_info));
+	mmp2_add_twsi(4, NULL, ARRAY_AND_SIZE(brownstone_twsi4_info));
 	mmp2_add_twsi(5, NULL, ARRAY_AND_SIZE(brownstone_twsi5_info));
 	mmp2_add_sdhost(0, &mmp2_sdh_platdata_mmc0); /* SD/MMC */
 #ifdef CONFIG_USB_PXA_U2O
