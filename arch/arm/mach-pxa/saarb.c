@@ -124,10 +124,10 @@ static void cm3601_release_resource(unsigned char gpio_num){
 }
 
 static struct pm860x_cm3601_pdata cm3601_platform_info = {
-	.gpio_en	= MFP_PIN_GPIO51,
-	.gpio_out	= MFP_PIN_GPIO50,
-	.request_source	= cm3601_request_resource,
-	.release_source	= cm3601_release_resource,
+	.gpio_cm3601_enable =	MFP_PIN_GPIO51,
+	.gpio_ps_output =	MFP_PIN_GPIO50,
+	.request_source	=	cm3601_request_resource,
+	.release_source	=	cm3601_release_resource,
 };
 
 static struct pm860x_headset_pdata headset_platform_info	 = {
