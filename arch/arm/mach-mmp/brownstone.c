@@ -611,6 +611,11 @@ static struct uio_hdmi_platform_data mmp2_hdmi_info __initdata = {
 };
 #endif
 
+static struct sram_bank mmp2_audiosram_info = {
+	.pool_name = "audio sram",
+	.step = AUDIO_SRAM_GRANULARITY,
+};
+
 static void __init brownstone_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(brownstone_pin_config));
@@ -630,6 +635,14 @@ static void __init brownstone_init(void)
 #endif
 
 	brownstone_fixed_regulator();
+
+	mmp2_add_sspa(1);
+	mmp2_add_sspa(2);
+	mmp2_add_audiosram(&mmp2_audiosram_info);
+
+	platform_device_register(&mmp_device_asoc_sspa1);
+	platform_device_register(&mmp_device_asoc_sspa2);
+	platform_device_register(&mmp_device_asoc_platform);
 
 	/* enable 5v regulator */
 	platform_device_register(&brownstone_v_5vp_device);
