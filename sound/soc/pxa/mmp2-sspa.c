@@ -625,7 +625,6 @@ static int mmp3_sspa_hw_params(struct snd_pcm_substream *substream,
 	sspa_ctrl &= ~SSPA_CTL_XFRLEN1_MASK;
 	sspa_ctrl |= SSPA_CTL_XFRLEN1(params_channels(params) - 1);
 	sspa_ctrl &= ~SSPA_CTL_XWDLEN1_MASK;
-	sspa_ctrl |= SSPA_CTL_XWDLEN1(SSPA_CTL_32_BITS);
 	sspa_ctrl &= ~SSPA_CTL_XSSZ1_MASK;
 
 	sspa_sp &= ~SSPA_SP_FPER_MASK;
