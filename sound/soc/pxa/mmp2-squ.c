@@ -35,12 +35,50 @@
 
 #include <asm/dma.h>
 
-#include <mach/mmp2_dma.h>
+#include <mach/mmp_dma.h>
 #include <mach/sram.h>
 #include <mach/cputype.h>
 #include "mmp2-squ.h"
 
 #include <linux/delay.h>
+
+#ifdef CONFIG_CPU_MMP2
+
+static const struct snd_pcm_hardware mmp2_pcm_hardware_playback = {
+	.info			= SNDRV_PCM_INFO_MMAP |
+				  SNDRV_PCM_INFO_MMAP_VALID |
+				  SNDRV_PCM_INFO_INTERLEAVED |
+				  SNDRV_PCM_INFO_PAUSE |
+				  SNDRV_PCM_INFO_RESUME,
+	.formats		= SNDRV_PCM_FMTBIT_S16_LE |
+				  SNDRV_PCM_FMTBIT_S24_LE |
+				  SNDRV_PCM_FMTBIT_S32_LE,
+	.period_bytes_min	= 1024,
+	.period_bytes_max	= 2048,
+	.periods_min		= 2,
+	.periods_max		= PAGE_SIZE / sizeof(mmp_tdma_desc),
+	.buffer_bytes_max	= PAGE_SIZE,
+	.fifo_size		= 32,
+};
+
+static const struct snd_pcm_hardware mmp2_pcm_hardware_capture = {
+	.info			= SNDRV_PCM_INFO_MMAP |
+				  SNDRV_PCM_INFO_MMAP_VALID |
+				  SNDRV_PCM_INFO_INTERLEAVED |
+				  SNDRV_PCM_INFO_PAUSE |
+				  SNDRV_PCM_INFO_RESUME,
+	.formats		= SNDRV_PCM_FMTBIT_S16_LE |
+				  SNDRV_PCM_FMTBIT_S24_LE |
+				  SNDRV_PCM_FMTBIT_S32_LE,
+	.period_bytes_min	= 1024,
+	.period_bytes_max	= 2048,
+	.periods_min		= 2,
+	.periods_max		= PAGE_SIZE / sizeof(mmp_tdma_desc),
+	.buffer_bytes_max	= PAGE_SIZE,
+	.fifo_size		= 32,
+};
+
+#elif defined(CONFIG_CPU_MMP3)
 
 static const struct snd_pcm_hardware mmp2_pcm_hardware_playback = {
 	.info = SNDRV_PCM_INFO_MMAP |
@@ -52,7 +90,7 @@ static const struct snd_pcm_hardware mmp2_pcm_hardware_playback = {
 	.period_bytes_min = 32,
 	.period_bytes_max = 20 * 1024,
 	.periods_min = 1,
-	.periods_max = PAGE_SIZE / sizeof(pxa688_dma_desc),
+	.periods_max = PAGE_SIZE / sizeof(mmp_tdma_desc),
 	.buffer_bytes_max = 60 * 1024,
 	.fifo_size = 32,
 };
@@ -67,10 +105,12 @@ static const struct snd_pcm_hardware mmp2_pcm_hardware_capture = {
 	.period_bytes_min = 32,
 	.period_bytes_max = 20 * 1024,
 	.periods_min = 1,
-	.periods_max = PAGE_SIZE / sizeof(pxa688_dma_desc),
+	.periods_max = PAGE_SIZE / sizeof(mmp_tdma_desc),
 	.buffer_bytes_max = 56 * 1024,
 	.fifo_size = 32,
 };
+
+#endif
 
 static DECLARE_WAIT_QUEUE_HEAD(dma_wq);
 
@@ -96,15 +136,15 @@ static void mmp2_adma_irq(int dma_ch, void *dev_id)
 	struct snd_pcm_substream *substream = dev_id;
 	struct mmp2_runtime_data *prtd = substream->runtime->private_data;
 
-	u32 base_register = pxa688_find_dma_register_base(dma_ch);
+	u32 base_register = mmp_get_dma_reg_base(dma_ch);
 	if (base_register) {
-		if (PXA688_ADISR(base_register) & 0x1)
+		if (TDISR(base_register) & 0x1)
 			snd_pcm_period_elapsed(substream);
 		else {
 			printk(KERN_ERR "%s: SQU error on channel %d\n",
 			       prtd->params->name, dma_ch);
 		}
-		PXA688_ADISR(base_register) = 0;
+		TDISR(base_register) = 0;
 	}
 }
 
@@ -117,7 +157,7 @@ static int mmp2_pcm_hw_params(struct snd_pcm_substream *substream,
 	struct mmp2_adma_params *dma;
 	size_t totsize = params_buffer_bytes(params);
 	size_t period = params_period_bytes(params);
-	pxa688_dma_desc *adma_desc;
+	mmp_tdma_desc *adma_desc;
 	dma_addr_t dma_buff_phys, next_desc_phys;
 	int ret;
 
@@ -132,16 +172,16 @@ static int mmp2_pcm_hw_params(struct snd_pcm_substream *substream,
 	 * with different params */
 	if (prtd->params == NULL) {
 		prtd->params = dma;
-		ret = pxa688_request_dma(prtd->params->name, dma->dma_ch,
+		ret = mmp_request_dma(prtd->params->name, dma->dma_ch,
 					 mmp2_adma_irq, substream);
 		if (ret < 0)
 			return ret;
 
 		prtd->adma_ch = ret;
 	} else if (prtd->params != dma) {
-		pxa688_free_dma(prtd->adma_ch);
+		mmp_free_dma(prtd->adma_ch);
 		prtd->params = dma;
-		ret = pxa688_request_dma(prtd->params->name, dma->dma_ch,
+		ret = mmp_request_dma(prtd->params->name, dma->dma_ch,
 					 mmp2_adma_irq, substream);
 		if (ret < 0)
 			return ret;
@@ -157,7 +197,7 @@ static int mmp2_pcm_hw_params(struct snd_pcm_substream *substream,
 
 	adma_desc = prtd->adma_desc_array;
 	do {
-		next_desc_phys += sizeof(pxa688_dma_desc);
+		next_desc_phys += sizeof(mmp_tdma_desc);
 
 		adma_desc->nxt_desc = next_desc_phys;
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
@@ -185,7 +225,7 @@ static int mmp2_pcm_hw_free(struct snd_pcm_substream *substream)
 
 	if (prtd->adma_ch != -1) {
 		snd_pcm_set_runtime_buffer(substream, NULL);
-		pxa688_free_dma(prtd->adma_ch);
+		mmp_free_dma(prtd->adma_ch);
 		prtd->adma_ch = -1;
 	}
 
@@ -197,11 +237,11 @@ static int mmp2_pcm_prepare(struct snd_pcm_substream *substream)
 	int ret = 0;
 	struct mmp2_runtime_data *prtd = substream->runtime->private_data;
 
-	u32 base_register = pxa688_find_dma_register_base(prtd->adma_ch);
+	u32 base_register = mmp_get_dma_reg_base(prtd->adma_ch);
 	if (base_register) {
-		PXA688_ADCR(base_register) = (prtd->params->dcmd)
-		    & (~ADCR_CHANEN);
-		PXA688_ADIMR(base_register) = ADIMR_COMP;
+		TDCR(base_register) = (prtd->params->dcmd)
+		    & (~TDCR_CHANEN);
+		TDIMR(base_register) = TDIMR_COMP;
 	} else
 		ret = -EINVAL;
 
@@ -214,30 +254,30 @@ static int mmp2_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	int ret = 0;
 	u32 base_register;
 
-	base_register = pxa688_find_dma_register_base(prtd->adma_ch);
+	base_register = mmp_get_dma_reg_base(prtd->adma_ch);
 	if (!base_register)
 		return -EINVAL;
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
-		PXA688_ADNDPR(base_register) = prtd->adma_desc_array_phys;
-		PXA688_ADCR(base_register) = prtd->params->dcmd | ADCR_CHANEN;
+		TDNDPR(base_register) = prtd->adma_desc_array_phys;
+		TDCR(base_register) = prtd->params->dcmd | TDCR_CHANEN;
 		break;
 
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
-		PXA688_ADCR(base_register) = prtd->params->dcmd;
+		TDCR(base_register) = prtd->params->dcmd;
 		wake_up(&dma_wq);
 		break;
 
 	case SNDRV_PCM_TRIGGER_RESUME:
-		PXA688_ADCR(base_register) = prtd->params->dcmd | ADCR_CHANEN;
+		TDCR(base_register) = prtd->params->dcmd | TDCR_CHANEN;
 		break;
 
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		PXA688_ADNDPR(base_register) = prtd->adma_desc_array_phys;
-		PXA688_ADCR(base_register) = prtd->params->dcmd | ADCR_CHANEN;
+		TDNDPR(base_register) = prtd->adma_desc_array_phys;
+		TDCR(base_register) = prtd->params->dcmd | TDCR_CHANEN;
 		break;
 
 	default:
@@ -254,9 +294,9 @@ static snd_pcm_uframes_t mmp2_pcm_pointer(struct snd_pcm_substream *substream)
 	dma_addr_t ptr;
 	snd_pcm_uframes_t x;
 
-	u32 base_register = pxa688_find_dma_register_base(prtd->adma_ch);
+	u32 base_register = mmp_get_dma_reg_base(prtd->adma_ch);
 	ptr = (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) ?
-	    PXA688_ADSAR(base_register) : PXA688_ADDAR(base_register);
+	    TDSAR(base_register) : TDDAR(base_register);
 
 	x = bytes_to_frames(runtime, ptr - runtime->dma_addr);
 
