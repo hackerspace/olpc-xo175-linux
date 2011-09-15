@@ -230,6 +230,11 @@ struct platform_device mmp3_device_asoc_platform = {
 	.id		= -1,
 };
 
+struct platform_device mmp3_device_asoc_hdmi = {
+	.name		= "dummy-codec",
+	.id		= -1,
+};
+
 static int __init mmp3_init(void)
 {
 	/*
@@ -249,6 +254,7 @@ static int __init mmp3_init(void)
 
 	platform_device_register(&mmp3_device_asoc_sspa1);
 	platform_device_register(&mmp3_device_asoc_platform);
+	platform_device_register(&mmp3_device_asoc_hdmi);
 
 	return 0;
 }
