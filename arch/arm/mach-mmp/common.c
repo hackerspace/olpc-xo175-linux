@@ -16,7 +16,7 @@
 #include <asm/mach/map.h>
 #include <mach/addr-map.h>
 #include <mach/cputype.h>
-#include <mach/mmp3_audisland.h>
+#include <mach/mmp_audisland.h>
 
 #include "common.h"
 

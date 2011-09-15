@@ -33,10 +33,9 @@
 #include <mach/dma.h>
 #include <mach/devices.h>
 #include <mach/mmp3.h>
-#include <mach/mmp2_dma.h>
 #include <mach/regs-usb.h>
 #include <mach/soc_vmeta.h>
-#include <mach/mmp2_dma.h>
+#include <mach/mmp_dma.h>
 
 #include <linux/platform_device.h>
 
@@ -245,7 +244,8 @@ static int __init mmp3_init(void)
 
 	mmp3_init_gpio();
 
-	pxa688_init_dma(IRQ_MMP3_DMA_RIQ);
+	pxa_init_dma(IRQ_MMP3_DMA_RIQ, 16);
+	mmp_init_dma(IRQ_MMP3_DMA_RIQ);
 
 	platform_device_register(&mmp3_device_asoc_sspa1);
 	platform_device_register(&mmp3_device_asoc_platform);
@@ -283,10 +283,10 @@ MMP3_DEVICE(fb_tv, "pxa168-fb", 1, LCD, 0xd420b000, 0x500);
 MMP3_DEVICE(fb_tv_ovly, "pxa168fb_ovly", 1, LCD, 0xd420b000, 0x500);
 MMP3_DEVICE(v4l2_tv_ovly, "pxa168-v4l2_ovly", 1, LCD, 0xd420b000, 0x500);
 MMP3_DEVICE(hdmi, "mmp3-hdmi", -1, HDMI, 0xd420b000, 0x1fff);
-MMP3_DEVICE(sspa1, "mmp2-sspa", 0, SSPA1, 0xc0ffdc00, 0xb0, ADMA1_CH_1,
-	    ADMA1_CH_0);
-MMP3_DEVICE(sspa2, "mmp2-sspa", 1, SSPA2, 0xc0ffdd00, 0xb0, ADMA2_CH_1,
-	    ADMA2_CH_0);
+MMP3_DEVICE(sspa1, "mmp2-sspa", 0, SSPA1, 0xc0ffdc00, 0xb0, ADMA1_CH1,
+	    ADMA1_CH0);
+MMP3_DEVICE(sspa2, "mmp2-sspa", 1, SSPA2, 0xc0ffdd00, 0xb0, ADMA2_CH1,
+	    ADMA2_CH0);
 MMP3_DEVICE(audiosram, "mmp-sram", 0, NONE, 0xd1030000, 0x20000);
 MMP3_DEVICE(camera0, "mv-camera", 0, CCIC1, 0xd420a000, 0x2ff);
 MMP3_DEVICE(camera1, "mv-camera", 1, CCIC2, 0xd420a800, 0x2ff);

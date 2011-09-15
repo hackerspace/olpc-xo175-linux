@@ -34,6 +34,7 @@
 #include <mach/devices.h>
 #include <mach/mmp2.h>
 #include <mach/regs-usb.h>
+#include <mach/mmp_dma.h>
 
 #include "common.h"
 #include "clock.h"
@@ -506,6 +507,7 @@ static int __init mmp2_init(void)
 		mfp_init_base(MFPR_VIRT_BASE);
 		mfp_init_addr(mmp2_addr_map);
 		pxa_init_dma(IRQ_MMP2_DMA_RIQ, 16);
+		mmp_init_dma(IRQ_MMP2_DMA_RIQ);
 		clkdev_add_table(ARRAY_AND_SIZE(mmp2_clkregs));
 	}
 
