@@ -601,8 +601,9 @@ struct pm860x_power_pdata {
 
 struct pm860x_cm3601_pdata
 {
-	unsigned char	gpio_en;	/*gpio number*/
-	unsigned char	gpio_out;	/*gpio number*/
+	unsigned char gpio_cm3601_enable;
+	unsigned char gpio_ps_output;
+	unsigned char gpio_ps_enable;
 	int		(*request_source)(unsigned char gpio_num, char *name);
 	void 		(*release_source)(unsigned char gpio_num);
 };

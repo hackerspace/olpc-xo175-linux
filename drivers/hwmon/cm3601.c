@@ -40,8 +40,9 @@ struct input_dev *this_input_dev_ps = NULL;
 struct pm860x_cm3601_info {
 	struct pm860x_chip	*chip;
 	struct i2c_client	*i2c;
-	int gpio_en; /*GPIO NUM*/
-	int gpio_out; /*GPIO NUM */
+	int gpio_cm3601_enable;
+	int gpio_ps_output;
+	int gpio_ps_enable;
 	int (*request_source)(unsigned char gpio_num, char *name);
 	void (*release_source)(unsigned char gpio_num);
 };
@@ -71,14 +72,14 @@ static int get_cm3601_enable(struct input_dev * this_input_dev)
 static void cm3601_as_power_onoff(int power)
 {
 	if(power == 1) {
-		if(!get_cm3601_enable(this_input_dev_ps))	{
-			gpio_direction_output(mfp_to_gpio(info->gpio_en),0);
-			pm860x_set_bits(info->i2c, PM8607_GPADC_MISC2, PM8607_GPADC3_GP_BIAS_A3, 0x00);		}
-	}
-	else {
-		if(!get_cm3601_enable(this_input_dev_ps)){
+		if (!get_cm3601_enable(this_input_dev_ps)) {
+			gpio_direction_output(mfp_to_gpio(info->gpio_cm3601_enable), 0);
+			pm860x_set_bits(info->i2c, PM8607_GPADC_MISC2, PM8607_GPADC3_GP_BIAS_A3, 0x00);
+		}
+	} else {
+		if (!get_cm3601_enable(this_input_dev_ps)) {
 			/* disable sensor */
-			gpio_direction_output(mfp_to_gpio(info->gpio_en),1);
+			gpio_direction_output(mfp_to_gpio(info->gpio_cm3601_enable), 1);
 			pm860x_set_bits(info->i2c, PM8607_GPADC_MISC2, PM8607_GPADC3_GP_BIAS_A3, PM8607_GPADC3_GP_BIAS_A3);
 		}
 	}
@@ -87,11 +88,16 @@ static void cm3601_as_power_onoff(int power)
 static void cm3601_ps_power_onoff(int power)
 {
 	if(power == 1) {
-		gpio_direction_output(mfp_to_gpio(info->gpio_en),0);
+		gpio_direction_output(mfp_to_gpio(info->gpio_cm3601_enable), 0);
+		if (info->gpio_ps_enable)
+			gpio_direction_output(mfp_to_gpio(info->gpio_ps_enable), 0);
 	}
 	else {
-		if(!get_cm3601_enable(this_input_dev_as))
-			gpio_direction_output(mfp_to_gpio(info->gpio_en),1);
+		if (!get_cm3601_enable(this_input_dev_as)) {
+			gpio_direction_output(mfp_to_gpio(info->gpio_cm3601_enable), 1);
+			if (info->gpio_ps_enable)
+				gpio_direction_output(mfp_to_gpio(info->gpio_ps_enable), 1);
+		}
 	}
 }
 
@@ -360,7 +366,7 @@ static void cm3601_ps_work_func(struct work_struct *work)
 	unsigned long delay = delay_to_jiffies(atomic_read(&cm3601->delay));
 	int val = 0;
 
-	if(__gpio_get_value(mfp_to_gpio(info->gpio_out))) {
+	if (__gpio_get_value(mfp_to_gpio(info->gpio_ps_output))) {
 		/* report leaving the face value*/
 		input_report_abs(cm3601->input, ABS_DISTANCE, 1);
 		val = 1;
@@ -421,24 +427,33 @@ static int cm3601_probe(struct platform_device *pdev)
 	}
 	info->chip = chip;
 	info->i2c = (chip->id == CHIP_PM8607) ? chip->client : chip->companion;
-	info->gpio_en = plat_info->gpio_en;
-	info->gpio_out = plat_info->gpio_out;
+	info->gpio_cm3601_enable = plat_info->gpio_cm3601_enable;
+	info->gpio_ps_output = plat_info->gpio_ps_output;
+	if (plat_info->gpio_ps_enable)
+		info->gpio_ps_enable = plat_info->gpio_ps_enable;
 	info->request_source = plat_info->request_source;
 	info->release_source = plat_info->release_source;
-	ret = info->request_source(mfp_to_gpio(info->gpio_en),"CM3601_EN");
+
+	ret = info->request_source(mfp_to_gpio(info->gpio_cm3601_enable), "CM3601_EN");
 	if (ret) {
 		goto error_1;
 	}
-	/* Enagle CM3601 */
-	gpio_direction_output(mfp_to_gpio(info->gpio_en),0);
+	/* Enable CM3601 */
+	gpio_direction_output(mfp_to_gpio(info->gpio_cm3601_enable), 0);
 
-	/* GPIO50 output   0:leaving  1:closing */
-	ret = info->request_source(mfp_to_gpio(info->gpio_out),"CM3601_PS_OUT");
-	if (ret) {
+	ret = info->request_source(mfp_to_gpio(info->gpio_ps_output), "CM3601_PS_OUT");
+	if (ret)
 		goto error_1;
-	}
-	gpio_direction_input(mfp_to_gpio(info->gpio_out));
+	gpio_direction_input(mfp_to_gpio(info->gpio_ps_output));
 
+	if (info->gpio_ps_enable) {
+		ret = info->request_source(mfp_to_gpio(info->gpio_ps_enable), "CM3601_PS_EN");
+		if (ret)
+			goto error_1;
+
+		/* Enable PS*/
+		gpio_direction_output(mfp_to_gpio(info->gpio_ps_enable), 0);
+	}
 	mutex_init(&cm3601_as_data->enable_mutex);
 	mutex_init(&cm3601_as_data->data_mutex);
 	mutex_init(&cm3601_ps_data->enable_mutex);
@@ -547,9 +562,10 @@ static int cm3601_remove(struct platform_device *pdev)
 		}
 	}
 
-	info->release_source(info->gpio_en);
-	info->release_source(info->gpio_out);
-
+	info->release_source(info->gpio_cm3601_enable);
+	info->release_source(info->gpio_ps_output);
+	if (info->gpio_ps_enable)
+		info->release_source(info->gpio_ps_enable);
 	return 0;
 }
 
