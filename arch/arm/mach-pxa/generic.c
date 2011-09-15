@@ -30,10 +30,14 @@
 #include <mach/smemc.h>
 #include <mach/pxa3xx-regs.h>
 #include <mach/part_table.h>
+#include <mach/audio.h>
 
 #include <plat/pxa3xx_onenand.h>
 #include <plat/pxa3xx_nand.h>
 #include "generic.h"
+
+void (*abu_mfp_init_func)(bool);
+void (*ssp3_mfp_init_func)(bool);
 
 /* chip id is introduced from PXA95x */
 unsigned int pxa_chip_id;
@@ -222,4 +226,36 @@ void __init pxa_map_io(void)
 
 	if (!cpu_is_pxa2xx() || !cpu_is_pxa3xx() || !cpu_is_pxa93x())
 		pxa_chip_id = __raw_readl(0xfb00ff80);
+}
+
+void __init set_abu_init_func(void (*func)(bool))
+{
+	if (func)
+		abu_mfp_init_func = func;
+	else
+		printk(KERN_ERR "%s called with NULL pointer\n", __func__);
+}
+
+void pxa95x_abu_mfp_init(bool abu)
+{
+	if (abu_mfp_init_func)
+		abu_mfp_init_func(abu);
+	else
+		panic("pxa95x_abu_mfp_init called with NULL pointer!\n");
+}
+
+void __init set_ssp_init_func(void (*func)(bool))
+{
+	if (func)
+		ssp3_mfp_init_func = func;
+	else
+		printk(KERN_ERR "%s called with NULL pointer\n", __func__);
+}
+
+void pxa95x_ssp_mfp_init(bool bssp)
+{
+	if (ssp3_mfp_init_func)
+		ssp3_mfp_init_func(bssp);
+	else
+		panic("pxa95x_abu_mfp_init called with NULL pointer!\n");
 }
