@@ -213,6 +213,7 @@ enum {
 #define PM8607_MIC_DET_EN_MIC_DET	(1 << 0)
 #define PM8607_HEADSET_EN_HS_DET	(1 << 0)
 #define PM8607_ADC_EN_MIC2_BIAS		(0x3 << 5)
+#define PM8607_HEADSET_MIC_DBNC		(0x3 << 5)
 #define PM8607_HEADSET_BTN_DBNC		(0x3 << 3)
 #define PM8607_HEADSET_PERIOD		(0x3 << 1)
 

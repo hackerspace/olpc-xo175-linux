@@ -316,19 +316,24 @@ static int headset_switch_probe(struct platform_device *pdev)
 	/* set hook detection debounce time to 24ms, it's the best setting we experienced */
 	pm860x_set_bits(info->i2c, PM8607_HEADSET_DECTION,
 			PM8607_HEADSET_BTN_DBNC, 0x10);
-	/* set headset period to 250msec */
+	/* set headset period to 1000msec */
 	pm860x_set_bits(info->i2c, PM8607_HEADSET_DECTION,
-			PM8607_HEADSET_PERIOD, 0x04);
+			PM8607_HEADSET_PERIOD, 0x0);
+	/* set mic debounce time to 24msec */
+	pm860x_set_bits(info->i2c, PM8607_HEADSET_DECTION,
+			PM8607_HEADSET_MIC_DBNC, 0x40);
+
 
 #define SANREMO_MIC_BUT_DET_MD_PUP		((0 << 7) | (1 << 6))
 #define SANREMO_MIC_BUT_DET_BTN_PER		((1 << 4) | (1 << 3))
 #define SANREMO_MIC_PERIOD_CONT			((1 << 2) | (1 << 1))
+#define SANREMO_MIC_PERIOD_500MSEC		(1 << 1)
 
 	/* set MIC detection parameter */
 	pm860x_reg_write(info->i2c, PM8607_MIC_DECTION,
 			 (SANREMO_MIC_BUT_DET_MD_PUP |
 			  SANREMO_MIC_BUT_DET_BTN_PER |
-			  SANREMO_MIC_PERIOD_CONT));
+			  SANREMO_MIC_PERIOD_500MSEC));
 
 	/* mask hook interrupt since we don't want the first false hook press down detection
 	   when inserting a headset without Mic */
