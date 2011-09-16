@@ -308,8 +308,6 @@ static int pxa_rtc_proc(struct device *dev, struct seq_file *seq)
 }
 
 static const struct rtc_class_ops pxa_rtc_ops = {
-	.open = pxa_rtc_open,
-	.release = pxa_rtc_release,
 	.read_time = pxa_rtc_read_time,
 	.set_time = pxa_rtc_set_time,
 	.read_alarm = pxa_rtc_read_alarm,
@@ -349,7 +347,7 @@ static int __devinit pxa_rtc_probe(struct platform_device *pdev)
 		dev_err(dev, "No alarm IRQ resource defined\n");
 		goto err_ress;
 	}
-
+	pxa_rtc_open(dev);
 	ret = -ENOMEM;
 	pxa_rtc->base = ioremap(pxa_rtc->ress->start,
 				resource_size(pxa_rtc->ress));
@@ -394,6 +392,9 @@ err_map:
 static int __devexit pxa_rtc_remove(struct platform_device *pdev)
 {
 	struct pxa_rtc *pxa_rtc = platform_get_drvdata(pdev);
+
+	struct device *dev = &pdev->dev;
+	pxa_rtc_release(dev);
 
 	rtc_device_unregister(pxa_rtc->rtc);
 
