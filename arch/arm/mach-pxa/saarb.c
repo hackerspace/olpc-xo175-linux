@@ -197,12 +197,18 @@ static int regulator_index[] = {
 		&regulator_index[PM8607_ID_##_name];	\
 }
 
+static struct pm860x_rtc_pdata rtc = {
+	.vrtc           = 1,
+	.rtc_wakeup     = 0,
+};
+
 static struct pm860x_platform_data pm8607_info = {
 	.touch		= &touch,
 	.backlight	= &backlight[0],
 	.led		= &led[0],
 	.power		= &power,
 	.regulator	= regulator_data,
+	.rtc		= &rtc,
 #if defined(CONFIG_SENSORS_CM3601)
 	.cm3601		= &cm3601_platform_info,
 #endif

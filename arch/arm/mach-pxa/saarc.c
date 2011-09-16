@@ -130,6 +130,11 @@ static struct pm860x_headset_pdata headset_platform_info	 = {
 	.headset_data[1].state_off = NULL,
 };
 
+static struct pm860x_rtc_pdata rtc = {
+	.vrtc           = 1,
+	.rtc_wakeup     = 0,
+};
+
 static struct pm860x_platform_data pm8607_info = {
 	.backlight	= &backlight[0],
 	.led		= &led[0],
@@ -137,6 +142,7 @@ static struct pm860x_platform_data pm8607_info = {
 	.cm3601		= &cm3601_platform_info,
 #endif
 	.headset = &headset_platform_info,
+	.rtc		= &rtc,
 	.companion_addr	= 0x10,
 
 	.irq_mode	= 0,
