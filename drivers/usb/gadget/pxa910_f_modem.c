@@ -872,13 +872,8 @@ int gs_marvell_modem_send(const unsigned char *buf, \
 
 			spin_unlock_irqrestore(&port->port_lock, flags);
 
-			if (p_port_send) {
-				to = interruptible_sleep_on_timeout(
-						p_port_send, 100*HZ/1000);
-				if (!to) { /* timeout */
-					log_count++;
-				}
-			}
+			msleep(5);
+			log_count++;
 
 			/* from enter sleep to wake up,
 			   usb connection could be changed */

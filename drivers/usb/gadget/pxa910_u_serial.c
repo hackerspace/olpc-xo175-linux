@@ -76,7 +76,7 @@
  * consider it a NOP.  A third layer is provided by the TTY code.
  */
 #define QUEUE_SIZE		16
-#define WRITE_BUF_SIZE		8192	/* TX only */
+#define WRITE_BUF_SIZE		8192*2	/* TX only */
 struct pxa910_gserial {
 	struct usb_function func;
 
