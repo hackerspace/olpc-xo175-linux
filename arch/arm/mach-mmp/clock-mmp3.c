@@ -20,6 +20,7 @@
 #include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/delay.h>
+#include <linux/err.h>
 #include <mach/mmp3_pm.h>
 #include <mach/regs-apbc.h>
 #include <mach/regs-apmu.h>
@@ -2770,6 +2771,100 @@ struct clkops hsic_clk_ops = {
 	.disable	= hsic_clk_disable,
 };
 
+static int pwm_clk_enable(struct clk *clk)
+{
+	struct clk *clk_apb = NULL, *clk_share = NULL;
+	unsigned long data;
+
+	data = __raw_readl(clk->clk_rst) & ~(APBC_FNCLKSEL(7));
+	data |= APBC_FNCLK | APBC_FNCLKSEL(clk->fnclksel);
+	__raw_writel(data, clk->clk_rst);
+	/*
+	 * delay two cycles of the solwest clock between the APB bus clock
+	 * and the functional module clock.
+	 */
+	udelay(10);
+
+	/*
+	 * A dependence exists between pwm1 and pwm2.pwm1 can controll its
+	 * apb bus clk independently, while pwm2 apb bus clk is controlled
+	 * by pwm1's. The same relationship exists between pwm3 and pwm4.
+	 */
+	if (!strcmp(clk->name, "pwm1")) {
+		clk_share = clk_get_sys("mmp2-pwm.1", NULL);
+		BUG_ON(IS_ERR(clk_share));
+		clk_apb = clk;
+	} else if (!strcmp(clk->name, "pwm2")) {
+		clk_share = clk_get_sys("mmp2-pwm.0", NULL);
+		BUG_ON(IS_ERR(clk_share));
+		clk_apb = clk_share;
+	} else if (!strcmp(clk->name, "pwm3")) {
+		clk_share = clk_get_sys("mmp2-pwm.3", NULL);
+		BUG_ON(IS_ERR(clk_share));
+		clk_apb = clk;
+	} else if (!strcmp(clk->name, "pwm4")) {
+		clk_share = clk_get_sys("mmp2-pwm.2", NULL);
+		BUG_ON(IS_ERR(clk_share));
+		clk_apb = clk_share;
+	}
+
+	if ((clk->refcnt + clk_share->refcnt) == 0) {
+		data = __raw_readl(clk_apb->clk_rst);
+		data |= APBC_APBCLK;
+		__raw_writel(data, clk_apb->clk_rst);
+		udelay(10);
+		data = __raw_readl(clk->clk_rst);
+		data &= ~APBC_RST;
+		__raw_writel(data, clk->clk_rst);
+		if (strcmp(clk->name, clk_apb->name)) {
+			data = __raw_readl(clk_apb->clk_rst);
+			data &= ~APBC_RST;
+			__raw_writel(data, clk_apb->clk_rst);
+		}
+	}
+
+	return 0;
+}
+
+static void pwm_clk_disable(struct clk *clk)
+{
+	struct clk *clk_apb = NULL, *clk_share = NULL;
+	unsigned long data;
+
+	data = __raw_readl(clk->clk_rst) & ~(APBC_FNCLK | APBC_FNCLKSEL(7));
+	__raw_writel(data, clk->clk_rst);
+	udelay(10);
+
+	if (!strcmp(clk->name, "pwm1")) {
+		clk_share = clk_get_sys("mmp2-pwm.1", NULL);
+		BUG_ON(IS_ERR(clk_share));
+		clk_apb = clk;
+	} else if (!strcmp(clk->name, "pwm2")) {
+		clk_share = clk_get_sys("mmp2-pwm.0", NULL);
+		BUG_ON(IS_ERR(clk_share));
+		clk_apb = clk_share;
+	} else if (!strcmp(clk->name, "pwm3")) {
+		clk_share = clk_get_sys("mmp2-pwm.3", NULL);
+		BUG_ON(IS_ERR(clk_share));
+		clk_apb = clk;
+	} else if (!strcmp(clk->name, "pwm4")) {
+		clk_share = clk_get_sys("mmp2-pwm.2", NULL);
+		BUG_ON(IS_ERR(clk_share));
+		clk_apb = clk_share;
+	}
+
+	if ((clk->refcnt + clk_share->refcnt) == 1) {
+		data = __raw_readl(clk_apb->clk_rst);
+		data &= ~APBC_APBCLK;
+		__raw_writel(data, clk_apb->clk_rst);
+	}
+}
+
+struct clkops pwm_clk_ops = {
+	.enable = pwm_clk_enable,
+	.disable = pwm_clk_disable,
+};
+
 static struct clk mmp3_list_clks[] = {
 	APBC_CLK("twsi1", "pxa2xx-i2c.0", NULL, MMP2_TWSI1,
 			0, 26000000, &mmp3_clk_vctcxo),
@@ -2783,16 +2878,16 @@ static struct clk mmp3_list_clks[] = {
 			0, 26000000, &mmp3_clk_vctcxo),
 	APBC_CLK("twsi6", "pxa2xx-i2c.5", NULL, MMP2_TWSI6,
 			0, 26000000, &mmp3_clk_vctcxo),
-	APBC_CLK("pwm1", "mmp2-pwm.0", NULL, MMP2_PWM0,
-			0, 26000000, &mmp3_clk_vctcxo),
-	APBC_CLK("pwm2", "mmp2-pwm.1", NULL, MMP2_PWM1,
-			0, 26000000, &mmp3_clk_vctcxo),
-	APBC_CLK("pwm3", "mmp2-pwm.2", NULL, MMP2_PWM2,
-			0, 26000000, &mmp3_clk_vctcxo),
-	APBC_CLK("pwm4", "mmp2-pwm.3", NULL, MMP2_PWM3,
-			0, 26000000, &mmp3_clk_vctcxo),
 	APBC_CLK("keypad", "pxa27x-keypad", NULL, MMP2_KPC,
 			0, 32768, &mmp3_clk_32k),
+	APBC_CLK_OPS("pwm1", "mmp2-pwm.0", NULL, MMP2_PWM0,
+			0, 26000000, &mmp3_clk_vctcxo, &pwm_clk_ops),
+	APBC_CLK_OPS("pwm2", "mmp2-pwm.1", NULL, MMP2_PWM1,
+			0, 26000000, &mmp3_clk_vctcxo, &pwm_clk_ops),
+	APBC_CLK_OPS("pwm3", "mmp2-pwm.2", NULL, MMP2_PWM2,
+			0, 26000000, &mmp3_clk_vctcxo, &pwm_clk_ops),
+	APBC_CLK_OPS("pwm4", "mmp2-pwm.3", NULL, MMP2_PWM3,
+			0, 26000000, &mmp3_clk_vctcxo, &pwm_clk_ops),
 	APBC_CLK_OPS("uart1", "pxa2xx-uart.0", NULL, MMP2_UART1,
 			1, 26000000, &mmp3_clk_vctcxo, &uart_clk_ops),
 	APBC_CLK_OPS("uart2", "pxa2xx-uart.1", NULL, MMP2_UART2,
