@@ -34,10 +34,7 @@
 #include <linux/usb/mv_usb.h>
 #include <asm/system.h>
 #include <asm/unaligned.h>
-
-#ifdef CONFIG_ANDROID
 #include <linux/wakelock.h>
-#endif
 
 #include <plat/usb.h>
 
@@ -70,10 +67,8 @@ static const char driver_desc[] = DRIVER_DESC;
 static struct mv_udc	*the_controller;
 int mv_usb_otgsc;
 
-#ifdef CONFIG_ANDROID
 static struct wake_lock idle_lock;
 static struct wake_lock suspend_lock;
-#endif
 
 static void nuke(struct mv_ep *ep, int status);
 static void stop_activity(struct mv_udc *udc, struct usb_gadget_driver *driver);
@@ -1229,9 +1224,7 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 	udc->vbus_active = (is_active != 0);
 
 	if (udc->vbus_active) {
-#ifdef CONFIG_ANDROID
 		wake_lock(&suspend_lock);
-#endif
 		udc->charger_type = DEFAULT_CHARGER;
 		schedule_delayed_work(&udc->charger_work, HZ >> 3);
 	} else {
@@ -1239,12 +1232,10 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 		udc->charger_type = NULL_CHARGER;
 		schedule_delayed_work(&udc->charger_work, 0);
 
-#ifdef CONFIG_ANDROID
 		if (wake_lock_active(&idle_lock))
 			wake_unlock(&idle_lock);
 		/* leave some delay for charger driver to do something */
 		wake_lock_timeout(&suspend_lock, HZ);
-#endif
 	}
 
 	/*
@@ -2281,10 +2272,8 @@ static __devexit int mv_udc_remove(struct platform_device *dev)
 
 	udc->done = &done;
 
-#ifdef CONFIG_ANDROID
 	wake_lock_destroy(&idle_lock);
 	wake_lock_destroy(&suspend_lock);
-#endif
 
 	if (udc->qwork) {
 		flush_workqueue(udc->qwork);
@@ -2560,10 +2549,8 @@ static int __devinit mv_udc_probe(struct platform_device *dev)
 	} else
 		udc->vbus_active = 1;
 
-#ifdef CONFIG_ANDROID
 	wake_lock_init(&idle_lock, WAKE_LOCK_IDLE, "mv_udc_idle");
 	wake_lock_init(&suspend_lock, WAKE_LOCK_SUSPEND, "mv_udc_suspend");
-#endif
 
 	dev_info(&dev->dev, "successful probe UDC device %s clock gating.\n",
 		udc->clock_gating ? "with" : "without");
