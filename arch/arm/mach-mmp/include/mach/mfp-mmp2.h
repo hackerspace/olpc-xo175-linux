@@ -395,7 +395,7 @@
 #define PMIC_PMIC_INT		MFP_CFG(PMIC_INT, AF0)
 
 #define GPIO59_HDMI_DET         MFP_CFG(GPIO59, AF0)
-
+#define GPIO46_HDMI_DET     MFP_CFG_LPM(GPIO46, AF0, PULL_LOW) /* Brownstone */
 /* OTG VBUS_EN - Abilene A0 Board */
 #define GPIO62_VBUS_EN		MFP_CFG(GPIO62, AF0)
 

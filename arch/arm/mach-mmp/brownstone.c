@@ -31,6 +31,7 @@
 #include <mach/irqs.h>
 #include <mach/tc35876x.h>
 #include <mach/pxa168fb.h>
+#include <mach/uio_hdmi.h>
 #include <plat/usb.h>
 #include <linux/i2c/tpk_r800.h>
 #include <mach/axis_sensor.h>
@@ -598,8 +599,17 @@ static struct i2c_board_info brownstone_twsi5_info[] = {
 
 static struct i2c_board_info brownstone_twsi6_info[] = {
 	{
+		.type			= "hdmi_edid",
+		.addr			= 0x50,
 	},
 };
+
+#ifdef CONFIG_UIO_HDMI
+static struct uio_hdmi_platform_data mmp2_hdmi_info __initdata = {
+	.sspa_reg_base = 0xD42A0C00,
+	.gpio = mfp_to_gpio(GPIO46_HDMI_DET),
+};
+#endif
 
 static void __init brownstone_init(void)
 {
@@ -632,6 +642,10 @@ static void __init brownstone_init(void)
 	/* backlight */
 	mmp2_add_pwm(3);
 	platform_device_register(&brownstone_lcd_backlight_devices);
+
+#ifdef CONFIG_UIO_HDMI
+	mmp2_add_hdmi(&mmp2_hdmi_info);
+#endif
 }
 
 MACHINE_START(BROWNSTONE, "Brownstone Development Platform")
