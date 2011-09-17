@@ -467,12 +467,9 @@ static loff_t pxa3xx_search_reloc_tb(struct mtd_info *mtd, loff_t ofs)
 		return ofs;
 
 	ofs -= block * mtd->erasesize;
-	for (i = entry_num - 1; i >= 0; i--) {
-		if (block == item[i].from) {
+	for (i =0; i < entry_num; i ++)
+		if (block == item[i].from)
 			block = item[i].to;
-			break;
-		}
-	}
 
 	ofs += block * mtd->erasesize;
 
