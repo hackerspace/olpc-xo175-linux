@@ -63,6 +63,8 @@
 static const char driver_name[] = "mv_udc";
 static const char driver_desc[] = DRIVER_DESC;
 
+static DECLARE_COMPLETION(release_done);
+
 /* controller device global variable */
 static struct mv_udc	*the_controller;
 int mv_usb_otgsc;
@@ -2260,17 +2262,12 @@ static void gadget_release(struct device *_dev)
 	struct mv_udc *udc = the_controller;
 
 	complete(udc->done);
-	kfree(udc);
 }
 
 static __devexit int mv_udc_remove(struct platform_device *dev)
 {
 	struct mv_udc *udc = the_controller;
 	int clk_i;
-
-	DECLARE_COMPLETION(done);
-
-	udc->done = &done;
 
 	wake_lock_destroy(&idle_lock);
 	wake_lock_destroy(&suspend_lock);
@@ -2318,9 +2315,9 @@ static __devexit int mv_udc_remove(struct platform_device *dev)
 	device_unregister(&udc->gadget.dev);
 
 	/* free dev, wait for the release() finished */
-	wait_for_completion(&done);
-
+	wait_for_completion(udc->done);
 	the_controller = NULL;
+	kfree(udc);
 
 	return 0;
 }
@@ -2348,6 +2345,8 @@ static int __devinit mv_udc_probe(struct platform_device *dev)
 		goto err_alloc_private;
 	}
 
+	the_controller = udc;
+	udc->done = &release_done;
 	spin_lock_init(&udc->lock);
 
 	udc->dev = dev;
@@ -2554,8 +2553,6 @@ static int __devinit mv_udc_probe(struct platform_device *dev)
 
 	dev_info(&dev->dev, "successful probe UDC device %s clock gating.\n",
 		udc->clock_gating ? "with" : "without");
-
-	the_controller = udc;
 
 	return 0;
 
