@@ -1025,7 +1025,7 @@ static void set_clock_divider(struct pxa95xfb_info *fbi)
 {
 	int divider_int;
 	int needed_pixclk;
-	int hsio_clk;
+	int lcd_src_clk;
 	u64 div_result;
 	u32 x = 0;
 	struct fb_videomode * m = &fbi->mode;
@@ -1037,23 +1037,13 @@ static void set_clock_divider(struct pxa95xfb_info *fbi)
 	do_div(div_result, m->pixclock);
 	needed_pixclk = (u32)div_result;
 
-	switch ((ACSR & 0xC000) >> 14)	/* HSS */
-	{
-		case LCD_Controller_104:
-			hsio_clk = 104000000ll;
-			break;
-		case LCD_Controller_156:
-			hsio_clk = 156000000ll;
-			break;
-		case LCD_Controller_208:
-			hsio_clk = 208000000ll;
-			break;
-		default:
-			hsio_clk = 104000000ll;
-			break;
-	}
+	x = ACCR1 & (0x1<<9);
+	if(x)
+		lcd_src_clk = 120000000ll;
+	else
+		lcd_src_clk = 208000000ll;
 
-	divider_int = hsio_clk / needed_pixclk;
+	divider_int = lcd_src_clk / needed_pixclk;
 
 	/* check whether divisor is too small. */
 	if (divider_int < 2) {
@@ -1064,6 +1054,7 @@ static void set_clock_divider(struct pxa95xfb_info *fbi)
 
 	/* Set setting to reg. */
 	x = readl(fbi->reg_base + LCD_CTL);
+	x &= 0xfffffe00;
 	x |= divider_int;
 	writel(x, fbi->reg_base + LCD_CTL);
 
