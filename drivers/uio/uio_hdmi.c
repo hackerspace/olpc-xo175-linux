@@ -241,7 +241,7 @@ static int hdmi_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, hi);
 
-	hi->uio_info.name = "mmp3-hdmi";
+	hi->uio_info.name = "mmp-hdmi";
 	hi->uio_info.version = "build1";
 	hi->uio_info.irq_flags = IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING;
 	hi->uio_info.handler = hpd_handler;
@@ -311,7 +311,7 @@ static struct platform_driver hdmi_driver = {
 	.probe	= hdmi_probe,
 	.remove	= hdmi_remove,
 	.driver = {
-		.name	= "mmp3-hdmi",
+		.name	= "mmp-hdmi",
 		.owner	= THIS_MODULE,
 	},
 #ifdef CONFIG_PM
