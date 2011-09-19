@@ -315,6 +315,29 @@ static void lcd_pn1_clk_disable(struct clk *clk)
 	__raw_writel(tmp, clk->clk_rst);
 }
 
+static void lcd_tv_clk_enable(struct clk *clk)
+{
+	u32 tmp = __raw_readl(clk->clk_rst);
+
+	tmp |= (0x3 << 13);
+	__raw_writel(tmp, clk->clk_rst);
+
+	/* enable display1 AXI clock */
+	clk_enable(&clk_disp1_axi);
+}
+
+static void lcd_tv_clk_disable(struct clk *clk)
+{
+	u32 tmp;
+
+	/* reset & disable axi clk */
+	clk_disable(&clk_disp1_axi);
+
+	tmp = __raw_readl(clk->clk_rst);
+	tmp &= ~(0x3 << 13);
+	__raw_writel(tmp, clk->clk_rst);
+}
+
 static int lcd_clk_setrate(struct clk *clk, unsigned long val)
 {
 	u32 tmp = __raw_readl(clk->clk_rst);
@@ -417,6 +440,11 @@ struct clkops lcd_pn1_clk_ops = {
 	.getrate	= lcd_clk_getrate,
 };
 
+struct clkops lcd_tv_clk_ops = {
+	.enable		= lcd_tv_clk_enable,
+	.disable	= lcd_tv_clk_disable,
+};
+
 /* APB peripheral clocks */
 static APBC_CLK(uart1, MMP2_UART1, 1, 26000000);
 static APBC_CLK(uart2, MMP2_UART2, 1, 26000000);
@@ -441,6 +469,7 @@ static APMU_CLK_OPS(sdh2, SDH2, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(sdh3, SDH3, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(disp1_axi, LCD, 0, 0, &disp1_axi_clk_ops);
 static APMU_CLK_OPS(lcd, LCD, 0, 0, &lcd_pn1_clk_ops);
+static APMU_CLK_OPS(tv, LCD, 0, 0, &lcd_tv_clk_ops);
 
 static struct clk_lookup mmp2_clkregs[] = {
 	INIT_CLKREG(&clk_uart1, "pxa2xx-uart.0", NULL),
@@ -465,6 +494,7 @@ static struct clk_lookup mmp2_clkregs[] = {
 	INIT_CLKREG(&clk_pwm4, "mmp2-pwm.3", NULL),
 	INIT_CLKREG(&clk_disp1_axi, NULL, "DISP1AXICLK"),
 	INIT_CLKREG(&clk_lcd, NULL, "LCDCLK"),
+	INIT_CLKREG(&clk_tv, NULL, "HDMICLK"),
 };
 
 static int __init mmp2_init(void)
@@ -526,3 +556,4 @@ MMP2_DEVICE(pwm4, "mmp2-pwm", 3, NONE, 0xd401ac00, 0x10);
 MMP2_DEVICE(fb, "pxa168-fb", 0, LCD, 0xd420b000, 0x500);
 MMP2_DEVICE(fb_ovly, "pxa168fb_ovly", 0, LCD, 0xd420b000, 0x500);
 MMP2_DEVICE(fb_tv, "pxa168-fb", 1, LCD, 0xd420b000, 0x500);
+MMP2_DEVICE(hdmi, "mmp3-hdmi", -1, HDMI, 0xd420b000, 0x1fff);

@@ -14,6 +14,7 @@ extern void mmp2_clear_pmic_int(void);
 #include <linux/i2c/pxa-i2c.h>
 #include <mach/devices.h>
 #include <mach/pxa168fb.h>
+#include <mach/uio_hdmi.h>
 
 extern struct pxa_device_desc mmp2_device_uart1;
 extern struct pxa_device_desc mmp2_device_uart2;
@@ -36,6 +37,7 @@ extern struct pxa_device_desc mmp2_device_pwm4;
 extern struct pxa_device_desc mmp2_device_fb;
 extern struct pxa_device_desc mmp2_device_fb_ovly;
 extern struct pxa_device_desc mmp2_device_fb_tv;
+extern struct pxa_device_desc mmp2_device_hdmi;
 
 extern struct platform_device pxa168_device_u2o;
 
@@ -125,5 +127,10 @@ static inline int mmp2_add_fb_tv(struct pxa168fb_mach_info *mi)
 {
        return pxa_register_device(&mmp2_device_fb_tv, mi, sizeof(*mi));
 }
+static inline int mmp2_add_hdmi(struct uio_hdmi_platform_data *data)
+{
+		return pxa_register_device(&mmp2_device_hdmi, data, sizeof(*data));
+}
+
 #endif /* __ASM_MACH_MMP2_H */
 
