@@ -66,7 +66,11 @@ struct pxa95xfb_conv_info pxa95xfb_conv[4] = {
 };
 
 int display_enabled = 0;
-static int display_update_ongoing[3] = {0, 0, 0};
+#define MIXER_NUM	3
+static wait_queue_head_t	wq_mixer_update[MIXER_NUM];
+static int	b_mixer_update[MIXER_NUM];
+static struct mutex	mutex_mixer_update[MIXER_NUM];
+
 
 #define DSI_CMDLINE_TIMEOUT 0
 #define DSI_CMDLINE_CMD 1
@@ -108,36 +112,6 @@ static u8 enter_sleep [][BOARD_INIT_MAX_DATA_BYTES] = {
 	/*wait 10ms*/
 	{0xff,0xff},
 };
-
-static void lcdc_writel(unsigned int val, unsigned int *reg_base, unsigned int offset)
-{
-	int retry = 0;
-	/* if display update is ongoing, register write should be avoided */
-	if (display_enabled) {
-		while ((display_update_ongoing[0]
-					|| display_update_ongoing[1]
-					|| display_update_ongoing[2])
-				&& retry++ < 50)
-			msleep(1);
-		if(retry >= 50)
-			printk("ERROR: pxa95xfb write %x -> %x failed.\n", val, offset);
-	}
-	if ((offset == LCD_MIXER0_CTL0)
-				&& (val & LCD_MIXERx_CTL0_DISP_UPDATE)
-				&& display_enabled)
-			display_update_ongoing[0] = 1;
-	if ((offset == LCD_MIXER1_CTL0)
-				&& (val & LCD_MIXERx_CTL0_DISP_UPDATE)
-				&& display_enabled)
-			display_update_ongoing[1] = 1;
-	if ((offset == LCD_MIXER2_CTL0)
-				&& (val & LCD_MIXERx_CTL0_DISP_UPDATE)
-				&& display_enabled)
-			display_update_ongoing[2] = 1;
-
-	writel(val, (unsigned int *)((unsigned int)reg_base + offset));
-	return;
-}
 
 static int dvfm_dev_idx;
 static void set_dvfm_constraint(void)
@@ -1030,21 +1004,21 @@ static void converter_set_gamma(struct pxa95xfb_conv_info *conv)
 	void *conv_base = conv->conv_base;
 
 	for(i=0;i<5;i++){
-		lcdc_writel(LCD_CONVx_G_CTL_ADD_PTR_R(i)
+		writel(LCD_CONVx_G_CTL_ADD_PTR_R(i)
 			 | LCD_CONVx_G_CTL_ADD_PTR_G(i)
 			| LCD_CONVx_G_CTL_ADD_PTR_B(i),
-			 conv_base, LCD_DSI_Dx_G_CTL_OFFSET);
-		lcdc_writel(RedLinearLUT[i],
-			 conv_base, LCD_DSI_Dx_G_DAT_RED_OFFSET);
-		lcdc_writel(GreenLinearLUT[i],
-			 conv_base, LCD_DSI_Dx_G_DAT_GREEN_OFFSET);
-		lcdc_writel(BlueLinearLUT[i],
-			 conv_base, LCD_DSI_Dx_G_DAT_BLUE_OFFSET);
+			 conv_base + LCD_DSI_Dx_G_CTL_OFFSET);
+		writel(RedLinearLUT[i],
+			 conv_base + LCD_DSI_Dx_G_DAT_RED_OFFSET);
+		writel(GreenLinearLUT[i],
+			 conv_base + LCD_DSI_Dx_G_DAT_GREEN_OFFSET);
+		writel(BlueLinearLUT[i],
+			 conv_base + LCD_DSI_Dx_G_DAT_BLUE_OFFSET);
 	}
 	x = readl(conv_base + LCD_DSI_Dx_G_CTL_OFFSET);
 	x |= LCD_CONVx_G_CTL_Q4_C(0)|LCD_CONVx_G_CTL_Q3_C(0)
 		|LCD_CONVx_G_CTL_Q2_C(0)|LCD_CONVx_G_CTL_Q1_C(0);
-	lcdc_writel(x, conv_base, LCD_DSI_Dx_G_CTL_OFFSET);
+	writel(x, conv_base + LCD_DSI_Dx_G_CTL_OFFSET);
 }
 
 static void set_clock_divider(struct pxa95xfb_info *fbi)
@@ -1091,7 +1065,7 @@ static void set_clock_divider(struct pxa95xfb_info *fbi)
 	/* Set setting to reg. */
 	x = readl(fbi->reg_base + LCD_CTL);
 	x |= divider_int;
-	lcdc_writel(x, fbi->reg_base, LCD_CTL);
+	writel(x, fbi->reg_base + LCD_CTL);
 
 }
 
@@ -1117,26 +1091,26 @@ static void converter_set_parallel(struct pxa95xfb_info *fbi)
 			|LCD_MIXERx_TIM0_ELW(m->left_margin)
 			|LCD_MIXERx_TIM0_BLW(m->right_margin);
 	}
-	lcdc_writel(x, fbi->reg_base, LCD_MIXER0_TIM0);
+	writel(x, fbi->reg_base + LCD_MIXER0_TIM0);
 
 	x = LCD_MIXERx_TIM1_VSW(m->vsync_len)
 		|LCD_MIXERx_TIM1_EFW(m->upper_margin)
 		|LCD_MIXERx_TIM1_BFW(m->lower_margin);
-	lcdc_writel(x,fbi->reg_base, LCD_MIXER0_TIM1);
+	writel(x,fbi->reg_base + LCD_MIXER0_TIM1);
 
 	/* set converter registers */
 	x = LCD_CONVx_CTL_TV_FOR
 		|LCD_CONVx_CTL_DISP_EOF_INT_EN
 		|LCD_CONVx_CTL_OP_FOR(conv->pix_fmt_out)
 		|LCD_CONVx_CTL_DISP_TYPE(conv->panel_type);
-	lcdc_writel(x, fbi->reg_base, LCD_CONV0_CTL);
+	writel(x, fbi->reg_base + LCD_CONV0_CTL);
 
 	/* set clock */
 	set_clock_divider(fbi);
 
 	/* enable PCLK, PV2 B0 default is disabled */
 	x = readl(fbi->reg_base + LCD_CTL);
-	lcdc_writel(x | LCD_CTL_LCD_PCLK_EN_BO, fbi->reg_base, LCD_CTL);
+	writel(x | LCD_CTL_LCD_PCLK_EN_BO, fbi->reg_base + LCD_CTL);
 	x = readl(fbi->reg_base + LCD_CTL);
 }
 
@@ -1154,22 +1128,22 @@ static void converter_set_dsi(struct pxa95xfb_conv_info *conv)
 	dsi_set_time(conv, conv->dsi_clock_val);
 
 	/*Enable the DSI converter with primary channel*/
-	lcdc_writel(
+	writel(
 		LCD_DSI_DxINEN_LP_CONT_EN
 		|LCD_DSI_DxINEN_PORT_ERR_EN
 		|LCD_DSI_DxINEN_TIMEOUT_EN
 		|LCD_DSI_DxINEN_ACK_ERR_EN
 		|LCD_DSI_DxINEN_PHY_ERR_EN
-		,conv_base, LCD_DSI_DxINEN_OFFSET);
+		,conv_base + LCD_DSI_DxINEN_OFFSET);
 
-	lcdc_writel(
+	writel(
 		LCD_DSI_DxCONV_FIFO_THRESH_PIXEL_FIFO_THRESH(400)
 		|LCD_DSI_DxCONV_FIFO_THRESH_PIXEL_FIFO_SIZE(1280)
-		,conv_base, LCD_DSI_DxCONV_FIFO_THRESH_OFFSET);
+		,conv_base + LCD_DSI_DxCONV_FIFO_THRESH_OFFSET);
 
-	lcdc_writel(
+	writel(
 		LCD_DSI_DxCONV_FIFO_THRESH_INT_THRESH_INT_EN
-		,conv_base, LCD_DSI_DxCONV_FIFO_THRESH_INT_OFFSET);
+		,conv_base + LCD_DSI_DxCONV_FIFO_THRESH_INT_OFFSET);
 
 	switch (conv->pix_fmt_out){
 		case PIX_FMTOUT_16_RGB565:
@@ -1187,21 +1161,21 @@ static void converter_set_dsi(struct pxa95xfb_conv_info *conv)
 	x = readl(conv_base + LCD_DSI_DxSCR1_OFFSET);
 	x &= (~LCD_DSI_DxSCR1_BLANK_NULL_FRMT_MASK);
 	x |= LCD_DSI_DxSCR1_BLANK_NULL_FRMT(format);/*24bpp*/
-	lcdc_writel(x, conv_base, LCD_DSI_DxSCR1_OFFSET);
+	writel(x, conv_base + LCD_DSI_DxSCR1_OFFSET);
 
-	lcdc_writel(DxCONV_GEN_NULL_BLANK_NULL_BLANK_DATA(0)
+	writel(DxCONV_GEN_NULL_BLANK_NULL_BLANK_DATA(0)
 			|DxCONV_GEN_NULL_BLANK_GEN_PXL_FORMAT(format)
 		   |DxCONV_GEN_NULL_BLANK_GEN_PXL_FORMAT2(format)
 		   |DxCONV_GEN_NULL_BLANK_GEN_PXL_FORMAT3(format),
-		conv_base, LCD_DSI_DxCONV_GEN_NULL_BLANK_OFFSET);
+		conv_base + LCD_DSI_DxCONV_GEN_NULL_BLANK_OFFSET);
 
-	lcdc_writel(
+	writel(
 		LCD_DSI_DxSCR0_PRIM_VC
 		|LCD_DSI_DxSCR0_FLOW_DIS
 		|LCD_DSI_DxSCR0_CONV_EN
 		|LCD_DSI_DxSCR0_DISP_URUN_INT_EN
 		|LCD_DSI_DxSCR0_DISP_EOF_INT_EN
-		,conv_base, LCD_DSI_DxSCR0_OFFSET);
+		,conv_base + LCD_DSI_DxSCR0_OFFSET);
 
 	/*Send DSI commands and enable dsi*/
 	if(!dsi_init(conv))
@@ -1595,7 +1569,7 @@ static void controller_enable_disable(struct pxa95xfb_info *fbi, int onoff)
 			ctrl |= LCD_CTL_LCD_EN | LCD_CTL_GMIX_INT_EN | LCD_CTL_AXI32_EN | LCD_CTL_GFETCH_INT_EN | LCD_CTL_GWIN_INT_EN;
 			/*make sure quick disable is cleared*/
 			ctrl &= ~LCD_CTL_LCD_QD;
-			lcdc_writel(ctrl, fbi->reg_base, LCD_CTL);
+			writel(ctrl, fbi->reg_base + LCD_CTL);
 			stat = readl(fbi->reg_base + LCD_CTL_INT_STS);
 			while (!(stat & LCD_CTL_INT_STS_LCD_EN_INT_STS) && retry--) {
 				stat = readl(fbi->reg_base + LCD_CTL_INT_STS);
@@ -1603,13 +1577,13 @@ static void controller_enable_disable(struct pxa95xfb_info *fbi, int onoff)
 			}
 			if(retry <= 0)
 				printk(KERN_ERR "%s: lcd en sts not set when enable!!!\n", __func__);
-			lcdc_writel(LCD_CTL_INT_STS_LCD_EN_INT_STS, fbi->reg_base, LCD_CTL_INT_STS);
+			writel(LCD_CTL_INT_STS_LCD_EN_INT_STS, fbi->reg_base + LCD_CTL_INT_STS);
 			display_enabled = 1;
 			break;
 		case LCD_Controller_Disable:
 			ctrl = readl(fbi->reg_base + LCD_CTL);
 			ctrl &= ~(LCD_CTL_LCD_EN);
-			lcdc_writel(ctrl, fbi->reg_base, LCD_CTL);
+			writel(ctrl, fbi->reg_base + LCD_CTL);
 			display_enabled = 0;
 			/* after disable, the LCD_CTL_INT_STS[LCD_CTL_INT_STS_LCD_DIS_INT_STS]
 			 * is not cleared
@@ -1622,12 +1596,12 @@ static void controller_enable_disable(struct pxa95xfb_info *fbi, int onoff)
 			}
 			if(retry <= 0)
 				printk(KERN_ERR "%s: lcd en sts not cleared when disable!!!\n", __func__);
-			lcdc_writel(LCD_CTL_INT_STS_LCD_DIS_INT_STS, fbi->reg_base, LCD_CTL_INT_STS);
+			writel(LCD_CTL_INT_STS_LCD_DIS_INT_STS, fbi->reg_base + LCD_CTL_INT_STS);
 			break;
 		case LCD_Controller_Quick_Disable:
 			ctrl = readl(fbi->reg_base + LCD_CTL);
 			ctrl |= LCD_CTL_LCD_QD;
-			lcdc_writel(ctrl, fbi->reg_base, LCD_CTL);
+			writel(ctrl, fbi->reg_base + LCD_CTL);
 			/* move to LCD_CTL_INT_STS reg to check*/
 			stat = readl(fbi->reg_base + LCD_CTL_INT_STS);
 			while (!(stat & LCD_CTL_INT_STS_LCD_QD_INT_STS) && retry--){
@@ -1636,7 +1610,7 @@ static void controller_enable_disable(struct pxa95xfb_info *fbi, int onoff)
 			}
 			if(retry <= 0)
 				printk(KERN_ERR "%s: lcd qd sts not set when quick disable!!!\n", __func__);
-			lcdc_writel(LCD_CTL_INT_STS_LCD_QD_INT_STS, fbi->reg_base, LCD_CTL_INT_STS);
+			writel(LCD_CTL_INT_STS_LCD_QD_INT_STS, fbi->reg_base + LCD_CTL_INT_STS);
 			display_enabled = 0;
 			break;
 		default:
@@ -1766,7 +1740,7 @@ static void set_fetch(struct pxa95xfb_info *fbi)
 			fbi->surface.viewPortInfo.srcHeight * fbi->surface.viewPortInfo.ycPitch:
 			m->yres * m->xres * fbi->bpp /8;
 		dmadesc_cpu->LCD_NXT_DESC_ADDRx = dmadesc_dma;
-		lcdc_writel(dmadesc_dma, fbi->reg_base, LCD_NXT_DESC_ADDR0 + channel * 0x40);
+		writel(dmadesc_dma, fbi->reg_base + LCD_NXT_DESC_ADDR0 + channel * 0x40);
 
 		/* set format */
 		x = readl(fbi->reg_base + LCD_FETCH_CTL0 + fbi->window * 0x40);
@@ -1774,7 +1748,7 @@ static void set_fetch(struct pxa95xfb_info *fbi)
 		x |= LCD_FETCH_CTLx_CHAN_EN|LCD_FETCH_CTLx_SRC_FOR(fbi->pix_fmt) |LCD_FETCH_CTLx_BUS_ERR_INT_EN;
 		if(fbi->eof_intr_en && channel == start_channel)
 			x |= LCD_FETCH_CTLx_END_FR_INT_EN;
-		lcdc_writel(x, fbi->reg_base, LCD_FETCH_CTL0 + channel * 0x40);
+		writel(x, fbi->reg_base + LCD_FETCH_CTL0 + channel * 0x40);
 	}
 
 }
@@ -1797,13 +1771,13 @@ static void set_window(struct pxa95xfb_info *fbi)
 	/* set input image resolution*/
 	x = LCD_WINx_CTL_WIN_XRES(xsrc/4)|LCD_WINx_CTL_WIN_YRES(ysrc/4);
 	x |= LCD_WINx_CTL_WIN_URUN_INT_EN;
-	lcdc_writel(x, fbi->reg_base, ctl_offset);
+	writel(x, fbi->reg_base + ctl_offset);
 
 	/* set cropping */
 	rcrop = (fbi->surface.viewPortInfo.ycPitch * 8 / fbi->bpp -
 			fbi->surface.viewPortInfo.srcWidth);
 	x = LCD_WINx_CROP1_RC(rcrop/4);
-	lcdc_writel(x, fbi->reg_base, crop1_offset);
+	writel(x, fbi->reg_base + crop1_offset);
 
 	/*scale is supported when wge = 4, and in fb0, surface is always not set*/
 	if(4 != fbi->window)
@@ -1832,14 +1806,14 @@ static void set_window(struct pxa95xfb_info *fbi)
 	}
 	x &= ~(LCD_WINx_CFG_WIN_XSCALE(0x1f)|LCD_WINx_CFG_WIN_YSCALE(0x1f));
 	x |= LCD_WINx_CFG_WIN_XSCALE(xscale)|LCD_WINx_CFG_WIN_YSCALE(yscale);
-	lcdc_writel(x, fbi->reg_base, LCD_WIN4_CFG);
+	writel(x, fbi->reg_base + LCD_WIN4_CFG);
 }
 
 
 static void set_mixer(struct pxa95xfb_info *fbi)
 {
-	u32 x, ctl0_wge_id;
-	u32 update, en;
+	u32 x;
+	u32 mixer_onoff, layer_onoff, mixer_pre, layer_pre, mixer_new, layer_new, mixer_update;
 	struct fb_videomode * m = &fbi->mode;
 
 	u32 ctl0_off = LCD_MIXER0_CTL0 + fbi->mixer_id* 0x100;
@@ -1865,36 +1839,57 @@ static void set_mixer(struct pxa95xfb_info *fbi)
 	x &= ~(LCD_MIXERx_CFG0_XPOS(0x7ff) | LCD_MIXERx_CFG0_YPOS(0x7ff));
 	x |= LCD_MIXERx_CFG0_XPOS(xpos)
 		| LCD_MIXERx_CFG0_YPOS(ypos);
-	lcdc_writel(x, fbi->reg_base, cfg0_off);
+	writel(x, fbi->reg_base + cfg0_off);
 
 	x = readl(fbi->reg_base + cfg1_off);
 	x &= ~(LCD_MIXERx_CFG1_XRES(0x7ff) | LCD_MIXERx_CFG1_YRES(0x7ff));
 	x |= LCD_MIXERx_CFG1_XRES(xsize)| LCD_MIXERx_CFG1_YRES(ysize);
-	lcdc_writel(x, fbi->reg_base, cfg1_off);
+	writel(x, fbi->reg_base + cfg1_off);
 
 	x = readl(fbi->reg_base + ctl1_off);
 	x &= ~(LCD_MIXERx_CTL1_DISP_XRES(0x7ff) | LCD_MIXERx_CTL1_DISP_YRES(0x7ff));
 	x |= LCD_MIXERx_CTL1_DISP_XRES(m->xres)| LCD_MIXERx_CTL1_DISP_YRES(m->yres)
-		| LCD_MIXERx_CTL1_DISP_UPDATE_INT_EN;
-	lcdc_writel(x, fbi->reg_base,ctl1_off);
+		| LCD_MIXERx_CTL1_DISP_UPDATE_INT_EN
+		| LCD_MIXERx_CTL1_DISP_EN_INT_EN;
+	writel(x, fbi->reg_base + ctl1_off);
 
 	x = LCD_MIXERx_CTL2_CONV_ID(LCD_Controller_P_CONVERTER0 - LCD_M2PARALELL_CONVERTER
 		+ converter);
-	lcdc_writel(x, fbi->reg_base,ctl2_off);
+	writel(x, fbi->reg_base + ctl2_off);
 
-	/* LCD_MIXERx_CTL0_DISP_UPDATE should be set as the last step */
+	/* laste setp: check whether separate to mixer on/off, layer on/off
+	 * LCD_MIXERx_CTL0_DISP_UPDATE should be set as the last step */
 	x = readl(fbi->reg_base + ctl0_off);
-	ctl0_wge_id = (fbi->on)?
+	mixer_pre = x & LCD_MIXERx_CTL0_MIX_EN;
+	layer_pre = x & LCD_MIXERx_CTL0_OLx_ID_MASK(fbi->zorder);
+	layer_new = (fbi->on)?
 		LCD_MIXERx_CTL0_OLx_ID(fbi->zorder, LCD_Controller_WGe0 + fbi->window):
 		LCD_MIXERx_CTL0_OLx_ID_MASK(fbi->zorder);
 	x &= ~ LCD_MIXERx_CTL0_OLx_ID_MASK(fbi->zorder);
-	x |= ctl0_wge_id;
-	en = ((x & LCD_MIXERx_CTL0_ALL_OL_MASK) != LCD_MIXERx_CTL0_ALL_OL_DISABLE)? LCD_MIXERx_CTL0_MIX_EN: 0;
-	update = (display_enabled && (fbi->on || fbi->active))? LCD_MIXERx_CTL0_DISP_UPDATE: 0;
+	x |= layer_new;
+
+	mixer_new = ((x & LCD_MIXERx_CTL0_ALL_OL_MASK) != LCD_MIXERx_CTL0_ALL_OL_DISABLE)?LCD_MIXERx_CTL0_MIX_EN:0;
 	x &= ~LCD_MIXERx_CTL0_MIX_EN;
-	x |= (en)?(en | update): 0;
-	lcdc_writel(x, fbi->reg_base, ctl0_off);
+	x |= mixer_new;
+
+	mixer_onoff = mixer_pre != mixer_new;
+	layer_onoff = layer_pre != layer_new;
+
+	mixer_update = (!mixer_onoff && mixer_new) && (layer_onoff || fbi->on);
+	x |= mixer_update?LCD_MIXERx_CTL0_DISP_UPDATE:0;
+
+	if (mixer_update || mixer_onoff)
+		b_mixer_update[fbi->mixer_id] = 1;
+
+	writel(x, fbi->reg_base + ctl0_off);
 	fbi->active = fbi->on;
+
+	if (display_enabled && (mixer_update || mixer_onoff)) {
+		int ret = wait_event_interruptible_timeout(wq_mixer_update[fbi->mixer_id],
+				!b_mixer_update[fbi->mixer_id], 60 * HZ / 1000);
+		if (!ret)
+			pr_err("mixer update failed\n");
+	}
 }
 
 static void set_scale(struct pxa95xfb_info *fbi)
@@ -1904,8 +1899,8 @@ static void set_scale(struct pxa95xfb_info *fbi)
 		0xed3a22f7, 0xee3c1cfa, 0xf03e16fc, 0xf3400ffe, 0xf84009ff};
 	int i;
 	for (i = 0; i < 16; i++){
-		lcdc_writel(i, fbi->reg_base, LCD_WIN4_SCALE_PTR);
-		lcdc_writel(scale_lut[i], fbi->reg_base, LCD_WIN4_SCALE_RW);
+		writel(i, fbi->reg_base + LCD_WIN4_SCALE_PTR);
+		writel(scale_lut[i], fbi->reg_base + LCD_WIN4_SCALE_RW);
 	}
 }
 
@@ -1989,11 +1984,11 @@ u32 lcdc_set_colorkeyalpha(struct pxa95xfb_info *fbi)
 		 */
 		if ((LCD_CHx_ALPHA_CLR_KEY_EN(color_a.alpha_method)) == 0) {
 			x = LCD_CHx_ALPHA_CH_ALPHA(color_a.default_alpha_val);
-			lcdc_writel(color_a.color_match, fbi->reg_base, LCD_CH0_CLR_MATCH  + 4*fbi->window);
+			writel(color_a.color_match, fbi->reg_base + LCD_CH0_CLR_MATCH  + 4*fbi->window);
 		} else
 			x = LCD_CHx_ALPHA_CLR_KEY_EN(color_a.alpha_method);
 	}
-	lcdc_writel(x, fbi->reg_base, LCD_CH0_ALPHA  + 4*fbi->window);
+	writel(x, fbi->reg_base + LCD_CH0_ALPHA  + 4*fbi->window);
 
 	return 0;
 }
@@ -2144,6 +2139,8 @@ u32 lcdc_get_fr_addr(struct pxa95xfb_info *fbi)
 
 void lcdc_set_lcd_controller(struct pxa95xfb_info *fbi)
 {
+	mutex_lock(&mutex_mixer_update[fbi->mixer_id]);
+
 	/* set fetch registers */
 	set_fetch(fbi);
 	/* set window registers */
@@ -2151,6 +2148,8 @@ void lcdc_set_lcd_controller(struct pxa95xfb_info *fbi)
 
 	/* set mixer registers */
 	set_mixer(fbi);
+
+	mutex_unlock(&mutex_mixer_update[fbi->mixer_id]);
 }
 
 int lcdc_wait_for_vsync(struct pxa95xfb_info *fbi)
@@ -2482,7 +2481,7 @@ static irqreturn_t pxa95xfb_gfx_handle_irq_ctl(int irq, void *dev_id)
 		writel(x, fbi->reg_base + LCD_FETCH_INT_STS0);
 
 		for(i = 0; i < PXA95xFB_FB_NUM; i++){
-			if(pxa95xfbi[i] && pxa95xfbi[i]->eof_intr_en){
+			if(pxa95xfbi[i] && pxa95xfbi[i]->on && pxa95xfbi[i]->eof_intr_en){
 				if(x & LCD_FETCH_INT_STS0_END_FRx(pxa95xfbi[i]->window) ){
 					/*printk(KERN_INFO "%s: fetch %d EOF intr: fr= %x\n",__func__, pxa95xfbi[i]->window, lcdc_get_fr_addr(pxa95xfbi[i]));*/
 					if(pxa95xfbi[i]->vsync_en){
@@ -2504,13 +2503,14 @@ static irqreturn_t pxa95xfb_gfx_handle_irq_ctl(int irq, void *dev_id)
 
 	if(g & LCD_CTL_INT_STS_GMIX_INT_STS){
 		writel(LCD_CTL_INT_STS_GMIX_INT_STS, fbi->reg_base + LCD_CTL_INT_STS);
-		for(i = 0; i < PXA95xFB_FB_NUM; i++){
-			if (pxa95xfbi[i] && pxa95xfbi[i]->converter != LCD_MIXER_DISABLE) {
-				x = readl(fbi->reg_base + LCD_MIXER0_INT_STS + pxa95xfbi[i]->mixer_id*0x100);
-				writel(x, fbi->reg_base + LCD_MIXER0_INT_STS + pxa95xfbi[i]->mixer_id*0x100);
-				if ((x & LCD_MIXERx_CTL1_DISP_UPDATE_INT_EN)) {
-					display_update_ongoing[pxa95xfbi[i]->mixer_id] = 0;
-				}
+		for(i = 0; i < MIXER_NUM; i++){
+			if (!b_mixer_update[i])
+				continue;
+			x = readl(fbi->reg_base + LCD_MIXER0_INT_STS + i*0x100);
+			writel(x, fbi->reg_base + LCD_MIXER0_INT_STS + i*0x100);
+			if ((x & LCD_MIXERx_CTL1_DISP_UPDATE_INT_EN) || (x & LCD_MIXERx_CTL1_DISP_EN_INT_EN)) {
+				b_mixer_update[i] = 0;
+				wake_up(&wq_mixer_update[i]);
 			}
 		}
 	}
@@ -2643,6 +2643,10 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 
 	mutex_init(&fbi->access_ok);
 	init_waitqueue_head(&fbi->w_intr_wq);
+	for (i = 0; i < MIXER_NUM; i++) {
+		mutex_init(&mutex_mixer_update[i]);
+		init_waitqueue_head(&wq_mixer_update[i]);
+	}
 
 	/*set surface related to 0: fb0 not use it*/
 	memset(&fbi->surface, 0, sizeof(fbi->surface));
@@ -2720,14 +2724,14 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 	clk_enable(fbi->clk_lcd);
 
 	/* Enable AXI32 before modifying the controller registers */
-	lcdc_writel(LCD_CTL_AXI32_EN, fbi->reg_base, LCD_CTL);
+	writel(LCD_CTL_AXI32_EN, fbi->reg_base + LCD_CTL);
 	controller_enable_disable(fbi, LCD_Controller_Disable);
 
 	/* set scale registers for fb1*/
 	set_scale(fbi);
 
 	/*set ch4 as un-transparent for YVU use*/
-	lcdc_writel(0x800000ff, fbi->reg_base, LCD_CH4_ALPHA);
+	writel(0x800000ff, fbi->reg_base + LCD_CH4_ALPHA);
 
 	pxa95xfb_set_par(info);
 
