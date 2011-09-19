@@ -448,7 +448,7 @@ CONFIG_ALIGNMENT_TRAP=y
 # CONFIG_USE_OF is not set
 CONFIG_ZBOOT_ROM_TEXT=0x0
 CONFIG_ZBOOT_ROM_BSS=0x0
-CONFIG_CMDLINE="root=/dev/nfs nfsroot=192.168.1.100:/nfsroot ip=192.168.1.101:192.168.1.100::255.255.255.0::usb0:on console=ttyS0,115200 mem=256M@0x80000000 mem=256M@0xc0000000 comm_v75 uart_dma bootmem_debug=1 reserve_pmem=0x5000000 vmalloc=0x18000000"
+CONFIG_CMDLINE="rdinit=/busybox/rdinit ip=192.168.1.101:192.168.1.100::255.255.255.0::usb0:on androidboot.console=ttyS0 console=ttyS0,115200 mem=256M@0x80000000 mem=256M@0xc0000000 comm_v75 uart_dma bootmem_debug=1 reserve_pmem=0x5000000 vmalloc=0x18000000"
 CONFIG_CMDLINE_FROM_BOOTLOADER=y
 # CONFIG_CMDLINE_EXTEND is not set
 # CONFIG_CMDLINE_FORCE is not set
