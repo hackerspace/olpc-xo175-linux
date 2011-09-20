@@ -138,6 +138,9 @@ static unsigned long yellowstone_pin_config[] __initdata = {
 
 	/* HSIC1 reset pin*/
 	GPIO96_HSIC_RESET,
+
+	/* HDMI */
+	GPIO54_HDMI_CEC,
 };
 
 static unsigned long mmc1_pin_config[] __initdata = {

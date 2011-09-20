@@ -156,6 +156,9 @@ static unsigned long mmc1_pin_config[] __initdata = {
 	GPIO135_MMC1_CLK,
 	GPIO140_MMC1_CD | MFP_PULL_HIGH,
 	GPIO141_MMC1_WP | MFP_PULL_HIGH,
+
+	/* HDMI */
+	GPIO54_HDMI_CEC,
 };
 
 /* MMC2 is used for WIB card */
