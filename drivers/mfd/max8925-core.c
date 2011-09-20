@@ -638,6 +638,9 @@ int __devinit max8925_device_init(struct max8925_chip *chip,
 	}
 
 	if (pdata && pdata->backlight) {
+		backlight_devs[0].platform_data = pdata->backlight;
+		backlight_devs[0].pdata_size =
+				sizeof(struct max8925_backlight_pdata);
 		ret = mfd_add_devices(chip->dev, 0, &backlight_devs[0],
 				      ARRAY_SIZE(backlight_devs),
 				      &backlight_resources[0], 0);
@@ -648,6 +651,8 @@ int __devinit max8925_device_init(struct max8925_chip *chip,
 	}
 
 	if (pdata && pdata->power) {
+		power_devs[0].platform_data = pdata->power;
+		power_devs[0].pdata_size = sizeof(struct max8925_power_pdata);
 		ret = mfd_add_devices(chip->dev, 0, &power_devs[0],
 					ARRAY_SIZE(power_devs),
 					&power_supply_resources[0], 0);
@@ -659,6 +664,8 @@ int __devinit max8925_device_init(struct max8925_chip *chip,
 	}
 
 	if (pdata && pdata->touch) {
+		touch_devs[0].platform_data = pdata->touch;
+		touch_devs[0].pdata_size = sizeof(struct max8925_touch_pdata);
 		ret = mfd_add_devices(chip->dev, 0, &touch_devs[0],
 				      ARRAY_SIZE(touch_devs),
 				      &touch_resources[0], 0);
