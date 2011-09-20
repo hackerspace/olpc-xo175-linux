@@ -38,6 +38,7 @@ extern struct pxa_device_desc mmp2_device_pwm4;
 extern struct pxa_device_desc mmp2_device_fb;
 extern struct pxa_device_desc mmp2_device_fb_ovly;
 extern struct pxa_device_desc mmp2_device_fb_tv;
+extern struct pxa_device_desc mmp2_device_fb_tv_ovly;
 extern struct pxa_device_desc mmp2_device_hdmi;
 extern struct pxa_device_desc mmp2_device_sspa1;
 extern struct pxa_device_desc mmp2_device_sspa2;
@@ -133,6 +134,11 @@ static inline int mmp2_add_fb_ovly(struct pxa168fb_mach_info *mi)
 static inline int mmp2_add_fb_tv(struct pxa168fb_mach_info *mi)
 {
        return pxa_register_device(&mmp2_device_fb_tv, mi, sizeof(*mi));
+}
+
+static inline int mmp2_add_fb_tv_ovly(struct pxa168fb_mach_info *mi)
+{
+	return pxa_register_device(&mmp2_device_fb_tv_ovly, mi, sizeof(*mi));
 }
 
 static inline int mmp2_add_hdmi(struct uio_hdmi_platform_data *data)
