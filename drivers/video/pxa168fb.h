@@ -143,6 +143,7 @@ struct lcd_regs {
 #define LCD_TV_CBSH_HUE					(0x0090)
 /* 32 bit TV Path TVIF Control	Register */
 #define LCD_TVIF_CTRL					(0x0094)
+#define TV_VBLNK_VALID_EN				(1 << 12)
 
 /* 32 bit TV Path I/O Pad Control*/
 #define LCD_TVIOPAD_CTRL				(0x0098)

@@ -943,8 +943,8 @@ static void set_dumb_panel_control(struct fb_info *info)
 	x = readl(fbi->reg_base + intf_ctrl(fbi->id)) & 0x00000001;
 	x |= (fbi->is_blanked ? 0x7 : mi->dumb_mode) << 28;
 	if (fbi->id == 1) {
-		/* enable AXI urgent flag */
-		x |= 0xff << 16;
+		/* enable AXI urgent flag and vblank(for 3d formater) */
+		x |= (0xff << 16) | TV_VBLNK_VALID_EN;
 	} else {
 		x |= mi->gpio_output_data << 20;
 		x |= mi->gpio_output_mask << 12;
