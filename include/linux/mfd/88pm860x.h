@@ -14,15 +14,7 @@
 
 #include <linux/interrupt.h>
 #include <linux/switch.h>
-
-#define MFD_NAME_SIZE		(40)
-
-enum {
-	CHIP_INVALID = 0,
-	CHIP_PM8606,
-	CHIP_PM8607,
-	CHIP_MAX,
-};
+#include "88pm8xxx.h"
 
 enum {
 	PM8606_ID_INVALID,
@@ -523,22 +515,6 @@ enum {
 	PM8607_MAX_IRQ,
 };
 
-enum {
-	PM8607_CHIP_A0 = 0x40,
-	PM8607_CHIP_A1 = 0x41,
-	PM8607_CHIP_B0 = 0x48,
-	PM8607_CHIP_C0 = 0x50,
-	PM8607_CHIP_C1 = 0x51,
-	PM8607_CHIP_D0 = 0x58,
-	PM8607_CHIP_D1 = 0x59,
-	PM8607_CHIP_END = PM8607_CHIP_D1
-};
-
-enum enum_result {
-	ENUMERATION_START	= 0,
-	ENUMERATION_500MA,
-};
-
 enum enum_charger_type {
 	USB_CHARGER		= 0,
 	AC_STANDARD_CHARGER,
@@ -560,11 +536,6 @@ struct pm860x_chip {
 	int			core_irq;
 	unsigned char		chip_version;
 	struct workqueue_struct	*monitor_wqueue;
-};
-
-enum {
-	GI2C_PORT = 0,
-	PI2C_PORT,
 };
 
 struct pm860x_backlight_pdata {
