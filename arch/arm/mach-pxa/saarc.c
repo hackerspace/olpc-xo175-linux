@@ -159,7 +159,7 @@ static struct i2c_board_info i2c1_info[] = {
 		.type		= "88PM860x",
 		.addr		= 0x34,
 		.platform_data	= &pm8607_info,
-		.irq		= gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO83)),
+		.irq            = IRQ_PMIC_INT,
 	},
 };
 

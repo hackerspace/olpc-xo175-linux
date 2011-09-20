@@ -93,6 +93,7 @@
 #define IRQ_VMETA_FUNC	PXA_IRQ(85)	/* Vmeta normal interrupt (PXA955) */
 #define IRQ_VMETA_BUS	PXA_IRQ(86)	/* Vmeta bus interrrupt (PXA955) */
 #define IRQ_U2P		PXA_IRQ(93)	/* USB PHY D+/D- Lines (PXA935) */
+#define IRQ_PMIC_INT	PXA_IRQ(95)     /* PMIC interrupt (PXA955) */
 #define PXA_GPIO_IRQ_BASE	PXA_IRQ(96)
 #define PXA_GPIO_IRQ_NUM	(192)
 
