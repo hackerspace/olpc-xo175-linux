@@ -211,8 +211,8 @@ static void pxa27x_keypad_scan_matrix(struct pxa27x_keypad *keypad)
 		goto scan;
 	}
 
-	/* do not scan more than two keys to avoid fake key */
-	if (num_keys_pressed > 2)
+	/* do not scan more than three keys to avoid fake key */
+	if (num_keys_pressed > 3)
 		return;
 
 	if (num_keys_pressed > 1) {
