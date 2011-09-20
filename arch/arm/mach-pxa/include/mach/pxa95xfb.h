@@ -501,6 +501,7 @@ struct pxa95xfb_info {
 
 	int                     id;
 	int			on;
+	int			controller_on;
 	int			active;
 	int			suspend;
 	int			open_count;
