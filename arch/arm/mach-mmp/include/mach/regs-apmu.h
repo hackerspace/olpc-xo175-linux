@@ -128,4 +128,14 @@
 #define APMU_ISLD_DSPA_CTRL		APMU_REG(0x01e4)
 #define APMU_AUDIO_SRAM_PWR		APMU_REG(0x0240)
 
+#define APMU_AUDIO_PWR_UP		(3 << 9)
+#define APMU_AUDIO_PWR_DOWN		(0 << 9)
+#define APMU_AUDIO_ISO_DIS		(1 << 8)
+#define APMU_AUDIO_CLK_SEL_PLL1_DIV_2	(0 << 6)
+#define APMU_AUDIO_CLK_SEL_PLL2_DIV_2	(1 << 6)
+#define APMU_AUDIO_CLK_SEL_PLL2_DIV_3	(2 << 6)
+#define APMU_AUDIO_CLK_SEL_PLL1_DIV_8	(3 << 6)
+#define APMU_AUDIO_CLK_ENA		(1 << 4)
+#define APMU_AUDIO_RST_DIS		(1 << 1)
+
 #endif /* __ASM_MACH_REGS_APMU_H */

@@ -446,6 +446,31 @@ struct clkops lcd_tv_clk_ops = {
 	.disable	= lcd_tv_clk_disable,
 };
 
+/* audio clock */
+static void audio_clk_enable(struct clk *clk)
+{
+	unsigned int val = 0;
+
+	val = APMU_AUDIO_RST_DIS | APMU_AUDIO_ISO_DIS |
+	      APMU_AUDIO_CLK_ENA | APMU_AUDIO_PWR_UP;
+	__raw_writel(val, APMU_AUDIO_CLK_RES_CTRL);
+}
+
+static void audio_clk_disable(struct clk *clk)
+{
+	unsigned int val;
+
+	val = __raw_readl(APMU_AUDIO_CLK_RES_CTRL);
+	val &= ~(APMU_AUDIO_RST_DIS | APMU_AUDIO_ISO_DIS |
+		 APMU_AUDIO_CLK_ENA | APMU_AUDIO_PWR_UP);
+	__raw_writel(val, APMU_AUDIO_CLK_RES_CTRL);
+}
+
+struct clkops audio_clk_ops = {
+	.enable	 = audio_clk_enable,
+	.disable = audio_clk_disable,
+};
+
 /* APB peripheral clocks */
 static APBC_CLK(uart1, MMP2_UART1, 1, 26000000);
 static APBC_CLK(uart2, MMP2_UART2, 1, 26000000);
@@ -471,6 +496,7 @@ static APMU_CLK_OPS(sdh3, SDH3, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(disp1_axi, LCD, 0, 0, &disp1_axi_clk_ops);
 static APMU_CLK_OPS(lcd, LCD, 0, 0, &lcd_pn1_clk_ops);
 static APMU_CLK_OPS(tv, LCD, 0, 0, &lcd_tv_clk_ops);
+static APMU_CLK_OPS(audio, AUDIO_CLK_RES_CTRL, 0, 0, &audio_clk_ops);
 
 static struct clk_lookup mmp2_clkregs[] = {
 	INIT_CLKREG(&clk_uart1, "pxa2xx-uart.0", NULL),
@@ -496,6 +522,7 @@ static struct clk_lookup mmp2_clkregs[] = {
 	INIT_CLKREG(&clk_disp1_axi, NULL, "DISP1AXICLK"),
 	INIT_CLKREG(&clk_lcd, NULL, "LCDCLK"),
 	INIT_CLKREG(&clk_tv, NULL, "HDMICLK"),
+	INIT_CLKREG(&clk_audio, NULL, "mmp-audio"),
 };
 
 static int __init mmp2_init(void)
@@ -559,3 +586,21 @@ MMP2_DEVICE(fb, "pxa168-fb", 0, LCD, 0xd420b000, 0x500);
 MMP2_DEVICE(fb_ovly, "pxa168fb_ovly", 0, LCD, 0xd420b000, 0x500);
 MMP2_DEVICE(fb_tv, "pxa168-fb", 1, LCD, 0xd420b000, 0x500);
 MMP2_DEVICE(hdmi, "mmp3-hdmi", -1, HDMI, 0xd420b000, 0x1fff);
+MMP2_DEVICE(sspa1, "mmp2-sspa", 0, SSPA1, 0xd42a0c00, 0xb0, ADMA1_CH1, ADMA1_CH0);
+MMP2_DEVICE(sspa2, "mmp2-sspa", 1, SSPA2, 0xd42a0d00, 0xb0, ADMA2_CH1, ADMA2_CH0);
+MMP2_DEVICE(audiosram, "mmp-sram", -1, NONE, 0xe0000000, 0x40000);
+
+struct platform_device mmp_device_asoc_sspa1 = {
+	.name		= "mmp3-sspa-dai",
+	.id		= 0,
+};
+
+struct platform_device mmp_device_asoc_sspa2 = {
+	.name		= "mmp3-sspa-dai",
+	.id		= 1,
+};
+
+struct platform_device mmp_device_asoc_platform = {
+	.name		= "mmp3-pcm-audio",
+	.id		= -1,
+};

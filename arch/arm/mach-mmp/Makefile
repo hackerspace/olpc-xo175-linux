@@ -8,7 +8,7 @@ obj-$(CONFIG_FB_PXA168)		+= onboard/
 # SoC support
 obj-$(CONFIG_CPU_PXA168)	+= pxa168.o irq-pxa168.o
 obj-$(CONFIG_CPU_PXA910)	+= pxa910.o irq-pxa168.o sram.o pxa910-squ.o clock.o
-obj-$(CONFIG_CPU_MMP2)		+= mmp2.o irq-mmp2.o clock.o mmp_dma.o
+obj-$(CONFIG_CPU_MMP2)		+= mmp2.o irq-mmp2.o clock.o mmp_dma.o mmp2_sspa.o sram.o
 obj-$(CONFIG_CPU_MMP3)		+= mmp3.o irq-mmp3.o mmp_dma.o mmp2_sspa.o sram.o delay-mmp3.o clock-mmp3.o dvfs-mmp3.o
 obj-$(CONFIG_SMP)		+= platsmp.o headsmp.o
 obj-$(CONFIG_HOTPLUG_CPU)	+= hotplug.o

@@ -15,6 +15,7 @@ extern void mmp2_clear_pmic_int(void);
 #include <mach/devices.h>
 #include <mach/pxa168fb.h>
 #include <mach/uio_hdmi.h>
+#include <mach/sram.h>
 
 extern struct pxa_device_desc mmp2_device_uart1;
 extern struct pxa_device_desc mmp2_device_uart2;
@@ -38,6 +39,12 @@ extern struct pxa_device_desc mmp2_device_fb;
 extern struct pxa_device_desc mmp2_device_fb_ovly;
 extern struct pxa_device_desc mmp2_device_fb_tv;
 extern struct pxa_device_desc mmp2_device_hdmi;
+extern struct pxa_device_desc mmp2_device_sspa1;
+extern struct pxa_device_desc mmp2_device_sspa2;
+extern struct pxa_device_desc mmp2_device_audiosram;
+extern struct platform_device mmp_device_asoc_sspa1;
+extern struct platform_device mmp_device_asoc_sspa2;
+extern struct platform_device mmp_device_asoc_platform;
 
 extern struct platform_device pxa168_device_u2o;
 
@@ -127,9 +134,29 @@ static inline int mmp2_add_fb_tv(struct pxa168fb_mach_info *mi)
 {
        return pxa_register_device(&mmp2_device_fb_tv, mi, sizeof(*mi));
 }
+
 static inline int mmp2_add_hdmi(struct uio_hdmi_platform_data *data)
 {
 		return pxa_register_device(&mmp2_device_hdmi, data, sizeof(*data));
+}
+
+static inline int mmp2_add_audiosram(struct sram_bank *data)
+{
+	return pxa_register_device(&mmp2_device_audiosram, data, sizeof(*data));
+}
+
+static inline int mmp2_add_sspa(int id)
+{
+	struct pxa_device_desc *d = NULL;
+
+	switch (id) {
+	case 1: d = &mmp2_device_sspa1; break;
+	case 2: d = &mmp2_device_sspa2; break;
+	default:
+		return -EINVAL;
+	}
+
+	return pxa_register_device(d, NULL, 0);
 }
 
 #endif /* __ASM_MACH_MMP2_H */
