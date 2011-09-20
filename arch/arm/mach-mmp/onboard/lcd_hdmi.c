@@ -277,11 +277,30 @@ static struct pxa168fb_mach_info mmp2_tv_hdmi_info __initdata = {
 #endif
 };
 
+static struct pxa168fb_mach_info mmp2_tv_hdmi_ovly_info __initdata = {
+	.id			= "Video Layer - TV",
+	.num_modes		= ARRAY_SIZE(tv_video_modes),
+	.modes			= tv_video_modes,
+	.pix_fmt		= PIX_FMT_RGB565,
+	.panel_rgb_reverse_lanes= 0,
+	.invert_composite_blank = 0,
+	.invert_pix_val_ena     = 0,
+	.invert_pixclock        = 0,
+	.panel_rbswap           = 1,
+	.spi_gpio_cs            = -1,
+	.spi_gpio_reset         = -1,
+	.mmap			= 0,
+	.max_fb_size            = 1920 * 1080 * 8 + 4096,
+	.vdma_enable		= 0,
+};
+
 void __init mmp2_add_tv_out(void)
 {
 	struct pxa168fb_mach_info *fb = &mmp2_tv_hdmi_info;
+	struct pxa168fb_mach_info *ovly = &mmp2_tv_hdmi_ovly_info;
 
 	/* add frame buffer drivers */
 	mmp2_add_fb_tv(fb);
+	mmp2_add_fb_tv_ovly(ovly);
 }
 #endif
