@@ -307,6 +307,10 @@ int mmc_add_card(struct mmc_card *card)
 			(mmc_card_highspeed(card) ? "high speed " : ""),
 			mmc_card_ddr_mode(card) ? "DDR " : "",
 			type, card->rca);
+		printk(KERN_INFO "%s: ios: %d mhz, %d bit width\n",
+			mmc_hostname(card->host),
+			card->host->ios.clock,
+			1 << card->host->ios.bus_width);
 	}
 
 #ifdef CONFIG_DEBUG_FS
