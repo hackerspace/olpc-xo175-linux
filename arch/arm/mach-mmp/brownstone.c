@@ -577,6 +577,23 @@ static struct i2c_board_info brownstone_twsi4_info[] =
 		.platform_data  = &cm_platform_data,
 	},
 #endif
+#if defined(CONFIG_SENSORS_CM3213)
+	{
+		.type       = "cm3213_als_msb",
+		.addr       = (0x20>>1),
+		.platform_data  = &cm_platform_data,
+	},
+	{
+		.type       = "cm3213_als_lsb",
+		.addr       = (0x22>>1),
+		.platform_data  = &cm_platform_data,
+	},
+	{
+		.type       = "cm3213_int",
+		.addr       = (0x18>>1),
+		.platform_data  = &cm_platform_data,
+	},
+#endif
 };
 
 static struct i2c_board_info brownstone_twsi5_info[] = {
