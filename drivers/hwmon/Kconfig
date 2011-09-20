@@ -1319,6 +1319,12 @@ config SENSORS_CM3623
 	  This driver provides support for CM3623, which include light
 	  sensor and proximity sensor.
 
+config SENSORS_CM3213
+	tristate "CM3213 light sensor"
+	depends on I2C && INPUT
+	help
+		This driver provides support for CM3213.
+
 config SENSORS_WM8350
 	tristate "Wolfson Microelectronics WM835x"
 	depends on MFD_WM8350

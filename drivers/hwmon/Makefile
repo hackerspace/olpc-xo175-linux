@@ -123,6 +123,7 @@ obj-$(CONFIG_SENSORS_CWMI)      += cwmi.o
 obj-$(CONFIG_SENSORS_CWGD)      += cwgd.o
 obj-$(CONFIG_SENSORS_YAS529)	+= yas529.o
 obj-$(CONFIG_SENSORS_CM3623)	+= cm3623.o
+obj-$(CONFIG_SENSORS_CM3213)	+= cm3213.o
 obj-$(CONFIG_SENSORS_LSM303DLHC_ACC)	+=lsm303dlhc_acc.o
 obj-$(CONFIG_SENSORS_LSM303DLHC_MAG)	+=lsm303dlhc_mag.o
 obj-$(CONFIG_SENSORS_L3G4200D_GYR)	+=l3g4200d_gyr.o
