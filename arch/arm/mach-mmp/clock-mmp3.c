@@ -1036,7 +1036,7 @@ static int disp1_axi_clk_enable(struct clk *clk)
 	__raw_writel(val, clk->clk_rst);
 
 	/* release from reset */
-	val |= 1;
+	val |= 1 |  (1 << 1);
 	__raw_writel(val, clk->clk_rst);
 	return 0;
 }
@@ -1360,21 +1360,27 @@ static struct clk mmp3_clk_lcd1 = {
 static int hdmi_clk_enable(struct clk *clk)
 {
 	/*
-	 *hdmi clock enable is done by user space,
+	 * hdmi pll clock enable is done by user space,
 	 * to control it's dependence clock disp1_axi
-	 * here we must define this clk_enable function
+	 * here we just enable hdmi ref clock
 	 */
+	u32 val = __raw_readl(clk->clk_rst);
+	val |= (1 << 13);
+	__raw_writel(val, clk->clk_rst);
 	return 0;
 };
 
 static void hdmi_clk_disable(struct clk *clk)
 {
 	/*
-	 * hdmi clock disable is done by user space,
+	 * hdmi pll clock disable is done by user space,
 	 * to control it's dependence clock disp1_axi
-	 * here we must define this clk_disable function
+	 * here we just enable hdmi ref clock
 	 */
 
+	u32 val = __raw_readl(clk->clk_rst);
+	val &= ~(1 << 13);
+	__raw_writel(val, clk->clk_rst);
 	return;
 };
 
@@ -1388,6 +1394,7 @@ static struct clk mmp3_clk_hdmi = {
 	.lookup = {
 		.con_id = "HDMICLK",
 	},
+	.clk_rst = (void __iomem *)APMU_LCD_CLK_RES_CTRL,
 	.ops = &hdmi_clk_ops,
 	.dependence = disp_depend_clk,
 	.dependence_count = ARRAY_SIZE(disp_depend_clk),
