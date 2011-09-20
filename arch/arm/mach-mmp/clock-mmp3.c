@@ -2571,22 +2571,6 @@ struct clkops uart_clk_ops = {
 	.setrate = uart_clk_setrate,
 };
 
-static int rtc_clk_enable(struct clk *clk)
-{
-	uint32_t clk_rst;
-
-	clk_rst = APBC_APBCLK | APBC_FNCLK | APBC_FNCLKSEL(clk->fnclksel);
-	clk_rst |= 1 << 7;
-	__raw_writel(clk_rst, clk->clk_rst);
-
-	return 0;
-}
-
-static void rtc_clk_disable(struct clk *clk)
-{
-	__raw_writel(0, clk->clk_rst);
-}
-
 static void nand_clk_init(struct clk *clk)
 {
 	clk->div = 8;
@@ -2684,11 +2668,6 @@ struct clkops nand_clk_ops = {
 	.disable = nand_clk_disable,
 	.round_rate = nand_clk_round_rate,
 	.setrate = nand_clk_setrate,
-};
-
-struct clkops rtc_clk_ops = {
-	.enable = rtc_clk_enable,
-	.disable = rtc_clk_disable,
 };
 
 static int apmu_clk_enable(struct clk *clk)
@@ -2880,6 +2859,13 @@ static struct clk mmp3_list_clks[] = {
 			0, 26000000, &mmp3_clk_vctcxo),
 	APBC_CLK("keypad", "pxa27x-keypad", NULL, MMP2_KPC,
 			0, 32768, &mmp3_clk_32k),
+	/*
+	 * Bit 7 in APBC_RTC_CLK_RST must be set before enabling
+	 * RTC operations.
+	 */
+	APBC_CLK("rtc", "mmp-rtc", NULL, MMP2_RTC,
+			0x8, 32768, &mmp3_clk_32k),
+
 	APBC_CLK_OPS("pwm1", "mmp2-pwm.0", NULL, MMP2_PWM0,
 			0, 26000000, &mmp3_clk_vctcxo, &pwm_clk_ops),
 	APBC_CLK_OPS("pwm2", "mmp2-pwm.1", NULL, MMP2_PWM1,
@@ -2896,8 +2882,6 @@ static struct clk mmp3_list_clks[] = {
 			1, 26000000, &mmp3_clk_vctcxo, &uart_clk_ops),
 	APBC_CLK_OPS("uart4", "pxa2xx-uart.3", NULL, MMP2_UART4,
 			1, 26000000, &mmp3_clk_vctcxo, &uart_clk_ops),
-	APBC_CLK_OPS("rtc", "mmp-rtc", NULL, MMP2_RTC,
-			0, 32768, &mmp3_clk_32k, &rtc_clk_ops),
 	APMU_CLK("u2o", NULL, "U2OCLK", USB,
 			0x9, 480000000, NULL),
 	APMU_CLK_OPS("nand", "pxa3xx-nand", NULL, NAND,
