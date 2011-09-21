@@ -36,6 +36,7 @@
 #include <linux/i2c/tpk_r800.h>
 #include <mach/axis_sensor.h>
 #include <linux/power/isl9519.h>
+#include <linux/power/max17042_battery.h>
 #include "common.h"
 #include "onboard.h"
 #include <linux/cwmi.h>
@@ -98,6 +99,8 @@ static unsigned long brownstone_pin_config[] __initdata = {
 
 	/* PMIC */
 	PMIC_PMIC_INT | MFP_LPM_EDGE_FALL,
+	/* Low battery Alert */
+	GPIO123_GPIO | MFP_LPM_EDGE_FALL,
 	GPIO45_WM8994_LDOEN,
 
 	/* MMC0 */
@@ -332,6 +335,19 @@ static struct isl9519_charger_pdata isl9519_pdata = {
 };
 #endif
 
+#ifdef CONFIG_BATTERY_MAX17042
+static struct max17042_platform_data max17042_pdata = {
+	.bat_design_cap = 1400 * 2,	/* mAh */
+	.bat_ichg_term = 50000,	/* µA */
+	.r_sns = 10000,	/* micro-ohms */
+	.monitor_interval = 60,	/* seconds */
+	.rsvd_cap = 0,	/* mAh, range: 0~20% */
+	/* gpio used for low battery(rsvd_cap%) alert and wake up */
+	.alert_gpio_en = 1,
+	.alert_gpio = mfp_to_gpio(GPIO123_GPIO),
+};
+#endif
+
 static struct i2c_board_info brownstone_twsi1_info[] = {
 	[0] = {
 		.type		= "max8649",
@@ -349,6 +365,13 @@ static struct i2c_board_info brownstone_twsi1_info[] = {
 		.type = "isl9519",
 		.addr = 0x09,
 		.platform_data = &isl9519_pdata,
+	},
+#endif
+#ifdef CONFIG_BATTERY_MAX17042
+	[3] = {
+		.type = "max17042",
+		.addr = 0x36,
+		.platform_data = &max17042_pdata,
 	},
 #endif
 };
