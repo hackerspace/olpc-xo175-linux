@@ -393,7 +393,7 @@ static int __devinit device_gpadc_init(struct pm860x_chip *chip,
 	/* initialize GPADC without activating it */
 
 	if (!pdata || !pdata->touch)
-		return -EINVAL;
+		return 0;
 
 	/* set GPADC MISC1 register */
 	data = 0;
