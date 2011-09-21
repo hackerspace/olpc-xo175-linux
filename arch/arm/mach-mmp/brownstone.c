@@ -275,8 +275,18 @@ static struct regulator_init_data regulator_data[] = {
 	[MAX8925_ID_LDO20] = REG_INIT(LDO20, 750000, 3900000, 0, 0),
 };
 
+/* max8925 power for battery/charger */
+static struct max8925_power_pdata brownstone_power_data = {
+	.batt_detect		= 0,	/* can't detect battery by ID pin */
+	.topoff_threshold	= MAX8925_TOPOFF_THR_10PER,
+	.fast_charge		= MAX8925_FCHG_1000MA,
+	.bat_max8925_en		= 0,	/* battery monitor en/disable */
+	.chg_port_config	= CHG_PORT_WALL,	/* PMIC wired config */
+};
+
 static struct max8925_platform_data brownstone_max8925_info = {
 	.irq_base		= IRQ_BOARD_START,
+	.power			= &brownstone_power_data,
 
 	.regulator[MAX8925_ID_SD1] = &regulator_data[MAX8925_ID_SD1],
 	.regulator[MAX8925_ID_SD2] = &regulator_data[MAX8925_ID_SD2],
