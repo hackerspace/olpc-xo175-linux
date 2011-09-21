@@ -990,7 +990,7 @@ static struct platform_device *devices[] __initdata = {
 
 static int __init pxa95x_init(void)
 {
-	int ret = 0, i;
+	int ret = 0;
 
 	if (cpu_is_pxa95x()) {
 #ifdef CONFIG_CACHE_TAUROS2
@@ -1022,6 +1022,10 @@ static int __init pxa95x_init(void)
 		register_syscore_ops(&pxa3xx_clock_syscore_ops);
 
 		ret = platform_add_devices(devices, ARRAY_SIZE(devices));
+
+		pxa_set_ffuart_info(NULL);
+		pxa_set_stuart_info(NULL);
+
 		/* Set vmeta clock as 312MHz always */
 		ACCR |=  0x00200000;
 	}

@@ -796,8 +796,6 @@ static void __init saarb_init(void)
 	regulator_init();
 	set_i2c_touch();
 
-	pxa_set_ffuart_info(NULL);
-
 	platform_device_add_data(&pxa95x_device_i2c1, &i2c1_pdata,
 				 sizeof(i2c1_pdata));
 	platform_device_add_data(&pxa95x_device_i2c2, &i2c2_pdata,
