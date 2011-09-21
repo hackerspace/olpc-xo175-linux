@@ -43,13 +43,6 @@
 
 #define NEVOSAARC_NR_IRQS	(IRQ_BOARD_START + 40)
 
-#if defined(CONFIG_TOUCHSCREEN_VNC)
-static struct platform_device vnc_device = {
-	.name	= "vnc-ts",
-	.id	= -1,
-};
-#endif
-
 static struct pm860x_backlight_pdata backlight[] = {
 	{
 		/*backlight data*/
@@ -236,9 +229,6 @@ static struct platform_device *devices[] __initdata = {
 	&pxa95x_device_i2c1,
 	&pxa95x_device_i2c2,
 	&pxa95x_device_i2c3,
-#if defined(CONFIG_TOUCHSCREEN_VNC)
-	&vnc_device,
-#endif
 };
 
 #if defined(CONFIG_UIO_VMETA)

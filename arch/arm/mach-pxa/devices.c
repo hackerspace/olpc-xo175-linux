@@ -1679,3 +1679,10 @@ struct platform_device pxa9xx_device_u2o = {
 };
 
 #endif
+
+#if defined(CONFIG_TOUCHSCREEN_VNC)
+struct platform_device vnc_device = {
+	.name	= "vnc-ts",
+	.id	= -1,
+};
+#endif

@@ -981,8 +981,11 @@ static struct platform_device *devices[] __initdata = {
 	&pxa_device_asoc_abu,
 	&pxa_device_asoc_abu_platform,
 #if defined(CONFIG_PXA9XX_ACIPC)
-        &pxa930_acipc_device,
+	&pxa930_acipc_device,
 #endif /*CONFIG_PXA9XX_ACIPC*/
+#if defined(CONFIG_TOUCHSCREEN_VNC)
+	&vnc_device,
+#endif
 };
 
 static int __init pxa95x_init(void)
