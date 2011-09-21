@@ -252,6 +252,7 @@ config SND_MMP_SOC_MMP3ASOC
 	depends on SND_MMP_SOC && (MACH_ABILENE || MACH_YELLOWSTONE)
 	select MFD_WM8994
 	select SND_SOC_WM8994
+	select SND_SOC_HDMI
 	select REGULATOR_FIXED_VOLTAGE
 	help
 	  Say Y if you want to add support for SoC audio on MMP3

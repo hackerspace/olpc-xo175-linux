@@ -88,10 +88,10 @@ static const struct snd_pcm_hardware mmp2_pcm_hardware_playback = {
 	.formats = SNDRV_PCM_FMTBIT_S16_LE |
 	    SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S32_LE,
 	.period_bytes_min = 32,
-	.period_bytes_max = 20 * 1024,
+	.period_bytes_max = 10 * 1024,
 	.periods_min = 1,
 	.periods_max = PAGE_SIZE / sizeof(mmp_tdma_desc),
-	.buffer_bytes_max = 60 * 1024,
+	.buffer_bytes_max = 24 * 1024,
 	.fifo_size = 32,
 };
 
@@ -103,10 +103,10 @@ static const struct snd_pcm_hardware mmp2_pcm_hardware_capture = {
 	.formats = SNDRV_PCM_FMTBIT_S16_LE |
 	    SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S32_LE,
 	.period_bytes_min = 32,
-	.period_bytes_max = 20 * 1024,
+	.period_bytes_max = 10 * 1024,
 	.periods_min = 1,
 	.periods_max = PAGE_SIZE / sizeof(mmp_tdma_desc),
-	.buffer_bytes_max = 56 * 1024,
+	.buffer_bytes_max = 24 * 1024,
 	.fifo_size = 32,
 };
 

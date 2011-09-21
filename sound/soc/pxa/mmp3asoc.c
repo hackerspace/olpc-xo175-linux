@@ -241,7 +241,7 @@ int wm8994_headset_detect(void)
 }
 #endif
 
-static int codec_hdmi_init(struct snd_soc_codec *codec)
+static int codec_hdmi_init(struct snd_soc_pcm_runtime *rtd)
 {
 	return 0;
 }
@@ -441,7 +441,7 @@ static int mmp3asoc_probe(struct snd_soc_card *card)
 	return 0;
 }
 
-static int mmp3asoc_hifi_startup(struct snd_pcm_substream *substream)
+static int mmp3asoc_hdmi_startup(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
@@ -455,6 +455,39 @@ static int mmp3asoc_hifi_startup(struct snd_pcm_substream *substream)
 	return 0;
 }
 
+static int mmp3asoc_hdmi_hw_params(struct snd_pcm_substream *substream,
+			      struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	int freq_in, freq_out, sspa_mclk, sysclk, sspa_div;
+
+	pr_debug("%s: enter, rate %d\n", __func__, params_rate(params));
+
+	freq_in = 26000000;
+	if (params_rate(params) > 11025) {
+		freq_out = params_rate(params) * 512;
+		sysclk = params_rate(params) * 256;
+		sspa_mclk = params_rate(params) * 32;
+	} else {
+		freq_out = params_rate(params) * 1024;
+		sysclk = params_rate(params) * 512;
+		sspa_mclk = params_rate(params) * 64;
+	}
+	sspa_div = freq_out;
+	do_div(sspa_div, sspa_mclk);
+
+	snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_I2S |
+			    SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBS_CFS);
+	snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_I2S |
+			    SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBS_CFS);
+	snd_soc_dai_set_pll(cpu_dai, SSPA_AUDIO_PLL, 0, freq_in, freq_out);
+	snd_soc_dai_set_clkdiv(cpu_dai, 0, sspa_div);
+	snd_soc_dai_set_sysclk(cpu_dai, 0, sysclk, 0);
+
+	return 0;
+}
 static int mmp3asoc_wm8994_startup(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -473,7 +506,7 @@ static int mmp3asoc_wm8994_startup(struct snd_pcm_substream *substream)
 	return 0;
 }
 
-static int mmp3asoc_hw_params(struct snd_pcm_substream *substream,
+static int mmp3asoc_wm8994_hw_params(struct snd_pcm_substream *substream,
 			      struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -532,17 +565,17 @@ static int mmp3asoc_resume_pre(struct snd_soc_card *card)
 /* machine stream operations */
 static struct snd_soc_ops mmp3asoc_machine_ops[] = {
 	{
-	 .startup = mmp3asoc_hifi_startup,
-	 .hw_params = mmp3asoc_hw_params,
+	 .startup = mmp3asoc_hdmi_startup,
+	 .hw_params = mmp3asoc_hdmi_hw_params,
 	 },
 	{
 	 .startup = mmp3asoc_wm8994_startup,
-	 .hw_params = mmp3asoc_hw_params,
+	 .hw_params = mmp3asoc_wm8994_hw_params,
 	 },
 };
 
 /* digital audio interface glue - connects codec <--> CPU */
-static struct snd_soc_dai_link mmp3asoc_dai[] = {
+static struct snd_soc_dai_link mmp3_asoc_wm8994_dai[] = {
 	{
 	 .name = "WM8994 I2S",
 	 .stream_name = "I2S Audio",
@@ -555,11 +588,24 @@ static struct snd_soc_dai_link mmp3asoc_dai[] = {
 	 },
 };
 
+static struct snd_soc_dai_link mmp3_asoc_hdmi_dai[] = {
+	{
+	 .name = "HDMI",
+	 .stream_name = "hdmi Audio",
+	 .codec_name = "dummy-codec",
+	 .platform_name = "mmp3-pcm-audio",
+	 .cpu_dai_name = "mmp3-sspa-dai.0",
+	 .codec_dai_name = "dummy-dai",
+	 .ops = &mmp3asoc_machine_ops[0],
+	 .init = codec_hdmi_init,
+	 },
+};
+
 /* audio machine driver */
 static struct snd_soc_card snd_soc_mmp3asoc[] = {
 	{
 	 .name = "mmp3 asoc",
-	 .dai_link = &mmp3asoc_dai[0],
+	 .dai_link = &mmp3_asoc_wm8994_dai[0],
 	 .num_links = 1,
 	 .probe = mmp3asoc_probe,
 #ifdef CONFIG_PM
@@ -567,29 +613,40 @@ static struct snd_soc_card snd_soc_mmp3asoc[] = {
 	 .resume_pre = mmp3asoc_resume_pre,
 #endif
 	 },
+	{
+	 .name = "mmp3 hdmi",
+	 .dai_link = &mmp3_asoc_hdmi_dai[0],
+	 .num_links = 1,
+	 .probe = mmp3asoc_probe,
+	 },
 };
 
 static int __init mmp3asoc_init(void)
 {
-	int ret[3];
+	int i, ret[2];
 
 	if (!machine_is_abilene())
 		return -ENODEV;
-	mmp3asoc_snd_device[0] = platform_device_alloc("soc-audio", 0);
-	if (!mmp3asoc_snd_device[0])
-		return -ENOMEM;
-	platform_set_drvdata(mmp3asoc_snd_device[0], &snd_soc_mmp3asoc[0]);
-	ret[0] = platform_device_add(mmp3asoc_snd_device[0]);
 
-	if (ret[0])
-		platform_device_put(mmp3asoc_snd_device[0]);
+	for (i = 0; i < 2; i++) {
+		mmp3asoc_snd_device[i] = platform_device_alloc("soc-audio", i);
+		if (!mmp3asoc_snd_device[i])
+			return -ENOMEM;
+		platform_set_drvdata(mmp3asoc_snd_device[i], &snd_soc_mmp3asoc[i]);
+		ret[i] = platform_device_add(mmp3asoc_snd_device[i]);
 
-	return ret[0];
+		if (ret[i])
+			platform_device_put(mmp3asoc_snd_device[i]);
+	}
+
+	return ret[1];
 }
 
 static void __exit mmp3asoc_exit(void)
 {
-	platform_device_unregister(mmp3asoc_snd_device[0]);
+	int i;
+	for (i = 0; i < 2; i++)
+		platform_device_unregister(mmp3asoc_snd_device[i]);
 }
 
 module_init(mmp3asoc_init);
