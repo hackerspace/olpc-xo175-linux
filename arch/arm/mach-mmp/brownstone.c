@@ -35,6 +35,7 @@
 #include <plat/usb.h>
 #include <linux/i2c/tpk_r800.h>
 #include <mach/axis_sensor.h>
+#include <linux/power/isl9519.h>
 #include "common.h"
 #include "onboard.h"
 #include <linux/cwmi.h>
@@ -313,6 +314,24 @@ static struct max8925_platform_data brownstone_max8925_info = {
 	.regulator[MAX8925_ID_LDO20] = &regulator_data[MAX8925_ID_LDO20],
 };
 
+#ifdef CONFIG_CHARGER_ISL9519
+/* Batteries supplied to */
+static char *isl9519_supplied_to[] = {
+	"max17042-battery",
+};
+
+static struct isl9519_charger_pdata isl9519_pdata = {
+	.max_sys_vol = 4208,	/* max system voltage: mV */
+	.min_sys_vol = 3328,	/* min system voltage: mV */
+	.chg_cur = 2048,	/* charge current: mA */
+	.input_cur = 2048,	/* input current limit: mA */
+	.stay_awake_en = 1,	/* en/disable system stay awake when charging */
+	.update_interval = 120,	/* update interval: second */
+	.supplied_to = isl9519_supplied_to,
+	.num_supplicants = ARRAY_SIZE(isl9519_supplied_to),
+};
+#endif
+
 static struct i2c_board_info brownstone_twsi1_info[] = {
 	[0] = {
 		.type		= "max8649",
@@ -325,6 +344,13 @@ static struct i2c_board_info brownstone_twsi1_info[] = {
 		.irq		= IRQ_MMP2_PMIC,
 		.platform_data	= &brownstone_max8925_info,
 	},
+#ifdef CONFIG_CHARGER_ISL9519
+	[2] = {
+		.type = "isl9519",
+		.addr = 0x09,
+		.platform_data = &isl9519_pdata,
+	},
+#endif
 };
 
 static struct sdhci_pxa_platdata mmp2_sdh_platdata_mmc0 = {
