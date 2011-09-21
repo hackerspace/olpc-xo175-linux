@@ -37,6 +37,8 @@
 #include <mach/axis_sensor.h>
 #include "common.h"
 #include "onboard.h"
+#include <linux/cwmi.h>
+#include <linux/cwgd.h>
 
 #define BROWNSTONE_NR_IRQS	(IRQ_BOARD_START + 40)
 
@@ -540,12 +542,56 @@ static int cm_set_power(int on)
 	return 0;
 }
 
+static int cywee_set_power(int on)
+{
+	static struct regulator *v_ldo8;
+	if(on) {
+		v_ldo8 = regulator_get(NULL, "v_ldo8");
+		if (IS_ERR(v_ldo8)) {
+			v_ldo8 = NULL;
+			return -EIO;
+		} else {
+			regulator_set_voltage(v_ldo8, 2800000, 2800000);
+			regulator_enable(v_ldo8);
+		}
+	} else {
+		regulator_disable(v_ldo8);
+		regulator_put(v_ldo8);
+		v_ldo8 = NULL;
+	}
+	msleep(100);
+	return 0;
+}
+
 static struct touchscreen_platform_data tpk_r800_data = {
 	.set_power  = r800_set_power,
 };
 
 static struct axis_sensor_platform_data cm_platform_data = {
 	.set_power  = cm_set_power,
+};
+static struct cwmi_platform_data cwmi_acc_data = {
+	.set_power = cywee_set_power,
+	.axes = {
+		-1, 0, 0,
+		0, 1, 0,
+		0, 0, 1},
+};
+
+static struct cwmi_platform_data cwmi_mag_data = {
+	.set_power = cywee_set_power,
+	.axes = {
+		1, 0, 0,
+		0, -1, 0,
+		0, 0, -1},
+};
+
+static struct cwgd_platform_data cwgd_plat_data = {
+	.set_power = cywee_set_power,
+	.axes = {
+		1, 0, 0,
+		0, -1, 0,
+		0, 0, -1},
 };
 
 static struct i2c_board_info brownstone_twsi4_info[] =
@@ -592,6 +638,26 @@ static struct i2c_board_info brownstone_twsi4_info[] =
 		.type       = "cm3213_int",
 		.addr       = (0x18>>1),
 		.platform_data  = &cm_platform_data,
+	},
+#endif
+#if defined(CONFIG_SENSORS_CWMI)
+	{
+		.type       = "cwmi_acc",
+		.addr       = 0x19, /* Write addr 0x32, read addr 0x33*/
+		.platform_data  = &cwmi_acc_data,
+	},
+	{
+		.type       = "cwmi_mag",
+		.addr       = 0x1e, /*write addr 0x3C, read addr 0x3D*/
+		.platform_data  = &cwmi_mag_data,
+	},
+#endif
+#if defined(CONFIG_SENSORS_CWGD)
+	{
+		.type       = "cwgd",
+		.addr       = 0x68, /*R1 mount(High) write=0xD2, Read=0xD3 */
+		                    /*R1 mount(Low) write=0xD0, Read=0xD1 */
+		.platform_data  = &cwgd_plat_data,
 	},
 #endif
 };
