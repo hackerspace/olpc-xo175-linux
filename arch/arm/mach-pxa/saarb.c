@@ -687,8 +687,30 @@ static void __init init_lcd(void)
 	} else {
 		set_pxa95x_fb_info(&lcd_info);
 		set_pxa95x_fb_ovly_info(&lcd_ovly_info, 0);
+#ifdef CONFIG_HDMI_SI9226
+		set_pxa95x_fb_ovly_info(&hdmi_ovly_info, 1);
+#endif
 	}
 }
+#endif
+
+#if defined(CONFIG_HDMI_SI9226)
+static void SI9226_hdmi_power(struct device *dev, int on)
+{
+	printk(KERN_INFO "SI9226 hdmi power %s\n", on?"on":"off");
+	if (gpio_request(mfp_to_gpio(MFP_PIN_GPIO43), "hdmi reset"))
+		printk(KERN_ERR "hdmi gpio_request: failed!\n");
+
+	if (on) {
+		gpio_direction_output(mfp_to_gpio(MFP_PIN_GPIO43), 0);
+		msleep(1);
+		gpio_direction_output(mfp_to_gpio(MFP_PIN_GPIO43), 1);
+	} else
+		gpio_direction_output(mfp_to_gpio(MFP_PIN_GPIO43), 0);
+	gpio_free(mfp_to_gpio(MFP_PIN_GPIO43));
+	msleep(10);
+}
+
 #endif
 
 #if defined(CONFIG_MMC_SDHCI_PXAV2_TAVOR)
@@ -741,6 +763,18 @@ static struct i2c_board_info i2c2_info[] = {
 	 .addr = 0x5c,
 	 .platform_data = ssd2531_ts_pins,
 	 },
+#endif
+
+#if defined(CONFIG_HDMI_SI9226)
+	{
+		.type		= "SI9226",
+		.addr		= 0x3B,
+		.platform_data = SI9226_hdmi_power,
+	},
+	{
+		.type		= "SI9226-ctrl",
+		.addr		= 0x66,
+	},
 #endif
 };
 
