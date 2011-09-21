@@ -1150,3 +1150,11 @@ config HDMI_ADV7533
           This is a ADV7533 hdmi chip driver for PXA95x platform.
           This chip converts DSI signal to hdmi signal.
           This chip is registered as an i2c client.
+
+config MV_IHDMI
+        tristate "Marvell internal hdmi support"
+        depends on I2C && FB_PXA95x && CPU_PXA970
+        ---help---
+          This is a Marvell internal hdmi driver.
+          This chip connects directly with internal
+           hdmi of Marvell soc chip.
