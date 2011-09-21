@@ -247,4 +247,15 @@ config CHARGER_GPIO
 	  This driver can be build as a module. If so, the module will be
 	  called gpio-charger.
 
+config CHARGER_ISL9519
+	tristate "ISL9519 battery charger support"
+	depends on I2C
+	help
+	  Say Y here to enable support for isl9519 battery charger.
+	  The ISL9519Q is a highly integrated Narrow VDC system voltage
+	  regulator and battery charger controller. Operating parameters
+	  are programmable over the System Management Bus (SMBus).
+	  The ISL9519Q is designed for applications where the system power
+	  is either the battery pack or the output of the regulator/charger.
+
 endif # POWER_SUPPLY
