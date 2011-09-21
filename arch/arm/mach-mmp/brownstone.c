@@ -32,6 +32,7 @@
 #include <mach/tc35876x.h>
 #include <mach/pxa168fb.h>
 #include <mach/uio_hdmi.h>
+#include <mach/mmp2_plat_ver.h>
 #include <plat/usb.h>
 #include <linux/i2c/tpk_r800.h>
 #include <mach/axis_sensor.h>
@@ -157,6 +158,12 @@ static unsigned long brownstone_pin_config[] __initdata = {
 
 	/* CM3623 INT */
 	GPIO92_GPIO | MFP_PULL_HIGH,
+
+	/* platform version */
+	GPIO125_VERS0,
+	GPIO126_VERS1,
+	GPIO127_VERS2,
+	GPIO128_VERS3,
 };
 
 static struct regulator_consumer_supply max8649_supply[] = {
@@ -761,6 +768,8 @@ static struct sram_bank mmp2_audiosram_info = {
 static void __init brownstone_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(brownstone_pin_config));
+
+	mmp2_get_platform_version();
 
 	/* on-chip devices */
 	mmp2_add_uart(1);

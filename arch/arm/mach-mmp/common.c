@@ -32,6 +32,8 @@ EXPORT_SYMBOL(mmp_chip_id);
 unsigned int mmp_fuse_id;
 EXPORT_SYMBOL(mmp_fuse_id);
 
+int mmp2_platform_version;
+
 static struct map_desc standard_io_desc[] __initdata = {
 	{
 		.pfn		= __phys_to_pfn(APB_PHYS_BASE),
