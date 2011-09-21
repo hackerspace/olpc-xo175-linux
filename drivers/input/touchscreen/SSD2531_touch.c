@@ -42,8 +42,6 @@
 #define TOUCHSCREEN_WIDTH_MAX				(15)
 #define TOUCHSCREEN_ID_MIN					(0)
 #define TOUCHSCREEN_ID_MAX					(3)
-#define TOUCHSCREEN_INT_GPIO				MFP_PIN_GPIO78
-#define TOUCHSCREEN__RESET_GPIO				MFP_PIN_GPIO70
 
 /*////////////////////////////////////////////////////////////////////////*/
 static int ssd2531_ts_reset(void);
@@ -132,6 +130,8 @@ struct ssd2531_ts_data {
 	struct finger_info prev_finger_info[MAX_NUM_OF_POINTS];
 	int btn_info[MAX_NUM_OF_POINTS];
 	int b_is_suspended;
+	int mfp_gpio_pin_int;
+	int mfp_gpio_pin_reset;
 /*	struct work_struct	work;*/
 };
 
@@ -355,15 +355,15 @@ static int ssd2531_ts_reset(void)
 	unsigned rst_gpio;
 	unsigned inr_gpio;
 	mfp_cfg_t config[] = {
-		TOUCHSCREEN_INT_GPIO | MFP_LPM_EDGE_FALL,
+		g_p_ssd2531_data->mfp_gpio_pin_int | MFP_LPM_EDGE_FALL,
 	};
 
 	dev_dbg(&(g_p_ssd2531_data->input_dev->dev), "++ssd2531_ts_reset\n");
 
-	rst_gpio = mfp_to_gpio(TOUCHSCREEN__RESET_GPIO);
+	rst_gpio = mfp_to_gpio(g_p_ssd2531_data->mfp_gpio_pin_reset);
 	dev_dbg(&(g_p_ssd2531_data->input_dev->dev), "rst_gpio value is %d",
 		rst_gpio);
-	inr_gpio = mfp_to_gpio(TOUCHSCREEN_INT_GPIO);
+	inr_gpio = mfp_to_gpio(g_p_ssd2531_data->mfp_gpio_pin_int);
 	if (gpio_request(rst_gpio, "ssd2531_reset")) {
 		printk(KERN_ERR "Request GPIO failed," "gpio: %d\n", rst_gpio);
 		return -EIO;
@@ -580,6 +580,7 @@ static int __devinit
 ssd2531_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	int ret = 0;
+	int *mfp_pins;
 	struct proc_dir_entry *ssd2531_ts_proc_entry;
 	unsigned long flags = IRQF_TRIGGER_FALLING | IRQF_ONESHOT;
 
@@ -589,9 +590,17 @@ ssd2531_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		       "called SSD2531_i2c_probe but device data is not NULL!!");
 		return -ENOMEM;
 	}
+
+	mfp_pins = (int *)client->dev.platform_data;
+	if (mfp_pins == NULL)
+		return -EINVAL;
+
 	g_p_ssd2531_data = kzalloc(sizeof(struct ssd2531_ts_data), GFP_KERNEL);
 	if (!g_p_ssd2531_data)
 		return -ENOMEM;
+
+	g_p_ssd2531_data->mfp_gpio_pin_int = mfp_pins[0];
+	g_p_ssd2531_data->mfp_gpio_pin_reset = mfp_pins[1];
 
 	g_p_ssd2531_data->prev_finger_bitmask = 0;
 	g_p_ssd2531_data->b_is_suspended = 0;
@@ -669,7 +678,7 @@ ssd2531_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	}
 	/*register irq */
 	g_p_ssd2531_data->client->irq =
-	    IRQ_GPIO(mfp_to_gpio(TOUCHSCREEN_INT_GPIO));
+	    IRQ_GPIO(mfp_to_gpio(g_p_ssd2531_data->mfp_gpio_pin_int));
 	printk(KERN_NOTICE "received IRQ # %d\n",
 	       g_p_ssd2531_data->client->irq);
 
