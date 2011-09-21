@@ -1485,6 +1485,7 @@ static int i2c_pxa_do_xfer_with_fifo(struct pxa_i2c *i2c, struct i2c_msg *msg, i
 			i2c->msg_ptr = 0;
 			i2c->msg = NULL;
 			i2c->msg_idx++;
+			ret = i2c->msg_idx;
 			i2c->msg_num = 0;
 		}
 	}
@@ -2596,6 +2597,7 @@ static int i2c_pxa_do_xfer_with_dma(struct pxa_i2c *i2c, struct i2c_msg *msg, in
 			i2c->msg_ptr = 0;
 			i2c->msg = NULL;
 			i2c->msg_idx++;
+			ret = i2c->msg_idx;
 			i2c->msg_num = 0;
 		}
 	}
