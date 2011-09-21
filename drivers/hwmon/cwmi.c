@@ -29,6 +29,7 @@
 #include <linux/interrupt.h>
 #include <linux/cwmi.h>
 #include <linux/slab.h>
+#include <linux/earlysuspend.h>
 
 #define USE_VIRTUAL_ORIENTATION_SENSOR		1
 
@@ -165,6 +166,9 @@ struct i2c_cwmi_sensor {
 
 	unsigned int sample_interval;
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	struct early_suspend early_suspend;
+#endif
 	atomic_t enabled;
 	struct mutex lock;
 	int zero_offset[3];
@@ -460,6 +464,8 @@ static int cwmi_mag_enable(struct i2c_cwmi_sensor *sensor, int enabled)
 {
 	if (enabled) {
 		if (!atomic_cmpxchg(&sensor->enabled, 0, 1)) {
+			if (((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power)
+				((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power(1);
 			if (cwmi_mag_power_on(sensor)) {
 				atomic_cmpxchg(&sensor->enabled, 1, 0);
 				pr_err("CWMI: magnetometer power on failed.\n");
@@ -481,15 +487,13 @@ static int cwmi_mag_enable(struct i2c_cwmi_sensor *sensor, int enabled)
 				    (sensor, CTRL_REG6_A, &value, 1))
 					return -1;
 				value = CTRL_REG6_A_VAL;
-				if (cwmi_i2c_write
-				    (sensor, CTRL_REG6_A, &value, 1))
+				if (cwmi_i2c_write(sensor, CTRL_REG6_A, &value, 1))
 					return -1;
 				enable_irq(sensor->client->irq);
 			} else
 				schedule_delayed_work(&sensor->input_work,
 						      msecs_to_jiffies
-						      (sensor->
-						       sample_interval));
+						      (sensor->sample_interval));
 
 			pr_debug("cwmi magnetometer enabled\n");
 		}
@@ -502,6 +506,8 @@ static int cwmi_mag_enable(struct i2c_cwmi_sensor *sensor, int enabled)
 				cancel_delayed_work_sync(&sensor->input_work);
 			cwmi_ori_report_control(sensor);
 			cwmi_mag_power_off(sensor);
+			if (((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power)
+				((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power(0);
 			pr_debug("cwmi magnetometer disabled\n");
 		}
 	}
@@ -564,6 +570,8 @@ static int cwmi_acc_enable(struct i2c_cwmi_sensor *sensor, int enabled)
 {
 	if (enabled) {
 		if (!atomic_cmpxchg(&sensor->enabled, 0, 1)) {
+			if (((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power)
+				((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power(1);
 			if (cwmi_acc_power_on(sensor)) {
 				atomic_cmpxchg(&sensor->enabled, 1, 0);
 				pr_err
@@ -576,8 +584,7 @@ static int cwmi_acc_enable(struct i2c_cwmi_sensor *sensor, int enabled)
 			else
 				schedule_delayed_work(&sensor->input_work,
 						      msecs_to_jiffies
-						      (sensor->
-						       sample_interval));
+						      (sensor->sample_interval));
 
 			pr_debug("cwmi accelerometer enabled\n");
 		}
@@ -591,6 +598,8 @@ static int cwmi_acc_enable(struct i2c_cwmi_sensor *sensor, int enabled)
 			cwmi_acc_power_off(sensor);
 
 			pr_debug("cwmi accelerometer disabled\n");
+			if (((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power)
+				((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power(0);
 		}
 	}
 
@@ -692,11 +701,11 @@ static int status_show(struct device *dev,
 	return 0;
 }
 
-static DEVICE_ATTR(active, S_IRUGO | S_IWUGO, active_show, active_set);
-static DEVICE_ATTR(interval, S_IRUGO | S_IWUGO, interval_show, interval_set);
+static DEVICE_ATTR(active, S_IRUGO | S_IWUSR | S_IWGRP, active_show, active_set);
+static DEVICE_ATTR(interval, S_IRUGO | S_IWUSR | S_IWGRP, interval_show, interval_set);
 static DEVICE_ATTR(data, S_IRUGO, data_show, NULL);
-static DEVICE_ATTR(wake, S_IRUGO | S_IWUGO, NULL, wake_set);
-static DEVICE_ATTR(status, S_IRUGO | S_IWUGO, status_show, NULL);
+static DEVICE_ATTR(wake, S_IWUSR | S_IWGRP, NULL, wake_set);
+static DEVICE_ATTR(status, S_IRUGO, status_show, NULL);
 
 static struct attribute *sysfs_attributes[] = {
 	&dev_attr_status.attr,
@@ -726,8 +735,8 @@ static int cwmi_align_axis(struct i2c_cwmi_sensor *sensor, int *aligned_data)
 	}
 
 	axes =
-	    ((struct cwmi_platform_data *)sensor->client->dev.platform_data)->
-	    axes;
+	    ((struct cwmi_platform_data *)sensor->client->dev.
+	     platform_data)->axes;
 	for (i = 0; i < 3; i++) {
 		sum = 0;
 		for (j = 0; j < 3; j++)
@@ -998,11 +1007,31 @@ static int cwmi_ori_input_init(struct i2c_cwmi_sensor *sensor)
 }
 #endif
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void cwmi_early_suspend(struct early_suspend *h)
+{
+	struct i2c_cwmi_sensor *sensor =
+		container_of(h, struct i2c_cwmi_sensor, early_suspend);
+	if (((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power)
+		((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power(0);
+}
+static void cwmi_late_resume(struct early_suspend *h)
+{
+	struct i2c_cwmi_sensor *sensor =
+		container_of(h, struct i2c_cwmi_sensor, early_suspend);
+	if (((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power)
+		((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power(1);
+}
+#endif
+
 static int cwmi_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	struct i2c_cwmi_sensor *sensor;
 	int err = 0;
 	u8 value;
+
+	if (((struct cwmi_platform_data *)(client->dev.platform_data))->set_power)
+		((struct cwmi_platform_data *)(client->dev.platform_data))->set_power(1);
 
 	sensor = kzalloc(sizeof(struct i2c_cwmi_sensor), GFP_KERNEL);
 	if (sensor == NULL) {
@@ -1071,6 +1100,12 @@ static int cwmi_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 	pr_info("%s i2c device created (Interruptible=%d).\n", client->name,
 		sensor->use_interrupt);
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	sensor->early_suspend.level = EARLY_SUSPEND_LEVEL_STOP_DRAWING;
+	sensor->early_suspend.suspend = cwmi_early_suspend;
+	sensor->early_suspend.resume = cwmi_late_resume;
+	register_early_suspend(&sensor->early_suspend);
+#endif
 
 	return 0;
 
