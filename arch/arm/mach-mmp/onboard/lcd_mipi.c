@@ -9,6 +9,7 @@
 #include <mach/mmp3.h>
 #include <mach/tc35876x.h>
 #include <mach/pxa168fb.h>
+#include <mach/mmp2_plat_ver.h>
 #include "../common.h"
 
 static struct fb_videomode video_modes_abilene[] = {
@@ -760,6 +761,17 @@ void __init brownstone_add_lcd_mipi(void)
 	struct dsi_info *dsi = &dsiinfo;
 	unsigned char __iomem *dmc_membase;
 	unsigned int CSn_NO_COL;
+	struct pxa168fb_mach_info *mi;
+
+	if (board_is_mmp2_brownstone_rev5()) {
+		video_modes_brownstone[0].yres = 800;
+		mi = &mmp2_mipi_lcd_info;
+		mi->max_fb_size = video_modes_brownstone[0].xres *
+		video_modes_brownstone[0].yres * 8 + 4096;
+		mi = &mmp2_mipi_lcd_ovly_info;
+		mi->max_fb_size = video_modes_brownstone[0].xres *
+		video_modes_brownstone[0].yres * 8 + 4096;
+	}
 
 	if (dsi->bpp == 24) {
 		mmp2_mipi_lcd_info.sclk_src = 800000000 / (dsi->lanes / 2);
