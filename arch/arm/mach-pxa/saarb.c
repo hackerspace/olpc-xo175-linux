@@ -49,7 +49,7 @@
 
 #define SAARB_NR_IRQS	(IRQ_BOARD_START + 40)
 
-static struct pm860x_touch_pdata saarb_touch = {
+static struct pm860x_touch_pdata touch = {
 	.gpadc_prebias	= 1,
 	.slot_cycle	= 1,
 	.tsi_prebias	= 6,
@@ -58,7 +58,7 @@ static struct pm860x_touch_pdata saarb_touch = {
 	.res_x		= 300,
 };
 
-static struct pm860x_backlight_pdata saarb_backlight[] = {
+static struct pm860x_backlight_pdata backlight[] = {
 	{
 		.id	= PM8606_ID_BACKLIGHT,
 		.iset	= PM8606_WLED_CURRENT(8),
@@ -72,7 +72,7 @@ static struct pm860x_backlight_pdata saarb_backlight[] = {
 	},
 };
 
-static struct pm860x_led_pdata saarb_led[] = {
+static struct pm860x_led_pdata led[] = {
 	{
 		.id	= PM8606_ID_LED,
 		.iset	= PM8606_LED_CURRENT(12),
@@ -129,6 +129,7 @@ static struct pm860x_cm3601_pdata cm3601_platform_info = {
 	.request_source	= cm3601_request_resource,
 	.release_source	= cm3601_release_resource,
 };
+
 static struct pm860x_headset_pdata headset_platform_info	 = {
 	.headset_flag = 0,
 	/* headset switch */
@@ -197,9 +198,9 @@ static int regulator_index[] = {
 }
 
 static struct pm860x_platform_data pm8607_info = {
-	.touch		= &saarb_touch,
-	.backlight	= &saarb_backlight[0],
-	.led		= &saarb_led[0],
+	.touch		= &touch,
+	.backlight	= &backlight[0],
+	.led		= &led[0],
 	.power		= &power,
 	.regulator	= regulator_data,
 #if defined(CONFIG_SENSORS_CM3601)
@@ -211,8 +212,8 @@ static struct pm860x_platform_data pm8607_info = {
 	.irq_base	= IRQ_BOARD_START,
 
 	.i2c_port	= GI2C_PORT,
-	.num_leds	= ARRAY_SIZE(saarb_led),
-	.num_backlights	= ARRAY_SIZE(saarb_backlight),
+	.num_leds	= ARRAY_SIZE(led),
+	.num_backlights	= ARRAY_SIZE(backlight),
 };
 
 static void regulator_init(void)
@@ -268,7 +269,7 @@ static struct i2c_pxa_platform_data i2c3_pdata = {
 	.flags          = PXA_I2C_FAST_MODE | PXA_I2C_USING_FIFO_PIO_MODE,
 };
 
-static struct i2c_board_info saarb_i2c_info[] = {
+static struct i2c_board_info i2c1_info[] = {
 	{
 		.type		= "88PM860x",
 		.addr		= 0x34,
@@ -304,7 +305,7 @@ static struct platform_device *devices[] __initdata = {
 #if defined(CONFIG_USB_PXA_U2O) || defined(CONFIG_USB_EHCI_PXA_U2O)
 #define STATUS2_VBUS        (1 << 4)
 
-static int	read_vbus_val()
+static int	read_vbus_val(void)
 {
 	int ret;
 	ret = pm860x_codec_reg_read(2);
@@ -313,7 +314,7 @@ static int	read_vbus_val()
 	else
 		ret = VBUS_LOW;
 	return ret;
-}
+};
 
 static char *pxa9xx_usb_clock_name[] = {
 	[0] = "AXICLK",
@@ -679,7 +680,8 @@ static struct pxa95xfb_mach_info hdmi_ovly_info __initdata = {
 
 static void __init init_lcd(void)
 {
-	if (get_board_id() >= OBM_SAAR_B_MG2_B0_V15_BOARD) {
+	if (get_board_id() == OBM_SAAR_B_MG2_B0_V15_BOARD
+		|| get_board_id() == OBM_SAAR_B_MG2_C0_V26_BOARD) {
 		set_pxa95x_fb_info(&lcd_info_wvga);
 		set_pxa95x_fb_ovly_info(&lcd_ovly_info_wvga, 0);
 	} else {
@@ -713,6 +715,9 @@ static void __init init_mmc(void)
 static unsigned long lis33ldl_min_delay = 20;
 #endif
 
+/*{ TOUCHSCREEN_INT_GPIO, TOUCHSCREEN_RESET_GPIO };*/
+static int ssd2531_ts_pins[2];
+
 static struct i2c_board_info i2c2_info[] = {
 
 #if defined(CONFIG_SENSORS_LIS331DL)
@@ -730,14 +735,35 @@ static struct i2c_board_info i2c2_info[] = {
 	},
 #endif
 
+#if defined(CONFIG_TOUCHSCREEN_SSD2531)
+	{
+	 .type = "ssd2531_ts",
+	 .addr = 0x5c,
+	 .platform_data = ssd2531_ts_pins,
+	 },
+#endif
 };
 
+static void set_i2c_touch(void)
+{
+	if (get_board_id() == OBM_SAAR_B_MG2_B0_V15_BOARD) {
+		pm8607_info.touch = NULL;
+		ssd2531_ts_pins[0] = MFP_PIN_GPIO144;
+		ssd2531_ts_pins[1] = MFP_PIN_GPIO135;
+	} else if (get_board_id() == OBM_SAAR_B_MG2_C0_V26_BOARD) {
+		pm8607_info.touch = NULL;
+		ssd2531_ts_pins[0] = MFP_PIN_GPIO154;
+		ssd2531_ts_pins[1] = MFP_PIN_GPIO143;
+	}
+};
 
 static void __init saarb_init(void)
 {
 	regulator_init();
+	set_i2c_touch();
 
 	pxa_set_ffuart_info(NULL);
+
 	platform_device_add_data(&pxa95x_device_i2c1, &i2c1_pdata,
 				 sizeof(i2c1_pdata));
 	platform_device_add_data(&pxa95x_device_i2c2, &i2c2_pdata,
@@ -745,7 +771,7 @@ static void __init saarb_init(void)
 	platform_device_add_data(&pxa95x_device_i2c3, &i2c3_pdata,
 				 sizeof(i2c3_pdata));
 	platform_add_devices(ARRAY_AND_SIZE(devices));
-	i2c_register_board_info(0, ARRAY_AND_SIZE(saarb_i2c_info));
+	i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_info));
 	i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info));
 
 #ifdef CONFIG_ANDROID_PMEM
