@@ -33,6 +33,10 @@
 #include <asm/mach/irq.h>
 #include <asm/hardware/gic.h>
 
+#ifdef CONFIG_CPU_MMP3
+extern unsigned int smp_hardid[NR_CPUS];
+#endif
+
 static DEFINE_SPINLOCK(irq_controller_lock);
 
 /* Address of GIC 0 CPU interface */
@@ -186,10 +190,12 @@ static int gic_set_affinity(struct irq_data *d, const struct cpumask *mask_val,
 		return -EINVAL;
 
 	mask = 0xff << shift;
-	bit = 1 << (cpu + shift);
-
 	spin_lock(&irq_controller_lock);
 	d->node = cpu;
+#ifdef CONFIG_CPU_MMP3
+	cpu = smp_hardid[cpu];
+#endif
+	bit = 1 << (cpu + shift);
 	val = readl_relaxed(reg) & ~mask;
 	writel_relaxed(val | bit, reg);
 	spin_unlock(&irq_controller_lock);
@@ -267,7 +273,11 @@ static void __init gic_dist_init(struct gic_chip_data *gic,
 {
 	unsigned int gic_irqs, irq_limit, i;
 	void __iomem *base = gic->dist_base;
+#ifdef CONFIG_CPU_MMP3
+	u32 cpumask = 1 << smp_hardid[smp_processor_id()];
+#else
 	u32 cpumask = 1 << smp_processor_id();
+#endif
 
 	cpumask |= cpumask << 8;
 	cpumask |= cpumask << 16;
@@ -389,7 +399,18 @@ void __cpuinit gic_enable_ppi(unsigned int irq)
 #ifdef CONFIG_SMP
 void gic_raise_softirq(const struct cpumask *mask, unsigned int irq)
 {
+#ifdef CONFIG_CPU_MMP3
+	unsigned long map = 0;
+	unsigned int cpu;
+	unsigned int hardid;
+
+	for_each_cpu(cpu, mask) {
+		hardid = smp_hardid[cpu];
+		map |= 1 << hardid;
+	}
+#else
 	unsigned long map = *cpus_addr(*mask);
+#endif
 
 	/*
 	 * Ensure that stores to Normal memory are visible to the

@@ -15,9 +15,13 @@
 #include <linux/jiffies.h>
 #include <linux/smp.h>
 #include <linux/io.h>
+#include <linux/cpu.h>
+#include <linux/percpu.h>
 
+#include <asm/cpu.h>
 #include <asm/cacheflush.h>
 #include <mach/hardware.h>
+#include <mach/smp.h>
 #include <asm/hardware/gic.h>
 #include <asm/mach-types.h>
 #include <asm/localtimer.h>
@@ -33,6 +37,8 @@
 #else
 #define SW_BRANCH_VIRT_ADDR	(DDR_RES_VIRT_BASE + SZ_1K - 4)
 #endif
+
+unsigned int smp_hardid[NR_CPUS];
 
 extern void mmp3_secondary_startup(void);
 
@@ -110,7 +116,7 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 	 * Note that "pen_release" is the hardware CPU ID, whereas
 	 * "cpu" is Linux's internal ID.
 	 */
-	write_pen_release(cpu);
+	write_pen_release(smp_hardid[cpu]);
 
 	/*
 	 * Send the secondary CPU a soft interrupt, thereby causing
@@ -144,6 +150,16 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 void __init smp_init_cpus(void)
 {
 	unsigned int i, ncores = get_core_count();
+
+	/* Boot from mm or MP1 core */
+	if (hard_smp_processor_id() == 0)
+		for (i = 0; i < ncores; i++)
+			smp_hardid[i] = i;
+	else {
+		smp_hardid[0] = 2;
+		for (i = 1; i < ncores; i++)
+			smp_hardid[i] = i - 1;
+	}
 
 	for (i = 0; i < ncores; i++)
 		set_cpu_possible(i, true);

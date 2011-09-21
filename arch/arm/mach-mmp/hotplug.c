@@ -14,6 +14,7 @@
 #include <linux/completion.h>
 
 #include <asm/cacheflush.h>
+#include <mach/smp.h>
 #include <mach/mmp3_pm.h>
 
 extern volatile int pen_release;
@@ -22,6 +23,8 @@ static DECLARE_COMPLETION(cpu_killed);
 
 static inline void platform_do_lowpower(unsigned int cpu)
 {
+	int hardid = smp_hardid[cpu];
+
 	flush_cache_all();
 	dsb();
 	/*
@@ -33,9 +36,9 @@ static inline void platform_do_lowpower(unsigned int cpu)
 		/*
 		 * here's the WFI
 		 */
-		mmp3_pm_enter_idle(cpu);
+		mmp3_pm_enter_idle(hardid);
 
-		if (pen_release == cpu) {
+		if (pen_release == hardid) {
 			/*
 			 * OK, proper wakeup, we're done
 			 */
@@ -71,9 +74,9 @@ void platform_cpu_die(unsigned int cpu)
 #ifdef DEBUG
 	unsigned int this_cpu = hard_smp_processor_id();
 
-	if (cpu != this_cpu) {
+	if (smp_hardid[cpu] != this_cpu) {
 		printk(KERN_CRIT "Eek! platform_cpu_die running on %u, should be %u\n",
-			   this_cpu, cpu);
+			   this_cpu, hardid[cpu]);
 		BUG();
 	}
 #endif
