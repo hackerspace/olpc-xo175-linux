@@ -16,7 +16,10 @@
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
 #include <linux/power_supply.h>
+#include <linux/workqueue.h>
 #include <linux/mfd/max8925.h>
+#include <linux/notifier.h>
+#include <plat/usb.h>
 
 /* registers in GPM */
 #define MAX8925_OUT5VEN			0x54
@@ -63,265 +66,370 @@ enum {
 };
 
 struct max8925_power_info {
-	struct max8925_chip	*chip;
-	struct i2c_client	*gpm;
-	struct i2c_client	*adc;
+	struct device *dev;
+	struct max8925_chip *chip;
+	struct i2c_client *gpm;
+	struct i2c_client *adc;
+	struct delayed_work chg_event_work;
+	struct notifier_block notif;
 
-	struct power_supply	ac;
-	struct power_supply	usb;
-	struct power_supply	battery;
-	int			irq_base;
-	unsigned		ac_online:1;
-	unsigned		usb_online:1;
-	unsigned		bat_online:1;
-	unsigned		chg_mode:2;
-	unsigned		batt_detect:1;	/* detecing MB by ID pin */
-	unsigned		topoff_threshold:2;
-	unsigned		fast_charge:3;
-
-	int (*set_charger) (int);
+	struct power_supply battery;
+	int irq_base;
+	unsigned bat_online:1;
+	unsigned chg_mode:2;
+	unsigned batt_detect:1;	/* detecing MB by ID pin */
+	unsigned topoff_threshold:2;
+	unsigned fast_charge:3;	/* fast charging current */
+	/* MAX8925 battery monitor enable */
+	unsigned bat_max8925_en:1;
+	unsigned supply_type; /* power supply type */
+	/* Charger port PMIC connection config */
+	unsigned chg_port_config;
+	/* Charger event */
+	unsigned chg_event;
+	int (*set_led)(int);
 };
 
-static int __set_charger(struct max8925_power_info *info, int enable)
+struct capacity_percent {
+	int voltage;
+	int percent;
+};
+
+static int start_measure(struct max8925_power_info *info, int type);
+/* Battery resistance offset */
+#define BATTERY_R_CHARGING		330	/* charging offset */
+#define BATTERY_R_DISCHARGING	60	/* discharging offset */
+/* High level voltage threshold */
+#define CHG_HIGH_LEVEL_TH	(4500)	/* mA */
+
+static struct capacity_percent cap_table[] = {
+	{3200, 0}, {3320, 10}, {3420, 20}, {3500, 30}, {3550, 40},
+	{3600, 50}, {3650, 60}, {3750, 70}, {3850, 80}, {3950, 90},
+	{4100, 100},
+};
+
+static struct max8925_power_info *pw_info;
+/* Notifier: notify PMIC event(attach/detach;start/stop charging...) */
+static BLOCKING_NOTIFIER_HEAD(chg_notifier_list);
+
+int max8925_chg_register_client(struct notifier_block *nb)
 {
-	struct max8925_chip *chip = info->chip;
-	if (enable) {
-		/* enable charger in platform */
-		if (info->set_charger)
-			info->set_charger(1);
-		/* enable charger */
-		max8925_set_bits(info->gpm, MAX8925_CHG_CNTL1, 1 << 7, 0);
-	} else {
-		/* disable charge */
-		max8925_set_bits(info->gpm, MAX8925_CHG_CNTL1, 1 << 7, 1 << 7);
-		if (info->set_charger)
-			info->set_charger(0);
+	struct max8925_power_info *info = pw_info;
+	struct chg_data data;
+	int ret = 0;
+	ret = blocking_notifier_chain_register(&chg_notifier_list, nb);
+	if (ret)
+		return ret;
+	if (info) {
+		memset(&data, 0, sizeof(struct chg_data));
+		data.charger_type = info->supply_type;
+		return blocking_notifier_call_chain(&chg_notifier_list,
+						info->chg_event, &data);
 	}
-	dev_dbg(chip->dev, "%s\n", (enable) ? "Enable charger"
-		: "Disable charger");
 	return 0;
+}
+EXPORT_SYMBOL(max8925_chg_register_client);
+
+int max8925_chg_unregister_client(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(&chg_notifier_list, nb);
+}
+EXPORT_SYMBOL(max8925_chg_unregister_client);
+
+static int max8925_chg_notifier_call_chain(unsigned long val, void *v)
+{
+	return blocking_notifier_call_chain(&chg_notifier_list, val, v);
+}
+
+static int max8925_start_charge(struct max8925_power_info *info)
+{
+	struct chg_data data;
+
+	memset(&data, 0, sizeof(struct chg_data));
+	data.charger_type = info->supply_type;
+	info->chg_event = CHG_EVENT_START;
+	return max8925_chg_notifier_call_chain(info->chg_event, &data);
+}
+
+static int max8925_stop_charge(struct max8925_power_info *info)
+{
+	struct chg_data data;
+
+	memset(&data, 0, sizeof(struct chg_data));
+	data.charger_type = info->supply_type;
+	info->chg_event = CHG_EVENT_STOP;
+	return max8925_chg_notifier_call_chain(info->chg_event, &data);
+}
+
+static int max8925_charger_attach(struct max8925_power_info *info)
+{
+	max8925_start_charge(info);
+	/* Enable indicator led */
+	if (info->set_led)
+		info->set_led(1);
+
+	return 0;
+}
+
+static int max8925_charger_detach(struct max8925_power_info *info)
+{
+	max8925_stop_charge(info);
+	/* Disable indicator led */
+	if (info->set_led)
+		info->set_led(0);
+
+	return 0;
+}
+
+static void chg_event_work_func(struct work_struct *work)
+{
+	struct max8925_power_info *info =
+	    container_of(work, struct max8925_power_info,
+				chg_event_work.work);
+	/* Detect attach or detach state by voltage */
+	if ((start_measure(info, MEASURE_VCHG) * 2) > CHG_HIGH_LEVEL_TH)
+		info->chg_event = CHG_EVENT_ATTACH;
+	else
+		info->chg_event = CHG_EVENT_DETACH;
+	/* Broadcast attach/detach event to listeners */
+	max8925_chg_notifier_call_chain(info->chg_event, NULL);
+	/* If USB port, charging event will be triggered by usb driver */
+	if (info->chg_port_config == CHG_PORT_WALL) {
+		if (info->chg_event == CHG_EVENT_ATTACH) {
+			info->supply_type = POWER_SUPPLY_TYPE_MAINS;
+			max8925_charger_attach(info);
+		} else if (info->chg_event == CHG_EVENT_DETACH) {
+			info->supply_type = POWER_SUPPLY_TYPE_BATTERY;
+			max8925_charger_detach(info);
+		}
+	}
+}
+
+/* vbus event handler */
+static int max8925_vbus_notifier_callback(struct notifier_block *nb,
+				unsigned long event, void *chg_data)
+{
+	struct max8925_power_info *info =
+		container_of(nb, struct max8925_power_info, notif);
+	/* Parse vbus event passed by usb driver */
+	switch (event) {
+	case DEFAULT_CHARGER:
+	case VBUS_CHARGER:
+		/* Standard Downstream Port */
+		info->supply_type = POWER_SUPPLY_TYPE_USB;
+		break;
+	case AC_CHARGER_STANDARD:
+		/* Dedicated Charging Port */
+		info->supply_type = POWER_SUPPLY_TYPE_USB_DCP;
+		break;
+	case AC_CHARGER_OTHER:
+		/* Adapter Charger */
+		info->supply_type = POWER_SUPPLY_TYPE_MAINS;
+		break;
+	case NULL_CHARGER:
+	default:
+		/* No charger */
+		info->supply_type = POWER_SUPPLY_TYPE_BATTERY;
+		break;
+	}
+
+	if (info->supply_type == POWER_SUPPLY_TYPE_BATTERY) {
+		/* Stop charging */
+		max8925_charger_detach(info);
+	} else {
+		/* Start charing */
+		max8925_charger_attach(info);
+	}
+
+	return NOTIFY_OK;
 }
 
 static irqreturn_t max8925_charger_handler(int irq, void *data)
 {
-	struct max8925_power_info *info = (struct max8925_power_info *)data;
-	struct max8925_chip *chip = info->chip;
+	struct max8925_power_info *info = data;
+	struct max8925_chip *chip;
+	if (!info) {
+		dev_err(info->dev, "max8925 power info is not available!\n");
+		return IRQ_HANDLED;
+	}
+	chip = info->chip;
 
 	switch (irq - chip->irq_base) {
 	case MAX8925_IRQ_VCHG_DC_R:
-		info->ac_online = 1;
-		__set_charger(info, 1);
-		dev_dbg(chip->dev, "Adapter inserted\n");
+		/* Charger attached */
+		dev_dbg(chip->dev, "Charger inserted\n");
 		break;
 	case MAX8925_IRQ_VCHG_DC_F:
-		info->ac_online = 0;
-		__set_charger(info, 0);
-		dev_dbg(chip->dev, "Adapter is removal\n");
+		/* Charger detached */
+		dev_dbg(chip->dev, "Charger is removal\n");
 		break;
-	case MAX8925_IRQ_VCHG_THM_OK_F:
-		/* Battery is not ready yet */
-		dev_dbg(chip->dev, "Battery temperature is out of range\n");
-	case MAX8925_IRQ_VCHG_DC_OVP:
-		dev_dbg(chip->dev, "Error detection\n");
-		__set_charger(info, 0);
-		break;
-	case MAX8925_IRQ_VCHG_THM_OK_R:
-		/* Battery is ready now */
-		dev_dbg(chip->dev, "Battery temperature is in range\n");
-		break;
-	case MAX8925_IRQ_VCHG_SYSLOW_R:
-		/* VSYS is low */
-		dev_info(chip->dev, "Sys power is too low\n");
-		break;
-	case MAX8925_IRQ_VCHG_SYSLOW_F:
-		dev_dbg(chip->dev, "Sys power is above low threshold\n");
-		break;
-	case MAX8925_IRQ_VCHG_DONE:
-		__set_charger(info, 0);
-		dev_dbg(chip->dev, "Charging is done\n");
-		break;
-	case MAX8925_IRQ_VCHG_TOPOFF:
-		dev_dbg(chip->dev, "Charging in top-off mode\n");
-		break;
-	case MAX8925_IRQ_VCHG_TMR_FAULT:
-		__set_charger(info, 0);
-		dev_dbg(chip->dev, "Safe timer is expired\n");
-		break;
-	case MAX8925_IRQ_VCHG_RST:
-		__set_charger(info, 0);
-		dev_dbg(chip->dev, "Charger is reset\n");
+	default:
 		break;
 	}
+	/* Detect actual charger state in chg_event_work */
+	cancel_delayed_work_sync(&info->chg_event_work);
+	schedule_delayed_work(&info->chg_event_work, HZ / 2);
 	return IRQ_HANDLED;
 }
 
 static int start_measure(struct max8925_power_info *info, int type)
 {
-	unsigned char buf[2] = {0, 0};
-	int meas_reg = 0, ret;
+	unsigned char buf[2] = { 0, 0 };
+	int meas_reg = 0, meas_cmd = 0, ret = 0;
 
 	switch (type) {
 	case MEASURE_VCHG:
+		meas_cmd = MAX8925_CMD_VCHG;
 		meas_reg = MAX8925_ADC_VCHG;
 		break;
 	case MEASURE_VBBATT:
+		meas_cmd = MAX8925_CMD_VBBATT;
 		meas_reg = MAX8925_ADC_VBBATT;
 		break;
 	case MEASURE_VMBATT:
+		meas_cmd = MAX8925_CMD_VMBATT;
 		meas_reg = MAX8925_ADC_VMBATT;
 		break;
 	case MEASURE_ISNS:
+		meas_cmd = MAX8925_CMD_ISNS;
 		meas_reg = MAX8925_ADC_ISNS;
 		break;
 	default:
 		return -EINVAL;
 	}
 
+	max8925_reg_write(info->adc, meas_cmd, 0);
 	max8925_bulk_read(info->adc, meas_reg, 2, buf);
-	ret = (buf[0] << 4) | (buf[1] >> 4);
+	ret = ((buf[0] << 8) | buf[1]) >> 4;
 
 	return ret;
 }
 
-static int max8925_ac_get_prop(struct power_supply *psy,
-			       enum power_supply_property psp,
-			       union power_supply_propval *val)
+static int get_capacity(int data)
 {
-	struct max8925_power_info *info = dev_get_drvdata(psy->dev->parent);
-	int ret = 0;
+	int i, size;
+	int ret = -EINVAL;
 
-	switch (psp) {
-	case POWER_SUPPLY_PROP_ONLINE:
-		val->intval = info->ac_online;
-		break;
-	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
-		if (info->ac_online) {
-			ret = start_measure(info, MEASURE_VCHG);
-			if (ret >= 0) {
-				val->intval = ret << 1;	/* unit is mV */
-				goto out;
-			}
-		}
-		ret = -ENODATA;
-		break;
-	default:
-		ret = -ENODEV;
+	size = ARRAY_SIZE(cap_table);
+	if (data >= cap_table[size - 1].voltage) {
+		ret = 100;
+		return ret;
+	} else if (data <= cap_table[0].voltage) {
+		ret = 0;
+		return ret;
+	}
+	for (i = size - 2; i >= 0; i--) {
+		if (data < cap_table[i].voltage)
+			continue;
+		ret = (data - cap_table[i].voltage) * 10
+		    / (cap_table[i + 1].voltage - cap_table[i].voltage);
+		ret += cap_table[i].percent;
 		break;
 	}
-out:
 	return ret;
 }
 
-static enum power_supply_property max8925_ac_props[] = {
-	POWER_SUPPLY_PROP_ONLINE,
-	POWER_SUPPLY_PROP_VOLTAGE_NOW,
-};
-
-static int max8925_usb_get_prop(struct power_supply *psy,
-				enum power_supply_property psp,
-				union power_supply_propval *val)
+static int max8925_get_bat_current(struct max8925_power_info *info)
 {
-	struct max8925_power_info *info = dev_get_drvdata(psy->dev->parent);
 	int ret = 0;
 
-	switch (psp) {
-	case POWER_SUPPLY_PROP_ONLINE:
-		val->intval = info->usb_online;
-		break;
-	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
-		if (info->usb_online) {
-			ret = start_measure(info, MEASURE_VCHG);
-			if (ret >= 0) {
-				val->intval = ret << 1;	/* unit is mV */
-				goto out;
-			}
-		}
-		ret = -ENODATA;
-		break;
-	default:
-		ret = -ENODEV;
-		break;
+	ret = start_measure(info, MEASURE_ISNS);
+	if (ret < 0) {
+		pr_debug("fail to measure battery current!\n");
+		return 0;
 	}
-out:
+	/* NOTE: r_sns is .02 here */
+	ret = (ret * 6250) / 4096 - 3125;	/* mA */
+
 	return ret;
 }
 
-static enum power_supply_property max8925_usb_props[] = {
-	POWER_SUPPLY_PROP_ONLINE,
-	POWER_SUPPLY_PROP_VOLTAGE_NOW,
-};
+static int max8925_get_bat_voltage(struct max8925_power_info *info)
+{
+	int cur = 0, vol = 0, offset = 0;
+	int ret = 0;
+	/* get battery current */
+	ret = start_measure(info, MEASURE_VMBATT);
+	if (ret < 0) {
+		pr_debug("fail to measure battery voltage!\n");
+		return 0;
+	}
+
+	vol = ret << 1;		/* unit is mV */
+
+	/* count in offset voltage caused by battery resistance */
+	cur = max8925_get_bat_current(info);
+	if (cur >= 0)
+		offset = cur * BATTERY_R_CHARGING / 1000;
+	else
+		offset = cur * BATTERY_R_DISCHARGING / 1000;
+	/* calculate actual battery voltage */
+	vol -= offset;
+
+	if (vol < 0) {
+		pr_debug("battery voltage is abnormal!\n");
+		vol = 0;
+	}
+
+	return vol;
+}
 
 static int max8925_bat_get_prop(struct power_supply *psy,
 				enum power_supply_property psp,
 				union power_supply_propval *val)
 {
-	struct max8925_power_info *info = dev_get_drvdata(psy->dev->parent);
-	long long int tmp = 0;
+	struct max8925_power_info *info =
+			container_of(psy, struct max8925_power_info, battery);
 	int ret = 0;
 
+	if (!info) {
+		dev_err(info->dev, "max8925 power info is not availible!");
+		return -EINVAL;
+	}
+	/* Unit:
+	 * All voltages, currents, charges, energies, time and temperatures
+	 * in µV, µA, µAh, µWh, seconds and tenths of degree Celsius.
+	 * */
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
 		val->intval = info->bat_online;
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		if (info->bat_online) {
-			ret = start_measure(info, MEASURE_VMBATT);
-			if (ret >= 0) {
-				val->intval = ret << 1;	/* unit is mV */
-				ret = 0;
-				break;
-			}
+			val->intval = max8925_get_bat_voltage(info) * 1000;
+			break;
 		}
 		ret = -ENODATA;
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		if (info->bat_online) {
-			ret = start_measure(info, MEASURE_ISNS);
-			if (ret >= 0) {
-				tmp = (long long int)ret * 6250 / 4096 - 3125;
-				ret = (int)tmp;
-				val->intval = 0;
-				if (ret > 0)
-					val->intval = ret; /* unit is mA */
-				ret = 0;
-				break;
-			}
+			val->intval = max8925_get_bat_current(info) * 1000;
+			ret = 0;
+			break;
 		}
 		ret = -ENODATA;
-		break;
-	case POWER_SUPPLY_PROP_CHARGE_TYPE:
-		if (!info->bat_online) {
-			ret = -ENODATA;
-			break;
-		}
-		ret = max8925_reg_read(info->gpm, MAX8925_CHG_STATUS);
-		ret = (ret & MAX8925_CHG_STAT_MODE_MASK) >> 2;
-		switch (ret) {
-		case 1:
-			val->intval = POWER_SUPPLY_CHARGE_TYPE_FAST;
-			break;
-		case 0:
-		case 2:
-			val->intval = POWER_SUPPLY_CHARGE_TYPE_TRICKLE;
-			break;
-		case 3:
-			val->intval = POWER_SUPPLY_CHARGE_TYPE_NONE;
-			break;
-		}
-		ret = 0;
 		break;
 	case POWER_SUPPLY_PROP_STATUS:
 		if (!info->bat_online) {
 			ret = -ENODATA;
 			break;
 		}
-		ret = max8925_reg_read(info->gpm, MAX8925_CHG_STATUS);
-		if (info->usb_online || info->ac_online) {
-			val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
-			if (ret & MAX8925_CHG_STAT_EN_MASK)
-				val->intval = POWER_SUPPLY_STATUS_CHARGING;
-		} else
+		ret = max8925_get_bat_current(info);
+		if (ret < -5)
 			val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
+		else if (ret > 5)
+			val->intval = POWER_SUPPLY_STATUS_CHARGING;
+		else
+			val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
+		ret = 0;
+		break;
+	case POWER_SUPPLY_PROP_CAPACITY:
+		if (!info->bat_online) {
+			ret = -ENODATA;
+			break;
+		}
+		ret = max8925_get_bat_voltage(info);
+		val->intval = get_capacity(ret);
 		ret = 0;
 		break;
 	default:
@@ -335,86 +443,81 @@ static enum power_supply_property max8925_battery_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 	POWER_SUPPLY_PROP_CURRENT_NOW,
-	POWER_SUPPLY_PROP_CHARGE_TYPE,
 	POWER_SUPPLY_PROP_STATUS,
+	POWER_SUPPLY_PROP_CAPACITY,
 };
 
-#define REQUEST_IRQ(_irq, _name)					\
-do {									\
-	ret = request_threaded_irq(chip->irq_base + _irq, NULL,		\
-				    max8925_charger_handler,		\
-				    IRQF_ONESHOT, _name, info);		\
-	if (ret)							\
+#define REQUEST_IRQ(_irq, _name)	\
+do {	\
+	ret = request_threaded_irq(chip->irq_base + _irq, NULL,	\
+				    max8925_charger_handler,	\
+				    IRQF_ONESHOT, _name, info);	\
+	if (ret)	\
 		dev_err(chip->dev, "Failed to request IRQ #%d: %d\n",	\
-			_irq, ret);					\
+			_irq, ret);	\
 } while (0)
 
-static __devinit int max8925_init_charger(struct max8925_chip *chip,
-					  struct max8925_power_info *info)
+#define FREE_IRQ(_irq)	\
+do {	\
+	free_irq(chip->irq_base + _irq, info);	\
+} while (0)
+
+static int max8925_init_charger(struct max8925_chip *chip,
+				struct max8925_power_info *info)
 {
-	int ret;
+	int ret = 0;
 
-	REQUEST_IRQ(MAX8925_IRQ_VCHG_DC_OVP, "ac-ovp");
-	REQUEST_IRQ(MAX8925_IRQ_VCHG_DC_F, "ac-remove");
-	REQUEST_IRQ(MAX8925_IRQ_VCHG_DC_R, "ac-insert");
-	REQUEST_IRQ(MAX8925_IRQ_VCHG_THM_OK_R, "batt-temp-in-range");
-	REQUEST_IRQ(MAX8925_IRQ_VCHG_THM_OK_F, "batt-temp-out-range");
-	REQUEST_IRQ(MAX8925_IRQ_VCHG_SYSLOW_F, "vsys-high");
-	REQUEST_IRQ(MAX8925_IRQ_VCHG_SYSLOW_R, "vsys-low");
-	REQUEST_IRQ(MAX8925_IRQ_VCHG_RST, "charger-reset");
-	REQUEST_IRQ(MAX8925_IRQ_VCHG_DONE, "charger-done");
-	REQUEST_IRQ(MAX8925_IRQ_VCHG_TOPOFF, "charger-topoff");
-	REQUEST_IRQ(MAX8925_IRQ_VCHG_TMR_FAULT, "charger-timer-expire");
+	if (info->batt_detect) {
+		ret = max8925_reg_read(info->gpm, MAX8925_CHG_STATUS);
+		info->bat_online = (ret & MAX8925_CHG_MBDET) ? 0 : 1;
+	} else
+		info->bat_online = 1;
 
-	info->ac_online = 0;
-	info->usb_online = 0;
-	info->bat_online = 0;
-	ret = max8925_reg_read(info->gpm, MAX8925_CHG_STATUS);
-	if (ret >= 0) {
-		/*
-		 * If battery detection is enabled, ID pin of battery is
-		 * connected to MBDET pin of MAX8925. It could be used to
-		 * detect battery presence.
-		 * Otherwise, we have to assume that battery is always on.
-		 */
-		if (info->batt_detect)
-			info->bat_online = (ret & MAX8925_CHG_MBDET) ? 0 : 1;
-		else
-			info->bat_online = 1;
-		if (ret & MAX8925_CHG_AC_RANGE_MASK)
-			info->ac_online = 1;
-		else
-			info->ac_online = 0;
-	}
-	/* disable charge */
+	/* Disable max8925 charge by default */
 	max8925_set_bits(info->gpm, MAX8925_CHG_CNTL1, 1 << 7, 1 << 7);
-	/* set charging current in charge topoff mode */
-	max8925_set_bits(info->gpm, MAX8925_CHG_CNTL1, 3 << 5,
-			 info->topoff_threshold << 5);
-	/* set charing current in fast charge mode */
-	max8925_set_bits(info->gpm, MAX8925_CHG_CNTL1, 7, info->fast_charge);
 
 	return 0;
 }
 
-static __devexit int max8925_deinit_charger(struct max8925_power_info *info)
+static void max8925_bat_external_power_changed(struct power_supply *psy)
 {
-	struct max8925_chip *chip = info->chip;
-	int irq;
+	struct max8925_power_info *info =
+			container_of(psy, struct max8925_power_info, battery);
+	power_supply_changed(&info->battery);
+}
 
-	irq = chip->irq_base + MAX8925_IRQ_VCHG_DC_OVP;
-	for (; irq <= chip->irq_base + MAX8925_IRQ_VCHG_TMR_FAULT; irq++)
-		free_irq(irq, info);
+static int max8925_power_powersupply_init(struct max8925_power_info *info)
+{
+	int ret = 0;
 
+	/* Register Battery */
+	if (info->bat_max8925_en) {
+		info->battery.name = "max8925-battery";
+		info->battery.type = POWER_SUPPLY_TYPE_BATTERY;
+		info->battery.properties = max8925_battery_props;
+		info->battery.num_properties =
+		    ARRAY_SIZE(max8925_battery_props);
+		info->battery.get_property = max8925_bat_get_prop;
+		info->battery.external_power_changed =
+				max8925_bat_external_power_changed;
+		ret = power_supply_register(info->dev, &info->battery);
+	}
+	return ret;
+}
+
+static int max8925_power_powersupply_deinit(struct max8925_power_info *info)
+{
+	if (info->bat_max8925_en)
+		power_supply_unregister(&info->battery);
 	return 0;
 }
 
-static __devinit int max8925_power_probe(struct platform_device *pdev)
+static int max8925_power_probe(struct platform_device *pdev)
 {
 	struct max8925_chip *chip = dev_get_drvdata(pdev->dev.parent);
 	struct max8925_power_pdata *pdata = NULL;
 	struct max8925_power_info *info;
-	int ret;
+	int ret = 0;
 
 	pdata = pdev->dev.platform_data;
 	if (!pdata) {
@@ -426,76 +529,95 @@ static __devinit int max8925_power_probe(struct platform_device *pdev)
 	info = kzalloc(sizeof(struct max8925_power_info), GFP_KERNEL);
 	if (!info)
 		return -ENOMEM;
+	info->dev = &pdev->dev;
 	info->chip = chip;
 	info->gpm = chip->i2c;
 	info->adc = chip->adc;
-	platform_set_drvdata(pdev, info);
-
-	info->ac.name = "max8925-ac";
-	info->ac.type = POWER_SUPPLY_TYPE_MAINS;
-	info->ac.properties = max8925_ac_props;
-	info->ac.num_properties = ARRAY_SIZE(max8925_ac_props);
-	info->ac.get_property = max8925_ac_get_prop;
-	ret = power_supply_register(&pdev->dev, &info->ac);
-	if (ret)
-		goto out;
-	info->ac.dev->parent = &pdev->dev;
-
-	info->usb.name = "max8925-usb";
-	info->usb.type = POWER_SUPPLY_TYPE_USB;
-	info->usb.properties = max8925_usb_props;
-	info->usb.num_properties = ARRAY_SIZE(max8925_usb_props);
-	info->usb.get_property = max8925_usb_get_prop;
-	ret = power_supply_register(&pdev->dev, &info->usb);
-	if (ret)
-		goto out_usb;
-	info->usb.dev->parent = &pdev->dev;
-
-	info->battery.name = "max8925-battery";
-	info->battery.type = POWER_SUPPLY_TYPE_BATTERY;
-	info->battery.properties = max8925_battery_props;
-	info->battery.num_properties = ARRAY_SIZE(max8925_battery_props);
-	info->battery.get_property = max8925_bat_get_prop;
-	ret = power_supply_register(&pdev->dev, &info->battery);
-	if (ret)
-		goto out_battery;
-	info->battery.dev->parent = &pdev->dev;
-
+	/* Init platform data */
 	info->batt_detect = pdata->batt_detect;
 	info->topoff_threshold = pdata->topoff_threshold;
 	info->fast_charge = pdata->fast_charge;
-	info->set_charger = pdata->set_charger;
+	info->set_led = pdata->set_led;
 
+	info->bat_max8925_en = pdata->bat_max8925_en;
+	info->chg_port_config = pdata->chg_port_config;
+
+	info->bat_online = 0;
+	info->supply_type = POWER_SUPPLY_TYPE_BATTERY;
+	pw_info = info;
+	platform_set_drvdata(pdev, info);
+
+	/* Init max8925 charger */
 	max8925_init_charger(chip, info);
+	/* Register power supply items */
+	ret = max8925_power_powersupply_init(info);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to register power supply\n");
+		goto err_power_supply_init;
+	}
+	INIT_DELAYED_WORK(&info->chg_event_work, chg_event_work_func);
+	/* Request IRQs */
+	REQUEST_IRQ(MAX8925_IRQ_VCHG_DC_F, "dc-remove");
+	if (ret)
+		goto err_request_dc_f;
+	REQUEST_IRQ(MAX8925_IRQ_VCHG_DC_R, "dc-insert");
+	if (ret)
+		goto err_request_dc_r;
+
+	if (info->chg_port_config == CHG_PORT_USB) {
+		info->notif.notifier_call = max8925_vbus_notifier_callback;
+#ifdef CONFIG_USB_PXA_U2O
+		mv_udc_register_client(&info->notif);
+#endif
+	}
+	/* Check if charger connected before boot up: >4.5V
+	 * CHG_PORT_WALL: AC charger attached, start charging.
+	 * CHG_PORT_USB: Charger type detected by usb gadget driver. */
+	if (info->chg_port_config == CHG_PORT_WALL) {
+		if ((start_measure(info, MEASURE_VCHG) * 2)
+			> CHG_HIGH_LEVEL_TH) {
+			info->supply_type = POWER_SUPPLY_TYPE_MAINS;
+			max8925_charger_attach(info);
+		}
+	}
+
 	return 0;
-out_battery:
-	power_supply_unregister(&info->battery);
-out_usb:
-	power_supply_unregister(&info->ac);
-out:
+
+err_request_dc_r:
+	FREE_IRQ(MAX8925_IRQ_VCHG_DC_R);
+err_request_dc_f:
+	max8925_power_powersupply_deinit(info);
+err_power_supply_init:
 	kfree(info);
 	return ret;
 }
 
-static __devexit int max8925_power_remove(struct platform_device *pdev)
+static int max8925_power_remove(struct platform_device *pdev)
 {
 	struct max8925_power_info *info = platform_get_drvdata(pdev);
+	struct max8925_chip *chip = info->chip;
 
-	if (info) {
-		power_supply_unregister(&info->ac);
-		power_supply_unregister(&info->usb);
-		power_supply_unregister(&info->battery);
-		max8925_deinit_charger(info);
-		kfree(info);
-	}
+	/* Disable charger */
+	max8925_stop_charge(info);
+
+	FREE_IRQ(MAX8925_IRQ_VCHG_DC_R);
+	FREE_IRQ(MAX8925_IRQ_VCHG_DC_F);
+
+	cancel_delayed_work_sync(&info->chg_event_work);
+#ifdef CONFIG_USB_PXA_U2O
+	mv_udc_unregister_client(&info->notif);
+#endif
+	max8925_power_powersupply_deinit(info);
+	kfree(info);
+
 	return 0;
 }
 
 static struct platform_driver max8925_power_driver = {
-	.probe	= max8925_power_probe,
-	.remove	= __devexit_p(max8925_power_remove),
-	.driver	= {
-		.name	= "max8925-power",
+	.probe = max8925_power_probe,
+	.remove = max8925_power_remove,
+	.driver = {
+		.name = "max8925-power",
 	},
 };
 
@@ -503,12 +625,14 @@ static int __init max8925_power_init(void)
 {
 	return platform_driver_register(&max8925_power_driver);
 }
+
 module_init(max8925_power_init);
 
 static void __exit max8925_power_exit(void)
 {
 	platform_driver_unregister(&max8925_power_driver);
 }
+
 module_exit(max8925_power_exit);
 
 MODULE_LICENSE("GPL");

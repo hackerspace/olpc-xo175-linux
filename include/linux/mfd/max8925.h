@@ -215,12 +215,48 @@ struct max8925_touch_pdata {
 	unsigned int		flags;
 };
 
+/* charger notifier event */
+enum {
+	CHG_EVENT_NONE,
+	CHG_EVENT_ATTACH,
+	CHG_EVENT_DETACH,
+	CHG_EVENT_START,
+	CHG_EVENT_STOP,
+	CHG_EVENT_SUSPEND,
+	CHG_EVENT_RESET,
+};
+
+struct chg_data {
+	unsigned int charger_type;
+};
+
+enum chg_port_pmic_config_t {
+	CHG_PORT_NONE,	/* Not Wired */
+	CHG_PORT_WALL,	/* Wall Adapter */
+	CHG_PORT_USB,	/* USB Port */
+};
+
 struct max8925_power_pdata {
-	int		(*set_charger)(int);
+	int			(*set_led)(int);
 	unsigned	batt_detect:1;
 	unsigned	topoff_threshold:2;
 	unsigned	fast_charge:3;	/* charge current */
+	/* MAX8925 battery monitor enable */
+	unsigned	bat_max8925_en:1;
+	/* Charger port PMIC connection config */
+	unsigned	chg_port_config;
 };
+
+/* charger event notifier */
+#ifdef CONFIG_MAX8925_POWER
+extern int max8925_chg_register_client(struct notifier_block *nb);
+extern int max8925_chg_unregister_client(struct notifier_block *nb);
+#else
+static inline int
+max8925_chg_register_client(struct notifier_block *nb) { return 0; }
+static inline int
+max8925_chg_unregister_client(struct notifier_block *nb) { return 0; }
+#endif
 
 /*
  * irq_base: stores IRQ base number of MAX8925 in platform
