@@ -19,7 +19,7 @@
 #include <asm/thread_info.h>
 #include <asm/asm-offsets.h>
 
-#if defined(CONFIG_CPU_PJ4)
+#if defined(CONFIG_CPU_PJ4) || defined(CONFIG_CPU_PJ4B)
 #define PJ4(code...)		code
 #define XSC(code...)
 #else
