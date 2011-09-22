@@ -327,7 +327,6 @@ static int smscore_notify_callbacks(struct smscore_device_t *coredev,
 	return rc;
 }
 
-#if (ALLOC_COMMON_BUF_MULTIPLE > 0)
 static struct
 smscore_buffer_t *smscore_createbuffer(u8 *kaddr,
 		unsigned long offset_in_usermapbuf, dma_addr_t phys_addr) {
@@ -345,25 +344,6 @@ smscore_buffer_t *smscore_createbuffer(u8 *kaddr,
 
 	return cb;
 }
-#else
-static struct
-smscore_buffer_t *smscore_createbuffer(u8 * buffer, void *common_buffer,
-				       dma_addr_t common_buffer_phys)
-{
-	struct smscore_buffer_t *cb =
-	    kmalloc(sizeof(struct smscore_buffer_t), GFP_KERNEL);
-	if (!cb) {
-		sms_info("kmalloc(...) failed");
-		return NULL;
-	}
-
-	cb->p = buffer;
-	cb->offset_in_common = buffer - (u8 *) common_buffer;
-	cb->phys = common_buffer_phys + cb->offset_in_common;
-
-	return cb;
-}
-#endif
 
 #if (ALLOC_COMMON_BUF_BY_KMALLOC > 0)
 static void *smscore_alloc_common_buf(u32 size, dma_addr_t *dma)
@@ -408,14 +388,12 @@ int smscore_register_device(struct smsdevice_params_t *params,
 {
 	struct smscore_device_t *dev;
 	u8 *buffer;
-#if (ALLOC_COMMON_BUF_MULTIPLE > 0)
 	int i;
 	struct smscore_buffer_t *buf_alloc;
 	int alloc_offset = 0;
 	int alloc_size;
 	struct smscore_buffer_t *buf_map;
 	int map_offset = 0;
-#endif
 
 	dev = kzalloc(sizeof(struct smscore_device_t), GFP_KERNEL);
 	if (!dev) {
@@ -453,13 +431,14 @@ int smscore_register_device(struct smsdevice_params_t *params,
 	/* Buffer management */
 	init_waitqueue_head(&dev->buffer_mng_waitq);
 
-	/* alloc common buffer, and will be to mmap to user space */
-#if (ALLOC_COMMON_BUF_MULTIPLE > 0)
-	#if 1	/* alloc multi but small common bufs */
+	/* alloc common buffer, and will be mmap to user space */
+#if ALLOC_COMMON_BUF_MULTIPLE
+	/* alloc multi but small common bufs */
 	dev->buf_num = params->num_buffers;
-	#else	/* alloc a single but large common buf */
+#else
+	/* alloc a single but large common buf */
 	dev->buf_num = 1;
-	#endif
+#endif
 
 	dev->buf_array_p =
 	    kzalloc(sizeof(struct smscore_buffer_t) * dev->buf_num,
@@ -503,36 +482,6 @@ int smscore_register_device(struct smsdevice_params_t *params,
 		map_offset += PAGE_ALIGN(buf_alloc->size);
 		dev->common_buffer_size += PAGE_ALIGN(buf_alloc->size);
 	}
-#else
-	dev->common_buffer_size = params->buffer_size * params->num_buffers;
-	#if (ALLOC_COMMON_BUF_BY_KMALLOC > 0)
-	dev->common_buffer = smscore_alloc_common_buf(dev->common_buffer_size,
-						&dev->common_buffer_phys);
-	#else
-	dev->common_buffer = dma_alloc_coherent(NULL, dev->common_buffer_size,
-						&dev->common_buffer_phys,
-						GFP_KERNEL | GFP_DMA);
-	#endif
-	if (!dev->common_buffer) {
-		smscore_unregister_device(dev);
-		return -ENOMEM;
-	}
-
-	/* prepare dma buffers */
-	for (buffer = dev->common_buffer;
-	     dev->num_buffers < params->num_buffers;
-	     dev->num_buffers++, buffer += params->buffer_size) {
-		struct smscore_buffer_t *cb =
-		    smscore_createbuffer(buffer, dev->common_buffer,
-					 dev->common_buffer_phys);
-		if (!cb) {
-			smscore_unregister_device(dev);
-			return -ENOMEM;
-		}
-
-		smscore_putbuffer(dev, cb);
-	}
-#endif
 
 	sms_info("allocated %d buffers", dev->num_buffers);
 
@@ -944,9 +893,7 @@ void smscore_unregister_device(struct smscore_device_t *coredev)
 	struct smscore_buffer_t *cb;
 	int num_buffers = 0;
 	int retry = 0;
-#if (ALLOC_COMMON_BUF_MULTIPLE > 0)
 	struct smscore_buffer_t *buf_alloc;
-#endif
 #if (ALLOC_COMMON_BUF_BY_KMALLOC > 0)
 	void *kaddr;
 #endif
@@ -983,7 +930,6 @@ void smscore_unregister_device(struct smscore_device_t *coredev)
 
 	sms_info("freed %d buffers", num_buffers);
 
-#if (ALLOC_COMMON_BUF_MULTIPLE > 0)
 	buf_alloc = coredev->buf_array_p;
 	while (coredev->buf_num--) {
 		if (buf_alloc->p) {
@@ -1001,19 +947,6 @@ void smscore_unregister_device(struct smscore_device_t *coredev)
 
 	kfree(coredev->buf_array_p);
 	coredev->buf_array_p = NULL;
-#else
-	if (coredev->common_buffer) {
-	#if (ALLOC_COMMON_BUF_BY_KMALLOC > 0)
-		vunmap(coredev->common_buffer);
-		kaddr = phys_to_virt(coredev->common_buffer_phys);
-		free_pages_exact(kaddr, coredev->common_buffer_size);
-	#else
-		dma_free_coherent(NULL, coredev->common_buffer_size,
-				  coredev->common_buffer,
-				  coredev->common_buffer_phys);
-	#endif
-	}
-#endif
 
 	if (coredev->fw_buf != NULL)
 		kfree(coredev->fw_buf);
@@ -1902,11 +1835,9 @@ int smscore_map_common_buffer(struct smscore_device_t *coredev,
 	unsigned long end = vma->vm_end,
 	    start = vma->vm_start,
 	    size = PAGE_ALIGN(coredev->common_buffer_size);
-#if (ALLOC_COMMON_BUF_MULTIPLE > 0)
 	int i = 0;
 	int offset = 0;
 	struct smscore_buffer_t *buf_alloc;
-#endif
 
 	if (!(vma->vm_flags & (VM_READ | VM_WRITE | VM_SHARED))) {
 		sms_err("invalid vm flags");
@@ -1919,7 +1850,6 @@ int smscore_map_common_buffer(struct smscore_device_t *coredev,
 		return -EINVAL;
 	}
 
-#if (ALLOC_COMMON_BUF_MULTIPLE > 0)
 	for (i = 0, buf_alloc = coredev->buf_array_p; i < coredev->buf_num;
 	     i++, buf_alloc++) {
 		if (remap_pfn_range(vma, start + offset,
@@ -1931,14 +1861,6 @@ int smscore_map_common_buffer(struct smscore_device_t *coredev,
 		}
 		offset += PAGE_ALIGN(buf_alloc->size);
 	}
-#else
-	if (remap_pfn_range(vma, start,
-			    coredev->common_buffer_phys >> PAGE_SHIFT,
-			    size, pgprot_noncached(vma->vm_page_prot))) {
-		sms_err("remap_page_range failed");
-		return -EAGAIN;
-	}
-#endif
 
 	return 0;
 }

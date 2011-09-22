@@ -171,15 +171,12 @@ struct smscore_device_t {
 
 	struct list_head buffers;
 	spinlock_t bufferslock;
-	int num_buffers;
 
-	void *common_buffer;
+	int num_buffers;
 	int common_buffer_size;
-	dma_addr_t common_buffer_phys;
-#if (ALLOC_COMMON_BUF_MULTIPLE  > 0)
 	struct smscore_buffer_t *buf_array_p;
 	int buf_num;
-#endif
+
 	void *context;
 	struct device *device;
 
