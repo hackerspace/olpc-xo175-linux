@@ -160,9 +160,7 @@ static const struct snd_soc_dapm_route mmp3asoc_dapm_routes[] = {
 	{"IN1RN", NULL, "Headset Mic"},
 
 	{"DMIC1DAT", NULL, "MICBIAS1"},
-	{"MICBIAS1", NULL, "MICBIAS2"},
-	{"MICBIAS2", NULL, "MICBIAS"},
-	{"MICBIAS", NULL, "Main Mic"},
+	{"MICBIAS1", NULL, "Main Mic"},
 };
 
 static const char *const jack_function[] = {
