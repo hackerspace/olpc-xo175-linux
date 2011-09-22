@@ -103,7 +103,6 @@ struct mv_buffer {
 	struct yuv_pointer_t yuv_p;
 	struct list_head queue;
 	size_t bsize;
-	char *vaddr;	/*kernel virtual addr for userptr in vb2_buf*/
 	struct page *page;
 	int list_init_flag;
 };
@@ -524,7 +523,6 @@ static void mv_videobuf_queue(struct vb2_buffer *vb)
 		struct soc_camera_device, vb2_vidq);
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct mv_camera_dev *pcdev = ici->priv;
-	struct device *dev = &pcdev->icd->dev;
 	struct mv_buffer *buf = container_of(vb, struct mv_buffer, vb_buf);
 	unsigned long flags;
 	int start;
@@ -548,25 +546,6 @@ static void mv_videobuf_queue(struct vb2_buffer *vb)
 		buf->yuv_p.y = dma_handle;
 	}
 
-	if (pcdev->pix_format.pixelformat == V4L2_PIX_FMT_JPEG) {
-		if (dma_handle != PAGE_ALIGN(dma_handle)) {
-			dev_dbg(dev, "[%s] Phy addr is not page"
-					"aligned 0x%x\n", __func__, dma_handle);
-			BUG_ON(1);
-			return;
-		}
-		buf->page = pfn_to_page(dma_handle >> PAGE_SHIFT);
-		if (PageHighMem(buf->page))
-			buf->vaddr = kmap_high(buf->page);
-		else
-			buf->vaddr = page_address(buf->page);
-		if (!buf->vaddr) {
-			dev_err(dev, "Failed to get vaddr!\n");
-			return;
-		}
-		dev_dbg(dev, "[%s],page paddr:0x%x, vaddr:0x%x\n",
-				__func__, dma_handle, (unsigned int)buf->vaddr);
-	}
 	spin_lock_irqsave(&pcdev->list_lock, flags);
 	list_add_tail(&buf->queue, &pcdev->buffers);
 	spin_unlock_irqrestore(&pcdev->list_lock, flags);
@@ -587,7 +566,6 @@ static void mv_videobuf_cleanup(struct vb2_buffer *vb)
 	/*queue list must be initialized before del*/
 	if (buf->list_init_flag)
 		list_del_init(&buf->queue);
-	buf->vaddr = NULL;
 	buf->list_init_flag = 0;
 	spin_unlock_irqrestore(&pcdev->list_lock, flags);
 }
@@ -704,8 +682,6 @@ static void mv_buffer_done(struct mv_camera_dev *pcdev,
 static void ccic_frame_complete(struct mv_camera_dev *pcdev, int frame)
 {
 	struct mv_buffer *buf = pcdev->vb_bufs[frame];
-	struct device *dev = &pcdev->icd->dev;
-	char *vaddr;
 
 	clear_bit(CF_DMA_ACTIVE, &pcdev->flags);
 	frames++;
@@ -716,26 +692,6 @@ static void ccic_frame_complete(struct mv_camera_dev *pcdev, int frame)
 		return;
 
 	if (!test_bit(CF_SINGLE_BUFFER, &pcdev->flags)) {
-		if (pcdev->pix_format.pixelformat == V4L2_PIX_FMT_JPEG
-				&& buf->vb_buf.state == VB2_BUF_STATE_ACTIVE) {
-			/* As mmap allocate uncached buffer, not
-			 * necessary to invalid cache, but for userptr,
-			 * we don't know buffer property, to make sure
-			 * user could get the real data from DDR, invalid
-			 * cache.
-			 */
-			if (buf->vb_buf.v4l2_buf.memory == V4L2_MEMORY_USERPTR)
-				dma_map_page(dev, buf->page, 0,
-					buf->vb_buf.v4l2_planes[0].length,
-					DMA_FROM_DEVICE);
-
-			vaddr = (char *)buf->vaddr;
-			if (vaddr[0] != 0xff || vaddr[1] != 0xd8) {
-				dev_err(dev, "cam: JPEG error 0x%x%x!\n",
-						vaddr[0], vaddr[1]);
-				return;
-			}
-		}
 		delivered++;
 		mv_buffer_done(pcdev, frame, &buf->vb_buf);
 	}
