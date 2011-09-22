@@ -727,7 +727,7 @@ static int smschar_setup_cdev(struct smschar_device_t *dev, int index)
 		device_create(smschr_dev_class, NULL, devno, NULL, "mdtv%d",
 			      index);
 #endif
-	sms_info("exiting %p %d, rc %d", dev, index, rc);
+	/* sms_info("exiting %p %d, rc %d", dev, index, rc); */
 	return rc;
 }
 
@@ -775,8 +775,9 @@ static int smschar_hotplug(struct smscore_device_t *coredev,
 			       sizeof(struct smschar_device_t));
 
 			/* Initialize each device. */
+			sms_info("create %d devices", SMSCHAR_NR_DEVS);
 			for (i = 0; i < SMSCHAR_NR_DEVS; i++) {
-				sms_info("create device %d", i);
+				/* sms_info("create device %d", i); */
 				smschar_setup_cdev(&smschar_devices[i], i);
 				INIT_LIST_HEAD(&smschar_devices
 					       [i].pending_data);
@@ -794,9 +795,10 @@ static int smschar_hotplug(struct smscore_device_t *coredev,
 		/* currently only 1 instance supported */
 		if (g_smschar_inuse) {
 			/* Get rid of our char dev entries */
+			sms_info("remove %d devices", SMSCHAR_NR_DEVS);
 			for (i = 0; i < SMSCHAR_NR_DEVS; i++) {
 				cdev_del(&smschar_devices[i].cdev);
-				sms_info("remove device %d", i);
+				/* sms_info("remove device %d", i); */
 			}
 
 			g_smschar_inuse = 0;
