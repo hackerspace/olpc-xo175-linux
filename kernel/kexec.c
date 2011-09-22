@@ -1098,6 +1098,7 @@ void crash_kexec(struct pt_regs *regs)
 			kmsg_dump(KMSG_DUMP_KEXEC);
 
 			crash_setup_regs(&fixed_regs, regs);
+			vmcoreinfo_append_str("CRASHTIME=%ld", get_seconds());
 			crash_save_vmcoreinfo();
 			machine_crash_shutdown(&fixed_regs);
 			machine_kexec(kexec_crash_image);
@@ -1395,16 +1396,12 @@ int __init parse_crashkernel(char 		 *cmdline,
 	return 0;
 }
 
-
-
 void crash_save_vmcoreinfo(void)
 {
 	u32 *buf;
 
 	if (!vmcoreinfo_size)
 		return;
-
-	vmcoreinfo_append_str("CRASHTIME=%ld", get_seconds());
 
 	buf = (u32 *)vmcoreinfo_note;
 
