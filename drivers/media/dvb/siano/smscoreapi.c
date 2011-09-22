@@ -30,6 +30,8 @@
 #include <linux/uaccess.h>
 #include <linux/firmware.h>
 #include <linux/wait.h>
+#include <linux/gfp.h>
+#include <linux/vmalloc.h>
 #include <asm/byteorder.h>
 
 #include "smscoreapi.h"
@@ -363,6 +365,34 @@ smscore_buffer_t *smscore_createbuffer(u8 * buffer, void *common_buffer,
 }
 #endif
 
+#if (ALLOC_COMMON_BUF_BY_KMALLOC > 0)
+static void *smscore_alloc_common_buf(u32 size, dma_addr_t *dma)
+{
+	int nr, i = 0;
+	struct page **pages;
+	void *start;
+
+	nr = size >> PAGE_SHIFT;
+	start = kmalloc(size, GFP_KERNEL | __GFP_ZERO);
+	if (start == NULL)
+		return NULL;
+
+	*dma = virt_to_phys(start);
+	pages = vmalloc(sizeof(struct page *) * nr);
+	if (pages == NULL)
+		return NULL;
+
+	while (i < nr) {
+		pages[i] = phys_to_page(*dma + (i << PAGE_SHIFT));
+		i++;
+	}
+
+	start = vmap(pages, nr, 0, pgprot_dmacoherent(pgprot_kernel));
+	vfree(pages);
+	return start;
+}
+#endif
+
 /**
  * creates coredev object for a device, prepares buffers,
  * creates buffer mappings, notifies registered hotplugs about new device.
@@ -441,8 +471,13 @@ int smscore_register_device(struct smsdevice_params_t *params,
 	for (i = 0, buf_alloc = dev->buf_array_p; i < dev->buf_num;
 	     i++, buf_alloc++) {
 		buf_alloc->size = alloc_size;
+	#if (ALLOC_COMMON_BUF_BY_KMALLOC > 0)
+		buf_alloc->p = smscore_alloc_common_buf(buf_alloc->size,
+						&buf_alloc->phys);
+	#else
 		buf_alloc->p = dma_alloc_coherent(NULL, buf_alloc->size,
 			&buf_alloc->phys, GFP_KERNEL | GFP_DMA);
+	#endif
 		if (buf_alloc->p == NULL) {
 			smscore_unregister_device(dev);
 			return -ENOMEM;
@@ -470,9 +505,14 @@ int smscore_register_device(struct smsdevice_params_t *params,
 	}
 #else
 	dev->common_buffer_size = params->buffer_size * params->num_buffers;
+	#if (ALLOC_COMMON_BUF_BY_KMALLOC > 0)
+	dev->common_buffer = smscore_alloc_common_buf(dev->common_buffer_size,
+						&dev->common_buffer_phys);
+	#else
 	dev->common_buffer = dma_alloc_coherent(NULL, dev->common_buffer_size,
 						&dev->common_buffer_phys,
 						GFP_KERNEL | GFP_DMA);
+	#endif
 	if (!dev->common_buffer) {
 		smscore_unregister_device(dev);
 		return -ENOMEM;
@@ -907,7 +947,9 @@ void smscore_unregister_device(struct smscore_device_t *coredev)
 #if (ALLOC_COMMON_BUF_MULTIPLE > 0)
 	struct smscore_buffer_t *buf_alloc;
 #endif
-
+#if (ALLOC_COMMON_BUF_BY_KMALLOC > 0)
+	void *kaddr;
+#endif
 	kmutex_lock(&g_smscore_deviceslock);
 
 	/* Release input device (IR) resources */
@@ -945,8 +987,14 @@ void smscore_unregister_device(struct smscore_device_t *coredev)
 	buf_alloc = coredev->buf_array_p;
 	while (coredev->buf_num--) {
 		if (buf_alloc->p) {
+	#if (ALLOC_COMMON_BUF_BY_KMALLOC > 0)
+			vunmap(buf_alloc->p);
+			kaddr = phys_to_virt(buf_alloc->phys);
+			kfree(kaddr);
+	#else
 			dma_free_coherent(NULL, buf_alloc->size,
 			buf_alloc->p, buf_alloc->phys);
+	#endif
 		}
 		buf_alloc++;
 	}
@@ -954,10 +1002,17 @@ void smscore_unregister_device(struct smscore_device_t *coredev)
 	kfree(coredev->buf_array_p);
 	coredev->buf_array_p = NULL;
 #else
-	if (coredev->common_buffer)
+	if (coredev->common_buffer) {
+	#if (ALLOC_COMMON_BUF_BY_KMALLOC > 0)
+		vunmap(coredev->common_buffer);
+		kaddr = phys_to_virt(coredev->common_buffer_phys);
+		free_pages_exact(kaddr, coredev->common_buffer_size);
+	#else
 		dma_free_coherent(NULL, coredev->common_buffer_size,
 				  coredev->common_buffer,
 				  coredev->common_buffer_phys);
+	#endif
+	}
 #endif
 
 	if (coredev->fw_buf != NULL)

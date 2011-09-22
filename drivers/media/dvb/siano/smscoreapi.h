@@ -48,6 +48,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #define RX_64K_MODE		/* for 64K RX data */
 #define ALLOC_COMMON_BUF_MULTIPLE	1
+#define ALLOC_COMMON_BUF_BY_KMALLOC 1
 
 #define SMS_PROTOCOL_MAX_RAOUNDTRIP_MS			(10000)
 #define SMS_ALLOC_ALIGNMENT				128
