@@ -533,7 +533,7 @@ static int __devinit sms_probe(struct spi_device *spi)
 	smsspi_save_dev((void *)drv_info);
 
 	/* Add here temp, if smschar call the function, delete it */
-	chip_power_on(drv_info);
+	/* chip_power_on(drv_info); */
 
 	/* chip_powerdown(); */
 	/* when probe no need power on, and power off */
