@@ -19,27 +19,33 @@
 #include <linux/mfd/88pm860x.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
-#include <linux/mmc/sdhci.h>
 #include <linux/cwmi.h>
 #include <linux/cwgd.h>
+#include <linux/platform_data/pxa_sdhci.h>
+#include <linux/regulator/machine.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 
 #include <mach/hardware.h>
 #include <mach/mfp.h>
-#include <mach/gpio.h>
 #include <mach/mfp-pxa930.h>
+#include <mach/gpio.h>
 #include <mach/pxa95xfb.h>
 #include <mach/soc_vmeta.h>
+#include <linux/switch.h>
 
+#include <mach/usb-regs.h>
 #include <plat/pxa27x_keypad.h>
 #include <plat/pmem.h>
 
+#include <plat/usb.h>
+
 #include "devices.h"
 #include "generic.h"
+
 #include "panel_settings.h"
-#include <linux/switch.h>
+
 
 #define NEVOSAARC_NR_IRQS	(IRQ_BOARD_START + 40)
 
@@ -87,6 +93,14 @@ static struct pm860x_led_pdata led[] = {
 	},
 };
 
+static void disable_rf(void)
+{
+}
+
+static struct pm860x_power_pdata power = {
+	.disable_rf_fn  = disable_rf,
+};
+
 #if defined(CONFIG_SENSORS_CM3601)
 static int cm3601_request_resource(unsigned char gpio_num, char *name)
 {
@@ -130,6 +144,56 @@ static struct pm860x_headset_pdata headset_platform_info	 = {
 	.headset_data[1].state_off = NULL,
 };
 
+
+/* TODO: check the regulator data carefully */
+static struct regulator_consumer_supply regulator_supply[PM8607_ID_RG_MAX];
+static struct regulator_init_data regulator_data[PM8607_ID_RG_MAX];
+
+static int regulator_index[] = {
+	PM8607_ID_BUCK1,
+	PM8607_ID_BUCK2,
+	PM8607_ID_BUCK3,
+	PM8607_ID_LDO1,
+	PM8607_ID_LDO2,
+	PM8607_ID_LDO3,
+	PM8607_ID_LDO4,
+	PM8607_ID_LDO5,
+	PM8607_ID_LDO6,
+	PM8607_ID_LDO7,
+	PM8607_ID_LDO8,
+	PM8607_ID_LDO9,
+	PM8607_ID_LDO10,
+	PM8607_ID_LDO11,
+	PM8607_ID_LDO12,
+	PM8607_ID_LDO13,
+	PM8607_ID_LDO14,
+	PM8607_ID_LDO15,
+};
+
+#define REG_SUPPLY_INIT(_id, _name, _dev_name)		\
+{							\
+	int _i = _id;				\
+	regulator_supply[_i].supply		= _name;		\
+	regulator_supply[_i].dev_name	= _dev_name;	\
+}
+
+#define REG_INIT(_id, _name, _min, _max, _always, _boot)\
+{									\
+	int _i = _id;				\
+	regulator_data[_i].constraints.name	=	__stringify(_name);	\
+	regulator_data[_i].constraints.min_uV	= _min;	\
+	regulator_data[_i].constraints.max_uV	= _max;	\
+	regulator_data[_i].constraints.always_on	= _always;	\
+	regulator_data[_i].constraints.boot_on	= _boot;	\
+	regulator_data[_i].constraints.valid_ops_mask	=	\
+		REGULATOR_CHANGE_VOLTAGE | REGULATOR_CHANGE_STATUS;	\
+	regulator_data[_i].num_consumer_supplies	= 1;	\
+	regulator_data[_i].consumer_supplies	=	\
+		&regulator_supply[PM8607_ID_##_name];	\
+	regulator_data[_i].driver_data	=	\
+		&regulator_index[PM8607_ID_##_name];	\
+}
+
 static struct pm860x_rtc_pdata rtc = {
 	.vrtc           = 1,
 	.rtc_wakeup     = 0,
@@ -138,6 +202,8 @@ static struct pm860x_rtc_pdata rtc = {
 static struct pm860x_platform_data pm8607_info = {
 	.backlight	= &backlight[0],
 	.led		= &led[0],
+	.power		= &power,
+	.regulator	= regulator_data,
 #if defined(CONFIG_SENSORS_CM3601)
 	.cm3601		= &cm3601_platform_info,
 #endif
@@ -154,6 +220,33 @@ static struct pm860x_platform_data pm8607_info = {
 	.num_backlights	= ARRAY_SIZE(backlight),
 };
 
+static void regulator_init(void)
+{
+	int i = 0;
+
+	/* for hdmi */
+	REG_SUPPLY_INIT(PM8607_ID_LDO12, "v_ihdmi", NULL);
+	REG_INIT(i++, LDO12, 1200000, 3300000, 0, 0);
+
+	switch (get_board_id()) {
+	case OBM_SAAR_C2_NEVO_A0_V10_BOARD:
+		REG_SUPPLY_INIT(PM8607_ID_LDO1, "v_gps", NULL);
+		REG_SUPPLY_INIT(PM8607_ID_LDO9, "v_cam", NULL);
+		REG_SUPPLY_INIT(PM8607_ID_LDO13, "vmmc", "sdhci-pxa.1");
+
+		REG_INIT(i++, LDO1, 1200000, 3300000, 0, 0);
+		REG_INIT(i++, LDO9, 1800000, 3300000, 0, 0);
+		REG_INIT(i++, LDO13, 1800000, 3300000, 0, 0);
+		printk(KERN_INFO "%s: select saarC NEVO ldo map\n", __func__);
+	break;
+	default:
+		printk(KERN_ERR "%s: The board type is not defined!\n ", __func__);
+		BUG();
+	}
+
+	pm8607_info.num_regulators = i;
+}
+
 static struct i2c_board_info i2c1_info[] = {
 	{
 		.type		= "88PM860x",
@@ -163,6 +256,23 @@ static struct i2c_board_info i2c1_info[] = {
 	},
 };
 
+#if defined(CONFIG_MMC_SDHCI_PXAV2_TAVOR)
+static struct sdhci_pxa_platdata mci0_platform_data = {
+	.flags	= PXA_FLAG_CARD_PERMANENT | PXA_FLAG_SD_8_BIT_CAPABLE_SLOT,
+};
+
+static struct sdhci_pxa_platdata mci1_platform_data = {
+	.ext_cd_gpio = mfp_to_gpio(MFP_PIN_GPIO123),
+	.ext_cd_gpio_invert = 1,
+};
+
+static void __init init_mmc(void)
+{
+	/*add emmc only, need to add sdcard and sdio later*/
+	pxa95x_set_mci_info(0, &mci0_platform_data);
+	pxa95x_set_mci_info(1, &mci1_platform_data);
+}
+#endif
 
 static struct cwmi_platform_data cwmi_acc_data = {
 	.set_power = NULL,
@@ -188,6 +298,28 @@ static struct cwgd_platform_data cwgd_plat_data = {
 		0, 0, -1},
 };
 
+static int ssd2531_ts_pins[] = { MFP_PIN_GPIO8, MFP_PIN_GPIO7 };
+
+static struct i2c_board_info i2c2_info[] = {
+#if defined(CONFIG_TOUCHSCREEN_SSD2531)
+	{
+	 .type = "ssd2531_ts",
+	 .addr = 0x5c,
+	 .platform_data = ssd2531_ts_pins,
+	 },
+#endif
+
+#if defined(CONFIG_C_TEC_OPTIC_TP)
+	{
+		.type	= "ctec_optic_tp",
+		.addr	= 0x33,
+		.irq	= gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO100)),
+	},
+#endif
+
+};
+
+
 static struct i2c_board_info i2c3_info[] = {
 #if defined(CONFIG_SENSORS_CWMI)
 	{
@@ -212,7 +344,6 @@ static struct i2c_board_info i2c3_info[] = {
 	 .platform_data = &cwgd_plat_data,
 	 },
 #endif
-
 };
 
 static struct i2c_pxa_platform_data i2c1_pdata = {
@@ -254,6 +385,41 @@ static void __init init_vmeta(void)
 	pxa95x_set_vmeta_info(&vmeta_plat_data);
 }
 #endif /*(CONFIG_UIO_VMETA)*/
+
+#if defined(CONFIG_USB_PXA_U2O) || defined(CONFIG_USB_EHCI_PXA_U2O)
+#define STATUS2_VBUS        (1 << 4)
+
+static int	read_vbus_val(void)
+{
+	int ret;
+	ret = pm860x_codec_reg_read(2);
+	if (ret & STATUS2_VBUS)
+		ret = VBUS_HIGH;
+	else
+		ret = VBUS_LOW;
+	return ret;
+};
+
+static char *pxa9xx_usb_clock_name[] = {
+	[0] = "AXICLK",
+	[1] = "IMUCLK",
+	[2] = "U2OCLK",
+};
+
+static struct mv_usb_addon_irq pmic_vbus = {
+	.irq	= IRQ_BOARD_START + PM8607_IRQ_CHG,
+	.poll	= read_vbus_val,
+};
+
+static struct mv_usb_platform_data pxa9xx_usb_pdata = {
+	.clknum		= 3,
+	.clkname	= pxa9xx_usb_clock_name,
+	.vbus		= &pmic_vbus,
+	.mode		= MV_USB_MODE_OTG,
+	.phy_init	= pxa9xx_usb_phy_init,
+	.set_vbus	= NULL,
+};
+#endif
 
 #if defined(CONFIG_KEYBOARD_PXA27x) || defined(CONFIG_KEYBOARD_PXA27x_MODULE)
 static unsigned int matrix_key_map[] = {
@@ -361,6 +527,7 @@ static void __init init_lcd(void)
 
 static void __init init(void)
 {
+	regulator_init();
 	platform_device_add_data(&pxa95x_device_i2c1, &i2c1_pdata,
 				 sizeof(i2c1_pdata));
 	platform_device_add_data(&pxa95x_device_i2c2, &i2c2_pdata,
@@ -370,6 +537,7 @@ static void __init init(void)
 
 	platform_add_devices(ARRAY_AND_SIZE(devices));
 	i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_info));
+	i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info));
 	i2c_register_board_info(2, ARRAY_AND_SIZE(i2c3_info));
 
 #ifdef CONFIG_ANDROID_PMEM
@@ -388,8 +556,17 @@ static void __init init(void)
 	init_lcd();
 #endif
 
+#if defined(CONFIG_MMC_SDHCI_PXAV2_TAVOR)
+	init_mmc();
+#endif
+
 	/* Init boot flash - sync mode in case of ONENAND */
 	pxa_boot_flash_init(1);
+
+#ifdef CONFIG_USB_PXA_U2O
+	pxa9xx_device_u2o.dev.platform_data = (void *)&pxa9xx_usb_pdata;
+	platform_device_register(&pxa9xx_device_u2o);
+#endif
 }
 
 MACHINE_START(NEVOSAARC, "PXA970 Handheld Platform (aka SAAR C2)")
