@@ -183,7 +183,11 @@ static void __init mmp3_timer_init(void)
 	clk_rst = APBC_APBCLK | APBC_FNCLK | APBC_FNCLKSEL(1);
 	__raw_writel(clk_rst, APBC_MMP2_TIMERS);
 
+#ifdef CONFIG_SOC_LOCAL_TIMERS
+	timer_init(IRQ_MMP3_TIMER1, IRQ_MMP3_TIMER2, IRQ_MMP3_TIMER3);
+#else
 	timer_init(IRQ_MMP3_TIMER1, IRQ_MMP3_TIMER2);
+#endif
 }
 
 struct sys_timer mmp3_timer = {

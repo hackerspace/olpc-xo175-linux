@@ -56,7 +56,7 @@ static unsigned long tcr2ns_scale;
 static unsigned long us2cyc_scale;
 static DEFINE_CLOCK_DATA(cd);
 
-static struct clock_event_device * local_clock_dev;
+static int irq_timer0, irq_timer1, irq_timer2;
 
 static void __init set_tcr2ns_scale(unsigned long tcr_rate)
 {
@@ -98,51 +98,49 @@ unsigned long us2cyc(unsigned long usecs)
 				US2CYC_SCALE_FACTOR;
 }
 
-static int timer0_set_next_event(unsigned long delta,
+static int timer_set_next_event(unsigned long delta,
 				struct clock_event_device *dev)
 {
 	unsigned long next;
+	int timer;
 
 	if (delta < MIN_DELTA)
 		delta = MIN_DELTA;
 
+	if (dev->irq == irq_timer0)
+		timer = 0;
+	else if (dev->irq == irq_timer1)
+		timer = 1;
+	else
+		timer = 2;
 	/* clear pending interrupt status and enable */
-	__raw_writel(0x01, TIMERS_VIRT_BASE + TMR_ICR(0));
-	__raw_writel(0x01, TIMERS_VIRT_BASE + TMR_IER(0));
+	__raw_writel(0x01, TIMERS_VIRT_BASE + TMR_ICR(timer));
+	__raw_writel(0x01, TIMERS_VIRT_BASE + TMR_IER(timer));
 
-	next = timer_read(0) + delta;
-	__raw_writel(next, TIMERS_VIRT_BASE + TMR_TN_MM(0, 0));
+	next = timer_read(timer) + delta;
+	__raw_writel(next, TIMERS_VIRT_BASE + TMR_TN_MM(timer, 0));
 
 	return 0;
 }
 
-
-static int timer1_set_next_event(unsigned long delta,
-				struct clock_event_device *dev)
-{
-	unsigned long next;
-
-	if (delta < MIN_DELTA)
-		delta = MIN_DELTA;
-
-	/* clear pending interrupt status and enable */
-	__raw_writel(0x01, TIMERS_VIRT_BASE + TMR_ICR(1));
-	__raw_writel(0x01, TIMERS_VIRT_BASE + TMR_IER(1));
-
-	next = timer_read(1) + delta;
-	__raw_writel(next, TIMERS_VIRT_BASE + TMR_TN_MM(1, 0));
-
-	return 0;
-}
-
-static void timer0_set_mode(enum clock_event_mode mode,
+static void timer_set_mode(enum clock_event_mode mode,
 			   struct clock_event_device *dev)
 {
+	int irq = dev->irq;
+	int timer;
+
+	if (irq == irq_timer0)
+		timer = 0;
+	else if (irq == irq_timer1)
+		timer = 1;
+	else
+		timer = 2;
+
 	switch (mode) {
 	case CLOCK_EVT_MODE_ONESHOT:
 	case CLOCK_EVT_MODE_SHUTDOWN:
 		/* disable the matching interrupt */
-		__raw_writel(0x00, TIMERS_VIRT_BASE + TMR_IER(0));
+		__raw_writel(0x00, TIMERS_VIRT_BASE + TMR_IER(timer));
 		break;
 	case CLOCK_EVT_MODE_RESUME:
 	case CLOCK_EVT_MODE_PERIODIC:
@@ -150,23 +148,8 @@ static void timer0_set_mode(enum clock_event_mode mode,
 	case CLOCK_EVT_MODE_UNUSED:
 	{
 		unsigned long cer = __raw_readl(TIMERS_VIRT_BASE + TMR_CER);
-		__raw_writel(cer | (1 << 0), TIMERS_VIRT_BASE + TMR_CER);
+		__raw_writel(cer & ~(1 << timer), TIMERS_VIRT_BASE + TMR_CER);
 	}
-	}
-}
-static void timer1_set_mode(enum clock_event_mode mode,
-			   struct clock_event_device *dev)
-{
-	switch (mode) {
-	case CLOCK_EVT_MODE_ONESHOT:
-	case CLOCK_EVT_MODE_UNUSED:
-	case CLOCK_EVT_MODE_SHUTDOWN:
-		/* disable the matching interrupt */
-		__raw_writel(0x00, TIMERS_VIRT_BASE + TMR_IER(1));
-		break;
-	case CLOCK_EVT_MODE_RESUME:
-	case CLOCK_EVT_MODE_PERIODIC:
-		break;
 	}
 }
 
@@ -174,25 +157,40 @@ static struct clock_event_device ckevt0 = {
 	.name		= "clockevent0",
 	.features	= CLOCK_EVT_FEAT_ONESHOT,
 	.rating		= 200,
-	.set_next_event	= timer0_set_next_event,
-	.set_mode	= timer0_set_mode,
+	.set_next_event	= timer_set_next_event,
+	.set_mode	= timer_set_mode,
 };
 
 static struct clock_event_device ckevt1 = {
 	.name		= "clockevent1",
 	.features	= CLOCK_EVT_FEAT_ONESHOT,
 	.rating		= 200,
-	.set_next_event	= timer1_set_next_event,
-	.set_mode	= timer1_set_mode,
+	.set_next_event	= timer_set_next_event,
+	.set_mode	= timer_set_mode,
 };
 
-static irqreturn_t timer0_interrupt(int irq, void *dev_id)
-{
-	struct clock_event_device *c = local_clock_dev;
+static struct clock_event_device ckevt2 = {
+	.name		= "clockevent2",
+	.features	= CLOCK_EVT_FEAT_ONESHOT,
+	.rating		= 200,
+	.set_next_event	= timer_set_next_event,
+	.set_mode	= timer_set_mode,
+};
 
+static irqreturn_t timer_interrupt(int irq, void *dev_id)
+{
+	struct clock_event_device *c = dev_id;
+	int timer;
+
+	if (irq == irq_timer0)
+		timer = 0;
+	else if (irq == irq_timer1)
+		timer = 1;
+	else
+		timer = 2;
 	/* disable and clear pending interrupt status */
-	__raw_writel(0x0, TIMERS_VIRT_BASE + TMR_IER(0));
-	__raw_writel(0x1, TIMERS_VIRT_BASE + TMR_ICR(0));
+	__raw_writel(0x0, TIMERS_VIRT_BASE + TMR_IER(timer));
+	__raw_writel(0x1, TIMERS_VIRT_BASE + TMR_ICR(timer));
 	c->event_handler(c);
 	return IRQ_HANDLED;
 }
@@ -200,27 +198,21 @@ static irqreturn_t timer0_interrupt(int irq, void *dev_id)
 static struct irqaction timer0_irq = {
 	.name		= "timer0",
 	.flags		= IRQF_DISABLED | IRQF_TIMER | IRQF_IRQPOLL,
-	.handler	= timer0_interrupt,
-	.dev_id		= &ckevt0,
+	.handler	= timer_interrupt,
 };
-
-static irqreturn_t timer1_interrupt(int irq, void *dev_id)
-{
-	struct clock_event_device *c = dev_id;
-
-	/* disable and clear pending interrupt status */
-	__raw_writel(0x0, TIMERS_VIRT_BASE + TMR_IER(1));
-	__raw_writel(0x1, TIMERS_VIRT_BASE + TMR_ICR(1));
-	c->event_handler(c);
-	return IRQ_HANDLED;
-}
 
 static struct irqaction timer1_irq = {
 	.name		= "timer1",
 	.flags		= IRQF_DISABLED | IRQF_TIMER | IRQF_IRQPOLL,
-	.handler	= timer1_interrupt,
-	.dev_id		= &ckevt1,
+	.handler	= timer_interrupt,
 };
+
+static struct irqaction timer2_irq = {
+	.name		= "timer2",
+	.flags		= IRQF_DISABLED | IRQF_TIMER | IRQF_IRQPOLL,
+	.handler	= timer_interrupt,
+};
+
 
 /*
  * FIXME: the timer needs some delay to stablize the counter capture
@@ -307,11 +299,10 @@ static void __init timer_config(void)
 	/* clock frequency from clock/reset control register for Timer 0 */
 	ccr &= ~0x7f;
 #ifdef CONFIG_PXA_32KTIMER
-	ccr |= TMR_CCR_CS_0(1) | TMR_CCR_CS_1(1);
+	ccr |= TMR_CCR_CS_0(1) | TMR_CCR_CS_1(1) | TMR_CCR_CS_2(2);
 #else
-	ccr |= TMR_CCR_CS_0(0) | TMR_CCR_CS_1(0);
+	ccr |= TMR_CCR_CS_0(0) | TMR_CCR_CS_1(0) | TMR_CCR_CS_2(0);
 #endif
-	ccr |= TMR_CCR_CS_2(0);
 	__raw_writel(ccr, TIMERS_VIRT_BASE + TMR_CCR);
 
 	/* free-running mode for Timer 0 & 1 */
@@ -361,7 +352,7 @@ static void generic_timer_config(void)
 	__raw_writel(value, GEN_TMR_CFG);
 }
 
-void __init timer_init(int irq0, int irq1)
+void __init timer_init(int irq0, int irq1, int irq2)
 {
 	timer_config();
 
@@ -371,21 +362,24 @@ void __init timer_init(int irq0, int irq1)
 	clocksource_calc_mult_shift(&cksrc, 32768, 4);
 	clockevents_calc_mult_shift(&ckevt0, 32768, 4);
 	clockevents_calc_mult_shift(&ckevt1, 32768, 4);
+	clockevents_calc_mult_shift(&ckevt2, 32768, 4);
 #else
 	init_sched_clock(&cd, mmp_update_sched_clock, 32, CLOCK_TICK_RATE);
 	set_tcr2ns_scale(CLOCK_TICK_RATE);
 	clocksource_calc_mult_shift(&cksrc, CLOCK_TICK_RATE, 4);
 	clockevents_calc_mult_shift(&ckevt0, CLOCK_TICK_RATE, 4);
 	clockevents_calc_mult_shift(&ckevt1, CLOCK_TICK_RATE, 4);
+	clockevents_calc_mult_shift(&ckevt2, CLOCK_TICK_RATE, 4);
 #endif
 
 	generic_timer_config();
 	set_us2cyc_scale(CLOCK_TICK_RATE / 2);
-	ckevt0.irq = irq0;
-	ckevt1.irq = irq1;
-	setup_irq(irq0, &timer0_irq);
+	ckevt0.irq = irq_timer0 = irq0;
+	ckevt1.irq = irq_timer1 = irq1;
+	ckevt2.irq = irq_timer2 = irq2;
+
+	timer1_irq.dev_id = &ckevt1;
 	setup_irq(irq1, &timer1_irq);
-	irq_set_affinity(irq0, cpumask_of(1));
 	irq_set_affinity(irq1, cpumask_of(0));
 
 	clocksource_register(&cksrc);
@@ -398,22 +392,43 @@ void __init timer_init(int irq0, int irq1)
 	ckevt1.min_delta_ns = clockevent_delta2ns(MIN_DELTA, &ckevt1);
 	ckevt1.cpumask = cpumask_of(0);
 
+	ckevt2.max_delta_ns = clockevent_delta2ns(MAX_DELTA, &ckevt2);
+	ckevt2.min_delta_ns = clockevent_delta2ns(MIN_DELTA, &ckevt2);
+	ckevt2.cpumask = cpumask_of(2);
+
 	clockevents_register_device(&ckevt1);
 }
 
 int local_timer_setup(struct clock_event_device *evt)
 {
 	unsigned long cer = __raw_readl(TIMERS_VIRT_BASE + TMR_CER);
+	int timer, cpu;
 
 	/* Use existing clock_event for cpu 0 */
-        if (!smp_processor_id())
+	cpu = smp_processor_id();
+
+	if (cpu == 0)
 		return 0;
+	else if (cpu == 1) {
+		timer = 0;
+		memcpy(evt, &ckevt0, sizeof(struct clock_event_device));
+		if (timer0_irq.dev_id == NULL) {
+			timer0_irq.dev_id = evt;
+			setup_irq(evt->irq, &timer0_irq);
+		}
+	}
+	else {
+		timer = 2;
+		memcpy(evt, &ckevt2, sizeof(struct clock_event_device));
+		if (timer2_irq.dev_id == NULL) {
+			timer2_irq.dev_id = evt;
+			setup_irq(evt->irq, &timer2_irq);
+		}
+	}
 
-	memcpy(evt, &ckevt0, sizeof(struct clock_event_device));
-	irq_set_affinity(evt->irq, cpumask_of(1));
-	__raw_writel(cer | (1 << 0), TIMERS_VIRT_BASE + TMR_CER);
+	irq_set_affinity(evt->irq, cpumask_of(cpu));
+	__raw_writel(cer | (1 << timer), TIMERS_VIRT_BASE + TMR_CER);
 
-	local_clock_dev = evt;
 	clockevents_register_device(evt);
 	return 0;
 }
