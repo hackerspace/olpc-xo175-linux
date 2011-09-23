@@ -32,12 +32,10 @@
 #include <mach/mfp-pxa930.h>
 #include <mach/gpio.h>
 #include <mach/pxa95xfb.h>
-#include <mach/soc_vmeta.h>
 #include <linux/switch.h>
 
 #include <mach/usb-regs.h>
 #include <plat/pxa27x_keypad.h>
-#include <plat/pmem.h>
 
 #include <plat/usb.h>
 
@@ -369,24 +367,6 @@ static struct platform_device *devices[] __initdata = {
 	&pxa95x_device_i2c3,
 };
 
-#if defined(CONFIG_UIO_VMETA)
-static struct vmeta_plat_data vmeta_plat_data = {
-	.bus_irq_handler = pxa95x_vmeta_bus_irq_handler,
-	.set_dvfm_constraint = pxa95x_vmeta_set_dvfm_constraint,
-	.unset_dvfm_constraint = pxa95x_vmeta_unset_dvfm_constraint,
-	.init_dvfm_constraint = pxa95x_vmeta_init_dvfm_constraint,
-	.clean_dvfm_constraint = pxa95x_vmeta_clean_dvfm_constraint,
-	.axi_clk_available = 1,
-	.decrease_core_freq = pxa95x_vmeta_decrease_core_freq,
-	.increase_core_freq = pxa95x_vmeta_increase_core_freq,
-};
-
-static void __init init_vmeta(void)
-{
-	pxa95x_set_vmeta_info(&vmeta_plat_data);
-}
-#endif /*(CONFIG_UIO_VMETA)*/
-
 #if defined(CONFIG_USB_PXA_U2O) || defined(CONFIG_USB_EHCI_PXA_U2O)
 #define STATUS2_VBUS        (1 << 4)
 
@@ -540,14 +520,6 @@ static void __init init(void)
 	i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_info));
 	i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info));
 	i2c_register_board_info(2, ARRAY_AND_SIZE(i2c3_info));
-
-#ifdef CONFIG_ANDROID_PMEM
-	pxa_add_pmem();
-#endif
-
-#if defined(CONFIG_UIO_VMETA)
-	init_vmeta();
-#endif /*(CONFIG_UIO_VMETA)*/
 
 #if defined(CONFIG_KEYBOARD_PXA27x) || defined(CONFIG_KEYBOARD_PXA27x_MODULE)
 	pxa_set_keypad_info(&keypad_info);

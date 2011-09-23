@@ -965,6 +965,19 @@ void __init pxa95x_set_i2c_power_info(struct i2c_pxa_platform_data *info)
 	pxa_register_device(&pxa3xx_device_i2c_power, info);
 }
 
+#if defined(CONFIG_UIO_VMETA)
+static struct vmeta_plat_data vmeta_plat_data = {
+	.bus_irq_handler = pxa95x_vmeta_bus_irq_handler,
+	.set_dvfm_constraint = pxa95x_vmeta_set_dvfm_constraint,
+	.unset_dvfm_constraint = pxa95x_vmeta_unset_dvfm_constraint,
+	.init_dvfm_constraint = pxa95x_vmeta_init_dvfm_constraint,
+	.clean_dvfm_constraint = pxa95x_vmeta_clean_dvfm_constraint,
+	.axi_clk_available = 1,
+	.decrease_core_freq = pxa95x_vmeta_decrease_core_freq,
+	.increase_core_freq = pxa95x_vmeta_increase_core_freq,
+};
+#endif /*(CONFIG_UIO_VMETA)*/
+
 static struct platform_device *devices[] __initdata = {
 	&sa1100_device_rtc,
 	&pxa_device_rtc,
@@ -1025,6 +1038,13 @@ static int __init pxa95x_init(void)
 
 		pxa_set_ffuart_info(NULL);
 		pxa_set_stuart_info(NULL);
+
+#ifdef CONFIG_ANDROID_PMEM
+		pxa_add_pmem();
+#endif
+#if defined(CONFIG_UIO_VMETA)
+		pxa95x_set_vmeta_info(&vmeta_plat_data);
+#endif
 
 		/* Set vmeta clock as 312MHz always */
 		ACCR |=  0x00200000;
