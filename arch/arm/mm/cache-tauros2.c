@@ -285,7 +285,7 @@ static void disable_extra_feature(void)
 
 void __init tauros2_init(void)
 {
-	char *mode;
+	char *mode = NULL;
 
 #ifdef CONFIG_ARCH_PXA
 	if (cpu_is_pxa95x()) {/* for MG1, MG2, Nevo only */
