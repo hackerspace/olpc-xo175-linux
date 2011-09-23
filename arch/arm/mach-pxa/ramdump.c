@@ -470,7 +470,7 @@ static void ramdump_save_current_context(struct ramdump_state *d)
 	if (d->thread == 0)
 		d->thread = current_thread_info();
 	if (strlen(d->text) == 0) {
-		strcpy(d->text, "[KR] Panic in ");
+		strncat(d->text, "[KR] Panic in ", sizeof(d->text) - 1);
 		if (d->thread && d->thread->task)
 			/* 0 is always appended even after n chars copied */
 			strncat(d->text, d->thread->task->comm,
@@ -496,7 +496,10 @@ void ramdump_save_dynamic_context(const char *str, int err,
 	else if ((err & RAMDUMP_ERR_EEH_CP) == 0)
 		idtext = "KR";
 
-	len = sprintf(ramdump_data.text, "[%s] ", idtext);
+	len = snprintf(ramdump_data.text, sizeof(ramdump_data.text),
+			"[%s] ", idtext);
+	if (len >= sizeof(ramdump_data.text)) /* beware: snprintf retvalue */
+		len = sizeof(ramdump_data.text) - 1;
 
 	if (str)
 		/* 0 is always appended even after n chars copied */
@@ -508,7 +511,8 @@ void ramdump_save_dynamic_context(const char *str, int err,
 		/* For kernel oops/panic add more data to text */
 		char info[30];
 		len = strlen(ramdump_data.text);
-		sprintf(info, " at 0x%.8x in ", (unsigned)regs->ARM_pc);
+		snprintf(info, sizeof(info),
+			" at 0x%.8x in ", (unsigned)regs->ARM_pc);
 
 		if (thread && thread->task)
 			/* 0 is always appended even after n chars copied */
