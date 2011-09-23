@@ -182,6 +182,32 @@ static int mv_otg_reset(struct mv_otg *mvotg)
 	return 0;
 }
 
+static void mv_otg_init_irq(struct mv_otg *mvotg)
+{
+	u32 otgsc;
+
+	mvotg->irq_en = OTGSC_INTR_A_SESSION_VALID
+			| OTGSC_INTR_A_VBUS_VALID;
+	mvotg->irq_status = OTGSC_INTSTS_A_SESSION_VALID
+			| OTGSC_INTSTS_A_VBUS_VALID;
+
+	if (mvotg->pdata->vbus == NULL) {
+		mvotg->irq_en |= OTGSC_INTR_B_SESSION_VALID
+			| OTGSC_INTR_B_SESSION_END;
+		mvotg->irq_status |= OTGSC_INTSTS_B_SESSION_VALID
+			| OTGSC_INTSTS_B_SESSION_END;
+	}
+
+	if (mvotg->pdata->id == NULL) {
+		mvotg->irq_en |= OTGSC_INTR_USB_ID;
+		mvotg->irq_status |= OTGSC_INTSTS_USB_ID;
+	}
+
+	otgsc = readl(&mvotg->op_regs->otgsc);
+	otgsc |= mvotg->irq_en;
+	writel(otgsc, &mvotg->op_regs->otgsc);
+}
+
 static void mv_otg_start_host(struct mv_otg *mvotg, int on)
 {
 	struct otg_transceiver *otg = &mvotg->otg;
@@ -268,10 +294,7 @@ static void mv_otg_update_inputs(struct mv_otg *mvotg)
 	struct mv_otg_ctrl *otg_ctrl = &mvotg->otg_ctrl;
 	u32 otgsc;
 
-	if (mvotg->clock_gating == 0 || mvotg->active)
-		otgsc = readl(&mvotg->op_regs->otgsc);
-	else
-		otgsc = 0;
+	otgsc = readl(&mvotg->op_regs->otgsc);
 
 	if (mvotg->pdata->vbus) {
 		if (mvotg->pdata->vbus->poll() == VBUS_HIGH) {
@@ -293,9 +316,13 @@ static void mv_otg_update_inputs(struct mv_otg *mvotg)
 
 	otg_ctrl->a_sess_vld = !!(otgsc & OTGSC_STS_A_SESSION_VALID);
 	otg_ctrl->a_vbus_vld = !!(otgsc & OTGSC_STS_A_VBUS_VALID);
-	dev_dbg(&mvotg->dev->dev, "%s: b_sess_end %d, a_sess_vld %d, "
-		"a_vbus_vld %d\n", __func__, otg_ctrl->b_sess_end,
-		otg_ctrl->a_sess_vld, otg_ctrl->a_vbus_vld);
+
+	dev_dbg(&mvotg->dev->dev, "%s: ", __func__);
+	dev_dbg(&mvotg->dev->dev, "id %d\n", otg_ctrl->id);
+	dev_dbg(&mvotg->dev->dev, "b_sess_vld %d\n", otg_ctrl->b_sess_vld);
+	dev_dbg(&mvotg->dev->dev, "b_sess_end %d\n", otg_ctrl->b_sess_end);
+	dev_dbg(&mvotg->dev->dev, "a_vbus_vld %d\n", otg_ctrl->a_vbus_vld);
+	dev_dbg(&mvotg->dev->dev, "a_sess_vld %d\n", otg_ctrl->a_sess_vld);
 }
 
 static void mv_otg_update_state(struct mv_otg *mvotg)
@@ -384,8 +411,10 @@ run:
 	otg = &mvotg->otg;
 	old_state = otg->state;
 
-	mv_otg_update_inputs(mvotg);
+	if (!mvotg->active)
+		return;
 
+	mv_otg_update_inputs(mvotg);
 	mv_otg_update_state(mvotg);
 
 	if (old_state != otg->state) {
@@ -473,6 +502,8 @@ static irqreturn_t mv_otg_inputs_irq(int irq, void *dev)
 {
 	struct mv_otg *mvotg = dev;
 
+	/* The clock may disabled at this time */
+	mv_otg_enable(mvotg);
 	mv_otg_run_state_machine(mvotg, 0);
 
 	return IRQ_HANDLED;
@@ -495,23 +526,29 @@ set_a_bus_req(struct device *dev, struct device_attribute *attr,
 
 	BUG_ON(mvotg != the_transceiver);
 
-	if (!mvotg->otg.default_a)
-		return -1;
 	if (count > 2)
 		return -1;
 
-	if (buf[0] == '0') {
-		mvotg->otg_ctrl.a_bus_req = 0;
-		dev_dbg(&mvotg->dev->dev, "User request: a_bus_req = 0\n");
-	} else if (buf[0] == '1') {
+	/* We will use this interface to change to A device */
+	if (mvotg->otg.state != OTG_STATE_B_IDLE
+		&& mvotg->otg.state != OTG_STATE_A_IDLE)
+		return -1;
+
+	/* The clock may disabled and we need to set irq for ID detected */
+	mv_otg_enable(mvotg);
+	mv_otg_init_irq(mvotg);
+
+	if (buf[0] == '1') {
 		mvotg->otg_ctrl.a_bus_req = 1;
 		mvotg->otg_ctrl.a_bus_drop = 0;
 		dev_dbg(&mvotg->dev->dev, "User request: a_bus_req = 1\n");
+
+		if (spin_trylock(&mvotg->wq_lock)) {
+			mv_otg_run_state_machine(mvotg, 0);
+			spin_unlock(&mvotg->wq_lock);
+		}
 	}
-	if (spin_trylock(&mvotg->wq_lock)) {
-		mv_otg_run_state_machine(mvotg, 0);
-		spin_unlock(&mvotg->wq_lock);
-	}
+
 	return count;
 }
 static DEVICE_ATTR(a_bus_req, S_IRUGO | S_IWUSR, get_a_bus_req, set_a_bus_req);
@@ -642,7 +679,6 @@ static int mv_otg_probe(struct platform_device *dev)
 	int retval = 0, clk_i, i;
 	struct resource *r;
 	size_t size;
-	u32 otgsc;
 
 	if (the_transceiver)
 		return 0;
@@ -731,33 +767,14 @@ static int mv_otg_probe(struct platform_device *dev)
 			goto err_otg_enable;
 		}
 	}
+	mvotg->active = 1;
 
 	mvotg->op_regs = (struct mv_op_regs __iomem *)((u32)mvotg->cap_regs
 		+ (readl(&mvotg->cap_regs->caplength_hciversion)
 			& CAPLENGTH_MASK));
 
 	mv_otg_reset(mvotg);
-
-	mvotg->irq_en = OTGSC_INTR_A_SESSION_VALID
-		| OTGSC_INTR_A_VBUS_VALID;
-	mvotg->irq_status = OTGSC_INTSTS_A_SESSION_VALID
-		| OTGSC_INTSTS_A_VBUS_VALID;
-
-	if (pdata->vbus == NULL) {
-		mvotg->irq_en |= OTGSC_INTR_B_SESSION_VALID
-			| OTGSC_INTR_B_SESSION_END;
-		mvotg->irq_status |= OTGSC_INTSTS_B_SESSION_VALID
-			| OTGSC_INTSTS_B_SESSION_END;
-	}
-
-	if (pdata->id == NULL) {
-		mvotg->irq_en |= OTGSC_INTR_USB_ID;
-		mvotg->irq_status |= OTGSC_INTSTS_USB_ID;
-	}
-
-	otgsc = readl(&mvotg->op_regs->otgsc);
-	otgsc |= mvotg->irq_en;
-	writel(otgsc, &mvotg->op_regs->otgsc);
+	mv_otg_init_irq(mvotg);
 
 	r = platform_get_resource(mvotg->dev, IORESOURCE_IRQ, 0);
 	if (r == NULL) {
@@ -791,33 +808,27 @@ static int mv_otg_probe(struct platform_device *dev)
 	for (i = 0; i < OTG_TIMER_NUM; i++)
 		init_timer(&mvotg->otg_ctrl.timer[i]);
 
-	if (pdata->vbus) {
-		retval = request_threaded_irq(pdata->vbus->irq, NULL,
-				mv_otg_inputs_irq, IRQF_ONESHOT, "vbus",
-				mvotg);
-		if (retval) {
-			dev_info(&dev->dev,
-				"Can not request irq for VBUS, "
-				"disable clock gating\n");
-			goto err_request_vbus;
-		}
-	}
 	if (pdata->id) {
 		retval = request_threaded_irq(pdata->id->irq, NULL,
 				mv_otg_inputs_irq, IRQF_ONESHOT, "id", mvotg);
 		if (retval) {
 			dev_info(&dev->dev,
-				"Can not request irq for VBUS, "
-				"disable clock gating\n");
-			goto err_request_id;
+				"Can not request irq for ID\n");
 		}
 	}
 
-	if (pdata->vbus && pdata->id)
+	if (pdata->vbus) {
 		mvotg->clock_gating = 1;
-
-	if (mvotg->clock_gating)
-		otg_clock_disable(mvotg);
+		retval = request_threaded_irq(pdata->vbus->irq, NULL,
+						mv_otg_inputs_irq,
+						IRQF_ONESHOT, "vbus", mvotg);
+		if (retval) {
+			dev_info(&dev->dev,
+				"Can not request irq for VBUS, "
+				"disable clock gating\n");
+			mvotg->clock_gating = 0;
+		}
+	}
 
 	spin_lock_init(&mvotg->wq_lock);
 	if (spin_trylock(&mvotg->wq_lock)) {
@@ -830,10 +841,6 @@ static int mv_otg_probe(struct platform_device *dev)
 
 	return 0;
 
-err_request_id:
-	free_irq(pdata->id->irq, mvotg);
-err_request_vbus:
-	sysfs_remove_group(&dev->dev.kobj, &inputs_attr_group);
 err_create_sysfs:
 	otg_set_transceiver(NULL);
 err_set_transceiver:
