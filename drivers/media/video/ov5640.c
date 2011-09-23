@@ -487,6 +487,74 @@ static int ov5640_load_fw(struct v4l2_subdev *sd)
 	return ret;
 }
 
+static int ov5640_g_frame_interval(struct v4l2_subdev *sd,
+				struct v4l2_subdev_frame_interval *inter)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	int	pre_div, multiplier, vco_freq;
+	int sys_div, pll_rdiv, bit_div, sclk_rdiv;
+	int sys_clk, vts, hts, frame_rate;
+	int mclk;
+	u8 val;
+
+	mclk = inter->pad;
+	/* get sensor system clk */
+	/* vco frequency */
+	ov5640_read(client, 0x3037, &val);
+	/* There should be a complicated algorithm
+	   including double member.
+	 */
+	pre_div = val & 0xf;
+	pll_rdiv = (val >> 4) & 0x1;
+	ov5640_read(client, 0x3036, &val);
+	multiplier = (val < 128) ? val : (val/2*2);
+
+	vco_freq = mclk / pre_div * multiplier;
+	dev_dbg(&client->dev, "vco_freq: %d, mclk:%d,pre_div:%d,"
+			"multiplier:%d\n", vco_freq, mclk, pre_div, multiplier);
+
+	ov5640_read(client, 0x3035, &val);
+	val = (val >> 4) & 0xf;
+	sys_div = (val > 0) ? val : 16;
+	pll_rdiv = (pll_rdiv == 0) ? 1 : 2;
+	ov5640_read(client, 0x3034, &val);
+	val = val & 0xf;
+	bit_div = (val / 4 == 2) ? 2 : 1;
+	ov5640_read(client, 0x3108, &val);
+	val = val & 0x3;
+	sclk_rdiv = (val == 0) ? 1 : ((val == 1) ? 2
+			: ((val == 2) ? 4 : 8));
+
+	sys_clk = vco_freq / sys_div / pll_rdiv / bit_div
+		/ sclk_rdiv;
+	dev_dbg(&client->dev, "sys_clk: %d, sys_div:%d,pll_rdiv:%d,"
+			"bit_div:%d,sclk_rdiv:%d\n", sys_clk, sys_div,
+			pll_rdiv, bit_div, sclk_rdiv);
+
+	/* get sensor hts & vts */
+	ov5640_read(client, 0x380c, &val);
+	hts = val & 0xf;
+	hts <<= 8;
+	ov5640_read(client, 0x380d, &val);
+	hts += val & 0xff;
+	ov5640_read(client, 0x380e, &val);
+	vts = val & 0xf;
+	vts <<= 8;
+	ov5640_read(client, 0x380f, &val);
+	vts += val & 0xff;
+
+	if (!hts || !vts)
+		return -EINVAL;
+	frame_rate = sys_clk * 1000000 / (hts * vts);
+	dev_dbg(&client->dev, "frame_rate: %d,"
+			"hts:%x, vts:%x\n", frame_rate, hts, vts);
+
+	inter->interval.numerator = frame_rate;
+	inter->interval.denominator = 1;
+
+	return 0;
+}
+
 static struct v4l2_subdev_core_ops ov5640_subdev_core_ops = {
 	.g_chip_ident = ov5640_g_chip_ident,
 	.load_fw = ov5640_load_fw,
@@ -503,6 +571,7 @@ static struct v4l2_subdev_video_ops ov5640_subdev_video_ops = {
 	.try_mbus_fmt = ov5640_try_fmt,
 	.enum_mbus_fsizes = ov5640_enum_fsizes,
 	.enum_mbus_fmt = ov5640_enum_fmt,
+	.g_frame_interval =  ov5640_g_frame_interval,
 };
 
 static struct v4l2_subdev_ops ov5640_subdev_ops = {
