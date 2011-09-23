@@ -132,6 +132,7 @@ struct mv_camera_dev {
 	struct mv_buffer *vb_bufs[MAX_DMA_BUFS];
 	unsigned int nbufs;		/* How many are used for ccic */
 	struct vb2_alloc_ctx *vb_alloc_ctx;
+	int frame_rate;
 };
 
 /*
@@ -351,6 +352,7 @@ static void ccic_init(struct mv_camera_dev *pcdev)
 static void ccic_stop_dma(struct mv_camera_dev *pcdev)
 {
 	struct device *dev = &pcdev->icd->dev;
+	int st = 0;
 	ccic_stop(pcdev);
 	/*
 	 * CSI2/DPHY need to be cleared, or no EOF will be received
@@ -367,7 +369,12 @@ static void ccic_stop_dma(struct mv_camera_dev *pcdev)
 	 *
 	 * FIXME! need sillcion to add DMA stop/start bit
 	 */
-	msleep(200);
+	if (pcdev->frame_rate)
+		st = 1000/pcdev->frame_rate + 1;
+	else
+		st = 150;
+	dev_dbg(dev, "frame_rate: %dfps, st:%dms\n", pcdev->frame_rate, st);
+	msleep(st);
 	if (test_bit(CF_DMA_ACTIVE, &pcdev->flags))
 		dev_err(dev, "Timeout waiting for DMA to end\n");
 		/* This would be bad news - what now? */
@@ -783,12 +790,14 @@ static int mv_camera_set_fmt(struct soc_camera_device *icd,
 {
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct mv_camera_dev *pcdev = ici->priv;
+	struct mv_cam_pdata *mcam = pcdev->pdev->dev.platform_data;
 	struct device *dev = icd->dev.parent;
 	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
 	const struct soc_camera_format_xlate *xlate = NULL;
 	struct v4l2_mbus_framefmt mf;
 	int ret;
 	struct v4l2_pix_format *pix = &f->fmt.pix;
+	struct v4l2_subdev_frame_interval inter;
 
 	dev_dbg(dev, "S_FMT %c%c%c%c, %ux%u\n",
 		pixfmtstr(pix->pixelformat), pix->width, pix->height);
@@ -814,6 +823,17 @@ static int mv_camera_set_fmt(struct soc_camera_device *icd,
 		dev_err(dev, "wrong code %s %d\n", __func__, __LINE__);
 		return -EINVAL;
 	}
+
+	/*To get frame_rate*/
+	inter.pad = mcam->mclk_min;
+	ret = v4l2_subdev_call(sd, video, g_frame_interval, &inter);
+	if (ret < 0) {
+		dev_err(dev, "Can't get frame_rate %s %d\n"
+				, __func__, __LINE__);
+		pcdev->frame_rate = 0;
+	} else
+		pcdev->frame_rate =
+			inter.interval.numerator/inter.interval.denominator;
 
 	pix->width = mf.width;
 	pix->height = mf.height;
