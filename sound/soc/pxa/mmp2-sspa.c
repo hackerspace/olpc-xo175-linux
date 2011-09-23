@@ -488,6 +488,11 @@ static int mmp2_sspa_set_dai_pll(struct snd_soc_dai *cpu_dai, int pll_id,
 		      SSPA_AUD_PLL_CTRL0_DIV_FBCCLK(set->fbcclk) |
 		      SSPA_AUD_PLL_CTRL0_DIV_MCLK(set->mclk) |
 		      SSPA_AUD_PLL_CTRL0_PU;
+#ifdef CONFIG_CPU_MMP3
+		/* on MMP3 SPEC, AUD_CTRL0[31] is MCLK_DIV[1], need to
+		 * enable this bit to get the correct bit clock */
+		val |= (1 << 31);
+#endif
 		__raw_writel(val, SSPA_AUD_PLL_CTRL0);
 
 		val = __raw_readl(SSPA_AUD_CTRL);
@@ -543,7 +548,7 @@ static int mmp2_sspa_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 	}
 
 	/* reset port settings */
-	sspa_sp   = SSPA_SP_WEN | SSPA_SP_S_RST | SSPA_SP_FFLUSH;
+	sspa_sp = SSPA_SP_WEN | SSPA_SP_S_RST | SSPA_SP_FFLUSH;
 	sspa_ctrl = 0;
 
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
@@ -578,14 +583,6 @@ static int mmp2_sspa_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 	sspa_sp &= ~(SSPA_SP_S_RST | SSPA_SP_FFLUSH);
 	mmp2_sspa_write_reg(sspa, SSPA_TXSP, sspa_sp);
 	mmp2_sspa_write_reg(sspa, SSPA_RXSP, sspa_sp);
-
-	/*
-	 * FIXME: hw issue, for the tx serial port,
-	 * can not config the master/slave mode;
-	 * so must clean this bit.
-	 * The master/slave mode has been set in the
-	 * rx port.
-	 */
 
 	mmp2_sspa_write_reg(sspa, SSPA_TXCTL, sspa_ctrl);
 	mmp2_sspa_write_reg(sspa, SSPA_RXCTL, sspa_ctrl);
@@ -637,7 +634,7 @@ static int mmp3_sspa_hw_params(struct snd_pcm_substream *substream,
 		as_width = TDCR_SSZ_8_BITS;
 	case SNDRV_PCM_FORMAT_S16_LE:
 		word_size = SSPA_CTL_16_BITS;
-		bits_per_frame = 32;
+		bits_per_frame = 64;
 		as_width = TDCR_SSZ_16_BITS;
 		break;
 	case SNDRV_PCM_FORMAT_S24_LE:
@@ -669,6 +666,16 @@ static int mmp3_sspa_hw_params(struct snd_pcm_substream *substream,
 		mmp2_sspa_write_reg(sspa, SSPA_RXCTL, sspa_ctrl);
 		mmp2_sspa_write_reg(sspa, SSPA_RXFIFO_UL, 0x0);
 		mmp2_sspa_write_reg(sspa, SSPA_RXSP, sspa_sp);
+#ifdef CONFIG_CPU_MMP3
+		if (sspa_sp & SSPA_SP_MSL) {
+		/* FIXME: hw issue, for the rx port, can not config the
+		 * master mode in TXSP register. and must clear this bit
+		 * in TXSP register */
+		sspa_sp = mmp2_sspa_read_reg(sspa, SSPA_TXSP);
+		sspa_sp |= SSPA_SP_WEN;
+		mmp2_sspa_write_reg(sspa, SSPA_TXSP, sspa_sp & ~SSPA_SP_MSL);
+		}
+#endif
 	}
 
 	mmp2_sspa_dump_reg(sspa);

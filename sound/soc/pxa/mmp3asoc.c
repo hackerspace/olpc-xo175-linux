@@ -48,7 +48,7 @@
 #include "mmp2-sspa.h"
 #include <linux/delay.h>
 
-#define MMP3ASOC_SAMPLE_RATES (SNDRV_PCM_RATE_44100)
+#define MMP3ASOC_SAMPLE_RATES SNDRV_PCM_RATE_8000_48000
 
 #define MMP3ASOC_HP        0
 #define MMP3ASOC_MIC       1
@@ -316,7 +316,7 @@ static void audio_subsystem_poweroff(void)
 static void audio_subsystem_pll_config(void)
 {
 	/* select audio pll */
-	__raw_writel(0x108a1881, SSPA_AUD_PLL_CTRL0);
+	__raw_writel(0x908a1881, SSPA_AUD_PLL_CTRL0);
 	msleep(100);
 
 	/* select audio pll */
@@ -425,12 +425,14 @@ static int codec_wm8994_init(struct snd_soc_pcm_runtime *rtd)
 
 #endif
 
+#if 0
 	/* need to enable Reg(0x302) bit 13, bit 12 for wm8994 master */
 	snd_soc_update_bits(codec, WM8994_AIF1_MASTER_SLAVE,
 			    WM8994_AIF1_CLK_FRC_MASK |
 			    WM8994_AIF1_LRCLK_FRC_MASK,
 			    WM8994_AIF1_CLK_FRC |
 			    WM8994_AIF1_LRCLK_FRC);
+#endif
 	return 0;
 }
 
@@ -467,7 +469,7 @@ static int mmp3asoc_hdmi_hw_params(struct snd_pcm_substream *substream,
 	if (params_rate(params) > 11025) {
 		freq_out = params_rate(params) * 512;
 		sysclk = params_rate(params) * 256;
-		sspa_mclk = params_rate(params) * 32;
+		sspa_mclk = params_rate(params) * 64;
 	} else {
 		freq_out = params_rate(params) * 1024;
 		sysclk = params_rate(params) * 512;
@@ -476,10 +478,45 @@ static int mmp3asoc_hdmi_hw_params(struct snd_pcm_substream *substream,
 	sspa_div = freq_out;
 	do_div(sspa_div, sspa_mclk);
 
+#ifdef CONFIG_SND_WM8994_MASTER_MODE
+	snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_I2S |
+			    SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBM_CFM);
+	snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_I2S |
+			    SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBM_CFM);
+#else
 	snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_I2S |
 			    SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBS_CFS);
 	snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_I2S |
 			    SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBS_CFS);
+#endif
+
+	/* workaround for audio PLL, and should be removed after A1 */
+	switch (params_rate(params)) {
+	case 48000:
+		__raw_writel(0xd0040040, MPMU_ISCCRX1);
+		break;
+	case 44100:
+		__raw_writel(0xd0040044, MPMU_ISCCRX1);
+		break;
+	case 32000:
+		__raw_writel(0xd00800c0, MPMU_ISCCRX1);
+		break;
+	case 24000:
+		__raw_writel(0xd0020040, MPMU_ISCCRX1);
+		break;
+	case 22050:
+		__raw_writel(0xd0020044, MPMU_ISCCRX1);
+		break;
+	case 16000:
+		__raw_writel(0xd00400c0, MPMU_ISCCRX1);
+		break;
+	case 8000:
+		__raw_writel(0xd00400c0, MPMU_ISCCRX1);
+		break;
+	default:
+		break;
+	}
+
 	snd_soc_dai_set_pll(cpu_dai, SSPA_AUDIO_PLL, 0, freq_in, freq_out);
 	snd_soc_dai_set_clkdiv(cpu_dai, 0, sspa_div);
 	snd_soc_dai_set_sysclk(cpu_dai, 0, sysclk, 0);
@@ -493,11 +530,8 @@ static int mmp3asoc_wm8994_startup(struct snd_pcm_substream *substream)
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 	struct snd_soc_codec *codec = rtd->codec;
 
-	/* For PCM stream, it's actually 32 bits, including 16 bits valid
-	 * data, and 16 bits 0. Need to change to SNDRV_PCM_FMTBIT_S32_LE
-	 * to keep consistent with Codec setting. */
-	cpu_dai->driver->playback.formats = SNDRV_PCM_FMTBIT_S32_LE;
-	cpu_dai->driver->capture.formats = SNDRV_PCM_FMTBIT_S32_LE;
+	cpu_dai->driver->playback.formats = SNDRV_PCM_FMTBIT_S16_LE;
+	cpu_dai->driver->capture.formats = SNDRV_PCM_FMTBIT_S16_LE;
 	cpu_dai->driver->playback.rates = MMP3ASOC_SAMPLE_RATES;
 	cpu_dai->driver->capture.rates = MMP3ASOC_SAMPLE_RATES;
 
@@ -518,7 +552,7 @@ static int mmp3asoc_wm8994_hw_params(struct snd_pcm_substream *substream,
 	if (params_rate(params) > 11025) {
 		freq_out = params_rate(params) * 512;
 		sysclk = params_rate(params) * 256;
-		sspa_mclk = params_rate(params) * 32;
+		sspa_mclk = params_rate(params) * 64;
 	} else {
 		freq_out = params_rate(params) * 1024;
 		sysclk = params_rate(params) * 512;
@@ -538,6 +572,37 @@ static int mmp3asoc_wm8994_hw_params(struct snd_pcm_substream *substream,
 	snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_I2S |
 			    SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBS_CFS);
 #endif
+
+	/* workaround for audio PLL, and should be removed after A1 */
+	switch (params_rate(params)) {
+	case 48000:
+		__raw_writel(0xd0040040, MPMU_ISCCRX1);
+		break;
+	case 44100:
+		__raw_writel(0xd0040044, MPMU_ISCCRX1);
+		break;
+	case 32000:
+		__raw_writel(0xd00800c0, MPMU_ISCCRX1);
+		break;
+	case 24000:
+		__raw_writel(0xd0020040, MPMU_ISCCRX1);
+		break;
+	case 22050:
+		__raw_writel(0xd0020044, MPMU_ISCCRX1);
+		break;
+	case 16000:
+		__raw_writel(0xd00400c0, MPMU_ISCCRX1);
+		break;
+	case 8000:
+		__raw_writel(0xd00400c0, MPMU_ISCCRX1);
+		break;
+	default:
+		break;
+	}
+
+	snd_soc_dai_set_pll(cpu_dai, SSPA_AUDIO_PLL, 0, freq_in, freq_out);
+	snd_soc_dai_set_clkdiv(cpu_dai, 0, sspa_div);
+	snd_soc_dai_set_sysclk(cpu_dai, 0, sysclk, 0);
 
 	/* set wm8994 sysclk */
 	snd_soc_dai_set_sysclk(codec_dai, WM8994_SYSCLK_MCLK1, sysclk, 0);
