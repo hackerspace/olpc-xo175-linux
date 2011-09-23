@@ -478,6 +478,77 @@ static int ov5642_load_fw(struct v4l2_subdev *sd)
 	return ret;
 }
 
+static int ov5642_g_frame_interval(struct v4l2_subdev *sd,
+				struct v4l2_subdev_frame_interval *inter)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	int mclk;
+
+	/*Usd integer member*/
+	int	pre_div_map[8]   = { 1, 2, 2, 3, 3, 4, 6, 8 };
+	int	div1to2p5_map[4] = { 1, 1, 2, 3 };
+	int	m1_div_map[2]    = { 1, 2 };
+	int	seld_map[4]      = { 1, 1, 4, 5 };
+	int	divs_map[8]      = { 1, 2, 3, 4, 5, 6, 7, 8 };
+	int	vco_freq;
+	int	pre_div, div1to2p5;
+	int	m1_div, divp, divs, seld;
+	int sys_clk, vts, hts, frame_rate;
+	u8 val;
+
+	/* get sensor system clk */
+	/* vco frequency */
+	ov5642_read(client, 0x3012, &val);
+	val = val&0x7;
+	pre_div = pre_div_map[val];
+	ov5642_read(client, 0x3011, &val);
+	val = val&0x3f;
+	divp = val;
+	ov5642_read(client, 0x300f, &val);
+	val = val&0x3;
+	seld = seld_map[val];
+
+	mclk = inter->pad;
+	vco_freq = mclk / pre_div * divp * seld;
+	dev_dbg(&client->dev, "vco_freq: %d\n", vco_freq);
+
+	/* system clk */
+	ov5642_read(client, 0x3010, &val);
+	val = val & 0xf0;
+	divs = divs_map[val];
+	ov5642_read(client, 0x300f, &val);
+	val = val & 0x3;
+	div1to2p5 = div1to2p5_map[val];
+	ov5642_read(client, 0x3029, &val);
+	val = val & 0x1;
+	m1_div = m1_div_map[val];
+
+	sys_clk = vco_freq / divs / div1to2p5 / m1_div / 4;
+
+	/* get sensor hts & vts */
+	ov5642_read(client, 0x380c, &val);
+	hts = val & 0xf;
+	hts <<= 8;
+	ov5642_read(client, 0x380d, &val);
+	hts += val & 0xff;
+	ov5642_read(client, 0x380e, &val);
+	vts = val & 0xf;
+	vts <<= 8;
+	ov5642_read(client, 0x380f, &val);
+	vts += val & 0xff;
+
+	if (!hts || !vts)
+		return -EINVAL;
+	frame_rate = sys_clk * 1000000 / (hts * vts);
+	dev_dbg(&client->dev, "frame_rate: %d,"
+			"hts:%x, vts:%x\n", frame_rate, hts, vts);
+
+	inter->interval.numerator = frame_rate;
+	inter->interval.denominator = 1;
+
+	return 0;
+}
+
 static struct v4l2_subdev_core_ops ov5642_subdev_core_ops = {
 	.g_chip_ident = ov5642_g_chip_ident,
 	.load_fw = ov5642_load_fw,
@@ -495,6 +566,7 @@ static struct v4l2_subdev_video_ops ov5642_subdev_video_ops = {
 	.try_mbus_fmt = ov5642_try_fmt,
 	.enum_mbus_fsizes = ov5642_enum_fsizes,
 	.enum_mbus_fmt = ov5642_enum_fmt,
+	.g_frame_interval =  ov5642_g_frame_interval,
 };
 
 static struct v4l2_subdev_ops ov5642_subdev_ops = {
