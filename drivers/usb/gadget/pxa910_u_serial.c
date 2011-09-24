@@ -76,7 +76,7 @@
  * consider it a NOP.  A third layer is provided by the TTY code.
  */
 #define QUEUE_SIZE		16
-#define WRITE_BUF_SIZE		8192*2	/* TX only */
+#define PXA910_WRITE_BUF_SIZE		8192*2	/* TX only */
 struct pxa910_gserial {
 	struct usb_function func;
 
@@ -141,7 +141,9 @@ static struct pxa910_portmaster {
 	struct mutex lock;	/* protect open/close */
 	struct pxa910_gs_port *port;
 } pxa910_ports[PXA_N_PORTS];
-static unsigned n_ports;
+
+static unsigned n_modem_ports;
+static unsigned n_diag_ports;
 
 #define GS_CLOSE_TIMEOUT		15	/* seconds */
 
@@ -729,11 +731,19 @@ static int pxa910_gs_start_io(struct pxa910_gs_port *port)
  */
 static int pxa910_gs_open(struct tty_struct *tty, struct file *file)
 {
-	int port_num = tty->index;
+	int port_num;
 	struct pxa910_gs_port *port;
 	int status;
+	char *ttydiag = "ttydiag";
+	char *ttymodem = "ttymodem";
 
-	if (port_num < 0 || port_num >= n_ports)
+	if (!strcmp(ttymodem, tty->driver->name))
+		port_num = 0;
+
+	if (!strcmp(ttydiag, tty->driver->name))
+		port_num = 1;
+
+	if (port_num < 0 || port_num >= n_modem_ports + n_modem_ports)
 		return -ENXIO;
 
 	do {
@@ -787,11 +797,11 @@ static int pxa910_gs_open(struct tty_struct *tty, struct file *file)
 
 		spin_unlock_irq(&port->port_lock);
 		status = pxa910_gs_buf_alloc(&port->port_write_buf,
-					WRITE_BUF_SIZE);
+					PXA910_WRITE_BUF_SIZE);
 		spin_lock_irq(&port->port_lock);
 
 		if (status) {
-			pr_debug("pxa910_gs_open: ttyGS%d (%p,%p) no buffer\n",
+			pr_debug("pxa910_gs_modem_open: ttyGS%d (%p,%p) no buffer\n",
 				 port->port_num, tty, file);
 			port->openclose = false;
 			goto exit_unlock_port;
@@ -819,14 +829,14 @@ static int pxa910_gs_open(struct tty_struct *tty, struct file *file)
 	if (port->port_usb) {
 		struct pxa910_gserial *gser = port->port_usb;
 
-		pr_debug("pxa910_gs_open: start ttyGS%d\n", port->port_num);
+		pr_debug("pxa910_gs_modem_open: start ttyGS%d\n", port->port_num);
 		pxa910_gs_start_io(port);
 
 		if (gser->connect)
 			gser->connect(gser);
 	}
 
-	pr_debug("pxa910_gs_open: ttyGS%d (%p,%p)\n", port->port_num,
+	pr_debug("pxa910_gs_modem_open: ttyGS%d (%p,%p)\n", port->port_num,
 					tty, file);
 
 	status = 0;
@@ -1049,7 +1059,9 @@ static const struct tty_operations pxa910_gs_tty_ops = {
 
 /*-------------------------------------------------------------------------*/
 
-static struct tty_driver *gs_tty_driver;
+static struct tty_driver *gs_modem_tty_driver;
+static struct tty_driver *gs_diag_tty_driver;
+
 
 #if 0
 static int __init
@@ -1263,7 +1275,10 @@ static int pxa910_gserial_connect(struct pxa910_gserial *gser, u8 port_num)
 	unsigned long flags;
 	int status;
 
-	if (!gs_tty_driver || port_num >= n_ports)
+	if (port_num >= (n_modem_ports + n_diag_ports))
+		return -ENXIO;
+
+	if (!gs_modem_tty_driver || !gs_diag_tty_driver)
 		return -ENXIO;
 
 	/* we "know" gserial_cleanup() hasn't been called */
@@ -1314,6 +1329,7 @@ fail_out:
 	gser->in->driver_data = NULL;
 	return status;
 }
+
 
 /**
  * gserial_disconnect - notify TTY I/O glue that USB link is inactive

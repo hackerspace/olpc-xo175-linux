@@ -233,7 +233,7 @@ static void marvell_diag_function_cleanup(struct android_usb_function *f)
 int marvell_diag_function_bind_config(struct android_usb_function *f,
 					struct usb_configuration *c)
 {
-	int ret = gser_bind_config(c, 0);
+	int ret = gser_bind_config(c, 1);
 	return ret;
 }
 

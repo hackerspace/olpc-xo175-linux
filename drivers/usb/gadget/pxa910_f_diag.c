@@ -24,6 +24,7 @@
  * CDC ACM driver.  However, for many purposes it's just as functional
  * if you can arrange appropriate host side drivers.
  */
+#define GS_DIAG_PORT_BASE 1
 
 struct gser_descs {
 	struct usb_endpoint_descriptor *in;
@@ -296,7 +297,7 @@ static int gs_marvell_diag_write(struct tty_struct *tty,
 	unsigned long flags;
 	int status;
 
-	pr_vdebug("pxa910_gs_write: ttyGS%d (%p) writing %d bytes\n",
+	pr_vdebug("gs_marvell_diag_write: ttyGS%d (%p) writing %d bytes\n",
 		  port->port_num, tty, count);
 
 	if (port == NULL)
@@ -325,7 +326,7 @@ int gs_marvell_diag_send(const unsigned char *buf, int count)
 	wait_queue_head_t *p_port_send;
 
 	/* Assume that we have only one port */
-	port = pxa910_ports[0].port;
+	port = pxa910_ports[GS_DIAG_PORT_BASE].port;
 	tty = port->port_tty;
 
 	if (tty == NULL || tty->driver_data == NULL || port->port_usb == NULL)
@@ -363,7 +364,7 @@ int gs_marvell_diag_send(const unsigned char *buf, int count)
 			interruptible_sleep_on_timeout(p_port_send,
 						       10 * HZ / 1000);
 
-		port = pxa910_ports[0].port;
+		port = pxa910_ports[GS_DIAG_PORT_BASE].port;
 		tty = port->port_tty;
 		if (tty == NULL || tty->driver_data == NULL
 		    || port->port_usb == NULL)
@@ -636,52 +637,52 @@ int __init marvell_diag_gserial_setup(struct usb_gadget *g, unsigned count)
 	if (count == 0 || count > PXA_N_PORTS)
 		return -EINVAL;
 
-	gs_tty_driver = alloc_tty_driver(count);
-	if (!gs_tty_driver)
+	gs_diag_tty_driver = alloc_tty_driver(count);
+	if (!gs_diag_tty_driver)
 		return -ENOMEM;
 
-	gs_tty_driver->owner = THIS_MODULE;
-	gs_tty_driver->driver_name = "g_serial";
-	gs_tty_driver->name = "ttydiag";
+	gs_diag_tty_driver->owner = THIS_MODULE;
+	gs_diag_tty_driver->driver_name = "g_serial_diag";
+	gs_diag_tty_driver->name = "ttydiag";
 	/* uses dynamically assigned dev_t values */
 
-	gs_tty_driver->type = TTY_DRIVER_TYPE_SERIAL;
-	gs_tty_driver->subtype = SERIAL_TYPE_NORMAL;
-	gs_tty_driver->flags = TTY_DRIVER_REAL_RAW | TTY_DRIVER_DYNAMIC_DEV;
-	gs_tty_driver->init_termios = tty_std_termios;
+	gs_diag_tty_driver->type = TTY_DRIVER_TYPE_SERIAL;
+	gs_diag_tty_driver->subtype = SERIAL_TYPE_NORMAL;
+	gs_diag_tty_driver->flags = TTY_DRIVER_REAL_RAW | TTY_DRIVER_DYNAMIC_DEV;
+	gs_diag_tty_driver->init_termios = tty_std_termios;
 
 	/* 9600-8-N-1 ... matches defaults expected by "usbser.sys" on
 	 * MS-Windows.  Otherwise, most of these flags shouldn't affect
 	 * anything unless we were to actually hook up to a serial line.
 	 */
-	gs_tty_driver->init_termios.c_cflag =
+	gs_diag_tty_driver->init_termios.c_cflag =
 	    B9600 | CS8 | CREAD | HUPCL | CLOCAL;
-	gs_tty_driver->init_termios.c_ispeed = 9600;
-	gs_tty_driver->init_termios.c_ospeed = 9600;
+	gs_diag_tty_driver->init_termios.c_ispeed = 9600;
+	gs_diag_tty_driver->init_termios.c_ospeed = 9600;
 
-	gs_tty_driver->major = GS_MARVELL_DIAG_MAJOR;
-	gs_tty_driver->minor_start = GS_MARVELL_DIAG_MINOR_START;
+	gs_diag_tty_driver->major = GS_MARVELL_DIAG_MAJOR;
+	gs_diag_tty_driver->minor_start = GS_MARVELL_DIAG_MINOR_START;
 
 	coding.dwDTERate = cpu_to_le32(9600);
 	coding.bCharFormat = 8;
 	coding.bParityType = USB_CDC_NO_PARITY;
 	coding.bDataBits = USB_CDC_1_STOP_BITS;
 
-	tty_set_operations(gs_tty_driver, &gs_marvell_diag_tty_ops);
+	tty_set_operations(gs_diag_tty_driver, &gs_marvell_diag_tty_ops);
 
 	/* make devices be openable */
 	for (i = 0; i < count; i++) {
-		mutex_init(&pxa910_ports[i].lock);
-		status = gs_marvell_diag_port_alloc(i, &coding);
+		mutex_init(&pxa910_ports[GS_DIAG_PORT_BASE + i].lock);
+		status = gs_marvell_diag_port_alloc(GS_DIAG_PORT_BASE + i, &coding);
 		if (status) {
 			count = i;
 			goto fail;
 		}
 	}
-	n_ports = count;
+	n_diag_ports = count;
 
 	/* export the driver ... */
-	status = tty_register_driver(gs_tty_driver);
+	status = tty_register_driver(gs_diag_tty_driver);
 	if (status) {
 		pr_err("%s: cannot register, err %d\n", __func__, status);
 		goto fail;
@@ -691,7 +692,7 @@ int __init marvell_diag_gserial_setup(struct usb_gadget *g, unsigned count)
 	for (i = 0; i < count; i++) {
 		struct device *tty_dev;
 
-		tty_dev = tty_register_device(gs_tty_driver, i, &g->dev);
+		tty_dev = tty_register_device(gs_diag_tty_driver, i, &g->dev);
 		if (IS_ERR(tty_dev))
 			pr_warning("%s: no classdev for port %d, err %ld\n",
 				   __func__, i, PTR_ERR(tty_dev));
@@ -702,9 +703,9 @@ int __init marvell_diag_gserial_setup(struct usb_gadget *g, unsigned count)
 	return status;
 fail:
 	while (count--)
-		kfree(pxa910_ports[count].port);
-	put_tty_driver(gs_tty_driver);
-	gs_tty_driver = NULL;
+		kfree(pxa910_ports[GS_DIAG_PORT_BASE + count].port);
+	put_tty_driver(gs_diag_tty_driver);
+	gs_diag_tty_driver = NULL;
 	return status;
 }
 

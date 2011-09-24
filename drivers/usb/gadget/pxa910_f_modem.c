@@ -102,6 +102,7 @@ static inline struct pxa_f_acm *pxa_port_to_acm(struct pxa910_gserial *p)
 
 #define GS_LOG2_NOTIFY_INTERVAL		5	/* 1 << 5 == 32 msec */
 #define GS_NOTIFY_MAXPACKET		10	/* notification + 2 bytes */
+#define GS_MODEM_PORT_BASE		0
 
 /* interface and class descriptors: */
 
@@ -391,7 +392,6 @@ static int pxa_acm_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 	struct usb_composite_dev *cdev = f->config->cdev;
 
 	/* we know alt == 0, so this is an activation or a reset */
-
 	if (intf == acm->ctrl_id) {
 		if (acm->notify->driver_data) {
 			VDBG(cdev, "reset acm control interface %d\n", intf);
@@ -431,7 +431,7 @@ static void pxa_acm_disable(struct usb_function *f)
 	struct pxa910_gs_port *port;
 
 	/* Assume that we have only one port */
-	port = pxa910_ports[0].port;
+	port = pxa910_ports[GS_MODEM_PORT_BASE].port;
 	tty = port->port_tty;
 
 	DBG(cdev, "acm ttyGS%d deactivated\n", acm->port_num);
@@ -800,7 +800,6 @@ int marvell_acm_bind_config(struct usb_configuration *c, u8 port_num)
 int gs_marvell_modem_send(const unsigned char *buf, \
 				int count, unsigned char cid)
 {
-	int to = 0;
 	int buf_avail = 0;
 	struct pxa910_gs_port *port = NULL;
 	struct tty_struct *tty;
@@ -810,7 +809,7 @@ int gs_marvell_modem_send(const unsigned char *buf, \
 	u32 modem_state;
 
 	/* Assume that we have only one port */
-	port = pxa910_ports[0].port;
+	port = pxa910_ports[GS_MODEM_PORT_BASE].port;
 
 	spin_lock_irqsave(&port->port_lock, flags);
 
@@ -1120,7 +1119,6 @@ gs_marvell_modem_port_alloc(unsigned port_num,
 
 	port->port_num = port_num;
 	port->port_line_coding = *coding;
-	mutex_init(&pxa910_ports[port_num].lock);
 	pxa910_ports[port_num].port = port;
 
 	return 0;
@@ -1203,52 +1201,53 @@ int __init marvell_modem_gserial_setup(struct usb_gadget *g, unsigned count)
 	if (count == 0 || count > N_PORTS)
 		return -EINVAL;
 
-	gs_tty_driver = alloc_tty_driver(count);
-	if (!gs_tty_driver)
+	gs_modem_tty_driver = alloc_tty_driver(count);
+	if (!gs_modem_tty_driver)
 		return -ENOMEM;
 
-	gs_tty_driver->owner = THIS_MODULE;
-	gs_tty_driver->driver_name = "g_serial";
-	gs_tty_driver->name = "ttymodem";
+
+	gs_modem_tty_driver->owner = THIS_MODULE;
+	gs_modem_tty_driver->driver_name = "g_serial_modem";
+	gs_modem_tty_driver->name = "ttymodem";
 	/* uses dynamically assigned dev_t values */
 
-	gs_tty_driver->type = TTY_DRIVER_TYPE_SERIAL;
-	gs_tty_driver->subtype = SERIAL_TYPE_NORMAL;
-	gs_tty_driver->flags = TTY_DRIVER_REAL_RAW | TTY_DRIVER_DYNAMIC_DEV;
-	gs_tty_driver->init_termios = tty_std_termios;
+	gs_modem_tty_driver->type = TTY_DRIVER_TYPE_SERIAL;
+	gs_modem_tty_driver->subtype = SERIAL_TYPE_NORMAL;
+	gs_modem_tty_driver->flags = TTY_DRIVER_REAL_RAW | TTY_DRIVER_DYNAMIC_DEV;
+	gs_modem_tty_driver->init_termios = tty_std_termios;
 
 	/* 9600-8-N-1 ... matches defaults expected by "usbser.sys" on
 	 * MS-Windows.  Otherwise, most of these flags shouldn't affect
 	 * anything unless we were to actually hook up to a serial line.
 	 */
-	gs_tty_driver->init_termios.c_cflag =
+	gs_modem_tty_driver->init_termios.c_cflag =
 	    B9600 | CS8 | CREAD | HUPCL | CLOCAL;
-	gs_tty_driver->init_termios.c_ispeed = 9600;
-	gs_tty_driver->init_termios.c_ospeed = 9600;
+	gs_modem_tty_driver->init_termios.c_ispeed = 9600;
+	gs_modem_tty_driver->init_termios.c_ospeed = 9600;
 
-	gs_tty_driver->major = GS_MARVELL_MODEM_MAJOR;
-	gs_tty_driver->minor_start = GS_MARVELL_MODEM_MINOR_START;
+	gs_modem_tty_driver->major = GS_MARVELL_MODEM_MAJOR;
+	gs_modem_tty_driver->minor_start = GS_MARVELL_MODEM_MINOR_START;
 
 	coding.dwDTERate = cpu_to_le32(9600);
 	coding.bCharFormat = 8;
 	coding.bParityType = USB_CDC_NO_PARITY;
 	coding.bDataBits = USB_CDC_1_STOP_BITS;
 
-	tty_set_operations(gs_tty_driver, &gs_marvell_modem_tty_ops);
+	tty_set_operations(gs_modem_tty_driver, &gs_marvell_modem_tty_ops);
 
 	/* make devices be openable */
 	for (i = 0; i < count; i++) {
-		mutex_init(&ports[i].lock);
-		status = gs_marvell_modem_port_alloc(i, &coding);
+		mutex_init(&pxa910_ports[GS_MODEM_PORT_BASE + i].lock);
+		status = gs_marvell_modem_port_alloc(GS_MODEM_PORT_BASE + i, &coding);
 		if (status) {
 			count = i;
 			goto fail;
 		}
 	}
-	n_ports = count;
+	n_modem_ports = count;
 
 	/* export the driver ... */
-	status = tty_register_driver(gs_tty_driver);
+	status = tty_register_driver(gs_modem_tty_driver);
 	if (status) {
 		pr_err("%s: cannot register, err %d\n", __func__, status);
 		goto fail;
@@ -1258,7 +1257,7 @@ int __init marvell_modem_gserial_setup(struct usb_gadget *g, unsigned count)
 	for (i = 0; i < count; i++) {
 		struct device *tty_dev;
 
-		tty_dev = tty_register_device(gs_tty_driver, i, &g->dev);
+		tty_dev = tty_register_device(gs_modem_tty_driver, i, &g->dev);
 		if (IS_ERR(tty_dev))
 			pr_warning("%s: no classdev for port %d, err %ld\n",
 				   __func__, i, PTR_ERR(tty_dev));
@@ -1270,9 +1269,9 @@ int __init marvell_modem_gserial_setup(struct usb_gadget *g, unsigned count)
 	return status;
 fail:
 	while (count--)
-		kfree(ports[count].port);
-	put_tty_driver(gs_tty_driver);
-	gs_tty_driver = NULL;
+		kfree(pxa910_ports[GS_MODEM_PORT_BASE + count].port);
+	put_tty_driver(gs_modem_tty_driver);
+	gs_modem_tty_driver = NULL;
 	return status;
 }
 
