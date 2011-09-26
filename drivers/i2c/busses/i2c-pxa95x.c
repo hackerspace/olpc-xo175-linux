@@ -188,7 +188,7 @@ struct pxa_i2c {
 	wait_queue_head_t	wait;
 	struct i2c_msg		*msg;
 	unsigned int		msg_num;
-	unsigned int		msg_idx;
+	int		        msg_idx;
 	unsigned int		msg_ptr;
 	unsigned int		slave_addr;  /* This is "my Master's" but not remote address*/
 	unsigned int		icr_backup;
