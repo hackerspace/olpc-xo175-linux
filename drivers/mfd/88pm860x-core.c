@@ -878,7 +878,7 @@ static void __devinit device_8607_init(struct pm860x_chip *chip,
 		goto out;
 	}
 
-	pmic_id = ret & PM8607_VERSION_MASK;
+	pmic_id = ret & PM8XXX_VERSION_MASK;
 
 	if  ((pmic_id >= PM8607_CHIP_A0) && (pmic_id <= PM8607_CHIP_END)) {
 		chip->chip_version = ret;

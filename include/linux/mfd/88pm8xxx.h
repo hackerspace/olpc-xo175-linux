@@ -13,6 +13,7 @@
 #define __LINUX_MFD_88PMXXX_H
 
 #define MFD_NAME_SIZE		(40)
+#define PM8XXX_VERSION_MASK		(0xFF)	/* 8XXX chip ID mask */
 
 enum {
 	CHIP_INVALID = 0,
