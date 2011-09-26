@@ -1691,3 +1691,25 @@ struct platform_device vnc_device = {
 	.id	= -1,
 };
 #endif
+
+#if defined(CONFIG_MV_IHDMI)
+static struct resource mv_ihdmi_resources[] = {
+	[0] = {
+		.start = 0x44108000,
+		.end   = 0x441083ff,
+		.flags = IORESOURCE_MEM,
+	},
+};
+
+static u64 mv_ihdmi_dma_mask = DMA_BIT_MASK(32);
+struct platform_device pxa97x_device_ihdmi = {
+	.name		= "mv-ihdmi",
+	.id		= -1,
+	.dev		= {
+		.dma_mask = &mv_ihdmi_dma_mask,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	},
+	.resource	= mv_ihdmi_resources,
+	.num_resources	= ARRAY_SIZE(mv_ihdmi_resources),
+};
+#endif
