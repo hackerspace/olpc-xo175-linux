@@ -138,6 +138,7 @@ MODULE_DEVICE_TABLE(platform, i2c_pxa_id_table);
 #define ICR_DMA_EN      (1 << 27)  /* DMA enable for both TX and RX FIFOs */
 #define ICR_RXUN_IE     (1 << 28)  /* receive FIFO underrun interrupt enable */
 #define ICR_TXOV_IE     (1 << 29)  /* transmit FIFO overrun interrupt enable */
+#define ICR_SDA_FIX	(1 << 30)  /* apply fix for HW issue "fault spike*/
 
 #define ISR_RWM		(1 << 0)	   /* read/write mode */
 #define ISR_ACKNAK	(1 << 1)	   /* ack/nak status */
@@ -1370,7 +1371,7 @@ static inline void i2c_pxa_start_message(struct pxa_i2c *i2c)
 	 */
 	icr = readl(_ICR(i2c)) & ~(ICR_STOP | ICR_ALDIE);
 	ICR_LOG = icr;
-	icr |= ICR_START | ICR_TB | ICR_MSDE;
+	icr |= ICR_START | ICR_TB | ICR_MSDE | ICR_SDA_FIX;
 
 	writel(icr, _ICR(i2c));
 }
@@ -1452,7 +1453,7 @@ static int i2c_pxa_do_xfer_with_fifo(struct pxa_i2c *i2c, struct i2c_msg *msg, i
 	if (icr == 0xFFFFFFFF)
 		icr = readl(_ICR(i2c));
 
-	icr |= ICR_FIFOEN | ICR_TXSR_IE | ICR_RXSR_IE | ICR_RXF_IE | ICR_RXOV_IE | ICR_TXDONE_IE;
+	icr |= ICR_FIFOEN | ICR_TXSR_IE | ICR_RXSR_IE | ICR_RXF_IE | ICR_RXOV_IE | ICR_TXDONE_IE | ICR_SDA_FIX;
 	icr &= ~(ICR_DMA_EN | ICR_ITEIE | (1 << 9));
 	writel(icr, _ICR(i2c));
 	i2c->debug_track = 1;
@@ -1580,7 +1581,7 @@ static int i2c_pxa_do_xfer(struct pxa_i2c *i2c, struct i2c_msg *msg, int num)
 		writel(i2c->master_code, _IDBR(i2c));
 
 		/*step 2*/
-		icr |= ICR_START | ICR_TB | ICR_ITEIE;
+		icr |= ICR_START | ICR_TB | ICR_ITEIE | ICR_SDA_FIX;
 		icr &= ~ICR_STOP;
 		icr &= ~ICR_ALDIE;
 		writel(icr, _ICR(i2c));
@@ -1614,7 +1615,7 @@ static int i2c_pxa_do_xfer(struct pxa_i2c *i2c, struct i2c_msg *msg, int num)
 	 * should anything goes wrong inside ICR, overwriting the value will
 	 * correct the problem */
 	/* icr = readl(_ICR(i2c)); */
-	icr |= ICR_START | ICR_TB | ICR_MSDE;
+	icr |= ICR_START | ICR_TB | ICR_MSDE | ICR_SDA_FIX;
 	writel(icr, _ICR(i2c));
 
 	if (i2c->use_pio)
@@ -2110,7 +2111,7 @@ again:
 			 */
 			icr &= ~ICR_ALDIE;
 			/* Master stop detected enabled */
-			icr |= ICR_START | ICR_TB | ICR_MSDE;
+			icr |= ICR_START | ICR_TB | ICR_MSDE | ICR_SDA_FIX;
 			i2c->debug_track=4;
 		} else {
 			if (i2c->msg->len == 0) {
@@ -2539,7 +2540,7 @@ static int i2c_pxa_do_xfer_with_dma(struct pxa_i2c *i2c, struct i2c_msg *msg, in
 	 * correct the problem */
 	/* icr = readl(_ICR(i2c)); */
 
-	icr |= ICR_FIFOEN | ICR_DMA_EN | ICR_TXDONE_IE;
+	icr |= ICR_FIFOEN | ICR_DMA_EN | ICR_TXDONE_IE | ICR_SDA_FIX;
 	icr &= ~(ICR_TXSR_IE | ICR_RXSR_IE);
 
 	icr &= ~ (ICR_ITEIE | (1 << 9));
