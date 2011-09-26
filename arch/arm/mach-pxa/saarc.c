@@ -299,6 +299,33 @@ static struct cwgd_platform_data cwgd_plat_data = {
 
 static int ssd2531_ts_pins[] = { MFP_PIN_GPIO8, MFP_PIN_GPIO7 };
 
+#if defined(CONFIG_HDMI_ADV7533)
+static void adv7533_hdmi_reset(void)
+{
+	int pin0 = mfp_to_gpio(MFP_PIN_GPIO15);
+	int pin1 = mfp_to_gpio(MFP_PIN_GPIO13);
+	printk(KERN_INFO "hdmi: adv7533_hdmi_reset+\n");
+
+	if (gpio_request(pin0, "hdmi-reset0")) {
+		printk(KERN_ERR "hdmi: gpio_request0: failed!\n");
+	}
+	if (gpio_request(pin1, "hdmi-reset1")) {
+		printk(KERN_ERR "hdmi: gpio_request1: failed!\n");
+	}
+	gpio_direction_output(pin1, 1);
+	msleep(10);
+	gpio_direction_output(pin0, 0);
+	msleep(10);
+	gpio_direction_output(pin0, 1);
+	msleep(10);
+	gpio_direction_output(pin0, 0);
+	msleep(10);
+	gpio_free(pin0);
+	gpio_free(pin1);
+	printk(KERN_INFO "hdmi: adv7533_hdmi_reset-\n");
+}
+#endif
+
 static struct i2c_board_info i2c2_info[] = {
 #if defined(CONFIG_TOUCHSCREEN_SSD2531)
 	{
@@ -307,15 +334,6 @@ static struct i2c_board_info i2c2_info[] = {
 	 .platform_data = ssd2531_ts_pins,
 	 },
 #endif
-
-#if defined(CONFIG_C_TEC_OPTIC_TP)
-	{
-		.type	= "ctec_optic_tp",
-		.addr	= 0x33,
-		.irq	= gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO100)),
-	},
-#endif
-
 };
 
 
@@ -342,6 +360,33 @@ static struct i2c_board_info i2c3_info[] = {
 	 .irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO9)),
 	 .platform_data = &cwgd_plat_data,
 	 },
+#endif
+#if defined(CONFIG_HDMI_ADV7533)
+	{
+		.type		= "adv7533-packet",
+		.addr		= 0x38,
+	},
+	{
+		.type		= "adv7533-main",
+		.addr		= 0x39,
+	},
+	{
+		.type		= "adv7533-cec-dsi",
+		.addr		= 0x2c,
+	},
+	{
+		.type		= "adv7533-edid",
+		.addr		= 0x3f,
+		.platform_data = adv7533_hdmi_reset,
+	},
+#endif
+
+#if defined(CONFIG_C_TEC_OPTIC_TP)
+	{
+		.type	= "ctec_optic_tp",
+		.addr	= 0x33,
+		.irq	= gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO100)),
+	},
 #endif
 };
 
@@ -436,6 +481,25 @@ static struct pxa27x_keypad_platform_data keypad_info = {
 #endif /* CONFIG_KEYBOARD_PXA27x || CONFIG_KEYBOARD_PXA27x_MODULE */
 
 #if defined(CONFIG_FB_PXA95x)
+
+#if defined(CONFIG_HDMI_ADV7533)
+static struct pxa95xfb_mach_info adv7533_hdmi_ovly_info __initdata = {
+	.id                     = "HDMI-Ovly",
+	.modes                  = video_modes_adv7533,
+	.num_modes              = ARRAY_SIZE(video_modes_adv7533),
+	.pix_fmt_in             = PIX_FMTIN_YUV420,
+	.pix_fmt_out            = PIX_FMTOUT_24_RGB888,
+	.panel_type             = LCD_Controller_Active,
+	/*as hdmi-ovly use same win4 with lcd-ovly, they should not open at the same time*/
+	.window					= 4,
+	.mixer_id				= 1,
+	.zorder					= 0,
+	.converter				= LCD_M2DSI1,
+	.output					= OUTPUT_HDMI,
+	.active					= 1,
+	.invert_pixclock		= 1,
+};
+#endif
 static void panel_power(int on)
 {
 	panel_power_trulywvga(1, on);
@@ -503,6 +567,9 @@ static void __init init_lcd(void)
 {
 	set_pxa95x_fb_info(&lcd_info);
 	set_pxa95x_fb_ovly_info(&lcd_ovly_info, 0);
+#if defined(CONFIG_HDMI_ADV7533)
+	set_pxa95x_fb_ovly_info(&adv7533_hdmi_ovly_info, 1);
+#endif
 }
 #endif
 
