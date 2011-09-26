@@ -169,9 +169,24 @@ static u32 pxav2_get_max_clock(struct sdhci_host *host)
 	return clk_get_rate(pltfm_host->clk);
 }
 
+static void pxav2_access_constrain(struct sdhci_host *host, unsigned int ac)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_pxa *pxa = pltfm_host->priv;
+
+	if (!ac && pxa->clk_enable) {
+		clk_disable(pltfm_host->clk);
+		pxa->clk_enable = 0;
+	} else if (ac && !pxa->clk_enable) {
+		clk_enable(pltfm_host->clk);
+		pxa->clk_enable = 1;
+	}
+}
+
 static struct sdhci_ops pxav2_sdhci_ops = {
 	.get_max_clock = pxav2_get_max_clock,
 	.platform_8bit_width = pxav2_mmc_set_width,
+	.access_constrain = pxav2_access_constrain,
 };
 
 static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
@@ -203,7 +218,8 @@ static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
 		goto err_clk_get;
 	}
 	pltfm_host->clk = clk;
-	clk_enable(clk);
+
+	pxav2_access_constrain(host, 1);
 
 	host->quirks = SDHCI_QUIRK_BROKEN_ADMA
 	    | SDHCI_QUIRK_BROKEN_TIMEOUT_VAL
@@ -247,10 +263,13 @@ static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
 	if (pxa->pdata->pmmc)
 		*pxa->pdata->pmmc = host->mmc;
 #endif
+
+	pxav2_access_constrain(host, 0);
+
 	return 0;
 
 err_add_host:
-	clk_disable(clk);
+	pxav2_access_constrain(host, 0);
 	clk_put(clk);
 err_clk_get:
 	sdhci_pltfm_free(pdev);
@@ -273,9 +292,11 @@ static int __devexit sdhci_pxav2_remove(struct platform_device *pdev)
 			gpio_free(pxa->pdata->ext_cd_gpio);
 	}
 
+	pxav2_access_constrain(host, 1);
+
 	sdhci_remove_host(host, 1);
 
-	clk_disable(pltfm_host->clk);
+	pxav2_access_constrain(host, 0);
 	clk_put(pltfm_host->clk);
 	sdhci_pltfm_free(pdev);
 	kfree(pxa);
