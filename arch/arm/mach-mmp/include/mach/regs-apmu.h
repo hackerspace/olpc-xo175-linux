@@ -30,8 +30,14 @@
 #define APMU_BUS	APMU_REG(0x06c)
 #define APMU_GC	APMU_REG(0x0cc)
 #define APMU_GC_PD	APMU_REG(0x0d0)
+
+#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 #define APMU_SDH2	APMU_REG(0x0e8)
 #define APMU_SDH3	APMU_REG(0x0ec)
+#elif defined(CONFIG_CPU_PXA910)
+#define APMU_SDH2	APMU_REG(0x0e0)
+#endif
+
 #define APMU_CCIC_GATE APMU_REG(0x028)
 #define APMU_CCIC_DBG	APMU_REG(0x088)
 #define APMU_VMETA	APMU_REG(0x0A4)
