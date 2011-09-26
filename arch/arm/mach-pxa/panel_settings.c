@@ -497,6 +497,66 @@ struct fb_videomode video_modes_adv7533[] = {
 	},
 };
 
+/* refer to EIA-CEA-861-D format list*/
+struct fb_videomode video_modes_ihdmi[] = {
+	[0] = { /* 640x480p */
+		.pixclock		= 25170,
+		.refresh		= 60,
+		.xres			= 640,
+		.yres			= 480,
+		.hsync_len		= 96, /*HSW*/
+		.left_margin	= 48, /*BLW*/
+		.right_margin	= 16, /*ELW*/
+		.vsync_len		= 2, /*VSW*/
+		.upper_margin	= 33, /*BFW*/
+		.lower_margin	= 10, /*EFW*/
+		/*(FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT),*/
+		.sync			= 0,
+	},
+	[1] = { /* 720x480p */
+		.pixclock		= 27000,
+		.refresh		= 60,
+		.xres			= 720,
+		.yres			= 480,
+		.hsync_len		= 62, /*HSW*/
+		.left_margin	= 60, /*BLW*/
+		.right_margin	= 16, /*ELW*/
+		.vsync_len		= 6, /*VSW*/
+		.upper_margin	= 30, /*BFW*/
+		.lower_margin	= 9, /*EFW*/
+		/*(FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT),*/
+		.sync			= 0,
+	},
+	[2] = { /* 720x480p */
+		.pixclock		= 27000,
+		.refresh		= 60,
+		.xres			= 720,
+		.yres			= 480,
+		.hsync_len		= 62, /*HSW*/
+		.left_margin	= 60, /*BLW*/
+		.right_margin	= 16, /*ELW*/
+		.vsync_len		= 6, /*VSW*/
+		.upper_margin	= 30, /*BFW*/
+		.lower_margin	= 9, /*EFW*/
+		/*(FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT),*/
+		.sync			= 0,
+	},
+	[3] = { /* 1280x720p */
+		.pixclock		= 74170,
+		.refresh		= 60,
+		.xres			= 1280,
+		.yres			= 720,
+		.hsync_len		= 40, /*HSW*/
+		.left_margin	= 220, /*BLW*/
+		.right_margin	= 110, /*ELW*/
+		.vsync_len		= 5, /*VSW*/
+		.upper_margin	= 20, /*BFW*/
+		.lower_margin	= 5, /*EFW*/
+		/*(FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT),*/
+		.sync			= 0,
+	},
+};
+
 static struct ssp_device *ssp_lcd_init(int port, u32 flag)
 {
 	struct ssp_device *ssp = pxa_ssp_request(port, "SSP");

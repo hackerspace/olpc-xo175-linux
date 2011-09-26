@@ -482,6 +482,62 @@ static struct pxa27x_keypad_platform_data keypad_info = {
 
 #if defined(CONFIG_FB_PXA95x)
 
+#if defined(CONFIG_MV_IHDMI)
+static int mv_ihdmi_format = 4;
+
+static void hdtx_power(bool en)
+{
+	struct regulator *v_ldo;
+	int pin1 = mfp_to_gpio(MFP_PIN_GPIO13);
+
+	v_ldo = regulator_get(NULL, "v_ihdmi");
+	if (IS_ERR(v_ldo)) {
+		printk(KERN_ERR "hdmi: fail to get ldo handle!\n");
+		return;
+	}
+
+	if (en) {
+		regulator_set_voltage(v_ldo, 3300000, 3300000);
+		regulator_enable(v_ldo);
+		printk(KERN_INFO "hdmi: turn on ldo12 to 3.3v.\n");
+	} else {
+		printk(KERN_INFO "hdmi: turn off LDO\n");
+		regulator_disable(v_ldo);
+	}
+
+	if (gpio_request(pin1, "hdmi-cp")) {
+		printk(KERN_ERR "hdmi: hdmi-cp failed!\n");
+		gpio_free(pin1);
+		regulator_put(v_ldo);
+		return;
+	}
+
+	gpio_direction_output(pin1, en);
+	msleep(10);
+
+	gpio_free(pin1);
+	printk(KERN_INFO "hdmi: turn charge pump 5V to %d\n", en);
+
+	regulator_put(v_ldo);
+}
+
+static struct pxa95xfb_mach_info ihdmi_ovly_info __initdata = {
+	.id                     = "HDMI-Ovly",
+	.num_modes              = 1,
+	.pix_fmt_in             = PIX_FMTIN_RGB_16,
+	.pix_fmt_out            = PIX_FMTOUT_24_RGB888,
+	.panel_type             = LCD_Controller_TV_HDMI,
+	.window			= 4,
+	.mixer_id		= 2,
+	.zorder			= 0,
+	.converter		= LCD_M2HDMI,
+	.output			= OUTPUT_HDMI,
+	.active			= 1,
+	.panel_power			= hdtx_power,
+	.invert_pixclock	= 1,
+};
+#endif
+
 #if defined(CONFIG_HDMI_ADV7533)
 static struct pxa95xfb_mach_info adv7533_hdmi_ovly_info __initdata = {
 	.id                     = "HDMI-Ovly",
@@ -500,6 +556,7 @@ static struct pxa95xfb_mach_info adv7533_hdmi_ovly_info __initdata = {
 	.invert_pixclock		= 1,
 };
 #endif
+
 static void panel_power(int on)
 {
 	panel_power_trulywvga(1, on);
@@ -567,7 +624,11 @@ static void __init init_lcd(void)
 {
 	set_pxa95x_fb_info(&lcd_info);
 	set_pxa95x_fb_ovly_info(&lcd_ovly_info, 0);
-#if defined(CONFIG_HDMI_ADV7533)
+#if defined(CONFIG_MV_IHDMI)
+	pxa_register_device(&pxa97x_device_ihdmi, &mv_ihdmi_format);
+	ihdmi_ovly_info.modes = &video_modes_ihdmi[mv_ihdmi_format-1];
+	set_pxa95x_fb_ovly_info(&ihdmi_ovly_info, 1);
+#elif defined(CONFIG_HDMI_ADV7533)
 	set_pxa95x_fb_ovly_info(&adv7533_hdmi_ovly_info, 1);
 #endif
 }
