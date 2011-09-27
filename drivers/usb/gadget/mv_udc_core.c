@@ -1210,6 +1210,19 @@ static int mv_udc_wakeup(struct usb_gadget *gadget)
 	return 0;
 }
 
+static void uevent_worker(struct work_struct *work)
+{
+	struct mv_udc *udc = the_controller;
+	char *connected[2]    = { "USB_STATE=CONNECTED", NULL };
+	char *disconnected[2] = { "USB_STATE=DISCONNECTED", NULL };
+
+	if (!udc)
+		return;
+
+	kobject_uevent_env(&udc->dev->dev.kobj, KOBJ_CHANGE,
+			udc->vbus_active ? connected : disconnected);
+}
+
 static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 {
 	struct mv_udc *udc;
@@ -1224,6 +1237,8 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 		udc->vbus_active);
 
 	udc->vbus_active = (is_active != 0);
+
+	schedule_work(&udc->event_work);
 
 	if (udc->vbus_active) {
 		wake_lock(&suspend_lock);
@@ -2550,6 +2565,8 @@ static int __devinit mv_udc_probe(struct platform_device *dev)
 
 	wake_lock_init(&idle_lock, WAKE_LOCK_IDLE, "mv_udc_idle");
 	wake_lock_init(&suspend_lock, WAKE_LOCK_SUSPEND, "mv_udc_suspend");
+
+	INIT_WORK(&udc->event_work, uevent_worker);
 
 	dev_info(&dev->dev, "successful probe UDC device %s clock gating.\n",
 		udc->clock_gating ? "with" : "without");

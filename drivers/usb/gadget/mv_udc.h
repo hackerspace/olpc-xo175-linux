@@ -80,6 +80,8 @@ struct mv_udc {
 	struct delayed_work	charger_work;
 	struct delayed_work	delayed_charger_work;
 
+	struct work_struct event_work;
+
 	struct otg_transceiver	*transceiver;
 
 	struct mv_usb_platform_data	*pdata;
