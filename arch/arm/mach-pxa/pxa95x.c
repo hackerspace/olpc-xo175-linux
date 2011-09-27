@@ -771,6 +771,8 @@ static void clk_imu_axi_disable(struct clk *clk)
 static void clk_pxa9xx_u2o_enable(struct clk *clk)
 {
 	local_irq_disable();
+	clk_axi_enable(clk);
+	clk_imu_axi_enable(clk);
 
 	CKENC |= (1 << (CKEN_USB_PRL - 64)) | (1 << (CKEN_USB_BUS - 64));
 	/* ACCR1 */
@@ -787,6 +789,8 @@ static void clk_pxa9xx_u2o_disable(struct clk *clk)
 	/* ACCR1 */
 	ACCR1 &= ~(ACCR1_PU_OTG|ACCR1_PU_PLL|ACCR1_PU);
 
+	clk_imu_axi_disable(clk);
+	clk_axi_disable(clk);
 	local_irq_enable();
 }
 
@@ -989,6 +993,8 @@ static DEFINE_PXA3_CKEN(pxa95x_pwm0, PWM0, 13000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_pwm1, PWM1, 13000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_vmeta, VMETA, 312000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_abu, ABU, 20000000, 0);
+static DEFINE_PXA3_CKEN(pxa95x_gpio, GPIO, 0, 0);
+static DEFINE_PXA3_CKEN(pxa95x_bootrom, BOOT, 0, 0);
 
 static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_pout, NULL, "CLK_POUT"),
@@ -1029,6 +1035,8 @@ static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_abu, NULL, "PXA95X_ABUCLK"),
 	INIT_CLKREG(&clk_pxa95x_smc, NULL, "SMCCLK"),
 	INIT_CLKREG(&clk_pxa3xx_nand, "pxa3xx-nand", NULL),
+	INIT_CLKREG(&clk_pxa95x_gpio, NULL, "GPIOCLK"),
+	INIT_CLKREG(&clk_pxa95x_bootrom, NULL, "BOOTCLK"),
 	INIT_CLKREG(&clk_pxa95x_sci1, NULL, "SCI1CLK"),
 	INIT_CLKREG(&clk_pxa95x_sci2, NULL, "SCI2CLK"),
 	INIT_CLKREG(&clk_pxa95x_csi_tx_esc, NULL, "CSI_TX_ESC"),
@@ -1147,6 +1155,50 @@ struct pxa95x_freq_mach_info freq_mach_info = {
 	.flags = PXA95x_USE_POWER_I2C,
 };
 
+/* setup cken base on the clear always and set always setting.
+ * refer to related DM for more details.
+ * And Base on the JIRA (MG1-1167), CKENB[10:9] is clear always.
+ */
+static void cken_clear_always_set_always_setup(void)
+{
+	unsigned int ckena_clear_always_bits_mask;
+	unsigned int ckenb_clear_always_bits_mask;
+	unsigned int ckenc_clear_always_bits_mask;
+	unsigned int ckena_set_always_bits_mask;
+	unsigned int ckenb_set_always_bits_mask;
+	unsigned int ckenc_set_always_bits_mask;
+
+	/* setup clear always bits */
+	ckena_clear_always_bits_mask = 0x831730ee;
+	ckenb_clear_always_bits_mask = 0x00030e20;
+	ckenc_clear_always_bits_mask = 0x00303300;
+
+	CKENA &= ~ckena_clear_always_bits_mask;
+	CKENB &= ~ckenb_clear_always_bits_mask;
+	CKENC &= ~ckenc_clear_always_bits_mask;
+
+	/* setup set always bits */
+	/* CKENA[19] is CKEN_TPM, not set it like spec define */
+	ckena_set_always_bits_mask = 0x00000001;
+	ckenb_set_always_bits_mask = 0xd7fcf040;
+	ckenc_set_always_bits_mask = 0x00000000;
+
+	CKENA |= ckena_set_always_bits_mask;
+	CKENB |= ckenb_set_always_bits_mask;
+	CKENC |= ckenc_set_always_bits_mask;
+
+	/* Recheck the configuration. */
+	if ((ckena_clear_always_bits_mask & ckena_set_always_bits_mask) ||
+			(ckenb_clear_always_bits_mask &
+			 ckenb_set_always_bits_mask) ||
+			(ckenc_clear_always_bits_mask &
+			 ckenc_set_always_bits_mask)) {
+		printk(KERN_ERR "The configuration of clear always and set"
+				"always is not right.\n");
+		BUG();
+	}
+}
+
 static int __init pxa95x_init(void)
 {
 	int ret = 0;
@@ -1162,6 +1214,50 @@ static int __init pxa95x_init(void)
 #ifdef CONFIG_CACHE_TAUROS2
 	tauros2_init();
 #endif
+	cken_clear_always_set_always_setup();
+
+	CKENA &= ~((1 << CKEN_BOOT) | (1 << CKEN_CIR)
+			| (1 << CKEN_SSP1) | (1 << CKEN_SSP2)
+			| (1 << CKEN_SSP3) | (1 << CKEN_SSP4)
+			| (1 << CKEN_MSL0) | (1 << CKEN_BTUART)
+			| (1 << CKEN_FFUART) | (1 << CKEN_STUART)
+			| (1 << CKEN_KEYPAD) | (1 << CKEN_TPM));
+
+	CKENB &= ~((1 << (CKEN_I2C - 32))
+			| (1 << (CKEN_HSI - 32))
+			| (1 << (CKEN_VMETA - 32))
+			| (1 << (CKEN_1WIRE - 32))
+			| (1 << (CKEN_ABU - 32))
+			| (1 << (CKEN_PWM0 - 32))
+			| (1 << (CKEN_PWM1 - 32)));
+
+	CKENC &= ~((1 << (CKEN_PXA95x_MMC1 - 64))
+			| (1 << (CKEN_PXA95x_MMC2 - 64))
+			| (1 << (CKEN_PXA95x_MMC3 - 64))
+			| (1 << (CKEN_PXA95x_MMC4 - 64))
+			| (1 << (CKEN_USB_PRL - 64))
+			| (1 << (CKEN_USBH_PRL - 64))
+			| (1 << (CKEN_USB_BUS - 64))
+			| (1 << (CKEN_USBH_BUS - 64))
+			| (1 << (CKEN_MMC1_BUS - 64))
+			| (1 << (CKEN_MMC2_BUS - 64))
+			| (1 << (CKEN_MMC3_BUS - 64))
+			| (1 << (CKEN_MMC4_BUS - 64))
+			| (1 << (CKEN_IMU - 64))
+			| (1 << (CKEN_I2C2 - 64))
+			| (1 << (CKEN_I2C3 - 64))
+			| (1 << (CKEN_AXI_2X - 64))
+			| (1 << (CKEN_SCI1 - 64))
+			| (1 << (CKEN_SCI2 - 64))
+			| (1 << (CKEN_CSI_TX - 64))
+			| (1 << (CKEN_GC_1X - 64))
+			| (1 << (CKEN_GC_2X - 64))
+			| (1 << (CKEN_DSI_TX1 - 64))
+			| (1 << (CKEN_DSI_TX2 - 64))
+			| (1 << (CKEN_DISPLAY - 64))
+			| (1 << (CKEN_PIXEL - 64))
+			| (1 << (CKEN_AXI - 64)));
+
 	mfp_init_base(io_p2v(MFPR_BASE));
 	if (cpu_is_pxa978())
 		mfp_init_addr(pxa978_mfp_addr_map);
