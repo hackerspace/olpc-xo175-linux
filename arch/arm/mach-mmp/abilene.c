@@ -915,7 +915,7 @@ static int tpk_r800_set_power(int on)
 		regulator_enable(vcc);
 		regulator_set_voltage(vcc, 2800000, 2800000);
 	} else
-		regulator_force_disable(vcc);
+		regulator_disable(vcc);
 
 	regulator_put(vcc);
 	return 1;
