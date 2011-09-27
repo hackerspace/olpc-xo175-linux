@@ -20,6 +20,10 @@
 
 #include "internals.h"
 
+#ifdef CONFIG_PXA_MIPSRAM
+#include <linux/mipsram.h>
+#endif /* CONFIG_PXA_MIPSRAM */
+
 /**
  * handle_bad_irq - handle spurious and unhandled irqs
  * @irq:       the interrupt number
@@ -123,7 +127,15 @@ handle_irq_event_percpu(struct irq_desc *desc, struct irqaction *action)
 		irqreturn_t res;
 
 		trace_irq_handler_entry(irq, action);
+#ifdef CONFIG_PXA_MIPSRAM
+		/* Log IRQ handler entry in MIPSRAM buffer */
+		MIPS_RAM_ADD_IRQ_TRACE((unsigned int)irq);
+#endif/* CONFIG_PXA_MIPSRAM */
 		res = action->handler(irq, action->dev_id);
+#ifdef CONFIG_PXA_MIPSRAM
+		/* Log IRQ handler entry in MIPSRAM buffer */
+		MIPS_RAM_ADD_IRQ_LEAVE_TRACE((unsigned int)irq);
+#endif/* CONFIG_PXA_MIPSRAM */
 		trace_irq_handler_exit(irq, action, res);
 
 		if (WARN_ONCE(!irqs_disabled(),"irq %u handler %pF enabled interrupts\n",

@@ -2071,6 +2071,13 @@ config PXA95x_DVFM_DEBUG
          This is used to collect statistics during the dynamic frequency
          and voltage change and LPM using debugfs
 
+config PXA_MIPSRAM
+	bool "PXA MIPSRAM monitoring support"
+	depends on PXA95x_DVFM
+	help
+	  Enable MIPS RAM monitoring for process switching implemented in
+	  the scheduler
+
 endmenu
 
 source "net/Kconfig"
