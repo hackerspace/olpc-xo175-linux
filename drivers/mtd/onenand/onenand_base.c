@@ -2678,9 +2678,19 @@ static int onenand_block_markbad(struct mtd_info *mtd, loff_t ofs)
 		return ret;
 	}
 
+#ifndef CONFIG_PXA3XX_BBM
 	onenand_get_device(mtd, FL_WRITING);
 	ret = this->block_markbad(mtd, ofs);
 	onenand_release_device(mtd);
+#else
+	/*
+	 * pxa3xx_bbm's block_markbad will call onenand_erase
+	 * in which it will call onenand_get_device again.
+	 * this will introduce dead lock. So remove the calling
+	 * of onenand_get_device(mtd, FL_WRITING) to avoid this.
+	*/
+	ret = this->block_markbad(mtd, ofs);
+#endif
 	return ret;
 }
 
