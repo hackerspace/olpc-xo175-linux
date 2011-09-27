@@ -1101,10 +1101,20 @@ static void pxa3xx_nand_write_page_hwecc(struct mtd_info *mtd,
 	struct pxa3xx_nand_info *info = host->info_data;
 	dma_addr_t mapped_addr = 0;
 
-	if (is_buf_blank((uint8_t *)buf, mtd->writesize) &&
-	    is_buf_blank(info->oob_buff, mtd->oobsize)) {
-		info->command = NAND_CMD_NONE;
-		return;
+	if (is_buf_blank((uint8_t *)buf, mtd->writesize)) {
+		if (is_buf_blank(info->oob_buff, mtd->oobsize)) {
+			info->command = NAND_CMD_NONE;
+			return;
+		}
+		/*
+		 * For hamming ecc would generate ecc accroding
+		 * to data part only, so that in case of we want to
+		 * write oob first, then fill data part later, the
+		 * second write would always fail as the ecc becomes
+		 * all 0 in this case
+		 */
+		if (host->ecc_strength == 1)
+			info->ecc_strength = 0;
 	}
 
 	if (use_dma) {
@@ -1125,7 +1135,6 @@ static void pxa3xx_nand_write_page_hwecc(struct mtd_info *mtd,
 static int pxa3xx_nand_write_oob(struct mtd_info *mtd, struct nand_chip *chip,
 				int page)
 {
-	struct pxa3xx_nand_host *host = mtd->priv;
 	int status = 0;
 
 	chip->cmdfunc(mtd, NAND_CMD_SEQIN, 0, page);
