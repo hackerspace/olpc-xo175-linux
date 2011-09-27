@@ -196,7 +196,7 @@ static void android_work(struct work_struct *data)
 static int marvell_modem_function_init(struct android_usb_function *f,
 			struct usb_composite_dev *cdev)
 {
-	return 0;
+	return marvell_modem_gserial_setup(cdev->gadget, 1);
 }
 
 static void marvell_modem_function_cleanup(struct android_usb_function *f)
@@ -208,8 +208,6 @@ int marvell_modem_function_bind_config(struct android_usb_function *f,
 			struct usb_configuration *c)
 {
 	int ret = marvell_acm_bind_config(c, 0);
-	if (ret == 0)
-		marvell_modem_gserial_setup(c->cdev->gadget, 1);
 	return ret;
 }
 
@@ -224,7 +222,7 @@ static struct android_usb_function marvell_modem_function = {
 static int marvell_diag_function_init(struct android_usb_function *f,
 					struct usb_composite_dev *cdev)
 {
-	return 0;
+	return marvell_diag_gserial_setup(cdev->gadget, 1);
 }
 
 static void marvell_diag_function_cleanup(struct android_usb_function *f)
@@ -236,8 +234,6 @@ int marvell_diag_function_bind_config(struct android_usb_function *f,
 					struct usb_configuration *c)
 {
 	int ret = gser_bind_config(c, 0);
-	if (ret == 0)
-		marvell_diag_gserial_setup(c->cdev->gadget, 1);
 	return ret;
 }
 
