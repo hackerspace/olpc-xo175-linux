@@ -873,6 +873,35 @@ static const struct clkops clk_gcu_ops = {
         .disable        = clk_gcu_disable,
 };
 
+static void clk_mmc_enable(struct clk *clk)
+{
+	unsigned long mask;
+	struct clk *clock = NULL;
+
+	clk_axi_enable(clock);
+	clk_imu_axi_enable(clock);
+
+	mask = 1 << (clk->cken-64) | 1 << ((clk->cken-64) + 13);
+	CKENC |= mask;
+}
+
+static void clk_mmc_disable(struct clk *clk)
+{
+	unsigned long mask;
+	struct clk *clock = NULL;
+
+	mask = ~(1 << (clk->cken-64) | 1 << ((clk->cken-64) + 13));
+	CKENC &= mask;
+
+	clk_imu_axi_disable(clock);
+	clk_axi_disable(clock);
+}
+
+static const struct clkops clk_mmc_ops = {
+	.enable		= clk_mmc_enable,
+	.disable	= clk_mmc_disable,
+};
+
 #define PWMCCR4 0x42404060
 /* enable PWM SLOW clock */
 void clk_pxa95x_pwm_slow_enable(struct clk *pwm_slow_clk)
@@ -940,6 +969,11 @@ static DEFINE_CK(pxa95x_sci2, SCI2, &clk_pxa95x_sci_ops);
 static DEFINE_CK(pxa95x_csi_tx_esc, CSI_TX, &clk_csi_tx_esc_ops);
 static DEFINE_CLK(pxa95x_pout, &clk_pxa3xx_pout_ops, 13000000, 70);
 static DEFINE_CLK(pxa95x_tout_s0, &clk_pxa95x_tout_s0_ops, 13000000, 70);
+static DEFINE_CK(pxa95x_sdh0, PXA95x_MMC1, &clk_mmc_ops);
+static DEFINE_CK(pxa95x_sdh1, PXA95x_MMC2, &clk_mmc_ops);
+static DEFINE_CK(pxa95x_sdh2, PXA95x_MMC3, &clk_mmc_ops);
+static DEFINE_CK(pxa95x_sdh3, PXA95x_MMC4, &clk_mmc_ops);
+
 static DEFINE_PXA3_CKEN(pxa95x_ffuart, FFUART, 14857000, 1);
 static DEFINE_PXA3_CKEN(pxa95x_btuart, BTUART, 14857000, 1);
 static DEFINE_PXA3_CKEN(pxa95x_stuart, STUART, 14857000, 1);
@@ -953,10 +987,6 @@ static DEFINE_PXA3_CKEN(pxa95x_ssp3, SSP3, 13000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_ssp4, SSP4, 13000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_pwm0, PWM0, 13000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_pwm1, PWM1, 13000000, 0);
-static DEFINE_PXA3_CKEN(pxa95x_sdh0, PXA95x_MMC1, 200000000, 0);
-static DEFINE_PXA3_CKEN(pxa95x_sdh1, PXA95x_MMC2, 200000000, 0);
-static DEFINE_PXA3_CKEN(pxa95x_sdh2, PXA95x_MMC3, 200000000, 0);
-static DEFINE_PXA3_CKEN(pxa95x_sdh3, PXA95x_MMC4, 200000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_vmeta, VMETA, 312000000, 0);
 static DEFINE_PXA3_CKEN(pxa95x_abu, ABU, 20000000, 0);
 
