@@ -435,6 +435,16 @@ static int cwgd_report_values(struct i2c_cwgd_sensor *sensor)
 		if (status == DATA_STATUS_OVERRUN)
 			cwgd_read_raw(sensor, sensor->entries);
 
+	if (!sensor->use_interrupt) {
+		struct timeval now;
+		static struct timeval previous;
+
+		do_gettimeofday(&now);
+		sensor->dtime = ((now.tv_sec-previous.tv_sec) * 1000000
+				+ (now.tv_usec - previous.tv_usec));
+		memcpy(&previous, &now, sizeof(struct timeval));
+		pr_debug("### dtime = %u\n", sensor->dtime);
+	}
 	res =
 	    cwgd_read_raw(sensor, sensor->entries + sensor->discard_next_event);
 	if (res < 0) {
@@ -868,6 +878,15 @@ static enum hrtimer_restart cwgd_timer_func(struct hrtimer *timer)
 {
 	struct i2c_cwgd_sensor *sensor =
 	    container_of(timer, struct i2c_cwgd_sensor, timer);
+
+	static struct timeval _previous;
+	struct timeval now;
+
+	do_gettimeofday(&now);
+	pr_debug("===> %lu\n", (now.tv_sec-_previous.tv_sec) * 1000000
+			+ (now.tv_usec - _previous.tv_usec));
+	memcpy(&_previous, &now, sizeof(struct timeval));
+
 	queue_work(sensor->cwgd_wq, &sensor->work);
 	return HRTIMER_NORESTART;
 }
