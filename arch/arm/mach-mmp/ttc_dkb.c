@@ -698,7 +698,7 @@ static struct pm860x_platform_data ttc_dkb_pm8607_info = {
 	.num_regulators	= ARRAY_SIZE(ttc_dkb_regulator_init_data),
 };
 
-#if defined(CONFIG_GPIO_PCA9575)
+#if defined(CONFIG_GPIO_PCA953X)
 static struct pca9575_platform_data pca9575_data[] = {
 	[0] = {
 		.gpio_base      = GPIO_EXT1(0),
@@ -771,7 +771,7 @@ static struct i2c_board_info ttc_dkb_i2c_info[] = {
 		.platform_data	= &ttc_dkb_pm8607_info,
 		.irq		= IRQ_PXA910_PMIC_INT,
 	},
-#if defined(CONFIG_GPIO_PCA9575)
+#if defined(CONFIG_GPIO_PCA953X)
 	{
 		.type           = "pca9575",
 		.addr           = 0x20,
@@ -820,7 +820,7 @@ static struct i2c_board_info ttc_dkb_i2c_info[] = {
 };
 
 static struct i2c_board_info ttc_dkb_pwr_i2c_info[] = {
-#if defined(CONFIG_GPIO_PCA9575)
+#if defined(CONFIG_GPIO_PCA953X)
 	{
 		.type           = "pca9575",
 		.addr           = 0x20,
