@@ -234,6 +234,7 @@ static int camera_sensor_power(struct device *dev, int on)
 		/* pull up camera pwdn pin to disable camera sensor */
 		gpio_direction_output(cam_enable, 1);
 
+	gpio_free(cam_enable);
 	mdelay(10);
 
 	return 0;
