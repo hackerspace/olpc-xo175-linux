@@ -45,6 +45,9 @@ static void __init  __pxa_add_pmem(char *name, size_t size, int no_allocator,
 	if (size > PAGE_SIZE && size > pmem_reserve_size)
 		return;
 
+	if (pmem_reserve_pa == 0)
+		return;
+
 	android_pmem_device = kzalloc(sizeof(struct platform_device),
 					GFP_KERNEL);
 	if (android_pmem_device == NULL)
@@ -56,9 +59,6 @@ static void __init  __pxa_add_pmem(char *name, size_t size, int no_allocator,
 		kfree(android_pmem_device);
 		return ;
 	}
-
-	if (pmem_reserve_pa == 0)
-		return;
 
 	if (size > PAGE_SIZE) {
 		android_pmem_pdata->start = pmem_reserve_pa;
