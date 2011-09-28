@@ -1967,6 +1967,13 @@ endif
 
 source "drivers/cpuidle/Kconfig"
 
+config DVFM
+	bool "DVFM support"
+	depends on PM
+	default n
+	help
+	  Say 'Y' here if you want Dynamic Voltage and Frequency Management
+
 endmenu
 
 menu "Floating point emulation"
@@ -2064,6 +2071,13 @@ config ARCH_SUSPEND_POSSIBLE
 		CPU_PXA910
 	def_bool y
 
+config PXA95x_DVFM
+	bool "PXA95x Processor DVFM support"
+	depends on PM && PXA95x && DVFM
+	help
+	  This implements the dynamical frequency and voltage changes features
+	  for PXA95x Processor particularly.
+
 config PXA95x_DVFM_DEBUG
        bool "PXA95x/PXA930 Processor DVFM debug support"
        depends on PXA95x_DVFM && DEBUG_FS
@@ -2077,6 +2091,57 @@ config PXA_MIPSRAM
 	help
 	  Enable MIPS RAM monitoring for process switching implemented in
 	  the scheduler
+
+config PXA95x_DVFM_STATS
+	bool "PXA95x/PXA930 Processor DVFM Statistics support"
+	depends on PXA95x_DVFM
+	select RELAY
+	select DEBUG_FS
+	help
+	  This is used to collect statistics during the dynamic frequency
+	  and voltage changes
+
+config PXA95x_PMU
+	bool "PXA95x/PXA930 Processor PMU support"
+	depends on PXA95x
+	help
+	  PXA95x/PXA930 provide Performance Monitor Unit to report
+	  CPU statistics info.
+
+config PXA95x_PRM
+	bool "PXA95x Processor Profiler Resource Manager"
+	depends on PXA95x_DVFM && PXA95x_PMU
+
+config IPM
+	bool "Marvell(R) Scalable Power Management"
+	depends on PXA95x_PRM
+	help
+	  Support Profiler and Daemon of Marvell(R) Scalable Power Management
+
+config IPM_DEEPIDLE
+	bool "PXA95x Processor Deep Idle support"
+	depends on IPM
+	help
+	  This enables the kernel support for PXA95x Processor Deep Idle
+	  (D0CS Idle)
+
+config IPM_D2IDLE
+	bool "Support PXA95x Processor D2 Mode as Idle"
+	depends on IPM && PXA_32KTIMER
+	help
+	  This enables kernel support PXA95x D2 idle
+
+config IPM_D1IDLE
+	bool "Support PXA95x Processor D1 Mode as Idle"
+	depends on IPM && PXA_32KTIMER
+	help
+	  This enables kernel support PXA95x D1 idle
+
+config IPM_CGIDLE
+	bool "Support PXA95x Processor Clock Gated Mode as Idle"
+	depends on IPM && PXA_32KTIMER
+	help
+	  This enables kernel support PXA95x CG idle
 
 endmenu
 

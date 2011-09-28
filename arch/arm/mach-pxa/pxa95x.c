@@ -36,6 +36,8 @@
 #include <mach/regs-intc.h>
 #include <mach/soc_vmeta.h>
 #include <mach/usb-regs.h>
+#include <mach/pxa95x_dvfm.h>
+#include <mach/pmu.h>
 
 #include <plat/pmem.h>
 
@@ -1051,54 +1053,64 @@ static struct platform_device *devices[] __initdata = {
 #endif
 };
 
+struct pxa95x_freq_mach_info freq_mach_info = {
+	.flags = PXA95x_USE_POWER_I2C,
+};
+
 static int __init pxa95x_init(void)
 {
 	int ret = 0;
 
-	if (cpu_is_pxa95x()) {
-#ifdef CONFIG_CACHE_TAUROS2
-		tauros2_init();
+	/* dvfm device */
+#ifdef CONFIG_PXA95x_DVFM
+	set_pxa95x_freq_info(&freq_mach_info);
 #endif
-		mfp_init_base(io_p2v(MFPR_BASE));
-		if (cpu_is_pxa978())
-			mfp_init_addr(pxa978_mfp_addr_map);
-		else
-			mfp_init_addr(pxa95x_mfp_addr_map);
 
-		reset_status = ARSR;
+	/* performance monitor unit */
+	pxa95x_set_pmu_info(NULL);
 
-		/*
-		 * clear RDH bit every time after reset
-		 *
-		 * Note: the last 3 bits DxS are write-1-to-clear so carefully
-		 * preserve them here in case they will be referenced later
-		 */
-		ASCR &= ~(ASCR_RDH | ASCR_D1S | ASCR_D2S | ASCR_D3S);
+#ifdef CONFIG_CACHE_TAUROS2
+	tauros2_init();
+#endif
+	mfp_init_base(io_p2v(MFPR_BASE));
+	if (cpu_is_pxa978())
+		mfp_init_addr(pxa978_mfp_addr_map);
+	else
+		mfp_init_addr(pxa95x_mfp_addr_map);
 
-		clkdev_add_table(pxa95x_clkregs, ARRAY_SIZE(pxa95x_clkregs));
+	reset_status = ARSR;
 
-		if ((ret = pxa_init_dma(IRQ_DMA, 32)))
-			return ret;
+	/*
+	 * clear RDH bit every time after reset
+	 *
+	 * Note: the last 3 bits DxS are write-1-to-clear so carefully
+	 * preserve them here in case they will be referenced later
+	 */
+	ASCR &= ~(ASCR_RDH | ASCR_D1S | ASCR_D2S | ASCR_D3S);
 
-		register_syscore_ops(&pxa_irq_syscore_ops);
-		register_syscore_ops(&pxa_gpio_syscore_ops);
-		register_syscore_ops(&pxa3xx_clock_syscore_ops);
+	clkdev_add_table(pxa95x_clkregs, ARRAY_SIZE(pxa95x_clkregs));
 
-		ret = platform_add_devices(devices, ARRAY_SIZE(devices));
+	if ((ret = pxa_init_dma(IRQ_DMA, 32)))
+		return ret;
 
-		pxa_set_ffuart_info(NULL);
-		pxa_set_stuart_info(NULL);
+	register_syscore_ops(&pxa_irq_syscore_ops);
+	register_syscore_ops(&pxa_gpio_syscore_ops);
+	register_syscore_ops(&pxa3xx_clock_syscore_ops);
+
+	ret = platform_add_devices(devices, ARRAY_SIZE(devices));
+
+	pxa_set_ffuart_info(NULL);
+	pxa_set_stuart_info(NULL);
 
 #ifdef CONFIG_ANDROID_PMEM
-		pxa_add_pmem();
+	pxa_add_pmem();
 #endif
 #if defined(CONFIG_UIO_VMETA)
-		pxa95x_set_vmeta_info(&vmeta_plat_data);
+	pxa95x_set_vmeta_info(&vmeta_plat_data);
 #endif
 
-		/* Set vmeta clock as 312MHz always */
-		ACCR |=  0x00200000;
-	}
+	/* Set vmeta clock as 312MHz always */
+	ACCR |=  0x00200000;
 
 	return ret;
 }

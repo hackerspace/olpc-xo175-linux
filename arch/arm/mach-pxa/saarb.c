@@ -31,6 +31,8 @@
 #include <mach/mfp-pxa930.h>
 #include <mach/gpio.h>
 #include <mach/pxa95xfb.h>
+#include <mach/pxa95x_dvfm.h>
+
 #include <mach/camera.h>
 #include <media/soc_camera.h>
 #include <linux/switch.h>
@@ -221,9 +223,15 @@ static struct pm860x_platform_data pm8607_info = {
 	.num_backlights	= ARRAY_SIZE(backlight),
 };
 
+extern struct pxa95x_freq_mach_info freq_mach_info;
 static void regulator_init(void)
 {
 	int i = 0;
+
+	if (PXA95x_USE_POWER_I2C != freq_mach_info.flags) {
+		REG_SUPPLY_INIT(PM8607_ID_BUCK1, "v_buck1", "pxa95x-freq");
+		REG_INIT(i++, BUCK1, 1000000, 1500000, 1, 1);
+	}
 
 	switch (get_board_id()) {
 	case OBM_SAAR_B_MG1_C0_V12_BOARD:
@@ -681,6 +689,206 @@ static void __init init_lcd(void)
 }
 #endif
 
+#ifdef CONFIG_PM
+static int init_wakeup(pm_wakeup_src_t *src)
+{
+	memset(src, 0, sizeof(pm_wakeup_src_t));
+	src->bits.rtc = 1;
+	src->bits.ost = 1;
+#ifdef CONFIG_PXA9XX_ACIPC
+	src->bits.msl = 1;
+#endif
+	src->bits.ext0 = 1;
+	src->bits.uart1 = 1;
+	src->bits.mkey = 1;
+	src->bits.eth = 1;
+	src->bits.tsi = 1;
+	src->bits.cmwdt = 1;
+	src->bits.mmc1_cd = 1;
+	src->bits.mmc3_dat1 = 1;
+	return 0;
+}
+
+static int query_wakeup(unsigned int reg, pm_wakeup_src_t *src)
+{
+	memset(src, 0, sizeof(pm_wakeup_src_t));
+	if (reg & PXA95x_PM_WE_RTC)
+		src->bits.rtc = 1;
+	if (reg & PXA95x_PM_WE_OST)
+		src->bits.ost = 1;
+	if (reg & PXA95x_PM_WE_MSL0)
+		src->bits.msl = 1;
+	if (reg & PXA95x_PM_WE_EXTERNAL0)
+		src->bits.ext0 = 1;
+	if (reg & PXA95x_PM_WE_KP)
+		src->bits.mkey = 1;
+	if (reg & PXA95x_PM_WE_GENERIC(3))
+		src->bits.tsi = 1;
+	if (reg & PXA95x_PM_WE_GENERIC(9))
+		src->bits.uart1 = 1;
+	if (reg & PXA95x_PM_WE_GENERIC(2))
+		src->bits.uart2 = 1;
+	if (reg & PXA95x_PM_WE_GENERIC(12))
+		src->bits.cmwdt = 1;
+	if (reg & PXA95x_PM_WE_GENERIC(13)) {
+		if (pxa95x_query_gwsr(97))
+			src->bits.eth = 1;
+		if (pxa95x_query_gwsr(53))
+			src->bits.uart1 = 1;
+		if (pxa95x_query_gwsr(47))
+			src->bits.mmc1_cd = 1;
+	}
+
+	return 0;
+}
+
+static int ext_wakeup(pm_wakeup_src_t src, int enable)
+{
+	unsigned int ret = 0;
+	if (enable) {
+		if (src.bits.ext0)
+			ret |= PXA95x_PM_WE_EXTERNAL0;
+		if (src.bits.ext1)
+			ret |= PXA95x_PM_WE_EXTERNAL1;
+	}
+	return ret;
+}
+
+static int key_wakeup(pm_wakeup_src_t src, int enable)
+{
+	unsigned int ret = 0;
+	if (enable) {
+		if (src.bits.mkey) {
+			static mfp_cfg_t key_edgeboth_cfg[] = {
+				GPIO0_KP_MKIN_0 | MFP_LPM_EDGE_BOTH,
+				GPIO2_KP_MKIN_1 | MFP_LPM_EDGE_BOTH,
+				GPIO4_KP_MKIN_2 | MFP_LPM_EDGE_BOTH,
+				GPIO6_KP_MKIN_3 | MFP_LPM_EDGE_BOTH,
+				GPIO8_KP_MKIN_4 | MFP_LPM_EDGE_BOTH,
+			};
+			pxa3xx_mfp_config(ARRAY_AND_SIZE(key_edgeboth_cfg));
+			ret |= PXA95x_PM_WE_KP;
+		}
+	} else {
+		if (src.bits.mkey) {
+			static mfp_cfg_t key_edgenone_cfg[] = {
+				GPIO0_KP_MKIN_0 | MFP_LPM_EDGE_NONE,
+				GPIO2_KP_MKIN_1 | MFP_LPM_EDGE_NONE,
+				GPIO4_KP_MKIN_2 | MFP_LPM_EDGE_NONE,
+				GPIO6_KP_MKIN_3 | MFP_LPM_EDGE_NONE,
+				GPIO8_KP_MKIN_4 | MFP_LPM_EDGE_NONE,
+			};
+			pxa3xx_mfp_config(ARRAY_AND_SIZE(key_edgenone_cfg));
+		}
+	}
+	return ret;
+}
+
+static int mmc1_wakeup(pm_wakeup_src_t src, int enable)
+{
+	unsigned int ret = 0;
+	mfp_cfg_t mfp_c;
+	if (enable) {
+		if (src.bits.mmc1_cd) {
+			mfp_c = GPIO47_GPIO | MFP_LPM_EDGE_BOTH;
+			pxa3xx_mfp_config(&mfp_c, 1);
+			ret |= PXA95x_PM_WE_GENERIC(13);
+		}
+	} else {
+		mfp_c = GPIO47_GPIO | MFP_LPM_EDGE_NONE;
+		pxa3xx_mfp_config(&mfp_c, 1);
+	}
+
+	return ret;
+}
+
+static int mmc3_wakeup(pm_wakeup_src_t src, int enable)
+{
+	unsigned int ret = 0;
+	mfp_cfg_t mfp_c;
+	if (enable) {
+		mfp_c = GPIO88_MMC3_DAT1 | MFP_LPM_EDGE_BOTH;
+		pxa3xx_mfp_config(&mfp_c, 1);
+		ret |= PXA95x_PM_WE_MMC3;
+	} else {
+		mfp_c = GPIO88_MMC3_DAT1 | MFP_LPM_EDGE_NONE;
+		pxa3xx_mfp_config(&mfp_c, 1);
+	}
+
+	return ret;
+}
+
+static int uart_wakeup(pm_wakeup_src_t src, int enable)
+{
+	unsigned int ret = 0;
+	mfp_cfg_t m;
+
+	if (enable) {
+		if (src.bits.uart1) {
+			m = GPIO53_UART1_RXD | MFP_LPM_EDGE_FALL;
+			pxa3xx_mfp_config(&m, 1);
+			ret |= PXA95x_PM_WE_GENERIC(9);
+		}
+		if (src.bits.uart2) {
+			m = GPIO45_UART3_RXD | MFP_LPM_EDGE_FALL;
+			pxa3xx_mfp_config(&m, 1);
+			/* note: on pxa930, uart2 use this bit */
+		}
+	} else {
+		if (src.bits.uart1) {
+			m = GPIO53_UART1_RXD | MFP_LPM_EDGE_NONE;
+			pxa3xx_mfp_config(&m, 1);
+		}
+		if (src.bits.uart2) {
+			m = GPIO45_UART3_RXD | MFP_LPM_EDGE_NONE;
+			pxa3xx_mfp_config(&m, 1);
+		}
+	}
+	return ret;
+}
+
+static int tsi_wakeup(pm_wakeup_src_t src, int enable)
+{
+	unsigned int ret = 0;
+	mfp_cfg_t m;
+	if (enable) {
+		if (src.bits.tsi) {
+			m = PMIC_INT_GPIO83 | MFP_LPM_FLOAT | MFP_LPM_EDGE_FALL;
+			pxa3xx_mfp_config(&m, 1);
+			ret |= PXA95x_PM_WE_GENERIC(3);
+		}
+	} else {
+		if (src.bits.tsi) {
+			m = PMIC_INT_GPIO83 | MFP_LPM_FLOAT | MFP_LPM_EDGE_NONE;
+			pxa3xx_mfp_config(&m, 1);
+		}
+	}
+	return ret;
+}
+
+static int comm_wdt_wakeup(pm_wakeup_src_t src, int enable)
+{
+	unsigned int ret = 0;
+	if (enable) {
+		if (src.bits.cmwdt)
+			ret |= PXA95x_PM_WE_GENERIC(12);
+	}
+	return ret;
+}
+
+static struct pxa95x_peripheral_wakeup_ops wakeup_ops = {
+	.init   = init_wakeup,
+	.query  = query_wakeup,
+	.ext    = ext_wakeup,
+	.key    = key_wakeup,
+	.mmc1    = mmc1_wakeup,
+	.mmc3    = mmc3_wakeup,
+	.uart   = uart_wakeup,
+	.tsi    = tsi_wakeup,
+	.cmwdt  = comm_wdt_wakeup,
+};
+#endif
+
 #if defined(CONFIG_HDMI_SI9226)
 static void SI9226_hdmi_power(struct device *dev, int on)
 {
@@ -866,6 +1074,11 @@ static void __init saarb_init(void)
 
 	/* Init boot flash - sync mode in case of ONENAND */
 	pxa_boot_flash_init(1);
+
+#ifdef CONFIG_PM
+	pxa95x_wakeup_register(&wakeup_ops);
+#endif
+
 #ifdef CONFIG_USB_PXA_U2O
 	pxa9xx_device_u2o.dev.platform_data = (void *)&pxa9xx_usb_pdata;
 	platform_device_register(&pxa9xx_device_u2o);

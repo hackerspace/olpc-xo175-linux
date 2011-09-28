@@ -74,6 +74,7 @@
 #define IRQ_1WIRE	PXA_IRQ(44)	/* 1-Wire Controller */
 #define IRQ_NAND	PXA_IRQ(45)	/* NAND Controller */
 #define IRQ_USB2	PXA_IRQ(46)	/* USB 2.0 Device Controller */
+#define IRQ_SGP		PXA_IRQ(47)	/* Main PMU */
 #define IRQ_WAKEUP0	PXA_IRQ(49)	/* EXT_WAKEUP0 */
 #define IRQ_WAKEUP1	PXA_IRQ(50)	/* EXT_WAKEUP1 */
 #define IRQ_DMEMC	PXA_IRQ(51)	/* Dynamic Memory Controller */

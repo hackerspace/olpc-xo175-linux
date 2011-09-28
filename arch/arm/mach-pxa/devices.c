@@ -19,6 +19,7 @@
 #include <mach/hardware.h>
 #include <mach/soc_vmeta.h>
 #include <mach/usb-regs.h>
+#include <mach/pxa95x_dvfm.h>
 #include <plat/pxa3xx_nand.h>
 #include <plat/pxa3xx_onenand.h>
 
@@ -1605,6 +1606,76 @@ struct platform_device pxa95x_device_cam1 = {
 	.num_resources	= ARRAY_SIZE(pxa95x_resource_cam1),
 };
 
+static struct resource pxa95x_resource_freq[] = {
+	[0] = {
+		.name   = "clkmgr_regs",
+		.start  = 0x41340000,
+		.end    = 0x41350003,
+		.flags  = IORESOURCE_MEM,
+	},
+	[1] = {
+		.name   = "spmu_regs",
+		.start  = 0x40f50000,
+		.end    = 0x40f50103,
+		.flags  = IORESOURCE_MEM,
+	},
+	[2] = {
+		.name   = "bpmu_regs",
+		.start  = 0x40f40000,
+		.end    = 0x40f4003b,
+		.flags  = IORESOURCE_MEM,
+	},
+	[3] = {
+		.name   = "dmc_regs",
+		.start  = 0x48100000,
+		.end    = 0x4810012f,
+		.flags  = IORESOURCE_MEM,
+	},
+	[4] = {
+		.name   = "smc_regs",
+		.start  = 0x4a000000,
+		.end    = 0x4a00008f,
+		.flags  = IORESOURCE_MEM,
+	}
+};
+
+struct platform_device pxa95x_device_freq = {
+	.name           = "pxa95x-freq",
+	.id             = 0,
+	.num_resources  = ARRAY_SIZE(pxa95x_resource_freq),
+	.resource       = pxa95x_resource_freq,
+};
+
+void __init set_pxa95x_freq_info(struct pxa95x_freq_mach_info *info)
+{
+	pxa_register_device(&pxa95x_device_freq, info);
+}
+
+void __init set_pxa95x_freq_parent(struct device *parent_dev)
+{
+	pxa95x_device_freq.dev.parent = parent_dev;
+}
+
+static struct resource pxa95x_pmu_resources[] = {
+	[0] = {
+		.name   = "pmu_regs",
+		.start = 0x4600ff00,
+		.end   = 0x4600ffff,
+		.flags = IORESOURCE_MEM,
+	},
+};
+
+struct platform_device pxa95x_device_pmu = {
+	.name           = "pxa95x-pmu",
+	.id             = 0,
+	.resource       = pxa95x_pmu_resources,
+	.num_resources  = ARRAY_SIZE(pxa95x_pmu_resources),
+};
+
+void __init pxa95x_set_pmu_info(void *info)
+{
+	pxa_register_device(&pxa95x_device_pmu, info);
+}
 #endif
 
 #if defined(CONFIG_UIO_VMETA)

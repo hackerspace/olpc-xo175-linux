@@ -16,6 +16,15 @@
 #include <mach/hardware.h>
 
 /*
+ * Static Chip Selects
+ */
+
+#define PXA95X_CS0_PHYS		(0x00000000)
+#define PXA95X_CS1_PHYS		(0x30000000)
+#define PXA95X_CS2_PHYS		(0x10000000)
+#define PXA95X_CS3_PHYS		(0x14000000)
+
+/*
  * Oscillator Configuration Register (OSCC)
  */
 #define OSCC           __REG(0x41350000)  /* Oscillator Configuration Register */
@@ -68,10 +77,11 @@
 #define OVH_OTIF_OFF	(1)			/* Over-heating Treshold Value for Generating TIS Software Interrupt */
 #define PVCR_VCSA	(1 << 14)
 
-#define AVCR_ALVL3_OFFSET 24
-#define AVCR_ALVL3_MASK (0x1F << AVCR_ALVL3_OFFSET)
-#define CORE_OVERHEATING_DETECTED 1
-#define CORE_COLLING_DETECTED 0
+#define AVCR_ALVL3_OFFSET		24
+#define AVCR_ALVL3_MASK_5bit		(0x1F << AVCR_ALVL3_OFFSET)
+#define AVCR_ALVL3_MASK			(0x1F << AVCR_ALVL3_OFFSET)
+#define CORE_OVERHEATING_DETECTED	1
+#define CORE_COLLING_DETECTED		0
 
 /*
  * Slave Power Management Unit
@@ -185,6 +195,7 @@
 #define AC97_DIV	__REG(0x41340014)	/* AC97 clock divisor value register */
 #define ACCR1		__REG(0x41340020)	/* Application Subsystem Clock Configuration Register 1 */
 #define CKENC		__REG(0x41340024)	/* C Clock Enable Register */
+#define DDR_CLK_PROFILES __REG(0x41340028)	/* DDR Clock Profiles Register */
 #define CCLKCFG		__REG(0x41340040)	/* Core Clock Configuration Register */
 
 #define ACCR_XPDIS		(1 << 31)	/* Core PLL Output Disable */
