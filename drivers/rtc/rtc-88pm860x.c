@@ -18,6 +18,7 @@
 #include <linux/delay.h>
 #include <linux/mfd/core.h>
 #include <linux/mfd/88pm860x.h>
+#include <linux/sched.h>
 
 #ifdef CONFIG_RTC_MON
 #include <mach/88pm860x-rtc.h>
@@ -73,7 +74,6 @@ static long pm860x_rtcmon_ioctl(struct file *file, unsigned int cmd,
 	void __user *uarg = (void __user *)arg;
 	struct rtc_time tm = {0};
 	int ret = 0;
-	lock_kernel();
 	switch (cmd) {
 	case RTC_CHANGE_SUB:
 		{
@@ -100,7 +100,6 @@ static long pm860x_rtcmon_ioctl(struct file *file, unsigned int cmd,
 		"pxa_rtcmon_ioctl:default\n");
 		ret = -ENOIOCTLCMD;
 	}
-	unlock_kernel();
 	return ret;
 }
 
