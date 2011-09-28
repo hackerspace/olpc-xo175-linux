@@ -55,6 +55,7 @@
 #include <mach/axis_sensor.h>
 #include <mach/uio_hdmi.h>
 #include <media/soc_camera.h>
+#include <linux/power/max8903_charger.h>
 
 #include "common.h"
 #include "onboard.h"
@@ -144,6 +145,10 @@ static unsigned long abilene_pin_config[] __initdata = {
 
 	/* OTG vbus enable signal */
 	GPIO62_VBUS_EN,
+
+	/* Charger(max8903) control GPIOs */
+	GPIO65_GPIO,	/* CHG_500MA */
+	GPIO66_GPIO,	/* CHG_2A_N */
 
 	/* HSIC1 reset pin*/
 	GPIO96_HSIC_RESET,
@@ -613,6 +618,43 @@ static struct max8925_platform_data abilene_max8925_info = {
 	.regulator[MAX8925_ID_LDO19] = &regulator_data[MAX8925_ID_LDO19],
 	.regulator[MAX8925_ID_LDO20] = &regulator_data[MAX8925_ID_LDO20],
 };
+
+#ifdef CONFIG_CHARGER_MAX8903
+#define MAX8903_PIN(_id, _gpio, _active_low, _desc)	\
+{	\
+	.id			= MAX8903_PIN_##_id,	\
+	.gpio		= _gpio,				\
+	.active_low	= _active_low,			\
+	.desc		= _desc,				\
+}
+
+static struct max8903_gpio abilene_charger_gpios[] = {
+	MAX8903_PIN(DCM,  mfp_to_gpio(GPIO66_GPIO), 1, "CHG_2A_N"),
+	MAX8903_PIN(IUSB, mfp_to_gpio(GPIO65_GPIO), 0, "CHG_500MA"),
+};
+
+/* Batteries supplied to */
+static char *max8903_supplied_to[] = {
+	"max8925-battery",
+};
+
+static struct max8903_pdata abilene_charger_pdata = {
+	.gpios		= abilene_charger_gpios,
+	.gpio_nums	= ARRAY_SIZE(abilene_charger_gpios),
+	.dc_valid	= 1,	/* DC-in is wired */
+	.usb_valid	= 0,	/* USB-in is NOT wired */
+	.supplied_to = max8903_supplied_to,
+	.num_supplicants = ARRAY_SIZE(max8903_supplied_to),
+};
+
+static struct platform_device max8903_charger_device = {
+	.name = "max8903-charger",
+	.id = -1,
+	.dev = {
+		.platform_data = &abilene_charger_pdata,
+	},
+};
+#endif	/* CONFIG_CHARGER_MAX8903 */
 
 static int motion_sensor_set_power(int on, const char *device_name)
 {
@@ -1396,6 +1438,10 @@ static void __init abilene_init(void)
 
 #if defined(CONFIG_SWITCH_HEADSET_HOST_GPIO)
 	abilene_init_headset();
+#endif
+
+#ifdef CONFIG_CHARGER_MAX8903
+	platform_device_register(&max8903_charger_device);
 #endif
 
 #ifdef CONFIG_USB_PXA_U2O
