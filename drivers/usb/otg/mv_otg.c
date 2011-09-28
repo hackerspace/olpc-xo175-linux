@@ -257,14 +257,15 @@ static void otg_clock_disable(struct mv_otg *mvotg)
 		clk_disable(mvotg->clk[i]);
 }
 
-static int mv_otg_enable(struct mv_otg *mvotg)
+static int mv_otg_enable_internal(struct mv_otg *mvotg)
 {
 	int retval = 0;
 
-	if (mvotg->clock_gating == 0 || mvotg->active)
+	if (mvotg->active)
 		return 0;
 
 	dev_dbg(&mvotg->dev->dev, "otg enabled\n");
+
 	otg_clock_enable(mvotg);
 	if (mvotg->pdata->phy_init) {
 		retval = mvotg->pdata->phy_init(mvotg->phy_regs);
@@ -277,16 +278,29 @@ static int mv_otg_enable(struct mv_otg *mvotg)
 	}
 	mvotg->active = 1;
 
-	return retval;
+	return 0;
+
 }
 
-static void mv_otg_disable(struct mv_otg *mvotg)
+static int mv_otg_enable(struct mv_otg *mvotg)
 {
-	if (mvotg->clock_gating && mvotg->active) {
+	if (mvotg->clock_gating)
+		return mv_otg_enable_internal(mvotg);
+}
+
+static void mv_otg_disable_internal(struct mv_otg *mvotg)
+{
+	if (mvotg->active) {
 		dev_dbg(&mvotg->dev->dev, "otg disabled\n");
 		otg_clock_disable(mvotg);
 		mvotg->active = 0;
 	}
+}
+
+static void mv_otg_disable(struct mv_otg *mvotg)
+{
+	if (mvotg->clock_gating)
+		mv_otg_disable_internal(mvotg);
 }
 
 static void mv_otg_update_inputs(struct mv_otg *mvotg)
@@ -829,6 +843,9 @@ static int mv_otg_probe(struct platform_device *dev)
 			mvotg->clock_gating = 0;
 		}
 	}
+
+	if (pdata->disable_otg_clock_gating)
+		mvotg->clock_gating = 0;
 
 	spin_lock_init(&mvotg->wq_lock);
 	if (spin_trylock(&mvotg->wq_lock)) {

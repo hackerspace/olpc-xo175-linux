@@ -54,6 +54,9 @@ struct mv_usb_platform_data {
 	/* only valid for HCD. OTG or Host only*/
 	unsigned int		mode;
 
+	/* This flag is used for that needs id pin checked by otg */
+	unsigned int		disable_otg_clock_gating;
+
 	int     (*phy_init)(unsigned int regbase);
 	void    (*phy_deinit)(unsigned int regbase);
 	int	(*set_vbus)(unsigned int vbus);
