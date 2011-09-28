@@ -23,17 +23,15 @@
 #include <mach/mmp3_pm.h>
 #include <plat/clock.h>
 
-#define NUM_CPUS	3
-
 /*
  * Frequency freq_table index must be sequential starting at 0
  * and frequencies must be ascending
  */
-static struct cpufreq_frequency_table *freq_table;
-
+static struct cpufreq_frequency_table **freq_table;
+static u32 num_cpus;
 static struct clk *cpu_clk;
 
-static unsigned long target_cpu_speed[NUM_CPUS];
+static int *target_cpu_frequency_index;
 static DEFINE_MUTEX(mmp3_cpu_lock);
 
 static int mmp3_cpufreq_verify(struct cpufreq_policy *policy)
@@ -45,20 +43,27 @@ static int mmp3_cpufreq_verify(struct cpufreq_policy *policy)
 
 static unsigned int mmp3_cpufreq_get(unsigned int cpu)
 {
-	if (cpu >= NUM_CPUS)
+	if (cpu >= num_cpus)
 		return -EINVAL;
 
-	return clk_get_rate(cpu_clk);
+	if (num_cpus == 3) {
+		if (cpu == 0)
+			return mmp3_getfreq(MMP3_CLK_MM);
+		else
+			return mmp3_getfreq(MMP3_CLK_MP1);
+	} else
+		return clk_get_rate(cpu_clk);
 }
 
 static unsigned long mmp3_cpu_highest_speed(void)
 {
-	unsigned long rate = 0;
-	int i;
+	int i, index = 0;
 
 	for_each_online_cpu(i)
-		rate = max(rate, target_cpu_speed[i]);
-	return rate;
+		index = max(index, target_cpu_frequency_index[i]);
+
+	/* always return the frequency of MP core */
+	return freq_table[1][index].frequency;
 }
 
 static int mmp3_cpufreq_target(struct cpufreq_policy *policy,
@@ -69,26 +74,23 @@ static int mmp3_cpufreq_target(struct cpufreq_policy *policy,
 	unsigned int highest_speed;
 	int ret = 0;
 
-	if (policy->cpu == NUM_CPUS - 1)
-		return ret;
-
 	mutex_lock(&mmp3_cpu_lock);
 
-	if (cpufreq_frequency_table_target(policy, freq_table,
+	if (cpufreq_frequency_table_target(policy, freq_table[policy->cpu],
 					   target_freq, relation, &index)) {
 		pr_err("cpufreq: invalid target_freq: %d\n", target_freq);
 		ret = -EINVAL;
 		goto out;
 	}
 
-	if (policy->cur == freq_table[index].frequency)
+	if (policy->cur == freq_table[policy->cpu][index].frequency)
 		goto out;
 
-	target_cpu_speed[policy->cpu] = freq_table[index].frequency;
+	target_cpu_frequency_index[policy->cpu] = index;
 
 	highest_speed = mmp3_cpu_highest_speed();
 
-	freqs.old = mmp3_cpufreq_get(0);
+	freqs.old = mmp3_cpufreq_get(policy->cpu);
 	freqs.new = highest_speed;
 
 #ifdef CONFIG_CPU_FREQ_DEBUG
@@ -116,7 +118,7 @@ static int mmp3_cpufreq_target(struct cpufreq_policy *policy,
 	 * Now we just call the raw clock change pointer to bypass the lock.
 	 */
 	cpu_clk->ops->setrate(cpu_clk, highest_speed);
-	freqs.new = mmp3_cpufreq_get(0);
+	freqs.new = mmp3_cpufreq_get(policy->cpu);
 
 	for_each_online_cpu(freqs.cpu)
 		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
@@ -128,17 +130,27 @@ out:
 
 static int mmp3_cpufreq_init(struct cpufreq_policy *policy)
 {
-	cpufreq_frequency_table_cpuinfo(policy, freq_table);
-	cpufreq_frequency_table_get_attr(freq_table, policy->cpu);
+	int index;
 
-	cpu_clk = clk_get(NULL, "cpu");
-	if (IS_ERR(cpu_clk))
-		return PTR_ERR(cpu_clk);
+	cpufreq_frequency_table_cpuinfo(policy, freq_table[policy->cpu]);
+	cpufreq_frequency_table_get_attr(freq_table[policy->cpu], policy->cpu);
+
+	if (!cpu_clk) {
+		cpu_clk = clk_get(NULL, "cpu");
+		if (IS_ERR(cpu_clk))
+			return PTR_ERR(cpu_clk);
+	}
 
 	/* 100us, MMP3 FC takes 50 ~ 70 us*/
 	policy->cpuinfo.transition_latency = 100000;
+
 	policy->cur = mmp3_cpufreq_get(policy->cpu);
-	target_cpu_speed[policy->cpu] = policy->cur;
+	if (cpufreq_frequency_table_target(policy, freq_table[policy->cpu],
+				policy->cur, CPUFREQ_RELATION_L, &index)) {
+		pr_err("mmp3_cpufreq_init: invalid freq: %d\n", policy->cur);
+		return -EINVAL;
+	}
+	target_cpu_frequency_index[policy->cpu] = index;
 
 	pr_info("CPUFREQ cpu %d support for mmp3 initialized, cur %d\n",
 		policy->cpu, policy->cur);
@@ -161,31 +173,84 @@ static struct cpufreq_driver mmp3_cpufreq_driver = {
 
 static int __init cpufreq_init(void)
 {
+	int freq_table_item_count, i, j, core;
+
+	freq_table_item_count = mmp3_get_pp_number();
+	num_cpus = num_possible_cpus();
+	target_cpu_frequency_index = kzalloc(num_cpus * sizeof(int),
+					GFP_KERNEL);
+	if (!target_cpu_frequency_index)
+		return -ENOMEM;
+	freq_table =
+		kzalloc(num_cpus * sizeof(struct cpufreq_frequency_table *),
+			GFP_KERNEL);
+	if (!freq_table)
+		goto cpufreq_exit1;
+
+	for (i = 0; i < num_cpus; i++) {
+		freq_table[i] =
+			kzalloc((freq_table_item_count + 1) *
+				sizeof(struct cpufreq_frequency_table),
+				GFP_KERNEL);
+		if (!freq_table[i])
+			goto cpufreq_exit2;
+	}
+
 	/*
 	 * FIXME:
 	 * this need change when smp process id to real process id
-	 * mapping is ready, then we can do frequency table for each core.
-	 * currently the mapping depends on which core to boot.
-	 * Also currently we assume only MP1/2 are active and they always runs
-	 * at the same frequency. so we only use and trigger DFC target on MP1
+	 * mapping is changed. We should do frequency table for each core.
+	 * Currently we assume there are two cases: 1. only MP1/2 are active,
+	 * the first core is MP1 and the second core is MP2. 2. Both MM and
+	 * MP1/2 are active, the first core is MM, the second core is MP1 and
+	 * the third core is MP2. MP1 and MP2 are always running at the same
+	 * frequency.
 	 */
-	int freq_table_item_count, i;
-	freq_table_item_count = mmp3_get_pp_number();
-	freq_table =
-	    kzalloc((freq_table_item_count + 1) * sizeof(freq_table[0]),
-		    GFP_KERNEL);
-	if (IS_ERR(freq_table))
-		return PTR_ERR(freq_table);
-
-	for (i = 0; i < freq_table_item_count; i++) {
-		freq_table[i].index = i;
-		freq_table[i].frequency = mmp3_get_pp_freq(i, MMP3_CLK_MP1);
+	if (num_cpus == 2) {
+		for (i = 0; i < num_cpus; i++) {
+			for (j = 0; j < freq_table_item_count; j++) {
+				freq_table[i][j].index = j;
+				freq_table[i][j].frequency =
+					mmp3_get_pp_freq(j, MMP3_CLK_MP1);
+			}
+			freq_table[i][freq_table_item_count].index =
+							freq_table_item_count;
+			freq_table[i][freq_table_item_count].frequency =
+							CPUFREQ_TABLE_END;
+		}
+	} else if (num_cpus == 3) {
+		for (i = 0; i < num_cpus; i++) {
+			if (i == 0)
+				core = MMP3_CLK_MM;
+			else
+				core = MMP3_CLK_MP1;
+			for (j = 0; j < freq_table_item_count; j++) {
+				freq_table[i][j].index = j;
+				freq_table[i][j].frequency =
+					mmp3_get_pp_freq(j, core);
+			}
+			freq_table[i][freq_table_item_count].index =
+							freq_table_item_count;
+			freq_table[i][freq_table_item_count].frequency =
+							CPUFREQ_TABLE_END;
+		}
+	} else {
+		pr_err("only one core detected in cpufreq driver!\n");
+		BUG();
 	}
 
-	freq_table[freq_table_item_count].index = freq_table_item_count;
-	freq_table[freq_table_item_count].frequency = CPUFREQ_TABLE_END;
-
 	return cpufreq_register_driver(&mmp3_cpufreq_driver);
+
+cpufreq_exit2:
+	while (i > 0) {
+		kfree(freq_table[i]);
+		i--;
+	}
+
+cpufreq_exit1:
+	kfree(target_cpu_frequency_index);
+
+	return -ENOMEM;
 }
 
 module_init(cpufreq_init);
