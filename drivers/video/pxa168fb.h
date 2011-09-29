@@ -288,6 +288,10 @@ struct lcd_regs {
 #define	 CFG_CKEY_GRA				0x2
 #define	 CFG_CKEY_DMA				0x1
 
+/* Interlace mode enable bits in LCD_TV_CTRL1 */
+#define     CFG_TV_INTERLACE_EN                 (1 << 22)
+#define     CFG_TV_NIB                          (1 << 0)
+
 #define LCD_PN_SEPXLCNT				0x013c /* MMP2 */
 
 /* SPI Read Data Register */

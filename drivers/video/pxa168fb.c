@@ -422,6 +422,13 @@ static int pxa168fb_check_var(struct fb_var_screeninfo *var,
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 
 	dev_dbg(info->dev, "Enter %s\n", __func__);
+
+	if (mi->vdma_enable && (var->vmode & FB_VMODE_INTERLACED)) {
+		pr_debug("%s vdma_enabled, interlaced mode not allowed\n",
+				__func__);
+		return -EINVAL;
+	}
+
 	if (var->bits_per_pixel == 8) {
 		pr_debug("%s var->bits_per_pixel == 8\n", __func__);
 		return -EINVAL;
@@ -804,6 +811,42 @@ static void set_dumb_panel_control(struct fb_info *info)
 	writel(x, fbi->reg_base + intf_ctrl(fbi->id));	/* FIXME */
 }
 
+static void set_tv_interlace(void)
+{
+	struct pxa168fb_info *fbi = gfx_info.fbi[1];
+	struct fb_info *info = fbi->fb_info;
+	struct fb_var_screeninfo *v = &info->var;
+	struct lcd_regs *regs = get_regs(fbi->id);
+	int x, y, vec = 10, interlaced = 0, vsync_ctrl;
+
+	dev_dbg(info->dev, "Enter %s vec %d\n", __func__, vec);
+	x = v->xres + v->right_margin + v->hsync_len + v->left_margin;
+	x = x * vec / 10;
+	y = v->yres + v->lower_margin + v->vsync_len + v->upper_margin;
+
+	if (v->vmode & FB_VMODE_INTERLACED) {
+		/* interlaced mode, recalculate vertical pixels */
+		y -= (v->yres >> 1);
+
+		/* even field */
+		writel(((y + 1) << 16) | (v->yres >> 1),
+				fbi->reg_base + LCD_TV_V_H_TOTAL_FLD);
+		writel(((v->upper_margin) << 16) | (v->lower_margin),
+				fbi->reg_base + LCD_TV_V_PORCH_FLD);
+		vsync_ctrl = (x >> 1) - v->left_margin - v->hsync_len;
+		writel(vsync_ctrl << 16 | vsync_ctrl,
+				fbi->reg_base + LCD_TV_SEPXLCNT_FLD);
+
+		/* odd field */
+		writel(((v->yres >> 1) << 16) | v->xres, &regs->screen_active);
+		writel((y << 16) | x, &regs->screen_size);
+
+		/* enable interlaced mode */
+		interlaced = CFG_TV_INTERLACE_EN | CFG_TV_NIB;
+	}
+	dma_ctrl_set(fbi->id, 1, CFG_TV_INTERLACE_EN | CFG_TV_NIB, interlaced);
+}
+
 static void set_dumb_screen_dimensions(struct fb_info *info)
 {
 	struct pxa168fb_info *fbi = info->par;
@@ -952,6 +995,9 @@ static void pxa168fb_set_regs(struct fb_info *info, int wait_vsync)
 
 	/* Configure dumb panel ctrl regs & timings */
 	set_dumb_panel_control(info);
+
+	if (gfx_info.fbi[1] && (fbi->id == 1 || fb_mode))
+		set_tv_interlace();
 
 	x = readl(fbi->reg_base + intf_ctrl(fbi->id));
 	if ((x & 1) == 0)
@@ -1982,6 +2028,19 @@ static ssize_t lcd_show(struct device *dev, struct device_attribute *attr,
 	pr_info("\tclk_div       ( @%3x ) 0x%x\n",
 		 (int)(clk_div(fbi->id)) & 0xfff,
 		 readl(fbi->reg_base + clk_div(fbi->id)));
+	/* TV path registers */
+	if (fbi->id == 1) {
+		pr_info("\ntv path interlace related:\n");
+		pr_info("\tv_h_total       ( @%3x ) 0x%8x\n",
+			(int)(LCD_TV_V_H_TOTAL_FLD) & 0xfff,
+			readl(fbi->reg_base + LCD_TV_V_H_TOTAL_FLD));
+		pr_info("\tv_porch         ( @%3x ) 0x%8x\n",
+			(int)(LCD_TV_V_PORCH_FLD) & 0xfff,
+			readl(fbi->reg_base + LCD_TV_V_PORCH_FLD));
+		pr_info("\tvsync_ctrl      ( @%3x ) 0x%8x\n",
+			(int)(LCD_TV_SEPXLCNT_FLD) & 0xfff,
+			readl(fbi->reg_base + LCD_TV_SEPXLCNT_FLD));
+	}
 
 	pr_info("\n");
 
