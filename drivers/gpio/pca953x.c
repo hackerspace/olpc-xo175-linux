@@ -608,10 +608,16 @@ static int __devinit device_pca953x_init(struct pca953x_chip *chip, int invert)
 	if (ret)
 		goto out;
 
+	ret = pca953x_write_reg(chip, PCA953X_OUTPUT, 0xffff);
+	if (ret)
+		goto out;
 	ret = pca953x_read_reg(chip, PCA953X_OUTPUT, &chip->reg_output);
 	if (ret)
 		goto out;
 
+	ret = pca953x_write_reg(chip, PCA953X_DIRECTION, 0x0);
+	if (ret)
+		goto out;
 	ret = pca953x_read_reg(chip, PCA953X_DIRECTION,
 			       &chip->reg_direction);
 	if (ret)
