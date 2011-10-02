@@ -63,6 +63,7 @@ struct pm860x_rtc_info {
 #define RTC1_USE_XO		(1 << 7)
 
 #define VRTC_CALIB_INTERVAL	(HZ * 60 * 10)		/* 10 minutes */
+#define VRTC_CALIB_TRIES	(10)
 
 static int pm860x_rtc_read_time(struct device *dev, struct rtc_time *tm);
 
@@ -330,14 +331,23 @@ static void calibrate_vrtc_work(struct work_struct *work)
 		struct pm860x_rtc_info, calib_work.work);
 	unsigned char buf[2];
 	unsigned int sum, data, mean, vrtc_set;
-	int i;
+	int i, ret, tries = 0;
 
 	for (i = 0, sum = 0; i < 16; i++) {
 		msleep(100);
-		pm860x_bulk_read(info->i2c, REG_VRTC_MEAS1, 2, buf);
+
+		do
+			ret = pm860x_bulk_read(
+					info->i2c, REG_VRTC_MEAS1, 2, buf);
+		while ((ret < 0) && ((tries++) < VRTC_CALIB_TRIES));
+
+		if (tries == VRTC_CALIB_TRIES)
+			panic("%s: failed to read VRTC_MEAS1\n", __FUNCTION__);
+
 		data = (buf[0] << 4) | buf[1];
 		data = (data * 5400) >> 12;	/* convert to mv */
 		sum += data;
+		tries = 0;
 	}
 	mean = sum >> 4;
 	vrtc_set = 2700 + (info->vrtc & 0x3) * 200;
