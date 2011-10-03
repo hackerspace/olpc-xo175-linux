@@ -40,6 +40,10 @@
  *   the 8 is higest priority winning in arbitration with other masters on bus
  *   and 0xF is lowest priority. APPS processor should NOT use higest code 0x8
  *   The recommended value in i2c_pxa_platform_data .master_code =(8|4|2)=0xE
+ *
+ *  Sept 2011 - [PTK YANM] Do not printk ARBITRATION-Loss or BusERROR directly
+ *    under IRQ context but "delay" it to task-context (these are bus-Warnings).
+ *    Still keep "spurious" prints since these are real problem/error.
  */
 
 #include <linux/kernel.h>
@@ -172,7 +176,7 @@ struct i2c_algo_custom {
 	u8	clock_adj;
 	u8	byte2byte_delay;
 	u8	scream_silent;
-	u8	spare[5];
+	u8	spare[4];
 };
 
 #ifdef SAVE_MSG_REQUEST_DEBUG_BUF
@@ -184,6 +188,32 @@ struct i2c_msg_debug {
 	u8  buf[4];
 };
 #endif
+
+
+typedef enum
+{
+	IRQ_WARN_NONE,
+	IRQ_WARN_ALD,		/*"wrong ISR_ALD"*/
+	IRQ_WARN_ALD_BED,	/*"wrong ISR_ALD & ISR_BED"*/
+	IRQ_WARN_ALD_RETRY,	/*"INFO but not error\ni2c: Arbitration Loss Detected, go with RETRY"*/
+	IRQ_WARN_ALD_ADDR,	/*"ERROR: ADDR Arbitration Loss with MasterSTOP"*/
+	IRQ_WARN_ALD_CONT,	/*"INFO but not error\ni2c: Arbitration Loss Detected, but transaction continued"*/
+	IRQ_WARN_NO_ANSWER,	/*"Bus ERROR or no answer from slave-device"*/
+	IRQ_WARN_BUS_ERR,	/*"Bus ERROR on Data stage"*/
+	IRQ_WARN_UNKNOWN
+}irq_warn_enum;
+
+static char* i2c_irq_warn_str[IRQ_WARN_UNKNOWN+1] = {
+	NULL,
+	"wrong ISR_ALD",
+	"wrong ISR_ALD & ISR_BED",
+	"INFO but not error\ni2c: Arbitration Loss Detected, go with RETRY",
+	"ERROR: ADDR Arbitration Loss with MasterSTOP",
+	"INFO but not error\ni2c: Arbitration Loss Detected, but transaction continued",
+	"Bus ERROR or no answer from slave-device",
+	"Bus ERROR on Data stage",
+	"Undefined Error on IRQ context"
+};
 
 struct pxa_i2c {
 	wait_queue_head_t	wait;
@@ -226,7 +256,9 @@ struct pxa_i2c {
 	u8		req_slave_addr;
 	char	req_read;			/* 'R' read or 'W' write */
 	u8		req_num_data_bytes;
-	u8		align;
+
+	irq_warn_enum  irq_warn;
+
 	struct i2c_algo_custom *p_custom;
 	bool		hs_enterring;
 	u8		master_code;
@@ -402,8 +434,6 @@ static void i2c_pxa_show_state(struct pxa_i2c *i2c, int lno, const char *fname)
 #define NUM_RETRIES_ON_BUS_BUSY    125   /* (3ctrl+4data bytes)*9bits / 2bitsAccessDelay * FAST_SLOW_RATE*/
 #define NUM_RETRIES_EXHAUSTED        3
 
-
-
 /**********************************************************************
 *        CUSTOMIZATION PER SLAVE DEVICE
 ***********************************************************************/
@@ -411,8 +441,8 @@ static void i2c_pxa_show_state(struct pxa_i2c *i2c, int lno, const char *fname)
 /********************* CUSTOMER DATA *****************/
 struct i2c_algo_custom  i2c_pxa_custom[MAX_CUSTOMIZED_SLAVE_DEVICES+1] =
 {
-	/*	slave_addr	clock_adj	byte2byte_delay	scream_silent	spare[5]	*/
-	{ 0x34,		0,			0,				0xFA,			{0}	}, /* PMIC */
+	/*	slave_addr	clock_adj	byte2byte_delay	scream_silent  spare[4]*/
+	{ 0x34,		0,			0,				0xFA,	{0, 0x10, 0x1A, 0}	},
 	{0} /*ZERO line as END must be present, index=MAX_CUSTOMIZED_SLAVE_DEVICES */
 };
 
@@ -1156,6 +1186,7 @@ static int i2c_pxa_do_xfer_with_fifo(struct pxa_i2c *i2c, struct i2c_msg *msg, i
 	i2c->fifo_write_byte_num = 0;
 	i2c->fifo_read_byte_num = 0;
 	i2c->fifo_transaction_down = false;
+	i2c->irq_warn = IRQ_WARN_NONE;
 
 	writel(0, _WFIFO_WPTR(i2c));
 	writel(0, _WFIFO_RPTR(i2c));
@@ -1218,7 +1249,12 @@ static int i2c_pxa_do_xfer_with_fifo(struct pxa_i2c *i2c, struct i2c_msg *msg, i
 	{
 		timeout = wait_event_timeout(i2c->wait, i2c->fifo_transaction_down == true,  MAX_XFER_TIMEOUT_US/1000/8+10); /*78 mSec*/
 	}
-
+	if (unlikely(i2c->irq_warn != IRQ_WARN_NONE)) {
+		if (unlikely(i2c->irq_warn > IRQ_WARN_UNKNOWN))
+			i2c_pxa_scream_blue_murder(i2c, i2c_irq_warn_str[IRQ_WARN_UNKNOWN]);
+		else
+			i2c_pxa_scream_blue_murder(i2c, i2c_irq_warn_str[i2c->irq_warn]);
+	}
 	ret = i2c->msg_idx;
 	if(ret >= 0)
 	{
@@ -1261,6 +1297,7 @@ static int i2c_pxa_do_xfer(struct pxa_i2c *i2c, struct i2c_msg *msg, int num)
 	i2c->msg_idx = 0;
 	i2c->msg_ptr = 0;
 	i2c->irqlogidx = 0;
+	i2c->irq_warn = IRQ_WARN_NONE;
 
 	ICR_LOG = 0xCAFE;
 
@@ -1350,6 +1387,12 @@ static int i2c_pxa_do_xfer(struct pxa_i2c *i2c, struct i2c_msg *msg, int num)
 			/*"wait_event_timeout" is system call wich restores irq itself*/
 			timeout = wait_event_timeout(i2c->wait, i2c->hs_enterring == false, MAX_XFER_TIMEOUT_US/1000/8);//78ms
 		}
+		if (unlikely(i2c->irq_warn != IRQ_WARN_NONE)) {
+			if (unlikely(i2c->irq_warn > IRQ_WARN_UNKNOWN))
+				i2c_pxa_scream_blue_murder(i2c, i2c_irq_warn_str[IRQ_WARN_UNKNOWN]);
+			else
+				i2c_pxa_scream_blue_murder(i2c, i2c_irq_warn_str[i2c->irq_warn]);
+		}
 		i2c->hs_enterring = false;
 		if ((i2c->msg_idx == I2C_RETRY) || (i2c->msg_idx == I2C_BUS_ERROR) || (i2c->msg_idx == I2C_MASTER_ABORT))
 			goto exit;
@@ -1387,6 +1430,12 @@ static int i2c_pxa_do_xfer(struct pxa_i2c *i2c, struct i2c_msg *msg, int num)
 		In that case the task runs again upon TimeOut but condition is already TRUE.
 		Let's use wait_event_timeout() with short (7.8mS is minimum) and go to long TO only if condition still FALSE*/
 		timeout = wait_event_timeout(i2c->wait, i2c->msg_num == 0, 1); /*7.8 mSec*/
+		if (unlikely(i2c->irq_warn != IRQ_WARN_NONE)) {
+			if (unlikely(i2c->irq_warn > IRQ_WARN_UNKNOWN))
+				i2c_pxa_scream_blue_murder(i2c, i2c_irq_warn_str[IRQ_WARN_UNKNOWN]);
+			else
+				i2c_pxa_scream_blue_murder(i2c, i2c_irq_warn_str[i2c->irq_warn]);
+		}
 		if(i2c->msg_num != 0)
 			wait_event_timeout(i2c->wait, i2c->msg_num == 0, MAX_XFER_TIMEOUT_US/1000/8); /*78 mSec*/
 	}
@@ -1438,22 +1487,20 @@ static u32 i2c_pxa_irq_txempty_with_fifo(struct pxa_i2c *i2c, u32 isr)
 
 	if(isr & (ISR_ALD)){
 		if (isr & ISR_BED) {
-			i2c_pxa_scream_blue_murder(i2c, "wrong ISR_BED & ISR_ALD");
+			i2c->irq_warn = IRQ_WARN_ALD_BED;
 			i2c->msg_idx = I2C_BUS_ERROR;
 		} else if ((i2c->msg_ptr != 0) || (i2c->msg_idx != 0)) {
 			/* Still not started. Just go to retry */
-			i2c_pxa_scream_blue_murder(i2c, "INFO but not error\n"
-				"i2c: Arbitration Loss Detected, go with RETRY");
+			i2c->irq_warn = IRQ_WARN_ALD_RETRY;
 			i2c->msg_idx = I2C_RETRY;
 		} else {
 			/*Arbitration on ADDRESS stage should be resolved by HW (just clear ALD-bit)*/
 			/*But check the master is NOT stopped; if stopped go to retry*/
 			if (isr & ISR_MSD) {
-				i2c_pxa_scream_blue_murder(i2c, "ERROR: ADDR Arbitration Loss with MasterSTOP");
+				i2c->irq_warn = IRQ_WARN_ALD_ADDR;
 				i2c->msg_idx = I2C_MASTER_ABORT;
 			} else {
-				i2c_pxa_scream_blue_murder(i2c, "INFO but not error\n"
-					"i2c: Arbitration Loss Detected, but transaction continued");
+				i2c->irq_warn = IRQ_WARN_ALD_CONT;
 				i2c->debug_track = 7;
 			}
 		}
@@ -1468,7 +1515,7 @@ static u32 i2c_pxa_irq_txempty_with_fifo(struct pxa_i2c *i2c, u32 isr)
 
 	if (isr & (ISR_BED)) {
 		if (!i2c_pxa_custom_nack_is_ok(i2c)) {
-			i2c_pxa_scream_blue_murder(i2c, "Bus ERROR or no answer from slave-device");
+			i2c->irq_warn = IRQ_WARN_NO_ANSWER;
 			i2c->msg_idx = I2C_BUS_ERROR;
 		}
 		writel(ISR_BED, _ISR(i2c));
@@ -1695,7 +1742,7 @@ static void i2c_pxa_irq_txempty_with_dma(struct pxa_i2c *i2c, u32 isr)
 	ICR_LOG = icr;
 
 	if(isr & (ISR_ALD)){
-		i2c_pxa_scream_blue_murder(i2c, "wrong ISR_ALD");
+		i2c->irq_warn = IRQ_WARN_ALD;
 		writel(ISR_ALD, _ISR(i2c));
 
 		i2c->msg_idx = I2C_MASTER_ABORT;
@@ -1703,9 +1750,10 @@ static void i2c_pxa_irq_txempty_with_dma(struct pxa_i2c *i2c, u32 isr)
 		wake_up(&i2c->wait);
 		return;
 	}
-	if(isr & (ISR_BED)){
-		if (!i2c_pxa_custom_nack_is_ok(i2c)) {
-			i2c_pxa_scream_blue_murder(i2c, "Bus ERROR or no answer from slave-device");
+	if (isr & ISR_BED) {
+		if (!i2c_pxa_custom_nack_is_ok(i2c))
+		{
+			i2c->irq_warn = IRQ_WARN_NO_ANSWER;
 			i2c->msg_idx = I2C_BUS_ERROR;
 		}
 		writel(ISR_BED, _ISR(i2c));
@@ -1739,23 +1787,22 @@ static void i2c_pxa_irq_txempty(struct pxa_i2c *i2c, u32 isr)
 
 	if (isr & ISR_ALD) {
 		if (isr & ISR_BED) {
-			i2c_pxa_scream_blue_murder(i2c, "wrong ISR_BED & ISR_ALD");
+			i2c->irq_warn = IRQ_WARN_ALD_BED;
 			writel((ISR_ALD | ISR_BED), _ISR(i2c));
 			i2c_pxa_master_complete(i2c, I2C_BUS_ERROR);
 			return;
 		}
-		if ((i2c->msg_ptr != 0) || (i2c->msg_idx != 0))
-		{
-			i2c_pxa_scream_blue_murder(i2c, "INFO but not error\n"
-				"i2c: Arbitration Loss Detected, go with RETRY");
+		if ((i2c->msg_ptr != 0) || (i2c->msg_idx != 0)) {
+			i2c->irq_warn = IRQ_WARN_ALD_RETRY;
 			i2c_pxa_master_complete(i2c, I2C_RETRY);
-		}
-		else
-		{
-			/*Arbitration on ADDRESS stage should be resolved by HW (just clear ALD-bit)*/
-			/*But check the master is NOT stopped; if stopped go to retry*/
-			if(isr & ISR_MSD) {
-				i2c_pxa_scream_blue_murder(i2c, "ERROR: ADDR Arbitration Loss with MasterSTOP");
+		} else {
+			/* Arbitration on ADDRESS stage should be resolved by HW,
+			 * just clear ALD-bit.
+			 * But check the master is NOT stopped;
+			 * if stopped go to retry
+			 */
+			if (isr & ISR_MSD) {
+				i2c->irq_warn = IRQ_WARN_ALD_ADDR;
 				i2c_pxa_master_complete(i2c, I2C_MASTER_ABORT);
 			} else {
 				i2c->debug_track=7;
@@ -1771,15 +1818,14 @@ static void i2c_pxa_irq_txempty(struct pxa_i2c *i2c, u32 isr)
 		 * on the initial ADDRESS phase, we can retry.
 		 */
 		if (i2c->msg_ptr == 0 && i2c->msg_idx == 0)
-		{
-			i2c_pxa_scream_blue_murder(i2c, "Bus ERROR or no answer from slave-device");
-		} else {
+			i2c->irq_warn = IRQ_WARN_NO_ANSWER;
+		else {
 			if (i2c_pxa_custom_nack_is_ok(i2c)) {
 				writel(ISR_BED, _ISR(i2c));
 				i2c_pxa_master_complete(i2c, 0);
 				return;
 			}
-			i2c_pxa_scream_blue_murder(i2c, "Bus ERROR on Data stage");
+			i2c->irq_warn = IRQ_WARN_BUS_ERR;
 		}
 		writel(ISR_BED, _ISR(i2c));
 		i2c_pxa_master_complete(i2c,I2C_BUS_ERROR);
@@ -1911,7 +1957,6 @@ static void i2c_pxa_irq_rxfull(struct pxa_i2c *i2c, u32 isr)
 
 static irqreturn_t i2c_pxa_handler(int this_irq, void *dev_id)
 {
-	unsigned long volatile begin_ts = jiffies;
 	struct pxa_i2c *i2c = dev_id;
 	u32 isr, dbgCntr = 0;
 
@@ -1978,14 +2023,6 @@ static irqreturn_t i2c_pxa_handler(int this_irq, void *dev_id)
 		i2c_pxa_master_complete(i2c, I2C_NULL_BUFFER);
 	}
 
-
-	if ((jiffies-begin_ts) >= 2) {
-		char buf[80];
-		sprintf(buf, "IRQ_I2C latency %lu jiffies; dbgCntr = %u",
-						(jiffies-begin_ts), dbgCntr);
-		i2c_pxa_scream_blue_murder(i2c, (const char *)buf);
-		BUG_ON(1);
-	}
 	return IRQ_HANDLED;
 } /*i2c_pxa_handler*/
 
@@ -2095,6 +2132,7 @@ static int i2c_pxa_do_xfer_with_dma(struct pxa_i2c *i2c, struct i2c_msg *msg, in
 	i2c->msg_ptr = 0;
 	i2c->fifo_write_byte_num = 0;
 	i2c->fifo_read_byte_num = 0;
+	i2c->irq_warn = IRQ_WARN_NONE;
 
 	writel(0, _WFIFO_WPTR(i2c));
 	writel(0, _WFIFO_RPTR(i2c));
@@ -2305,7 +2343,12 @@ static int i2c_pxa_do_xfer_with_dma(struct pxa_i2c *i2c, struct i2c_msg *msg, in
 	{
 		timeout = wait_event_timeout(i2c->wait, i2c->fifo_transaction_down == true,  MAX_XFER_TIMEOUT_US/1000/8+10); /*78 mSec*/
 	}
-
+	if (unlikely(i2c->irq_warn != IRQ_WARN_NONE)) {
+		if (unlikely(i2c->irq_warn > IRQ_WARN_UNKNOWN))
+			i2c_pxa_scream_blue_murder(i2c, i2c_irq_warn_str[IRQ_WARN_UNKNOWN]);
+		else
+			i2c_pxa_scream_blue_murder(i2c, i2c_irq_warn_str[i2c->irq_warn]);
+	}
 	ret = i2c->msg_idx;
 	if(ret >= 0)
 	{
