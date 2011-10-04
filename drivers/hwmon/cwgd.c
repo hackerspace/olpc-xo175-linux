@@ -837,7 +837,7 @@ static long cwgd_ioctl(struct file *file,
 			pr_err("copy_from_user error\n");
 			return -EFAULT;
 		}
-		return cwgd_self_test(gyro, mode);
+		return cwgd_self_test(gyro, (u8)(mode & 0xff));
 
 	case CWGD_GET_TEMPERATURE:
 		temperature = (u8) cwgd_read_register(gyro, OUT_TEMP_REG);
