@@ -535,6 +535,8 @@ error_1:
 		kfree(cm3601_as_data);
 	if (cm3601_ps_data != NULL)
 		kfree(cm3601_ps_data);
+	if (info != NULL)
+		kfree(info);
 error_0:
 	printk(KERN_INFO "cm3601 init error.\n");
 	return ret;
@@ -566,6 +568,8 @@ static int cm3601_remove(struct platform_device *pdev)
 	info->release_source(info->gpio_ps_output);
 	if (info->gpio_ps_enable)
 		info->release_source(info->gpio_ps_enable);
+	kfree(info);
+
 	return 0;
 }
 
