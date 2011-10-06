@@ -2102,19 +2102,24 @@ static void ccic_clk_init(struct clk *clk)
 
 static int ccic_clk_enable(struct clk *clk)
 {
-	u32 val = clk->enable_val;
+	u32 val;
 
+	val = __raw_readl(clk->reg_data[SOURCE][CONTROL].reg) & 0x18000;
+	val |= clk->enable_val;
 	/* enable clocks */
-	val |= 0x10038;
+	val |= 0x38;
 	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
 
 	/* release reset */
-	val |= 0x8307;
+	val |= 0x307;
 	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
 
 	/* enable MIPI DPHY CSI2's DVDD and AVDD */
 	val = __raw_readl(APMU_CCIC_DBG);
-	val |= (1 << 25) | (1 << 27);
+	if (strncmp(clk->name, "ccic1", 5) == 0)
+		val |= (1 << 25) | (1 << 27);
+	else
+		val |= (1 << 26) | (1 << 28);
 	__raw_writel(val, APMU_CCIC_DBG);
 
 	return 0;
@@ -2124,11 +2129,16 @@ static void ccic_clk_disable(struct clk *clk)
 {
 	u32 val;
 
-	__raw_writel(0, clk->reg_data[SOURCE][CONTROL].reg);
+	val = __raw_readl(clk->reg_data[SOURCE][CONTROL].reg);
+	val &= 0x18000;
+	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
 
 	/* disable MIPI DPHY CSI2's DVDD and AVDD */
 	val = __raw_readl(APMU_CCIC_DBG);
-	val &= ~((1 << 25) | (1 << 27));
+	if (strncmp(clk->name, "ccic1", 5) == 0)
+		val &= ~((1 << 25) | (1 << 27));
+	else
+		val &= ~((1 << 26) | (1 << 28));
 	__raw_writel(val, APMU_CCIC_DBG);
 }
 
@@ -2242,12 +2252,61 @@ static struct clk_mux_sel ccic_clk_mux[] = {
 	{0, 0},
 };
 
+static int ccic_share_clk_enable(struct clk *clk)
+{
+	u32 val;
+
+	/* ccic axi enable clocks */
+	val = 0x10000;
+	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+
+	/* ccic axi clock release reset */
+	val |= 0x8000;
+	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+
+	return 0;
+}
+
+static void ccic_share_clk_disable(struct clk *clk)
+{
+	u32 val;
+
+	val = __raw_readl(clk->reg_data[SOURCE][CONTROL].reg);
+	val &= ~0x18000;
+	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+}
+
+struct clkops ccic_share_clk_ops = {
+	.init = NULL,
+	.enable = ccic_share_clk_enable,
+	.disable = ccic_share_clk_disable,
+	.round_rate = NULL,
+	.setrate = NULL,
+};
+
+static struct clk mmp3_clk_ccic0 = {
+	.name = "ccic0",
+	.ops = &ccic_share_clk_ops,
+	.inputs = ccic_clk_mux,
+	.reg_data = {
+		     { {APMU_CCIC_RST, 6, 0x3},
+			{APMU_CCIC_RST, 6, 0x3} },
+		     {{APMU_CCIC_RST, 17, 0xf},
+			{APMU_CCIC_RST, 17, 0xf} } },
+};
+
+static struct clk *ccic_depend_clk[] = {
+	&mmp3_clk_ccic0,
+};
+
 static struct clk mmp3_clk_ccic1 = {
 	.name = "ccic1",
 	.lookup = {
 		.dev_id = "mv-camera.0",
 		.con_id = "CCICRSTCLK",
 	},
+	.dependence = ccic_depend_clk,
+	.dependence_count = ARRAY_SIZE(ccic_depend_clk),
 	.ops = &ccic_clk_ops,
 	.inputs = ccic_clk_mux,
 	.reg_data = {
@@ -2263,13 +2322,15 @@ static struct clk mmp3_clk_ccic2 = {
 		.dev_id = "mv-camera.1",
 		.con_id = "CCICRSTCLK",
 	},
+	.dependence = ccic_depend_clk,
+	.dependence_count = ARRAY_SIZE(ccic_depend_clk),
 	.ops = &ccic_clk_ops,
 	.inputs = ccic_clk_mux,
 	.reg_data = {
-		     { {APMU_CCIC_RST, 6, 0x3},
-			{APMU_CCIC_RST, 6, 0x3} },
-		     {{APMU_CCIC_RST, 17, 0xf},
-			{APMU_CCIC_RST, 17, 0xf} } },
+		     { {APMU_CCIC2_RST, 6, 0x3},
+			{APMU_CCIC2_RST, 6, 0x3} },
+		     {{APMU_CCIC2_RST, 17, 0xf},
+			{APMU_CCIC2_RST, 17, 0xf} } },
 };
 
 static struct clk *mmp3_clks_ptr[] = {

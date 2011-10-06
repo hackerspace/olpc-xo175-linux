@@ -95,6 +95,7 @@ static unsigned long yellowstone_pin_config[] __initdata = {
 
 	/* camera */
 	GPIO68_GPIO,
+	GPIO1_GPIO,
 	GPIO73_CAM_MCLK,
 
 	/* DFI */
@@ -187,64 +188,24 @@ static unsigned long mmc3_pin_config[] __initdata = {
 /* soc  camera */
 static int camera_sensor_power(struct device *dev, int on)
 {
-	static struct regulator *v_ldo14;
-	static struct regulator *v_ldo15;
 	static int f_enabled;
-	int cam_enable = mfp_to_gpio(MFP_PIN_GPIO68), ret;
+	int cam_pwdn = mfp_to_gpio(MFP_PIN_GPIO68);
 
-	if (gpio_request(cam_enable, "CAM_ENABLE_HI_SENSOR")) {
-		printk(KERN_ERR "Request GPIO failed, gpio: %d\n", cam_enable);
+	if (gpio_request(cam_pwdn, "CAM_PWDN")) {
+		printk(KERN_ERR"Request GPIO failed, gpio: %d\n", cam_pwdn);
 		return -EIO;
 	}
 
-	/* enable voltage for camera sensor OV5642 */
-	/* v_ldo14 3.0v */
-	/* v_ldo15 2.8v */
-	if (on && (!f_enabled)) {
-		v_ldo14 = regulator_get(NULL, "v_ldo14");
-		if (IS_ERR(v_ldo14)) {
-			v_ldo14 = NULL;
-			return -EIO;
-		} else {
-			ret = regulator_set_voltage(v_ldo14, 3000000, 3000000);
-			regulator_enable(v_ldo14);
-			f_enabled = 1;
-		}
-
-		v_ldo15 = regulator_get(NULL, "v_ldo15");
-		if (IS_ERR(v_ldo15)) {
-			v_ldo15 = NULL;
-			return -EIO;
-		} else {
-			regulator_set_voltage(v_ldo15, 2800000, 2800000);
-			regulator_enable(v_ldo15);
-			f_enabled = 1;
-		}
-	}
-
-	if (f_enabled && (!on)) {
-		if (v_ldo14) {
-			regulator_disable(v_ldo14);
-			regulator_put(v_ldo14);
-			v_ldo14 = NULL;
-		}
-		if (v_ldo15) {
-			regulator_disable(v_ldo15);
-			regulator_put(v_ldo15);
-			v_ldo15 = NULL;
-		}
-		f_enabled = 0;
-	}	/* actually, no small power down pin needed */
-
 	/* pull up camera pwdn pin to disable camera sensor */
-	gpio_direction_output(cam_enable, 1);
-	mdelay(1);
 	/* pull down camera pwdn pin to enable camera sensor */
-	gpio_direction_output(cam_enable, 0);
+	if (on)
+		gpio_direction_output(cam_pwdn, 0);
+	else
+		gpio_direction_output(cam_pwdn, 1);
 
-	gpio_free(cam_enable);
 	msleep(100);
 
+	gpio_free(cam_pwdn);
 	return 0;
 }
 
@@ -255,7 +216,7 @@ static struct i2c_board_info abilene_i2c_camera[] = {
 };
 
 static struct soc_camera_link iclink_ov5642 = {
-	.bus_id         = 0,            /* Must match with the camera ID */
+	.bus_id         = 1,            /* Must match with the camera ID */
 	.power          = camera_sensor_power,
 	.board_info     = &abilene_i2c_camera[0],
 	.i2c_adapter_id = 3,
@@ -278,7 +239,27 @@ static void pxa2128_cam_ctrl_power(int on)
 
 static int pxa2128_cam_clk_init(struct device *dev, int init)
 {
+	static struct regulator *v_ldo14;
+	static struct regulator *v_ldo15;
 	struct mv_cam_pdata *data = dev->platform_data;
+	int cam_enable = mfp_to_gpio(MFP_PIN_GPIO1);
+
+	if (gpio_request(cam_enable, "CAM_ENABLE_HI_SENSOR")) {
+		printk(KERN_ERR"Request GPIO failed, gpio: %d\n", cam_enable);
+		return -EIO;
+	}
+
+	v_ldo14 = regulator_get(NULL, "v_ldo14");
+	if (IS_ERR(v_ldo14)) {
+		v_ldo14 = NULL;
+		return -EIO;
+	}
+
+	v_ldo15 = regulator_get(NULL, "v_ldo15");
+	if (IS_ERR(v_ldo15)) {
+		v_ldo15 = NULL;
+		return -EIO;
+	}
 	if ((!data->clk_enabled) && init) {
 		data->clk = clk_get(dev, "CCICRSTCLK");
 		if (IS_ERR(data->clk)) {
@@ -286,12 +267,24 @@ static int pxa2128_cam_clk_init(struct device *dev, int init)
 			return PTR_ERR(data->clk);
 		}
 		data->clk_enabled = 1;
+		regulator_set_voltage(v_ldo14, 3000000, 3000000);
+		regulator_enable(v_ldo14);
+		regulator_set_voltage(v_ldo15, 2800000, 2800000);
+		regulator_enable(v_ldo15);
 
+		gpio_direction_output(cam_enable, 1);
+		gpio_free(cam_enable);
 		return 0;
 	}
 
 	if (!init && data->clk_enabled) {
 		clk_put(data->clk);
+		regulator_disable(v_ldo14);
+		regulator_put(v_ldo14);
+		regulator_disable(v_ldo15);
+		regulator_put(v_ldo15);
+		gpio_direction_output(cam_enable, 0);
+		gpio_free(cam_enable);
 		return 0;
 	}
 	return -EFAULT;
@@ -993,7 +986,7 @@ static void __init yellowstone_init(void)
 
 #if defined(CONFIG_VIDEO_MV)
 	platform_device_register(&abilene_ov5642);
-	mmp3_add_cam(0, &mv_cam_data);
+	mmp3_add_cam(1, &mv_cam_data);
 #endif
 
 #ifdef CONFIG_USB_PXA_U2O
