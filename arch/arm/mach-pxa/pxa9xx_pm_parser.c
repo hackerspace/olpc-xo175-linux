@@ -231,9 +231,8 @@ void pm_parser_display_log(int subsystem)
 					list_for_each_entry(dev_ptr,
 							    &dvfm_trace_list.
 							    list, list) {
-						if (dev_ptr
-						    && ((unsigned int)dev_ptr->
-							index == val)) {
+						if ((unsigned int)dev_ptr->
+							index == val) {
 							valstr = dev_ptr->name;
 							break;
 						}
@@ -247,10 +246,9 @@ void pm_parser_display_log(int subsystem)
 					list_for_each_entry(opinfo_ptr,
 							    &pxa95x_dvfm_op_list.
 							    list, list) {
-						if (opinfo_ptr
-						    && ((unsigned int)
+						if ((unsigned int)
 							opinfo_ptr->index ==
-							val)) {
+							val) {
 							op_ptr =
 							    (struct dvfm_md_opt
 							     *)opinfo_ptr->op;
