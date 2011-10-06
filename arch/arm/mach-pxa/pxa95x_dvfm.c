@@ -410,7 +410,12 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 	 .sflfs = 156,		/* IMC */
 	 .hss = 104,		/* System Bus, and Display is the same */
 	 .axifs = 78,
-	 .dmcfs = 208,
+	 /* DDR frequency Change is not supported
+	  * for Nevo B0 per system definitions
+	  */
+	 /*.dmcfs = 208,*/
+	 .dmcfs = 400,
+
 	 .df_clk = 52,
 	 .gcfs = 156,
 	 .vmfc = 156,
@@ -428,7 +433,11 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 	 .sflfs = 156,
 	 .hss = 104,
 	 .axifs = 78,
-	 .dmcfs = 312,
+	 /* DDR frequency Change is not supported
+	  * for Nevo B0 per system definitions
+	  */
+	 /*.dmcfs = 312,*/
+	 .dmcfs = 400,
 	 .df_clk = 52,
 	 .gcfs = 156,
 	 .vmfc = 156,
