@@ -2300,8 +2300,8 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	}
 	if (fb_share) {
 		/* fb_share mode, allocate more memory as frame buffer */
-		max_fb_size = max(max_fb_size,
-			(mi->modes->xres * mi->modes->yres * 4 * 3));
+		max_fb_size = max(max_fb_size, 2 * 4 * (mi->modes->xres *
+				(mi->modes->xres + mi->modes->yres)));
 	}
 
 	max_fb_size = PAGE_ALIGN(max_fb_size);
@@ -2309,6 +2309,7 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 		fbi->fb_size = max_fb_size;
 
 	if (fb_share && (fbi->id == 1) && gfx_info.fbi[0]->fb_start) {
+		fbi->fb_size = gfx_info.fbi[0]->fb_size;
 		fbi->fb_start = gfx_info.fbi[0]->fb_start;
 		fbi->fb_start_dma = gfx_info.fbi[0]->fb_start_dma;
 		pr_info("--share--FB DMA buffer phy addr : %x\n",
