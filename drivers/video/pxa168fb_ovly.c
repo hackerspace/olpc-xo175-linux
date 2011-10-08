@@ -1260,6 +1260,38 @@ static void buf_endframe(void *p)
 	}
 }
 
+static void free_buf(struct pxa168fb_info *fbi)
+{
+	u8 *buf;
+
+	/* put all buffers into free list */
+	do {
+		buf = buf_dequeue(fbi->buf_waitlist);
+		buf_enqueue(fbi->buf_freelist, buf);
+	} while (buf);
+
+	if (fbi->buf_current) {
+		buf_enqueue(fbi->buf_freelist, fbi->buf_current);
+		fbi->buf_current = 0;
+	}
+	if (fbi->buf_retired) {
+		buf_enqueue(fbi->buf_freelist, fbi->buf_retired);
+		fbi->buf_retired = 0;
+	}
+
+	/* clear some globals */
+	ovly_info.wait_peer = 0;
+	memset(&fbi->surface, 0, sizeof(struct _sOvlySurface));
+	fbi->new_addr[0] = 0; fbi->new_addr[1] = 0; fbi->new_addr[2] = 0;
+	if (FB_MODE_DUP) {
+		memset(&ovly_info.fbi[fb_dual]->surface, 0,
+			sizeof(struct _sOvlySurface));
+		ovly_info.fbi[fb_dual]->new_addr[0] = 0;
+		ovly_info.fbi[fb_dual]->new_addr[1] = 0;
+		ovly_info.fbi[fb_dual]->new_addr[2] = 0;
+	}
+}
+
 static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 			unsigned long arg)
 {
@@ -1522,6 +1554,9 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 		/* when lcd is suspend, move all buffers as "switched"*/
 		if (!(gfx_info.fbi[fbi->id]->active))
 			buf_endframe(fi);
+		/* when video layer dma is off, free all buffers */
+		if (!fbi->active)
+			free_buf(fbi);
 
 		/* Collect expired frame to list */
 		collectFreeBuf(fbi, fbi->filterBufList, fbi->buf_freelist);
