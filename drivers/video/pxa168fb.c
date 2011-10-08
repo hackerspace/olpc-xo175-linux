@@ -976,17 +976,45 @@ static void set_dumb_screen_dimensions(struct fb_info *info)
 	struct fb_var_screeninfo *v = &info->var;
 	struct lcd_regs *regs = get_regs(fbi->id);
 	struct dsi_info *di = mi->dsi;
-	int x, y, vec = 10;
+	int x, y, h_porch, vec = 10, vsync_ctrl;
 
-	if (mi->phy_type & (DSI2DPI | DSI))
+	dev_dbg(info->dev, "Enter %s fb %d regs->screen_active 0x%p\n",
+			__func__, fbi->id, &regs->screen_active);
+
+	/* resolution, active */
+	writel((v->yres << 16) | v->xres, &regs->screen_active);
+
+	if (mi->phy_type & (DSI2DPI | DSI)) {
 		vec = ((di->lanes <= 2) ? 1 : 2) * 10 * di->bpp / 8 / di->lanes;
 
-	dev_dbg(info->dev, "Enter %s vec %d\n", __func__, vec);
+		h_porch = (v->xres + v->right_margin) * vec / 10 - v->xres;
+		h_porch = (v->left_margin * vec / 10) << 16 | h_porch;
+		vsync_ctrl = 0x01330133;
+	} else {
+		h_porch = (v->left_margin) << 16 | v->right_margin;
+
+		if ((fbi->id == 0) || (fbi->id == 2))
+			vsync_ctrl = ((v->width + v->left_margin) << 16)
+				| (v->width + v->left_margin);
+		else
+			vsync_ctrl = ((v->xres + v->right_margin) << 16)
+				| (v->xres + v->right_margin);
+	}
+	/* h porch, left/right margin */
+	writel(h_porch, &regs->screen_h_porch);
+
+	/* v porch, upper/lower margin */
+	writel((v->upper_margin << 16) | v->lower_margin,
+			&regs->screen_v_porch);
+
 	x = v->xres + v->right_margin + v->hsync_len + v->left_margin;
 	x = x * vec / 10;
 	y = v->yres + v->lower_margin + v->vsync_len + v->upper_margin;
-
+	/* screen total size */
 	writel((y << 16) | x, &regs->screen_size);
+
+	/* vsync ctrl */
+	writel(vsync_ctrl, &regs->vsync_ctrl);	/* FIXME */
 }
 
 static void pxa168fb_clear_framebuffer(struct fb_info *info)
@@ -1002,7 +1030,7 @@ static void set_screen(struct pxa168fb_info *fbi,
 	struct fb_var_screeninfo *var;
 	struct lcd_regs *regs;
 	struct dsi_info *di;
-	u32 x, h_porch, vsync_ctrl, vec = 10;
+	u32 x, vec = 10;
 	u32 xres, yres, xres_z, yres_z, xres_virtual, bits_per_pixel;
 
 again:
@@ -1029,12 +1057,6 @@ again:
 		fb_mode, fbi->id, xres, xres_z, yres, yres_z,
 		xres_virtual, bits_per_pixel);
 
-	dev_dbg(fbi->fb_info->dev, "%s reg base %p regs->screen_active 0x%p\n",
-			__func__, regs, &regs->screen_active);
-
-	/* resolution, active */
-	writel((var->yres << 16) | var->xres, &regs->screen_active);
-
 	/* pitch, pixels per line */
 	x = readl(&regs->g_pitch);
 	x = (x & ~0xFFFF) | ((xres_virtual * bits_per_pixel) >> 3);
@@ -1044,36 +1066,6 @@ again:
 	writel((yres << 16) | xres, &regs->g_size);
 	/* resolution, dst size */
 	writel((yres_z << 16) | xres_z, &regs->g_size_z);
-
-		/* h porch, left/right margin */
-	if (mi->phy_type & (DSI2DPI | DSI)) {
-		h_porch = (var->xres + var->right_margin) * vec / 10
-			 - var->xres;
-		h_porch = (var->left_margin * vec / 10) << 16 | h_porch;
-	} else
-		h_porch = (var->left_margin) << 16 | var->right_margin;
-	writel(h_porch, &regs->screen_h_porch);
-
-	/* v porch, upper/lower margin */
-	writel((var->upper_margin << 16) | var->lower_margin,
-			&regs->screen_v_porch);
-
-	/* vsync ctrl */
-	if (mi->phy_type & (DSI2DPI | DSI))
-		vsync_ctrl = 0x01330133;
-	else {
-		if ((fbi->id == 0) || (fbi->id == 2))
-			vsync_ctrl = ((var->width + var->left_margin) << 16)
-				| (var->width + var->left_margin);
-		else
-			vsync_ctrl = ((var->xres + var->right_margin) << 16)
-				| (var->xres + var->right_margin);
-
-	}
-	writel(vsync_ctrl, &regs->vsync_ctrl);	/* FIXME */
-
-	/* blank color */
-	writel(0x00000000, &regs->blank_color);
 
 	if (FB_MODE_DUP) {
 		fbi = gfx_info.fbi[fb_dual];
@@ -1100,7 +1092,6 @@ static void pxa168fb_set_regs(struct fb_info *info, int wait_vsync)
 
 	/* Configure dumb panel ctrl regs & timings */
 	set_dumb_panel_control(info);
-	set_dumb_screen_dimensions(info);
 
 	x = readl(fbi->reg_base + intf_ctrl(fbi->id));
 	if ((x & 1) == 0)
@@ -1120,7 +1111,7 @@ static void pxa168fb_set_regs(struct fb_info *info, int wait_vsync)
 		info->var.yoffset, wait_vsync);
 }
 
-static int pxa168fb_set_par(struct fb_info *info)
+static int pxa168fb_set_var(struct fb_info *info)
 {
 	struct pxa168fb_info *fbi = info->par;
 	struct fb_var_screeninfo *var = &info->var;
@@ -1137,14 +1128,6 @@ static int pxa168fb_set_par(struct fb_info *info)
 	pix_fmt = determine_best_pix_fmt(&info->var);
 	if (pix_fmt < 0)
 		return pix_fmt;
-	fbi->pix_fmt = pix_fmt;
-	dev_dbg(info->dev, "Pixel Format = %d\n", pix_fmt);
-
-	/* Set additional mode info */
-	if (pix_fmt == PIX_FMT_PSEUDOCOLOR)
-		info->fix.visual = FB_VISUAL_PSEUDOCOLOR;
-	else
-		info->fix.visual = FB_VISUAL_TRUECOLOR;
 
 	/* convet var to video mode; del for HDMI resolutions select via app
 	mode = fb_find_best_mode(var, &info->modelist);
@@ -1159,6 +1142,22 @@ static int pxa168fb_set_par(struct fb_info *info)
 	var->rotate = FB_ROTATE_UR;
 
 	dev_dbg(info->dev, "xres=%d yres=%d\n", var->xres, var->yres);
+
+	if (gfx_irq_enabled(fbi)) {
+		fbi->info = info;
+		wait_for_vsync(fbi);
+	} else
+		pxa168fb_set_regs(info, 1);
+	return 0;
+}
+
+static int pxa168fb_set_par(struct fb_info *info)
+{
+	struct pxa168fb_info *fbi = info->par;
+	struct fb_var_screeninfo *var = &info->var;
+	int pix_fmt;
+
+	dev_dbg(info->dev, "Enter %s, graphics layer\n", __func__);
 
 	if (fbi->id == fb_base) {
 		gfx_info.xres = var->xres; gfx_info.yres = var->yres;
@@ -1175,13 +1174,21 @@ static int pxa168fb_set_par(struct fb_info *info)
 			__func__, gfx_info.xres_z, gfx_info.yres_z);
 	}
 
+	/* Determine which pixel format we're going to use */
+	pix_fmt = determine_best_pix_fmt(&info->var);
+	fbi->pix_fmt = pix_fmt;
+
+	/* Set additional mode info */
+	if (pix_fmt == PIX_FMT_PSEUDOCOLOR)
+		info->fix.visual = FB_VISUAL_PSEUDOCOLOR;
+	else
+		info->fix.visual = FB_VISUAL_TRUECOLOR;
+
 	info->fix.line_length = var->xres_virtual * var->bits_per_pixel / 8;
 
-	if (gfx_irq_enabled(fbi)) {
-		fbi->info = info;
-		wait_for_vsync(fbi);
-	} else
-		pxa168fb_set_regs(info, 1);
+	set_dumb_screen_dimensions(info);
+	pxa168fb_set_var(info);
+
 	return 0;
 }
 
@@ -1679,6 +1686,10 @@ static void pxa168fb_set_default(struct pxa168fb_info *fbi,
 	struct lcd_regs *regs = get_regs(fbi->id);
 	u32 dma_ctrl1 = 0x2012ff81, tmp;
 
+	tmp = readl(fbi->reg_base + LCD_TOP_CTRL);
+	tmp |= 0xfff0;		/* FIXME */
+	writel(tmp, fbi->reg_base + LCD_TOP_CTRL);
+
 	/* Configure default register values */
 	writel(mi->io_pad_ctrl, fbi->reg_base + SPU_IOPAD_CONTROL);
 	/* enable 16 cycle burst length to get better formance */
@@ -1705,10 +1716,6 @@ static void pxa168fb_set_default(struct pxa168fb_info *fbi,
 		dma_ctrl1 &= ~0x08000000;
 
 	dma_ctrl_write(fbi->id, 1, dma_ctrl1);
-
-	tmp = readl(fbi->reg_base + LCD_TOP_CTRL);
-	tmp |= 0xfff0;		/* FIXME */
-	writel(tmp, fbi->reg_base + LCD_TOP_CTRL);
 }
 
 static int __init get_fb_size(char *str)
