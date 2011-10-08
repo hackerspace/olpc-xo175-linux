@@ -1725,9 +1725,16 @@ static void mfp_gpio3_power_down(void)
 }
 
 static unsigned long GPIO[110];
+static unsigned long i2c_trst_val;
 static int ttc_pin_lpm_config(void)
 {
 	unsigned int index = 0, i = 0;
+	int mfp_trst = (is_td_dkb) ? MFP_PIN_DF_nCS1_SM_nCS3 :
+		MFP_PIN_GPIO35;
+	mfp_cfg_t mfp_trst_cfg = (is_td_dkb) ? (I2C_TRST_GPIO86|MFP_PULL_LOW) :
+		(I2C_TRST_GPIO35|MFP_PULL_LOW);
+	int trst_gpio = (is_td_dkb) ? mfp_to_gpio(MFP_PIN_GPIO86) :
+		mfp_to_gpio(MFP_PIN_GPIO35);
 
 	for (index = MFP_PIN_GPIO0; index <= MFP_PIN_GPIO109; index++)
 		GPIO[i++] = mfp_read(index);
@@ -1736,18 +1743,41 @@ static int ttc_pin_lpm_config(void)
 	mfp_config(ARRAY_AND_SIZE(ttc_lpm_pin_config));
 	/* turn off GPIO3 power domain */
 	mfp_gpio3_power_down();
+
+	/*
+	  * TD920H:TRST is connected to VCXO_EN,no need configuration
+	  * TD920: set pin ab11 as AF1:GPIO86 and low level voltage
+	  * TTC: set pin t19 as AF0: GPIO35 and low level voltage
+	  */
+	if (!emmc_boot) {
+		i2c_trst_val = mfp_read(mfp_trst);
+		mfp_config(&mfp_trst_cfg, 1);
+		if (gpio_request(trst_gpio, "max3373_i2c_trst")) {
+			pr_err("Request max3373_i2c_trst failed!\n");
+			return -EIO;
+		}
+		gpio_direction_output(trst_gpio, 0);
+		gpio_free(trst_gpio);
+	}
 	return 0;
 }
 
 static int ttc_pin_restore(void)
 {
 	unsigned int index = 0, i = 0;
+	int mfp_trst = (is_td_dkb) ? MFP_PIN_DF_nCS1_SM_nCS3 :
+		MFP_PIN_GPIO35;
 
 	for (index = MFP_PIN_GPIO0; index <= MFP_PIN_GPIO109; index++)
 		mfp_write(index, GPIO[i++]);
 
 	/*turn on GPIO3 power domain*/
 	mfp_gpio3_power_up();
+
+	/* restore the max3373 i2c_trst pin default function */
+	if (!emmc_boot) {
+		mfp_write(mfp_trst, i2c_trst_val);
+	}
 	return 0;
 }
 
