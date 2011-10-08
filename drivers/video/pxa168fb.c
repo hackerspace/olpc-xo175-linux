@@ -747,7 +747,7 @@ static void pxa168fb_vdma_config(struct pxa168fb_info *fbi)
 		} else {
 			u32 val = vdma_ctrl_read(fbi) & 1;
 			if (val) {
-				pr_info("%s fbi %d val %x\n",
+				pr_debug("%s fbi %d val %x\n",
 					__func__, fbi->id, val);
 				pxa688fb_vdma_release(fbi);
 			}
@@ -773,7 +773,12 @@ static void set_graphics_start(struct fb_info *info,
 		dev_dbg(info->dev, "Enter %s\n", __func__);
 
 	pixel_offset = (yoffset * var->xres_virtual) + xoffset;
-	addr = fbi->fb_start_dma + (pixel_offset * (var->bits_per_pixel >> 3));
+
+	if (fbi->new_addr[0])
+		addr = fbi->new_addr[0];
+	else
+		addr = fbi->fb_start_dma + (pixel_offset *
+			(var->bits_per_pixel >> 3));
 
 	if (fb_mode && (fbi->id == fb_dual)) {
 		pr_info("fb_mode %d fb%d gfx address align with fb%d,"
@@ -886,21 +891,16 @@ static void set_screen(struct pxa168fb_info *fbi,
 {
 	struct fb_var_screeninfo *var;
 	struct lcd_regs *regs;
-	struct dsi_info *di;
-	u32 x, vec = 10;
+	struct _sOvlySurface *surface = &fbi->surface;
 	u32 xres, yres, xres_z, yres_z, xres_virtual, bits_per_pixel;
-
+	u32 x, left = 0, top = 0;
 again:
 	var = &fbi->fb_info->var;
 	regs = get_regs(fbi->id);
-	di = mi->dsi;
 	xres = var->xres; yres = var->yres;
 	xres_z = var->xres; yres_z = var->yres;
 	xres_virtual = var->xres_virtual;
 	bits_per_pixel = var->bits_per_pixel;
-
-	if (mi->phy_type & (DSI2DPI | DSI))
-		vec = ((di->lanes <= 2) ? 1 : 2) * 10 * di->bpp / 8 / di->lanes;
 
 	if ((fb_mode) && (fbi->id == fb_dual)) {
 		xres = gfx_info.xres;
@@ -914,9 +914,43 @@ again:
 		fb_mode, fbi->id, xres, xres_z, yres, yres_z,
 		xres_virtual, bits_per_pixel);
 
+	/* xres_z = total - left - right */
+	xres_z = xres_z - (left << 1);
+	/* yres_z = yres_z - top - bottom */
+	yres_z = yres_z - (top << 1);
+
+	if (fbi->new_addr[0] || (fb_mode && fbi->id == fb_dual
+				&& gfx_info.fbi[fb_base]->new_addr[0])) {
+		xres = surface->viewPortInfo.srcWidth;
+		yres = surface->viewPortInfo.srcHeight;
+		var->xres_virtual = surface->viewPortInfo.srcWidth;
+		var->yres_virtual = surface->viewPortInfo.srcHeight * 2;
+		xres_virtual = surface->viewPortInfo.srcWidth;
+
+		xres_z = surface->viewPortInfo.zoomXSize;
+		yres_z = surface->viewPortInfo.zoomYSize;
+
+		left = surface->viewPortOffset.xOffset;
+		top = surface->viewPortOffset.yOffset;
+
+		pr_debug("surface: xres %d xres_z %d"
+			" yres %d yres_z %d\n left %d top %d\n",
+			xres, xres_z, yres, yres_z, left, top);
+	}
+
+	dev_dbg(fbi->fb_info->dev, "adjust: xres %d xres_z %d"
+		" yres %d yres_z %d\n left %d top %d\n",
+		xres, xres_z, yres, yres_z, left, top);
+
+	/* start address on screen */
+	writel((top << 16) | left, &regs->g_start);
+
 	/* pitch, pixels per line */
 	x = readl(&regs->g_pitch);
-	x = (x & ~0xFFFF) | ((xres_virtual * bits_per_pixel) >> 3);
+	if (fbi->surface.viewPortInfo.yPitch)
+		x = (x & ~0xFFFF) | fbi->surface.viewPortInfo.yPitch;
+	else
+		x = (x & ~0xFFFF) | ((xres_virtual * bits_per_pixel) >> 3);
 	writel(x, &regs->g_pitch);
 
 	/* resolution, src size */
@@ -926,7 +960,6 @@ again:
 
 	if (FB_MODE_DUP) {
 		fbi = gfx_info.fbi[fb_dual];
-		mi = fbi->dev->platform_data;
 		goto again;
 	}
 }
@@ -1228,6 +1261,9 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 						fbi->info = NULL;
 					}
 
+					/* trigger buf update */
+					buf_endframe(fbi->fb_info, 0);
+
 					/* wake up queue. */
 					atomic_set(&fbi->w_intr, 1);
 					wake_up(&fbi->w_intr_wq);
@@ -1302,36 +1338,66 @@ static void debug_identify_called_ioctl(struct fb_info *info, int cmd,
 {
 	switch (cmd) {
 	case FB_IOCTL_CLEAR_FRAMEBUFFER:
-		dev_dbg(fi->dev, "FB_IOCTL_CLEAR_FRAMEBUFFER\n");
+		dev_dbg(info->dev, "FB_IOCTL_CLEAR_FRAMEBUFFER\n");
 		break;
 	case FB_IOCTL_PUT_SWAP_GRAPHIC_RED_BLUE:
 		dev_dbg(info->dev, "FB_IOCTL_PUT_SWAP_GRAPHIC_RED_BLUE\
-				 with arg = %08x\n", (unsigned int)arg);
+			 with arg = %08x\n", (unsigned int)arg);
 		break;
 	case FB_IOCTL_PUT_SWAP_GRAPHIC_U_V:
-		dev_dbg(info->dev, "FB_IOCTL_PUT_SWAP_GRAPHIC_U_V with\
-				 arg = %08x\n", (unsigned int)arg);
+		dev_dbg(info->dev, "FB_IOCTL_PUT_SWAP_GRAPHIC_U_V with arg = %08x\n",
+			 (unsigned int)arg);
 		break;
 	case FB_IOCTL_PUT_SWAP_GRAPHIC_Y_UV:
-		dev_dbg(info->dev, "FB_IOCTL_PUT_SWAP_GRAPHIC_Y_UV with\
-				 arg = %08x\n", (unsigned int)arg);
+		dev_dbg(info->dev, "FB_IOCTL_PUT_SWAP_GRAPHIC_Y_UV with arg = %08x\n",
+			 (unsigned int)arg);
 		break;
 	case FB_IOCTL_PUT_VIDEO_ALPHABLEND:
-		dev_dbg(info->dev, "FB_IOCTL_PUT_VIDEO_ALPHABLEND with\
-				 arg = %08x\n", (unsigned int)arg);
+		dev_dbg(info->dev, "FB_IOCTL_PUT_VIDEO_ALPHABLEND with arg = %08x\n",
+			 (unsigned int)arg);
 		break;
 	case FB_IOCTL_PUT_GLOBAL_ALPHABLEND:
-		dev_dbg(info->dev, "FB_IOCTL_PUT_GLOBAL_ALPHABLEND with\
-				 arg = %08x\n", (unsigned int) arg);
+		dev_dbg(info->dev, "FB_IOCTL_PUT_GLOBAL_ALPHABLEND with arg = %08x\n",
+			 (unsigned int) arg);
 		break;
 	case FB_IOCTL_PUT_GRAPHIC_ALPHABLEND:
-		dev_dbg(info->dev, "FB_IOCTL_PUT_GRAPHIC_ALPHABLEND with\
-				 arg = %08x\n", (unsigned int)arg);
+		dev_dbg(info->dev, "FB_IOCTL_PUT_GRAPHIC_ALPHABLEND with arg = %08x\n",
+			 (unsigned int)arg);
 		break;
-
+	case FB_IOCTL_FLIP_VID_BUFFER:
+		dev_dbg(info->dev, "FB_IOCTL_FLIP_VID_BUFFER with arg = %08x\n",
+			 (unsigned int)arg);
+		break;
+	case FB_IOCTL_GET_FREELIST:
+		dev_dbg(info->dev, "FB_IOCTL_GET_FREELIST with arg = %08x\n",
+			 (unsigned int)arg);
+		break;
+	case FB_IOCTL_SWITCH_GRA_OVLY:
+		dev_dbg(info->dev, "FB_IOCTL_SWITCH_GRA_OVLY with arg = %08x\n",
+			 (unsigned int)arg);
+		break;
 	}
 }
 #endif
+
+static int pxa168fb_update_buff(struct fb_info *fi,
+	struct _sOvlySurface *surface, int address)
+{
+	if (address) {
+		/* update buffer address only if changed */
+		if (check_surface_addr(fi, surface, 0))
+			set_graphics_start(fi, 0, 0, 1);
+		else
+			return -EINVAL;
+	} else if (check_surface(fi, surface->videoMode,
+					&surface->viewPortInfo,
+					&surface->viewPortOffset,
+					&surface->videoBufferAddr, 0))
+		/* update other parameters other than buf addr */
+		return pxa168fb_set_var(fi);
+
+	return 0;
+}
 
 static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 				 unsigned long arg)
@@ -1429,6 +1495,13 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 		dma_ctrl_set(fbi->id, 0, mask, val);
 		break;
 
+	case FB_IOCTL_FLIP_VID_BUFFER:
+		val = flip_buffer(info, arg, 0);
+		wait_for_vsync(fbi);
+		return val;
+	case FB_IOCTL_GET_FREELIST:
+		return get_freelist(info, arg, 0);
+
 	case FB_IOCTL_SWITCH_GRA_OVLY:
 		if (copy_from_user(&gra_on, argp, sizeof(int)))
 			return -EFAULT;
@@ -1462,15 +1535,93 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 	return 0;
 }
 
+static int pxa168fb_open(struct fb_info *info, int user)
+{
+	struct pxa168fb_mach_info *mi;
+	struct pxa168fb_info *fbi = (struct pxa168fb_info *)info->par;
+	struct fb_var_screeninfo *var = &info->var;
+
+	if (fbi->debug & (1<<4))
+		return 0;
+	if (fb_mode && (fbi->id == fb_dual)) {
+		pr_info("fb_mode %x, operation to TV path is not allowed,\n"
+			       "Please switch to mode0 if needed.\n", fb_mode);
+		return -EAGAIN;
+	}
+
+	pr_info("Enter %s, fbi %d ---------------\n", __func__, fbi->id);
+again:
+	/* Save screen info */
+	fbi->var_bak = *var;
+
+	mi = fbi->dev->platform_data;
+
+	fbi->new_addr[0] = 0;
+	fbi->new_addr[1] = 0;
+	fbi->new_addr[2] = 0;
+	fbi->surface.videoMode = -1;
+	fbi->surface.viewPortInfo.srcWidth = var->xres;
+	fbi->surface.viewPortInfo.srcHeight = var->yres;
+
+	set_pix_fmt(var, fbi->pix_fmt);
+
+	if (mutex_is_locked(&fbi->access_ok))
+		mutex_unlock(&fbi->access_ok);
+
+	if (FB_MODE_DUP) {
+		fbi = gfx_info.fbi[fb_dual];
+		info = fbi->fb_info;
+		var = &info->var;
+		goto again;
+	}
+
+	return 0;
+}
+
 static int pxa168fb_release(struct fb_info *info, int user)
 {
 	struct fb_var_screeninfo *var = &info->var;
+	struct pxa168fb_info *fbi = (struct pxa168fb_info *)info->par;
+	struct pxa168fb_info *fbi_bak = fbi;
+	struct fb_info *info_bak = info;
 
-	dev_dbg(info->dev, "Enter %s\n", __func__);
+	if (fbi->debug & (1<<4))
+		return 0;
 
+	pr_info("Enter %s, fbi %d ---------------\n", __func__, fbi->id);
+
+again:
 	/* Turn off compatibility mode */
 	var->nonstd &= ~0xff000000;
 	COMPAT_MODE = 0;
+
+	memset(&fbi->surface.viewPortInfo, 0,
+		sizeof(fbi->surface.viewPortInfo));
+
+	/* clear buffer list */
+	clear_buffer(fbi, 0);
+
+	/* Recovery screen info */
+	*var = fbi->var_bak;
+
+	fbi->pix_fmt = determine_best_pix_fmt(&info->var);
+
+	fbi->new_addr[0] = 0;
+	fbi->new_addr[1] = 0;
+	fbi->new_addr[2] = 0;
+
+	if (FB_MODE_DUP) {
+		fbi = gfx_info.fbi[fb_dual];
+		info = fbi->fb_info;
+		var = &info->var;
+
+		goto again;
+	}
+
+	if (gfx_irq_enabled(fbi_bak)) {
+		fbi->info = info_bak;
+		wait_for_vsync(fbi_bak);
+	}
 
 	return 0;
 }
@@ -1478,6 +1629,7 @@ static int pxa168fb_release(struct fb_info *info, int user)
 static struct fb_ops pxa168fb_ops = {
 	.owner		= THIS_MODULE,
 	.fb_check_var	= pxa168fb_check_var,
+	.fb_open	= pxa168fb_open,
 	.fb_release	= pxa168fb_release,
 	.fb_set_par	= pxa168fb_set_par,
 	.fb_setcolreg	= pxa168fb_setcolreg,
@@ -1883,6 +2035,7 @@ static ssize_t lcd_store(
 	 *	2: count vsync number for p2 path, not valid yet
 	 *	bit 2: show bus error interrupts on screen, "4"
 	 *	bit 3: enable TV path graphics layer dma always, "8"
+	 *	bit 4: enable do not restore var in release "16"
 	 */
 	sscanf(buf, "%d", &fbi->debug);
 
@@ -2088,8 +2241,9 @@ static int pxa168fb_proc_read(char *buffer, char **buffer_location,
 	if (offset > 0)
 		return 0;
 
-	return sprintf(buffer, "fb_mode %d reg @ 0x%x: 0x%x\n", fb_mode,
-	proc_reg, __raw_readl(gfx_info.fbi[0]->reg_base + proc_reg));
+	return sprintf(buffer, "fb_mode %d fb_share %d reg @ 0x%x: 0x%x\n",
+		 fb_mode, fb_share, proc_reg,
+		 __raw_readl(gfx_info.fbi[0]->reg_base + proc_reg));
 }
 
 static int __devinit pxa168fb_probe(struct platform_device *pdev)
@@ -2144,12 +2298,30 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	/* Initialize private data */
 	fbi = info->par;
 	fbi->id = pdev->id;
+	fbi->wait_for_vsync = wait_for_vsync;
+	fbi->check_modex_active = check_modex_active;
+	fbi->update_buff = pxa168fb_update_buff;
+
 	if (!fbi->id) {
 		memset(&gfx_info, 0, sizeof(gfx_info));
 		fbi->dma_on = 1;
 	}
 
 	gfx_info.fbi[fbi->id] = fbi;
+
+	#ifdef OVLY_TASKLET
+		tasklet_init(&fbi->ovly_task, pxa168fb_ovly_task,
+				 (unsigned long)fbi);
+	#else
+		fbi->system_work = 1;
+		if (fbi->system_work)
+			INIT_WORK(&fbi->buf_work, pxa168fb_ovly_work);
+		else {
+			fbi->work_q = create_singlethread_workqueue\
+				      ("pxa168fb-ovly");
+			INIT_WORK(&fi->queue, pxa168fb_ovly_work);
+		}
+	#endif
 
 	di = mi->dsi;
 	if (di) {
@@ -2179,6 +2351,7 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	fbi->dft_vmode.refresh = mi->modes->refresh;
 
 	init_waitqueue_head(&fbi->w_intr_wq);
+	mutex_init(&fbi->access_ok);
 
 	/* Initialise static fb parameters */
 	info->flags = FBINFO_DEFAULT | FBINFO_PARTIAL_PAN_OK |
