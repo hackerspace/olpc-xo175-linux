@@ -40,9 +40,8 @@
 
 #include <asm/io.h>
 #include <asm/irq.h>
-#include <mach/pxa168fb.h>
 
-#include "pxa168fb.h"
+#include "pxa168fb_common.h"
 
 #ifdef OVLY_DVFM_CONSTRAINT
 static int dvfm_dev_idx;
@@ -58,25 +57,6 @@ static void set_dma_control0(struct pxa168fb_info *fbi);
 static int wait_for_vsync(struct pxa168fb_info *fbi);
 static int pxa168fb_pan_display(struct fb_var_screeninfo *var,
 				 struct fb_info *fi);
-static void clearFilterBuf(u8 *bufList[][3], int iFlag);
-static void collectFreeBuf(struct pxa168fb_info *fbi,
-	u8 *filterList[][3], u8 **freeList);
-
-/* buffer management:
- *    filterBufList: list return to upper layer which indicates buff is free
- *    freelist: list indicates buff is free
- *    waitlist: wait queue which indicates "using" buffer, will be writen in
- *              DMA register
- *    current: buffer on showing
- * Operation:
- *    flip: if !waitlist[0] || !waitlist[1] enqueue to waiting list;
- *          else enqueue the  waitlist[0] to freelist, new buf to waitlist
- *    get freelist: return freelist
- *    eof intr: enqueue current to freelist; dequeue waitlist[0] to current;
- *    buffers are protected spin_lock_irq disable/enable
- *    suspend: when lcd is suspend, move all buffers as "switched",
- *             but don't really set hw register.
- */
 
 static unsigned int max_fb_size = 0;
 static unsigned int fb_size_from_cmd = 0;
@@ -105,19 +85,7 @@ static struct _sViewPortOffset gViewPortOffset = {
 	.yOffset = 0
 };
 
-/* mirror mode related info/flags */
-/* wait dual path's interrupt before put the buffer into freelist */
-#define WAIT_PEER	(ovly_info.flag & 1)
-/* wait dual path's interrupt once in ioctl of get free list */
-#define WAIT_FREE	(ovly_info.flag & 2)
-/* before rotation, there would be one of xpos/ypos, xzoom/yzoom
- * exchange from upper layer, which would cause dual path flick,
- * ignore it if needed */
-#define ROTATE_IGNORE	(ovly_info.flag & 4)
 #define xp		pr_info("%s, line %d\n", __func__, __LINE__)
-static int change_pos = 0;
-static int change_fmt = 0;
-static int before_rotate = 0;
 struct fbi_info ovly_info;
 
 #ifdef FB_PM_DEBUG
@@ -321,229 +289,6 @@ static int determine_best_pix_fmt(struct fb_var_screeninfo *var)
 	return -EINVAL;
 }
 
-static int set_pix_fmt(struct fb_var_screeninfo *var, int pix_fmt)
-{
-	switch (pix_fmt) {
-	case PIX_FMT_RGB565:
-		var->bits_per_pixel = 16;
-		var->red.offset = 11;    var->red.length = 5;
-		var->green.offset = 5;   var->green.length = 6;
-		var->blue.offset = 0;    var->blue.length = 5;
-		var->transp.offset = 0;  var->transp.length = 0;
-		var->nonstd &= ~0xff0fffff;
-		break;
-	case PIX_FMT_BGR565:
-		var->bits_per_pixel = 16;
-		var->red.offset = 0;     var->red.length = 5;
-		var->green.offset = 5;   var->green.length = 6;
-		var->blue.offset = 11;   var->blue.length = 5;
-		var->transp.offset = 0;  var->transp.length = 0;
-		var->nonstd &= ~0xff0fffff;
-		break;
-	case PIX_FMT_RGB1555:
-		var->bits_per_pixel = 16;
-		var->red.offset = 10;    var->red.length = 5;
-		var->green.offset = 5;   var->green.length = 5;
-		var->blue.offset = 0;    var->blue.length = 5;
-		var->transp.offset = 15; var->transp.length = 1;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 5 << 20;
-		break;
-	case PIX_FMT_BGR1555:
-		var->bits_per_pixel = 16;
-		var->red.offset = 0;     var->red.length = 5;
-		var->green.offset = 5;   var->green.length = 5;
-		var->blue.offset = 10;   var->blue.length = 5;
-		var->transp.offset = 15; var->transp.length = 1;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 5 << 20;
-		break;
-	case PIX_FMT_RGB888PACK:
-		var->bits_per_pixel = 24;
-		var->red.offset = 16;    var->red.length = 8;
-		var->green.offset = 8;   var->green.length = 8;
-		var->blue.offset = 0;    var->blue.length = 8;
-		var->transp.offset = 0;  var->transp.length = 0;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 6 << 20;
-		break;
-	case PIX_FMT_BGR888PACK:
-		var->bits_per_pixel = 24;
-		var->red.offset = 0;     var->red.length = 8;
-		var->green.offset = 8;   var->green.length = 8;
-		var->blue.offset = 16;   var->blue.length = 8;
-		var->transp.offset = 0;  var->transp.length = 0;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 6 << 20;
-		break;
-	case PIX_FMT_RGB888UNPACK:
-		var->bits_per_pixel = 32;
-		var->red.offset = 16;    var->red.length = 8;
-		var->green.offset = 8;   var->green.length = 8;
-		var->blue.offset = 0;    var->blue.length = 8;
-		var->transp.offset = 0;  var->transp.length = 8;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 7 << 20;
-		break;
-	case PIX_FMT_BGR888UNPACK:
-		var->bits_per_pixel = 32;
-		var->red.offset = 0;     var->red.length = 8;
-		var->green.offset = 8;   var->green.length = 8;
-		var->blue.offset = 16;   var->blue.length = 8;
-		var->transp.offset = 0;  var->transp.length = 8;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 7 << 20;
-		break;
-	case PIX_FMT_RGBA888:
-		var->bits_per_pixel = 32;
-		var->red.offset = 16;    var->red.length = 8;
-		var->green.offset = 8;   var->green.length = 8;
-		var->blue.offset = 0;    var->blue.length = 8;
-		var->transp.offset = 24; var->transp.length = 8;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 8 << 20;
-		break;
-	case PIX_FMT_BGRA888:
-		var->bits_per_pixel = 32;
-		var->red.offset = 0;     var->red.length = 8;
-		var->green.offset = 8;   var->green.length = 8;
-		var->blue.offset = 16;   var->blue.length = 8;
-		var->transp.offset = 24; var->transp.length = 8;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 8 << 20;
-		break;
-	case PIX_FMT_YUYV422PACK:
-		var->bits_per_pixel = 16;
-		var->red.offset = 8;     var->red.length = 16;
-		var->green.offset = 4;   var->green.length = 16;
-		var->blue.offset = 0;   var->blue.length = 16;
-		var->transp.offset = 0;  var->transp.length = 0;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 9 << 20;
-		break;
-	case PIX_FMT_YVU422PACK:
-		var->bits_per_pixel = 16;
-		var->red.offset = 0;     var->red.length = 16;
-		var->green.offset = 8;   var->green.length = 16;
-		var->blue.offset = 12;   var->blue.length = 16;
-		var->transp.offset = 0;  var->transp.length = 0;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 9 << 20;
-		break;
-	case PIX_FMT_YUV422PLANAR:
-		var->bits_per_pixel = 16;
-		var->red.offset = 8;	 var->red.length = 8;
-		var->green.offset = 4;   var->green.length = 4;
-		var->blue.offset = 0;   var->blue.length = 4;
-		var->transp.offset = 0;  var->transp.length = 0;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 3 << 20;
-		break;
-	case PIX_FMT_YVU422PLANAR:
-		var->bits_per_pixel = 16;
-		var->red.offset = 0;	 var->red.length = 8;
-		var->green.offset = 8;   var->green.length = 4;
-		var->blue.offset = 12;   var->blue.length = 4;
-		var->transp.offset = 0;  var->transp.length = 0;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 3 << 20;
-		break;
-	case PIX_FMT_YUV420PLANAR:
-		var->bits_per_pixel = 12;
-		var->red.offset = 4;	 var->red.length = 8;
-		var->green.offset = 2;   var->green.length = 2;
-		var->blue.offset = 0;   var->blue.length = 2;
-		var->transp.offset = 0;  var->transp.length = 0;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 4 << 20;
-		break;
-	case PIX_FMT_YVU420PLANAR:
-		var->bits_per_pixel = 12;
-		var->red.offset = 0;	 var->red.length = 8;
-		var->green.offset = 8;   var->green.length = 2;
-		var->blue.offset = 10;   var->blue.length = 2;
-		var->transp.offset = 0;  var->transp.length = 0;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 4 << 20;
-		break;
-
-	case PIX_FMT_PSEUDOCOLOR:
-		var->bits_per_pixel = 8;
-		var->red.offset = 0;     var->red.length = 8;
-		var->green.offset = 0;   var->green.length = 8;
-		var->blue.offset = 0;    var->blue.length = 8;
-		var->transp.offset = 0;  var->transp.length = 0;
-		break;
-	case PIX_FMT_YUV422PACK:
-		var->bits_per_pixel = 16;
-		var->red.offset = 4;     var->red.length = 16;
-		var->green.offset = 12;   var->green.length = 16;
-		var->blue.offset = 0;    var->blue.length = 16;
-		var->transp.offset = 0;  var->transp.length = 0;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 9 << 20;
-		break;
-	/* YUV422 Packed will be YUV444 Packed after IRE 90 and
-	 * 270 degree rotation*/
-	case PIX_FMT_YUV422PACK_IRE_90_270:
-		var->bits_per_pixel = 32;
-		var->red.offset = 16;    var->red.length = 8;
-		var->green.offset = 8;   var->green.length = 8;
-		var->blue.offset = 0;    var->blue.length = 8;
-		var->transp.offset = 0;  var->transp.length = 0;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 7 << 20;
-		break;
-	default:
-		return  -EINVAL;
-	}
-	return 0;
-}
-
-static int convert_pix_fmt(u32 vmode)
-{
-/*	pr_info("vmode=%d\n", vmode); */
-	switch (vmode) {
-	case FB_VMODE_YUV422PACKED:
-		return PIX_FMT_YUV422PACK;
-	case FB_VMODE_YUV422PACKED_SWAPUV:
-		return PIX_FMT_YVU422PACK;
-	case FB_VMODE_YUV422PLANAR:
-		return PIX_FMT_YUV422PLANAR;
-	case FB_VMODE_YUV422PLANAR_SWAPUV:
-		return PIX_FMT_YVU422PLANAR;
-	case FB_VMODE_YUV420PLANAR:
-		return PIX_FMT_YUV420PLANAR;
-	case FB_VMODE_YUV420PLANAR_SWAPUV:
-		return PIX_FMT_YVU420PLANAR;
-	case FB_VMODE_YUV422PACKED_SWAPYUorV:
-		return PIX_FMT_YUYV422PACK;
-	case FB_VMODE_YUV422PACKED_IRE_90_270:
-		return PIX_FMT_YUV422PACK_IRE_90_270;
-	case FB_VMODE_RGB565:
-		return PIX_FMT_RGB565;
-	case FB_VMODE_BGR565:
-		return PIX_FMT_BGR565;
-	case FB_VMODE_RGB1555:
-		return PIX_FMT_RGB1555;
-	case FB_VMODE_BGR1555:
-		return PIX_FMT_BGR1555;
-	case FB_VMODE_RGB888PACK:
-		return PIX_FMT_RGB888PACK;
-	case FB_VMODE_BGR888PACK:
-		return PIX_FMT_BGR888PACK;
-	case FB_VMODE_RGBA888:
-		return PIX_FMT_RGBA888;
-	case FB_VMODE_BGRA888:
-		return PIX_FMT_BGRA888;
-	case FB_VMODE_RGB888UNPACK:
-	case FB_VMODE_BGR888UNPACK:
-	case FB_VMODE_YUV422PLANAR_SWAPYUorV:
-	case FB_VMODE_YUV420PLANAR_SWAPYUorV:
-	default:
-		return -1;
-	}
-}
 
 static void pxa168_sync_colorkey_structures(struct pxa168fb_info *fbi,
 						 int direction)
@@ -741,202 +486,20 @@ again:
 
 	return 0;
 }
-static void pxa168fb_update_addr(struct pxa168fb_info *fbi,
-	struct _sVideoBufferAddr *new_addr, struct _sDualInfo *dualInfo)
-{
-	fbi->new_addr[0] = (unsigned long)new_addr->startAddr[0];
-	fbi->new_addr[1] = (unsigned long)new_addr->startAddr[1];
-	fbi->new_addr[2] = (unsigned long)new_addr->startAddr[2];
-
-	if (FB_MODE_DUP) {
-		struct pxa168fb_info *fbi_dual = ovly_info.fbi[fb_dual];
-		if (fbi->debug == 8)
-			pr_info("%s rotate %d startAddr[0] 0x%p\n",
-				__func__, dualInfo->rotate,
-				dualInfo->videoBufferAddr.startAddr[0]);
-
-		if (dualInfo->rotate) {
-			fbi_dual->new_addr[0] = (unsigned long)
-				dualInfo->videoBufferAddr.startAddr[0];
-			fbi_dual->new_addr[1] = (unsigned long)
-				dualInfo->videoBufferAddr.startAddr[1];
-			fbi_dual->new_addr[2] = (unsigned long)
-				dualInfo->videoBufferAddr.startAddr[2];
-		} else {
-			fbi_dual->new_addr[0] = fbi->new_addr[0];
-			fbi_dual->new_addr[1] = fbi->new_addr[1];
-			fbi_dual->new_addr[2] = fbi->new_addr[2];
-		}
-	}
-}
-
-static int check_surface_addr(struct fb_info *fi,
-			struct _sOvlySurface *surface)
-{
-	struct pxa168fb_info *fbi = (struct pxa168fb_info *)fi->par;
-	struct _sVideoBufferAddr *new_addr = &surface->videoBufferAddr;
-	int changed = 0;
-
-	dev_dbg(fi->dev, "Enter %s\n", __func__);
-
-	/* Check buffer address */
-	if (new_addr && new_addr->startAddr[0] &&
-	    fbi->new_addr[0] != (unsigned long)new_addr->startAddr[0]) {
-		pxa168fb_update_addr(fbi, new_addr, &surface->dualInfo);
-		changed = 1;
-	}
-
-	return changed;
-}
-
-static int check_surface(struct fb_info *fi,
-			FBVideoMode new_mode,
-			struct _sViewPortInfo *new_info,
-			struct _sViewPortOffset *new_offset,
-			struct _sVideoBufferAddr *new_addr,
-			struct _sDualInfo *dualInfo)
-{
-	struct pxa168fb_info *fbi = (struct pxa168fb_info *)fi->par;
-	struct pxa168fb_info *fbi_dual = ovly_info.fbi[fb_dual];
-	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-	struct fb_var_screeninfo *var = &fi->var;
-	int changed = 0, xzoom_old, yzoom_old, xpos_old, ypos_old;
-
-	dev_dbg(fi->dev, "Enter %s\n", __func__);
-	change_pos = change_fmt = before_rotate = 0;
-	xzoom_old = yzoom_old = xpos_old = ypos_old = 0;
-
-	/*
-	 * check mode
-	 */
-	if (new_mode >= 0 && fbi->surface.videoMode != new_mode) {
-		fbi->surface.videoMode = new_mode;
-		fbi->pix_fmt = convert_pix_fmt(new_mode);
-		set_pix_fmt(var, fbi->pix_fmt);
-		if (FB_MODE_DUP) {
-			if (dualInfo && dualInfo->rotate)
-				fbi_dual->pix_fmt = convert_pix_fmt
-					(dualInfo->videoMode);
-			else
-				fbi_dual->pix_fmt = fbi->pix_fmt;
-			set_pix_fmt(&fbi_dual->fb_info->var, fbi_dual->pix_fmt);
-		}
-		changed = 1;
-		change_fmt = 1;
-	}
-	/*
-	 * check view port settings.
-	 */
-	if (new_info && memcmp(&fbi->surface.viewPortInfo, new_info,
-			sizeof(struct _sViewPortInfo))) {
-		xzoom_old = fbi->surface.viewPortInfo.zoomXSize;
-		yzoom_old = fbi->surface.viewPortInfo.zoomYSize;
-		if (xzoom_old != new_info->zoomXSize ||
-		    yzoom_old != new_info->zoomYSize) {
-			change_pos = 1;
-			if (fbi->debug == 8)
-				pr_info("%s zoomXSize %d -> %d, zoomYSize %d\
-					 -> %d\n", __func__,
-					xzoom_old, new_info->zoomXSize,
-					yzoom_old, new_info->zoomYSize);
-		}
-		if (fbi->surface.viewPortInfo.srcWidth != new_info->srcWidth ||
-		  fbi->surface.viewPortInfo.srcHeight != new_info->srcHeight ||
-		  fbi->surface.viewPortInfo.yPitch != new_info->yPitch ||
-		  fbi->surface.viewPortInfo.uPitch != new_info->uPitch ||
-		  fbi->surface.viewPortInfo.vPitch != new_info->vPitch ||
-		  fbi->surface.viewPortInfo.rotation != new_info->rotation ||
-		  fbi->surface.viewPortInfo.yuv_format != new_info->yuv_format)
-			change_fmt = 1;
-		if (!(new_addr && new_addr->startAddr[0])) {
-			if (mi->mmap && (((new_info->srcWidth *
-				 new_info->srcHeight * var->bits_per_pixel
-				 / 8) * 2) > fbi->fb_size)) {
-				pr_err("%s: requested memory buffer size %d\
-					exceed the max limit %d!\n", __func__,
-				(new_info->srcWidth * new_info->srcHeight
-				 * var->bits_per_pixel / 4), fbi->fb_size);
-				return changed;
-			}
-		}
-		var->xres_virtual = new_info->srcWidth;
-		var->yres_virtual = new_info->srcHeight * 2;
-		var->xres = new_info->srcWidth;
-		var->yres = new_info->srcHeight;
-		fbi->surface.viewPortInfo = *new_info;
-		changed = 1;
-	}
-
-	/*
-	 * Check offset
-	 */
-	if (new_offset && memcmp(&fbi->surface.viewPortOffset, new_offset,
-		sizeof(struct _sViewPortOffset))) {
-		xpos_old = fbi->surface.viewPortOffset.xOffset;
-		ypos_old = fbi->surface.viewPortOffset.yOffset;
-		change_pos = 1;
-		if (fbi->debug == 8)
-			pr_info("%s xOffset %d -> %d, yOffset %d -> %d\n",
-				__func__, xpos_old, new_offset->xOffset,
-				ypos_old, new_offset->yOffset);
-		fbi->surface.viewPortOffset.xOffset = new_offset->xOffset;
-		fbi->surface.viewPortOffset.yOffset = new_offset->yOffset;
-		changed = 1;
-	}
-	/*
-	 * Check buffer address
-	 */
-	if (new_addr && new_addr->startAddr[0] &&
-	    fbi->new_addr[0] != (unsigned long)new_addr->startAddr[0]) {
-		pxa168fb_update_addr(fbi, new_addr, dualInfo);
-		changed = 1;
-	}
-
-	if (fb_mode && dualInfo) {
-		if (changed || fbi->surface.dualInfo.rotate != dualInfo->rotate
-		  || fbi->surface.dualInfo.videoMode != dualInfo->videoMode) {
-			fbi->surface.dualInfo = *dualInfo;
-			if (fbi->debug == 8)
-				pr_info("%s dual(0x%p)->rotate %d, pix_fmt:"
-					" pn 0x%x tv 0x%x\n", __func__,
-					dualInfo, dualInfo->rotate,
-					fbi->pix_fmt, fbi_dual->pix_fmt);
-			changed = 1;
-		}
-	}
-	if (new_offset && new_info && !change_fmt && change_pos) {
-		if (xpos_old == new_offset->yOffset &&
-		    ypos_old == new_offset->xOffset &&
-		    xzoom_old == new_info->zoomYSize &&
-		    yzoom_old == new_info->zoomXSize) {
-			if (ROTATE_IGNORE)
-				before_rotate = 1;
-		} else if (fbi->debug == 8) {
-			pr_info("old: xpos %d ypos %d xzoom %d yzoom %d\n",
-				xpos_old, ypos_old, xzoom_old, yzoom_old);
-			pr_info("  -> xpos %d ypos %d xzoom %d yzoom %d\n",
-				new_offset->xOffset, new_offset->yOffset,
-				new_info->zoomXSize, new_info->zoomYSize);
-		}
-	}
-
-	return changed;
-}
 
 static int pxa168fb_update_buff(struct fb_info *fi,
 	struct _sOvlySurface *surface, int addr)
 {
 	if (addr) {
 		/* update buffer address only if changed */
-		if (check_surface_addr(fi, surface))
+		if (check_surface_addr(fi, surface, 1))
 			set_video_start(fi, 0, 0);
 		else
 			return -EINVAL;
 	} else if (check_surface(fi, surface->videoMode,
 					&surface->viewPortInfo,
 					&surface->viewPortOffset,
-					&surface->videoBufferAddr,
-					&surface->dualInfo))
+					&surface->videoBufferAddr, 1))
 		/* update other parameters other than buf addr */
 		return pxa168fb_set_par(fi);
 
@@ -1066,227 +629,6 @@ static void debug_identify_called_ioctl(struct fb_info *fi, int cmd,
 	}
 }
 #endif
-static int rotation_unsupport_format(struct _sViewPortInfo viewPortInfo,
-					 FBVideoMode videoMode)
-{
-	if ((viewPortInfo.rotation == 0) || (viewPortInfo.rotation == 1))
-		return 0;
-
-	if (viewPortInfo.srcHeight == 1080) {
-		pr_info("Error:1080P rotation is not supported!\n");
-		return 1;
-	}
-	if (viewPortInfo.srcHeight == 720) {
-		if (viewPortInfo.rotation == 180) {
-			pr_info("Error:720p rotation 180 is not supported!\n");
-			return 1;
-		}
-	}
-	switch (videoMode) {
-	case FB_VMODE_YUV422PLANAR:
-	case FB_VMODE_YUV422PLANAR_SWAPUV:
-	case FB_VMODE_YUV422PLANAR_SWAPYUorV:
-	case FB_VMODE_YUV420PLANAR:
-	case FB_VMODE_YUV420PLANAR_SWAPUV:
-	case FB_VMODE_YUV420PLANAR_SWAPYUorV:
-		pr_info("Error:Planar is not supported!\n");
-		return 1;
-	default:
-		break;
-	}
-	return 0;
-}
-static void ovlysurface_clear_pitch(struct _sOvlySurface *surface)
-{
-	surface->viewPortInfo.yPitch = 0;
-	surface->viewPortInfo.uPitch = 0;
-	surface->viewPortInfo.vPitch = 0;
-}
-
-static u8 *buf_dequeue(u8 **ppBufList)
-{
-	int i;
-	u8 *pBuf;
-
-	if (!ppBufList) {
-		printk(KERN_ALERT "%s: invalid list\n", __func__);
-		return NULL;
-	}
-
-	pBuf = ppBufList[0];
-
-	for (i = 1; i < MAX_QUEUE_NUM; i++) {
-		if (!ppBufList[i]) {
-			ppBufList[i-1] = 0;
-			break;
-		}
-		ppBufList[i-1] = ppBufList[i];
-	}
-
-	if (i >= MAX_QUEUE_NUM)
-		printk(KERN_ALERT "%s: buffer overflow\n",  __func__);
-
-	return pBuf;
-}
-
-static int buf_enqueue(u8 **ppBufList, u8 *pBuf)
-{
-	int i = 0 ;
-	struct _sOvlySurface *srf0 = (struct _sOvlySurface *)(pBuf);
-	struct _sOvlySurface *srf1 = 0;
-
-	/* Error checking */
-	if (!srf0)
-		return -1;
-
-	for (; i < MAX_QUEUE_NUM; i++) {
-		srf1 = (struct _sOvlySurface *)ppBufList[i];
-		if (!srf1) {
-			ppBufList[i] = pBuf;
-			return 0;
-		}
-	}
-
-	if (i >= MAX_QUEUE_NUM)
-		pr_info("buffer overflow\n");
-
-	return -3;
-}
-
-static void buf_clear(u8 **ppBufList, int iFlag)
-{
-	int i = 0;
-
-	/* Check null pointer. */
-	if (!ppBufList)
-		return;
-
-	/* free */
-	if (FREE_ENTRY & iFlag) {
-		for (i = 0; i < MAX_QUEUE_NUM; i++) {
-			if (ppBufList && ppBufList[i])
-				kfree(ppBufList[i]);
-		}
-	}
-
-	if (RESET_BUF & iFlag)
-		memset(ppBufList, 0, MAX_QUEUE_NUM * sizeof(u8 *));
-}
-
-#ifdef OVLY_TASKLET
-static void pxa168fb_ovly_task(unsigned long data)
-{
-	struct pxa168fb_info *fbi = (struct pxa168fb_info *)data;
-#else
-static void pxa168fb_ovly_work(struct work_struct *w)
-{
-	struct pxa168fb_info *fbi = container_of(w,
-		struct pxa168fb_info, buf_work);
-#endif
-	unsigned long flags;
-
-	if (fbi->debug == 1)
-		pr_info("%s fbi %d buf_retired %p\n",
-			__func__, fbi->id, fbi->buf_retired);
-
-	if (fbi->buf_retired) {
-		/* enqueue current to freelist */
-		spin_lock_irqsave(&fbi->buf_lock, flags);
-		buf_enqueue(fbi->buf_freelist, fbi->buf_retired);
-		fbi->buf_retired = 0;
-		ovly_info.wait_peer = 0;
-		spin_unlock_irqrestore(&fbi->buf_lock, flags);
-	}
-}
-
-static u8 *buf_gethead(u8 **ppBufList)
-{
-	u8 *pBuf;
-
-	if (!ppBufList)
-		return NULL;
-
-	pBuf = ppBufList[0];
-
-	return pBuf;
-}
-
-static void buf_endframe(void *p)
-{
-	struct fb_info *fi = (struct fb_info *)p;
-	struct pxa168fb_info *fbi = (struct pxa168fb_info *)fi->par;
-	struct _sOvlySurface *pOvlySurface;
-	int ret;
-	u8 *buf = buf_gethead(fbi->buf_waitlist);
-
-	if (buf && fbi->buf_retired) {
-		ovly_info.retire_err++;
-	} else {
-		buf = buf_dequeue(fbi->buf_waitlist);
-		if (buf) {
-			pOvlySurface = (struct _sOvlySurface *)buf;
-
-			/* Update new surface settings */
-			ret = pxa168fb_update_buff(fi, pOvlySurface, 0);
-
-			if (!ret) {
-				fbi->buf_retired = fbi->buf_current;
-				fbi->buf_current = buf;
-				fbi->buf_displayed++;
-				if (WAIT_PEER && FB_MODE_DUP)
-					ovly_info.wait_peer = 1;
-				else {
-#ifdef OVLY_TASKLET
-					tasklet_schedule(&fbi->ovly_task);
-#else
-					if (fbi->system_work)
-						schedule_work(&fbi->buf_work);
-					else
-						queue_work(fbi->work_q,
-							&fbi->fb_info->queue);
-#endif
-				}
-			} else {
-				/* enqueue the repeated buffer to freelist */
-				buf_enqueue(fbi->buf_freelist, buf);
-				pr_info("Detect a same surface flipped in, "
-					"may flicker.\n");
-			}
-		}
-	}
-}
-
-static void free_buf(struct pxa168fb_info *fbi)
-{
-	u8 *buf;
-
-	/* put all buffers into free list */
-	do {
-		buf = buf_dequeue(fbi->buf_waitlist);
-		buf_enqueue(fbi->buf_freelist, buf);
-	} while (buf);
-
-	if (fbi->buf_current) {
-		buf_enqueue(fbi->buf_freelist, fbi->buf_current);
-		fbi->buf_current = 0;
-	}
-	if (fbi->buf_retired) {
-		buf_enqueue(fbi->buf_freelist, fbi->buf_retired);
-		fbi->buf_retired = 0;
-	}
-
-	/* clear some globals */
-	ovly_info.wait_peer = 0;
-	memset(&fbi->surface, 0, sizeof(struct _sOvlySurface));
-	fbi->new_addr[0] = 0; fbi->new_addr[1] = 0; fbi->new_addr[2] = 0;
-	if (FB_MODE_DUP) {
-		memset(&ovly_info.fbi[fb_dual]->surface, 0,
-			sizeof(struct _sOvlySurface));
-		ovly_info.fbi[fb_dual]->new_addr[0] = 0;
-		ovly_info.fbi[fb_dual]->new_addr[1] = 0;
-		ovly_info.fbi[fb_dual]->new_addr[2] = 0;
-	}
-}
 
 static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 			unsigned long arg)
@@ -1348,7 +690,7 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 			mutex_unlock(&fbi->access_ok);
 			return -EFAULT;
 		}
-		if (rotation_unsupport_format(gViewPortInfo, -1)) {
+		if (unsupport_format(fbi, gViewPortInfo, -1, 1)) {
 			mutex_unlock(&fbi->access_ok);
 			return -EFAULT;
 		}
@@ -1361,7 +703,7 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 			gViewPortInfo.srcHeight = tmp;
 		}
 
-		if (check_surface(fi, -1, &gViewPortInfo, 0, 0, 0))
+		if (check_surface(fi, -1, &gViewPortInfo, 0, 0, 1))
 			pxa168fb_set_par(fi);
 
 		mutex_unlock(&fbi->access_ok);
@@ -1373,199 +715,16 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 		if (copy_from_user(&vmode, argp, sizeof(vmode)))
 			return -EFAULT;
 
-		if (check_surface(fi, vmode, 0, 0, 0, 0))
+		if (check_surface(fi, vmode, 0, 0, 0, 1))
 			pxa168fb_set_par(fi);
 		break;
 	case FB_IOCTL_GET_VIDEO_MODE:
 		return copy_to_user(argp, &fbi->surface.videoMode,
 			sizeof(u32)) ? -EFAULT : 0;
 	case FB_IOCTL_FLIP_VID_BUFFER:
-	{
-		struct _sOvlySurface *surface = 0;
-		u8 *start_addr[3], *input_data;
-		u32 length;
-		int tmp;
-		mutex_lock(&fbi->access_ok);
-		surface = kmalloc(sizeof(struct _sOvlySurface),
-				GFP_KERNEL);
-		if (surface == NULL){
-			mutex_unlock(&fbi->access_ok);
-			return -EFAULT;
-		}
-
-		/* Get user-mode data. */
-		if (copy_from_user(surface, argp,
-					sizeof(struct _sOvlySurface))) {
-			kfree(surface);
-			mutex_unlock(&fbi->access_ok);
-			return -EFAULT;
-		}
-
-		if (rotation_unsupport_format(surface->viewPortInfo,
-			 surface->videoMode)) {
-			kfree(surface);
-			mutex_unlock(&fbi->access_ok);
-			return -EFAULT;
-		}
-		if (surface->viewPortInfo.rotation == 90 ||
-			surface->viewPortInfo.rotation == 270) {
-			surface->viewPortInfo.rotation = 360 -
-			surface->viewPortInfo.rotation;
-			tmp = surface->viewPortInfo.srcWidth;
-			surface->viewPortInfo.srcWidth =
-			surface->viewPortInfo.srcHeight;
-			surface->viewPortInfo.srcHeight = tmp;
-			switch (surface->videoMode) {
-			case FB_VMODE_YUV422PACKED:
-				surface->videoMode =
-				 FB_VMODE_YUV422PACKED_IRE_90_270;
-				surface->viewPortInfo.yuv_format = 1;
-				ovlysurface_clear_pitch(surface);
-				break;
-			case FB_VMODE_YUV422PACKED_SWAPUV:
-				surface->videoMode =
-				 FB_VMODE_YUV422PACKED_IRE_90_270;
-				surface->viewPortInfo.yuv_format = 2;
-				ovlysurface_clear_pitch(surface);
-				break;
-			case FB_VMODE_YUV422PACKED_SWAPYUorV:
-				surface->videoMode =
-				 FB_VMODE_YUV422PACKED_IRE_90_270;
-				surface->viewPortInfo.yuv_format = 4;
-				ovlysurface_clear_pitch(surface);
-				break;
-			default:
-				surface->viewPortInfo.yuv_format = 0;
-			}
-		}
-		length = surface->videoBufferAddr.length;
-		start_addr[0] = surface->videoBufferAddr.startAddr[0];
-		input_data = surface->videoBufferAddr.inputData;
-
-		if (fbi->debug == 1)
-			pr_info("flip surface %p buf %p\n",
-				 surface, start_addr[0]);
-
-		/*
-		 * Has DMA addr?
-		 */
-		if (start_addr[0] && (!input_data)) {
-			spin_lock_irqsave(&fbi->buf_lock, flags);
-			/*if there's less than 2 frames in waitlist,
-			 *enqueue this frame to waitlist*/
-			if ((!fbi->buf_waitlist[0]) ||
-				(!fbi->buf_waitlist[1])) {
-				buf_enqueue(fbi->buf_waitlist, (u8 *)surface);
-			} else {
-				/*if there is two frame in waitlist, dequeue
-				 *the older frame and enqueue it to freelist,
-				 *then enqueue this frame to waitlist*/
-				buf_enqueue(fbi->buf_freelist,
-						buf_dequeue(fbi->buf_waitlist));
-				buf_enqueue(fbi->buf_waitlist, (u8 *)surface);
-			}
-
-			if (fbi->update_addr) {
-				/* get buffer that will be updated @ next irq */
-				surface = (struct _sOvlySurface *)
-					buf_gethead(fbi->buf_waitlist);
-				if (pxa168fb_update_buff(fi, surface, 1))
-					if (fbi->debug == 8)
-						pr_info("same surface\n");
-			}
-
-			fbi->buf_flipped++;
-			spin_unlock_irqrestore(&fbi->buf_lock, flags);
-		} else {
-			if (!mi->mmap) {
-				pr_err("fbi %d(line %d): input err, mmap is not"
-					" supported\n", fbi->id, __LINE__);
-				kfree(surface);
-				mutex_unlock(&fbi->access_ok);
-				return -EINVAL;
-			}
-
-			/* update buffer */
-			pxa168fb_update_buff(fi, surface, 1);
-
-			/* copy buffer */
-			if (input_data) {
-				wait_for_vsync(fbi);
-				/* if support hw DMA, replace this. */
-				if (copy_from_user(fbi->fb_start,
-							input_data, length)){
-					kfree(surface);
-					mutex_unlock(&fbi->access_ok);
-					return -EFAULT;
-				}
-				kfree(surface);
-				mutex_unlock(&fbi->access_ok);
-				return 0;
-			}
-
-			/*
-			 * if it has its own physical address,
-			 * switch to this memory. don't support YUV planar
-			 * format with split YUV buffers. but below code
-			 * seems have no chancee to execute. - FIXME
-			 */
-			if (start_addr[0]) {
-				if (fbi->mem_status)
-					free_pages((
-					unsigned long)fbi->fb_start,
-					get_order(fbi->fb_size));
-				else
-					dma_free_writecombine(fbi->dev,
-							fbi->fb_size,
-							fbi->fb_start,
-							fbi->fb_start_dma);
-
-				fbi->fb_start = __va(start_addr[0]);
-				fbi->fb_size = length;
-				fbi->fb_start_dma =
-					(dma_addr_t)__pa(fbi->fb_start);
-				fbi->mem_status = 1;
-				fi->fix.smem_start = fbi->fb_start_dma;
-				fi->fix.smem_len = fbi->fb_size;
-				fi->screen_base = fbi->fb_start;
-				fi->screen_size = fbi->fb_size;
-			}
-
-			kfree(surface);
-		}
-
-		mutex_unlock(&fbi->access_ok);
-		return 0;
-	}
+		return flip_buffer(fi, arg, 1);
 	case FB_IOCTL_GET_FREELIST:
-	{
-		if (fbi->debug == 1)
-			pr_info("get freelist\n");
-
-		if (WAIT_FREE && FB_MODE_DUP)
-			wait_for_vsync(ovly_info.fbi[fb_dual]);
-
-		spin_lock_irqsave(&fbi->buf_lock, flags);
-		/* when lcd is suspend, move all buffers as "switched"*/
-		if (!(gfx_info.fbi[fbi->id]->active))
-			buf_endframe(fi);
-		/* when video layer dma is off, free all buffers */
-		if (!fbi->dma_on)
-			free_buf(fbi);
-
-		/* Collect expired frame to list */
-		collectFreeBuf(fbi, fbi->filterBufList, fbi->buf_freelist);
-		if (copy_to_user(argp, fbi->filterBufList,
-					3*MAX_QUEUE_NUM*sizeof(u8 *))) {
-			spin_unlock_irqrestore(&fbi->buf_lock, flags);
-			return -EFAULT;
-		}
-		clearFilterBuf(fbi->filterBufList, RESET_BUF);
-		spin_unlock_irqrestore(&fbi->buf_lock, flags);
-		if (fbi->debug == 1)
-			pr_info("get freelist end\n");
-		return 0;
-	}
+		return get_freelist(fi, arg, 1);
 	case FB_IOCTL_GET_BUFF_ADDR:
 	{
 		return copy_to_user(argp, &fbi->surface.videoBufferAddr,
@@ -1579,7 +738,7 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 			return -EFAULT;
 		}
 
-		if (check_surface(fi, -1, 0, &gViewPortOffset, 0, 0))
+		if (check_surface(fi, -1, 0, &gViewPortOffset, 0, 1))
 			pxa168fb_set_par(fi);
 		mutex_unlock(&fbi->access_ok);
 		break;
@@ -1675,6 +834,7 @@ again:
 
 		if (FB_MODE_DUP) {
 			fbi = ovly_info.fbi[fb_dual];
+			mi = fbi->dev->platform_data;
 			goto again;
 		}
 		if (fb_mode && (fbi->id == fb_dual))
@@ -1766,71 +926,11 @@ again:
 	return 0;
 }
 
-static void collectFreeBuf(struct pxa168fb_info *fbi,
-		u8 *filterList[][3], u8 **freeList)
-{
-	int i = 0, j = 0;
-	struct _sOvlySurface *srf = 0;
-	u8 *ptr;
-
-	if (!filterList || !freeList)
-		return;
-
-	if (fbi->debug == 1)
-		pr_info("%s\n", __func__);
-	for (i = 0, j = 0; i < MAX_QUEUE_NUM; i++) {
-
-		ptr = freeList[i];
-
-		/* Check freeList's content. */
-		if (ptr) {
-			for (; j < MAX_QUEUE_NUM; j++) {
-				if (!(filterList[j][0])) {
-					/* get surface's ptr. */
-					srf = (struct _sOvlySurface *)ptr;
-
-					/* save ptrs which need to be freed.*/
-					filterList[j][0] =
-					 srf->videoBufferAddr.startAddr[0];
-					filterList[j][1] =
-					 srf->videoBufferAddr.startAddr[1];
-					filterList[j][2] =
-					 srf->videoBufferAddr.startAddr[2];
-					if (fbi->debug == 1)
-						pr_info("%s: buffer\
-					%p will be returned\n", __func__,
-					srf->videoBufferAddr.startAddr[0]);
-					break;
-				}
-			}
-
-			if (j >= MAX_QUEUE_NUM)
-				break;
-
-			kfree(freeList[i]);
-			freeList[i] = 0;
-		} else {
-			/* till content is null. */
-			break;
-		}
-	}
-}
-
-static void clearFilterBuf(u8 *ppBufList[][3], int iFlag)
-{
-	/* Check null pointer. */
-	if (!ppBufList)
-		return;
-	if (RESET_BUF & iFlag)
-		memset(ppBufList, 0, 3 * MAX_QUEUE_NUM * sizeof(u8 *));
-}
-
 static int pxa168fb_open(struct fb_info *fi, int user)
 {
 	struct pxa168fb_mach_info *mi;
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)fi->par;
 	struct fb_var_screeninfo *var = &fi->var;
-	unsigned long flags;
 
 	pr_info("Enter %s, fbi %d opened %d times -----------\n",
 		__func__, fbi->id, atomic_read(&fbi->op_count));
@@ -1863,21 +963,13 @@ static int pxa168fb_open(struct fb_info *fi, int user)
 
 	if (mutex_is_locked(&fbi->access_ok))
 		mutex_unlock(&fbi->access_ok);
+
 	/* clear buffer list. */
-	spin_lock_irqsave(&fbi->buf_lock, flags);
-	clearFilterBuf(fbi->filterBufList, RESET_BUF);
-	buf_clear(fbi->buf_freelist, RESET_BUF|FREE_ENTRY);
-	buf_clear(fbi->buf_waitlist, RESET_BUF|FREE_ENTRY);
-	fbi->buf_current = 0;
-	fbi->buf_retired = 0;
-	fbi->buf_flipped = 0;
-	fbi->buf_displayed = 0;
-	fbi->surface_set = 0;
-	ovly_info.wait_peer = 0;
-	spin_unlock_irqrestore(&fbi->buf_lock, flags);
+	clear_buffer(fbi, 1);
 
 	/* increase open count */
 	atomic_inc(&fbi->op_count);
+
 	return 0;
 }
 
@@ -1891,12 +983,12 @@ static int pxa168fb_release(struct fb_info *fi, int user)
 	u32 val;
 #endif
 	struct fb_var_screeninfo *var = &fi->var;
-	unsigned long flags;
+	u32 mask;
 
 	pr_info("Enter %s, fbi %d opened %d times -----------\n",
 		__func__, fbi->id, atomic_read(&fbi->op_count));
 
-	/* Force Video DMA engine off at RELEASE.*/
+	/* Force Video DMA engine off at release and reset the DMA format.*/
 	if (atomic_dec_and_test(&fbi->op_count)) {
 #ifdef CONFIG_PXA688_VDMA
 		if (mi->vdma_enable) {
@@ -1905,9 +997,10 @@ static int pxa168fb_release(struct fb_info *fi, int user)
 				pxa688fb_vdma_release(fbi);
 		}
 #endif
-		dma_ctrl_set(fbi->id, 0, CFG_DMA_ENA_MASK, 0);
+		mask = CFG_DMA_ENA_MASK | CFG_DMAFORMAT_MASK;
+		dma_ctrl_set(fbi->id, 0, mask, 0);
 		if (FB_MODE_DUP) {
-			dma_ctrl_set(fb_dual, 0, CFG_DMA_ENA_MASK, 0);
+			dma_ctrl_set(fb_dual, 0, mask, 0);
 		}
 	}
 
@@ -1922,18 +1015,7 @@ static int pxa168fb_release(struct fb_info *fi, int user)
 		enable_graphic_layer(fb_dual);
 
 	/* clear buffer list. */
-	spin_lock_irqsave(&fbi->buf_lock, flags);
-	clearFilterBuf(fbi->filterBufList, RESET_BUF);
-	buf_clear(fbi->buf_freelist, RESET_BUF|FREE_ENTRY);
-	buf_clear(fbi->buf_waitlist, RESET_BUF|FREE_ENTRY);
-	if (fbi->buf_current)
-		kfree(fbi->buf_current);
-	fbi->buf_current = 0;
-	if (fbi->buf_retired)
-		kfree(fbi->buf_retired);
-	fbi->buf_retired = 0;
-	ovly_info.wait_peer = 0;
-	spin_unlock_irqrestore(&fbi->buf_lock, flags);
+	clear_buffer(fbi, 1);
 
 	/* clear some globals */
 	memset(&fbi->surface, 0, sizeof(struct _sOvlySurface));
@@ -1962,8 +1044,13 @@ void pxa168fb_ovly_dual(int enable)
 	struct pxa168fb_info *fbi_base = ovly_info.fbi[fb_base];
 	struct pxa168fb_info *fbi_dual = ovly_info.fbi[fb_dual];
 
-	pr_debug("%s enable %d fb_dual->active %d\n",
-		__func__, enable, fbi_dual->active);
+	pr_debug("%s enable %d fb_base->op_count %d fb_dual->active %d\n",
+		__func__, enable, atomic_read(&fbi_base->op_count),
+		fbi_dual->active);
+
+	if (!atomic_read(&fbi_base->op_count))
+		return;
+
 	if (enable) {
 		fbi_dual->active = fbi_base->active;
 		fbi_dual->dma_on = fbi_base->dma_on;
@@ -2296,19 +1383,6 @@ static void set_yuv_start(struct pxa168fb_info *fbi, unsigned long addr)
 	writel(addr_v0, &regs->v_v0);
 }
 
-static void set_dma_active(struct pxa168fb_info *fbi)
-{
-	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-	u32 active = 0;
-
-	if (fbi->new_addr[0] || mi->mmap)
-		active = check_modex_active(fbi->id, fbi->active);
-	dma_ctrl_set(fbi->id, 0, CFG_DMA_ENA_MASK, active ? CFG_DMA_ENA(1) : 0);
-
-	pr_debug("%s fbi %d: active %d fbi->active %d, new_addr %lu\n",
-		__func__, fbi->id, active, fbi->active, fbi->new_addr[0]);
-}
-
 static void set_video_start(struct fb_info *fi, int xoffset, int yoffset)
 {
 	struct pxa168fb_info *fbi = fi->par;
@@ -2356,7 +1430,7 @@ again:
 	}
 
 	/* enable DMA transfer */
-	set_dma_active(fbi);
+	set_dma_active(fbi, 1);
 
 	if (FB_MODE_DUP) {
 		struct pxa168fb_info *fbi_dual = ovly_info.fbi[fb_dual];
@@ -2659,7 +1733,7 @@ irqreturn_t pxa168fb_ovly_isr(int id)
 
 	if (atomic_read(&fbi->op_count)) {
 		/* do buffer switch for video flip */
-		buf_endframe(fi);
+		buf_endframe(fi, 1);
 
 wakeup:
 		/* wake up queue. */
@@ -2766,6 +1840,9 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	fbi->update_addr = 1;
 
 	platform_set_drvdata(pdev, fbi);
+	fbi->check_modex_active = check_modex_active;
+	fbi->wait_for_vsync = wait_for_vsync;
+	fbi->update_buff = pxa168fb_update_buff;
 	fbi->fb_info = fi;
 	fbi->dev = &pdev->dev;
 	fbi->id = pdev->id;

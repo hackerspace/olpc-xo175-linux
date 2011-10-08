@@ -38,8 +38,7 @@
 #include <mach/io.h>
 #include <mach/irqs.h>
 #include <mach/gpio.h>
-#include <mach/pxa168fb.h>
-#include "pxa168fb.h"
+#include "pxa168fb_common.h"
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
@@ -387,134 +386,6 @@ static int determine_best_pix_fmt(struct fb_var_screeninfo *var)
 	}
 
 	return -EINVAL;
-}
-
-static void set_pix_fmt(struct fb_var_screeninfo *var, int pix_fmt)
-{
-	switch (pix_fmt) {
-	case PIX_FMT_RGB565:
-		var->bits_per_pixel = 16;
-		var->red.offset = 11;    var->red.length = 5;
-		var->green.offset = 5;   var->green.length = 6;
-		var->blue.offset = 0;    var->blue.length = 5;
-		var->transp.offset = 0;  var->transp.length = 0;
-		var->nonstd &= ~0xff0fffff;
-		break;
-	case PIX_FMT_BGR565:
-		var->bits_per_pixel = 16;
-		var->red.offset = 0;     var->red.length = 5;
-		var->green.offset = 5;   var->green.length = 6;
-		var->blue.offset = 11;   var->blue.length = 5;
-		var->transp.offset = 0;  var->transp.length = 0;
-		var->nonstd &= ~0xff0fffff;
-		break;
-	case PIX_FMT_RGB1555:
-		var->bits_per_pixel = 16;
-		var->red.offset = 10;    var->red.length = 5;
-		var->green.offset = 5;   var->green.length = 5;
-		var->blue.offset = 0;    var->blue.length = 5;
-		var->transp.offset = 15; var->transp.length = 1;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 5 << 20;
-		break;
-	case PIX_FMT_BGR1555:
-		var->bits_per_pixel = 16;
-		var->red.offset = 0;     var->red.length = 5;
-		var->green.offset = 5;   var->green.length = 5;
-		var->blue.offset = 10;   var->blue.length = 5;
-		var->transp.offset = 15; var->transp.length = 1;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 5 << 20;
-		break;
-	case PIX_FMT_RGB888PACK:
-		var->bits_per_pixel = 24;
-		var->red.offset = 16;    var->red.length = 8;
-		var->green.offset = 8;   var->green.length = 8;
-		var->blue.offset = 0;    var->blue.length = 8;
-		var->transp.offset = 0;  var->transp.length = 0;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 6 << 20;
-		break;
-	case PIX_FMT_BGR888PACK:
-		var->bits_per_pixel = 24;
-		var->red.offset = 0;     var->red.length = 8;
-		var->green.offset = 8;   var->green.length = 8;
-		var->blue.offset = 16;   var->blue.length = 8;
-		var->transp.offset = 0;  var->transp.length = 0;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 6 << 20;
-		break;
-	case PIX_FMT_RGB888UNPACK:
-		var->bits_per_pixel = 32;
-		var->red.offset = 16;    var->red.length = 8;
-		var->green.offset = 8;   var->green.length = 8;
-		var->blue.offset = 0;    var->blue.length = 8;
-		var->transp.offset = 0;  var->transp.length = 8;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 7 << 20;
-		break;
-	case PIX_FMT_BGR888UNPACK:
-		var->bits_per_pixel = 32;
-		var->red.offset = 0;     var->red.length = 8;
-		var->green.offset = 8;   var->green.length = 8;
-		var->blue.offset = 16;   var->blue.length = 8;
-		var->transp.offset = 0;  var->transp.length = 8;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 7 << 20;
-		break;
-	case PIX_FMT_RGBA888:
-		var->bits_per_pixel = 32;
-		var->red.offset = 16;    var->red.length = 8;
-		var->green.offset = 8;   var->green.length = 8;
-		var->blue.offset = 0;    var->blue.length = 8;
-		var->transp.offset = 24; var->transp.length = 8;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 8 << 20;
-		break;
-	case PIX_FMT_BGRA888:
-		var->bits_per_pixel = 32;
-		var->red.offset = 0;     var->red.length = 8;
-		var->green.offset = 8;   var->green.length = 8;
-		var->blue.offset = 16;   var->blue.length = 8;
-		var->transp.offset = 24; var->transp.length = 8;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 8 << 20;
-		break;
-	case PIX_FMT_YUYV422PACK:
-		var->bits_per_pixel = 16;
-		var->red.offset = 8;     var->red.length = 16;
-		var->green.offset = 4;   var->green.length = 16;
-		var->blue.offset = 0;   var->blue.length = 16;
-		var->transp.offset = 0;  var->transp.length = 0;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 9 << 20;
-		break;
-	case PIX_FMT_YVU422PACK:
-		var->bits_per_pixel = 16;
-		var->red.offset = 0;     var->red.length = 16;
-		var->green.offset = 8;   var->green.length = 16;
-		var->blue.offset = 12;   var->blue.length = 16;
-		var->transp.offset = 0;  var->transp.length = 0;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 9 << 20;
-		break;
-	case PIX_FMT_YUV422PACK:
-		var->bits_per_pixel = 16;
-		var->red.offset = 4;     var->red.length = 16;
-		var->green.offset = 12;   var->green.length = 16;
-		var->blue.offset = 0;    var->blue.length = 16;
-		var->transp.offset = 0;  var->transp.length = 0;
-		var->nonstd &= ~0xff0fffff;
-		var->nonstd |= 9 << 20;
-		break;
-	case PIX_FMT_PSEUDOCOLOR:
-		var->bits_per_pixel = 8;
-		var->red.offset = 0;     var->red.length = 8;
-		var->green.offset = 0;   var->green.length = 8;
-		var->blue.offset = 0;    var->blue.length = 8;
-		var->transp.offset = 0;  var->transp.length = 0;
-		break;
-	}
 }
 
 static void set_mode(struct pxa168fb_info *fbi, struct fb_var_screeninfo *var,
@@ -885,20 +756,6 @@ static void pxa168fb_vdma_config(struct pxa168fb_info *fbi)
 #endif
 }
 
-static void set_dma_active(struct pxa168fb_info *fbi)
-{
-	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-	u32 active = 0;
-
-	if (mi->mmap || (fb_mode && fbi->id == fb_dual))
-		active = check_modex_active(fbi->id, fbi->active);
-	dma_ctrl_set(fbi->id, 0, CFG_GRA_ENA_MASK,
-			 active ? CFG_GRA_ENA(1) : 0);
-
-	pr_debug("%s fbi %d: active %d fbi->active %d\n",
-		__func__, fbi->id, active, fbi->active);
-}
-
 static void set_graphics_start(struct fb_info *info,
 	int xoffset, int yoffset, int wait_vsync)
 {
@@ -927,7 +784,7 @@ static void set_graphics_start(struct fb_info *info,
 again:
 	regs = get_regs(fbi->id);
 	writel(addr, &regs->g_0);
-	set_dma_active(fbi);
+	set_dma_active(fbi, 0);
 
 	pxa168fb_vdma_config(fbi);
 
@@ -1271,7 +1128,7 @@ static int pxa168fb_active(struct pxa168fb_info *fbi, int active)
 		}
 
 		fbi->active = 1;
-		set_dma_active(fbi);
+		set_dma_active(fbi, 0);
 	}
 	return 0;
 }
@@ -2309,6 +2166,7 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 
 	fbi->fb_info = info;
 	platform_set_drvdata(pdev, fbi);
+	fbi->check_modex_active = check_modex_active;
 	fbi->clk = clk;
 	fbi->dev = &pdev->dev;
 	fbi->fb_info->dev = &pdev->dev;
