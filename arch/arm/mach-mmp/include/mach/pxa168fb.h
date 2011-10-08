@@ -386,7 +386,8 @@ struct pxa168fb_info {
 				ckalpha_set:1,
 				update_addr:1,
 				active:1;
-
+	/* indicate dma on/off requirement from user space */
+	int			dma_on;
 	/* lock for variables, e.g. active */
 	spinlock_t		var_lock;
 	/* mem_status:
