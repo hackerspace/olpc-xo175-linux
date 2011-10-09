@@ -41,6 +41,7 @@
 #include <mach/mmp3.h>
 #include <mach/irqs.h>
 #include <mach/regs-mpmu.h>
+#include <mach/soc_vmeta.h>
 #include <mach/tc35876x.h>
 #include <mach/uio_hdmi.h>
 #include <plat/usb.h>
@@ -932,6 +933,24 @@ static struct sram_bank mmp3_videosram_info = {
 	.step = VIDEO_SRAM_GRANULARITY,
 };
 
+#ifdef CONFIG_UIO_VMETA
+static struct vmeta_plat_data mmp_vmeta_plat_data = {
+	.bus_irq_handler = NULL,
+	.set_dvfm_constraint = NULL,
+	.unset_dvfm_constraint = NULL,
+	.clean_dvfm_constraint = NULL,
+	.init_dvfm_constraint = NULL,
+	.axi_clk_available = 0,
+	.decrease_core_freq = NULL,
+	.increase_core_freq = NULL,
+};
+
+static void __init mmp_init_vmeta(void)
+{
+	mmp_set_vmeta_info(&mmp_vmeta_plat_data);
+}
+#endif
+
 static void __init yellowstone_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(yellowstone_pin_config));
@@ -958,6 +977,9 @@ static void __init yellowstone_init(void)
 	mmp3_add_pwm(3);
 	platform_device_register(&yellowstone_lcd_backlight_devices);
 
+#ifdef CONFIG_UIO_VMETA
+	mmp_init_vmeta();
+#endif
 #ifdef CONFIG_MMC_SDHCI_PXAV3
 	yellowstone_init_mmc();
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
