@@ -235,12 +235,12 @@ static struct mfp_addr_map pxa970_mfp_addr_map[] __initdata = {
 
 void clk_pxa95x_smc_enable(struct clk *smc_clk)
 {
-	CKENA |= (1 << CKEN_SMC);
+	CKENA |= (1 << CKEN_SMC) | (1 << CKEN_NAND);
 }
 
 void clk_pxa95x_smc_disable(struct clk *smc_clk)
 {
-	CKENA &= ~(1 << CKEN_SMC);
+	CKENA &= ~((1 << CKEN_SMC) | (1 << CKEN_NAND));
 }
 
 /*
