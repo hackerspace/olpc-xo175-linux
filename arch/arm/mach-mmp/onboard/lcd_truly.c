@@ -413,13 +413,11 @@ static int truly_lcd_power(struct pxa168fb_info *fbi, unsigned int spi_gpio_cs,
 /* 1: 3-wire; 0: 4-wire */
 #define     CFG_SPI_3W4WB(wire)                 (wire<<1)
 
-#define		LCD_ISR_CLEAR_MASK		0xffff00cc
-
 static struct pxa168fb_mach_info truly_lcd_info  = {
 	.id                     = "Base",
 	.modes                  = truly_video_modes,
 	.sclk_div               = 0x4000000d,
-	.isr_clear_mask		= LCD_ISR_CLEAR_MASK,
+	.isr_clear_mask		= LCD_ISR_CLEAR_MASK_PXA910,
 	.num_modes              = ARRAY_SIZE(truly_video_modes),
 	.pix_fmt                = PIX_FMT_RGB888PACK,
 	.io_pad_ctrl		= PIN_MODE_DUMB_24 | CFG_CYC_BURST_LEN8,

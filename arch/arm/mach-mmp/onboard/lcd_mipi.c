@@ -10,7 +10,6 @@
 #include <mach/tc35876x.h>
 #include <mach/pxa168fb.h>
 #include <mach/mmp2_plat_ver.h>
-#include "../common.h"
 
 static struct fb_videomode video_modes_abilene[] = {
 	/* innolux WVGA mode info */
@@ -360,15 +359,13 @@ static int dsi_init(struct pxa168fb_info *fbi)
 	return 0;
 }
 
-#define		LCD_ISR_CLEAR_MASK		0xffff00cc
-
 static struct pxa168fb_mach_info mipi_lcd_info = {
 	.id = "GFX Layer",
 	.num_modes = 0,
 	.modes = NULL,
 	.sclk_div = 0xE0001108,
 	.pix_fmt = PIX_FMT_RGB565,
-	.isr_clear_mask	= LCD_ISR_CLEAR_MASK,
+	.isr_clear_mask	= LCD_ISR_CLEAR_MASK_PXA168,
 	/* don't care about io_pin_allocation_mode and dumb_mode
 	 * since the panel is hard connected with lcd panel path and
 	 * dsi1 output

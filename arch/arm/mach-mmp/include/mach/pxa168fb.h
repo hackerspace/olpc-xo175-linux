@@ -14,7 +14,6 @@
 /*              Header Files                      */
 /* ---------------------------------------------- */
 #include <linux/fb.h>
-#include <linux/earlysuspend.h>
 /* ---------------------------------------------- */
 /*              IOCTL Definition                  */
 /* ---------------------------------------------- */
@@ -337,6 +336,7 @@ struct _pxa168fb_cmu_pip {
 
 #ifdef __KERNEL__
 #include <linux/interrupt.h>
+#include <linux/earlysuspend.h>
 
 /*
  * PXA LCD controller private state.
@@ -609,6 +609,10 @@ struct fbi_info {
 
 /*VDMA*/
 #define EOF_TIMEOUT 20
+
+/* LCD ISR clear mask */
+#define LCD_ISR_CLEAR_MASK_PXA168       0xffffffff
+#define LCD_ISR_CLEAR_MASK_PXA910       0xffff00cc
 
 extern int fb_mode;
 extern struct device_attribute dev_attr_dsi;

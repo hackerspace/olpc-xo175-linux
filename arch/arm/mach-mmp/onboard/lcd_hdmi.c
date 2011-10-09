@@ -7,7 +7,6 @@
 #include <mach/mmp2.h>
 #include <mach/mmp3.h>
 #include <mach/pxa168fb.h>
-#include "../common.h"
 
 #define TV_FB_XRES      1920
 #define TV_FB_YRES      1080
@@ -194,6 +193,7 @@ static struct pxa168fb_mach_info tv_out_info = {
 	.modes = tv_video_modes,
 	.sclk_div = 0x60010005,
 	.pix_fmt = PIX_FMT_RGB565,
+	.isr_clear_mask	= LCD_ISR_CLEAR_MASK_PXA168,
 	.panel_rgb_reverse_lanes = 0,
 	.invert_composite_blank = 0,
 	.invert_pix_val_ena = 0,
@@ -248,7 +248,6 @@ void __init mmp3_add_tv_out(void)
 #endif
 
 #ifdef CONFIG_CPU_MMP2
-#define LCD_ISR_CLEAR_MASK_PXA168   0xffffffff
 static struct pxa168fb_mach_info mmp2_tv_hdmi_info __initdata = {
 	.id			= "GFX Layer - TV",
 	.sclk_div		= 0x5 | (1<<16) | (3<<30), /* HDMI PLL */
