@@ -47,6 +47,7 @@
 #include <plat/usb.h>
 #include <media/soc_camera.h>
 #include <mach/sram.h>
+#include <plat/pmem.h>
 
 #include "common.h"
 #include "onboard.h"
@@ -977,6 +978,10 @@ static void __init yellowstone_init(void)
 	mmp3_add_pwm(3);
 	platform_device_register(&yellowstone_lcd_backlight_devices);
 
+#ifdef CONFIG_ANDROID_PMEM
+	pxa_add_pmem();
+#endif
+
 #ifdef CONFIG_UIO_VMETA
 	mmp_init_vmeta();
 #endif
@@ -1017,5 +1022,6 @@ MACHINE_START(YELLOWSTONE, "YellowStone")
 	.nr_irqs	= YELLOWSTONE_NR_IRQS,
 	.init_irq	= mmp3_init_irq,
 	.timer		= &mmp3_timer,
+	.reserve	= mmp3_reserve,
 	.init_machine	= yellowstone_init,
 MACHINE_END
