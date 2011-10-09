@@ -798,8 +798,8 @@ static void set_dumb_panel_control(struct fb_info *info)
 	x |= mi->invert_composite_blank ? 0x00000040 : 0;
 	x |= (info->var.sync & FB_SYNC_COMP_HIGH_ACT) ? 0x00000020 : 0;
 	x |= mi->invert_pix_val_ena ? 0x00000010 : 0;
-	x |= (info->var.sync & FB_SYNC_VERT_HIGH_ACT) ? 0x00000008 : 0;
-	x |= (info->var.sync & FB_SYNC_HOR_HIGH_ACT) ? 0x00000004 : 0;
+	x |= (info->var.sync & FB_SYNC_VERT_HIGH_ACT) ? 0 : 0x00000008;
+	x |= (info->var.sync & FB_SYNC_HOR_HIGH_ACT) ? 0 : 0x00000004;
 	x |= mi->invert_pixclock ? 0x00000002 : 0;
 	writel(x, fbi->reg_base + intf_ctrl(fbi->id));	/* FIXME */
 }

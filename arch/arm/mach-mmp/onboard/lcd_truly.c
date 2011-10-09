@@ -322,7 +322,7 @@ static struct fb_videomode truly_video_modes[] = {
 		.vsync_len      = 2,
 		.upper_margin   = 2,
 		.lower_margin   = 2,
-		.sync           = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
+		.sync           = 0,
 	},
 };
 
