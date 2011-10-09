@@ -1489,6 +1489,10 @@ config SENSORS_CWGD
 	help
 		This driver provides support for CWGD.
 
-
+config SENSORS_ROHM_BH1772
+       tristate "Rohm BH1772 ambient light and Proximity sensor"
+       depends on I2C && INPUT
+       help
+       This driver provides support for BH1772 PS and ALS sensor.
 
 endif # HWMON
