@@ -1280,35 +1280,6 @@ again:
 	}
 }
 
-static void set_dma_control1(struct pxa168fb_info *fbi, int sync)
-{
-	u32 x = 0, x_bk = 0;
-
-	dev_dbg(fbi->fb_info->dev, "FB1: Enter %s\n", __func__);
-
-again:
-	/*
-	 * Get current settings.
-	 */
-	x_bk = x = dma_ctrl_read(fbi->id, 1);
-
-	/*
-	 * We trigger DMA on the falling edge of vsync if vsync is
-	 * active low, or on the rising edge if vsync is active high.
-	 */
-	if (!(sync & FB_SYNC_VERT_HIGH_ACT))
-		x |= 0x08000000;
-
-
-	if (x_bk != x)
-		dma_ctrl_write(fbi->id, 1, x);
-
-	if (FB_MODE_DUP) {
-		fbi = ovly_info.fbi[fb_dual];
-		goto again;
-	}
-}
-
 static void clear_vid_irq(struct pxa168fb_info *fbi)
 {
 	int isr = readl(fbi->reg_base + SPU_IRQ_ISR);
@@ -1616,7 +1587,6 @@ static int pxa168fb_set_par(struct fb_info *fi)
 	 * Configure global panel parameters.
 	 */
 	set_dma_control0(fbi);
-	set_dma_control1(fbi, fi->var.sync);
 
 	/* set video start address */
 	set_video_start(fi, fi->var.xoffset, fi->var.yoffset);

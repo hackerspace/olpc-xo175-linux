@@ -647,33 +647,6 @@ again:
 	}
 }
 
-static void set_dma_control1(struct pxa168fb_info *fbi, int sync)
-{
-	u32 x;
-
-	dev_dbg(fbi->fb_info->dev, "Enter %s\n", __func__);
-again:
-	/* Configure default bits: vsync triggers DMA, gated clock
-	 * enable, power save enable, configure alpha registers to
-	 * display 100% graphics, and set pixel command.
-	 */
-	x = dma_ctrl_read(fbi->id, 1);
-
-	/* We trigger DMA on the falling edge of vsync if vsync is
-	 * active low, or on the rising edge if vsync is active high.
-	 */
-	if (!(sync & FB_SYNC_VERT_HIGH_ACT))
-		x |= 0x08000000;
-	else
-		x &= ~0x08000000;
-	dma_ctrl_write(fbi->id, 1, x);
-
-	if (FB_MODE_DUP) {
-		fbi = gfx_info.fbi[fb_dual];
-		goto again;
-	}
-}
-
 static void clear_gfx_irq(struct pxa168fb_info *fbi)
 {
 	int isr = readl(fbi->reg_base + SPU_IRQ_ISR);
@@ -973,9 +946,6 @@ static void pxa168fb_set_regs(struct fb_info *info, int wait_vsync)
 	pr_debug("%s fbi %d\n", __func__, fbi->id);
 	/* Calculate clock divisor. */
 	set_clock_divider(fbi);
-
-	/* Configure dma ctrl regs. */
-	set_dma_control1(fbi, info->var.sync);
 
 	/* Configure global panel parameters. */
 	set_screen(fbi, mi);
@@ -1691,10 +1661,13 @@ static int pxa168fb_init_mode(struct fb_info *info,
 static void pxa168fb_set_default(struct pxa168fb_info *fbi,
 		struct pxa168fb_mach_info *mi)
 {
-	struct fb_var_screeninfo *var = &fbi->fb_info->var;
 	struct lcd_regs *regs = get_regs(fbi->id);
 	u32 dma_ctrl1 = 0x2012ff81, tmp;
 
+	/*
+	 * LCD Global control(LCD_TOP_CTRL) should be configed before
+	 * any other LCD registers read/write, or there maybe issues.
+	 */
 	tmp = readl(fbi->reg_base + LCD_TOP_CTRL);
 	tmp |= 0xfff0;		/* FIXME */
 	writel(tmp, fbi->reg_base + LCD_TOP_CTRL);
@@ -1718,12 +1691,13 @@ static void pxa168fb_set_default(struct pxa168fb_info *fbi,
 			dma_ctrl1 = 0x203eff00;	/* FIXME */
 	}
 
-	/* configure dma trigger @ vsync rising or falling edge */
-	if (!(var->sync & FB_SYNC_VERT_HIGH_ACT))
-		dma_ctrl1 |= 0x08000000;
-	else
-		dma_ctrl1 &= ~0x08000000;
-
+	/*
+	 * vsync in LCD internal controller is always positive,
+	 * we default configure dma trigger @vsync falling edge,
+	 * so that DMA idle time between DMA frame done and
+	 *  next DMA transfer begin can be as large as possible
+	 */
+	dma_ctrl1 |= CFG_VSYNC_INV_MASK;
 	dma_ctrl_write(fbi->id, 1, dma_ctrl1);
 }
 
