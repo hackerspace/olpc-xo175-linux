@@ -201,7 +201,7 @@ struct pxa168_overlay *v4l2_ovly[3];
 
 /* Local Helper functions */
 static void pxa168_ovly_cleanup_device(struct pxa168_overlay *ovly);
-static int debug = 1;
+static int debug;
 
 module_param(debug, bool, S_IRUGO);
 MODULE_PARM_DESC(debug, "Debug level (0-1)");
@@ -888,8 +888,8 @@ static int queue_setup(struct vb2_queue *vq, unsigned int *nbuffers,
 		alloc_ctxs[1] = ovly->alloc_ctx;
 	}
 
-	v4l2_dbg(1, debug, ovly->vdev, "queue_setup, buffers=%d planes=%d \
-			 size=%d\n", *nbuffers, *nplanes, size);
+	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: queue_setup, buffers=%d "
+		"planes=%d, size=%d\n", ovly->id, *nbuffers, *nplanes, size);
 
 	return 0;
 }
@@ -914,8 +914,9 @@ static int buffer_prepare(struct vb2_buffer *vb)
 	u32 size = PAGE_ALIGN(ovly->pix.sizeimage);
 
 	if (vb2_plane_size(vb, 0) < size) {
-	v4l2_dbg(1, debug, ovly->vdev, "%s data will not fit into plane \
-		 (%lu < %u)\n",	__func__, vb2_plane_size(vb, 0), size);
+		v4l2_dbg(1, debug, ovly->vdev, "ovly %d: %s data will not fit "
+			"into plane (%lu < %u)\n", ovly->id, __func__,
+			 vb2_plane_size(vb, 0), size);
 		return -EINVAL;
 	}
 	vb2_set_plane_payload(vb, 0, size);
@@ -924,8 +925,9 @@ static int buffer_prepare(struct vb2_buffer *vb)
 		return ret;
 
 	if (vb2_plane_size(vb, 1) < size) {
-	v4l2_dbg(1, debug, ovly->vdev, "%s data will not fit into plane \
-		 (%lu < %u)\n",	__func__, vb2_plane_size(vb, 1), size);
+		v4l2_dbg(1, debug, ovly->vdev, "ovly %d: %s data will not fit "
+			"into plane (%lu < %u)\n", ovly->id, __func__,
+			 vb2_plane_size(vb, 1), size);
 		return -EINVAL;
 	}
 	vb2_set_plane_payload(vb, 1, size);
@@ -937,7 +939,7 @@ static int buffer_finish(struct vb2_buffer *vb)
 {
 	struct pxa168_overlay *ovly = vb2_get_drv_priv(vb->vb2_queue);
 
-	v4l2_dbg(1, debug, ovly->vdev, "%s\n", __func__);
+	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: %s\n", ovly->id, __func__);
 	return 0;
 }
 
@@ -954,7 +956,7 @@ static void buffer_queue(struct vb2_buffer *vb)
 	 * queue */
 	spin_lock_irqsave(&ovly->vbq_lock, flags);
 	list_add_tail(&buf->list, &ovly->dma_queue);
-	buf->to_show = vid_imasks
+	buf->to_show = vid_imask(ovly->id)
 		& readl(ovly->reg_base + SPU_IRQ_ENA);
 	spin_unlock_irqrestore(&ovly->vbq_lock, flags);
 }
@@ -963,7 +965,7 @@ static int start_streaming(struct vb2_queue *vq)
 {
 	struct pxa168_overlay *ovly = vb2_get_drv_priv(vq);
 
-	v4l2_dbg(1, debug, ovly->vdev, "%s\n", __func__);
+	v4l2_dbg(1, debug, ovly->vdev, "ovly %d : %s\n", ovly->id, __func__);
 	return 0;
 }
 
@@ -971,7 +973,7 @@ static int start_streaming(struct vb2_queue *vq)
 static int stop_streaming(struct vb2_queue *vq)
 {
 	struct pxa168_overlay *ovly = vb2_get_drv_priv(vq);
-	v4l2_dbg(1, debug, ovly->vdev, "%s\n", __func__);
+	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: %s\n", ovly->id, __func__);
 	return 0;
 }
 
@@ -1010,14 +1012,15 @@ static int pxa168_ovly_release(struct file *file)
 	unsigned int ret;
 	unsigned long flags = 0;
 
-	v4l2_dbg(1, debug, ovly->vdev, "Entering %s\n", __func__);
+	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: Entering %s\n",
+		 ovly->id, __func__);
 
 	if (!ovly)
 		return 0;
 	q = &ovly->vbq;
 
-	v4l2_dbg(1, debug, ovly->vdev, "vb2_is_streaming(q) %d\n",\
-		 vb2_is_streaming(q));
+	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: vb2_is_streaming(q) %d\n",
+		 ovly->id, vb2_is_streaming(q));
 	spin_lock_irqsave(&ovly->vbq_lock, flags);
 	if (ovly->streaming) {
 		vb2_streamoff(q, BUF_TYPE);
@@ -1035,7 +1038,8 @@ static int pxa168_ovly_release(struct file *file)
 	ovly->opened -= 1;
 	file->private_data = NULL;
 
-	v4l2_dbg(1, debug, ovly->vdev, "Exiting %s\n", __func__);
+	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: Exiting %s\n",
+		 ovly->id, __func__);
 	return ret;
 }
 
@@ -1045,7 +1049,8 @@ static int pxa168_ovly_open(struct file *file)
 	struct vb2_queue *q;
 
 	ovly = video_drvdata(file);
-	v4l2_dbg(1, debug, ovly->vdev, "Entering %s\n", __func__);
+	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: Entering %s\n",
+		ovly->id, __func__);
 
 	if (ovly == NULL)
 		return -ENODEV;
@@ -1076,7 +1081,8 @@ static int pxa168_ovly_open(struct file *file)
 
 	spin_lock_init(&ovly->vbq_lock);
 
-	v4l2_dbg(1, debug, ovly->vdev, "Exiting %s\n", __func__);
+	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: Exiting %s\n",
+		ovly->id, __func__);
 	return 0;
 }
 
@@ -1086,7 +1092,7 @@ static unsigned int pxa168_poll(struct file *file,
 	struct pxa168_overlay *ovly = file->private_data;
 	struct vb2_queue *q = &ovly->vbq;
 
-	v4l2_dbg(1, debug, ovly->vdev, "%s\n", __func__);
+	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: %s\n", ovly->id, __func__);
 
 	/*
 	if (BUF_TYPE != ovly->type)
@@ -1174,8 +1180,9 @@ static int vidioc_try_fmt_vid_out_mplane(struct file *file, void *fh,
 		return -EBUSY;
 
 	if (2 != f->fmt.pix_mp.num_planes) {
-		v4l2_dbg(1, debug, ovly->vdev, "Error! plane number %d \
-			 is not supported\n", f->fmt.pix_mp.num_planes);
+		v4l2_dbg(1, debug, ovly->vdev, "Error! ovly %d: plane number "
+			"%d is not supported\n", ovly->id,
+			 f->fmt.pix_mp.num_planes);
 		return -EINVAL;
 	}
 
@@ -1193,10 +1200,10 @@ static int vidioc_s_fmt_vid_out_mplane(struct file *file, void *fh,
 	unsigned int x;
 	int ret = 0;
 
-	v4l2_dbg(1, debug, ovly->vdev, "In %s\n", __func__);
+	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: In %s\n", ovly->id, __func__);
 	if (ovly->streaming) {
-		v4l2_dbg(1, debug, ovly->vdev, "Error, %s device busy\n",\
-			 __func__);
+		v4l2_dbg(1, debug, ovly->vdev, "ovly %d: Error, %s device "
+			 "busy\n", ovly->id, __func__);
 		return -EBUSY;
 	}
 
@@ -1210,15 +1217,16 @@ static int vidioc_s_fmt_vid_out_mplane(struct file *file, void *fh,
 		q->type = ovly->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
 		ovly->pix = f->fmt.pix;
 	} else {
-		v4l2_dbg(1, debug, ovly->vdev, "Invalid fmt %d\n", f->type);
+		v4l2_dbg(1, debug, ovly->vdev, "ovly %d: Invalid fmt %d\n",
+			 ovly->id, f->type);
 		ret = -EINVAL;
 		goto s_fmt;
 	}
 
 	pxa168_ovly_try_format(&ovly->pix);
 
-	/* We rely on base layer driver zoomed size to get the LCD size */
-	x = readl(&regs->g_size_z);
+	/* We rely on base layer screen size to get the LCD size */
+	x = readl(&regs->screen_size);
 	ovly->fbuf.fmt.height = x >> 16;
 	ovly->fbuf.fmt.width = x & 0xffff;
 
@@ -1262,7 +1270,7 @@ static int vidioc_s_fmt_vid_overlay(struct file *file, void *fh,
 	int err = -EINVAL;
 	struct v4l2_window *win = &f->fmt.win;
 
-	v4l2_dbg(1, debug, ovly->vdev, "In %s\n", __func__);
+	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: In %s\n", ovly->id, __func__);
 	mutex_lock(&ovly->lock);
 
 	err = pxa168_ovly_new_window(&ovly->crop, &ovly->win, &ovly->fbuf, win);
@@ -1308,8 +1316,9 @@ static int vidioc_s_fmt_vid_overlay(struct file *file, void *fh,
 
 	pxa168_ovly_set_colorkeyalpha(ovly);
 
-	v4l2_dbg(1, debug, ovly->vdev, "chromakey %d, global_alpha %d\n",
-		 ovly->win.chromakey, ovly->win.global_alpha);
+	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: chromakey %d, "
+		"global_alpha %d\n", ovly->id, ovly->win.chromakey,
+		 ovly->win.global_alpha);
 
 	mutex_unlock(&ovly->lock);
 	return 0;
@@ -1480,7 +1489,7 @@ static int vidioc_reqbufs(struct file *file, void *fh,
 	struct pxa168_overlay *ovly = fh;
 	struct vb2_queue *q = &ovly->vbq;
 
-	v4l2_dbg(1, debug, ovly->vdev, "%s:\n", __func__);
+	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: %s\n", ovly->id, __func__);
 	/* if memory is not mmp or userptr
 	   return error */
 	if ((V4L2_MEMORY_MMAP != req->memory) &&
@@ -1494,7 +1503,8 @@ static int vidioc_reqbufs(struct file *file, void *fh,
 
 	INIT_LIST_HEAD(&ovly->dma_queue);
 
-	v4l2_dbg(1, debug, ovly->vdev, "%s: vb2_reqbufs\n", __func__);
+	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: %s: vb2_reqbufs\n",
+		 ovly->id, __func__);
 	return vb2_reqbufs(q, req);
 }
 
@@ -1530,7 +1540,7 @@ static int vidioc_qbuf(struct file *file, void *fh, struct v4l2_buffer *buffer)
 		 * buffer->index, buffer->m.userptr); */
 	}
 
-	v4l2_dbg(1, debug, ovly->vdev, "qbuf id %d vb %x\n",
+	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: qbuf id %d vb %x\n", ovly->id,
 			 buffer->index, (unsigned int)q->bufs[buffer->index]);
 
 	return vb2_qbuf(q, buffer);
@@ -1552,9 +1562,9 @@ static int vidioc_dqbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 	else
 		/* Call videobuf_dqbuf for  blocking mode */
 		ret = vb2_dqbuf(q, (struct v4l2_buffer *) b, 0);
-
-	v4l2_dbg(1, debug, ovly->vdev, "dqbuf id %d vb %x\n",
-			 b->index, (unsigned int)q->bufs[b->index]);
+	if (!ret)
+		v4l2_dbg(1, debug, ovly->vdev, "ovly %d: dqbuf id %d vb %x\n",
+			ovly->id, b->index, (unsigned int)q->bufs[b->index]);
 	mutex_unlock(&ovly->lock);
 	return ret;
 }
@@ -1568,7 +1578,8 @@ static int vidioc_streamon(struct file *file, void *fh, enum v4l2_buf_type i)
 	struct pxa168_buf *frm, *frm_tmp;
 	int ret = 0;
 
-	v4l2_dbg(1, debug, ovly->vdev, "enter stream on!\n");
+	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: enter stream on!\n",
+		 ovly->id);
 
 	if (ovly->streaming)
 		return -EBUSY;
@@ -1627,13 +1638,15 @@ again:
 		dma_ctrl_set(ovly->id, 0, CFG_DMA_ENA_MASK, CFG_DMA_ENA_MASK);
 	}
 	if (OVLY_MODE_DUP) {
-		v4l2_dbg(1, debug, ovly->vdev, "enabled++ in dual mode\n");
 		ovly = v4l2_ovly[fb_dual];
+		v4l2_dbg(1, debug, ovly->vdev, "ovly %d enabled++ in dual "
+			"mode\n", ovly->id);
 		goto again;
 	}
 
 stream_on:
-	v4l2_dbg(1, debug, ovly->vdev, "stream on!\n");
+	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: leave stream on!\n",
+		 ovly->id);
 	mutex_unlock(ovly_lock);
 	return ret;
 }
@@ -1642,12 +1655,13 @@ static int vidioc_streamoff(struct file *file, void *fh, enum v4l2_buf_type i)
 {
 	struct pxa168_overlay *ovly = fh;
 	spinlock_t *vbq_lock = &ovly->vbq_lock;
+	struct mutex *ovly_lock = &ovly->lock;
 	unsigned long flags = 0;
 
 	if (!ovly->streaming)
 		return -EINVAL;
 
-	mutex_lock(&ovly->lock);
+	mutex_lock(ovly_lock);
 	/* We have to hack in clone mode to avoid lock/unlock different ovly. */
 	spin_lock_irqsave(vbq_lock, flags);
 	vb2_streamoff(&ovly->vbq, i);
@@ -1658,8 +1672,8 @@ again:
 		goto again;
 	}
 	spin_unlock_irqrestore(vbq_lock, flags);
-	mutex_unlock(&ovly->lock);
-	v4l2_dbg(1, debug, ovly->vdev, "stream off!\n");
+	mutex_unlock(ovly_lock);
+	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: stream off!\n", ovly->id);
 	return 0;
 }
 
@@ -1824,8 +1838,9 @@ irqreturn_t pxa168_ovly_isr(int id)
 irq:
 	spin_unlock(&ovly->vbq_lock);
 
-	v4l2_dbg(1, debug, ovly->vdev, "buf %d is active! paddr[0] 0x%x\n",
-		 ovly->cur_frm->vb.v4l2_buf.index, ovly->paddr[0]);
+	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: buf %d is active! "
+		 "paddr[0] 0x%x\n", ovly->id, ovly->cur_frm->vb.v4l2_buf.index,
+		 ovly->paddr[0]);
 
 	return IRQ_HANDLED;
 }
@@ -1855,8 +1870,8 @@ static int __init pxa168_ovly_setup_video_data(struct pxa168_overlay *ovly)
 	pix->priv = 0;
 	pix->colorspace = V4L2_COLORSPACE_JPEG;
 
-	/* We rely on base layer driver zoomed size to get the LCD size */
-	x = readl(&regs->g_size_z);
+	/* We rely on base layer screen size to get the LCD size */
+	x = readl(&regs->screen_size);
 	ovly->fbuf.fmt.height = x >> 16;
 	ovly->fbuf.fmt.width = x & 0xffff;
 
@@ -2070,7 +2085,7 @@ static int __init pxa168_ovly_probe(struct platform_device *pdev)
 	 */
 	ovly->reg_base = ioremap_nocache(res->start, res->end - res->start);
 	if (ovly->reg_base == NULL) {
-		printk("pxa168fb_ovly: no enough memory 2!\n");
+		pr_err("pxa168fb_ovly: no enough memory 2!\n");
 		ret = -ENOMEM;
 		goto error0;
 	}
@@ -2100,7 +2115,7 @@ static int __init pxa168_ovly_probe(struct platform_device *pdev)
 	if (ret)
 		goto error0;
 
-	v4l2_dbg(1, debug, ovly->vdev, "v4l2_ovly probed\n");
+	v4l2_dbg(1, debug, ovly->vdev, "v4l2_ovly %d probed\n", ovly->id);
 	return 0;
 
 error0:
