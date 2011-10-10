@@ -500,7 +500,7 @@ struct isp_video_buffer *mvisp_video_buffer_next(struct isp_video *video,
 		spin_lock_irqsave(&pipe->lock, flags);
 		pipe->state &= ~state;
 		spin_unlock_irqrestore(&pipe->lock, flags);
-
+		set_vd_dmaqueue_flg(video, ISP_VIDEO_DMAQUEUE_UNDERRUN);
 		return NULL;
 	}
 
