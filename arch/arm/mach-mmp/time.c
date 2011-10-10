@@ -22,6 +22,7 @@
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
 #include <linux/clockchips.h>
+#include <linux/delay.h>
 
 #include <linux/io.h>
 #include <linux/irq.h>
@@ -86,8 +87,8 @@ static inline uint32_t timer_read(int counter)
 		} while (val2 != val);
 	} else {
 		__raw_writel(1, TIMERS_VIRT_BASE + TMR_CVWR(0));
-		while (delay--)
-			cpu_relax();
+		/* We should delay 3 times of ticks to get the timer update */
+		udelay(DELAY_US);
 		val =  __raw_readl(TIMERS_VIRT_BASE + TMR_CVWR(0));
 	}
 
