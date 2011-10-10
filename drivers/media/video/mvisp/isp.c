@@ -757,6 +757,11 @@ static int mvisp_register_entities(struct mvisp_device *isp)
 					       flags);
 		if (ret < 0)
 			goto done;
+
+		media_entity_call(&sensor->entity, link_setup,
+			&sensor->entity.pads[0], &input->pads[pad], flags);
+		media_entity_call(input, link_setup,
+			&sensor->entity.pads[0], &input->pads[pad], flags);
 	}
 
 	ret = v4l2_device_register_subdev_nodes(&isp->v4l2_dev);

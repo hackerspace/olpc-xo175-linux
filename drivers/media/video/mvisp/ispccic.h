@@ -47,6 +47,11 @@ enum isp_ccic_identity {
 #define CCIC_PAD_SOURCE			1
 #define CCIC_PADS_NUM			2
 
+enum ccic_input_type {
+	CCIC_INPUT_NONE = 0x0,
+	CCIC_INPUT_SENSOR = 0x1,
+};
+
 enum ccic_output_type {
 	CCIC_OUTPUT_NONE = 0x0,
 	CCIC_OUTPUT_ISP = 0x1,
@@ -77,6 +82,7 @@ struct isp_ccic_device {
 	struct mvisp_device			*isp;
 	struct isp_video			video_out;
 	enum ccic_output_type		output;
+	enum ccic_input_type		input;
 
 	enum isp_ccic_identity			ccic_id;
 	enum isp_pipeline_stream_state	state;
