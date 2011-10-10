@@ -37,13 +37,19 @@ static const struct ov8820_datafmt ov8820_colour_fmts[] = {
 	{V4L2_MBUS_FMT_RGB565_2X8_LE, V4L2_COLORSPACE_SRGB}
 };
 
+enum ov8820_output_type {
+	OV8820_OUTPUT_NONE = 0x0,
+	OV8820_OUTPUT_CCIC = 0x1,
+};
+
 struct ov8820_core {
-	struct v4l2_subdev sd;
-	struct sensor_platform_data *plat_data;
+	struct v4l2_subdev			sd;
+	struct sensor_platform_data	*plat_data;
 	struct media_pad pads[MAX_OV8820_PADS_NUM];
 	struct v4l2_mbus_framefmt formats[MAX_OV8820_PADS_NUM];
 	u32 width;
 	u32 height;
+	enum ov8820_output_type	output;
 };
 
 enum ov8820_register_access_e {
@@ -386,7 +392,6 @@ static int ov8820_set_format(struct v4l2_subdev *sd,
 				struct v4l2_subdev_fh *fh,
 				struct v4l2_subdev_format *fmt)
 {
-	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct ov8820_core *core = to_ov8820_core(sd);
 	struct v4l2_mbus_framefmt *format;
 	int ret;
@@ -503,6 +508,27 @@ static int ov8820_subdev_open(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int ov8820_link_setup(struct media_entity *entity,
+			   const struct media_pad *local,
+			   const struct media_pad *remote, u32 flags)
+{
+	struct v4l2_subdev *sd = media_entity_to_v4l2_subdev(entity);
+	struct ov8820_core *core = to_ov8820_core(sd);
+
+	switch (local->index | media_entity_type(remote->entity)) {
+	case OV8820_PAD_SOURCE | MEDIA_ENT_T_V4L2_SUBDEV:
+		if (flags & MEDIA_LNK_FL_ENABLED)
+			core->output |= OV8820_OUTPUT_CCIC;
+		else
+			core->output &= ~OV8820_OUTPUT_CCIC;
+		break;
+	default:
+		/* Link from camera to CCIC is fixed... */
+		return -EINVAL;
+	}
+	return 0;
+}
+
 static const struct v4l2_subdev_pad_ops ov8820_pad_ops = {
 	.enum_mbus_code = ov8820_enum_mbus_code,
 	.enum_frame_size = ov8820_enum_frame_size,
@@ -536,6 +562,12 @@ static const struct v4l2_subdev_ops ov8820_ops = {
 static const struct v4l2_subdev_internal_ops ov8820_v4l2_internal_ops = {
 	.open = ov8820_subdev_open,
 };
+
+/* media operations */
+static const struct media_entity_operations ov8820_media_ops = {
+	.link_setup = ov8820_link_setup,
+};
+
 
 /****************************************************************************
 			I2C Client & Driver
@@ -577,7 +609,7 @@ static int ov8820_probe(struct i2c_client *client,
 
 	me = &sd->entity;
 	pads[OV8820_PAD_SOURCE].flags = MEDIA_PAD_FL_SOURCE;
-	me->ops = NULL;
+	me->ops = &ov8820_media_ops;
 	ret = media_entity_init(me, MAX_OV8820_PADS_NUM, pads, 0);
 	if (ret < 0)
 		return ret;
