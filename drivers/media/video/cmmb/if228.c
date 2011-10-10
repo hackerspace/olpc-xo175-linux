@@ -770,16 +770,16 @@ static int cmmb_v4l_open(struct file *filp)
 
 	pdata = cmmb->spi->dev.platform_data;
 
-	if (pdata->power_on)
-		pdata->power_on();
-
 	filp->private_data = cmmb;
 
 	clear_bit(0, &cmmb->flags);
 
 	mutex_lock(&cmmb->s_mutex);
 	(cmmb->users)++;
+	if ((cmmb->users == 1) && (pdata->power_on))
+		pdata->power_on();
 	mutex_unlock(&cmmb->s_mutex);
+
 	return 0;
 }
 
@@ -790,12 +790,10 @@ static int cmmb_v4l_release(struct file *filp)
 
 	mutex_lock(&cmmb->s_mutex);
 	(cmmb->users)--;
-	mutex_unlock(&cmmb->s_mutex);
-
 	pdata = cmmb->spi->dev.platform_data;
-
-	if (pdata->power_off)
+	if ((cmmb->users == 0) && (pdata->power_off))
 		pdata->power_off();
+	mutex_unlock(&cmmb->s_mutex);
 
 	return 0;
 }
