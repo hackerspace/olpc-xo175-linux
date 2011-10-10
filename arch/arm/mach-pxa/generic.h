@@ -74,6 +74,8 @@ typedef enum {
 } BOARD_ID_TYPE;
 long get_board_id(void);
 
+long get_pmic_id(void);
+
 /* Flash Types */
 enum {
 	CS0_XIP_FLASH	= 1,

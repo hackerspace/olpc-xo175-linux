@@ -212,6 +212,27 @@ long get_board_id(void)
 }
 EXPORT_SYMBOL(get_board_id);
 
+/* PMIC ID based on MICC= cmdline token get from OBM */
+static long g_pmic_id = -1;
+static int __init set_pmic_id(char *p)
+{
+	int ret;
+	ret = strict_strtol(p, 16, &g_pmic_id);
+	if (ret < 0) {
+		printk(KERN_ERR "%s g_pmic_id is not right\n", __func__);
+		return ret;
+	}
+	printk(KERN_INFO "%s g_pmic_id = %lx\n", __func__, g_pmic_id);
+	return 1;
+}
+__setup("MICC=", set_pmic_id);
+
+long get_pmic_id(void)
+{
+	return g_pmic_id;
+}
+EXPORT_SYMBOL(get_pmic_id);
+
 void __init pxa_map_io(void)
 {
 	iotable_init(ARRAY_AND_SIZE(common_io_desc));
