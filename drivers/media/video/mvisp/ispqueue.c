@@ -555,7 +555,7 @@ int mvisp_video_queue_qbuf(struct isp_video_queue *queue,
 
 	buf->state = ISP_BUF_STATE_QUEUED;
 	list_add_tail(&buf->stream, &queue->queue);
-	isp_video_buffer_query(buf, vbuf);
+	memcpy(&buf->vbuf, vbuf, sizeof(*vbuf));
 
 	if (queue->streaming) {
 		spin_lock_irqsave(&queue->irqlock, flags);
