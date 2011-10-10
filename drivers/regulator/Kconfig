@@ -263,6 +263,12 @@ config REGULATOR_88PM8607
 	help
 	  This driver supports 88PM8607 voltage regulator chips.
 
+config REGULATOR_88PM800
+       bool "Marvell 88PM800 Power regulators"
+       depends on MFD_88PM80X=y
+       help
+         This driver supports 88PM800 voltage regulator chips.
+
 config REGULATOR_ISL6271A
 	tristate "Intersil ISL6271A Power regulator"
 	depends on I2C
