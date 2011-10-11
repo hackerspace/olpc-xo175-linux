@@ -313,6 +313,13 @@ static int pxa_ssp_set_dai_clkdiv(struct snd_soc_dai *cpu_dai,
 		}
 		pxa_ssp_write_reg(ssp, SSACD, val);
 		break;
+	case PXA_SSP_AUDIO_DIV_ACPS:
+		val = pxa_ssp_read_reg(ssp, SSACD);
+		val &= ~0x70;
+		pxa_ssp_write_reg(ssp, SSACD, val);
+		val |= SSACD_ACPS(div);
+		pxa_ssp_write_reg(ssp, SSACD, val);
+		break;
 	case PXA_SSP_DIV_SCR:
 		pxa_ssp_set_scr(ssp, div);
 		break;
@@ -645,6 +652,36 @@ static int pxa_ssp_hw_params(struct snd_pcm_substream *substream,
 		}
 
 		pxa_ssp_write_reg(ssp, SSPSP, sspsp);
+		break;
+	default:
+		break;
+	}
+
+	switch (params_rate(params)) {
+	case 48000:
+		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_ACPS, 0x2);
+		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_SCDB, PXA_SSP_CLK_SCDB_4);
+		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_ACDS, 0x1);
+		break;
+	case 44100:
+		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_ACPS, 0x1);
+		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_SCDB, PXA_SSP_CLK_SCDB_4);
+		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_ACDS, 0x1);
+		break;
+	case 32000:
+		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_ACPS, 0x4);
+		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_SCDB, PXA_SSP_CLK_SCDB_4);
+		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_ACDS, 0x3);
+		break;
+	case 16000:
+		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_ACPS, 0x4);
+		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_SCDB, PXA_SSP_CLK_SCDB_4);
+		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_ACDS, 0x4);
+		break;
+	case 8000:
+		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_ACPS, 0x4);
+		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_SCDB, PXA_SSP_CLK_SCDB_4);
+		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_ACDS, 0x5);
 		break;
 	default:
 		break;
