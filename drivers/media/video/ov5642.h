@@ -25,9 +25,9 @@ struct resv_size {
 
 #define RESV(x)		(1 << (x))
 enum ov5642_resv_support {
-	OV5642_FMT_CIF = 1,
+	OV5642_FMT_QCIF = 1,
 	OV5642_FMT_QVGA,
-	OV5642_FMT_QCIF,
+	OV5642_FMT_CIF,
 	OV5642_FMT_HALF_VGA,
 	OV5642_FMT_VGA,
 	OV5642_FMT_D1,

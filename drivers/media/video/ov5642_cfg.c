@@ -15,9 +15,9 @@
 int bus_type_index;
 static struct resv_size ov5642_resv[] = {
 	{   0,    0},
-	{ 176,  144},	/* CIF */
+	{ 176,  144},	/* QCIF */
 	{ 320,  240},	/* QVGA */
-	{ 352,  288},	/* QCIF */
+	{ 352,  288},	/* CIF */
 	{ 480,  320},	/* HALF_VGA */
 	{ 640,  480},	/* VGA */
 	{ 720,  480},	/* D1 */
