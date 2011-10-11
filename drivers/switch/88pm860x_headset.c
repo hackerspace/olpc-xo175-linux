@@ -403,11 +403,11 @@ static int headset_switch_suspend(struct platform_device *pdev,
 	struct pm860x_headset_info *info = platform_get_drvdata(pdev);
 	struct headset_switch_data *switch_data = info->psw_data_headset;
 
-	/* disable MIC/HOOK detection when headset is connected; no operation is
-	 * needed for headphone */
+	/*  enable HOOK detection when headset is connected, thus hook press
+	 *  can wake up core from suspend mode */
 	if (switch_data->state == PM860X_HEADSET_ADD) {
 		pm860x_set_bits(info->i2c, PM8607_MIC_DECTION,
-				PM8607_MIC_DET_EN_MIC_DET, 0);
+				PM8607_MIC_DET_EN_MIC_DET, 1);
 	}
 
 	return 0;
