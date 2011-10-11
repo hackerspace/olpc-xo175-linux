@@ -258,4 +258,10 @@ config CHARGER_ISL9519
 	  The ISL9519Q is designed for applications where the system power
 	  is either the battery pack or the output of the regulator/charger.
 
+config CHARGER_MAX8900
+	tristate "Maxim MAX89000 Charger driver"
+	depends on GPIOLIB
+	help
+	  Say Y to include support for MAX8900 charger driver.
+
 endif # POWER_SUPPLY
