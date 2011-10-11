@@ -1252,312 +1252,318 @@ void enter_lowpower_mode(int state)
 #endif
 
 	if (state == POWER_MODE_D1) {
+		ispt_power_state_d1();
 		power_state = PXA95x_PM_S0D1C2;
 		/* D1 is represented by LCDREFRESH */
 		pm_select_wakeup_src(PXA95x_PM_LCDREFRESH, wakeup_src);
-
-		/* need the same action as for D2 */
-		if (PXA9xx_Force_D1 == ForceLPM) {
-			LastForceLPM = PXA9xx_Force_D1;
-			AD1D0ER = ForceLPMWakeup;
-		}
-		pm_preset_standby();
-		end_tick = OSCR4;
-
-		if (is_wkr_mg1_1468())
-			enable_axi_lpm_entry();
-
-		if (is_wkr_mg1_1677())
-			save_dma_registers();
-
-		/* PWRMODE = D1 */
-		PWRMODE = (PXA95x_PM_S0D1C2 | PXA95x_PM_I_Q_BIT);
-		do {
-			pollreg = PWRMODE;
-		} while (pollreg != (PXA95x_PM_S0D1C2 | PXA95x_PM_I_Q_BIT));
-
-#if defined(CONFIG_PXA9XX_ACIPC)
-		if (0 == clear_DDR_avail_flag()) {
-			CHECK_APPS_COMM_SYNC
-#endif
-#ifdef CONFIG_PXA_MIPSRAM
-			    MIPS_RAM_ADD_32K_TIME_STAMP(end_tick);
-			MIPS_RAM_ADD_PM_TRACE(ENTER_D1_MIPS_RAM);
-#endif
-			ispt_power_state_d1();
-			pm_logger_app_add_trace(6, PM_D1_ENTRY, end_tick,
-						pollreg, CKENA, CKENB, CKENC,
-						get_mipi_reference_control(),
-						cpupwr);
-
-			sram = (unsigned int)pxa95x_pm_regs.sram_map;
-			pxa95x_cpu_standby(sram + 0x8000, sram + 0xa000 - 4,
-					   (unsigned int)&start_tick,
-					   power_state);
-#if defined(CONFIG_PXA9XX_ACIPC)
-			set_DDR_avail_flag();
-		} else
-			printk(KERN_WARNING "******EDDR WARNING: %s DDR_req=1 \
-					shared flag=1. should not happen. \
-					check the apps-comm sync \n", __func__);
-#endif
-
-		if (is_wkr_mg1_1677())
-			restore_dma_registers();
-
-		if (is_wkr_mg1_1468())
-			enable_axi_lpm_exit();
-#ifdef CONFIG_PXA_MIPSRAM
-		MIPS_RAM_ADD_PM_TRACE(EXIT_D1_MIPS_RAM);
-		MIPS_RAM_ADD_32K_TIME_STAMP(start_tick);
-#endif
-#ifdef CONFIG_PXA95x_DVFM_STATS
-		calc_switchtime(end_tick, start_tick);
-#endif
-
-		wakeup_data = pm_postset_standby();
-
-		pm_logger_app_add_trace(1, PM_D1_EXIT, start_tick, wakeup_data);
-
-	} else if (state == POWER_MODE_D2) {
-		power_state = PXA95x_PM_S0D2C2;
-		pm_select_wakeup_src(PXA95x_PM_STANDBY, wakeup_src);
-		pm_preset_standby();
-		end_tick = OSCR4;
-
-		/* pm logger debug - print when long wakeup */
-		debug_check_active_time(end_tick, last_d2exit_time);
-
-		/* if VCTCXO_EN is forced we aill not enable shutdown when
-		 * entering D2 */
-		if (likely(!ForceVCTCXO_EN))
-			clk_disable(clk_pout);
-		if (PXA9xx_Force_D2 == ForceLPM) {
-			/*Setting to forcedD2wakeups */
-			LastForceLPM = PXA9xx_Force_D2;
-			AD2D0ER = ForceLPMWakeup;
-		}
-#if defined(CONFIG_PXA9XX_ACIPC)
-		if (0 == clear_DDR_avail_flag()) {
-			CHECK_APPS_COMM_SYNC
-#endif
-#ifdef CONFIG_PXA_MIPSRAM
-			    MIPS_RAM_ADD_32K_TIME_STAMP(end_tick);
-			MIPS_RAM_ADD_PM_TRACE(ENTER_D2_MIPS_RAM);
-#endif
-			ispt_power_state_d2();
-
-			if (is_wkr_mg1_1358()) {
-				accr_gcfs = ((ACCR & ACCR_GCFS_MASK) >>
-					     ACCR_GCFS_OFFSET);
-				accr = ACCR;
-				accr &= ~ACCR_GCFS_MASK;
-				ACCR = accr;
-				do {
-					acsr = ACSR;
-				} while (((accr & ACCR_GCFS_MASK) >>
-					  ACCR_GCFS_OFFSET !=
-					  ((acsr & ACSR_GCFS_MASK) >>
-					   ACSR_GCFS_OFFSET)));
+		/* check if any IRQ/FIQ pending by disable */
+		if (!(ICIP || ICIP2 || ICIP3 || ICFP || ICFP2 || ICFP3)) {
+			/* need the same action as for D2 */
+			if (PXA9xx_Force_D1 == ForceLPM) {
+				LastForceLPM = PXA9xx_Force_D1;
+				AD1D0ER = ForceLPMWakeup;
 			}
+			pm_preset_standby();
+			end_tick = OSCR4;
+
 			if (is_wkr_mg1_1468())
 				enable_axi_lpm_entry();
 
 			if (is_wkr_mg1_1677())
 				save_dma_registers();
 
-			/*if (d2_led_toggle_flag) {
-			   configuring direction
-			   __raw_writel(0x00100000, (void *)&(__REG(0x40e00404)));
-			   clearing gpio 52  (turning on D10 led)
-			   __raw_writel(0x00100000, (void *)&(__REG(0x40e00028)));
-			   } */
+#if defined(CONFIG_PXA9XX_ACIPC)
+			if (0 == clear_DDR_avail_flag()) {
+				CHECK_APPS_COMM_SYNC
+#endif
+#ifdef CONFIG_PXA_MIPSRAM
+				MIPS_RAM_ADD_32K_TIME_STAMP(end_tick);
+				MIPS_RAM_ADD_PM_TRACE(ENTER_D1_MIPS_RAM);
+#endif
+				/* PWRMODE = D1 */
+				PWRMODE = (PXA95x_PM_S0D1C2 | PXA95x_PM_I_Q_BIT);
+				do {
+					pollreg = PWRMODE;
+				} while (pollreg != (PXA95x_PM_S0D1C2 | PXA95x_PM_I_Q_BIT));
 
-			/* PWRMODE = D2 */
-			PWRMODE = (PXA95x_PM_S0D2C2 | PXA95x_PM_I_Q_BIT);
-			do {
-				pollreg = PWRMODE;
-			} while (pollreg != (PXA95x_PM_S0D2C2 |
-					     PXA95x_PM_I_Q_BIT));
+				pm_logger_app_add_trace(6, PM_D1_ENTRY, end_tick,
+						pollreg, CKENA, CKENB, CKENC,
+						get_mipi_reference_control(),
+						cpupwr);
 
-			pm_logger_app_add_trace(7, PM_D2_ENTRY, end_tick,
+				sram = (unsigned int)pxa95x_pm_regs.sram_map;
+				pxa95x_cpu_standby(sram + 0x8000, sram + 0xa000 - 4,
+						(unsigned int)&start_tick,
+						power_state);
+#if defined(CONFIG_PXA9XX_ACIPC)
+				set_DDR_avail_flag();
+			} else
+				printk(KERN_WARNING "******EDDR WARNING: %s DDR_req=1 \
+						shared flag=1. should not happen. \
+						check the apps-comm sync \n", __func__);
+#endif
+
+			if (is_wkr_mg1_1677())
+				restore_dma_registers();
+
+			if (is_wkr_mg1_1468())
+				enable_axi_lpm_exit();
+#ifdef CONFIG_PXA_MIPSRAM
+			MIPS_RAM_ADD_PM_TRACE(EXIT_D1_MIPS_RAM);
+			MIPS_RAM_ADD_32K_TIME_STAMP(start_tick);
+#endif
+#ifdef CONFIG_PXA95x_DVFM_STATS
+			calc_switchtime(end_tick, start_tick);
+#endif
+
+			wakeup_data = pm_postset_standby();
+
+			pm_logger_app_add_trace(1, PM_D1_EXIT, start_tick, wakeup_data);
+		} else {
+			pm_clear_wakeup_src(wakeup_src);
+		}
+	} else if (state == POWER_MODE_D2) {
+		ispt_power_state_d2();
+		power_state = PXA95x_PM_S0D2C2;
+		pm_select_wakeup_src(PXA95x_PM_STANDBY, wakeup_src);
+		/* check if any IRQ/FIQ pending by disable */
+		if (!(ICIP || ICIP2 || ICIP3 || ICFP || ICFP2 || ICFP3)) {
+			pm_preset_standby();
+			end_tick = OSCR4;
+
+			/* pm logger debug - print when long wakeup */
+			debug_check_active_time(end_tick, last_d2exit_time);
+
+			/* if VCTCXO_EN is forced we aill not enable shutdown when
+			 * entering D2 */
+			if (likely(!ForceVCTCXO_EN))
+				clk_disable(clk_pout);
+			if (PXA9xx_Force_D2 == ForceLPM) {
+				/*Setting to forcedD2wakeups */
+				LastForceLPM = PXA9xx_Force_D2;
+				AD2D0ER = ForceLPMWakeup;
+			}
+#if defined(CONFIG_PXA9XX_ACIPC)
+			if (0 == clear_DDR_avail_flag()) {
+				CHECK_APPS_COMM_SYNC
+#endif
+#ifdef CONFIG_PXA_MIPSRAM
+				MIPS_RAM_ADD_32K_TIME_STAMP(end_tick);
+				MIPS_RAM_ADD_PM_TRACE(ENTER_D2_MIPS_RAM);
+#endif
+				if (is_wkr_mg1_1358()) {
+					accr_gcfs = ((ACCR & ACCR_GCFS_MASK) >>
+							ACCR_GCFS_OFFSET);
+					accr = ACCR;
+					accr &= ~ACCR_GCFS_MASK;
+					ACCR = accr;
+					do {
+						acsr = ACSR;
+					} while (((accr & ACCR_GCFS_MASK) >>
+							ACCR_GCFS_OFFSET !=
+							((acsr & ACSR_GCFS_MASK)
+							 >> ACSR_GCFS_OFFSET)));
+				}
+				if (is_wkr_mg1_1468())
+					enable_axi_lpm_entry();
+
+				if (is_wkr_mg1_1677())
+					save_dma_registers();
+
+				/*if (d2_led_toggle_flag) {
+				  configuring direction
+				  __raw_writel(0x00100000, (void *)&(__REG(0x40e00404)));
+				  clearing gpio 52  (turning on D10 led)
+				  __raw_writel(0x00100000, (void *)&(__REG(0x40e00028)));
+				  } */
+
+				/* PWRMODE = D2 */
+				PWRMODE = (PXA95x_PM_S0D2C2 | PXA95x_PM_I_Q_BIT);
+				do {
+					pollreg = PWRMODE;
+				} while (pollreg != (PXA95x_PM_S0D2C2 |
+							PXA95x_PM_I_Q_BIT));
+
+				pm_logger_app_add_trace(7, PM_D2_ENTRY, end_tick,
 						pollreg, CKENA, CKENB, CKENC,
 						OSCC,
 						get_mipi_reference_control(),
 						cpupwr);
 
-			sram = (unsigned int)pxa95x_pm_regs.sram_map;
-			pxa95x_cpu_standby(sram + 0x8000, sram + 0xa000 - 4,
-					   (unsigned int)&start_tick,
-					   power_state);
+				sram = (unsigned int)pxa95x_pm_regs.sram_map;
+				pxa95x_cpu_standby(sram + 0x8000, sram + 0xa000 - 4,
+						(unsigned int)&start_tick,
+						power_state);
 
-			if (is_wkr_mg1_1468())
-				enable_axi_lpm_exit();
+				if (is_wkr_mg1_1468())
+					enable_axi_lpm_exit();
 
-			if (is_wkr_mg1_1677())
-				restore_dma_registers();
+				if (is_wkr_mg1_1677())
+					restore_dma_registers();
 
-			if (is_wkr_mg1_1358()) {
-				accr = ACCR;
-				accr &= ~ACCR_GCFS_MASK;
-				accr |= ((accr_gcfs << ACCR_GCFS_OFFSET) &
-					 ACCR_GCFS_MASK);
-				ACCR = accr;
-				do {
-					acsr = ACSR;
-				} while (((accr & ACCR_GCFS_MASK) >>
-					  ACCR_GCFS_OFFSET !=
-					  ((acsr & ACSR_GCFS_MASK) >>
-					   ACSR_GCFS_OFFSET)));
-			}
+				if (is_wkr_mg1_1358()) {
+					accr = ACCR;
+					accr &= ~ACCR_GCFS_MASK;
+					accr |= ((accr_gcfs << ACCR_GCFS_OFFSET) &
+							ACCR_GCFS_MASK);
+					ACCR = accr;
+					do {
+						acsr = ACSR;
+					} while (((accr & ACCR_GCFS_MASK) >>
+							ACCR_GCFS_OFFSET !=
+							((acsr & ACSR_GCFS_MASK)
+							 >> ACSR_GCFS_OFFSET)));
+				}
 
-			/* for pm logger debug */
-			turn_on_pm_logger_print();
+				/* for pm logger debug */
+				turn_on_pm_logger_print();
 
-			/* if (d2_led_toggle_flag) {
-			   setting gpio 52 to high (turning on D10 led)
-			   __raw_writel(0x00100000, (void *)&(__REG(0x40e0001C)));
-			   } */
+				/* if (d2_led_toggle_flag) {
+				   setting gpio 52 to high (turning on D10 led)
+				   __raw_writel(0x00100000, (void *)&(__REG(0x40e0001C)));
+				   } */
 #if defined(CONFIG_PXA9XX_ACIPC)
-			set_DDR_avail_flag();
+				set_DDR_avail_flag();
 #endif
-			DVFMLPMGlobalCount.D2_Enter_Exit_count++;
+				DVFMLPMGlobalCount.D2_Enter_Exit_count++;
 #ifdef CONFIG_PXA_MIPSRAM
-			MIPS_RAM_ADD_PM_TRACE(EXIT_D2_MIPS_RAM);
-			MIPS_RAM_ADD_32K_TIME_STAMP(start_tick);
+				MIPS_RAM_ADD_PM_TRACE(EXIT_D2_MIPS_RAM);
+				MIPS_RAM_ADD_32K_TIME_STAMP(start_tick);
 #endif
 #if defined(CONFIG_PXA9XX_ACIPC)
-		} else
-			printk(KERN_ERR "******EDDR WARNING: %s DDR_req=1 "
-			       "shared flag=1. should not happen. "
-			       "check the apps-comm sync\n", __func__);
+			} else
+				printk(KERN_ERR "******EDDR WARNING: %s DDR_req=1 "
+						"shared flag=1. should not happen. "
+						"check the apps-comm sync\n", __func__);
 #endif
 
-		/* if forced we will not enabled/disable VCTCXO shutdown */
-		if (likely(!ForceVCTCXO_EN))
-			clk_enable(clk_pout);
+			/* if forced we will not enabled/disable VCTCXO shutdown */
+			if (likely(!ForceVCTCXO_EN))
+				clk_enable(clk_pout);
 #ifdef CONFIG_PXA95x_DVFM_STATS
-		calc_switchtime(end_tick, start_tick);
+			calc_switchtime(end_tick, start_tick);
 #endif
-		last_d2exit_time = start_tick;
-		wakeup_data = pm_postset_standby();
-		pm_logger_app_add_trace(1, PM_D2_EXIT, start_tick, wakeup_data);
-
+			last_d2exit_time = start_tick;
+			wakeup_data = pm_postset_standby();
+			pm_logger_app_add_trace(1, PM_D2_EXIT, start_tick, wakeup_data);
+		} else
+			pm_clear_wakeup_src(wakeup_src);
 	} else if (state == POWER_MODE_CG) {
-
 		ispt_power_state_cgm();
-
 		pm_select_wakeup_src(PXA95x_PM_CG, wakeup_src);
 
-		if (cpu_is_pxa955() || cpu_is_pxa968()) {
-			/* Enable ACCU internal interrupt */
-			ICMR2 |= 0x00100000;
-			/* Turn on wakeup to core during idle mode */
-			aicsr = AICSR;
-			/* enable bit 10 - wakeup during core idle */
-			aicsr |= AICSR_WEIDLE;
-			/* do not write to status bits (write to clear) */
-			aicsr &= ~AICSR_STATUS_BITS;
-			AICSR = aicsr;
-		}
-
-		if (PXA9xx_Force_CGM == ForceLPM) {
-			LastForceLPM = PXA9xx_Force_CGM;
-			ACGD0ER = ForceLPMWakeup;
-		}
-		end_tick = OSCR4;
+		/* check if any IRQ/FIQ pending by disable */
+		if (!(ICIP || ICIP2 || ICIP3 || ICFP || ICFP2 || ICFP3)) {
+			if (cpu_is_pxa955() || cpu_is_pxa968()) {
+				/* Enable ACCU internal interrupt */
+				ICMR2 |= 0x00100000;
+				/* Turn on wakeup to core during idle mode */
+				aicsr = AICSR;
+				/* enable bit 10 - wakeup during core idle */
+				aicsr |= AICSR_WEIDLE;
+				/* do not write to status bits (write to clear) */
+				aicsr &= ~AICSR_STATUS_BITS;
+				AICSR = aicsr;
+			}
+			if (PXA9xx_Force_CGM == ForceLPM) {
+				LastForceLPM = PXA9xx_Force_CGM;
+				ACGD0ER = ForceLPMWakeup;
+			}
+			end_tick = OSCR4;
 
 #ifdef CONFIG_PXA_MIPSRAM
-		MIPS_RAM_ADD_32K_TIME_STAMP(end_tick);
-		MIPS_RAM_ADD_PM_TRACE(ENTER_CGM_MIPS_RAM);
+			MIPS_RAM_ADD_32K_TIME_STAMP(end_tick);
+			MIPS_RAM_ADD_PM_TRACE(ENTER_CGM_MIPS_RAM);
 #endif
 
-		/* PWRMODE = C1 */
-		PWRMODE = (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT);
-		do {
-			pollreg = PWRMODE;
-		} while (pollreg != (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT));
+			/* PWRMODE = C1 */
+			PWRMODE = (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT);
+			do {
+				pollreg = PWRMODE;
+			} while (pollreg != (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT));
 
-		cken[0] = CKENA;
-		cken[1] = CKENB;
-		cken[2] = CKENC;
+			cken[0] = CKENA;
+			cken[1] = CKENB;
+			cken[2] = CKENC;
 
-		pm_logger_app_add_trace(6, PM_CGM_ENTRY, end_tick, pollreg,
+			pm_logger_app_add_trace(6, PM_CGM_ENTRY, end_tick, pollreg,
 					cken[0], cken[1], cken[2],
 					get_mipi_reference_control(), cpupwr);
 
-		/* writing 1 to AGENP[2] to enable the wakeup detection
-		 * window */
-		AGENP |= AGENP_SAVE_WK;
+			/* writing 1 to AGENP[2] to enable the wakeup detection
+			 * window */
+			AGENP |= AGENP_SAVE_WK;
 
-		/*
-		 * Turn off all clocks except PX1 bus clock,
-		 * DMEMC clock and reserved bits
-		 */
-		CKENA = ckena_rsvd_bit_mask | (1 << 8);
-		reg = CKENA;
-		CKENB = ckenb_rsvd_bit_mask | (1 << 29);
-		reg = CKENB;
-		CKENC = ckenc_rsvd_bit_mask;
-		reg = CKENC;
+			/*
+			 * Turn off all clocks except PX1 bus clock,
+			 * DMEMC clock and reserved bits
+			 */
+			CKENA = ckena_rsvd_bit_mask | (1 << 8);
+			reg = CKENA;
+			CKENB = ckenb_rsvd_bit_mask | (1 << 29);
+			reg = CKENB;
+			CKENC = ckenc_rsvd_bit_mask;
+			reg = CKENC;
 
-		/*
-		 * making sure that registers are written with the correct value
-		 * before moving on
-		 */
-		while ((CKENA != (ckena_rsvd_bit_mask | (1 << 8))) ||
-		       (CKENB != (ckenb_rsvd_bit_mask | (1 << 29))) ||
-		       (CKENC != ckenc_rsvd_bit_mask)) {
-		};
-		/* Turn off PX1 bus clock */
-		CKENB &= ~(1 << 29);
+			/*
+			 * making sure that registers are written with the correct value
+			 * before moving on
+			 */
+			while ((CKENA != (ckena_rsvd_bit_mask | (1 << 8))) ||
+					(CKENB != (ckenb_rsvd_bit_mask | (1 << 29))) ||
+					(CKENC != ckenc_rsvd_bit_mask)) {
+			};
+			/* Turn off PX1 bus clock */
+			CKENB &= ~(1 << 29);
 
-		if (is_wkr_mg1_1274())
-			pxa95x_pm_clear_Dcache_L2Cache();
-		/* enter clock gated mode by entering core idle */
-		/*
-		   Since timer functional clock is disable on CGM exit, we can't use the original workaround (JIRA )
-		   Instead we will use constant delay at CGM exist to insure L2 is ready
-		   loop was calibrated to create ~25uSec delay.
-		   therefor for PP 2-7 set 6000 loop count and for PP1 set 1500
-		 */
-		if (cur_op < 2)
-			pm_enter_cgm_deepidle
-			    (CPU_LOOP_COUNT_ON_EXIT_CGM_LOW_PP);
-		else
-			pm_enter_cgm_deepidle
-			    (CPU_LOOP_COUNT_ON_EXIT_CGM_HIGH_PP);
-		if (is_wkr_mg1_1274())
-			pxa95x_pm_invalidate_Dcache_L2Cache();
-		/* restore clocks after exiting from clock gated mode */
-		CKENA = cken[0];
-		reg = CKENA;
-		CKENB = cken[1];
-		reg = CKENB;
-		CKENC = cken[2];
-		reg = CKENC;
-		if (cpu_is_pxa955() || cpu_is_pxa968()) {
-			/* clear AICSR wakeup status */
-			aicsr = AICSR;
-			/*do not write to status bits (write to clear) */
-			aicsr &= ~(AICSR_STATUS_BITS | AICSR_WEIDLE);
-			/*enable bit 10 - wakeup during core idle */
-			aicsr |= AICSR_WSIDLE;
-			AICSR = aicsr;
-		}
+			if (is_wkr_mg1_1274())
+				pxa95x_pm_clear_Dcache_L2Cache();
+			/* enter clock gated mode by entering core idle */
+			/*
+			   Since timer functional clock is disable on CGM exit, we can't use the original workaround (JIRA )
+			   Instead we will use constant delay at CGM exist to insure L2 is ready
+			   loop was calibrated to create ~25uSec delay.
+			   therefor for PP 2-7 set 6000 loop count and for PP1 set 1500
+			   */
+			if (cur_op < 2)
+				pm_enter_cgm_deepidle
+					(CPU_LOOP_COUNT_ON_EXIT_CGM_LOW_PP);
+			else
+				pm_enter_cgm_deepidle
+					(CPU_LOOP_COUNT_ON_EXIT_CGM_HIGH_PP);
+			if (is_wkr_mg1_1274())
+				pxa95x_pm_invalidate_Dcache_L2Cache();
+			/* restore clocks after exiting from clock gated mode */
+			CKENA = cken[0];
+			reg = CKENA;
+			CKENB = cken[1];
+			reg = CKENB;
+			CKENC = cken[2];
+			reg = CKENC;
+			if (cpu_is_pxa955() || cpu_is_pxa968()) {
+				/* clear AICSR wakeup status */
+				aicsr = AICSR;
+				/*do not write to status bits (write to clear) */
+				aicsr &= ~(AICSR_STATUS_BITS | AICSR_WEIDLE);
+				/*enable bit 10 - wakeup during core idle */
+				aicsr |= AICSR_WSIDLE;
+				AICSR = aicsr;
+			}
 
-		start_tick = OSCR4;
+			start_tick = OSCR4;
 #ifdef CONFIG_PXA95x_DVFM_STATS
-		calc_switchtime(end_tick, start_tick);
+			calc_switchtime(end_tick, start_tick);
 #endif
-		wakeup_data = pm_postset_clockgate();
-		DVFMLPMGlobalCount.CGM_Enter_Exit_count++;
+			wakeup_data = pm_postset_clockgate();
+			DVFMLPMGlobalCount.CGM_Enter_Exit_count++;
 #ifdef CONFIG_PXA_MIPSRAM
-		MIPS_RAM_ADD_PM_TRACE(EXIT_CGM_MIPS_RAM);
-		MIPS_RAM_ADD_32K_TIME_STAMP(start_tick);
-		pm_logger_app_add_trace(1, PM_CGM_EXIT, start_tick,
+			MIPS_RAM_ADD_PM_TRACE(EXIT_CGM_MIPS_RAM);
+			MIPS_RAM_ADD_32K_TIME_STAMP(start_tick);
+			pm_logger_app_add_trace(1, PM_CGM_EXIT, start_tick,
 					wakeup_data);
 #endif
+		} else
+			pm_clear_wakeup_src(wakeup_src);
 	}
 	/* this indicates exit d2 or cgm */
 	ispt_power_state_exit_lpm();
