@@ -22,9 +22,25 @@
 
 #include <asm/mach-types.h>
 #include <mach/audio.h>
+#include <plat/ssp.h>
 
 #include "../codecs/88pm860x-codec.h"
 #include "pxa-ssp.h"
+
+/*
+ * SSP audio private data
+ */
+struct ssp_priv {
+	struct ssp_device *ssp;
+	unsigned int sysclk;
+	int dai_fmt;
+#ifdef CONFIG_PM
+	uint32_t	cr0;
+	uint32_t	cr1;
+	uint32_t	to;
+	uint32_t	psp;
+#endif
+};
 
 static int saarb_pm860x_init(struct snd_soc_pcm_runtime *rtd);
 
@@ -114,6 +130,38 @@ static int saarb_i2s_startup(struct snd_pcm_substream * substream)
 	return 0;
 }
 
+static int saarb_pcm_startup(struct snd_pcm_substream * substream)
+{
+	pxa95x_ssp_mfp_init(true);
+	pr_info("[saarb_pcm_startup]: switch to BSSP3\n");
+	return 0;
+}
+
+static int saarb_pcm_prepare(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	struct ssp_priv *priv = snd_soc_dai_get_drvdata(cpu_dai);
+	struct ssp_device *ssp = priv->ssp;
+	u32 sscr0, sscr1;
+
+	sscr0 = __raw_readl(ssp->mmio_base + SSCR0);
+	sscr1 = __raw_readl(ssp->mmio_base + SSCR1);
+
+	__raw_writel(sscr0 | 0x41D0003F, ssp->mmio_base + SSCR0);
+	__raw_writel(sscr1 | 0x03B01DC0, ssp->mmio_base + SSCR1);
+	__raw_writel(0x02100004, ssp->mmio_base + SSPSP);
+
+	return 0;
+}
+
+static int saarb_pcm_shutdown(struct snd_pcm_substream * substream)
+{
+	pxa95x_ssp_mfp_init(false);
+	pr_info("[saarb_pcm_startup]: switch to GSSP1\n");
+	return 0;
+}
+
 static int saarb_hdmi_hw_params(struct snd_pcm_substream *substream,
 				struct snd_pcm_hw_params *params)
 {
@@ -147,6 +195,12 @@ static struct snd_soc_ops saarb_i2s_ops = {
 	.startup	= saarb_i2s_startup,
 };
 
+static struct snd_soc_ops saarb_pcm_ops = {
+	.startup	= saarb_pcm_startup,
+	.shutdown	= saarb_pcm_shutdown,
+	.prepare	= saarb_pcm_prepare,
+};
+
 static struct snd_soc_ops saarb_hdmi_ops = {
 	.hw_params	= saarb_hdmi_hw_params,
 	.startup	= saarb_hdmi_startup,
@@ -163,6 +217,15 @@ static struct snd_soc_dai_link saarb_dai[] = {
 		.init		= saarb_pm860x_init,
 		.ops		= &saarb_i2s_ops,
 	},
+	{
+		.name		= "88PM860x PCM",
+		.stream_name	= "PCM Audio",
+		.cpu_dai_name	= "pxa-ssp-dai.2",
+		.codec_dai_name	= "88pm860x-pcm",
+		.platform_name	= "pxa-pcm-audio",
+		.codec_name	= "88pm860x-codec",
+		.ops		= &saarb_pcm_ops,
+	}
 };
 
 static struct snd_soc_dai_link saarb_hdmi_dai[] = {
