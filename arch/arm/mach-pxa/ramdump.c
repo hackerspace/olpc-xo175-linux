@@ -524,6 +524,9 @@ void ramdump_save_dynamic_context(const char *str, int err,
 			/* 0 is always appended even after n chars copied */
 			strncat(ramdump_data.text, info, len - 1);
 	}
+#ifdef CONFIG_PXA_MIPSRAM
+	MIPS_RAM_ADD_TRACE(MIPSRAM_LOG_END_MARK_EVENT);
+#endif
 }
 EXPORT_SYMBOL(ramdump_save_dynamic_context);
 
