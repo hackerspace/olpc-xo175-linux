@@ -1103,7 +1103,7 @@ unsigned int pm_core_pwdn(unsigned int powerState)
 			break;
 		case CPU_PDWN_LPM_EXIT:
 		case CPU_PDWN_D0CS_EXIT:
-			cpupwr = 0x0 | CPU_PDWN_ENABLE;
+			cpupwr = CPU_PDWN_SETALLWAYS | CPU_PDWN_ENABLE;
 			break;
 		}
 		/*configuring direction */

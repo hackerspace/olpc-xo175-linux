@@ -1645,7 +1645,7 @@ mcr p15, 1, \va, c7, c15, 3
 ENTRY(pm_enter_deepidle)
 @ r0=minimal number of 3.25MHz ticks from entry until return
 
-stmfd sp!,{r4}
+stmfd sp!,{r4,lr}
 mrc p15, 0, r1, c2, c0, 2   @ TTBCR
 tst r1, #7
 mrceq p15, 0, r4, c2, c0, 0 @ TTBCR[2:0]=0 => using TTB0;
@@ -1665,12 +1665,26 @@ mcreq p15, 0, r2, c2, c0, 0 @ TTBCR[0]=0 => using TTB0;
 mcrne p15, 0, r2, c2, c0, 1 @ else using TTB1;
 isb
 
+bl pm_enter_deepidle_int
+
+restore_ttb:
+/* Restore the original TTB */
+mrc p15, 0, r1, c2, c0, 2 @ TTBCR
+tst r1, #7
+mcreq p15, 0, r4, c2, c0, 0 @ TTBCR[0]=0 => using TTB0;
+mcrne p15, 0, r4, c2, c0, 1 @ else using TTB1;
+isb
+
+ldmfd sp!,{r4,lr}
+mov pc, lr
+ENDPROC(pm_enter_deepidle)
+
+ENTRY(pm_enter_deepidle_int)
 @ The counter 0 of the timer membase is statically remapped
 @ to the following address 0xf2a00010. this is hardcoded for optimization
 ldr r1,=0xf2a00010
 ldr r2,[r1]
 mov r3, r0
-adr r12, restore_ttb
 b enter_idle
 @ the below code must fit into 1 cache line,
 @ so no L2 access after wakeup and before wait ends
@@ -1678,6 +1692,7 @@ b enter_idle
 enter_idle:
 dsb @ WFI may enter a low-power mode
 wfi
+ldr r2,[r1]
 wait:
 ldr r0,[r1]
 sub r0,r0,r2
@@ -1688,19 +1703,13 @@ ble wait
 @ before L2 access is safe.
 @ "dsb" or "isb" do NOT guarantee this (don't prevent fetching forward).
 @ An unconditional indirect branch "bx r12" DOES.
-bx r12
-restore_ttb:
-/* Restore the original TTB */
-mrc p15, 0, r1, c2, c0, 2 @ TTBCR
-tst r1, #7
-mcreq p15, 0, r4, c2, c0, 0 @ TTBCR[0]=0 => using TTB0;
-mcrne p15, 0, r4, c2, c0, 1 @ else using TTB1;
-isb
-
-ldmfd sp!,{r4}
-mov pc, lr
-ENDPROC(pm_enter_deepidle)
-
+bx lr
+@ end of cache line
+nop
+.align 5
+@ skip 1 line so if prefetch occurs despite of bx above the line won't be used
+nop
+ENDPROC(pm_enter_deepidle_int)
 @*****************************************************************************
 @ pm_enter_cgm_deepidle
 @
