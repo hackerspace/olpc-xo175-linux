@@ -517,7 +517,10 @@ static irqreturn_t mv_otg_inputs_irq(int irq, void *dev)
 	struct mv_otg *mvotg = dev;
 
 	/* The clock may disabled at this time */
-	mv_otg_enable(mvotg);
+	if (!mvotg->active) {
+		mv_otg_enable(mvotg);
+		mv_otg_init_irq(mvotg);
+	}
 	mv_otg_run_state_machine(mvotg, 0);
 
 	return IRQ_HANDLED;
