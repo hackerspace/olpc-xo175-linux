@@ -35,7 +35,7 @@
 #include "ispqueue.h"
 
 
-#define ISP_VIDEO_DRIVER_NAME		"ispvideo"
+#define ISP_VIDEO_DRIVER_NAME		"mvsocisp"
 #define ISP_VIDEO_DRIVER_VERSION	KERNEL_VERSION(0, 0, 1)
 enum isp_video_pipe_far_end {
 	FAR_END_ISP_DISPLAY = 0,
