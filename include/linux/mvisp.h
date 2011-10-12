@@ -25,6 +25,7 @@
 #ifndef ISP_USER_H
 #define ISP_USER_H
 
+#include <linux/videodev2.h>
 #include <linux/types.h>
 
 struct v4l2_dxoipc_set_fb {
