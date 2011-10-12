@@ -69,6 +69,8 @@ struct isp_video_buffer {
 	/* For dummy buffers */
 	int				order;
 	struct page		*dummy_pages;
+
+	unsigned int delay;
 };
 
 struct isp_video_queue_operations {

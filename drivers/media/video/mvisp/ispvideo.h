@@ -185,7 +185,7 @@ void mvisp_video_unregister(struct isp_video *video);
 struct isp_video_buffer *mvisp_video_buffer_next(struct isp_video *video,
 					      unsigned int error);
 struct isp_video_buffer
-	*mvisp_video_get_next_work_buf(struct isp_video *video);
+	*mvisp_video_get_next_work_buf(struct isp_video *video, int delay);
 
 void mvisp_video_resume(struct isp_video *video, int continuous);
 struct media_pad *mvisp_video_remote_pad(struct isp_video *video);

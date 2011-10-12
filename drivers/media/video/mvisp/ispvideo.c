@@ -379,7 +379,8 @@ static void isp_video_buffer_queue(struct isp_video_buffer *buf)
 	return;
 }
 
-struct isp_video_buffer *mvisp_video_get_next_work_buf(struct isp_video *video)
+struct isp_video_buffer *mvisp_video_get_next_work_buf(
+	struct isp_video *video, int delay)
 {
 	struct isp_video_buffer *buf;
 	unsigned long flags;
@@ -407,6 +408,18 @@ struct isp_video_buffer *mvisp_video_get_next_work_buf(struct isp_video *video)
 	buf = list_first_entry(&video->dmaidlequeue, struct isp_video_buffer,
 				   irqlist);
 	list_del(&buf->irqlist);
+
+	switch (video->video_type) {
+	case ISP_VIDEO_INPUT:
+	case ISP_VIDEO_DISPLAY:
+	case ISP_VIDEO_CODEC:
+		buf->delay = delay;
+		break;
+	default:
+		buf->delay = 0;
+		break;
+	}
+
 	list_add_tail(&buf->irqlist, &video->dmabusyqueue);
 
 	if (list_empty(&video->dmaidlequeue)) {
@@ -466,20 +479,28 @@ struct isp_video_buffer *mvisp_video_buffer_next(struct isp_video *video,
 
 	buf = list_first_entry(&video->dmabusyqueue, struct isp_video_buffer,
 			       irqlist);
-	list_del(&buf->irqlist);
+	if (buf->delay == 0) {
+		list_del(&buf->irqlist);
 
-	ktime_get_ts(&ts);
-	buf->vbuf.timestamp.tv_sec = ts.tv_sec;
-	buf->vbuf.timestamp.tv_usec = ts.tv_nsec / NSEC_PER_USEC;
+		ktime_get_ts(&ts);
+		buf->vbuf.timestamp.tv_sec = ts.tv_sec;
+		buf->vbuf.timestamp.tv_usec = ts.tv_nsec / NSEC_PER_USEC;
 
-	if (video == pipe->output[0] || video == pipe->output[1])
-		buf->vbuf.sequence = atomic_inc_return(&pipe->frame_number);
-	else
-		buf->vbuf.sequence = atomic_read(&pipe->frame_number);
+		if (video == pipe->output[0] || video == pipe->output[1])
+			buf->vbuf.sequence =
+				atomic_inc_return(&pipe->frame_number);
+		else
+			buf->vbuf.sequence = atomic_read(&pipe->frame_number);
 
-	buf->state = error ? ISP_BUF_STATE_ERROR : ISP_BUF_STATE_DONE;
+		buf->state = error ? ISP_BUF_STATE_ERROR : ISP_BUF_STATE_DONE;
 
-	wake_up(&buf->wait);
+		wake_up(&buf->wait);
+	}
+
+	list_for_each_entry(buf, &video->dmabusyqueue, irqlist) {
+		if (buf->delay > 0)
+			buf->delay--;
+	}
 
 	if (list_empty(&video->dmaidlequeue)) {
 		if (queue->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
@@ -507,6 +528,16 @@ struct isp_video_buffer *mvisp_video_buffer_next(struct isp_video *video,
 	buf = list_first_entry(&video->dmaidlequeue, struct isp_video_buffer,
 			       irqlist);
 	list_del(&buf->irqlist);
+	switch (video->video_type) {
+	case ISP_VIDEO_INPUT:
+	case ISP_VIDEO_DISPLAY:
+	case ISP_VIDEO_CODEC:
+		buf->delay = 1;
+		break;
+	default:
+		buf->delay = 0;
+		break;
+	}
 	list_add_tail(&buf->irqlist, &video->dmabusyqueue);
 	set_vd_dmaqueue_flg(video, ISP_VIDEO_DMAQUEUE_QUEUED);
 
