@@ -733,8 +733,7 @@ static int mvisp_register_entities(struct mvisp_device *isp)
 					sensor_type);
 			input = &isp->mvisp_ccic1.subdev.entity;
 			pad = CCIC_PAD_SINK;
-			flags = MEDIA_LNK_FL_IMMUTABLE
-			      | MEDIA_LNK_FL_ENABLED;
+			flags = 0;
 			break;
 		case ISP_INTERFACE_CCIC_2:
 			pxa_ccic_set_sensor_type(&isp->mvisp_ccic2,
