@@ -34,6 +34,7 @@
 #include <mach/pxa95xfb.h>
 #include <linux/switch.h>
 
+#include <mach/audio.h>
 #include <mach/usb-regs.h>
 #include <plat/pxa27x_keypad.h>
 
@@ -634,9 +635,63 @@ static void __init init_lcd(void)
 }
 #endif
 
+static mfp_cfg_t pxa95x_abu_mfp_cfg[] = {
+	/* ABU of MG1 */
+	GPIO63_ABU_RXD,
+	GPIO64_ABU_TXD,
+	GPIO65_GPIO,	/* no use for ABU/SSI, and configure GPIO70 to AF0 to save power when using ABU (~0.5mA) */
+	GPIO66_ABU_FRM,
+	GPIO67_ABU_CLK,
+};
+
+static mfp_cfg_t pxa95x_bssp2_mfp_cfg[] = {
+	/* BSSP2 of MG1 */
+	GPIO63_SSP2_RXD,
+	GPIO64_SSP2_TXD,
+	GPIO65_SSP2_SYSCLK,
+	GPIO66_SSP2_FRM,
+	GPIO67_SSP2_CLK,
+};
+
+static mfp_cfg_t bssp3_mfp_cfg[] = {
+	/* BSSP3 of MG1*/
+	GPIO58_BSSP3_CLK,
+	GPIO59_BSSP3_FRM,
+	GPIO60_BSSP3_TXD,
+	GPIO61_BSSP3_RXD,
+};
+
+static mfp_cfg_t gssp1_mfp_cfg[] = {
+	/* BSSP3 of MG1*/
+	GPIO58_GSSP1_CLK,
+	GPIO59_GSSP1_FRM,
+	GPIO60_GSSP1_TXD,
+	GPIO61_GSSP1_RXD,
+};
+
+static void abu_mfp_init(bool abu)
+{
+	if (abu)
+		pxa3xx_mfp_config(ARRAY_AND_SIZE(pxa95x_abu_mfp_cfg));
+	else
+		pxa3xx_mfp_config(ARRAY_AND_SIZE(pxa95x_bssp2_mfp_cfg));
+}
+
+static void ssp3_mfp_init(bool bssp)
+{
+	if (bssp)
+		pxa3xx_mfp_config(ARRAY_AND_SIZE(bssp3_mfp_cfg));
+	else
+		pxa3xx_mfp_config(ARRAY_AND_SIZE(gssp1_mfp_cfg));
+}
+
 static void __init init(void)
 {
 	regulator_init();
+
+	set_abu_init_func(abu_mfp_init);
+	set_ssp_init_func(ssp3_mfp_init);
+
 	platform_device_add_data(&pxa95x_device_i2c1, &i2c1_pdata,
 				 sizeof(i2c1_pdata));
 	platform_device_add_data(&pxa95x_device_i2c2, &i2c2_pdata,
