@@ -254,7 +254,6 @@ int pm860x_tsi_enable_xy_measurements(void)
 int pm860x_enable_pen_down_irq(int enable)
 {
 	int ret;
-	pr_debug("----->levante_enable_pen_down_irq begin\n");
 
 	if (enable) {
 		pr_debug("----->levante_enable_pen_down_irq:enable\n");
@@ -268,18 +267,13 @@ int pm860x_enable_pen_down_irq(int enable)
 		ret = pm860x_set_bits(touch->i2c, PM8607_INT_MASK_3,PM8607_INT_EN_PEN, PM8607_INT_EN_PEN);
 		if(ret != 0)
 			pr_debug( "----->levante_enable_pen_down_irq - fail \n");
-		else
-			pr_debug( "----->levante_enable_pen_down_irq - success \n");
 	} else {
 		/* disable pen down IRQ */
 		pr_debug("----->levante_enable_pen_down_irq:disable\n");
 		ret = pm860x_set_bits(touch->i2c, PM8607_INT_MASK_3,	PM8607_INT_EN_PEN, 0x00);
 		if(ret != 0)
 			pr_debug( "----->levante_disable_pen_down_irq - fail \n");
-		else
-			pr_debug("----->levante_disable_pen_down_irq - success \n");
 	}
-	pr_debug( "------->levante_enable_pen_down_irq end\n");
 
 	return ret;
 }
@@ -347,7 +341,6 @@ static void pm860x_ts_worker(struct work_struct *work)
 	static u16 numOfReports = 2;
 #endif
 
-	pr_debug("-------->levante_ts_worker - start\n");
 #ifdef TSI_MIPS_RAM
 	#ifdef CONFIG_PXA_MIPSRAM
 		MIPS_RAM_ADD_TRACE((unsigned int)0x70000);/*0x70000 is the trace ID need to make sure it is updated in MipsRam_linux.xls in event sheet*/
@@ -358,7 +351,6 @@ static void pm860x_ts_worker(struct work_struct *work)
 	mutex_lock(&tsi_lock);
 	retVal = pm860x_tsi_readxy(&touch->tem_x, &touch->tem_y, &pen_state);
 	pr_debug("---->levante_ts_worker - pen state [0x%x][0:up 1:down] X = %d\t, Y = %d\n", pen_state,touch->tem_x,touch->tem_y);
-	printk(KERN_DEBUG "---->levante_ts_worker - pen state [0x%x][0:up 1:down] X = %d\t, Y = %d\n", pen_state,touch->tem_x,touch->tem_y);
 #ifdef WORKAROUND_FOR_FALSE_PEN_UP_DET
 	if (pen_state || numOfReports >= 2) {
 #else
@@ -380,8 +372,6 @@ static void pm860x_ts_worker(struct work_struct *work)
 			touch->tem_x_pre = touch->tem_x;/* update for next points evaluate*/
 			touch->tem_y_pre = touch->tem_y;/* update for next points evaluate*/
 
-			pr_debug("--->levante_ts_worker-tem_x_pre[%d],tem_y_pre[%d] \n", touch->tem_x_pre, touch->tem_y_pre);
-			pr_debug("--->levante_ts_worker-report pen down x[%d],y[%d]\n", touch->tem_x, touch->tem_y);
 			TOUCHSCREEN_CONSOLE_PRINT_XY;
 		} else
 			pr_debug("levante_ts_worker - NOT VALID point don't report\n");
@@ -452,8 +442,6 @@ int pm860x_tsi_measurements_config(void)
 	int status;
 	u8 val = 0;
 
-	pr_debug("levante_tsi_measurements_config begin \n" );
-
 	/*set measurements timing*/
 	val = (PM8607_MEASOFFTIME1MEAS_OFFTIME1_B(0x00) | PM8607_MEASOFFTIME1MEAS_EN_SLP_B);
 	status = pm860x_reg_write(touch->i2c,PM8607_MEAS_OFF_TIME1, val);
@@ -479,8 +467,6 @@ int pm860x_tsi_measurements_config(void)
 	if (status < 0)
 		return -EIO;
 
-	pr_debug( "levante_tsi_measurements_config end \n" );
-
 	return 0;
 }
 
@@ -490,7 +476,6 @@ static int pm860x_touch_open(struct input_dev *dev)
 {
 	struct pm860x_touch *touch = input_get_drvdata(dev);
 	unsigned long flags;
-	pr_debug("%s: enter", __func__);
 	spin_lock_irqsave(&touch->ts_lock,flags);
 	if (touch->use_count++ == 0) {
 		spin_unlock_irqrestore(&touch->ts_lock, flags);
