@@ -32,6 +32,13 @@ config TOUCHSCREEN_88PM860X
 	  To compile this driver as a module, choose M here: the
 	  module will be called 88pm860x-ts.
 
+config TOUCHSCREEN_VNC
+       tristate "VNC based touchscreen"
+       help
+        Say Y here to enable support for VNC virtual touch screen driver
+        If unsure, say N.
+        If sure, say Y.
+
 config TOUCHSCREEN_TPO
 	bool "TPO Touchscreen interface support"
 	depends on I2C
