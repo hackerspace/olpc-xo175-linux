@@ -144,6 +144,15 @@ config SND_SOC_TAVOREVB3
 	  Say Y if you want to add support for SoC audio on the
 	  Marvell Saarb reference platform.
 
+config SND_SOC_PXA978_MACHINE
+	tristate "SoC Audio support for Marvell pxa978 board"
+	depends on SND_PXA2XX_SOC && MACH_NEVOSAARC
+	select SND_PXA_SOC_SSP
+	select SND_SOC_88PM860X
+	help
+	  Say Y if you want to add support for SoC audio on the
+	  Marvell pxa978 reference platform.
+
 config SND_PXA95X_DAPM_ENABLE
 	bool "Enable DAPM for Marvell PXA95x platforms"
 	depends on SND_SOC_SAARB || SND_SOC_TAVOREVB3
