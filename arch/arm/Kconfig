@@ -2064,6 +2064,13 @@ config ARCH_SUSPEND_POSSIBLE
 		CPU_PXA910
 	def_bool y
 
+config PXA95x_DVFM_DEBUG
+       bool "PXA95x/PXA930 Processor DVFM debug support"
+       depends on PXA95x_DVFM && DEBUG_FS
+       help
+         This is used to collect statistics during the dynamic frequency
+         and voltage change and LPM using debugfs
+
 endmenu
 
 source "net/Kconfig"

@@ -7,6 +7,7 @@ obj-y				+= clock.o devices.o generic.o irq.o \
 				   time.o reset.o rtc_calibrate.o
 ifeq ($(CONFIG_PXA95x), y)
 obj-$(CONFIG_PM)               += pxa95x_pm.o
+obj-$(CONFIG_PXA95x_DVFM_DEBUG)	+= pxa95x_pm_debugfs.o pxa95x_pinmux_debugfs.o pxa9xx_pm_logger.o pxa9xx_pm_parser.o
 else
 obj-$(CONFIG_PM)		+= pm.o sleep.o standby.o
 endif
