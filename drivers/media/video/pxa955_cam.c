@@ -341,12 +341,9 @@ void csi_reg_dump(struct pxa95x_csi_dev *csi)
 void csi_cken(struct pxa95x_csi_dev *csi, int flag)
 {
 	if (flag) {
-		/* The order of enabling matters! AXI must be the 1st one */
-		clk_enable(csi->axi_clk);
 		clk_enable(csi->csi_tx_esc);
 	} else {
 		clk_disable(csi->csi_tx_esc);
-		clk_disable(csi->axi_clk);
 	};
 }
 
@@ -962,7 +959,6 @@ static void dma_chain_init(struct pxa955_cam_dev *pcdev)
 static int sci_cken(struct pxa955_cam_dev *pcdev, int flag)
 {
 	if (flag) {
-		/* The order of enabling matters! AXI must be the 1st one */
 		clk_enable(pcdev->sci1_clk);
 		clk_enable(pcdev->sci2_clk);
 	} else {
@@ -2024,12 +2020,6 @@ static int pxa955_camera_probe(struct platform_device *pdev)
 	pcdev->csidev->csi_tx_esc = clk_get(NULL, "CSI_TX_ESC");
 	if (!pcdev->csidev->csi_tx_esc) {
 		printk(KERN_ERR "cam: unable to get CSI_TX_ESC\n");
-		goto exit_iounmap;
-	};
-
-	pcdev->csidev->axi_clk = clk_get(NULL, "AXICLK");
-	if (!pcdev->csidev->axi_clk) {
-		printk(KERN_ERR "cam: unable to get AXICLK\n");
 		goto exit_iounmap;
 	};
 

@@ -798,6 +798,36 @@ static void clk_gcu_disable(struct clk *clk)
 	clk_axi_disable(clk);
 }
 
+static void clk_csi_tx_esc_enable(struct clk *csi_clk)
+{
+	clk_axi_enable(csi_clk);
+	set_mipi_reference_control();
+	CKENC |= (1 << (CKEN_CSI_TX - 64));
+	csi_enable_status = 1;
+	pr_info("cam: csi clock enable\n");
+}
+
+static void clk_csi_tx_esc_disable(struct clk *csi_clk)
+{
+	CKENC &= ~(1 << (CKEN_CSI_TX - 64));
+	clear_mipi_reference_control();
+	clk_axi_disable(csi_clk);
+	csi_enable_status = 0;
+	pr_info("cam: csi clock disable\n");
+}
+
+static void clk_pxa95x_sci_enable(struct clk *sci_clk)
+{
+	clk_axi_enable(sci_clk);
+	CKENC |= (1 << (CKEN_SCI1 - 64)) | (1 << (CKEN_SCI2 - 64));
+}
+
+static void clk_pxa95x_sci_disable(struct clk *sci_clk)
+{
+	CKENC &= ~(1 << (CKEN_SCI1 - 64) | (1 << (CKEN_SCI2 - 64)));
+	clk_axi_disable(sci_clk);
+}
+
 static const struct clkops clk_pxa95x_dsi_ops = {
 	.enable		= clk_pxa95x_dsi_enable,
 	.disable	= clk_pxa95x_dsi_disable,
@@ -873,6 +903,16 @@ static const struct clkops clk_pxa95x_pwm_slow_ops = {
 	.getrate        = clk_pxa95x_pwm_slow_getrate,
 };
 
+static const struct clkops clk_csi_tx_esc_ops = {
+	.enable 	= clk_csi_tx_esc_enable,
+	.disable	= clk_csi_tx_esc_disable,
+};
+
+static const struct clkops clk_pxa95x_sci_ops = {
+	.enable		= clk_pxa95x_sci_enable,
+	.disable	= clk_pxa95x_sci_disable,
+};
+
 static DEFINE_CK(pxa95x_dsi0, DSI_TX1, &clk_pxa95x_dsi_ops);
 static DEFINE_CK(pxa95x_dsi1, DSI_TX2, &clk_pxa95x_dsi_ops);
 static DEFINE_CK(pxa95x_ihdmi, DISPLAY, &clk_pxa95x_ihdmi_ops);
@@ -887,6 +927,9 @@ static DEFINE_CK(pxa95x_pwm4, PWM4, &clk_pxa95x_pwm_slow_ops);
 static DEFINE_CK(pxa95x_pwm5, PWM5, &clk_pxa95x_pwm_slow_ops);
 static DEFINE_CK(pxa95x_pwm6, PWM6, &clk_pxa95x_pwm_slow_ops);
 static DEFINE_CK(pxa95x_pwm7, PWM7, &clk_pxa95x_pwm_slow_ops);
+static DEFINE_CK(pxa95x_sci1, SCI1, &clk_pxa95x_sci_ops);
+static DEFINE_CK(pxa95x_sci2, SCI2, &clk_pxa95x_sci_ops);
+static DEFINE_CK(pxa95x_csi_tx_esc, CSI_TX, &clk_csi_tx_esc_ops);
 static DEFINE_CLK(pxa95x_pout, &clk_pxa3xx_pout_ops, 13000000, 70);
 static DEFINE_CLK(pxa95x_tout_s0, &clk_pxa95x_tout_s0_ops, 13000000, 70);
 static DEFINE_PXA3_CKEN(pxa95x_ffuart, FFUART, 14857000, 1);
@@ -948,6 +991,9 @@ static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_abu, NULL, "PXA95X_ABUCLK"),
 	INIT_CLKREG(&clk_pxa95x_smc, NULL, "SMCCLK"),
 	INIT_CLKREG(&clk_pxa3xx_nand, "pxa3xx-nand", NULL),
+	INIT_CLKREG(&clk_pxa95x_sci1, NULL, "SCI1CLK"),
+	INIT_CLKREG(&clk_pxa95x_sci2, NULL, "SCI2CLK"),
+	INIT_CLKREG(&clk_pxa95x_csi_tx_esc, NULL, "CSI_TX_ESC"),
 };
 
 void __init pxa95x_init_irq(void)
