@@ -21,8 +21,9 @@
 
 static unsigned long pm_state;
 
-int mmp3_set_wake(unsigned int irq, unsigned int on)
+int mmp3_set_wake(struct irq_data *data, unsigned int on)
 {
+	unsigned int irq = data->irq;
 	struct irq_desc *desc = irq_to_desc(irq);
 
 	if (unlikely(irq >= nr_irqs)) {
