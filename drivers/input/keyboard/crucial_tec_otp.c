@@ -19,11 +19,8 @@
 #include <linux/gpio.h>
 #include <mach/irqs.h>
 #include <linux/uaccess.h>
+#include <linux/input/crucial_tec_otp.h>
 
-#define OTP_INTTERUPT_GPIO			MFP_PIN_GPIO135
-#define OTP_POWER_DOWN_GPIO			MFP_PIN_GPIO144
-#define OTP_RESET_GPIO				MFP_PIN_GPIO136
-#define OTP_OK_BTN_GPIO				MFP_PIN_GPIO8
 
 #define OTP_USE_KEYS
 /*reg and bit definisions*/
@@ -57,6 +54,10 @@ struct optic_tp_data {
 	int abs_x;
 	int abs_y;
 	int i_step;
+	int pd_gpio;
+	int rst_gpio;
+	int irq_gpio;
+	int ok_gpio;
 };
 
 struct optic_tp_data *g_p_optic_tp_data /* = NULL */ ;
@@ -139,15 +140,14 @@ static int optic_tp_reset(void)
 	unsigned inr_gpio;
 
 	mfp_cfg_t config[] = {
-		OTP_INTTERUPT_GPIO | MFP_LPM_EDGE_FALL,
-		OTP_OK_BTN_GPIO | MFP_PULL_HIGH | MFP_LPM_EDGE_BOTH,
+		g_p_optic_tp_data->irq_gpio | MFP_LPM_EDGE_FALL,
 	};
 
 	dev_dbg(&(g_p_optic_tp_data->input_dev->dev), "++optic_tp_reset\n");
 
-	rst_gpio = mfp_to_gpio(OTP_RESET_GPIO);
-	inr_gpio = mfp_to_gpio(OTP_INTTERUPT_GPIO);
-	pdown_gpio = mfp_to_gpio(OTP_POWER_DOWN_GPIO);
+	rst_gpio = mfp_to_gpio(g_p_optic_tp_data->rst_gpio);
+	inr_gpio = mfp_to_gpio(g_p_optic_tp_data->irq_gpio);
+	pdown_gpio = mfp_to_gpio(g_p_optic_tp_data->pd_gpio);
 
 	dev_dbg(&(g_p_optic_tp_data->input_dev->dev), "rst_gpio value is %d",
 		rst_gpio);
@@ -346,6 +346,7 @@ optic_tp_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	unsigned long flags = IRQF_TRIGGER_FALLING | IRQF_ONESHOT;
 	struct proc_dir_entry *optic_tp_proc_entry;
 	int ret;
+	struct ctec_optic_tp_platform_data *p_plat_data;
 
 	dev_dbg(&(g_p_optic_tp_data->input_dev->dev), "++optic_tp_probe\n");
 	if (g_p_optic_tp_data != NULL) {
@@ -353,6 +354,12 @@ optic_tp_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		       "called optic_tp_probe but device data is not NULL!!");
 		return -ENOMEM;
 	}
+
+	p_plat_data = (struct ctec_optic_tp_platform_data *)
+		(client->dev.platform_data);
+	if (p_plat_data == NULL)
+		return -EINVAL;
+
 	g_p_optic_tp_data = kzalloc(sizeof(struct optic_tp_data), GFP_KERNEL);
 	if (!g_p_optic_tp_data)
 		return -ENOMEM;
@@ -362,6 +369,10 @@ optic_tp_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	g_p_optic_tp_data->abs_x = 0;
 	g_p_optic_tp_data->abs_y = 0;
 	g_p_optic_tp_data->i_step = 80;
+	g_p_optic_tp_data->pd_gpio = p_plat_data->pd_gpio;
+	g_p_optic_tp_data->rst_gpio = p_plat_data->rst_gpio;
+	g_p_optic_tp_data->irq_gpio = p_plat_data->irq_gpio;
+	g_p_optic_tp_data->ok_gpio = p_plat_data->ok_btn_gpio;
 
 	i2c_set_clientdata(client, g_p_optic_tp_data);
 
@@ -411,8 +422,6 @@ optic_tp_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	}
 
 	/*register irq */
-	g_p_optic_tp_data->client->irq =
-	    IRQ_GPIO(mfp_to_gpio(OTP_INTTERUPT_GPIO));
 	dev_dbg(&(g_p_optic_tp_data->input_dev->dev), "received IRQ # %d\n",
 		g_p_optic_tp_data->client->irq);
 
