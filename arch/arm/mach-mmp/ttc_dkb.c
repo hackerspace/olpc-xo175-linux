@@ -734,8 +734,28 @@ static int ft5306_touch_io_power_onoff(int on)
 	gpio_free(tp_logic_en);
 	return 0;
 }
+
+static void ft5306_touch_reset(void)
+{
+	unsigned int touch_reset = MFP_PIN_GPIO46;
+
+	if (gpio_request(touch_reset, "ft5306_reset")) {
+		pr_err("Failed to request GPIO for ft5306_reset pin!\n");
+		goto out;
+	}
+
+	gpio_direction_output(touch_reset, 0);
+	mdelay(5);
+	gpio_direction_output(touch_reset, 1);
+	printk(KERN_INFO "ft5306_touch reset successful.\n");
+	gpio_free(touch_reset);
+out:
+	return;
+}
+
 static struct ft5306_touch_platform_data ft5306_touch_data = {
 	.power = ft5306_touch_io_power_onoff,
+	.reset = ft5306_touch_reset,
 };
 #endif
 
