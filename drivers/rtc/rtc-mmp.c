@@ -334,26 +334,6 @@ static int mmp_rtc_probe(struct platform_device *pdev)
 		clk = NULL;
 		goto err;
 	}
-	clk_enable(clk);
-
-	ret = request_irq(irq_1hz, mmp_rtc_interrupt, IRQF_DISABLED,
-				"rtc 1Hz", dev);
-	if (ret) {
-		dev_err(dev, "IRQ %d already in use.\n", irq_1hz);
-		irq_1hz = irq_alrm = -1;
-		ret = -ENXIO;
-		goto err;
-	}
-	disable_irq(irq_1hz);
-
-	ret = request_irq(irq_alrm, mmp_rtc_interrupt, IRQF_DISABLED,
-				"rtc Alrm", dev);
-	if (ret) {
-		dev_err(dev, "IRQ %d already in use.\n", irq_alrm);
-		irq_alrm = -1;
-		ret = -ENXIO;
-		goto err;
-	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res == NULL) {
@@ -376,13 +356,25 @@ static int mmp_rtc_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-	/*
-	 * According to the manual we should be able to let RTTR be zero
-	 * and then a default diviser for a 32.768KHz clock is used.
-	 * Apparently this doesn't work, at least for my SA1110 rev 5.
-	 * If the clock divider is uninitialized then reset it to the
-	 * default value to get the 1Hz clock.
-	 */
+	ret = request_irq(irq_1hz, mmp_rtc_interrupt, IRQF_DISABLED,
+				"rtc 1Hz", dev);
+	if (ret) {
+		dev_err(dev, "IRQ %d already in use.\n", irq_1hz);
+		irq_1hz = irq_alrm = -1;
+		ret = -ENXIO;
+		goto err;
+	}
+	disable_irq(irq_1hz);
+
+	ret = request_irq(irq_alrm, mmp_rtc_interrupt, IRQF_DISABLED,
+				"rtc Alrm", dev);
+	if (ret) {
+		dev_err(dev, "IRQ %d already in use.\n", irq_alrm);
+		irq_alrm = -1;
+		ret = -ENXIO;
+		goto err;
+	}
+
 	if (RTTR == 0) {
 		RTTR = RTC_DEF_DIVIDER + (RTC_DEF_TRIM << 16);
 		dev_warn(&pdev->dev, "warning: initializing default clock"
@@ -398,6 +390,8 @@ static int mmp_rtc_probe(struct platform_device *pdev)
 
 	if (IS_ERR(rtc))
 		return PTR_ERR(rtc);
+
+	clk_enable(clk);
 
 	platform_set_drvdata(pdev, rtc);
 
