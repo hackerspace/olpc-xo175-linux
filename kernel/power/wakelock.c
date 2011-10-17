@@ -405,11 +405,21 @@ static void suspend_func(void)
 		if (debug_mask & DEBUG_SUSPEND)
 			pr_info("suspend: enter suspend\n");
 
-		freeze_processes();
-		error = dpm_suspend_start(PMSG_SUSPEND);
+		error = freeze_processes();
+		if (!error) {
+			error = dpm_suspend_start(PMSG_SUSPEND);
+			if (error) {
+				printk(KERN_ERR
+				       "PM: Some devices failed to suspend,"
+				       "start to resume suspended devices and"
+				       "thaw processes to exit\n");
+				dpm_resume_end(PMSG_RESUME);
+			}
+		} else
+			printk(KERN_ERR
+			       "PM: Some processes failed to freeze,"
+			       "start to thaw processes to exit\n");
 		if (error) {
-			printk(KERN_ERR "PM: Some devices failed to suspend,start to resume suspended devices\n");
-			dpm_resume_end(PMSG_RESUME);
 			thaw_processes();
 			suspend_thread_struct.current_state = SUSPEND_STATE_ACTIVE;
 			if (current_event_num == entry_event_num) {
