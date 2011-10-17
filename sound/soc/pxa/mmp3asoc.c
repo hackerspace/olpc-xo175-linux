@@ -376,6 +376,11 @@ static int codec_wm8994_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_nc_pin(dapm, "IN2RN");
 	snd_soc_dapm_nc_pin(dapm, "IN2RP:VXRP");
 
+	/* init: disable HEADSET, enable SPK */
+	mmp3asoc_spk_func = MMP3ASOC_SPK_ON;
+	mmp3asoc_jack_func = MMP3ASOC_HP_OFF;
+	mmp3asoc_ext_control(dapm);
+
 	snd_soc_dapm_sync(dapm);
 #ifdef CONFIG_SWITCH_WM8994_HEADSET
 	mmp3asoc_wm8994_codec = codec;
