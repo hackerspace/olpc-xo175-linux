@@ -43,6 +43,13 @@
 #define TOUCHSCREEN_ID_MIN					(0)
 #define TOUCHSCREEN_ID_MAX					(3)
 
+struct ssd2531_command_entry {
+	u8	reg;	/*register to write*/
+	u8	is_word_value; /*write the data to i2c as word*/
+	u16	value;	/*value to write*/
+	u32 delay; /*delay in us before the next command*/
+} __attribute__((__packed__));
+
 /*////////////////////////////////////////////////////////////////////////*/
 static int ssd2531_ts_reset(void);
 static int ssd2531_ts_init(void);
@@ -171,12 +178,10 @@ static int ssd2531_i2c_write(u8 reg, u16 val)
 	return ret;
 }
 
-/* Function for future use
 static int ssd2531_i2c_write_word(u8 reg, u16 val)
 {
 	return i2c_smbus_write_word_data(g_p_ssd2531_data->client, reg, val);
 }
-*/
 
 int ssd2531_ts_wakeup(int enable)
 {
@@ -390,11 +395,78 @@ static int ssd2531_ts_reset(void)
 	return ret;
 }
 
+static struct ssd2531_command_entry init_sequence[] = {
+	/*reg, is Word, value, delay after write*/
+	{0x2B,	0,	0x03,	0}, /*Enable DSP clock*/
+	{0xD9,	0,	0x01,	0},
+	{0x2C,	0,	0x02,	0}, /* Set median filter to 1 tap*/
+	{0x5A,	0,	0x00,	0}, /*Set maximum miss frame to 0*/
+	{0x3D,	0,	0x01,	0},
+	{0xD8,	0,	0x03,	0}, /*Set sampling delay*/
+	{0xD4,	0,	0x00,	0},
+	{0x06,	0,	0x1F,	0}, /* Set drive line no.*/
+	{0x07,	0,	0x06,	0}, /* Set sense line no. = 12*/
+	{0x08,	0,	0x00,	0},
+	{0x09,	0,	0x01,	0},
+	{0x0A,	0,	0x02,	0},
+	{0x0B,	0,	0x03,	0},
+	{0x0C,	0,	0x04,	0},
+	{0x0D,	0,	0x05,	0},
+	{0x0E,	0,	0x06,	0},
+	{0x0F,	0,	0x07,	0},
+	{0x10,	0,	0x08,	0},
+	{0x11,	0,	0x09,	0},
+	{0x12,	0,	0x0A,	0},
+	{0x13,	0,	0x0B,	0},
+	{0x14,	0,	0x0C,	0},
+	{0x15,	0,	0x0D,	0},
+	{0x16,	0,	0x0E,	0},
+	{0x17,	0,	0x0F,	0},
+	{0x18,	0,	0x10,	0},
+	{0x19,	0,	0x11,	0},
+	{0x1A,	0,	0x12,	0},
+	{0x1B,	0,	0x13,	0},
+	{0x1C,	0,	0x14,	0},
+	{0x2A,	0,	0x03,	0}, /* Set sub-frame*/
+	{0x8D,	0,	0x01,	0}, /*not exsit in spec*/
+	{0x8E,	0,	0x02,	0}, /*not exsit in spec*/
+	{0x94,	1,	0x0000,	0}, /*not exsit in spec*/
+	{0x8D,	0,	0x00,	0}, /*not exsit in spec*/
+	{0x25,	0,	0x02,	0}, /* Set scan mode*/
+	{0xC1,	0,	0x02,	0}, /*booster control*/
+	{0xD5,	0,	0x0F,	1000}, /*driving voltage*/
+	{0x38,	0,	0x00,	0},
+	{0x33,	0,	0x01,	0}, /*min finger area*/
+	{0x34,	0,	0x60,	0}, /*min finger level*/
+	{0x35,	1,	0x1000,	0}, /*min finger weight*/
+	{0x36,	0,	0x1E,	0}, /*max finger area*/
+	{0x37,	0,	0x03,	0}, /*control depth of ..*/
+	{0x39,	0,	0x00,	0}, /*select CG caculation method*/
+	{0x56,	0,	0x01,	0}, /*smooth finger's output coordinate*/
+	{0x51,	1,	0xFF00,	0}, /*single click time*/
+	{0x52,	1,	0xFF02,	0}, /*double click time*/
+	{0x53,	0,	0x08,	0}, /*CG TOLENCE*/
+	{0x54,	0,	0x14,	0}, /*x tracking tolence*/
+	{0x55,	0,	0x14,	0}, /*y tracking tolence*/
+	{0x65,	0,	0x02,	0}, /*Added by Marvell to invert X axis*/
+			/*set scaling to fit 480*800 resolution*/
+			/*default resolution is 352*640 (# of lines * 32)*/
+	{0x66,	0,	0x57,	0}, /*need to change X from 352 to 480 ->
+					factor is 1.363636,
+					closest value is 1.359375.
+					this gives res of 478*/
+	{0x67,	0,	0x50,	0}, /*need to change Y from 640 to 800 ->
+				 factor is 1.25*/
+	{0xA2,	0,	0x00,	0}, /*reset init reference procedure*/
+	{0xFF,	0xFF,	0xFF,	0xFF} /*last entry*/
+};
+
 static int ssd2531_ts_init(void)
 {
 	int ret;
 	u8 reg;
 	u16 value;
+	int i = 0;
 
 	dev_dbg(&(g_p_ssd2531_data->input_dev->dev), "ssd2531_ts_init ++\n");
 	/*Below commands must send first in order wake up the IC */
@@ -404,109 +476,19 @@ static int ssd2531_ts_init(void)
 			"error writing to touch I2C, exiting");
 		return -EIO;
 	}
-	udelay(100);
-	reg = 0x2B;
-	value = 0x02;
-	ssd2531_i2c_write(reg, value);	/*Enable DSP clock */
 	udelay(500);
 
-	/* Touch panel configuration */
-	reg = 0x06;
-	value = 0x0F;		/* Set drive line no. = 21 */
-	ssd2531_i2c_write(reg, value);
-	reg = 0x07;
-	value = 0x06;		/* Set sense line no. = 12 */
-	ssd2531_i2c_write(reg, value);
-
-	/*set scaling to fit 480*800 resolution */
-	/*default resolution is 352*640 (# of lines * 32) */
-	reg = 0x66;		/*X scaile */
-	value = 0x57;		/*need to change X from 352 to 480 ->
-				   factor is 1.363636,
-				   closest value is 1.359375.
-				   this gives res of 478 */
-	ssd2531_i2c_write(reg, value);
-	reg = 0x67;		/*Y scaile */
-	value = 0x50;		/*need to change Y from 640 to 800 ->
-				   factor is 1.25 */
-	ssd2531_i2c_write(reg, value);
-
-	/*invert X coordinates */
-	reg = 0x65;
-	value = 0x02;
-	ssd2531_i2c_write(reg, value);
-
-	/* SSD2531 analog setting */
-	reg = 0xC1;
-	value = 0x02;		/* Set charge bump x6 */
-	ssd2531_i2c_write(reg, value);
-	reg = 0xD5;
-	value = 0x0F;		/* Set Driving voltage ~15.5V */
-	ssd2531_i2c_write(reg, value);
-	udelay(300);		/*delay 300 */
-
-	/* Touch detection setting */
-	reg = 0xD8;
-	value = 0x03;		/* Set sampling delay */
-	ssd2531_i2c_write(reg, value);
-	reg = 0x2A;
-	value = 0x03;		/* Set sub-frame */
-	ssd2531_i2c_write(reg, value);
-	reg = 0x59;
-	value = 0x01;		/* Enable move tolerance */
-	ssd2531_i2c_write(reg, value);
-	reg = 0x5B;
-	value = 0x01;		/* Set Move tolerance to 1 */
-	ssd2531_i2c_write(reg, value);
-	reg = 0x5A;
-	value = 0x01;		/* Set maximum miss frame to 1 */
-	ssd2531_i2c_write(reg, value);
-	reg = 0x2C;
-	value = 0x02;		/* Set median filter to 1 tap */
-	ssd2531_i2c_write(reg, value);
-	reg = 0x37;
-	value = 0x03;		/* Set Segmentation depth */
-	ssd2531_i2c_write(reg, value);
-	reg = 0x39;
-	value = 0x01;		/* Finger tracking mode */
-	ssd2531_i2c_write(reg, value);
-	reg = 0x56;
-	value = 0x01;		/* Moving average */
-	ssd2531_i2c_write(reg, value);
-	reg = 0x53;
-	value = 0x10;		/* Set CG tolerance reg */
-	ssd2531_i2c_write(reg, value);
-	reg = 0x54;
-	value = 0x30;		/* Set X coordinate tracking tolerance reg */
-	ssd2531_i2c_write(reg, value);
-	reg = 0x55;
-	value = 0x30;		/* Set Y coordinate tracking tolerance reg */
-	ssd2531_i2c_write(reg, value);
-
-	/* Finger recognition criteria */
-	reg = 0x33;
-	value = 0x01;		/* Set Min. Finger area = 1 */
-	ssd2531_i2c_write(reg, value);
-	reg = 0x34;
-	value = 0x64;		/* Set Min. Finger level = 100 */
-	ssd2531_i2c_write(reg, value);
-
-	reg = 0x35;
-	value = 0x00;
-	ssd2531_i2c_write(reg, value);
-	value = 0x20;
-	ssd2531_i2c_write(reg, value);
-	reg = 0x36;
-	value = 0x1E;		/* Set Max. Finger area */
-	ssd2531_i2c_write(reg, value);
-	udelay(100);		/*delay 100 */
-	reg = 0x25;
-	value = 0x0B;		/* Set scan mode */
-	ssd2531_i2c_write(reg, value);
-	reg = 0xA2;
-	value = 0x00;		/* Reset Init Reference */
-	ssd2531_i2c_write(reg, value);
-	udelay(100);		/*delay 100 */
+	do {
+		reg = init_sequence[i].reg;
+		value = init_sequence[i].value;
+		if (init_sequence[i].is_word_value != 0)
+			ssd2531_i2c_write_word(reg, value);
+		else
+			ssd2531_i2c_write(reg, value);
+		if (init_sequence[i].delay > 0)
+			udelay(init_sequence[i].delay);
+		i++;
+	} while (init_sequence[i].is_word_value != 0xFF);
 
 	reg = 0x02;
 	value = ssd2531_i2c_read_word(reg);
