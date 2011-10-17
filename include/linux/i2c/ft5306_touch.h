@@ -4,7 +4,8 @@
 /* linux/i2c/ft5306_touch.h */
 
 struct ft5306_touch_platform_data {
-	int(*power)(int);
+	int (*power)(int);
+	void (*reset)(void);
 };
 
 #endif

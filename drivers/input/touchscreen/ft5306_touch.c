@@ -272,21 +272,6 @@ static const struct attribute_group ft5306_attr_group = {
 	.attrs = ft5306_attributes,
 };
 
-static void ft5306_reset(void)
-{
-	if (gpio_request(MFP_PIN_GPIO46, "ft5306_reset")) {
-		dev_dbg(&touch->i2c->dev, "Failed to request GPIO for ft5306_reset pin!\n");
-		goto out;
-	}
-	gpio_direction_output(MFP_PIN_GPIO46, 0);
-	mdelay(5);
-	gpio_direction_output(MFP_PIN_GPIO46, 1);
-	dev_dbg(&touch->i2c->dev, "ft5306_touch reset successful.\n");
-	gpio_free(MFP_PIN_GPIO46);
-out:
-	return;
-}
-
 static int ft5306_touch_open(struct input_dev *idev)
 {
 	touch->data->power(1);
@@ -327,7 +312,8 @@ static void ft5306_touch_normal_late_resume(struct early_suspend *h)
 {
 	touch->data->power(1);
 	msleep(10);
-	ft5306_reset();
+	if (touch->data->reset)
+		touch->data->reset();
 }
 
 
@@ -369,7 +355,8 @@ ft5306_touch_probe(struct i2c_client *client,
 		dev_dbg(&client->dev, "ft5306 reset.\n");
 	}
 
-	ft5306_reset();
+	if (touch->data->reset)
+		touch->data->reset();
 
 	/* register input device */
 	touch->idev = input_allocate_device();
