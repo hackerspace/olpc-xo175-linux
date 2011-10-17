@@ -204,11 +204,17 @@ static int optic_tp_init(void)
 {
 	u16 value;
 	u8 reg;
+	int ret;
 
 	/*perform soft reset by writing 0x5A to address 0x3a */
 	reg = OTP_SOFT_RESET_REG;
 	value = OTP_SOFT_RESET_BITMASK;
-	optic_tp_i2c_write(reg, value);
+	ret = optic_tp_i2c_write(reg , value);
+	if (ret < 0) {
+		printk(KERN_ERR"failed to write to optic trackpad i2c add rc=%d, exiting\n",
+			ret);
+		return ret;
+	}
 
 	/*Write 0xC0 to address 0x60 */
 	reg = 0x60;
