@@ -46,6 +46,7 @@ extern struct pxa_device_desc mmp2_device_audiosram;
 extern struct platform_device mmp_device_asoc_sspa1;
 extern struct platform_device mmp_device_asoc_sspa2;
 extern struct platform_device mmp_device_asoc_platform;
+extern struct pxa_device_desc mmp2_device_thsens;
 
 extern struct platform_device pxa168_device_u2o;
 
@@ -144,6 +145,11 @@ static inline int mmp2_add_fb_tv_ovly(struct pxa168fb_mach_info *mi)
 static inline int mmp2_add_hdmi(struct uio_hdmi_platform_data *data)
 {
 		return pxa_register_device(&mmp2_device_hdmi, data, sizeof(*data));
+}
+
+static inline int mmp2_add_thermal_sensor(void)
+{
+	return pxa_register_device(&mmp2_device_thsens, NULL, 0);
 }
 
 static inline int mmp2_add_audiosram(struct sram_bank *data)

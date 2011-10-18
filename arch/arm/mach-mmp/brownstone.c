@@ -780,6 +780,7 @@ static void __init brownstone_init(void)
 	mmp2_add_twsi(5, NULL, ARRAY_AND_SIZE(brownstone_twsi5_info));
 	mmp2_add_twsi(6, NULL, ARRAY_AND_SIZE(brownstone_twsi6_info));
 	mmp2_add_sdhost(0, &mmp2_sdh_platdata_mmc0); /* SD/MMC */
+	mmp2_add_thermal_sensor();
 #ifdef CONFIG_USB_PXA_U2O
 	pxa168_device_u2o.dev.platform_data = (void *)&mmp2_usb_pdata;
 	platform_device_register(&pxa168_device_u2o);

@@ -482,6 +482,7 @@ static APBC_CLK(twsi3, MMP2_TWSI3, 0, 26000000);
 static APBC_CLK(twsi4, MMP2_TWSI4, 0, 26000000);
 static APBC_CLK(twsi5, MMP2_TWSI5, 0, 26000000);
 static APBC_CLK(twsi6, MMP2_TWSI6, 0, 26000000);
+static APBC_CLK(thsens, MMP2_THSENS1, 0, 0);
 static APBC_CLK(pwm1, MMP2_PWM0, 0, 26000000);
 static APBC_CLK_OPS(pwm2, MMP2_PWM1, 0, 26000000, &pwm2_clk_ops);
 static APBC_CLK(pwm3, MMP2_PWM2, 0, 26000000);
@@ -523,6 +524,7 @@ static struct clk_lookup mmp2_clkregs[] = {
 	INIT_CLKREG(&clk_lcd, NULL, "LCDCLK"),
 	INIT_CLKREG(&clk_tv, NULL, "HDMICLK"),
 	INIT_CLKREG(&clk_audio, NULL, "mmp-audio"),
+	INIT_CLKREG(&clk_thsens, "mmp2-thermal", NULL),
 };
 
 static int __init mmp2_init(void)
@@ -590,6 +592,7 @@ MMP2_DEVICE(hdmi, "mmp-hdmi", -1, HDMI, 0xd420b000, 0x1fff);
 MMP2_DEVICE(sspa1, "mmp2-sspa", 0, SSPA1, 0xd42a0c00, 0xb0, ADMA1_CH1, ADMA1_CH0);
 MMP2_DEVICE(sspa2, "mmp2-sspa", 1, SSPA2, 0xd42a0d00, 0xb0, ADMA2_CH1, ADMA2_CH0);
 MMP2_DEVICE(audiosram, "mmp-sram", -1, NONE, 0xe0000000, 0x40000);
+MMP2_DEVICE(thsens, "mmp2-thermal", -1, THERMAL, 0xd4013200, 0x20);
 
 struct platform_device mmp_device_asoc_sspa1 = {
 	.name		= "mmp3-sspa-dai",
