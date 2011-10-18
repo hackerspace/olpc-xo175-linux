@@ -1419,10 +1419,6 @@ static void __init abilene_init(void)
 	mmp_init_vmeta();
 #endif
 
-#ifdef CONFIG_VIDEO_MVISP
-	mmp_init_dxoisp();
-#endif
-
 #ifdef CONFIG_MMC_SDHCI_PXAV3
 	abilene_init_mmc();
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
@@ -1430,6 +1426,10 @@ static void __init abilene_init(void)
 #if defined(CONFIG_VIDEO_MV)
 	platform_device_register(&abilene_ov5642);
 	mmp3_add_cam(0, &mv_cam_data);
+#endif
+
+#ifdef CONFIG_VIDEO_MVISP
+	mmp_init_dxoisp();
 #endif
 
 	platform_device_register(&mmp3_device_rtc);

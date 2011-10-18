@@ -58,7 +58,7 @@ enum mvisp_mem_resources {
 	ISP_IOMEM_IPC,
 	CCIC_ISP_IOMEM_1,
 	CCIC_ISP_IOMEM_2,
-	ISP_IOMEM_LAST
+	ISP_IOMEM_LAST,
 };
 
 struct mvisp_device {
@@ -71,7 +71,6 @@ struct mvisp_device {
 
 	/* flags */
 	bool	has_context;
-	bool	sensor_detected;
 
 	/* interrupts within isp */
 	unsigned int irq_ipc;
@@ -97,6 +96,10 @@ struct mvisp_device {
 	struct isp_ispdma_device	mvisp_ispdma;
 	struct isp_ccic_device		mvisp_ccic1;
 	struct isp_ccic_device		mvisp_ccic2;
+
+	struct v4l2_subdev			*sensor;
+	bool sensor_connected;
+	enum mv_isp_sensor_type sensor_type;
 };
 
 

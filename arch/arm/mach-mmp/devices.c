@@ -466,26 +466,16 @@ static struct resource mmp_dxoisp_resources[] = {
 		.flags = IORESOURCE_MEM,
 	},
 	[2] = {
-		.start = 0xD420A000,
-		.end   = 0xD420A23F,
-		.flags = IORESOURCE_MEM,
-	},
-	[3] = {
-		.start = 0xD420A800,
-		.end   = 0xD420AA3F,
-		.flags = IORESOURCE_MEM,
-	},
-	[4] = {
 		.start = IRQ_MMP3_ISP_DMA,
 		.end   = IRQ_MMP3_ISP_DMA,
 		.flags = IORESOURCE_IRQ,
 	},
-	[5] = {
+	[3] = {
 		.start = IRQ_MMP3_DXO_ISP,
 		.end   = IRQ_MMP3_DXO_ISP,
 		.flags = IORESOURCE_IRQ,
 	},
-	[6] = {
+	[4] = {
 		.start = IRQ_MMP3_CCIC1,
 		.end   = IRQ_MMP3_CCIC1,
 		.flags = IORESOURCE_IRQ,

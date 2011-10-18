@@ -27,6 +27,8 @@
 #ifndef ISP_REG_H
 #define ISP_REG_H
 
+#include <mach/addr-map.h>
+
 struct isp_reg {
 	u32 reg;
 	u32 val;
@@ -215,6 +217,11 @@ struct isp_reg {
 #define FBTX3_PS_EOF					(0x1 << 16)
 #define CSI2_BRIDEG						(0x1 << 17)
 
+#define CCIC1_VIRT_BASE					(AXI_VIRT_BASE + 0xA000)
+#define CCIC1_REG(x)					(CCIC1_VIRT_BASE + (x))
+
+#define CCIC2_VIRT_BASE					(AXI_VIRT_BASE + 0xA800)
+#define CCIC2_REG(x)					(CCIC2_VIRT_BASE + (x))
 
 #define CCIC_Y0_BASE_ADDR				0x0000
 #define CCIC_Y1_BASE_ADDR				0x0004

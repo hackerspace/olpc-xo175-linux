@@ -1366,7 +1366,7 @@ static int ispdma_set_stream(struct v4l2_subdev *sd
 	switch (enable) {
 	case ISP_PIPELINE_STREAM_CONTINUOUS:
 		if ((ispdma->input == ISPDMA_INPUT_CCIC_1)
-			&& (isp->sensor_detected == true)) {
+			&& (isp->sensor_connected == true)) {
 			regval = mvisp_reg_readl(isp, ISP_IOMEM_ISPDMA,
 				ISPDMA_MAINCTRL);
 			regval |= 1 << 24;
@@ -1391,7 +1391,7 @@ static int ispdma_set_stream(struct v4l2_subdev *sd
 			if (dma_working_flag & DMA_INPUT_WORKING)
 				ispdma_stop_dma(ispdma, ISPDMA_PORT_INPUT);
 		} else if ((ispdma->input == ISPDMA_INPUT_CCIC_1)
-			&& (isp->sensor_detected == true)) {
+			&& (isp->sensor_connected == true)) {
 			regval = mvisp_reg_readl(isp, ISP_IOMEM_ISPDMA,
 				ISPDMA_MAINCTRL);
 			regval &= ~(1 << 24);
@@ -1860,7 +1860,7 @@ static int ispdma_link_setup(struct media_entity *entity,
 		break;
 	case ISPDMA_PAD_SINK | MEDIA_ENT_T_V4L2_SUBDEV:
 		/* read from ccic */
-		if (isp->sensor_detected == false)
+		if (isp->sensor_connected == false)
 			return -EINVAL;
 		if (flags & MEDIA_LNK_FL_ENABLED) {
 			if (ispdma->input != ISPDMA_INPUT_NONE)

@@ -440,10 +440,12 @@ static int mvisp_enable_clocks(struct mvisp_device *isp)
 		goto out_clk_enable_isp;
 	}
 
-	r = clk_enable(isp->clock[ISP_CLK_DXO_CCIC]);
-	if (r) {
-		dev_err(isp->dev, "clk_enable ccic failed\n");
-		goto out_clk_enable_ccic;
+	if (isp->clock[ISP_CLK_DXO_CCIC] != NULL) {
+		r = clk_enable(isp->clock[ISP_CLK_DXO_CCIC]);
+		if (r) {
+			dev_err(isp->dev, "clk_enable ccic failed\n");
+			goto out_clk_enable_ccic;
+		}
 	}
 
 	return 0;
@@ -457,7 +459,8 @@ out_clk_enable_isp:
 static void mvisp_disable_clocks(struct mvisp_device *isp)
 {
 	clk_disable(isp->clock[ISP_CLK_DXO_ISP]);
-	clk_disable(isp->clock[ISP_CLK_DXO_CCIC]);
+	if (isp->clock[ISP_CLK_DXO_CCIC] != NULL)
+		clk_disable(isp->clock[ISP_CLK_DXO_CCIC]);
 }
 
 static void mvisp_put_clocks(struct mvisp_device *isp)
@@ -465,7 +468,7 @@ static void mvisp_put_clocks(struct mvisp_device *isp)
 	unsigned int i;
 
 	for (i = 0; i < ARRAY_SIZE(isp_clocks); ++i) {
-		if (isp->clock[i]) {
+		if (isp->clock[i] != NULL) {
 			clk_put(isp->clock[i]);
 			isp->clock[i] = NULL;
 		}
@@ -475,18 +478,28 @@ static void mvisp_put_clocks(struct mvisp_device *isp)
 static int mvisp_get_clocks(struct mvisp_device *isp)
 {
 	struct clk *clk;
-	unsigned int i;
 
-	for (i = 0; i < ARRAY_SIZE(isp_clocks); ++i) {
-		clk = clk_get(isp->dev, isp_clocks[i]);
+	clk = clk_get(isp->dev, isp_clocks[ISP_CLK_DXO_ISP]);
+	if (IS_ERR(clk)) {
+		dev_err(isp->dev, "clk_get %s failed\n",
+			isp_clocks[ISP_CLK_DXO_ISP]);
+		return PTR_ERR(clk);
+	}
+	isp->clock[ISP_CLK_DXO_ISP] = clk;
+
+	if (isp->sensor_connected == true) {
+		clk = clk_get(isp->dev, isp_clocks[ISP_CLK_DXO_CCIC]);
 		if (IS_ERR(clk)) {
-			dev_err(isp->dev, "clk_get %s failed\n", isp_clocks[i]);
-			mvisp_put_clocks(isp);
+			dev_err(isp->dev, "clk_get %s failed\n",
+				isp_clocks[ISP_CLK_DXO_CCIC]);
+			clk_put(isp->clock[ISP_CLK_DXO_ISP]);
+			isp->clock[ISP_CLK_DXO_ISP] = NULL;
 			return PTR_ERR(clk);
 		}
+		isp->clock[ISP_CLK_DXO_CCIC] = clk;
+	} else
+		isp->clock[ISP_CLK_DXO_CCIC] = NULL;
 
-		isp->clock[i] = clk;
-	}
 	return 0;
 }
 
@@ -637,12 +650,11 @@ mvisp_register_subdev_group(struct mvisp_device *isp,
 		     struct mvisp_subdev_i2c_board_info *board_info)
 {
 	struct v4l2_subdev *sensor = NULL;
-	unsigned int first;
 
 	if (board_info->board_info == NULL)
 		return NULL;
 
-	for (first = 1; board_info->board_info; ++board_info, first = 0) {
+	for (; board_info->board_info; ++board_info) {
 		struct v4l2_subdev *subdev;
 		struct i2c_adapter *adapter;
 
@@ -662,21 +674,19 @@ mvisp_register_subdev_group(struct mvisp_device *isp,
 			dev_err(isp->dev, "%s: Unable to register subdev %s\n",
 				__func__, board_info->board_info->type);
 			continue;
-		}
-
-		if (first)
+		} else {
 			sensor = subdev;
+			break;
+		}
 	}
 
 	return sensor;
 }
 
-static int mvisp_register_entities(struct mvisp_device *isp)
+
+static int mvisp_register_ispdev(struct mvisp_device *isp)
 {
-	struct mvisp_platform_data *pdata = isp->pdata;
-	struct mvisp_v4l2_subdevs_group *subdev_group;
-	enum mv_isp_sensor_type sensor_type;
-	int ret;
+	int ret = 0;
 
 	isp->media_dev.dev = isp->dev;
 	strlcpy(isp->media_dev.model, "DXO ISP",
@@ -694,25 +704,78 @@ static int mvisp_register_entities(struct mvisp_device *isp)
 	if (ret < 0) {
 		dev_err(isp->dev, "%s: V4L2 device registration failed (%d)\n",
 			__func__, ret);
-		goto done;
+
+		v4l2_device_unregister(&isp->v4l2_dev);
+		media_device_unregister(&isp->media_dev);
+
 	}
 
-	/* Register internal entities */
-	ret = mv_ispdma_register_entities(&isp->mvisp_ispdma, &isp->v4l2_dev);
-	if (ret < 0)
-		goto done;
+	return ret;
+}
 
-	ret = pxa_ccic_register_entities(&isp->mvisp_ccic1, &isp->v4l2_dev);
+
+int mvisp_connect_sensor_entities(struct mvisp_device *isp)
+{
+	struct media_entity *input;
+	unsigned int flags;
+	unsigned int pad;
+	int ret = 0;
+	struct mvisp_v4l2_subdevs_group *subdev_group;
+
+	if ((isp->sensor == NULL) || isp->sensor->host_priv == NULL)
+		return -EINVAL;
+
+	subdev_group =
+		(struct mvisp_v4l2_subdevs_group *)isp->sensor->host_priv;
+
+	switch (subdev_group->if_type) {
+	case ISP_INTERFACE_CCIC_1:
+		pxa_ccic_set_sensor_type(&isp->mvisp_ccic1,
+				isp->sensor_type);
+		input = &isp->mvisp_ccic1.subdev.entity;
+		pad = CCIC_PAD_SINK;
+		flags = 0;
+		break;
+	case ISP_INTERFACE_CCIC_2:
+		pxa_ccic_set_sensor_type(&isp->mvisp_ccic2,
+				isp->sensor_type);
+		input = &isp->mvisp_ccic2.subdev.entity;
+		pad = CCIC_PAD_SINK;
+		flags = 0;
+		break;
+	case ISP_INTERFACE_PARALLEL_0:
+	case ISP_INTERFACE_PARALLEL_1:
+	default:
+		dev_err(isp->dev, "%s: invalid interface type %u\n",
+			   __func__, subdev_group->if_type);
+		return -EINVAL;
+	}
+
+	ret = media_entity_create_link(&isp->sensor->entity, 0,
+		input, pad, flags);
 	if (ret < 0)
-		goto done;
+		return ret;
+
+	media_entity_call(&isp->sensor->entity, link_setup,
+		&isp->sensor->entity.pads[0], &input->pads[pad], flags);
+	media_entity_call(input, link_setup,
+		&isp->sensor->entity.pads[0], &input->pads[pad], flags);
+
+	return ret;
+}
+
+
+static int mvisp_detect_sensor(struct mvisp_device *isp)
+{
+	struct mvisp_platform_data *pdata = isp->pdata;
+	struct mvisp_v4l2_subdevs_group *subdev_group;
+	enum mv_isp_sensor_type sensor_type;
+	int ret = -EINVAL;
+	struct v4l2_subdev *sensor;
 
 	/* Register external entities */
 	for (subdev_group = pdata->subdev_group;
 			subdev_group->i2c_board_info; ++subdev_group) {
-		struct v4l2_subdev *sensor;
-		struct media_entity *input;
-		unsigned int flags;
-		unsigned int pad;
 
 		sensor = mvisp_register_subdev_group(isp,
 					subdev_group->i2c_board_info);
@@ -720,53 +783,41 @@ static int mvisp_register_entities(struct mvisp_device *isp)
 			continue;
 
 		sensor->host_priv = subdev_group;
-		isp->sensor_detected = true;
 
-		if (strcmp(sensor->entity.name, "ov8820 2-0036") == 0)
-			sensor_type = SENSOR_OV8820;
-		else
-			sensor_type = SENSOR_INVALID;
-
-		switch (subdev_group->if_type) {
-		case ISP_INTERFACE_CCIC_1:
-			pxa_ccic_set_sensor_type(&isp->mvisp_ccic1,
-					sensor_type);
-			input = &isp->mvisp_ccic1.subdev.entity;
-			pad = CCIC_PAD_SINK;
-			flags = 0;
+		/* For unsupported sensor, ignore it*/
+		if (strcmp(sensor->entity.name, "ov8820 2-0036") == 0) {
+			isp->sensor_type = SENSOR_OV8820;
+			isp->sensor = sensor;
+			ret = 0;
 			break;
-		case ISP_INTERFACE_CCIC_2:
-			pxa_ccic_set_sensor_type(&isp->mvisp_ccic2,
-					sensor_type);
-			input = &isp->mvisp_ccic2.subdev.entity;
-			pad = CCIC_PAD_SINK;
-			flags = MEDIA_LNK_FL_IMMUTABLE
-				  | MEDIA_LNK_FL_ENABLED;
-			break;
-		case ISP_INTERFACE_PARALLEL_0:
-		case ISP_INTERFACE_PARALLEL_1:
-		default:
-			dev_err(isp->dev, "%s: invalid interface type %u\n",
-			       __func__, subdev_group->if_type);
-			ret = -EINVAL;
-			goto done;
 		}
+	}
 
-		ret = media_entity_create_link(&sensor->entity, 0, input, pad,
-					       flags);
+	return ret;
+}
+
+static int mvisp_register_entities(struct mvisp_device *isp)
+{
+	int ret = 0;
+
+	/* Register internal entities */
+	ret = mv_ispdma_register_entities(&isp->mvisp_ispdma, &isp->v4l2_dev);
+	if (ret < 0)
+		goto done;
+
+	if (isp->sensor_connected == true) {
+		ret = pxa_ccic_register_entities(
+			&isp->mvisp_ccic1, &isp->v4l2_dev);
 		if (ret < 0)
 			goto done;
-
-		media_entity_call(&sensor->entity, link_setup,
-			&sensor->entity.pads[0], &input->pads[pad], flags);
-		media_entity_call(input, link_setup,
-			&sensor->entity.pads[0], &input->pads[pad], flags);
 	}
 
 	ret = v4l2_device_register_subdev_nodes(&isp->v4l2_dev);
 done:
-	if (ret < 0)
-		mvisp_unregister_entities(isp);
+	if (ret < 0) {
+		mv_ispdma_unregister_entities(&isp->mvisp_ispdma);
+		pxa_ccic_unregister_entities(&isp->mvisp_ccic1);
+	}
 
 	return ret;
 }
@@ -778,7 +829,7 @@ static void mvisp_cleanup_modules(struct mvisp_device *isp)
 
 static int mvisp_initialize_modules(struct mvisp_device *isp)
 {
-	int ret;
+	int ret = 0;
 
 	ret = mv_ispdma_init(isp);
 	if (ret < 0) {
@@ -786,19 +837,22 @@ static int mvisp_initialize_modules(struct mvisp_device *isp)
 		goto error_ispdma;
 	}
 
-	ret = pxa_ccic_init(isp);
-	if (ret < 0) {
-		dev_err(isp->dev, "PXA CCIC initialization failed\n");
-		goto error_ispccic;
-	}
+	if (isp->sensor_connected == true) {
+		ret = pxa_ccic_init(isp);
+		if (ret < 0) {
+			dev_err(isp->dev, "PXA CCIC initialization failed\n");
+			goto error_ispccic;
+		}
 
-	/* Connect the submodules. */
-	ret = media_entity_create_link(
-			&isp->mvisp_ccic1.subdev.entity,
-			CCIC_PAD_SOURCE,
-			&isp->mvisp_ispdma.subdev.entity, ISPDMA_PAD_SINK, 0);
-	if (ret < 0)
-		goto error_link;
+		/* Connect the submodules. */
+		ret = media_entity_create_link(
+				&isp->mvisp_ccic1.subdev.entity,
+				CCIC_PAD_SOURCE,
+				&isp->mvisp_ispdma.subdev.entity,
+				ISPDMA_PAD_SINK, 0);
+		if (ret < 0)
+			goto error_link;
+	}
 
 	return 0;
 
@@ -820,10 +874,12 @@ static int mvisp_remove(struct platform_device *pdev)
 
 	free_irq(isp->irq_ipc, isp);
 	free_irq(isp->irq_dma, isp);
-	free_irq(isp->irq_ccic1, isp);
+	if (isp->sensor_connected == true)
+		free_irq(isp->irq_ccic1, isp);
+
 	mvisp_put_clocks(isp);
 
-	for (i = 0; i < ISP_IOMEM_LAST; i++) {
+	for (i = 0; i < CCIC_ISP_IOMEM_1; i++) {
 		if (isp->mmio_base[i]) {
 			iounmap(isp->mmio_base[i]);
 			isp->mmio_base[i] = NULL;
@@ -852,7 +908,7 @@ static int mvisp_map_mem_resource(struct platform_device *pdev,
 	struct resource *mem;
 	int cnt;
 
-	for (cnt = 0; cnt < ISP_IOMEM_LAST; cnt++) {
+	for (cnt = 0; cnt < CCIC_ISP_IOMEM_1; cnt++) {
 		/* request the mem region for the camera registers */
 		mem = platform_get_resource(pdev, IORESOURCE_MEM, cnt);
 		if (!mem) {
@@ -879,6 +935,15 @@ static int mvisp_map_mem_resource(struct platform_device *pdev,
 		}
 	}
 
+	/* ccic address are statically mapped. */
+	isp->mmio_base_phys[CCIC_ISP_IOMEM_1] = 0;
+	isp->mmio_size[CCIC_ISP_IOMEM_1] = 0;
+	/* map the region */
+	if (isp->sensor_connected == true)
+		isp->mmio_base[CCIC_ISP_IOMEM_1] = CCIC1_VIRT_BASE;
+	else
+		isp->mmio_base[CCIC_ISP_IOMEM_1] = NULL;
+
 	return 0;
 }
 
@@ -904,9 +969,18 @@ static int mvisp_probe(struct platform_device *pdev)
 	isp->pdata = pdata;
 	isp->ref_count = 0;
 	isp->has_context = false;
-	isp->sensor_detected = false;
 
 	platform_set_drvdata(pdev, isp);
+
+	ret = mvisp_register_ispdev(isp);
+	if (ret < 0)
+		return ret;
+
+	ret = mvisp_detect_sensor(isp);
+	if (ret < 0)
+		isp->sensor_connected = false;
+	else
+		isp->sensor_connected = true;
 
 	/* Clocks */
 	ret = mvisp_map_mem_resource(pdev, isp);
@@ -954,18 +1028,20 @@ static int mvisp_probe(struct platform_device *pdev)
 		goto error_irq_dma;
 	}
 
-	isp->irq_ccic1 = platform_get_irq(pdev, 2);
-	if (isp->irq_ccic1 <= 0) {
-		dev_err(isp->dev, "No CCIC IRQ resource\n");
-		ret = -ENODEV;
-		goto error_irq_ipc;
-	}
-	if (request_irq(isp->irq_ccic1,
-			pxa_ccic_isr_1, IRQF_DISABLED,
-			"pxa_ccicirq", isp)) {
-		dev_err(isp->dev, "Unable to request CCIC IRQ\n");
-		ret = -EINVAL;
-		goto error_irq_ipc;
+	if (isp->sensor_connected == true) {
+		isp->irq_ccic1 = platform_get_irq(pdev, 2);
+		if (isp->irq_ccic1 <= 0) {
+			dev_err(isp->dev, "No CCIC IRQ resource\n");
+			ret = -ENODEV;
+			goto error_irq_ipc;
+		}
+		if (request_irq(isp->irq_ccic1,
+				pxa_ccic_isr_1, IRQF_DISABLED|IRQF_SHARED,
+				"pxa_ccicirq", isp)) {
+			dev_err(isp->dev, "Unable to request CCIC IRQ\n");
+			ret = -EINVAL;
+			goto error_irq_ipc;
+		}
 	}
 
 	/* Entities */
@@ -977,25 +1053,13 @@ static int mvisp_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto error_modules;
 
-	if (isp->sensor_detected == false) {
-		/* No sensor is found, release resources of CCIC */
-		pxa_ccic_unregister_entities(&isp->mvisp_ccic1);
+	if (isp->sensor_connected == true) {
+		ret = mvisp_connect_sensor_entities(isp);
+		if (ret < 0)
+			goto error_modules;
 
-		free_irq(isp->irq_ccic1, isp);
-		if (isp->mmio_base[CCIC_ISP_IOMEM_1]) {
-			iounmap(isp->mmio_base[CCIC_ISP_IOMEM_1]);
-			isp->mmio_base[CCIC_ISP_IOMEM_1] = NULL;
-		}
-
-		if (isp->mmio_base_phys[CCIC_ISP_IOMEM_1]) {
-			release_mem_region(
-				isp->mmio_base_phys[CCIC_ISP_IOMEM_1],
-				isp->mmio_size[CCIC_ISP_IOMEM_1]);
-			isp->mmio_base_phys[CCIC_ISP_IOMEM_1] = 0;
-		}
-	} else {
 		/* Dummy buffer is for CCIC usage only*/
-		isp->isp_dummy_order = get_order(PAGE_ALIGN(4000*1080*2));
+		isp->isp_dummy_order = get_order(PAGE_ALIGN(4000*3000*2));
 		isp->isp_dummy_pages = alloc_pages(
 				GFP_KERNEL, isp->isp_dummy_order);
 		if (isp->isp_dummy_pages != NULL)
@@ -1005,12 +1069,14 @@ static int mvisp_probe(struct platform_device *pdev)
 
 	mvisp_power_settings(isp, 1);
 	mvisp_put(isp);
+
 	return 0;
 
 error_modules:
 	mvisp_cleanup_modules(isp);
 error_irq_ccic:
-	free_irq(isp->irq_ccic1, isp);
+	if (isp->sensor_connected == true)
+		free_irq(isp->irq_ccic1, isp);
 error_irq_ipc:
 	free_irq(isp->irq_ipc, isp);
 error_irq_dma:
@@ -1020,7 +1086,7 @@ error_isp:
 error:
 	mvisp_put_clocks(isp);
 
-	for (i = 0; i < ISP_IOMEM_LAST; i++) {
+	for (i = 0; i < CCIC_ISP_IOMEM_1; i++) {
 		if (isp->mmio_base[i]) {
 			iounmap(isp->mmio_base[i]);
 			isp->mmio_base[i] = NULL;

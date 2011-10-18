@@ -1104,7 +1104,8 @@ static int __devinit mv_camera_probe(struct platform_device *pdev)
 	pcdev->irq = irq;
 	pcdev->base = base;
 	/* request irq */
-	err = request_irq(pcdev->irq, mv_camera_irq, 0, MV_CAM_DRV_NAME, pcdev);
+	err = request_irq(pcdev->irq, mv_camera_irq,
+			IRQF_SHARED, MV_CAM_DRV_NAME, pcdev);
 	if (err) {
 		dev_err(&pdev->dev, "Camera interrupt register failed\n");
 		goto exit_free_irq;
