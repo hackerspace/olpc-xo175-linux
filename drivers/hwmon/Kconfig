@@ -1495,4 +1495,10 @@ config SENSORS_ROHM_BH1772
        help
        This driver provides support for BH1772 PS and ALS sensor.
 
+config SENSORS_APDS990X
+       tristate "APDS990x light and proximity sensor"
+       depends on I2C && INPUT
+       help
+       This driver provides support the APDS990x deivce
+
 endif # HWMON
