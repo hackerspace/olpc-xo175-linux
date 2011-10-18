@@ -510,7 +510,11 @@ static APMU_CLK_OPS(nand, NAND, 0x019b, 156000000, &nand_clk_ops);
 static APMU_CLK(u2o, USB, 0x1b, 480000000);
 static APMU_CLK(sdh0, SDH0, 0x001b, 44500000);
 static APMU_CLK(sdh1, SDH1, 0x001b, 44500000);
-static APMU_CLK(sdh2, SDH2, 0x001b, 44500000);
+/* Configure the clock as 52MHz since eMMC is used on SDH2 at pxa920
+ * board. If SD 2.0 card is used on SDH2, according to SD 2.0 spec,
+ * the max clock is limited to 50MHz, so this patch cannot be applied.
+ */
+static APMU_CLK(sdh2, SDH2, 0x005b, 52000000);
 static APMU_CLK_OPS(lcd, LCD, 0x003f, 312000000, &lcd_pn1_clk_ops);
 static APMU_CLK(ire, IRE, 0x9, 0);
 static APMU_CLK(ccic_rst, CCIC_RST, 0x0, 312000000);
