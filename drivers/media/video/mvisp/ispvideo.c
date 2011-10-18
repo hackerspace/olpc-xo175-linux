@@ -1157,6 +1157,7 @@ static unsigned int isp_video_poll(struct file *file, poll_table *wait)
 	struct isp_video_fh *vfh = to_isp_video_fh(file->private_data);
 	struct isp_video_queue *queue = &vfh->queue;
 
+	queue->poll_on_empty = false;
 	return mvisp_video_queue_poll(queue, file, wait);
 }
 

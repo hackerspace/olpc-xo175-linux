@@ -96,6 +96,9 @@ struct isp_video_queue {
 
 	unsigned int			streaming;
 	struct list_head		queue;
+
+	wait_queue_head_t		empty_wait;
+	bool					poll_on_empty;
 };
 
 int mvisp_video_queue_cleanup(struct isp_video_queue *queue);

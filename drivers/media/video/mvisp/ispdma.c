@@ -711,6 +711,7 @@ static int load_dummy_buffer(struct isp_ispdma_device *ispdma,
 	enum isp_pipeline_start_condition
 			start_dma = ISP_CAN_NOT_START;
 	struct isp_video_buffer *buffer;
+	struct mvisp_device *isp = to_mvisp_device(ispdma);
 
 	switch (port) {
 	case ISPDMA_PORT_DISPLAY:
@@ -718,6 +719,8 @@ static int load_dummy_buffer(struct isp_ispdma_device *ispdma,
 			ispdma->vd_disp_out.queue->dummy_buffers[0];
 		if (buffer == NULL) {
 			ispdma_stop_dma(ispdma, ISPDMA_PORT_DISPLAY);
+			dev_warn(isp->dev,
+				"isp display dma stops [no dummy buffer]\n");
 		} else {
 			ispdma_set_disp_outaddr(ispdma, buffer);
 			start_dma |= ISP_DISPLAY_CAN_START;
@@ -728,6 +731,8 @@ static int load_dummy_buffer(struct isp_ispdma_device *ispdma,
 			ispdma->vd_codec_out.queue->dummy_buffers[0];
 		if (buffer == NULL) {
 			ispdma_stop_dma(ispdma, ISPDMA_PORT_CODEC);
+			dev_warn(isp->dev,
+				"isp codec dma stops [no dummy buffer]\n");
 		} else {
 			ispdma_set_codec_outaddr(ispdma, buffer);
 			start_dma |= ISP_CODEC_CAN_START;

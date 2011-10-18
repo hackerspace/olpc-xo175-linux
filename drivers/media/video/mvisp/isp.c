@@ -769,7 +769,6 @@ static int mvisp_detect_sensor(struct mvisp_device *isp)
 {
 	struct mvisp_platform_data *pdata = isp->pdata;
 	struct mvisp_v4l2_subdevs_group *subdev_group;
-	enum mv_isp_sensor_type sensor_type;
 	int ret = -EINVAL;
 	struct v4l2_subdev *sensor;
 
