@@ -1373,6 +1373,13 @@ config SENSORS_MC13783_ADC
         help
           Support for the A/D converter on MC13783 PMIC.
 
+config SENSORS_MMP2_THERMAL
+	tristate "MMP2 thermal sensor"
+	depends on CPU_MMP2
+	default y
+	help
+	  This driver provides support for the thermal sensor on MMP2.
+
 if ACPI
 
 comment "ACPI drivers"
