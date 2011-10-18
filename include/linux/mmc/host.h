@@ -211,6 +211,8 @@ struct mmc_host {
 #define MMC_CAP_MAX_CURRENT_600	(1 << 28)	/* Host max current limit is 600mA */
 #define MMC_CAP_MAX_CURRENT_800	(1 << 29)	/* Host max current limit is 800mA */
 #define MMC_CAP_CMD23		(1 << 30)	/* CMD23 supported. */
+ /* controller should NOT gate bus clock for some device at any time, e.g. SDIO card */
+#define MMC_CAP_DISABLE_BUS_CLK_GATING	(1 << 31)
 
 	mmc_pm_flag_t		pm_caps;	/* supported pm features */
 
