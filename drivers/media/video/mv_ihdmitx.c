@@ -1,5 +1,5 @@
  /*
-  * linux/driver/media/video/pxa970_hdmitx.c
+  * linux/driver/media/video/pxa978_hdmitx.c
   *
   *  Copyright (C) 2011 Marvell International Ltd.
   *  AUTHOR:  O. Baron
@@ -544,7 +544,7 @@ static int __init hdmitx_init(void)
 {
 	int ret = 0;
 	/*2 --480p, 17 -- 576p, refer to global_hdmi_frame[] */
-	/*ret = pxa970_hdmitx_init(4); */
+	/*ret = pxa978_hdmitx_init(4); */
 	ret = platform_driver_register(&hdmitx_driver);
 	return ret;
 }
@@ -552,5 +552,5 @@ static int __init hdmitx_init(void)
 late_initcall(hdmitx_init);
 
 MODULE_AUTHOR("Hezi Shahmoon");
-MODULE_DESCRIPTION("Internal HDMI driver for PXA970");
+MODULE_DESCRIPTION("Internal HDMI driver for PXA978");
 MODULE_LICENSE("GPL");

@@ -56,8 +56,8 @@ config MACH_SAARB
 	select HAVE_PWM
 
 config MACH_NEVOSAARC
-	bool "PXA970 Handheld Platform (aka SAARC2)"
-	select CPU_PXA970
+	bool "PXA978 Handheld Platform (aka SAARC2)"
+	select CPU_PXA978
 	select HAVE_PWM
 
 comment "Third Party Dev Platforms (sorted by vendor name)"
@@ -683,12 +683,12 @@ config CPU_PXA998
 	help
 	  PXA998 (codename Eshel)
 
-config CPU_PXA970
+config CPU_PXA978
 	bool
 	select PXA95x
 	select PREEMPT_NOTIFIERS
 	help
-	  PXA970 (codename Nevo)
+	  PXA978 (codename Nevo)
 
 config PXA_SHARP_C7xx
 	bool

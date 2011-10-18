@@ -1153,7 +1153,7 @@ config HDMI_ADV7533
 
 config MV_IHDMI
         tristate "Marvell internal hdmi support"
-        depends on I2C && FB_PXA95x && CPU_PXA970
+        depends on I2C && FB_PXA95x && CPU_PXA978
         ---help---
           This is a Marvell internal hdmi driver.
           This chip connects directly with internal

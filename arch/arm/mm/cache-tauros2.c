@@ -294,7 +294,7 @@ void __init tauros2_init(void)
 		 */
 		if (cpu_is_pxa955_C2() || cpu_is_pxa955_Dx() || cpu_is_pxa955_Ex() ||
 			cpu_is_pxa968_Bx() ||
-			cpu_is_pxa970()
+			cpu_is_pxa978()
 			)
 			enable_extra_feature();
 		else

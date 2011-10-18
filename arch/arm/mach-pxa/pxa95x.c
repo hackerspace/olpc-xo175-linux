@@ -227,7 +227,7 @@ static struct mfp_addr_map pxa95x_mfp_addr_map[] __initdata = {
 	MFP_ADDR_END,
 };
 
-static struct mfp_addr_map pxa970_mfp_addr_map[] __initdata = {
+static struct mfp_addr_map pxa978_mfp_addr_map[] __initdata = {
 	MFP_ADDR_X(GPIO0, GPIO191, 0x208),
 
 	MFP_ADDR_END,
@@ -368,7 +368,7 @@ static void clk_pxa95x_dsi_enable(struct clk *dsi_clk)
 	set_mipi_reference_control();
 	dsi_enable_status = 1;
 
-	if (!cpu_is_pxa970()) {
+	if (!cpu_is_pxa978()) {
 		struct DSIRegisters  *p_Regs =
 			get_dsi_pll(dsi_clk->cken == CKEN_DSI_TX2);
 		/*Enable PLL with internal timer*/
@@ -388,7 +388,7 @@ static void clk_pxa95x_dsi_disable(struct clk *dsi_clk)
 {
 	CKENC &= ~(1 << (dsi_clk->cken - 64));
 
-	if (!cpu_is_pxa970()) {
+	if (!cpu_is_pxa978()) {
 		struct DSIRegisters  *p_Regs =
 			get_dsi_pll(dsi_clk->cken == CKEN_DSI_TX2);
 		/*Disable PLL with internal timer*/
@@ -568,7 +568,7 @@ static void dsi_set_clock_pv2(u32 dsi_clk_val, u32 converter)
 static int clk_pxa95x_dsi_setrate(struct clk *dsi_clk, unsigned long rate)
 {
 	int mrate = rate/1000000;
-	if (cpu_is_pxa970())
+	if (cpu_is_pxa978())
 		dsi_set_clock_nevo(mrate);
 	else
 		dsi_set_clock_pv2(mrate, (dsi_clk->cken == CKEN_DSI_TX2));
@@ -1014,8 +1014,8 @@ static int __init pxa95x_init(void)
 		tauros2_init();
 #endif
 		mfp_init_base(io_p2v(MFPR_BASE));
-		if (cpu_is_pxa970())
-			mfp_init_addr(pxa970_mfp_addr_map);
+		if (cpu_is_pxa978())
+			mfp_init_addr(pxa978_mfp_addr_map);
 		else
 			mfp_init_addr(pxa95x_mfp_addr_map);
 

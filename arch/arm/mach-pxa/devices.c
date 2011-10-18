@@ -1702,7 +1702,7 @@ static struct resource mv_ihdmi_resources[] = {
 };
 
 static u64 mv_ihdmi_dma_mask = DMA_BIT_MASK(32);
-struct platform_device pxa97x_device_ihdmi = {
+struct platform_device pxa978_device_ihdmi = {
 	.name		= "mv-ihdmi",
 	.id		= -1,
 	.dev		= {

@@ -280,15 +280,15 @@ extern unsigned int pxa_chip_id;
 #define __cpu_is_pxa998(id)	(0)
 #endif
 
-#ifdef CONFIG_CPU_PXA970
-#define __cpu_is_pxa970(id)					\
+#ifdef CONFIG_CPU_PXA978
+#define __cpu_is_pxa978(id)					\
 	({							\
 		unsigned int _id = (id) >> 4 & 0xfff;		\
 		(_id == 0x581)					\
 		&& (((pxa_chip_id >> 8) & 0xff) == 0x2a);	\
 	})
 #else
-#define __cpu_is_pxa970(id)	(0)
+#define __cpu_is_pxa978(id)	(0)
 #endif
 
 #define cpu_is_pxa210()					\
@@ -391,9 +391,9 @@ extern unsigned int pxa_chip_id;
 	})
 
 /* PXA972=Nevo-Light, PXA978=Nevo */
-#define cpu_is_pxa970()					\
+#define cpu_is_pxa978()					\
 	({						\
-		__cpu_is_pxa970(read_cpuid_id());	\
+		__cpu_is_pxa978(read_cpuid_id());	\
 	})
 
 #define cpu_is_pxa998()					\
@@ -443,7 +443,7 @@ extern unsigned int pxa_chip_id;
 		__cpu_is_pxa955(id)			\
 			|| __cpu_is_pxa968(id)		\
 			|| __cpu_is_pxa998(id)		\
-			|| __cpu_is_pxa970(id);		\
+			|| __cpu_is_pxa978(id);		\
 	})
 #else
 #define __cpu_is_pxa95x(id)	(0)

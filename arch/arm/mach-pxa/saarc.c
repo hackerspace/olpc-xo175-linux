@@ -626,7 +626,7 @@ static void __init init_lcd(void)
 	set_pxa95x_fb_info(&lcd_info);
 	set_pxa95x_fb_ovly_info(&lcd_ovly_info, 0);
 #if defined(CONFIG_MV_IHDMI)
-	pxa_register_device(&pxa97x_device_ihdmi, &mv_ihdmi_format);
+	pxa_register_device(&pxa978_device_ihdmi, &mv_ihdmi_format);
 	ihdmi_ovly_info.modes = &video_modes_ihdmi[mv_ihdmi_format-1];
 	set_pxa95x_fb_ovly_info(&ihdmi_ovly_info, 1);
 #elif defined(CONFIG_HDMI_ADV7533)
@@ -725,7 +725,7 @@ static void __init init(void)
 #endif
 }
 
-MACHINE_START(NEVOSAARC, "PXA970 Handheld Platform (aka SAAR C2)")
+MACHINE_START(NEVOSAARC, "PXA978 Handheld Platform (aka SAAR C2)")
 	.map_io		= pxa_map_io,
 	.nr_irqs	= NEVOSAARC_NR_IRQS,
 	.init_irq	= pxa95x_init_irq,
