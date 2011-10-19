@@ -199,6 +199,12 @@ static int vmeta_power_on(struct vmeta_instance *vi)
 		mutex_unlock(&vi->mutex);
 		return 0;
 	}
+
+#ifdef CONFIG_DVFM
+	if (vi->plat_data->disable_lpm)
+		vi->plat_data->disable_lpm(dvfm_lock.dev_idx);
+#endif
+
 	vmeta_pwr(VMETA_PWR_ENABLE);
 	vi->power_status = 1;
 
@@ -321,6 +327,9 @@ static int vmeta_power_off(struct vmeta_instance *vi)
 	vi->power_status = 0;
 
 #ifdef CONFIG_DVFM
+	if (vi->plat_data->enable_lpm)
+		vi->plat_data->enable_lpm(dvfm_lock.dev_idx);
+
 	if (vi->plat_data->clean_dvfm_constraint) {
 		vi->plat_data->clean_dvfm_constraint(vi, dvfm_lock.dev_idx);
 		printk(KERN_INFO "vmeta op clean up\n");

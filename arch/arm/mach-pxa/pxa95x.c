@@ -1431,8 +1431,6 @@ int pxa95x_vmeta_set_dvfm_constraint(struct vmeta_instance *vi, int idx)
 		return -1;
 	}
 
-	dvfm_disable_lowpower(idx);
-
 	dvfm_disable_op_name("156M", idx);
 	dvfm_disable_op_name("156M_HF", idx);
 	dvfm_disable_op_name("988M", idx);
@@ -1478,8 +1476,6 @@ int pxa95x_vmeta_set_dvfm_constraint(struct vmeta_instance *vi, int idx)
 
 int pxa95x_vmeta_unset_dvfm_constraint(struct vmeta_instance *vi, int idx)
 {
-	dvfm_enable_lowpower(idx);
-
 	dvfm_enable_op_name("156M", idx);
 	dvfm_enable_op_name("156M_HF", idx);
 	dvfm_enable_op_name("624M", idx);
