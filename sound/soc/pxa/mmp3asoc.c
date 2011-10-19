@@ -527,13 +527,19 @@ static int mmp3asoc_wm8994_startup(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 	struct snd_soc_codec *codec = rtd->codec;
 
 	cpu_dai->driver->playback.formats = SNDRV_PCM_FMTBIT_S16_LE;
 	cpu_dai->driver->capture.formats = SNDRV_PCM_FMTBIT_S16_LE;
 	cpu_dai->driver->playback.rates = MMP3ASOC_SAMPLE_RATES;
 	cpu_dai->driver->capture.rates = MMP3ASOC_SAMPLE_RATES;
+
+	/* turn on micbias 1/2 always */
+	snd_soc_update_bits(codec, WM8994_POWER_MANAGEMENT_1,
+			    WM8994_MICB1_ENA_MASK |
+			    WM8994_MICB2_ENA_MASK,
+			    WM8994_MICB1_ENA |
+			    WM8994_MICB2_ENA);
 
 	return 0;
 }
