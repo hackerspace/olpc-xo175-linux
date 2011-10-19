@@ -744,7 +744,7 @@ static int ccic_init_entities(struct isp_ccic_device *ccic,
 	ccic->video_out.ops = &ccic_ispvideo_ops;
 	ccic->video_out.isp = ccic->isp;
 
-	ret = mvisp_video_init(&ccic->video_out, "dma_ccic", 1);
+	ret = mvisp_video_init(&ccic->video_out, ISP_VIDEO_CCIC1_NAME, 1);
 	if (ret < 0)
 		return ret;
 

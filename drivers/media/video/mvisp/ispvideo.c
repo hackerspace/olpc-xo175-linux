@@ -1247,6 +1247,8 @@ int mvisp_video_init(struct isp_video *video,
 		video->video_type = ISP_VIDEO_DISPLAY;
 	else if (strcmp(name, ISP_VIDEO_CODEC_NAME) == 0)
 		video->video_type = ISP_VIDEO_CODEC;
+	else if (strcmp(name, ISP_VIDEO_CCIC1_NAME) == 0)
+		video->video_type = ISP_VIDEO_CCIC;
 	else
 		video->video_type = ISP_VIDEO_UNKNOWN;
 
@@ -1255,9 +1257,29 @@ int mvisp_video_init(struct isp_video *video,
 
 int mvisp_video_register(struct isp_video *video, struct v4l2_device *vdev)
 {
+	int nr;
+
 	video->video.v4l2_dev = vdev;
 
-	return video_register_device(&video->video, VFL_TYPE_GRABBER, -1);
+	switch (video->video_type) {
+	case ISP_VIDEO_DISPLAY:
+		nr = ISP_VIDEO_NR_BASE;
+		break;
+	case ISP_VIDEO_CODEC:
+		nr = ISP_VIDEO_NR_BASE + 1;
+		break;
+	case ISP_VIDEO_INPUT:
+		nr = ISP_VIDEO_NR_BASE + 2;
+		break;
+	case ISP_VIDEO_CCIC:
+		nr = ISP_VIDEO_NR_BASE + 3;
+		break;
+	default:
+		nr = -1;
+		break;
+	}
+
+	return video_register_device(&video->video, VFL_TYPE_GRABBER, nr);
 }
 
 void mvisp_video_unregister(struct isp_video *video)

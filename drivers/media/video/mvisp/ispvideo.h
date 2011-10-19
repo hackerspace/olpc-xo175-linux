@@ -55,6 +55,7 @@ struct v4l2_pix_format;
 #define ISP_VIDEO_DISPLAY_NAME	"dma_display"
 #define ISP_VIDEO_CCIC1_NAME	"dma_ccic1"
 
+#define ISP_VIDEO_NR_BASE		5
 
 
 enum isp_video_type {
