@@ -1121,6 +1121,8 @@ static struct vmeta_plat_data vmeta_plat_data = {
 	.axi_clk_available = 1,
 	.decrease_core_freq = pxa95x_vmeta_decrease_core_freq,
 	.increase_core_freq = pxa95x_vmeta_increase_core_freq,
+	.disable_lpm = dvfm_disable_lowpower,
+	.enable_lpm = dvfm_enable_lowpower,
 };
 #endif /*(CONFIG_UIO_VMETA)*/
 
