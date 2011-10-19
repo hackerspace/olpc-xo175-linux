@@ -48,7 +48,7 @@
 #include "mmp2-sspa.h"
 #include <linux/delay.h>
 
-#define MMP3ASOC_SAMPLE_RATES SNDRV_PCM_RATE_8000_48000
+#define MMP3ASOC_SAMPLE_RATES SNDRV_PCM_RATE_44100
 
 #define MMP3ASOC_HP        0
 #define MMP3ASOC_MIC       1
