@@ -30,6 +30,9 @@
 #ifdef CONFIG_PXA3XX_BBM
 #include <plat/pxa3xx_bbm.h>
 #endif
+#ifdef CONFIG_PXA95x
+#include <mach/dvfm.h>
+#endif
 #include <linux/wakelock.h>
 #include <linux/pm_qos_params.h>
 
@@ -316,9 +319,13 @@ const char *mtd_names[] = {"pxa3xx_nand-0", "pxa3xx_nand-1", NULL};
 
 /* convert nano-seconds to nand flash controller clock cycles */
 #define ns2cycle(ns, clk)	(int)((ns) * (clk / 1000000) / 1000)
+#ifdef CONFIG_PXA95x
+static int dvfm_dev_idx;
+#else
 static struct wake_lock idle_lock;
 static struct pm_qos_request_list pxa3xx_nand_qos_disable_cpufreq;
 static struct pm_qos_request_list pxa3xx_nand_qos_req_min;
+#endif
 
 static dma_addr_t map_addr(struct pxa3xx_nand_info *info, void *buf,
 			   size_t sz, int dir)
@@ -993,10 +1000,14 @@ void release_constraints_work_func(struct work_struct *work)
 	mutex_lock(&nand_constraints_lock);
 
 	constraint_is_set = 0;
+#ifndef CONFIG_PXA95x
 	pm_qos_update_request(&pxa3xx_nand_qos_disable_cpufreq,
 			PM_QOS_DEFAULT_VALUE);
 	pm_qos_update_request(&pxa3xx_nand_qos_req_min, PM_QOS_DEFAULT_VALUE);
 	wake_unlock(&idle_lock);
+#else
+	dvfm_enable_lowpower(dvfm_dev_idx);
+#endif
 	mutex_unlock(&nand_constraints_lock);
 }
 
@@ -1035,9 +1046,13 @@ static void pxa3xx_nand_cmdfunc(struct mtd_info *mtd, unsigned command,
 
 	if (constraint_is_set == 0) {
 		constraint_is_set = 1;
+#ifndef CONFIG_PXA95x
 		wake_lock(&idle_lock);
 		pm_qos_update_request(&pxa3xx_nand_qos_req_min, 312);
 		pm_qos_update_request(&pxa3xx_nand_qos_disable_cpufreq, 1);
+#else
+		dvfm_disable_lowpower(dvfm_dev_idx);
+#endif
 	}
 	/*
 	 * if this is a x16 device ,then convert the input
@@ -1871,18 +1886,26 @@ static struct platform_driver pxa3xx_nand_driver = {
 
 static int __init pxa3xx_nand_init(void)
 {
+#ifdef CONFIG_PXA95x
+	dvfm_register("NAND", &dvfm_dev_idx);
+#else
 	wake_lock_init(&idle_lock, WAKE_LOCK_IDLE, "pxa3xx_nand_idle");
 	pm_qos_add_request(&pxa3xx_nand_qos_req_min,
 			   PM_QOS_CPUFREQ_MIN, PM_QOS_DEFAULT_VALUE);
 	pm_qos_add_request(&pxa3xx_nand_qos_disable_cpufreq,
 			   PM_QOS_CPUFREQ_DISABLE, PM_QOS_DEFAULT_VALUE);
+#endif
 	return platform_driver_register(&pxa3xx_nand_driver);
 }
 module_init(pxa3xx_nand_init);
 
 static void __exit pxa3xx_nand_exit(void)
 {
+#ifdef CONFIG_PXA95x
+	dvfm_unregister("NAND", &dvfm_dev_idx);
+#else
 	wake_lock_destroy(&idle_lock);
+#endif
 	platform_driver_unregister(&pxa3xx_nand_driver);
 }
 module_exit(pxa3xx_nand_exit);
