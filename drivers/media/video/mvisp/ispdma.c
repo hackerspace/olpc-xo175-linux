@@ -1976,11 +1976,11 @@ static int ispdma_init_entities(struct isp_ispdma_device *ispdma)
 		return ret;
 
 	ret = mvisp_video_init
-		(&ispdma->vd_codec_out, ISP_VIDEO_CODEC_NAME, false);
+		(&ispdma->vd_codec_out, ISP_VIDEO_CODEC_NAME, true);
 	if (ret < 0)
 		return ret;
 	ret = mvisp_video_init
-		(&ispdma->vd_disp_out, ISP_VIDEO_DISPLAY_NAME, false);
+		(&ispdma->vd_disp_out, ISP_VIDEO_DISPLAY_NAME, true);
 	if (ret < 0)
 		return ret;
 

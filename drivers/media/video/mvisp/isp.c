@@ -1058,7 +1058,7 @@ static int mvisp_probe(struct platform_device *pdev)
 			goto error_modules;
 
 		/* Dummy buffer is for CCIC usage only*/
-		isp->isp_dummy_order = get_order(PAGE_ALIGN(4000*3000*2));
+		isp->isp_dummy_order = get_order(PAGE_ALIGN(2000*1100*2));
 		isp->isp_dummy_pages = alloc_pages(
 				GFP_KERNEL, isp->isp_dummy_order);
 		if (isp->isp_dummy_pages != NULL)
