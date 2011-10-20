@@ -209,6 +209,7 @@ struct max8925_backlight_pdata {
 	int	lxw_scl;	/* 0/1 -- 0.8Ohm/0.4Ohm */
 	int	lxw_freq;	/* 700KHz ~ 1400KHz */
 	int	dual_string;	/* 0/1 -- single/dual string */
+	int	brightness_off;	/* 0/1 -- brightness on/off*/
 };
 
 struct max8925_touch_pdata {
