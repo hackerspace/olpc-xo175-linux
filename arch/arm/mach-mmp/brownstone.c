@@ -349,7 +349,13 @@ static struct max8925_power_pdata brownstone_power_data = {
 	.chg_port_config	= CHG_PORT_WALL,	/* PMIC wired config */
 };
 
+static struct max8925_backlight_pdata brownstone_key_backlight_data = {
+	.dual_string	= 0,
+	.brightness_off	= 1,
+};
+
 static struct max8925_platform_data brownstone_max8925_info = {
+	.backlight              = &brownstone_key_backlight_data,
 	.irq_base		= IRQ_BOARD_START,
 	.power			= &brownstone_power_data,
 
