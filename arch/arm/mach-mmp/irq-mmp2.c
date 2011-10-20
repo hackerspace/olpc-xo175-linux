@@ -17,8 +17,55 @@
 
 #include <mach/regs-icu.h>
 #include <mach/mmp2.h>
-
+#include <mach/mmp2_pm.h>
 #include "common.h"
+
+int mmp2_set_wake(struct irq_data *i_data, unsigned int on)
+{
+	int irq = i_data->irq;
+	struct irq_desc *desc = irq_to_desc(irq);
+	unsigned long data = 0;
+
+	if (unlikely(irq >= nr_irqs)) {
+		pr_err("IRQ nubmers are out of boundary!\n");
+		return -EINVAL;
+	}
+
+	if (on) {
+		if (desc->action)
+			desc->action->flags |= IRQF_NO_SUSPEND;
+	} else {
+		if (desc->action)
+			desc->action->flags &= ~IRQF_NO_SUSPEND;
+	}
+
+	/* enable wakeup sources */
+	switch (irq) {
+	case IRQ_MMP2_RTC:
+		data = PMUM_WAKEUP4 | PMUM_RTC_ALARM;
+		break;
+	case IRQ_MMP2_PMIC:
+		data = PMUM_WAKEUP7;
+		break;
+	case IRQ_MMP2_MMC:
+	case IRQ_MMP2_MMC3:
+		/* mmc use WAKEUP2, same as GPIO wakeup source */
+		data = PMUM_WAKEUP2;
+		break;
+	}
+	if (on) {
+		if (data) {
+			data |= __raw_readl(MPMU_AWUCRM);
+			__raw_writel(data, MPMU_AWUCRM);
+		}
+	} else {
+		if (data) {
+			data = ~data & __raw_readl(MPMU_AWUCRM);
+			__raw_writel(data, MPMU_AWUCRM);
+		}
+	}
+	return 0;
+}
 
 static void icu_mask_irq(struct irq_data *d)
 {
@@ -42,6 +89,7 @@ static struct irq_chip icu_irq_chip = {
 	.irq_mask_ack	= icu_mask_irq,
 	.irq_unmask	= icu_unmask_irq,
 	.irq_disable	= icu_mask_irq,
+	.irq_set_wake	= mmp2_set_wake,
 };
 
 static void pmic_irq_ack(struct irq_data *d)
@@ -148,6 +196,7 @@ void __init mmp2_init_icu(void)
 	 * to be written to clear the interrupt
 	 */
 	pmic_irq_chip.irq_ack = pmic_irq_ack;
+	pmic_irq_chip.irq_set_wake = mmp2_set_wake;
 
 	init_mux_irq(&pmic_irq_chip, IRQ_MMP2_PMIC_BASE, 2);
 	init_mux_irq(&rtc_irq_chip, IRQ_MMP2_RTC_BASE, 2);

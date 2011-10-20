@@ -22,6 +22,7 @@ endif
 ifeq ($(CONFIG_PM),y)
 obj-$(CONFIG_CPU_MMP3)		+= pm-mmp3.o
 obj-$(CONFIG_CPU_MMP3)		+= suspend.o
+obj-$(CONFIG_CPU_MMP2)		+= pm-mmp2.o
 endif
 
 # board support
