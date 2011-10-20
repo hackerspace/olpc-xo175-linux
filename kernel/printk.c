@@ -1150,11 +1150,7 @@ int update_console_cmdline(char *name, int idx, char *name_new, int idx_new, cha
 	return -1;
 }
 
-#ifdef CONFIG_CPU_MMP3
-int console_suspend_enabled = 0;
-#else
 int console_suspend_enabled = 1;
-#endif
 EXPORT_SYMBOL(console_suspend_enabled);
 
 static int __init console_suspend_disable(char *str)
