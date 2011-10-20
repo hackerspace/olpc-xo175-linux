@@ -482,6 +482,8 @@ enum {
 #define PM860X_TEMP_TINT		(0)
 #define PM860X_TEMP_TBAT		(1)
 
+#define IOCTL_PMIC_ID_GET		_IOR('M', 0xfe, unsigned long)
+
 /* Clients of reference group and 8MHz oscillator in 88PM8606 */
 enum levante_ref_gp_and_osc_clients {
 	REF_GP_NO_CLIENTS       = 0,

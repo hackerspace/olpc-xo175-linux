@@ -14,6 +14,10 @@
 #include <linux/i2c.h>
 #include <linux/mfd/88pm860x.h>
 #include <linux/slab.h>
+#include <linux/uaccess.h>
+#ifdef CONFIG_PROC_FS
+#include <linux/proc_fs.h>
+#endif
 
 static struct i2c_client *pm8607_i2c_client;
 
@@ -356,6 +360,69 @@ static int verify_addr(struct i2c_client *i2c)
 	return 0;
 }
 
+#ifdef CONFIG_PROC_FS
+#define PROC_FILE	"driver/pmic_id"
+
+static struct proc_dir_entry *proc_file;
+
+static long pmic_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	void __user *uarg = (void __user *)arg;
+	int ret = -EINVAL;
+	static u8 icotl_pmic_id;  /* static is '0' initialized */
+
+	switch (cmd) {
+	case IOCTL_PMIC_ID_GET:
+		if (icotl_pmic_id == 0)
+			icotl_pmic_id = pm860x_codec_reg_read(PM8607_CHIP_ID);
+		ret = put_user(icotl_pmic_id, (unsigned long __user *)uarg);
+		pr_info("-------> icotl_pmic_id %x\n", icotl_pmic_id);
+		if (ret)
+			ret = -EFAULT;
+		break;
+
+	default:
+		panic("pmic_ioctl");
+		break;
+	}
+
+	return ret;
+}
+
+static ssize_t proc_read(struct file *filp, char __user *buffer,
+				size_t length, loff_t *offset)
+{
+	printk(KERN_ALERT "proc_read - pmic id 0x%x\n",
+			pm860x_codec_reg_read(PM8607_CHIP_ID));
+
+	return 0;
+}
+
+static ssize_t proc_write(struct file *filp, const char *buff,
+				size_t len, loff_t *off)
+{
+	printk(KERN_ALERT "proc_write - no action done\n");
+
+	return len;
+}
+
+static const struct file_operations proc_ops = {
+	.read   = proc_read,
+	.write  = proc_write,
+	.unlocked_ioctl  = pmic_ioctl,
+};
+
+static void create_proc_file(void)
+{
+	proc_file = create_proc_entry(PROC_FILE, 0644, NULL);
+	if (proc_file) {
+		proc_file->proc_fops = &proc_ops;
+		printk(KERN_ALERT "PMIC proc file created!\n");
+	} else
+		printk(KERN_ALERT "PMIC proc file create failed!\n");
+}
+#endif
+
 static int __devinit pm860x_probe(struct i2c_client *client,
 				  const struct i2c_device_id *id)
 {
@@ -397,6 +464,10 @@ static int __devinit pm860x_probe(struct i2c_client *client,
 		pdata->fixup(chip, pdata);
 
 	pm860x_device_init(chip, pdata);
+
+#ifdef CONFIG_PROC_FS
+	create_proc_file();
+#endif
 	return 0;
 }
 
