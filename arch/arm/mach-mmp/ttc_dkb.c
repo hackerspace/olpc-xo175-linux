@@ -707,9 +707,51 @@ static struct pca9575_platform_data pca9575_data[] = {
 #endif
 
 #if defined(CONFIG_GPIO_PCA953X)
+static int max7312_pin_setup(struct i2c_client *client, unsigned gpio,
+       unsigned ngpio, void *context)
+{
+	unsigned int i;
+	unsigned gpio_num;
+	int pin_level;
+	/*
+	 * TD: pull up all pin to avoid current leakage and save power,
+	 * TTC : IO0,IO1,IO2 is connected to GND, should pull down
+	 */
+	if (is_td_dkb) {
+		for (i = 0 ; i < ngpio; i++) {
+			gpio_num = gpio + i;
+			if (gpio_request(gpio_num, "MAX7312_IO")) {
+				printk(KERN_ERR "Request max7312 GPIO failed, \
+					gpio:%d\n", i);
+				return -EIO;
+			}
+			gpio_direction_output(gpio_num, 1);
+			gpio_free(gpio_num);
+		}
+	} else {
+		for (i = 0 ; i < ngpio; i++) {
+			gpio_num = gpio + i;
+			if (gpio_request(gpio_num, "MAX7312_IO")) {
+				printk(KERN_ERR "Request max7312 GPIO failed, \
+					gpio:%d\n", i);
+				return -EIO;
+			}
+			if (i < 3)
+				pin_level = 0;
+			else
+				pin_level = 1;
+			gpio_direction_output(gpio_num, pin_level);
+			gpio_free(gpio_num);
+		}
+	}
+
+	return 0;
+}
+
 static struct pca953x_platform_data max7312_data[] = {
 	[0] = {
 		.gpio_base      = GPIO_EXT0(0),
+		.setup          = max7312_pin_setup,
 	},
 };
 #endif
