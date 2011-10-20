@@ -65,6 +65,35 @@ static irqreturn_t max8925_onkey_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+#ifdef CONFIG_PM
+static int max8925_onkey_suspend(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct max8925_chip *chip = dev_get_drvdata(pdev->dev.parent);
+
+	if (device_may_wakeup(dev))
+		enable_irq_wake(chip->core_irq);
+
+	return 0;
+}
+
+static int max8925_onkey_resume(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct max8925_chip *chip = dev_get_drvdata(pdev->dev.parent);
+
+	if (device_may_wakeup(dev))
+		disable_irq_wake(chip->core_irq);
+
+	return 0;
+}
+
+static const struct dev_pm_ops max8925_onkey_pm_ops = {
+	.suspend	= max8925_onkey_suspend,
+	.resume		= max8925_onkey_resume,
+};
+#endif
+
 static int __devinit max8925_onkey_probe(struct platform_device *pdev)
 {
 	struct max8925_chip *chip = dev_get_drvdata(pdev->dev.parent);
@@ -130,6 +159,7 @@ static int __devinit max8925_onkey_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, info);
+	device_init_wakeup(&pdev->dev, 1);
 
 	return 0;
 
@@ -162,6 +192,9 @@ static struct platform_driver max8925_onkey_driver = {
 	.driver		= {
 		.name	= "max8925-onkey",
 		.owner	= THIS_MODULE,
+#ifdef CONFIG_PM
+		.pm	= &max8925_onkey_pm_ops,
+#endif
 	},
 	.probe		= max8925_onkey_probe,
 	.remove		= __devexit_p(max8925_onkey_remove),
