@@ -30,6 +30,7 @@
 #include <linux/slab.h>
 #include <linux/regulator/machine.h>
 #include <linux/delay.h>
+#include <mach/dvfm.h>
 
 #include "sdhci.h"
 #include "sdhci-pltfm.h"
@@ -181,6 +182,11 @@ static void pxav2_access_constrain(struct sdhci_host *host, unsigned int ac)
 		clk_enable(pltfm_host->clk);
 		pxa->clk_enable = 1;
 	}
+
+	if(ac && (pltfm_host->dvfm_dev_idx > 0))
+		dvfm_disable_lowpower(pltfm_host->dvfm_dev_idx);
+	else if(!ac && (pltfm_host->dvfm_dev_idx > 0))
+		dvfm_enable_lowpower(pltfm_host->dvfm_dev_idx);
 }
 
 static struct sdhci_ops pxav2_sdhci_ops = {
@@ -218,6 +224,13 @@ static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
 		goto err_clk_get;
 	}
 	pltfm_host->clk = clk;
+
+	ret = dvfm_register((char *)mmc_hostname(host->mmc), &pltfm_host->dvfm_dev_idx);
+	if(ret) {
+		pr_err("Error %d: Fails to register %s into dvfm.\n",
+				ret, mmc_hostname(host->mmc));
+		goto err_clk_get;
+	}
 
 	pxav2_access_constrain(host, 1);
 
@@ -293,11 +306,11 @@ static int __devexit sdhci_pxav2_remove(struct platform_device *pdev)
 	}
 
 	pxav2_access_constrain(host, 1);
-
 	sdhci_remove_host(host, 1);
 
 	pxav2_access_constrain(host, 0);
 	clk_put(pltfm_host->clk);
+	dvfm_unregister((char *)mmc_hostname(host->mmc), &pltfm_host->dvfm_dev_idx);
 	sdhci_pltfm_free(pdev);
 	kfree(pxa);
 

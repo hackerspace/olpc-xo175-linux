@@ -22,6 +22,9 @@ struct sdhci_pltfm_data {
 
 struct sdhci_pltfm_host {
 	struct clk *clk;
+#ifdef CONFIG_PXA95x
+	int	dvfm_dev_idx;
+#endif
 	void *priv; /* to handle quirks across io-accessor calls */
 
 	/* migrate from sdhci_of_host */
