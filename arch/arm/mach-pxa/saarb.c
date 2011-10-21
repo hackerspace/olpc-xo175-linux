@@ -21,6 +21,8 @@
 #include <linux/delay.h>
 #include <linux/platform_data/pxa_sdhci.h>
 #include <linux/regulator/machine.h>
+#include <linux/sd8x_rfkill.h>
+#include <linux/mmc/host.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -908,6 +910,36 @@ static void SI9226_hdmi_power(struct device *dev, int on)
 
 #endif
 
+static struct clk *clk_tout_s0;
+
+/* specific 8787 power on/off setting for SAARB */
+static void wifi_set_power(unsigned int on)
+{
+	unsigned long wlan_pd_mfp = 0;
+	int gpio_power_down = mfp_to_gpio(MFP_PIN_GPIO77);
+
+	wlan_pd_mfp = pxa3xx_mfp_read(gpio_power_down);
+
+	if (on) {
+		/* set wlan_pd pin to output high in low power
+			mode to ensure 8787 is not power off in low power mode*/
+		wlan_pd_mfp |= 0x100;
+		pxa3xx_mfp_write(gpio_power_down, wlan_pd_mfp & 0xffff);
+
+		/* enable 32KHz TOUT */
+		clk_enable(clk_tout_s0);
+		}
+	else {
+		/*set wlan_pd pin to output low in low power
+			mode to save power in low power mode */
+		wlan_pd_mfp &= ~0x100;
+		pxa3xx_mfp_write(gpio_power_down, wlan_pd_mfp & 0xffff);
+
+		/* disable 32KHz TOUT */
+		clk_disable(clk_tout_s0);
+	}
+}
+
 #if defined(CONFIG_MMC_SDHCI_PXAV2_TAVOR)
 static struct sdhci_pxa_platdata mci0_platform_data = {
 	.flags	= PXA_FLAG_CARD_PERMANENT |
@@ -923,12 +955,30 @@ static struct sdhci_pxa_platdata mci1_platform_data = {
 	.ext_cd_gpio_invert = 1,
 };
 
+static struct sdhci_pxa_platdata mci2_platform_data = {
+	.flags  = PXA_FLAG_CARD_PERMANENT |
+				PXA_FLAG_HS_NEED_WAKELOCK,
+	.pm_caps = MMC_PM_KEEP_POWER |
+				MMC_PM_IRQ_ALWAYS_ON,
+};
+
 static void __init init_mmc(void)
 {
 	/*add emmc only, need to add sdcard and sdio later*/
 	pxa95x_set_mci_info(0, &mci0_platform_data);
 	pxa95x_set_mci_info(1, &mci1_platform_data);
+#ifdef CONFIG_SD8XXX_RFKILL
+	add_sd8x_rfkill_device(mfp_to_gpio(MFP_PIN_GPIO77),
+			mfp_to_gpio(MFP_PIN_GPIO67),
+			&mci2_platform_data.pmmc,
+			wifi_set_power);
 
+	clk_tout_s0 = clk_get(NULL, "CLK_TOUT_S0");
+	if (IS_ERR(clk_tout_s0))
+		pr_err("init_mmc: unable to get tout_s0 clock");
+
+	pxa95x_set_mci_info(2, &mci2_platform_data);
+#endif
 }
 
 #endif
