@@ -1135,19 +1135,11 @@ static int cwmi_remove(struct i2c_client *client)
 
 static int cwmi_resume(struct i2c_client *client)
 {
-	struct i2c_cwmi_sensor *sensor =
-	    (struct i2c_cwmi_sensor *)i2c_get_clientdata(client);
-	if (sensor->type == SENSOR_TYPE_MAG)
-		cwmi_mag_power_on(sensor);
 	return 0;
 }
 
 static int cwmi_suspend(struct i2c_client *client, pm_message_t mesg)
 {
-	struct i2c_cwmi_sensor *sensor =
-	    (struct i2c_cwmi_sensor *)i2c_get_clientdata(client);
-	if (sensor->type == SENSOR_TYPE_MAG)
-		cwmi_mag_power_off(sensor);
 	return 0;
 }
 

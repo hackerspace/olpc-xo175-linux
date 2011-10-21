@@ -1014,40 +1014,11 @@ static int cwgd_timer_init(struct i2c_cwgd_sensor *sensor)
 
 static int cwgd_suspend(struct device *dev)
 {
-	struct i2c_client *client = to_i2c_client(dev);
-	struct i2c_cwgd_sensor *sensor = i2c_get_clientdata(client);
-
-	if (atomic_read(&sensor->enabled)) {
-		cancel_work_sync(&sensor->work);
-		if (sensor->use_interrupt)
-			disable_irq(sensor->client->irq);
-		else {
-			hrtimer_cancel(&sensor->timer);
-		}
-		cwgd_device_power_off(sensor);
-	}
 	return 0;
 }
 
 static int cwgd_resume(struct device *dev)
 {
-	struct i2c_client *client = to_i2c_client(dev);
-	struct i2c_cwgd_sensor *sensor = i2c_get_clientdata(client);
-	if (atomic_read(&sensor->enabled)) {
-		int err = cwgd_device_power_on(sensor);
-		if (err < 0) {
-			atomic_set(&sensor->enabled, 0);
-			return err;
-		}
-
-		cwgd_restart_fifo(sensor);
-
-		if (sensor->use_interrupt)
-			enable_irq(sensor->client->irq);
-		else
-			hrtimer_start(&sensor->timer,
-				      sensor->polling_delay, HRTIMER_MODE_REL);
-	}
 	return 0;
 }
 
