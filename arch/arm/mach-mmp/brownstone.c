@@ -698,6 +698,9 @@ static struct i2c_board_info brownstone_twsi4_info[] =
 		.platform_data  = &cm_platform_data,
 	},
 #endif
+};
+static struct i2c_board_info brownstone_rev5_twsi4_info[] =
+{
 #if defined(CONFIG_SENSORS_CM3213)
 	{
 		.type       = "cm3213_als_msb",
@@ -754,7 +757,15 @@ static struct i2c_board_info brownstone_twsi5_info[] = {
 	},
 #endif
 };
-
+static struct i2c_board_info brownstone_rev5_twsi5_info[] = {
+#if defined(CONFIG_TC35876X)
+	{
+		.type		= "tc35876x",
+		.addr		= 0x0f,
+		.platform_data	= &tc358765_data,
+	},
+#endif
+};
 static struct i2c_board_info brownstone_twsi6_info[] = {
 	{
 		.type			= "hdmi_edid",
@@ -839,8 +850,13 @@ static void __init brownstone_init(void)
 	mmp2_add_uart(3);
 	mmp2_add_twsi(1, NULL, ARRAY_AND_SIZE(brownstone_twsi1_info));
 	mmp2_add_twsi(2, NULL, ARRAY_AND_SIZE(brownstone_twsi2_info));
-	mmp2_add_twsi(4, NULL, ARRAY_AND_SIZE(brownstone_twsi4_info));
-	mmp2_add_twsi(5, NULL, ARRAY_AND_SIZE(brownstone_twsi5_info));
+	if (board_is_mmp2_brownstone_rev5()) {
+		mmp2_add_twsi(4, NULL, ARRAY_AND_SIZE(brownstone_rev5_twsi4_info));
+		mmp2_add_twsi(5, NULL, ARRAY_AND_SIZE(brownstone_rev5_twsi5_info));
+	} else {
+		mmp2_add_twsi(4, NULL, ARRAY_AND_SIZE(brownstone_twsi4_info));
+		mmp2_add_twsi(5, NULL, ARRAY_AND_SIZE(brownstone_twsi5_info));
+	}
 	mmp2_add_twsi(6, NULL, ARRAY_AND_SIZE(brownstone_twsi6_info));
 	mmp2_add_sdhost(0, &mmp2_sdh_platdata_mmc0); /* SD/MMC */
 	mmp2_add_thermal_sensor();
