@@ -263,12 +263,15 @@ static struct i2c_board_info i2c1_info[] = {
 
 #if defined(CONFIG_MMC_SDHCI_PXAV2_TAVOR)
 static struct sdhci_pxa_platdata mci0_platform_data = {
-	.flags	= PXA_FLAG_CARD_PERMANENT | PXA_FLAG_SD_8_BIT_CAPABLE_SLOT
-			| PXA_FLAG_ACITVE_IN_SUSPEND,
+	.flags	= PXA_FLAG_CARD_PERMANENT |
+				PXA_FLAG_SD_8_BIT_CAPABLE_SLOT |
+				PXA_FLAG_ACITVE_IN_SUSPEND |
+				PXA_FLAG_ENABLE_CLOCK_GATING,
 };
 
 static struct sdhci_pxa_platdata mci1_platform_data = {
-	.flags = PXA_FLAG_ACITVE_IN_SUSPEND,
+	.flags = PXA_FLAG_ACITVE_IN_SUSPEND |
+				PXA_FLAG_ENABLE_CLOCK_GATING,
 	.ext_cd_gpio = mfp_to_gpio(MFP_PIN_GPIO123),
 	.ext_cd_gpio_invert = 1,
 };
