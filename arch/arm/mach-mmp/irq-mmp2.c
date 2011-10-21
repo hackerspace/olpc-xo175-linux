@@ -99,7 +99,8 @@ SECOND_IRQ_CHIP(rtc,  IRQ_MMP2_RTC_BASE,  MMP2_ICU_INT5);
 SECOND_IRQ_CHIP(keypad,  IRQ_MMP2_KEYPAD_BASE,  MMP2_ICU_INT9);
 SECOND_IRQ_CHIP(twsi, IRQ_MMP2_TWSI_BASE, MMP2_ICU_INT17);
 SECOND_IRQ_CHIP(misc, IRQ_MMP2_MISC_BASE, MMP2_ICU_INT35);
-SECOND_IRQ_CHIP(ssp,  IRQ_MMP2_SSP_BASE,  MMP2_ICU_INT51);
+SECOND_IRQ_CHIP(mipi_hsi1,  IRQ_MMP2_MIPI_HSI1_BASE,  MMP2_ICU_INT51);
+SECOND_IRQ_CHIP(mipi_hsi0,  IRQ_MMP2_MIPI_HSI0_BASE,  MMP2_ICU_INT55);
 
 static void init_mux_irq(struct irq_chip *chip, int start, int num)
 {
@@ -133,7 +134,9 @@ void __init mmp2_init_icu(void)
 		case IRQ_MMP2_RTC_MUX:
 		case IRQ_MMP2_TWSI_MUX:
 		case IRQ_MMP2_MISC_MUX:
-		case IRQ_MMP2_SSP_MUX:
+		case IRQ_MMP2_MIPI_HSI1_MUX:
+		case IRQ_MMP2_MIPI_HSI0_MUX:
+		case IRQ_MMP2_KEYPAD_MUX:
 			break;
 		default:
 			irq_set_handler(irq, handle_level_irq);
@@ -150,13 +153,15 @@ void __init mmp2_init_icu(void)
 	init_mux_irq(&rtc_irq_chip, IRQ_MMP2_RTC_BASE, 2);
 	init_mux_irq(&twsi_irq_chip, IRQ_MMP2_TWSI_BASE, 5);
 	init_mux_irq(&misc_irq_chip, IRQ_MMP2_MISC_BASE, 15);
-	init_mux_irq(&ssp_irq_chip, IRQ_MMP2_SSP_BASE, 2);
+	init_mux_irq(&mipi_hsi1_irq_chip, IRQ_MMP2_MIPI_HSI1_BASE, 2);
 	init_mux_irq(&keypad_irq_chip, IRQ_MMP2_KEYPAD_BASE, 3);
+	init_mux_irq(&mipi_hsi0_irq_chip, IRQ_MMP2_MIPI_HSI0_BASE, 2);
 
 	irq_set_chained_handler(IRQ_MMP2_PMIC_MUX, pmic_irq_demux);
 	irq_set_chained_handler(IRQ_MMP2_RTC_MUX, rtc_irq_demux);
 	irq_set_chained_handler(IRQ_MMP2_TWSI_MUX, twsi_irq_demux);
 	irq_set_chained_handler(IRQ_MMP2_MISC_MUX, misc_irq_demux);
-	irq_set_chained_handler(IRQ_MMP2_SSP_MUX, ssp_irq_demux);
+	irq_set_chained_handler(IRQ_MMP2_MIPI_HSI1_MUX, mipi_hsi1_irq_demux);
 	irq_set_chained_handler(IRQ_MMP2_KEYPAD_MUX, keypad_irq_demux);
+	irq_set_chained_handler(IRQ_MMP2_MIPI_HSI0_MUX, mipi_hsi0_irq_demux);
 }

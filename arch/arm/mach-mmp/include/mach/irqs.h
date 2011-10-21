@@ -123,23 +123,27 @@
 #define IRQ_MMP2_SSPA2			3
 #define IRQ_MMP2_PMIC_MUX		4	/* PMIC & Charger */
 #define IRQ_MMP2_RTC_MUX		5
+#define IRQ_MMP2_EPD1			6
 #define IRQ_MMP2_TWSI1			7
 #define IRQ_MMP2_GPU			8
 #define IRQ_MMP2_KEYPAD_MUX		9
-#define IRQ_MMP2_ROTARY			10
-#define IRQ_MMP2_TRACKBALL		11
+#define IRQ_MMP2_CAWAKE			10
+#define IRQ_MMP2_WDT_2			11
 #define IRQ_MMP2_ONEWIRE		12
 #define IRQ_MMP2_TIMER1			13
 #define IRQ_MMP2_TIMER2			14
 #define IRQ_MMP2_TIMER3			15
 #define IRQ_MMP2_RIPC			16
 #define IRQ_MMP2_TWSI_MUX		17	/* TWSI2 ~ TWSI6 */
+#define IRQ_MMP2_EPD2			18
 #define IRQ_MMP2_HDMI			19
 #define IRQ_MMP2_SSP3			20
 #define IRQ_MMP2_SSP4			21
 #define IRQ_MMP2_USB_HS1		22
 #define IRQ_MMP2_USB_HS2		23
 #define IRQ_MMP2_UART3			24
+#define IRQ_MMP2_ISP_DMA		25
+#define IRQ_MMP2_VMETA			26
 #define IRQ_MMP2_UART1			27
 #define IRQ_MMP2_UART2			28
 #define IRQ_MMP2_MIPI_DSI		29
@@ -163,11 +167,13 @@
 #define IRQ_MMP2_DMA_FIQ		47
 #define IRQ_MMP2_DMA_RIQ		48
 #define IRQ_MMP2_GPIO			49
-#define IRQ_MMP2_SSP_MUX		51
+#define IRQ_MMP2_MIPI_HSI1_MUX		51
 #define IRQ_MMP2_MMC2			52
 #define IRQ_MMP2_MMC3			53
 #define IRQ_MMP2_MMC4			54
-#define IRQ_MMP2_MIPI_HSI		55
+#define IRQ_MMP2_MIPI_HSI0_MUX		55
+#define IRQ_MMP2_IPC2			56
+#define IRQ_MMP2_ISP			57
 #define IRQ_MMP2_MSP			58
 #define IRQ_MMP2_MIPI_SLIM_DMA		59
 #define IRQ_MMP2_PJ4_FREQ_CHG		60
@@ -218,11 +224,16 @@
 #define IRQ_MMP2_COMMRX			(IRQ_MMP2_MISC_BASE + 14)
 
 /* secondary interrupt of INT #51 */
-#define IRQ_MMP2_SSP_BASE		(IRQ_MMP2_MISC_BASE + 15)
-#define IRQ_MMP2_SSP1_SRDY		(IRQ_MMP2_SSP_BASE + 0)
-#define IRQ_MMP2_SSP3_SRDY		(IRQ_MMP2_SSP_BASE + 1)
+#define IRQ_MMP2_MIPI_HSI1_BASE		(IRQ_MMP2_MISC_BASE + 15)
+#define IRQ_MMP2_HSI1_CAWAKE		(IRQ_MMP2_MIPI_HSI1_BASE + 0)
+#define IRQ_MMP2_MIPI_HSI_INT1		(IRQ_MMP2_MIPI_HSI1_BASE + 1)
 
-#define IRQ_MMP2_MUX_END		(IRQ_MMP2_SSP_BASE + 2)
+/* secondary interrupt of INT #55 */
+#define IRQ_MMP2_MIPI_HSI0_BASE		(IRQ_MMP2_MIPI_HSI1_BASE + 2)
+#define IRQ_MMP2_HSI0_CAWAKE		(IRQ_MMP2_MIPI_HSI0_BASE + 0)
+#define IRQ_MMP2_MIPI_HSI_INT0		(IRQ_MMP2_MIPI_HSI0_BASE + 1)
+
+#define IRQ_MMP2_MUX_END		(IRQ_MMP2_MIPI_HSI0_BASE + 2)
 
 /*
  * Interrupt numbers for MMP3
