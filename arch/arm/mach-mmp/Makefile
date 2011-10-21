@@ -25,6 +25,11 @@ obj-$(CONFIG_CPU_MMP3)		+= suspend.o
 obj-$(CONFIG_CPU_MMP2)		+= pm-mmp2.o
 endif
 
+ifeq ($(CONFIG_CPU_IDLE),y)
+obj-$(CONFIG_CPU_MMP3)		+= cpuidle-mmp3.o
+obj-$(CONFIG_CPU_MMP2)		+= cpuidle-mmp2.o
+endif
+
 # board support
 obj-$(CONFIG_MACH_ASPENITE)	+= aspenite.o
 obj-$(CONFIG_MACH_ZYLONITE2)	+= aspenite.o
@@ -38,7 +43,6 @@ obj-$(CONFIG_MACH_TETON_BGA)	+= teton_bga.o
 obj-$(CONFIG_MACH_ABILENE)	+= abilene.o
 obj-$(CONFIG_MACH_YELLOWSTONE)	+= yellowstone.o
 obj-$(CONFIG_CPU_FREQ_MMP3)	+= cpufreq-mmp3.o
-obj-$(CONFIG_CPU_IDLE)		+= cpuidle-mmp3.o
 obj-$(CONFIG_CPU_FREQ_PXA910)	+= cpufreq-pxa910.o acpuclock-pxa910.o acpuclock-pxa910_ll.o
 ifeq ($(CONFIG_SUSPEND),y)
 obj-$(CONFIG_CPU_PXA910)	+= pxa910_pm.o
