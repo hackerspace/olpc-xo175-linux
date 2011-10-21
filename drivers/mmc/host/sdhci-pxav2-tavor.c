@@ -263,6 +263,9 @@ static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
 			host->mmc->pm_flags |= MMC_PM_ALWAYS_ACTIVE;
 		}
 
+		if (!(pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING))
+			host->mmc->caps |= MMC_CAP_DISABLE_BUS_CLK_GATING;
+
 		if (pdata->quirks)
 			host->quirks |= pdata->quirks;
 		if (pdata->host_caps)
