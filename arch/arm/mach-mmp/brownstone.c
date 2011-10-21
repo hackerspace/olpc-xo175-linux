@@ -34,6 +34,7 @@
 #include <mach/uio_hdmi.h>
 #include <mach/mmp2_plat_ver.h>
 #include <mach/regs-apmu.h>
+#include <plat/pmem.h>
 #include <plat/usb.h>
 #include <linux/i2c/tpk_r800.h>
 #include <mach/axis_sensor.h>
@@ -859,6 +860,10 @@ static void __init brownstone_init(void)
 #ifdef CONFIG_UIO_HDMI
 	mmp2_add_hdmi(&mmp2_hdmi_info);
 #endif
+
+#ifdef CONFIG_ANDROID_PMEM
+	pxa_add_pmem();
+#endif
 }
 
 MACHINE_START(BROWNSTONE, "Brownstone Development Platform")
@@ -867,5 +872,6 @@ MACHINE_START(BROWNSTONE, "Brownstone Development Platform")
 	.nr_irqs	= BROWNSTONE_NR_IRQS,
 	.init_irq	= mmp2_init_irq,
 	.timer		= &mmp2_timer,
+	.reserve	= mmp2_reserve,
 	.init_machine	= brownstone_init,
 MACHINE_END

@@ -9,6 +9,7 @@ extern struct sys_timer mmp2_timer;
 extern void __init mmp2_init_icu(void);
 extern void __init mmp2_init_irq(void);
 extern void mmp2_clear_pmic_int(void);
+extern void __init mmp2_reserve(void);
 
 #include <linux/i2c.h>
 #include <linux/i2c/pxa-i2c.h>

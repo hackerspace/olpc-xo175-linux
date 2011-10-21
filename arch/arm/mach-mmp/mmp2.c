@@ -35,6 +35,7 @@
 #include <mach/mmp2.h>
 #include <mach/regs-usb.h>
 #include <mach/mmp_dma.h>
+#include <plat/pmem.h>
 
 #include "common.h"
 #include "clock.h"
@@ -565,6 +566,12 @@ static void __init mmp2_timer_init(void)
 struct sys_timer mmp2_timer = {
 	.init	= mmp2_timer_init,
 };
+
+void __init mmp2_reserve(void)
+{
+	/*reserve memory for pmem*/
+	pxa_reserve_pmem_memblock();
+}
 
 /* on-chip devices */
 MMP2_DEVICE(uart1, "pxa2xx-uart", 0, UART1, 0xd4030000, 0x30, 4, 5);
