@@ -304,10 +304,10 @@ static int status_show(struct device *dev,
 	return sprintf(buf, "%d\n", status);
 }
 
-static DEVICE_ATTR(active, S_IRUGO | S_IWUGO, active_show, active_set);
-static DEVICE_ATTR(interval, S_IRUGO | S_IWUGO, interval_show, interval_set);
+static DEVICE_ATTR(active, S_IRUGO | S_IWUSR | S_IWGRP, active_show, active_set);
+static DEVICE_ATTR(interval, S_IRUGO | S_IWUSR | S_IWGRP, interval_show, interval_set);
 static DEVICE_ATTR(data, S_IRUGO, data_show, NULL);
-static DEVICE_ATTR(wake, S_IWUGO, NULL, wake_set);
+static DEVICE_ATTR(wake, S_IWUSR | S_IWGRP, NULL, wake_set);
 static DEVICE_ATTR(status, S_IRUGO, status_show, NULL);
 
 static struct attribute *cm3213_attributes[] = {
