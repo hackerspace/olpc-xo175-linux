@@ -946,9 +946,7 @@ static int pxa168fb_open(struct fb_info *fi, int user)
 #endif
 
 	mi = fbi->dev->platform_data;
-	fbi->new_addr[0] = 0;
-	fbi->new_addr[1] = 0;
-	fbi->new_addr[2] = 0;
+	memset(&fbi->new_addr, 0, sizeof(fbi->new_addr));
 	fi->fix.smem_start = fbi->fb_start_dma;
 	fi->screen_base = fbi->fb_start;
 	fbi->surface.videoMode = -1;
@@ -980,7 +978,6 @@ static int pxa168fb_release(struct fb_info *fi, int user)
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)fi->par;
 #ifdef CONFIG_PXA688_VDMA
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-	u32 val;
 #endif
 	struct fb_var_screeninfo *var = &fi->var;
 	u32 mask;
@@ -990,22 +987,22 @@ static int pxa168fb_release(struct fb_info *fi, int user)
 
 	/* Force Video DMA engine off at release and reset the DMA format.*/
 	if (atomic_dec_and_test(&fbi->op_count)) {
+again:
 #ifdef CONFIG_PXA688_VDMA
-		if (mi->vdma_enable) {
-			val = vdma_ctrl_read(fbi) & 1;
-			if (val)
-				pxa688fb_vdma_release(fbi);
-		}
+		if ((mi->vdma_enable) && (vdma_ctrl_read(fbi) & 1))
+			pxa688fb_vdma_release(fbi);
 #endif
 		mask = CFG_DMA_ENA_MASK | CFG_DMAFORMAT_MASK;
 		dma_ctrl_set(fbi->id, 0, mask, 0);
 		if (FB_MODE_DUP) {
-			dma_ctrl_set(fb_dual, 0, mask, 0);
+			fbi = ovly_info.fbi[fb_dual];
+			goto again;
 		}
+		if (fb_mode && (fbi->id == fb_dual))
+			fbi = ovly_info.fbi[fb_base];
 	}
 
 	/* Turn off compatibility mode */
-
 	var->nonstd &= ~0xff000000;
 	COMPAT_MODE = 0;
 
@@ -1019,17 +1016,13 @@ static int pxa168fb_release(struct fb_info *fi, int user)
 
 	/* clear some globals */
 	memset(&fbi->surface, 0, sizeof(struct _sOvlySurface));
-	fbi->new_addr[0] = 0; fbi->new_addr[1] = 0; fbi->new_addr[2] = 0;
-	fbi->active = 0;
-	fbi->dma_on = 0;
+	memset(&fbi->new_addr, 0, sizeof(fbi->new_addr));
+	fbi->active = fbi->dma_on = 0;
 	if (FB_MODE_DUP) {
 		struct pxa168fb_info *fbi_dual = ovly_info.fbi[fb_dual];
 		memset(&fbi_dual->surface, 0, sizeof(struct _sOvlySurface));
-		fbi_dual->new_addr[0] = 0;
-		fbi_dual->new_addr[1] = 0;
-		fbi_dual->new_addr[2] = 0;
-		fbi_dual->active = 0;
-		fbi_dual->dma_on = 0;
+		memset(&fbi_dual->new_addr, 0, sizeof(fbi->new_addr));
+		fbi_dual->active = fbi_dual->dma_on = 0;
 	}
 
 #ifdef OVLY_DVFM_CONSTRAINT
@@ -1407,11 +1400,9 @@ again:
 		struct pxa168fb_info *fbi_dual = ovly_info.fbi[fb_dual];
 		/* set TV path buffer adder */
 		fbi_dual->fb_start_dma = fbi->fb_start_dma;
-		if (!fbi_dual->new_addr[0] && fbi->new_addr[0]) {
-			fbi_dual->new_addr[0] = fbi->new_addr[0];
-			fbi_dual->new_addr[1] = fbi->new_addr[1];
-			fbi_dual->new_addr[2] = fbi->new_addr[2];
-		}
+		if (!fbi_dual->new_addr[0] && fbi->new_addr[0])
+			memcpy(fbi_dual->new_addr, fbi->new_addr,
+					sizeof(fbi->new_addr));
 		fbi = fbi_dual;
 		goto again;
 	}
@@ -1889,9 +1880,7 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 							&fbi->fb_start_dma,
 							GFP_KERNEL);
 		if (!fbi->fb_start || !fbi->fb_start_dma) {
-			fbi->new_addr[0] = 0;
-			fbi->new_addr[1] = 0;
-			fbi->new_addr[2] = 0;
+			memset(fbi->new_addr, 0, sizeof(fbi->new_addr));
 			fbi->mem_status = 1;
 			fbi->fb_start = (void *)__get_free_pages
 			(GFP_DMA | GFP_KERNEL, get_order(fbi->fb_size));
