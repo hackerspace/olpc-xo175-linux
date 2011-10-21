@@ -39,6 +39,10 @@
 #include <plat/usb.h>
 
 #include "mv_udc.h"
+#if (defined CONFIG_ARCH_PXA && defined CONFIG_DVFM)
+#include <mach/dvfm.h>
+static int	dvfm_dev_idx;
+#endif
 
 #define DRIVER_DESC		"Marvell PXA USB Device Controller driver"
 #define DRIVER_VERSION		"8 Nov 2010"
@@ -1270,12 +1274,18 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 			udc_reset(udc);
 			ep0_reset(udc);
 			udc_start(udc);
+#if (defined CONFIG_ARCH_PXA && defined CONFIG_DVFM)
+			dvfm_disable_lowpower(dvfm_dev_idx);
+#endif
 		}
 	} else if (udc->driver && udc->softconnect) {
 		/* stop all the transfer in queue*/
 		stop_activity(udc, udc->driver);
 		udc_stop(udc);
 		mv_udc_disable(udc);
+#if (defined CONFIG_ARCH_PXA && defined CONFIG_DVFM)
+		dvfm_enable_lowpower(dvfm_dev_idx);
+#endif
 	}
 
 	spin_unlock_irqrestore(&udc->lock, flags);
@@ -1488,6 +1498,9 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 	if (udc->qwork)
 		queue_work(udc->qwork, &udc->vbus_work);
 
+#if defined CONFIG_ARCH_PXA && defined CONFIG_DVFM
+	dvfm_register("U2O", &dvfm_dev_idx);
+#endif
 	return 0;
 }
 EXPORT_SYMBOL(usb_gadget_probe_driver);
@@ -1517,6 +1530,9 @@ int usb_gadget_unregister_driver(struct usb_gadget_driver *driver)
 	udc->gadget.dev.driver = NULL;
 	udc->driver = NULL;
 
+#if defined CONFIG_ARCH_PXA && defined CONFIG_DVFM
+	dvfm_unregister("U2O", &dvfm_dev_idx);
+#endif
 	return 0;
 }
 EXPORT_SYMBOL(usb_gadget_unregister_driver);
