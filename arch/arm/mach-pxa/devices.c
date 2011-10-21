@@ -206,7 +206,16 @@ static struct resource pxa_resource_ffuart[] = {
 		.start	= IRQ_FFUART,
 		.end	= IRQ_FFUART,
 		.flags	= IORESOURCE_IRQ,
-	}
+	}, {
+		.start  = 6,
+		.end    = 6,
+		.flags  = IORESOURCE_DMA,
+	}, {
+		.start  = 7,
+		.end    = 7,
+		.flags  = IORESOURCE_DMA,
+	},
+
 };
 
 struct platform_device pxa_device_ffuart = {
@@ -230,7 +239,16 @@ static struct resource pxa_resource_btuart[] = {
 		.start	= IRQ_BTUART,
 		.end	= IRQ_BTUART,
 		.flags	= IORESOURCE_IRQ,
-	}
+	}, {
+		.start  = 4,
+		.end    = 4,
+		.flags  = IORESOURCE_DMA,
+	}, {
+		.start  = 5,
+		.end    = 5,
+		.flags  = IORESOURCE_DMA,
+	},
+
 };
 
 struct platform_device pxa_device_btuart = {
@@ -254,7 +272,16 @@ static struct resource pxa_resource_stuart[] = {
 		.start	= IRQ_STUART,
 		.end	= IRQ_STUART,
 		.flags	= IORESOURCE_IRQ,
-	}
+	}, {
+		.start  = 19,
+		.end    = 19,
+		.flags  = IORESOURCE_DMA,
+	}, {
+		.start  = 20,
+		.end    = 20,
+		.flags  = IORESOURCE_DMA,
+	},
+
 };
 
 struct platform_device pxa_device_stuart = {
