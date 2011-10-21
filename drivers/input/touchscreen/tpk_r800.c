@@ -166,8 +166,8 @@ static DEVICE_ATTR(tpk800_x_max, 0555, tpk800_x_max_show, NULL);
 static DEVICE_ATTR(tpk800_y_min, 0555, tpk800_y_min_show, NULL);
 static DEVICE_ATTR(tpk800_y_max, 0555, tpk800_y_max_show, NULL);
 static DEVICE_ATTR(tpk800_invert_xy, 0555, tpk800_invert_xy_show, NULL);
-static DEVICE_ATTR(reset, S_IWUGO, NULL, user_reset_tpk800);
-static DEVICE_ATTR(irq, S_IRUGO | S_IWUGO,
+static DEVICE_ATTR(reset, S_IWUSR | S_IWGRP, NULL, user_reset_tpk800);
+static DEVICE_ATTR(irq, S_IRUGO | S_IWUSR | S_IWGRP,
 		user_irq_handshake_show, user_irq_handshake_store);
 
 static struct attribute *tpk800_attrs[] = {
