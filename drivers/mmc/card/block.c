@@ -1481,6 +1481,11 @@ static int mmc_blk_suspend(struct mmc_card *card, pm_message_t state)
 	struct mmc_blk_data *part_md;
 	struct mmc_blk_data *md = mmc_get_drvdata(card);
 
+	/* Skip the suspend proccess if the mmc device needs to be accessed during suspend state */
+	if (card && (card->host) && (card->host->pm_flags & MMC_PM_ALWAYS_ACTIVE)){
+		return 0;
+	}
+
 	if (md) {
 		mmc_queue_suspend(&md->queue);
 		list_for_each_entry(part_md, &md->part, part) {
@@ -1494,6 +1499,11 @@ static int mmc_blk_resume(struct mmc_card *card)
 {
 	struct mmc_blk_data *part_md;
 	struct mmc_blk_data *md = mmc_get_drvdata(card);
+
+	/* Skip the resume proccess if the mmc device needs to be accessed during suspend state */
+	if (card && (card->host) && (card->host->pm_flags & MMC_PM_ALWAYS_ACTIVE)){
+		return 0;
+	}
 
 	if (md) {
 #ifndef CONFIG_MMC_BLOCK_DEFERRED_RESUME

@@ -249,6 +249,10 @@ static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
 		if (pdata->flags & PXA_FLAG_SD_8_BIT_CAPABLE_SLOT)
 			host->mmc->caps |= MMC_CAP_8_BIT_DATA;
 
+		if (pdata && pdata->flags & PXA_FLAG_ACITVE_IN_SUSPEND) {
+			host->mmc->pm_flags |= MMC_PM_ALWAYS_ACTIVE;
+		}
+
 		if (pdata->quirks)
 			host->quirks |= pdata->quirks;
 		if (pdata->host_caps)

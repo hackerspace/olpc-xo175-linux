@@ -25,6 +25,8 @@
 #define PXA_FLAG_CARD_PERMANENT	(1<<1)
 /* Board design supports 8-bit data on SD/SDIO BUS */
 #define PXA_FLAG_SD_8_BIT_CAPABLE_SLOT (1<<2)
+/* controller always active during suspend */
+#define PXA_FLAG_ACITVE_IN_SUSPEND (1<<4)
 
 /*
  * struct pxa_sdhci_platdata() - Platform device data for PXA SDHCI

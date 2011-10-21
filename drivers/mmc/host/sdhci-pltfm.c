@@ -196,6 +196,10 @@ int sdhci_pltfm_suspend(struct platform_device *dev, pm_message_t state)
 {
 	struct sdhci_host *host = platform_get_drvdata(dev);
 	int ret = 0;
+	/* Skip the suspend process if the controller is to be accessed during suspend */
+	if(host && host->mmc && (host->mmc->pm_flags && MMC_PM_ALWAYS_ACTIVE)) {
+		return ret;
+	}
 
 	if (device_may_wakeup(&dev->dev))
 		enable_irq_wake(host->irq);
@@ -210,6 +214,11 @@ int sdhci_pltfm_resume(struct platform_device *dev)
 {
 	struct sdhci_host *host = platform_get_drvdata(dev);
 	int ret = 0;
+
+	/* Skip the resume process if the controller is to be accessed during suspend */
+	if(host && host->mmc && (host->mmc->pm_flags && MMC_PM_ALWAYS_ACTIVE)) {
+		return ret;
+	}
 
 	ret = sdhci_resume_host(host);
 
