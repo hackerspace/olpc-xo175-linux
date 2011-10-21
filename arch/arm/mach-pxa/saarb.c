@@ -910,10 +910,12 @@ static void SI9226_hdmi_power(struct device *dev, int on)
 
 #if defined(CONFIG_MMC_SDHCI_PXAV2_TAVOR)
 static struct sdhci_pxa_platdata mci0_platform_data = {
-	.flags	= PXA_FLAG_CARD_PERMANENT | PXA_FLAG_SD_8_BIT_CAPABLE_SLOT,
+	.flags	= PXA_FLAG_CARD_PERMANENT | PXA_FLAG_SD_8_BIT_CAPABLE_SLOT
+			| PXA_FLAG_ACITVE_IN_SUSPEND,
 };
 
 static struct sdhci_pxa_platdata mci1_platform_data = {
+	.flags = PXA_FLAG_ACITVE_IN_SUSPEND,
 	.ext_cd_gpio = mfp_to_gpio(MFP_PIN_GPIO47),
 	.ext_cd_gpio_invert = 1,
 };
