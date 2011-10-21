@@ -66,7 +66,11 @@ struct pxa95xfb_conv_info pxa95xfb_conv[4] = {
 };
 
 int display_enabled = 0;
+#ifdef CONFIG_CPU_PXA978
 #define MIXER_NUM	3
+#else
+#define MIXER_NUM	2
+#endif
 static wait_queue_head_t	wq_mixer_update[MIXER_NUM];
 static int	b_mixer_update[MIXER_NUM];
 static struct mutex	mutex_mixer_update[MIXER_NUM];
@@ -2495,11 +2499,10 @@ static irqreturn_t pxa95xfb_gfx_handle_irq_ctl(int irq, void *dev_id)
 	if(g & LCD_CTL_INT_STS_GMIX_INT_STS){
 		writel(LCD_CTL_INT_STS_GMIX_INT_STS, fbi->reg_base + LCD_CTL_INT_STS);
 		for(i = 0; i < MIXER_NUM; i++){
-			if (!b_mixer_update[i])
-				continue;
 			x = readl(fbi->reg_base + LCD_MIXER0_INT_STS + i*0x100);
 			writel(x, fbi->reg_base + LCD_MIXER0_INT_STS + i*0x100);
-			if ((x & LCD_MIXERx_CTL1_DISP_UPDATE_INT_EN) || (x & LCD_MIXERx_CTL1_DISP_EN_INT_EN)) {
+			if (b_mixer_update[i] &&
+				(x & (LCD_MIXERx_CTL1_DISP_UPDATE_INT_EN | LCD_MIXERx_CTL1_DISP_EN_INT_EN))) {
 				b_mixer_update[i] = 0;
 				wake_up(&wq_mixer_update[i]);
 			}
