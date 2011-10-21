@@ -487,6 +487,7 @@ static APBC_CLK(pwm1, MMP2_PWM0, 0, 26000000);
 static APBC_CLK_OPS(pwm2, MMP2_PWM1, 0, 26000000, &pwm2_clk_ops);
 static APBC_CLK(pwm3, MMP2_PWM2, 0, 26000000);
 static APBC_CLK(pwm4, MMP2_PWM3, 0, 26000000);
+static APBC_CLK(keypad, MMP2_KPC, 0, 32768);
 
 static APMU_CLK(nand, NAND, 0xbf, 100000000);
 static APMU_CLK(u2o, USB, 0x9, 480000000);
@@ -525,6 +526,7 @@ static struct clk_lookup mmp2_clkregs[] = {
 	INIT_CLKREG(&clk_tv, NULL, "HDMICLK"),
 	INIT_CLKREG(&clk_audio, NULL, "mmp-audio"),
 	INIT_CLKREG(&clk_thsens, "mmp2-thermal", NULL),
+	INIT_CLKREG(&clk_keypad, "pxa27x-keypad", NULL),
 };
 
 static int __init mmp2_init(void)
@@ -593,6 +595,7 @@ MMP2_DEVICE(sspa1, "mmp2-sspa", 0, SSPA1, 0xd42a0c00, 0xb0, ADMA1_CH1, ADMA1_CH0
 MMP2_DEVICE(sspa2, "mmp2-sspa", 1, SSPA2, 0xd42a0d00, 0xb0, ADMA2_CH1, ADMA2_CH0);
 MMP2_DEVICE(audiosram, "mmp-sram", -1, NONE, 0xe0000000, 0x40000);
 MMP2_DEVICE(thsens, "mmp2-thermal", -1, THERMAL, 0xd4013200, 0x20);
+MMP2_DEVICE(keypad, "pxa27x-keypad", -1, KPC, 0xd4012000, 0x4c);
 
 struct platform_device mmp_device_asoc_sspa1 = {
 	.name		= "mmp3-sspa-dai",

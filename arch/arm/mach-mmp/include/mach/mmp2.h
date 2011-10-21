@@ -15,6 +15,7 @@ extern void mmp2_clear_pmic_int(void);
 #include <mach/devices.h>
 #include <mach/pxa168fb.h>
 #include <mach/uio_hdmi.h>
+#include <plat/pxa27x_keypad.h>
 #include <mach/sram.h>
 
 extern struct pxa_device_desc mmp2_device_uart1;
@@ -40,6 +41,7 @@ extern struct pxa_device_desc mmp2_device_fb_ovly;
 extern struct pxa_device_desc mmp2_device_fb_tv;
 extern struct pxa_device_desc mmp2_device_fb_tv_ovly;
 extern struct pxa_device_desc mmp2_device_hdmi;
+extern struct pxa_device_desc mmp2_device_keypad;
 extern struct pxa_device_desc mmp2_device_sspa1;
 extern struct pxa_device_desc mmp2_device_sspa2;
 extern struct pxa_device_desc mmp2_device_audiosram;
@@ -145,6 +147,11 @@ static inline int mmp2_add_fb_tv_ovly(struct pxa168fb_mach_info *mi)
 static inline int mmp2_add_hdmi(struct uio_hdmi_platform_data *data)
 {
 		return pxa_register_device(&mmp2_device_hdmi, data, sizeof(*data));
+}
+
+static inline int mmp2_add_keypad(struct pxa27x_keypad_platform_data *data)
+{
+	return pxa_register_device(&mmp2_device_keypad, data, sizeof(*data));
 }
 
 static inline int mmp2_add_thermal_sensor(void)

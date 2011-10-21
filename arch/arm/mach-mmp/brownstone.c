@@ -33,6 +33,7 @@
 #include <mach/pxa168fb.h>
 #include <mach/uio_hdmi.h>
 #include <mach/mmp2_plat_ver.h>
+#include <mach/regs-apmu.h>
 #include <plat/usb.h>
 #include <linux/i2c/tpk_r800.h>
 #include <mach/axis_sensor.h>
@@ -164,6 +165,11 @@ static unsigned long brownstone_pin_config[] __initdata = {
 	GPIO126_VERS1,
 	GPIO127_VERS2,
 	GPIO128_VERS3,
+
+	GPIO16_KP_DKIN0,
+	GPIO17_KP_DKIN1,
+	GPIO18_KP_DKIN2,
+	GPIO19_KP_DKIN3,
 };
 
 static struct regulator_consumer_supply max8649_supply[] = {
@@ -765,6 +771,42 @@ static struct sram_bank mmp2_audiosram_info = {
 	.step = AUDIO_SRAM_GRANULARITY,
 };
 
+static void keypad_clear_wakeup(void)
+{
+	int mask = 1 << 5;
+	int val;
+
+	val = __raw_readl(APMU_REG(0x07c));
+	__raw_writel(val | mask, APMU_REG(0x07c));
+	__raw_writel(val & ~mask, APMU_REG(0x07c));
+
+	return ;
+}
+
+static struct pxa27x_keypad_platform_data mmp2_keypad_4key_info = {
+	.direct_key_map = {
+		KEY_BACK,
+		KEY_MENU,
+		KEY_HOME,
+		KEY_SEARCH,
+	},
+	.direct_key_num = 4,
+	.debounce_interval = 30,
+	.active_low = 1,
+	.clear_wakeup_event = keypad_clear_wakeup,
+};
+
+static struct pxa27x_keypad_platform_data mmp2_keypad_2key_info = {
+	.direct_key_map = {
+		KEY_VOLUMEUP,
+		KEY_VOLUMEDOWN,
+	},
+	.direct_key_num = 2,
+	.debounce_interval = 30,
+	.active_low = 1,
+	.clear_wakeup_event = keypad_clear_wakeup,
+};
+
 static void __init brownstone_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(brownstone_pin_config));
@@ -803,6 +845,12 @@ static void __init brownstone_init(void)
 	brownstone_add_lcd_mipi();
 	mmp2_add_tv_out();
 #endif
+
+	/* keypad */
+	if (board_is_mmp2_brownstone_rev5())
+		mmp2_add_keypad(&mmp2_keypad_2key_info);
+	else
+		mmp2_add_keypad(&mmp2_keypad_4key_info);
 
 	/* backlight */
 	mmp2_add_pwm(3);
