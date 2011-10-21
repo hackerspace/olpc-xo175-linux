@@ -1542,7 +1542,7 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 
 	default:
 		if (mi->ioctl)
-			mi->ioctl(info, cmd, arg);
+			return mi->ioctl(info, cmd, arg);
 		else
 			pr_warning("%s: unknown IOCTL 0x%x\n", __func__, cmd);
 		break;
