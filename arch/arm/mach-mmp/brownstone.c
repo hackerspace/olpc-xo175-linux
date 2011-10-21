@@ -647,22 +647,22 @@ static struct cwmi_platform_data cwmi_acc_data = {
 	.axes = {
 		-1, 0, 0,
 		0, 1, 0,
-		0, 0, 1},
+		0, 0, -1},
 };
 
 static struct cwmi_platform_data cwmi_mag_data = {
 	.set_power = cywee_set_power,
 	.axes = {
-		1, 0, 0,
-		0, -1, 0,
+		-1, 0, 0,
+		0, 1, 0,
 		0, 0, -1},
 };
 
 static struct cwgd_platform_data cwgd_plat_data = {
 	.set_power = cywee_set_power,
 	.axes = {
-		1, 0, 0,
-		0, -1, 0,
+		-1, 0, 0,
+		0, 1, 0,
 		0, 0, -1},
 };
 
