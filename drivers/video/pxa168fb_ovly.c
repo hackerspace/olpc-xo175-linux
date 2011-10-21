@@ -819,18 +819,20 @@ again:
 			fbi->surface.viewPortInfo.rotation != 0)
 			pxa688fb_vdma_release(fbi);
 #endif
-		/* enable DMA only when fbi->new_addr not NULL */
-		if (!val || fbi->new_addr[0]) {
+		if (!val) {
+			/* switch off, disable DMA */
 			dma_ctrl_set(fbi->id, 0, mask, val);
 			/* in case already suspended, save in sw */
-			if (!val)
-				gfx_info.fbi[fbi->id]->dma_ctrl0 &= ~mask;
-			else
-				gfx_info.fbi[fbi->id]->dma_ctrl0 |= mask;
-		}
+			gfx_info.fbi[fbi->id]->dma_ctrl0 &= ~mask;
+		} else if (!buf_gethead(fbi->buf_waitlist) && !fbi->buf_current
+				&& !(fb_mode && fbi->id == fb_dual))
+			/* switch on, but no buf flipped, return error */
+			ret = -EAGAIN;
 
-		printk(KERN_DEBUG"SWITCH_VID_OVLY fbi %d dma_on %d, val %d\n",
-			fbi->id, fbi->dma_on, val);
+		printk(KERN_DEBUG "SWITCH_VID_OVLY fbi %d dma_on %d, val %d, "
+			"waitlist %p buf_current %p, ret %d\n", fbi->id,
+			fbi->dma_on, val, buf_gethead(fbi->buf_waitlist),
+			fbi->buf_current, ret);
 
 		if (FB_MODE_DUP) {
 			fbi = ovly_info.fbi[fb_dual];
