@@ -186,12 +186,15 @@ static void pxav2_access_constrain(struct sdhci_host *host, unsigned int ac)
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_pxa *pxa = pltfm_host->priv;
 
-	if (!ac && pxa->clk_enable) {
-		clk_disable(pltfm_host->clk);
-		pxa->clk_enable = 0;
-	} else if (ac && !pxa->clk_enable) {
-		clk_enable(pltfm_host->clk);
-		pxa->clk_enable = 1;
+	/* if clock gating is enabled, we can dynamically gate/ungate controller CKEN clk */
+	if (pxa->pdata && (pxa->pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING)) {
+		if (!ac && pxa->clk_enable) {
+			clk_disable(pltfm_host->clk);
+			pxa->clk_enable = 0;
+		} else if (ac && !pxa->clk_enable) {
+			clk_enable(pltfm_host->clk);
+			pxa->clk_enable = 1;
+		}
 	}
 
 	if(ac && (pltfm_host->dvfm_dev_idx > 0))
@@ -227,6 +230,7 @@ static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
 	}
 	pltfm_host = sdhci_priv(host);
 	pltfm_host->priv = pxa;
+	pxa->pdata = pdata;
 
 	clk = clk_get(dev, "PXA-SDHCLK");
 	if (IS_ERR(clk)) {
@@ -242,8 +246,6 @@ static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
 				ret, mmc_hostname(host->mmc));
 		goto err_clk_get;
 	}
-
-	pxav2_access_constrain(host, 1);
 
 	host->quirks = SDHCI_QUIRK_BROKEN_ADMA
 	    | SDHCI_QUIRK_BROKEN_TIMEOUT_VAL;
@@ -263,8 +265,12 @@ static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
 			host->mmc->pm_flags |= MMC_PM_ALWAYS_ACTIVE;
 		}
 
-		if (!(pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING))
+		if (pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING)
+			pxav2_access_constrain(host, 1);
+		else {
+			clk_enable(clk);
 			host->mmc->caps |= MMC_CAP_DISABLE_BUS_CLK_GATING;
+		}
 
 		if (pdata->quirks)
 			host->quirks |= pdata->quirks;
@@ -283,7 +289,6 @@ static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, host);
-	pxa->pdata = pdata;
 
 	if (pdata && pdata->ext_cd_gpio)
 		ext_cd_init(pdev);
@@ -294,12 +299,17 @@ static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
 		*pxa->pdata->pmmc = host->mmc;
 #endif
 
-	pxav2_access_constrain(host, 0);
+	if (pdata && (pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING))
+		pxav2_access_constrain(host, 0);
 
 	return 0;
 
 err_add_host:
-	pxav2_access_constrain(host, 0);
+	if (pdata && (pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING))
+		pxav2_access_constrain(host, 0);
+	else
+		clk_disable(clk);
+
 	clk_put(clk);
 err_clk_get:
 	sdhci_pltfm_free(pdev);
@@ -322,10 +332,16 @@ static int __devexit sdhci_pxav2_remove(struct platform_device *pdev)
 			gpio_free(pxa->pdata->ext_cd_gpio);
 	}
 
-	pxav2_access_constrain(host, 1);
+	if (pxa->pdata && (pxa->pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING))
+		pxav2_access_constrain(host, 1);
+
 	sdhci_remove_host(host, 1);
 
-	pxav2_access_constrain(host, 0);
+	if (pxa->pdata && (pxa->pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING))
+		pxav2_access_constrain(host, 0);
+	else
+		clk_disable(pltfm_host->clk);
+
 	clk_put(pltfm_host->clk);
 	dvfm_unregister((char *)mmc_hostname(host->mmc), &pltfm_host->dvfm_dev_idx);
 	sdhci_pltfm_free(pdev);
