@@ -468,7 +468,6 @@ static void mv_dma_setup(struct mv_camera_dev *pcdev)
  */
 static int mv_read_setup(struct mv_camera_dev *pcdev)
 {
-	ccic_config_phy(pcdev);
 	ccic_irq_enable(pcdev);
 	mv_dma_setup(pcdev);
 	ccic_start(pcdev);
@@ -734,6 +733,7 @@ static int mv_camera_add_device(struct soc_camera_device *icd)
 		return -EBUSY;
 
 	frames = singles = delivered = 0;
+	ccic_config_phy(pcdev);
 
 #ifdef CONFIG_PM
 	mcam->controller_power(1);
