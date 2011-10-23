@@ -25,6 +25,9 @@
 #ifdef CONFIG_DVFM
 #include <mach/dvfm.h>
 #endif
+#ifdef CONFIG_PXA95x
+#include <mach/debug_pm.h>
+#endif
 
 #define CONFIG_MEM_FOR_MULTIPROCESS
 #define VDEC_HW_CONTEXT_SIZE	SZ_512K
@@ -221,6 +224,9 @@ static int vmeta_clk_on(struct vmeta_instance *vi)
 
 	vi->clk_status = 2;
 	mutex_unlock(&vi->mutex);
+#ifdef CONFIG_PXA95x
+	gc_vmeta_stats_clk_event(VMETA_CLK_ON);
+#endif
 	return 0;
 }
 
@@ -342,6 +348,9 @@ static int vmeta_clk_off(struct vmeta_instance *vi)
 	unset_dvfm_constraint(vi);
 	vi->clk_status = 0;
 	mutex_unlock(&vi->mutex);
+#ifdef CONFIG_PXA95x
+	gc_vmeta_stats_clk_event(VMETA_CLK_OFF);
+#endif
 	return 0;
 }
 

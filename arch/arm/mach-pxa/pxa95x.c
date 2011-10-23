@@ -38,6 +38,7 @@
 #include <mach/usb-regs.h>
 #include <mach/pxa95x_dvfm.h>
 #include <mach/pmu.h>
+#include <mach/debug_pm.h>
 
 #include <plat/pmem.h>
 
@@ -791,6 +792,7 @@ static void clk_pxa9xx_u2o_disable(struct clk *clk)
 
 static void clk_gcu_enable(struct clk *clk)
 {
+	gc_vmeta_stats_clk_event(GC_CLK_ON);
 	clk_axi_enable(clk);
         CKENC |= (1 << (CKEN_GC_1X - 64));
         CKENC |= (1 << (CKEN_GC_2X - 64));
@@ -801,6 +803,7 @@ static void clk_gcu_disable(struct clk *clk)
         CKENC &= ~(1 << (CKEN_GC_1X - 64));
         CKENC &= ~(1 << (CKEN_GC_2X - 64));
 	clk_axi_disable(clk);
+	gc_vmeta_stats_clk_event(GC_CLK_OFF);
 }
 
 static void clk_csi_tx_esc_enable(struct clk *csi_clk)
