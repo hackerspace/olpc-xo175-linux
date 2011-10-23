@@ -1500,7 +1500,7 @@ static int pm860x_audio_resume(struct snd_soc_codec *codec)
 {
 	struct pm860x_priv *pm860x_audio = snd_soc_codec_get_drvdata(codec);
 	u8 *cache = codec->reg_cache;
-	int i, status1, status2;
+	int i, status1, status2, status3;
 
 	status1 = pm860x_read_reg_cache(codec, PM860X_ADC_EN_1);
 	status2 = pm860x_read_reg_cache(codec, PM860X_ADC_EN_2);
@@ -1528,9 +1528,20 @@ static int pm860x_audio_resume(struct snd_soc_codec *codec)
 		status1 = pm860x_read_reg_cache(codec, PM860X_AUDIO_SUPPLIES_2);
 		pm860x_write_reg_cache(codec, PM860X_AUDIO_SUPPLIES_2, status1);
 
+		/* enable 0xbc, 0xbe if PM860X_DAC_EN_2.3 is enabled */
+		status2 = pm860x_read_reg_cache(codec, PM860X_DAC_EN_2);
+		status1 = pm860x_read_reg_cache(codec, PM860X_I2S_IFACE_2);
+		status3 = pm860x_read_reg_cache(codec, PM860X_I2S_IFACE_4);
+
 		if (status2 & (1 << 3)) {
+			/*Enable 0xbc */
+			pm860x_write_reg_cache(codec, PM860X_I2S_IFACE_2,
+					       status1);
+			/*Enable 0xbe */
+			pm860x_write_reg_cache(codec, PM860X_I2S_IFACE_4,
+					       status3);
 			/* Enable DAC always for avoid noise */
-			pm860x_write_reg_cache(codec, PM860X_DAC_EN_2, 0x38);
+			pm860x_write_reg_cache(codec, PM860X_DAC_EN_2, status2);
 		}
 
 		status1 = pm860x_read_reg_cache(codec, PM860X_EAR_CTRL_2);
@@ -1542,7 +1553,11 @@ static int pm860x_audio_resume(struct snd_soc_codec *codec)
 
 		/* restore the registers */
 		for (i = 0; i < REG_CACHE_SIZE; i++) {
-			if (i != PM860X_AUDIO_SUPPLIES_2)
+			if (!
+			    ((i == PM860X_AUDIO_SUPPLIES_2)
+			     || (i == PM860X_I2S_IFACE_4)
+			     || (i == PM860X_DAC_EN_2)
+			     || (i == PM860X_I2S_IFACE_2)))
 				pm860x_write_reg_cache(codec, i, cache[i]);
 		}
 
