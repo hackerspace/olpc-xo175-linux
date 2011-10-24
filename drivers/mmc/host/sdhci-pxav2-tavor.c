@@ -116,6 +116,19 @@ static inline int ext_cd_val(int gpio, int invert)
 #define WAKE_LOCK_CD_TIMEOUT (15*HZ)
 static struct wake_lock cd_wake_lock;
 
+static int ext_cd_status(struct sdhci_host *host)
+{
+	struct sdhci_pltfm_host *pltfm_host;
+	struct sdhci_pxa *pxa;
+
+	pltfm_host = sdhci_priv(host);
+	pxa = pltfm_host->priv;
+	if (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION)
+		return 1;
+	else
+		return ext_cd_val(pxa->pdata->ext_cd_gpio,pxa->pdata->ext_cd_gpio_invert);
+}
+
 static irqreturn_t sdhci_pxa_cd_irq_thread(int irq, void *dev_id)
 {
 	struct platform_device *pdev = dev_id;
@@ -140,6 +153,7 @@ static int ext_cd_init(void *data)
 
 	cd_irq = gpio_to_irq(pdata->ext_cd_gpio);
 	ext_cd_gpio = pdata->ext_cd_gpio;
+
 	/* Catch wake lock when card is inserted or removed */
 	wake_lock_init(&cd_wake_lock, WAKE_LOCK_SUSPEND, "sd_card_detect");
 
@@ -227,6 +241,7 @@ static struct sdhci_ops pxav2_sdhci_ops = {
 	.platform_8bit_width = pxav2_mmc_set_width,
 	.access_constrain = pxav2_access_constrain,
 	.handle_cdint = pxa95x_handle_cdint,
+	.is_present = ext_cd_status,
 };
 
 static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
