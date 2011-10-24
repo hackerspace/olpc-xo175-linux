@@ -512,7 +512,6 @@ static int ov7690_s_fmt(struct v4l2_subdev *sd,
 			 struct v4l2_mbus_framefmt *mf)
 {
 	int ret = 0;
-	u8 val;
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 
 	switch (mf->code) {
@@ -590,6 +589,30 @@ static int ov7690_try_fmt(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int ov7690_enum_fsizes(struct v4l2_subdev *sd,
+				struct v4l2_frmsizeenum *fsize)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+
+	if (!fsize)
+		return -EINVAL;
+
+	switch (fsize->pixel_format) {
+	case V4L2_MBUS_FMT_UYVY8_2X8:
+	case V4L2_MBUS_FMT_VYUY8_2X8:
+		if (fsize->index >= N_OV7690_SIZES)
+			return -EINVAL;
+		fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
+		fsize->discrete.height = ov7690_sizes[fsize->index].height;
+		fsize->discrete.width = ov7690_sizes[fsize->index].width;
+		break;
+	default:
+		dev_err(&client->dev, "ov5642 unsupported format!\n");
+		return -EINVAL;
+	}
+	return 0;
+}
+
 static struct v4l2_subdev_core_ops ov7690_subdev_core_ops = {
 	.g_ctrl		= ov7690_g_ctrl,
 	.s_ctrl		= ov7690_s_ctrl,
@@ -606,6 +629,7 @@ static struct v4l2_subdev_video_ops ov7690_subdev_video_ops = {
 	.g_mbus_fmt	= ov7690_g_fmt,
 	.try_mbus_fmt	= ov7690_try_fmt,
 	.enum_mbus_fmt	= ov7690_enum_fmt,
+	.enum_mbus_fsizes = ov7690_enum_fsizes,
 };
 
 static struct v4l2_subdev_ops ov7690_subdev_ops = {
