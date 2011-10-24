@@ -515,6 +515,15 @@ static void set_clock_divider(struct pxa168fb_info *fbi)
 		writel(div_temp, fbi->reg_base + clk_div(fbi->id));
 		if (!var->pixclock) {
 			divider_int = mi->sclk_div & CLK_INT_DIV_MASK;
+			if (!divider_int)
+				divider_int = 1;
+
+			if (!clk_get_rate(fbi->clk)) {
+				pr_err("%s: fbi->clk get rate null\n",
+						__func__);
+				return;
+			}
+
 			x = clk_get_rate(fbi->clk) / divider_int / 1000;
 			var->pixclock = 1000000000 / x;
 			pr_debug("%s pixclock %d x %d divider_int %d\n",
