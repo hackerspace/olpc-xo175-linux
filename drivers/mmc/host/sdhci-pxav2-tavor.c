@@ -39,10 +39,12 @@ static void sdhci_pxa_notify_change(struct platform_device *pdev, int state)
 {
 	struct sdhci_host *host = platform_get_drvdata(pdev);
 	unsigned long flags;
+	static int old_state = 0;
 
 	if (host) {
 		spin_lock_irqsave(&host->lock, flags);
-		if (state) {
+		if (state && !old_state) {
+			old_state = state;
 			dev_dbg(&pdev->dev, "card inserted.\n");
 			host->quirks |= SDHCI_QUIRK_BROKEN_CARD_DETECTION;
 			spin_unlock_irqrestore(&host->lock, flags);
@@ -51,7 +53,8 @@ static void sdhci_pxa_notify_change(struct platform_device *pdev, int state)
 					(int)host->vmmc);
 				regulator_enable(host->vmmc);
 			}
-		} else {
+		} else if(!state && old_state) {
+			old_state = state;
 			dev_dbg(&pdev->dev, "card removed.\n");
 			host->quirks &= ~SDHCI_QUIRK_BROKEN_CARD_DETECTION;
 
@@ -70,7 +73,8 @@ static void sdhci_pxa_notify_change(struct platform_device *pdev, int state)
 					(int)host->vmmc);
 				regulator_disable(host->vmmc);
 			}
-		}
+		} else
+			spin_unlock_irqrestore(&host->lock, flags);
 
 		mmc_detect_change(host->mmc, msecs_to_jiffies(200));
 	}
