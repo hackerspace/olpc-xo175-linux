@@ -132,10 +132,10 @@ static unsigned long abilene_pin_config[] __initdata = {
 	GPIO160_ND_RDY1,
 
 	/* Keypad */
-	GPIO16_KP_DKIN0 | MFP_PULL_HIGH,
-	GPIO17_KP_DKIN1 | MFP_PULL_HIGH,
-	GPIO18_KP_DKIN2 | MFP_PULL_HIGH,
-	GPIO19_KP_DKIN3 | MFP_PULL_HIGH,
+	GPIO16_GPIO, /* KEY_BACK not used */
+	GPIO17_GPIO, /* KEY_MENU not used */
+	GPIO18_GPIO, /* KEY_HOME not used */
+	GPIO19_GPIO, /* KEY_SEARCH not used */
 	GPIO20_KP_DKIN4 | MFP_PULL_HIGH,
 	GPIO22_KP_DKIN6 | MFP_PULL_HIGH,
 
