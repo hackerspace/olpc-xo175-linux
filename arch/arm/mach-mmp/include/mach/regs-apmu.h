@@ -127,6 +127,34 @@
 /* VMeta Technology AXI Reset */
 #define APMU_VMETA_AXI_RST			(1 << 0)
 
+/* VMeta Technology Clock/Reset Control Register For MMP2 */
+/* [31:16]	Reserved */
+/* [15]		Bus Clock Source */
+#define APMU_MMP2_VMETA_ACLK_SRC		(1 << 15)
+/* [14:12]	Clock Select */
+#define APMU_MMP2_VMETA_ACLK_SEL_MASK	(7 << 12)
+#define APMU_MMP2_VMETA_ACLK_SEL_SHIFT	12
+/* [11]		Power Mode */
+#define APMU_MMP2_VMETA_PWR_CTRL		(1 << 11)
+/* [10]		Power Up */
+#define APMU_MMP2_VMETA_PWRUP			(1 << 10)
+/* [9]		Input Isolation Enable */
+#define APMU_MMP2_VMETA_INP_ISB			(1 << 9)
+/* [8]		Isolation Enable */
+#define APMU_MMP2_VMETA_ISB				(1 << 8)
+/* [7:5]	Clock Select */
+#define APMU_MMP2_VMETA_CLK_SEL_MASK	(7 << 5)
+#define APMU_MMP2_VMETA_CLK_SEL_SHIFT	5
+/* [4]		Peripheral Clock Enable */
+#define APMU_MMP2_VMETA_CLK_EN			(1 << 4)
+/* [3]		AXI Clock Enable */
+#define APMU_MMP2_VMETA_AXICLK_EN		(1 << 3)
+/* [2]		Reserved */
+/* [1]		Peripheral Reset 1 */
+#define APMU_MMP2_VMETA_RST1	(1 << 1)
+/* [0]		AXI Reset */
+#define APMU_MMP2_VMETA_AXI_RST	(1 << 0)
+
 /* USB HSIC/FSIC*/
 #define APMU_USBHSIC1   APMU_REG(0x0f8)
 #define APMU_USBHSIC2   APMU_REG(0x0fc)

@@ -36,6 +36,7 @@
 #include <mach/regs-usb.h>
 #include <mach/mmp_dma.h>
 #include <plat/pmem.h>
+#include <mach/soc_vmeta.h>
 
 #include "common.h"
 #include "clock.h"
@@ -472,6 +473,86 @@ struct clkops audio_clk_ops = {
 	.disable = audio_clk_disable,
 };
 
+static void vmeta_clk_enable(struct clk *clk)
+{
+	int reg;
+	reg = readl(clk->clk_rst);
+	/* Clock select */
+	reg &= ~APMU_MMP2_VMETA_CLK_SEL_MASK;
+	reg &= ~APMU_MMP2_VMETA_ACLK_SEL_MASK;
+	/* NOTE: set to 400M temporarily, support 480M later */
+	reg |= (0 << APMU_MMP2_VMETA_CLK_SEL_SHIFT);
+	reg |= (0x5 << APMU_MMP2_VMETA_ACLK_SEL_SHIFT);
+	writel(reg, clk->clk_rst);
+	/* Peripheral Clock Enable */
+	reg |= APMU_MMP2_VMETA_CLK_EN;
+	writel(reg, clk->clk_rst);
+	/* AXI Clock Enable */
+	reg |= APMU_MMP2_VMETA_AXICLK_EN;
+	writel(reg, clk->clk_rst);
+	/* Peripheral Reset */
+	reg &= ~APMU_MMP2_VMETA_RST1;
+	writel(reg, clk->clk_rst);
+	reg = readl(clk->clk_rst);
+	/* Release from reset */
+	reg |= APMU_MMP2_VMETA_RST1;
+	writel(reg, clk->clk_rst);
+	reg = readl(clk->clk_rst);
+	/* Release AXI from reset */
+	reg |= APMU_MMP2_VMETA_AXI_RST;
+	writel(reg, clk->clk_rst);
+	reg = readl(clk->clk_rst);
+}
+static void vmeta_clk_disable(struct clk *clk)
+{
+	int reg;
+	/* Hold vmeta in reset */
+	reg = readl(clk->clk_rst);
+	reg &= ~APMU_MMP2_VMETA_RST1;
+	writel(reg, clk->clk_rst);
+	/* Disable Clock */
+	reg = readl(clk->clk_rst);
+	reg &= ~APMU_MMP2_VMETA_CLK_EN;
+	writel(reg, clk->clk_rst);
+	reg &= ~APMU_MMP2_VMETA_AXICLK_EN;
+	writel(reg, clk->clk_rst);
+}
+
+struct clkops vmeta_clk_ops = {
+	.enable  = vmeta_clk_enable,
+	.disable = vmeta_clk_disable,
+};
+
+#ifdef CONFIG_UIO_VMETA
+void vmeta_pwr(unsigned int en)
+{
+	int reg = readl(APMU_VMETA_CLK_RES_CTRL);
+	if (VMETA_PWR_ENABLE == en) {
+		/* Power on */
+		/* Enable Hardware power mode */
+		reg |= APMU_MMP2_VMETA_PWR_CTRL;
+		reg |= APMU_MMP2_VMETA_PWRUP;
+		writel(reg, APMU_VMETA_CLK_RES_CTRL);
+
+		reg |= APMU_MMP2_VMETA_INP_ISB;
+		writel(reg, APMU_VMETA_CLK_RES_CTRL);
+
+		reg |= APMU_MMP2_VMETA_ISB;
+		writel(reg, APMU_VMETA_CLK_RES_CTRL);
+	} else if (VMETA_PWR_DISABLE == en) {
+		/* Power off */
+		reg &= ~APMU_MMP2_VMETA_ISB;
+		writel(reg, APMU_VMETA_CLK_RES_CTRL);
+
+		reg &= ~APMU_MMP2_VMETA_INP_ISB;
+		writel(reg, APMU_VMETA_CLK_RES_CTRL);
+
+		reg &= ~APMU_MMP2_VMETA_PWRUP;
+		writel(reg, APMU_VMETA_CLK_RES_CTRL);
+	}
+}
+#endif
+
 /* APB peripheral clocks */
 static APBC_CLK(uart1, MMP2_UART1, 1, 26000000);
 static APBC_CLK(uart2, MMP2_UART2, 1, 26000000);
@@ -500,6 +581,7 @@ static APMU_CLK_OPS(disp1_axi, LCD, 0, 0, &disp1_axi_clk_ops);
 static APMU_CLK_OPS(lcd, LCD, 0, 0, &lcd_pn1_clk_ops);
 static APMU_CLK_OPS(tv, LCD, 0, 0, &lcd_tv_clk_ops);
 static APMU_CLK_OPS(audio, AUDIO_CLK_RES_CTRL, 0, 0, &audio_clk_ops);
+static APMU_CLK_OPS(vmeta, VMETA_CLK_RES_CTRL, 0, 0, &vmeta_clk_ops);
 
 static struct clk_lookup mmp2_clkregs[] = {
 	INIT_CLKREG(&clk_uart1, "pxa2xx-uart.0", NULL),
@@ -528,6 +610,7 @@ static struct clk_lookup mmp2_clkregs[] = {
 	INIT_CLKREG(&clk_audio, NULL, "mmp-audio"),
 	INIT_CLKREG(&clk_thsens, "mmp2-thermal", NULL),
 	INIT_CLKREG(&clk_keypad, "pxa27x-keypad", NULL),
+	INIT_CLKREG(&clk_vmeta, NULL, "VMETA_CLK"),
 };
 
 static int __init mmp2_init(void)

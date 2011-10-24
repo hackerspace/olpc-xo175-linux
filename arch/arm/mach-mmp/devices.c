@@ -547,6 +547,8 @@ void __init mmp_register_dxoisp(void *data)
 #endif
 
 #ifdef CONFIG_UIO_VMETA
+static u64 mmp_vmeta_dam_mask = DMA_BIT_MASK(32);
+#ifdef CONFIG_CPU_MMP3
 static struct resource mmp_vmeta_resources[3] = {
 	[0] = {
 		.start = 0xF0400000,
@@ -559,12 +561,28 @@ static struct resource mmp_vmeta_resources[3] = {
 		.flags = IORESOURCE_IRQ,
 	},
 };
+#elif CONFIG_CPU_MMP2
+static struct resource mmp_vmeta_resources[] = {
+	[0] = {
+		.start = 0xF0400000,
+		.end   = 0xF07FFFFF,
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = IRQ_MMP2_VMETA,
+		.end   = IRQ_MMP2_VMETA,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+#else
+static struct resource mmp_vmeta_resources[] = {};
+#endif
 
 struct platform_device mmp_device_vmeta = {
 	.name           = UIO_VMETA_NAME,
 	.id             = 0,
 	.dev            = {
-		.dma_mask = DMA_BIT_MASK(32),
+		.dma_mask = &mmp_vmeta_dam_mask,
 		.coherent_dma_mask = DMA_BIT_MASK(32),
 	},
 	.resource       = mmp_vmeta_resources,
