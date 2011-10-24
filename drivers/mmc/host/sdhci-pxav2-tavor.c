@@ -90,11 +90,16 @@ static inline int ext_cd_val(int gpio, int invert)
 	return status;
 }
 
+#define WAKE_LOCK_CD_TIMEOUT (15*HZ)
+static struct wake_lock cd_wake_lock;
+
 static irqreturn_t sdhci_pxa_cd_irq_thread(int irq, void *dev_id)
 {
 	struct platform_device *pdev = dev_id;
 	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
 	int status;
+
+	wake_lock_timeout(&cd_wake_lock, WAKE_LOCK_CD_TIMEOUT);
 
 	msleep(600);
 	status = ext_cd_val(pdata->ext_cd_gpio, pdata->ext_cd_gpio_invert);
@@ -112,6 +117,8 @@ static int ext_cd_init(void *data)
 
 	cd_irq = gpio_to_irq(pdata->ext_cd_gpio);
 	ext_cd_gpio = pdata->ext_cd_gpio;
+	/* Catch wake lock when card is inserted or removed */
+	wake_lock_init(&cd_wake_lock, WAKE_LOCK_SUSPEND, "sd_card_detect");
 
 	/*
 	 * setup GPIO for saarb MMC controller
