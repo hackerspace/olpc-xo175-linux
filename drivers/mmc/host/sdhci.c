@@ -130,7 +130,8 @@ static void sdhci_set_card_detection(struct sdhci_host *host, bool enable)
 {
 	u32 irqs = SDHCI_INT_CARD_REMOVE | SDHCI_INT_CARD_INSERT;
 
-	if (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION)
+	if ( (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION)
+		|| (host->ops->is_present != NULL))
 		return;
 
 	if (enable)
@@ -2189,7 +2190,8 @@ static irqreturn_t sdhci_irq(int irq, void *dev_id)
 	DBG("*** %s got interrupt: 0x%08x\n",
 		mmc_hostname(host->mmc), intmask);
 
-	if (intmask & (SDHCI_INT_CARD_INSERT | SDHCI_INT_CARD_REMOVE)) {
+	if ((intmask & (SDHCI_INT_CARD_INSERT | SDHCI_INT_CARD_REMOVE)) &&
+		(!host->ops->is_present)) {
 		sdhci_writel(host, intmask & (SDHCI_INT_CARD_INSERT |
 			SDHCI_INT_CARD_REMOVE), SDHCI_INT_STATUS);
 		tasklet_schedule(&host->card_tasklet);
