@@ -499,12 +499,20 @@ static void set_clock_divider(struct pxa168fb_info *fbi)
 {
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 	struct fb_var_screeninfo *var = &fbi->fb_info->var;
-	u32 divider_int, needed_pixclk, x = 0;
+	u32 divider_int, needed_pixclk, div_temp, x = 0;
 	u64 div_result;
 
 	/* check whether divider is fixed by platform */
 	if (mi->sclk_div) {
-		writel(mi->sclk_div, fbi->reg_base + clk_div(fbi->id));
+		div_temp = mi->sclk_div;
+		/*for 480i and 576i, pixel clock should be half of
+		 * the spec value because of pixel repetition */
+		if ((var->yres == 480 || var->yres == 576) &&
+			(var->vmode == FB_VMODE_INTERLACED)) {
+			div_temp &= ~0xf;
+			div_temp |= (mi->sclk_div & 0xf) << 1;
+		}
+		writel(div_temp, fbi->reg_base + clk_div(fbi->id));
 		if (!var->pixclock) {
 			divider_int = mi->sclk_div & CLK_INT_DIV_MASK;
 			x = clk_get_rate(fbi->clk) / divider_int / 1000;
