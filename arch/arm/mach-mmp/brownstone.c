@@ -34,6 +34,7 @@
 #include <mach/uio_hdmi.h>
 #include <mach/mmp2_plat_ver.h>
 #include <mach/regs-apmu.h>
+#include <mach/soc_vmeta.h>
 #include <plat/pmem.h>
 #include <plat/usb.h>
 #include <linux/i2c/tpk_r800.h>
@@ -809,6 +810,24 @@ static struct pxa27x_keypad_platform_data mmp2_keypad_2key_info = {
 	.clear_wakeup_event = keypad_clear_wakeup,
 };
 
+#ifdef CONFIG_UIO_VMETA
+static struct vmeta_plat_data mmp2_vmeta_plat_data = {
+	.bus_irq_handler = NULL,
+	.set_dvfm_constraint = NULL,
+	.unset_dvfm_constraint = NULL,
+	.clean_dvfm_constraint = NULL,
+	.init_dvfm_constraint = NULL,
+	.axi_clk_available = 0,
+	.decrease_core_freq = NULL,
+	.increase_core_freq = NULL,
+};
+
+static void __init mmp2_init_vmeta(void)
+{
+	mmp_set_vmeta_info(&mmp2_vmeta_plat_data);
+}
+#endif
+
 static void __init brownstone_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(brownstone_pin_config));
@@ -864,6 +883,9 @@ static void __init brownstone_init(void)
 
 #ifdef CONFIG_ANDROID_PMEM
 	pxa_add_pmem();
+#endif
+#ifdef CONFIG_UIO_VMETA
+	mmp2_init_vmeta();
 #endif
 }
 
