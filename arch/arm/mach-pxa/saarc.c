@@ -30,6 +30,8 @@
 #include <mach/pxa95xfb.h>
 #include <mach/pxa95x_dvfm.h>
 #include <linux/switch.h>
+#include <mach/camera.h>
+#include <media/soc_camera.h>
 
 #include <mach/audio.h>
 #include <mach/usb-regs.h>
@@ -486,6 +488,188 @@ static struct pxa27x_keypad_platform_data keypad_info = {
 };
 #endif /* CONFIG_KEYBOARD_PXA27x || CONFIG_KEYBOARD_PXA27x_MODULE */
 
+#if defined(CONFIG_VIDEO_PXA955)
+static struct regulator *vcamera = NULL;
+static int camera0_power(struct device *dev, int flag)
+{
+	int gpio_pin = mfp_to_gpio(MFP_PIN_GPIO25);
+
+	if (gpio_request(gpio_pin, "CAM_EANBLE_HI_SENSOR")) {
+		printk(KERN_ERR "cam: Request GPIO failed,"
+				"gpio: %d\n", gpio_pin);
+		return -EIO;
+	}
+
+	/* Initialize AF_VCC */
+	if (vcamera == NULL) {
+		vcamera = regulator_get(NULL, "v_cam");
+		if (IS_ERR(vcamera)) {
+			return -ENODEV;
+		}
+	}
+
+	if (flag) {
+		gpio_direction_output(gpio_pin, 0);	/* enable */
+		msleep(1);
+		regulator_enable(vcamera);
+	} else {
+		regulator_disable(vcamera);
+		gpio_direction_output(gpio_pin, 1);	/* disable */
+	}
+
+	gpio_free(gpio_pin);
+	return 0;
+}
+
+static int camera1_power(struct device *dev, int flag)
+{
+	int gpio_pin = mfp_to_gpio(MFP_PIN_GPIO26);
+
+	if (gpio_request(gpio_pin, "CAM_EANBLE_HI_SENSOR")) {
+		printk(KERN_ERR "cam: Request GPIO failed,"
+				"gpio: %d\n", gpio_pin);
+		return -EIO;
+	}
+
+	if (gpio_request(gpio_pin, "CAM_EANBLE_LOW_SENSOR")) {
+		printk(KERN_ERR "cam: Request GPIO failed,"
+				"gpio: %d\n", gpio_pin);
+		return -EIO;
+	}
+
+	if (flag) {
+		gpio_direction_output(gpio_pin, 0);
+		msleep(1);
+	} else {
+		gpio_direction_output(gpio_pin, 1);
+	}
+
+	gpio_free(gpio_pin);
+	return 0;
+}
+
+static struct i2c_board_info camera_i2c[] = {
+	{
+		I2C_BOARD_INFO("ov5642", 0x3c),
+	}, {
+		I2C_BOARD_INFO("ov7690", 0x21),
+	},
+};
+
+static struct sensor_platform_data camera_sensor[] = {
+	{	/* OV5642 */
+		.mount_pos	= SENSOR_USED \
+					| SENSOR_POS_BACK | SENSOR_RES_HIGH,
+		.interface	= SOCAM_MIPI_1LANE | SOCAM_MIPI_2LANE,
+		.intrfc_id	= 0,
+		.bridge		= 1,
+		.af_cap		= 1,
+		.mclk_mhz	= 26,
+		.vendor_info	= "TRULY",
+		.board_name	= "saarb",
+	}, {	/* OV7690 */
+		.mount_pos	= SENSOR_USED \
+					| SENSOR_POS_FRONT | SENSOR_RES_LOW,
+		.interface	= 0,
+		.intrfc_id	= 0,
+		.bridge		= 1,
+		.af_cap		= 1,
+		.mclk_mhz	= 26,
+		.vendor_info	= "N/A",
+		.board_name	= "saarb",
+	},
+};
+
+static struct soc_camera_link iclink[] = {
+	{
+		.bus_id			= 0, /* Must match with the camera ID */
+		.board_info		= &camera_i2c[0],
+		.i2c_adapter_id		= 1,
+		.power = camera0_power,
+		.module_name		= "ov5642",
+		/* Configure this flag according to hardware connection */
+		/* Both of the 2 MIPI lanes are connected to pxa95x on Saarb */
+		.priv			= &camera_sensor[0],
+	}, {
+		.bus_id			= 0, /* Must match with the camera ID */
+		.board_info		= &camera_i2c[1],
+		.i2c_adapter_id		= 1,
+		.power = camera1_power,
+		.module_name		= "ov7690",
+		/* ov7690 is using ov5642 as bridge, so config is the same*/
+		.priv			= &camera_sensor[1],
+	},
+};
+
+static struct platform_device camera[] = {
+	{
+		.name	= "soc-camera-pdrv",
+		.id	= 0,
+		.dev	= {
+			.platform_data = &iclink[0],
+		},
+	}, {
+		.name	= "soc-camera-pdrv",
+		.id	= 1,
+		.dev	= {
+			.platform_data = &iclink[1],
+		},
+	},
+};
+
+static struct pxa95x_csi_dev csidev[] = {
+	{
+		.irq_num	= 71,
+		.reg_start	= 0x50020000,
+	},
+	/*TODO: if there is 2 csi controller, add its info here*/
+	/*
+	{
+		.irq_num	= 71,
+		.reg_base	= 0x50020000,
+	},
+	*/
+};
+
+/*
+* TODO: combine csi controller and camera controller, now we only have one
+* csi controller on pxa95x, and two camera controllers
+*/
+static struct pxa95x_cam_pdata cam_pdata[] = {
+	{
+		.csidev		= &csidev[0],
+	},
+	/*TODO: if there is 2 sci controller, add its info here*/
+	/*
+	{
+		.mclk_mhz	= 26,
+		.csidev		= &csidev[1],
+	},
+	*/
+};
+
+#endif
+
+static void __init init_cam(void)
+{
+#if defined(CONFIG_VIDEO_PXA955)
+
+#if defined(CONFIG_SOC_CAMERA_OV5642)
+	platform_device_register(&camera[0]);
+#endif
+#if defined(CONFIG_SOC_CAMERA_OV7690)
+	platform_device_register(&camera[1]);
+#endif
+
+	pxa95x_device_cam0.dev.platform_data = &cam_pdata[0];
+	platform_device_register(&pxa95x_device_cam0);
+
+	/* TODO: add sencond camera controller */
+	/*pxa95x_device_cam1.dev.platform_data = &cam_pdata[1];*/
+	/*platform_device_register(&pxa95x_device_cam1);*/
+#endif
+}
+
 #if defined(CONFIG_FB_PXA95x)
 
 #if defined(CONFIG_MV_IHDMI)
@@ -913,6 +1097,8 @@ static void __init init(void)
 #if defined(CONFIG_KEYBOARD_PXA27x) || defined(CONFIG_KEYBOARD_PXA27x_MODULE)
 	pxa_set_keypad_info(&keypad_info);
 #endif
+
+	init_cam();
 
 #if defined(CONFIG_FB_PXA95x)
 	init_lcd();
