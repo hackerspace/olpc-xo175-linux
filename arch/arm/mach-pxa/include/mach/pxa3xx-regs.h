@@ -72,14 +72,19 @@
 #define PMCR_SWGR	(1 << 31)		/* Software GPIO Reset */
 #define PSR_TSS_OFF	(12)
 #define OVH_TEMP_EN	(1 << 0)		/* Enable for Temperature Sensor */
+#ifdef CONFIG_CPU_PXA978
+#define OVH_OWM		(1 << 19)		/* Over-heating WDT Enable */
+#define OVH_OVWF_OFF	(10)			/* WDT Reset Temperature Over-heating Threshold */
+#else
 #define OVH_OWM		(1 << 7)		/* Over-heating WDT Enable */
 #define OVH_OVWF_OFF	(4)			/* WDT Reset Temperature Over-heating Threshold */
+#endif
 #define OVH_OTIF_OFF	(1)			/* Over-heating Treshold Value for Generating TIS Software Interrupt */
 #define PVCR_VCSA	(1 << 14)
 
 #define AVCR_ALVL3_OFFSET		24
 #define AVCR_ALVL3_MASK_5bit		(0x1F << AVCR_ALVL3_OFFSET)
-#define AVCR_ALVL3_MASK			(0x1F << AVCR_ALVL3_OFFSET)
+#define AVCR_ALVL3_MASK			(0xFF << AVCR_ALVL3_OFFSET)
 #define CORE_OVERHEATING_DETECTED	1
 #define CORE_COLLING_DETECTED		0
 
