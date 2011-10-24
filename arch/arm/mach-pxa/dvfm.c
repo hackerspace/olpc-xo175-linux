@@ -883,6 +883,63 @@ out:
 EXPORT_SYMBOL(dvfm_unregister);
 
 /*
+ * Get current operating frequency of the core
+ */
+int dvfm_current_core_freq_get(void)
+{
+	if (dvfm_driver->current_core_freq_get != NULL) {
+		return dvfm_driver->current_core_freq_get();
+	} else {
+		/* not supported */
+		return -1;
+	}
+}
+EXPORT_SYMBOL(dvfm_current_core_freq_get);
+
+int dvfm_core_freqs_table_get(int *freqs_table, int *size, int table_sz)
+{
+	if (dvfm_driver->core_freqs_table_get != NULL) {
+		return dvfm_driver->core_freqs_table_get(dvfm_driver->priv,
+							freqs_table,
+							size,
+							table_sz);
+	} else {
+		/* not supported */
+		return -1;
+	}
+}
+EXPORT_SYMBOL(dvfm_core_freqs_table_get);
+
+int dvfm_freq_constraint_set(int *freqs_table, int required_freq_mhz,
+		int dev_idx)
+{
+	int freq_mhz;
+	int ret = -EINVAL;
+	struct op_info *p = NULL;
+	struct dvfm_md_opt *op;
+
+	pr_debug("cpufreq set: Freq=%d MHz\n", required_freq_mhz);
+
+	/* Set the constraints acquired from the target frequency */
+	list_for_each_entry(p, &dvfm_op_list->list, list) {
+		op = (struct dvfm_md_opt *)(p->op);
+		if (POWER_MODE_D0 == op->power_mode ||
+				POWER_MODE_D0CS == op->power_mode) {
+			freq_mhz = op->core;
+			if (freq_mhz < required_freq_mhz) {
+				/* Set DVFM constraint on the operating point */
+				ret = dvfm_disable_op(p->index, dev_idx);
+			} else {
+				ret = dvfm_enable_op(p->index, dev_idx);
+			}
+		}
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(dvfm_freq_constraint_set);
+
+/*
  * Device driver index is searched in DB
  */
 int dvfm_find_index(char *name, int *id)

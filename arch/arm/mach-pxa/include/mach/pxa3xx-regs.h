@@ -196,6 +196,7 @@
 #define ACCR1		__REG(0x41340020)	/* Application Subsystem Clock Configuration Register 1 */
 #define CKENC		__REG(0x41340024)	/* C Clock Enable Register */
 #define DDR_CLK_PROFILES __REG(0x41340028)	/* DDR Clock Profiles Register */
+#define DDR_FC_CTRL	__REG(0x4134002C)	/* DDR Frequency Change Control Register */
 #define CCLKCFG		__REG(0x41340040)	/* Core Clock Configuration Register */
 
 #define ACCR_XPDIS		(1 << 31)	/* Core PLL Output Disable */

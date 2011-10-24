@@ -2525,6 +2525,65 @@ static unsigned int pxa95x_read_time(void)
 	return OSCR4;
 }
 
+static int pxa95x_core_freq_calc(int op_point)
+{
+	struct dvfm_md_opt *md = NULL;
+	struct op_info *p = NULL;
+	int freq = 0;
+
+	if (!dvfm_find_op(op_point, &p)) {
+		md = (struct dvfm_md_opt *)p->op;
+#if 0
+		/* D0CS? */
+		if ((md->xl == 0) &&
+			(md->xn == 0))
+			freq = 60;
+		else
+			freq = 13 * md->xl * md->xn;
+#else
+		freq = md->core;
+#endif
+	} else {
+		/* unknown */
+		freq = -1;
+	}
+
+	return freq;
+}
+
+static int pxa95x_core_current_freq_get(void)
+{
+	return pxa95x_core_freq_calc(cur_op);
+}
+
+/* Now the frequency table is hard code
+ * This will be modified when merge cpufreq and DVFM
+ */
+static int pxa95x_core_freqs_table_get(void *driver_data,
+					int *freq_table,
+					int *num_pp,
+					int table_sz)
+{
+	struct dvfm_md_opt *md;
+	struct op_info *p = NULL;
+
+	*num_pp = 0;
+	list_for_each_entry(p, &pxa95x_dvfm_op_list.list, list) {
+		md = (struct dvfm_md_opt *)(p->op);
+		if (md->power_mode == POWER_MODE_D0 ||
+				md->power_mode == POWER_MODE_D0CS) {
+			if (*num_pp == 0)
+				freq_table[(*num_pp)++] = md->core;
+			else if (md->core > freq_table[*num_pp - 1])
+				freq_table[(*num_pp)++] = md->core;
+		}
+	}
+
+	BUG_ON(table_sz < *num_pp);
+
+	return 0;
+}
+
 /* It's invoked by PM functions.
  * PM functions can store the accurate time of entering/exiting low power
  * mode.
@@ -2618,6 +2677,8 @@ static struct dvfm_driver pxa95x_driver = {
 	.ticks_to_usec = pxa95x_ticks_to_usec,
 	.ticks_to_sec = pxa95x_ticks_to_sec,
 	.read_time = pxa95x_read_time,
+	.current_core_freq_get = pxa95x_core_current_freq_get,
+	.core_freqs_table_get = pxa95x_core_freqs_table_get
 };
 
 #ifdef CONFIG_PM

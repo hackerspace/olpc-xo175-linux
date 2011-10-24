@@ -113,6 +113,11 @@ struct dvfm_driver {
 	unsigned int (*ticks_to_usec) (unsigned int);
 	unsigned int (*ticks_to_sec) (unsigned int);
 	unsigned int (*read_time) (void);
+	int (*current_core_freq_get)(void);
+	int (*core_freqs_table_get)(void *driver_data,
+			int *freqs_table,
+			int *size,
+			int table_sz);
 	void *priv;
 };
 
@@ -138,6 +143,10 @@ extern int dvfm_register(const char *name, int *);
 extern int dvfm_unregister(const char *name, int *);
 extern int dvfm_query_device_num(void);
 extern int dvfm_query_device_list(void *, int);
+extern int dvfm_current_core_freq_get(void);
+extern int dvfm_core_freqs_table_get(int *freqs_table, int *size, int table_sz);
+extern int dvfm_freq_constraint_set(int *freqs_table, int required_freq_khz,
+		int dev_idx);
 
 extern int dvfm_find_index(char *name, int *id);
 
