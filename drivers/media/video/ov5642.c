@@ -300,6 +300,49 @@ static int ov5642_g_fmt(struct v4l2_subdev *sd, struct v4l2_mbus_framefmt *mf)
 	return 0;
 }
 
+static int ov5642_g_crop(struct v4l2_subdev *sd, struct v4l2_crop *crop)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	unsigned char val[16];
+	int i;
+
+	for (i = 0; i < 4; ++i) {
+		ov5642_read(client, SCAN_ARR_X_OFF_H+i, val+i);
+		ov5642_read(client, ISP_INPUT_X_SZ_H+i, val+i+4);
+	}
+
+	/* Bit width and endian unknow here, so don't want to use any trick*/
+	crop->c.left	= (val[0] << 8) + val[1];
+	crop->c.top	= (val[2] << 8) + val[3];
+	crop->c.width	= (val[4] << 8) + val[5];
+	crop->c.height	= (val[6] << 8) + val[7];
+
+	return 0;
+}
+
+static int ov5642_s_crop(struct v4l2_subdev *sd, struct v4l2_crop *crop)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+
+	/* Turn off sensor output first */
+	ov5642_s_stream(sd, 0);
+	ov5642_write(client, SCAN_ARR_X_OFF_H, (crop->c.left>>8) & 0xff);
+	ov5642_write(client, SCAN_ARR_X_OFF_L, crop->c.left & 0xff);
+	ov5642_write(client, SCAN_ARR_Y_OFF_H, (crop->c.top>>8) & 0xff);
+	ov5642_write(client, SCAN_ARR_Y_OFF_L, crop->c.top & 0xff);
+	ov5642_write(client, ISP_INPUT_X_SZ_H, (crop->c.width>>8) & 0xff);
+	ov5642_write(client, ISP_INPUT_X_SZ_L, crop->c.width & 0xff);
+	ov5642_write(client, ISP_INPUT_Y_SZ_H, (crop->c.height>>8) & 0xff);
+	ov5642_write(client, ISP_INPUT_Y_SZ_L, crop->c.height & 0xff);
+	printk(KERN_INFO "cam: ov5642: S_CROP " \
+		"LTWH = [0x%04X, 0x%04X, 0x%04X, 0x%04X]\n", \
+		crop->c.left, crop->c.top, crop->c.width, crop->c.height);
+	/* Delay 2~3 frames before sensor output get stable */
+	msleep(90);
+	ov5642_s_stream(sd, 1);
+	return 0;
+}
+
 static int ov5642_enum_fsizes(struct v4l2_subdev *sd,
 				struct v4l2_frmsizeenum *fsize)
 {
@@ -567,6 +610,8 @@ static struct v4l2_subdev_video_ops ov5642_subdev_video_ops = {
 	.enum_mbus_fsizes = ov5642_enum_fsizes,
 	.enum_mbus_fmt = ov5642_enum_fmt,
 	.g_frame_interval =  ov5642_g_frame_interval,
+	.g_crop = ov5642_g_crop,
+	.s_crop = ov5642_s_crop,
 };
 
 static struct v4l2_subdev_ops ov5642_subdev_ops = {

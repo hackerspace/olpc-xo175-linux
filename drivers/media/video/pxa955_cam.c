@@ -164,6 +164,7 @@ MODULE_SUPPORTED_DEVICE("Video");
 #define SCIDCSR_DMA_RUN	0x80000000	/* DMA Channel Enable */
 
 /* REG_SCICR0 */
+#define SCICR0_FSC(n)		(((n) & 0xF) << 2)	/* skip n frames before capture 1 frame */
 #define SCICR0_CAP_EN	0x40000000	/* Capture Enable */
 #define SCICR0_CI_EN	0x80000000	/* Camera Interface Enable */
 
@@ -1831,6 +1832,46 @@ static int pxa955_cam_enum_fsizes(struct soc_camera_device *icd,
 	return 0;
 }
 
+static int pxa955_cam_g_crop(struct soc_camera_device *icd,
+				struct v4l2_crop *crop)
+{
+	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
+
+	return v4l2_subdev_call(sd, video, g_crop, crop);
+}
+
+static int pxa955_cam_s_crop(struct soc_camera_device *icd,
+				struct v4l2_crop *crop)
+{
+	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
+	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
+	struct pxa955_cam_dev *pcdev = ici->priv;
+	int ret;
+
+#ifdef _CONTROLLER_DEADLOOP_RESET_
+	/* Announce reset timer is being killed */
+	pcdev->killing_reset_timer = 1;
+	del_timer(&pcdev->reset_timer);
+#endif
+	spin_lock(&pcdev->spin_lock);
+	sci_disable(pcdev);
+	spin_unlock(&pcdev->spin_lock);
+
+	ret = v4l2_subdev_call(sd, video, s_crop, crop);
+
+	/* skip 3 frames */
+	spin_lock(&pcdev->spin_lock);
+	sci_reg_set_bit(pcdev, REG_SCICR0, SCICR0_FSC(3));
+	sci_enable(pcdev);
+	spin_unlock(&pcdev->spin_lock);
+
+#ifdef _CONTROLLER_DEADLOOP_RESET_
+	/* Declear timer can be resumed, so after skipping 3 frames,
+	 * on frame irq, timer will be started again */
+	pcdev->killing_reset_timer = 0;
+#endif
+	return ret;
+}
 static struct soc_camera_host_ops pxa955_soc_cam_host_ops = {
 	.owner		= THIS_MODULE,
 	.add		= pxa955_cam_add_device,
@@ -1846,6 +1887,8 @@ static struct soc_camera_host_ops pxa955_soc_cam_host_ops = {
 	.set_bus_param	= pxa955_cam_set_bus_param,
 	.set_parm = pxa955_cam_set_param,
 	.enum_fsizes = pxa955_cam_enum_fsizes,
+	.get_crop	= pxa955_cam_g_crop,
+	.set_crop	= pxa955_cam_s_crop,
 };
 
 static irqreturn_t csi_irq(int irq, void *data)
