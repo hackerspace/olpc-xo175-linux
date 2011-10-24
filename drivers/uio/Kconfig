@@ -96,7 +96,7 @@ config UIO_NETX
 
 config UIO_VMETA
 	tristate "Vmeta UIO device driver"
-	depends on UIO && (PXA95x || CPU_MMP3)
+	depends on UIO && (PXA95x || CPU_MMP3 || CPU_MMP2)
 	default n
 	help
 	  Userspace IO interface to the Marvell multi-format video
