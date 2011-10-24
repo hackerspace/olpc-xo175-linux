@@ -453,6 +453,46 @@ struct platform_device pxa168_device_u2oehci = {
 	.resource	= pxa168_u2oehci_resources,
 };
 
+#if defined(CONFIG_USB_PXA_U2O_OTG)
+struct resource pxa168_u2ootg_resources[] = {
+	/* regbase */
+	[0] = {
+		.start	= PXA168_U2O_REGBASE + U2x_CAPREGS_OFFSET,
+		.end	= PXA168_U2O_REGBASE + USB_REG_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "capregs",
+	},
+	/* phybase */
+	[1] = {
+		.start	= PXA168_U2O_PHYBASE,
+		.end	= PXA168_U2O_PHYBASE + USB_PHY_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "phyregs",
+	},
+	[2] = {
+		.start	= IRQ_PXA168_USB1,
+		.end	= IRQ_PXA168_USB1,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device pxa168_device_u2ootg = {
+	.name		= "pxa-otg",
+	.id		= -1,
+	.dev  = {
+		.dma_mask          = &usb_dma_mask,
+		.coherent_dma_mask = 0xffffffff,
+	},
+
+	.num_resources	= ARRAY_SIZE(pxa168_u2ootg_resources),
+	.resource      = pxa168_u2ootg_resources,
+};
+#endif /* CONFIG_USB_PXA_U2O_OTG */
+
+#endif
+#endif
+#endif
+
 #ifdef CONFIG_VIDEO_MVISP
 static struct resource mmp_dxoisp_resources[] = {
 	[0] = {
@@ -547,43 +587,3 @@ void __init mmp_set_vmeta_info(void* info)
 	mmp_register_vmeta(&mmp_device_vmeta, info);
 }
 #endif
-#if defined(CONFIG_USB_PXA_U2O_OTG)
-struct resource pxa168_u2ootg_resources[] = {
-	/* regbase */
-	[0] = {
-		.start	= PXA168_U2O_REGBASE + U2x_CAPREGS_OFFSET,
-		.end	= PXA168_U2O_REGBASE + USB_REG_RANGE,
-		.flags	= IORESOURCE_MEM,
-		.name	= "capregs",
-	},
-	/* phybase */
-	[1] = {
-		.start	= PXA168_U2O_PHYBASE,
-		.end	= PXA168_U2O_PHYBASE + USB_PHY_RANGE,
-		.flags	= IORESOURCE_MEM,
-		.name	= "phyregs",
-	},
-	[2] = {
-		.start	= IRQ_PXA168_USB1,
-		.end	= IRQ_PXA168_USB1,
-		.flags	= IORESOURCE_IRQ,
-	},
-};
-
-struct platform_device pxa168_device_u2ootg = {
-	.name		= "pxa-otg",
-	.id		= -1,
-	.dev  = {
-		.dma_mask          = &usb_dma_mask,
-		.coherent_dma_mask = 0xffffffff,
-	},
-
-	.num_resources	= ARRAY_SIZE(pxa168_u2ootg_resources),
-	.resource      = pxa168_u2ootg_resources,
-};
-#endif /* CONFIG_USB_PXA_U2O_OTG */
-
-#endif
-#endif
-#endif
-
