@@ -178,6 +178,9 @@ static unsigned long brownstone_pin_config[] __initdata = {
 	GPIO112_MMC3_CMD | MFP_PULL_HIGH,
 	GPIO151_MMC3_CLK,
 
+	/* VBUS Enable */
+	GPIO82_GPIO,
+
 	/* 5V regulator */
 	GPIO89_GPIO,
 
@@ -559,22 +562,38 @@ static void __init brownstone_fixed_regulator(void)
 }
 
 #ifdef CONFIG_USB_SUPPORT
+static int brownstone_set_vbus(unsigned int enable)
+{
+	int vbus_en = mfp_to_gpio(MFP_PIN_GPIO82);
+	int ret = 0;
 
-#if defined(CONFIG_USB_PXA_U2O)
+	enable = !!enable;
+	ret = gpio_request(vbus_en, "vbus_en");
+	if (ret) {
+		pr_debug("failed to get gpio #%d\n", vbus_en);
+		return -EINVAL;
+	}
+	/* VBUS Switch */
+	gpio_direction_output(vbus_en, enable);
+	gpio_free(vbus_en);
+	mdelay(10);
+
+	return 0;
+}
+#ifdef CONFIG_USB_PXA_U2O
 extern int pxa_usb_phy_init(unsigned int base);
 static char *mmp2_usb_clock_name[] = {
 	[0] = "U2OCLK",
 };
 static struct mv_usb_platform_data mmp2_usb_pdata = {
-	.clknum		= 1,
+	.clknum		= ARRAY_SIZE(mmp2_usb_clock_name),
 	.clkname	= mmp2_usb_clock_name,
 	.vbus		= NULL,
 	.mode		= MV_USB_MODE_OTG,
 	.phy_init	= pxa_usb_phy_init,
-	.set_vbus	= NULL,
+	.set_vbus	= brownstone_set_vbus,
 };
 #endif
-
 #endif
 
 static struct platform_pwm_backlight_data brownstone_lcd_backlight_data = {
@@ -904,8 +923,16 @@ static void __init brownstone_init(void)
 	mmp2_add_sdhost(0, &mmp2_sdh_platdata_mmc0); /* SD/MMC */
 	mmp2_add_thermal_sensor();
 #ifdef CONFIG_USB_PXA_U2O
-	pxa168_device_u2o.dev.platform_data = (void *)&mmp2_usb_pdata;
+	pxa168_device_u2o.dev.platform_data = &mmp2_usb_pdata;
 	platform_device_register(&pxa168_device_u2o);
+#endif
+#ifdef CONFIG_USB_EHCI_PXA_U2O
+	pxa168_device_u2oehci.dev.platform_data = &mmp2_usb_pdata;
+	platform_device_register(&pxa168_device_u2oehci);
+#endif
+#ifdef CONFIG_USB_PXA_U2O_OTG
+	pxa168_device_u2ootg.dev.platform_data = &mmp2_usb_pdata;
+	platform_device_register(&pxa168_device_u2ootg);
 #endif
 
 	brownstone_fixed_regulator();

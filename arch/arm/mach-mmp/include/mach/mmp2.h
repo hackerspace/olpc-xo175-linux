@@ -52,6 +52,8 @@ extern struct platform_device mmp_device_asoc_platform;
 extern struct pxa_device_desc mmp2_device_thsens;
 
 extern struct platform_device pxa168_device_u2o;
+extern struct platform_device pxa168_device_u2oehci;
+extern struct platform_device pxa168_device_u2ootg;
 
 static inline int mmp2_add_uart(int id)
 {
