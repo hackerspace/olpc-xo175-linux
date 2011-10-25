@@ -31,9 +31,28 @@
 #include <linux/regulator/machine.h>
 #include <linux/delay.h>
 #include <mach/dvfm.h>
+#include <linux/wakelock.h>
 
 #include "sdhci.h"
 #include "sdhci-pltfm.h"
+
+static struct wake_lock wifi_delayed_work_wake_lock;
+
+static void pxa95x_handle_cdint(struct sdhci_host *host)
+{
+	if (mmc_card_sdio(host->mmc->card) && host->mmc->card->disabled) { /* host sleep feature case */
+		/* disable CARD INT 1st to avoid serving CARD INT repeatedly */
+		host->mmc->ops->enable_sdio_irq(host->mmc, 0);
+
+		/* get wakelock to trigger devices resume sequence,
+		necessary for Tavor/MG/Nevo specific PM implementation */
+		wake_lock_timeout(&wifi_delayed_work_wake_lock, 3*HZ);
+		printk(KERN_INFO"[sd/sdio]-->sdhci-irq: get_sdio_wakelock, 3 seconds.\n");
+	} else { /* normal case */
+		mmc_signal_sdio_irq(host->mmc);
+		pr_debug("[sd/sdio]-->sdhci-irq: mmc_signal_sdio_irq.\n");
+	}
+}
 
 static void sdhci_pxa_notify_change(struct platform_device *pdev, int state)
 {
@@ -207,6 +226,7 @@ static struct sdhci_ops pxav2_sdhci_ops = {
 	.get_max_clock = pxav2_get_max_clock,
 	.platform_8bit_width = pxav2_mmc_set_width,
 	.access_constrain = pxav2_access_constrain,
+	.handle_cdint = pxa95x_handle_cdint,
 };
 
 static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
@@ -272,6 +292,10 @@ static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
 			host->mmc->caps |= MMC_CAP_DISABLE_BUS_CLK_GATING;
 		}
 
+		if (pdata->flags & PXA_FLAG_HS_NEED_WAKELOCK)
+			wake_lock_init(&wifi_delayed_work_wake_lock,
+					WAKE_LOCK_SUSPEND, "wifi_delayed_work");
+
 		if (pdata->quirks)
 			host->quirks |= pdata->quirks;
 		if (pdata->host_caps)
@@ -305,6 +329,9 @@ static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
 	return 0;
 
 err_add_host:
+	if (pdata && (pdata->flags & PXA_FLAG_HS_NEED_WAKELOCK))
+		wake_lock_destroy(&wifi_delayed_work_wake_lock);
+
 	if (pdata && (pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING))
 		pxav2_access_constrain(host, 0);
 	else
@@ -341,6 +368,9 @@ static int __devexit sdhci_pxav2_remove(struct platform_device *pdev)
 		pxav2_access_constrain(host, 0);
 	else
 		clk_disable(pltfm_host->clk);
+
+	if (pxa->pdata && (pxa->pdata->flags & PXA_FLAG_HS_NEED_WAKELOCK))
+		wake_lock_destroy(&wifi_delayed_work_wake_lock);
 
 	clk_put(pltfm_host->clk);
 	dvfm_unregister((char *)mmc_hostname(host->mmc), &pltfm_host->dvfm_dev_idx);

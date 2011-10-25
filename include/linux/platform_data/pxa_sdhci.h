@@ -25,6 +25,9 @@
 #define PXA_FLAG_CARD_PERMANENT	(1<<1)
 /* Board design supports 8-bit data on SD/SDIO BUS */
 #define PXA_FLAG_SD_8_BIT_CAPABLE_SLOT (1<<2)
+/* adding host sleep feature needs a wakelock,
+       for sdio slot on Tavor/MG/Nevo only */
+#define PXA_FLAG_HS_NEED_WAKELOCK (1<<3)
 /* controller always active during suspend */
 #define PXA_FLAG_ACITVE_IN_SUSPEND (1<<4)
 
