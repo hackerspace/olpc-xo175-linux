@@ -242,8 +242,7 @@ static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
 	pxav2_access_constrain(host, 1);
 
 	host->quirks = SDHCI_QUIRK_BROKEN_ADMA
-	    | SDHCI_QUIRK_BROKEN_TIMEOUT_VAL
-	    | SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN;
+	    | SDHCI_QUIRK_BROKEN_TIMEOUT_VAL;
 
 	if (pdata) {
 		if (pdata->flags & PXA_FLAG_CARD_PERMANENT) {
