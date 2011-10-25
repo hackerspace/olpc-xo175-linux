@@ -277,6 +277,7 @@ struct sdhci_ops {
 	int	(*set_uhs_signaling)(struct sdhci_host *host, unsigned int uhs);
 	void	(*signal_vol_change)(struct sdhci_host *host, u8 vol);
 	void	(*access_constrain)(struct sdhci_host *host, unsigned int ac);
+	void	(*handle_cdint)(struct sdhci_host *host);
 };
 
 #ifdef CONFIG_MMC_SDHCI_IO_ACCESSORS

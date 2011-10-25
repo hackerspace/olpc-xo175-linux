@@ -2235,8 +2235,14 @@ out:
 	/*
 	 * We have to delay this as it calls back into the driver.
 	 */
-	if (cardint)
-		mmc_signal_sdio_irq(host->mmc);
+	if (cardint) {
+		if (host->ops->handle_cdint)
+			host->ops->handle_cdint(host);
+		else {
+			mmc_signal_sdio_irq(host->mmc);
+			DBG("[sd/sdio]-->sdhci-irq: mmc_signal_sdio_irq.\n");
+		}
+	}
 
 	return result;
 }
