@@ -6,7 +6,7 @@
  * This file is licensed under the terms of the GNU General Public
  * License version 2.  This program is licensed "as is" without any
  * warranty of any kind, whether express or implied.
- * (c) 2011
+ * (c) 2010
  *
  */
 
@@ -15,16 +15,18 @@
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/gpio.h>
+#include <linux/delay.h>
+#include <linux/clk.h>
 #include <linux/uaccess.h>
 #include <linux/slab.h>
 #include <mach/uio_hdmi.h>
 #include <linux/earlysuspend.h>
 #include <mach/addr-map.h>
-#include <linux/clk.h>
 
 static atomic_t hdmi_state = ATOMIC_INIT(0);
-static int early_suspend_flag = 0;
-static atomic_t edge_lock = ATOMIC_INIT(0);
+static int early_suspend_flag;
+static int late_disable_flag;
+enum connect_lock con_lock;
 
 struct hdmi_instance {
 	struct clk *clk;
@@ -32,6 +34,7 @@ struct hdmi_instance {
 	void *sspa1_reg_base;
 	unsigned int gpio;
 	struct work_struct work;
+	struct delayed_work hpd_work;
 	struct uio_info uio_info;
 	struct early_suspend    early_suspend;
 };
@@ -65,14 +68,29 @@ static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 			return -EFAULT;
 		break;
 	case HPD_PIN_READ:
-		if (!early_suspend_flag)
-			hpd = gpio_get_value(hi->gpio);
+		hpd = gpio_get_value(hi->gpio);
+		/*if disconnected HDMI , late_disable_flag is 1, 300 ms is
+		 * the time wait for HDMI is disabled, then disp1_axi_bus
+		 * can be disabled. disp1_axi_bus clear will cause HDMI
+		 * clock disbaled and any operation not takes effects*/
+		if (late_disable_flag && hpd)
+			schedule_delayed_work(&hi->hpd_work,
+					msecs_to_jiffies(300));
+		/* when resume, force disconnect/connect HDMI */
+		if (con_lock == FIRST_ACCESS_LOCK) {
+			hpd = -1;
+			con_lock = SECOND_ACCESS_LOCK;
+		} else if (con_lock == SECOND_ACCESS_LOCK) {
+			hpd = 0;
+			con_lock = UNLOCK;
+		}
 		pr_debug("early_suspend_flag %d Kernel space: hpd is %d\n",
 			early_suspend_flag, hpd);
 		if (copy_to_user(argp, &hpd, sizeof(int))) {
 			pr_err("copy_to_user error !~!\n");
 			return -EFAULT;
 		}
+		break;
 	}
 	return 0;
 }
@@ -83,52 +101,25 @@ static int hdmi_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
-static unsigned int hdmi_phy_cfg_2;
 static void hdmi_early_suspend(struct early_suspend *h)
 {
-	struct hdmi_instance *hi =
-	container_of(h, struct hdmi_instance, early_suspend);
-	unsigned int addr;
-
-	printk(KERN_DEBUG "----%s: %d\n", __func__, atomic_read(&hdmi_state));
-	addr = AXI_VIRT_BASE + 0xbc10;
-	hdmi_phy_cfg_2 = __raw_readl(addr);
-	__raw_writel(hdmi_phy_cfg_2 | 0xf<<19, addr);
 	early_suspend_flag = 1;
-
-	if (atomic_read(&hdmi_state) == 1) {
-		/* send disconnect event to upper layer */
-		uio_event_notify(&hi->uio_info);
-
-	}
 
 	return;
 }
 static void hdmi_late_resume(struct early_suspend *h)
 {
-	struct hdmi_instance *hi =
-	container_of(h, struct hdmi_instance, early_suspend);
-	unsigned int addr;
-
-	printk(KERN_DEBUG "-----%s: %d\n", __func__, atomic_read(&hdmi_state));
-	addr = AXI_VIRT_BASE + 0xbc10;
-	__raw_writel(hdmi_phy_cfg_2, addr);
 	early_suspend_flag = 0;
-
-	if (atomic_read(&hdmi_state) == 1) {
-		/* send connect event to upper layer */
-		uio_event_notify(&hi->uio_info);
-	}
 
 	return;
 }
 #endif
-
 static int hdmi_suspend(struct platform_device *pdev, pm_message_t mesg)
 {
 	struct hdmi_instance *hi = platform_get_drvdata(pdev);
 
-	clk_disable(hi->clk);
+	if (atomic_read(&hdmi_state) == 1)
+		clk_disable(hi->clk);
 	pdev->dev.power.power_state = mesg;
 
 	return 0;
@@ -138,39 +129,37 @@ static int hdmi_resume(struct platform_device *pdev)
 {
 	struct hdmi_instance *hi = platform_get_drvdata(pdev);
 
-	clk_enable(hi->clk);
+	if (gpio_get_value(hi->gpio) == 0) {
+		/*if connected, reset HDMI*/
+		atomic_set(&hdmi_state, 1);
+		clk_enable(hi->clk);
+		con_lock = FIRST_ACCESS_LOCK;
+		/* send disconnect event to upper layer */
+		uio_event_notify(&hi->uio_info);
+		/*if uio_event_notify both directly, 1 event will be
+		 * missed, so delayed_work*/
+		schedule_delayed_work(&hi->hpd_work, msecs_to_jiffies(1500));
+	} else if (atomic_read(&hdmi_state) == 1) {
+		atomic_set(&hdmi_state, 0);
+		uio_event_notify(&hi->uio_info);
+	}
+
 	return 0;
 }
 
-#if 0
-static atomic_t edge_lock = ATOMIC_INIT(0);
-static void hdmi_switch_work(struct work_struct *work)
+static void hdmi_delayed_func(struct work_struct *work)
 {
-	struct hdmi_instance *hi =
-		container_of(dev_info, struct hdmi_instance, uio_info);
-	int state = gpio_get_value(data->gpio);
-
-	if (state != 0) {
-		/* cable disconnected */
-		if (atomic_read(&edge_lock) == 1) {
-			atomic_set(&hdmi_state, 0);
-			atomic_set(&edge_lock, 0);
-			if (early_suspend_flag == 0)
-				unset_dvfm_constraint();
-			switch_set_state(&data->sdev, state);
-		}
+	struct hdmi_instance *hi = container_of((struct delayed_work *)work,
+			struct hdmi_instance, hpd_work);
+	if (late_disable_flag) {
+		clk_disable(hi->clk);
+		late_disable_flag = 0;
 	} else {
-		/* cable connected */
-		if (atomic_read(&edge_lock) == 0) {
-			atomic_set(&hdmi_state, 1);
-			atomic_set(&edge_lock, 1);
-			if (early_suspend_flag == 0)
-				set_dvfm_constraint();
-			switch_set_state(&data->sdev, state);
-		}
+		/* send connect event to upper layer */
+		uio_event_notify(&hi->uio_info);
 	}
+
 }
-#else
 static void hdmi_switch_work(struct work_struct *work)
 {
 	struct hdmi_instance *hi =
@@ -178,16 +167,17 @@ static void hdmi_switch_work(struct work_struct *work)
 	int state = gpio_get_value(hi->gpio);
 
 	if (state != 0) {
-		atomic_set(&hdmi_state, 0);
 		state = 0;
+		late_disable_flag = 1; /*wait for hdmi disbaled*/
+		atomic_set(&hdmi_state, 0);
 	} else {
-		atomic_set(&hdmi_state, 1);
+		clk_enable(hi->clk);
 		state = 1;
+		atomic_set(&hdmi_state, 1);
 	}
 	pr_debug("++++++++++++ %s state %x hdmi_state %d\n", __func__,
 		state, atomic_read(&hdmi_state));
 }
-#endif
 
 static irqreturn_t hpd_handler(int irq, struct uio_info *dev_info)
 {
@@ -204,7 +194,6 @@ static int hdmi_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct hdmi_instance *hi;
 	int ret;
-	struct clk *clk;
 	struct uio_hdmi_platform_data *pdata;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -214,23 +203,26 @@ static int hdmi_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	clk = clk_get(NULL, "HDMICLK");
-	if (IS_ERR(clk)) {
-		dev_err(&pdev->dev, "unable to get HDMICLK");
-		return PTR_ERR(clk);
-	}
-
 	hi = kzalloc(sizeof(*hi), GFP_KERNEL);
 	if (hi == NULL) {
 		printk(KERN_ERR "%s: out of memory\n", __func__);
 		return -ENOMEM;
 	}
 
+	hi->clk = clk_get(NULL, "HDMICLK");
+	if (IS_ERR(hi->clk)) {
+		pr_err("%s: can't get HDMICLK\n", __func__);
+		kfree(hi);
+		return  -EIO;
+	}
+
 	hi->reg_base = ioremap(res->start, res->end - res->start + 1);
 	if (hi->reg_base == NULL) {
 		printk(KERN_ERR "%s: can't remap resgister area", __func__);
-		return -ENOMEM;
+		ret =  -ENOMEM;
+		goto out_free;
 	}
+
 	hi->sspa1_reg_base = ioremap_nocache(pdata->sspa_reg_base, 0xff);
 	if (hi->sspa1_reg_base == NULL) {
 		printk(KERN_WARNING "failed to request register memory\n");
@@ -246,7 +238,6 @@ static int hdmi_probe(struct platform_device *pdev)
 	hi->uio_info.irq_flags = IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING;
 	hi->uio_info.handler = hpd_handler;
 	hi->gpio = pdata->gpio;
-	hi->clk = clk;
 
 	ret = gpio_request(pdata->gpio, pdev->name);
 	if (ret < 0)
@@ -278,17 +269,16 @@ static int hdmi_probe(struct platform_device *pdev)
 		goto out_free;
 	}
 
-	clk_enable(hi->clk);
-
 	/* Check HDMI cable when boot up */
 	ret = gpio_get_value(hi->gpio);
-	pr_info("%s hpd 0x%x------------\n", __func__, ret);
+	printk(KERN_INFO"%s hpd 0x%x------------\n", __func__, ret);
 	if (ret == 0) {
+		clk_enable(hi->clk);
 		atomic_set(&hdmi_state, 1);
-		atomic_set(&edge_lock, 1);
 	}
 
 	INIT_WORK(&hi->work, hdmi_switch_work);
+	INIT_DELAYED_WORK(&hi->hpd_work, hdmi_delayed_func);
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	hi->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;

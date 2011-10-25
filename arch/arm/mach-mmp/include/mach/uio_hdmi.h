@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Name:        uio_hdmi.h
- * Project:     MMP3
+ * Project:     MMP
  * Yifan Zhang
  *
  * Copyright (c) 2011, Marvell International Ltd (zhangyf@marvell.com)
@@ -19,6 +19,12 @@
 
 #define SSPA1_GET_VALUE 0
 #define HPD_PIN_READ 6
+
+enum connect_lock {
+	UNLOCK = 0,
+	FIRST_ACCESS_LOCK,
+	SECOND_ACCESS_LOCK,
+};
 
 struct uio_hdmi_platform_data {
 	u32 sspa_reg_base;
