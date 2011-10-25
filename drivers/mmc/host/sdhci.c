@@ -2286,8 +2286,11 @@ int sdhci_suspend_host(struct sdhci_host *host, pm_message_t state)
 	if (host->mmc->card)
 		host->mmc->card->disabled = 1;
 
-	sdhci_clear_set_irqs(host, SDHCI_INT_ALL_MASK, 0);
-	free_irq(host->irq, host);
+	/* skip free irq if it is still necessary in suspend */
+	if (host && host->mmc && !(host->mmc->pm_caps & MMC_PM_IRQ_ALWAYS_ON)) {
+		sdhci_clear_set_irqs(host, SDHCI_INT_ALL_MASK, 0);
+		free_irq(host->irq, host);
+	}
 
 	if (host->vmmc)
 		ret = regulator_disable(host->vmmc);
@@ -2327,10 +2330,13 @@ int sdhci_resume_host(struct sdhci_host *host)
 		host->mmc->card->disabled = 0;
 	}
 
-	ret = request_irq(host->irq, sdhci_irq, IRQF_SHARED,
-			  mmc_hostname(host->mmc), host);
-	if (ret)
-		return ret;
+	/* no need to request irq since it is not disabled when suspend */
+	if (host && host->mmc && !(host->mmc->pm_caps & MMC_PM_IRQ_ALWAYS_ON)) {
+		ret = request_irq(host->irq, sdhci_irq, IRQF_SHARED,
+				mmc_hostname(host->mmc), host);
+		if (ret)
+			return ret;
+	}
 
 	sdhci_init(host, (host->mmc->pm_flags & MMC_PM_KEEP_POWER));
 	mmiowb();
