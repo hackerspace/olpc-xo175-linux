@@ -244,8 +244,6 @@ struct pxa_buf_node {
 	struct videobuf_buffer vb;
 	enum v4l2_mbus_pixelcode	code;
 	struct page *page;
-	void *ptr_vaddr;/* vritual addr of user ptr buffer*/
-	void *mmp_vaddr;/* vritual addr of mmap buffer*/
 	struct pxa_cam_dma dma_desc[CHANNEL_NUM];
 };
 
@@ -641,8 +639,6 @@ static void dma_fetch_frame(struct pxa955_cam_dev *pcdev)
 	struct pxa_buf_node *buf_node = NULL;
 	int node_num = 0;
 	dma_addr_t dma_handles;
-	struct device *dev = pcdev->soc_host.v4l2_dev.dev;
-	u32 fmt = pcdev->icd->current_fmt->host_fmt->fourcc;
 
 	list_for_each_entry(buf_node, &pcdev->dma_buf_list, vb.queue) {
 		if (buf_node->vb.state == VIDEOBUF_QUEUED)
@@ -656,30 +652,6 @@ static void dma_fetch_frame(struct pxa955_cam_dev *pcdev)
 		buf_node = list_entry(pcdev->dma_buf_list.next,
 			struct pxa_buf_node, vb.queue);
 		dma_handles = videobuf_to_dma_contig(&buf_node->vb);
-		if (buf_node->vb.memory == V4L2_MEMORY_USERPTR) {
-			/*
-			* as mmap allocate uncache buffer, not necessary to invalid cache
-			* for userptr, we are not sure buffer property, to make sure user
-			* could get the real data from DDR, invalid cache.
-			*/
-			dma_map_page(dev,
-					buf_node->page,
-					0,
-					buf_node->vb.bsize,
-					DMA_FROM_DEVICE);
-			if (fmt == V4L2_PIX_FMT_JPEG) {
-				if ((((char *)buf_node->ptr_vaddr)[0] != 0xff)
-				|| (((char *)buf_node->ptr_vaddr)[1] != 0xd8))
-					printk(KERN_ERR "cam: JPEG error!\n");
-			}
-
-		} else if (buf_node->vb.memory == V4L2_MEMORY_MMAP) {
-			if (fmt == V4L2_PIX_FMT_JPEG) {
-				if ((((char *)buf_node->mmp_vaddr)[0] != 0xff)
-				|| (((char *)buf_node->mmp_vaddr)[1] != 0xd8))
-					printk(KERN_ERR "cam: JPEG error!\n");
-			}
-		}
 
 		buf_node->vb.state = VIDEOBUF_DONE;
 		wake_up(&buf_node->vb.done);
@@ -867,10 +839,6 @@ static void dma_free_bufs(struct pxa_buf_node *buf,
 	struct videobuf_buffer *vb = &buf->vb;
 	struct videobuf_dma_contig_memory *mem = vb->priv;
 
-	if (buf->ptr_vaddr) {
-		iounmap(buf->ptr_vaddr);
-		buf->ptr_vaddr = 0;
-	}
 	/*
 	* TODO:
 	* This waits until this buffer is out of danger, i.e., until it is no
@@ -1198,7 +1166,6 @@ static int pxa955_videobuf_prepare(struct videobuf_queue *vq,
 	unsigned int vaddr;
 	int ret;
 	size_t new_size;
-	dma_addr_t dma_handles;
 	int bytes_per_line = soc_mbus_bytes_per_line(icd->user_width,
 						icd->current_fmt->host_fmt);
 
@@ -1255,34 +1222,6 @@ static int pxa955_videobuf_prepare(struct videobuf_queue *vq,
 
 		/* This actually (allocates and) maps buffers */
 		ret = videobuf_iolock(vq, vb, NULL);
-
-		/*only for jpeg case, as we need to verify the jpeg file header*/
-		if (icd->current_fmt->host_fmt->fourcc
-					== V4L2_PIX_FMT_JPEG) {
-
-			if (vb->memory == V4L2_MEMORY_USERPTR) {
-				/*
-				* dma_handles only be valid after actually
-				* map/allocated in videobuf_iolock
-				*/
-				dma_handles = videobuf_to_dma_contig(vb);
-				/* map the PA to kernel space, for user-pointer method buf*/
-				buf->ptr_vaddr = ioremap(dma_handles, \
-							PAGE_ALIGN(new_size));
-				if (!buf->ptr_vaddr) {
-					printk(KERN_ERR "cam: failed get " \
-						"vaddr of the user buffer!\n");
-					return -EFAULT;
-				}
-			} else if (vb->memory == V4L2_MEMORY_MMAP) {
-				buf->mmp_vaddr = videobuf_queue_to_vaddr(vq, vb);
-				if (!buf->mmp_vaddr) {
-					printk(KERN_ERR "cam: failed get " \
-						"vaddr of the mmap buffer!\n");
-					return -EFAULT;
-				}
-			}
-		}
 
 		desc = &buf->dma_desc[0];
 		if (desc->sg_cpu == NULL) {
