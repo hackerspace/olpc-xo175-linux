@@ -883,6 +883,45 @@ static struct pxa27x_keypad_platform_data mmp2_keypad_2key_info = {
 	.clear_wakeup_event = keypad_clear_wakeup,
 };
 
+static int __init led_init(void)
+{
+	int led;
+
+	led = mfp_to_gpio(MFP_PIN_GPIO84);
+	if (gpio_request(led, "LED Orange")) {
+		pr_err("Failed to request LED orange\n");
+		return -EIO;
+	}
+	gpio_direction_output(led, 1);
+	gpio_free(led);
+
+	led = mfp_to_gpio(MFP_PIN_GPIO85);
+	if (gpio_request(led, "LED Blue")) {
+		pr_err("Failed to request LED orange\n");
+		return -EIO;
+	}
+	gpio_direction_output(led, 1);
+	gpio_free(led);
+
+	led = mfp_to_gpio(MFP_PIN_GPIO86);
+	if (gpio_request(led, "LED Red")) {
+		pr_err("Failed to request LED orange\n");
+		return -EIO;
+	}
+	gpio_direction_output(led, 1);
+	gpio_free(led);
+
+	led = mfp_to_gpio(MFP_PIN_GPIO87);
+	if (gpio_request(led, "LED Green")) {
+		pr_err("Failed to request LED orange\n");
+		return -EIO;
+	}
+	gpio_direction_output(led, 1);
+	gpio_free(led);
+
+	return 0;
+}
+
 #ifdef CONFIG_UIO_VMETA
 static struct vmeta_plat_data mmp2_vmeta_plat_data = {
 	.bus_irq_handler = NULL,
@@ -907,8 +946,12 @@ static void __init brownstone_init(void)
 
 	mmp2_get_platform_version();
 
+	/* disable LED lights */
+	led_init();
+
 	/* on-chip devices */
 	mmp2_add_uart(1);
+	mmp2_add_uart(2);
 	mmp2_add_uart(3);
 	mmp2_add_twsi(1, NULL, ARRAY_AND_SIZE(brownstone_twsi1_info));
 	mmp2_add_twsi(2, NULL, ARRAY_AND_SIZE(brownstone_twsi2_info));
