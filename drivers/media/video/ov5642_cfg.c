@@ -5432,6 +5432,34 @@ static struct ov5642_win_size ov5642_pxa955_mipi_bridge_sizes_yuv[] = {
 	},
 };
 
+static struct regval_list ov5642_mipi_2128_res_720p[] =
+{
+	{0x3011, 0x10},
+	{0x3010, 0x11},
+	{0x5001, 0xff},
+	{0x3808, 0x05},
+	{0x3809, 0x00},
+	{0x380a, 0x02},
+	{0x380b, 0xd0},
+	{OV5642_END_ADDR, OV5642_END_VAL}
+};
+
+static struct regval_list ov5642_mipi_2128_res_1080p[] =
+{
+	{0x3011, 0x06},
+	{0x3010, 0x00},
+	{0x5001, 0xff},
+	{0x3804, 0x07},
+	{0x3805, 0x80},
+	{0x3806, 0x04},
+	{0x3807, 0x38},
+	{0x3808, 0x07},
+	{0x3809, 0x80},
+	{0x380a, 0x04},
+	{0x380b, 0x38},
+	{OV5642_END_ADDR, OV5642_END_VAL}
+};
+
 static struct regval_list ov5642_pxa2128_fmt_yuv422[] = {
 	/* 30fps */
 	{0x3103, 0x93},
@@ -6462,8 +6490,6 @@ static struct regval_list ov5642_pxa2128_720_1080_fmt_yuv422[] = {
 	{0x4713, 0x02},
 	{0x4842, 0x01},
 	{0x300f, 0x0e},
-	{0x3010, 0x00},
-	{0x3011, 0x07},
 	{0x3003, 0x03},
 	{0x3003, 0x01},
 	{0x3008, 0x40},
@@ -6631,12 +6657,12 @@ static struct ov5642_win_size ov5642_pxa2128_mipi_sizes_yuv[] = {
 	/* 720p */
 	{
 		.resv = OV5642_FMT_720P,
-		.regs = ov5642_mipi_res_720p,
+		.regs = ov5642_mipi_2128_res_720p,
 	},
 	/* 1080p */
 	{
 		.resv = OV5642_FMT_1080P,
-		.regs = ov5642_mipi_res_1080p,
+		.regs = ov5642_mipi_2128_res_1080p,
 	}
 };
 
