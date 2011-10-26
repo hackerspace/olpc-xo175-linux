@@ -1402,6 +1402,14 @@ static void pxa955_cam_remove_device(struct soc_camera_device *icd)
 		del_timer(&pcdev->reset_timer);
 #endif
 
+	if ((vq) && (vq->streaming != 0)) {
+		struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
+		printk(KERN_WARNING "cam: closeing device without " \
+				"stream off\n");
+		videobuf_streamoff(vq);
+		v4l2_subdev_call(sd, video, s_stream, 0);
+	}
+
 	sci_cken(pcdev, 0);
 	csi_cken(pcdev->csidev, 0);
 
