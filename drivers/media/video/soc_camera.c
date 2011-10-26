@@ -900,6 +900,11 @@ static int soc_camera_s_crop(struct file *file, void *fh,
 	dev_dbg(&icd->dev, "S_CROP(%ux%u@%u:%u)\n",
 		rect->width, rect->height, rect->left, rect->top);
 
+	/* W/R: we have a different understanding of G_CROP from
+	 * soc_camera, and allow changeing SENSOR ZOOM using this CID */
+	ret = ici->ops->set_crop(icd, a);
+	return ret;
+
 	/* If get_crop fails, we'll let host and / or client drivers decide */
 	ret = ici->ops->get_crop(icd, &current_crop);
 
