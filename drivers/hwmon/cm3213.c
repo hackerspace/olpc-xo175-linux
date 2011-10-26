@@ -341,26 +341,7 @@ returns negative errno, or 0 for success
 */
 static int cm3213_poweron(void)
 {
-	unsigned char haveInterrupt;
 	int ret;
-	int i;
-
-	/* clear any outstanding ALS interrupts */
-	for (i = 0; i < 4; i++) {
-		ret = i2c_master_recv(cm3213_dev.g_client_int,
-				      &haveInterrupt, 1);
-		pr_debug("%s: ret = %d, haveInterrupt = %d\n",
-			 __func__, ret, haveInterrupt);
-
-		if (ret < 0 || haveInterrupt == 0) {
-			/* error indicates no outstanding interrupts */
-			ret = 0;
-			break;
-		}
-	}
-
-	if (ret != 0)
-		return -ENOMEDIUM;
 
 	cm3213_dev.g_als_state = ALS_WDM_WORD_MODE;
 	ret = i2c_master_send(cm3213_dev.g_client_als_cmd_or_msb,
