@@ -55,9 +55,25 @@ static unsigned long brownstone_pin_config[] __initdata = {
 	GPIO29_UART1_RXD,
 	GPIO30_UART1_TXD,
 
+	/* UART2 */
+	GPIO47_UART2_RXD,
+	GPIO48_UART2_TXD,
+
 	/* UART3 */
 	GPIO51_UART3_RXD,
 	GPIO52_UART3_TXD,
+
+	/* TWSI1 */
+	TWSI1_SCL,
+	TWSI1_SDA,
+
+	/* TWSI2 */
+	GPIO43_TWSI2_SCL,
+	GPIO44_TWSI2_SDA,
+
+	/* TWSI3 */
+	GPIO71_TWSI3_SCL,
+	GPIO72_TWSI3_SDA,
 
 	/* TWSI4 */
 	TWSI4_SCL,
@@ -67,13 +83,26 @@ static unsigned long brownstone_pin_config[] __initdata = {
 	GPIO99_TWSI5_SCL,
 	GPIO100_TWSI5_SDA,
 
-	/* TWSI2 */
-	GPIO43_TWSI2_SCL,
-	GPIO44_TWSI2_SDA,
-
 	/* TWSI6 */
 	GPIO97_TWSI6_SCL,
 	GPIO98_TWSI6_SDA,
+
+	/*HDMI_CEC*/
+	GPIO54_HDMI_CEC,
+
+	/* SSPA1 (I2S) */
+	GPIO23_GPIO,
+	GPIO24_I2S_SYSCLK,
+	GPIO25_I2S_BITCLK,
+	GPIO26_I2S_SYNC,
+	GPIO27_I2S_DATA_OUT,
+	GPIO28_I2S_SDATA_IN,
+
+	/* SSPA2 */
+	GPIO33_SSPA2_CLK,
+	GPIO34_SSPA2_FRM,
+	GPIO35_SSPA2_TXD,
+	GPIO36_SSPA2_RXD,
 
 	/* DFI */
 	GPIO168_DFI_D0,
@@ -101,11 +130,23 @@ static unsigned long brownstone_pin_config[] __initdata = {
 	GPIO112_ND_RDY0,
 	GPIO160_ND_RDY1,
 
+	/* Touch */
+	GPIO101_TSI_INT,
+
 	/* PMIC */
 	PMIC_PMIC_INT | MFP_LPM_EDGE_FALL,
 	/* Low battery Alert */
 	GPIO123_GPIO | MFP_LPM_EDGE_FALL,
 	GPIO45_WM8994_LDOEN,
+
+	/* HDMI */
+	GPIO46_HDMI_DET,
+
+	/* GPS */
+	GPIO14_GPS_ON,
+	GPIO15_GPS_RST,
+	GPIO49_GPIO,
+	GPIO50_GPIO,
 
 	/* MMC0 */
 	GPIO131_MMC1_DAT3 | MFP_PULL_HIGH,
@@ -137,19 +178,6 @@ static unsigned long brownstone_pin_config[] __initdata = {
 	GPIO112_MMC3_CMD | MFP_PULL_HIGH,
 	GPIO151_MMC3_CLK,
 
-	/* SSPA1 */
-	GPIO24_I2S_SYSCLK,
-	GPIO25_I2S_BITCLK,
-	GPIO26_I2S_SYNC,
-	GPIO27_I2S_DATA_OUT,
-	GPIO28_I2S_SDATA_IN,
-
-	/* SSPA2 */
-	GPIO33_SSPA2_CLK,
-	GPIO34_SSPA2_FRM,
-	GPIO35_SSPA2_TXD,
-	GPIO36_SSPA2_RXD,
-
 	/* 5V regulator */
 	GPIO89_GPIO,
 
@@ -168,10 +196,25 @@ static unsigned long brownstone_pin_config[] __initdata = {
 	GPIO127_VERS2,
 	GPIO128_VERS3,
 
+	/* Keypad */
 	GPIO16_KP_DKIN0,
 	GPIO17_KP_DKIN1,
 	GPIO18_KP_DKIN2,
 	GPIO19_KP_DKIN3,
+
+	/* Ntrig touch SSP */
+	GPIO74_SSP_CLK,
+	GPIO75_SSP_FRM,
+	GPIO76_SSP_TXD,
+	GPIO77_SSP_RXD,
+	GPIO78_TSI_OE_N,
+
+	/* LED */
+	GPIO84_LED_O,
+	GPIO85_LED_B,
+	GPIO86_LED_R,
+	GPIO87_LED_G,
+
 };
 
 static struct regulator_consumer_supply max8649_supply[] = {
