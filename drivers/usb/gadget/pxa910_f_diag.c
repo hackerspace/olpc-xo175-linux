@@ -597,7 +597,7 @@ static int gs_ioctl(struct tty_struct *tty, unsigned int cmd,
 		    unsigned long arg)
 {
 	struct pxa910_gs_port *port = tty->driver_data;
-	int ret = 0;
+	int ret = -ENOIOCTLCMD;
 
 	if (port == NULL) {
 		printk(KERN_ERR "gs_ioctl: NULL port pointer\n");
