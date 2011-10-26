@@ -803,7 +803,8 @@ int flip_buffer(struct fb_info *info, unsigned long arg,
 
 		/* copy buffer */
 		if (input_data) {
-			fbi->wait_for_vsync(fbi);
+			if (NEED_VSYNC(fbi, video_layer))
+				wait_for_vsync(fbi, video_layer);
 			/* if support hw DMA, replace this. */
 			if (copy_from_user(fbi->fb_start,
 						input_data, length)){
@@ -894,13 +895,6 @@ int get_freelist(struct fb_info *info, unsigned long arg,
 	if (fbi->debug == 1)
 		printk(KERN_DEBUG"get freelist\n");
 
-	if (WAIT_FREE && FB_MODE_DUP) {
-		if (video_layer)
-			fbi->wait_for_vsync(ovly_info.fbi[fb_dual]);
-		else
-			fbi->wait_for_vsync(gfx_info.fbi[fb_dual]);
-	}
-
 	spin_lock_irqsave(&fbi->buf_lock, flags);
 
 	/* when lcd is suspend, move all buffers as "switched"*/
@@ -942,4 +936,55 @@ void set_dma_active(struct pxa168fb_info *fbi, int video_layer)
 
 	pr_debug("%s fbi %d: active %d fbi->active %d, new_addr %lu\n",
 		__func__, fbi->id, active, fbi->active, fbi->new_addr[0]);
+}
+
+int dispd_dma_enabled(struct pxa168fb_info *fbi, int video_layer)
+{
+	if (irqs_disabled() || !fbi->active)
+		return 0;
+
+	/* check whether display done irq enabled */
+	if (!(readl(fbi->reg_base + SPU_IRQ_ENA) &
+		display_done_imask(fbi->id)))
+		return 0;
+
+	/* check whether path clock is disabled */
+	if (readl(fbi->reg_base + clk_div(fbi->id)) & (SCLK_DISABLE))
+		return 0;
+
+	/* in modex dma may not be enabled */
+	return dma_ctrl_read(fbi->id, 0) & (video_layer ?
+		CFG_DMA_ENA_MASK : CFG_GRA_ENA_MASK);
+}
+
+void clear_dispd_irq(struct pxa168fb_info *fbi)
+{
+	int isr = readl(fbi->reg_base + SPU_IRQ_ISR);
+
+	if ((isr & display_done_imask(fbi->id))) {
+		irq_status_clear(fbi->id, display_done_imask(fbi->id));
+		pr_info("fbi %d irq miss, clear isr %x\n", fbi->id, isr);
+	}
+}
+
+void wait_for_vsync(struct pxa168fb_info *fbi, int video_layer)
+{
+	struct pxa168fb_info *fbi_dual =
+		video_layer ? ovly_info.fbi[fb_dual] : gfx_info.fbi[fb_dual];
+
+again:
+	atomic_set(&fbi->w_intr, 0);
+	pr_debug("fbi->id %d layer: %d\n", fbi->id, video_layer);
+
+	wait_event_interruptible_timeout(fbi->w_intr_wq,
+		atomic_read(&fbi->w_intr), HZ/20);
+
+	/* handle timeout case, to w/a irq miss */
+	if (atomic_read(&fbi->w_intr) == 0)
+		clear_dispd_irq(fbi);
+
+	if (FB_MODE_DUP && NEED_VSYNC(fbi_dual, video_layer)) {
+		fbi = fbi_dual;
+		goto again;
+	}
 }

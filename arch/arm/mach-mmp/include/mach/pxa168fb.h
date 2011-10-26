@@ -418,7 +418,6 @@ struct pxa168fb_info {
 	int (*update_buff)(struct fb_info *fi,
 		struct _sOvlySurface *surface, int address);
 
-	int (*wait_for_vsync)(struct pxa168fb_info *fbi);
 	int (*check_modex_active)(int id, int active);
 
 	struct fb_var_screeninfo var_bak;
@@ -602,7 +601,8 @@ struct fbi_info {
 
 #define fb_base		0
 #define fb_dual		1
-#define FB_MODE_DUP  ((fbi->id == fb_base) && fb_mode && gfx_info.fbi[fb_dual])
+#define FB_MODE_DUP	((fbi->id == fb_base) && fb_mode && \
+	gfx_info.fbi[fb_dual] && ovly_info.fbi[fb_dual])
 
 /* DSI burst mode */
 #define DSI_BURST_MODE_SYNC_PULSE			0x0

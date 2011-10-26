@@ -54,7 +54,6 @@ static int dvfm_dev_idx;
 static int pxa168fb_set_par(struct fb_info *fi);
 static void set_video_start(struct fb_info *fi, int xoffset, int yoffset);
 static void set_dma_control0(struct pxa168fb_info *fbi);
-static int wait_for_vsync(struct pxa168fb_info *fbi);
 static int pxa168fb_pan_display(struct fb_var_screeninfo *var,
 				 struct fb_info *fi);
 
@@ -657,7 +656,7 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 		return 0;
 		break;
 	case FB_IOCTL_WAIT_VSYNC:
-		wait_for_vsync(fbi);
+		wait_for_vsync(fbi, 1);
 		break;
 	case FB_IOCTL_GET_VIEWPORT_INFO:/*if rotate 90/270, w/h swap*/
 		mutex_lock(&fbi->access_ok);
@@ -1275,55 +1274,6 @@ again:
 	}
 }
 
-static void clear_vid_irq(struct pxa168fb_info *fbi)
-{
-	int isr = readl(fbi->reg_base + SPU_IRQ_ISR);
-
-	if (isr & vid_imask(fbi->id)) {
-		irq_status_clear(fbi->id, vid_imask(fbi->id));
-		pr_err("fbi %d irq miss, clear isr %x\n", fbi->id, isr);
-	}
-}
-
-static int wait_for_vsync(struct pxa168fb_info *fbi)
-{
-	if (fbi) {
-		atomic_set(&fbi->w_intr, 0);
-		if (FB_MODE_DUP)
-			atomic_set(&gfx_info.fbi[fb_dual]->w_intr, 0);
-
-again:
-		wait_event_interruptible_timeout(fbi->w_intr_wq,
-			atomic_read(&fbi->w_intr), HZ/20);
-
-		/* handle timeout case, to w/a irq miss */
-		if (atomic_read(&fbi->w_intr) == 0)
-			clear_vid_irq(fbi);
-
-		if (FB_MODE_DUP) {
-			fbi = gfx_info.fbi[fb_dual];
-			goto again;
-		}
-	}
-	return 0;
-}
-
-static int vid_irq_enabled(struct pxa168fb_info *fbi)
-{
-	if (irqs_disabled() || !fbi->active)
-		return 0;
-
-	/* check whether path clock is disabled */
-	if (readl(fbi->reg_base + clk_div(fbi->id)) & (SCLK_DISABLE))
-		return 0;
-
-	/* in modex dma may not be enabled */
-	if (!(dma_ctrl_read(fbi->id, 0) & CFG_DMA_ENA_MASK))
-		return 0;
-
-	return readl(fbi->reg_base + SPU_IRQ_ENA) & vid_imask(fbi->id);
-}
-
 static void set_yuv_start(struct pxa168fb_info *fbi, unsigned long addr)
 {
 	struct lcd_regs *regs = get_regs(fbi->id);
@@ -1381,8 +1331,8 @@ again:
 		set_yuv_start(fbi, addr);
 
 		/* return until the address take effect after vsync occurs */
-		if (vid_irq_enabled(fbi))
-			wait_for_vsync(fbi);
+		if (NEED_VSYNC(fbi, 1))
+			wait_for_vsync(fbi, 1);
 	} else {
 		if (fbi->debug == 1)
 			pr_info("%s: buffer updated to %x\n",
@@ -1658,7 +1608,8 @@ static int pxa168fb_fb_sync(struct fb_info *info)
 {
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)info->par;
 
-	return wait_for_vsync(fbi);
+	wait_for_vsync(fbi, 1);
+	return 0;
 }
 
 /*
@@ -1700,8 +1651,10 @@ irqreturn_t pxa168fb_ovly_isr(int id)
 
 wakeup:
 		/* wake up queue. */
-		atomic_set(&fbi->w_intr, 1);
-		wake_up(&fbi->w_intr_wq);
+		if (atomic_read(&fbi->w_intr) == 0) {
+			atomic_set(&fbi->w_intr, 1);
+			wake_up(&fbi->w_intr_wq);
+		}
 	}
 
 	return IRQ_HANDLED;
@@ -1804,7 +1757,6 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, fbi);
 	fbi->check_modex_active = check_modex_active;
-	fbi->wait_for_vsync = wait_for_vsync;
 	fbi->update_buff = pxa168fb_update_buff;
 	fbi->fb_info = fi;
 	fbi->dev = &pdev->dev;
@@ -1951,12 +1903,6 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (res == NULL)
 		return -EINVAL;
-
-
-	/*
-	 * Enable Video interrupt
-	 */
-	irq_mask_set(fbi->id, vid_imask(fbi->id), vid_imask(fbi->id));
 
 	/*
 	 * Register framebuffer.

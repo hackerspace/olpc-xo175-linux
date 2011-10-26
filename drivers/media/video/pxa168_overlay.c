@@ -1633,8 +1633,6 @@ again:
 			dma_queue_tmp = dma_queue_tmp->next;
 		}
 
-		irq_mask_set(ovly->id, vid_imask(ovly->id),
-				 vid_imask(ovly->id));
 		dma_ctrl_set(ovly->id, 0, CFG_DMA_ENA_MASK, CFG_DMA_ENA_MASK);
 	}
 	if (OVLY_MODE_DUP) {
@@ -1802,7 +1800,6 @@ irqreturn_t pxa168_ovly_isr(int id)
 		return IRQ_NONE;
 
 	if (!ovly->streaming) {
-		irq_mask_set(ovly->id, vid_imask(ovly->id), 0);
 		dma_ctrl_set(ovly->id, 0, CFG_DMA_ENA_MASK, 0);
 		return IRQ_NONE;
 	}
@@ -2007,7 +2004,6 @@ static int pxa168_ovly_remove(struct platform_device *pdev)
 
 void pxa168_ovly_dual(int enable)
 {
-	u32 imask;
 	struct pxa168_overlay *ovly_base = v4l2_ovly[fb_base];
 	struct pxa168_overlay *ovly_dual = v4l2_ovly[fb_dual];
 	struct list_head *dma_queue;
@@ -2026,14 +2022,8 @@ void pxa168_ovly_dual(int enable)
 		ovly_dual->streaming = ovly_base->streaming;
 		pxa168vid_init(ovly_base);
 		pxa168vid_apply_changes(ovly_base);
-		imask = readl(ovly_base->reg_base + SPU_IRQ_ENA);
-		if (imask & vid_imask(fb_base)) {
-			irq_mask_set(fb_dual, vid_imask(fb_dual),
-					vid_imask(fb_dual));
-			pxa168_ovly_set_colorkeyalpha(ovly_base);
-		}
+		pxa168_ovly_set_colorkeyalpha(ovly_base);
 	} else {
-		irq_mask_set(fb_dual, vid_imask(fb_dual), 0);
 		/* disable video layer DMA */
 		dma_ctrl_set(fb_dual, 0, CFG_DMA_ENA_MASK, 0);
 		ovly_dual->streaming = 0;

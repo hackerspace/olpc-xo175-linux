@@ -658,10 +658,13 @@ struct lcd_regs {
 		: PN2_GRA_FRAME_IRQ1_ENA_MASK) : GRA_FRAME_IRQ1_ENA_MASK)
 #define vsync_imask(id)	((id) ? (((id) & 1) ? TVSYNC_IRQ_ENA_MASK \
 		: PN2_SYNC_IRQ_ENA_MASK) : VSYNC_IRQ_ENA_MASK)
+#define vsync_imasks	(vsync_imask(0) | vsync_imask(1))
 
 #define display_done_imask(id)	((id) ? (((id) & 1) ? TV_FRAMEDONE_ENA_MASK\
 	: (PN2_DMA_FRAME_IRQ0_ENA_MASK | PN2_DMA_FRAME_IRQ1_ENA_MASK))\
 	: DUMB_FRAMEDONE_ENA_MASK)
+
+#define display_done_imasks	(display_done_imask(0) | display_done_imask(1))
 
 #define vf0_imask(id)	((id) ? (((id) & 1) ? TV_DMA_FRAME_IRQ0_ENA_MASK \
 		: PN2_DMA_FRAME_IRQ0_ENA_MASK) : DMA_FRAME_IRQ0_ENA_MASK)
@@ -670,13 +673,10 @@ struct lcd_regs {
 
 #define gfx_imasks	(gf0_imask(0) | gf1_imask(0) | gf0_imask(1) | \
 		gf1_imask(1))
-#if 1
+#define vid_imasks	(vf0_imask(0) | vf1_imask(0) | vf0_imask(1) | \
+		vf1_imask(1))
 #define vid_imask(id)	(display_done_imask(id))
-#define vid_imasks	(vid_imask(0) | vid_imask(1))
-#else
-#define vid_imasks	(display_done_imask(0) | display_done_imask(1) | \
-		vf0_imask(0) | vf1_imask(0) | vf0_imask(1) | vf1_imask(1))
-#endif
+
 #define pn1_imasks	(gf0_imask(0) | gf1_imask(0) | vsync_imask(0) | \
 		display_done_imask(0) | vf0_imask(0) | vf1_imask(0))
 #define tv_imasks	(gf0_imask(1) | gf1_imask(1) | vsync_imask(1) | \

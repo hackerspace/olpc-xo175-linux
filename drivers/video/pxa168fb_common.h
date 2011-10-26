@@ -15,6 +15,8 @@
 #define RESET_BUF	0x1
 #define FREE_ENTRY	0x2
 
+#define NEED_VSYNC(fbi, vid)	(fbi->wait_vsync && dispd_dma_enabled(fbi, vid))
+
 int unsupport_format(struct pxa168fb_info *fbi, struct _sViewPortInfo
 		viewPortInfo, FBVideoMode videoMode, int video_or_graphic);
 u8 *buf_dequeue(u8 **ppBufList);
@@ -52,5 +54,7 @@ void dual_pos_zoom(struct pxa168fb_info *fbi,
 void buf_clear(u8 **ppBufList, int iFlag);
 void clear_buffer(struct pxa168fb_info *fbi, int video_layer);
 void set_dma_active(struct pxa168fb_info *fbi, int video_layer);
+int dispd_dma_enabled(struct pxa168fb_info *fbi, int video_layer);
+void wait_for_vsync(struct pxa168fb_info *fbi, int video_layer);
 
 #endif

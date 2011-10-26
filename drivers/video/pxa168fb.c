@@ -671,63 +671,6 @@ again:
 	}
 }
 
-static void clear_gfx_irq(struct pxa168fb_info *fbi)
-{
-	int isr = readl(fbi->reg_base + SPU_IRQ_ISR);
-
-	if ((isr & gf0_imask(fbi->id)) || (isr & gf1_imask(fbi->id))) {
-		/* wake up queue. */
-		if (isr & gf0_imask(fbi->id))
-			irq_status_clear(fbi->id, gf0_imask(fbi->id));
-		if (isr & gf1_imask(fbi->id))
-			irq_status_clear(fbi->id, gf1_imask(fbi->id));
-		pr_err("fbi %d irq miss, clear isr %x\n", fbi->id, isr);
-	}
-}
-
-static int wait_for_vsync(struct pxa168fb_info *fbi)
-{
-	if (fbi) {
-		atomic_set(&fbi->w_intr, 0);
-		if (FB_MODE_DUP)
-			atomic_set(&gfx_info.fbi[fb_dual]->w_intr, 0);
-
-again:
-		wait_event_interruptible_timeout(fbi->w_intr_wq,
-			atomic_read(&fbi->w_intr), HZ/20);
-
-		/* handle timeout case, to w/a irq miss */
-		if (atomic_read(&fbi->w_intr) == 0)
-			clear_gfx_irq(fbi);
-
-		if (FB_MODE_DUP) {
-			fbi = gfx_info.fbi[fb_dual];
-			goto again;
-		}
-	}
-
-	return 0;
-}
-
-static int gfx_irq_enabled(struct pxa168fb_info *fbi)
-{
-	int ret = 0;
-	if (irqs_disabled() || !fbi->active)
-		return 0;
-
-	/* check whether path clock is disabled */
-	if (readl(fbi->reg_base + clk_div(fbi->id)) & (SCLK_DISABLE))
-		return 0;
-
-	/* in modex dma may not be enabled */
-	if (!(dma_ctrl_read(fbi->id, 0) & CFG_GRA_ENA_MASK))
-		return 0;
-
-	ret = readl(fbi->reg_base + SPU_IRQ_ENA) &
-		(gf0_imask(fbi->id) | gf1_imask(fbi->id));
-	return ret;
-}
-
 static void pxa168fb_vdma_config(struct pxa168fb_info *fbi)
 {
 #ifdef CONFIG_PXA688_VDMA
@@ -796,8 +739,8 @@ again:
 	}
 
 	/* return until the address take effect after vsync occurs */
-	if (wait_vsync && fbi->wait_vsync && gfx_irq_enabled(fbi))
-		wait_for_vsync(fbi);
+	if (wait_vsync && NEED_VSYNC(fbi, 0))
+		wait_for_vsync(fbi, 0);
 }
 
 static void set_dumb_panel_control(struct fb_info *info)
@@ -1066,11 +1009,12 @@ static int pxa168fb_set_var(struct fb_info *info)
 
 	dev_dbg(info->dev, "xres=%d yres=%d\n", var->xres, var->yres);
 
-	if (gfx_irq_enabled(fbi)) {
+	if (NEED_VSYNC(fbi, 0)) {
 		fbi->info = info;
-		wait_for_vsync(fbi);
+		wait_for_vsync(fbi, 0);
 	} else
 		pxa168fb_set_regs(info, 1);
+
 	return 0;
 }
 
@@ -1255,57 +1199,52 @@ extern irqreturn_t pxa168_ovly_isr(int id);
 static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 {
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)dev_id;
-	u32 isr = readl(fbi->reg_base + SPU_IRQ_ISR);
-	u32 imask = readl(fbi->reg_base + SPU_IRQ_ENA);
-	u32 id, gfx, vid, err, sts;
+	u32 isr_en = readl(fbi->reg_base + SPU_IRQ_ISR) &
+		readl(fbi->reg_base + SPU_IRQ_ENA);
+	u32 id, dispd, err, sts;
 
 	do {
-		gfx = isr & gfx_imasks;
-		vid = isr & vid_imasks;
-		err = isr & imask & err_imasks;
-		/*pr_info("isr %x, gfx %x vid %x imask %x\n",
-			isr, gfx, vid, imask); */
-		irq_status_clear(0, gfx | vid | err);
-
-		/* video layer */
-		if (vid) {
+		irq_status_clear(0, isr_en);
+		/* display done irq */
+		dispd = isr_en & display_done_imasks;
+		if (dispd) {
 			for (id = 0; id < 2; id++) {
-				sts = imask & vid & vid_imask(id);
-				if (sts)
+				sts = dispd & display_done_imask(id);
+				if (sts) {
 #ifdef CONFIG_PXA168_V4L2_OVERLAY
 					pxa168_ovly_isr(id);
 #else
 					pxa168fb_ovly_isr(id);
 #endif
-			}
-		}
 
-		/* graphics layer */
-		if (gfx) {
-			for (id = 0; id < 2; id++) {
-				if (!(fbi = gfx_info.fbi[id]))
-					break;
-				sts = imask & gfx & (gf0_imask(id) |
-					 gf1_imask(id));
-				if (sts) {
+					fbi = gfx_info.fbi[id];
+					if (!fbi)
+						break;
+
 					/* update registers if needed */
 					if (fbi->info) {
 						pxa168fb_set_regs(fbi->info, 0);
 						fbi->info = NULL;
 					}
 
+					/* wake up queue if condition */
+					if (atomic_read(&fbi->w_intr) == 0) {
+						atomic_set(&fbi->w_intr, 1);
+						wake_up(&fbi->w_intr_wq);
+					}
+
 					/* trigger buf update */
 					buf_endframe(fbi->fb_info, 0);
 
-					/* wake up queue. */
-					atomic_set(&fbi->w_intr, 1);
-					wake_up(&fbi->w_intr_wq);
+					if (vsync_check &&
+						id == DEBUG_VSYNC_PATH(0))
+						dispd_count++;
 				}
 			}
 		}
 
-		fbi = gfx_info.fbi[0];
 		/* LCD under run error detect */
+		err = isr_en & err_imasks;
 		if (err) {
 			for (id = 0; id < 3; id++) {
 				if (err & gfx_udflow_imask(id)) {
@@ -1331,36 +1270,25 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 			}
 		}
 
-		/* count vsync numbers in 10s */
-		if (vsync_check && (isr & path_imasks(fbi->debug & 1))) {
-			id = fbi->debug & 3;
-			irq_count++;
-			if (isr & gf0_imask(id))
+		/* count interrupts numbers in 10s */
+		if (vsync_check) {
+			id = DEBUG_VSYNC_PATH(0);
+			if (isr_en & path_imasks(id))
+				irq_count++;
+			if (isr_en & gf0_imask(id))
 				f0_count++;
-			if (isr & gf1_imask(id))
+			if (isr_en & gf1_imask(id))
 				f1_count++;
-			if (isr & display_done_imask(id)) {
-				dispd_count++;
-				if (vid_imask(id) != display_done_imask(id))
-					irq_status_clear(id,
-						display_done_imask(id));
-			}
-			if (isr & vsync_imask(id)) {
-				vsync_count++;
-				if (vid_imask(id) != vsync_imask(id))
-					irq_status_clear(id, vsync_imask(id));
-			}
-			if (isr & vf0_imask(id)) {
+			if (isr_en & vf0_imask(id))
 				vf0_count++;
-				irq_status_clear(id, vf0_imask(id));
-			}
-			if (isr & vf1_imask(id)) {
+			if (isr_en & vf1_imask(id))
 				vf1_count++;
-				irq_status_clear(id, vf1_imask(id));
-			}
+			if (isr_en & vsync_imask(id))
+				vsync_count++;
 		}
-	} while ((isr = readl(gfx_info.fbi[0]->reg_base + SPU_IRQ_ISR)) &
-			(vid_imasks | gfx_imasks));
+	} while ((isr_en = readl(gfx_info.fbi[0]->reg_base + SPU_IRQ_ISR)) &
+			readl(gfx_info.fbi[0]->reg_base + SPU_IRQ_ENA) &
+			(path_imasks(0) | path_imasks(1) | err_imasks));
 
 	return IRQ_HANDLED;
 }
@@ -1454,7 +1382,7 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 		pxa168fb_clear_framebuffer(info);
 		break;
 	case FB_IOCTL_WAIT_VSYNC:
-		wait_for_vsync(fbi);
+		wait_for_vsync(fbi, 0);
 		break;
 	case FB_IOCTL_WAIT_VSYNC_ON:
 		fbi->wait_vsync = 1;
@@ -1530,7 +1458,8 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 
 	case FB_IOCTL_FLIP_VID_BUFFER:
 		val = flip_buffer(info, arg, 0);
-		wait_for_vsync(fbi);
+		if (NEED_VSYNC(fbi, 0))
+			wait_for_vsync(fbi, 0);
 		return val;
 	case FB_IOCTL_GET_FREELIST:
 		return get_freelist(info, arg, 0);
@@ -1651,9 +1580,9 @@ again:
 		goto again;
 	}
 
-	if (gfx_irq_enabled(fbi_bak)) {
+	if (NEED_VSYNC(fbi_bak, 0)) {
 		fbi->info = info_bak;
-		wait_for_vsync(fbi_bak);
+		wait_for_vsync(fbi_bak, 0);
 	}
 
 	return 0;
@@ -2186,10 +2115,15 @@ static int pxa168fb_mode_switch(int mode)
 #define VSYNC_CHECK_TIME	(10 * HZ)
 static void vsync_check_timer(unsigned long data)
 {
+	int id = DEBUG_VSYNC_PATH(0);
+
+	/* disable count interrupts */
+	irq_mask_set(id, vsync_imask(id) | gf0_imask(id) |
+		gf1_imask(id) | vf0_imask(id) | vf1_imask(id), 0);
+
 	vsync_check = 0;
 	del_timer(&vsync_timer);
-	pr_info("fbi %d: irq_count %d\n", gfx_info.fbi[0]->debug & 0x3,
-		 irq_count);
+	pr_info("fbi %d: irq_count %d\n", id, irq_count);
 	pr_info("\tvsync_count %d\n",  vsync_count);
 	pr_info("\tdispd_count %d\n",  dispd_count);
 	pr_info("\tf0_count %d\n", f0_count);
@@ -2209,6 +2143,7 @@ static int pxa168fb_proc_write(struct file *file, const char *buffer,
 	char kbuf[11], vol[11];
 	int index, reg_val, i;
 	unsigned addr = (unsigned)gfx_info.fbi[0]->reg_base;
+	u32 mask;
 
 	if (count >= 12)
 		return -EINVAL;
@@ -2267,6 +2202,13 @@ static int pxa168fb_proc_write(struct file *file, const char *buffer,
 				info->screen_size/2);
 		break;
 	case 9:
+		index = DEBUG_VSYNC_PATH(0);
+		/* enable count interrupts */
+		mask = vsync_imask(index) | gf0_imask(index) |
+			gf1_imask(index) | vf0_imask(index) | vf1_imask(index);
+		irq_mask_set(index, mask, mask);
+		irq_status_clear(index, mask);
+
 		init_timer(&vsync_timer);
 		vsync_timer.function = vsync_check_timer;
 		vsync_check = 1;
@@ -2303,7 +2245,7 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	struct pxa168fb_info *fbi = 0;
 	struct resource *res;
 	struct clk *clk;
-	int irq, irq_enable_mask, ret = 0;
+	int irq, irq_mask, irq_enable_value, ret = 0;
 	struct dsi_info *di;
 	static int proc_inited;
 
@@ -2348,7 +2290,6 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	/* Initialize private data */
 	fbi = info->par;
 	fbi->id = pdev->id;
-	fbi->wait_for_vsync = wait_for_vsync;
 	fbi->check_modex_active = check_modex_active;
 	fbi->update_buff = pxa168fb_update_buff;
 
@@ -2532,11 +2473,11 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 		}
 	}
 
-	/* Enable GFX interrupt */
-	irq_enable_mask = gf0_imask(fbi->id) |
-			  gf1_imask(fbi->id) |
-			  err_imask(fbi->id);
-	irq_mask_set(fbi->id, irq_enable_mask, irq_enable_mask);
+	/* disable GFX interrupt
+	*  enable display done & err interrupt */
+	irq_mask = path_imasks(fbi->id) | err_imask(fbi->id);
+	irq_enable_value = display_done_imask(fbi->id) | err_imask(fbi->id);
+	irq_mask_set(fbi->id, irq_mask, irq_enable_value);
 	fbi->wait_vsync = 1;
 
 	/* enable power supply */
