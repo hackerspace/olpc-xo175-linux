@@ -13,6 +13,7 @@
 #include <linux/i2c.h>
 #include <linux/i2c/pxa95x-i2c.h>
 #include <linux/mfd/88pm860x.h>
+#include <linux/mfd/88pm80x.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/cwmi.h>
@@ -148,8 +149,11 @@ static struct pm860x_headset_pdata headset_platform_info	 = {
 
 
 /* TODO: check the regulator data carefully */
-static struct regulator_consumer_supply regulator_supply[PM8607_ID_RG_MAX];
-static struct regulator_init_data regulator_data[PM8607_ID_RG_MAX];
+#define PM8XXX_REGULATOR_MAX ((PM8607_ID_RG_MAX > PM800_ID_RG_MAX) ? \
+		PM8607_ID_RG_MAX : PM800_ID_RG_MAX)
+
+static struct regulator_consumer_supply regulator_supply[PM8XXX_REGULATOR_MAX];
+static struct regulator_init_data regulator_data[PM8XXX_REGULATOR_MAX];
 
 static int regulator_index[] = {
 	PM8607_ID_BUCK1,
@@ -179,7 +183,7 @@ static int regulator_index[] = {
 	regulator_supply[_i].dev_name	= _dev_name;	\
 }
 
-#define REG_INIT(_id, _name, _min, _max, _always, _boot)\
+#define REG_INIT(_id, _chip, _name, _min, _max, _always, _boot)\
 {									\
 	int _i = _id;				\
 	regulator_data[_i].constraints.name	=	__stringify(_name);	\
@@ -191,9 +195,9 @@ static int regulator_index[] = {
 		REGULATOR_CHANGE_VOLTAGE | REGULATOR_CHANGE_STATUS;	\
 	regulator_data[_i].num_consumer_supplies	= 1;	\
 	regulator_data[_i].consumer_supplies	=	\
-		&regulator_supply[PM8607_ID_##_name];	\
+		&regulator_supply[_chip##_##_name];	\
 	regulator_data[_i].driver_data	=	\
-		&regulator_index[PM8607_ID_##_name];	\
+		&regulator_index[_chip##_##_name];	\
 }
 
 static struct pm860x_rtc_pdata rtc = {
@@ -222,31 +226,48 @@ static struct pm860x_platform_data pm8607_info = {
 	.num_backlights	= ARRAY_SIZE(backlight),
 };
 
+static struct pm80x_platform_data pm800_info = {
+	.regulator	= regulator_data,
+	.companion_addr		= 0x38,
+	.base_page_addr		= 0x30,
+	.power_page_addr	= 0x31,
+	.gpadc_page_addr	= 0x32,
+	.test_page_addr		= 0x37,
+	.irq_mode		= 0,
+	.irq_base		= IRQ_BOARD_START,
+	/*PM805 has it's own interrupt line (GPIO96)!!!*/
+	.irq_companion		= gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO96)),
+
+	.i2c_port		= PI2C_PORT,
+};
+
 extern struct pxa95x_freq_mach_info freq_mach_info;
-static void regulator_init(void)
+static void regulator_init_pm8607(void)
 {
 	int i = 0;
 
 	if (PXA95x_USE_POWER_I2C != freq_mach_info.flags) {
 		REG_SUPPLY_INIT(PM8607_ID_BUCK1, "v_buck1", "pxa95x-freq");
-		REG_INIT(i++, BUCK1, 1000000, 1500000, 1, 1);
+		REG_INIT(i++, PM8607_ID, BUCK1, 1000000, 1500000, 1, 1);
 	}
 
 	/* for hdmi */
 	REG_SUPPLY_INIT(PM8607_ID_LDO12, "v_ihdmi", NULL);
-	REG_INIT(i++, LDO12, 1200000, 3300000, 0, 0);
+	REG_INIT(i++, PM8607_ID, LDO12, 1200000, 3300000, 0, 0);
 
 	switch (get_board_id()) {
+
 	case OBM_SAAR_C2_NEVO_A0_V10_BOARD:
 		REG_SUPPLY_INIT(PM8607_ID_LDO1, "v_gps", NULL);
 		REG_SUPPLY_INIT(PM8607_ID_LDO9, "v_cam", NULL);
 		REG_SUPPLY_INIT(PM8607_ID_LDO13, "vmmc", "sdhci-pxa.1");
 
-		REG_INIT(i++, LDO1, 1200000, 3300000, 0, 0);
-		REG_INIT(i++, LDO9, 1800000, 3300000, 0, 0);
-		REG_INIT(i++, LDO13, 1800000, 3300000, 0, 0);
+		REG_INIT(i++, PM8607_ID, LDO1, 1200000, 3300000, 0, 0);
+		REG_INIT(i++, PM8607_ID, LDO9, 1800000, 3300000, 0, 0);
+		REG_INIT(i++, PM8607_ID, LDO13, 1800000, 3300000, 0, 0);
 		printk(KERN_INFO "%s: select saarC NEVO ldo map\n", __func__);
 	break;
+
 	default:
 		printk(KERN_ERR "%s: The board type is not defined!\n ", __func__);
 		BUG();
@@ -255,12 +276,59 @@ static void regulator_init(void)
 	pm8607_info.num_regulators = i;
 }
 
-static struct i2c_board_info i2c1_info[] = {
+static void regulator_init_pm800(void)
+{
+	int i = 0;
+
+	REG_SUPPLY_INIT(PM800_ID_LDO18, "v_gps", NULL);
+	REG_SUPPLY_INIT(PM800_ID_LDO16, "v_cam", NULL);
+	REG_SUPPLY_INIT(PM800_ID_LDO13, "v_sdcard", "sdhci-pxa.1");
+	REG_SUPPLY_INIT(PM800_ID_LDO9, "v_8787", NULL);
+	REG_SUPPLY_INIT(PM800_ID_LDO8, "v_lcd", NULL);
+	REG_SUPPLY_INIT(PM800_ID_LDO6, "v_ihdmi", NULL);
+	/*
+	for NFC integration - adding 3 regulators:
+	 * Vdd_IO
+	 * VBat
+	 * VSim
+	 since they are needed by NFC driver. to prevent harm to the system
+	 i'm setting them to "unused" LDOs
+	*/
+	REG_SUPPLY_INIT(PM800_ID_LDO14, "Vdd_IO", NULL);
+	REG_SUPPLY_INIT(PM800_ID_LDO15, "VBat", NULL);
+	REG_SUPPLY_INIT(PM800_ID_LDO17, "VSim", NULL);
+
+	REG_INIT(i++, PM800_ID, LDO18, 1200000, 3300000, 0, 0);
+	REG_INIT(i++, PM800_ID, LDO16, 1800000, 3300000, 0, 0);
+	REG_INIT(i++, PM800_ID, LDO13, 1800000, 3300000, 0, 0);
+	/*For BU turn on WiFi LDO always on,
+	 *  need to fix after by WiFi Team*/
+	REG_INIT(i++, PM800_ID, LDO9, 2400000, 3300000, 1, 1);
+	REG_INIT(i++, PM800_ID, LDO8, 1800000, 3300000, 1, 1);
+	REG_INIT(i++, PM800_ID, LDO6, 1200000, 3300000, 0, 0);
+
+	REG_INIT(i++, PM800_ID, LDO14, 1800000, 3300000, 0, 0);
+	REG_INIT(i++, PM800_ID, LDO15, 1800000, 3300000, 0, 0);
+	REG_INIT(i++, PM800_ID, LDO17, 1800000, 3300000, 0, 0);
+
+	pr_info("%s: select saarC NEVO austica ldo map\n", __func__);
+
+	pm800_info.num_regulators = i;
+}
+
+static struct i2c_board_info i2c1_860x_info[] = {
 	{
-		.type		= "88PM860x",
-		.addr		= 0x34,
+		I2C_BOARD_INFO("88PM860x", 0x34),
 		.platform_data	= &pm8607_info,
 		.irq            = IRQ_PMIC_INT,
+	},
+};
+
+static struct i2c_board_info i2c1_80x_info[] = {
+	{
+		I2C_BOARD_INFO("88PM80x", 0x34),
+		.platform_data	= &pm800_info,
+		.irq		= IRQ_PMIC_INT,
 	},
 };
 
@@ -503,14 +571,15 @@ static struct i2c_board_info i2c3_info[] = {
 
 static void register_i2c_board_info(void)
 {
-	i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_info));
 
 	switch (get_board_id()) {
 	case OBM_SAAR_C2_NEVO_A0_V10_BOARD:
+		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_860x_info));
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_C2));
 		break;
 
 	case OBM_SAAR_C25_NEVO_B0_V10_BOARD:
+		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info));
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_C25));
 		break;
 
@@ -564,7 +633,7 @@ static char *pxa9xx_usb_clock_name[] = {
 	[2] = "U2OCLK",
 };
 
-static struct mv_usb_addon_irq pmic_vbus = {
+static struct mv_usb_addon_irq pm860x_vbus = {
 	.irq	= IRQ_BOARD_START + PM8607_IRQ_CHG,
 	.poll	= read_vbus_val,
 };
@@ -572,7 +641,7 @@ static struct mv_usb_addon_irq pmic_vbus = {
 static struct mv_usb_platform_data pxa9xx_usb_pdata = {
 	.clknum		= 3,
 	.clkname	= pxa9xx_usb_clock_name,
-	.vbus		= &pmic_vbus,
+	.vbus		= NULL,
 	.mode		= MV_USB_MODE_OTG,
 	.phy_init	= pxa9xx_usb_phy_init,
 	.set_vbus	= NULL,
@@ -1201,7 +1270,20 @@ static struct pxa95x_peripheral_wakeup_ops wakeup_ops = {
 
 static void __init init(void)
 {
-	regulator_init();
+	if (get_pmic_id() >= PM800_CHIP_A0) {
+		regulator_init_pm800();
+		pr_info( \
+			"[%s][%s]regulator_init_pm800 maxNum[%d] init\n",
+			__FILE__, __func__, PM8XXX_REGULATOR_MAX);
+		pxa9xx_usb_pdata.vbus = NULL;
+
+	} else {
+		regulator_init_pm8607();
+		pr_info( \
+			"[%s][%s]regulator_init_pm8607 maxNum[%d] init\n",
+			__FILE__, __func__, PM8XXX_REGULATOR_MAX);
+		pxa9xx_usb_pdata.vbus = &pm860x_vbus;
+	}
 
 	set_abu_init_func(abu_mfp_init);
 	set_ssp_init_func(ssp3_mfp_init);
