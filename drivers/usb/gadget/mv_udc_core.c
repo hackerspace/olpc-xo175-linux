@@ -1279,6 +1279,9 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 #endif
 		}
 	} else if (udc->driver && udc->softconnect) {
+		if (!udc->active)
+			goto out;
+
 		/* stop all the transfer in queue*/
 		stop_activity(udc, udc->driver);
 		udc_stop(udc);
@@ -1288,6 +1291,7 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 #endif
 	}
 
+out:
 	spin_unlock_irqrestore(&udc->lock, flags);
 	return retval;
 }
@@ -2436,6 +2440,8 @@ static int __devinit mv_udc_probe(struct platform_device *dev)
 		}
 	}
 
+	udc->active = 1;
+
 	udc->op_regs = (struct mv_op_regs __iomem *)((u32)udc->cap_regs
 		+ (readl(&udc->cap_regs->caplength_hciversion)
 			& CAPLENGTH_MASK));
@@ -2576,6 +2582,7 @@ static int __devinit mv_udc_probe(struct platform_device *dev)
 		if (udc->pdata->phy_deinit)
 			udc->pdata->phy_deinit(udc->phy_regs);
 		udc_clock_disable(udc);
+		udc->active = 0;
 	} else
 		udc->vbus_active = 1;
 
