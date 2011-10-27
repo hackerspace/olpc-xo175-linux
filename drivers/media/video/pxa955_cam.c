@@ -1356,8 +1356,12 @@ static int pxa955_cam_add_device(struct soc_camera_device *icd)
 
 	pcdev->icd = icd;
 
-	/* Disable 1GHz */
-	dvfm_disable_op_name("988M", dvfm_dev_idx);
+	/* Disable 624M PP for NEVO and 1Ghz for MGx */
+	if (cpu_is_pxa978())
+		dvfm_disable_op_name("624M", dvfm_dev_idx);
+	else
+		dvfm_disable_op_name("988M", dvfm_dev_idx);
+
 	/* Disable OPs lower than 624 */
 	dvfm_disable(dvfm_dev_idx);
 
@@ -1445,7 +1449,11 @@ static void pxa955_cam_remove_device(struct soc_camera_device *icd)
 
 	/* Recover disabled OPs */
 	dvfm_enable(dvfm_dev_idx);
-	dvfm_enable_op_name("988M", dvfm_dev_idx);
+
+	if (cpu_is_pxa978())
+		dvfm_enable_op_name("624M", dvfm_dev_idx);
+	else
+		dvfm_enable_op_name("988M", dvfm_dev_idx);
 
 	pcdev->icd = NULL;
 	printk(KERN_INFO "cam: v4l2: sensor \"%s\" detached from camera %d\n", \
