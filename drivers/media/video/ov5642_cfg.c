@@ -406,6 +406,8 @@ static struct regval_list ov5642_dvp_yuv_qxga[] =
 };
 
 static struct regval_list ov5642_dvp_jpg_default[] = {
+	{0x4602, 0x08},
+	{0x4603, 0x00},
 	{0x3819, 0x81},
 	{0x3503, 0x07},
 	{0x3002, 0x00},
