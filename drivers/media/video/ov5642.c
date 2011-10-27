@@ -95,7 +95,7 @@ int ov5642_write(struct i2c_client *c, u16 reg, unsigned char value)
 	ret = i2c_master_send(c, data, 3);
 	if (reg == REG_SYS && (value & SYS_RESET)) {
 		printk(KERN_WARNING "cam: a S/W reset triggered, may result in register value lost\n");
-		msleep(2);  /* Wait for reset to run */
+		msleep(4);  /* Wait for reset to run */
 	}
 	return (ret < 0) ? ret : 0;
 }
@@ -260,39 +260,6 @@ static int ov5642_try_fmt(struct v4l2_subdev *sd,
 		break;
 	}
 
-	return 0;
-}
-
-static int ov5642_int_reset(struct i2c_client *c)
-{
-	int ret;
-	unsigned char val;
-	struct ov5642 *ov5642 = to_ov5642(c);
-
-	printk("cam: will reset ov5642\n");
-	/* S/W reset */
-	ret = ov5642_read(c, REG_SYS, &val);
-	if (unlikely(ret < 0))
-		return ret;
-	ret = ov5642_write(c, REG_SYS, val|SYS_RESET);
-	if (unlikely(ret < 0)) {
-		printk(KERN_ERR "cam: sensor ov5642 S/W reset failed\n");
-		return ret;
-	}
-	/* Wait till reset complete */
-	msleep(2);
-	ret = ov5642_write(c, REG_SYS, val);
-
-	/* Initialize settings*/
-	ov5642->init = get_global_init_regs();
-	if (ov5642->init)
-		ret |= ov5642_write_array(c, ov5642->init);
-	//msleep(10);
-
-	if (unlikely(ret)) {
-		printk(KERN_ERR "cam: one or more error during ov5642 initialize\n");
-		return ret;
-	}
 	return 0;
 }
 
@@ -518,6 +485,7 @@ static int ov5642_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 static int ov5642_load_fw(struct v4l2_subdev *sd)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct ov5642 *ov5642 = to_ov5642(client);
 	struct soc_camera_device *icd = client->dev.platform_data;
 	struct soc_camera_link *icl;
 	struct sensor_platform_data *pdata;
@@ -551,7 +519,10 @@ static int ov5642_load_fw(struct v4l2_subdev *sd)
 		return -EINVAL;
 	}
 
-	ret = ov5642_int_reset(client);
+	/* Initialize settings*/
+	ov5642->init = get_global_init_regs();
+	if (ov5642->init)
+		ret = ov5642_write_array(client, ov5642->init);
 
 	return ret;
 }
