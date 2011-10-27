@@ -644,6 +644,8 @@ static void ttc_disable_rf(void)
 
 struct pm860x_power_pdata ttc_dkb_power = {
 	.disable_rf_fn  = ttc_disable_rf,
+	.max_capacity	= 1500,
+	.resistor	= 300,
 };
 
 #ifdef CONFIG_RTC_DRV_MMP
