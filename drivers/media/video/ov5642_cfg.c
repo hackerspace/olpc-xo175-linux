@@ -6753,9 +6753,34 @@ int set_stream(struct i2c_client *client, int enable)
 	switch (bus_type_index) {
 	case 0:	/* bus name: pxa910-dvp */
 	case 1:	/* bus name: pxa910-mipi */
+		if (enable) {
+			ret = ov5642_write(client, 0x4201, 0x00);
+			if (ret < 0)
+				goto out;
+			ret = ov5642_write(client, 0x4202, 0x00);
+			if (ret < 0)
+				goto out;
+		} else {
+			ret = ov5642_write(client, 0x4201, 0x01);
+			if (ret < 0)
+				goto out;
+			ret = ov5642_write(client, 0x4202, 0x00);
+			if (ret < 0)
+				goto out;
+		}
+		break;
 	case 2:	/* bus name: pxa955-mipi */
 	case 3:	/* bus name: pxa955-mipi-bridge */
 		if (enable) {
+			/* clear power-down bit before stream on */
+			ret = ov5642_read(client, 0x3008, &val);
+			if (ret < 0)
+				goto out;
+			val &= ~0x40;
+			ret = ov5642_write(client, 0x3008, val);
+			if (ret < 0)
+				goto out;
+
 			ret = ov5642_write(client, 0x4201, 0x00);
 			if (ret < 0)
 				goto out;
