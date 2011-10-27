@@ -2227,10 +2227,10 @@ static void do_charger_work(struct work_struct *work)
 	u32 charger_mask = PORTSCX_PORT_DM | PORTSCX_PORT_DP;
 
 	udc = container_of(work, struct mv_udc, charger_work.work);
-	val = readl(&udc->op_regs->portsc) & charger_mask;
 
 	if (udc->charger_type != VBUS_CHARGER
 		&& udc->charger_type != NULL_CHARGER) {
+		val = readl(&udc->op_regs->portsc) & charger_mask;
 		if (val == charger_mask)
 			udc->charger_type = AC_CHARGER_STANDARD;
 		else {
@@ -2250,9 +2250,9 @@ static void do_delayed_work(struct work_struct *work)
 	u32 charger_mask = PORTSCX_PORT_DM | PORTSCX_PORT_DP;
 
 	udc = container_of(work, struct mv_udc, delayed_charger_work.work);
-	val = readl(&udc->op_regs->portsc) & charger_mask;
 
 	if (udc->charger_type == DEFAULT_CHARGER) {
+		val = readl(&udc->op_regs->portsc) & charger_mask;
 		if (val == charger_mask)
 			udc->charger_type = AC_CHARGER_STANDARD;
 		else
