@@ -1574,8 +1574,6 @@ static int vidioc_streamon(struct file *file, void *fh, enum v4l2_buf_type i)
 	struct pxa168_overlay *ovly = fh;
 	struct vb2_queue *q = &ovly->vbq;
 	struct mutex *ovly_lock = &ovly->lock;
-	struct list_head *dma_queue, *dma_queue_tmp;
-	struct pxa168_buf *frm, *frm_tmp;
 	int ret = 0;
 
 	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: enter stream on!\n",
@@ -1595,20 +1593,17 @@ static int vidioc_streamon(struct file *file, void *fh, enum v4l2_buf_type i)
 
 	/* Remove buffer from the buffer queue */
 	list_del(&ovly->cur_frm->list);
-	dma_queue = &ovly->dma_queue;
-	frm = ovly->cur_frm;
 #if 0
 	/* Initialize field_id and started member */
 	ovly->field_id = 0;
 	/* set flag here. Next QBUF will start DMA */
 #endif
 
-	ovly->paddr[0] = (dma_addr_t) vb2_plane_cookie(&ovly->cur_frm->vb, 0)
-	    + ovly->cropped_offset;
+	ovly->paddr[0] = *((dma_addr_t *) vb2_plane_cookie
+				(&ovly->cur_frm->vb, 0));
 	if (ovly->hdmi3d)
-		ovly->paddr[1] = (dma_addr_t) vb2_plane_cookie
-			(&ovly->cur_frm->vb, 1)	+ ovly->cropped_offset;
-
+		ovly->paddr[1] = *((dma_addr_t *) vb2_plane_cookie
+					(&ovly->cur_frm->vb, 1));
 	/* First save the configuration in ovelray structure */
 	ret = pxa168vid_init(ovly);
 	if (ret)
@@ -1624,15 +1619,6 @@ again:
 		/* if already queued buffer before stream on,
 		 * here we should set these buffers flag to_show
 		 */
-		frm->to_show |= vid_imask(ovly->id);
-		dma_queue_tmp = dma_queue->next;
-		if (!list_empty(dma_queue_tmp)) {
-			frm_tmp = list_entry(dma_queue_tmp->next,
-				struct pxa168_buf, list);
-			frm_tmp->to_show |= vid_imask(ovly->id);
-			dma_queue_tmp = dma_queue_tmp->next;
-		}
-
 		dma_ctrl_set(ovly->id, 0, CFG_DMA_ENA_MASK, CFG_DMA_ENA_MASK);
 	}
 	if (OVLY_MODE_DUP) {
