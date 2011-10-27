@@ -600,6 +600,8 @@ struct pm860x_touch_pdata {
 
 struct pm860x_power_pdata {
 	void (*disable_rf_fn)(void);/* disable rf for battery calibration */
+	int max_capacity;
+	int resistor;
 };
 
 struct pm860x_cm3601_pdata

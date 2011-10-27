@@ -1907,8 +1907,16 @@ static __devinit int pm860x_battery_probe(struct platform_device *pdev)
 	info->battery.num_properties = ARRAY_SIZE(pm860x_batt_props);
 	info->battery.get_property = pm860x_batt_get_prop;
 	info->battery.external_power_changed = pm860x_external_power_changed;
-	info->max_capacity = 1500;	/* set default capacity */
-	info->resistor = 300;		/* set default internal resistor */
+
+	if (pdata->max_capacity)
+		info->max_capacity = pdata->max_capacity;
+	else
+		info->max_capacity = 1500;	/* set default capacity */
+	if (pdata->resistor)
+		info->resistor = pdata->resistor;
+	else
+		info->resistor = 300;		/* set default internal resistor */
+
 	ret = power_supply_register(&pdev->dev, &info->battery);
 	if (ret)
 		goto out_attr;
