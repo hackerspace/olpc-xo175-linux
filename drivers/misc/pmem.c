@@ -1403,17 +1403,25 @@ static void boost_dying_task_prio(struct task_struct *p)
 	}
 }
 
-static int pmem_oom_killer(int adj)
+static pid_t pmem_oom_killer(int adj, pid_t *pool, int size)
 {
 	struct task_struct *p, *selected = NULL;
 	struct signal_struct *sig;
-	int selected_oom_adj;
+	int selected_oom_adj, i, killed = 0;
 
 	read_lock(&tasklist_lock);
 	for_each_process(p) {
 		task_lock(p);
+		/* skip if current process is already marked to be killed */
+		for (i = 0; i < size; i++) {
+			if (*(pool + i) == p->pid) {
+				killed = 1;
+				break;
+			}
+		}
 		sig = p->signal;
-		if (!p->mm || !sig || p->exit_state || sig->oom_adj < adj) {
+		if (!p->mm || !sig || p->exit_state || sig->oom_adj < adj
+			|| killed) {
 			task_unlock(p);
 			continue;
 		}
@@ -1434,25 +1442,25 @@ static int pmem_oom_killer(int adj)
 	}
 	boost_dying_task_prio(selected);
 	read_unlock(&tasklist_lock);
-
-	return 0;
+	return selected->pid;
 out:
 	read_unlock(&tasklist_lock);
-	return -EAGAIN;
+	return 0;
 }
 
 static int pmem_out_of_memory(int level)
 {
+	pid_t pool[64];
 	int ret = -EAGAIN, min_adj, i;
 
 	mutex_lock(&pmem_oom_lock);
 	/* kill all hide and background application in android */
 	for (min_adj = OOM_ADJUST_MAX + 1, i = 0; min_adj > level; ) {
-		ret = pmem_oom_killer(min_adj);
-		if (ret == -EAGAIN)
+		ret = pmem_oom_killer(min_adj, pool, i);
+		if (!ret)
 			min_adj--;
-		else if (!ret)
-			i++;
+		else
+			pool[i++] = ret;
 	}
 	mutex_unlock(&pmem_oom_lock);
 	pr_info("%d processes are killed\n", i);
