@@ -29,6 +29,7 @@ struct pwm_bl_data {
 	int			(*notify)(struct device *,
 					  int brightness);
 	int			(*check_fb)(struct device *, struct fb_info *);
+	int			active;
 };
 
 static int pwm_backlight_update_status(struct backlight_device *bl)
@@ -43,13 +44,13 @@ static int pwm_backlight_update_status(struct backlight_device *bl)
 	if (bl->props.fb_blank != FB_BLANK_UNBLANK)
 		brightness = 0;
 
-	if (pb->notify)
+	if (pb->notify && pb->active)
 		brightness = pb->notify(pb->dev, brightness);
 
 	if (brightness == 0) {
 		pwm_config(pb->pwm, 0, pb->period);
 		pwm_disable(pb->pwm);
-	} else {
+	} else if (pb->active) {
 		brightness = pb->lth_brightness +
 			(brightness * (pb->period - pb->lth_brightness) / max);
 		pwm_config(pb->pwm, brightness, pb->period);
@@ -76,6 +77,75 @@ static const struct backlight_ops pwm_backlight_ops = {
 	.get_brightness	= pwm_backlight_get_brightness,
 	.check_fb	= pwm_backlight_check_fb,
 };
+
+#ifdef CONFIG_PM
+static int _pwm_backlight_suspend(struct backlight_device *bl)
+{
+	struct pwm_bl_data *pb = dev_get_drvdata(&bl->dev);
+
+	if (pb->notify)
+		pb->notify(pb->dev, 0);
+	pwm_config(pb->pwm, 0, pb->period);
+	pwm_disable(pb->pwm);
+	pb->active = 0;
+	return 0;
+}
+
+static int _pwm_backlight_resume(struct backlight_device *bl)
+{
+	struct pwm_bl_data *pb = dev_get_drvdata(&bl->dev);
+
+	pb->active = 1;
+	backlight_update_status(bl);
+	return 0;
+}
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+
+static void bl_early_suspend(struct early_suspend *h)
+{
+	struct backlight_device *bl = container_of(h,
+		struct backlight_device, early_suspend);
+
+	_pwm_backlight_suspend(bl);
+
+	return;
+}
+static void bl_late_resume(struct early_suspend *h)
+{
+	struct backlight_device *bl = container_of(h,
+		struct backlight_device, early_suspend);
+
+	_pwm_backlight_resume(bl);
+
+	return;
+}
+
+#else
+
+static int pwm_backlight_suspend(struct platform_device *pdev,
+		pm_message_t state)
+{
+	struct backlight_device *bl = platform_get_drvdata(pdev);
+
+	_pwm_backlight_suspend(bl);
+	return 0;
+}
+
+static int pwm_backlight_resume(struct platform_device *pdev)
+{
+	struct backlight_device *bl = platform_get_drvdata(pdev);
+
+	_pwm_backlight_resume(bl);
+	return 0;
+}
+
+#endif /* CONFIG_HAS_EARLYSUSPEND */
+
+#else
+#define pwm_backlight_suspend	NULL
+#define pwm_backlight_resume	NULL
+#endif
 
 static int pwm_backlight_probe(struct platform_device *pdev)
 {
@@ -109,6 +179,7 @@ static int pwm_backlight_probe(struct platform_device *pdev)
 	pb->lth_brightness = data->lth_brightness *
 		(data->pwm_period_ns / data->max_brightness);
 	pb->dev = &pdev->dev;
+	pb->active = 1;
 
 	pb->pwm = pwm_request(data->pwm_id, "backlight");
 	if (IS_ERR(pb->pwm)) {
@@ -133,6 +204,14 @@ static int pwm_backlight_probe(struct platform_device *pdev)
 	backlight_update_status(bl);
 
 	platform_set_drvdata(pdev, bl);
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	bl->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
+	bl->early_suspend.suspend = bl_early_suspend;
+	bl->early_suspend.resume = bl_late_resume;
+	register_early_suspend(&bl->early_suspend);
+#endif
+
 	return 0;
 
 err_bl:
@@ -161,32 +240,6 @@ static int pwm_backlight_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_PM
-static int pwm_backlight_suspend(struct platform_device *pdev,
-				 pm_message_t state)
-{
-	struct backlight_device *bl = platform_get_drvdata(pdev);
-	struct pwm_bl_data *pb = dev_get_drvdata(&bl->dev);
-
-	if (pb->notify)
-		pb->notify(pb->dev, 0);
-	pwm_config(pb->pwm, 0, pb->period);
-	pwm_disable(pb->pwm);
-	return 0;
-}
-
-static int pwm_backlight_resume(struct platform_device *pdev)
-{
-	struct backlight_device *bl = platform_get_drvdata(pdev);
-
-	backlight_update_status(bl);
-	return 0;
-}
-#else
-#define pwm_backlight_suspend	NULL
-#define pwm_backlight_resume	NULL
-#endif
-
 static struct platform_driver pwm_backlight_driver = {
 	.driver		= {
 		.name	= "pwm-backlight",
@@ -194,8 +247,10 @@ static struct platform_driver pwm_backlight_driver = {
 	},
 	.probe		= pwm_backlight_probe,
 	.remove		= pwm_backlight_remove,
+#ifndef CONFIG_HAS_EARLYSUSPEND
 	.suspend	= pwm_backlight_suspend,
 	.resume		= pwm_backlight_resume,
+#endif
 };
 
 static int __init pwm_backlight_init(void)
