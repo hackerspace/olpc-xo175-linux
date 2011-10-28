@@ -710,6 +710,8 @@ static struct pxa168fb_mach_info mmp2_mipi_lcd_info __initdata = {
 	.mmap			= 1,
 	.max_fb_size		= 1280 * 720 * 8 + 4096,
 	.vdma_enable		= 1,
+	.sram_paddr		= 0,
+	.sram_size		= 30 * 1024,
 	.phy_type		= DSI2DPI,
 	.phy_init		= dsi_init,
 #ifdef CONFIG_TC35876X
@@ -748,6 +750,8 @@ static struct pxa168fb_mach_info mmp2_mipi_lcd_ovly_info __initdata = {
 	.mmap			= 0,
 	.max_fb_size            = 1280 * 720 * 8 + 4096,
 	.vdma_enable		= 0,
+	.sram_paddr		= 0,
+	.sram_size		= 30 * 1024,
 };
 
 

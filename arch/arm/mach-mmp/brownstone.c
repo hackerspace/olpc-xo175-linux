@@ -928,6 +928,11 @@ static int __init led_init(void)
 	return 0;
 }
 
+static struct sram_bank mmp2_videosram_info = {
+	.pool_name = "mmp-videosram",
+	.step = VIDEO_SRAM_GRANULARITY,
+};
+
 #ifdef CONFIG_UIO_VMETA
 static struct vmeta_plat_data mmp2_vmeta_plat_data = {
 	.bus_irq_handler = NULL,
@@ -997,6 +1002,7 @@ static void __init brownstone_init(void)
 	/* enable 5v regulator */
 	platform_device_register(&brownstone_v_5vp_device);
 
+	mmp2_add_videosram(&mmp2_videosram_info);
 #ifdef CONFIG_FB_PXA168
 	brownstone_add_lcd_mipi();
 	mmp2_add_tv_out();

@@ -50,6 +50,7 @@ extern struct platform_device mmp_device_asoc_sspa1;
 extern struct platform_device mmp_device_asoc_sspa2;
 extern struct platform_device mmp_device_asoc_platform;
 extern struct pxa_device_desc mmp2_device_thsens;
+extern struct pxa_device_desc mmp2_device_videosram;
 
 extern struct platform_device pxa168_device_u2o;
 extern struct platform_device pxa168_device_u2oehci;
@@ -181,5 +182,9 @@ static inline int mmp2_add_sspa(int id)
 	return pxa_register_device(d, NULL, 0);
 }
 
-#endif /* __ASM_MACH_MMP2_H */
+static inline int mmp2_add_videosram(struct sram_bank *data)
+{
+	return pxa_register_device(&mmp2_device_videosram, data, sizeof(*data));
+}
 
+#endif /* __ASM_MACH_MMP2_H */
