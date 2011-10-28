@@ -66,6 +66,30 @@ struct v4l2_sensor_register_access {
 	unsigned long	value;
 };
 
+/*Normal: */
+/* 1. Dummy buffer will reuse filled buffer.*/
+/* 2. Driver will hold one buffer in queue serve as dummy buffer.*/
+/*Still: */
+/* 1. Dummy buffer will only use idle buffer.*/
+/* 2. Driver will not hold any buffer in queue.*/
+enum ispvideo_capture_mode {
+	ISPVIDEO_NORMAL_CAPTURE = 0,
+	ISPVIDEO_STILL_CAPTURE,
+};
+
+enum ispdma_port {
+	ISPDMA_PORT_CODEC = 0,
+	ISPDMA_PORT_DISPLAY,
+	ISPDMA_PORT_FBRX,
+	ISPDMA_PORT_FBTX,
+	ISPDMA_PORT_INPUT,
+};
+
+struct v4l2_ispdma_capture_mode {
+	enum ispdma_port port;
+	enum ispvideo_capture_mode mode;
+};
+
 
 #define VIDIOC_PRIVATE_DXOIPC_SET_FB \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 1, struct v4l2_dxoipc_set_fb)
@@ -81,5 +105,7 @@ struct v4l2_sensor_register_access {
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 6, struct v4l2_sensor_register_access)
 #define VIDIOC_PRIVATE_DXOIPC_CONFIG_CODEC \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 7, struct v4l2_dxoipc_config_codec)
+#define VIDIOC_PRIVATE_ISPDMA_CAPTURE_MODE \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 8, struct v4l2_ispdma_capture_mode)
 
 #endif	/* ISP_USER_H */

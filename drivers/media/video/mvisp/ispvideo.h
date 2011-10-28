@@ -32,6 +32,7 @@
 #include <media/v4l2-dev.h>
 #include <media/v4l2-fh.h>
 
+#include <linux/mvisp.h>
 #include "ispqueue.h"
 
 
@@ -155,6 +156,8 @@ struct isp_video {
 	enum isp_video_dmaqueue_flags	dmaqueue_flags;
 
 	const struct isp_video_operations	*ops;
+	enum ispvideo_capture_mode	capture_mode;
+	spinlock_t					cap_mode_lock;
 };
 
 void set_vd_dmaqueue_flg(struct isp_video *video,

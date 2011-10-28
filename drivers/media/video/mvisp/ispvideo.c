@@ -464,6 +464,59 @@ static const struct isp_video_queue_operations isp_video_queue_ops = {
 	.buffer_cleanup = &isp_video_buffer_cleanup,
 };
 
+
+struct isp_video_buffer *mvisp_video_load_userbuf(
+	struct isp_video *video,
+	struct isp_video_queue *queue)
+{
+	struct isp_video_buffer *buf, *last_buf;
+	int num_ready_buf;
+	bool buf_in_busy;
+
+	num_ready_buf = 0;
+	last_buf = NULL;
+	list_for_each_entry(buf, &queue->queue, stream) {
+		last_buf = buf;
+		num_ready_buf++;
+	}
+
+	if (num_ready_buf > 2) {
+		buf = list_first_entry(&queue->queue,
+			struct isp_video_buffer, stream);
+		list_del(&buf->stream);
+		buf->state = ISP_BUF_STATE_ACTIVE;
+		list_add_tail(&buf->stream, &queue->queue);
+	} else {
+		buf = last_buf;
+		buf->state = ISP_BUF_STATE_ACTIVE;
+		if (buf == NULL)
+			return buf;
+	}
+
+	buf_in_busy = false;
+	list_for_each_entry(last_buf, &video->dmabusyqueue, irqlist) {
+		if (buf == last_buf)
+			buf_in_busy = true;
+	}
+
+	if (buf_in_busy == false) {
+		switch (video->video_type) {
+		case ISP_VIDEO_INPUT:
+		case ISP_VIDEO_DISPLAY:
+		case ISP_VIDEO_CODEC:
+			buf->delay = 1;
+			break;
+		default:
+			buf->delay = 0;
+			break;
+		}
+		list_add_tail(&buf->irqlist, &video->dmabusyqueue);
+		set_vd_dmaqueue_flg(video, ISP_VIDEO_DMAQUEUE_QUEUED);
+	}
+
+	return buf;
+}
+
 struct isp_video_buffer *mvisp_video_buffer_next(struct isp_video *video,
 					      unsigned int error)
 {
@@ -471,14 +524,17 @@ struct isp_video_buffer *mvisp_video_buffer_next(struct isp_video *video,
 	struct isp_video_queue *queue = video->queue;
 	enum isp_pipeline_state state;
 	struct isp_video_buffer *buf;
-	unsigned long flags;
+	unsigned long flags, mode_flags;
 	struct timespec ts;
+	bool no_buf_found = false;
+	enum ispvideo_capture_mode	capture_mode;
 
 	if (WARN_ON(list_empty(&video->dmabusyqueue)))
 		return NULL;
 
 	buf = list_first_entry(&video->dmabusyqueue, struct isp_video_buffer,
 			       irqlist);
+
 	if (buf->delay == 0) {
 		list_del(&buf->irqlist);
 
@@ -492,7 +548,9 @@ struct isp_video_buffer *mvisp_video_buffer_next(struct isp_video *video,
 		else
 			buf->vbuf.sequence = atomic_read(&pipe->frame_number);
 
+		spin_lock_irqsave(&queue->irq_queue_lock, flags);
 		buf->state = error ? ISP_BUF_STATE_ERROR : ISP_BUF_STATE_DONE;
+		spin_unlock_irqrestore(&queue->irq_queue_lock, flags);
 
 		wake_up(&buf->wait);
 	}
@@ -503,6 +561,36 @@ struct isp_video_buffer *mvisp_video_buffer_next(struct isp_video *video,
 	}
 
 	if (list_empty(&video->dmaidlequeue)) {
+		spin_lock_irqsave(&video->cap_mode_lock, mode_flags);
+		capture_mode = video->capture_mode;
+		spin_unlock_irqrestore(&video->cap_mode_lock, mode_flags);
+
+		if (capture_mode == ISPVIDEO_STILL_CAPTURE) {
+			no_buf_found = true;
+		} else {
+			spin_lock_irqsave(&queue->irq_queue_lock, flags);
+			if (list_empty(&queue->queue)) {
+				no_buf_found = true;
+			} else {
+				buf =
+					mvisp_video_load_userbuf(video, queue);
+				spin_unlock_irqrestore(
+					&queue->irq_queue_lock, flags);
+				return buf;
+			}
+			spin_unlock_irqrestore(&queue->irq_queue_lock, flags);
+		}
+	} else {
+		buf = list_first_entry(&video->dmaidlequeue,
+				struct isp_video_buffer,
+				irqlist);
+		list_del(&buf->irqlist);
+		spin_lock_irqsave(&queue->irq_queue_lock, flags);
+		buf->state = ISP_BUF_STATE_ACTIVE;
+		spin_unlock_irqrestore(&queue->irq_queue_lock, flags);
+	}
+
+	if (no_buf_found) {
 		if (queue->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
 			switch (video->video_type) {
 			case ISP_VIDEO_DISPLAY:
@@ -525,9 +613,6 @@ struct isp_video_buffer *mvisp_video_buffer_next(struct isp_video *video,
 		return NULL;
 	}
 
-	buf = list_first_entry(&video->dmaidlequeue, struct isp_video_buffer,
-			       irqlist);
-	list_del(&buf->irqlist);
 	switch (video->video_type) {
 	case ISP_VIDEO_INPUT:
 	case ISP_VIDEO_DISPLAY:
@@ -540,8 +625,6 @@ struct isp_video_buffer *mvisp_video_buffer_next(struct isp_video *video,
 	}
 	list_add_tail(&buf->irqlist, &video->dmabusyqueue);
 	set_vd_dmaqueue_flg(video, ISP_VIDEO_DMAQUEUE_QUEUED);
-
-	buf->state = ISP_BUF_STATE_ACTIVE;
 
 	return buf;
 }
@@ -797,7 +880,7 @@ isp_video_dqbuf(struct file *file, void *fh
 	struct isp_video_fh *vfh = to_isp_video_fh(fh);
 
 	return mvisp_video_queue_dqbuf(&vfh->queue, b,
-					  file->f_flags & O_NONBLOCK);
+					  file->f_flags & O_NONBLOCK, file);
 }
 
 
@@ -1213,11 +1296,13 @@ int mvisp_video_init(struct isp_video *video,
 	spin_lock_init(&video->pipe.lock);
 	spin_lock_init(&video->pipe.stream_lock);
 	spin_lock_init(&video->dmaflag_lock);
+	spin_lock_init(&video->cap_mode_lock);
 	mutex_init(&video->stream_lock);
 
 	INIT_LIST_HEAD(&video->dmaidlequeue);
 	INIT_LIST_HEAD(&video->dmabusyqueue);
 
+	video->capture_mode = ISPVIDEO_NORMAL_CAPTURE;
 	video->enable_dummy = enable_dummy;
 
 	/* Initialize the video device. */

@@ -43,14 +43,6 @@ enum ispdma_output_entity {
 	ISPDMA_OUTPUT_MEMORY,
 };
 
-enum ispdma_port {
-	ISPDMA_PORT_CODEC,
-	ISPDMA_PORT_DISPLAY,
-	ISPDMA_PORT_FBRX,
-	ISPDMA_PORT_FBTX,
-	ISPDMA_PORT_INPUT,
-};
-
 
 #define ISPDMA_PAD_SINK					0
 #define ISPDMA_PAD_CODEC_SOURCE			1

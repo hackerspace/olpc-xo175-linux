@@ -33,6 +33,7 @@
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 
+#include "ispvideo.h"
 #include "ispqueue.h"
 
 static int isp_video_buffer_lock_vma(struct isp_video_buffer *buf, int lock)
@@ -282,17 +283,11 @@ static void isp_video_buffer_query(
 	}
 }
 
-static int isp_video_buffer_wait(struct isp_video_buffer *buf, int nonblocking)
+static int isp_video_buffer_wait(struct isp_video_buffer *buf)
 {
-	if (nonblocking) {
-		return (buf->state != ISP_BUF_STATE_QUEUED &&
-			buf->state != ISP_BUF_STATE_ACTIVE)
-			? 0 : -EAGAIN;
-	}
-
-	return wait_event_interruptible(buf->wait,
-		buf->state != ISP_BUF_STATE_QUEUED &&
-		buf->state != ISP_BUF_STATE_ACTIVE);
+	return (buf->state != ISP_BUF_STATE_QUEUED &&
+		buf->state != ISP_BUF_STATE_ACTIVE)
+		? 0 : -EAGAIN;
 }
 
 static int isp_video_queue_free(struct isp_video_queue *queue)
@@ -438,6 +433,7 @@ int mvisp_video_queue_init(struct isp_video_queue *queue,
 	INIT_LIST_HEAD(&queue->queue);
 	mutex_init(&queue->lock);
 	spin_lock_init(&queue->irqlock);
+	spin_lock_init(&queue->irq_queue_lock);
 
 	queue->type = type;
 	queue->ops = ops;
@@ -525,11 +521,13 @@ int mvisp_video_queue_qbuf(struct isp_video_queue *queue,
 	unsigned long flags;
 	int ret = -EINVAL;
 	unsigned int empty;
+	unsigned long queue_flags = 0;
 
 	if (vbuf->type != queue->type)
 		goto done;
 
 	mutex_lock(&queue->lock);
+	spin_lock_irqsave(&queue->irq_queue_lock, queue_flags);
 
 	if (vbuf->index >= queue->count)
 		goto done;
@@ -573,38 +571,58 @@ int mvisp_video_queue_qbuf(struct isp_video_queue *queue,
 	ret = 0;
 
 done:
+	spin_unlock_irqrestore(&queue->irq_queue_lock, queue_flags);
 	mutex_unlock(&queue->lock);
 	return ret;
 }
 
 int mvisp_video_queue_dqbuf(struct isp_video_queue *queue,
-			       struct v4l2_buffer *vbuf, int nonblocking)
+	struct v4l2_buffer *vbuf, int nonblocking, struct file *file)
 {
 	struct isp_video_buffer *buf;
-	int ret;
+	int ret = -EINVAL;
+	unsigned long flags, mode_flags;
+	int num_ready_buf;
+	struct isp_video *video = video_drvdata(file);
+	enum ispvideo_capture_mode	capture_mode;
 
 	if (vbuf->type != queue->type)
 		return -EINVAL;
 
 	mutex_lock(&queue->lock);
+	spin_lock_irqsave(&queue->irq_queue_lock, flags);
 
 	if (list_empty(&queue->queue)) {
 		ret = -EINVAL;
 		goto done;
 	}
 
-	buf = list_first_entry(&queue->queue, struct isp_video_buffer, stream);
-	ret = isp_video_buffer_wait(buf, nonblocking);
-	if (ret < 0)
-		goto done;
+	num_ready_buf = 0;
+	list_for_each_entry(buf, &queue->queue, stream)
+		num_ready_buf++;
 
-	list_del(&buf->stream);
+	spin_lock_irqsave(&video->cap_mode_lock, mode_flags);
+	capture_mode = video->capture_mode;
+	spin_unlock_irqrestore(&video->cap_mode_lock, mode_flags);
 
-	isp_video_buffer_query(buf, vbuf);
-	buf->state = ISP_BUF_STATE_IDLE;
-	vbuf->flags &= ~V4L2_BUF_FLAG_QUEUED;
+	if ((num_ready_buf > 1) ||
+		(capture_mode == ISPVIDEO_STILL_CAPTURE)) {
+		if (list_empty(&queue->queue))
+			goto done;
 
+		buf = list_first_entry(&queue->queue,
+			struct isp_video_buffer, stream);
+		ret = isp_video_buffer_wait(buf);
+		if (ret < 0)
+			goto done;
+
+		list_del(&buf->stream);
+		isp_video_buffer_query(buf, vbuf);
+		buf->state = ISP_BUF_STATE_IDLE;
+		vbuf->flags &= ~V4L2_BUF_FLAG_QUEUED;
+	}
 done:
+	spin_unlock_irqrestore(&queue->irq_queue_lock, flags);
 	mutex_unlock(&queue->lock);
 	return ret;
 }
@@ -733,9 +751,32 @@ unsigned int mvisp_video_queue_poll(struct isp_video_queue *queue,
 {
 	struct isp_video_buffer *buf;
 	unsigned int mask = 0;
+	unsigned long flags, mode_flags;
+	int num_ready_buf;
+	struct isp_video *video = video_drvdata(file);
+	enum ispvideo_capture_mode	capture_mode;
 
 	mutex_lock(&queue->lock);
-	if (list_empty(&queue->queue)) {
+	spin_lock_irqsave(&queue->irq_queue_lock, flags);
+
+	num_ready_buf = 0;
+	list_for_each_entry(buf, &queue->queue, stream)
+		num_ready_buf++;
+
+	spin_lock_irqsave(&video->cap_mode_lock, mode_flags);
+	capture_mode = video->capture_mode;
+	spin_unlock_irqrestore(&video->cap_mode_lock, mode_flags);
+
+	if (capture_mode == ISPVIDEO_STILL_CAPTURE) {
+		if (list_empty(&queue->queue)) {
+			if (queue->poll_on_empty == false)
+				poll_wait(file, &queue->empty_wait, wait);
+
+			mask = 0;
+			queue->poll_on_empty = true;
+			goto done;
+		}
+	} else if (num_ready_buf <= 1) {
 		if (queue->poll_on_empty == false)
 			poll_wait(file, &queue->empty_wait, wait);
 
@@ -743,6 +784,7 @@ unsigned int mvisp_video_queue_poll(struct isp_video_queue *queue,
 		queue->poll_on_empty = true;
 		goto done;
 	}
+
 	buf = list_first_entry(&queue->queue, struct isp_video_buffer, stream);
 
 	poll_wait(file, &buf->wait, wait);
@@ -756,6 +798,7 @@ unsigned int mvisp_video_queue_poll(struct isp_video_queue *queue,
 	}
 
 done:
+	spin_unlock_irqrestore(&queue->irq_queue_lock, flags);
 	mutex_unlock(&queue->lock);
 	return mask;
 }

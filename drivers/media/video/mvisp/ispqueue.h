@@ -90,9 +90,10 @@ struct isp_video_queue {
 	unsigned int			count;
 	struct isp_video_buffer	*buffers[ISP_VIDEO_MAX_BUFFERS];
 	struct isp_video_buffer	*dummy_buffers[ISP_VIDEO_MAX_DUMMY_BUFFERS];
-	bool					enable_dummy;
+	bool				enable_dummy;
 	struct mutex			lock;
-	spinlock_t				irqlock;
+	spinlock_t			irqlock;
+	spinlock_t			irq_queue_lock;
 
 	unsigned int			streaming;
 	struct list_head		queue;
@@ -116,7 +117,8 @@ int mvisp_video_queue_querybuf(struct isp_video_queue *queue,
 int mvisp_video_queue_qbuf(struct isp_video_queue *queue,
 			      struct v4l2_buffer *vbuf);
 int mvisp_video_queue_dqbuf(struct isp_video_queue *queue,
-			       struct v4l2_buffer *vbuf, int nonblocking);
+			struct v4l2_buffer *vbuf, int nonblocking,
+			struct file *file);
 int mvisp_video_queue_streamon(struct isp_video_queue *queue);
 void mvisp_video_queue_streamoff(struct isp_video_queue *queue);
 int mvisp_video_queue_mmap(struct isp_video_queue *queue,

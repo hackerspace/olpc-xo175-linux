@@ -1276,6 +1276,41 @@ static int ispdma_mmap(struct v4l2_subdev *sd, struct vm_area_struct *vma)
 	return ret;
 }
 
+static int ispdma_config_capture_mode(
+	struct isp_ispdma_device *ispdma,
+	struct v4l2_ispdma_capture_mode *mode_cfg)
+{
+	unsigned long mode_flags;
+
+	if (mode_cfg->mode > ISPVIDEO_STILL_CAPTURE)
+		return -EINVAL;
+
+	switch (mode_cfg->port) {
+	case ISPDMA_PORT_CODEC:
+		spin_lock_irqsave(
+			&ispdma->vd_codec_out.cap_mode_lock,
+			mode_flags);
+		ispdma->vd_codec_out.capture_mode = mode_cfg->mode;
+		spin_unlock_irqrestore(
+			&ispdma->vd_codec_out.cap_mode_lock,
+			mode_flags);
+		break;
+	case ISPDMA_PORT_DISPLAY:
+		spin_lock_irqsave(
+			&ispdma->vd_disp_out.cap_mode_lock,
+			mode_flags);
+		ispdma->vd_disp_out.capture_mode = mode_cfg->mode;
+		spin_unlock_irqrestore(
+			&ispdma->vd_disp_out.cap_mode_lock,
+			mode_flags);
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
 static int ispdma_config_codec(struct isp_ispdma_device *ispdma,
 		struct v4l2_dxoipc_config_codec *cfg_codec)
 {
@@ -1346,6 +1381,10 @@ static long ispdma_ioctl(struct v4l2_subdev *sd
 	case VIDIOC_PRIVATE_DXOIPC_CONFIG_CODEC:
 		ret = ispdma_config_codec(ispdma,
 			(struct v4l2_dxoipc_config_codec *) arg);
+		break;
+	case VIDIOC_PRIVATE_ISPDMA_CAPTURE_MODE:
+		ret = ispdma_config_capture_mode(ispdma,
+			(struct v4l2_ispdma_capture_mode *) arg);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -1976,11 +2015,11 @@ static int ispdma_init_entities(struct isp_ispdma_device *ispdma)
 		return ret;
 
 	ret = mvisp_video_init
-		(&ispdma->vd_codec_out, ISP_VIDEO_CODEC_NAME, true);
+		(&ispdma->vd_codec_out, ISP_VIDEO_CODEC_NAME, false);
 	if (ret < 0)
 		return ret;
 	ret = mvisp_video_init
-		(&ispdma->vd_disp_out, ISP_VIDEO_DISPLAY_NAME, true);
+		(&ispdma->vd_disp_out, ISP_VIDEO_DISPLAY_NAME, false);
 	if (ret < 0)
 		return ret;
 
