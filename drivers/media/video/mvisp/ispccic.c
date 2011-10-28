@@ -672,7 +672,7 @@ static int ccic_link_setup(struct media_entity *entity,
 	struct isp_ccic_device *ccic = v4l2_get_subdevdata(sd);
 
 	switch (local->index | media_entity_type(remote->entity)) {
-	case CCIC_PAD_SINK | MEDIA_ENT_T_DEVNODE:
+	case CCIC_PAD_SINK | MEDIA_ENT_T_V4L2_SUBDEV:
 		if (flags & MEDIA_LNK_FL_ENABLED)
 			ccic->input |= CCIC_INPUT_SENSOR;
 		else
