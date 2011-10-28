@@ -2053,7 +2053,10 @@ static int pxa168fb_mode_switch(int mode)
 	struct pxa168fb_info *fbi_base = gfx_info.fbi[fb_base];
 	struct pxa168fb_info *fbi = gfx_info.fbi[fb_dual];
 	struct fb_info *info_base = fbi_base->fb_info;
-	struct fb_info *info_dual = fbi->fb_info;
+	struct fb_info *info_dual;
+	if (!fbi)
+		return -EAGAIN;
+	info_dual = fbi->fb_info;
 
 	if (fb_share) {
 		pr_info("fb_share mode already, try clone mode w/o"
