@@ -623,9 +623,6 @@ struct fbi_info {
 #define DSI_LCD_INPUT_DATA_RGB_MODE_666UNPACKET		2
 #define DSI_LCD_INPUT_DATA_RGB_MODE_888			3
 
-/*VDMA*/
-#define EOF_TIMEOUT 20
-
 /* LCD ISR clear mask */
 #define LCD_ISR_CLEAR_MASK_PXA168       0xffffffff
 #define LCD_ISR_CLEAR_MASK_PXA910       0xffff00cc
@@ -665,14 +662,18 @@ extern void dsi_set_controller(struct pxa168fb_info *fbi);
 extern void dsi_lanes_enable(struct pxa168fb_info *fbi, int en);
 
 /* VDMA related */
-extern void pxa688_vdma_clkset(int en);
-extern u32 pxa688fb_vdma_squ_malloc(unsigned *psize);
-extern void pxa688fb_vdma_set(struct pxa168fb_info *fbi, u32 psqu,
-	unsigned int lines, int vmode, int rotation, unsigned format);
-extern void pxa688fb_vdma_release(struct pxa168fb_info *fbi);
-extern int pxa688fb_vdma_get_linenum(struct pxa168fb_info *fbi, int angle);
-extern u32 vdma_ctrl_read(struct pxa168fb_info *fbi);
-extern void vdma_ctrl_write(struct pxa168fb_info *fbi, int value);
+#ifdef CONFIG_PXA688_VDMA
+#define EOF_TIMEOUT 20
+extern void pxa688_vdma_init(struct pxa168fb_info *fbi);
+extern void pxa688_vdma_config(struct pxa168fb_info *fbi);
+extern void pxa688_vdma_release(struct pxa168fb_info *fbi);
+extern void pxa688_vdma_en(int id, int vid, int enable);
+#else
+#define pxa688_vdma_init(fbi)		do {} while(0)
+#define pxa688_vdma_config(fbi)		do {} while(0)
+#define pxa688_vdma_release(fbi)	do {} while(0)
+#define pxa688_vdma_en(id, vid, enable)	do {} while(0)
+#endif
 
 #endif /* __KERNEL__ */
 #endif /* __ASM_MACH_PXA168FB_H */

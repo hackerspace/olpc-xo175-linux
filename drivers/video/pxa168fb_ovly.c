@@ -813,11 +813,8 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 again:
 		fbi->dma_on = vid_on ? 1 : 0;
 		val = CFG_DMA_ENA(check_modex_active(fbi->id, vid_on & 1));
-#ifdef CONFIG_PXA688_VDMA
-		if (vid_on == 0 && mi->vdma_enable == 1 &&
-			fbi->surface.viewPortInfo.rotation != 0)
-			pxa688fb_vdma_release(fbi);
-#endif
+		if (vid_on == 0 && mi->vdma_enable == 1)
+			pxa688_vdma_release(fbi);
 		if (!val) {
 			/* switch off, disable DMA */
 			dma_ctrl_set(fbi->id, 0, mask, val);
@@ -978,9 +975,6 @@ extern void enable_graphic_layer(int id);
 static int pxa168fb_release(struct fb_info *fi, int user)
 {
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)fi->par;
-#ifdef CONFIG_PXA688_VDMA
-	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-#endif
 	struct fb_var_screeninfo *var = &fi->var;
 	u32 mask;
 
@@ -990,10 +984,7 @@ static int pxa168fb_release(struct fb_info *fi, int user)
 	/* Force Video DMA engine off at release and reset the DMA format.*/
 	if (atomic_dec_and_test(&fbi->op_count)) {
 again:
-#ifdef CONFIG_PXA688_VDMA
-		if ((mi->vdma_enable) && (vdma_ctrl_read(fbi) & 1))
-			pxa688fb_vdma_release(fbi);
-#endif
+		pxa688_vdma_release(fbi);
 		mask = CFG_DMA_ENA_MASK | CFG_DMAFORMAT_MASK;
 		dma_ctrl_set(fbi->id, 0, mask, 0);
 		if (FB_MODE_DUP) {
@@ -1473,10 +1464,6 @@ static int pxa168fb_set_par(struct fb_info *fi)
 	struct fb_var_screeninfo *var = &fi->var;
 	struct _sOvlySurface *surface = &fbi->surface;
 	int pix_fmt;
-#ifdef CONFIG_PXA688_VDMA
-	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-	u32 val;
-#endif
 
 	dev_dbg(fi->dev, "FB1: Enter %s\n", __func__);
 	/*
@@ -1535,20 +1522,8 @@ static int pxa168fb_set_par(struct fb_info *fi)
 	/* set video start address */
 	set_video_start(fi, fi->var.xoffset, fi->var.yoffset);
 
-#ifdef CONFIG_PXA688_VDMA
-	if (mi->vdma_enable && fbi->surface.viewPortInfo.rotation) {
-		mi->vdma_lines = pxa688fb_vdma_get_linenum(fbi,
-			fbi->surface.viewPortInfo.rotation);
-		pxa688fb_vdma_set(fbi, mi->sram_paddr, mi->vdma_lines,
-			fbi->surface.videoMode,
-			fbi->surface.viewPortInfo.rotation,
-			fbi->surface.viewPortInfo.yuv_format);
-	} else if (mi->vdma_enable) {
-		val = vdma_ctrl_read(fbi) & 1;
-		if (val)
-			pxa688fb_vdma_release(fbi);
-	}
-#endif
+	/* set vdma configration */
+	pxa688_vdma_config(fbi);
 
 	pxa168fb_graphics_off(fbi);
 	return 0;
@@ -1863,15 +1838,8 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	pxa168fb_rw_all_regs(fbi, g_regs, 1);
 #endif
 
-	fbi->surface.viewPortInfo.rotation = 0;
-#ifdef CONFIG_PXA688_VDMA
-	if (mi->vdma_enable) {
-		if (!mi->sram_paddr)
-			mi->sram_paddr =
-				pxa688fb_vdma_squ_malloc(&mi->sram_size);
-		pxa688_vdma_clkset(1);
-	}
-#endif
+	/* init vdma clock/sram, etc. */
+	pxa688_vdma_init(fbi);
 
 	/*
 	 * Fill in sane defaults.

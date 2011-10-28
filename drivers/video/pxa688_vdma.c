@@ -47,13 +47,73 @@
 #include <mach/regs-apmu.h>
 #include <mach/mfp-mmp2.h>
 #include <mach/regs-mpmu.h>
-#include <mach/sram.h>
 #include <asm/mach-types.h>
 
+/* malloc sram buffer for squ - 64 lines by default */
+#include <mach/sram.h>
+static u32 pxa688_vdma_squ_malloc(unsigned int *psize)
+{
+	u32 psqu = 0, vsqu;
+
+	vsqu = (u32)sram_alloc("mmp-videosram", *psize, (dma_addr_t *)&psqu);
+
+	if (vsqu) {
+		return psqu;
+	} else {
+		pr_err("%s: sram malloc failed!\n", __func__);
+		return 0;
+	}
+}
+
+/* convert pix fmt to vmode */
+static FBVideoMode pixfmt_to_vmode(int pix_fmt)
+{
+	switch(pix_fmt) {
+	case PIX_FMT_RGB565:
+		return FB_VMODE_RGB565;
+	case PIX_FMT_BGR565:
+		return FB_VMODE_BGR565;
+	case PIX_FMT_RGB1555:
+		return FB_VMODE_RGB1555;
+	case PIX_FMT_BGR1555:
+		return FB_VMODE_BGR1555;
+	case PIX_FMT_RGB888PACK:
+		return FB_VMODE_RGB888PACK;
+	case PIX_FMT_BGR888PACK:
+		return FB_VMODE_BGR888PACK;
+	case PIX_FMT_RGB888UNPACK:
+		return FB_VMODE_RGB888UNPACK;
+	case PIX_FMT_BGR888UNPACK:
+		return FB_VMODE_BGR888UNPACK;
+	case PIX_FMT_RGBA888:
+		return FB_VMODE_RGBA888;
+	case PIX_FMT_BGRA888:
+		return FB_VMODE_BGRA888;
+
+	case PIX_FMT_YUV422PACK:
+		return FB_VMODE_YUV422PACKED;
+	case PIX_FMT_YVU422PACK:
+		return FB_VMODE_YUV422PACKED_SWAPUV;
+	case PIX_FMT_YUV422PLANAR:
+		return FB_VMODE_YUV422PLANAR;
+	case PIX_FMT_YVU422PLANAR:
+		return FB_VMODE_YUV422PLANAR_SWAPUV;
+	case PIX_FMT_YUV420PLANAR:
+		return FB_VMODE_YUV420PLANAR;
+	case PIX_FMT_YVU420PLANAR:
+		return FB_VMODE_YUV420PLANAR_SWAPUV;
+	case PIX_FMT_YUYV422PACK:
+		return FB_VMODE_YUV422PACKED_SWAPYUorV;
+	case PIX_FMT_YUV422PACK_IRE_90_270:
+		return FB_VMODE_YUV422PACKED_IRE_90_270;
+	default:
+		return -1;
+	};
+}
 
 #define vdma_ctrl(id)		(id ? VDMA_CTRL_2 : VDMA_CTRL_1)
 
-u32 lcd_pitch_read(struct pxa168fb_info *fbi)
+static u32 lcd_pitch_read(struct pxa168fb_info *fbi)
 {
 	struct lcd_regs *regs = get_regs(fbi->id);
 	u32 reg = (u32)&regs->g_pitch;
@@ -64,7 +124,7 @@ u32 lcd_pitch_read(struct pxa168fb_info *fbi)
 	return __raw_readl(reg) & 0xffff;
 }
 
-u32 lcd_height_read(struct pxa168fb_info *fbi)
+static u32 lcd_height_read(struct pxa168fb_info *fbi)
 {
 	struct lcd_regs *regs = get_regs(fbi->id);
 	u32 reg = (u32)&regs->g_size;
@@ -75,7 +135,7 @@ u32 lcd_height_read(struct pxa168fb_info *fbi)
 	return (__raw_readl(reg) & 0xfff0000) >> 16;
 }
 
-u32 lcd_width_read(struct pxa168fb_info *fbi)
+static u32 lcd_width_read(struct pxa168fb_info *fbi)
 {
 	struct lcd_regs *regs = get_regs(fbi->id);
 	u32 reg = (u32)&regs->g_size;
@@ -86,133 +146,11 @@ u32 lcd_width_read(struct pxa168fb_info *fbi)
 	return __raw_readl(reg) & 0xfff;
 }
 
-u32 vdma_ctrl_read(struct pxa168fb_info *fbi)
+static u32 vdma_ctrl_read(struct pxa168fb_info *fbi)
 {
 	u32 reg = (u32)fbi->reg_base + vdma_ctrl(fbi->id);
 
 	return __raw_readl(reg);
-}
-
-void vdma_ctrl_write(struct pxa168fb_info *fbi, int value)
-{
-	u32 reg = (u32)fbi->reg_base + vdma_ctrl(fbi->id);
-
-	__raw_writel(value, reg);
-}
-
-void pxa688_vdma_clkset(int en)
-{
-	if (en)
-		writel(readl(APMU_LCD2_CLK_RES_CTRL) | 0x11b,
-				APMU_LCD2_CLK_RES_CTRL);
-}
-
-/* malloc sram buffer for squ - 64 lines by default */
-u32 pxa688fb_vdma_squ_malloc(unsigned int *psize)
-{
-	u32 psqu = 0, vsqu;
-
-	vsqu = sram_alloc("mmp-videosram", *psize, (dma_addr_t *)&psqu);
-
-	if (vsqu != NULL) {
-		return psqu;
-	} else {
-		pr_err("%s: sram malloc failed!\n", __func__);
-		return 0;
-	}
-}
-
-void pxa688fb_vdma_release(struct pxa168fb_info *fbi)
-{
-	struct vdma_regs *vdma = (struct vdma_regs *)((u32)fbi->reg_base
-			+ VDMA_ARBR_CTRL);
-	struct vdma_ch_regs *vdma_ch = fbi->id ? &vdma->ch2 : &vdma->ch1;
-	unsigned reg; /*, isr, current_time, irq_mask; */
-
-#if 0
-	isr = readl(fbi->reg_base + SPU_IRQ_ISR);
-	if (fbi->id == 0)
-		irq_mask = DMA_FRAME_IRQ0_MASK | DMA_FRAME_IRQ1_MASK;
-	else if (fbi->id == 1)
-		irq_mask = TV_DMA_FRAME_IRQ0_MASK | TV_DMA_FRAME_IRQ1_MASK;
-	else
-		irq_mask = PN2_DMA_FRAME_IRQ0_MASK | PN2_DMA_FRAME_IRQ1_MASK;
-	irq_status_clear(fbi, irq_mask);
-	current_time = jiffies;
-	while ((readl(fbi->reg_base + SPU_IRQ_ISR) &	irq_mask) == 0) {
-		if (jiffies_to_msecs(jiffies - current_time) > EOF_TIMEOUT) {
-			pr_err("EOF not detected !");
-			break;
-		}
-	}
-#endif
-
-	reg = readl(&vdma_ch->ctrl);
-	reg &= ~0xF;
-	writel(reg, &vdma_ch->ctrl);
-
-	/* disable squ access */
-	reg = readl(fbi->reg_base + squln_ctrl(fbi->id));
-	reg &= (~0x1);
-	writel(reg, fbi->reg_base + squln_ctrl(fbi->id));
-	pr_info("%s fbi %d squln_ctrl %x\n", __func__,
-		fbi->id, readl(fbi->reg_base + squln_ctrl(fbi->id)));
-}
-
-/* convert graphics layer pix fmt to vmode */
-static int pixfmt_to_vmode(int video, int vmode)
-{
-	if (!video) {
-		switch (vmode) {
-		case PIX_FMT_RGB565:
-			vmode = FB_VMODE_RGB565;
-			break;
-		case PIX_FMT_BGR565:
-			vmode = FB_VMODE_BGR565;
-			break;
-		case PIX_FMT_RGB1555:
-			vmode = FB_VMODE_RGB1555;
-			break;
-		case PIX_FMT_BGR1555:
-			vmode = FB_VMODE_BGR1555;
-			break;
-		case PIX_FMT_RGB888PACK:
-			vmode = FB_VMODE_RGB888PACK;
-			break;
-		case PIX_FMT_BGR888PACK:
-			vmode = FB_VMODE_BGR888PACK;
-			break;
-		case PIX_FMT_RGB888UNPACK:
-			vmode = FB_VMODE_RGB888UNPACK;
-			break;
-		case PIX_FMT_BGR888UNPACK:
-			vmode = FB_VMODE_BGR888UNPACK;
-			break;
-		case PIX_FMT_RGBA888:
-			vmode = FB_VMODE_RGBA888;
-			break;
-		case PIX_FMT_BGRA888:
-			vmode = FB_VMODE_BGRA888;
-			break;
-
-		case PIX_FMT_YUV422PACK:
-			vmode = FB_VMODE_YUV422PACKED;
-			break;
-		case PIX_FMT_YVU422PACK:
-			vmode = FB_VMODE_YUV422PACKED_SWAPUV;
-			break;
-		case PIX_FMT_YUYV422PACK:
-			vmode = FB_VMODE_YUV422PACKED_SWAPYUorV;
-			break;
-		case PIX_FMT_YUV422PACK_IRE_90_270:
-			vmode = FB_VMODE_YUV422PACKED_IRE_90_270;
-			break;
-		default:
-			break;
-		};
-	}
-
-	return vmode;
 }
 
 static int __get_vdma_rot_ctrl(int vmode, int angle, int yuv_format)
@@ -261,7 +199,6 @@ static int __get_vdma_rot_ctrl(int vmode, int angle, int yuv_format)
 		reg |= rotation << 11;
 		reg |= 0 << 7;
 		break;
-
 	}
 
 	if (vmode == FB_VMODE_YUV422PACKED_IRE_90_270 || flag == 1) {
@@ -387,13 +324,22 @@ static int __get_vdma_ctrl(struct pxa168fb_info *fbi, int rotation, int line)
 		return (line << 8) | 0xa5;
 }
 
-int pxa688fb_vdma_get_linenum(struct pxa168fb_info *fbi, int angle)
+static void pxa688_vdma_clkset(int en)
+{
+	if (en)
+		writel(readl(APMU_LCD2_CLK_RES_CTRL) | 0x11b,
+				APMU_LCD2_CLK_RES_CTRL);
+}
+
+static int pxa688_vdma_get_linenum(struct pxa168fb_info *fbi, int angle)
 {
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 	int mulfactor, lines, lines_exp;
 	int pitch = lcd_pitch_read(fbi);
 	int height = lcd_height_read(fbi);
 
+	if (!pitch)
+		return 0;
 	if (!angle || (angle == 1))
 		/* no rotation */
 		mulfactor = 2;
@@ -419,26 +365,31 @@ int pxa688fb_vdma_get_linenum(struct pxa168fb_info *fbi, int angle)
 	return lines;
 }
 
-void pxa688fb_vdma_set(struct pxa168fb_info *fbi, u32 psqu, unsigned int lines,
-		int vmode, int rotation, unsigned format)
+static void pxa688_vdma_set(struct pxa168fb_info *fbi, u32 psqu,
+	unsigned int lines, int pix_fmt, int rotation, unsigned format)
 {
 	struct vdma_regs *vdma = (struct vdma_regs *)((u32)fbi->reg_base
 			+ VDMA_ARBR_CTRL);
 	struct vdma_ch_regs *vdma_ch = fbi->id ? &vdma->ch2 : &vdma->ch1;
 	unsigned int reg, width, height, bpp;
+	FBVideoMode vmode;
 
 	if (lines < 2) {
-		pr_err("%s lines = %d < 2???\n", __func__, lines);
+		pr_warn("%s lines = %d < 2???\n", __func__, lines);
 		return;
 	}
 
 	width = lcd_width_read(fbi);
 	height = lcd_height_read(fbi);
 	bpp = lcd_pitch_read(fbi) / width;
-	vmode = pixfmt_to_vmode(fbi->vid, vmode);
+	vmode = pixfmt_to_vmode(pix_fmt);
+	if (vmode < 0) {
+		pr_err("%s pix_fmt %d not supported\n", __func__, pix_fmt);
+		return;
+	}
 
 	if (!psqu) {
-		pxa688fb_vdma_release(fbi);
+		pxa688_vdma_release(fbi);
 		return;
 	} else {
 		/* select video layer or graphics layer */
@@ -485,6 +436,77 @@ void pxa688fb_vdma_set(struct pxa168fb_info *fbi, u32 psqu, unsigned int lines,
 	/* control */
 	reg = __get_vdma_ctrl(fbi, rotation, lines);
 	writel(reg, &vdma_ch->ctrl);
+}
+
+void pxa688_vdma_config(struct pxa168fb_info *fbi)
+{
+	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
+
+	pr_debug("%s fbi %d vid %d vdma_enable %d active %d\n",
+		__func__, fbi->id, fbi->vid, mi->vdma_enable, fbi->active);
+	if (mi->vdma_enable && fbi->active) {
+		int active = fbi->check_modex_active(fbi->id, fbi->active);
+		if (active) {
+			mi->vdma_lines = pxa688_vdma_get_linenum(fbi,
+				fbi->surface.viewPortInfo.rotation);
+			pxa688_vdma_set(fbi, mi->sram_paddr, mi->vdma_lines,
+				fbi->pix_fmt, fbi->surface.viewPortInfo.rotation,
+				fbi->surface.viewPortInfo.yuv_format);
+		} else
+			pxa688_vdma_release(fbi);
+	}
+}
+
+void pxa688_vdma_init(struct pxa168fb_info *fbi)
+{
+	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
+
+	if (mi->vdma_enable) {
+		if (!mi->sram_paddr)
+			mi->sram_paddr = pxa688_vdma_squ_malloc(&mi->sram_size);
+		pr_info("vdma enabled, sram_paddr 0x%x sram_size 0x%x\n",
+			mi->sram_paddr, mi->sram_size);
+		pxa688_vdma_clkset(1);
+	}
+}
+
+void pxa688_vdma_release(struct pxa168fb_info *fbi)
+{
+	struct vdma_regs *vdma = (struct vdma_regs *)((u32)fbi->reg_base
+			+ VDMA_ARBR_CTRL);
+	struct vdma_ch_regs *vdma_ch = fbi->id ? &vdma->ch2 : &vdma->ch1;
+	unsigned reg; /*, isr, current_time, irq_mask; */
+
+	if (!(vdma_ctrl_read(fbi) & 1))
+		return;
+#if 0
+	isr = readl(fbi->reg_base + SPU_IRQ_ISR);
+	if (fbi->id == 0)
+		irq_mask = DMA_FRAME_IRQ0_MASK | DMA_FRAME_IRQ1_MASK;
+	else if (fbi->id == 1)
+		irq_mask = TV_DMA_FRAME_IRQ0_MASK | TV_DMA_FRAME_IRQ1_MASK;
+	else
+		irq_mask = PN2_DMA_FRAME_IRQ0_MASK | PN2_DMA_FRAME_IRQ1_MASK;
+	irq_status_clear(fbi, irq_mask);
+	current_time = jiffies;
+	while ((readl(fbi->reg_base + SPU_IRQ_ISR) &	irq_mask) == 0) {
+		if (jiffies_to_msecs(jiffies - current_time) > EOF_TIMEOUT) {
+			pr_err("EOF not detected !");
+			break;
+		}
+	}
+#endif
+
+	reg = readl(&vdma_ch->ctrl);
+	reg &= ~0xF;
+	writel(reg, &vdma_ch->ctrl);
+
+	/* disable squ access */
+	reg = readl(fbi->reg_base + squln_ctrl(fbi->id));
+	reg &= (~0x1);
+	writel(reg, fbi->reg_base + squln_ctrl(fbi->id));
+	printk(KERN_DEBUG "%s fbi %d squln_ctrl %x\n", __func__,
+		fbi->id, readl(fbi->reg_base + squln_ctrl(fbi->id)));
 }
 
 ssize_t vdma_show(struct device *dev, struct device_attribute *attr,

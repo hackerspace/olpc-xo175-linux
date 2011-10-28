@@ -671,31 +671,6 @@ again:
 	}
 }
 
-static void pxa168fb_vdma_config(struct pxa168fb_info *fbi)
-{
-#ifdef CONFIG_PXA688_VDMA
-	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-
-	pr_debug("%s fbi %d vdma_enable %d active %d\n",
-		__func__, fbi->id, mi->vdma_enable, fbi->active);
-	if (mi->vdma_enable && fbi->active) {
-		int active = check_modex_active(fbi->id, fbi->active);
-		if (active) {
-			mi->vdma_lines = pxa688fb_vdma_get_linenum(fbi, 0);
-			pxa688fb_vdma_set(fbi, mi->sram_paddr, mi->vdma_lines,
-				fbi->pix_fmt, 0, fbi->pix_fmt);
-		} else {
-			u32 val = vdma_ctrl_read(fbi) & 1;
-			if (val) {
-				pr_debug("%s fbi %d val %x\n",
-					__func__, fbi->id, val);
-				pxa688fb_vdma_release(fbi);
-			}
-		}
-	}
-#endif
-}
-
 static void set_graphics_start(struct fb_info *info,
 	int xoffset, int yoffset, int wait_vsync)
 {
@@ -731,7 +706,7 @@ again:
 	writel(addr, &regs->g_0);
 	set_dma_active(fbi);
 
-	pxa168fb_vdma_config(fbi);
+	pxa688_vdma_config(fbi);
 
 	if (FB_MODE_DUP) {
 		fbi = gfx_info.fbi[fb_dual];
@@ -2445,16 +2420,9 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	pr_info("fb%d: sclk_src %d clk_get_rate = %d\n", fbi->id,
 		mi->sclk_src, (int)clk_get_rate(fbi->clk));
 
-#ifdef CONFIG_PXA688_VDMA
-	if (mi->vdma_enable) {
-		if (!mi->sram_paddr)
-			mi->sram_paddr = pxa688fb_vdma_squ_malloc(
-				&mi->sram_size);
-		pr_info("vdma enabled, sram_paddr 0x%x sram_size 0x%x\n",
-			mi->sram_paddr, mi->sram_size);
-		pxa688_vdma_clkset(1);
-	}
-#endif
+	/* init vdma clock/sram, etc. */
+	pxa688_vdma_init(fbi);
+
 	/* Fill in sane defaults */
 	pxa168fb_set_default(fbi, mi);	/* FIXME */
 	pxa168fb_set_par(info);
