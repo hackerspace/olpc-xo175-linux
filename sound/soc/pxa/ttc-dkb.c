@@ -58,12 +58,29 @@ static int ttc_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	struct ssp_priv *priv = snd_soc_dai_get_drvdata(cpu_dai);
+	struct ssp_device *ssp = priv->ssp;
+	u32 sscr0;
 
 	/* init ssp clock: MPMU ssp clock, need to enable SYSCLK_EN
 	 * and BITCLK_EN to make sure input/output clock work well
 	 * for SSP unit */
 	__raw_writel(0xf820130b, MPMU_ISCCRX0);
 	__raw_writel(0xf820130b, MPMU_ISCCRX1);
+
+	sscr0 = __raw_readl(ssp->mmio_base + SSCR0);
+
+	/* gssp(ssp-dai.4) is shared by AP and CP. AP would read the gssp register
+	 * configured by CP after voice call. it would impact DMA configuration. AP
+	 * and CP use different GSSP configuration, and CP's configuration would set
+	 * DMA to 16bit width while AP set it to 32 bit. so we need to re-init GSSP
+	 * register setting. */
+	if (!memcmp(cpu_dai->name, "pxa-ssp-dai.4", sizeof("pxa-ssp-dai.4")) && !(sscr0 & SSCR0_SSE)) {
+		__raw_writel(0x0, ssp->mmio_base + SSCR0);
+		__raw_writel(0x0, ssp->mmio_base + SSCR1);
+		__raw_writel(0x0, ssp->mmio_base + SSPSP);
+		__raw_writel(0x0, ssp->mmio_base + SSTSA);
+	}
 
 	snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_I2S |
 			    SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBM_CFM);
