@@ -551,6 +551,7 @@ int mmp__vmeta_unset_dvfm_constraint(int idx)
 	return 0;
 	/*dvfm_enable(idx);*/
 }
+
 void vmeta_pwr(unsigned int enableDisable)
 {
 	unsigned int reg_vmpwr = 0;
@@ -559,27 +560,78 @@ void vmeta_pwr(unsigned int enableDisable)
 		if (reg_vmpwr & (APMU_VMETA_PWRUP_ON|APMU_VMETA_ISB))
 			return; /*Pwr is already on*/
 
+		/* 1. Turn on power switches */
 		reg_vmpwr |= APMU_VMETA_PWRUP_SLOW_RAMP;
 		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
-		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
-		mdelay(1);
 
+		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
 		reg_vmpwr |= APMU_VMETA_PWRUP_ON;
 		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
-		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
-		mdelay(1);
+		udelay(100);
 
+		/* 2. enable vMeta AXI clock */
 		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
+		reg_vmpwr |= APMU_VMETA_AXICLK_EN;
+		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
+		udelay(100);
 
+		/* 3. set up vMeta source */
+		/* 4. enable vMeta clock */
+		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
+		reg_vmpwr |= APMU_VMETA_CLK_EN;
+		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
+		udelay(100);
+
+		/* 5. disable isolation*/
+		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
 		reg_vmpwr |= APMU_VMETA_ISB;
 		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
+
+		/* 6. deassert AXI reset*/
+		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
+		reg_vmpwr |= APMU_VMETA_AXI_RST;
+		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
+
+		/* 7. deassert vMeta reset*/
+		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
+		reg_vmpwr |= APMU_VMETA_RST;
+		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
+		udelay(100);
+
+		/* 8 gate clock */
+		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
+		reg_vmpwr &= ~APMU_VMETA_CLK_EN;
+		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
+		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
+		reg_vmpwr &= ~APMU_VMETA_AXICLK_EN;
+		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
+
 	} else if (VMETA_PWR_DISABLE == enableDisable) {
 		if ((reg_vmpwr & (APMU_VMETA_PWRUP_ON|APMU_VMETA_ISB)) == 0)
 			return; /*Pwr is already off*/
 
+		/* 1. isolation */
 		reg_vmpwr &= ~APMU_VMETA_ISB;
 		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
 
+		/* 2. reset*/
+		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
+		reg_vmpwr &= ~APMU_VMETA_AXI_RST;
+		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
+
+		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
+		reg_vmpwr &= ~APMU_VMETA_RST;
+		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
+
+		/* 3. make sure clock disabled*/
+		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
+		reg_vmpwr &= ~APMU_VMETA_CLK_EN;
+		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
+		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
+		reg_vmpwr &= ~APMU_VMETA_AXICLK_EN;
+		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
+
+		/* 4. turn off power */
 		reg_vmpwr &= ~APMU_VMETA_PWRUP_ON;
 		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
 	}

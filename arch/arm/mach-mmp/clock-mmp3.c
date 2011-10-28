@@ -1945,35 +1945,22 @@ static int vmeta_clk_enable(struct clk *clk)
 	clk_reparent(clk, clk->inputs[clk->enable_val].input);
 
 	reg = readl(clk->clk_rst);
+	reg |= APMU_VMETA_AXICLK_EN;
+	writel(reg, clk->clk_rst);
+	reg = readl(clk->clk_rst);
+	udelay(100);
+
+	reg = readl(clk->clk_rst);
 	reg &= ~APMU_VMETA_CLK_SEL_MASK;
 	reg &= ~APMU_VMETA_CLK_DIV_MASK;
 	reg |= (clk->inputs[clk->enable_val].value) << APMU_VMETA_CLK_SEL_SHIFT;
 	reg |= (clk->div) << APMU_VMETA_CLK_DIV_SHIFT;
-
 	writel(reg, clk->clk_rst);
-	reg = readl(clk->clk_rst);
 
-	reg |= APMU_VMETA_AXICLK_EN;
-	writel(reg, clk->clk_rst);
 	reg = readl(clk->clk_rst);
-
 	reg |= APMU_VMETA_CLK_EN;
 	writel(reg, clk->clk_rst);
-	reg = readl(clk->clk_rst);
-
-	reg &= ~APMU_VMETA_AXI_RST;
-	writel(reg, clk->clk_rst);
-	reg = readl(clk->clk_rst);
-	reg |= APMU_VMETA_AXI_RST;
-	writel(reg, clk->clk_rst);
-	reg = readl(clk->clk_rst);
-
-	reg &= ~APMU_VMETA_RST;
-	writel(reg, clk->clk_rst);
-	reg = readl(clk->clk_rst);
-	reg |= APMU_VMETA_RST;
-	writel(reg, clk->clk_rst);
-	reg = readl(clk->clk_rst);
+	udelay(100);
 
 	return 0;
 }
@@ -1983,15 +1970,10 @@ static void vmeta_clk_disable(struct clk *clk)
 	int reg;
 
 	reg = readl(clk->clk_rst);
-	reg &= ~APMU_VMETA_AXI_RST;
+	reg &= ~APMU_VMETA_CLK_EN;
 	writel(reg, clk->clk_rst);
-	reg &= ~APMU_VMETA_RST;
-	writel(reg, clk->clk_rst);
-
 	reg = readl(clk->clk_rst);
 	reg &= ~APMU_VMETA_AXICLK_EN;
-	writel(reg, clk->clk_rst);
-	reg &= ~APMU_VMETA_CLK_EN;
 	writel(reg, clk->clk_rst);
 }
 
