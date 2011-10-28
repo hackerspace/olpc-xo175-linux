@@ -52,25 +52,11 @@ static int dvfm_dev_idx;
 #define FREE_ENTRY	0x2
 
 static int pxa168fb_set_par(struct fb_info *fi);
-static void set_video_start(struct fb_info *fi, int xoffset, int yoffset);
-static void set_dma_control0(struct pxa168fb_info *fbi);
 static int pxa168fb_pan_display(struct fb_var_screeninfo *var,
 				 struct fb_info *fi);
 
 static unsigned int max_fb_size = 0;
 static unsigned int fb_size_from_cmd = 0;
-
-/* Compatibility mode global switch .....
- *
- * This is a secret switch for user space programs that may want to
- * select color spaces and set overlay position through the nonstd
- * element of fb_var_screeninfo This is the way legacy PXA display
- * drivers were used. The mode reverts back to normal mode on driver release.
- *
- * To turn on compatibility with older PXA, set the MSB of nonstd to 0xAA.
- */
-
-static unsigned int COMPAT_MODE;
 
 static struct _sViewPortInfo gViewPortInfo = {
 	.srcWidth = 640,	/* video source size */
@@ -146,148 +132,6 @@ find_best_mode(struct pxa168fb_info *fbi, struct fb_var_screeninfo *var)
 	return best_mode;
 }
 #endif
-
-static int determine_best_pix_fmt(struct fb_var_screeninfo *var)
-{
-	unsigned char pxa_format;
-
-	/* compatibility switch: if var->nonstd MSB is 0xAA then skip to
-	 * using the nonstd variable to select the color space
-	 */
-	if (COMPAT_MODE != 0x2625) {
-
-		/*
-		 * Pseudocolor mode?
-		 */
-		if (var->bits_per_pixel == 8)
-			return PIX_FMT_PSEUDOCOLOR;
-		/*
-		 * Check for YUV422PACK.
-		 */
-		if (var->bits_per_pixel == 16 && var->red.length == 16 &&
-		    var->green.length == 16 && var->blue.length == 16) {
-			if (var->red.offset >= var->blue.offset) {
-				if (var->red.offset == 4)
-					return PIX_FMT_YUV422PACK;
-				else
-					return PIX_FMT_YUYV422PACK;
-			} else
-				return PIX_FMT_YVU422PACK;
-		}
-		/*
-		 * Check for YUV422PLANAR.
-		 */
-		if (var->bits_per_pixel == 16 && var->red.length == 8 &&
-		    var->green.length == 4 && var->blue.length == 4) {
-			if (var->red.offset >= var->blue.offset)
-				return PIX_FMT_YUV422PLANAR;
-			else
-				return PIX_FMT_YVU422PLANAR;
-		}
-
-		/*
-		 * Check for YUV420PLANAR.
-		 */
-		if (var->bits_per_pixel == 12 && var->red.length == 8 &&
-		    var->green.length == 2 && var->blue.length == 2) {
-			if (var->red.offset >= var->blue.offset)
-				return PIX_FMT_YUV420PLANAR;
-			else
-				return PIX_FMT_YVU420PLANAR;
-		}
-		/*
-		 * Check for 565/1555.
-		 */
-		if (var->bits_per_pixel == 16 && var->red.length <= 5 &&
-		    var->green.length <= 6 && var->blue.length <= 5) {
-			if (var->transp.length == 0) {
-				if (var->red.offset >= var->blue.offset)
-					return PIX_FMT_RGB565;
-				else
-					return PIX_FMT_BGR565;
-			}
-
-			if (var->transp.length == 1 && var->green.length <= 5) {
-				if (var->red.offset >= var->blue.offset)
-					return PIX_FMT_RGB1555;
-				else
-					return PIX_FMT_BGR1555;
-			}
-
-			/* fall through */
-		}
-
-		/*
-		 * Check for 888/A888.
-		 */
-		if (var->bits_per_pixel <= 32 && var->red.length <= 8 &&
-		    var->green.length <= 8 && var->blue.length <= 8) {
-			if (var->bits_per_pixel == 24 &&
-				 var->transp.length == 0) {
-				if (var->red.offset >= var->blue.offset)
-					return PIX_FMT_RGB888PACK;
-				else
-					return PIX_FMT_BGR888PACK;
-			}
-
-			if (var->bits_per_pixel == 32 &&
-				 var->transp.offset == 24) {
-				if (var->red.offset >= var->blue.offset)
-					return PIX_FMT_RGBA888;
-				else
-					return PIX_FMT_BGRA888;
-			} else {
-				if (var->transp.length == 8) {
-					if (var->red.offset >= var->blue.offset)
-						return PIX_FMT_RGB888UNPACK;
-					else
-						return PIX_FMT_BGR888UNPACK;
-				} else
-					return PIX_FMT_YUV422PACK_IRE_90_270;
-
-			}
-			/* fall through */
-		}
-	} else {
-
-		pxa_format = (var->nonstd >> 20) & 0xf;
-
-		switch (pxa_format) {
-		case 0:
-			return PIX_FMT_RGB565;
-			break;
-		case 3:
-			return PIX_FMT_YUV422PLANAR;
-			break;
-		case 4:
-			return PIX_FMT_YUV420PLANAR;
-			break;
-		case 5:
-			return PIX_FMT_RGB1555;
-			break;
-		case 6:
-			return PIX_FMT_RGB888PACK;
-			break;
-		case 7:
-			return PIX_FMT_RGB888UNPACK;
-			break;
-		case 8:
-			return PIX_FMT_RGBA888;
-			break;
-		case 9:
-			return PIX_FMT_YUV422PACK;
-			break;
-
-		default:
-			return -EINVAL;
-		}
-	}
-
-
-
-	return -EINVAL;
-}
-
 
 static void pxa168_sync_colorkey_structures(struct pxa168fb_info *fbi,
 						 int direction)
@@ -492,7 +336,7 @@ static int pxa168fb_update_buff(struct fb_info *fi,
 	if (addr) {
 		/* update buffer address only if changed */
 		if (check_surface_addr(fi, surface))
-			set_video_start(fi, 0, 0);
+			set_start_address(fi, 0, 0, 0);
 		else
 			return -EINVAL;
 	} else if (check_surface(fi, surface->videoMode,
@@ -510,23 +354,6 @@ static void pxa168fb_clear_framebuffer(struct fb_info *fi)
 	struct pxa168fb_info *fbi = fi->par;
 
 	memset(fbi->fb_start, 0, fbi->fb_size);
-}
-
-static int check_modex_active(int id, int on)
-{
-	int active = on & ovly_info.fbi[id]->dma_on;
-
-	/* mode2, base off, dual on */
-	if ((fb_mode == 2) && (id == fb_base))
-		active = 0;
-
-	/* mode3, dual off, base on */
-	if ((fb_mode == 3) && (id == fb_dual))
-		active = 0;
-
-	pr_debug("%s fb_mode %d fbi[%d] on %d active %d dma_on %d\n",
-		__func__, fb_mode, id, on, active, ovly_info.fbi[id]->dma_on);
-	return active;
 }
 
 #ifdef CONFIG_DYNAMIC_PRINTK_DEBUG
@@ -812,7 +639,7 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 		mask = CFG_DMA_ENA_MASK;
 again:
 		fbi->dma_on = vid_on ? 1 : 0;
-		val = CFG_DMA_ENA(check_modex_active(fbi->id, vid_on & 1));
+		val = CFG_DMA_ENA(check_modex_active(fbi));
 		if (vid_on == 0 && fbi->vdma_enable == 1)
 			pxa688_vdma_release(fbi);
 		if (!val) {
@@ -1000,7 +827,7 @@ again:
 
 	/* Turn off compatibility mode */
 	var->nonstd &= ~0xff000000;
-	COMPAT_MODE = 0;
+	fbi->compat_mode = 0;
 
 	/* make sure graphics layer is enabled */
 	enable_graphic_layer(fbi->id);
@@ -1112,10 +939,10 @@ static int pxa168fb_check_var(struct fb_var_screeninfo *var, struct fb_info *fi)
 	 */
 
 	if ((var->nonstd >> 24) == 0xAA)
-		COMPAT_MODE = 0x2625;
+		fbi->compat_mode = 0x2625;
 
 	if ((var->nonstd >> 24) == 0x55)
-		COMPAT_MODE = 0x0;
+		fbi->compat_mode = 0x0;
 
 	/*
 	 * Basic geometry sanity checks.
@@ -1166,7 +993,7 @@ static int pxa168fb_check_var(struct fb_var_screeninfo *var, struct fb_info *fi)
 	/*
 	 * Select most suitable hardware pixel format.
 	 */
-	pix_fmt = determine_best_pix_fmt(var);
+	pix_fmt = determine_best_pix_fmt(var, fbi->compat_mode);
 	dev_dbg(fi->dev, "%s determine_best_pix_fmt returned: %d\n",
 		 __func__, pix_fmt);
 	if (pix_fmt < 0)
@@ -1175,317 +1002,23 @@ static int pxa168fb_check_var(struct fb_var_screeninfo *var, struct fb_info *fi)
 	return 0;
 }
 
-static u32 dma_ctrl0_update(struct pxa168fb_mach_info *mi, u32 x, u32 pix_fmt)
-{
-	/*
-	 * clear video layer's field
-	 */
-	x &= 0xef0fff01;
-
-	/*
-	 * If we are in a pseudo-color mode, we need to enable
-	 * palette lookup.
-	 */
-	if (pix_fmt == PIX_FMT_PSEUDOCOLOR)
-		x |= 0x10000000;
-
-	x |= 1 << 6;	/* horizontal smooth filter */
-	/*
-	 * Configure hardware pixel format.
-	 */
-	x |= ((pix_fmt & ~0x1000) >> 1) << 20;
-
-	/*
-	 * color format in memory:
-	 * PXA168/PXA910:
-	 * PIX_FMT_YUV422PACK: UYVY(CbY0CrY1)
-	 * PIX_FMT_YUV422PLANAR: YUV
-	 * PIX_FMT_YUV420PLANAR: YUV
-	 */
-	if (((pix_fmt & ~0x1000) >> 1) == 5) {
-		x |= 0x00000002;
-		x |= (mi->panel_rbswap) << 4;
-		if ((pix_fmt & 0x1000))
-			x |= 1 << 2;	/* Y and U/V is swapped */
-		else
-			x |= (pix_fmt & 1) << 3;
-	} else if (pix_fmt >= 12) {
-		/* PIX_FMT_YUV422PACK_IRE_90_270 is here */
-		x |= 0x00000002;
-		x |= (pix_fmt & 1) << 3;
-		x |= (mi->panel_rbswap) << 4;
-	} else {
-		x |= (((pix_fmt & 1) ^ 1) ^ (mi->panel_rbswap)) << 4;
-	}
-
-	return x;
-}
-
-static void set_dma_control0(struct pxa168fb_info *fbi)
-{
-	struct pxa168fb_mach_info *mi;
-	u32 x = 0, x_bk = 0;
-
-	dev_dbg(fbi->fb_info->dev, "FB1: Enter %s\n", __func__);
-again:
-	/*
-	 * Get reg's current value
-	 */
-	x_bk = x = dma_ctrl_read(fbi->id, 0);
-	mi = fbi->dev->platform_data;
-
-	/* update dma_ctrl0 according to pix_fmt */
-	x = dma_ctrl0_update(mi, x, fbi->pix_fmt);
-
-	/* clear reserved bits if not panel path */
-	if (fbi->id)
-		x &= ~CFG_ARBFAST_ENA(1);
-
-	if (x_bk != x) {
-		dma_ctrl_write(fbi->id, 0, x);
-		pr_debug("set fbi %d dma ctrl0(0x%x -> 0x%x): addr %lu"
-			" fbi->active %d\n", fbi->id, x_bk,
-			x, fbi->new_addr[0], fbi->active);
-	}
-
-	if (FB_MODE_DUP) {
-		struct _sDualInfo *dual = &fbi->surface.dualInfo;
-
-		fbi = ovly_info.fbi[fb_dual];
-		mi = fbi->dev->platform_data;
-
-		/* copy pix_fmt */
-		if (dual->rotate == 1)
-			fbi->pix_fmt = convert_pix_fmt(dual->videoMode);
-		else
-			fbi->pix_fmt = ovly_info.fbi[fb_base]->pix_fmt;
-
-		if (fbi->debug == 8) {
-			pr_info("%s dual->rotate %d videoMode %d"
-				" pix_fmt %d\n", __func__, dual->rotate,
-				dual->videoMode, fbi->pix_fmt);
-		}
-		goto again;
-	}
-}
-
-static void set_yuv_start(struct pxa168fb_info *fbi, unsigned long addr)
-{
-	struct lcd_regs *regs = get_regs(fbi->id);
-	struct fb_var_screeninfo *var = &fbi->fb_info->var;
-	unsigned long addr_y0, addr_u0, addr_v0;
-
-	/* caculate yuv offset */
-	addr_y0 = addr;
-
-	if ((fbi->pix_fmt >= 12) && (fbi->pix_fmt <= 15))
-		addr += var->xres * var->yres;
-	addr_u0 = addr;
-
-	if ((fbi->pix_fmt >> 1) == 6)
-		addr += var->xres * var->yres/2;
-	else if ((fbi->pix_fmt>>1) == 7)
-		addr += var->xres * var->yres/4;
-	addr_v0 = addr;
-
-	/* update registers */
-	writel(addr_y0, &regs->v_y0);
-	writel(addr_u0, &regs->v_u0);
-	writel(addr_v0, &regs->v_v0);
-}
-
-static void set_video_start(struct fb_info *fi, int xoffset, int yoffset)
-{
-	struct pxa168fb_info *fbi = fi->par;
-	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-	struct fb_var_screeninfo *var = &fi->var;
-	struct lcd_regs *regs;
-	int pixel_offset;
-	unsigned long addr = 0;
-	static int debugcount = 0;
-
-	if (debugcount < 10)
-		debugcount++;
-
-	if (debugcount < 9)
-		dev_dbg(fi->dev, "Enter %s\n", __func__);
-
-again:
-	regs = get_regs(fbi->id);
-
-	if (!(fbi->new_addr[0])) {
-		if (!mi->mmap) {
-			pr_debug("fbi %d(line %d): input err, mmap is not"
-				" supported\n", fbi->id, __LINE__);
-			return;
-		}
-		pixel_offset = (yoffset * var->xres_virtual) + xoffset;
-		/* Set this at VSync interrupt time */
-		addr = fbi->fb_start_dma + ((pixel_offset *
-			 var->bits_per_pixel) >> 3);
-		set_yuv_start(fbi, addr);
-
-		/* return until the address take effect after vsync occurs */
-		if (NEED_VSYNC(fbi))
-			wait_for_vsync(fbi);
-	} else {
-		if (fbi->debug == 1)
-			printk(KERN_DEBUG"%s: fbi %d vid %d buffer updated to"
-				"%x\n", __func__, fbi->id, fbi->vid,
-				 (int)fbi->new_addr[0]);
-
-		writel(fbi->new_addr[0], &regs->v_y0);
-		if (fbi->pix_fmt >= 12 && fbi->pix_fmt <= 15) {
-			writel(fbi->new_addr[1], &regs->v_u0);
-			writel(fbi->new_addr[2], &regs->v_v0);
-		}
-	}
-
-	/* enable DMA transfer */
-	set_dma_active(fbi);
-
-	fbi->misc_update = 1;
-
-	/* set vdma configration */
-	pxa688_vdma_config(fbi);
-
-	if (FB_MODE_DUP) {
-		struct pxa168fb_info *fbi_dual = ovly_info.fbi[fb_dual];
-		/* set TV path buffer adder */
-		fbi_dual->fb_start_dma = fbi->fb_start_dma;
-		if (!fbi_dual->new_addr[0] && fbi->new_addr[0])
-			memcpy(fbi_dual->new_addr, fbi->new_addr,
-					sizeof(fbi->new_addr));
-		fbi = fbi_dual;
-		goto again;
-	}
-}
-
-/* if video layer is full screen without alpha blending then turn off
- * graphics dma to save bandwidth */
-static void pxa168fb_graphics_off(struct pxa168fb_info *fbi)
-{
-	u32 dma1, gfx_bottom, v_size_dst, screen_active;
-	struct lcd_regs *regs;
-
-	dev_dbg(fbi->fb_info->dev, "%s\n", __func__);
-again:
-	regs = get_regs(fbi->id);
-
-	dma1 = dma_ctrl_read(fbi->id, 1) &
-		 (CFG_ALPHA_MODE_MASK | CFG_ALPHA_MASK);
-	gfx_bottom = (dma1 == (CFG_ALPHA_MODE(2) | CFG_ALPHA(0xff))) ? 1 : 0;
-	v_size_dst = readl(&regs->v_size_z);
-	screen_active = readl(&regs->screen_active);
-
-	dev_dbg(fbi->fb_info->dev, "v_size_dst %d screen_active %d dma1 0x%x\n",
-			v_size_dst, screen_active, dma1);
-
-	/* graphics layer off if overlay on upper layer and full screen */
-	if ((v_size_dst == screen_active) && gfx_bottom)
-		dma_ctrl_set(fbi->id, 0, CFG_GRA_ENA_MASK, 0);
-
-	if (FB_MODE_DUP) {
-		fbi = ovly_info.fbi[fb_dual];
-		goto again;
-	}
-}
-
-static void set_yuv_pitch(struct pxa168fb_info *fbi,
-	 struct _sOvlySurface *surface, struct fb_var_screeninfo *var)
-{
-	struct lcd_regs *regs = get_regs(fbi->id);
-	int xzoom = surface->viewPortInfo.zoomXSize;
-	int yzoom = surface->viewPortInfo.zoomYSize;
-	int xpos = surface->viewPortOffset.xOffset;
-	int ypos = surface->viewPortOffset.yOffset;
-	int yPitch = surface->viewPortInfo.yPitch;
-	u32 x;
-
-	if (fb_mode && (fbi->id == fb_dual) && surface->dualInfo.rotate)
-		/* fb_dual, overlay will never rotate, so will no yPitch info,
-		 * as android overlay-hal always set ypitch = 0 when no rotate
-		 */
-		yPitch = 0;
-
-	if (((fbi->pix_fmt & ~0x1000) >> 1) < 6)
-		writel(yPitch ? yPitch : var->xres * var->bits_per_pixel >> 3,
-			&regs->v_pitch_yc);
-	else {
-		writel(yPitch ? yPitch : var->xres, &regs->v_pitch_yc);
-		writel((surface->viewPortInfo.uPitch &&
-			 surface->viewPortInfo.vPitch) ?
-			((surface->viewPortInfo.vPitch << 16) |
-			 (surface->viewPortInfo.uPitch)) :
-			((var->xres >> 1) << 16 | (var->xres >> 1)),
-			&regs->v_pitch_uv);
-	}
-
-	dev_dbg(fbi->fb_info->dev, "Executing Standard Mode\n");
-	writel((var->yres << 16) | var->xres, &regs->v_size);
-
-	if (fb_mode && (fbi->id == fb_dual)) {
-		dev_dbg(fbi->fb_info->dev, "%s line %d adjust ?? xpos %d ypos %d"
-			"xzoom %d yzoom %d\nxres %d yres %d xres_z %d yres_z %d\n",
-			__func__, __LINE__, xpos, ypos, xzoom, yzoom,
-			gfx_info.xres, gfx_info.yres, gfx_info.xres_z, gfx_info.yres_z);
-		yzoom = yzoom * gfx_info.yres_z / gfx_info.yres;
-		xzoom = xzoom * gfx_info.xres_z / gfx_info.xres;
-		ypos = ypos * gfx_info.yres_z / gfx_info.yres;
-		xpos = xpos * gfx_info.xres_z / gfx_info.xres;
-		dev_dbg(fbi->fb_info->dev, "\t to xpos %d ypos %d yzoom %d"
-			" xzoom %d\n", xpos, ypos, yzoom, xzoom);
-	}
-	writel((yzoom << 16) | xzoom, &regs->v_size_z);
-
-	/* enable two-level zoom down if the ratio exceed 2 */
-	if (xzoom && var->bits_per_pixel) {
-		int shift = (fbi->id == 1) ? 22 : 20;
-		u32 reg = (fbi->id == 2) ? LCD_PN2_LAYER_ALPHA_SEL1 :\
-			 LCD_AFA_ALL2ONE;
-
-		x = readl(fbi->reg_base + reg);
-		if (!(var->xres & 0x1) && ((var->xres >> 1) >= xzoom))
-			x |= 1 << shift;
-		else
-			x &= ~(1 << shift);
-		writel(x, fbi->reg_base + reg);
-	}
-
-	if (COMPAT_MODE != 0x2625) {
-		/* update video position offset */
-		dev_dbg(fbi->fb_info->dev, "Setting Surface offsets...\n");
-
-		writel(CFG_DMA_OVSA_VLN(ypos) | xpos, &regs->v_start);
-	} else {
-		dev_dbg(fbi->fb_info->dev, "Executing 2625\
-					 compatibility mode\n");
-		xpos = (var->nonstd & 0x3ff);
-		ypos = (var->nonstd >> 10) & 0x3ff;
-		writel(CFG_DMA_OVSA_VLN(ypos) | xpos, &regs->v_start);
-		writel((var->height << 16) | var->width, &regs->v_size_z);
-	}
-}
-
 static int pxa168fb_set_par(struct fb_info *fi)
 {
 	struct pxa168fb_info *fbi = fi->par;
 	struct fb_var_screeninfo *var = &fi->var;
-	struct _sOvlySurface *surface = &fbi->surface;
 	int pix_fmt;
 
 	dev_dbg(fi->dev, "FB1: Enter %s\n", __func__);
 	/*
 	 * Determine which pixel format we're going to use.
 	 */
-	pix_fmt = determine_best_pix_fmt(&fi->var);
+	pix_fmt = determine_best_pix_fmt(var, fbi->compat_mode);
 	dev_dbg(fi->dev, "determine_best_pix_fmt returned: %d\n", pix_fmt);
 	if (pix_fmt < 0)
 		return pix_fmt;
 	fbi->pix_fmt = pix_fmt;
 
-	dev_dbg(fi->dev, "pix_fmt=%d\n", pix_fmt);
-	dev_dbg(fi->dev, "BPP = %d\n", var->bits_per_pixel);
+	dev_dbg(fi->dev, "pix_fmt:%d, BPP:%d\n", pix_fmt, var->bits_per_pixel);
 	/*
 	 * Set additional mode info.
 	 */
@@ -1502,36 +1035,13 @@ static int pxa168fb_set_par(struct fb_info *fi)
 		return 0;
 	}
 
-	/*
-	 * Configure graphics DMA parameters.
-	 */
-	set_yuv_pitch(fbi, surface, &fbi->fb_info->var);
-
-	if (FB_MODE_DUP) {
-		struct pxa168fb_info *fbi_dual = ovly_info.fbi[fb_dual];
-		struct fb_info *fi_dual = fbi_dual->fb_info;
-		if (surface->dualInfo.rotate == 1) {
-			fi_dual->var.bits_per_pixel = 16;
-			fi_dual->var.xres = fi->var.yres;
-			fi_dual->var.yres = fi->var.xres;
-		} else {
-			fi_dual->var.bits_per_pixel = fi->var.bits_per_pixel;
-			fi_dual->var.xres = fi->var.xres;
-			fi_dual->var.yres = fi->var.yres;
-		}
-		fi_dual->var.nonstd = fi->var.nonstd;
-		set_yuv_pitch(fbi_dual, surface, &fi_dual->var);
-	}
-
-	/*
-	 * Configure global panel parameters.
-	 */
+	/* Configure graphics DMA parameters.*/
+	set_screen(fbi);
+	/* Configure global panel parameters.*/
 	set_dma_control0(fbi);
-
 	/* set video start address */
-	set_video_start(fi, fi->var.xoffset, fi->var.yoffset);
+	set_start_address(fi, fi->var.xoffset, fi->var.yoffset, 0);
 
-	pxa168fb_graphics_off(fbi);
 	return 0;
 }
 
@@ -1582,7 +1092,7 @@ static int pxa168fb_pan_display(struct fb_var_screeninfo *var,
 		return -EINVAL;
 
 	fbi->active = 1;
-	set_video_start(fi, var->xoffset, var->yoffset);
+	set_start_address(fi, var->xoffset, var->yoffset, 1);
 	return 0;
 }
 
@@ -1749,7 +1259,6 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	fbi->update_addr = 1;
 
 	platform_set_drvdata(pdev, fbi);
-	fbi->check_modex_active = check_modex_active;
 	fbi->update_buff = pxa168fb_update_buff;
 	fbi->fb_info = fi;
 	fbi->dev = &pdev->dev;
@@ -1848,6 +1357,7 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 		fi->fix.smem_len = fbi->fb_size;
 		fi->screen_base = fbi->fb_start;
 		fi->screen_size = fbi->fb_size;
+		fbi->wait_vsync = 1;
 	}
 
 #ifdef FB_PM_DEBUG

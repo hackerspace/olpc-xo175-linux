@@ -61,9 +61,6 @@ MODULE_LICENSE("GPL");
 
 /* max control: hue, alpha, chroma key, contrast, saturation, gamma */
 #define MAX_CID		5
-#define OVLY_MODE_DUP	((ovly->id == fb_base) && \
-			fb_mode && \
-			gfx_info.fbi[fb_dual])
 #define COLOR_KEY_GFX_DST 0
 #define COLOR_KEY_VID_SRC 1
 

@@ -138,46 +138,6 @@ int unsupport_format(struct pxa168fb_info *fbi, struct _sViewPortInfo
 	return 0;
 }
 
-void buf_clear(struct _sSurfaceList *srflist, int iFlag)
-{
-	struct _sSurfaceList *surface_list;
-	struct list_head *pos, *n;
-
-	/* Check null pointer. */
-	if (!srflist)
-		return;
-
-	/* free */
-	if (FREE_ENTRY & iFlag) {
-		list_for_each_safe(pos, n, &srflist->surfacelist) {
-			surface_list = list_entry(pos, struct _sSurfaceList,
-				surfacelist);
-			list_del(pos);
-			kfree(surface_list);
-		}
-	}
-}
-
-void clear_buffer(struct pxa168fb_info *fbi)
-{
-	unsigned long flags;
-
-	spin_lock_irqsave(&fbi->buf_lock, flags);
-	clearFilterBuf(fbi->filterBufList, RESET_BUF);
-	buf_clear(&fbi->buf_freelist, FREE_ENTRY);
-	buf_clear(&fbi->buf_waitlist, FREE_ENTRY);
-	kfree(fbi->buf_current);
-	fbi->buf_current = 0;
-	kfree(fbi->buf_retired);
-	fbi->buf_retired = 0;
-	fbi->surface_set = 0;
-	if (fbi->vid)
-		ovly_info.wait_peer = 0;
-	else
-		gfx_info.wait_peer = 0;
-	spin_unlock_irqrestore(&fbi->buf_lock, flags);
-}
-
 int convert_pix_fmt(u32 vmode)
 {
 /*	pr_info("vmode=%d\n", vmode); */
@@ -406,6 +366,145 @@ int set_pix_fmt(struct fb_var_screeninfo *var, int pix_fmt)
 	return 0;
 }
 
+int determine_best_pix_fmt(struct fb_var_screeninfo *var,
+			 unsigned int compat_mode)
+{
+	unsigned char pxa_format;
+
+	/* compatibility switch: if var->nonstd MSB is 0xAA then skip to
+	 * using the nonstd variable to select the color space
+	 */
+	if (compat_mode != 0x2625) {
+
+		/*
+		 * Pseudocolor mode?
+		 */
+		if (var->bits_per_pixel == 8)
+			return PIX_FMT_PSEUDOCOLOR;
+		/*
+		 * Check for YUV422PACK.
+		 */
+		if (var->bits_per_pixel == 16 && var->red.length == 16 &&
+		    var->green.length == 16 && var->blue.length == 16) {
+			if (var->red.offset >= var->blue.offset) {
+				if (var->red.offset == 4)
+					return PIX_FMT_YUV422PACK;
+				else
+					return PIX_FMT_YUYV422PACK;
+			} else
+				return PIX_FMT_YVU422PACK;
+		}
+		/*
+		 * Check for YUV422PLANAR.
+		 */
+		if (var->bits_per_pixel == 16 && var->red.length == 8 &&
+		    var->green.length == 4 && var->blue.length == 4) {
+			if (var->red.offset >= var->blue.offset)
+				return PIX_FMT_YUV422PLANAR;
+			else
+				return PIX_FMT_YVU422PLANAR;
+		}
+
+		/*
+		 * Check for YUV420PLANAR.
+		 */
+		if (var->bits_per_pixel == 12 && var->red.length == 8 &&
+		    var->green.length == 2 && var->blue.length == 2) {
+			if (var->red.offset >= var->blue.offset)
+				return PIX_FMT_YUV420PLANAR;
+			else
+				return PIX_FMT_YVU420PLANAR;
+		}
+		/*
+		 * Check for 565/1555.
+		 */
+		if (var->bits_per_pixel == 16 && var->red.length <= 5 &&
+		    var->green.length <= 6 && var->blue.length <= 5) {
+			if (var->transp.length == 0) {
+				if (var->red.offset >= var->blue.offset)
+					return PIX_FMT_RGB565;
+				else
+					return PIX_FMT_BGR565;
+			}
+
+			if (var->transp.length == 1 && var->green.length <= 5) {
+				if (var->red.offset >= var->blue.offset)
+					return PIX_FMT_RGB1555;
+				else
+					return PIX_FMT_BGR1555;
+			}
+
+			/* fall through */
+		}
+
+		/*
+		 * Check for 888/A888.
+		 */
+		if (var->bits_per_pixel <= 32 && var->red.length <= 8 &&
+		    var->green.length <= 8 && var->blue.length <= 8) {
+			if (var->bits_per_pixel == 24 &&
+				 var->transp.length == 0) {
+				if (var->red.offset >= var->blue.offset)
+					return PIX_FMT_RGB888PACK;
+				else
+					return PIX_FMT_BGR888PACK;
+			}
+
+			if (var->bits_per_pixel == 32 &&
+				 var->transp.offset == 24) {
+				if (var->red.offset >= var->blue.offset)
+					return PIX_FMT_RGBA888;
+				else
+					return PIX_FMT_BGRA888;
+			} else {
+				if (var->transp.length == 8) {
+					if (var->red.offset >= var->blue.offset)
+						return PIX_FMT_RGB888UNPACK;
+					else
+						return PIX_FMT_BGR888UNPACK;
+				} else
+					return PIX_FMT_YUV422PACK_IRE_90_270;
+
+			}
+			/* fall through */
+		}
+	} else {
+
+		pxa_format = (var->nonstd >> 20) & 0xf;
+
+		switch (pxa_format) {
+		case 0:
+			return PIX_FMT_RGB565;
+			break;
+		case 3:
+			return PIX_FMT_YUV422PLANAR;
+			break;
+		case 4:
+			return PIX_FMT_YUV420PLANAR;
+			break;
+		case 5:
+			return PIX_FMT_RGB1555;
+			break;
+		case 6:
+			return PIX_FMT_RGB888PACK;
+			break;
+		case 7:
+			return PIX_FMT_RGB888UNPACK;
+			break;
+		case 8:
+			return PIX_FMT_RGBA888;
+			break;
+		case 9:
+			return PIX_FMT_YUV422PACK;
+			break;
+
+		default:
+			return -EINVAL;
+		}
+	}
+
+	return -EINVAL;
+}
 void pxa168fb_update_addr(struct pxa168fb_info *fbi,
 	struct _sVideoBufferAddr *new_addr)
 {
@@ -527,6 +626,33 @@ int check_surface_addr(struct fb_info *fi, struct _sOvlySurface *surface)
 	return changed;
 }
 
+int check_modex_active(struct pxa168fb_info *fbi)
+{
+	int active;
+
+	if (!fbi)
+		return 0;
+
+	active = fbi->active && fbi->dma_on;
+
+	/* mode2, base off, dual on */
+	if ((fb_mode == 2) && (fbi->id == fb_base))
+		active = 0;
+
+	/* mode3, dual off, base on */
+	if ((fb_mode == 3) && (fbi->id == fb_dual)) {
+		active = 0;
+		if (!fbi->vid)
+			/* for debug purpose */
+			active = DEBUG_TV_ACTIVE(fb_dual);
+	}
+
+	pr_debug("%s fb_mode %d fbi[%d] vid %d fbi->active %d"
+		" dma_on %d: %d\n", __func__, fb_mode, fbi->id,
+		fbi->vid, fbi->active, fbi->dma_on, active);
+	return active;
+}
+
 #ifdef OVLY_TASKLET
 void pxa168fb_ovly_task(unsigned long data)
 {
@@ -602,6 +728,46 @@ void clearFilterBuf(u8 *ppBufList[][3], int iFlag)
 		return;
 	if (RESET_BUF & iFlag)
 		memset(ppBufList, 0, 3 * MAX_QUEUE_NUM * sizeof(u8 *));
+}
+
+void buf_clear(struct _sSurfaceList *srflist, int iFlag)
+{
+	struct _sSurfaceList *surface_list;
+	struct list_head *pos, *n;
+
+	/* Check null pointer. */
+	if (!srflist)
+		return;
+
+	/* free */
+	if (FREE_ENTRY & iFlag) {
+		list_for_each_safe(pos, n, &srflist->surfacelist) {
+			surface_list = list_entry(pos, struct _sSurfaceList,
+				surfacelist);
+			list_del(pos);
+			kfree(surface_list);
+		}
+	}
+}
+
+void clear_buffer(struct pxa168fb_info *fbi)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&fbi->buf_lock, flags);
+	clearFilterBuf(fbi->filterBufList, RESET_BUF);
+	buf_clear(&fbi->buf_freelist, FREE_ENTRY);
+	buf_clear(&fbi->buf_waitlist, FREE_ENTRY);
+	kfree(fbi->buf_current);
+	fbi->buf_current = 0;
+	kfree(fbi->buf_retired);
+	fbi->buf_retired = 0;
+	fbi->surface_set = 0;
+	if (fbi->vid)
+		ovly_info.wait_peer = 0;
+	else
+		gfx_info.wait_peer = 0;
+	spin_unlock_irqrestore(&fbi->buf_lock, flags);
 }
 
 void buf_endframe(void *point)
@@ -867,19 +1033,44 @@ int get_freelist(struct fb_info *info, unsigned long arg)
 void set_dma_active(struct pxa168fb_info *fbi)
 {
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
+	struct lcd_regs *regs = get_regs(fbi->id);
+	struct fb_var_screeninfo *v = &gfx_info.fbi[fbi->id]->fb_info->var;
 	u32 flag = fbi->vid ? CFG_DMA_ENA_MASK : CFG_GRA_ENA_MASK;
 	u32 enable = fbi->vid ? CFG_DMA_ENA(1) : CFG_GRA_ENA(1);
-	u32 active = 0;
+	u32 value, dma1, v_size_dst, screen_active, active = 0;
 
 	if (fbi->new_addr[0] || mi->mmap || (!fbi->vid &&
 		 (fb_mode || fb_share) && fbi->id == fb_dual))
-		active = fbi->check_modex_active(fbi->id, fbi->active
-					&& fbi->dma_on);
+		active = check_modex_active(fbi);
 
-	dma_ctrl_set(fbi->id, 0, flag, active ? enable : 0);
+	value = active ? enable : 0;
+	/* if video layer is full screen without alpha blending
+	 * then turn off graphics dma to save bandwidth */
+	if (fbi->vid && active) {
+		dma1 = dma_ctrl_read(fbi->id, 1);
+		dma1 &= (CFG_ALPHA_MODE_MASK | CFG_ALPHA_MASK);
+		if (dma1 == (CFG_ALPHA_MODE(2) | CFG_ALPHA(0xff))) {
+			v_size_dst = readl(&regs->v_size_z);
+			screen_active = readl(&regs->screen_active);
+			if (v->vmode & FB_VMODE_INTERLACED) {
+				screen_active = (screen_active & 0xffff) |
+					(((screen_active >> 16) << 1) << 16);
+			}
+			if (v_size_dst == screen_active) {
+				flag |= CFG_GRA_ENA_MASK;
+				value &= ~CFG_GRA_ENA_MASK;
+			} else if (check_modex_active(gfx_info.fbi[fbi->id])) {
+				flag |= CFG_GRA_ENA_MASK;
+				value |= CFG_GRA_ENA_MASK;
+			}
+		}
+	}
 
-	pr_debug("%s fbi %d: active %d fbi->active %d, new_addr %lu\n",
-		__func__, fbi->id, active, fbi->active, fbi->new_addr[0]);
+	dma_ctrl_set(fbi->id, 0, flag, value);
+
+	pr_debug("%s fbi %d: vid %d mask %x vaule %x fbi->active %d\
+		 new_addr %lu\n", __func__, fbi->id, fbi->vid, flag,
+		 value, fbi->active, fbi->new_addr[0]);
 }
 
 int dispd_dma_enabled(struct pxa168fb_info *fbi)
@@ -938,4 +1129,308 @@ void pxa168fb_list_init(struct pxa168fb_info *fbi)
 	INIT_LIST_HEAD(&fbi->buf_freelist.surfacelist);
 	INIT_LIST_HEAD(&fbi->buf_waitlist.surfacelist);
 	fbi->buf_retired = fbi->buf_current = 0;
+}
+
+void set_start_address(struct fb_info *info,
+	 int xoffset, int yoffset, int wait_vsync)
+{
+	struct pxa168fb_info *fbi = info->par;
+	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
+	struct fb_var_screeninfo *var = &info->var;
+	struct lcd_regs *regs;
+	unsigned long addr_y0 = 0, addr_u0 = 0, addr_v0 = 0;
+	int  pixel_offset;
+
+	dev_dbg(info->dev, "Enter %s\n", __func__);
+
+	if (fb_mode && (fbi->id == fb_dual) && !fbi->vid)
+		addr_y0 = readl(&get_regs(fb_base)->g_0);
+	else if (fbi->new_addr[0]) {
+		addr_y0 = fbi->new_addr[0];
+		addr_u0 = fbi->new_addr[1];
+		addr_v0 = fbi->new_addr[2];
+		if (fbi->debug == 1)
+			printk(KERN_DEBUG"%s: buffer updated to %x\n",
+				 __func__, (int)fbi->new_addr[0]);
+	} else {
+		if (!mi->mmap) {
+			pr_debug("fbi %d(line %d): input err, mmap is not"
+				" supported\n", fbi->id, __LINE__);
+			return;
+		}
+		pixel_offset = (yoffset * var->xres_virtual) + xoffset;
+		addr_y0 = fbi->fb_start_dma + (pixel_offset *
+			(var->bits_per_pixel >> 3));
+		if ((fbi->pix_fmt >= 12) && (fbi->pix_fmt <= 15))
+			addr_u0 = addr_y0 + var->xres * var->yres;
+
+		if ((fbi->pix_fmt >> 1) == 6)
+			addr_v0 = addr_u0 + (var->xres * var->yres >> 1);
+		else if ((fbi->pix_fmt >> 1) == 7)
+			addr_v0 = addr_u0 + (var->xres * var->yres >> 2);
+	}
+
+again:
+	regs = get_regs(fbi->id);
+
+	if (fbi->vid) {
+		writel(addr_y0, &regs->v_y0);
+		if (fbi->pix_fmt >= 12 && fbi->pix_fmt <= 15) {
+			writel(addr_u0, &regs->v_u0);
+			writel(addr_v0, &regs->v_v0);
+		}
+	} else
+		writel(addr_y0, &regs->g_0);
+
+	set_dma_active(fbi);
+	pxa688_vdma_config(fbi);
+
+	if (wait_vsync || fbi->vid)
+		fbi->misc_update = 1;
+	else {
+		pxa688fb_partdisp_update(fbi->id);
+		pxa688fb_vsmooth_set(fbi->id, 0, gfx_vsmooth, 0);
+	}
+
+	if (FB_MODE_DUP) {
+		if (fbi->vid)
+			fbi = ovly_info.fbi[fb_dual];
+		else
+			fbi = gfx_info.fbi[fb_dual];
+		goto again;
+	}
+
+	/* return until the address take effect after vsync occurs */
+	if (wait_vsync && NEED_VSYNC(fbi))
+		wait_for_vsync(fbi);
+}
+
+void set_dma_control0(struct pxa168fb_info *fbi)
+{
+	struct pxa168fb_mach_info *mi;
+	struct _sOvlySurface *surface = &fbi->surface;
+	u32 x = 0, x_bk = 0, pix_fmt;
+
+	dev_dbg(fbi->fb_info->dev, "Enter %s\n", __func__);
+
+	if (surface->videoMode > 0)
+		fbi->pix_fmt = convert_pix_fmt(surface->videoMode);
+again:
+	mi = fbi->dev->platform_data;
+	pix_fmt = fbi->pix_fmt;
+
+	/* Get reg's current value */
+	x_bk = x = dma_ctrl_read(fbi->id, 0);
+
+	/* clear affected bits */
+	x &= ~dma_mask(fbi->vid);
+
+	/* enable horizontal smooth filter */
+	x |= dma_hsmooth(fbi->vid, 1);
+
+	/* If we are in a pseudo-color mode, we need to enable
+	 * palette lookup  */
+	if (pix_fmt == PIX_FMT_PSEUDOCOLOR)
+		x |= dma_palette(1);
+
+	/* Configure hardware pixel format */
+	x |= dma_fmt(fbi->vid, (pix_fmt & ~0x1000) >> 1);
+
+	/*
+	 * color format in memory:
+	 * PXA168/PXA910:
+	 * PIX_FMT_YUV422PACK: UYVY(CbY0CrY1)
+	 * PIX_FMT_YUV422PLANAR: YUV
+	 * PIX_FMT_YUV420PLANAR: YUV
+	 */
+	if (((pix_fmt & ~0x1000) >> 1) == 5) {
+		/* YUV422PACK, YVU422PACK, YUYV422PACK */
+		x |= dma_csc(fbi->vid, 1);
+		x |= dma_swaprb(fbi->vid, mi->panel_rbswap);
+		if (pix_fmt & 0x1000)
+			/* YUYV422PACK */
+			x |= dma_swapyuv(fbi->vid, 1);
+		else
+			/* YVU422PACK */
+			x |= dma_swapuv(fbi->vid, pix_fmt & 1);
+	} else if (pix_fmt >= 12) {
+		/* PIX_FMT_YUV422PACK_IRE_90_270 is here */
+		if (!fbi->vid)
+			pr_err("%s fmt %d not supported on graphics layer...\n",
+				__func__, pix_fmt);
+		/* PLANAR, YUV422PACK_IRE_90_270, PSEUDOCOLOR */
+		x |= dma_csc(fbi->vid, 1);
+		x |= dma_swapuv(fbi->vid, pix_fmt & 1);
+		x |= dma_swaprb(fbi->vid, (mi->panel_rbswap));
+	} else {
+		/* RGB formats */
+		/* Check red and blue pixel swap.
+		 * 1. source data swap. BGR[M:L] rather than RGB[M:L]
+		 *    is stored in memeory as source format.
+		 * 2. panel output data swap
+		 */
+		x |= dma_swaprb(fbi->vid, ((pix_fmt & 1) ^ 1) ^
+			 (mi->panel_rbswap));
+	}
+
+	/* clear reserved bits if not panel path */
+	if (fbi->id)
+		x &= ~CFG_ARBFAST_ENA(1);
+
+	if (x_bk != x) {
+		dma_ctrl_write(fbi->id, 0, x);
+		pr_debug("set fbi %d, layer %d, dma ctrl0(0x%x -> 0x%x)\n",
+			 fbi->id, fbi->vid, x_bk, x);
+	}
+	if (FB_MODE_DUP) {
+		if (fbi->vid) {
+			struct _sDualInfo *dual = &fbi->surface.dualInfo;
+			fbi = ovly_info.fbi[fb_dual];
+
+			/* copy pix_fmt */
+			if (dual->rotate == 1)
+				fbi->pix_fmt = convert_pix_fmt(dual->videoMode);
+			else
+				fbi->pix_fmt = ovly_info.fbi[fb_base]->pix_fmt;
+
+			if (fbi->debug == 8) {
+				pr_info("%s dual->rotate %d videoMode %d"
+					" pix_fmt %d\n", __func__, dual->rotate,
+					dual->videoMode, fbi->pix_fmt);
+			}
+		} else {
+			gfx_info.fbi[fb_dual]->pix_fmt = fbi->pix_fmt;
+			fbi = gfx_info.fbi[fb_dual];
+		}
+		goto again;
+	}
+}
+
+void set_screen(struct pxa168fb_info *fbi)
+{
+	struct fb_var_screeninfo *var = &fbi->fb_info->var;
+	struct fb_var_screeninfo *var_dual;
+	struct _sOvlySurface *surface = &fbi->surface;
+	struct lcd_regs *regs;
+	u32 xres, yres, xres_z, yres_z, xres_virtual, bits_per_pixel;
+	u32 left = 0, top = 0, pitch[3], x;
+
+	pitch[0] = surface->viewPortInfo.yPitch;
+	pitch[1] = surface->viewPortInfo.uPitch;
+	pitch[2] = surface->viewPortInfo.vPitch;
+again:
+	var = &fbi->fb_info->var;
+	regs = get_regs(fbi->id);
+	xres = var->xres; yres = var->yres;
+	xres_z = var->xres; yres_z = var->yres;
+	xres_virtual = var->xres_virtual;
+	bits_per_pixel = var->bits_per_pixel;
+
+	if (!(fbi->vid) && (fb_mode) && (fbi->id == fb_dual)) {
+		xres = gfx_info.xres;
+		yres = gfx_info.yres;
+		bits_per_pixel = gfx_info.bpp;
+		xres_virtual = max(gfx_info.xres, gfx_info.xres_virtual);
+	}
+
+	dev_dbg(fbi->fb_info->dev, "fb_mode %d fbi[%d]: xres %d xres_z %d"
+		" yres %d yres_z %d xres_virtual %d bits_per_pixel %d\n",
+		fb_mode, fbi->id, xres, xres_z, yres, yres_z,
+		xres_virtual, bits_per_pixel);
+
+	/* xres_z = total - left - right */
+	xres_z = xres_z - (left << 1);
+	/* yres_z = yres_z - top - bottom */
+	yres_z = yres_z - (top << 1);
+
+	if (fbi->new_addr[0] || (fb_mode && fbi->id == fb_dual
+			&& gfx_info.fbi[fb_base]->new_addr[0])) {
+		xres = surface->viewPortInfo.srcWidth;
+		yres = surface->viewPortInfo.srcHeight;
+		var->xres_virtual = surface->viewPortInfo.srcWidth;
+		var->yres_virtual = surface->viewPortInfo.srcHeight * 2;
+		xres_virtual = surface->viewPortInfo.srcWidth;
+
+		xres_z = surface->viewPortInfo.zoomXSize;
+		yres_z = surface->viewPortInfo.zoomYSize;
+
+		left = surface->viewPortOffset.xOffset;
+		top = surface->viewPortOffset.yOffset;
+
+		if (fbi->vid && fb_mode && (fbi->id == fb_dual)) {
+			dev_dbg(fbi->fb_info->dev, "%s line %d adjust"
+			 "xpos %d ypos %d xzoom %d yzoom %d\nxres %d yres %d"
+			 "xres_z %d yres_z %d\n", __func__, __LINE__,
+			 left, top, xres_z, yres_z, gfx_info.xres,
+			 gfx_info.yres, gfx_info.xres_z, gfx_info.yres_z);
+			yres_z = yres_z * gfx_info.yres_z / gfx_info.yres;
+			xres_z = xres_z * gfx_info.xres_z / gfx_info.xres;
+			top = top * gfx_info.yres_z / gfx_info.yres;
+			left = left * gfx_info.xres_z / gfx_info.xres;
+		}
+		pr_debug("surface: xres %d xres_z %d"
+			" yres %d yres_z %d\n left %d top %d\n",
+			xres, xres_z, yres, yres_z, left, top);
+	}
+
+	dev_dbg(fbi->fb_info->dev, "adjust: xres %d xres_z %d"
+		" yres %d yres_z %d\n left %d top %d\n",
+		xres, xres_z, yres, yres_z, left, top);
+
+	if (((fbi->pix_fmt & ~0x1000) >> 1) < 6) {
+		pitch[0] = pitch[0] ? pitch[0] : (xres_virtual *
+				 bits_per_pixel >> 3);
+		pitch[1] = pitch[2] = 0;
+	} else {
+		pitch[0] = pitch[0] ? pitch[0] : xres;
+		pitch[1] = pitch[1] ? pitch[1] : xres >> 1;
+		pitch[2] = pitch[2] ? pitch[2] : xres >> 1;
+	}
+	if (fbi->vid) {
+		/* start address on screen */
+		writel((top << 16) | left, &regs->v_start);
+		/* pitch, pixels per line */
+		writel(pitch[0] & 0xFFFF, &regs->v_pitch_yc);
+		writel(pitch[2] << 16 | pitch[1], &regs->v_pitch_uv);
+		/* resolution, src size */
+		writel((yres << 16) | xres, &regs->v_size);
+		/* resolution, dst size */
+		writel((yres_z << 16) | xres_z, &regs->v_size_z);
+
+		/* enable two-level zoom down if the ratio exceed 2 */
+		if (xres_z && var->bits_per_pixel) {
+			int shift = (fbi->id == 1) ? 22 : 20;
+			u32 reg = (fbi->id == 2) ? LCD_PN2_LAYER_ALPHA_SEL1 :\
+				 LCD_AFA_ALL2ONE;
+
+			x = readl(fbi->reg_base + reg);
+			if (!(var->xres & 0x1) && ((var->xres >> 1) >= xres_z))
+				x |= 1 << shift;
+			else
+				x &= ~(1 << shift);
+			writel(x, fbi->reg_base + reg);
+		}
+	} else {
+		/* start address on screen */
+		writel((top << 16) | left, &regs->g_start);
+		/* pitch, pixels per line */
+		writel(pitch[0] & 0xFFFF, &regs->g_pitch);
+		/* resolution, src size */
+		writel((yres << 16) | xres, &regs->g_size);
+		/* resolution, dst size */
+		writel((yres_z << 16) | xres_z, &regs->g_size_z);
+	}
+
+	if (FB_MODE_DUP) {
+		if (fbi->vid) {
+			fbi = ovly_info.fbi[fb_dual];
+			var_dual = &fbi->fb_info->var;
+			var_dual->bits_per_pixel = var->bits_per_pixel;
+			var_dual->xres = var->xres;
+			var_dual->yres = var->yres;
+			var->nonstd = var->nonstd;
+		} else
+			fbi = gfx_info.fbi[fb_dual];
+		goto again;
+	}
 }

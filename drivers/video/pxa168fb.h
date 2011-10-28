@@ -451,6 +451,15 @@ struct lcd_regs {
 #define dma0_vid_masks	(CFG_DMAFORMAT_MASK | CFG_DMA_FTOGGLE_MASK | \
 	CFG_DMA_HSMOOTH_MASK | CFG_DMA_TSTMODE_MASK | CFG_DMA_SWAP_MASK | \
 	CFG_YUV2RGB_DMA_MASK | CFG_DMA_ENA_MASK)
+#define dma_palette(val)		((val ? 1 : 0) << 28)
+#define dma_fmt(vid, val)		((val & 0xf) << ((vid) ? 20 : 16))
+#define dma_swaprb(vid, val)		((val ? 1 : 0) << ((vid) ? 4 : 12))
+#define dma_swapuv(vid, val)		((val ? 1 : 0) << ((vid) ? 3 : 11))
+#define dma_swapyuv(vid, val)		((val ? 1 : 0) << ((vid) ? 2 : 10))
+#define dma_csc(vid, val)		((val ? 1 : 0) << ((vid) ? 1 : 9))
+#define dma_hsmooth(vid, val)		((val ? 1 : 0) << ((vid) ? 6 : 14))
+#define dma_mask(vid)	(dma_palette(1) | dma_fmt(vid, 0xf) | dma_csc(vid, 1) \
+	| dma_swaprb(vid, 1) | dma_swapuv(vid, 1) | dma_swapyuv(vid, 1))
 
 /* DMA Control 1 Register */
 #define LCD_SPU_DMA_CTRL1			0x0194

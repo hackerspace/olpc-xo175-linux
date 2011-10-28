@@ -35,7 +35,7 @@
 
 #ifdef CONFIG_PXA688_VDMA
 
-#include "pxa168fb.h"
+#include "pxa168fb_common.h"
 #include <mach/io.h>
 #include <mach/irqs.h>
 #include <mach/pxa168fb.h>
@@ -430,7 +430,7 @@ void pxa688_vdma_config(struct pxa168fb_info *fbi)
 	pr_debug("%s fbi %d vid %d vdma_enable %d active %d\n",
 		__func__, fbi->id, fbi->vid, fbi->vdma_enable, fbi->active);
 	if (fbi->vdma_enable && fbi->active) {
-		int active = fbi->check_modex_active(fbi->id, fbi->active);
+		int active = check_modex_active(fbi);
 		if (active) {
 			mi->vdma_lines = pxa688_vdma_get_linenum(fbi,
 				fbi->surface.viewPortInfo.rotation);

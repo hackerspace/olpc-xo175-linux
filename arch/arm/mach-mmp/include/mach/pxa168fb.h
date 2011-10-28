@@ -413,6 +413,19 @@ struct pxa168fb_info {
 	*/
 	int			mem_status;
 	unsigned                wait_vsync;
+
+	/* Compatibility mode global switch .....
+	 *
+	 * This is a secret switch for user space programs that may want to
+	 * select color spaces and set resolutions the same as legacy PXA
+	 * display drivers. The switch is set and unset by setting a specific
+	 * value in the var_screeninfo.nonstd variable.
+	 *
+	 * To turn on/off compatibility with older PXA:
+	 * set the MSB of nonstd to 0xAA to turn it on.
+	 * set the MSB of nonstd to 0x55 to turn it off.
+	 */
+	unsigned int	compat_mode;
 	struct pxa168_fb_chroma chroma;
 
 	/* suspend/resume related */
@@ -433,8 +446,6 @@ struct pxa168fb_info {
 #endif
 	int (*update_buff)(struct fb_info *fi,
 		struct _sOvlySurface *surface, int address);
-
-	int (*check_modex_active)(int id, int active);
 
 	struct fb_var_screeninfo var_bak;
 	struct pm_qos_request_list qos_idle_fb;
@@ -509,7 +520,6 @@ struct pxa168fb_mach_info {
 	 * Pix_fmt
 	 */
 	unsigned	pix_fmt;
-
 	/*
 	 *ISR clear mask
 	 */
@@ -565,7 +575,6 @@ struct pxa168fb_mach_info {
 	unsigned int sram_paddr;
 	unsigned int sram_vaddr;
 	unsigned int sram_size;
-
 	/*
 	 * power on/off function.
 	 */
@@ -638,8 +647,15 @@ struct pxa168fb_gra_partdisp {
 
 #define fb_base		0
 #define fb_dual		1
+#ifdef CONFIG_PXA168_V4L2_OVERLAY
 #define FB_MODE_DUP	((fbi->id == fb_base) && fb_mode && \
-	gfx_info.fbi[fb_dual] && ovly_info.fbi[fb_dual])
+			gfx_info.fbi[fb_dual])
+#define OVLY_MODE_DUP	((ovly->id == fb_base) && \
+			fb_mode && v4l2_ovly[fb_dual])
+#else
+#define FB_MODE_DUP	((fbi->id == fb_base) && fb_mode && \
+			gfx_info.fbi[fb_dual] && ovly_info.fbi[fb_dual])
+#endif
 
 /* LCD partial display */
 #define THRESHOLD_PN	64
