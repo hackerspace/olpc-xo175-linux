@@ -2344,6 +2344,8 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	init_waitqueue_head(&fbi->w_intr_wq);
 	mutex_init(&fbi->access_ok);
 
+	pxa168fb_list_init(fbi);
+
 	/* Initialise static fb parameters */
 	info->flags = FBINFO_DEFAULT | FBINFO_PARTIAL_PAN_OK |
 			FBINFO_HWACCEL_XPAN | FBINFO_HWACCEL_YPAN;

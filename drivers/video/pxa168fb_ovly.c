@@ -823,14 +823,15 @@ again:
 			dma_ctrl_set(fbi->id, 0, mask, val);
 			/* in case already suspended, save in sw */
 			gfx_info.fbi[fbi->id]->dma_ctrl0 &= ~mask;
-		} else if (!buf_gethead(fbi->buf_waitlist) && !fbi->buf_current
-				&& !(fb_mode && fbi->id == fb_dual))
+		} else if (list_empty(&fbi->buf_waitlist.surfacelist) &&
+			!fbi->buf_current && !(fb_mode && fbi->id == fb_dual))
 			/* switch on, but no buf flipped, return error */
 			ret = -EAGAIN;
 
-		printk(KERN_DEBUG "SWITCH_VID_OVLY fbi %d dma_on %d, val %d, "
-			"waitlist %p buf_current %p, ret %d\n", fbi->id,
-			fbi->dma_on, val, buf_gethead(fbi->buf_waitlist),
+		printk(KERN_DEBUG "SWITCH_VID_OVLY fbi %d dma_on %d,"
+			" val %d, waitlist empty %d buf_current %p, ret %d\n",
+			fbi->id, fbi->dma_on, val,
+			list_empty(&fbi->buf_waitlist.surfacelist),
 			fbi->buf_current, ret);
 
 		if (FB_MODE_DUP) {
@@ -1876,6 +1877,8 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	 */
 	set_mode(fbi, &fi->var, mi->modes, mi->pix_fmt, 1);
 	pxa168fb_set_par(fi);
+
+	pxa168fb_list_init(fbi);
 
 	/*
 	 * Configure default register values.

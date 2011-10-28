@@ -40,8 +40,6 @@ void pxa168fb_ovly_task(unsigned long data);
 void pxa168fb_ovly_work(struct work_struct *w);
 #endif
 
-void collectFreeBuf(struct pxa168fb_info *fbi,
-		u8 *filterList[][3], u8 **freeList);
 void clearFilterBuf(u8 *ppBufList[][3], int iFlag);
 void buf_endframe(void *point, int video_or_graphic);
 int flip_buffer(struct fb_info *info, unsigned long arg,
@@ -51,10 +49,9 @@ int get_freelist(struct fb_info *info, unsigned long arg,
 void dual_pos_zoom(struct pxa168fb_info *fbi,
 	struct _sOvlySurface *surface,
 	int *xzoom, int *yzoom, int *xpos, int *ypos);
-void buf_clear(u8 **ppBufList, int iFlag);
 void clear_buffer(struct pxa168fb_info *fbi, int video_layer);
 void set_dma_active(struct pxa168fb_info *fbi, int video_layer);
 int dispd_dma_enabled(struct pxa168fb_info *fbi, int video_layer);
 void wait_for_vsync(struct pxa168fb_info *fbi, int video_layer);
-
+void pxa168fb_list_init(struct pxa168fb_info *fbi);
 #endif

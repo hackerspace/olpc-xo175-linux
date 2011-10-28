@@ -139,86 +139,24 @@ int unsupport_format(struct pxa168fb_info *fbi, struct _sViewPortInfo
 	return 0;
 }
 
-u8 *buf_dequeue(u8 **ppBufList)
+void buf_clear(struct _sSurfaceList *srflist, int iFlag)
 {
-	int i;
-	u8 *pBuf;
-
-	if (!ppBufList) {
-		printk(KERN_ALERT "%s: invalid list\n", __func__);
-		return NULL;
-	}
-
-	pBuf = ppBufList[0];
-
-	for (i = 1; i < MAX_QUEUE_NUM; i++) {
-		if (!ppBufList[i]) {
-			ppBufList[i-1] = 0;
-			break;
-		}
-		ppBufList[i-1] = ppBufList[i];
-	}
-
-	if (i >= MAX_QUEUE_NUM)
-		printk(KERN_ALERT "%s: buffer overflow\n",  __func__);
-
-	return pBuf;
-}
-
-int buf_enqueue(u8 **ppBufList, u8 *pBuf)
-{
-	int i = 0 ;
-	struct _sOvlySurface *srf0 = (struct _sOvlySurface *)(pBuf);
-	struct _sOvlySurface *srf1 = 0;
-
-	/* Error checking */
-	if (!srf0)
-		return -1;
-
-	for (; i < MAX_QUEUE_NUM; i++) {
-		srf1 = (struct _sOvlySurface *)ppBufList[i];
-		if (!srf1) {
-			ppBufList[i] = pBuf;
-			return 0;
-		}
-	}
-
-	if (i >= MAX_QUEUE_NUM)
-		pr_info("buffer overflow\n");
-
-	return -3;
-}
-
-u8 *buf_gethead(u8 **ppBufList)
-{
-	u8 *pBuf;
-
-	if (!ppBufList)
-		return NULL;
-
-	pBuf = ppBufList[0];
-
-	return pBuf;
-}
-
-void buf_clear(u8 **ppBufList, int iFlag)
-{
-	int i = 0;
+	struct _sSurfaceList *surface_list;
+	struct list_head *pos, *n;
 
 	/* Check null pointer. */
-	if (!ppBufList)
+	if (!srflist)
 		return;
 
 	/* free */
 	if (FREE_ENTRY & iFlag) {
-		for (i = 0; i < MAX_QUEUE_NUM; i++) {
-			if (ppBufList && ppBufList[i])
-				kfree(ppBufList[i]);
+		list_for_each_safe(pos, n, &srflist->surfacelist) {
+			surface_list = list_entry(pos, struct _sSurfaceList,
+				surfacelist);
+			list_del(pos);
+			kfree(surface_list);
 		}
 	}
-
-	if (RESET_BUF & iFlag)
-		memset(ppBufList, 0, MAX_QUEUE_NUM * sizeof(u8 *));
 }
 
 void clear_buffer(struct pxa168fb_info *fbi, int video_layer)
@@ -227,8 +165,8 @@ void clear_buffer(struct pxa168fb_info *fbi, int video_layer)
 
 	spin_lock_irqsave(&fbi->buf_lock, flags);
 	clearFilterBuf(fbi->filterBufList, RESET_BUF);
-	buf_clear(fbi->buf_freelist, RESET_BUF|FREE_ENTRY);
-	buf_clear(fbi->buf_waitlist, RESET_BUF|FREE_ENTRY);
+	buf_clear(&fbi->buf_freelist, FREE_ENTRY);
+	buf_clear(&fbi->buf_waitlist, FREE_ENTRY);
 	kfree(fbi->buf_current);
 	fbi->buf_current = 0;
 	kfree(fbi->buf_retired);
@@ -611,7 +549,8 @@ void pxa168fb_ovly_work(struct work_struct *w)
 	if (fbi->buf_retired) {
 		/* enqueue current to freelist */
 		spin_lock_irqsave(&fbi->buf_lock, flags);
-		buf_enqueue(fbi->buf_freelist, fbi->buf_retired);
+		list_add_tail(&fbi->buf_retired->surfacelist,
+			&fbi->buf_freelist.surfacelist);
 		fbi->buf_retired = 0;
 		ovly_info.wait_peer = 0;
 		gfx_info.wait_peer = 0;
@@ -620,52 +559,42 @@ void pxa168fb_ovly_work(struct work_struct *w)
 }
 
 void collectFreeBuf(struct pxa168fb_info *fbi,
-		u8 *filterList[][3], u8 **freeList)
+		u8 *filterList[][3], struct _sSurfaceList *srflist)
 {
-	int i = 0, j = 0;
+	struct _sSurfaceList *surface_list = 0;
 	struct _sOvlySurface *srf = 0;
-	u8 *ptr;
+	struct list_head *pos, *n;
+	int i = 0;
 
-	if (!filterList || !freeList)
+	if (!filterList || !srflist)
 		return;
 
 	if (fbi->debug == 1)
-		printk(KERN_DEBUG"%s\n", __func__);
-	for (i = 0, j = 0; i < MAX_QUEUE_NUM; i++) {
+		pr_info("%s\n", __func__);
 
-		ptr = freeList[i];
+	list_for_each_safe(pos, n, &srflist->surfacelist) {
+		surface_list = list_entry(pos, struct _sSurfaceList,
+			surfacelist);
+		list_del(pos);
+		srf = &surface_list->surface;
 
-		/* Check freeList's content. */
-		if (ptr) {
-			for (; j < MAX_QUEUE_NUM; j++) {
-				if (!(filterList[j][0])) {
-					/* get surface's ptr. */
-					srf = (struct _sOvlySurface *)ptr;
-
-					/* save ptrs which need to be freed.*/
-					filterList[j][0] =
-					 srf->videoBufferAddr.startAddr[0];
-					filterList[j][1] =
-					 srf->videoBufferAddr.startAddr[1];
-					filterList[j][2] =
-					 srf->videoBufferAddr.startAddr[2];
-					if (fbi->debug == 1)
-						printk(KERN_DEBUG"%s: buffer \
-					%p will be returned\n", __func__,
+		if (srf) {
+			/* save ptrs which need to be freed.*/
+			filterList[i][0] = srf->videoBufferAddr.startAddr[0];
+			filterList[i][1] = srf->videoBufferAddr.startAddr[1];
+			filterList[i][2] = srf->videoBufferAddr.startAddr[2];
+			if (fbi->debug == 1)
+				pr_info("%s: buffer "
+					"%p will be returned\n", __func__,
 					srf->videoBufferAddr.startAddr[0]);
-					break;
-				}
-			}
-
-			if (j >= MAX_QUEUE_NUM)
-				break;
-
-			kfree(freeList[i]);
-			freeList[i] = 0;
-		} else {
-			/* till content is null. */
-			break;
 		}
+
+		i++;
+
+		if (i >= MAX_QUEUE_NUM)
+			break;
+
+		kfree(surface_list);
 	}
 }
 
@@ -684,10 +613,7 @@ void buf_endframe(void *point, int video_layer)
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)fi->par;
 	struct _sOvlySurface *pOvlySurface;
 	int ret;
-	u8 *buf = buf_gethead(fbi->buf_waitlist);
-
-	if (!buf)
-		return;
+	struct _sSurfaceList *surface_list = 0;
 
 	if (fbi->buf_retired) {
 		if (video_layer)
@@ -695,14 +621,20 @@ void buf_endframe(void *point, int video_layer)
 		else
 			gfx_info.retire_err++;
 	} else {
-		buf = buf_dequeue(fbi->buf_waitlist);
-		pOvlySurface = (struct _sOvlySurface *)buf;
+		if (list_empty(&fbi->buf_waitlist.surfacelist))
+			return;
+
+		surface_list = list_first_entry(&fbi->buf_waitlist.surfacelist,
+			struct _sSurfaceList, surfacelist);
+		pOvlySurface = &surface_list->surface;
+		list_del(&surface_list->surfacelist);
 
 		/* Update new surface settings */
 		ret = fbi->update_buff(fi, pOvlySurface, 0);
+
 		if (!ret) {
 			fbi->buf_retired = fbi->buf_current;
-			fbi->buf_current = buf;
+			fbi->buf_current = surface_list;
 			if (WAIT_PEER && FB_MODE_DUP) {
 				if (video_layer)
 					ovly_info.wait_peer = 1;
@@ -721,11 +653,22 @@ void buf_endframe(void *point, int video_layer)
 			}
 		} else {
 			/* enqueue the repeated buffer to freelist */
-			buf_enqueue(fbi->buf_freelist, buf);
+			list_add_tail(&surface_list->surfacelist,
+				&fbi->buf_freelist.surfacelist);
 			pr_info("Detect a same surface flipped in, "
 				"may flicker.\n");
 		}
 	}
+}
+
+static int get_list_count(struct _sSurfaceList *srflist)
+{
+	struct list_head *pos, *n;
+	int count = 0;
+
+	list_for_each_safe(pos, n, &srflist->surfacelist)
+		count++;
+	return count;
 }
 
 int flip_buffer(struct fb_info *info, unsigned long arg,
@@ -735,28 +678,30 @@ int flip_buffer(struct fb_info *info, unsigned long arg,
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)info->par;
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 	unsigned long flags;
+	struct _sSurfaceList *surface_list = 0, *srflist = 0;
 	struct _sOvlySurface *surface = 0;
 	u8 *start_addr[3], *input_data;
 	u32 length;
 
 	mutex_lock(&fbi->access_ok);
-	surface = kmalloc(sizeof(struct _sOvlySurface),
+	surface_list = kmalloc(sizeof(struct _sSurfaceList),
 			GFP_KERNEL);
-	if (surface == NULL) {
+	if (surface_list == NULL) {
 		mutex_unlock(&fbi->access_ok);
 		return -EFAULT;
 	}
+	surface = &surface_list->surface;
 
 	/* Get user-mode data. */
 	if (copy_from_user(surface, argp,
 				sizeof(struct _sOvlySurface))) {
-		kfree(surface);
+		kfree(surface_list);
 		mutex_unlock(&fbi->access_ok);
 		return -EFAULT;
 	}
 	if (unsupport_format(fbi, surface->viewPortInfo, surface->videoMode,
 				video_layer)) {
-		kfree(surface);
+		kfree(surface_list);
 		mutex_unlock(&fbi->access_ok);
 		return -EFAULT;
 	}
@@ -775,25 +720,25 @@ int flip_buffer(struct fb_info *info, unsigned long arg,
 	 */
 	if (start_addr[0] && (!input_data)) {
 		spin_lock_irqsave(&fbi->buf_lock, flags);
-		/*if there's less than 2 frames in waitlist,
-		 *enqueue this frame to waitlist*/
-		if ((!fbi->buf_waitlist[0]) ||
-			(!fbi->buf_waitlist[1])) {
-			buf_enqueue(fbi->buf_waitlist, (u8 *)surface);
-		} else {
-			/*if there is two frame in waitlist, dequeue
-			 *the older frame and enqueue it to freelist,
-			 *then enqueue this frame to waitlist*/
-			buf_enqueue(fbi->buf_freelist,
-					buf_dequeue(fbi->buf_waitlist));
-			buf_enqueue(fbi->buf_waitlist, (u8 *)surface);
+		if (get_list_count(&fbi->buf_waitlist) >= 2) {
+			/*if there are more than two frames in waitlist, dequeue
+			*the older frame and enqueue it to freelist,
+			*then enqueue this frame to waitlist*/
+			srflist = list_first_entry(&fbi->buf_waitlist.surfacelist,
+				struct _sSurfaceList, surfacelist);
+			list_del(&srflist->surfacelist);
+			list_add_tail(&srflist->surfacelist,
+				&fbi->buf_freelist.surfacelist);
 		}
+		list_add_tail(&surface_list->surfacelist,
+			&fbi->buf_waitlist.surfacelist);
+
 		spin_unlock_irqrestore(&fbi->buf_lock, flags);
 	} else {
 		if (!mi->mmap) {
 			pr_err("fbi %d(line %d): input err, mmap is not"
 				" supported\n", fbi->id, __LINE__);
-			kfree(surface);
+			kfree(surface_list);
 			mutex_unlock(&fbi->access_ok);
 			return -EINVAL;
 		}
@@ -808,11 +753,11 @@ int flip_buffer(struct fb_info *info, unsigned long arg,
 			/* if support hw DMA, replace this. */
 			if (copy_from_user(fbi->fb_start,
 						input_data, length)){
-				kfree(surface);
+				kfree(surface_list);
 				mutex_unlock(&fbi->access_ok);
 				return -EFAULT;
 			}
-			kfree(surface);
+			kfree(surface_list);
 			mutex_unlock(&fbi->access_ok);
 			return 0;
 		}
@@ -844,8 +789,7 @@ int flip_buffer(struct fb_info *info, unsigned long arg,
 			info->screen_base = fbi->fb_start;
 			info->screen_size = fbi->fb_size;
 		}
-
-		kfree(surface);
+		kfree(surface_list);
 	}
 
 	mutex_unlock(&fbi->access_ok);
@@ -855,25 +799,33 @@ int flip_buffer(struct fb_info *info, unsigned long arg,
 
 static void free_buf(struct pxa168fb_info *fbi)
 {
-	u8 *buf;
+	struct list_head *pos, *n;
+	unsigned long flags;
+
+	spin_lock_irqsave(&fbi->buf_lock, flags);
 
 	/* put all buffers into free list */
-	do {
-		buf = buf_dequeue(fbi->buf_waitlist);
-		buf_enqueue(fbi->buf_freelist, buf);
-	} while (buf);
+	list_for_each_safe(pos, n, &fbi->buf_waitlist.surfacelist) {
+		list_del(pos);
+		list_add_tail(pos, &fbi->buf_freelist.surfacelist);
+	}
 
 	if (fbi->buf_current) {
-		buf_enqueue(fbi->buf_freelist, fbi->buf_current);
+		list_add_tail(&fbi->buf_current->surfacelist,
+			&fbi->buf_freelist.surfacelist);
 		fbi->buf_current = 0;
 	}
+
 	if (fbi->buf_retired) {
-		buf_enqueue(fbi->buf_freelist, fbi->buf_retired);
+		list_add_tail(&fbi->buf_retired->surfacelist,
+			&fbi->buf_freelist.surfacelist);
 		fbi->buf_retired = 0;
 	}
 
 	/* clear some globals */
 	ovly_info.wait_peer = 0;
+	spin_unlock_irqrestore(&fbi->buf_lock, flags);
+
 	memset(&fbi->surface, 0, sizeof(struct _sOvlySurface));
 	fbi->new_addr[0] = 0; fbi->new_addr[1] = 0; fbi->new_addr[2] = 0;
 	if (FB_MODE_DUP) {
@@ -905,7 +857,7 @@ int get_freelist(struct fb_info *info, unsigned long arg,
 		free_buf(fbi);
 
 	/* Collect expired frame to list */
-	collectFreeBuf(fbi, fbi->filterBufList, fbi->buf_freelist);
+	collectFreeBuf(fbi, fbi->filterBufList, &fbi->buf_freelist);
 	if (copy_to_user(argp, fbi->filterBufList,
 				3*MAX_QUEUE_NUM*sizeof(u8 *))) {
 		spin_unlock_irqrestore(&fbi->buf_lock, flags);
@@ -987,4 +939,11 @@ again:
 		fbi = fbi_dual;
 		goto again;
 	}
+}
+
+void pxa168fb_list_init(struct pxa168fb_info *fbi)
+{
+	INIT_LIST_HEAD(&fbi->buf_freelist.surfacelist);
+	INIT_LIST_HEAD(&fbi->buf_waitlist.surfacelist);
+	fbi->buf_retired = fbi->buf_current = 0;
 }

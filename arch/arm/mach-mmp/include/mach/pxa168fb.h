@@ -337,6 +337,13 @@ struct _pxa168fb_cmu_pip {
 #ifdef __KERNEL__
 #include <linux/interrupt.h>
 #include <linux/earlysuspend.h>
+#include <linux/list.h>
+
+/* surface list for flip mode */
+struct _sSurfaceList {
+	struct _sOvlySurface surface;
+	struct list_head surfacelist;
+};
 
 /*
  * PXA LCD controller private state.
@@ -350,10 +357,10 @@ struct pxa168fb_info {
 	void			*dsi2_reg_base;
 	unsigned long		new_addr[3];	/* three addr for YUV planar */
 	unsigned char		*filterBufList[MAX_QUEUE_NUM][3];
-	unsigned char		*buf_freelist[MAX_QUEUE_NUM];
-	unsigned char		*buf_waitlist[MAX_QUEUE_NUM];
-	unsigned char		*buf_current;
-	unsigned char		*buf_retired;
+	struct _sSurfaceList	buf_freelist;
+	struct _sSurfaceList	buf_waitlist;
+	struct _sSurfaceList	*buf_current;
+	struct _sSurfaceList	*buf_retired;
 	unsigned int		buf_flipped;
 	unsigned int		buf_displayed;
 	dma_addr_t		fb_start_dma;
