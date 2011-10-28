@@ -251,8 +251,8 @@ static int mv_ehci_probe(struct platform_device *dev)
 		/* otg will enable clock before use as host */
 		ehci_clock_disable(ehci_mv);
 #else
-		dev_info(&dev->dev, "MV_USB_MODE_OTG must have
-				CONFIG_USB_OTG enabled\n");
+		dev_info(&dev->dev,
+			"MV_USB_MODE_OTG must have CONFIG_USB_OTG enabled\n");
 		goto err_get_irq;
 #endif
 	} else {

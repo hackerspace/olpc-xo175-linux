@@ -286,6 +286,7 @@ static int mv_otg_enable(struct mv_otg *mvotg)
 {
 	if (mvotg->clock_gating)
 		return mv_otg_enable_internal(mvotg);
+	return 0;
 }
 
 static void mv_otg_disable_internal(struct mv_otg *mvotg)
