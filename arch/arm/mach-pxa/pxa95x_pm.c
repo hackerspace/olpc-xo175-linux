@@ -597,7 +597,7 @@ static void pxa95x_clear_pm_status(int sys_level)
 	}
 	/* clear application system status */
 	tmp = ASCR;
-	tmp &= ASCR_MASK;
+	tmp |= ASCR_MASK;
 	ASCR = tmp;
 	/* clear all application subsystem reset status */
 	tmp = ARSR;
