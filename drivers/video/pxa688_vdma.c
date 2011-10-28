@@ -53,34 +53,34 @@
 
 #define vdma_ctrl(id)		(id ? VDMA_CTRL_2 : VDMA_CTRL_1)
 
-u32 lcd_pitch_read(struct pxa168fb_info *fbi, int video)
+u32 lcd_pitch_read(struct pxa168fb_info *fbi)
 {
 	struct lcd_regs *regs = get_regs(fbi->id);
 	u32 reg = (u32)&regs->g_pitch;
 
-	if (video)
+	if (fbi->vid)
 		reg = (u32)&regs->v_pitch_yc;
 
 	return __raw_readl(reg) & 0xffff;
 }
 
-u32 lcd_height_read(struct pxa168fb_info *fbi, int video)
+u32 lcd_height_read(struct pxa168fb_info *fbi)
 {
 	struct lcd_regs *regs = get_regs(fbi->id);
 	u32 reg = (u32)&regs->g_size;
 
-	if (video)
+	if (fbi->vid)
 		reg = (u32)&regs->v_size;
 
 	return (__raw_readl(reg) & 0xfff0000) >> 16;
 }
 
-u32 lcd_width_read(struct pxa168fb_info *fbi, int video)
+u32 lcd_width_read(struct pxa168fb_info *fbi)
 {
 	struct lcd_regs *regs = get_regs(fbi->id);
 	u32 reg = (u32)&regs->g_size;
 
-	if (video)
+	if (fbi->vid)
 		reg = (u32)&regs->v_size;
 
 	return __raw_readl(reg) & 0xfff;
@@ -296,10 +296,10 @@ static int __get_vdma_rot_ctrl(int vmode, int angle, int yuv_format)
 	return reg;
 }
 
-static int __get_vdma_src_sz(struct pxa168fb_info *fbi, int video,
+static int __get_vdma_src_sz(struct pxa168fb_info *fbi,
 		int vmode, int width, int height)
 {
-	int res = lcd_pitch_read(fbi, video) * height;
+	int res = lcd_pitch_read(fbi) * height;
 
 	if (vmode == FB_VMODE_YUV422PACKED_IRE_90_270)
 		return res >> 1;
@@ -307,7 +307,7 @@ static int __get_vdma_src_sz(struct pxa168fb_info *fbi, int video,
 		return res;
 }
 
-static int __get_vdma_sa(struct pxa168fb_info *fbi, int video, int vmode,
+static int __get_vdma_sa(struct pxa168fb_info *fbi, int vmode,
 		int width, int height, int bpp, int rotation)
 {
 	struct lcd_regs *regs = get_regs(fbi->id);
@@ -316,7 +316,7 @@ static int __get_vdma_sa(struct pxa168fb_info *fbi, int video, int vmode,
 	if (vmode == FB_VMODE_YUV422PACKED_IRE_90_270)
 		bpp = 2;
 
-	if (video)
+	if (fbi->vid)
 		addr = readl(&regs->v_y0);
 	else
 		addr = readl(&regs->g_0);
@@ -335,10 +335,10 @@ static int __get_vdma_sa(struct pxa168fb_info *fbi, int video, int vmode,
 
 }
 
-static int __get_vdma_sz(struct pxa168fb_info *fbi, int video, int vmode,
+static int __get_vdma_sz(struct pxa168fb_info *fbi, int vmode,
 		int rotation, int width, int height, int bpp)
 {
-	int src_pitch = lcd_pitch_read(fbi, video);
+	int src_pitch = lcd_pitch_read(fbi);
 
 	if (vmode == FB_VMODE_YUV422PACKED_IRE_90_270)
 		bpp = 2;
@@ -357,10 +357,10 @@ static int __get_vdma_sz(struct pxa168fb_info *fbi, int video, int vmode,
 
 }
 
-static int __get_vdma_pitch(struct pxa168fb_info *fbi, int video, int vmode,
+static int __get_vdma_pitch(struct pxa168fb_info *fbi, int vmode,
 		int rotation, int width, int height, int bpp)
 {
-	int src_bpp = bpp, src_pitch = lcd_pitch_read(fbi, video);
+	int src_bpp = bpp, src_pitch = lcd_pitch_read(fbi);
 
 	if (vmode == FB_VMODE_YUV422PACKED_IRE_90_270)
 		src_bpp = 2;
@@ -387,12 +387,12 @@ static int __get_vdma_ctrl(struct pxa168fb_info *fbi, int rotation, int line)
 		return (line << 8) | 0xa5;
 }
 
-int pxa688fb_vdma_get_linenum(struct pxa168fb_info *fbi, int video, int angle)
+int pxa688fb_vdma_get_linenum(struct pxa168fb_info *fbi, int angle)
 {
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 	int mulfactor, lines, lines_exp;
-	int pitch = lcd_pitch_read(fbi, video);
-	int height = lcd_height_read(fbi, video);
+	int pitch = lcd_pitch_read(fbi);
+	int height = lcd_height_read(fbi);
 
 	if (!angle || (angle == 1))
 		/* no rotation */
@@ -420,7 +420,7 @@ int pxa688fb_vdma_get_linenum(struct pxa168fb_info *fbi, int video, int angle)
 }
 
 void pxa688fb_vdma_set(struct pxa168fb_info *fbi, u32 psqu, unsigned int lines,
-		unsigned int video, int vmode, int rotation, unsigned format)
+		int vmode, int rotation, unsigned format)
 {
 	struct vdma_regs *vdma = (struct vdma_regs *)((u32)fbi->reg_base
 			+ VDMA_ARBR_CTRL);
@@ -432,10 +432,10 @@ void pxa688fb_vdma_set(struct pxa168fb_info *fbi, u32 psqu, unsigned int lines,
 		return;
 	}
 
-	width = lcd_width_read(fbi, video);
-	height = lcd_height_read(fbi, video);
-	bpp = lcd_pitch_read(fbi, video) / width;
-	vmode = pixfmt_to_vmode(video, vmode);
+	width = lcd_width_read(fbi);
+	height = lcd_height_read(fbi);
+	bpp = lcd_pitch_read(fbi) / width;
+	vmode = pixfmt_to_vmode(fbi->vid, vmode);
 
 	if (!psqu) {
 		pxa688fb_vdma_release(fbi);
@@ -443,7 +443,7 @@ void pxa688fb_vdma_set(struct pxa168fb_info *fbi, u32 psqu, unsigned int lines,
 	} else {
 		/* select video layer or graphics layer */
 		reg = readl(fbi->reg_base + LCD_PN2_SQULN2_CTRL);
-		if (video)
+		if (fbi->vid)
 			reg |= 1 << (24 + fbi->id);
 		else
 			reg &= ~(1 << (24 + fbi->id));
@@ -456,20 +456,20 @@ void pxa688fb_vdma_set(struct pxa168fb_info *fbi, u32 psqu, unsigned int lines,
 		__func__, psqu, reg, width, height, bpp, lines);
 
 	/* src/dst addr */
-	reg = __get_vdma_sa(fbi, video, vmode, width, height, bpp, rotation);
+	reg = __get_vdma_sa(fbi, vmode, width, height, bpp, rotation);
 	writel(reg, &vdma_ch->src_addr);
 	writel((u32)psqu, &vdma_ch->dst_addr);
 
 	/* source size */
-	reg = __get_vdma_src_sz(fbi, video, vmode, width, height);
+	reg = __get_vdma_src_sz(fbi, vmode, width, height);
 	writel(reg, &vdma_ch->src_size);
 
 	/* size */
-	reg = __get_vdma_sz(fbi, video, vmode, rotation, width, height, bpp);
+	reg = __get_vdma_sz(fbi, vmode, rotation, width, height, bpp);
 	writel(reg, &vdma_ch->dst_size);
 
 	/* pitch */
-	reg = __get_vdma_pitch(fbi, video, vmode, rotation, width, height, bpp);
+	reg = __get_vdma_pitch(fbi, vmode, rotation, width, height, bpp);
 	writel(reg, &vdma_ch->pitch);
 
 	/* rotation ctrl */

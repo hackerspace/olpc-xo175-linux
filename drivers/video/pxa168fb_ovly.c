@@ -491,14 +491,14 @@ static int pxa168fb_update_buff(struct fb_info *fi,
 {
 	if (addr) {
 		/* update buffer address only if changed */
-		if (check_surface_addr(fi, surface, 1))
+		if (check_surface_addr(fi, surface))
 			set_video_start(fi, 0, 0);
 		else
 			return -EINVAL;
 	} else if (check_surface(fi, surface->videoMode,
 					&surface->viewPortInfo,
 					&surface->viewPortOffset,
-					&surface->videoBufferAddr, 1))
+					&surface->videoBufferAddr))
 		/* update other parameters other than buf addr */
 		return pxa168fb_set_par(fi);
 
@@ -656,7 +656,7 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 		return 0;
 		break;
 	case FB_IOCTL_WAIT_VSYNC:
-		wait_for_vsync(fbi, 1);
+		wait_for_vsync(fbi);
 		break;
 	case FB_IOCTL_GET_VIEWPORT_INFO:/*if rotate 90/270, w/h swap*/
 		mutex_lock(&fbi->access_ok);
@@ -689,7 +689,7 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 			mutex_unlock(&fbi->access_ok);
 			return -EFAULT;
 		}
-		if (unsupport_format(fbi, gViewPortInfo, -1, 1)) {
+		if (unsupport_format(fbi, gViewPortInfo, -1)) {
 			mutex_unlock(&fbi->access_ok);
 			return -EFAULT;
 		}
@@ -702,7 +702,7 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 			gViewPortInfo.srcHeight = tmp;
 		}
 
-		if (check_surface(fi, -1, &gViewPortInfo, 0, 0, 1))
+		if (check_surface(fi, -1, &gViewPortInfo, 0, 0))
 			pxa168fb_set_par(fi);
 
 		mutex_unlock(&fbi->access_ok);
@@ -714,16 +714,16 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 		if (copy_from_user(&vmode, argp, sizeof(vmode)))
 			return -EFAULT;
 
-		if (check_surface(fi, vmode, 0, 0, 0, 1))
+		if (check_surface(fi, vmode, 0, 0, 0))
 			pxa168fb_set_par(fi);
 		break;
 	case FB_IOCTL_GET_VIDEO_MODE:
 		return copy_to_user(argp, &fbi->surface.videoMode,
 			sizeof(u32)) ? -EFAULT : 0;
 	case FB_IOCTL_FLIP_VID_BUFFER:
-		return flip_buffer(fi, arg, 1);
+		return flip_buffer(fi, arg);
 	case FB_IOCTL_GET_FREELIST:
-		return get_freelist(fi, arg, 1);
+		return get_freelist(fi, arg);
 	case FB_IOCTL_GET_BUFF_ADDR:
 	{
 		return copy_to_user(argp, &fbi->surface.videoBufferAddr,
@@ -737,7 +737,7 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 			return -EFAULT;
 		}
 
-		if (check_surface(fi, -1, 0, &gViewPortOffset, 0, 1))
+		if (check_surface(fi, -1, 0, &gViewPortOffset, 0))
 			pxa168fb_set_par(fi);
 		mutex_unlock(&fbi->access_ok);
 		break;
@@ -965,7 +965,7 @@ static int pxa168fb_open(struct fb_info *fi, int user)
 		mutex_unlock(&fbi->access_ok);
 
 	/* clear buffer list. */
-	clear_buffer(fbi, 1);
+	clear_buffer(fbi);
 
 	/* increase open count */
 	atomic_inc(&fbi->op_count);
@@ -1014,7 +1014,7 @@ again:
 		enable_graphic_layer(fb_dual);
 
 	/* clear buffer list. */
-	clear_buffer(fbi, 1);
+	clear_buffer(fbi);
 
 	/* clear some globals */
 	memset(&fbi->surface, 0, sizeof(struct _sOvlySurface));
@@ -1332,8 +1332,8 @@ again:
 		set_yuv_start(fbi, addr);
 
 		/* return until the address take effect after vsync occurs */
-		if (NEED_VSYNC(fbi, 1))
-			wait_for_vsync(fbi, 1);
+		if (NEED_VSYNC(fbi))
+			wait_for_vsync(fbi);
 	} else {
 		if (fbi->debug == 1)
 			pr_info("%s: buffer updated to %x\n",
@@ -1347,7 +1347,7 @@ again:
 	}
 
 	/* enable DMA transfer */
-	set_dma_active(fbi, 1);
+	set_dma_active(fbi);
 
 	if (FB_MODE_DUP) {
 		struct pxa168fb_info *fbi_dual = ovly_info.fbi[fb_dual];
@@ -1537,10 +1537,10 @@ static int pxa168fb_set_par(struct fb_info *fi)
 
 #ifdef CONFIG_PXA688_VDMA
 	if (mi->vdma_enable && fbi->surface.viewPortInfo.rotation) {
-		mi->vdma_lines = pxa688fb_vdma_get_linenum(fbi, 1,
+		mi->vdma_lines = pxa688fb_vdma_get_linenum(fbi,
 			fbi->surface.viewPortInfo.rotation);
 		pxa688fb_vdma_set(fbi, mi->sram_paddr, mi->vdma_lines,
-			1, fbi->surface.videoMode,
+			fbi->surface.videoMode,
 			fbi->surface.viewPortInfo.rotation,
 			fbi->surface.viewPortInfo.yuv_format);
 	} else if (mi->vdma_enable) {
@@ -1609,7 +1609,7 @@ static int pxa168fb_fb_sync(struct fb_info *info)
 {
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)info->par;
 
-	wait_for_vsync(fbi, 1);
+	wait_for_vsync(fbi);
 	return 0;
 }
 
@@ -1648,7 +1648,7 @@ irqreturn_t pxa168fb_ovly_isr(int id)
 
 	if (atomic_read(&fbi->op_count)) {
 		/* do buffer switch for video flip */
-		buf_endframe(fi, 1);
+		buf_endframe(fi);
 
 wakeup:
 		/* wake up queue. */
@@ -1750,6 +1750,7 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 
 	fbi = fi->par;
 	fbi->id = pdev->id;
+	fbi->vid = 1;
 	if (!fbi->id)
 		memset(&ovly_info, 0, sizeof(ovly_info));
 	ovly_info.fbi[fbi->id] = fbi;

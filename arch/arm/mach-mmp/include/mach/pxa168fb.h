@@ -352,6 +352,7 @@ struct pxa168fb_info {
 	struct device		*dev;
 	struct clk		*clk;
 	int			id;
+	int			vid;
 	void			*reg_base;
 	void			*dsi1_reg_base;
 	void			*dsi2_reg_base;
@@ -667,11 +668,9 @@ extern void dsi_lanes_enable(struct pxa168fb_info *fbi, int en);
 extern void pxa688_vdma_clkset(int en);
 extern u32 pxa688fb_vdma_squ_malloc(unsigned *psize);
 extern void pxa688fb_vdma_set(struct pxa168fb_info *fbi, u32 psqu,
-				 unsigned int lines, unsigned int layer,
-				 int vmode, int rotation, unsigned format);
+	unsigned int lines, int vmode, int rotation, unsigned format);
 extern void pxa688fb_vdma_release(struct pxa168fb_info *fbi);
-extern int pxa688fb_vdma_get_linenum(struct pxa168fb_info *fbi,
-					 int video, int angle);
+extern int pxa688fb_vdma_get_linenum(struct pxa168fb_info *fbi, int angle);
 extern u32 vdma_ctrl_read(struct pxa168fb_info *fbi);
 extern void vdma_ctrl_write(struct pxa168fb_info *fbi, int value);
 

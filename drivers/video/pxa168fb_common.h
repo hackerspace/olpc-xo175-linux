@@ -15,25 +15,23 @@
 #define RESET_BUF	0x1
 #define FREE_ENTRY	0x2
 
-#define NEED_VSYNC(fbi, vid)	(fbi->wait_vsync && dispd_dma_enabled(fbi, vid))
+#define NEED_VSYNC(fbi)	(fbi->wait_vsync && dispd_dma_enabled(fbi))
 
 int unsupport_format(struct pxa168fb_info *fbi, struct _sViewPortInfo
-		viewPortInfo, FBVideoMode videoMode, int video_or_graphic);
+		viewPortInfo, FBVideoMode videoMode);
 u8 *buf_dequeue(u8 **ppBufList);
 int buf_enqueue(u8 **ppBufList, u8 *pBuf);
 u8 *buf_gethead(u8 **ppBufList);
 int convert_pix_fmt(u32 vmode);
 int set_pix_fmt(struct fb_var_screeninfo *var, int pix_fmt);
 void pxa168fb_update_addr(struct pxa168fb_info *fbi,
-	struct _sVideoBufferAddr *new_addr, int video_or_graphic);
+	struct _sVideoBufferAddr *new_addr);
 int check_surface(struct fb_info *fi,
 			FBVideoMode new_mode,
 			struct _sViewPortInfo *new_info,
 			struct _sViewPortOffset *new_offset,
-			struct _sVideoBufferAddr *new_addr,
-			int video_or_graphic);
-int check_surface_addr(struct fb_info *fi,
-			struct _sOvlySurface *surface, int video_or_graphic);
+			struct _sVideoBufferAddr *new_addr);
+int check_surface_addr(struct fb_info *fi, struct _sOvlySurface *surface);
 #ifdef OVLY_TASKLET
 void pxa168fb_ovly_task(unsigned long data);
 #else
@@ -41,17 +39,15 @@ void pxa168fb_ovly_work(struct work_struct *w);
 #endif
 
 void clearFilterBuf(u8 *ppBufList[][3], int iFlag);
-void buf_endframe(void *point, int video_or_graphic);
-int flip_buffer(struct fb_info *info, unsigned long arg,
-		int video_or_graphic);
-int get_freelist(struct fb_info *info, unsigned long arg,
-		int video_or_graphic);
+void buf_endframe(void *point);
+int flip_buffer(struct fb_info *info, unsigned long arg);
+int get_freelist(struct fb_info *info, unsigned long arg);
 void dual_pos_zoom(struct pxa168fb_info *fbi,
 	struct _sOvlySurface *surface,
 	int *xzoom, int *yzoom, int *xpos, int *ypos);
-void clear_buffer(struct pxa168fb_info *fbi, int video_layer);
-void set_dma_active(struct pxa168fb_info *fbi, int video_layer);
-int dispd_dma_enabled(struct pxa168fb_info *fbi, int video_layer);
-void wait_for_vsync(struct pxa168fb_info *fbi, int video_layer);
+void clear_buffer(struct pxa168fb_info *fbi);
+void set_dma_active(struct pxa168fb_info *fbi);
+int dispd_dma_enabled(struct pxa168fb_info *fbi);
+void wait_for_vsync(struct pxa168fb_info *fbi);
 void pxa168fb_list_init(struct pxa168fb_info *fbi);
 #endif

@@ -20,12 +20,11 @@
  *             but don't really set hw register.
  */
 
-static int check_yuv_status(FBVideoMode videoMode, struct pxa168fb_info *fbi,
-		int video_layer)
+static int check_yuv_status(FBVideoMode videoMode, struct pxa168fb_info *fbi)
 {
 	u32 x;
 
-	if (video_layer) {     /* now in video layer */
+	if (fbi->vid) {     /* now in video layer */
 		x = dma_ctrl_read(fbi->id, 0);
 
 		if (!((videoMode & 0xf00) >> 8)) {
@@ -92,13 +91,13 @@ static void update_surface(struct _sOvlySurface *surface)
 }
 
 int unsupport_format(struct pxa168fb_info *fbi, struct _sViewPortInfo
-		viewPortInfo, FBVideoMode videoMode, int video_layer)
+		viewPortInfo, FBVideoMode videoMode)
 {
-	if (check_yuv_status(videoMode, fbi, video_layer) < 0)
+	if (check_yuv_status(videoMode, fbi) < 0)
 		return 1;
 
 	if ((viewPortInfo.rotation == 0) || (viewPortInfo.rotation == 1)) {
-		if (!video_layer) {
+		if (!fbi->vid) {
 			/* In graphic layer now */
 			switch (videoMode) {
 			case FB_VMODE_YUV422PLANAR:
@@ -159,7 +158,7 @@ void buf_clear(struct _sSurfaceList *srflist, int iFlag)
 	}
 }
 
-void clear_buffer(struct pxa168fb_info *fbi, int video_layer)
+void clear_buffer(struct pxa168fb_info *fbi)
 {
 	unsigned long flags;
 
@@ -172,7 +171,7 @@ void clear_buffer(struct pxa168fb_info *fbi, int video_layer)
 	kfree(fbi->buf_retired);
 	fbi->buf_retired = 0;
 	fbi->surface_set = 0;
-	if (video_layer)
+	if (fbi->vid)
 		ovly_info.wait_peer = 0;
 	else
 		gfx_info.wait_peer = 0;
@@ -408,7 +407,7 @@ int set_pix_fmt(struct fb_var_screeninfo *var, int pix_fmt)
 }
 
 void pxa168fb_update_addr(struct pxa168fb_info *fbi,
-	struct _sVideoBufferAddr *new_addr, int video_layer)
+	struct _sVideoBufferAddr *new_addr)
 {
 	fbi->new_addr[0] = (unsigned long)new_addr->startAddr[0];
 	fbi->new_addr[1] = (unsigned long)new_addr->startAddr[1];
@@ -416,7 +415,7 @@ void pxa168fb_update_addr(struct pxa168fb_info *fbi,
 
 	if (FB_MODE_DUP) {
 		struct pxa168fb_info *fbi_dual;
-		if (video_layer)             /* video layer */
+		if (fbi->vid)             /* video layer */
 			fbi_dual = ovly_info.fbi[fb_dual];
 		else
 			fbi_dual = gfx_info.fbi[fb_dual];
@@ -431,8 +430,7 @@ int check_surface(struct fb_info *fi,
 			FBVideoMode new_mode,
 			struct _sViewPortInfo *new_info,
 			struct _sViewPortOffset *new_offset,
-			struct _sVideoBufferAddr *new_addr,
-			int video_layer)
+			struct _sVideoBufferAddr *new_addr)
 {
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)fi->par;
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
@@ -442,7 +440,7 @@ int check_surface(struct fb_info *fi,
 
 	dev_dbg(fi->dev, "Enter %s\n", __func__);
 
-	if (video_layer)
+	if (fbi->vid)
 		fbi_dual = ovly_info.fbi[fb_dual];
 	else
 		fbi_dual = gfx_info.fbi[fb_dual];
@@ -504,15 +502,14 @@ int check_surface(struct fb_info *fi,
 			(unsigned long)new_addr->startAddr[0]);
 		}
 
-		pxa168fb_update_addr(fbi, new_addr, video_layer);
+		pxa168fb_update_addr(fbi, new_addr);
 		changed = 1;
 	}
 
 	return changed;
 }
 
-int check_surface_addr(struct fb_info *fi,
-			struct _sOvlySurface *surface, int video_layer)
+int check_surface_addr(struct fb_info *fi, struct _sOvlySurface *surface)
 {
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)fi->par;
 	struct _sVideoBufferAddr *new_addr = &surface->videoBufferAddr;
@@ -523,7 +520,7 @@ int check_surface_addr(struct fb_info *fi,
 	/* Check buffer address */
 	if (new_addr && new_addr->startAddr[0] &&
 	    fbi->new_addr[0] != (unsigned long)new_addr->startAddr[0]) {
-		pxa168fb_update_addr(fbi, new_addr, video_layer);
+		pxa168fb_update_addr(fbi, new_addr);
 		changed = 1;
 	}
 
@@ -607,7 +604,7 @@ void clearFilterBuf(u8 *ppBufList[][3], int iFlag)
 		memset(ppBufList, 0, 3 * MAX_QUEUE_NUM * sizeof(u8 *));
 }
 
-void buf_endframe(void *point, int video_layer)
+void buf_endframe(void *point)
 {
 	struct fb_info *fi = (struct fb_info *)point;
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)fi->par;
@@ -616,7 +613,7 @@ void buf_endframe(void *point, int video_layer)
 	struct _sSurfaceList *surface_list = 0;
 
 	if (fbi->buf_retired) {
-		if (video_layer)
+		if (fbi->vid)
 			ovly_info.retire_err++;
 		else
 			gfx_info.retire_err++;
@@ -636,7 +633,7 @@ void buf_endframe(void *point, int video_layer)
 			fbi->buf_retired = fbi->buf_current;
 			fbi->buf_current = surface_list;
 			if (WAIT_PEER && FB_MODE_DUP) {
-				if (video_layer)
+				if (fbi->vid)
 					ovly_info.wait_peer = 1;
 				else
 					gfx_info.wait_peer = 1;
@@ -671,8 +668,7 @@ static int get_list_count(struct _sSurfaceList *srflist)
 	return count;
 }
 
-int flip_buffer(struct fb_info *info, unsigned long arg,
-		int video_layer)
+int flip_buffer(struct fb_info *info, unsigned long arg)
 {
 	void __user *argp = (void __user *)arg;
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)info->par;
@@ -699,8 +695,7 @@ int flip_buffer(struct fb_info *info, unsigned long arg,
 		mutex_unlock(&fbi->access_ok);
 		return -EFAULT;
 	}
-	if (unsupport_format(fbi, surface->viewPortInfo, surface->videoMode,
-				video_layer)) {
+	if (unsupport_format(fbi, surface->viewPortInfo, surface->videoMode)) {
 		kfree(surface_list);
 		mutex_unlock(&fbi->access_ok);
 		return -EFAULT;
@@ -748,8 +743,8 @@ int flip_buffer(struct fb_info *info, unsigned long arg,
 
 		/* copy buffer */
 		if (input_data) {
-			if (NEED_VSYNC(fbi, video_layer))
-				wait_for_vsync(fbi, video_layer);
+			if (NEED_VSYNC(fbi))
+				wait_for_vsync(fbi);
 			/* if support hw DMA, replace this. */
 			if (copy_from_user(fbi->fb_start,
 						input_data, length)){
@@ -837,8 +832,7 @@ static void free_buf(struct pxa168fb_info *fbi)
 	}
 }
 
-int get_freelist(struct fb_info *info, unsigned long arg,
-		int video_layer)
+int get_freelist(struct fb_info *info, unsigned long arg)
 {
 	void __user *argp = (void __user *)arg;
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)info->par;
@@ -851,7 +845,7 @@ int get_freelist(struct fb_info *info, unsigned long arg,
 
 	/* when lcd is suspend, move all buffers as "switched"*/
 	if (!(gfx_info.fbi[fbi->id]->active))
-		buf_endframe(info, video_layer);
+		buf_endframe(info);
 	/* when video layer dma is off, free all buffers */
 	if (!fbi->dma_on)
 		free_buf(fbi);
@@ -872,14 +866,14 @@ int get_freelist(struct fb_info *info, unsigned long arg,
 	return 0;
 }
 
-void set_dma_active(struct pxa168fb_info *fbi, int video_layer)
+void set_dma_active(struct pxa168fb_info *fbi)
 {
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-	u32 flag = video_layer ? CFG_DMA_ENA_MASK : CFG_GRA_ENA_MASK;
-	u32 enable = video_layer ? CFG_DMA_ENA(1) : CFG_GRA_ENA(1);
+	u32 flag = fbi->vid ? CFG_DMA_ENA_MASK : CFG_GRA_ENA_MASK;
+	u32 enable = fbi->vid ? CFG_DMA_ENA(1) : CFG_GRA_ENA(1);
 	u32 active = 0;
 
-	if (fbi->new_addr[0] || mi->mmap || (!video_layer &&
+	if (fbi->new_addr[0] || mi->mmap || (!fbi->vid &&
 		 (fb_mode || fb_share) && fbi->id == fb_dual))
 		active = fbi->check_modex_active(fbi->id, fbi->active
 					&& fbi->dma_on);
@@ -890,7 +884,7 @@ void set_dma_active(struct pxa168fb_info *fbi, int video_layer)
 		__func__, fbi->id, active, fbi->active, fbi->new_addr[0]);
 }
 
-int dispd_dma_enabled(struct pxa168fb_info *fbi, int video_layer)
+int dispd_dma_enabled(struct pxa168fb_info *fbi)
 {
 	if (irqs_disabled() || !fbi->active)
 		return 0;
@@ -905,7 +899,7 @@ int dispd_dma_enabled(struct pxa168fb_info *fbi, int video_layer)
 		return 0;
 
 	/* in modex dma may not be enabled */
-	return dma_ctrl_read(fbi->id, 0) & (video_layer ?
+	return dma_ctrl_read(fbi->id, 0) & (fbi->vid ?
 		CFG_DMA_ENA_MASK : CFG_GRA_ENA_MASK);
 }
 
@@ -919,14 +913,14 @@ void clear_dispd_irq(struct pxa168fb_info *fbi)
 	}
 }
 
-void wait_for_vsync(struct pxa168fb_info *fbi, int video_layer)
+void wait_for_vsync(struct pxa168fb_info *fbi)
 {
 	struct pxa168fb_info *fbi_dual =
-		video_layer ? ovly_info.fbi[fb_dual] : gfx_info.fbi[fb_dual];
+		fbi->vid ? ovly_info.fbi[fb_dual] : gfx_info.fbi[fb_dual];
 
 again:
 	atomic_set(&fbi->w_intr, 0);
-	pr_debug("fbi->id %d layer: %d\n", fbi->id, video_layer);
+	pr_debug("fbi->id %d vid: %d\n", fbi->id, fbi->vid);
 
 	wait_event_interruptible_timeout(fbi->w_intr_wq,
 		atomic_read(&fbi->w_intr), HZ/20);
@@ -935,7 +929,7 @@ again:
 	if (atomic_read(&fbi->w_intr) == 0)
 		clear_dispd_irq(fbi);
 
-	if (FB_MODE_DUP && NEED_VSYNC(fbi_dual, video_layer)) {
+	if (FB_MODE_DUP && NEED_VSYNC(fbi_dual)) {
 		fbi = fbi_dual;
 		goto again;
 	}

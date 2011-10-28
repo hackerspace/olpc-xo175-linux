@@ -681,9 +681,9 @@ static void pxa168fb_vdma_config(struct pxa168fb_info *fbi)
 	if (mi->vdma_enable && fbi->active) {
 		int active = check_modex_active(fbi->id, fbi->active);
 		if (active) {
-			mi->vdma_lines = pxa688fb_vdma_get_linenum(fbi, 0, 0);
+			mi->vdma_lines = pxa688fb_vdma_get_linenum(fbi, 0);
 			pxa688fb_vdma_set(fbi, mi->sram_paddr, mi->vdma_lines,
-				0, fbi->pix_fmt, 0, fbi->pix_fmt);
+				fbi->pix_fmt, 0, fbi->pix_fmt);
 		} else {
 			u32 val = vdma_ctrl_read(fbi) & 1;
 			if (val) {
@@ -729,7 +729,7 @@ static void set_graphics_start(struct fb_info *info,
 again:
 	regs = get_regs(fbi->id);
 	writel(addr, &regs->g_0);
-	set_dma_active(fbi, 0);
+	set_dma_active(fbi);
 
 	pxa168fb_vdma_config(fbi);
 
@@ -739,8 +739,8 @@ again:
 	}
 
 	/* return until the address take effect after vsync occurs */
-	if (wait_vsync && NEED_VSYNC(fbi, 0))
-		wait_for_vsync(fbi, 0);
+	if (wait_vsync && NEED_VSYNC(fbi))
+		wait_for_vsync(fbi);
 }
 
 static void set_dumb_panel_control(struct fb_info *info)
@@ -1009,9 +1009,9 @@ static int pxa168fb_set_var(struct fb_info *info)
 
 	dev_dbg(info->dev, "xres=%d yres=%d\n", var->xres, var->yres);
 
-	if (NEED_VSYNC(fbi, 0)) {
+	if (NEED_VSYNC(fbi)) {
 		fbi->info = info;
-		wait_for_vsync(fbi, 0);
+		wait_for_vsync(fbi);
 	} else
 		pxa168fb_set_regs(info, 1);
 
@@ -1138,7 +1138,7 @@ static int pxa168fb_active(struct pxa168fb_info *fbi, int active)
 		}
 
 		fbi->active = 1;
-		set_dma_active(fbi, 0);
+		set_dma_active(fbi);
 	}
 	return 0;
 }
@@ -1234,7 +1234,7 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 					}
 
 					/* trigger buf update */
-					buf_endframe(fbi->fb_info, 0);
+					buf_endframe(fbi->fb_info);
 
 					if (vsync_check &&
 						id == DEBUG_VSYNC_PATH(0))
@@ -1346,14 +1346,14 @@ static int pxa168fb_update_buff(struct fb_info *fi,
 {
 	if (address) {
 		/* update buffer address only if changed */
-		if (check_surface_addr(fi, surface, 0))
+		if (check_surface_addr(fi, surface))
 			set_graphics_start(fi, 0, 0, 1);
 		else
 			return -EINVAL;
 	} else if (check_surface(fi, surface->videoMode,
 					&surface->viewPortInfo,
 					&surface->viewPortOffset,
-					&surface->videoBufferAddr, 0))
+					&surface->videoBufferAddr))
 		/* update other parameters other than buf addr */
 		return pxa168fb_set_var(fi);
 
@@ -1382,7 +1382,7 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 		pxa168fb_clear_framebuffer(info);
 		break;
 	case FB_IOCTL_WAIT_VSYNC:
-		wait_for_vsync(fbi, 0);
+		wait_for_vsync(fbi);
 		break;
 	case FB_IOCTL_WAIT_VSYNC_ON:
 		fbi->wait_vsync = 1;
@@ -1457,12 +1457,12 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 		break;
 
 	case FB_IOCTL_FLIP_VID_BUFFER:
-		val = flip_buffer(info, arg, 0);
-		if (NEED_VSYNC(fbi, 0))
-			wait_for_vsync(fbi, 0);
+		val = flip_buffer(info, arg);
+		if (NEED_VSYNC(fbi))
+			wait_for_vsync(fbi);
 		return val;
 	case FB_IOCTL_GET_FREELIST:
-		return get_freelist(info, arg, 0);
+		return get_freelist(info, arg);
 
 	case FB_IOCTL_SWITCH_GRA_OVLY:
 		if (copy_from_user(&gra_on, argp, sizeof(int)))
@@ -1561,7 +1561,7 @@ again:
 		sizeof(fbi->surface.viewPortInfo));
 
 	/* clear buffer list */
-	clear_buffer(fbi, 0);
+	clear_buffer(fbi);
 
 	/* Recovery screen info */
 	*var = fbi->var_bak;
@@ -1580,9 +1580,9 @@ again:
 		goto again;
 	}
 
-	if (NEED_VSYNC(fbi_bak, 0)) {
+	if (NEED_VSYNC(fbi_bak)) {
 		fbi->info = info_bak;
-		wait_for_vsync(fbi_bak, 0);
+		wait_for_vsync(fbi_bak);
 	}
 
 	return 0;
@@ -2293,6 +2293,7 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	/* Initialize private data */
 	fbi = info->par;
 	fbi->id = pdev->id;
+	fbi->vid = 0;
 	fbi->check_modex_active = check_modex_active;
 	fbi->update_buff = pxa168fb_update_buff;
 
