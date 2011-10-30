@@ -1195,9 +1195,8 @@ static unsigned int pm_postset_clockgate(void)
 void enter_lowpower_mode(int state)
 {
 	unsigned int start_tick = 0, end_tick = 0;
-	unsigned int cken[3] = { 0, 0, 0 }, icmr[3] = {
-	0, 0, 0};
-	unsigned int reg, sram, pollreg;
+	unsigned int cken[3] = {0, 0, 0 }, icmr[3] = {0, 0, 0};
+	unsigned int reg, sram, pollreg, aicsr;
 	unsigned int accr_gcfs = 0;
 	unsigned int accr, acsr;
 	unsigned int power_state;
@@ -1432,6 +1431,18 @@ void enter_lowpower_mode(int state)
 
 		pm_select_wakeup_src(PXA95x_PM_CG, wakeup_src);
 
+		if (cpu_is_pxa955() || cpu_is_pxa968()) {
+			/* Enable ACCU internal interrupt */
+			ICMR2 |= 0x00100000;
+			/* Turn on wakeup to core during idle mode */
+			aicsr = AICSR;
+			/* enable bit 10 - wakeup during core idle */
+			aicsr |= AICSR_WEIDLE;
+			/* do not write to status bits (write to clear) */
+			aicsr &= ~AICSR_STATUS_BITS;
+			AICSR = aicsr;
+		}
+
 		if (PXA9xx_Force_CGM == ForceLPM) {
 			LastForceLPM = PXA9xx_Force_CGM;
 			ACGD0ER = ForceLPMWakeup;
@@ -1507,6 +1518,15 @@ void enter_lowpower_mode(int state)
 		reg = CKENB;
 		CKENC = cken[2];
 		reg = CKENC;
+		if (cpu_is_pxa955() || cpu_is_pxa968()) {
+			/* clear AICSR wakeup status */
+			aicsr = AICSR;
+			/*do not write to status bits (write to clear) */
+			aicsr &= ~(AICSR_STATUS_BITS | AICSR_WEIDLE);
+			/*enable bit 10 - wakeup during core idle */
+			aicsr |= AICSR_WSIDLE;
+			AICSR = aicsr;
+		}
 
 		start_tick = OSCR4;
 #ifdef CONFIG_PXA95x_DVFM_STATS
