@@ -356,6 +356,11 @@ void __init l2x0_init(void __iomem *base, __u32 aux_val, __u32 aux_mask)
 
 	l2x0_way_mask = (1 << l2x0_ways) - 1;
 
+#ifdef CONFIG_CACHE_L2X0_PREFETCH
+	/* Configure double line fill and prefetch */
+	writel_relaxed(0x70000000, l2x0_base + L2X0_PREFETCH_CTRL);
+#endif
+
 	/*
 	 * L2 cache Size =  Way size * Number of ways
 	 */
