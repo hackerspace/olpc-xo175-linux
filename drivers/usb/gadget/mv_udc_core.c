@@ -1145,11 +1145,11 @@ static int udc_reset(struct mv_udc *udc)
 	return 0;
 }
 
-static int mv_udc_enable(struct mv_udc *udc)
+static int mv_udc_enable_internal(struct mv_udc *udc)
 {
 	int retval;
 
-	if (udc->clock_gating == 0 || udc->active)
+	if (udc->active)
 		return 0;
 
 	dev_dbg(&udc->dev->dev, "enable udc\n");
@@ -1168,15 +1168,29 @@ static int mv_udc_enable(struct mv_udc *udc)
 	return 0;
 }
 
-static void mv_udc_disable(struct mv_udc *udc)
+static int mv_udc_enable(struct mv_udc *udc)
 {
-	if (udc->clock_gating && udc->active) {
+	if (udc->clock_gating)
+		return mv_udc_enable_internal(udc);
+
+	return 0;
+}
+
+static void mv_udc_disable_internal(struct mv_udc *udc)
+{
+	if (udc->active) {
 		dev_dbg(&udc->dev->dev, "disable udc\n");
 		if (udc->pdata->phy_deinit)
 			udc->pdata->phy_deinit(udc->phy_regs);
 		udc_clock_disable(udc);
 		udc->active = 0;
 	}
+}
+
+static void mv_udc_disable(struct mv_udc *udc)
+{
+	if (udc->clock_gating)
+		mv_udc_disable_internal(udc);
 }
 
 static int mv_udc_get_frame(struct usb_gadget *gadget)
@@ -2431,16 +2445,9 @@ static int __devinit mv_udc_probe(struct platform_device *dev)
 	}
 
 	/* we will acces controller register, so enable the clk */
-	udc_clock_enable(udc);
-	if (pdata->phy_init) {
-		retval = pdata->phy_init(udc->phy_regs);
-		if (retval) {
-			dev_err(&dev->dev, "phy init error %d\n", retval);
-			goto err_phy_init;
-		}
-	}
-
-	udc->active = 1;
+	retval = mv_udc_enable_internal(udc);
+	if (retval)
+		goto err_phy_init;
 
 	udc->op_regs = (struct mv_op_regs __iomem *)((u32)udc->cap_regs
 		+ (readl(&udc->cap_regs->caplength_hciversion)
@@ -2578,12 +2585,9 @@ static int __devinit mv_udc_probe(struct platform_device *dev)
 	* When clock is always on, It means that VBUS can not be detected,
 	* so enable vbus_active to make controller run at all the time.
 	*/
-	if (udc->clock_gating) {
-		if (udc->pdata->phy_deinit)
-			udc->pdata->phy_deinit(udc->phy_regs);
-		udc_clock_disable(udc);
-		udc->active = 0;
-	} else
+	if (udc->clock_gating)
+		mv_udc_disable_internal(udc);
+	else
 		udc->vbus_active = 1;
 
 	wake_lock_init(&idle_lock, WAKE_LOCK_IDLE, "mv_udc_idle");
@@ -2615,9 +2619,7 @@ err_alloc_dtd_pool:
 	dma_free_coherent(&dev->dev, udc->ep_dqh_size,
 		udc->ep_dqh, udc->ep_dqh_dma);
 err_alloc_dqh:
-	if (udc->pdata->phy_deinit)
-		udc->pdata->phy_deinit(udc->phy_regs);
-	udc_clock_disable(udc);
+	mv_udc_disable_internal(udc);
 err_phy_init:
 	iounmap((void *)udc->phy_regs);
 err_map_phy_regs:
@@ -2662,11 +2664,7 @@ static int mv_udc_suspend(struct device *_dev)
 		stop_activity(udc, udc->driver);
 		spin_unlock_irq(&udc->lock);
 
-		if (udc->pdata->phy_deinit)
-			udc->pdata->phy_deinit(udc->phy_regs);
-
-		udc_clock_disable(udc);
-		udc->active = 0;
+		mv_udc_disable_internal(udc);
 	}
 
 	return 0;
@@ -2682,17 +2680,9 @@ static int mv_udc_resume(struct device *_dev)
 		return 0;
 
 	if (!udc->clock_gating) {
-		udc_clock_enable(udc);
-		if (udc->pdata->phy_init) {
-			retval = udc->pdata->phy_init(udc->phy_regs);
-			if (retval) {
-				dev_err(&udc->dev->dev,
-					"init phy error %d when resume back\n",
-					retval);
-				return retval;
-			}
-		}
-		udc->active = 1;
+		retval = mv_udc_enable_internal(udc);
+		if (retval)
+			return retval;
 
 		if (udc->driver && udc->softconnect) {
 			udc_reset(udc);
