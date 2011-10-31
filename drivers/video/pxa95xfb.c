@@ -1791,7 +1791,7 @@ static void set_window(struct pxa95xfb_info *fbi)
 		x |= (1<<24);
 		xscale = (xdst*1000/(xsrc) - 1000)/125;
 	}
-
+	xscale &= 0x1f;
 	if(ydst < ysrc){
 		x &= ~(1<<18);
 		yscale = (100000 - ydst*100000/(ysrc))/3125 - 1;
@@ -1799,6 +1799,7 @@ static void set_window(struct pxa95xfb_info *fbi)
 		x |= (1<<18);
 		yscale = (ydst*1000/(ysrc) - 1000)/125;
 	}
+	yscale &= 0x1f;
 	x &= ~(LCD_WINx_CFG_WIN_XSCALE(0x1f)|LCD_WINx_CFG_WIN_YSCALE(0x1f));
 	x |= LCD_WINx_CFG_WIN_XSCALE(xscale)|LCD_WINx_CFG_WIN_YSCALE(yscale);
 	writel(x, fbi->reg_base + LCD_WIN4_CFG);
