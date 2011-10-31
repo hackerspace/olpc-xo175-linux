@@ -170,11 +170,29 @@ static void ccic_reg_set_bit(struct mv_camera_dev *pcdev,
 	ccic_reg_write_mask(pcdev, reg, val, val);
 }
 
+static void ccic_config_phy(struct mv_camera_dev *pcdev, int enable)
+{
+	struct mv_cam_pdata *mcam = pcdev->pdev->dev.platform_data;
+
+	if (mcam->bus_type == SOCAM_MIPI && enable) {
+		ccic_reg_write(pcdev, REG_CSI2_DPHY3, mcam->dphy[0]);
+		ccic_reg_write(pcdev, REG_CSI2_DPHY6, mcam->dphy[2]);
+		ccic_reg_write(pcdev, REG_CSI2_DPHY5, mcam->dphy[1]);
+		ccic_reg_write(pcdev, REG_CSI2_CTRL0, 0x43);
+	} else {
+		ccic_reg_write(pcdev, REG_CSI2_DPHY3, 0x0);
+		ccic_reg_write(pcdev, REG_CSI2_DPHY6, 0x0);
+		ccic_reg_write(pcdev, REG_CSI2_DPHY5, 0x0);
+		ccic_reg_write(pcdev, REG_CSI2_CTRL0, 0x0);
+	}
+}
+
 static void ccic_enable_clk(struct mv_camera_dev *pcdev)
 {
 	struct mv_cam_pdata *mcam = pcdev->pdev->dev.platform_data;
 	int div, ctrl1;
 
+	ccic_config_phy(pcdev, 1);
 	mcam->enable_clk(&pcdev->pdev->dev, 1);
 	div = mcam->get_mclk_src(mcam->mclk_src) / mcam->mclk_min;
 	ccic_reg_write(pcdev, REG_CLKCTRL, (mcam->mclk_src << 29) | div);
@@ -197,6 +215,7 @@ static void ccic_disable_clk(struct mv_camera_dev *pcdev)
 	struct mv_cam_pdata *mcam = pcdev->pdev->dev.platform_data;
 
 	mcam->enable_clk(&pcdev->pdev->dev, 0);
+	ccic_config_phy(pcdev, 0);
 	ccic_reg_write(pcdev, REG_CLKCTRL, 0x0);
 	ccic_reg_write(pcdev, REG_CTRL1, 0x0);
 }
@@ -355,13 +374,6 @@ static void ccic_stop_dma(struct mv_camera_dev *pcdev)
 	int st = 0;
 	ccic_stop(pcdev);
 	/*
-	 * CSI2/DPHY need to be cleared, or no EOF will be received
-	 */
-	ccic_reg_write(pcdev, REG_CSI2_DPHY3, 0x0);
-	ccic_reg_write(pcdev, REG_CSI2_DPHY6, 0x0);
-	ccic_reg_write(pcdev, REG_CSI2_DPHY5, 0x0);
-	ccic_reg_write(pcdev, REG_CSI2_CTRL0, 0x0);
-	/*
 	 * workaround when stop DMA controller!!!
 	 * 1) ccic controller must be stopped first,
 	 * and it shoud delay for one frame transfer time at least
@@ -390,23 +402,6 @@ static void ccic_power_up(struct mv_camera_dev *pcdev)
 static void ccic_power_down(struct mv_camera_dev *pcdev)
 {
 	ccic_reg_set_bit(pcdev, REG_CTRL1, C1_PWRDWN);
-}
-
-static void ccic_config_phy(struct mv_camera_dev *pcdev)
-{
-	struct mv_cam_pdata *mcam = pcdev->pdev->dev.platform_data;
-
-	if (mcam->bus_type == SOCAM_MIPI) {
-		ccic_reg_write(pcdev, REG_CSI2_DPHY3, mcam->dphy[0]);
-		ccic_reg_write(pcdev, REG_CSI2_DPHY6, mcam->dphy[2]);
-		ccic_reg_write(pcdev, REG_CSI2_DPHY5, mcam->dphy[1]);
-		ccic_reg_write(pcdev, REG_CSI2_CTRL0, 0x43);
-	} else {
-		ccic_reg_write(pcdev, REG_CSI2_DPHY3, 0x0);
-		ccic_reg_write(pcdev, REG_CSI2_DPHY6, 0x0);
-		ccic_reg_write(pcdev, REG_CSI2_DPHY5, 0x0);
-		ccic_reg_write(pcdev, REG_CSI2_CTRL0, 0x0);
-	}
 }
 
 /*
@@ -733,7 +728,6 @@ static int mv_camera_add_device(struct soc_camera_device *icd)
 		return -EBUSY;
 
 	frames = singles = delivered = 0;
-	ccic_config_phy(pcdev);
 
 #ifdef CONFIG_PM
 	mcam->controller_power(1);
