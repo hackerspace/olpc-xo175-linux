@@ -78,7 +78,8 @@ struct isp_ispdma_device {
 
 	unsigned int		ipc_event_cnt;
 	unsigned int		dma_event_cnt;
-	unsigned int		mipi_overrun_cnt;
+	unsigned int		disp_mipi_ovr_cnt;
+	unsigned int		codec_mipi_ovr_cnt;
 	unsigned int		disp_eof_cnt;
 	unsigned int		input_event_cnt;
 
