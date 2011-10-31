@@ -902,6 +902,10 @@ static int mv_otg_suspend(struct platform_device *dev, pm_message_t state)
 			mvotg->otg.state);
 		return -EAGAIN;
 	}
+
+	if (!mvotg->clock_gating)
+		mv_otg_disable_internal(mvotg);
+
 	return 0;
 }
 
@@ -909,24 +913,10 @@ static int mv_otg_resume(struct platform_device *dev)
 {
 	struct mv_otg *mvotg = platform_get_drvdata(dev);
 	u32 otgsc;
-	int retval;
 
-	if (mvotg == NULL) {
-		dev_err(&dev->dev, "No OTG device found\n");
-		return -ENODEV;
-	}
+	if (!mvotg->clock_gating) {
+		mv_otg_enable_internal(mvotg);
 
-	if (mvotg->clock_gating == 0) {
-		otg_clock_enable(mvotg);
-		if (mvotg->pdata->phy_init) {
-			retval = mvotg->pdata->phy_init(mvotg->phy_regs);
-			if (retval) {
-				dev_err(&dev->dev,
-					"init phy error %d when resume back\n",
-					retval);
-				return retval;
-			}
-		}
 		otgsc = readl(&mvotg->op_regs->otgsc);
 		otgsc |= mvotg->irq_en;
 		writel(otgsc, &mvotg->op_regs->otgsc);

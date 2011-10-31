@@ -2640,25 +2640,33 @@ static int mv_udc_suspend(struct device *_dev)
 {
 	struct mv_udc *udc = the_controller;
 
-	/* if OTG is enabled, the following will be done at OTG driver*/
-	if (udc->transceiver || udc->pdata->vbus == NULL)
+	/* if OTG is enabled, the following will be done in OTG driver*/
+	if (udc->transceiver)
 		return 0;
 
-	if (udc->pdata->vbus->poll() == VBUS_HIGH) {
-		dev_info(&udc->dev->dev,
-			"USB cable connected while suspending!\n");
-		return -EAGAIN;
-	}
+	if (udc->pdata->vbus && udc->pdata->vbus->poll)
+		if (udc->pdata->vbus->poll() == VBUS_HIGH) {
+			dev_info(&udc->dev->dev, "USB cable is connected!\n");
+			return -EAGAIN;
+		}
 
 	/*
-	* only cable is unplugged, udc can suspend.
-	* So do not care about clock_gating == 1.
-	*/
-	if (udc->clock_gating == 0) {
+	 * only cable is unplugged, udc can suspend.
+	 * So do not care about clock_gating == 1.
+	 */
+	if (!udc->clock_gating) {
+		udc_stop(udc);
+
+		spin_lock_irq(&udc->lock);
+		/* stop all usb activities */
+		stop_activity(udc, udc->driver);
+		spin_unlock_irq(&udc->lock);
+
 		if (udc->pdata->phy_deinit)
 			udc->pdata->phy_deinit(udc->phy_regs);
 
 		udc_clock_disable(udc);
+		udc->active = 0;
 	}
 
 	return 0;
@@ -2669,11 +2677,11 @@ static int mv_udc_resume(struct device *_dev)
 	struct mv_udc *udc = the_controller;
 	int retval;
 
-	/*
-	* only cable is unplugged, udc can suspend.
-	* So do not care about clock_gating == 1.
-	*/
-	if (udc->clock_gating == 0) {
+	/* if OTG is enabled, the following will be done in OTG driver*/
+	if (udc->transceiver)
+		return 0;
+
+	if (!udc->clock_gating) {
 		udc_clock_enable(udc);
 		if (udc->pdata->phy_init) {
 			retval = udc->pdata->phy_init(udc->phy_regs);
@@ -2684,9 +2692,13 @@ static int mv_udc_resume(struct device *_dev)
 				return retval;
 			}
 		}
-		udc_reset(udc);
-		ep0_reset(udc);
-		udc_start(udc);
+		udc->active = 1;
+
+		if (udc->driver && udc->softconnect) {
+			udc_reset(udc);
+			ep0_reset(udc);
+			udc_start(udc);
+		}
 	}
 
 	return 0;
