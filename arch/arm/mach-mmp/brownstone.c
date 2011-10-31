@@ -951,11 +951,92 @@ static void __init mmp2_init_vmeta(void)
 }
 #endif
 
+/*
+ * system power control
+ */
+#define PWR_OFF 		(1 << 6)
+#define SFT_RESET		(1 << 5)
+#define RSTIN_DELAY		(2 << 3)
+#define SFT_DESERTION		(1 << 2)
+#define MAX8925_CMD_VCHG	0xd0
+#define MAX8925_ADC_VCHG	0x64
+#define REG_RTC_BR0		0xfe010014
+#define REG_RTC_BR1		0xfe010018
+
+static void max8925_disable_ldo(int addr)
+{
+	int ldo = (max8925_pmic_reg_read(addr) >> 2) & 0x07;
+	max8925_pmic_set_bits(addr, 1 << 0, 0);
+	if (ldo != 0x07)
+		max8925_pmic_set_bits(addr, 0x07 << 2, 0x7 << 2);
+	return ;
+}
+
+static void max8925_disable_all_ldo(void)
+{
+	max8925_disable_ldo(MAX8925_LDOCTL3);
+	max8925_disable_ldo(MAX8925_LDOCTL5);
+	max8925_disable_ldo(MAX8925_LDOCTL6);
+	max8925_disable_ldo(MAX8925_LDOCTL7);
+	max8925_disable_ldo(MAX8925_LDOCTL8);
+	max8925_disable_ldo(MAX8925_LDOCTL10);
+	max8925_disable_ldo(MAX8925_LDOCTL11);
+	max8925_disable_ldo(MAX8925_LDOCTL13);
+	max8925_disable_ldo(MAX8925_LDOCTL14);
+	max8925_disable_ldo(MAX8925_LDOCTL15);
+	max8925_disable_ldo(MAX8925_LDOCTL16);
+	max8925_disable_ldo(MAX8925_LDOCTL17);
+	max8925_disable_ldo(MAX8925_LDOCTL19);
+	return ;
+}
+
+static void system_restart(char mode, const char *cmd)
+{
+	/* charging bit */
+	if (board_is_mmp2_brownstone_rev5()) {
+		if (cmd && !strcmp(cmd, "charging"))
+			/* charge to full */
+			__raw_writel(0x2, REG_RTC_BR1);
+		else
+			/* try to boot up android */
+			__raw_writel(0x1, REG_RTC_BR1);
+	}
+	/* recovery bit */
+	if (cmd && !strcmp(cmd, "recovery"))
+		__raw_writel(0x1, REG_RTC_BR0);
+
+	max8925_disable_all_ldo();
+	max8925_pmic_reg_write(MAX8925_RESET_CNFG, SFT_RESET
+				| RSTIN_DELAY | SFT_DESERTION);
+}
+
+static void system_poweroff(void)
+{
+	unsigned char buf[2] = {0, 0};
+	int vchg;
+
+	if (board_is_mmp2_brownstone_rev5()) {
+		/* if system is in charging, do reboot instead of power off */
+		max8925_adc_reg_write(MAX8925_CMD_VCHG, 0);
+		max8925_adc_bulk_read(MAX8925_ADC_VCHG, 2, buf);
+		vchg = ((buf[0] << 8) | buf[1]) >> 4;
+		if (vchg * 2 > 4500) {
+			system_restart(0, "charging");
+		}
+	}
+	max8925_disable_all_ldo();
+	max8925_pmic_set_bits(MAX8925_WLED_MODE_CNTL, 1, 0);
+	max8925_pmic_set_bits(MAX8925_RESET_CNFG, PWR_OFF, PWR_OFF);
+}
+
 static void __init brownstone_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(brownstone_pin_config));
 
 	mmp2_get_platform_version();
+
+	arm_pm_restart = system_restart;
+	pm_power_off = system_poweroff;
 
 	/* disable LED lights */
 	led_init();
@@ -1028,6 +1109,9 @@ static void __init brownstone_init(void)
 #ifdef CONFIG_UIO_VMETA
 	mmp2_init_vmeta();
 #endif
+	/* clear recovery bit */
+	__raw_writel(0x0, REG_RTC_BR0);
+
 }
 
 MACHINE_START(BROWNSTONE, "Brownstone Development Platform")

@@ -279,6 +279,13 @@ extern int max8925_bulk_read(struct i2c_client *, int, int, unsigned char *);
 extern int max8925_bulk_write(struct i2c_client *, int, int, unsigned char *);
 extern int max8925_set_bits(struct i2c_client *, int, unsigned char,
 			unsigned char);
+extern int max8925_pmic_reg_read(int);
+extern int max8925_pmic_reg_write(int, unsigned char);
+extern int max8925_pmic_bulk_read(int, int, unsigned char *);
+extern int max8925_pmic_bulk_write(int, int, unsigned char *);
+extern int max8925_pmic_set_bits(int, unsigned char, unsigned char);
+extern int max8925_adc_reg_write(int, unsigned char);
+extern int max8925_adc_bulk_read(int, int, unsigned char *);
 
 extern int max8925_device_init(struct max8925_chip *,
 				struct max8925_platform_data *);
