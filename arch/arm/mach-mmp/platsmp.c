@@ -149,7 +149,7 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
  */
 void __init smp_init_cpus(void)
 {
-	unsigned int i, ncores = get_core_count();
+	unsigned int i, ncores = NR_CPUS;
 
 	/* Boot from mm or MP1 core */
 	if (hard_smp_processor_id() == 0)
