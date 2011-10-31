@@ -204,7 +204,7 @@ static unsigned int *pri_axi, *pri_ci1, *pri_ci2, *pri_gcu;
 #define CCIC_1 1
 #define CCIC_MAX 2
 
-#define JPEG_COMPRESS_RATIO_HIGH 10
+#define JPEG_COMPRESS_RATIO_HIGH 20
 #define CHANNEL_NUM	3	/*YUV*/
 #define MAX_DMA_BUFS	4
 #define MIN_DMA_BUFS	2
@@ -961,7 +961,7 @@ static void sci_s_fmt(struct pxa955_cam_dev *pcdev,
 		/* use size get from sensor */
 		/* pcdev->channel_size[0] = fmt->sizeimage;*/
 
-		pcdev->channel_size[0] = JPEG_BUF_SIZE;
+		pcdev->channel_size[0] = size/JPEG_COMPRESS_RATIO_HIGH;
 		sci_reg_write(pcdev, REG_SCICR1, SCICR1_FMT_IN(FMT_JPEG) | \
 						SCICR1_FMT_OUT(FMT_JPEG));
 	    break;
@@ -1145,7 +1145,7 @@ static int pxa955_videobuf_setup(struct videobuf_queue *vq, unsigned int *count,
 		if (*size * *count > vid_mem_limit * 1024 * 1024)
 			*count = (vid_mem_limit * 1024 * 1024) / *size;
 	} else {
-		*size = JPEG_BUF_SIZE;
+		*size = icd->user_width*icd->user_height/JPEG_COMPRESS_RATIO_HIGH;
 		if (0 == *count)
 			*count = 32;
 		if (*size * *count > vid_mem_limit * 1024 * 1024)
@@ -1173,7 +1173,7 @@ static int pxa955_videobuf_prepare(struct videobuf_queue *vq,
 		return bytes_per_line;
 	new_size = bytes_per_line * icd->user_height;
 	if (icd->current_fmt->host_fmt->fourcc == V4L2_PIX_FMT_JPEG) {
-		new_size = JPEG_BUF_SIZE;
+		new_size = icd->user_width*icd->user_height/JPEG_COMPRESS_RATIO_HIGH;;
 	}
 
 	if (buf->code	!= icd->current_fmt->code ||
