@@ -17,6 +17,13 @@
 #define APMU_REG(x)	(APMU_VIRT_BASE + (x))
 
 /* Clock Reset Control */
+#define APMU_CC_SP	APMU_REG(0x000)
+#define APMU_CC_PJ	APMU_REG(0x004)
+#define APMU_DM_CC_SP	APMU_REG(0x008)
+#define APMU_DM_CC_PJ	APMU_REG(0x00c)
+#define APMU_SP_IDLE_CFG	APMU_REG(0x014)
+#define APMU_IDLE_CFG	APMU_REG(0x018)
+
 #define APMU_CCIC_GATE	APMU_REG(0x028)
 #define APMU_IRE	APMU_REG(0x048)
 #define APMU_LCD	APMU_REG(0x04c)
@@ -38,7 +45,6 @@
 #define APMU_SDH2	APMU_REG(0x0e0)
 #endif
 
-#define APMU_CCIC_GATE APMU_REG(0x028)
 #define APMU_CCIC_DBG	APMU_REG(0x088)
 #define APMU_SRAM_PWR_DWN	APMU_REG(0x08c)
 #define APMU_VMETA	APMU_REG(0x0A4)
@@ -52,7 +58,6 @@
 #define APMU_CCR                APMU_REG(0x0004)
 #define APMU_CP_CCSR            APMU_REG(0x0008)
 #define APMU_CCSR               APMU_REG(0x000c)
-#define APMU_IDLE_CFG           APMU_REG(0x0018)
 #define APMU_SQU_CLK_GATE_CTRL	APMU_REG(0x001c)
 #define APMU_LCD_CLK_RES_CTRL   APMU_REG(0x004c)
 #define APMU_DEBUG              APMU_REG(0x0088)

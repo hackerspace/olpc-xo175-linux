@@ -654,4 +654,11 @@ config PXA910_IRE
         help
           Please say Y here if want to support image rotation engine
 
+config MMP2_SYSSET
+	tristate "Export MMP2 system clock setting"
+	depends on CPU_MMP2
+	default y
+	help
+	 Please say Y here if want to support MMP2 system clock setting export
+
 endmenu
