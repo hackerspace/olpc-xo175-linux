@@ -598,6 +598,8 @@ static struct mv_usb_platform_data mmp2_usb_pdata = {
 	.mode		= MV_USB_MODE_OTG,
 	.phy_init	= pxa_usb_phy_init,
 	.set_vbus	= brownstone_set_vbus,
+	.disable_otg_clock_gating	= 1,
+	.otg_force_a_bus_req		= 1,
 };
 #endif
 #endif
