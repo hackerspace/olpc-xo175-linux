@@ -1099,6 +1099,8 @@ static void __init brownstone_init(void)
 	mmp2_add_pwm(3);
 	platform_device_register(&brownstone_lcd_backlight_devices);
 
+	mmp2_add_fuse();
+
 #ifdef CONFIG_UIO_HDMI
 	mmp2_add_hdmi(&mmp2_hdmi_info);
 #endif

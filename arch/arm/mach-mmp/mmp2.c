@@ -147,6 +147,53 @@ struct clkops sdhc_clk_ops = {
 	.disable	= sdhc_clk_disable,
 };
 
+static int wtm_has_init;
+/* wtm clock */
+static void wtm_clk_enable(struct clk *clk)
+{
+	unsigned int val = 0;
+	unsigned int enable_flag = (APMU_AXICLK_EN | APMU_FNCLK_EN);
+
+	val = __raw_readl(clk->clk_rst);
+	if (val & enable_flag == enable_flag) {
+		wtm_has_init = 1;
+		printk(KERN_INFO "wtm has been enabled by secure core!\n");
+		return ;
+	}
+
+	val  = APMU_AXICLK_EN;
+	__raw_writel(val, clk->clk_rst);
+	val |= APMU_AXIRST_DIS;
+	__raw_writel(val, clk->clk_rst);
+	val |= APMU_FNCLK_EN;
+	__raw_writel(val, clk->clk_rst);
+	val |= APMU_FNRST_DIS;
+	__raw_writel(val, clk->clk_rst);
+
+	return ;
+}
+
+static void wtm_clk_disable(struct clk *clk)
+{
+	unsigned int val;
+
+	if (wtm_has_init)
+		return;
+
+	val = __raw_readl(clk->clk_rst);
+	val &= ~(APMU_AXICLK_EN);
+	val &= ~(APMU_FNCLK_EN);
+	__raw_writel(val, clk->clk_rst);
+
+	return ;
+}
+
+struct clkops wtm_clk_ops = {
+	.enable		= wtm_clk_enable,
+	.disable	= wtm_clk_disable,
+};
+
+
 static struct clk clk_pwm1;
 static void pwm2_clk_enable(struct clk *clk)
 {
@@ -725,6 +772,9 @@ static APMU_CLK_OPS(lcd, LCD, 0, 0, &lcd_pn1_clk_ops);
 static APMU_CLK_OPS(tv, LCD, 0, 0, &lcd_tv_clk_ops);
 static APMU_CLK_OPS(audio, AUDIO_CLK_RES_CTRL, 0, 0, &audio_clk_ops);
 static APMU_CLK_OPS(vmeta, VMETA_CLK_RES_CTRL, 0, 0, &vmeta_clk_ops);
+/* wtm clock */
+static APMU_CLK_OPS(wtm, GEU, 0, 0, &wtm_clk_ops);
+
 
 static struct clk_lookup mmp2_clkregs[] = {
 	INIT_CLKREG(&clk_uart1, "pxa2xx-uart.0", NULL),
@@ -755,6 +805,8 @@ static struct clk_lookup mmp2_clkregs[] = {
 	INIT_CLKREG(&clk_thsens, "mmp2-thermal", NULL),
 	INIT_CLKREG(&clk_keypad, "pxa27x-keypad", NULL),
 	INIT_CLKREG(&clk_vmeta, NULL, "VMETA_CLK"),
+	INIT_CLKREG(&clk_wtm, NULL, "mmp2-wtm"),
+
 };
 
 #define MCB_SLFST_SEL		0xD0000570
@@ -849,6 +901,7 @@ MMP2_DEVICE(audiosram, "mmp-sram", 0, NONE, 0xe0000000, 0x40000);
 MMP2_DEVICE(videosram, "mmp-sram", 1, NONE, 0xd1000000, 0x20000);
 MMP2_DEVICE(thsens, "mmp2-thermal", -1, THERMAL, 0xd4013200, 0x20);
 MMP2_DEVICE(keypad, "pxa27x-keypad", -1, KPC, 0xd4012000, 0x4c);
+MMP2_DEVICE(fuse, "mmp2-fuse", -1, NONE, 0xd4290000, 0x3100);
 
 struct platform_device mmp_device_asoc_sspa1 = {
 	.name		= "mmp3-sspa-dai",
