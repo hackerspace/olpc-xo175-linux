@@ -1662,6 +1662,22 @@ static struct clk mmp3_clk_sdh3 = {
 #define DXOISP_PLL1		1
 #define DXOISP_PLL2		2
 
+int mvisp_reset_hw(void *param)
+{
+	int reg;
+
+	param = param;
+
+	reg = readl(APMU_ISPCLK);
+	reg &= ~(0x1 << 1);
+	writel(reg, APMU_ISPCLK);
+	mdelay(20);
+	reg |= 0x1 << 1;
+	writel(reg, APMU_ISPCLK);
+
+	return 0;
+}
+
 static void dxoisp_clk_init(struct clk *clk)
 {
 	clk->rate = clk_get_rate(&mmp3_clk_pll1)/2; /* 400MHz */

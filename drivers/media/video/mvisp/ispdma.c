@@ -73,6 +73,83 @@
 #define SET_TX_IRQ_MASK(reg, ch) (reg |= ((0x1 << ch)|(0x1 << (ch + 11))))
 #define SET_RX_IRQ_MASK(reg, ch) (reg |= (0x1 << ch))
 
+struct isp_reg_context ispdma_reg_list[ISPDMA_INPSDMA_MAX_CTX] = {
+	{ISPDMA_IRQMASK, 0},
+	{ISPDMA_DMA_ENA, 0},
+	{ISPDMA_INPSDMA_CTRL, 0},
+	{ISPDMA_CLKENA, 0},
+	{ISPDMA_MAINCTRL, 0},
+	{ISPDMA_INSZ, 0},
+	{ISPDMA_FBTX0_SDCA, 0},
+	{ISPDMA_FBTX0_DCSZ, 0},
+	{ISPDMA_FBTX0_CTRL, 0},
+	{ISPDMA_FBTX0_DSTSZ, 0},
+	{ISPDMA_FBTX0_DSTADDR, 0},
+	{ISPDMA_FBTX0_TMR, 0},
+	{ISPDMA_FBTX0_RAMCTRL, 0},
+	{ISPDMA_FBRX0_SDCA, 0},
+	{ISPDMA_FBRX0_DCSZ, 0},
+	{ISPDMA_FBRX0_CTRL, 0},
+	{ISPDMA_FBRX0_TMR, 0},
+	{ISPDMA_FBRX0_RAMCTRL, 0},
+	{ISPDMA_FBRX0_STAT, 0},
+	{ISPDMA_FBTX1_SDCA, 0},
+	{ISPDMA_FBTX1_DCSZ, 0},
+	{ISPDMA_FBTX1_CTRL, 0},
+	{ISPDMA_FBTX1_DSTSZ, 0},
+	{ISPDMA_FBTX1_DSTADDR, 0},
+	{ISPDMA_FBTX1_TMR, 0},
+	{ISPDMA_FBTX1_RAMCTRL, 0},
+	{ISPDMA_FBRX1_SDCA, 0},
+	{ISPDMA_FBRX1_DCSZ, 0},
+	{ISPDMA_FBRX1_CTRL, 0},
+	{ISPDMA_FBRX1_TMR, 0},
+	{ISPDMA_FBRX1_RAMCTRL, 0},
+	{ISPDMA_FBRX1_STAT, 0},
+	{ISPDMA_FBTX2_SDCA, 0},
+	{ISPDMA_FBTX2_DCSZ, 0},
+	{ISPDMA_FBTX2_CTRL, 0},
+	{ISPDMA_FBTX2_DSTSZ, 0},
+	{ISPDMA_FBTX2_DSTADDR, 0},
+	{ISPDMA_FBTX2_TMR, 0},
+	{ISPDMA_FBTX2_RAMCTRL, 0},
+	{ISPDMA_FBRX2_SDCA, 0},
+	{ISPDMA_FBRX2_DCSZ, 0},
+	{ISPDMA_FBRX2_CTRL, 0},
+	{ISPDMA_FBRX2_TMR, 0},
+	{ISPDMA_FBRX2_RAMCTRL, 0},
+	{ISPDMA_FBRX2_STAT, 0},
+	{ISPDMA_FBTX3_SDCA, 0},
+	{ISPDMA_FBTX3_DCSZ, 0},
+	{ISPDMA_FBTX3_CTRL, 0},
+	{ISPDMA_FBTX3_DSTSZ, 0},
+	{ISPDMA_FBTX3_DSTADDR, 0},
+	{ISPDMA_FBTX3_TMR, 0},
+	{ISPDMA_FBTX3_RAMCTRL, 0},
+	{ISPDMA_FBRX3_SDCA, 0},
+	{ISPDMA_FBRX3_DCSZ, 0},
+	{ISPDMA_FBRX3_CTRL, 0},
+	{ISPDMA_FBRX3_TMR, 0},
+	{ISPDMA_FBRX3_RAMCTRL, 0},
+	{ISPDMA_FBRX3_STAT, 0},
+	{ISPDMA_DISP_CTRL, 0},
+	{ISPDMA_DISP_DSTSZ, 0},
+	{ISPDMA_DISP_DSTADDR, 0},
+	{ISPDMA_DISP_RAMCTRL, 0},
+	{ISPDMA_DISP_PITCH, 0},
+	{ISPDMA_CODEC_CTRL, 0},
+	{ISPDMA_CODEC_DSTSZ, 0},
+	{ISPDMA_CODEC_DSTADDR, 0},
+	{ISPDMA_CODEC_RAMCTRL, 0},
+	{ISPDMA_CODEC_STAT, 0},
+	{ISPDMA_CODEC_PITCH, 0},
+	{ISPDMA_CODEC_VBSZ, 0},
+	{ISPDMA_INPSDMA_SRCADDR, 0},
+	{ISPDMA_INPSDMA_SRCSZ, 0},
+	{ISPDMA_INPSDMA_PIXSZ, 0},
+	{ISP_IRQMASK, 0},
+};
+
 inline unsigned long get_dma_working_flag(struct isp_ispdma_device *ispdma)
 {
 	unsigned long dma_flags;
@@ -84,6 +161,26 @@ inline unsigned long get_dma_working_flag(struct isp_ispdma_device *ispdma)
 
 	return dma_working_flag;
 }
+
+static void ispdma_reg_dump(struct isp_ispdma_device *ispdma)
+{
+	struct mvisp_device *isp = to_mvisp_device(ispdma);
+	int cnt;
+
+	for (cnt = 0; cnt < ISPDMA_INPSDMA_MAX_CTX; cnt++) {
+		ispdma_reg_list[cnt].val =
+			mvisp_reg_readl(isp,
+				ISP_IOMEM_ISPDMA,
+				ispdma_reg_list[cnt].reg);
+
+		dev_warn(isp->dev, "REG[0x%08X]--->0x%08X\n",
+			ispdma_reg_list[cnt].reg,
+			ispdma_reg_list[cnt].val);
+	}
+
+	return;
+}
+
 
 static int ispdma_wait_ipc(struct isp_ispdma_device *ispdma,
 		struct v4l2_dxoipc_ipcwait *ipc_wait)
@@ -1163,6 +1260,143 @@ static int ispdma_try_restart_dma(struct isp_ispdma_device *ispdma)
 	return ret;
 }
 
+static void ctx_adjust_buffers(struct isp_video *video)
+{
+	struct isp_video_buffer *buf;
+	struct isp_pipeline *pipe = to_isp_pipeline(&video->video.entity);
+	enum isp_pipeline_state state;
+	unsigned long flags;
+
+	struct list_head temp_list;
+	INIT_LIST_HEAD(&temp_list);
+
+	while (!list_empty(&video->dmaidlequeue)) {
+		buf = list_first_entry(&video->dmaidlequeue,
+			struct isp_video_buffer, irqlist);
+		list_del(&buf->irqlist);
+		list_add_tail(&buf->irqlist, &temp_list);
+	}
+
+	while (!list_empty(&video->dmabusyqueue)) {
+		buf = list_first_entry(&video->dmabusyqueue,
+			struct isp_video_buffer, irqlist);
+		list_del(&buf->irqlist);
+		list_add_tail(&buf->irqlist, &video->dmaidlequeue);
+	}
+
+	while (!list_empty(&temp_list)) {
+		buf = list_first_entry(&temp_list,
+			struct isp_video_buffer, irqlist);
+		list_del(&buf->irqlist);
+		list_add_tail(&buf->irqlist, &video->dmaidlequeue);
+	}
+
+	if (list_empty(&video->dmaidlequeue) == 0) {
+		switch (video->video_type) {
+		case ISP_VIDEO_DISPLAY:
+			state = ISP_PIPELINE_DISPLAY_QUEUED;
+			break;
+		case ISP_VIDEO_CODEC:
+			state = ISP_PIPELINE_CODEC_QUEUED;
+			break;
+		case ISP_VIDEO_INPUT:
+			state = ISP_PIPELINE_INPUT_QUEUED;
+			break;
+		default:
+			state = 0;
+			break;
+		}
+
+		spin_lock_irqsave(&pipe->lock, flags);
+		pipe->state |= state;
+		spin_unlock_irqrestore(&pipe->lock, flags);
+	}
+
+
+	set_vd_dmaqueue_flg(video, ISP_VIDEO_DMAQUEUE_UNDERRUN);
+
+	return;
+}
+
+static void ispdma_context_save(struct isp_ispdma_device *ispdma)
+{
+	struct mvisp_device *isp = to_mvisp_device(ispdma);
+	int cnt;
+
+	for (cnt = 0; cnt < ISPDMA_INPSDMA_MAX_CTX; cnt++) {
+		ispdma_reg_list[cnt].val =
+			mvisp_reg_readl(isp,
+				ISP_IOMEM_ISPDMA,
+				ispdma_reg_list[cnt].reg);
+
+		if (cnt == ISPDMA_DMA_ENA_CTX) {
+			mvisp_reg_writel(isp, 0,
+				ISP_IOMEM_ISPDMA, ISPDMA_DMA_ENA);
+
+			ctx_adjust_buffers(&ispdma->vd_disp_out);
+			ctx_adjust_buffers(&ispdma->vd_codec_out);
+		} else if (cnt == ISPDMA_INPSDMA_CTRL_CTX) {
+			mvisp_reg_writel(isp, 0,
+				ISP_IOMEM_ISPDMA, ISPDMA_INPSDMA_CTRL);
+
+			ctx_adjust_buffers(&ispdma->vd_in);
+		} else if (cnt == ISPDMA_IRQMASK_CTX) {
+			mvisp_reg_writel(isp, 0,
+				ISP_IOMEM_ISPDMA, ISPDMA_IRQMASK);
+		}
+	}
+
+	return;
+}
+
+static void ispdma_context_restore(struct isp_ispdma_device *ispdma)
+{
+	struct mvisp_device *isp = to_mvisp_device(ispdma);
+	int cnt;
+	unsigned long dma_flags;
+
+	spin_lock_irqsave(&ispdma->dmaflg_lock, dma_flags);
+	ispdma->dma_working_flag = 0;
+	spin_unlock_irqrestore(&ispdma->dmaflg_lock, dma_flags);
+
+	for (cnt = 0; cnt < ISPDMA_INPSDMA_MAX_CTX; cnt++) {
+		if (cnt == ISPDMA_INPSDMA_CTRL_CTX) {
+			/*Restore input settings*/
+			mvisp_reg_writel(isp,
+				(ispdma_reg_list[cnt].val & ~0x1),
+				ISP_IOMEM_ISPDMA,
+				ispdma_reg_list[cnt].reg);
+
+			/*Restart input DMA, IRQ mask*/
+			ispdma_try_restart_dma(ispdma);
+		} else if (cnt == ISPDMA_DMA_ENA_CTX) {
+			/*Restart all the DMAs except disp/codec*/
+			mvisp_reg_writel(isp,
+				(ispdma_reg_list[cnt].val & ~0x3),
+				ISP_IOMEM_ISPDMA,
+				ispdma_reg_list[cnt].reg);
+
+			/*Restart all disp/codec DMAs, IRQ masks*/
+			ispdma_try_restart_dma(ispdma);
+		} else if (cnt == ISPDMA_IRQMASK_CTX) {
+			/*Only restore FB IRQ masks here*/
+			mvisp_reg_writel(isp,
+				(ispdma_reg_list[cnt].val & ~0x21C03),
+				ISP_IOMEM_ISPDMA,
+				ispdma_reg_list[cnt].reg);
+		} else {
+			mvisp_reg_writel(isp,
+				ispdma_reg_list[cnt].val,
+				ISP_IOMEM_ISPDMA,
+				ispdma_reg_list[cnt].reg);
+		}
+	}
+
+	return;
+}
+
+
+
 static int ispdma_video_qbuf_notify(struct isp_video *video)
 {
 	struct isp_ispdma_device *ispdma = &video->isp->mvisp_ispdma;
@@ -1415,6 +1649,17 @@ static long ispdma_ioctl(struct v4l2_subdev *sd
 	case VIDIOC_PRIVATE_ISPDMA_CAPTURE_MODE:
 		ret = ispdma_config_capture_mode(ispdma,
 			(struct v4l2_ispdma_capture_mode *) arg);
+		break;
+
+	case VIDIOC_PRIVATE_ISPDMA_RESET:
+		if (ispdma->mvisp_reset) {
+			ispdma_context_save(ispdma);
+			ret = ispdma->mvisp_reset(
+				(struct v4l2_ispdma_reset *) arg);
+			ispdma_context_restore(ispdma);
+		} else
+			ret = -EINVAL;
+
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -2122,9 +2367,11 @@ void mv_ispdma_cleanup(struct mvisp_device *isp)
 int mv_ispdma_init(struct mvisp_device *isp)
 {
 	struct isp_ispdma_device *ispdma = &isp->mvisp_ispdma;
+	struct mvisp_platform_data *pdata = isp->pdata;
 	int ret;
 
 	ispdma_init_params(ispdma);
+	ispdma->mvisp_reset = pdata->mvisp_reset;
 
 	ret = ispdma_init_entities(ispdma);
 	if (ret < 0)

@@ -45,8 +45,10 @@ struct mvisp_v4l2_subdevs_group {
 
 struct mvisp_platform_data {
 	struct mvisp_v4l2_subdevs_group *subdev_group;
+	int (*mvisp_reset)(void *param);
 };
 
-void __init mmp_register_dxoisp(void *pdata);
+void __init mmp_register_dxoisp(struct mvisp_platform_data *pdata);
+int mvisp_reset_hw(void *param);
 
 #endif

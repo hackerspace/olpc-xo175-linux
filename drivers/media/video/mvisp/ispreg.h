@@ -29,7 +29,7 @@
 
 #include <mach/addr-map.h>
 
-struct isp_reg {
+struct isp_reg_context {
 	u32 reg;
 	u32 val;
 };

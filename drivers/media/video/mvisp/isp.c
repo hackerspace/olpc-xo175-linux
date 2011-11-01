@@ -421,12 +421,14 @@ static int mvisp_reset(struct mvisp_device *isp)
 }
 
 static void
-mvisp_save_context(struct mvisp_device *isp, struct isp_reg *reg_list)
+mvisp_save_context(struct mvisp_device *isp,
+	struct isp_reg_context *reg_list)
 {
 }
 
 static void
-mvisp_restore_context(struct mvisp_device *isp, struct isp_reg *reg_list)
+mvisp_restore_context(struct mvisp_device *isp,
+	struct isp_reg_context *reg_list)
 {
 }
 

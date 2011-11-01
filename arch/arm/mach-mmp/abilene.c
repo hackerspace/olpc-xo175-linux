@@ -309,13 +309,13 @@ static struct mvisp_v4l2_subdevs_group dxoisp_subdevs_group[] = {
 };
 #endif
 
-static struct mvisp_platform_data mmp_dxoisp_sensor_data = {
+static struct mvisp_platform_data mmp_dxoisp_plat_data = {
 	.subdev_group = dxoisp_subdevs_group,
 };
 
 static void __init mmp_init_dxoisp(void)
 {
-	mmp_register_dxoisp(&mmp_dxoisp_sensor_data);
+	mmp_register_dxoisp(&mmp_dxoisp_plat_data);
 }
 #endif
 

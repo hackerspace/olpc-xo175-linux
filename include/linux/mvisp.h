@@ -90,6 +90,9 @@ struct v4l2_ispdma_capture_mode {
 	enum ispvideo_capture_mode mode;
 };
 
+struct v4l2_ispdma_reset {
+	unsigned long	param;
+};
 
 #define VIDIOC_PRIVATE_DXOIPC_SET_FB \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 1, struct v4l2_dxoipc_set_fb)
@@ -107,5 +110,7 @@ struct v4l2_ispdma_capture_mode {
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 7, struct v4l2_dxoipc_config_codec)
 #define VIDIOC_PRIVATE_ISPDMA_CAPTURE_MODE \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 8, struct v4l2_ispdma_capture_mode)
+#define VIDIOC_PRIVATE_ISPDMA_RESET \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 9, struct v4l2_ispdma_reset)
 
 #endif	/* ISP_USER_H */

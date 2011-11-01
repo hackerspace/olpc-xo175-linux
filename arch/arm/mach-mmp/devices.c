@@ -696,10 +696,11 @@ struct platform_device mmp_device_dxoisp = {
 	.num_resources  = ARRAY_SIZE(mmp_dxoisp_resources),
 };
 
-void __init mmp_register_dxoisp(void *data)
+void __init mmp_register_dxoisp(struct mvisp_platform_data *data)
 {
 	int ret;
 
+	data->mvisp_reset = mvisp_reset_hw;
 	mmp_device_dxoisp.dev.platform_data = data;
 
 	ret = platform_device_register(&mmp_device_dxoisp);
