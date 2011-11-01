@@ -57,42 +57,52 @@
 #define MMP3ASOC_SPK_ON    0
 #define MMP3ASOC_SPK_OFF   1
 
+#define MMP3ASOC_SPK_FUNC	0
+#define MMP3ASOC_JACK_FUNC	1
+
 static int mmp3asoc_jack_func;
 static int mmp3asoc_spk_func;
 
-static void mmp3asoc_ext_control(struct snd_soc_dapm_context *dapm)
+static void mmp3asoc_ext_control(struct snd_soc_dapm_context *dapm, int func)
 {
-	if (mmp3asoc_spk_func == MMP3ASOC_SPK_ON) {
-		snd_soc_dapm_enable_pin(dapm, "Ext Left Spk");
-		snd_soc_dapm_enable_pin(dapm, "Ext Right Spk");
-	} else {
-		snd_soc_dapm_disable_pin(dapm, "Ext Left Spk");
-		snd_soc_dapm_disable_pin(dapm, "Ext Right Spk");
+	switch (func) {
+	case MMP3ASOC_SPK_FUNC:
+		if (mmp3asoc_spk_func == MMP3ASOC_SPK_ON) {
+			snd_soc_dapm_enable_pin(dapm, "Ext Left Spk");
+			snd_soc_dapm_enable_pin(dapm, "Ext Right Spk");
+		} else {
+			snd_soc_dapm_disable_pin(dapm, "Ext Left Spk");
+			snd_soc_dapm_disable_pin(dapm, "Ext Right Spk");
+		}
+		break;
+	case MMP3ASOC_JACK_FUNC:
+		/* set up jack connection */
+		switch (mmp3asoc_jack_func) {
+		case MMP3ASOC_HP:
+			snd_soc_dapm_enable_pin(dapm, "Headset Stereophone");
+			break;
+		case MMP3ASOC_MIC:
+			snd_soc_dapm_disable_pin(dapm, "Headset Mic");
+			snd_soc_dapm_enable_pin(dapm, "Main Mic");
+			break;
+		case MMP3ASOC_HEADSET:
+			snd_soc_dapm_enable_pin(dapm, "Headset Mic");
+			snd_soc_dapm_enable_pin(dapm, "Headset Stereophone");
+			break;
+		case MMP3ASOC_HP_OFF:
+			snd_soc_dapm_disable_pin(dapm, "Headset Mic");
+			snd_soc_dapm_disable_pin(dapm, "Main Mic");
+			snd_soc_dapm_disable_pin(dapm, "Headset Stereophone");
+			break;
+		default:
+			pr_err("wrong jack type\n");
+		}
+		break;
+	default:
+		pr_err("wrong func type\n");
+		return;
 	}
 
-	/* set up jack connection */
-	switch (mmp3asoc_jack_func) {
-	case MMP3ASOC_HP:
-		snd_soc_dapm_disable_pin(dapm, "Headset Mic");
-		snd_soc_dapm_enable_pin(dapm, "Main Mic");
-		snd_soc_dapm_enable_pin(dapm, "Headset Stereophone");
-		break;
-	case MMP3ASOC_MIC:
-		snd_soc_dapm_disable_pin(dapm, "Headset Mic");
-		snd_soc_dapm_enable_pin(dapm, "Main Mic");
-		snd_soc_dapm_disable_pin(dapm, "Headset Stereophone");
-		break;
-	case MMP3ASOC_HEADSET:
-		snd_soc_dapm_enable_pin(dapm, "Headset Mic");
-		snd_soc_dapm_disable_pin(dapm, "Main Mic");
-		snd_soc_dapm_enable_pin(dapm, "Headset Stereophone");
-		break;
-	case MMP3ASOC_HP_OFF:
-		snd_soc_dapm_disable_pin(dapm, "Headset Mic");
-		snd_soc_dapm_disable_pin(dapm, "Main Mic");
-		snd_soc_dapm_disable_pin(dapm, "Headset Stereophone");
-		break;
-	}
 	snd_soc_dapm_sync(dapm);
 	return;
 }
@@ -113,8 +123,10 @@ static int mmp3asoc_set_jack(struct snd_kcontrol *kcontrol,
 	if (mmp3asoc_jack_func == ucontrol->value.integer.value[0])
 		return 0;
 
+	mutex_lock(&codec->mutex);
 	mmp3asoc_jack_func = ucontrol->value.integer.value[0];
-	mmp3asoc_ext_control(dapm);
+	mmp3asoc_ext_control(dapm, MMP3ASOC_JACK_FUNC);
+	mutex_unlock(&codec->mutex);
 	return 1;
 }
 
@@ -134,8 +146,10 @@ static int mmp3asoc_set_spk(struct snd_kcontrol *kcontrol,
 	if (mmp3asoc_spk_func == ucontrol->value.integer.value[0])
 		return 0;
 
+	mutex_lock(&codec->mutex);
 	mmp3asoc_spk_func = ucontrol->value.integer.value[0];
-	mmp3asoc_ext_control(dapm);
+	mmp3asoc_ext_control(dapm, MMP3ASOC_SPK_FUNC);
+	mutex_unlock(&codec->mutex);
 	return 1;
 }
 
@@ -359,9 +373,6 @@ static int codec_wm8994_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_enable_pin(dapm, "Headset Mic");
 	snd_soc_dapm_enable_pin(dapm, "Main Mic");
 
-	mmp3asoc_jack_func = MMP3ASOC_SPK_ON;
-	mmp3asoc_spk_func = MMP3ASOC_HEADSET;
-
 	/* set endpoints to not connected */
 	snd_soc_dapm_nc_pin(dapm, "HPOUT2P");
 	snd_soc_dapm_nc_pin(dapm, "HPOUT2N");
@@ -377,9 +388,12 @@ static int codec_wm8994_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_nc_pin(dapm, "IN2RP:VXRP");
 
 	/* init: disable HEADSET, enable SPK */
+	mutex_lock(&codec->mutex);
 	mmp3asoc_spk_func = MMP3ASOC_SPK_ON;
 	mmp3asoc_jack_func = MMP3ASOC_HP_OFF;
-	mmp3asoc_ext_control(dapm);
+	mmp3asoc_ext_control(dapm, MMP3ASOC_SPK_FUNC);
+	mmp3asoc_ext_control(dapm, MMP3ASOC_JACK_FUNC);
+	mutex_unlock(&codec->mutex);
 
 	snd_soc_dapm_sync(dapm);
 #ifdef CONFIG_SWITCH_WM8994_HEADSET
