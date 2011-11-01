@@ -757,6 +757,23 @@ static struct clk_lookup mmp2_clkregs[] = {
 	INIT_CLKREG(&clk_vmeta, NULL, "VMETA_CLK"),
 };
 
+#define MCB_SLFST_SEL		0xD0000570
+#define MCB_SLFST_CTRL2		0xD00005A0
+void __init mmp2_init_mcb(void)
+{
+	void *mcb_slfst_sel = ioremap(MCB_SLFST_SEL, 4);
+	void *mcb_slfst_ctrl2 = ioremap(MCB_SLFST_CTRL2, 4);
+
+	/* select MCB1 */
+	__raw_writel(0x1, mcb_slfst_sel);
+	iounmap(mcb_slfst_sel);
+
+	/* to reduce LCD underflow, priority enable stage 2,
+	 * fast has higher priority then slow */
+	__raw_writel(0xc0000, mcb_slfst_ctrl2);
+	iounmap(mcb_slfst_ctrl2);
+}
+
 static int __init mmp2_init(void)
 {
 	if (cpu_is_mmp2()) {
@@ -767,6 +784,7 @@ static int __init mmp2_init(void)
 		mfp_init_addr(mmp2_addr_map);
 		pxa_init_dma(IRQ_MMP2_DMA_RIQ, 16);
 		mmp_init_dma(IRQ_MMP2_DMA_RIQ);
+		mmp2_init_mcb();
 		clkdev_add_table(ARRAY_AND_SIZE(mmp2_clkregs));
 	}
 
