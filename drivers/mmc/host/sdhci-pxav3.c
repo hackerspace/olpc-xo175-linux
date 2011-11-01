@@ -240,6 +240,9 @@ static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 		if (pdata->flags & PXA_FLAG_SD_8_BIT_CAPABLE_SLOT)
 			host->mmc->caps |= MMC_CAP_8_BIT_DATA;
 
+		if (pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING)
+			host->mmc->caps |= MMC_CAP_ENABLE_BUS_CLK_GATING;
+
 		if (pdata->quirks)
 			host->quirks |= pdata->quirks;
 		if (pdata->host_caps)

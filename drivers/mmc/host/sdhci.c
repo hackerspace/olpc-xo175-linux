@@ -1445,6 +1445,20 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	if(host->quirks & SDHCI_QUIRK_RESET_CMD_DATA_ON_IOS)
 		sdhci_reset(host, SDHCI_RESET_CMD | SDHCI_RESET_DATA);
 
+	/*
+	 * V3 controller support clk gating via AINT bit
+	 * we can't put this code above for silicon bug of this register:
+	 * If read occurs after setting AINT bit, AINT will be read zero
+	 * and AINT setting is lost, so we put this code at the end.
+	 * */
+	if ((host->version >= SDHCI_SPEC_300) &&
+			(mmc->caps & MMC_CAP_ENABLE_BUS_CLK_GATING)) {
+		u16 ctrl_2;
+		ctrl_2 = readw(host->ioaddr + SDHCI_HOST_CONTROL2);
+		ctrl_2 |= SDHCI_CTRL_AINT;
+		writew(ctrl_2, host->ioaddr + SDHCI_HOST_CONTROL2);
+	}
+
 	sdhci_access_constrain(host, 0);
 out:
 	mmiowb();
@@ -2438,6 +2452,12 @@ int sdhci_add_host(struct sdhci_host *host)
 
 	caps[1] = (host->version >= SDHCI_SPEC_300) ?
 		sdhci_readl(host, SDHCI_CAPABILITIES_1) : 0;
+
+	if ((host->version >= SDHCI_SPEC_300) &&
+		(mmc->caps & MMC_CAP_ENABLE_BUS_CLK_GATING)) {
+		if (!(caps[0] & SDHCI_CAN_ASYN_INT))
+			mmc->caps &= ~MMC_CAP_ENABLE_BUS_CLK_GATING;
+	}
 
 	if (host->quirks & SDHCI_QUIRK_FORCE_DMA)
 		host->flags |= SDHCI_USE_SDMA;
