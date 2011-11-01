@@ -924,6 +924,7 @@ static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc0 = {
 
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc1 = {
 	.flags          = PXA_FLAG_CARD_PERMANENT,
+	.pm_caps	= MMC_PM_KEEP_POWER | MMC_PM_IRQ_ALWAYS_ON,
 };
 
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc2 = {
