@@ -394,7 +394,12 @@ static void pxa27x_keypad_config(struct pxa27x_keypad *keypad)
 	if (pdata->direct_key_num > direct_key_num)
 		direct_key_num = pdata->direct_key_num;
 
-	keypad->direct_key_mask = ((1 << direct_key_num) - 1) & ~mask;
+	/* Direct keys usage may not start from KP_DKIN0, check the platfrom
+	 * msk data to config the specific */
+	if (pdata->direct_key_msk)
+		keypad->direct_key_mask = pdata->direct_key_msk;
+	else
+		keypad->direct_key_mask = ((1 << direct_key_num) - 1) & ~mask;
 
 	/* enable direct key */
 	if (direct_key_num)
