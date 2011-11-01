@@ -494,6 +494,7 @@ static struct pxa27x_keypad_platform_data mmp3_keypad_info = {
 		KEY_RESERVED,
 		KEY_VOLUMEDOWN,
 	},
+	.direct_key_msk = 0x50, /* only KEY_VOLUMEUP and KEY_VOLUMEDOWN */
 	.direct_key_num = 7,
 	.debounce_interval = 30,
 	.active_low = 1,
