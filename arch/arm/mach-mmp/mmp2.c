@@ -250,6 +250,148 @@ static unsigned long pll2_get_clk(void)
 	return pll_clk_calculate(refdiv, fbdiv);
 }
 
+static void gc800_clk_enable(struct clk *clk)
+{
+	u32 tmp;
+
+	tmp = __raw_readl(clk->clk_rst);
+	tmp &= ~(0xf<<4);
+	tmp &= ~((1<<12) | (1<<14));
+
+#if 0
+	/* FIXME enable OTG PHY clock to feed GC*/
+	clk_enable(&clk_usb_phy);
+	tmp |= ((2<<4) | (1<<6));
+	tmp |= ((1<<12) | (1<<14));
+	printk(KERN_DEBUG "Bus Clock: USB PLL 480MHz\n");
+	printk(KERN_DEBUG "GC Controller Clock: USB PLL 480MHz\n");
+#else
+	tmp |= ((0<<4) | (0<<6));
+	printk(KERN_DEBUG "Bus Clock: PLL1/4\n");
+	printk(KERN_DEBUG "GC Controller Clock: PLL1/2\n");
+#endif
+
+	tmp |= (3<<9);
+	__raw_writel(tmp, clk->clk_rst);
+
+	tmp |= ((1<<3) | (1<<2));
+	__raw_writel(tmp, clk->clk_rst);
+
+	udelay(150);
+
+	tmp |= (1<<8);
+	__raw_writel(tmp, clk->clk_rst);
+
+	udelay(1);
+
+	if((tmp & (1<<15)) == 0){
+		tmp |= (1<<15);
+		__raw_writel(tmp, clk->clk_rst);
+	}
+
+	tmp |= (1<<0);
+	__raw_writel(tmp, clk->clk_rst);
+
+	udelay(100);
+
+	tmp |= (1<<1);
+	__raw_writel(tmp, clk->clk_rst);
+	udelay(100);
+
+	return;
+}
+
+static void gc800_clk_disable(struct clk *clk)
+{
+	u32 tmp;
+
+	tmp = __raw_readl(clk->clk_rst);
+	tmp &= ~(1<<0);
+	__raw_writel(tmp, clk->clk_rst);
+
+	tmp &= ~(1<<1);
+	__raw_writel(tmp, clk->clk_rst);
+
+	tmp &= ~(1<<8);
+	__raw_writel(tmp, clk->clk_rst);
+
+	tmp &= ~((1<<2) | (1<<3));
+	__raw_writel(tmp, clk->clk_rst);
+
+	tmp &= ~(3<<9);
+	__raw_writel(tmp, clk->clk_rst);
+
+#if 0
+	/* FIXME disable OTG PHY clock */
+	clk_disable(&clk_usb_phy);
+#endif
+
+	return;
+}
+
+static int gc800_clk_setrate(struct clk *clk, unsigned long target_rate)
+{
+	return 0;
+}
+
+static unsigned long gc800_clk_getrate(struct clk *clk)
+{
+	u32 apmu_gc;
+	u32 tmp;
+	u32 gc_clk;
+	u32 pll1clk;
+	u32 pll2clk;
+
+	gc_clk = 0;
+	pll1clk = pll1_get_clk();
+	pll2clk = pll2_get_clk();
+
+	/* GC800 */
+	apmu_gc = readl(APMU_GC);
+	if (((apmu_gc >> 9) & 0x3) == 0x3) {
+		if((apmu_gc >> 12) & 0x1){
+			tmp = (apmu_gc >> 6) & 0x3;
+			switch (tmp) {
+			case 0: /* PLL2/4 */
+				gc_clk = pll2clk/4;
+				break;
+			case 1: /* USB PLL */
+				gc_clk = 480000000;
+				break;
+			default:
+				break;
+			}
+		}else{
+			tmp = (apmu_gc >> 6) & 0x3;
+			switch (tmp) {
+			case 0: /* PLL1/2 */
+				gc_clk = pll1clk/2;
+				break;
+			case 1: /* PLL2/3 */
+				gc_clk = pll2clk/3;
+				break;
+			case 2: /* PLL2 */
+				gc_clk = pll2clk;
+				break;
+			case 3: /* PLL2/2 */
+				gc_clk = pll2clk/2;
+				break;
+			default:
+				break;
+			}
+		}
+	}
+
+	return gc_clk;
+}
+
+struct clkops gc800_clk_ops = {
+	.enable		= gc800_clk_enable,
+	.disable	= gc800_clk_disable,
+	.setrate	= gc800_clk_setrate,
+	.getrate	= gc800_clk_getrate,
+};
+
 static void disp1_axi_clk_enable(struct clk *clk)
 {
 	u32 tmp = __raw_readl(clk->clk_rst);
@@ -577,6 +719,7 @@ static APMU_CLK_OPS(sdh0, SDH0, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(sdh1, SDH1, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(sdh2, SDH2, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(sdh3, SDH3, 0x1b, 200000000, &sdhc_clk_ops);
+static APMU_CLK_OPS(gc, GC, 0, 0, &gc800_clk_ops);
 static APMU_CLK_OPS(disp1_axi, LCD, 0, 0, &disp1_axi_clk_ops);
 static APMU_CLK_OPS(lcd, LCD, 0, 0, &lcd_pn1_clk_ops);
 static APMU_CLK_OPS(tv, LCD, 0, 0, &lcd_tv_clk_ops);
@@ -599,6 +742,7 @@ static struct clk_lookup mmp2_clkregs[] = {
 	INIT_CLKREG(&clk_sdh1, "sdhci-pxa.1", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_sdh2, "sdhci-pxa.2", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_sdh3, "sdhci-pxa.3", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_gc, NULL, "GCCLK"),
 	INIT_CLKREG(&clk_u2o, NULL, "U2OCLK"),
 	INIT_CLKREG(&clk_pwm1, "mmp2-pwm.0", NULL),
 	INIT_CLKREG(&clk_pwm2, "mmp2-pwm.1", NULL),
