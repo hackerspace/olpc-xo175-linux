@@ -46,7 +46,7 @@
 #include <linux/cwmi.h>
 #include <linux/cwgd.h>
 
-#define BROWNSTONE_NR_IRQS	(IRQ_BOARD_START + 40)
+#define BROWNSTONE_NR_IRQS	(IRQ_BOARD_START + 48)
 
 #define GPIO_5V_ENABLE		(89)
 
