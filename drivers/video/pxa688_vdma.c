@@ -48,22 +48,7 @@
 #include <mach/mfp-mmp2.h>
 #include <mach/regs-mpmu.h>
 #include <asm/mach-types.h>
-
-/* malloc sram buffer for squ - 64 lines by default */
 #include <mach/sram.h>
-static u32 pxa688_vdma_squ_malloc(unsigned int *psize)
-{
-	u32 psqu = 0, vsqu;
-
-	vsqu = (u32)sram_alloc("mmp-videosram", *psize, (dma_addr_t *)&psqu);
-
-	if (vsqu) {
-		return psqu;
-	} else {
-		pr_err("%s: sram malloc failed!\n", __func__);
-		return 0;
-	}
-}
 
 /* convert pix fmt to vmode */
 static FBVideoMode pixfmt_to_vmode(int pix_fmt)
@@ -443,8 +428,8 @@ void pxa688_vdma_config(struct pxa168fb_info *fbi)
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 
 	pr_debug("%s fbi %d vid %d vdma_enable %d active %d\n",
-		__func__, fbi->id, fbi->vid, mi->vdma_enable, fbi->active);
-	if (mi->vdma_enable && fbi->active) {
+		__func__, fbi->id, fbi->vid, fbi->vdma_enable, fbi->active);
+	if (fbi->vdma_enable && fbi->active) {
 		int active = fbi->check_modex_active(fbi->id, fbi->active);
 		if (active) {
 			mi->vdma_lines = pxa688_vdma_get_linenum(fbi,
@@ -462,10 +447,15 @@ void pxa688_vdma_init(struct pxa168fb_info *fbi)
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 
 	if (mi->vdma_enable) {
-		if (!mi->sram_paddr)
-			mi->sram_paddr = pxa688_vdma_squ_malloc(&mi->sram_size);
-		pr_info("vdma enabled, sram_paddr 0x%x sram_size 0x%x\n",
-			mi->sram_paddr, mi->sram_size);
+		mi->sram_vaddr = (u32)sram_alloc("mmp-videosram",
+			mi->sram_size, (dma_addr_t *)&mi->sram_paddr);
+		if (mi->sram_paddr) {
+			fbi->vdma_enable = mi->vdma_enable;
+			pr_info("vdma enabled, sram_paddr 0x%x sram_size 0x%x\n",
+				mi->sram_paddr, mi->sram_size);
+		} else
+			pr_warn("%s fbi %d vdma enable failed\n",
+				__func__, fbi->id);
 		pxa688_vdma_clkset(1);
 	}
 }
@@ -509,6 +499,50 @@ void pxa688_vdma_release(struct pxa168fb_info *fbi)
 		fbi->id, readl(fbi->reg_base + squln_ctrl(fbi->id)));
 }
 
+void pxa688_vdma_en(struct pxa168fb_info *fbi, int enable)
+{
+	struct pxa168fb_info *fbi_sec = fbi->vid ?
+		gfx_info.fbi[fbi->id] : ovly_info.fbi[fbi->id];
+	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
+	struct fb_info *info = fbi->vid ?
+		fbi_sec->fb_info : fbi->fb_info;
+	struct fb_var_screeninfo *var = &info->var;
+	u32 reg;
+
+	if ((fbi->id == 1) && (var->vmode & FB_VMODE_INTERLACED) && enable)
+		return;
+
+	if (fbi->vdma_enable == enable)
+		return;
+
+	if (enable) {
+		reg = readl(fbi->reg_base + squln_ctrl(fbi->id));
+		if ((reg & 0x1) || fbi_sec->vdma_enable) {
+			pr_warn("%s vdma has been enabled for"
+				" another layer\n", __func__);
+			return;
+		}
+		mi->sram_vaddr = (u32)sram_alloc("mmp-videosram",
+			mi->sram_size, (dma_addr_t *)&mi->sram_paddr);
+		if (mi->sram_paddr) {
+			fbi->vdma_enable = 1;
+			pr_info("vdma enabled, vaddr:%x, paddr:%x\n",
+				mi->sram_vaddr, mi->sram_paddr);
+		} else
+			pr_warn("%s fbi %d vdma enable failed\n",
+				__func__, fbi->id);
+	} else {
+		fbi->vdma_enable = 0;
+		pxa688_vdma_release(fbi);
+		sram_free("mmp-videosram",
+			(dma_addr_t *)mi->sram_vaddr, mi->sram_size);
+		mi->sram_paddr = 0;
+		mi->sram_vaddr = 0;
+		pr_info("%s fbi%s %d vdma disabled\n", __func__,
+			fbi->vid ? "_ovly" : " ", fbi->id);
+	}
+}
+
 ssize_t vdma_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
@@ -517,10 +551,8 @@ ssize_t vdma_show(struct device *dev, struct device_attribute *attr,
 	struct vdma_regs *vdma = (struct vdma_regs *)((u32)fbi->reg_base
 			+ VDMA_ARBR_CTRL);
 
-	if (!mi || !mi->vdma_enable) {
-		pr_info("vdma not enabled\n");
-		goto out;
-	}
+	pr_info("\tmi->vdma_enable:  %d\n", mi->vdma_enable);
+	pr_info("\tfbi->vdma_enable: %d\n", fbi->vdma_enable);
 
 	pr_info("vdma regs base 0x%p\n", vdma);
 	pr_info("\tarbr_ctr       (@%3x):\t0x%x\n",
@@ -595,17 +627,25 @@ ssize_t vdma_show(struct device *dev, struct device_attribute *attr,
 	pr_info("\tsram_paddr     0x%x\n", mi->sram_paddr);
 	pr_info("\tsram_size      0x%x\n", mi->sram_size);
 
-out:
 	return sprintf(buf, "%d\n", fbi->id);
 }
 ssize_t vdma_store(
 		struct device *dev, struct device_attribute *attr,
 		const char *buf, size_t size)
 {
-	int value;
+	int enable = 0;
+	char vol[10];
+	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
+	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 
-	sscanf(buf, "%d", &value);
-	pr_info("%s\n", __func__);
+	if (!mi) {
+		pr_err("fbi %d not available\n", fbi->id);
+		return size;
+	}
+
+	memcpy(vol, (void *)(u32)buf, size);
+	enable = (int)simple_strtoul(vol, NULL, 10);
+	pxa688_vdma_en(fbi, enable);
 
 	return size;
 }

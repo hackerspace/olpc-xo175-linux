@@ -898,7 +898,7 @@ MMP2_DEVICE(hdmi, "mmp-hdmi", -1, HDMI, 0xd420b000, 0x1fff);
 MMP2_DEVICE(sspa1, "mmp2-sspa", 0, SSPA1, 0xd42a0c00, 0xb0, ADMA1_CH1, ADMA1_CH0);
 MMP2_DEVICE(sspa2, "mmp2-sspa", 1, SSPA2, 0xd42a0d00, 0xb0, ADMA2_CH1, ADMA2_CH0);
 MMP2_DEVICE(audiosram, "mmp-sram", 0, NONE, 0xe0000000, 0x40000);
-MMP2_DEVICE(videosram, "mmp-sram", 1, NONE, 0xd1000000, 0x20000);
+MMP2_DEVICE(videosram, "mmp-sram", 1, NONE, 0xd1020000, 0x16800);
 MMP2_DEVICE(thsens, "mmp2-thermal", -1, THERMAL, 0xd4013200, 0x20);
 MMP2_DEVICE(keypad, "pxa27x-keypad", -1, KPC, 0xd4012000, 0x4c);
 MMP2_DEVICE(fuse, "mmp2-fuse", -1, NONE, 0xd4290000, 0x3100);

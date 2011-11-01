@@ -813,7 +813,7 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 again:
 		fbi->dma_on = vid_on ? 1 : 0;
 		val = CFG_DMA_ENA(check_modex_active(fbi->id, vid_on & 1));
-		if (vid_on == 0 && mi->vdma_enable == 1)
+		if (vid_on == 0 && fbi->vdma_enable == 1)
 			pxa688_vdma_release(fbi);
 		if (!val) {
 			/* switch off, disable DMA */
@@ -833,7 +833,6 @@ again:
 
 		if (FB_MODE_DUP) {
 			fbi = ovly_info.fbi[fb_dual];
-			mi = fbi->dev->platform_data;
 			goto again;
 		}
 		if (fb_mode && (fbi->id == fb_dual))
@@ -1340,6 +1339,9 @@ again:
 	/* enable DMA transfer */
 	set_dma_active(fbi);
 
+	/* set vdma configration */
+	pxa688_vdma_config(fbi);
+
 	if (FB_MODE_DUP) {
 		struct pxa168fb_info *fbi_dual = ovly_info.fbi[fb_dual];
 		/* set TV path buffer adder */
@@ -1521,9 +1523,6 @@ static int pxa168fb_set_par(struct fb_info *fi)
 
 	/* set video start address */
 	set_video_start(fi, fi->var.xoffset, fi->var.yoffset);
-
-	/* set vdma configration */
-	pxa688_vdma_config(fbi);
 
 	pxa168fb_graphics_off(fbi);
 	return 0;
@@ -1891,6 +1890,14 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 
 #ifdef OVLY_DVFM_CONSTRAINT
 	dvfm_register("overlay1", &dvfm_dev_idx);
+#endif
+
+#ifdef CONFIG_PXA688_VDMA
+	ret = device_create_file(&pdev->dev, &dev_attr_vdma);
+	if (ret < 0) {
+		pr_err("device attr create fail: %d\n", ret);
+		return ret;
+	}
 #endif
 
 	ret = device_create_file(&pdev->dev, &dev_attr_debug);

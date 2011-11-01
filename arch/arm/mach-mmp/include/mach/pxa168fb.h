@@ -388,7 +388,8 @@ struct pxa168fb_info {
 	struct fb_info          *info;
 	int                     io_pin_allocation;
 	int			pix_fmt;
-	int                     debug;
+	int			debug;
+	int			vdma_enable;
 	unsigned		is_blanked:1,
 				surface_set:1,
 				ckalpha_set:1,
@@ -553,6 +554,7 @@ struct pxa168fb_mach_info {
 	unsigned int vdma_enable;
 	unsigned int vdma_lines;
 	unsigned int sram_paddr;
+	unsigned int sram_vaddr;
 	unsigned int sram_size;
 
 	/*
@@ -667,7 +669,7 @@ extern void dsi_lanes_enable(struct pxa168fb_info *fbi, int en);
 extern void pxa688_vdma_init(struct pxa168fb_info *fbi);
 extern void pxa688_vdma_config(struct pxa168fb_info *fbi);
 extern void pxa688_vdma_release(struct pxa168fb_info *fbi);
-extern void pxa688_vdma_en(int id, int vid, int enable);
+extern void pxa688_vdma_en(struct pxa168fb_info *fbi, int enable);
 #else
 #define pxa688_vdma_init(fbi)		do {} while(0)
 #define pxa688_vdma_config(fbi)		do {} while(0)

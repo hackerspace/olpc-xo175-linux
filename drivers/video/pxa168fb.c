@@ -423,12 +423,6 @@ static int pxa168fb_check_var(struct fb_var_screeninfo *var,
 
 	dev_dbg(info->dev, "Enter %s\n", __func__);
 
-	if (mi->vdma_enable && (var->vmode & FB_VMODE_INTERLACED)) {
-		pr_debug("%s vdma_enabled, interlaced mode not allowed\n",
-				__func__);
-		return -EINVAL;
-	}
-
 	if (var->bits_per_pixel == 8) {
 		pr_debug("%s var->bits_per_pixel == 8\n", __func__);
 		return -EINVAL;
@@ -695,11 +689,8 @@ static void set_graphics_start(struct fb_info *info,
 		addr = fbi->fb_start_dma + (pixel_offset *
 			(var->bits_per_pixel >> 3));
 
-	if (fb_mode && (fbi->id == fb_dual)) {
-		pr_info("fb_mode %d fb%d gfx address align with fb%d,"
-			" change not allowed!\n", fb_mode, fb_dual, fb_base);
-		return;
-	}
+	if (fb_mode && (fbi->id == fb_dual))
+		addr = readl(&get_regs(fb_base)->g_0);
 
 again:
 	regs = get_regs(fbi->id);
@@ -749,36 +740,59 @@ static void set_dumb_panel_control(struct fb_info *info)
 static void set_tv_interlace(void)
 {
 	struct pxa168fb_info *fbi = gfx_info.fbi[1];
+	struct pxa168fb_info *fbi_ovly = ovly_info.fbi[1];
 	struct fb_info *info = fbi->fb_info;
 	struct fb_var_screeninfo *v = &info->var;
 	struct lcd_regs *regs = get_regs(fbi->id);
-	int x, y, vec = 10, interlaced = 0, vsync_ctrl;
+	int x, y, yres, interlaced = 0, vsync_ctrl;
+	static int gfx_vdma, ovly_vdma;
 
-	dev_dbg(info->dev, "Enter %s vec %d\n", __func__, vec);
-	x = v->xres + v->right_margin + v->hsync_len + v->left_margin;
-	x = x * vec / 10;
-	y = v->yres + v->lower_margin + v->vsync_len + v->upper_margin;
+	dev_dbg(info->dev, "Enter %s\n", __func__);
 
 	if (v->vmode & FB_VMODE_INTERLACED) {
-		/* interlaced mode, recalculate vertical pixels */
-		y -= (v->yres >> 1);
-
-		/* even field */
-		writel(((y + 1) << 16) | (v->yres >> 1),
-				fbi->reg_base + LCD_TV_V_H_TOTAL_FLD);
-		writel(((v->upper_margin) << 16) | (v->lower_margin),
-				fbi->reg_base + LCD_TV_V_PORCH_FLD);
-		vsync_ctrl = (x >> 1) - v->left_margin - v->hsync_len;
-		writel(vsync_ctrl << 16 | vsync_ctrl,
-				fbi->reg_base + LCD_TV_SEPXLCNT_FLD);
-
-		/* odd field */
-		writel(((v->yres >> 1) << 16) | v->xres, &regs->screen_active);
-		writel((y << 16) | x, &regs->screen_size);
-
 		/* enable interlaced mode */
 		interlaced = CFG_TV_INTERLACE_EN | CFG_TV_NIB;
+
+		/* interlaced mode, TV path VDMA should be disabled */
+		if (fbi->vdma_enable) {
+			gfx_vdma = 1;
+			pxa688_vdma_en(fbi, 0);
+		} else if (fbi_ovly) {
+			if (fbi_ovly->vdma_enable) {
+				ovly_vdma = 1;
+				pxa688_vdma_en(fbi_ovly, 0);
+			}
+		}
+
+		x = v->xres + v->right_margin + v->hsync_len + v->left_margin;
+
+		/* interlaced mode, recalculate vertical pixels */
+		yres = v->yres >> 1;
+		y = yres + v->lower_margin + v->vsync_len + v->upper_margin;
+
+		/* even field */
+		writel(((y + 1) << 16) | yres,
+			fbi->reg_base + LCD_TV_V_H_TOTAL_FLD);
+		writel(((v->upper_margin) << 16) | (v->lower_margin),
+			fbi->reg_base + LCD_TV_V_PORCH_FLD);
+		vsync_ctrl = (x >> 1) - v->left_margin - v->hsync_len;
+		writel(vsync_ctrl << 16 | vsync_ctrl,
+			fbi->reg_base + LCD_TV_SEPXLCNT_FLD);
+
+		/* odd field */
+		writel((yres << 16) | v->xres, &regs->screen_active);
+		writel((y << 16) | x, &regs->screen_size);
+	} else {
+		/* vdma recovery */
+		if (gfx_vdma) {
+			gfx_vdma = 0;
+			pxa688_vdma_en(fbi, 1);
+		} else if (ovly_vdma) {
+			ovly_vdma = 0;
+			pxa688_vdma_en(fbi_ovly, 1);
+		}
 	}
+
 	dma_ctrl_set(fbi->id, 1, CFG_TV_INTERLACE_EN | CFG_TV_NIB, interlaced);
 }
 
@@ -2036,12 +2050,12 @@ static int pxa168fb_set_par(struct fb_info *info);
 static int pxa168fb_mode_switch(int mode)
 {
 	struct pxa168fb_info *fbi_base = gfx_info.fbi[fb_base];
-	struct pxa168fb_info *fbi = gfx_info.fbi[fb_dual];
+	struct pxa168fb_info *fbi_dual = gfx_info.fbi[fb_dual];
 	struct fb_info *info_base = fbi_base->fb_info;
 	struct fb_info *info_dual;
-	if (!fbi)
+	if (!fbi_dual)
 		return -EAGAIN;
-	info_dual = fbi->fb_info;
+	info_dual = fbi_dual->fb_info;
 
 	if (fb_share) {
 		pr_info("fb_share mode already, try clone mode w/o"
@@ -2052,8 +2066,9 @@ static int pxa168fb_mode_switch(int mode)
 	pr_debug("fbi_base: fb_start_dma 0x%p fb_start 0x%p fb_size %d\n",
 		(int *)fbi_base->fb_start_dma, fbi_base->fb_start,
 		fbi_base->fb_size);
-	pr_debug("fbi     : fb_start_dma 0x%p fb_start 0x%p fb_size %d\n",
-		(int *)fbi->fb_start_dma, fbi->fb_start, fbi->fb_size);
+	pr_debug("fbi_dual: fb_start_dma 0x%p fb_start 0x%p fb_size %d\n",
+		(int *)fbi_dual->fb_start_dma, fbi_dual->fb_start,
+		fbi_dual->fb_size);
 
 	switch (mode) {
 	case 0:
@@ -2065,9 +2080,9 @@ static int pxa168fb_mode_switch(int mode)
 			pxa168fb_ovly_dual(0);
 #endif
 			fb_mode = mode;
-			fbi->fb_start_dma = fbi->fb_start_dma_bak;
-			fbi->fb_start = fbi->fb_start_bak;
-			fbi->dma_on = 0;
+			fbi_dual->fb_start_dma = fbi_dual->fb_start_dma_bak;
+			fbi_dual->fb_start = fbi_dual->fb_start_bak;
+			fbi_dual->dma_on = 0;
 			/* disable dual path graphics DMA */
 			dma_ctrl_set(fb_dual, 0, CFG_GRA_ENA_MASK, 0);
 			pxa168fb_set_par(info_dual);
@@ -2079,9 +2094,9 @@ static int pxa168fb_mode_switch(int mode)
 	case 3:
 		if (fb_mode != mode) {
 			fb_mode = mode;
-			fbi->fb_start_dma = fbi_base->fb_start_dma;
-			fbi->fb_start = fbi_base->fb_start;
-			fbi->dma_on = fbi_base->dma_on;
+			fbi_dual->fb_start_dma = fbi_base->fb_start_dma;
+			fbi_dual->fb_start = fbi_base->fb_start;
+			fbi_dual->dma_on = fbi_base->dma_on;
 			pxa168fb_set_par(info_base);
 			/* turn on video layer */
 #ifdef CONFIG_PXA168_V4L2_OVERLAY
@@ -2508,12 +2523,10 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 #endif
 
 #ifdef CONFIG_PXA688_VDMA
-	if (mi->vdma_enable) {
-		ret = device_create_file(&pdev->dev, &dev_attr_vdma);
-		if (ret < 0) {
-			pr_err("device attr create fail: %d\n", ret);
-			return ret;
-		}
+	ret = device_create_file(&pdev->dev, &dev_attr_vdma);
+	if (ret < 0) {
+		pr_err("device attr create fail: %d\n", ret);
+		return ret;
 	}
 #endif
 	ret = device_create_file(&pdev->dev, &dev_attr_lcd);
