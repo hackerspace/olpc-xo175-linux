@@ -57,7 +57,7 @@ static void vibrator_enable_set_timeout(struct timed_output_dev *sdev,
 {
 	struct vibrator_info *info;
 	info = container_of(sdev, struct vibrator_info, vibrator_timed_dev);
-	printk(KERN_NOTICE "Vibrator: Set duration: %dms\n", timeout);
+	pr_debug("Vibrator: Set duration: %dms\n", timeout);
 	pm860x_control_vibrator(info->chip, info->i2c, 1);
 	mod_timer(&info->vibrate_timer, jiffies + msecs_to_jiffies(timeout));
 	return;
@@ -69,7 +69,7 @@ static int vibrator_get_remaining_time(struct timed_output_dev *sdev)
 	int retTime;
 	info = container_of(sdev, struct vibrator_info, vibrator_timed_dev);
 	retTime = jiffies_to_msecs(jiffies - info->vibrate_timer.expires);
-	printk(KERN_NOTICE "Vibrator: Current duration: %dms\n", retTime);
+	pr_debug("Vibrator: Current duration: %dms\n", retTime);
 	return retTime;
 }
 
