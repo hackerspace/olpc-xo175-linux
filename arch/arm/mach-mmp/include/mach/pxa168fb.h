@@ -91,6 +91,9 @@
 #define FB_IOCTL_GET_SURFACE			_IO(FB_IOC_MAGIC, 22)
 #define FB_IOCTL_SET_SURFACE			_IO(FB_IOC_MAGIC, 23)
 
+/* Graphic partial display ctrl */
+#define FB_IOCTL_GRA_PARTDISP			_IO(FB_IOC_MAGIC, 24)
+
 /* Global alpha blend controls - Maintaining compatibility with existing
    user programs. */
 #define FB_IOCTL_PUT_VIDEO_ALPHABLEND            0xeb
@@ -371,6 +374,7 @@ struct pxa168fb_info {
 	dma_addr_t		fb_start_dma_bak;
 	void			*fb_start_bak;
 	int			fb_size_bak;
+	u32			scrn_act_bak;
 	atomic_t		op_count;
 	atomic_t		w_intr;
 	wait_queue_head_t	w_intr_wq;
@@ -395,6 +399,7 @@ struct pxa168fb_info {
 				surface_set:1,
 				ckalpha_set:1,
 				update_addr:1,
+				misc_update:1,
 				active:1;
 	/* indicate dma on/off requirement from user space */
 	int			dma_on;
@@ -611,10 +616,33 @@ struct fbi_info {
 	int	retire_err;
 };
 
+struct pxa168fb_gra_partdisp {
+	/* path id, 0->panel, 1->TV, 2->panel2 */
+	int id;
+	/* partial display horizontal starting pixel number
+	 * NOTE: it must be 64x */
+	unsigned int horpix_start;
+	/* partial display vertical starting line number */
+	unsigned int vertline_start;
+	/* partial display horizontal ending pixel number
+	 * NOTE: it must be 64x */
+	unsigned int horpix_end;
+	/* partial display vertical ending line number */
+	unsigned int vertline_end;
+	/* graphic color for partial disabled area,
+	 * color format should be RGB565 */
+	unsigned short color;
+};
+
 #define fb_base		0
 #define fb_dual		1
 #define FB_MODE_DUP	((fbi->id == fb_base) && fb_mode && \
 	gfx_info.fbi[fb_dual] && ovly_info.fbi[fb_dual])
+
+/* LCD partial display */
+#define THRESHOLD_PN	64
+#define THRESHOLD_TV	100
+#define BURST_LEN		64
 
 /* DSI burst mode */
 #define DSI_BURST_MODE_SYNC_PULSE			0x0
@@ -677,6 +705,19 @@ extern void pxa688_vdma_en(struct pxa168fb_info *fbi, int enable);
 #define pxa688_vdma_config(fbi)		do {} while (0)
 #define pxa688_vdma_release(fbi)	do {} while (0)
 #define pxa688_vdma_en(fbi, enable)	do {} while (0)
+#endif
+
+/* misc */
+extern struct device_attribute dev_attr_misc;
+#ifdef CONFIG_PXA688_MISC
+extern int pxa688fb_partdisp_set(struct pxa168fb_gra_partdisp grap);
+extern void pxa688fb_partdisp_update(int id);
+#else
+static inline int pxa688fb_partdisp_set(struct pxa168fb_gra_partdisp grap)
+{
+	return 0;
+}
+static inline void pxa688fb_partdisp_update(int id) { }
 #endif
 
 #endif /* __KERNEL__ */

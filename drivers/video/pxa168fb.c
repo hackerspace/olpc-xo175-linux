@@ -704,6 +704,11 @@ again:
 	writel(addr, &regs->g_0);
 	set_dma_active(fbi);
 
+	if (wait_vsync)
+		fbi->misc_update = 1;
+	else
+		pxa688fb_partdisp_update(fbi->id);
+
 	pxa688_vdma_config(fbi);
 
 	if (FB_MODE_DUP) {
@@ -1227,6 +1232,10 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 						fbi->info = NULL;
 					}
 
+					if (fbi->misc_update) {
+						pxa688fb_partdisp_update(id);
+						fbi->misc_update = 0;
+					}
 					/* wake up queue if condition */
 					if (atomic_read(&fbi->w_intr) == 0) {
 						atomic_set(&fbi->w_intr, 1);
@@ -1370,6 +1379,7 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 	unsigned char param;
 	struct pxa168fb_info *fbi = info->par;
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
+	struct pxa168fb_gra_partdisp grap;
 
 #ifdef CONFIG_DYNAMIC_PRINTK_DEBUG
 	debug_identify_called_ioctl(info, cmd, arg);
@@ -1484,6 +1494,12 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 			dma_ctrl_set(fb_dual, 0, mask, val);
 		}
 		spin_unlock_irqrestore(&fbi->var_lock, flags);
+		break;
+
+	case FB_IOCTL_GRA_PARTDISP:
+		if (copy_from_user(&grap, argp, sizeof(grap)))
+			return -EFAULT;
+		pxa688fb_partdisp_set(grap);
 		break;
 
 	default:
@@ -2548,6 +2564,15 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 		return ret;
 	}
 #endif
+
+#ifdef CONFIG_PXA688_MISC
+	ret = device_create_file(&pdev->dev, &dev_attr_misc);
+	if (ret < 0) {
+		pr_err("device attr misc create fail: %d\n", ret);
+		return ret;
+	}
+#endif
+
 	ret = device_create_file(&pdev->dev, &dev_attr_lcd);
 	if (ret < 0) {
 		pr_err("device attr lcd create fail: %d\n", ret);

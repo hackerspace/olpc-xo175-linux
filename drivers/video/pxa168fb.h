@@ -859,6 +859,10 @@ struct lcd_regs {
 #define TIMING_MASTER_CONTROL			(0x02F8)
 #define LCD_2ND_BLD_CTL				(0x02Fc)
 
+#define gra_partdisp_ctrl_hor(id)	((id) ? (((id) & 1) ? \
+	LCD_TVG_CUTHPXL : PN2_LCD_GRA_CUTHPXL) : LCD_GRA_CUTHPXL)
+#define gra_partdisp_ctrl_ver(id)	((id) ? (((id) & 1) ? \
+	LCD_TVG_CUTVLN : PN2_LCD_GRA_CUTVLN) : LCD_GRA_CUTVLN)
 
 /*
  * defined Video Memory Color format for DMA control 0 register
