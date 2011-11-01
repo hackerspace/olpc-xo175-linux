@@ -329,6 +329,9 @@ static void mv_otg_update_inputs(struct mv_otg *mvotg)
 	else
 		otg_ctrl->id = !!(otgsc & OTGSC_STS_USB_ID);
 
+	if (mvotg->pdata->otg_force_a_bus_req && !otg_ctrl->id)
+		otg_ctrl->a_bus_req = 1;
+
 	otg_ctrl->a_sess_vld = !!(otgsc & OTGSC_STS_A_SESSION_VALID);
 	otg_ctrl->a_vbus_vld = !!(otgsc & OTGSC_STS_A_VBUS_VALID);
 

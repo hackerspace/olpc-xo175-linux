@@ -55,7 +55,9 @@ struct mv_usb_platform_data {
 	unsigned int		mode;
 
 	/* This flag is used for that needs id pin checked by otg */
-	unsigned int		disable_otg_clock_gating;
+	unsigned int	disable_otg_clock_gating:1;
+	/* Force a_bus_req to be asserted */
+	unsigned int	otg_force_a_bus_req:1;
 
 	int     (*phy_init)(unsigned int regbase);
 	void    (*phy_deinit)(unsigned int regbase);
