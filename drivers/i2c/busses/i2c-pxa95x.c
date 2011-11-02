@@ -1164,7 +1164,7 @@ static void i2c_pxa_reset(struct pxa_i2c *i2c)
 		/* ilcr |= ((0xc)<<18) | (1<<27);// 3.1Mhz-SCL, high speed mode*/
 		udelay(2);
 	} else {
-		writel(0x082C45A3, _ILCR(i2c));
+		writel(0x082C44A3, _ILCR(i2c));
 		writel(0x00001431, _IWCR(i2c));
 	}
 
