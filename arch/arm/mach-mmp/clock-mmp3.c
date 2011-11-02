@@ -178,6 +178,13 @@ static struct clkops mmp3_clk_pll1_clkoutp_ops = {
 static struct clk mmp3_clk_pll1_clkoutp = {
 	.name = "pll1_clkoutp",
 	.rate = 1066000000,
+	/*
+	 * FIXME: currently the CORE/DDR/AXI source are not connect to
+	 * clock framework, so here we always kept it running. If not doing
+	 * this, any of the three are on this source, and the clock is gated
+	 * then system will die. This should be removed when adapted DFC
+	 */
+	.refcnt = 1,
 	.parent = &mmp3_clk_pll1,
 	.mul = 4,
 	.div = 3,
