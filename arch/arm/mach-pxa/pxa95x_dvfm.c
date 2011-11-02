@@ -3227,7 +3227,7 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 	mc_base = ioremap(0x56a00000, 0x1000);
 
 	sram_size = (128 * 1024);
-	sram_map = __arm_ioremap(ISRAM_START, sram_size, MT_MEMORY_ITCM);
+	sram_map = __arm_ioremap(ISRAM_START, sram_size, MT_MEMORY);
 
 	pxa95x_init_sram((unsigned int) sram_map + 0x9000);
 
