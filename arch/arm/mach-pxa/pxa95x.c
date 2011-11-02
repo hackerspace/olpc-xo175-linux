@@ -25,7 +25,9 @@
 #include <linux/uio_vmeta.h>
 
 #include <asm/hardware/cache-tauros2.h>
-
+#ifdef CONFIG_CACHE_L2X0
+#include <asm/hardware/cache-l2x0.h>
+#endif
 #include <mach/hardware.h>
 #include <mach/gpio.h>
 #include <mach/pxa3xx-regs.h>
@@ -1221,8 +1223,20 @@ static int __init pxa95x_init(void)
 	pxa95x_set_pmu_info(NULL);
 
 #ifdef CONFIG_CACHE_TAUROS2
-	tauros2_init();
+	if (!cpu_is_pxa978_Cx())
+		tauros2_init();
 #endif
+
+#ifdef CONFIG_CACHE_L2X0
+	if (cpu_is_pxa978_Cx()) {
+		void *l2x0_base = ioremap_nocache(0x58120000, 0x1000);
+		if (!l2x0_base)
+			return -ENOMEM;
+		/* Args 1,2: don't change AUX_CTRL */
+		l2x0_init(l2x0_base, 0, ~0);
+	}
+#endif
+
 	cken_clear_always_set_always_setup();
 
 	CKENA &= ~((1 << CKEN_BOOT) | (1 << CKEN_CIR)
