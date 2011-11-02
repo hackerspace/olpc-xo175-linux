@@ -575,7 +575,11 @@ void vmeta_pwr(unsigned int enableDisable)
 		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
 		udelay(100);
 
-		/* 3. set up vMeta source */
+		/* 3. set up vMeta source to PLL1 to avoid source dependency*/
+		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
+		reg_vmpwr &= ~APMU_VMETA_CLK_SEL_MASK;
+		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
+
 		/* 4. enable vMeta clock */
 		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
 		reg_vmpwr |= APMU_VMETA_CLK_EN;
