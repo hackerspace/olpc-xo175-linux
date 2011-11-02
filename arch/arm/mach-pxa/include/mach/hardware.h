@@ -284,11 +284,17 @@ extern unsigned int pxa_chip_id;
 #define __cpu_is_pxa978(id)					\
 	({							\
 		unsigned int _id = (id) >> 4 & 0xfff;		\
-		(_id == 0x581)					\
+		((_id == 0x581) || (_id == 0xc09))		\
 		&& (((pxa_chip_id >> 8) & 0xff) == 0x2a);	\
+	})
+#define __cpu_is_pxa978_Cx(id) 					\
+	({														\
+		unsigned int _id = (id) >> 4 & 0xfff;		\
+		(_id == 0xc09); 				\
 	})
 #else
 #define __cpu_is_pxa978(id)	(0)
+#define __cpu_is_pxa978_Cx(id)     (0)
 #endif
 
 #define cpu_is_pxa210()					\
@@ -394,6 +400,10 @@ extern unsigned int pxa_chip_id;
 #define cpu_is_pxa978()					\
 	({						\
 		__cpu_is_pxa978(read_cpuid_id());	\
+	})
+#define cpu_is_pxa978_Cx() /* Cortex A9 */		\
+	({						\
+		__cpu_is_pxa978_Cx(read_cpuid_id());	\
 	})
 
 #define cpu_is_pxa998()					\
