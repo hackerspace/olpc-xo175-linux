@@ -1692,6 +1692,7 @@ static int _pxa168fb_suspend(struct pxa168fb_info *fbi)
 {
 	struct fb_info *info = fbi->fb_info;
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
+	u32 clk;
 
 	/* notify others */
 	fb_set_suspend(info, 1);
@@ -1711,6 +1712,10 @@ static int _pxa168fb_suspend(struct pxa168fb_info *fbi)
 
 	fbi->active = 0;
 
+	/* disable pixel clock */
+	clk = readl(fbi->reg_base + clk_div(fbi->id)) | SCLK_DISABLE;
+	writel(clk, fbi->reg_base + clk_div(fbi->id));
+
 	/* disable clock */
 	clk_disable(fbi->clk);
 
@@ -1722,11 +1727,16 @@ static int _pxa168fb_resume(struct pxa168fb_info *fbi)
 {
 	struct fb_info *info = fbi->fb_info;
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
+	u32 clk;
 
 	/* enable clock */
 	if (mi->sclk_src)
 		clk_set_rate(fbi->clk, mi->sclk_src);
 	clk_enable(fbi->clk);
+
+	/* enable pixel clock */
+	clk = readl(fbi->reg_base + clk_div(fbi->id)) & (~SCLK_DISABLE);
+	writel(clk, fbi->reg_base + clk_div(fbi->id));
 
 	/* enable external panel power */
 	if (pxa168fb_power(fbi, mi, 1))
