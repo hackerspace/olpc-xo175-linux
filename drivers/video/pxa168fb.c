@@ -44,6 +44,13 @@
 #include <linux/earlysuspend.h>
 #endif
 
+#ifdef CONFIG_CPU_MMP2
+#include <mach/mmp2_pm.h>
+#define PM_QOS_CONSTRAINT_FB EXIT_LATENCY_CORE_EXTIDLE
+#else
+#define PM_QOS_CONSTRAINT_FB PM_QOS_DEFAULT_VALUE
+#endif
+
 #define DEBUG_VSYNC_PATH(id)	(gfx_info.fbi[(id)]->debug & 3)
 #define DEBUG_ERR_IRQ(id)	(gfx_info.fbi[(id)]->debug & 4)
 #define DEBUG_TV_ACTIVE(id)	(gfx_info.fbi[(id)]->debug & 8)
@@ -1149,6 +1156,8 @@ static int pxa168fb_blank(int blank, struct fb_info *info)
 				pxa168fb_active(gfx_info.fbi[fb_dual], 0);
 
 			/* allow system enter low power modes */
+			pm_qos_update_request(&fbi->qos_idle_fb,
+						PM_QOS_DEFAULT_VALUE);
 			wake_unlock(&idle_lock);
 			break;
 
@@ -1161,6 +1170,8 @@ static int pxa168fb_blank(int blank, struct fb_info *info)
 				pxa168fb_active(gfx_info.fbi[fb_dual], 1);
 
 			/* avoid system enter low power modes */
+			pm_qos_update_request(&fbi->qos_idle_fb,
+						PM_QOS_CONSTRAINT_FB);
 			wake_lock(&idle_lock);
 			break;
 	default:
@@ -1792,6 +1803,7 @@ static void pxa168fb_early_suspend(struct early_suspend *h)
 						 early_suspend);
 
 	_pxa168fb_suspend(fbi);
+	pm_qos_update_request(&fbi->qos_idle_fb, PM_QOS_DEFAULT_VALUE);
 	wake_unlock(&idle_lock);
 
 	return;
@@ -1801,6 +1813,7 @@ static void pxa168fb_late_resume(struct early_suspend *h)
 	struct pxa168fb_info *fbi = container_of(h, struct pxa168fb_info,
 						 early_suspend);
 
+	pm_qos_update_request(&fbi->qos_idle_fb, PM_QOS_CONSTRAINT_FB);
 	wake_lock(&idle_lock);
 	_pxa168fb_resume(fbi);
 
@@ -1815,6 +1828,7 @@ static int pxa168fb_suspend(struct platform_device *pdev, pm_message_t mesg)
 
 	_pxa168fb_suspend(fbi);
 	pdev->dev.power.power_state = mesg;
+	pm_qos_update_request(&fbi->qos_idle_fb, PM_QOS_DEFAULT_VALUE);
 	wake_unlock(&idle_lock);
 
 	return 0;
@@ -1824,6 +1838,7 @@ static int pxa168fb_resume(struct platform_device *pdev)
 {
 	struct pxa168fb_info *fbi = platform_get_drvdata(pdev);
 
+	pm_qos_update_request(&fbi->qos_idle_fb, PM_QOS_CONSTRAINT_FB);
 	wake_lock(&idle_lock);
 	_pxa168fb_resume(fbi);
 
@@ -2427,6 +2442,10 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	info->screen_base = fbi->fb_start;
 	info->screen_size = fbi->fb_size;
 
+	/* init qos with constraint */
+	pm_qos_add_request(&fbi->qos_idle_fb, PM_QOS_CPU_DMA_LATENCY,
+			PM_QOS_CONSTRAINT_FB);
+
 	/* avoid system enter low power modes */
 	wake_lock(&idle_lock);
 
@@ -2555,6 +2574,7 @@ failed_free_irq:
 failed_free_cmap:
 	fb_dealloc_cmap(&info->cmap);
 failed_free_clk:
+	pm_qos_remove_request(&fbi->qos_idle_fb);
 	clk_disable(fbi->clk);
 	dma_free_writecombine(fbi->dev, PAGE_ALIGN(info->fix.smem_len),
 				info->screen_base, info->fix.smem_start);
@@ -2602,6 +2622,7 @@ static int __devexit pxa168fb_remove(struct platform_device *pdev)
 	irq = platform_get_irq(pdev, 0);
 	free_irq(irq, fbi);
 
+	pm_qos_remove_request(&fbi->qos_idle_fb);
 	dma_free_writecombine(fbi->dev, PAGE_ALIGN(info->fix.smem_len),
 				info->screen_base, info->fix.smem_start);
 

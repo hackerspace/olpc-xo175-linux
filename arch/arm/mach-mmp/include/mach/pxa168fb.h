@@ -338,6 +338,7 @@ struct _pxa168fb_cmu_pip {
 #include <linux/interrupt.h>
 #include <linux/earlysuspend.h>
 #include <linux/list.h>
+#include <linux/pm_qos_params.h>
 
 /* surface list for flip mode */
 struct _sSurfaceList {
@@ -430,6 +431,7 @@ struct pxa168fb_info {
 	int (*check_modex_active)(int id, int active);
 
 	struct fb_var_screeninfo var_bak;
+	struct pm_qos_request_list qos_idle_fb;
 };
 
 struct dsi_phy {
