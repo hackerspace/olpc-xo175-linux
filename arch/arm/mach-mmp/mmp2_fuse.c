@@ -225,11 +225,7 @@ int mmp2_get_voltage(unsigned int profile, unsigned int product_point)
 	 * and from A2 takeout, use the profile to
 	 * set the voltage value
 	 */
-	if (cpu_is_mmp2)
-		return mmp2_profile_table[profile][product_point];
-	else
-		/* return a safe value anyway */
-		return mmp2_dummy_profile_table[product_point];
+	return mmp2_profile_table[profile][product_point];
 }
 EXPORT_SYMBOL(mmp2_get_voltage);
 

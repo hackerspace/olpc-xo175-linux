@@ -155,7 +155,7 @@ static void wtm_clk_enable(struct clk *clk)
 	unsigned int enable_flag = (APMU_AXICLK_EN | APMU_FNCLK_EN);
 
 	val = __raw_readl(clk->clk_rst);
-	if (val & enable_flag == enable_flag) {
+	if ((val & enable_flag) == enable_flag) {
 		wtm_has_init = 1;
 		printk(KERN_INFO "wtm has been enabled by secure core!\n");
 		return ;
