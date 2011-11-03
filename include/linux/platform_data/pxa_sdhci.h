@@ -17,6 +17,7 @@
 #ifdef CONFIG_WAKELOCK
 #include <linux/wakelock.h>
 #endif
+#include <linux/pm_qos_params.h>
 
 /* pxa specific flag */
 /* Require clock free running */
@@ -65,6 +66,7 @@ struct sdhci_pxa_platdata {
 	unsigned int	pm_caps;
 	void	(*signal_1v8)(int set);
 	int	(*lp_switch)(unsigned int on, int with_card);
+	struct	pm_qos_request_list	qos_idle;
 #ifdef CONFIG_WAKELOCK
 	struct wake_lock	idle_lock;
 #endif

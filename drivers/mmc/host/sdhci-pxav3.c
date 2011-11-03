@@ -29,6 +29,7 @@
 #include <linux/delay.h>
 #include "sdhci.h"
 #include "sdhci-pltfm.h"
+#include <mach/mmp_pm.h>
 
 #define SD_CLOCK_BURST_SIZE_SETUP		0x10A
 #define SDCLK_SEL	0x100
@@ -180,6 +181,10 @@ static void pxav3_access_constrain(struct sdhci_host *host, unsigned int ac)
 	else
 		wake_unlock(&pdata->idle_lock);
 #endif
+	if (ac)
+		pm_qos_update_request(&pdata->qos_idle, PM_QOS_CONSTRAINT);
+	else
+		pm_qos_update_request(&pdata->qos_idle, PM_QOS_DEFAULT_VALUE);
 }
 
 static struct sdhci_ops pxav3_sdhci_ops = {
@@ -242,6 +247,8 @@ static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 		if (pdata->pm_caps)
 			host->mmc->pm_caps |= pdata->pm_caps;
 
+	pm_qos_add_request(&pdata->qos_idle, PM_QOS_CPU_DMA_LATENCY,
+			PM_QOS_DEFAULT_VALUE);
 	#ifdef CONFIG_WAKELOCK
 		wake_lock_init(&pdata->idle_lock, WAKE_LOCK_IDLE,
 			(const char *)mmc_hostname(host->mmc));
@@ -272,6 +279,7 @@ err_add_host:
 	clk_disable(clk);
 	clk_put(clk);
 err_clk_get:
+	pm_qos_remove_request(&pdata->qos_idle);
 #ifdef CONFIG_WAKELOCK
 	wake_lock_destroy(&pdata->idle_lock);
 #endif
@@ -288,6 +296,7 @@ static int __devexit sdhci_pxav3_remove(struct platform_device *pdev)
 
 	sdhci_remove_host(host, 1);
 
+	pm_qos_remove_request(&pxa->pdata->qos_idle);
 #ifdef CONFIG_WAKELOCK
 	wake_lock_destroy(&pxa->pdata->idle_lock);
 #endif
