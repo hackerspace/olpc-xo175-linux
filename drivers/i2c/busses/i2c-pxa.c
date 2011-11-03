@@ -37,6 +37,7 @@
 #include <linux/io.h>
 #include <linux/i2c/pxa-i2c.h>
 #include <linux/wakelock.h>
+#include <plat/pm.h>
 
 #include <asm/irq.h>
 
@@ -180,6 +181,7 @@ struct pxa_i2c {
 	unsigned int		ilcr;
 	unsigned int		iwcr;
 	struct wake_lock	idle_lock;
+	struct pm_qos_request_list qos_idle;
 };
 
 #define _IBMR(i2c)	((i2c)->reg_ibmr)
@@ -748,6 +750,7 @@ static int i2c_pxa_do_pio_xfer(struct pxa_i2c *i2c,
 	i2c->msg_ptr = 0;
 	i2c->irqlogidx = 0;
 
+	pm_qos_update_request(&i2c->qos_idle, PM_QOS_CONSTRAINT);
 	wake_lock(&i2c->idle_lock);
 
 	i2c_pxa_start_message(i2c);
@@ -759,6 +762,7 @@ static int i2c_pxa_do_pio_xfer(struct pxa_i2c *i2c,
 
 	i2c_pxa_stop_message(i2c);
 
+	pm_qos_update_request(&i2c->qos_idle, PM_QOS_DEFAULT_VALUE);
 	wake_unlock(&i2c->idle_lock);
 
 	/*
@@ -1134,6 +1138,8 @@ static int i2c_pxa_probe(struct platform_device *dev)
 	i2c->adap.owner   = THIS_MODULE;
 	i2c->adap.retries = 3;
 
+	pm_qos_add_request(&i2c->qos_idle, PM_QOS_CPU_DMA_LATENCY,
+			PM_QOS_DEFAULT_VALUE);
 	wake_lock_init(&i2c->idle_lock, WAKE_LOCK_IDLE,
 			(const char *)i2c->adap.name);
 
@@ -1250,6 +1256,7 @@ eclk:
 	kfree(i2c);
 emalloc:
 	release_mem_region(res->start, resource_size(res));
+	pm_qos_remove_request(&i2c->qos_idle);
 	wake_lock_destroy(&i2c->idle_lock);
 return ret;
 }
@@ -1260,6 +1267,7 @@ static int __exit i2c_pxa_remove(struct platform_device *dev)
 
 	platform_set_drvdata(dev, NULL);
 
+	pm_qos_remove_request(&i2c->qos_idle);
 	wake_lock_destroy(&i2c->idle_lock);
 
 	i2c_del_adapter(&i2c->adap);
