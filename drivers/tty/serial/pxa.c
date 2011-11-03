@@ -46,6 +46,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/wakelock.h>
 #include <mach/dma.h>
+#include <plat/pm.h>
 
 #ifdef CONFIG_PXA95x
 #include <mach/dvfm.h>
@@ -74,6 +75,7 @@ struct uart_pxa_port {
 	struct work_struct	uart_rx_lpm_work;
 #else
 	struct wake_lock idle_lock[2];
+	struct pm_qos_request_list qos_idle[2];
 #endif
 	int			txdma;
 	int			rxdma;
@@ -421,6 +423,8 @@ static inline irqreturn_t serial_pxa_irq(int irq, void *dev_id)
 #ifdef CONFIG_PXA95x
 		dvfm_disable_lowpower(up->dvfm_dev_idx[PXA_UART_RX]);
 #else
+		pm_qos_update_request(&up->qos_idle[PXA_UART_RX],
+						PM_QOS_CONSTRAINT);
 		wake_lock(&up->idle_lock[PXA_UART_RX]);
 #endif
 	}
@@ -546,6 +550,8 @@ static void pxa_uart_transmit_dma_start(struct uart_pxa_port *up, int count)
 #ifdef CONFIG_PXA95x
 	dvfm_disable_lowpower(up->dvfm_dev_idx[PXA_UART_TX]);
 #else
+	pm_qos_update_request(&up->qos_idle[PXA_UART_TX],
+					PM_QOS_CONSTRAINT);
 	wake_lock(&up->idle_lock[PXA_UART_TX]);
 #endif
 
@@ -1373,6 +1379,7 @@ static void pxa_timer_handler(unsigned long data)
 #ifdef CONFIG_PXA95x
 	dvfm_enable_lowpower(up->dvfm_dev_idx[PXA_UART_RX]);
 #else
+	pm_qos_update_request(&up->qos_idle[PXA_UART_RX], PM_QOS_DEFAULT_VALUE);
 	wake_unlock(&up->idle_lock[PXA_UART_RX]);
 #endif
 }
@@ -1388,6 +1395,7 @@ static void uart_tx_lpm_handler(struct work_struct *work)
 #ifdef CONFIG_PXA95x
 	dvfm_enable_lowpower(up->dvfm_dev_idx[PXA_UART_TX]);
 #else
+	pm_qos_update_request(&up->qos_idle[PXA_UART_TX], PM_QOS_DEFAULT_VALUE);
 	wake_unlock(&up->idle_lock[PXA_UART_TX]);
 #endif
 }
@@ -1514,6 +1522,8 @@ static int serial_pxa_probe(struct platform_device *dev)
 		sport->dvfm_dev_idx[i] = -1;
 		dvfm_register(dev_name, &(sport->dvfm_dev_idx[i]));
 #else
+		pm_qos_add_request(&sport->qos_idle[i], PM_QOS_CPU_DMA_LATENCY,
+				PM_QOS_DEFAULT_VALUE);
 		wake_lock_init(&sport->idle_lock[i], WAKE_LOCK_IDLE,
 				(const char *)dev_name);
 #endif
@@ -1551,6 +1561,8 @@ static int serial_pxa_probe(struct platform_device *dev)
 	dvfm_unregister_notifier(&sport->notifier_freq_block,
 			DVFM_FREQUENCY_NOTIFIER);
 #else
+	pm_qos_remove_request(&sport->qos_idle[PXA_UART_RX]);
+	pm_qos_remove_request(&sport->qos_idle[PXA_UART_TX]);
 	wake_lock_destroy(&sport->idle_lock[PXA_UART_RX]);
 	wake_lock_destroy(&sport->idle_lock[PXA_UART_TX]);
 #endif
@@ -1570,6 +1582,8 @@ static int serial_pxa_remove(struct platform_device *dev)
 	dvfm_unregister_notifier(&sport->notifier_freq_block,
 			DVFM_FREQUENCY_NOTIFIER);
 #else
+	pm_qos_remove_request(&sport->qos_idle[PXA_UART_RX]);
+	pm_qos_remove_request(&sport->qos_idle[PXA_UART_TX]);
 	wake_lock_destroy(&sport->idle_lock[PXA_UART_RX]);
 	wake_lock_destroy(&sport->idle_lock[PXA_UART_TX]);
 #endif
