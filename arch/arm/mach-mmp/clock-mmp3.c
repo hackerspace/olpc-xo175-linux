@@ -1888,16 +1888,34 @@ static void dxoccic_clk_disable(struct clk *clk)
 {
 	int reg;
 
+	reg = readl(APMU_CCIC_GATE);
+	reg &= ~(0xFFFF);
+	writel(reg, APMU_CCIC_GATE);
+
+	reg = readl(APMU_CCIC_DBG);
+	reg &= ~((1 << 25) | (1 << 27));
+	writel(reg, APMU_CCIC_DBG);
+
 	reg = readl(clk->clk_rst);
-	reg &= ~0x1;
-	writel(reg, clk->clk_rst);
-	reg &= ~0x2;
+	/* Assert RST for PHY SLOW clock */
+	reg &= ~(0x1 << 8);
+	/* Assert RST for PHY clock */
+	reg &= ~(0x1 << 2);
+	/* Assert RST for CCIC clock */
+	reg &= ~(0x1 << 1);
+	/* Assert RST for AXI clock */
+	reg &= ~(0x1 << 0);
 	writel(reg, clk->clk_rst);
 
 	reg = readl(clk->clk_rst);
-	reg &= ~0x8;
-	writel(reg, clk->clk_rst);
-	reg &= ~0x10;
+	/* Disable PHY SLOW clock */
+	reg &= ~(0x1 << 9);
+	/* Disable PHY clock */
+	reg &= ~(0x1 << 5);
+	/* Disable CCIC clock */
+	reg &= ~(0x1 << 4);
+	/* Disable AXI clock */
+	reg &= ~(0x1 << 3);
 	writel(reg, clk->clk_rst);
 }
 

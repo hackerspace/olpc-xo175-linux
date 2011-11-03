@@ -242,7 +242,7 @@ static int ov8820_sensor_power_on(int on, int flag)
 		regulator_set_voltage(v_ldo15, 2800000, 2800000);
 		regulator_enable(v_ldo15);
 		regulator_set_voltage(v_ldo3, 1200000, 1200000);
-		regulator_enable(v_ldo15);
+		regulator_enable(v_ldo3);
 	} else {
 		regulator_disable(v_ldo14);
 		regulator_disable(v_ldo15);

@@ -502,9 +502,29 @@ static long ov8820_subdev_ioctl(struct v4l2_subdev *sd,
 	return ret;
 }
 
+static int ov8820_subdev_close(struct v4l2_subdev *sd,
+		struct v4l2_subdev_fh *fh)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct sensor_platform_data *pdata = client->dev.platform_data;
+
+	if (pdata)
+		if (pdata->power_on)
+			pdata->power_on(SENSOR_CLOSE, pdata->id);
+
+	return 0;
+}
+
 static int ov8820_subdev_open(struct v4l2_subdev *sd,
 				struct v4l2_subdev_fh *fh)
 {
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct sensor_platform_data *pdata = client->dev.platform_data;
+
+	if (pdata)
+		if (pdata->power_on)
+			pdata->power_on(SENSOR_OPEN, pdata->id);
+
 	return 0;
 }
 
@@ -561,6 +581,7 @@ static const struct v4l2_subdev_ops ov8820_ops = {
 /* subdev internal operations */
 static const struct v4l2_subdev_internal_ops ov8820_v4l2_internal_ops = {
 	.open = ov8820_subdev_open,
+	.close = ov8820_subdev_close,
 };
 
 /* media operations */
@@ -630,13 +651,11 @@ static int ov8820_probe(struct i2c_client *client,
 		}
 	}
 
-	if (ret) {
-		if (pdata->power_on)
-			pdata->power_on(SENSOR_CLOSE, pdata->id);
-		return ret;
-	}
-
 	core->plat_data = pdata;
+
+	if (pdata->power_on)
+		pdata->power_on(SENSOR_CLOSE, pdata->id);
+
 	return 0;
 }
 
