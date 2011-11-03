@@ -51,6 +51,7 @@
 
 #include <mach/camera.h>
 #include "mv_camera.h"
+#include <plat/pm.h>
 
 static struct wake_lock idle_lock;
 static struct pm_qos_request_list mv_camera_qos_req_min;
@@ -133,6 +134,7 @@ struct mv_camera_dev {
 	unsigned int nbufs;		/* How many are used for ccic */
 	struct vb2_alloc_ctx *vb_alloc_ctx;
 	int frame_rate;
+	struct pm_qos_request_list qos_idle;
 };
 
 /*
@@ -733,6 +735,7 @@ static int mv_camera_add_device(struct soc_camera_device *icd)
 	mcam->controller_power(1);
 #endif
 	set_power_constraint(mcam->qos_req_min);
+	pm_qos_update_request(&pcdev->qos_idle, PM_QOS_CONSTRAINT);
 	wake_lock(&idle_lock);
 	pcdev->icd = icd;
 	pcdev->state = S_IDLE;
@@ -755,6 +758,7 @@ static void mv_camera_remove_device(struct soc_camera_device *icd)
 			"singles, %d delivered\n", frames, singles, delivered);
 	ccic_disable_clk(pcdev);
 	pcdev->icd = NULL;
+	pm_qos_update_request(&pcdev->qos_idle, PM_QOS_DEFAULT_VALUE);
 	wake_unlock(&idle_lock);
 	unset_power_constraint(mcam->qos_req_min);
 #ifdef CONFIG_PM
@@ -1084,7 +1088,8 @@ static int __devinit mv_camera_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&pcdev->buffers);
 
 	spin_lock_init(&pcdev->list_lock);
-
+	pm_qos_add_request(&pcdev->qos_idle, PM_QOS_CPU_DMA_LATENCY,
+			PM_QOS_DEFAULT_VALUE);
 	/*
 	 * Request the regions.
 	 */
@@ -1124,6 +1129,7 @@ static int __devinit mv_camera_probe(struct platform_device *pdev)
 	if (err)
 		goto exit_free_irq;
 	ccic_disable_clk(pcdev);
+
 	return 0;
 
 exit_free_irq:
@@ -1152,6 +1158,7 @@ static int __devexit mv_camera_remove(struct platform_device *pdev)
 	mcam->init_clk(&pdev->dev, 0);
 	ccic_power_down(pcdev);
 	free_irq(pcdev->irq, pcdev);
+	pm_qos_remove_request(&pcdev->qos_idle);
 
 	soc_camera_host_unregister(soc_host);
 
