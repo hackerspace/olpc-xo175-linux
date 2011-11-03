@@ -1047,6 +1047,7 @@ static void __init brownstone_init(void)
 	mmp2_add_uart(1);
 	mmp2_add_uart(2);
 	mmp2_add_uart(3);
+	mmp2_add_rtc();
 	mmp2_add_twsi(1, NULL, ARRAY_AND_SIZE(brownstone_twsi1_info));
 	mmp2_add_twsi(2, NULL, ARRAY_AND_SIZE(brownstone_twsi2_info));
 	if (board_is_mmp2_brownstone_rev5()) {

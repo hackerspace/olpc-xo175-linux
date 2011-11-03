@@ -56,6 +56,7 @@ extern struct pxa_device_desc mmp2_device_videosram;
 extern struct platform_device pxa168_device_u2o;
 extern struct platform_device pxa168_device_u2oehci;
 extern struct platform_device pxa168_device_u2ootg;
+extern struct platform_device mmp2_device_rtc;
 
 static inline int mmp2_add_uart(int id)
 {
@@ -191,6 +192,15 @@ static inline int mmp2_add_videosram(struct sram_bank *data)
 static inline int mmp2_add_fuse(void)
 {
 	return pxa_register_device(&mmp2_device_fuse, NULL, 0);
+}
+
+static inline void mmp2_add_rtc(void)
+{
+	int ret;
+	ret = platform_device_register(&mmp2_device_rtc);
+	if (ret)
+		dev_err(&mmp2_device_rtc.dev,
+			"unable to register device: %d\n", ret);
 }
 
 #endif /* __ASM_MACH_MMP2_H */

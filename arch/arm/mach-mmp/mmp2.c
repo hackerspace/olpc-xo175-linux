@@ -759,6 +759,7 @@ static APBC_CLK_OPS(pwm2, MMP2_PWM1, 0, 26000000, &pwm2_clk_ops);
 static APBC_CLK(pwm3, MMP2_PWM2, 0, 26000000);
 static APBC_CLK(pwm4, MMP2_PWM3, 0, 26000000);
 static APBC_CLK(keypad, MMP2_KPC, 0, 32768);
+static APBC_CLK(rtc, MMP2_RTC, 0x8, 32768);
 
 static APMU_CLK(nand, NAND, 0xbf, 100000000);
 static APMU_CLK(u2o, USB, 0x9, 480000000);
@@ -806,6 +807,7 @@ static struct clk_lookup mmp2_clkregs[] = {
 	INIT_CLKREG(&clk_keypad, "pxa27x-keypad", NULL),
 	INIT_CLKREG(&clk_vmeta, NULL, "VMETA_CLK"),
 	INIT_CLKREG(&clk_wtm, NULL, "mmp2-wtm"),
+	INIT_CLKREG(&clk_rtc, "mmp-rtc", NULL),
 
 };
 
@@ -917,3 +919,33 @@ struct platform_device mmp_device_asoc_platform = {
 	.name		= "mmp3-pcm-audio",
 	.id		= -1,
 };
+
+static struct resource mmp2_resource_rtc[] = {
+	[0] = {
+		.start  = 0xd4010000,
+		.end    = 0xD40100ff,
+		.flags  = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start  = IRQ_MMP2_RTC,
+		.end    = IRQ_MMP2_RTC,
+		.flags  = IORESOURCE_IRQ,
+		.name   = "RTC_1HZ",
+	},
+
+	[2] = {
+		.start  = IRQ_MMP2_RTC_ALARM,
+		.end    = IRQ_MMP2_RTC_ALARM,
+		.flags  = IORESOURCE_IRQ,
+		.name   = "RTC_ALARM",
+	},
+
+};
+
+struct platform_device mmp2_device_rtc = {
+	.name           = "mmp-rtc",
+	.id             = -1,
+	.resource       = mmp2_resource_rtc,
+	.num_resources  = ARRAY_SIZE(mmp2_resource_rtc),
+};
+
