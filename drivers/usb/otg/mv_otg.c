@@ -293,6 +293,8 @@ static void mv_otg_disable_internal(struct mv_otg *mvotg)
 {
 	if (mvotg->active) {
 		dev_dbg(&mvotg->dev->dev, "otg disabled\n");
+		if (mvotg->pdata->phy_deinit)
+			mvotg->pdata->phy_deinit(mvotg->phy_regs);
 		otg_clock_disable(mvotg);
 		mvotg->active = 0;
 	}
@@ -780,15 +782,11 @@ static int mv_otg_probe(struct platform_device *dev)
 	}
 
 	/* we will acces controller register, so enable the udc controller */
-	otg_clock_enable(mvotg);
-	if (pdata->phy_init) {
-		retval = pdata->phy_init(mvotg->phy_regs);
-		if (retval) {
-			dev_err(&dev->dev, "init phy error %d\n", retval);
-			goto err_otg_enable;
-		}
+	retval = mv_otg_enable_internal(mvotg);
+	if (retval) {
+		dev_err(&dev->dev, "mv_otg_enable error %d\n", retval);
+		goto err_otg_enable;
 	}
-	mvotg->active = 1;
 
 	mvotg->op_regs = (struct mv_op_regs __iomem *)((u32)mvotg->cap_regs
 		+ (readl(&mvotg->cap_regs->caplength_hciversion)
@@ -871,7 +869,7 @@ err_set_transceiver:
 	free_irq(mvotg->irq, mvotg);
 err_request_irq:
 err_get_irq:
-	otg_clock_disable(mvotg);
+	mv_otg_disable_internal(mvotg);
 err_otg_enable:
 	iounmap((void *)mvotg->phy_regs);
 err_map_phy_regs:
