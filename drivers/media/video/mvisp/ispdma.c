@@ -2099,6 +2099,9 @@ static int ispdma_open(struct v4l2_subdev *sd,
 
 	mvisp_get(isp);
 
+	if (ispdma->input == ISPDMA_INPUT_CCIC_1)
+		ispdma_config_csi_input(ispdma);
+
 	ispdma_init_params(ispdma);
 	return ispdma_init_formats(sd, fh);
 }
