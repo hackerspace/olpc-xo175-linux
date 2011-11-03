@@ -587,7 +587,6 @@ static int brownstone_set_vbus(unsigned int enable)
 	return 0;
 }
 #ifdef CONFIG_USB_PXA_U2O
-extern int pxa_usb_phy_init(unsigned int base);
 static char *mmp2_usb_clock_name[] = {
 	[0] = "U2OCLK",
 };
@@ -597,6 +596,7 @@ static struct mv_usb_platform_data mmp2_usb_pdata = {
 	.vbus		= NULL,
 	.mode		= MV_USB_MODE_OTG,
 	.phy_init	= pxa_usb_phy_init,
+	.phy_deinit	= pxa_usb_phy_deinit,
 	.set_vbus	= brownstone_set_vbus,
 	.disable_otg_clock_gating	= 1,
 	.otg_force_a_bus_req		= 1,
