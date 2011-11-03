@@ -248,9 +248,7 @@ int pxa_usb_phy_init(unsigned int base)
 }
 #endif
 
-#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_PXA168) \
-	|| defined(CONFIG_CPU_PXA910)
-
+#if defined(CONFIG_CPU_PXA168) || defined(CONFIG_CPU_PXA910)
 int pxa_usb_phy_init(unsigned int base)
 {
 	static int init_done;
@@ -347,6 +345,171 @@ int pxa_usb_phy_init(unsigned int base)
 
 	init_done = 1;
 	return 0;
+}
+#endif
+
+#ifdef CONFIG_CPU_MMP2
+/* USB PHY PLL init */
+static int pxa_usb_phy_pll_init(unsigned int base)
+{
+	static int init_done;
+	int loops;
+
+	if (init_done) {
+		pr_debug("re-init phy\n\n");
+		/* return; */
+	}
+
+	u2o_set(base, UTMI_CTRL, 1<<UTMI_CTRL_PLL_PWR_UP_SHIFT);
+
+	/* UTMI_PLL settings */
+	u2o_clear(base, UTMI_PLL, UTMI_PLL_PLLVDD18_MASK
+		| UTMI_PLL_PLLVDD12_MASK | UTMI_PLL_PLLCALI12_MASK
+		| UTMI_PLL_FBDIV_MASK | UTMI_PLL_REFDIV_MASK
+		| UTMI_PLL_ICP_MASK | UTMI_PLL_KVCO_MASK);
+
+	u2o_set(base, UTMI_PLL, 0xee<<UTMI_PLL_FBDIV_SHIFT
+		| 0xb<<UTMI_PLL_REFDIV_SHIFT | 3<<UTMI_PLL_PLLVDD18_SHIFT
+		| 3<<UTMI_PLL_PLLVDD12_SHIFT | 3<<UTMI_PLL_PLLCALI12_SHIFT
+		| 1<<UTMI_PLL_ICP_SHIFT | 3<<UTMI_PLL_KVCO_SHIFT);
+
+	/* UTMI_TX */
+	u2o_clear(base, UTMI_TX, UTMI_TX_REG_EXT_FS_RCAL_EN_MASK
+		| UTMI_TX_TXVDD12_MASK | UTMI_TX_CK60_PHSEL_MASK
+		| UTMI_TX_IMPCAL_VTH_MASK | UTMI_TX_REG_EXT_FS_RCAL_MASK
+		| UTMI_TX_AMP_MASK);
+	u2o_set(base, UTMI_TX, 3<<UTMI_TX_TXVDD12_SHIFT
+		| 4<<UTMI_TX_CK60_PHSEL_SHIFT | 4<<UTMI_TX_IMPCAL_VTH_SHIFT
+		| 8<<UTMI_TX_REG_EXT_FS_RCAL_SHIFT | 3<<UTMI_TX_AMP_SHIFT);
+
+	/* UTMI_RX */
+	u2o_clear(base, UTMI_RX, UTMI_RX_SQ_THRESH_MASK
+		| UTMI_REG_SQ_LENGTH_MASK);
+	u2o_set(base, UTMI_RX, 7<<UTMI_RX_SQ_THRESH_SHIFT
+		| 2<<UTMI_REG_SQ_LENGTH_SHIFT);
+
+	/* UTMI_IVREF */
+	/* fixing Microsoft Altair board interface with NEC hub issue
+	 * Set UTMI_IVREF from 0x4a3 to 0x4bf */
+	u2o_write(base, UTMI_IVREF, 0x4bf);
+
+	/* calibration */
+	loops = 0;
+	while ((u2o_get(base, UTMI_PLL) & PLL_READY) == 0) {
+		mdelay(1);
+		loops++;
+		if (loops > 100) {
+			pr_warn("%s:calibrate timeout, UTMI_PLL: %x\n",
+					__func__, u2o_get(base, UTMI_PLL));
+			break;
+		}
+	}
+
+	/* toggle VCOCAL_START bit of UTMI_PLL */
+	udelay(200);
+	u2o_set(base, UTMI_PLL, VCOCAL_START);
+	udelay(40);
+	u2o_clear(base, UTMI_PLL, VCOCAL_START);
+
+	/* toggle REG_RCAL_START bit of UTMI_TX */
+	udelay(200);
+	u2o_set(base, UTMI_TX, REG_RCAL_START);
+	udelay(40);
+	u2o_clear(base, UTMI_TX, REG_RCAL_START);
+	udelay(200);
+
+	/* Make sure PHY PLL is ready */
+	loops = 0;
+	while ((u2o_get(base, UTMI_PLL) & PLL_READY) == 0) {
+		mdelay(1);
+		loops++;
+		if (loops > 100) {
+			pr_warn("%s:calibrate timeout, UTMI_PLL %x\n",
+					__func__, u2o_get(base, UTMI_PLL));
+			break;
+		}
+	}
+
+	init_done = 1;
+	return 0;
+}
+
+/* USB PHY PLL deinit */
+static void pxa_usb_phy_pll_deinit(unsigned int base)
+{
+	u2o_clear(base, UTMI_CTRL, UTMI_CTRL_RXBUF_PDWN);
+	u2o_clear(base, UTMI_CTRL, UTMI_CTRL_TXBUF_PDWN);
+	u2o_clear(base, UTMI_CTRL, UTMI_CTRL_USB_CLK_EN);
+	u2o_clear(base, UTMI_CTRL, 1 << UTMI_CTRL_PLL_PWR_UP_SHIFT);
+}
+
+/* USB PHY power on */
+static void pxa_usb_phy_power_on(unsigned int base)
+{
+	u2o_set(base, UTMI_CTRL, 1<<UTMI_CTRL_PWR_UP_SHIFT);
+}
+
+/* USB PHY power off */
+static void pxa_usb_phy_power_off(unsigned int base)
+{
+	u2o_clear(base, UTMI_CTRL, 1 << UTMI_CTRL_PWR_UP_SHIFT);
+}
+
+/* For component whose clock depends on usb phy pll */
+void pxa_usb_phy_clk_enable(void)
+{
+	u32 base = (u32)ioremap_nocache(PXA168_U2O_PHYBASE, USB_PHY_RANGE);
+	if (!base)
+		return;
+	pxa_usb_phy_pll_init(base);
+	iounmap((void __iomem *)base);
+}
+
+void pxa_usb_phy_clk_disable(void)
+{
+	u32 base = (u32)ioremap_nocache(PXA168_U2O_PHYBASE, USB_PHY_RANGE);
+	if (!base)
+		return;
+	pxa_usb_phy_pll_deinit(base);
+	iounmap((void __iomem *)base);
+}
+
+DEFINE_MUTEX(usb_phy_lock);
+static int usb_phy_enabled;
+/* USB UTMI(OTG PHY) init */
+int pxa_usb_phy_init(unsigned int base)
+{
+	struct clk *clk = clk_get(NULL, "USBPHYCLK");
+	if (IS_ERR(clk)) {
+		pr_err("%s: can't get USB PHY clk\n", __func__);
+		return PTR_ERR(clk);
+	}
+	mutex_lock(&usb_phy_lock);
+	if (usb_phy_enabled++ == 0) {
+		/* pll init => power on */
+		clk_enable(clk);
+		pxa_usb_phy_power_on(base);
+	}
+	mutex_unlock(&usb_phy_lock);
+	return 0;
+}
+
+/* USB UTMI(OTG PHY) deinit */
+void pxa_usb_phy_deinit(unsigned int base)
+{
+	struct clk *clk = clk_get(NULL, "USBPHYCLK");
+	if (IS_ERR(clk)) {
+		pr_err("%s: can't get USB PHY clk\n", __func__);
+		return;
+	}
+	mutex_lock(&usb_phy_lock);
+	WARN_ON(usb_phy_enabled == 0);
+	if (--usb_phy_enabled == 0) {
+		/* power off => pll deinit */
+		pxa_usb_phy_power_off(base);
+		clk_disable(clk);
+	}
+	mutex_unlock(&usb_phy_lock);
 }
 #endif
 #endif

@@ -66,4 +66,7 @@ struct mv_usb_platform_data {
 					unsigned int phyregs);
 };
 
+extern int pxa_usb_phy_init(unsigned int base);
+extern void pxa_usb_phy_deinit(unsigned int base);
+
 #endif
