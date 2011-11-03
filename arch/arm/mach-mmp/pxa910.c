@@ -740,10 +740,51 @@ static void __init pxa910_reserve_cpmem_memblock(void)
 				(unsigned)_cp_area_addr);
 }
 
+#ifdef CONFIG_PXA910_1G_DDR_WORKAROUND
+unsigned long _cnm_area_addr = 0x08000000;
+unsigned long _cnm_area_size = 0x00200000;
+static int __init setup_cnm_mem(char *p)
+{
+	unsigned long size, start = 0x08000000;
+	size = memparse(p, &p);
+	if (*p == '@')
+		start = memparse(p + 1, &p);
+
+	_cnm_area_addr = (unsigned)start;
+	_cnm_area_size = (unsigned)size;
+
+	return 0;
+}
+early_param("cnmmem", setup_cnm_mem);
+
+static void __init pxa910_reserve_cnm_memblock(void)
+{
+	long ret;
+
+	if (_cnm_area_size == 0)
+		return;
+
+	ret = memblock_reserve(_cnm_area_addr, _cnm_area_size);
+	BUG_ON(ret != 0);
+
+	memblock_free(_cnm_area_addr, _cnm_area_size);
+	memblock_remove(_cnm_area_addr, _cnm_area_size);
+
+	printk(KERN_INFO "Reserving cnm memory: %dM at %.8x\n",
+				(unsigned)_cnm_area_size/0x100000,
+				(unsigned)_cnm_area_addr);
+}
+#endif
+
 void __init pxa910_reserve(void)
 {
 	/* Reserve memory for CP */
 	pxa910_reserve_cpmem_memblock();
+
+#ifdef CONFIG_PXA910_1G_DDR_WORKAROUND
+	/* Reserve memory for cnm */
+	pxa910_reserve_cnm_memblock();
+#endif
 
 #ifdef CONFIG_ANDROID_PMEM
 	/* Reserve memory for pmem */
