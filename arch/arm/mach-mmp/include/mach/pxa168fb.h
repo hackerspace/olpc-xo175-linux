@@ -671,10 +671,10 @@ extern void pxa688_vdma_config(struct pxa168fb_info *fbi);
 extern void pxa688_vdma_release(struct pxa168fb_info *fbi);
 extern void pxa688_vdma_en(struct pxa168fb_info *fbi, int enable);
 #else
-#define pxa688_vdma_init(fbi)		do {} while(0)
-#define pxa688_vdma_config(fbi)		do {} while(0)
-#define pxa688_vdma_release(fbi)	do {} while(0)
-#define pxa688_vdma_en(id, vid, enable)	do {} while(0)
+#define pxa688_vdma_init(fbi)		do {} while (0)
+#define pxa688_vdma_config(fbi)		do {} while (0)
+#define pxa688_vdma_release(fbi)	do {} while (0)
+#define pxa688_vdma_en(fbi, enable)	do {} while (0)
 #endif
 
 #endif /* __KERNEL__ */
