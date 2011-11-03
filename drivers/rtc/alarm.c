@@ -533,7 +533,7 @@ static int rtc_alarm_add_device(struct device *dev,
 
 	mutex_lock(&alarm_setrtc_mutex);
 
-	if (!strcmp(rtc->name, "88pm860x-rtc")) {
+	if ((strcmp(rtc->name, "mmp-rtc") && strcmp(rtc->name, "pxa-rtc"))) {
 		alarm_rtc_pwr_up = rtc;
 		err = -EBUSY;
 		goto err1;
