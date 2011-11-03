@@ -90,6 +90,13 @@ config MACH_YELLOWSTONE
 	select HAVE_PWM
 	select ARM_GIC
 
+config PXA910_1G_DDR_WORKAROUND
+	bool "Marvell's PXA910 1G DDR Workaround"
+	depends on CPU_PXA910
+	default y
+	help
+	  Say 'Y' here if more than 512MB DDR is used on PXA910.
+
 endmenu
 
 config CPU_PXA168
