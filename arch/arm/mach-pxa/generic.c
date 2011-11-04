@@ -181,14 +181,6 @@ void onenand_init(int sync_enable)
 	u32 temp;
 	if (sync_enable) {
 		onenand_sync_clk_cfg();
-		temp  = ACCR;
-		/*
-		* bit25~bit23
-		* 000 78Mhz, 010 104Mhz, 100 156Mhz
-		*/
-		temp &= (~(7 << 23));
-		temp |= 0x02<<23;
-		ACCR = temp;  /*106Mhz*/
 		onenand_platinfo.mmcontrol = onenand_mmcontrol;
 	}
 	onenand_platinfo.set_partition_info = set_partition_info;
