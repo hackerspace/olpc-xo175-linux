@@ -2,7 +2,7 @@
 # Makefile for Marvell's PXA168 processors line
 #
 
-obj-y				+= common.o devices.o reset.o
+obj-y				+= common.o devices.o reset.o pmu.o
 obj-$(CONFIG_FB_PXA168)		+= onboard/
 
 # SoC support
