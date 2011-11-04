@@ -228,7 +228,7 @@ static int vmeta_clk_on(struct vmeta_instance *vi)
 	if (NULL != vi->clk)
 		clk_enable(vi->clk);
 
-	vi->clk_status = 2;
+	vi->clk_status = 1;
 	mutex_unlock(&vi->mutex);
 #ifdef CONFIG_PXA95x
 	gc_vmeta_stats_clk_event(VMETA_CLK_ON);
@@ -609,67 +609,72 @@ static int vmeta_probe(struct platform_device *pdev)
 {
 	struct resource *res;
 	struct vmeta_instance *vi;
-	int ret;
+	int ret = 0;
 	int irq_func, irq_bus;
-	kernel_share *p_ks;
 #ifdef CONFIG_MEM_FOR_MULTIPROCESS
+	kernel_share *p_ks;
 	dma_addr_t mem_dma_addr;
 	void *mem_vir_addr;
 #endif
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (res == NULL) {
-		printk(KERN_ERR "vmeta_probe: no memory resources given\n");
+	if (!res) {
+		dev_err(&pdev->dev, "no memory resources given\n");
 		return -ENODEV;
 	}
 #ifndef CONFIG_VMETA_POLLING_MODE
 	irq_func = platform_get_irq(pdev, 0);
 	if (irq_func < 0) {
-		printk(KERN_ERR
-		       "vmeta_probe: no function irq resources given in interrupt mode\n");
+		dev_err(&pdev->dev, "missing irq resource in interrupt mode\n");
 		return -ENODEV;
 	}
 #endif
 
 	vi = kzalloc(sizeof(*vi), GFP_KERNEL);
-	if (vi == NULL) {
-		printk(KERN_ERR "vmeta_probe: out of memory\n");
+	if (!vi) {
+		dev_err(&pdev->dev, "vmeta_instance: out of memory\n");
 		return -ENOMEM;
 	}
 
 	vi->plat_data = (struct vmeta_plat_data *)pdev->dev.platform_data;
-
+	if (!vi->plat_data) {
+		dev_err(&pdev->dev, "missing platform data\n");
+		goto err_pdata;
+	}
 	vi->sema = kzalloc(sizeof(struct semaphore), GFP_KERNEL);
+	if (!vi->sema) {
+		dev_err(&pdev->dev, "vmeta->sema: out of memory\n");
+		ret = -ENOMEM;
+		goto err_sema;
+	}
 	vi->priv_sema = kzalloc(sizeof(struct semaphore), GFP_KERNEL);
-
-	if (vi->sema == NULL || vi->priv_sema == NULL) {
-		printk(KERN_ERR "vmeta->sema: out of memory\n");
-		return -ENOMEM;
+	if (!vi->priv_sema) {
+		dev_err(&pdev->dev, "vmeta->priv_ema: out of memory\n");
+		ret = -ENOMEM;
+		goto err_priv_sema;
 	}
 
 	vi->clk = clk_get(&pdev->dev, "VMETA_CLK");
 	if (IS_ERR(vi->clk)) {
-		printk(KERN_ERR"vmeta_probe: cannot get vmeta clock\n");
+		dev_err(&pdev->dev, "cannot get vmeta clock\n");
 		ret = PTR_ERR(vi->clk);
-		vi->clk = NULL;
-		goto out_free;
+		goto err_clk;
 	}
 
-	if (vi->plat_data->axi_clk_available != 0) {
+	if (vi->plat_data->axi_clk_available) {
 		vi->axi_clk = clk_get(&pdev->dev, "AXICLK");
 		if (IS_ERR(vi->axi_clk)) {
 			printk(KERN_ERR "vmeta_probe: cannot get AXI clock\n");
 			ret = PTR_ERR(vi->axi_clk);
-			vi->axi_clk = NULL;
-			goto out_free;
+			goto err_axi_clk;
 		}
 	}
 
 	vi->reg_base = (void *)ioremap(res->start, res->end - res->start + 1);
-	if (vi->reg_base == NULL) {
-		printk(KERN_ERR "vmeta_probe: can't remap register area\n");
+	if (!vi->reg_base) {
+		dev_err(&pdev->dev, "can't remap register area\n");
 		ret = -ENOMEM;
-		goto out_free;
+		goto err_reg_base;
 	}
 
 	platform_set_drvdata(pdev, vi);
@@ -688,7 +693,7 @@ static int vmeta_probe(struct platform_device *pdev)
 					  &mem_dma_addr, GFP_KERNEL);
 	if (!mem_vir_addr) {
 		ret = -ENOMEM;
-		goto out_free;
+		goto err_uio_mem_1;
 	}
 	vi->uio_info.mem[1].internal_addr = (void __iomem *)mem_vir_addr;
 	vi->uio_info.mem[1].addr = mem_dma_addr;
@@ -705,7 +710,7 @@ static int vmeta_probe(struct platform_device *pdev)
 			       GFP_KERNEL);
 	if (!mem_vir_addr) {
 		ret = -ENOMEM;
-		goto out_free;
+		goto err_uio_mem_2;
 	}
 
 	vi->uio_info.mem[2].internal_addr = (void __iomem *)mem_vir_addr;
@@ -724,7 +729,7 @@ static int vmeta_probe(struct platform_device *pdev)
 			       GFP_KERNEL);
 	if (!mem_vir_addr) {
 		ret = -ENOMEM;
-		goto out_free;
+		goto err_uio_mem_3;
 	}
 	memset(mem_vir_addr, 0, KERNEL_SHARE_SIZE);
 	vi->uio_info.mem[3].internal_addr = (void __iomem *)mem_vir_addr;
@@ -770,8 +775,10 @@ static int vmeta_probe(struct platform_device *pdev)
 	vi->vop = VMETA_OP_INVALID;
 	vi->vop_real = VMETA_OP_INVALID;
 	ret = uio_register_device(&pdev->dev, &vi->uio_info);
-	if (ret)
-		goto out_free;
+	if (ret) {
+		dev_err(&pdev->dev, "failed to register uio device\n");
+		goto err_uio_register;
+	}
 
 #ifdef CONFIG_VMETA_POLLING_MODE
 	mod_timer(&vi->irq_poll_timer, jiffies + HZ / 100);
@@ -779,16 +786,15 @@ static int vmeta_probe(struct platform_device *pdev)
 
 	irq_bus = platform_get_irq(pdev, 1);
 	if (irq_bus < 0) {
-		printk(KERN_DEBUG "vmeta_probe: no bus irq resources given\n");
+		dev_dbg(&pdev->dev, "no bus irq resources given\n");
 	} else {
 		if (vi->plat_data->bus_irq_handler) {
 			ret =
 			    request_irq(irq_bus, vi->plat_data->bus_irq_handler,
 					0, UIO_VMETA_BUS_IRQ_NAME, vi);
 			if (ret) {
-				printk(KERN_ERR
-				       "vmeta_probe: can't request bus irq\n");
-				goto out_free;
+				dev_err(&pdev->dev, "can't request bus irq\n");
+				goto err_request_bus_irq;
 			}
 		}
 	}
@@ -800,19 +806,38 @@ static int vmeta_probe(struct platform_device *pdev)
 	vmeta_inst = vi;
 	return 0;
 
-out_free:
-	if (NULL != vi->clk) {
-		clk_disable(vi->clk);
-		clk_put(vi->clk);
-	}
-
-	if (NULL != vi->axi_clk) {
-		clk_disable(vi->axi_clk);
+err_request_bus_irq:
+#ifdef CONFIG_VMETA_POLLING_MODE
+	del_timer_sync(&vi->irq_poll_timer);
+#endif
+	uio_unregister_device(&vi->uio_info);
+err_uio_register:
+#ifdef CONFIG_MEM_FOR_MULTIPROCESS
+	dma_free_coherent(&pdev->dev, KERNEL_SHARE_SIZE,
+			(void *)vi->uio_info.mem[3].internal_addr,
+			vi->uio_info.mem[3].addr);
+err_uio_mem_3:
+	dma_free_coherent(&pdev->dev, VDEC_OBJ_SIZE,
+			(void *)vi->uio_info.mem[2].internal_addr,
+			vi->uio_info.mem[2].addr);
+err_uio_mem_2:
+	dma_free_coherent(&pdev->dev, VDEC_HW_CONTEXT_SIZE,
+			(void *)vi->uio_info.mem[1].internal_addr,
+			vi->uio_info.mem[1].addr);
+err_uio_mem_1:
+#endif
+	iounmap(vi->uio_info.mem[0].internal_addr);
+err_reg_base:
+	if (vi->plat_data->axi_clk_available)
 		clk_put(vi->axi_clk);
-	}
-
-	kfree(vi->sema);
+err_axi_clk:
+	clk_put(vi->clk);
+err_clk:
 	kfree(vi->priv_sema);
+err_priv_sema:
+	kfree(vi->sema);
+err_sema:
+err_pdata:
 	kfree(vi);
 
 	return ret;
@@ -824,30 +849,24 @@ static int vmeta_remove(struct platform_device *pdev)
 #ifdef CONFIG_VMETA_POLLING_MODE
 	del_timer_sync(&vi->irq_poll_timer);
 #endif
-#ifdef CONFIG_MEM_FOR_MULTIPROCESS
-	dma_free_coherent(&pdev->dev, VDEC_HW_CONTEXT_SIZE,
-			  (void *)vi->uio_info.mem[1].internal_addr,
-			  vi->uio_info.mem[1].addr);
-	dma_free_coherent(&pdev->dev, VDEC_OBJ_SIZE,
-			  (void *)vi->uio_info.mem[2].internal_addr,
-			  vi->uio_info.mem[2].addr);
-	dma_free_coherent(&pdev->dev, KERNEL_SHARE_SIZE,
-			  (void *)vi->uio_info.mem[3].internal_addr,
-			  vi->uio_info.mem[3].addr);
-#endif
 	uio_unregister_device(&vi->uio_info);
+#ifdef CONFIG_MEM_FOR_MULTIPROCESS
+	dma_free_coherent(&pdev->dev, KERNEL_SHARE_SIZE,
+			(void *)vi->uio_info.mem[3].internal_addr,
+			vi->uio_info.mem[3].addr);
+	dma_free_coherent(&pdev->dev, VDEC_OBJ_SIZE,
+			(void *)vi->uio_info.mem[2].internal_addr,
+			vi->uio_info.mem[2].addr);
+	dma_free_coherent(&pdev->dev, VDEC_HW_CONTEXT_SIZE,
+			(void *)vi->uio_info.mem[1].internal_addr,
+			vi->uio_info.mem[1].addr);
+#endif
+	iounmap(vi->uio_info.mem[0].internal_addr);
 
-	if (NULL != vi->clk) {
-		clk_disable(vi->clk);
-		clk_put(vi->clk);
-	}
-
-	if (NULL != vi->axi_clk) {
-		clk_disable(vi->axi_clk);
+	if (vi->plat_data->axi_clk_available)
 		clk_put(vi->axi_clk);
-	}
+	clk_put(vi->clk);
 
-	iounmap((void __iomem *)vi->reg_base);
 	kfree(vi->sema);
 	kfree(vi->priv_sema);
 	kfree(vi);
@@ -880,9 +899,9 @@ static struct platform_driver vmeta_driver = {
 	.resume = vmeta_resume,
 #endif
 	.driver = {
-		   .name = UIO_VMETA_NAME,
-		   .owner = THIS_MODULE,
-		   },
+		.name = UIO_VMETA_NAME,
+		.owner = THIS_MODULE,
+	},
 };
 
 static int __init vmeta_init(void)
