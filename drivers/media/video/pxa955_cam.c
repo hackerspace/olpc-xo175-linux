@@ -1471,7 +1471,7 @@ static const struct soc_mbus_pixelfmt pxa955_camera_formats[] = {
 		.fourcc			= V4L2_PIX_FMT_YUV420,
 		.name			= "YUV420P",
 		.bits_per_sample	= 8,
-		.packing		= SOC_MBUS_PACKING_2X8_PADLO,
+		.packing		= SOC_MBUS_PACKING_1_5X8,
 		.order			= SOC_MBUS_ORDER_LE,
 	},
 };
