@@ -300,12 +300,12 @@ static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
 			host->mmc->pm_flags |= MMC_PM_ALWAYS_ACTIVE;
 		}
 
-		if (pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING)
+		if (pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING) {
 			pxav2_access_constrain(host, 1);
-		else {
-			clk_enable(clk);
-			host->mmc->caps |= MMC_CAP_DISABLE_BUS_CLK_GATING;
+			host->mmc->caps |= MMC_CAP_ENABLE_BUS_CLK_GATING;
 		}
+		else
+			clk_enable(clk);
 
 		if (pdata->flags & PXA_FLAG_HS_NEED_WAKELOCK)
 			wake_lock_init(&wifi_delayed_work_wake_lock,
