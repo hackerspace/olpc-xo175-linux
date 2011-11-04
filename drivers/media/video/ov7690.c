@@ -282,7 +282,6 @@ static int ov7690_write(struct i2c_client *c, unsigned char reg,
 {
 	s32 ret;
 	ret = i2c_smbus_write_byte_data(c, reg, value);
-	msleep(1);
 	return ret;
 }
 
@@ -503,6 +502,7 @@ static int ov7690_s_fmt(struct v4l2_subdev *sd,
 {
 	int ret = 0;
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct ov7690 *ov7690 = to_ov7690(client);
 
 	switch (mf->code) {
 	case V4L2_MBUS_FMT_UYVY8_2X8:
@@ -516,6 +516,13 @@ static int ov7690_s_fmt(struct v4l2_subdev *sd,
 #endif
 		/*Per OV suggest, config OV7690 first, then configure OV5642 bridge mode setting*/
 		ov7690_write_array(client, ov7690_default);
+
+		if(ov7690->regs_fmt)
+			ov7690_write_array(client, ov7690->regs_fmt);
+
+		if(ov7690->regs_size)
+			ov7690_write_array(client, ov7690->regs_size);
+
 		msleep(1);
 		to_mipi(mf->code, mf->width, mf->height);
 		break;
