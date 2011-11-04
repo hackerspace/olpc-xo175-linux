@@ -135,7 +135,7 @@ void mmc_request_done(struct mmc_host *host, struct mmc_request *mrq)
 		if (mrq->done)
 			mrq->done(mrq);
 
-		if (!(host->caps & MMC_CAP_DISABLE_BUS_CLK_GATING))
+		if (host->caps & MMC_CAP_ENABLE_BUS_CLK_GATING)
 			mmc_host_clk_gate(host);
 	}
 }
@@ -196,7 +196,7 @@ mmc_start_request(struct mmc_host *host, struct mmc_request *mrq)
 		}
 	}
 
-	if (!(host->caps & MMC_CAP_DISABLE_BUS_CLK_GATING))
+	if (host->caps & MMC_CAP_ENABLE_BUS_CLK_GATING)
 		mmc_host_clk_ungate(host);
 
 	led_trigger_event(host->led, LED_FULL);
