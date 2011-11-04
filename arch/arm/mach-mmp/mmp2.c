@@ -776,6 +776,31 @@ static APMU_CLK_OPS(vmeta, VMETA_CLK_RES_CTRL, 0, 0, &vmeta_clk_ops);
 /* wtm clock */
 static APMU_CLK_OPS(wtm, GEU, 0, 0, &wtm_clk_ops);
 
+/* USB PHY PLL clock enable/disable */
+extern void pxa_usb_phy_clk_enable(void);
+extern void pxa_usb_phy_clk_disable(void);
+static void usb_phy_clk_enable(struct clk *clk)
+{
+	clk_enable(&clk_u2o);
+	pxa_usb_phy_clk_enable();
+	clk_disable(&clk_u2o);
+}
+
+static void usb_phy_clk_disable(struct clk *clk)
+{
+	clk_enable(&clk_u2o);
+	pxa_usb_phy_clk_disable();
+	clk_disable(&clk_u2o);
+}
+
+static struct clkops usb_phy_clk_ops = {
+	.enable		= usb_phy_clk_enable,
+	.disable	= usb_phy_clk_disable,
+};
+
+static struct clk clk_usb_phy = {
+	.ops = &usb_phy_clk_ops,
+};
 
 static struct clk_lookup mmp2_clkregs[] = {
 	INIT_CLKREG(&clk_uart1, "pxa2xx-uart.0", NULL),
@@ -808,6 +833,7 @@ static struct clk_lookup mmp2_clkregs[] = {
 	INIT_CLKREG(&clk_vmeta, NULL, "VMETA_CLK"),
 	INIT_CLKREG(&clk_wtm, NULL, "mmp2-wtm"),
 	INIT_CLKREG(&clk_rtc, "mmp-rtc", NULL),
+	INIT_CLKREG(&clk_usb_phy, NULL, "USBPHYCLK"),
 
 };
 
