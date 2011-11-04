@@ -653,3 +653,113 @@ void vmeta_pwr(unsigned int enableDisable)
 }
 
 #endif
+
+
+#define GC_CLK_DIV(n)		((n & 0xF) << 24)
+#define GC_CLK_DIV_MSK		GC_CLK_DIV(0xF)
+#define GC_PWRUP(n)		((n & 3) << 9)
+#define GC_PWRUP_MSK		GC_PWRUP(3)
+#define GC_ISB			(1 << 8)
+#define GC_CLK_SRC_SEL(n)	((n & 3) << 6)
+#define GC_CLK_SRC_SEL_MSK	GC_CLK_SRC_SEL(3)
+#define GC_ACLK_SEL(n)		((n & 3) << 4)
+#define GC_ACLK_SEL_MSK		GC_ACLK_SEL(3)
+#define GC_CLK_EN		(1 << 3)
+#define GC_AXICLK_EN		(1 << 2)
+#define GC_RST			(1 << 1)
+#define GC_AXI_RST		(1 << 0)
+
+#define GC_CLK_RATE(div, src, aclk) (GC_CLK_DIV(div) |\
+	GC_CLK_SRC_SEL(src) | GC_ACLK_SEL(aclk))
+
+#define GC_CLK_RATE_MSK	(GC_CLK_DIV_MSK |\
+	GC_CLK_SRC_SEL_MSK | GC_ACLK_SEL_MSK)
+
+void gc_pwr(int power_on)
+{
+	unsigned long regval;
+
+	regval = __raw_readl(APMU_GC_CLK_RES_CTRL);
+	if (power_on) {
+		if (regval & (GC_PWRUP_MSK | GC_ISB))
+			return; /*Pwr is already on*/
+
+		/* 1. Turn on power switches */
+		regval = readl(APMU_GC_CLK_RES_CTRL);
+		regval &= ~GC_PWRUP_MSK;
+		regval |= GC_PWRUP(1);
+		writel(regval, APMU_GC_CLK_RES_CTRL);
+		regval |= GC_PWRUP(3);
+		writel(regval, APMU_GC_CLK_RES_CTRL);
+		udelay(100);
+
+		/* 2. set up source to PLL1 to avoid source dependency */
+		regval = readl(APMU_GC_CLK_RES_CTRL);
+		regval &= ~GC_CLK_RATE_MSK;
+		regval |= GC_CLK_RATE(4, 0, 0);
+		writel(regval, APMU_GC_CLK_RES_CTRL);
+
+		/* 3. enable clocks */
+		regval = readl(APMU_GC_CLK_RES_CTRL);
+		regval |= GC_AXICLK_EN;
+		writel(regval, APMU_GC_CLK_RES_CTRL);
+		udelay(100);
+		regval = readl(APMU_GC_CLK_RES_CTRL);
+		regval |= GC_CLK_EN;
+		writel(regval, APMU_GC_CLK_RES_CTRL);
+		udelay(100);
+
+		/* 4. disable isolation*/
+		regval = readl(APMU_GC_CLK_RES_CTRL);
+		regval |= GC_ISB;
+		writel(regval, APMU_GC_CLK_RES_CTRL);
+
+		/* 5. deassert reset*/
+		regval = readl(APMU_GC_CLK_RES_CTRL);
+		regval |= GC_AXI_RST;
+		writel(regval, APMU_GC_CLK_RES_CTRL);
+		regval = readl(APMU_GC_CLK_RES_CTRL);
+		regval |= GC_RST;
+		writel(regval, APMU_GC_CLK_RES_CTRL);
+		udelay(100);
+
+		/* 6 gate clock */
+		regval = readl(APMU_GC_CLK_RES_CTRL);
+		regval &= ~GC_CLK_EN;
+		writel(regval, APMU_GC_CLK_RES_CTRL);
+		regval = readl(APMU_GC_CLK_RES_CTRL);
+		regval &= ~GC_AXICLK_EN;
+		writel(regval, APMU_GC_CLK_RES_CTRL);
+
+	} else {
+		if ((regval & (GC_PWRUP_MSK | GC_ISB)) == 0)
+			return; /*Pwr is already off*/
+
+		/* 1. isolation */
+		regval = readl(APMU_GC_CLK_RES_CTRL);
+		regval &= ~GC_ISB;
+		writel(regval, APMU_GC_CLK_RES_CTRL);
+
+		/* 2. reset*/
+		regval = readl(APMU_GC_CLK_RES_CTRL);
+		regval &= ~GC_AXI_RST;
+		writel(regval, APMU_GC_CLK_RES_CTRL);
+		regval = readl(APMU_GC_CLK_RES_CTRL);
+		regval &= ~GC_RST;
+		writel(regval, APMU_GC_CLK_RES_CTRL);
+
+		/* 3. make sure clock disabled*/
+		regval = readl(APMU_GC_CLK_RES_CTRL);
+		regval &= ~GC_CLK_EN;
+		writel(regval, APMU_GC_CLK_RES_CTRL);
+		regval = readl(APMU_GC_CLK_RES_CTRL);
+		regval &= ~GC_AXICLK_EN;
+		writel(regval, APMU_GC_CLK_RES_CTRL);
+
+		/* 4. turn off power */
+		regval = readl(APMU_GC_CLK_RES_CTRL);
+		regval &= ~GC_PWRUP_MSK;
+		writel(regval, APMU_GC_CLK_RES_CTRL);
+	}
+}
+EXPORT_SYMBOL_GPL(gc_pwr);

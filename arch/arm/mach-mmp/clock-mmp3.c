@@ -871,12 +871,6 @@ static struct clk mmp3_clk_cpu = {
 #define GC_CLK_DIV(n)		((n & 0xF) << 24)
 #define GC_CLK_DIV_GET(n)	((n >> 24) & 0xF)
 #define GC_CLK_DIV_MSK		GC_CLK_DIV(0xF)
-#define GC_PWRUP(n)		((n & 3) << 9)
-#define GC_PWRUP_MSK		GC_PWRUP(3)
-#define		PWR_OFF		0
-#define		PWR_SLOW_RAMP	1
-#define		PWR_ON		3
-#define GC_ISB			(1 << 8)
 #define GC_CLK_SRC_SEL(n)	((n & 3) << 6)
 #define GC_CLK_SRC_SEL_MSK	GC_CLK_SRC_SEL(3)
 #define		CS_PLL1		0
@@ -891,8 +885,6 @@ static struct clk mmp3_clk_cpu = {
 #define		PLL2D2		3
 #define GC_CLK_EN		(1 << 3)
 #define GC_AXICLK_EN		(1 << 2)
-#define GC_RST			(1 << 1)
-#define GC_AXI_RST		(1 << 0)
 
 #define GC_CLK_RATE(div, src, aclk) (GC_CLK_DIV(div) |\
 	GC_CLK_SRC_SEL(src) | GC_ACLK_SEL(aclk))
@@ -926,9 +918,6 @@ static int gc_clk_enable(struct clk *clk)
 	 * different gc clock rate.
 	 */
 
-	GC_SET_BITS(GC_PWRUP(PWR_SLOW_RAMP), -1);
-	GC_SET_BITS(GC_PWRUP(PWR_ON), GC_PWRUP_MSK);
-
 	i = 0;
 	while ((clk->inputs[i].input != clk->parent) && clk->inputs[i].input)
 		i++;
@@ -943,25 +932,17 @@ static int gc_clk_enable(struct clk *clk)
 	gc_rate_cfg &= GC_CLK_RATE_MSK;
 	GC_SET_BITS(gc_rate_cfg, GC_CLK_RATE_MSK);
 
-	GC_SET_BITS(GC_CLK_EN, 0);
-	udelay(100);
-
 	GC_SET_BITS(GC_AXICLK_EN, 0);
 	udelay(100);
-
-	GC_SET_BITS(GC_ISB, 0);
-	GC_SET_BITS(GC_RST, 0);
-	GC_SET_BITS(GC_AXI_RST, 0);
+	GC_SET_BITS(GC_CLK_EN, 0);
+	udelay(100);
 
 	return 0;
 }
 
 static void gc_clk_disable(struct clk *clk)
 {
-	GC_SET_BITS(0, GC_ISB);
-	GC_SET_BITS(0, GC_RST | GC_AXI_RST);
 	GC_SET_BITS(0, GC_CLK_EN | GC_AXICLK_EN);
-	GC_SET_BITS(0, GC_PWRUP_MSK);
 }
 
 static long gc_clk_round_rate(struct clk *clk, unsigned long rate)
