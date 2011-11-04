@@ -30,7 +30,14 @@ static unsigned long __initdata pmem_reserve_pa;
 
 static int __init pxa_reserve_early_init(char *arg)
 {
+#ifndef CONFIG_PXA910_1G_DDR_WORKAROUND
 	pmem_reserve_size = memparse(arg, NULL);
+#else
+	pmem_reserve_size = memparse(arg, &arg);
+	pmem_reserve_pa = 0x09000000;
+	if (*arg == '@')
+		pmem_reserve_pa = memparse(arg + 1, &arg);
+#endif
 	return 0;
 }
 early_param("reserve_pmem", pxa_reserve_early_init);
@@ -86,7 +93,11 @@ static void __init  __pxa_add_pmem(char *name, size_t size, int no_allocator,
 
 void __init pxa_reserve_pmem_memblock(void)
 {
+#ifndef CONFIG_PXA910_1G_DDR_WORKAROUND
 	pmem_reserve_pa = memblock_alloc(pmem_reserve_size, PAGE_SIZE);
+#else
+	memblock_reserve(pmem_reserve_pa, pmem_reserve_size);
+#endif
 	if (!pmem_reserve_pa) {
 		pr_err("%s: failed to reserve %x bytes\n",
 				__func__, pmem_reserve_size);
