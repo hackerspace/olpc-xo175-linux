@@ -959,6 +959,7 @@ void vmeta_pwr(unsigned int enableDisable)
 {
 	unsigned int vmpwr = 0;
 	static unsigned int onetime;
+	unsigned int vmeta_clk_on = 1 << (CKEN_VMETA - 32);
 	vmpwr = VMPWR;
 
 	if (onetime == 0) {
@@ -969,6 +970,7 @@ void vmeta_pwr(unsigned int enableDisable)
 	if (VMETA_PWR_ENABLE == enableDisable) {
 		if (vmpwr & VMPWR_PWR_ST)
 			return;	/*Pwr is already on */
+		CKENB |= vmeta_clk_on;
 		if (cpu_is_pxa978()) {
 			VMPWR = 0xc0070000 | VMPWR_SETALLWAYS;
 			VMPWR = 0xc0070000 | VMPWR_SETALLWAYS | VMPWR_PWON;
@@ -984,9 +986,14 @@ void vmeta_pwr(unsigned int enableDisable)
 				vmpwr = VMPWR;
 			} while ((vmpwr & VMPWR_PWR_ST) != VMPWR_PWR_ST);
 		}
+		CKENB &= ~vmeta_clk_on;
 	} else if (VMETA_PWR_DISABLE == enableDisable) {
 		if ((vmpwr & VMPWR_PWR_ST) != VMPWR_PWR_ST)
 			return;	/*Pwr is already off */
+		if (CKENB & vmeta_clk_on) {
+			printk(KERN_ERR "VMeta clock is still on, can't power off VMeta !\n");
+			BUG_ON(1);
+		}
 		if (cpu_is_pxa978()) {
 			VMPWR = 0x70000 | VMPWR_SETALLWAYS;
 			usleep_range(100, 100);
