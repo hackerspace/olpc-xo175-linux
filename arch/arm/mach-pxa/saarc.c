@@ -579,6 +579,8 @@ static void register_i2c_board_info(void)
 		break;
 
 	case OBM_SAAR_C25_NEVO_B0_V10_BOARD:
+	case OBM_EVB_NEVO_1_2_BOARD:
+	case OBM_SAAR_C3_NEVO_C0_V10_BOARD:
 		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info));
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_C25));
 		break;
