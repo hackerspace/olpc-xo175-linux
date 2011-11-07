@@ -176,6 +176,12 @@ static void unset_dvfm_constraint(struct vmeta_instance *vi)
 #endif
 }
 
+static void update_vmeta_clk(struct vmeta_instance *vi)
+{
+	if (vi && vi->plat_data && vi->plat_data->update_vmeta_clk)
+		vi->plat_data->update_vmeta_clk(vi);
+}
+
 static void vmeta_power_timer_handler(unsigned long data)
 {
 	struct vmeta_instance *vi = (struct vmeta_instance *)data;
@@ -221,6 +227,7 @@ static int vmeta_clk_on(struct vmeta_instance *vi)
 	}
 
 	set_dvfm_constraint(vi);
+	update_vmeta_clk(vi);
 
 	if (NULL != vi->axi_clk)
 		clk_enable(vi->axi_clk);
