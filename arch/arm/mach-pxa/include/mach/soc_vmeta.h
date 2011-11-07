@@ -59,6 +59,7 @@ struct vmeta_plat_data {
 				   const int step);
 	void (*disable_lpm)(int idx);
 	void (*enable_lpm)(int idx);
+	int (*update_vmeta_clk)(struct vmeta_instance *vi);
 };
 
 #define VMETA_PWR_ENABLE	0x1
