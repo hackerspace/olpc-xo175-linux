@@ -34,7 +34,6 @@
 #include <linux/uaccess.h>
 #include <linux/proc_fs.h>
 #include <linux/platform_device.h>
-#include <linux/wakelock.h>
 #include <mach/io.h>
 #include <mach/irqs.h>
 #include <mach/gpio.h>
@@ -61,7 +60,6 @@ static int f1_count;
 static int vf0_count;
 static int vf1_count;
 static struct timer_list vsync_timer;
-static struct wake_lock idle_lock;
 
 #define DEFAULT_REFRESH		60	/* Hz */
 
@@ -1158,7 +1156,7 @@ static int pxa168fb_blank(int blank, struct fb_info *info)
 			/* allow system enter low power modes */
 			pm_qos_update_request(&fbi->qos_idle_fb,
 						PM_QOS_DEFAULT_VALUE);
-			wake_unlock(&idle_lock);
+			wake_unlock(&fbi->idle_lock);
 			break;
 
 	case FB_BLANK_UNBLANK:
@@ -1172,7 +1170,7 @@ static int pxa168fb_blank(int blank, struct fb_info *info)
 			/* avoid system enter low power modes */
 			pm_qos_update_request(&fbi->qos_idle_fb,
 						PM_QOS_CONSTRAINT);
-			wake_lock(&idle_lock);
+			wake_lock(&fbi->idle_lock);
 			break;
 	default:
 			break;
@@ -1815,7 +1813,7 @@ static void pxa168fb_early_suspend(struct early_suspend *h)
 
 	_pxa168fb_suspend(fbi);
 	pm_qos_update_request(&fbi->qos_idle_fb, PM_QOS_DEFAULT_VALUE);
-	wake_unlock(&idle_lock);
+	wake_unlock(&fbi->idle_lock);
 
 	return;
 }
@@ -1825,7 +1823,7 @@ static void pxa168fb_late_resume(struct early_suspend *h)
 						 early_suspend);
 
 	pm_qos_update_request(&fbi->qos_idle_fb, PM_QOS_CONSTRAINT);
-	wake_lock(&idle_lock);
+	wake_lock(&fbi->idle_lock);
 	_pxa168fb_resume(fbi);
 
 	return;
@@ -1840,7 +1838,7 @@ static int pxa168fb_suspend(struct platform_device *pdev, pm_message_t mesg)
 	_pxa168fb_suspend(fbi);
 	pdev->dev.power.power_state = mesg;
 	pm_qos_update_request(&fbi->qos_idle_fb, PM_QOS_DEFAULT_VALUE);
-	wake_unlock(&idle_lock);
+	wake_unlock(&fbi->idle_lock);
 
 	return 0;
 }
@@ -1850,7 +1848,7 @@ static int pxa168fb_resume(struct platform_device *pdev)
 	struct pxa168fb_info *fbi = platform_get_drvdata(pdev);
 
 	pm_qos_update_request(&fbi->qos_idle_fb, PM_QOS_CONSTRAINT);
-	wake_lock(&idle_lock);
+	wake_lock(&fbi->idle_lock);
 	_pxa168fb_resume(fbi);
 
 	return 0;
@@ -2456,9 +2454,10 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	/* init qos with constraint */
 	pm_qos_add_request(&fbi->qos_idle_fb, PM_QOS_CPU_DMA_LATENCY,
 			PM_QOS_CONSTRAINT);
-
+	/* init wake lock */
+	wake_lock_init(&fbi->idle_lock, WAKE_LOCK_IDLE, dev_name(fbi->dev));
 	/* avoid system enter low power modes */
-	wake_lock(&idle_lock);
+	wake_lock(&fbi->idle_lock);
 
 	/* Set video mode according to platform data */
 	set_mode(fbi, &info->var, mi->modes, mi->pix_fmt, 1);
@@ -2595,6 +2594,7 @@ failed_free_cmap:
 	fb_dealloc_cmap(&info->cmap);
 failed_free_clk:
 	pm_qos_remove_request(&fbi->qos_idle_fb);
+	wake_lock_destroy(&fbi->idle_lock);
 	clk_disable(fbi->clk);
 	dma_free_writecombine(fbi->dev, PAGE_ALIGN(info->fix.smem_len),
 				info->screen_base, info->fix.smem_start);
@@ -2610,7 +2610,6 @@ failed_put_clk:
 	clk_put(clk);
 	pr_err("pxa168-fb: frame buffer device init failed\n");
 
-	wake_unlock(&idle_lock);
 	return ret;
 }
 
@@ -2643,6 +2642,7 @@ static int __devexit pxa168fb_remove(struct platform_device *pdev)
 	free_irq(irq, fbi);
 
 	pm_qos_remove_request(&fbi->qos_idle_fb);
+	wake_lock_destroy(&fbi->idle_lock);
 	dma_free_writecombine(fbi->dev, PAGE_ALIGN(info->fix.smem_len),
 				info->screen_base, info->fix.smem_start);
 
@@ -2673,7 +2673,6 @@ static struct platform_driver pxa168fb_driver = {
 
 static int __devinit pxa168fb_init(void)
 {
-	wake_lock_init(&idle_lock, WAKE_LOCK_IDLE, "pxa168fb_idle");
 	return platform_driver_register(&pxa168fb_driver);
 }
 module_init(pxa168fb_init);
