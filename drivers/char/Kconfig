@@ -667,4 +667,16 @@ config MMP2_SYSSET
 	help
 	 Please say Y here if want to support MMP2 system clock setting export
 
+config MMP_ZSP
+        tristate "ZSP host driver for MMP ZSP audio processor"
+        depends on CPU_MMP2
+        help
+          Please say Y here if want to support ZSP for MMP
+
+config MMP_ZMQ
+        tristate "PJ-ZSP message queue interface"
+        depends on CPU_MMP2 && MMP_ZSP
+        help
+          Please say Y here if want to support message queue for PJ-ZSP communication
+
 endmenu

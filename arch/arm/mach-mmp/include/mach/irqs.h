@@ -119,6 +119,7 @@
 #define IRQ_MMP2_NONE			(-1)
 #define IRQ_MMP2_SSP1			0
 #define IRQ_MMP2_SSP2			1
+#define IRQ_MMP2_PZIPC			2
 #define IRQ_MMP2_SSPA1			2
 #define IRQ_MMP2_SSPA2			3
 #define IRQ_MMP2_PMIC_MUX		4	/* PMIC & Charger */

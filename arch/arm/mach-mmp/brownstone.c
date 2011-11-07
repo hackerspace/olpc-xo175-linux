@@ -1115,6 +1115,7 @@ static void __init brownstone_init(void)
 #ifdef CONFIG_UIO_VMETA
 	mmp2_init_vmeta();
 #endif
+	mmp_zsp_platform_device_init();
 	/* clear recovery bit */
 	__raw_writel(0x0, REG_RTC_BR0);
 

@@ -37,6 +37,10 @@
 #include <mach/mmp_dma.h>
 #include <plat/pmem.h>
 #include <mach/soc_vmeta.h>
+#include <mach/regs-zsp.h>
+#include <mach/mmp-zsp.h>
+#include <mach/regs-sspa.h>
+#include <mach/regs-icu.h>
 
 #include "common.h"
 #include "clock.h"
@@ -775,6 +779,198 @@ void vmeta_pwr(unsigned int en)
 	}
 }
 #endif
+
+static void mmp_zsp_domain_halt(void)
+{
+	/* reset audio accelerator processor and subsystem */
+	int value;
+	value = readl(APMU_AUDIO_CLK_RES_CTRL);
+	value &= ~(1 << 30);
+	writel(value, APMU_AUDIO_CLK_RES_CTRL);
+	mdelay(5);
+	value = readl(APMU_AUDIO_CLK_RES_CTRL);
+	value &= ~(1 << 16);
+	writel(value, APMU_AUDIO_CLK_RES_CTRL);
+	mdelay(5);
+}
+static void mmp_zsp_start_core(void)
+{
+	int value;
+	writel(0x0000, ZSP_CONFIG_SVTADDR);
+	mdelay(5);
+	/* audio accelerator processor release from reset */
+	value = readl(APMU_AUDIO_CLK_RES_CTRL) | (1 << 30);
+	writel(value, APMU_AUDIO_CLK_RES_CTRL);
+	mdelay(5);
+}
+static void mmp_zsp_domain_on(int spd, int src, int asclk)
+{
+	int value;
+	u32 use_audio_pll;
+	u32 core_source;
+	u32 core_devider;
+	static struct {
+		u32 core_source;
+		u32 core_devider;
+	} core_clock_matrix[MMP_ZSP_CORECLKSRC_NUMBER][MMP_ZSP_SPD_NUMBER] = {
+		{ /* use PMU*/
+			{ 0, 0},	/* fast, PLL1/2 ~400/1, 400MHz */
+			{ 0, 2},	/* medium,  PLL1/2 ~400/3, 133Mhz */
+			{ 3, 2},	/* slow,  PLL1/8 ~100/3, 33MHz */
+		},
+		{ /* use Audio PLL */
+			{ 0, 0},	/* fast, /1, ~271/295MHz */
+			{ 0, 1},	/* medium, /2, 133Mhz */
+			{ 0, 7},	/* slow, /8, ~33MHz */
+		},
+	};
+
+	/* check and prepare parameters*/
+	use_audio_pll = 0x1;
+	if ((src != MMP_ZSP_CORECLKSRC_AUDIOPLL)) {
+		/*
+		HW issue, a0/a1 cannot switch to use audio PLL
+		for Z stepping, the code will not reach here, the device
+		will not be registered in the case
+		let's fix invalid values to use PMU
+		*/
+		src = MMP_ZSP_CORECLKSRC_PMU;
+		use_audio_pll = 0x0;
+	}
+	if (spd >= MMP_ZSP_SPD_NUMBER) {
+		spd = MMP_ZSP_SPD_BALANCED;
+	}
+	core_source = core_clock_matrix[src][spd].core_source;
+	core_devider = core_clock_matrix[src][spd].core_devider;
+
+	/* select core clock source*/
+	value = readl(APMU_AUDIO_CLK_RES_CTRL);
+	value = mmp_zsp_set_bit_range(value, core_source, 0x3, 6);
+	writel(value, APMU_AUDIO_CLK_RES_CTRL);
+	mdelay(5);
+	/* audio accelerator subsystem release from reset */
+	value = readl(APMU_AUDIO_CLK_RES_CTRL) | (1 << 16);
+	writel(value, APMU_AUDIO_CLK_RES_CTRL);
+	mdelay(5);
+	/* bus clock select */
+	value = readl(ZSP_CONFIG_REG0) & 0xFFFFBFFF;
+	writel(value, ZSP_CONFIG_REG0);
+	mdelay(5);
+
+	/* config audio PLL, mclk*2 */
+	switch (asclk) {
+	case MMP_ZSP_ASCLK_22579200: /* 44.1k group */
+		/* 11289600 mclk */
+		writel(0x108A1881, SSPA_AUD_PLL_CTRL0);
+		writel(0x30801, SSPA_AUD_PLL_CTRL1);
+		break;
+	case MMP_ZSP_ASCLK_24576000: /* 48k group */
+	default:
+		/* 12288000 mclk*/
+		writel(0x100DA189, SSPA_AUD_PLL_CTRL0);
+		writel(0x30801, SSPA_AUD_PLL_CTRL1);
+		break;
+	}
+
+	/* set up core clock source */
+	/* step 1, set core clock divider*/
+	value = readl(ZSP_CONFIG_REG0);
+	value = mmp_zsp_set_bit_range(value, core_devider, 0x7, 2);
+	writel(value, ZSP_CONFIG_REG0);
+	mdelay(5);
+	/* step 2, audio PLL or PMU*/
+	value = readl(ZSP_CONFIG_REG0);
+	value = mmp_zsp_set_bit_range(value, use_audio_pll, 0x1, 0);
+	writel(value, ZSP_CONFIG_REG0);
+	mdelay(5);
+
+	/* set up interrupts */
+	writel(0x003c0000, ICU_DMAIRQ_MASK); /* to ZSP not PJ */
+
+	/* only route IPC interrupt to host, mask others */
+	writel(0x39ff, ZSP_INT_MASK0);
+	writel(0x3fff, ZSP_INT_MASK1);
+
+	printk("%s: CLKRESCTL: 0x%08x, CONFIG0:0x%08x, PLL:0x%08x-0x%08x\n"
+			, __func__
+			, readl(APMU_AUDIO_CLK_RES_CTRL)
+			, readl(ZSP_CONFIG_REG0)
+			, readl(SSPA_AUD_PLL_CTRL0)
+			, readl(SSPA_AUD_PLL_CTRL1)
+		);
+
+}
+
+static struct mmp_zsp_platform_device mmp_zsp_op = {
+	.clkcfg = {
+		.spd	= MMP_ZSP_SPD_PERFORMACE,
+		.src	= MMP_ZSP_CORECLKSRC_AUDIOPLL,
+		.asclk	= MMP_ZSP_ASCLK_24576000,
+	},
+	.domain_halt	= mmp_zsp_domain_halt,
+	.domain_on	= mmp_zsp_domain_on,
+	.start_core	= mmp_zsp_start_core,
+};
+static struct resource mmp_zsp_resources[] = {
+	/* reg base:*/
+	[0] = {
+		.start	= 0xd42a0000,
+		.end	= 0xd42a1fff,
+		.flags	= IORESOURCE_MEM,
+		.name	= "audio-device",
+	},
+	/* ZSP iTCM window */
+	[1] = {
+		.start	= 0xc0040000,
+		.end	= 0xc004ffff,
+		.flags	= IORESOURCE_MEM,
+		.name	= "audio-itcm",
+	},
+	/* ZSP dTCM window */
+	[2] = {
+		.start	= 0xc0000000,
+		.end	= 0xc001ffff,
+		.flags	= IORESOURCE_MEM,
+		.name	= "audio-dtcm",
+	},
+	/* Audio IPC IRQ*/
+	[3] = {
+		.start	= IRQ_MMP2_PZIPC,
+		.end	= IRQ_MMP2_PZIPC,
+		.flags	= IORESOURCE_IRQ,
+		.name	= "audio-irq",
+	},
+};
+static u64 mmp_zsp_dmamask = DMA_BIT_MASK(32);
+static struct platform_device mmp_zsp_device = {
+	.name		= "mmp-zsp",
+	.id		= -1,
+	.dev		= {
+		.dma_mask		= &mmp_zsp_dmamask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+	},
+	.num_resources	= ARRAY_SIZE(mmp_zsp_resources),
+	.resource	= mmp_zsp_resources,
+};
+void mmp_zsp_platform_device_init(void)
+{
+	struct platform_device *pdev = &mmp_zsp_device;
+	int ret;
+
+	if (cpu_is_mmp2()) {
+
+		ret = platform_device_add_data(pdev, &mmp_zsp_op,
+			sizeof(mmp_zsp_op));
+		if (ret) {
+			printk("mmp_zsp_platform_device_init fail: %d\n", ret);
+			return;
+		}
+		platform_device_register(pdev);
+		printk("ZSP device registered\n");
+	} else {
+		printk("ZSP device does not exist\n");
+	}
+}
 
 /* APB peripheral clocks */
 static APBC_CLK(uart1, MMP2_UART1, 1, 26000000);
