@@ -625,6 +625,12 @@ config RAMOOPS
 	  This enables panic and oops messages to be logged to a circular
 	  buffer in RAM where it can be read back at some later point.
 
+config MMP2_MDMA
+        tristate "MDMA for memcpy and memset"
+        depends on CPU_MMP2
+        help
+          Please say Y here if want to support MDMA for memcpy and memset
+
 config VIBRATOR_88PM860x
         tristate "88pm860x based vibrator"
         depends on MFD_88PM860X
