@@ -950,6 +950,7 @@ out:
 }
 
 static struct i2c_pxa_platform_data dkb_i2c_pdata = {
+	.use_pio		 = 1,
 	.fast_mode		 = 1,
 	/* ilcr:fs mode b17~9=0x22,about 380K, standard mode b8~0=0x7E,100K */
 	.ilcr		= 0x082C447E,
@@ -962,6 +963,7 @@ static struct i2c_pxa_platform_data dkb_i2c_pdata = {
 };
 
 static struct i2c_pxa_platform_data ttc_dkb_pwr_i2c_pdata = {
+	.use_pio		 = 1,
 	.fast_mode		 = 1,
 	/* ilcr:fs mode b17~9=0x22,about 380K, standard mode b8~0=0x7E,100K */
 	.ilcr		= 0x082C447E,
