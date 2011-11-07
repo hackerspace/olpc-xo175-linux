@@ -61,6 +61,8 @@ struct vmeta_plat_data {
 	int axi_clk_available;
 	int (*decrease_core_freq)(const struct vmeta_instance *vi, const int step);
 	int (*increase_core_freq)(const struct vmeta_instance *vi, const int step);
+	void (*disable_lpm)(int idx);
+	void (*enable_lpm)(int idx);
 };
 
 #define VMETA_PWR_ENABLE 0x1
