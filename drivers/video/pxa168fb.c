@@ -38,18 +38,13 @@
 #include <mach/io.h>
 #include <mach/irqs.h>
 #include <mach/gpio.h>
+#include <mach/mmp_pm.h>
 #include "pxa168fb_common.h"
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 #endif
 
-#ifdef CONFIG_CPU_MMP2
-#include <mach/mmp2_pm.h>
-#define PM_QOS_CONSTRAINT_FB EXIT_LATENCY_CORE_EXTIDLE
-#else
-#define PM_QOS_CONSTRAINT_FB PM_QOS_DEFAULT_VALUE
-#endif
 
 #define DEBUG_VSYNC_PATH(id)	(gfx_info.fbi[(id)]->debug & 3)
 #define DEBUG_ERR_IRQ(id)	(gfx_info.fbi[(id)]->debug & 4)
@@ -1176,7 +1171,7 @@ static int pxa168fb_blank(int blank, struct fb_info *info)
 
 			/* avoid system enter low power modes */
 			pm_qos_update_request(&fbi->qos_idle_fb,
-						PM_QOS_CONSTRAINT_FB);
+						PM_QOS_CONSTRAINT);
 			wake_lock(&idle_lock);
 			break;
 	default:
@@ -1829,7 +1824,7 @@ static void pxa168fb_late_resume(struct early_suspend *h)
 	struct pxa168fb_info *fbi = container_of(h, struct pxa168fb_info,
 						 early_suspend);
 
-	pm_qos_update_request(&fbi->qos_idle_fb, PM_QOS_CONSTRAINT_FB);
+	pm_qos_update_request(&fbi->qos_idle_fb, PM_QOS_CONSTRAINT);
 	wake_lock(&idle_lock);
 	_pxa168fb_resume(fbi);
 
@@ -1854,7 +1849,7 @@ static int pxa168fb_resume(struct platform_device *pdev)
 {
 	struct pxa168fb_info *fbi = platform_get_drvdata(pdev);
 
-	pm_qos_update_request(&fbi->qos_idle_fb, PM_QOS_CONSTRAINT_FB);
+	pm_qos_update_request(&fbi->qos_idle_fb, PM_QOS_CONSTRAINT);
 	wake_lock(&idle_lock);
 	_pxa168fb_resume(fbi);
 
@@ -2460,7 +2455,7 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 
 	/* init qos with constraint */
 	pm_qos_add_request(&fbi->qos_idle_fb, PM_QOS_CPU_DMA_LATENCY,
-			PM_QOS_CONSTRAINT_FB);
+			PM_QOS_CONSTRAINT);
 
 	/* avoid system enter low power modes */
 	wake_lock(&idle_lock);
