@@ -29,7 +29,7 @@
 #include <linux/delay.h>
 #include "sdhci.h"
 #include "sdhci-pltfm.h"
-#include <mach/mmp_pm.h>
+#include <plat/pm.h>
 
 #define SD_CLOCK_BURST_SIZE_SETUP		0x10A
 #define SDCLK_SEL	0x100

@@ -25,6 +25,7 @@
 #include <asm/cacheflush.h>
 #include <asm/io.h>
 #include <mach/mmp2_pm.h>
+#include <plat/pm.h>
 #include <mach/regs-mpmu.h>
 #include <linux/pm_qos_params.h>
 #include <linux/wakelock.h>

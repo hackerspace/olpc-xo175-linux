@@ -37,7 +37,7 @@
 #include <mach/io.h>
 #include <mach/irqs.h>
 #include <mach/gpio.h>
-#include <mach/mmp_pm.h>
+#include <plat/pm.h>
 #include "pxa168fb_common.h"
 
 #ifdef CONFIG_HAS_EARLYSUSPEND

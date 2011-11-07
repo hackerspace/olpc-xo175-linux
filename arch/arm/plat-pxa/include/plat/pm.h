@@ -1,5 +1,5 @@
 /*
- * MMP Power Management Routines
+ * Power Management Routines
  *
  * This software program is licensed subject to the GNU General Public License
  * (GPL).Version 2,June 1991, available at http://www.fsf.org/copyleft/gpl.html
@@ -8,13 +8,18 @@
  * All Rights Reserved
  */
 
-#ifndef __MMP_PM_H__
-#define __MMP_PM_H__
+#ifndef __PM_H__
+#define __PM_H__
 
 #include <linux/pm_qos_params.h>
 
+/* MMP2 cpuidle exit latency */
+#define EXIT_LATENCY_CORE_EXTIDLE		1
+#define EXIT_LATENCY_APPS_IDLE			10
+#define EXIT_LATENCY_APPS_SLEEP			20
+#define EXIT_LATENCY_CHIP_SLEEP			100
+
 #ifdef CONFIG_CPU_MMP2
-#include <mach/mmp2_pm.h>
 #define PM_QOS_CONSTRAINT EXIT_LATENCY_CORE_EXTIDLE
 #else
 #define PM_QOS_CONSTRAINT PM_QOS_DEFAULT_VALUE
