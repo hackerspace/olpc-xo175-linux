@@ -945,6 +945,7 @@ static struct vmeta_plat_data mmp2_vmeta_plat_data = {
 	.axi_clk_available = 0,
 	.decrease_core_freq = NULL,
 	.increase_core_freq = NULL,
+	.update_vmeta_clk = mmp_update_vmeta_clk,
 };
 
 static void __init mmp2_init_vmeta(void)
