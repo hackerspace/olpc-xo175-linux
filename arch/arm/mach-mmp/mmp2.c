@@ -662,49 +662,58 @@ struct clkops audio_clk_ops = {
 	.disable = audio_clk_disable,
 };
 
+static int vmeta_usb_phy_clk_enabled;
+static int vmeta_usb_phy_clk_enable(int en)
+{
+	struct clk *clk = clk_get(NULL, "USBPHYCLK");
+	if (IS_ERR(clk)) {
+		pr_err("%s:failed to get USB PHY clock\n", __func__);
+		return PTR_ERR(clk);
+	}
+	if (en) {
+		if (!vmeta_usb_phy_clk_enabled) {
+			clk_enable(clk);
+			vmeta_usb_phy_clk_enabled = 1;
+		}
+	} else {
+		if (vmeta_usb_phy_clk_enabled) {
+			clk_disable(clk);
+			vmeta_usb_phy_clk_enabled = 0;
+		}
+	}
+	return 0;
+}
+
 static void vmeta_clk_enable(struct clk *clk)
 {
 	int reg;
 	reg = readl(clk->clk_rst);
-	/* Clock select */
-	reg &= ~APMU_MMP2_VMETA_CLK_SEL_MASK;
-	reg &= ~APMU_MMP2_VMETA_ACLK_SEL_MASK;
-	/* NOTE: set to 400M temporarily, support 480M later */
-	reg |= (0 << APMU_MMP2_VMETA_CLK_SEL_SHIFT);
-	reg |= (0x5 << APMU_MMP2_VMETA_ACLK_SEL_SHIFT);
-	writel(reg, clk->clk_rst);
+	if (((reg & APMU_MMP2_VMETA_CLK_SEL_MASK) ==
+		(0x5 << APMU_MMP2_VMETA_CLK_SEL_SHIFT)) ||
+		((reg & APMU_MMP2_VMETA_ACLK_SEL_MASK) ==
+		(0x6 << APMU_MMP2_VMETA_ACLK_SEL_SHIFT))) {
+		/* If selected usb pll as clk source, enable usb phy clk */
+		vmeta_usb_phy_clk_enable(1);
+	}
 	/* Peripheral Clock Enable */
 	reg |= APMU_MMP2_VMETA_CLK_EN;
 	writel(reg, clk->clk_rst);
 	/* AXI Clock Enable */
 	reg |= APMU_MMP2_VMETA_AXICLK_EN;
 	writel(reg, clk->clk_rst);
-	/* Peripheral Reset */
-	reg &= ~APMU_MMP2_VMETA_RST1;
-	writel(reg, clk->clk_rst);
-	reg = readl(clk->clk_rst);
-	/* Release from reset */
-	reg |= APMU_MMP2_VMETA_RST1;
-	writel(reg, clk->clk_rst);
-	reg = readl(clk->clk_rst);
-	/* Release AXI from reset */
-	reg |= APMU_MMP2_VMETA_AXI_RST;
-	writel(reg, clk->clk_rst);
-	reg = readl(clk->clk_rst);
 }
+
 static void vmeta_clk_disable(struct clk *clk)
 {
 	int reg;
-	/* Hold vmeta in reset */
-	reg = readl(clk->clk_rst);
-	reg &= ~APMU_MMP2_VMETA_RST1;
-	writel(reg, clk->clk_rst);
 	/* Disable Clock */
 	reg = readl(clk->clk_rst);
 	reg &= ~APMU_MMP2_VMETA_CLK_EN;
 	writel(reg, clk->clk_rst);
 	reg &= ~APMU_MMP2_VMETA_AXICLK_EN;
 	writel(reg, clk->clk_rst);
+	/* Disable USB phy clock */
+	vmeta_usb_phy_clk_enable(0);
 }
 
 struct clkops vmeta_clk_ops = {
@@ -715,29 +724,54 @@ struct clkops vmeta_clk_ops = {
 #ifdef CONFIG_UIO_VMETA
 void vmeta_pwr(unsigned int en)
 {
-	int reg = readl(APMU_VMETA_CLK_RES_CTRL);
+	u32 clk_rst = APMU_VMETA_CLK_RES_CTRL;
+	int reg = readl(clk_rst);
 	if (VMETA_PWR_ENABLE == en) {
 		/* Power on */
 		/* Enable Hardware power mode */
 		reg |= APMU_MMP2_VMETA_PWR_CTRL;
 		reg |= APMU_MMP2_VMETA_PWRUP;
-		writel(reg, APMU_VMETA_CLK_RES_CTRL);
+		writel(reg, clk_rst);
 
 		reg |= APMU_MMP2_VMETA_INP_ISB;
-		writel(reg, APMU_VMETA_CLK_RES_CTRL);
+		writel(reg, clk_rst);
 
 		reg |= APMU_MMP2_VMETA_ISB;
-		writel(reg, APMU_VMETA_CLK_RES_CTRL);
+		writel(reg, clk_rst);
+
+		/* Peripheral Reset */
+		reg &= ~APMU_MMP2_VMETA_RST1;
+		writel(reg, clk_rst);
+		reg = readl(clk_rst);
+		/* Release from reset */
+		reg |= APMU_MMP2_VMETA_RST1;
+		writel(reg, clk_rst);
+		reg = readl(clk_rst);
+		/* Release AXI from reset */
+		reg |= APMU_MMP2_VMETA_AXI_RST;
+		writel(reg, clk_rst);
+		reg = readl(clk_rst);
+		/* Select 400M(PLL1/2) Vmeta clock by default when power on,
+		 * and it will be updated w/ actual vop passed by vmeta lib */
+		reg &= ~APMU_MMP2_VMETA_CLK_SEL_MASK;
+		reg &= ~APMU_MMP2_VMETA_ACLK_SEL_MASK;
+		reg |= (0 << APMU_MMP2_VMETA_CLK_SEL_SHIFT);
+		reg |= (0x5 << APMU_MMP2_VMETA_ACLK_SEL_SHIFT);
+		writel(reg, clk_rst);
 	} else if (VMETA_PWR_DISABLE == en) {
 		/* Power off */
 		reg &= ~APMU_MMP2_VMETA_ISB;
-		writel(reg, APMU_VMETA_CLK_RES_CTRL);
+		writel(reg, clk_rst);
 
 		reg &= ~APMU_MMP2_VMETA_INP_ISB;
-		writel(reg, APMU_VMETA_CLK_RES_CTRL);
+		writel(reg, clk_rst);
 
 		reg &= ~APMU_MMP2_VMETA_PWRUP;
-		writel(reg, APMU_VMETA_CLK_RES_CTRL);
+		writel(reg, clk_rst);
+		/* Hold vmeta in reset */
+		reg = readl(clk_rst);
+		reg &= ~APMU_MMP2_VMETA_RST1;
+		writel(reg, clk_rst);
 	}
 }
 #endif
@@ -975,3 +1009,26 @@ struct platform_device mmp2_device_rtc = {
 	.num_resources  = ARRAY_SIZE(mmp2_resource_rtc),
 };
 
+/* Update vmeta clock source and freqency according to vop */
+int mmp_update_vmeta_clk(struct vmeta_instance *vi)
+{
+	u32 clk_rst = APMU_VMETA_CLK_RES_CTRL;
+	int reg;
+	if (!vi)
+		return -1;
+	reg = readl(clk_rst);
+	/* Clock source select */
+	reg &= ~APMU_MMP2_VMETA_CLK_SEL_MASK;
+	reg &= ~APMU_MMP2_VMETA_ACLK_SEL_MASK;
+	if (vi->vop <= VMETA_OP_720P_MAX) {
+		/* 400M: PLL1 devided by 2 */
+		reg |= (0 << APMU_MMP2_VMETA_CLK_SEL_SHIFT);
+		reg |= (0x5 << APMU_MMP2_VMETA_ACLK_SEL_SHIFT);
+	} else {
+		/* 480M: USB PHY PLL */
+		reg |= (0x5 << APMU_MMP2_VMETA_CLK_SEL_SHIFT);
+		reg |= (0x6 << APMU_MMP2_VMETA_ACLK_SEL_SHIFT);
+	}
+	writel(reg, clk_rst);
+	return 0;
+}
