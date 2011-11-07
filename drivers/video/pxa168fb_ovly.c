@@ -1326,8 +1326,9 @@ again:
 			wait_for_vsync(fbi);
 	} else {
 		if (fbi->debug == 1)
-			pr_info("%s: buffer updated to %x\n",
-				 __func__, (int)fbi->new_addr[0]);
+			printk(KERN_DEBUG"%s: fbi %d vid %d buffer updated to"
+				"%x\n", __func__, fbi->id, fbi->vid,
+				 (int)fbi->new_addr[0]);
 
 		writel(fbi->new_addr[0], &regs->v_y0);
 		if (fbi->pix_fmt >= 12 && fbi->pix_fmt <= 15) {
@@ -1599,7 +1600,8 @@ irqreturn_t pxa168fb_ovly_isr(int id)
 		return IRQ_HANDLED;
 	fi = fbi->fb_info;
 	if (fbi->debug == 1)
-		printk(KERN_DEBUG "%s fbi %d\n", __func__, fbi->id);
+		printk(KERN_DEBUG "%s fbi %d vid %d\n",
+			 __func__, fbi->id, fbi->vid);
 
 	if (fb_mode && (id == fb_dual)) {
 		/* mirror mode, tv path irq, check wait_peer set or not */

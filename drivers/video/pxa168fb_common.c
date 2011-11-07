@@ -540,8 +540,8 @@ void pxa168fb_ovly_work(struct work_struct *w)
 	unsigned long flags;
 
 	if (fbi->debug == 1)
-		printk(KERN_DEBUG"%s fbi %d buf_retired %p\n",
-			__func__, fbi->id, fbi->buf_retired);
+		printk(KERN_DEBUG"%s fbi %d vid %d buf_retired %p\n",
+			__func__, fbi->id, fbi->vid, fbi->buf_retired);
 
 	if (fbi->buf_retired) {
 		/* enqueue current to freelist */
@@ -567,7 +567,8 @@ void collectFreeBuf(struct pxa168fb_info *fbi,
 		return;
 
 	if (fbi->debug == 1)
-		pr_info("%s\n", __func__);
+		printk(KERN_DEBUG"%s fbi %d vid %d\n",
+			 __func__, fbi->id, fbi->vid);
 
 	list_for_each_safe(pos, n, &srflist->surfacelist) {
 		surface_list = list_entry(pos, struct _sSurfaceList,
@@ -581,9 +582,8 @@ void collectFreeBuf(struct pxa168fb_info *fbi,
 			filterList[i][1] = srf->videoBufferAddr.startAddr[1];
 			filterList[i][2] = srf->videoBufferAddr.startAddr[2];
 			if (fbi->debug == 1)
-				pr_info("%s: buffer "
-					"%p will be returned\n", __func__,
-					srf->videoBufferAddr.startAddr[0]);
+				printk(KERN_DEBUG"buf %p will be returned\n",
+				 srf->videoBufferAddr.startAddr[0]);
 		}
 
 		i++;
@@ -708,8 +708,8 @@ int flip_buffer(struct fb_info *info, unsigned long arg)
 	input_data = surface->videoBufferAddr.inputData;
 
 	if (fbi->debug == 1)
-		printk(KERN_DEBUG"flip surface %p buf %p\n",
-				surface, start_addr[0]);
+		printk(KERN_DEBUG"fbi %d vid %d flip surface %p buf %p\n",
+				fbi->id, fbi->vid, surface, start_addr[0]);
 	/*
 	 * Has DMA addr?
 	 */
@@ -795,9 +795,6 @@ int flip_buffer(struct fb_info *info, unsigned long arg)
 static void free_buf(struct pxa168fb_info *fbi)
 {
 	struct list_head *pos, *n;
-	unsigned long flags;
-
-	spin_lock_irqsave(&fbi->buf_lock, flags);
 
 	/* put all buffers into free list */
 	list_for_each_safe(pos, n, &fbi->buf_waitlist.surfacelist) {
@@ -819,7 +816,6 @@ static void free_buf(struct pxa168fb_info *fbi)
 
 	/* clear some globals */
 	ovly_info.wait_peer = 0;
-	spin_unlock_irqrestore(&fbi->buf_lock, flags);
 
 	memset(&fbi->surface, 0, sizeof(struct _sOvlySurface));
 	fbi->new_addr[0] = 0; fbi->new_addr[1] = 0; fbi->new_addr[2] = 0;
@@ -839,7 +835,8 @@ int get_freelist(struct fb_info *info, unsigned long arg)
 	unsigned long flags;
 
 	if (fbi->debug == 1)
-		printk(KERN_DEBUG"get freelist\n");
+		printk(KERN_DEBUG"fbi %d vid %d get freelist\n",
+				 fbi->id, fbi->vid);
 
 	spin_lock_irqsave(&fbi->buf_lock, flags);
 
@@ -861,7 +858,8 @@ int get_freelist(struct fb_info *info, unsigned long arg)
 	spin_unlock_irqrestore(&fbi->buf_lock, flags);
 
 	if (fbi->debug == 1)
-		printk(KERN_DEBUG"get freelist end\n");
+		printk(KERN_DEBUG"fbi %d vid %d get freelist end\n",
+				fbi->id, fbi->vid);
 
 	return 0;
 }
