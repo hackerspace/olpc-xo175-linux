@@ -2256,6 +2256,12 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 		pxa168fb_proc->write_proc = pxa168fb_proc_write;
 	}
 
+#ifdef CONFIG_ANDROID
+	if (fbi->fb_start && (!fbi->id || !fb_share)) {
+		fb_prepare_logo(info, 0);
+		fb_show_logo(info, 0);
+	}
+#endif
 	return 0;
 
 failed_free_irq:
