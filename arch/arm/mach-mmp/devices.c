@@ -606,7 +606,7 @@ struct resource pxa168_u2oehci_resources[] = {
 
 struct platform_device pxa168_device_u2oehci = {
 	.name		= "pxa-u2oehci",
-	.id		= 0,
+	.id		= -1,
 	.dev		= {
 		.dma_mask		= &usb_dma_mask,
 		.coherent_dma_mask	= 0xffffffff,
