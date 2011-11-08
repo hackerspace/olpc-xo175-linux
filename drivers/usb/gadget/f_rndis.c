@@ -652,7 +652,11 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 	rndis->notify_req = usb_ep_alloc_request(ep, GFP_KERNEL);
 	if (!rndis->notify_req)
 		goto fail;
+#ifdef CONFIG_PXA910_1G_DDR_WORKAROUND
+	rndis->notify_req->buf = kmalloc(STATUS_BYTECOUNT, GFP_KERNEL | GFP_DMA);
+#else
 	rndis->notify_req->buf = kmalloc(STATUS_BYTECOUNT, GFP_KERNEL);
+#endif
 	if (!rndis->notify_req->buf)
 		goto fail;
 	rndis->notify_req->length = STATUS_BYTECOUNT;

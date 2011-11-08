@@ -2819,7 +2819,11 @@ static struct fsg_common *fsg_common_init(struct fsg_common *common,
 		bh->next = bh + 1;
 		++bh;
 buffhds_first_it:
+#ifdef CONFIG_PXA910_1G_DDR_WORKAROUND
+		bh->buf = kmalloc(FSG_BUFLEN, GFP_KERNEL | GFP_DMA);
+#else
 		bh->buf = kmalloc(FSG_BUFLEN, GFP_KERNEL);
+#endif
 		if (unlikely(!bh->buf)) {
 			rc = -ENOMEM;
 			goto error_release;

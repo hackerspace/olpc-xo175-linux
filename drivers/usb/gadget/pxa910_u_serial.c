@@ -316,7 +316,11 @@ static struct usb_request *pxa910_gs_alloc_req(struct usb_ep *ep, unsigned len,
 
 	if (req != NULL) {
 		req->length = len;
+#ifdef CONFIG_PXA910_1G_DDR_WORKAROUND
+		req->buf = kmalloc(len, kmalloc_flags | GFP_DMA);
+#else
 		req->buf = kmalloc(len, kmalloc_flags);
+#endif
 		if (req->buf == NULL) {
 			usb_ep_free_request(ep, req);
 			return NULL;
