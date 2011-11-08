@@ -495,6 +495,10 @@ void pxa688_vdma_release(struct pxa168fb_info *fbi)
 	reg = readl(fbi->reg_base + squln_ctrl(fbi->id));
 	reg &= (~0x1);
 	writel(reg, fbi->reg_base + squln_ctrl(fbi->id));
+#ifdef CONFIG_PXA688_MISC
+	if (fbi->id == fb_vsmooth && (gfx_vsmooth || vid_vsmooth))
+		writel(reg, fbi->reg_base + squln_ctrl(fb_filter));
+#endif
 	printk(KERN_DEBUG "%s fbi %d squln_ctrl %x\n", __func__,
 		fbi->id, readl(fbi->reg_base + squln_ctrl(fbi->id)));
 }

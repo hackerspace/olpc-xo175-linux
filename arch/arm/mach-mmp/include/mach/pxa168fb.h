@@ -710,11 +710,20 @@ extern void pxa688_vdma_en(struct pxa168fb_info *fbi, int enable);
 #endif
 
 /* misc */
+extern int fb_filter;
+extern int fb_vsmooth;
+extern int gfx_vsmooth;
+extern int vid_vsmooth;
 extern struct device_attribute dev_attr_misc;
 #ifdef CONFIG_PXA688_MISC
+extern int pxa688fb_vsmooth_set(int id, int vid, int en, int flag);
 extern int pxa688fb_partdisp_set(struct pxa168fb_gra_partdisp grap);
 extern void pxa688fb_partdisp_update(int id);
 #else
+static inline int pxa688fb_vsmooth_set(int id, int vid, int en, int flag)
+{
+	return 0;
+}
 static inline int pxa688fb_partdisp_set(struct pxa168fb_gra_partdisp grap)
 {
 	return 0;

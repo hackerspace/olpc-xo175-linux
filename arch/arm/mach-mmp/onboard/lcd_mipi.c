@@ -800,5 +800,15 @@ void __init brownstone_add_lcd_mipi(void)
 	mmp2_add_fb(&mmp2_mipi_lcd_info);
 	mmp2_add_fb_ovly(&mmp2_mipi_lcd_ovly_info);
 #endif
+
+#ifdef CONFIG_PXA688_MISC
+	/* set TV path vertical smooth, panel2 as filter channel,
+	 * vertical smooth is disabled by default to avoid underrun
+	 * when video playback, to enable/disable graphics/video
+	 * layer vertical smooth:
+	 * echo g0/g1/v0/v1 > /sys/deivces/platform/pxa168-fb.1/misc
+	 */
+	fb_vsmooth = 1; fb_filter = 2;
+#endif
 }
 #endif

@@ -36,6 +36,16 @@
 
 #include "pxa168fb.h"
 
+/* fb_vsmooth: the path that need to do smoothing. e.g. TV
+ * fb_filter: the path that used for smoothing. e.g. PN2
+ */
+int fb_vsmooth;
+int fb_filter;
+int gfx_vsmooth;
+int vid_vsmooth;
+
+static int debug;
+
 /* graphic layer partial display, color format should be RGB565 */
 int pxa688fb_partdisp_set(struct pxa168fb_gra_partdisp grap)
 {
@@ -190,6 +200,498 @@ void pxa688fb_partdisp_update(int id)
 	fbi->scrn_act_bak = screen_active;
 }
 
+static int pxa688fb_map_layers(int src, int dst, int vid, int en)
+{
+	struct pxa168fb_info *fbi = gfx_info.fbi[0];
+	struct pxa168fb_info *fbi_gfx = gfx_info.fbi[dst];
+	struct pxa168fb_info *fbi_ovly = ovly_info.fbi[dst];
+	u32 map = (u32)fbi->reg_base + LCD_IO_OVERL_MAP_CTRL;
+	u32 val = readl(map), shift, vdma;
+
+	/* map src path dma to dst */
+	switch (dst) {
+	case 0:
+		if (src == 2)
+			/* p2 -> pn */
+			shift = vid ? 6 : 7;
+		else if (src == 1) {
+			/* tv -> pn */
+			map = (u32)fbi->reg_base + LCD_TOP_CTRL;
+			val = readl(map);
+			shift = 22;
+			val &= ~(3 << shift);
+			if (en)
+				val |= 1 << shift;
+			goto top_ctrl;
+		} else
+			return -EINVAL;
+		break;
+	case 1:
+		if (src == 2)
+			/* p2 -> tv */
+			shift = vid ? 10 : 9;
+		else if (src == 0) {
+			/* pn -> tv */
+			map = (u32)fbi->reg_base + LCD_TOP_CTRL;
+			val = readl(map);
+			shift = 22;
+			val &= ~(3 << shift);
+			if (en)
+				val |= 2 << shift;
+			goto top_ctrl;
+		} else
+			return -EINVAL;
+		break;
+	case 2:
+		if (src == 1)
+			/* tv -> p2 */
+			shift = vid ? 3 : 4;
+		else if (src == 0)
+			/* pn -> p2 */
+			shift = vid ? 0 : 1;
+		else
+			return -EINVAL;
+		break;
+	default:
+		return -EINVAL;
+		break;
+	}
+	if (en)
+		val |= 1 << shift;
+	else
+		val &= ~(1 << shift);
+top_ctrl:
+	writel(val, map);
+	if (debug)
+		pr_info("%s %d: src %d dst %d vid %d shift %d map(%x): 0x%x\n",
+			__func__, en, src, dst, vid, shift, map & 0xfff, val);
+
+
+#ifdef CONFIG_PXA688_VDMA
+	if (vid ? fbi_ovly->vdma_enable : fbi_gfx->vdma_enable) {
+		vdma = readl((u32)fbi->reg_base + LCD_PN2_SQULN2_CTRL);
+		switch (src) {
+		case 2:
+			/* vdma0-pn/vdma1-tv is used for p2 */
+			vdma &= ~(3 << 30);
+			if (en)
+				vdma |= 1 << (dst ? 31 : 30);
+			break;
+		case 1:
+		case 0:
+			/* FIXME */
+		default:
+			pr_info("%s src %d dst %d not supported yet\n",
+				__func__, src, dst);
+		return -EINVAL;
+		}
+		writel(vdma, (u32)fbi->reg_base + LCD_PN2_SQULN2_CTRL);
+		if (debug)
+			pr_info("vdma 0x%x\n", vdma);
+	}
+#endif
+
+
+	return 0;
+}
+
+static int pxa688fb_vsmooth_config(int filter, int dst, int vid, int en)
+{
+	struct pxa168fb_info *fbi = gfx_info.fbi[0];
+	int vsmooth = (u32)fbi->reg_base + LCD_AFA_ALL2ONE, shift, val, x;
+
+	switch (filter) {
+	case 0:
+		/* pn dma used as vertical filter channel */
+		shift = vid ? 16 : 18;
+		if (dst == 2) {
+			pr_err("%s (line %d) filter %d dst %d not supported\n",
+				__func__, __LINE__, filter, dst);
+			return -EINVAL;
+		} else
+			x = 3;
+		break;
+	case 1:
+		/* tv dma used as vertical filter channel */
+		shift = vid ? 16 : 18;
+		if (dst == 2) {
+			pr_err("%s (line %d) filter %d dst %d not supported\n",
+				__func__, __LINE__, filter, dst);
+			return -EINVAL;
+		} else
+			x = 2;
+		break;
+	case 2:
+		/* p2 dma used as vertical filter channel */
+		vsmooth = (u32)fbi->reg_base + LCD_PN2_LAYER_ALPHA_SEL1;
+		shift = vid ? 16 : 18;
+		x = dst ? 3 : 2;
+		break;
+	default:
+		pr_err("%s (line %d) filter %d dst %d not supported\n",
+			__func__, __LINE__, filter, dst);
+		return -EINVAL;
+	}
+	val = readl(vsmooth) & ~(3 << shift);
+	if (en)
+		val |= x << shift;
+	writel(val, vsmooth);
+	if (debug)
+		pr_info("%s filter %d en %d dst %d x %x shift %d"
+			" vsmooth(%x) 0x%x\n\n", __func__, filter,
+			en, dst, x, shift, vsmooth & 0xfff, val);
+	return 0;
+}
+
+static int pxa688_colorkey_get(int id, int vid)
+{
+	struct pxa168fb_info *fbi = gfx_info.fbi[0];
+	u32 base = (u32)fbi->reg_base, tmp = dma_ctrl_read(1, 1), en = 0;
+
+	if (id == 0)
+		en = vid ? ((tmp & (1 << 18)) >> 18) :
+			((tmp & (1 << 19)) >> 19);
+	else if (id == 1)
+		en = vid ? ((tmp & (1 << 20)) >> 20) :
+			((tmp & (1 << 21)) >> 21);
+	else {
+		tmp = __raw_readl(base + PN2_IOPAD_CONTROL);
+		en = vid ? ((tmp & (1 << 5)) >> 5) :
+			((tmp & (1 << 4)) >> 4);
+	}
+
+	return en;
+}
+
+static void pxa688_colorkey_set(int id, int vid, int en)
+{
+	struct pxa168fb_info *fbi = gfx_info.fbi[0];
+	u32 base = (u32)fbi->reg_base, mask;
+
+	if (id <= 1) {
+		mask = id ? (vid ? (en << 20) : (en << 21)) :
+			(vid ? (en << 18) : (en << 19));
+		dma_ctrl_set(1, 1, mask, mask);
+	} else {
+		mask = __raw_readl(base + PN2_IOPAD_CONTROL);
+		mask &= ~(vid ? (1 << 5) : (1 << 4));
+		mask |= vid ? (en << 5) : (en << 4);
+		__raw_writel(mask, base + PN2_IOPAD_CONTROL);
+	}
+}
+
+/* pxa688_clone_xxx(int src, int dst,..)
+ * These functions clone src path settings to dst path.
+ * e.g. if use PN2 path DMA to do TV path smoothing, so
+ * need to clone TV path settings to PN2.
+ */
+
+static int pxa688fb_clone_clk(int src, int dst)
+{
+	struct pxa168fb_info *fbi = gfx_info.fbi[0];
+	u32 base = (u32)fbi->reg_base, mask = ~0;
+
+	if (src == 1 || dst == 1)
+		/* TV path TCLK_DIV definitions different vs SCLK_DIV */
+		mask = 0xd000000f;
+	/* enable dst path clock */
+	writel(readl(base + clk_div(src)) & mask, base + clk_div(dst));
+	if (dst == 2 && src <= 1) {
+		/* pn2 TCLK_DIV */
+		mask = src ? 2 : 1;
+		writel((mask << 30) | (mask << 2) | (mask),
+			base + LCD_PN2_TCLK_DIV);
+	}
+
+	return 0;
+}
+
+static void pxa688fb_clone_intf_ctrl(int src, int dst)
+{
+	struct pxa168fb_info *fbi = gfx_info.fbi[0];
+	u32 base = (u32)fbi->reg_base, reg = 0, mask = 0;
+
+	reg = readl(base + intf_ctrl(src));
+	switch (dst) {
+	case 0:
+		if (src == 1) {
+			/* tv -> pn */
+			mask = reg & 0xf00009ff;
+			if (reg & (1 << 15))
+				mask |= (1 << 9);
+		} else
+			/* pn2 -> pn */
+			mask = reg;
+		break;
+	case 1:
+		if (src == 0 || src == 2) {
+			/* pn -> tv or pn2 -> tv*/
+			mask = reg & 0xf00009ff;
+			if (reg & (1 << 9))
+				mask |= (1 << 15);
+		} else
+			mask = reg;
+		break;
+	case 2:
+		if (src == 1) {
+			/* tv -> pn2 */
+			mask = reg & 0xf00009ff;
+			if (reg & (1 << 15))
+				mask |= (1 << 9);
+		} else
+			/* pn -> pn2 */
+			mask = reg;
+		break;
+	default:
+		break;
+	}
+	writel(mask, base + intf_ctrl(dst));
+}
+
+static void pxa688fb_clone_vdma(int src, int dst)
+{
+	struct pxa168fb_info *fbi_gfx = gfx_info.fbi[src];
+	struct pxa168fb_info *fbi = gfx_info.fbi[0];
+	u32 base = (u32)fbi->reg_base, mask, vdma;
+
+#ifdef CONFIG_PXA688_VDMA
+	mask = readl(base + LCD_PN2_SQULN2_CTRL);
+	vdma = readl(base + squln_ctrl(src));
+	/* vdma for graphic layer */
+	if (fbi_gfx->vdma_enable) {
+		mask &= ~(dst ? ((dst & 1) ? (1 << 25) :
+			(1 << 26)) : (1 << 24));
+	} else
+	/* vdma for video layer */
+		mask |= dst ? ((dst & 1) ? (1 << 25) : (1 << 26)) : (1 << 24);
+
+	writel(vdma, base + squln_ctrl(dst));
+	writel(mask, base + LCD_PN2_SQULN2_CTRL);
+#endif
+}
+
+static void pxa688fb_clone_partdisp_ctrl(int src, int dst)
+{
+	struct pxa168fb_info *fbi = gfx_info.fbi[0];
+	u32 base = (u32)fbi->reg_base, mask, region, bytespp,
+		horpix_end_src, horpix_end_dst, horpix_start,
+		threshold_src, threshold_dst;
+
+	mask = readl(base + gra_partdisp_ctrl_hor(src));
+	bytespp = gfx_info.bpp >> 3;
+	horpix_end_src = (mask & 0xfff0000) >> 16;
+	horpix_start = mask & 0xfff;
+
+	/* THRESHOLD_x: the least bytes to operate for
+	 * horizontal partial display
+	 */
+	threshold_src = (src == 1 ? THRESHOLD_TV : THRESHOLD_PN);
+	threshold_dst = (dst == 1 ? THRESHOLD_TV : THRESHOLD_PN);
+	if (horpix_end_src > horpix_start) {
+		region = horpix_end_src - horpix_start;
+
+		/* BURST_LEN: AXI burst size, platform dependent */
+		region = (region - threshold_src / bytespp) /
+			(BURST_LEN / bytespp);
+		horpix_end_dst = horpix_start + threshold_dst / bytespp +
+			region * (BURST_LEN / bytespp);
+		mask &= ~0xfff0000;
+		mask |= horpix_end_dst << 16;
+	}
+	writel(mask, base + gra_partdisp_ctrl_hor(dst));
+	writel(readl(base + gra_partdisp_ctrl_ver(src)),
+		base + gra_partdisp_ctrl_ver(dst));
+}
+
+static void pxa688fb_clone_base(int src, int dst, int vid)
+{
+	struct lcd_regs *regs_src = get_regs(src);
+	struct lcd_regs *regs_dst = get_regs(dst);
+	struct pxa168fb_info *fbi = gfx_info.fbi[0];
+	u32 base = (u32)fbi->reg_base, mask, cokey_en;
+
+	/* screen info */
+	writel(readl(&regs_src->screen_size), &regs_dst->screen_size);
+	writel(readl(&regs_src->screen_active), &regs_dst->screen_active);
+	writel(readl(&regs_src->screen_h_porch), &regs_dst->screen_h_porch);
+	writel(readl(&regs_src->screen_v_porch), &regs_dst->screen_v_porch);
+	writel(readl(&regs_src->vsync_ctrl), &regs_dst->vsync_ctrl);
+
+	/* dma control1 */
+	mask = ~0;
+	if ((src == 1) || (dst ==  1))
+		mask &= ~((0x1f << 18) | 0xff);
+	dma_ctrl_set(dst, 1, mask, dma_ctrl_read(src, 1) & mask);
+
+	/* dma control0 */
+	mask = ~(vid ? dma0_gfx_masks : dma0_vid_masks);
+	if ((src == 1) || (dst ==  1))
+		mask &= ~(1 << 27);
+	dma_ctrl_set(dst, 0, mask, dma_ctrl_read(src, 0) & mask);
+
+	/* DMA burst length */
+	if (dst == 2)
+		writel(readl(base + PN2_IOPAD_CONTROL) |
+			(3 << 10) | (3 << 8), base + PN2_IOPAD_CONTROL);
+
+	/* DMA color key */
+	cokey_en = pxa688_colorkey_get(src, vid);
+	pxa688_colorkey_set(dst, vid, cokey_en);
+
+	/* intf ctrl */
+	pxa688fb_clone_intf_ctrl(src, dst);
+}
+
+/* clone src path graphics layer settings to dst path */
+static int pxa688fb_clone_gfx(int src, int dst, int en, int addr_only)
+{
+	struct lcd_regs *regs_src = get_regs(src);
+	struct lcd_regs *regs_dst = get_regs(dst);
+	struct pxa168fb_gra_partdisp grap;
+
+	/* enable dst path clock */
+	pxa688fb_clone_clk(src, dst);
+
+	/* if disable vsmooth, disable dst path dma directly */
+	if (!en) {
+		dma_ctrl_set(dst, 0, CFG_GRA_ENA_MASK, 0);
+		if (debug)
+			pr_info("%s disabled: dma_ctrl0 0x%x\n",
+				__func__, dma_ctrl_read(dst, 0));
+		grap.id = dst;
+		grap.horpix_start = grap.horpix_end = 0;
+		grap.vertline_start = grap.vertline_end = 0;
+		grap.color = 0;
+		/* disable dst partial display */
+		pxa688fb_partdisp_set(grap);
+		return 0;
+	}
+
+	/* configure frame address */
+	writel(readl(&regs_src->g_0), &regs_dst->g_0);
+	writel(readl(&regs_src->g_1), &regs_dst->g_1);
+
+	/* partial display */
+	pxa688fb_clone_partdisp_ctrl(src, dst);
+
+	if (addr_only)
+		return 0;
+
+	/* configure dst regs */
+	writel(readl(&regs_src->g_pitch), &regs_dst->g_pitch);
+	writel(readl(&regs_src->g_start), &regs_dst->g_start);
+	writel(readl(&regs_src->g_size), &regs_dst->g_size);
+	writel(readl(&regs_src->g_size_z), &regs_dst->g_size_z);
+	/* configure dma control0/1, screen info, color key, intf ctrl.. */
+	pxa688fb_clone_base(src, dst, 0);
+	return 0;
+}
+
+/* clone src path video layer settings to dst path */
+static int pxa688fb_clone_ovly(int src, int dst, int en)
+{
+	struct lcd_regs *regs_src = get_regs(src);
+	struct lcd_regs *regs_dst = get_regs(dst);
+
+	/* enable dst path clock */
+	pxa688fb_clone_clk(src, dst);
+
+	/* if disable vsmooth, disable dst path dma directly */
+	if (!en) {
+		dma_ctrl_set(dst, 0, CFG_DMA_ENA_MASK, 0);
+		if (debug)
+			pr_info("%s disable %d: dma_ctrl0 0x%x\n",
+				__func__, dst, dma_ctrl_read(dst, 0));
+		return 0;
+	}
+
+
+	/* configure dst regs */
+	writel(readl(&regs_src->v_y0), &regs_dst->v_y0);
+	writel(readl(&regs_src->v_u0), &regs_dst->v_u0);
+	writel(readl(&regs_src->v_v0), &regs_dst->v_v0);
+	writel(readl(&regs_src->v_c0), &regs_dst->v_c0);
+	writel(readl(&regs_src->v_y1), &regs_dst->v_y1);
+	writel(readl(&regs_src->v_u1), &regs_dst->v_u1);
+	writel(readl(&regs_src->v_v1), &regs_dst->v_v1);
+	writel(readl(&regs_src->v_c1), &regs_dst->v_c1);
+	writel(readl(&regs_src->v_pitch_yc), &regs_dst->v_pitch_yc);
+	writel(readl(&regs_src->v_pitch_uv), &regs_dst->v_pitch_uv);
+	writel(readl(&regs_src->v_start), &regs_dst->v_start);
+	writel(readl(&regs_src->v_size), &regs_dst->v_size);
+	writel(readl(&regs_src->v_size_z), &regs_dst->v_size_z);
+	/* configure dma control0/1, screen info, color key, intf ctrl.. */
+	pxa688fb_clone_base(src, dst, 1);
+	return 0;
+}
+
+static int pxa168fb_vsmooth_check(int id, int src, int dst, int vid, int en)
+{
+	struct lcd_regs *regs;
+	int x, x_z;
+
+	if (vid ? (!ovly_info.fbi[fb_vsmooth]) : (!gfx_info.fbi[fb_vsmooth]))
+		return -EINVAL;
+
+	if (id != fb_vsmooth) {
+		if (debug)
+			pr_info("%s: fbi %d != fb_vsmooth %d\n",
+				__func__, id, fb_vsmooth);
+		return -EINVAL;
+	}
+
+	if (src == dst || src < 0 || src > 2 || dst < 0 || dst > 1) {
+		if (debug)
+			pr_info("%s input err: src %d dst %d vid %d en %d\n",
+				__func__, src, dst, vid, en);
+		return -EINVAL;
+	}
+
+	regs = get_regs(id);
+	x = (readl(vid ? &regs->v_size : &regs->g_size) >> 16) & 0xfff;
+	x_z = (readl(vid ? &regs->v_size_z : &regs->g_size_z) >> 16) & 0xfff;
+	if (debug)
+		pr_info("%s layer %s: x 0x%x x_z 0x%x\n",
+			__func__, vid ? "vid " : "gfx", x, x_z);
+	return (x_z > x) ? 0 : 1;
+}
+
+/* pxa688fb_vsmooth_set
+ * vid: video layer or graphics layer
+ * en: enable vsmooth mode or not
+ */
+int pxa688fb_vsmooth_set(int id, int vid, int en, int flag)
+{
+	int filter = fb_filter, dst = fb_vsmooth, ret = 0;
+
+	ret = pxa168fb_vsmooth_check(id, filter, dst, vid, en);
+	if (ret) {
+		if (ret == 1)
+			/* not scaling, disable mapping and filter path dma */
+			en = 0;
+		else
+			return -EINVAL;
+	}
+
+	if (vid)
+		ret = pxa688fb_clone_ovly(dst, filter, en);
+	else
+		ret = pxa688fb_clone_gfx(dst, filter, en, flag);
+	if (ret) {
+		if (debug)
+			pr_info("%s clone %s err, filter %d dst %d\n",
+				__func__, vid ? "ovly" : "gfx", filter, dst);
+		return -EIO;
+	}
+
+	/* vdma clone */
+	pxa688fb_clone_vdma(dst, filter);
+
+	pxa688fb_map_layers(filter, dst, vid, en);
+	pxa688fb_vsmooth_config(filter, dst, vid, en);
+	return 0;
+}
+
 ssize_t misc_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
@@ -198,7 +700,7 @@ ssize_t misc_show(struct device *dev, struct device_attribute *attr,
 	u32 mask;
 
 	grap.id = fbi->id;
-
+again:
 	mask = readl((u32)fbi->reg_base + gra_partdisp_ctrl_hor(grap.id));
 	/* get horizontal start/end pixel number */
 	grap.horpix_start = mask & 0xfff;
@@ -215,10 +717,19 @@ ssize_t misc_show(struct device *dev, struct device_attribute *attr,
 	grap.color |= ((mask & 0xf000) >> 12) << 8;
 	grap.color |= ((mask & 0xf0000000) >> 28) << 12;
 
-	return sprintf(buf, "fbi %d:\nhorpix_start:%d vertline_start:%d "
+	pr_info("fbi %d:\nhorpix_start:%d vertline_start:%d "
 		"horpix_end:%d vertline_end:%d color:%d\n",
 		grap.id, grap.horpix_start, grap.vertline_start,
 		grap.horpix_end, grap.vertline_end, grap.color);
+
+	if (gfx_vsmooth && (fb_filter != fb_vsmooth)
+		&& (grap.id == fb_vsmooth)) {
+		grap.id = fb_filter;
+		goto again;
+	}
+
+	return sprintf(buf, "filter(%d)->vsmooth(%d) gfx %d vid %d dbg %d\n",
+		fb_filter, fb_vsmooth, gfx_vsmooth, vid_vsmooth, debug);
 }
 ssize_t misc_store(
 		struct device *dev, struct device_attribute *attr,
@@ -227,12 +738,64 @@ ssize_t misc_store(
 	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
 	struct pxa168fb_gra_partdisp grap;
 	char vol[30];
+	int tmp;
 
 	if (size > 30) {
 		pr_err("%s size = %d > max 30 chars\n", __func__, size);
 		return size;
 	}
-	if ('p' == buf[0]) {
+	if ('s' == buf[0]) {
+		memcpy(vol, (void *)((u32)buf + 1), size - 1);
+		tmp = (int) simple_strtoul(vol, NULL, 10);
+		if (tmp != fb_vsmooth) {
+			/* disable vsmooth for original path */
+			pxa688fb_vsmooth_set(fb_vsmooth, 0, 0, 0);
+			pxa688fb_vsmooth_set(fb_vsmooth, 1, 0, 0);
+			/* enable vsmooth for new path */
+			fb_vsmooth = tmp;
+			pxa688fb_vsmooth_set(fb_vsmooth, 0, gfx_vsmooth, 0);
+			pxa688fb_vsmooth_set(fb_vsmooth, 1, vid_vsmooth, 0);
+			pr_info("fb_vsmooth: %d\n", fb_vsmooth);
+		}
+		return size;
+	} else if ('f' == buf[0]) {
+		memcpy(vol, (void *)((u32)buf + 1), size - 1);
+		tmp = (int) simple_strtoul(vol, NULL, 10);
+		if (tmp != fb_filter) {
+			/* disable vsmooth for original path */
+			pxa688fb_vsmooth_set(fb_vsmooth, 0, 0, 0);
+			pxa688fb_vsmooth_set(fb_vsmooth, 1, 0, 0);
+			/* enable vsmooth for new path */
+			fb_filter = tmp;
+			pxa688fb_vsmooth_set(fb_vsmooth, 0, gfx_vsmooth, 0);
+			pxa688fb_vsmooth_set(fb_vsmooth, 1, vid_vsmooth, 0);
+			pr_info("fb_filter: %d\n", fb_filter);
+		}
+		return size;
+	} else if ('g' == buf[0]) {
+		memcpy(vol, (void *)((u32)buf + 1), size - 1);
+		tmp = gfx_vsmooth;
+		gfx_vsmooth = (int) simple_strtoul(vol, NULL, 10);
+		if (tmp != gfx_vsmooth) {
+			pxa688fb_vsmooth_set(fb_vsmooth, 0, gfx_vsmooth, 0);
+			pr_info("gfx_vsmooth: %d -> %d\n", tmp, gfx_vsmooth);
+		}
+		return size;
+	} else if ('v' == buf[0]) {
+		memcpy(vol, (void *)((u32)buf + 1), size - 1);
+		tmp = vid_vsmooth;
+		vid_vsmooth = (int) simple_strtoul(vol, NULL, 10);
+		if (tmp != vid_vsmooth) {
+			pxa688fb_vsmooth_set(fb_vsmooth, 1, vid_vsmooth, 0);
+			pr_info("vid_vsmooth: %d -> %d\n", tmp, vid_vsmooth);
+		}
+		return size;
+	} else if ('d' == buf[0]) {
+		memcpy(vol, (void *)((u32)buf + 1), size - 1);
+		debug = (int) simple_strtoul(vol, NULL, 10);
+		pr_info("debug: %d\n", debug);
+		return size;
+	} else if ('p' == buf[0]) {
 		memcpy(vol, (void *)((u32)buf + 1), size - 1);
 		if (sscanf(vol, "%u %u %u %u %hu", &grap.horpix_start,
 			&grap.vertline_start, &grap.horpix_end,
@@ -244,6 +807,12 @@ ssize_t misc_store(
 		}
 		grap.id = fbi->id;
 		pxa688fb_partdisp_set(grap);
+		if ((grap.id == fb_vsmooth) && (gfx_vsmooth)) {
+			if (dma_ctrl_read(fb_filter, 0) & CFG_GRA_ENA_MASK) {
+				grap.id = fb_filter;
+				pxa688fb_partdisp_set(grap);
+			}
+		}
 		pr_info("lcd_part_disp\n");
 	} else
 		pr_err("%s unknown command %s\n", __func__, buf);

@@ -422,10 +422,14 @@ struct lcd_regs {
 #define	 CFG_GRA_SWAPUV_MASK			0x00000800
 #define	 CFG_GRA_SWAPYU(swap)			((swap)<<10)
 #define	 CFG_GRA_SWAPYU_MASK			0x00000400
+#define	 CFG_GRA_SWAP_MASK			0x00001C00
 #define	 CFG_YUV2RGB_GRA(cvrt)			((cvrt)<<9)
 #define	 CFG_YUV2RGB_GRA_MASK			0x00000200
 #define	 CFG_GRA_ENA(gra)			((gra)<<8)
 #define	 CFG_GRA_ENA_MASK			0x00000100
+#define dma0_gfx_masks	(CFG_GRAFORMAT_MASK | CFG_GRA_FTOGGLE_MASK | \
+	CFG_GRA_HSMOOTH_MASK | CFG_GRA_TSTMODE_MASK | CFG_GRA_SWAP_MASK | \
+	CFG_YUV2RGB_GRA_MASK | CFG_GRA_ENA_MASK)
 /* for video part */
 #define	 CFG_DMA_FTOGGLE(toggle)		((toggle)<<7)
 #define	 CFG_DMA_FTOGGLE_MASK			0x00000080
@@ -444,6 +448,9 @@ struct lcd_regs {
 #define	 CFG_YUV2RGB_DMA_MASK			0x00000002
 #define	 CFG_DMA_ENA(video)			(video)
 #define	 CFG_DMA_ENA_MASK			0x00000001
+#define dma0_vid_masks	(CFG_DMAFORMAT_MASK | CFG_DMA_FTOGGLE_MASK | \
+	CFG_DMA_HSMOOTH_MASK | CFG_DMA_TSTMODE_MASK | CFG_DMA_SWAP_MASK | \
+	CFG_YUV2RGB_DMA_MASK | CFG_DMA_ENA_MASK)
 
 /* DMA Control 1 Register */
 #define LCD_SPU_DMA_CTRL1			0x0194

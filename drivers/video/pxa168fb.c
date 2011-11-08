@@ -697,12 +697,14 @@ again:
 	writel(addr, &regs->g_0);
 	set_dma_active(fbi);
 
+	pxa688_vdma_config(fbi);
 	if (wait_vsync)
 		fbi->misc_update = 1;
-	else
+	else {
 		pxa688fb_partdisp_update(fbi->id);
+		pxa688fb_vsmooth_set(fbi->id, 0, gfx_vsmooth, 0);
+	}
 
-	pxa688_vdma_config(fbi);
 
 	if (FB_MODE_DUP) {
 		fbi = gfx_info.fbi[fb_dual];
@@ -1227,6 +1229,7 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 
 					if (fbi->misc_update) {
 						pxa688fb_partdisp_update(id);
+						pxa688fb_vsmooth_set(id, 0, gfx_vsmooth, 0);
 						fbi->misc_update = 0;
 					}
 					/* wake up queue if condition */
@@ -1866,6 +1869,7 @@ static ssize_t lcd_show(struct device *dev, struct device_attribute *attr,
 	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
 	struct fb_var_screeninfo *var = &fbi->fb_info->var;
 	struct lcd_regs *regs = get_regs(fbi->id);
+	int id = fbi->id, vsmooth_show = 0;
 
 	pr_info("fbi %d base 0x%p\n", fbi->id, fbi->reg_base);
 	pr_info("var\n");
@@ -1888,6 +1892,8 @@ static ssize_t lcd_show(struct device *dev, struct device_attribute *attr,
 	pr_info("\t rotate            0x%x\n", var->rotate);
 	pr_info("\n");
 
+again:
+	regs = get_regs(id);
 	pr_info("video layer\n");
 	pr_info("\tv_y0        ( @%3x ) 0x%x\n",
 		 (int)(&regs->v_y0) & 0xfff, readl(&regs->v_y0));
@@ -1980,14 +1986,14 @@ static ssize_t lcd_show(struct device *dev, struct device_attribute *attr,
 		 (int)(&regs->vsync_ctrl) & 0xfff,
 		 readl(&regs->vsync_ctrl));
 	pr_info("\tdma_ctrl0     ( @%3x ) 0x%x\n",
-		 (int)(dma_ctrl(0, fbi->id)) & 0xfff,
-		 dma_ctrl_read(fbi->id, 0));
+		 (int)(dma_ctrl(0, id)) & 0xfff,
+		 readl(fbi->reg_base + dma_ctrl0(id)));
 	pr_info("\tdma_ctrl1     ( @%3x ) 0x%x\n",
-		 (int)(dma_ctrl(1, fbi->id)) & 0xfff,
-		 dma_ctrl_read(fbi->id, 1));
+		 (int)(dma_ctrl(1, id)) & 0xfff,
+		 readl(fbi->reg_base + dma_ctrl1(id)));
 	pr_info("\tintf_ctrl     ( @%3x ) 0x%x\n",
-		 (int)(intf_ctrl(fbi->id)) & 0xfff,
-		 readl(fbi->reg_base + intf_ctrl(fbi->id)));
+		 (int)(intf_ctrl(id)) & 0xfff,
+		 readl(fbi->reg_base + intf_ctrl(id)));
 	pr_info("\tirq_enable    ( @%3x ) 0x%8x\n",
 		 (int)(SPU_IRQ_ENA) & 0xfff,
 		 readl(fbi->reg_base + SPU_IRQ_ENA));
@@ -1995,8 +2001,8 @@ static ssize_t lcd_show(struct device *dev, struct device_attribute *attr,
 		 (int)(SPU_IRQ_ISR) & 0xfff,
 		 readl(fbi->reg_base + SPU_IRQ_ISR));
 	pr_info("\tclk_div       ( @%3x ) 0x%x\n",
-		 (int)(clk_div(fbi->id)) & 0xfff,
-		 readl(fbi->reg_base + clk_div(fbi->id)));
+		 (int)(clk_div(id)) & 0xfff,
+		 readl(fbi->reg_base + clk_div(id)));
 	/* TV path registers */
 	if (fbi->id == 1) {
 		pr_info("\ntv path interlace related:\n");
@@ -2012,6 +2018,15 @@ static ssize_t lcd_show(struct device *dev, struct device_attribute *attr,
 	}
 
 	pr_info("\n");
+
+#ifdef CONFIG_PXA688_MISC
+	if (fbi->id == fb_vsmooth && !vsmooth_show) {
+		id = fb_filter;
+		vsmooth_show = 1;
+		pr_info("========== fb_vsmooth = %d ==========\n", fb_vsmooth);
+		goto again;
+	}
+#endif
 
 	return sprintf(buf, "fb %d: active %d, debug %d\n",\
 			 fbi->id, fbi->active, fbi->debug);
