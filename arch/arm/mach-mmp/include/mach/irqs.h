@@ -244,6 +244,7 @@
 
 #define IRQ_MMP3_START			32
 #define IRQ_MMP3_NONE			(-1)
+#define IRQ_MMP3_SSP1			(IRQ_MMP3_START + 0)
 #define IRQ_MMP3_SSP2			(IRQ_MMP3_START + 1)
 #define IRQ_MMP3_SSPA1			(IRQ_MMP3_START + 2)
 #define IRQ_MMP3_SSPA2			(IRQ_MMP3_START + 3)

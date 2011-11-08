@@ -156,6 +156,7 @@ enum pxa_ssp_type {
 	PXA27x_SSP,
 	PXA168_SSP,
 	PXA910_SSP,
+	MMP_SSP,
 };
 
 struct mmp2_sspa_registers {

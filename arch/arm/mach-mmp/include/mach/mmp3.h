@@ -10,6 +10,7 @@ extern void __init mmp3_reserve(void);
 
 #include <linux/i2c.h>
 #include <linux/i2c/pxa-i2c.h>
+#include <linux/spi/pxa2xx_spi.h>
 #include <mach/devices.h>
 #include <mach/cputype.h>
 #include <mach/regs-apbc.h>
@@ -68,6 +69,11 @@ extern struct pxa_device_desc mmp3_device_videosram;
 extern struct platform_device mmp3_device_rtc;
 extern struct pxa_device_desc mmp3_device_sspa1;
 extern struct pxa_device_desc mmp3_device_sspa2;
+extern struct pxa_device_desc mmp3_device_ssp1;
+extern struct pxa_device_desc mmp3_device_ssp2;
+extern struct pxa_device_desc mmp3_device_ssp3;
+extern struct pxa_device_desc mmp3_device_ssp4;
+
 extern struct pxa_device_desc mmp3_device_audiosram;
 extern struct platform_device mmp3_device_u2o;
 extern struct platform_device mmp3_device_u2ootg;
@@ -90,6 +96,36 @@ static inline void mmp3_io_domain_1v8(u16 reg, int set)
 	writel(MAGIC_ASFAR, APBC_MMP2_ASFAR);
 	writel(MAGIC_ASSAR, APBC_MMP2_ASSAR);
 	writel(tmp, IOPWRDOM_VIRT_BASE + reg);
+}
+
+static inline int mmp3_add_ssp(int id)
+{
+	struct pxa_device_desc *d = NULL;
+
+	switch (id) {
+		case 1: d = &mmp3_device_ssp1; break;
+		case 2: d = &mmp3_device_ssp2; break;
+		case 3: d = &mmp3_device_ssp3; break;
+		case 4: d = &mmp3_device_ssp4; break;
+		default:
+		return -EINVAL;
+	}
+
+	return pxa_register_device(d, NULL, 0);
+}
+
+static inline int mmp3_add_spi(int id, struct pxa2xx_spi_master *pdata)
+{
+	struct platform_device *pd;
+	pd = platform_device_alloc("pxa2xx-spi", id);
+	if (pd == NULL) {
+		pr_err("pxa2xx-spi: failed to allocate device (id=%d)\n", id);
+		return -ENOMEM;
+	}
+
+	platform_device_add_data(pd, pdata, sizeof(*pdata));
+
+	return platform_device_add(pd);
 }
 
 static inline int mmp3_add_uart(int id)

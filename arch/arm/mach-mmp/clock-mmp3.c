@@ -2848,6 +2848,15 @@ static struct clk mmp3_list_clks[] = {
 			0, 26000000, &mmp3_clk_vctcxo),
 	APBC_CLK("keypad", "pxa27x-keypad", NULL, MMP2_KPC,
 			0, 32768, &mmp3_clk_32k),
+
+	APBC_CLK("ssp.1", "mmp-ssp.1", NULL, MMP2_SSP1,
+		0, 6500000, &mmp3_clk_vctcxo),
+	APBC_CLK("ssp.2", "mmp-ssp.2", NULL, MMP2_SSP2,
+		0, 6500000, &mmp3_clk_vctcxo),
+	APBC_CLK("ssp.3", "mmp-ssp.3", NULL, MMP2_SSP3,
+		0, 6500000, &mmp3_clk_vctcxo),
+	APBC_CLK("ssp.4", "mmp-ssp.4", NULL, MMP2_SSP4,
+		0, 6500000, &mmp3_clk_vctcxo),
 	/*
 	 * Bit 7 in APBC_RTC_CLK_RST must be set before enabling
 	 * RTC operations.
