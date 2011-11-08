@@ -728,6 +728,14 @@ static void clk_pxa95x_lcd_disable(struct clk *dsi_clk)
 		| (1 << (CKEN_PIXEL - 64)));
 }
 
+static int is_wkr_dma_clock(void)
+{
+	if (cpu_is_pxa978())
+		return 1;
+	else
+		return 0;
+}
+
 static int clk_axi_enable(struct clk *clk)
 {
 	CKENC |= (1 << (CKEN_AXI - 64)) | (1 << (CKEN_AXI_2X -64));
@@ -736,7 +744,10 @@ static int clk_axi_enable(struct clk *clk)
 
 static void clk_axi_disable(struct clk *clk)
 {
-	CKENC &= ~(1 << (CKEN_AXI - 64) | (1 << (CKEN_AXI_2X - 64)));
+	if (is_wkr_dma_clock())
+		CKENC &= ~(1 << (CKEN_AXI - 64));
+	else
+		CKENC &= ~((1 << (CKEN_AXI - 64)) | (1 << (CKEN_AXI_2X -64)));
 }
 
 static int clk_imu_axi_enable(struct clk *clk)
@@ -1377,7 +1388,6 @@ static int __init pxa95x_init(void)
 			| (1 << (CKEN_IMU - 64))
 			| (1 << (CKEN_I2C2 - 64))
 			| (1 << (CKEN_I2C3 - 64))
-			| (1 << (CKEN_AXI_2X - 64))
 			| (1 << (CKEN_SCI1 - 64))
 			| (1 << (CKEN_SCI2 - 64))
 			| (1 << (CKEN_CSI_TX - 64))
@@ -1388,6 +1398,9 @@ static int __init pxa95x_init(void)
 			| (1 << (CKEN_DISPLAY - 64))
 			| (1 << (CKEN_PIXEL - 64))
 			| (1 << (CKEN_AXI - 64)));
+
+	if (!is_wkr_dma_clock())
+		CKENC &= ~(1 << (CKEN_AXI_2X - 64));
 
 	mfp_init_base(io_p2v(MFPR_BASE));
 	if (cpu_is_pxa978())
