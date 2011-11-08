@@ -44,6 +44,11 @@
 #include <mach/soc_vmeta.h>
 #include <mach/tc35876x.h>
 #include <mach/uio_hdmi.h>
+#if defined(CONFIG_SPI_PXA2XX)
+#include <linux/spi/spi.h>
+#include <linux/spi/pxa2xx_spi.h>
+#include <linux/spi/ntrig_spi.h>
+#endif
 #include <plat/usb.h>
 #include <media/soc_camera.h>
 #include <mach/sram.h>
@@ -144,6 +149,14 @@ static unsigned long yellowstone_pin_config[] __initdata = {
 
 	/* HDMI */
 	GPIO54_HDMI_CEC,
+
+	/* SSP4 */
+	GPIO78_SSP_CLK,
+	GPIO79_SSP_FRM,
+	GPIO80_SSP_TXD,
+	GPIO81_SSP_RXD,
+	GPIO101_GPIO, /* TS INT*/
+	GPIO85_GPIO, /* TS_IO_EN */
 };
 
 static unsigned long mmc1_pin_config[] __initdata = {
@@ -945,6 +958,100 @@ static void __init mmp_init_vmeta(void)
 }
 #endif
 
+#if (defined(CONFIG_SPI_PXA2XX) || defined(CONFIG_SPI_PXA2XX_MODULE)) \
+       && defined(CONFIG_NTRIG_SPI)
+static int ntrig_set_power(int on)
+{
+	struct regulator *v_ldo16;
+	v_ldo16 = regulator_get(NULL, "v_ldo16");
+	if (IS_ERR(v_ldo16)) {
+		v_ldo16 = NULL;
+		pr_err("%s: enable ldo16 for touch fail!\n", __func__);
+		return -EIO;
+	}
+	else {
+		if (on) {
+			regulator_set_voltage(v_ldo16, 3300000, 3300000);
+			regulator_enable(v_ldo16);
+		}
+		else {
+			regulator_disable(v_ldo16);
+			v_ldo16 = NULL;
+		}
+		msleep(100);
+		regulator_put(v_ldo16);
+	}
+	return 1;
+}
+
+static struct pxa2xx_spi_master pxa_ssp_master_info = {
+	.num_chipselect = 1,
+	.enable_dma = 1,
+};
+
+static struct pxa2xx_spi_chip touch_spi_device = {
+	.tx_threshold = 1,
+	.rx_threshold = 1,
+};
+static struct ntrig_spi_platform_data ntrig_data = {
+	.oe_gpio = mfp_to_gpio(GPIO85_GPIO), /*magic number print from vendor's code*/
+	.oe_inverted = 1,/*magic number print from vendor's code*/
+	.pwr_gpio = -1,
+	.irq_flags = IRQF_DISABLED | IRQF_TRIGGER_RISING,
+	.set_power = ntrig_set_power,
+};
+
+static struct spi_board_info __initdata ntrig_spi_board_info[] = {
+	{
+		.modalias = "ntrig_spi",
+		.bus_num = 5,
+		.chip_select = 0,
+		.mode = SPI_MODE_0,
+		.max_speed_hz = 13000000,
+		.platform_data = &ntrig_data,
+		.irq = IRQ_GPIO(mfp_to_gpio(GPIO101_GPIO)),
+		.controller_data = &touch_spi_device,
+	},
+};
+
+static int ntrig_gpio_set(void)
+{
+	int gpio = mfp_to_gpio(GPIO101_GPIO);
+
+	if (gpio_request(gpio, "N-trig irq")) {
+			pr_err("gpio %d request failed\n", gpio);
+			return -1;
+	}
+	gpio_direction_input(gpio);
+
+	gpio = mfp_to_gpio(GPIO85_GPIO);
+	if (gpio_request(gpio, "N-trig Power")) {
+		pr_err("gpio %d request failed\n", gpio);
+		return -1;
+	}
+
+	gpio_direction_output(gpio, 0);
+	mdelay(1);
+	gpio_free(gpio);
+
+	return 0;
+}
+
+static void __init mmp3_init_spi(void)
+{
+
+	ntrig_gpio_set();
+	mmp3_add_ssp(4);
+	mmp3_add_spi(5, &pxa_ssp_master_info);
+
+	if ((spi_register_board_info(ntrig_spi_board_info, ARRAY_SIZE(ntrig_spi_board_info))) != 0)
+			pr_err("%s: spi_register_board_info returned error\n", __func__);
+}
+#else
+static inline void mmp3_init_spi(void) {
+}
+#endif
+
 static void __init yellowstone_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(yellowstone_pin_config));
@@ -981,6 +1088,7 @@ static void __init yellowstone_init(void)
 #ifdef CONFIG_MMC_SDHCI_PXAV3
 	yellowstone_init_mmc();
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
+	mmp3_init_spi();
 
 	platform_device_register(&mmp3_device_rtc);
 
