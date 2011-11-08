@@ -155,7 +155,11 @@ int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card,
 			bouncesz = host->max_blk_count * 512;
 
 		if (bouncesz > 512) {
+#ifndef CONFIG_PXA910_1G_DDR_WORKAROUND
 			mq->bounce_buf = kmalloc(bouncesz, GFP_KERNEL);
+#else
+			mq->bounce_buf = kmalloc(bouncesz, GFP_KERNEL | GFP_DMA);
+#endif
 			if (!mq->bounce_buf) {
 				printk(KERN_WARNING "%s: unable to "
 					"allocate bounce buffer\n",

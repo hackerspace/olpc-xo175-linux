@@ -10,7 +10,9 @@
  */
 
 #include <linux/scatterlist.h>
-
+#ifdef CONFIG_PXA910_1G_DDR_WORKAROUND
+#include <linux/slab.h>
+#endif
 #include <linux/mmc/host.h>
 #include <linux/mmc/card.h>
 #include <linux/mmc/mmc.h>
@@ -125,6 +127,9 @@ int mmc_io_rw_extended(struct mmc_card *card, int write, unsigned fn,
 	struct mmc_command cmd = {0};
 	struct mmc_data data = {0};
 	struct scatterlist sg;
+#ifdef CONFIG_PXA910_1G_DDR_WORKAROUND
+	u8 *bounce_buf;
+#endif
 
 	BUG_ON(!card);
 	BUG_ON(fn > 7);
@@ -156,11 +161,29 @@ int mmc_io_rw_extended(struct mmc_card *card, int write, unsigned fn,
 	data.sg = &sg;
 	data.sg_len = 1;
 
+#ifndef CONFIG_PXA910_1G_DDR_WORKAROUND
 	sg_init_one(&sg, buf, blksz * blocks);
+#else
+	bounce_buf = kmalloc(blksz * blocks, GFP_KERNEL | GFP_DMA);
+	if (!bounce_buf) {
+		printk(KERN_WARNING "%s: unable to allocate bounce buffer\n",
+			mmc_card_name(card));
+		return -ENOMEM;
+	}
+	if (write)
+		memcpy(bounce_buf, buf, blksz * blocks);
+	sg_init_one(&sg, bounce_buf, blksz * blocks);
+#endif
 
 	mmc_set_data_timeout(&data, card);
 
 	mmc_wait_for_req(card->host, &mrq);
+
+#ifdef CONFIG_PXA910_1G_DDR_WORKAROUND
+	if (!write)
+		memcpy(buf, bounce_buf, blksz * blocks);
+	kfree(bounce_buf);
+#endif
 
 	if (cmd.error)
 		return cmd.error;
