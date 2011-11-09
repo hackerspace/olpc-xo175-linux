@@ -1092,6 +1092,10 @@ static void __init yellowstone_init(void)
 
 	platform_device_register(&mmp3_device_rtc);
 
+	/* audio sspa support */
+	mmp3_add_sspa(1);
+	mmp3_add_sspa(2);
+
 #if defined(CONFIG_VIDEO_MV)
 	platform_device_register(&abilene_ov5642);
 	mmp3_add_cam(1, &mv_cam_data);
