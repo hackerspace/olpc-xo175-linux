@@ -36,6 +36,7 @@
 #include <mach/regs-usb.h>
 #include <mach/soc_vmeta.h>
 #include <mach/mmp_dma.h>
+#include <linux/memblock.h>
 
 #include <linux/platform_device.h>
 
@@ -96,6 +97,11 @@ static struct mfp_addr_map mmp3_addr_map[] __initdata = {
 
 void __init mmp3_reserve(void)
 {
+	/*
+	 * reserve first page for uboot bootstrap.
+	 * otherwise unused core may run unpredictable instruction.
+	 */
+	BUG_ON(memblock_reserve(0x0, 0x1000));
 	/*reserve memory for pmem*/
 	pxa_reserve_pmem_memblock();
 }
