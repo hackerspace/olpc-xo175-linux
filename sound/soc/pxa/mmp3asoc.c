@@ -713,7 +713,7 @@ static int __init mmp3asoc_init(void)
 {
 	int i, ret[2];
 
-	if (!machine_is_abilene())
+	if (!machine_is_abilene() && !machine_is_yellowstone())
 		return -ENODEV;
 
 	for (i = 0; i < 2; i++) {
