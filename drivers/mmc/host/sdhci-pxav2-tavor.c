@@ -282,8 +282,8 @@ static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
 		goto err_clk_get;
 	}
 
-	host->quirks = SDHCI_QUIRK_BROKEN_ADMA
-	    | SDHCI_QUIRK_BROKEN_TIMEOUT_VAL;
+	host->quirks = SDHCI_QUIRK_NO_ENDATTR_IN_NOPDESC
+			| SDHCI_QUIRK_BROKEN_TIMEOUT_VAL;
 
 	if (pdata) {
 		if (pdata->flags & PXA_FLAG_CARD_PERMANENT) {
