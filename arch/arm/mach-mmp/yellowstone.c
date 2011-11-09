@@ -24,6 +24,8 @@
 #include <linux/regulator/machine.h>
 #include <linux/regulator/driver.h>
 #include <linux/regulator/ds4432.h>
+#include <linux/mfd/wm8994/pdata.h>
+#include <linux/regulator/fixed.h>
 #if defined(CONFIG_SENSORS_LSM303DLHC_ACC) || \
 	defined(CONFIG_SENSORS_LSM303DLHC_MAG)
 #include <linux/i2c/lsm303dlhc.h>
@@ -75,9 +77,6 @@ static unsigned long yellowstone_pin_config[] __initdata = {
 	/* TWSI2 */
 	GPIO43_TWSI2_SCL,
 	GPIO44_TWSI2_SDA,
-	/* TWSI3 */
-	GPIO71_TWSI3_SCL,
-	GPIO72_TWSI3_SDA,
 
 	/* TWSI3 */
 	GPIO71_TWSI3_SCL,
@@ -138,6 +137,7 @@ static unsigned long yellowstone_pin_config[] __initdata = {
 	GPIO22_KP_DKIN6 | MFP_PULL_HIGH,
 
 	PMIC_PMIC_INT | MFP_LPM_EDGE_FALL,
+	GPIO06_WM8994_LDOEN,
 
 	GPIO128_LCD_RST,
 
@@ -711,6 +711,154 @@ static struct i2c_board_info yellowstone_twsi6_info[] = {
 	},
 };
 
+static int wm8994_ldoen(void)
+{
+	int gpio = mfp_to_gpio(GPIO06_WM8994_LDOEN);
+
+	if (gpio_request(gpio, "wm8994 ldoen gpio")) {
+		printk(KERN_INFO "gpio %d request failed\n", gpio);
+		return -1;
+	}
+
+	gpio_direction_output(gpio, 1);
+	mdelay(1);
+	gpio_free(gpio);
+
+	return 0;
+}
+
+static struct regulator_consumer_supply yellowstone_wm8994_regulator_supply[]
+							= {
+	[0] = {
+		.supply = "AVDD1",
+		},
+	[1] = {
+		.supply = "DCVDD",
+		},
+};
+
+struct regulator_init_data yellowstone_wm8994_regulator_init_data[] = {
+	[0] = {
+		.constraints = {
+				.name = "wm8994-ldo1",
+				.min_uV = 2400000,
+				.max_uV = 3100000,
+				.always_on = 1,
+				.boot_on = 1,
+				},
+		.num_consumer_supplies = 1,
+		.consumer_supplies = &yellowstone_wm8994_regulator_supply[0],
+		},
+	[1] = {
+		.constraints = {
+				.name = "wm8994-ldo2",
+				.min_uV = 900000,
+				.max_uV = 1200000,
+				.always_on = 1,
+				.boot_on = 1,
+				},
+		.num_consumer_supplies = 1,
+		.consumer_supplies = &yellowstone_wm8994_regulator_supply[1],
+		},
+};
+
+struct wm8994_pdata yellowstone_wm8994_pdata = {
+	.ldo[0] = {
+			.enable = 0,
+			.init_data = &yellowstone_wm8994_regulator_init_data[0],
+			.supply = "AVDD1",
+
+		},
+	.ldo[1] = {
+		.enable = 0,
+		.init_data = &yellowstone_wm8994_regulator_init_data[1],
+		.supply = "DCVDD",
+
+		},
+};
+
+static struct regulator_consumer_supply yellowstone_fixed_regulator_supply[] = {
+	[0] = {
+		.supply = "SPKVDD1",
+		},
+	[1] = {
+		.supply = "SPKVDD2",
+		},
+};
+
+static struct i2c_board_info yellowstone_twsi3_info[] = {
+	{
+	 .type = "wm8994",
+	 .addr = 0x1a,
+	 .platform_data = &yellowstone_wm8994_pdata,
+	 },
+};
+
+struct regulator_init_data yellowstone_fixed_regulator_init_data[] = {
+	[0] = {
+		.constraints = {
+				.name = "wm8994-SPK1",
+				.always_on = 1,
+				.boot_on = 1,
+				},
+		.num_consumer_supplies = 1,
+		.consumer_supplies = &yellowstone_fixed_regulator_supply[0],
+		},
+	[1] = {
+		.constraints = {
+				.name = "wm8994-SPK2",
+				.always_on = 1,
+				.boot_on = 1,
+				},
+		.num_consumer_supplies = 1,
+		.consumer_supplies = &yellowstone_fixed_regulator_supply[1],
+		},
+};
+
+struct fixed_voltage_config yellowstone_fixed_pdata[2] = {
+	[0] = {
+		.supply_name = "SPKVDD1",
+		.microvolts = 3700000,
+		.init_data = &yellowstone_fixed_regulator_init_data[0],
+		.gpio = -1,
+		},
+	[1] = {
+		.supply_name = "SPKVDD2",
+		.microvolts = 3700000,
+		.init_data = &yellowstone_fixed_regulator_init_data[1],
+		.gpio = -1,
+		},
+};
+
+static struct platform_device fixed_device[] = {
+	[0] = {
+		.name = "reg-fixed-voltage",
+		.id = 0,
+		.dev = {
+			.platform_data = &yellowstone_fixed_pdata[0],
+			},
+		.num_resources = 0,
+		},
+	[1] = {
+		.name = "reg-fixed-voltage",
+		.id = 1,
+		.dev = {
+			.platform_data = &yellowstone_fixed_pdata[1],
+			},
+		.num_resources = 0,
+		},
+};
+
+static struct platform_device *fixed_rdev[] __initdata = {
+	&fixed_device[0],
+	&fixed_device[1],
+};
+
+static void yellowstone_fixed_regulator(void)
+{
+	platform_add_devices(fixed_rdev, ARRAY_SIZE(fixed_rdev));
+}
+
 #ifdef CONFIG_SD8XXX_RFKILL
 static void mmp3_8787_set_power(unsigned int on)
 {
@@ -1097,6 +1245,10 @@ static void __init yellowstone_init(void)
 	mmp3_init_spi();
 
 	platform_device_register(&mmp3_device_rtc);
+
+	mmp3_add_twsi(3, NULL, ARRAY_AND_SIZE(yellowstone_twsi3_info));
+	yellowstone_fixed_regulator();
+	wm8994_ldoen();
 
 	/* audio sspa support */
 	mmp3_add_sspa(1);
