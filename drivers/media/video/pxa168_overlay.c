@@ -782,7 +782,7 @@ again:
 		rb = 1;
 		break;
 	default:
-		printk(KERN_INFO "unknown mode");
+		pr_info("unknown mode");
 		return -1;
 	}
 
@@ -958,6 +958,22 @@ static void buffer_queue(struct vb2_buffer *vb)
 	spin_unlock_irqrestore(&ovly->vbq_lock, flags);
 }
 
+/* Buffer cleanup funtion will be called from the videobuf layer
+ * when REQBUFS(0) ioctl is called. It is used to cleanup the buffer
+ * queue which driver maintaining. */
+static void buffer_cleanup(struct vb2_buffer *vb)
+{
+	struct pxa168_overlay *ovly = vb2_get_drv_priv(vb->vb2_queue);
+	struct list_head *pos, *n;
+	unsigned long flags = 0;
+
+	/* Driver is also maintainig a queue. So clearup the driver queue */
+	spin_lock_irqsave(&ovly->vbq_lock, flags);
+	list_for_each_safe(pos, n, &ovly->dma_queue) {
+		list_del(pos);
+	}
+	spin_unlock_irqrestore(&ovly->vbq_lock, flags);
+}
 static int start_streaming(struct vb2_queue *vq)
 {
 	struct pxa168_overlay *ovly = vb2_get_drv_priv(vq);
@@ -992,6 +1008,7 @@ static struct vb2_ops video_vbq_ops = {
 	.buf_prepare            = buffer_prepare,
 	.buf_finish             = buffer_finish,
 	.buf_queue              = buffer_queue,
+	.buf_cleanup		= buffer_cleanup,
 	.start_streaming        = start_streaming,
 	.stop_streaming         = stop_streaming,
 	.wait_prepare           = pxa168_unlock,
@@ -1193,7 +1210,9 @@ static int vidioc_s_fmt_vid_out_mplane(struct file *file, void *fh,
 {
 	struct pxa168_overlay *ovly = fh;
 	struct vb2_queue *q = &ovly->vbq;
+	spinlock_t *vbq_lock = &ovly->vbq_lock;
 	struct lcd_regs *regs = get_regs(ovly->id);
+	unsigned long flags = 0;
 	unsigned int x;
 	int ret = 0;
 
@@ -1205,6 +1224,7 @@ static int vidioc_s_fmt_vid_out_mplane(struct file *file, void *fh,
 	}
 
 	mutex_lock(&ovly->lock);
+	spin_lock_irqsave(vbq_lock, flags);
 	if (V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE == f->type) {
 		ovly->hdmi3d = 1;
 		q->type = ovly->type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
@@ -1239,6 +1259,7 @@ static int vidioc_s_fmt_vid_out_mplane(struct file *file, void *fh,
 	}
 	pix_to_pixmp(&ovly->pix, &f->fmt.pix_mp);
 s_fmt:
+	spin_unlock_irqrestore(vbq_lock, flags);
 	mutex_unlock(&ovly->lock);
 	return ret;
 }
@@ -1264,23 +1285,24 @@ static int vidioc_s_fmt_vid_overlay(struct file *file, void *fh,
 				    struct v4l2_format *f)
 {
 	struct pxa168_overlay *ovly = fh;
-	int err = -EINVAL;
 	struct v4l2_window *win = &f->fmt.win;
+	spinlock_t *vbq_lock = &ovly->vbq_lock;
+	unsigned long flags = 0;
+	int ret = 0;
 
 	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: In %s\n", ovly->id, __func__);
-	mutex_lock(&ovly->lock);
 
-	err = pxa168_ovly_new_window(&ovly->crop, &ovly->win, &ovly->fbuf, win);
-	if (err) {
-		mutex_unlock(&ovly->lock);
-		return err;
-	}
+	mutex_lock(&ovly->lock);
+	spin_lock_irqsave(vbq_lock, flags);
+
+	ret = pxa168_ovly_new_window(&ovly->crop, &ovly->win, &ovly->fbuf, win);
+	if (ret)
+		goto out;
 	/* Save the changes in the overlay strcuture and set controller */
-	err = pxa168vid_init(ovly);
-	if (err) {
+	ret = pxa168vid_init(ovly);
+	if (ret) {
 		printk(KERN_ERR VOUT_NAME "failed to change mode\n");
-		mutex_unlock(&ovly->lock);
-		return err;
+		goto out;
 	}
 
 	if (ovly->trans_enabled) {
@@ -1312,13 +1334,14 @@ static int vidioc_s_fmt_vid_overlay(struct file *file, void *fh,
 	}
 
 	pxa168_ovly_set_colorkeyalpha(ovly);
-
+out:
+	spin_unlock_irqrestore(vbq_lock, flags);
+	mutex_unlock(&ovly->lock);
 	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: chromakey %d, "
 		"global_alpha %d\n", ovly->id, ovly->win.chromakey,
 		 ovly->win.global_alpha);
 
-	mutex_unlock(&ovly->lock);
-	return 0;
+	return ret;
 }
 
 static int vidioc_enum_fmt_vid_overlay(struct file *file, void *fh,
@@ -1395,6 +1418,8 @@ static int vidioc_s_crop(struct file *file, void *fh, struct v4l2_crop *crop)
 {
 	struct pxa168_overlay *ovly = fh;
 	struct mutex *ovly_lock = &ovly->lock;
+	spinlock_t *vbq_lock = &ovly->vbq_lock;
+	unsigned long flags = 0;
 	int err = -EINVAL;
 
 	if (ovly->streaming)
@@ -1404,6 +1429,7 @@ static int vidioc_s_crop(struct file *file, void *fh, struct v4l2_crop *crop)
 
 	/*if (crop->type == BUF_TYPE) {*/
 	if (1) {
+		spin_lock_irqsave(vbq_lock, flags);
 again:
 		err = pxa168_ovly_new_crop(&ovly->pix, &ovly->crop, &ovly->win,
 					   &ovly->fbuf, &crop->c);
@@ -1414,7 +1440,7 @@ again:
 			ovly = v4l2_ovly[fb_dual];
 			goto again;
 		}
-
+		spin_unlock_irqrestore(vbq_lock, flags);
 		mutex_unlock(ovly_lock);
 		return err;
 	} else {
@@ -1485,6 +1511,7 @@ static int vidioc_reqbufs(struct file *file, void *fh,
 {
 	struct pxa168_overlay *ovly = fh;
 	struct vb2_queue *q = &ovly->vbq;
+	unsigned long flags = 0;
 
 	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: %s\n", ovly->id, __func__);
 	/* if memory is not mmp or userptr
@@ -1497,8 +1524,9 @@ static int vidioc_reqbufs(struct file *file, void *fh,
 	if ((req->type != BUF_TYPE) || (req->count < 0))
 		return -EINVAL;
 		*/
-
+	spin_lock_irqsave(&ovly->vbq_lock, flags);
 	INIT_LIST_HEAD(&ovly->dma_queue);
+	spin_unlock_irqrestore(&ovly->vbq_lock, flags);
 
 	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: %s: vb2_reqbufs\n",
 		 ovly->id, __func__);
@@ -1571,6 +1599,8 @@ static int vidioc_streamon(struct file *file, void *fh, enum v4l2_buf_type i)
 	struct pxa168_overlay *ovly = fh;
 	struct vb2_queue *q = &ovly->vbq;
 	struct mutex *ovly_lock = &ovly->lock;
+	spinlock_t *vbq_lock = &ovly->vbq_lock;
+	unsigned long flags = 0;
 	int ret = 0;
 
 	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: enter stream on!\n",
@@ -1580,14 +1610,19 @@ static int vidioc_streamon(struct file *file, void *fh, enum v4l2_buf_type i)
 		return -EBUSY;
 
 	mutex_lock(ovly_lock);
+
 	ret = vb2_streamon(q, i);
 	if (ret < 0)
 		goto stream_on;
 
+	spin_lock_irqsave(vbq_lock, flags);
+	if (list_empty(&ovly->dma_queue)) {
+		ret = -EINVAL;
+		goto out;
+	}
 	/* Get the next frame from the buffer queue */
-	ovly->cur_frm = list_entry(ovly->dma_queue.next,
+	ovly->cur_frm = list_first_entry(&ovly->dma_queue,
 			struct pxa168_buf, list);
-
 	/* Remove buffer from the buffer queue */
 	list_del(&ovly->cur_frm->list);
 #if 0
@@ -1624,11 +1659,12 @@ again:
 			"mode\n", ovly->id);
 		goto again;
 	}
-
+out:
+	spin_unlock_irqrestore(vbq_lock, flags);
 stream_on:
+	mutex_unlock(ovly_lock);
 	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: leave stream on!\n",
 		 ovly->id);
-	mutex_unlock(ovly_lock);
 	return ret;
 }
 
@@ -1644,8 +1680,8 @@ static int vidioc_streamoff(struct file *file, void *fh, enum v4l2_buf_type i)
 
 	mutex_lock(ovly_lock);
 	/* We have to hack in clone mode to avoid lock/unlock different ovly. */
-	spin_lock_irqsave(vbq_lock, flags);
 	vb2_streamoff(&ovly->vbq, i);
+	spin_lock_irqsave(vbq_lock, flags);
 again:
 	ovly->streaming = 0;
 	if (OVLY_MODE_DUP) {
@@ -1800,9 +1836,9 @@ irqreturn_t pxa168_ovly_isr(int id)
 	}
 
 	vb2_buffer_done(&ovly->cur_frm->vb, VB2_BUF_STATE_DONE);
-
-	ovly->cur_frm = list_entry(ovly->dma_queue.next,
+	ovly->cur_frm = list_first_entry(&ovly->dma_queue,
 			struct pxa168_buf, list);
+
 	list_del(&ovly->cur_frm->list);
 
 	ovly->paddr[0] =
@@ -1993,14 +2029,12 @@ void pxa168_ovly_dual(int enable)
 	struct pxa168_buf *frm;
 	unsigned long flags = 0;
 
-	if (!ovly_dual)
-		return;
-
-	if (!ovly_base->streaming)
+	if (fb_share || !ovly_dual || !ovly_base->streaming)
 		return;
 
 	pr_info("%s enable %d\n", __func__, enable);
 
+	spin_lock_irqsave(&ovly_base->vbq_lock, flags);
 	if (enable) {
 		ovly_dual->streaming = ovly_base->streaming;
 		pxa168vid_init(ovly_base);
@@ -2009,10 +2043,9 @@ void pxa168_ovly_dual(int enable)
 	} else {
 		/* disable video layer DMA */
 		dma_ctrl_set(fb_dual, 0, CFG_DMA_ENA_MASK, 0);
+
 		ovly_dual->streaming = 0;
 		ovly_base->cur_frm->to_show &= ~vid_imask(fb_dual);
-
-		spin_lock_irqsave(&ovly_base->vbq_lock, flags);
 		dma_queue = &ovly_base->dma_queue;
 		if (!list_empty(dma_queue)) {
 			frm = list_entry(dma_queue->next,
@@ -2021,8 +2054,8 @@ void pxa168_ovly_dual(int enable)
 				frm->to_show &= ~vid_imask(fb_dual);
 			dma_queue = dma_queue->next;
 		}
-		spin_unlock_irqrestore(&ovly_base->vbq_lock, flags);
 	}
+	spin_unlock_irqrestore(&ovly_base->vbq_lock, flags);
 }
 
 static int __init pxa168_ovly_probe(struct platform_device *pdev)
