@@ -19,6 +19,7 @@
 
 #define SSPA1_GET_VALUE 0
 #define HPD_PIN_READ 6
+#define EDID_NUM 1
 
 enum connect_lock {
 	UNLOCK = 0,
@@ -29,6 +30,7 @@ enum connect_lock {
 struct uio_hdmi_platform_data {
 	u32 sspa_reg_base;
 	u32 gpio;
+	u32 edid_bus_num;
 };
 
 #endif

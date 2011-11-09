@@ -33,6 +33,7 @@ struct hdmi_instance {
 	void *reg_base;
 	void *sspa1_reg_base;
 	unsigned int gpio;
+	unsigned int edid_bus_num;
 	struct work_struct work;
 	struct delayed_work hpd_work;
 	struct uio_info uio_info;
@@ -91,6 +92,12 @@ static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 			return -EFAULT;
 		}
 		break;
+	case EDID_NUM:
+		if (copy_to_user(argp, &hi->edid_bus_num,
+					sizeof(unsigned int))) {
+			pr_err("copy to user error !\n");
+			return -EFAULT;
+		}
 	}
 	return 0;
 }
@@ -238,6 +245,9 @@ static int hdmi_probe(struct platform_device *pdev)
 	hi->uio_info.irq_flags = IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING;
 	hi->uio_info.handler = hpd_handler;
 	hi->gpio = pdata->gpio;
+	hi->edid_bus_num = pdata->edid_bus_num;
+	if (hi->edid_bus_num == 0)
+		hi->edid_bus_num = 6;
 
 	ret = gpio_request(pdata->gpio, pdev->name);
 	if (ret < 0)
