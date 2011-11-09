@@ -935,6 +935,12 @@ static struct uio_hdmi_platform_data mmp3_hdmi_info __initdata = {
 	.gpio = mfp_to_gpio(GPIO59_HDMI_DET),
 };
 #endif
+
+static struct sram_bank mmp3_audiosram_info = {
+	.pool_name = "audio sram",
+	.step = AUDIO_SRAM_GRANULARITY,
+};
+
 static struct sram_bank mmp3_videosram_info = {
 	.pool_name = "mmp-videosram",
 	.step = VIDEO_SRAM_GRANULARITY,
@@ -1095,6 +1101,7 @@ static void __init yellowstone_init(void)
 	/* audio sspa support */
 	mmp3_add_sspa(1);
 	mmp3_add_sspa(2);
+	mmp3_add_audiosram(&mmp3_audiosram_info);
 
 #if defined(CONFIG_VIDEO_MV)
 	platform_device_register(&abilene_ov5642);
