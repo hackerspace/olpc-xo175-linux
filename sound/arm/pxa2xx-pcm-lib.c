@@ -232,9 +232,15 @@ int __pxa2xx_pcm_open(struct snd_pcm_substream *substream)
 	rtd = kzalloc(sizeof(*rtd), GFP_KERNEL);
 	if (!rtd)
 		goto out;
+#ifdef CONFIG_PXA910_1G_DDR_WORKAROUND
+	rtd->dma_desc_array =
+		dma_alloc_writecombine(substream->pcm->card->dev, PAGE_SIZE,
+				       &rtd->dma_desc_array_phys, GFP_KERNEL | GFP_DMA);
+#else
 	rtd->dma_desc_array =
 		dma_alloc_writecombine(substream->pcm->card->dev, PAGE_SIZE,
 				       &rtd->dma_desc_array_phys, GFP_KERNEL);
+#endif
 	if (!rtd->dma_desc_array)
 		goto err1;
 
@@ -280,8 +286,13 @@ int pxa2xx_pcm_preallocate_dma_buffer(struct snd_pcm *pcm, int stream)
 	buf->dev.type = SNDRV_DMA_TYPE_DEV;
 	buf->dev.dev = pcm->card->dev;
 	buf->private_data = NULL;
+#ifdef CONFIG_PXA910_1G_DDR_WORKAROUND
+	buf->area = dma_alloc_writecombine(pcm->card->dev, size,
+					   &buf->addr, GFP_KERNEL | GFP_DMA);
+#else
 	buf->area = dma_alloc_writecombine(pcm->card->dev, size,
 					   &buf->addr, GFP_KERNEL);
+#endif
 	if (!buf->area)
 		return -ENOMEM;
 	buf->bytes = size;
