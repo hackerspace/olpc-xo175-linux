@@ -343,6 +343,22 @@ static void __init mmp_init_vmeta(void)
 static int camera_sensor_power(struct device *dev, int on)
 {
 	int cam_enable = mfp_to_gpio(MFP_PIN_GPIO67);
+	struct regulator *v_ldo3;
+
+	/* We rely on mipi brige also connect the mipi signal */
+	/* v_ldo3 MIPI BRIDGE CHIP PLL, 1.2V */
+	v_ldo3 = regulator_get(NULL, "v_ldo3");
+	if (IS_ERR(v_ldo3)) {
+		v_ldo3 = NULL;
+		return -EIO;
+	}
+	if (on) {
+		regulator_set_voltage(v_ldo3, 1200000, 1200000);
+		regulator_enable(v_ldo3);
+	} else
+		regulator_disable(v_ldo3);
+
+	regulator_put(v_ldo3);
 
 	if (gpio_request(cam_enable, "CAM_ENABLE_HI_SENSOR")) {
 		printk(KERN_ERR "Request GPIO failed, gpio: %d\n", cam_enable);
