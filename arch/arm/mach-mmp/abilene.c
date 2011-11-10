@@ -396,6 +396,21 @@ static int pxa2128_cam_clk_init(struct device *dev, int init)
 	struct mv_cam_pdata *data = dev->platform_data;
 	static struct regulator *v_ldo14;
 	static struct regulator *v_ldo15;
+	unsigned long tx_clk_esc;
+	struct clk *pll1;
+
+	pll1 = clk_get(dev, "pll1");
+	if (IS_ERR(pll1)) {
+		dev_err(dev, "Could not get pll1 clock\n");
+		return PTR_ERR(pll1);
+	}
+
+	tx_clk_esc = clk_get_rate(pll1) / 1000000 / 12;
+	/* Update dphy6 according to current tx_clk_esc */
+	data->dphy[2] = ((534 * tx_clk_esc / 2000 - 1) & 0xff) << 8
+			| ((38 * tx_clk_esc / 1000 - 1) & 0xff);
+
+	clk_put(pll1);
 	if (init) {
 		if (!data->clk_enabled) {
 			data->clk = clk_get(dev, "CCICRSTCLK");
