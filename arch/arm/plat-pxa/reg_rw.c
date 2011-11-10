@@ -61,7 +61,7 @@ int pxa_reg_add(u32 pa, u32 mask)
 	r->pa = pa;
 	r->wo_mask = mask;
 	r->written = 0xffffffff & r->wo_mask;
-	r->kva = ioremap(pa,sizeof(u32));
+	r->kva = (u32) ioremap(pa,sizeof(u32));
 	r->val = readl(r->kva);
 
 	list_add(&r->list, &reg_list);
