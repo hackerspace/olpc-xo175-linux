@@ -192,7 +192,6 @@ static void ccic_enable_clk(struct mv_camera_dev *pcdev)
 	struct mv_cam_pdata *mcam = pcdev->pdev->dev.platform_data;
 	int div, ctrl1;
 
-	ccic_config_phy(pcdev, 1);
 	mcam->enable_clk(&pcdev->pdev->dev, 1);
 	div = mcam->get_mclk_src(mcam->mclk_src) / mcam->mclk_min;
 	ccic_reg_write(pcdev, REG_CLKCTRL, (mcam->mclk_src << 29) | div);
@@ -215,7 +214,6 @@ static void ccic_disable_clk(struct mv_camera_dev *pcdev)
 	struct mv_cam_pdata *mcam = pcdev->pdev->dev.platform_data;
 
 	mcam->enable_clk(&pcdev->pdev->dev, 0);
-	ccic_config_phy(pcdev, 0);
 	ccic_reg_write(pcdev, REG_CLKCTRL, 0x0);
 	ccic_reg_write(pcdev, REG_CTRL1, 0x0);
 }
@@ -392,6 +390,7 @@ static void ccic_stop_dma(struct mv_camera_dev *pcdev)
 		/* This would be bad news - what now? */
 
 	ccic_irq_disable(pcdev);
+	ccic_config_phy(pcdev, 0);
 }
 
 static void ccic_power_up(struct mv_camera_dev *pcdev)
@@ -463,6 +462,7 @@ static void mv_dma_setup(struct mv_camera_dev *pcdev)
  */
 static int mv_read_setup(struct mv_camera_dev *pcdev)
 {
+	ccic_config_phy(pcdev, 1);
 	ccic_irq_enable(pcdev);
 	mv_dma_setup(pcdev);
 	ccic_start(pcdev);
@@ -829,6 +829,12 @@ static int mv_camera_set_fmt(struct soc_camera_device *icd,
 		pcdev->frame_rate =
 			inter.interval.numerator/inter.interval.denominator;
 
+	/* Update dphy value */
+	mcam->dphy[0] = ((2 + inter.pad * 110 / 1000) & 0xff) << 8
+			| (1 + inter.pad * 35 / 1000);
+
+	dev_dbg(dev, "DPHY set as: dphy3|0x%x, dphy5|0x%x, dphy6|0x%x\n",
+			mcam->dphy[0], mcam->dphy[1], mcam->dphy[2]);
 	pix->width = mf.width;
 	pix->height = mf.height;
 	pix->field = mf.field;
