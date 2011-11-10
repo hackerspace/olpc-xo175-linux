@@ -539,22 +539,27 @@ static int ov5642_g_frame_interval(struct v4l2_subdev *sd,
 	int	m1_div_map[2]    = { 1, 2 };
 	int	seld_map[4]      = { 1, 1, 4, 5 };
 	int	divs_map[8]      = { 1, 2, 3, 4, 5, 6, 7, 8 };
+	int	divm_map[8]      = { 1, 2, 3, 4, 5, 6, 7, 8 };
+	int	divl_map[2]      = { 1, 1 };
 	int	vco_freq;
 	int	pre_div, div1to2p5;
-	int	m1_div, divp, divs, seld;
-	int sys_clk, vts, hts, frame_rate;
-	u8 val;
+	int	m1_div, divp, divs, seld, divm, divl;
+	int sys_clk, vts, hts, frame_rate, mipi_clk, mipi_lane_clk;
+	u8 val, v300f, v3010, v3011, v3012, v3029;
+
+	ov5642_read(client, 0x300f, &v300f);
+	ov5642_read(client, 0x3010, &v3010);
+	ov5642_read(client, 0x3011, &v3011);
+	ov5642_read(client, 0x3012, &v3012);
+	ov5642_read(client, 0x3029, &v3029);
 
 	/* get sensor system clk */
 	/* vco frequency */
-	ov5642_read(client, 0x3012, &val);
-	val = val&0x7;
+	val = v3012 & 0x7;
 	pre_div = pre_div_map[val];
-	ov5642_read(client, 0x3011, &val);
-	val = val&0x3f;
+	val = v3011 & 0x3f;
 	divp = val;
-	ov5642_read(client, 0x300f, &val);
-	val = val&0x3;
+	val = v300f & 0x3;
 	seld = seld_map[val];
 
 	mclk = inter->pad;
@@ -562,17 +567,28 @@ static int ov5642_g_frame_interval(struct v4l2_subdev *sd,
 	dev_dbg(&client->dev, "vco_freq: %d\n", vco_freq);
 
 	/* system clk */
-	ov5642_read(client, 0x3010, &val);
-	val = val & 0xf0;
+	val = (v3010 & 0xf0) >> 4;
 	divs = divs_map[val];
-	ov5642_read(client, 0x300f, &val);
-	val = val & 0x3;
+	val = v300f & 0x3;
 	div1to2p5 = div1to2p5_map[val];
-	ov5642_read(client, 0x3029, &val);
-	val = val & 0x1;
+	val = v3029 & 0x1;
 	m1_div = m1_div_map[val];
 
 	sys_clk = vco_freq / divs / div1to2p5 / m1_div / 4;
+
+	/* mipi clk */
+	val = v3010 & 0xf;
+	divm = divm_map[val];
+	val = (v300f & 0x4) ? 1 : 0;
+	divl = divl_map[val];
+
+	mipi_clk = vco_freq / divs / divm / divl;
+
+	/* mipi lane clk */
+	mipi_lane_clk = mipi_clk / 2 / (divl + 1);
+	inter->pad = mipi_lane_clk;
+	dev_dbg(&client->dev, "MIPI clk:0x%x, SYS clk 0x%x, MIPI Clock Lane "
+			"clk 0x%x\n", mipi_clk, sys_clk, mipi_lane_clk);
 
 	/* get sensor hts & vts */
 	ov5642_read(client, 0x380c, &val);
