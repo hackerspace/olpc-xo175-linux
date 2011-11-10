@@ -895,7 +895,7 @@ out:
 	return NULL;
 }
 
-static int ire_fsync(struct file *file, struct dentry *dentry, int datasync)
+static int ire_fsync(struct file *file, int datasync)
 {
 	struct ire_context *ctx;
 	struct ire_device *dev;
