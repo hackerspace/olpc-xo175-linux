@@ -275,11 +275,13 @@ static void enable_extra_feature(void)
 #endif
 }
 
+#ifdef CONFIG_ARCH_PXA
 static void disable_extra_feature(void)
 {
 	tauros2_disable_prefetch();
 	tauros2_disable_burst8();
 }
+#endif
 
 void __init tauros2_init(void)
 {
