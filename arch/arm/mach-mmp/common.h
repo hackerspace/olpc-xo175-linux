@@ -1,3 +1,5 @@
+#include <linux/irq.h>
+
 #define ARRAY_AND_SIZE(x)	(x), ARRAY_SIZE(x)
 
 struct sys_timer;
