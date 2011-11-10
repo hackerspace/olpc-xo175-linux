@@ -55,6 +55,7 @@
 
 static unsigned long us2cyc_scale;
 
+#ifdef CONFIG_CPU_MMP3
 static void __init set_us2cyc_scale(unsigned long cyc_rate)
 {
 	unsigned long long v = (unsigned long long)cyc_rate <<
@@ -62,6 +63,7 @@ static void __init set_us2cyc_scale(unsigned long cyc_rate)
 	do_div(v, USEC_PER_SEC);
 	us2cyc_scale = v;
 }
+#endif
 
 unsigned long us2cyc(unsigned long usecs)
 {
@@ -269,6 +271,7 @@ static struct irqaction timer_32k_irq = {
 	.dev_id		= &ckevt,
 };
 
+#ifdef CONFIG_CPU_MMP3
 static void generic_timer_access(void)
 {
 	__raw_writel(0xbaba, CP_TIMERS2_VIRT_BASE + TMR_WFAR);
@@ -294,6 +297,7 @@ static void generic_timer_config(void)
 	generic_timer_access();
 	__raw_writel(value, GEN_TMR_CFG);
 }
+#endif
 
 void __init timer_init(int irq0, int irq1)
 {
