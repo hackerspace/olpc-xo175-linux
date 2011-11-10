@@ -153,6 +153,12 @@ struct driver_data {
 	int (*read)(struct driver_data *drv_data);
 	irqreturn_t (*transfer_handler)(struct driver_data *drv_data);
 	void (*cs_control)(u32 command);
+#ifdef CONFIG_PXA95x
+	int dvfm_dev_idx;
+#else
+	struct wake_lock idle_lock;
+#endif
+	int constraint_is_set;
 };
 
 struct chip_data {
@@ -178,55 +184,52 @@ struct chip_data {
 	void (*cs_control)(u32 command);
 };
 
-#ifdef CONFIG_PXA95x
-static int dvfm_dev_idx;
-#else
-static struct wake_lock idle_lock;
-#endif
-static int constraint_is_set;
 
-static void set_dvfm_constraint(void)
+
+static void set_dvfm_constraint(struct driver_data *drv_data)
 {
-	if (constraint_is_set == 0) {
-		constraint_is_set = 1;
+	if (drv_data->constraint_is_set == 0) {
+		drv_data->constraint_is_set = 1;
 #ifdef CONFIG_PXA95x
 		/* Disable Low power mode */
-		dvfm_disable_lowpower(dvfm_dev_idx);
+		dvfm_disable_lowpower(drv_data->dvfm_dev_idx);
 #else
-		wake_lock(&idle_lock);
+		wake_lock(&(drv_data->idle_lock));
 #endif
 	}
 }
 
-static void unset_dvfm_constraint(void)
+static void unset_dvfm_constraint(struct driver_data *drv_data)
 {
-	if (constraint_is_set) {
-		constraint_is_set = 0;
+	if (drv_data->constraint_is_set) {
+		drv_data->constraint_is_set = 0;
 #ifdef CONFIG_PXA95x
 		/* Enable Low power mode*/
-		dvfm_enable_lowpower(dvfm_dev_idx);
+		dvfm_enable_lowpower(drv_data->dvfm_dev_idx);
 #else
-		wake_unlock(&idle_lock);
+		wake_unlock(&(drv_data->idle_lock));
 #endif
 	}
 }
 
-static void init_dvfm_constraint()
+static void init_dvfm_constraint(struct driver_data *drv_data)
 {
-	constraint_is_set = 0;
+	drv_data->constraint_is_set = 0;
 #ifdef CONFIG_PXA95x
-	dvfm_register("SPI", &dvfm_dev_idx);
+	dvfm_register(dev_name(&(drv_data->pdev->dev)),
+		&(drv_data->dvfm_dev_idx));
 #else
-	wake_lock_init(&idle_lock, WAKE_LOCK_IDLE, "pxa2xx_spi_idle");
+	wake_lock_init(&(drv_data->idle_lock), WAKE_LOCK_IDLE,
+		dev_name(&(drv_data->pdev->dev)));
 #endif
 }
 
-static void deinit_dvfm_constraint()
+static void deinit_dvfm_constraint(struct driver_data *drv_data)
 {
 #ifdef CONFIG_PXA95x
-	dvfm_unregister("SPI", &dvfm_dev_idx);
+	dvfm_unregister("SPI", &(drv_data->dvfm_dev_idx));
 #else
-	wake_lock_destroy(&idle_lock);
+	wake_lock_destroy(&(drv_data->idle_lock));
 #endif
 }
 
@@ -561,7 +564,7 @@ static void giveback(struct driver_data *drv_data)
 
 	drv_data->cur_chip = NULL;
 
-	unset_dvfm_constraint();
+	unset_dvfm_constraint(drv_data);
 }
 
 static int wait_ssp_rx_stall(void const __iomem *ioaddr)
@@ -1228,7 +1231,7 @@ static void pump_transfers(unsigned long data)
 			write_SSTO(chip->timeout, reg);
 	}
 
-	set_dvfm_constraint();	/*disable system to idle while DMA */
+	set_dvfm_constraint(drv_data);	/*disable system to idle while DMA */
 
 	cs_assert(drv_data);
 
@@ -1617,6 +1620,7 @@ static int __devinit pxa2xx_spi_probe(struct platform_device *pdev)
 	drv_data->master_info = platform_info;
 	drv_data->pdev = pdev;
 	drv_data->ssp = ssp;
+	init_dvfm_constraint(drv_data);
 
 	master->dev.parent = &pdev->dev;
 	master->dev.of_node = pdev->dev.of_node;
@@ -1740,6 +1744,7 @@ out_error_irq_alloc:
 	free_irq(ssp->irq, drv_data);
 
 out_error_master_alloc:
+	deinit_dvfm_constraint(drv_data);
 	spi_master_put(master);
 	pxa_ssp_free(ssp);
 	return status;
@@ -1787,6 +1792,7 @@ static int pxa2xx_spi_remove(struct platform_device *pdev)
 	/* Release SSP */
 	pxa_ssp_free(ssp);
 
+	deinit_dvfm_constraint(drv_data);
 	/* Disconnect from the SPI framework */
 	spi_unregister_master(drv_data->master);
 
@@ -1867,16 +1873,12 @@ static struct platform_driver driver = {
 
 static int __init pxa2xx_spi_init(void)
 {
-	init_dvfm_constraint();
-
 	return platform_driver_register(&driver);
 }
 subsys_initcall(pxa2xx_spi_init);
 
 static void __exit pxa2xx_spi_exit(void)
 {
-	deinit_dvfm_constraint();
-
 	platform_driver_unregister(&driver);
 }
 module_exit(pxa2xx_spi_exit);
