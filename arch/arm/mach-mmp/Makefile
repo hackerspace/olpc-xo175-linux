@@ -47,6 +47,9 @@ obj-$(CONFIG_MACH_ABILENE)	+= abilene.o
 obj-$(CONFIG_MACH_YELLOWSTONE)	+= yellowstone.o
 obj-$(CONFIG_CPU_FREQ_MMP3)	+= cpufreq-mmp3.o
 obj-$(CONFIG_CPU_FREQ_PXA910)	+= cpufreq-pxa910.o acpuclock-pxa910.o acpuclock-pxa910_ll.o
+ifeq ($(CONFIG_CPU_FREQ),y)
+obj-$(CONFIG_CPU_MMP2)		+= cpufreq-mmp2.o fc_mmp2.o board_fc_ops.o mmp2_fc_entry.o
+endif
 ifeq ($(CONFIG_SUSPEND),y)
 obj-$(CONFIG_CPU_PXA910)	+= pxa910_pm.o
 endif

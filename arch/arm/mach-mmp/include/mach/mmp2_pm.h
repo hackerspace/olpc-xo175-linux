@@ -363,6 +363,10 @@
  */
 #define DDR_CONFIG_TABLE_SETTING_SIZE		(1080 - 4)
 
+#define OP_NAME_LEN	32
+#define MHZ_TO_KHZ	1000
+
+#ifndef __ASSEMBLY__
 enum {
 	POWER_MODE_ACTIVE = 0,
 	POWER_MODE_CORE_INTIDLE,
@@ -372,7 +376,60 @@ enum {
 	POWER_MODE_CHIP_SLEEP,
 	POWER_MODE_SYS_SLEEP,
 };
+#define MMP2_PPT_ULTRA_LOW_MIPS		0
+#define MMP2_PPT_LOW_MIPS		1
+#define MMP2_PPT_VG_MIPS		2
+#define MMP2_PPT_VG_HIGH_MIPS		3
+#define MMP2_PPT_ULTRA_HIGH_MIPS	4
+#define MMP2_PRODUCT_POINT_NUM		5
+
+#define MMP2_DEFAULT_OP_IDX		3
+
+struct mmp2_fc_param {
+	void	*va_pmua;	/* 0 */
+	void	*va_dmcu;	/* 4 */
+	int	cc_ap;		/* 8 */
+	int	fccr;		/* 12 */
+	void	*va_pmum;	/* 16 */
+	int	v_flag;		/* 20 */
+	int	mem_config;	/* 24 */
+	void	*priv;		/* 28 */
+	int	voltage;
+};
+
+struct mmp2_pm_info {
+	void *pmum_base;
+	void *pmua_base;
+	void *dmcu_base;
+	void *fc_vaddr;
+	void *fc_vstack;
+	int (*fc_seq_init)(void);
+	int (*fc_seq_prepare)(struct mmp2_fc_param *param);
+	int (*fc_seq_exe)(void *vaddr, void *vstack, struct mmp2_fc_param *param);
+};
+
+struct mmp2_op {
+	char	name[OP_NAME_LEN];
+	int	vcc_core;
+	int	pclk_mhz;
+	int	pdclk_mhz;
+	int	baclk_mhz;
+	int	xpclk_mhz;
+	int	dclk_mhz;
+	int	aclk_mhz;
+};
+
+void mmp2_fc_seq(int old_idx, int new_idx);
+int mmp2_get_op_freq(int idx);
+int mmp2_get_op_number(void);
+int check_cur_op(void);
+
+#define FC_PHYS_BASE	0xd1036800
+#define FC_VIRT_BASE	0xfe400000
+#define FC_PHYS_SIZE	0x00001000
 
 extern void mmp2_pm_enter_lowpower_mode(int state);
+extern unsigned int mmp2_get_pj4_clk(void);
+#endif
 
 #endif

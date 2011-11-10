@@ -311,6 +311,22 @@ static ssize_t mmp2_sysset_read(struct device *dev, struct device_attribute *att
 	return len;
 }
 
+unsigned int mmp2_get_pj4_clk(void)
+{
+	u32 tmp;
+	u32 pj4_core_clk, pll_set_status, apmu_dm_cc_pj;
+
+	pll_set_status = readl(APMU_PLL_SEL_STATUS);
+	apmu_dm_cc_pj = readl(APMU_DM_CC_PJ);
+	tmp = (pll_set_status >> 2) & 0x3;
+	pj4_core_clk = clk_selection(tmp, get_pll1_clk(), get_pll2_clk());
+	tmp = apmu_dm_cc_pj & 0x7;
+	pj4_core_clk /= (tmp + 1);
+
+	return pj4_core_clk;
+}
+EXPORT_SYMBOL(mmp2_get_pj4_clk);
+
 static DEVICE_ATTR(mmp2_sysset, 0444, mmp2_sysset_read, NULL);
 
 static struct attribute *mmp2_sysset_sysfs_entries[] = {

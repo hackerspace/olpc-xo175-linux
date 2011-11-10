@@ -44,6 +44,14 @@ static int sdh_wakeup_detect;
 struct wake_lock wakelock_pmic_wakeup;
 struct wake_lock wakelock_sdh_wakeup;
 
+struct mmp2_pm_info *mmp2_pm_info_p;
+#define MMP2_PMUM_BASE	0xd4050000
+#define MMP2_PMUM_END	0xd4051050
+#define MMP2_PMUA_BASE	0xd4282800
+#define MMP2_PMUA_END	0xd4282920
+#define	MMP2_DMCU_BASE	0xd0000000
+#define MMP2_DMCU_END	0xd0001000
+
 static void apbc_set_rst(unsigned int clk_addr, int flag)
 {
 	unsigned int clkreg;
@@ -368,7 +376,19 @@ static int __init mmp2_pm_init(void)
 		WAKE_LOCK_SUSPEND, "wakelock_pmic_wakeup");
 	wake_lock_init(&wakelock_sdh_wakeup,
 		WAKE_LOCK_SUSPEND, "wakelock_sdh_wakeup");
+
+	/* do initialization about FC seq */
+	if (!(mmp2_pm_info_p = kzalloc(sizeof(struct mmp2_pm_info), GFP_KERNEL))) {
+		pr_err("failed to request mem for mmp2_pm_info\n");
+		goto err;
+	}
+	mmp2_pm_info_p->pmum_base = ioremap(MMP2_PMUM_BASE, MMP2_PMUM_END - MMP2_PMUM_BASE + 1);
+	mmp2_pm_info_p->pmua_base = ioremap(MMP2_PMUA_BASE, MMP2_PMUA_END - MMP2_PMUA_BASE + 1);
+	mmp2_pm_info_p->dmcu_base = ioremap(MMP2_DMCU_BASE, MMP2_DMCU_END - MMP2_DMCU_BASE + 1);
+
 	return 0;
+err:
+	return -ENOMEM;
 }
 
-late_initcall(mmp2_pm_init);
+module_init(mmp2_pm_init);

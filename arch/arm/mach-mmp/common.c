@@ -17,6 +17,9 @@
 #include <mach/addr-map.h>
 #include <mach/cputype.h>
 
+#ifdef CONFIG_CPU_MMP2
+#include <mach/mmp2_pm.h>
+#endif
 #ifdef CONFIG_CPU_MMP3
 #include <mach/mmp_audisland.h>
 #endif
@@ -45,6 +48,13 @@ static struct map_desc standard_io_desc[] __initdata = {
 		.virtual	= AXI_VIRT_BASE,
 		.length		= AXI_PHYS_SIZE,
 		.type		= MT_DEVICE,
+#ifdef CONFIG_CPU_MMP2
+	}, {
+		.pfn		= __phys_to_pfn(FC_PHYS_BASE),
+		.virtual	= FC_VIRT_BASE,
+		.length		= FC_PHYS_SIZE,
+		.type		= MT_MEMORY_NONCACHED,
+#endif
 #ifdef CONFIG_CPU_MMP3
 	}, {
 		.pfn		= __phys_to_pfn(PGU_PHYS_BASE),
