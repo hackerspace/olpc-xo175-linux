@@ -90,6 +90,7 @@ static u32 iwmmxt_disable_cp_access(void)
 	return value;
 }
 
+#ifdef CONFIG_SMP
 static int iwmmxt_is_cp_accessible(void)
 {
 	u32 value, mask;
@@ -103,6 +104,7 @@ static int iwmmxt_is_cp_accessible(void)
 
 	return value & mask;
 }
+#endif
 
 static inline void dsp_save_state(u32 *state)
 {
