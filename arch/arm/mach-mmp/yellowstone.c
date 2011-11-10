@@ -257,6 +257,21 @@ static int pxa2128_cam_clk_init(struct device *dev, int init)
 	static struct regulator *v_ldo15;
 	struct mv_cam_pdata *data = dev->platform_data;
 	int cam_enable = mfp_to_gpio(MFP_PIN_GPIO1);
+	unsigned long tx_clk_esc;
+	struct clk *pll1;
+
+	pll1 = clk_get(dev, "pll1");
+	if (IS_ERR(pll1)) {
+		dev_err(dev, "Could not get pll1 clock\n");
+		return PTR_ERR(pll1);
+	}
+
+	tx_clk_esc = clk_get_rate(pll1) / 1000000 / 12;
+	clk_put(pll1);
+
+	/* Update dphy6 according to current tx_clk_esc */
+	data->dphy[2] = ((534 * tx_clk_esc / 2000 - 1) & 0xff) << 8
+			| ((38 * tx_clk_esc / 1000 - 1) & 0xff);
 
 	if (gpio_request(cam_enable, "CAM_ENABLE_HI_SENSOR")) {
 		printk(KERN_ERR"Request GPIO failed, gpio: %d\n", cam_enable);
