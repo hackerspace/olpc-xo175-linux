@@ -50,24 +50,36 @@
 
 #define MMP3ASOC_SAMPLE_RATES SNDRV_PCM_RATE_44100
 
-#define MMP3ASOC_HP        0
-#define MMP3ASOC_MIC       1
-#define MMP3ASOC_HEADSET   2
-#define MMP3ASOC_HP_OFF    3
-#define MMP3ASOC_SPK_ON    0
-#define MMP3ASOC_SPK_OFF   1
+#define MMP3ASOC_HEADPHONE_FUNC		0
+#define MMP3ASOC_HS_MIC_FUNC		1
+#define MMP3ASOC_SPK_FUNC			2
+#define MMP3ASOC_MAIN_MIC_FUNC		3
 
-#define MMP3ASOC_SPK_FUNC	0
-#define MMP3ASOC_JACK_FUNC	1
+#define MMP3ASOC_CTRL_ON	0
+#define MMP3ASOC_CTRL_OFF	1
 
-static int mmp3asoc_jack_func;
+static int mmp3asoc_headphone_func;
+static int mmp3asoc_hs_mic_func;
 static int mmp3asoc_spk_func;
+static int mmp3asoc_main_mic_func;
 
 static void mmp3asoc_ext_control(struct snd_soc_dapm_context *dapm, int func)
 {
 	switch (func) {
+	case MMP3ASOC_HEADPHONE_FUNC:
+		if (mmp3asoc_headphone_func == MMP3ASOC_CTRL_ON)
+			snd_soc_dapm_enable_pin(dapm, "Headset Stereophone");
+		else
+			snd_soc_dapm_disable_pin(dapm, "Headset Stereophone");
+		break;
+	case MMP3ASOC_HS_MIC_FUNC:
+		if (mmp3asoc_hs_mic_func == MMP3ASOC_CTRL_ON)
+			snd_soc_dapm_enable_pin(dapm, "Headset Mic");
+		else
+			snd_soc_dapm_disable_pin(dapm, "Headset Mic");
+		break;
 	case MMP3ASOC_SPK_FUNC:
-		if (mmp3asoc_spk_func == MMP3ASOC_SPK_ON) {
+		if (mmp3asoc_spk_func == MMP3ASOC_CTRL_ON) {
 			snd_soc_dapm_enable_pin(dapm, "Ext Left Spk");
 			snd_soc_dapm_enable_pin(dapm, "Ext Right Spk");
 		} else {
@@ -75,28 +87,11 @@ static void mmp3asoc_ext_control(struct snd_soc_dapm_context *dapm, int func)
 			snd_soc_dapm_disable_pin(dapm, "Ext Right Spk");
 		}
 		break;
-	case MMP3ASOC_JACK_FUNC:
-		/* set up jack connection */
-		switch (mmp3asoc_jack_func) {
-		case MMP3ASOC_HP:
-			snd_soc_dapm_enable_pin(dapm, "Headset Stereophone");
-			break;
-		case MMP3ASOC_MIC:
-			snd_soc_dapm_disable_pin(dapm, "Headset Mic");
+	case MMP3ASOC_MAIN_MIC_FUNC:
+		if (mmp3asoc_main_mic_func == MMP3ASOC_CTRL_ON)
 			snd_soc_dapm_enable_pin(dapm, "Main Mic");
-			break;
-		case MMP3ASOC_HEADSET:
-			snd_soc_dapm_enable_pin(dapm, "Headset Mic");
-			snd_soc_dapm_enable_pin(dapm, "Headset Stereophone");
-			break;
-		case MMP3ASOC_HP_OFF:
-			snd_soc_dapm_disable_pin(dapm, "Headset Mic");
+		else
 			snd_soc_dapm_disable_pin(dapm, "Main Mic");
-			snd_soc_dapm_disable_pin(dapm, "Headset Stereophone");
-			break;
-		default:
-			pr_err("wrong jack type\n");
-		}
 		break;
 	default:
 		pr_err("wrong func type\n");
@@ -107,25 +102,48 @@ static void mmp3asoc_ext_control(struct snd_soc_dapm_context *dapm, int func)
 	return;
 }
 
-static int mmp3asoc_get_jack(struct snd_kcontrol *kcontrol,
+static int mmp3asoc_get_headphone(struct snd_kcontrol *kcontrol,
 			       struct snd_ctl_elem_value *ucontrol)
 {
-	ucontrol->value.integer.value[0] = mmp3asoc_jack_func;
+	ucontrol->value.integer.value[0] = mmp3asoc_headphone_func;
 	return 0;
 }
 
-static int mmp3asoc_set_jack(struct snd_kcontrol *kcontrol,
+static int mmp3asoc_set_headphone(struct snd_kcontrol *kcontrol,
 			       struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
 
-	if (mmp3asoc_jack_func == ucontrol->value.integer.value[0])
+	if (mmp3asoc_headphone_func == ucontrol->value.integer.value[0])
 		return 0;
 
 	mutex_lock(&codec->mutex);
-	mmp3asoc_jack_func = ucontrol->value.integer.value[0];
-	mmp3asoc_ext_control(dapm, MMP3ASOC_JACK_FUNC);
+	mmp3asoc_headphone_func = ucontrol->value.integer.value[0];
+	mmp3asoc_ext_control(dapm, MMP3ASOC_HEADPHONE_FUNC);
+	mutex_unlock(&codec->mutex);
+	return 1;
+}
+
+static int mmp3asoc_get_hs_mic(struct snd_kcontrol *kcontrol,
+			       struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = mmp3asoc_hs_mic_func;
+	return 0;
+}
+
+static int mmp3asoc_set_hs_mic(struct snd_kcontrol *kcontrol,
+			       struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	struct snd_soc_dapm_context *dapm = &codec->dapm;
+
+	if (mmp3asoc_hs_mic_func == ucontrol->value.integer.value[0])
+		return 0;
+
+	mutex_lock(&codec->mutex);
+	mmp3asoc_hs_mic_func = ucontrol->value.integer.value[0];
+	mmp3asoc_ext_control(dapm, MMP3ASOC_HS_MIC_FUNC);
 	mutex_unlock(&codec->mutex);
 	return 1;
 }
@@ -149,6 +167,29 @@ static int mmp3asoc_set_spk(struct snd_kcontrol *kcontrol,
 	mutex_lock(&codec->mutex);
 	mmp3asoc_spk_func = ucontrol->value.integer.value[0];
 	mmp3asoc_ext_control(dapm, MMP3ASOC_SPK_FUNC);
+	mutex_unlock(&codec->mutex);
+	return 1;
+}
+
+static int mmp3asoc_get_main_mic(struct snd_kcontrol *kcontrol,
+			       struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = mmp3asoc_main_mic_func;
+	return 0;
+}
+
+static int mmp3asoc_set_main_mic(struct snd_kcontrol *kcontrol,
+			       struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	struct snd_soc_dapm_context *dapm = &codec->dapm;
+
+	if (mmp3asoc_main_mic_func == ucontrol->value.integer.value[0])
+		return 0;
+
+	mutex_lock(&codec->mutex);
+	mmp3asoc_main_mic_func = ucontrol->value.integer.value[0];
+	mmp3asoc_ext_control(dapm, MMP3ASOC_MAIN_MIC_FUNC);
 	mutex_unlock(&codec->mutex);
 	return 1;
 }
@@ -179,18 +220,28 @@ static const struct snd_soc_dapm_route mmp3asoc_dapm_routes[] = {
 
 static const char *const jack_function[] = {
 	"Headphone", "Mic", "Headset", "Off" };
-static const char *const spk_function[] = { "On", "Off" };
+
+static const char *headphone_function[] = {"On", "Off"};
+static const char *hs_mic_function[] = {"On", "Off"};
+static const char *spk_function[] = {"On", "Off"};
+static const char *main_mic_function[] = {"On", "Off"};
 
 static const struct soc_enum mmp3asoc_enum[] = {
-	SOC_ENUM_SINGLE_EXT(4, jack_function),
+	SOC_ENUM_SINGLE_EXT(2, headphone_function),
+	SOC_ENUM_SINGLE_EXT(2, hs_mic_function),
 	SOC_ENUM_SINGLE_EXT(2, spk_function),
+	SOC_ENUM_SINGLE_EXT(2, main_mic_function),
 };
 
 static const struct snd_kcontrol_new mmp3asoc_wm8994_controls[] = {
-	SOC_ENUM_EXT("Jack Function", mmp3asoc_enum[0],
-		     mmp3asoc_get_jack, mmp3asoc_set_jack),
-	SOC_ENUM_EXT("Speaker Function", mmp3asoc_enum[1],
+	SOC_ENUM_EXT("Headphone Function", mmp3asoc_enum[0],
+		     mmp3asoc_get_headphone, mmp3asoc_set_headphone),
+	SOC_ENUM_EXT("Headset Mic Function", mmp3asoc_enum[1],
+		     mmp3asoc_get_hs_mic, mmp3asoc_set_hs_mic),
+	SOC_ENUM_EXT("Speaker Function", mmp3asoc_enum[2],
 		     mmp3asoc_get_spk, mmp3asoc_set_spk),
+	SOC_ENUM_EXT("Main Mic Function", mmp3asoc_enum[3],
+		     mmp3asoc_get_main_mic, mmp3asoc_set_main_mic),
 };
 
 #ifdef CONFIG_SWITCH_WM8994_HEADSET
@@ -403,13 +454,18 @@ static int codec_wm8994_init(struct snd_soc_pcm_runtime *rtd)
 
 	/* init: disable HEADSET, enable SPK */
 	mutex_lock(&codec->mutex);
-	mmp3asoc_spk_func = MMP3ASOC_SPK_ON;
-	mmp3asoc_jack_func = MMP3ASOC_HP_OFF;
+	mmp3asoc_headphone_func = MMP3ASOC_CTRL_OFF;
+	mmp3asoc_hs_mic_func = MMP3ASOC_CTRL_OFF;
+	mmp3asoc_spk_func = MMP3ASOC_CTRL_OFF;
+	mmp3asoc_main_mic_func = MMP3ASOC_CTRL_OFF;
+	mmp3asoc_ext_control(dapm, MMP3ASOC_HEADPHONE_FUNC);
+	mmp3asoc_ext_control(dapm, MMP3ASOC_HS_MIC_FUNC);
 	mmp3asoc_ext_control(dapm, MMP3ASOC_SPK_FUNC);
-	mmp3asoc_ext_control(dapm, MMP3ASOC_JACK_FUNC);
-	mutex_unlock(&codec->mutex);
+	mmp3asoc_ext_control(dapm, MMP3ASOC_MAIN_MIC_FUNC);
 
 	snd_soc_dapm_sync(dapm);
+	mutex_unlock(&codec->mutex);
+
 #ifdef CONFIG_SWITCH_WM8994_HEADSET
 	mmp3asoc_wm8994_codec = codec;
 	headset_detect_func = wm8994_headset_detect;
