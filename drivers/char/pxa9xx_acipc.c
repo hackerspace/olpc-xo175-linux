@@ -220,6 +220,7 @@ static void acipc_int_disable(enum acipc_events event)
 	}
 }
 
+#if !defined(CONFIG_CPU_PXA910)
 static void acipc_change_driver_state(int is_DDR_ready)
 {
 	IPC_ENTER();
@@ -232,6 +233,7 @@ static void acipc_change_driver_state(int is_DDR_ready)
 
 	IPC_LEAVE();
 }
+#endif
 
 static enum acipc_return_code acipc_data_send(enum acipc_events user_event,
 					      acipc_data data)
@@ -537,12 +539,9 @@ static void set_constraint(void)
 {
 }
 
+#if !defined(CONFIG_CPU_PXA910)
 static u32 acipc_kernel_callback(u32 events_status)
 {
-#ifdef CONFIG_CPU_PXA910
-	if (cpu_is_pxa910())
-		return 0;
-#else
 	IPC_ENTER();
 
 	if (events_status & ACIPC_DDR_READY_REQ) {
@@ -568,9 +567,9 @@ static u32 acipc_kernel_callback(u32 events_status)
 		acipc_change_driver_state(0);
 	}
 	IPC_LEAVE();
-#endif
 	return 0;
 }
+#endif /*CONFIG_CPU_PXA910*/
 #endif /*CONFIG_PXA95X_DVFM */
 
 #ifdef CONFIG_CPU_PXA910
