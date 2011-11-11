@@ -5442,8 +5442,8 @@ static struct ov5642_win_size ov5642_pxa955_mipi_bridge_sizes_yuv[] = {
 
 static struct regval_list ov5642_mipi_2128_res_720p[] =
 {
-	{0x3011, 0x10},
-	{0x3010, 0x11},
+	{0x3010, 0x00},
+	{0x3011, 0x07},
 	{0x5001, 0xff},
 	{0x3808, 0x05},
 	{0x3809, 0x00},
