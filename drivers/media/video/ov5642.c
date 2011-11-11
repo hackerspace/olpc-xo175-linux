@@ -534,8 +534,14 @@ static int ov5642_g_frame_interval(struct v4l2_subdev *sd,
 	int mclk;
 
 	/*Usd integer member*/
-	int	pre_div_map[8]   = { 1, 2, 2, 3, 3, 4, 6, 8 };
-	int	div1to2p5_map[4] = { 1, 1, 2, 3 };
+	/*
+	 * For pre_div_map and div1to2p5_map it has float number in the original
+	 * spec, we need to double its value to make it as interger number.
+	 * When calculate them later we should remember to divide by two
+	 */
+	int	pre_div_map[8]   = { 2, 3, 4, 5, 6, 8, 12, 16 };
+	int	div1to2p5_map[4] = { 2, 2, 4, 5 };
+
 	int	m1_div_map[2]    = { 1, 2 };
 	int	seld_map[4]      = { 1, 1, 4, 5 };
 	int	divs_map[8]      = { 1, 2, 3, 4, 5, 6, 7, 8 };
@@ -563,7 +569,7 @@ static int ov5642_g_frame_interval(struct v4l2_subdev *sd,
 	seld = seld_map[val];
 
 	mclk = inter->pad;
-	vco_freq = mclk / pre_div * divp * seld;
+	vco_freq = mclk * divp * seld * 2 / pre_div;
 	dev_dbg(&client->dev, "vco_freq: %d\n", vco_freq);
 
 	/* system clk */
@@ -574,7 +580,7 @@ static int ov5642_g_frame_interval(struct v4l2_subdev *sd,
 	val = v3029 & 0x1;
 	m1_div = m1_div_map[val];
 
-	sys_clk = vco_freq / divs / div1to2p5 / m1_div / 4;
+	sys_clk = vco_freq * 2 / div1to2p5 / divs / m1_div / 4;
 
 	/* mipi clk */
 	val = v3010 & 0xf;
@@ -587,8 +593,8 @@ static int ov5642_g_frame_interval(struct v4l2_subdev *sd,
 	/* mipi lane clk */
 	mipi_lane_clk = mipi_clk / 2 / (divl + 1);
 	inter->pad = mipi_lane_clk;
-	dev_dbg(&client->dev, "MIPI clk:0x%x, SYS clk 0x%x, MIPI Clock Lane "
-			"clk 0x%x\n", mipi_clk, sys_clk, mipi_lane_clk);
+	dev_dbg(&client->dev, "MIPI clk: %d, SYS clk: %d, MIPI Clock Lane "
+			"clk: %d\n", mipi_clk, sys_clk, mipi_lane_clk);
 
 	/* get sensor hts & vts */
 	ov5642_read(client, 0x380c, &val);
