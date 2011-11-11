@@ -1284,7 +1284,7 @@ static int cmmb_power_reset(void)
 
 static int cmmb_power_on(void)
 {
-	int cmmb_en, cmmb_rst;
+	int cmmb_en;
 
 	cmmb_en = GPIO_EXT1(6);
 	if (gpio_request(cmmb_en, "cmmb power")) {
