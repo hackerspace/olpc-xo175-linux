@@ -111,6 +111,10 @@
 #define CPUPWR		__REG(0x40F40084)	/* Application Subsystem CPU Power Mode Register */
 #define VMPWR		__REG(0x40F40090)	/* Application Subsystem VMeta Power Mode Register */
 #define GCPWR		__REG(0x40F40094)	/* Application Subsystem GCU Power Mode Register */
+#define PERI_PLL_CTRL	__REG(0x40F400B0)	/* Peripheral PLL Control Register */
+#define PERI_PLL_PARAM	__REG(0x40F400B4)	/* Peripheral PLL Parameters Register */
+#define MM_PLL_CTRL	__REG(0x40F400BC)	/* Multi-media PLL Control Register */
+#define MM_PLL_PARAM	__REG(0x40F400C0)	/* Multi-media PLL Parameters Register */
 
 #define VMPWR_PWON		(1 << 0)
 #define VMPWR_PWR_ST		(1 << 2)
@@ -119,6 +123,20 @@
 #define GCPWR_RST_N		(1 << 1)
 #define GCPWR_PWR_ST		(1 << 2)
 #define GCPWR_SETALLWAYS	(0xFF00)
+
+#define PERIPLL_PWRON		(1 << 0)
+#define PERIPLL_PWR_ST		(1 << 8)
+#define PERIPLL_VCODIV_SEL_MASK	(0xf << 20)	/* Post Divider */
+#define PERIPLL_KVCO_MASK	(0xf << 16)	/* PERI PLL KVCO Value Configuratioin */
+#define PERIPLL_FBDIV_MASK	(0x1ff << 5)	/* PERI PLL FBDIV Value Configuration */
+#define PERIPLL_REFDIV_MASK	(0x1f << 0)	/* PERI PLL REFDIV Value Configuration */
+
+#define MMPLL_PWRON		(1 << 0)
+#define MMPLL_PWR_ST		(1 << 8)
+#define MMPLL_VCODIV_SEL_MASK	(0xf << 20)	/* Post Divider */
+#define MMPLL_KVCO_MASK		(0xf << 16)	/* MM PLL KVCO Value Configuratioin */
+#define MMPLL_FBDIV_MASK	(0x1ff << 5)	/* MM PLL FBDIV Value Configuration */
+#define MMPLL_REFDIV_MASK	(0x1f << 0)	/* MM PLL REFDIV Value Configuration */
 
 /*
  * Application Subsystem Configuration bits.
@@ -200,8 +218,18 @@
 #define ACCR1		__REG(0x41340020)	/* Application Subsystem Clock Configuration Register 1 */
 #define CKENC		__REG(0x41340024)	/* C Clock Enable Register */
 #define DDR_CLK_PROFILES __REG(0x41340028)	/* DDR Clock Profiles Register */
+#define DDR_FC_REG_TBL	__REG(0x41340028)	/* DDR Frequency Change Register Table Register */
 #define DDR_FC_CTRL	__REG(0x4134002C)	/* DDR Frequency Change Control Register */
+#define DDR_SC_CTRL1	__REG(0x4134002C)	/* DDR Sequence Control 1 Register */
 #define CCLKCFG		__REG(0x41340040)	/* Core Clock Configuration Register */
+#define ACCR0		__REG(0x41340050)	/* Application Subsystem Clock Configuration Register 0 */
+#define ACSR0		__REG(0x41340054)	/* Application Subsystem Clock Status Register 0 */
+#define COREPLLR	__REG(0x41340058)	/* Core PLL Cnfiguration Register */
+#define FRQ_CHANGE_CTL	__REG(0x4134005C)	/* Apps Core Frequency Change Control Register */
+#define FRQ_CHANGE_ST	__REG(0x41340060)	/* Apps Core Frequency Change Status Register */
+#define COREPLL_TIMERS	__REG(0x41340064)	/* Core PLL Times Register */
+
+#define DDRPLLR		__REG(0x41350004)	/* DDR PLL Cnfiguration Register */
 
 #define ACCR_XPDIS		(1 << 31)	/* Core PLL Output Disable */
 #define ACCR_SPDIS		(1 << 30)	/* System PLL Output Disable */
@@ -216,6 +244,7 @@
 #define ACCR_SFLFS_MASK		(0x3 << 18)	/* Frequency Select for Internal Memory Controller */
 #define ACCR_XSPCLK_MASK	(0x3 << 16)	/* Core Frequency during Frequency Change */
 #define ACCR_HSS_MASK		(0x3 << 14)	/* System Bus-Clock Frequency Select */
+#define ACCR_DMCFS_MASK_978	(0x7 << 11)	/* Dynamic Memory Controller Clock Frequency Select */
 #define ACCR_DMCFS_MASK		(0x3 << 12)	/* Dynamic Memory Controller Clock Frequency Select */
 #define ACCR_XN_MASK		(0x7 << 8)	/* Core PLL Turbo-Mode-to-Run-Mode Ratio */
 #define ACCR_DMCFS_312_MASK	(0x1 << 6)	/* DMC PLL Select */
@@ -231,9 +260,20 @@
 #define ACCR_SFLFS(x)		(((x) & 0x3) << 18)
 #define ACCR_XSPCLK(x)		(((x) & 0x3) << 16)
 #define ACCR_HSS(x)		(((x) & 0x3) << 14)
+#define ACCR_DMCFS_978(x)	(((x) & 0x7) << 11)
 #define ACCR_DMCFS(x)		(((x) & 0x3) << 12)
 #define ACCR_XN(x)		(((x) & 0x7) << 8)
 #define ACCR_XL(x)		((x) & ACCR_XL_MASK)
+
+#define ACCR0_DCFS(x)		(((x) & 0x7) << 0)
+#define ACCR0_VMFS(x)		(((x) & 0x7) << 3)
+#define ACCR0_GCAXIFS(x)	(((x) & 0x7) << 6)
+#define ACCR0_GCFS(x)		(((x) & 0x7) << 9)
+
+#define ACCR0_DCFS_MASK		(0x7 << 0)	/* Display Controller Frequency Select */
+#define ACCR0_VMFC_MASK		(0x7 << 3)	/* vMeta Controller Frequency Select */
+#define ACCR0_GCAXIFS_MASK	(0x7 << 6)	/* Graphics AXI Bus Frequency Select */
+#define ACCR0_GCFS_MASK		(0x7 << 9)	/* Graphics Controller Frequency Select */
 
 #define ACCR1_DIS_DRX		(1 << 31)	/* Disable DRX */
 #define ACCR1_VMETA_156_312	(1 << 21)	/* VMeta Frequency Control: 0 = 156Mhz, 1 = 312Mhz */
@@ -245,6 +285,19 @@
 #define ACCR1_MMC5_48_52	(1 << 4)	/* MMC5 frequency control: 0 = 624/13 Mhz, 1 = 624/12 Mhz */
 #define ACCR1_MMC4_48_52	(1 << 2)	/* MMC4 frequency control: 0 = 624/13 Mhz, 1 = 624/12 Mhz */
 #define ACCR1_MMC3_48_52	(1 << 0)	/* MMC3 frequency control: 0 = 624/13 Mhz, 1 = 624/12 Mhz */
+
+#define AC_GO_MASK		(1 << 31)	/* Core PLL Automatic Change GO */
+#define ACLK_RATIO_MASK		(3 << 4)	/* ACLK Ratio setting: 0 = core, 1 = core/2, 2 = core/3 */
+#define SYS_FREQ_SEL_MASK	(7 << 1)	/* System PLL Clock Selection */
+#define CLK_SRC_MASK		(1 << 0)	/* Clock Source Selection */
+
+#define MC_GO_MASK		(1 << 31)	/* Core PLL Manual Change GO */
+#define PLL_EN_MASK		(1 << 26)	/* PLL On/Off control */
+#define PPDIV_MASK		(1 << 25)	/* External Divider PPDIV Value COnfiguration */
+#define KVCO_MASK		(0xf << 21)	/* Core PLL KVCO Value Configuratioin */
+#define VCODIV_SEL_MASK		(0xf << 17)	/* Core PLL VCODIV_SEL Value Configuration */
+#define FBDIV_MASK		(0x1ff << 5)	/* Core PLL FBDIV Value Configuration */
+#define REFDIV_MASK		(0x1f << 0)	/* Core PLL REFDIV Value Configuration */
 
 /*
  * Clock Enable Bit

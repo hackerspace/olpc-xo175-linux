@@ -23,6 +23,8 @@
 #define D0CKEN_B_OFF		0x10
 #define AC97_DIV_OFF		0x14
 #define ACCR1_OFF		0x20
+#define ACCR0_OFF		0x50
+#define ACSR0_OFF		0x54
 #define OSCC_OFF		0x10000
 
 /* service power management uinit */
@@ -193,6 +195,7 @@
 #define ACCR_DMCFS_312_OFFSET	6
 #define ACCR_XN_OFFSET		8
 #define ACCR_DMCFS_OFFSET	12
+#define ACCR_DMCFS_OFFSET_978   11
 #define ACCR_HSS_OFFSET		14
 #define ACCR_XSPCLK_OFFSET	16
 #define ACCR_SFLFS_OFFSET	18
@@ -204,6 +207,16 @@
 
 #define ACSR_AXIFS_OFFSET	21
 #define ACSR_GCFS_OFFSET	6
+
+#define ACCR0_DCFS_OFFSET	0
+#define ACCR0_VMFC_OFFSET	3
+#define ACCR0_GCAXIFS_OFFSET	6
+#define ACCR0_GCFS_OFFSET	9
+
+#define ACSR0_DCFS_OFFSET	0
+#define ACSR0_VMFC_OFFSET	3
+#define ACSR0_GCAXIFS_OFFSET	6
+#define ACSR0_GCFS_OFFSET	9
 
 #define ACCR1_DSI_1_OFFSET	13
 #define ACCR1_DSI_2_OFFSET	16
