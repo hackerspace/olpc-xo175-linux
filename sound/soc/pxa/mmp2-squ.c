@@ -348,8 +348,8 @@ static int mmp2_pcm_open(struct snd_pcm_substream *substream)
 	 * avoid sram fragment, allocate dma buffer and
 	 * dma desc list at the same time.
 	 */
-	prtd->adma_desc_array = (unsigned int)sram_alloc(
-			"audio sram", PAGE_SIZE, (dma_addr_t *)&prtd->adma_desc_array_phys);
+	prtd->adma_desc_array = sram_alloc("audio sram", PAGE_SIZE,
+				    (dma_addr_t *)&prtd->adma_desc_array_phys);
 	if (!prtd->adma_desc_array) {
 		ret = -ENOMEM;
 		goto err1;
