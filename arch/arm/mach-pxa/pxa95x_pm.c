@@ -1127,14 +1127,32 @@ void vmeta_pwr(unsigned int enableDisable)
 	if (VMETA_PWR_ENABLE == enableDisable) {
 		if (vmpwr & VMPWR_PWR_ST)
 			return;	/*Pwr is already on */
-		VMPWR = VMPWR_SETALLWAYS | VMPWR_PWON;
-		do {
-			vmpwr = VMPWR;
-		} while ((vmpwr & VMPWR_PWR_ST) != VMPWR_PWR_ST);
+		if (cpu_is_pxa978_Cx()) {
+			VMPWR = 0xc0070000 | VMPWR_SETALLWAYS;
+			VMPWR = 0xc0070000 | VMPWR_SETALLWAYS | VMPWR_PWON;
+			usleep_range(100, 100);
+			VMPWR = 0x70000 | VMPWR_SETALLWAYS | VMPWR_PWON;
+			usleep_range(100, 100);
+			do {
+				vmpwr = VMPWR;
+			} while ((vmpwr & (VMPWR_PWR_ST | 1 << 3)) != (VMPWR_PWR_ST | 1 << 3));
+		} else {
+			VMPWR = VMPWR_SETALLWAYS | VMPWR_PWON;
+			do {
+				vmpwr = VMPWR;
+			} while ((vmpwr & VMPWR_PWR_ST) != VMPWR_PWR_ST);
+		}
 	} else if (VMETA_PWR_DISABLE == enableDisable) {
 		if ((vmpwr & VMPWR_PWR_ST) != VMPWR_PWR_ST)
 			return;	/*Pwr is already off */
-		VMPWR = VMPWR_SETALLWAYS;
+		if (cpu_is_pxa978_Cx()) {
+			VMPWR = 0x70000 | VMPWR_SETALLWAYS;
+			usleep_range(100, 100);
+			do {
+				vmpwr = VMPWR;
+			} while (vmpwr & (VMPWR_PWR_ST | 1 << 3));
+		} else
+			VMPWR = VMPWR_SETALLWAYS;
 	}
 }
 
