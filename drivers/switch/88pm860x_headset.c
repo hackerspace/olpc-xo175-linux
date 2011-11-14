@@ -427,8 +427,7 @@ static int headset_switch_resume(struct platform_device *pdev)
 	return 0;
 }
 
-static int pm860x_hsdetect_ioctl(struct inode *inode,
-				 struct file *file,
+static long pm860x_hsdetect_ioctl(struct file *file,
 				 unsigned int cmd, unsigned long arg)
 {
 	struct PM860X_HS_IOCTL hs_ioctl;
