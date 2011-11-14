@@ -701,11 +701,11 @@ void gc_pwr(int power_on)
 
 		/* 3. enable clocks */
 		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval |= GC_AXICLK_EN;
+		regval |= GC_CLK_EN;
 		writel(regval, APMU_GC_CLK_RES_CTRL);
 		udelay(100);
 		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval |= GC_CLK_EN;
+		regval |= GC_AXICLK_EN;
 		writel(regval, APMU_GC_CLK_RES_CTRL);
 		udelay(100);
 
@@ -716,19 +716,19 @@ void gc_pwr(int power_on)
 
 		/* 5. deassert reset*/
 		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval |= GC_AXI_RST;
+		regval |= GC_RST;
 		writel(regval, APMU_GC_CLK_RES_CTRL);
 		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval |= GC_RST;
+		regval |= GC_AXI_RST;
 		writel(regval, APMU_GC_CLK_RES_CTRL);
 		udelay(100);
 
 		/* 6 gate clock */
 		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval &= ~GC_CLK_EN;
+		regval &= ~GC_AXICLK_EN;
 		writel(regval, APMU_GC_CLK_RES_CTRL);
 		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval &= ~GC_AXICLK_EN;
+		regval &= ~GC_CLK_EN;
 		writel(regval, APMU_GC_CLK_RES_CTRL);
 
 	} else {
@@ -750,10 +750,10 @@ void gc_pwr(int power_on)
 
 		/* 3. make sure clock disabled*/
 		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval &= ~GC_CLK_EN;
+		regval &= ~GC_AXICLK_EN;
 		writel(regval, APMU_GC_CLK_RES_CTRL);
 		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval &= ~GC_AXICLK_EN;
+		regval &= ~GC_CLK_EN;
 		writel(regval, APMU_GC_CLK_RES_CTRL);
 
 		/* 4. turn off power */

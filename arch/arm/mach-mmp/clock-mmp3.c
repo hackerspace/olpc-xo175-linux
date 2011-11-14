@@ -932,9 +932,9 @@ static int gc_clk_enable(struct clk *clk)
 	gc_rate_cfg &= GC_CLK_RATE_MSK;
 	GC_SET_BITS(gc_rate_cfg, GC_CLK_RATE_MSK);
 
-	GC_SET_BITS(GC_AXICLK_EN, 0);
-	udelay(100);
 	GC_SET_BITS(GC_CLK_EN, 0);
+	udelay(100);
+	GC_SET_BITS(GC_AXICLK_EN, 0);
 	udelay(100);
 
 	return 0;
