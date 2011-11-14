@@ -351,10 +351,8 @@ static int pxa910_squ_pcm_open(struct snd_pcm_substream *substream)
 	}
 
 	prtd->dma_ch = -1;
-	prtd->squ_desc_array =
-	    (unsigned int)sram_alloc("audio sram", PAGE_SIZE,
-				     (dma_addr_t *) &prtd->
-				     squ_desc_array_phys);
+	prtd->squ_desc_array = sram_alloc("audio sram", PAGE_SIZE,
+				     (dma_addr_t *) &prtd->squ_desc_array_phys);
 
 	if (!prtd->squ_desc_array) {
 		ret = -ENOMEM;
