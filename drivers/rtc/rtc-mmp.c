@@ -41,14 +41,11 @@
 #include <mach/hardware.h>
 #include <mach/regs-rtc.h>
 
-#define TIMER_FREQ		CLOCK_TICK_RATE
 #define RTC_DEF_DIVIDER		(32768 - 1)
 #define RTC_DEF_TRIM		0
 
-static unsigned long epoch = 1900;	/* year corresponding to 0x00	*/
 void __iomem *rtc_base;
 static int irq_1hz = -1, irq_alrm = -1;
-static unsigned long rtc_freq = 1024;
 static struct rtc_time rtc_alarm;
 static DEFINE_SPINLOCK(mmp_rtc_lock);
 
@@ -163,54 +160,17 @@ static void mmp_rtc_release(struct device *dev)
 	spin_unlock_irq(&mmp_rtc_lock);
 }
 
-
-static int mmp_rtc_ioctl(struct device *dev, unsigned int cmd,
-		unsigned long arg)
+static int mmp_rtc_alarm_irq_enable(struct device *dev, unsigned int enabled)
 {
-	unsigned long arg_val;
-	switch (cmd) {
-	case RTC_AIE_OFF:
-		spin_lock_irq(&mmp_rtc_lock);
-		RTSR &= ~RTSR_ALE;
-		spin_unlock_irq(&mmp_rtc_lock);
-		return 0;
-	case RTC_AIE_ON:
-		spin_lock_irq(&mmp_rtc_lock);
+	spin_lock_irq(&mmp_rtc_lock);
+	if (enabled)
 		RTSR |= RTSR_ALE;
-		spin_unlock_irq(&mmp_rtc_lock);
-		return 0;
-	case RTC_UIE_OFF:
-		spin_lock_irq(&mmp_rtc_lock);
-		RTSR &= ~RTSR_HZE;
-		spin_unlock_irq(&mmp_rtc_lock);
-		return 0;
-	case RTC_UIE_ON:
-		spin_lock_irq(&mmp_rtc_lock);
-		RTSR |= RTSR_HZE;
-		spin_unlock_irq(&mmp_rtc_lock);
-		return 0;
-	case RTC_IRQP_READ:
-		return put_user(rtc_freq, (unsigned long *)arg);
-	case RTC_IRQP_SET:
-		if (get_user(arg_val, (unsigned long __user *)arg))
-			return -EFAULT;
-		if (arg_val < 1 || arg_val > TIMER_FREQ)
-			return -EINVAL;
-		rtc_freq = arg_val;
-		return 0;
-	case RTC_EPOCH_READ:	/* Read the epoch.	*/
-		return put_user(epoch, (unsigned long __user *)arg);
-	case RTC_EPOCH_SET:	/* Set the epoch.	*/
-		/* Doesn't support before 1900 */
-		if (get_user(arg_val, (unsigned long __user *)arg))
-			return -EFAULT;
-		if (arg_val < 1900)
-			return -EINVAL;
-		epoch = arg_val;
-		return 0;
-	}
-	return -ENOIOCTLCMD;
+	else
+		RTSR &= ~RTSR_ALE;
+	spin_unlock_irq(&mmp_rtc_lock);
+	return 0;
 }
+
 
 static int mmp_rtc_read_time(struct device *dev, struct rtc_time *tm)
 {
@@ -279,12 +239,12 @@ static int mmp_rtc_proc(struct device *dev, struct seq_file *seq)
 static const struct rtc_class_ops mmp_rtc_ops = {
 	.open = mmp_rtc_open,
 	.release = mmp_rtc_release,
-	.ioctl = mmp_rtc_ioctl,
 	.read_time = mmp_rtc_read_time,
 	.set_time = mmp_rtc_set_time,
 	.read_alarm = mmp_rtc_read_alarm,
 	.set_alarm = mmp_rtc_set_alarm,
 	.proc = mmp_rtc_proc,
+	.alarm_irq_enable = mmp_rtc_alarm_irq_enable,
 };
 
 #ifdef CONFIG_PM
@@ -310,7 +270,6 @@ static struct dev_pm_ops mmp_rtc_pm_ops = {
 };
 #endif
 
-#define res_size(res)	((res)->end - (res)->start + 1)
 static int mmp_rtc_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -325,35 +284,35 @@ static int mmp_rtc_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to get rtc irq\n");
 		irq_1hz = irq_alrm = -1;
 		ret = -ENXIO;
-		goto err;
-	}
-
-	clk = clk_get(&pdev->dev, "MMP-RTC");
-	if (IS_ERR(clk)) {
-		ret = PTR_ERR(clk);
-		clk = NULL;
-		goto err;
+		goto err_nores;
 	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res == NULL) {
 		dev_err(&pdev->dev, "failed to get I/O memory\n");
 		ret = -ENXIO;
-		goto err;
+		goto err_nores;
 	}
 
-	res = request_mem_region(res->start, res_size(res), pdev->name);
+	res = request_mem_region(res->start, resource_size(res), pdev->name);
 	if (res == NULL) {
 		dev_err(&pdev->dev, "failed to request I/O memory\n");
 		ret = -EBUSY;
-		goto err;
+		goto err_nores;
 	}
 
-	rtc_base = ioremap(res->start, res_size(res));
+	rtc_base = ioremap(res->start, resource_size(res));
 	if (rtc_base == NULL) {
 		dev_err(&pdev->dev, "failed to remap I/O memory\n");
 		ret = -ENXIO;
-		goto err;
+		goto err_nomap;
+	}
+
+	clk = clk_get(&pdev->dev, "MMP-RTC");
+	if (IS_ERR(clk)) {
+		ret = PTR_ERR(clk);
+		clk = NULL;
+		goto err_noclk;
 	}
 
 	ret = request_irq(irq_1hz, mmp_rtc_interrupt, IRQF_DISABLED,
@@ -362,7 +321,7 @@ static int mmp_rtc_probe(struct platform_device *pdev)
 		dev_err(dev, "IRQ %d already in use.\n", irq_1hz);
 		irq_1hz = irq_alrm = -1;
 		ret = -ENXIO;
-		goto err;
+		goto err_noirq_1hz;
 	}
 	disable_irq(irq_1hz);
 
@@ -372,7 +331,7 @@ static int mmp_rtc_probe(struct platform_device *pdev)
 		dev_err(dev, "IRQ %d already in use.\n", irq_alrm);
 		irq_alrm = -1;
 		ret = -ENXIO;
-		goto err;
+		goto err_noirq_alrm;
 	}
 
 	if (RTTR == 0) {
@@ -388,8 +347,11 @@ static int mmp_rtc_probe(struct platform_device *pdev)
 	rtc = rtc_device_register(pdev->name, &pdev->dev, &mmp_rtc_ops,
 				THIS_MODULE);
 
-	if (IS_ERR(rtc))
-		return PTR_ERR(rtc);
+	if (IS_ERR(rtc)) {
+		dev_err(&pdev->dev, "cannot attach rtc\n");
+		ret = PTR_ERR(rtc);
+		goto err_nortc;
+	}
 
 	clk_enable(clk);
 
@@ -397,11 +359,17 @@ static int mmp_rtc_probe(struct platform_device *pdev)
 
 	return 0;
 
-err:
-	if (irq_1hz >= 0)
-		free_irq(irq_1hz, dev);
-	if (irq_alrm >= 0)
-		free_irq(irq_alrm, dev);
+err_nortc:
+	free_irq(irq_alrm, dev);
+err_noirq_alrm:
+	free_irq(irq_1hz, dev);
+err_noirq_1hz:
+	clk_put(clk);
+err_noclk:
+	iounmap(rtc_base);
+err_nomap:
+	release_resource(res);
+err_nores:
 	return ret;
 }
 
@@ -415,7 +383,7 @@ static int mmp_rtc_remove(struct platform_device *pdev)
 	free_irq(irq_1hz, dev);
 	free_irq(irq_alrm, dev);
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	release_mem_region(res->start, res_size(res));
+	release_mem_region(res->start, resource_size(res));
 
 	if (rtc)
 		rtc_device_unregister(rtc);
