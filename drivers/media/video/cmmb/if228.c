@@ -388,8 +388,8 @@ static int cmmb_alloc_dma_bufs(struct cmmb_dev *cmmb)
 	cmmb->dma_buf_size = dma_buf_size;
 
 	cmmb->order = get_order(cmmb->dma_buf_size);
-	cmmb->dma_bufs =
-	    (unsigned long *)__get_free_pages(GFP_KERNEL, cmmb->order);
+	cmmb->dma_bufs = (unsigned long *)
+		__get_free_pages(GFP_KERNEL | GFP_DMA, cmmb->order);
 	if (cmmb->dma_bufs == NULL) {
 		CMMB_ERR("Failed to allocate DMA buffer\n");
 		return -ENOMEM;
