@@ -488,7 +488,9 @@ static int ov5642_load_fw(struct v4l2_subdev *sd)
 	struct ov5642 *ov5642 = to_ov5642(client);
 	struct soc_camera_device *icd = client->dev.platform_data;
 	struct soc_camera_link *icl;
+#ifdef CONFIG_PXA95x
 	struct sensor_platform_data *pdata;
+#endif
 	int ret = 0;
 
 	icl = to_soc_camera_link(icd);
