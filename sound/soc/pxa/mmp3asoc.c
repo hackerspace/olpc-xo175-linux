@@ -212,7 +212,8 @@ static const struct snd_soc_dapm_route mmp3asoc_dapm_routes[] = {
 	{"Headset Stereophone", NULL, "HPOUT1L"},
 	{"Headset Stereophone", NULL, "HPOUT1R"},
 
-	{"IN1RN", NULL, "Headset Mic"},
+	{"IN1RN", NULL, "MICBIAS1"},
+	{"MICBIAS1", NULL, "Headset Mic"},
 
 	{"DMIC1DAT", NULL, "MICBIAS1"},
 	{"MICBIAS1", NULL, "Main Mic"},
