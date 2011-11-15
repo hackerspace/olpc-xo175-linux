@@ -309,7 +309,7 @@ static struct regval_list ov5642_dvp_res_cif[] =
 
 };
 
-static struct regval_list ov5642_dvp_yuv_qxga[] =
+static struct regval_list ov5642_dvp_yuv_qxga[] __attribute__ ((unused)) =
 {
 	{0x3503, 0x00},
 	  {0x3000, 0x00},
@@ -1952,7 +1952,7 @@ static struct regval_list ov5642_mipi_fmt_yuv422[] = {
 	{OV5642_END_ADDR, OV5642_END_VAL}
 };
 
-static struct regval_list ov5642_mipi_res_qcif[] =
+static struct regval_list ov5642_mipi_res_qcif[] __attribute__ ((unused)) =
 {
 	//size
 	{0x3808,0x00},
@@ -1971,7 +1971,7 @@ static struct regval_list ov5642_mipi_res_qvga[] =
 	{OV5642_END_ADDR, OV5642_END_VAL}
 };
 
-static struct regval_list ov5642_mipi_res_vga[] =
+static struct regval_list ov5642_mipi_res_vga[] __attribute__ ((unused)) =
 {
 	{0x3808,0x02},
 	{0x3809,0x80},
@@ -1989,7 +1989,7 @@ static struct regval_list ov5642_mipi_res_d1[] =
 	{OV5642_END_ADDR, OV5642_END_VAL}
 };
 
-static struct regval_list ov5642_mipi_res_720p[] =
+static struct regval_list ov5642_mipi_res_720p[] __attribute__ ((unused)) =
 {
 	{0x5001, 0xff},
 	{0x3808, 0x05},
@@ -2010,7 +2010,7 @@ static struct regval_list ov5642_mipi_res_wvga[] = {
 	{OV5642_END_ADDR, OV5642_END_VAL}
 };
 
-static struct regval_list ov5642_mipi_res_1080p[] =
+static struct regval_list ov5642_mipi_res_1080p[] __attribute__ ((unused)) =
 {
 	{0x5001, 0xff},
 	{0x3804, 0x07},
@@ -2024,7 +2024,7 @@ static struct regval_list ov5642_mipi_res_1080p[] =
 	{OV5642_END_ADDR, OV5642_END_VAL}
 };
 
-static struct regval_list ov5642_mipi_yuv_720p[] =
+static struct regval_list ov5642_mipi_yuv_720p[] __attribute__ ((unused)) =
 {
 
 	{0x350c,0x04},
@@ -2079,7 +2079,7 @@ static struct regval_list ov5642_mipi_yuv_720p[] =
 	{OV5642_END_ADDR, OV5642_END_VAL}
 };
 
-static struct regval_list ov5642_mipi_yuv_1080p[] =
+static struct regval_list ov5642_mipi_yuv_1080p[] __attribute__ ((unused)) =
 {
 
 	{0x350c,0x04},
