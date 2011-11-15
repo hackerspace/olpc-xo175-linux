@@ -110,6 +110,7 @@ struct driver_data {
 	/* DMA setup stuff */
 	int rx_channel;
 	int tx_channel;
+	u32 *alloc_dma_buf;
 	u32 *null_dma_buf;
 
 	/* SSP register addresses */
@@ -1607,15 +1608,24 @@ static int __devinit pxa2xx_spi_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	/* Allocate master with space for drv_data and null dma buffer */
-	master = spi_alloc_master(dev,
-		sizeof(struct driver_data) + DMA_ALIGNMENT);
+	/* Allocate master with space for drv_data*/
+	master = spi_alloc_master(dev, sizeof(struct driver_data));
 	if (!master) {
 		dev_err(&pdev->dev, "cannot alloc spi_master\n");
 		pxa_ssp_free(ssp);
 		return -ENOMEM;
 	}
+
 	drv_data = spi_master_get_devdata(master);
+	/* the null DMA buf should malloc form DMA_ZONE
+	 * and align of DMA_ALIGNMENT
+	 */
+	drv_data->alloc_dma_buf =
+		kzalloc(DMA_ALIGNMENT+4, GFP_KERNEL | GFP_DMA);
+	if (!drv_data->alloc_dma_buf) {
+		status = -ENOMEM;
+		goto out_error_dma_buf;
+	}
 	drv_data->master = master;
 	drv_data->master_info = platform_info;
 	drv_data->pdev = pdev;
@@ -1635,8 +1645,8 @@ static int __devinit pxa2xx_spi_probe(struct platform_device *pdev)
 	master->transfer = transfer;
 
 	drv_data->ssp_type = ssp->type;
-	drv_data->null_dma_buf = (u32 *)ALIGN((u32)((u32)drv_data +
-				sizeof(struct driver_data)), DMA_ALIGNMENT);
+	drv_data->null_dma_buf =
+		(u32 *)ALIGN((u32)drv_data->alloc_dma_buf, DMA_ALIGNMENT);
 
 	drv_data->ioaddr = ssp->mmio_base;
 	drv_data->ssdr_physical = ssp->phys_base + SSDR;
@@ -1742,9 +1752,11 @@ out_error_dma_alloc:
 
 out_error_irq_alloc:
 	free_irq(ssp->irq, drv_data);
+	deinit_dvfm_constraint(drv_data);
 
 out_error_master_alloc:
-	deinit_dvfm_constraint(drv_data);
+	kfree(drv_data->alloc_dma_buf);
+out_error_dma_buf:
 	spi_master_put(master);
 	pxa_ssp_free(ssp);
 	return status;
@@ -1791,7 +1803,7 @@ static int pxa2xx_spi_remove(struct platform_device *pdev)
 
 	/* Release SSP */
 	pxa_ssp_free(ssp);
-
+	kfree(drv_data->alloc_dma_buf);
 	deinit_dvfm_constraint(drv_data);
 	/* Disconnect from the SPI framework */
 	spi_unregister_master(drv_data->master);
