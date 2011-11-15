@@ -45,6 +45,7 @@
 #include "onboard.h"
 #include <linux/cwmi.h>
 #include <linux/cwgd.h>
+#include <linux/mmc/sdhci.h>
 
 #define BROWNSTONE_NR_IRQS	(IRQ_BOARD_START + 48)
 
@@ -155,13 +156,14 @@ static unsigned long brownstone_pin_config[] __initdata = {
 	GPIO134_MMC1_DAT0 | MFP_PULL_HIGH,
 	GPIO136_MMC1_CMD | MFP_PULL_HIGH,
 	GPIO139_MMC1_CLK,
-	GPIO140_MMC1_CD | MFP_PULL_LOW,
+	GPIO140_MMC1_CD | MFP_PULL_HIGH,
 	GPIO141_MMC1_WP | MFP_PULL_LOW,
+	GPIO95_SDMMC_PEN,
 
 	/* MMC1 */
 	GPIO37_MMC2_DAT3 | MFP_PULL_HIGH,
 	GPIO38_MMC2_DAT2 | MFP_PULL_HIGH,
-	GPIO39_MMC2_DAT1 | MFP_PULL_HIGH,
+	GPIO39_MMC2_DAT1 | MFP_PULL_HIGH | MFP_LPM_EDGE_FALL,
 	GPIO40_MMC2_DAT0 | MFP_PULL_HIGH,
 	GPIO41_MMC2_CMD | MFP_PULL_HIGH,
 	GPIO42_MMC2_CLK,
@@ -443,9 +445,37 @@ static struct i2c_board_info brownstone_twsi1_info[] = {
 #endif
 };
 
+#if defined(CONFIG_MMC_SDHCI_PXAV3)
+/* MMC0 controller for SD-MMC */
 static struct sdhci_pxa_platdata mmp2_sdh_platdata_mmc0 = {
-	.max_speed	= 25000000,
+	.clk_delay_cycles	= 0x1f,
+	.flags			= PXA_FLAG_ENABLE_CLOCK_GATING,
 };
+
+static struct sdhci_pxa_platdata mmp2_sdh_platdata_mmc2 = {
+	.clk_delay_cycles	= 0x1f,
+	.flags		= PXA_FLAG_CARD_PERMANENT | PXA_FLAG_ENABLE_CLOCK_GATING,
+};
+
+static void __init brownstone_init_mmc(void)
+{
+	int sdmmc_pen = mfp_to_gpio(MFP_PIN_GPIO95);
+#ifndef CONFIG_MTD_NAND_PXA3xx
+	/*eMMC (MMC3) pins are conflict with NAND*/
+	mmp2_add_sdhost(2, &mmp2_sdh_platdata_mmc2); /*eMMC*/
+#endif
+	mmp2_add_sdhost(0, &mmp2_sdh_platdata_mmc0); /*SD/MMC*/
+
+	if (board_is_mmp2_brownstone_rev5()) {
+		if (gpio_request(sdmmc_pen, "sdmmc power enable")) {
+			pr_err("Failed to request sdmmc power enable gpio\n");
+			return;
+		}
+		gpio_direction_output(sdmmc_pen, 1);
+		gpio_free(sdmmc_pen);
+	}
+}
+#endif
 
 static struct regulator_consumer_supply wm8994_fixed_voltage0_supplies[] = {
 	REGULATOR_SUPPLY("DBVDD", NULL),
@@ -1059,8 +1089,12 @@ static void __init brownstone_init(void)
 		mmp2_add_twsi(5, NULL, ARRAY_AND_SIZE(brownstone_twsi5_info));
 	}
 	mmp2_add_twsi(6, NULL, ARRAY_AND_SIZE(brownstone_twsi6_info));
-	mmp2_add_sdhost(0, &mmp2_sdh_platdata_mmc0); /* SD/MMC */
 	mmp2_add_thermal_sensor();
+
+#if defined(CONFIG_MMC_SDHCI_PXAV3)
+	brownstone_init_mmc();
+#endif
+
 #ifdef CONFIG_USB_PXA_U2O
 	pxa168_device_u2o.dev.platform_data = &mmp2_usb_pdata;
 	platform_device_register(&pxa168_device_u2o);
