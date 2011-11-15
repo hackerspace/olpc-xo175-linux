@@ -283,16 +283,16 @@ static int chip_alloc_dma_bufs(struct smsspi_dev *drv_info)
 	drv_info->dma_buf_size = PXA_SPI_MAX_SIZE;
 
 	drv_info->order = get_order(drv_info->dma_buf_size);
-	drv_info->dma_rx_bufs =
-	    (unsigned long *)__get_free_pages(GFP_KERNEL, drv_info->order);
+	drv_info->dma_rx_bufs = (unsigned long *)
+		__get_free_pages(GFP_KERNEL | GFP_DMA, drv_info->order);
 	if (drv_info->dma_rx_bufs == NULL) {
 		sms_err("Failed to allocate Rx DMA buffer\n");
 		return -ENOMEM;
 	}
 	drv_info->dma_rx_handles = __pa(drv_info->dma_rx_bufs);
 
-	drv_info->dma_tx_bufs =
-	    (unsigned long *)__get_free_pages(GFP_KERNEL, drv_info->order);
+	drv_info->dma_tx_bufs = (unsigned long *)
+		__get_free_pages(GFP_KERNEL | GFP_DMA, drv_info->order);
 	if (drv_info->dma_tx_bufs == NULL) {
 		sms_err("Failed to allocate Tx DMA buffer\n");
 		free_pages((unsigned long)drv_info->dma_rx_bufs,
