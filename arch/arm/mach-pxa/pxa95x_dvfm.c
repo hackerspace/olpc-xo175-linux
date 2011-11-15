@@ -1236,7 +1236,7 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 		mask |= ACCR_DMCFS_MASK;
 	}
 	if (old->hss != new->hss) {
-		if (!display_enabled) {
+		if (cpu_is_pxa978() || !display_enabled) {
 			data |= (fv_info.hss << ACCR_HSS_OFFSET);
 			mask |= ACCR_HSS_MASK;
 			cur_hss = fv_info.hss;
