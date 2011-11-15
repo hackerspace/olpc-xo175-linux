@@ -228,7 +228,7 @@ static int ccic_config_image(struct mv_camera_dev *pcdev)
 	unsigned int temp;
 	struct v4l2_pix_format *fmt = &pcdev->pix_format;
 	u32 widthy, widthuv;
-	struct device *dev = &pcdev->icd->dev;
+	struct device *dev = &pcdev->pdev->dev;
 	struct mv_cam_pdata *mcam = pcdev->pdev->dev.platform_data;
 
 	dev_dbg(dev, " %s %d bytesperline %d height %d\n", __func__, __LINE__,
@@ -370,7 +370,7 @@ static void ccic_init(struct mv_camera_dev *pcdev)
 
 static void ccic_stop_dma(struct mv_camera_dev *pcdev)
 {
-	struct device *dev = &pcdev->icd->dev;
+	struct device *dev = &pcdev->pdev->dev;
 	int st = 0;
 	ccic_stop(pcdev);
 	/*
@@ -493,7 +493,7 @@ static int mv_videobuf_setup(struct vb2_queue *vq,
 	*num_planes = 1;
 	sizes[0] = pcdev->pix_format.sizeimage;
 	alloc_ctxs[0] = pcdev->vb_alloc_ctx;
-	dev_dbg(icd->dev.parent, "count=%d, size=%lu\n", *count, sizes[0]);
+	dev_dbg(&pcdev->pdev->dev, "count=%d, size=%lu\n", *count, sizes[0]);
 	return 0;
 }
 
@@ -501,6 +501,8 @@ static int mv_videobuf_prepare(struct vb2_buffer *vb)
 {
 	struct soc_camera_device *icd = container_of(vb->vb2_queue,
 		struct soc_camera_device, vb2_vidq);
+	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
+	struct mv_camera_dev *pcdev = ici->priv;
 	struct mv_buffer *buf = container_of(vb, struct mv_buffer, vb_buf);
 	unsigned long size;
 	int bytes_per_line = soc_mbus_bytes_per_line(icd->user_width,
@@ -508,7 +510,7 @@ static int mv_videobuf_prepare(struct vb2_buffer *vb)
 	if (bytes_per_line < 0)
 		return bytes_per_line;
 
-	dev_dbg(icd->dev.parent, "%s (vb=0x%p) 0x%p %lu\n", __func__, vb,
+	dev_dbg(&pcdev->pdev->dev, "%s (vb=0x%p) 0x%p %lu\n", __func__, vb,
 		vb2_plane_vaddr(vb, 0), vb2_get_plane_payload(vb, 0));
 
 	/* Added list head initialization on alloc */
@@ -754,7 +756,7 @@ static void mv_camera_remove_device(struct soc_camera_device *icd)
 	BUG_ON(icd != pcdev->icd);
 
 	vb2_dma_contig_cleanup_ctx(pcdev->vb_alloc_ctx);
-	dev_err(icd->dev.parent, "Release, %d frames, %d"
+	dev_err(&pcdev->pdev->dev, "Release, %d frames, %d"
 			"singles, %d delivered\n", frames, singles, delivered);
 	ccic_disable_clk(pcdev);
 	pcdev->icd = NULL;
@@ -769,7 +771,9 @@ static void mv_camera_remove_device(struct soc_camera_device *icd)
 static int mv_camera_set_bus_param(struct soc_camera_device
 				   *icd, __u32 pixfmt)
 {
-	struct device *dev = icd->dev.parent;
+	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
+	struct mv_camera_dev *pcdev = ici->priv;
+	struct device *dev = &pcdev->pdev->dev;
 	int ret;
 	unsigned long common_flags;
 
@@ -789,7 +793,7 @@ static int mv_camera_set_fmt(struct soc_camera_device *icd,
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct mv_camera_dev *pcdev = ici->priv;
 	struct mv_cam_pdata *mcam = pcdev->pdev->dev.platform_data;
-	struct device *dev = icd->dev.parent;
+	struct device *dev = &pcdev->pdev->dev;
 	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
 	const struct soc_camera_format_xlate *xlate = NULL;
 	struct v4l2_mbus_framefmt mf;
@@ -856,7 +860,9 @@ static int mv_camera_try_fmt(struct soc_camera_device *icd,
 		struct v4l2_format *f)
 {
 	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
-	struct device *dev = icd->dev.parent;
+	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
+	struct mv_camera_dev *pcdev = ici->priv;
+	struct device *dev = &pcdev->pdev->dev;
 	const struct soc_camera_format_xlate *xlate;
 	struct v4l2_pix_format *pix = &f->fmt.pix;
 	struct v4l2_mbus_framefmt mf;
@@ -906,7 +912,7 @@ static int mv_camera_try_fmt(struct soc_camera_device *icd,
 		pix->field = V4L2_FIELD_NONE;
 		break;
 	default:
-		dev_err(icd->dev.parent, "Field type %d unsupported.\n",
+		dev_err(dev, "Field type %d unsupported.\n",
 			mf.field);
 		return -EINVAL;
 	}
@@ -928,7 +934,7 @@ static int mv_camera_querycap(struct soc_camera_host *ici,
 	struct mv_camera_dev *pcdev = ici->priv;
 	struct soc_camera_device *icd = pcdev->icd;
 	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
-	struct device *dev = icd->dev.parent;
+	struct device *dev = &pcdev->pdev->dev;
 	struct mv_cam_pdata *mcam = pcdev->pdev->dev.platform_data;
 	int ret = 0;
 
@@ -986,7 +992,9 @@ static int mv_camera_get_formats(struct soc_camera_device *icd, u32 idx,
 		struct soc_camera_format_xlate  *xlate)
 {
 	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
-	struct device *dev = icd->dev.parent;
+	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
+	struct mv_camera_dev *pcdev = ici->priv;
+	struct device *dev = &pcdev->pdev->dev;
 	int formats = 0, ret;
 	enum v4l2_mbus_pixelcode code;
 	const struct soc_mbus_pixelfmt *fmt;
