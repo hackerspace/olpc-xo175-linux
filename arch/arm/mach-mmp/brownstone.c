@@ -1155,7 +1155,7 @@ static void __init brownstone_init(void)
 
 }
 
-MACHINE_START(BROWNSTONE, "Brownstone Development Platform")
+MACHINE_START(BROWNSTONE, "Brownstone")
 	/* Maintainer: Haojian Zhuang <haojian.zhuang@marvell.com> */
 	.map_io		= mmp_map_io,
 	.nr_irqs	= BROWNSTONE_NR_IRQS,
