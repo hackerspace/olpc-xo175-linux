@@ -64,10 +64,10 @@ struct pm860x_rtc_info {
 
 #define VRTC_CALIB_INTERVAL	(HZ * 60 * 10)		/* 10 minutes */
 
-static struct platform_device *g_pdev;
 static int pm860x_rtc_read_time(struct device *dev, struct rtc_time *tm);
 
 #ifdef CONFIG_RTC_MON
+static struct platform_device *g_pdev;
 static long pm860x_rtcmon_ioctl(struct file *file, unsigned int cmd,
 					unsigned long arg)
 {
