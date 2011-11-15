@@ -301,6 +301,15 @@ static void audio_subsystem_poweron(void)
 	/* pull peripheral out of reset */
 	__raw_modify(APMU_AUDIO_CLK_RES_CTRL, 0, (1u << 1));
 
+	/* Audio CFG: DSP core will stall after release from reset */
+	__raw_modify(DSP_AUDIO_CONFIG_REG, (1u << 1), 0);
+	/* DSP core clock : enable clock divier  */
+	__raw_modify(DSA_CORE_CLK_RES_CTRL, 0, (1u << 3));
+	/* Release the core reset */
+	__raw_modify(DSA_CORE_CLK_RES_CTRL, 0, (1u << 0));
+	/* Release the AXI reset */
+	__raw_modify(DSA_CORE_CLK_RES_CTRL, 0, (1u << 1));
+
 	/* devices */
 	udelay(100);
 	__raw_writel(0x8, DSA_SSP_CLK_RES_CTRL);
@@ -340,6 +349,11 @@ static void audio_subsystem_pll_config(void)
 	/* div : 12, 44.1K */
 	__raw_writel(0x911185, SSPA_AUD_CTRL);
 	msleep(100);
+
+	/* Switch the source clock for core and AXI clock to Audio PLL*/
+	__raw_modify(DSA_CORE_CLK_RES_CTRL, 0x0, (1u << 2));
+	__raw_modify(DSA_CORE_CLK_RES_CTRL, 0x0, (3u << 4));
+	__raw_modify(DSA_CORE_CLK_RES_CTRL, (1u << 2), 0x0);
 
 }
 
