@@ -276,7 +276,8 @@ static void pxa_acm_complete_set_line_coding(struct usb_ep *ep,
 					 struct usb_request *req)
 {
 	struct pxa_f_acm *acm = ep->driver_data;
-	struct usb_composite_dev *cdev = acm->port.func.config->cdev;
+	struct usb_composite_dev *cdev = NULL;
+	cdev = acm->port.func.config->cdev;
 
 	if (req->status != 0) {
 		DBG(cdev, "acm ttyGS%d completion, err %d\n",
@@ -426,7 +427,7 @@ static int pxa_acm_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 static void pxa_acm_disable(struct usb_function *f)
 {
 	struct pxa_f_acm *acm = pxa_func_to_acm(f);
-	struct usb_composite_dev *cdev = f->config->cdev;
+	struct usb_composite_dev *cdev = NULL;
 	struct tty_struct *tty;
 	struct pxa910_gs_port *port;
 
@@ -434,6 +435,7 @@ static void pxa_acm_disable(struct usb_function *f)
 	port = pxa910_ports[GS_MODEM_PORT_BASE].port;
 	tty = port->port_tty;
 
+	cdev = f->config->cdev;
 	DBG(cdev, "acm ttyGS%d deactivated\n", acm->port_num);
 	acm->modem_state = MODEM_CONTROL_MODE;
 
@@ -501,11 +503,12 @@ static int pxa_acm_cdc_notify(struct pxa_f_acm *acm, u8 type, u16 value,
 
 static int pxa_acm_notify_serial_state(struct pxa_f_acm *acm)
 {
-	struct usb_composite_dev *cdev = acm->port.func.config->cdev;
+	struct usb_composite_dev *cdev = NULL;
 	int status;
 
 	spin_lock(&acm->lock);
 	if (acm->notify_req) {
+		cdev = acm->port.func.config->cdev;
 		DBG(cdev, "acm ttyGS%d serial state %04x\n",
 		    acm->port_num, acm->serial_state);
 		status = pxa_acm_cdc_notify(acm, USB_CDC_NOTIFY_SERIAL_STATE,
