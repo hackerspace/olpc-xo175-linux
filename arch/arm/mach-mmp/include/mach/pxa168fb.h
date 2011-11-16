@@ -746,13 +746,13 @@ extern int gfx_vsmooth;
 extern int vid_vsmooth;
 extern struct device_attribute dev_attr_misc;
 #ifdef CONFIG_PXA688_MISC
-extern int pxa688fb_vsmooth_set(int id, int vid, int en, int flag);
+extern int pxa688fb_vsmooth_set(int id, int vid, int en);
 extern int pxa688fb_partdisp_set(struct pxa168fb_gra_partdisp grap);
 extern void pxa688fb_partdisp_update(int id);
 extern int gamma_set(int path, int flag, char *gamma_table);
 extern void gamma_dump(int path, int lines);
 #else
-static inline int pxa688fb_vsmooth_set(int id, int vid, int en, int flag)
+static inline int pxa688fb_vsmooth_set(int id, int vid, int en)
 {
 	return 0;
 }

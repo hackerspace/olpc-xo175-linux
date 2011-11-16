@@ -877,11 +877,6 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 						fbi->info = NULL;
 					}
 
-					if (fbi->misc_update) {
-						pxa688fb_partdisp_update(id);
-						pxa688fb_vsmooth_set(id, 0, gfx_vsmooth, 0);
-						fbi->misc_update = 0;
-					}
 					/* wake up queue if condition */
 					if (atomic_read(&fbi->w_intr) == 0) {
 						atomic_set(&fbi->w_intr, 1);
@@ -890,6 +885,11 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 
 					/* trigger buf update */
 					buf_endframe(fbi->fb_info);
+
+					if (fbi->misc_update) {
+						pxa168fb_misc_update(fbi);
+						fbi->misc_update = 0;
+					}
 
 					if (vsync_check &&
 						id == DEBUG_VSYNC_PATH(0))

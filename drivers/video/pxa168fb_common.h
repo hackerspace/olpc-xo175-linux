@@ -45,6 +45,7 @@ extern int get_freelist(struct fb_info *info, unsigned long arg);
 extern void set_dma_active(struct pxa168fb_info *fbi);
 extern int dispd_dma_enabled(struct pxa168fb_info *fbi);
 extern void wait_for_vsync(struct pxa168fb_info *fbi);
+extern void pxa168fb_misc_update(struct pxa168fb_info *fbi);
 extern void set_start_address(struct fb_info *info, int xoffset,
 			 int yoffset, int wait_vsync);
 extern void set_dma_control0(struct pxa168fb_info *fbi);

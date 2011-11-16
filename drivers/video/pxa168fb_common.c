@@ -1138,6 +1138,18 @@ void pxa168fb_list_init(struct pxa168fb_info *fbi)
 	fbi->buf_retired = fbi->buf_current = 0;
 }
 
+void pxa168fb_misc_update(struct pxa168fb_info *fbi)
+{
+	pxa688_vdma_config(fbi);
+	if (fbi->vid && vid_vsmooth)
+		pxa688fb_vsmooth_set(fbi->id, 1, vid_vsmooth);
+	if (!fbi->vid) {
+		pxa688fb_partdisp_update(fbi->id);
+		if (gfx_vsmooth)
+			pxa688fb_vsmooth_set(fbi->id, 0, gfx_vsmooth);
+	}
+}
+
 void set_start_address(struct fb_info *info,
 	 int xoffset, int yoffset, int wait_vsync)
 {
@@ -1190,14 +1202,11 @@ again:
 		writel(addr_y0, &regs->g_0);
 
 	set_dma_active(fbi);
-	pxa688_vdma_config(fbi);
 
-	if (wait_vsync || fbi->vid)
+	if (wait_vsync)
 		fbi->misc_update = 1;
-	else {
-		pxa688fb_partdisp_update(fbi->id);
-		pxa688fb_vsmooth_set(fbi->id, 0, gfx_vsmooth, 0);
-	}
+	else
+		pxa168fb_misc_update(fbi);
 
 	if (FB_MODE_DUP) {
 		if (fbi->vid)

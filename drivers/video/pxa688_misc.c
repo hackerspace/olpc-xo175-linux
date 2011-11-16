@@ -543,7 +543,7 @@ static void pxa688fb_clone_base(int src, int dst, int vid)
 }
 
 /* clone src path graphics layer settings to dst path */
-static int pxa688fb_clone_gfx(int src, int dst, int en, int addr_only)
+static int pxa688fb_clone_gfx(int src, int dst, int en)
 {
 	struct lcd_regs *regs_src = get_regs(src);
 	struct lcd_regs *regs_dst = get_regs(dst);
@@ -573,9 +573,6 @@ static int pxa688fb_clone_gfx(int src, int dst, int en, int addr_only)
 
 	/* partial display */
 	pxa688fb_clone_partdisp_ctrl(src, dst);
-
-	if (addr_only)
-		return 0;
 
 	/* configure dst regs */
 	writel(readl(&regs_src->g_pitch), &regs_dst->g_pitch);
@@ -660,7 +657,7 @@ static int pxa168fb_vsmooth_check(int id, int src, int dst, int vid, int en)
  * vid: video layer or graphics layer
  * en: enable vsmooth mode or not
  */
-int pxa688fb_vsmooth_set(int id, int vid, int en, int flag)
+int pxa688fb_vsmooth_set(int id, int vid, int en)
 {
 	int filter = fb_filter, dst = fb_vsmooth, ret = 0;
 
@@ -676,7 +673,7 @@ int pxa688fb_vsmooth_set(int id, int vid, int en, int flag)
 	if (vid)
 		ret = pxa688fb_clone_ovly(dst, filter, en);
 	else
-		ret = pxa688fb_clone_gfx(dst, filter, en, flag);
+		ret = pxa688fb_clone_gfx(dst, filter, en);
 	if (ret) {
 		if (debug)
 			pr_info("%s clone %s err, filter %d dst %d\n",
@@ -850,12 +847,12 @@ ssize_t misc_store(
 		tmp = (int) simple_strtoul(vol, NULL, 10);
 		if (tmp != fb_vsmooth) {
 			/* disable vsmooth for original path */
-			pxa688fb_vsmooth_set(fb_vsmooth, 0, 0, 0);
-			pxa688fb_vsmooth_set(fb_vsmooth, 1, 0, 0);
+			pxa688fb_vsmooth_set(fb_vsmooth, 0, 0);
+			pxa688fb_vsmooth_set(fb_vsmooth, 1, 0);
 			/* enable vsmooth for new path */
 			fb_vsmooth = tmp;
-			pxa688fb_vsmooth_set(fb_vsmooth, 0, gfx_vsmooth, 0);
-			pxa688fb_vsmooth_set(fb_vsmooth, 1, vid_vsmooth, 0);
+			pxa688fb_vsmooth_set(fb_vsmooth, 0, gfx_vsmooth);
+			pxa688fb_vsmooth_set(fb_vsmooth, 1, vid_vsmooth);
 			pr_info("fb_vsmooth: %d\n", fb_vsmooth);
 		}
 		return size;
@@ -864,12 +861,12 @@ ssize_t misc_store(
 		tmp = (int) simple_strtoul(vol, NULL, 10);
 		if (tmp != fb_filter) {
 			/* disable vsmooth for original path */
-			pxa688fb_vsmooth_set(fb_vsmooth, 0, 0, 0);
-			pxa688fb_vsmooth_set(fb_vsmooth, 1, 0, 0);
+			pxa688fb_vsmooth_set(fb_vsmooth, 0, 0);
+			pxa688fb_vsmooth_set(fb_vsmooth, 1, 0);
 			/* enable vsmooth for new path */
 			fb_filter = tmp;
-			pxa688fb_vsmooth_set(fb_vsmooth, 0, gfx_vsmooth, 0);
-			pxa688fb_vsmooth_set(fb_vsmooth, 1, vid_vsmooth, 0);
+			pxa688fb_vsmooth_set(fb_vsmooth, 0, gfx_vsmooth);
+			pxa688fb_vsmooth_set(fb_vsmooth, 1, vid_vsmooth);
 			pr_info("fb_filter: %d\n", fb_filter);
 		}
 		return size;
@@ -878,7 +875,7 @@ ssize_t misc_store(
 		tmp = gfx_vsmooth;
 		gfx_vsmooth = (int) simple_strtoul(vol, NULL, 10);
 		if (tmp != gfx_vsmooth) {
-			pxa688fb_vsmooth_set(fb_vsmooth, 0, gfx_vsmooth, 0);
+			pxa688fb_vsmooth_set(fb_vsmooth, 0, gfx_vsmooth);
 			pr_info("gfx_vsmooth: %d -> %d\n", tmp, gfx_vsmooth);
 		}
 		return size;
@@ -887,7 +884,7 @@ ssize_t misc_store(
 		tmp = vid_vsmooth;
 		vid_vsmooth = (int) simple_strtoul(vol, NULL, 10);
 		if (tmp != vid_vsmooth) {
-			pxa688fb_vsmooth_set(fb_vsmooth, 1, vid_vsmooth, 0);
+			pxa688fb_vsmooth_set(fb_vsmooth, 1, vid_vsmooth);
 			pr_info("vid_vsmooth: %d -> %d\n", tmp, vid_vsmooth);
 		}
 		return size;

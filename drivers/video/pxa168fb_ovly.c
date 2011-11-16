@@ -658,7 +658,7 @@ again:
 			list_empty(&fbi->buf_waitlist.surfacelist),
 			fbi->buf_current, ret);
 
-		pxa688fb_vsmooth_set(fbi->id, 1, vid_vsmooth & vid_on, 0);
+		pxa688fb_vsmooth_set(fbi->id, 1, vid_vsmooth & vid_on);
 
 		if (FB_MODE_DUP) {
 			fbi = ovly_info.fbi[fb_dual];
@@ -815,7 +815,7 @@ again:
 		pxa688_vdma_release(fbi);
 		mask = CFG_DMA_ENA_MASK | CFG_DMAFORMAT_MASK;
 		dma_ctrl_set(fbi->id, 0, mask, 0);
-		pxa688fb_vsmooth_set(fbi->id, 1, 0, 0);
+		pxa688fb_vsmooth_set(fbi->id, 1, 0);
 
 		if (FB_MODE_DUP) {
 			fbi = ovly_info.fbi[fb_dual];
@@ -1119,16 +1119,7 @@ irqreturn_t pxa168fb_ovly_isr(int id)
 		printk(KERN_DEBUG "%s fbi %d vid %d\n",
 			 __func__, fbi->id, fbi->vid);
 
-	if (id == fb_base && fbi->misc_update) {
-		pxa688fb_vsmooth_set(id, 1, vid_vsmooth, 0);
-		fbi->misc_update = 0;
-	}
-
 	if (fb_mode && (id == fb_dual)) {
-		if (fbi->misc_update) {
-			pxa688fb_vsmooth_set(id, 1, vid_vsmooth, 0);
-			fbi->misc_update = 0;
-		}
 		/* mirror mode, tv path irq, check wait_peer set or not */
 		if (ovly_info.wait_peer) {
 			/* trigger irq to free panel path buf */
@@ -1157,6 +1148,11 @@ wakeup:
 			atomic_set(&fbi->w_intr, 1);
 			wake_up(&fbi->w_intr_wq);
 		}
+	}
+
+	if (fbi->misc_update) {
+		pxa168fb_misc_update(fbi);
+		fbi->misc_update = 0;
 	}
 
 	return IRQ_HANDLED;
