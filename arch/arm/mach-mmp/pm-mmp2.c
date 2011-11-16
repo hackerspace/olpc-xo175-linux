@@ -234,6 +234,7 @@ void mmp2_pm_enter_lowpower_mode(int state)
 	case POWER_MODE_APPS_IDLE:
 		apcr |= PMUM_AXISD;			/* set AXISDD bit */
 		apcr |= PMUM_DDRCORSD;			/* set DDRCORSD bit */
+		idle_cfg |= PMUA_MOH_PWRDWN;		/* PJ power down */
 		/* fall through */
 	case POWER_MODE_CORE_EXTIDLE:
 		idle_cfg |= PMUA_MOH_IDLE;		/* set the IDLE bit */
