@@ -22,6 +22,7 @@
 #include <mach/uio_hdmi.h>
 #include <linux/earlysuspend.h>
 #include <mach/addr-map.h>
+#include <mach/cputype.h>
 
 static atomic_t hdmi_state = ATOMIC_INIT(0);
 static int early_suspend_flag;
@@ -159,14 +160,15 @@ static void hdmi_delayed_func(struct work_struct *work)
 	struct hdmi_instance *hi = container_of((struct delayed_work *)work,
 			struct hdmi_instance, hpd_work);
 	if (late_disable_flag) {
-		clk_disable(hi->clk);
+		if (cpu_is_mmp2())
+			clk_disable(hi->clk);
 		late_disable_flag = 0;
 	} else {
 		/* send connect event to upper layer */
 		uio_event_notify(&hi->uio_info);
 	}
-
 }
+
 static void hdmi_switch_work(struct work_struct *work)
 {
 	struct hdmi_instance *hi =
@@ -178,7 +180,8 @@ static void hdmi_switch_work(struct work_struct *work)
 		late_disable_flag = 1; /*wait for hdmi disbaled*/
 		atomic_set(&hdmi_state, 0);
 	} else {
-		clk_enable(hi->clk);
+		if (cpu_is_mmp2())
+			clk_enable(hi->clk);
 		state = 1;
 		atomic_set(&hdmi_state, 1);
 	}
@@ -285,6 +288,8 @@ static int hdmi_probe(struct platform_device *pdev)
 	if (ret == 0) {
 		clk_enable(hi->clk);
 		atomic_set(&hdmi_state, 1);
+	}else if (cpu_is_mmp3()) {
+		clk_enable(hi->clk);
 	}
 
 	INIT_WORK(&hi->work, hdmi_switch_work);
