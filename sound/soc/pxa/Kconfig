@@ -247,9 +247,16 @@ config SND_MMP_SOC
 	  Say Y or M if you want to add support for codecs attached to
 	  the MMP SSPA interface.
 
+config SND_MMP2_SOC
+	tristate "SoC Audio for the Marvell MMP2 chip"
+	select SND_PCM
+	help
+	  Say Y or M if you want to add support for codecs attached to
+	  the MMP SSPA interface.
+
 config SND_MMP_SOC_BROWNSTONE
 	tristate "SoC Audio support for Marvell Brownstone"
-	depends on SND_MMP_SOC && MACH_BROWNSTONE
+	depends on SND_MMP2_SOC && MACH_BROWNSTONE
 	select MFD_WM8994
 	select SND_SOC_WM8994
 	select REGULATOR_FIXED_VOLTAGE

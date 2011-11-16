@@ -18,9 +18,6 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
-
-#define DEBUG 1
-
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/timer.h>
@@ -45,8 +42,8 @@
 #include <mach/regs-sspa.h>
 
 #include "../codecs/wm8994.h"
-#include "mmp2-squ.h"
-#include "mmp2-sspa.h"
+#include "mmp-pcm.h"
+#include "mmp-sspa.h"
 
 #define BROWNSTONE_HP        0
 #define BROWNSTONE_MIC       1
@@ -273,17 +270,19 @@ static int brownstone_wm8994_hw_params(struct snd_pcm_substream *substream,
 	sspa_div = freq_out;
 	do_div(sspa_div, sspa_mclk);
 
-	snd_soc_dai_set_pll(cpu_dai, SSPA_AUDIO_PLL, 0, freq_in, freq_out);
-	snd_soc_dai_set_clkdiv(cpu_dai, 0, sspa_div);
-	snd_soc_dai_set_sysclk(cpu_dai, 0, sysclk, 0);
-
-	snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_I2S |
-			    SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBM_CFM);
-	snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_I2S |
-			    SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBM_CFM);
+	snd_soc_dai_set_sysclk(cpu_dai, MMP_SSPA_CLK_AUDIO, freq_out, 0);
+	snd_soc_dai_set_pll(cpu_dai, MMP_SYSCLK, 0, freq_out, sysclk);
+	snd_soc_dai_set_pll(cpu_dai, MMP_SSPA_CLK, 0, freq_out, sspa_mclk);
 
 	/* set wm8994 sysclk */
 	snd_soc_dai_set_sysclk(codec_dai, WM8994_SYSCLK_MCLK1, sysclk, 0);
+
+	snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_I2S |
+		SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBS_CFS);
+
+	snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_I2S |
+		SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBS_CFS);
+
 	return 0;
 }
 
@@ -296,9 +295,9 @@ static struct snd_soc_dai_link brownstone_wm8994_dai[] = {
 {
 	.name		= "WM8994",
 	.stream_name	= "WM8994 HiFi",
-	.cpu_dai_name	= "mmp3-sspa-dai.0",
+	.cpu_dai_name	= "mmp-sspa-dai.0",
 	.codec_dai_name	= "wm8994-aif1",
-	.platform_name	= "mmp3-pcm-audio",
+	.platform_name	= "mmp-pcm-audio",
 	.codec_name	= "wm8994-codec",
 	.ops		= &brownstone_ops,
 	.init		= brownstone_wm8994_init,

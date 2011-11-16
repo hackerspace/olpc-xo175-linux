@@ -6,6 +6,7 @@ snd-soc-pxa-ssp-objs := pxa-ssp.o
 snd-soc-pxa910-squ-objs := pxa910-squ.o
 snd-soc-pxa2xx-pcm-objs := pxa2xx-pcm.o
 snd-soc-mmp-objs := mmp2-sspa.o mmp2-squ.o
+snd-soc-mmp2-objs := mmp-pcm.o mmp-sspa.o
 snd-soc-pxa95x-abu-objs := pxa95x-abu.o
 snd-soc-pxa95x-pcm-abu-objs := pxa95x-pcm-abu.o
 
@@ -16,6 +17,7 @@ obj-$(CONFIG_SND_PXA_SOC_SSP) += snd-soc-pxa-ssp.o
 obj-$(CONFIG_SND_PXA910_SOC) += snd-soc-pxa910-squ.o
 obj-$(CONFIG_SND_PXA910_SOC) += snd-soc-pxa2xx-pcm.o
 obj-$(CONFIG_SND_MMP_SOC) += snd-soc-mmp.o
+obj-$(CONFIG_SND_MMP2_SOC) += snd-soc-mmp2.o
 obj-$(CONFIG_SND_PXA95X_SOC_ABU) += snd-soc-pxa95x-abu.o
 obj-$(CONFIG_SND_PXA95X_SOC_ABU) += snd-soc-pxa95x-pcm-abu.o
 
