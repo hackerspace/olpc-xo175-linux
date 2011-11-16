@@ -637,7 +637,7 @@ static int pxa_acm_bind(struct usb_configuration *c, struct usb_function *f)
 	ep->driver_data = cdev;	/* claim */
 
 	/* allocate notification */
-	acm->notify_req = gs_alloc_req(ep,
+	acm->notify_req = pxa910_gs_alloc_req(ep,
 				       sizeof(struct usb_cdc_notification) + 2,
 				       GFP_KERNEL);
 	if (!acm->notify_req)
@@ -692,7 +692,7 @@ static int pxa_acm_bind(struct usb_configuration *c, struct usb_function *f)
 
 fail:
 	if (acm->notify_req)
-		gs_free_req(acm->notify, acm->notify_req);
+		pxa910_gs_free_req(acm->notify, acm->notify_req);
 
 	/* we might as well release our claims on endpoints */
 	if (acm->notify)
@@ -714,7 +714,7 @@ static void pxa_acm_unbind(struct usb_configuration *c, struct usb_function *f)
 	if (gadget_is_dualspeed(c->cdev->gadget))
 		usb_free_descriptors(f->hs_descriptors);
 	usb_free_descriptors(f->descriptors);
-	gs_free_req(acm->notify, acm->notify_req);
+	pxa910_gs_free_req(acm->notify, acm->notify_req);
 	kfree(acm);
 }
 
