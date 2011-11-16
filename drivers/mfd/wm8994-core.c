@@ -348,6 +348,11 @@ static int wm8994_resume(struct device *dev)
 
 	return 0;
 }
+
+static const struct dev_pm_ops wm8994_pm_ops = {
+	.suspend	= wm8994_suspend,
+	.resume		= wm8994_resume,
+};
 #endif
 
 #ifdef CONFIG_REGULATOR
@@ -646,14 +651,13 @@ static const struct i2c_device_id wm8994_i2c_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, wm8994_i2c_id);
 
-static UNIVERSAL_DEV_PM_OPS(wm8994_pm_ops, wm8994_suspend, wm8994_resume,
-			    NULL);
-
 static struct i2c_driver wm8994_i2c_driver = {
 	.driver = {
 		.name = "wm8994",
 		.owner = THIS_MODULE,
+#ifdef CONFIG_PM
 		.pm = &wm8994_pm_ops,
+#endif
 	},
 	.probe = wm8994_i2c_probe,
 	.remove = wm8994_i2c_remove,
