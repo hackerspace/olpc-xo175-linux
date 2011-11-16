@@ -98,11 +98,6 @@ static int ft5306_touch_write(char *buf, int count)
 	return ret;
 }
 
-static int ft5306_touch_recieve_data(void)
-{
-	return ft5306_touch_read(ft5306_buf, FT5306_LEN);
-}
-
 static void ft5306_touch_work(struct work_struct *work)
 {
 	u16 tem_x1 = 0;
