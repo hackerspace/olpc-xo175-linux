@@ -950,3 +950,9 @@ config FORCE_SCU_SINGLE_ENTRY
 	depends on CPU_PJ4B && SMP
 	help
 	  This option forces SCU snoop queue to single entry.
+
+config DISABLE_SCU_PIPELINE
+	bool "Disable SCU pipeline"
+	depends on CPU_PJ4B
+	help
+	  This option disables SCU pipeline.
