@@ -46,6 +46,10 @@
 #include <linux/cwmi.h>
 #include <linux/cwgd.h>
 #include <linux/mmc/sdhci.h>
+#include <mach/regs-icu.h>
+#ifdef CONFIG_SD8XXX_RFKILL
+#include <linux/sd8x_rfkill.h>
+#endif
 
 #define BROWNSTONE_NR_IRQS	(IRQ_BOARD_START + 48)
 
@@ -452,18 +456,101 @@ static struct sdhci_pxa_platdata mmp2_sdh_platdata_mmc0 = {
 	.flags			= PXA_FLAG_ENABLE_CLOCK_GATING,
 };
 
+/*MMC1 controller for Wifi*/
+static int mmc1_sdio_switch(unsigned int on, int with_card)
+{
+	uint32_t icu_int_conf, mfpr;
+	uint32_t addr = APB_VIRT_BASE + 0x1e000 + 0xf0;
+
+	if (!with_card)
+		return 0;
+	if (on) {
+		/* enable I/O edge detection interrupt */
+		icu_int_conf = __raw_readl(ICU_INT_CONF(23));
+		__raw_writel(icu_int_conf | ICU_INT_ROUTE_PJ4_IRQ, ICU_INT_CONF(23));
+	} else {
+		/* disable I/O edge detection interrupt */
+		icu_int_conf = __raw_readl(ICU_INT_CONF(23));
+		__raw_writel(icu_int_conf & (~(ICU_INT_ROUTE_PJ4_IRQ)), ICU_INT_CONF(23));
+		/* sdio function pin edge clear */
+		mfpr = __raw_readl(addr);
+		__raw_writel(mfpr | (1 << 6), addr);
+		__raw_writel(mfpr, addr);
+	}
+	return 0;
+}
+static struct sdhci_pxa_platdata mmp2_sdh_platdata_mmc1 = {
+	.flags		= PXA_FLAG_CARD_PERMANENT,
+	.lp_switch	= mmc1_sdio_switch,
+	.pm_caps	= MMC_PM_KEEP_POWER,
+};
+
 static struct sdhci_pxa_platdata mmp2_sdh_platdata_mmc2 = {
 	.clk_delay_cycles	= 0x1f,
 	.flags		= PXA_FLAG_CARD_PERMANENT | PXA_FLAG_ENABLE_CLOCK_GATING,
 };
 
+static void mmc1_set_power(unsigned int on)
+{
+	static struct regulator *v_ldo12, *v_ldo13;
+	mfp_cfg_t mfp_cfg_on = GPIO57_GPIO | MFP_LPM_DRIVE_HIGH;
+	mfp_cfg_t mfp_cfg_off = GPIO57_GPIO | MFP_LPM_DRIVE_LOW;
+
+	v_ldo12 = regulator_get(NULL, "v_ldo12");
+	if (IS_ERR(v_ldo12)) {
+		v_ldo12 = NULL;
+		pr_err("%s: fail to get regulator ldo12!\n", __func__);
+		return;
+	}
+
+	v_ldo13 = regulator_get(NULL, "v_ldo13");
+	if (IS_ERR(v_ldo13)) {
+		v_ldo13 = NULL;
+		pr_err("%s: fail to get regulator ldo13!\n", __func__);
+		regulator_put(v_ldo12);
+		return;
+	}
+
+	if (on) {
+		regulator_set_voltage(v_ldo13, 3300000, 3300000);
+		regulator_set_voltage(v_ldo12, 1800000, 1800000);
+		if (!regulator_is_enabled(v_ldo13))
+			regulator_enable(v_ldo13);
+		if (!regulator_is_enabled(v_ldo12))
+			regulator_enable(v_ldo12);
+		mfp_config(&mfp_cfg_on, 1);
+	} else {
+		mfp_config(&mfp_cfg_off, 1);
+		if (regulator_is_enabled(v_ldo12) > 0)
+			regulator_force_disable(v_ldo12);
+		if (regulator_is_enabled(v_ldo13) > 0)
+			regulator_force_disable(v_ldo13);
+	}
+	regulator_put(v_ldo12);
+	regulator_put(v_ldo13);
+	v_ldo12 = NULL;
+	v_ldo13 = NULL;
+	return;
+}
+
 static void __init brownstone_init_mmc(void)
 {
 	int sdmmc_pen = mfp_to_gpio(MFP_PIN_GPIO95);
+#ifdef CONFIG_SD8XXX_RFKILL
+	int WIB_PDn;
+	int WIB_RESETn;
+
+	WIB_PDn = mfp_to_gpio(MFP_PIN_GPIO57);
+	WIB_RESETn = mfp_to_gpio(MFP_PIN_GPIO58);
+
+	add_sd8x_rfkill_device(WIB_PDn, WIB_RESETn,
+			&mmp2_sdh_platdata_mmc1.pmmc, &mmc1_set_power);
+#endif
 #ifndef CONFIG_MTD_NAND_PXA3xx
 	/*eMMC (MMC3) pins are conflict with NAND*/
 	mmp2_add_sdhost(2, &mmp2_sdh_platdata_mmc2); /*eMMC*/
 #endif
+	mmp2_add_sdhost(1, &mmp2_sdh_platdata_mmc1); /*Wifi*/
 	mmp2_add_sdhost(0, &mmp2_sdh_platdata_mmc0); /*SD/MMC*/
 
 	if (board_is_mmp2_brownstone_rev5()) {
