@@ -1528,7 +1528,7 @@ static ssize_t lcd_show(struct device *dev, struct device_attribute *attr,
 	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
 	struct fb_var_screeninfo *var = &fbi->fb_info->var;
 	struct lcd_regs *regs = get_regs(fbi->id);
-	int id = fbi->id, vsmooth_show = 0;
+	int id = fbi->id;
 
 	pr_info("fbi %d base 0x%p\n", fbi->id, fbi->reg_base);
 	pr_info("var\n");
@@ -1551,8 +1551,10 @@ static ssize_t lcd_show(struct device *dev, struct device_attribute *attr,
 	pr_info("\t rotate            0x%x\n", var->rotate);
 	pr_info("\n");
 
+#ifdef CONFIG_PXA688_MISC
 again:
 	regs = get_regs(id);
+#endif
 	pr_info("video layer\n");
 	pr_info("\tv_y0        ( @%3x ) 0x%x\n",
 		 (int)(&regs->v_y0) & 0xfff, readl(&regs->v_y0));
@@ -1679,23 +1681,19 @@ again:
 	pr_info("\n");
 
 #ifdef CONFIG_PXA688_MISC
-	if (fbi->id == fb_vsmooth && !vsmooth_show) {
+	if (id == fb_vsmooth) {
 		id = fb_filter;
-		vsmooth_show = 1;
 		pr_info("========== fb_vsmooth = %d ==========\n", fb_vsmooth);
 		goto again;
 	}
 #endif
 
-	return sprintf(buf, "fb %d: active %d, debug %d\n",\
-			 fbi->id, fbi->active, fbi->debug);
 	return sprintf(buf, "fb %d: active %d, debug 0x%x\n"
 		"DEBUG_VSYNC_PATH %d DEBUG_ERR_IRQ %d DEBUG_TV_ACTIVE %d\n"
 		"gfx_underflow %d vid_underflow %d axi_err %d dma_on %d\n",
 		fbi->id, fbi->active, fbi->debug, DEBUG_VSYNC_PATH(fbi->id),
 		DEBUG_ERR_IRQ(fbi->id), DEBUG_TV_ACTIVE(fbi->id),
-		gfx_udflow_count, vid_udflow_count,
-				axi_err_count, fbi->dma_on);
+		gfx_udflow_count, vid_udflow_count, axi_err_count, fbi->dma_on);
 }
 
 static ssize_t lcd_store(
