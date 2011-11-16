@@ -340,6 +340,11 @@ __v7_setup:
 	orr	r0, r0, #(1 << 27)
 	mcr	p15, 1, r0, c15, c1, 2
 #endif
+#ifdef CONFIG_FORCE_SCU_SINGLE_ENTRY
+	mrc	p15, 1, r0, c15, c1, 1
+	orr	r0, r0, #(1 << 15)
+	mcr	p15, 1, r0, c15, c1, 1
+#endif
 	adr	r12, __v7_setup_stack		@ the local stack
 	stmia	r12, {r0-r5, r7, r9, r11, lr}
 	bl	v7_flush_dcache_all

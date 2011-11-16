@@ -944,3 +944,9 @@ config DISABLE_CACHE_TLB_OP_BCAST
 	default n
 	help
 	  This option disables cache and TLB maintenance broadcast.
+
+config FORCE_SCU_SINGLE_ENTRY
+	bool "Force SCU single entry"
+	depends on CPU_PJ4B && SMP
+	help
+	  This option forces SCU snoop queue to single entry.
