@@ -1175,7 +1175,7 @@ static void __init init(void)
 #endif
 }
 
-MACHINE_START(NEVOSAARC, "PXA978 Handheld Platform (aka SAAR C2)")
+MACHINE_START(NEVOSAARC, "PXA978")
 	.map_io		= pxa_map_io,
 	.nr_irqs	= NEVOSAARC_NR_IRQS,
 	.init_irq	= pxa95x_init_irq,
