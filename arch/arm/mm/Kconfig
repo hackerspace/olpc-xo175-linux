@@ -937,3 +937,10 @@ config DISABLE_CWF
 	default y
 	help
 	  This option disables critical word first sequencing.
+
+config DISABLE_CACHE_TLB_OP_BCAST
+	bool "Disable cache and TLB maintenance broadcast"
+	depends on CPU_PJ4B && SMP
+	default n
+	help
+	  This option disables cache and TLB maintenance broadcast.

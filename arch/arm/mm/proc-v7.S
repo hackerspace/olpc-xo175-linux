@@ -322,7 +322,12 @@ __v7_setup:
 	ALT_SMP(mrc	p15, 0, r0, c1, c0, 1)
 	ALT_UP(mov	r0, #(1 << 6))		@ fake it for UP
 	tst	r0, #(1 << 6)			@ SMP/nAMP mode enabled?
+#ifndef CONFIG_DISABLE_CACHE_TLB_OP_BCAST
 	orreq	r0, r0, #(1 << 6) | (1 << 0)	@ Enable SMP/nAMP mode and
+#else
+	biceq	r0, r0, #(1 << 0)		@ clear FW
+	orreq	r0, r0, #(1 << 6)		@ set SMP/nAMP
+#endif
 	mcreq	p15, 0, r0, c1, c0, 1		@ TLB ops broadcasting
 #endif
 #ifdef CONFIG_PJ4_RETURNSTACK_ISSUE
