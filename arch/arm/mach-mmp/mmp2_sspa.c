@@ -85,6 +85,11 @@ static int __devinit pxa688_sspa_probe(struct platform_device *pdev)
 	}
 	ssp->pdev = pdev;
 
+#ifdef CONFIG_CPU_MMP2
+	ssp->clk = clk_get(&pdev->dev, NULL);
+	if (IS_ERR(ssp->clk))
+		dev_warn(&pdev->dev, "ssp clock is not exist\n");
+#endif
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res == NULL) {
 		dev_err(&pdev->dev, "no memory resource defined\n");
@@ -169,6 +174,10 @@ static int __devexit pxa688_sspa_remove(struct platform_device *pdev)
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	release_mem_region(res->start, res->end - res->start + 1);
 
+#ifdef CONFIG_CPU_MMP2
+	if (!IS_ERR(ssp->clk))
+		clk_put(ssp->clk);
+#endif
 	mutex_lock(&sspa_lock);
 	list_del(&ssp->node);
 	mutex_unlock(&sspa_lock);

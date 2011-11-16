@@ -18,7 +18,7 @@
 #include <linux/usb/mv_usb.h>
 #include <linux/delay.h>
 #include <linux/clk.h>
-
+#include <linux/syscore_ops.h>
 #include <asm/hardware/cache-tauros2.h>
 
 #include <asm/mach/time.h>
@@ -641,31 +641,6 @@ struct clkops lcd_tv_clk_ops = {
 	.disable	= lcd_tv_clk_disable,
 };
 
-/* audio clock */
-static void audio_clk_enable(struct clk *clk)
-{
-	unsigned int val = 0;
-
-	val = APMU_AUDIO_RST_DIS | APMU_AUDIO_ISO_DIS |
-	      APMU_AUDIO_CLK_ENA | APMU_AUDIO_PWR_UP;
-	__raw_writel(val, APMU_AUDIO_CLK_RES_CTRL);
-}
-
-static void audio_clk_disable(struct clk *clk)
-{
-	unsigned int val;
-
-	val = __raw_readl(APMU_AUDIO_CLK_RES_CTRL);
-	val &= ~(APMU_AUDIO_RST_DIS | APMU_AUDIO_ISO_DIS |
-		 APMU_AUDIO_CLK_ENA | APMU_AUDIO_PWR_UP);
-	__raw_writel(val, APMU_AUDIO_CLK_RES_CTRL);
-}
-
-struct clkops audio_clk_ops = {
-	.enable	 = audio_clk_enable,
-	.disable = audio_clk_disable,
-};
-
 static int vmeta_usb_phy_clk_enabled;
 static int vmeta_usb_phy_clk_enable(int en)
 {
@@ -1001,8 +976,12 @@ static APMU_CLK_OPS(gc, GC, 0, 0, &gc800_clk_ops);
 static APMU_CLK_OPS(disp1_axi, LCD, 0, 0, &disp1_axi_clk_ops);
 static APMU_CLK_OPS(lcd, LCD, 0, 0, &lcd_pn1_clk_ops);
 static APMU_CLK_OPS(tv, LCD, 0, 0, &lcd_tv_clk_ops);
-static APMU_CLK_OPS(audio, AUDIO_CLK_RES_CTRL, 0, 0, &audio_clk_ops);
 static APMU_CLK_OPS(vmeta, VMETA_CLK_RES_CTRL, 0, 0, &vmeta_clk_ops);
+static AUD_CLK_OPS(audio, &audio_clk_ops);
+static AUD_CLK_OPS(sspa1, &sspa1_clk_ops);
+static AUD_CLK_OPS(sspa2, &sspa2_clk_ops);
+static AUD_CLK_OPS(sysclk, &sysclk_ops);
+
 /* wtm clock */
 static APMU_CLK_OPS(wtm, GEU, 0, 0, &wtm_clk_ops);
 
@@ -1064,7 +1043,9 @@ static struct clk_lookup mmp2_clkregs[] = {
 	INIT_CLKREG(&clk_wtm, NULL, "mmp2-wtm"),
 	INIT_CLKREG(&clk_rtc, "mmp-rtc", NULL),
 	INIT_CLKREG(&clk_usb_phy, NULL, "USBPHYCLK"),
-
+	INIT_CLKREG(&clk_sysclk, NULL, "mmp-sysclk"),
+	INIT_CLKREG(&clk_sspa1, "mmp2-sspa.0", NULL),
+	INIT_CLKREG(&clk_sspa2, "mmp2-sspa.1", NULL),
 };
 
 #define MCB_SLFST_SEL		0xD0000570
@@ -1084,6 +1065,7 @@ void __init mmp2_init_mcb(void)
 	iounmap(mcb_slfst_ctrl2);
 }
 
+extern struct syscore_ops pxa_audio_syscore_ops;
 static int __init mmp2_init(void)
 {
 	if (cpu_is_mmp2()) {
@@ -1096,6 +1078,7 @@ static int __init mmp2_init(void)
 		mmp_init_dma(IRQ_MMP2_DMA_RIQ);
 		mmp2_init_mcb();
 		clkdev_add_table(ARRAY_AND_SIZE(mmp2_clkregs));
+		register_syscore_ops(&pxa_audio_syscore_ops);
 	}
 
 	return 0;
@@ -1162,17 +1145,17 @@ MMP2_DEVICE(keypad, "pxa27x-keypad", -1, KPC, 0xd4012000, 0x4c);
 MMP2_DEVICE(fuse, "mmp2-fuse", -1, NONE, 0xd4290000, 0x3100);
 
 struct platform_device mmp_device_asoc_sspa1 = {
-	.name		= "mmp3-sspa-dai",
+	.name		= "mmp-sspa-dai",
 	.id		= 0,
 };
 
 struct platform_device mmp_device_asoc_sspa2 = {
-	.name		= "mmp3-sspa-dai",
+	.name		= "mmp-sspa-dai",
 	.id		= 1,
 };
 
 struct platform_device mmp_device_asoc_platform = {
-	.name		= "mmp3-pcm-audio",
+	.name		= "mmp-pcm-audio",
 	.id		= -1,
 };
 
