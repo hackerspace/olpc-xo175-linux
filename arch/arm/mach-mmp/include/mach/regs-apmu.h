@@ -81,6 +81,12 @@
 #define APMU_PWR_BLK_TMR_REG    APMU_REG(0x00dc)
 #define APMU_PWR_STATUS_REG     APMU_REG(0x00f0)
 
+#define APMU_ISLD_CPUMC_PDWN_CTRL	APMU_REG(0x01f8)
+
+/* Debug register */
+#define APMU_DEBUG		APMU_REG(0x0088)
+#define APMU_DEBUG2		APMU_REG(0x0190)
+
 #define APMU_FNCLK_EN	(1 << 4)
 #define APMU_AXICLK_EN	(1 << 3)
 #define APMU_FNRST_DIS	(1 << 1)

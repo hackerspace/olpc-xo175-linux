@@ -22,6 +22,7 @@
 #include <linux/clocksource.h>
 #include <linux/time.h>
 #include <asm/proc-fns.h>
+#include <asm/cacheflush.h>
 #include <mach/hardware.h>
 #include <mach/addr-map.h>
 #include <mach/regs-apmu.h>
@@ -333,7 +334,7 @@ static struct mmp3_percpu_config {
 	[0] = {
 		.cic = {
 			.idle_config_valid_mask = 0x000000e2,
-			.idle_config_keep_mask = 0xb6305c01,
+			.idle_config_keep_mask = 0x8deffc1d,
 			.idle_config = MK_APMU_REG_VADDR(0x18),
 			.wake_status = WAKE_STAT,
 			.intr_status = INTR_STAT,
@@ -343,7 +344,7 @@ static struct mmp3_percpu_config {
 	[1] = {
 		.cic = {
 			.idle_config_valid_mask = 0x00000062,
-			.idle_config_keep_mask = 0x36105801,
+			.idle_config_keep_mask = 0x8deffc1d,
 			.idle_config = MK_APMU_REG_VADDR(0x200),
 			.wake_status = WAKE_STAT,
 			.intr_status = INTR_STAT,
@@ -353,7 +354,7 @@ static struct mmp3_percpu_config {
 	[2] = {
 		.cic = {
 			.idle_config_valid_mask = 0x00000062,
-			.idle_config_keep_mask = 0x36105801,
+			.idle_config_keep_mask = 0x8deffc1d,
 			.idle_config = MK_APMU_REG_VADDR(0x204),
 			.wake_status = WAKE_STAT,
 			.intr_status = INTR_STAT,
@@ -1548,6 +1549,49 @@ void mmp3_pm_enter_idle(int cpu)
 	trace_idle_exit(__raw_readl(cic->wake_status));
 }
 
+void mmp3_pm_enter_c2(int cpu)
+{
+	u32 state = MMP3_PM_C2_LPPD;
+	struct mmp3_cpu_idle_config *cic;
+	int core_id = mmp3_smpid();
+
+	cic = &(mmp3_percpu[core_id].cic);
+
+	__raw_writel(readl(APMU_ISLD_CPUMC_PDWN_CTRL) & ~(0x1 << 6),
+			 APMU_ISLD_CPUMC_PDWN_CTRL);
+
+	if (likely(__raw_readl(cic->freq_status) == 0)) {
+
+		mmp3_mod_idle_config(cic, state);
+		/* no DFC in process*/
+		trace_idle_entry(state);
+
+#if defined(CONFIG_SMP) && defined(MMP3_IDLE_CHECK_DVM_EVENTS)
+		while (1) {
+			flush_cache_all();
+			dsb();
+			__asm__ __volatile__ ("wfi");
+
+			if ((__raw_readl(cic->freq_status) != 0) ||
+#ifdef CONFIG_ARM_GIC
+			((__raw_readl(cic->intr_status) & 0x3ff) != 1023) ||
+#endif
+			((__raw_readl(cic->wake_status) & 0x7fffc7ff) != 0)) {
+				/* real wake up, break loop to handle*/
+				break;
+			}
+		}
+#else
+		flush_cache_all();
+		dsb();
+		arch_idle();
+#endif
+		trace_idle_exit(__raw_readl(cic->wake_status));
+	}
+	__raw_writel(readl(APMU_ISLD_CPUMC_PDWN_CTRL) | (0x1 << 6),
+			APMU_ISLD_CPUMC_PDWN_CTRL);
+}
+
 
 static void mmp3_do_idle(void)
 {
@@ -1566,6 +1610,13 @@ static int __init mmp3_pm_init(void)
 	pmu->swstat = &(pmu->swstat_store);
 	spin_lock_init(&(pmu->mmp3_fc_spin));
 	mutex_init(&(pmu->mmp3_fc_lock));
+
+	/*
+	 * wake from IPI -- It's the workaround of MMP3 A0,
+	 * suppose it'll be fixed on B0. Need remove it then
+	 */
+	__raw_writel(0x00004838, APMU_DEBUG2);
+	__raw_writel(0x00000200, APMU_DEBUG);
 
 	pm_idle = mmp3_do_idle;
 
