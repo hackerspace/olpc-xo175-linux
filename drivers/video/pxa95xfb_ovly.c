@@ -344,16 +344,6 @@ static int pxa95xfb_vid_ioctl(struct fb_info *fi, unsigned int cmd,
 			mutex_unlock(&fbi->access_ok);
 			return -EFAULT;
 		}
-		if (gOvlySurface.viewPortInfo.zoomXSize*
-			gOvlySurface.viewPortInfo.zoomYSize
-			> 1280*720) {
-			printk(KERN_NOTICE
-				"SET_VIEWPORT_INFO: %d %d un-supported\n",
-				gOvlySurface.viewPortInfo.zoomXSize,
-				gOvlySurface.viewPortInfo.zoomYSize);
-			mutex_unlock(&fbi->access_ok);
-			return -EFAULT;
-		}
 
 		mutex_unlock(&fbi->access_ok);
 		break;
@@ -390,16 +380,6 @@ static int pxa95xfb_vid_ioctl(struct fb_info *fi, unsigned int cmd,
 		mutex_lock(&fbi->access_ok);
 		if (copy_from_user(&gOvlySurface, argp,
 					sizeof(struct _sOvlySurface))) {
-			mutex_unlock(&fbi->access_ok);
-			return -EFAULT;
-		}
-		if (gOvlySurface.viewPortInfo.zoomXSize *
-			gOvlySurface.viewPortInfo.zoomYSize
-			> 1280*720) {
-			printk(KERN_NOTICE
-				"SET_SURFACE: %d %d un-supported\n",
-				gOvlySurface.viewPortInfo.zoomXSize,
-				gOvlySurface.viewPortInfo.zoomYSize);
 			mutex_unlock(&fbi->access_ok);
 			return -EFAULT;
 		}
