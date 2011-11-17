@@ -147,17 +147,17 @@ static void headset_switch_work(struct work_struct *work)
 					PM8607_MIC_DET_EN_MIC_DET, 0);
 		}
 	} else {
+		/* disable mic bias */
+		pm860x_set_bits(info->i2c,
+				PM8607_AUDIO_REG_BASE +
+				PM8607_AUDIO_ADC_ANALOG_PROGRAM1,
+				PM8607_ADC_EN_MIC2_BIAS, 0);
 		/* headset removed disable MIC/hook detection when headset is */
 		pm860x_set_bits(info->i2c, PM8607_MIC_DECTION,
 				PM8607_MIC_DET_EN_MIC_DET, 0);
 		/* disable hook interrupt */
 		pm860x_set_bits(info->i2c, PM8607_INT_MASK_3,
 				PM8607_INT_EN_HOOK, 0);
-		/* disable mic bias */
-		pm860x_set_bits(info->i2c,
-				PM8607_AUDIO_REG_BASE +
-				PM8607_AUDIO_ADC_ANALOG_PROGRAM1,
-				PM8607_ADC_EN_MIC2_BIAS, 0);
 
 		switch_data->state = PM860X_HEADSET_REMOVE;
 
