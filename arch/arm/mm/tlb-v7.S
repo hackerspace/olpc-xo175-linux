@@ -36,6 +36,9 @@ ENTRY(v7wbi_flush_user_tlb_range)
 	vma_vm_mm r3, r2			@ get vma->vm_mm
 	mmid	r3, r3				@ get vm_mm->context.id
 	dsb
+#ifdef CONFIG_PJ4B_ERRATA_5807
+	mcr	p15, 0, r3, c8, c3, 2		@ TLB invalidate U ASID (shareable)
+#else
 	mov	r0, r0, lsr #PAGE_SHIFT		@ align address
 	mov	r1, r1, lsr #PAGE_SHIFT
 	asid	r3, r3				@ mask ASID
@@ -48,6 +51,7 @@ ENTRY(v7wbi_flush_user_tlb_range)
 	add	r0, r0, #PAGE_SZ
 	cmp	r0, r1
 	blo	1b
+#endif
 	mov	ip, #0
 	ALT_SMP(mcr	p15, 0, ip, c7, c1, 6)	@ flush BTAC/BTB Inner Shareable
 	ALT_UP(mcr	p15, 0, ip, c7, c5, 6)	@ flush BTAC/BTB

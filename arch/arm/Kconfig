@@ -1239,6 +1239,14 @@ config ARM_ERRATA_754327
 	  This workaround defines cpu_relax() as smp_mb(), preventing correctly
 	  written polling loops from denying visibility of updates to memory.
 
+config PJ4B_ERRATA_5807
+	bool "PJ4B errata 5807"
+	depends on CPU_PJ4B && SMP
+	help
+	  CP15 loses TLB invalidate request, when it received request before
+	  previous request completed. This option uses invalidate TLB by ASID
+	  to replace invalidate TLB entry by MVA. (lightweight version)
+
 endmenu
 
 source "arch/arm/common/Kconfig"
