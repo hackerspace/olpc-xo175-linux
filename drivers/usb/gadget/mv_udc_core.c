@@ -62,7 +62,7 @@ static int	dvfm_dev_idx;
 #define LOOPS_USEC		(1 << LOOPS_USEC_SHIFT)
 #define LOOPS(timeout)		((timeout) >> LOOPS_USEC_SHIFT)
 
-#define	ENUMERATION_DELAY	(6 * HZ)
+#define	ENUMERATION_DELAY	(10 * HZ)
 
 static const char driver_name[] = "mv_udc";
 static const char driver_desc[] = DRIVER_DESC;
@@ -1870,8 +1870,11 @@ static void handle_setup_packet(struct mv_udc *udc, u8 ep_num,
 		}
 
 		if (is_set_configuration(setup)) {
-			wake_lock(&idle_lock);
-			udc->charger_type = VBUS_CHARGER;
+			if (udc->charger_type == DEFAULT_CHARGER) {
+				wake_lock(&idle_lock);
+				udc->charger_type = VBUS_CHARGER;
+				schedule_delayed_work(&udc->charger_work, 0);
+			}
 		}
 	}
 }
@@ -2241,16 +2244,13 @@ static void do_charger_work(struct work_struct *work)
 
 	udc = container_of(work, struct mv_udc, charger_work.work);
 
-	if (udc->charger_type != VBUS_CHARGER
-		&& udc->charger_type != NULL_CHARGER) {
+	if (udc->charger_type == DEFAULT_CHARGER) {
 		val = readl(&udc->op_regs->portsc) & charger_mask;
 		if (val == charger_mask)
 			udc->charger_type = AC_CHARGER_STANDARD;
-		else {
-			udc->charger_type = DEFAULT_CHARGER;
+		else
 			schedule_delayed_work(&udc->delayed_charger_work,
 						ENUMERATION_DELAY);
-		}
 	}
 
 	call_charger_notifier(udc);
@@ -2262,10 +2262,10 @@ static void do_delayed_work(struct work_struct *work)
 
 	udc = container_of(work, struct mv_udc, delayed_charger_work.work);
 
-	if (udc->charger_type == DEFAULT_CHARGER)
+	if (udc->charger_type == DEFAULT_CHARGER) {
 		udc->charger_type = AC_CHARGER_OTHER;
-
-	call_charger_notifier(udc);
+		call_charger_notifier(udc);
+	}
 }
 
 static irqreturn_t mv_udc_vbus_irq(int irq, void *dev)
