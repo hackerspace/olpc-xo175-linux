@@ -956,3 +956,9 @@ config DISABLE_SCU_PIPELINE
 	depends on CPU_PJ4B
 	help
 	  This option disables SCU pipeline.
+
+config DISABLE_CLEAN_INTERVENTION
+	bool "Disable clean intervention"
+	depends on CPU_PJ4B
+	help
+	  This option disables clean intervention.
