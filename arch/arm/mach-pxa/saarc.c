@@ -1339,6 +1339,10 @@ static void __init init(void)
 	}
 #endif
 
+	/* adjust acc sensor axes */
+	if (get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD)
+		cwmi_acc_data.axes[0] = -1;
+
 	set_abu_init_func(abu_mfp_init);
 	set_ssp_init_func(ssp3_mfp_init);
 
