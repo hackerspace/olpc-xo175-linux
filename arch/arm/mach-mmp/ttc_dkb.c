@@ -2218,7 +2218,7 @@ static void __init ttc_dkb_init(void)
 #endif
 }
 
-MACHINE_START(TTC_DKB, "PXA910-based TTC_DKB Development Platform")
+MACHINE_START(TTC_DKB, "PXA910-based")
 	.map_io		= mmp_map_io,
 	.nr_irqs	= TTCDKB_NR_IRQS,
 	.init_irq       = pxa910_init_irq,
