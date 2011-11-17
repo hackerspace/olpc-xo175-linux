@@ -1261,6 +1261,12 @@ config PJ4B_ERRATA_6315
 	  Replace DMB w. DSB when its necessary to enforce an ordering between an
 	  explicit load/store op and a set/way op.
 
+config PJ4B_ERRATA_6133
+	bool "PJ4B errata 6133"
+	depends on CPU_PJ4B
+	help
+	  This option uses TLB invalidate all instead of a loop of TLB invalidate by MVA operations.
+
 endmenu
 
 source "arch/arm/common/Kconfig"

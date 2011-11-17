@@ -33,6 +33,11 @@
  *	  both the I and the D TLBs on Harvard-style TLBs
  */
 ENTRY(v7wbi_flush_user_tlb_range)
+#ifdef CONFIG_PJ4B_ERRATA_6133
+	dsb
+	mov	ip, #0
+	mcr	p15, 0, ip, c8, c3, 0		@ TLB invalidate all (shareable)
+#else
 	vma_vm_mm r3, r2			@ get vma->vm_mm
 	mmid	r3, r3				@ get vm_mm->context.id
 	dsb
@@ -52,6 +57,7 @@ ENTRY(v7wbi_flush_user_tlb_range)
 	cmp	r0, r1
 	blo	1b
 #endif
+#endif
 	mov	ip, #0
 	ALT_SMP(mcr	p15, 0, ip, c7, c1, 6)	@ flush BTAC/BTB Inner Shareable
 	ALT_UP(mcr	p15, 0, ip, c7, c5, 6)	@ flush BTAC/BTB
@@ -69,6 +75,10 @@ ENDPROC(v7wbi_flush_user_tlb_range)
  */
 ENTRY(v7wbi_flush_kern_tlb_range)
 	dsb
+#ifdef CONFIG_PJ4B_ERRATA_6133
+	mov	r2, #0
+	mcr	p15, 0, r2, c8, c3, 0		@ TLB invalidate all (shareable)
+#else
 	mov	r0, r0, lsr #PAGE_SHIFT		@ align address
 	mov	r1, r1, lsr #PAGE_SHIFT
 	mov	r0, r0, lsl #PAGE_SHIFT
@@ -79,6 +89,7 @@ ENTRY(v7wbi_flush_kern_tlb_range)
 	add	r0, r0, #PAGE_SZ
 	cmp	r0, r1
 	blo	1b
+#endif
 	mov	r2, #0
 	ALT_SMP(mcr	p15, 0, r2, c7, c1, 6)	@ flush BTAC/BTB Inner Shareable
 	ALT_UP(mcr	p15, 0, r2, c7, c5, 6)	@ flush BTAC/BTB
