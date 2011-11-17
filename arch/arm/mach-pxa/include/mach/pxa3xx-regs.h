@@ -300,6 +300,7 @@
 #define CKEN_USB_BUS	74	/* < USB2(OTG) System Bus clock enable */
 #define CKEN_USBH_BUS	75	/* < USB2 Host1 System Bus clock enable */
 #define CKEN_MMC1_BUS	78	/* < MMC1 System Bus clock enable */
+#define CKEN_MMC_BUS	78	/* < All 4 MMC System Bus clock enable */
 #define CKEN_MMC2_BUS	79	/* < MMC2 System Bus clock enable */
 #define CKEN_MMC3_BUS	80	/* < MMC3 System Bus clock enable */
 #define CKEN_MMC4_BUS	81	/* < MMC4 System Bus clock enable */

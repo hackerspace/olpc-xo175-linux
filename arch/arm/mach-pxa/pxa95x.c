@@ -894,7 +894,13 @@ static void clk_mmc_enable(struct clk *clk)
 	clk_axi_enable(clock);
 	clk_imu_axi_enable(clock);
 
-	mask = 1 << (clk->cken-64) | 1 << ((clk->cken-64) + 13);
+	/* turning on MMC bus clock. */
+	if (cpu_is_pxa978_Cx()) {
+		mask = 1 << (clk->cken-64) | 1 << (CKEN_MMC_BUS - 64);
+	} else {
+		mask = 1 << (clk->cken-64) | 1 << ((clk->cken-64) + 13);
+	}
+
 	CKENC |= mask;
 }
 
@@ -903,8 +909,19 @@ static void clk_mmc_disable(struct clk *clk)
 	unsigned long mask;
 	struct clk *clock = NULL;
 
-	mask = ~(1 << (clk->cken-64) | 1 << ((clk->cken-64) + 13));
+	if (cpu_is_pxa978_Cx())
+		mask = ~(1 << (clk->cken-64));
+	else
+		mask = ~(1 << (clk->cken-64) | 1 << ((clk->cken-64) + 13));
 	CKENC &= mask;
+
+	/* turning off MMC bus clock. */
+	if (cpu_is_pxa978_Cx() && !(CKENC & ((1 << (CKEN_PXA95x_MMC1 - 64))
+					| (1 << (CKEN_PXA95x_MMC2 - 64))
+					| (1 << (CKEN_PXA95x_MMC3 - 64))
+					| (1 << (CKEN_PXA95x_MMC4 - 64))
+					)))
+		CKENC &= ~(1 << (CKEN_MMC_BUS - 64));
 
 	clk_imu_axi_disable(clock);
 	clk_axi_disable(clock);
@@ -1192,7 +1209,10 @@ static void cken_clear_always_set_always_setup(void)
 	/* CKENA[19] is CKEN_TPM, not set it like spec define */
 	ckena_set_always_bits_mask = 0x00000001;
 	ckenb_set_always_bits_mask = 0xd7fcf040;
-	ckenc_set_always_bits_mask = 0x00000000;
+	if (cpu_is_pxa978_Cx())
+		ckenc_set_always_bits_mask = 0x00038000;
+	else
+		ckenc_set_always_bits_mask = 0x00000000;
 
 	CKENA |= ckena_set_always_bits_mask;
 	CKENB |= ckenb_set_always_bits_mask;
@@ -1258,7 +1278,31 @@ static int __init pxa95x_init(void)
 			| (1 << (CKEN_ABU - 32))
 			| (1 << (CKEN_PWM0 - 32))
 			| (1 << (CKEN_PWM1 - 32)));
-
+	if (cpu_is_pxa978_Cx()) {
+	CKENC &= ~((1 << (CKEN_PXA95x_MMC1 - 64))
+			| (1 << (CKEN_PXA95x_MMC2 - 64))
+			| (1 << (CKEN_PXA95x_MMC3 - 64))
+			| (1 << (CKEN_PXA95x_MMC4 - 64))
+			| (1 << (CKEN_USB_PRL - 64))
+			| (1 << (CKEN_USBH_PRL - 64))
+			| (1 << (CKEN_USB_BUS - 64))
+			| (1 << (CKEN_USBH_BUS - 64))
+			| (1 << (CKEN_MMC_BUS - 64))
+			| (1 << (CKEN_IMU - 64))
+			| (1 << (CKEN_I2C2 - 64))
+			| (1 << (CKEN_I2C3 - 64))
+			| (1 << (CKEN_AXI_2X - 64))
+			| (1 << (CKEN_SCI1 - 64))
+			| (1 << (CKEN_SCI2 - 64))
+			| (1 << (CKEN_CSI_TX - 64))
+			| (1 << (CKEN_GC_1X - 64))
+			| (1 << (CKEN_GC_2X - 64))
+			| (1 << (CKEN_DSI_TX1 - 64))
+			| (1 << (CKEN_DSI_TX2 - 64))
+			| (1 << (CKEN_DISPLAY - 64))
+			| (1 << (CKEN_PIXEL - 64))
+			| (1 << (CKEN_AXI - 64)));
+	} else {
 	CKENC &= ~((1 << (CKEN_PXA95x_MMC1 - 64))
 			| (1 << (CKEN_PXA95x_MMC2 - 64))
 			| (1 << (CKEN_PXA95x_MMC3 - 64))
@@ -1285,6 +1329,7 @@ static int __init pxa95x_init(void)
 			| (1 << (CKEN_DISPLAY - 64))
 			| (1 << (CKEN_PIXEL - 64))
 			| (1 << (CKEN_AXI - 64)));
+	}
 
 	mfp_init_base(io_p2v(MFPR_BASE));
 	if (cpu_is_pxa978())
