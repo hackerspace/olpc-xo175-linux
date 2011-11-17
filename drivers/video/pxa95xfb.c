@@ -1743,6 +1743,9 @@ static void set_fetch(struct pxa95xfb_info *fbi)
 		x |= LCD_FETCH_CTLx_CHAN_EN|LCD_FETCH_CTLx_SRC_FOR(fbi->pix_fmt) |LCD_FETCH_CTLx_BUS_ERR_INT_EN;
 		if(fbi->eof_intr_en && channel == start_channel)
 			x |= LCD_FETCH_CTLx_END_FR_INT_EN;
+		if (cpu_is_pxa978_Cx())
+			x |= LCD_FETCH_CTLx_MAX_OUTSTANDING_REQ(3)
+				| LCD_FETCH_CTLx_ARLEN(3);
 		writel(x, fbi->reg_base + LCD_FETCH_CTL0 + channel * 0x40);
 	}
 

@@ -198,6 +198,8 @@
 #define LCD_FETCH_CTLx_BUS_ERR_INT_EN     (0x1u<<8)
 #define LCD_FETCH_CTLx_SP_MODE            (0x1u<<10)
 #define LCD_FETCH_CTLx_SP_MODIFIED_FRAME  (0x1u<<11)
+#define LCD_FETCH_CTLx_MAX_OUTSTANDING_REQ(x) (x<<16)
+#define LCD_FETCH_CTLx_ARLEN(x)           (x<<20)
 
 /* LCD_FETCH_STSx bits */
 #define LCD_FETCH_STSx_CHAN_STS           (0x1u<<0)
