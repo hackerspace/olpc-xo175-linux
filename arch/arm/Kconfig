@@ -1254,6 +1254,13 @@ config PJ4B_ERRATA_6026
 	  This option replaces all broadcast clean operations with broadcast
 	  clean and invalidate operations.
 
+config PJ4B_ERRATA_6315
+       bool "PJ4B errata 6315"
+       depends on CPU_PJ4B
+       help
+	  Replace DMB w. DSB when its necessary to enforce an ordering between an
+	  explicit load/store op and a set/way op.
+
 endmenu
 
 source "arch/arm/common/Kconfig"
