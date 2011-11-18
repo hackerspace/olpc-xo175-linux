@@ -130,7 +130,7 @@ static int setup_freqs_table(struct cpufreq_policy *policy,
 			     int *freqs_table, int num)
 {
 	struct cpufreq_frequency_table *table;
-	int i;
+	int i, ret;
 
 	table = kzalloc((num + 1) * sizeof(*table), GFP_KERNEL);
 	if (table == NULL)
@@ -146,7 +146,9 @@ static int setup_freqs_table(struct cpufreq_policy *policy,
 	pxa95x_freqs_num = num;
 	pxa95x_freqs_table = table;
 
-	return cpufreq_frequency_table_cpuinfo(policy, table);
+	ret = cpufreq_frequency_table_cpuinfo(policy, table);
+	cpufreq_frequency_table_get_attr(table, policy->cpu);
+	return ret;
 }
 
 static int pxa95x_cpufreq_verify(struct cpufreq_policy *policy)
@@ -241,12 +243,18 @@ static int pxa95x_cpufreq_init(struct cpufreq_policy *policy)
 	return 0;
 }
 
+static struct freq_attr* pxa_freq_attr[] = {
+	&cpufreq_freq_attr_scaling_available_freqs,
+	NULL,
+};
+
 static struct cpufreq_driver pxa95x_cpufreq_driver = {
 	.verify = pxa95x_cpufreq_verify,
 	.target = pxa95x_cpufreq_target,
 	.init = pxa95x_cpufreq_init,
 	.get = pxa95x_cpufreq_get,
 	.name = "pxa95x-cpufreq",
+	.attr = pxa_freq_attr,
 };
 
 static int __init cpufreq_init(void)
