@@ -52,8 +52,8 @@
 #define BROWNSTONE_SPK_ON    0
 #define BROWNSTONE_SPK_OFF   1
 
-static struct snd_soc_card brownstone;
-static struct platform_device *brownstone_snd_device;
+static struct snd_soc_card brownstone[];
+static struct platform_device *brownstone_snd_device[2];
 
 static struct clk *audio_clk;
 static int brownstone_jack_func;
@@ -231,6 +231,11 @@ static int brownstone_wm8994_init(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
+static int codec_hdmi_init(struct snd_soc_codec *codec)
+{
+	return 0;
+}
+
 static int brownstone_probe(struct snd_soc_card *card)
 {
 	pr_debug("%s: enter\n", __func__);
@@ -243,6 +248,41 @@ static int brownstone_probe(struct snd_soc_card *card)
 		return PTR_ERR(audio_clk);
 
 	clk_enable(audio_clk);
+	return 0;
+}
+
+static int brownstone_hdmi_hw_params(struct snd_pcm_substream *substream,
+				struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	int freq_in, freq_out, sspa_mclk, sysclk;
+	int sspa_div;
+
+	pr_debug("%s: enter\n", __func__);
+
+	freq_in = 26000000;
+	if (params_rate(params) > 11025) {
+		freq_out  = params_rate(params) * 512;
+		sysclk    = params_rate(params) * 256;
+		sspa_mclk = params_rate(params) * 64;
+	} else {
+		freq_out  = params_rate(params) * 1024;
+		sysclk    = params_rate(params) * 512;
+		sspa_mclk = params_rate(params) * 64;
+	}
+	sspa_div = freq_out;
+	do_div(sspa_div, sspa_mclk);
+
+	snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_I2S |
+		SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBS_CFS);
+	snd_soc_dai_set_pll(cpu_dai, SSPA_AUDIO_PLL, 0, freq_in, freq_out);
+	snd_soc_dai_set_clkdiv(cpu_dai, 0, sspa_div);
+	snd_soc_dai_set_sysclk(cpu_dai, 0, sysclk, 0);
+
+	snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_I2S |
+		SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBM_CFM);
+
 	return 0;
 }
 
@@ -287,9 +327,26 @@ static int brownstone_wm8994_hw_params(struct snd_pcm_substream *substream,
 }
 
 /* machine stream operations */
-static struct snd_soc_ops brownstone_ops = {
+static struct snd_soc_ops brownstone_ops[] = {
+{
+	.hw_params = brownstone_hdmi_hw_params,
+},
+{
 	.hw_params = brownstone_wm8994_hw_params,
+},
 };
+
+static struct snd_soc_dai_link brownstone_hdmi_dai = {
+	.name        = "hdmi",
+	.stream_name = "hdmi",
+	.cpu_dai_name	= "mmp-sspa-dai.0",
+	.codec_dai_name	= "dummy-dai",
+	.platform_name	= "mmp-pcm-audio",
+	.codec_name	= "dummy-codec",
+	.ops		= &brownstone_ops[0],
+	.init        = codec_hdmi_init,
+};
+
 
 static struct snd_soc_dai_link brownstone_wm8994_dai[] = {
 {
@@ -299,17 +356,24 @@ static struct snd_soc_dai_link brownstone_wm8994_dai[] = {
 	.codec_dai_name	= "wm8994-aif1",
 	.platform_name	= "mmp-pcm-audio",
 	.codec_name	= "wm8994-codec",
-	.ops		= &brownstone_ops,
+	.ops		= &brownstone_ops[1],
 	.init		= brownstone_wm8994_init,
 },
 };
 
 /* audio machine driver */
-static struct snd_soc_card brownstone = {
+static struct snd_soc_card brownstone[] = {
+{
 	.name         = "brownstone",
 	.dai_link     = brownstone_wm8994_dai,
 	.num_links    = ARRAY_SIZE(brownstone_wm8994_dai),
 	.probe        = brownstone_probe,
+},
+{	.name         = "hdmi",
+	.dai_link     = &brownstone_hdmi_dai,
+	.num_links    = 1,
+	.probe        = brownstone_probe,
+},
 };
 
 static int __init brownstone_init(void)
@@ -319,17 +383,31 @@ static int __init brownstone_init(void)
 	if (!machine_is_brownstone())
 		return -ENODEV;
 
-	brownstone_snd_device = platform_device_alloc("soc-audio", 0);
-	if (!brownstone_snd_device) {
+	brownstone_snd_device[0] = platform_device_alloc("soc-audio", 0);
+	if (!brownstone_snd_device[0]) {
 		ret = -ENOMEM;
 		goto err_dev1;
 	}
 
-	platform_set_drvdata(brownstone_snd_device, &brownstone);
-	ret = platform_device_add(brownstone_snd_device);
+	platform_set_drvdata(brownstone_snd_device[0], &brownstone[0]);
+	ret = platform_device_add(brownstone_snd_device[0]);
 
 	if (ret) {
-		platform_device_put(brownstone_snd_device);
+		platform_device_put(brownstone_snd_device[0]);
+		goto err_dev1;
+	}
+
+	brownstone_snd_device[1] = platform_device_alloc("soc-audio", 1);
+	if (!brownstone_snd_device[1]) {
+		ret = -ENOMEM;
+		goto err_dev1;
+	}
+
+	platform_set_drvdata(brownstone_snd_device[1], &brownstone[1]);
+	ret = platform_device_add(brownstone_snd_device[1]);
+
+	if (ret) {
+		platform_device_put(brownstone_snd_device[1]);
 		goto err_dev1;
 	}
 
@@ -339,7 +417,8 @@ err_dev1:
 
 static void __exit brownstone_exit(void)
 {
-	platform_device_unregister(brownstone_snd_device);
+	platform_device_unregister(brownstone_snd_device[0]);
+	platform_device_unregister(brownstone_snd_device[1]);
 }
 
 module_init(brownstone_init);

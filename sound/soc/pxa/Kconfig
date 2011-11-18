@@ -259,6 +259,7 @@ config SND_MMP_SOC_BROWNSTONE
 	depends on SND_MMP2_SOC && MACH_BROWNSTONE
 	select MFD_WM8994
 	select SND_SOC_WM8994
+	select SND_SOC_HDMI
 	select REGULATOR_FIXED_VOLTAGE
 	help
 	  Say Y if you want to add support for SoC audio on the
