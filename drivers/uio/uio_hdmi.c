@@ -42,6 +42,20 @@ struct hdmi_instance {
 };
 static unsigned gsspa1_reg_base;
 
+static u32 hdmi_direct_read(unsigned addr)
+{
+       u32 hdmi_addr = AXI_VIRT_BASE + 0xbc00;
+
+	return __raw_readl(hdmi_addr + addr);
+}
+
+static void hdmi_direct_write(unsigned addr, unsigned data)
+{
+       u32 hdmi_addr = AXI_VIRT_BASE + 0xbc00;
+
+	__raw_writel(data, hdmi_addr + addr);
+}
+
 int hdmi_open(struct uio_info *info, struct inode *inode, void *file_priv)
 {
 	return 0;
@@ -107,6 +121,18 @@ static int hdmi_remove(struct platform_device *pdev)
 {
 	return 0;
 }
+
+void hdmi_3d_sync_view(void)
+{
+	u32 reg;
+
+	reg = hdmi_direct_read(0x30);
+	reg &= ~ ((1 << 1) | (1 << 2) | (1 << 3));
+	reg |= 1 << 2;
+	hdmi_direct_write(0x30, 0);
+	hdmi_direct_write(0x30, reg);
+}
+EXPORT_SYMBOL(hdmi_3d_sync_view);
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void hdmi_early_suspend(struct early_suspend *h)
