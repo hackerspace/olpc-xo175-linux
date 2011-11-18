@@ -14,7 +14,6 @@
 #include <asm/irq.h>
 #include <linux/interrupt.h>
 #include <linux/rohm_als_ps_driver.h>
-
 static int _make_result_data(int *data, unsigned long mask);
 static void _set_slave_address(struct i2c_client *client);
 
@@ -106,16 +105,12 @@ int bh1772_driver_init(unsigned char led, unsigned char als_ps_me,
 
 	int result;
 	struct rohm_ls_data *ls = i2c_get_clientdata(client);
-	int tracecount = 0;
 	INIT_WRITE_DATA init_write_data;
 	result = DRIVER_OK;
 	/* execute software reset */
-	printk(KERN_INFO "in %s, test OK is %d", __func__, tracecount);
 	result = bh1772_driver_close(client);
 	if (DRIVER_OK != result)
 		return result;
-	tracecount++;
-	printk(KERN_INFO "in %s, test OK is %d", __func__, tracecount);
 
 	/* not check prameter is als_rate, ps_th_h, als_th_up, als_th_low, als_sems, persistence, ps_th_l */
 	/* check the parameter of current LED */
@@ -154,8 +149,6 @@ int bh1772_driver_init(unsigned char led, unsigned char als_ps_me,
 					   (unsigned char *)&init_write_data);
 	if (result < 0)
 		return result;
-	tracecount++;
-	printk(KERN_INFO "in %s, test OK is %d", __func__, tracecount);
 	ls->interrupt = interrupt;
 #ifdef _SEI_DEBUG
 	bh1772_driver_register_show(client);
@@ -205,63 +198,52 @@ int bh1772_driver_als_power_on(unsigned char power_als,
 	int result = 0;
 	int als_ctl;
 	struct rohm_ls_data *ls = i2c_get_clientdata(client);
-	unsigned char enabletmp;
 	/* check the parameter of als power , ps power , als interrupt and ps interrupt */
 	if ((power_als >= REG_ALSCTL_MAX))
 		return DRIVER_NON_PARAM;
 	/* set I2C slave address */
 	_set_slave_address(client);
-	result =
-	    bh1772_driver_general_read(REG_ALSCONTROL, &enabletmp,
-				       sizeof(enabletmp), ls->client);
-	if (result < 0)
-		return result;
-	if (power_als != enabletmp) {
-		if ((power_als & 0x03) != CTL_SATBY) {
-			als_ctl = power_als;
+	als_ctl = power_als;
+	if ((als_ctl & CTL_STAND) != CTL_SATBY) {
+		result =
+		    i2c_smbus_write_byte_data(client, REG_ALSCONTROL, als_ctl);
+		if (result < 0) {
+			/* i2c communication error */
+			return result;
+		}
+		if ((als_ctl & CTL_STAND) == CTL_FORCE) {
 			result =
-			    i2c_smbus_write_byte_data(client, REG_ALSCONTROL,
-						      als_ctl);
+			    i2c_smbus_write_byte_data(client,
+						      REG_ALSPSMEAS,
+						      ALSTRRG_STR);
 			if (result < 0) {
 				/* i2c communication error */
 				return result;
-			}
-			if ((power_als & 0x03) == CTL_FORCE) {
-				result =
-				    i2c_smbus_write_byte_data(client,
-							      REG_ALSPSMEAS,
-							      ALSTRRG_STR);
-				if (result < 0) {
-					/* i2c communication error */
-					return result;
-				}
-			} else {
-				mutex_lock(&ls->sensor_lock);
-				cancel_delayed_work_sync(&ls->als_work);
-				result =
-				    i2c_smbus_write_byte_data(ls->client,
-							      REG_ALSMEASRATE,
-							      ls->als_meas_time);
-				if (result < 0)
-					return result;
-				schedule_delayed_work(&ls->als_work,
-						      delay_to_jiffies
-						      (ls->als_poll_delay));
-				mutex_unlock(&ls->sensor_lock);
 			}
 		} else {
-			als_ctl = power_als;
-			result =
-			    i2c_smbus_write_byte_data(client, REG_ALSCONTROL,
-						      als_ctl);
-			if (result < 0) {
-				/* i2c communication error */
-				return result;
-			}
 			mutex_lock(&ls->sensor_lock);
 			cancel_delayed_work_sync(&ls->als_work);
+			result =
+			    i2c_smbus_write_byte_data(ls->client,
+						      REG_ALSMEASRATE,
+						      ls->als_meas_time);
+			if (result < 0)
+				return result;
+			schedule_delayed_work(&ls->als_work,
+					      delay_to_jiffies
+					      (ls->als_poll_delay));
 			mutex_unlock(&ls->sensor_lock);
 		}
+	} else {
+		result =
+		    i2c_smbus_write_byte_data(client, REG_ALSCONTROL, als_ctl);
+		if (result < 0) {
+			/* i2c communication error */
+			return result;
+		}
+		mutex_lock(&ls->sensor_lock);
+		cancel_delayed_work_sync(&ls->als_work);
+		mutex_unlock(&ls->sensor_lock);
 	}
 #ifdef _SEI_DEBUG
 	bh1772_driver_register_show(client);
@@ -288,94 +270,70 @@ int bh1772_driver_ps_power_on(unsigned char power_ps, unsigned char interrupt,
 {
 	int result = 0;
 	unsigned char ps_ctl;
-	unsigned char intertmp;
-	unsigned char enabletmp;
-	struct rohm_ls_data *ls = i2c_get_clientdata(client);
 
 	/* check the parameter of als power , ps power , als interrupt and ps interrupt */
 	if ((power_ps >= REG_PSCTL_MAX) || (interrupt >= REG_INTERRUPT_MAX))
 		return DRIVER_NON_PARAM;
 
+	ps_ctl = power_ps;
 	_set_slave_address(client);
-	result =
-	    bh1772_driver_general_read(REG_PSCONTROL, &enabletmp,
-				       sizeof(enabletmp), ls->client);
-	if (result < 0)
-		return result;
-	result =
-	    bh1772_driver_general_read(REG_INTERRUPT, &intertmp,
-				       sizeof(intertmp), ls->client);
-	if (result < 0)
-		return result;
-	printk(KERN_INFO "enabletmp is 0x%x, power_ps is 0x%x", enabletmp,
-	       power_ps);
-	if ((enabletmp != power_ps) || (interrupt != intertmp)) {
-		/* set I2C slave address */
-		if (power_ps != CTL_SATBY) {
-			ps_ctl = power_ps;
+	/* set I2C slave address */
+	if (ps_ctl != CTL_SATBY) {
+		result =
+		    i2c_smbus_write_byte_data(client, REG_PSCONTROL, ps_ctl);
+		if (result < 0) {
+			/* i2c communication error */
+			return result;
+		}
+		result = bh1772_driver_write_als_sens(0xFD, client);
+		if (result < 0)
+			return result;
+		result =
+		    i2c_smbus_write_byte_data(client, REG_INTERRUPT, interrupt);
+		if (result < 0) {
+			/* i2c communication error */
+			return result;
+		}
+		if (interrupt & MODE_PROXIMITY) {
 			result =
-			    i2c_smbus_write_byte_data(client, REG_PSCONTROL,
-						      ps_ctl);
+			    i2c_smbus_write_byte_data(client,
+						      REG_PSTHLED, PS_TH_LED1);
 			if (result < 0) {
 				/* i2c communication error */
 				return result;
 			}
-			if (interrupt != intertmp) {
+			if ((interrupt & PS_HYSTERESIS_MASK)) {
 				result =
-				    i2c_smbus_write_byte_data(client,
-							      REG_INTERRUPT,
-							      interrupt);
-				if (result < 0) {
-					/* i2c communication error */
-					return result;
-				}
-				if (interrupt & 0x01) {
-					result =
-					    i2c_smbus_write_byte_data(client,
-								      REG_PSTHLED,
-								      PS_TH_LED1);
-					if (result < 0) {
-						/* i2c communication error */
-						return result;
-					}
-					if ((interrupt & PS_HYSTERESIS_MASK)) {
-						result =
-						    i2c_smbus_write_byte_data
-						    (client, REG_PSTHLLED,
-						     PS_THL_LED1);
-						if (result < 0) {
-							/* i2c communication error */
-							return result;
-						}
-					}
-				}
-			}
-			if (power_ps == CTL_FORCE) {
-				result =
-				    i2c_smbus_write_byte_data(client,
-							      REG_ALSPSMEAS,
-							      PSTRRG_STR);
+				    i2c_smbus_write_byte_data
+				    (client, REG_PSTHLLED, PS_THL_LED1);
 				if (result < 0) {
 					/* i2c communication error */
 					return result;
 				}
 			}
-		} else {
-			interrupt =
-			    i2c_smbus_read_byte_data(client, REG_INTERRUPT);
-			interrupt = interrupt & PS_INT_DISABLE;
-			/* clear interruption */
+		}
+		if (ps_ctl == CTL_FORCE) {
 			result =
-			    i2c_smbus_write_byte_data(client, REG_INTERRUPT,
-						      interrupt);
+			    i2c_smbus_write_byte_data(client,
+						      REG_ALSPSMEAS,
+						      PSTRRG_STR);
 			if (result < 0) {
 				/* i2c communication error */
 				return result;
 			}
-			ps_ctl = CTL_SATBY;
-			result =
-			    i2c_smbus_write_byte_data(client, REG_PSCONTROL,
-						      ps_ctl);
+		}
+	} else {
+		result =
+		    i2c_smbus_write_byte_data(client, REG_INTERRUPT, interrupt);
+		if (result < 0) {
+			/* i2c communication error */
+			return result;
+		}
+		result =
+		    i2c_smbus_write_byte_data(client, REG_PSCONTROL, ps_ctl);
+		if (result < 0) {
+			/* i2c communication error */
+			return result;
 		}
 	}
 #ifdef _SEI_DEBUG

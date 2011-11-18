@@ -139,6 +139,8 @@
 #define PS_THL_LED1			0x2E
 #define ALS_SEN_MAX			0x18
 #define ALS_SEN_MIN			0x35
+#define CLOSE_TO_FAR			10
+#define FAR_TO_CLOSE			2
 #define ERROR_RETURN(ret) if (ret < 0) return ret
 #define delay_to_jiffies(d) ((d) ? msecs_to_jiffies(d) : 1)
 

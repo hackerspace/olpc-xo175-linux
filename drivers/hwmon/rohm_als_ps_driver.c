@@ -131,7 +131,7 @@ static int als_set_delay(struct rohm_ls_data *ls, unsigned long delay)
 		}
 	}
 
-	if (ls->als_enable == CTL_STAND) {
+	if ((ls->als_enable & CTL_STAND) == CTL_STAND) {
 
 		mutex_lock(&ls->sensor_lock);
 
@@ -174,16 +174,37 @@ static int active_als_set(struct device *dev,
 
 	unsigned char enabled =
 	    (strcmp(buf, "1\n") == 0) ? POWER_ON : POWER_OFF;
-	if (enabled)
+	if (enabled) {
 		enabled = ls->als_enable | CTL_STAND;
-	else
+		if (!(ls->als_enable & CTL_STAND)) {
+			if (ls->power) {
+				ret = ls->power(1);
+				if (ret) {
+					pr_err("power on failed");
+					return ret;
+				}
+				msleep(2);		/*Time delay to active sensor after VCC is supplied*/
+			}
+			ret = bh1772_driver_als_power_on(enabled, ls->client);
+			if (ret < 0)
+				return ret;
+		}
+	} else {
 		enabled = ls->als_enable & (~CTL_STAND);
-	ret = bh1772_driver_write_als_sens(0xFD, ls->client);
-	if (ret < 0)
-		return ret;
-	ret = bh1772_driver_als_power_on(enabled, ls->client);
-	if (ret < 0)
-		return ret;
+		if (ls->als_enable) {
+			ret = bh1772_driver_als_power_on(enabled, ls->client);
+			if (ret < 0)
+				return ret;
+			if (ls->power) {
+				ret = ls->power(0);
+				msleep(1);		/*Time delay to disable sensor after VCC is cut off*/
+				if (ret) {
+					pr_err("power off fails");
+					return ret;
+				}
+			}
+		}
+	}
 	ls->als_enable = enabled;
 	return count;
 }
@@ -245,38 +266,63 @@ static int active_ps_set(struct device *dev,
 	int ret;
 	int enabled = (strcmp(buf, "1\n") == 0) ? POWER_ON : POWER_OFF;
 
-	interrupt =
-	    (OUTPUT_LUTCH | MODE_PROXIMITY) & (~POLA_INACTIVEL);
+	interrupt = ls->interrupt;
+
 	if (enabled) {
 		unsigned char status;
-
 		enabled = CTL_STAND;
+		interrupt = interrupt | (~PS_INT_DISABLE);
+		if (!(ls->ps_enable)) {
+			if (ls->power) {
+				ret = ls->power(1);
+				if (ret) {
+					pr_err("power on fails");
+					return ret;
+				}
+				msleep(2);		/*Time delay to active sensor after VCC is supplied*/
+			}
+			enable_irq(ls->client->irq);
+			ret =
+			    bh1772_driver_ps_power_on(enabled, interrupt,
+						      ls->client);
+			if (ret < 0)
+				return ret;
 
-		ret = bh1772_driver_ps_power_on(enabled, interrupt, ls->client);
-		if (ret < 0)
-			return ret;
-
-		ret = bh1772_driver_general_read(REG_ALSPSSTATUS,
-						 &status, sizeof(status),
-						 ls->client);
-		if (ret < 0)
-			return ret;
-		status = ((status >> 1) & 0x01);
-		if (status == 1) {
-			ls->ps_data = 2;
-			rohm_work_report(ls, ls->ps_data,
-					 PROXIMITY_SENSOR_REPORT);
-		} else if (status == 0) {
-			ls->ps_data = 10;
-			rohm_work_report(ls, ls->ps_data,
-					 PROXIMITY_SENSOR_REPORT);
+			ret = bh1772_driver_general_read(REG_ALSPSSTATUS,
+							 &status,
+							 sizeof(status),
+							 ls->client);
+			if (ret < 0)
+				return ret;
+			if ((status & LED1_INT_ACTIVE) == LED1_INT_ACTIVE) {
+				ls->ps_data = FAR_TO_CLOSE;
+				rohm_work_report(ls, ls->ps_data,
+						 PROXIMITY_SENSOR_REPORT);
+			} else if ((status & LED1_INT_ACTIVE) == 0) {
+				ls->ps_data = CLOSE_TO_FAR;
+				rohm_work_report(ls, ls->ps_data,
+						 PROXIMITY_SENSOR_REPORT);
+			}
 		}
 	} else {
 		enabled = CTL_SATBY;
-		interrupt &= PS_INT_DISABLE;
-		ret = bh1772_driver_ps_power_on(enabled, interrupt, ls->client);
-		if (ret < 0)
-			return ret;
+		if (ls->ps_enable) {
+			interrupt &= PS_INT_DISABLE;
+			ret =
+			    bh1772_driver_ps_power_on(enabled, interrupt,
+						      ls->client);
+			if (ret < 0)
+				return ret;
+			if (ls->power) {
+				ret = ls->power(0);
+				msleep(1);		/*Time delay to disable sensor after VCC is cut off*/
+				if (ret) {
+					pr_err("power off fails");
+					return ret;
+				}
+			}
+			disable_irq(ls->client->irq);
+		}
 	}
 	ls->interrupt = interrupt;
 	ls->ps_enable = enabled;
@@ -430,11 +476,9 @@ static void check_far_work(struct work_struct *work)
 	bh1772_driver_general_read(REG_ALSPSSTATUS,
 				   &status, sizeof(status), ls->client);
 
-	status = ((status >> 1) & 0x01);
-
-	if (status == 0) {
+	if ((status & LED1_INT_ACTIVE) == 0) {
 		/*bh1772_driver_read_proximity(&ls->ps_data, ls->client); */
-		ls->ps_data = 10;
+		ls->ps_data = CLOSE_TO_FAR;
 		rohm_work_report(ls, ls->ps_data, PROXIMITY_SENSOR_REPORT);
 
 		pr_debug("near to far detect, in  %s", __func__);
@@ -458,14 +502,12 @@ static void ps_work_handler(struct work_struct *work)
 	    container_of(work, struct rohm_ls_data, ps_work);
 	unsigned char status;
 
-	bh1772_driver_general_read(REG_INTERRUPT,
+	bh1772_driver_general_read(REG_ALSPSSTATUS,
 				   &status, sizeof(status), ls->client);
 
-	status = (status >> 5);
-
-	if (status == 1) {
+	if ((status & LED1_INT_ACTIVE) == LED1_INT_ACTIVE) {
 		/*bh1772_driver_read_proximity(&ls->ps_data, ls->client); */
-		ls->ps_data = 2;
+		ls->ps_data = FAR_TO_CLOSE;
 		rohm_work_report(ls, ls->ps_data, PROXIMITY_SENSOR_REPORT);
 
 		pr_debug("proximity = %d\n", ls->ps_data);
@@ -486,22 +528,51 @@ static irqreturn_t rohm_ls_irq_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static int rohm_sensor_input_init(struct rohm_ls_data *ls)
+static int rohm_ls_probe(struct i2c_client *client,
+			 const struct i2c_device_id *id)
 {
-	int err = 0;
+	struct rohm_ls_data *ls;
+	int ret = 0;
+	struct ROHM_I2C_platform_data *pdata;
 
-	pr_debug("bh1772_input_init!\n");
+	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
+		printk(KERN_ERR "Rohm_ls_probe: need I2C_FUNC_I2C\n");
+		ret = -ENODEV;
+		goto err_check_functionality_failed;
+	}
 
+	ls = kzalloc(sizeof(*ls), GFP_KERNEL);
+	if (ls == NULL) {
+		ret = -ENOMEM;
+		goto err_alloc_data_failed;
+	}
+
+	mutex_init(&ls->sensor_lock);
+
+	INIT_WORK(&ls->ps_work, ps_work_handler);
+	INIT_DELAYED_WORK(&ls->ps_delay_work, check_far_work);
+	INIT_DELAYED_WORK(&ls->als_work, als_polling_work);
+	ls->client = client;
+	i2c_set_clientdata(client, ls);
+	pdata = client->dev.platform_data;
+	if (pdata && pdata->power) {
+		ls->power = pdata->power;
+		ret = ls->power(1);
+		if (ret) {
+			pr_err("power control fails");
+			goto err_power_control;
+		}
+	}
 	ls->input_dev_als = input_allocate_device();
 	if (!ls->input_dev_als) {
-		err = -ENOMEM;
+		ret = -ENOMEM;
 		dev_err(&ls->client->dev,
 			"input device allocate for als failed\n");
-		goto exit;
+		goto err_alloc_als;
 	}
 	ls->input_dev_ps = input_allocate_device();
 	if (!ls->input_dev_ps) {
-		err = -ENOMEM;
+		ret = -ENOMEM;
 		dev_err(&ls->client->dev,
 			"input device allocate for ps failed\n");
 		goto exit_free_dev_als;
@@ -524,91 +595,34 @@ static int rohm_sensor_input_init(struct rohm_ls_data *ls)
 	ls->input_dev_als->name = LIGHT_SENSOR;
 	ls->input_dev_ps->name = PROXIMITY_SENSOR;
 
-	err = input_register_device(ls->input_dev_als);
-	if (err) {
+	ret = input_register_device(ls->input_dev_als);
+	if (ret) {
 		dev_err(&ls->client->dev,
 			"unable to register input polled device %s: %d\n",
-			ls->input_dev_als->name, err);
+			ls->input_dev_als->name, ret);
 		goto exit_free_dev_ps;
 	}
 
-	err = input_register_device(ls->input_dev_ps);
-	if (err) {
+	ret = input_register_device(ls->input_dev_ps);
+	if (ret) {
 		dev_err(&ls->client->dev,
 			"unable to register ps input polled device %s: %d\n",
-			ls->input_dev_ps->name, err);
+			ls->input_dev_ps->name, ret);
 		goto exit_unregister_dev_als;
-	}
-	return 0;
-
-exit_unregister_dev_als:
-	input_unregister_device(ls->input_dev_als);
-exit_free_dev_ps:
-	input_free_device(ls->input_dev_ps);
-exit_free_dev_als:
-	input_free_device(ls->input_dev_als);
-exit:
-	return err;
-}
-
-static void rohm_input_fini(struct rohm_ls_data *ls)
-{
-	input_unregister_device(ls->input_dev_als);
-	input_free_device(ls->input_dev_als);
-
-	input_unregister_device(ls->input_dev_ps);
-	input_free_device(ls->input_dev_ps);
-}
-
-static int rohm_ls_probe(struct i2c_client *client,
-			 const struct i2c_device_id *id)
-{
-	struct rohm_ls_data *ls;
-	int ret = 0;
-	struct ROHM_I2C_platform_data *pdata;
-
-	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
-		printk(KERN_ERR "Rohm_ls_probe: need I2C_FUNC_I2C\n");
-		ret = -ENODEV;
-		goto err_check_functionality_failed;
-	}
-
-	ls = kzalloc(sizeof(*ls), GFP_KERNEL);
-	if (ls == NULL) {
-		ret = -ENOMEM;
-		goto err_alloc_data_failed;
-	}
-	INIT_WORK(&ls->ps_work, ps_work_handler);
-	INIT_DELAYED_WORK(&ls->ps_delay_work, check_far_work);
-	INIT_DELAYED_WORK(&ls->als_work, als_polling_work);
-	ls->client = client;
-	i2c_set_clientdata(client, ls);
-	pdata = client->dev.platform_data;
-	if (pdata && pdata->power) {
-		ls->power = pdata->power;
-		ret = ls->power(1);
-		if (ret < 0) {
-			printk(KERN_ERR "Rohm_ls_probe power on failed\n");
-			goto err_power_failed;
-		}
-	}
-	ret = rohm_sensor_input_init(ls);
-	if (ret)
-		goto err_input_init;
-	else {
+	} else {
 		ret =
 		    bh1772_driver_init(0x04, 0x00, 0x04, 0x80, 0x09, 0x5E, 0xFF,
-				       0x00, 0xFE, 0x04, 0x00, ls->client);
+				       0xFD, 0xFE, 0x04, 0x00, ls->client);
 		if (ret < 0) {
 			printk(KERN_ERR "In %s, bh1772_driver_init call failed",
 			       __func__);
-			return ret;
+			goto exit_free_input;
 		}
 		ls->als_enable = 0;
 		ls->ps_enable = 0;
 		ls->als_poll_delay = 20;
 		ls->ps_delay = 50;
-		mutex_init(&ls->sensor_lock);
+		ls->als_meas_time = 0x80;
 	}
 	if (client->irq) {
 		ret = request_irq(client->irq,
@@ -619,6 +633,7 @@ static int rohm_ls_probe(struct i2c_client *client,
 		else {
 			ls->use_irq = 0;	/*1 set 1 : interrupt mode/0 : polling mode */
 			printk(KERN_ERR "Request IRQ Failed==>ret : %d\n", ret);
+			goto exit_free_input;
 		}
 	}
 	ret = sysfs_create_group(&ls->input_dev_als->dev.kobj,
@@ -631,18 +646,31 @@ static int rohm_ls_probe(struct i2c_client *client,
 	if (ret)
 		goto exit_free_input;
 
-	pr_debug(" %s complete", __func__);
-
+	disable_irq(ls->client->irq);
+	if (ls->power) {
+		ret = ls->power(0);
+		if (ret) {
+			pr_err("power control fails");
+			goto exit_free_input;
+		}
+	}
+	pr_debug("%s complete", __func__);
 	return 0;
 
 exit_free_input:
-	rohm_input_fini(ls);
-err_power_failed:
-err_input_init:
+	input_unregister_device(ls->input_dev_ps);
+exit_unregister_dev_als:
+	input_unregister_device(ls->input_dev_als);
+exit_free_dev_ps:
+	input_free_device(ls->input_dev_ps);
+exit_free_dev_als:
+	input_free_device(ls->input_dev_als);
+err_alloc_als:
+err_power_control:
 	kfree(ls);
+	mutex_destroy(&ls->sensor_lock);
 err_alloc_data_failed:
 err_check_functionality_failed:
-	mutex_destroy(&ls->sensor_lock);
 	return ret;
 }
 
@@ -662,7 +690,7 @@ static int rohm_suspend(struct i2c_client *client, pm_message_t mesg)
 			return ret;
 		}
 	}
-	if ((ls->als_enable & 0x03) != CTL_SATBY) {
+	if ((ls->als_enable & CTL_STAND) != CTL_SATBY) {
 		enabled = ls->als_enable & (~CTL_STAND);
 		ret = bh1772_driver_als_power_on(enabled, ls->client);
 		if (ret < 0) {
@@ -689,7 +717,7 @@ static int rohm_resume(struct i2c_client *client)
 		printk(KERN_ERR "ps cannot resume");
 		return ret;
 	}
-	if ((ls->als_enable & 0x03) != CTL_SATBY)
+	if ((ls->als_enable & CTL_STAND) != CTL_SATBY)
 		ret = bh1772_driver_als_power_on(ls->als_enable, ls->client);
 	if (ret < 0) {
 		printk(KERN_ERR "als cannot resume");
@@ -732,8 +760,10 @@ static struct i2c_driver rohm_ls_driver = {
 		   .name = ROHM_I2C_NAME,
 		   },
 	.probe = rohm_ls_probe,
+#ifdef CONFIG_PM
 	.suspend = rohm_suspend,
 	.resume = rohm_resume,
+#endif
 	.remove = rohm_ls_remove,
 	.id_table = rohm_ls_id,
 };
@@ -741,7 +771,7 @@ static struct i2c_driver rohm_ls_driver = {
 static int __devinit rohm_ls_init(void)
 {
 
-	pr_info("rohm_ls_init\n");
+	pr_debug("rohm_ls_init\n");
 
 	return i2c_add_driver(&rohm_ls_driver);
 }
