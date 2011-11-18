@@ -435,6 +435,13 @@ static struct i2c_board_info i2c2_info_C2[] = {
 };
 
 static struct i2c_board_info i2c2_info_C25[] = {
+#if defined(CONFIG_SENSORS_APDS990X)
+	{
+		I2C_BOARD_INFO("apds990x", 0x39), /* 0x72 */
+		.irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO87)),
+	},
+#endif
+
 #if defined(CONFIG_TOUCHSCREEN_SSD2531)
 	{
 		I2C_BOARD_INFO("ssd2531_ts", 0x5c),
