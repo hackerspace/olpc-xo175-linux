@@ -1929,7 +1929,7 @@ static int __init pxa168_ovly_setup_video_data(struct pxa168_overlay *ovly)
 	vdev->release = video_device_release;
 	vdev->ioctl_ops = &vout_ioctl_ops;
 
-	strlcpy(vdev->name, VOUT_NAME, sizeof(vdev->name));
+	strlcpy(vdev->name, ovly->name, sizeof(vdev->name));
 	vdev->vfl_type = VFL_TYPE_GRABBER;
 
 	/* need to register for a VID_HARDWARE_* ID in videodev.h */
@@ -1986,7 +1986,7 @@ error1:
 
 success:
 	printk(KERN_INFO VOUT_NAME ": registered and initialized "
-	       "video device %d [v4l2]\n", vdev->minor);
+	       "video%d: minor num %d [v4l2]\n", vdev->num, vdev->minor);
 
 	return -ENODEV;
 }
@@ -2121,7 +2121,7 @@ static int __init pxa168_ovly_probe(struct platform_device *pdev)
 	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (res == NULL)
 		return -EINVAL;
-	ovly->name = "ovly";
+	ovly->name = mi->id;
 
 	v4l2_ovly[pdev->id] = ovly;
 
@@ -2167,5 +2167,5 @@ static void pxa168_ovly_cleanup(void)
 	platform_driver_unregister(&pxa168_ovly_driver);
 }
 
-late_initcall(pxa168_ovly_init);
+module_init(pxa168_ovly_init);
 module_exit(pxa168_ovly_cleanup);
