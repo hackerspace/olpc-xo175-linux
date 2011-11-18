@@ -55,6 +55,7 @@ extern struct pxa_device_desc mmp2_device_fuse;
 extern struct platform_device mmp_device_asoc_sspa1;
 extern struct platform_device mmp_device_asoc_sspa2;
 extern struct platform_device mmp_device_asoc_platform;
+extern struct platform_device mmp_device_asoc_hdmi;
 extern struct pxa_device_desc mmp2_device_thsens;
 extern struct pxa_device_desc mmp2_device_videosram;
 

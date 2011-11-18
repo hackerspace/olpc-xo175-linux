@@ -1165,6 +1165,11 @@ struct platform_device mmp_device_asoc_platform = {
 	.id		= -1,
 };
 
+struct platform_device mmp_device_asoc_hdmi = {
+	.name		= "dummy-codec",
+	.id		= -1,
+};
+
 static struct resource mmp2_resource_rtc[] = {
 	[0] = {
 		.start  = 0xd4010000,

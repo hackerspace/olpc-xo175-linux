@@ -1302,6 +1302,7 @@ static void __init brownstone_init(void)
 	platform_device_register(&mmp_device_asoc_sspa1);
 	platform_device_register(&mmp_device_asoc_sspa2);
 	platform_device_register(&mmp_device_asoc_platform);
+	platform_device_register(&mmp_device_asoc_hdmi);
 
 	/* enable 5v regulator */
 	platform_device_register(&brownstone_v_5vp_device);
