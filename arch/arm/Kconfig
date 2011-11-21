@@ -1275,6 +1275,14 @@ config PJ4B_ERRATA_6011
 	  without updated store data. For cacheable, coherent memory, disable interrupt and
 	  replace every occurrence of an LDREX with 5 equivalent LDREX instructions.
 
+config PJ4B_ERRATA_6075
+	bool "PJ4B errata 6075"
+	depends on CPU_PJ4B
+	select ARCH_HAS_BARRIERS
+	help
+	  Barriers fail to enforce ordering among pended loads to non-cacheable
+	  memory. This option replaces a DMB with a DSB to avoid this bug.
+
 endmenu
 
 source "arch/arm/common/Kconfig"
