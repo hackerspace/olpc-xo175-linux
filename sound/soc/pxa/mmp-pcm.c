@@ -484,13 +484,83 @@ out:
 	return ret;
 }
 
+static struct snd_pcm *current_pcm;
 static int mmp2_pcm_suspend(struct snd_soc_dai *dai)
 {
+	struct snd_pcm *pcm = current_pcm;
+	struct snd_pcm_substream *substream;
+	struct snd_pcm_runtime *runtime;
+	struct mmp2_runtime_data *prtd;
+	u32 base, ch;
+	int stream;
+
+	for (stream = 0; stream < 2; stream++) {
+
+		substream = pcm->streams[stream].substream;
+		runtime = substream->runtime;
+
+		if (!runtime)
+			continue;
+
+		prtd = runtime->private_data;
+		ch = prtd->adma_ch;
+
+		pr_debug("%s: dai name %s stream %d dma ch %d prtd %p\n",
+			__func__, dai->name, stream, prtd->adma_ch, prtd);
+
+		/* mmp2 only uses chain mode */
+		base = mmp_get_dma_reg_base(ch);
+
+		prtd->adma_saved.src_addr  = TDSAR(base);
+		prtd->adma_saved.dest_addr = TDDAR(base);
+		prtd->adma_saved.next_desc_ptr = TDNDPR(base);
+		prtd->adma_saved.ctrl = TDCR(base) & ~TDCR_CHANEN;
+		prtd->adma_saved.chan_pri = TDCP(base);
+		prtd->adma_saved.curr_desc_ptr = TDCDPR(base);
+		prtd->adma_saved.intr_mask = TDIMR(base);
+		prtd->adma_saved.intr_status = TDISR(base);
+
+		memcpy(prtd->sram_saved, (void *)prtd->sram_virt,
+			MMP2_ADMA_BUF_SIZE + MMP2_ADMA_DESC_SIZE);
+	}
+
 	return 0;
 }
 
 static int mmp2_pcm_resume(struct snd_soc_dai *dai)
 {
+	struct snd_pcm *pcm = current_pcm;
+	struct snd_pcm_substream *substream;
+	struct snd_pcm_runtime *runtime;
+	struct mmp2_runtime_data *prtd;
+	u32 base, ch;
+	int stream;
+
+	for (stream = 0; stream < 2; stream++) {
+		substream = pcm->streams[stream].substream;
+		runtime = substream->runtime;
+
+		if (!runtime)
+			continue;
+
+		prtd = runtime->private_data;
+		ch = prtd->adma_ch;
+
+		pr_debug("%s: dai name %s stream %d dma ch %d prtd %p\n",
+			__func__, dai->name, stream, prtd->adma_ch, prtd);
+
+		base = mmp_get_dma_reg_base(ch);
+
+		/* MMP2 only uses chain mode */
+		TDNDPR(base) = prtd->adma_saved.next_desc_ptr;
+		TDCP(base)   = prtd->adma_saved.chan_pri;
+		TDIMR(base)  = prtd->adma_saved.intr_mask;
+		TDCR(base)   = prtd->adma_saved.ctrl;
+
+		memcpy((void *)prtd->sram_virt, prtd->sram_saved,
+			MMP2_ADMA_BUF_SIZE + MMP2_ADMA_DESC_SIZE);
+	}
+
 	return 0;
 }
 
@@ -588,6 +658,9 @@ int mmp2_pcm_new(struct snd_card *card, struct snd_soc_dai *dai,
 	struct snd_pcm *pcm)
 {
 	int ret = 0;
+
+	if (!current_pcm)
+		current_pcm = pcm;
 
 	if (!card->dev->dma_mask)
 		card->dev->dma_mask = &mmp2_pcm_dmamask;

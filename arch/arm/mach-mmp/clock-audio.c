@@ -66,8 +66,17 @@ static void audio_clk_enable(struct clk *clk)
 {
 	unsigned int val = 0;
 
-	val = APMU_AUDIO_RST_DIS | APMU_AUDIO_ISO_DIS |
-		APMU_AUDIO_CLK_ENA | APMU_AUDIO_PWR_UP;
+	/*
+	 * must set pwr_up bit firstly; otherwise
+	 * after enter suspend state, then cannot
+	 * resume back properly.
+	 */
+	val = __raw_readl(APMU_AUDIO_CLK_RES_CTRL);
+	val |= APMU_AUDIO_PWR_UP;
+	__raw_writel(val, APMU_AUDIO_CLK_RES_CTRL);
+
+	val |= APMU_AUDIO_RST_DIS | APMU_AUDIO_ISO_DIS |
+		APMU_AUDIO_CLK_ENA;
 	__raw_writel(val, APMU_AUDIO_CLK_RES_CTRL);
 }
 
@@ -77,7 +86,10 @@ static void audio_clk_disable(struct clk *clk)
 
 	val = __raw_readl(APMU_AUDIO_CLK_RES_CTRL);
 	val &= ~(APMU_AUDIO_RST_DIS | APMU_AUDIO_ISO_DIS |
-		 APMU_AUDIO_CLK_ENA | APMU_AUDIO_PWR_UP);
+		 APMU_AUDIO_CLK_ENA);
+	__raw_writel(val, APMU_AUDIO_CLK_RES_CTRL);
+
+	val &= ~APMU_AUDIO_PWR_UP;
 	__raw_writel(val, APMU_AUDIO_CLK_RES_CTRL);
 }
 
@@ -300,11 +312,15 @@ static int pxa_audio_clock_suspend(void)
 	aud_pll_ctrl0 = __raw_readl(AUD_PLL_CTL0);
 	aud_pll_ctrl1 = __raw_readl(AUD_PLL_CTL1);
 
+	audio_clk_disable(audioclk);
+
 	return 0;
 }
 
 static void pxa_audio_clock_resume(void)
 {
+	audio_clk_enable(audioclk);
+
 	__raw_writel(aud_ctrl,      AUD_CTL);
 	__raw_writel(aud_pll_ctrl0, AUD_PLL_CTL0);
 	__raw_writel(aud_pll_ctrl1, AUD_PLL_CTL1);
