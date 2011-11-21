@@ -32,6 +32,11 @@ int __init pxa_register_device(struct pxa_device_desc *desc,
 
 	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(32);
 
+#ifdef CONFIG_PXA910_1G_DDR_WORKAROUND
+	if (!strncmp(desc->dev_name, "pxa910-uart", 11))
+		pdev->dev.coherent_dma_mask = SZ_512M - 1;
+#endif
+
 	memset(res, 0, sizeof(res));
 
 	if (desc->start != -1ul && desc->size > 0) {
