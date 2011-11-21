@@ -363,6 +363,11 @@ __v7_setup:
 	orr	r0, r0, #(1 << 16)
 	mcr	p15, 1, r0, c15, c1, 1
 #endif
+#ifdef CONFIG_PJ4B_ERRATA_6107
+	mrc	p15, 1, r0, c15, c1, 0
+	orr	r0, r0, #(1 << 0)		@ disable L0
+	mcr	p15, 1, r0, c15, c1, 0
+#endif
 	adr	r12, __v7_setup_stack		@ the local stack
 	stmia	r12, {r0-r5, r7, r9, r11, lr}
 	bl	v7_flush_dcache_all

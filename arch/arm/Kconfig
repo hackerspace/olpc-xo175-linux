@@ -1283,6 +1283,13 @@ config PJ4B_ERRATA_6075
 	  Barriers fail to enforce ordering among pended loads to non-cacheable
 	  memory. This option replaces a DMB with a DSB to avoid this bug.
 
+config PJ4B_ERRATA_6107
+	bool "PJ4B errata 6107"
+	depends on CPU_PJ4B
+	help
+	  Matching L0 linefill can cause SFB entry to be marked for delayed clearing when it
+	  isn't necessary. This option disables L0 to avoid the bug.
+
 endmenu
 
 source "arch/arm/common/Kconfig"
