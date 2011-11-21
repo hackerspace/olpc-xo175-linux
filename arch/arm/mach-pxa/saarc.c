@@ -21,6 +21,7 @@
 #include <linux/regulator/machine.h>
 #include <linux/sd8x_rfkill.h>
 #include <linux/mmc/host.h>
+#include <linux/i2c/adp8885.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -388,69 +389,131 @@ static void adv7533_hdmi_reset(void)
 }
 #endif
 
-static struct i2c_board_info i2c2_info[] = {
-#if defined(CONFIG_TOUCHSCREEN_SSD2531)
-	{
-	 .type = "ssd2531_ts",
-	 .addr = 0x5c,
-	 .platform_data = ssd2531_ts_pins,
-	 },
+static struct adp8885_bl_channel_data adp8885_ch[] = {
+	{	/* Display backlight */
+		.sovp		= ADP8885_SOVP_ENABLE,
+		.fb_dis		= ADP8885_FB_ENABLE,
+		.dim_en		= ADP8885_DIM_DISABLE,
+		.imax		= ADP8885_BL_MAX_CUR_uA(25600),
+		.iset		= ADP8885_ISET_80,
+		.fade_out	= ADP8885_FADE_510ms,
+		.fade_in	= ADP8885_FADE_510ms,
+		.iovr		= ADP8885_OVR_DISABLE,
+	},
+#if 0 /* FIXME: remove this when Keypad will be physically connected */
+	{	/* Keypad backlight */
+		.sovp		= ADP8885_SOVP_ENABLE,
+		.fb_dis		= ADP8885_FB_ENABLE,
+		.dim_en		= ADP8885_DIM_DISABLE,
+		.imax		= ADP8885_BL_MAX_CUR_uA(25600),
+		.iset		= ADP8885_ISET_60,
+		.fade_out	= ADP8885_FADE_510ms,
+		.fade_in	= ADP8885_FADE_510ms,
+		.iovr		= ADP8885_OVR_DISABLE,
+	},
 #endif
 };
 
+static struct adp8885_bl_platform_data adp8885_data = {
+	.psm_en		= ADP8885_PWS_ENABLE,
+	.fsw		= ADP8885_FSW_600KHZ,
+	.ipeak		= ADP8885_IPEAK_500mA,
+	.ovp_lvl	= ADP8885_OVP_LVL_28V,
+	.ledout_h	= 0,
+	.ledout_l	= 0,
+	.num_chs = sizeof(adp8885_ch) / sizeof(struct adp8885_bl_channel_data),
+	.ch			= adp8885_ch,
+};
+
+static struct i2c_board_info i2c2_info_C2[] = {
+#if defined(CONFIG_TOUCHSCREEN_SSD2531)
+	{
+		I2C_BOARD_INFO("ssd2531_ts", 0x5c),
+		.platform_data = ssd2531_ts_pins,
+	},
+#endif
+};
+
+static struct i2c_board_info i2c2_info_C25[] = {
+#if defined(CONFIG_TOUCHSCREEN_SSD2531)
+	{
+		I2C_BOARD_INFO("ssd2531_ts", 0x5c),
+		.platform_data = ssd2531_ts_pins,
+	},
+#endif
+#if defined(CONFIG_BACKLIGHT_ADP8885)
+	{
+		I2C_BOARD_INFO("adp8885", 0x3A), /* 0x74 */
+		.platform_data = (void *)&adp8885_data,
+	},
+#endif
+};
 
 static struct i2c_board_info i2c3_info[] = {
 #if defined(CONFIG_SENSORS_CWMI)
 	{
-	 .type = "cwmi_acc",
-	 .addr = 0x19,		/* Write addr 0x32, read addr 0x33 */
-	 .irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO11)),
-	 .platform_data = &cwmi_acc_data,
-	 },
+		I2C_BOARD_INFO("cwmi_acc", 0x19),
+		.irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO11)),
+		.platform_data = &cwmi_acc_data,
+	},
 
 	{
-	 .type = "cwmi_mag",
-	 .addr = 0x1e,		/*write addr 0x3C, read addr 0x3D */
-	 .irq = 0,/*gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO10)),*/
-	 .platform_data = &cwmi_mag_data,
-	 },
+		I2C_BOARD_INFO("cwmi_mag", 0x1e),
+		.irq = 0,/*gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO10)),*/
+		.platform_data = &cwmi_mag_data,
+	},
 #endif
 #if defined(CONFIG_SENSORS_CWGD)
 	{
-	 .type = "cwgd",
-	 .addr = 0x69,		/*R1 mount(High) write=0xD2, Read=0xD3 */
-	 .irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO9)),
-	 .platform_data = &cwgd_plat_data,
+		I2C_BOARD_INFO("cwgd", 0x69),
+		.irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO9)),
+		.platform_data = &cwgd_plat_data,
 	 },
 #endif
 #if defined(CONFIG_HDMI_ADV7533)
 	{
-		.type		= "adv7533-packet",
-		.addr		= 0x38,
+		I2C_BOARD_INFO("adv7533-packet", 0x38),
 	},
 	{
-		.type		= "adv7533-main",
-		.addr		= 0x39,
+		I2C_BOARD_INFO("adv7533-main", 0x39),
 	},
 	{
-		.type		= "adv7533-cec-dsi",
-		.addr		= 0x2c,
+		I2C_BOARD_INFO("adv7533-cec_dsi", 0x2c),
 	},
 	{
-		.type		= "adv7533-edid",
-		.addr		= 0x3f,
+		I2C_BOARD_INFO("adv7533-edid", 0x3f),
 		.platform_data = adv7533_hdmi_reset,
 	},
 #endif
 
 #if defined(CONFIG_C_TEC_OPTIC_TP)
 	{
-		.type	= "ctec_optic_tp",
-		.addr	= 0x33,
+		I2C_BOARD_INFO("ctec_optic_tp", 0x33),
 		.irq	= gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO100)),
 	},
 #endif
 };
+
+static void register_i2c_board_info(void)
+{
+	i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_info));
+
+	switch (get_board_id()) {
+	case OBM_SAAR_C2_NEVO_A0_V10_BOARD:
+		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_C2));
+		break;
+
+	case OBM_SAAR_C25_NEVO_B0_V10_BOARD:
+		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_C25));
+		break;
+
+	default:
+		pr_err("%s: Unknown board type!\n", __func__);
+		BUG();
+	}
+
+	i2c_register_board_info(2, ARRAY_AND_SIZE(i2c3_info));
+}
 
 static struct i2c_pxa_platform_data i2c1_pdata = {
 	.use_pio        = 0,
@@ -1144,9 +1207,7 @@ static void __init init(void)
 				 sizeof(i2c3_pdata));
 
 	platform_add_devices(ARRAY_AND_SIZE(devices));
-	i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_info));
-	i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info));
-	i2c_register_board_info(2, ARRAY_AND_SIZE(i2c3_info));
+	register_i2c_board_info();
 
 #if defined(CONFIG_KEYBOARD_PXA27x) || defined(CONFIG_KEYBOARD_PXA27x_MODULE)
 	pxa_set_keypad_info(&keypad_info);
