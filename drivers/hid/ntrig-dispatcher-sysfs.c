@@ -452,20 +452,27 @@ static ssize_t get_counters_show(struct kobject *kobj, struct kobj_attribute *at
 }
 
 static struct kobj_attribute tracklib_status_attribute =
-	__ATTR(tracklib_status, S_IRUGO | S_IWUGO, config_dispatcher_show, config_dispatcher_store);
+	__ATTR(tracklib_status, S_IRUGO|S_IWUSR|S_IWGRP, config_dispatcher_show,
+			config_dispatcher_store);
 static struct kobj_attribute pen_status_attribute =
-	__ATTR(pen_status, S_IRUGO | S_IWUGO, config_dispatcher_show, config_dispatcher_store);
+	__ATTR(pen_status, S_IRUGO|S_IWUSR|S_IWGRP, config_dispatcher_show,
+			config_dispatcher_store);
+/* Setting of virtual keys is not allowed */
 static struct kobj_attribute ntrig_virtual_keys_show_attribute =
-	__ATTR(ntrig_virtual_keys_show, S_IRUGO, config_dispatcher_show, NULL); // Setting of virtual keys is not allowed
+	__ATTR(ntrig_virtual_keys_show, S_IRUGO, config_dispatcher_show, NULL);
+/* Setting of sensors number is not allowed */
 static struct kobj_attribute num_sensors_attribute =
-	__ATTR(num_sensors, S_IRUGO, config_dispatcher_show, NULL);		// Setting of sensors number is not allowed
+	__ATTR(num_sensors, S_IRUGO, config_dispatcher_show, NULL);
+/*Store function sets sensor_id for reading screen border*/
 static struct kobj_attribute touch_screen_border_attribute =
-	__ATTR(touch_screen_border, S_IRUGO | S_IWUGO, config_dispatcher_show, config_dispatcher_store); // Store function sets sensor_id for reading screen border
+	__ATTR(touch_screen_border, S_IRUGO|S_IWUSR|S_IWGRP,
+			config_dispatcher_show, config_dispatcher_store);
 static struct kobj_attribute driver_version_attribute =
 	__ATTR(driver_version, S_IRUGO, config_dispatcher_show, NULL);
 /* Control debug prints */
 static struct kobj_attribute debug_print_attribute =
-	__ATTR(debug_print, S_IRUGO | S_IWUGO, config_dispatcher_show, config_dispatcher_store);
+	__ATTR(debug_print, S_IRUGO|S_IWUSR|S_IWGRP, config_dispatcher_show,
+			config_dispatcher_store);
 /* TODO check why it is needed
 static struct kobj_attribute bus_interface_attribute =
 	__ATTR(bus_interface, S_IRUGO | S_IWUGO, get_bus_interface_show, get_bus_interface_store); */
@@ -475,7 +482,8 @@ static struct kobj_attribute bus_interface_attribute =
  * 'echo 0 > driver_counters' will reset all counters to 0
  */
 static struct kobj_attribute get_counters_attribute =
-	__ATTR(driver_counters, S_IRUGO | S_IWUGO, get_counters_show, reset_counters_store);
+	__ATTR(driver_counters, S_IRUGO|S_IWUSR|S_IWGRP, get_counters_show,
+			reset_counters_store);
 
 /*
  * Sensor Configuration file
@@ -501,10 +509,12 @@ static ssize_t config_sensor_store(struct kobject *kobj, struct kobj_attribute *
 }
 
 static struct kobj_attribute config_sensor_attribute =
-	__ATTR(config_sensor, S_IRUGO | S_IWUGO, config_sensor_show, config_sensor_store);
+	__ATTR(config_sensor, S_IRUGO|S_IWUSR|S_IWGRP, config_sensor_show,
+		config_sensor_store);
 
 static struct kobj_attribute get_bus_interface_attribute =
-	__ATTR(get_bus_interface, S_IRUGO | S_IWUGO, get_bus_interface_show, get_bus_interface_store);
+	__ATTR(get_bus_interface, S_IRUGO|S_IWUSR|S_IWGRP,
+		get_bus_interface_show, get_bus_interface_store);
 
 
 /*
