@@ -273,7 +273,7 @@ static int __devinit adp8885_ch_setup(struct backlight_device *bl, int ch)
 	if (ret)
 		return ret;
 
-	ret = adp8885_set_bits(client, MDCR, MDCR_CH_EN(ch));
+	ret = adp8885_set_bits(client, MDCR, MDCR_CH_EN(ch) | NSTBY);
 
 	return ret;
 }
@@ -305,6 +305,14 @@ static int __devinit adp8885_probe(struct i2c_client *client,
 	if (pdata->num_chs > MAX_CHAN_NUM) {
 		dev_err(&client->dev, "invalid number of channels!\n");
 		return -EINVAL;
+	}
+
+	if (pdata->chip_enable) {
+		ret = pdata->chip_enable(true);
+		if (ret) {
+			dev_err(&client->dev, "failed to enable chip!\n");
+			return ret;
+		}
 	}
 
 	ret = adp8885_read(client, DVID, &reg_val);
@@ -357,6 +365,7 @@ static int __devinit adp8885_probe(struct i2c_client *client,
 		else
 			props.brightness = ADP8885_MAX_BRIGHTNESS;
 
+		props.type = BACKLIGHT_RAW;
 		bl = backlight_device_register(adp8885_ch_name[i],
 					       &client->dev, &chan[i],
 					       &adp8885_bl_ops, &props);
@@ -376,10 +385,6 @@ static int __devinit adp8885_probe(struct i2c_client *client,
 		}
 		backlight_update_status(bl);
 	}
-
-	ret = adp8885_set_bits(client, MDCR, NSTBY);
-	if (ret)
-		goto out1;
 
 	return 0;
 
@@ -418,16 +423,27 @@ static int __devexit adp8885_remove(struct i2c_client *client)
 #ifdef CONFIG_PM
 static int adp8885_i2c_suspend(struct i2c_client *client, pm_message_t message)
 {
-	adp8885_clr_bits(client, MDCR, NSTBY);
+	int ret;
+	struct adp8885_bl *data = i2c_get_clientdata(client);
 
-	return 0;
+	ret = adp8885_clr_bits(client, MDCR, NSTBY);
+
+	if (data->pdata->chip_enable)
+		ret = data->pdata->chip_enable(false);
+
+	return ret;
 }
 
 static int adp8885_i2c_resume(struct i2c_client *client)
 {
-	adp8885_set_bits(client, MDCR, NSTBY);
+	int ret;
+	struct adp8885_bl *data = i2c_get_clientdata(client);
 
-	return 0;
+	if (data->pdata->chip_enable)
+		ret = data->pdata->chip_enable(true);
+	ret = adp8885_set_bits(client, MDCR, NSTBY);
+
+	return ret;
 }
 #else
 #define adp8885_i2c_suspend NULL

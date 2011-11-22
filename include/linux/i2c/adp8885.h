@@ -92,9 +92,9 @@ struct adp8885_bl_platform_data {
 	u8 ovp_lvl;		/* Over-voltage protection */
 	u8 ledout_h;		/* Led outovr current MSB */
 	u8 ledout_l;		/* Led outovr current LSB */
-
 	u8 num_chs;
 	struct adp8885_bl_channel_data *ch;
+	int(*chip_enable)(bool);
 };
 
 #endif /* __LINUX_I2C_ADP8885_H */
