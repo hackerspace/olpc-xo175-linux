@@ -428,7 +428,8 @@ static int cwmi_mag_read(struct i2c_cwmi_sensor *sensor)
 	u8 buf[6];
 	int hw_d[3] = { 0 };
 
-	if (cwmi_i2c_read(sensor, MAG_DATA_X_H, buf, sizeof(buf)) < 0)
+	if (cwmi_i2c_read
+	    (sensor, MAG_DATA_X_H | READ_MULTIPLE_BYTES, buf, sizeof(buf)) < 0)
 		return -1;
 
 	hw_d[0] = (int)(buf[0] << 8 | buf[1]);
@@ -1098,8 +1099,8 @@ static int cwmi_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	if (!cwmi_find_sensor(ORI_NAME))
 		cwmi_ori_sensor_init();
 
-	pr_info("%s i2c device created (Interruptible=%d).\n", client->name,
-		sensor->use_interrupt);
+	pr_info("%s i2c device created (Interruptible=%d, irq = %d).\n",
+		client->name, sensor->use_interrupt, sensor->client->irq);
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	sensor->early_suspend.level = EARLY_SUSPEND_LEVEL_STOP_DRAWING;
 	sensor->early_suspend.suspend = cwmi_early_suspend;
