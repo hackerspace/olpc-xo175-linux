@@ -963,6 +963,7 @@ static APBC_CLK(pwm1, MMP2_PWM0, 0, 26000000);
 static APBC_CLK_OPS(pwm2, MMP2_PWM1, 0, 26000000, &pwm2_clk_ops);
 static APBC_CLK(pwm3, MMP2_PWM2, 0, 26000000);
 static APBC_CLK(pwm4, MMP2_PWM3, 0, 26000000);
+static APBC_CLK(ssp3, MMP2_SSP3, 1, 13000000);
 static APBC_CLK(keypad, MMP2_KPC, 0, 32768);
 static APBC_CLK(rtc, MMP2_RTC, 0x8, 32768);
 
@@ -1043,6 +1044,7 @@ static struct clk_lookup mmp2_clkregs[] = {
 	INIT_CLKREG(&clk_wtm, NULL, "mmp2-wtm"),
 	INIT_CLKREG(&clk_rtc, "mmp-rtc", NULL),
 	INIT_CLKREG(&clk_usb_phy, NULL, "USBPHYCLK"),
+	INIT_CLKREG(&clk_ssp3, "mmp-ssp.3", NULL),
 	INIT_CLKREG(&clk_sysclk, NULL, "mmp-sysclk"),
 	INIT_CLKREG(&clk_sspa1, "mmp2-sspa.0", NULL),
 	INIT_CLKREG(&clk_sspa2, "mmp2-sspa.1", NULL),
@@ -1138,6 +1140,10 @@ MMP2_DEVICE(fb_tv_ovly, "pxa168fb_ovly", 1, LCD, 0xd420b000, 0x500);
 MMP2_DEVICE(hdmi, "mmp-hdmi", -1, HDMI, 0xd420b000, 0x1fff);
 MMP2_DEVICE(sspa1, "mmp2-sspa", 0, SSPA1, 0xd42a0c00, 0xb0, ADMA1_CH1, ADMA1_CH0);
 MMP2_DEVICE(sspa2, "mmp2-sspa", 1, SSPA2, 0xd42a0d00, 0xb0, ADMA2_CH1, ADMA2_CH0);
+MMP2_DEVICE(ssp1, "mmp-ssp", 1, SSP1, 0xd4035000, 0x40, 6, 7);
+MMP2_DEVICE(ssp2, "mmp-ssp", 2, SSP2, 0xd4036000, 0x40, 10, 11);
+MMP2_DEVICE(ssp3, "mmp-ssp", 3, SSP3, 0xd4037000, 0x40, 12, 13);
+MMP2_DEVICE(ssp4, "mmp-ssp", 4, SSP4, 0xd4039000, 0x40, 14, 15);
 MMP2_DEVICE(audiosram, "mmp-sram", 0, NONE, 0xe0000000, 0x4000);
 MMP2_DEVICE(videosram, "mmp-sram", 1, NONE, 0xd1020000, 0x16800);
 MMP2_DEVICE(thsens, "mmp2-thermal", -1, THERMAL, 0xd4013200, 0x20);

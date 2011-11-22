@@ -17,6 +17,7 @@ extern void __init mmp2_reserve(void);
 #include <mach/pxa168fb.h>
 #include <mach/uio_hdmi.h>
 #include <plat/pxa27x_keypad.h>
+#include <linux/spi/pxa2xx_spi.h>
 #include <mach/sram.h>
 
 extern struct pxa_device_desc mmp2_device_uart1;
@@ -45,6 +46,10 @@ extern struct pxa_device_desc mmp2_device_hdmi;
 extern struct pxa_device_desc mmp2_device_keypad;
 extern struct pxa_device_desc mmp2_device_sspa1;
 extern struct pxa_device_desc mmp2_device_sspa2;
+extern struct pxa_device_desc mmp2_device_ssp1;
+extern struct pxa_device_desc mmp2_device_ssp2;
+extern struct pxa_device_desc mmp2_device_ssp3;
+extern struct pxa_device_desc mmp2_device_ssp4;
 extern struct pxa_device_desc mmp2_device_audiosram;
 extern struct pxa_device_desc mmp2_device_fuse;
 extern struct platform_device mmp_device_asoc_sspa1;
@@ -149,6 +154,37 @@ static inline int mmp2_add_fb_tv_ovly(struct pxa168fb_mach_info *mi)
 {
 	return pxa_register_device(&mmp2_device_fb_tv_ovly, mi, sizeof(*mi));
 }
+
+static inline int mmp2_add_ssp(int id)
+{
+	struct pxa_device_desc *d = NULL;
+
+	switch (id) {
+	case 1: d = &mmp2_device_ssp1; break;
+	case 2: d = &mmp2_device_ssp2; break;
+	case 3: d = &mmp2_device_ssp3; break;
+	case 4: d = &mmp2_device_ssp4; break;
+	default:
+		return -EINVAL;
+	}
+
+	return pxa_register_device(d, NULL, 0);
+}
+
+static inline int mmp2_add_spi(int id, struct pxa2xx_spi_master *pdata)
+{
+	struct platform_device *pd;
+	pd = platform_device_alloc("pxa2xx-spi", id);
+	if (pd == NULL) {
+		pr_err("pxa2xx-spi: failed to allocate device (id=%d)\n", id);
+		return -ENOMEM;
+	}
+
+	platform_device_add_data(pd, pdata, sizeof(*pdata));
+
+	return platform_device_add(pd);
+}
+
 
 static inline int mmp2_add_hdmi(struct uio_hdmi_platform_data *data)
 {

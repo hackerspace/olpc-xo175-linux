@@ -44,6 +44,13 @@
 #include "common.h"
 #include "onboard.h"
 #include <linux/cwmi.h>
+
+#if defined(CONFIG_SPI_PXA2XX)
+#include <linux/spi/spi.h>
+#include <linux/spi/pxa2xx_spi.h>
+#include <linux/spi/ntrig_spi.h>
+#endif
+
 #include <linux/cwgd.h>
 #include <linux/mmc/sdhci.h>
 #include <mach/regs-icu.h>
@@ -960,6 +967,95 @@ static struct i2c_board_info brownstone_twsi6_info[] = {
 	},
 };
 
+#if (defined(CONFIG_SPI_PXA2XX) || defined(CONFIG_SPI_PXA2XX_MODULE)) \
+	&& defined(CONFIG_NTRIG_SPI)
+
+static int ntrig_set_power(int on)
+{
+	static struct regulator *v_ldo16;
+
+	printk(KERN_DEBUG "%s on = %d\n", __func__, on);
+	v_ldo16 = regulator_get(NULL, "v_ldo16");
+	if (IS_ERR(v_ldo16)) {
+		v_ldo16 = NULL;
+		pr_err("%s: fail to get regulator ldo16!\n", __func__);
+		return -1;
+	}
+	if (on) {
+		regulator_set_voltage(v_ldo16, 3300000, 3300000);
+		if (!regulator_is_enabled(v_ldo16))
+			regulator_enable(v_ldo16);
+	} else {
+		if (regulator_is_enabled(v_ldo16) > 0)
+			regulator_force_disable(v_ldo16);
+	}
+	regulator_put(v_ldo16);
+	v_ldo16 = NULL;
+	return 0;
+}
+
+
+static struct pxa2xx_spi_master pxa_ssp_master_info = {
+	.num_chipselect = 1,
+	.enable_dma = 1,
+};
+
+static struct pxa2xx_spi_chip touch_spi_device = {
+	.tx_threshold = 1,
+	.rx_threshold = 1,
+};
+static struct ntrig_spi_platform_data ntrig_data = {
+	.oe_gpio = mfp_to_gpio(GPIO78_TSI_OE_N),
+	.oe_inverted = 1,
+	.pwr_gpio = -1,
+	.irq_flags = IRQF_DISABLED | IRQF_TRIGGER_RISING,
+	.set_power = ntrig_set_power,
+};
+
+static struct spi_board_info __initdata ntrig_spi_board_info[] = {
+	{
+		.modalias = "ntrig_spi",
+		.bus_num = 4,
+		.chip_select = 0,
+		.mode = SPI_MODE_0,
+		.max_speed_hz = 13000000,
+		.platform_data = &ntrig_data,
+		.irq = IRQ_GPIO(mfp_to_gpio(GPIO101_TSI_INT)),
+		.controller_data = &touch_spi_device,
+	},
+};
+
+static int ntrig_gpio_set(void)
+{
+	int gpio = mfp_to_gpio(GPIO101_TSI_INT);
+
+	if (gpio_request(gpio, "N-trig irq")) {
+		printk(KERN_INFO "gpio %d request failed\n", gpio);
+		return -1;
+	}
+
+	gpio_direction_input(gpio);
+	mdelay(1);
+	gpio_free(gpio);
+	return 0;
+}
+
+static void __init mmp2_init_spi(void)
+{
+
+	ntrig_gpio_set();
+	mmp2_add_ssp(3);
+	mmp2_add_spi(4, &pxa_ssp_master_info);
+
+	if ((spi_register_board_info(ntrig_spi_board_info, ARRAY_SIZE(ntrig_spi_board_info))) != 0) {
+		printk("%s: spi_register_board_info returned error\n", __func__);
+	}
+}
+#else
+static inline void mmp2_init_spi(void) {}
+#endif
+
+
 #ifdef CONFIG_UIO_HDMI
 static struct uio_hdmi_platform_data mmp2_hdmi_info __initdata = {
 	.sspa_reg_base = 0xD42A0C00,
@@ -1181,6 +1277,8 @@ static void __init brownstone_init(void)
 #if defined(CONFIG_MMC_SDHCI_PXAV3)
 	brownstone_init_mmc();
 #endif
+	 if (board_is_mmp2_brownstone_rev5())
+		mmp2_init_spi();
 
 #ifdef CONFIG_USB_PXA_U2O
 	pxa168_device_u2o.dev.platform_data = &mmp2_usb_pdata;
