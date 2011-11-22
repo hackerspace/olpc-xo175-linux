@@ -33,7 +33,8 @@
 #include <linux/kernel.h>
 #include <linux/workqueue.h>
 #include <linux/spinlock.h>
-//#include <linux/spi/spi.h>
+
+#include <linux/earlysuspend.h>
 #include <linux/spi/ntrig_spi.h>
 
 #include "typedef-ntrig.h"
@@ -42,7 +43,8 @@
 #include "ntrig_low_msg.h"
 
 #define DRIVER_NAME	"ntrig_spi"
-#define MAX_RETRY	50
+#define MAX_RETRY	10
+#define DEBUG_TOUCH	0
 /** define this	macro to put driver	in "debug" mode	- it will
  *  not	be loaded at startup, and need to be loaded	by echo 6 >
  *  /sys/spi_test/test
@@ -188,6 +190,7 @@ struct ntrig_spi_privdata {
 	int aggregation_size;
 	/** number of logical message fragments left for complete message */
 	int fragments_left;
+	struct early_suspend    early_suspend;
 };
 
 struct watchdog_timer_t
@@ -369,8 +372,9 @@ static void spi_set_output_enable(struct ntrig_spi_privdata *pdata, bool enable)
 		} else {
 			val = enable ? 1 : 0;
 		}
-
 		gpio_set_value(pdata->oe_gpio, val);
+		printk(KERN_DEBUG "%s:oe_gpio = %d, enable = %d, val = %d\n",
+			__func__, pdata->oe_gpio, enable, val);
 	}
 }
 
@@ -384,6 +388,7 @@ static bool spi_get_output_enabled(struct ntrig_spi_privdata *pdata)
 {
 	if(pdata->oe_gpio >= 0) {
 		int val = gpio_get_value(pdata->oe_gpio);
+		printk(KERN_DEBUG "%s:val = %d\n", __func__, val);
 		if(pdata->oe_inverted) {
 			return val ? 0 : 1;
 		} else {
@@ -1199,7 +1204,7 @@ static void ntrig_spi_watchdog_release(struct kobject *kobj);
 
 //define the kobj attributes: name, mode, show_function, store_function
 static struct kobj_attribute ntrig_spi_watchdog_attr =
-	__ATTR(NULL, S_IRUGO | S_IWUGO, ntrig_spi_watchdog_show, ntrig_spi_watchdog_store);
+	__ATTR(NULL, S_IRUGO | S_IWUSR | S_IWGRP, ntrig_spi_watchdog_show, ntrig_spi_watchdog_store);
 
 const	struct attribute *ntrig_spi_watchdog_attrs = {
 	&ntrig_spi_watchdog_attr.attr
@@ -1337,7 +1342,7 @@ static struct kobject* ntrig_create_spi_watchdog_file(void)
 
 /* define the kobj attributes: name, mode, show_function, store_function */
 static struct kobj_attribute ntrig_spi_test_attr =
-	__ATTR(NULL, S_IRUGO | S_IWUGO, ntrig_spi_test_show, ntrig_spi_test_store);
+	__ATTR(NULL, S_IRUGO | S_IWUSR | S_IWGRP, ntrig_spi_test_show, ntrig_spi_test_store);
 
 const	struct attribute *ntrig_spi_test_attrs = {
 	&ntrig_spi_test_attr.attr
@@ -1792,6 +1797,7 @@ static int __devinit ntrig_spi_probe(struct spi_device *spi);
 static int ntrig_spi_remove(struct spi_device *spi);
 
 #ifdef CONFIG_PM
+#ifndef CONFIG_HAS_EARLYSUSPEND
 /**
  * called when suspending the device (sleep with preserve 
  * memory) 
@@ -1799,9 +1805,13 @@ static int ntrig_spi_remove(struct spi_device *spi);
 static int ntrig_spi_suspend(struct spi_device *spi, pm_message_t mesg)
 {
 	struct ntrig_spi_privdata* privdata = dev_get_drvdata(&spi->dev);
+	disable_irq(privdata->spi->irq);
+	flush_workqueue(watchdog_timer.work_q);
 	watchdog_timer.is_suspended = true;
 	ntrig_dbg("in %s\n", __FUNCTION__);
 	spi_set_pwr(privdata, false);
+	if (((struct ntrig_spi_platform_data *)(privdata->spi->dev.platform_data))->set_power)
+		((struct ntrig_spi_platform_data *)(privdata->spi->dev.platform_data))->set_power(0);
 
 	return 0;
 }
@@ -1812,14 +1822,25 @@ static int ntrig_spi_suspend(struct spi_device *spi, pm_message_t mesg)
 static int ntrig_spi_resume(struct spi_device *spi)
 {
 	struct ntrig_spi_privdata* privdata = dev_get_drvdata(&spi->dev);
+	if (((struct ntrig_spi_platform_data *)(privdata->spi->dev.platform_data))->set_power)
+		((struct ntrig_spi_platform_data *)(privdata->spi->dev.platform_data))->set_power(1);
+	msleep(1);
 	watchdog_timer.is_suspended = false;
 	ntrig_dbg("in %s\n", __FUNCTION__);
 	/* ntrig_spi_send_driver_alive(spi); */
 	spi_set_pwr(privdata, true);
+	enable_irq(privdata->spi->irq);
 
 	return 0;
 }
 #endif
+#endif
+
+static void ntrig_spi_shutdown(struct spi_device *spi)
+{
+	disable_irq(spi->irq);
+	return;
+}
 
 static struct spi_driver ntrig_spi_driver = {
 	.driver = {
@@ -1829,27 +1850,87 @@ static struct spi_driver ntrig_spi_driver = {
 		/* .pm = &spi_pm_ops, */
 #endif
 	},
-	.suspend = ntrig_spi_suspend,
-	.resume = ntrig_spi_resume,
+#ifdef CONFIG_PM
+#ifndef CONFIG_HAS_EARLYSUSPEND
+	.suspend	= ntrig_spi_suspend,
+	.resume		= ntrig_spi_resume,
+#endif
+#endif
 	.probe		= ntrig_spi_probe,
+	.shutdown	= ntrig_spi_shutdown,
 	.remove		= __devexit_p(ntrig_spi_remove),
 };
+#ifdef CONFIG_CPU_MMP2
+static int check_ntrig(struct spi_device *spi)
+{
+	u8 msg_read[4];
+	struct _ntrig_low_msg msg_write;
+	u8 buf[14], buf_tmp[114];
+	int i = 0,ret = 0, retry = 0;
 
-#define MMP3_DEBUG 1
-#ifdef MMP3_DEBUG
+	/* Master sent 4xFF and Preamble before sending the message.
+	It masks the SLave Ready INT and starts scanning for Preamble */
+	for (i = 0; i < 4; i++)
+		buf[i] = 0xff;
+	buf[4] = 0xa5;
+	buf[5] = 0x5a;
+	buf[6] = 0xe7;
+	buf[7] = 0x7e;
+	spi_write(spi, buf, 8);
+
+	/* Starts sending the message */
+	msg_write.type = LOWMSG_TYPE_COMMAND;
+	msg_write.length = 14;
+	msg_write.flags= 0;
+	msg_write.channel= LOWMSG_CHANNEL_CONTROL;
+	msg_write.function= LOWMSG_FUNCTION_GET_FW_VERSION;
+	msg_write.data[0] = 0xa1;
+	msg_write.data[1] = 0x01;
+	msg_write.data[2] = LOWMSG_FUNCTION_GET_FW_VERSION;
+	msg_write.data[3] = 0x03;
+	msg_write.data[4] = 0;
+	msg_write.data[5] = 0x01;
+	msg_write.data[6] = 0;
+	msg_write.data[7] = 0x08;
+	printk(KERN_DEBUG "%s:Begin to GetFWVersion\n", __func__);
+	spi_write(spi, (u8 *)&msg_write, 14);
+
+	/*Keep sending 0xFF until the end of Packet (PacketSize is 136 bytes long) */
+	for(i = 0; i < 114; i++)
+		buf_tmp[i] = 0xff;
+	spi_write(spi, buf_tmp, 114);
+	msleep(500);
+
+	while(retry < MAX_RETRY) {
+		spi_read(spi, msg_read, 1);
+		if (msg_read[0] == 0xa5) {
+			spi_read(spi, msg_read, 3);
+			if (msg_read[0] == 0x5a && msg_read[1] ==0xe7 && msg_read[2] == 0x7e) {
+				spi_read(spi, (u8 *)&buf, 14);
+					for (i = 0; i < 14; i++)
+						printk(KERN_DEBUG "0x%x ", buf[i]);
+					ret = 1;
+					return ret;
+			}
+		}
+		retry++;
+	}
+	return ret;
+}
+#else
 u8 msg_rx[512];
 u8 msg_tx[512];
 
 static int ntrig_spi_read(struct spi_device *spi, u8 *rxbuf, int len)
 {
 	u8 *rx_buf = ((unsigned int)msg_rx) & (~0x0000003F);
-	u8 *tx_buf = ((unsigned int)msg_tx) & (~0x0000003F);	
+	u8 *tx_buf = ((unsigned int)msg_tx) & (~0x0000003F);
 
 	memset(tx_buf, 0xFF,len);
-	
+
 	struct spi_transfer	t = {
 			.rx_buf		= rx_buf,
-			.tx_buf		= tx_buf,				
+			.tx_buf		= tx_buf,
 			.len		= len,
 		};
 	struct spi_message	m;
@@ -1867,13 +1948,13 @@ static int ntrig_spi_read(struct spi_device *spi, u8 *rxbuf, int len)
 static int ntrig_spi_write(struct spi_device *spi, u8 *txbuf, int len)
 {
 	u8 *rx_buf = ((unsigned int)msg_rx) & (~0x0000003F);
-	u8 *tx_buf = ((unsigned int)msg_tx) & (~0x0000003F);	
+	u8 *tx_buf = ((unsigned int)msg_tx) & (~0x0000003F);
 
 	memcpy(tx_buf, txbuf, len);
-	
+
 	struct spi_transfer	t = {
 			.rx_buf		= rx_buf,
-			.tx_buf		= tx_buf,				
+			.tx_buf		= tx_buf,
 			.len		= len,
 		};
 	struct spi_message	m;
@@ -1889,7 +1970,7 @@ static int check_ntrig(struct spi_device *spi)
 {
 	u8 msg_read[14];
 	struct _ntrig_low_msg msg_write;
-	
+
 	int i = 0,ret = 0, retry = 0;
 
 
@@ -1923,7 +2004,7 @@ static int check_ntrig(struct spi_device *spi)
 				ntrig_spi_read(spi,(u8 *)&msg_read, 3);
 				for (i = 0; i < 3; i++)
 						printk("msg%d read0x%x\n", i,msg_read[i]);
-				
+
 				if (msg_read[0] == 0x5a && msg_read[1] ==0xe7 && msg_read[2] == 0x7e) {
 					ntrig_spi_read(spi, (u8 *)&msg_read, 14);
 						for (i = 0; i < 14; i++)
@@ -1939,75 +2020,35 @@ static int check_ntrig(struct spi_device *spi)
 	return ret;
 
 }
-#else
-static int check_ntrig(struct spi_device *spi)
-{
-	u8 msg_read[4];
-	struct _ntrig_low_msg msg_write;
-	u8 buf[14];
-	int i = 0,ret = 0, retry = 0;
-	u8 msg_debug[14];
-	while(0) {
-		ret = 0;
-		retry = 0;
-		for (i = 0; i < 14; i++)
-			msg_debug[i]=0;
-		printk("%s:Begin to GetFWVersion\n", __func__);
-		spi_write(spi, msg_debug, 1);
-		msleep(10);
-
-		for (i = 0; i < 14; i++)
-			msg_debug[i]=0xFF;
-		printk("%s:Begin to GetFWVersion\n", __func__);
-		spi_write(spi, msg_debug, 1);
-		msleep(10);
-	}	
-	
-	msg_write.type = LOWMSG_TYPE_COMMAND;
-	msg_write.length = 14;
-	msg_write.flags= 0;
-	msg_write.channel= LOWMSG_CHANNEL_CONTROL;
-	msg_write.function= LOWMSG_FUNCTION_GET_FW_VERSION;
-	msg_write.data[0] = 0xa1;
-	msg_write.data[1] = 0x01;
-	msg_write.data[2] = LOWMSG_FUNCTION_GET_FW_VERSION;
-	msg_write.data[3] = 0x03;
-	msg_write.data[4] = 0;
-	msg_write.data[5] = 0x01;
-	msg_write.data[6] = 0;
-	msg_write.data[7] = 0x08;
-	printk("%s:Begin to GetFWVersion\n", __func__);
-	spi_write(spi, (u8 *)&msg_write, 14);
-
-		msleep(500);
-
-		while(retry < MAX_RETRY) {
-			spi_read(spi,(u8 *) &msg_read, 1);
-
-			printk("msg0 read0x%x\n", msg_read[0]);
-			if (msg_read[0] == 0xa5) {
-				spi_read(spi,(u8 *) &msg_read, 3);
-				for (i = 0; i < 3; i++)
-						printk("msg%d read0x%x\n", i,msg_read[i]);
-				
-				if (msg_read[0] == 0x5a && msg_read[1] ==0xe7 && msg_read[2] == 0x7e) {
-					spi_read(spi, (u8 *)&buf, 14);
-						for (i = 0; i < 14; i++)
-							printk(KERN_DEBUG "0x%x ", buf[i]);
-						ret = 1;
-						return ret;
-				}
-			}
-			retry++;
-		}
-
-	return ret;
-}
 #endif
-
 /** 
  * initialize the SPI driver. Called by board init code 
  */
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void ntrig_early_suspend(struct early_suspend *h)
+{
+	struct ntrig_spi_privdata *pdata = container_of(h, struct ntrig_spi_privdata, early_suspend);
+	disable_irq(pdata->spi->irq);
+	flush_workqueue(watchdog_timer.work_q);
+	watchdog_timer.is_suspended = true;
+	spi_set_pwr(pdata, false);
+	if (((struct ntrig_spi_platform_data *)(pdata->spi->dev.platform_data))->set_power)
+		((struct ntrig_spi_platform_data *)(pdata->spi->dev.platform_data))->set_power(0);
+	return;
+}
+static void ntrig_late_resume(struct early_suspend *h)
+{
+	struct ntrig_spi_privdata *pdata = container_of(h, struct ntrig_spi_privdata, early_suspend);
+	if (((struct ntrig_spi_platform_data *)(pdata->spi->dev.platform_data))->set_power)
+		((struct ntrig_spi_platform_data *)(pdata->spi->dev.platform_data))->set_power(1);
+	msleep(1);
+	spi_set_pwr(pdata, true);
+	watchdog_timer.is_suspended = false;
+	enable_irq(pdata->spi->irq);
+	return;
+}
+#endif
+
 static int __devinit ntrig_spi_probe(struct spi_device *spi)
 {
 	struct ntrig_spi_privdata *pdata;
@@ -2018,6 +2059,7 @@ static int __devinit ntrig_spi_probe(struct spi_device *spi)
 	if (platdata->set_power)
 		platdata->set_power(1);
 	ntrig_dbg("%s: output_enable gpio is %d\n", __FUNCTION__, platdata->oe_gpio);
+
 	pdata = kzalloc(sizeof(struct ntrig_spi_privdata), GFP_KERNEL);
 	if (pdata == NULL) {
 		dev_err(&spi->dev, "%s: no memory\n", __func__);
@@ -2047,14 +2089,53 @@ static int __devinit ntrig_spi_probe(struct spi_device *spi)
 		ntrig_dbg("%s: spi_setup failure\n", __FUNCTION__);
 		return err;
 	}
-#if 0
+#ifndef NTRIG_SPI_DEBUG_MODE
+	/* set the output_enable gpio line to allow sensor to work */
+	gpio_index = pdata->oe_gpio;
+	printk(KERN_DEBUG "%s: get gpio_index = %d\n", __func__, gpio_index);
+	if(gpio_index >= 0) {
+		err = gpio_request(gpio_index, "ntrig_spi_output_enable");
+		if(err) {
+			pr_err("%s: fail to request gpio for output_enable(%d), err=%d\n", __FUNCTION__, gpio_index, err);
+			/* continue anyway...*/
+		}
+		low = pdata->oe_inverted ? 1 : 0;
+		high = pdata->oe_inverted ? 0 : 1;
+		err = gpio_direction_output(gpio_index, low);
+		if(err) {
+			pr_err("%s: fail to change output_enable\n", __FUNCTION__);
+			return err;
+		}
+		msleep(50);
+#if DEBUG_TOUCH
+		ret = gpio_get_value(gpio_index);
+		printk(KERN_DEBUG "%s:after disable sensor, get_gpio_value = %d\n", __func__, ret);
+#endif
+		gpio_set_value(gpio_index, high);
+#if DEBUG_TOUCH
+		ret = gpio_get_value(gpio_index);
+		printk(KERN_DEBUG "%s:after enable sensor, get_gpio_value = %d\n", __func__, ret);
+#endif
+		msleep(50);
+	}
+
+	/* register the IRQ GPIO line. The actual interrupt is requested in register_to_dispatcher */
+	irq_gpio = irq_to_gpio(spi->irq);
+	err = gpio_request(irq_gpio, "ntrig_spi_irq");
+	if(err) {
+		ntrig_dbg("%s: fail to request gpio for irq(%d), err=%d\n", __FUNCTION__, irq_gpio, err);
+		/* continue anyway... */
+	}
+
+#endif
+
 	ret = check_ntrig(spi);
 	if (!ret) {
 		pr_err("%s: ntrig detects fail!\n", __func__);
 		ret = -ENXIO;
 		return ret;
 	}
-#endif
+
 	sema_init(&pdata->spi_lock, 1);
 	spin_lock_init(&watchdog_timer.lock);
 	watchdog_timer.pdata = pdata;
@@ -2079,42 +2160,12 @@ static int __devinit ntrig_spi_probe(struct spi_device *spi)
 
 	tmp_spi_dev = spi; /* for debugging */
 
-#ifndef NTRIG_SPI_DEBUG_MODE
-	/* set the output_enable gpio line to allow sensor to work */
-	gpio_index = pdata->oe_gpio;
-	if(gpio_index >= 0) {
-		err = gpio_request(gpio_index, "ntrig_spi_output_enable");
-		if(err) {
-			ntrig_dbg("%s: fail to request gpio for output_enable(%d), err=%d\n", __FUNCTION__, gpio_index, err);
-			/* continue anyway...*/
-		}
-		low = pdata->oe_inverted ? 1 : 0;
-		high = pdata->oe_inverted ? 0 : 1;
-		err = gpio_direction_output(gpio_index, low);
-		if(err) {
-			ntrig_dbg("%s: fail to change output_enable\n", __FUNCTION__);
-			return err;
-		}
-		msleep(50);
-		gpio_set_value(gpio_index, high);
-		msleep(50);
-	}
-
-	/* register the IRQ GPIO line. The actual interrupt is requested in register_to_dispatcher */
-	irq_gpio = irq_to_gpio(spi->irq);
-	err = gpio_request(irq_gpio, "ntrig_spi_irq");
-	if(err) {
-		ntrig_dbg("%s: fail to request gpio for irq(%d), err=%d\n", __FUNCTION__, irq_gpio, err);
-		/* continue anyway... */
-	}
-
 	/* register with the dispatcher, this will also create input event files */
 	err = register_to_dispatcher(spi);
 	if(err) {
 		ntrig_dbg("%s: fail to register to dispatcher, err = %d\n", __FUNCTION__, err);
 		return err;
 	}
-#endif
 
 	pdata->pwr_gpio = platdata->pwr_gpio;
 	init_spi_pwr_gpio(pdata);
@@ -2136,7 +2187,12 @@ static int __devinit ntrig_spi_probe(struct spi_device *spi)
 	/* send DRIVER_ALIVE to put sensor*/
 	ntrig_spi_send_driver_alive(spi);
 	/* success */
-	printk("ntrig_spi_probe successfull!\n");
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	pdata->early_suspend.level = EARLY_SUSPEND_LEVEL_STOP_DRAWING;
+	pdata->early_suspend.suspend = ntrig_early_suspend;
+	pdata->early_suspend.resume = ntrig_late_resume;
+	register_early_suspend(&pdata->early_suspend);
+#endif
 	return 0;
 }
 
