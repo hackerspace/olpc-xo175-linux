@@ -45,25 +45,34 @@
 #include "mmp-pcm.h"
 #include "mmp-sspa.h"
 
-#define BROWNSTONE_HP        0
-#define BROWNSTONE_MIC       1
-#define BROWNSTONE_HEADSET   2
-#define BROWNSTONE_HP_OFF    3
-#define BROWNSTONE_SPK_ON    0
-#define BROWNSTONE_SPK_OFF   1
+#define BROWNSTONE_CTRL_ON	0
+#define BROWNSTONE_CTRL_OFF	1
 
 static struct snd_soc_card brownstone[];
 static struct platform_device *brownstone_snd_device[2];
 
 static struct clk *audio_clk;
-static int brownstone_jack_func;
+
+static int brownstone_headphone_func;
+static int brownstone_external_mic_func;
 static int brownstone_spk_func;
+static int brownstone_internal_mic_func;
 
 static void brownstone_ext_control(struct snd_soc_codec *codec)
 {
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
 
-	if (brownstone_spk_func == BROWNSTONE_SPK_ON) {
+	if (brownstone_headphone_func == BROWNSTONE_CTRL_ON)
+		snd_soc_dapm_enable_pin(dapm, "Headset Stereophone");
+	else
+		snd_soc_dapm_disable_pin(dapm, "Headset Stereophone");
+
+	if (brownstone_external_mic_func == BROWNSTONE_CTRL_ON)
+		snd_soc_dapm_enable_pin(dapm, "Headset Mic");
+	else
+		snd_soc_dapm_disable_pin(dapm, "Headset Mic");
+
+	if (brownstone_spk_func == BROWNSTONE_CTRL_ON) {
 		snd_soc_dapm_enable_pin(dapm, "Ext Left Spk");
 		snd_soc_dapm_enable_pin(dapm, "Ext Right Spk");
 	} else {
@@ -71,49 +80,31 @@ static void brownstone_ext_control(struct snd_soc_codec *codec)
 		snd_soc_dapm_disable_pin(dapm, "Ext Right Spk");
 	}
 
-	/* set up jack connection */
-	switch (brownstone_jack_func) {
-	case BROWNSTONE_HP:
-		snd_soc_dapm_disable_pin(dapm, "Headset Mic");
+	if (brownstone_internal_mic_func == BROWNSTONE_CTRL_ON)
 		snd_soc_dapm_enable_pin(dapm, "Main Mic");
-		snd_soc_dapm_enable_pin(dapm, "Headset Stereophone");
-		break;
-	case BROWNSTONE_MIC:
-		snd_soc_dapm_disable_pin(dapm, "Headset Mic");
-		snd_soc_dapm_enable_pin(dapm, "Main Mic");
-		snd_soc_dapm_disable_pin(dapm, "Headset Stereophone");
-		break;
-	case BROWNSTONE_HEADSET:
-		snd_soc_dapm_enable_pin(dapm, "Headset Mic");
+	else
 		snd_soc_dapm_disable_pin(dapm, "Main Mic");
-		snd_soc_dapm_enable_pin(dapm, "Headset Stereophone");
-		break;
-	case BROWNSTONE_HP_OFF:
-		snd_soc_dapm_disable_pin(dapm, "Headset Mic");
-		snd_soc_dapm_disable_pin(dapm, "Main Mic");
-		snd_soc_dapm_disable_pin(dapm, "Headset Stereophone");
-		break;
-	}
+
 	snd_soc_dapm_sync(dapm);
 	return;
 }
 
-static int brownstone_get_jack(struct snd_kcontrol *kcontrol,
+static int brownstone_get_headphone(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
 {
-	ucontrol->value.integer.value[0] = brownstone_jack_func;
+	ucontrol->value.integer.value[0] = brownstone_headphone_func;
 	return 0;
 }
 
-static int brownstone_set_jack(struct snd_kcontrol *kcontrol,
+static int brownstone_set_headphone(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
 
-	if (brownstone_jack_func == ucontrol->value.integer.value[0])
+	if (brownstone_headphone_func == ucontrol->value.integer.value[0])
 		return 0;
 
-	brownstone_jack_func = ucontrol->value.integer.value[0];
+	brownstone_headphone_func = ucontrol->value.integer.value[0];
 	brownstone_ext_control(codec);
 	return 1;
 }
@@ -134,6 +125,46 @@ static int brownstone_set_spk(struct snd_kcontrol *kcontrol,
 		return 0;
 
 	brownstone_spk_func = ucontrol->value.integer.value[0];
+	brownstone_ext_control(codec);
+	return 1;
+}
+
+static int brownstone_get_external_mic(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = brownstone_external_mic_func;
+	return 0;
+}
+
+static int brownstone_set_external_mic(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+
+	if (brownstone_external_mic_func == ucontrol->value.integer.value[0])
+		return 0;
+
+	brownstone_external_mic_func = ucontrol->value.integer.value[0];
+	brownstone_ext_control(codec);
+	return 1;
+}
+
+static int brownstone_get_internal_mic(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = brownstone_internal_mic_func;
+	return 0;
+}
+
+static int brownstone_set_internal_mic(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec =  snd_kcontrol_chip(kcontrol);
+
+	if (brownstone_internal_mic_func == ucontrol->value.integer.value[0])
+		return 0;
+
+	brownstone_internal_mic_func = ucontrol->value.integer.value[0];
 	brownstone_ext_control(codec);
 	return 1;
 }
@@ -162,18 +193,26 @@ static const struct snd_soc_dapm_route brownstone_dapm_routes[] = {
 	{"MICBIAS1", NULL, "Main Mic"},
 };
 
-static const char *jack_function[] = {"Headphone", "Mic", "Headset", "Off"};
+static const char *headphone_function[] = {"On", "Off"};
+static const char *external_mic_function[] = {"On", "Off"};
 static const char *spk_function[]  = {"On", "Off"};
+static const char *internal_mic_function[]  = {"On", "Off"};
 static const struct soc_enum brownstone_enum[] = {
-	SOC_ENUM_SINGLE_EXT(4, jack_function),
+	SOC_ENUM_SINGLE_EXT(2, headphone_function),
+	SOC_ENUM_SINGLE_EXT(2, external_mic_function),
 	SOC_ENUM_SINGLE_EXT(2, spk_function),
+	SOC_ENUM_SINGLE_EXT(2, internal_mic_function),
 };
 
 static const struct snd_kcontrol_new brownstone_wm8994_controls[] = {
-	SOC_ENUM_EXT("Jack Function", brownstone_enum[0],
-		     brownstone_get_jack, brownstone_set_jack),
-	SOC_ENUM_EXT("Speaker Function", brownstone_enum[1],
+	SOC_ENUM_EXT("Headphone Function", brownstone_enum[0],
+		     brownstone_get_headphone, brownstone_set_headphone),
+	SOC_ENUM_EXT("External Mic Function", brownstone_enum[1],
+		     brownstone_get_external_mic, brownstone_set_external_mic),
+	SOC_ENUM_EXT("Speaker Function", brownstone_enum[2],
 		     brownstone_get_spk, brownstone_set_spk),
+	SOC_ENUM_EXT("Internal Mic Function", brownstone_enum[3],
+		     brownstone_get_internal_mic, brownstone_set_internal_mic),
 };
 
 static int brownstone_wm8994_init(struct snd_soc_pcm_runtime *rtd)
@@ -196,14 +235,16 @@ static int brownstone_wm8994_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_add_routes(dapm, brownstone_dapm_routes,
 				ARRAY_SIZE(brownstone_dapm_routes));
 
-	brownstone_jack_func = BROWNSTONE_SPK_ON;
-	brownstone_spk_func  = BROWNSTONE_HEADSET;
+	snd_soc_dapm_disable_pin(dapm, "Ext Left Spk");
+	snd_soc_dapm_disable_pin(dapm, "Ext Right Spk");
+	snd_soc_dapm_disable_pin(dapm, "Headset Stereophone");
+	snd_soc_dapm_disable_pin(dapm, "Headset Mic");
+	snd_soc_dapm_disable_pin(dapm, "Main Mic");
 
-	snd_soc_dapm_enable_pin(dapm, "Ext Left Spk");
-	snd_soc_dapm_enable_pin(dapm, "Ext Right Spk");
-	snd_soc_dapm_enable_pin(dapm, "Headset Stereophone");
-	snd_soc_dapm_enable_pin(dapm, "Headset Mic");
-	snd_soc_dapm_enable_pin(dapm, "Main Mic");
+	brownstone_headphone_func    = BROWNSTONE_CTRL_OFF;
+	brownstone_external_mic_func = BROWNSTONE_CTRL_OFF;
+	brownstone_spk_func	     = BROWNSTONE_CTRL_OFF;
+	brownstone_internal_mic_func = BROWNSTONE_CTRL_OFF;
 
 	/* set endpoints to not connected */
 	snd_soc_dapm_nc_pin(dapm, "HPOUT2P");
@@ -231,7 +272,7 @@ static int brownstone_wm8994_init(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
-static int codec_hdmi_init(struct snd_soc_codec *codec)
+static int codec_hdmi_init(struct snd_soc_pcm_runtime *rtd)
 {
 	return 0;
 }
@@ -344,7 +385,7 @@ static struct snd_soc_dai_link brownstone_hdmi_dai = {
 	.platform_name	= "mmp-pcm-audio",
 	.codec_name	= "dummy-codec",
 	.ops		= &brownstone_ops[0],
-	.init        = codec_hdmi_init,
+	.init		= codec_hdmi_init,
 };
 
 
