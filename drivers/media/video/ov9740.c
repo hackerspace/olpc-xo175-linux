@@ -16,6 +16,7 @@
 #include <linux/slab.h>
 #include <media/v4l2-chip-ident.h>
 #include <media/soc_camera.h>
+#include <mach/camera.h>
 
 #define to_ov9740(sd)		container_of(sd, struct ov9740_priv, subdev)
 
@@ -180,28 +181,6 @@
 #define OV9740_MIPI_CTRL_3012		0x3012
 #define OV9740_SC_CMMM_MIPI_CTR		0x3014
 
-/* supported resolutions */
-enum {
-	OV9740_VGA,
-	OV9740_720P,
-};
-
-struct ov9740_resolution {
-	unsigned int width;
-	unsigned int height;
-};
-
-static struct ov9740_resolution ov9740_resolutions[] = {
-	[OV9740_VGA] = {
-		.width	= 640,
-		.height	= 480,
-	},
-	[OV9740_720P] = {
-		.width	= 1280,
-		.height	= 720,
-	},
-};
-
 /* Misc. structures */
 struct ov9740_reg {
 	u16				reg;
@@ -219,6 +198,7 @@ struct ov9740_priv {
 
 	bool				flag_vflip;
 	bool				flag_hflip;
+	int				res_idx;
 };
 
 static const struct ov9740_reg ov9740_defaults[] = {
@@ -271,6 +251,9 @@ static const struct ov9740_reg ov9740_defaults[] = {
 	{ 0x54A4, 0x01 }, { 0x54A5, 0xe7 }, { 0x54A6, 0x01 }, { 0x54A7, 0xc3 },
 	{ 0x54A8, 0x01 }, { 0x54A9, 0x94 }, { 0x54AA, 0x01 }, { 0x54AB, 0x72 },
 	{ 0x54AC, 0x01 }, { 0x54AD, 0x57 },
+
+	/* Output format */
+	{0x4300, 0x32}, /* UYVY */
 
 	/* AWB */
 	{ OV9740_AWB_CTRL00,		0xf0 },
@@ -373,7 +356,9 @@ static const struct ov9740_reg ov9740_defaults[] = {
 	{ OV9740_PLL_MULTIPLIER,	0x4c },
 	{ OV9740_VT_SYS_CLK_DIV,	0x01 },
 	{ OV9740_VT_PIX_CLK_DIV,	0x08 },
-	{ OV9740_PLL_CTRL3010,		0x01 },
+	/* PLL1 scale divider Was 0x01, change to 0x81 to
+	 * disable MIPI clock auto tweaking */
+	{ OV9740_PLL_CTRL3010,		0x81 },
 	{ OV9740_VFIFO_CTRL00,		0x82 },
 
 	/* Timing Setting */
@@ -393,6 +378,78 @@ static const struct ov9740_reg ov9740_defaults[] = {
 	{ OV9740_VFIFO_RD_CTRL,		0x16 },
 	{ OV9740_MIPI_CTRL_3012,	0x70 },
 	{ OV9740_SC_CMMM_MIPI_CTR,	0x01 },
+};
+
+static const struct ov9740_reg ov9740_regs_qcif[] = {
+	{ OV9740_X_ADDR_START_HI,	0x00 },
+	{ OV9740_X_ADDR_START_LO,	0x08 },
+	{ OV9740_Y_ADDR_START_HI,	0x00 },
+	{ OV9740_Y_ADDR_START_LO,	0x04 },
+	{ OV9740_X_ADDR_END_HI,		0x05 },
+	{ OV9740_X_ADDR_END_LO,		0x0c },
+	{ OV9740_Y_ADDR_END_HI,		0x02 },
+	{ OV9740_Y_ADDR_END_LO,		0xd8 },
+	{ OV9740_X_OUTPUT_SIZE_HI,	0x00 },
+	{ OV9740_X_OUTPUT_SIZE_LO,	0xB0 },
+	{ OV9740_Y_OUTPUT_SIZE_HI,	0x00 },
+	{ OV9740_Y_OUTPUT_SIZE_LO,	0x90 },
+	{ OV9740_ISP_CTRL1E,		0x05 },
+	{ OV9740_ISP_CTRL1F,		0x00 },
+	{ OV9740_ISP_CTRL20,		0x02 },
+	{ OV9740_ISP_CTRL21,		0xd0 },
+	{ OV9740_VFIFO_READ_START_HI,	0x02 },
+	{ OV9740_VFIFO_READ_START_LO,	0x50 },
+	{ OV9740_ISP_CTRL00,		0xff },
+	{ OV9740_ISP_CTRL01,		0xff },
+	{ OV9740_ISP_CTRL03,		0xff },
+};
+
+static const struct ov9740_reg ov9740_regs_cif[] = {
+	{ OV9740_X_ADDR_START_HI,	0x00 },
+	{ OV9740_X_ADDR_START_LO,	0xa0 },
+	{ OV9740_Y_ADDR_START_HI,	0x00 },
+	{ OV9740_Y_ADDR_START_LO,	0x00 },
+	{ OV9740_X_ADDR_END_HI,		0x04 },
+	{ OV9740_X_ADDR_END_LO,		0x63 },
+	{ OV9740_Y_ADDR_END_HI,		0x02 },
+	{ OV9740_Y_ADDR_END_LO,		0xd3 },
+	{ OV9740_X_OUTPUT_SIZE_HI,	0x01 },
+	{ OV9740_X_OUTPUT_SIZE_LO,	0x60 },
+	{ OV9740_Y_OUTPUT_SIZE_HI,	0x01 },
+	{ OV9740_Y_OUTPUT_SIZE_LO,	0x20 },
+	{ OV9740_ISP_CTRL1E,		0x03 },
+	{ OV9740_ISP_CTRL1F,		0xc0 },
+	{ OV9740_ISP_CTRL20,		0x02 },
+	{ OV9740_ISP_CTRL21,		0xd0 },
+	{ OV9740_VFIFO_READ_START_HI,	0x01 },
+	{ OV9740_VFIFO_READ_START_LO,	0x40 },
+	{ OV9740_ISP_CTRL00,		0xff },
+	{ OV9740_ISP_CTRL01,		0xff },
+	{ OV9740_ISP_CTRL03,		0xff },
+};
+
+static const struct ov9740_reg ov9740_regs_qvga[] = {
+	{ OV9740_X_ADDR_START_HI,	0x00 },
+	{ OV9740_X_ADDR_START_LO,	0xa0 },
+	{ OV9740_Y_ADDR_START_HI,	0x00 },
+	{ OV9740_Y_ADDR_START_LO,	0x00 },
+	{ OV9740_X_ADDR_END_HI,		0x04 },
+	{ OV9740_X_ADDR_END_LO,		0x63 },
+	{ OV9740_Y_ADDR_END_HI,		0x02 },
+	{ OV9740_Y_ADDR_END_LO,		0xd3 },
+	{ OV9740_X_OUTPUT_SIZE_HI,	0x01 },
+	{ OV9740_X_OUTPUT_SIZE_LO,	0x40 },
+	{ OV9740_Y_OUTPUT_SIZE_HI,	0x00 },
+	{ OV9740_Y_OUTPUT_SIZE_LO,	0xF0 },
+	{ OV9740_ISP_CTRL1E,		0x03 },
+	{ OV9740_ISP_CTRL1F,		0xc0 },
+	{ OV9740_ISP_CTRL20,		0x02 },
+	{ OV9740_ISP_CTRL21,		0xd0 },
+	{ OV9740_VFIFO_READ_START_HI,	0x01 },
+	{ OV9740_VFIFO_READ_START_LO,	0x40 },
+	{ OV9740_ISP_CTRL00,		0xff },
+	{ OV9740_ISP_CTRL01,		0xff },
+	{ OV9740_ISP_CTRL03,		0xff },
 };
 
 static const struct ov9740_reg ov9740_regs_vga[] = {
@@ -416,6 +473,30 @@ static const struct ov9740_reg ov9740_regs_vga[] = {
 	{ OV9740_VFIFO_READ_START_LO,	0x40 },
 	{ OV9740_ISP_CTRL00,		0xff },
 	{ OV9740_ISP_CTRL01,		0xff },
+	{ OV9740_ISP_CTRL03,		0xff },
+};
+
+static const struct ov9740_reg ov9740_regs_640p[] = {
+	{ OV9740_X_ADDR_START_HI,	0x00 },
+	{ OV9740_X_ADDR_START_LO,	0x00 },
+	{ OV9740_Y_ADDR_START_HI,	0x00 },
+	{ OV9740_Y_ADDR_START_LO,	0x00 },
+	{ OV9740_X_ADDR_END_HI,		0x05 },
+	{ OV9740_X_ADDR_END_LO,		0x03 },
+	{ OV9740_Y_ADDR_END_HI,		0x02 },
+	{ OV9740_Y_ADDR_END_LO,		0xd3 },
+	{ OV9740_X_OUTPUT_SIZE_HI,	0x02 },
+	{ OV9740_X_OUTPUT_SIZE_LO,	0x80 },
+	{ OV9740_Y_OUTPUT_SIZE_HI,	0x01 },
+	{ OV9740_Y_OUTPUT_SIZE_LO,	0x68 },
+	{ OV9740_ISP_CTRL1E,		0x05 },
+	{ OV9740_ISP_CTRL1F,		0x00 },
+	{ OV9740_ISP_CTRL20,		0x02 },
+	{ OV9740_ISP_CTRL21,		0xd0 },
+	{ OV9740_VFIFO_READ_START_HI,	0x02 },
+	{ OV9740_VFIFO_READ_START_LO,	0x30 },
+	{ OV9740_ISP_CTRL00,		0xff },
+	{ OV9740_ISP_CTRL01,		0xef },
 	{ OV9740_ISP_CTRL03,		0xff },
 };
 
@@ -444,8 +525,120 @@ static const struct ov9740_reg ov9740_regs_720p[] = {
 };
 
 static enum v4l2_mbus_pixelcode ov9740_codes[] = {
-	V4L2_MBUS_FMT_YUYV8_2X8,
+	V4L2_MBUS_FMT_UYVY8_2X8,
 };
+
+static struct mipi_phy ov9740_phy_cfgs[] = {
+	{ /* OV9740 default mipi PHY config, based on 330Mhz MIPI clock */
+		.cl_termen	= 0x00,
+		.cl_settle	= 0x0C,
+		.hs_termen	= 0x0D,
+		.hs_settle	= 0x19,
+		.hs_rx_to	= 0xFFFF,
+		.lane		= 1,
+	},
+	{ /* For 160Mhz */
+		.cl_termen	= 0x00,
+		.cl_settle	= 0x0C,
+		.hs_termen	= 0x07,
+		.hs_settle	= 0x0D,
+		.hs_rx_to	= 0xFFFF,
+		.lane		= 1,
+	},
+	{ /* For 80Mhz */
+		.cl_termen	= 0x00,
+		.cl_settle	= 0x0C,
+		.hs_termen	= 0x03,
+		.hs_settle	= 0x0B,
+		.hs_rx_to	= 0xFFFF,
+		.lane		= 1,
+	},
+	{/* This phy configuration is workable on 100~330Mhz clock */
+		.cl_termen	= 0x00,
+		.cl_settle	= 0x0C,
+		.hs_termen	= 0x08,
+		.hs_settle	= 0x10,
+		.hs_rx_to	= 0xFFFF,
+		.lane		= 1,
+	}
+};
+
+/* supported resolutions */
+enum {
+	OV9740_QCIF,
+	OV9740_QVGA,
+	OV9740_CIF,
+	OV9740_640P,
+	OV9740_VGA,
+	OV9740_720P,
+};
+
+struct ov9740_resolution {
+	unsigned int width;
+	unsigned int height;
+	const struct ov9740_reg *setting;
+	int	len;
+	int	phy_cfg_id;
+};
+
+static struct ov9740_resolution ov9740_resolutions[] = {
+	[OV9740_QCIF] = {
+		.width	= 176,
+		.height	= 144,
+		.setting = ov9740_regs_qcif,
+		.len = ARRAY_SIZE(ov9740_regs_qcif),
+		.phy_cfg_id = 0,
+	},
+	[OV9740_QVGA] = {
+		.width	= 320,
+		.height	= 240,
+		.setting = ov9740_regs_qvga,
+		.len = ARRAY_SIZE(ov9740_regs_qvga),
+		.phy_cfg_id = 0,
+	},
+	[OV9740_CIF] = {
+		.width	= 352,
+		.height	= 288,
+		.setting = ov9740_regs_cif,
+		.len = ARRAY_SIZE(ov9740_regs_cif),
+		.phy_cfg_id = 0,
+	},
+	[OV9740_640P] = {
+		.width	= 640,
+		.height	= 360,
+		.setting = ov9740_regs_640p,
+		.len = ARRAY_SIZE(ov9740_regs_640p),
+		.phy_cfg_id = 0,
+	},
+	[OV9740_VGA] = {
+		.width	= 640,
+		.height	= 480,
+		.setting = ov9740_regs_vga,
+		.len = ARRAY_SIZE(ov9740_regs_vga),
+		.phy_cfg_id = 0,
+	},
+	[OV9740_720P] = {
+		.width	= 1280,
+		.height	= 720,
+		.setting = ov9740_regs_720p,
+		.len = ARRAY_SIZE(ov9740_regs_720p),
+		.phy_cfg_id = 0,
+	},
+};
+
+static int ov9740_get_mipi_phy(struct i2c_client *client, __s32 *value)
+{
+	struct v4l2_subdev *sd = i2c_get_clientdata(client);
+	struct ov9740_priv *priv = to_ov9740(sd);
+	int idx = ov9740_resolutions[priv->res_idx].phy_cfg_id;
+
+	if (unlikely((void *)value == NULL))
+		return -EPERM;
+
+	/* Camera driver provide a address to fill in PHY info */
+	*value = (__s32)&(ov9740_phy_cfgs[idx]);
+	return 0;
+}
 
 static const struct v4l2_queryctrl ov9740_controls[] = {
 	{
@@ -465,6 +658,11 @@ static const struct v4l2_queryctrl ov9740_controls[] = {
 		.maximum	= 1,
 		.step		= 1,
 		.default_value	= 0,
+	},
+	{
+		.id		= V4L2_CID_PRIVATE_GET_MIPI_PHY,
+		.type		= V4L2_CTRL_TYPE_CTRL_CLASS,
+		.name		= "get mipi phy config"
 	},
 };
 
@@ -622,11 +820,18 @@ static int ov9740_set_bus_param(struct soc_camera_device *icd,
 static unsigned long ov9740_query_bus_param(struct soc_camera_device *icd)
 {
 	struct soc_camera_link *icl = to_soc_camera_link(icd);
-
 	unsigned long flags = SOCAM_PCLK_SAMPLE_RISING | SOCAM_MASTER |
 		SOCAM_VSYNC_ACTIVE_HIGH | SOCAM_HSYNC_ACTIVE_HIGH |
-		SOCAM_DATA_ACTIVE_HIGH | SOCAM_DATAWIDTH_8;
+		SOCAM_DATA_ACTIVE_HIGH | SOCAM_DATAWIDTH_8 |
+		SOCAM_MIPI | SOCAM_MIPI_1LANE | SOCAM_MIPI_2LANE;
 
+	/* If soc_camera_link::priv is pointing to sensor_platform_data */
+	/* copy sensor_platform_data::interface to soc_camera_link::flags */
+	if (icl->flags & 0x80000000) {
+		struct sensor_platform_data *sensor;
+		sensor = icl->priv;
+		icl->flags |= sensor->interface;
+	}
 	return soc_camera_apply_sensor_flags(icl, flags);
 }
 
@@ -634,6 +839,7 @@ static unsigned long ov9740_query_bus_param(struct soc_camera_device *icd)
 static int ov9740_g_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 {
 	struct ov9740_priv *priv = to_ov9740(sd);
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
 
 	switch (ctrl->id) {
 	case V4L2_CID_VFLIP:
@@ -642,6 +848,8 @@ static int ov9740_g_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 	case V4L2_CID_HFLIP:
 		ctrl->value = priv->flag_hflip;
 		break;
+	case V4L2_CID_PRIVATE_GET_MIPI_PHY:
+		return ov9740_get_mipi_phy(client, &ctrl->value);
 	default:
 		return -EINVAL;
 	}
@@ -715,7 +923,7 @@ static int ov9740_set_register(struct v4l2_subdev *sd,
 #endif
 
 /* select nearest higher resolution for capture */
-static void ov9740_res_roundup(u32 *width, u32 *height)
+static int ov9740_res_roundup(u32 *width, u32 *height)
 {
 	int i;
 
@@ -724,33 +932,12 @@ static void ov9740_res_roundup(u32 *width, u32 *height)
 		    (ov9740_resolutions[i].height >= *height)) {
 			*width = ov9740_resolutions[i].width;
 			*height = ov9740_resolutions[i].height;
-			return;
+			return i;
 		}
 
 	*width = ov9740_resolutions[OV9740_720P].width;
 	*height = ov9740_resolutions[OV9740_720P].height;
-}
-
-/* Setup registers according to resolution and color encoding */
-static int ov9740_set_res(struct i2c_client *client, u32 width)
-{
-	int ret;
-
-	/* select register configuration for given resolution */
-	if (width == ov9740_resolutions[OV9740_VGA].width) {
-		dev_dbg(&client->dev, "Setting image size to 640x480\n");
-		ret = ov9740_reg_write_array(client, ov9740_regs_vga,
-					     ARRAY_SIZE(ov9740_regs_vga));
-	} else if (width == ov9740_resolutions[OV9740_720P].width) {
-		dev_dbg(&client->dev, "Setting image size to 1280x720\n");
-		ret = ov9740_reg_write_array(client, ov9740_regs_720p,
-					     ARRAY_SIZE(ov9740_regs_720p));
-	} else {
-		dev_err(&client->dev, "Failed to select resolution!\n");
-		return -EINVAL;
-	}
-
-	return ret;
+	return OV9740_720P;
 }
 
 /* set the format we will capture in */
@@ -760,12 +947,11 @@ static int ov9740_s_fmt(struct v4l2_subdev *sd,
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	enum v4l2_colorspace cspace;
 	enum v4l2_mbus_pixelcode code = mf->code;
+	struct ov9740_priv *priv = to_ov9740(sd);
 	int ret;
 
-	ov9740_res_roundup(&mf->width, &mf->height);
-
 	switch (code) {
-	case V4L2_MBUS_FMT_YUYV8_2X8:
+	case V4L2_MBUS_FMT_UYVY8_2X8:
 		cspace = V4L2_COLORSPACE_SRGB;
 		break;
 	default:
@@ -777,12 +963,16 @@ static int ov9740_s_fmt(struct v4l2_subdev *sd,
 	if (ret < 0)
 		return ret;
 
-	ret = ov9740_set_res(client, mf->width);
+	ret = ov9740_reg_write_array(client, \
+		ov9740_resolutions[priv->res_idx].setting,
+		ov9740_resolutions[priv->res_idx].len);
 	if (ret < 0)
 		return ret;
 
 	mf->code	= code;
 	mf->colorspace	= cspace;
+	/* Flip on vertical */
+	priv->flag_vflip = 1;
 
 	return ret;
 }
@@ -790,10 +980,12 @@ static int ov9740_s_fmt(struct v4l2_subdev *sd,
 static int ov9740_try_fmt(struct v4l2_subdev *sd,
 			  struct v4l2_mbus_framefmt *mf)
 {
-	ov9740_res_roundup(&mf->width, &mf->height);
+	struct ov9740_priv *priv = to_ov9740(sd);
+
+	priv->res_idx = ov9740_res_roundup(&mf->width, &mf->height);
 
 	mf->field = V4L2_FIELD_NONE;
-	mf->code = V4L2_MBUS_FMT_YUYV8_2X8;
+	mf->code = V4L2_MBUS_FMT_UYVY8_2X8;
 	mf->colorspace = V4L2_COLORSPACE_SRGB;
 
 	return 0;
@@ -807,6 +999,33 @@ static int ov9740_enum_fmt(struct v4l2_subdev *sd, unsigned int index,
 
 	*code = ov9740_codes[index];
 
+	return 0;
+}
+
+#define N_OV9740_RESOLUTIONS (ARRAY_SIZE(ov9740_resolutions))
+
+static int ov9740_enum_fsizes(struct v4l2_subdev *sd,
+				struct v4l2_frmsizeenum *fsize)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	int idx = 0;
+
+	if (!fsize)
+		return -EINVAL;
+	idx = fsize->index;
+
+	switch (fsize->pixel_format) {
+	case V4L2_MBUS_FMT_UYVY8_2X8:
+		if (idx >= N_OV9740_RESOLUTIONS)
+			return -EINVAL;
+		fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
+		fsize->discrete.height = ov9740_resolutions[idx].height;
+		fsize->discrete.width = ov9740_resolutions[idx].width;
+		break;
+	default:
+		dev_err(&client->dev, "ov9740 unsupported format!\n");
+		return -EINVAL;
+	}
 	return 0;
 }
 
@@ -917,6 +1136,7 @@ static struct v4l2_subdev_video_ops ov9740_video_ops = {
 	.s_mbus_fmt		= ov9740_s_fmt,
 	.try_mbus_fmt		= ov9740_try_fmt,
 	.enum_mbus_fmt		= ov9740_enum_fmt,
+	.enum_mbus_fsizes	= ov9740_enum_fsizes,
 	.cropcap		= ov9740_cropcap,
 	.g_crop			= ov9740_g_crop,
 };
