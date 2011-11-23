@@ -35,6 +35,13 @@
 #include <linux/workqueue.h>
 #include <linux/power/max17042_battery.h>
 
+#ifdef CONFIG_CPU_MMP2
+#include <mach/mmp2_pm.h>
+#else
+void pwr_i2c_conflict_mutex_lock(void){}
+void pwr_i2c_conflict_mutex_unlock(void){}
+#endif
+
 struct max17042_battery_params {
 	int status;
 	int present;
@@ -76,7 +83,9 @@ static int max17042_read_reg(struct i2c_client *client, u8 reg, u16 *data)
 	if (!client || !data)
 		return -EINVAL;
 
+	pwr_i2c_conflict_mutex_lock();
 	ret = i2c_smbus_read_word_data(client, reg);
+	pwr_i2c_conflict_mutex_unlock();
 	if (ret < 0) {
 		dev_err(&client->dev,
 			"i2c read fail: can't read from %02x: %d\n", reg, ret);
@@ -93,7 +102,9 @@ static int max17042_write_reg(struct i2c_client *client, u8 reg, u16 data)
 	if (!client)
 		return -EINVAL;
 
+	pwr_i2c_conflict_mutex_lock();
 	ret = i2c_smbus_write_word_data(client, reg, data);
+	pwr_i2c_conflict_mutex_unlock();
 	if (ret < 0) {
 		dev_err(&client->dev,
 			"i2c write fail: can't write %02x to %02x: %d\n",

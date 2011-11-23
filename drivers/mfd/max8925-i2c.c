@@ -15,6 +15,13 @@
 #include <linux/mfd/max8925.h>
 #include <linux/slab.h>
 
+#ifdef CONFIG_CPU_MMP2
+#include <mach/mmp2_pm.h>
+#else
+void pwr_i2c_conflict_mutex_lock(void){}
+void pwr_i2c_conflict_mutex_unlock(void){}
+#endif
+
 #define RTC_I2C_ADDR		0x68
 #define ADC_I2C_ADDR		0x47
 
@@ -24,14 +31,18 @@ static inline int max8925_read_device(struct i2c_client *i2c,
 {
 	int ret;
 
+	pwr_i2c_conflict_mutex_lock();
 	if (bytes > 1)
 		ret = i2c_smbus_read_i2c_block_data(i2c, reg, bytes, dest);
 	else {
 		ret = i2c_smbus_read_byte_data(i2c, reg);
-		if (ret < 0)
+		if (ret < 0) {
+			pwr_i2c_conflict_mutex_unlock();
 			return ret;
+		}
 		*(unsigned char *)dest = (unsigned char)ret;
 	}
+	pwr_i2c_conflict_mutex_unlock();
 	return ret;
 }
 
@@ -44,7 +55,9 @@ static inline int max8925_write_device(struct i2c_client *i2c,
 	buf[0] = (unsigned char)reg;
 	memcpy(&buf[1], src, bytes);
 
+	pwr_i2c_conflict_mutex_lock();
 	ret = i2c_master_send(i2c, buf, bytes + 1);
+	pwr_i2c_conflict_mutex_unlock();
 	if (ret < 0)
 		return ret;
 	return 0;

@@ -423,6 +423,8 @@ void mmp2_fc_seq(int old_idx, int new_idx);
 int mmp2_get_op_freq(int idx);
 int mmp2_get_op_number(void);
 int check_cur_op(void);
+void pwr_i2c_conflict_mutex_lock(void);
+void pwr_i2c_conflict_mutex_unlock(void);
 
 #define FC_PHYS_BASE	0xd1036800
 #define FC_VIRT_BASE	0xfe400000

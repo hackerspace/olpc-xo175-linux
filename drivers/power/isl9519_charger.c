@@ -26,6 +26,13 @@
 #include <linux/mfd/max8925.h>
 #include <linux/power/isl9519.h>
 
+#ifdef CONFIG_CPU_MMP2
+#include <mach/mmp2_pm.h>
+#else
+void pwr_i2c_conflict_mutex_lock(void){}
+void pwr_i2c_conflict_mutex_unlock(void){}
+#endif
+
 /* ISL9519 register address */
 #define CHG_CUR_REG			0x14
 #define MAX_SYS_VOL_REG		0x15
@@ -94,7 +101,9 @@ static int isl9519_read_reg(struct i2c_client *client, u8 reg, u16 *data)
 	if (!client || !data)
 		return -EINVAL;
 
+	pwr_i2c_conflict_mutex_lock();
 	ret = i2c_smbus_read_word_data(client, reg);
+	pwr_i2c_conflict_mutex_unlock();
 	if (ret < 0) {
 		dev_err(&client->dev,
 			"i2c read fail: can't read from %02x: %d\n", reg, ret);
@@ -112,7 +121,9 @@ static int isl9519_write_reg(struct i2c_client *client, u8 reg, u16 data)
 	if (!client)
 		return -EINVAL;
 
+	pwr_i2c_conflict_mutex_lock();
 	ret = i2c_smbus_write_word_data(client, reg, data);
+	pwr_i2c_conflict_mutex_unlock();
 	if (ret < 0) {
 		dev_err(&client->dev,
 			"i2c write fail: can't write %02x to %02x: %d\n",

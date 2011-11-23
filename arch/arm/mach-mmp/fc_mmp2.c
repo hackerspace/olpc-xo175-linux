@@ -38,7 +38,7 @@
  * frequence change based on mmp2
  */
 extern struct mmp2_pm_info *mmp2_pm_info_p;
-extern struct mutex pwr_i2c_conflict_mutex;
+static DEFINE_MUTEX(pwr_i2c_conflict_mutex);
 static void *pm_fc_vaddr, *pm_fc_vstack;
 static struct mmp2_fc_param *mmp2_fc_param_p;
 static struct tasklet_struct fc_seq_tasklet;
@@ -97,6 +97,20 @@ struct mmp2_op mmp2_ops[] = {
 		.aclk_mhz = 266
 	},
 };
+
+inline void pwr_i2c_conflict_mutex_lock(void)
+{
+	if (machine_is_brownstone())
+		mutex_lock(&pwr_i2c_conflict_mutex);
+}
+EXPORT_SYMBOL(pwr_i2c_conflict_mutex_lock);
+
+inline void pwr_i2c_conflict_mutex_unlock(void)
+{
+	if (machine_is_brownstone())
+		mutex_unlock(&pwr_i2c_conflict_mutex);
+}
+EXPORT_SYMBOL(pwr_i2c_conflict_mutex_unlock);
 
 int mmp2_get_op_number(void)
 {

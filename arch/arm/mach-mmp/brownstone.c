@@ -233,8 +233,6 @@ static unsigned long brownstone_pin_config[] __initdata = {
 
 };
 
-struct mutex pwr_i2c_conflict_mutex;
-
 static struct regulator_consumer_supply max8649_supply[] = {
 	REGULATOR_SUPPLY("vcc_core", NULL),
 };
@@ -1259,7 +1257,6 @@ static void __init brownstone_init(void)
 	/* disable LED lights */
 	led_init();
 
-	mutex_init(&pwr_i2c_conflict_mutex);
 	/* on-chip devices */
 	mmp2_add_uart(1);
 	mmp2_add_uart(2);
