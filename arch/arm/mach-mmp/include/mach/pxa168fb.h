@@ -121,6 +121,9 @@
 #define FB_IOCTL_CMU_GET_RES		0xf6
 #define FB_IOCTL_CMU_SET_LETTER_BOX 0xf7
 
+/* gamma correction */
+#define FB_IOCTL_GAMMA_SET 		0xff
+
 #define FB_VMODE_RGB565			0x100
 #define FB_VMODE_BGR565                 0x101
 #define FB_VMODE_RGB1555		0x102
@@ -270,6 +273,14 @@ struct _pxa168fb_cmu_pip {
 	unsigned int right;
 	unsigned int top;
 	unsigned int bottom;
+};
+
+struct _pxa168fb_gamma {
+#define GAMMA_ENABLE		(1 << 0)
+#define GAMMA_DUMP		(1 << 1)
+	unsigned int	flag;
+#define GAMMA_TABLE_LEN		256
+	char 		table[GAMMA_TABLE_LEN];
 };
 
 /* Dumb interface */
@@ -450,6 +461,9 @@ struct pxa168fb_info {
 	struct fb_var_screeninfo var_bak;
 	struct pm_qos_request_list qos_idle_fb;
 	struct wake_lock idle_lock;
+
+	/* gamma correction */
+	struct _pxa168fb_gamma	gamma;
 };
 
 struct dsi_phy {
@@ -735,6 +749,8 @@ extern struct device_attribute dev_attr_misc;
 extern int pxa688fb_vsmooth_set(int id, int vid, int en, int flag);
 extern int pxa688fb_partdisp_set(struct pxa168fb_gra_partdisp grap);
 extern void pxa688fb_partdisp_update(int id);
+extern int gamma_set(int path, int flag, char *gamma_table);
+extern void gamma_dump(int path, int lines);
 #else
 static inline int pxa688fb_vsmooth_set(int id, int vid, int en, int flag)
 {
@@ -745,6 +761,8 @@ static inline int pxa688fb_partdisp_set(struct pxa168fb_gra_partdisp grap)
 	return 0;
 }
 static inline void pxa688fb_partdisp_update(int id) { }
+#define gamma_set(path, flag, gamma_table)		do {} while (0)
+#define gamma_dump(path, lines)				do {} while(0)
 #endif
 
 #endif /* __KERNEL__ */

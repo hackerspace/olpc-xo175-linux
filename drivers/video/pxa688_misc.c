@@ -692,6 +692,107 @@ int pxa688fb_vsmooth_set(int id, int vid, int en, int flag)
 	return 0;
 }
 
+/* gamma correction related functions */
+#define mmpdisp_regbase		((u32)gfx_info.fbi[0]->reg_base)
+#define sram_ctrl		(mmpdisp_regbase + LCD_SPU_SRAM_CTRL)
+#define sram_wrdat		(mmpdisp_regbase + LCD_SPU_SRAM_WRDAT)
+#define sram_para1		(mmpdisp_regbase + LCD_SPU_SRAM_PARA1)
+#define gamma_rddat(path)	(mmpdisp_regbase + (((path) & 1) ? \
+				LCD_TV_GAMMA_RDDAT : LCD_SPU_GAMMA_RDDAT))
+#define gamma_id_yr(path)	((path) ? (((path) & 1) ? 0x4 : 0x9) : 0x0)
+#define gamma_id_ug(path)	((path) ? (((path) & 1) ? 0x5 : 0xa) : 0x1)
+#define gamma_id_vb(path)	((path) ? (((path) & 1) ? 0x6 : 0xb) : 0x2)
+static u32 gamma_read(u32 addr, int gamma_id, int path)
+{
+	int count = 10000, val, pn2 = (path == 2) ? (1 << 16) : 0;
+
+	val = pn2 | (0x0 << 12) | (gamma_id << 8) | addr;
+	__raw_writel(val, sram_ctrl);
+	while (__raw_readl(sram_ctrl) & (1<<31) && count--);
+
+	if (count > 0)
+		val = __raw_readl(gamma_rddat(path)) & CFG_GAMMA_RDDAT_MASK;
+	else
+		val = -1;
+
+	return val;
+}
+
+static void gamma_write(u32 addr, u32 gamma_id, u32 val)
+{
+	__raw_writel(val, sram_wrdat);
+	val = (0x8 << 12) | (gamma_id << 8 ) | addr;
+	__raw_writel(val, sram_ctrl);
+}
+
+void gamma_dump(int path, int lines)
+{
+	u32 i = 0, val;
+
+	if (!(dma_ctrl_read(path, 0) & CFG_GAMMA_ENA_MASK)) {
+		pr_info("gamma correction not enabled yet\n");
+	}
+
+	/* enable gamma correction table update */
+	val = __raw_readl(sram_para1) | CFG_CSB_256x8_MASK;
+	__raw_writel(val, sram_para1);
+
+	for (; i < lines; i++)
+		pr_info("%3d: yr %3d, ug %3d, vb %3d\n", i,
+			gamma_read(i, gamma_id_yr(path), path),
+			gamma_read(i, gamma_id_ug(path), path),
+			gamma_read(i, gamma_id_vb(path), path));
+
+	val = __raw_readl(sram_para1) & ~CFG_CSB_256x8_MASK;
+	__raw_writel(val, sram_para1);
+}
+
+int gamma_set(int path, int flag, char *gamma_table)
+{
+	u32 i = 0, val;
+
+	/* disable gamma correction */
+	dma_ctrl_set(path, 0, CFG_GAMMA_ENA_MASK, CFG_GAMMA_ENA(0));
+
+	if (!(flag & GAMMA_ENABLE))
+		goto dump;
+
+	/* check as only 2 gamma correction table avialable */
+	if (((path == 2) && (CFG_GAMMA_ENA(1) &
+			dma_ctrl_read(0, 0) & dma_ctrl_read(1, 0))) ||
+	    ((path == 1) && (CFG_GAMMA_ENA(1) &
+			dma_ctrl_read(2, 0) & dma_ctrl_read(0, 0))) ||
+	    ((path == 0) && (CFG_GAMMA_ENA(1) &
+			dma_ctrl_read(1, 0) & dma_ctrl_read(2, 0)))) {
+		pr_err("path %d gamma correction not avialable, pls "
+			"disable other path's and try again\n", path);
+		return -EINVAL;
+	}
+
+	/* enable gamma correction table update */
+	val = __raw_readl(sram_para1) | CFG_CSB_256x8_MASK;
+	__raw_writel(val, sram_para1);
+
+	/* write gamma corrrection table */
+	for (; i < GAMMA_TABLE_LEN; i++) {
+		gamma_write(i, gamma_id_yr(path), gamma_table[i]);
+		gamma_write(i, gamma_id_ug(path), gamma_table[i]);
+		gamma_write(i, gamma_id_vb(path), gamma_table[i]);
+	}
+
+	val = __raw_readl(sram_para1) & ~CFG_CSB_256x8_MASK;
+	__raw_writel(val, sram_para1);
+
+	/* enable gamma correction table */
+	dma_ctrl_set(path, 0, CFG_GAMMA_ENA_MASK, CFG_GAMMA_ENA(1));
+
+dump:
+	if (flag & GAMMA_DUMP)
+		gamma_dump(path, GAMMA_TABLE_LEN);
+
+	return 0;
+}
+
 ssize_t misc_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {

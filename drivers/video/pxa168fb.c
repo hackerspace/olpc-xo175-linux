@@ -1148,6 +1148,16 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 		pxa688fb_partdisp_set(grap);
 		break;
 
+	case FB_IOCTL_GAMMA_SET:
+#ifdef CONFIG_PXA688_MISC
+		if (copy_from_user(&fbi->gamma, argp, sizeof(fbi->gamma)))
+			return -EFAULT;
+		return gamma_set(fbi->id, fbi->gamma.flag, fbi->gamma.table);
+#else
+		return -EINVAL;
+#endif
+		break;
+
 	default:
 		if (mi->ioctl)
 			return mi->ioctl(info, cmd, arg);
@@ -1452,6 +1462,9 @@ static int _pxa168fb_resume(struct pxa168fb_info *fbi)
 
 	/*After enable lcd clk, restore lcd interrupts*/
 	irq_mask_set(fbi->id, 0xffffffff, fbi->irq_mask);
+
+	/* restore gamma correction table */
+	gamma_set(fbi->id, fbi->gamma.flag, fbi->gamma.table);
 
 	/* restore dma after resume */
 	fbi->active = 1;
