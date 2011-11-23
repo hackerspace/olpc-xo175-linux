@@ -485,6 +485,7 @@ static void adv7533_hdmi_reset(void)
 }
 #endif
 
+#if defined(CONFIG_BACKLIGHT_ADP8885)
 static struct adp8885_bl_channel_data adp8885_ch[] = {
 	{	/* Display backlight */
 		.sovp		= ADP8885_SOVP_ENABLE,
@@ -496,19 +497,32 @@ static struct adp8885_bl_channel_data adp8885_ch[] = {
 		.fade_in	= ADP8885_FADE_510ms,
 		.iovr		= ADP8885_OVR_DISABLE,
 	},
-#if 0 /* FIXME: remove this when Keypad will be physically connected */
 	{	/* Keypad backlight */
 		.sovp		= ADP8885_SOVP_ENABLE,
 		.fb_dis		= ADP8885_FB_ENABLE,
 		.dim_en		= ADP8885_DIM_DISABLE,
 		.imax		= ADP8885_BL_MAX_CUR_uA(25600),
-		.iset		= ADP8885_ISET_60,
+		.iset		= ADP8885_ISET_40,
 		.fade_out	= ADP8885_FADE_510ms,
 		.fade_in	= ADP8885_FADE_510ms,
 		.iovr		= ADP8885_OVR_DISABLE,
 	},
-#endif
 };
+
+static int adp8885_bl_enable(bool enable)
+{
+       static int gpio;
+       if (!gpio) {
+               gpio = mfp_to_gpio(MFP_PIN_GPIO72);
+               if (gpio_request(gpio, "backlight_enable")) {
+                       pr_err("%s: Request gpio #%d failed\n", __func__, gpio);
+                       return -EIO;
+               }
+       }
+       gpio_direction_output(gpio, (int)enable);
+       msleep(1);
+       return 0;
+}
 
 static struct adp8885_bl_platform_data adp8885_data = {
 	.psm_en		= ADP8885_PWS_ENABLE,
@@ -517,9 +531,9 @@ static struct adp8885_bl_platform_data adp8885_data = {
 	.ovp_lvl	= ADP8885_OVP_LVL_28V,
 	.ledout_h	= 0,
 	.ledout_l	= 0,
-	.num_chs = sizeof(adp8885_ch) / sizeof(struct adp8885_bl_channel_data),
-	.ch			= adp8885_ch,
+	.ch		= adp8885_ch,
 };
+#endif
 
 static struct i2c_board_info i2c2_info_C2[] = {
 #if defined(CONFIG_TOUCHSCREEN_SSD2531)
@@ -1314,6 +1328,16 @@ static void __init init(void)
 			__FILE__, __func__, PM8XXX_REGULATOR_MAX);
 		pxa9xx_usb_pdata.vbus = &pm860x_vbus;
 	}
+
+#if defined(CONFIG_BACKLIGHT_ADP8885)
+	if (OBM_SAAR_C25_NEVO_B0_V10_BOARD == get_board_id())
+		adp8885_data.num_chs = 1;
+	else if (OBM_EVB_NEVO_1_2_BOARD == get_board_id()
+		|| OBM_SAAR_C3_NEVO_C0_V10_BOARD == get_board_id()) {
+		adp8885_data.chip_enable = adp8885_bl_enable;
+		adp8885_data.num_chs = 2;
+	}
+#endif
 
 	set_abu_init_func(abu_mfp_init);
 	set_ssp_init_func(ssp3_mfp_init);
