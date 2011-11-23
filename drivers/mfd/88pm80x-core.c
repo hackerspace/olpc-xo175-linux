@@ -646,7 +646,7 @@ static int __devinit device_regulator_init(struct pm80x_chip *chip,
 {
 	struct regulator_init_data *initdata;
 	int ret = 0;
-	int i, j;
+	int i, seq;
 
 	if ((pdata == NULL) || (pdata->regulator == NULL))
 		return 0;
@@ -654,31 +654,12 @@ static int __devinit device_regulator_init(struct pm80x_chip *chip,
 	if (pdata->num_regulators > ARRAY_SIZE(regulator_devs))
 		pdata->num_regulators = ARRAY_SIZE(regulator_devs);
 
-	for (i = 0, j = -1; i < pdata->num_regulators; i++) {
+	for (i = 0, seq = -1; i < pdata->num_regulators; i++) {
 		initdata = &pdata->regulator[i];
-		if (strstr(initdata->constraints.name, "BUCK")) {
-			sscanf(initdata->constraints.name, "BUCK%d", &j);
-			/* BUCK1 ~ BUCK5 */
-			if ((j < 1) || (j > PM800_NUM_BUCK)) {
-				dev_err(chip->dev, "Failed to add constraint "
-					"(%s)\n", initdata->constraints.name);
-				goto out_err;
-			}
-			j = (j - 1) + PM800_ID_BUCK1;
-		}
-		if (strstr(initdata->constraints.name, "LDO")) {
-			sscanf(initdata->constraints.name, "LDO%d", &j);
-			/* LDO1 ~ LDO19 */
-			if ((j < 1) || (j > PM800_NUM_LDO)) {
-				dev_err(chip->dev, "Failed to add constraint "
-					"(%s)\n", initdata->constraints.name);
-				goto out_err;
-			}
-			j = (j - 1) + PM800_ID_LDO1;
-		}
-		if (j == -1) {
-			dev_err(chip->dev, "Failed to add constraint (%s)\n",
-				initdata->constraints.name);
+		seq = *(unsigned int *)initdata->driver_data;
+		if ((seq < 0) || (seq > PM800_ID_RG_MAX)) {
+			dev_err(chip->dev, "Wrong ID(%d) on regulator(%s)\n",
+				seq, initdata->constraints.name);
 			goto out_err;
 		}
 		memcpy(&regulator_pdata[i], &pdata->regulator[i],
@@ -686,10 +667,10 @@ static int __devinit device_regulator_init(struct pm80x_chip *chip,
 		regulator_devs[i].platform_data = &regulator_pdata[i];
 		regulator_devs[i].pdata_size = sizeof(struct regulator_init_data);
 		regulator_devs[i].num_resources = 1;
-		regulator_devs[i].resources = &regulator_resources[j];
+		regulator_devs[i].resources = &regulator_resources[seq];
 
 		ret = mfd_add_devices(chip->dev, 0, &regulator_devs[i], 1,
-				      &regulator_resources[j], 0);
+				      &regulator_resources[seq], 0);
 		if (ret < 0) {
 			dev_err(chip->dev, "Failed to add regulator subdev\n");
 			goto out_err;

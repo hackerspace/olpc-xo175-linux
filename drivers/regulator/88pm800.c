@@ -691,21 +691,24 @@ static int __devinit pm800_regulator_probe(struct platform_device *pdev)
 {
 	struct pm80x_chip *chip = dev_get_drvdata(pdev->dev.parent);
 	struct pm800_regulator_info *info = NULL;
-	struct regulator_init_data *pdata;
+	struct regulator_init_data *pdata = pdev->dev.platform_data;
+	struct resource *res;
 	int i;
 
-	pdata = platform_get_drvdata(pdev);
-	if (pdata == NULL)
+	res = platform_get_resource(pdev, IORESOURCE_IO, 0);
+	if (res == NULL) {
+		dev_err(&pdev->dev, "No I/O resource!\n");
 		return -EINVAL;
+	}
 
 	for (i = 0; i < ARRAY_SIZE(pm800_regulator_info); i++) {
 		info = &pm800_regulator_info[i];
-		if (!strcmp(info->desc.name, pdata->constraints.name))
+		if (info->desc.id == res->start)
 			break;
 	}
-	if (i > ARRAY_SIZE(pm800_regulator_info)) {
-		dev_err(&pdev->dev, "Failed to find regulator %s\n",
-			pdata->constraints.name);
+	if ((i < 0) || (i > PM800_ID_RG_MAX)) {
+		dev_err(&pdev->dev, "Failed to find regulator %d\n",
+			res->start);
 		return -EINVAL;
 	}
 
@@ -721,11 +724,9 @@ static int __devinit pm800_regulator_probe(struct platform_device *pdev)
 
 	/* check DVC ramp slope double */
 
-	if (!strcmp(info->desc.name, "BUCK1") ||
-		!strcmp(info->desc.name, "BUCK2") ||
-		!strcmp(info->desc.name, "BUCK3") ||
-		!strcmp(info->desc.name, "BUCK4") ||
-		!strcmp(info->desc.name, "BUCK5"))
+	if ((i == PM800_ID_BUCK1) || (i == PM800_ID_BUCK2) ||
+		(i == PM800_ID_BUCK3) || (i == PM800_ID_BUCK4) ||
+		(i == PM800_ID_BUCK5))
 		info->slope_double = 1;
 
 	info->regulator = regulator_register(&info->desc, &pdev->dev,
