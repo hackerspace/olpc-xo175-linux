@@ -679,4 +679,11 @@ config MMP_ZMQ
         help
           Please say Y here if want to support message queue for PJ-ZSP communication
 
+config MMP3_HSI
+	tristate "MMP3 HSI Interface"
+	depends on CPU_MMP3
+	default n
+	help
+	  Please say Y here if want to support MMP3 HSI
+
 endmenu
