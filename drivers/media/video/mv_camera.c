@@ -48,6 +48,10 @@
 #include <media/videobuf2-dma-contig.h>
 #include <media/v4l2-chip-ident.h>
 #include <linux/pm_qos_params.h>
+#ifdef CONFIG_CPU_MMP2
+#include <mach/mfp-mmp2.h>
+#include <mach/mmp2_plat_ver.h>
+#endif
 
 #include <mach/camera.h>
 #include "mv_camera.h"
@@ -180,7 +184,14 @@ static void ccic_config_phy(struct mv_camera_dev *pcdev, int enable)
 		ccic_reg_write(pcdev, REG_CSI2_DPHY3, mcam->dphy[0]);
 		ccic_reg_write(pcdev, REG_CSI2_DPHY6, mcam->dphy[2]);
 		ccic_reg_write(pcdev, REG_CSI2_DPHY5, mcam->dphy[1]);
-		ccic_reg_write(pcdev, REG_CSI2_CTRL0, 0x43);
+		/* 0x43 actives 2 lanes; */
+		/* 0x41 actives 1 lane(Brownstone v5 ov5642); */
+#ifdef CONFIG_CPU_MMP2
+		if (board_is_mmp2_brownstone_rev5())
+			ccic_reg_write(pcdev, REG_CSI2_CTRL0, 0x41);
+		else
+#endif
+			ccic_reg_write(pcdev, REG_CSI2_CTRL0, 0x43);
 	} else {
 		ccic_reg_write(pcdev, REG_CSI2_DPHY3, 0x0);
 		ccic_reg_write(pcdev, REG_CSI2_DPHY6, 0x0);
@@ -227,7 +238,7 @@ static int ccic_config_image(struct mv_camera_dev *pcdev)
 	u32 imgsz_w;
 	unsigned int temp;
 	struct v4l2_pix_format *fmt = &pcdev->pix_format;
-	u32 widthy, widthuv;
+	u32 widthy = 0, widthuv = 0;
 	struct device *dev = &pcdev->pdev->dev;
 	struct mv_cam_pdata *mcam = pcdev->pdev->dev.platform_data;
 
@@ -1136,7 +1147,12 @@ static int __devinit mv_camera_probe(struct platform_device *pdev)
 	err = soc_camera_host_register(&pcdev->soc_host);
 	if (err)
 		goto exit_free_irq;
-	ccic_disable_clk(pcdev);
+#ifdef CONFIG_CPU_MMP2
+	/* on brownstone v5 ccic2 depends on ccic1,
+	   so there can't disable ccic1 and ccic2 clk */
+	if (!board_is_mmp2_brownstone_rev5())
+#endif
+		ccic_disable_clk(pcdev);
 
 	return 0;
 
