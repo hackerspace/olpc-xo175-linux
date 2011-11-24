@@ -42,6 +42,7 @@ int mmp2_set_wake(struct irq_data *i_data, unsigned int on)
 	/* enable wakeup sources */
 	switch (irq) {
 	case IRQ_MMP2_RTC:
+	case IRQ_MMP2_RTC_ALARM:
 		data = PMUM_WAKEUP4 | PMUM_RTC_ALARM;
 		break;
 	case IRQ_MMP2_PMIC:
@@ -197,6 +198,7 @@ void __init mmp2_init_icu(void)
 	 */
 	pmic_irq_chip.irq_ack = pmic_irq_ack;
 	pmic_irq_chip.irq_set_wake = mmp2_set_wake;
+	rtc_irq_chip.irq_set_wake = mmp2_set_wake;
 
 	init_mux_irq(&pmic_irq_chip, IRQ_MMP2_PMIC_BASE, 2);
 	init_mux_irq(&rtc_irq_chip, IRQ_MMP2_RTC_BASE, 2);
