@@ -824,6 +824,7 @@ void buf_endframe(void *point)
 	}
 }
 
+#if 0
 static int get_list_count(struct _sSurfaceList *srflist)
 {
 	struct list_head *pos, *n;
@@ -833,6 +834,7 @@ static int get_list_count(struct _sSurfaceList *srflist)
 		count++;
 	return count;
 }
+#endif
 
 int flip_buffer(struct fb_info *info, unsigned long arg)
 {
@@ -881,10 +883,15 @@ int flip_buffer(struct fb_info *info, unsigned long arg)
 	 */
 	if (start_addr[0] && (!input_data)) {
 		spin_lock_irqsave(&fbi->buf_lock, flags);
+#if 0
 		if (get_list_count(&fbi->buf_waitlist) >= 2) {
 			/*if there are more than two frames in waitlist, dequeue
 			*the older frame and enqueue it to freelist,
 			*then enqueue this frame to waitlist*/
+#else
+		while (!list_empty(&fbi->buf_waitlist.surfacelist)) {
+			/* free the waitlist elements if any */
+#endif
 			srflist = list_first_entry(&fbi->buf_waitlist.surfacelist,
 				struct _sSurfaceList, surfacelist);
 			list_del(&srflist->surfacelist);
