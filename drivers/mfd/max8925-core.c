@@ -340,7 +340,27 @@ static irqreturn_t max8925_irq(int irq, void *data)
 	struct max8925_irq_data *irq_data;
 	struct i2c_client *i2c;
 	int read_reg = -1, value = 0;
-	int i;
+	int i, j = 0;
+	int irq_mask_stored[ARRAY_SIZE(max8925_irqs)];
+
+	printk(KERN_ERR "max8925 irq begin\n");
+	/* mask all irqs except for tsc */
+	for (i = 0; i < ARRAY_SIZE(max8925_irqs); i++) {
+		irq_data = &max8925_irqs[i];
+		if (irq_data->tsc_irq)
+			continue;
+		if (irq_data->flags == FLAGS_RTC)
+			i2c = chip->rtc;
+		else if (irq_data->flags == FLAGS_ADC)
+			i2c = chip->adc;
+		else
+			i2c = chip->i2c;
+		if (read_reg != irq_data->mask_reg) {
+			read_reg = irq_data->mask_reg;
+			irq_mask_stored[j++] = max8925_reg_read(i2c, irq_data->mask_reg);
+			max8925_reg_write(chip->i2c, irq_data->mask_reg, 0xff);
+		}
+	}
 
 	for (i = 0; i < ARRAY_SIZE(max8925_irqs); i++) {
 		irq_data = &max8925_irqs[i];
@@ -360,6 +380,25 @@ static irqreturn_t max8925_irq(int irq, void *data)
 		if (value & irq_data->enable)
 			handle_nested_irq(chip->irq_base + i);
 	}
+
+	j = 0;
+	/* unmask all irqs except for tsc */
+	for (i = 0; i < ARRAY_SIZE(max8925_irqs); i++) {
+		irq_data = &max8925_irqs[i];
+		if (irq_data->tsc_irq)
+			continue;
+		if (irq_data->flags == FLAGS_RTC)
+			i2c = chip->rtc;
+		else if (irq_data->flags == FLAGS_ADC)
+			i2c = chip->adc;
+		else
+			i2c = chip->i2c;
+		if (read_reg != irq_data->mask_reg) {
+			read_reg = irq_data->mask_reg;
+			max8925_reg_write(chip->i2c, irq_data->mask_reg, irq_mask_stored[j++]);
+		}
+	}
+	printk(KERN_ERR "max8925 irq end\n");
 	return IRQ_HANDLED;
 }
 
