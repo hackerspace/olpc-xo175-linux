@@ -21,7 +21,10 @@
 #include <linux/slab.h>
 #include <linux/videodev2.h>
 #include <mach/camera.h>
-
+#ifdef CONFIG_CPU_MMP2
+#include <mach/mfp-mmp2.h>
+#include <mach/mmp2_plat_ver.h>
+#endif
 #include "ov5642.h"
 
 MODULE_DESCRIPTION("OmniVision OV5642 Camera Driver");
@@ -33,6 +36,9 @@ MODULE_LICENSE("GPL");
 #define REG_SYS		0x3008
 #define SYS_RESET	0x80
 #define SYS_SWPD	0x40
+
+#define REG_TIMINGCTRL	0x3818
+#define REG_ARRAYCTRL	0x3621
 
 struct i2c_client *g_i2c_client;
 
@@ -218,6 +224,21 @@ static int ov5642_enum_fmt(struct v4l2_subdev *sd,
 	return 0;
 }
 
+int ov5642_get_platform_name(struct v4l2_subdev *sd, char *name)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct soc_camera_device *icd = client->dev.platform_data;
+	struct soc_camera_link *icl;
+
+	icl = to_soc_camera_link(icd);
+	if (!icl) {
+		dev_err(&client->dev, "ov5642 driver needs platform data\n");
+		return -EINVAL;
+	}
+	strcpy(name, icl->priv);
+	return 1;
+}
+
 static int ov5642_try_fmt(struct v4l2_subdev *sd,
 			   struct v4l2_mbus_framefmt *mf)
 {
@@ -269,6 +290,18 @@ static int ov5642_s_fmt(struct v4l2_subdev *sd,
 	int ret = 0;
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct ov5642 *ov5642 = to_ov5642(client);
+#ifdef CONFIG_CPU_MMP2
+	unsigned char val;
+	char name[20] = "";
+
+	ov5642_get_platform_name(sd, name);
+	if (!strcmp(name, "pxa688-mipi")) {
+		/* sensor resume from software power down mode */
+		ov5642_read(client, REG_SYS, &val);
+		val &= ~0x40;
+		ov5642_write(client, REG_SYS, val);
+	}
+#endif
 
 	if (ov5642->regs_default) {
 		ret = ov5642_write_array(client, ov5642->regs_default);
@@ -287,7 +320,41 @@ static int ov5642_s_fmt(struct v4l2_subdev *sd,
 		if (ret)
 			return ret;
 	}
+#ifdef CONFIG_CPU_MMP2
+	if (!strcmp(name, "pxa688-mipi")) {
+	    /* Initialize MIPI settings */
+		ov5642->regs_mipi_set = get_mipi_set_regs();
+		if (ov5642->regs_mipi_set) {
+			ret = ov5642_write_array(client, ov5642->regs_mipi_set);
+			if (ret)
+				return ret;
+		}
+		if (board_is_mmp2_brownstone_rev5())
+			ov5642->regs_mipi_lane = get_mipi_lane_regs(1);
+		else
+			ov5642->regs_mipi_lane = get_mipi_lane_regs(2);
+		if (ov5642->regs_mipi_lane) {
+			ret = ov5642_write_array(client, ov5642->regs_mipi_lane);
+			if (ret)
+				return ret;
+		}
 
+		/* frontal camera sensor on brownstone board */
+		/* need clear sensor mirror and flip */
+		ov5642_read(client, REG_TIMINGCTRL, &val);
+		val &= ~0x60;
+		ov5642_write(client, REG_TIMINGCTRL, val);
+
+		ov5642_read(client, REG_ARRAYCTRL, &val);
+		val |= 0x20;
+		ov5642_write(client, REG_ARRAYCTRL, val);
+
+		/* sensor enter software power down mode */
+		ov5642_read(client, REG_SYS, &val);
+		val |= 0x40;
+		ov5642_write(client, REG_SYS, val);
+	}
+#endif
 	return ret;
 }
 

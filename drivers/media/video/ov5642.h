@@ -47,6 +47,7 @@ enum ov5642_resv_support {
 	OV5642_FMT_QCIF = 1,
 	OV5642_FMT_QVGA,
 	OV5642_FMT_CIF,
+	OV5642_FMT_QHVGA,
 	OV5642_FMT_HALF_VGA,
 	OV5642_FMT_VGA,
 	OV5642_FMT_D1,
@@ -66,6 +67,12 @@ struct ov5642_format {
 	struct regval_list	*def_set;
 };
 
+struct ov5642_mipi {
+	struct regval_list *mipi_set_regs;
+	struct regval_list *lane1_regs;
+	struct regval_list *lane2_regs;
+};
+
 struct ov5642_win_size {
 	enum ov5642_resv_support	resv;
 	struct regval_list *regs;
@@ -81,6 +88,7 @@ struct ov5642_config {
 	const char name[32];
 	struct ov5642_format *fmt;
 	int fmt_size;
+	struct ov5642_mipi *mipi_lane;
 	struct ov5642_win_size *yuv_res;
 	int yuv_res_size;
 	struct ov5642_win_size *jpg_res;
@@ -101,6 +109,8 @@ struct ov5642 {
 	struct regval_list *regs_fmt;
 	struct regval_list *regs_size;
 	struct regval_list *regs_default;
+	struct regval_list *regs_mipi_set;
+	struct regval_list *regs_mipi_lane;
 };
 
 /* ov5642 has only one fixed colorspace per pixelcode */
@@ -127,4 +137,6 @@ extern struct regval_list *get_yuv_size_regs(int width, int height);
 extern struct regval_list *get_jpg_size_regs(int width, int length);
 extern struct ov5642_win_size *get_yuv_size_array(void);
 extern struct ov5642_win_size *get_jpg_size_array(void);
+extern struct regval_list *get_mipi_set_regs(void);
+extern struct regval_list *get_mipi_lane_regs(int num);
 #endif
