@@ -33,6 +33,7 @@
 #include <linux/kernel.h>
 #include <linux/workqueue.h>
 #include <linux/spinlock.h>
+#include <asm/mach-types.h>
 
 #include <linux/earlysuspend.h>
 #include <linux/spi/ntrig_spi.h>
@@ -2129,11 +2130,13 @@ static int __devinit ntrig_spi_probe(struct spi_device *spi)
 
 #endif
 
-	ret = check_ntrig(spi);
-	if (!ret) {
-		pr_err("%s: ntrig detects fail!\n", __func__);
-		ret = -ENXIO;
-		return ret;
+	if (machine_is_brownstone()) {
+		ret = check_ntrig(spi);
+		if (!ret) {
+			pr_err("%s: ntrig detects fail!\n", __func__);
+			ret = -ENXIO;
+			return ret;
+		}
 	}
 
 	sema_init(&pdata->spi_lock, 1);
