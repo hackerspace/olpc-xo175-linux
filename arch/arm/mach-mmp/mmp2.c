@@ -642,6 +642,87 @@ struct clkops lcd_tv_clk_ops = {
 	.enable		= lcd_tv_clk_enable,
 	.disable	= lcd_tv_clk_disable,
 };
+static void ccic_dbg_clk_enable(struct clk *clk)
+{
+    u32 tmp = __raw_readl(clk->clk_rst);
+    tmp |= (1<<25) | (1 <<27);
+    __raw_writel(tmp, clk->clk_rst);
+}
+
+static void ccic_dbg_clk_disable(struct clk *clk)
+{
+    u32 tmp = __raw_readl(clk->clk_rst);
+    tmp &= ~((1<<25) | (1 <<27));
+	__raw_writel(tmp, clk->clk_rst);
+}
+
+struct clkops ccic_dbg_clk_ops = {
+    .enable         = ccic_dbg_clk_enable,
+    .disable        = ccic_dbg_clk_disable,
+};
+
+static void ccic_rst_clk_enable(struct clk *clk)
+{
+    __raw_writel(0x2e838, clk->clk_rst);
+    __raw_writel(0x3e909, clk->clk_rst);
+    __raw_writel(0x3eb39, clk->clk_rst);
+    __raw_writel(0x3eb3f, clk->clk_rst);
+}
+
+static void ccic_rst_clk_disable(struct clk *clk)
+{
+    __raw_writel(0x3eb3f, clk->clk_rst);
+    __raw_writel(0x3eb39, clk->clk_rst);
+    __raw_writel(0x3e909, clk->clk_rst);
+    __raw_writel(0x2e838, clk->clk_rst);
+    __raw_writel(0x0, clk->clk_rst);
+}
+
+struct clkops ccic_rst_clk_ops = {
+    .enable         = ccic_rst_clk_enable,
+    .disable        = ccic_rst_clk_disable,
+};
+
+static void ccic2_dbg_clk_enable(struct clk *clk)
+{
+    u32 tmp = __raw_readl(clk->clk_rst);
+    tmp |= (1<<26) | (1 <<28);
+    __raw_writel(tmp, clk->clk_rst);
+}
+
+static void ccic2_dbg_clk_disable(struct clk *clk)
+{
+    u32 tmp = __raw_readl(clk->clk_rst);
+    tmp &= ~((1<<26) | (1 <<28));
+    __raw_writel(tmp, clk->clk_rst);
+}
+
+struct clkops ccic2_dbg_clk_ops = {
+    .enable         = ccic2_dbg_clk_enable,
+    .disable        = ccic2_dbg_clk_disable,
+};
+
+static void ccic2_rst_clk_enable(struct clk *clk)
+{
+    __raw_writel(0x16838, clk->clk_rst);
+    __raw_writel(0x16909, clk->clk_rst);
+    __raw_writel(0x16b39, clk->clk_rst);
+    __raw_writel(0x16b3f, clk->clk_rst);
+}
+
+static void ccic2_rst_clk_disable(struct clk *clk)
+{
+    __raw_writel(0x16b3f, clk->clk_rst);
+    __raw_writel(0x16b39, clk->clk_rst);
+    __raw_writel(0x16909, clk->clk_rst);
+    __raw_writel(0x16838, clk->clk_rst);
+    __raw_writel(0x0, clk->clk_rst);
+}
+
+struct clkops ccic2_rst_clk_ops = {
+    .enable         = ccic2_rst_clk_enable,
+    .disable        = ccic2_rst_clk_disable,
+};
 
 static int vmeta_usb_phy_clk_enabled;
 static int vmeta_usb_phy_clk_enable(int en)
@@ -984,6 +1065,13 @@ static AUD_CLK_OPS(audio, &audio_clk_ops);
 static AUD_CLK_OPS(sspa1, &sspa1_clk_ops);
 static AUD_CLK_OPS(sspa2, &sspa2_clk_ops);
 static AUD_CLK_OPS(sysclk, &sysclk_ops);
+static APMU_CLK_OPS(ccic_rst, CCIC_RST, 0, 312000000, &ccic_rst_clk_ops);
+static APMU_CLK_OPS(ccic_dbg, CCIC_DBG, 0, 312000000, &ccic_dbg_clk_ops);
+static APMU_CLK(ccic_gate, CCIC_GATE, 0xffff, 0);
+static APMU_CLK_OPS(ccic2_rst, CCIC2_RST, 0, 312000000, &ccic2_rst_clk_ops);
+static APMU_CLK_OPS(ccic2_dbg, CCIC2_DBG, 0, 312000000, &ccic2_dbg_clk_ops);
+static APMU_CLK(ccic2_gate, CCIC2_GATE, 0xffff, 0);
+
 
 /* wtm clock */
 static APMU_CLK_OPS(wtm, GEU, 0, 0, &wtm_clk_ops);
@@ -1055,6 +1143,12 @@ static struct clk_lookup mmp2_clkregs[] = {
 	INIT_CLKREG(&clk_sysclk, NULL, "mmp-sysclk"),
 	INIT_CLKREG(&clk_sspa1, "mmp2-sspa.0", NULL),
 	INIT_CLKREG(&clk_sspa2, "mmp2-sspa.1", NULL),
+	INIT_CLKREG(&clk_ccic_rst, NULL, "CCICRSTCLK"),
+	INIT_CLKREG(&clk_ccic_dbg, NULL, "CCICDBGCLK"),
+	INIT_CLKREG(&clk_ccic_gate, NULL, "CCICGATECLK"),
+	INIT_CLKREG(&clk_ccic2_rst, NULL, "CCIC2RSTCLK"),
+	INIT_CLKREG(&clk_ccic2_dbg, NULL, "CCIC2DBGCLK"),
+	INIT_CLKREG(&clk_ccic2_gate, NULL, "CCIC2GATECLK"),
 };
 
 #define MCB_SLFST_SEL		0xD0000570
@@ -1155,6 +1249,8 @@ MMP2_DEVICE(audiosram, "mmp-sram", 0, NONE, 0xe0000000, 0x4000);
 MMP2_DEVICE(videosram, "mmp-sram", 1, NONE, 0xd1020000, 0x16800);
 MMP2_DEVICE(thsens, "mmp2-thermal", -1, THERMAL, 0xd4013200, 0x20);
 MMP2_DEVICE(keypad, "pxa27x-keypad", -1, KPC, 0xd4012000, 0x4c);
+MMP2_DEVICE(camera, "mv-camera", 0, CI, 0xd420a000, 0x2ff);
+MMP2_DEVICE(camera2, "mv-camera", 1, CI2, 0xd420a800, 0x2ff);
 MMP2_DEVICE(fuse, "mmp2-fuse", -1, NONE, 0xd4290000, 0x3100);
 
 struct platform_device mmp_device_asoc_sspa1 = {

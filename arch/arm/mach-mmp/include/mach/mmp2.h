@@ -19,6 +19,7 @@ extern void __init mmp2_reserve(void);
 #include <plat/pxa27x_keypad.h>
 #include <linux/spi/pxa2xx_spi.h>
 #include <mach/sram.h>
+#include <mach/camera.h>
 
 extern struct pxa_device_desc mmp2_device_uart1;
 extern struct pxa_device_desc mmp2_device_uart2;
@@ -38,6 +39,8 @@ extern struct pxa_device_desc mmp2_device_pwm1;
 extern struct pxa_device_desc mmp2_device_pwm2;
 extern struct pxa_device_desc mmp2_device_pwm3;
 extern struct pxa_device_desc mmp2_device_pwm4;
+extern struct pxa_device_desc mmp2_device_camera;
+extern struct pxa_device_desc mmp2_device_camera2;
 extern struct pxa_device_desc mmp2_device_fb;
 extern struct pxa_device_desc mmp2_device_fb_ovly;
 extern struct pxa_device_desc mmp2_device_fb_tv;
@@ -192,6 +195,17 @@ static inline int mmp2_add_hdmi(struct uio_hdmi_platform_data *data)
 		return pxa_register_device(&mmp2_device_hdmi, data, sizeof(*data));
 }
 
+static inline int mmp2_add_cam(int id, struct mv_cam_pdata *cam)
+{
+       struct pxa_device_desc *d = NULL;
+       switch (id) {
+               case 1: d = &mmp2_device_camera; break;
+               case 2: d = &mmp2_device_camera2; break;
+               default:
+                       return -EINVAL;
+       }
+       return pxa_register_device(d, cam, sizeof(*cam));
+}
 static inline int mmp2_add_keypad(struct pxa27x_keypad_platform_data *data)
 {
 	return pxa_register_device(&mmp2_device_keypad, data, sizeof(*data));
