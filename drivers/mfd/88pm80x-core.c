@@ -208,6 +208,11 @@ static struct mfd_cell regulator_devs[] = {
 	{"88pm80x-regulator", 16,},
 	{"88pm80x-regulator", 17,},
 	{"88pm80x-regulator", 18,},
+	{"88pm80x-regulator", 19,},
+	{"88pm80x-regulator", 20,},
+	{"88pm80x-regulator", 21,},
+	{"88pm80x-regulator", 22,},
+	{"88pm80x-regulator", 23,},
 };
 
 static struct regulator_init_data regulator_pdata[ARRAY_SIZE(regulator_devs)];
