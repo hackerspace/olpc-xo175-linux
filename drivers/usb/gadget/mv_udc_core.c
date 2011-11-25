@@ -1250,11 +1250,11 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 	udc = container_of(gadget, struct mv_udc, gadget);
 	spin_lock_irqsave(&udc->lock, flags);
 
+	udc->vbus_active = (is_active != 0);
+
 	dev_dbg(&udc->dev->dev, "%s: driver %p, softconnect %d,"
 		"vbus_active %d\n", __func__, udc->driver, udc->softconnect,
 		udc->vbus_active);
-
-	udc->vbus_active = (is_active != 0);
 
 	schedule_work(&udc->event_work);
 
@@ -1330,11 +1330,12 @@ static int mv_udc_pullup(struct usb_gadget *gadget, int is_on)
 	udc = container_of(gadget, struct mv_udc, gadget);
 	spin_lock_irqsave(&udc->lock, flags);
 
+	udc->softconnect = (is_on != 0);
+
 	dev_dbg(&udc->dev->dev, "%s: driver %p, softconnect %d,"
 		"vbus_active%d\n", __func__, udc->driver, udc->softconnect,
 		udc->vbus_active);
 
-	udc->softconnect = (is_on != 0);
 	if (udc->driver && udc->softconnect && udc->vbus_active) {
 		retval = mv_udc_enable(udc);
 		if (retval == 0) {
@@ -1808,6 +1809,37 @@ static int is_set_configuration(struct usb_ctrlrequest *setup)
 	return 0;
 }
 
+static const char *reqname(unsigned bRequest)
+{
+	switch (bRequest) {
+	case USB_REQ_GET_STATUS: return "GET_STATUS";
+	case USB_REQ_CLEAR_FEATURE: return "CLEAR_FEATURE";
+	case USB_REQ_SET_FEATURE: return "SET_FEATURE";
+	case USB_REQ_SET_ADDRESS: return "SET_ADDRESS";
+	case USB_REQ_GET_DESCRIPTOR: return "GET_DESCRIPTOR";
+	case USB_REQ_SET_DESCRIPTOR: return "SET_DESCRIPTOR";
+	case USB_REQ_GET_CONFIGURATION: return "GET_CONFIGURATION";
+	case USB_REQ_SET_CONFIGURATION: return "SET_CONFIGURATION";
+	case USB_REQ_GET_INTERFACE: return "GET_INTERFACE";
+	case USB_REQ_SET_INTERFACE: return "SET_INTERFACE";
+	default: return "*UNKNOWN*";
+	}
+}
+
+static const char *desc_type(unsigned type)
+{
+	switch (type) {
+	case USB_DT_DEVICE: return "USB_DT_DEVICE";
+	case USB_DT_CONFIG: return "USB_DT_CONFIG";
+	case USB_DT_STRING: return "USB_DT_STRING";
+	case USB_DT_INTERFACE: return "USB_DT_INTERFACE";
+	case USB_DT_ENDPOINT: return "USB_DT_ENDPOINT";
+	case USB_DT_DEVICE_QUALIFIER: return "USB_DT_DEVICE_QUALIFIER";
+	case USB_DT_OTHER_SPEED_CONFIG: return "USB_DT_OTHER_SPEED_CONFIG";
+	case USB_DT_INTERFACE_POWER: return "USB_DT_INTERFACE_POWER";
+	default: return "*UNKNOWN*";
+	}
+}
 
 static void handle_setup_packet(struct mv_udc *udc, u8 ep_num,
 	struct usb_ctrlrequest *setup)
@@ -1816,9 +1848,11 @@ static void handle_setup_packet(struct mv_udc *udc, u8 ep_num,
 
 	nuke(&udc->eps[ep_num * 2 + EP_DIR_OUT], -ESHUTDOWN);
 
-	dev_dbg(&udc->dev->dev, "SETUP %02x.%02x v%04x i%04x l%04x\n",
-			setup->bRequestType, setup->bRequest,
-			setup->wValue, setup->wIndex, setup->wLength);
+	dev_dbg(&udc->dev->dev, "%s, \t%s, \t%d\n", reqname(setup->bRequest),
+		(setup->bRequest == USB_REQ_GET_DESCRIPTOR)
+		 ? desc_type(setup->wValue >> 8) : NULL,
+		 setup->wIndex);
+
 	/* We process some stardard setup requests here */
 	if ((setup->bRequestType & USB_TYPE_MASK) == USB_TYPE_STANDARD) {
 		switch (setup->bRequest) {
@@ -2297,6 +2331,64 @@ static void mv_udc_vbus_work(struct work_struct *work)
 		mv_udc_vbus_session(&udc->gadget, 0);
 }
 
+static ssize_t
+usb_reg_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct mv_udc *udc = the_controller;
+	int ret, i;
+
+	if (!udc) {
+		dev_err(&udc->dev->dev,
+			"The controller is not initialized.\n");
+		return -1;
+	}
+
+	ret = sprintf(buf, "usbcmd: 0x%x\n",
+			readl(&udc->op_regs->usbcmd));
+	ret += sprintf(buf + ret, "usbsts: 0x%x\n",
+			readl(&udc->op_regs->usbsts));
+	ret += sprintf(buf + ret, "usbintr: 0x%x\n",
+			readl(&udc->op_regs->usbintr));
+	ret += sprintf(buf + ret, "epnak: 0x%x\n",
+			readl(&udc->op_regs->epnak));
+	ret += sprintf(buf + ret, "epnaken: 0x%x\n",
+			readl(&udc->op_regs->epnaken));
+	ret += sprintf(buf + ret, "configflag: 0x%x\n",
+			readl(&udc->op_regs->configflag));
+	ret += sprintf(buf + ret, "portsc: 0x%x\n",
+			readl(&udc->op_regs->portsc));
+	ret += sprintf(buf + ret, "otgsc: 0x%x\n",
+			readl(&udc->op_regs->otgsc));
+	ret += sprintf(buf + ret, "usbmode: 0x%x\n",
+			readl(&udc->op_regs->usbmode));
+	ret += sprintf(buf + ret, "epsetupstat: 0x%x\n",
+			readl(&udc->op_regs->epsetupstat));
+	ret += sprintf(buf + ret, "epprime: 0x%x\n",
+			readl(&udc->op_regs->epprime));
+	ret += sprintf(buf + ret, "epflush: 0x%x\n",
+			readl(&udc->op_regs->epflush));
+	ret += sprintf(buf + ret, "epstatus: 0x%x\n",
+			readl(&udc->op_regs->epstatus));
+	ret += sprintf(buf + ret, "epcomplete: 0x%x\n",
+			readl(&udc->op_regs->epcomplete));
+
+	for (i = 0; i < 16; i++)
+		ret += sprintf(buf + ret, "epctrlx[%d]: 0x%x\n",
+			i, readl(&udc->op_regs->epctrlx[i]));
+
+	return ret;
+}
+
+static DEVICE_ATTR(op_regs, S_IRUGO|S_IWUSR, usb_reg_show, NULL);
+
+static struct attribute *gadget_attrs[] = {
+	&dev_attr_op_regs.attr,
+	NULL,
+};
+static struct attribute_group gadget_attr_group = {
+	.attrs = gadget_attrs,
+};
+
 /* release device structure */
 static void gadget_release(struct device *_dev)
 {
@@ -2309,6 +2401,8 @@ static __devexit int mv_udc_remove(struct platform_device *dev)
 {
 	struct mv_udc *udc = the_controller;
 	int clk_i;
+
+	sysfs_remove_group(&udc->dev->dev.kobj, &gadget_attr_group);
 
 	wake_lock_destroy(&idle_lock);
 	wake_lock_destroy(&suspend_lock);
@@ -2587,11 +2681,26 @@ static int __devinit mv_udc_probe(struct platform_device *dev)
 
 	INIT_WORK(&udc->event_work, uevent_worker);
 
+	retval = sysfs_create_group(&dev->dev.kobj, &gadget_attr_group);
+	if (retval < 0) {
+		dev_dbg(&dev->dev, "Can't register sysfs attr group: %d\n",
+			retval);
+		goto err_destroy_waklock;
+	}
+
 	dev_info(&dev->dev, "successful probe UDC device %s clock gating.\n",
 		udc->clock_gating ? "with" : "without");
 
 	return 0;
 
+err_destroy_waklock:
+	wake_lock_destroy(&idle_lock);
+	wake_lock_destroy(&suspend_lock);
+
+	if (udc->qwork) {
+		flush_workqueue(udc->qwork);
+		destroy_workqueue(udc->qwork);
+	}
 err_create_qwork:
 	if (udc->pdata && udc->pdata->vbus
 		&& udc->transceiver == NULL && udc->clock_gating)
