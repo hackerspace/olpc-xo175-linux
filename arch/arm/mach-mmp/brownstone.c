@@ -192,7 +192,7 @@ static unsigned long brownstone_pin_config[] __initdata = {
 	GPIO151_MMC3_CLK,
 
 	/* VBUS Enable */
-	GPIO82_GPIO,
+	GPIO82_GPIO | MFP_LPM_DRIVE_LOW,
 
 	/* 5V regulator */
 	GPIO89_GPIO,
@@ -692,6 +692,7 @@ static void __init brownstone_fixed_regulator(void)
 }
 
 #ifdef CONFIG_USB_SUPPORT
+#if defined(CONFIG_USB_PXA_U2O) || defined(CONFIG_USB_EHCI_PXA_U2O)
 static int brownstone_set_vbus(unsigned int enable)
 {
 	int vbus_en = mfp_to_gpio(MFP_PIN_GPIO82);
@@ -710,7 +711,7 @@ static int brownstone_set_vbus(unsigned int enable)
 
 	return 0;
 }
-#ifdef CONFIG_USB_PXA_U2O
+
 static char *mmp2_usb_clock_name[] = {
 	[0] = "U2OCLK",
 };
@@ -1281,6 +1282,8 @@ static void __init brownstone_init(void)
 		mmp2_init_spi();
 
 #ifdef CONFIG_USB_PXA_U2O
+	/* Place VBUS_EN low by default */
+	brownstone_set_vbus(0);
 	pxa168_device_u2o.dev.platform_data = &mmp2_usb_pdata;
 	platform_device_register(&pxa168_device_u2o);
 #endif
