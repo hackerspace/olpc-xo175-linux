@@ -894,16 +894,43 @@ static struct pxa95x_peripheral_wakeup_ops wakeup_ops = {
 #if defined(CONFIG_HDMI_SI9226)
 static void SI9226_hdmi_power(struct device *dev, int on)
 {
-	printk(KERN_INFO "SI9226 hdmi power %s\n", on?"on":"off");
-	if (gpio_request(mfp_to_gpio(MFP_PIN_GPIO43), "hdmi reset"))
-		printk(KERN_ERR "hdmi gpio_request: failed!\n");
+	static struct regulator *vhdmi;
+	static int vhdmi_inited;
 
+	if (get_board_id() < OBM_SAAR_B_MG2_A0_V13_BOARD && !vhdmi_inited) {
+		vhdmi = regulator_get(dev, "v_hdmi");
+		if (!IS_ERR(vhdmi))
+			vhdmi_inited = 1;
+		else
+			pr_debug("hdmi: failed to get regulator\n");
+	}
+
+	if (gpio_request(mfp_to_gpio(MFP_PIN_GPIO43), "hdmi reset"))
+		pr_debug("hdmi gpio_request: failed!\n");
+
+	pr_info("SI9226 hdmi power %s\n", on ? "on" : "off");
 	if (on) {
+		if (get_board_id() < OBM_SAAR_B_MG2_A0_V13_BOARD) {
+			if (!IS_ERR(vhdmi))
+				regulator_enable(vhdmi);
+			else
+				pr_debug("hdmi: regulator is not correct\n");
+			msleep(20);
+		}
 		gpio_direction_output(mfp_to_gpio(MFP_PIN_GPIO43), 0);
 		msleep(1);
 		gpio_direction_output(mfp_to_gpio(MFP_PIN_GPIO43), 1);
-	} else
+	} else {
 		gpio_direction_output(mfp_to_gpio(MFP_PIN_GPIO43), 0);
+
+		if (get_board_id() < OBM_SAAR_B_MG2_A0_V13_BOARD) {
+			msleep(20);
+			if (!IS_ERR(vhdmi))
+				regulator_disable(vhdmi);
+			else
+				pr_debug("hdmi: regulator is not correct\n");
+		}
+	}
 	gpio_free(mfp_to_gpio(MFP_PIN_GPIO43));
 	msleep(10);
 }
