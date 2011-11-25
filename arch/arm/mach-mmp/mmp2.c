@@ -301,6 +301,8 @@ static unsigned long pll2_get_clk(void)
 	return pll_clk_calculate(refdiv, fbdiv);
 }
 
+static struct clk clk_usb_phy;
+#define GC_USB_PHY_EN	1
 static void gc800_clk_enable(struct clk *clk)
 {
 	u32 tmp;
@@ -309,8 +311,8 @@ static void gc800_clk_enable(struct clk *clk)
 	tmp &= ~(0xf<<4);
 	tmp &= ~((1<<12) | (1<<14));
 
-#if 0
-	/* FIXME enable OTG PHY clock to feed GC*/
+#if GC_USB_PHY_EN
+	/* Enable OTG PHY clock to feed GC */
 	clk_enable(&clk_usb_phy);
 	tmp |= ((2<<4) | (1<<6));
 	tmp |= ((1<<12) | (1<<14));
@@ -372,8 +374,8 @@ static void gc800_clk_disable(struct clk *clk)
 	tmp &= ~(3<<9);
 	__raw_writel(tmp, clk->clk_rst);
 
-#if 0
-	/* FIXME disable OTG PHY clock */
+#if GC_USB_PHY_EN
+	/* Disable OTG PHY clock */
 	clk_disable(&clk_usb_phy);
 #endif
 
