@@ -989,8 +989,13 @@ static AUD_CLK_OPS(sysclk, &sysclk_ops);
 static APMU_CLK_OPS(wtm, GEU, 0, 0, &wtm_clk_ops);
 
 /* USB PHY PLL clock enable/disable */
+#ifdef CONFIG_USB_PXA_U2O
 extern void pxa_usb_phy_clk_enable(void);
 extern void pxa_usb_phy_clk_disable(void);
+#else
+static inline void pxa_usb_phy_clk_enable(void) {}
+static inline void pxa_usb_phy_clk_disable(void) {}
+#endif
 static void usb_phy_clk_enable(struct clk *clk)
 {
 	clk_enable(&clk_u2o);
