@@ -24,6 +24,8 @@ extern int convert_pix_fmt(u32 vmode);
 extern int set_pix_fmt(struct fb_var_screeninfo *var, int pix_fmt);
 extern int determine_best_pix_fmt(struct fb_var_screeninfo *var,
 	unsigned int compat_mode);
+extern int pxa168fb_check_var(struct fb_var_screeninfo *var,
+	 struct fb_info *fi);
 extern int check_surface(struct fb_info *fi, FBVideoMode new_mode,
 	struct _sViewPortInfo *new_info, struct _sViewPortOffset *new_offset,
 	struct _sVideoBufferAddr *new_addr);
