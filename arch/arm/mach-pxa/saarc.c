@@ -155,7 +155,7 @@ static struct pm860x_headset_pdata headset_platform_info	 = {
 static struct regulator_consumer_supply regulator_supply[PM8XXX_REGULATOR_MAX];
 static struct regulator_init_data regulator_data[PM8XXX_REGULATOR_MAX];
 
-static int regulator_index[] = {
+static int PM8607_ID_regulator_index[] = {
 	PM8607_ID_BUCK1,
 	PM8607_ID_BUCK2,
 	PM8607_ID_BUCK3,
@@ -175,6 +175,34 @@ static int regulator_index[] = {
 	PM8607_ID_LDO14,
 	PM8607_ID_LDO15,
 };
+
+static int PM800_ID_regulator_index[] = {
+	PM800_ID_BUCK1,
+	PM800_ID_BUCK2,
+	PM800_ID_BUCK3,
+	PM800_ID_BUCK4,
+	PM800_ID_BUCK5,
+	PM800_ID_LDO1,
+	PM800_ID_LDO2,
+	PM800_ID_LDO3,
+	PM800_ID_LDO4,
+	PM800_ID_LDO5,
+	PM800_ID_LDO6,
+	PM800_ID_LDO7,
+	PM800_ID_LDO8,
+	PM800_ID_LDO9,
+	PM800_ID_LDO10,
+	PM800_ID_LDO11,
+	PM800_ID_LDO12,
+	PM800_ID_LDO13,
+	PM800_ID_LDO14,
+	PM800_ID_LDO15,
+	PM800_ID_LDO16,
+	PM800_ID_LDO17,
+	PM800_ID_LDO18,
+	PM800_ID_LDO19,
+};
+
 
 #define REG_SUPPLY_INIT(_id, _name, _dev_name)		\
 {							\
@@ -197,7 +225,7 @@ static int regulator_index[] = {
 	regulator_data[_i].consumer_supplies	=	\
 		&regulator_supply[_chip##_##_name];	\
 	regulator_data[_i].driver_data	=	\
-		&regulator_index[_chip##_##_name];	\
+		&_chip##_regulator_index[_chip##_##_name];	\
 }
 
 static struct pm860x_rtc_pdata rtc = {
