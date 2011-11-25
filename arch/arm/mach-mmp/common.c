@@ -55,6 +55,11 @@ static struct map_desc standard_io_desc[] __initdata = {
 		.length		= FC_PHYS_SIZE,
 		.type		= MT_MEMORY_NONCACHED,
 #endif
+	}, {
+		.pfn		= __phys_to_pfn(DMCU_PHYS_BASE),
+		.virtual	= DMCU_VIRT_BASE,
+		.length		= DMCU_PHYS_SIZE,
+		.type		= MT_DEVICE,
 #ifdef CONFIG_CPU_MMP3
 	}, {
 		.pfn		= __phys_to_pfn(PGU_PHYS_BASE),

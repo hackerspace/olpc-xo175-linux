@@ -56,10 +56,15 @@ enum {
 
 	MMP3_FREQCH_VOLTING	= (1u << 27),
 	MMP3_FREQCH_CORE	= (1u << 24),
-	MMP3_FREQCH_DRAM	= (9u << 22), /* both channel*/
+	MMP3_FREQCH_DRAM_CH1	= (8u << 22),
+	MMP3_FREQCH_DRAM_CH2	= (1u << 22),
+	MMP3_FREQCH_DRAM	= MMP3_FREQCH_DRAM_CH1 | MMP3_FREQCH_DRAM_CH2,
 	MMP3_FREQCH_AXI		= (1u << 26),
 
+	MMP3_FREQCH_START	= 0,
+	MMP3_FREQCH_COMPLETE	= 1,
 };
+
 #define FIELD2DIV(x) ((x) + 1)
 #define GET_FIELD(val, shft, bits) (((val) >> (shft)) & ((1u << (bits)) - 1))
 #define MAK_FIELD(val, shft, bits) (((val) & ((1u << (bits)) - 1)) << (shft))
@@ -169,7 +174,7 @@ struct mmp3_freq_plan {
 		};
 		u32 val;
 	} axi;
-	u32 mhz[MMP3_CLK_TOP_NUM];
+	u32 khz[MMP3_CLK_TOP_NUM];
 };
 
 struct mmp3_pmu {
@@ -180,71 +185,113 @@ struct mmp3_pmu {
 	u32 *bus;
 	u32 *dm_cc;
 	u32 *dm2_cc;
+	u32 *mc_interleave;
+	u32 *mc_slp_req;
 	u32 *swstat;
+	u32 *dmcu[2];
 
+	u32 ddrdfc_trigger;
 	u32 swstat_store;
 	spinlock_t mmp3_fc_spin;
 	struct mutex mmp3_fc_lock;
 	struct mmp3_clock_source *sources;
 	struct mmp3_freq_plan *pps;
 	int ppscnt;
-	void (*setrate)(struct mmp3_pmu *pmu, int id, u32 mhz);
+	void (*setrate)(struct mmp3_pmu *pmu, int id, u32 khz);
 	u32 pp_lowbar[MMP3_CLK_TOP_NUM];
 	int pp_curr;
 	struct mmp3_freq_plan pl_curr;
+
+	u32 trigge_stat[MMP3_CLK_TOP_NUM];
 };
+
+#define MMP3_PLL1_VCO			(1600000)
+#define MMP3_PLL1_FREQ			(MMP3_PLL1_VCO / 2)
+#define MMP3_PLL1_CLKOUTP_FREQ		((MMP3_PLL1_VCO * 2) / 3)
+#define MMP3_PLL2_FREQ			(1334000)
+#define MMP3_VCXO_FREQ			(26000)
 
 static struct mmp3_clock_source mmp3_fc_sources[] = {
 	[0] = {
 		.name = "PLL1/2",
-		.frequency = 399,
+		.frequency = MMP3_PLL1_FREQ / 2,
 	},
 	[1] = {
 		.name = "PLL1",
-		.frequency = 797,
+		.frequency = MMP3_PLL1_FREQ,
 	},
 	[2] = {
 		.name = "PLL2",
-		.frequency = 1334,
+		.frequency = MMP3_PLL2_FREQ,
 	},
 	[3] = {
 		.name = "PLL1_CLKOUTP",
-		.frequency = 1063,
+		.frequency = MMP3_PLL1_CLKOUTP_FREQ,
 	},
 	[4] = {
 		.name = "VCXO",
-		.frequency = 26,
+		.frequency = MMP3_VCXO_FREQ,
 	},
 };
 
+#define MMP3_TEST_PP 0
+
 enum {
-	MMP3_PP_ULPA = 0,
-	MMP3_PP_FOOT,
-	MMP3_PP_SIDE,
-	MMP3_PP_PEAK,
-	MMP3_PP_NUM,
+#if MMP3_TEST_PP
+	MMP3_PP_26,
+	MMP3_PP_50,
+#endif
+	MMP3_PP_100,
+	MMP3_PP_200,
+	MMP3_PP_400,
+	MMP3_PP_800,
+	MMP3_PP_1066,
 };
-static struct mmp3_freq_plan mmp3_pps[MMP3_PP_NUM] = {
+static struct mmp3_freq_plan mmp3_pps[] = {
 	/* DDR settings will be fixed upon init according to DDR module used */
-	[MMP3_PP_ULPA] = {
-		.name = "ULPA",
+#if MMP3_TEST_PP
+	[MMP3_PP_26] = {
+		.name = "MMP3_PP_26",
+		.core = {{MMP3_FREQ_OP_GET, 4, 0, 0, 0, 0, 0, 0, 0},},
+		.axi  = {{MMP3_FREQ_OP_GET, 0, 7, 7},},
+		.dram = {{MMP3_FREQ_OP_GET, 0, 1, 1},},
+	},
+	[MMP3_PP_50] = {
+		.name = "MMP3_PP_50",
+		.core = {{MMP3_FREQ_OP_GET, 0, 7, 0, 0, 0, 0, 7, 7},},
+		.axi  = {{MMP3_FREQ_OP_GET, 0, 3, 3},},
+		.dram = {{MMP3_FREQ_OP_GET, 0, 0, 0},},
+	},
+#endif
+	[MMP3_PP_100] = {
+		.name = "MMP3_PP_100",
+		.core = {{MMP3_FREQ_OP_GET, 0, 3, 0, 0, 0, 0, 3, 3},},
+		.axi  = {{MMP3_FREQ_OP_GET, 0, 3, 3},},
+		.dram = {{MMP3_FREQ_OP_GET, 0, 0, 0},},
+	},
+	[MMP3_PP_200] = {
+		.name = "MMP3_PP_200",
 		.core = {{MMP3_FREQ_OP_GET, 0, 1, 0, 0, 0, 0, 1, 1},},
 		.axi  = {{MMP3_FREQ_OP_GET, 0, 1, 3},},
+		.dram = {{MMP3_FREQ_OP_GET, 0, 0, 0},},
 	},
-	[MMP3_PP_FOOT] = {
-		.name = "FOOT",
+	[MMP3_PP_400] = {
+		.name = "MMP3_PP_400",
 		.core = {{MMP3_FREQ_OP_GET, 1, 1, 0, 0, 0, 0, 1, 1},},
 		.axi  = {{MMP3_FREQ_OP_GET, 0, 0, 1},},
+		.dram = {{MMP3_FREQ_OP_GET, 1, 0, 0},},
 	},
-	[MMP3_PP_SIDE] = {
-		.name = "SIDE",
+	[MMP3_PP_800] = {
+		.name = "MMP3_PP_800",
 		.core = {{MMP3_FREQ_OP_GET, 1, 0, 0, 0, 1, 1, 1, 1},},
 		.axi  = {{MMP3_FREQ_OP_GET, 0, 0, 1},},
+		.dram = {{MMP3_FREQ_OP_GET, 1, 0, 0},},
 	},
-	[MMP3_PP_PEAK] = {
-		.name = "PEAK",
+	[MMP3_PP_1066] = {
+		.name = "MMP3_PP_1066",
 		.core = {{MMP3_FREQ_OP_GET, 3, 0, 0, 0, 1, 1, 2, 2},},
 		.axi  = {{MMP3_FREQ_OP_GET, 0, 0, 1},},
+		.dram = {{MMP3_FREQ_OP_GET, 1, 0, 0},},
 	},
 };
 
@@ -256,6 +303,12 @@ static struct mmp3_pmu mmp3_pmu_config = {
 	.bus = (u32 *)APMU_REG(0x6c),
 	.dm_cc = (u32 *)APMU_REG(0xc),
 	.dm2_cc = (u32 *)APMU_REG(0x158),
+	.mc_interleave = (u32 *)APMU_REG(0x184),
+	.mc_slp_req = (u32 *)APMU_REG(0xb4),
+	.dmcu = {
+		[0] = (u32 *)(DMCU_VIRT_BASE + 0x0),
+		[1] = (u32 *)(DMCU_VIRT_BASE + 0x10000),
+	},
 
 	.sources = mmp3_fc_sources,
 	.pps = mmp3_pps,
@@ -316,60 +369,70 @@ static void mmp3_freq_plan_cal(struct mmp3_pmu *pmu,
 	u32 basefreq;
 	basefreq = pmu->sources[pl->core.psrc].frequency;
 	basefreq = basefreq / FIELD2DIV(pl->core.pj_d);
-	pl->mhz[MMP3_CLK_MP1] = basefreq / FIELD2DIV(pl->core.mp1_d);
-	pl->mhz[MMP3_CLK_MP2] = basefreq / FIELD2DIV(pl->core.mp2_d);
-	pl->mhz[MMP3_CLK_MM] = basefreq / FIELD2DIV(pl->core.mm_d);
-	pl->mhz[MMP3_CLK_ACLK] = basefreq / FIELD2DIV(pl->core.aclk_d);
+	pl->khz[MMP3_CLK_MP1] = basefreq / FIELD2DIV(pl->core.mp1_d);
+	pl->khz[MMP3_CLK_MP2] = basefreq / FIELD2DIV(pl->core.mp2_d);
+	pl->khz[MMP3_CLK_MM] = basefreq / FIELD2DIV(pl->core.mm_d);
+	pl->khz[MMP3_CLK_ACLK] = basefreq / FIELD2DIV(pl->core.aclk_d);
 
 	basefreq = pmu->sources[pl->dram.dsrc].frequency / 2;
-	pl->mhz[MMP3_CLK_DDR_1] = basefreq / FIELD2DIV(pl->dram.ch1_d);
-	pl->mhz[MMP3_CLK_DDR_2] = basefreq / FIELD2DIV(pl->dram.ch1_d);
+	pl->khz[MMP3_CLK_DDR_1] = basefreq / FIELD2DIV(pl->dram.ch1_d);
+	pl->khz[MMP3_CLK_DDR_2] = basefreq / FIELD2DIV(pl->dram.ch1_d);
 
 	basefreq = pmu->sources[pl->axi.asrc].frequency;
-	pl->mhz[MMP3_CLK_AXI_1] = basefreq / FIELD2DIV(pl->axi.aclk1_d);
-	pl->mhz[MMP3_CLK_AXI_2] = basefreq / FIELD2DIV(pl->axi.aclk2_d);
+	pl->khz[MMP3_CLK_AXI_1] = basefreq / FIELD2DIV(pl->axi.aclk1_d);
+	pl->khz[MMP3_CLK_AXI_2] = basefreq / FIELD2DIV(pl->axi.aclk2_d);
 }
 
 static void mmp3_freq_plan_print(struct mmp3_pmu *pmu,
-					struct mmp3_freq_plan *pl, char * tag)
+	struct mmp3_freq_plan *pl, char * tag, u32 tmr)
 {
 	int proid = mmp3_smpid();
 	if (pl->core.op == MMP3_FREQ_OP_SHOW) {
-		pm_print("%s <PM>:FROM[%d]:CPU: SRC[%12s]|"
-				"MP1:%4d|MP2:%4d|MM:%4d\n"
+		pm_print("%s<PM:%d>:CPU@[%12s]|"
+				"MM: %7d|MP1:%7d|MP2:%7d|FAB:%7d|"
+				"%2d us|%d\n"
 			, tag
 			, proid
 			, pmu->sources[pl->core.psrc].name
-			, pl->mhz[MMP3_CLK_MP1]
-			, pl->mhz[MMP3_CLK_MP2]
-			, pl->mhz[MMP3_CLK_MM]
+			, pl->khz[MMP3_CLK_MM]
+			, pl->khz[MMP3_CLK_MP1]
+			, pl->khz[MMP3_CLK_MP2]
+			, pl->khz[MMP3_CLK_ACLK]
+			, tmr
+			, pmu->trigge_stat[MMP3_CLK_MP1]
 			);
 	}
 	if (pl->dram.op == MMP3_FREQ_OP_SHOW) {
-		pm_print("%s <PM>:FROM[%d]:DDR: SRC[%12s]|"
-				"CH1:%4d|CH2:%4d\n"
+		pm_print("%s<PM:%d>:DDR@[%12s]|CH1:%7d|CH2:%7d|"
+				"           |           |"
+				"%2d us|%d\n"
 			, tag
 			, proid
 			, pmu->sources[pl->dram.dsrc].name
-			, pl->mhz[MMP3_CLK_DDR_1]
-			, pl->mhz[MMP3_CLK_DDR_2]
+			, pl->khz[MMP3_CLK_DDR_1]
+			, pl->khz[MMP3_CLK_DDR_2]
+			, tmr
+			, pmu->trigge_stat[MMP3_CLK_DDR_1]
 			);
 	}
 	if (pl->axi.op == MMP3_FREQ_OP_SHOW) {
-		pm_print("%s <PM>:FROM[%d]:AXI: SRC[%12s]|"
-				"ACLK1:%4d|ACLK2:%4d\n"
+		pm_print("%s<PM:%d>:AXI@[%12s]|A1: %7d|A2: %7d|"
+				"           |           |"
+				"%2d us|%d\n"
 			, tag
 			, proid
 			, pmu->sources[pl->axi.asrc].name
-			, pl->mhz[MMP3_CLK_AXI_1]
-			, pl->mhz[MMP3_CLK_AXI_2]
+			, pl->khz[MMP3_CLK_AXI_1]
+			, pl->khz[MMP3_CLK_AXI_2]
+			, tmr
+			, pmu->trigge_stat[MMP3_CLK_AXI_1]
 			);
 	}
 }
-#define mmp3_freq_plan_print_info(pmu, pl) \
-	mmp3_freq_plan_print(pmu, pl, KERN_INFO)
-#define mmp3_freq_plan_print_dbg(pmu, pl) \
-	mmp3_freq_plan_print(pmu, pl, KERN_DEBUG)
+#define mmp3_freq_plan_print_info(pmu, pl, tmr) \
+	mmp3_freq_plan_print(pmu, pl, KERN_INFO, tmr)
+#define mmp3_freq_plan_print_dbg(pmu, pl, tmr) \
+	mmp3_freq_plan_print(pmu, pl, KERN_DEBUG, tmr)
 
 static void mmp3_clear_PJ_RD_STATUS(struct mmp3_pmu *pmu)
 {
@@ -422,12 +485,21 @@ static u32 mmp3_compare_freq_plan(struct mmp3_freq_plan *p1,
 					struct mmp3_freq_plan *p2)
 {
 	u32 mark = 0;
-	if ((EXTRACTDIV(p1->core.val) != EXTRACTDIV(p2->core.val)))
+	if ((EXTRACTDIV(p1->core.val) != EXTRACTDIV(p2->core.val))) {
+		printk(KERN_DEBUG "<PM> CORE not same: 0x%08x != 0x%08x\n",
+			p1->core.val, p2->core.val);
 		mark |= TRACE_DFC_MARKER_CORE;
-	if ((EXTRACTDIV(p1->dram.val) != EXTRACTDIV(p2->dram.val)))
+	}
+	if ((EXTRACTDIV(p1->dram.val) != EXTRACTDIV(p2->dram.val))) {
+		printk(KERN_DEBUG "<PM> DRAM not same: 0x%08x != 0x%08x\n",
+			p1->dram.val, p2->dram.val);
 		mark |= TRACE_DFC_MARKER_DRAM;
-	if ((EXTRACTDIV(p1->axi.val) != EXTRACTDIV(p2->axi.val)))
+	}
+	if ((EXTRACTDIV(p1->axi.val) != EXTRACTDIV(p2->axi.val))) {
+		printk(KERN_DEBUG "<PM> AXI not same: 0x%08x != 0x%08x\n",
+			p1->axi.val, p2->axi.val);
 		mark |= TRACE_DFC_MARKER_AXI;
+	}
 	return mark;
 }
 
@@ -475,41 +547,595 @@ static void mmp3_update_freq_plan(struct mmp3_pmu *pmu,
 	__raw_writel(val, pmu->fccr);
 }
 
-static void mmp3_udpate_ddr_parameter_table(struct mmp3_pmu *pmu,
-			struct mmp3_freq_plan *pl)
+#define FIXADDR(base, offset) ((u32 *)(((u32)base)+offset))
+#define DMCU_HWTCTRL(base) FIXADDR(base, 0x1c0)
+#define DMCU_HWTDAT0(base) FIXADDR(base, 0x1c8)
+#define DMCU_HWTDAT1(base) FIXADDR(base, 0x1cc)
+#define DMCU_MAP_CS0 0x10
+#define DMCU_MAP_CS1 0x14
+#define DMCU_MAP_VALID (1u << 0)
+#define DMCU_CMD_CSSEL_CS0 (1u << 24)
+#define DMCU_CMD_CSSEL_CS1 (1u << 25)
+#define DMCU_SDRAM_TIMING1 0x80
+#define DMCU_SDRAM_TIMING2 0x84
+#define DMCU_SDRAM_TIMING3 0x88
+#define DMCU_SDRAM_TIMING4 0x8c
+#define DMCU_SDRAM_TIMING5 0x90
+#define DMCU_SDRAM_TIMING6 0x94
+#define DMCU_SDRAM_TIMING7 0x98
+#define DMCU_SDRAM_CTRL1 0x50
+#define DMCU_SDRAM_CTRL4 0x58
+#define DMCU_SDRAM_CTRL14 0x68
+#define DMCU_PHY_CTRL3 0x220
+#define DMCU_PHY_CTRL14 0x24c
+#define DMCU_PHY_DQ_BYTE_SEL 0x300
+#define DMCU_PHY_DLL_CTRL_BYTE1 0x304
+#define DMCU_USER_COMMAND0 0x160
+#define DMCU_USER_COMMAND1 0x164
+#define DMCU_HWTPAUSE 0x00010000
+#define DMCU_HWTEND 0x00020000
+#define DMCU_HWTWRITE 0x80000000
+#define DMCU_SDRAM_TYPE_MASK (7u << 2)
+#define DMCU_SDRAM_TYPE_DDR3 (2u << 2)
+#define DMCU_SDRAM_TYPE_LPDDR2 (5u << 2)
+
+struct ddr_config {
+	u32 reg;
+	u32 b2c;
+	u32 b2s;
+};
+struct ddrdfc_param {
+	u32 oldkhz;
+	u32 newkhz;
+	u32 newcas;
+	u32 newtiming_cnt;
+	struct ddr_config *newtiming;
+	u32 phytuning_cnt;
+	struct ddr_config *phytuning;
+};
+
+#define COMMON_DEF(param)						\
+	u32 tmpvalue, tab, ent, map;					\
+	u32 *base = (u32 *)param;					\
+	do {								\
+		tab = 0;						\
+		ent = 0;						\
+		map = 0;						\
+		if (__raw_readl(FIXADDR(base, DMCU_MAP_CS0))		\
+					& DMCU_MAP_VALID)		\
+			map |= DMCU_CMD_CSSEL_CS0;			\
+		if (__raw_readl(FIXADDR(base, DMCU_MAP_CS1))		\
+					& DMCU_MAP_VALID)		\
+			map |= DMCU_CMD_CSSEL_CS1;			\
+	} while (0)
+
+#define BEGIN_TABLE(tabidx)						\
+	do {								\
+		tab = tabidx;						\
+		ent = 0;						\
+	} while (0)
+
+#define UPDATE_REG(val, reg) __raw_writel(val, reg);
+
+#define INSERT_ENTRY_EX(reg, b2c, b2s, pause, last)			\
+	do {								\
+		if (b2c == 0xFFFFFFFF) {				\
+			tmpvalue = b2s;					\
+		} else {						\
+			tmpvalue = __raw_readl(FIXADDR(base, reg));	\
+			tmpvalue = (((tmpvalue) & (~(b2c))) | (b2s));	\
+		}							\
+		UPDATE_REG(tmpvalue, DMCU_HWTDAT0(base));		\
+		tmpvalue = reg;						\
+		if (pause)						\
+			tmpvalue |= DMCU_HWTPAUSE;			\
+		if (last)						\
+			tmpvalue |= DMCU_HWTEND;			\
+		UPDATE_REG(tmpvalue, DMCU_HWTDAT1(base));		\
+		tmpvalue = (((tab) & 0x3) << 5)				\
+				| ((ent) & 0xf) | DMCU_HWTWRITE;	\
+		UPDATE_REG(tmpvalue, DMCU_HWTCTRL(base));		\
+		ent++;							\
+		if (last) {						\
+			tab++;						\
+			ent = 0;					\
+		}							\
+	} while (0)
+
+#define INSERT_ENTRIES(entries, entcount, marklast)			\
+	do {								\
+		u32 li, emk;						\
+		if (marklast) {						\
+			emk = 0;					\
+			for (li = 0; li < entcount; li++) {		\
+				if ((li + 1) == entcount)		\
+					emk = 1;			\
+				INSERT_ENTRY_EX(entries[li].reg,	\
+						entries[li].b2c,	\
+						entries[li].b2s,	\
+						0, emk);		\
+			}						\
+		} else {						\
+			for (li = 0; li < entcount; li++) {		\
+				INSERT_ENTRY_EX(entries[li].reg,	\
+						entries[li].b2c,	\
+						entries[li].b2s,	\
+						0, 0);			\
+			}						\
+		}							\
+	} while (0)
+
+#define INSERT_ENTRY(reg, b2c, b2s) INSERT_ENTRY_EX(reg, b2c, b2s, 0, 0)
+#define LAST_ENTRY(reg, b2c, b2s) INSERT_ENTRY_EX(reg, b2c, b2s, 0, 1)
+#define ALLBITS (0xFFFFFFFF)
+#define NONBITS (0x00000000)
+
+#define USE_PHYTUNING 0
+
+static void mmp3_ddrhwt_lpddr2_h2l(u32 *dmcu, struct ddrdfc_param *param)
 {
-	/* TODO: add DDR parameter table programming here*/
+	COMMON_DEF(dmcu);
+	/*
+	 * 1 PMU asserts 'mc_sleep_req' on type 'mc_sleep_type'; MC4 enters
+	 *    self-refresh mode and hold scheduler for DDR access
+	 * 2 Frequency change
+	 *
+	 * Step 1-2 should be triggered by PMU upon DDR change request
+	 *
+	 * Step 3-6 programmed in the 1st table
+	 */
+	BEGIN_TABLE(0);
+	/* Halt MC4 scheduler*/
+	INSERT_ENTRY(DMCU_SDRAM_CTRL14, ALLBITS, 0x2);
+	/* 3 update timing, we use the boot timing which is for high clock */
+	INSERT_ENTRY(DMCU_SDRAM_CTRL4, 0x0001FC00,
+				(0x0001FC00 & param->newcas));
+	INSERT_ENTRIES(param->newtiming, param->newtiming_cnt, 0);
+#if USE_PHYTUNING
+	INSERT_ENTRIES(param->phytuning, param->phytuning_cnt, 0);
+#endif
+
+	/* 4 reset master DLL */
+	INSERT_ENTRY(DMCU_PHY_CTRL14, ALLBITS, 0x20000000);
+	/* 5 update master DLL */
+	INSERT_ENTRY(DMCU_PHY_CTRL14, ALLBITS, 0x40000000);
+	/* 6. synchronize 2x clock */
+	LAST_ENTRY(DMCU_PHY_CTRL14, ALLBITS, 0x80000000);
+
+	/*
+	 * 7 wake up SDRAM; when first table done (acked) PMU will de-assert
+	 *    mc_sleep_req to wake up SDRAM from self-refresh
+	 *
+	 * 8 update SDRAM mode register, programmed in 2nd table
+	 */
+	BEGIN_TABLE(1);
+	INSERT_ENTRY(DMCU_SDRAM_CTRL1, 0x40, 0x40);
+	/* 9 do a long ZQ Cal */
+	INSERT_ENTRY(DMCU_USER_COMMAND0, ALLBITS, (map | 0x1000));
+	INSERT_ENTRY(DMCU_USER_COMMAND1, ALLBITS, (map | 0x20001));
+	INSERT_ENTRY(DMCU_USER_COMMAND1, ALLBITS, (map | 0x20002));
+	INSERT_ENTRY(DMCU_USER_COMMAND1, ALLBITS, (map | 0x20003));
+	/* resume scheduler*/
+	LAST_ENTRY(DMCU_SDRAM_CTRL14, ALLBITS, 0);
 }
 
-static void mmp3_do_freqch_loose(struct mmp3_pmu *pmu,
-			struct mmp3_freq_plan *pl)
+static void mmp3_ddrhwt_lpddr2_l2h(u32 *dmcu, struct ddrdfc_param *param)
 {
-	unsigned long flags;
-	u32 val, change, retry, same;
-	union trace_dfc_log logentry;
-	struct mmp3_freq_plan curpl;
+	COMMON_DEF(dmcu);
+	/*
+	 * 1 PMU asserts 'mc_sleep_req' on type 'mc_sleep_type'; MC4 enters
+	 *    self-refresh mode and hold scheduler for DDR access
+	 *
+	 * 2 update timing, programmed in 1st table
+	 *    we just use the boot timing which is for high clock, no change
+	 */
+	BEGIN_TABLE(0);
+	/* Halt MC4 scheduler*/
+	INSERT_ENTRY(DMCU_SDRAM_CTRL14, ALLBITS, 0x2);
+	/* Update CAS*/
+	INSERT_ENTRY(DMCU_SDRAM_CTRL4, 0x0001FC00,
+				(0x0001FC00 & param->newcas));
+#if USE_PHYTUNING
+	INSERT_ENTRIES(param->newtiming, param->newtiming_cnt, 0);
+	INSERT_ENTRIES(param->phytuning, param->phytuning_cnt, 1);
+#else
+	INSERT_ENTRIES(param->newtiming, param->newtiming_cnt, 1);
+#endif
+	/*
+	 * 3 Frequency change upon 1st table done
+	 *
+	 * Step 4-6 programmed in the 2nd table
+	 */
+	BEGIN_TABLE(1);
+	/* 4 reset master DLL */
+	INSERT_ENTRY(DMCU_PHY_CTRL14, ALLBITS, 0x20000000);
+	/* 5 update master DLL */
+	INSERT_ENTRY(DMCU_PHY_CTRL14, ALLBITS, 0x40000000);
+	/* 6. synchronize 2x clock */
+	LAST_ENTRY(DMCU_PHY_CTRL14, ALLBITS, 0x80000000);
 
-	spin_lock_irqsave(&(pmu->mmp3_fc_spin), flags);
+	/*
+	 * 7 wake up SDRAM; when first table done (acked) PMU will de-assert
+	 *    mc_sleep_req to wake up SDRAM from self-refresh
+	 *
+	 * 8 update SDRAM mode register, programmed in 2nd table
+	 */
+	BEGIN_TABLE(2);
+	INSERT_ENTRY(DMCU_SDRAM_CTRL1, 0x40, 0x40);
+	/* 9 do a long ZQ Cal */
+	INSERT_ENTRY(DMCU_USER_COMMAND0, ALLBITS, (map | 0x1000));
+	INSERT_ENTRY(DMCU_USER_COMMAND1, ALLBITS, (map | 0x20001));
+	INSERT_ENTRY(DMCU_USER_COMMAND1, ALLBITS, (map | 0x20002));
+	INSERT_ENTRY(DMCU_USER_COMMAND1, ALLBITS, (map | 0x20003));
+	/* resume scheduler*/
+	LAST_ENTRY(DMCU_SDRAM_CTRL14, ALLBITS, 0);
+}
+
+static void mmp3_ddrhwt_ddr3_h2l(u32 *dmcu, struct ddrdfc_param *param)
+{
+	COMMON_DEF(dmcu);
+	/*
+	 * 1 Halt MC4 and disable SDRAM DLL, programmed in 1st table
+	 */
+	BEGIN_TABLE(0);
+	/* Halt MC4 scheduler*/
+	INSERT_ENTRY(DMCU_SDRAM_CTRL14, ALLBITS, 0x2);
+	if (param->newkhz < 125000) {
+		/* disable PLL*/
+		INSERT_ENTRY(DMCU_SDRAM_CTRL4, NONBITS, 0x80000000);
+		/* LMR1*/
+		INSERT_ENTRY(DMCU_USER_COMMAND0, ALLBITS, (map | 0x200));
+		/* CAS, keep PLL disabled*/
+		LAST_ENTRY(DMCU_SDRAM_CTRL4, 0x0001FC00,
+				(0x80000000 | (0x0001FC00 & param->newcas)));
+	} else {
+		/* Update CAS*/
+		LAST_ENTRY(DMCU_SDRAM_CTRL4, 0x0001FC00,
+				(0x0001FC00 & param->newcas));
+	}
+
+	/*
+	 * 2 PMU asserts 'mc_sleep_req' on type 'mc_sleep_type'; MC4 enters
+	 *    self-refresh mode and hold scheduler for DDR access
+	 * 3 Frequency change
+	 *
+	 * Step 4-7 programmed in the 2nd table
+	 */
+	BEGIN_TABLE(1);
+	/* 4 update timing, do phy tuning*/
+	INSERT_ENTRIES(param->newtiming, param->newtiming_cnt, 0);
+#if USE_PHYTUNING
+	INSERT_ENTRIES(param->phytuning, param->phytuning_cnt, 0);
+#endif
+	/* 5 reset master DLL */
+	INSERT_ENTRY(DMCU_PHY_CTRL14, ALLBITS, 0x20000000);
+	/* 6 update master DLL */
+	INSERT_ENTRY(DMCU_PHY_CTRL14, ALLBITS, 0x40000000);
+	/* 7. synchronize 2x clock */
+	LAST_ENTRY(DMCU_PHY_CTRL14, ALLBITS, 0x80000000);
+
+	/*
+	 * 8 wake up SDRAM; when first table done (acked) PMU will de-assert
+	 *    mc_sleep_req to wake up SDRAM from self-refresh
+	 *
+	 * 9 update SDRAM mode register and do ZQ Cal, programmed in 3nd table
+	 */
+	BEGIN_TABLE(2);
+	INSERT_ENTRY(DMCU_SDRAM_CTRL14, ALLBITS, 0x2);
+	/* 9.1 reset SDRAM DLL */
+	INSERT_ENTRY(DMCU_SDRAM_CTRL1, 0x40, NONBITS);
+	/* 9.2 update mode register, LMR0/LMR2 */
+	INSERT_ENTRY(DMCU_USER_COMMAND0, ALLBITS, (map | 0x100));
+	INSERT_ENTRY(DMCU_USER_COMMAND0, ALLBITS, (map | 0x400));
+	/* 9.3 do a long ZQ Cal */
+	INSERT_ENTRY(DMCU_USER_COMMAND0, ALLBITS, (map | 0x1000));
+	/* resume scheduler*/
+	LAST_ENTRY(DMCU_SDRAM_CTRL14, ALLBITS, 0);
+}
+
+static void mmp3_ddrhwt_ddr3_l2h(u32 *dmcu, struct ddrdfc_param *param)
+{
+	COMMON_DEF(dmcu);
+	/*
+	 * 1 PMU asserts 'mc_sleep_req' on type 'mc_sleep_type'; MC4 enters
+	 *    self-refresh mode and hold scheduler for DDR access
+	 *
+	 * 2 update timing, programmed in 1st table
+	 *    we just use the boot timing which is for high clock, no change
+	 */
+	BEGIN_TABLE(0);
+	/* Halt MC4 scheduler*/
+	INSERT_ENTRY(DMCU_SDRAM_CTRL14, ALLBITS, 0x2);
+	if (param->oldkhz >= 125000) {
+		/* Update CAS*/
+		INSERT_ENTRY(DMCU_SDRAM_CTRL4, 0x0001FC00,
+				(0x0001FC00 & param->newcas));
+	}
+
+#if USE_PHYTUNING
+	INSERT_ENTRIES(param->newtiming, param->newtiming_cnt, 0);
+	INSERT_ENTRIES(param->phytuning, param->phytuning_cnt, 1);
+#else
+	INSERT_ENTRIES(param->newtiming, param->newtiming_cnt, 1);
+#endif
+	/*
+	 * 3 Frequency change
+	 *
+	 * Step 4-6 programmed in the 2nd table
+	 */
+	BEGIN_TABLE(1);
+	/* 4 reset master DLL */
+	INSERT_ENTRY(DMCU_PHY_CTRL14, ALLBITS, 0x20000000);
+	/* 5 update master DLL */
+	INSERT_ENTRY(DMCU_PHY_CTRL14, ALLBITS, 0x40000000);
+	/* 6. synchronize 2x clock */
+	LAST_ENTRY(DMCU_PHY_CTRL14, ALLBITS, 0x80000000);
+
+	/*
+	 * 7 wake up SDRAM; when first table done (acked) PMU will de-assert
+	 *    mc_sleep_req to wake up SDRAM from self-refresh
+	 *
+	 * 8 enable and reset SDRAM DLL
+	 * 9 do ZQ Cal
+	 * 10 unhalt MC4 scheduler
+	 * 8-10 programmed in 3nd table
+	 */
+	BEGIN_TABLE(2);
+	INSERT_ENTRY(DMCU_SDRAM_CTRL14, ALLBITS, 0x2);
+	if (param->newkhz >= 125000) {
+		/* update CAS, enable PLL*/
+		INSERT_ENTRY(DMCU_SDRAM_CTRL4, 0x8001FC00,
+				(0x0001FC00 & param->newcas));
+		/* LMR1*/
+		INSERT_ENTRY(DMCU_USER_COMMAND0, ALLBITS, (map | 0x200));
+	}
+	/* 8.1 reset SDRAM DLL */
+	INSERT_ENTRY(DMCU_SDRAM_CTRL1, 0x40, 0x40);
+	/* 8.3 update mode register, LMR0/LMR2 */
+	INSERT_ENTRY(DMCU_USER_COMMAND0, ALLBITS, (map | 0x100));
+	INSERT_ENTRY(DMCU_USER_COMMAND0, ALLBITS, (map | 0x400));
+	/* 9 do a long ZQ Cal */
+	INSERT_ENTRY(DMCU_USER_COMMAND0, ALLBITS, (map | 0x1000));
+	/* resume scheduler*/
+	LAST_ENTRY(DMCU_SDRAM_CTRL14, ALLBITS, 0);
+}
+#if 1
+static struct ddr_config ddr3_400mhz[] = {
+	{DMCU_SDRAM_TIMING1, ALLBITS, 0x911403cf},
+	{DMCU_SDRAM_TIMING2, ALLBITS, 0x64660404},
+	{DMCU_SDRAM_TIMING3, ALLBITS, 0xc2004453},
+	{DMCU_SDRAM_TIMING4, ALLBITS, 0x34f8a187},
+	{DMCU_SDRAM_TIMING5, ALLBITS, 0x000f2121},
+	{DMCU_SDRAM_TIMING6, ALLBITS, 0x04040200},
+	{DMCU_SDRAM_TIMING7, ALLBITS, 0x00005501},
+};
+#else
+static struct ddr_config ddr3_400mhz[] = {
+	{DMCU_SDRAM_TIMING1, ALLBITS, 0x911b00cb},
+	{DMCU_SDRAM_TIMING2, ALLBITS, 0x748803b4},
+	{DMCU_SDRAM_TIMING3, ALLBITS, 0xc208406c},
+	{DMCU_SDRAM_TIMING4, ALLBITS, 0x4698da09},
+	{DMCU_SDRAM_TIMING5, ALLBITS, 0x00140181},
+	{DMCU_SDRAM_TIMING6, ALLBITS, 0x04040200},
+	{DMCU_SDRAM_TIMING7, ALLBITS, 0x00005501},
+};
+#endif
+
+static struct ddr_config ddr3_533mhz[] = {
+	{DMCU_SDRAM_TIMING1, ALLBITS, 0x911b03cf},
+	{DMCU_SDRAM_TIMING2, ALLBITS, 0x74780564},
+	{DMCU_SDRAM_TIMING3, ALLBITS, 0xc2005b6c},
+	{DMCU_SDRAM_TIMING4, ALLBITS, 0x3698da09},
+	{DMCU_SDRAM_TIMING5, ALLBITS, 0x00142181},
+	{DMCU_SDRAM_TIMING6, ALLBITS, 0x04040200},
+	{DMCU_SDRAM_TIMING7, ALLBITS, 0x00006601},
+};
+
+static struct ddr_config ddr3_667mhz[] = {
+	{DMCU_SDRAM_TIMING1, ALLBITS, 0x99a103cf},
+	{DMCU_SDRAM_TIMING2, ALLBITS, 0x969b06b4},
+	{DMCU_SDRAM_TIMING3, ALLBITS, 0xc200728d},
+	{DMCU_SDRAM_TIMING4, ALLBITS, 0x48390e8c},
+	{DMCU_SDRAM_TIMING5, ALLBITS, 0x001921f1},
+	{DMCU_SDRAM_TIMING6, ALLBITS, 0x04040200},
+	{DMCU_SDRAM_TIMING7, ALLBITS, 0x00007701},
+};
+
+static struct ddr_config ddr3_phy[] = {
+	{DMCU_PHY_CTRL3, ALLBITS, 0x20004044},
+	{DMCU_PHY_DQ_BYTE_SEL, ALLBITS, 0x00000000},
+	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00002100},
+	{DMCU_PHY_DQ_BYTE_SEL, ALLBITS, 0x00000001},
+	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00002100},
+	{DMCU_PHY_DQ_BYTE_SEL, ALLBITS, 0x00000002},
+	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00002100},
+	{DMCU_PHY_DQ_BYTE_SEL, ALLBITS, 0x00000003},
+	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00002100},
+};
+
+static struct ddr_config ddr3_phyhi[] = {
+	{DMCU_PHY_CTRL3, ALLBITS, 0x20004044},
+	{DMCU_PHY_DQ_BYTE_SEL, ALLBITS, 0x00000000},
+	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00001080},
+	{DMCU_PHY_DQ_BYTE_SEL, ALLBITS, 0x00000001},
+	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00001080},
+	{DMCU_PHY_DQ_BYTE_SEL, ALLBITS, 0x00000002},
+	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00001080},
+	{DMCU_PHY_DQ_BYTE_SEL, ALLBITS, 0x00000003},
+	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00001080},
+};
+
+static struct ddr_config lpddr2_400mhz[] = {
+	{DMCU_SDRAM_TIMING1, ALLBITS, 0x4cda00c5},
+	{DMCU_SDRAM_TIMING2, ALLBITS, 0x94860342},
+	{DMCU_SDRAM_TIMING3, ALLBITS, 0x2000381b},
+	{DMCU_SDRAM_TIMING4, ALLBITS, 0x3023009d},
+	{DMCU_SDRAM_TIMING5, ALLBITS, 0x20110142},
+	{DMCU_SDRAM_TIMING6, ALLBITS, 0x02424190},
+};
+
+static struct ddr_config lpddr2_phy[] = {
+	{DMCU_PHY_CTRL3, ALLBITS, 0x20004444},
+	{DMCU_PHY_DQ_BYTE_SEL, ALLBITS, 0x00000000},
+	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00002100},
+	{DMCU_PHY_DQ_BYTE_SEL, ALLBITS, 0x00000001},
+	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00002100},
+	{DMCU_PHY_DQ_BYTE_SEL, ALLBITS, 0x00000002},
+	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00002100},
+	{DMCU_PHY_DQ_BYTE_SEL, ALLBITS, 0x00000003},
+	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00002100},
+};
+
+static void mmp3_udpate_ddr_parameter_table(struct mmp3_pmu *pmu,
+						struct mmp3_freq_plan *pl)
+{
+	u32 *base;
+	u32 type, index, bit, tmpval, l2h;
+	struct ddrdfc_param param;
+
+	mmp3_freq_plan_cal(pmu, pl);
+	bit = 4;
+	for (index = 0; index < 2; index++) {
+		base = pmu->dmcu[index];
+		bit += index * 2;
+
+		param.oldkhz = pmu->pl_curr.khz[MMP3_CLK_DDR_1 + index];
+		param.newkhz = pl->khz[MMP3_CLK_DDR_1 + index];
+		if (param.oldkhz < param.newkhz)
+			l2h = 1;
+		else
+			l2h = 0;
+
+		type = __raw_readl(FIXADDR(base, DMCU_SDRAM_CTRL4))
+						& DMCU_SDRAM_TYPE_MASK;
+		tmpval = __raw_readl(pmu->mc_slp_req) & ~(3u << bit);
+		switch (type) {
+		case DMCU_SDRAM_TYPE_DDR3:
+			if (param.newkhz < 125000)
+				param.newcas = 0x0008400;
+			else
+				param.newcas = 0x0008800;
+			if (param.newkhz <= 400000) {
+				param.newtiming = ddr3_400mhz;
+				param.newtiming_cnt = ARRAY_SIZE(ddr3_400mhz);
+				param.phytuning = ddr3_phy;
+				param.phytuning_cnt = ARRAY_SIZE(ddr3_phy);
+			} else if (param.newkhz <= 533000) {
+				param.newtiming = ddr3_533mhz;
+				param.newtiming_cnt = ARRAY_SIZE(ddr3_533mhz);
+				param.phytuning = ddr3_phy;
+				param.phytuning_cnt = ARRAY_SIZE(ddr3_phy);
+			} else {
+				param.newtiming = ddr3_667mhz;
+				param.newtiming_cnt = ARRAY_SIZE(ddr3_667mhz);
+				param.phytuning = ddr3_phyhi;
+				param.phytuning_cnt = ARRAY_SIZE(ddr3_phyhi);
+			}
+			if (l2h) {
+				tmpval |=  (3u << bit);
+				UPDATE_REG(tmpval, pmu->mc_slp_req);
+				mmp3_ddrhwt_ddr3_l2h(base, &param);
+			} else {
+				tmpval |=  (2u << bit);
+				UPDATE_REG(tmpval, pmu->mc_slp_req);
+				mmp3_ddrhwt_ddr3_h2l(base, &param);
+			}
+			break;
+		case DMCU_SDRAM_TYPE_LPDDR2:
+			param.newcas = 0x0008000;
+			param.newtiming = lpddr2_400mhz;
+			param.newtiming_cnt = ARRAY_SIZE(lpddr2_400mhz);
+			param.phytuning = lpddr2_phy;
+			param.phytuning_cnt = ARRAY_SIZE(lpddr2_phy);
+			if (l2h) {
+				tmpval |= (1u << bit);
+				UPDATE_REG(tmpval, pmu->mc_slp_req);
+				mmp3_ddrhwt_lpddr2_l2h(base, &param);
+			} else {
+				tmpval |= (0u << bit);
+				UPDATE_REG(tmpval, pmu->mc_slp_req);
+				mmp3_ddrhwt_lpddr2_h2l(base, &param);
+			}
+			break;
+		default:
+			pr_err("<PM> unsupported DDR type in DFC\n");
+			break;
+		}
+	}
+}
+
+#define WFINOP_WFENOP ((1u << 24) | (1u << 13))
+static void mmp3_disable_idle(void *p)
+{
+	register unsigned long regval;
+	__asm__ __volatile__ ("mrc p15, 1, %0, c15, c1, 1" : "=r" (regval));
+	regval |= WFINOP_WFENOP;
+	__asm__ __volatile__ ("mcr p15, 1, %0, c15, c1, 1" : : "r" (regval));
+}
+
+static void mmp3_enable_idle(void *p)
+{
+	register unsigned long regval;
+	__asm__ __volatile__ ("mrc p15, 1, %0, c15, c1, 1" : "=r" (regval));
+	regval &= ~WFINOP_WFENOP;
+	__asm__ __volatile__ ("mcr p15, 1, %0, c15, c1, 1" : : "r" (regval));
+}
+
+static void mmp3_smp_notify_dfc(int stat)
+{
+	struct cpumask mask;
+
+	/*
+	 * A0 need to all cores run, we implement this by set IPI broadcase
+	 * and use WFIasNOP and WFEasNOP, to control idle behavior on each
+	 * core
+	 */
+	cpumask_setall(&mask);
+
+	if (stat == MMP3_FREQCH_START) {
+		mmp3_disable_idle(NULL);
+		smp_call_function_many(&mask, mmp3_disable_idle, NULL, 1);
+	} else {
+		smp_call_function_many(&mask, mmp3_enable_idle, NULL, 1);
+		mmp3_enable_idle(NULL);
+	}
+}
+
+static inline u32 cyc2us(u32 cycle)
+{
+	return (cycle >> 2) + (cycle >> 5) + (cycle >> 6)
+		+ (cycle >> 7) + (cycle >> 9) + (cycle >> 10);
+}
+
+static inline u32 read_timestamp(void)
+{
+	unsigned long r1, r2;
+	__asm__ __volatile__ ("mrrc p15, 0, %0, %1, c14"
+		: "=r" (r1), "=r" (r2) : : "cc");
+	return r1;
+}
+
+static u32 mmp3_prepare_freqch(struct mmp3_pmu *pmu,
+	struct mmp3_freq_plan *pl, union trace_dfc_log *logentry)
+{
+	u32 change, retry;
+	struct mmp3_freq_plan curpl;
 
 	/* obtain FC onwership, should always pass */
 	retry = 1000;
 	while ((__raw_readl(pmu->dm_cc) & (1u << 24)) != 0) {
 		retry--;
 		if (retry <= 0) {
-			spin_unlock_irqrestore(&(pmu->mmp3_fc_spin), flags);
 			pr_err("<PM> Cannot gain owner of PMU DFC\n");
-			return;
+			return 0;
 		}
 	}
-
-	__raw_writel(1, pmu->swstat);
 
 	/* now get old configuration to see if change is necessary */
 	memcpy(&curpl, pl, sizeof(curpl));
 	mmp3_get_freq_plan(pmu, &curpl, false);
 
-	logentry.marker = 0;
-	same = 0;
+	logentry->marker = 0;
 	change = 0;
 	pmu->pl_curr.core.op = MMP3_FREQ_OP_GET;
 	pmu->pl_curr.dram.op = MMP3_FREQ_OP_GET;
@@ -518,8 +1144,9 @@ static void mmp3_do_freqch_loose(struct mmp3_pmu *pmu,
 		if (pl->core.op == MMP3_FREQ_OP_UPDATE) {
 			pmu->pl_curr.core.op = MMP3_FREQ_OP_SHOW;
 			change |= MMP3_FREQCH_CORE;
-			logentry.marker |= TRACE_DFC_MARKER_CORE;
-			logentry.pp_core = (unsigned char) pmu->pp_curr;
+			logentry->marker |= TRACE_DFC_MARKER_CORE;
+			logentry->pp_core = (unsigned char) pmu->pp_curr;
+			pmu->trigge_stat[MMP3_CLK_MP1]++;
 		} else
 			pl->core.val = curpl.core.val;
 	}
@@ -527,17 +1154,24 @@ static void mmp3_do_freqch_loose(struct mmp3_pmu *pmu,
 		if (pl->axi.op == MMP3_FREQ_OP_UPDATE) {
 			pmu->pl_curr.axi.op = MMP3_FREQ_OP_SHOW;
 			change |= MMP3_FREQCH_AXI;
-			logentry.marker |= TRACE_DFC_MARKER_AXI;
-			logentry.pp_axi = (unsigned char) pmu->pp_curr;
+			logentry->marker |= TRACE_DFC_MARKER_AXI;
+			logentry->pp_axi = (unsigned char) pmu->pp_curr;
+			pmu->trigge_stat[MMP3_CLK_AXI_1]++;
 		} else
 			pl->axi.val = curpl.axi.val;
 	}
 	if (curpl.dram.val != pl->dram.val) {
 		if (pl->dram.op == MMP3_FREQ_OP_UPDATE) {
 			pmu->pl_curr.dram.op = MMP3_FREQ_OP_SHOW;
-			change |= MMP3_FREQCH_DRAM;
-			logentry.marker |= TRACE_DFC_MARKER_DRAM;
-			logentry.pp_dram = (unsigned char) pmu->pp_curr;
+			/*
+			 * Ax Workaround to do PJ DFC with DDR DFC to
+			 * avoid incorrect update of MM/ACLK divider update
+			 * by DDR DFC.
+			 */
+			change |= MMP3_FREQCH_CORE | pmu->ddrdfc_trigger;
+			logentry->marker |= TRACE_DFC_MARKER_DRAM;
+			logentry->pp_dram = (unsigned char) pmu->pp_curr;
+			pmu->trigge_stat[MMP3_CLK_DDR_1]++;
 		} else
 			pl->dram.val = curpl.dram.val;
 	}
@@ -545,54 +1179,174 @@ static void mmp3_do_freqch_loose(struct mmp3_pmu *pmu,
 	if (change != 0) {
 		/* change required */
 		mmp3_update_freq_plan(pmu, pl);
-		val = __raw_readl(pmu->cc);
-		val = MMP3_PROTECT_CC(val); /* set reserved */
-		val = val | change | (MMP3_FREQCH_VOLTING);
-		if (val & MMP3_FREQCH_DRAM) {
-			/* DDR change, need to program DLL update sequence*/
+
+		/* Update DDR register table*/
+		if (change & MMP3_FREQCH_DRAM)
 			mmp3_udpate_ddr_parameter_table(pmu, pl);
-		}
-
-		/* A0 need to all cores run, we use coherent broadcasts*/
-		dsb();
-
-		/* trigger change*/
-		__raw_writel(val, pmu->cc);
-		/* done, PJ_RD_STATUS should have been cleared by HW*/
-
-		/* now read back current frequency settings, for query*/
-		mmp3_get_freq_plan(pmu, &pmu->pl_curr, true);
-
-		same = mmp3_compare_freq_plan(&pmu->pl_curr, pl);
-
-		if (same != 0)
-			logentry.marker |= TRACE_DFC_MARKER_ERR;
-
-		trace_dfc(&logentry);
 
 	} else {
 		/* no change, need to clear PJ_RD_STATUS */
 		mmp3_clear_PJ_RD_STATUS(pmu);
 	}
 
-	__raw_writel(0, pmu->swstat);
+	return change;
+}
+
+
+static void mmp3_dfc_trigger(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
+	union trace_dfc_log *logentry, u32 change, u32 *time, u32*same)
+{
+	unsigned long flags;
+	u32 val, samex, timex;
+
+	if (change == 0)
+		return;
+
+	/* compose trigger val */
+	val = __raw_readl(pmu->cc);
+	val = MMP3_PROTECT_CC(val); /* set reserved */
+	val = val | change | (MMP3_FREQCH_VOLTING);
+
+	spin_lock_irqsave(&(pmu->mmp3_fc_spin), flags);
+	timex = read_timestamp();
+
+	dsb();
+	/* trigger change*/
+	__raw_writel(val, pmu->cc);
+
+	timex = read_timestamp() - timex;
 	spin_unlock_irqrestore(&(pmu->mmp3_fc_spin), flags);
 
-	if (change != 0) {
-		if (same != 0) {
-			/* usually should not be here, log a message here */
-			pr_err("<PM> DFC result is not the requested one\n");
-			mmp3_freq_plan_print_info(pmu, &pmu->pl_curr);
-		} else
-			mmp3_freq_plan_print_dbg(pmu, &pmu->pl_curr);
+	/* done, PJ_RD_STATUS should have been cleared by HW*/
+
+	/* now read back current frequency settings, for query*/
+	mmp3_get_freq_plan(pmu, &pmu->pl_curr, true);
+
+	samex = mmp3_compare_freq_plan(&pmu->pl_curr, pl);
+
+	if (samex != 0)
+		logentry->marker |= TRACE_DFC_MARKER_ERR;
+
+	trace_dfc(logentry);
+
+	if (time != NULL)
+		*time = timex;
+	if (same != NULL)
+		*same = samex;
+
+	/* done, PJ_RD_STATUS should have been cleared by HW*/
+}
+
+static void mmp3_dfc_postchange(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
+	union trace_dfc_log *logentry, u32 time, u32 same)
+{
+	if (same != 0) {
+		/* usually should not be here, log a message here */
+		pr_err("<PM> DFC result is not the requested one\n");
+		mmp3_freq_plan_print_info(pmu, &pmu->pl_curr, time);
+	} else {
+		mmp3_freq_plan_print_dbg(pmu, &pmu->pl_curr, time);
 	}
 }
 
-static int mmp3_pp_find_bound(struct mmp3_pmu *pmu, int id, u32 mhz)
+struct dfc_schedule {
+	void (*trigger)(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
+			union trace_dfc_log *logentry, u32 change,
+			u32 *time, u32 *same);
+	struct mmp3_pmu *pmu;
+	struct mmp3_freq_plan *pl;
+	union trace_dfc_log *logentry;
+	u32 change;
+	u32 time;
+	u32 same;
+	struct completion comp;
+};
+
+static struct dfc_schedule *dfcsch;
+static int dfcsch_active;
+static DEFINE_SPINLOCK(dfcsch_lock);
+static void __maybe_unused trigger_scheduler(u32 flag)
+{
+	unsigned long savedflags;
+
+	spin_lock_irqsave(&dfcsch_lock, savedflags);
+	if (flag == 0x80000000)
+		dfcsch_active = 0;
+	else
+		dfcsch_active = 1;
+
+	if (dfcsch != NULL) {
+		dfcsch->trigger(dfcsch->pmu, dfcsch->pl, dfcsch->logentry,
+				dfcsch->change, &dfcsch->time, &dfcsch->same);
+		complete(&dfcsch->comp);
+		dfcsch = NULL;
+	}
+	spin_unlock_irqrestore(&dfcsch_lock, savedflags);
+}
+
+static void mmp3_schedule_freqch_loose(struct mmp3_pmu *pmu,
+			struct mmp3_freq_plan *pl)
+{
+	unsigned long savedflags;
+	union trace_dfc_log logentry;
+	u32 change, time, same;
+
+	change = mmp3_prepare_freqch(pmu, pl, &logentry);
+	if (change == 0)
+		return;
+
+	time = 0;
+	same = 0;
+	__raw_writel(1, pmu->swstat);
+	mmp3_smp_notify_dfc(MMP3_FREQCH_START);
+
+	spin_lock_irqsave(&dfcsch_lock, savedflags);
+	if (dfcsch_active && (pl->dram.op == MMP3_FREQ_OP_UPDATE)) {
+		struct dfc_schedule sch;
+		int ret;
+		sch.trigger = mmp3_dfc_trigger;
+		sch.pmu = pmu;
+		sch.pl = pl;
+		sch.logentry = &logentry;
+		sch.change = change;
+		sch.time = 0;
+		sch.same = 0;
+		init_completion(&sch.comp);
+		dfcsch = &sch;
+		spin_unlock_irqrestore(&dfcsch_lock, savedflags);
+		ret = wait_for_completion_timeout(&sch.comp,
+						msecs_to_jiffies(500));
+		time = sch.time;
+		same = sch.same;
+		if (ret <= 0) {
+			/* timeout, which indicates that the trigger
+			 * is not triggering any more
+			 */
+			spin_lock_irqsave(&dfcsch_lock, savedflags);
+			if (dfcsch != NULL) {
+				dfcsch_active = 0;
+				dfcsch = NULL;
+				mmp3_dfc_trigger(pmu, pl, &logentry,
+							change, &time, &same);
+			}
+			spin_unlock_irqrestore(&dfcsch_lock, savedflags);
+		}
+	} else {
+		mmp3_dfc_trigger(pmu, pl, &logentry, change, &time, &same);
+		spin_unlock_irqrestore(&dfcsch_lock, savedflags);
+	}
+
+	mmp3_dfc_postchange(pmu, pl, &logentry, time, same);
+
+	__raw_writel(0, pmu->swstat);
+	mmp3_smp_notify_dfc(MMP3_FREQCH_COMPLETE);
+}
+
+static int mmp3_pp_find_bound(struct mmp3_pmu *pmu, int id, u32 khz)
 {
 	int i;
 	for (i = 0; i < pmu->ppscnt; i++) {
-		if (pmu->pps[i].mhz[id] >= mhz)
+		if (pmu->pps[i].khz[id] >= khz)
 			return i;
 	}
 	return -1;
@@ -614,12 +1368,12 @@ static int mmp3_find_lowbar(struct mmp3_pmu *pmu, int start, int end)
  * satisfy the request from core, ddr and axi.
  * Lowbar means the low point of PP that meets everyone's reqirement
  */
-static void mmp3_clk_setrate_lowbar(struct mmp3_pmu *pmu, int id, u32 mhz)
+static void mmp3_clk_setrate_lowbar(struct mmp3_pmu *pmu, int id, u32 khz)
 {
 	struct mmp3_freq_plan pl;
 	int ppidx;
 
-	ppidx = mmp3_pp_find_bound(pmu, id, mhz);
+	ppidx = mmp3_pp_find_bound(pmu, id, khz);
 	if (ppidx < 0)
 		return;
 
@@ -637,7 +1391,7 @@ static void mmp3_clk_setrate_lowbar(struct mmp3_pmu *pmu, int id, u32 mhz)
 		pl.core.op = MMP3_FREQ_OP_UPDATE;
 		pl.dram.op = MMP3_FREQ_OP_UPDATE;
 		pl.axi.op = MMP3_FREQ_OP_UPDATE;
-		mmp3_do_freqch_loose(pmu, &pl);
+		mmp3_schedule_freqch_loose(pmu, &pl);
 	}
 	mutex_unlock(&(pmu->mmp3_fc_lock));
 }
@@ -649,12 +1403,12 @@ static void mmp3_clk_setrate_lowbar(struct mmp3_pmu *pmu, int id, u32 mhz)
  * CPU clock, the choose from the part of the PP table of the lowest one
  * that can meets every core's requirements.
  */
-static void mmp3_clk_setrate_localized(struct mmp3_pmu *pmu, int id, u32 mhz)
+static void mmp3_clk_setrate_localized(struct mmp3_pmu *pmu, int id, u32 khz)
 {
 	struct mmp3_freq_plan pl;
 	int ppidx;
 
-	ppidx = mmp3_pp_find_bound(pmu, id, mhz);
+	ppidx = mmp3_pp_find_bound(pmu, id, khz);
 	if (ppidx < 0)
 		return;
 
@@ -680,7 +1434,7 @@ static void mmp3_clk_setrate_localized(struct mmp3_pmu *pmu, int id, u32 mhz)
 		memcpy(&pl, &pmu->pps[ppidx], sizeof(pl));
 		pl.axi.op = MMP3_FREQ_OP_UPDATE;
 	}
-	mmp3_do_freqch_loose(pmu, &pl);
+	mmp3_schedule_freqch_loose(pmu, &pl);
 	mutex_unlock(&(pmu->mmp3_fc_lock));
 }
 
@@ -701,7 +1455,7 @@ void mmp3_apply_pp(int ppidx)
 		pl.dram.op = MMP3_FREQ_OP_UPDATE;
 		pl.axi.op = MMP3_FREQ_OP_UPDATE;
 		mutex_lock(&(pmu->mmp3_fc_lock));
-		mmp3_do_freqch_loose(pmu, &pl);
+		mmp3_schedule_freqch_loose(pmu, &pl);
 		mutex_unlock(&(pmu->mmp3_fc_lock));
 	}
 }
@@ -710,11 +1464,9 @@ EXPORT_SYMBOL_GPL(mmp3_apply_pp);
 void mmp3_setfreq(int clkid, unsigned long khz)
 {
 	struct mmp3_pmu *pmu = &mmp3_pmu_config;
-	if (clkid < ARRAY_SIZE(pmu->pps[0].mhz)) {
-		if (pmu->setrate) {
-			/* internal interface use mhz, need to covert */
-			pmu->setrate(pmu, clkid, khz / 1000);
-		}
+	if (clkid < ARRAY_SIZE(pmu->pps[0].khz)) {
+		if (pmu->setrate)
+			pmu->setrate(pmu, clkid, khz);
 	}
 }
 EXPORT_SYMBOL_GPL(mmp3_setfreq);
@@ -722,10 +1474,8 @@ EXPORT_SYMBOL_GPL(mmp3_setfreq);
 unsigned long mmp3_getfreq(int clkid)
 {
 	struct mmp3_pmu *pmu = &mmp3_pmu_config;
-	if (clkid < ARRAY_SIZE(pmu->pps[0].mhz)) {
-		/* internal use mhz while interface is khz */
-		return pmu->pl_curr.mhz[clkid] * 1000;
-	}
+	if (clkid < ARRAY_SIZE(pmu->pps[0].khz))
+		return pmu->pl_curr.khz[clkid];
 	return 0;
 }
 EXPORT_SYMBOL_GPL(mmp3_getfreq);
@@ -741,9 +1491,9 @@ unsigned long mmp3_get_pp_freq(int ppidx, int clkid)
 {
 	struct mmp3_pmu *pmu = &mmp3_pmu_config;
 	if ((ppidx >= pmu->ppscnt) ||
-		(clkid >= ARRAY_SIZE(pmu->pps[ppidx].mhz)))
+		(clkid >= ARRAY_SIZE(pmu->pps[ppidx].khz)))
 		return 0;
-	return pmu->pps[ppidx].mhz[clkid] * 1000;
+	return pmu->pps[ppidx].khz[clkid];
 }
 EXPORT_SYMBOL_GPL(mmp3_get_pp_freq);
 
@@ -770,12 +1520,14 @@ void mmp3_pm_enter_idle(int cpu)
 
 	cic = &(mmp3_percpu[mmp3_smpid()].cic);
 
+	mmp3_mod_idle_config(cic, state);
+	/* no DFC in process*/
+	trace_idle_entry(state);
+
+	/* Still need to check DFC flag for case where IPI call will not
+	 * be processed, for example hotplug.
+	 */
 	if (likely(__raw_readl(cic->freq_status) == 0)) {
-
-		mmp3_mod_idle_config(cic, state);
-		/* no DFC in process*/
-		trace_idle_entry(state);
-
 #if defined(CONFIG_SMP) && defined(MMP3_IDLE_CHECK_DVM_EVENTS)
 		while (1) {
 			__asm__ __volatile__ ("wfi");
@@ -791,8 +1543,9 @@ void mmp3_pm_enter_idle(int cpu)
 #else
 		arch_idle();
 #endif
-		trace_idle_exit(__raw_readl(cic->wake_status));
 	}
+
+	trace_idle_exit(__raw_readl(cic->wake_status));
 }
 
 
@@ -805,7 +1558,8 @@ static void mmp3_do_idle(void)
 
 static int __init mmp3_pm_init(void)
 {
-	int i;
+	int i, j;
+	u32 ddrt;
 	struct mmp3_pmu *pmu = &mmp3_pmu_config;
 
 	pmu->swstat_store = 0;
@@ -815,10 +1569,42 @@ static int __init mmp3_pm_init(void)
 
 	pm_idle = mmp3_do_idle;
 
-	/* TODO: fix DDR settings according to DDR module */
+	/* vote SPSD*/
+	__raw_writel(__raw_readl(MPMU_APCR) | (1u << 28), MPMU_APCR);
+
+	/* fix DDR settings according to DDR module */
+	ddrt = __raw_readl(FIXADDR(pmu->dmcu[0], DMCU_SDRAM_CTRL4))
+					& DMCU_SDRAM_TYPE_MASK;
+	if (ddrt == DMCU_SDRAM_TYPE_DDR3) {
+		mmp3_pps[MMP3_PP_100].dram.dsrc = 1;
+		mmp3_pps[MMP3_PP_200].dram.dsrc = 1;
+		mmp3_pps[MMP3_PP_400].dram.dsrc = 1;
+		mmp3_pps[MMP3_PP_800].dram.dsrc = 3;
+		mmp3_pps[MMP3_PP_1066].dram.dsrc = 3;
+	}
+
+	if ((__raw_readl(pmu->mc_interleave) & (0x3f << 16)) == 0) {
+#if MMP3_TEST_PP
+		mmp3_pps[MMP3_PP_26].dram.ch2_d = 0;
+#endif
+		pmu->ddrdfc_trigger = MMP3_FREQCH_DRAM_CH1;
+	} else {
+		pmu->ddrdfc_trigger = MMP3_FREQCH_DRAM;
+	}
 
 	for (i = 0; i < pmu->ppscnt; i++)
 		mmp3_freq_plan_cal(pmu, &(pmu->pps[i]));
+
+	/* process same speed, assume khz goes up only and real diff is big */
+	for (j = 0; j < ARRAY_SIZE(pmu->pps[0].khz); j++) {
+		u32 curkhz = pmu->pps[0].khz[j];
+		for (i = 1; i < pmu->ppscnt; i++) {
+			if (curkhz == pmu->pps[i].khz[j])
+				pmu->pps[i].khz[j] += i;
+			else
+				curkhz = pmu->pps[i].khz[j];
+		}
+	}
 
 	if (0)
 		pmu->setrate = mmp3_clk_setrate_lowbar;
@@ -829,7 +1615,10 @@ static int __init mmp3_pm_init(void)
 	pmu->pl_curr.core.op = MMP3_FREQ_OP_SHOW;
 	pmu->pl_curr.dram.op = MMP3_FREQ_OP_SHOW;
 	pmu->pl_curr.axi.op = MMP3_FREQ_OP_SHOW;
-	mmp3_freq_plan_print_info(pmu, &pmu->pl_curr);
+	mmp3_freq_plan_print_info(pmu, &pmu->pl_curr, 0);
+
+	dfcsch = NULL;
+	dfcsch_active = 0;
 
 	return 0;
 }
