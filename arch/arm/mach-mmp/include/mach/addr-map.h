@@ -42,6 +42,10 @@
 #define SL2C_PHYS_BASE		0xd0020000
 #define SL2C_VIRT_BASE		0xfe800000
 #define SL2C_PHYS_SIZE		SZ_8K
+
+#define TZ_HV_PHYS_BASE		0x00000000
+#define TZ_HV_VIRT_BASE		0xfe900000
+#define TZ_HV_PHYS_SIZE		SZ_1M
 #endif
 
 /* Static Memory Controller - Chip Select 0 and 1 */

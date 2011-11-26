@@ -76,6 +76,11 @@ static struct map_desc standard_io_desc[] __initdata = {
 		.virtual        = AUD_VIRT_BASE2,
 		.length         = AUD_PHYS_SIZE2,
 		.type           = MT_DEVICE,
+	}, {
+		.pfn            = __phys_to_pfn(TZ_HV_PHYS_BASE),
+		.virtual        = TZ_HV_VIRT_BASE,
+		.length         = TZ_HV_PHYS_SIZE,
+		.type           = MT_MEMORY_NONCACHED,
 #endif
 	},
 };
