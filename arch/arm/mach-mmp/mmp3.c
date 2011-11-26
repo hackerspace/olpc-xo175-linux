@@ -98,10 +98,14 @@ static struct mfp_addr_map mmp3_addr_map[] __initdata = {
 void __init mmp3_reserve(void)
 {
 	/*
-	 * reserve first page for uboot bootstrap.
-	 * otherwise unused core may run unpredictable instruction.
+	 * reserve first page for uboot bootstrap, otherwise
+	 * unused core may run unpredictable instruction.
+	 *
+	 * NOTE: if enabled hypervisor code, then need reserve
+	 * the first 4KB from the address PLAT_PHYS_OFFSET.
 	 */
-	BUG_ON(memblock_reserve(0x0, 0x1000));
+	BUG_ON(memblock_reserve(PLAT_PHYS_OFFSET, 0x1000));
+
 	/*reserve memory for pmem*/
 	pxa_reserve_pmem_memblock();
 }
