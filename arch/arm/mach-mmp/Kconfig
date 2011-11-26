@@ -123,9 +123,15 @@ config SOC_LOCAL_TIMERS
 	help
 		use SOC timers as local timers
 
+config TZ_HYPERVISOR
+	bool
+	help
+		use hypervisor code
+
 config CORE_MORPHING
 	bool "Enable core morphing"
 	depends on CPU_MMP3
+	select TZ_HYPERVISOR
 	help
 	  Say 'Y' here if you want to enable Marvell MMP core morphing.
 
