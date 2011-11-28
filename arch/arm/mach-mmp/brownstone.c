@@ -693,9 +693,11 @@ static void __init brownstone_fixed_regulator(void)
 
 #ifdef CONFIG_USB_SUPPORT
 #if defined(CONFIG_USB_PXA_U2O) || defined(CONFIG_USB_EHCI_PXA_U2O)
+static struct regulator *otg_vbus_5vp;
 static int brownstone_set_vbus(unsigned int enable)
 {
 	int vbus_en = mfp_to_gpio(MFP_PIN_GPIO82);
+	static int enabled;
 	int ret = 0;
 
 	enable = !!enable;
@@ -707,6 +709,23 @@ static int brownstone_set_vbus(unsigned int enable)
 	/* VBUS Switch */
 	gpio_direction_output(vbus_en, enable);
 	gpio_free(vbus_en);
+
+	if (enabled == enable)
+		return 0;
+	enabled = enable;
+	/* Enable 5vp to power OTG vbus switch */
+	if (!otg_vbus_5vp) {
+		otg_vbus_5vp = regulator_get(NULL, "v_5vp");
+		if (IS_ERR(otg_vbus_5vp)) {
+			otg_vbus_5vp = NULL;
+			pr_err("%s:Failed to get v_5vp!\n", __func__);
+			return -ENODEV;
+		}
+	}
+	if (enable)
+		regulator_enable(otg_vbus_5vp);
+	else
+		regulator_disable(otg_vbus_5vp);
 	mdelay(10);
 
 	return 0;
