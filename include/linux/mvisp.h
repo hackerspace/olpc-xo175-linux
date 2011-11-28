@@ -38,9 +38,15 @@ struct v4l2_dxoipc_set_fb {
 	int		flush_fifo_by_timer;
 };
 
+struct v4l2_ispdma_timeinfo {
+	long	sec;
+	long	usec;
+	long	delta;
+};
+
 struct v4l2_dxoipc_ipcwait {
 	int				timeout;
-	unsigned int	tick;
+	struct v4l2_ispdma_timeinfo tickinfo;
 };
 
 struct v4l2_dxoipc_streaming_config {
@@ -112,5 +118,7 @@ struct v4l2_ispdma_reset {
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 8, struct v4l2_ispdma_capture_mode)
 #define VIDIOC_PRIVATE_ISPDMA_RESET \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 9, struct v4l2_ispdma_reset)
+#define VIDIOC_PRIVATE_ISPDMA_GETDELTA \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 10, struct v4l2_ispdma_timeinfo)
 
 #endif	/* ISP_USER_H */

@@ -181,6 +181,27 @@ static void ispdma_reg_dump(struct isp_ispdma_device *ispdma)
 	return;
 }
 
+static int ispdma_getdelta(struct v4l2_ispdma_timeinfo *param)
+{
+	struct timeval tv_tick;
+	long total_secs, total_usecs;
+
+	do_gettimeofday(&tv_tick);
+
+	if ((param->sec != 0) || (param->usec != 0)) {
+		total_secs = tv_tick.tv_sec - param->sec;
+		if (total_secs > 10 || total_secs < 0)
+			return -EINVAL;
+		total_usecs = tv_tick.tv_usec - param->usec;
+		param->delta = total_secs * 1000000 + total_usecs;
+	} else
+		param->delta = 0;
+
+	param->sec = tv_tick.tv_sec;
+	param->usec = tv_tick.tv_usec;
+
+	return 0;
+}
 
 static int ispdma_wait_ipc(struct isp_ispdma_device *ispdma,
 		struct v4l2_dxoipc_ipcwait *ipc_wait)
@@ -204,7 +225,9 @@ static int ispdma_wait_ipc(struct isp_ispdma_device *ispdma,
 	}
 
 	INIT_COMPLETION(ispdma->ipc_event);
-	ipc_wait->tick = 0;
+	ipc_wait->tickinfo.sec = 0;
+	ipc_wait->tickinfo.usec = 0;
+	ispdma_getdelta(&ipc_wait->tickinfo);
 	spin_unlock_irqrestore(&ispdma->ipc_irq_lock, flags);
 
 	return ret;
@@ -1660,6 +1683,9 @@ static long ispdma_ioctl(struct v4l2_subdev *sd
 		} else
 			ret = -EINVAL;
 
+		break;
+	case VIDIOC_PRIVATE_ISPDMA_GETDELTA:
+		ret = ispdma_getdelta((struct v4l2_ispdma_timeinfo *) arg);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
