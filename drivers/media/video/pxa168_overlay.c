@@ -37,8 +37,7 @@
 
 #include <asm/processor.h>
 #include <mach/dma.h>
-#include <mach/pxa168fb.h>
-#include "../../video/pxa168fb.h"
+#include "../../video/pxa168fb_common.h"
 
 MODULE_AUTHOR("Jun Nie");
 MODULE_DESCRIPTION("PXA168 Video out driver");
@@ -122,8 +121,6 @@ struct pxa168_buf {
 	/* common v4l buffer stuff -- must be first */
 	struct vb2_buffer       vb;
 	struct list_head        list;
-	/* flag to mark buffer is needed to show in pn/tv overlays */
-	u32			to_show;
 };
 
 struct pxa168_overlay {
@@ -534,23 +531,6 @@ int pxa168vid_setup_overlay(struct pxa168_overlay *ovly, int posx, int posy,
 	return 0;
 }
 
-static int check_modex_active(int id, int on)
-{
-	int active = on;
-
-	/* mode2, base off, dual on */
-	if ((fb_mode == 2) && (id == fb_base))
-		active = 0;
-
-	/* mode3, dual off, base on */
-	if ((fb_mode == 3) && (id == fb_dual))
-		active = 0;
-
-	pr_debug("%s fb_mode %d fbi[%d] on %d active %d\n",
-		__func__, fb_mode, id, on, active);
-	return active;
-}
-
 /* Initialize the overlay structure */
 int pxa168vid_init(struct pxa168_overlay *ovly)
 {
@@ -561,7 +541,7 @@ int pxa168vid_init(struct pxa168_overlay *ovly)
 	struct v4l2_window *win;
 	struct v4l2_pix_format *pix;
 	struct pxa168fb_mach_info *mi;
-again:
+
 	pix = &ovly->pix;
 	mi = ovly->dev->platform_data;
 
@@ -632,12 +612,12 @@ again:
 		break;
 	}
 
-	if (ovly->hdmi3d && ovly->id == fb_dual)
+	if (ovly->hdmi3d && 1 == ovly->id)
 		reg |= CFG_DMA_FTOGGLE_MASK;
 	else
 		reg &= ~CFG_DMA_FTOGGLE_MASK;
 
-	if (check_modex_active(ovly->id, ovly->streaming))
+	if (ovly->streaming)
 		reg |= CFG_DMA_ENA_MASK;
 	else
 		reg &= ~CFG_DMA_ENA_MASK;
@@ -651,20 +631,6 @@ again:
 	posy = win->w.top;
 
 	ret = pxa168vid_setup_overlay(ovly, posx, posy, outw, outh);
-
-	if (OVLY_MODE_DUP) {
-		v4l2_ovly[fb_dual]->pix = *pix;
-		v4l2_ovly[fb_dual]->crop = ovly->crop;
-		v4l2_ovly[fb_dual]->hdmi3d = ovly->hdmi3d;
-		win = &v4l2_ovly[fb_dual]->win;
-		win->w.height = outh * gfx_info.yres_z / gfx_info.yres;
-		win->w.width = outw * gfx_info.xres_z / gfx_info.xres;
-		win->w.top = posy * gfx_info.yres_z / gfx_info.yres;
-		win->w.left = posx * gfx_info.xres_z / gfx_info.xres;
-		ovly = v4l2_ovly[fb_dual];
-		goto again;
-	}
-
 	if (ret)
 		goto err;
 
@@ -680,7 +646,7 @@ int pxa168vid_apply_changes(struct pxa168_overlay *ovly)
 	unsigned long addr_y0, addr_u0, addr_v0;
 	unsigned long addr_y1 = 0, addr_u1 = 0, addr_v1 = 0;
 	u32 bpp, offset;
-again:
+
 	regs = get_regs(ovly->id);
 	bpp = ovly->pix.bytesperline / ovly->pix.width;
 	offset = ovly->crop.top * ovly->ypitch + ovly->crop.left * bpp;
@@ -724,16 +690,6 @@ again:
 		ovly->update = 0;
 	}
 
-	if (OVLY_MODE_DUP) {
-		/* ???????????? give arry value ?????????? */
-		v4l2_ovly[fb_dual]->paddr[0] = ovly->paddr[0];
-		if (ovly->hdmi3d)
-			v4l2_ovly[fb_dual]->paddr[1] = ovly->paddr[1];
-
-		ovly = v4l2_ovly[fb_dual];
-		goto again;
-	}
-
 	return 0;
 }
 
@@ -744,7 +700,6 @@ int pxa168_ovly_set_colorkeyalpha(struct pxa168_overlay *ovly)
 	struct _sColorKeyNAlpha *color_a = &ovly->ckey_alpha;
 	struct lcd_regs *regs;
 
-again:
 	mi = ovly->dev->platform_data;
 	regs = get_regs(ovly->id);
 	shift = ovly->id ? 20 : 18;
@@ -850,10 +805,6 @@ again:
 		writel(x, ovly->reg_base + LCD_TV_CTRL1);
 	}
 
-	if (OVLY_MODE_DUP) {
-		ovly = v4l2_ovly[fb_dual];
-		goto again;
-	}
 	return 0;
 }
 
@@ -953,8 +904,6 @@ static void buffer_queue(struct vb2_buffer *vb)
 	 * queue */
 	spin_lock_irqsave(&ovly->vbq_lock, flags);
 	list_add_tail(&buf->list, &ovly->dma_queue);
-	buf->to_show = vid_imask(ovly->id)
-		& readl(ovly->reg_base + SPU_IRQ_ENA);
 	spin_unlock_irqrestore(&ovly->vbq_lock, flags);
 }
 
@@ -1430,16 +1379,10 @@ static int vidioc_s_crop(struct file *file, void *fh, struct v4l2_crop *crop)
 	/*if (crop->type == BUF_TYPE) {*/
 	if (1) {
 		spin_lock_irqsave(vbq_lock, flags);
-again:
 		err = pxa168_ovly_new_crop(&ovly->pix, &ovly->crop, &ovly->win,
 					   &ovly->fbuf, &crop->c);
 		if (!err)
 			ovly->update = 1;
-
-		if (OVLY_MODE_DUP) {
-			ovly = v4l2_ovly[fb_dual];
-			goto again;
-		}
 		spin_unlock_irqrestore(vbq_lock, flags);
 		mutex_unlock(ovly_lock);
 		return err;
@@ -1647,27 +1590,14 @@ static int vidioc_streamon(struct file *file, void *fh, enum v4l2_buf_type i)
 	if (ret)
 		printk(KERN_ERR VOUT_NAME "failed to change mode\n");
 
-again:
 	ovly->streaming = 1;
-	if (check_modex_active(ovly->id, ovly->streaming)) {
-		/* if already queued buffer before stream on,
-		 * here we should set these buffers flag to_show
-		 */
-		if (ovly->hdmi3d && (1 == ovly->id)) {
-			spin_unlock_irqrestore(vbq_lock, flags);
-			wait_for_vsync(registered_fb[1]->par);
-			hdmi_3d_sync_view();
-			spin_lock_irqsave(vbq_lock, flags);
-		}
-		dma_ctrl_set(ovly->id, 0, CFG_DMA_ENA_MASK, CFG_DMA_ENA_MASK);
+	if (ovly->hdmi3d && (1 == ovly->id)) {
+		spin_unlock_irqrestore(vbq_lock, flags);
+		wait_for_vsync(registered_fb[1]->par);
+		hdmi_3d_sync_view();
+		spin_lock_irqsave(vbq_lock, flags);
 	}
-
-	if (OVLY_MODE_DUP) {
-		ovly = v4l2_ovly[fb_dual];
-		v4l2_dbg(1, debug, ovly->vdev, "ovly %d enabled++ in dual "
-			"mode\n", ovly->id);
-		goto again;
-	}
+	dma_ctrl_set(ovly->id, 0, CFG_DMA_ENA_MASK, CFG_DMA_ENA_MASK);
 out:
 	spin_unlock_irqrestore(vbq_lock, flags);
 stream_on:
@@ -1690,14 +1620,11 @@ static int vidioc_streamoff(struct file *file, void *fh, enum v4l2_buf_type i)
 	mutex_lock(ovly_lock);
 	/* We have to hack in clone mode to avoid lock/unlock different ovly. */
 	vb2_streamoff(&ovly->vbq, i);
+
 	spin_lock_irqsave(vbq_lock, flags);
-again:
 	ovly->streaming = 0;
-	if (OVLY_MODE_DUP) {
-		ovly = v4l2_ovly[fb_dual];
-		goto again;
-	}
 	spin_unlock_irqrestore(vbq_lock, flags);
+
 	mutex_unlock(ovly_lock);
 	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: stream off!\n", ovly->id);
 	return 0;
@@ -1818,10 +1745,9 @@ static const struct v4l2_file_operations pxa168_ovly_fops = {
 	.release = pxa168_ovly_release,
 };
 
-irqreturn_t pxa168_ovly_isr(int id)
+irqreturn_t pxa168_v4l2_isr(int id)
 {
 	struct pxa168_overlay *ovly = v4l2_ovly[id];
-	struct pxa168_overlay *ovly_base = v4l2_ovly[fb_base];
 	u32 ret = 0;
 
 	if (!ovly)
@@ -1832,15 +1758,9 @@ irqreturn_t pxa168_ovly_isr(int id)
 		return IRQ_NONE;
 	}
 
-	if (fb_mode)
-		ovly = ovly_base;
-
 	spin_lock(&ovly->vbq_lock);
-	/* Fix me. Dual mode may change when video is on!! */
-	ovly->cur_frm->to_show &= ~vid_imask(id);
-	if (ovly->cur_frm->to_show || list_empty(&ovly->dma_queue)) {
-		/*v4l2_dbg(2, debug, ovly->vdev, "to_show %x, id: %d\n",\
-				 ovly->cur_frm->to_show, id); */
+	if (list_empty(&ovly->dma_queue)) {
+		/*v4l2_dbg(2, debug, ovly->vdev, "ovly id: %d\n", id); */
 		goto irq;
 	}
 
@@ -2028,43 +1948,6 @@ static int pxa168_ovly_remove(struct platform_device *pdev)
 	/* put_device(ovly); */
 	kfree(ovly);
 	return 0;
-}
-
-void pxa168_ovly_dual(int enable)
-{
-	struct pxa168_overlay *ovly_base = v4l2_ovly[fb_base];
-	struct pxa168_overlay *ovly_dual = v4l2_ovly[fb_dual];
-	struct list_head *dma_queue;
-	struct pxa168_buf *frm;
-	unsigned long flags = 0;
-
-	if (fb_share || !ovly_dual || !ovly_base->streaming)
-		return;
-
-	pr_info("%s enable %d\n", __func__, enable);
-
-	spin_lock_irqsave(&ovly_base->vbq_lock, flags);
-	if (enable) {
-		ovly_dual->streaming = ovly_base->streaming;
-		pxa168vid_init(ovly_base);
-		pxa168vid_apply_changes(ovly_base);
-		pxa168_ovly_set_colorkeyalpha(ovly_base);
-	} else {
-		/* disable video layer DMA */
-		dma_ctrl_set(fb_dual, 0, CFG_DMA_ENA_MASK, 0);
-
-		ovly_dual->streaming = 0;
-		ovly_base->cur_frm->to_show &= ~vid_imask(fb_dual);
-		dma_queue = &ovly_base->dma_queue;
-		if (!list_empty(dma_queue)) {
-			frm = list_entry(dma_queue->next,
-				struct pxa168_buf, list);
-			if (frm->to_show & vid_imask(fb_dual))
-				frm->to_show &= ~vid_imask(fb_dual);
-			dma_queue = dma_queue->next;
-		}
-	}
-	spin_unlock_irqrestore(&ovly_base->vbq_lock, flags);
 }
 
 static int __init pxa168_ovly_probe(struct platform_device *pdev)

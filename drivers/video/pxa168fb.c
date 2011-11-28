@@ -784,8 +784,6 @@ static int pxa168fb_pan_display(struct fb_var_screeninfo *var,
 	return 0;
 }
 
-extern irqreturn_t pxa168fb_ovly_isr(int id);
-extern irqreturn_t pxa168_ovly_isr(int id);
 static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 {
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)dev_id;
@@ -805,7 +803,7 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 					wakeup_freq_seq();
 #endif
 #ifdef CONFIG_PXA168_V4L2_OVERLAY
-					pxa168_ovly_isr(id);
+					pxa168_v4l2_isr(id);
 #else
 					pxa168fb_ovly_isr(id);
 #endif
@@ -1726,9 +1724,7 @@ static int pxa168fb_mode_switch(int mode)
 	case 0:
 		if (fb_mode) {
 			/* turn off video layer */
-#ifdef CONFIG_PXA168_V4L2_OVERLAY
-			pxa168_ovly_dual(0);
-#else
+#ifndef CONFIG_PXA168_V4L2_OVERLAY
 			pxa168fb_ovly_dual(0);
 #endif
 			fb_mode = mode;
@@ -1751,9 +1747,7 @@ static int pxa168fb_mode_switch(int mode)
 			fbi_dual->dma_on = fbi_base->dma_on;
 			pxa168fb_set_par(info_base);
 			/* turn on video layer */
-#ifdef CONFIG_PXA168_V4L2_OVERLAY
-			pxa168_ovly_dual(1);
-#else
+#ifndef CONFIG_PXA168_V4L2_OVERLAY
 			pxa168fb_ovly_dual(1);
 #endif
 		}

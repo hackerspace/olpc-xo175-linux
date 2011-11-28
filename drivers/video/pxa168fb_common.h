@@ -37,6 +37,8 @@ void pxa168fb_ovly_task(unsigned long data);
 #else
 void pxa168fb_ovly_work(struct work_struct *w);
 #endif
+extern irqreturn_t pxa168fb_ovly_isr(int id);
+extern irqreturn_t pxa168_v4l2_isr(int id);
 
 extern void buf_endframe(void *point);
 extern void clear_buffer(struct pxa168fb_info *fbi);
