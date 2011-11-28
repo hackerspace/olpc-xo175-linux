@@ -527,7 +527,6 @@ int mvisp_video_queue_qbuf(struct isp_video_queue *queue,
 		goto done;
 
 	mutex_lock(&queue->lock);
-	spin_lock_irqsave(&queue->irq_queue_lock, queue_flags);
 
 	if (vbuf->index >= queue->count)
 		goto done;
@@ -537,8 +536,12 @@ int mvisp_video_queue_qbuf(struct isp_video_queue *queue,
 	if (vbuf->memory != buf->vbuf.memory)
 		goto done;
 
-	if (buf->state != ISP_BUF_STATE_IDLE)
+	spin_lock_irqsave(&queue->irq_queue_lock, queue_flags);
+	if (buf->state != ISP_BUF_STATE_IDLE) {
+		spin_unlock_irqrestore(&queue->irq_queue_lock, queue_flags);
 		goto done;
+	}
+	spin_unlock_irqrestore(&queue->irq_queue_lock, queue_flags);
 
 	if (vbuf->memory == V4L2_MEMORY_USERPTR &&
 	    vbuf->m.userptr != buf->vbuf.m.userptr) {
@@ -554,10 +557,12 @@ int mvisp_video_queue_qbuf(struct isp_video_queue *queue,
 		buf->prepared = 1;
 	}
 
+	spin_lock_irqsave(&queue->irq_queue_lock, queue_flags);
 	empty = list_empty(&queue->queue);
 	buf->state = ISP_BUF_STATE_QUEUED;
 	list_add_tail(&buf->stream, &queue->queue);
 	memcpy(&buf->vbuf, vbuf, sizeof(*vbuf));
+	spin_unlock_irqrestore(&queue->irq_queue_lock, queue_flags);
 
 	if (queue->streaming) {
 		spin_lock_irqsave(&queue->irqlock, flags);
@@ -571,7 +576,6 @@ int mvisp_video_queue_qbuf(struct isp_video_queue *queue,
 	ret = 0;
 
 done:
-	spin_unlock_irqrestore(&queue->irq_queue_lock, queue_flags);
 	mutex_unlock(&queue->lock);
 	return ret;
 }
