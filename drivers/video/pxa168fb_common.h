@@ -1,17 +1,9 @@
 #ifndef _PXA168FB_COMMON_
 #define _PXA168FB_COMMON_
 
-#define OVLY_TASKLET
-
 #include <mach/pxa168fb.h>
 #include "pxa168fb.h"
 
-/* mirror mode related info/flags */
-/* wait dual path's interrupt before put the buffer into freelist */
-#define WAIT_PEER	(fb_mode && ovly_info.flag & 1)
-/* wait dual path's interrupt once in ioctl of get free list */
-#define WAIT_FREE	(fb_mode && ovly_info.flag & 2)
-#define ROTATE_IGNORE	(fb_mode && ovly_info.flag & 4)
 #define RESET_BUF	0x1
 #define FREE_ENTRY	0x2
 
@@ -32,11 +24,6 @@ extern int check_surface(struct fb_info *fi, FBVideoMode new_mode,
 extern int check_surface_addr(struct fb_info *fi,
 	 struct _sOvlySurface *surface);
 extern int check_modex_active(struct pxa168fb_info *fbi);
-#ifdef OVLY_TASKLET
-void pxa168fb_ovly_task(unsigned long data);
-#else
-void pxa168fb_ovly_work(struct work_struct *w);
-#endif
 extern irqreturn_t pxa168fb_ovly_isr(int id);
 extern irqreturn_t pxa168_v4l2_isr(int id);
 

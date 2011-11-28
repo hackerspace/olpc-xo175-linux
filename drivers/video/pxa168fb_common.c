@@ -592,18 +592,6 @@ void pxa168fb_update_addr(struct pxa168fb_info *fbi,
 	fbi->new_addr[0] = (unsigned long)new_addr->startAddr[0];
 	fbi->new_addr[1] = (unsigned long)new_addr->startAddr[1];
 	fbi->new_addr[2] = (unsigned long)new_addr->startAddr[2];
-
-	if (FB_MODE_DUP) {
-		struct pxa168fb_info *fbi_dual;
-		if (fbi->vid)             /* video layer */
-			fbi_dual = ovly_info.fbi[fb_dual];
-		else
-			fbi_dual = gfx_info.fbi[fb_dual];
-
-		fbi_dual->new_addr[0] = fbi->new_addr[0];
-		fbi_dual->new_addr[1] = fbi->new_addr[1];
-		fbi_dual->new_addr[2] = fbi->new_addr[2];
-	}
 }
 
 int check_surface(struct fb_info *fi,
@@ -615,15 +603,9 @@ int check_surface(struct fb_info *fi,
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)fi->par;
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 	struct fb_var_screeninfo *var = &fi->var;
-	struct pxa168fb_info *fbi_dual;
 	int changed = 0;
 
 	dev_dbg(fi->dev, "Enter %s\n", __func__);
-
-	if (fbi->vid)
-		fbi_dual = ovly_info.fbi[fb_dual];
-	else
-		fbi_dual = gfx_info.fbi[fb_dual];
 
 	/*
 	 * check mode
@@ -716,50 +698,10 @@ int check_modex_active(struct pxa168fb_info *fbi)
 
 	active = fbi->active && fbi->dma_on;
 
-	/* mode2, base off, dual on */
-	if ((fb_mode == 2) && (fbi->id == fb_base))
-		active = 0;
-
-	/* mode3, dual off, base on */
-	if ((fb_mode == 3) && (fbi->id == fb_dual)) {
-		active = 0;
-		if (!fbi->vid)
-			/* for debug purpose */
-			active = DEBUG_TV_ACTIVE(fb_dual);
-	}
-
-	pr_debug("%s fb_mode %d fbi[%d] vid %d fbi->active %d"
-		" dma_on %d: %d\n", __func__, fb_mode, fbi->id,
+	pr_debug("%s fbi[%d] vid %d fbi->active %d"
+		" dma_on %d: %d\n", __func__, fbi->id,
 		fbi->vid, fbi->active, fbi->dma_on, active);
 	return active;
-}
-
-#ifdef OVLY_TASKLET
-void pxa168fb_ovly_task(unsigned long data)
-{
-	struct pxa168fb_info *fbi = (struct pxa168fb_info *)data;
-#else
-void pxa168fb_ovly_work(struct work_struct *w)
-{
-	struct pxa168fb_info *fbi = container_of(w,
-		struct pxa168fb_info, buf_work);
-#endif
-	unsigned long flags;
-
-	if (fbi->debug == 1)
-		printk(KERN_DEBUG"%s fbi %d vid %d buf_retired %p\n",
-			__func__, fbi->id, fbi->vid, fbi->buf_retired);
-
-	if (fbi->buf_retired) {
-		/* enqueue current to freelist */
-		spin_lock_irqsave(&fbi->buf_lock, flags);
-		list_add_tail(&fbi->buf_retired->surfacelist,
-			&fbi->buf_freelist.surfacelist);
-		fbi->buf_retired = 0;
-		ovly_info.wait_peer = 0;
-		gfx_info.wait_peer = 0;
-		spin_unlock_irqrestore(&fbi->buf_lock, flags);
-	}
 }
 
 void collectFreeBuf(struct pxa168fb_info *fbi,
@@ -841,13 +783,7 @@ void clear_buffer(struct pxa168fb_info *fbi)
 	buf_clear(&fbi->buf_waitlist, FREE_ENTRY);
 	kfree(fbi->buf_current);
 	fbi->buf_current = 0;
-	kfree(fbi->buf_retired);
-	fbi->buf_retired = 0;
 	fbi->surface_set = 0;
-	if (fbi->vid)
-		ovly_info.wait_peer = 0;
-	else
-		gfx_info.wait_peer = 0;
 	spin_unlock_irqrestore(&fbi->buf_lock, flags);
 }
 
@@ -859,49 +795,30 @@ void buf_endframe(void *point)
 	int ret;
 	struct _sSurfaceList *surface_list = 0;
 
-	if (fbi->buf_retired) {
-		if (fbi->vid)
-			ovly_info.retire_err++;
-		else
-			gfx_info.retire_err++;
-	} else {
-		if (list_empty(&fbi->buf_waitlist.surfacelist))
-			return;
+	if (list_empty(&fbi->buf_waitlist.surfacelist))
+		return;
 
-		surface_list = list_first_entry(&fbi->buf_waitlist.surfacelist,
-			struct _sSurfaceList, surfacelist);
-		pOvlySurface = &surface_list->surface;
-		list_del(&surface_list->surfacelist);
+	surface_list = list_first_entry(&fbi->buf_waitlist.surfacelist,
+		struct _sSurfaceList, surfacelist);
+	pOvlySurface = &surface_list->surface;
+	list_del(&surface_list->surfacelist);
 
-		/* Update new surface settings */
-		ret = fbi->update_buff(fi, pOvlySurface, 0);
+	/* Update new surface settings */
+	ret = fbi->update_buff(fi, pOvlySurface, 0);
 
-		if (!ret) {
-			fbi->buf_retired = fbi->buf_current;
-			fbi->buf_current = surface_list;
-			if (WAIT_PEER && FB_MODE_DUP) {
-				if (fbi->vid)
-					ovly_info.wait_peer = 1;
-				else
-					gfx_info.wait_peer = 1;
-			} else {
-#ifdef OVLY_TASKLET
-				tasklet_schedule(&fbi->ovly_task);
-#else
-				if (fbi->system_work)
-					schedule_work(&fbi->buf_work);
-				else
-					queue_work(fbi->work_q,
-						&fbi->fb_info->queue);
-#endif
-			}
-		} else {
-			/* enqueue the repeated buffer to freelist */
-			list_add_tail(&surface_list->surfacelist,
+	if (!ret) {
+		/* enqueue current to freelist */
+		if (fbi->buf_current)
+			list_add_tail(&fbi->buf_current->surfacelist,
 				&fbi->buf_freelist.surfacelist);
-			pr_info("Detect a same surface flipped in, "
-				"may flicker.\n");
-		}
+
+		fbi->buf_current = surface_list;
+	} else {
+		/* enqueue the repeated buffer to freelist */
+		list_add_tail(&surface_list->surfacelist,
+			&fbi->buf_freelist.surfacelist);
+		pr_info("Detect a same surface flipped in, "
+			"may flicker.\n");
 	}
 }
 
@@ -1062,24 +979,9 @@ static void free_buf(struct pxa168fb_info *fbi)
 		fbi->buf_current = 0;
 	}
 
-	if (fbi->buf_retired) {
-		list_add_tail(&fbi->buf_retired->surfacelist,
-			&fbi->buf_freelist.surfacelist);
-		fbi->buf_retired = 0;
-	}
-
 	/* clear some globals */
-	ovly_info.wait_peer = 0;
-
 	memset(&fbi->surface, 0, sizeof(struct _sOvlySurface));
 	fbi->new_addr[0] = 0; fbi->new_addr[1] = 0; fbi->new_addr[2] = 0;
-	if (FB_MODE_DUP) {
-		memset(&ovly_info.fbi[fb_dual]->surface, 0,
-			sizeof(struct _sOvlySurface));
-		ovly_info.fbi[fb_dual]->new_addr[0] = 0;
-		ovly_info.fbi[fb_dual]->new_addr[1] = 0;
-		ovly_info.fbi[fb_dual]->new_addr[2] = 0;
-	}
 }
 
 int get_freelist(struct fb_info *info, unsigned long arg)
@@ -1127,8 +1029,8 @@ void set_dma_active(struct pxa168fb_info *fbi)
 	u32 enable = fbi->vid ? CFG_DMA_ENA(1) : CFG_GRA_ENA(1);
 	u32 value, dma1, v_size_dst, screen_active, active = 0;
 
-	if (fbi->new_addr[0] || mi->mmap || (!fbi->vid &&
-		 (fb_mode || fb_share) && fbi->id == fb_dual))
+	if (fbi->new_addr[0] || mi->mmap ||
+		 (!fbi->vid && fb_share && fbi->id == 1))
 		active = check_modex_active(fbi);
 
 	value = active ? enable : 0;
@@ -1192,10 +1094,6 @@ void clear_dispd_irq(struct pxa168fb_info *fbi)
 
 void wait_for_vsync(struct pxa168fb_info *fbi)
 {
-	struct pxa168fb_info *fbi_dual =
-		fbi->vid ? ovly_info.fbi[fb_dual] : gfx_info.fbi[fb_dual];
-
-again:
 	atomic_set(&fbi->w_intr, 0);
 	pr_debug("fbi->id %d vid: %d\n", fbi->id, fbi->vid);
 
@@ -1205,18 +1103,13 @@ again:
 	/* handle timeout case, to w/a irq miss */
 	if (atomic_read(&fbi->w_intr) == 0)
 		clear_dispd_irq(fbi);
-
-	if (FB_MODE_DUP && NEED_VSYNC(fbi_dual)) {
-		fbi = fbi_dual;
-		goto again;
-	}
 }
 
 void pxa168fb_list_init(struct pxa168fb_info *fbi)
 {
 	INIT_LIST_HEAD(&fbi->buf_freelist.surfacelist);
 	INIT_LIST_HEAD(&fbi->buf_waitlist.surfacelist);
-	fbi->buf_retired = fbi->buf_current = 0;
+	fbi->buf_current = 0;
 }
 
 void pxa168fb_misc_update(struct pxa168fb_info *fbi)
@@ -1243,9 +1136,7 @@ void set_start_address(struct fb_info *info,
 
 	dev_dbg(info->dev, "Enter %s\n", __func__);
 
-	if (fb_mode && (fbi->id == fb_dual) && !fbi->vid)
-		addr_y0 = readl(&get_regs(fb_base)->g_0);
-	else if (fbi->new_addr[0]) {
+	if (fbi->new_addr[0]) {
 		addr_y0 = fbi->new_addr[0];
 		addr_u0 = fbi->new_addr[1];
 		addr_v0 = fbi->new_addr[2];
@@ -1270,9 +1161,7 @@ void set_start_address(struct fb_info *info,
 			addr_v0 = addr_u0 + (var->xres * var->yres >> 2);
 	}
 
-again:
 	regs = get_regs(fbi->id);
-
 	if (fbi->vid) {
 		writel(addr_y0, &regs->v_y0);
 		if (fbi->pix_fmt >= 12 && fbi->pix_fmt <= 15) {
@@ -1289,14 +1178,6 @@ again:
 	else
 		pxa168fb_misc_update(fbi);
 
-	if (FB_MODE_DUP) {
-		if (fbi->vid)
-			fbi = ovly_info.fbi[fb_dual];
-		else
-			fbi = gfx_info.fbi[fb_dual];
-		goto again;
-	}
-
 	/* return until the address take effect after vsync occurs */
 	if (wait_vsync && NEED_VSYNC(fbi))
 		wait_for_vsync(fbi);
@@ -1312,7 +1193,7 @@ void set_dma_control0(struct pxa168fb_info *fbi)
 
 	if (surface->videoMode > 0)
 		fbi->pix_fmt = convert_pix_fmt(surface->videoMode);
-again:
+
 	mi = fbi->dev->platform_data;
 	pix_fmt = fbi->pix_fmt;
 
@@ -1379,34 +1260,11 @@ again:
 		pr_debug("set fbi %d, layer %d, dma ctrl0(0x%x -> 0x%x)\n",
 			 fbi->id, fbi->vid, x_bk, x);
 	}
-	if (FB_MODE_DUP) {
-		if (fbi->vid) {
-			struct _sDualInfo *dual = &fbi->surface.dualInfo;
-			fbi = ovly_info.fbi[fb_dual];
-
-			/* copy pix_fmt */
-			if (dual->rotate == 1)
-				fbi->pix_fmt = convert_pix_fmt(dual->videoMode);
-			else
-				fbi->pix_fmt = ovly_info.fbi[fb_base]->pix_fmt;
-
-			if (fbi->debug == 8) {
-				pr_info("%s dual->rotate %d videoMode %d"
-					" pix_fmt %d\n", __func__, dual->rotate,
-					dual->videoMode, fbi->pix_fmt);
-			}
-		} else {
-			gfx_info.fbi[fb_dual]->pix_fmt = fbi->pix_fmt;
-			fbi = gfx_info.fbi[fb_dual];
-		}
-		goto again;
-	}
 }
 
 void set_screen(struct pxa168fb_info *fbi)
 {
 	struct fb_var_screeninfo *var = &fbi->fb_info->var;
-	struct fb_var_screeninfo *var_dual;
 	struct _sOvlySurface *surface = &fbi->surface;
 	struct lcd_regs *regs;
 	u32 xres, yres, xres_z, yres_z, xres_virtual, bits_per_pixel;
@@ -1415,7 +1273,7 @@ void set_screen(struct pxa168fb_info *fbi)
 	pitch[0] = surface->viewPortInfo.yPitch;
 	pitch[1] = surface->viewPortInfo.uPitch;
 	pitch[2] = surface->viewPortInfo.vPitch;
-again:
+
 	var = &fbi->fb_info->var;
 	regs = get_regs(fbi->id);
 	xres = var->xres; yres = var->yres;
@@ -1423,25 +1281,12 @@ again:
 	xres_virtual = var->xres_virtual;
 	bits_per_pixel = var->bits_per_pixel;
 
-	if (!(fbi->vid) && (fb_mode) && (fbi->id == fb_dual)) {
-		xres = gfx_info.xres;
-		yres = gfx_info.yres;
-		bits_per_pixel = gfx_info.bpp;
-		xres_virtual = max(gfx_info.xres, gfx_info.xres_virtual);
-	}
-
-	dev_dbg(fbi->fb_info->dev, "fb_mode %d fbi[%d]: xres %d xres_z %d"
-		" yres %d yres_z %d xres_virtual %d bits_per_pixel %d\n",
-		fb_mode, fbi->id, xres, xres_z, yres, yres_z,
-		xres_virtual, bits_per_pixel);
-
 	/* xres_z = total - left - right */
 	xres_z = xres_z - (left << 1);
 	/* yres_z = yres_z - top - bottom */
 	yres_z = yres_z - (top << 1);
 
-	if (fbi->new_addr[0] || (fb_mode && fbi->id == fb_dual
-			&& gfx_info.fbi[fb_base]->new_addr[0])) {
+	if (fbi->new_addr[0]) {
 		xres = surface->viewPortInfo.srcWidth;
 		yres = surface->viewPortInfo.srcHeight;
 		var->xres_virtual = surface->viewPortInfo.srcWidth;
@@ -1453,18 +1298,6 @@ again:
 
 		left = surface->viewPortOffset.xOffset;
 		top = surface->viewPortOffset.yOffset;
-
-		if (fbi->vid && fb_mode && (fbi->id == fb_dual)) {
-			dev_dbg(fbi->fb_info->dev, "%s line %d adjust"
-			 "xpos %d ypos %d xzoom %d yzoom %d\nxres %d yres %d"
-			 "xres_z %d yres_z %d\n", __func__, __LINE__,
-			 left, top, xres_z, yres_z, gfx_info.xres,
-			 gfx_info.yres, gfx_info.xres_z, gfx_info.yres_z);
-			yres_z = yres_z * gfx_info.yres_z / gfx_info.yres;
-			xres_z = xres_z * gfx_info.xres_z / gfx_info.xres;
-			top = top * gfx_info.yres_z / gfx_info.yres;
-			left = left * gfx_info.xres_z / gfx_info.xres;
-		}
 		pr_debug("surface: xres %d xres_z %d"
 			" yres %d yres_z %d\n left %d top %d\n",
 			xres, xres_z, yres, yres_z, left, top);
@@ -1516,18 +1349,5 @@ again:
 		writel((yres << 16) | xres, &regs->g_size);
 		/* resolution, dst size */
 		writel((yres_z << 16) | xres_z, &regs->g_size_z);
-	}
-
-	if (FB_MODE_DUP) {
-		if (fbi->vid) {
-			fbi = ovly_info.fbi[fb_dual];
-			var_dual = &fbi->fb_info->var;
-			var_dual->bits_per_pixel = var->bits_per_pixel;
-			var_dual->xres = var->xres;
-			var_dual->yres = var->yres;
-			var->nonstd = var->nonstd;
-		} else
-			fbi = gfx_info.fbi[fb_dual];
-		goto again;
 	}
 }

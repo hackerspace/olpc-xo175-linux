@@ -70,17 +70,9 @@ static unsigned int max_fb_size = 0;
 static unsigned int fb_size_from_cmd = 0;
 
 /* LCD mode switch
- * mode0: panel + 1080p TV path, seperately
- *
- * clone mode:
- * mode1: panel path + panel path graphics/video layer data resized to TV path
- * mode2: mode1 with panel path disalbed
- * mode3: mode1 with TV path disalbed
- *
  * fb_share mode:
  * TV path graphics layer share same frame buffer with panel path
  */
-int fb_mode = 0;
 int fb_share = 0;
 struct fbi_info gfx_info;
 
@@ -552,12 +544,6 @@ static void pxa168fb_set_regs(struct fb_info *info, int wait_vsync)
 
 	/* Close the dma in order to clear the screen when video stopped */
 	dma_ctrl_set(fbi->id, 0, CFG_GRA_ENA_MASK, 0);
-	if (FB_MODE_DUP) {
-		x = readl(fbi->reg_base + intf_ctrl(fb_dual));
-		if ((x & 1) == 0)
-			writel(x | 1, fbi->reg_base + intf_ctrl(fb_dual));
-		dma_ctrl_set(fb_dual, 0, CFG_GRA_ENA_MASK, 0);
-	}
 
 	set_dma_control0(fbi);
 	set_start_address(info, info->var.xoffset,
@@ -613,21 +599,6 @@ static int pxa168fb_set_par(struct fb_info *info)
 	int ret = 0;
 
 	dev_dbg(info->dev, "Enter %s, graphics layer\n", __func__);
-
-	if (fbi->id == fb_base) {
-		gfx_info.xres = var->xres; gfx_info.yres = var->yres;
-		gfx_info.bpp = var->bits_per_pixel;
-		gfx_info.xres_virtual = var->xres_virtual;
-		pr_debug("%s fb_base xres %d yres %d bpp %d x_virtual %d\n",
-			__func__, gfx_info.xres, gfx_info.yres,
-			gfx_info.bpp, gfx_info.xres_virtual);
-	}
-
-	if (fbi->id == fb_dual) {
-		gfx_info.xres_z = var->xres; gfx_info.yres_z = var->yres;
-		pr_debug("%s fb_dual xres %d yres %d\n",
-			__func__, gfx_info.xres_z, gfx_info.yres_z);
-	}
 
 	ret = pxa168fb_set_var(info);
 	if (ret < 0)
@@ -741,10 +712,6 @@ static int pxa168fb_blank(int blank, struct fb_info *info)
 			/* de-activate the device */
 			pxa168fb_active(fbi, 0);
 
-			/* sync dual path behavior */
-			if (fb_mode)
-				pxa168fb_active(gfx_info.fbi[fb_dual], 0);
-
 			/* allow system enter low power modes */
 			pm_qos_update_request(&fbi->qos_idle_fb,
 						PM_QOS_DEFAULT_VALUE);
@@ -754,10 +721,6 @@ static int pxa168fb_blank(int blank, struct fb_info *info)
 	case FB_BLANK_UNBLANK:
 			/* activate the device */
 			pxa168fb_active(fbi, 1);
-
-			/* sync dual path behavior */
-			if (FB_MODE_DUP)
-				pxa168fb_active(gfx_info.fbi[fb_dual], 1);
 
 			/* avoid system enter low power modes */
 			pm_qos_update_request(&fbi->qos_idle_fb,
@@ -983,21 +946,15 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 		break;
 	case FB_IOCTL_WAIT_VSYNC_ON:
 		fbi->wait_vsync = 1;
-		if (FB_MODE_DUP)
-			gfx_info.fbi[fb_dual]->wait_vsync = 1;
 		break;
 	case FB_IOCTL_WAIT_VSYNC_OFF:
 		fbi->wait_vsync = 0;
-		if (FB_MODE_DUP)
-			gfx_info.fbi[fb_dual]->wait_vsync = 0;
 		break;
 	case FB_IOCTL_PUT_VIDEO_ALPHABLEND:
 		/* This puts the blending control to the Video layer */
 		mask = CFG_ALPHA_MODE_MASK | CFG_ALPHA_MASK;
 		val = CFG_ALPHA_MODE(0) | CFG_ALPHA(0xff);
 		dma_ctrl_set(fbi->id, 1, mask, val);
-		if (FB_MODE_DUP)
-			dma_ctrl_set(fb_dual, 1, mask, val);
 		break;
 
 	case FB_IOCTL_PUT_GLOBAL_ALPHABLEND:
@@ -1013,8 +970,6 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 		mask = CFG_ALPHA_MODE_MASK | CFG_ALPHA_MASK;
 		val = CFG_ALPHA_MODE(2) | CFG_ALPHA(blendval);
 		dma_ctrl_set(fbi->id, 1, mask, val);
-		if (FB_MODE_DUP)
-			dma_ctrl_set(fb_dual, 1, mask, val);
 		break;
 
 	case FB_IOCTL_PUT_GRAPHIC_ALPHABLEND:
@@ -1024,8 +979,6 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 		mask = CFG_ALPHA_MODE_MASK | CFG_ALPHA_MASK;
 		val = CFG_ALPHA_MODE(1) | CFG_ALPHA(0x0);
 		dma_ctrl_set(fbi->id, 1, mask, val);
-		if (FB_MODE_DUP)
-			dma_ctrl_set(fb_dual, 1, mask, val);
 		break;
 
 	case FB_IOCTL_SWAP_GRAPHIC_RED_BLUE:
@@ -1033,8 +986,6 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 		mask = CFG_GRA_SWAPRB_MASK;
 		val = CFG_GRA_SWAPRB(param);
 		dma_ctrl_set(fbi->id, 0, mask, val);
-		if (FB_MODE_DUP)
-			dma_ctrl_set(fb_dual, 1, mask, val);
 		break;
 
 	case FB_IOCTL_SWAP_GRAPHIC_U_V:
@@ -1042,8 +993,6 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 		mask = CFG_GRA_SWAPUV_MASK;
 		val = CFG_GRA_SWAPUV(param);
 		dma_ctrl_set(fbi->id, 0, mask, val);
-		if (FB_MODE_DUP)
-			dma_ctrl_set(fb_dual, 1, mask, val);
 		break;
 
 	case FB_IOCTL_SWAP_GRAPHIC_Y_UV:
@@ -1073,13 +1022,6 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 
 		printk(KERN_DEBUG"SWITCH_GRA_OVLY fbi %d dma_on %d, val %d\n",
 			fbi->id, fbi->dma_on, val);
-
-		if (FB_MODE_DUP) {
-			gfx_info.fbi[fb_dual]->dma_on = fbi->dma_on;
-			val = CFG_DMA_ENA(check_modex_active(
-					gfx_info.fbi[fb_dual]));
-			dma_ctrl_set(fb_dual, 0, mask, val);
-		}
 		spin_unlock_irqrestore(&fbi->var_lock, flags);
 		break;
 
@@ -1118,14 +1060,9 @@ static int pxa168fb_open(struct fb_info *info, int user)
 
 	if (fbi->debug & (1<<4))
 		return 0;
-	if (fb_mode && (fbi->id == fb_dual)) {
-		pr_info("fb_mode %x, operation to TV path is not allowed,\n"
-			       "Please switch to mode0 if needed.\n", fb_mode);
-		return -EAGAIN;
-	}
 
 	pr_info("Enter %s, fbi %d ---------------\n", __func__, fbi->id);
-again:
+
 	/* Save screen info */
 	fbi->var_bak = *var;
 
@@ -1143,13 +1080,6 @@ again:
 	if (mutex_is_locked(&fbi->access_ok))
 		mutex_unlock(&fbi->access_ok);
 
-	if (FB_MODE_DUP) {
-		fbi = gfx_info.fbi[fb_dual];
-		info = fbi->fb_info;
-		var = &info->var;
-		goto again;
-	}
-
 	return 0;
 }
 
@@ -1165,7 +1095,6 @@ static int pxa168fb_release(struct fb_info *info, int user)
 
 	pr_info("Enter %s, fbi %d ---------------\n", __func__, fbi->id);
 
-again:
 	/* Turn off compatibility mode */
 	var->nonstd &= ~0xff000000;
 	fbi->compat_mode = 0;
@@ -1184,14 +1113,6 @@ again:
 	fbi->new_addr[0] = 0;
 	fbi->new_addr[1] = 0;
 	fbi->new_addr[2] = 0;
-
-	if (FB_MODE_DUP) {
-		fbi = gfx_info.fbi[fb_dual];
-		info = fbi->fb_info;
-		var = &info->var;
-
-		goto again;
-	}
 
 	if (NEED_VSYNC(fbi_bak)) {
 		fbi->info = info_bak;
@@ -1692,74 +1613,7 @@ static ssize_t vsync_store(
 			__func__, __LINE__);
 	return size;
 }
-
 static DEVICE_ATTR(vsync, S_IRUGO | S_IWUSR, vsync_show, vsync_store);
-
-/*************************************************************************/
-static int pxa168fb_set_par(struct fb_info *info);
-static int pxa168fb_mode_switch(int mode)
-{
-	struct pxa168fb_info *fbi_base = gfx_info.fbi[fb_base];
-	struct pxa168fb_info *fbi_dual = gfx_info.fbi[fb_dual];
-	struct fb_info *info_base = fbi_base->fb_info;
-	struct fb_info *info_dual;
-	if (!fbi_dual)
-		return -EAGAIN;
-	info_dual = fbi_dual->fb_info;
-
-	if (fb_share) {
-		pr_info("fb_share mode already, try clone mode w/o"
-			" fb_share in cmdline\n");
-		return -EAGAIN;
-	}
-
-	pr_debug("fbi_base: fb_start_dma 0x%p fb_start 0x%p fb_size %d\n",
-		(int *)fbi_base->fb_start_dma, fbi_base->fb_start,
-		fbi_base->fb_size);
-	pr_debug("fbi_dual: fb_start_dma 0x%p fb_start 0x%p fb_size %d\n",
-		(int *)fbi_dual->fb_start_dma, fbi_dual->fb_start,
-		fbi_dual->fb_size);
-
-	switch (mode) {
-	case 0:
-		if (fb_mode) {
-			/* turn off video layer */
-#ifndef CONFIG_PXA168_V4L2_OVERLAY
-			pxa168fb_ovly_dual(0);
-#endif
-			fb_mode = mode;
-			fbi_dual->fb_start_dma = fbi_dual->fb_start_dma_bak;
-			fbi_dual->fb_start = fbi_dual->fb_start_bak;
-			fbi_dual->dma_on = 0;
-			/* disable dual path graphics DMA */
-			dma_ctrl_set(fb_dual, 0, CFG_GRA_ENA_MASK, 0);
-			pxa168fb_set_par(info_dual);
-			pxa168fb_set_par(info_base);
-		}
-		break;
-	case 1:
-	case 2:
-	case 3:
-		if (fb_mode != mode) {
-			fb_mode = mode;
-			fbi_dual->fb_start_dma = fbi_base->fb_start_dma;
-			fbi_dual->fb_start = fbi_base->fb_start;
-			fbi_dual->dma_on = fbi_base->dma_on;
-			pxa168fb_set_par(info_base);
-			/* turn on video layer */
-#ifndef CONFIG_PXA168_V4L2_OVERLAY
-			pxa168fb_ovly_dual(1);
-#endif
-		}
-		break;
-	default:
-		break;
-		;
-	}
-
-	return 0;
-}
-/*************************************************************************/
 
 #define VSYNC_CHECK_TIME	(10 * HZ)
 static void vsync_check_timer(unsigned long data)
@@ -1838,13 +1692,6 @@ static int pxa168fb_proc_write(struct file *file, const char *buffer,
 	index = (int)simple_strtoul(kbuf, NULL, 10);
 
 	switch (index) {
-	case 0:
-	case 1:
-	case 2:
-	case 3:
-		pxa168fb_mode_switch(index);
-		break;
-
 	case 4:
 		memset(info->screen_base, 2, info->screen_size/2);
 		memset(info->screen_base + info->screen_size/4, 8,
@@ -1882,9 +1729,8 @@ static int pxa168fb_proc_read(char *buffer, char **buffer_location,
 	if (offset > 0)
 		return 0;
 
-	return sprintf(buffer, "fb_mode %d fb_share %d reg @ 0x%x: 0x%x\n",
-		 fb_mode, fb_share, proc_reg,
-		 __raw_readl(gfx_info.fbi[0]->reg_base + proc_reg));
+	return sprintf(buffer, "fb_share %d reg @ 0x%x: 0x%x\n", fb_share,
+		 proc_reg, __raw_readl(gfx_info.fbi[0]->reg_base + proc_reg));
 }
 
 static int __devinit pxa168fb_probe(struct platform_device *pdev)
@@ -1948,20 +1794,6 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	}
 
 	gfx_info.fbi[fbi->id] = fbi;
-
-	#ifdef OVLY_TASKLET
-		tasklet_init(&fbi->ovly_task, pxa168fb_ovly_task,
-				 (unsigned long)fbi);
-	#else
-		fbi->system_work = 1;
-		if (fbi->system_work)
-			INIT_WORK(&fbi->buf_work, pxa168fb_ovly_work);
-		else {
-			fbi->work_q = create_singlethread_workqueue\
-				      ("pxa168fb-ovly");
-			INIT_WORK(&fi->queue, pxa168fb_ovly_work);
-		}
-	#endif
 
 	di = mi->dsi;
 	if (di) {

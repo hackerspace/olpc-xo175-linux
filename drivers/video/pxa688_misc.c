@@ -472,13 +472,16 @@ static void pxa688fb_clone_vdma(int src, int dst)
 
 static void pxa688fb_clone_partdisp_ctrl(int src, int dst)
 {
-	struct pxa168fb_info *fbi = gfx_info.fbi[0];
+	struct pxa168fb_info *fbi = gfx_info.fbi[src];
+	struct fb_info *info = fbi->fb_info;
+	struct fb_var_screeninfo *var = &info->var;
+
 	u32 base = (u32)fbi->reg_base, mask, region, bytespp,
 		horpix_end_src, horpix_end_dst, horpix_start,
 		threshold_src, threshold_dst;
 
 	mask = readl(base + gra_partdisp_ctrl_hor(src));
-	bytespp = gfx_info.bpp >> 3;
+	bytespp = var->bits_per_pixel >> 3;
 	horpix_end_src = (mask & 0xfff0000) >> 16;
 	horpix_start = mask & 0xfff;
 

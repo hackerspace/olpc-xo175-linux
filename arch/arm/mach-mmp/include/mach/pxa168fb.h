@@ -235,20 +235,11 @@ struct _sColorKeyNAlpha {
 	unsigned int V_ColorAlpha;
 };
 
-struct _sDualInfo {
-	unsigned int rotate;
-	FBVideoMode videoMode;
-	struct _sVideoBufferAddr videoBufferAddr;
-};
-
 struct _sOvlySurface {
 	FBVideoMode videoMode;
 	struct _sViewPortInfo viewPortInfo;
 	struct _sViewPortOffset viewPortOffset;
 	struct _sVideoBufferAddr videoBufferAddr;
-	/* field used for lcd mirror mode */
-	struct _sDualInfo dualInfo;
-	unsigned int user_data[4];
 };
 
 struct _sCursorConfig {
@@ -377,7 +368,6 @@ struct pxa168fb_info {
 	struct _sSurfaceList	buf_freelist;
 	struct _sSurfaceList	buf_waitlist;
 	struct _sSurfaceList	*buf_current;
-	struct _sSurfaceList	*buf_retired;
 	unsigned int		buf_flipped;
 	unsigned int		buf_displayed;
 	dma_addr_t		fb_start_dma;
@@ -409,7 +399,6 @@ struct pxa168fb_info {
 	int			vdma_enable;
 	unsigned		is_blanked:1,
 				surface_set:1,
-				ckalpha_set:1,
 				update_addr:1,
 				misc_update:1,
 				active:1;
@@ -443,18 +432,7 @@ struct pxa168fb_info {
 	struct early_suspend    early_suspend;
 	unsigned		dma_ctrl0;
 	unsigned		irq_mask;
-#ifdef OVLY_TASKLET
-	/* tasklet */
-	unsigned		tasklet;
-	struct tasklet_struct	ovly_task;
-#else
-	/* set 1 to use system thread instead of single thread */
-	unsigned		system_work;
-	/* system thread to handle work, priority 20 */
-	struct work_struct	buf_work;
-	/* single thread workqueue for higher priority */
-	struct workqueue_struct *work_q;
-#endif
+
 	int (*update_buff)(struct fb_info *fi,
 		struct _sOvlySurface *surface, int address);
 
@@ -616,29 +594,6 @@ struct pxa168fb_mach_info {
 
 struct fbi_info {
 	struct pxa168fb_info *fbi[3];
-	/* panel path resolution */
-	int	xres;
-	int	yres;
-	/* panel path */
-	int	bpp;
-	int	xres_virtual;
-	/* TV path resolution & position */
-	int	xres_z;
-	int	yres_z;
-	int	left_z;
-	int	top_z;
-	unsigned int	rotate_addr;
-	/* flag for overlay buffer management:
-	 *	0: wait_for_vsync at GET_FREELIST;
-	 *	1: wait_peer @ pxa168fb_ovly_isr */
-	int	flag;
-	/* wait_peer is used only for mirror mode to update overlay buffer
-	*	1: The first path's display done come,
-	*	 update register and set wait_peer = 1
-	*	0: The second path's display done come,
-	*	 return buffer and clear wait_peer */
-	int	wait_peer;
-	int	retire_err;
 };
 
 struct pxa168fb_gra_partdisp {
@@ -658,18 +613,6 @@ struct pxa168fb_gra_partdisp {
 	 * color format should be RGB565 */
 	unsigned short color;
 };
-
-#define fb_base		0
-#define fb_dual		1
-#ifdef CONFIG_PXA168_V4L2_OVERLAY
-#define FB_MODE_DUP	((fbi->id == fb_base) && fb_mode && \
-			gfx_info.fbi[fb_dual])
-#define OVLY_MODE_DUP	((ovly->id == fb_base) && \
-			fb_mode && v4l2_ovly[fb_dual])
-#else
-#define FB_MODE_DUP	((fbi->id == fb_base) && fb_mode && \
-			gfx_info.fbi[fb_dual] && ovly_info.fbi[fb_dual])
-#endif
 
 /* LCD partial display */
 #define THRESHOLD_PN	64
@@ -691,7 +634,6 @@ struct pxa168fb_gra_partdisp {
 #define LCD_ISR_CLEAR_MASK_PXA168       0xffffffff
 #define LCD_ISR_CLEAR_MASK_PXA910       0xffff00cc
 
-extern int fb_mode;
 extern int fb_share;
 extern struct device_attribute dev_attr_dsi;
 extern struct device_attribute dev_attr_vdma;
@@ -714,9 +656,6 @@ extern int pxa168fb_spi_send(struct pxa168fb_info *fbi, void *cmd,
 				 int count, unsigned int spi_gpio_cs);
 extern int pxa688_cmu_ioctl(struct fb_info *info, unsigned int cmd,
 				 unsigned long arg);
-extern void pxa168fb_ovly_dual(int enable);
-extern void pxa168_ovly_dual(int enable);
-
 /* dsi related */
 extern void pxa168fb_dsi_send(struct pxa168fb_info *fbi, void *value);
 extern void dsi_cclk_set(struct pxa168fb_info *fbi, int en);

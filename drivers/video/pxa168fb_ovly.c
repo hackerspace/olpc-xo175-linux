@@ -36,8 +36,6 @@
 #include <linux/console.h>
 #include <linux/timer.h>
 
-#define OVLY_TASKLET
-
 #include <asm/io.h>
 #include <asm/irq.h>
 
@@ -192,7 +190,7 @@ static u32 pxa168fb_ovly_set_colorkeyalpha(struct pxa168fb_info *fbi)
 	struct lcd_regs *regs;
 
 	dev_dbg(fbi->fb_info->dev, "Enter %s\n", __func__);
-again:
+
 	mi = fbi->dev->platform_data;
 	regs = get_regs(fbi->id);
 	dma0 = dma_ctrl_read(fbi->id, 0);
@@ -303,28 +301,6 @@ again:
 		x = readl(fbi->reg_base + LCD_TV_CTRL1);
 		x &= ~(3<<shift); x |= layer<<shift;
 		writel(x, fbi->reg_base + LCD_TV_CTRL1);
-	}
-
-	/* color key / alpha configured flag */
-	fbi->ckalpha_set = 1;
-
-	if (FB_MODE_DUP) {
-		fbi = ovly_info.fbi[fb_dual];
-		/* enable color key on TV path in mirror mode*/
-		color_a.mode = FB_ENABLE_RGB_COLORKEY_MODE;
-		goto again;
-
-#if 0
-		if (debug_ck) {
-			pr_info("\n\n   fb1 dma1 0x%x\n\n",
-				 dma_ctrl_read(fbi, 1));
-			pr_info("fb1 rb 0x%x colorkey @ 0x%p y: 0x%x; u: 0x%x;\
-				 v: 0x%x\n\n", rb, &regs->v_colorkey_y,
-				 readl(&regs->v_colorkey_y),
-				 readl(&regs->v_colorkey_u),
-				 readl(&regs->v_colorkey_v));
-		}
-#endif
 	}
 
 	return 0;
@@ -637,7 +613,7 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 			return -EFAULT;
 		spin_lock_irqsave(&fbi->var_lock, flags);
 		mask = CFG_DMA_ENA_MASK;
-again:
+
 		fbi->dma_on = vid_on ? 1 : 0;
 		val = CFG_DMA_ENA(check_modex_active(fbi));
 		if (vid_on == 0 && fbi->vdma_enable == 1)
@@ -648,7 +624,7 @@ again:
 			/* in case already suspended, save in sw */
 			gfx_info.fbi[fbi->id]->dma_ctrl0 &= ~mask;
 		} else if (list_empty(&fbi->buf_waitlist.surfacelist) &&
-			!fbi->buf_current && !(fb_mode && fbi->id == fb_dual))
+			!fbi->buf_current)
 			/* switch on, but no buf flipped, return error */
 			ret = -EAGAIN;
 
@@ -660,13 +636,6 @@ again:
 
 		pxa688fb_vsmooth_set(fbi->id, 1, vid_vsmooth & vid_on);
 
-		if (FB_MODE_DUP) {
-			fbi = ovly_info.fbi[fb_dual];
-			goto again;
-		}
-		if (fb_mode && (fbi->id == fb_dual))
-			fbi = ovly_info.fbi[fb_base];
-
 		spin_unlock_irqrestore(&fbi->var_lock, flags);
 		return ret;
 		break;
@@ -675,9 +644,6 @@ again:
 		param = (arg & 0x1);
 		dma_ctrl_set(fbi->id, 0, CFG_DMA_SWAPRB_MASK,
 				 CFG_DMA_SWAPRB(param));
-		if (FB_MODE_DUP)
-			dma_ctrl_set(fb_dual, 0, CFG_DMA_SWAPRB_MASK,
-				CFG_DMA_SWAPRB(param));
 		return 0;
 		break;
 
@@ -685,9 +651,6 @@ again:
 		param = (arg & 0x1);
 		dma_ctrl_set(fbi->id, 0, CFG_DMA_SWAPUV_MASK,
 				 CFG_DMA_SWAPUV(param));
-		if (FB_MODE_DUP)
-			dma_ctrl_set(fb_dual, 0, CFG_DMA_SWAPUV_MASK,
-				CFG_DMA_SWAPUV(param));
 		return 0;
 		break;
 
@@ -695,9 +658,6 @@ again:
 		param = (arg & 0x1);
 		dma_ctrl_set(fbi->id, 0, CFG_DMA_SWAPYU_MASK,
 				 CFG_DMA_SWAPYU(param));
-		if (FB_MODE_DUP)
-			dma_ctrl_set(fb_dual, 0, CFG_DMA_SWAPYU_MASK,
-				CFG_DMA_SWAPYU(param));
 		return 0;
 		break;
 
@@ -708,8 +668,6 @@ again:
 		mask = CFG_ALPHA_MODE_MASK | CFG_ALPHA_MASK;
 		val = CFG_ALPHA_MODE(0) | CFG_ALPHA(0xff);
 		dma_ctrl_set(fbi->id, 1, mask, val);
-		if (FB_MODE_DUP)
-			dma_ctrl_set(fb_dual, 1, mask, val);
 		return 0;
 		break;
 
@@ -728,8 +686,6 @@ again:
 		mask = CFG_ALPHA_MODE_MASK | CFG_ALPHA_MASK;
 		val = CFG_ALPHA_MODE(2) | CFG_ALPHA(blendval);
 		dma_ctrl_set(fbi->id, 1, mask, val);
-		if (FB_MODE_DUP)
-			dma_ctrl_set(fb_dual, 1, mask, val);
 		return 0;
 		break;
 
@@ -741,8 +697,6 @@ again:
 		mask = CFG_ALPHA_MODE_MASK | CFG_ALPHA_MASK;
 		val = CFG_ALPHA_MODE(1) | CFG_ALPHA(0x0);
 		dma_ctrl_set(fbi->id, 1, mask, val);
-		if (FB_MODE_DUP)
-			dma_ctrl_set(fb_dual, 1, mask, val);
 		return 0;
 		break;
 
@@ -762,12 +716,6 @@ static int pxa168fb_open(struct fb_info *fi, int user)
 	pr_info("Enter %s, fbi %d opened %d times -----------\n",
 		__func__, fbi->id, atomic_read(&fbi->op_count));
 
-	if (fb_mode && (fbi->id == fb_dual)) {
-		pr_info("fb_mode %x, operation to TV path is not allowed.\n"
-			"Please switch to mode0 if needed.\n", fb_mode);
-		return -EAGAIN;
-	}
-
 #ifdef OVLY_DVFM_CONSTRAINT
 	dvfm_disable_lowpower(dvfm_dev_idx);
 #endif
@@ -781,9 +729,6 @@ static int pxa168fb_open(struct fb_info *fi, int user)
 	fbi->surface.viewPortInfo.srcHeight = var->yres;
 
 	fbi->active = 1;
-	if (FB_MODE_DUP)
-		ovly_info.fbi[fb_dual]->active = 1;
-
 	set_pix_fmt(var, fbi->pix_fmt);
 
 	if (mutex_is_locked(&fbi->access_ok))
@@ -811,18 +756,10 @@ static int pxa168fb_release(struct fb_info *fi, int user)
 
 	/* Force Video DMA engine off at release and reset the DMA format.*/
 	if (atomic_dec_and_test(&fbi->op_count)) {
-again:
 		pxa688_vdma_release(fbi);
 		mask = CFG_DMA_ENA_MASK | CFG_DMAFORMAT_MASK;
 		dma_ctrl_set(fbi->id, 0, mask, 0);
 		pxa688fb_vsmooth_set(fbi->id, 1, 0);
-
-		if (FB_MODE_DUP) {
-			fbi = ovly_info.fbi[fb_dual];
-			goto again;
-		}
-		if (fb_mode && (fbi->id == fb_dual))
-			fbi = ovly_info.fbi[fb_base];
 	}
 
 	/* Turn off compatibility mode */
@@ -831,8 +768,6 @@ again:
 
 	/* make sure graphics layer is enabled */
 	enable_graphic_layer(fbi->id);
-	if (FB_MODE_DUP)
-		enable_graphic_layer(fb_dual);
 
 	/* clear buffer list. */
 	clear_buffer(fbi);
@@ -841,57 +776,12 @@ again:
 	memset(&fbi->surface, 0, sizeof(struct _sOvlySurface));
 	memset(&fbi->new_addr, 0, sizeof(fbi->new_addr));
 	fbi->active = fbi->dma_on = 0;
-	if (FB_MODE_DUP) {
-		struct pxa168fb_info *fbi_dual = ovly_info.fbi[fb_dual];
-		memset(&fbi_dual->surface, 0, sizeof(struct _sOvlySurface));
-		memset(&fbi_dual->new_addr, 0, sizeof(fbi->new_addr));
-		fbi_dual->active = fbi_dual->dma_on = 0;
-	}
 
 #ifdef OVLY_DVFM_CONSTRAINT
 	dvfm_enable_lowpower(dvfm_dev_idx);
 #endif
 
 	return 0;
-}
-
-void pxa168fb_ovly_dual(int enable)
-{
-	struct pxa168fb_info *fbi_base = ovly_info.fbi[fb_base];
-	struct pxa168fb_info *fbi_dual = ovly_info.fbi[fb_dual];
-
-	pr_debug("%s enable %d fb_base->op_count %d fb_dual->active %d\n",
-		__func__, enable, atomic_read(&fbi_base->op_count),
-		fbi_dual->active);
-
-	if (!atomic_read(&fbi_base->op_count))
-		return;
-
-	if (enable) {
-		fbi_dual->active = fbi_base->active;
-		fbi_dual->dma_on = fbi_base->dma_on;
-		pxa168fb_set_par(fbi_base->fb_info);
-	} else {
-		/* disable video layer DMA */
-		dma_ctrl_set(fb_dual, 0, CFG_DMA_ENA_MASK, 0);
-		/* in case already suspended, save in sw */
-		gfx_info.fbi[fb_dual]->dma_ctrl0 &= ~CFG_DMA_ENA_MASK;
-		fbi_dual->active = 0; fbi_dual->dma_on = 0;
-
-		/* free buffer if wait_peer flag is set */
-		if (ovly_info.wait_peer) {
-			ovly_info.wait_peer = 0;
-#ifdef OVLY_TASKLET
-			tasklet_schedule(&fbi_base->ovly_task);
-#else
-			if (fbi_base->system_work)
-					schedule_work(&fbi_base->buf_work);
-			else
-				queue_work(fbi_base->work_q,
-					&fbi_base->fb_info->queue);
-#endif
-		}
-	}
 }
 
 static void set_mode(struct pxa168fb_info *fbi, struct fb_var_screeninfo *var,
@@ -1039,30 +929,10 @@ irqreturn_t pxa168fb_ovly_isr(int id)
 		printk(KERN_DEBUG "%s fbi %d vid %d\n",
 			 __func__, fbi->id, fbi->vid);
 
-	if (fb_mode && (id == fb_dual)) {
-		/* mirror mode, tv path irq, check wait_peer set or not */
-		if (ovly_info.wait_peer) {
-			/* trigger irq to free panel path buf */
-			fbi = ovly_info.fbi[fb_base];
-#ifdef OVLY_TASKLET
-			tasklet_schedule(&fbi->ovly_task);
-#else
-			if (fbi->system_work)
-				schedule_work(&fbi->buf_work);
-			else
-				queue_work(fbi->work_q,
-					&fbi->fb_info->queue);
-#endif
-		}
-		/* no buf need to be handled for tv path, wakeup only */
-		goto wakeup;
-	}
-
 	if (atomic_read(&fbi->op_count)) {
 		/* do buffer switch for video flip */
 		buf_endframe(fi);
 
-wakeup:
 		/* wake up queue. */
 		if (atomic_read(&fbi->w_intr) == 0) {
 			atomic_set(&fbi->w_intr, 1);
@@ -1083,10 +953,9 @@ static ssize_t debug_show(struct device *dev, struct device_attribute *attr,
 {
 	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
 
-	return sprintf(buf, "fbi %d debug %d active %d, retire_err %d,"
-		" wait peer: %d surface_set %d dma_on %d\n", fbi->id,
-		fbi->debug, fbi->active, ovly_info.retire_err, ovly_info.flag,
-		fbi->surface_set, fbi->dma_on);
+	return sprintf(buf, "fbi %d debug %d active %d,"
+		"surface_set %d dma_on %d\n", fbi->id, fbi->debug,
+		 fbi->active, fbi->surface_set, fbi->dma_on);
 }
 
 static ssize_t debug_store(
@@ -1099,14 +968,9 @@ static ssize_t debug_store(
 	sscanf(buf, "%d", &tmp);
 	if (tmp == 2 || tmp == 3)
 		fbi->update_addr = tmp & 1;
-	else if (tmp == 9) {
-		ovly_info.flag++;
-		if (ovly_info.flag > 0xffff)
-			ovly_info.flag = 0;
-	} else
+	else
 		/* 0: disable all debug info
 		 * 1: enable log for buffer management
-		 * 8: enable log for mirror mode surface adjust
 		 */
 		fbi->debug = tmp;
 
@@ -1171,7 +1035,6 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	if (!fbi->id)
 		memset(&ovly_info, 0, sizeof(ovly_info));
 	ovly_info.fbi[fbi->id] = fbi;
-	ovly_info.flag = 5;
 	fbi->update_addr = 1;
 
 	platform_set_drvdata(pdev, fbi);
@@ -1185,18 +1048,6 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	mutex_init(&fbi->access_ok);
 	spin_lock_init(&fbi->buf_lock);
 	spin_lock_init(&fbi->var_lock);
-
-#ifdef OVLY_TASKLET
-	tasklet_init(&fbi->ovly_task, pxa168fb_ovly_task, (unsigned long)fbi);
-#else
-	fbi->system_work = 1;
-	if (fbi->system_work)
-		INIT_WORK(&fbi->buf_work, pxa168fb_ovly_work);
-	else {
-		fbi->work_q = create_singlethread_workqueue("pxa168fb-ovly");
-		INIT_WORK(&fi->queue, pxa168fb_ovly_work);
-	}
-#endif
 
 	/* FIXME - video layer has no specific clk. it depend on
 	 * graphic layer clk. fbi->clk = clk_get(&pdev->dev, NULL);
