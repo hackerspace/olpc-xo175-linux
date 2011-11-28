@@ -15,7 +15,7 @@
 #include <linux/slab.h>
 #include <linux/kobject.h>
 #include <linux/device.h>
-#include <linux/version.h>
+#include <linux/input/mt.h>
 #include "typedef-ntrig.h"
 #include "ntrig-common.h"
 #include "ntrig-dispatcher.h"
@@ -92,8 +92,8 @@ static int	ntrig_input_open		(struct input_dev *dev);
 static void	ntrig_input_close		(struct input_dev *dev);
 
 static int	ntrig_send_pen			(struct input_dev *input_device, lp_mr_message_types_t	pen         );
-static int	ntrig_send_multi_touch		(struct input_dev *input_device, lp_mr_message_types_t	multi_touch );
-static int	ntrig_send_multi_touch_bypass		(struct input_dev *input_device, lp_mr_message_types_t	multi_touch );
+/* static int	ntrig_send_multi_touch		(struct input_dev *input_device, lp_mr_message_types_t	multi_touch );*/
+static int	ntrig_send_multi_touch_typeB(struct input_dev *input, lp_mr_message_types_t multi_touch);
 static int 	ntrig_send_button		(struct input_dev *input_device, lp_mr_message_types_t 	buttons_msg);
 
 static void 	memory_lock_touch_ev		(unsigned long *flag); 
@@ -162,8 +162,8 @@ void    set_mt_touch_invalid	(__u8*	flag) { *flag =   *flag&0xFA;}
 // Holds registered ntrig_bus_devices 
 static struct _ntrig_dev_hid ntrig_devices_hid[MAX_NUMBER_OF_SENSORS] = 
 {
-	{{0}, -1, NULL, NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 0, NULL, NULL, 0, NULL, NULL},
-	{{0}, -1, NULL, NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 0, NULL, NULL, 0, NULL, NULL}
+	{{0}, -1, NULL, NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 0, NULL, NULL, 0},
+	{{0}, -1, NULL, NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 0, NULL, NULL, 0}
 };
 // Holds registered ntrig_bus_devices 
 static struct _ntrig_dev_raw ntrig_devices_raw[MAX_NUMBER_OF_SENSORS] = 
@@ -181,6 +181,7 @@ static __u8 g_next_read_dev_type  = -1;
 
 /* sensor configuration read */
 static __u8 g_config_sensor_next_read_sensor_id = -1;
+/* static int	g_next_read_internal_value_type = 0; */
 
 /* get bus interface (separate sysfs file) */
 static __u8 g_get_bus_interface_read_sensor_id = -1;
@@ -518,7 +519,6 @@ int setup_get_bus_interface(message_callback* read_get_bus_interface, message_ca
 	return DTRG_NO_ERROR; 
 } 
 
-
 int read_counters(ntrig_counter **counters_list, int *length);
 void reset_counters(void);
 
@@ -546,6 +546,7 @@ void reset_counters(void)
 	if(ntrig_devices_hid[0].reset_counters != NULL)
 		ntrig_devices_hid[0].reset_counters();
 }
+
 int write_dispatcher_configuration(void *buf,  int req_type) {
 	int retval = DTRG_FAILED;
 	__u8 *data = (__u8 *) buf;
@@ -646,12 +647,6 @@ int read_dispatcher_configuration(void *buf,  int req_type) {
 			}
 			else
 				ntrig_dbg("Inside %s: CONFIG_TOUCH_SCREEN_BORDER error - sensor_id not set correctly: %d\n", __FUNCTION__, (int) g_next_read_screen_border_sensor_id);
-			break;
-		case CONFIG_DRIVER_VERSION:
-			retval = snprintf(buf, PAGE_SIZE, "%u.%u", DRIVER_MAJOR_VERSION, DRIVER_MINOR_VERSION);
-			if (retval > 0)
-				retval++;	/* for the terminating '\0' */
-			ntrig_dbg("Inside %s: CONFIG_DRIVER_VERSION=%s\n", __FUNCTION__, (char *)buf);
 			break;
 		case CONFIG_DEBUG_PRINT:
 			ntrig_dbg("Inside %s: CONFIG_DEBUG_PRINT=%d\n", __FUNCTION__, ntrig_debug_flag);
@@ -888,16 +883,6 @@ void set_ntrig_devices_hid_data(int index, int dev_type, char *bus_id, lp_ntrig_
 		}
 		if (ncp_func->dev != NULL)
 			ntrig_devices_hid[index].dev_ncp = ncp_func->dev;
-		if (ncp_func->read_counters != NULL)
-		{
-			ntrig_devices_hid[index].read_counters = ncp_func->read_counters;
-			ntrig_dbg("Inside %s - registering read_cuonters function\n", __FUNCTION__);
-		}
-		if (ncp_func->reset_counters != NULL)
-		{
-			ntrig_devices_hid[index].reset_counters = ncp_func->reset_counters;
-			ntrig_dbg("Inside %s - registering reset_counters function\n", __FUNCTION__);
-		}
 	}
 	
 	if (hid_func) {
@@ -1123,7 +1108,7 @@ int ntrig_write_hid(void * buf)
 	unsigned long		flag;
 
 	//ntrig_dbg( "inside %s \n", __FUNCTION__);
-	//print_message(message_packet);		// Shlomy: Debugging only	
+	/* print_message(message_packet); */		/* Shlomy: Debugging only */
 
 	if(!buf){
 		ntrig_dbg("ntrig inside %s Wrong parameter\n", __FUNCTION__);		
@@ -1179,12 +1164,8 @@ int ntrig_create_single_touch(lp_ntrig_bus_device dev, __u8 sensor_id)
 	__set_bit(BTN_STYLUS, input_device->keybit);
 	__set_bit(BTN_STYLUS2, input_device->keybit);
 
-	input_set_abs_params(input_device, ABS_X	,
-			dev->logical_min_x + get_touch_screen_border_pen_left(),
-			dev->logical_max_x - get_touch_screen_border_pen_right(), 0, 0);
-	input_set_abs_params(input_device, ABS_Y	,
-			dev->logical_min_y + get_touch_screen_border_pen_down(),
-			dev->logical_max_y + get_touch_screen_border_pen_up(), 0, 0);
+	input_set_abs_params(input_device, ABS_X	, dev->logical_min_x, dev->logical_max_x, 0, 0);
+	input_set_abs_params(input_device, ABS_Y	, dev->logical_min_y, dev->logical_max_y, 0, 0);
 	input_set_abs_params(input_device, ABS_PRESSURE	, dev->pressure_min,  dev->pressure_max,  0, 0);
 
 	if(input_register_device(input_device)){
@@ -1228,9 +1209,13 @@ int ntrig_create_multi_touch(lp_ntrig_bus_device dev, __u8 sensor_id)
 	config_multi_touch(dev, input_device);
 
 	/* set larger packet size to support newer sensors with 10 fingers */
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 35) // not compiling on 2.6.35
 	input_set_events_per_packet(input_device, 60);
-#endif
+
+	if(input_mt_init_slots(input_device,20) < 0) {
+		printk("failed allocate slots\n");
+		input_free_device(input_device);
+		return	DTRG_FAILED;
+	}
 
 	if(input_register_device(input_device))	{
 		ntrig_dbg("ntrig inside %s input register device fail!!\n", __FUNCTION__);
@@ -1315,7 +1300,7 @@ int ntrig_attach_multi_touch(__u8 sensor_id, struct input_dev* input_device)
 bool ntrig_check_single_touch(__u8 sensor_id)
 {
 	if (sensor_id >= MAX_NUMBER_OF_SENSORS) {
-/*		ntrig_dbg("%s: wrong sensor_id: %d, FALSE\n", __FUNCTION__, sensor_id);	 */
+/*		ntrig_dbg("%s: wrong sensor_id: %d, FALSE\n", __FUNCTION__, sensor_id); */
 		return false;
 	}
 
@@ -1333,7 +1318,7 @@ bool ntrig_check_single_touch(__u8 sensor_id)
 bool ntrig_check_multi_touch(__u8 sensor_id)
 {
 	if (sensor_id >= MAX_NUMBER_OF_SENSORS) {
-/*		ntrig_dbg("%s: wrong sensor_id: %d, FALSE\n", __FUNCTION__, sensor_id);	 */
+/*		ntrig_dbg("%s: wrong sensor_id: %d, FALSE\n", __FUNCTION__, sensor_id); */
 		return false;
 	}
 
@@ -1375,7 +1360,7 @@ int send_message(void* buf)
 			if (g_pen_enabled) {
 				sensor_id = (int) message_packet->msg.pen_event.sensor_id;
 //				ntrig_dbg("%s: MSG_PEN_EVENTS\n", __FUNCTION__);		
-				if ((sensor_id < 0) || (sensor_id >= MAX_NUMBER_OF_SENSORS)) {
+				if (sensor_id >= MAX_NUMBER_OF_SENSORS) {
 					ntrig_dbg("%s: MSG_PEN_EVENTS: wrong sensor_id: %d\n", __FUNCTION__, sensor_id);		
 					ret = DTRG_FAILED;
 					break;
@@ -1387,22 +1372,19 @@ int send_message(void* buf)
 		case MSG_FINGER_PARSE:
 			sensor_id = (int) message_packet->msg.fingers_event.sensor_id;
 //			ntrig_dbg("%s: MSG_FINGER_PARSE\n", __FUNCTION__);		
-			if ((sensor_id < 0) || (sensor_id >= MAX_NUMBER_OF_SENSORS)) {
+			if (sensor_id >= MAX_NUMBER_OF_SENSORS) {
 				ntrig_dbg("%s: MSG_FINGER_PARSE: wrong sensor_id: %d\n", __FUNCTION__, sensor_id);		
 				ret = DTRG_FAILED;
 				break;
 			}
 			input_device = (struct input_dev*) ntrig_devices_hid[sensor_id].multi_touch_device;
-			if(g_tracklib_enabled) {
-				send_func = (data_send) ntrig_send_multi_touch;
-			} else {
-				send_func = (data_send) ntrig_send_multi_touch_bypass;
-			}
+			/* send_func = (data_send) ntrig_send_multi_touch; */
+			send_func = (data_send) ntrig_send_multi_touch_typeB;
 			break;
 		case MSG_BUTTON_EVENTS:
 			sensor_id = (int) message_packet->msg.buttons_event.sensor_id;
 //			ntrig_dbg("%s: MSG_BUTTON_EVENTS\n", __FUNCTION__);		
-			if ((sensor_id < 0) || (sensor_id >= MAX_NUMBER_OF_SENSORS)) {
+			if (sensor_id >= MAX_NUMBER_OF_SENSORS) {
 				ntrig_dbg("%s: MSG_BUTTON_EVENTS: wrong sensor_id: %d\n", __FUNCTION__, sensor_id);		
 				ret = DTRG_FAILED;
 				break;
@@ -1507,7 +1489,7 @@ static int ntrig_send_pen(struct input_dev *input, lp_mr_message_types_t pen)
 	 * bit 3+bit 4+bit 0 will be set (and bit 1, the tip will be clear in this case!!)
 	 */
 	btn_code = pen->msg.pen_event.btn_code;
-	//ntrig_dbg("%s: btn_code = %d\n", __FUNCTION__, btn_code);
+	/* ntrig_dbg("%s: btn_code = %d\n", __FUNCTION__, btn_code); */
 	if(btn_code & EVENT_PEN_BIT_IN_RANGE) {
 		/* handle the second button + tip first as it is special */
 		if(btn_code & EVENT_PEN_BIT_ERASER) {
@@ -1539,8 +1521,69 @@ static int ntrig_send_pen(struct input_dev *input, lp_mr_message_types_t pen)
 	return DTRG_NO_ERROR;
 }
 
-static int lastFingerCount = 0;
+int lastFingerCount = 0;
 
+static int ntrig_send_multi_touch_typeB(struct input_dev *input, lp_mr_message_types_t multi_touch)
+{
+	int i, index;
+	int fingers_num = multi_touch->msg.fingers_event.num_of_fingers;
+	device_finger_t* fingers = multi_touch->msg.fingers_event.finger_array;
+	int dx, dy, major, minor, orientation;
+
+	ntrig_dbg("In %s: \n", __FUNCTION__);
+	for (i=0; i < fingers_num;i++) {
+		int slot = get_finger_index (fingers[i].track_id);
+		if (slot < 0)
+		  continue;
+
+		input_mt_slot(input, slot);
+		input_mt_report_slot_state(input, MT_TOOL_FINGER, !(fingers[i].removed));
+
+
+
+		/* report a fixed TOUCH_MAJOR to simulate fixed pressure for fingers */
+		input_report_abs(input, ABS_MT_TOUCH_MAJOR, ABS_MT_TOUCH_MAJOR_VAL);
+		/* ntrig_dbg("%s: sent  ABS_MT_TOUCH_MAJOR,0x32\n", __FUNCTION__); */
+
+		/* WIDTH_MAJOR ,WIDTH_MINOR, ORIENTATION implementation:
+		WIDTH_MAJOR = max(dx, dy) - major axis of contact ellipse
+		WIDTH_MINOR = min(dx, dy) - minor axis of contact ellipse
+		ORIENTATION = 0 if dy>dx (ellipse aligned on y axis), 1 otherwise
+		*/
+		dx = fingers[i].dx;
+		dy = fingers[i].dy;
+		if(dy >= dx) {
+			major = dy;
+			minor = dx;
+			orientation = 0;
+		} else {
+			major = dx;
+			minor = dy;
+			orientation = 1;
+		}
+
+		input_report_abs(input, ABS_MT_WIDTH_MAJOR, major);
+		input_report_abs(input, ABS_MT_WIDTH_MINOR, minor);
+		input_report_abs(input, ABS_MT_ORIENTATION, orientation);
+
+		input_report_abs(input, ABS_MT_POSITION_X, fingers[i].x_coord);
+		input_report_abs(input, ABS_MT_POSITION_Y, fingers[i].y_coord);
+
+	}
+	input_sync(input);
+
+	for (i = 0; i < fingers_num; i++)
+	{
+		if (0 != fingers[i].removed) {
+			index = get_finger_index(fingers [i].track_id);
+				if (index >= 0)
+					gFingerMap [index] = -1;
+		}
+	}
+	return DTRG_NO_ERROR;
+}
+
+#if 0
 static int ntrig_send_multi_touch(struct input_dev *input, lp_mr_message_types_t multi_touch)
 {
 	int 			i = 0;	
@@ -1657,120 +1700,16 @@ static int ntrig_send_multi_touch(struct input_dev *input, lp_mr_message_types_t
 	/* removed fingers - remove from finger map */
 	for (i = 0; i < fingers_num; i++)
 	{
-	  if (0 != fingers[i].removed)
-	  {
-	    index = get_finger_index (fingers [i].track_id);
-	    if (index >= 0)
-	      gFingerMap [index] = -1;
-	  }
+		if (0 != fingers[i].removed) {
+			index = get_finger_index (fingers [i].track_id);
+			if (index >= 0)
+				gFingerMap [index] = -1;
+		}
 	}
 
 	return DTRG_NO_ERROR;
 }
-
-/* used by ntrig_send_multi_touch_bypass */
-static int lastFingersNum = 0;
-/**
- * send multi-touch input events in tracklib bypass mode. \
- * the lp_mr_message_types_t is the "untracked" touch report
- * coming from the sensor
- */
-static int ntrig_send_multi_touch_bypass(struct input_dev *input, lp_mr_message_types_t multi_touch)
-{
-	int 			i = 0;
-	int 			fingers_num	= multi_touch->msg.fingers_event.num_of_fingers;
-	device_finger_t*	fingers 	= multi_touch->msg.fingers_event.finger_array;
-	int first;
-	int fingerCount = 0;
-	int dx, dy, major, minor, orientation;
-
-	ntrig_dbg("Inside %s\n", __FUNCTION__);
-	if(!input){
-		ntrig_dbg("%s No Input Queue\n", __FUNCTION__);
-		return DTRG_FAILED;
-	}
-
-	/**
-	 *   [48/0x30] - ABS_MT_TOUCH_MAJOR  0 .. 255
-	 *   [50/0x32] - ABS_MT_WIDTH_MAJOR  0 .. 30
-	 *   [53/0x35] - ABS_MT_POSITION_X   0 .. 1023
-	 *   [54/0x36] - ABS_MT_POSITION_Y   0.. 599
-	 *   ABS_MT_POSITION_Y =
-	 */
-
-	//ntrig_dbg( "%s, !!!!!Number Of Fingers=%d\n", __FUNCTION__, fingers_num);
-	// note: in the untracked report from the sensor, the "removed" byte is used as "confidence" or "valid 1st occurance",
-	// meaning its value has opposite meaning from the tracklib report (removed=1 means there is a finger)
-	for(i=0; i < fingers_num;i++)
-	{
-		if (fingers[i].removed)
-		{
-			++fingerCount;
-		}
-	}
-
-	if(fingers_num == 0 && lastFingersNum > 0) {
-		/* send a dummy report with no fingers */
-		input_report_abs(input, ABS_MT_TOUCH_MAJOR,0x0);
-		input_mt_sync(input);
-	} else {
-		first = 1;
-		for(i=0; i < fingers_num;i++){
-
-			/* TODO: should be removed in Ubuntu 11.04
-			 temporary patch for Ubuntu multi-touch support (single touch simulation + gestures) */
-			if (first)
-			{
-			  ntrig_simulate_single_touch(input, fingers);
-			  first = 0;
-			}
-
-			ntrig_dbg("%s: fingers[%d].removed=%d, lastFingerCount=%d, fingerCount = %d\n", __FUNCTION__, i,
-					fingers[i].removed,  lastFingerCount, fingerCount);
-
-			if (!fingers[i].removed) {
-				input_report_abs(input, ABS_MT_TOUCH_MAJOR,0x0);
-				/* ntrig_dbg("%s: sent  ABS_MT_TOUCH_MAJOR,0x0\n", __FUNCTION__); */
-			}
-			else
-			{
-				/* report a fixed TOUCH_MAJOR to simulate fixed pressure for fingers */
-				input_report_abs(input, ABS_MT_TOUCH_MAJOR, ABS_MT_TOUCH_MAJOR_VAL);
-				/* ntrig_dbg("%s: sent  ABS_MT_TOUCH_MAJOR,0x32\n", __FUNCTION__); */
-
-				/* WIDTH_MAJOR ,WIDTH_MINOR, ORIENTATION implementation:
-				   WIDTH_MAJOR = max(dx, dy) - major axis of contact ellipse
-				   WIDTH_MINOR = min(dx, dy) - minor axis of contact ellipse
-				   ORIENTATION = 0 if dy>dx (ellipse aligned on y axis), 1 otherwise
-					*/
-				dx = fingers[i].dx;
-				dy = fingers[i].dy;
-				if(dy >= dx) {
-					major = dy;
-					minor = dx;
-					orientation = 0;
-				} else {
-					major = dx;
-					minor = dy;
-					orientation = 1;
-				}
-
-				input_report_abs(input, ABS_MT_WIDTH_MAJOR, major);
-				input_report_abs(input, ABS_MT_WIDTH_MINOR, minor);
-				input_report_abs(input, ABS_MT_ORIENTATION, orientation);
-
-				input_report_abs(input, ABS_MT_POSITION_X, fingers[i].x_coord);
-				input_report_abs(input, ABS_MT_POSITION_Y, fingers[i].y_coord);
-			}
-			input_mt_sync(input);
-		}
-	}
-	input_sync(input);
-
-	lastFingersNum = fingers_num;
-
-	return DTRG_NO_ERROR;
-}
+#endif
 
 static int ntrig_send_button(struct input_dev *input, lp_mr_message_types_t buttons_msg)
 {
@@ -1790,9 +1729,7 @@ static int ntrig_send_button(struct input_dev *input, lp_mr_message_types_t butt
 	 */
 
 	for (i = 0; i < buttons_num; ++i)
-	{
 		input_report_key(input, buttons[i].btn_code, buttons[i].btn_mode);
-	}
 	input_sync(input);
 
 	return DTRG_NO_ERROR;
@@ -1818,5 +1755,9 @@ void ntrig_dispatcher_exit(void)
 	bus_exit_ncp();
 	ntrig_dispathcer_sysfs_exit();
 }
+
+
 EXPORT_SYMBOL(ntrig_dispatcher_init);
 EXPORT_SYMBOL(ntrig_dispatcher_exit);
+
+MODULE_LICENSE("GPL");
