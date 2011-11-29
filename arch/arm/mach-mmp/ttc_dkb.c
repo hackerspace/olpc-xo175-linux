@@ -1561,7 +1561,8 @@ static struct sdhci_pxa_platdata pxa910_sdh_platdata_mmc1 = {
 
 /* MMC2 controller for eMMC */
 static struct sdhci_pxa_platdata pxa910_sdh_platdata_mmc2 = {
-	.flags			= PXA_FLAG_CARD_PERMANENT
+	.flags			= PXA_FLAG_ENABLE_CLOCK_GATING
+					| PXA_FLAG_CARD_PERMANENT
 					| PXA_FLAG_SD_8_BIT_CAPABLE_SLOT,
 	.clk_delay_sel		= 1,
 	.clk_delay_cycles	= 2,
