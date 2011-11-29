@@ -611,40 +611,45 @@ static int brownstone_lcd_power(struct pxa168fb_info *fbi,
 		return -1;
 	}
 
-	if (on) {
-		/* enable regulator LDO17 to power VDDC and VDD_LVDS*_12 */
+	if (!lcd_pwr_ldo17) {
 		lcd_pwr_ldo17 = regulator_get(NULL, "v_ldo17");
 		if (IS_ERR(lcd_pwr_ldo17)) {
 			lcd_pwr_ldo17 = NULL;
 			printk(KERN_ERR "v_ldo17 can't open!\n");
 			goto out;
-		} else {
-			regulator_set_voltage(lcd_pwr_ldo17, 1200000, 1200000);
-			regulator_enable(lcd_pwr_ldo17);
 		}
-
-		/* enable LDO3 to power AVDD12_DSI */
+	}
+	if (!lcd_pwr_ldo3) {
 		lcd_pwr_ldo3 = regulator_get(NULL, "v_ldo3");
 		if (IS_ERR(lcd_pwr_ldo3)) {
 			lcd_pwr_ldo3 = NULL;
 			printk(KERN_ERR "v_ldo3 can't open!\n");
 			goto out1;
-		} else {
-			regulator_set_voltage(lcd_pwr_ldo3, 1200000, 1200000);
-			regulator_enable(lcd_pwr_ldo3);
 		}
-
-		/* release reset */
-		gpio_direction_output(lcd_rst_n, 1);
-
-		/* enable 5V power supply */
+	}
+	if (!led_pwr_v5p) {
 		led_pwr_v5p = regulator_get(NULL, "v_5vp");
 		if (IS_ERR(led_pwr_v5p)) {
 			led_pwr_v5p = NULL;
 			printk(KERN_ERR "v_5vp can't open!\n");
 			goto out2;
-		} else
-			regulator_enable(led_pwr_v5p);
+		}
+	}
+
+	if (on) {
+		/* enable regulator LDO17 to power VDDC and VDD_LVDS*_12 */
+		regulator_set_voltage(lcd_pwr_ldo17, 1200000, 1200000);
+		regulator_enable(lcd_pwr_ldo17);
+
+		/* enable LDO3 to power AVDD12_DSI */
+		regulator_set_voltage(lcd_pwr_ldo3, 1200000, 1200000);
+		regulator_enable(lcd_pwr_ldo3);
+
+		/* release reset */
+		gpio_direction_output(lcd_rst_n, 1);
+
+		/* enable 5V power supply */
+		regulator_enable(led_pwr_v5p);
 
 		/* config mfp GPIO99/GPIO100 as twsi5 */
 		lcd_twsi5_set(1);
@@ -654,18 +659,15 @@ static int brownstone_lcd_power(struct pxa168fb_info *fbi,
 
 		/* disable 5V power supply */
 		regulator_disable(led_pwr_v5p);
-		regulator_put(led_pwr_v5p);
 
 		/* keep reset */
 		gpio_direction_output(lcd_rst_n, 0);
 
 		/* disable AVDD12_DSI voltage */
 		regulator_disable(lcd_pwr_ldo3);
-		regulator_put(lcd_pwr_ldo3);
 
 		/* disable regulator LDO17 */
 		regulator_disable(lcd_pwr_ldo17);
-		regulator_put(lcd_pwr_ldo17);
 	}
 
 	gpio_free(lcd_rst_n);
@@ -676,9 +678,11 @@ static int brownstone_lcd_power(struct pxa168fb_info *fbi,
 out2:
 	regulator_disable(lcd_pwr_ldo3);
 	regulator_put(lcd_pwr_ldo3);
+	lcd_pwr_ldo3 = NULL;
 out1:
 	regulator_disable(lcd_pwr_ldo17);
 	regulator_put(lcd_pwr_ldo17);
+	lcd_pwr_ldo17 = NULL;
 out:
 	gpio_free(lcd_rst_n);
 	return -EIO;
