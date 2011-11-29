@@ -277,6 +277,93 @@ out:
 	return ret;
 }
 
+/* Return 1 if in bad mode, or 0 */
+static int max17042_is_bad_mode(struct max17042_device_info *di)
+{
+	int max_cnt = 20;	/* Max verify count */
+	int ret = 0;
+	/* Case 1: Current always return 0 in a certain period */
+	while (max_cnt-- >= 0) {
+		ret = max17042_get_current(di);
+		/* Error or non-zero return 0 */
+		if (ret)
+			return 0;
+		msleep(100);
+	}
+	/* TODO: To add other bad cases found in the future */
+	return 1;
+}
+
+/* Please Note: Maxim does not recommend frequent use of SoftPOR.
+ * Probably the only legitimate reason for SoftPOR is if the fuel-gauge
+ * has been in a bad mode for a significant time, such as when the model
+ * is in the unlocked state. Using SoftPOR causes the fuel-gauge to forget
+ * valuable information which is learned very rarely, thereby compromising
+ * performance improvements adapted by the fuel-gauge. */
+static int max17042_do_soft_POR(struct max17042_device_info *di)
+{
+	u16 val_1, val_2, val_3;
+	int cnt, ret = 0;
+
+	dev_info(di->dev, "Start soft POR...\n");
+	cnt = 20;
+	while (cnt-- >= 0) {
+		/* 1. Lock the model and clear the POR bit */
+		if (max17042_write_reg(di->client, 0x62, 0x0) ||
+			max17042_write_reg(di->client, 0x63, 0x0) ||
+			max17042_write_reg(di->client, MAX17042_STATUS, 0x0)) {
+			ret = -1;
+			goto out;
+		}
+		msleep(10);
+		/* 2. Verify model lock */
+		if (max17042_read_reg(di->client, 0x62, &val_1) ||
+			max17042_read_reg(di->client, 0x63, &val_2) ||
+			max17042_read_reg(di->client, MAX17042_STATUS, &val_3)) {
+			ret = -1;
+			goto out;
+		}
+		if (val_1 || val_2 || val_3)
+			continue;
+		else
+			break;	/* Device is locked and ready to proceed */
+	}
+	/* Timeout... */
+	if (cnt < 0) {
+		ret = -1;
+		goto out;
+	}
+	cnt = 20;
+	while (cnt-- >= 0) {
+		/* 3. Send SoftPOR */
+		if (max17042_write_reg(di->client, 0x60, 0x000F)) {
+			ret = -1;
+			goto out;
+		}
+		/* 4. Wait for at least 2ms */
+		msleep(5);
+		/* 5. Verify POR bit is set */
+		if (max17042_read_reg(di->client, MAX17042_STATUS, &val_3)) {
+			ret = -1;
+			goto out;
+		}
+		/* 6. If Device was POR'ed, Start the initialization routine */
+		if (val_3 & MAX17042_STATUS_POR)
+			goto out;
+	}
+	/* Timeout... */
+	if (cnt < 0) {
+		ret = -1;
+		goto out;
+	}
+out:
+	if (ret < 0)
+		dev_err(di->dev, "Failed to do soft POR!\n");
+	else
+		dev_info(di->dev, "Soft POR done!\n");
+	return ret;
+}
+
 /* Update battery status */
 static void max17042_bat_update_status(struct max17042_device_info *di)
 {
@@ -386,6 +473,12 @@ static int max17042_fuel_guage_setup(struct max17042_device_info *di,
 	/* Charging indicator led */
 	di->is_charging_led = pdata->is_charging_led;
 
+	/* Do soft POR if in bad mode */
+	if (max17042_is_bad_mode(di)) {
+		ret = max17042_do_soft_POR(di);
+		if (ret < 0)
+			return ret;
+	}
 	/* Clear Power-On Reset */
 	if (max17042_is_reset(di)) {
 		/* Clear POR after fully completed(1s) */
