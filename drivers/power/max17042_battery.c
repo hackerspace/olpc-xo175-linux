@@ -80,6 +80,7 @@ struct max17042_device_info {
 #define MAX17042_DEFAULT_ICHG_TERM	(20)	/* Charge termination current */
 #define MAX17042_DEFAULT_R_SNS		(10000)	/* mirco-ohms */
 #define MAX17042_DEFAULT_INTERVAL	(60 * HZ)
+#define MAX17042_DEFAULT_CONFIG		(0x2250)
 
 #define uAh_to_uWh(val)	(val * 37 / 10)	/* Nominal voltage: 3.7v */
 
@@ -397,6 +398,10 @@ static int max17042_fuel_guage_setup(struct max17042_device_info *di,
 		return ret;
 	dev_info(di->dev, "Status Reg: 0x%04x\n", max17042_get_status(di));
 
+	/* Init config register */
+	ret = max17042_set_config(di, MAX17042_DEFAULT_CONFIG);
+	if (ret < 0)
+		return ret;
 	/* Set SOC alert threshold, low battery(0%) protection */
 	ret = max17042_set_soc_alert(di, 0xFF00 | (di->rsvd_cap + 1));
 	if (ret < 0)
