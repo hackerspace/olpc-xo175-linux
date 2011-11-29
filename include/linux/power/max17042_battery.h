@@ -27,6 +27,8 @@
 
 /* Battery Status: present=0 or 1 */
 #define MAX17042_STATUS_BST		(1 << 3)
+/* Power-On Reset */
+#define MAX17042_STATUS_POR		(1 << 1)
 /* Alert output enable */
 #define MAX17042_CONFIG_AEN		(1 << 2)
 

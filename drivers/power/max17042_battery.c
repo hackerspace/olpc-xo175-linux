@@ -32,6 +32,7 @@
 #include <linux/power_supply.h>
 #include <linux/gpio.h>
 #include <linux/wakelock.h>
+#include <linux/delay.h>
 #include <linux/workqueue.h>
 #include <linux/power/max17042_battery.h>
 
@@ -242,6 +243,33 @@ static int max17042_set_soc_alert(struct max17042_device_info *di, int val)
 	return max17042_write_reg(di->client, MAX17042_SALRT_Th, val);
 }
 
+static int max17042_set_status(struct max17042_device_info *di, int val)
+{
+	return max17042_write_reg(di->client, MAX17042_STATUS, val);
+}
+
+/* Return 1 if power-on reset or 0 */
+static int max17042_is_reset(struct max17042_device_info *di)
+{
+	int ret = 0;
+	ret = max17042_get_status(di);
+	return (ret < 0) ? 0 : !!(ret & MAX17042_STATUS_POR);
+}
+
+static int max17042_clear_reset(struct max17042_device_info *di)
+{
+	int ret = 0;
+	ret = max17042_get_status(di);
+	if (ret < 0)
+		goto out;
+	ret &= (~MAX17042_STATUS_POR);
+	ret = max17042_set_status(di, ret);
+out:
+	if (ret < 0)
+		dev_err(di->dev, "Failed to clear POR!\n");
+	return ret;
+}
+
 /* Update battery status */
 static void max17042_bat_update_status(struct max17042_device_info *di)
 {
@@ -345,6 +373,18 @@ static int max17042_fuel_guage_setup(struct max17042_device_info *di,
 	di->alert_gpio = pdata->alert_gpio;
 	/* Charging indicator led */
 	di->is_charging_led = pdata->is_charging_led;
+
+	/* Clear Power-On Reset */
+	if (max17042_is_reset(di)) {
+		/* Clear POR after fully completed(1s) */
+		dev_info(di->dev, "Power-On Reset detected! Clearing...\n");
+		msleep(1000);
+		max17042_clear_reset(di);
+	}
+	ret = max17042_get_status(di);
+	if (ret < 0)
+		return ret;
+	dev_info(di->dev, "Status Reg: 0x%04x\n", max17042_get_status(di));
 
 	/* Set SOC alert threshold, low battery(0%) protection */
 	ret = max17042_set_soc_alert(di, 0xFF00 | (di->rsvd_cap + 1));
