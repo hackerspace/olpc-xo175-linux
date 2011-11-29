@@ -40,21 +40,37 @@ static int process_sdio_pending_irqs(struct mmc_card *card)
 		return 0;
 	}
 
+	ret = mmc_io_rw_direct(card, 0, 0, SDIO_CCCR_INTx, 0, &pending);
+	if (ret) {
+		printk(KERN_DEBUG "%s: error %d reading SDIO_CCCR_INTx\n",
+		       mmc_card_id(card), ret);
+		return ret;
+	}
+
 	/*
 	 * Optimization, if there is only 1 function interrupt registered
 	 * call irq handler directly
 	 */
 	func = card->sdio_single_irq;
 	if (func) {
-		func->irq_handler(func);
-		return 1;
-	}
-
-	ret = mmc_io_rw_direct(card, 0, 0, SDIO_CCCR_INTx, 0, &pending);
-	if (ret) {
-		printk(KERN_DEBUG "%s: error %d reading SDIO_CCCR_INTx\n",
-		       mmc_card_id(card), ret);
-		return ret;
+		if (pending & (1 << func->num)) {
+			if (func->suspended) {
+				card->pending_interrupt = 1;
+				printk(KERN_WARNING "%s: IRQ that "
+					"arrives in suspend mode.\n",
+					sdio_func_id(func));
+			}
+			func->irq_handler(func);
+			return 1;
+		} else {
+			if (pending) {	/* unexpect irq */
+				printk(KERN_WARNING "unexpect IRQ that "
+					"arrives in single irq mode:0x%x.\n",
+					pending);
+				return -EINVAL;
+			}
+			return 0;
+		}
 	}
 
 	count = 0;
