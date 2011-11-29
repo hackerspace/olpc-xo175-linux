@@ -2404,17 +2404,17 @@ static __devexit int mv_udc_remove(struct platform_device *dev)
 
 	sysfs_remove_group(&udc->dev->dev.kobj, &gadget_attr_group);
 
-	wake_lock_destroy(&idle_lock);
-	wake_lock_destroy(&suspend_lock);
+	if (udc->pdata && udc->pdata->vbus
+		&& udc->transceiver == NULL && udc->clock_gating)
+		free_irq(udc->pdata->vbus->irq, &dev->dev);
 
 	if (udc->qwork) {
 		flush_workqueue(udc->qwork);
 		destroy_workqueue(udc->qwork);
 	}
 
-	if (udc->pdata && udc->pdata->vbus
-		&& udc->transceiver == NULL && udc->clock_gating)
-		free_irq(udc->pdata->vbus->irq, &dev->dev);
+	wake_lock_destroy(&idle_lock);
+	wake_lock_destroy(&suspend_lock);
 
 	/* free memory allocated in probe */
 	if (udc->dtd_pool)
@@ -2633,6 +2633,16 @@ static int __devinit mv_udc_probe(struct platform_device *dev)
 
 	eps_init(udc);
 
+	wake_lock_init(&idle_lock, WAKE_LOCK_IDLE, "mv_udc_idle");
+	wake_lock_init(&suspend_lock, WAKE_LOCK_SUSPEND, "mv_udc_suspend");
+
+	/* used to tell user space when usb cable plug in and out */
+	INIT_WORK(&udc->event_work, uevent_worker);
+
+	INIT_DELAYED_WORK(&udc->charger_work, do_charger_work);
+	INIT_DELAYED_WORK(&udc->delayed_charger_work, do_delayed_work);
+	udc->charger_type = NULL_CHARGER;
+
 	/*
 	 * 1. VBUS detect: we can disable/enable clock on demand.
 	 * 2. OTG enable: we can disable/enable clock on demand.
@@ -2642,15 +2652,6 @@ static int __devinit mv_udc_probe(struct platform_device *dev)
 		udc->clock_gating = 1;
 
 	if (pdata->vbus && udc->transceiver == NULL) {
-		retval = request_threaded_irq(pdata->vbus->irq, NULL,
-				mv_udc_vbus_irq, IRQF_ONESHOT, "vbus", udc);
-		if (retval) {
-			dev_info(&dev->dev,
-				"Can not request irq for VBUS, "
-				"disable clock gating\n");
-			udc->clock_gating = 0;
-		}
-
 		udc->qwork = create_singlethread_workqueue("mv_udc_queue");
 		if (!udc->qwork) {
 			dev_err(&dev->dev, "cannot create workqueue\n");
@@ -2659,11 +2660,15 @@ static int __devinit mv_udc_probe(struct platform_device *dev)
 		}
 
 		INIT_WORK(&udc->vbus_work, mv_udc_vbus_work);
+		retval = request_threaded_irq(pdata->vbus->irq, NULL,
+				mv_udc_vbus_irq, IRQF_ONESHOT, "vbus", udc);
+		if (retval) {
+			dev_info(&dev->dev,
+				"Can not request irq for VBUS, "
+				"disable clock gating\n");
+			udc->clock_gating = 0;
+		}
 	}
-
-	INIT_DELAYED_WORK(&udc->charger_work, do_charger_work);
-	INIT_DELAYED_WORK(&udc->delayed_charger_work, do_delayed_work);
-	udc->charger_type = NULL_CHARGER;
 
 	/*
 	* For saving power disable clk. When clock is disabled,
@@ -2675,11 +2680,6 @@ static int __devinit mv_udc_probe(struct platform_device *dev)
 		mv_udc_disable_internal(udc);
 	else
 		udc->vbus_active = 1;
-
-	wake_lock_init(&idle_lock, WAKE_LOCK_IDLE, "mv_udc_idle");
-	wake_lock_init(&suspend_lock, WAKE_LOCK_SUSPEND, "mv_udc_suspend");
-
-	INIT_WORK(&udc->event_work, uevent_worker);
 
 	retval = sysfs_create_group(&dev->dev.kobj, &gadget_attr_group);
 	if (retval < 0) {
@@ -2694,17 +2694,16 @@ static int __devinit mv_udc_probe(struct platform_device *dev)
 	return 0;
 
 err_destroy_waklock:
-	wake_lock_destroy(&idle_lock);
-	wake_lock_destroy(&suspend_lock);
-
+	if (udc->pdata && udc->pdata->vbus
+		&& udc->transceiver == NULL && udc->clock_gating)
+		free_irq(pdata->vbus->irq, &dev->dev);
 	if (udc->qwork) {
 		flush_workqueue(udc->qwork);
 		destroy_workqueue(udc->qwork);
 	}
 err_create_qwork:
-	if (udc->pdata && udc->pdata->vbus
-		&& udc->transceiver == NULL && udc->clock_gating)
-		free_irq(pdata->vbus->irq, &dev->dev);
+	wake_lock_destroy(&idle_lock);
+	wake_lock_destroy(&suspend_lock);
 	device_unregister(&udc->gadget.dev);
 err_register_gadget_device:
 	free_irq(udc->irq, &dev->dev);
