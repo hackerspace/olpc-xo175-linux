@@ -249,15 +249,15 @@ int pxa_usb_phy_init(unsigned int base)
 #endif
 
 #if defined(CONFIG_CPU_PXA168) || defined(CONFIG_CPU_PXA910)
-int pxa_usb_phy_init(unsigned int base)
+
+static DEFINE_SPINLOCK(phy_lock);
+static int phy_init_cnt;
+
+static int usb_phy_init_internal(unsigned int base)
 {
-	static int init_done;
 	int loops;
 
-	if (init_done) {
-		printk(KERN_DEBUG "re-init phy\n\n");
-		/* return; */
-	}
+	pr_info("Init usb phy!!!\n");
 
 	/* Initialize the USB PHY power */
 	if (cpu_is_pxa910()) {
@@ -295,7 +295,7 @@ int pxa_usb_phy_init(unsigned int base)
 		| 2<<UTMI_REG_SQ_LENGTH_SHIFT);
 
 	/* UTMI_IVREF */
-	if (cpu_is_pxa168() || cpu_is_mmp2())
+	if (cpu_is_pxa168())
 		/* fixing Microsoft Altair board interface with NEC hub issue -
 		 * Set UTMI_IVREF from 0x4a3 to 0x4bf */
 		u2o_write(base, UTMI_IVREF, 0x4bf);
@@ -337,14 +337,52 @@ int pxa_usb_phy_init(unsigned int base)
 		}
 	}
 
-	if (cpu_is_pxa168() || cpu_is_mmp2()) {
+	if (cpu_is_pxa168()) {
 		u2o_set(base, UTMI_RESERVE, 1 << 5);
 		/* Turn on UTMI PHY OTG extension */
 		u2o_write(base, UTMI_OTG_ADDON, 1);
 	}
 
-	init_done = 1;
 	return 0;
+}
+
+static int usb_phy_deinit_internal(unsigned int base)
+{
+	pr_info("Deinit usb phy!!!\n");
+
+	if (cpu_is_pxa168())
+		u2o_clear(base, UTMI_OTG_ADDON, UTMI_OTG_ADDON_OTG_ON);
+
+	u2o_clear(base, UTMI_CTRL, UTMI_CTRL_RXBUF_PDWN);
+	u2o_clear(base, UTMI_CTRL, UTMI_CTRL_TXBUF_PDWN);
+	u2o_clear(base, UTMI_CTRL, UTMI_CTRL_USB_CLK_EN);
+	u2o_clear(base, UTMI_CTRL, 1<<UTMI_CTRL_PWR_UP_SHIFT);
+	u2o_clear(base, UTMI_CTRL, 1<<UTMI_CTRL_PLL_PWR_UP_SHIFT);
+
+	return 0;
+}
+
+int pxa_usb_phy_init(unsigned int base)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&phy_lock, flags);
+	if (phy_init_cnt++ == 0)
+		usb_phy_init_internal(base);
+	spin_unlock_irqrestore(&phy_lock, flags);
+	return 0;
+}
+
+void pxa_usb_phy_deinit(unsigned int base)
+{
+	unsigned long flags;
+
+	WARN_ON(phy_init_cnt == 0);
+
+	spin_lock_irqsave(&phy_lock, flags);
+	if (--phy_init_cnt == 0)
+		usb_phy_deinit_internal(base);
+	spin_unlock_irqrestore(&phy_lock, flags);
 }
 #endif
 

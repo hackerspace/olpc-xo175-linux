@@ -2032,8 +2032,6 @@ static void __init tds_mfp_init(void)
 
 #if defined(CONFIG_USB_PXA_U2O) || defined(CONFIG_USB_EHCI_PXA_U2O)
 
-extern int pxa_usb_phy_init(unsigned int base);
-
 static char *pxa910_usb_clock_name[] = {
 	[0] = "U2OCLK",
 };
@@ -2089,6 +2087,7 @@ static struct mv_usb_platform_data ttc_usb_pdata = {
 	.vbus		= &ttc_usb_vbus,
 	.mode		= MV_USB_MODE_OTG,
 	.phy_init	= pxa_usb_phy_init,
+	.phy_deinit	= pxa_usb_phy_deinit,
 	.set_vbus	= ttc_usb_set_vbus,
 };
 #endif
