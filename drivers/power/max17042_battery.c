@@ -46,10 +46,14 @@ void pwr_i2c_conflict_mutex_unlock(void){}
 struct max17042_battery_params {
 	int status;
 	int present;
-	int volt;
-	int cur;
-	int cap;
-	int temp;
+	int volt;	/* µV */
+	int cur;	/* µA */
+	int cap;	/* percents: 0~100% */
+	int chg_full;	/* charge: µAh */
+	int chg_now;
+	int eng_full;	/* energy: µWh */
+	int eng_now;
+	int temp;	/* 0.1C */
 	int health;
 	int tech;
 };
@@ -76,6 +80,8 @@ struct max17042_device_info {
 #define MAX17042_DEFAULT_ICHG_TERM	(20)	/* Charge termination current */
 #define MAX17042_DEFAULT_R_SNS		(10000)	/* mirco-ohms */
 #define MAX17042_DEFAULT_INTERVAL	(60 * HZ)
+
+#define uAh_to_uWh(val)	(val * 37 / 10)	/* Nominal voltage: 3.7v */
 
 static int max17042_read_reg(struct i2c_client *client, u8 reg, u16 *data)
 {
@@ -304,7 +310,12 @@ static void max17042_bat_update_status(struct max17042_device_info *di)
 		/* actual capacity */
 		di->bat_params.cap = cap;
 	}
-
+	/* Charge: µAh */
+	di->bat_params.chg_full = di->bat_design_cap * 1000;
+	di->bat_params.chg_now = di->bat_design_cap * di->bat_params.cap * 10;
+	/* Energy: µWh */
+	di->bat_params.eng_full = uAh_to_uWh(di->bat_params.chg_full);
+	di->bat_params.eng_now = uAh_to_uWh(di->bat_params.chg_now);
 	/* Voltage */
 	di->bat_params.volt = max17042_get_voltage(di);
 	/* Charging status */
@@ -438,6 +449,10 @@ static enum power_supply_property max17042_bat_props[] = {
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 	POWER_SUPPLY_PROP_CURRENT_NOW,
 	POWER_SUPPLY_PROP_CAPACITY,
+	POWER_SUPPLY_PROP_CHARGE_FULL,
+	POWER_SUPPLY_PROP_CHARGE_NOW,
+	POWER_SUPPLY_PROP_ENERGY_FULL,
+	POWER_SUPPLY_PROP_ENERGY_NOW,
 	POWER_SUPPLY_PROP_TEMP,
 	POWER_SUPPLY_PROP_HEALTH,
 	POWER_SUPPLY_PROP_TECHNOLOGY,
@@ -459,6 +474,18 @@ static int max17042_bat_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
 		val->intval = di->bat_params.cap;
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_FULL:
+		val->intval = di->bat_params.chg_full;
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_NOW:
+		val->intval = di->bat_params.chg_now;
+		break;
+	case POWER_SUPPLY_PROP_ENERGY_FULL:
+		val->intval = di->bat_params.eng_full;
+		break;
+	case POWER_SUPPLY_PROP_ENERGY_NOW:
+		val->intval = di->bat_params.eng_now;
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
 		val->intval = di->bat_params.temp;
