@@ -33,7 +33,7 @@
 #include <asm/mach/irq.h>
 #include <asm/hardware/gic.h>
 
-#ifdef CONFIG_CPU_MMP3
+#if defined(CONFIG_CPU_MMP3) && defined(CONFIG_SMP)
 extern unsigned int smp_hardid[NR_CPUS];
 #endif
 
@@ -273,7 +273,7 @@ static void __init gic_dist_init(struct gic_chip_data *gic,
 {
 	unsigned int gic_irqs, irq_limit, i;
 	void __iomem *base = gic->dist_base;
-#ifdef CONFIG_CPU_MMP3
+#if defined(CONFIG_CPU_MMP3) && defined(CONFIG_SMP)
 	u32 cpumask = 1 << smp_hardid[smp_processor_id()];
 #else
 	u32 cpumask = 1 << smp_processor_id();
