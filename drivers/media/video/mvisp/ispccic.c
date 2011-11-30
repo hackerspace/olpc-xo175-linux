@@ -628,6 +628,46 @@ static int ccic_set_stream(struct v4l2_subdev *sd, int enable)
 	return 0;
 }
 
+static int ccic_io_config_mipi(struct isp_ccic_device *ccic,
+	struct v4l2_ccic_config_mipi *mipi_cfg)
+{
+	if (NULL == mipi_cfg)
+		return -EINVAL;
+
+	if (mipi_cfg->start_mipi != 0)
+		ccic_configure_mipi(ccic);
+	else
+		ccic_clear_mipi(ccic);
+
+	return 0;
+}
+
+static long ccic_ioctl(struct v4l2_subdev *sd
+			, unsigned int cmd, void *arg)
+{
+	struct isp_ccic_device *ccic = v4l2_get_subdevdata(sd);
+	int ret;
+
+	switch (cmd) {
+	case VIDIOC_PRIVATE_CCIC_CONFIG_MIPI:
+		ret = ccic_io_config_mipi
+			(ccic, (struct v4l2_ccic_config_mipi *)arg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+
+
+
+/* subdev core ooperations */
+static const struct v4l2_subdev_core_ops ccic_core_ops = {
+	.ioctl = ccic_ioctl,
+};
+
 /* subdev video operations */
 static const struct v4l2_subdev_video_ops ccic_video_ops = {
 	.s_stream = ccic_set_stream,
@@ -643,6 +683,7 @@ static const struct v4l2_subdev_pad_ops ccic_pad_ops = {
 
 /* subdev operations */
 static const struct v4l2_subdev_ops ccic_ops = {
+	.core = &ccic_core_ops,
 	.video = &ccic_video_ops,
 	.pad = &ccic_pad_ops,
 };

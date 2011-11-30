@@ -100,6 +100,10 @@ struct v4l2_ispdma_reset {
 	unsigned long	param;
 };
 
+struct v4l2_ccic_config_mipi {
+	int start_mipi;
+};
+
 #define VIDIOC_PRIVATE_DXOIPC_SET_FB \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 1, struct v4l2_dxoipc_set_fb)
 #define VIDIOC_PRIVATE_DXOIPC_WAIT_IPC \
@@ -120,5 +124,7 @@ struct v4l2_ispdma_reset {
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 9, struct v4l2_ispdma_reset)
 #define VIDIOC_PRIVATE_ISPDMA_GETDELTA \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 10, struct v4l2_ispdma_timeinfo)
+#define VIDIOC_PRIVATE_CCIC_CONFIG_MIPI \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 11, struct v4l2_ccic_config_mipi)
 
 #endif	/* ISP_USER_H */
