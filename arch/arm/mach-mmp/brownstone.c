@@ -557,8 +557,8 @@ static void __init brownstone_init_mmc(void)
 	/*eMMC (MMC3) pins are conflict with NAND*/
 	mmp2_add_sdhost(2, &mmp2_sdh_platdata_mmc2); /*eMMC*/
 #endif
-	mmp2_add_sdhost(1, &mmp2_sdh_platdata_mmc1); /*Wifi*/
 	mmp2_add_sdhost(0, &mmp2_sdh_platdata_mmc0); /*SD/MMC*/
+	mmp2_add_sdhost(1, &mmp2_sdh_platdata_mmc1); /*Wifi*/
 
 	if (board_is_mmp2_brownstone_rev5()) {
 		if (gpio_request(sdmmc_pen, "sdmmc power enable")) {
