@@ -2287,6 +2287,10 @@ static void do_charger_work(struct work_struct *work)
 						ENUMERATION_DELAY);
 	}
 
+	if (udc->charger_type == NULL_CHARGER
+		&& work_pending(&udc->delayed_charger_work.work))
+		cancel_delayed_work(&udc->delayed_charger_work);
+
 	call_charger_notifier(udc);
 }
 
