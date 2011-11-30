@@ -95,7 +95,8 @@ static struct mspm_op_stats first_stats, cur_stats;
 /* OP numbers used in IPM IDLE Profiler */
 static int mspm_op_num;
 
-static struct timer_list idle_prof_timer, idle_watchdog;
+static struct delayed_work idle_prof_work, idle_watchdog_work;
+struct mutex timer_mutex;
 
 static int mspm_prof_enabled;
 static int window_jif, watchdog_jif;
@@ -224,8 +225,12 @@ int mspm_add_event(int op, int cpu_idle)
 	unsigned int time;
 
 	if (mspm_prof_enabled) {
-		if (is_idle_wd_valid())
-			mod_timer(&idle_watchdog, jiffies + watchdog_jif);
+		if (is_idle_wd_valid()) {
+			if (timer_pending(&idle_watchdog_work.timer))
+				mod_timer(&idle_watchdog_work.timer, jiffies + watchdog_jif);
+			else
+				schedule_delayed_work_on(0, &idle_watchdog_work, watchdog_jif);
+		}
 		time = read_time();
 		/* sum the current sample window */
 		if (cpu_idle == CPU_STATE_IDLE)
@@ -288,20 +293,29 @@ static int mspm_start_prof(struct ipm_profiler_arg *arg)
 	cur_stats.timestamp = read_time();
 	cur_stats.jiffies = jiffies;
 	mspm_do_new_sample();
-	mod_timer(&idle_prof_timer, jiffies + window_jif);
+	if (timer_pending(&idle_prof_work.timer))
+		mod_timer(&idle_prof_work.timer, jiffies + window_jif);
+	else
+		schedule_delayed_work_on(0, &idle_prof_work, window_jif);
 	mspm_prof_enabled = 1;
 	/* start idle watchdog */
-	if (is_idle_wd_valid())
-		mod_timer(&idle_watchdog, jiffies + watchdog_jif);
+	if (is_idle_wd_valid()) {
+		if (timer_pending(&idle_watchdog_work.timer))
+			mod_timer(&idle_watchdog_work.timer,
+					jiffies + watchdog_jif);
+		else
+			schedule_delayed_work_on(0, &idle_watchdog_work,
+					watchdog_jif);
+	}
 	return 0;
 }
 
 static int mspm_stop_prof(void)
 {
-	del_timer(&idle_prof_timer);
+	cancel_delayed_work_sync(&idle_prof_work);
 	mspm_prof_enabled = 0;
 	if (is_idle_wd_valid())
-		del_timer(&idle_watchdog);
+		cancel_delayed_work_sync(&idle_watchdog_work);
 	/* flush workqueue */
 	flush_scheduled_work();
 	/* try to use 624MHz if it's not magic number */
@@ -320,19 +334,26 @@ static void down_freq_worker(struct work_struct *work)
 /*
  * Handler of IDLE PROFILER
  */
-static void idle_prof_handler(unsigned long data)
+static void idle_prof_handler(struct work_struct *work)
 {
+	mutex_lock(&timer_mutex);
 	mspm_calc_mips(first_stats.timestamp);
 
 	/* start next sample window */
 	mspm_do_new_sample();
-	mod_timer(&idle_prof_timer, jiffies + window_jif);
-	if (is_idle_wd_valid())
-		mod_timer(&idle_watchdog, jiffies + watchdog_jif);
+	schedule_delayed_work_on(0, &idle_prof_work, window_jif);
+	if (is_idle_wd_valid()) {
+		if (timer_pending(&idle_watchdog_work.timer))
+			mod_timer(&idle_watchdog_work.timer, jiffies + watchdog_jif);
+		else
+			schedule_delayed_work_on(0, &idle_watchdog_work, watchdog_jif);
+	}
+	mutex_unlock(&timer_mutex);
 }
 
-static void idle_watchdog_handler(unsigned long data)
+static void idle_watchdog_handler(struct work_struct *work)
 {
+	mutex_lock(&timer_mutex);
 	if (mspm_prof_enabled) {
 #ifdef CONFIG_PXA95x_DVFM
 		struct op_info *info = NULL;
@@ -346,6 +367,7 @@ static void idle_watchdog_handler(unsigned long data)
 #endif
 		/* mod_timer(&idle_watchdog, jiffies + watchdog_jif); */
 	}
+	mutex_unlock(&timer_mutex);
 }
 
 extern void tick_nohz_update_jiffies(void);
@@ -360,6 +382,7 @@ static int mspm_prof_notifier_freq(struct notifier_block *nb,
 	struct op_info *info = &(freqs->new_info);
 	struct dvfm_md_opt *md = NULL;
 	int cpu;
+	static int watchdog_timer_pending;
 
 	if (!mspm_prof_enabled)
 		return 0;
@@ -373,9 +396,15 @@ static int mspm_prof_notifier_freq(struct notifier_block *nb,
 	    md->power_mode == POWER_MODE_CG) {
 		switch (val) {
 		case DVFM_FREQ_PRECHANGE:
-			del_timer(&idle_prof_timer);
-			if (is_idle_wd_valid())
-				del_timer(&idle_watchdog);
+			/* Cancel idle profiler timer without cancel workqueue.
+			 * This is safe because this code is in idle thread.
+			 * No workqueue is pending. */
+			del_timer(&idle_prof_work.timer);
+			if (is_idle_wd_valid() && timer_pending(
+						&idle_watchdog_work.timer)) {
+				del_timer(&idle_watchdog_work.timer);
+				watchdog_timer_pending = 1;
+			}
 			tick_nohz_stop_sched_tick(1);
 			break;
 		case DVFM_FREQ_POSTCHANGE:
@@ -398,10 +427,17 @@ static int mspm_prof_notifier_freq(struct notifier_block *nb,
 			 * in system.
 			 * Just restart the sample window.
 			 */
-			mod_timer(&idle_prof_timer, jiffies + window_jif);
-			if (is_idle_wd_valid())
-				mod_timer(&idle_watchdog,
-					  jiffies + watchdog_jif);
+			mod_timer(&idle_prof_work.timer, jiffies + window_jif);
+			if (is_idle_wd_valid()) {
+				if (watchdog_timer_pending) {
+					mod_timer(&idle_watchdog_work.timer,
+							jiffies + watchdog_jif);
+					watchdog_timer_pending = 0;
+				} else
+					schedule_delayed_work_on(0,
+							&idle_watchdog_work,
+							watchdog_jif);
+			}
 			first_stats.jiffies = jiffies;
 			first_stats.timestamp = read_time();
 			/* Try to down the frequency to at least 156MHz */
@@ -579,10 +615,13 @@ static ssize_t watchdog_store(struct kobject *kobj,
 			      size_t len)
 {
 	sscanf(buf, "%u", &mspm_watchdog);
-	if (mspm_watchdog)
-		mod_timer(&idle_watchdog, jiffies + watchdog_jif);
-	else
-		del_timer(&idle_watchdog);
+	if (mspm_watchdog) {
+		if (timer_pending(&idle_watchdog_work.timer))
+			mod_timer(&idle_watchdog_work.timer, jiffies + watchdog_jif);
+		else
+			schedule_delayed_work_on(0, &idle_watchdog_work, watchdog_jif);
+	} else
+		cancel_delayed_work_sync(&idle_watchdog_work);
 	return len;
 }
 
@@ -672,14 +711,11 @@ int __init mspm_prof_init(void)
 	/* It's used to trigger sample window.
 	 * If system is idle, the timer could be deferred.
 	 */
-	init_timer_deferrable(&idle_prof_timer);
-	idle_prof_timer.function = idle_prof_handler;
-	idle_prof_timer.data = 0;
+	INIT_DELAYED_WORK_DEFERRABLE(&idle_prof_work, idle_prof_handler);
+	mutex_init(&timer_mutex);
 
 	/* It's used to monitor IDLE event */
-	init_timer_deferrable(&idle_watchdog);
-	idle_watchdog.function = idle_watchdog_handler;
-	idle_watchdog.data = 0;
+	INIT_DELAYED_WORK_DEFERRABLE(&idle_watchdog_work, idle_watchdog_handler);
 
 	mspm_op_num = mspm_init_mips();
 
