@@ -43,8 +43,11 @@ static inline int cpu_is_pxa910(void)
 
 static inline int cpu_is_pxa921(void)
 {
-	return (cpu_is_pxa910() &&
-		((mmp_fuse_id & 0x0000f000) == 0x00003000));
+	if (cpu_is_pxa910() && ((mmp_fuse_id & 0x3000000) == 0x3000000))
+		return 0;
+	if (cpu_is_pxa910() && ((mmp_fuse_id & 0x0000f000) == 0x00003000))
+		return 1;
+	return 0;
 }
 
 static inline int cpu_is_pxa918(void)
