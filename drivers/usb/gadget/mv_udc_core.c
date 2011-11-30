@@ -1509,10 +1509,8 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 		}
 	}
 
-#ifndef CONFIG_USB_G_ANDROID
 	/* pullup is always on */
 	mv_udc_pullup(&udc->gadget, 1);
-#endif
 
 	/* when transceiver is not NULL, qwork is NULL*/
 	if (udc->qwork)
