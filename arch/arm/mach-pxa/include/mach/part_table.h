@@ -89,12 +89,12 @@ static struct mtd_partition __attribute__((unused))
 	[4] = {
 		.name        = "system",
 		.offset      = 0x0e40000,
-		.size        = 0x7000000,     /* mount fs */
+		.size        = 0xa000000,     /* mount fs */
 	},
 	[5] = {
 		.name        = "userdata",
-		.offset      = 0x7e40000,
-		.size        = 0x161c0000,     /* mount fs */
+		.offset      = 0xae40000,
+		.size        = 0x131c0000,     /* mount fs */
 	},
 	[6] = {
 		.name        = "telephony",
