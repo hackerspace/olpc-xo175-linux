@@ -1261,6 +1261,9 @@ static void converter_set_hdmi(struct pxa95xfb_info *fbi)
 
 }
 
+#ifdef CONFIG_MV_IHDMI
+extern int mv_ihdmiinit(void);
+#endif
 static void converter_onoff(struct pxa95xfb_info *fbi, int on)
 {
 	struct pxa95xfb_conv_info *conv = &pxa95xfb_conv[fbi->converter - 1];
@@ -1283,6 +1286,9 @@ static void converter_onoff(struct pxa95xfb_info *fbi, int on)
 		} else if (LCD_M2HDMI == conv->converter) {
 			converter_set_hdmi(fbi);
 			controller_enable_disable(fbi, LCD_Controller_Enable);
+#ifdef CONFIG_MV_IHDMI
+			mv_ihdmiinit();
+#endif
 		}
 		if (CONVERTER_IS_DSI(conv->converter) && !conv->conf_dsi_video_mode){
 			loop_kthread_resume(&conv->thread);
