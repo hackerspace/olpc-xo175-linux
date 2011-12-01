@@ -27,6 +27,7 @@
 #include <linux/platform_data/pxa_sdhci.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
+#include <linux/regulator/machine.h>
 #include "sdhci.h"
 #include "sdhci-pltfm.h"
 #include <plat/pm.h>
@@ -187,6 +188,93 @@ static void pxav3_access_constrain(struct sdhci_host *host, unsigned int ac)
 		pm_qos_update_request(&pdata->qos_idle, PM_QOS_DEFAULT_VALUE);
 }
 
+static void ext_cd_notify_change(struct platform_device *pdev, int state)
+{
+	struct sdhci_host *host = platform_get_drvdata(pdev);
+	unsigned long flags;
+	static int old_state = 0;
+
+	if (host) {
+		spin_lock_irqsave(&host->lock, flags);
+		if (state && !old_state) {
+			old_state = state;
+			dev_dbg(&pdev->dev, "card inserted.\n");
+			host->quirks |= SDHCI_QUIRK_BROKEN_CARD_DETECTION;
+			spin_unlock_irqrestore(&host->lock, flags);
+			if (host->vmmc) {
+				pr_info("mmc power on vmmc=0x%x\n",
+					(int)host->vmmc);
+				regulator_enable(host->vmmc);
+			}
+		} else if(!state && old_state) {
+			old_state = state;
+			dev_dbg(&pdev->dev, "card removed.\n");
+			host->quirks &= ~SDHCI_QUIRK_BROKEN_CARD_DETECTION;
+
+			if (host->mrq) {
+				printk(KERN_ERR
+				       "%s: Card removed during transfer!\n",
+				       mmc_hostname(host->mmc));
+
+				host->mrq->cmd->error = -ENOMEDIUM;
+				tasklet_schedule(&host->finish_tasklet);
+			}
+
+			spin_unlock_irqrestore(&host->lock, flags);
+			if (host->vmmc) {
+				pr_info("mmc power off vmmc=0x%x\n",
+					(int)host->vmmc);
+				regulator_disable(host->vmmc);
+			}
+		} else
+			spin_unlock_irqrestore(&host->lock, flags);
+
+		mmc_detect_change(host->mmc, msecs_to_jiffies(200));
+	}
+}
+
+static inline int ext_cd_val(int gpio, int invert)
+{
+	int status;
+
+	status = gpio_get_value(gpio);
+	status &= (1 << (gpio % 32));
+	status = !!status;
+
+	if (invert)
+		status = !status;
+
+	return status;
+}
+
+static int pxav3_ext_cd_status(struct sdhci_host *host)
+{
+	struct sdhci_pltfm_host *pltfm_host;
+	struct sdhci_pxa *pxa;
+
+	pltfm_host = sdhci_priv(host);
+	pxa = pltfm_host->priv;
+	if (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION)
+		return 1;
+	else
+		return ext_cd_val(pxa->pdata->ext_cd_gpio,pxa->pdata->ext_cd_gpio_invert);
+}
+
+static irqreturn_t ext_cd_irq_thread(int irq, void *dev_id)
+{
+	struct platform_device *pdev = dev_id;
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	int status;
+
+	pr_info("sdcard gpio detected\n");
+
+	msleep(600);
+	status = ext_cd_val(pdata->ext_cd_gpio, pdata->ext_cd_gpio_invert);
+	ext_cd_notify_change(pdev, status);
+
+	return IRQ_HANDLED;
+}
+
 static struct sdhci_ops pxav3_sdhci_ops = {
 	.platform_reset_exit = pxav3_set_private_registers,
 	.set_uhs_signaling = pxav3_set_uhs_signaling,
@@ -194,6 +282,50 @@ static struct sdhci_ops pxav3_sdhci_ops = {
 	.signal_vol_change = pxav3_signal_vol_change,
 	.access_constrain = pxav3_access_constrain,
 };
+
+static int ext_cd_init(void *data)
+{
+	struct platform_device *pdev = data;
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	int err, cd_irq, ext_cd_gpio;
+	int status;
+
+	cd_irq = gpio_to_irq(pdata->ext_cd_gpio);
+	ext_cd_gpio = pdata->ext_cd_gpio;
+
+	/*
+	 * setup GPIO for saarb MMC controller
+	 */
+	err = gpio_request(ext_cd_gpio, "mmc card detect");
+	if (err) {
+		printk(KERN_ERR "gpio_request err =%d\n", err);
+		goto err_request_cd;
+	}
+	gpio_direction_input(ext_cd_gpio);
+
+	err = request_threaded_irq(cd_irq, NULL, ext_cd_irq_thread,
+				   IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
+				   "MMC card detect", pdev);
+	if (err) {
+		printk(KERN_ERR "%s: MMC/SD/SDIO: "
+		       "can't request card detect IRQ\n", __func__);
+		goto err_request_irq;
+	}
+
+	pr_info("sdcard gpio detect init done\n");
+	status = ext_cd_val(pdata->ext_cd_gpio, pdata->ext_cd_gpio_invert);
+	ext_cd_notify_change(pdev, status);
+
+	pxav3_sdhci_ops.is_present = pxav3_ext_cd_status;
+
+	return 0;
+
+err_request_irq:
+	gpio_free(ext_cd_gpio);
+err_request_cd:
+	return -1;
+}
+
 
 static int sdhci_pxav3_suspend(struct platform_device *pdev, pm_message_t state)
 {
@@ -316,6 +448,9 @@ static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 		device_init_wakeup(&pdev->dev, 1);
 	else
 		device_init_wakeup(&pdev->dev, 0);
+
+	if (pdata && pdata->ext_cd_gpio)
+		ext_cd_init(pdev);
 
 	pxa->pdata = pdata;
 #ifdef CONFIG_SD8XXX_RFKILL
