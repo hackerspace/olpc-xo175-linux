@@ -21,7 +21,7 @@
 #include <linux/platform_data/pxa_sdhci.h>
 #include <linux/regulator/machine.h>
 #include <linux/sd8x_rfkill.h>
-#include <linux/mmc/host.h>
+#include <linux/mmc/sdhci.h>
 #include <linux/i2c/adp8885.h>
 
 #include <asm/mach-types.h>
@@ -310,7 +310,7 @@ static void regulator_init_pm800(void)
 
 	REG_SUPPLY_INIT(PM800_ID_LDO18, "v_gps", NULL);
 	REG_SUPPLY_INIT(PM800_ID_LDO16, "v_cam", NULL);
-	REG_SUPPLY_INIT(PM800_ID_LDO13, "v_sdcard", "sdhci-pxa.1");
+	REG_SUPPLY_INIT(PM800_ID_LDO13, "vmmc", "sdhci-pxa.1");
 	REG_SUPPLY_INIT(PM800_ID_LDO9, "v_8787", NULL);
 	REG_SUPPLY_INIT(PM800_ID_LDO8, "v_lcd", NULL);
 	REG_SUPPLY_INIT(PM800_ID_LDO6, "v_ihdmi", NULL);
@@ -390,7 +390,7 @@ static void wifi_set_power(unsigned int on)
 	}
 }
 
-#if defined(CONFIG_MMC_SDHCI_PXAV2_TAVOR)
+#if defined(CONFIG_MMC_SDHCI_PXAV2_TAVOR) || defined(CONFIG_MMC_SDHCI_PXAV3)
 static struct sdhci_pxa_platdata mci0_platform_data = {
 	.flags	= PXA_FLAG_CARD_PERMANENT |
 				PXA_FLAG_SD_8_BIT_CAPABLE_SLOT |
@@ -414,6 +414,9 @@ static struct sdhci_pxa_platdata mci2_platform_data = {
 
 static void __init init_mmc(void)
 {
+        if (cpu_is_pxa978_Cx())
+                mci1_platform_data.quirks = SDHCI_QUIRK_INVERTED_WRITE_PROTECT;
+
 	/*add emmc only, need to add sdcard and sdio later*/
 	pxa95x_set_mci_info(0, &mci0_platform_data);
 	pxa95x_set_mci_info(1, &mci1_platform_data);
@@ -1493,7 +1496,7 @@ static void __init init(void)
 	init_lcd();
 #endif
 
-#if defined(CONFIG_MMC_SDHCI_PXAV2_TAVOR)
+#if defined(CONFIG_MMC_SDHCI_PXAV2_TAVOR) || defined(CONFIG_MMC_SDHCI_PXAV3)
 	init_mmc();
 #endif
 
