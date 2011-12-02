@@ -121,7 +121,6 @@ static int dvfm_dev_idx;
 static void set_dvfm_constraint(void)
 {
 	/* Disable Lowpower mode */
-	dvfm_disable_op_name("D0CS", dvfm_dev_idx);
 	dvfm_disable_op_name("D1", dvfm_dev_idx);
 	dvfm_disable_op_name("D2", dvfm_dev_idx);
 	dvfm_disable_op_name("CG", dvfm_dev_idx);
@@ -138,7 +137,6 @@ static void set_dvfm_constraint_hdmi(void)
 static void unset_dvfm_constraint(void)
 {
 	/* Enable Lowpower mode */
-	dvfm_enable_op_name("D0CS", dvfm_dev_idx);
 	dvfm_enable_op_name("D1", dvfm_dev_idx);
 	dvfm_enable_op_name("D2", dvfm_dev_idx);
 	dvfm_enable_op_name("CG", dvfm_dev_idx);

@@ -433,7 +433,6 @@ static void set_constraint(void)
 		dvfm_disable_op_name("156M_HF", acipc_lock.dev_idx);
 		/*dvfm_disable_op_name("208M_HF", acipc_lock.dev_idx);*/
 	}
-	dvfm_disable_op_name("D0CS", acipc_lock.dev_idx);
 	dvfm_disable_op_name("D1", acipc_lock.dev_idx);
 	dvfm_disable_op_name("D2", acipc_lock.dev_idx);
 	acipc_lock.init = 0;
@@ -450,7 +449,6 @@ static u32 acipc_kernel_callback(u32 events_status)
 	if (events_status & ACIPC_DDR_READY_REQ) {
 		MIPS_RAM_ADD_PM_TRACE(ACIPC_DDR_REQ_RECEIVED_MIPS_RAM);
 		if (acipc_lock.ddr208_cnt++ == 0) {
-			dvfm_disable_op_name("D0CS", acipc_lock.dev_idx);
 			dvfm_disable_op_name("D1", acipc_lock.dev_idx);
 			dvfm_disable_op_name("D2", acipc_lock.dev_idx);
 			MIPS_RAM_ADD_PM_TRACE(ACIPC_DVFM_CONSTRAITNS_SET);
@@ -477,7 +475,6 @@ static u32 acipc_kernel_callback(u32 events_status)
 			printk(KERN_WARNING "%s: constraint was removed.\n",
 				__func__);
 		} else if (--acipc_lock.ddr208_cnt == 0) {
-			dvfm_enable_op_name("D0CS", acipc_lock.dev_idx);
 			dvfm_enable_op_name("D1", acipc_lock.dev_idx);
 			dvfm_enable_op_name("D2", acipc_lock.dev_idx);
 			MIPS_RAM_ADD_PM_TRACE(ACIPC_DVFM_CONSTRAITNS_RELEASED);
@@ -916,26 +913,14 @@ warnings */
 #if defined(CONFIG_PXA95x_DVFM)
 void acipc_set_constraint_no_op_change(void)
 {
-	dvfm_disable_op_name_no_change("D0CS", acipc_lock.dev_idx);
 	dvfm_disable_op_name_no_change("D1", acipc_lock.dev_idx);
 	dvfm_disable_op_name_no_change("D2", acipc_lock.dev_idx);
 }
 
-void acipc_disable_d0cs_no_change(void)
-{
-	dvfm_disable_op_name_no_change("D0CS", acipc_lock.dev_idx);
-}
-
 void acipc_unset_constraint_no_op_change(void)
 {
-	dvfm_enable_op_name_no_change("D0CS", acipc_lock.dev_idx);
 	dvfm_enable_op_name_no_change("D1", acipc_lock.dev_idx);
 	dvfm_enable_op_name_no_change("D2", acipc_lock.dev_idx);
-}
-
-void acipc_disable_d0cs(void)
-{
-	dvfm_disable_op_name("D0CS", acipc_lock.dev_idx);
 }
 #endif
 
