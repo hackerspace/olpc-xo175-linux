@@ -45,8 +45,6 @@
 
 #define MAX_OSCR0		0xFFFFFFFF
 
-/* D0CS idle interval is 1ms */
-#define D0CS_IDLE_INTERVAL      1
 /* Low power mode idle interval is 2ms */
 #define LOWPOWER_IDLE_INTERVAL  2
 
@@ -55,8 +53,8 @@
 struct idle_stats {
 	unsigned int index;
 	unsigned int msec;
-	unsigned int hr_data;	/* OSCR0, used in D0 or D0CS */
-	unsigned int lr_data;	/* OSCR4, used in D0, D0CS, D1 or D2 */
+	unsigned int hr_data;	/* OSCR0, used in D0 */
+	unsigned int lr_data;	/* OSCR4, used in D0, D1 or D2 */
 	unsigned int icip;
 	unsigned int icip2;
 };
@@ -85,12 +83,11 @@ struct mspm_idle_prof {
 
 static struct mspm_idle_prof prev_prof, cur_prof;
 
-static int d0csidle;
 static int idle_flaw;		/* silicon issue on IDLE */
 
 static void (*orig_idle) (void);
 static unsigned int cpuid;
-static int d0csidx = -1, d1idx = -1, d2idx = -1, cgidx = -1;
+static int d1idx = -1, d2idx = -1, cgidx = -1;
 
 #ifdef CONFIG_ISPT
 #define ispt_power_state_c1() ispt_power_msg(CT_P_PWR_STATE_ENTRY_C1);
@@ -107,21 +104,6 @@ static int ispt_power_state_c0(void)
 }
 #endif
 
-/* check whether current operating point is idle flaw operating point */
-static int is_idle_flaw_op(void)
-{
-	if (idle_flaw) {
-		if (ACSR & ACCR_D0CS_MASK)
-			return 1;
-		if (((ACSR & ACCR_XL_MASK) == 8)
-		    && ((ACSR & ACCR_XN_MASK) == (1 << ACCR_XN_OFFSET))) {
-			/* 104MHz */
-			return 1;
-		}
-	}
-	return 0;
-}
-
 extern int is_wkr_mg1_1274(void);
 /*This parameter is used in order to analyze C2 crash.
 This parameter measure C2 length see JIRA 1495
@@ -130,7 +112,6 @@ unsigned int g_lastC2time;
 
 static void pxa95x_cpu_idle(void)
 {
-	unsigned int icpr, icpr2, icmr, icmr2, iccr;
 	unsigned int c1_enter_time, c1_exit_time, pollreg;
 	struct op_info *info = NULL;
 	int op;
@@ -146,114 +127,36 @@ static void pxa95x_cpu_idle(void)
 	dvfm_add_timeslot(op, CPU_STATE_RUN);
 #endif
 	mspm_add_event(op, CPU_STATE_RUN);
-	if (is_idle_flaw_op()) {
-		/* Loop and query interrupt.
-		 * At here, only IRQ is awared. FIQ is ignored.
-		 */
-		iccr = ICCR;
-		while (1) {
-			__asm__ __volatile__("\n\
-				mrc p6, 0, %0, c4, c0, 0   @ Read out ICPR\n\
-				mrc p6, 0, %1, c10, c0, 0  @ Read out ICPR2\n\
-				mrc p6, 0, %2, c1, c0, 0   @ Read out ICMR\n\
-				mrc p6, 0, %3, c7, c0, 0   @ Read out ICMR2\n" : "=&r"(icpr),
-				"=&r"(icpr2), "=&r"(icmr), "=&r"(icmr2) : : "memory", "cc");
-			if (iccr & 0x1) {
-				if (((icpr & icmr) != 0) ||
-				    ((icpr2 & icmr2) != 0))
-					break;
-			} else {
-				if ((icpr != 0) || (icpr2 != 0))
-					break;
-			}
-		}
+
+	ispt_power_state_c1();
+#ifdef CONFIG_PXA_MIPSRAM
+	c1_enter_time = OSCR4;
+	MIPS_RAM_ADD_32K_TIME_STAMP(c1_enter_time);
+	MIPS_RAM_ADD_PM_TRACE(ENTER_IDLE_MIPS_RAM);
+	mipsram_disable_counter();
+#endif
+	if (cpu_is_pxa95x() && !(is_wkr_mg1_1274())) {
+		PWRMODE = (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT);
+		do {
+			pollreg = PWRMODE;
+		} while (pollreg != (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT));
+		g_lastC2time = pm_enter_deepidle(CPU_PDWN_3_25M_CYCLES);
 	} else {
-		ispt_power_state_c1();
-#ifdef CONFIG_PXA_MIPSRAM
-		c1_enter_time = OSCR4;
-		MIPS_RAM_ADD_32K_TIME_STAMP(c1_enter_time);
-		MIPS_RAM_ADD_PM_TRACE(ENTER_IDLE_MIPS_RAM);
-		mipsram_disable_counter();
-#endif
-		if (cpu_is_pxa95x() && !(is_wkr_mg1_1274())) {
-			PWRMODE = (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT);
-			do {
-				pollreg = PWRMODE;
-			} while (pollreg !=
-				 (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT));
-			/*D0CS will wait at C2 exit as well
-			   This is OK as D0CS is defeatured soon */
-			g_lastC2time = pm_enter_deepidle(CPU_PDWN_3_25M_CYCLES);
-		} else {
-			cpu_do_idle();
-		}
-#ifdef CONFIG_PXA_MIPSRAM
-		mipsram_reinit_counter();
-		MIPS_RAM_ADD_PM_TRACE(EXIT_IDLE_MIPS_RAM);
-		c1_exit_time = OSCR4;
-		MIPS_RAM_ADD_32K_TIME_STAMP(c1_exit_time);
-#endif
-		ispt_power_state_c0();
+		cpu_do_idle();
 	}
+#ifdef CONFIG_PXA_MIPSRAM
+	mipsram_reinit_counter();
+	MIPS_RAM_ADD_PM_TRACE(EXIT_IDLE_MIPS_RAM);
+	c1_exit_time = OSCR4;
+	MIPS_RAM_ADD_32K_TIME_STAMP(c1_exit_time);
+#endif
+	ispt_power_state_c0();
+
 #ifdef CONFIG_PXA95x_DVFM_STATS
 	dvfm_add_event(op, CPU_STATE_IDLE, op, CPU_STATE_RUN);
 	dvfm_add_timeslot(op, CPU_STATE_IDLE);
 #endif
 	mspm_add_event(op, CPU_STATE_IDLE);
-}
-
-static void mspm_d0csidle(void)
-{
-	struct dvfm_freqs freqs;
-	struct dvfm_md_opt *op;
-	struct op_info *info = NULL;
-	int ret, prev_op;
-
-	ret = dvfm_get_op(&info);
-	if (info == NULL)
-		return;
-	op = (struct dvfm_md_opt *)info->op;
-	if (op == NULL)
-		return;
-	pm_core_pwdn(CPU_PDWN_D0CS_ENTRY);
-	if ((ret >= 0) && (op->power_mode == POWER_MODE_D0)) {
-		memset(&freqs, 0, sizeof(struct dvfm_freqs));
-		prev_op = ret;
-		freqs.old = ret;
-		if (d0csidle) {
-			freqs.new = d0csidx;
-			/* If RELATION_LOW is used, DVFM will choose the valid
-			 * lowest operating point.
-			 * If RELATION_STICK is used, DVFM will only try the
-			 * specified operating point.
-			 */
-			ret = dvfm_set_op(&freqs, freqs.new, RELATION_STICK);
-		}
-		pxa95x_cpu_idle();
-		if (!ret) {
-			memset(&freqs, 0, sizeof(struct dvfm_freqs));
-			if (d0csidle)
-				freqs.old = d0csidx;
-			freqs.new = prev_op;
-			ret = dvfm_set_op(&freqs, freqs.new, RELATION_LOW);
-		} else {
-			pr_debug("%s, ret=%d, current op:%d\n",
-				 __func__, ret, prev_op);
-		}
-	} else
-		pxa95x_cpu_idle();
-	pm_core_pwdn(CPU_PDWN_D0CS_EXIT);
-}
-
-static int beyond_d0cs_tick(unsigned int msec)
-{
-	if (d0csidx == -1)
-		return 0;
-
-	if (msec >= D0CS_IDLE_INTERVAL)
-		return 1;
-
-	return 0;
 }
 
 static int lpidle_is_valid(int enable, unsigned int msec,
@@ -280,8 +183,7 @@ static int lpidle_is_valid(int enable, unsigned int msec,
 		op = (struct dvfm_md_opt *)info->op;
 		if (op == NULL)
 			return 0;
-		if ((ret >= 0) && ((op->power_mode == POWER_MODE_D0)
-				   || (op->power_mode == POWER_MODE_D0CS))) {
+		if ((ret >= 0) && (op->power_mode == POWER_MODE_D0)) {
 			prev_op = ret;
 			freqs->old = ret;
 
@@ -454,11 +356,7 @@ void mspm_do_idle(void)
 			goto out;
 	}
 
-	if ((enable_deepidle & IDLE_D0CS)
-			&& beyond_d0cs_tick(msec))
-		mspm_d0csidle();
-	else
-		pxa95x_cpu_idle();
+	pxa95x_cpu_idle();
 out:
 	update_idle_stats();
 	local_irq_enable();
@@ -566,24 +464,9 @@ static void query_idle_flaw(void)
 		idle_flaw = 1;	/* PXA310 A0/A1/A2 */
 }
 
-static void query_d0csidle(void)
-{
-#ifdef CONFIG_FB_PXA_LCD_VGA
-	d0csidle = 0;
-#else
-	d0csidle = 1;
-#endif
-	/* PXA310 A2 */
-	if (cpuid == 0x6892)
-		d0csidle = 1;
-}
-
 void set_idle_op(int idx, int mode)
 {
 	switch (mode) {
-	case POWER_MODE_D0CS:
-		d0csidx = idx;
-		break;
 	case POWER_MODE_D1:
 		d1idx = idx;
 		break;
@@ -601,7 +484,6 @@ static int __init mspm_init(void)
 	/* check idle flaw */
 	cpuid = read_cpuid(0) & 0xFFFF;
 	query_idle_flaw();
-	query_d0csidle();
 
 	/* Create file in procfs */
 	if (mspm_proc_init()) {

@@ -54,23 +54,18 @@
 
 #include <mach/pxa9xx_pm_logger.h>	/* for pm debug tracing */
 
-/* Enter D2 before exiting D0CS */
-#define DVFM_LP_SAFE
 extern int ForceOP, ForcedOPIndex, ForceC0, ForceVCTCXO_EN, EnableD2VoltageChange;
 static struct dvfm_md_opt *lowest_freq_op;
 static int lowest_freq_index;
 /* setting the default voltage level to 1.05V */
 unsigned int D2voltageLevelValue = 0x0D;
 extern struct info_head dvfm_trace_list;
-#ifdef DVFM_LP_SAFE
-static struct work_struct postpone_work;
-#endif
 
-/* Counter Structure for Debugging ENTER/EXIT D2/CGM/D0CS */
-pxa95x_DVFM_LPM_Global_Count DVFMLPMGlobalCount = { 0, 0, 0, 0 };
+/* Counter Structure for Debugging ENTER/EXIT D2/CGM */
+pxa95x_DVFM_LPM_Global_Count DVFMLPMGlobalCount = { 0, 0, 0 };
 
 /*Offset for "zero" the data */
-pxa95x_DVFM_LPM_Global_Count DVFMLPMGlobalCountOffset = { 0, 0, 0, 0 };
+pxa95x_DVFM_LPM_Global_Count DVFMLPMGlobalCountOffset = { 0, 0, 0 };
 
 struct pxa95x_dvfm_info {
 	/* flags */
@@ -130,273 +125,236 @@ extern unsigned int def_op;	/* default operating point */
 int update_op_mips_ram(u32 old_pp, u32 new_pp);
 #endif
 static unsigned int pxa95x_ticks_to_msec(unsigned int ticks);
-extern int enter_d0cs_a(unsigned char __iomem *, unsigned char __iomem *,
-			unsigned char __iomem *);
-extern int exit_d0cs_a(unsigned char __iomem *, unsigned char __iomem *,
-		       unsigned char __iomem *);
 extern int md2fvinfo(struct pxa95x_fv_info *, struct dvfm_md_opt *);
 extern void set_idle_op(int, int);
-extern u32 set_DDR_avail_flag(void);
-extern u32 clear_DDR_avail_flag(void);
-extern void acipc_set_constraint_no_op_change(void);
-extern void acipc_disable_d0cs_no_change(void);
-extern void acipc_disable_d0cs(void);
-extern u32 get_ddr_avail_state(void);
-extern int is_wkr_mg1_1274(void);
 
 /*1GHz support - voltage for 1GHz Frequency PP*/
 static unsigned long alvl3HighVoltage, alvl3LowVoltage;
 static int dvfm_dev_id;
-static int d0cs_lpj = 293888 * 100 / HZ;
-static int comm_wakeup_time, timer_expiry_time;
-extern unsigned int AppsSyncEnabled;
 
-#define EARLY_D0CS_WAKE
-#define D0CS_TIMER_THRESHOLD 40
-
-/* define the operating point of S0D0 and S0D0CS mode */
+/* define the operating point of S0D0 mode */
 static struct dvfm_md_opt pxa955_op_array[] = {
-	/* 60MHz -- ring oscillator */
-	{
-	 .vcc_core = 1250,
-	 .xl = 0,
-	 .xn = 0,
-	 .smcfs = 15,
-	 .sflfs = 60,
-	 .hss = 60,
-	 .axifs = 60,
-	 .dmcfs = 30,
-	 .df_clk = 15,
-	 .empi_clk = 15,
-	 .dsi = 30,
-	 .gcfs = 60,
-	 .vmfc = 120,
-	 .power_mode = POWER_MODE_D0CS,
-	 .flag = OP_FLAG_FACTORY,
-	 .lpj = 293888 * 100 / HZ,
-	 .name = "D0CS",
-	 },
 	/* 156MHz -- single PLL mode */
 	{
-	 .vcc_core = 1250,
-	 .xl = 12,
-	 .xn = 1,
-	 .smcfs = 104,
-	 .sflfs = 156,
-	 .hss = 104,
-	 .axifs = 78,
-	 .dmcfs = 208,
-	 .df_clk = 52,
-	 .empi_clk = 52,
-	 .dsi = 156,
-	 .gcfs = 156,
-	 .vmfc = 156,
-	 .power_mode = POWER_MODE_D0,
-	 .flag = OP_FLAG_FACTORY,
-	 .lpj = 778128 * 100 / HZ,
-	 .name = "156M",
-	 },
+		.vcc_core = 1250,
+		.xl = 12,
+		.xn = 1,
+		.smcfs = 104,
+		.sflfs = 156,
+		.hss = 104,
+		.axifs = 78,
+		.dmcfs = 208,
+		.df_clk = 52,
+		.empi_clk = 52,
+		.dsi = 156,
+		.gcfs = 156,
+		.vmfc = 156,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 778128 * 100 / HZ,
+		.name = "156M",
+	},
 	/* 208MHz canceled pxa955 */
 	/*{
-	   .vcc_core = 1250,
-	   .xl = 16,
-	   .xn = 1,
-	   .smcfs = 104,
-	   .sflfs = 156,
-	   .hss = 104,
-	   .axifs = 78,
-	   .dmcfs = 208,
-	   .df_clk = 52,
-	   .empi_clk = 52,
-	   .dsi = 156,
-	   .power_mode = POWER_MODE_D0,
-	   .flag = OP_FLAG_FACTORY,
-	   .lpj = 1036288*100/HZ,
-	   .name = "208M",
-	   }, */
+		.vcc_core = 1250,
+		.xl = 16,
+		.xn = 1,
+		.smcfs = 104,
+		.sflfs = 156,
+		.hss = 104,
+		.axifs = 78,
+		.dmcfs = 208,
+		.df_clk = 52,
+		.empi_clk = 52,
+		.dsi = 156,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 1036288*100/HZ,
+		.name = "208M",
+	}, */
 	/* 156MHz -- with HF DDR */
 	{
-	 .vcc_core = 1250,
-	 .xl = 12,
-	 .xn = 1,
-	 .smcfs = 104,
-	 .sflfs = 156,
-	 .hss = 104,
-	 .axifs = 78,
-	 .dmcfs = 312,
-	 .df_clk = 52,
-	 .empi_clk = 52,
-	 .dsi = 156,
-	 .gcfs = 156,
-	 .vmfc = 156,
-	 .power_mode = POWER_MODE_D0,
-	 .flag = OP_FLAG_FACTORY,
-	 .lpj = 778128 * 100 / HZ,
-	 .name = "156M_HF",
-	 },
+		.vcc_core = 1250,
+		.xl = 12,
+		.xn = 1,
+		.smcfs = 104,
+		.sflfs = 156,
+		.hss = 104,
+		.axifs = 78,
+		.dmcfs = 312,
+		.df_clk = 52,
+		.empi_clk = 52,
+		.dsi = 156,
+		.gcfs = 156,
+		.vmfc = 156,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 778128 * 100 / HZ,
+		.name = "156M_HF",
+	},
 	/* 208MHz -- with HF DDR - canceled pxa955 */
 	{
-	 .vcc_core = 1250,
-	 .xl = 16,
-	 .xn = 1,
-	 .smcfs = 104,
-	 .sflfs = 156,
-	 .hss = 104,
-	 .axifs = 78,
-	 .dmcfs = 312,
-	 .df_clk = 52,
-	 .empi_clk = 52,
-	 .dsi = 312,
-	 .gcfs = 156,
-	 .vmfc = 156,
-	 .power_mode = POWER_MODE_D0,
-	 .flag = OP_FLAG_FACTORY,
-	 .lpj = 1036288 * 100 / HZ,
-	 .name = "208M_HF",
-	 },
+		.vcc_core = 1250,
+		.xl = 16,
+		.xn = 1,
+		.smcfs = 104,
+		.sflfs = 156,
+		.hss = 104,
+		.axifs = 78,
+		.dmcfs = 312,
+		.df_clk = 52,
+		.empi_clk = 52,
+		.dsi = 312,
+		.gcfs = 156,
+		.vmfc = 156,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 1036288 * 100 / HZ,
+		.name = "208M_HF",
+	},
 
 	/* 416MHz, added for VGA scenario */
 	{
-	 .vcc_core = 1250,
-	 .xl = 16,
-	 .xn = 2,
-	 .smcfs = 104,
-	 .sflfs = 156,
-	 .hss = 104,
-	 .axifs = 78,
-	 .dmcfs = 312,
-	 .df_clk = 52,
-	 .empi_clk = 52,
-	 .dsi = 312,
-	 .gcfs = 156,
-	 .vmfc = 156,
-	 .power_mode = POWER_MODE_D0,
-	 .flag = OP_FLAG_FACTORY,
-	 .lpj = 2076672 * 100 / HZ,
-	 .name = "416M_VGA",
-	 },
+		.vcc_core = 1250,
+		.xl = 16,
+		.xn = 2,
+		.smcfs = 104,
+		.sflfs = 156,
+		.hss = 104,
+		.axifs = 78,
+		.dmcfs = 312,
+		.df_clk = 52,
+		.empi_clk = 52,
+		.dsi = 312,
+		.gcfs = 156,
+		.vmfc = 156,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 2076672 * 100 / HZ,
+		.name = "416M_VGA",
+	},
 
 	/* 416MHz */
 	{
-	 .vcc_core = 1250,
-	 .xl = 16,
-	 .xn = 2,
-	 .smcfs = 156,
-	 .sflfs = 208,
-	 .hss = 156,
-	 .axifs = 156,
-	 .dmcfs = 312,
-	 .df_clk = 78,
-	 .empi_clk = 52,
-	 .dsi = 312,
-	 .gcfs = 312,
-	 .vmfc = 312,
-	 .power_mode = POWER_MODE_D0,
-	 .flag = OP_FLAG_FACTORY,
-	 .lpj = 2076672 * 100 / HZ,
-	 .name = "416M",
-	 },
+		.vcc_core = 1250,
+		.xl = 16,
+		.xn = 2,
+		.smcfs = 156,
+		.sflfs = 208,
+		.hss = 156,
+		.axifs = 156,
+		.dmcfs = 312,
+		.df_clk = 78,
+		.empi_clk = 52,
+		.dsi = 312,
+		.gcfs = 312,
+		.vmfc = 312,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 2076672 * 100 / HZ,
+		.name = "416M",
+	},
 	/* 624MHz */
 	{
-	 .vcc_core = 1250,
-	 .xl = 24,
-	 .xn = 2,
-	 .smcfs = 156,
-	 .sflfs = 312,
-	 .hss = 208,
-	 .axifs = 156,
-	 .dmcfs = 400,
-	 .df_clk = 78,
-	 .empi_clk = 52,
-	 .dsi = 312,
-	 .gcfs = 312,
-	 .vmfc = 312,
-	 .power_mode = POWER_MODE_D0,
-	 .flag = OP_FLAG_FACTORY,
-	 .lpj = 3112960 * 100 / HZ,
-	 .name = "624M",
-	 },
+		.vcc_core = 1250,
+		.xl = 24,
+		.xn = 2,
+		.smcfs = 156,
+		.sflfs = 312,
+		.hss = 208,
+		.axifs = 156,
+		.dmcfs = 400,
+		.df_clk = 78,
+		.empi_clk = 52,
+		.dsi = 312,
+		.gcfs = 312,
+		.vmfc = 312,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 3112960 * 100 / HZ,
+		.name = "624M",
+	},
 	/* 728MHz */
 	/*{
-	   .vcc_core = 1250,
-	   .xl = 28,
-	   .xn = 2,
-	   .smcfs = 156,
-	   .sflfs = 312,
-	   .hss = 208,
-	   .axifs = 156,
-	   .dmcfs = 400,
-	   .df_clk = 78,
-	   .empi_clk = 52,
-	   .dsi = 312,
-	   .gcfs = 312,
-	   .vmfc = 312,
-	   .power_mode = POWER_MODE_D0,
-	   .flag = OP_FLAG_FACTORY,
-	   .lpj = 3607102*100/HZ,
-	   .name = "728M",
-	   }, */
+		.vcc_core = 1250,
+		.xl = 28,
+		.xn = 2,
+		.smcfs = 156,
+		.sflfs = 312,
+		.hss = 208,
+		.axifs = 156,
+		.dmcfs = 400,
+		.df_clk = 78,
+		.empi_clk = 52,
+		.dsi = 312,
+		.gcfs = 312,
+		.vmfc = 312,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 3607102*100/HZ,
+		.name = "728M",
+	  }, */
 	/* 806MHz */
 	{
-	 .vcc_core = 1250,
-	 .xl = 31,
-	 .xn = 2,
-	 .smcfs = 156,
-	 .sflfs = 312,
-	 .hss = 208,
-	 .axifs = 156,
-	 .dmcfs = 400,
-	 .df_clk = 78,
-	 .empi_clk = 52,
-	 .dsi = 312,
-	 .gcfs = 312,
-	 .vmfc = 312,
-	 .power_mode = POWER_MODE_D0,
-	 .flag = OP_FLAG_FACTORY,
-	 .lpj = 4020906 * 100 / HZ,
-	 .name = "806M",
-	 },
+		.vcc_core = 1250,
+			.xl = 31,
+			.xn = 2,
+			.smcfs = 156,
+			.sflfs = 312,
+			.hss = 208,
+			.axifs = 156,
+			.dmcfs = 400,
+			.df_clk = 78,
+			.empi_clk = 52,
+			.dsi = 312,
+			.gcfs = 312,
+			.vmfc = 312,
+			.power_mode = POWER_MODE_D0,
+			.flag = OP_FLAG_FACTORY,
+			.lpj = 4020906 * 100 / HZ,
+			.name = "806M",
+	},
 	/* 988MHz */
 	{
-	 .vcc_core = 1250,
-	 .xl = 38,
-	 .xn = 2,
-	 .smcfs = 156,
-	 .sflfs = 312,
-	 .hss = 208,
-	 .axifs = 78,
-	 .dmcfs = 400,
-	 .df_clk = 78,
-	 .empi_clk = 52,
-	 .dsi = 312,
-	 .gcfs = 156,
-	 .vmfc = 156,
-	 .power_mode = POWER_MODE_D0,
-	 .flag = OP_FLAG_FACTORY,
-	 .lpj = 4929132 * 100 / HZ,
-	 .name = "988M",
-	 },
+		.vcc_core = 1250,
+		.xl = 38,
+		.xn = 2,
+		.smcfs = 156,
+		.sflfs = 312,
+		.hss = 208,
+		.axifs = 78,
+		.dmcfs = 400,
+		.df_clk = 78,
+		.empi_clk = 52,
+		.dsi = 312,
+		.gcfs = 156,
+		.vmfc = 156,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 4929132 * 100 / HZ,
+		.name = "988M",
+	},
 	/* D1 mode */
 	{
-	 .vcc_core = 1250,
-	 .power_mode = POWER_MODE_D1,
-	 .flag = OP_FLAG_FACTORY,
-	 .name = "D1",
-	 },
+		.vcc_core = 1250,
+		.power_mode = POWER_MODE_D1,
+		.flag = OP_FLAG_FACTORY,
+		.name = "D1",
+	},
 	/* D2 mode */
 	{
-	 .vcc_core = 1250,
-	 .power_mode = POWER_MODE_D2,
-	 .flag = OP_FLAG_FACTORY,
-	 .name = "D2",
-	 },
+		.vcc_core = 1250,
+		.power_mode = POWER_MODE_D2,
+		.flag = OP_FLAG_FACTORY,
+		.name = "D2",
+	},
 	/* CG (clock gated) mode */
 	{
-	 .vcc_core = 1250,
-	 .power_mode = POWER_MODE_CG,
-	 .flag = OP_FLAG_FACTORY,
-	 .name = "CG",
-	 },
+		.vcc_core = 1250,
+		.power_mode = POWER_MODE_CG,
+		.flag = OP_FLAG_FACTORY,
+		.name = "CG",
+	},
 
 };
 
@@ -671,108 +629,102 @@ static int freq2reg(struct pxa95x_fv_info *fv_info, struct dvfm_md_opt *orig)
 	if (orig && fv_info) {
 		fv_info->vcc_core = orig->vcc_core;
 		fv_info->vcc_sram = orig->vcc_sram;
-		if (orig->power_mode == POWER_MODE_D0) {
-			res = 0;
-			fv_info->xl = orig->xl;
-			fv_info->xn = orig->xn;
-			fv_info->d0cs = 0;
-			if (orig->smcfs == 78)
-				fv_info->smcfs = 0;
-			else if (orig->smcfs == 104)
-				fv_info->smcfs = 2;
-			else if (orig->smcfs == 156)
-				fv_info->smcfs = 4;
-			else if (orig->smcfs == 208)
-				fv_info->smcfs = 5;
-			else
-				res = -EINVAL;
-			if (orig->sflfs == 104)
-				fv_info->sflfs = 0;
-			else if (orig->sflfs == 156)
-				fv_info->sflfs = 1;
-			else if (orig->sflfs == 208)
-				fv_info->sflfs = 2;
-			else if (orig->sflfs == 312)
-				fv_info->sflfs = 3;
-			else
-				res = -EINVAL;
-			if (orig->hss == 104)
-				fv_info->hss = 0;
-			else if (orig->hss == 156)
-				fv_info->hss = 1;
-			else if (orig->hss == 208)
-				fv_info->hss = 2;
-			else
-				res = -EINVAL;
-			if (orig->axifs == 78)
-				fv_info->axifs = 3;
-			else if (orig->axifs == 104)
-				fv_info->axifs = 0;
-			else if (orig->axifs == 156)
-				fv_info->axifs = 1;
-			else if (orig->axifs == 208)
-				fv_info->axifs = 2;
-			else
-				res = -EINVAL;
-			if (cpu_is_pxa978()) {
-				if (orig->dmcfs == 26)
-					fv_info->dmcfs = 0;
-				else if (orig->dmcfs == 208 ||
-					 orig->dmcfs == 312)
-					fv_info->dmcfs = 1;
+		res = 0;
+		fv_info->xl = orig->xl;
+		fv_info->xn = orig->xn;
+		if (orig->smcfs == 78)
+			fv_info->smcfs = 0;
+		else if (orig->smcfs == 104)
+			fv_info->smcfs = 2;
+		else if (orig->smcfs == 156)
+			fv_info->smcfs = 4;
+		else if (orig->smcfs == 208)
+			fv_info->smcfs = 5;
+		else
+			res = -EINVAL;
+		if (orig->sflfs == 104)
+			fv_info->sflfs = 0;
+		else if (orig->sflfs == 156)
+			fv_info->sflfs = 1;
+		else if (orig->sflfs == 208)
+			fv_info->sflfs = 2;
+		else if (orig->sflfs == 312)
+			fv_info->sflfs = 3;
+		else
+			res = -EINVAL;
+		if (orig->hss == 104)
+			fv_info->hss = 0;
+		else if (orig->hss == 156)
+			fv_info->hss = 1;
+		else if (orig->hss == 208)
+			fv_info->hss = 2;
+		else
+			res = -EINVAL;
+		if (orig->axifs == 78)
+			fv_info->axifs = 3;
+		else if (orig->axifs == 104)
+			fv_info->axifs = 0;
+		else if (orig->axifs == 156)
+			fv_info->axifs = 1;
+		else if (orig->axifs == 208)
+			fv_info->axifs = 2;
+		else
+			res = -EINVAL;
+		if (cpu_is_pxa978()) {
+			if (orig->dmcfs == 26)
+				fv_info->dmcfs = 0;
+			else if (orig->dmcfs == 208 ||
+					orig->dmcfs == 312)
+				fv_info->dmcfs = 1;
 #if 0
-				else if (orig->dmcfs == 624 ||
-					 orig->dmcfs == 533)
+			else if (orig->dmcfs == 624 ||
+					orig->dmcfs == 533)
 #else
-				else if (orig->dmcfs == 400)
+			else if (orig->dmcfs == 400)
 #endif
-					fv_info->dmcfs = 2;
-				else if ((orig->dmcfs >= 800 &&
-					  orig->dmcfs <= 1066))
-					fv_info->dmcfs = 3;
-				else
-					res = -EINVAL;
-			} else {
-				if (orig->dmcfs == 26)
-					fv_info->dmcfs = 0;
-				else if (orig->dmcfs == 208)
-					fv_info->dmcfs = 2;
-				else if (orig->dmcfs == 400
-					 || orig->dmcfs == 312)
-					fv_info->dmcfs = 3;
-				else
-					res = -EINVAL;
-			}
-			if (orig->gcfs >= 400)
-				fv_info->gcfs = 3;
-			else if (orig->gcfs == 312)
-				fv_info->gcfs = 2;
-			else if (orig->gcfs == 208)
-				fv_info->gcfs = 0;
-			else if (orig->gcfs == 156)
-				fv_info->gcfs = 1;
+				fv_info->dmcfs = 2;
+			else if ((orig->dmcfs >= 800 &&
+						orig->dmcfs <= 1066))
+				fv_info->dmcfs = 3;
 			else
 				res = -EINVAL;
-
-			if (orig->vmfc >= 400)
-				fv_info->vmfc = 3;
-			if (orig->vmfc == 312)
-				fv_info->vmfc = 1;
-			else if (orig->vmfc == 156)
-				fv_info->vmfc = 0;
+		} else {
+			if (orig->dmcfs == 26)
+				fv_info->dmcfs = 0;
+			else if (orig->dmcfs == 208)
+				fv_info->dmcfs = 2;
+			else if (orig->dmcfs == 400
+					|| orig->dmcfs == 312)
+				fv_info->dmcfs = 3;
 			else
 				res = -EINVAL;
-			tmp = orig->smcfs / orig->df_clk;
-			if (tmp == 2)
-				fv_info->df_clk = 2;
-			else if (tmp == 4)
-				fv_info->df_clk = 3;
-			if (!cpu_is_pxa978())
-				fv_info->empi_clk = fv_info->df_clk;
-		} else if (orig->power_mode == POWER_MODE_D0CS) {
-			fv_info->d0cs = 1;
-			res = 0;
 		}
+		if (orig->gcfs >= 400)
+			fv_info->gcfs = 3;
+		else if (orig->gcfs == 312)
+			fv_info->gcfs = 2;
+		else if (orig->gcfs == 208)
+			fv_info->gcfs = 0;
+		else if (orig->gcfs == 156)
+			fv_info->gcfs = 1;
+		else
+			res = -EINVAL;
+
+		if (orig->vmfc >= 400)
+			fv_info->vmfc = 3;
+		if (orig->vmfc == 312)
+			fv_info->vmfc = 1;
+		else if (orig->vmfc == 156)
+			fv_info->vmfc = 0;
+		else
+			res = -EINVAL;
+		tmp = orig->smcfs / orig->df_clk;
+		if (tmp == 2)
+			fv_info->df_clk = 2;
+		else if (tmp == 4)
+			fv_info->df_clk = 3;
+		if (!cpu_is_pxa978())
+			fv_info->empi_clk = fv_info->df_clk;
 	}
 	return res;
 }
@@ -790,129 +742,109 @@ static int reg2freq(void *driver_data, struct dvfm_md_opt *fv_info)
 
 	if (fv_info) {
 		res = 0;
-		if (fv_info->power_mode == POWER_MODE_D0CS) {
-			/* set S0D0CS operating pointer */
-			fv_info->power_mode = POWER_MODE_D0CS;
-			fv_info->xl = 0;
-			fv_info->xn = 0;
-			fv_info->smcfs = 15;
-			fv_info->sflfs = 60;
-			fv_info->hss = 60;
-			/* PXA310 A2 or PXA935/PXA940 */
-			accr = __raw_readl(info->clkmgr_base + ACCR_OFF);
-			if (accr & 0x80)
-				fv_info->dmcfs = 60;
+		/* set S0D0 operating pointer */
+		fv_info->power_mode = POWER_MODE_D0;
+		tmp = fv_info->smcfs;
+		if (tmp == 0)
+			fv_info->smcfs = 78;
+		else if (tmp == 2)
+			fv_info->smcfs = 104;
+		else if (tmp == 4)
+			fv_info->smcfs = 156;
+		else if (tmp == 5)
+			fv_info->smcfs = 208;
+		else
+			res = -EINVAL;
+		tmp = fv_info->sflfs;
+		if (tmp == 0)
+			fv_info->sflfs = 104;
+		else if (tmp == 1)
+			fv_info->sflfs = 156;
+		else if (tmp == 2)
+			fv_info->sflfs = 208;
+		else if (tmp == 3)
+			fv_info->sflfs = 312;
+		tmp = fv_info->hss;
+		if (tmp == 0)
+			fv_info->hss = 104;
+		else if (tmp == 1)
+			fv_info->hss = 156;
+		else if (tmp == 2)
+			fv_info->hss = 208;
+		else
+			res = -EINVAL;
+		tmp = fv_info->dmcfs;
+		if (cpu_is_pxa978()) {
+			if (tmp == 0)
+				fv_info->dmcfs = 26;
+			else if (tmp == 1)
+				fv_info->dmcfs = 208;
+			else if (tmp == 2)
+				fv_info->dmcfs = 400;
+			else if (tmp == 3)
+				fv_info->dmcfs = 800;
 			else
-				fv_info->dmcfs = 30;
-			fv_info->df_clk = 15;
-			if (!cpu_is_pxa978())
-				fv_info->empi_clk = 15;
-			fv_info->axifs = 60;
+				res = -EINVAL;
 		} else {
-			/* set S0D0 operating pointer */
-			fv_info->power_mode = POWER_MODE_D0;
-			tmp = fv_info->smcfs;
 			if (tmp == 0)
-				fv_info->smcfs = 78;
+				fv_info->dmcfs = 26;
 			else if (tmp == 2)
-				fv_info->smcfs = 104;
-			else if (tmp == 4)
-				fv_info->smcfs = 156;
-			else if (tmp == 5)
-				fv_info->smcfs = 208;
-			else
-				res = -EINVAL;
-			tmp = fv_info->sflfs;
-			if (tmp == 0)
-				fv_info->sflfs = 104;
-			else if (tmp == 1)
-				fv_info->sflfs = 156;
-			else if (tmp == 2)
-				fv_info->sflfs = 208;
-			else if (tmp == 3)
-				fv_info->sflfs = 312;
-			tmp = fv_info->hss;
-			if (tmp == 0)
-				fv_info->hss = 104;
-			else if (tmp == 1)
-				fv_info->hss = 156;
-			else if (tmp == 2)
-				fv_info->hss = 208;
-			else
-				res = -EINVAL;
-			tmp = fv_info->dmcfs;
-			if (cpu_is_pxa978()) {
-				if (tmp == 0)
-					fv_info->dmcfs = 26;
-				else if (tmp == 1)
-					fv_info->dmcfs = 208;
-				else if (tmp == 2)
-					fv_info->dmcfs = 400;
-				else if (tmp == 3)
-					fv_info->dmcfs = 800;
-				else
-					res = -EINVAL;
-			} else {
-				if (tmp == 0)
-					fv_info->dmcfs = 26;
-				else if (tmp == 2)
-					fv_info->dmcfs = 208;
-				else if (tmp == 3) {
-					accr =
-					    __raw_readl(info->clkmgr_base +
+				fv_info->dmcfs = 208;
+			else if (tmp == 3) {
+				accr =
+					__raw_readl(info->clkmgr_base +
 							ACCR_OFF);
-					if (accr & ACCR_DMCFS_312_MASK)
-						fv_info->dmcfs = 312;
-					else
-						fv_info->dmcfs = 400;
-				} else
-					res = -EINVAL;
-			}
-			tmp = fv_info->df_clk;
-			if (tmp == 1)
-				fv_info->df_clk = fv_info->smcfs;
-			else if (tmp == 2)
-				fv_info->df_clk = fv_info->smcfs / 2;
-			else if (tmp == 3)
-				fv_info->df_clk = fv_info->smcfs / 4;
-			if (!cpu_is_pxa978())
-				fv_info->empi_clk = fv_info->df_clk;
-
-			tmp = fv_info->axifs;
-			if (tmp == 0)
-				fv_info->axifs = 104;
-			else if (tmp == 1)
-				fv_info->axifs = 156;
-			else if (tmp == 3)
-				fv_info->axifs = 78;
-			else if (tmp == 2)
-				fv_info->axifs = 208;
-			else
+				if (accr & ACCR_DMCFS_312_MASK)
+					fv_info->dmcfs = 312;
+				else
+					fv_info->dmcfs = 400;
+			} else
 				res = -EINVAL;
-			tmp = fv_info->gcfs;
-			if (tmp == 0)
-				fv_info->gcfs = 208;
-			else if (tmp == 1)
-				fv_info->gcfs = 156;
-			else if (tmp == 2)
-				fv_info->gcfs = 312;
-			else if (tmp == 3) {
-				if (cpu_is_pxa978())
-					fv_info->gcfs = 416;
-				else
-					fv_info->gcfs = 400;
-			}
-			tmp = fv_info->vmfc;
-			if (tmp == 0)
-				fv_info->vmfc = 156;
-			else if (tmp == 1)
-				fv_info->vmfc = 312;
-			else if (tmp == 3) {
-				if (cpu_is_pxa978())
-					fv_info->vmfc = 416;
-				else
-					fv_info->vmfc = 400;
-			}
+		}
+		tmp = fv_info->df_clk;
+		if (tmp == 1)
+			fv_info->df_clk = fv_info->smcfs;
+		else if (tmp == 2)
+			fv_info->df_clk = fv_info->smcfs / 2;
+		else if (tmp == 3)
+			fv_info->df_clk = fv_info->smcfs / 4;
+		if (!cpu_is_pxa978())
+			fv_info->empi_clk = fv_info->df_clk;
+
+		tmp = fv_info->axifs;
+		if (tmp == 0)
+			fv_info->axifs = 104;
+		else if (tmp == 1)
+			fv_info->axifs = 156;
+		else if (tmp == 3)
+			fv_info->axifs = 78;
+		else if (tmp == 2)
+			fv_info->axifs = 208;
+		else
+			res = -EINVAL;
+		tmp = fv_info->gcfs;
+		if (tmp == 0)
+			fv_info->gcfs = 208;
+		else if (tmp == 1)
+			fv_info->gcfs = 156;
+		else if (tmp == 2)
+			fv_info->gcfs = 312;
+		else if (tmp == 3) {
+			if (cpu_is_pxa978())
+				fv_info->gcfs = 416;
+			else
+				fv_info->gcfs = 400;
+		}
+		tmp = fv_info->vmfc;
+		if (tmp == 0)
+			fv_info->vmfc = 156;
+		else if (tmp == 1)
+			fv_info->vmfc = 312;
+		else if (tmp == 3) {
+			if (cpu_is_pxa978())
+				fv_info->vmfc = 416;
+			else
+				fv_info->vmfc = 400;
 		}
 	}
 	return res;
@@ -935,7 +867,7 @@ static int capture_op_info(void *driver_data, struct dvfm_md_opt *fv_info)
 		fv_info->sflfs = (acsr >> ACCR_SFLFS_OFFSET) & 0x03;
 		fv_info->hss = (acsr >> ACCR_HSS_OFFSET) & 0x03;
 		fv_info->dmcfs = (acsr >> ACCR_DMCFS_OFFSET) & 0x03;
-		fv_info->power_mode = (acsr >> ACCR_D0CS_OFFSET) & 0x01;
+		fv_info->power_mode = POWER_MODE_D0;
 		memclkcfg = __raw_readl(info->smc_base + MEMCLKCFG_OFF);
 		fv_info->df_clk = (memclkcfg >> MEMCLKCFG_DF_OFFSET) & 0x07;
 		if (!cpu_is_pxa978())
@@ -1001,214 +933,6 @@ static int update_voltage(void *driver_data, struct dvfm_md_opt *old,
 	if (!(info->flags & PXA95x_USE_POWER_I2C))
 		pxa95x_dvfm_set_core_voltage(new->vcc_core);
 	return 0;
-}
-
-static struct timer_list d0cs_prevent_timer;
-static void pxa95x_d0cs_prevent_cbk(unsigned long data)
-{
-#if defined(CONFIG_PXA9XX_ACIPC)
-	acipc_disable_d0cs();
-#endif
-#ifdef CONFIG_PXA_MIPSRAM
-	MIPS_RAM_ADD_PM_TRACE(EARLY_DDR_PREVENTING_D0CS);
-#endif
-	del_timer_sync(&d0cs_prevent_timer);
-}
-
-static void pxa95x_d0cs_clear_aicsr(void)
-{
-	uint32_t aicsr;
-	/*
-	 * Clearing AICSR D0CS transition wakeup
-	 */
-	aicsr = AICSR;
-	/* Clear all status bit so we don't miss any status bit
-	 * (write to clear) */
-	aicsr &= ~AICSR_STATUS_BITS;
-	aicsr |= AICSR_WSD0CS;	/*Set D0CS status bit */
-	AICSR = aicsr;
-}
-
-static void pxa95x_enter_d0cs(void *driver_data)
-{
-	struct pxa95x_dvfm_info *info = driver_data;
-	unsigned int icmr[3] = { 0, 0, 0 };
-	unsigned int reg, spll = 0;
-	uint32_t accr, acsr, mdrefr;
-
-	acsr = __raw_readl(info->clkmgr_base + ACSR_OFF);
-	/* making sure we are not in D0CS before we try to enter. */
-	if (!(acsr & (1 << ACCR_D0CS_OFFSET))) {
-		DVFMLPMGlobalCount.D0CS_Enter_count++;
-#if defined EARLY_D0CS_WAKE
-		/* we will call the timer only if apps comm sync is enabled */
-		if (AppsSyncEnabled) {
-			timer_expiry_time = comm_wakeup_time -
-			    D0CS_TIMER_THRESHOLD;
-			/* setting the timer expiry time to be 30 mse before
-			 * next comm wakeup
-			 */
-			timer_expiry_time = msecs_to_jiffies(timer_expiry_time);
-			/* we will set a timer so we will exit D0CS TH msec
-			 * before the next comm expected wakeup.
-			 */
-			mod_timer(&d0cs_prevent_timer,
-				  jiffies + timer_expiry_time);
-		}
-#endif
-
-		reg = (12 << ACCR_XL_OFFSET) | (1 << ACCR_XN_OFFSET);
-		accr = __raw_readl(info->clkmgr_base + ACCR_OFF);
-		if (reg == (accr & (ACCR_XN_MASK | ACCR_XL_MASK)))
-			spll = 1;
-
-		if (is_wkr_mg1_1274()) {
-			/* Mask all interrupts except R2B20 BCCU */
-			icmr[0] = ICMR;
-			icmr[1] = ICMR2;
-			icmr[2] = ICMR3;
-			ICMR = 0x00000000;
-			ICMR2 = 0x00100000;
-			ICMR3 = 0x00000000;
-		}
-		prepare_dmc(info, DMEMC_D0CS_ENTER);
-#if defined(CONFIG_PXA9XX_ACIPC)
-		/*should not happen */
-		if (get_ddr_avail_state())
-			printk(KERN_ERR "****EDDR - WARNING - GOING TO D0CS"
-			       "WITH DDR INDICATION TO COM SET -" "*****");
-#endif
-		enter_d0cs_a(info->clkmgr_base, info->dmc_base,
-			     info->bpmu_base);
-
-		polling_dmc(info);
-
-		/* update to D0CS LPJ, it must be updated before udelay() */
-		loops_per_jiffy = d0cs_lpj;
-		udelay(200);
-
-		/* disable PLL */
-
-		accr = __raw_readl(info->clkmgr_base + ACCR_OFF);
-		if (spll) {
-			/* core pll is already disabled.
-			 * Only disable System PLL */
-			accr |= (1 << ACCR_SPDIS_OFFSET);
-		} else {
-			/* Disable both System PLL and Core PLL */
-			accr |= (1 << ACCR_XPDIS_OFFSET) |
-			    (1 << ACCR_SPDIS_OFFSET);
-		}
-		__raw_writel(accr, info->clkmgr_base + ACCR_OFF);
-
-		mdrefr = __raw_readl(info->dmc_base + MDREFR_OFF);
-		__raw_writel(mdrefr, info->dmc_base + MDREFR_OFF);
-	} else {
-		printk(KERN_WARNING "Attempting to enter D0CS when we are"
-		       "already in D0CS\n");
-	}
-
-	/* Clearing D0CS wakeup status bit in order to clean ACCU interrupt */
-	pxa95x_d0cs_clear_aicsr();
-
-	if (is_wkr_mg1_1274()) {
-		ICMR = icmr[0];
-		ICMR2 = icmr[1];
-		ICMR3 = icmr[2];
-	}
-
-}
-
-static void pxa95x_exit_d0cs(void *driver_data)
-{
-	struct pxa95x_dvfm_info *info = driver_data;
-	unsigned int spll = 0;
-	uint32_t reg, accr, acsr, mdrefr;
-	unsigned int icmr[3] = { 0, 0, 0 };
-
-	acsr = __raw_readl(info->clkmgr_base + ACSR_OFF);
-	/* making sure we are actually in D0CS before we try to exit, */
-	if (acsr & (1 << ACCR_D0CS_OFFSET)) {
-		DVFMLPMGlobalCount.D0CS_Exit_count++;
-		reg = (12 << ACCR_XL_OFFSET) | (1 << ACCR_XN_OFFSET);
-		accr = __raw_readl(info->clkmgr_base + ACCR_OFF);
-		if (reg == (accr & (ACCR_XN_MASK | ACCR_XL_MASK)))
-			spll = 1;
-		/* enable PLL */
-
-		if (spll) {
-			/* core PLL shound not be enabled.
-			 * only enable System PLL */
-			accr = __raw_readl(info->clkmgr_base + ACCR_OFF);
-			accr &= ~(1 << ACCR_SPDIS_OFFSET);
-			__raw_writel(accr, info->clkmgr_base + ACCR_OFF);
-			do {
-				acsr = __raw_readl(info->clkmgr_base +
-						   ACSR_OFF);
-			} while ((acsr & ACSR_SPLCK) == 0);
-		} else {
-			/* enable both System PLL and Core PLL */
-			accr = __raw_readl(info->clkmgr_base + ACCR_OFF);
-			accr &= ~((1 << ACCR_XPDIS_OFFSET) |
-				  (1 << ACCR_SPDIS_OFFSET));
-			__raw_writel(accr, info->clkmgr_base + ACCR_OFF);
-			do {
-				acsr = __raw_readl(info->clkmgr_base +
-						   ACSR_OFF);
-			} while (((acsr & ACSR_XPLCK) == 0) ||
-				 ((acsr & ACSR_SPLCK) == 0));
-		}
-
-		prepare_dmc(info, DMEMC_D0CS_EXIT);
-		if (is_wkr_mg1_1274()) {
-			/*Mask all interrupts except R2B20 BCCU */
-			icmr[0] = ICMR;
-			icmr[1] = ICMR2;
-			icmr[2] = ICMR3;
-			ICMR = 0x00000000;
-			ICMR2 = 0x00100000;
-			ICMR3 = 0x00000000;
-		}
-		exit_d0cs_a(info->clkmgr_base, info->dmc_base, info->bpmu_base);
-		polling_dmc(info);
-
-		mdrefr = __raw_readl(info->dmc_base + MDREFR_OFF);
-		__raw_writel(mdrefr, info->dmc_base + MDREFR_OFF);
-#if defined(CONFIG_PXA9XX_ACIPC)
-		set_DDR_avail_flag();
-#endif
-		/* Clearing D0CS wakeup status bit in order to clean ACCU
-		 * interrupt */
-		pxa95x_d0cs_clear_aicsr();
-
-		if (is_wkr_mg1_1274()) {
-			ICMR = icmr[0];
-			ICMR2 = icmr[1];
-			ICMR3 = icmr[2];
-		}
-#if defined EARLY_D0CS_WAKE
-		if (AppsSyncEnabled) {
-			/* we are checking the proximity to the next xomm
-			 * wakeup to detrmine if this is a ap-cp-sync timer
-			 */
-			comm_wakeup_time = pxa95x_ticks_to_msec
-			    (dvfm_get_next_comm_wakeup_time());
-
-			/* we should not disable the timer if we are not sure
-			 * if this wake is because of the timer...
-			 */
-			/* if we are far enough from the comm wakeup we can
-			 * disable the timer (it will be retriggered if we
-			 * enter D0CS again
-			 */
-			if (comm_wakeup_time > D0CS_TIMER_THRESHOLD)
-				del_timer_sync(&d0cs_prevent_timer);
-		}
-#endif
-	} else {
-		printk(KERN_WARNING "Attempting to exit D0CS when we are not"
-		       "in D0CS in the first place\n");
-	}
 }
 
 /* Return 1 if Grayback PLL is on. */
@@ -1312,7 +1036,7 @@ static int prepare_dmc(void *driver_data, int flag)
 	int data;
 	uint32_t mdcnfg;
 
-	if (flag == DMEMC_D0CS_ENTER || flag == DMEMC_FREQ_LOW) {
+	if (flag == DMEMC_FREQ_LOW) {
 		/* Set MDCNFG_HWFREQ & MDCNFG_HWNOPHD */
 		mdcnfg = __raw_readl(info->dmc_base + MDCNFG_OFF);
 		data = (1 << MDCNFG_HWFREQ_OFFSET) |
@@ -1325,7 +1049,7 @@ static int prepare_dmc(void *driver_data, int flag)
 
 		return 0;
 	}
-	if (flag == DMEMC_D0CS_EXIT || flag == DMEMC_FREQ_HIGH) {
+	if (flag == DMEMC_FREQ_HIGH) {
 		/* Set MDCNFG_HWFREQ */
 		mdcnfg = __raw_readl(info->dmc_base + MDCNFG_OFF);
 		mdcnfg |= (1 << MDCNFG_HWFREQ_OFFSET);
@@ -1809,7 +1533,7 @@ static int set_freq(void *driver_data, struct dvfm_md_opt *old,
 static int update_freq(void *driver_data, struct dvfm_freqs *freqs)
 {
 	struct pxa95x_dvfm_info *info = driver_data;
-	static struct dvfm_md_opt before_d0cs, pp806;
+	static struct dvfm_md_opt pp806;
 	struct dvfm_md_opt old, new;
 	struct dvfm_md_opt *tmp;
 	struct op_info *p = NULL;
@@ -1856,45 +1580,6 @@ static int update_freq(void *driver_data, struct dvfm_freqs *freqs)
 	if (found != 2)
 		return -EINVAL;
 
-	if ((old.power_mode == POWER_MODE_D0)
-	    && (new.power_mode == POWER_MODE_D0CS)) {
-		memcpy(&before_d0cs, &old, sizeof(struct dvfm_md_opt));
-
-		pxa95x_enter_d0cs(info);
-		update_voltage(info, &old, &new);
-		cur_op = new_op;
-		loops_per_jiffy = new.lpj;
-		return 0;
-	} else if ((old.power_mode == POWER_MODE_D0CS)
-		   && (new.power_mode == POWER_MODE_D0)) {
-		if (memcmp(&before_d0cs, &new, sizeof(struct dvfm_md_opt))) {
-			/* exit d0cs and set new operating point */
-			if ((before_d0cs.vcc_core < new.vcc_core) ||
-			    (before_d0cs.vcc_sram < new.vcc_sram)) {
-				update_voltage(info, &old, &new);
-			} else {
-				update_voltage(info, &old, &before_d0cs);
-			}
-			pxa95x_exit_d0cs(info);
-			set_freq(info, &before_d0cs, &new);
-
-			if ((before_d0cs.vcc_core > new.vcc_core) ||
-			    (before_d0cs.vcc_sram > new.vcc_sram))
-				update_voltage(info, &before_d0cs, &new);
-		} else {
-			update_voltage(info, &old, &new);
-			/* exit d0cs */
-			pxa95x_exit_d0cs(info);
-		}
-		cur_op = new_op;
-		loops_per_jiffy = new.lpj;
-		return 0;
-	} else if ((old.power_mode == POWER_MODE_D0CS) &&
-		   (new.power_mode == POWER_MODE_D0CS)) {
-		cur_op = new_op;
-		return 0;
-	}
-
 	if (old.core < new.core)
 		update_voltage(info, &old, &new);
 	if (!cpu_is_pxa978() && (((new.xl == 38) && (old.xl < 31))
@@ -1907,8 +1592,7 @@ static int update_freq(void *driver_data, struct dvfm_freqs *freqs)
 	if (old.core > new.core)
 		update_voltage(info, &old, &new);
 	cur_op = new_op;
-	if ((new.power_mode == POWER_MODE_D0) ||
-	    (new.power_mode == POWER_MODE_D0CS))
+	if (new.power_mode == POWER_MODE_D0)
 		loops_per_jiffy = new.lpj;
 	return 0;
 }
@@ -2050,14 +1734,6 @@ static int pxa95x_set_op(void *driver_data, struct dvfm_freqs *freqs,
 	local_fiq_disable();
 	local_irq_save(flags);
 
-/**************/
-/* the following code will check if the op will like to go, is D0CS. if this is
- * the case we verify that the PM will actually allow D0CS, then we try to
- * clear the shared flag. in case the clear of the shared flag is not allowed
- * we have to prevent D0CS. we do so by calling to
- * acipc_set_constraint_no_op_change which will set the "comm awake" constraint
- * and with no op change */
-
 	if (dvfm_find_op(freqs->old, &p))
 		goto out;
 
@@ -2066,80 +1742,6 @@ static int pxa95x_set_op(void *driver_data, struct dvfm_freqs *freqs,
 	if (dvfm_find_op(new, &p))
 		goto out;
 
-	/* verify that the requested PP is D0CS */
-	if (POWER_MODE_D0CS == ((struct dvfm_md_opt *)(p->op))->power_mode) {
-		memcpy(&freqs_tmp, freqs, sizeof(struct dvfm_freqs));
-		if (dvfm_find_op(freqs_tmp.old, &p))
-			goto out;
-
-		memcpy(&freqs_tmp.old_info, p, sizeof(struct op_info));
-
-		/* check if the PM will actually allow to go to D0CS */
-		if (!check_op(info, &freqs_tmp, new, relation)) {
-			if (!dvfm_find_op(freqs_tmp.new, &p)) {
-				memcpy(&(freqs_tmp.new_info), p,
-				       sizeof(struct op_info));
-
-/* this check is to prevent an attempt to clear DDR_avail_flag if we already are
- * in D0CS because if this attempt fails (meaning there is a pending DDR_REQ
- * from the comm) we will set this flag although we are still in D0CS! this
- * situation is no allowed since it means comm can from DDR although apps is in
- * D0CS */
-				if (freqs->old_info.index ==
-				    freqs_tmp.new_info.index)
-					goto out;
-
-				md = (struct dvfm_md_opt *)(freqs_tmp.
-							    new_info.op);
-				if (md->power_mode == POWER_MODE_D0CS) {
-#if defined(CONFIG_PXA9XX_ACIPC)
-/* if we are going to D0CS we need to clear the shared flag indicating that DDR
- * available for Comm. if a DDR request is pending while clear_DDR_avail_flag is
- * trying to clear the share flag, it will not change the shared flag state and
- * return it. if the shared flag state was on we have to disable D0CS, so the
- * decision made later (in check_op) will not decide to go to D0CS this should
- * happen only if ddr_request arrive between disable interrupt in the beginning
- * of pxa95x_set_op, and the call to clear_DDR_avail_flag so it is fairy rare
- * case. */
-					if (clear_DDR_avail_flag() == 1)
-						acipc_set_constraint_no_op_change();
-#endif
-#if defined EARLY_D0CS_WAKE
-
-#if defined(CONFIG_PXA9XX_ACIPC)
-					else
-#endif
-					{
-/* this is additional code to protect against D0CS entry near COMM wakeups. This
- * situation can cuase a delay in APPS DDR ack time if another interupt service
- * routine is running Therfore, D0CS is not allowed within a defined thrrshold
- * time of comm D2 wakeup */
-						if (AppsSyncEnabled) {
-							comm_wakeup_time =
-							    pxa95x_ticks_to_msec
-							    (dvfm_get_next_comm_wakeup_time());
-
-#if defined(CONFIG_PXA9XX_ACIPC)
-							/* we should not be enetering d0cs. */
-							if (comm_wakeup_time <
-							    D0CS_TIMER_THRESHOLD) {
-								/* we will prevent D0CS entry because comm is soon to wake up. */
-								acipc_disable_d0cs_no_change();
-								/* if we are not going to D0CS we must set back the ddr_avail flag to 1. */
-								set_DDR_avail_flag();
-							}
-#endif
-						}
-					}
-#endif
-				}
-				md = NULL;
-				p = NULL;
-			} else
-				goto out;
-		} else
-			goto out;
-	}
 	ret = check_op(info, freqs, new, relation);
 	if (ret)
 		goto out;
@@ -2151,22 +1753,12 @@ static int pxa95x_set_op(void *driver_data, struct dvfm_freqs *freqs,
 		 */
 		if (freqs->old_info.index == freqs->new_info.index)
 			goto out;
-#ifdef DVFM_LP_SAFE
+
 		md = (struct dvfm_md_opt *)(freqs->new_info.op);
 		old_md = (struct dvfm_md_opt *)(freqs->old_info.op);
 
-		/*System cannot enter D2 from D0CS */
-		/*TODO: System can enter D1 from D0CS, so this limitation
-		 * should be removed */
-		if ((old_md->power_mode == POWER_MODE_D0CS) &&
-		    ((md->power_mode == POWER_MODE_D1) ||
-		     (md->power_mode == POWER_MODE_D2))) {
-			dvfm_disable_op_name("D0CS", dvfm_dev_id);
-		}
-
-		/* System should enter D0CS or D2 from the lowest op */
-		if ((md->power_mode == POWER_MODE_D0CS ||
-		     md->power_mode == POWER_MODE_D2) &&
+		/* System should enter D2 from the lowest op */
+		if ((md->power_mode == POWER_MODE_D2) &&
 		    old_md->power_mode == POWER_MODE_D0 &&
 		    old_md->core > lowest_freq_op->core) {
 			struct dvfm_freqs temp_freqs;
@@ -2195,7 +1787,6 @@ static int pxa95x_set_op(void *driver_data, struct dvfm_freqs *freqs,
 		CKENA |= (1 << CKEN_SMC) | (1 << CKEN_NAND);
 		switch (md->power_mode) {
 		case POWER_MODE_D0:
-		case POWER_MODE_D0CS:
 			/* this means that op is forced by user for debug */
 			if (ForceOP) {
 				freqs->new = ForcedOPIndex;
@@ -2211,35 +1802,6 @@ static int pxa95x_set_op(void *driver_data, struct dvfm_freqs *freqs,
 			do_lowpower_notify(info, freqs, md->power_mode);
 			break;
 		}
-		/* enabling back DVFN but with no real change taking place */
-		if ((old_md->power_mode == POWER_MODE_D0CS) &&
-		    ((md->power_mode == POWER_MODE_D1) ||
-		     (md->power_mode == POWER_MODE_D2))) {
-			dvfm_enable_op_name_no_change("D0CS", dvfm_dev_id);
-		}
-#else
-		md = (struct dvfm_md_opt *)p->op;
-		ckena = CKENA;
-		CKENA |= (1 << CKEN_SMC) | (1 << CKEN_NAND);
-		switch (md->power_mode) {
-		case POWER_MODE_D0:
-		case POWER_MODE_D0CS:
-			/* this means that op is forced by user for debug */
-			if (ForceOP) {
-				freqs->new = ForcedOPIndex;
-				if (!dvfm_find_op(freqs->new, &p))
-					memcpy(&(freqs->new_info), p,
-					       sizeof(struct op_info));
-			}
-			do_freq_notify(info, freqs);
-			break;
-		case POWER_MODE_D1:
-		case POWER_MODE_D2:
-		case POWER_MODE_CG:
-			do_lowpower_notify(info, freqs, md->power_mode);
-			break;
-		}
-#endif
 	}
 
 	CKENA = ckena;
@@ -2250,12 +1812,6 @@ out:
 	local_irq_restore(flags);
 	local_fiq_enable();
 	return ret;
-}
-
-/* Put the operation of switching back to D0CS in workqueue. */
-static void d0cs_worker(struct work_struct *work)
-{
-	dvfm_enable_op_name("D0CS", dvfm_dev_id);
 }
 
 static int pxa95x_request_op(void *driver_data, int index)
@@ -2287,18 +1843,6 @@ static int pxa95x_request_op(void *driver_data, int index)
 	}
 out:
 	return ret;
-}
-
-static int is_d0cs(void *driver_data)
-{
-	struct pxa95x_dvfm_info *info = driver_data;
-	unsigned int acsr;
-	/* read ACSR */
-	acsr = __raw_readl(info->clkmgr_base + ACSR_OFF);
-	/* Check ring oscillator status */
-	if (acsr & (1 << 26))
-		return 1;
-	return 0;
 }
 
 /* Produce a operating point table */
@@ -2341,8 +1885,6 @@ static int op_init(void *driver_data, struct info_head *op_table)
 		p->op = (void *)md;
 		memcpy(p->op, &proc->op_array[i], sizeof(struct dvfm_md_opt));
 		md->core = 13 * md->xl * md->xn;
-		if (md->power_mode == POWER_MODE_D0CS)
-			md->core = 60;
 		p->index = index++;
 		list_add_tail(&(p->list), &(op_table->list));
 	}
@@ -2375,10 +1917,7 @@ static int op_init(void *driver_data, struct info_head *op_table)
 			}
 		}
 	}
-	if (is_d0cs(driver_data))
-		md->core = 60;
-	else
-		md->core = 13 * md->xl * md->xn;
+	md->core = 13 * md->xl * md->xn;
 	md->lpj = loops_per_jiffy;
 	md->flag = OP_FLAG_BOOT;
 	sprintf(md->name, "BOOT OP");
@@ -2554,12 +2093,7 @@ static int pxa95x_core_freq_calc(int op_point)
 	if (!dvfm_find_op(op_point, &p)) {
 		md = (struct dvfm_md_opt *)p->op;
 #if 0
-		/* D0CS? */
-		if ((md->xl == 0) &&
-			(md->xn == 0))
-			freq = 60;
-		else
-			freq = 13 * md->xl * md->xn;
+		freq = 13 * md->xl * md->xn;
 #else
 		freq = md->core;
 #endif
@@ -2590,8 +2124,7 @@ static int pxa95x_core_freqs_table_get(void *driver_data,
 	*num_pp = 0;
 	list_for_each_entry(p, &pxa95x_dvfm_op_list.list, list) {
 		md = (struct dvfm_md_opt *)(p->op);
-		if (md->power_mode == POWER_MODE_D0 ||
-				md->power_mode == POWER_MODE_D0CS) {
+		if (md->power_mode == POWER_MODE_D0) {
 			if (*num_pp == 0)
 				freq_table[(*num_pp)++] = md->core;
 			else if (md->core > freq_table[*num_pp - 1])
@@ -2625,8 +2158,7 @@ static int pxa95x_stats_notifier_freq(struct notifier_block *nb,
 
 	ticks = pxa95x_read_time();
 	md = (struct dvfm_md_opt *)(info->op);
-	if (md->power_mode == POWER_MODE_D0 ||
-	    md->power_mode == POWER_MODE_D0CS) {
+	if (md->power_mode == POWER_MODE_D0) {
 		switch (val) {
 		case DVFM_FREQ_PRECHANGE:
 			calc_switchtime_start(freqs->old, freqs->new, ticks);
@@ -2719,27 +2251,24 @@ static int pxa95x_freq_resume(struct platform_device *pdev)
 #ifdef CONFIG_PXA_MIPSRAM
 int update_op_mips_ram(u32 old_pp, u32 new_pp)
 {
-	u32 data, d2_constraints, d0cs_constraints;
+	u32 data, d2_constraints;
 	struct op_info *p = NULL;
 
 	if (old_pp != new_pp) {
 		switch (new_pp) {
 		case 0:
-			data = PP_D0CS_MIPS_RAM;
-			break;
-		case 1:
 			data = PP_PP1_MIPS_RAM;
 			break;
-		case 2:
+		case 1:
 			data = PP_PP2_MIPS_RAM;
 			break;
-		case 3:
+		case 2:
 			data = PP_PP3_MIPS_RAM;
 			break;
-		case 4:
+		case 3:
 			data = PP_PP4_MIPS_RAM;
 			break;
-		case 5:
+		case 4:
 			data = PP_PP5_MIPS_RAM;
 			break;
 		case 9:
@@ -2753,20 +2282,13 @@ int update_op_mips_ram(u32 old_pp, u32 new_pp)
 			break;
 		}
 		MIPS_RAM_ADD_PP_CHANGE(data);
-		dvfm_get_opinfo(0, &p);
-		d0cs_constraints = p->device & 0x0000FFFF;
-		MIPS_RAM_ADD_TRACE(MIPSRAM_EVENT_RAW_DATA | d0cs_constraints);
-		d0cs_constraints = (p->device & 0xFFFF0000) >> 16;
-		MIPS_RAM_ADD_TRACE(MIPSRAM_EVENT_RAW_DATA | d0cs_constraints);
 		dvfm_get_opinfo(7, &p);
 		d2_constraints = p->device & 0x0000FFFF;
 		MIPS_RAM_ADD_TRACE(MIPSRAM_EVENT_RAW_DATA | d2_constraints);
 		d2_constraints = (p->device & 0xFFFF0000) >> 16;
 		MIPS_RAM_ADD_TRACE(MIPSRAM_EVENT_RAW_DATA | d2_constraints);
-
 	}
 	return 0;
-
 }
 
 #endif
@@ -3075,25 +2597,17 @@ long dvfm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case DEBUG_MSPM_START_LPM_DEBUG_COUNT:
 		memcpy(&DVFMLPMGlobalCountOffset, &DVFMLPMGlobalCount,
 		       sizeof(DVFMLPMGlobalCountOffset));
-		printk("DVFM Counters Reset: D2=%lu CGM=%lu D0CS_Enter=%lu"
-		       "D0CS_exit= %lu\n",
+		printk("DVFM Counters Reset: D2=%lu CGM=%lu\n",
 		       DVFMLPMGlobalCountOffset.D2_Enter_Exit_count,
-		       DVFMLPMGlobalCountOffset.CGM_Enter_Exit_count,
-		       DVFMLPMGlobalCountOffset.D0CS_Enter_count,
-		       DVFMLPMGlobalCountOffset.D0CS_Exit_count);
+		       DVFMLPMGlobalCountOffset.CGM_Enter_Exit_count);
 		break;
 		/*Print the Counters */
 	case DEBUG_MSPM_GET_LPM_DEBUG_COUNT:
-		printk("DVFM Counters: D2=%lu CGM=%lu D0CS_Enter=%lu"
-		       "D0CS_exit=%lu D0C1_Enter_count=%lu\n",
+		printk("DVFM Counters: D2=%lu CGM=%lu D0C1_Enter_count=%lu\n",
 		       DVFMLPMGlobalCount.D2_Enter_Exit_count -
 		       DVFMLPMGlobalCountOffset.D2_Enter_Exit_count,
 		       DVFMLPMGlobalCount.CGM_Enter_Exit_count -
 		       DVFMLPMGlobalCountOffset.CGM_Enter_Exit_count,
-		       DVFMLPMGlobalCount.D0CS_Enter_count -
-		       DVFMLPMGlobalCountOffset.D0CS_Enter_count,
-		       DVFMLPMGlobalCount.D0CS_Exit_count -
-		       DVFMLPMGlobalCountOffset.D0CS_Exit_count,
 		       DVFMLPMGlobalCount.D0C1_Enter_count);
 		break;
 	case FORCE_LPM:
@@ -3210,17 +2724,6 @@ static void pxa95x_df_init(struct pxa95x_dvfm_info *info)
 	   __raw_writel(accr, info->clkmgr_base + ACCR_OFF); */
 }
 
-static void pxa95x_d0cs_wakeup_init(struct pxa95x_dvfm_info *info)
-{
-	unsigned int aicsr = 0;
-	aicsr = __raw_readl(info->clkmgr_base + AICSR_OFF);
-	aicsr &= ~AICSR_STATUS_BITS;
-	/*enabling WED0CS bit */
-	aicsr |= AICSR_WED0CS;
-	/* Enabling AICSR wakeup from D0CS */
-	__raw_writel(aicsr, info->clkmgr_base + AICSR_OFF);
-}
-
 extern unsigned int pxa_chip_id;
 #define ISRAM_START 0x5c000000
 extern void pxa95x_init_sram(unsigned int);
@@ -3285,15 +2788,10 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 	info->smc_base = ioremap(res->start, res->end - res->start + 1);
 
 	pxa95x_df_init(info);
-	pxa95x_d0cs_wakeup_init(info);
 	addr_trim_value_wa = ioremap(0x58110000, 0x30);
 
 	pxa95x_poweri2c_init(info);
 	op_init(info, &pxa95x_dvfm_op_list);
-
-	init_timer(&d0cs_prevent_timer);
-	d0cs_prevent_timer.function = pxa95x_d0cs_prevent_cbk;
-	d0cs_prevent_timer.data = 0;
 
 	rc = dvfm_register_driver(&pxa95x_driver, &pxa95x_dvfm_op_list);
 	if (disabe_high_pp_on_low_voltage_board() != 0)
@@ -3319,7 +2817,6 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 	if (!rc) {
 		rc |= dvfm_disable_op_name("BOOT OP", user_index);
 		rc |= dvfm_disable_op_name("CUSTOM OP", user_index);
-		rc |= dvfm_disable_op_name("D0CS", user_index);
 		rc |= dvfm_disable_op_name("208M_HF", user_index);
 		rc |= dvfm_disable_op_name("312M", user_index);
 		rc |= dvfm_disable_op_name("416M_VGA", user_index);
@@ -3493,9 +2990,6 @@ static int __init pxa95x_freq_init(void)
 				     DVFM_FREQUENCY_NOTIFIER);
 #endif
 	ret = dvfm_register("DVFM", &dvfm_dev_id);
-#ifdef DVFM_LP_SAFE
-	INIT_WORK(&postpone_work, d0cs_worker);
-#endif
 
 	entry = create_proc_entry("d2_led_toggle", 0444, NULL);
 	if (entry)

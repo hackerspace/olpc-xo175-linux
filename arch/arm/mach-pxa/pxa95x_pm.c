@@ -84,7 +84,7 @@ static int isram_size;
 unsigned int is_wkr_mg1_1274_value;
 EXPORT_SYMBOL(is_wkr_mg1_1274_value);	/*this is used in LPM entry and exit */
 
-/* Counter Structure for Debugging ENTER/EXIT D2/CGM/D0CS */
+/* Counter Structure for Debugging ENTER/EXIT D2/CGM */
 extern pxa95x_DVFM_LPM_Global_Count DVFMLPMGlobalCount;
 extern int d2_led_toggle_flag;
 
@@ -115,7 +115,6 @@ enum pxa95x_pm_mode {
 	PXA95x_PM_IDLE = 1,
 	PXA95x_PM_LCDREFRESH = 2,
 	PXA95x_PM_STANDBY = 3,
-	PXA95x_PM_D0CS = 5,
 	PXA95x_PM_SLEEP = 6,
 	PXA95x_PM_DEEPSLEEP = 7,
 	PXA95x_PM_CG = 8,
@@ -1088,21 +1087,15 @@ unsigned int pm_core_pwdn(unsigned int powerState)
 
 	if (cpu_is_pxa95x()) {
 		/*This function is called before & after LPM
-		   and before and after D0CS
 		   Normal functionallity is that outside of these functions
 		   the register will be set to 0x0001 -
 		   this will allow C2 with 0x0 counter (see JIRA 1495).
-		   when entring D2 this will be set to C2 with 0x3F counter.
-		   When entring D0CS it will configure C1 */
+		   when entring D2 this will be set to C2 with 0x3F counter. */
 		switch (powerState) {
 		case CPU_PDWN_LPM_ENTRY:
 			cpupwr = CPU_PDWN_SETALLWAYS | CPU_PDWN_ENABLE;
 			break;
-		case CPU_PDWN_D0CS_ENTRY:
-			cpupwr = CPU_PDWN_SETALLWAYS | CPU_PDWN_DISABLE;
-			break;
 		case CPU_PDWN_LPM_EXIT:
-		case CPU_PDWN_D0CS_EXIT:
 			cpupwr = CPU_PDWN_SETALLWAYS | CPU_PDWN_ENABLE;
 			break;
 		}
@@ -1727,8 +1720,6 @@ static ssize_t deepidle_show(struct kobject *kobj,
 {
 	int len = 0;
 
-	if (enable_deepidle & IDLE_D0CS)
-		len += sprintf(buf + len, "D0CSIDLE, ");
 	if (enable_deepidle & IDLE_D1)
 		len += sprintf(buf + len, "D1IDLE, ");
 	if (enable_deepidle & IDLE_D2)
@@ -1736,7 +1727,7 @@ static ssize_t deepidle_show(struct kobject *kobj,
 	if (enable_deepidle & IDLE_CG)
 		len += sprintf(buf + len, "CGIDLE, ");
 	len += sprintf(buf + len, "D0IDLE\n");
-	len += sprintf(buf + len, "Command: echo [set|unset] [d0cs|d1|d2|cg] "
+	len += sprintf(buf + len, "Command: echo [set|unset] [d1|d2|cg] "
 		       "> deepidle\n");
 	return len;
 }
@@ -1758,9 +1749,7 @@ static ssize_t deepidle_store(struct kobject *kobj,
 	}
 
 	if (strcmp(token[0], "set") == 0) {
-		if (strcmp(token[1], "d0cs") == 0)
-			enable_deepidle |= IDLE_D0CS;
-		else if (strcmp(token[1], "d1") == 0)
+		if (strcmp(token[1], "d1") == 0)
 			enable_deepidle |= IDLE_D1;
 		else if (strcmp(token[1], "d2") == 0)
 			enable_deepidle |= IDLE_D2;
@@ -1769,9 +1758,7 @@ static ssize_t deepidle_store(struct kobject *kobj,
 		else
 			error = -EINVAL;
 	} else if (strcmp(token[0], "unset") == 0) {
-		if (strcmp(token[1], "d0cs") == 0)
-			enable_deepidle &= ~IDLE_D0CS;
-		else if (strcmp(token[1], "d1") == 0)
+		if (strcmp(token[1], "d1") == 0)
 			enable_deepidle &= ~IDLE_D1;
 		else if (strcmp(token[1], "d2") == 0)
 			enable_deepidle &= ~IDLE_D2;
@@ -1780,9 +1767,7 @@ static ssize_t deepidle_store(struct kobject *kobj,
 		else
 			error = -EINVAL;
 	} else {
-		if (strcmp(token[0], "1") == 0)
-			enable_deepidle = IDLE_D0CS;
-		else if (strcmp(token[0], "0") == 0)
+		if (strcmp(token[0], "0") == 0)
 			enable_deepidle = IDLE_D0;
 		else
 			error = -EINVAL;
@@ -2032,9 +2017,6 @@ static int __init pxa95x_pm_init(void)
 
 	suspend_set_ops(&pxa95x_pm_ops);
 
-#ifdef CONFIG_IPM_DEEPIDLE
-	enable_deepidle |= IDLE_D0CS;
-#endif
 #ifdef CONFIG_IPM_D2IDLE
 	enable_deepidle |= IDLE_D2;
 #endif

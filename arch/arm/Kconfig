@@ -2132,13 +2132,6 @@ config IPM
 	help
 	  Support Profiler and Daemon of Marvell(R) Scalable Power Management
 
-config IPM_DEEPIDLE
-	bool "PXA95x Processor Deep Idle support"
-	depends on IPM
-	help
-	  This enables the kernel support for PXA95x Processor Deep Idle
-	  (D0CS Idle)
-
 config IPM_D2IDLE
 	bool "Support PXA95x Processor D2 Mode as Idle"
 	depends on IPM && PXA_32KTIMER

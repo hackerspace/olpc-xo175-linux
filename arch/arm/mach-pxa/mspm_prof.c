@@ -20,18 +20,17 @@
  *
  * 2. When sample window isn't finished and system enters low power mode
  * (D2/CG), sample window is reset. At this time, system may stays in high OP
- * or D0CS OP. As complementation, profiler start a workqueue and request
- * system stay in operating point higher than D0CS. Because entering low power
- * mode from D0CS is unacceptable and entering low power mode from high OP
- * costs more power.
+ * . As complementation, profiler start a workqueue and request
+ * system stay in lowest running operating point. Because entering low power
+ * mode from high OP costs more power.
  *    System entering low power can be consider as very low mips cost.
  *    If profiler is disabled, the workqueue must be flushed. Then system
  * will stay in highest OP (624MHz).
  *    If system is busy, profiler will calculate new mips in sample window.
- * And system will switch to suitable OP from this OP (just high than D0CS).
+ * And system will switch to suitable OP from this OP.
  *
  * So when profiler is disabled, system always stays in 624MHz. System can
- * enters D2 idle and D0CS idle, but the frequency won't be changed.
+ * enters D2 idle, but the frequency won't be changed.
  */
 #include <linux/init.h>
 #include <linux/module.h>
@@ -146,75 +145,14 @@ int mspm_calc_pmu(struct ipm_profiler_arg *arg)
 	return 0;
 }
 
-static int calc_xsi_mem(unsigned int sum_time, int *xsi, int *mem)
-{
-	int i;
-	if (sum_time == 0)
-		return -EINVAL;
-	for (i = 0, *xsi = 0, *mem = 0; i < mspm_op_num; i++) {
-		*xsi += op_duration[i] * op_mips[i].xsi;
-		*mem += op_duration[i] * op_mips[i].mem;
-	}
-	return 0;
-}
-
-static int check_memstall(int mips, unsigned sum_time)
-{
-	static int max_nonstall_cnt = 3, nonstall_cnt;
-	int count = 0, bandwidth = 0, stall = 0, ret = 0;
-	int xsi = 0, mem = 0;
-	calc_xsi_mem(sum_time, &xsi, &mem);
-	/* 16-bit memory */
-	/*
-	 * At here, there's an assumption only 16-bit memory is configured.
-	 * If configure 32-bit memory, multiply 4.
-	 * Convert cycles of XSI to cycles of memory controller.
-	 * One DDR bus cycle send two DDR data. One DDR bus cycle responses
-	 * to two DDR controller cycles.
-	 * XSI cycles / XSI freq = DDR controller cycles / DDR controller freq
-	 * = DDR bus cycles / DDR bys freq = time
-	 * DDR burst mode is 8 byte aligned.
-	 */
-	xsi = xsi >> 10;
-	mem = mem >> 10;
-	if (xsi != 0)
-		count = ext_mem_cnt * mem / xsi;
-	if (sum_time != 0)
-		bandwidth = (count * 8 / 11) * (CLOCK_TICK_RATE / sum_time)
-		    >> 20;
-	else
-		bandwidth = 0;
-	/* If bandwidth is larger than 20MB/s, return true */
-	if (bandwidth > mspm_mem_thres)
-		stall = 1;
-	if (!stall) {
-		if (nonstall_cnt < max_nonstall_cnt) {
-			nonstall_cnt++;
-			ret = 1;
-		} else
-			ret = 0;
-	} else {
-		nonstall_cnt = 0;
-		ret = 1;
-	}
-	return ret;
-}
-
 /*
  * Adjust to the most appropriate OP according to MIPS result of
  * sample window
  */
-int mspm_request_tune(int mips, int memstall, int mem)
+int mspm_request_tune(int mips)
 {
 	int i;
 
-	/* If memory stall, disable d0csidle. Otherwise, enable it. */
-	if ((mspm_pmu_id > 0) && (pmu_arg.flags & IPM_PMU_PROFILER)) {
-		if (memstall)
-			dvfm_disable_op_name("D0CS", dvfm_dev_idx);
-		else
-			dvfm_enable_op_name("D0CS", dvfm_dev_idx);
-	}
 	for (i = mspm_op_num - 1; i >= 0; i--) {
 		if (mips >= (op_mips[i].l_thres * op_mips[i].mips / 100))
 			break;
@@ -260,7 +198,7 @@ static int is_idle_wd_valid(void)
  */
 static int mspm_calc_mips(unsigned int first_time)
 {
-	int i, mips, stall = 0, mem = 0;
+	int i, mips;
 	unsigned int time, sum_time = 0, sum = 0;
 
 	/* Store the last slot as RUN state */
@@ -289,9 +227,7 @@ static int mspm_calc_mips(unsigned int first_time)
 	 */
 	mips = sum / sum_time;
 	check_idle_wd(mips);
-	if ((mspm_pmu_id > 0) && (pmu_arg.flags & IPM_PMU_PROFILER))
-		stall = check_memstall(mips, sum_time);
-	return mspm_request_tune(mips, stall, mem);
+	return mspm_request_tune(mips);
 }
 
 /*
@@ -417,7 +353,7 @@ static int calc_pmu_res(struct pmu_results *res)
 static unsigned int down_freq_op;
 static void down_freq_worker(struct work_struct *work)
 {
-	/* request operating point higher than D0CS */
+	/* request lowest running operating point */
 	dvfm_request_op(down_freq_op);
 }
 
@@ -464,7 +400,7 @@ static void idle_watchdog_handler(unsigned long data)
 		md_op = (struct dvfm_md_opt *)info->op;
 		mips = md_op->core;
 		/* Now CPU usage is 100% in current operating point */
-		mspm_request_tune(mips, 0, 0);
+		mspm_request_tune(mips);
 #endif
 		/* mod_timer(&idle_watchdog, jiffies + watchdog_jif); */
 	}
@@ -773,14 +709,9 @@ int __init mspm_init_mips(void)
 		op_mips[i].mem = md_op->dmcfs;
 		if (op_mips[i].mips) {
 			op_mips[i].h_thres = DEF_HIGH_THRESHOLD;
-			if (!strcmp(md_op->name, "D0CS")) {
-				op_mips[i].h_thres = 90;
-				op_mips[i].xsi = 60;
-			} else {
-				op_mips[i].xsi = 13 * md_op->xl;
-				if (!strcmp(md_op->name, "624M"))
-					restore_op = i;
-			}
+			op_mips[i].xsi = 13 * md_op->xl;
+			if (!strcmp(md_op->name, "624M"))
+				restore_op = i;
 		} else {
 			/* Low Power mode won't be considered */
 			mspm_op_num = i;

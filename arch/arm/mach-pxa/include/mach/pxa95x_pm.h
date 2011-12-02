@@ -132,13 +132,9 @@
 #if defined(CONFIG_PXA95x)
 #define AICSR_WSIDLE (1 << 11)
 #define AICSR_WEIDLE (1 << 10)
-#define AICSR_WSD0CS (1 << 9)
-#define AICSR_WED0CS (1 << 8)
 #else
 #define AICSR_WSIDLE 0
 #define AICSR_WEIDLE 0
-#define AICSR_WSD0CS 0
-#define AICSR_WED0CS 0
 #endif
 #define AICSR_PCIS	(1 << 5)
 #define AICSR_PCIE	(1 << 4)
@@ -147,7 +143,7 @@
 #define AICSR_FCIS	(1 << 1)
 #define AICSR_FCIE	(1 << 0)
 #define AICSR_STATUS_BITS	\
-	(AICSR_PCIS | AICSR_FCIS | AICSR_WSD0CS | AICSR_TCIS | AICSR_WSIDLE)
+	(AICSR_PCIS | AICSR_FCIS | AICSR_TCIS | AICSR_WSIDLE)
 
 /* Bits definition for RTC Register */
 #define RTSR_PICE	(1 << 15)
@@ -202,7 +198,6 @@
 #define ACCR_SFLFS_OFFSET	18
 #define ACCR_GCFS_OFFSET	20
 #define ACCR_SMCFS_OFFSET	23
-#define ACCR_D0CS_OFFSET	26
 #define ACCR_AXIFS_OFFSET	28
 #define ACCR_SPDIS_OFFSET	30
 #define ACCR_XPDIS_OFFSET	31
@@ -235,8 +230,6 @@
 #define CPU_PDWN_DISABLE	0x0
 #define CPU_PDWN_LPM_ENTRY	0x10
 #define CPU_PDWN_LPM_EXIT	0x11
-#define CPU_PDWN_D0CS_ENTRY	0x12
-#define CPU_PDWN_D0CS_EXIT	0x13
 #define	CPU_PDWN_SETALLWAYS  0x00003F00
 #define	CPU_PDWN_3_25M_CYCLES	0x24 /* WA see JIRA 1495. Increased, 0x10 was marginal */
 #define CPU_LOOP_COUNT_ON_EXIT_CGM_LOW_PP  1500

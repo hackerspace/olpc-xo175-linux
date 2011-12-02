@@ -563,7 +563,7 @@ int dvfm_disable(int dev_idx)
 }
 EXPORT_SYMBOL(dvfm_disable);
 
-/* disable LPM, including D2/D1/CG/D0CS */
+/* disable LPM, including D2/D1/CG */
 void dvfm_disable_lowpower(int dev_idx)
 {
 	unsigned long flags;
@@ -574,14 +574,13 @@ void dvfm_disable_lowpower(int dev_idx)
 	dvfm_disable_op_name("D2", dev_idx);
 	dvfm_disable_op_name("D1", dev_idx);
 	dvfm_disable_op_name("CG", dev_idx);
-	dvfm_disable_op_name("D0CS", dev_idx);
 
 	local_irq_restore(flags);
 	local_fiq_enable();
 }
 EXPORT_SYMBOL(dvfm_disable_lowpower);
 
-/* enable LPM, including D2/D1/CG/D0CS */
+/* enable LPM, including D2/D1/CG */
 void dvfm_enable_lowpower(int dev_idx)
 {
 	unsigned long flags;
@@ -592,7 +591,6 @@ void dvfm_enable_lowpower(int dev_idx)
 	dvfm_enable_op_name("D2", dev_idx);
 	dvfm_enable_op_name("D1", dev_idx);
 	dvfm_enable_op_name("CG", dev_idx);
-	dvfm_enable_op_name("D0CS", dev_idx);
 
 	local_irq_restore(flags);
 	local_fiq_enable();
@@ -923,8 +921,7 @@ int dvfm_freq_constraint_set(int *freqs_table, int required_freq_mhz,
 	/* Set the constraints acquired from the target frequency */
 	list_for_each_entry(p, &dvfm_op_list->list, list) {
 		op = (struct dvfm_md_opt *)(p->op);
-		if (POWER_MODE_D0 == op->power_mode ||
-				POWER_MODE_D0CS == op->power_mode) {
+		if (POWER_MODE_D0 == op->power_mode) {
 			freq_mhz = op->core;
 			if (freq_mhz < required_freq_mhz) {
 				/* Set DVFM constraint on the operating point */
@@ -1060,8 +1057,6 @@ unsigned int dvfm_get_next_comm_wakeup_time(void)
 {
 	unsigned int TimeStamp, RelTime;
 
-	/* if Apps Comm sync feature is not enabled we should not prevent D0CS.
-	 */
 	if (!AppsSyncEnabled)
 		return 0;
 

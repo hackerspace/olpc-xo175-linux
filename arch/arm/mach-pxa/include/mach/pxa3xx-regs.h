@@ -184,7 +184,6 @@
  */
 #define PXA3xx_PM_S3D4C4	0x07	/* aka deep sleep */
 #define PXA3xx_PM_S2D3C4	0x06	/* aka sleep */
-#define PXA3xx_PM_S0D0CS	0x05	/* aka D0CS */
 #define PXA3xx_PM_S0D2C2	0x03	/* aka standby */
 #define PXA3xx_PM_S0D1C2	0x02	/* aka LCD refresh */
 #define PXA3xx_PM_S0D0C1	0x01
@@ -206,15 +205,12 @@
 
 #define ACCR_XPDIS		(1 << 31)	/* Core PLL Output Disable */
 #define ACCR_SPDIS		(1 << 30)	/* System PLL Output Disable */
-#define ACCR_D0CS		(1 << 26)	/* D0 Mode Clock Select */
 #define ACCR_PCCE		(1 << 11)	/* Power Mode Change Clock Enable */
-#define ACCR_DDR_D0CS		(1 << 7)	/* DDR SDRAM clock frequency in D0CS (PXA31x only) */
 #define ACCR_DMCFS_312		(1 << 6)	/* DDR SDRAM clock frequency 312MHz */
 
 #define ACCR_XPDIS_MASK		(0x1 << 31)	/* Core PLL Output Disable */
 #define ACCR_SPDIS_MASK		(0x1 << 30)	/* System PLL Output Disable */
 #define ACCR_AXIFS_MASK		(0x3 << 28)	/* AXI Bus Frequency Select */
-#define ACCR_D0CS_MASK		(0x1 << 26)	/* D0 Mode Clock Select */
 #define ACCR_SMCFS_MASK		(0x7 << 23)	/* Static Memory Controller Frequency Select */
 #define ACCR_GCFS_MASK		(0x3 << 20)	/* Graphics Controller Frequency Select */
 #define ACCR_SFLFS_MASK		(0x3 << 18)	/* Frequency Select for Internal Memory Controller */
@@ -222,7 +218,6 @@
 #define ACCR_HSS_MASK		(0x3 << 14)	/* System Bus-Clock Frequency Select */
 #define ACCR_DMCFS_MASK		(0x3 << 12)	/* Dynamic Memory Controller Clock Frequency Select */
 #define ACCR_XN_MASK		(0x7 << 8)	/* Core PLL Turbo-Mode-to-Run-Mode Ratio */
-#define ACCR_DDR_D0CS_MASK	(0x1 << 7)	/* Memory Clock in D0CS */
 #define ACCR_DMCFS_312_MASK	(0x1 << 6)	/* DMC PLL Select */
 #ifdef CONFIG_CPU_PXA3XX
 #define ACCR_XL_MASK		(0x1f)		/* Core PLL Run-Mode-to-Oscillator Ratio */

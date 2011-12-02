@@ -17,8 +17,6 @@
 
 #define DMEMC_FREQ_HIGH		0
 #define DMEMC_FREQ_LOW		1
-#define DMEMC_D0CS_ENTER	2
-#define DMEMC_D0CS_EXIT		3
 
 #define GBPLL_FREQ_HIGH		0
 #define GBPLL_FREQ_LOW		1
@@ -60,7 +58,7 @@
 
 #define STRESS_TEST 90
 
-/* Used for testing LPM/D0CS - "Start" will zero the counters. */
+/* Used for testing LPM - "Start" will zero the counters. */
 #define DEBUG_MSPM_START_LPM_DEBUG_COUNT 100
 #define DEBUG_MSPM_GET_LPM_DEBUG_COUNT 101
 /* the following are not commands!!!! */
@@ -73,15 +71,12 @@
 typedef struct {
 	unsigned long D2_Enter_Exit_count;
 	unsigned long CGM_Enter_Exit_count;
-	unsigned long D0CS_Enter_count;
-	unsigned long D0CS_Exit_count;
 	unsigned long D0C1_Enter_count;
 } pxa95x_DVFM_LPM_Global_Count;
 /* end of defines for debug */
 
 enum {
 	POWER_MODE_D0 = 0,
-	POWER_MODE_D0CS,
 	POWER_MODE_D1,
 	POWER_MODE_D2,
 	POWER_MODE_CG,
@@ -96,10 +91,9 @@ enum {
 
 enum {
 	IDLE_D0 = 0,
-	IDLE_D0CS = 1,
-	IDLE_D1 = 2,
-	IDLE_D2 = 4,
-	IDLE_CG = 8,
+	IDLE_D1 = 1,
+	IDLE_D2 = 2,
+	IDLE_CG = 4,
 };
 
 struct dvfm_md_opt {
@@ -138,7 +132,6 @@ struct pxa95x_fv_info {
 	unsigned long dmcfs;
 	unsigned long df_clk;
 	unsigned long empi_clk;
-	unsigned long d0cs;
 	/* WARNING: above fields must be consistent with PM_FV_INFO!!! */
 	int axifs;		/* AXI Bus Frequency */
 	int dsi;
