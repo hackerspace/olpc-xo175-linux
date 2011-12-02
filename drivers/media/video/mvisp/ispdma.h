@@ -151,7 +151,6 @@ struct isp_ispdma_device {
 	struct mutex					ispdma_mutex;
 
 	struct completion	ipc_event;
-	wait_queue_head_t	ipc_irq_wait;
 
 	unsigned int		ipc_event_cnt;
 	unsigned int		dma_event_cnt;

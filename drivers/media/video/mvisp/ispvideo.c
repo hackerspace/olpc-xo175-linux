@@ -49,22 +49,20 @@ static struct isp_format_convert_info formats[] = {
 void set_vd_dmaqueue_flg(struct isp_video *video,
 	enum isp_video_dmaqueue_flags flag_val)
 {
-	unsigned long flags;
-	spin_lock_irqsave(&video->dmaflag_lock, flags);
 	video->dmaqueue_flags = flag_val;
-	spin_unlock_irqrestore(&video->dmaflag_lock, flags);
 }
 
 enum isp_video_dmaqueue_flags
 	get_vd_dmaqueue_flg(struct isp_video *video)
 {
 	unsigned long flags;
-	enum isp_video_dmaqueue_flags flag_val;
+	enum isp_video_dmaqueue_flags dma_flags;
 
-	spin_lock_irqsave(&video->dmaflag_lock, flags);
-	flag_val = video->dmaqueue_flags;
-	spin_unlock_irqrestore(&video->dmaflag_lock, flags);
-	return flag_val;
+	spin_lock_irqsave(&video->irq_lock, flags);
+	dma_flags = video->dmaqueue_flags;
+	spin_unlock_irqrestore(&video->irq_lock, flags);
+
+	return dma_flags;
 }
 
 
@@ -347,7 +345,6 @@ static void isp_video_buffer_queue(struct isp_video_buffer *buf)
 	struct isp_video *video = vfh->video;
 	struct isp_pipeline *pipe = to_isp_pipeline(&video->video.entity);
 	enum isp_pipeline_state state;
-	unsigned long flags;
 	unsigned int empty;
 
 	empty = list_empty(&video->dmabusyqueue);
@@ -366,9 +363,7 @@ static void isp_video_buffer_queue(struct isp_video_buffer *buf)
 	} else
 		state = ISP_PIPELINE_INPUT_QUEUED;
 
-	spin_lock_irqsave(&pipe->lock, flags);
 	pipe->state |= state;
-	spin_unlock_irqrestore(&pipe->lock, flags);
 
 	list_add_tail(&buf->irqlist, &video->dmaidlequeue);
 	if (empty) {
@@ -383,7 +378,6 @@ struct isp_video_buffer *mvisp_video_get_next_work_buf(
 	struct isp_video *video, int delay)
 {
 	struct isp_video_buffer *buf;
-	unsigned long flags;
 	struct isp_pipeline *pipe = to_isp_pipeline(&video->video.entity);
 	enum isp_pipeline_state state;
 
@@ -423,9 +417,7 @@ struct isp_video_buffer *mvisp_video_get_next_work_buf(
 	list_add_tail(&buf->irqlist, &video->dmabusyqueue);
 
 	if (list_empty(&video->dmaidlequeue)) {
-		spin_lock_irqsave(&pipe->lock, flags);
 		pipe->state &= ~state;
-		spin_unlock_irqrestore(&pipe->lock, flags);
 	}
 
 	return buf;
@@ -434,24 +426,24 @@ struct isp_video_buffer *mvisp_video_get_next_work_buf(
 enum isp_pipeline_start_condition isp_pipeline_ready(struct isp_pipeline *pipe)
 {
 	enum isp_pipeline_start_condition condition = ISP_CAN_NOT_START;
-	unsigned long flags;
+	enum isp_pipeline_state state;
 
-	spin_lock_irqsave(&pipe->lock, flags);
-	if ((pipe->state & ISP_PIPELINE_INPUT_STREAM) &&
-	(pipe->state & ISP_PIPELINE_INPUT_QUEUED) != 0) {
+	state = pipe->state;
+
+	if ((state & ISP_PIPELINE_INPUT_STREAM) &&
+	(state & ISP_PIPELINE_INPUT_QUEUED) != 0) {
 		condition |= ISP_INPUT_CAN_START;
 	}
 
-	if ((pipe->state & ISP_PIPELINE_DISPLAY_STREAM) &&
-	(pipe->state & ISP_PIPELINE_DISPLAY_QUEUED) != 0) {
+	if ((state & ISP_PIPELINE_DISPLAY_STREAM) &&
+	(state & ISP_PIPELINE_DISPLAY_QUEUED) != 0) {
 		condition |= ISP_DISPLAY_CAN_START;
 	}
 
-	if ((pipe->state & ISP_PIPELINE_CODEC_STREAM) &&
-	(pipe->state & ISP_PIPELINE_CODEC_QUEUED) != 0) {
+	if ((state & ISP_PIPELINE_CODEC_STREAM) &&
+	(state & ISP_PIPELINE_CODEC_QUEUED) != 0) {
 		condition |= ISP_CODEC_CAN_START;
 	}
-	spin_unlock_irqrestore(&pipe->lock, flags);
 
 	return condition;
 }
@@ -524,10 +516,8 @@ struct isp_video_buffer *mvisp_video_buffer_next(struct isp_video *video,
 	struct isp_video_queue *queue = video->queue;
 	enum isp_pipeline_state state;
 	struct isp_video_buffer *buf;
-	unsigned long flags, mode_flags;
 	struct timespec ts;
 	bool no_buf_found = false;
-	enum ispvideo_capture_mode	capture_mode;
 
 	if (WARN_ON(list_empty(&video->dmabusyqueue)))
 		return NULL;
@@ -548,11 +538,12 @@ struct isp_video_buffer *mvisp_video_buffer_next(struct isp_video *video,
 		else
 			buf->vbuf.sequence = atomic_read(&pipe->frame_number);
 
-		spin_lock_irqsave(&queue->irq_queue_lock, flags);
 		buf->state = error ? ISP_BUF_STATE_ERROR : ISP_BUF_STATE_DONE;
-		spin_unlock_irqrestore(&queue->irq_queue_lock, flags);
 
-		wake_up(&buf->wait);
+		if (queue->poll_on_empty == true)
+			wake_up(&queue->empty_wait);
+		else
+			wake_up(&buf->wait);
 	}
 
 	list_for_each_entry(buf, &video->dmabusyqueue, irqlist) {
@@ -561,33 +552,22 @@ struct isp_video_buffer *mvisp_video_buffer_next(struct isp_video *video,
 	}
 
 	if (list_empty(&video->dmaidlequeue)) {
-		spin_lock_irqsave(&video->cap_mode_lock, mode_flags);
-		capture_mode = video->capture_mode;
-		spin_unlock_irqrestore(&video->cap_mode_lock, mode_flags);
-
-		if (capture_mode == ISPVIDEO_STILL_CAPTURE) {
+		if (video->capture_mode == ISPVIDEO_STILL_CAPTURE) {
 			no_buf_found = true;
 		} else {
-			spin_lock_irqsave(&queue->irq_queue_lock, flags);
 			if (list_empty(&queue->queue)) {
 				no_buf_found = true;
 			} else {
-				buf =
-					mvisp_video_load_userbuf(video, queue);
-				spin_unlock_irqrestore(
-					&queue->irq_queue_lock, flags);
+				buf = mvisp_video_load_userbuf(video, queue);
 				return buf;
 			}
-			spin_unlock_irqrestore(&queue->irq_queue_lock, flags);
 		}
 	} else {
 		buf = list_first_entry(&video->dmaidlequeue,
 				struct isp_video_buffer,
 				irqlist);
 		list_del(&buf->irqlist);
-		spin_lock_irqsave(&queue->irq_queue_lock, flags);
 		buf->state = ISP_BUF_STATE_ACTIVE;
-		spin_unlock_irqrestore(&queue->irq_queue_lock, flags);
 	}
 
 	if (no_buf_found) {
@@ -606,9 +586,7 @@ struct isp_video_buffer *mvisp_video_buffer_next(struct isp_video *video,
 		} else
 			state = ISP_PIPELINE_INPUT_QUEUED;
 
-		spin_lock_irqsave(&pipe->lock, flags);
 		pipe->state &= ~state;
-		spin_unlock_irqrestore(&pipe->lock, flags);
 		set_vd_dmaqueue_flg(video, ISP_VIDEO_DMAQUEUE_UNDERRUN);
 		return NULL;
 	}
@@ -958,9 +936,7 @@ isp_video_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 		goto error;
 	}
 
-	spin_lock_irqsave(&pipe->lock, flags);
 	pipe->state |= state;
-	spin_unlock_irqrestore(&pipe->lock, flags);
 
 	switch (video->video_type) {
 	case ISP_VIDEO_DISPLAY:
@@ -993,9 +969,11 @@ isp_video_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 	if (video->type == V4L2_BUF_TYPE_VIDEO_OUTPUT)
 		pipe->max_timeperframe = vfh->timeperframe;
 
+	spin_lock_irqsave(&video->irq_lock, flags);
 	video->queue = &vfh->queue;
 	INIT_LIST_HEAD(&video->dmabusyqueue);
 	set_vd_dmaqueue_flg(video, ISP_VIDEO_DMAQUEUE_UNDERRUN);
+	spin_unlock_irqrestore(&video->irq_lock, flags);
 
 	if (((pipe->state & ISP_PIPELINE_DISPLAY_STREAM) == 0)
 		&& ((pipe->state & ISP_PIPELINE_CODEC_STREAM) == 0))
@@ -1007,9 +985,7 @@ isp_video_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 
 	start_mode = ISP_PIPELINE_STREAM_CONTINUOUS;
 
-	spin_lock_irqsave(&pipe->stream_lock, flags);
 	stream_state = pipe->stream_state;
-	spin_unlock_irqrestore(&pipe->stream_lock, flags);
 
 	if (stream_state == ISP_PIPELINE_STREAM_STOPPED) {
 		ret = mvisp_pipeline_set_stream(pipe, start_mode);
@@ -1078,9 +1054,7 @@ isp_video_streamoff(struct file *file, void *fh, enum v4l2_buf_type type)
 	} else
 		state = ISP_PIPELINE_INPUT_STREAM;
 
-	spin_lock_irqsave(&pipe->lock, flags);
 	pipe->state &= ~state;
-	spin_unlock_irqrestore(&pipe->lock, flags);
 
 	/* Stop the stream. */
 	if (((pipe->state & ISP_PIPELINE_DISPLAY_STREAM) == 0)
@@ -1092,6 +1066,8 @@ isp_video_streamoff(struct file *file, void *fh, enum v4l2_buf_type type)
 	if (video->ops->stream_off_notify != NULL)
 		video->ops->stream_off_notify(video);
 
+
+	spin_lock_irqsave(&video->irq_lock, flags);
 	mvisp_video_queue_streamoff(&vfh->queue);
 	video->queue = NULL;
 	video->streaming = 0;
@@ -1104,7 +1080,7 @@ isp_video_streamoff(struct file *file, void *fh, enum v4l2_buf_type type)
 		video->pipe.output[0] = NULL;
 		video->pipe.output[1] = NULL;
 	}
-
+	spin_unlock_irqrestore(&video->irq_lock, flags);
 
 done:
 	mutex_unlock(&video->stream_lock);
@@ -1240,7 +1216,6 @@ static unsigned int isp_video_poll(struct file *file, poll_table *wait)
 	struct isp_video_fh *vfh = to_isp_video_fh(file->private_data);
 	struct isp_video_queue *queue = &vfh->queue;
 
-	queue->poll_on_empty = false;
 	return mvisp_video_queue_poll(queue, file, wait);
 }
 
@@ -1293,11 +1268,8 @@ int mvisp_video_init(struct isp_video *video,
 
 	mutex_init(&video->mutex);
 
-	spin_lock_init(&video->pipe.lock);
-	spin_lock_init(&video->pipe.stream_lock);
-	spin_lock_init(&video->dmaflag_lock);
-	spin_lock_init(&video->cap_mode_lock);
 	mutex_init(&video->stream_lock);
+	spin_lock_init(&video->irq_lock);
 
 	INIT_LIST_HEAD(&video->dmaidlequeue);
 	INIT_LIST_HEAD(&video->dmabusyqueue);

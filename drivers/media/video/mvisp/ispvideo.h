@@ -106,14 +106,12 @@ enum isp_pipeline_start_condition {
 
 struct isp_pipeline {
 	struct media_pipeline	pipe;
-	spinlock_t				lock;
 	unsigned int			state;
 	struct isp_video		*input;
 	struct isp_video		*output[FAR_END_MAX_NUM];
 	atomic_t				frame_number;
 	struct v4l2_fract		max_timeperframe;
 	enum isp_pipeline_stream_state	stream_state;
-	spinlock_t				stream_lock;
 };
 
 #define to_isp_pipeline(__e) \
@@ -152,12 +150,11 @@ struct isp_video {
 	struct isp_video_queue	*queue;
 	struct list_head		dmaidlequeue;
 	struct list_head		dmabusyqueue;
-	spinlock_t						dmaflag_lock;
 	enum isp_video_dmaqueue_flags	dmaqueue_flags;
 
 	const struct isp_video_operations	*ops;
 	enum ispvideo_capture_mode	capture_mode;
-	spinlock_t					cap_mode_lock;
+	spinlock_t			irq_lock;
 };
 
 void set_vd_dmaqueue_flg(struct isp_video *video,

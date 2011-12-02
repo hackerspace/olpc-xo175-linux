@@ -35,6 +35,7 @@ struct isp_video_queue;
 
 #define ISP_VIDEO_MAX_BUFFERS			16
 #define ISP_VIDEO_MAX_DUMMY_BUFFERS		1
+#define MIN_DRV_BUF			1
 
 enum isp_video_buffer_state {
 	ISP_BUF_STATE_IDLE = 0,
@@ -90,10 +91,9 @@ struct isp_video_queue {
 	unsigned int			count;
 	struct isp_video_buffer	*buffers[ISP_VIDEO_MAX_BUFFERS];
 	struct isp_video_buffer	*dummy_buffers[ISP_VIDEO_MAX_DUMMY_BUFFERS];
-	bool				enable_dummy;
+	bool					enable_dummy;
 	struct mutex			lock;
-	spinlock_t			irqlock;
-	spinlock_t			irq_queue_lock;
+	spinlock_t				irqlock;
 
 	unsigned int			streaming;
 	struct list_head		queue;

@@ -320,9 +320,6 @@ int mvisp_pipeline_set_stream(struct isp_pipeline *pipe,
 				 enum isp_pipeline_stream_state state)
 {
 	int ret;
-	unsigned long flags;
-
-	spin_lock_irqsave(&pipe->stream_lock, flags);
 
 	if (state == ISP_PIPELINE_STREAM_STOPPED)
 		ret = mvisp_pipeline_disable(pipe);
@@ -330,7 +327,6 @@ int mvisp_pipeline_set_stream(struct isp_pipeline *pipe,
 		ret = mvisp_pipeline_enable(pipe, state);
 
 	pipe->stream_state = state;
-	spin_unlock_irqrestore(&pipe->stream_lock, flags);
 
 	return ret;
 }
@@ -941,7 +937,8 @@ static int mvisp_map_mem_resource(struct platform_device *pdev,
 	isp->mmio_size[CCIC_ISP_IOMEM_1] = 0;
 	/* map the region */
 	if (isp->sensor_connected == true)
-		isp->mmio_base[CCIC_ISP_IOMEM_1] = CCIC1_VIRT_BASE;
+		isp->mmio_base[CCIC_ISP_IOMEM_1] =
+			(void __iomem *)CCIC1_VIRT_BASE;
 	else
 		isp->mmio_base[CCIC_ISP_IOMEM_1] = NULL;
 
