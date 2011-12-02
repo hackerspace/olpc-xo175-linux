@@ -29,6 +29,7 @@
 #include <linux/suspend.h>
 #include <linux/i2c.h>
 #include <linux/clk.h>
+#include <linux/switch.h>
 #include <linux/mfd/wm8994/registers.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -215,6 +216,51 @@ static const struct snd_kcontrol_new brownstone_wm8994_controls[] = {
 		     brownstone_get_internal_mic, brownstone_set_internal_mic),
 };
 
+#ifdef CONFIG_SWITCH_WM8994_HEADSET
+static struct snd_soc_codec *brownstone_wm8994_codec;
+
+int wm8994_headset_detect(void)
+{
+	struct snd_soc_codec *codec;
+	int status1, status2, reg;
+	int ret = 0;
+
+	codec = brownstone_wm8994_codec;
+	if (codec == NULL)
+		return 0;
+
+	status1 = snd_soc_read(codec, WM8994_INTERRUPT_STATUS_1);
+	status2 = snd_soc_read(codec, WM8994_INTERRUPT_STATUS_2);
+
+	reg = snd_soc_read(codec, WM8994_INTERRUPT_RAW_STATUS_2);
+	switch (reg & (WM8994_MIC2_SHRT_STS | WM8994_MIC2_DET_STS)) {
+	case WM8994_MIC2_DET_STS:
+		ret = 1;
+		break;
+	case (WM8994_MIC2_SHRT_STS | WM8994_MIC2_DET_STS):
+		ret = 2;
+		break;
+	default:
+		break;
+	}
+
+	/* clear all irqs */
+	snd_soc_write(codec, WM8994_INTERRUPT_STATUS_1, status1);
+	snd_soc_write(codec, WM8994_INTERRUPT_STATUS_2, status2);
+
+	/* reset clocking to make sure trigger irq */
+	snd_soc_update_bits(codec, WM8994_CLOCKING_2,
+			WM8994_DBCLK_DIV_MASK |
+			WM8994_TOCLK_DIV_MASK,
+			(2 << WM8994_DBCLK_DIV_SHIFT) |
+			(4 << WM8994_TOCLK_DIV_SHIFT));
+
+	snd_soc_update_bits(codec, WM8994_CLOCKING_1,
+			WM8994_TOCLK_ENA_MASK,
+			WM8994_TOCLK_ENA);
+	return ret;
+}
+#endif
 static int brownstone_wm8994_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
@@ -263,12 +309,48 @@ static int brownstone_wm8994_init(struct snd_soc_pcm_runtime *rtd)
 
 	snd_soc_dapm_sync(dapm);
 
+#ifdef CONFIG_SWITCH_WM8994_HEADSET
+	brownstone_wm8994_codec = codec;
+	headset_detect_func = wm8994_headset_detect;
+	snd_soc_update_bits(codec, WM8994_CLOCKING_2,
+			    WM8994_DBCLK_DIV_MASK |
+			    WM8994_TOCLK_DIV_MASK,
+			    (2 << WM8994_DBCLK_DIV_SHIFT) |
+			    (4 << WM8994_TOCLK_DIV_SHIFT));
+
+	snd_soc_update_bits(codec, WM8994_CLOCKING_1,
+			    WM8994_TOCLK_ENA_MASK,
+			    WM8994_TOCLK_ENA);
+
+	snd_soc_update_bits(codec, WM8994_IRQ_DEBOUNCE,
+			    WM8994_MIC2_DET_DB_MASK |
+			    WM8994_MIC2_SHRT_DB_MASK,
+			    WM8994_MIC2_DET_DB |
+			    WM8994_MIC2_SHRT_DB);
+
+	snd_soc_update_bits(codec, WM8994_MICBIAS,
+			    WM8994_MICD_ENA_MASK |
+			    WM8994_MICD_SCTHR_MASK,
+			    WM8994_MICD_ENA |
+			    (1 << WM8994_MICD_SCTHR_SHIFT));
+
 	/* turn on micbias 1/2 always */
 	snd_soc_update_bits(codec, WM8994_POWER_MANAGEMENT_1,
 			    WM8994_MICB1_ENA_MASK |
 			    WM8994_MICB2_ENA_MASK,
 			    WM8994_MICB1_ENA |
 			    WM8994_MICB2_ENA);
+
+	/* unmask mic2 shrt and det int */
+	snd_soc_update_bits(codec, WM8994_INTERRUPT_STATUS_2_MASK,
+			    WM8994_IM_MIC2_SHRT_EINT_MASK |
+			    WM8994_IM_MIC2_DET_EINT_MASK, 0);
+
+	/* unmask int */
+	snd_soc_update_bits(codec, WM8994_INTERRUPT_CONTROL,
+			    WM8994_IM_IRQ_MASK, 0);
+#endif
+
 	return 0;
 }
 
@@ -327,6 +409,21 @@ static int brownstone_hdmi_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+static int brownstone_wm8994_startup(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_codec *codec = rtd->codec;
+
+	/* turn on micbias 1/2 always */
+	snd_soc_update_bits(codec, WM8994_POWER_MANAGEMENT_1,
+			    WM8994_MICB1_ENA_MASK |
+			    WM8994_MICB2_ENA_MASK,
+			    WM8994_MICB1_ENA |
+			    WM8994_MICB2_ENA);
+
+	return 0;
+}
+
 static int brownstone_wm8994_hw_params(struct snd_pcm_substream *substream,
 				       struct snd_pcm_hw_params *params)
 {
@@ -373,6 +470,7 @@ static struct snd_soc_ops brownstone_ops[] = {
 	.hw_params = brownstone_hdmi_hw_params,
 },
 {
+	.startup = brownstone_wm8994_startup,
 	.hw_params = brownstone_wm8994_hw_params,
 },
 };
