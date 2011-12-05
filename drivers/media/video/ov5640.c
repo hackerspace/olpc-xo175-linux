@@ -481,8 +481,8 @@ static int ov5640_g_frame_interval(struct v4l2_subdev *sd,
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	int	pre_div, multiplier, vco_freq;
-	int sys_div, pll_rdiv, bit_div, sclk_rdiv;
-	int sys_clk, vts, hts, frame_rate;
+	int sys_div, pll_rdiv, bit_div, sclk_rdiv, mipi_div;
+	int sys_clk, vts, hts, frame_rate, mipi_bit_rate, mipi_clk;
 	int mclk;
 	u8 val;
 
@@ -493,12 +493,13 @@ static int ov5640_g_frame_interval(struct v4l2_subdev *sd,
 	/* There should be a complicated algorithm
 	   including double member.
 	 */
-	pre_div = val & 0xf;
 	pll_rdiv = (val >> 4) & 0x1;
+	val = val & 0xf;
+	pre_div = (val == 0) ? 2 : ((val == 5) ? 3: ((val == 7) ? 5 : ((val > 8) ? 2 : (val * 2))));
 	ov5640_read(client, 0x3036, &val);
 	multiplier = (val < 128) ? val : (val/2*2);
 
-	vco_freq = mclk / pre_div * multiplier;
+	vco_freq = mclk / pre_div * multiplier * 2;
 	dev_dbg(&client->dev, "vco_freq: %d, mclk:%d,pre_div:%d,"
 			"multiplier:%d\n", vco_freq, mclk, pre_div, multiplier);
 
@@ -519,6 +520,20 @@ static int ov5640_g_frame_interval(struct v4l2_subdev *sd,
 	dev_dbg(&client->dev, "sys_clk: %d, sys_div:%d,pll_rdiv:%d,"
 			"bit_div:%d,sclk_rdiv:%d\n", sys_clk, sys_div,
 			pll_rdiv, bit_div, sclk_rdiv);
+
+	/* mipi bit rate */
+	ov5640_read(client, 0x3035, &val);
+	val = val & 0xf;
+	mipi_div = (val > 0) ? val : 16;
+
+	mipi_bit_rate = vco_freq / sys_div / mipi_div;
+
+	/* mipi clk */
+	mipi_clk = mipi_bit_rate / 2;
+	dev_dbg(&client->dev, "MIPI bit rate: %d, SYS clk: %d, MIPI Clock"
+			"clk: %d\n", mipi_bit_rate, sys_clk, mipi_clk);
+
+	inter->pad = mipi_clk;
 
 	/* get sensor hts & vts */
 	ov5640_read(client, 0x380c, &val);
