@@ -18,8 +18,8 @@
 #ifdef CONFIG_CPU_MMP2
 #include <mach/mmp2_pm.h>
 #else
-void pwr_i2c_conflict_mutex_lock(void){}
-void pwr_i2c_conflict_mutex_unlock(void){}
+static void pwr_i2c_conflict_mutex_lock(void){}
+static void pwr_i2c_conflict_mutex_unlock(void){}
 #endif
 
 #define RTC_I2C_ADDR		0x68

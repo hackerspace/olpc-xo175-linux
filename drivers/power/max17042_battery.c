@@ -39,8 +39,8 @@
 #ifdef CONFIG_CPU_MMP2
 #include <mach/mmp2_pm.h>
 #else
-void pwr_i2c_conflict_mutex_lock(void){}
-void pwr_i2c_conflict_mutex_unlock(void){}
+static void pwr_i2c_conflict_mutex_lock(void){}
+static void pwr_i2c_conflict_mutex_unlock(void){}
 #endif
 
 struct max17042_battery_params {
