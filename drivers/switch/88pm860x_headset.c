@@ -189,6 +189,13 @@ static void hook_switch_work(struct work_struct *work)
 	}
 
 	value = (unsigned char)pm860x_reg_read(info->i2c, PM8607_STATUS_1);
+
+	/* check whether it's hardware jitter during headset unplug */
+	if (!(value & PM8607_STATUS_MICIN)) {
+		pr_info("fake hook interrupt\n");
+		return;
+	}
+
 	value &= PM8607_STATUS_HOOK;
 
 	/* hook pressed */
