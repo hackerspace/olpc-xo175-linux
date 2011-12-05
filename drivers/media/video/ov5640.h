@@ -507,7 +507,7 @@ struct regval_list yuv_5M_tab[] = {
 };
 
 struct regval_list jpg_default_tab[] = {
-	{0x3035, 0x11}, /* 11 */
+	{0x3035, 0x12}, /* 11 */
 	{0x3036, 0x4e}, /* 14fps */
 	{0x3820, 0x40},
 	{0x3821, 0x06},
@@ -545,6 +545,9 @@ struct regval_list jpg_default_tab[] = {
 	{0x3006, 0xff},
 	{0x4713, 0x02},
 	{0x3824, 0x04},
+	{0x4827, 0x64},  /* HS_PREPARE */
+	{0x4819, 0xff},  /* HS_ZERO */
+	{0x481f, 0x50},  /* CLK_PREPARE */
 	{OV5640_MIPI_END_ADDR, OV5640_MIPI_END_VAL}
 };
 
