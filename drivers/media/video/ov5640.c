@@ -213,17 +213,11 @@ static int set_stream(struct i2c_client *client, int enable)
 {
 	int ret = 0;
 	if (enable) {
-		ret = ov5640_write(client, 0x4201, 0x00);
-		if (ret < 0)
-			goto out;
 		ret = ov5640_write(client, 0x4202, 0x00);
 		if (ret < 0)
 			goto out;
 	} else {
-		ret = ov5640_write(client, 0x4201, 0x01);
-		if (ret < 0)
-			goto out;
-		ret = ov5640_write(client, 0x4202, 0x00);
+		ret = ov5640_write(client, 0x4202, 0x0f);
 		if (ret < 0)
 			goto out;
 	}
