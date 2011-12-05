@@ -348,6 +348,9 @@ struct regval_list yuv_QVGA_tab[] = {
 	{0x370c, 0x03},
 	{0x3618, 0x00},
 	{0x5001, 0xa3},
+	{0x4827, 0x2a},  /* HS_PREPARE */
+	{0x4819, 0x96},  /* HS_ZERO */
+	{0x481f, 0x2a},  /* CLK_PREPARE */
 
 	{OV5640_MIPI_END_ADDR, OV5640_MIPI_END_VAL}
 };
