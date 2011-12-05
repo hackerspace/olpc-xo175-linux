@@ -15,7 +15,7 @@ extern int unsupport_format(struct pxa168fb_info *fbi,
 extern int convert_pix_fmt(u32 vmode);
 extern int set_pix_fmt(struct fb_var_screeninfo *var, int pix_fmt);
 extern int determine_best_pix_fmt(struct fb_var_screeninfo *var,
-	unsigned int compat_mode);
+	struct pxa168fb_info *fbi);
 extern int pxa168fb_check_var(struct fb_var_screeninfo *var,
 	 struct fb_info *fi);
 extern int check_surface(struct fb_info *fi, FBVideoMode new_mode,

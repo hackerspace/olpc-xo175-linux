@@ -517,6 +517,9 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 		if (copy_from_user(&vmode, argp, sizeof(vmode)))
 			return -EFAULT;
 
+		if (unsupport_format(fbi, fbi->surface.viewPortInfo, vmode))
+			return -EFAULT;
+
 		if (check_surface(fi, vmode, 0, 0, 0))
 			pxa168fb_set_par(fi);
 		break;
@@ -818,20 +821,25 @@ static int pxa168fb_set_par(struct fb_info *fi)
 	struct fb_var_screeninfo *var = &fi->var;
 	int pix_fmt;
 
-	dev_dbg(fi->dev, "FB1: Enter %s\n", __func__);
+	dev_dbg(fi->dev, "Enter %s, video layer\n", __func__);
 	/*
 	 * Determine which pixel format we're going to use.
 	 */
-	pix_fmt = determine_best_pix_fmt(var, fbi->compat_mode);
-	dev_dbg(fi->dev, "determine_best_pix_fmt returned: %d\n", pix_fmt);
+	pix_fmt = determine_best_pix_fmt(var, fbi);
 	if (pix_fmt < 0)
 		return pix_fmt;
 	fbi->pix_fmt = pix_fmt;
+	set_pix_fmt(var, pix_fmt);
 
-	dev_dbg(fi->dev, "pix_fmt:%d, BPP:%d\n", pix_fmt, var->bits_per_pixel);
-	/*
-	 * Set additional mode info.
-	 */
+	if (!var->xres_virtual)
+		var->xres_virtual = var->xres;
+	if (!var->yres_virtual)
+		var->yres_virtual = var->yres * 2;
+	var->grayscale = 0;
+	var->accel_flags = FB_ACCEL_NONE;
+	var->rotate = FB_ROTATE_UR;
+
+	/* Set additional mode info */
 	if (pix_fmt == PIX_FMT_PSEUDOCOLOR)
 		fi->fix.visual = FB_VISUAL_PSEUDOCOLOR;
 	else
@@ -851,7 +859,6 @@ static int pxa168fb_set_par(struct fb_info *fi)
 	set_dma_control0(fbi);
 	/* set video start address */
 	set_start_address(fi, fi->var.xoffset, fi->var.yoffset, 0);
-
 	return 0;
 }
 

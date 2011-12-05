@@ -367,14 +367,14 @@ int set_pix_fmt(struct fb_var_screeninfo *var, int pix_fmt)
 }
 
 int determine_best_pix_fmt(struct fb_var_screeninfo *var,
-			 unsigned int compat_mode)
+			 struct pxa168fb_info *fbi)
 {
 	unsigned char pxa_format;
 
 	/* compatibility switch: if var->nonstd MSB is 0xAA then skip to
 	 * using the nonstd variable to select the color space
 	 */
-	if (compat_mode != 0x2625) {
+	if (fbi->compat_mode != 0x2625) {
 
 		/*
 		 * Pseudocolor mode?
@@ -385,7 +385,7 @@ int determine_best_pix_fmt(struct fb_var_screeninfo *var,
 		 * Check for YUV422PACK.
 		 */
 		if (var->bits_per_pixel == 16 && var->red.length == 16 &&
-		    var->green.length == 16 && var->blue.length == 16) {
+			var->green.length == 16 && var->blue.length == 16) {
 			if (var->red.offset >= var->blue.offset) {
 				if (var->red.offset == 4)
 					return PIX_FMT_YUV422PACK;
@@ -398,7 +398,8 @@ int determine_best_pix_fmt(struct fb_var_screeninfo *var,
 		 * Check for YUV422PLANAR.
 		 */
 		if (var->bits_per_pixel == 16 && var->red.length == 8 &&
-		    var->green.length == 4 && var->blue.length == 4) {
+			var->green.length == 4 && var->blue.length == 4 &&
+			fbi->vid) {
 			if (var->red.offset >= var->blue.offset)
 				return PIX_FMT_YUV422PLANAR;
 			else
@@ -409,7 +410,8 @@ int determine_best_pix_fmt(struct fb_var_screeninfo *var,
 		 * Check for YUV420PLANAR.
 		 */
 		if (var->bits_per_pixel == 12 && var->red.length == 8 &&
-		    var->green.length == 2 && var->blue.length == 2) {
+			var->green.length == 2 && var->blue.length == 2 &&
+			 fbi->vid) {
 			if (var->red.offset >= var->blue.offset)
 				return PIX_FMT_YUV420PLANAR;
 			else
@@ -477,10 +479,12 @@ int determine_best_pix_fmt(struct fb_var_screeninfo *var,
 			return PIX_FMT_RGB565;
 			break;
 		case 3:
-			return PIX_FMT_YUV422PLANAR;
+			if (fbi->vid)
+				return PIX_FMT_YUV422PLANAR;
 			break;
 		case 4:
-			return PIX_FMT_YUV420PLANAR;
+			if (fbi->vid)
+				return PIX_FMT_YUV420PLANAR;
 			break;
 		case 5:
 			return PIX_FMT_RGB1555;
@@ -577,7 +581,7 @@ int pxa168fb_check_var(struct fb_var_screeninfo *var, struct fb_info *fi)
 	/*
 	 * Select most suitable hardware pixel format.
 	 */
-	pix_fmt = determine_best_pix_fmt(var, fbi->compat_mode);
+	pix_fmt = determine_best_pix_fmt(var, fbi);
 	dev_dbg(fi->dev, "%s determine_best_pix_fmt returned: %d\n",
 		 __func__, pix_fmt);
 	if (pix_fmt < 0)

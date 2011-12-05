@@ -553,35 +553,8 @@ static void pxa168fb_set_regs(struct fb_info *info, int wait_vsync)
 static int pxa168fb_set_var(struct fb_info *info)
 {
 	struct pxa168fb_info *fbi = info->par;
-	struct fb_var_screeninfo *var = &info->var;
-	struct pxa168fb_mach_info *mi;
-	struct dsi_info *di;
-	int pix_fmt;
 
 	dev_dbg(info->dev, "Enter %s\n", __func__);
-
-	mi = fbi->dev->platform_data;
-	di = mi->dsi;
-
-	/* Determine which pixel format we're going to use */
-	pix_fmt = determine_best_pix_fmt(var, fbi->compat_mode);
-	if (pix_fmt < 0)
-		return pix_fmt;
-	fbi->pix_fmt = pix_fmt;
-
-	/* convet var to video mode; del for HDMI resolutions select via app
-	mode = fb_find_best_mode(var, &info->modelist);
-	set_mode(fbi, var, mode, pix_fmt, 1); */
-	set_pix_fmt(var, pix_fmt);
-	if (!var->xres_virtual)
-		var->xres_virtual = var->xres;
-	if (!var->yres_virtual)
-		var->yres_virtual = var->yres * 2;
-	var->grayscale = 0;
-	var->accel_flags = FB_ACCEL_NONE;
-	var->rotate = FB_ROTATE_UR;
-
-	dev_dbg(info->dev, "xres=%d yres=%d\n", var->xres, var->yres);
 
 	if (NEED_VSYNC(fbi)) {
 		fbi->info = info;
@@ -596,15 +569,24 @@ static int pxa168fb_set_par(struct fb_info *info)
 {
 	struct pxa168fb_info *fbi = info->par;
 	struct fb_var_screeninfo *var = &info->var;
-	int ret = 0;
+	int pix_fmt;
 
 	dev_dbg(info->dev, "Enter %s, graphics layer\n", __func__);
 
-	ret = pxa168fb_set_var(info);
-	if (ret < 0)
-		return ret;
+	/* Determine which pixel format we're going to use */
+	pix_fmt = determine_best_pix_fmt(var, fbi);
+	if (pix_fmt < 0)
+		return pix_fmt;
+	fbi->pix_fmt = pix_fmt;
+	set_pix_fmt(var, pix_fmt);
 
-	set_dumb_screen_dimensions(info);
+	if (!var->xres_virtual)
+		var->xres_virtual = var->xres;
+	if (!var->yres_virtual)
+		var->yres_virtual = var->yres * 2;
+	var->grayscale = 0;
+	var->accel_flags = FB_ACCEL_NONE;
+	var->rotate = FB_ROTATE_UR;
 
 	/* Set additional mode info */
 	if (fbi->pix_fmt == PIX_FMT_PSEUDOCOLOR)
@@ -613,7 +595,11 @@ static int pxa168fb_set_par(struct fb_info *info)
 		info->fix.visual = FB_VISUAL_TRUECOLOR;
 
 	info->fix.line_length = var->xres_virtual * var->bits_per_pixel / 8;
-	return ret;
+
+	pxa168fb_set_var(info);
+
+	set_dumb_screen_dimensions(info);
+	return 0;
 }
 
 static unsigned int chan_to_field(unsigned int chan, struct fb_bitfield *bf)
@@ -1108,7 +1094,7 @@ static int pxa168fb_release(struct fb_info *info, int user)
 	/* Recovery screen info */
 	*var = fbi->var_bak;
 
-	fbi->pix_fmt = determine_best_pix_fmt(var, fbi->compat_mode);
+	fbi->pix_fmt = determine_best_pix_fmt(var, fbi);
 
 	fbi->new_addr[0] = 0;
 	fbi->new_addr[1] = 0;
