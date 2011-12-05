@@ -841,7 +841,7 @@ int gs_marvell_modem_send(const unsigned char *buf, \
 		start = jiffies;
 
 		while (count > 0) {
-			c = gs_write(tty, b, count);
+			c = pxa910_gs_write(tty, b, count);
 
 			if (c == count) {
 				b += c;
@@ -1201,7 +1201,7 @@ int __init marvell_modem_gserial_setup(struct usb_gadget *g, unsigned count)
 	struct usb_cdc_line_coding coding;
 	int status;
 
-	if (count == 0 || count > N_PORTS)
+	if (count == 0 || count > PXA_N_PORTS)
 		return -EINVAL;
 
 	gs_modem_tty_driver = alloc_tty_driver(count);
