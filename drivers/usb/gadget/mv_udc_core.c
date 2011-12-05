@@ -56,7 +56,6 @@ static int	dvfm_dev_idx;
 #define EPSTATUS_TIMEOUT	10000
 #define PRIME_TIMEOUT		10000
 #define READSAFE_TIMEOUT	1000
-#define DTD_TIMEOUT		1000
 
 #define LOOPS_USEC_SHIFT	1
 #define LOOPS_USEC		(1 << LOOPS_USEC_SHIFT)
@@ -71,7 +70,6 @@ static DECLARE_COMPLETION(release_done);
 
 /* controller device global variable */
 static struct mv_udc	*the_controller;
-int mv_usb_otgsc;
 
 static struct wake_lock idle_lock;
 static struct wake_lock suspend_lock;
