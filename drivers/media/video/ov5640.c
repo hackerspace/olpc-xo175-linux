@@ -319,27 +319,22 @@ static int ov5640_s_fmt(struct v4l2_subdev *sd,
 	case V4L2_MBUS_FMT_VYUY8_2X8:
 		switch (mf->width) {
 		case 176:
-			pregs_default = init_global_tab;
 			pregs = yuv_QCIF_tab;
 			dev_info(&client->dev, "choose qcif setting!\n");
 			break;
 		case 320:
-			pregs_default = init_global_tab;
 			pregs = yuv_QVGA_tab;
 			dev_info(&client->dev, "choose qvga setting!\n");
 			break;
 		case 480:
-			pregs_default = init_global_tab;
 			pregs = yuv_Wallpaper_tab;
 			dev_info(&client->dev, "choose 480*320 setting!\n");
 			break;
 		case 640:
-			pregs_default = init_global_tab;
 			pregs = yuv_VGA_tab;
 			dev_info(&client->dev, "choose vga setting!\n");
 			break;
 		case 720:
-			pregs_default = init_global_tab;
 			pregs = yuv_D1_tab;
 			dev_info(&client->dev, "choose d1 setting!\n");
 			break;
