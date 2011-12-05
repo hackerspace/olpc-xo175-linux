@@ -76,6 +76,9 @@ struct ov5642_mipi {
 struct ov5642_win_size {
 	enum ov5642_resv_support	resv;
 	struct regval_list *regs;
+	/* High resolution, 1920x1080(1080p), 1280x720(720p); */
+	/* Low resolution, 640x480(480p) or smaller size */
+	struct regval_list *regs_resolution;
 };
 
 typedef struct {
@@ -109,6 +112,7 @@ struct ov5642 {
 	struct regval_list *regs_fmt;
 	struct regval_list *regs_size;
 	struct regval_list *regs_default;
+	struct regval_list *regs_resolution;
 	struct regval_list *regs_mipi_set;
 	struct regval_list *regs_mipi_lane;
 };
@@ -139,4 +143,5 @@ extern struct ov5642_win_size *get_yuv_size_array(void);
 extern struct ov5642_win_size *get_jpg_size_array(void);
 extern struct regval_list *get_mipi_set_regs(void);
 extern struct regval_list *get_mipi_lane_regs(int num);
+extern struct regval_list *get_yuv_resolution_regs(int width, int height);
 #endif

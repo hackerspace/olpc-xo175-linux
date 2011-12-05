@@ -249,6 +249,8 @@ static int ov5642_try_fmt(struct v4l2_subdev *sd,
 
 	ov5642->regs_default = get_fmt_default_setting(mf->code);
 
+	ov5642->regs_resolution = get_yuv_resolution_regs(mf->width, mf->height);
+
 	mf->field = V4L2_FIELD_NONE;
 
 	switch (mf->code) {
@@ -311,6 +313,12 @@ static int ov5642_s_fmt(struct v4l2_subdev *sd,
 
 	if (ov5642->regs_fmt) {
 		ret = ov5642_write_array(client, ov5642->regs_fmt);
+		if (ret)
+			return ret;
+	}
+
+	if (ov5642->regs_resolution) {
+		ret = ov5642_write_array(client, ov5642->regs_resolution);
 		if (ret)
 			return ret;
 	}
