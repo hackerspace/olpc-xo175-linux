@@ -1283,28 +1283,28 @@ static int mmp3_hsic1_reset(void)
 
 static int mmp3_hsic1_set_vbus(unsigned int vbus)
 {
-	static struct regulator *ldo5;
+	static struct regulator *pmic_1p2v_hsic;
 
 	printk(KERN_INFO "%s: set %d\n", __func__, vbus);
 	if (vbus) {
-		if (!ldo5) {
-			ldo5 = regulator_get(NULL, "v_ldo5");
-			if (IS_ERR(ldo5)) {
+		if (!pmic_1p2v_hsic) {
+			pmic_1p2v_hsic = regulator_get(NULL, "pmic_1p2v_hsic");
+			if (IS_ERR(pmic_1p2v_hsic)) {
 				printk(KERN_INFO "ldo5 not found\n");
 				return -EIO;
 			}
-			regulator_set_voltage(ldo5, 1200000, 1200000);
-			regulator_enable(ldo5);
+			regulator_set_voltage(pmic_1p2v_hsic, 1200000, 1200000);
+			regulator_enable(pmic_1p2v_hsic);
 			printk(KERN_INFO "%s: enable regulator\n", __func__);
 			udelay(2);
 		}
 
 		mmp3_hsic1_reset();
 	} else {
-		if (ldo5) {
-			regulator_disable(ldo5);
-			regulator_put(ldo5);
-			ldo5 = NULL;
+		if (pmic_1p2v_hsic) {
+			regulator_disable(pmic_1p2v_hsic);
+			regulator_put(pmic_1p2v_hsic);
+			pmic_1p2v_hsic = NULL;
 		}
 	}
 
