@@ -795,26 +795,26 @@ static struct l3g4200d_gyr_platform_data l3g4200d_gyr_data = {
 
 static int cm3623_set_power(int on)
 {
-	static struct regulator *v_ldo8;
+	static struct regulator *pmic_2p8v_sens;
 	static int enabled;
 	int changed = 0;
 
 	if (on && (!enabled)) {
-		v_ldo8 = regulator_get(NULL, "v_ldo8");
-		if (IS_ERR(v_ldo8)) {
-			v_ldo8 = NULL;
+		pmic_2p8v_sens = regulator_get(NULL, "pmic_2p8v_sens");
+		if (IS_ERR(pmic_2p8v_sens)) {
+			pmic_2p8v_sens = NULL;
 			return -EIO;
 		} else {
-			regulator_set_voltage(v_ldo8, 2800000, 2800000);
-			regulator_enable(v_ldo8);
+			regulator_set_voltage(pmic_2p8v_sens, 2800000, 2800000);
+			regulator_enable(pmic_2p8v_sens);
 			enabled = 1;
 			changed = 1;
 		}
 	}
 	if ((!on) && enabled) {
-		regulator_disable(v_ldo8);
-		regulator_put(v_ldo8);
-		v_ldo8 = NULL;
+		regulator_disable(pmic_2p8v_sens);
+		regulator_put(pmic_2p8v_sens);
+		pmic_2p8v_sens = NULL;
 		enabled = 0;
 		changed = 1;
 	}
