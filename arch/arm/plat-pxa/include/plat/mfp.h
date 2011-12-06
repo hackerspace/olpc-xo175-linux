@@ -460,7 +460,7 @@ typedef unsigned long mfp_cfg_t;
 #define MFP_MEDIUM		MFP_DS03X
 #define MFP_FAST		MFP_DS04X
 
-#define MFP_LPM_DEFAULT		(0x5 << 16)
+#define MFP_LPM_DEFAULT		(0x0 << 16)
 #define MFP_LPM_DRIVE_LOW	(0x1 << 16)
 #define MFP_LPM_DRIVE_HIGH	(0x2 << 16)
 #define MFP_LPM_PULL_LOW	(0x3 << 16)
