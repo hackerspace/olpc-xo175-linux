@@ -182,10 +182,14 @@ static unsigned long brownstone_pin_config[] __initdata = {
 	/* MMC1 */
 	GPIO37_MMC2_DAT3 | MFP_PULL_HIGH,
 	GPIO38_MMC2_DAT2 | MFP_PULL_HIGH,
-	GPIO39_MMC2_DAT1 | MFP_PULL_HIGH | MFP_LPM_EDGE_FALL,
+	GPIO39_MMC2_DAT1 | MFP_PULL_HIGH,
 	GPIO40_MMC2_DAT0 | MFP_PULL_HIGH,
 	GPIO41_MMC2_CMD | MFP_PULL_HIGH,
 	GPIO42_MMC2_CLK,
+
+	/* sdio power control */
+	GPIO57_GPIO | MFP_LPM_DRIVE_LOW,
+	GPIO58_GPIO | MFP_LPM_DRIVE_HIGH,
 
 	/* MMC2 */
 	GPIO165_MMC3_DAT7 | MFP_PULL_HIGH,
@@ -482,6 +486,15 @@ static int mmc1_sdio_switch(unsigned int on, int with_card)
 	if (!with_card)
 		return 0;
 	if (on) {
+		mfpr = __raw_readl(addr);
+		/* clear edge detection to make sure enter suspend */
+		__raw_writel(mfpr | (1 << 6), addr);
+
+		/* enable edge_fall_en for wake up system */
+		mfpr &= ~(1 << 6);
+		mfpr |= (1 << 5);
+		__raw_writel(mfpr, addr);
+
 		/* enable I/O edge detection interrupt */
 		icu_int_conf = __raw_readl(ICU_INT_CONF(23));
 		__raw_writel(icu_int_conf | ICU_INT_ROUTE_PJ4_IRQ, ICU_INT_CONF(23));
@@ -489,15 +502,14 @@ static int mmc1_sdio_switch(unsigned int on, int with_card)
 		/* disable I/O edge detection interrupt */
 		icu_int_conf = __raw_readl(ICU_INT_CONF(23));
 		__raw_writel(icu_int_conf & (~(ICU_INT_ROUTE_PJ4_IRQ)), ICU_INT_CONF(23));
-		/* sdio function pin edge clear */
+		/* disable edge detection in run time */
 		mfpr = __raw_readl(addr);
 		__raw_writel(mfpr | (1 << 6), addr);
-		__raw_writel(mfpr, addr);
 	}
 	return 0;
 }
 static struct sdhci_pxa_platdata mmp2_sdh_platdata_mmc1 = {
-	.flags		= PXA_FLAG_CARD_PERMANENT,
+	.flags		= PXA_FLAG_CARD_PERMANENT | PXA_FLAG_WAKEUP_HOST,
 	.lp_switch	= mmc1_sdio_switch,
 	.pm_caps	= MMC_PM_KEEP_POWER,
 };

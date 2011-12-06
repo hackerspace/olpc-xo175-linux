@@ -48,8 +48,7 @@ int mmp2_set_wake(struct irq_data *i_data, unsigned int on)
 	case IRQ_MMP2_PMIC:
 		data = PMUM_WAKEUP7;
 		break;
-	case IRQ_MMP2_MMC:
-	case IRQ_MMP2_MMC3:
+	case IRQ_MMP2_MMC2:
 		/* mmc use WAKEUP2, same as GPIO wakeup source */
 		data = PMUM_WAKEUP2;
 		break;
