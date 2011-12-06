@@ -209,45 +209,45 @@ static struct sram_bank mmp3_videosram_info = {
 #ifdef CONFIG_VIDEO_MVISP_OV8820
 static int ov8820_sensor_power_on(int on, int flag)
 {
-	struct regulator *v_ldo14;
-	struct regulator *v_ldo15;
-	struct regulator *v_ldo3;
+	struct regulator *vcc_af;
+	struct regulator *vcc_camera;
+	struct regulator *pmic_1p2v_mipi;
 	int sensor_power = mfp_to_gpio(MFP_PIN_GPIO67);
 
 	if (gpio_request(sensor_power, "CAM_ENABLE_HI_SENSOR"))
 		return -EIO;
 
-	v_ldo14 = regulator_get(NULL, "v_ldo14");
-	if (IS_ERR(v_ldo14)) {
-		v_ldo14 = NULL;
+	vcc_af = regulator_get(NULL, "vcc_af");
+	if (IS_ERR(vcc_af)) {
+		vcc_af = NULL;
 		return -EIO;
 	}
-	v_ldo15 = regulator_get(NULL, "v_ldo15");
-	if (IS_ERR(v_ldo15)) {
-		v_ldo15 = NULL;
+	vcc_camera = regulator_get(NULL, "vcc_camera");
+	if (IS_ERR(vcc_camera)) {
+		vcc_camera = NULL;
 		return -EIO;
 	}
-	v_ldo3 = regulator_get(NULL, "v_ldo3");
-	if (IS_ERR(v_ldo3)) {
-		v_ldo3 = NULL;
+	pmic_1p2v_mipi = regulator_get(NULL, "pmic_1p2v_mipi");
+	if (IS_ERR(pmic_1p2v_mipi)) {
+		pmic_1p2v_mipi = NULL;
 		return -EIO;
 	}
 
 	/* Enable voltage for camera sensor OV8820 */
-	/* v_ldo14 3.0v (AFVCC 2.8 - 3.3V, 3.3V recommended */
-	/* v_ldo15 2.8v (AVDD 2.6 - 3.1V)*/
-	/* v_ldo3 MIPI BRIDGE CHIP PLL, 1.2V */
+	/* vcc_af fixed 2.8v on B0 with max77601 (AFVCC 2.8 - 3.3V, 3.3V recommended) */
+	/* vcc_camera 2.8v (AVDD 2.6 - 3.1V)*/
+	/* pmic_1p2v_mipi MIPI BRIDGE CHIP PLL, 1.2V */
 	if (on) {
-		regulator_set_voltage(v_ldo14, 3000000, 3000000);
-		regulator_enable(v_ldo14);
-		regulator_set_voltage(v_ldo15, 2800000, 2800000);
-		regulator_enable(v_ldo15);
-		regulator_set_voltage(v_ldo3, 1200000, 1200000);
-		regulator_enable(v_ldo3);
+		regulator_set_voltage(vcc_af, 2800000, 2800000);
+		regulator_enable(vcc_af);
+		regulator_set_voltage(vcc_camera, 2800000, 2800000);
+		regulator_enable(vcc_camera);
+		regulator_set_voltage(pmic_1p2v_mipi, 1200000, 1200000);
+		regulator_enable(pmic_1p2v_mipi);
 	} else {
-		regulator_disable(v_ldo14);
-		regulator_disable(v_ldo15);
-		regulator_disable(v_ldo3);
+		regulator_disable(vcc_af);
+		regulator_disable(vcc_camera);
+		regulator_disable(pmic_1p2v_mipi);
 	}
 
        /* sensor_power is low active, reset the sensor now*/
@@ -257,9 +257,9 @@ static int ov8820_sensor_power_on(int on, int flag)
 	gpio_direction_output(sensor_power, 1);
 	gpio_free(sensor_power);
 
-	regulator_put(v_ldo14);
-	regulator_put(v_ldo15);
-	regulator_put(v_ldo3);
+	regulator_put(vcc_af);
+	regulator_put(vcc_camera);
+	regulator_put(pmic_1p2v_mipi);
 	msleep(100);
 
 	return 0;
@@ -339,22 +339,22 @@ static void __init mmp_init_vmeta(void)
 static int camera_sensor_power(struct device *dev, int on)
 {
 	int cam_enable = mfp_to_gpio(MFP_PIN_GPIO67);
-	struct regulator *v_ldo3;
+	struct regulator *pmic_1p2v_mipi;
 
 	/* We rely on mipi brige also connect the mipi signal */
-	/* v_ldo3 MIPI BRIDGE CHIP PLL, 1.2V */
-	v_ldo3 = regulator_get(NULL, "v_ldo3");
-	if (IS_ERR(v_ldo3)) {
-		v_ldo3 = NULL;
+	/* pmic_1p2v_mipi MIPI BRIDGE CHIP PLL, 1.2V */
+	pmic_1p2v_mipi = regulator_get(NULL, "pmic_1p2v_mipi");
+	if (IS_ERR(pmic_1p2v_mipi)) {
+		pmic_1p2v_mipi = NULL;
 		return -EIO;
 	}
 	if (on) {
-		regulator_set_voltage(v_ldo3, 1200000, 1200000);
-		regulator_enable(v_ldo3);
+		regulator_set_voltage(pmic_1p2v_mipi, 1200000, 1200000);
+		regulator_enable(pmic_1p2v_mipi);
 	} else
-		regulator_disable(v_ldo3);
+		regulator_disable(pmic_1p2v_mipi);
 
-	regulator_put(v_ldo3);
+	regulator_put(pmic_1p2v_mipi);
 
 	if (gpio_request(cam_enable, "CAM_ENABLE_HI_SENSOR")) {
 		printk(KERN_ERR "Request GPIO failed, gpio: %d\n", cam_enable);
@@ -406,8 +406,8 @@ static void pxa2128_cam_ctrl_power(int on)
 static int pxa2128_cam_clk_init(struct device *dev, int init)
 {
 	struct mv_cam_pdata *data = dev->platform_data;
-	static struct regulator *v_ldo14;
-	static struct regulator *v_ldo15;
+	static struct regulator *vcc_af;
+	static struct regulator *vcc_camera;
 	unsigned long tx_clk_esc;
 	struct clk *pll1;
 
@@ -433,33 +433,33 @@ static int pxa2128_cam_clk_init(struct device *dev, int init)
 			data->clk_enabled = 1;
 
 		}
-		v_ldo14 = regulator_get(NULL, "v_ldo14");
-		if (IS_ERR(v_ldo14)) {
-			v_ldo14 = NULL;
+		vcc_af = regulator_get(NULL, "vcc_af");
+		if (IS_ERR(vcc_af)) {
+			vcc_af = NULL;
 			return -EIO;
 		} else {
-			regulator_set_voltage(v_ldo14, 3000000, 3000000);
-			regulator_enable(v_ldo14);
+			regulator_set_voltage(vcc_af, 2800000, 2800000);
+			regulator_enable(vcc_af);
 		}
 
-		v_ldo15 = regulator_get(NULL, "v_ldo15");
-		if (IS_ERR(v_ldo15)) {
-			v_ldo15 = NULL;
+		vcc_camera = regulator_get(NULL, "vcc_camera");
+		if (IS_ERR(vcc_camera)) {
+			vcc_camera = NULL;
 			return -EIO;
 		} else {
-			regulator_set_voltage(v_ldo15, 2800000, 2800000);
-			regulator_enable(v_ldo15);
+			regulator_set_voltage(vcc_camera, 2800000, 2800000);
+			regulator_enable(vcc_camera);
 		}
 	} else {
-		if (v_ldo14) {
-			regulator_disable(v_ldo14);
-			regulator_put(v_ldo14);
-			v_ldo14 = NULL;
+		if (vcc_af) {
+			regulator_disable(vcc_af);
+			regulator_put(vcc_af);
+			vcc_af = NULL;
 		}
-		if (v_ldo15) {
-			regulator_disable(v_ldo15);
-			regulator_put(v_ldo15);
-			v_ldo15 = NULL;
+		if (vcc_camera) {
+			regulator_disable(vcc_camera);
+			regulator_put(vcc_camera);
+			vcc_camera = NULL;
 		}
 
 		if (data->clk_enabled) {
