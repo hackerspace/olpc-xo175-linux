@@ -1066,9 +1066,9 @@ static void abilene_sd_signal_1v8(int set)
 	static struct regulator *v_ldo_sd;
 	int vol;
 
-	v_ldo_sd = regulator_get(NULL, "v_ldo11");
+	v_ldo_sd = regulator_get(NULL, "pmic_sdmmc");
 	if (IS_ERR(v_ldo_sd)) {
-		printk(KERN_ERR "Failed to get v_ldo11\n");
+		printk(KERN_ERR "Failed to get pmic_sdmmc\n");
 		return;
 	}
 
@@ -1113,7 +1113,11 @@ static void mmp3_8787_set_power(unsigned int on)
 
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc0 = {
 	.clk_delay_cycles	= 0x1F,
-	.signal_1v8		= abilene_sd_signal_1v8,
+	/*
+	  * FIXME: pmic_sdmmc is fixed 2.8V on B0 with max77601,
+	  * can not support 1.8V signal function
+	  */
+	/* .signal_1v8		= abilene_sd_signal_1v8, */
 };
 
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc1 = {
