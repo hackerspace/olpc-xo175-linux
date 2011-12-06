@@ -418,7 +418,7 @@ static struct isl9519_charger_pdata isl9519_pdata = {
 
 #ifdef CONFIG_BATTERY_MAX17042
 static struct max17042_platform_data max17042_pdata = {
-	.bat_design_cap = 1400 * 2,	/* mAh */
+	.bat_design_cap = 3900 * 2,	/* mAh. (14.7wh, 3.7v) x 2 */
 	.bat_ichg_term = 50000,	/* µA */
 	.r_sns = 10000,	/* micro-ohms */
 	.monitor_interval = 60,	/* seconds */
