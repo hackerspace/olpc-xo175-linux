@@ -117,6 +117,10 @@ MODULE_SUPPORTED_DEVICE("Video");
 #define CSI_CONT_TIMEOUT_EN        (0x1u<<8)  /* Timeout Interrupt Enable*/
 #define CSI_CONT_PROT_EN           (0x1u<<12) /* Protection Interupt Enable*/
 
+/* CSxINEN bits */
+#define CSI_CONT_SOF_INT_STS	(0x1u<<1)  /* Start of Frame Interrupt */
+#define CSI_CONT_EOF_INT_STS	(0x1u<<2)  /* Start of Frame Interrupt */
+
 #define ACSR_ALUF_MASK 0x00600000L
 #define ACSR_ALUF_OFFSET 21
 
@@ -2035,14 +2039,22 @@ static void ccic_timeout_handler(unsigned long data)
 {
 	static unsigned int reset_cnt = 1;
 	struct pxa955_cam_dev *pcdev = (struct pxa955_cam_dev *)data;
-	int irqs;
+	int csi_irqs, sci_irqs;
 
-	irqs = csi_reg_read(pcdev->csidev, REG_CSxINST);
-	csi_reg_write(pcdev->csidev, REG_CSxINST, irqs);
-	schedule_work(&pcdev->reset_wq);
-	printk(KERN_INFO "cam: mipi_err, call reset workqueue, " \
-		"INST=0x%08X----------------<%d>\n", \
-		irqs, reset_cnt++);
+	csi_irqs = csi_reg_read(pcdev->csidev, REG_CSxINST);
+	csi_reg_write(pcdev->csidev, REG_CSxINST, csi_irqs);
+	if (csi_irqs & (CSI_CONT_SOF_INT_STS | CSI_CONT_EOF_INT_STS)) {
+		sci_irqs = sci_reg_read(pcdev, REG_SCISR);
+		printk(KERN_INFO "cam: csi looking good, but no EOFX, check " \
+			"SCISR = 0x%08X----------------<%d>\n", \
+			sci_irqs, reset_cnt);
+		/* not CSI fault, don't reset CSI here*/
+	} else {
+		printk(KERN_INFO "cam: mipi_err, call reset workqueue, " \
+			"CSxINST = 0x%08X----------------<%d>\n", \
+			csi_irqs, reset_cnt++);
+		schedule_work(&pcdev->reset_wq);
+	}
 }
 
 static void ccic_reset_handler(struct work_struct *work)
