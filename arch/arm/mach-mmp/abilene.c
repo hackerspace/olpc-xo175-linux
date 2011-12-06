@@ -1436,20 +1436,20 @@ static struct mv_usb_platform_data mmp3_hsic1_pdata = {
 #endif
 
 #if defined(CONFIG_TC35876X)
-/* force LDO3 & LDO17 always on */
+/* force pmic_1p2v_mipi & pmic_1p2v_mipi_logic always on */
 int tc358765_init(void)
 {
 	struct regulator *vcc = NULL;
 	int ret = 0;
 	/* enable LDO for MIPI bridge */
-	vcc = regulator_get(NULL, "v_ldo17");
+	vcc = regulator_get(NULL, "pmic_1p2v_mipi");
 	if (IS_ERR(vcc))
 		vcc = NULL;
 	else {
 		regulator_enable(vcc);
 		ret = regulator_set_voltage(vcc, 1200000, 1200000);
 	}
-	vcc = regulator_get(NULL, "v_ldo3");
+	vcc = regulator_get(NULL, "pmic_1p2v_mipi_logic");
 	if (IS_ERR(vcc))
 		vcc = NULL;
 	else {
