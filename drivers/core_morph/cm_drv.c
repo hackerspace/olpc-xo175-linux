@@ -154,7 +154,7 @@ static int swap_show(struct device *dev, struct device_attribute *attr, char *bu
 	return len;
 }
 
-static DEVICE_ATTR(swap, S_IWUSR | S_IWGRP, swap_show, swap_set);
+static DEVICE_ATTR(swap, S_IRUGO|S_IWUSR|S_IWGRP, swap_show, swap_set);
 
 static struct attribute *cm_attributes[] = {
 	&dev_attr_swap.attr,
