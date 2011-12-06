@@ -430,26 +430,26 @@ static struct max17042_platform_data max17042_pdata = {
 #endif
 
 static struct i2c_board_info brownstone_twsi1_info[] = {
-	[0] = {
+	{
 		.type		= "max8649",
 		.addr		= 0x60,
 		.platform_data	= &brownstone_max8649_info,
 	},
-	[1] = {
+	{
 		.type		= "max8925",
 		.addr		= 0x3c,
 		.irq		= IRQ_MMP2_PMIC,
 		.platform_data	= &brownstone_max8925_info,
 	},
 #ifdef CONFIG_CHARGER_ISL9519
-	[2] = {
+	{
 		.type = "isl9519",
 		.addr = 0x09,
 		.platform_data = &isl9519_pdata,
 	},
 #endif
 #ifdef CONFIG_BATTERY_MAX17042
-	[3] = {
+	{
 		.type = "max17042",
 		.addr = 0x36,
 		.platform_data = &max17042_pdata,
