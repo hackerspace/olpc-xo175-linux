@@ -195,6 +195,50 @@ static struct sdhci_ops pxav3_sdhci_ops = {
 	.access_constrain = pxav3_access_constrain,
 };
 
+static int sdhci_pxav3_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	struct sdhci_host *host = platform_get_drvdata(pdev);
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	int ret = 0;
+
+	if (device_may_wakeup(&pdev->dev))
+		enable_irq_wake(host->irq);
+
+	ret = sdhci_suspend_host(host, state);
+	if (ret)
+		return ret;
+
+	if (pdata->lp_switch) {
+		ret = pdata->lp_switch(1, (int)host->mmc->card);
+		if (ret) {
+			sdhci_resume_host(host);
+			dev_err(&pdev->dev, "fail to switch gpio, resume..\n");
+		}
+	}
+	if (!ret)
+		host->mmc->suspended = 1;
+
+	return ret;
+}
+
+static int sdhci_pxav3_resume(struct platform_device *pdev)
+{
+	struct sdhci_host *host = platform_get_drvdata(pdev);
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	int ret = 0;
+
+	if (pdata->lp_switch)
+		pdata->lp_switch(0, (int)host->mmc->card);
+
+	host->mmc->suspended = 0;
+	ret = sdhci_resume_host(host);
+
+	if (device_may_wakeup(&pdev->dev))
+		disable_irq_wake(host->irq);
+
+	return ret;
+}
+
 static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 {
 	struct sdhci_pltfm_host *pltfm_host;
@@ -268,7 +312,10 @@ static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, host);
 
-	device_init_wakeup(&pdev->dev, 0);
+	if (pdata->flags & PXA_FLAG_WAKEUP_HOST)
+		device_init_wakeup(&pdev->dev, 1);
+	else
+		device_init_wakeup(&pdev->dev, 0);
 
 	pxa->pdata = pdata;
 #ifdef CONFIG_SD8XXX_RFKILL
@@ -322,8 +369,8 @@ static struct platform_driver sdhci_pxav3_driver = {
 	.probe		= sdhci_pxav3_probe,
 	.remove		= __devexit_p(sdhci_pxav3_remove),
 #ifdef CONFIG_PM
-	.suspend	= sdhci_pltfm_suspend,
-	.resume		= sdhci_pltfm_resume,
+	.suspend	= sdhci_pxav3_suspend,
+	.resume		= sdhci_pxav3_resume,
 #endif
 };
 static int __init sdhci_pxav3_init(void)
