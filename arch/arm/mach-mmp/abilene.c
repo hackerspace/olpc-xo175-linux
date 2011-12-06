@@ -706,7 +706,7 @@ static struct platform_device max8903_charger_device = {
 
 static int motion_sensor_set_power(int on, const char *device_name)
 {
-	static struct regulator *v_ldo8[3];
+	static struct regulator *pmic_2p8v_sens[3];
 	static int is_enabled[3] = {0, 0, 0};
 	int device_index = -1;
 
@@ -725,20 +725,20 @@ static int motion_sensor_set_power(int on, const char *device_name)
 
 	if ((device_index >= 0) && (device_index <= 2)) {
 		if (on && (!is_enabled[device_index])) {
-			v_ldo8[device_index] = regulator_get(NULL, "v_ldo8");
-			if (IS_ERR(v_ldo8[device_index])) {
-				v_ldo8[device_index] = NULL;
+			pmic_2p8v_sens[device_index] = regulator_get(NULL, "pmic_2p8v_sens");
+			if (IS_ERR(pmic_2p8v_sens[device_index])) {
+				pmic_2p8v_sens[device_index] = NULL;
 				return -ENODEV;
 			} else {
-				regulator_set_voltage(v_ldo8[device_index], 2800000, 2800000);
-				regulator_enable(v_ldo8[device_index]);
+				regulator_set_voltage(pmic_2p8v_sens[device_index], 2800000, 2800000);
+				regulator_enable(pmic_2p8v_sens[device_index]);
 				is_enabled[device_index] = 1;
 			}
 		}
 		if ((!on) && is_enabled[device_index]) {
-			regulator_disable(v_ldo8[device_index]);
-			regulator_put(v_ldo8[device_index]);
-			v_ldo8[device_index] = NULL;
+			regulator_disable(pmic_2p8v_sens[device_index]);
+			regulator_put(pmic_2p8v_sens[device_index]);
+			pmic_2p8v_sens[device_index] = NULL;
 			is_enabled[device_index] = 0;
 		}
 	} else
