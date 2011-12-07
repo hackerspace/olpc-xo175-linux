@@ -343,7 +343,6 @@ static irqreturn_t max8925_irq(int irq, void *data)
 	int i, j = 0;
 	int irq_mask_stored[ARRAY_SIZE(max8925_irqs)];
 
-	printk(KERN_ERR "max8925 irq begin\n");
 	/* mask all irqs except for tsc */
 	for (i = 0; i < ARRAY_SIZE(max8925_irqs); i++) {
 		irq_data = &max8925_irqs[i];
@@ -398,7 +397,7 @@ static irqreturn_t max8925_irq(int irq, void *data)
 			max8925_reg_write(chip->i2c, irq_data->mask_reg, irq_mask_stored[j++]);
 		}
 	}
-	printk(KERN_ERR "max8925 irq end\n");
+
 	return IRQ_HANDLED;
 }
 
