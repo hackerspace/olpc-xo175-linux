@@ -20,6 +20,7 @@
 #include <linux/workqueue.h>
 #include <linux/platform_device.h>
 #include <linux/interrupt.h>
+#include <linux/fb.h>
 #include <mach/cputype.h>
 #include <mach/sram.h>
 #include <mach/mmp2_pm.h>
@@ -43,6 +44,7 @@ static void *pm_fc_vaddr, *pm_fc_vstack;
 static struct mmp2_fc_param *mmp2_fc_param_p;
 static struct tasklet_struct fc_seq_tasklet;
 static int fc_seq_tasklet_en;
+static atomic_t fb_is_suspended = ATOMIC_INIT(0);
 DECLARE_COMPLETION(freq_complete);
 
 struct mmp2_op mmp2_ops[] = {
@@ -457,7 +459,8 @@ static int PMUcore2_hw_fc_seq(struct mmp2_pm_info *info, int old_idx, int new_id
 		mutex_lock(&pwr_i2c_conflict_mutex);
 	fc_seq_tasklet_en = 1;
 	tasklet_enable(&fc_seq_tasklet);
-	wakeup_freq_seq();
+	if (atomic_read(&fb_is_suspended))
+		wakeup_freq_seq();
 	ret = wait_for_completion_timeout(&freq_complete, msecs_to_jiffies(50));
 	if (!ret) {
 		ret = -ETIMEDOUT;
@@ -482,6 +485,25 @@ void mmp2_fc_seq(int old_idx, int new_idx)
 }
 EXPORT_SYMBOL(mmp2_fc_seq);
 
+static int dvfm_fb_notifier_callback(struct notifier_block *self,
+		unsigned long event, void *data)
+{
+	struct fb_event *evdata = data;
+
+	if ((event == FB_EVENT_SUSPEND) || ((event == FB_EVENT_BLANK) &&
+			(*(int *)evdata->data != FB_BLANK_UNBLANK)))
+		atomic_set(&fb_is_suspended, 1);
+	else if ((event == FB_EVENT_RESUME) || ((event == FB_EVENT_BLANK) &&
+			(*(int *)evdata->data == FB_BLANK_UNBLANK)))
+		atomic_set(&fb_is_suspended, 0);
+
+	return 0;
+}
+
+static struct notifier_block dvfm_fb_notif = {
+	.notifier_call = dvfm_fb_notifier_callback,
+};
+
 static int __init mmp2_fc_init(void)
 {
 	if (!cpu_is_mmp2())
@@ -498,6 +520,8 @@ static int __init mmp2_fc_init(void)
 	}
 	tasklet_init(&fc_seq_tasklet, fc_seq_bh, 0);
 	tasklet_disable(&fc_seq_tasklet);
+
+	fb_register_client(&dvfm_fb_notif);
 
 	return 0;
 err:

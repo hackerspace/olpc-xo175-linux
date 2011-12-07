@@ -40,6 +40,10 @@
 #include <plat/pm.h>
 #include "pxa168fb_common.h"
 
+#ifdef CONFIG_CPU_MMP2
+#include <mach/mmp2_pm.h>
+#endif
+
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 #endif
@@ -861,6 +865,9 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 			for (id = 0; id < 2; id++) {
 				sts = dispd & display_done_imask(id);
 				if (sts) {
+#if defined(CONFIG_CPU_MMP2) && defined(CONFIG_CPU_FREQ)
+					wakeup_freq_seq();
+#endif
 #ifdef CONFIG_PXA168_V4L2_OVERLAY
 					pxa168_ovly_isr(id);
 #else
