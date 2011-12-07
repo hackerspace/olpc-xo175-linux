@@ -244,3 +244,12 @@ config USB_YUREX
 	  To compile this driver as a module, choose M here: the
 	  module will be called yurex.
 
+config USB_VBUS_88PM860X
+	tristate "Marvell USB 88PM860x VBus"
+	depends on MFD_88PM860X && USB
+	help
+	  Say Y here if you have a 88PM860x PMIC to detect USB VBus event.
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the module will
+	  be called 88pm860x_vbus.

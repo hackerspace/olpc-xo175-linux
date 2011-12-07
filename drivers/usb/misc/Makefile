@@ -25,5 +25,6 @@ obj-$(CONFIG_USB_TRANCEVIBRATOR)	+= trancevibrator.o
 obj-$(CONFIG_USB_USS720)		+= uss720.o
 obj-$(CONFIG_USB_SEVSEG)		+= usbsevseg.o
 obj-$(CONFIG_USB_YUREX)			+= yurex.o
+obj-$(CONFIG_USB_VBUS_88PM860X) 	+= 88pm860x_vbus.o
 
 obj-$(CONFIG_USB_SISUSBVGA)		+= sisusbvga/
