@@ -36,6 +36,10 @@ static struct resource led_resources[] __devinitdata = {
 	{PM8606_LED2_BLUE,  PM8606_LED2_BLUE,  "led1-blue",  IORESOURCE_IO,},
 };
 
+static struct resource vbus_resources[] __devinitdata = {
+	{PM8607_IRQ_CHG, PM8607_IRQ_CHG, "88pm860x-vbus", IORESOURCE_IRQ,},
+};
+
 static struct resource regulator_resources[] __devinitdata = {
 	{PM8607_ID_BUCK1, PM8607_ID_BUCK1, "buck-1", IORESOURCE_IO,},
 	{PM8607_ID_BUCK2, PM8607_ID_BUCK2, "buck-2", IORESOURCE_IO,},
@@ -113,6 +117,10 @@ static struct mfd_cell led_devs[] = {
 	{"88pm860x-led", 3,},
 	{"88pm860x-led", 4,},
 	{"88pm860x-led", 5,},
+};
+
+static struct mfd_cell vbus_devs[] = {
+	{"88pm860x-vbus", 1,},
 };
 
 static struct mfd_cell regulator_devs[] = {
@@ -706,6 +714,22 @@ static void __devinit device_led_init(struct pm860x_chip *chip,
 	}
 }
 
+static void __devinit device_vbus_init(struct pm860x_chip *chip,
+				      struct pm860x_platform_data *pdata)
+{
+	int ret;
+
+	vbus_devs[0].num_resources = 1;
+	vbus_devs[0].resources = &vbus_resources[0],
+	ret = mfd_add_devices(chip->dev, 0, &vbus_devs[0],
+			ARRAY_SIZE(vbus_devs), &vbus_resources[0],
+			chip->irq_base);
+	if (ret < 0)
+		dev_err(chip->dev, "Failed to add vbus subdev\n");
+
+	return;
+}
+
 static void __devinit device_regulator_init(struct pm860x_chip *chip,
 					    struct pm860x_platform_data *pdata)
 {
@@ -962,6 +986,7 @@ int __devinit pm860x_device_init(struct pm860x_chip *chip,
 	case CHIP_PM8606:
 		device_bk_init(chip, pdata);
 		device_led_init(chip, pdata);
+		device_vbus_init(chip, pdata);
 		device_vibrator_init(chip, pdata);
 		device_8606_oscillator_vsys_init(chip->client);
 		break;
@@ -975,6 +1000,7 @@ int __devinit pm860x_device_init(struct pm860x_chip *chip,
 		case CHIP_PM8607:
 			device_bk_init(chip, pdata);
 			device_led_init(chip, pdata);
+			device_vbus_init(chip, pdata);
 			device_vibrator_init(chip, pdata);
 			device_8606_oscillator_vsys_init(chip->client);
 			break;
