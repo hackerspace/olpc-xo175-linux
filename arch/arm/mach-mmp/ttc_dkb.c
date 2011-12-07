@@ -1820,7 +1820,7 @@ static int ttc_pin_lpm_config(void)
 		i2c_trst_val = mfp_read(mfp_trst);
 		mfp_config(&mfp_trst_cfg, 1);
 		if (gpio_request(trst_gpio, "max3373_i2c_trst")) {
-			pr_err("Request max3373_i2c_trst failed!\n");
+			pr_err("ttc_pin_lpm_config : Request max3373_i2c_trst failed!\n");
 			return -EIO;
 		}
 		gpio_direction_output(trst_gpio, 0);
@@ -1834,6 +1834,8 @@ static int ttc_pin_restore(void)
 	unsigned int index = 0, i = 0;
 	int mfp_trst = (is_td_dkb) ? MFP_PIN_DF_nCS1_SM_nCS3 :
 		MFP_PIN_GPIO35;
+	int trst_gpio = (is_td_dkb) ? mfp_to_gpio(MFP_PIN_GPIO86) :
+		mfp_to_gpio(MFP_PIN_GPIO35);
 
 	for (index = MFP_PIN_GPIO0; index <= MFP_PIN_GPIO109; index++)
 		mfp_write(index, GPIO[i++]);
@@ -1843,6 +1845,12 @@ static int ttc_pin_restore(void)
 
 	/* restore the max3373 i2c_trst pin default function */
 	if (!emmc_boot) {
+		if (gpio_request(trst_gpio, "max3373_i2c_trst")) {
+			pr_err("ttc_pin_restore : Request max3373_i2c_trst failed!\n");
+			return -EIO;
+		}
+		gpio_direction_output(trst_gpio, 1);
+		gpio_free(trst_gpio);
 		mfp_write(mfp_trst, i2c_trst_val);
 	}
 	return 0;
