@@ -113,13 +113,16 @@ static int max8925_disable(struct regulator_dev *rdev)
 static int max8925_is_enabled(struct regulator_dev *rdev)
 {
 	struct max8925_regulator_info *info = rdev_get_drvdata(rdev);
-	int ret;
+	int ldo_seq, ret;
 
 	ret = max8925_reg_read(info->i2c, info->enable_reg);
 	if (ret < 0)
 		return ret;
-
-	return ret & (1 << info->enable_bit);
+	ldo_seq = (ret >> 2) & 0x7;
+	if (ldo_seq != 0x7)
+		return 1 << info->enable_bit;
+	else
+		return ret & (1 << info->enable_bit);
 }
 
 static int max8925_set_dvm_voltage(struct regulator_dev *rdev, int uV)
