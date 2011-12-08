@@ -36,6 +36,8 @@
 #include <mach/mmp2_plat_ver.h>
 #include <mach/regs-apmu.h>
 #include <mach/soc_vmeta.h>
+#include <mach/regs-apbc.h>
+#include <media/soc_camera.h>
 #include <plat/pmem.h>
 #include <plat/usb.h>
 #include <linux/i2c/tpk_r800.h>
@@ -53,6 +55,7 @@
 #endif
 
 #include <linux/cwgd.h>
+#include <linux/clk.h>
 #include <linux/mmc/sdhci.h>
 #include <mach/regs-icu.h>
 #ifdef CONFIG_SD8XXX_RFKILL
@@ -87,6 +90,10 @@ static unsigned long brownstone_pin_config[] __initdata = {
 	/* TWSI3 */
 	GPIO71_TWSI3_SCL,
 	GPIO72_TWSI3_SDA,
+	/* CAM1: OV8820 CAM2: OV5642 */
+	GPIO67_GPIO,		/* CAM1_PWDN */
+	GPIO68_GPIO,		/* CAM2_PWDN */
+	GPIO69_CAM_MCLK,	/* CAM2_MCLK | CAM1_MCLK */
 
 	/* TWSI4 */
 	TWSI4_SCL,
@@ -781,6 +788,325 @@ static struct tc35876x_platform_data tc358765_data = {
 	.id_reg = TC358765_CHIPID_REG,
 };
 #endif
+
+static void cam_power_set(int flag)
+{
+	struct clk *gate_clk = NULL;
+	struct clk *dbg_clk = NULL;
+
+	gate_clk = clk_get(NULL, "CCICGATECLK");
+	if (IS_ERR(gate_clk)) {
+		printk(KERN_ERR "unable to get CCICGATECLK");
+		return;
+	}
+
+	dbg_clk = clk_get(NULL, "CCICDBGCLK");
+	if (IS_ERR(dbg_clk)) {
+		printk(KERN_ERR "unable to get CCICDBGCLK");
+		return;
+	}
+
+	if (flag) {
+		clk_enable(gate_clk);
+		clk_enable(dbg_clk);
+	} else {
+		clk_disable(gate_clk);
+		clk_disable(dbg_clk);
+	}
+
+	clk_put(gate_clk);
+	clk_put(dbg_clk);
+
+	return;
+}
+static int cam2_power_set(int flag)
+{
+	struct clk *gate_clk = NULL;
+	struct clk *dbg_clk = NULL;
+
+	gate_clk = clk_get(NULL, "CCIC2GATECLK");
+	if (IS_ERR(gate_clk)) {
+		printk(KERN_ERR "unable to get CCIC2GATECLK");
+		return PTR_ERR(gate_clk);
+	}
+
+	dbg_clk = clk_get(NULL, "CCIC2DBGCLK");
+	if (IS_ERR(dbg_clk)) {
+		printk(KERN_ERR "unable to get CCIC2DBGCLK");
+		return PTR_ERR(dbg_clk);
+	}
+
+	if (flag) {
+		clk_enable(gate_clk);
+		clk_enable(dbg_clk);
+	} else {
+		clk_disable(gate_clk);
+		clk_disable(dbg_clk);
+	}
+
+	clk_put(gate_clk);
+	clk_put(dbg_clk);
+
+	return 0;
+}
+
+static int cam_pmua_set(int flag)
+{
+	struct clk *rst_clk = NULL;
+
+	rst_clk = clk_get(NULL, "CCICRSTCLK");
+	if (IS_ERR(rst_clk)) {
+		printk(KERN_ERR "unable to get CCICRSTCLK");
+		return PTR_ERR(rst_clk);
+	}
+
+	if (flag)
+		clk_enable(rst_clk);
+	else
+		clk_disable(rst_clk);
+
+	clk_put(rst_clk);
+
+	return 0;
+}
+static int cam2_pmua_set(int flag)
+{
+	struct clk *rst_clk = NULL;
+
+	rst_clk = clk_get(NULL, "CCIC2RSTCLK");
+	if (IS_ERR(rst_clk)) {
+		printk(KERN_ERR "unable to get CCIC2RSTCLK");
+		return PTR_ERR(rst_clk);
+	}
+
+	if (flag) {
+		cam_pmua_set(flag);
+		clk_enable(rst_clk);
+	} else {
+		clk_disable(rst_clk);
+		cam_pmua_set(flag);
+	}
+
+	clk_put(rst_clk);
+
+	return 0;
+}
+
+/* compatible without do camera sensor ECO */
+static int sensor_eco_set(int eco)
+{
+	struct regulator *v_ldo;
+	if (eco) {
+		v_ldo = regulator_get(NULL, "v_ldo15");
+		regulator_set_voltage(v_ldo, 2800000, 2800000);
+		regulator_enable(v_ldo);
+		regulator_put(v_ldo);
+		v_ldo = regulator_get(NULL, "v_ldo14");
+		regulator_set_voltage(v_ldo, 3000000, 3000000);
+		regulator_enable(v_ldo);
+		regulator_put(v_ldo);
+	}
+	return 0;
+}
+
+static int sensor_power_set_init(int flag, int res, int eco, int sensor)
+{
+	/*
+	* FLAG, 1: ON, 0: OFF
+	* RES, 0, LOW RESOLUTION, 1 HIGH RESOLUTION
+	* ECO, 1: CAMERA_ECO_ON, 0: CAMERA_ECO_OFF
+	* SENSOR, 1: SUCH AS OVT CAMERA SENSORS, 0: SUCH AS GCT CAMERA SENSORS
+	*/
+	int cam_enable;
+	struct regulator *v_ldo;
+
+	if (board_is_mmp2_brownstone_rev5()) {
+		if (res) {
+			cam_enable = mfp_to_gpio(MFP_PIN_GPIO67);
+			cam_power_set(flag);
+		} else {
+			cam_enable = mfp_to_gpio(MFP_PIN_GPIO68);
+			cam2_power_set(flag);
+		}
+	} else {
+		cam_enable = mfp_to_gpio(MFP_PIN_GPIO67);
+		cam_power_set(flag);
+	}
+
+	if (sensor) {
+		if (gpio_request(cam_enable, "CAM_ENABLE_HI_SENSOR")) {
+			printk(KERN_ERR "Request GPIO failed, gpio: %d \n", cam_enable);
+			return -EIO;
+		}
+
+		if (eco) {
+			if (flag)
+				/* pull down camera pwdn pin to enable camera sensor */
+				gpio_direction_output(cam_enable, 0);
+			else
+				/* pull up camera pwdn pin to disable camera sensor */
+				gpio_direction_output(cam_enable, 1);
+		} else {
+			if (flag)
+				/* pull up camera reset pin to enable camera sensor */
+				gpio_direction_output(cam_enable, 1);
+			else
+				/* pull down camera reset pin to disable camera sensor */
+				gpio_direction_output(cam_enable, 0);
+		}
+		gpio_free(cam_enable);
+		msleep(100);
+	}
+
+	if (eco) {
+		if (flag) {
+			v_ldo = regulator_get(NULL, "v_ldo3");
+			regulator_set_voltage(v_ldo, 1200000, 1200000);
+			regulator_enable(v_ldo);
+			regulator_put(v_ldo);
+		} else {
+			v_ldo = regulator_get(NULL, "v_ldo3");
+			regulator_disable(v_ldo);
+			regulator_put(v_ldo);
+		}
+	} else {
+		if (flag) {
+			v_ldo = regulator_get(NULL, "v_ldo3");
+			regulator_set_voltage(v_ldo, 1200000, 1200000);
+			regulator_enable(v_ldo);
+			regulator_put(v_ldo);
+			sensor_eco_set(1);
+        } else {
+			v_ldo = regulator_get(NULL, "v_ldo14");
+			regulator_disable(v_ldo);
+			regulator_put(v_ldo);
+
+			v_ldo = regulator_get(NULL, "v_ldo15");
+			regulator_disable(v_ldo);
+			regulator_put(v_ldo);
+
+			v_ldo = regulator_get(NULL, "v_ldo3");
+			regulator_disable(v_ldo);
+			regulator_put(v_ldo);
+		}
+	}
+	msleep(5);
+	return 0;
+}
+static int sensor_power_set_ov5642(struct device *dev, int flag)
+{
+	return sensor_power_set_init(flag, 0, 1, 1);
+}
+static int mmp2_cam_clk_init(struct device *dev, int init)
+{
+	sensor_eco_set(1);
+	cam_power_set(init);
+	return	cam_pmua_set(init);
+}
+static void mmp2_cam_set_clk(struct device *dev, int on)
+{
+	cam_pmua_set(on);
+	cam_power_set(on);
+}
+static int mmp2_cam2_clk_init(struct device *dev, int init)
+{
+	sensor_eco_set(1);
+	cam2_power_set(init);
+	return  cam2_pmua_set(init);
+}
+static void mmp2_cam2_set_clk(struct device *dev, int on)
+{
+	cam2_pmua_set(on);
+	cam2_power_set(on);
+}
+static struct i2c_board_info brownstone_twsi3_info[] = {
+	{
+		.type           = "ov8820",
+		.addr           = 0x36,
+	},
+};
+static struct i2c_board_info brownstone_twsi3_info_ov5642[] = {
+	{
+		.type           = "ov5642",
+		.addr           = 0x3C,
+	},
+};
+
+static struct soc_camera_link iclink[] = {
+	{
+		.bus_id = 1,    /* Must match with the camera ID */
+		.power  = sensor_power_set_ov5642,
+		.board_info = &brownstone_twsi3_info_ov5642[0],
+		.i2c_adapter_id = 2,
+		.flags = SOCAM_MIPI,
+		.module_name    = "ov5642",
+		.priv   = "pxa688-mipi",
+	}
+};
+
+static struct platform_device camera[] = {
+	{
+		.name   = "soc-camera-pdrv",
+		.id     = 0,
+		.dev    = {
+			.platform_data = &iclink[0],
+		}
+	},
+};
+
+static int get_mclk_src(int src)
+{
+	switch (src) {
+	case 3:
+		return 400;
+	case 2:
+		return 400;
+	default:
+		BUG();
+	}
+
+	return 0;
+}
+static void mmp2_cam_ctrl_power(int on)
+{
+	return;
+}
+
+struct mv_cam_pdata mv_cam_data = {
+		.name = "Brownstone_ov8820",
+		.clk_enabled = 0,
+		.dphy = {0x1b0b, 0x33, 0x1a03},
+		.qos_req_min = 800,
+		.dma_burst = 128,
+		.mclk_src = 3,
+		.mclk_min = 25,
+		.get_mclk_src = get_mclk_src,
+		.bus_type = SOCAM_MIPI,
+		.controller_power = mmp2_cam_ctrl_power,
+		.init_clk = mmp2_cam_clk_init,
+		.enable_clk = mmp2_cam_set_clk,
+};
+struct mv_cam_pdata mv_cam2_data = {
+		.name = "Brownstone_ov5642",
+		.clk_enabled = 0,
+		.dphy = {0x1b0b, 0x11, 0x1a03},
+		.qos_req_min = 800,
+		.dma_burst = 128,
+		.bus_type = SOCAM_MIPI,
+		.mclk_src = 3,
+		.mclk_min = 25,
+		.get_mclk_src = get_mclk_src,
+		.controller_power = mmp2_cam_ctrl_power,
+		.init_clk = mmp2_cam2_clk_init,
+		.enable_clk = mmp2_cam2_set_clk,
+};
+static int __init brownstone_init_cam(void)
+{
+	platform_device_register(&camera[0]);
+	mmp2_add_cam(1, &mv_cam_data);
+	mmp2_add_cam(2, &mv_cam2_data);
+	return 0;
+}
 static int r800_set_power(int on)
 {
 	static struct regulator *v_ldo8;
@@ -1329,6 +1655,7 @@ static void __init brownstone_init(void)
 	mmp2_add_twsi(1, NULL, ARRAY_AND_SIZE(brownstone_twsi1_info));
 	mmp2_add_twsi(2, NULL, ARRAY_AND_SIZE(brownstone_twsi2_info));
 	if (board_is_mmp2_brownstone_rev5()) {
+		mmp2_add_twsi(3, NULL, ARRAY_AND_SIZE(brownstone_twsi3_info));
 		mmp2_add_twsi(4, NULL, ARRAY_AND_SIZE(brownstone_rev5_twsi4_info));
 		mmp2_add_twsi(5, NULL, ARRAY_AND_SIZE(brownstone_rev5_twsi5_info));
 	} else {
@@ -1398,7 +1725,7 @@ static void __init brownstone_init(void)
 #ifdef CONFIG_SWITCH_HEADSET_HOST_GPIO
 	brownstone_init_headset();
 #endif
-
+	brownstone_init_cam();
 #ifdef CONFIG_ANDROID_PMEM
 	pxa_add_pmem();
 #endif
