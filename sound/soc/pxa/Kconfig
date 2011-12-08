@@ -237,10 +237,32 @@ config SND_PXA910_SOC_TTC_DKB
 
 endmenu
 
+choice
+	prompt "Soc Audio for Marvell MMP"
+	depends on ARCH_MMP && SND
+
+config SND_MMP_LEGACY_SOC
+	bool "Soc Audio With Legacy Mode"
+	select SND_PCM
+	help
+	  Say Y or M if you want to add support for codecs attached to
+	  the MMP2 SSPA interface.
+	  You will also need to select the audio interfaces to
+	  support below.
+
+config SND_MMP_ZSP_SOC
+	bool "Soc Audio With ZSP Mode"
+	depends on MMP_ZSP
+	select SND_PCM
+	help
+	  Say Y if you want to enable the audio ZSP mode.
+	  If ZSP mode is selected, ZSP will control the SSPA & ADMA
+endchoice
+
 menu "SoC Audio for the Marvell MMPx"
 config SND_MMP_SOC
 	tristate "SoC Audio for the Marvell MMPx chip"
-	depends on ARCH_MMP && SND
+	depends on ARCH_MMP && SND && SND_MMP_LEGACY_SOC
 	select SND_ARM
 	select SND_PCM
 	help
@@ -249,6 +271,7 @@ config SND_MMP_SOC
 
 config SND_MMP2_SOC
 	tristate "SoC Audio for the Marvell MMP2 chip"
+	depends on SND_MMP_LEGACY_SOC
 	select SND_PCM
 	help
 	  Say Y or M if you want to add support for codecs attached to
@@ -256,7 +279,7 @@ config SND_MMP2_SOC
 
 config SND_MMP_SOC_BROWNSTONE
 	tristate "SoC Audio support for Marvell Brownstone"
-	depends on SND_MMP2_SOC && MACH_BROWNSTONE
+	depends on SND_MMP2_SOC && MACH_BROWNSTONE && SND_MMP_LEGACY_SOC
 	select MFD_WM8994
 	select SND_SOC_WM8994
 	select SND_SOC_HDMI
@@ -267,7 +290,7 @@ config SND_MMP_SOC_BROWNSTONE
 
 config SND_MMP_SOC_MMP3ASOC
         bool "SoC Audio support for MMP3 aSoc"
-	depends on SND_MMP_SOC && (MACH_ABILENE || MACH_YELLOWSTONE)
+	depends on SND_MMP_SOC && (MACH_ABILENE || MACH_YELLOWSTONE) && SND_MMP_LEGACY_SOC
 	select MFD_WM8994
 	select SND_SOC_WM8994
 	select SND_SOC_HDMI
@@ -275,11 +298,19 @@ config SND_MMP_SOC_MMP3ASOC
 	help
 	  Say Y if you want to add support for SoC audio on MMP3
 
+config SND_MMP_ZSP_SOC_BROWNSTONE
+	tristate "Audio support for brownstone platform (zsp)"
+	depends on SND_MMP_ZSP_SOC && MACH_BROWNSTONE
+	select SND_SOC_WM8994
+	select SND_SOC_HDMI
+	help
+	  Say Y if you want to add support for SoC audio on MMP ZSP.
+	  MMP ZSP mode will be enabled on Marvell Brownstone
+
 config SND_WM8994_MASTER_MODE
         bool "Audio wm8994 master mode"
-	depends on SND_MMP_SOC_MMP3ASOC
+	depends on SND_MMP_SOC_MMP3ASOC || SND_MMP_ZSP_SOC_BROWNSTONE
 	select SND_SOC_WM8994
 	help
 	  Say Y if you want to add support for SoC audio master mode on MMP3
-
 endmenu
