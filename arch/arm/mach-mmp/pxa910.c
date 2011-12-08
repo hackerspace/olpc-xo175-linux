@@ -331,7 +331,9 @@ static void __init pxa910_init_gpio(void)
 	for (i = 0; i < 4; i++)
 		__raw_writel(0xffffffff, APMASK(i));
 
+#ifdef CONFIG_SUSPEND
 	pxa_init_gpio(IRQ_PXA910_AP_GPIO, 0, 127, pxa910_set_wake);
+#endif
 }
 
 void __init pxa910_init_irq(void)
