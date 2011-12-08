@@ -1254,116 +1254,268 @@ int ibat_gain_d5d7_trim1(void)
 
 int ibat_gain_d5d7_trim2(u16 i_trim)
 {
-	u8  temp;
-	u16 ibat_gain;
-	u16 temp_i=0;
-	u8 gain2;
-	int vbat,ibat=0,ret;
+	u8  temp, gain2;
+	u16 ibat_gain, temp_i = 0;
+	u16 ibat_gap,ibat_gain_store;
+	bool ibat_direction = true; /* true:ibat>i_trim,false:ibat<i_trim;*/
+	int vbat,ibat = 0,ret,i;
+	int trim_factor = 256/34; /* adjust trim factor here */
 	struct pm860x_battery_info *info = ginfo;
+	int err_count = 0, max_err_count = 5;
+	bool cali_pass=false;
 
 	ret = pm860x_reg_read(info->i2c, PM8607_STATUS_2);
-	if(ret & STATUS2_BAT && ret & STATUS2_CHG)
-	{
+	if(ret & STATUS2_BAT && ret & STATUS2_CHG) {
 		measure_vbatt(ginfo, OCV_MODE_ACTIVE, &vbat);
-		dev_dbg(info->dev, "%s:vbat=%d\n",__func__,vbat);
-		if((4100 > vbat) && (vbat > 3700))
-		{
+		printk("%s:vbat=%d\n",__func__,vbat);
+		if((4100 > vbat) && (vbat > 3700)) {
 			msleep(100);
+
+			/* step1: high speed calibration step */
+
 			measure_current(ginfo, &ibat);
+			if (ibat > i_trim) {
+				ibat_direction = true;
+				ibat_gap = ibat - i_trim;
+			} else {
+				ibat_direction = false;
+				ibat_gap = i_trim - ibat;
+			}
+			/* read ibat gain */
 			temp = pm860x_page_reg_read(info->i2c,0xD7);
 			ibat_gain = (u16)temp;
-			ibat_gain &=0xF0;
+			ibat_gain &= 0xF0;
 			gain2 = pm860x_page_reg_read(info->i2c,0xD5);
 			ibat_gain = (ibat_gain << 4) |gain2;
+			/* store previous ibat_gain */
+			ibat_gain_store=ibat_gain;
+			/* skip hs calibration if current is
+			 * somehow accuracy, gap < 6ma
+			 */
+			while (ibat_gap > 6) {
+				/* 2 ways calibration */
+				temp_i = trim_factor*(ibat_gap);
+				if (ibat_direction)
+					/* ADC current is higher */
+					ibat_gain = (ibat_gain - temp_i + 0x1000) % 0x1000;
+				else
+					/* ADC current is lower */
+					ibat_gain = (ibat_gain + temp_i) % 0x1000;
 
-			if(info->offset_ibat < 0)
-				ibat = ibat + (info->offset_ibat & 0xFFFF);
-			else
-				ibat = ibat - (info->offset_ibat & 0xFFFF);
+				/* update D5 D7 */
+				temp = ibat_gain & 0xFF;
+				pm860x_page_reg_write(info->i2c, 0xD5 , temp);
+				temp = pm860x_page_reg_read(info->i2c,0xD7);
+				temp = (temp & 0xF)  ;
+				temp |= ((ibat_gain & 0xF00) >>4);
+				pm860x_page_reg_write(info->i2c, 0xD7 , temp);
+				msleep(100);
+				measure_current(ginfo, &ibat);
+				msleep(100);
 
-			if (ibat <= i_trim) {
-				temp_i = 256*(i_trim - ibat)/34;
-			} else {
-				temp_i = 256*(ibat - i_trim)/34;
+				if (ibat > i_trim) {
+					/* after cal ibat_gap is increased,
+					 * skipped the cal
+					 */
+					if (ibat_gap < ibat - i_trim) {
+						/* after cal, but ibat_gap is bigger,
+						 * so restore the last gain
+						 */
+						ibat_gain = ibat_gain_store;
+						/* cut down trim factor */
+						trim_factor = trim_factor / 2;
+						if (trim_factor == 1)
+							break;
+					} else {
+						/* cali is useful,
+						 * ibat_gap smaller
+						 */
+						ibat_direction = true;
+						ibat_gap = ibat - i_trim;
+						ibat_gain_store = ibat_gain;
+					}
+				} else {
+					if (ibat_gap < i_trim - ibat) {
+						ibat_gain = ibat_gain_store;
+						trim_factor = trim_factor / 2;
+						if (trim_factor == 1)
+							break;
+					} else {
+						ibat_direction = false;
+						ibat_gap = i_trim - ibat;
+						ibat_gain_store = ibat_gain;
+					}
+				}
 			}
-			if (ibat_gain <= temp_i) {
-				temp_i = temp_i - ibat_gain;
-				ibat_gain = 0xFFF - temp_i;
-			} else {
-				ibat_gain = ibat_gain - temp_i;
-			}
 
+			msleep(100);
+			/* update D5 D7 */
 			temp = ibat_gain & 0xFF;
 			pm860x_page_reg_write(info->i2c, 0xD5 , temp);
 			temp = pm860x_page_reg_read(info->i2c,0xD7);
 			temp = (temp & 0xF)  ;
 			temp |= ((ibat_gain & 0xF00) >>4);
 			pm860x_page_reg_write(info->i2c, 0xD7 , temp);
+
 			msleep(100);
-			temp= pm860x_reg_read(info->i2c,PM8607_IBAT_MEAS1);
-			temp_i = temp << 8;
-			temp = pm860x_reg_read(info->i2c,PM8607_IBAT_MEAS2);
-			temp_i = temp_i | temp;
-			if(temp_i <= (i_trim<<3)){
-				while(temp_i <= (i_trim>>3)){
-					ibat_gain = ibat_gain +1;
-					temp = ibat_gain & 0xFF;
-					pm860x_page_reg_write(info->i2c, 0xD5 , temp);
-					temp = (ibat_gain & 0xF00) >>4;
-					temp = pm860x_page_reg_read(info->i2c,0xD7);
-					temp = (temp & 0xF);
-					temp |= ((ibat_gain & 0xF00) >>4);
-					pm860x_page_reg_write(info->i2c, 0xD7 , temp);
-					msleep(100);
-					temp = pm860x_reg_read(info->i2c,PM8607_IBAT_MEAS1);
-					temp_i = temp << 8;
-					temp = pm860x_reg_read(info->i2c,PM8607_IBAT_MEAS2);
-					temp_i = temp_i | temp;
-				}
-			}
-			else{
-				while(temp_i > (i_trim<<3)){
-					if(ibat_gain >= 1)
-						ibat_gain = ibat_gain -1;
-					else
-						ibat_gain = 0xFFF;
-
-					temp = ibat_gain & 0xFF;
-
-					pm860x_page_reg_write(info->i2c, 0xD5 , temp);
-					temp = pm860x_page_reg_read(info->i2c,0xD7);
-					temp = (temp & 0xF)  ;
-					temp |= ((ibat_gain & 0xF00) >>4);
-					pm860x_page_reg_write(info->i2c, 0xD7 , temp);
-					msleep(100);
-					temp = pm860x_reg_read(info->i2c,PM8607_IBAT_MEAS1);
-					temp_i = temp << 8;
-					temp = pm860x_reg_read(info->i2c,PM8607_IBAT_MEAS2);
-					temp_i = temp_i | temp;
-				}
-			}
-
 			measure_current(ginfo, &ibat);
-			dev_dbg(info->dev, "final ibat  = %d \n", ibat);
+			printk("step1 done: ibat is %d, ibat_gain:%d, ibat_gap:%d\n",
+					ibat, ibat_gain, ibat_gap);
+			msleep(100);
+
+			/* step2: low speed calibration */
+			err_count = 0;
+			cali_pass = false;
+
+			while (ibat_gap != 0) {
+				ibat_gain_store = ibat_gain;
+				if (ibat_direction)
+					ibat_gain = (ibat_gain -1 + 0x1000) % 0x1000;
+				else
+					ibat_gain = (ibat_gain + 1) % 0x1000;
+
+				/* update D5 D7 */
+				temp = ibat_gain & 0xFF;
+				pm860x_page_reg_write(info->i2c, 0xD5 , temp);
+				temp = pm860x_page_reg_read(info->i2c,0xD7);
+				temp = (temp & 0xF)  ;
+				temp |= ((ibat_gain & 0xF00) >>4);
+				pm860x_page_reg_write(info->i2c, 0xD7 , temp);
+				msleep(100);
+
+				measure_current(ginfo, &ibat);
+				msleep(100);
+				/* get the decrease edge */
+				if ((ibat_direction) && (ibat<i_trim)) {
+					/* this value is invalid */
+					if ((i_trim - ibat)>3) {
+						/* if not reach max error step,
+						 * retry last step
+						 */
+						if (err_count < max_err_count) {
+							ibat_gain = ibat_gain_store;
+							err_count ++;
+						} else {
+							/* last value is valid */
+							if (ibat_gap < 3) {
+								ibat_gain = ibat_gain_store;
+								cali_pass = true;
+							}
+						}
+					} else {
+						/* this value is valid */
+						if(ibat_gap < i_trim - ibat) {
+							/* last value is better */
+							ibat_gain = ibat_gain_store;
+							cali_pass = true;
+						} else {
+							ibat_gap = i_trim-ibat;
+							cali_pass = true;
+						}
+					}
+					printk(" break from decrease edge \n");
+					break;
+				}
+				/* get the increase edge */
+				if ((!ibat_direction) && (ibat>i_trim)) {
+					if ((ibat-i_trim)>3) {
+						if (err_count < max_err_count) {
+							ibat_gain = ibat_gain_store;
+							err_count ++;
+						} else {
+							if (ibat_gap<3) {
+								ibat_gain = ibat_gain_store;
+								cali_pass = true;
+							}
+						}
+					} else {
+						if (ibat_gap < ibat-i_trim) {
+							ibat_gain = ibat_gain_store;
+							cali_pass = true;
+						} else {
+							ibat_gap = ibat - i_trim;
+							cali_pass = true;
+						}
+					}
+					printk(" break from increase edge \n");
+					break;
+				}
+				/* cali not finished */
+				if (ibat > i_trim) {
+					ibat_direction = true;
+					ibat_gap = ibat-i_trim;
+				} else {
+					ibat_direction = false;
+					ibat_gap = i_trim-ibat;
+				}
+			}
+			if (err_count >= max_err_count)
+				printk("so many ibat read error of step 2 calibration \n");
+			else
+				printk("step2 done: ibat is %d, ibat_gain:%d, ibat_gap:%d\n",
+					ibat, ibat_gain, ibat_gap);
+			/* update D5 D7 */
+			temp = ibat_gain & 0xFF;
+			pm860x_page_reg_write(info->i2c, 0xD5 , temp);
 			temp = pm860x_page_reg_read(info->i2c,0xD7);
-			dev_dbg(info->dev, "final d7 = 0x%x \n",temp);
+			temp = (temp & 0xF)  ;
+			temp |= ((ibat_gain & 0xF00) >>4);
+			pm860x_page_reg_write(info->i2c, 0xD7 , temp);
+
+			/* read for 3 times to verify */
+			i=0;
+			cali_pass=false;
+			while (i < 3) {
+				msleep(100);
+				measure_current(ginfo, &ibat);
+				printk("ibat verify: %d\n",ibat);
+
+				if (ibat>i_trim)
+					ibat_gap=ibat-i_trim;
+				else
+					ibat_gap=i_trim-ibat;
+				/* Over the gap, generate error */
+				if (ibat_gap > 3) {
+					err_count ++;
+					if (err_count >= max_err_count)
+						break;
+					else
+						continue;
+				}
+				i++;
+			}
+			if (i >= 3)
+				cali_pass=true;
+
+			if (!cali_pass) {
+				printk("Too many ibat read error, \
+						exit calibration\n");
+				goto out_fail;
+			}
+
+			printk("final ibat = %d \n", ibat);
+			temp = pm860x_page_reg_read(info->i2c,0xD7);
+			printk("final d7 = 0x%x \n",temp);
 			temp = pm860x_page_reg_read(info->i2c,0xD5);
-			dev_dbg(info->dev, "final d5 = 0x%x \n",temp);
-			dev_dbg(info->dev, "Ibat_gain = %d \n", ibat_gain);
-			dev_dbg(info->dev, "Ibat_gain= %d\n", ibat_gain);
+			printk("final d5 = 0x%x \n",temp);
+			printk("final ibat_gain = %d \n", ibat_gain);
 		} else {
-			dev_dbg(info->dev, "Currently can not do Ibat trim!\n");
+			printk("VBAT is not correct, can not do ibat trim!\n");
+			goto out_fail;
 		}
 	} else {
-		dev_dbg(info->dev, "Unknow PMIC!Can't do Ibat trim!\n");
+		printk("Unknow PMIC!Can't do ibat trim!\n");
+		goto out_fail;
 	}
-
 	/*restore ox4C 0x49 0x48 register*/
 	pm860x_reg_write(info->i2c,PM8607_CHG_CTRL5, info->calibrate_val.ibat_4c);
 	pm860x_reg_write(info->i2c,PM8607_CHG_CTRL2, info->calibrate_val.ibat_49);
 	pm860x_reg_write(info->i2c,PM8607_CHG_CTRL1, info->calibrate_val.ibat_48);
 
-	return 1;
+	return 0;
+
+out_fail:
+	return -1;
 }
 #ifdef VBAT_CALIB_OTHER
 #ifdef CONFIG_SYSFS
