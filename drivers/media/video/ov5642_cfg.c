@@ -6614,8 +6614,8 @@ static struct ov5642_format ov5642_mmp2_fmts[] = {
 };
 static struct ov5642_mipi ov5642_mmp2_mipi_lane = {
 	.mipi_set_regs = ov5642_mmp2_mipi_set,
-	.lane1_regs = ov5642_mmp2_mipi_lane1,
-	.lane2_regs = ov5642_mmp2_mipi_lane2,
+	.lane1_regs = ov5642_mmp2_mipi_1lane,
+	.lane2_regs = ov5642_mmp2_mipi_2lane,
 };
 
 static struct ov5642_format ov5642_pxa2128_mipi_fmts[] = {
@@ -6693,54 +6693,63 @@ static struct ov5642_win_size ov5642_mmp2_sizes_yuv[] = {
 		.resv = OV5642_FMT_QCIF,
 		.regs = ov5642_mmp2_res_qcif,
 		.regs_resolution = ov5642_mmp2_yuv_480p,
+		.lane_set = ov5642_mmp2_480p_mipi_1lane,
 	},
 	/* CIF */
 	{
 		.resv = OV5642_FMT_CIF,
 		.regs = ov5642_mmp2_res_cif,
 		.regs_resolution = ov5642_mmp2_yuv_480p,
+		.lane_set = ov5642_mmp2_480p_mipi_1lane,
 	},
 	/* QVGA */
 	{
 		.resv = OV5642_FMT_QVGA,
 		.regs = ov5642_mmp2_res_qvga,
 		.regs_resolution = ov5642_mmp2_yuv_480p,
+		.lane_set = ov5642_mmp2_480p_mipi_1lane,
 	},
 	/* QHVGA */
 	{
 		.resv = OV5642_FMT_QHVGA,
 		.regs = ov5642_mmp2_res_qhvga,
 		.regs_resolution = ov5642_mmp2_yuv_480p,
+		.lane_set = ov5642_mmp2_480p_mipi_1lane,
 	},
 	/* HVGA */
 	{
 		.resv = OV5642_FMT_HALF_VGA,
 		.regs = ov5642_mmp2_res_hvga,
 		.regs_resolution = ov5642_mmp2_yuv_480p,
+		.lane_set = ov5642_mmp2_480p_mipi_1lane,
 	},
 	/* VGA */
 	{
 		.resv = OV5642_FMT_VGA,
 		.regs = ov5642_mmp2_res_vga,
 		.regs_resolution = ov5642_mmp2_yuv_480p,
+		.lane_set = ov5642_mmp2_480p_mipi_1lane,
 	},
 	/* WVGA */
 	{
 		.resv = OV5642_FMT_WVGA,
 		.regs = ov5642_mmp2_res_wvga,
 		.regs_resolution = ov5642_mmp2_yuv_480p,
+		.lane_set = ov5642_mmp2_480p_mipi_1lane,
 	},
 	/* 720p */
 	{
 		.resv = OV5642_FMT_720P,
 		.regs = ov5642_mmp2_res_720P,
 		.regs_resolution = ov5642_mmp2_yuv_720p,
+		.lane_set = ov5642_mmp2_720p_mipi_1lane,
 	},
 	/* 1080p */
 	{
 		.resv = OV5642_FMT_1080P,
 		.regs = ov5642_mmp2_res_1080P,
 		.regs_resolution = ov5642_mmp2_yuv_1080p,
+		.lane_set = ov5642_mmp2_1080p_mipi_1lane,
 	},
 };
 
@@ -6758,21 +6767,25 @@ static struct ov5642_win_size ov5642_mmp2_sizes_jpg[] = {
 	{
 		.resv = OV5642_FMT_QVGA,
 		.regs = ov5642_mmp2_res_qvga,
+		.lane_set = ov5642_mmp2_jpg_mipi_1lane,
 	},
 	/* HVGA 480*320 */
 	{
 		.resv = OV5642_FMT_HALF_VGA,
 		.regs = ov5642_mmp2_res_hvga,
+		.lane_set = ov5642_mmp2_jpg_mipi_1lane,
 	},
 	/* VGA 640*480 */
 	{
 		.resv = OV5642_FMT_VGA,
 		.regs = ov5642_mmp2_res_vga,
+		.lane_set = ov5642_mmp2_jpg_mipi_1lane,
 	},
 	/* 5M 2592*1944 */
 	{
 		.resv = OV5642_FMT_5M,
 		.regs = ov5642_mmp2_res_5M,
+		.lane_set = ov5642_mmp2_jpg_mipi_1lane,
 	}
 };
 
@@ -7049,6 +7062,21 @@ struct regval_list *get_yuv_size_regs(int width, int height)
 	return NULL;
 }
 
+struct regval_list *get_yuv_lane_set(int width, int height)
+{
+	int i, size;
+	struct resv_size *resv;
+
+	size = ov5642_cfg[bus_type_index].yuv_res_size;
+	for (i = 0; i < size; i++) {
+		resv = &ov5642_resv[ov5642_cfg[bus_type_index].yuv_res[i].resv];
+		if (width == resv->width && height == resv->height)
+			return ov5642_cfg[bus_type_index].yuv_res[i].lane_set;
+	}
+
+	return NULL;
+}
+
 struct regval_list *get_yuv_resolution_regs(int width, int height)
 {
 	int i, size;
@@ -7072,6 +7100,20 @@ struct regval_list *get_jpg_size_regs(int width, int height)
 		resv = &ov5642_resv[ov5642_cfg[bus_type_index].jpg_res[i].resv];
 		if (width == resv->width && height == resv->height)
 			return ov5642_cfg[bus_type_index].jpg_res[i].regs;
+	}
+
+	return NULL;
+}
+
+struct regval_list *get_jpg_lane_set(int width, int height)
+{
+	int i, size;
+	struct resv_size *resv;
+	size = ov5642_cfg[bus_type_index].jpg_res_size;
+	for (i = 0; i < size; i++) {
+		resv = &ov5642_resv[ov5642_cfg[bus_type_index].jpg_res[i].resv];
+		if (width == resv->width && height == resv->height)
+			return ov5642_cfg[bus_type_index].jpg_res[i].lane_set;
 	}
 
 	return NULL;

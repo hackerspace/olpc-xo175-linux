@@ -76,9 +76,14 @@ struct ov5642_mipi {
 struct ov5642_win_size {
 	enum ov5642_resv_support	resv;
 	struct regval_list *regs;
+
 	/* High resolution, 1920x1080(1080p), 1280x720(720p); */
 	/* Low resolution, 640x480(480p) or smaller size */
 	struct regval_list *regs_resolution;
+
+	/* Update mipi clock setting to fix fps downgrade issue
+	   on brownstone rev5 boards */
+	struct regval_list  *lane_set;
 };
 
 typedef struct {
@@ -112,6 +117,7 @@ struct ov5642 {
 	struct regval_list *regs_fmt;
 	struct regval_list *regs_size;
 	struct regval_list *regs_default;
+	struct regval_list *regs_lane_set;
 	struct regval_list *regs_resolution;
 	struct regval_list *regs_mipi_set;
 	struct regval_list *regs_mipi_lane;
@@ -139,6 +145,8 @@ extern struct regval_list *get_fmt_default_setting( \
 						enum v4l2_mbus_pixelcode code);
 extern struct regval_list *get_yuv_size_regs(int width, int height);
 extern struct regval_list *get_jpg_size_regs(int width, int length);
+extern struct regval_list *get_yuv_lane_set(int width, int height);
+extern struct regval_list *get_jpg_lane_set(int width, int height);
 extern struct ov5642_win_size *get_yuv_size_array(void);
 extern struct ov5642_win_size *get_jpg_size_array(void);
 extern struct regval_list *get_mipi_set_regs(void);

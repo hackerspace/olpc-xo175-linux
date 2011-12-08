@@ -251,6 +251,8 @@ static int ov5642_try_fmt(struct v4l2_subdev *sd,
 
 	ov5642->regs_resolution = get_yuv_resolution_regs(mf->width, mf->height);
 
+	ov5642->regs_lane_set = NULL;
+
 	mf->field = V4L2_FIELD_NONE;
 
 	switch (mf->code) {
@@ -263,6 +265,10 @@ static int ov5642_try_fmt(struct v4l2_subdev *sd,
 			dev_err(&client->dev, "ov5642 unsupported yuv resolution!\n");
 			return -EINVAL;
 		}
+#ifdef CONFIG_CPU_MMP2
+		if (board_is_mmp2_brownstone_rev5())
+			ov5642->regs_lane_set = get_yuv_lane_set(mf->width, mf->height);
+#endif
 		if (mf->code == V4L2_MBUS_FMT_RGB565_2X8_LE)
 			mf->colorspace = V4L2_COLORSPACE_SRGB;
 		else
@@ -275,6 +281,10 @@ static int ov5642_try_fmt(struct v4l2_subdev *sd,
 			dev_err(&client->dev, "ov5642 unsupported yuv resolution!\n");
 			return -EINVAL;
 		}
+#ifdef CONFIG_CPU_MMP2
+		if (board_is_mmp2_brownstone_rev5())
+			ov5642->regs_lane_set = get_jpg_lane_set(mf->width, mf->height);
+#endif
 		mf->colorspace = V4L2_COLORSPACE_JPEG;
 		break;
 	default:
@@ -328,6 +338,13 @@ static int ov5642_s_fmt(struct v4l2_subdev *sd,
 		if (ret)
 			return ret;
 	}
+
+	if (ov5642->regs_lane_set) {
+		ret = ov5642_write_array(client, ov5642->regs_lane_set);
+		if (ret)
+			return ret;
+	}
+
 #ifdef CONFIG_CPU_MMP2
 	if (!strcmp(name, "pxa688-mipi")) {
 	    /* Initialize MIPI settings */

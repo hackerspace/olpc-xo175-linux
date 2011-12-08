@@ -965,7 +965,6 @@ static struct regval_list ov5642_mmp2_yuv_1080p[] = {
 	{0x501f, 0x00},
 	{0x5002, 0xe0},
 	{0x3002, 0x1c},
-	{0x4800, 0x14},
 	{0x4801, 0x0f},
 	{0x3007, 0x3b},
 	{0x300e, 0x04},
@@ -1593,7 +1592,7 @@ static struct regval_list ov5642_mmp2_yuv_default[] = {
 	{0x4300, 0x32},
 	{0x5002, 0xe0},
 	{0x3002, 0x1c},
-	{0x4800, 0x14},
+	{0x4800, 0x24},
 
 	{0xFFFF, 0xFF}
 };
@@ -1649,7 +1648,6 @@ static struct regval_list ov5642_mmp2_jpg_default[] = {
 	{0x4842, 0x01},
 	{0x3003, 0x03},
 	{0x3003, 0x01},
-	{0x4800, 0x04},
 	{0x3824, 0x11},
 	{0x3825, 0xb4},
 	{0x3826, 0x00},
@@ -1841,6 +1839,44 @@ static struct regval_list ov5642_mmp2_res_qvga_v[] = {
 };
 #endif
 
+static struct regval_list ov5642_mmp2_1080p_mipi_1lane[] = {
+	/* 1 lane */
+	{0x3011, 0x08},
+	{0x3009, 0x01},
+	{0x3029, 0x01},
+	{0x3033, 0x03},
+
+	{0xFFFF, 0xFF}
+};
+
+static struct regval_list ov5642_mmp2_720p_mipi_1lane[] = {
+	/* 1 lane */
+	{0x3010, 0x00},
+	{0x3009, 0x01},
+	{0x3029, 0x01},
+	{0x3033, 0x03},
+
+	{0xFFFF, 0xFF}
+};
+
+static struct regval_list ov5642_mmp2_480p_mipi_1lane[] = {
+	/* 1 lane */
+	{0x3009, 0x01},
+	{0x3029, 0x00},
+	{0x3033, 0x43},
+
+	{0xFFFF, 0xFF}
+};
+
+static struct regval_list ov5642_mmp2_jpg_mipi_1lane[] = {
+	/* 1 lane */
+	{0x3009, 0x84},
+	{0x3029, 0x00},
+	{0x3033, 0x03},
+
+	{0xFFFF, 0xFF}
+};
+
 static struct regval_list ov5642_mmp2_mipi_set[] = {
 	/* mipi setting */
 	{0x4801, 0x0f},
@@ -1853,10 +1889,8 @@ static struct regval_list ov5642_mmp2_mipi_set[] = {
 	{0xFFFF, 0xFF}
 };
 
-static struct regval_list ov5642_mmp2_mipi_lane1[] = {
+static struct regval_list ov5642_mmp2_mipi_1lane[] = {
 	/* 1 lane */
-	{0x3029, 0x01},
-	{0x3033, 0x03},
 	{0x300f, 0x0a},
 	{0x3003, 0x03},
 	{0x3003, 0x01},
@@ -1864,7 +1898,7 @@ static struct regval_list ov5642_mmp2_mipi_lane1[] = {
 	{0xFFFF, 0xFF}
 };
 
-static struct regval_list ov5642_mmp2_mipi_lane2[] = {
+static struct regval_list ov5642_mmp2_mipi_2lane[] = {
 	/* 2 lanes */
 	{0x300f, 0x0e},
 	{0x3003, 0x03},
