@@ -1253,6 +1253,22 @@ MMP2_DEVICE(camera, "mv-camera", 0, CI, 0xd420a000, 0x2ff);
 MMP2_DEVICE(camera2, "mv-camera", 1, CI2, 0xd420a800, 0x2ff);
 MMP2_DEVICE(fuse, "mmp2-fuse", -1, NONE, 0xd4290000, 0x3100);
 
+#ifdef CONFIG_MMP_ZSP
+struct platform_device mmp_device_asoc_sspa1 = {
+	.name		= "mmp-zsp-sspa-dai",
+	.id		= 0,
+};
+
+struct platform_device mmp_device_asoc_sspa2 = {
+	.name		= "mmp-zsp-sspa-dai",
+	.id		= 1,
+};
+
+struct platform_device mmp_device_asoc_platform = {
+	.name		= "mmp-zsp-pcm-audio",
+	.id		= -1,
+};
+#else
 struct platform_device mmp_device_asoc_sspa1 = {
 	.name		= "mmp-sspa-dai",
 	.id		= 0,
@@ -1267,6 +1283,7 @@ struct platform_device mmp_device_asoc_platform = {
 	.name		= "mmp-pcm-audio",
 	.id		= -1,
 };
+#endif
 
 struct platform_device mmp_device_asoc_hdmi = {
 	.name		= "dummy-codec",

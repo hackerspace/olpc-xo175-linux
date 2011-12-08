@@ -183,6 +183,24 @@ struct mmp2_sspa_registers {
 	u32 aud_pll_ctrl1;
 };
 
+#ifdef CONFIG_MMP_ZSP
+/* should be sync up with mmp2_zsp_audio.h */
+typedef struct {
+	u16 fwid;			/* fsync width */
+	u16 fsync_active;
+	u16 msl_select;		/* master/slave mode */
+	u16 fsp;			/* fsync polarity */
+	u16 ch_num;			/* channel number */
+	u16 word_length;
+	u16 sample_size;
+	u16 jst;			/* audio sample justification */
+	u16 data_delay;
+	u16 resv;			/* for 32 bit align */
+	u32 sample_rate;
+	u32 mclk;
+} ssp_config_t;
+#endif
+
 struct ssp_device {
 	struct platform_device *pdev;
 	struct list_head node;
@@ -199,7 +217,10 @@ struct ssp_device {
 	int irq;
 	int drcmr_rx;
 	int drcmr_tx;
-
+#ifdef CONFIG_MMP_ZSP
+	int render_type[2];
+	ssp_config_t zsp_sspa_conf;
+#endif
 	struct mmp2_sspa_registers mmp2_sspa_saved;
 };
 
