@@ -33,7 +33,7 @@ static void do_wdt_reset(const char *cmd)
 	int i;
 	int match = 0, count = 0;
 
-	if (cpu_is_pxa910())
+	if (cpu_is_pxa910_family() || cpu_is_pxa920_family())
 		watchdog_virt_base = CP_TIMERS2_VIRT_BASE;
 	else if (cpu_is_pxa168())
 		watchdog_virt_base = TIMERS1_VIRT_BASE;
@@ -46,7 +46,7 @@ static void do_wdt_reset(const char *cmd)
 	writel(0x3, MPMU_WDTPCR);
 	readl(MPMU_WDTPCR);
 
-	if (cpu_is_pxa910()) {
+	if (cpu_is_pxa910_family() || cpu_is_pxa920_family()) {
 		if (cmd && !strcmp(cmd, "recovery")) {
 			for (i = 0, backup = 0; i < 4; i++) {
 				backup <<= 8;
@@ -63,7 +63,7 @@ static void do_wdt_reset(const char *cmd)
 	writel(0xeb10, watchdog_virt_base + TMR_WSAR);
 	writel(0x3, watchdog_virt_base + TMR_WMER);
 
-	if (cpu_is_pxa910()) {
+	if (cpu_is_pxa910_family() || cpu_is_pxa920_family()) {
 		/*hold CP first */
 		reg = readl(MPMU_APRR) | MPMU_APRR_CPR;
 		writel(reg, MPMU_APRR);
@@ -103,7 +103,7 @@ static void do_wdt_reset(const char *cmd)
 
 static void mmp_arch_reset(char mode, const char *cmd)
 {
-	if ((!cpu_is_pxa910()) && (!cpu_is_pxa168()))
+	if ((!cpu_is_pxa910_family()) && (!cpu_is_pxa920_family()) && (!cpu_is_pxa168()))
 		return;
 
 	switch (mode) {

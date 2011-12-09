@@ -170,9 +170,9 @@ void mfp_config(unsigned long *mfp_cfgs, int num)
 	int i, drv_b11 = 0, no_lpm = 0;
 
 #ifdef CONFIG_ARCH_MMP
-	if (cpu_is_pxa910() || cpu_is_mmp2() || cpu_is_mmp3())
+	if (cpu_is_pxa910_family() || cpu_is_pxa920_family() || cpu_is_mmp2() || cpu_is_mmp3())
 		drv_b11 = 1;
-	if (cpu_is_pxa168() || cpu_is_pxa910())
+	if (cpu_is_pxa168() || cpu_is_pxa910_family() || cpu_is_pxa920_family())
 		no_lpm = 1;
 #elif defined(CONFIG_ARCH_PXA)
 	if (cpu_is_pxa95x())
@@ -278,7 +278,7 @@ void mfp_config_lpm(void)
 	int pin;
 
 #ifdef CONFIG_ARCH_MMP
-	if (cpu_is_pxa168() || cpu_is_pxa910())
+	if (cpu_is_pxa168() || cpu_is_pxa910_family() || cpu_is_pxa920_family())
 		return;
 #endif
 	for (pin = 0; pin < ARRAY_SIZE(mfp_table); pin++, p++)

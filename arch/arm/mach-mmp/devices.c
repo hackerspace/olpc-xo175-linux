@@ -265,7 +265,7 @@ static int usb_phy_init_internal(unsigned int base)
 	pr_info("Init usb phy!!!\n");
 
 	/* Initialize the USB PHY power */
-	if (cpu_is_pxa910()) {
+	if (cpu_is_pxa910_family() || cpu_is_pxa920_family()) {
 		u2o_set(base, UTMI_CTRL, (1<<UTMI_CTRL_INPKT_DELAY_SOF_SHIFT)
 			| (1<<UTMI_CTRL_PU_REF_SHIFT));
 	}

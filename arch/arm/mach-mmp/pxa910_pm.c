@@ -797,7 +797,7 @@ static int __init pxa910_pm_init(void)
 	uint32_t awucrm = 0;
 	int ret;
 
-	if (!cpu_is_pxa910())
+	if (!(cpu_is_pxa910_family() || cpu_is_pxa920_family()))
 		return -EIO;
 	if (sysfs_create_group(power_kobj, &attr_group))
 		return -1;

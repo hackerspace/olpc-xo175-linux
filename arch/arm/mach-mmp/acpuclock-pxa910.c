@@ -395,8 +395,51 @@ static struct pxa910_md_opt pxa910_op_array[] = {
 	 },
 };
 
+static struct pxa910_md_opt pxa910h_op_array[] = {
+	/* core 156MHz ddr 156MHz bus 156MHz */
+	{
+		.pp = 2,
+		.vcc_core = 1200000,
+		.pclk = 208,
+		.pdclk = 104,
+		.baclk = 104,
+		.xpclk = 104,
+		.dclk = 104,
+		.aclk = 104,
+		.lpj = 208*500000/HZ,
+		.name = "208MHz",
+	},
+	/* core 500.5MHz ddr 250MHz bus 250MHz */
+	{
+		.pp = 4,
+		.vcc_core = 1275000,
+		.pclk = 500,
+		.pdclk = 250,
+		.baclk = 250,
+		.xpclk = 250,
+		.dclk = 250,
+		.aclk = 156,
+		.lpj = 500*500000/HZ,
+		.name = "500MHz",
+	},
+	/* core 1001MHz ddr 250MHz bus 208MHz */
+	{
+		.pp = 10,
+		.vcc_core = 1400000,
+		.pclk = 1001,
+		.pdclk = 250,
+		.baclk = 250,
+		.xpclk = 500,
+		.dclk = 250,
+		.aclk = 208,
+		.lpj = 1001*500000/HZ,
+		.name = "1001MHz",
+	},
+};
+
 #define NUM_PROFILE	11
 #define PXA921_NUM_OP	11
+#define PXA910H_NUM_OP	14
 #define EVOLT		-1
 
 /* this table is valid only for 921 part */
@@ -415,6 +458,22 @@ static const int pxa921_svc_table[NUM_PROFILE][PXA921_NUM_OP] = {
 {  1200, EVOLT, 1200, 1200, 1275, EVOLT, EVOLT, EVOLT, EVOLT, EVOLT, 1250}
 };
 
+/* this table is valid only for 910h part */
+static const int pxa910h_svc_table[NUM_PROFILE][PXA910H_NUM_OP] = {
+/* PPT0	 PPT1   PPT2   PPT3  PPT4  PPT5   PPT6   PPT7   PPT8   PPT9   PPT10 PPT11  PPT12  PPT13*/
+{  1200, EVOLT, 1200, EVOLT, 1275, EVOLT, EVOLT, EVOLT, EVOLT, EVOLT, 1400, EVOLT, EVOLT, 1300},
+{  1200, EVOLT, 1200, EVOLT, 1275, EVOLT, EVOLT, EVOLT, EVOLT, EVOLT, 1400, EVOLT, EVOLT, 1300},
+{  1200, EVOLT, 1200, EVOLT, 1275, EVOLT, EVOLT, EVOLT, EVOLT, EVOLT, 1400, EVOLT, EVOLT, 1300},
+{  1200, EVOLT, 1200, EVOLT, 1275, EVOLT, EVOLT, EVOLT, EVOLT, EVOLT, 1400, EVOLT, EVOLT, 1300},
+{  1200, EVOLT, 1200, EVOLT, 1275, EVOLT, EVOLT, EVOLT, EVOLT, EVOLT, 1400, EVOLT, EVOLT, 1300},
+{  1200, EVOLT, 1200, EVOLT, 1275, EVOLT, EVOLT, EVOLT, EVOLT, EVOLT, 1400, EVOLT, EVOLT, 1300},
+{  1200, EVOLT, 1200, EVOLT, 1275, EVOLT, EVOLT, EVOLT, EVOLT, EVOLT, 1350, EVOLT, EVOLT, 1300},
+{  1200, EVOLT, 1200, EVOLT, 1275, EVOLT, EVOLT, EVOLT, EVOLT, EVOLT, 1350, EVOLT, EVOLT, 1300},
+{  1200, EVOLT, 1200, EVOLT, 1275, EVOLT, EVOLT, EVOLT, EVOLT, EVOLT, 1300, EVOLT, EVOLT, 1300},
+{  1200, EVOLT, 1200, EVOLT, 1275, EVOLT, EVOLT, EVOLT, EVOLT, EVOLT, 1275, EVOLT, EVOLT, 1300},
+{  1200, EVOLT, 1200, EVOLT, 1275, EVOLT, EVOLT, EVOLT, EVOLT, EVOLT, 1250, EVOLT, EVOLT, 1300}
+};
+
 struct proc_op_array {
 	unsigned int cpuid;
 	unsigned int chip_id;
@@ -428,6 +487,7 @@ static struct proc_op_array proc_op_arrays[] = {
     {0x8000, 0xc920, "PXA920", pxa920_op_array, ARRAY_SIZE(pxa920_op_array)},
     {0x8000, 0xc910, "PXA910", pxa910_op_array, ARRAY_SIZE(pxa910_op_array)},
     {0x8000, 0xc918, "PXA918", pxa918_op_array, ARRAY_SIZE(pxa918_op_array)},
+    {0x8000, 0xc911, "PXA910h", pxa910h_op_array, ARRAY_SIZE(pxa910h_op_array)},
 };
 
 static struct pxa910_md_opt *op_array;
@@ -553,12 +613,25 @@ static int get_SVC_voltage(unsigned int uiProfile, unsigned int uiPPT)
 				"are 0-8, you passed %d)", uiProfile);
 		BUG();
 	}
-	if (uiPPT < 0 || uiPPT > PXA921_NUM_OP - 1) {
-		pr_err("ERROR: Invalid PPT number (valid values are 0 - 10,"
-				"you passed %d)", uiPPT);
-		BUG();
+
+	if (cpu_is_pxa921()) {
+		if (uiPPT < 0 || uiPPT > PXA921_NUM_OP - 1) {
+			pr_err("ERROR: Invalid PPT number (valid values "
+					"are 0 - 10, you passed %d)", uiPPT);
+			BUG();
+		}
+		iVoltage = pxa921_svc_table[uiProfile][uiPPT];
 	}
-	iVoltage = pxa921_svc_table[uiProfile][uiPPT];
+
+	if (cpu_is_pxa910h()) {
+		if (uiPPT < 0 || uiPPT > PXA910H_NUM_OP - 1) {
+			pr_err("ERROR: Invalid PPT number (valid values "
+					"are 0 - 10, you passed %d)", uiPPT);
+			BUG();
+		}
+		iVoltage = pxa910h_svc_table[uiProfile][uiPPT];
+	}
+
 	if (iVoltage == EVOLT) {
 		pr_err("ERROR: Invalid PPT number (%d)", uiPPT);
 		BUG();
@@ -782,7 +855,7 @@ static void select_clk_src(struct pxa910_md_opt *top)
 		top->ddr_clk_src = 624;
 		top->ap_clk_src = top->axi_clk_src = 312;
 	} else if (ap_clk_choice & CLK_SRC_PLL2) {
-		if (cpu_is_pxa921()) {
+		if (cpu_is_pxa921() || cpu_is_pxa910h()) {
 			if (top->pclk == 500)
 				top->pll2freq = 1001;
 			else
@@ -1545,7 +1618,7 @@ static int __init pxa910_freq_init(void)
 	int i;
 	int ret;
 
-	if (!cpu_is_pxa910())
+	if (!(cpu_is_pxa910_family() || cpu_is_pxa920_family()))
 		return -EIO;
 
 	chip_id = __raw_readl(CIU_CHIP_ID) & 0xffff;
@@ -1553,6 +1626,8 @@ static int __init pxa910_freq_init(void)
 		chip_id = 0xc921;
 	else if (cpu_is_pxa918())
 		chip_id = 0xc918;
+	else if (cpu_is_pxa910h())
+		chip_id = 0xc911;
 
 	for (i = 0; i < ARRAY_SIZE(proc_op_arrays); i++) {
 		proc = proc_op_arrays + i;
@@ -1565,7 +1640,7 @@ static int __init pxa910_freq_init(void)
 	op_array = proc->op_array;
 	op_array_size = proc->op_array_size;
 	/* update vcc_core for each PP */
-	if (cpu_is_pxa921()) {
+	if (cpu_is_pxa921() || cpu_is_pxa910h()) {
 		profile = get_profile();
 		for (i = 0; i < op_array_size; i++)
 			if (op_array[i].pp != UNDEF_OP) {

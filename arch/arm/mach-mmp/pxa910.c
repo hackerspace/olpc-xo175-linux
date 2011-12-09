@@ -211,8 +211,8 @@ static int gc500_clk_setrate(struct clk *clk, unsigned long gc_clk2x)
 	/* For pxa918, fix gc rate to 156MHZ */
 	if (cpu_is_pxa918())
 		rate = gc_lookaround_rate(312000000, &flag);
-	/* For pxa921, fix gc rate to 250MHZ */
-	else if (cpu_is_pxa921())
+	/* For pxa921/pxa910h, fix gc rate to 250MHZ */
+	else if (cpu_is_pxa921() || cpu_is_pxa910h())
 		rate = gc_lookaround_rate(500500000, &flag);
 	/* For pxa920, gc clk can be selected freely */
 	else
@@ -596,7 +596,7 @@ struct platform_device pxa910_device_asoc_squ = {
 
 static int __init pxa910_init(void)
 {
-	if (cpu_is_pxa910()) {
+	if (cpu_is_pxa910_family() || cpu_is_pxa920_family()) {
 #ifdef CONFIG_CACHE_TAUROS2
 		tauros2_init();
 #endif
