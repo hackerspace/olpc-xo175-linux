@@ -154,7 +154,7 @@ void u2o_write(unsigned int base, unsigned int offset, unsigned int value)
 
 }
 
-#if defined(CONFIG_USB_PXA_U2O) || defined(CONFIG_USB_EHCI_PXA_U2O)
+#if defined(CONFIG_USB_PXA_U2O) || defined(CONFIG_USB_EHCI_PXA)
 
 #ifdef CONFIG_CPU_MMP3
 
@@ -623,7 +623,6 @@ struct platform_device pxa168_device_u2o = {
 
 #endif /* CONFIG_USB_PXA_U2O */
 
-#ifdef CONFIG_USB_EHCI_PXA
 #ifdef CONFIG_USB_EHCI_PXA_U2O
 struct resource pxa168_u2oehci_resources[] = {
 	/* regbase */
@@ -695,7 +694,6 @@ struct platform_device pxa168_device_u2ootg = {
 };
 #endif /* CONFIG_USB_PXA_U2O_OTG */
 
-#endif
 #endif
 #endif
 
