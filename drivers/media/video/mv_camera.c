@@ -403,7 +403,6 @@ static void ccic_stop_dma(struct mv_camera_dev *pcdev)
 		/* This would be bad news - what now? */
 
 	ccic_irq_disable(pcdev);
-	ccic_config_phy(pcdev, 0);
 }
 
 static void ccic_power_up(struct mv_camera_dev *pcdev)
@@ -769,6 +768,7 @@ static void mv_camera_remove_device(struct soc_camera_device *icd)
 	vb2_dma_contig_cleanup_ctx(pcdev->vb_alloc_ctx);
 	dev_err(&pcdev->pdev->dev, "Release, %d frames, %d"
 			"singles, %d delivered\n", frames, singles, delivered);
+	ccic_config_phy(pcdev, 0);
 	ccic_disable_clk(pcdev);
 	pcdev->icd = NULL;
 	pm_qos_update_request(&pcdev->qos_idle, PM_QOS_DEFAULT_VALUE);
