@@ -213,6 +213,8 @@ static int ov5640_s_register(struct v4l2_subdev *sd,
 static int set_stream(struct i2c_client *client, int enable)
 {
 	int ret = 0;
+	int st = 0;
+
 	if (enable) {
 		ret = ov5640_write(client, 0x4202, 0x00);
 		if (ret < 0)
@@ -221,6 +223,11 @@ static int set_stream(struct i2c_client *client, int enable)
 		ret = ov5640_write(client, 0x4202, 0x0f);
 		if (ret < 0)
 			goto out;
+		if (frame_rate)
+			st = 1000/frame_rate + 1;
+		else
+			st = 150;
+		mdelay(st);
 	}
 out:
 	return ret;
