@@ -29,6 +29,7 @@ MODULE_LICENSE("GPL");
 #define REG_PIDL    0x300b
 
 struct i2c_client *g_i2c_client;
+int frame_rate;
 
 static const struct ov5640_datafmt ov5640_colour_fmts[] = {
 	{V4L2_MBUS_FMT_UYVY8_2X8, V4L2_COLORSPACE_JPEG},
@@ -482,7 +483,7 @@ static int ov5640_g_frame_interval(struct v4l2_subdev *sd,
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	int	pre_div, multiplier, vco_freq;
 	int sys_div, pll_rdiv, bit_div, sclk_rdiv, mipi_div;
-	int sys_clk, vts, hts, frame_rate, mipi_bit_rate, mipi_clk;
+	int sys_clk, vts, hts, mipi_bit_rate, mipi_clk;
 	int mclk;
 	u8 val;
 
