@@ -381,27 +381,7 @@ static void ccic_init(struct mv_camera_dev *pcdev)
 
 static void ccic_stop_dma(struct mv_camera_dev *pcdev)
 {
-	struct device *dev = &pcdev->pdev->dev;
-	int st = 0;
 	ccic_stop(pcdev);
-	/*
-	 * workaround when stop DMA controller!!!
-	 * 1) ccic controller must be stopped first,
-	 * and it shoud delay for one frame transfer time at least
-	 * 2)and then stop the camera sensor's output
-	 *
-	 * FIXME! need sillcion to add DMA stop/start bit
-	 */
-	if (pcdev->frame_rate)
-		st = 1000/pcdev->frame_rate + 1;
-	else
-		st = 150;
-	dev_dbg(dev, "frame_rate: %dfps, st:%dms\n", pcdev->frame_rate, st);
-	msleep(st);
-	if (test_bit(CF_DMA_ACTIVE, &pcdev->flags))
-		dev_err(dev, "Timeout waiting for DMA to end\n");
-		/* This would be bad news - what now? */
-
 	ccic_irq_disable(pcdev);
 }
 
