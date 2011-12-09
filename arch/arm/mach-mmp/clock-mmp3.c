@@ -1672,8 +1672,6 @@ static int dxoisp_clk_enable(struct clk *clk)
 {
 	int reg;
 
-	clk_reparent(clk, clk->inputs[clk->enable_val].input);
-
 	reg = readl(APMU_ISPPWR);
 	reg |= 0x1 << 9;
 	writel(reg, APMU_ISPPWR);
@@ -1820,8 +1818,6 @@ static void dxoccic_clk_init(struct clk *clk)
 static int dxoccic_clk_enable(struct clk *clk)
 {
 	int reg;
-
-	clk_reparent(clk, clk->inputs[clk->enable_val].input);
 
 	reg = readl(clk->clk_rst);
 
