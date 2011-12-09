@@ -397,6 +397,64 @@ static int __devexit sdhci_pxav2_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+static int sdhci_pxav2_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	struct sdhci_host *host = platform_get_drvdata(pdev);
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	int ret = 0;
+
+	/* Skip the suspend process if the controller is to be accessed during suspend */
+	BUG_ON(!host || !host->mmc);
+	if(host->mmc->pm_flags & MMC_PM_ALWAYS_ACTIVE) {
+		return ret;
+	}
+
+	if (device_may_wakeup(&pdev->dev))
+		enable_irq_wake(host->irq);
+
+	ret = sdhci_suspend_host(host, state);
+	if (ret)
+		return ret;
+
+	if (pdata->lp_switch) {
+		ret = pdata->lp_switch(1, (int)host->mmc->card);
+		if (ret) {
+			sdhci_resume_host(host);
+			dev_err(&pdev->dev, "fail to switch gpio, resume..\n");
+		}
+	}
+	if (!ret)
+		host->mmc->suspended = 1;
+
+	return ret;
+}
+
+static int sdhci_pxav2_resume(struct platform_device *pdev)
+{
+	struct sdhci_host *host = platform_get_drvdata(pdev);
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	int ret = 0;
+
+	/* Skip the resume process if the controller is to be accessed during suspend */
+	BUG_ON(!host || !host->mmc);
+	if(host->mmc->pm_flags & MMC_PM_ALWAYS_ACTIVE) {
+		return ret;
+	}
+
+	if (pdata->lp_switch)
+		pdata->lp_switch(0, (int)host->mmc->card);
+
+	host->mmc->suspended = 0;
+	ret = sdhci_resume_host(host);
+
+	if (device_may_wakeup(&pdev->dev))
+		disable_irq_wake(host->irq);
+
+	return ret;
+}
+#endif	/* CONFIG_PM */
+
 static struct platform_driver sdhci_pxav2_tavor_driver = {
 	.driver = {
 		   .name = "sdhci-pxa",
@@ -405,8 +463,8 @@ static struct platform_driver sdhci_pxav2_tavor_driver = {
 	.probe = sdhci_pxav2_probe,
 	.remove = __devexit_p(sdhci_pxav2_remove),
 #ifdef CONFIG_PM
-	.suspend = sdhci_pltfm_suspend,
-	.resume = sdhci_pltfm_resume,
+	.suspend = sdhci_pxav2_suspend,
+	.resume = sdhci_pxav2_resume,
 #endif
 };
 
