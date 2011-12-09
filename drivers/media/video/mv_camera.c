@@ -659,11 +659,8 @@ static struct vb2_ops mv_videobuf_ops = {
 static int mv_camera_init_videobuf(struct vb2_queue *q,
 				   struct soc_camera_device *icd)
 {
-	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct mv_camera_dev *pcdev = ici->priv;
-
-	int ret = 0;
 
 	q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	q->io_modes = VB2_USERPTR | VB2_MMAP;
@@ -671,10 +668,6 @@ static int mv_camera_init_videobuf(struct vb2_queue *q,
 	q->ops = &mv_videobuf_ops;
 	q->mem_ops = &vb2_dma_contig_memops;
 	q->buf_struct_size = sizeof(struct mv_buffer);
-
-	ret = v4l2_subdev_call(sd, core, load_fw);
-	if (ret < 0)
-		BUG_ON(1);
 
 	pcdev->vb_alloc_ctx = vb2_dma_contig_init_ctx(ici->v4l2_dev.dev);
 
@@ -738,6 +731,8 @@ static int mv_camera_add_device(struct soc_camera_device *icd)
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct mv_camera_dev *pcdev = ici->priv;
 	struct mv_cam_pdata *mcam = pcdev->pdev->dev.platform_data;
+	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
+	int ret = 0;
 
 	if (pcdev->icd)
 		return -EBUSY;
@@ -755,6 +750,11 @@ static int mv_camera_add_device(struct soc_camera_device *icd)
 	ccic_enable_clk(pcdev);
 	ccic_init(pcdev);
 	ccic_power_up(pcdev);
+	ret = v4l2_subdev_call(sd, core, load_fw);
+	/* When v4l2_subdev_call return -ENOIOCTLCMD, means No ioctl command */
+	if ((ret < 0) && (ret != -ENOIOCTLCMD))
+		dev_info(icd->dev.parent, "cam: Failed to initialize subdev: "\
+					"%d\n", ret);
 	return 0;
 }
 
