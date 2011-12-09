@@ -20,6 +20,7 @@
 #include <linux/regulator/driver.h>
 #include <linux/gpio.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
 
 #include <linux/mfd/wm8994/core.h>
 #include <linux/mfd/wm8994/registers.h>
@@ -45,6 +46,8 @@ static int wm8994_ldo_enable(struct regulator_dev *rdev)
 
 	gpio_set_value(ldo->enable, 1);
 	ldo->is_enabled = true;
+
+	mdelay(10);
 
 	return 0;
 }
