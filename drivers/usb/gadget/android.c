@@ -201,7 +201,7 @@ static int marvell_modem_function_init(struct android_usb_function *f,
 
 static void marvell_modem_function_cleanup(struct android_usb_function *f)
 {
-	return;
+	marvell_modem_gserial_cleanup();
 }
 
 int marvell_modem_function_bind_config(struct android_usb_function *f,
@@ -227,7 +227,7 @@ static int marvell_diag_function_init(struct android_usb_function *f,
 
 static void marvell_diag_function_cleanup(struct android_usb_function *f)
 {
-	return;
+	marvell_diag_gserial_cleanup();
 }
 
 int marvell_diag_function_bind_config(struct android_usb_function *f,

@@ -1252,6 +1252,16 @@ static void gserial_cleanup(void)
 }
 #endif
 
+static int pxa910_gs_closed(struct pxa910_gs_port *port)
+{
+	int cond;
+
+	spin_lock_irq(&port->port_lock);
+	cond = (port->open_count == 0) && !port->openclose;
+	spin_unlock_irq(&port->port_lock);
+	return cond;
+}
+
 /**
  * gserial_connect - notify TTY I/O glue that USB link is active
  * @gser: the function, set up with endpoints and descriptors

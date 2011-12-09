@@ -624,7 +624,7 @@ static const struct tty_operations gs_marvell_diag_tty_ops = {
 	.break_ctl = pxa910_gs_break_ctl,
 };
 
-int __init marvell_diag_gserial_setup(struct usb_gadget *g, unsigned count)
+int marvell_diag_gserial_setup(struct usb_gadget *g, unsigned count)
 {
 
 #define GS_MARVELL_DIAG_MAJOR		126
@@ -707,5 +707,54 @@ fail:
 	put_tty_driver(gs_diag_tty_driver);
 	gs_diag_tty_driver = NULL;
 	return status;
+}
+
+/**
+ * gserial_cleanup - remove TTY-over-USB driver and devices
+ * Context: may sleep
+ *
+ * This is called to free all resources allocated by @gserial_setup().
+ * Accordingly, it may need to wait until some open /dev/ files have
+ * closed.
+ *
+ * The caller must have issued @gserial_disconnect() for any ports
+ * that had previously been connected, so that there is never any
+ * I/O pending when it's called.
+ */
+void marvell_diag_gserial_cleanup(void)
+{
+	unsigned	i;
+	struct pxa910_gs_port *port;
+
+	if (!gs_diag_tty_driver)
+		return;
+
+	/* start sysfs and /dev/ttyGS* node removal */
+	for (i = 0; i < n_diag_ports; i++)
+		tty_unregister_device(gs_diag_tty_driver, i);
+
+	for (i = 0; i < n_diag_ports; i++) {
+		/* prevent new opens */
+		mutex_lock(&pxa910_ports[GS_DIAG_PORT_BASE + i].lock);
+		port = pxa910_ports[GS_DIAG_PORT_BASE + i].port;
+		pxa910_ports[GS_DIAG_PORT_BASE + i].port = NULL;
+		mutex_unlock(&pxa910_ports[GS_DIAG_PORT_BASE + i].lock);
+
+		tasklet_kill(&port->push);
+
+		/* wait for old opens to finish */
+		wait_event(port->close_wait, pxa910_gs_closed(port));
+
+		WARN_ON(port->port_usb != NULL);
+
+		kfree(port);
+	}
+	n_diag_ports = 0;
+
+	tty_unregister_driver(gs_diag_tty_driver);
+	put_tty_driver(gs_diag_tty_driver);
+	gs_diag_tty_driver = NULL;
+
+	pr_debug("%s: cleaned up ttyGS* support\n", __func__);
 }
 
