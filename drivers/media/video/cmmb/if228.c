@@ -154,6 +154,7 @@ struct cmmb_dev {
 	/* Misc */
 	wait_queue_head_t iowait;	/* Waiting on frame data */
 	struct spi_device *spi;
+	unsigned int module_hw_status;
 };
 
 /*
@@ -468,6 +469,7 @@ static int cmmb_vidioc_s_ext_ctrl(struct file *filp, void *priv,
 	unsigned char *buffer;
 	int len;
 	unsigned int addr;
+	unsigned int clear_bits;
 	unsigned char spi_cmd[CMMB_CMD_MAX_SIZE];
 
 	CMMB_DEBUG("enter cmmb_vidioc_s_ext_ctrl\n");
@@ -530,7 +532,18 @@ static int cmmb_vidioc_s_ext_ctrl(struct file *filp, void *priv,
 		cmmb_spi_cs_deassert(cmmb);
 
 		break;
-
+	case CLEAR_CMMB_MODULE_STATUS:
+		ret = copy_from_user((u8 *) &clear_bits,
+			(unsigned char *)buffer,
+			sizeof(cmmb->module_hw_status));
+		if (ret) {
+			/* set rlen for below checking ret */
+			rlen = 1;
+		} else {
+			rlen = 0;
+			cmmb->module_hw_status &= ~clear_bits;
+		}
+		break;
 	default:
 		CMMB_ERR("%s: id not support\n", __func__);
 		break;
@@ -647,6 +660,12 @@ static int cmmb_vidioc_g_ext_ctrl(struct file *filp, void *priv,
 		rlen = cmmb_spi_user_read(cmmb, (unsigned char *)buffer, len);
 		cmmb_spi_cs_deassert(cmmb);
 
+		break;
+
+	case CHECK_CMMB_MODULE_STATUS:
+		rlen = copy_to_user((unsigned char *)buffer,
+				   (u8 *) &cmmb->module_hw_status,
+				   sizeof(cmmb->module_hw_status));
 		break;
 
 	default:
@@ -776,8 +795,10 @@ static int cmmb_v4l_open(struct file *filp)
 
 	mutex_lock(&cmmb->s_mutex);
 	(cmmb->users)++;
-	if ((cmmb->users == 1) && (pdata->power_on))
+	if ((cmmb->users == 1) && (pdata->power_on)) {
 		pdata->power_on();
+		cmmb->module_hw_status &= ~CMMB_MODULE_STATUS_POWER_OFF;
+	}
 	mutex_unlock(&cmmb->s_mutex);
 
 	return 0;
@@ -791,8 +812,10 @@ static int cmmb_v4l_release(struct file *filp)
 	mutex_lock(&cmmb->s_mutex);
 	(cmmb->users)--;
 	pdata = cmmb->spi->dev.platform_data;
-	if ((cmmb->users == 0) && (pdata->power_off))
+	if ((cmmb->users == 0) && (pdata->power_off)) {
 		pdata->power_off();
+		cmmb->module_hw_status |= CMMB_MODULE_STATUS_POWER_OFF;
+	}
 	mutex_unlock(&cmmb->s_mutex);
 
 	return 0;
@@ -921,8 +944,10 @@ static int __devinit cmmb_probe(struct spi_device *spi)
 	if (0 != cmmb_spi_power_on_chk(cmmb)) {
 		/*return 0 is OK */
 		CMMB_INFO("CMMB IF208  Demodulator can't be detected\n");
-		if (pdata->power_off)
+		if (pdata->power_off) {
 			pdata->power_off();
+			cmmb->module_hw_status |= CMMB_MODULE_STATUS_POWER_OFF;
+		}
 		ret = -EINVAL;
 		goto out_free;
 	}
@@ -962,8 +987,10 @@ static int __devinit cmmb_probe(struct spi_device *spi)
 	mutex_unlock(&cmmb->s_mutex);
 	cmmb_add_dev(cmmb);
 
-	if (pdata->power_off)
+	if (pdata->power_off) {
 		pdata->power_off();
+		cmmb->module_hw_status |= CMMB_MODULE_STATUS_POWER_OFF;
+	}
 
 	CMMB_INFO("CMMB Demodulator detected\n");
 
@@ -975,6 +1002,7 @@ out_free:
 out:
 	if (pdata->power_off)
 		pdata->power_off();
+
 	return ret;
 }
 
@@ -1008,6 +1036,39 @@ static int cmmb_remove(struct spi_device *spi)
 	return 0;
 }
 
+static int cmmb_suspend(struct spi_device *spi, pm_message_t mesg)
+{
+	struct cmmb_dev *cmmb = cmmb_find_by_spi(spi);
+	struct cmmb_platform_data *pdata;
+
+	if (cmmb == NULL) {
+		CMMB_INFO("cmmb_suspend on unknown spi %p\n", spi);
+		return -ENODEV;
+	}
+
+	if (!(cmmb->module_hw_status & CMMB_MODULE_STATUS_POWER_OFF)) {
+		pdata = cmmb->spi->dev.platform_data;
+		if ((pdata) && (pdata->power_off))
+			pdata->power_off();
+		cmmb->module_hw_status |= CMMB_MODULE_STATUS_POWER_OFF;
+	}
+	cmmb->module_hw_status |= CMMB_MODULE_STATUS_NEED_REINIT;
+
+	return 0;
+}
+static int cmmb_resume(struct spi_device *spi)
+{
+	struct cmmb_dev *cmmb = cmmb_find_by_spi(spi);
+	struct cmmb_platform_data *pdata;
+
+	if (cmmb == NULL) {
+		CMMB_INFO("cmmb_resume on unknown spi %p\n", spi);
+		return -ENODEV;
+	}
+	pdata = cmmb->spi->dev.platform_data;
+
+	return 0;
+}
 static struct spi_driver cmmb_driver = {
 	.driver = {
 		   .name = DRIVER_NAME,
@@ -1015,6 +1076,8 @@ static struct spi_driver cmmb_driver = {
 		   },
 	.probe = cmmb_probe,
 	.remove = __devexit_p(cmmb_remove),
+	.suspend = cmmb_suspend,
+	.resume =  cmmb_resume,
 };
 
 /*
