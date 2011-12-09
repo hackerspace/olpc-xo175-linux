@@ -857,6 +857,20 @@ struct fb_videomode video_modes_ihdmi[] = {
 		/*(FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT),*/
 		.sync			= 0,
 	},
+	[15] = { /* 1080p */
+		.pixclock		= 148350,
+		.refresh		= 60,
+		.xres			= 1920,
+		.yres			= 1080,
+		.hsync_len		= 44, /*HSW*/
+		.left_margin	= 148, /*BLW*/
+		.right_margin	= 88, /*ELW*/
+		.vsync_len		= 5, /*VSW*/
+		.upper_margin	= 36, /*BFW*/
+		.lower_margin	= 4, /*EFW*/
+		/*(FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT),*/
+		.sync			= 0,
+	},
 };
 
 static struct ssp_device *ssp_lcd_init(int port, u32 flag)
