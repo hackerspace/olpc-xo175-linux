@@ -35,17 +35,34 @@
 #define PXA_CAMERA_VSP		0x400
 
 /* for Marvell pxa955 camera driver */
+#define SENSOR_CLOSE	0	/* Sensor clock disable */
+#define SENSOR_OPEN	1	/* Sensor clock enable */
+#define ISP_SENSOR_CLOSE	2
+#define ISP_SENSOR_OPEN		3
+
+struct mipi_phy {
+	u16 cl_termen;
+	u16 cl_settle;
+	u16 cl_miss;
+	u16 hs_termen;
+	u16 hs_settle;
+	u16 hs_rx_to;
+	u16 lane;	/* When set to 0, S/W will try to figure out a value */
+	u16 vc;		/* Virtual channel */
+	u16 dt1;	/* Data type 1: For video or main data type */
+	u16 dt2;	/* Data type 2: For thumbnail or auxiliry data type */
+};
+
+#ifdef CONFIG_SOC_CAMERA
+
 struct pxa95x_csi_dev {
+	u32 id;
 	u32 irq_num;
 	u32 reg_start;
 	void __iomem *regs;
 	spinlock_t dev_lock;
-	struct clk *axi_clk;
 	struct clk *csi_tx_esc;
-};
-
-struct pxa95x_cam_pdata {
-	struct pxa95x_csi_dev *csidev;
+	struct mipi_phy *phy_cfg;
 };
 
 enum {
@@ -65,7 +82,8 @@ struct sensor_platform_data {
 			 * bit 1:front/back
 			 * bit 2: Left/Right */
 	int interface;	/* MIPI or DVP flags*/
-	int intrfc_id;	/* To which controller is this sensor connected? */
+	struct pxa95x_csi_dev *csi_ctlr;
+			/* Which controller is this sensor connected to? */
 	int bridge;	/* Does this sensor needs or can act as a MIPI bridge
 			 * if needs MIPI bridge, bridge = -x, x points to host
 			 * if can be a bridge, bridge = x, x points to slave */
@@ -79,11 +97,17 @@ struct sensor_platform_data {
 	char reserved[20];
 };
 
+#endif /* CONFIG_SOC_CAMERA */
+
 struct pxacamera_platform_data {
 	unsigned long flags;
 	unsigned long mclk_10khz;
 };
 
 extern void pxa_set_camera_info(struct pxacamera_platform_data *);
+
+/* V4L2 driver specific controls */
+/* #define V4L2_CID_PRIVATE_FIRMWARE_DOWNLOAD	(V4L2_CID_PRIVATE_BASE + 0) */
+#define V4L2_CID_PRIVATE_GET_MIPI_PHY	(V4L2_CID_PRIVATE_BASE + 1)
 
 #endif /* __ASM_ARCH_CAMERA_H_ */
