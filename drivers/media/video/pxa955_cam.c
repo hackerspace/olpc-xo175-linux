@@ -50,7 +50,15 @@ MODULE_DESCRIPTION("Marvell PXA955 Simple Capture Controller Driver");
 MODULE_LICENSE("GPL");
 MODULE_SUPPORTED_DEVICE("Video");
 
-/* CSI register base: 0x50020000*/
+/*
+ * CSI0 register base: 0x50020000
+ * CSI1 register base: 0x50022000
+ * Both CSI controller share the same CSSCR and CSGCR address
+ */
+/* Common register base */
+#define REG_CSSCR_BASE		0x50020000
+#define REG_CSGCR_BASE		0x5002000C
+/* Register offset table */
 #define REG_CSSCR		0x0000
 #define REG_CSGCR		0x000C
 #define REG_CSxCR0		0x0010
@@ -223,14 +231,6 @@ typedef enum {
 	CAM_PCLK_78,
 } CAM_PCLK_t;
 
-struct csi_phy_config {
-	unsigned int clk_termen;
-	unsigned int clk_settle;
-	unsigned int hs_termen;
-	unsigned int hs_settle;
-	unsigned int hs_rx_to;
-};
-
 /* descriptor needed for the camera controller DMA engine */
 struct pxa_cam_dma {
 	dma_addr_t	sg_dma;
@@ -274,7 +274,6 @@ struct pxa955_cam_dev {
 	/* streaming buffers */
 	spinlock_t spin_lock;  /* Access to device */
 	struct videobuf_queue *videoq;
-	struct pxa95x_cam_pdata *pdata;
 
 #ifdef _CONTROLLER_DEADLOOP_RESET_
 	/* A timer to detect controller error, on which controller will be reset */
@@ -302,6 +301,9 @@ struct videobuf_dma_contig_memory {
 		BUG();							    \
 	}
 
+#define pixfmtstr(x) (x) & 0xff, ((x) >> 8) & 0xff, ((x) >> 16) & 0xff, \
+	((x) >> 24) & 0xff
+
 /* Len should 8 bytes align, bit[2:0] should be 0 */
 #define SINGLE_DESC_TRANS_MAX   (1 << 24)
 
@@ -310,16 +312,36 @@ struct videobuf_dma_contig_memory {
 static void ccic_timeout_handler(unsigned long);
 #endif
 
+/* VA for common register base, assgined value after 1st use */
+static unsigned char __iomem *common_base;
+
 static inline void csi_reg_write(struct pxa95x_csi_dev *csi, unsigned int reg,
 		unsigned int val)
 {
-	__raw_writel(val, csi->regs + reg);
+	/* If writing to common registers, override VA base */
+	if (reg < REG_CSxCR0) {
+		if (unlikely(common_base == NULL)) {
+			common_base = ioremap(REG_CSSCR_BASE, REG_CSxCR0);
+			BUG_ON(common_base == NULL);
+		}
+		__raw_writel(val, common_base + reg);
+	} else
+		__raw_writel(val, csi->regs + reg);
 }
 
 static inline unsigned int csi_reg_read(struct pxa95x_csi_dev *csi,
 		unsigned int reg)
 {
-	return __raw_readl(csi->regs + reg);
+	/* If reading from common registers, override VA base */
+	if (reg < REG_CSxCR0) {
+		if (unlikely(common_base == NULL)) {
+			common_base = ioremap(REG_CSSCR_BASE, REG_CSxCR0);
+			BUG_ON(common_base == NULL);
+			return -ENOMEM;
+		}
+		return __raw_readl(common_base + reg);
+	} else
+		return __raw_readl(csi->regs + reg);
 }
 
 void csi_reg_dump(struct pxa95x_csi_dev *csi)
@@ -388,58 +410,53 @@ void csi_clkdiv(struct pxa95x_csi_dev *csi)
 void csi_lane(struct pxa95x_csi_dev *csi, unsigned int lane)
 {
 	unsigned int val = 0;
-	switch (lane) {
-	case 1:
-	/* 1 lane */
-	val = CSI_CONT_NOL(0x00) |
+	WARN_ON(lane>>2);
+	if (lane != 0)
+		lane--;	/* convert lane ammount to NOL */
+	val = CSI_CONT_NOL(lane) |
 		CSI_CONT_VC0_CFG(0x0) |
 		CSI_CONT_VC1_CFG(0x1) |
 		CSI_CONT_VC2_CFG(0x2) |
 		CSI_CONT_VC3_CFG(0x3);
-		break;
-
-	case 2:
-	/*
-	* packet data with 00 goto channel 0, packet data with 01 goto
-	* channel 1, channel 2 and channel 3 are reserved for future use
-	*/
-		val = CSI_CONT_NOL(0x01) |	/* 2 lanes */
-			CSI_CONT_VC0_CFG(0x0) |
-			CSI_CONT_VC1_CFG(0x1);
-		break;
-	}
-
 	csi_reg_write(csi, REG_CSxCR0, val);
 }
 
-void csi_dphy(struct pxa95x_csi_dev *csi, struct csi_phy_config timing)
+/* This default phy setting is supposed to be workable with most sensors */
+static struct mipi_phy default_phy_val = {
+	.cl_termen	= 0x00,
+	.cl_settle	= 0x0C,
+	.cl_miss	= 0x00,
+	.hs_termen	= 0x04,
+	.hs_settle	= 0x48,
+	.hs_rx_to	= 0xFFFF,
+	.lane		= 1,
+	.vc		= 0,
+};
+
+void csi_dphy(struct pxa95x_csi_dev *csi)
 {
 	unsigned int val = 0;
 	unsigned int *calibration_p;
 
-	/*
-	* default: csi controller channel 0 data route to camera interface 0,
-	* channel 1 data route to camera interface 1.
-	*/
-	val = 0x01;
-	csi_reg_write(csi, REG_CSSCR, val);
+#if 0
+	printk(KERN_INFO "cam: csi: configuring D-PHY parameter\n" \
+		"------------------------------------------\n" \
+		"\tCL_TERMEN = 0x%04X\n\tCL_SETTLE = 0x%04X\n" \
+		"\tHS_TERMEN = 0x%04X\n\tHS_SETTLE = 0x%04X\n" \
+		"------------------------------------------\n", \
+		csi->phy_cfg->cl_termen, csi->phy_cfg->cl_settle, \
+		csi->phy_cfg->hs_termen, csi->phy_cfg->hs_settle);
+#endif
+	csi_lane(csi, csi->phy_cfg->lane);
 
-	val = CSI_CONT_CLTERMEN(0x00) |
-		  CSI_CONT_CLSETTLE(0x0C) |
-		  CSI_CONT_CLMISS(0x00)   |
-		  CSI_CONT_HSTERMEN(0x04);
+	val = 	CSI_CONT_CLTERMEN(csi->phy_cfg->cl_termen) |
+		CSI_CONT_CLSETTLE(csi->phy_cfg->cl_settle) |
+		CSI_CONT_CLMISS(0x00)   |
+		CSI_CONT_HSTERMEN(csi->phy_cfg->hs_termen);
 	csi_reg_write(csi, REG_CSxTIM0, val);
 
-	/* set time out before declarating an error to maximum */
-#if defined(CONFIG_VIDEO_OV7690_BRIDGE)
-	val = CSI_CONT_HS_Rx_TO(0xffff) |
-		  /* CAM_CSI_CONT_HSTSETTLE(0x0e); *//* for ov3640 MIPI timming */
-		  CSI_CONT_HSTSETTLE(0x40);/* for ov5642 MIPI timing, 0x40 is proper for OV7690 bridged via OV5642*/
-#else
-	val = CSI_CONT_HS_Rx_TO(0xffff) |
-		  /* CAM_CSI_CONT_HSTSETTLE(0x0e); *//* for ov3640 MIPI timming */
-		  CSI_CONT_HSTSETTLE(0x48); /* for ov5642 MIPI timing, both work on MG1-JIL and PV2*/
-#endif
+	val =	CSI_CONT_HS_Rx_TO(csi->phy_cfg->hs_rx_to) |
+		CSI_CONT_HSTSETTLE(csi->phy_cfg->hs_settle);
 	csi_reg_write(csi, REG_CSxTIM1, val);
 
 	calibration_p = ioremap_nocache(0x42404078, 4);
@@ -456,42 +473,43 @@ void csi_dphy(struct pxa95x_csi_dev *csi, struct csi_phy_config timing)
 
 }
 
-void csi_enable(struct pxa95x_csi_dev *csi, int idx)
+void csi_enable(struct pxa95x_csi_dev *csi, int sci_idx)
 {
-	unsigned int val = 0;
+	unsigned int vc, val = 0, csi_val;
 
-	/*
-	 * we assume sensor send all its data with packet 00, we have config
-	 * packet 00 goto channel 0 in csi_config()
-	 */
-	switch (idx) {
+	/* configure CSI source control register according to H/W data path */
+	/* FIXME: virtual channel and data type interleaving is not supported
+	 * yet, need more test and add code */
+	vc = (csi->phy_cfg != NULL) ? csi->phy_cfg->vc : 0;
+	csi_val = vc & 0x3;
+	WARN_ON(csi_val != vc);
+	/* 0~3 For CSI0, 4~7 for CSI1 */
+	if (csi->id)
+		csi_val += 4;
+	/* only change the bit for attached SCI, do a read-change-write */
+	val = csi_reg_read(csi, REG_CSSCR);
+	switch (sci_idx) {
+	case CCIC_0:
+		if (cpu_is_pxa955_Ex() || cpu_is_pxa968())
+			val = (val&0x0F) | (csi_val<<4);
+		else
+			val = (val&0xF0) | csi_val;	/* change bit0-3 */
+		break;
 	case CCIC_1:
-	/* channel 0 data goto camera interface 1
-	 * MG2 has a different defination of
-	 * CSSCR[SSEL0,SSEL1] with MG1 */
-		if (cpu_is_pxa955_Cx() || cpu_is_pxa955_Dx())
-			val = 0x10;
+		if (cpu_is_pxa955_Ex() || cpu_is_pxa968())
+			val = (val&0xF0) | csi_val;
 		else
-			val = 0x01;
-		csi_reg_write(csi, REG_CSSCR, val);
-		break;
-
-	case CCIC_0:/* channel 1 data goto camera interface 0*/
+			val = (val&0x0F) | (csi_val<<4);
 	default:
-		if (cpu_is_pxa955_Cx() || cpu_is_pxa955_Dx())
-			val = 0x01;
-		else
-			val = 0x10;
-		csi_reg_write(csi, REG_CSSCR, val);
-		break;
+		printk(KERN_ERR "cam: unknow SCI index\n");
+		WARN_ON(1);
 	}
+	csi_reg_write(csi, REG_CSSCR, val);
+
+	/* Actually turn on the CSI to accept input */
 	val = csi_reg_read(csi, REG_CSxCR0);
 	val |= CSxCR0_CSIEN;
 	csi_reg_write(csi, REG_CSxCR0, val);
-	if (!(cpu_is_pxa955_Cx() || cpu_is_pxa955_Dx())) {
-		val = 0x0;
-		csi_reg_write(csi, REG_CSxDTINTLV, val);
-	}
 }
 
 void csi_disable(struct pxa95x_csi_dev *csi)
@@ -938,14 +956,10 @@ static int sci_cken(struct pxa955_cam_dev *pcdev, int flag)
 	return 0;
 }
 
-#define pixfmtstr(x) (x) & 0xff, ((x) >> 8) & 0xff, ((x) >> 16) & 0xff, \
-	((x) >> 24) & 0xff
 static void sci_s_fmt(struct pxa955_cam_dev *pcdev,
 				struct v4l2_pix_format *fmt)
 {
 	unsigned int size = fmt->width*fmt->height;
-	printk(KERN_NOTICE "cam: set fmt as %c%c%c%c, %ux%u\n",
-		pixfmtstr(fmt->pixelformat), fmt->width, fmt->height);
 
 	switch (fmt->pixelformat) {
 
@@ -1252,7 +1266,6 @@ static void pxa955_videobuf_queue(struct videobuf_queue *vq,
 	struct soc_camera_device *icd = vq->priv_data;
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct pxa955_cam_dev *pcdev = ici->priv;
-	struct csi_phy_config timing;
 
 	dev_dbg(icd->dev.parent, "%s (vb=0x%p) 0x%08lx %d\n",
 		__func__, vb, vb->baddr, vb->bsize);
@@ -1275,9 +1288,9 @@ static void pxa955_videobuf_queue(struct videobuf_queue *vq,
 			dma_chain_init(pcdev);
 
 			sci_irq_enable(pcdev, IRQ_EOFX|IRQ_OFO);
-			csi_dphy(pcdev->csidev, timing);
+			csi_dphy(pcdev->csidev);
 			/* configure enable which camera interface controller*/
-			csi_enable(pcdev->csidev, CCIC_0);
+			csi_enable(pcdev->csidev, icd->iface);
 			sci_enable(pcdev);
 
 #ifdef _CONTROLLER_DEADLOOP_RESET_
@@ -1355,13 +1368,16 @@ static struct videobuf_queue_ops pxa955_videobuf_ops = {
 	.buf_release    = pxa955_videobuf_release,
 };
 
+static irqreturn_t csi_irq(int irq, void *data);
+
 static int pxa955_cam_add_device(struct soc_camera_device *icd)
 {
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct pxa955_cam_dev *pcdev = ici->priv;
 	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
 	struct soc_camera_link *icl = to_soc_camera_link(icd);
-	int ret;
+	struct sensor_platform_data *pdata = (void *)icl->priv;
+	int ret = 0;
 
 	if (pcdev->icd)
 		return -EBUSY;
@@ -1387,19 +1403,64 @@ static int pxa955_cam_add_device(struct soc_camera_device *icd)
 			*pri_axi, *pri_gcu, *pri_ci1, *pri_ci2);
 #endif
 
+	/* Start initialize of CSI to which sensor is attached */
+	/* Assume SCI can be connected to only one CSI at the same time*/
+	if (unlikely(pcdev->csidev != NULL)) {
+		printk(KERN_ERR "cam: sci: this device is already connected " \
+				"to a CSI device\n");
+		return -EBUSY;
+	}
+	/* Get CSI info from iclink */
+	pcdev->csidev = kzalloc(sizeof(struct pxa95x_csi_dev), GFP_KERNEL);
+	if (pcdev->csidev == NULL)
+		return -ENOMEM;
+	memcpy(pcdev->csidev, pdata->csi_ctlr, sizeof(struct pxa95x_csi_dev));
+	/* Now handle the resource */
+	/* 1st, registers' VA */
+	pcdev->csidev->regs = ioremap(pcdev->csidev->reg_start, SZ_4K);
+	if (pcdev->csidev->regs == NULL) {
+		printk(KERN_ERR "cam: sci: unable to ioremap pxa95x-camera csi regs\n");
+		ret = -ENOMEM;
+		goto exit_csi;
+	}
+	/* 2nd, irq ISR */
+	ret = request_irq(pcdev->csidev->irq_num, csi_irq, 0, \
+				PXA955_CAM_DRV_NAME, pcdev);
+	if (ret) {
+		printk(KERN_ERR "cam: sci: unable to create csi irq\n");
+		goto exit_csi_reg;
+	}
+	spin_lock_init(&pcdev->csidev->dev_lock);
+	/* 3rd, clocks for controller*/
+	pcdev->csidev->csi_tx_esc = clk_get(NULL, "CSI_TX_ESC");
+	if (!pcdev->csidev->csi_tx_esc) {
+		printk(KERN_ERR "cam: unable to get CSI_TX_ESC\n");
+		goto exit_csi_irq;
+	};
+	/* Now all done! */
+
 	csi_cken(pcdev->csidev, 1);
 	sci_cken(pcdev, 1);
 	sci_init(pcdev);
 	csi_clkdiv(pcdev->csidev);
 
 	ret = v4l2_subdev_call(sd, core, load_fw);
-	if (unlikely(ret < 0))
-		dev_info(icd->dev.parent, "Failed to initialize: %d\n", ret);
+	if ((ret < 0) && (ret != -ENOIOCTLCMD))
+		dev_info(icd->dev.parent, "cam: Failed to initialize subdev: "\
+					"%d\n", ret);
 
-	printk(KERN_INFO "cam: v4l2: sensor \"%s\" attached to camera %d\n", \
-			icl->module_name, icd->devnum);
+	printk(KERN_INFO "cam: Hardware path is \"%s\" => CSI#%d => SCI#%d\n", \
+			icl->module_name, pcdev->csidev->id, icd->iface);
 
 	return 0;
+
+exit_csi_irq:
+	free_irq(pcdev->csidev->irq_num, pcdev);
+exit_csi_reg:
+	iounmap(pcdev->csidev->regs);
+exit_csi:
+	kfree(pcdev->csidev);
+	return ret;
 }
 
 static void pxa955_cam_remove_device(struct soc_camera_device *icd)
@@ -1424,6 +1485,9 @@ static void pxa955_cam_remove_device(struct soc_camera_device *icd)
 				"stream off\n");
 		videobuf_streamoff(vq);
 		v4l2_subdev_call(sd, video, s_stream, 0);
+		csi_disable(pcdev->csidev);
+		sci_irq_disable(pcdev, IRQ_EOFX|IRQ_OFO);
+		sci_disable(pcdev);
 	}
 
 	sci_cken(pcdev, 0);
@@ -1468,8 +1532,17 @@ static void pxa955_cam_remove_device(struct soc_camera_device *icd)
 		dvfm_enable_op_name("988M", dvfm_dev_idx);
 
 	pcdev->icd = NULL;
-	printk(KERN_INFO "cam: v4l2: sensor \"%s\" detached from camera %d\n", \
-			icl->module_name, icd->devnum);
+
+	/* Remove info for connected CSI */
+	i = pcdev->csidev->id;
+	clk_put(pcdev->csidev->csi_tx_esc);
+	free_irq(pcdev->csidev->irq_num, pcdev);
+	iounmap(pcdev->csidev->regs);
+	kfree(pcdev->csidev);
+	pcdev->csidev = NULL;
+	/* Now CSI is totally dead..This is its last words */
+	printk(KERN_INFO "cam: path killed: \"%s\" => CSI#%d => SCI#%d\n", \
+			icl->module_name, i, icd->iface);
 }
 
 static const struct soc_mbus_pixelfmt pxa955_camera_formats[] = {
@@ -1482,7 +1555,7 @@ static const struct soc_mbus_pixelfmt pxa955_camera_formats[] = {
 	}, {
 		.fourcc			= V4L2_PIX_FMT_YUV420,
 		.name			= "YUV420P",
-		.bits_per_sample	= 8,
+		.bits_per_sample	= 12,
 		.packing		= SOC_MBUS_PACKING_1_5X8,
 		.order			= SOC_MBUS_ORDER_LE,
 	},
@@ -1620,6 +1693,7 @@ static int pxa955_cam_set_fmt(struct soc_camera_device *icd,
 	struct v4l2_pix_format *pix = &f->fmt.pix;
 	__u32 pixfmt = pix->pixelformat;
 	struct v4l2_mbus_framefmt mf;
+	struct v4l2_control ctrl;
 	int ret;
 
 	xlate = soc_camera_xlate_by_fourcc(icd, pixfmt);
@@ -1627,6 +1701,9 @@ static int pxa955_cam_set_fmt(struct soc_camera_device *icd,
 		dev_warn(dev, "Format %x not found\n", pixfmt);
 		return -EINVAL;
 	}
+	printk(KERN_NOTICE "cam: set fmt as %c%c%c%c, %ux%u\n", \
+		pixfmtstr(f->fmt.pix.pixelformat), \
+		f->fmt.pix.width, f->fmt.pix.height);
 
 	mf.width	= pix->width;
 	mf.height	= pix->height;
@@ -1648,6 +1725,22 @@ static int pxa955_cam_set_fmt(struct soc_camera_device *icd,
 
 	sci_disable(pcdev);
 	sci_s_fmt(pcdev, pix);
+
+	/* Get phy timing parameter from sensor, if sensor donn't support */
+	/* this behavior, will use default value */
+	pcdev->csidev->phy_cfg = NULL;
+	ctrl.id = V4L2_CID_PRIVATE_GET_MIPI_PHY;
+	ret = v4l2_subdev_call(sd, core, g_ctrl, &ctrl);
+	if ((ret < 0) || (ctrl.value == 0)) {
+		printk(KERN_NOTICE "cam: sensor don't have advice on CSI phy "\
+				"timing, use default D_PHY timing\n");
+		pcdev->csidev->phy_cfg = &default_phy_val;
+	} else
+		pcdev->csidev->phy_cfg = (struct mipi_phy *)ctrl.value;
+	/* Ignore return value from sensor, it's OK for sensor don't support */
+	/* V4L2_CID_PRIVATE_GET_MIPI_PHY interface, will use default value */
+	ret = 0;
+
 	v4l2_subdev_call(sd, sensor, g_skip_top_lines, &skip_frame);
 
 	return ret;
@@ -1710,30 +1803,15 @@ static unsigned int pxa955_cam_poll(struct file *file, poll_table *pt)
 static int pxa955_cam_querycap(struct soc_camera_host *ici,
 			       struct v4l2_capability *cap)
 {
-	struct v4l2_dbg_chip_ident id;
 	struct pxa955_cam_dev *pcdev = ici->priv;
 	struct soc_camera_device *icd = pcdev->icd;
-	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
-	int ret = 0;
+	struct soc_camera_link *icl = to_soc_camera_link(icd);
+	struct i2c_board_info *pci2c = icl->board_info;
 
 	cap->version = PXA955_CAM_VERSION_CODE;
 	cap->capabilities = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING;
-	strcpy(cap->card, "MG1");
-	strcpy(cap->driver, "N/A");
-
-	ret = v4l2_subdev_call(sd, core, g_chip_ident, &id);
-	if (ret < 0) {
-		printk(KERN_ERR "cam: failed to get sensor's name!\n");
-		return ret;
-	}
-	switch (id.ident) {
-	case V4L2_IDENT_OV5642:
-		strcpy(cap->driver, "ov5642");
-		break;
-	case V4L2_IDENT_OV7690:
-		strcpy(cap->driver, "ov7690");
-		break;
-	}
+	strcpy(cap->card, PXA955_CAM_DRV_NAME);
+	strcpy(cap->driver, pci2c->type);
 	return 0;
 }
 
@@ -1743,7 +1821,7 @@ static int pxa955_cam_set_bus_param(struct soc_camera_device *icd, __u32 pixfmt)
 	struct pxa955_cam_dev *pcdev = ici->priv;
 	unsigned long ctrller_flags, sensor_flags, common_flags;
 	int ret;
-	int lane = 1;
+	int lane = 0;
 
 	/* Configure this flag according to controller ability: support 3 lanes */
 	ctrller_flags = SOCAM_MIPI | SOCAM_MIPI_1LANE \
@@ -1759,12 +1837,20 @@ static int pxa955_cam_set_bus_param(struct soc_camera_device *icd, __u32 pixfmt)
 	if (ret < 0)
 		return ret;
 
+	/* If sensor specified lane number, abort */
+	if (pcdev->csidev->phy_cfg && pcdev->csidev->phy_cfg->lane)
+		return 0;
+	/* Otherwise, figure out lane number */
 	if (common_flags & SOCAM_MIPI_1LANE) {
 		lane = 1;
 	} else if (common_flags & SOCAM_MIPI_2LANE) {
 		lane = 2;
+	} else if (common_flags & SOCAM_MIPI_3LANE) {
+		lane = 3;
+	} else if (common_flags & SOCAM_MIPI_4LANE) {
+		lane = 4;
 	}
-	csi_lane(pcdev->csidev, lane);
+	pcdev->csidev->phy_cfg->lane = lane;
 	return 0;
 }
 
@@ -1871,6 +1957,7 @@ static int pxa955_cam_s_crop(struct soc_camera_device *icd,
 #endif
 	return ret;
 }
+
 static struct soc_camera_host_ops pxa955_soc_cam_host_ops = {
 	.owner		= THIS_MODULE,
 	.add		= pxa955_cam_add_device,
@@ -1917,13 +2004,14 @@ static irqreturn_t cam_irq(int irq, void *data)
 		printk(KERN_ERR "cam: ccic over flow error!\n");
 		csi_disable(pcdev->csidev);
 		sci_disable(pcdev);
-		csi_enable(pcdev->csidev, CCIC_0);
+		csi_enable(pcdev->csidev, pcdev->icd->iface);
 		sci_enable(pcdev);
 		spin_unlock(&pcdev->spin_lock);
 		return IRQ_HANDLED;
 	}
 
 	if (irqs & IRQ_EOFX) {
+		sci_reg_clear_bit(pcdev, REG_SCICR0, SCICR0_FSC(0xF));
 #ifdef _CONTROLLER_DEADLOOP_RESET_
 		if (!pcdev->killing_reset_timer)
 			mod_timer(&pcdev->reset_timer, \
@@ -1968,7 +2056,6 @@ static void ccic_reset_handler(struct work_struct *work)
 #endif
 	struct pxa955_cam_dev *pcdev = container_of(work, struct pxa955_cam_dev,
 							reset_wq);
-	struct csi_phy_config timing;
 	int val = 0;
 	unsigned long flags;
 
@@ -2001,10 +2088,9 @@ static void ccic_reset_handler(struct work_struct *work)
 		val = csi_reg_read(pcdev->csidev, REG_CSxSR);
 
 	csi_clkdiv(pcdev->csidev);
-	csi_lane(pcdev->csidev, 1);
-	csi_dphy(pcdev->csidev, timing);
+	csi_dphy(pcdev->csidev);
 	sci_enable(pcdev);
-	csi_enable(pcdev->csidev, CCIC_0);
+	csi_enable(pcdev->csidev, pcdev->icd->iface);
 	spin_unlock_irqrestore(&pcdev->spin_lock, flags);
 #ifdef _TURN_OFF_SENSOR_
 	v4l2_subdev_call(sd, video, s_stream, 1);
@@ -2027,44 +2113,11 @@ static int pxa955_camera_probe(struct platform_device *pdev)
 		goto exit;
 	memset(pcdev, 0, sizeof(struct pxa955_cam_dev));
 
-	pcdev->csidev = kzalloc(sizeof(struct pxa95x_csi_dev), GFP_KERNEL);
-	if (pcdev->csidev == NULL)
-		goto exit;
-	memset(pcdev->csidev, 0, sizeof(struct pxa95x_csi_dev));
-
 	spin_lock_init(&pcdev->spin_lock);
 	init_waitqueue_head(&pcdev->iowait);
 	INIT_LIST_HEAD(&pcdev->dev_list);
 	INIT_LIST_HEAD(&pcdev->dma_buf_list);
 
-	pcdev->pdata = pdev->dev.platform_data;
-	if (pcdev->pdata == NULL) {
-		printk(KERN_ERR "cam: camera no platform data defined\n");
-		return -ENODEV;
-	}
-
-	err = -EIO;
-
-	/* init csi controller which is combined with this camera controller*/
-	pcdev->csidev->regs =
-		ioremap(pcdev->pdata->csidev->reg_start, SZ_4K);
-	if (!pcdev->csidev->regs) {
-		printk(KERN_ERR "cam: unable to ioremap pxa95x-camera csi regs\n");
-		goto exit_free;
-	}
-	err = request_irq(pcdev->pdata->csidev->irq_num,
-		csi_irq, 0, PXA955_CAM_DRV_NAME, pcdev);
-	if (err) {
-		printk(KERN_ERR "cam: unable to create csi ist\n");
-		goto exit_iounmap;
-	}
-
-	spin_lock_init(&pcdev->csidev->dev_lock);
-	pcdev->csidev->csi_tx_esc = clk_get(NULL, "CSI_TX_ESC");
-	if (!pcdev->csidev->csi_tx_esc) {
-		printk(KERN_ERR "cam: unable to get CSI_TX_ESC\n");
-		goto exit_iounmap;
-	};
 
 	/* init camera controller resource*/
 	pcdev->irq = platform_get_irq(pdev, 0);
@@ -2129,14 +2182,12 @@ static int pxa955_camera_probe(struct platform_device *pdev)
 exit_free_irq:
 	free_irq(pcdev->irq, pcdev);
 exit_iounmap:
-	iounmap(pcdev->csidev->regs);
 	iounmap(pcdev->regs);
 	clk_put(pcdev->sci1_clk);
 	clk_put(pcdev->sci2_clk);
 	clk_put(pcdev->sci1_clk);
 	clk_put(pcdev->sci2_clk);
 exit_free:
-	kfree(pcdev->csidev);
 	kfree(pcdev);
 exit:
 	return err;
@@ -2154,11 +2205,10 @@ static int pxa955_camera_remove(struct platform_device *pdev)
 		return -EIO;
 	}
 
-	csi_disable(pcdev->csidev);
-
 	sci_disable(pcdev);
 	sci_irq_disable(pcdev, IRQ_EOFX|IRQ_OFO);
 	free_irq(pcdev->irq, pcdev);
+	iounmap(common_base);
 	return 0;
 }
 
