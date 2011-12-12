@@ -455,6 +455,19 @@ static int __devinit max8649_regulator_probe(struct i2c_client *client,
 	}
 
 	max8649_info = info;
+
+	/*
+	 * ACTIVE --> PWM MODE
+	 * SLEEP --> POWER SAVE MODE
+	 * set default sleep voltage here
+	 */
+	if (pdata->sleep_vol) {
+		max8649_set_bits(info->i2c, pdata->sleep_mode, MAX8649_VOL_MASK,
+				 max8649_calculate_voltage_reg(pdata->sleep_vol));
+		max8649_set_bits(info->i2c, pdata->sleep_mode, MAX8649_FORCE_PWM, 0);
+	}
+	max8649_set_bits(info->i2c, pdata->mode, MAX8649_FORCE_PWM, MAX8649_FORCE_PWM);
+
 	dev_info(info->dev, "%s regulator device is detected.\n", id->name);
 	return 0;
 out:
