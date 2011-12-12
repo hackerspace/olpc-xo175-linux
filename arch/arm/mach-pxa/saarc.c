@@ -725,95 +725,174 @@ static struct pxa27x_keypad_platform_data keypad_info = {
 };
 #endif /* CONFIG_KEYBOARD_PXA27x || CONFIG_KEYBOARD_PXA27x_MODULE */
 
-#if defined(CONFIG_VIDEO_PXA955)
+/* Camera LDO */
 static struct regulator *vcamera = NULL;
+/* Camera sensor PowerDowN pins */
+static int pwd_main, pwd_sub, pwd_isp;
+
+#if defined(CONFIG_VIDEO_PXA955)
 static int camera0_power(struct device *dev, int flag)
 {
-	int gpio_pin = mfp_to_gpio(MFP_PIN_GPIO25);
-
-	if (gpio_request(gpio_pin, "CAM_EANBLE_HI_SENSOR")) {
-		printk(KERN_ERR "cam: Request GPIO failed,"
-				"gpio: %d\n", gpio_pin);
-		return -EIO;
-	}
-
-	/* Initialize AF_VCC */
-	if (vcamera == NULL) {
-		vcamera = regulator_get(NULL, "v_cam");
-		if (IS_ERR(vcamera)) {
-			return -ENODEV;
+	switch (get_board_id()) {
+	case OBM_SAAR_C2_NEVO_A0_V10_BOARD:
+		/* Initialize AF_VCC */
+		if (vcamera == NULL) {
+			vcamera = regulator_get(NULL, "v_cam");
+			if (IS_ERR(vcamera)) {
+				return -ENODEV;
+			}
 		}
-	}
 
-	if (flag) {
-		gpio_direction_output(gpio_pin, 0);	/* enable */
-		msleep(1);
-		regulator_enable(vcamera);
-	} else {
-		regulator_disable(vcamera);
-		gpio_direction_output(gpio_pin, 1);	/* disable */
+		/* Driver SWPD pin for main cam */
+		if (flag) {
+			gpio_direction_output(pwd_main, 0);	/* enable */
+			msleep(1);
+			regulator_enable(vcamera);
+		} else {
+			regulator_disable(vcamera);
+			gpio_direction_output(pwd_main, 1);	/* disable */
+		}
+		return 0;
+	/* Default for SAAR-C 2.5 and 3, carries M6MO+OV8820 and OV9740 */
+	default:
+		switch (flag) {
+		case SENSOR_OPEN:
+			gpio_direction_output(pwd_isp, 1);	/* enable */
+			/* Wait 100ms here to let ISP boot up and working */
+			msleep(100);
+			break;
+		case SENSOR_CLOSE:
+			gpio_direction_output(pwd_isp, 0);	/* disable */
+			mdelay(1);
+			break;
+		case ISP_SENSOR_OPEN:
+			gpio_direction_output(pwd_main, 1);	/* enable */
+			mdelay(50);
+			break;
+		case ISP_SENSOR_CLOSE:
+			gpio_direction_output(pwd_main, 0);	/* disable */
+			mdelay(50);
+			break;
+		}
+		return 0;
 	}
-
-	gpio_free(gpio_pin);
 	return 0;
 }
 
 static int camera1_power(struct device *dev, int flag)
 {
-	int gpio_pin = mfp_to_gpio(MFP_PIN_GPIO26);
-
-	if (gpio_request(gpio_pin, "CAM_EANBLE_HI_SENSOR")) {
-		printk(KERN_ERR "cam: Request GPIO failed,"
-				"gpio: %d\n", gpio_pin);
-		return -EIO;
+	switch (get_board_id()) {
+	case OBM_SAAR_C2_NEVO_A0_V10_BOARD:
+		/* Initialize AF_VCC */
+		if (vcamera == NULL) {
+			vcamera = regulator_get(NULL, "v_cam");
+			if (IS_ERR(vcamera)) {
+				return -ENODEV;
+			}
+		}
+		/* Driver SWPD pin for sub cam */
+		if (flag) {
+			gpio_direction_output(pwd_sub, 0);
+			msleep(2);
+			regulator_enable(vcamera);
+		} else {
+			regulator_disable(vcamera);
+			gpio_direction_output(pwd_sub, 1);
+		}
+		return 0;
+	/* Default for SAAR-C 2.5 and 3, carries M6MO+OV8820 and OV9740 */
+	default:
+		if (flag) {
+			gpio_direction_output(pwd_sub, 0);
+			msleep(1);
+		} else {
+			gpio_direction_output(pwd_sub, 1);
+		}
+		return 0;
 	}
-
-	if (gpio_request(gpio_pin, "CAM_EANBLE_LOW_SENSOR")) {
-		printk(KERN_ERR "cam: Request GPIO failed,"
-				"gpio: %d\n", gpio_pin);
-		return -EIO;
-	}
-
-	if (flag) {
-		gpio_direction_output(gpio_pin, 0);
-		msleep(1);
-	} else {
-		gpio_direction_output(gpio_pin, 1);
-	}
-
-	gpio_free(gpio_pin);
 	return 0;
 }
 
 static struct i2c_board_info camera_i2c[] = {
 	{
+		I2C_BOARD_INFO("m6mo", 0x1F),
+	},
+	{
+		I2C_BOARD_INFO("ov9740", 0x10),
+	},
+	{
 		I2C_BOARD_INFO("ov5642", 0x3c),
-	}, {
-		I2C_BOARD_INFO("ov7690", 0x21),
+	},
+	{
+		I2C_BOARD_INFO("ov7692", 0x3c),
+	},
+};
+
+static struct pxa95x_csi_dev csidev[] = {
+	{
+		.id		= 0,
+		.irq_num	= 71,
+		.reg_start	= 0x50020000,
+	},
+	{
+		.id		= 1,
+		.irq_num	= 58,
+		.reg_start	= 0x50022000,
 	},
 };
 
 static struct sensor_platform_data camera_sensor[] = {
-	{	/* OV5642 */
+	{/* M6MO */
 		.mount_pos	= SENSOR_USED \
 					| SENSOR_POS_BACK | SENSOR_RES_HIGH,
-		.interface	= SOCAM_MIPI_1LANE | SOCAM_MIPI_2LANE,
-		.intrfc_id	= 0,
-		.bridge		= 1,
+		/* Configure this domain according to hardware connection */
+		/* both of the 2 MIPI lanes are connected to pxa97x on EVB */
+		.interface	= SOCAM_MIPI \
+				| SOCAM_MIPI_1LANE | SOCAM_MIPI_2LANE,
+		.csi_ctlr	= &csidev[0],	/* connected to CSI0 */
+		.af_cap		= 1,
+		.mclk_mhz	= 26,
+		.vendor_info	= "SUNNY",
+		.board_name	= "SaarC 3",
+	},
+	{/* OV9740 */
+		.mount_pos	= SENSOR_USED \
+					| SENSOR_POS_FRONT | SENSOR_RES_LOW,
+		/* Configure this domain according to hardware connection */
+		/* both of the 2 MIPI lanes are connected to pxa97x on EVB */
+		.interface	= SOCAM_MIPI \
+				| SOCAM_MIPI_1LANE | SOCAM_MIPI_2LANE,
+		.csi_ctlr	= &csidev[1],	/* connected to CSI1 */
+		.af_cap		= 0,
+		.mclk_mhz	= 26,
+		.vendor_info	= "SUNNY",
+		.board_name	= "SaarC 2.5/3",
+	},
+	{/* OV5642 */
+		.mount_pos	= SENSOR_USED \
+					| SENSOR_POS_BACK | SENSOR_RES_HIGH,
+		/* Configure this domain according to hardware connection */
+		/* both of the 2 MIPI lanes are connected to pxa97x on EVB */
+		.interface	= SOCAM_MIPI \
+				| SOCAM_MIPI_1LANE | SOCAM_MIPI_2LANE,
+		.csi_ctlr	= &csidev[0],	/* connected to CSI0 */
 		.af_cap		= 1,
 		.mclk_mhz	= 26,
 		.vendor_info	= "TRULY",
-		.board_name	= "saarb",
-	}, {	/* OV7690 */
+		.board_name	= "pxa955-mipi",
+	},
+	{/* OV7692 */
 		.mount_pos	= SENSOR_USED \
 					| SENSOR_POS_FRONT | SENSOR_RES_LOW,
-		.interface	= 0,
-		.intrfc_id	= 0,
-		.bridge		= 1,
-		.af_cap		= 1,
+		/* Configure this domain according to hardware connection */
+		/* both of the 2 MIPI lanes are connected to pxa97x on EVB */
+		.interface	= SOCAM_MIPI \
+				| SOCAM_MIPI_1LANE,
+		.csi_ctlr	= &csidev[1],	/* connected to CSI1*/
+		.af_cap		= 0,
 		.mclk_mhz	= 26,
 		.vendor_info	= "N/A",
-		.board_name	= "saarb",
+		.board_name	= "pxa955-mipi",
 	},
 };
 
@@ -823,22 +902,48 @@ static struct soc_camera_link iclink[] = {
 		.board_info		= &camera_i2c[0],
 		.i2c_adapter_id		= 1,
 		.power = camera0_power,
-		.module_name		= "ov5642",
-		/* Configure this flag according to hardware connection */
-		/* Both of the 2 MIPI lanes are connected to pxa95x on Saarb */
+		.module_name		= "m6mo",
+		/* When flags[31] is set, priv domain is pointing to a */
+		/* sensor_platform_data to pass sensor parameters */
+		.flags			= 0x80000000,
 		.priv			= &camera_sensor[0],
-	}, {
+	},
+	{
 		.bus_id			= 0, /* Must match with the camera ID */
 		.board_info		= &camera_i2c[1],
 		.i2c_adapter_id		= 1,
 		.power = camera1_power,
-		.module_name		= "ov7690",
-		/* ov7690 is using ov5642 as bridge, so config is the same*/
+		.module_name		= "ov9740",
+		/* When flags[31] is set, priv domain is pointing to a */
+		/* sensor_platform_data to pass sensor parameters */
+		.flags			= 0x80000000,
 		.priv			= &camera_sensor[1],
+	},
+	{
+		.bus_id			= 0, /* Must match with the camera ID */
+		.board_info		= &camera_i2c[2],
+		.i2c_adapter_id		= 1,
+		.power = camera0_power,
+		.module_name		= "ov5642",
+		/* When flags[31] is set, priv domain is pointing to a */
+		/* sensor_platform_data to pass sensor parameters */
+		.flags			= 0x80000000,
+		.priv			= &camera_sensor[2],
+	},
+	{
+		.bus_id			= 0, /* Must match with the camera ID */
+		.board_info		= &camera_i2c[3],
+		.i2c_adapter_id		= 1,
+		.power = camera1_power,
+		.module_name		= "ov7692",
+		/* When flags[31] is set, priv domain is pointing to a */
+		/* sensor_platform_data to pass sensor parameters */
+		.flags			= 0x80000000,
+		.priv			= &camera_sensor[3],
 	},
 };
 
-static struct platform_device camera[] = {
+static struct platform_device __attribute__((unused)) camera[] = {
 	{
 		.name	= "soc-camera-pdrv",
 		.id	= 0,
@@ -852,58 +957,80 @@ static struct platform_device camera[] = {
 			.platform_data = &iclink[1],
 		},
 	},
+	{
+		.name	= "soc-camera-pdrv",
+		.id	= 0,
+		.dev	= {
+			.platform_data = &iclink[2],
+		},
+	}, {
+		.name	= "soc-camera-pdrv",
+		.id	= 1,
+		.dev	= {
+			.platform_data = &iclink[3],
+		},
+	},
 };
-
-static struct pxa95x_csi_dev csidev[] = {
-	{
-		.irq_num	= 71,
-		.reg_start	= 0x50020000,
-	},
-	/*TODO: if there is 2 csi controller, add its info here*/
-	/*
-	{
-		.irq_num	= 71,
-		.reg_base	= 0x50020000,
-	},
-	*/
-};
-
-/*
-* TODO: combine csi controller and camera controller, now we only have one
-* csi controller on pxa95x, and two camera controllers
-*/
-static struct pxa95x_cam_pdata cam_pdata[] = {
-	{
-		.csidev		= &csidev[0],
-	},
-	/*TODO: if there is 2 sci controller, add its info here*/
-	/*
-	{
-		.mclk_mhz	= 26,
-		.csidev		= &csidev[1],
-	},
-	*/
-};
-
 #endif
 
 static void __init init_cam(void)
 {
+	/* PWD pin GPIO initialize */
+	switch (get_board_id()) {
+	case OBM_SAAR_C2_NEVO_A0_V10_BOARD:
+		pwd_main = mfp_to_gpio(MFP_PIN_GPIO25);
+		pwd_sub = mfp_to_gpio(MFP_PIN_GPIO26);
+		pwd_isp	= 0;
+		break;
+	default: /* For SaarC 2.5 and 3*/
+		pwd_main = mfp_to_gpio(MFP_PIN_GPIO18);
+		pwd_sub = mfp_to_gpio(MFP_PIN_GPIO26);
+		pwd_isp	= mfp_to_gpio(MFP_PIN_GPIO24);
+		if (pwd_isp && gpio_request(pwd_isp, "CAM_ISP_RESET")) {
+			printk(KERN_ERR "Request GPIO failed,"
+				"gpio: %d\n", pwd_isp);
+			pwd_isp = 0;
+			return;
+		}
+		break;
+	}
+	/* Camera hold these GPIO forever, should not be accquired by others */
+	if (pwd_main && gpio_request(pwd_main, "CAM_HI_SENSOR_PWD")) {
+		printk(KERN_ERR "Request GPIO failed,"
+				"gpio: %d\n", pwd_main);
+		pwd_main = 0;
+		return;
+	}
+	if (pwd_sub && gpio_request(pwd_sub, "CAM_LOW_SENSOR_PWD")) {
+		printk(KERN_ERR "Request GPIO failed,"
+				"gpio: %d\n", pwd_sub);
+		pwd_sub = 0;
+		return;
+	}
+
 #if defined(CONFIG_VIDEO_PXA955)
-
+	switch (get_board_id()) {
+	case OBM_SAAR_C2_NEVO_A0_V10_BOARD:
+		printk(KERN_NOTICE "cam: saarc: Probing camera on SaarC 2\n");
 #if defined(CONFIG_SOC_CAMERA_OV5642)
-	platform_device_register(&camera[0]);
+		platform_device_register(&camera[2]);
 #endif
-#if defined(CONFIG_SOC_CAMERA_OV7690)
-	platform_device_register(&camera[1]);
+#if defined(CONFIG_SOC_CAMERA_OV7692)
+		platform_device_register(&camera[3]);
 #endif
-
-	pxa95x_device_cam0.dev.platform_data = &cam_pdata[0];
+		break;
+	default: /* For SaarC 2.5 and 3*/
+		printk(KERN_NOTICE "cam: saarc: Probing camera on "\
+					"SaarC 2.5/3\n");
+#if defined(CONFIG_SOC_CAMERA_M6MO)
+		platform_device_register(&camera[0]);
+#endif
+#if defined(CONFIG_SOC_CAMERA_OV9740)
+		platform_device_register(&camera[1]);
+#endif
+		break;
+	}
 	platform_device_register(&pxa95x_device_cam0);
-
-	/* TODO: add sencond camera controller */
-	/*pxa95x_device_cam1.dev.platform_data = &cam_pdata[1];*/
-	/*platform_device_register(&pxa95x_device_cam1);*/
 #endif
 }
 
