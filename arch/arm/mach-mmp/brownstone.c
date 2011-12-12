@@ -253,6 +253,8 @@ static struct regulator_init_data max8649_init_data = {
 
 static struct max8649_platform_data brownstone_max8649_info = {
 	.mode		= 2,	/* VID1 = 1, VID0 = 0 */
+	.sleep_mode	= 0,	/* VID1 = 0, VID0 = 0 */
+	.sleep_vol	= 1000000,
 	.extclk		= 0,
 	.ramp_timing	= MAX8649_RAMP_32MV,
 	.regulator	= &max8649_init_data,
