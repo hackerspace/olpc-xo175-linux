@@ -107,6 +107,9 @@ enum {
 	/* module bt866: just ident 866 */
 	V4L2_IDENT_BT866 = 866,
 
+	/* Fujitsu ISPs: reserved range 900-1099 */
+	V4L2_IDENT_M6MO = 915,
+
 	/* module ks0127: reserved range 1120-1129 */
 	V4L2_IDENT_KS0122S = 1122,
 	V4L2_IDENT_KS0127  = 1127,

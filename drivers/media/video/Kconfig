@@ -796,6 +796,13 @@ config SOC_CAMERA
 	  over a bus like PCI or USB. For example some i2c camera connected
 	  directly to the data bus of an SoC.
 
+config SOC_CAMERA_M6MO
+	tristate "Fujitsu m6mo ISP support"
+	depends on SOC_CAMERA && I2C
+	default n
+	help
+	  Support for the Fujitsu m6mo ISP with ov8820 (soc-camera arch).
+
 config SOC_CAMERA_OV5642
 	tristate "ov5642 support"
 	depends on SOC_CAMERA && I2C
