@@ -1233,6 +1233,7 @@ static int pxa910_set_freq(int index)
 {
 	struct pxa910_md_opt *md_new, *md_old;
 	int ret = 0;
+	unsigned long flags;
 
 	md_new = &op_array[index];
 	if (md_new->pclk < constraint_min_freq || md_new == cur_md)
@@ -1250,7 +1251,9 @@ static int pxa910_set_freq(int index)
 		}
 	}
 
+	local_irq_save(flags);
 	set_freq(md_old, md_new);
+	local_irq_restore(flags);
 	cur_md = md_new;
 	loops_per_jiffy = md_new->lpj;
 
