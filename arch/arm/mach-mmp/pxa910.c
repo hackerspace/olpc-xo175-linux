@@ -37,6 +37,10 @@
 
 #include <plat/mfp.h>
 #include <plat/pmem.h>
+
+#include <linux/dma-mapping.h>
+#include <asm/dma-mapping.h>
+
 #include "common.h"
 #include "clock.h"
 #include "acpuclock.h"
@@ -791,3 +795,66 @@ void __init pxa910_reserve(void)
 	pxa_reserve_pmem_memblock();
 #endif
 }
+
+/* The following code is used to enable DMA_ZONE on DKB for 1GB DDR*/
+#ifdef CONFIG_DMABOUNCE
+
+#define DMA_SIZE SZ_512M
+
+static char *device_name[] = {
+	       "pxa-u2o",
+	       "pxa-u2oehci",
+	       NULL,
+	};
+
+static int dev_match_name(struct device *dev)
+{
+	const char *name = dev_name(dev);
+	int i = 0;
+
+	while (device_name[i]) {
+		if (!strcmp(name, device_name[i]))
+			return 1;
+		i++;
+	}
+
+	return 0;
+}
+
+/*
+ * Setup DMA mask to 512MB on USB devices.
+ */
+static int pxa910_platform_notify(struct device *dev)
+{
+	if (dev_match_name(dev)) {
+		*dev->dma_mask =  DMA_SIZE - 1;
+		dev->coherent_dma_mask = DMA_SIZE - 1;
+		dmabounce_register_dev(dev, 512, 4096);
+	}
+
+	return 0;
+}
+
+static int pxa910_platform_notify_remove(struct device *dev)
+{
+	if (dev_match_name(dev))
+		dmabounce_unregister_dev(dev);
+
+	return 0;
+}
+
+void __init pxa910_dmabounce_setup(void)
+{
+	platform_notify = pxa910_platform_notify;
+	platform_notify_remove = pxa910_platform_notify_remove;
+}
+
+int dma_needs_bounce(struct device *dev, dma_addr_t dma_addr, size_t size)
+{
+	if (dev_match_name(dev))
+		return ((dma_addr + size) >= DMA_SIZE);
+	else
+		return 0;
+}
+#endif
+

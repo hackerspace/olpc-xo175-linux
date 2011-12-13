@@ -55,6 +55,9 @@ extern struct platform_device pxa168_device_u2oehci;
 
 extern void pxa910_clear_keypad_wakeup(void);
 extern void __init pxa910_reserve(void);
+#ifdef CONFIG_DMABOUNCE
+extern void __init pxa910_dmabounce_setup(void);
+#endif
 
 static inline int pxa910_add_uart(int id)
 {

@@ -93,6 +93,7 @@ config MACH_YELLOWSTONE
 config PXA910_1G_DDR_WORKAROUND
 	bool "Marvell's PXA910 1G DDR Workaround"
 	depends on CPU_PXA910
+	select DMABOUNCE
 	default y
 	help
 	  Say 'Y' here if more than 512MB DDR is used on PXA910.
