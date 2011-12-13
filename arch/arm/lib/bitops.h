@@ -1,4 +1,7 @@
 #if __LINUX_ARM_ARCH__ >= 6
+#ifdef CONFIG_PJ4B_ERRATA_6011
+#include <asm/pj4b-errata-6011.h>
+#endif
 	.macro	bitop, instr
 	ands	ip, r1, #3
 	strneb	r1, [ip]		@ assert word-aligned
@@ -7,7 +10,11 @@
 	mov	r0, r0, lsr #5
 	add	r1, r1, r0, lsl #2	@ Get word offset
 	mov	r3, r2, lsl r3
+#ifdef CONFIG_PJ4B_ERRATA_6011
+1:	pj4b_6011_ldrex r2, r1, r0
+#else
 1:	ldrex	r2, [r1]
+#endif
 	\instr	r2, r2, r3
 	strex	r0, r2, [r1]
 	cmp	r0, #0
@@ -24,7 +31,11 @@
 	add	r1, r1, r0, lsl #2	@ Get word offset
 	mov	r3, r2, lsl r3		@ create mask
 	smp_dmb
+#ifdef CONFIG_PJ4B_ERRATA_6011
+1:	pj4b_6011_ldrex r2, r1, ip
+#else
 1:	ldrex	r2, [r1]
+#endif
 	ands	r0, r2, r3		@ save old value of bit
 	\instr	r2, r2, r3		@ toggle bit
 	strex	ip, r2, [r1]

@@ -1267,6 +1267,14 @@ config PJ4B_ERRATA_6133
 	help
 	  This option uses TLB invalidate all instead of a loop of TLB invalidate by MVA operations.
 
+config PJ4B_ERRATA_6011
+	bool "PJ4B errata 6011"
+	depends on CPU_PJ4B
+	help
+	  Invalidating snoop between LDREX/STREX pair causes STREX to incorrectly succeed
+	  without updated store data. For cacheable, coherent memory, disable interrupt and
+	  replace every occurrence of an LDREX with 5 equivalent LDREX instructions.
+
 endmenu
 
 source "arch/arm/common/Kconfig"

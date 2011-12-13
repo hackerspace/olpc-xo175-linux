@@ -28,6 +28,10 @@
 #include "entry-header.S"
 #include <asm/entry-macro-multi.S>
 
+#ifdef CONFIG_PJ4B_ERRATA_6011
+#include <asm/pj4b-errata-6011.h>
+#endif
+
 /*
  * Interrupt handling.  Preserves r7, r8, r9
  */
@@ -798,6 +802,25 @@ ENDPROC(__switch_to)
 	.globl	__kuser_helper_start
 __kuser_helper_start:
 
+#ifdef CONFIG_PJ4B_ERRATA_6011
+__kuser_cmpxchg_pj4b_errata_6011:
+	smp_dmb	arm
+1:
+	stmfd	sp!, {r0}
+	pj4b_6011_ldrex r3, r2, r0
+	ldmfd	sp!, {r0}
+	subs	r3, r3, r0
+	strexeq	r3, r1, [r2]
+	teqeq	r3, #1
+	beq	1b
+	rsbs	r0, r3, #0
+	/* beware -- each __kuser slot must be 8 instructions max */
+	ALT_SMP(b	__kuser_memory_barrier)
+	ALT_UP(usr_ret	lr)
+
+	.align	5
+#endif
+
 /*
  * Reference prototype:
  *
@@ -948,6 +971,9 @@ kuser_cmpxchg_fixup:
 
 #else
 
+#ifdef CONFIG_PJ4B_ERRATA_6011
+	b	__kuser_cmpxchg_pj4b_errata_6011
+#else
 	smp_dmb	arm
 1:	ldrex	r3, [r2]
 	subs	r3, r3, r0
@@ -958,6 +984,8 @@ kuser_cmpxchg_fixup:
 	/* beware -- each __kuser slot must be 8 instructions max */
 	ALT_SMP(b	__kuser_memory_barrier)
 	ALT_UP(usr_ret	lr)
+
+#endif
 
 #endif
 
