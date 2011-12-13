@@ -163,6 +163,24 @@ static void saarc_pcm_shutdown(struct snd_pcm_substream * substream)
 	pr_info("[saarc_pcm_startup]: switch to GSSP1\n");
 }
 
+static int saarc_ihdmi_prepare(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	struct ssp_priv *priv = snd_soc_dai_get_drvdata(cpu_dai);
+	struct ssp_device *ssp = priv->ssp;
+	u32 sscr0, sscr1, val;
+
+	sscr0 = __raw_readl(ssp->mmio_base + SSCR0);
+	sscr1 = __raw_readl(ssp->mmio_base + SSCR1);
+	val = (sscr1 | 0x00B01DC0) & (~0x03000000);/* config ssp as master*/
+	__raw_writel(sscr0 | 0x41D0003F, ssp->mmio_base + SSCR0);
+	__raw_writel(val, ssp->mmio_base + SSCR1);
+	__raw_writel(0x02100004, ssp->mmio_base + SSPSP);
+
+	return 0;
+}
+
 static struct snd_soc_ops saarc_i2s_ops = {
 	.hw_params	= saarc_i2s_hw_params,
 	.startup	= saarc_i2s_startup,
@@ -172,6 +190,10 @@ static struct snd_soc_ops saarc_pcm_ops = {
 	.startup	= saarc_pcm_startup,
 	.shutdown	= saarc_pcm_shutdown,
 	.prepare	= saarc_pcm_prepare,
+};
+
+static struct snd_soc_ops saarc_ihdmi_ops = {
+	.prepare	= saarc_ihdmi_prepare,
 };
 
 static struct snd_soc_dai_link saarc_pm860x_dai[] = {
@@ -218,6 +240,18 @@ static struct snd_soc_dai_link saarc_pm805_dai[] = {
 	}
 };
 
+static struct snd_soc_dai_link hdmi_dai[] = {
+	{
+		.name		= "iHDMI I2S",
+		.stream_name	= "iHDMI Audio",
+		.cpu_dai_name	= "pxa-ssp-dai.2",
+		.codec_dai_name = "dummy-dai",
+		.platform_name	= "pxa-pcm-audio",
+		.codec_name	= "dummy-codec",
+		.ops		= &saarc_ihdmi_ops,
+	},
+};
+
 static struct snd_soc_card snd_soc_card_saarc_pm860x = {
 	.name = "88pm860x",
 	.dai_link = saarc_pm860x_dai,
@@ -228,6 +262,12 @@ static struct snd_soc_card snd_soc_card_saarc_pm805 = {
 	.name = "88pm805",
 	.dai_link = saarc_pm805_dai,
 	.num_links = ARRAY_SIZE(saarc_pm805_dai),
+};
+
+static struct snd_soc_card snd_soc_card_hdmi = {
+	.name  = "hdmi",
+	.dai_link  = hdmi_dai,
+	.num_links  = ARRAY_SIZE(hdmi_dai),
 };
 
 static int saarc_pm860x_init(struct snd_soc_pcm_runtime *rtd)
@@ -297,7 +337,7 @@ static int saarc_pm860x_init(struct snd_soc_pcm_runtime *rtd)
 #endif
 }
 
-static struct platform_device *saarc_snd_device;
+static struct platform_device *saarc_snd_device, *hdmi_snd_device;
 
 static int __init saarc_init(void)
 {
@@ -319,12 +359,24 @@ static int __init saarc_init(void)
 	if (ret)
 		platform_device_put(saarc_snd_device);
 
+	/* hdmi */
+	hdmi_snd_device = platform_device_alloc("soc-audio", 1);
+	if (hdmi_snd_device) {
+		platform_set_drvdata(hdmi_snd_device, &snd_soc_card_hdmi);
+
+		ret = platform_device_add(hdmi_snd_device);
+		if (ret)
+			platform_device_put(hdmi_snd_device);
+	}
+
 	return ret;
 }
 
 static void __exit saarc_exit(void)
 {
 	platform_device_unregister(saarc_snd_device);
+	if (hdmi_snd_device)
+		platform_device_unregister(hdmi_snd_device);
 }
 
 module_init(saarc_init);
