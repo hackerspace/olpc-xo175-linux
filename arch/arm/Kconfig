@@ -1247,6 +1247,13 @@ config PJ4B_ERRATA_5807
 	  previous request completed. This option uses invalidate TLB by ASID
 	  to replace invalidate TLB entry by MVA. (lightweight version)
 
+config PJ4B_ERRATA_6026
+	bool "PJ4B errata 6026"
+	depends on CPU_PJ4B
+	help
+	  This option replaces all broadcast clean operations with broadcast
+	  clean and invalidate operations.
+
 endmenu
 
 source "arch/arm/common/Kconfig"

@@ -82,7 +82,11 @@ ENDPROC(cpu_v7_do_idle)
 ENTRY(cpu_v7_dcache_clean_area)
 #ifndef TLB_CAN_READ_FROM_L1_CACHE
 	dcache_line_size r2, r3
+#ifdef CONFIG_PJ4B_ERRATA_6026
+1:	mcr	p15, 0, r0, c7, c14, 1		@ clean & invalidate D / U line
+#else
 1:	mcr	p15, 0, r0, c7, c10, 1		@ clean D entry
+#endif
 	add	r0, r0, r2
 	subs	r1, r1, r2
 	bhi	1b
@@ -170,7 +174,11 @@ ENTRY(cpu_v7_set_pte_ext)
  ARM(	str	r3, [r0, #2048]! )
  THUMB(	add	r0, r0, #2048 )
  THUMB(	str	r3, [r0] )
+#ifdef CONFIG_PJ4B_ERRATA_6026
+	mcr	p15, 0, r0, c7, c14, 1		@ clean & invalidate D / U line
+#else
 	mcr	p15, 0, r0, c7, c10, 1		@ flush_pte
+#endif
 #endif
 	mov	pc, lr
 ENDPROC(cpu_v7_set_pte_ext)
