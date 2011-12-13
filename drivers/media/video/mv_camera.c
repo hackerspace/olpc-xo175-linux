@@ -848,12 +848,14 @@ static int mv_camera_set_fmt(struct soc_camera_device *icd,
 		pcdev->frame_rate =
 			inter.interval.numerator/inter.interval.denominator;
 
+#ifndef CONFIG_CPU_MMP2
 	/* Update dphy value */
 	mcam->dphy[0] = ((2 + inter.pad * 110 / 1000) & 0xff) << 8
 			| (1 + inter.pad * 35 / 1000);
 
 	dev_dbg(dev, "DPHY set as: dphy3|0x%x, dphy5|0x%x, dphy6|0x%x\n",
 			mcam->dphy[0], mcam->dphy[1], mcam->dphy[2]);
+#endif
 	pix->width = mf.width;
 	pix->height = mf.height;
 	pix->field = mf.field;
