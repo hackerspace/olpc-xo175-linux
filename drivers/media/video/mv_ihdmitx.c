@@ -334,6 +334,30 @@ static void send_info_frame(u8 format)
 	*write_tdata3_2 = 0xf;
 }
 
+void send_hdmi_audio_info_frame()
+{
+	unsigned char buf[14];
+
+	/* packet header for audio InfoFrame Packet*/
+	buf[0] = 0x84;
+	buf[1] = 0x1;
+	buf[2] = 0xa;
+	buf[3] = 0x0;	/* checksum*/
+	buf[4] = 0x11;	/* PCM, 2 channels*/
+	buf[5] = 0x9;	/* 44.1K, 16 bit*/
+	buf[6] = 0x0;
+	buf[7] = 0x0;	/* speaker alloc*/
+	buf[8] = 0x0;
+	buf[9] = 0x0;
+	buf[10] = 0x0;
+	buf[11] = 0x0;
+	buf[12] = 0x0;
+	buf[13] = 0x0;
+	buf[3] = CheckSum(buf, sizeof(buf));
+	send_packet(1,buf, sizeof(buf));
+}
+
+
 static void hdtx_cfg(void)
 {
 	u8 *pBase = (u8 *)hdtx_regs;
@@ -366,74 +390,27 @@ static void hdtx_cfg(void)
 	*write_phy_fifo_soft_rst = 0x0;
 }
 
-static void __attribute__ ((unused)) hdtx_audio_cfg(void)
+void hdtx_audio_cfg()
 {
 	volatile struct ubits_registers *ubits =
-		(struct ubits_registers *)
+			(struct ubits_registers *)
 			((u32)hdtx_regs + HDMITX_UBITS_OFFSET);
 
-	pr_info("hdtx_audio_cfg\n");
+	hdtx_regs->chsts_3 = 0x0;
+	hdtx_regs->chsts_4 = 0x2;	/* Channel status bits for 44.1Khz*/
+	hdtx_regs->i2s_dlen = 0x10;	/* 16 bit per sample*/
+	ubits->hbr_pkt = 0x0;	/* layout0*/
+	hdtx_regs->acr_ctrl = 0x1;  /* calculate CTS automaticly and enable ACR packets*/
 
-	hdtx_regs->acr_n0 = 0x0;
+	/* calculate CTS automaticly and enable ACR packets
+	Currently N = 6272 is good enough for all our formats on (44.1Khz)
+	After adding other freq we will add new N values here */
+	hdtx_regs->acr_n0 = 0x80;	/* N=6272*/
 	hdtx_regs->acr_n1 = 0x18;
-	hdtx_regs->acr_n2 = 0x0;
+	hdtx_regs->acr_n2 = 0x00;
 
-	hdtx_regs->acr_cts0 = 0x0;
-	hdtx_regs->acr_cts1 = 0x0;
-	hdtx_regs->acr_cts2 = 0x0;
-
-	hdtx_regs->acr_ctrl = 0x1;
-
-	hdtx_regs->mem_size_l = 0xFF;
-	hdtx_regs->mem_size_h = 0x1;
-
-	hdtx_regs->i2s_dlen = 0x10;
-
-	hdtx_regs->aud_ctrl = 0x1F;
-
-	hdtx_regs->gcp_cfg0 = 0x1;
-	hdtx_regs->gcp_cfg1 = 0x43;
-
-	hdtx_regs->i2s_dbg_lft0 = 0x12;
-	hdtx_regs->i2s_dbg_lft1 = 0x34;
-	hdtx_regs->i2s_dbg_lft2 = 0x56;
-	hdtx_regs->i2s_dbg_lft3 = 0x78;
-
-	hdtx_regs->i2s_dbg_rit0 = 0x12;
-	hdtx_regs->i2s_dbg_rit1 = 0x34;
-	hdtx_regs->i2s_dbg_rit2 = 0x56;
-	hdtx_regs->i2s_dbg_rit3 = 0x78;
-
-	hdtx_regs->chsts_0 = 0x12;
-	hdtx_regs->chsts_1 = 0x34;
-	hdtx_regs->chsts_2 = 0x56;
-	hdtx_regs->chsts_3 = 0x78;
-	hdtx_regs->chsts_4 = 0x9a;
-
-	hdtx_regs->chsts_0 = 0x12;
-	hdtx_regs->chsts_1 = 0x34;
-	hdtx_regs->chsts_2 = 0x56;
-	hdtx_regs->chsts_3 = 0x78;
-	hdtx_regs->chsts_4 = 0x9a;
-
-	ubits->ubits_0 = 0x1;
-	ubits->ubits_1 = 0x2;
-	ubits->ubits_2 = 0x3;
-	ubits->ubits_3 = 0x4;
-	ubits->ubits_4 = 0x5;
-	ubits->ubits_5 = 0x6;
-	ubits->ubits_6 = 0x7;
-	ubits->ubits_7 = 0x8;
-	ubits->ubits_8 = 0x9;
-	ubits->ubits_9 = 0x10;
-	ubits->ubits_10 = 0x11;
-	ubits->ubits_11 = 0x12;
-	ubits->ubits_12 = 0x13;
-	ubits->ubits_13 = 0x14;
-
-	/* ubits->hbr_pkt = 0x01;
-	hdtx_regs->aud_ctrl = 0xc3; */
-
+	hdtx_regs->aud_ctrl = 0x83;	/* Enable audio*/
+	send_hdmi_audio_info_frame();	/* Send audio info frame*/
 }
 
 static void __attribute__ ((unused))
@@ -472,7 +449,7 @@ int mv_ihdmiinit(void)
 	pr_info("HDMI tx header frame has been sent.\n");
 
 	hdtx_cfg();
-	/* hdtx_audio_cfg(); */
+	hdtx_audio_cfg();
 	to = 300;
 	while (is_video_frame_ready() == 0 && --to)
 		;

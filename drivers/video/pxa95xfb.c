@@ -1568,7 +1568,10 @@ static void controller_enable_disable(struct pxa95xfb_info *fbi, int onoff)
 	switch(onoff)
 	{
 		case LCD_Controller_Enable:
-			ctrl |= LCD_CTL_LCD_EN | LCD_CTL_GMIX_INT_EN | LCD_CTL_AXI32_EN | LCD_CTL_GFETCH_INT_EN | LCD_CTL_GWIN_INT_EN;
+			ctrl |= LCD_CTL_LCD_EN | LCD_CTL_GMIX_INT_EN | LCD_CTL_AXI32_EN
+				| LCD_CTL_GFETCH_INT_EN | LCD_CTL_GWIN_INT_EN;
+			if (fbi->converter == LCD_M2HDMI)
+				ctrl |= LCD_CTL_CLK_SSP_EN;
 			/*make sure quick disable is cleared*/
 			ctrl &= ~LCD_CTL_LCD_QD;
 			writel(ctrl, fbi->reg_base + LCD_CTL);
@@ -1585,6 +1588,8 @@ static void controller_enable_disable(struct pxa95xfb_info *fbi, int onoff)
 		case LCD_Controller_Disable:
 			ctrl = readl(fbi->reg_base + LCD_CTL);
 			ctrl &= ~(LCD_CTL_LCD_EN);
+			if (fbi->converter == LCD_M2HDMI)
+				ctrl &= ~(LCD_CTL_CLK_SSP_EN);
 			writel(ctrl, fbi->reg_base + LCD_CTL);
 			display_enabled = 0;
 			/* after disable, the LCD_CTL_INT_STS[LCD_CTL_INT_STS_LCD_DIS_INT_STS]
