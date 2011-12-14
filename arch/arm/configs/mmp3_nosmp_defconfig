@@ -591,7 +591,7 @@ CONFIG_BT_BNEP_PROTO_FILTER=y
 # Bluetooth device drivers
 #
 # CONFIG_BT_HCIBTUSB is not set
-CONFIG_BT_HCIBTSDIO=y
+# CONFIG_BT_HCIBTSDIO is not set
 # CONFIG_BT_HCIUART is not set
 # CONFIG_BT_HCIBCM203X is not set
 # CONFIG_BT_HCIBPA10X is not set
