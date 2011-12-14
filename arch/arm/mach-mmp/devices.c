@@ -305,18 +305,6 @@ static int usb_phy_init_internal(unsigned int base)
 		 * Set UTMI_IVREF from 0x4a3 to 0x4bf */
 		u2o_write(base, UTMI_IVREF, 0x4bf);
 
-	/* calibration */
-	loops = 0;
-	while ((u2o_get(base, UTMI_PLL) & PLL_READY) == 0) {
-		mdelay(1);
-		loops++;
-		if (loops > 100) {
-			printk(KERN_WARNING "calibrate timeout, UTMI_PLL %x\n",
-				u2o_get(base, UTMI_PLL));
-			break;
-		}
-	}
-
 	/* toggle VCOCAL_START bit of UTMI_PLL */
 	udelay(200);
 	u2o_set(base, UTMI_PLL, VCOCAL_START);
@@ -324,11 +312,11 @@ static int usb_phy_init_internal(unsigned int base)
 	u2o_clear(base, UTMI_PLL, VCOCAL_START);
 
 	/* toggle REG_RCAL_START bit of UTMI_TX */
-	udelay(200);
+	udelay(400);
 	u2o_set(base, UTMI_TX, REG_RCAL_START);
 	udelay(40);
 	u2o_clear(base, UTMI_TX, REG_RCAL_START);
-	udelay(200);
+	udelay(400);
 
 	/* Make sure PHY PLL is ready */
 	loops = 0;
