@@ -14,13 +14,7 @@
 #include <linux/i2c.h>
 #include <linux/mfd/max8925.h>
 #include <linux/slab.h>
-
-#ifdef CONFIG_CPU_MMP2
-#include <mach/mmp2_pm.h>
-#else
-static void pwr_i2c_conflict_mutex_lock(void){}
-static void pwr_i2c_conflict_mutex_unlock(void){}
-#endif
+#include <plat/pm.h>
 
 #define RTC_I2C_ADDR		0x68
 #define ADC_I2C_ADDR		0x47

@@ -25,13 +25,7 @@
 #include <linux/proc_fs.h>
 #include <linux/mfd/max8925.h>
 #include <linux/power/isl9519.h>
-
-#ifdef CONFIG_CPU_MMP2
-#include <mach/mmp2_pm.h>
-#else
-static void pwr_i2c_conflict_mutex_lock(void){}
-static void pwr_i2c_conflict_mutex_unlock(void){}
-#endif
+#include <plat/pm.h>
 
 /* ISL9519 register address */
 #define CHG_CUR_REG			0x14

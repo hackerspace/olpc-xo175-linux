@@ -25,4 +25,12 @@
 #define PM_QOS_CONSTRAINT PM_QOS_DEFAULT_VALUE
 #endif
 
+#if defined(CONFIG_CPU_MMP2) && defined(CONFIG_CPU_FREQ)
+void pwr_i2c_conflict_mutex_lock(void);
+void pwr_i2c_conflict_mutex_unlock(void);
+#else
+static inline void pwr_i2c_conflict_mutex_lock(void) {}
+static inline void pwr_i2c_conflict_mutex_unlock(void) {}
+#endif
+
 #endif
