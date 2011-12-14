@@ -943,11 +943,13 @@ static struct sdhci_pxa_platdata mci0_platform_data = {
 	.flags	= PXA_FLAG_CARD_PERMANENT |
 				PXA_FLAG_SD_8_BIT_CAPABLE_SLOT |
 				PXA_FLAG_ACITVE_IN_SUSPEND |
-				PXA_FLAG_ENABLE_CLOCK_GATING,
+				PXA_FLAG_ENABLE_CLOCK_GATING |
+				PXA_FLAG_KEEP_POWER_IN_SUSPEND,
 };
 
 static struct sdhci_pxa_platdata mci1_platform_data = {
-	.flags = PXA_FLAG_ENABLE_CLOCK_GATING,
+	.flags = PXA_FLAG_ENABLE_CLOCK_GATING |
+			PXA_FLAG_ACITVE_IN_SUSPEND,
 	.ext_cd_gpio = mfp_to_gpio(MFP_PIN_GPIO47),
 	.ext_cd_gpio_invert = 1,
 };
