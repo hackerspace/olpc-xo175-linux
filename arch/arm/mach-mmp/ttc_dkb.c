@@ -504,7 +504,14 @@ static int ttc_dkb_pm860x_fixup(struct pm860x_chip *chip,
 
 	/* set vbuck1 0.9v in sleep*/
 	pm860x_reg_write(chip->client, PM8607_SLEEP_BUCK1, 0x24);
-	pm860x_reg_write(chip->client, PM8607_SLEEP_BUCK2, 0x24);
+	/* set vbuck2(power supply to DDR) to 1.8V for 920/910 */
+	if (!emmc_boot) {
+		pm860x_reg_write(chip->client, PM8607_SLEEP_BUCK2, 0x24);
+	} else {
+		/* set vbuck2 to 1.85V for 920H */
+		pm860x_reg_write(chip->client, PM8607_BUCK2, 0x25);
+		pm860x_reg_write(chip->client, PM8607_SLEEP_BUCK2, 0x25);
+	}
 	/*RTC to use ext 32k clk*/
 	pm860x_set_bits(chip->client, PM8607_RTC1, 1<<6, 1<<6);
 	/*Enable RTC to use ext 32k clk*/
