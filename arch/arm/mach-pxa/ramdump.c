@@ -100,7 +100,7 @@ struct cp6_regs {
 	unsigned icpr3;
 };
 
-/* PJ4 specific cp15 regs. DONT EXTEND, ADD NEW STRUCTURE TO ramdump_state */
+/* ARMV7 specific cp15 regs. DONT EXTEND, ADD NEW STRUCTURE TO ramdump_state */
 struct cp15_regs_pj4 {
 	unsigned seccfg;	/* Secure Configuration */
 	unsigned secdbg;	/* Secure Debug Enable */
@@ -131,7 +131,7 @@ struct l2c_pj4_regs {
 	unsigned l2errcapt;	/* L2 Cache Error Capture */
 };
 
-/* PJ4 performance monitor */
+/* ARMV7 performance monitor */
 struct pfm_pj4_regs {
 	unsigned ctrl;
 	unsigned ceset;
@@ -323,9 +323,9 @@ static void save_peripheral_regs(struct ramdump_state *d)
 	d->acc.d0cken_a = CKENA;
 	d->acc.d0cken_b = CKENB;
 	d->acc.d0cken_c = CKENC;
-#ifdef CONFIG_CPU_PJ4
-	d->acc.cfgreg0 = __REG(0x48100f10);
-#endif
+	if (cpu_is_pxa968() || cpu_is_pxa955())
+		d->acc.cfgreg0 = __REG(0x48100f10);
+
 #ifdef CONFIG_PXA95x
 	d->soc.avcr = __REG(0x40f50094);
 	d->soc.ser_fuse_reg2 = __REG(0x40f50208);
@@ -361,7 +361,7 @@ static void ramdump_save_static_context(struct ramdump_state *d)
 	d->cp15.aux_cr	=	get_reg_asm("mrc p15, 0, %0, c1, c0, 1");
 	d->cp15.ttb	=	get_reg_asm("mrc p15, 0, %0, c2, c0, 0");
 	d->cp15.da_ctrl	=	get_reg_asm("mrc p15, 0, %0, c3, c0, 0");
-#ifndef CONFIG_CPU_PJ4 /* XSC */
+#ifndef CONFIG_CPU_V7 /* XSC */
 	d->cp15.cpar	=	get_reg_asm("mrc p15, 0, %0, c15,c1, 0");
 #else /* PJ4 */
 	d->cp15.cpar	=	get_reg_asm("mrc p15, 0, %0, c1, c0, 2");
@@ -371,7 +371,7 @@ static void ramdump_save_static_context(struct ramdump_state *d)
 	/* PJ4: context id */
 	d->cp15.procid	=	get_reg_asm("mrc p15, 0, %0, c13,c0, 0");
 
-#ifndef CONFIG_CPU_PJ4 /* XSC */
+#ifndef CONFIG_CPU_V7 /* XSC */
 	/* cp14 */
 	d->cp14.ccnt	=	get_reg_asm("mrc p14, 0, %0, c1, c1, 0");
 	d->cp14.pmnc	=	get_reg_asm("mrc p14, 0, %0, c0, c1, 0");
@@ -398,7 +398,7 @@ static void ramdump_save_static_context(struct ramdump_state *d)
 	d->cp7.errlog	=	get_reg_asm("mrc p7, 0, %0, c0, c2, 0");
 	d->cp7.erradrl	=	get_reg_asm("mrc p7, 0, %0, c1, c2, 0");
 	d->cp7.erradru	=	get_reg_asm("mrc p7, 0, %0, c2, c2, 0");
-#else /* PJ4 */
+#else /* ARMV7 */
 	d->cp15pj4.seccfg	= get_reg_asm("mrc p15, 0, %0, c1, c1, 0");
 	d->cp15pj4.secdbg	= get_reg_asm("mrc p15, 0, %0, c1, c1, 1");
 	d->cp15pj4.nsecac	= get_reg_asm("mrc p15, 0, %0, c1, c1, 2");
@@ -416,18 +416,27 @@ static void ramdump_save_static_context(struct ramdump_state *d)
 	d->cp15pj4.urwpid	= get_reg_asm("mrc p15, 0, %0, c13, c0, 2");
 	d->cp15pj4.uropid	= get_reg_asm("mrc p15, 0, %0, c13, c0, 3");
 	d->cp15pj4.privpid	= get_reg_asm("mrc p15, 0, %0, c13, c0, 4");
-	d->cp15pj4.auxdmc0	= get_reg_asm("mrc p15, 1, %0, c15, c1, 0");
-	d->cp15pj4.auxdmc1	= get_reg_asm("mrc p15, 1, %0, c15, c1, 1");
-	d->cp15pj4.auxfmc	= get_reg_asm("mrc p15, 1, %0, c15, c2, 0");
-	d->cp15pj4.idext	= get_reg_asm("mrc p15, 1, %0, c15, c12, 0");
-	d->l2cpj4.l2errcnt	= get_reg_asm("mrc p15, 1, %0, c15, c9, 6");
-	d->l2cpj4.l2errth	= get_reg_asm("mrc p15, 1, %0, c15, c9, 7");
-	d->l2cpj4.l2errcapt	= get_reg_asm("mrc p15, 1, %0, c15, c11, 7");
+#ifdef CONFIG_CPU_PJ4
+	if (!cpu_is_pxa978_Cx()) {
+		/* PJ4 spesific */
+		d->cp15pj4.auxdmc0 = get_reg_asm("mrc p15, 1, %0, c15, c1, 0");
+		d->cp15pj4.auxdmc1 = get_reg_asm("mrc p15, 1, %0, c15, c1, 1");
+		d->cp15pj4.auxfmc = get_reg_asm("mrc p15, 1, %0, c15, c2, 0");
+		d->cp15pj4.idext = get_reg_asm("mrc p15, 1, %0, c15, c12, 0");
+		d->l2cpj4.l2errcnt = get_reg_asm("mrc p15, 1, %0, c15, c9, 6");
+		d->l2cpj4.l2errth = get_reg_asm("mrc p15, 1, %0, c15, c9, 7");
+		d->l2cpj4.l2errcapt = get_reg_asm("mrc p15, 1, %0, c15, c11, 7");
+	}
+#endif
 	d->pfmpj4.ctrl		= get_reg_asm("mrc p15, 0, %0, c9, c12, 0");
 	d->pfmpj4.ceset		= get_reg_asm("mrc p15, 0, %0, c9, c12, 1");
 	d->pfmpj4.ceclr		= get_reg_asm("mrc p15, 0, %0, c9, c12, 2");
 	d->pfmpj4.ovf		= get_reg_asm("mrc p15, 0, %0, c9, c12, 3");
-	d->pfmpj4.softinc	= get_reg_asm("mrc p15, 0, %0, c9, c12, 4");
+#ifdef CONFIG_CPU_PJ4
+/* Write-only: on CA9 results in undefined instruction exception */
+	if (!cpu_is_pxa978_Cx())
+		d->pfmpj4.softinc = get_reg_asm("mrc p15, 0, %0, c9, c12, 4");
+#endif
 	d->pfmpj4.csel		= get_reg_asm("mrc p15, 0, %0, c9, c12, 5");
 	d->pfmpj4.ccnt		= get_reg_asm("mrc p15, 0, %0, c9, c13, 0");
 	d->pfmpj4.evsel		= get_reg_asm("mrc p15, 0, %0, c9, c13, 1");
