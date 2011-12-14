@@ -13,6 +13,7 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/mutex.h>
+#include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/pm.h>
 #include <linux/sched.h>
@@ -20,6 +21,7 @@
 #include <linux/err.h>
 #include <linux/slab.h>
 #include <linux/clocksource.h>
+#include <plat/clock.h>
 #include <linux/time.h>
 #include <asm/proc-fns.h>
 #include <asm/cacheflush.h>
@@ -135,10 +137,10 @@ enum {
 #define MMP3_PROTECT_BUSCLKRST(x) ((x) & 0x000001c3)
 #define MMP3_PROTECT_FCCR(x) ((x) & 0xff83ffff)
 
-
-struct mmp3_clock_source {
+struct mmp3_fc_source {
 	char *name;
 	u32 frequency;
+	struct clk *source;
 };
 
 struct mmp3_freq_plan {
@@ -195,7 +197,7 @@ struct mmp3_pmu {
 	u32 swstat_store;
 	spinlock_t mmp3_fc_spin;
 	struct mutex mmp3_fc_lock;
-	struct mmp3_clock_source *sources;
+	struct mmp3_fc_source *sources;
 	struct mmp3_freq_plan *pps;
 	int ppscnt;
 	void (*setrate)(struct mmp3_pmu *pmu, int id, u32 khz);
@@ -204,38 +206,39 @@ struct mmp3_pmu {
 	struct mmp3_freq_plan pl_curr;
 
 	u32 trigge_stat[MMP3_CLK_TOP_NUM];
+	u32 source_status[MMP3_CLK_TOP_NUM];
 };
 
-#define MMP3_PLL1_VCO			(1600000)
-#define MMP3_PLL1_FREQ			(MMP3_PLL1_VCO / 2)
-#define MMP3_PLL1_CLKOUTP_FREQ		((MMP3_PLL1_VCO * 2) / 3)
-#define MMP3_PLL2_FREQ			(1334000)
-#define MMP3_VCXO_FREQ			(26000)
-
-static struct mmp3_clock_source mmp3_fc_sources[] = {
+static struct mmp3_fc_source mmp3_fccs[] = {
 	[0] = {
-		.name = "PLL1/2",
-		.frequency = MMP3_PLL1_FREQ / 2,
+		.name = "pll1_d_2",
 	},
 	[1] = {
-		.name = "PLL1",
-		.frequency = MMP3_PLL1_FREQ,
+		.name = "pll1",
 	},
 	[2] = {
-		.name = "PLL2",
-		.frequency = MMP3_PLL2_FREQ,
+		.name = "pll2",
 	},
 	[3] = {
-		.name = "PLL1_CLKOUTP",
-		.frequency = MMP3_PLL1_CLKOUTP_FREQ,
+		.name = "pll1_clkoutp",
 	},
 	[4] = {
-		.name = "VCXO",
-		.frequency = MMP3_VCXO_FREQ,
+		.name = "vctcxo",
 	},
 };
 
+static inline void mmp3_fccs_enable(int idx)
+{
+	clk_enable(mmp3_fccs[idx].source);
+}
+
+static inline void mmp3_fccs_disable(int idx)
+{
+	clk_disable(mmp3_fccs[idx].source);
+}
+
 #define MMP3_TEST_PP 0
+#define MMP3_PP_TABLE_DIFF_BYIDX 0
 
 enum {
 #if MMP3_TEST_PP
@@ -311,7 +314,7 @@ static struct mmp3_pmu mmp3_pmu_config = {
 		[1] = (u32 *)(DMCU_VIRT_BASE + 0x10000),
 	},
 
-	.sources = mmp3_fc_sources,
+	.sources = mmp3_fccs,
 	.pps = mmp3_pps,
 	.ppscnt = ARRAY_SIZE(mmp3_pps),
 };
@@ -377,7 +380,7 @@ static void mmp3_freq_plan_cal(struct mmp3_pmu *pmu,
 
 	basefreq = pmu->sources[pl->dram.dsrc].frequency / 2;
 	pl->khz[MMP3_CLK_DDR_1] = basefreq / FIELD2DIV(pl->dram.ch1_d);
-	pl->khz[MMP3_CLK_DDR_2] = basefreq / FIELD2DIV(pl->dram.ch1_d);
+	pl->khz[MMP3_CLK_DDR_2] = basefreq / FIELD2DIV(pl->dram.ch2_d);
 
 	basefreq = pmu->sources[pl->axi.asrc].frequency;
 	pl->khz[MMP3_CLK_AXI_1] = basefreq / FIELD2DIV(pl->axi.aclk1_d);
@@ -1141,6 +1144,9 @@ static u32 mmp3_prepare_freqch(struct mmp3_pmu *pmu,
 	pmu->pl_curr.core.op = MMP3_FREQ_OP_GET;
 	pmu->pl_curr.dram.op = MMP3_FREQ_OP_GET;
 	pmu->pl_curr.axi.op = MMP3_FREQ_OP_GET;
+	pmu->source_status[MMP3_CLK_MP1] = 0;
+	pmu->source_status[MMP3_CLK_AXI_1] = 0;
+	pmu->source_status[MMP3_CLK_DDR_1] = 0;
 	if (curpl.core.val != pl->core.val) {
 		if (pl->core.op == MMP3_FREQ_OP_UPDATE) {
 			pmu->pl_curr.core.op = MMP3_FREQ_OP_SHOW;
@@ -1148,6 +1154,12 @@ static u32 mmp3_prepare_freqch(struct mmp3_pmu *pmu,
 			logentry->marker |= TRACE_DFC_MARKER_CORE;
 			logentry->pp_core = (unsigned char) pmu->pp_curr;
 			pmu->trigge_stat[MMP3_CLK_MP1]++;
+			if (pmu->pl_curr.core.psrc != pl->core.psrc) {
+				pmu->source_status[MMP3_CLK_MP1] =
+					0x80000000 | pmu->pl_curr.core.psrc;
+				/* make sure target source enabled*/
+				mmp3_fccs_enable(pl->core.psrc);
+			}
 		} else
 			pl->core.val = curpl.core.val;
 	}
@@ -1158,6 +1170,12 @@ static u32 mmp3_prepare_freqch(struct mmp3_pmu *pmu,
 			logentry->marker |= TRACE_DFC_MARKER_AXI;
 			logentry->pp_axi = (unsigned char) pmu->pp_curr;
 			pmu->trigge_stat[MMP3_CLK_AXI_1]++;
+			if (pmu->pl_curr.axi.asrc != pl->axi.asrc) {
+				pmu->source_status[MMP3_CLK_AXI_1] =
+					0x80000000 | pmu->pl_curr.axi.asrc;
+				/* make sure target source enabled*/
+				mmp3_fccs_enable(pl->axi.asrc);
+			}
 		} else
 			pl->axi.val = curpl.axi.val;
 	}
@@ -1173,6 +1191,12 @@ static u32 mmp3_prepare_freqch(struct mmp3_pmu *pmu,
 			logentry->marker |= TRACE_DFC_MARKER_DRAM;
 			logentry->pp_dram = (unsigned char) pmu->pp_curr;
 			pmu->trigge_stat[MMP3_CLK_DDR_1]++;
+			if (pmu->pl_curr.dram.dsrc != pl->dram.dsrc) {
+				pmu->source_status[MMP3_CLK_DDR_1] =
+					0x80000000 | pmu->pl_curr.dram.dsrc;
+				/* make sure target source enabled*/
+				mmp3_fccs_enable(pl->dram.dsrc);
+			}
 		} else
 			pl->dram.val = curpl.dram.val;
 	}
@@ -1209,9 +1233,11 @@ static void mmp3_dfc_trigger(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
 	val = val | change | (MMP3_FREQCH_VOLTING);
 
 	spin_lock_irqsave(&(pmu->mmp3_fc_spin), flags);
+
 	timex = read_timestamp();
 
 	dsb();
+
 	/* trigger change*/
 	__raw_writel(val, pmu->cc);
 
@@ -1227,6 +1253,30 @@ static void mmp3_dfc_trigger(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
 
 	if (samex != 0)
 		logentry->marker |= TRACE_DFC_MARKER_ERR;
+#if MMP3_PP_TABLE_DIFF_BYIDX
+	else {
+		int c;
+		/* patch the calculation */
+		if ((change & MMP3_FREQCH_CORE) != 0) {
+			for (c = MMP3_CLK_MP1; c <= MMP3_CLK_ACLK; c++) {
+				pmu->pl_curr.khz[c]
+					= pmu->pps[pmu->pp_curr].khz[c];
+			}
+		}
+		if ((change & MMP3_FREQCH_AXI) != 0) {
+			for (c = MMP3_CLK_AXI_1; c <= MMP3_CLK_AXI_2; c++) {
+				pmu->pl_curr.khz[c]
+					= pmu->pps[pmu->pp_curr].khz[c];
+			}
+		}
+		if ((change & MMP3_FREQCH_DRAM) != 0) {
+			for (c = MMP3_CLK_DDR_1; c <= MMP3_CLK_DDR_2; c++) {
+				pmu->pl_curr.khz[c]
+					= pmu->pps[pmu->pp_curr].khz[c];
+			}
+		}
+	}
+#endif
 
 	trace_dfc(logentry);
 
@@ -1238,9 +1288,12 @@ static void mmp3_dfc_trigger(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
 	/* done, PJ_RD_STATUS should have been cleared by HW*/
 }
 
+#define GETSRC(x) ((x) & 0x7)
 static void mmp3_dfc_postchange(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
 	union trace_dfc_log *logentry, u32 time, u32 same)
 {
+	int oldsrc;
+
 	if (same != 0) {
 		/* usually should not be here, log a message here */
 		pr_err("<PM> DFC result is not the requested one\n");
@@ -1248,6 +1301,48 @@ static void mmp3_dfc_postchange(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
 	} else {
 		mmp3_freq_plan_print_dbg(pmu, &pmu->pl_curr, time);
 	}
+
+	/* post clock source settings */
+	if (pmu->source_status[MMP3_CLK_MP1] != 0) {
+		oldsrc = GETSRC(pmu->source_status[MMP3_CLK_MP1]);
+		if (oldsrc == pmu->pl_curr.core.psrc) {
+			/*
+			 * source not updated, fc fail, disable previously
+			 * enabled source
+			 */
+			mmp3_fccs_disable(pl->core.psrc);
+		} else {
+			/* updated, old source can be disabled */
+			mmp3_fccs_disable(oldsrc);
+		}
+	}
+	if (pmu->source_status[MMP3_CLK_DDR_1] != 0) {
+		oldsrc = GETSRC(pmu->source_status[MMP3_CLK_DDR_1]);
+		if (oldsrc == pmu->pl_curr.dram.dsrc) {
+			/*
+			 * source not updated, fc fail, disable previously
+			 * enabled source
+			 */
+			mmp3_fccs_disable(pl->dram.dsrc);
+		} else {
+			/* updated, old source can be disabled */
+			mmp3_fccs_disable(oldsrc);
+		}
+	}
+	if (pmu->source_status[MMP3_CLK_AXI_1] != 0) {
+		oldsrc = GETSRC(pmu->source_status[MMP3_CLK_AXI_1]);
+		if (oldsrc == pmu->pl_curr.axi.asrc) {
+			/*
+			 * source not updated, fc fail, disable previously
+			 * enabled source
+			 */
+			mmp3_fccs_disable(pl->axi.asrc);
+		} else {
+			/* updated, old source can be disabled */
+			mmp3_fccs_disable(oldsrc);
+		}
+	}
+
 }
 
 struct dfc_schedule {
@@ -1611,6 +1706,19 @@ static int __init mmp3_pm_init(void)
 	spin_lock_init(&(pmu->mmp3_fc_spin));
 	mutex_init(&(pmu->mmp3_fc_lock));
 
+	for (j = 0; j < ARRAY_SIZE(mmp3_fccs); j++) {
+		mmp3_fccs[j].source =
+			clk_get(NULL, mmp3_fccs[j].name);
+		if (mmp3_fccs[j].source != NULL) {
+			mmp3_fccs[j].frequency =
+				clk_get_rate(mmp3_fccs[j].source) / 1000;
+		} else {
+			panic("mmp3_pm_init: invalid source %s\n",
+				mmp3_fccs[j].name);
+			return -1;
+		}
+	}
+
 	/*
 	 * wake from IPI -- It's the workaround of MMP3 A0,
 	 * suppose it'll be fixed on B0. Need remove it then
@@ -1646,6 +1754,7 @@ static int __init mmp3_pm_init(void)
 	for (i = 0; i < pmu->ppscnt; i++)
 		mmp3_freq_plan_cal(pmu, &(pmu->pps[i]));
 
+#if MMP3_PP_TABLE_DIFF_BYIDX
 	/* process same speed, assume khz goes up only and real diff is big */
 	for (j = 0; j < ARRAY_SIZE(pmu->pps[0].khz); j++) {
 		u32 curkhz = pmu->pps[0].khz[j];
@@ -1656,6 +1765,7 @@ static int __init mmp3_pm_init(void)
 				curkhz = pmu->pps[i].khz[j];
 		}
 	}
+#endif
 
 	if (0)
 		pmu->setrate = mmp3_clk_setrate_lowbar;
@@ -1668,10 +1778,15 @@ static int __init mmp3_pm_init(void)
 	pmu->pl_curr.axi.op = MMP3_FREQ_OP_SHOW;
 	mmp3_freq_plan_print_info(pmu, &pmu->pl_curr, 0);
 
+	/* now let's hold source reference */
+	mmp3_fccs_enable(pmu->pl_curr.core.psrc);
+	mmp3_fccs_enable(pmu->pl_curr.dram.dsrc);
+	mmp3_fccs_enable(pmu->pl_curr.axi.asrc);
+
 	dfcsch = NULL;
 	dfcsch_active = 0;
 
 	return 0;
 }
 
-core_initcall(mmp3_pm_init);
+postcore_initcall(mmp3_pm_init);
