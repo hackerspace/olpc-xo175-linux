@@ -64,47 +64,64 @@
 #define UTMI_CTRL_ARC_PULLDN_SHIFT              12
 #define UTMI_CTRL_PLL_PWR_UP_SHIFT              1
 #define UTMI_CTRL_PWR_UP_SHIFT                  0
+
 /* For UTMI_PLL Register */
-#define UTMI_PLL_CLK_BLK_EN_SHIFT               24
-#define UTMI_PLL_FBDIV_SHIFT                    4
-#define UTMI_PLL_REFDIV_SHIFT                   0
-#define UTMI_PLL_FBDIV_MASK                     0x00000FF0
-#define UTMI_PLL_REFDIV_MASK                    0x0000000F
-#define UTMI_PLL_ICP_MASK                       0x00007000
-#define UTMI_PLL_KVCO_MASK                      0x00031000
 #define UTMI_PLL_PLLCALI12_SHIFT		29
 #define UTMI_PLL_PLLCALI12_MASK			(0x3 << 29)
+
 #define UTMI_PLL_PLLVDD18_SHIFT			27
 #define UTMI_PLL_PLLVDD18_MASK			(0x3 << 27)
+
 #define UTMI_PLL_PLLVDD12_SHIFT			25
 #define UTMI_PLL_PLLVDD12_MASK			(0x3 << 25)
+
+#define UTMI_PLL_CLK_BLK_EN_SHIFT               24
+#define CLK_BLK_EN                              (0x1 << 24)
+#define PLL_READY                               (0x1 << 23)
+#define KVCO_EXT                                (0x1 << 22)
+#define VCOCAL_START                            (0x1 << 21)
+
 #define UTMI_PLL_KVCO_SHIFT			15
+#define UTMI_PLL_KVCO_MASK                      (0x7 << 15)
+
 #define UTMI_PLL_ICP_SHIFT			12
+#define UTMI_PLL_ICP_MASK                       (0x7 << 12)
+
+#define UTMI_PLL_FBDIV_SHIFT                    4
+#define UTMI_PLL_FBDIV_MASK                     (0xFF << 4)
+
+#define UTMI_PLL_REFDIV_SHIFT                   0
+#define UTMI_PLL_REFDIV_MASK                    (0xF << 0)
+
 /* For UTMI_TX Register */
 #define UTMI_TX_REG_EXT_FS_RCAL_SHIFT		27
 #define UTMI_TX_REG_EXT_FS_RCAL_MASK		(0xf << 27)
-#define UTMI_TX_REG_EXT_FS_RCAL_EN_MASK		26
-#define UTMI_TX_REG_EXT_FS_RCAL_EN		(0x1 << 26)
-#define UTMI_TX_LOW_VDD_EN_SHIFT                11
-#define UTMI_TX_IMPCAL_VTH_SHIFT                14
-#define UTMI_TX_IMPCAL_VTH_MASK                 (0x7 << 14)
-#define UTMI_TX_CK60_PHSEL_SHIFT                17
-#define UTMI_TX_CK60_PHSEL_MASK                 (0xf << 17)
+
+#define UTMI_TX_REG_EXT_FS_RCAL_EN_SHIFT	26
+#define UTMI_TX_REG_EXT_FS_RCAL_EN_MASK		(0x1 << 26)
+
 #define UTMI_TX_TXVDD12_SHIFT                   22
 #define UTMI_TX_TXVDD12_MASK                    (0x3 << 22)
+
+#define UTMI_TX_CK60_PHSEL_SHIFT                17
+#define UTMI_TX_CK60_PHSEL_MASK                 (0xf << 17)
+
+#define UTMI_TX_IMPCAL_VTH_SHIFT                14
+#define UTMI_TX_IMPCAL_VTH_MASK                 (0x7 << 14)
+
+#define REG_RCAL_START                          (0x1 << 12)
+
+#define UTMI_TX_LOW_VDD_EN_SHIFT                11
+
 #define UTMI_TX_AMP_SHIFT			0
 #define UTMI_TX_AMP_MASK			(0x7 << 0)
+
 /* For UTMI_RX Register */
-#define UTMI_RX_SQ_THRESH_SHIFT                 4
-#define UTMI_RX_SQ_THRESH_MASK                  (0xf << 4)
 #define UTMI_REG_SQ_LENGTH_SHIFT                15
 #define UTMI_REG_SQ_LENGTH_MASK                 (0x3 << 15)
 
-#define REG_RCAL_START                          0x00001000
-#define VCOCAL_START                            0x00200000
-#define KVCO_EXT                                0x00400000
-#define PLL_READY                               0x00800000
-#define CLK_BLK_EN                              0x01000000
+#define UTMI_RX_SQ_THRESH_SHIFT                 4
+#define UTMI_RX_SQ_THRESH_MASK                  (0xf << 4)
 
 #define UTMI_OTG_ADDON_OTG_ON			(1 << 0)
 
