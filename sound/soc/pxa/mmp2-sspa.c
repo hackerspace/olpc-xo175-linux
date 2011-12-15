@@ -633,8 +633,8 @@ static int mmp3_sspa_hw_params(struct snd_pcm_substream *substream,
 		bits_per_frame = 16;
 		as_width = TDCR_SSZ_8_BITS;
 	case SNDRV_PCM_FORMAT_S16_LE:
-		word_size = SSPA_CTL_16_BITS;
-		bits_per_frame = 64;
+		word_size = SSPA_CTL_32_BITS;
+		bits_per_frame = 32;
 		as_width = TDCR_SSZ_16_BITS;
 		break;
 	case SNDRV_PCM_FORMAT_S24_LE:
@@ -651,10 +651,14 @@ static int mmp3_sspa_hw_params(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
+	/* I2S protocol: need to double the audio sample size to ensure
+	 * that word_size bit can be sent out. the word_size - 1 length of
+	 * 0 would be ignored in codec. it should be also appiled to other
+	 * formats besides S16_LE */
 	sspa_ctrl |= SSPA_CTL_XSSZ1(word_size) |
 		     SSPA_CTL_XWDLEN1(word_size);
-	sspa_sp |= SSPA_SP_FPER(bits_per_frame - 1) |
-		     SSPA_SP_FWID((bits_per_frame >> 1) - 1);
+	sspa_sp |= SSPA_SP_FPER((bits_per_frame << 1) - 1) |
+		     SSPA_SP_FWID(bits_per_frame - 1);
 
 	sspa_sp |= SSPA_SP_WEN;
 
