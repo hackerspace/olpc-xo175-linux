@@ -252,7 +252,7 @@ int wm8994_headset_detect(void)
 {
 	struct snd_soc_codec *codec;
 	int status1, status2, reg;
-	int ret = 0;
+	int re_check = 0, ret = 0;
 
 	codec = mmp3asoc_wm8994_codec;
 	if (codec == NULL)
@@ -264,6 +264,7 @@ int wm8994_headset_detect(void)
 	snd_soc_write(codec, WM8994_INTERRUPT_STATUS_2_MASK,
 			 0xffff);
 
+CHECK_HEADSET_STATUS:
 	status1 = snd_soc_read(codec, WM8994_INTERRUPT_STATUS_1);
 	status2 = snd_soc_read(codec, WM8994_INTERRUPT_STATUS_2);
 
@@ -277,7 +278,15 @@ int wm8994_headset_detect(void)
 		ret = 2;
 		break;
 	default:
+		ret = 0;
 		break;
+	}
+
+	if (ret == 2 && re_check == 0) {
+		/* double check whether it's unstable */
+		msleep(200);
+		re_check = 1;
+		goto CHECK_HEADSET_STATUS;
 	}
 
 	/* clear all irqs */
