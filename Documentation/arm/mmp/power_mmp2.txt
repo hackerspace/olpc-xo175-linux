@@ -1,0 +1,270 @@
+MMP2 power notes
+
+Contents:
+---------
+1. To do list on 3.0
+2. Basic policy
+3. Suspend & resume
+4. CPU idle
+5. cpu freq
+6. Debug experience
+
+
+1. To do list on 3.0
+====================
+1.1, Background: Why code move to sram
+
+1.1.1, cpufreq: If following two cases happen, ddr should be blocked. (not find formal email)
+1). ddr freq change, currently mmp2 keep ddr clock as 400M
+2). core voltage change, sequence: ddr block -> core voltage change ->dll update
+
+1.1.2, suspend & resume; idle
+For saving power, we put DDR into self-refresh mode for apps idle, apps sleep, chip sleep and system sleep.
+Besides, disabling MCU pad driver strength is a must to shut down redundant current passing through terminator resistor.
+From schematic, DDR termination is connected with VTT, VTT is 0.75v in suspend, so disable driver strength of ddr termination and putting to high impedance, the current linkage from vtt to ddr termination could be saved.
+Sequence: block ddr -> ddr self refresh -> disable termination driver strength.
+
+1.2, suspend does not jump code to sram for simplicity, which requires experiment.
+Vcc_main jumps to 1v during suspend, so core voltage is change
+3.0: arch/arm/mach-mmp/pm-mmp2.c
+mmp2_pm_enter->cpu_do_idle
+2.6: arch/arm/mach-mmp/mmp2_pm.c
+mmp2_pm_enter->mmp2_cpu_do_idle->jump_to_lp_sram
+
+1.3, idle code does not have code in sram, which requires experiment.
+3.0: arch/arm/mach-mmp/cpuidle-mmp2.c
+mmp2_enter_idle->cpu_do_idle
+2.6: arch/arm/mach-mmp/mmp2_mspm_idle.c
+mspm_do_idle->mspm_cpu_idle->mmp2_cpu_do_idle->jump_to_lp_sram
+
+1.4, cpuidle target_residency require to be experimented.
+arch/arm/mach-mmp/cpuidle-mmp2.c: mmp2_init_cpuidle
+device->states[0].target_residency = 10000;
+device->states[1].target_residency = 15000;
+device->states[2].target_residency = 20000;
+device->states[3].target_residency = 25000;
+
+
+
+2, Basic policy
+===================
+2.1, User space hold suspend wakelock to control system entering suspend or not
+2.2, Kernel space does not hold suspend wake, except TIMEOUT suspend wakelock for wakeup event
+exception: USB also hold suspend wakelock, the reason is user space can not know whether the transaction is happening when usb works as client.
+2.3, idle wakelock or qos can not block system entering suspend, which could happen at any time.
+Device driver suspend function have the responsibility taking care of transaction, either wait or return error, and android space would keeps retrying suspending.
+
+
+
+3. Suspend & resume
+===================
+suspend code: arch/arm/mach-mmp/pm-mmp2.c
+set_wake: arch/arm/mach-mmp/irq-mmp2.c
+
+3.1, suspend & resume
+soc: sys_sleep: vcxo off + chip_sleep
+chip: suspend each driver
+
+3.2, wakeup source:
+AON: provide external 32k clock.
+Current wakeup source: on-key, on-chip RTC, max8925-rtc, sdio (wifi/bt)
+method: using set_wake
+enable/enable_irq_wake:
+probe:
+device_init_wakeup(&pdev->dev, 0/1); //enable/disable device wakeup, 1 is enable, 0 is disable.
+
+usage:
+drv_resume:
+ if (device_may_wakeup(&pdev->dev))
+                disable_irq_wake(host->irq);
+drv_suspend:
+ if (device_may_wakeup(&pdev->dev))
+                enable_irq_wake(host->irq);
+
+requirement:
+1, arch/arm/mach-mmp/irq-mmp2.c: mmp2_set_wake will be called, wakeup source should be set accordingly
+2, irq should be opened during suspend since cpu require interrupt to exit from idle
+
+3.3, constraint:
+3.3.1 set timeout wakelock wake_lock_timeout, used for short time operation
+wake_lock_timeout(&example_wake_lock, WAKE_LOCK_CD_TIMEOUT);
+
+3.3.2 set suspend wakelock -> move to android application
+probe: wake_lock_init(&host->suspend_lock, WAKE_LOCK_SUSPEND, (const char *)mmc_hostname(host->mmc));
+remove: wake_lock_destroy(&host->suspend_lock);
+usage:
+wake_lock(&host->suspend_lock);
+wake_unlock(&host->suspend_lock);
+
+3.4, how to check wakeup source
+3.4.1, rtc, set alarm and check whether system will be waken up
+rtc0 is max8925 rtc, rtc1 is on-chip rtc
+echo +20 > /sys/class/rtc/rtc0/wakealarm
+echo mem > /sys/power/state
+
+3.4.2, wifi host sleep
+target: 192.168.0.123; AP: 192.168.0.1; PC: 192.168.0.100
+target:
+insmod mlan.ko; insmod sd8xxx.ko; rfkill unblock wifi
+iwconfig mlan0 essid linksys
+ifconfig mlan0 192.168.0.123
+echo mem > /sys/power/state
+PC: using ping to wakeup target;
+ping 192.168.0.123
+
+
+
+4. cpuidle
+===========
+Code: arch/arm/mach-mmp/cpuidle-mmp2.c
+
+4.1, cpuidle states
+4.1.1, core_extidle: core clock is gated externally
+4.1.2, apps_idle: axi off, ddr off
+4.1.3, apps_sleep: axi off, ddr off, apb off
+4.1.4, chip_sleep (audio): vcxo on
+sleepen + apb clk off + axi off + ddr clock down -> self refresh.
+pll1 & pll2 on, not in line with spec.
+vcxo on, so Audio PLL on, so audio could enter chip sleep, but ddr is clock off, so chip sleep should periodlly woken up for accessing ddr.
+
+4.2, cpuidle constraint:
+Using qos or idle wakelock (idle wakelock will not be supported later on mmp2)
+Prefer using qos as constraint for cpu-idle, which is standard way, as a result sysfs could get accurae result.
+While sysfs may get incorrect result if using idle_wake_lock, since cpuidle driver modify the state inside.
+
+How to check sysfs of cpuidle: Documentation/cpuidle/sysfs.txt
+
+/sys/devices/system/cpu/cpu0/cpuidle/state0/desc
+/sys/devices/system/cpu/cpu0/cpuidle/state0/latency
+/sys/devices/system/cpu/cpu0/cpuidle/state0/name
+/sys/devices/system/cpu/cpu0/cpuidle/state0/power
+/sys/devices/system/cpu/cpu0/cpuidle/state0/time
+/sys/devices/system/cpu/cpu0/cpuidle/state0/usage
+
+How to use constraint:
+CARE: qos can be NOT used in irq context
+
+init:       pm_qos_add_request(&qos_idle_fb, PM_QOS_CPU_DMA_LATENCY, PM_QOS_DEFAULT_VALUE);
+remove:     pm_qos_remove_request(&qos_idle_fb);
+lock:       pm_qos_update_request(&qos_idle_fb, PM_QOS_CONSTRAINT)
+unlock:     pm_qos_update_request(&qos_idle_fb, PM_QOS_DEFAULT_VALUE)
+
+With qos constraint PM_QOS_CONSTRAINT, system only could enter core_extidle
+arch/arm/plat-pxa/include/plat/pm.h
+#ifdef CONFIG_CPU_MMP2
+#define PM_QOS_CONSTRAINT EXIT_LATENCY_CORE_EXTIDLE
+
+Audio (ZSP or SSPA1/2) could enter chip sleep since vcxo on, but ddr accessing requires periodically waken up
+HDMI, clk is from VCXO, chip sleep could be entered if only play audio.
+
+axi bus: LCD, USB, CAMERA, SDH, SMC(nand)
+apb: UART, PWM, i2c;
+
+Example of using idle lock
+probe: wake_lock_init(&host->idle_lock, WAKE_LOCK_IDLE, (const char *)mmc_hostname(host->mmc));
+remove: wake_lock_destroy(&host->idle_lock);
+
+usage:
+wake_lock(&host->idle_lock);
+wake_unlock(&host->idle_lock);
+
+
+
+5. cpufreq
+===========
+Code:
+arch/arm/mach-mmp/cpufreq-mmp2.c: cpufreq interface
+arch/arm/mach-mmp/brownstone_fc_ll.S: bs_do_fcs, frequency changing assemblercode related to specific board
+arch/arm/mach-mmp/mmp2_fc_entry.S: copy_fcs_to_sram, jump_to_fcs_sram, frequency changing assembler code not related to specific board.
+arch/arm/mach-mmp/brownstone_fc_ops.c: frequency changing related function based on specific board
+arch/arm/mach-mmp/board_fc_ops.c: frequency changing function interface, not related to specific board
+arch/arm/mach-mmp/fc_mmp2.c: mmp2_fc_seq, frequency changing sequence based on mmp2 soc
+
+5.1 Requirement
+voltage change have silicon bug, require ddr refresh and block accessing
+so:
+1, put in sram or lock to cache
+2, ddr can not be access, so cpufreq triggered in LCD interrupt.
+
+5.2, cpufreq table
+
+ cpu frequency op supported on mmp2:
+ op_idx      cpu_clk(mhz)    ddr_clk(mhz)    axi_clk(mhz)
+   0           100             400             100
+   1           200             400             200
+   2           400             400             266
+   3           800             400             266
+   4           988             400             266
+
+5.3, voltage requirement
+arch/arm/mach-mmp/mmp2_fuse.c
+static int mmp2_profile_table[MMP2_PROFILE_NUM + 1][MMP2_PRODUCT_POINT_NUM] = {
+
+/* cpuclk(mhz): 100,   200,  400,  800,  988 		*/
+		{1325, 1325, 1325, 1325, 1425},         /* p0 */
+		{1325, 1325, 1325, 1325, 1425},         /* p1 */
+		{1300, 1300, 1300, 1300, 1425},         /* p2 */
+		{1275, 1275, 1275, 1275, 1425},         /* p3 */
+		{1250, 1250, 1250, 1275, 1425},         /* p4 */
+		{1250, 1250, 1250, 1250, 1400},         /* p5 */
+		{1225, 1225, 1225, 1225, 1375},         /* p6 */
+		{1200, 1200, 1200, 1200, 1350},         /* p7 */
+		{1175, 1175, 1175, 1175, 1325}          /* p8 */
+};
+
+5.4, governor interface: /sys/devices/system/cpu/cpufreq
+The default cpufreq governor in generic kernel is userspace governor
+The default cpufreq governor in android is decided by cpufreqd
+
+5.5, dvfm constraint:
+camera:      hold in 800M op and disable frequency change
+hdmi:        hold in 800M op and disable frequency change
+vmeta:       set min frequency op due to different video format
+
+How to set freq constraint:
+CARE: qos can NOT used in irq context
+
+include:    <linux/pm_qos_params.h>
+declaration:        struct pm_qos_request_list X;
+init:               pm_qos_add_request(&X, PM_QOS_CPUFREQ_MIN, PM_QOS_DEFAULT_VALUE);
+set constraint:     pm_qos_update_request(&X, freq_mhz);
+unset constraint:pm_qos_update_request(&X, PM_QOS_DEFAULT_VALUE);
+
+How to enable/disable frequency change:
+include:    <linux/pm_qos_params.h>
+declaration:        struct pm_qos_request_list X;
+init:               pm_qos_add_request(&X, PM_QOS_CPUFREQ_DISABLE, PM_QOS_DEFAULT_VALUE);
+disable:    pm_qos_update_request(&X, 1);
+re-enable:  pm_qos_update_request(&X, PM_QOS_DEFAULT_VALUE);
+
+make sure your set constraint request is before your disable FC request.
+
+
+
+
+6. Debug experience
+====================
+6.1 How to check whether system really enter suspend
+VCXO_EN is high in running mode and low when suspended, if VCXO_EN is still high in suspend mode, it means system is not really suspended, which is SYS_SLEEP
+
+6.2, why suspend fail
+1). Check MPMU_REG(0x1048), PJ4 wakeup status register, if reading 1 as wakeup status, means that a wakeup event is active and will prevent the ARMADA 610 from going into sleep mode.
+For exmple, when debuging wifi host sleep, edge detection is required as wakeup source, however edge detection also works at running mode, so wakeup status keeps 1 block suspend, so disable edge detection in running and enable edge detection before suspend.
+
+2). Check APMU_REG(0xe0), chip may not go into sleep mode if VMETA, 2D/3D, and ISP power are not turn off, for example when audio driver are not enabled, the clock is not off, system can not go to suspend.
+
+6.3 Why stress test of frequncy changing fail
+1). DDR related: Confirm that the DDR setting is correct. Fix vcc_main voltage and do not block DDR when freqncy changing. Use this way to confirm whether it is a DDR problem.
+It is more quickly to find out DDR problem by monkey test, than by normal stress test.
+How to launch a moneky test: $adb shell monkey --throttle 200 --pct-touch 100 -p com.android.deskclock -v 1728000 --monitor-native-crashes
+
+2). Voltage related: If test passed when voltage changing is disabled. It is probabaly caused by the wrong way of changing voltage, based on different boards, i2c or gpio for example.
+
+6.4 How to disable frequency changing and set it to a fixed frequncy
+
+#echo userspace > /sys/devices/system/cpu/cpu0/cpufreq/scalling_governor	@stop frequncy changing
+#cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_available_frequencies	@check available frequencies supported in system
+#echo (XXX) > /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq	@(XXX) is the specific frequency, by unit KHZ. for example, wirte 800000 to fix CPU as 800MHZ
+#cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_cur_freq	@check current CPU frequncy
+#cat /sys/devices/platform/mmp2-sysset/mmp2_sysset	@check details about current clock info. including AXI, GC and so on.
+
