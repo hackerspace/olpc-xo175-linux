@@ -20,6 +20,7 @@ struct headset_switch_data {
 	const char *state_on;
 	const char *state_off;
 	int irq;
+	struct workqueue_struct *workq;
 	struct work_struct work;
 };
 
