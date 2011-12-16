@@ -134,7 +134,11 @@ extern unsigned int user_debug;
 #if __LINUX_ARM_ARCH__ >= 7
 #define isb() __asm__ __volatile__ ("isb" : : : "memory")
 #define dsb() __asm__ __volatile__ ("dsb" : : : "memory")
+#ifdef CONFIG_PJ4B_ERRATA_6359
+#define dmb() __asm__ __volatile__ ("dsb" : : : "memory")
+#else
 #define dmb() __asm__ __volatile__ ("dmb" : : : "memory")
+#endif
 #elif defined(CONFIG_CPU_XSC3) || __LINUX_ARM_ARCH__ == 6
 #define isb() __asm__ __volatile__ ("mcr p15, 0, %0, c7, c5, 4" \
 				    : : "r" (0) : "memory")

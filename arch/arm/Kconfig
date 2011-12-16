@@ -1290,6 +1290,13 @@ config PJ4B_ERRATA_6107
 	  Matching L0 linefill can cause SFB entry to be marked for delayed clearing when it
 	  isn't necessary. This option disables L0 to avoid the bug.
 
+config PJ4B_ERRATA_6359
+	bool "PJ4B errata 6359"
+	depends on CPU_PJ4B
+	help
+	  Boradcast DMB operations do not fully synchronize local cache hits. This option
+	  replaces all occurences of DMB with DSB.
+
 endmenu
 
 source "arch/arm/common/Kconfig"

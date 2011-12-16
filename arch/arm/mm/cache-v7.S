@@ -42,7 +42,11 @@ ENDPROC(v7_flush_icache_all)
  *	- mm    - mm_struct describing address space
  */
 ENTRY(v7_flush_dcache_all)
+#ifdef CONFIG_PJ4B_ERRATA_6359
+	dsb
+#else
 	dmb					@ ensure ordering with previous memory accesses
+#endif
 	mrc	p15, 1, r0, c0, c0, 1		@ read clidr
 	ands	r3, r0, #0x7000000		@ extract loc from clidr
 	mov	r3, r3, lsr #23			@ left align loc bit field
