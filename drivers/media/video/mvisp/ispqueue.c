@@ -783,8 +783,9 @@ unsigned int mvisp_video_queue_poll(struct isp_video_queue *queue,
 	} else {
 		buf = list_first_entry(
 			&queue->queue, struct isp_video_buffer, stream);
-		poll_wait(file, &buf->wait, wait);
 		spin_unlock_irqrestore(&queue->irqlock, flags);
+		poll_wait(file, &buf->wait, wait);
+
 		if (buf->state == ISP_BUF_STATE_DONE ||
 		    buf->state == ISP_BUF_STATE_ERROR) {
 			if (queue->type == V4L2_BUF_TYPE_VIDEO_CAPTURE)

@@ -555,6 +555,9 @@ static void ispdma_init_params(struct isp_ispdma_device *ispdma)
 	ispdma_reset_counter(ispdma);
 	ispdma->dma_working_flag = DMA_NOT_WORKING;
 	ispdma->framebuf_count = 0;
+	ispdma->sched_stop_disp = false;
+	ispdma->sched_stop_codec = false;
+	ispdma->sched_stop_input = false;
 	return;
 }
 
@@ -746,6 +749,7 @@ static void ispdma_stop_dma(struct isp_ispdma_device *ispdma
 			ISP_IOMEM_ISPDMA, ISPDMA_IRQMASK);
 
 		ispdma->dma_working_flag &= ~DMA_DISP_WORKING;
+		ispdma->sched_stop_disp = false;
 		break;
 	}
 	case ISPDMA_PORT_CODEC:
@@ -774,6 +778,7 @@ static void ispdma_stop_dma(struct isp_ispdma_device *ispdma
 			ISP_IOMEM_ISPDMA, ISPDMA_IRQMASK);
 
 		ispdma->dma_working_flag &= ~DMA_CODEC_WORKING;
+		ispdma->sched_stop_codec = false;
 		break;
 	}
 	case ISPDMA_PORT_INPUT:
@@ -804,6 +809,7 @@ static void ispdma_stop_dma(struct isp_ispdma_device *ispdma
 		}
 
 		ispdma->dma_working_flag &= ~DMA_INPUT_WORKING;
+		ispdma->sched_stop_input = false;
 		break;
 	}
 	default:
@@ -849,28 +855,31 @@ static int load_dummy_buffer(struct isp_ispdma_device *ispdma,
 		buffer =
 			ispdma->vd_disp_out.queue->dummy_buffers[0];
 		if (buffer == NULL) {
-			ispdma_stop_dma(ispdma, ISPDMA_PORT_DISPLAY);
+			ispdma->sched_stop_disp = true;
 			dev_warn(isp->dev,
-				"isp display dma stops [no dummy buffer]\n");
+				"isp display dma schduled stop [no dummy buffer]\n");
 		} else {
 			ispdma_set_disp_outaddr(ispdma, buffer);
-			start_dma |= ISP_DISPLAY_CAN_START;
 		}
+		start_dma |= ISP_DISPLAY_CAN_START;
 		break;
 	case ISPDMA_PORT_CODEC:
 		buffer =
 			ispdma->vd_codec_out.queue->dummy_buffers[0];
 		if (buffer == NULL) {
-			ispdma_stop_dma(ispdma, ISPDMA_PORT_CODEC);
+			ispdma->sched_stop_codec = true;
 			dev_warn(isp->dev,
-				"isp codec dma stops [no dummy buffer]\n");
+				"isp codec dma schduled stop [no dummy buffer]\n");
 		} else {
 			ispdma_set_codec_outaddr(ispdma, buffer);
-			start_dma |= ISP_CODEC_CAN_START;
 		}
+		start_dma |= ISP_CODEC_CAN_START;
 		break;
 	case ISPDMA_PORT_INPUT:
-		ispdma_stop_dma(ispdma, ISPDMA_PORT_INPUT);
+		ispdma->sched_stop_input = true;
+		start_dma |= ISP_INPUT_CAN_START;
+		dev_warn(isp->dev,
+			"isp input dma schduled stop [no dummy buffer]\n");
 		break;
 	default:
 		break;
@@ -986,6 +995,11 @@ static void ispdma_disp_handler(struct isp_ispdma_device *ispdma,
 	if ((dma_working_flag & DMA_DISP_WORKING) == 0)
 		return;
 
+	if (ispdma->sched_stop_disp == true) {
+		dev_warn(isp->dev, "display dma schedule stops\n");
+		ispdma_stop_dma(ispdma, ISPDMA_PORT_DISPLAY);
+	}
+
 	spin_lock_irqsave(&video->irq_lock, video_flags);
 	queue = video->queue;
 	if (queue == NULL)
@@ -1058,6 +1072,11 @@ static void ispdma_codec_handler(struct isp_ispdma_device *ispdma,
 			ispdma->codec_band_cnt = 0;
 	}
 
+	if (ispdma->sched_stop_codec == true) {
+		dev_warn(isp->dev, "codec dma schedule stops\n");
+		ispdma_stop_dma(ispdma, ISPDMA_PORT_CODEC);
+	}
+
 	spin_lock_irqsave(&video->irq_lock, video_flags);
 	queue = video->queue;
 	if (queue == NULL)
@@ -1108,6 +1127,7 @@ exit:
 static void ispdma_input_handler(struct isp_ispdma_device *ispdma,
 	struct isp_video *video)
 {
+	struct mvisp_device *isp = to_mvisp_device(ispdma);
 	unsigned long queue_flags, video_flags;
 	unsigned long dma_working_flag;
 	struct isp_video_queue *queue = NULL;
@@ -1115,6 +1135,11 @@ static void ispdma_input_handler(struct isp_ispdma_device *ispdma,
 	dma_working_flag = get_dma_working_flag(ispdma);
 	if ((dma_working_flag & DMA_INPUT_WORKING) == 0)
 		return;
+
+	if (ispdma->sched_stop_input == true) {
+		dev_warn(isp->dev, "input dma schedule stops\n");
+		ispdma_stop_dma(ispdma, ISPDMA_PORT_INPUT);
+	}
 
 	spin_lock_irqsave(&video->irq_lock, video_flags);
 	queue = video->queue;
@@ -1478,6 +1503,9 @@ static int ispdma_video_qbuf_notify(struct isp_video *video)
 	struct isp_ispdma_device *ispdma = &video->isp->mvisp_ispdma;
 	int need_try_restart = 0;
 	unsigned long dma_flags;
+
+	if (video->streaming == 0)
+		return 0;
 
 	spin_lock_irqsave(&ispdma->dmaflg_lock, dma_flags);
 	switch (video->video_type) {

@@ -166,6 +166,10 @@ struct isp_ispdma_device {
 	unsigned int		codec_band_cnt;
 	unsigned int		codec_band_max;
 
+	bool				sched_stop_disp;
+	bool				sched_stop_codec;
+	bool				sched_stop_input;
+
 	int (*mvisp_reset)(void *param);
 };
 
