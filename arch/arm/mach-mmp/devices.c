@@ -158,16 +158,15 @@ void u2o_write(unsigned int base, unsigned int offset, unsigned int value)
 
 #ifdef CONFIG_CPU_MMP3
 
-int pxa_usb_phy_init(unsigned int base)
+static DEFINE_SPINLOCK(phy_lock);
+static int phy_init_cnt;
+
+static int usb_phy_init_internal(unsigned int base)
 {
-	static int init_done = 0;
 	int loops = 0;
 	u32 temp;
 
-	if (init_done) {
-		printk(KERN_INFO "re-init phy\n");
-		return 0;
-	}
+	pr_info("Init usb phy!!!\n");
 
 	temp = __raw_readl(PMUA_REG(0x100));
 	temp &= ~0xF00;
@@ -248,9 +247,39 @@ int pxa_usb_phy_init(unsigned int base)
 			break;
 		}
 	}
-	init_done = 1;
+
 	return 0;
 }
+
+static int usb_phy_deinit_internal(unsigned int base)
+{
+	pr_info("Deinit usb phy!!!\n");
+	return 0;
+}
+
+int pxa_usb_phy_init(unsigned int base)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&phy_lock, flags);
+	if (phy_init_cnt++ == 0)
+		usb_phy_init_internal(base);
+	spin_unlock_irqrestore(&phy_lock, flags);
+	return 0;
+}
+
+void pxa_usb_phy_deinit(unsigned int base)
+{
+	unsigned long flags;
+
+	WARN_ON(phy_init_cnt == 0);
+
+	spin_lock_irqsave(&phy_lock, flags);
+	if (--phy_init_cnt == 0)
+		usb_phy_deinit_internal(base);
+	spin_unlock_irqrestore(&phy_lock, flags);
+}
+
 #endif
 
 #if defined(CONFIG_CPU_PXA168) || defined(CONFIG_CPU_PXA910)
@@ -549,23 +578,48 @@ void pxa_usb_phy_deinit(unsigned int base)
 #ifdef CONFIG_CPU_MMP3
 int mmp3_hsic_phy_init(unsigned int base)
 {
-	u32 val;
 	unsigned int otgphy;
+	u32 val;
 
-	otgphy = (unsigned int) ioremap_nocache(PXA168_U2O_PHYBASE,
-						USB_PHY_RANGE);
-	if (otgphy == 0)
+	pr_info("mmp3_hsic_phy_init !!!\n");
+
+	otgphy = (unsigned int) ioremap(PXA168_U2O_PHYBASE, USB_PHY_RANGE);
+	if (otgphy == 0) {
 		printk(KERN_ERR "%s: ioremap error\n", __func__);
-	pxa_usb_phy_init(otgphy);
+		return -ENOMEM;
+	}
 
-	printk(KERN_INFO "%s: init\n", __func__);
+	pxa_usb_phy_init(otgphy);
+	iounmap((void __iomem *)otgphy);
+
 	/* Enable hsic phy */
 	val = __raw_readl(base + HSIC_CTRL);
 	val |= (HSIC_CTRL_HSIC_ENABLE | HSIC_CTRL_PLL_BYPASS);
 	__raw_writel(val, base + HSIC_CTRL);
 
-	iounmap((void __iomem *)otgphy);
 	return 0;
+}
+
+void mmp3_hsic_phy_deinit(unsigned int base)
+{
+	unsigned int otgphy;
+	u32 val;
+
+	pr_info("mmp3_hsic_phy_deinit !!!\n");
+
+	/* Disable HSIC PHY */
+	val = __raw_readl(base + HSIC_CTRL);
+	val &= ~HSIC_CTRL_HSIC_ENABLE;
+	__raw_writel(val, base + HSIC_CTRL);
+
+	otgphy = (unsigned int) ioremap(PXA168_U2O_PHYBASE, USB_PHY_RANGE);
+	if (otgphy == 0) {
+		printk(KERN_ERR "%s: ioremap error\n", __func__);
+		return;
+	}
+
+	pxa_usb_phy_deinit(otgphy);
+	iounmap((void __iomem *)otgphy);
 }
 #endif
 #endif

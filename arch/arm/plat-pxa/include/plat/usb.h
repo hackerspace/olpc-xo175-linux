@@ -69,4 +69,11 @@ struct mv_usb_platform_data {
 extern int pxa_usb_phy_init(unsigned int base);
 extern void pxa_usb_phy_deinit(unsigned int base);
 
+#ifdef CONFIG_USB_EHCI_PXA_U2H_HSIC
+extern int mmp3_hsic_phy_init(unsigned int base);
+extern void mmp3_hsic_phy_deinit(unsigned int base);
+extern int mmp3_hsic_private_init(struct mv_op_regs *opregs,
+					unsigned int phyregs);
+#endif
+
 #endif

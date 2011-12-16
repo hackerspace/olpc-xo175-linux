@@ -1042,7 +1042,6 @@ static void __init yellowstone_init_mmc(void)
 #ifdef CONFIG_USB_SUPPORT
 
 #if defined(CONFIG_USB_PXA_U2O) || defined(CONFIG_USB_EHCI_PXA_U2O)
-extern int pxa_usb_phy_init(unsigned int base);
 
 static char *mmp3_usb_clock_name[] = {
 	[0] = "U2OCLK",
@@ -1076,15 +1075,12 @@ static struct mv_usb_platform_data mmp3_usb_pdata = {
 	.vbus		= NULL,
 	.mode		= MV_USB_MODE_OTG,
 	.phy_init	= pxa_usb_phy_init,
+	.phy_deinit     = pxa_usb_phy_deinit,
 	.set_vbus	= pxa_usb_set_vbus,
 };
 #endif
 
 #ifdef CONFIG_USB_EHCI_PXA_U2H_HSIC
-extern int mmp3_hsic_phy_init(unsigned int base);
-extern int mmp3_hsic_private_init(struct mv_op_regs *opregs,
-					unsigned int phyregs);
-
 static int mmp3_hsic1_reset(void)
 {
 	int reset;
@@ -1144,6 +1140,7 @@ static struct mv_usb_platform_data mmp3_hsic1_pdata = {
 	.vbus		= NULL,
 	.mode		= MV_USB_MODE_HOST,
 	.phy_init	= mmp3_hsic_phy_init,
+	.phy_deinit     = mmp3_hsic_phy_deinit,
 	.set_vbus	= mmp3_hsic1_set_vbus,
 	.private_init	= mmp3_hsic_private_init,
 };
