@@ -19,6 +19,7 @@
 #include <asm/mach/irq.h>
 #include <asm/hardware/gic.h>
 #include <mach/regs-icu.h>
+#include <plat/mfp.h>
 
 #include "common.h"
 
@@ -129,6 +130,24 @@ static void init_mux_irq(struct icu_mux_irq_chip_data *chip_data,
 	chip->irq_unmask(irq_get_irq_data(mux_irq));
 }
 
+static void pmic_irq_ack(struct irq_data *d)
+{
+	unsigned long data;
+	if (d->irq == IRQ_MMP3_PMIC) {
+		data = mfp_read(MFP_PIN_PMIC_INT);
+		mfp_write(MFP_PIN_PMIC_INT, data | MFPR_EDGE_CLEAR);
+		mfp_write(MFP_PIN_PMIC_INT, data & (~MFPR_EDGE_CLEAR));
+	}
+}
+
+static void pmic_set_ack(int mux_irq)
+{
+	struct irq_chip *chip;
+
+	chip = irq_get_chip(mux_irq);
+	chip->irq_ack = pmic_irq_ack;
+}
+
 void __init mmp3_init_gic(void)
 {
 	/* disable global irq of ICU for MP1, MP2, MM*/
@@ -169,6 +188,12 @@ void __init mmp3_init_gic(void)
 			IRQ_MMP3_MISC2_BASE, 20, misc2_irq_demux);
 	init_mux_irq(&hsi0_icu_chip_data, IRQ_MMP3_HSI0_MUX,
 			IRQ_MMP3_HSI0_BASE, 5, hsi0_irq_demux);
+
+	/*
+	 * Note: IRQ_MMP3_PMIC requires the PMIC MFPR register
+	 * to be written to clear the interrupt.
+	 */
+	pmic_set_ack(IRQ_MMP3_PMIC);
 
 	/*
 	 * FIXME
