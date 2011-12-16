@@ -77,6 +77,8 @@ static unsigned long mmp3_cpu_highest_pp(void)
 	return index;
 }
 
+extern int hotplug_governor_cpufreq_action(unsigned long event, struct cpufreq_freqs *freqs);
+
 static int mmp3_cpufreq_target(struct cpufreq_policy *policy,
 			       unsigned int target_freq, unsigned int relation)
 {
@@ -120,6 +122,8 @@ static int mmp3_cpufreq_target(struct cpufreq_policy *policy,
 	if (freqs[policy->cpu].old == freqs[policy->cpu].new)
 		goto out;
 
+	ret = hotplug_governor_cpufreq_action(CPUFREQ_PRECHANGE, freqs);
+
 	for_each_online_cpu(cpu)
 		cpufreq_notify_transition(&freqs[cpu], CPUFREQ_PRECHANGE);
 
@@ -143,6 +147,7 @@ static int mmp3_cpufreq_target(struct cpufreq_policy *policy,
 		cpufreq_notify_transition(&freqs[cpu], CPUFREQ_POSTCHANGE);
 	}
 
+	ret = hotplug_governor_cpufreq_action(CPUFREQ_POSTCHANGE, freqs);
 out:
 	mutex_unlock(&mmp3_cpu_lock);
 	return ret;
@@ -154,6 +159,9 @@ static int mmp3_cpufreq_init(struct cpufreq_policy *policy)
 
 	cpufreq_frequency_table_cpuinfo(policy, freq_table[policy->cpu]);
 	cpufreq_frequency_table_get_attr(freq_table[policy->cpu], policy->cpu);
+
+	if (policy->cpu != 0)
+		policy->min = 400000;
 
 	if (!cpu_clk) {
 		cpu_clk = clk_get(NULL, "cpu");
