@@ -2622,7 +2622,7 @@ static void pxa_i2c_dma_irq_r(int channel, void *data)
 
 static int i2c_pxa_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 {
-	#define NUM_XFER_RETRIES  1
+	#define NUM_XFER_RETRIES  2
 	struct pxa_i2c *i2c = adap->algo_data;
 	int ret, i;
 	int exh_retries = 0, xfer_retries = NUM_XFER_RETRIES;
