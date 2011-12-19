@@ -207,7 +207,7 @@ static unsigned long brownstone_pin_config[] __initdata = {
 	GPIO82_GPIO | MFP_LPM_DRIVE_LOW,
 
 	/* 5V regulator */
-	GPIO89_GPIO,
+	GPIO89_5V_EN,
 
 	/* Backlight */
 	GPIO53_PWM3,
@@ -288,7 +288,7 @@ static struct fixed_voltage_config brownstone_v_5vp = {
 	.microvolts		= 5000000,
 	.gpio			= GPIO_5V_ENABLE,
 	.enable_high		= 1,
-	.enabled_at_boot	= 1,
+	.enabled_at_boot	= 0,
 	.init_data		= &brownstone_v_5vp_data,
 };
 
