@@ -686,6 +686,9 @@ struct platform_device pxa168_device_u2ootg = {
 #endif
 
 #ifdef CONFIG_VIDEO_MVISP
+
+static u64 mmp_dxo_dma_mask = DMA_BIT_MASK(32);
+
 static struct resource mmp_dxoisp_resources[] = {
 	[0] = {
 		.start = 0xD4215000,
@@ -718,7 +721,7 @@ struct platform_device mmp_device_dxoisp = {
 	.name           = "mvisp",
 	.id             = 0,
 	.dev            = {
-		.dma_mask = DMA_BIT_MASK(32),
+		.dma_mask = &mmp_dxo_dma_mask,
 		.coherent_dma_mask = DMA_BIT_MASK(32),
 	},
 	.resource       = mmp_dxoisp_resources,
@@ -754,7 +757,7 @@ static struct resource mmp_vmeta_resources[3] = {
 		.flags = IORESOURCE_IRQ,
 	},
 };
-#elif CONFIG_CPU_MMP2
+#elif defined CONFIG_CPU_MMP2
 static struct resource mmp_vmeta_resources[] = {
 	[0] = {
 		.start = 0xF0400000,
