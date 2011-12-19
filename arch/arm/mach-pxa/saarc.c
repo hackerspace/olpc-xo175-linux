@@ -324,7 +324,6 @@ static void regulator_init_pm800(void)
 	*/
 	REG_SUPPLY_INIT(PM800_ID_LDO14, "Vdd_IO", NULL);
 	REG_SUPPLY_INIT(PM800_ID_LDO15, "VBat", NULL);
-	REG_SUPPLY_INIT(PM800_ID_LDO17, "VSim", NULL);
 
 	REG_INIT(i++, PM800_ID, LDO18, 1200000, 3300000, 0, 0);
 	REG_INIT(i++, PM800_ID, LDO16, 1800000, 3300000, 0, 0);
@@ -337,8 +336,21 @@ static void regulator_init_pm800(void)
 
 	REG_INIT(i++, PM800_ID, LDO14, 1800000, 3300000, 0, 0);
 	REG_INIT(i++, PM800_ID, LDO15, 1800000, 3300000, 0, 0);
-	REG_INIT(i++, PM800_ID, LDO17, 1800000, 3300000, 0, 0);
 
+	switch (get_board_id()) {
+	case OBM_DKB_2_NEVO_C0_BOARD:
+		/* will be enabled after regulator fix
+		REG_SUPPLY_INIT(PM800_ID_LDO12, "v_wifi_1v8", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO17, "v_wifi_3v3", NULL);
+		REG_INIT(i++, PM800_ID, LDO12, 1800000, 1800000, 1, 1);
+		REG_INIT(i++, PM800_ID, LDO17, 3300000, 3300000, 1, 1);
+		*/
+		break;
+	default:
+		REG_SUPPLY_INIT(PM800_ID_LDO17, "VSim", NULL);
+		REG_INIT(i++, PM800_ID, LDO17, 1800000, 3300000, 0, 0);
+		break;
+	}
 	pr_info("%s: select saarC NEVO austica ldo map\n", __func__);
 
 	pm800_info.num_regulators = i;
@@ -367,10 +379,15 @@ static void wifi_set_power(unsigned int on)
 {
 	unsigned long wlan_pd_mfp = 0;
 	int gpio_power_down = mfp_to_gpio(MFP_PIN_GPIO70);
+	int gpio_wifi_en = mfp_to_gpio(MFP_PIN_GPIO102);
 
 	wlan_pd_mfp = pxa3xx_mfp_read(gpio_power_down);
 
 	if (on) {
+		if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD) {
+			gpio_request(gpio_wifi_en, "WIB_EN");
+			gpio_direction_output(gpio_wifi_en, 1);
+		}
 		/* set wlan_pd pin to output high in low power
 			mode to ensure 8787 is not power off in low power mode*/
 		wlan_pd_mfp |= 0x100;
@@ -378,8 +395,7 @@ static void wifi_set_power(unsigned int on)
 
 		/* enable 32KHz TOUT */
 		clk_enable(clk_tout_s0);
-		}
-	else {
+	} else {
 		/*set wlan_pd pin to output low in low power
 			mode to save power in low power mode */
 		wlan_pd_mfp &= ~0x100;
@@ -387,6 +403,10 @@ static void wifi_set_power(unsigned int on)
 
 		/* disable 32KHz TOUT */
 		clk_disable(clk_tout_s0);
+		if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD) {
+			gpio_direction_output(gpio_wifi_en, 0);
+			gpio_free(gpio_wifi_en);
+		}
 	}
 }
 
@@ -414,6 +434,15 @@ static struct sdhci_pxa_platdata mci2_platform_data = {
 
 static void __init init_mmc(void)
 {
+	int gpio_rst, gpio_pd;
+
+	gpio_pd = mfp_to_gpio(MFP_PIN_GPIO70);
+	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD) {
+		gpio_rst = mfp_to_gpio(MFP_PIN_GPIO97);
+		mci1_platform_data.ext_cd_gpio = mfp_to_gpio(MFP_PIN_GPIO128);
+	} else
+		gpio_rst = mfp_to_gpio(MFP_PIN_GPIO99);
+
         if (cpu_is_pxa978_Cx())
                 mci1_platform_data.quirks = SDHCI_QUIRK_INVERTED_WRITE_PROTECT;
 
@@ -421,10 +450,8 @@ static void __init init_mmc(void)
 	pxa95x_set_mci_info(0, &mci0_platform_data);
 	pxa95x_set_mci_info(1, &mci1_platform_data);
 #ifdef CONFIG_SD8XXX_RFKILL
-	add_sd8x_rfkill_device(mfp_to_gpio(MFP_PIN_GPIO70),
-			mfp_to_gpio(MFP_PIN_GPIO99),
-			&mci2_platform_data.pmmc,
-			wifi_set_power);
+	add_sd8x_rfkill_device(gpio_pd, gpio_rst,
+			&mci2_platform_data.pmmc, wifi_set_power);
 
 	clk_tout_s0 = clk_get(NULL, "CLK_TOUT_S0");
 	if (IS_ERR(clk_tout_s0))
@@ -626,6 +653,7 @@ static void register_i2c_board_info(void)
 	case OBM_SAAR_C25_NEVO_B0_V10_BOARD:
 	case OBM_EVB_NEVO_1_2_BOARD:
 	case OBM_SAAR_C3_NEVO_C0_V10_BOARD:
+	case OBM_DKB_2_NEVO_C0_BOARD:
 		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info));
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_C25));
 		break;
@@ -726,6 +754,32 @@ static struct pxa27x_keypad_platform_data keypad_info = {
 						KEY_RESERVED,
 						KEY_ENTER },
 };
+
+static unsigned int matrix_key_map_dkb2[] = {
+	/* KEY(row, col, key_code) */
+	KEY(0, 0, KEY_BACK),
+	KEY(0, 1, KEY_END),
+	KEY(0, 2, KEY_CAMERA),
+	KEY(1, 0, KEY_OK),
+	KEY(1, 1, KEY_HOME),
+	KEY(1, 2, KEY_CAMERA),
+	KEY(2, 0, KEY_LEFT),
+	KEY(2, 1, KEY_RIGHT),
+	KEY(2, 2, KEY_RIGHT),/*not exist*/
+	KEY(3, 0, KEY_UP),
+	KEY(3, 1, KEY_DOWN),
+	KEY(3, 2, KEY_DOWN),/*not exists*/
+};
+
+static struct pxa27x_keypad_platform_data keypad_info_dkb2 = {
+	.matrix_key_rows = 4,
+	.matrix_key_cols = 3,
+	.matrix_key_map = matrix_key_map,
+	.matrix_key_map_size = ARRAY_SIZE(matrix_key_map_dkb2),
+	.debounce_interval = 30,
+	.active_low = 1,
+};
+
 #endif /* CONFIG_KEYBOARD_PXA27x || CONFIG_KEYBOARD_PXA27x_MODULE */
 
 /* Camera LDO */
@@ -985,18 +1039,25 @@ static void __init init_cam(void)
 		pwd_sub = mfp_to_gpio(MFP_PIN_GPIO26);
 		pwd_isp	= 0;
 		break;
+	case OBM_DKB_2_NEVO_C0_BOARD:
+		pwd_main = mfp_to_gpio(MFP_PIN_GPIO25);
+		pwd_sub = mfp_to_gpio(MFP_PIN_GPIO26);
+		pwd_isp	= mfp_to_gpio(MFP_PIN_GPIO24);
+		break;
 	default: /* For SaarC 2.5 and 3*/
 		pwd_main = mfp_to_gpio(MFP_PIN_GPIO18);
 		pwd_sub = mfp_to_gpio(MFP_PIN_GPIO26);
 		pwd_isp	= mfp_to_gpio(MFP_PIN_GPIO24);
-		if (pwd_isp && gpio_request(pwd_isp, "CAM_ISP_RESET")) {
-			printk(KERN_ERR "Request GPIO failed,"
-				"gpio: %d\n", pwd_isp);
-			pwd_isp = 0;
-			return;
-		}
 		break;
 	}
+
+	if (pwd_isp && gpio_request(pwd_isp, "CAM_ISP_RESET")) {
+		printk(KERN_ERR "Request GPIO failed,"
+			"gpio: %d\n", pwd_isp);
+		pwd_isp = 0;
+		return;
+	}
+
 	/* Camera hold these GPIO forever, should not be accquired by others */
 	if (pwd_main && gpio_request(pwd_main, "CAM_HI_SENSOR_PWD")) {
 		printk(KERN_ERR "Request GPIO failed,"
@@ -1462,15 +1523,17 @@ static void __init init(void)
 #if defined(CONFIG_BACKLIGHT_ADP8885)
 	if (OBM_SAAR_C25_NEVO_B0_V10_BOARD == get_board_id())
 		adp8885_data.num_chs = 1;
-	else if (OBM_EVB_NEVO_1_2_BOARD == get_board_id()
-		|| OBM_SAAR_C3_NEVO_C0_V10_BOARD == get_board_id()) {
+	else if (OBM_EVB_NEVO_1_2_BOARD == get_board_id() ||
+			OBM_SAAR_C3_NEVO_C0_V10_BOARD == get_board_id() ||
+			OBM_DKB_2_NEVO_C0_BOARD == get_board_id()) {
 		adp8885_data.chip_enable = adp8885_bl_enable;
 		adp8885_data.num_chs = 2;
 	}
 #endif
 
 	/* adjust acc sensor axes */
-	if (get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD)
+	if (get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD ||
+			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD)
 		cwmi_acc_data.axes[0] = -1;
 
 	set_abu_init_func(abu_mfp_init);
@@ -1487,7 +1550,10 @@ static void __init init(void)
 	register_i2c_board_info();
 
 #if defined(CONFIG_KEYBOARD_PXA27x) || defined(CONFIG_KEYBOARD_PXA27x_MODULE)
-	pxa_set_keypad_info(&keypad_info);
+	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD)
+		pxa_set_keypad_info(&keypad_info_dkb2);
+	else
+		pxa_set_keypad_info(&keypad_info);
 #endif
 
 	init_cam();
