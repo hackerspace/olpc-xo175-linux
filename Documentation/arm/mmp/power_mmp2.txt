@@ -141,8 +141,11 @@ How to check sysfs of cpuidle: Documentation/cpuidle/sysfs.txt
 /sys/devices/system/cpu/cpu0/cpuidle/state0/time
 /sys/devices/system/cpu/cpu0/cpuidle/state0/usage
 
-How to use constraint:
-CARE: qos can be NOT used in irq context
+How to use constraint: qos
+note:
+if no nitifier callback, qos can be used in irq context
+cpuidle do not have notifier, so qos can be used in irq context for cpuidle
+
 
 init:       pm_qos_add_request(&qos_idle_fb, PM_QOS_CPU_DMA_LATENCY, PM_QOS_DEFAULT_VALUE);
 remove:     pm_qos_remove_request(&qos_idle_fb);
@@ -221,8 +224,10 @@ camera:      hold in 800M op and disable frequency change
 hdmi:        hold in 800M op and disable frequency change
 vmeta:       set min frequency op due to different video format
 
-How to set freq constraint:
-CARE: qos can NOT used in irq context
+How to set freq constraint: qos
+note:
+if have nitifier callback, qos can NOT be used in irq context
+cpufreq have notifier, so qos can NOT be used in irq context for cpufreq
 
 include:    <linux/pm_qos_params.h>
 declaration:        struct pm_qos_request_list X;
