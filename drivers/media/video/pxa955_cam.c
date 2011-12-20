@@ -234,6 +234,9 @@ static const int yuv_output_sequence[][3] = {
 #define MAX_DMA_SIZE	(1280 * 720 * 2)
 #define JPEG_BUF_SIZE	(1024 * 1024)
 
+#define ALIGN_SIZE	(cache_line_size())
+#define ALIGN_MASK	(ALIGN_SIZE - 1)
+
 static int dvfm_dev_idx;
 
 static unsigned int vid_mem_limit = 64;	/* Video memory limit, in Mb */
@@ -733,7 +736,10 @@ static void dma_fetch_frame(struct pxa955_cam_dev *pcdev)
 		buf_node = list_entry(pcdev->dma_buf_list.next,
 			struct pxa_buf_node, vb.queue);
 		dma_handles = videobuf_to_dma_contig(&buf_node->vb);
-
+		dma_unmap_page(pcdev->soc_host.v4l2_dev.dev,
+				dma_handles,
+				pcdev->channel_size[0],
+				DMA_FROM_DEVICE);
 		buf_node->vb.state = VIDEOBUF_DONE;
 		wake_up(&buf_node->vb.done);
 		list_del_init(&buf_node->vb.queue);
@@ -1226,13 +1232,14 @@ static int pxa955_videobuf_setup(struct videobuf_queue *vq, unsigned int *count,
 	if (icd->current_fmt->host_fmt->fourcc != V4L2_PIX_FMT_JPEG) {
 		dev_dbg(icd->dev.parent, "count=%d, size=%d\n", *count, *size);
 
-		*size = bytes_per_line * icd->user_height;
+		*size = ALIGN(bytes_per_line * icd->user_height, ALIGN_SIZE);
 		if (0 == *count)
 			*count = 32;
 		if (*size * *count > vid_mem_limit * 1024 * 1024)
 			*count = (vid_mem_limit * 1024 * 1024) / *size;
 	} else {
-		*size = icd->user_width*icd->user_height/JPEG_COMPRESS_RATIO_HIGH;
+		*size = ALIGN(icd->user_width * icd->user_height
+				/JPEG_COMPRESS_RATIO_HIGH, ALIGN_SIZE);
 		if (0 == *count)
 			*count = 32;
 		if (*size * *count > vid_mem_limit * 1024 * 1024)
@@ -1286,23 +1293,36 @@ static int pxa955_videobuf_prepare(struct videobuf_queue *vq,
 	if (vb->state == VIDEOBUF_NEEDS_INIT) {
 
 		if (vb->memory == V4L2_MEMORY_USERPTR) {
-			/*
-			* Actually DMA buffer and DMA descriptors must be
-			* aligned on 16 byte boundary.
-			* But the cache line for L2 is 32 byte, so it's better to
-			* be 32 byte aligned to improve the performance.
-			*/
+	/* Acoording to H/W spec, DMA buffer and DMA descriptors alignment
+	 * require is only 16-byte, but don't want the buffers been DMAed on
+	 * shares 32-byte cache with other thread, otherwise there will be
+	 * a lot of problem realted to cache invalidate / writeback so
+	 * we need to make sure:
+	 * 1> the start address of the buffer is aligned to cache size
+	 * 2> the size of the buffer is aligned to cache size
+	 */
+			if (vb->bsize & ALIGN_MASK) {
+				printk(KERN_ERR "cam: buffer size 0x%08x "\
+					"is not aligned\n",
+					(__u32)vb->bsize);
+				vb->state = VIDEOBUF_ERROR;
+				return -EINVAL;
+			}
+			/* Get PA, and at same time check
+			 * if PA pages are contiguous */
 			paddr = va_to_pa(vb->baddr, vb->bsize);
-			if (!paddr || (paddr & 0x1f) != 0) {
-				printk(KERN_ERR "cam: the memory is " \
-						"not 32 byte align!\n");
+			if (!paddr || (paddr & ALIGN_MASK) != 0) {
+				printk(KERN_ERR "cam: buffer address 0x%08x "\
+					"is not 32 aligned\n",
+					(__u32)vb->baddr);
+				vb->state = VIDEOBUF_ERROR;
 				return -EPERM;
 			}
-
 			/* get page info for dma invalid cache operation*/
 			buf->page = va_to_page(vb->baddr);
 			if (!buf->page) {
-				printk(KERN_ERR "cam: fail to get page info!\n");
+				printk(KERN_ERR "cam: fail to get page info\n");
+				vb->state = VIDEOBUF_ERROR;
 				return -EFAULT;
 			}
 		}
@@ -1323,7 +1343,6 @@ static int pxa955_videobuf_prepare(struct videobuf_queue *vq,
 
 		vb->state = VIDEOBUF_PREPARED;
 	}
-
 	return 0;
 }
 
@@ -1333,6 +1352,8 @@ static void pxa955_videobuf_queue(struct videobuf_queue *vq,
 	struct soc_camera_device *icd = vq->priv_data;
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct pxa955_cam_dev *pcdev = ici->priv;
+	struct pxa_buf_node *buf =
+		container_of(vb, struct pxa_buf_node, vb);
 
 	dev_dbg(icd->dev.parent, "%s (vb=0x%p) 0x%08lx %d\n",
 		__func__, vb, vb->baddr, vb->bsize);
@@ -1367,6 +1388,12 @@ static void pxa955_videobuf_queue(struct videobuf_queue *vq,
 #endif
 		}
 	}
+	/* Streamon or not, invalidate the buffer before add to DMA chain */
+	dma_map_page(pcdev->soc_host.v4l2_dev.dev,
+			buf->page,	/* or: va_to_page(vb->baddr) */
+			0,
+			vb->bsize,
+			DMA_FROM_DEVICE);
 }
 
 static void pxa955_videobuf_release(struct videobuf_queue *vq,
@@ -1422,10 +1449,12 @@ static void pxa955_videobuf_release(struct videobuf_queue *vq,
 			del_timer(&pcdev->reset_timer);
 #endif
 		}
+	} else {
+		printk(KERN_ERR "cam: releasing vb in stream on state, "\
+				"something is wrong!");
 	}
 
 	dma_free_bufs(buf, pcdev);
-
 }
 
 static struct videobuf_queue_ops pxa955_videobuf_ops = {
