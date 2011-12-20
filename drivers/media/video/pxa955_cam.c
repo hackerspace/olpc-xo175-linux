@@ -1163,7 +1163,7 @@ static int pxa955_videobuf_prepare(struct videobuf_queue *vq,
 	struct pxa_buf_node *buf =
 		container_of(vb, struct pxa_buf_node, vb);
 	struct pxa_cam_dma *desc;
-	unsigned int vaddr;
+	unsigned int paddr;
 	int ret;
 	size_t new_size;
 	int bytes_per_line = soc_mbus_bytes_per_line(icd->user_width,
@@ -1199,15 +1199,21 @@ static int pxa955_videobuf_prepare(struct videobuf_queue *vq,
 	if (vb->state == VIDEOBUF_NEEDS_INIT) {
 
 		if (vb->memory == V4L2_MEMORY_USERPTR) {
-			vaddr = PAGE_ALIGN(vb->baddr);
-			if (vaddr != vb->baddr) {
+			/*
+			* Actually DMA buffer and DMA descriptors must be
+			* aligned on 16 byte boundary.
+			* But the cache line for L2 is 32 byte, so it's better to
+			* be 32 byte aligned to improve the performance.
+			*/
+			paddr = va_to_pa(vb->baddr, vb->bsize);
+			if (!paddr || (paddr & 0x1f) != 0) {
 				printk(KERN_ERR "cam: the memory is " \
-						"not page align!\n");
+						"not 32 byte align!\n");
 				return -EPERM;
 			}
 
 			/* get page info for dma invalid cache operation*/
-			buf->page = va_to_page(vaddr);
+			buf->page = va_to_page(vb->baddr);
 			if (!buf->page) {
 				printk(KERN_ERR "cam: fail to get page info!\n");
 				return -EFAULT;
