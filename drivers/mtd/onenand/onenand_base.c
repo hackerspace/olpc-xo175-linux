@@ -533,7 +533,7 @@ static inline int onenand_read_ecc(struct onenand_chip *this)
 			continue;
 		if (ecc & FLEXONENAND_UNCORRECTABLE_ERROR)
 			return ONENAND_ECC_2BIT_ALL;
-		else
+		else if ((ecc & ONENAND_ECC_4BIT) || ((ecc >> 8) & ONENAND_ECC_4BIT))
 			result = ONENAND_ECC_1BIT_ALL;
 	}
 
