@@ -547,6 +547,7 @@ struct mfp_addr_map {
 #define MFPR_PULL_SEL		(0x1 << 15)
 #define MFPR_PULLUP_EN		(0x1 << 14)
 #define MFPR_PULLDOWN_EN	(0x1 << 13)
+#define MFPR_PULL_MASK		(0x7 << 13)
 #define MFPR_SLEEP_SEL		(0x1 << 9)
 #define MFPR_SLEEP_OE_N		(0x1 << 7)
 #define MFPR_EDGE_CLEAR		(0x1 << 6)
@@ -556,6 +557,7 @@ struct mfp_addr_map {
 #define MFPR_SLEEP_DATA(x)	(((x) & 0x1) << 8)
 #define MFPR_DRIVE(x)		(((x) & 0x7) << 10)
 #define MFPR_AF_SEL(x)		(((x) & 0x7) << 0)
+#define MFPR_AF_MASK		(0x7 << 0)
 
 #define MFPR_EDGE_NONE		(MFPR_EDGE_CLEAR)
 #define MFPR_EDGE_RISE		(MFPR_EDGE_RISE_EN)

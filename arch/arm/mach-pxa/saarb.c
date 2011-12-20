@@ -947,11 +947,155 @@ static struct sdhci_pxa_platdata mci0_platform_data = {
 				PXA_FLAG_KEEP_POWER_IN_SUSPEND,
 };
 
+#define MAX_SD_PINS 6
+/*
+* This function is used to check whether SD slot has short circuit issue
+* 1. Set all of the MFPR as GPIO input
+* 2. If there are external pull-ups, don't set pull-up.
+* 3. If the pin is not HIGH, it means short circuit happening.
+* 4. Recover the MFPR as SD functionality.
+*/
+static int pxa_check_sd_short_circuit(struct sdhci_host *host, const int mfp_start,
+	const int mfp_num, const int pull_up)
+{
+	unsigned long mfp_bak[MAX_SD_PINS];
+	int i;
+	unsigned long val;
+	int err;
+	int ret = 0;
+	int regulator_enabled;
+	int retry = 0;
+
+	if(!host->vmmc) {
+		printk(KERN_INFO"%s short circuit check not necessary \n",
+			mmc_hostname(host->mmc));
+		return 0;
+	}
+
+	if(mfp_num > MAX_SD_PINS) {
+		printk(KERN_ERR"%s mfp_num(%d) > MAX_SD_PINS(%d) \n",
+			__FUNCTION__,mfp_num, MAX_SD_PINS);
+		return 1;
+	}
+
+	regulator_enabled = regulator_is_enabled(host->vmmc);
+	if (regulator_enabled)
+		regulator_disable(host->vmmc);
+
+	for(i=0; i<mfp_num;i++) {
+		mfp_bak[i] = mfp_read(mfp_start+i);
+		val = mfp_bak[i];
+		val &= ~(MFPR_PULL_MASK | MFPR_AF_MASK);
+		if(pull_up)
+			val |= MFPR_PULL_FLOAT;
+		else
+			val |= MFPR_PULL_HIGH;
+		mfp_write(mfp_start+i, val);
+		err = gpio_request(MFP_PIN(mfp_start+i), NULL);
+		if (err) {
+			printk(KERN_ERR"%s gpio_request[%d] fail\n",
+				__FUNCTION__,MFP_PIN(mfp_start+i));
+			ret = 1;
+			goto out;
+		}
+		gpio_direction_input(MFP_PIN(mfp_start+i));
+	}
+	udelay(200);
+
+	regulator_enable(host->vmmc);
+	for(retry=0; retry < 3; retry ++) {
+		/*retry 3 times, in case the voltage cannot reach in 300us*/
+		udelay(300);/*TODO: check whether LDO can reach high voltage*/
+		for(i=0; i<mfp_num;i++) {
+			val = gpio_get_value(MFP_PIN(mfp_start+i));
+			val &= 1 << (MFP_PIN(mfp_start+i) % 32);
+			if (!val && (retry == 2)) {
+				ret = 1;
+				printk(KERN_ERR"%s GPIO[%d] short circuit \
+					detected \n", __FUNCTION__,
+					MFP_PIN(mfp_start+i));
+			}
+		}
+		if (!ret) /* There are no short circuit detected*/
+			break;
+	}
+
+	regulator_disable(host->vmmc);
+out:
+	for(i=0; i<mfp_num;i++) {
+		gpio_free(MFP_PIN(mfp_start+i));
+		mfp_write(mfp_start+i, mfp_bak[i]);
+	}
+
+	return ret;
+}
+
+/*
+* According to SD spec, CLK, CMD, and DAT3-0 should be LOW before VDD becomes high.
+*/
+static int pxa_safe_sd_on(struct sdhci_host *host, const int mfp_start,
+	const int mfp_num)
+{
+	unsigned long mfp_bak[MAX_SD_PINS];
+	int i;
+	unsigned long val;
+	int err;
+	int ret = 0;
+	int regulator_enabled;
+
+	if(!host->vmmc)
+		return 0;
+
+	if(mfp_num > MAX_SD_PINS) {
+		printk(KERN_ERR"%s mfp_num(%d) > MAX_SD_PINS(%d) \n",
+			__FUNCTION__,mfp_num, MAX_SD_PINS);
+		return 1;
+	}
+
+	regulator_enabled = regulator_is_enabled(host->vmmc);
+	if (regulator_enabled)
+		regulator_disable(host->vmmc);
+
+	for(i=0; i<mfp_num;i++) {
+		mfp_bak[i] = mfp_read(mfp_start+i);
+		val = mfp_bak[i];
+		val &= ~MFPR_AF_MASK;
+		mfp_write(mfp_start+i, val);
+		err = gpio_request(MFP_PIN(mfp_start+i), NULL);
+		if (err) {
+			printk(KERN_ERR"%s gpio_request[%d] fail\n",
+				__FUNCTION__,MFP_PIN(mfp_start+i));
+			ret = 1;
+			goto out;
+		}
+		gpio_direction_output(MFP_PIN(mfp_start+i), 0);
+		printk(KERN_ERR"gpio[%d] set as LOW before power on\n",
+				MFP_PIN(mfp_start+i));
+	}
+
+	udelay(200);
+	regulator_enable(host->vmmc);
+	udelay(300);
+
+out:
+	for(i=0; i<mfp_num;i++) {
+		gpio_free(MFP_PIN(mfp_start+i));
+		mfp_write(mfp_start+i, mfp_bak[i]);
+	}
+
+	return ret;
+}
+
 static struct sdhci_pxa_platdata mci1_platform_data = {
 	.flags = PXA_FLAG_ENABLE_CLOCK_GATING |
 			PXA_FLAG_ACITVE_IN_SUSPEND,
 	.ext_cd_gpio = mfp_to_gpio(MFP_PIN_GPIO47),
 	.ext_cd_gpio_invert = 1,
+	.mfp_start = 55,
+	.mfp_num = 6,
+	.pull_up = 0,
+	.check_short_circuit = pxa_check_sd_short_circuit,
+	.safe_regulator_on = pxa_safe_sd_on,
 };
 
 static struct sdhci_pxa_platdata mci2_platform_data = {
