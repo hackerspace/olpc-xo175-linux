@@ -1231,6 +1231,9 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 	schedule_work(&udc->event_work);
 
 	if (udc->vbus_active) {
+		retval = mv_udc_enable(udc);
+		if (retval)
+			goto out;
 		wake_lock(&suspend_lock);
 		udc->charger_type = DEFAULT_CHARGER;
 		schedule_delayed_work(&udc->charger_work, HZ >> 3);
@@ -1251,19 +1254,16 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 	* 3. VBUS detect: we can disable/enable clock on demand.
 	*/
 	if (udc->driver && udc->softconnect && udc->vbus_active) {
-		retval = mv_udc_enable(udc);
-		if (retval == 0) {
-			/*
-			* after clock is disabled, we lost all the register
-			*  context. We have to re-init registers
-			*/
-			udc_reset(udc);
-			ep0_reset(udc);
-			udc_start(udc);
+		/*
+		* after clock is disabled, we lost all the register
+		*  context. We have to re-init registers
+		*/
+		udc_reset(udc);
+		ep0_reset(udc);
+		udc_start(udc);
 #if (defined CONFIG_ARCH_PXA && defined CONFIG_DVFM)
-			dvfm_disable_lowpower(dvfm_dev_idx);
+		dvfm_disable_lowpower(dvfm_dev_idx);
 #endif
-		}
 	} else if (udc->driver && udc->softconnect) {
 		if (!udc->active)
 			goto out;
@@ -1271,12 +1271,13 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 		/* stop all the transfer in queue*/
 		stop_activity(udc, udc->driver);
 		udc_stop(udc);
-		mv_udc_disable(udc);
 #if (defined CONFIG_ARCH_PXA && defined CONFIG_DVFM)
 		dvfm_enable_lowpower(dvfm_dev_idx);
 #endif
 	}
 
+	if (!udc->vbus_active)
+		mv_udc_disable(udc);
 out:
 	spin_unlock_irqrestore(&udc->lock, flags);
 	return retval;
@@ -1482,8 +1483,10 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 		}
 	}
 
+#ifndef CONFIG_USB_G_ANDROID
 	/* pullup is always on */
 	mv_udc_pullup(&udc->gadget, 1);
+#endif
 
 	/* when transceiver is not NULL, qwork is NULL*/
 	if (udc->qwork)
