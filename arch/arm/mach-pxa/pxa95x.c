@@ -1239,9 +1239,6 @@ static int __init pxa95x_init(void)
 	set_pxa95x_freq_info(&freq_mach_info);
 #endif
 
-	/* performance monitor unit */
-	pxa95x_set_pmu_info(NULL);
-
 #ifdef CONFIG_CACHE_TAUROS2
 	if (!cpu_is_pxa978_Cx())
 		tauros2_init();

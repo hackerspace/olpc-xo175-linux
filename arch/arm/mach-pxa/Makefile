@@ -10,10 +10,8 @@ ifeq ($(CONFIG_PXA95x), y)
 obj-$(CONFIG_PXA95x_DVFM)	+= pxa95x_dvfm.o pxa95x_dvfm_ll.o
 obj-$(CONFIG_PXA95x_DVFM_STATS)	+= dvfm_stats.o
 obj-$(CONFIG_PXA95x_DVFM_DEBUG)	+= pxa95x_pm_debugfs.o pxa95x_pinmux_debugfs.o pxa9xx_pm_logger.o pxa9xx_pm_parser.o
-obj-$(CONFIG_PXA95x_PMU)	+= pmu.o pmu_ll.o
-obj-$(CONFIG_PXA95x_PRM)	+= prm.o
 obj-$(CONFIG_PM)		+= pxa95x_pm.o pxa95x_pm_ll.o
-obj-$(CONFIG_IPM)		+= ipmc.o ipm-pmu.o mspm_idle.o mspm_prof.o
+obj-$(CONFIG_IPM)		+= mspm_idle.o mspm_prof.o
 else
 obj-$(CONFIG_PM)		+= pm.o sleep.o standby.o
 endif

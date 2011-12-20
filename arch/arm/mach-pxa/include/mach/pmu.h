@@ -527,39 +527,4 @@ enum {
 	PXA3xx_EVENT_PX2_MEM_4
 };
 
-#ifdef __KERNEL__
-struct pxa95x_pmu_info {
-	/* performance monitor unit register base */
-	unsigned char __iomem *pmu_base;
-};
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-	/*
-	 * This routine reads the designated PMU register via CoProcessor 14
-	 *
-	 * @param   aReg        PMU register number to read define in int
-	 * @return              32-bit value read from register
-	 */
-	extern unsigned int pmu_read_reg(unsigned int aReg);
-
-	/*
-	 * This routine Writes the designated PMU register via CoProcessor 14
-	 *
-	 * @param   aReg        PMU register number to read define in int
-	 *          aValue      Value to write to PMU register
-	 * @return
-	 */
-	extern void pmu_write_reg(unsigned int aReg, unsigned int aValue);
-
-	extern int pmu_select_event(int counter, int type);
-
-	extern void pxa95x_set_pmu_info(void *info);
-
-#ifdef __cplusplus
-}
-#endif
-#endif
 #endif				/*__PMU_H__*/

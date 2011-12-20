@@ -30,7 +30,7 @@
 #include <mach/pxa3xx-regs.h>
 #include <mach/regs-intc.h>
 #include <mach/regs-ost.h>
-#include <mach/ipmc.h>
+#include <mach/pxa95x_dvfm.h>
 #include <mach/mspm_prof.h>
 #ifdef CONFIG_ISPT
 #include <mach/pxa_ispt.h>
@@ -88,7 +88,7 @@ static int idle_flaw;		/* silicon issue on IDLE */
 static void (*orig_idle) (void);
 static unsigned int cpuid;
 static int d1idx = -1, d2idx = -1, cgidx = -1;
-
+extern int enable_deepidle;
 #ifdef CONFIG_ISPT
 #define ispt_power_state_c1() ispt_power_msg(CT_P_PWR_STATE_ENTRY_C1);
 #define ispt_power_state_c0() ispt_power_msg(CT_P_PWR_STATE_ENTRY_C0);

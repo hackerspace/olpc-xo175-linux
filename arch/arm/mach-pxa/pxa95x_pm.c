@@ -38,8 +38,8 @@
 #include <mach/pxa_ispt.h>
 #endif
 #include <mach/pxa95x_pm.h>
+#include <mach/pxa95x_dvfm.h>
 #include <mach/soc_vmeta.h>
-#include <mach/ipmc.h>
 #ifdef CONFIG_ARMV7_OS_SAVE_AND_RESTORE
 #include <asm/hardware/armv7_jtag.h>
 #endif
@@ -983,14 +983,6 @@ int pxa95x_pm_enter_sleep(struct pxa95x_pm_regs *pm_regs)
 
 	pm_clear_wakeup_src(wakeup_src);
 
-#ifdef CONFIG_IPM
-	/* Need to post event to policy maker.  */
-	if (event_notify) {
-		event_notify(IPM_EVENT_SUSPEND_WAKEUP, PM_SUSPEND_MEM,
-			     &waked, sizeof(pm_wakeup_src_t));
-	}
-#endif
-
 	pr_debug("*** made it back from sleep\n");
 
 	return 0;
@@ -1069,13 +1061,6 @@ int pxa95x_pm_enter_standby(struct pxa95x_pm_regs *pm_regs)
 #endif
 	pm_postset_standby();
 
-#ifdef CONFIG_IPM
-	/* Need to post event to policy maker.  */
-	if (event_notify) {
-		event_notify(IPM_EVENT_STANDBY_WAKEUP, PM_SUSPEND_STANDBY,
-			     &waked, sizeof(pm_wakeup_src_t));
-	}
-#endif
 	pr_debug("*** made it back from standby\n");
 
 	return 0;

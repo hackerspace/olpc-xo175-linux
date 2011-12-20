@@ -44,7 +44,6 @@
 
 #include <mach/hardware.h>
 #include <mach/mspm_prof.h>
-#include <mach/ipmc.h>
 #ifdef CONFIG_PXA95x_DVFM
 #include <mach/dvfm.h>
 #include <mach/pxa95x_dvfm.h>
@@ -98,12 +97,8 @@ static int mspm_op_num;
 
 static struct timer_list idle_prof_timer, idle_watchdog;
 
-/* PMU result is stored in it */
-static struct pmu_results sum_pmu_res;
-
 static int mspm_prof_enabled;
 static int window_jif, watchdog_jif;
-static int mspm_pmu_id;
 static int restore_op = 0x5a;	/* magic number */
 
 static int mspm_prof_notifier_freq(struct notifier_block *nb,
@@ -116,8 +111,6 @@ static struct notifier_block notifier_freq_block = {
 static struct work_struct down_freq;
 
 extern int cur_op;
-
-extern int (*pipm_start_pmu) (void *);
 
 static int mspm_ctrl;
 static int mspm_prof_ctrl;
@@ -136,13 +129,6 @@ static unsigned int read_time(void)
 #else
 	return OSCR0;
 #endif
-}
-
-static unsigned int ext_mem_cnt;
-int mspm_calc_pmu(struct ipm_profiler_arg *arg)
-{
-	ext_mem_cnt = arg->pmn0;
-	return 0;
 }
 
 /*
@@ -281,7 +267,6 @@ static int mspm_do_new_sample(void)
 
 static int mspm_start_prof(struct ipm_profiler_arg *arg)
 {
-	struct pmu_results res;
 	struct op_info *info = NULL;
 
 	/* pmu_arg.window_size stores the number of miliseconds.
@@ -297,16 +282,6 @@ static int mspm_start_prof(struct ipm_profiler_arg *arg)
 	watchdog_jif = msecs_to_jiffies(IDLE_WATCHDOG_MSECS);
 	mspm_wtimer = IDLE_WATCHDOG_MSECS;
 
-	if ((mspm_pmu_id > 0) && (pmu_arg.flags & IPM_PMU_PROFILER)) {
-		pmu_arg.pmn0 = arg->pmn0;
-		pmu_arg.pmn1 = arg->pmn1;
-		pmu_arg.pmn2 = arg->pmn2;
-		pmu_arg.pmn3 = arg->pmn3;
-		/* Collect PMU information */
-		pmu_stop(&res);
-		pmu_start(pmu_arg.pmn0, pmu_arg.pmn1, pmu_arg.pmn2,
-			  pmu_arg.pmn3);
-	}
 	/* start next sample window */
 	cur_stats.op = dvfm_get_op(&info);
 	cur_stats.idle = CPU_STATE_RUN;
@@ -323,9 +298,6 @@ static int mspm_start_prof(struct ipm_profiler_arg *arg)
 
 static int mspm_stop_prof(void)
 {
-	struct pmu_results res;
-	if ((mspm_pmu_id > 0) && (pmu_arg.flags & IPM_PMU_PROFILER))
-		pmu_stop(&res);
 	del_timer(&idle_prof_timer);
 	mspm_prof_enabled = 0;
 	if (is_idle_wd_valid())
@@ -335,18 +307,6 @@ static int mspm_stop_prof(void)
 	/* try to use 624MHz if it's not magic number */
 	if (restore_op != 0x5a)
 		dvfm_request_op(restore_op);
-	return 0;
-}
-
-static int calc_pmu_res(struct pmu_results *res)
-{
-	if (res == NULL)
-		return -EINVAL;
-	sum_pmu_res.ccnt += res->ccnt;
-	sum_pmu_res.pmn0 += res->pmn0;
-	sum_pmu_res.pmn1 += res->pmn1;
-	sum_pmu_res.pmn2 += res->pmn2;
-	sum_pmu_res.pmn3 += res->pmn3;
 	return 0;
 }
 
@@ -362,24 +322,6 @@ static void down_freq_worker(struct work_struct *work)
  */
 static void idle_prof_handler(unsigned long data)
 {
-	struct ipm_profiler_result out_res;
-	struct pmu_results res;
-
-	if ((mspm_pmu_id > 0) && (pmu_arg.flags & IPM_PMU_PROFILER)) {
-		if (!pmu_stop(&res))
-			calc_pmu_res(&res);
-		pmu_start(pmu_arg.pmn0, pmu_arg.pmn1, pmu_arg.pmn2,
-			  pmu_arg.pmn3);
-		memset(&out_res, 0, sizeof(struct ipm_profiler_result));
-		out_res.pmu.ccnt = sum_pmu_res.ccnt;
-		out_res.pmu.pmn0 = sum_pmu_res.pmn0;
-		out_res.pmu.pmn1 = sum_pmu_res.pmn1;
-		out_res.pmu.pmn2 = sum_pmu_res.pmn2;
-		out_res.pmu.pmn3 = sum_pmu_res.pmn3;
-		mspm_calc_pmu((struct ipm_profiler_arg *)&out_res);
-		memset(&sum_pmu_res, 0, sizeof(struct pmu_results));
-	}
-
 	mspm_calc_mips(first_stats.timestamp);
 
 	/* start next sample window */
@@ -480,10 +422,6 @@ static int launch_mspm(void)
 		if (mspm_prof_ctrl) {
 			memset(&pmu_arg, 0, sizeof(struct ipm_profiler_arg));
 			arg.flags = IPM_IDLE_PROFILER /* | IPM_PMU_PROFILER */ ;
-			arg.pmn0 = PXA3xx_EVENT_EXMEM;
-			arg.pmn1 = PMU_EVENT_POWER_SAVING;
-			arg.pmn2 = PMU_EVENT_POWER_SAVING;
-			arg.pmn3 = PMU_EVENT_POWER_SAVING;
 			arg.window_size = mspm_window;
 			mspm_start_prof(&arg);
 		}
@@ -581,10 +519,6 @@ static ssize_t prof_store(struct kobject *kobj,
 	if (mspm_prof_ctrl) {
 		memset(&pmu_arg, 0, sizeof(struct ipm_profiler_arg));
 		arg.flags = IPM_IDLE_PROFILER /* | IPM_PMU_PROFILER */ ;
-		arg.pmn0 = PXA3xx_EVENT_EXMEM;
-		arg.pmn1 = PMU_EVENT_POWER_SAVING;
-		arg.pmn2 = PMU_EVENT_POWER_SAVING;
-		arg.pmn3 = PMU_EVENT_POWER_SAVING;
 		arg.window_size = mspm_window;
 		mspm_start_prof(&arg);
 	} else {
@@ -731,23 +665,9 @@ int __init mspm_prof_init(void)
 	if (sysfs_create_group(power_kobj, &attr_group))
 		return -EFAULT;
 
-	mspm_pmu_id = pmu_claim();
-
 	memset(&pmu_arg, 0, sizeof(struct ipm_profiler_arg));
 	pmu_arg.window_size = mspm_window;
-	pmu_arg.pmn0 = PXA3xx_EVENT_EXMEM;
-	pmu_arg.pmn1 = PMU_EVENT_POWER_SAVING;
-	pmu_arg.pmn2 = PMU_EVENT_POWER_SAVING;
-	pmu_arg.pmn3 = PMU_EVENT_POWER_SAVING;
 	window_jif = msecs_to_jiffies(pmu_arg.window_size);
-
-#if 0
-	pipm_start_pmu = mspm_start_prof;
-	pipm_stop_pmu = mspm_stop_prof;
-#else
-	pipm_start_pmu = NULL;
-	pipm_stop_pmu = NULL;
-#endif
 
 	/* It's used to trigger sample window.
 	 * If system is idle, the timer could be deferred.
@@ -781,10 +701,4 @@ void __exit mspm_prof_exit(void)
 {
 	dvfm_unregister("MSPM PROF", &dvfm_dev_idx);
 	dvfm_unregister_notifier(&notifier_freq_block, DVFM_FREQUENCY_NOTIFIER);
-
-	if (mspm_pmu_id)
-		pmu_release(mspm_pmu_id);
-
-	pipm_start_pmu = NULL;
-	pipm_stop_pmu = NULL;
 }

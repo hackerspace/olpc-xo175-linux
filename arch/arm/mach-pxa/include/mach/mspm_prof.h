@@ -30,10 +30,6 @@ struct ipm_profiler_arg {
 	unsigned int size;	/* size of ipm_profiler_arg */
 	unsigned int flags;
 	unsigned int window_size;	/* in microseconds */
-	unsigned int pmn0;
-	unsigned int pmn1;
-	unsigned int pmn2;
-	unsigned int pmn3;
 };
 
 #ifdef __KERNEL__

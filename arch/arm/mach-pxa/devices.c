@@ -1714,26 +1714,6 @@ void __init set_pxa95x_freq_parent(struct device *parent_dev)
 	pxa95x_device_freq.dev.parent = parent_dev;
 }
 
-static struct resource pxa95x_pmu_resources[] = {
-	[0] = {
-		.name   = "pmu_regs",
-		.start = 0x4600ff00,
-		.end   = 0x4600ffff,
-		.flags = IORESOURCE_MEM,
-	},
-};
-
-struct platform_device pxa95x_device_pmu = {
-	.name           = "pxa95x-pmu",
-	.id             = 0,
-	.resource       = pxa95x_pmu_resources,
-	.num_resources  = ARRAY_SIZE(pxa95x_pmu_resources),
-};
-
-void __init pxa95x_set_pmu_info(void *info)
-{
-	pxa_register_device(&pxa95x_device_pmu, info);
-}
 #endif
 
 #if defined(CONFIG_UIO_VMETA)

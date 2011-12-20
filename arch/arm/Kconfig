@@ -2166,20 +2166,8 @@ config PXA95x_DVFM_STATS
 	  This is used to collect statistics during the dynamic frequency
 	  and voltage changes
 
-config PXA95x_PMU
-	bool "PXA95x/PXA930 Processor PMU support"
-	depends on PXA95x
-	help
-	  PXA95x/PXA930 provide Performance Monitor Unit to report
-	  CPU statistics info.
-
-config PXA95x_PRM
-	bool "PXA95x Processor Profiler Resource Manager"
-	depends on PXA95x_DVFM && PXA95x_PMU
-
 config IPM
 	bool "Marvell(R) Scalable Power Management"
-	depends on PXA95x_PRM
 	help
 	  Support Profiler and Daemon of Marvell(R) Scalable Power Management
 
