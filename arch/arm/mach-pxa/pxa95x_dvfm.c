@@ -57,6 +57,7 @@
 extern int ForceOP, ForcedOPIndex, ForceC0, ForceVCTCXO_EN, EnableD2VoltageChange;
 static struct dvfm_md_opt *lowest_freq_op;
 static int lowest_freq_index;
+struct mutex op_change_mutex;
 /* setting the default voltage level to 1.05V */
 unsigned int D2voltageLevelValue = 0x0D;
 extern struct info_head dvfm_trace_list;
@@ -1549,7 +1550,7 @@ static int update_freq(void *driver_data, struct dvfm_freqs *freqs)
 
 	memset(&old, 0, sizeof(struct dvfm_md_opt));
 	memset(&new, 0, sizeof(struct dvfm_md_opt));
-	write_lock_irqsave(&pxa95x_dvfm_op_list.lock, flags);
+	write_lock(&pxa95x_dvfm_op_list.lock);
 	if (!list_empty(&pxa95x_dvfm_op_list.list)) {
 		list_for_each_entry(p, &pxa95x_dvfm_op_list.list, list) {
 			if (!cpu_is_pxa978() && !found_pp_806) {
@@ -1576,12 +1577,15 @@ static int update_freq(void *driver_data, struct dvfm_freqs *freqs)
 				break;
 		}
 	}
-	write_unlock_irqrestore(&pxa95x_dvfm_op_list.lock, flags);
+	write_unlock(&pxa95x_dvfm_op_list.lock);
 	if (found != 2)
 		return -EINVAL;
 
 	if (old.core < new.core)
 		update_voltage(info, &old, &new);
+
+	local_fiq_disable();
+	local_irq_save(flags);
 	if (!cpu_is_pxa978() && (((new.xl == 38) && (old.xl < 31))
 				 || ((old.xl == 38) && (new.xl < 31)))) {
 		set_freq(info, &old, &pp806);
@@ -1589,11 +1593,17 @@ static int update_freq(void *driver_data, struct dvfm_freqs *freqs)
 	} else
 		set_freq(info, &old, &new);
 
+	cur_op = new_op;
+
+	local_irq_restore(flags);
+	local_fiq_enable();
+
 	if (old.core > new.core)
 		update_voltage(info, &old, &new);
-	cur_op = new_op;
+
 	if (new.power_mode == POWER_MODE_D0)
 		loops_per_jiffy = new.lpj;
+
 	return 0;
 }
 
@@ -1727,20 +1737,29 @@ static int pxa95x_set_op(void *driver_data, struct dvfm_freqs *freqs,
 	struct pxa95x_dvfm_info *info = driver_data;
 	struct dvfm_md_opt *md = NULL, *old_md = NULL;
 	struct op_info *p = NULL;
-	unsigned long flags;
 	int ret = 1;
 	unsigned int ckena = 0;
 
-	local_fiq_disable();
-	local_irq_save(flags);
+	if (dvfm_find_op(new, &p))
+		return ret;
+
+	md = (struct dvfm_md_opt *)(p->op);
+	/* only lock when do frequency change.
+	 * if it is enter lowpower mode, now irq should have been disabled.
+	 */
+	if (md->power_mode == POWER_MODE_D0) {
+		BUG_ON(irqs_disabled());
+		mutex_lock(&op_change_mutex);
+	} else {
+		BUG_ON(!irqs_disabled());
+	}
+
+	freqs->old = cur_op;
 
 	if (dvfm_find_op(freqs->old, &p))
 		goto out;
 
 	memcpy(&freqs->old_info, p, sizeof(struct op_info));
-
-	if (dvfm_find_op(new, &p))
-		goto out;
 
 	ret = check_op(info, freqs, new, relation);
 	if (ret)
@@ -1805,12 +1824,14 @@ static int pxa95x_set_op(void *driver_data, struct dvfm_freqs *freqs,
 	}
 
 	CKENA = ckena;
-	local_irq_restore(flags);
-	local_fiq_enable();
+	if (md->power_mode == POWER_MODE_D0) {
+		mutex_unlock(&op_change_mutex);
+	}
 	return 0;
 out:
-	local_irq_restore(flags);
-	local_fiq_enable();
+	if (md->power_mode == POWER_MODE_D0) {
+		mutex_unlock(&op_change_mutex);
+	}
 	return ret;
 }
 
@@ -2000,6 +2021,17 @@ static int pxa95x_disable_dvfm(void *driver_data, int dev_id)
 
 static int pxa95x_enable_op(void *driver_data, int index, int relation)
 {
+	struct dvfm_md_opt *md = NULL;
+	struct op_info *p = NULL;
+	int ret = 1;
+
+	if (dvfm_find_op(index, &p))
+		return ret;
+
+	md = (struct dvfm_md_opt *)(p->op);
+	/* No need to request op if enabled a lowpower op */
+	if (md->power_mode != POWER_MODE_D0)
+		return 0;
 	/*
 	 * Restore preferred_op. Because this op is sugguested by policy maker
 	 * or user.
@@ -2969,6 +3001,7 @@ static int __init pxa95x_freq_init(void)
 	int ret;
 	struct proc_dir_entry *entry;
 
+	mutex_init(&op_change_mutex);
 	/* power is detemined by uboot */
 	/* Set before registration below otherwise pxa95x_freq_probe attempts
 	   to set op and call DVFM code */

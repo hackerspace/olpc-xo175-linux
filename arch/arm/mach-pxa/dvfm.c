@@ -330,10 +330,6 @@ int dvfm_request_op(int index)
 {
 	int ret = -EFAULT;
 
-	unsigned long flags;
-	local_fiq_disable();
-	local_irq_save(flags);
-
 	/* check whether dvfm is enabled */
 	if (!dvfm_driver || !dvfm_driver->count)
 		return -EINVAL;
@@ -342,9 +338,6 @@ int dvfm_request_op(int index)
 					dvfm_driver->read_time(), index);
 		ret = dvfm_driver->request_set(dvfm_driver->priv, index);
 	}
-
-	local_irq_restore(flags);
-	local_fiq_enable();
 
 	return ret;
 }
@@ -357,9 +350,6 @@ int dvfm_enable_op(int index, int dev_idx)
 {
 	struct op_info *p = NULL;
 	int num;
-	unsigned long flags;
-	local_fiq_disable();
-	local_irq_save(flags);
 
 	/* check whether dvfm is enabled */
 	if (!dvfm_driver || !dvfm_driver->count)
@@ -379,22 +369,19 @@ int dvfm_enable_op(int index, int dev_idx)
 					index, dev_idx);
 		dvfm_driver->enable_op(dvfm_driver->priv, index, RELATION_LOW);
 	}
-	local_irq_restore(flags);
-	local_fiq_enable();
 	return 0;
 }
 EXPORT_SYMBOL(dvfm_enable_op);
 
+extern struct mutex op_change_mutex;
 /*
  * Device set constraint on OP
  */
 int dvfm_disable_op(int index, int dev_idx)
 {
 	struct op_info *p = NULL;
+	struct dvfm_md_opt *op;
 	int num;
-	unsigned long flags;
-	local_fiq_disable();
-	local_irq_save(flags);
 
 	/* check whether dvfm is enabled */
 	if (!dvfm_driver || !dvfm_driver->count)
@@ -406,16 +393,19 @@ int dvfm_disable_op(int index, int dev_idx)
 	if (num <= index)
 		return -ENOENT;
 	if (!dvfm_find_op(index, &p)) {
+		op = (struct dvfm_md_opt *)(p->op);
+		if (op->power_mode == POWER_MODE_D0)
+			mutex_lock(&op_change_mutex);
 		write_lock(&dvfm_op_list->lock);
 		/* set device ID */
 		set_bit(dev_idx, (void *)&p->device);
 		write_unlock(&dvfm_op_list->lock);
+		if (op->power_mode == POWER_MODE_D0)
+			mutex_unlock(&op_change_mutex);
 		pm_logger_app_add_trace(2, PM_OP_DIS, dvfm_driver->read_time(),
 					index, dev_idx);
 		dvfm_driver->disable_op(dvfm_driver->priv, index, RELATION_LOW);
 	}
-	local_irq_restore(flags);
-	local_fiq_enable();
 	return 0;
 }
 EXPORT_SYMBOL(dvfm_disable_op);
@@ -424,10 +414,6 @@ int dvfm_enable_op_name(char *name, int dev_idx)
 {
 	struct op_info *p = NULL;
 	int index;
-
-	unsigned long flags;
-	local_fiq_disable();
-	local_irq_save(flags);
 
 	if (!dvfm_driver || !dvfm_driver->name || !name)
 		return -EINVAL;
@@ -448,8 +434,6 @@ int dvfm_enable_op_name(char *name, int dev_idx)
 			break;
 		}
 	}
-	local_irq_restore(flags);
-	local_fiq_enable();
 	return 0;
 }
 EXPORT_SYMBOL(dvfm_enable_op_name);
@@ -484,10 +468,6 @@ int dvfm_disable_op_name_no_change(char *name, int dev_idx)
 	struct op_info *p = NULL;
 	int index;
 
-	unsigned long flags;
-	local_fiq_disable();
-	local_irq_save(flags);
-
 	if (!dvfm_driver || !dvfm_driver->name || !name)
 		return -EINVAL;
 	/* only registered device can invoke DVFM operation */
@@ -505,20 +485,14 @@ int dvfm_disable_op_name_no_change(char *name, int dev_idx)
 			break;
 		}
 	}
-	local_irq_restore(flags);
-	local_fiq_enable();
-
 	return 0;
 }
 
 int dvfm_disable_op_name(char *name, int dev_idx)
 {
 	struct op_info *p = NULL;
+	struct dvfm_md_opt *op;
 	int index;
-
-	unsigned long flags;
-	local_fiq_disable();
-	local_irq_save(flags);
 
 	if (!dvfm_driver || !dvfm_driver->name || !name)
 		return -EINVAL;
@@ -528,9 +502,14 @@ int dvfm_disable_op_name(char *name, int dev_idx)
 	list_for_each_entry(p, &dvfm_op_list->list, list) {
 		if (!strcmp(dvfm_driver->name(dvfm_driver->priv, p), name)) {
 			index = p->index;
+			op = (struct dvfm_md_opt *)(p->op);
+			if (op->power_mode == POWER_MODE_D0)
+				mutex_lock(&op_change_mutex);
 			write_lock(&dvfm_op_list->lock);
 			set_bit(dev_idx, (void *)&p->device);
 			write_unlock(&dvfm_op_list->lock);
+			if (op->power_mode == POWER_MODE_D0)
+				mutex_unlock(&op_change_mutex);
 			pm_logger_app_add_trace(2, PM_OP_DIS_NAME,
 						dvfm_driver->read_time(), index,
 						dev_idx);
@@ -539,8 +518,6 @@ int dvfm_disable_op_name(char *name, int dev_idx)
 			break;
 		}
 	}
-	local_irq_restore(flags);
-	local_fiq_enable();
 	return 0;
 }
 EXPORT_SYMBOL(dvfm_disable_op_name);
@@ -566,34 +543,19 @@ EXPORT_SYMBOL(dvfm_disable);
 /* disable LPM, including D2/D1/CG */
 void dvfm_disable_lowpower(int dev_idx)
 {
-	unsigned long flags;
-
-	local_fiq_disable();
-	local_irq_save(flags);
-
-	dvfm_disable_op_name("D2", dev_idx);
-	dvfm_disable_op_name("D1", dev_idx);
-	dvfm_disable_op_name("CG", dev_idx);
-
-	local_irq_restore(flags);
-	local_fiq_enable();
+	dvfm_disable_op_name_no_change("D2", dev_idx);
+	dvfm_disable_op_name_no_change("D1", dev_idx);
+	dvfm_disable_op_name_no_change("CG", dev_idx);
 }
 EXPORT_SYMBOL(dvfm_disable_lowpower);
 
 /* enable LPM, including D2/D1/CG */
 void dvfm_enable_lowpower(int dev_idx)
 {
-	unsigned long flags;
+	dvfm_enable_op_name_no_change("D2", dev_idx);
+	dvfm_enable_op_name_no_change("D1", dev_idx);
+	dvfm_enable_op_name_no_change("CG", dev_idx);
 
-	local_fiq_disable();
-	local_irq_save(flags);
-
-	dvfm_enable_op_name("D2", dev_idx);
-	dvfm_enable_op_name("D1", dev_idx);
-	dvfm_enable_op_name("CG", dev_idx);
-
-	local_irq_restore(flags);
-	local_fiq_enable();
 }
 EXPORT_SYMBOL(dvfm_enable_lowpower);
 
@@ -601,9 +563,6 @@ EXPORT_SYMBOL(dvfm_enable_lowpower);
 void dvfm_disable_global(int dev_idx)
 {
 	struct op_info *p = NULL;
-	unsigned long flags;
-	local_fiq_disable();
-	local_irq_save(flags);
 
 	/* check whether dvfm is enabled */
 	if (!dvfm_driver || !dvfm_driver->count)
@@ -617,8 +576,6 @@ void dvfm_disable_global(int dev_idx)
 		set_bit(dev_idx, (void *)&p->device);
 		write_unlock(&dvfm_op_list->lock);
 	}
-	local_irq_restore(flags);
-	local_fiq_enable();
 }
 EXPORT_SYMBOL(dvfm_disable_global);
 
@@ -626,9 +583,6 @@ EXPORT_SYMBOL(dvfm_disable_global);
 void dvfm_enable_global(int dev_idx)
 {
 	struct op_info *p = NULL;
-	unsigned long flags;
-	local_fiq_disable();
-	local_irq_save(flags);
 
 	/* check whether dvfm is enabled */
 	if (!dvfm_driver || !dvfm_driver->count)
@@ -642,8 +596,6 @@ void dvfm_enable_global(int dev_idx)
 		clear_bit(dev_idx, (void *)&p->device);
 		write_unlock(&dvfm_op_list->lock);
 	}
-	local_irq_restore(flags);
-	local_fiq_enable();
 }
 EXPORT_SYMBOL(dvfm_enable_global);
 

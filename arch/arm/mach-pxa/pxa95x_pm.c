@@ -1200,6 +1200,10 @@ void enter_lowpower_mode(int state)
 	unsigned int power_state;
 	unsigned int wakeup_data, cpupwr;
 	static unsigned int last_d2exit_time;
+	unsigned long flags;
+
+	local_fiq_disable();
+	local_irq_save(flags);
 
 	if (is_wkr_mg1_1274()) {
 		/*
@@ -1567,6 +1571,8 @@ void enter_lowpower_mode(int state)
 		if (ForceLPM && LastForceLPM == ForceLPM)
 			LastForceLPM = ForceLPM = PXA9xx_Force_None;
 	}
+	local_irq_restore(flags);
+	local_fiq_enable();
 }
 #endif
 
