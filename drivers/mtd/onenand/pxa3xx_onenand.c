@@ -48,30 +48,26 @@ static struct dvfm_lock dvfm_lock = {
 
 static void set_dvfm_constraint(void)
 {
-	spin_lock_irqsave(&dvfm_lock.lock, dvfm_lock.flags);
+	spin_lock(&dvfm_lock.lock);
 	if (dvfm_lock.count++ == 0) {
 		/* Disable Low power mode */
-		dvfm_disable_op_name("D1", dvfm_lock.dev_idx);
-		dvfm_disable_op_name("D2", dvfm_lock.dev_idx);
-		dvfm_disable_op_name("CG", dvfm_lock.dev_idx);
+		dvfm_disable_lowpower(dvfm_lock.dev_idx);
 	}
-	spin_unlock_irqrestore(&dvfm_lock.lock, dvfm_lock.flags);
+	spin_unlock(&dvfm_lock.lock);
 }
 
 static void unset_dvfm_constraint(void)
 {
-	spin_lock_irqsave(&dvfm_lock.lock, dvfm_lock.flags);
+	spin_lock(&dvfm_lock.lock);
 	if (dvfm_lock.count == 0) {
-		spin_unlock_irqrestore(&dvfm_lock.lock, dvfm_lock.flags);
+		spin_unlock(&dvfm_lock.lock);
 		return;
 	}
 	if (--dvfm_lock.count == 0) {
 		/* Enable Low power mode */
-		dvfm_enable_op_name("D1", dvfm_lock.dev_idx);
-		dvfm_enable_op_name("D2", dvfm_lock.dev_idx);
-		dvfm_enable_op_name("CG", dvfm_lock.dev_idx);
+		dvfm_enable_lowpower(dvfm_lock.dev_idx);
 	}
-	spin_unlock_irqrestore(&dvfm_lock.lock, dvfm_lock.flags);
+	spin_unlock(&dvfm_lock.lock);
 }
 
 static dma_addr_t map_addr(struct device *dev, void *buf, size_t sz, int dir)

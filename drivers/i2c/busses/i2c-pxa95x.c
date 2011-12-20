@@ -830,32 +830,30 @@ static void unregister_dvfm_constraint(struct pxa_i2c *i2c)
  */
 static void set_dvfm_constraint(struct pxa_i2c *i2c)
 {
-	spin_lock_irqsave(&i2c->dvfm_lock.lock, i2c->dvfm_lock.flags);
+	spin_lock(&i2c->dvfm_lock.lock);
 	if (i2c->dvfm_lock.count++ == 0) {
 		/* Disable Low power mode */
-		dvfm_disable_op_name("D1", i2c->dvfm_lock.dev_idx);
-		dvfm_disable_op_name("D2", i2c->dvfm_lock.dev_idx);
-		dvfm_disable_op_name("CG", i2c->dvfm_lock.dev_idx);
-	} else
+		dvfm_disable_lowpower(i2c->dvfm_lock.dev_idx);
+	} else {
 		i2c->dvfm_lock.count--;
-	spin_unlock_irqrestore(&i2c->dvfm_lock.lock, i2c->dvfm_lock.flags);
+	}
+	spin_unlock(&i2c->dvfm_lock.lock);
 }
 
 static void unset_dvfm_constraint(struct pxa_i2c *i2c)
 {
-	spin_lock_irqsave(&i2c->dvfm_lock.lock, i2c->dvfm_lock.flags);
+	spin_lock(&i2c->dvfm_lock.lock);
 	if (i2c->dvfm_lock.count == 0) {
-		spin_unlock_irqrestore(&i2c->dvfm_lock.lock, i2c->dvfm_lock.flags);
+		spin_unlock(&i2c->dvfm_lock.lock);
 		return;
 	}
 	if (--i2c->dvfm_lock.count == 0) {
 	/* Enable Low power mode */
-		dvfm_enable_op_name("D1", i2c->dvfm_lock.dev_idx);
-		dvfm_enable_op_name("D2", i2c->dvfm_lock.dev_idx);
-		dvfm_enable_op_name("CG", i2c->dvfm_lock.dev_idx);
-	} else
+		dvfm_enable_lowpower(i2c->dvfm_lock.dev_idx);
+	} else {
 		i2c->dvfm_lock.count++;
-	spin_unlock_irqrestore(&i2c->dvfm_lock.lock, i2c->dvfm_lock.flags);
+	}
+	spin_unlock(&i2c->dvfm_lock.lock);
 }
 
 #define eedbg(lvl, x...) do { if ((lvl) < 1) { printk(KERN_DEBUG "" x); } } while(0)

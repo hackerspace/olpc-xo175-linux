@@ -108,9 +108,8 @@ static void set_dvfm_constraint(struct vmeta_instance *vi)
 {
 #ifdef CONFIG_DVFM
 	int ret = 0;
-	spin_lock_irqsave(&dvfm_lock.lock, dvfm_lock.flags);
+	spin_lock(&dvfm_lock.lock);
 	if (dvfm_lock.count++ == 0) {
-
 		/* Disable dvfm for now for MG1,
 		 * todo: later should try to restore to optimize for power */
 		if (vi->plat_data->set_dvfm_constraint) {
@@ -127,9 +126,10 @@ static void set_dvfm_constraint(struct vmeta_instance *vi)
 			if (timer_pending(&vi->power_timer))
 				del_timer(&vi->power_timer);
 		}
-	} else
+	} else {
 		dvfm_lock.count--;
-	spin_unlock_irqrestore(&dvfm_lock.lock, dvfm_lock.flags);
+	}
+	spin_unlock(&dvfm_lock.lock);
 #endif
 }
 
@@ -137,7 +137,7 @@ static void __unset_dvfm_constraint(struct vmeta_instance *vi)
 {
 #ifdef CONFIG_DVFM
 	int ret;
-	spin_lock_irqsave(&dvfm_lock.lock, dvfm_lock.flags);
+	spin_lock(&dvfm_lock.lock);
 	if (dvfm_lock.count == 0) {
 		if (vi->plat_data->unset_dvfm_constraint) {
 			ret =
@@ -153,16 +153,16 @@ static void __unset_dvfm_constraint(struct vmeta_instance *vi)
 			vi->power_constraint = 0;
 		}
 	}
-	spin_unlock_irqrestore(&dvfm_lock.lock, dvfm_lock.flags);
+	spin_unlock(&dvfm_lock.lock);
 #endif
 }
 
 static void unset_dvfm_constraint(struct vmeta_instance *vi)
 {
 #ifdef CONFIG_DVFM
-	spin_lock_irqsave(&dvfm_lock.lock, dvfm_lock.flags);
+	spin_lock(&dvfm_lock.lock);
 	if (dvfm_lock.count == 0) {
-		spin_unlock_irqrestore(&dvfm_lock.lock, dvfm_lock.flags);
+		spin_unlock(&dvfm_lock.lock);
 		return;
 	}
 	if (--dvfm_lock.count == 0) {
@@ -172,7 +172,7 @@ static void unset_dvfm_constraint(struct vmeta_instance *vi)
 			add_timer(&vi->power_timer);
 	} else
 		dvfm_lock.count++;
-	spin_unlock_irqrestore(&dvfm_lock.lock, dvfm_lock.flags);
+	spin_unlock(&dvfm_lock.lock);
 #endif
 }
 

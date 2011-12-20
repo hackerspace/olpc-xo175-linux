@@ -78,6 +78,8 @@ enum {
 #define TSS_THRESHOLD		OVH_OTIS_DEFAULT
 #define OVH_TO_TEMP_CONVERT(x) (((x - 1) * 5) + 80)
 static struct timer_list temp_detecting_timer;
+static struct work_struct overheating_work;
+static int overheating_status;
 static int temp_of_core;
 
 static int isram_size;
@@ -1912,8 +1914,8 @@ static void detect_core_temp(unsigned long data)
 			log_overheating_event("INFO: AP core cooled down!");
 			PMCR |= PMCR_TIE;
 #ifdef CONFIG_PXA95x_DVFM
-			temperture_sensor_int_high_freq_pp_callback
-			    (CORE_COLLING_DETECTED);
+			overheating_status = CORE_COLLING_DETECTED;
+			schedule_work(&overheating_work);
 #endif
 		} else {
 			/* reset the timer */
@@ -1934,7 +1936,8 @@ static irqreturn_t core_overhearting_irq(int irq, void *data)
 	struct timer_list *timer = &temp_detecting_timer;
 
 #ifdef CONFIG_PXA95x_DVFM
-	temperture_sensor_int_high_freq_pp_callback(CORE_OVERHEATING_DETECTED);
+	overheating_status = CORE_OVERHEATING_DETECTED;
+	schedule_work(&overheating_work);
 #endif
 	pr_debug("%s:PSR 0x%x PMCR 0x%x OVH 0x%x\n", __func__, PSR, PMCR, OVH);
 	if (PMCR & PMCR_TIS) {
@@ -1948,6 +1951,11 @@ static irqreturn_t core_overhearting_irq(int irq, void *data)
 		mod_timer(timer, jiffies + FRQ_TEMP);
 	}
 	return IRQ_HANDLED;
+}
+
+static void overheating_work_handler(struct work_struct *work)
+{
+	temperture_sensor_int_high_freq_pp_callback(overheating_status);
 }
 
 static void overheating_init(void)
@@ -1973,6 +1981,7 @@ static void overheating_init(void)
 	/* initialize the timer for measuring the temp of core */
 	init_timer(timer);
 	timer->function = detect_core_temp;
+	INIT_WORK(&overheating_work, overheating_work_handler);
 }
 
 static unsigned char __iomem *bpb_membase;
