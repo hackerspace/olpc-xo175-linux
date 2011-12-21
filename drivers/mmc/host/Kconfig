@@ -212,6 +212,7 @@ config MMC_SDHCI_PXAV2_TAVOR
 	depends on CLKDEV_LOOKUP
 	select MMC_SDHCI
 	select MMC_SDHCI_PLTFM
+	select MMC_SDHCI_IO_ACCESSORS
 	default PXA95x
 	help
 	  This selects the Marvell(R) PXAV2 TAVOR SD Host Controller.

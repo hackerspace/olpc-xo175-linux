@@ -32,6 +32,7 @@
 #include <linux/delay.h>
 #include <mach/dvfm.h>
 #include <linux/wakelock.h>
+#include <linux/io.h>
 
 #include "sdhci.h"
 #include "sdhci-pltfm.h"
@@ -214,7 +215,7 @@ static u32 pxav2_get_max_clock(struct sdhci_host *host)
 	return clk_get_rate(pltfm_host->clk);
 }
 
-static void pxav2_access_constrain(struct sdhci_host *host, unsigned int ac)
+static inline void pxav2_access_constrain(struct sdhci_host *host, unsigned int ac)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_pxa *pxa = pltfm_host->priv;
@@ -236,12 +237,58 @@ static void pxav2_access_constrain(struct sdhci_host *host, unsigned int ac)
 		dvfm_enable_lowpower(pltfm_host->dvfm_dev_idx);
 }
 
+#ifdef CONFIG_MMC_SDHCI_IO_ACCESSORS
+static u32 sdhci_pxa_read_l(struct sdhci_host *host, int reg)
+{
+	pxav2_access_constrain(host, 1);
+	return readl(host->ioaddr + reg);
+}
+
+static inline u16 sdhci_pxa_read_w(struct sdhci_host *host, int reg)
+{
+	pxav2_access_constrain(host, 1);
+	return readw( host->ioaddr + reg);
+}
+
+static inline u8 sdhci_pxa_read_b(struct sdhci_host *host, int reg)
+{
+	pxav2_access_constrain(host, 1);
+	return readb( host->ioaddr + reg);
+}
+
+static inline void sdhci_pxa_write_l(struct sdhci_host *host, u32 val, int reg)
+{
+	pxav2_access_constrain(host, 1);
+	writel(val, host->ioaddr + reg);
+}
+
+static inline void sdhci_pxa_write_w(struct sdhci_host *host, u16 val, int reg)
+{
+	pxav2_access_constrain(host, 1);
+	writew(val, host->ioaddr + reg);
+}
+
+static inline void sdhci_pxa_write_b(struct sdhci_host *host, u8 val, int reg)
+{
+	pxav2_access_constrain(host, 1);
+	writeb(val, host->ioaddr + reg);
+}
+#endif
+
 static struct sdhci_ops pxav2_sdhci_ops = {
 	.get_max_clock = pxav2_get_max_clock,
 	.platform_8bit_width = pxav2_mmc_set_width,
 	.access_constrain = pxav2_access_constrain,
 	.handle_cdint = pxa95x_handle_cdint,
 	.is_present = ext_cd_status,
+#ifdef CONFIG_MMC_SDHCI_IO_ACCESSORS
+	.read_l = sdhci_pxa_read_l,
+	.read_w = sdhci_pxa_read_w,
+	.read_b = sdhci_pxa_read_b,
+	.write_l = sdhci_pxa_write_l,
+	.write_w = sdhci_pxa_write_w,
+	.write_b = sdhci_pxa_write_b,
+#endif
 };
 
 static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
