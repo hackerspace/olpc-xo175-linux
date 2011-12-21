@@ -32,6 +32,8 @@
 #include <linux/io.h>
 #include <linux/sd8x_rfkill.h>
 #include <linux/mmc/host.h>
+#include <linux/nfc/pn544.h>
+#include <linux/regulator/vpmic.h>
 #include <linux/cwmi.h>
 #include <linux/cwgd.h>
 #include <asm/mach-types.h>
@@ -92,6 +94,9 @@ static unsigned long ttc_dkb_pin_config[] __initdata = {
 	GPIO16_GPIO16,
 	GPIO18_GPIO18,
 	GPIO19_GPIO19,
+
+	/* NFC(pn544) irq */
+	GPIO17_GPIO17,
 
 	/* DFI */
 	DF_IO0_ND_IO0,
@@ -885,6 +890,98 @@ static struct pca953x_platform_data max7312_data[] = {
 };
 #endif
 
+/* The following structure is for VPMIC regulator */
+#if defined(CONFIG_REGULATOR_VPMIC)
+static struct regulator_consumer_supply vpmic_regulator_supply[] = {
+	[VPMIC_ID_Vdd_IO]	= REGULATOR_SUPPLY("Vdd_IO", NULL),
+	[VPMIC_ID_VBat]		= REGULATOR_SUPPLY("VBat", NULL),
+	[VPMIC_ID_VSim]		= REGULATOR_SUPPLY("VSim", NULL),
+};
+
+#define REGULATOR_INIT(_name, _min, _max, _always, _boot)		\
+{									\
+	.constraints = {						\
+		.name		= __stringify(_name),			\
+		.min_uV		= _min,					\
+		.max_uV		= _max,					\
+		.always_on	= _always,				\
+		.boot_on	= _boot,				\
+		.valid_ops_mask	= REGULATOR_CHANGE_VOLTAGE		\
+				| REGULATOR_CHANGE_STATUS,		\
+	},								\
+	.num_consumer_supplies	= 1,					\
+	.consumer_supplies	= &vpmic_regulator_supply[VPMIC_ID_##_name],\
+}
+
+static struct regulator_init_data vpmic_regulator_init_data[] = {
+	REGULATOR_INIT(Vdd_IO, 1000000, 1500000, 1, 1),
+	REGULATOR_INIT(VBat, 1000000, 3000000, 1, 1),
+	REGULATOR_INIT(VSim, 1200000, 2800000, 1, 1),
+};
+
+static struct platform_device vpmic_regulator_vdd = {
+	.name   = "vpmic-regulator",
+	.id     = 0,
+	.dev    = {
+		.platform_data = &vpmic_regulator_init_data[VPMIC_ID_Vdd_IO],
+	},
+};
+
+static struct platform_device vpmic_regulator_vbat = {
+	.name   = "vpmic-regulator",
+	.id     = 1,
+	.dev    = {
+		.platform_data = &vpmic_regulator_init_data[VPMIC_ID_VBat],
+	},
+};
+
+static struct platform_device vpmic_regulator_vsim = {
+	.name   = "vpmic-regulator",
+	.id     = 2,
+	.dev    = {
+		.platform_data = &vpmic_regulator_init_data[VPMIC_ID_VSim],
+	},
+};
+
+#endif
+
+/* The following structure is for pn544 I2C device */
+#if defined(CONFIG_PN544_NFC)
+static int pn544_request_resources(struct i2c_client *client)
+{
+	int ret = 0;
+
+	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
+		pr_err("%s : need I2C_FUNC_I2C\n", __func__);
+		return  -ENODEV;
+	}
+
+	ret = gpio_request(MFP_PIN_GPIO17, "gpio used as irq for pn544");
+	if (ret)
+		return  -ENODEV;
+
+	gpio_direction_input(MFP_PIN_GPIO17);
+
+	return 0;
+}
+
+static void pn544_free_resources(void)
+{
+	gpio_free(MFP_PIN_GPIO17);
+}
+
+static int pn544_test(void)
+{
+	return MFP_PIN_GPIO17;
+}
+
+static struct pn544_nfc_platform_data pn544_data = {
+	.request_resources	= pn544_request_resources,
+	.free_resources		= pn544_free_resources,
+	.test			= pn544_test,
+};
+#endif
+
 #if defined(CONFIG_TOUCHSCREEN_FT5306)
 static int ft5306_touch_io_power_onoff(int on)
 {
@@ -1047,6 +1144,14 @@ static struct i2c_board_info ttc_dkb_i2c_info[] = {
 		.type           = "lis331dl",
 		.addr           =  0x1c,
 		.platform_data  = &lis33ldl_min_delay,
+	},
+#endif
+#if defined(CONFIG_PN544_NFC)
+	{
+		.type           = "pn544",
+		.addr           = 0x28,
+		.irq            = gpio_to_irq(MFP_PIN_GPIO17),
+		.platform_data  = &pn544_data,
 	},
 #endif
 };
@@ -1501,6 +1606,11 @@ static struct platform_device *ttc_dkb_devices[] = {
 	&dkb_ov5642_dvp,
 #elif defined(CONFIG_SOC_CAMERA_OV5640)
 	&dkb_ov5640_mipi,
+#endif
+#if defined(CONFIG_REGULATOR_VPMIC)
+	&vpmic_regulator_vdd,
+	&vpmic_regulator_vbat,
+	&vpmic_regulator_vsim,
 #endif
 };
 
