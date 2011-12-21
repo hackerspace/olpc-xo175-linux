@@ -547,6 +547,9 @@ extern int pm80x_bulk_read(struct i2c_client *, int, int, unsigned char *);
 extern int pm80x_bulk_write(struct i2c_client *, int, int, unsigned char *);
 extern int pm80x_set_bits(struct i2c_client *, int, unsigned char,
 			  unsigned char);
+extern int pm805_debug_reg_read(struct i2c_client *i2c, int reg);
+extern int pm805_debug_reg_write(struct i2c_client *i2c, int reg,
+				unsigned char data);
 extern int pm80x_device_init(struct pm80x_chip *chip,
 			     struct pm80x_platform_data *pdata) __devinit;
 extern void pm80x_device_exit(struct pm80x_chip *chip) __devexit;
