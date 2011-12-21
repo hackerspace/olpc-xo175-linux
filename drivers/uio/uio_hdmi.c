@@ -42,6 +42,7 @@ struct hdmi_instance {
 	struct delayed_work hpd_work;
 	struct uio_info uio_info;
 	struct early_suspend    early_suspend;
+	int (*hdmi_power)(int on);
 	struct pm_qos_request_list qos_cpufreq_min;
 	struct pm_qos_request_list qos_cpufreq_disable;
 };
@@ -185,8 +186,11 @@ static int hdmi_suspend(struct platform_device *pdev, pm_message_t mesg)
 {
 	struct hdmi_instance *hi = platform_get_drvdata(pdev);
 
-	if (atomic_read(&hdmi_state) == 1)
+	if (atomic_read(&hdmi_state) == 1) {
 		clk_disable(hi->clk);
+		if (hi->hdmi_power)
+			hi->hdmi_power(0);
+	}
 	pdev->dev.power.power_state = mesg;
 
 	return 0;
@@ -200,6 +204,8 @@ static int hdmi_resume(struct platform_device *pdev)
 		/*if connected, reset HDMI*/
 		atomic_set(&hdmi_state, 1);
 		clk_enable(hi->clk);
+		if (hi->hdmi_power)
+			hi->hdmi_power(1);
 		con_lock = FIRST_ACCESS_LOCK;
 		/* send disconnect event to upper layer */
 		uio_event_notify(&hi->uio_info);
@@ -237,6 +243,8 @@ static void hdmi_switch_work(struct work_struct *work)
 	if(state!=0) {
 		if (atomic_cmpxchg(&hdmi_state, 1, 0) == 1) {
 			late_disable_flag = 1; /*wait for hdmi disbaled*/
+			if (hi->hdmi_power)
+				hi->hdmi_power(0);
 			if (early_suspend_flag == 0)
 				unset_power_constraint(hi);
 			/*if hdmi_state change, report hpd*/
@@ -244,8 +252,11 @@ static void hdmi_switch_work(struct work_struct *work)
 		}
 	} else {
 		if (atomic_cmpxchg(&hdmi_state, 0, 1) == 0) {
-			if (cpu_is_mmp2())
+			if (cpu_is_mmp2()) {
+				if (hi->hdmi_power)
+					hi->hdmi_power(1);
 				clk_enable(hi->clk);
+			}
 			if (early_suspend_flag == 0)
 				set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
 			/*if hdmi_state change, report hpd*/
@@ -275,7 +286,6 @@ static irqreturn_t hpd_handler(int irq, struct uio_info *dev_info)
 		container_of(dev_info, struct hdmi_instance, uio_info);
 
 	pr_debug("%s\n", __func__);
-
 	mod_timer(&hi->jitter_timer, jiffies + HZ);
 
 	/*Don't report hpd in top half, wait for jitter is gone.*/
@@ -365,6 +375,9 @@ static int hdmi_probe(struct platform_device *pdev)
 	hi->uio_info.open = hdmi_open;
 	hi->uio_info.release = hdmi_release;
 	hi->uio_info.ioctl = hdmi_ioctl;
+	if (pdata->hdmi_v5p_power)
+		hi->hdmi_power = pdata->hdmi_v5p_power;
+
 	ret = uio_register_device(&pdev->dev, &hi->uio_info);
 	if (ret) {
 		printk(KERN_ERR"%s: register device fails !!!\n", __func__);
@@ -378,7 +391,9 @@ static int hdmi_probe(struct platform_device *pdev)
 		clk_enable(hi->clk);
 		atomic_set(&hdmi_state, 1);
 		set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
-	}else if (cpu_is_mmp3()) {
+		if (hi->hdmi_power)
+			hi->hdmi_power(1);
+	} else if (cpu_is_mmp3()) {
 		clk_enable(hi->clk);
 	}
 

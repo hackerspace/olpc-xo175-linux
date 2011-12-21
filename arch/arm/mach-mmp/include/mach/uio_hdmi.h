@@ -31,6 +31,7 @@ struct uio_hdmi_platform_data {
 	u32 sspa_reg_base;
 	u32 gpio;
 	u32 edid_bus_num;
+	int (*hdmi_v5p_power)(int on);
 };
 
 #endif
