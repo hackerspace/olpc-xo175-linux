@@ -32,8 +32,6 @@
 static int core_freqs_table[MAX_CORE_FREQS];
 static int num_pp;
 
-static int dvfm_dev_idx;
-
 static unsigned int pxa95x_freqs_num;
 static struct cpufreq_frequency_table *pxa95x_freqs_table;
 
@@ -168,31 +166,27 @@ static int pxa95x_cpufreq_target(struct cpufreq_policy *policy,
 				 unsigned int target_freq,
 				 unsigned int relation)
 {
-	struct cpufreq_freqs freqs;
+	int index;
+	struct cpufreq_frequency_table *table =
+		cpufreq_frequency_get_table(policy->cpu);
 
-	freqs.old = policy->cur;
-	freqs.new = target_freq;
-	freqs.cpu = policy->cpu;
-
-	pr_debug("CPU frequency from %d MHz to %d MHz%s\n",
-		 freqs.old / MHZ_TO_KHZ, freqs.new / MHZ_TO_KHZ,
-		 (freqs.old == freqs.new) ? " (skipped)" : "");
-
-	if (policy->cpu != 0)
+	if (cpufreq_frequency_table_target(policy, table, target_freq, relation,
+				&index)) {
+		pr_err("cpufreq: invalid target_freq: %d\n", target_freq);
 		return -EINVAL;
+	}
 
-	/* notify cpufreq - the actual frequency change occurs */
-	/* about 1mSec after cpufreq sets the DVFM constraints */
-	cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
+	if (policy->cur == table[index].frequency)
+		return 0;
+
+#ifdef CONFIG_CPU_FREQ_DEBUG
+	pr_info("target_freq is %d, index is %d\n", target_freq, index);
+#endif
 
 	/* Set the required constraints as derived from the */
 	/* target freq */
-	dvfm_freq_constraint_set(core_freqs_table, target_freq /
-				 MHZ_TO_KHZ, dvfm_dev_idx);
-
-	/* wait for the actual frequency change to happen */
-	/* nanosleep(1000); */
-	cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
+	dvfm_freq_set(table[index].frequency / MHZ_TO_KHZ,
+			relation == CPUFREQ_RELATION_L ? RELATION_LOW : RELATION_HIGH);
 
 	return 0;
 }
@@ -205,10 +199,6 @@ static int pxa95x_cpufreq_init(struct cpufreq_policy *policy)
 	int min_freq = 0;
 
 #ifdef CONFIG_PXA95x_DVFM
-	ret = dvfm_register("cpufreq", &dvfm_dev_idx);
-	if (ret)
-		pr_err("failed to register cpufreq");
-
 	ret = dvfm_core_freqs_table_get(core_freqs_table,
 					&num_pp, MAX_CORE_FREQS);
 	if (ret)
@@ -227,7 +217,10 @@ static int pxa95x_cpufreq_init(struct cpufreq_policy *policy)
 	/* set default policy and cpuinfo */
 	policy->cpuinfo.min_freq = min_freq * MHZ_TO_KHZ;
 	policy->cpuinfo.max_freq = max_freq * MHZ_TO_KHZ;
-	policy->cpuinfo.transition_latency = 1000;	/* 1mSec latency */
+	/* Set to 100us latency.
+	 * This will cause the sampling_rate to 100ms.
+	 * Need to tuning it later */
+	policy->cpuinfo.transition_latency = 100 * 1000;
 
 	policy->cur = policy->min = policy->max = current_freq_khz;
 
@@ -272,10 +265,6 @@ module_init(cpufreq_init);
 
 static void __exit cpufreq_exit(void)
 {
-#ifdef CONFIG_PXA95x_DVFM
-	dvfm_unregister("cpufreq", &dvfm_dev_idx);
-#endif /* CONFIG_PXA95x_DVFM */
-
 	sysdev_driver_unregister(&cpu_sysdev_class, &cpufreq_stats_driver);
 
 	cpufreq_unregister_driver(&pxa95x_cpufreq_driver);

@@ -1971,3 +1971,26 @@ MACHINE_START(NEVOSAARC, "PXA978")
 	.reserve	= pxa95x_mem_reserve,
 	.init_machine	= init,
 MACHINE_END
+
+extern int mspm_idle_load(void);
+static int __init saarc_pm_init(void)
+{
+	printk("Enable Power of Saar board.\n");
+	switch (get_board_id()) {
+		case OBM_DKB_2_NEVO_C0_BOARD:
+			cur_profiler = CPUFREQ_PROFILER;
+			mspm_idle_load();
+			break;
+
+		case OBM_SAAR_C3_NEVO_C0_V10_BOARD:
+		case OBM_EVB_NEVO_1_2_BOARD:
+			cur_profiler = MSPM_PROFILER;
+			break;
+		default:
+			pr_err("Bad board ID in %s\n", __func__);
+			BUG();
+	}
+	return 0;
+}
+
+late_initcall(saarc_pm_init);

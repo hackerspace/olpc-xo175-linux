@@ -56,6 +56,8 @@ unsigned int op_nums;		/* number of operating point */
 
 int DvfmDisabled;		/* enables/disables dvfm */
 
+unsigned int cur_profiler;
+
 /* number of blocking lowpower mode */
 static atomic_t lp_count = ATOMIC_INIT(0);
 
@@ -879,33 +881,27 @@ int dvfm_core_freqs_table_get(int *freqs_table, int *size, int table_sz)
 }
 EXPORT_SYMBOL(dvfm_core_freqs_table_get);
 
-int dvfm_freq_constraint_set(int *freqs_table, int required_freq_mhz,
-		int dev_idx)
+int dvfm_freq_set(int required_freq_mhz, int relation)
 {
-	int freq_mhz;
-	int ret = -EINVAL;
 	struct op_info *p = NULL;
 	struct dvfm_md_opt *op;
 
 	pr_debug("cpufreq set: Freq=%d MHz\n", required_freq_mhz);
 
-	/* Set the constraints acquired from the target frequency */
 	list_for_each_entry(p, &dvfm_op_list->list, list) {
 		op = (struct dvfm_md_opt *)(p->op);
-		if (POWER_MODE_D0 == op->power_mode) {
-			freq_mhz = op->core;
-			if (freq_mhz < required_freq_mhz) {
-				/* Set DVFM constraint on the operating point */
-				ret = dvfm_disable_op(p->index, dev_idx);
-			} else {
-				ret = dvfm_enable_op(p->index, dev_idx);
-			}
-		}
+		if ((POWER_MODE_D0 == op->power_mode) &&
+				(op->core >= required_freq_mhz))
+				break;
 	}
+	if (relation == RELATION_LOW)
+		dvfm_request_op(p->index);
+	else
+		dvfm_request_op_relation_high(p->index);
 
 	return 0;
 }
-EXPORT_SYMBOL(dvfm_freq_constraint_set);
+EXPORT_SYMBOL(dvfm_freq_set);
 
 /*
  * Device driver index is searched in DB

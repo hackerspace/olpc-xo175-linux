@@ -507,8 +507,6 @@ static int __init mspm_init(void)
 		return -EFAULT;
 	}
 
-	mspm_prof_init();
-
 	/* clear data in prev_prof & cur_prof */
 	memset(&prev_prof, 0, sizeof(struct mspm_idle_prof));
 	memset(&cur_prof, 0, sizeof(struct mspm_idle_prof));
@@ -524,8 +522,6 @@ static void __exit mspm_exit(void)
 {
 	/* Remove procfs */
 	mspm_proc_cleanup();
-
-	mspm_prof_exit();
 
 	pr_info("Quit IPM\n");
 }

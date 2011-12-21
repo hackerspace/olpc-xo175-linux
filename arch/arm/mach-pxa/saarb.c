@@ -46,6 +46,8 @@
 #include <mach/audio.h>
 #include <plat/pxa27x_keypad.h>
 
+#include <mach/mspm_prof.h>
+
 #include <plat/usb.h>
 #include "devices.h"
 #include "generic.h"
@@ -1629,3 +1631,12 @@ MACHINE_START(SAARB, "PXA968")
 	.init_machine   = saarb_init,
 MACHINE_END
 
+static int __init saarb_pm_init(void)
+{
+	printk("Enable Power of Saar board.\n");
+	cur_profiler = MSPM_PROFILER;
+
+	return 0;
+}
+
+late_initcall(saarb_pm_init);

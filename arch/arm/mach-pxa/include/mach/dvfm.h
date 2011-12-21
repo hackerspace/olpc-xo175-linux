@@ -19,6 +19,13 @@ enum {
 	FV_NOTIFIER_POST_SET = 3,
 };
 
+enum {
+	CPUFREQ_PROFILER = 0,
+	MSPM_PROFILER,
+};
+
+extern unsigned int cur_profiler;
+
 
 #define MAXTOKENS			80
 #define CONSTRAINT_NAME_LEN		20
@@ -146,8 +153,7 @@ extern int dvfm_query_device_num(void);
 extern int dvfm_query_device_list(void *, int);
 extern int dvfm_current_core_freq_get(void);
 extern int dvfm_core_freqs_table_get(int *freqs_table, int *size, int table_sz);
-extern int dvfm_freq_constraint_set(int *freqs_table, int required_freq_khz,
-		int dev_idx);
+extern int dvfm_freq_set(int required_freq_khz, int relation);
 
 extern int dvfm_find_index(char *name, int *id);
 

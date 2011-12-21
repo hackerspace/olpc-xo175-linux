@@ -37,6 +37,9 @@
 #include <mach/debug_pm.h>
 #include <asm/io.h>
 #include <asm/mach/map.h>
+#ifdef CONFIG_CPU_FREQ
+#include <linux/cpufreq.h>
+#endif
 #ifdef CONFIG_ISPT
 #include <mach/pxa_ispt.h>
 #endif
@@ -2126,22 +2129,45 @@ static int update_freq(void *driver_data, struct dvfm_freqs *freqs)
 	if (old.core > new.core)
 		update_voltage(info, &old, &new);
 
+#ifndef CONFIG_CPU_FREQ
 	if (new.power_mode == POWER_MODE_D0)
 		loops_per_jiffy = new.lpj;
+#endif
 
 	return 0;
 }
 
 /* function of entering low power mode */
 extern void enter_lowpower_mode(int state);
-
+#define MHZ_TO_KHZ 1000
 static void do_freq_notify(void *driver_data, struct dvfm_freqs *freqs)
 {
 	struct pxa95x_dvfm_info *info = driver_data;
+#ifdef CONFIG_CPU_FREQ
+	struct cpufreq_freqs cpufreq_freqs;
 
+	/* Normally frequency change will not happen in IRQ disable path.
+	 * But there are some special case, such as enter LPM from lowest
+	 * OP. */
+	if (!irqs_disabled()) {
+		cpufreq_freqs.old =
+			((struct dvfm_md_opt *)(freqs->old_info.op))->core
+			* MHZ_TO_KHZ;
+		cpufreq_freqs.new =
+			((struct dvfm_md_opt *)(freqs->new_info.op))->core
+			* MHZ_TO_KHZ;
+		cpufreq_freqs.cpu = smp_processor_id();
+		cpufreq_notify_transition(&cpufreq_freqs, CPUFREQ_PRECHANGE);
+	}
+#endif
 	dvfm_notifier_frequency(freqs, DVFM_FREQ_PRECHANGE);
 	update_freq(info, freqs);
 	dvfm_notifier_frequency(freqs, DVFM_FREQ_POSTCHANGE);
+#ifdef CONFIG_CPU_FREQ
+	if (!irqs_disabled()) {
+		cpufreq_notify_transition(&cpufreq_freqs, CPUFREQ_POSTCHANGE);
+	}
+#endif
 #ifdef CONFIG_PXA_MIPSRAM
 	update_op_mips_ram(freqs->old, freqs->new);
 #endif
@@ -2323,6 +2349,11 @@ static int pxa95x_set_op(void *driver_data, struct dvfm_freqs *freqs,
 				memcpy(&(freqs->old_info), lowest_op_info,
 				       sizeof(struct op_info));
 				freqs->old = lowest_freq_index;
+#ifdef CONFIG_CPU_FREQ
+				/* Update here since this routine is with IRQ disabled
+				 * So it is not updated in do_freq_notify */
+				loops_per_jiffy = ((struct dvfm_md_opt *)lowest_op_info->op)->lpj;
+#endif
 			}
 		}
 
@@ -2757,12 +2788,10 @@ static int pxa95x_stats_notifier_freq(struct notifier_block *nb,
 		case DVFM_FREQ_POSTCHANGE:
 			/* Calculate the costed time on switching frequency */
 			calc_switchtime_end(freqs->old, freqs->new, ticks);
+			dvfm_add_timeslot(freqs->old, CPU_STATE_RUN);
 			dvfm_add_event(freqs->old, CPU_STATE_RUN,
 				       freqs->new, CPU_STATE_RUN);
-			dvfm_add_timeslot(freqs->old, CPU_STATE_RUN);
-#ifdef CONFIG_IPM
 			mspm_add_event(freqs->old, CPU_STATE_RUN);
-#endif
 			break;
 		}
 	} else if (md->power_mode == POWER_MODE_D1 ||
@@ -2771,13 +2800,11 @@ static int pxa95x_stats_notifier_freq(struct notifier_block *nb,
 		switch (val) {
 		case DVFM_FREQ_PRECHANGE:
 			calc_switchtime_start(freqs->old, freqs->new, ticks);
+			dvfm_add_timeslot(freqs->old, CPU_STATE_RUN);
 			/* Consider lowpower mode as idle mode */
 			dvfm_add_event(freqs->old, CPU_STATE_RUN,
 				       freqs->new, CPU_STATE_IDLE);
-			dvfm_add_timeslot(freqs->old, CPU_STATE_RUN);
-#ifdef CONFIG_IPM
 			mspm_add_event(freqs->old, CPU_STATE_RUN);
-#endif
 			break;
 		case DVFM_FREQ_POSTCHANGE:
 			/* switch_lowpower_start before switch_lowpower_after
@@ -2789,12 +2816,10 @@ static int pxa95x_stats_notifier_freq(struct notifier_block *nb,
 			calc_switchtime_start(freqs->new, freqs->old,
 					      switch_lowpower_after);
 			calc_switchtime_end(freqs->new, freqs->old, ticks);
+			dvfm_add_timeslot(freqs->new, CPU_STATE_IDLE);
 			dvfm_add_event(freqs->new, CPU_STATE_IDLE,
 				       freqs->old, CPU_STATE_RUN);
-			dvfm_add_timeslot(freqs->new, CPU_STATE_IDLE);
-#ifdef CONFIG_IPM
 			mspm_add_event(freqs->new, CPU_STATE_IDLE);
-#endif
 			break;
 		}
 	}

@@ -452,6 +452,11 @@ static int mspm_prof_notifier_freq(struct notifier_block *nb,
 static int launch_mspm(void)
 {
 	struct ipm_profiler_arg arg;
+	if (mspm_ctrl && MSPM_PROFILER != cur_profiler) {
+		pr_info("mspm profiler is not supported.\n");
+		mspm_ctrl = mspm_prof_ctrl = 0;
+		return 0;
+	}
 	if (mspm_ctrl) {
 		mspm_idle_load();
 		/* check whether profiler should be launched */
@@ -549,6 +554,11 @@ static ssize_t prof_store(struct kobject *kobj,
 	int prof_enabled;
 	prof_enabled = mspm_prof_ctrl;
 	sscanf(buf, "%u", &mspm_prof_ctrl);
+	if (mspm_prof_ctrl && MSPM_PROFILER != cur_profiler) {
+		pr_info("mspm profiler is not supported.\n");
+		mspm_ctrl = mspm_prof_ctrl = 0;
+		goto out;
+	}
 	if (!mspm_ctrl)
 		goto out;
 	/* check whether profiler should be launched */
@@ -722,7 +732,6 @@ int __init mspm_prof_init(void)
 	dvfm_register_notifier(&notifier_freq_block, DVFM_FREQUENCY_NOTIFIER);
 	dvfm_register("MSPM PROF", &dvfm_dev_idx);
 
-	launch_mspm();
 	rc = dvfm_find_index("156M", &down_freq_op);
 	if (!rc) {
 		printk(KERN_ERR "%s Low PP was not found for IdleProfiler\n",
@@ -738,3 +747,6 @@ void __exit mspm_prof_exit(void)
 	dvfm_unregister("MSPM PROF", &dvfm_dev_idx);
 	dvfm_unregister_notifier(&notifier_freq_block, DVFM_FREQUENCY_NOTIFIER);
 }
+
+module_init(mspm_prof_init);
+module_exit(mspm_prof_exit);
