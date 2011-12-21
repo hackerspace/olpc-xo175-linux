@@ -19,10 +19,12 @@
 #include <linux/clk.h>
 #include <linux/uaccess.h>
 #include <linux/slab.h>
+#include <linux/pm_qos_params.h>
 #include <mach/uio_hdmi.h>
 #include <linux/earlysuspend.h>
 #include <mach/addr-map.h>
 #include <mach/cputype.h>
+#include <plat/pm.h>
 
 static atomic_t hdmi_state = ATOMIC_INIT(0);
 static int early_suspend_flag;
@@ -35,12 +37,30 @@ struct hdmi_instance {
 	void *sspa1_reg_base;
 	unsigned int gpio;
 	unsigned int edid_bus_num;
+	struct timer_list jitter_timer;
 	struct work_struct work;
 	struct delayed_work hpd_work;
 	struct uio_info uio_info;
 	struct early_suspend    early_suspend;
+	struct pm_qos_request_list qos_cpufreq_min;
+	struct pm_qos_request_list qos_cpufreq_disable;
 };
 static unsigned gsspa1_reg_base;
+
+static void set_power_constraint(struct hdmi_instance *hi, int min)
+{
+	if (!min)
+		return;
+	pm_qos_update_request(&hi->qos_cpufreq_min, min);
+	pm_qos_update_request(&hi->qos_cpufreq_disable, 1);
+}
+
+static void unset_power_constraint(struct hdmi_instance *hi)
+{
+	pm_qos_update_request(&hi->qos_cpufreq_min, PM_QOS_DEFAULT_VALUE);
+	pm_qos_update_request(&hi->qos_cpufreq_disable, PM_QOS_DEFAULT_VALUE);
+}
+
 
 static u32 hdmi_direct_read(unsigned addr)
 {
@@ -84,14 +104,6 @@ static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 			return -EFAULT;
 		break;
 	case HPD_PIN_READ:
-		hpd = gpio_get_value(hi->gpio);
-		/*if disconnected HDMI , late_disable_flag is 1, 300 ms is
-		 * the time wait for HDMI is disabled, then disp1_axi_bus
-		 * can be disabled. disp1_axi_bus clear will cause HDMI
-		 * clock disbaled and any operation not takes effects*/
-		if (late_disable_flag && hpd)
-			schedule_delayed_work(&hi->hpd_work,
-					msecs_to_jiffies(300));
 		/* when resume, force disconnect/connect HDMI */
 		if (con_lock == FIRST_ACCESS_LOCK) {
 			hpd = -1;
@@ -99,7 +111,19 @@ static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 		} else if (con_lock == SECOND_ACCESS_LOCK) {
 			hpd = 0;
 			con_lock = UNLOCK;
+		} else {
+			hpd = gpio_get_value(hi->gpio);
+			/*if disconnected HDMI , late_disable_flag is
+			 * 1, 300 ms is the time wait for HDMI is
+			 * disabled, then disp1_axi_bus can be disabled.
+			 * disp1_axi_bus clear will cause HDMI clock
+			 * disbaled and any operation not takes effects*/
+			if (late_disable_flag && hpd)
+				schedule_delayed_work(&hi->hpd_work,
+						msecs_to_jiffies(300));
+
 		}
+
 		pr_debug("early_suspend_flag %d Kernel space: hpd is %d\n",
 			early_suspend_flag, hpd);
 		if (copy_to_user(argp, &hpd, sizeof(int))) {
@@ -137,14 +161,23 @@ EXPORT_SYMBOL(hdmi_3d_sync_view);
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void hdmi_early_suspend(struct early_suspend *h)
 {
+	struct hdmi_instance *hi =
+		container_of(h, struct hdmi_instance, early_suspend);
+
 	early_suspend_flag = 1;
+	if (atomic_read(&hdmi_state) == 1)
+		unset_power_constraint(hi);
 
 	return;
 }
 static void hdmi_late_resume(struct early_suspend *h)
 {
-	early_suspend_flag = 0;
+	struct hdmi_instance *hi =
+		container_of(h, struct hdmi_instance, early_suspend);
 
+	early_suspend_flag = 0;
+	if (atomic_read(&hdmi_state) == 1)
+		set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
 	return;
 }
 #endif
@@ -201,28 +234,52 @@ static void hdmi_switch_work(struct work_struct *work)
 		container_of(work, struct hdmi_instance, work);
 	int state = gpio_get_value(hi->gpio);
 
-	if (state != 0) {
-		state = 0;
-		late_disable_flag = 1; /*wait for hdmi disbaled*/
-		atomic_set(&hdmi_state, 0);
+	if(state!=0) {
+		if (atomic_cmpxchg(&hdmi_state, 1, 0) == 1) {
+			late_disable_flag = 1; /*wait for hdmi disbaled*/
+			if (early_suspend_flag == 0)
+				unset_power_constraint(hi);
+			/*if hdmi_state change, report hpd*/
+			uio_event_notify(&hi->uio_info);
+		}
 	} else {
-		if (cpu_is_mmp2())
-			clk_enable(hi->clk);
-		state = 1;
-		atomic_set(&hdmi_state, 1);
+		if (atomic_cmpxchg(&hdmi_state, 0, 1) == 0) {
+			if (cpu_is_mmp2())
+				clk_enable(hi->clk);
+			if (early_suspend_flag == 0)
+				set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
+			/*if hdmi_state change, report hpd*/
+			uio_event_notify(&hi->uio_info);
+		}
 	}
 	pr_debug("++++++++++++ %s state %x hdmi_state %d\n", __func__,
 		state, atomic_read(&hdmi_state));
 }
 
+/* set_power_constraint can't be called in interrupt context, use timer to
+ * workaround this issue.
+ */
+void work_launch(unsigned long data)
+{
+	struct hdmi_instance *hi = (struct hdmi_instance *)data;
+
+	pr_debug("%s\n", __func__);
+	schedule_work(&hi->work);
+}
+
+/* use timer to remove jitter
+ */
 static irqreturn_t hpd_handler(int irq, struct uio_info *dev_info)
 {
 	struct hdmi_instance *hi =
 		container_of(dev_info, struct hdmi_instance, uio_info);
 
-	pr_debug("----- %s\n", __func__);
-	schedule_work(&hi->work);
-	return IRQ_HANDLED;
+	pr_debug("%s\n", __func__);
+
+	mod_timer(&hi->jitter_timer, jiffies + HZ);
+
+	/*Don't report hpd in top half, wait for jitter is gone.*/
+	return IRQ_NONE;
 }
 
 static int hdmi_probe(struct platform_device *pdev)
@@ -265,6 +322,12 @@ static int hdmi_probe(struct platform_device *pdev)
 		ret = -EBUSY;
 		goto out_free;
 	}
+
+	pm_qos_add_request(&hi->qos_cpufreq_min, PM_QOS_CPUFREQ_MIN,
+			PM_QOS_DEFAULT_VALUE);
+	pm_qos_add_request(&hi->qos_cpufreq_disable, PM_QOS_CPUFREQ_DISABLE,
+			PM_QOS_DEFAULT_VALUE);
+
 	gsspa1_reg_base = (unsigned)hi->sspa1_reg_base;
 
 	platform_set_drvdata(pdev, hi);
@@ -314,10 +377,12 @@ static int hdmi_probe(struct platform_device *pdev)
 	if (ret == 0) {
 		clk_enable(hi->clk);
 		atomic_set(&hdmi_state, 1);
+		set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
 	}else if (cpu_is_mmp3()) {
 		clk_enable(hi->clk);
 	}
 
+	setup_timer(&hi->jitter_timer, work_launch, (unsigned long)hi);
 	INIT_WORK(&hi->work, hdmi_switch_work);
 	INIT_DELAYED_WORK(&hi->hpd_work, hdmi_delayed_func);
 
