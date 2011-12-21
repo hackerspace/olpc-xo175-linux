@@ -1762,6 +1762,38 @@ static int pxa955_cam_set_bus_param(struct soc_camera_device *icd, __u32 pixfmt)
 	return 0;
 }
 
+static int pxa955_cam_get_param(struct soc_camera_device *icd,
+				  struct v4l2_streamparm *parm)
+{
+	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
+	struct soc_camera_link *icl = to_soc_camera_link(icd);
+	struct sensor_platform_data *pdata;
+	struct v4l2_subdev_frame_interval inter;
+	struct v4l2_captureparm *cp = &parm->parm.capture;
+	int ret;
+
+	if (parm->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
+
+	pdata = icl->priv;
+	printk(KERN_INFO "cam: pdata->mclk_mhz=%u Mhz\n", pdata->mclk_mhz);
+
+	/*To get frame_rate*/
+	inter.pad = pdata->mclk_mhz;
+	ret = v4l2_subdev_call(sd, video, g_frame_interval, &inter);
+	if (ret < 0) {
+		printk(KERN_ERR "cam: fail to get frame rate from sensor.\n");
+		return ret;
+	}
+
+	memset(cp, 0, sizeof(*cp));
+	cp->capability = V4L2_CAP_TIMEPERFRAME;
+	cp->timeperframe.numerator = inter.interval.denominator;
+	cp->timeperframe.denominator = inter.interval.numerator;
+
+	return 0;
+}
+
 static int pxa955_cam_set_param(struct soc_camera_device *icd,
 				  struct v4l2_streamparm *parm)
 {
@@ -1846,8 +1878,9 @@ static struct soc_camera_host_ops pxa955_soc_cam_host_ops = {
 	.poll		= pxa955_cam_poll,
 	.querycap	= pxa955_cam_querycap,
 	.set_bus_param	= pxa955_cam_set_bus_param,
-	.set_parm = pxa955_cam_set_param,
-	.enum_fsizes = pxa955_cam_enum_fsizes,
+	.get_parm 	= pxa955_cam_get_param,
+	.set_parm 	= pxa955_cam_set_param,
+	.enum_fsizes 	= pxa955_cam_enum_fsizes,
 	.get_crop	= pxa955_cam_g_crop,
 	.set_crop	= pxa955_cam_s_crop,
 };
