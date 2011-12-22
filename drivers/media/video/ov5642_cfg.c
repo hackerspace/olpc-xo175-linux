@@ -7206,8 +7206,7 @@ static struct ov5642_format ov5642_pxa2128_mipi_fmts[] = {
 		.regs = ov5642_pxa2128_fmt_yuv422,
 	}, {
 		.code = V4L2_MBUS_FMT_JPEG_1X8,
-		.def_set = ov5642_pxa2128_fmt_yuv422,
-		.regs = ov5642_pxa2128_mipi_fmt_jpg,
+		.def_set = ov5642_mmp2_jpg_default,
 	}
 };
 
