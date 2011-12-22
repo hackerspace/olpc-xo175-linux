@@ -466,25 +466,25 @@ static void __init init_mmc(void)
 static struct cwmi_platform_data cwmi_acc_data = {
 	.set_power = NULL,
 	.axes = {
-		1, 0, 0,
-		0, -1, 0,
-		0, 0, 1},
+		0, 0, 0,
+		0, 0, 0,
+		0, 0, 0},
 };
 
 static struct cwmi_platform_data cwmi_mag_data = {
 	.set_power = NULL,
 	.axes = {
-		-1, 0, 0,
-		0, 1, 0,
-		0, 0, -1},
+		0, 0, 0,
+		0, 0, 0,
+		0, 0, 0},
 };
 
 static struct cwgd_platform_data cwgd_plat_data = {
 	.set_power = NULL,
 	.axes = {
-		-1, 0, 0,
-		0, 1, 0,
-		0, 0, -1},
+		0, 0, 0,
+		0, 0, 0,
+		0, 0, 0},
 };
 
 static int ssd2531_ts_pins[] = { MFP_PIN_GPIO8, MFP_PIN_GPIO7 };
@@ -1593,9 +1593,29 @@ static void __init init(void)
 #endif
 
 	/* adjust acc sensor axes */
-	if (get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD ||
-			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD)
-		cwmi_acc_data.axes[0] = -1;
+	if (get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD) {
+		cwmi_acc_data.axes[0] = 1;
+		cwmi_acc_data.axes[4] = -1;
+		cwmi_acc_data.axes[8] = 1;
+		cwmi_mag_data.axes[0] = -1;
+		cwmi_mag_data.axes[4] = 1;
+		cwmi_mag_data.axes[8] = -1;
+		cwgd_plat_data.axes[0] = -1;
+		cwgd_plat_data.axes[4] = 1;
+		cwgd_plat_data.axes[8] = -1;
+	}
+	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD) {
+		i2c3_info[0].irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO10));
+		cwmi_acc_data.axes[1] = 1;
+		cwmi_acc_data.axes[3] = -1;
+		cwmi_acc_data.axes[8] = -1;
+		cwmi_mag_data.axes[1] = -1;
+		cwmi_mag_data.axes[3] = 1;
+		cwmi_mag_data.axes[8] = 1;
+		cwgd_plat_data.axes[1] = 1;
+		cwgd_plat_data.axes[3] = -1;
+		cwgd_plat_data.axes[8] = 1;
+	}
 
 	set_abu_init_func(abu_mfp_init);
 	set_ssp_init_func(ssp3_mfp_init);
