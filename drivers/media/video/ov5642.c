@@ -364,16 +364,6 @@ static int ov5642_s_fmt(struct v4l2_subdev *sd,
 				return ret;
 		}
 
-		/* frontal camera sensor on brownstone board */
-		/* need clear sensor mirror and flip */
-		ov5642_read(client, REG_TIMINGCTRL, &val);
-		val &= ~0x60;
-		ov5642_write(client, REG_TIMINGCTRL, val);
-
-		ov5642_read(client, REG_ARRAYCTRL, &val);
-		val |= 0x20;
-		ov5642_write(client, REG_ARRAYCTRL, val);
-
 		/* sensor enter software power down mode */
 		ov5642_read(client, REG_SYS, &val);
 		val |= 0x40;
