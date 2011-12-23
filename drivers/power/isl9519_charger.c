@@ -259,8 +259,36 @@ static void chg_update_work_func(struct work_struct *work)
 	schedule_delayed_work(&di->chg_update_work, di->update_interval);
 }
 
+/* Check whether there is battery in system? */
+static int isl9519_has_supplicant(struct isl9519_device_info *di)
+{
+	struct power_supply *psy;
+	union power_supply_propval val;
+	int i, ret = 0;
+	for (i = 0; i < di->ac.num_supplicants; i++) {
+		psy = power_supply_get_by_name(di->ac.supplied_to[i]);
+		if (!psy || !psy->get_property)
+			continue;
+		ret = psy->get_property(psy, POWER_SUPPLY_PROP_PRESENT, &val);
+		if (ret == 0 && val.intval == 1)
+			return 1;
+	}
+	for (i = 0; i < di->usb.num_supplicants; i++) {
+		psy = power_supply_get_by_name(di->usb.supplied_to[i]);
+		if (!psy || !psy->get_property)
+			continue;
+		ret = psy->get_property(psy, POWER_SUPPLY_PROP_PRESENT, &val);
+		if (ret == 0 && val.intval == 1)
+			return 1;
+	}
+	return 0;
+}
+
 static int isl9519_start_charging(struct isl9519_device_info *di)
 {
+	/* If there is no battery present, don't enable charge */
+	if (!isl9519_has_supplicant(di))
+		return 0;
 	if (di->stay_awake_en)
 		wake_lock(&di->chg_wake_lock);
 	di->is_charging = 1;
@@ -647,6 +675,13 @@ static const struct dev_pm_ops isl9519_pm_ops  = {
 };
 #endif
 
+static void isl9519_charger_shutdown(struct i2c_client *client)
+{
+	struct isl9519_device_info *di = i2c_get_clientdata(client);
+	/* Disable Charger */
+	isl9519_disable_charge(di);
+}
+
 static const struct i2c_device_id isl9519_id[] = {
 	{"isl9519", -1},
 	{},
@@ -661,6 +696,7 @@ static struct i2c_driver isl9519_charger_driver = {
 	},
 	.probe = isl9519_charger_probe,
 	.remove = isl9519_charger_remove,
+	.shutdown = isl9519_charger_shutdown,
 	.id_table = isl9519_id,
 };
 
