@@ -31,7 +31,7 @@
 #include "switch_headset.h"
 
 static struct headset_switch_data *hs_switch_data;
-static u32 headset_last_state;
+
 /*
  * return back >=0, then set the status;
  * return back = -EAGAIN, then get the status from gpio level;
@@ -48,17 +48,10 @@ static void headset_switch_work(struct work_struct *work)
 	if (headset_detect_func) {
 		/* HW detection code here */
 		state = headset_detect_func();
-		/* check whether the state is stable, and discard it if unstable */
-		if ((state ==  headset_last_state) ||
-			    ((headset_last_state == 1) && (state == 2))) {
-			pr_debug("jitter\n");
-			return;
-		}
 
 		pr_info("state %d\n", state);
 		if (state >= 0) {
 			switch_set_state(&switch_data->sdev, state);
-			headset_last_state = state;
 			return;
 		} else if (state != -EAGAIN) {
 			printk(KERN_INFO "%s: the states is %d\n",
