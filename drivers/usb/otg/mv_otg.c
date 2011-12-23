@@ -940,14 +940,15 @@ static int mv_otg_suspend(struct platform_device *dev, pm_message_t state)
 	struct mv_otg *mvotg = platform_get_drvdata(dev);
 
 	if (mvotg->otg.state != OTG_STATE_B_IDLE) {
-		dev_info(&dev->dev,
-			"OTG state is not B_IDLE, it is %d!\n",
+		dev_info(&dev->dev, "OTG state is not B_IDLE, it is %d!\n",
 			mvotg->otg.state);
 		return -EAGAIN;
 	}
 
 	if (!mvotg->clock_gating)
 		mv_otg_disable_internal(mvotg);
+
+	mvotg->otg.state = OTG_STATE_UNDEFINED;
 
 	return 0;
 }
@@ -957,18 +958,17 @@ static int mv_otg_resume(struct platform_device *dev)
 	struct mv_otg *mvotg = platform_get_drvdata(dev);
 	u32 otgsc;
 
-	if (!mvotg->clock_gating) {
-		mv_otg_enable_internal(mvotg);
+	mv_otg_enable_internal(mvotg);
 
-		otgsc = readl(&mvotg->op_regs->otgsc);
-		otgsc |= mvotg->irq_en;
-		writel(otgsc, &mvotg->op_regs->otgsc);
+	otgsc = readl(&mvotg->op_regs->otgsc);
+	otgsc |= mvotg->irq_en;
+	writel(otgsc, &mvotg->op_regs->otgsc);
 
-		if (spin_trylock(&mvotg->wq_lock)) {
-			mv_otg_run_state_machine(mvotg, 0);
-			spin_unlock(&mvotg->wq_lock);
-		}
+	if (spin_trylock(&mvotg->wq_lock)) {
+		mv_otg_run_state_machine(mvotg, 0);
+		spin_unlock(&mvotg->wq_lock);
 	}
+
 	return 0;
 }
 
