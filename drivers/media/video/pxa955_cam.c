@@ -958,10 +958,16 @@ static void sci_s_fmt(struct pxa955_cam_dev *pcdev,
 
 	case V4L2_PIX_FMT_JPEG:
 		pcdev->channels = 1;
-		/* use size get from sensor */
-		/* pcdev->channel_size[0] = fmt->sizeimage;*/
-
-		pcdev->channel_size[0] = size/JPEG_COMPRESS_RATIO_HIGH;
+		/*
+		* From the specification, the DMA transfer size in SCI DMA
+		* command reg should not exceed 16MB.
+		* Actually the size of compressed JPEG picture is variable.
+		* And the DMA transfer size should be set as below:
+		* width*height/JPEG_COMPRESS_RATIO_HIGH <= size <= 16MB
+		* So we set it to width*height*2 since assume the JPEG size
+		* for a resolution should be smaller than RGB/YUV size.
+		*/
+		pcdev->channel_size[0] = size*2;
 		sci_reg_write(pcdev, REG_SCICR1, SCICR1_FMT_IN(FMT_JPEG) | \
 						SCICR1_FMT_OUT(FMT_JPEG));
 	    break;
