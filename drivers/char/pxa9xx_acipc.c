@@ -48,6 +48,13 @@
 #endif
 #if defined(CONFIG_PXA95x) || defined(CONFIG_PXA93x)
 #include <mach/hardware.h>
+
+static int is_nevo_td = 0;
+static int __init nevo_td_setup(char *__unused)
+{
+        return is_nevo_td = 1;
+}
+__setup("nevo_td", nevo_td_setup);
 #endif
 
 struct pxa9xx_acipc {
@@ -579,7 +586,7 @@ static void register_pm_events(void)
 static void register_pm_events(void)
 {
 	/* Nevo DKB is TD technoloy with different event handler. */
-	if (machine_arch_type == MACH_TYPE_NEVODKB)
+	if (is_nevo_td)
 		return;
 
 	acipc_event_bind(ACIPC_DDR_RELQ_REQ | ACIPC_DDR_260_RELQ_REQ |
@@ -708,7 +715,7 @@ static int __devinit pxa9xx_acipc_probe(struct platform_device *pdev)
 		acipc->acipc_db.event_db[i].mask = acipc_priority_table_dkb[i];
 #endif
 #if defined(CONFIG_PXA95x) || defined(CONFIG_PXA93x)
-		if (machine_arch_type == MACH_TYPE_NEVODKB) {
+		if (is_nevo_td) {
 			acipc->acipc_db.event_db[i].IIR_bit = acipc_priority_table_dkb[i];
 			acipc->acipc_db.event_db[i].mask = acipc_priority_table_dkb[i];
 		}
