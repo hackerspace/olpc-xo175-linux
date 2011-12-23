@@ -52,6 +52,7 @@ extern int mv_udc_unregister_client(struct notifier_block *nb);
 struct mv_usb_addon_irq {
 	unsigned int	irq;
 	int		(*poll)(void);
+	void		(*init)(void);
 };
 
 struct mv_usb_platform_data {

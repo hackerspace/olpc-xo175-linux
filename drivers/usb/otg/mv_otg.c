@@ -532,6 +532,7 @@ static irqreturn_t mv_otg_inputs_irq(int irq, void *dev)
 		mv_otg_enable(mvotg);
 		mv_otg_init_irq(mvotg);
 	}
+
 	mv_otg_run_state_machine(mvotg, 0);
 
 	return IRQ_HANDLED;
@@ -877,6 +878,9 @@ static int mv_otg_probe(struct platform_device *dev)
 			dev_info(&dev->dev,
 				"Can not request irq for ID\n");
 		}
+
+		if (pdata->id->init)
+			pdata->id->init();
 	}
 
 	if (pdata->vbus) {
@@ -890,6 +894,9 @@ static int mv_otg_probe(struct platform_device *dev)
 				"disable clock gating\n");
 			mvotg->clock_gating = 0;
 		}
+
+		if (pdata->vbus->init)
+			pdata->vbus->init();
 	}
 
 	if (pdata->disable_otg_clock_gating)
