@@ -62,6 +62,7 @@ static int mmp3asoc_headphone_func;
 static int mmp3asoc_hs_mic_func;
 static int mmp3asoc_spk_func;
 static int mmp3asoc_main_mic_func;
+static u32 headset_last_status;
 
 static void mmp3asoc_ext_control(struct snd_soc_dapm_context *dapm, int func)
 {
@@ -282,12 +283,24 @@ CHECK_HEADSET_STATUS:
 		break;
 	}
 
-	if (ret == 2 && re_check == 0) {
+	if (machine_is_yellowstone()) {
+		switch (reg & (WM8994_MIC2_SHRT_STS | WM8994_MIC2_DET_STS)) {
+		case (WM8994_MIC2_SHRT_STS | WM8994_MIC2_DET_STS):
+			ret = 1;
+			break;
+		default:
+			ret = 0;
+			break;
+		}
+	}
+
+	if (ret == 2 && headset_last_status == 0 && re_check == 0) {
 		/* double check whether it's unstable */
 		msleep(200);
 		re_check = 1;
 		goto CHECK_HEADSET_STATUS;
 	}
+	headset_last_status = ret;
 
 	/* clear all irqs */
 	snd_soc_write(codec, WM8994_INTERRUPT_RAW_STATUS_2, 0);
