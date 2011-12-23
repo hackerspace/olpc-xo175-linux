@@ -148,7 +148,8 @@ config SND_SOC_PXA978_MACHINE
 	tristate "SoC Audio support for Marvell pxa978 board"
 	depends on SND_PXA2XX_SOC && MACH_NEVOSAARC
 	select SND_PXA_SOC_SSP
-	select SND_SOC_88PM860X
+	select SND_SOC_88PM860X if MFD_88PM860X
+	select SND_SOC_88PM805 if MFD_88PM80X
 	help
 	  Say Y if you want to add support for SoC audio on the
 	  Marvell pxa978 reference platform.

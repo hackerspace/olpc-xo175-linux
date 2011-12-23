@@ -23,6 +23,8 @@
 #include <asm/mach-types.h>
 #include <mach/audio.h>
 #include <plat/ssp.h>
+#include <linux/mfd/88pm8xxx.h>
+#include <mach/../../generic.h>
 
 #include "../codecs/88pm860x-codec.h"
 #include "pxa-ssp.h"
@@ -155,11 +157,10 @@ static int saarc_pcm_prepare(struct snd_pcm_substream *substream)
 	return 0;
 }
 
-static int saarc_pcm_shutdown(struct snd_pcm_substream * substream)
+static void saarc_pcm_shutdown(struct snd_pcm_substream * substream)
 {
 	pxa95x_ssp_mfp_init(false);
 	pr_info("[saarc_pcm_startup]: switch to GSSP1\n");
-	return 0;
 }
 
 static struct snd_soc_ops saarc_i2s_ops = {
@@ -173,7 +174,7 @@ static struct snd_soc_ops saarc_pcm_ops = {
 	.prepare	= saarc_pcm_prepare,
 };
 
-static struct snd_soc_dai_link saarc_dai[] = {
+static struct snd_soc_dai_link saarc_pm860x_dai[] = {
 	{
 		.name		= "88PM860x I2S",
 		.stream_name	= "I2S Audio",
@@ -195,12 +196,38 @@ static struct snd_soc_dai_link saarc_dai[] = {
 	}
 };
 
-static struct snd_soc_card snd_soc_card_saarc[] = {
+static struct snd_soc_dai_link saarc_pm805_dai[] = {
 	{
-		.name = "88pm860x",
-		.dai_link = saarc_dai,
-		.num_links = ARRAY_SIZE(saarc_dai),
+		.name		= "88PM860x I2S",
+		.stream_name	= "I2S Audio",
+		.cpu_dai_name	= "pxa95x-abu-dai",
+		.codec_dai_name	= "88pm805-i2s",
+		.platform_name	= "pxa95x-pcm-abu",
+		.codec_name	= "88pm80x-codec",
+		.init		= saarc_pm860x_init,
+		.ops		= &saarc_i2s_ops,
 	},
+	{
+		.name		= "88PM860x PCM",
+		.stream_name	= "PCM Audio",
+		.cpu_dai_name	= "pxa-ssp-dai.2",
+		.codec_dai_name	= "88pm805-pcm",
+		.platform_name	= "pxa-pcm-audio",
+		.codec_name	= "88pm80x-codec",
+		.ops		= &saarc_pcm_ops,
+	}
+};
+
+static struct snd_soc_card snd_soc_card_saarc_pm860x = {
+	.name = "88pm860x",
+	.dai_link = saarc_pm860x_dai,
+	.num_links = ARRAY_SIZE(saarc_pm860x_dai),
+};
+
+static struct snd_soc_card snd_soc_card_saarc_pm805 = {
+	.name = "88pm805",
+	.dai_link = saarc_pm805_dai,
+	.num_links = ARRAY_SIZE(saarc_pm805_dai),
 };
 
 static int saarc_pm860x_init(struct snd_soc_pcm_runtime *rtd)
@@ -270,36 +297,34 @@ static int saarc_pm860x_init(struct snd_soc_pcm_runtime *rtd)
 #endif
 }
 
-static struct platform_device *saarc_snd_device[ARRAY_SIZE(snd_soc_card_saarc)];
+static struct platform_device *saarc_snd_device;
 
 static int __init saarc_init(void)
 {
-	int i, ret = 0;
+	int ret = 0;
 
 	if (!machine_is_saarc())
 		return -ENODEV;
 
-	for (i = 0; i < ARRAY_SIZE(snd_soc_card_saarc); i++) {
-		saarc_snd_device[i] = platform_device_alloc("soc-audio", i);
-		if (!saarc_snd_device[i])
-			break;
+	saarc_snd_device = platform_device_alloc("soc-audio", 0);
+	if (!saarc_snd_device)
+		return -ENOMEM;
 
-		platform_set_drvdata(saarc_snd_device[i], &snd_soc_card_saarc[i]);
+	if (get_pmic_id() >= PM800_CHIP_A0)
+		platform_set_drvdata(saarc_snd_device, &snd_soc_card_saarc_pm805);
+	else
+		platform_set_drvdata(saarc_snd_device, &snd_soc_card_saarc_pm860x);
 
-		ret = platform_device_add(saarc_snd_device[i]);
-		if (ret)
-			platform_device_put(saarc_snd_device[i]);
-	}
+	ret = platform_device_add(saarc_snd_device);
+	if (ret)
+		platform_device_put(saarc_snd_device);
 
 	return ret;
 }
 
 static void __exit saarc_exit(void)
 {
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(snd_soc_card_saarc); i++)
-		platform_device_unregister(saarc_snd_device[i]);
+	platform_device_unregister(saarc_snd_device);
 }
 
 module_init(saarc_init);
