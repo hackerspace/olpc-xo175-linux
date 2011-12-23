@@ -777,6 +777,7 @@ static int pxa168fb_release(struct fb_info *fi, int user)
 
 	/* clear some globals */
 	memset(&fbi->surface, 0, sizeof(struct _sOvlySurface));
+	fbi->surface.videoMode = -1;
 	memset(&fbi->new_addr, 0, sizeof(fbi->new_addr));
 	fbi->active = fbi->dma_on = 0;
 

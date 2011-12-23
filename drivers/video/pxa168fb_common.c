@@ -985,7 +985,8 @@ static void free_buf(struct pxa168fb_info *fbi)
 
 	/* clear some globals */
 	memset(&fbi->surface, 0, sizeof(struct _sOvlySurface));
-	fbi->new_addr[0] = 0; fbi->new_addr[1] = 0; fbi->new_addr[2] = 0;
+	fbi->surface.videoMode = -1;
+	memset(&fbi->new_addr, 0, sizeof(fbi->new_addr));
 }
 
 int get_freelist(struct fb_info *info, unsigned long arg)
