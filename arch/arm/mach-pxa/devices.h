@@ -61,6 +61,8 @@ extern struct platform_device pxa95x_device_cam0;
 extern struct platform_device pxa95x_device_cam1;
 
 extern struct platform_device pxa9xx_device_u2o;
+extern struct platform_device pxa9xx_device_u2ootg;
+extern struct platform_device pxa9xx_device_u2oehci;
 
 extern struct platform_device vnc_device;
 extern struct platform_device pxa978_device_ihdmi;
