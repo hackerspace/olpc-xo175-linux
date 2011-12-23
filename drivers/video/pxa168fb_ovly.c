@@ -629,7 +629,7 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 		} else if (list_empty(&fbi->buf_waitlist.surfacelist) &&
 			!fbi->buf_current)
 			/* switch on, but no buf flipped, return error */
-			ret = -EAGAIN;
+			; /* ret = -EAGAIN; */
 
 		printk(KERN_DEBUG "SWITCH_VID_OVLY fbi %d dma_on %d,"
 			" val %d, waitlist empty %d buf_current %p, ret %d\n",
