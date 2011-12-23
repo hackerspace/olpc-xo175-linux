@@ -2300,6 +2300,7 @@ static struct mv_usb_platform_data ttc_usb_pdata = {
 	.clkname	= pxa910_usb_clock_name,
 	.vbus		= &ttc_usb_vbus,
 	.mode		= MV_USB_MODE_OTG,
+	.otg_force_a_bus_req = 1,
 	.phy_init	= pxa_usb_phy_init,
 	.phy_deinit	= pxa_usb_phy_deinit,
 	.set_vbus	= ttc_usb_set_vbus,
