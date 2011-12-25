@@ -350,17 +350,17 @@ static inline unsigned int csi_reg_read(struct pxa95x_csi_dev *csi,
 
 void csi_reg_dump(struct pxa95x_csi_dev *csi)
 {
-	printk(KERN_ERR "CSSCR  0x%x\n", csi_reg_read(csi, REG_CSSCR));
-	printk(KERN_ERR "CSGCR  0x%x\n", csi_reg_read(csi, REG_CSGCR));
-	printk(KERN_ERR "CSxCR0 0x%x\n", csi_reg_read(csi, REG_CSxCR0));
-	printk(KERN_ERR "CSxSR  0x%x\n", csi_reg_read(csi, REG_CSxSR));
-	printk(KERN_ERR "CSxINEN 0x%x\n", csi_reg_read(csi, REG_CSxINEN));
-	printk(KERN_ERR "CSxINST 0x%x\n", csi_reg_read(csi, REG_CSxINST));
+	printk(KERN_ERR "CSSCR    |0x%08X\n", csi_reg_read(csi, REG_CSSCR));
+	printk(KERN_ERR "CSGCR    |0x%08X\n", csi_reg_read(csi, REG_CSGCR));
+	printk(KERN_ERR "CSxCR0   |0x%08X\n", csi_reg_read(csi, REG_CSxCR0));
+	printk(KERN_ERR "CSxSR    |0x%08X\n", csi_reg_read(csi, REG_CSxSR));
+	printk(KERN_ERR "CSxINEN  |0x%08X\n", csi_reg_read(csi, REG_CSxINEN));
+	printk(KERN_ERR "CSxINST  |0x%08X\n", csi_reg_read(csi, REG_CSxINST));
 
-	printk(KERN_ERR "CSxTIM0 0x%x\n", csi_reg_read(csi, REG_CSxTIM0));
-	printk(KERN_ERR "CSxTIM1 0x%x\n", csi_reg_read(csi, REG_CSxTIM1));
-	printk(KERN_ERR "CSxGENDAT 0x%x\n", csi_reg_read(csi, REG_CSxGENDAT));
-	printk(KERN_ERR "CSxPHYCAL 0x%x\n", csi_reg_read(csi, REG_CSxPHYCAL));
+	printk(KERN_ERR "CSxTIM0  |0x%08X\n", csi_reg_read(csi, REG_CSxTIM0));
+	printk(KERN_ERR "CSxTIM1  |0x%08X\n", csi_reg_read(csi, REG_CSxTIM1));
+	printk(KERN_ERR "CSxGENDAT|0x%08X\n", csi_reg_read(csi, REG_CSxGENDAT));
+	printk(KERN_ERR "CSxPHYCAL|0x%08X\n", csi_reg_read(csi, REG_CSxPHYCAL));
 }
 
 void csi_cken(struct pxa95x_csi_dev *csi, int flag)
@@ -571,76 +571,123 @@ static inline void sci_reg_set_bit(struct pxa955_cam_dev *pcdev,
 	sci_reg_write_mask(pcdev, reg, val, val);
 }
 
-#ifdef DEBUG
-static void sci_dump_registers(struct pxa955_cam_dev *pcdev)
+static void __attribute__((unused)) sci_dump_registers(struct pxa955_cam_dev *pcdev)
 {
-	printk(KERN_ERR "SCICR0 0x%x\n", sci_reg_read(pcdev, REG_SCICR0));
-	printk(KERN_ERR "SCICR1 0x%x\n", sci_reg_read(pcdev, REG_SCICR1));
-	printk(KERN_ERR "SCISR 0x%x\n", sci_reg_read(pcdev, REG_SCISR));
-	printk(KERN_ERR "SCIMASK 0x%x\n", sci_reg_read(pcdev, REG_SCIMASK));
-	printk(KERN_ERR "SCIFIFO 0x%x\n", sci_reg_read(pcdev, REG_SCIFIFO));
-	printk(KERN_ERR "SCIFIFOSR 0x%x\n", sci_reg_read(pcdev, REG_SCIFIFOSR));
+	printk(KERN_ERR "--------- SCI register dump --------\n");
+	printk(KERN_ERR "SCICR0    | 0x%08X\n", \
+		sci_reg_read(pcdev, REG_SCICR0));
+	printk(KERN_ERR "SCICR1    | 0x%08X\n", \
+		sci_reg_read(pcdev, REG_SCICR1));
+	printk(KERN_ERR "SCISR     | 0x%08X\n", \
+		sci_reg_read(pcdev, REG_SCISR));
+	printk(KERN_ERR "SCIMASK   | 0x%08X\n", \
+		sci_reg_read(pcdev, REG_SCIMASK));
+	printk(KERN_ERR "SCIFIFO   | 0x%08X\n", \
+		sci_reg_read(pcdev, REG_SCIFIFO));
+	printk(KERN_ERR "SCIFIFOSR | 0x%08X\n", \
+		sci_reg_read(pcdev, REG_SCIFIFOSR));
 
-	printk(KERN_ERR "SCIDADDR0 0x%x\n", sci_reg_read(pcdev, REG_SCIDADDR0));
-	printk(KERN_ERR "SCISADDR0 0x%x\n", sci_reg_read(pcdev, REG_SCISADDR0));
-	printk(KERN_ERR "SCITADDR0 0x%x\n", sci_reg_read(pcdev, REG_SCITADDR0));
-	printk(KERN_ERR "SCIDCMD0 0x%x\n", sci_reg_read(pcdev, REG_SCIDCMD0));
-
-	printk(KERN_ERR "SCIDADDR1 0x%x\n", sci_reg_read(pcdev, REG_SCIDADDR1));
-	printk(KERN_ERR "SCISADDR1 0x%x\n", sci_reg_read(pcdev, REG_SCISADDR1));
-	printk(KERN_ERR "SCITADDR1 0x%x\n", sci_reg_read(pcdev, REG_SCITADDR1));
-	printk(KERN_ERR "SCIDCMD1 0x%x\n", sci_reg_read(pcdev, REG_SCIDCMD1));
-
-	printk(KERN_ERR "SCIDADDR2 0x%x\n", sci_reg_read(pcdev, REG_SCIDADDR2));
-	printk(KERN_ERR "SCISADDR2 0x%x\n", sci_reg_read(pcdev, REG_SCISADDR2));
-	printk(KERN_ERR "SCITADDR2 0x%x\n", sci_reg_read(pcdev, REG_SCITADDR2));
-	printk(KERN_ERR "SCIDCMD2 0x%x\n", sci_reg_read(pcdev, REG_SCIDCMD2));
-
-	printk(KERN_ERR "SCIDBR0 0x%x\n", sci_reg_read(pcdev, REG_SCIDBR0));
-	printk(KERN_ERR "SCIDCSR0 0x%x\n", sci_reg_read(pcdev, REG_SCIDCSR0));
-
-	printk(KERN_ERR "SCIDBR1 0x%x\n", sci_reg_read(pcdev, REG_SCIDBR1));
-	printk(KERN_ERR "SCIDCSR1 0x%x\n", sci_reg_read(pcdev, REG_SCIDCSR1));
-
-	printk(KERN_ERR "SCIDBR2 0x%x\n", sci_reg_read(pcdev, REG_SCIDBR2));
-	printk(KERN_ERR "SCIDCSR2 0x%x\n", sci_reg_read(pcdev, REG_SCIDCSR2));
+	printk(KERN_ERR "               CH_0       CH_1       CH_2   \n");
+	printk(KERN_ERR "SCIDADDRx | 0x%08X 0x%08X 0x%08X\n", \
+		sci_reg_read(pcdev, REG_SCIDADDR0), \
+		sci_reg_read(pcdev, REG_SCIDADDR1), \
+		sci_reg_read(pcdev, REG_SCIDADDR2));
+	printk(KERN_ERR "SCISADDRx | 0x%08X 0x%08X 0x%08X\n", \
+		sci_reg_read(pcdev, REG_SCISADDR0), \
+		sci_reg_read(pcdev, REG_SCISADDR1), \
+		sci_reg_read(pcdev, REG_SCISADDR2));
+	printk(KERN_ERR "SCITADDRx | 0x%08X 0x%08X 0x%08X\n", \
+		sci_reg_read(pcdev, REG_SCITADDR0), \
+		sci_reg_read(pcdev, REG_SCITADDR1), \
+		sci_reg_read(pcdev, REG_SCITADDR2));
+	printk(KERN_ERR "SCIDCMDx  | 0x%08X 0x%08X 0x%08X\n", \
+		sci_reg_read(pcdev, REG_SCIDCMD0), \
+		sci_reg_read(pcdev, REG_SCIDCMD1), \
+		sci_reg_read(pcdev, REG_SCIDCMD2));
+	printk(KERN_ERR "SCIDBRx   | 0x%08X 0x%08X 0x%08X\n", \
+		sci_reg_read(pcdev, REG_SCIDBR0), \
+		sci_reg_read(pcdev, REG_SCIDBR1), \
+		sci_reg_read(pcdev, REG_SCIDBR2));
+	printk(KERN_ERR "SCIDCSR0  | 0x%08X 0x%08X 0x%08X\n", \
+		sci_reg_read(pcdev, REG_SCIDCSR0), \
+		sci_reg_read(pcdev, REG_SCIDCSR1), \
+		sci_reg_read(pcdev, REG_SCIDCSR2));
+	printk(KERN_ERR "---------------- end ----------------\n");
 }
 
-static void dma_dump_desc(struct pxa955_cam_dev *pcdev)
+static void __attribute__((unused)) dma_dump_desc(struct pxa955_cam_dev *pcdev)
 {
-	int i, k;
 	struct pxa_buf_node *buf_node;
-	printk(KERN_ERR "cam: dump_dma_desc ************+\n");
+	int i, k;
+#if 1
+	char VB_STATE[VIDEOBUF_IDLE+1][16] = {
+		[VIDEOBUF_NEEDS_INIT]	= "NEEDS_INIT",
+		[VIDEOBUF_PREPARED]	= "PREPARED",
+		[VIDEOBUF_QUEUED]	= "QUEUED",
+		[VIDEOBUF_ACTIVE]	= "ACTIVE",
+		[VIDEOBUF_DONE]		= "DONE",
+		[VIDEOBUF_ERROR]	= "ERROR",
+		[VIDEOBUF_IDLE]		= "IDLE",
+	};
 
+	printk(KERN_ERR "********** cam: brief sg list dump **********\n");
+	list_for_each_entry(buf_node, &pcdev->dma_buf_list, vb.queue) {
+		printk(KERN_ERR "buf:%08X, sg|%08X->DDADR|%08X, "\
+				"DTADR[%08X-%08X] <%s>",\
+			(__u32)buf_node, (__u32)buf_node->dma_desc[0].sg_dma,\
+			(__u32)buf_node->dma_desc[0].sg_cpu[0].ddadr,
+			(__u32)buf_node->dma_desc[0].sg_cpu[0].dtadr,\
+			(__u32)buf_node->dma_desc[0].sg_cpu[0].dtadr + \
+			buf_node->dma_desc[0].sg_cpu[0].dcmd,\
+			VB_STATE[buf_node->vb.state]);
+		i = sci_reg_read(pcdev, REG_SCITADDR0);
+		k = buf_node->dma_desc[0].sg_cpu[0].dtadr;
+		if ((i>=k) && (i<k+pcdev->channel_size[0]))
+			printk(" *\n");
+		else
+			printk("\n");
+	}
+	printk(KERN_ERR "*********************************************\n\n");
+
+#else
+	printk(KERN_ERR "cam: dump_dma_desc ************+\n");
 	printk(KERN_ERR "dma_buf_list head 0x%x\n", \
 		(unsigned int)&pcdev->dma_buf_list);
 	list_for_each_entry(buf_node, &pcdev->dma_buf_list, vb.queue) {
-		printk(KERN_ERR "buf_node 0x%x\n", (unsigned int)buf_node);
+		printk(KERN_ERR "cam: buf_node 0x%08X\n", \
+				(unsigned int)buf_node);
 
 		for (i = 0; i < pcdev->channels; i++) {
-			printk(KERN_ERR "chnnl %d, chnnl_size %d, sglen %d, " \
-				"sgdma 0x%x, sgsze %d\n", i, \
-				pcdev->channel_size[i], \
-				buf_node->dma_desc[i].sglen, \
-				buf_node->dma_desc[i].sg_dma, \
-				buf_node->dma_desc[i].sg_size);
+			printk(KERN_ERR "|   <channel%d: %d bytes>\n"\
+					"|   |   %d desctr (%dbytes)\n"\
+					"|   |   VA:0x%08X PA:0x%08X\n",\
+					i, pcdev->channel_size[i],\
+					buf_node->dma_desc[i].sglen,\
+					buf_node->dma_desc[i].sg_size,\
+					(__u32)buf_node->dma_desc[i].sg_cpu,\
+					buf_node->dma_desc[i].sg_dma);
 			for (k = 0; k < buf_node->dma_desc[i].sglen; k++) {
-				printk(KERN_ERR "dcmd [%d]  0x%x\n", k, \
+				printk(KERN_ERR \
+					"|   |             *\n"
+					"|   |   --------------------\n"\
+					"|   |    DDADR | 0x%08X\n"\
+					"|   |    DSADR | 0x%08X\n"\
+					"|   |    DTADR | 0x%08X\n"\
+					"|   |    DCMD  | 0x%08X\n"\
+					"|   |   --------------------\n"\
+					"|   |             *\n",\
+					buf_node->dma_desc[i].sg_cpu[k].ddadr,\
+					buf_node->dma_desc[i].sg_cpu[k].dsadr,\
+					buf_node->dma_desc[i].sg_cpu[k].dtadr,\
 					buf_node->dma_desc[i].sg_cpu[k].dcmd);
-				printk(KERN_ERR "ddadr[%d]  0x%x\n", k, \
-					buf_node->dma_desc[i].sg_cpu[k].ddadr);
-				printk(KERN_ERR "dsadr[%d]  0x%x\n", k, \
-					buf_node->dma_desc[i].sg_cpu[k].dsadr);
-				printk(KERN_ERR "dtadr[%d]  0x%x\n\n", k, \
-					buf_node->dma_desc[i].sg_cpu[k].dtadr);
 			}
 		}
 	}
-
 	printk(KERN_ERR "cam: dump_dma_desc ************-\n\n");
+#endif
 }
 
-static void dma_dump_buf_list(struct pxa955_cam_dev *pcdev)
+static void __attribute__((unused)) dma_dump_buf_list(struct pxa955_cam_dev *pcdev)
 {
 	struct pxa_buf_node *buf_node;
 	dma_addr_t dma_handles;
@@ -648,12 +695,11 @@ static void dma_dump_buf_list(struct pxa955_cam_dev *pcdev)
 	printk(KERN_ERR "cam: dump_dma_buf_list ************+\n");
 	list_for_each_entry(buf_node, &pcdev->dma_buf_list, vb.queue) {
 		dma_handles = videobuf_to_dma_contig(&buf_node->vb);
-		printk(KERN_ERR "cam: buf_node 0x%x, pa 0x%x\n",
+		printk(KERN_ERR "cam: buf_node 0x%08X, pa 0x%08X\n",
 			(unsigned int)buf_node, dma_handles);
 	}
 	printk(KERN_ERR "cam: dump_dma_buf_list ************-\n\n");
 }
-#endif
 
 /* only handle in irq context*/
 static void dma_fetch_frame(struct pxa955_cam_dev *pcdev)
@@ -697,7 +743,7 @@ static void dma_append_desc(struct pxa955_cam_dev *pcdev,
 		next_dma = &next->dma_desc[i];
 		pre_dma->sg_cpu[pre_dma->sglen-1].ddadr = (u32)next_dma->sg_dma;
 	}
-	printk(KERN_DEBUG "cam: append new dma 0x%x to 0x%x\n",
+	printk(KERN_DEBUG "cam: append new dma 0x%08X to 0x%08X\n",
 		next_dma->sg_dma, pre_dma->sg_dma);
 }
 
@@ -718,7 +764,6 @@ static void dma_attach_bufs(struct pxa955_cam_dev *pcdev)
 		* the tail of HW dma chain, and loop the tail to itself.
 		*/
 		if (buf_node->vb.state == VIDEOBUF_ACTIVE) {
-
 			tail_node = list_entry(buf_node->vb.queue.prev,
 						struct pxa_buf_node, vb.queue);
 
@@ -791,7 +836,7 @@ static int dma_alloc_desc(struct pxa_buf_node *buf_node,
 			desc->sg_cpu = dma_alloc_coherent(dev, desc->sg_size,
 					     &desc->sg_dma, GFP_KERNEL);
 		}
-		printk(KERN_DEBUG "cam: sglen %d, size %d, sg_cpu 0x%x\n",
+		printk(KERN_DEBUG "cam: sglen %d, size %d, sg_cpu 0x%08X\n",
 			desc->sglen, desc->sg_size, (unsigned int)desc->sg_cpu);
 		if (!desc->sg_cpu) {
 			printk(KERN_ERR "cam: dma_alloc_coherent "\
