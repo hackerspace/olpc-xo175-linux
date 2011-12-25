@@ -766,7 +766,6 @@ static void dma_attach_bufs(struct pxa955_cam_dev *pcdev)
 		if (buf_node->vb.state == VIDEOBUF_ACTIVE) {
 			tail_node = list_entry(buf_node->vb.queue.prev,
 						struct pxa_buf_node, vb.queue);
-
 			/*
 			* NOTE!!! only one desc for one frame buffer, if not in this way,
 			* need change here, as phy addr might not located between the
@@ -1339,8 +1338,8 @@ static void pxa955_videobuf_queue(struct videobuf_queue *vq,
 			sci_irq_enable(pcdev, IRQ_EOFX|IRQ_OFO);
 			csi_dphy(pcdev->csidev);
 			/* configure enable which camera interface controller*/
-			csi_enable(pcdev->csidev, icd->iface);
 			sci_enable(pcdev);
+			csi_enable(pcdev->csidev, icd->iface);
 
 #ifdef _CONTROLLER_DEADLOOP_RESET_
 			mod_timer(&pcdev->reset_timer, \
@@ -1980,6 +1979,7 @@ static int pxa955_cam_s_crop(struct soc_camera_device *icd,
 	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct pxa955_cam_dev *pcdev = ici->priv;
+	struct pxa_buf_node *buf_node;
 	int ret;
 
 #ifdef _CONTROLLER_DEADLOOP_RESET_
@@ -1988,14 +1988,22 @@ static int pxa955_cam_s_crop(struct soc_camera_device *icd,
 	del_timer(&pcdev->reset_timer);
 #endif
 	spin_lock(&pcdev->spin_lock);
+	sci_irq_disable(pcdev, IRQ_EOFX|IRQ_OFO);
 	sci_disable(pcdev);
 	spin_unlock(&pcdev->spin_lock);
 
 	ret = v4l2_subdev_call(sd, video, s_crop, crop);
 
-	/* skip 3 frames */
+	list_for_each_entry(buf_node, &pcdev->dma_buf_list, vb.queue) {
+		/* Mark all buf on dma chain to be new */
+		if (buf_node->vb.state == VIDEOBUF_QUEUED) {
+			buf_node->vb.state = VIDEOBUF_ACTIVE;
+		}
+	}
+	dma_chain_init(pcdev);
+
 	spin_lock(&pcdev->spin_lock);
-	sci_reg_set_bit(pcdev, REG_SCICR0, SCICR0_FSC(3));
+	sci_irq_enable(pcdev, IRQ_EOFX|IRQ_OFO);
 	sci_enable(pcdev);
 	spin_unlock(&pcdev->spin_lock);
 
@@ -2044,6 +2052,7 @@ static irqreturn_t cam_irq(int irq, void *data)
 {
 	struct pxa955_cam_dev *pcdev = data;
 	unsigned int irqs = 0;
+	struct pxa_buf_node *buf_node;
 
 	spin_lock(&pcdev->spin_lock);
 	irqs = sci_reg_read(pcdev, REG_SCISR);
@@ -2053,8 +2062,15 @@ static irqreturn_t cam_irq(int irq, void *data)
 		printk(KERN_ERR "cam: ccic over flow error!\n");
 		csi_disable(pcdev->csidev);
 		sci_disable(pcdev);
-		csi_enable(pcdev->csidev, pcdev->icd->iface);
+		list_for_each_entry(buf_node, &pcdev->dma_buf_list, vb.queue) {
+			/* Mark all buf on dma chain to be new */
+			if (buf_node->vb.state == VIDEOBUF_QUEUED) {
+				buf_node->vb.state = VIDEOBUF_ACTIVE;
+			}
+		}
+		dma_chain_init(pcdev);
 		sci_enable(pcdev);
+		csi_enable(pcdev->csidev, pcdev->icd->iface);
 		spin_unlock(&pcdev->spin_lock);
 		return IRQ_HANDLED;
 	}

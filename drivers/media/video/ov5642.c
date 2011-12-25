@@ -410,7 +410,7 @@ static int ov5642_s_crop(struct v4l2_subdev *sd, struct v4l2_crop *crop)
 		"LTWH = [0x%04X, 0x%04X, 0x%04X, 0x%04X]\n", \
 		crop->c.left, crop->c.top, crop->c.width, crop->c.height);
 	/* Delay 2~3 frames before sensor output get stable */
-	msleep(90);
+	msleep(70);
 	ov5642_s_stream(sd, 1);
 	return 0;
 }
