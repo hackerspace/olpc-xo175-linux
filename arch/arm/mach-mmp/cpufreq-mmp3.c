@@ -58,11 +58,12 @@ static unsigned int mmp3_cpufreq_get(unsigned int cpu)
 {
 	if (cpu >= num_cpus)
 		return -EINVAL;
-
+#ifndef CONFIG_CORE_MORPHING
 	if (cpu == 0 && (mmp3_core_num == ONE_CORE_MM ||
 			 mmp3_core_num == THREE_CORES))
 		return mmp3_getfreq(MMP3_CLK_MM);
 	else
+#endif
 		return mmp3_getfreq(MMP3_CLK_MP1);
 }
 
@@ -105,10 +106,12 @@ static int mmp3_cpufreq_target(struct cpufreq_policy *policy,
 
 	for_each_online_cpu(cpu) {
 		freqs[cpu].cpu = cpu;
+#ifndef CONFIG_CORE_MORPHING
 		if (cpu == 0 && (mmp3_core_num == ONE_CORE_MM ||
 				mmp3_core_num == THREE_CORES))
 			core = MMP3_CLK_MM;
 		else
+#endif
 			core = MMP3_CLK_MP1;
 		freqs[cpu].old = mmp3_cpufreq_get(cpu);
 		freqs[cpu].new = mmp3_get_pp_freq(pp_index, core);
@@ -266,6 +269,7 @@ static int __init cpufreq_init(void)
 #ifdef CONFIG_SMP
 		pr_err("only one core detected in cpufreq driver!\n");
 #endif
+#ifndef CONFIG_CORE_MORPHING
 		/* check if it's mm core */
 		if (hard_smp_processor_id() == 2) {
 			mmp3_core_num = ONE_CORE_MM;
@@ -274,6 +278,10 @@ static int __init cpufreq_init(void)
 			mmp3_core_num = ONE_CORE_MP1;
 			core = MMP3_CLK_MP1;
 		}
+#else
+		mmp3_core_num = ONE_CORE_MP1;
+		core = MMP3_CLK_MP1;
+#endif
 		for (j = 0, k = 0; j < freq_table_item_count; j++) {
 			freq = mmp3_get_pp_freq(j, core);
 			if (k > 0 &&
