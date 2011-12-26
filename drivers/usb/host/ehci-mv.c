@@ -33,6 +33,9 @@ struct ehci_hcd_mv {
 
 	struct mv_usb_platform_data	*pdata;
 
+	/* record the clock status */
+	unsigned int			active;
+
 	/* clock source and total clock number */
 	unsigned int			clknum;
 	struct clk			*clk[0];
@@ -52,6 +55,40 @@ static void ehci_clock_disable(struct ehci_hcd_mv *ehci_mv)
 
 	for (i = 0; i < ehci_mv->clknum; i++)
 		clk_disable(ehci_mv->clk[i]);
+}
+
+static int mv_ehci_enable(struct ehci_hcd_mv *ehci_mv)
+{
+	int retval;
+
+	if (ehci_mv->active) {
+		pr_info("mv ehci is enabled already...\n");
+		return 0;
+	}
+
+	ehci_clock_enable(ehci_mv);
+	if (ehci_mv->pdata->phy_init) {
+		retval = ehci_mv->pdata->phy_init(ehci_mv->phy_regs);
+		if (retval) {
+			pr_err("Host: init phy error %d\n", retval);
+			ehci_clock_disable(ehci_mv);
+			return retval;
+		}
+	}
+
+	ehci_mv->active = 1;
+
+	return 0;
+}
+
+static void mv_ehci_disable(struct ehci_hcd_mv *ehci_mv)
+{
+	if (ehci_mv->active) {
+		if (ehci_mv->pdata->phy_deinit)
+			ehci_mv->pdata->phy_deinit(ehci_mv->phy_regs);
+		ehci_clock_disable(ehci_mv);
+		ehci_mv->active = 0;
+	}
 }
 
 static int mv_ehci_reset(struct usb_hcd *hcd)
@@ -201,13 +238,10 @@ static int mv_ehci_probe(struct platform_device *dev)
 		goto err_map_phy_regs;
 	}
 
-	ehci_clock_enable(ehci_mv);
-	if (pdata->phy_init) {
-		retval = pdata->phy_init(ehci_mv->phy_regs);
-		if (retval) {
-			dev_err(&dev->dev, "init phy error %d\n", retval);
-			goto err_ehci_enable;
-		}
+	retval = mv_ehci_enable(ehci_mv);
+	if (retval) {
+		dev_err(&dev->dev, "init phy error %d\n", retval);
+		goto err_ehci_enable;
 	}
 
 	ehci_mv->op_regs = (struct mv_op_regs __iomem *)((u32)ehci_mv->cap_regs
@@ -249,9 +283,7 @@ static int mv_ehci_probe(struct platform_device *dev)
 			goto err_set_host;
 		}
 		/* otg will enable clock before use as host */
-		if (pdata->phy_deinit)
-			pdata->phy_deinit(ehci_mv->phy_regs);
-		ehci_clock_disable(ehci_mv);
+		mv_ehci_disable(ehci_mv);
 #else
 		dev_info(&dev->dev,
 			"MV_USB_MODE_OTG must have CONFIG_USB_OTG enabled\n");
@@ -287,7 +319,7 @@ err_set_host:
 		otg_put_transceiver(ehci_mv->otg);
 err_get_transceiver:
 err_get_irq:
-	ehci_clock_disable(ehci_mv);
+	mv_ehci_disable(ehci_mv);
 err_ehci_enable:
 	iounmap((void *)ehci_mv->phy_regs);
 err_map_phy_regs:
@@ -325,7 +357,7 @@ static int mv_ehci_remove(struct platform_device *dev)
 		if (ehci_mv->pdata->set_vbus)
 			ehci_mv->pdata->set_vbus(0);
 
-		ehci_clock_disable(ehci_mv);
+		mv_ehci_disable(ehci_mv);
 	}
 
 	iounmap(ehci_mv->cap_regs);
