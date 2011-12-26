@@ -249,8 +249,6 @@ static int ov5642_try_fmt(struct v4l2_subdev *sd,
 
 	ov5642->regs_default = get_fmt_default_setting(mf->code);
 
-	ov5642->regs_resolution = get_yuv_resolution_regs(mf->width, mf->height);
-
 	ov5642->regs_lane_set = NULL;
 
 	mf->field = V4L2_FIELD_NONE;
@@ -260,6 +258,7 @@ static int ov5642_try_fmt(struct v4l2_subdev *sd,
 	case V4L2_MBUS_FMT_UYVY8_2X8:
 	case V4L2_MBUS_FMT_VYUY8_2X8:
 		/* enum the supported sizes*/
+		ov5642->regs_resolution = get_yuv_resolution_regs(mf->width, mf->height);
 		ov5642->regs_size = get_yuv_size_regs(mf->width, mf->height);
 		if (!ov5642->regs_size) {
 			dev_err(&client->dev, "ov5642 unsupported yuv resolution!\n");
@@ -276,6 +275,7 @@ static int ov5642_try_fmt(struct v4l2_subdev *sd,
 		break;
 	case V4L2_MBUS_FMT_JPEG_1X8:
 		/* enum the supported sizes for JPEG*/
+		ov5642->regs_resolution = NULL;
 		ov5642->regs_size = get_jpg_size_regs(mf->width, mf->height);
 		if (!ov5642->regs_size) {
 			dev_err(&client->dev, "ov5642 unsupported yuv resolution!\n");
