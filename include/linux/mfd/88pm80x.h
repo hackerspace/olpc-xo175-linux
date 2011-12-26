@@ -59,6 +59,13 @@ enum {
 /*Audio*/
 
 /*88PM800 registers*/
+enum {
+	PM80X_INVALID_PAGE = 0,
+	PM80X_BASE_PAGE,
+	PM80X_POWER_PAGE,
+	PM80X_GPADC_PAGE,
+	PM80X_TEST_PAGE,
+};
 /*********************************/
 /*page 0 basic: slave adder 0x60*/
 /*********************************/

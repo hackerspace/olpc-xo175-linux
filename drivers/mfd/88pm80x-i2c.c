@@ -37,7 +37,7 @@
 
 #endif /*CACHE_88PM80X_I2C */
 
-static struct i2c_client *pm807_i2c_client;
+static struct pm80x_chip *g_pm80x_chip;
 
 /**
 ************  LOCAL UTILITIES  ****************************
@@ -94,11 +94,30 @@ int pm80x_reg_write(struct i2c_client *i2c, int reg, unsigned char data)
 }
 EXPORT_SYMBOL(pm80x_reg_write);
 
+static inline struct i2c_client *get_i2c_client(int reg)
+{
+	switch (reg >> 8) {
+	case PM80X_BASE_PAGE:
+		return g_pm80x_chip->base_page;
+	case PM80X_POWER_PAGE:
+		return g_pm80x_chip->power_page;
+	case PM80X_GPADC_PAGE:
+		return g_pm80x_chip->gpadc_page;
+	case PM80X_TEST_PAGE:
+		return g_pm80x_chip->test_page;
+	default:
+		return NULL;
+	}
+}
+
 int pm80x_codec_reg_read(int reg)
 {
 	unsigned char data = 0;
 	int ret;
-	ret = pm80x_bulk_read(pm807_i2c_client, reg, 1, &data);
+	struct i2c_client *i2c = get_i2c_client(reg);
+	BUG_ON(!i2c);
+	reg &= 0xff;
+	ret = pm80x_bulk_read(i2c, reg, 1, &data);
 	if (ret < 0)
 		return ret;
 	else
@@ -108,15 +127,21 @@ EXPORT_SYMBOL(pm80x_codec_reg_read);
 
 int pm80x_codec_reg_write(int reg, unsigned char data)
 {
-	return pm80x_bulk_write(pm807_i2c_client, reg, 1, &data);
+	struct i2c_client *i2c = get_i2c_client(reg);
+	BUG_ON(!i2c);
+	reg &= 0xff;
+	return pm80x_bulk_write(i2c, reg, 1, &data);
 }
 EXPORT_SYMBOL(pm80x_codec_reg_write);
 
 int pm80x_codec_reg_set_bits(int reg, unsigned char mask, unsigned char data)
 {
 	int ret;
+	struct i2c_client *i2c = get_i2c_client(reg);
+	BUG_ON(!i2c);
+	reg &= 0xff;
 	/*we have mutex protect in pm80x_set_bits() */
-	ret = pm80x_set_bits(pm807_i2c_client, reg, mask, data);
+	ret = pm80x_set_bits(i2c, reg, mask, data);
 	return ret;
 }
 EXPORT_SYMBOL(pm80x_codec_reg_set_bits);
@@ -227,7 +252,6 @@ static int __devinit pm80x_probe(struct i2c_client *client,
 
 	chip->id = verify_addr(client);
 	chip->client = client;
-	pm807_i2c_client = client;
 	i2c_set_clientdata(client, chip);
 	chip->dev = &client->dev;
 	mutex_init(&chip->io_lock);
@@ -297,6 +321,7 @@ static int __devinit pm80x_probe(struct i2c_client *client,
 
 	pmic_cache_init(chip->id);
 
+	g_pm80x_chip = chip;
 	return 0;
 }
 
