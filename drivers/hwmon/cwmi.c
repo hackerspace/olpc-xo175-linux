@@ -29,7 +29,6 @@
 #include <linux/interrupt.h>
 #include <linux/cwmi.h>
 #include <linux/slab.h>
-#include <linux/earlysuspend.h>
 
 #define USE_VIRTUAL_ORIENTATION_SENSOR		1
 
@@ -166,9 +165,6 @@ struct i2c_cwmi_sensor {
 
 	unsigned int sample_interval;
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	struct early_suspend early_suspend;
-#endif
 	atomic_t enabled;
 	struct mutex lock;
 	int zero_offset[3];
@@ -428,8 +424,7 @@ static int cwmi_mag_read(struct i2c_cwmi_sensor *sensor)
 	u8 buf[6];
 	int hw_d[3] = { 0 };
 
-	if (cwmi_i2c_read
-	    (sensor, MAG_DATA_X_H | READ_MULTIPLE_BYTES, buf, sizeof(buf)) < 0)
+	if (cwmi_i2c_read(sensor, MAG_DATA_X_H | READ_MULTIPLE_BYTES, buf, sizeof(buf)) < 0)
 		return -1;
 
 	hw_d[0] = (int)(buf[0] << 8 | buf[1]);
@@ -444,6 +439,33 @@ static int cwmi_mag_read(struct i2c_cwmi_sensor *sensor)
 	sensor->data[0] = hw_d[0] * 1000 / MAG_1GAUSS_COUNT_DIFF_X;
 	sensor->data[1] = hw_d[1] * 1000 / MAG_1GAUSS_COUNT_DIFF_Y;
 	sensor->data[2] = hw_d[2] * 1000 / MAG_1GAUSS_COUNT_DIFF_Z;
+
+	return 0;
+}
+
+static int cwmi_align_axis(struct i2c_cwmi_sensor *sensor, int *aligned_data)
+{
+	int i = 0;
+	int j = 0;
+	int sum = 0;
+	int *axes = NULL;
+
+	if (!(struct cwmi_platform_data *)sensor->client->dev.platform_data) {
+		aligned_data[0] = sensor->data[0];
+		aligned_data[1] = sensor->data[1];
+		aligned_data[2] = sensor->data[2];
+		return 0;
+	}
+
+	axes =
+	    ((struct cwmi_platform_data *)sensor->client->dev.platform_data)->
+	    axes;
+	for (i = 0; i < 3; i++) {
+		sum = 0;
+		for (j = 0; j < 3; j++)
+			sum += sensor->data[j] * axes[i * 3 + j];
+		aligned_data[i] = sum;
+	}
 
 	return 0;
 }
@@ -665,11 +687,12 @@ static int interval_set(struct device *dev,
 	if (res < 0)
 		return res;
 
-	pr_info("Sensor [%s] interval is %ld\n", input->name, val);
 
-	if (!sensor->is_virtual)
+	if (!sensor->is_virtual && atomic_read(&sensor->enabled)) {
+		pr_info("Sensor [%s] interval is %ld\n", input->name, val);
 		cwmi_set_delay(sensor, (int)val);
-
+	} else
+		pr_err("Sensor[%s] has been disabled, interval set is not allowed", input->name);
 	return count;
 }
 
@@ -686,14 +709,20 @@ static int data_show(struct device *dev,
 	struct input_dev *input = to_input_dev(dev);
 	struct i2c_cwmi_sensor *sensor =
 	    (struct i2c_cwmi_sensor *)input_get_drvdata(input);
+	int aligned_data[3];
 
-	if (strcmp(input->name, I2C_ACC_NAME) == 0)
-		cwmi_acc_read(sensor);
-	else
-		cwmi_mag_read(sensor);
+	if (atomic_read(&sensor->enabled)) {
+		if (strcmp(input->name, I2C_ACC_NAME) == 0)
+			cwmi_acc_read(sensor);
+		else
+			cwmi_mag_read(sensor);
 
-	return sprintf(buf, "%d %d %d\n", sensor->data[0], sensor->data[1],
-		       sensor->data[2]);
+		if (cwmi_align_axis(sensor, aligned_data))
+			pr_err("%s(): axis alignment failed.\n", __func__);
+		return sprintf(buf, "%d %d %d\n", aligned_data[0], aligned_data[1],
+				aligned_data[2]);
+	} else
+		return -EINVAL;
 }
 
 static int status_show(struct device *dev,
@@ -721,33 +750,6 @@ static struct attribute_group sysfs_attribute_group = {
 	.attrs = sysfs_attributes
 };
 
-static int cwmi_align_axis(struct i2c_cwmi_sensor *sensor, int *aligned_data)
-{
-	int i = 0;
-	int j = 0;
-	int sum = 0;
-	int *axes = NULL;
-
-	if (!(struct cwmi_platform_data *)sensor->client->dev.platform_data) {
-		aligned_data[0] = sensor->data[0];
-		aligned_data[1] = sensor->data[1];
-		aligned_data[2] = sensor->data[2];
-		return 0;
-	}
-
-	axes =
-	    ((struct cwmi_platform_data *)sensor->client->dev.
-	     platform_data)->axes;
-	for (i = 0; i < 3; i++) {
-		sum = 0;
-		for (j = 0; j < 3; j++)
-			sum += sensor->data[j] * axes[i * 3 + j];
-		aligned_data[i] = sum;
-	}
-
-	return 0;
-}
-
 static void cwmi_mag_report_values(struct i2c_cwmi_sensor *sensor)
 {
 	int aligned_data[3];
@@ -769,9 +771,10 @@ static void cwmi_acc_report_values(struct i2c_cwmi_sensor *sensor)
 	if (cwmi_align_axis(sensor, aligned_data))
 		pr_err("%s(): axis alignment failed.\n", __func__);
 
-	input_report_abs(sensor->input, ABS_X, aligned_data[0]);
-	input_report_abs(sensor->input, ABS_Y, aligned_data[1]);
-	input_report_abs(sensor->input, ABS_Z, aligned_data[2]);
+	input_report_abs(sensor->input, ABS_HAT0X, aligned_data[0]);
+	input_report_abs(sensor->input, ABS_HAT0Y, aligned_data[1]);
+	input_report_abs(sensor->input, ABS_HAT1X, aligned_data[2]);
+
 	input_sync(sensor->input);
 
 	pr_debug("ax=%04d, ay=%04d, az=%04d\n",
@@ -859,6 +862,10 @@ static int cwmi_acc_input_init(struct i2c_cwmi_sensor *sensor)
 	input_set_drvdata(sensor->input, sensor);
 
 	set_bit(EV_ABS, sensor->input->evbit);
+
+	input_set_abs_params(sensor->input, ABS_HAT0X, -ACC_MAX, ACC_MAX, 0, 0);
+	input_set_abs_params(sensor->input, ABS_HAT0Y, -ACC_MAX, ACC_MAX, 0, 0);
+	input_set_abs_params(sensor->input, ABS_HAT1X, -ACC_MAX, ACC_MAX, 0, 0);
 	input_set_abs_params(sensor->input, ABS_X, -ACC_MAX, ACC_MAX, 0, 0);
 	input_set_abs_params(sensor->input, ABS_Y, -ACC_MAX, ACC_MAX, 0, 0);
 	input_set_abs_params(sensor->input, ABS_Z, -ACC_MAX, ACC_MAX, 0, 0);
@@ -1008,23 +1015,6 @@ static int cwmi_ori_input_init(struct i2c_cwmi_sensor *sensor)
 }
 #endif
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static void cwmi_early_suspend(struct early_suspend *h)
-{
-	struct i2c_cwmi_sensor *sensor =
-		container_of(h, struct i2c_cwmi_sensor, early_suspend);
-	if (((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power)
-		((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power(0);
-}
-static void cwmi_late_resume(struct early_suspend *h)
-{
-	struct i2c_cwmi_sensor *sensor =
-		container_of(h, struct i2c_cwmi_sensor, early_suspend);
-	if (((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power)
-		((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power(1);
-}
-#endif
-
 static int cwmi_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	struct i2c_cwmi_sensor *sensor;
@@ -1033,7 +1023,6 @@ static int cwmi_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 	if (((struct cwmi_platform_data *)(client->dev.platform_data))->set_power)
 		((struct cwmi_platform_data *)(client->dev.platform_data))->set_power(1);
-
 	sensor = kzalloc(sizeof(struct i2c_cwmi_sensor), GFP_KERNEL);
 	if (sensor == NULL) {
 		pr_err("Failed to allocate memory\n");
@@ -1099,15 +1088,11 @@ static int cwmi_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	if (!cwmi_find_sensor(ORI_NAME))
 		cwmi_ori_sensor_init();
 
-	pr_info("%s i2c device created (Interruptible=%d, irq = %d).\n",
-		client->name, sensor->use_interrupt, sensor->client->irq);
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	sensor->early_suspend.level = EARLY_SUSPEND_LEVEL_STOP_DRAWING;
-	sensor->early_suspend.suspend = cwmi_early_suspend;
-	sensor->early_suspend.resume = cwmi_late_resume;
-	register_early_suspend(&sensor->early_suspend);
-#endif
+	pr_info("%s i2c device created (Interruptible=%d).\n",
+		client->name, sensor->use_interrupt);
 
+	if (((struct cwmi_platform_data *)(client->dev.platform_data))->set_power)
+		((struct cwmi_platform_data *)(client->dev.platform_data))->set_power(0);
 	return 0;
 
 exit_free_irq:

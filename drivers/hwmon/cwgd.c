@@ -29,7 +29,6 @@
 #include <linux/slab.h>
 #include <asm/div64.h>
 #include <linux/interrupt.h>
-#include <linux/earlysuspend.h>
 #include <mach/gpio.h>
 #include <plat/mfp.h>
 #include <linux/time.h>
@@ -145,10 +144,6 @@ struct i2c_cwgd_sensor {
 	unsigned int sample_interval;
 	bool use_interrupt;
 	struct mutex lock;
-
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	struct early_suspend early_suspend;
-#endif
 
 	int entries;
 	bool discard_next_event;
@@ -377,14 +372,13 @@ static int cwgd_align_axis(struct i2c_cwgd_sensor *sensor, int *aligned_data)
 
 	axes =
 	    ((struct cwgd_platform_data *)sensor->client->dev.
-	     platform_data)->axes;
+	    platform_data)->axes;
 	for (i = 0; i < 3; i++) {
 		sum = 0;
 		for (j = 0; j < 3; j++)
 			sum += sensor->data[j] * axes[i * 3 + j];
 		aligned_data[i] = sum;
 	}
-
 	return 0;
 }
 
@@ -399,7 +393,8 @@ static int cwgd_read_raw(struct i2c_cwgd_sensor *sensor, int num)
 
 	if (!sensor->use_interrupt) {
 		do_gettimeofday(&now);
-		sensor->dtime = (now.tv_sec-previous.tv_sec) * 1000000 + (now.tv_usec - previous.tv_usec);
+		sensor->dtime = (now.tv_sec - previous.tv_sec) * 1000000
+				+ (now.tv_usec - previous.tv_usec);
 		memcpy(&previous, &now, sizeof(struct timeval));
 	}
 #if USE_FIFO
@@ -440,10 +435,10 @@ static int cwgd_report_values(struct i2c_cwgd_sensor *sensor)
 		static struct timeval previous;
 
 		do_gettimeofday(&now);
-		sensor->dtime = ((now.tv_sec-previous.tv_sec) * 1000000
+		sensor->dtime = ((now.tv_sec - previous.tv_sec) * 1000000
 				+ (now.tv_usec - previous.tv_usec));
 		memcpy(&previous, &now, sizeof(struct timeval));
-		pr_debug("### dtime = %u\n", sensor->dtime);
+
 	}
 	res =
 	    cwgd_read_raw(sensor, sensor->entries + sensor->discard_next_event);
@@ -463,9 +458,9 @@ static int cwgd_report_values(struct i2c_cwgd_sensor *sensor)
 		return -1;
 	}
 
-	input_report_abs(sensor->input, ABS_X, aligned_data[0]);
-	input_report_abs(sensor->input, ABS_Y, aligned_data[1]);
-	input_report_abs(sensor->input, ABS_Z, aligned_data[2]);
+	input_report_abs(sensor->input, ABS_HAT0X, aligned_data[0]);
+	input_report_abs(sensor->input, ABS_HAT0Y, aligned_data[1]);
+	input_report_abs(sensor->input, ABS_HAT1X, aligned_data[2]);
 	input_report_abs(sensor->input, ABS_GAS, sensor->dtime);
 	input_sync(sensor->input);
 
@@ -617,9 +612,11 @@ static int interval_set(struct device *dev,
 	if (val < MIN_INTERVAL_MS)
 		val = MIN_INTERVAL_MS;
 	sensor->sample_interval = val;
-	if (cwgd_set_delay(sensor, sensor->sample_interval) < 0)
-		pr_err("error in set bandwidth function\n");
-
+	if (atomic_read(&sensor->enabled)) {
+		if (cwgd_set_delay(sensor, sensor->sample_interval) < 0)
+			pr_err("error in set bandwidth function\n");
+	} else
+		pr_err("Sensor[%s] has been disabled, interval set is not allowed", client->name);
 	return count;
 }
 
@@ -636,12 +633,21 @@ static int data_show(struct device *dev,
 	struct i2c_client *client = to_i2c_client(dev->parent);
 	struct i2c_cwgd_sensor *sensor =
 	    (struct i2c_cwgd_sensor *)i2c_get_clientdata(client);
+	int aligned_data[3];
 
-	if (cwgd_read_raw(sensor, 1))
-		pr_err("Cannot read raw data\n");
+	if (atomic_read(&sensor->enabled)) {
+		if (cwgd_read_raw(sensor, 1))
+			pr_err("Cannot read raw data\n");
 
-	return sprintf(buf, "%d %d %d\n", sensor->data[0], sensor->data[1],
-		       sensor->data[2]);
+		if (cwgd_align_axis(sensor, aligned_data)) {
+			pr_err("%s(): axis alignment failed.\n", __func__);
+			return -1;
+		}
+
+		return sprintf(buf, "%d %d %d\n", aligned_data[0], aligned_data[1],
+				aligned_data[2]);
+	} else
+		return -EINVAL;
 }
 
 static int status_show(struct device *dev,
@@ -757,8 +763,7 @@ static int cwgd_misc_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static long cwgd_ioctl(struct file *file,
-		      unsigned int cmd, unsigned long arg)
+static long cwgd_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int err = 0;
 	unsigned char data[6];
@@ -837,7 +842,7 @@ static long cwgd_ioctl(struct file *file,
 			pr_err("copy_from_user error\n");
 			return -EFAULT;
 		}
-		return cwgd_self_test(gyro, (u8)(mode & 0xff));
+		return cwgd_self_test(gyro, mode);
 
 	case CWGD_GET_TEMPERATURE:
 		temperature = (u8) cwgd_read_register(gyro, OUT_TEMP_REG);
@@ -935,6 +940,7 @@ static void cwgd_work_func(struct work_struct *work)
 		delay_ns = 1;
 
 	hrtimer_start(&sensor->timer, ns_to_ktime(delay_ns), HRTIMER_MODE_REL);
+
 #endif
 }
 
@@ -979,6 +985,9 @@ static int cwgd_input_init(struct i2c_cwgd_sensor *sensor)
 	sensor->input->id.bustype = BUS_I2C;
 
 	set_bit(EV_ABS, sensor->input->evbit);
+	input_set_abs_params(sensor->input, ABS_HAT0X, -DPS_MAX, DPS_MAX, 0, 0);
+	input_set_abs_params(sensor->input, ABS_HAT0Y, -DPS_MAX, DPS_MAX, 0, 0);
+	input_set_abs_params(sensor->input, ABS_HAT1X, -DPS_MAX, DPS_MAX, 0, 0);
 	input_set_abs_params(sensor->input, ABS_X, -DPS_MAX, DPS_MAX, 0, 0);
 	input_set_abs_params(sensor->input, ABS_Y, -DPS_MAX, DPS_MAX, 0, 0);
 	input_set_abs_params(sensor->input, ABS_Z, -DPS_MAX, DPS_MAX, 0, 0);
@@ -1021,27 +1030,6 @@ static int cwgd_resume(struct device *dev)
 {
 	return 0;
 }
-
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static void cwgd_early_suspend(struct early_suspend *h)
-{
-	struct i2c_cwgd_sensor *sensor =
-	    container_of(h, struct i2c_cwgd_sensor, early_suspend);
-/*	cwgd_suspend(&sensor->client->dev);*/
-	if (((struct cwgd_platform_data *)(sensor->client->dev.platform_data))->set_power)
-		((struct cwgd_platform_data *)(sensor->client->dev.platform_data))->set_power(0);
-
-}
-
-static void cwgd_late_resume(struct early_suspend *h)
-{
-	struct i2c_cwgd_sensor *sensor =
-	    container_of(h, struct i2c_cwgd_sensor, early_suspend);
-/*	cwgd_resume(&sensor->client->dev);*/
-	if (((struct cwgd_platform_data *)(sensor->client->dev.platform_data))->set_power)
-		((struct cwgd_platform_data *)(sensor->client->dev.platform_data))->set_power(1);
-}
-#endif
 
 static int cwgd_probe(struct i2c_client *client,
 		      const struct i2c_device_id *devid)
@@ -1155,17 +1143,13 @@ static int cwgd_probe(struct i2c_client *client,
 		goto out_unreg_miscdev;
 	}
 #endif
-
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	sensor->early_suspend.level = EARLY_SUSPEND_LEVEL_STOP_DRAWING;
-	sensor->early_suspend.suspend = cwgd_early_suspend;
-	sensor->early_suspend.resume = cwgd_late_resume;
-	register_early_suspend(&sensor->early_suspend);
-#endif
-
 	printk
 	    ("%s probed: device created successfully: interruptible: %d irq=%d\n",
 	     DEV_NAME, sensor->use_interrupt, sensor->client->irq);
+
+	if (client->dev.platform_data)
+		if (((struct cwgd_platform_data *)(client->dev.platform_data))->set_power)
+			((struct cwgd_platform_data *)(client->dev.platform_data))->set_power(0);
 
 	return 0;
 
