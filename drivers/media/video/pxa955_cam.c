@@ -1517,6 +1517,8 @@ static void pxa955_cam_remove_device(struct soc_camera_device *icd)
 	struct pxa955_cam_dev *pcdev = ici->priv;
 	struct videobuf_queue *vq = pcdev->videoq;
 	struct soc_camera_link *icl = to_soc_camera_link(icd);
+	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
+	struct v4l2_mbus_framefmt mf;
 	int i;
 
 	BUG_ON(icd != pcdev->icd);
@@ -1562,6 +1564,22 @@ static void pxa955_cam_remove_device(struct soc_camera_device *icd)
 			vq->bufs[i] = NULL;
 		}
 	}
+
+	if (!v4l2_subdev_call(sd, video, g_mbus_fmt, &mf)) {
+		for (i = 0; i < icd->num_user_formats; i++) {
+			if (icd->user_formats[i].code == mf.code) {
+				icd->current_fmt	= icd->user_formats + i;
+				icd->user_width		= mf.width;
+				icd->user_height	= mf.height;
+				icd->colorspace		= mf.colorspace;
+				icd->field		= mf.field;
+			};
+		}
+	}
+	printk(KERN_INFO "cam: next time \"%s\" will be initialized as "\
+			"%c%c%c%c, %ux%u\n", icl->module_name,\
+			pixfmtstr(icd->current_fmt->host_fmt->fourcc),\
+			icd->user_width, icd->user_height);
 
 #ifdef _ARB_CHANGE_
 		*pri_axi = 0;
