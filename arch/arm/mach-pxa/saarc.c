@@ -290,10 +290,12 @@ static void regulator_init_pm8607(void)
 		REG_SUPPLY_INIT(PM8607_ID_LDO1, "v_gps", NULL);
 		REG_SUPPLY_INIT(PM8607_ID_LDO9, "v_cam", NULL);
 		REG_SUPPLY_INIT(PM8607_ID_LDO13, "vmmc", "sdhci-pxa.1");
+		REG_SUPPLY_INIT(PM8607_ID_LDO10, "v_cywee", NULL);
 
 		REG_INIT(i++, PM8607_ID, LDO1, 1200000, 3300000, 0, 0);
 		REG_INIT(i++, PM8607_ID, LDO9, 1800000, 3300000, 0, 0);
 		REG_INIT(i++, PM8607_ID, LDO13, 1800000, 3300000, 0, 0);
+		REG_INIT(i++, PM8607_ID, LDO10, 2800000, 2800000, 0, 0);
 		printk(KERN_INFO "%s: select saarC NEVO ldo map\n", __func__);
 	break;
 
@@ -325,6 +327,7 @@ static void regulator_init_pm800(void)
 	*/
 	REG_SUPPLY_INIT(PM800_ID_LDO14, "Vdd_IO", NULL);
 	REG_SUPPLY_INIT(PM800_ID_LDO15, "VBat", NULL);
+	REG_SUPPLY_INIT(PM800_ID_LDO11, "v_cywee", NULL);
 
 	REG_INIT(i++, PM800_ID, LDO18, 1200000, 3300000, 0, 0);
 	REG_INIT(i++, PM800_ID, LDO16, 1800000, 3300000, 0, 0);
@@ -337,6 +340,8 @@ static void regulator_init_pm800(void)
 
 	REG_INIT(i++, PM800_ID, LDO14, 1800000, 3300000, 0, 0);
 	REG_INIT(i++, PM800_ID, LDO15, 1800000, 3300000, 0, 0);
+
+	REG_INIT(i++, PM800_ID, LDO11, 2800000, 2800000, 0, 0);
 
 	switch (get_board_id()) {
 	case OBM_DKB_2_NEVO_C0_BOARD:
@@ -463,8 +468,30 @@ static void __init init_mmc(void)
 }
 #endif
 
+static int cywee_set_power(int on)
+{
+	struct regulator *v_ldo11;
+	v_ldo11 = regulator_get(NULL, "v_cywee");
+
+	if (IS_ERR(v_ldo11)) {
+		v_ldo11 = NULL;
+		return -EIO;
+	}
+
+	if (on) {
+		regulator_enable(v_ldo11);
+		msleep(100);
+	} else {
+		msleep(100);
+		regulator_disable(v_ldo11);
+	}
+	regulator_put(v_ldo11);
+	v_ldo11 = NULL;
+	return 0;
+}
+
 static struct cwmi_platform_data cwmi_acc_data = {
-	.set_power = NULL,
+	.set_power = cywee_set_power,
 	.axes = {
 		0, 0, 0,
 		0, 0, 0,
@@ -472,7 +499,7 @@ static struct cwmi_platform_data cwmi_acc_data = {
 };
 
 static struct cwmi_platform_data cwmi_mag_data = {
-	.set_power = NULL,
+	.set_power = cywee_set_power,
 	.axes = {
 		0, 0, 0,
 		0, 0, 0,
@@ -480,7 +507,7 @@ static struct cwmi_platform_data cwmi_mag_data = {
 };
 
 static struct cwgd_platform_data cwgd_plat_data = {
-	.set_power = NULL,
+	.set_power = cywee_set_power,
 	.axes = {
 		0, 0, 0,
 		0, 0, 0,
