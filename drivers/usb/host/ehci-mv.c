@@ -36,6 +36,7 @@ struct ehci_hcd_mv {
 	/* record the clock status */
 	unsigned int			active;
 
+	unsigned int			port_speed;
 	/* clock source and total clock number */
 	unsigned int			clknum;
 	struct clk			*clk[0];
@@ -393,10 +394,182 @@ static void mv_ehci_shutdown(struct platform_device *pdev)
 		hcd->driver->shutdown(hcd);
 }
 
+#ifdef CONFIG_PM
+static int mv_ehci_suspend(struct platform_device *pdev,
+				pm_message_t message)
+{
+	struct ehci_hcd_mv *ehci_mv = platform_get_drvdata(pdev);
+	struct usb_hcd *hcd = ehci_mv->hcd;
+	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
+	struct ehci_regs __iomem *hc_reg = ehci->regs;
+	unsigned long flags;
+	int    rc = 0;
+
+	/* For OTG, the following will be done in OTG driver*/
+	if (!strcmp(pdev->name, "pxa-u2oehci"))
+		return 0;
+
+	/* The following is for HSIC host */
+	if (time_before(jiffies, ehci->next_statechange))
+		msleep(20);
+
+	/* Root hub was already suspended. Disable irq emission and
+	 * mark HW unaccessible, bail out if RH has been resumed. Use
+	 * the spinlock to properly synchronize with possible pending
+	 * RH suspend or resume activity.
+	 *
+	 * This is still racy as hcd->state is manipulated outside of
+	 * any locks =P But that will be a different fix.
+	 */
+	spin_lock_irqsave(&ehci->lock, flags);
+	if (hcd->state != HC_STATE_SUSPENDED) {
+		rc = -EINVAL;
+		goto bail;
+	}
+
+	ehci_writel(ehci, 0, &ehci->regs->intr_enable);
+	(void)ehci_readl(ehci, &ehci->regs->intr_enable);
+
+	/* Store port speed before suspend */
+	ehci_mv->port_speed =
+		(ehci_readl(ehci, &hc_reg->port_status[0]) >> 26) & 0x3;
+
+
+	clear_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
+
+bail:
+	spin_unlock_irqrestore(&ehci->lock, flags);
+
+	if (ehci_mv->pdata->set_vbus)
+		ehci_mv->pdata->set_vbus(0);
+
+	mv_ehci_disable(ehci_mv);
+
+	return rc;
+}
+
+static int mv_ehci_resume(struct platform_device *pdev)
+{
+	struct ehci_hcd_mv *ehci_mv = platform_get_drvdata(pdev);
+	struct usb_hcd *hcd = ehci_mv->hcd;
+	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
+	struct ehci_regs __iomem *hc_reg = ehci->regs;
+	int retval = 0;
+	u32 val;
+
+	/* For OTG, the following will be done in OTG driver*/
+	if (!strcmp(pdev->name, "pxa-u2oehci"))
+		return 0;
+
+	/* The following is for HSIC host */
+	retval = mv_ehci_enable(ehci_mv);
+	if (retval) {
+		dev_err(&pdev->dev, "init phy error %d\n", retval);
+		return 0;
+	}
+
+	if (ehci_mv->pdata->set_vbus) {
+		retval = ehci_mv->pdata->set_vbus(1);
+		if (retval) {
+			dev_err(&pdev->dev, "Failed set vbus: %d\n", retval);
+			goto  err_ehci_disable;
+		}
+	}
+
+	if (ehci_mv->pdata->private_init)
+		ehci_mv->pdata->private_init(ehci_mv->op_regs,
+					ehci_mv->phy_regs);
+
+	if (time_before(jiffies, ehci->next_statechange))
+		msleep(100);
+
+	/* Mark hardware accessible again */
+	set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
+
+	/* Enable USB Port Power */
+	val = ehci_readl(ehci, &hc_reg->port_status[0]);
+	val |= PORT_POWER;
+	ehci_writel(ehci, val, &hc_reg->port_status[0]);
+	udelay(20);
+
+	/* Force USB contorller to port_speed before suspend */
+	if (!ehci_readl(ehci, &hc_reg->async_next)) {
+		val = ehci_readl(ehci, &hc_reg->port_status[0]) & ~(0xf << 16);
+		switch (ehci_mv->port_speed) {
+		case USB_PORT_SPEED_HIGH:
+			val |= 0x5 << 16;
+			break;
+		case USB_PORT_SPEED_FULL:
+			val |= 0x6 << 16;
+			break;
+		case USB_PORT_SPEED_LOW:
+			val |= 0x7 << 16;
+			break;
+		default:
+			dev_err(&pdev->dev, "No such type speed support.");
+			goto err_ehci_disable;
+		}
+
+		ehci_writel(ehci, val, &hc_reg->port_status[0]);
+		udelay(20);
+
+		/* Disable Test Mode */
+		val = ehci_readl(ehci, &hc_reg->port_status[0]);
+		val &= ~(0xf << 16);
+		ehci_writel(ehci, val, &hc_reg->port_status[0]);
+		udelay(20);
+	}
+
+	/* Wait for PORT_CONNECT assert */
+	if (handshake(ehci, &hc_reg->port_status[0],
+			PORT_CONNECT, PORT_CONNECT, 5000)) {
+		pr_err("%s:waiting for PORT_CONNECT timeout!\n", __func__);
+		goto err_ehci_disable;
+	}
+
+	/* Wait for PORT_PE assert */
+	if (handshake(ehci, &hc_reg->port_status[0],
+			PORT_PE, PORT_PE, 5000)) {
+		pr_err("%s:waiting for PORT_PE timeout!\n", __func__);
+		goto err_ehci_disable;
+	}
+
+	/* Port change detect */
+	val = ehci_readl(ehci, &hc_reg->status);
+	val |= STS_PCD;
+	ehci_writel(ehci, val, &hc_reg->status);
+
+	/* Place USB Controller in Suspend Mode, will resume later */
+	val = ehci_readl(ehci, &hc_reg->port_status[0]);
+	if ((val & PORT_POWER) && (val & PORT_PE)) {
+		val |= PORT_SUSPEND;
+		ehci_writel(ehci, val, &hc_reg->port_status[0]);
+		/* Wait for PORT_SUSPEND assert */
+		if (handshake(ehci, &hc_reg->port_status[0],
+				PORT_SUSPEND, PORT_SUSPEND, 5000)) {
+			pr_err("%s:waiting for PORT_SUSPEND timeout!\n",
+					__func__);
+			goto err_ehci_disable;
+		}
+	}
+
+	return 0;
+
+err_ehci_disable:
+	mv_ehci_disable(ehci_mv);
+
+	return retval;
+}
+#endif
+
 static struct platform_driver mv_ehci_driver = {
 	.probe		= mv_ehci_probe,
 	.remove		= mv_ehci_remove,
 	.shutdown	= mv_ehci_shutdown,
+#ifdef CONFIG_PM
+	.suspend	= mv_ehci_suspend,
+	.resume		= mv_ehci_resume,
+#endif
 	.driver		= {
 		.name	= "pxa-ehci",
 		.bus	= &platform_bus_type,

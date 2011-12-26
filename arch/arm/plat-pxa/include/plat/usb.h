@@ -20,6 +20,14 @@ enum pxa_ehci_type {
 	MMP3_FSIC, /* mmp3 fsic */
 };
 
+enum usb_port_speed {
+	USB_PORT_SPEED_FULL = 0,	/* full speed: 0x0 */
+	USB_PORT_SPEED_LOW,		/* low speed: 0x1 */
+	USB_PORT_SPEED_HIGH,		/* high speed: 0x2 */
+	USB_PORT_SPEED_UNKNOWN,		/* unknown speed: 0x3 */
+};
+
+
 enum {
 	MV_USB_MODE_OTG,
 	MV_USB_MODE_HOST,
