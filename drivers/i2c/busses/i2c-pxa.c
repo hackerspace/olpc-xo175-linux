@@ -1207,8 +1207,9 @@ static int i2c_pxa_probe(struct platform_device *dev)
 		i2c->adap.algo = &i2c_pxa_pio_algorithm;
 	} else {
 		i2c->adap.algo = &i2c_pxa_algorithm;
-		ret = request_irq(irq, i2c_pxa_handler, IRQF_DISABLED,
-				  i2c->adap.name, i2c);
+		ret = request_irq(irq, i2c_pxa_handler,
+				IRQF_DISABLED | IRQF_NO_SUSPEND,
+				i2c->adap.name, i2c);
 		if (ret)
 			goto ereqirq;
 	}
