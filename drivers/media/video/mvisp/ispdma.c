@@ -225,9 +225,8 @@ static int ispdma_wait_ipc(struct isp_ispdma_device *ispdma,
 	}
 
 	INIT_COMPLETION(ispdma->ipc_event);
-	ipc_wait->tickinfo.sec = 0;
-	ipc_wait->tickinfo.usec = 0;
-	ispdma_getdelta(&ipc_wait->tickinfo);
+	ipc_wait->tickinfo.sec = ispdma->tickinfo.sec;
+	ipc_wait->tickinfo.usec = ispdma->tickinfo.usec;
 	spin_unlock_irqrestore(&ispdma->ipc_irq_lock, flags);
 
 	return ret;
@@ -239,6 +238,9 @@ void mv_ispdma_ipc_isr_handler(struct isp_ispdma_device *ispdma)
 
 	spin_lock_irqsave(&ispdma->ipc_irq_lock, flags);
 	ispdma->ipc_event_cnt++;
+	ispdma->tickinfo.sec = 0;
+	ispdma->tickinfo.usec = 0;
+	ispdma_getdelta(&ispdma->tickinfo);
 	complete_all(&ispdma->ipc_event);
 	spin_unlock_irqrestore(&ispdma->ipc_irq_lock, flags);
 }

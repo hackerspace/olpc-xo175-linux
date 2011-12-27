@@ -170,6 +170,8 @@ struct isp_ispdma_device {
 	bool				sched_stop_codec;
 	bool				sched_stop_input;
 
+	struct v4l2_ispdma_timeinfo tickinfo;
+
 	int (*mvisp_reset)(void *param);
 };
 
