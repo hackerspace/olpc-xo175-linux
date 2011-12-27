@@ -23,6 +23,7 @@
 #include <linux/sd8x_rfkill.h>
 #include <linux/mmc/sdhci.h>
 #include <linux/i2c/adp8885.h>
+#include <linux/proc_fs.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -1503,6 +1504,66 @@ static struct pxa95x_peripheral_wakeup_ops wakeup_ops = {
 };
 #endif
 
+#ifdef CONFIG_PROC_FS
+static void sparrow_rf_reset(void)
+{
+	int dcdc_pin, rf_reset;
+	int err;
+
+	rf_reset = mfp_to_gpio(MFP_PIN_GPIO108);
+	err = gpio_request(rf_reset, "RF_Reset");
+	if (err) {
+		gpio_free(rf_reset);
+		printk(KERN_ERR "Request GPIO failed, gpio: %d return :%d\n",
+			rf_reset, err);
+		return;
+	}
+
+	dcdc_pin = mfp_to_gpio(MFP_PIN_RF_MFP14);
+	err = gpio_request(dcdc_pin, "DCDC_Pin");
+	if (err) {
+		gpio_free(rf_reset);
+		gpio_free(dcdc_pin);
+		printk(KERN_ERR "Request GPIO failed, gpio: %d return :%d\n",
+			dcdc_pin, err);
+		return;
+	}
+	gpio_direction_output(dcdc_pin, 1);
+	mdelay(1);
+	gpio_direction_output(rf_reset, 0);
+	mdelay(2);
+	gpio_direction_output(rf_reset, 1);
+
+	gpio_free(rf_reset);
+	gpio_free(dcdc_pin);
+
+	pr_info("reset sparrow rf\n");
+
+	return;
+}
+
+static ssize_t sparrow_rf_write_proc(struct file *filp,
+				const char *buff, size_t len, loff_t *off)
+{
+	sparrow_rf_reset();
+	return len;
+}
+
+static void create_sparrow_rf_proc_file(void)
+{
+	struct proc_dir_entry *proc_file = NULL;
+
+	proc_file = create_proc_entry("driver/sparrow_rf_reset", 0644, NULL);
+	if (!proc_file) {
+		pr_err("%s: create proc file failed\n", __func__);
+		return;
+	}
+
+	proc_file->write_proc = (write_proc_t *)sparrow_rf_write_proc;
+}
+
+#endif
+
 static void __init init(void)
 {
 	if (get_pmic_id() >= PM800_CHIP_A0) {
@@ -1577,6 +1638,12 @@ static void __init init(void)
 	pxa9xx_device_u2o.dev.platform_data = (void *)&pxa9xx_usb_pdata;
 	platform_device_register(&pxa9xx_device_u2o);
 #endif
+
+#ifdef CONFIG_PROC_FS
+	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD)
+		create_sparrow_rf_proc_file();
+#endif
+
 }
 
 MACHINE_START(NEVOSAARC, "PXA978")
