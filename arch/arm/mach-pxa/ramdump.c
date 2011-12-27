@@ -614,7 +614,7 @@ static int __init ramdump_init(void)
 	isram_va = ioremap_cached(ISRAM_PA, ISRAM_SIZE);
 	if (!isram_va)
 		return -ENOMEM;
-	rdc_va = (struct rdc_area *)__phys_to_virt((unsigned)RDC_START(rdc_pa));
+	rdc_va = (struct rdc_area *) ioremap_nocache((unsigned)RDC_START(rdc_pa), sizeof(struct rdc_area) + RDC_HEADROOM);
 	if (!rdc_va) {
 		iounmap(isram_va);
 		return -ENOMEM;

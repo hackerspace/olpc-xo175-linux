@@ -1679,6 +1679,8 @@ void pxa95x_cpmem_reserve(void)
 	for (seg = 0; seg < CP_MEM_MAX_SEGMENTS; seg++) {
 		if (_cp_area_size[seg] != 0) {
 			BUG_ON(memblock_reserve(_cp_area_addr[seg], _cp_area_size[seg]));
+			memblock_free(_cp_area_addr[seg], _cp_area_size[seg]);
+			memblock_remove(_cp_area_addr[seg], _cp_area_size[seg]);
 			printk(KERN_INFO "Reserving CP memory: %dM at %.8x\n",
 				(unsigned)_cp_area_size[seg]/0x100000,
 				(unsigned)_cp_area_addr[seg]);
