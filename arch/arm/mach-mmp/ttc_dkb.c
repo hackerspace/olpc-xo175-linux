@@ -37,6 +37,7 @@
 #include <asm/mach/arch.h>
 #include <asm/mach/flash.h>
 #include <mach/addr-map.h>
+#include <mach/cputype.h>
 #include <mach/gpio.h>
 #include <mach/mfp-pxa910.h>
 #include <mach/pxa910.h>
@@ -59,13 +60,6 @@
 #include "onboard.h"
 
 #define TTCDKB_NR_IRQS		(IRQ_BOARD_START + 24)
-
-static int is_td_dkb;
-static int __init td_dkb_setup(char *__unused)
-{
-	return is_td_dkb = 1;
-}
-__setup("td_dkb", td_dkb_setup);
 
 static int emmc_boot;
 static int __init emmc_setup(char *__unused)
@@ -497,7 +491,7 @@ static int ttc_dkb_pm860x_fixup(struct pm860x_chip *chip,
 	pm860x_reg_write(chip->client, PM8607_SLEEP_MODE2, 0xaa);
 	pm860x_reg_write(chip->client, PM8607_SLEEP_MODE3, 0xa2);
 	/* set LDO14_SLP to be active in sleep mode */
-	if (is_td_dkb)
+	if (cpu_is_pxa920_family())
 		pm860x_reg_write(chip->client, PM8607_SLEEP_MODE4, 0x38);
 	else
 		pm860x_reg_write(chip->client, PM8607_SLEEP_MODE4, 0x3a);
@@ -505,7 +499,7 @@ static int ttc_dkb_pm860x_fixup(struct pm860x_chip *chip,
 	/* set vbuck1 0.9v in sleep*/
 	pm860x_reg_write(chip->client, PM8607_SLEEP_BUCK1, 0x24);
 	/* set vbuck2(power supply to DDR) to 1.8V for 920/910 */
-	if (!emmc_boot) {
+	if (!cpu_is_pxa921()) {
 		pm860x_reg_write(chip->client, PM8607_SLEEP_BUCK2, 0x24);
 	} else {
 		/* set vbuck2 to 1.85V for 920H */
@@ -517,7 +511,7 @@ static int ttc_dkb_pm860x_fixup(struct pm860x_chip *chip,
 	/*Enable RTC to use ext 32k clk*/
 	pm860x_set_bits(chip->client, PM8607_RTC_MISC2, 0x7, 0x2);
 
-	if (emmc_boot)
+	if (cpu_is_pxa921())
 		/* on PXA920H board, turn on LDO13 for SD/MMC, 2.8v */
 		pm860x_reg_write(chip->client, PM8607_VIBRA_SET, 0x0b);
 
@@ -726,7 +720,7 @@ static int max7312_pin_setup(struct i2c_client *client, unsigned gpio,
 	 * TD: pull up all pin to avoid current leakage and save power,
 	 * TTC : IO0,IO1,IO2 is connected to GND, should pull down
 	 */
-	if (is_td_dkb) {
+	if (cpu_is_pxa920_family()) {
 		for (i = 0 ; i < ngpio; i++) {
 			gpio_num = gpio + i;
 			if (gpio_request(gpio_num, "MAX7312_IO")) {
@@ -1465,7 +1459,7 @@ static int mmc0_lp_switch(unsigned int on, int with_card)
 		}
 	}
 
-	if (emmc_boot) {
+	if (cpu_is_pxa921()) {
 		if (!regulator_sd_slot) {
 			/* on PXA920H board, LDO13, power supply of MMC0 slot */
 			regulator_sd_slot = regulator_get(NULL, "v_ldo13");
@@ -1481,7 +1475,7 @@ static int mmc0_lp_switch(unsigned int on, int with_card)
 			}
 		}
 	} else {
-		if (is_td_dkb) {
+		if (cpu_is_pxa920() || cpu_is_pxa918()) {
 			sd_pwr_en = mfp_to_gpio(GPIO15_MMC1_POWER);
 			if (gpio_request(sd_pwr_en, "SD Power Ctrl")) {
 				printk(KERN_ERR "Failed to request SD_PWR_EN(gpio %d), "
@@ -1501,7 +1495,7 @@ static int mmc0_lp_switch(unsigned int on, int with_card)
 	if (!regulator_sd_pad)
 		error = 1;
 	else {
-		if (emmc_boot) {
+		if (cpu_is_pxa921()) {
 			if (!regulator_sd_slot)
 				error = 1;
 		} else {
@@ -1516,7 +1510,7 @@ static int mmc0_lp_switch(unsigned int on, int with_card)
 	}
 
 	if (on) {
-		if (emmc_boot) {
+		if (cpu_is_pxa921()) {
 			ret = regulator_disable(regulator_sd_slot);
 			if (ret < 0)
 				printk(KERN_ERR "Failed to turn off LDO13 "
@@ -1531,7 +1525,7 @@ static int mmc0_lp_switch(unsigned int on, int with_card)
 			printk(KERN_ERR "Failed to turn off LDO14 "
 				"for SD slot, ret = %d\n", ret);
 	} else {
-		if (emmc_boot) {
+		if (cpu_is_pxa921()) {
 			ret = regulator_enable(regulator_sd_slot);
 			if (ret < 0)
 				printk(KERN_ERR "Failed to turn on LDO13, "
@@ -1699,7 +1693,7 @@ static void ttc_dkb_wifi_set_power(unsigned int on)
 	unsigned  int WIB_EN = 0;
 	unsigned int WLAN_LHC = 0;
 
-	if (is_td_dkb) {
+	if (cpu_is_pxa920_family()) {
 		WIB_EN = GPIO_EXT1(14);
 		WLAN_LHC = GPIO_EXT1(2);
 	} else {
@@ -1743,7 +1737,7 @@ static void __init pxa910_init_mmc(void)
 	int WIB_PDn;
 	int WIB_RESETn;
 
-	if (is_td_dkb) {
+	if (cpu_is_pxa920_family()) {
 		WIB_PDn = GPIO_EXT1(0);
 		WIB_RESETn = GPIO_EXT1(1);
 	} else {
@@ -1754,7 +1748,7 @@ static void __init pxa910_init_mmc(void)
 	add_sd8x_rfkill_device(WIB_PDn, WIB_RESETn,
 			&pxa910_sdh_platdata_mmc1.pmmc, ttc_dkb_wifi_set_power);
 #endif
-	if (is_td_dkb) {
+	if (cpu_is_pxa920_family()) {
 		mfp_config(&sd_pwr_cfg, 1);
 		sd_pwr_en = mfp_to_gpio(sd_pwr_cfg);
 
@@ -1803,11 +1797,11 @@ static unsigned long i2c_trst_val;
 static int ttc_pin_lpm_config(void)
 {
 	unsigned int index = 0, i = 0;
-	int mfp_trst = (is_td_dkb) ? MFP_PIN_DF_nCS1_SM_nCS3 :
+	int mfp_trst = (cpu_is_pxa920_family()) ? MFP_PIN_DF_nCS1_SM_nCS3 :
 		MFP_PIN_GPIO35;
-	mfp_cfg_t mfp_trst_cfg = (is_td_dkb) ? (I2C_TRST_GPIO86|MFP_PULL_LOW) :
+	mfp_cfg_t mfp_trst_cfg = (cpu_is_pxa920_family()) ? (I2C_TRST_GPIO86|MFP_PULL_LOW) :
 		(I2C_TRST_GPIO35|MFP_PULL_LOW);
-	int trst_gpio = (is_td_dkb) ? mfp_to_gpio(MFP_PIN_GPIO86) :
+	int trst_gpio = (cpu_is_pxa920_family()) ? mfp_to_gpio(MFP_PIN_GPIO86) :
 		mfp_to_gpio(MFP_PIN_GPIO35);
 
 	for (index = MFP_PIN_GPIO0; index <= MFP_PIN_GPIO109; index++)
@@ -1823,7 +1817,7 @@ static int ttc_pin_lpm_config(void)
 	  * TD920: set pin ab11 as AF1:GPIO86 and low level voltage
 	  * TTC: set pin t19 as AF0: GPIO35 and low level voltage
 	  */
-	if (!emmc_boot) {
+	if (!cpu_is_pxa921()) {
 		i2c_trst_val = mfp_read(mfp_trst);
 		mfp_config(&mfp_trst_cfg, 1);
 		if (gpio_request(trst_gpio, "max3373_i2c_trst")) {
@@ -1839,9 +1833,9 @@ static int ttc_pin_lpm_config(void)
 static int ttc_pin_restore(void)
 {
 	unsigned int index = 0, i = 0;
-	int mfp_trst = (is_td_dkb) ? MFP_PIN_DF_nCS1_SM_nCS3 :
+	int mfp_trst = (cpu_is_pxa920_family()) ? MFP_PIN_DF_nCS1_SM_nCS3 :
 		MFP_PIN_GPIO35;
-	int trst_gpio = (is_td_dkb) ? mfp_to_gpio(MFP_PIN_GPIO86) :
+	int trst_gpio = (cpu_is_pxa920_family()) ? mfp_to_gpio(MFP_PIN_GPIO86) :
 		mfp_to_gpio(MFP_PIN_GPIO35);
 
 	for (index = MFP_PIN_GPIO0; index <= MFP_PIN_GPIO109; index++)
@@ -1851,7 +1845,7 @@ static int ttc_pin_restore(void)
 	mfp_gpio3_power_up();
 
 	/* restore the max3373 i2c_trst pin default function */
-	if (!emmc_boot) {
+	if (!cpu_is_pxa921()) {
 		if (gpio_request(trst_gpio, "max3373_i2c_trst")) {
 			pr_err("ttc_pin_restore : Request max3373_i2c_trst failed!\n");
 			return -EIO;
@@ -1874,13 +1868,13 @@ static void gps_power_on(void)
 {
 	unsigned int gps_ldo, gps_rst_n;
 
-	gps_ldo = (is_td_dkb) ? GPIO_EXT1(8) : GPIO_EXT1(7);
+	gps_ldo = (cpu_is_pxa920_family()) ? GPIO_EXT1(8) : GPIO_EXT1(7);
 	if (gpio_request(gps_ldo, "gpio_gps_ldo")) {
 		pr_err("Request GPIO failed, gpio: %d\n", gps_ldo);
 		return;
 	}
 
-	gps_rst_n = (is_td_dkb) ? GPIO_EXT1(11) : mfp_to_gpio(MFP_PIN_GPIO15);
+	gps_rst_n = (cpu_is_pxa920_family()) ? GPIO_EXT1(11) : mfp_to_gpio(MFP_PIN_GPIO15);
 	if (gpio_request(gps_rst_n, "gpio_gps_rst")) {
 		pr_err("Request GPIO failed, gpio: %d\n", gps_rst_n);
 		goto out;
@@ -1903,19 +1897,19 @@ static void gps_power_off(void)
 {
 	unsigned int gps_ldo, gps_rst_n, gps_on;
 
-	gps_ldo = (is_td_dkb) ? GPIO_EXT1(8) : GPIO_EXT1(7);
+	gps_ldo = (cpu_is_pxa920_family()) ? GPIO_EXT1(8) : GPIO_EXT1(7);
 	if (gpio_request(gps_ldo, "gpio_gps_ldo")) {
 		pr_err("Request GPIO failed, gpio: %d\n", gps_ldo);
 		return;
 	}
 
-	gps_on = (is_td_dkb) ? GPIO_EXT1(10) : GPIO_EXT1(1);
+	gps_on = (cpu_is_pxa920_family()) ? GPIO_EXT1(10) : GPIO_EXT1(1);
 	if (gpio_request(gps_on, "gpio_gps_on")) {
 		pr_err("Request GPIO failed,gpio: %d\n", gps_on);
 		goto out1;
 	}
 
-	gps_rst_n = (is_td_dkb) ? GPIO_EXT1(11) : mfp_to_gpio(MFP_PIN_GPIO15);
+	gps_rst_n = (cpu_is_pxa920_family()) ? GPIO_EXT1(11) : mfp_to_gpio(MFP_PIN_GPIO15);
 	if (gpio_request(gps_rst_n, "gpio_gps_rst")) {
 		pr_debug("Request GPIO failed, gpio: %d\n", gps_rst_n);
 		goto out2;
@@ -1939,7 +1933,7 @@ static void gps_reset(int flag)
 {
 	unsigned int gps_rst_n;
 
-	gps_rst_n = (is_td_dkb) ? GPIO_EXT1(11) : mfp_to_gpio(MFP_PIN_GPIO15);
+	gps_rst_n = (cpu_is_pxa920_family()) ? GPIO_EXT1(11) : mfp_to_gpio(MFP_PIN_GPIO15);
 	if (gpio_request(gps_rst_n, "gpio_gps_rst")) {
 		pr_err("Request GPIO failed, gpio: %d\n", gps_rst_n);
 		return;
@@ -1954,7 +1948,7 @@ static void gps_on_off(int flag)
 {
 	unsigned int gps_on;
 
-	gps_on = (is_td_dkb) ? GPIO_EXT1(10) : GPIO_EXT1(1);
+	gps_on = (cpu_is_pxa920_family()) ? GPIO_EXT1(10) : GPIO_EXT1(1);
 	if (gpio_request(gps_on, "gpio_gps_on")) {
 		pr_err("Request GPIO failed, gpio: %d\n", gps_on);
 		return;
@@ -2038,7 +2032,7 @@ static void create_sirf_proc_file(void)
 
 static void __init tds_mfp_init(void)
 {
-	if (is_td_dkb) {
+	if (cpu_is_pxa920_family()) {
 		mfp_config(ARRAY_AND_SIZE(tds_pin_config));
 	}
 }
@@ -2159,7 +2153,7 @@ static void __init ttc_dkb_init(void)
 	pxa910_add_keypad(&ttc_dkb_keypad_info);
 	pxa910_add_cnm();
 	pxa910_add_twsi(0, &dkb_i2c_pdata, ARRAY_AND_SIZE(ttc_dkb_i2c_info));
-	if (emmc_boot) {
+	if (cpu_is_pxa921()) {
 		pxa910_add_twsi(1, &ttc_dkb_pwr_i2c_pdata,
 				ARRAY_AND_SIZE(ttc_dkb_pwr_i2c_info));
 		/* change the adapt id to 1, camera sensor is on pwri2c bus*/
@@ -2210,7 +2204,7 @@ static void __init ttc_dkb_init(void)
 
 #if (defined CONFIG_CMMB)
 	 /* spi device */
-	if (is_td_dkb)
+	if (cpu_is_pxa920_family())
 		ttc_dkb_init_spi();
 #endif
 
