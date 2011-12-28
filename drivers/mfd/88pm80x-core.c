@@ -1016,13 +1016,16 @@ static void __devinit device_800_init(struct pm80x_chip *chip,
 		goto out_dev;
 	}
 
-	ret = mfd_add_devices(chip->dev, 0, &rtc_devs[0],
-			      ARRAY_SIZE(rtc_devs), NULL, chip->irq_base);
-	if (ret < 0) {
-		dev_err(chip->dev, "Failed to add rtc subdev\n");
-		goto out_dev;
+	if (pdata && pdata->rtc) {
+		rtc_devs[0].platform_data = pdata->rtc;
+		rtc_devs[0].pdata_size = sizeof(struct pm80x_rtc_pdata);
+		ret = mfd_add_devices(chip->dev, 0, &rtc_devs[0],
+				ARRAY_SIZE(rtc_devs), NULL, chip->irq_base);
+		if (ret < 0) {
+			dev_err(chip->dev, "Failed to add rtc subdev\n");
+			goto out_dev;
+		}
 	}
-
 	/* Initializain actions to enable 88pm805 */
 
 	/* Clear WDT */
