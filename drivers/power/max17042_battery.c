@@ -417,6 +417,12 @@ static void max17042_bat_update_status(struct max17042_device_info *di)
 		else
 			di->is_charging_led(0);
 	}
+	/* NOTE: If battery is not present, reports fake status */
+	if (di->bat_params.present == 0) {
+		di->bat_params.present = 1;
+		di->bat_params.cap = 100;
+		di->bat_params.temp = 200;
+	}
 }
 
 static irqreturn_t max17042_alert_irq_handler(int irq, void *data)
