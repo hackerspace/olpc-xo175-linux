@@ -686,4 +686,6 @@ config MMP3_HSI
 	help
 	  Please say Y here if want to support MMP3 HSI
 
+source "drivers/char/maxscend/Kconfig"
+
 endmenu
