@@ -6,7 +6,7 @@ obj-y	:= dma.o
 
 obj-$(CONFIG_GENERIC_GPIO)	+= gpio.o
 obj-$(CONFIG_PXA3xx)		+= mfp.o
-obj-$(CONFIG_PXA95x)		+= mfp.o
+obj-$(CONFIG_PXA95x)		+= mfp.o clock.o dvfs.o
 obj-$(CONFIG_ARCH_MMP)		+= mfp.o
 obj-$(CONFIG_CPU_MMP3)		+= clock.o dvfs.o
 

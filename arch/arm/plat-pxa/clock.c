@@ -17,7 +17,6 @@
 #include <linux/io.h>
 #include <linux/delay.h>
 
-#include <mach/regs-apbc.h>
 #include <plat/clock.h>
 
 
