@@ -733,33 +733,7 @@ static int clk_axi_enable(struct clk *clk)
 
 static void clk_axi_disable(struct clk *clk)
 {
-	/* we are checking that all clients of the AXI island have turned off
-	*  their AXI clock enable. onlt if all clients are off we can turn off
-	* the AXI clock.
-	*/
-	if (!(CKENC & ((1 << (CKEN_MMC4_BUS - 64))
-		| (1 << (CKEN_MMC3_BUS - 64))
-		| (1 << (CKEN_MMC2_BUS - 64))
-		| (1 << (CKEN_MMC1_BUS - 64))
-		| (1 << (CKEN_USB_BUS - 64))
-		| (1 << (CKEN_USBH_BUS - 64))
-		| (1 << (CKEN_GC_1X - 64))
-		| (1 << (CKEN_GC_1X - 64))
-		| (1 << (CKEN_DSI_TX1 - 64))
-		| (1 << (CKEN_DSI_TX2 - 64))
-		| (1 << (CKEN_DISPLAY - 64))
-		| (1 << (CKEN_SCI1 - 64))
-		| (1 << (CKEN_SCI2 - 64))
-		| (1 << (CKEN_CSI_TX - 64))
-		| (1 << (CKEN_PXA95x_MMC1 - 64))
-		| (1 << (CKEN_PXA95x_MMC2 - 64))
-		| (1 << (CKEN_PXA95x_MMC3 - 64))
-		| (1 << (CKEN_PXA95x_MMC4 - 64))
-		))
-		&& !(CKENB & ((1 << (CKEN_HSI - 32))
-			| (1 << (CKEN_VMETA - 32)))))
-		/* turning off AXI clock. */
-		CKENC &= ~(1 << (CKEN_AXI - 64) | (1 << (CKEN_AXI_2X -64)));
+	CKENC &= ~(1 << (CKEN_AXI - 64) | (1 << (CKEN_AXI_2X - 64)));
 }
 
 static int clk_imu_axi_enable(struct clk *clk)
@@ -770,30 +744,12 @@ static int clk_imu_axi_enable(struct clk *clk)
 
 static void clk_imu_axi_disable(struct clk *clk)
 {
-	/* we are checking that all clients of the AXI island have turned off
-	*  their AXI clock enable. onlt if all clients are off we can turn off
-	* the AXI IMU clock.
-	*/
-	if (!(CKENC & ((1 << (CKEN_MMC1_BUS - 64))
-			| (1 << (CKEN_MMC2_BUS - 64))
-			| (1 << (CKEN_MMC3_BUS - 64))
-			| (1 << (CKEN_USB_BUS - 64))
-			| (1 << (CKEN_USBH_BUS - 64))
-			| (1 << (CKEN_MMC4_BUS - 64))
-			| (1 << (CKEN_PXA95x_MMC1 - 64))
-			| (1 << (CKEN_PXA95x_MMC2 - 64))
-			| (1 << (CKEN_PXA95x_MMC3 - 64))
-			| (1 << (CKEN_PXA95x_MMC4 - 64))
-			)))
-		/* turning off IMU_AXI clock. */
-		CKENC &= ~(1 << (CKEN_IMU - 64));
+	CKENC &= ~(1 << (CKEN_IMU - 64));
 }
 
 static int clk_pxa9xx_u2o_enable(struct clk *clk)
 {
 	local_irq_disable();
-	clk_axi_enable(clk);
-	clk_imu_axi_enable(clk);
 
 	CKENC |= (1 << (CKEN_USB_PRL - 64)) | (1 << (CKEN_USB_BUS - 64));
 	/* ACCR1 */
@@ -811,15 +767,12 @@ static void clk_pxa9xx_u2o_disable(struct clk *clk)
 	/* ACCR1 */
 	ACCR1 &= ~(ACCR1_PU_OTG|ACCR1_PU_PLL|ACCR1_PU);
 
-	clk_imu_axi_disable(clk);
-	clk_axi_disable(clk);
 	local_irq_enable();
 }
 
 static int clk_gcu_enable(struct clk *clk)
 {
 	gc_vmeta_stats_clk_event(GC_CLK_ON);
-	clk_axi_enable(clk);
         CKENC |= (1 << (CKEN_GC_1X - 64));
         CKENC |= (1 << (CKEN_GC_2X - 64));
 	return 0;
@@ -829,13 +782,11 @@ static void clk_gcu_disable(struct clk *clk)
 {
         CKENC &= ~(1 << (CKEN_GC_1X - 64));
         CKENC &= ~(1 << (CKEN_GC_2X - 64));
-	clk_axi_disable(clk);
 	gc_vmeta_stats_clk_event(GC_CLK_OFF);
 }
 
 static int clk_csi_tx_esc_enable(struct clk *csi_clk)
 {
-	clk_axi_enable(csi_clk);
 	set_mipi_reference_control();
 	CKENC |= (1 << (CKEN_CSI_TX - 64));
 	csi_enable_status = 1;
@@ -847,14 +798,12 @@ static void clk_csi_tx_esc_disable(struct clk *csi_clk)
 {
 	CKENC &= ~(1 << (CKEN_CSI_TX - 64));
 	clear_mipi_reference_control();
-	clk_axi_disable(csi_clk);
 	csi_enable_status = 0;
 	pr_info("cam: csi clock disable\n");
 }
 
 static int clk_pxa95x_sci_enable(struct clk *sci_clk)
 {
-	clk_axi_enable(sci_clk);
 	CKENC |= (1 << (CKEN_SCI1 - 64)) | (1 << (CKEN_SCI2 - 64));
 	return 0;
 }
@@ -863,7 +812,6 @@ static int clk_pxa95x_sci_enable(struct clk *sci_clk)
 static void clk_pxa95x_sci_disable(struct clk *sci_clk)
 {
 	CKENC &= ~(1 << (CKEN_SCI1 - 64) | (1 << (CKEN_SCI2 - 64)));
-	clk_axi_disable(sci_clk);
 }
 
 static const struct clkops clk_pxa95x_dsi_ops = {
@@ -908,10 +856,6 @@ static const struct clkops clk_gcu_ops = {
 static int clk_mmc_enable(struct clk *clk)
 {
 	unsigned long mask;
-	struct clk *clock = NULL;
-
-	clk_axi_enable(clock);
-	clk_imu_axi_enable(clock);
 
 	/* turning on MMC bus clock. */
 	if (cpu_is_pxa978_Cx()) {
@@ -927,7 +871,6 @@ static int clk_mmc_enable(struct clk *clk)
 static void clk_mmc_disable(struct clk *clk)
 {
 	unsigned long mask;
-	struct clk *clock = NULL;
 
 	if (cpu_is_pxa978_Cx())
 		mask = ~(1 << (clk->enable_val - 64));
@@ -942,9 +885,6 @@ static void clk_mmc_disable(struct clk *clk)
 					| (1 << (CKEN_PXA95x_MMC4 - 64))
 					)))
 		CKENC &= ~(1 << (CKEN_MMC_BUS - 64));
-
-	clk_imu_axi_disable(clock);
-	clk_axi_disable(clock);
 }
 
 static const struct clkops clk_mmc_ops = {
@@ -1004,26 +944,15 @@ static const struct clkops clk_pxa95x_sci_ops = {
 static DEFINE_CK(pxa95x_dsi0, DSI_TX1, &clk_pxa95x_dsi_ops);
 static DEFINE_CK(pxa95x_dsi1, DSI_TX2, &clk_pxa95x_dsi_ops);
 static DEFINE_CK(pxa95x_ihdmi, DISPLAY, &clk_pxa95x_ihdmi_ops);
-static DEFINE_CK(pxa95x_lcd, DISPLAY, &clk_pxa95x_lcd_ops);
 static DEFINE_CK(pxa95x_axi, AXI, &clk_axi_ops);
 static DEFINE_CK(pxa95x_smc, SMC, &clk_pxa95x_smc_ops);
-static DEFINE_CK(pxa95x_imu, IMU, &clk_imu_axi_ops);
-static DEFINE_CK(pxa95x_u2o, USB_PRL, &clk_pxa9xx_u2o_ops);
-static DEFINE_CK(pxa95x_gcu, GC_1X, &clk_gcu_ops);
 static DEFINE_CK(pxa3xx_nand, NAND, &clk_pxa3xx_nand_ops);
 static DEFINE_CK(pxa95x_pwm4, PWM4, &clk_pxa95x_pwm_slow_ops);
 static DEFINE_CK(pxa95x_pwm5, PWM5, &clk_pxa95x_pwm_slow_ops);
 static DEFINE_CK(pxa95x_pwm6, PWM6, &clk_pxa95x_pwm_slow_ops);
 static DEFINE_CK(pxa95x_pwm7, PWM7, &clk_pxa95x_pwm_slow_ops);
-static DEFINE_CK(pxa95x_sci1, SCI1, &clk_pxa95x_sci_ops);
-static DEFINE_CK(pxa95x_sci2, SCI2, &clk_pxa95x_sci_ops);
-static DEFINE_CK(pxa95x_csi_tx_esc, CSI_TX, &clk_csi_tx_esc_ops);
 static DEFINE_CLK(pxa95x_pout, &clk_pxa3xx_pout_ops, 13000000);
 static DEFINE_CLK(pxa95x_tout_s0, &clk_pxa95x_tout_s0_ops, 13000000);
-static DEFINE_CK(pxa95x_sdh0, PXA95x_MMC1, &clk_mmc_ops);
-static DEFINE_CK(pxa95x_sdh1, PXA95x_MMC2, &clk_mmc_ops);
-static DEFINE_CK(pxa95x_sdh2, PXA95x_MMC3, &clk_mmc_ops);
-static DEFINE_CK(pxa95x_sdh3, PXA95x_MMC4, &clk_mmc_ops);
 
 static DEFINE_PXA3_CKEN(pxa95x_ffuart, FFUART, 14857000);
 static DEFINE_PXA3_CKEN(pxa95x_btuart, BTUART, 14857000);
@@ -1038,10 +967,105 @@ static DEFINE_PXA3_CKEN(pxa95x_ssp3, SSP3, 13000000);
 static DEFINE_PXA3_CKEN(pxa95x_ssp4, SSP4, 13000000);
 static DEFINE_PXA3_CKEN(pxa95x_pwm0, PWM0, 13000000);
 static DEFINE_PXA3_CKEN(pxa95x_pwm1, PWM1, 13000000);
-static DEFINE_PXA3_CKEN(pxa95x_vmeta, VMETA, 312000000);
 static DEFINE_PXA3_CKEN(pxa95x_abu, ABU, 20000000);
 static DEFINE_PXA3_CKEN(pxa95x_gpio, GPIO, 0);
 static DEFINE_PXA3_CKEN(pxa95x_bootrom, BOOT, 0);
+
+static struct clk *common_depend_clk[] = {
+	&clk_pxa95x_axi,
+};
+
+static struct clk clk_pxa95x_imu = {
+	.dependence = common_depend_clk,
+	.dependence_count = ARRAY_SIZE(common_depend_clk),
+	.ops = &clk_imu_axi_ops,
+	.enable_val = CKEN_IMU,
+};
+
+static struct clk *mmc_usb_depend_clk[] = {
+	&clk_pxa95x_imu,
+};
+
+static struct clk clk_pxa95x_sdh0 = {
+	.dependence = mmc_usb_depend_clk,
+	.dependence_count = ARRAY_SIZE(mmc_usb_depend_clk),
+	.ops = &clk_mmc_ops,
+	.enable_val = CKEN_PXA95x_MMC1,
+};
+
+static struct clk clk_pxa95x_sdh1 = {
+	.dependence = mmc_usb_depend_clk,
+	.dependence_count = ARRAY_SIZE(mmc_usb_depend_clk),
+	.ops = &clk_mmc_ops,
+	.enable_val = CKEN_PXA95x_MMC2,
+};
+static struct clk clk_pxa95x_sdh2 = {
+	.dependence = mmc_usb_depend_clk,
+	.dependence_count = ARRAY_SIZE(mmc_usb_depend_clk),
+	.ops = &clk_mmc_ops,
+	.enable_val = CKEN_PXA95x_MMC3,
+};
+static struct clk clk_pxa95x_sdh3 = {
+	.dependence = mmc_usb_depend_clk,
+	.dependence_count = ARRAY_SIZE(mmc_usb_depend_clk),
+	.ops = &clk_mmc_ops,
+	.enable_val = CKEN_PXA95x_MMC4,
+};
+
+static struct clk clk_pxa95x_u2o = {
+	.dependence = mmc_usb_depend_clk,
+	.dependence_count = ARRAY_SIZE(mmc_usb_depend_clk),
+	.ops = &clk_pxa9xx_u2o_ops,
+	.enable_val = CKEN_USB_PRL,
+};
+
+static struct clk clk_pxa95x_gcu = {
+	.dependence = common_depend_clk,
+	.dependence_count = ARRAY_SIZE(common_depend_clk),
+	.ops = &clk_gcu_ops,
+	.enable_val = CKEN_GC_1X,
+};
+
+static struct clk clk_pxa95x_csi_tx_esc = {
+	.dependence = common_depend_clk,
+	.dependence_count = ARRAY_SIZE(common_depend_clk),
+	.ops = &clk_csi_tx_esc_ops,
+	.enable_val = CKEN_CSI_TX,
+};
+
+static struct clk clk_pxa95x_sci1 = {
+	.dependence = common_depend_clk,
+	.dependence_count = ARRAY_SIZE(common_depend_clk),
+	.ops = &clk_pxa95x_sci_ops,
+	.enable_val = CKEN_SCI1,
+};
+
+static struct clk clk_pxa95x_sci2 = {
+	.dependence = common_depend_clk,
+	.dependence_count = ARRAY_SIZE(common_depend_clk),
+	.ops = &clk_pxa95x_sci_ops,
+	.enable_val = CKEN_SCI2,
+};
+
+static struct clk clk_pxa95x_vmeta = {
+	.dependence = common_depend_clk,
+	.dependence_count = ARRAY_SIZE(common_depend_clk),
+	.rate = 312000000,
+	.ops = &clk_pxa3xx_cken_ops,
+	.enable_val = CKEN_VMETA,
+};
+
+static struct clk *lcd_depend_clk[] = {
+	&clk_pxa95x_axi,
+	&clk_pxa95x_tout_s0,
+};
+
+static struct clk clk_pxa95x_lcd = {
+	.dependence = lcd_depend_clk,
+	.dependence_count = ARRAY_SIZE(lcd_depend_clk),
+	.ops = &clk_pxa95x_lcd_ops,
+	.enable_val = CKEN_DISPLAY,
+};
 
 static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_pout, NULL, "CLK_POUT"),
