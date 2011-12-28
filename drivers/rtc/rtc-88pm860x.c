@@ -21,7 +21,7 @@
 #include <linux/sched.h>
 
 #ifdef CONFIG_RTC_MON
-#include <mach/88pm860x-rtc.h>
+#include <mach/88pm8xxx-rtc.h>
 #include <mach/regs-rtc.h>
 #include <linux/miscdevice.h>
 DECLARE_WAIT_QUEUE_HEAD(rtc_update_head);

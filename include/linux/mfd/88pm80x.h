@@ -523,6 +523,12 @@ enum {
 	PM80X_IDPIN_USE_GPADC3,
 };
 
+struct pm80x_rtc_pdata {
+	int		(*sync)(unsigned int ticks);
+	int		vrtc;
+	int             rtc_wakeup;
+};
+
 struct pm80x_platform_data {
 	struct pm80x_rtc_pdata *rtc;
 	struct pm80x_vbus_pdata *vbus;

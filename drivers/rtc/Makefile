@@ -112,3 +112,4 @@ obj-$(CONFIG_RTC_DRV_WM8350)	+= rtc-wm8350.o
 obj-$(CONFIG_RTC_DRV_X1205)	+= rtc-x1205.o
 obj-$(CONFIG_RTC_DRV_MMP)	+= rtc-mmp.o
 obj-$(CONFIG_RTC_DRV_88PM860X)  += rtc-88pm860x.o
+obj-$(CONFIG_RTC_DRV_88PM80X)  += rtc-88pm80x.o
