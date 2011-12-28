@@ -2388,20 +2388,14 @@ static void pxa95xfb_gfx_power(struct pxa95xfb_info *fbi, int on)
 		controller_enable_disable(fbi, LCD_Controller_Quick_Disable);
 
 		clk_disable(fbi->clk_lcd);
-		clk_disable(fbi->clk_axi);
-
-		clk_disable(fbi->clk_tout_s0);
 
 		unset_dvfm_constraint();
 
 		printk(KERN_INFO "LCD power down\n");
 	}else{
-		clk_enable(fbi->clk_tout_s0);
-
 		/* to turn on the display */
 		set_dvfm_constraint();
 
-		clk_enable(fbi->clk_axi);
 		clk_enable(fbi->clk_lcd);
 
 		for(i= 0; i< PXA95xFB_FB_NUM; i++){
@@ -2540,7 +2534,7 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 	struct pxa95xfb_info *fbi = 0;
 	struct pxa95xfb_conv_info *conv;
 	struct resource *res;
-	struct clk *clk_lcd, *clk = NULL, *clk_axi, *clk_tout_s0;
+	struct clk *clk_lcd, *clk = NULL;
 	int irq_ctl, irq_conv, ret;
 	int i;
 
@@ -2550,22 +2544,10 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	clk_tout_s0 = clk_get(NULL, "CLK_TOUT_S0");
-	if (IS_ERR(clk_tout_s0)) {
-		dev_err(&pdev->dev, "unable to get tout_s0 clock");
-		return PTR_ERR(clk_tout_s0);
-	}
-
 	clk_lcd = clk_get(&pdev->dev, "PXA95x_LCDCLK");
 	if (IS_ERR(clk_lcd)) {
 		dev_err(&pdev->dev, "unable to get LCDCLK");
 		return PTR_ERR(clk_lcd);
-	}
-
-	clk_axi = clk_get(NULL, "AXICLK");
-	if (IS_ERR(clk_axi)) {
-		dev_err(&pdev->dev, "unable to get axi bus clock");
-		return PTR_ERR(clk_axi);
 	}
 
 	if (mi->converter == LCD_M2DSI0) {
@@ -2624,8 +2606,6 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 	fbi->fb_info = info;
 	platform_set_drvdata(pdev, fbi);
 	fbi->clk_lcd = clk_lcd;
-	fbi->clk_axi = clk_axi;
-	fbi->clk_tout_s0 = clk_tout_s0;
 	fbi->dev = &pdev->dev;
 	fbi->on = 1;
 	fbi->active = 0;
@@ -2719,10 +2699,6 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 
 	set_dvfm_constraint();
 
-	/* enable clocks: clk_tout, controller, dsi*/
-	clk_enable(fbi->clk_tout_s0);
-
-	clk_enable(fbi->clk_axi);
 	clk_enable(fbi->clk_lcd);
 
 	/* Enable AXI32 before modifying the controller registers */
@@ -2792,12 +2768,8 @@ failed_free_irq_conv:
 failed_free_clk:
 	clk_disable(fbi->clk_lcd);
 	clk_disable(clk);
-	clk_disable(fbi->clk_axi);
-	clk_disable(fbi->clk_tout_s0);
 	clk_put(fbi->clk_lcd);
 	clk_put(clk);
-	clk_put(fbi->clk_axi);
-	clk_put(fbi->clk_tout_s0);
 failed:
 	pr_err("pxa95x-fb: frame buffer device init failed\n");
 	platform_set_drvdata(pdev, NULL);

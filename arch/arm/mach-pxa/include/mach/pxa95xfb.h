@@ -496,8 +496,6 @@ struct pxa95xfb_conv_info {
 struct pxa95xfb_info {
 	struct device		*dev;
 	struct clk		*clk_lcd;
-	struct clk		*clk_axi;
-	struct clk		*clk_tout_s0;
 
 	int                     id;
 	int			on;
