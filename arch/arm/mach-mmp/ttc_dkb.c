@@ -1231,7 +1231,7 @@ struct mv_cam_pdata mv_cam_data = {
 	.get_mclk_src = get_mclk_src,
 #if defined(CONFIG_SOC_CAMERA_OV5640)
 	.bus_type = SOCAM_MIPI,
-	.dphy = {0x0a06, 0x33, 0x0a00},
+	.dphy = {0x0a06, 0x33, 0x0900},
 #endif
 };
 #else
