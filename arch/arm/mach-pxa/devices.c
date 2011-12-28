@@ -459,6 +459,11 @@ static struct resource pxa_rtc_resources[] = {
 		.end    = IRQ_RTCAlrm,
 		.flags  = IORESOURCE_IRQ,
 	},
+	[3] = {
+		.start  = 0x40F500A0,
+		.end    = 0x40F500A0 + 0x04,
+		.flags  = IORESOURCE_MEM,
+	},
 };
 
 struct platform_device sa1100_device_rtc = {
