@@ -55,18 +55,7 @@ static int pxa168fb_pan_display(struct fb_var_screeninfo *var,
 
 static unsigned int max_fb_size = 0;
 static unsigned int fb_size_from_cmd = 0;
-
-static struct _sViewPortInfo gViewPortInfo = {
-	.srcWidth = 640,	/* video source size */
-	.srcHeight = 480,
-	.zoomXSize = 640,	/* size after zooming */
-	.zoomYSize = 480,
-};
-
-static struct _sViewPortOffset gViewPortOffset = {
-	.xOffset = 0,	/* position on screen */
-	.yOffset = 0
-};
+static struct _sOvlySurface gOvlySurface;
 
 #define xp		pr_info("%s, line %d\n", __func__, __LINE__)
 struct fbi_info ovly_info;
@@ -306,25 +295,6 @@ static u32 pxa168fb_ovly_set_colorkeyalpha(struct pxa168fb_info *fbi)
 	return 0;
 }
 
-static int pxa168fb_update_buff(struct fb_info *fi,
-	struct _sOvlySurface *surface, int addr)
-{
-	if (addr) {
-		/* update buffer address only if changed */
-		if (check_surface_addr(fi, surface))
-			set_start_address(fi, 0, 0, 0);
-		else
-			return -EINVAL;
-	} else if (check_surface(fi, surface->videoMode,
-					&surface->viewPortInfo,
-					&surface->viewPortOffset,
-					&surface->videoBufferAddr))
-		/* update other parameters other than buf addr */
-		return pxa168fb_set_par(fi);
-
-	return 0;
-}
-
 static void pxa168fb_clear_framebuffer(struct fb_info *fi)
 {
 	struct pxa168fb_info *fbi = fi->par;
@@ -438,7 +408,6 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 	void __user *argp = (void __user *)arg;
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)fi->par;
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-	int vmode = 0;
 	int vid_on = 1;
 	int val = 0, mask = 0;
 	unsigned char param;
@@ -487,41 +456,61 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 		return res;
 	case FB_IOCTL_SET_VIEWPORT_INFO:/*if rotate 90/270, w/h swap*/
 		mutex_lock(&fbi->access_ok);
-		if (copy_from_user(&gViewPortInfo, argp,
-				sizeof(gViewPortInfo))) {
+		memset(&gOvlySurface, 0, sizeof(gOvlySurface));
+		gOvlySurface.videoMode = -1;
+		if (copy_from_user(&gOvlySurface.viewPortInfo, argp,
+				sizeof(gOvlySurface.viewPortInfo))) {
 			mutex_unlock(&fbi->access_ok);
 			return -EFAULT;
 		}
-		if (unsupport_format(fbi, gViewPortInfo, -1)) {
+		if (unsupport_format(fbi, gOvlySurface.viewPortInfo, -1)) {
 			mutex_unlock(&fbi->access_ok);
 			return -EFAULT;
 		}
-		gViewPortInfo.rotation = (360 - gViewPortInfo.rotation) % 360;
-		if (gViewPortInfo.rotation == 90 ||
-			gViewPortInfo.rotation == 270) {
-			tmp = gViewPortInfo.srcWidth;
-			gViewPortInfo.srcWidth =
-			gViewPortInfo.srcHeight;
-			gViewPortInfo.srcHeight = tmp;
+		gOvlySurface.viewPortInfo.rotation =
+		 (360 - gOvlySurface.viewPortInfo.rotation) % 360;
+		if (gOvlySurface.viewPortInfo.rotation == 90 ||
+			gOvlySurface.viewPortInfo.rotation == 270) {
+			tmp = gOvlySurface.viewPortInfo.srcWidth;
+			gOvlySurface.viewPortInfo.srcWidth =
+			gOvlySurface.viewPortInfo.srcHeight;
+			gOvlySurface.viewPortInfo.srcHeight = tmp;
 		}
 
-		if (check_surface(fi, -1, &gViewPortInfo, 0, 0))
+		ret = check_surface(fi, &gOvlySurface, &fbi->shadowreg);
+		if (ret > 0) {
 			pxa168fb_set_par(fi);
-
+			ret = 0;
+		} else if (ret < 0) {
+			pr_err("fbi %d (line %d): vid %d, check surface"
+				"return error\n", fbi->id, __LINE__, fbi->vid);
+			ret = -EFAULT;
+		}
 		mutex_unlock(&fbi->access_ok);
+		return ret;
 		break;
 	case FB_IOCTL_SET_VIDEO_MODE:
 		/*
 		 * Get data from user space.
 		 */
-		if (copy_from_user(&vmode, argp, sizeof(vmode)))
+		memset(&gOvlySurface, 0, sizeof(gOvlySurface));
+		if (copy_from_user(&gOvlySurface.videoMode, argp,
+				 sizeof(gOvlySurface.videoMode)))
 			return -EFAULT;
 
-		if (unsupport_format(fbi, fbi->surface.viewPortInfo, vmode))
+		if (unsupport_format(fbi, gOvlySurface.viewPortInfo,
+			 gOvlySurface.videoMode))
 			return -EFAULT;
-
-		if (check_surface(fi, vmode, 0, 0, 0))
+		ret = check_surface(fi, &gOvlySurface, &fbi->shadowreg);
+		if (ret > 0) {
 			pxa168fb_set_par(fi);
+			ret = 0;
+		} else if (ret < 0) {
+			pr_err("fbi %d (line %d): vid %d, check surface"
+				"return error\n", fbi->id, __LINE__, fbi->vid);
+			ret = -EFAULT;
+		}
+		return ret;
 		break;
 	case FB_IOCTL_GET_VIDEO_MODE:
 		return copy_to_user(argp, &fbi->surface.videoMode,
@@ -537,15 +526,25 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 	}
 	case FB_IOCTL_SET_VID_OFFSET:
 		mutex_lock(&fbi->access_ok);
-		if (copy_from_user(&gViewPortOffset, argp,
-				sizeof(gViewPortOffset))) {
+		memset(&gOvlySurface, 0, sizeof(gOvlySurface));
+		gOvlySurface.videoMode = -1;
+		if (copy_from_user(&gOvlySurface.viewPortOffset, argp,
+				sizeof(gOvlySurface.viewPortOffset))) {
 			mutex_unlock(&fbi->access_ok);
 			return -EFAULT;
 		}
 
-		if (check_surface(fi, -1, 0, &gViewPortOffset, 0))
+		ret = check_surface(fi, &gOvlySurface, &fbi->shadowreg);
+		if (ret > 0) {
 			pxa168fb_set_par(fi);
+			ret = 0;
+		} else if (ret < 0) {
+			pr_err("fbi %d (line %d): vid %d, check surface"
+				"return error\n", fbi->id, __LINE__, fbi->vid);
+			ret = -EFAULT;
+		}
 		mutex_unlock(&fbi->access_ok);
+		return ret;
 		break;
 	case FB_IOCTL_GET_VID_OFFSET:
 		return copy_to_user(argp, &fbi->surface.viewPortOffset,
@@ -626,7 +625,7 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 			dma_ctrl_set(fbi->id, 0, mask, val);
 			/* in case already suspended, save in sw */
 			gfx_info.fbi[fbi->id]->dma_ctrl0 &= ~mask;
-		} else if (list_empty(&fbi->buf_waitlist.surfacelist) &&
+		} else if (list_empty(&fbi->buf_waitlist.dma_queue) &&
 			!fbi->buf_current)
 			/* switch on, but no buf flipped, return error */
 			; /* ret = -EAGAIN; */
@@ -634,7 +633,7 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 		printk(KERN_DEBUG "SWITCH_VID_OVLY fbi %d dma_on %d,"
 			" val %d, waitlist empty %d buf_current %p, ret %d\n",
 			fbi->id, fbi->dma_on, val,
-			list_empty(&fbi->buf_waitlist.surfacelist),
+			list_empty(&fbi->buf_waitlist.dma_queue),
 			fbi->buf_current, ret);
 
 		pxa688fb_vsmooth_set(fbi->id, 1, vid_vsmooth & vid_on);
@@ -715,8 +714,9 @@ static int pxa168fb_open(struct fb_info *fi, int user)
 	struct pxa168fb_mach_info *mi;
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)fi->par;
 	struct fb_var_screeninfo *var = &fi->var;
+	struct _sVideoBufferAddr *new_addr = &fbi->surface.videoBufferAddr;
 
-	pr_info("Enter %s, fbi %d opened %d times -----------\n",
+	pr_info("%s Video layer, fbi %d opened %d times ----\n",
 		__func__, fbi->id, atomic_read(&fbi->op_count));
 
 #ifdef OVLY_DVFM_CONSTRAINT
@@ -724,7 +724,7 @@ static int pxa168fb_open(struct fb_info *fi, int user)
 #endif
 
 	mi = fbi->dev->platform_data;
-	memset(&fbi->new_addr, 0, sizeof(fbi->new_addr));
+	memset(new_addr, 0, sizeof(struct _sVideoBufferAddr));
 	fi->fix.smem_start = fbi->fb_start_dma;
 	fi->screen_base = fbi->fb_start;
 	fbi->surface.videoMode = -1;
@@ -754,7 +754,7 @@ static int pxa168fb_release(struct fb_info *fi, int user)
 	struct fb_var_screeninfo *var = &fi->var;
 	u32 mask;
 
-	pr_info("Enter %s, fbi %d opened %d times -----------\n",
+	pr_info("%s Video layer, fbi %d opened %d times ----\n",
 		__func__, fbi->id, atomic_read(&fbi->op_count));
 
 	/* Force Video DMA engine off at release and reset the DMA format.*/
@@ -778,7 +778,6 @@ static int pxa168fb_release(struct fb_info *fi, int user)
 	/* clear some globals */
 	memset(&fbi->surface, 0, sizeof(struct _sOvlySurface));
 	fbi->surface.videoMode = -1;
-	memset(&fbi->new_addr, 0, sizeof(fbi->new_addr));
 	fbi->active = fbi->dma_on = 0;
 
 #ifdef OVLY_DVFM_CONSTRAINT
@@ -820,7 +819,9 @@ static int pxa168fb_set_par(struct fb_info *fi)
 {
 	struct pxa168fb_info *fbi = fi->par;
 	struct fb_var_screeninfo *var = &fi->var;
+	struct regshadow *shadowreg = &fbi->shadowreg;
 	int pix_fmt;
+	u32 flags;
 
 	dev_dbg(fi->dev, "Enter %s, video layer\n", __func__);
 	/*
@@ -854,12 +855,12 @@ static int pxa168fb_set_par(struct fb_info *fi)
 		return 0;
 	}
 
-	/* Configure graphics DMA parameters.*/
-	set_screen(fbi);
-	/* Configure global panel parameters.*/
-	set_dma_control0(fbi);
-	/* set video start address */
-	set_start_address(fi, fi->var.xoffset, fi->var.yoffset, 0);
+	flags = UPDATE_ADDR | UPDATE_MODE | UPDATE_VIEW;
+	pxa168fb_set_var(fi, shadowreg, flags);
+
+	if (!NEED_VSYNC(fbi))
+		pxa168fb_set_regs(fbi, shadowreg);
+
 	return 0;
 }
 
@@ -910,7 +911,13 @@ static int pxa168fb_pan_display(struct fb_var_screeninfo *var,
 		return -EINVAL;
 
 	fbi->active = 1;
-	set_start_address(fi, var->xoffset, var->yoffset, 1);
+	set_start_address(fi, var->xoffset, var->yoffset, &fbi->shadowreg);
+	fbi->shadowreg.flags |= UPDATE_ADDR;
+	pxa168fb_set_regs(fbi, &fbi->shadowreg);
+
+	if (NEED_VSYNC(fbi))
+		wait_for_vsync(fbi);
+
 	return 0;
 }
 
@@ -920,40 +927,6 @@ static int pxa168fb_fb_sync(struct fb_info *info)
 
 	wait_for_vsync(fbi);
 	return 0;
-}
-
-/*
- *  pxa168fb_handle_irq(two lcd controllers)
- */
-irqreturn_t pxa168fb_ovly_isr(int id)
-{
-	struct pxa168fb_info *fbi = ovly_info.fbi[id];
-	struct fb_info *fi;
-
-	if (!fbi)
-		return IRQ_HANDLED;
-	fi = fbi->fb_info;
-	if (fbi->debug == 1)
-		printk(KERN_DEBUG "%s fbi %d vid %d\n",
-			 __func__, fbi->id, fbi->vid);
-
-	if (atomic_read(&fbi->op_count)) {
-		/* do buffer switch for video flip */
-		buf_endframe(fi);
-
-		/* wake up queue. */
-		if (atomic_read(&fbi->w_intr) == 0) {
-			atomic_set(&fbi->w_intr, 1);
-			wake_up(&fbi->w_intr_wq);
-		}
-	}
-
-	if (fbi->misc_update) {
-		pxa168fb_misc_update(fbi);
-		fbi->misc_update = 0;
-	}
-
-	return IRQ_HANDLED;
 }
 
 static ssize_t debug_show(struct device *dev, struct device_attribute *attr,
@@ -974,13 +947,10 @@ static ssize_t debug_store(
 	int	tmp;
 
 	sscanf(buf, "%d", &tmp);
-	if (tmp == 2 || tmp == 3)
-		fbi->update_addr = tmp & 1;
-	else
-		/* 0: disable all debug info
-		 * 1: enable log for buffer management
-		 */
-		fbi->debug = tmp;
+	/* 0: disable all debug info
+	 * 1: enable log for buffer management
+	 */
+	fbi->debug = tmp;
 
 	return size;
 }
@@ -1043,10 +1013,8 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	if (!fbi->id)
 		memset(&ovly_info, 0, sizeof(ovly_info));
 	ovly_info.fbi[fbi->id] = fbi;
-	fbi->update_addr = 1;
 
 	platform_set_drvdata(pdev, fbi);
-	fbi->update_buff = pxa168fb_update_buff;
 	fbi->fb_info = fi;
 	fbi->dev = &pdev->dev;
 	fbi->id = pdev->id;
@@ -1111,7 +1079,6 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 							&fbi->fb_start_dma,
 							GFP_KERNEL);
 		if (!fbi->fb_start || !fbi->fb_start_dma) {
-			memset(fbi->new_addr, 0, sizeof(fbi->new_addr));
 			fbi->mem_status = 1;
 			fbi->fb_start = (void *)__get_free_pages
 			(GFP_DMA | GFP_KERNEL, get_order(fbi->fb_size));

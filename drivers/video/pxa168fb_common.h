@@ -18,14 +18,11 @@ extern int determine_best_pix_fmt(struct fb_var_screeninfo *var,
 	struct pxa168fb_info *fbi);
 extern int pxa168fb_check_var(struct fb_var_screeninfo *var,
 	 struct fb_info *fi);
-extern int check_surface(struct fb_info *fi, FBVideoMode new_mode,
-	struct _sViewPortInfo *new_info, struct _sViewPortOffset *new_offset,
-	struct _sVideoBufferAddr *new_addr);
+extern int check_surface(struct fb_info *fi, struct _sOvlySurface *surface,
+	 struct regshadow *shadowreg);
 extern int check_surface_addr(struct fb_info *fi,
 	 struct _sOvlySurface *surface);
 extern int check_modex_active(struct pxa168fb_info *fbi);
-extern irqreturn_t pxa168fb_ovly_isr(int id);
-extern irqreturn_t pxa168_v4l2_isr(int id);
 
 extern void buf_endframe(void *point);
 extern void clear_buffer(struct pxa168fb_info *fbi);
@@ -38,7 +35,14 @@ extern int dispd_dma_enabled(struct pxa168fb_info *fbi);
 extern void wait_for_vsync(struct pxa168fb_info *fbi);
 extern void pxa168fb_misc_update(struct pxa168fb_info *fbi);
 extern void set_start_address(struct fb_info *info, int xoffset,
-			 int yoffset, int wait_vsync);
-extern void set_dma_control0(struct pxa168fb_info *fbi);
-extern void set_screen(struct pxa168fb_info *fbi);
+		 int yoffset, struct regshadow *shadowreg);
+extern void set_dma_control0(struct pxa168fb_info *fbi,
+		 struct regshadow *shadowreg);
+extern void set_screen(struct pxa168fb_info *fbi, struct regshadow *shadowreg);
+extern int pxa168fb_set_var(struct fb_info *info,
+		 struct regshadow *shadowreg, u32 flags);
+extern void pxa168fb_set_regs(struct pxa168fb_info *fbi,
+		 struct regshadow *shadowreg);
+extern irqreturn_t pxa168_fb_isr(int id);
+extern irqreturn_t pxa168_v4l2_isr(int id);
 #endif

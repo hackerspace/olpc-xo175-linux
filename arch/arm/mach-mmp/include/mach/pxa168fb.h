@@ -208,7 +208,6 @@ struct _sVideoBufferAddr {
 /* The pxa168_fb_chroma structure is here for legacy compatibility with former
  * PXA display driver usage.
  */
-
 struct pxa168_fb_chroma {
 	u_char     mode;
 	u_char     y_alpha;
@@ -224,7 +223,6 @@ struct pxa168_fb_chroma {
 	u_char     v1;
 	u_char     v2;
 };
-
 
 struct _sColorKeyNAlpha {
 	unsigned int mode;
@@ -346,10 +344,37 @@ struct _pxa168fb_gamma {
 #include <linux/pm_qos_params.h>
 #include <linux/wakelock.h>
 
-/* surface list for flip mode */
-struct _sSurfaceList {
-	struct _sOvlySurface surface;
-	struct list_head surfacelist;
+/* flags indicate update region for regshadow
+ * bit[0] = 1, address need update;
+ * bit[1] = 1, video mode need update;
+ * bit[2] = 1, viewport control info need update;
+ */
+#define UPDATE_ADDR (0x1 << 0)
+#define UPDATE_MODE (0x1 << 1)
+#define UPDATE_VIEW (0x1 << 2)
+
+struct regshadow {
+	u32	flags;
+
+	/* address */
+	u32	paddr0[3];
+	u32	paddr1[3];
+
+	/* video mode */
+	u32	dma_ctrl0;
+
+	/* viewport info*/
+	u32	pitch[2];
+	u32	start_point;
+	u32	src_size;
+	u32	dst_size;
+	u32	zoom;
+};
+
+/* shadowreg list for flip mode */
+struct regshadow_list {
+	struct regshadow shadowreg;
+	struct list_head dma_queue;
 };
 
 /*
@@ -363,13 +388,10 @@ struct pxa168fb_info {
 	void			*reg_base;
 	void			*dsi1_reg_base;
 	void			*dsi2_reg_base;
-	unsigned long		new_addr[3];	/* three addr for YUV planar */
 	unsigned char		*filterBufList[MAX_QUEUE_NUM][3];
-	struct _sSurfaceList	buf_freelist;
-	struct _sSurfaceList	buf_waitlist;
-	struct _sSurfaceList	*buf_current;
-	unsigned int		buf_flipped;
-	unsigned int		buf_displayed;
+	struct regshadow_list	buf_freelist;
+	struct regshadow_list	buf_waitlist;
+	struct regshadow_list	*buf_current;
 	dma_addr_t		fb_start_dma;
 	void			*fb_start;
 	int			fb_size;
@@ -384,6 +406,7 @@ struct pxa168fb_info {
 	spinlock_t		buf_lock;
 	struct _sOvlySurface    surface;
 	struct _sOvlySurface    surface_bak;
+	struct regshadow	shadowreg;
 	struct _sColorKeyNAlpha ckey_alpha;
 	struct fb_videomode	dft_vmode;
 	struct fb_videomode     out_vmode;
@@ -392,15 +415,12 @@ struct pxa168fb_info {
 	unsigned int		pseudo_palette[16];
 	char			*mode_option;
 	struct fb_info          *fb_info;
-	struct fb_info          *info;
 	int                     io_pin_allocation;
 	int			pix_fmt;
 	int			debug;
 	int			vdma_enable;
 	unsigned		is_blanked:1,
 				surface_set:1,
-				update_addr:1,
-				misc_update:1,
 				active:1;
 	/* indicate dma on/off requirement from user space */
 	int			dma_on;
@@ -432,9 +452,6 @@ struct pxa168fb_info {
 	struct early_suspend    early_suspend;
 	unsigned		dma_ctrl0;
 	unsigned		irq_mask;
-
-	int (*update_buff)(struct fb_info *fi,
-		struct _sOvlySurface *surface, int address);
 
 	struct fb_var_screeninfo var_bak;
 	struct pm_qos_request_list qos_idle_fb;
@@ -656,6 +673,7 @@ extern int pxa168fb_spi_send(struct pxa168fb_info *fbi, void *cmd,
 				 int count, unsigned int spi_gpio_cs);
 extern int pxa688_cmu_ioctl(struct fb_info *info, unsigned int cmd,
 				 unsigned long arg);
+
 /* dsi related */
 extern void pxa168fb_dsi_send(struct pxa168fb_info *fbi, void *value);
 extern void dsi_cclk_set(struct pxa168fb_info *fbi, int en);

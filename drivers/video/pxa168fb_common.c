@@ -590,39 +590,21 @@ int pxa168fb_check_var(struct fb_var_screeninfo *var, struct fb_info *fi)
 	return 0;
 }
 
-void pxa168fb_update_addr(struct pxa168fb_info *fbi,
-	struct _sVideoBufferAddr *new_addr)
-{
-	fbi->new_addr[0] = (unsigned long)new_addr->startAddr[0];
-	fbi->new_addr[1] = (unsigned long)new_addr->startAddr[1];
-	fbi->new_addr[2] = (unsigned long)new_addr->startAddr[2];
-}
-
-int check_surface(struct fb_info *fi,
-			FBVideoMode new_mode,
-			struct _sViewPortInfo *new_info,
-			struct _sViewPortOffset *new_offset,
-			struct _sVideoBufferAddr *new_addr)
+int check_surface(struct fb_info *fi, struct _sOvlySurface *surface,
+		 struct regshadow *shadowreg)
 {
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)fi->par;
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 	struct fb_var_screeninfo *var = &fi->var;
-	int changed = 0;
+	FBVideoMode new_mode = surface->videoMode;
+	struct _sViewPortInfo *new_info = &surface->viewPortInfo;
+	struct _sViewPortOffset *new_offset = &surface->viewPortOffset;
+	struct _sVideoBufferAddr *new_addr = &surface->videoBufferAddr;
+	int ret = 0;
 
 	dev_dbg(fi->dev, "Enter %s\n", __func__);
 
-	/*
-	 * check mode
-	 */
-	if (new_mode >= 0 && fbi->surface.videoMode != new_mode) {
-		fbi->surface.videoMode = new_mode;
-		fbi->pix_fmt = convert_pix_fmt(new_mode);
-		set_pix_fmt(var, fbi->pix_fmt);
-		changed = 1;
-	}
-	/*
-	 * check view port settings.
-	 */
+	/* check view port settings. */
 	if (new_info && memcmp(&fbi->surface.viewPortInfo, new_info,
 			sizeof(struct _sViewPortInfo))) {
 		if (!(new_addr && new_addr->startAddr[0])) {
@@ -633,7 +615,7 @@ int check_surface(struct fb_info *fi,
 					"exceed the max limit %d!\n", __func__,
 				(new_info->srcWidth * new_info->srcHeight
 				 * var->bits_per_pixel / 4), fbi->fb_size);
-				return changed;
+				return -1;
 			}
 		}
 		var->xres_virtual = new_info->srcWidth;
@@ -641,23 +623,29 @@ int check_surface(struct fb_info *fi,
 		var->xres = new_info->srcWidth;
 		var->yres = new_info->srcHeight;
 		fbi->surface.viewPortInfo = *new_info;
-		changed = 1;
+		ret |= UPDATE_VIEW;
 	}
 
-	/*
-	 * Check offset
-	 */
+	/* check mode */
+	if (new_mode >= 0 && fbi->surface.videoMode != new_mode) {
+		fbi->surface.videoMode = new_mode;
+		fbi->pix_fmt = convert_pix_fmt(new_mode);
+		set_pix_fmt(var, fbi->pix_fmt);
+		ret |= UPDATE_MODE;
+	}
+
+	/* Check offset	 */
 	if (new_offset && memcmp(&fbi->surface.viewPortOffset, new_offset,
 		sizeof(struct _sViewPortOffset))) {
 		fbi->surface.viewPortOffset.xOffset = new_offset->xOffset;
 		fbi->surface.viewPortOffset.yOffset = new_offset->yOffset;
-		changed = 1;
+		ret |= UPDATE_VIEW;
 	}
-	/*
-	 * Check buffer address
-	 */
+
+	/* Check buffer address */
 	if (new_addr && new_addr->startAddr[0] &&
-	    fbi->new_addr[0] != (unsigned long)new_addr->startAddr[0]) {
+		(fbi->surface.videoBufferAddr.startAddr[0] !=
+		 new_addr->startAddr[0])) {
 		/*check overlay buffer address and pitch alignment*/
 		if (((unsigned long)new_addr->startAddr[0] & 63) &&
 			(fbi->surface.viewPortInfo.yPitch & 7) &&
@@ -667,30 +655,12 @@ int check_surface(struct fb_info *fi,
 			" video playback maybe wrong!\n",
 			(unsigned long)new_addr->startAddr[0]);
 		}
-
-		pxa168fb_update_addr(fbi, new_addr);
-		changed = 1;
+		memcpy(fbi->surface.videoBufferAddr.startAddr,
+			 new_addr->startAddr, sizeof(new_addr->startAddr));
+		ret |= UPDATE_ADDR;
 	}
 
-	return changed;
-}
-
-int check_surface_addr(struct fb_info *fi, struct _sOvlySurface *surface)
-{
-	struct pxa168fb_info *fbi = (struct pxa168fb_info *)fi->par;
-	struct _sVideoBufferAddr *new_addr = &surface->videoBufferAddr;
-	int changed = 0;
-
-	dev_dbg(fi->dev, "Enter %s\n", __func__);
-
-	/* Check buffer address */
-	if (new_addr && new_addr->startAddr[0] &&
-	    fbi->new_addr[0] != (unsigned long)new_addr->startAddr[0]) {
-		pxa168fb_update_addr(fbi, new_addr);
-		changed = 1;
-	}
-
-	return changed;
+	return ret;
 }
 
 int check_modex_active(struct pxa168fb_info *fbi)
@@ -709,34 +679,33 @@ int check_modex_active(struct pxa168fb_info *fbi)
 }
 
 void collectFreeBuf(struct pxa168fb_info *fbi,
-		u8 *filterList[][3], struct _sSurfaceList *srflist)
+		u8 *filterList[][3], struct regshadow_list *reglist)
 {
-	struct _sSurfaceList *surface_list = 0;
-	struct _sOvlySurface *srf = 0;
+	struct regshadow_list *shadowreg_list = 0;
+	struct regshadow *shadowreg = 0;
 	struct list_head *pos, *n;
 	int i = 0;
 
-	if (!filterList || !srflist)
+	if (!filterList || !reglist)
 		return;
 
 	if (fbi->debug == 1)
 		printk(KERN_DEBUG"%s fbi %d vid %d\n",
 			 __func__, fbi->id, fbi->vid);
 
-	list_for_each_safe(pos, n, &srflist->surfacelist) {
-		surface_list = list_entry(pos, struct _sSurfaceList,
-			surfacelist);
+	list_for_each_safe(pos, n, &reglist->dma_queue) {
+		shadowreg_list = list_entry(pos, struct regshadow_list,
+			dma_queue);
 		list_del(pos);
-		srf = &surface_list->surface;
+		shadowreg = &shadowreg_list->shadowreg;
 
-		if (srf) {
+		if (shadowreg) {
 			/* save ptrs which need to be freed.*/
-			filterList[i][0] = srf->videoBufferAddr.startAddr[0];
-			filterList[i][1] = srf->videoBufferAddr.startAddr[1];
-			filterList[i][2] = srf->videoBufferAddr.startAddr[2];
+			memcpy(filterList[i], &shadowreg->paddr0,
+				 3 * sizeof(u8 *));
 			if (fbi->debug == 1)
-				printk(KERN_DEBUG"buf %p will be returned\n",
-				 srf->videoBufferAddr.startAddr[0]);
+				printk(KERN_DEBUG"buf %x will be returned\n",
+				 shadowreg->paddr0[0]);
 		}
 
 		i++;
@@ -744,7 +713,7 @@ void collectFreeBuf(struct pxa168fb_info *fbi,
 		if (i >= MAX_QUEUE_NUM)
 			break;
 
-		kfree(surface_list);
+		kfree(shadowreg_list);
 	}
 }
 
@@ -757,22 +726,22 @@ void clearFilterBuf(u8 *ppBufList[][3], int iFlag)
 		memset(ppBufList, 0, 3 * MAX_QUEUE_NUM * sizeof(u8 *));
 }
 
-void buf_clear(struct _sSurfaceList *srflist, int iFlag)
+void buf_clear(struct regshadow_list *reglist, int iFlag)
 {
-	struct _sSurfaceList *surface_list;
+	struct regshadow_list *shadowreg_list;
 	struct list_head *pos, *n;
 
 	/* Check null pointer. */
-	if (!srflist)
+	if (!reglist)
 		return;
 
 	/* free */
 	if (FREE_ENTRY & iFlag) {
-		list_for_each_safe(pos, n, &srflist->surfacelist) {
-			surface_list = list_entry(pos, struct _sSurfaceList,
-				surfacelist);
+		list_for_each_safe(pos, n, &reglist->dma_queue) {
+			shadowreg_list = list_entry(pos, struct regshadow_list,
+				dma_queue);
 			list_del(pos);
-			kfree(surface_list);
+			kfree(shadowreg_list);
 		}
 	}
 }
@@ -793,46 +762,33 @@ void clear_buffer(struct pxa168fb_info *fbi)
 
 void buf_endframe(void *point)
 {
-	struct fb_info *fi = (struct fb_info *)point;
-	struct pxa168fb_info *fbi = (struct pxa168fb_info *)fi->par;
-	struct _sOvlySurface *pOvlySurface;
-	int ret;
-	struct _sSurfaceList *surface_list = 0;
+	struct pxa168fb_info *fbi = (struct pxa168fb_info *)point;
+	struct regshadow_list *shadowreg_list = 0;
+	struct regshadow *shadowreg;
 
-	if (list_empty(&fbi->buf_waitlist.surfacelist))
+	if (list_empty(&fbi->buf_waitlist.dma_queue))
 		return;
 
-	surface_list = list_first_entry(&fbi->buf_waitlist.surfacelist,
-		struct _sSurfaceList, surfacelist);
-	pOvlySurface = &surface_list->surface;
-	list_del(&surface_list->surfacelist);
+	shadowreg_list = list_first_entry(&fbi->buf_waitlist.dma_queue,
+					struct regshadow_list, dma_queue);
+	shadowreg = &shadowreg_list->shadowreg;
+	list_del(&shadowreg_list->dma_queue);
 
 	/* Update new surface settings */
-	ret = fbi->update_buff(fi, pOvlySurface, 0);
-
-	if (!ret) {
-		/* enqueue current to freelist */
-		if (fbi->buf_current)
-			list_add_tail(&fbi->buf_current->surfacelist,
-				&fbi->buf_freelist.surfacelist);
-
-		fbi->buf_current = surface_list;
-	} else {
-		/* enqueue the repeated buffer to freelist */
-		list_add_tail(&surface_list->surfacelist,
-			&fbi->buf_freelist.surfacelist);
-		pr_info("Detect a same surface flipped in, "
-			"may flicker.\n");
-	}
+	pxa168fb_set_regs(fbi, shadowreg);
+	if (fbi->buf_current)
+		list_add_tail(&fbi->buf_current->dma_queue,
+				&fbi->buf_freelist.dma_queue);
+	fbi->buf_current = shadowreg_list;
 }
 
 #if 0
-static int get_list_count(struct _sSurfaceList *srflist)
+static int get_list_count(struct regshadow_list *reglist)
 {
 	struct list_head *pos, *n;
 	int count = 0;
 
-	list_for_each_safe(pos, n, &srflist->surfacelist)
+	list_for_each_safe(pos, n, &reglist->dma_queue)
 		count++;
 	return count;
 }
@@ -844,42 +800,42 @@ int flip_buffer(struct fb_info *info, unsigned long arg)
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)info->par;
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 	unsigned long flags;
-	struct _sSurfaceList *surface_list = 0, *srflist = 0;
-	struct _sOvlySurface *surface = 0;
+	struct regshadow_list *shadowreg_list = 0, *list;
+	struct regshadow *shadowreg = 0;
+	struct _sOvlySurface surface;
 	u8 *start_addr[3], *input_data;
 	u32 length;
+	int ret = 0;
 
 	mutex_lock(&fbi->access_ok);
-	surface_list = kmalloc(sizeof(struct _sSurfaceList),
-			GFP_KERNEL);
-	if (surface_list == NULL) {
-		mutex_unlock(&fbi->access_ok);
-		return -EFAULT;
-	}
-	surface = &surface_list->surface;
 
 	/* Get user-mode data. */
-	if (copy_from_user(surface, argp,
+	if (copy_from_user(&surface, argp,
 				sizeof(struct _sOvlySurface))) {
-		kfree(surface_list);
 		mutex_unlock(&fbi->access_ok);
 		return -EFAULT;
 	}
-	if (unsupport_format(fbi, surface->viewPortInfo, surface->videoMode)) {
-		kfree(surface_list);
+	if (unsupport_format(fbi, surface.viewPortInfo, surface.videoMode)) {
 		mutex_unlock(&fbi->access_ok);
 		return -EFAULT;
 	}
 
-	update_surface(surface);
+	shadowreg_list = kzalloc(sizeof(struct regshadow_list), GFP_KERNEL);
+	if (shadowreg_list == NULL) {
+		mutex_unlock(&fbi->access_ok);
+		return -EFAULT;
+	}
+	shadowreg = &shadowreg_list->shadowreg;
 
-	length = surface->videoBufferAddr.length;
-	start_addr[0] = surface->videoBufferAddr.startAddr[0];
-	input_data = surface->videoBufferAddr.inputData;
+	update_surface(&surface);
+
+	length = surface.videoBufferAddr.length;
+	start_addr[0] = surface.videoBufferAddr.startAddr[0];
+	input_data = surface.videoBufferAddr.inputData;
 
 	if (fbi->debug == 1)
-		printk(KERN_DEBUG"fbi %d vid %d flip surface %p buf %p\n",
-				fbi->id, fbi->vid, surface, start_addr[0]);
+		printk(KERN_DEBUG"fbi %d vid %d flip buf %p\n",
+				fbi->id, fbi->vid, start_addr[0]);
 	/*
 	 * Has DMA addr?
 	 */
@@ -891,30 +847,55 @@ int flip_buffer(struct fb_info *info, unsigned long arg)
 			*the older frame and enqueue it to freelist,
 			*then enqueue this frame to waitlist*/
 #else
-		while (!list_empty(&fbi->buf_waitlist.surfacelist)) {
+		while (!list_empty(&fbi->buf_waitlist.dma_queue)) {
 			/* free the waitlist elements if any */
 #endif
-			srflist = list_first_entry(&fbi->buf_waitlist.surfacelist,
-				struct _sSurfaceList, surfacelist);
-			list_del(&srflist->surfacelist);
-			list_add_tail(&srflist->surfacelist,
-				&fbi->buf_freelist.surfacelist);
+			list = list_first_entry(&fbi->buf_waitlist.dma_queue,
+				struct regshadow_list, dma_queue);
+			list_del(&list->dma_queue);
+			list_add_tail(&list->dma_queue,
+				&fbi->buf_freelist.dma_queue);
+			memset(&fbi->surface, 0, sizeof(fbi->surface));
+			fbi->surface.videoMode = -1;
 		}
-		list_add_tail(&surface_list->surfacelist,
-			&fbi->buf_waitlist.surfacelist);
-
+		ret = check_surface(info, &surface, shadowreg);
+		if (ret > 0) {
+			/* update other parameters other than buf addr */
+			pxa168fb_set_var(info, shadowreg, ret);
+			list_add_tail(&shadowreg_list->dma_queue,
+				&fbi->buf_waitlist.dma_queue);
+			ret = 0;
+		} else if (!ret)
+			/* enqueue the repeated buffer to freelist */
+			list_add_tail(&shadowreg_list->dma_queue,
+				&fbi->buf_freelist.dma_queue);
+		else {
+			pr_err("fbi %d (line %d): vid %d, check surface"
+				"return error\n", fbi->id, __LINE__, fbi->vid);
+			ret = -EFAULT;
+		}
 		spin_unlock_irqrestore(&fbi->buf_lock, flags);
 	} else {
 		if (!mi->mmap) {
 			pr_err("fbi %d(line %d): input err, mmap is not"
 				" supported\n", fbi->id, __LINE__);
-			kfree(surface_list);
+			kfree(shadowreg_list);
 			mutex_unlock(&fbi->access_ok);
 			return -EINVAL;
 		}
 
-		/* update buffer */
-		fbi->update_buff(info, surface, 1);
+		ret = check_surface(info, &surface, shadowreg);
+		if (ret > 0) {
+			/* update other parameters other than buf addr */
+			pxa168fb_set_var(info, shadowreg, ret);
+			ret = 0;
+		} else if (ret < 0) {
+			pr_err("fbi %d (line %d): vid %d, check surface"
+				"return error\n", fbi->id, __LINE__, fbi->vid);
+			kfree(shadowreg_list);
+			mutex_unlock(&fbi->access_ok);
+			return -EFAULT;
+		}
 
 		/* copy buffer */
 		if (input_data) {
@@ -923,11 +904,11 @@ int flip_buffer(struct fb_info *info, unsigned long arg)
 			/* if support hw DMA, replace this. */
 			if (copy_from_user(fbi->fb_start,
 						input_data, length)){
-				kfree(surface_list);
+				kfree(shadowreg_list);
 				mutex_unlock(&fbi->access_ok);
 				return -EFAULT;
 			}
-			kfree(surface_list);
+			kfree(shadowreg_list);
 			mutex_unlock(&fbi->access_ok);
 			return 0;
 		}
@@ -959,12 +940,11 @@ int flip_buffer(struct fb_info *info, unsigned long arg)
 			info->screen_base = fbi->fb_start;
 			info->screen_size = fbi->fb_size;
 		}
-		kfree(surface_list);
+		kfree(shadowreg_list);
 	}
-
 	mutex_unlock(&fbi->access_ok);
 
-	return 0;
+	return ret;
 }
 
 static void free_buf(struct pxa168fb_info *fbi)
@@ -972,21 +952,19 @@ static void free_buf(struct pxa168fb_info *fbi)
 	struct list_head *pos, *n;
 
 	/* put all buffers into free list */
-	list_for_each_safe(pos, n, &fbi->buf_waitlist.surfacelist) {
+	list_for_each_safe(pos, n, &fbi->buf_waitlist.dma_queue) {
 		list_del(pos);
-		list_add_tail(pos, &fbi->buf_freelist.surfacelist);
+		list_add_tail(pos, &fbi->buf_freelist.dma_queue);
 	}
 
 	if (fbi->buf_current) {
-		list_add_tail(&fbi->buf_current->surfacelist,
-			&fbi->buf_freelist.surfacelist);
+		list_add_tail(&fbi->buf_current->dma_queue,
+			&fbi->buf_freelist.dma_queue);
 		fbi->buf_current = 0;
 	}
 
-	/* clear some globals */
 	memset(&fbi->surface, 0, sizeof(struct _sOvlySurface));
 	fbi->surface.videoMode = -1;
-	memset(&fbi->new_addr, 0, sizeof(fbi->new_addr));
 }
 
 int get_freelist(struct fb_info *info, unsigned long arg)
@@ -1003,7 +981,7 @@ int get_freelist(struct fb_info *info, unsigned long arg)
 
 	/* when lcd is suspend, move all buffers as "switched"*/
 	if (!(gfx_info.fbi[fbi->id]->active))
-		buf_endframe(info);
+		buf_endframe(fbi);
 	/* when video layer dma is off, free all buffers */
 	if (!fbi->dma_on)
 		free_buf(fbi);
@@ -1030,12 +1008,13 @@ void set_dma_active(struct pxa168fb_info *fbi)
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 	struct lcd_regs *regs = get_regs(fbi->id);
 	struct fb_var_screeninfo *v = &gfx_info.fbi[fbi->id]->fb_info->var;
+	struct _sVideoBufferAddr *new_addr = &fbi->surface.videoBufferAddr;
 	u32 flag = fbi->vid ? CFG_DMA_ENA_MASK : CFG_GRA_ENA_MASK;
 	u32 enable = fbi->vid ? CFG_DMA_ENA(1) : CFG_GRA_ENA(1);
 	u32 value, dma1, v_size_dst, screen_active, active = 0;
 
-	if (fbi->new_addr[0] || mi->mmap ||
-		 (!fbi->vid && fb_share && fbi->id == 1))
+	if ((unsigned long)new_addr->startAddr[0] || mi->mmap ||
+		(!fbi->vid && fb_share && fbi->id == 1))
 		active = check_modex_active(fbi);
 
 	value = active ? enable : 0;
@@ -1065,7 +1044,7 @@ void set_dma_active(struct pxa168fb_info *fbi)
 
 	pr_debug("%s fbi %d: vid %d mask %x vaule %x fbi->active %d\
 		 new_addr %lu\n", __func__, fbi->id, fbi->vid, flag,
-		 value, fbi->active, fbi->new_addr[0]);
+		 value, fbi->active, (unsigned long)new_addr->startAddr[0]);
 }
 
 int dispd_dma_enabled(struct pxa168fb_info *fbi)
@@ -1112,8 +1091,8 @@ void wait_for_vsync(struct pxa168fb_info *fbi)
 
 void pxa168fb_list_init(struct pxa168fb_info *fbi)
 {
-	INIT_LIST_HEAD(&fbi->buf_freelist.surfacelist);
-	INIT_LIST_HEAD(&fbi->buf_waitlist.surfacelist);
+	INIT_LIST_HEAD(&fbi->buf_freelist.dma_queue);
+	INIT_LIST_HEAD(&fbi->buf_waitlist.dma_queue);
 	fbi->buf_current = 0;
 }
 
@@ -1129,25 +1108,24 @@ void pxa168fb_misc_update(struct pxa168fb_info *fbi)
 	}
 }
 
-void set_start_address(struct fb_info *info,
-	 int xoffset, int yoffset, int wait_vsync)
+void set_start_address(struct fb_info *info, int xoffset, int yoffset,
+			struct regshadow *shadowreg)
 {
 	struct pxa168fb_info *fbi = info->par;
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 	struct fb_var_screeninfo *var = &info->var;
-	struct lcd_regs *regs;
 	unsigned long addr_y0 = 0, addr_u0 = 0, addr_v0 = 0;
+	struct _sVideoBufferAddr *new_addr = &fbi->surface.videoBufferAddr;
 	int  pixel_offset;
 
 	dev_dbg(info->dev, "Enter %s\n", __func__);
 
-	if (fbi->new_addr[0]) {
-		addr_y0 = fbi->new_addr[0];
-		addr_u0 = fbi->new_addr[1];
-		addr_v0 = fbi->new_addr[2];
+	if ((unsigned long)new_addr->startAddr[0]) {
+		memcpy(&shadowreg->paddr0, new_addr->startAddr,
+			 sizeof(new_addr->startAddr));
 		if (fbi->debug == 1)
 			printk(KERN_DEBUG"%s: buffer updated to %x\n",
-				 __func__, (int)fbi->new_addr[0]);
+				 __func__, (int)new_addr->startAddr[0]);
 	} else {
 		if (!mi->mmap) {
 			pr_debug("fbi %d(line %d): input err, mmap is not"
@@ -1164,40 +1142,21 @@ void set_start_address(struct fb_info *info,
 			addr_v0 = addr_u0 + (var->xres * var->yres >> 1);
 		else if ((fbi->pix_fmt >> 1) == 7)
 			addr_v0 = addr_u0 + (var->xres * var->yres >> 2);
+
+		shadowreg->paddr0[0] = addr_y0;
+		shadowreg->paddr0[1] = addr_u0;
+		shadowreg->paddr0[2] = addr_v0;
 	}
 
-	regs = get_regs(fbi->id);
-	if (fbi->vid) {
-		writel(addr_y0, &regs->v_y0);
-		if (fbi->pix_fmt >= 12 && fbi->pix_fmt <= 15) {
-			writel(addr_u0, &regs->v_u0);
-			writel(addr_v0, &regs->v_v0);
-		}
-	} else
-		writel(addr_y0, &regs->g_0);
 
-	set_dma_active(fbi);
-
-	if (wait_vsync)
-		fbi->misc_update = 1;
-	else
-		pxa168fb_misc_update(fbi);
-
-	/* return until the address take effect after vsync occurs */
-	if (wait_vsync && NEED_VSYNC(fbi))
-		wait_for_vsync(fbi);
 }
 
-void set_dma_control0(struct pxa168fb_info *fbi)
+void set_dma_control0(struct pxa168fb_info *fbi, struct regshadow *shadowreg)
 {
 	struct pxa168fb_mach_info *mi;
-	struct _sOvlySurface *surface = &fbi->surface;
 	u32 x = 0, x_bk = 0, pix_fmt;
 
 	dev_dbg(fbi->fb_info->dev, "Enter %s\n", __func__);
-
-	if (surface->videoMode > 0)
-		fbi->pix_fmt = convert_pix_fmt(surface->videoMode);
 
 	mi = fbi->dev->platform_data;
 	pix_fmt = fbi->pix_fmt;
@@ -1207,9 +1166,6 @@ void set_dma_control0(struct pxa168fb_info *fbi)
 
 	/* clear affected bits */
 	x &= ~dma_mask(fbi->vid);
-
-	/* enable horizontal smooth filter */
-	x |= dma_hsmooth(fbi->vid, 1);
 
 	/* If we are in a pseudo-color mode, we need to enable
 	 * palette lookup  */
@@ -1256,31 +1212,18 @@ void set_dma_control0(struct pxa168fb_info *fbi)
 			 (mi->panel_rbswap));
 	}
 
-	/* clear reserved bits if not panel path */
-	if (fbi->id)
-		x &= ~CFG_ARBFAST_ENA(1);
-
-	if (x_bk != x) {
-		dma_ctrl_write(fbi->id, 0, x);
-		pr_debug("set fbi %d, layer %d, dma ctrl0(0x%x -> 0x%x)\n",
-			 fbi->id, fbi->vid, x_bk, x);
-	}
+	shadowreg->dma_ctrl0 = x;
 }
 
-void set_screen(struct pxa168fb_info *fbi)
+void set_screen(struct pxa168fb_info *fbi, struct regshadow *shadowreg)
 {
 	struct fb_var_screeninfo *var = &fbi->fb_info->var;
 	struct _sOvlySurface *surface = &fbi->surface;
-	struct lcd_regs *regs;
+	struct _sVideoBufferAddr *new_addr = &fbi->surface.videoBufferAddr;
 	u32 xres, yres, xres_z, yres_z, xres_virtual, bits_per_pixel;
 	u32 left = 0, top = 0, pitch[3], x;
 
-	pitch[0] = surface->viewPortInfo.yPitch;
-	pitch[1] = surface->viewPortInfo.uPitch;
-	pitch[2] = surface->viewPortInfo.vPitch;
-
 	var = &fbi->fb_info->var;
-	regs = get_regs(fbi->id);
 	xres = var->xres; yres = var->yres;
 	xres_z = var->xres; yres_z = var->yres;
 	xres_virtual = var->xres_virtual;
@@ -1291,7 +1234,7 @@ void set_screen(struct pxa168fb_info *fbi)
 	/* yres_z = yres_z - top - bottom */
 	yres_z = yres_z - (top << 1);
 
-	if (fbi->new_addr[0]) {
+	if ((unsigned long)new_addr->startAddr[0]) {
 		xres = surface->viewPortInfo.srcWidth;
 		yres = surface->viewPortInfo.srcHeight;
 		var->xres_virtual = surface->viewPortInfo.srcWidth;
@@ -1303,6 +1246,7 @@ void set_screen(struct pxa168fb_info *fbi)
 
 		left = surface->viewPortOffset.xOffset;
 		top = surface->viewPortOffset.yOffset;
+
 		pr_debug("surface: xres %d xres_z %d"
 			" yres %d yres_z %d\n left %d top %d\n",
 			xres, xres_z, yres, yres_z, left, top);
@@ -1311,6 +1255,10 @@ void set_screen(struct pxa168fb_info *fbi)
 	dev_dbg(fbi->fb_info->dev, "adjust: xres %d xres_z %d"
 		" yres %d yres_z %d\n left %d top %d\n",
 		xres, xres_z, yres, yres_z, left, top);
+
+	pitch[0] = surface->viewPortInfo.yPitch;
+	pitch[1] = surface->viewPortInfo.uPitch;
+	pitch[2] = surface->viewPortInfo.vPitch;
 
 	if (((fbi->pix_fmt & ~0x1000) >> 1) < 6) {
 		pitch[0] = pitch[0] ? pitch[0] : (xres_virtual *
@@ -1321,38 +1269,128 @@ void set_screen(struct pxa168fb_info *fbi)
 		pitch[1] = pitch[1] ? pitch[1] : xres >> 1;
 		pitch[2] = pitch[2] ? pitch[2] : xres >> 1;
 	}
-	if (fbi->vid) {
-		/* start address on screen */
-		writel((top << 16) | left, &regs->v_start);
-		/* pitch, pixels per line */
-		writel(pitch[0] & 0xFFFF, &regs->v_pitch_yc);
-		writel(pitch[2] << 16 | pitch[1], &regs->v_pitch_uv);
-		/* resolution, src size */
-		writel((yres << 16) | xres, &regs->v_size);
-		/* resolution, dst size */
-		writel((yres_z << 16) | xres_z, &regs->v_size_z);
+	/* start address on screen */
+	shadowreg->start_point = (top << 16) | left;
+	/* resolution, src size */
+	shadowreg->src_size = (yres << 16) | xres;
+	/* resolution, dst size */
+	shadowreg->dst_size = (yres_z << 16) | xres_z;
+	/* pitch, pixels per line */
+	shadowreg->pitch[0] = pitch[0] & 0xFFFF;
+	shadowreg->pitch[1] = pitch[2] << 16 | pitch[1];
 
-		/* enable two-level zoom down if the ratio exceed 2 */
-		if (xres_z && var->bits_per_pixel) {
-			int shift = (fbi->id == 1) ? 22 : 20;
-			u32 reg = (fbi->id == 2) ? LCD_PN2_LAYER_ALPHA_SEL1 :\
-				 LCD_AFA_ALL2ONE;
+	/* enable two-level zoom down if the ratio exceed 2 */
+	if (fbi->vid && xres_z && var->bits_per_pixel) {
+		int shift = (fbi->id == 1) ? 22 : 20;
+		u32 reg = (fbi->id == 2) ? LCD_PN2_LAYER_ALPHA_SEL1 :\
+			 LCD_AFA_ALL2ONE;
 
-			x = readl(fbi->reg_base + reg);
-			if (!(var->xres & 0x1) && ((var->xres >> 1) >= xres_z))
-				x |= 1 << shift;
-			else
-				x &= ~(1 << shift);
-			writel(x, fbi->reg_base + reg);
-		}
-	} else {
-		/* start address on screen */
-		writel((top << 16) | left, &regs->g_start);
-		/* pitch, pixels per line */
-		writel(pitch[0] & 0xFFFF, &regs->g_pitch);
-		/* resolution, src size */
-		writel((yres << 16) | xres, &regs->g_size);
-		/* resolution, dst size */
-		writel((yres_z << 16) | xres_z, &regs->g_size_z);
+		x = readl(fbi->reg_base + reg);
+		if (!(var->xres & 0x1) && ((var->xres >> 1) >= xres_z))
+			x |= 1 << shift;
+		else
+			x &= ~(1 << shift);
+		shadowreg->zoom = x;
 	}
+}
+
+int pxa168fb_set_var(struct fb_info *info, struct regshadow *shadowreg,
+		 u32 flags)
+{
+	struct pxa168fb_info *fbi = info->par;
+
+	/* Configure global panel parameters. */
+	if (flags & UPDATE_VIEW)
+		set_screen(fbi, shadowreg);
+	if (flags & UPDATE_MODE)
+		set_dma_control0(fbi, shadowreg);
+	if (flags & UPDATE_ADDR)
+		set_start_address(info, info->var.xoffset,
+			info->var.yoffset, shadowreg);
+	shadowreg->flags = flags;
+	return 0;
+}
+
+void pxa168fb_set_regs(struct pxa168fb_info *fbi, struct regshadow *shadowreg)
+{
+	struct lcd_regs *regs = get_regs(fbi->id);
+
+	if (shadowreg->flags & UPDATE_ADDR) {
+		if (fbi->vid) {
+			writel(shadowreg->paddr0[0], &regs->v_y0);
+			writel(shadowreg->paddr0[1], &regs->v_u0);
+			writel(shadowreg->paddr0[2], &regs->v_v0);
+		} else
+			writel(shadowreg->paddr0[0], &regs->g_0);
+		shadowreg->flags &= ~UPDATE_ADDR;
+	}
+
+	if (shadowreg->flags & UPDATE_MODE) {
+		dma_ctrl_set(fbi->id, 0, dma_mask(fbi->vid),
+				 shadowreg->dma_ctrl0);
+		shadowreg->flags &= ~UPDATE_MODE;
+	}
+
+	if (shadowreg->flags & UPDATE_VIEW) {
+		if (fbi->vid) {
+			/* start address on screen */
+			writel(shadowreg->start_point, &regs->v_start);
+			/* pitch, pixels per line */
+			writel(shadowreg->pitch[0], &regs->v_pitch_yc);
+			writel(shadowreg->pitch[1], &regs->v_pitch_uv);
+			/* resolution, src size */
+			writel(shadowreg->src_size, &regs->v_size);
+			/* resolution, dst size */
+			writel(shadowreg->dst_size, &regs->v_size_z);
+
+			writel(shadowreg->zoom, fbi->reg_base +
+			 ((fbi->id == 2) ? (LCD_PN2_LAYER_ALPHA_SEL1) :
+			 (LCD_AFA_ALL2ONE)));
+		} else {
+			/* start address on screen */
+			writel(shadowreg->start_point, &regs->g_start);
+			/* pitch, pixels per line */
+			writel(shadowreg->pitch[0], &regs->g_pitch);
+			/* resolution, src size */
+			writel(shadowreg->src_size, &regs->g_size);
+			/* resolution, dst size */
+			writel(shadowreg->dst_size, &regs->g_size_z);
+		}
+		shadowreg->flags &= ~UPDATE_VIEW;
+	}
+
+	set_dma_active(fbi);
+	pxa168fb_misc_update(fbi);
+}
+
+irqreturn_t pxa168_fb_isr(int id)
+{
+	struct pxa168fb_info *fbi;
+	struct regshadow *shadowreg;
+	int vid;
+
+	/* First do video layer update, then graphics layer */
+	for (vid = 1; vid >= 0; vid--) {
+		fbi = vid ? (ovly_info.fbi[id]) : (gfx_info.fbi[id]);
+		if (!fbi)
+			continue;
+
+		shadowreg = &fbi->shadowreg;
+		if (shadowreg && shadowreg->flags)
+			pxa168fb_set_regs(fbi, shadowreg);
+
+		if (atomic_read(&fbi->op_count)) {
+			spin_lock(&fbi->buf_lock);
+			/* do buffer switch for video flip */
+			buf_endframe(fbi);
+			spin_unlock(&fbi->buf_lock);
+		}
+
+		/* wake up queue. */
+		if (atomic_read(&fbi->w_intr) == 0) {
+			atomic_set(&fbi->w_intr, 1);
+			wake_up(&fbi->w_intr_wq);
+		}
+	}
+	return IRQ_HANDLED;
 }
