@@ -43,6 +43,7 @@
 #include <mach/debug_pm.h>
 
 #include <plat/pmem.h>
+#include <plat/clock.h>
 
 #include "generic.h"
 #include "devices.h"
@@ -248,9 +249,15 @@ static struct mfp_addr_map pxa978_mfp_addr_map[] __initdata = {
 	MFP_ADDR_END,
 };
 
-void clk_pxa95x_smc_enable(struct clk *smc_clk)
+static void common_clk_init(struct clk *c)
+{
+	c->dynamic_change = 1;
+}
+
+int clk_pxa95x_smc_enable(struct clk *smc_clk)
 {
 	CKENA |= (1 << CKEN_SMC) | (1 << CKEN_NAND);
+	return 0;
 }
 
 void clk_pxa95x_smc_disable(struct clk *smc_clk)
@@ -295,9 +302,10 @@ static const struct clkops clk_pxa95x_smc_ops = {
 	.getrate	= clk_pxa95x_smc_getrate,
 };
 
-void clk_pxa3xx_cken_nand_enable(struct clk *clk)
+int clk_pxa3xx_cken_nand_enable(struct clk *clk)
 {
 	CKENA |= (1 << CKEN_NAND);
+	return 0;
 }
 
 void clk_pxa3xx_cken_nand_disable(struct clk *clk)
@@ -327,9 +335,10 @@ static const struct clkops clk_pxa3xx_nand_ops = {
 	.getrate	= clk_pxa3xx_nand_getrate,
 };
 
-static void clk_tout_s0_enable(struct clk *clk)
+static int clk_tout_s0_enable(struct clk *clk)
 {
 	OSCC |= OSCC_TENS0;
+	return 0;
 }
 
 static void clk_tout_s0_disable(struct clk *clk)
@@ -377,15 +386,14 @@ u32 get_mipi_reference_control(void)
 	return *gen_reg4;
 }
 
-
-static void clk_pxa95x_dsi_enable(struct clk *dsi_clk)
+static int clk_pxa95x_dsi_enable(struct clk *dsi_clk)
 {
 	set_mipi_reference_control();
 	dsi_enable_status = 1;
 
 	if (!cpu_is_pxa978()) {
 		struct DSIRegisters  *p_Regs =
-			get_dsi_pll(dsi_clk->cken == CKEN_DSI_TX2);
+			get_dsi_pll(dsi_clk->enable_val == CKEN_DSI_TX2);
 		/*Enable PLL with internal timer*/
 		p_Regs->DSI_REG3 = 0x05cc60a2;
 		p_Regs->DSI_REG1 =
@@ -394,18 +402,18 @@ static void clk_pxa95x_dsi_enable(struct clk *dsi_clk)
 	}
 
 	pr_info("dsi clock enable\n");
-	CKENC |= 1 << (dsi_clk->cken - 64);
+	CKENC |= 1 << (dsi_clk->enable_val - 64);
 
-	return;
+	return 0;
 }
 
 static void clk_pxa95x_dsi_disable(struct clk *dsi_clk)
 {
-	CKENC &= ~(1 << (dsi_clk->cken - 64));
+	CKENC &= ~(1 << (dsi_clk->enable_val - 64));
 
 	if (!cpu_is_pxa978()) {
 		struct DSIRegisters  *p_Regs =
-			get_dsi_pll(dsi_clk->cken == CKEN_DSI_TX2);
+			get_dsi_pll(dsi_clk->enable_val == CKEN_DSI_TX2);
 		/*Disable PLL with internal timer*/
 		/* JIRA: MG1-1265 dis pll could only be disabled
 		   by setting reg3 to this value */
@@ -586,16 +594,17 @@ static int clk_pxa95x_dsi_setrate(struct clk *dsi_clk, unsigned long rate)
 	if (cpu_is_pxa978())
 		dsi_set_clock_nevo(mrate);
 	else
-		dsi_set_clock_pv2(mrate, (dsi_clk->cken == CKEN_DSI_TX2));
+		dsi_set_clock_pv2(mrate, (dsi_clk->enable_val == CKEN_DSI_TX2));
 	return 0;
 
 }
 
 /* TODO: hdmi cken? */
-static void clk_pxa95x_ihdmi_enable(struct clk *hdmi_clk)
+static int clk_pxa95x_ihdmi_enable(struct clk *hdmi_clk)
 {
 	set_mipi_reference_control();
 	dsi_enable_status = 1;
+	return 0;
 }
 
 static void clk_pxa95x_ihdmi_disable(struct clk *hdmi_clk)
@@ -704,9 +713,10 @@ static int clk_pxa95x_ihdmi_setrate(struct clk *clk, unsigned long rate)
 
 }
 
-static void clk_pxa95x_lcd_enable(struct clk *lcd_clk)
+static int clk_pxa95x_lcd_enable(struct clk *lcd_clk)
 {
 	CKENC |= (1 << (CKEN_DISPLAY - 64)) | (1 << (CKEN_PIXEL - 64));
+	return 0;
 }
 
 static void clk_pxa95x_lcd_disable(struct clk *dsi_clk)
@@ -715,9 +725,10 @@ static void clk_pxa95x_lcd_disable(struct clk *dsi_clk)
 		| (1 << (CKEN_PIXEL - 64)));
 }
 
-static void clk_axi_enable(struct clk *clk)
+static int clk_axi_enable(struct clk *clk)
 {
 	CKENC |= (1 << (CKEN_AXI - 64)) | (1 << (CKEN_AXI_2X -64));
+	return 0;
 }
 
 static void clk_axi_disable(struct clk *clk)
@@ -751,9 +762,10 @@ static void clk_axi_disable(struct clk *clk)
 		CKENC &= ~(1 << (CKEN_AXI - 64) | (1 << (CKEN_AXI_2X -64)));
 }
 
-static void clk_imu_axi_enable(struct clk *clk)
+static int clk_imu_axi_enable(struct clk *clk)
 {
 	CKENC |= (1 << (CKEN_IMU - 64));
+	return 0;
 }
 
 static void clk_imu_axi_disable(struct clk *clk)
@@ -777,7 +789,7 @@ static void clk_imu_axi_disable(struct clk *clk)
 		CKENC &= ~(1 << (CKEN_IMU - 64));
 }
 
-static void clk_pxa9xx_u2o_enable(struct clk *clk)
+static int clk_pxa9xx_u2o_enable(struct clk *clk)
 {
 	local_irq_disable();
 	clk_axi_enable(clk);
@@ -788,6 +800,7 @@ static void clk_pxa9xx_u2o_enable(struct clk *clk)
 	ACCR1 |= ACCR1_PU_OTG|ACCR1_PU_PLL|ACCR1_PU;
 
 	local_irq_enable();
+	return 0;
 }
 
 static void clk_pxa9xx_u2o_disable(struct clk *clk)
@@ -803,12 +816,13 @@ static void clk_pxa9xx_u2o_disable(struct clk *clk)
 	local_irq_enable();
 }
 
-static void clk_gcu_enable(struct clk *clk)
+static int clk_gcu_enable(struct clk *clk)
 {
 	gc_vmeta_stats_clk_event(GC_CLK_ON);
 	clk_axi_enable(clk);
         CKENC |= (1 << (CKEN_GC_1X - 64));
         CKENC |= (1 << (CKEN_GC_2X - 64));
+	return 0;
 }
 
 static void clk_gcu_disable(struct clk *clk)
@@ -819,13 +833,14 @@ static void clk_gcu_disable(struct clk *clk)
 	gc_vmeta_stats_clk_event(GC_CLK_OFF);
 }
 
-static void clk_csi_tx_esc_enable(struct clk *csi_clk)
+static int clk_csi_tx_esc_enable(struct clk *csi_clk)
 {
 	clk_axi_enable(csi_clk);
 	set_mipi_reference_control();
 	CKENC |= (1 << (CKEN_CSI_TX - 64));
 	csi_enable_status = 1;
 	pr_info("cam: csi clock enable\n");
+	return 0;
 }
 
 static void clk_csi_tx_esc_disable(struct clk *csi_clk)
@@ -837,11 +852,13 @@ static void clk_csi_tx_esc_disable(struct clk *csi_clk)
 	pr_info("cam: csi clock disable\n");
 }
 
-static void clk_pxa95x_sci_enable(struct clk *sci_clk)
+static int clk_pxa95x_sci_enable(struct clk *sci_clk)
 {
 	clk_axi_enable(sci_clk);
 	CKENC |= (1 << (CKEN_SCI1 - 64)) | (1 << (CKEN_SCI2 - 64));
+	return 0;
 }
+
 
 static void clk_pxa95x_sci_disable(struct clk *sci_clk)
 {
@@ -850,12 +867,14 @@ static void clk_pxa95x_sci_disable(struct clk *sci_clk)
 }
 
 static const struct clkops clk_pxa95x_dsi_ops = {
+	.init		= common_clk_init,
 	.enable		= clk_pxa95x_dsi_enable,
 	.disable	= clk_pxa95x_dsi_disable,
 	.setrate	= clk_pxa95x_dsi_setrate,
 };
 
 static const struct clkops clk_pxa95x_ihdmi_ops = {
+	.init		= common_clk_init,
 	.enable		= clk_pxa95x_ihdmi_enable,
 	.disable	= clk_pxa95x_ihdmi_disable,
 	.setrate	= clk_pxa95x_ihdmi_setrate,
@@ -886,7 +905,7 @@ static const struct clkops clk_gcu_ops = {
         .disable        = clk_gcu_disable,
 };
 
-static void clk_mmc_enable(struct clk *clk)
+static int clk_mmc_enable(struct clk *clk)
 {
 	unsigned long mask;
 	struct clk *clock = NULL;
@@ -896,12 +915,13 @@ static void clk_mmc_enable(struct clk *clk)
 
 	/* turning on MMC bus clock. */
 	if (cpu_is_pxa978_Cx()) {
-		mask = 1 << (clk->cken-64) | 1 << (CKEN_MMC_BUS - 64);
+		mask = 1 << (clk->enable_val - 64) | 1 << (CKEN_MMC_BUS - 64);
 	} else {
-		mask = 1 << (clk->cken-64) | 1 << ((clk->cken-64) + 13);
+		mask = 1 << (clk->enable_val - 64) | 1 << ((clk->enable_val - 64) + 13);
 	}
 
 	CKENC |= mask;
+	return 0;
 }
 
 static void clk_mmc_disable(struct clk *clk)
@@ -910,9 +930,9 @@ static void clk_mmc_disable(struct clk *clk)
 	struct clk *clock = NULL;
 
 	if (cpu_is_pxa978_Cx())
-		mask = ~(1 << (clk->cken-64));
+		mask = ~(1 << (clk->enable_val - 64));
 	else
-		mask = ~(1 << (clk->cken-64) | 1 << ((clk->cken-64) + 13));
+		mask = ~(1 << (clk->enable_val - 64) | 1 << ((clk->enable_val - 64) + 13));
 	CKENC &= mask;
 
 	/* turning off MMC bus clock. */
@@ -934,15 +954,16 @@ static const struct clkops clk_mmc_ops = {
 
 #define PWMCCR4 0x42404060
 /* enable PWM SLOW clock */
-void clk_pxa95x_pwm_slow_enable(struct clk *pwm_slow_clk)
+int clk_pxa95x_pwm_slow_enable(struct clk *pwm_slow_clk)
 {
 	unsigned char __iomem *pwm_membase;
 	u32 temp = 0;
 
-	pwm_membase = ioremap(PWMCCR4 + pwm_slow_clk->cken, 4);
+	pwm_membase = ioremap(PWMCCR4 + pwm_slow_clk->enable_val, 4);
 	temp = ioread32(pwm_membase);
 	iowrite32(temp | PWMCLKEN_SLOW, pwm_membase);
 	iounmap(pwm_membase);
+	return 0;
 }
 
 /* disable PWM SLOW clock */
@@ -951,7 +972,7 @@ void clk_pxa95x_pwm_slow_disable(struct clk *pwm_slow_clk)
 	unsigned char __iomem *pwm_membase;
 	u32 temp = 0;
 
-	pwm_membase = ioremap(PWMCCR4 + pwm_slow_clk->cken, 4);
+	pwm_membase = ioremap(PWMCCR4 + pwm_slow_clk->enable_val, 4);
 	temp = ioread32(pwm_membase);
 	iowrite32(temp & (~(PWMCLKEN_SLOW)), pwm_membase);
 	iounmap(pwm_membase);
@@ -997,36 +1018,35 @@ static DEFINE_CK(pxa95x_pwm7, PWM7, &clk_pxa95x_pwm_slow_ops);
 static DEFINE_CK(pxa95x_sci1, SCI1, &clk_pxa95x_sci_ops);
 static DEFINE_CK(pxa95x_sci2, SCI2, &clk_pxa95x_sci_ops);
 static DEFINE_CK(pxa95x_csi_tx_esc, CSI_TX, &clk_csi_tx_esc_ops);
-static DEFINE_CLK(pxa95x_pout, &clk_pxa3xx_pout_ops, 13000000, 70);
-static DEFINE_CLK(pxa95x_tout_s0, &clk_pxa95x_tout_s0_ops, 13000000, 70);
+static DEFINE_CLK(pxa95x_pout, &clk_pxa3xx_pout_ops, 13000000);
+static DEFINE_CLK(pxa95x_tout_s0, &clk_pxa95x_tout_s0_ops, 13000000);
 static DEFINE_CK(pxa95x_sdh0, PXA95x_MMC1, &clk_mmc_ops);
 static DEFINE_CK(pxa95x_sdh1, PXA95x_MMC2, &clk_mmc_ops);
 static DEFINE_CK(pxa95x_sdh2, PXA95x_MMC3, &clk_mmc_ops);
 static DEFINE_CK(pxa95x_sdh3, PXA95x_MMC4, &clk_mmc_ops);
 
-static DEFINE_PXA3_CKEN(pxa95x_ffuart, FFUART, 14857000, 1);
-static DEFINE_PXA3_CKEN(pxa95x_btuart, BTUART, 14857000, 1);
-static DEFINE_PXA3_CKEN(pxa95x_stuart, STUART, 14857000, 1);
-static DEFINE_PXA3_CKEN(pxa95x_i2c1, I2C, 32842000, 0);
-static DEFINE_PXA3_CKEN(pxa95x_i2c2, I2C2, 32842000, 0);
-static DEFINE_PXA3_CKEN(pxa95x_i2c3, I2C3, 32842000, 0);
-static DEFINE_PXA3_CKEN(pxa95x_keypad, KEYPAD, 32768, 0);
-static DEFINE_PXA3_CKEN(pxa95x_ssp1, SSP1, 13000000, 0);
-static DEFINE_PXA3_CKEN(pxa95x_ssp2, SSP2, 13000000, 0);
-static DEFINE_PXA3_CKEN(pxa95x_ssp3, SSP3, 13000000, 0);
-static DEFINE_PXA3_CKEN(pxa95x_ssp4, SSP4, 13000000, 0);
-static DEFINE_PXA3_CKEN(pxa95x_pwm0, PWM0, 13000000, 0);
-static DEFINE_PXA3_CKEN(pxa95x_pwm1, PWM1, 13000000, 0);
-static DEFINE_PXA3_CKEN(pxa95x_vmeta, VMETA, 312000000, 0);
-static DEFINE_PXA3_CKEN(pxa95x_abu, ABU, 20000000, 0);
-static DEFINE_PXA3_CKEN(pxa95x_gpio, GPIO, 0, 0);
-static DEFINE_PXA3_CKEN(pxa95x_bootrom, BOOT, 0, 0);
+static DEFINE_PXA3_CKEN(pxa95x_ffuart, FFUART, 14857000);
+static DEFINE_PXA3_CKEN(pxa95x_btuart, BTUART, 14857000);
+static DEFINE_PXA3_CKEN(pxa95x_stuart, STUART, 14857000);
+static DEFINE_PXA3_CKEN(pxa95x_i2c1, I2C, 32842000);
+static DEFINE_PXA3_CKEN(pxa95x_i2c2, I2C2, 32842000);
+static DEFINE_PXA3_CKEN(pxa95x_i2c3, I2C3, 32842000);
+static DEFINE_PXA3_CKEN(pxa95x_keypad, KEYPAD, 32768);
+static DEFINE_PXA3_CKEN(pxa95x_ssp1, SSP1, 13000000);
+static DEFINE_PXA3_CKEN(pxa95x_ssp2, SSP2, 13000000);
+static DEFINE_PXA3_CKEN(pxa95x_ssp3, SSP3, 13000000);
+static DEFINE_PXA3_CKEN(pxa95x_ssp4, SSP4, 13000000);
+static DEFINE_PXA3_CKEN(pxa95x_pwm0, PWM0, 13000000);
+static DEFINE_PXA3_CKEN(pxa95x_pwm1, PWM1, 13000000);
+static DEFINE_PXA3_CKEN(pxa95x_vmeta, VMETA, 312000000);
+static DEFINE_PXA3_CKEN(pxa95x_abu, ABU, 20000000);
+static DEFINE_PXA3_CKEN(pxa95x_gpio, GPIO, 0);
+static DEFINE_PXA3_CKEN(pxa95x_bootrom, BOOT, 0);
 
 static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_pout, NULL, "CLK_POUT"),
 	INIT_CLKREG(&clk_pxa95x_tout_s0, NULL, "CLK_TOUT_S0"),
 	/* Power I2C clock is always on */
-	INIT_CLKREG(&clk_dummy, "pxa3xx-pwri2c.1", NULL),
 	INIT_CLKREG(&clk_pxa95x_ffuart, "pxa2xx-uart.0", NULL),
 	INIT_CLKREG(&clk_pxa95x_btuart, "pxa2xx-uart.1", NULL),
 	INIT_CLKREG(&clk_pxa95x_stuart, "pxa2xx-uart.2", NULL),
@@ -1232,7 +1252,7 @@ static void cken_clear_always_set_always_setup(void)
 
 static int __init pxa95x_init(void)
 {
-	int ret = 0;
+	int ret = 0, i;
 
 	/* dvfm device */
 #ifdef CONFIG_PXA95x_DVFM
@@ -1344,8 +1364,15 @@ static int __init pxa95x_init(void)
 	 */
 	ASCR &= ~(ASCR_RDH | ASCR_D1S | ASCR_D2S | ASCR_D3S);
 
-	clkdev_add_table(pxa95x_clkregs, ARRAY_SIZE(pxa95x_clkregs));
-
+	for (i = 0; i < ARRAY_SIZE(pxa95x_clkregs); i++) {
+		struct clk *c = pxa95x_clkregs[i].clk;
+		clk_init(c);
+		INIT_LIST_HEAD(&c->shared_bus_list);
+		if (!c->lookup.dev_id && !c->lookup.con_id)
+			c->lookup.con_id = c->name;
+		c->lookup.clk = c;
+		clkdev_add(&pxa95x_clkregs[i]);
+	}
 	if ((ret = pxa_init_dma(IRQ_DMA, 32)))
 		return ret;
 

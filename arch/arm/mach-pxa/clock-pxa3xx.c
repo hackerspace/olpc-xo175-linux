@@ -15,7 +15,7 @@
 #include <mach/smemc.h>
 #include <mach/pxa3xx-regs.h>
 
-#include "clock.h"
+#include <plat/clock.h>
 
 /* Crystal clock: 13MHz */
 #define BASE_CLK	13000000
@@ -121,25 +121,26 @@ static unsigned long clk_pxa3xx_smemc_getrate(struct clk *clk)
 			df_clkdiv[(memclkcfg >> 16) & 0x3];
 }
 
-void clk_pxa3xx_cken_enable(struct clk *clk)
+int clk_pxa3xx_cken_enable(struct clk *clk)
 {
-	unsigned long mask = 1ul << (clk->cken & 0x1f);
+	unsigned long mask = 1ul << (clk->enable_val & 0x1f);
 
-	if (clk->cken < 32)
+	if (clk->enable_val < 32)
 		CKENA |= mask;
-	else if (clk->cken < 64)
+	else if (clk->enable_val < 64)
 		CKENB |= mask;
 	else
 		CKENC |= mask;
+	return 0;
 }
 
 void clk_pxa3xx_cken_disable(struct clk *clk)
 {
-	unsigned long mask = 1ul << (clk->cken & 0x1f);
+	unsigned long mask = 1ul << (clk->enable_val & 0x1f);
 
-	if (clk->cken < 32)
+	if (clk->enable_val < 32)
 		CKENA &= ~mask;
-	else if (clk->cken < 64)
+	else if (clk->enable_val < 64)
 		CKENB &= ~mask;
 	else
 		CKENC &= ~mask;
@@ -168,9 +169,10 @@ const struct clkops clk_pxa3xx_smemc_ops = {
 	.getrate	= clk_pxa3xx_smemc_getrate,
 };
 
-static void clk_pout_enable(struct clk *clk)
+static int clk_pout_enable(struct clk *clk)
 {
 	OSCC |= OSCC_PEN;
+	return 0;
 }
 
 static void clk_pout_disable(struct clk *clk)

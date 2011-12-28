@@ -3,7 +3,7 @@
 #
 
 # Common support (must be linked before board specific support)
-obj-y				+= clock.o devices.o generic.o irq.o \
+obj-y				+= devices.o generic.o irq.o \
 				   time.o reset.o rtc_calibrate.o
 obj-$(CONFIG_DVFM)		+= dvfm.o
 ifeq ($(CONFIG_PXA95x), y)
