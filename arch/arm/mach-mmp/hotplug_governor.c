@@ -15,7 +15,7 @@
 
 #include <asm/cputime.h>
 
-#ifdef CONFIG_SMP
+#ifdef CONFIG_HOTPLUG_CPU
 
 #define DEFAULT_SAMPLING_PERIOD				(100000)
 
@@ -487,4 +487,4 @@ static void __exit hotplug_governor_exit(void)
 module_init(hotplug_governor_init);
 module_exit(hotplug_governor_exit);
 
-#endif /* CONFIG_SMP */
+#endif /* CONFIG_HOTPLUG_CPU */

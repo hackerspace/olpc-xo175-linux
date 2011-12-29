@@ -122,8 +122,9 @@ static int mmp3_cpufreq_target(struct cpufreq_policy *policy,
 	if (freqs[policy->cpu].old == freqs[policy->cpu].new)
 		goto out;
 
+#ifdef CONFIG_HOTPLUG_CPU
 	ret = hotplug_governor_cpufreq_action(CPUFREQ_PRECHANGE, freqs);
-
+#endif
 	for_each_online_cpu(cpu)
 		cpufreq_notify_transition(&freqs[cpu], CPUFREQ_PRECHANGE);
 
@@ -147,7 +148,10 @@ static int mmp3_cpufreq_target(struct cpufreq_policy *policy,
 		cpufreq_notify_transition(&freqs[cpu], CPUFREQ_POSTCHANGE);
 	}
 
+#ifdef CONFIG_HOTPLUG_CPU
 	ret = hotplug_governor_cpufreq_action(CPUFREQ_POSTCHANGE, freqs);
+#endif
+
 out:
 	mutex_unlock(&mmp3_cpu_lock);
 	return ret;
