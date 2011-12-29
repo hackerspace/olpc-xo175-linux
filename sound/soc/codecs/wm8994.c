@@ -1134,7 +1134,7 @@ static const struct snd_kcontrol_new aif2dacr_src_mux =
 
 static const struct snd_soc_dapm_widget wm8994_lateclk_revd_widgets[] = {
 SND_SOC_DAPM_SUPPLY("AIF1CLK", SND_SOC_NOPM, 0, 0, aif1clk_ev,
-	SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
+	SND_SOC_DAPM_PRE_PMU),
 SND_SOC_DAPM_SUPPLY("AIF2CLK", SND_SOC_NOPM, 0, 0, aif2clk_ev,
 	SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
 
