@@ -252,7 +252,8 @@ int wm8994_headset_detect(void)
 {
 	struct snd_soc_codec *codec;
 	int status1, status2, reg;
-	int re_check = 0, ret = 0;
+	int ret = 0;
+	static int headset_last_status;
 
 	codec = mmp3asoc_wm8994_codec;
 	if (codec == NULL)
@@ -264,7 +265,12 @@ int wm8994_headset_detect(void)
 	snd_soc_write(codec, WM8994_INTERRUPT_STATUS_2_MASK,
 			 0xffff);
 
-CHECK_HEADSET_STATUS:
+	/* CHECK_HEAD_PLUGIN: when headset plugin, it would trigger a
+	 * transition state(state = 2) before it can finally get the
+	 * correct state(state = 1). to avoid bad event report, we
+	 * would double check the state when getting a state =2 and
+	 * the last status is no headset/headphone plugin. */
+CHECK_HEADSET_PLUGIN:
 	status1 = snd_soc_read(codec, WM8994_INTERRUPT_STATUS_1);
 	status2 = snd_soc_read(codec, WM8994_INTERRUPT_STATUS_2);
 
@@ -282,12 +288,14 @@ CHECK_HEADSET_STATUS:
 		break;
 	}
 
-	if (ret == 2 && re_check == 0) {
-		/* double check whether it's unstable */
+	if (ret == 2 && headset_last_status == 0) {
 		msleep(200);
-		re_check = 1;
-		goto CHECK_HEADSET_STATUS;
-	}
+		headset_last_status = 1;
+		goto CHECK_HEADSET_PLUGIN;
+	} else if (ret > 0)
+		headset_last_status = 1;
+	else
+		headset_last_status = 0;
 
 	/* clear all irqs */
 	snd_soc_write(codec, WM8994_INTERRUPT_RAW_STATUS_2, 0);
