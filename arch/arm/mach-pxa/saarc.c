@@ -345,12 +345,11 @@ static void regulator_init_pm800(void)
 
 	switch (get_board_id()) {
 	case OBM_DKB_2_NEVO_C0_BOARD:
-		/* will be enabled after regulator fix
+		/* Turn on LDO12 and 17 before wifi regulator support added */
 		REG_SUPPLY_INIT(PM800_ID_LDO12, "v_wifi_1v8", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO17, "v_wifi_3v3", NULL);
-		REG_INIT(i++, PM800_ID, LDO12, 1800000, 1800000, 1, 1);
-		REG_INIT(i++, PM800_ID, LDO17, 3300000, 3300000, 1, 1);
-		*/
+		REG_INIT(i++, PM800_ID, LDO12, 1800000, 1800000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO17, 3300000, 3300000, 0, 0);
 		break;
 	default:
 		REG_SUPPLY_INIT(PM800_ID_LDO17, "VSim", NULL);
@@ -386,11 +385,30 @@ static void wifi_set_power(unsigned int on)
 	unsigned long wlan_pd_mfp = 0;
 	int gpio_power_down = mfp_to_gpio(MFP_PIN_GPIO70);
 	int gpio_wifi_en = mfp_to_gpio(MFP_PIN_GPIO102);
+	struct regulator *v_ldo12 = NULL;
+	struct regulator *v_ldo17 = NULL;
+
+	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD) {
+		v_ldo12 = regulator_get(NULL, "v_wifi_1v8");
+		if (IS_ERR(v_ldo12)) {
+			v_ldo12 = NULL;
+			return;
+		}
+		v_ldo17 = regulator_get(NULL, "v_wifi_3v3");
+		if (IS_ERR(v_ldo17)) {
+			regulator_put(v_ldo12);
+			v_ldo12 = NULL;
+			v_ldo17 = NULL;
+			return;
+		}
+	}
 
 	wlan_pd_mfp = pxa3xx_mfp_read(gpio_power_down);
 
 	if (on) {
 		if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD) {
+			regulator_enable(v_ldo12);
+			regulator_enable(v_ldo17);
 			gpio_request(gpio_wifi_en, "WIB_EN");
 			gpio_direction_output(gpio_wifi_en, 1);
 		}
@@ -412,7 +430,13 @@ static void wifi_set_power(unsigned int on)
 		if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD) {
 			gpio_direction_output(gpio_wifi_en, 0);
 			gpio_free(gpio_wifi_en);
+			regulator_disable(v_ldo12);
+			regulator_disable(v_ldo17);
 		}
+	}
+	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD) {
+		regulator_put(v_ldo12);
+		regulator_put(v_ldo17);
 	}
 }
 
