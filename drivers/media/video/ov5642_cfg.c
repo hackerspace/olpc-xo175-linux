@@ -7409,6 +7409,8 @@ static struct ov5642_config ov5642_cfg[] = {
 		.yuv_res_size = ARRAY_SIZE(ov5642_pxa2128_mipi_sizes_yuv),
 		.jpg_res = ov5642_pxa2128_mipi_sizes_jpg,
 		.jpg_res_size = ARRAY_SIZE(ov5642_pxa2128_mipi_sizes_jpg),
+		.firmware_af = firmware_regs_pxa910,
+		.firmware_af_size = N_AF_FIRMWARE_SIZES_PXA910,
 	},
 	{
 		.name = "pxa688-mipi",
@@ -7419,6 +7421,8 @@ static struct ov5642_config ov5642_cfg[] = {
 		.yuv_res_size = ARRAY_SIZE(ov5642_mmp2_sizes_yuv),
 		.jpg_res = ov5642_mmp2_sizes_jpg,
 		.jpg_res_size = ARRAY_SIZE(ov5642_mmp2_sizes_jpg),
+		.firmware_af = firmware_regs_pxa910,
+		.firmware_af_size = N_AF_FIRMWARE_SIZES_PXA910,
 		.init = ov5642_mmp2_yuv_default,
 	},
 };
