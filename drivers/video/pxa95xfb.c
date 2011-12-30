@@ -4,29 +4,22 @@
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/kernel.h>
-#include <linux/sched.h>
 #include <linux/errno.h>
 #include <linux/string.h>
 #include <linux/interrupt.h>
 #include <linux/slab.h>
-#include <linux/fb.h>
 #include <linux/delay.h>
-#include <linux/init.h>
-#include <linux/ioport.h>
 #include <linux/cpufreq.h>
 #include <linux/platform_device.h>
 #include <linux/dma-mapping.h>
 #include <linux/clk.h>
 #include <linux/err.h>
-#include <linux/uaccess.h>
 #include <linux/kthread.h>
 #include <linux/earlysuspend.h>
 #include <linux/vmalloc.h>
-#include <mach/io.h>
-#include <mach/irqs.h>
-#include <mach/regs-ost.h>
+
 #include <mach/pxa3xx-regs.h>
-#include <mach/pxa95xfb.h>
+#include <mach/regs-ost.h>
 #include <mach/dvfm.h>
 
 #include "pxa95xfb.h"
@@ -1736,7 +1729,7 @@ static void set_fetch(struct pxa95xfb_info *fbi)
 		dmadesc_cpu->LCD_FR_IDx = 0;
 		/*FIXME: for yuv, this value might be not correct*/
 		dmadesc_cpu->LCD_CH_CMDx = (fbi->user_addr)?
-			fbi->surface.viewPortInfo.srcHeight * fbi->surface.viewPortInfo.ycPitch:
+			fbi->surface.viewPortInfo.srcHeight * fbi->surface.viewPortInfo.yPitch:
 			m->yres * m->xres * fbi->bpp /8;
 		dmadesc_cpu->LCD_NXT_DESC_ADDRx = dmadesc_dma;
 		writel(dmadesc_dma, fbi->reg_base + LCD_NXT_DESC_ADDR0 + channel * 0x40);
@@ -1765,8 +1758,8 @@ static void set_window(struct pxa95xfb_info *fbi)
 	u32 crop1_offset = (fbi->window == 4) ? LCD_WIN4_CROP1:
 		LCD_WIN0_CROP1 + fbi->window * 0x40;
 
-	xsrc = (fbi->surface.viewPortInfo.ycPitch)?
-		fbi->surface.viewPortInfo.ycPitch * 8 / fbi->bpp: m->xres;
+	xsrc = (fbi->surface.viewPortInfo.yPitch)?
+		fbi->surface.viewPortInfo.yPitch * 8 / fbi->bpp: m->xres;
 	ysrc = (fbi->surface.viewPortInfo.srcHeight)?
 		fbi->surface.viewPortInfo.srcHeight : m->yres;
 
@@ -1776,7 +1769,7 @@ static void set_window(struct pxa95xfb_info *fbi)
 	writel(x, fbi->reg_base + ctl_offset);
 
 	/* set cropping */
-	rcrop = (fbi->surface.viewPortInfo.ycPitch * 8 / fbi->bpp -
+	rcrop = (fbi->surface.viewPortInfo.yPitch * 8 / fbi->bpp -
 			fbi->surface.viewPortInfo.srcWidth);
 	x = LCD_WINx_CROP1_RC(rcrop/4);
 	writel(x, fbi->reg_base + crop1_offset);
@@ -1956,43 +1949,25 @@ void lcdc_correct_pixclock(struct fb_videomode * m)
 	printk(KERN_INFO "LCD %s: pixclock %d\n", __func__, m->pixclock);
 }
 
-static inline int check_colorkeyalpha_changed(struct _sColorKeyNAlpha *a, struct _sColorKeyNAlpha *b)
-{
-	return (a->alpha_method != b->alpha_method
-		|| a->color_match != b->color_match
-		|| a->default_alpha_val!= b->default_alpha_val
-		|| a->win_alpha_en != b->win_alpha_en);
-}
-
-
 u32 lcdc_set_colorkeyalpha(struct pxa95xfb_info *fbi)
 {
-	unsigned int x = 0;
-	static struct _sColorKeyNAlpha color_a;
-
-	if(!check_colorkeyalpha_changed(&color_a,  &fbi->ckey_alpha))
-		return 0;
-	memcpy(&color_a, &fbi->ckey_alpha, sizeof(struct _sColorKeyNAlpha));
-
-	dev_dbg(fbi->fb_info->dev, "Enter %s\n", __FUNCTION__);
-
-	if (color_a.win_alpha_en)
-		/* YCbCr formate can only select window specific alpha */
-		x = LCD_CHx_ALPHA_W_ALPHA_EN | LCD_CHx_ALPHA_CH_ALPHA(color_a.default_alpha_val);
-	else {
-		/*
-		 * color_a->alpha_method = 0: color match alpha method (only for RGB16 and RGB24)
-		 * color_a->alpha_method = 1: lower bit alpha method (only for RGB16 and RGB24)
-		 * color_a->alpha_method = 2: source alpha method (only for RGB32)
-		 */
-		if ((LCD_CHx_ALPHA_CLR_KEY_EN(color_a.alpha_method)) == 0) {
-			x = LCD_CHx_ALPHA_CH_ALPHA(color_a.default_alpha_val);
-			writel(color_a.color_match, fbi->reg_base + LCD_CH0_CLR_MATCH  + 4*fbi->window);
-		} else
-			x = LCD_CHx_ALPHA_CLR_KEY_EN(color_a.alpha_method);
-	}
-	writel(x, fbi->reg_base + LCD_CH0_ALPHA  + 4*fbi->window);
-
+	if (fbi->ckey_alpha.mode == FB_ENABLE_RGB_COLORKEY_MODE) {
+		/* color key mode, alpha regs = 0*/
+		unsigned int color = (fbi->ckey_alpha.Y_ColorAlpha << 16) |
+			(fbi->ckey_alpha.U_ColorAlpha << 8) | fbi->ckey_alpha.V_ColorAlpha;
+		writel(color, fbi->reg_base + LCD_CH0_CLR_MATCH  + 4*fbi->window);
+		writel(0, fbi->reg_base + LCD_CH0_ALPHA  + 4*fbi->window);
+		pr_info("fb%d: colorkey mode, key %x\n", fbi->id, color);
+	} else if (fbi->ckey_alpha.alphapath == FB_CONFIG_ALPHA) {
+		/* global alpha mode */
+		unsigned int alpha = LCD_CHx_ALPHA_CH_ALPHA(fbi->ckey_alpha.config) | LCD_CHx_ALPHA_W_ALPHA_EN;
+		writel(alpha, fbi->reg_base + LCD_CH0_ALPHA  + 4*fbi->window);
+		pr_info("fb%d: global alpha mode, alpha %x\n", fbi->id, fbi->ckey_alpha.config);
+	} else if (fbi->ckey_alpha.alphapath == FB_GRA_PATH_ALPHA) {
+		writel(LCD_CHx_ALPHA_CLR_KEY_EN(2), fbi->reg_base + LCD_CH0_ALPHA  + 4*fbi->window);
+		pr_info("fb%d: per-pixel alpha mode\n", fbi->id);
+	} else
+		pr_info("fb%d: unsupported mode\n", fbi->id);
 	return 0;
 }
 
@@ -2099,7 +2074,7 @@ u32 lcdc_set_fr_addr(struct pxa95xfb_info *fbi, struct fb_var_screeninfo * var)
 	if(fbi->pix_fmt >= PIX_FMTIN_YUV420 && fbi->pix_fmt <= PIX_FMTIN_YUV444){
 		/* set three channels: 456 for plannar YUV channels: assert fbi->window = 4*/
 		/* y size is for YUV plannar only: when yres_virtual  > yres, still use yres to make sure YUV is continous*/
-		u32 y_size = fbi->user_addr? (fbi->surface.viewPortInfo.ycPitch * 8 / fbi->bpp
+		u32 y_size = fbi->user_addr? (fbi->surface.viewPortInfo.yPitch * 8 / fbi->bpp
 				* fbi->surface.viewPortInfo.srcHeight) : (var->xres * var->yres);
 		dmadesc_cpu = (DisplayControllerFrameDescriptor *)((u32)fbi->fb_start - 16*5);
 		dmadesc_cpu->LCD_FR_ADDRx = addr + pixel_offset;
@@ -2320,56 +2295,6 @@ int pxa95xfb_set_par(struct fb_info *info)
 	return 0;
 }
 
-static int pxa95xfb_gfx_ioctl(struct fb_info *fi, unsigned int cmd,
-		unsigned long arg)
-{
-	void __user *argp = (void __user *)arg;
-	struct pxa95xfb_info *fbi = (struct pxa95xfb_info *)fi->par;
-	int on;
-
-	/*This API will work on both Mixers, if enabled*/
-	switch (cmd) {
-		case FB_IOCTL_SWITCH_GRA_OVLY:
-			if (copy_from_user(&on, argp, sizeof(int))) {
-				return -EFAULT;
-			}
-			if(on == fbi->on){
-				printk(KERN_INFO "PXA95xfb: graphics already: %s\n", fbi->on?"on":"off");
-			}else{
-				fbi->on = on;
-				printk(KERN_INFO "PXA95xfb: graphics switch: %s\n", fbi->on?"on":"off");
-				converter_openclose(fbi, on);
-				if(!fbi->suspend)
-					lcdc_set_lcd_controller(fbi);
-			}
-			break;
-		case FB_IOCTL_SET_COLORKEYnALPHA:
-			if (copy_from_user(&fbi->ckey_alpha, argp,
-						sizeof(struct _sColorKeyNAlpha)))
-				return -EFAULT;
-			if(!fbi->suspend)
-				lcdc_set_colorkeyalpha(fbi);
-			break;
-		case FB_IOCTL_GET_COLORKEYnALPHA:
-			if (copy_to_user(argp, &fbi->ckey_alpha,
-						sizeof(struct _sColorKeyNAlpha)))
-				return -EFAULT;
-			break;
-		case FB_IOCTL_WAIT_VSYNC:
-			lcdc_wait_for_vsync(fbi);
-			break;
-		case FB_IOCTL_WAIT_VSYNC_ON:
-			fbi->vsync_en = 1;
-			break;
-		case FB_IOCTL_WAIT_VSYNC_OFF:
-			fbi->vsync_en = 0;
-			break;
-		default:
-			break;
-	}
-	return 0;
-}
-
 static void pxa95xfb_gfx_power(struct pxa95xfb_info *fbi, int on)
 {
 	int i;
@@ -2517,7 +2442,7 @@ static irqreturn_t pxa95xfb_gfx_handle_irq_ctl(int irq, void *dev_id)
 static struct fb_ops pxa95xfb_gfx_ops = {
 	.owner		= THIS_MODULE,
 	.fb_blank		= pxa95xfb_gfx_blank,
-	.fb_ioctl		= pxa95xfb_gfx_ioctl,
+	.fb_ioctl		= pxa95xfb_ioctl,
 	.fb_check_var	= pxa95xfb_check_var,
 	.fb_set_par 	= pxa95xfb_set_par,
 	.fb_setcolreg	= pxa95xfb_setcolreg,	/* TODO */
@@ -2619,9 +2544,9 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 	fbi->converter = mi->converter;
 	fbi->user_addr = 0;
 
-	fbi->eof_intr_en = 1;
 	fbi->vsync_en = 0;
-	fbi->eof_handler = NULL;
+	fbi->eof_intr_en = 1;
+	fbi->eof_handler = lcdc_vid_buf_endframe;
 
 	mutex_init(&fbi->access_ok);
 	init_waitqueue_head(&fbi->w_intr_wq);

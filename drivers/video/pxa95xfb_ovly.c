@@ -6,293 +6,27 @@
 
 #include <linux/module.h>
 #include <linux/moduleparam.h>
-#include <linux/kernel.h>
-#include <linux/sched.h>
 #include <linux/errno.h>
 #include <linux/string.h>
 #include <linux/interrupt.h>
 #include <linux/slab.h>
-#include <linux/fb.h>
-#include <linux/delay.h>
-#include <linux/init.h>
-#include <linux/ioport.h>
 #include <linux/cpufreq.h>
 #include <linux/platform_device.h>
 #include <linux/dma-mapping.h>
 #include <linux/clk.h>
-#include <linux/err.h>
-#include <linux/uaccess.h>
-
-#include <mach/io.h>
-#include <mach/irqs.h>
-#include <mach/hardware.h>
-#include <mach/pxa3xx-regs.h>
-
-#include <mach/gpio.h>
-#include <mach/pxa95xfb.h>
-
-/* buffer management:
- *    freelist: list return to upper layer which indicates buff is free
- *    waitlist: wait queue which indicates "using" buffer, waitlist[0] is write in dma desc
- *    current: buffer on panel
- * Operation:
- *    flip: if !waitlist[0] set buf; enqueue buf to waitlist
- *    get freelist: return freelist
- *    eof intr: enqueue current to freelist; dequeue waitlist[0] to current; if !new waitlist[0] set buf;
- *    buffers are protected by mutex: ?? how to protect in intr?
- * suspend:
- *    when suspend & get freelist, simulate eof intr one time
- */
-
-static int convert_pix_fmt(u32 vmode)
-{
-	printk(KERN_INFO "vmode=%d\n", vmode);
-	switch (vmode) {
-		case FB_VMODE_YUV422PACKED:
-			return PIX_FMTIN_YUV422IL;
-		case FB_VMODE_YUV422PLANAR:
-			return PIX_FMTIN_YUV422;
-		case FB_VMODE_YUV420PLANAR:
-			return PIX_FMTIN_YUV420;
-			/* TODO - add U/V and R/B SWAP format and YUV444 */
-		case FB_VMODE_RGB565:
-			return PIX_FMTIN_RGB_16;
-		case FB_VMODE_RGB888PACK:
-			return PIX_FMTIN_RGB_24_PACK;
-		case FB_VMODE_RGBA888:
-			return PIX_FMTIN_RGB_32;
-		case FB_VMODE_RGB888UNPACK:
-			return PIX_FMTIN_RGB_24;
-		default:
-			return -1;
-	}
-}
-
-/* pxa95x lcd controller could only resize in step. Adjust offset in such case to keep picture in center */
-static void adjust_offset_for_resize(struct _sViewPortInfo *info, struct _sViewPortOffset *offset)
-{
-	int wstep, hstep;
-
-	if ((info->zoomXSize == info->srcWidth && info->zoomYSize == info->srcHeight)
-		|| !info->zoomXSize || !info->zoomYSize)
-		return;
-
-	wstep = (info->zoomXSize > info->srcWidth) ? (info->srcWidth /8) : (info->srcWidth /32);
-	hstep = (info->zoomYSize > info->srcHeight) ? (info->srcHeight /8) : (info->srcHeight /32);
-
-	offset->xOffset += (info->zoomXSize % wstep) / 2;
-	offset->yOffset += (info->zoomYSize % hstep) / 2;
-	info->zoomXSize = (info->zoomXSize / wstep) * wstep;
-	info->zoomYSize = (info->zoomYSize / hstep) * hstep;
-}
-
-static int check_surface(struct pxa95xfb_info *fbi,
-		FBVideoMode new_mode,
-		struct _sViewPortInfo *new_info,
-		struct _sViewPortOffset *new_offset)
-{
-	if (new_info && new_offset)
-		adjust_offset_for_resize(new_info, new_offset);
-
-	/* check mode
-	 * check view port settings.
-	 * not check ycpitch as it's 0 sometimes from overlay-hal
-	 * Check offset */
-	return (new_mode >= 0 && fbi->surface.videoMode != new_mode)
-			|| (new_info &&
-			(fbi->surface.viewPortInfo.srcWidth != new_info->srcWidth ||
-			 fbi->surface.viewPortInfo.srcHeight != new_info->srcHeight ||
-			 fbi->surface.viewPortInfo.zoomXSize != new_info->zoomXSize ||
-			 fbi->surface.viewPortInfo.zoomYSize != new_info->zoomYSize))
-			|| (new_offset &&
-			(fbi->surface.viewPortOffset.xOffset != new_offset->xOffset ||
-			 fbi->surface.viewPortOffset.yOffset != new_offset->yOffset));
-}
-
-static void set_surface(struct pxa95xfb_info *fbi,
-		FBVideoMode new_mode,
-		struct _sViewPortInfo *new_info,
-		struct _sViewPortOffset *new_offset)
-{
-	struct fb_var_screeninfo *var = &fbi->fb_info->var;
-
-	if (new_info && new_offset)
-		adjust_offset_for_resize(new_info, new_offset);
-
-
-	/* check mode */
-	if (new_mode >= 0) {
-		fbi->surface.videoMode = new_mode;
-		fbi->pix_fmt = convert_pix_fmt(new_mode);
-		lcdc_set_pix_fmt(var, fbi->pix_fmt);
-		fbi->bpp = var->bits_per_pixel;
-	}
-
-	/* check view port settings.*/
-	if (new_info) {
-		memcpy(&fbi->surface.viewPortInfo, new_info, sizeof(struct _sViewPortInfo));
-		if (!new_info->ycPitch)
-			fbi->surface.viewPortInfo.ycPitch = new_info->srcWidth*fbi->bpp/8;
-		printk(KERN_INFO "Ovly update: [%d %d] - [%d %d], ycpitch %d\n",
-			new_info->srcWidth, new_info->srcHeight,
-			new_info->zoomXSize, new_info->zoomYSize,
-			fbi->surface.viewPortInfo.ycPitch);
-	}
-
-	/* Check offset */
-	if (new_offset) {
-		memcpy(&fbi->surface.viewPortOffset, new_offset, sizeof(struct _sViewPortOffset));
-		printk(KERN_INFO "Ovly update offset [%d %d]\n",
-			new_offset->xOffset, new_offset->yOffset);
-	}
-
-}
-
-static void __attribute__ ((unused)) buf_print(struct pxa95xfb_info *fbi)
-{
-	int i;
-	printk("Curent buff: %x \n", fbi->buf_current);
-
-	printk("buf_waitlist:");
-	for (i = 0; i < MAX_QUEUE_NUM; i++) {
-		if (fbi->buf_waitlist[i])
-			printk("<%d: %x> ", i, fbi->buf_waitlist[i]);
-	}
-	printk("\n");
-
-	printk("buf_freelist:");
-	for (i = 0; i < MAX_QUEUE_NUM; i++) {
-		if (fbi->buf_freelist[i])
-			printk("<%d: %x> ", i, fbi->buf_freelist[i]);
-	}
-	printk("\n");
-}
-
-static u32 buf_dequeue(u32 *list)
-{
-	int i;
-	u32 ret;
-
-	if (!list){
-		printk(KERN_ALERT "%s: invalid list\n", __func__);
-		return -1;
-	}
-
-	ret = list[0];
-
-	for (i = 1; i < MAX_QUEUE_NUM; i++) {
-		if (!list[i]){
-			list[i-1] = 0;
-			break;
-		}
-		list[i-1] = list[i];
-		/*printk(KERN_INFO "%s: move buff %x from list[%d] to list[%d]\n", __func__, list[i], i, i-1);*/
-	}
-
-	if (i >= MAX_QUEUE_NUM)
-		printk(KERN_ALERT "%s: buffer overflow\n",  __func__);
-
-	/*printk(KERN_INFO "%s: dequeue: %x\n", __func__, ret);*/
-	return ret;
-}
-
-static int buf_enqueue(u32 *list, u32 buf)
-{
-	int i;
-
-	if (!list){
-		printk(KERN_ALERT "%s: invalid list\n", __func__);
-		return -1;
-	}
-
-	for (i = 0; i < MAX_QUEUE_NUM; i++) {
-		if (!list[i]) {
-			list[i] = buf;
-			/*printk(KERN_INFO "%s: add buff %x to list[%d]\n", __func__, buf, i);*/
-			return 0;
-		}
-
-		if (list[i] == buf) {
-			/* already in list, free this request. */
-			printk(KERN_WARNING "%s: buff %x is same as list[%d]\n", __func__, buf, i);
-			return 0;
-		}
-	}
-
-	if (i >= MAX_QUEUE_NUM)
-		printk(KERN_ALERT "%s: buffer overflow\n",  __func__);
-
-	return -2;
-}
-
-static void buf_clear(u32 *list)
-{
-	/* Check null pointer. */
-	if (list)
-		memset(list, 0, MAX_QUEUE_NUM * sizeof(u8 *));
-}
-
-/* fake endframe when suspend or overlay off */
-static void buf_fake_endframe(void * p)
-{
-	struct pxa95xfb_info *fbi = p;
-	u32 t = buf_dequeue(fbi->buf_waitlist);
-	while (t) {
-		/*pr_info("%s: move %x to current, move %x to freelist\n",
-			__func__, t, fbi->buf_current);*/
-		/*enqueue current to freelist*/
-		buf_enqueue(fbi->buf_freelist, fbi->buf_current);
-		/*dequeue waitlist[0] to current*/
-		fbi->buf_current = t;
-		t = buf_dequeue(fbi->buf_waitlist);
-	}
-
-}
-
-static void buf_endframe(void * p)
-{
-	struct pxa95xfb_info *fbi = p;
-	u32 t = buf_dequeue(fbi->buf_waitlist);
-	if (t) {
-		/*printk(KERN_INFO "%s: move %x to current, move %x to freelist\n",
-			__func__, t, fbi->buf_current);*/
-		/*enqueue current to freelist*/
-		buf_enqueue(fbi->buf_freelist, fbi->buf_current);
-		/*dequeue waitlist[0] to current*/
-		fbi->buf_current = t;
-	}
-
-	/*if new waitlist[0] set buf*/
-	if(fbi->buf_waitlist[0]){
-		/*printk(KERN_INFO "%s: flip buf %x on\n", __func__, fbi->buf_waitlist[0]);*/
-		fbi->user_addr = fbi->buf_waitlist[0];
-		lcdc_set_fr_addr(fbi, &fbi->fb_info->var);
-	}
-}
 
 static int pxa95xfb_vid_open(struct fb_info *fi, int user)
 {
 	struct pxa95xfb_info *fbi = (struct pxa95xfb_info *)fi->par;
-	struct fb_var_screeninfo *var = &fi->var;
-	unsigned long x;
 
 	dev_dbg(fi->dev, "Enter %s\n", __FUNCTION__);
 	fbi->open_count ++;
-	fbi->user_addr = 0;
-	fbi->surface.videoMode = -1;
-	fbi->surface.viewPortInfo.srcWidth = var->xres;
-	fbi->surface.viewPortInfo.ycPitch = var->xres * fbi->bpp / 8;
-	fbi->surface.viewPortInfo.srcHeight = var->yres;
 
 	if(mutex_is_locked(&fbi->access_ok))
 		mutex_unlock(&fbi->access_ok);
 
-	local_irq_save(x);
-	/* clear buffer list. */
-	buf_clear(fbi->buf_freelist);
-	buf_clear(fbi->buf_waitlist);
-	fbi->buf_current = 0;
-	local_irq_restore(x);
+	lcdc_vid_clean(fbi);
+
 	return 0;
 }
 
@@ -300,260 +34,14 @@ static int pxa95xfb_vid_release(struct fb_info *fi, int user)
 {
 	struct pxa95xfb_info *fbi = (struct pxa95xfb_info *)fi->par;
 	struct fb_var_screeninfo *var = &fi->var;
-	unsigned long x;
 
 	dev_dbg(fi->dev, "Enter %s\n", __FUNCTION__);
-	local_irq_save(x);
-	/* clear buffer list. */
-	buf_clear(fbi->buf_freelist);
-	buf_clear(fbi->buf_waitlist);
-	fbi->buf_current = 0;
-	local_irq_restore(x);
 
-	fbi->user_addr = 0;
-	fbi->surface.videoMode = -1;
-	fbi->surface.viewPortInfo.srcWidth = var->xres;
-	fbi->surface.viewPortInfo.srcHeight = var->yres;
-	fbi->surface.viewPortInfo.ycPitch = var->xres * fbi->bpp / 8;
+	lcdc_vid_clean(fbi);
+
 	/* Turn off compatibility mode */
 	var->nonstd &= ~0xff000000;
 	fbi->open_count --;
-	return 0;
-}
-
-static int pxa95xfb_vid_ioctl(struct fb_info *fi, unsigned int cmd,
-		unsigned long arg)
-{
-	void __user *argp = (void __user *)arg;
-	struct pxa95xfb_info *fbi = (struct pxa95xfb_info *)fi->par;
-	static struct _sOvlySurface gOvlySurface;
-	int on;
-	unsigned long x;
-
-	switch (cmd) {
-	case FB_IOCTL_WAIT_VSYNC:
-		lcdc_wait_for_vsync(fbi);
-		break;
-	case FB_IOCTL_GET_VIEWPORT_INFO:
-		return copy_to_user(argp, &gOvlySurface.viewPortInfo,
-				sizeof(struct _sViewPortInfo)) ? -EFAULT : 0;
-	case FB_IOCTL_SET_VIEWPORT_INFO:
-		mutex_lock(&fbi->access_ok);
-		if (copy_from_user(&gOvlySurface.viewPortInfo, argp,
-				sizeof(gOvlySurface.viewPortInfo))) {
-			mutex_unlock(&fbi->access_ok);
-			return -EFAULT;
-		}
-
-		mutex_unlock(&fbi->access_ok);
-		break;
-	case FB_IOCTL_SET_VIDEO_MODE:
-		/*Get data from user space.
-		 *return error for not supported format
-		 */
-		if (copy_from_user(&gOvlySurface.videoMode,
-				argp, sizeof(gOvlySurface.videoMode))
-			|| convert_pix_fmt(gOvlySurface.videoMode) < 0)
-			return -EFAULT;
-		break;
-	case FB_IOCTL_GET_VIDEO_MODE:
-		return copy_to_user(argp, &gOvlySurface.videoMode,
-				sizeof(u32)) ? -EFAULT : 0;
-	case FB_IOCTL_SET_VID_OFFSET:
-		mutex_lock(&fbi->access_ok);
-		if (copy_from_user(&gOvlySurface.viewPortOffset,
-			argp,
-			sizeof(gOvlySurface.viewPortOffset))) {
-			mutex_unlock(&fbi->access_ok);
-			return -EFAULT;
-		}
-		mutex_unlock(&fbi->access_ok);
-		break;
-	case FB_IOCTL_GET_VID_OFFSET:
-		return copy_to_user(argp,
-			&gOvlySurface.viewPortOffset,
-			sizeof(struct _sViewPortOffset)) ? -EFAULT : 0;
-	case FB_IOCTL_GET_SURFACE:
-		return copy_to_user(argp, &gOvlySurface,
-				sizeof(struct _sOvlySurface)) ? -EFAULT : 0;
-	case FB_IOCTL_SET_SURFACE:
-		mutex_lock(&fbi->access_ok);
-		if (copy_from_user(&gOvlySurface, argp,
-					sizeof(struct _sOvlySurface))) {
-			mutex_unlock(&fbi->access_ok);
-			return -EFAULT;
-		}
-		mutex_unlock(&fbi->access_ok);
-		break;
-	case FB_IOCTL_FLIP_VID_BUFFER:
-	{
-		struct _sOvlySurface surface;
-		u8 *start_addr, *input_data;
-
-		mutex_lock(&fbi->access_ok);
-		/* Get user-mode data. */
-		if (copy_from_user(&surface, argp,
-					sizeof(struct _sOvlySurface))) {
-			mutex_unlock(&fbi->access_ok);
-			return -EFAULT;
-		}
-
-		start_addr = surface.videoBufferAddr.startAddr;
-		input_data = surface.videoBufferAddr.inputData;
-
-		if (fbi->on && !fbi->controller_on) {
-			set_surface(fbi, surface.videoMode,
-						&surface.viewPortInfo,
-						&surface.viewPortOffset);
-			WARN_ON(fbi->buf_waitlist[0]);
-			local_irq_save(x);
-			/*if !waitlist[0] enqueue buf to waitlist*/
-			/*printk(KERN_INFO "%s: flip %x on\n",
-			__func__, (u32)start_addr);*/
-			fbi->user_addr = (u32)start_addr;
-			lcdc_set_fr_addr(fbi, &fbi->fb_info->var);
-			buf_enqueue(fbi->buf_waitlist, (u32)start_addr);
-			buf_fake_endframe(fbi);
-			local_irq_restore(x);
-			converter_openclose(fbi, fbi->on);
-
-			if(!pxa95xfbi[0]->suspend)
-				lcdc_set_lcd_controller(fbi);
-			fbi->controller_on = fbi->on;
-			mutex_unlock(&fbi->access_ok);
-			return 0;
-		}
-
-
-		/* Fix the first green frames when camera preview */
-		if( !fbi->controller_on ) {
-			buf_enqueue(fbi->buf_freelist, (u32)start_addr);
-			mutex_unlock(&fbi->access_ok);
-			return 0;
-		}
-		if (start_addr && !input_data) {
-			/* user pointer way */
-			if (check_surface(fbi, surface.videoMode,
-						&surface.viewPortInfo,
-						&surface.viewPortOffset)
-					&& !pxa95xfbi[0]->suspend) {
-				/* in this case, surface mode changed, need sync */
-				fbi->on = 0;
-				lcdc_set_lcd_controller(fbi);
-				set_surface(fbi, surface.videoMode,
-						&surface.viewPortInfo,
-						&surface.viewPortOffset);
-				local_irq_save(x);
-				fbi->user_addr = (u32)start_addr;
-				lcdc_set_fr_addr(fbi, &fbi->fb_info->var);
-				buf_enqueue(fbi->buf_waitlist, (u32)start_addr);
-				buf_fake_endframe(fbi);
-				local_irq_restore(x);
-				fbi->on = 1;
-				lcdc_set_lcd_controller(fbi);
-			} else {
-				local_irq_save(x);
-				/*if !waitlist[0] enqueue buf to waitlist*/
-				if (!fbi->buf_waitlist[0]) {
-					/*printk(KERN_INFO "%s: flip %x on\n",
-					__func__, (u32)start_addr);*/
-					fbi->user_addr = (u32)start_addr;
-					lcdc_set_fr_addr(fbi, &fbi->fb_info->var);
-				}
-				buf_enqueue(fbi->buf_waitlist, (u32)start_addr);
-				local_irq_restore(x);
-			}
-		} else if  (input_data) {
-			/* copy buffer way*/
-			lcdc_wait_for_vsync(fbi);
-			if (check_surface(fbi, surface.videoMode,
-						&surface.viewPortInfo,
-						&surface.viewPortOffset)
-					&& !pxa95xfbi[0]->suspend) {
-				set_surface(fbi, surface.videoMode,
-										&surface.viewPortInfo,
-										&surface.viewPortOffset);
-				lcdc_set_lcd_controller(fbi);
-			}
-			/* if support hw DMA, replace this. */
-			if (copy_from_user(fbi->fb_start, input_data,
-					surface.videoBufferAddr.length)) {
-				mutex_unlock(&fbi->access_ok);
-				return -EFAULT;
-			}
-		}
-		mutex_unlock(&fbi->access_ok);
-		return 0;
-	}
-	case FB_IOCTL_GET_FREELIST:
-		local_irq_save(x);
-		/* safe check: when lcd is suspend,
-		 * move all buffers as "switched"*/
-		if (pxa95xfbi[0]->suspend || !fbi->on)
-			buf_fake_endframe(fbi);
-		if (copy_to_user(argp, fbi->buf_freelist,
-					MAX_QUEUE_NUM*sizeof(u8 *))) {
-			local_irq_restore(x);
-			return -EFAULT;
-		}
-		buf_clear(fbi->buf_freelist);
-		local_irq_restore(x);
-		return 0;
-	case FB_IOCTL_GET_BUFF_ADDR:
-		return copy_to_user(argp, &fbi->surface.videoBufferAddr,
-				sizeof(struct _sVideoBufferAddr)) ? -EFAULT : 0;
-	case FB_IOCTL_SET_MEMORY_TOGGLE:
-		break;
-	case FB_IOCTL_SET_COLORKEYnALPHA:
-		if (copy_from_user(&fbi->ckey_alpha, argp,
-					sizeof(struct _sColorKeyNAlpha)))
-			return -EFAULT;
-		if (!pxa95xfbi[0]->suspend)
-			lcdc_set_colorkeyalpha(fbi);
-		break;
-	case FB_IOCTL_GET_COLORKEYnALPHA:
-		if (copy_to_user(argp, &fbi->ckey_alpha,
-					sizeof(struct _sColorKeyNAlpha)))
-			return -EFAULT;
-		break;
-	case FB_IOCTL_SWITCH_VID_OVLY:
-		mutex_lock(&fbi->access_ok);
-		if (copy_from_user(&on, argp, sizeof(int))) {
-			mutex_unlock(&fbi->access_ok);
-			return -EFAULT;
-		}
-		if (on != fbi->on) {
-			fbi->on = on;
-			printk(KERN_INFO "PXA95xfb ovly: video switch: %s\n",
-				fbi->on ? "on" : "off");
-			if (!fbi->on && fbi->controller_on) {
-				if(!pxa95xfbi[0]->suspend)
-					lcdc_set_lcd_controller(fbi);
-				converter_openclose(fbi, on);
-				fbi->controller_on = 0;
-				fbi->user_addr = 0;
-				lcdc_set_fr_addr(fbi, &fbi->fb_info->var);
-			}
-
-		}
-		mutex_unlock(&fbi->access_ok);
-		break;
-	case FB_IOCTL_SWITCH_GRA_OVLY:
-		if (copy_from_user(&on, argp, sizeof(int)))
-			return -EFAULT;
-		if (on != pxa95xfbi[0]->on) {
-			pxa95xfbi[0]->on = on;
-			printk(KERN_INFO "PXA95xfb ovly: graphic switch: %s\n",
-				pxa95xfbi[0]->on ? "on" : "off");
-			converter_openclose(pxa95xfbi[0], on);
-			if(!pxa95xfbi[0]->suspend)
-				lcdc_set_lcd_controller(pxa95xfbi[0]);
-		}
-		break;
-	default:
-		break;
-	}
-
 	return 0;
 }
 
@@ -571,7 +59,7 @@ static struct fb_ops pxa95xfb_vid_ops = {
 	.fb_open        = pxa95xfb_vid_open,
 	.fb_release     = pxa95xfb_vid_release,
 	.fb_blank		= pxa95xfb_vid_blank,
-	.fb_ioctl       = pxa95xfb_vid_ioctl,
+	.fb_ioctl       = pxa95xfb_ioctl,
 	.fb_set_par		= pxa95xfb_set_par,
 	.fb_check_var	= pxa95xfb_check_var,
 	.fb_setcolreg	= pxa95xfb_setcolreg,	/* TODO */
@@ -665,9 +153,9 @@ static int __devinit pxa95xfb_vid_probe(struct platform_device *pdev)
 	fbi->mixer_id = mi->mixer_id;
 	fbi->converter = mi->converter;
 	fbi->user_addr = 0;
-	fbi->eof_intr_en = 1;
 	fbi->vsync_en = 0;
-	fbi->eof_handler = buf_endframe;
+	fbi->eof_intr_en = 1;
+	fbi->eof_handler = lcdc_vid_buf_endframe;
 
 	mutex_init(&fbi->access_ok);
 	init_waitqueue_head(&fbi->w_intr_wq);
