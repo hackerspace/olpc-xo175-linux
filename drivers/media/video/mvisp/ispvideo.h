@@ -31,13 +31,17 @@
 #include <media/media-entity.h>
 #include <media/v4l2-dev.h>
 #include <media/v4l2-fh.h>
+#include <media/videobuf2-core.h>
 
 #include <linux/mvisp.h>
-#include "ispqueue.h"
 
 
 #define ISP_VIDEO_DRIVER_NAME		"mvsocisp"
 #define ISP_VIDEO_DRIVER_VERSION	KERNEL_VERSION(0, 0, 1)
+
+#define ISP_VIDEO_MAX_BUFFERS			16
+#define MIN_DRV_BUF			1
+
 enum isp_video_pipe_far_end {
 	FAR_END_ISP_DISPLAY = 0,
 	FAR_END_ISP_CODEC,
@@ -123,6 +127,14 @@ enum isp_video_dmaqueue_flags {
 	ISP_VIDEO_DMAQUEUE_BUSY,
 };
 
+enum isp_video_buffer_state {
+	ISP_BUF_STATE_IDLE = 0,
+	ISP_BUF_STATE_QUEUED,
+	ISP_BUF_STATE_ACTIVE,
+	ISP_BUF_STATE_ERROR,
+	ISP_BUF_STATE_DONE,
+};
+
 
 struct isp_video_operations {
 	int(*qbuf_notify)(struct isp_video *video);
@@ -134,27 +146,39 @@ struct isp_video {
 	struct video_device		video;
 	enum v4l2_buf_type		type;
 	struct media_pad		pad;
-	struct mutex			mutex;
+	struct mutex			fmt_lock;
 	enum isp_video_type		video_type;
 	struct mvisp_device	*isp;
 
 	/* Entity video node streaming */
-	unsigned int streaming;
+	bool streaming;
 
 	/* Pipeline state */
 	struct isp_pipeline		pipe;
 	struct mutex			stream_lock;
 
 	/* Video buffers queue */
-	bool					enable_dummy;
-	struct isp_video_queue	*queue;
 	struct list_head		dmaidlequeue;
 	struct list_head		dmabusyqueue;
+	unsigned int			dmabusycnt;
+	unsigned int			dmaidlecnt;
 	enum isp_video_dmaqueue_flags	dmaqueue_flags;
 
 	const struct isp_video_operations	*ops;
 	enum ispvideo_capture_mode	capture_mode;
-	spinlock_t			irq_lock;
+	spinlock_t				irq_lock;
+
+	struct vb2_queue		*vb2_vidq;
+	struct vb2_alloc_ctx	*vb_alloc_ctx;
+	struct mutex			video_lock;
+};
+
+struct isp_video_buffer {
+	struct vb2_buffer	vb2_buf;
+	dma_addr_t			paddr;
+	struct list_head	dmalist;
+
+	enum isp_video_buffer_state state;
 };
 
 void set_vd_dmaqueue_flg(struct isp_video *video,
@@ -168,25 +192,24 @@ enum isp_video_dmaqueue_flags get_vd_dmaqueue_flg(struct isp_video *video);
 struct isp_video_fh {
 	struct v4l2_fh			vfh;
 	struct isp_video		*video;
-	struct isp_video_queue	queue;
+	struct vb2_queue		vb2_queue;
 	struct v4l2_format		format;
 	struct v4l2_fract		timeperframe;
 };
 
 #define to_isp_video_fh(fh)	\
 	container_of(fh, struct isp_video_fh, vfh)
-#define isp_video_queue_to_isp_video_fh(q) \
-	container_of(q, struct isp_video_fh, queue)
+#define vb2_queue_to_isp_video_fh(q) \
+	container_of(q, struct isp_video_fh, vb2_queue)
 
-int mvisp_video_init(struct isp_video *video, const char *name,
-			bool enable_dummy);
+int mvisp_video_init(struct isp_video *video, const char *name);
 int mvisp_video_register(struct isp_video *video,
 			struct v4l2_device *vdev);
 void mvisp_video_unregister(struct isp_video *video);
 struct isp_video_buffer *mvisp_video_buffer_next(struct isp_video *video,
 					      unsigned int error);
 struct isp_video_buffer
-	*mvisp_video_get_next_work_buf(struct isp_video *video, int delay);
+	*mvisp_video_get_next_work_buf(struct isp_video *video);
 
 void mvisp_video_resume(struct isp_video *video, int continuous);
 struct media_pad *mvisp_video_remote_pad(struct isp_video *video);

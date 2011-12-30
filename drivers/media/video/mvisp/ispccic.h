@@ -86,6 +86,7 @@ struct isp_ccic_device {
 
 	enum isp_ccic_identity			ccic_id;
 	enum isp_pipeline_stream_state	state;
+	spinlock_t				irq_lock;
 
 	struct mutex			ccic_mutex;
 	enum ccic_mipi_state	mipi_config_flag;

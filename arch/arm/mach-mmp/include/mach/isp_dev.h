@@ -45,6 +45,8 @@ struct mvisp_v4l2_subdevs_group {
 
 struct mvisp_platform_data {
 	struct mvisp_v4l2_subdevs_group *subdev_group;
+	bool ccic_dummy_ena;
+	bool ispdma_dummy_ena;
 	int (*mvisp_reset)(void *param);
 };
 

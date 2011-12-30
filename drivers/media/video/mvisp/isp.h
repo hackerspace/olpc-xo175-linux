@@ -84,9 +84,12 @@ struct mvisp_device {
 	struct clk		*clock[ISP_CLK_DXO_MAX];
 
 	/* dummy buffer for all isp */
-	void			*isp_dummy_vaddr;
-	struct page		*isp_dummy_pages;
-	int				isp_dummy_order;
+	bool			ccic_dummy_ena;
+	bool			ispdma_dummy_ena;
+	void			*dummy_vaddr;
+	struct page		*dummy_pages;
+	int				dummy_order;
+	dma_addr_t		dummy_paddr;
 
 	/* ISP Obj */
 	struct mutex	mvisp_mutex;	/* For handling ref_count field */

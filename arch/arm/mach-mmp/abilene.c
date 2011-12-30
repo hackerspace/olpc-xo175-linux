@@ -325,6 +325,8 @@ static struct mvisp_v4l2_subdevs_group dxoisp_subdevs_group[] = {
 
 static struct mvisp_platform_data mmp_dxoisp_plat_data = {
 	.subdev_group = dxoisp_subdevs_group,
+	.ccic_dummy_ena = false,
+	.ispdma_dummy_ena = false,
 };
 
 static void __init mmp_init_dxoisp(void)

@@ -122,8 +122,8 @@ enum ispdma_reg_context_name {
 };
 
 #define ISPDMA_PAD_SINK					0
-#define ISPDMA_PAD_CODEC_SOURCE			1
-#define ISPDMA_PAD_DISPLAY_SOURCE		2
+#define ISPDMA_PAD_CODE_SRC			1
+#define ISPDMA_PAD_DISP_SRC				2
 #define ISPDMA_PADS_NUM					3
 
 #define DMA_NOT_WORKING				0x0
@@ -131,11 +131,18 @@ enum ispdma_reg_context_name {
 #define DMA_DISP_WORKING			0x2
 #define DMA_CODEC_WORKING			0x4
 
+enum ispdma_reg_cache {
+	ISPDMA_DST_REG = 0,
+	ISPDMA_SHADOW_REG = 1,
+	ISPDMA_CACHE_MAX = 2,
+};
+
 struct isp_ispdma_device {
 	struct v4l2_subdev			subdev;
 	struct media_pad			pads[ISPDMA_PADS_NUM];
 	struct v4l2_mbus_framefmt	formats[ISPDMA_PADS_NUM];
-
+	struct isp_video_buffer
+			*regcache[ISPDMA_PADS_NUM][ISPDMA_CACHE_MAX];
 	struct v4l2_ctrl_handler	ctrls;
 
 	enum ispdma_input_entity	input;

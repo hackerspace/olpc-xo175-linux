@@ -91,21 +91,23 @@ static void ccic_dump_regs(struct mvisp_device *isp)
 }
 
 static void ccic_set_dma_addr(struct isp_ccic_device *ccic,
-	struct isp_video_buffer *buffer, enum isp_ccic_irq_type irqeof)
+	dma_addr_t	paddr, enum isp_ccic_irq_type irqeof)
 {
 	struct mvisp_device *isp = ccic->isp;
 
+	BUG_ON(paddr == 0);
+
 	switch (irqeof) {
 	case CCIC_EOF0:
-		mvisp_reg_writel(isp, buffer->paddr,
+		mvisp_reg_writel(isp, paddr,
 			CCIC_ISP_IOMEM_1, CCIC_Y0_BASE_ADDR);
 		break;
 	case CCIC_EOF1:
-		mvisp_reg_writel(isp, buffer->paddr,
+		mvisp_reg_writel(isp, paddr,
 			CCIC_ISP_IOMEM_1, CCIC_Y1_BASE_ADDR);
 		break;
 	case CCIC_EOF2:
-		mvisp_reg_writel(isp, buffer->paddr,
+		mvisp_reg_writel(isp, paddr,
 			CCIC_ISP_IOMEM_1, CCIC_Y2_BASE_ADDR);
 		break;
 	default:
@@ -217,11 +219,56 @@ static struct isp_ccic_device *find_ccic_from_video(struct isp_video *video)
 	return ccic;
 }
 
+static int ccic_enable_hw(struct isp_ccic_device *ccic, struct isp_video *video)
+{
+	struct mvisp_device *isp = video->isp;
+	unsigned long regval;
+
+	if ((ccic->output&CCIC_OUTPUT_MEMORY) != 0) {
+		mvisp_reg_writel(isp, 0x7,
+			CCIC_ISP_IOMEM_1, CCIC_IRQ_STATUS);
+		mvisp_reg_writel(isp, 0x7,
+			CCIC_ISP_IOMEM_1, CCIC_IRQ_MASK);
+		regval = mvisp_reg_readl(isp,
+			CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
+		regval |= 0x1;
+		mvisp_reg_writel(isp, regval,
+			CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
+		ccic_dump_regs(isp);
+	}
+
+	return 0;
+
+}
+
+static int ccic_disable_hw(struct isp_ccic_device *ccic,
+	struct isp_video *video)
+{
+	struct mvisp_device *isp = video->isp;
+	unsigned long regval;
+
+	if ((ccic->output&CCIC_OUTPUT_MEMORY) != 0) {
+		regval = mvisp_reg_readl(isp,
+			CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
+		regval &= ~0x1;
+		mvisp_reg_writel(isp, regval,
+			CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
+		mvisp_reg_writel(isp, 0x0,
+			CCIC_ISP_IOMEM_1, CCIC_IRQ_MASK);
+		mvisp_reg_writel(isp, 0x7,
+			CCIC_ISP_IOMEM_1, CCIC_IRQ_STATUS);
+
+		ccic_dump_regs(isp);
+	}
+
+	return 0;
+
+}
+
+
 static int ccic_video_stream_on_notify(struct isp_video *video)
 {
 	struct isp_ccic_device *ccic;
-	struct mvisp_device *isp = video->isp;
-	unsigned long regval;
 
 	mutex_lock(&ccic->ccic_mutex);
 
@@ -238,18 +285,8 @@ static int ccic_video_stream_on_notify(struct isp_video *video)
 
 	ccic_configure_mipi(ccic);
 
-	if ((ccic->output&CCIC_OUTPUT_MEMORY) != 0) {
-		mvisp_reg_writel(isp, 0x7,
-			CCIC_ISP_IOMEM_1, CCIC_IRQ_STATUS);
-		mvisp_reg_writel(isp, 0x7,
-			CCIC_ISP_IOMEM_1, CCIC_IRQ_MASK);
-		regval = mvisp_reg_readl(isp,
-			CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
-		regval |= 0x1;
-		mvisp_reg_writel(isp, regval,
-			CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
-		ccic_dump_regs(isp);
-	}
+	ccic_enable_hw(ccic, video);
+
 	mutex_unlock(&ccic->ccic_mutex);
 
 	return 0;
@@ -258,8 +295,6 @@ static int ccic_video_stream_on_notify(struct isp_video *video)
 static int ccic_video_stream_off_notify(struct isp_video *video)
 {
 	struct isp_ccic_device *ccic;
-	struct mvisp_device *isp = video->isp;
-	unsigned long regval;
 
 	mutex_lock(&ccic->ccic_mutex);
 	ccic = find_ccic_from_video(video);
@@ -273,19 +308,8 @@ static int ccic_video_stream_off_notify(struct isp_video *video)
 		return 0;
 	}
 
-	if ((ccic->output&CCIC_OUTPUT_MEMORY) != 0) {
-		regval = mvisp_reg_readl(isp,
-			CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
-		regval &= ~0x1;
-		mvisp_reg_writel(isp, regval,
-			CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
-		mvisp_reg_writel(isp, 0x0,
-			CCIC_ISP_IOMEM_1, CCIC_IRQ_MASK);
-		mvisp_reg_writel(isp, 0x7,
-			CCIC_ISP_IOMEM_1, CCIC_IRQ_STATUS);
+	ccic_disable_hw(ccic, video);
 
-		ccic_dump_regs(isp);
-	}
 	mutex_unlock(&ccic->ccic_mutex);
 
 	return 0;
@@ -759,6 +783,7 @@ static int ccic_init_entities(struct isp_ccic_device *ccic,
 	ccic->sensor_type = SENSOR_INVALID;
 	ccic->state = ISP_PIPELINE_STREAM_STOPPED;
 	spin_lock_init(&ccic->mipi_flag_lock);
+	spin_lock_init(&ccic->irq_lock);
 	ccic->ccic_id = ccic_id;
 	mutex_init(&ccic->ccic_mutex);
 
@@ -785,7 +810,7 @@ static int ccic_init_entities(struct isp_ccic_device *ccic,
 	ccic->video_out.ops = &ccic_ispvideo_ops;
 	ccic->video_out.isp = ccic->isp;
 
-	ret = mvisp_video_init(&ccic->video_out, ISP_VIDEO_CCIC1_NAME, 1);
+	ret = mvisp_video_init(&ccic->video_out, ISP_VIDEO_CCIC1_NAME);
 	if (ret < 0)
 		return ret;
 
@@ -865,121 +890,95 @@ fail:
 }
 
 void pxa_ccic_set_sensor_type(struct isp_ccic_device *ccic,
-					enum mv_isp_sensor_type sensor_type)
+		enum mv_isp_sensor_type sensor_type)
 {
 	ccic->sensor_type = sensor_type;
 	return;
 }
 
 
-static void ccic_isr_buffer
-		(struct isp_ccic_device *ccic, enum isp_ccic_irq_type irqeof)
+static void ccic_isr_buffer(struct isp_ccic_device *ccic,
+		enum isp_ccic_irq_type irqeof)
 {
 	struct isp_video_buffer *buffer;
+	struct mvisp_device *isp = ccic->isp;
 
 	buffer = mvisp_video_buffer_next(&ccic->video_out, 0);
 	if (buffer != NULL)
-		ccic_set_dma_addr(ccic, buffer, irqeof);
+		ccic_set_dma_addr(ccic, buffer->paddr, irqeof);
 	else {
-		buffer = ccic->video_out.queue->dummy_buffers[0];
-		if (buffer != NULL)
-			ccic_set_dma_addr(ccic, buffer, irqeof);
+		if (isp->dummy_paddr != 0)
+			ccic_set_dma_addr(ccic, isp->dummy_paddr, irqeof);
+		else
+			ccic_disable_hw(ccic, &ccic->video_out);
 	}
+
+	return;
+}
+
+void ccic_isr_dummy_buffer(struct isp_ccic_device *ccic,
+		enum isp_ccic_irq_type irqeof)
+{
+	struct isp_video *video;
+	unsigned long flags;
+	struct isp_video_buffer *buffer;
+
+	video = &ccic->video_out;
+	spin_lock_irqsave(&video->irq_lock, flags);
+	if (list_empty(&video->dmaidlequeue)) {
+		spin_unlock_irqrestore(&video->irq_lock, flags);
+		return;
+	}
+	buffer = list_first_entry(&video->dmaidlequeue,
+		struct isp_video_buffer, dmalist);
+	list_del(&buffer->dmalist);
+	video->dmaidlecnt--;
+	list_add_tail(&buffer->dmalist, &video->dmabusyqueue);
+	video->dmabusycnt++;
+	buffer->state = ISP_BUF_STATE_ACTIVE;
+	ccic_set_dma_addr(ccic, buffer->paddr, irqeof);
+	spin_unlock_irqrestore(&video->irq_lock, flags);
+
+	return;
 }
 
 void pxa_ccic_dma_isr_handler(struct isp_ccic_device *ccic,
 				unsigned long irq_status)
 {
-	unsigned long flags;
 	struct mvisp_device *isp = ccic->isp;
-	struct isp_video *video;
 	u32 regval;
-	struct isp_video_buffer *buffer;
-	struct isp_video_queue *queue;
+	unsigned long flag;
+
+	spin_lock_irqsave(&ccic->irq_lock, flag);
 
 	if (irq_status & CCIC_IRQ_STATUS_EOF0) {
 		regval = mvisp_reg_readl(isp,
-				CCIC_ISP_IOMEM_1, CCIC_Y0_BASE_ADDR);
-		if (regval != ccic->video_out.queue->dummy_buffers[0]->paddr)
+			CCIC_ISP_IOMEM_1, CCIC_Y0_BASE_ADDR);
+		if (regval != isp->dummy_paddr)
 			ccic_isr_buffer(ccic, CCIC_EOF0);
-		else {
-			video = &ccic->video_out;
-			queue = video->queue;
-			spin_lock_irqsave(&queue->irqlock, flags);
-			if (list_empty(&video->dmaidlequeue)) {
-				regval = mvisp_reg_readl(isp,
-					CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
-				regval &= ~0x1;
-				mvisp_reg_writel(isp, regval,
-					CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
-				spin_unlock_irqrestore(&queue->irqlock, flags);
-				return;
-			}
-			buffer = list_first_entry(&video->dmaidlequeue,
-				struct isp_video_buffer, irqlist);
-			list_del(&buffer->irqlist);
-			list_add_tail(&buffer->irqlist, &video->dmabusyqueue);
-			buffer->state = ISP_BUF_STATE_ACTIVE;
-			ccic_set_dma_addr(ccic, buffer, CCIC_EOF0);
-			spin_unlock_irqrestore(&queue->irqlock, flags);
-		}
+		else
+			ccic_isr_dummy_buffer(ccic, CCIC_EOF0);
 	}
 
 	if (irq_status & CCIC_IRQ_STATUS_EOF1) {
 		regval = mvisp_reg_readl(isp,
 			CCIC_ISP_IOMEM_1, CCIC_Y1_BASE_ADDR);
-		if (regval != ccic->video_out.queue->dummy_buffers[0]->paddr)
+		if (regval != isp->dummy_paddr)
 			ccic_isr_buffer(ccic, CCIC_EOF1);
-		else {
-			video = &ccic->video_out;
-			queue = video->queue;
-			spin_lock_irqsave(&queue->irqlock, flags);
-			if (list_empty(&video->dmaidlequeue)) {
-				regval = mvisp_reg_readl(isp,
-					CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
-				regval &= ~0x1;
-				mvisp_reg_writel(isp, regval,
-					CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
-				spin_unlock_irqrestore(&queue->irqlock, flags);
-				return;
-			}
-			buffer = list_first_entry(&video->dmaidlequeue,
-				struct isp_video_buffer, irqlist);
-			list_del(&buffer->irqlist);
-			list_add_tail(&buffer->irqlist, &video->dmabusyqueue);
-			buffer->state = ISP_BUF_STATE_ACTIVE;
-			ccic_set_dma_addr(ccic, buffer, CCIC_EOF1);
-			spin_unlock_irqrestore(&queue->irqlock, flags);
-		}
+		else
+			ccic_isr_dummy_buffer(ccic, CCIC_EOF1);
 	}
 
 	if (irq_status & CCIC_IRQ_STATUS_EOF2) {
 		regval = mvisp_reg_readl(isp,
 			CCIC_ISP_IOMEM_1, CCIC_Y2_BASE_ADDR);
-		if (regval != ccic->video_out.queue->dummy_buffers[0]->paddr)
+		if (regval != isp->dummy_paddr)
 			ccic_isr_buffer(ccic, CCIC_EOF2);
-		else {
-			video = &ccic->video_out;
-			queue = video->queue;
-			spin_lock_irqsave(&queue->irqlock, flags);
-			if (list_empty(&video->dmaidlequeue)) {
-				regval = mvisp_reg_readl(isp,
-					CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
-				regval &= ~0x1;
-				mvisp_reg_writel(isp, regval,
-					CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
-				spin_unlock_irqrestore(&queue->irqlock, flags);
-				return;
-			}
-			buffer = list_first_entry(&video->dmaidlequeue,
-				struct isp_video_buffer, irqlist);
-			list_del(&buffer->irqlist);
-			list_add_tail(&buffer->irqlist, &video->dmabusyqueue);
-			buffer->state = ISP_BUF_STATE_ACTIVE;
-			ccic_set_dma_addr(ccic, buffer, CCIC_EOF2);
-			spin_unlock_irqrestore(&queue->irqlock, flags);
-		}
+		else
+			ccic_isr_dummy_buffer(ccic, CCIC_EOF2);
 	}
+
+	spin_unlock_irqrestore(&ccic->irq_lock, flag);
 
 	return;
 }

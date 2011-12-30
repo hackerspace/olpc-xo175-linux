@@ -45,6 +45,7 @@
 #include "ispdma.h"
 #include "ispccic.h"
 
+#define MVISP_DUMMY_BUF_SIZE	(1920*1080*2)
 #define ISP_STOP_TIMEOUT	msecs_to_jiffies(1000)
 
 static char *isp_clocks[] = {
@@ -889,9 +890,9 @@ static int mvisp_remove(struct platform_device *pdev)
 		}
 	}
 
-	if (isp->isp_dummy_pages != NULL) {
-		__free_pages(isp->isp_dummy_pages, isp->isp_dummy_order);
-		isp->isp_dummy_pages = NULL;
+	if (isp->dummy_pages != NULL) {
+		__free_pages(isp->dummy_pages, isp->dummy_order);
+		isp->dummy_pages = NULL;
 	}
 
 	kfree(isp);
@@ -945,6 +946,28 @@ static int mvisp_map_mem_resource(struct platform_device *pdev,
 	return 0;
 }
 
+static int mvisp_prepare_dummy(struct mvisp_device *isp)
+{
+	isp->dummy_vaddr = NULL;
+	isp->dummy_paddr = 0;
+	isp->dummy_pages = NULL;
+	isp->dummy_order = 0;
+
+	if (isp->ccic_dummy_ena || isp->ispdma_dummy_ena) {
+		isp->dummy_order = get_order(PAGE_ALIGN(MVISP_DUMMY_BUF_SIZE));
+		isp->dummy_pages = alloc_pages(
+				GFP_KERNEL, isp->dummy_order);
+		if (isp->dummy_pages != NULL) {
+			isp->dummy_vaddr =
+				(void *)page_address(isp->dummy_pages);
+			if (isp->dummy_vaddr != NULL)
+				isp->dummy_paddr = __pa(isp->dummy_vaddr);
+		}
+	}
+
+	return 0;
+}
+
 static int mvisp_probe(struct platform_device *pdev)
 {
 	struct mvisp_platform_data *pdata = pdev->dev.platform_data;
@@ -967,6 +990,8 @@ static int mvisp_probe(struct platform_device *pdev)
 	isp->pdata = pdata;
 	isp->ref_count = 0;
 	isp->has_context = false;
+	isp->ccic_dummy_ena = pdata->ccic_dummy_ena;
+	isp->ispdma_dummy_ena = pdata->ispdma_dummy_ena;
 
 	platform_set_drvdata(pdev, isp);
 
@@ -1056,13 +1081,7 @@ static int mvisp_probe(struct platform_device *pdev)
 		if (ret < 0)
 			goto error_modules;
 
-		/* Dummy buffer is for CCIC usage only*/
-		isp->isp_dummy_order = get_order(PAGE_ALIGN(2000*1100*2));
-		isp->isp_dummy_pages = alloc_pages(
-				GFP_KERNEL, isp->isp_dummy_order);
-		if (isp->isp_dummy_pages != NULL)
-			isp->isp_dummy_vaddr =
-				(void *)page_address(isp->isp_dummy_pages);
+		mvisp_prepare_dummy(isp);
 	}
 
 	mvisp_power_settings(isp, 1);

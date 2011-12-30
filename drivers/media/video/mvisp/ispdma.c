@@ -432,7 +432,7 @@ static void ispdma_set_inaddr(struct isp_ispdma_device *ispdma,
 	unsigned int bytesperpixel, width, height, size;
 	unsigned int regval;
 
-	if (buffer == NULL)
+	if ((buffer == NULL) || (buffer->paddr == 0))
 		return;
 
 	width = ispdma->formats[ISPDMA_PAD_SINK].width;
@@ -455,29 +455,39 @@ static void ispdma_set_inaddr(struct isp_ispdma_device *ispdma,
 	}
 
 	size = (bytesperpixel * width * height) >> 3;
-	if (buffer->paddr != 0) {
-		mvisp_reg_writel(isp, buffer->paddr,
-			ISP_IOMEM_ISPDMA, ISPDMA_INPSDMA_SRCADDR);
-		mvisp_reg_writel(isp, size,
-			ISP_IOMEM_ISPDMA, ISPDMA_INPSDMA_SRCSZ);
-	}
+	mvisp_reg_writel(isp, buffer->paddr,
+		ISP_IOMEM_ISPDMA, ISPDMA_INPSDMA_SRCADDR);
+	mvisp_reg_writel(isp, size,
+		ISP_IOMEM_ISPDMA, ISPDMA_INPSDMA_SRCSZ);
+
+	ispdma->regcache[ISPDMA_PAD_SINK][ISPDMA_DST_REG] = buffer;
+	if (ispdma->regcache[ISPDMA_PAD_SINK][ISPDMA_SHADOW_REG]
+		!= buffer)
+		buffer->state = ISP_BUF_STATE_QUEUED;
+	else
+		buffer->state = ISP_BUF_STATE_ACTIVE;
 
 	return;
 }
 
 static void ispdma_set_disp_outaddr(struct isp_ispdma_device *ispdma,
-		struct isp_video_buffer *buffer)
+		struct isp_video_buffer *buffer, dma_addr_t	paddr)
 {
 	struct mvisp_device *isp = to_mvisp_device(ispdma);
 	unsigned int bytesperpixel, width, height, size;
+	dma_addr_t	internal_paddr;
 
-	if (buffer == NULL)
+	if (buffer != NULL)
+		internal_paddr = buffer->paddr;
+	else if (paddr != 0)
+		internal_paddr = paddr;
+	else
 		return;
 
-	width = ispdma->formats[ISPDMA_PAD_DISPLAY_SOURCE].width;
-	height = ispdma->formats[ISPDMA_PAD_DISPLAY_SOURCE].height;
+	width = ispdma->formats[ISPDMA_PAD_DISP_SRC].width;
+	height = ispdma->formats[ISPDMA_PAD_DISP_SRC].height;
 
-	switch (ispdma->formats[ISPDMA_PAD_DISPLAY_SOURCE].code) {
+	switch (ispdma->formats[ISPDMA_PAD_DISP_SRC].code) {
 	case V4L2_MBUS_FMT_SBGGR8_1X8:
 		bytesperpixel = 8;
 		break;
@@ -493,29 +503,45 @@ static void ispdma_set_disp_outaddr(struct isp_ispdma_device *ispdma,
 	}
 
 	size = (bytesperpixel * width * height) >> 3;
-	if (buffer->paddr != 0) {
-		mvisp_reg_writel(isp, size ,
-			ISP_IOMEM_ISPDMA, ISPDMA_DISP_DSTSZ);
-		mvisp_reg_writel(isp, buffer->paddr,
-			ISP_IOMEM_ISPDMA, ISPDMA_DISP_DSTADDR);
-	}
+	mvisp_reg_writel(isp, size ,
+		ISP_IOMEM_ISPDMA, ISPDMA_DISP_DSTSZ);
+	mvisp_reg_writel(isp, internal_paddr,
+		ISP_IOMEM_ISPDMA, ISPDMA_DISP_DSTADDR);
+
+	if (buffer != NULL) {
+		ispdma->regcache[ISPDMA_PAD_DISP_SRC][ISPDMA_DST_REG]
+			= buffer;
+		if (ispdma->regcache[ISPDMA_PAD_DISP_SRC][ISPDMA_SHADOW_REG]
+			!= buffer)
+			buffer->state = ISP_BUF_STATE_QUEUED;
+		else
+			buffer->state = ISP_BUF_STATE_ACTIVE;
+	} else
+		ispdma->regcache[ISPDMA_PAD_DISP_SRC][ISPDMA_DST_REG]
+			= NULL;
+
 
 	return;
 }
 
 static void ispdma_set_codec_outaddr(struct isp_ispdma_device *ispdma,
-		struct isp_video_buffer *buffer)
+		struct isp_video_buffer *buffer, dma_addr_t	paddr)
 {
 	struct mvisp_device *isp = to_mvisp_device(ispdma);
 	unsigned int bytesperpixel, width, height, size;
+	dma_addr_t	internal_paddr;
 
-	if (buffer == NULL)
+	if (buffer != NULL)
+		internal_paddr = buffer->paddr;
+	else if (paddr != 0)
+		internal_paddr = paddr;
+	else
 		return;
 
-	width = ispdma->formats[ISPDMA_PAD_CODEC_SOURCE].width;
-	height = ispdma->formats[ISPDMA_PAD_CODEC_SOURCE].height;
+	width = ispdma->formats[ISPDMA_PAD_CODE_SRC].width;
+	height = ispdma->formats[ISPDMA_PAD_CODE_SRC].height;
 
-	switch (ispdma->formats[ISPDMA_PAD_CODEC_SOURCE].code) {
+	switch (ispdma->formats[ISPDMA_PAD_CODE_SRC].code) {
 	case V4L2_MBUS_FMT_SBGGR8_1X8:
 		bytesperpixel = 8;
 		break;
@@ -531,12 +557,22 @@ static void ispdma_set_codec_outaddr(struct isp_ispdma_device *ispdma,
 	}
 
 	size = (bytesperpixel * width * height) >> 3;
-	if (buffer->paddr != 0) {
-		mvisp_reg_writel(isp, size,
-			ISP_IOMEM_ISPDMA, ISPDMA_CODEC_DSTSZ);
-		mvisp_reg_writel(isp, buffer->paddr,
-			ISP_IOMEM_ISPDMA, ISPDMA_CODEC_DSTADDR);
-	}
+	mvisp_reg_writel(isp, size,
+		ISP_IOMEM_ISPDMA, ISPDMA_CODEC_DSTSZ);
+	mvisp_reg_writel(isp, internal_paddr,
+		ISP_IOMEM_ISPDMA, ISPDMA_CODEC_DSTADDR);
+
+	if (buffer != NULL) {
+		ispdma->regcache[ISPDMA_PAD_CODE_SRC][ISPDMA_DST_REG]
+			= buffer;
+		if (ispdma->regcache[ISPDMA_PAD_CODE_SRC][ISPDMA_SHADOW_REG]
+			!= buffer)
+			buffer->state = ISP_BUF_STATE_QUEUED;
+		else
+			buffer->state = ISP_BUF_STATE_ACTIVE;
+	} else
+		ispdma->regcache[ISPDMA_PAD_CODE_SRC][ISPDMA_DST_REG]
+			= NULL;
 
 	return;
 }
@@ -554,12 +590,17 @@ static void ispdma_reset_counter(struct isp_ispdma_device *ispdma)
 
 static void ispdma_init_params(struct isp_ispdma_device *ispdma)
 {
+	int i, j;
+
 	ispdma_reset_counter(ispdma);
 	ispdma->dma_working_flag = DMA_NOT_WORKING;
 	ispdma->framebuf_count = 0;
 	ispdma->sched_stop_disp = false;
 	ispdma->sched_stop_codec = false;
 	ispdma->sched_stop_input = false;
+	for (i = 0; i < ISPDMA_PADS_NUM; i++)
+		for (j = 0; j < ISPDMA_CACHE_MAX; j++)
+			ispdma->regcache[i][j] = NULL;
 	return;
 }
 
@@ -570,6 +611,7 @@ static void ispdma_start_dma(struct isp_ispdma_device *ispdma
 	struct mvisp_device *isp = to_mvisp_device(ispdma);
 	u32 regval;
 	unsigned long dma_flags, video_flags;
+	struct isp_video_buffer *buf, **dstbuf;
 
 	spin_lock_irqsave(&ispdma->dmaflg_lock, dma_flags);
 
@@ -613,6 +655,14 @@ static void ispdma_start_dma(struct isp_ispdma_device *ispdma
 		ispdma->dma_working_flag |= DMA_DISP_WORKING;
 		set_vd_dmaqueue_flg(
 			&ispdma->vd_disp_out, ISP_VIDEO_DMAQUEUE_BUSY);
+
+		buf = ispdma->regcache[ISPDMA_PAD_DISP_SRC][ISPDMA_DST_REG];
+		dstbuf = &ispdma->regcache[ISPDMA_PAD_DISP_SRC][ISPDMA_DST_REG];
+		if (buf != NULL) {
+			*dstbuf = buf;
+			buf->state = ISP_BUF_STATE_ACTIVE;
+		}
+
 		spin_unlock_irqrestore(
 			&ispdma->vd_disp_out.irq_lock, video_flags);
 		break;
@@ -655,6 +705,14 @@ static void ispdma_start_dma(struct isp_ispdma_device *ispdma
 		ispdma->dma_working_flag |= DMA_CODEC_WORKING;
 		set_vd_dmaqueue_flg(
 			&ispdma->vd_codec_out, ISP_VIDEO_DMAQUEUE_BUSY);
+
+		buf = ispdma->regcache[ISPDMA_PAD_CODE_SRC][ISPDMA_DST_REG];
+		dstbuf = &ispdma->regcache[ISPDMA_PAD_CODE_SRC][ISPDMA_DST_REG];
+		if (buf != NULL) {
+			*dstbuf = buf;
+			buf->state = ISP_BUF_STATE_ACTIVE;
+		}
+
 		spin_unlock_irqrestore(
 			&ispdma->vd_codec_out.irq_lock, video_flags);
 		break;
@@ -702,6 +760,14 @@ static void ispdma_start_dma(struct isp_ispdma_device *ispdma
 			set_vd_dmaqueue_flg(
 				&ispdma->vd_in, ISP_VIDEO_DMAQUEUE_BUSY);
 		}
+
+		buf = ispdma->regcache[ISPDMA_PAD_SINK][ISPDMA_DST_REG];
+		dstbuf = &ispdma->regcache[ISPDMA_PAD_SINK][ISPDMA_DST_REG];
+		if (buf != NULL) {
+			*dstbuf = buf;
+			buf->state = ISP_BUF_STATE_ACTIVE;
+		}
+
 		spin_unlock_irqrestore(&ispdma->vd_in.irq_lock, video_flags);
 		break;
 	}
@@ -752,6 +818,8 @@ static void ispdma_stop_dma(struct isp_ispdma_device *ispdma
 
 		ispdma->dma_working_flag &= ~DMA_DISP_WORKING;
 		ispdma->sched_stop_disp = false;
+
+		dev_warn(isp->dev, "ispdma stop disp\n");
 		break;
 	}
 	case ISPDMA_PORT_CODEC:
@@ -781,6 +849,8 @@ static void ispdma_stop_dma(struct isp_ispdma_device *ispdma
 
 		ispdma->dma_working_flag &= ~DMA_CODEC_WORKING;
 		ispdma->sched_stop_codec = false;
+
+		dev_warn(isp->dev, "ispdma stop codec\n");
 		break;
 	}
 	case ISPDMA_PORT_INPUT:
@@ -812,6 +882,8 @@ static void ispdma_stop_dma(struct isp_ispdma_device *ispdma
 
 		ispdma->dma_working_flag &= ~DMA_INPUT_WORKING;
 		ispdma->sched_stop_input = false;
+
+		dev_warn(isp->dev, "ispdma stop input\n");
 		break;
 	}
 	default:
@@ -849,31 +921,27 @@ static int load_dummy_buffer(struct isp_ispdma_device *ispdma,
 {
 	enum isp_pipeline_start_condition
 			start_dma = ISP_CAN_NOT_START;
-	struct isp_video_buffer *buffer;
 	struct mvisp_device *isp = to_mvisp_device(ispdma);
 
 	switch (port) {
 	case ISPDMA_PORT_DISPLAY:
-		buffer =
-			ispdma->vd_disp_out.queue->dummy_buffers[0];
-		if (buffer == NULL) {
+		if (isp->dummy_paddr == 0) {
 			ispdma->sched_stop_disp = true;
 			dev_warn(isp->dev,
 				"isp display dma schduled stop [no dummy buffer]\n");
 		} else {
-			ispdma_set_disp_outaddr(ispdma, buffer);
+			ispdma_set_disp_outaddr(ispdma, NULL, isp->dummy_paddr);
 		}
 		start_dma |= ISP_DISPLAY_CAN_START;
 		break;
 	case ISPDMA_PORT_CODEC:
-		buffer =
-			ispdma->vd_codec_out.queue->dummy_buffers[0];
-		if (buffer == NULL) {
+		if (isp->dummy_paddr == 0) {
 			ispdma->sched_stop_codec = true;
 			dev_warn(isp->dev,
 				"isp codec dma schduled stop [no dummy buffer]\n");
 		} else {
-			ispdma_set_codec_outaddr(ispdma, buffer);
+			ispdma_set_codec_outaddr(ispdma,
+				NULL, isp->dummy_paddr);
 		}
 		start_dma |= ISP_CODEC_CAN_START;
 		break;
@@ -903,7 +971,7 @@ static int ispdma_isr_load_buffer(struct isp_ispdma_device *ispdma
 		buffer = mvisp_video_buffer_next(
 			&ispdma->vd_disp_out, ispdma->disp_mipi_ovr_cnt);
 		if (buffer != NULL) {
-			ispdma_set_disp_outaddr(ispdma, buffer);
+			ispdma_set_disp_outaddr(ispdma, buffer, 0);
 			start_dma |= ISP_DISPLAY_CAN_START;
 		} else {
 			needdummy = true;
@@ -913,7 +981,7 @@ static int ispdma_isr_load_buffer(struct isp_ispdma_device *ispdma
 		buffer = mvisp_video_buffer_next(
 			&ispdma->vd_codec_out, ispdma->codec_mipi_ovr_cnt);
 		if (buffer != NULL) {
-			ispdma_set_codec_outaddr(ispdma, buffer);
+			ispdma_set_codec_outaddr(ispdma, buffer, 0);
 			start_dma |= ISP_CODEC_CAN_START;
 		} else {
 			needdummy = true;
@@ -985,11 +1053,10 @@ static void ispdma_isr_buffer(struct isp_ispdma_device *ispdma
 static void ispdma_disp_handler(struct isp_ispdma_device *ispdma,
 	struct isp_video *video)
 {
-	unsigned long queue_flags, video_flags;
+	unsigned long video_flags;
 	struct mvisp_device *isp = to_mvisp_device(ispdma);
 	unsigned long dma_working_flag;
-	struct isp_video_queue *queue = NULL;
-	struct isp_video_buffer *buffer = NULL;
+	struct isp_video_buffer *buf = NULL;
 	u32 regval;
 	bool dummy_in_transfer;
 
@@ -997,27 +1064,26 @@ static void ispdma_disp_handler(struct isp_ispdma_device *ispdma,
 	if ((dma_working_flag & DMA_DISP_WORKING) == 0)
 		return;
 
+	buf = ispdma->regcache[ISPDMA_PAD_DISP_SRC][ISPDMA_SHADOW_REG];
+	if (buf != NULL)
+		buf->state = ISP_BUF_STATE_ACTIVE;
+	ispdma->regcache[ISPDMA_PAD_DISP_SRC][ISPDMA_SHADOW_REG] =
+		ispdma->regcache[ISPDMA_PAD_DISP_SRC][ISPDMA_DST_REG];
+
+	ispdma->disp_eof_cnt++;
+
 	if (ispdma->sched_stop_disp == true) {
 		dev_warn(isp->dev, "display dma schedule stops\n");
 		ispdma_stop_dma(ispdma, ISPDMA_PORT_DISPLAY);
 	}
 
-	spin_lock_irqsave(&video->irq_lock, video_flags);
-	queue = video->queue;
-	if (queue == NULL)
-		goto exit;
-	spin_lock_irqsave(&queue->irqlock, queue_flags);
-	ispdma->disp_eof_cnt++;
-
-	if (queue->dummy_buffers[0] != NULL) {
+	if ((isp->ispdma_dummy_ena == true) && (isp->dummy_paddr != 0)) {
 		regval = mvisp_reg_readl(isp,
 				ISP_IOMEM_ISPDMA, ISPDMA_DISP_DSTADDR);
-		if (regval != video->queue->dummy_buffers[0]->paddr)
+		if (regval != isp->dummy_paddr)
 			dummy_in_transfer = false;
-		else {
+		else
 			dummy_in_transfer = true;
-			buffer = queue->dummy_buffers[0];
-		}
 	} else
 		dummy_in_transfer = false;
 
@@ -1026,16 +1092,17 @@ static void ispdma_disp_handler(struct isp_ispdma_device *ispdma,
 		ispdma->disp_mipi_ovr_cnt = 0;
 	} else {
 		ispdma->disp_mipi_ovr_cnt = 0;
-		if (list_empty(&video->dmaidlequeue)) {
-			ispdma_set_disp_outaddr(ispdma, buffer);
-			goto exit;
+		spin_lock_irqsave(&video->irq_lock, video_flags);
+		if (!list_empty(&video->dmaidlequeue)) {
+			buf = list_first_entry(&video->dmaidlequeue,
+				struct isp_video_buffer, dmalist);
+			list_del(&buf->dmalist);
+			video->dmaidlecnt--;
+			list_add_tail(&buf->dmalist, &video->dmabusyqueue);
+			video->dmabusycnt++;
+			ispdma_set_disp_outaddr(ispdma, buf, 0);
 		}
-		buffer = list_first_entry(&video->dmaidlequeue,
-			struct isp_video_buffer, irqlist);
-		list_del(&buffer->irqlist);
-		list_add_tail(&buffer->irqlist, &video->dmabusyqueue);
-		buffer->state = ISP_BUF_STATE_ACTIVE;
-		ispdma_set_disp_outaddr(ispdma, buffer);
+		spin_unlock_irqrestore(&video->irq_lock, video_flags);
 	}
 
 	/* Enable MIPI overrun IRQ for error handling */
@@ -1043,28 +1110,28 @@ static void ispdma_disp_handler(struct isp_ispdma_device *ispdma,
 	regval |= 0x20000;
 	mvisp_reg_writel(isp, regval, ISP_IOMEM_ISPDMA, ISPDMA_IRQMASK);
 
-exit:
-	if (queue)
-		spin_unlock_irqrestore(&queue->irqlock, queue_flags);
-	spin_unlock_irqrestore(&video->irq_lock, queue_flags);
-
 	return;
 }
 
 static void ispdma_codec_handler(struct isp_ispdma_device *ispdma,
 	struct isp_video *video)
 {
-	unsigned long queue_flags, video_flags;
+	unsigned long video_flags;
 	struct mvisp_device *isp = to_mvisp_device(ispdma);
 	unsigned long dma_working_flag;
-	struct isp_video_queue *queue = NULL;
-	struct isp_video_buffer *buffer = NULL;
+	struct isp_video_buffer *buf = NULL;
 	u32 regval;
 	bool dummy_in_transfer;
 
 	dma_working_flag = get_dma_working_flag(ispdma);
 	if ((dma_working_flag & DMA_CODEC_WORKING) == 0)
 		return;
+
+	buf = ispdma->regcache[ISPDMA_PAD_CODE_SRC][ISPDMA_SHADOW_REG];
+	if (buf != NULL)
+		buf->state = ISP_BUF_STATE_ACTIVE;
+	ispdma->regcache[ISPDMA_PAD_CODE_SRC][ISPDMA_SHADOW_REG] =
+		ispdma->regcache[ISPDMA_PAD_CODE_SRC][ISPDMA_DST_REG];
 
 	if (ispdma->codec_band_max != 0) {
 		ispdma->codec_band_cnt++;
@@ -1079,20 +1146,13 @@ static void ispdma_codec_handler(struct isp_ispdma_device *ispdma,
 		ispdma_stop_dma(ispdma, ISPDMA_PORT_CODEC);
 	}
 
-	spin_lock_irqsave(&video->irq_lock, video_flags);
-	queue = video->queue;
-	if (queue == NULL)
-		goto exit;
-	spin_lock_irqsave(&queue->irqlock, queue_flags);
-	if (queue->dummy_buffers[0] != NULL) {
+	if ((isp->ispdma_dummy_ena == true) && (isp->dummy_paddr != 0)) {
 		regval = mvisp_reg_readl(isp,
 				ISP_IOMEM_ISPDMA, ISPDMA_CODEC_DSTADDR);
-		if (regval != video->queue->dummy_buffers[0]->paddr)
+		if (regval != isp->dummy_paddr)
 			dummy_in_transfer = false;
-		else {
-			buffer = queue->dummy_buffers[0];
+		else
 			dummy_in_transfer = true;
-		}
 	} else
 		dummy_in_transfer = false;
 
@@ -1101,27 +1161,23 @@ static void ispdma_codec_handler(struct isp_ispdma_device *ispdma,
 		ispdma->codec_mipi_ovr_cnt = 0;
 	} else {
 		ispdma->codec_mipi_ovr_cnt = 0;
-		if (list_empty(&video->dmaidlequeue)) {
-			ispdma_set_codec_outaddr(ispdma, buffer);
-			goto exit;
+		spin_lock_irqsave(&video->irq_lock, video_flags);
+		if (!list_empty(&video->dmaidlequeue)) {
+			buf = list_first_entry(&video->dmaidlequeue
+				, struct isp_video_buffer, dmalist);
+			list_del(&buf->dmalist);
+			video->dmaidlecnt--;
+			list_add_tail(&buf->dmalist, &video->dmabusyqueue);
+			video->dmabusycnt++;
+			ispdma_set_codec_outaddr(ispdma, buf, 0);
 		}
-		buffer = list_first_entry(&video->dmaidlequeue
-			, struct isp_video_buffer, irqlist);
-		list_del(&buffer->irqlist);
-		list_add_tail(&buffer->irqlist, &video->dmabusyqueue);
-		buffer->state = ISP_BUF_STATE_ACTIVE;
-		ispdma_set_codec_outaddr(ispdma, buffer);
+		spin_unlock_irqrestore(&video->irq_lock, video_flags);
 	}
 
 	/* Enable MIPI overrun IRQ for error handling */
 	regval = mvisp_reg_readl(isp, ISP_IOMEM_ISPDMA, ISPDMA_IRQMASK);
 	regval |= 0x20000;
 	mvisp_reg_writel(isp, regval, ISP_IOMEM_ISPDMA, ISPDMA_IRQMASK);
-
-exit:
-	if (queue)
-		spin_unlock_irqrestore(&queue->irqlock, queue_flags);
-	spin_unlock_irqrestore(&video->irq_lock, queue_flags);
 
 	return;
 }
@@ -1130,31 +1186,25 @@ static void ispdma_input_handler(struct isp_ispdma_device *ispdma,
 	struct isp_video *video)
 {
 	struct mvisp_device *isp = to_mvisp_device(ispdma);
-	unsigned long queue_flags, video_flags;
 	unsigned long dma_working_flag;
-	struct isp_video_queue *queue = NULL;
+	struct isp_video_buffer *buf = NULL;
 
 	dma_working_flag = get_dma_working_flag(ispdma);
 	if ((dma_working_flag & DMA_INPUT_WORKING) == 0)
 		return;
+
+	buf = ispdma->regcache[ISPDMA_PAD_SINK][ISPDMA_SHADOW_REG];
+	if (buf != NULL)
+		buf->state = ISP_BUF_STATE_ACTIVE;
+	ispdma->regcache[ISPDMA_PAD_SINK][ISPDMA_SHADOW_REG] =
+		ispdma->regcache[ISPDMA_PAD_SINK][ISPDMA_DST_REG];
 
 	if (ispdma->sched_stop_input == true) {
 		dev_warn(isp->dev, "input dma schedule stops\n");
 		ispdma_stop_dma(ispdma, ISPDMA_PORT_INPUT);
 	}
 
-	spin_lock_irqsave(&video->irq_lock, video_flags);
-	queue = video->queue;
-	if (queue == NULL)
-		goto exit;
-	spin_lock_irqsave(&queue->irqlock, queue_flags);
-
 	ispdma_isr_buffer(ispdma, ISPDMA_PORT_INPUT);
-
-exit:
-	if (queue)
-		spin_unlock_irqrestore(&queue->irqlock, queue_flags);
-	spin_unlock_irqrestore(&video->irq_lock, queue_flags);
 
 	return;
 }
@@ -1196,19 +1246,18 @@ void mv_ispdma_dma_isr_handler(struct isp_ispdma_device *ispdma
 	return;
 }
 
-static int ispdma_reload_disp_buffer(
-	struct isp_ispdma_device *ispdma, int delay)
+static int ispdma_reload_disp_buffer(struct isp_ispdma_device *ispdma)
 {
 	struct isp_video_buffer *buffer = NULL;
 	unsigned long video_flags;
 
-	buffer = mvisp_video_get_next_work_buf(&ispdma->vd_disp_out, delay);
+	buffer = mvisp_video_get_next_work_buf(&ispdma->vd_disp_out);
 	if (buffer == NULL)
 		return -EINVAL;
 
-	if (buffer->vbuf.type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+	if (buffer->vb2_buf.v4l2_buf.type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
 		spin_lock_irqsave(&ispdma->vd_disp_out.irq_lock, video_flags);
-		ispdma_set_disp_outaddr(ispdma, buffer);
+		ispdma_set_disp_outaddr(ispdma, buffer, 0);
 		set_vd_dmaqueue_flg(&ispdma->vd_disp_out,
 			ISP_VIDEO_DMAQUEUE_QUEUED);
 		spin_unlock_irqrestore(
@@ -1218,19 +1267,18 @@ static int ispdma_reload_disp_buffer(
 	return 0;
 }
 
-static int ispdma_reload_codec_buffer(
-	struct isp_ispdma_device *ispdma, int delay)
+static int ispdma_reload_codec_buffer(struct isp_ispdma_device *ispdma)
 {
 	struct isp_video_buffer *buffer = NULL;
 	unsigned long video_flags;
 
-	buffer = mvisp_video_get_next_work_buf(&ispdma->vd_codec_out, delay);
+	buffer = mvisp_video_get_next_work_buf(&ispdma->vd_codec_out);
 	if (buffer == NULL)
 		return -EINVAL;
 
-	if (buffer->vbuf.type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+	if (buffer->vb2_buf.v4l2_buf.type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
 		spin_lock_irqsave(&ispdma->vd_codec_out.irq_lock, video_flags);
-		ispdma_set_codec_outaddr(ispdma, buffer);
+		ispdma_set_codec_outaddr(ispdma, buffer, 0);
 		set_vd_dmaqueue_flg(&ispdma->vd_codec_out,
 			ISP_VIDEO_DMAQUEUE_QUEUED);
 		spin_unlock_irqrestore(
@@ -1240,17 +1288,16 @@ static int ispdma_reload_codec_buffer(
 	return 0;
 }
 
-static int ispdma_reload_input_buffer(
-	struct isp_ispdma_device *ispdma, int delay)
+static int ispdma_reload_input_buffer(struct isp_ispdma_device *ispdma)
 {
 	struct isp_video_buffer *buffer = NULL;
 	unsigned long video_flags;
 
-	buffer = mvisp_video_get_next_work_buf(&ispdma->vd_in, delay);
+	buffer = mvisp_video_get_next_work_buf(&ispdma->vd_in);
 	if (buffer == NULL)
 		return -EINVAL;
 
-	if (buffer->vbuf.type == V4L2_BUF_TYPE_VIDEO_OUTPUT) {
+	if (buffer->vb2_buf.v4l2_buf.type == V4L2_BUF_TYPE_VIDEO_OUTPUT) {
 		spin_lock_irqsave(&ispdma->vd_in.irq_lock, video_flags);
 		ispdma_set_inaddr(ispdma, buffer);
 		set_vd_dmaqueue_flg(&ispdma->vd_in,
@@ -1270,14 +1317,14 @@ static int ispdma_try_restart_disp_dma(struct isp_ispdma_device *ispdma)
 	dmaqueue_flags = get_vd_dmaqueue_flg(&ispdma->vd_disp_out);
 	switch (dmaqueue_flags) {
 	case ISP_VIDEO_DMAQUEUE_UNDERRUN:
-		ret = ispdma_reload_disp_buffer(ispdma, 0);
+		ret = ispdma_reload_disp_buffer(ispdma);
 		if (ret != 0)
 			return ret;
 	case ISP_VIDEO_DMAQUEUE_QUEUED:
 		dma_flag = get_dma_working_flag(ispdma);
 		if ((dma_flag & DMA_DISP_WORKING) == 0) {
 			ispdma_start_dma(ispdma, ISPDMA_PORT_DISPLAY);
-			ispdma_reload_disp_buffer(ispdma, 1);
+			ispdma_reload_disp_buffer(ispdma);
 		}
 		break;
 	case ISP_VIDEO_DMAQUEUE_BUSY:
@@ -1298,14 +1345,14 @@ static int ispdma_try_restart_codec_dma(struct isp_ispdma_device *ispdma)
 		get_vd_dmaqueue_flg(&ispdma->vd_codec_out);
 	switch (dmaqueue_flags) {
 	case ISP_VIDEO_DMAQUEUE_UNDERRUN:
-		ret = ispdma_reload_codec_buffer(ispdma, 0);
+		ret = ispdma_reload_codec_buffer(ispdma);
 		if (ret != 0)
 			return ret;
 	case ISP_VIDEO_DMAQUEUE_QUEUED:
 		dma_flag = get_dma_working_flag(ispdma);
 		if ((dma_flag & DMA_CODEC_WORKING) == 0) {
 			ispdma_start_dma(ispdma, ISPDMA_PORT_CODEC);
-			ispdma_reload_codec_buffer(ispdma, 1);
+			ispdma_reload_codec_buffer(ispdma);
 		}
 		break;
 	case ISP_VIDEO_DMAQUEUE_BUSY:
@@ -1326,14 +1373,14 @@ static int ispdma_try_restart_input_dma(struct isp_ispdma_device *ispdma)
 		get_vd_dmaqueue_flg(&ispdma->vd_in);
 	switch (dmaqueue_flags) {
 	case ISP_VIDEO_DMAQUEUE_UNDERRUN:
-		ret = ispdma_reload_input_buffer(ispdma, 0);
+		ret = ispdma_reload_input_buffer(ispdma);
 		if (ret != 0)
 			return ret;
 	case ISP_VIDEO_DMAQUEUE_QUEUED:
 		dma_flag = get_dma_working_flag(ispdma);
 		if ((dma_flag & DMA_INPUT_WORKING) == 0) {
 			ispdma_start_dma(ispdma, ISPDMA_PORT_INPUT);
-			ispdma_reload_input_buffer(ispdma, 1);
+			ispdma_reload_input_buffer(ispdma);
 		}
 		break;
 	case ISP_VIDEO_DMAQUEUE_BUSY:
@@ -1377,23 +1424,27 @@ static void ctx_adjust_buffers(struct isp_video *video)
 
 	while (!list_empty(&video->dmaidlequeue)) {
 		buf = list_first_entry(&video->dmaidlequeue,
-			struct isp_video_buffer, irqlist);
-		list_del(&buf->irqlist);
-		list_add_tail(&buf->irqlist, &temp_list);
+			struct isp_video_buffer, dmalist);
+		list_del(&buf->dmalist);
+		video->dmaidlecnt--;
+		list_add_tail(&buf->dmalist, &temp_list);
 	}
 
 	while (!list_empty(&video->dmabusyqueue)) {
 		buf = list_first_entry(&video->dmabusyqueue,
-			struct isp_video_buffer, irqlist);
-		list_del(&buf->irqlist);
-		list_add_tail(&buf->irqlist, &video->dmaidlequeue);
+			struct isp_video_buffer, dmalist);
+		list_del(&buf->dmalist);
+		video->dmabusycnt--;
+		list_add_tail(&buf->dmalist, &video->dmaidlequeue);
+		video->dmaidlecnt++;
 	}
 
 	while (!list_empty(&temp_list)) {
 		buf = list_first_entry(&temp_list,
-			struct isp_video_buffer, irqlist);
-		list_del(&buf->irqlist);
-		list_add_tail(&buf->irqlist, &video->dmaidlequeue);
+			struct isp_video_buffer, dmalist);
+		list_del(&buf->dmalist);
+		list_add_tail(&buf->dmalist, &video->dmaidlequeue);
+		video->dmaidlecnt++;
 	}
 
 	if (list_empty(&video->dmaidlequeue) == 0) {
@@ -1498,33 +1549,62 @@ static void ispdma_context_restore(struct isp_ispdma_device *ispdma)
 	return;
 }
 
+static bool ispdma_can_fast_qbuf(struct isp_video *video, int pad)
+{
+	struct isp_video_buffer	*regdst, *regshd;
+	struct isp_ispdma_device *ispdma = &video->isp->mvisp_ispdma;
 
+	if (pad > ISPDMA_PADS_NUM - 1)
+		return false;
+
+	regdst = ispdma->regcache
+		[pad][ISPDMA_DST_REG];
+	regshd = ispdma->regcache
+		[pad][ISPDMA_SHADOW_REG];
+
+	if ((regdst == regshd) && (regdst != NULL))
+		return true;
+
+	return false;
+}
 
 static int ispdma_video_qbuf_notify(struct isp_video *video)
 {
 	struct isp_ispdma_device *ispdma = &video->isp->mvisp_ispdma;
-	int need_try_restart = 0;
+	bool need_try_restart;
 	unsigned long dma_flags;
-
-	if (video->streaming == 0)
-		return 0;
 
 	spin_lock_irqsave(&ispdma->dmaflg_lock, dma_flags);
 	switch (video->video_type) {
 	case ISP_VIDEO_DISPLAY:
 		if ((ispdma->dma_working_flag & DMA_DISP_WORKING) == 0)
-			need_try_restart = 1;
+			need_try_restart = true;
+		else {
+			need_try_restart = false;
+			if (ispdma_can_fast_qbuf(video, ISPDMA_PAD_DISP_SRC))
+				ispdma_reload_disp_buffer(ispdma);
+		}
 		break;
 	case ISP_VIDEO_CODEC:
 		if ((ispdma->dma_working_flag & DMA_CODEC_WORKING) == 0)
-			need_try_restart = 1;
+			need_try_restart = true;
+		else {
+			need_try_restart = false;
+			if (ispdma_can_fast_qbuf(video, ISPDMA_PAD_CODE_SRC))
+				ispdma_reload_codec_buffer(ispdma);
+		}
 		break;
 	case ISP_VIDEO_INPUT:
 		if ((ispdma->dma_working_flag & DMA_INPUT_WORKING) == 0)
-			need_try_restart = 1;
+			need_try_restart = true;
+		else {
+			need_try_restart = false;
+			if (ispdma_can_fast_qbuf(video, ISPDMA_PAD_SINK))
+				ispdma_reload_input_buffer(ispdma);
+		}
 		break;
 	default:
-		need_try_restart = 0;
+		need_try_restart = false;
 		break;
 	}
 	spin_unlock_irqrestore(&ispdma->dmaflg_lock, dma_flags);
@@ -1869,7 +1949,7 @@ static void ispdma_try_format(
 				min_t(u32, fmt->height, ISPDMA_MAX_IN_HEIGHT);
 		}
 		break;
-	case ISPDMA_PAD_DISPLAY_SOURCE:
+	case ISPDMA_PAD_DISP_SRC:
 		fmt->width =
 				min_t(u32, fmt->width,
 					ISPDMA_MAX_DISP_WIDTH);
@@ -1877,7 +1957,7 @@ static void ispdma_try_format(
 				min_t(u32, fmt->height,
 					ISPDMA_MAX_DISP_HEIGHT);
 		break;
-	case ISPDMA_PAD_CODEC_SOURCE:
+	case ISPDMA_PAD_CODE_SRC:
 		fmt->width =
 				min_t(u32, fmt->width,
 					ISPDMA_MAX_CODEC_WIDTH);
@@ -1918,7 +1998,7 @@ static int ispdma_enum_mbus_code(struct v4l2_subdev *sd,
 			code->code =
 				ispdma_input_fmts[code->index];
 		break;
-	case ISPDMA_PAD_DISPLAY_SOURCE:
+	case ISPDMA_PAD_DISP_SRC:
 		if (code->index >=
 				ARRAY_SIZE(ispdma_disp_out_fmts))
 			ret = -EINVAL;
@@ -1926,7 +2006,7 @@ static int ispdma_enum_mbus_code(struct v4l2_subdev *sd,
 			code->code =
 				ispdma_disp_out_fmts[code->index];
 		break;
-	case ISPDMA_PAD_CODEC_SOURCE:
+	case ISPDMA_PAD_CODE_SRC:
 		if (code->index >=
 				ARRAY_SIZE(ispdma_codec_out_fmts))
 			ret = -EINVAL;
@@ -2047,13 +2127,13 @@ static int ispdma_config_format(
 				ISP_IOMEM_ISPDMA, ISPDMA_INPSDMA_CTRL);
 
 		break;
-	case ISPDMA_PAD_CODEC_SOURCE:
+	case ISPDMA_PAD_CODE_SRC:
 		regval = pitch & ISPDMA_MAX_CODEC_PITCH;
 		mvisp_reg_writel(isp, regval,
 				ISP_IOMEM_ISPDMA, ISPDMA_CODEC_PITCH);
 
 		break;
-	case ISPDMA_PAD_DISPLAY_SOURCE:
+	case ISPDMA_PAD_DISP_SRC:
 		regval = pitch & ISPDMA_MAX_DISP_PITCH;
 		mvisp_reg_writel(isp, regval,
 				ISP_IOMEM_ISPDMA, ISPDMA_DISP_PITCH);
@@ -2119,14 +2199,14 @@ static int ispdma_init_formats(struct v4l2_subdev *sd,
 		ispdma_set_format(sd, fh, &format);
 
 		format.format.code = V4L2_MBUS_FMT_UYVY8_1X16;
-		format.pad = ISPDMA_PAD_CODEC_SOURCE;
+		format.pad = ISPDMA_PAD_CODE_SRC;
 		format.format.width = 640;
 		format.format.height = 480;
 		format.format.colorspace = V4L2_COLORSPACE_JPEG;
 		format.format.field = V4L2_FIELD_NONE;
 		ispdma_set_format(sd, fh, &format);
 
-		format.pad = ISPDMA_PAD_DISPLAY_SOURCE;
+		format.pad = ISPDMA_PAD_DISP_SRC;
 		ret = ispdma_set_format(sd, fh, &format);
 	} else {
 		/* Copy the active format to a newly opened fh structure */
@@ -2149,14 +2229,14 @@ static int ispdma_init_formats(struct v4l2_subdev *sd,
 			sizeof(struct v4l2_subdev_format));
 
 		format_active = __ispdma_get_format(ispdma,
-			fh, ISPDMA_PAD_DISPLAY_SOURCE,
+			fh, ISPDMA_PAD_DISP_SRC,
 			V4L2_SUBDEV_FORMAT_ACTIVE);
 		if (format_active == NULL) {
 			ret = -EINVAL;
 			goto error;
 		}
 		format_try = __ispdma_get_format(ispdma, fh,
-			ISPDMA_PAD_DISPLAY_SOURCE, V4L2_SUBDEV_FORMAT_TRY);
+			ISPDMA_PAD_DISP_SRC, V4L2_SUBDEV_FORMAT_TRY);
 		if (format_try == NULL) {
 			ret = -EINVAL;
 			goto error;
@@ -2165,13 +2245,13 @@ static int ispdma_init_formats(struct v4l2_subdev *sd,
 			sizeof(struct v4l2_subdev_format));
 
 		format_active = __ispdma_get_format(ispdma, fh,
-			ISPDMA_PAD_CODEC_SOURCE, V4L2_SUBDEV_FORMAT_ACTIVE);
+			ISPDMA_PAD_CODE_SRC, V4L2_SUBDEV_FORMAT_ACTIVE);
 		if (format_active == NULL) {
 			ret = -EINVAL;
 			goto error;
 		}
 		format_try = __ispdma_get_format(ispdma, fh,
-			ISPDMA_PAD_CODEC_SOURCE, V4L2_SUBDEV_FORMAT_TRY);
+			ISPDMA_PAD_CODE_SRC, V4L2_SUBDEV_FORMAT_TRY);
 		if (format_try == NULL) {
 			ret = -EINVAL;
 			goto error;
@@ -2289,7 +2369,7 @@ static int ispdma_link_setup(struct media_entity *entity,
 				ispdma->input = ISPDMA_INPUT_NONE;
 		}
 		break;
-	case ISPDMA_PAD_CODEC_SOURCE | MEDIA_ENT_T_DEVNODE:
+	case ISPDMA_PAD_CODE_SRC | MEDIA_ENT_T_DEVNODE:
 		/* write to memory */
 		if (flags & MEDIA_LNK_FL_ENABLED) {
 			if (ispdma->codec_out == ISPDMA_OUTPUT_MEMORY)
@@ -2300,7 +2380,7 @@ static int ispdma_link_setup(struct media_entity *entity,
 		}
 		break;
 
-	case ISPDMA_PAD_DISPLAY_SOURCE | MEDIA_ENT_T_DEVNODE:
+	case ISPDMA_PAD_DISP_SRC | MEDIA_ENT_T_DEVNODE:
 		/* write to memory */
 		if (flags & MEDIA_LNK_FL_ENABLED) {
 			if (ispdma->disp_out == ISPDMA_OUTPUT_MEMORY)
@@ -2362,8 +2442,8 @@ static int ispdma_init_entities(struct isp_ispdma_device *ispdma)
 #endif
 
 	pads[ISPDMA_PAD_SINK].flags = MEDIA_PAD_FL_SINK;
-	pads[ISPDMA_PAD_CODEC_SOURCE].flags = MEDIA_PAD_FL_SOURCE;
-	pads[ISPDMA_PAD_DISPLAY_SOURCE].flags = MEDIA_PAD_FL_SOURCE;
+	pads[ISPDMA_PAD_CODE_SRC].flags = MEDIA_PAD_FL_SOURCE;
+	pads[ISPDMA_PAD_DISP_SRC].flags = MEDIA_PAD_FL_SOURCE;
 
 	me->ops = &ispdma_media_ops;
 	ret = media_entity_init(me, ISPDMA_PADS_NUM, pads, 0);
@@ -2383,16 +2463,16 @@ static int ispdma_init_entities(struct isp_ispdma_device *ispdma)
 	ispdma->vd_codec_out.isp = to_mvisp_device(ispdma);
 
 	ret = mvisp_video_init
-		(&ispdma->vd_in, ISP_VIDEO_INPUT_NAME, false);
+		(&ispdma->vd_in, ISP_VIDEO_INPUT_NAME);
 	if (ret < 0)
 		return ret;
 
 	ret = mvisp_video_init
-		(&ispdma->vd_codec_out, ISP_VIDEO_CODEC_NAME, false);
+		(&ispdma->vd_codec_out, ISP_VIDEO_CODEC_NAME);
 	if (ret < 0)
 		return ret;
 	ret = mvisp_video_init
-		(&ispdma->vd_disp_out, ISP_VIDEO_DISPLAY_NAME, false);
+		(&ispdma->vd_disp_out, ISP_VIDEO_DISPLAY_NAME);
 	if (ret < 0)
 		return ret;
 
@@ -2404,13 +2484,13 @@ static int ispdma_init_entities(struct isp_ispdma_device *ispdma)
 		return ret;
 
 	ret = media_entity_create_link
-			(&ispdma->subdev.entity, ISPDMA_PAD_CODEC_SOURCE,
+			(&ispdma->subdev.entity, ISPDMA_PAD_CODE_SRC,
 			&ispdma->vd_codec_out.video.entity, 0, 0);
 	if (ret < 0)
 		return ret;
 
 	ret = media_entity_create_link
-			(&ispdma->subdev.entity, ISPDMA_PAD_DISPLAY_SOURCE,
+			(&ispdma->subdev.entity, ISPDMA_PAD_DISP_SRC,
 			&ispdma->vd_disp_out.video.entity, 0, 0);
 	if (ret < 0)
 		return ret;
