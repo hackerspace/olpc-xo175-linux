@@ -290,7 +290,7 @@ static void mmp3_sspa_shutdown(struct snd_pcm_substream *substream,
 
 	/* disable sspa clk */
 	if (!cpu_dai->active)
-		mmp2_sspa_clk_enable(sspa, cpu_dai->id);
+		mmp2_sspa_clk_disable(sspa, cpu_dai->id);
 
 	return;
 }
