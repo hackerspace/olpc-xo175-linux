@@ -134,6 +134,7 @@ struct ov5642_datafmt {
 extern int ov5642_read(struct i2c_client *c, u16 reg, unsigned char *value);
 extern int ov5642_write(struct i2c_client *c, u16 reg, unsigned char value);
 extern int select_bus_type(const char *name);
+extern int get_bus_type(void);
 extern int set_stream(struct i2c_client *client, int enable);
 extern int get_firmware(OV5642_FIRMWARE_ARRAY **firmware_array);
 extern int set_yuv_res_array(struct v4l2_frmsizeenum *fsize);

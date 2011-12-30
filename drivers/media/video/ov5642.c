@@ -224,21 +224,6 @@ static int ov5642_enum_fmt(struct v4l2_subdev *sd,
 	return 0;
 }
 
-int ov5642_get_platform_name(struct v4l2_subdev *sd, char *name)
-{
-	struct i2c_client *client = v4l2_get_subdevdata(sd);
-	struct soc_camera_device *icd = client->dev.platform_data;
-	struct soc_camera_link *icl;
-
-	icl = to_soc_camera_link(icd);
-	if (!icl) {
-		dev_err(&client->dev, "ov5642 driver needs platform data\n");
-		return -EINVAL;
-	}
-	strcpy(name, icl->priv);
-	return 1;
-}
-
 static int ov5642_try_fmt(struct v4l2_subdev *sd,
 			   struct v4l2_mbus_framefmt *mf)
 {
@@ -247,6 +232,8 @@ static int ov5642_try_fmt(struct v4l2_subdev *sd,
 
 	ov5642->regs_fmt = get_fmt_regs(mf->code, mf->width, mf->height);
 
+	printk(KERN_DEBUG "%s:code:=0x%x,width=%d, height=%d\n", __func__,
+			mf->code, mf->width, mf->height);
 	ov5642->regs_default = get_fmt_default_setting(mf->code);
 
 	ov5642->regs_lane_set = NULL;
@@ -302,18 +289,16 @@ static int ov5642_s_fmt(struct v4l2_subdev *sd,
 	int ret = 0;
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct ov5642 *ov5642 = to_ov5642(client);
-#ifdef CONFIG_CPU_MMP2
 	unsigned char val;
-	char name[20] = "";
 
-	ov5642_get_platform_name(sd, name);
-	if (!strcmp(name, "pxa688-mipi")) {
+	/* bus name: pxa688-mipi, bus_type is 5 */
+	/* bus name: pxa2128-mipi, bus_type is 4 */
+	if (get_bus_type() == 4 || get_bus_type() == 5) {
 		/* sensor resume from software power down mode */
 		ov5642_read(client, REG_SYS, &val);
 		val &= ~0x40;
 		ov5642_write(client, REG_SYS, val);
 	}
-#endif
 
 	if (ov5642->regs_default) {
 		ret = ov5642_write_array(client, ov5642->regs_default);
@@ -344,9 +329,9 @@ static int ov5642_s_fmt(struct v4l2_subdev *sd,
 		if (ret)
 			return ret;
 	}
-
-#ifdef CONFIG_CPU_MMP2
-	if (!strcmp(name, "pxa688-mipi")) {
+	/* bus name: pxa688-mipi, bus_type is 5 */
+	/* bus name: pxa2128-mipi, bus_type is 4 */
+	if (get_bus_type() == 4 || get_bus_type() == 5) {
 	    /* Initialize MIPI settings */
 		ov5642->regs_mipi_set = get_mipi_set_regs();
 		if (ov5642->regs_mipi_set) {
@@ -354,9 +339,11 @@ static int ov5642_s_fmt(struct v4l2_subdev *sd,
 			if (ret)
 				return ret;
 		}
+#ifdef CONFIG_CPU_MMP2
 		if (board_is_mmp2_brownstone_rev5())
 			ov5642->regs_mipi_lane = get_mipi_lane_regs(1);
 		else
+#endif
 			ov5642->regs_mipi_lane = get_mipi_lane_regs(2);
 		if (ov5642->regs_mipi_lane) {
 			ret = ov5642_write_array(client, ov5642->regs_mipi_lane);
@@ -369,7 +356,6 @@ static int ov5642_s_fmt(struct v4l2_subdev *sd,
 		val |= 0x40;
 		ov5642_write(client, REG_SYS, val);
 	}
-#endif
 	return ret;
 }
 
