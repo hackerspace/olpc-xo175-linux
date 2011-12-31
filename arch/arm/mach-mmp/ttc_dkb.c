@@ -185,6 +185,94 @@ static unsigned long ttc_dkb_pin_config[] __initdata = {
 	GPIO113_GPS_CLKEN | MFP_PULL_HIGH,
 };
 
+static unsigned long ttc_dkb_pxa910h_pin_config[] __initdata = {
+	/* UART0 FFUART */
+	GPIO47_UART0_RXD,
+	GPIO48_UART0_TXD,
+
+	/* GPIO */
+	GPIO16_GPIO16,
+
+	/* DFI */
+	DF_IO0_ND_IO0,
+	DF_IO1_ND_IO1,
+	DF_IO2_ND_IO2,
+	DF_IO3_ND_IO3,
+	DF_IO4_ND_IO4,
+	DF_IO5_ND_IO5,
+	DF_IO6_ND_IO6,
+	DF_IO7_ND_IO7,
+	DF_IO8_ND_IO8,
+	DF_IO9_ND_IO9,
+	DF_IO10_ND_IO10,
+	DF_IO11_ND_IO11,
+	DF_IO12_ND_IO12,
+	DF_IO13_ND_IO13,
+	DF_IO14_ND_IO14,
+	DF_IO15_ND_IO15,
+	DF_nCS0_SM_nCS2_nCS0,
+	DF_ALE_SM_WEn_ND_ALE,
+	DF_CLE_SM_OEn_ND_CLE,
+	DF_WEn_DF_WEn,
+	DF_REn_DF_REn,
+	DF_RDY0_DF_RDY0,
+
+	/* I2C */
+	GPIO53_CI2C_SCL,
+	GPIO54_CI2C_SDA,
+
+	/* mmc */
+	MMC1_DAT7_MMC1_DAT7,
+	MMC1_DAT6_MMC1_DAT6,
+	MMC1_DAT5_MMC1_DAT5,
+	MMC1_DAT4_MMC1_DAT4,
+	MMC1_DAT3_MMC1_DAT3,
+	MMC1_DAT2_MMC1_DAT2,
+	MMC1_DAT1_MMC1_DAT1,
+	MMC1_DAT0_MMC1_DAT0,
+	MMC1_CMD_MMC1_CMD,
+	MMC1_CLK_MMC1_CLK,
+	MMC1_CD_MMC1_CD | MFP_PULL_HIGH,
+	MMC1_WP_MMC1_WP | MFP_PULL_LOW,
+
+	MMC2_DAT3_GPIO_37,
+	MMC2_DAT2_GPIO_38,
+	MMC2_DAT1_GPIO_39,
+	MMC2_DAT0_GPIO_40,
+	MMC2_CMD_GPIO_41,
+	MMC2_CLK_GPIO_42,
+
+	/* wlan_bt */
+	WLAN_PD_GPIO_14,
+	WLAN_RESET_GPIO_20,
+	WIB_EN_GPIO_33,
+	WLAN_BT_RESET_GPIO_34,
+
+	/* one wire */
+	ONEWIRE_CLK_REQ,
+
+	/* SSP1 (I2S) */
+	GPIO24_SSP1_SDATA_IN,
+	GPIO21_SSP1_BITCLK,
+	GPIO22_SSP1_SYNC,
+	GPIO23_SSP1_DATA_OUT,
+	/* GSSP */
+	GPIO25_GSSP_BITCLK,
+	GPIO26_GSSP_SYNC,
+	GPIO27_GSSP_TXD,
+	GPIO28_GSSP_RXD,
+	VCXO_REQ,
+
+	/*keypad*/
+	GPIO00_KP_MKIN0,
+	GPIO01_KP_MKOUT0,
+	GPIO02_KP_MKIN1,
+	GPIO03_KP_MKOUT1,
+	GPIO04_KP_MKIN2,
+	GPIO05_KP_MKOUT2,
+	GPIO06_KP_MKIN3,
+};
+
 static unsigned long emmc_pin_config[] __initdata = {
 	MMC3_DAT7_MMC3_DAT7,
 	MMC3_DAT6_MMC3_DAT6,
@@ -940,6 +1028,41 @@ static struct i2c_board_info ttc_dkb_pxa921_pwr_i2c_info[] = {
 		.platform_data	= &lis33ldl_min_delay,
 	},
 #endif
+};
+
+static struct i2c_board_info ttc_dkb_pxa910h_i2c_info[] = {
+	{
+		.type		= "88PM860x",
+		.addr		= 0x34,
+		.platform_data	= &ttc_dkb_pm8607_info,
+		.irq		= IRQ_PXA910_PMIC_INT,
+	},
+#if defined(CONFIG_TOUCHSCREEN_TPO)
+	{
+		.type		= "tpo_touch",
+		.addr		= 0x18,
+		.irq		= gpio_to_irq(45),
+	},
+#endif
+#if defined(CONFIG_TOUCHSCREEN_FT5306)
+	{
+		.type		= "ft5306_touch",
+		.addr		=  0x3A,
+		.irq		= gpio_to_irq(45),
+		.platform_data	= &ft5306_touch_data,
+	},
+#endif
+#if defined(CONFIG_TOUCHSCREEN_ELAN)
+	{
+		.type		= "elan_touch",
+		.addr		= 0x8,
+		.irq		= gpio_to_irq(45),
+		.platform_data	= &elan_touch_data,
+	},
+#endif
+};
+
+static struct i2c_board_info ttc_dkb_pxa910h_pwr_i2c_info[] = {
 };
 
 /* workaround for reset i2c bus by GPIO53 -SCL, GPIO54 -SDA */
@@ -2167,7 +2290,10 @@ static int is_wvga_lcd(void)
 
 static void __init ttc_dkb_init(void)
 {
-	mfp_config(ARRAY_AND_SIZE(ttc_dkb_pin_config));
+	if (cpu_is_pxa910h())
+		mfp_config(ARRAY_AND_SIZE(ttc_dkb_pxa910h_pin_config));
+	else
+		mfp_config(ARRAY_AND_SIZE(ttc_dkb_pin_config));
 	tds_mfp_init();
 
 #ifdef CONFIG_DMABOUNCE
@@ -2206,6 +2332,10 @@ static void __init ttc_dkb_init(void)
 		((struct soc_camera_link *)(dkb_ov5640_mipi.dev.platform_data))
 			->i2c_adapter_id = 1;
 #endif
+	} else if (cpu_is_pxa910h()) {
+		pxa910_add_twsi(0, &dkb_i2c_pdata, ARRAY_AND_SIZE(ttc_dkb_pxa910h_i2c_info));
+		pxa910_add_twsi(1, &ttc_dkb_pwr_i2c_pdata,
+				ARRAY_AND_SIZE(ttc_dkb_pxa910h_pwr_i2c_info));
 	} else {
 		printk(KERN_ERR "Unsupported platform!\n");
 		BUG();
