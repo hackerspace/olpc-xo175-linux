@@ -1072,25 +1072,31 @@ int smscore_64Kmode_req(struct smscore_device_t *coredev)
 
 int smscore_powerdown_req(struct smscore_device_t *coredev)
 {
+	int rc;
 	char msgbuff[252];
 	struct SmsMsgData_ST *Msg = (struct SmsMsgData_ST *)msgbuff;
 
 	if (coredev->powerdown_mode_supported) {
 		Msg->xMsgHeader.msgType = MSG_SMS_POWER_DOWN_REQ;
-		Msg->xMsgHeader.msgSrcId = SMS_HOST_INTERNAL;
+		Msg->xMsgHeader.msgSrcId = 0;
 		Msg->xMsgHeader.msgDstId = HIF_TASK;
 		Msg->xMsgHeader.msgFlags = 0;
 		Msg->xMsgHeader.msgLength =
 			sizeof(struct SmsMsgData_ST) + sizeof(unsigned long);
 
 		smsendian_handle_tx_message((struct SmsMsgHdr_ST *)Msg);
-		smscore_sendrequest_and_wait(coredev, Msg,
-					Msg->xMsgHeader.msgLength,
-					&coredev->powerdown_res_done);
-
+		/* As after SW power down, the device will enter to the status
+		 * like as dead.It is better not to wait the response
+		 */
+		rc = coredev->sendrequest_handler(coredev->context,
+				Msg, Msg->xMsgHeader.msgLength);
+		if (rc < 0) {
+			sms_info("sendrequest returned error %d", rc);
+			return rc;
+		}
 		coredev->powerdown_mode_supported = 0;
-		} else
-			sms_info("Do not support PowerDownMode now");
+	} else
+		sms_info("Do not support PowerDownMode now");
 
 	return 0;
 }
@@ -1540,7 +1546,8 @@ void smscore_onresponse(struct smscore_device_t *coredev,
 			break;
 		case MSG_SMS_POWER_DOWN_RES:
 			coredev->powerdown_mode_supported = 0;
-			complete(&coredev->powerdown_res_done);
+			sms_info("SW power off, should re-init next time!");
+			/* complete(&coredev->powerdown_res_done); */
 			break;
 		case MSG_SW_RELOAD_EXEC_RES:
 			sms_debug("MSG_SW_RELOAD_EXEC_RES");
