@@ -572,9 +572,6 @@ static int mmp2_pcm_close(struct snd_pcm_substream *substream)
 	pr_debug("%s enter\n", __func__);
 
 	sram_free("audio sram",
-		(void *)prtd->adma_desc_array,
-		MMP2_ADMA_BUF_SIZE + MMP2_ADMA_DESC_SIZE);
-	sram_free("audio sram",
 		(void *)prtd->sram_virt,
 		MMP2_ADMA_BUF_SIZE + MMP2_ADMA_DESC_SIZE);
 	kfree(prtd);
