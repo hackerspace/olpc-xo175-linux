@@ -51,6 +51,9 @@
 #include "generic.h"
 
 #include "panel_settings.h"
+#ifdef CONFIG_RTC_DRV_PXA
+#include <linux/rtc-pxa.h>
+#endif
 
 #define SAARB_NR_IRQS	(IRQ_BOARD_START + 40)
 
@@ -205,6 +208,9 @@ static int regulator_index[] = {
 static struct pm860x_rtc_pdata rtc = {
 	.vrtc           = 1,
 	.rtc_wakeup     = 0,
+#ifdef CONFIG_RTC_DRV_PXA
+	.sync		= pxa_rtc_sync_time,
+#endif
 };
 
 static struct pm860x_platform_data pm8607_info = {
