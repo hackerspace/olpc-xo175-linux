@@ -1911,7 +1911,7 @@ static void __init pxa910_init_mmc(void)
 	add_sd8x_rfkill_device(WIB_PDn, WIB_RESETn,
 			&pxa910_sdh_platdata_mmc1.pmmc, ttc_dkb_wifi_set_power);
 #endif
-	if (cpu_is_pxa920_family()) {
+	if (cpu_is_pxa920() || cpu_is_pxa918()) {
 		mfp_config(&sd_pwr_cfg, 1);
 		sd_pwr_en = mfp_to_gpio(sd_pwr_cfg);
 
