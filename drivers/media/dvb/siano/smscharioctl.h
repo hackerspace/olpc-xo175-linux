@@ -32,6 +32,11 @@ enum smschar_pnp_event_t {
 	SMSCHAR_TERMINATE_EVENT
 };
 
+#define SMSCHAR_STATUS_NEED_DOALL	(~0x0)
+#define SMSCHAR_STATUS_NEED_REPOWER	0x00000001
+#define SMSCHAR_STATUS_NEED_RESET	0x00000002
+#define SMSCHAR_STATUS_NEED_REINIT	0x00000004
+
 struct smschar_buffer_t {
 	unsigned long offset;	/* offset in common buffer (mapped to user) */
 	int size;
@@ -61,5 +66,6 @@ struct smschar_send_fw_file_ioctl_t {
 #define SMSCHAR_STARTUP	                _IO('K', 9)
 #define SMSCHAR_TERMINATE			 _IO('K', 10)
 #define SMSCHAR_IS_CANCEL_DEVICE_PNP_EVENT _IO('K', 11)
+#define SMSCHAR_CHECK_STATUS _IOR('K', 12, unsigned int)
 
 #endif /* __SMS_CHAR_IOCTL_H__ */

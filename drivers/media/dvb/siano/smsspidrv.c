@@ -204,6 +204,22 @@ static void smsspidrv_poweroff(void *context)
 	smschipoff(spi_device->phy_dev);
 }
 
+static void smsspidrv_check_status(void *context, unsigned int *status)
+{
+	struct _spi_device_st *spi_device;
+	spi_device = (struct _spi_device_st *) context;
+
+	smschip_getstatus(spi_device->phy_dev, status);
+}
+
+static void smsspidrv_clear_status(void *context, unsigned int status)
+{
+	struct _spi_device_st *spi_device;
+	spi_device = (struct _spi_device_st *) context;
+
+	smschip_clearstatus(spi_device->phy_dev, status);
+}
+
 static void smsspidrv_suspend(void *context)
 {
 	struct _spi_device_st *spi_device;
@@ -402,6 +418,16 @@ void smsspi_save_dev(void *dev)
 	spi_dev->phy_dev = dev;
 }
 
+void smsspidrv_sw_powerdown(void)
+{
+#if (SW_POWERDOWN_MODE >= 1)
+	if (spi_dev)
+		smscore_powerdown_req(spi_dev->coredev);
+	else
+		sms_info("can not find spi_dev address\n");
+#endif
+}
+
 int smsspi_register(void)
 {
 	struct smsdevice_params_t params;
@@ -487,6 +513,8 @@ int smsspi_register(void)
 		params.power_ctrl.chip_poweroff_handler = smsspidrv_poweroff;
 		params.power_ctrl.bus_suspend_handler = smsspidrv_suspend;
 		params.power_ctrl.bus_resume_handler = smsspidrv_resume;
+		params.power_ctrl.chip_check_status = smsspidrv_check_status;
+		params.power_ctrl.chip_clear_status = smsspidrv_clear_status;
 	}
 
 	ret = smscore_register_device(&params, &spi_device->coredev);

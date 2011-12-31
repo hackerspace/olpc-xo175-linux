@@ -1095,6 +1095,24 @@ int smscore_powerdown_req(struct smscore_device_t *coredev)
 	return 0;
 }
 
+int smscore_check_status(struct smscore_device_t *coredev, unsigned int *status)
+{
+#ifdef SMS_SPI_PXA310_DRV
+	if (coredev->power_ctrl.chip_check_status)
+		coredev->power_ctrl.chip_check_status(coredev->context, status);
+#endif
+	return 0;
+}
+
+int smscore_clear_status(struct smscore_device_t *coredev, unsigned int status)
+{
+#ifdef SMS_SPI_PXA310_DRV
+	if (coredev->power_ctrl.chip_clear_status)
+		coredev->power_ctrl.chip_clear_status(coredev->context, status);
+#endif
+	return 0;
+}
+
 /**
  * get firmware file name from one of the two mechanisms : sms_boards or
  * smscore_fw_lkup.

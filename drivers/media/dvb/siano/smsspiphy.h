@@ -39,5 +39,7 @@ void prepareForFWDnl(void *pSpiPhy);
 void fwDnlComplete(void *context, int App);
 void smsspibus_ssp_suspend(void *context);
 int smsspibus_ssp_resume(void *context);
+void smschip_getstatus(void *context, unsigned int *status);
+void smschip_clearstatus(void *context, unsigned int status);
 
 #endif /* __SMS_SPI_PHY_H__ */

@@ -41,11 +41,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <linux/spi/cmmb.h>
 
 #include "smsdbg_prn.h"
+#include "smscharioctl.h"
 #include "smscoreapi.h"
 #include "smsspiphy.h"
 
 extern void *smsspi_get_dev(void);
 extern void smsspi_save_dev(void *dev);
+extern void smsspidrv_sw_powerdown(void);
 
 /*SPI interface */
 #define DRIVER_NAME "cmmb_if"
@@ -125,6 +127,9 @@ struct smsspi_dev {
 	wait_queue_head_t iowait;	/* Waiting on frame data */
 	struct spi_device *spi;
 	unsigned char spi_irq_enable;
+
+	/* the HW status, escepially relate to suspend and power*/
+	unsigned int smschip_status;
 };
 
 /*
@@ -427,7 +432,7 @@ static void cmmb_remove_dev(struct smsspi_dev *drv_info)
 static struct smsspi_dev *cmmb_find_by_spi(struct spi_device *spi)
 {
 	struct smsspi_dev *drv_info;
-	sms_info("enter  %s +++++++++\n", __func__);
+	/* sms_info("enter  %s +++++++++\n", __func__); */
 
 	mutex_lock(&cmmb_dev_list_lock);
 	list_for_each_entry(drv_info, &cmmb_dev_list, dev_list) {
@@ -582,6 +587,52 @@ static int sms_remove(struct spi_device *spi)
 	return 0;
 }
 
+static int smsspi_suspend(struct spi_device *spi, pm_message_t mesg)
+{
+	struct smsspi_dev *drv_info = cmmb_find_by_spi(spi);
+
+	/* As during the suspend, the CMMB module's power can be power off or
+	* change to low volatage,
+	* After resume, the chip can't work well,
+	* So set a flag here to remide user space to re init the chip
+	*/
+	if (!(drv_info->smschip_status & SMSCHAR_STATUS_NEED_REPOWER)) {
+		/* Please unmask SW_POWERDOWN_MODE
+		 * if the HW power down is supported
+		 */
+		smsspidrv_sw_powerdown();
+
+		chip_power_down(drv_info);
+		drv_info->smschip_status |= SMSCHAR_STATUS_NEED_REPOWER;
+	}
+
+	drv_info->smschip_status |= SMSCHAR_STATUS_NEED_REINIT;
+	free_irq(spi->irq, drv_info);
+
+	return 0;
+}
+
+static int smsspi_resume(struct spi_device *spi)
+{
+	int ret;
+	struct smsspi_dev *drv_info = cmmb_find_by_spi(spi);
+
+#if 1
+	irq_set_irq_type(spi->irq, IRQ_TYPE_EDGE_RISING);
+	/*IRQ_TYPE_EDGE_FALLING*/
+
+	ret = request_irq(spi->irq, spibus_interrupt,
+				IRQF_DISABLED,
+				"CMMB Demodulator", drv_info);
+#else
+	ret = request_irq(spi->irq, spibus_interrupt,
+				IRQF_TRIGGER_RISING,
+				"CMMB Demodulator", drv_info);
+#endif
+
+	return ret;
+}
+
 static struct spi_driver sms_driver = {
 	.driver = {
 		   .name = DRIVER_NAME,
@@ -589,6 +640,8 @@ static struct spi_driver sms_driver = {
 		   },
 	.probe = sms_probe,
 	.remove = __devexit_p(sms_remove),
+	.suspend = smsspi_suspend,
+	.resume = smsspi_resume,
 };
 
 int pxa_spi_register(void)
@@ -624,7 +677,9 @@ int smsspibus_ssp_resume(void *context)
 void smschipreset(void *context)
 {
 	struct smsspi_dev *drv_info = context;
+
 	chip_power_reset(drv_info);
+	drv_info->smschip_status &= ~SMSCHAR_STATUS_NEED_RESET;
 }
 
 void smschipon(void *context)
@@ -632,6 +687,7 @@ void smschipon(void *context)
 	struct smsspi_dev *drv_info = context;
 
 	chip_power_on(drv_info);
+	drv_info->smschip_status &= ~SMSCHAR_STATUS_NEED_REPOWER;
 }
 
 void smschipoff(void *context)
@@ -639,6 +695,21 @@ void smschipoff(void *context)
 	struct smsspi_dev *drv_info = context;
 
 	chip_power_down(drv_info);
+	drv_info->smschip_status |= SMSCHAR_STATUS_NEED_REPOWER;
+}
+
+void smschip_getstatus(void *context, unsigned int *status)
+{
+	struct smsspi_dev *drv_info = context;
+
+	*status = drv_info->smschip_status;
+}
+
+void smschip_clearstatus(void *context, unsigned int status)
+{
+	struct smsspi_dev *drv_info = context;
+
+	drv_info->smschip_status &= ~status;
 }
 
 void *smsspiphy_init(void *context,

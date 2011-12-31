@@ -613,8 +613,12 @@ static long smschar_ioctl(struct file *file,
 			return 0;
 		}
 	case SMSCHAR_SET_DEVICE_MODE:
-		return smscore_set_device_mode(dev->coredev, (int)arg);
-
+		{
+			sms_info("set device mode\n");
+			smscore_clear_status(dev->coredev,
+				SMSCHAR_STATUS_NEED_DOALL);
+			return smscore_set_device_mode(dev->coredev, (int)arg);
+		}
 	case SMSCHAR_GET_DEVICE_MODE:
 		{
 			if (put_user(smscore_get_device_mode(dev->coredev),
@@ -686,6 +690,20 @@ static long smschar_ioctl(struct file *file,
 			smscore_poweroff(dev->coredev);
 
 			return  smscore_reset_device_drvs(dev->coredev);
+		}
+	case SMSCHAR_CHECK_STATUS:
+		{
+			unsigned int status;
+			if (!up)
+				return -EINVAL;
+
+			smscore_check_status(dev->coredev, &status);
+			if (copy_to_user(up, &status, sizeof(unsigned int)))
+				return -EFAULT;
+			else if (status)
+				dev->coredev->powerdown_mode_supported = 0;
+
+			break;
 		}
 	default:
 		return -ENOIOCTLCMD;

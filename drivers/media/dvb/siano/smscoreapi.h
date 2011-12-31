@@ -47,6 +47,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #endif
 
 #define RX_64K_MODE		/* for 64K RX data */
+#define SW_POWERDOWN_MODE			1
 #define ALLOC_COMMON_BUF_MULTIPLE	1
 #define ALLOC_COMMON_BUF_BY_KMALLOC 1
 
@@ -106,6 +107,8 @@ typedef void (*chippoweron_t)(void *context);
 typedef void (*chippoweroff_t)(void *context);
 typedef void (*bus_suspend_t)(void *context);
 typedef void (*bus_resume_t)(void *context);
+typedef void (*chipcheckstatus_t)(void *context, unsigned int *status);
+typedef void (*chipclearstatus_t)(void *context, unsigned int status);
 
 struct smsmdtv_version_t {
 	int major;
@@ -131,6 +134,9 @@ struct smschip_power_t {
 	chippoweroff_t chip_poweroff_handler;
 	bus_suspend_t bus_suspend_handler;
 	bus_resume_t bus_resume_handler;
+	chipcheckstatus_t chip_check_status;
+	chipclearstatus_t chip_clear_status;
+	unsigned int chip_hw_status;
 };
 
 struct smsdevice_params_t {
@@ -822,6 +828,10 @@ int smscore_poweron(struct smscore_device_t *coredev);
 int smscore_poweroff(struct smscore_device_t *coredev);
 int smscore_suspend(struct smscore_device_t *coredev);
 int smscore_resume(struct smscore_device_t *coredev);
+int smscore_check_status(struct smscore_device_t *coredev,
+				unsigned int *status);
+int smscore_clear_status(struct smscore_device_t *coredev,
+				unsigned int status);
 
 int smscore_powerdown_req(struct smscore_device_t *coredev);
 void smscore_set_board_id(struct smscore_device_t *core, int id);
