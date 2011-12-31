@@ -884,7 +884,47 @@ static struct i2c_board_info ttc_dkb_i2c_info[] = {
 #endif
 };
 
-static struct i2c_board_info ttc_dkb_pwr_i2c_info[] = {
+static struct i2c_board_info ttc_dkb_pxa921_i2c_info[] = {
+	{
+		.type		= "88PM860x",
+		.addr		= 0x34,
+		.platform_data	= &ttc_dkb_pm8607_info,
+		.irq		= IRQ_PXA910_PMIC_INT,
+	},
+#if defined(CONFIG_GPIO_PCA953X)
+	{
+		.type           = "max7312",
+		.addr           = 0x23,
+		.irq            = IRQ_GPIO(80),
+		.platform_data  = &max7312_data,
+	},
+#endif
+#if defined(CONFIG_TOUCHSCREEN_TPO)
+	{
+		.type		= "tpo_touch",
+		.addr		= 0x18,
+		.irq		= gpio_to_irq(45),
+	},
+#endif
+#if defined(CONFIG_TOUCHSCREEN_FT5306)
+	{
+		.type		= "ft5306_touch",
+		.addr		=  0x3A,
+		.irq		= gpio_to_irq(45),
+		.platform_data	= &ft5306_touch_data,
+	},
+#endif
+#if defined(CONFIG_TOUCHSCREEN_ELAN)
+	{
+		.type		= "elan_touch",
+		.addr		= 0x8,
+		.irq		= gpio_to_irq(45),
+		.platform_data	= &elan_touch_data,
+	},
+#endif
+};
+
+static struct i2c_board_info ttc_dkb_pxa921_pwr_i2c_info[] = {
 #if defined(CONFIG_GPIO_PCA953X)
 	{
 		.type           = "pca9575",
@@ -2152,10 +2192,12 @@ static void __init ttc_dkb_init(void)
 
 	pxa910_add_keypad(&ttc_dkb_keypad_info);
 	pxa910_add_cnm();
-	pxa910_add_twsi(0, &dkb_i2c_pdata, ARRAY_AND_SIZE(ttc_dkb_i2c_info));
-	if (cpu_is_pxa921()) {
+	if (cpu_is_pxa920() || cpu_is_pxa910()) {
+		pxa910_add_twsi(0, &dkb_i2c_pdata, ARRAY_AND_SIZE(ttc_dkb_i2c_info));
+	} else if (cpu_is_pxa921()) {
+		pxa910_add_twsi(0, &dkb_i2c_pdata, ARRAY_AND_SIZE(ttc_dkb_pxa921_i2c_info));
 		pxa910_add_twsi(1, &ttc_dkb_pwr_i2c_pdata,
-				ARRAY_AND_SIZE(ttc_dkb_pwr_i2c_info));
+				ARRAY_AND_SIZE(ttc_dkb_pxa921_pwr_i2c_info));
 		/* change the adapt id to 1, camera sensor is on pwri2c bus*/
 #if defined(CONFIG_SOC_CAMERA_OV5642)
 		((struct soc_camera_link *)(dkb_ov5642_dvp.dev.platform_data))
@@ -2164,6 +2206,9 @@ static void __init ttc_dkb_init(void)
 		((struct soc_camera_link *)(dkb_ov5640_mipi.dev.platform_data))
 			->i2c_adapter_id = 1;
 #endif
+	} else {
+		printk(KERN_ERR "Unsupported platform!\n");
+		BUG();
 	}
 
 #ifdef CONFIG_PXA9XX_ACIPC
