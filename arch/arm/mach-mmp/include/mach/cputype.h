@@ -105,9 +105,6 @@ static inline int cpu_is_mmp3(void)
 {
 	return (((read_cpuid_id() >> 8) & 0xff) == 0x58);
 }
-#else
-#define cpu_is_mmp3(id)	(0)
-#endif
 
 static inline int cpu_is_mmp3_a0(void)
 {
@@ -116,5 +113,16 @@ static inline int cpu_is_mmp3_a0(void)
 	else
 		return 0;
 }
+
+static inline int cpu_is_mmp3_b0(void)
+{
+	if (cpu_is_mmp3() && ((mmp_chip_id & 0x00ff0000) == 0x00b00000))
+		return 1;
+	else
+		return 0;
+}
+#else
+#define cpu_is_mmp3(id)	(0)
+#endif
 
 #endif /* __ASM_MACH_CPUTYPE_H */
