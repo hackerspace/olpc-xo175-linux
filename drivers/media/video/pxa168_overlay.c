@@ -1950,7 +1950,7 @@ static int pxa168_ovly_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static int __init pxa168_ovly_probe(struct platform_device *pdev)
+static int __devinit pxa168_ovly_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct pxa168_overlay *ovly = NULL;
