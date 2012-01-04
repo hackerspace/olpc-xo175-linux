@@ -30,13 +30,16 @@
 #include "ispreg.h"
 #include "ispccic.h"
 
-static const unsigned int ccic_input_fmts[] = {
-	V4L2_MBUS_FMT_UYVY8_1X16,
-	V4L2_MBUS_FMT_YUYV8_2X8,
+#define MAX_CCIC_CH_USED	2
+
+static const struct pad_formats ccic_input_fmts[] = {
+	{V4L2_MBUS_FMT_UYVY8_1X16, V4L2_COLORSPACE_JPEG},
+	{V4L2_MBUS_FMT_SBGGR10_1X10, V4L2_COLORSPACE_SRGB},
 };
 
-static const unsigned int ccic_output_fmts[] = {
-	V4L2_MBUS_FMT_UYVY8_1X16,
+static const struct pad_formats ccic_output_fmts[] = {
+	{V4L2_MBUS_FMT_UYVY8_1X16, V4L2_COLORSPACE_JPEG},
+	{V4L2_MBUS_FMT_SBGGR10_1X10, V4L2_COLORSPACE_SRGB},
 };
 
 static void ccic_dump_regs(struct mvisp_device *isp)
@@ -225,16 +228,17 @@ static int ccic_enable_hw(struct isp_ccic_device *ccic, struct isp_video *video)
 	unsigned long regval;
 
 	if ((ccic->output&CCIC_OUTPUT_MEMORY) != 0) {
-		mvisp_reg_writel(isp, 0x7,
+		mvisp_reg_writel(isp, 0xFFFFFFFF,
 			CCIC_ISP_IOMEM_1, CCIC_IRQ_STATUS);
-		mvisp_reg_writel(isp, 0x7,
+		mvisp_reg_writel(isp, 0x3,
 			CCIC_ISP_IOMEM_1, CCIC_IRQ_MASK);
 		regval = mvisp_reg_readl(isp,
 			CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
 		regval |= 0x1;
 		mvisp_reg_writel(isp, regval,
 			CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
-		ccic_dump_regs(isp);
+
+		ccic->dma_state = CCIC_DMA_BUSY;
 	}
 
 	return 0;
@@ -255,35 +259,58 @@ static int ccic_disable_hw(struct isp_ccic_device *ccic,
 			CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
 		mvisp_reg_writel(isp, 0x0,
 			CCIC_ISP_IOMEM_1, CCIC_IRQ_MASK);
-		mvisp_reg_writel(isp, 0x7,
+		mvisp_reg_writel(isp, 0xFFFFFFFF,
 			CCIC_ISP_IOMEM_1, CCIC_IRQ_STATUS);
 
-		ccic_dump_regs(isp);
+		ccic->dma_state = CCIC_DMA_IDLE;
 	}
 
 	return 0;
 
 }
 
+static int ccic_load_buffer(struct isp_ccic_device *ccic, int ch)
+{
+	struct isp_video_buffer *buffer = NULL;
+	unsigned long video_flags;
+
+	buffer = mvisp_video_get_next_work_buf(&ccic->video_out);
+	if (buffer == NULL)
+		return -EINVAL;
+
+	if (buffer->vb2_buf.v4l2_buf.type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+		spin_lock_irqsave(&ccic->video_out.irq_lock, video_flags);
+		ccic_set_dma_addr(ccic, buffer->paddr, ch);
+		spin_unlock_irqrestore(&ccic->video_out.irq_lock, video_flags);
+	}
+
+	return 0;
+}
+
 
 static int ccic_video_stream_on_notify(struct isp_video *video)
 {
 	struct isp_ccic_device *ccic;
+	int ch, ret;
+
+	ccic = find_ccic_from_video(video);
+	if (ccic == NULL)
+		return -EINVAL;
 
 	mutex_lock(&ccic->ccic_mutex);
 
-	ccic = find_ccic_from_video(video);
-	if (ccic == NULL) {
-		mutex_unlock(&ccic->ccic_mutex);
-		return -EINVAL;
-	}
-
-	if (ccic->state != ISP_PIPELINE_STREAM_STOPPED) {
+	if (ccic->dma_state == CCIC_DMA_BUSY) {
 		mutex_unlock(&ccic->ccic_mutex);
 		return 0;
 	}
 
 	ccic_configure_mipi(ccic);
+
+	for (ch = 0; ch < MAX_CCIC_CH_USED; ch++) {
+		ret = ccic_load_buffer(ccic, ch);
+		if (ret != 0)
+			return -EINVAL;
+	}
 
 	ccic_enable_hw(ccic, video);
 
@@ -296,14 +323,14 @@ static int ccic_video_stream_off_notify(struct isp_video *video)
 {
 	struct isp_ccic_device *ccic;
 
-	mutex_lock(&ccic->ccic_mutex);
 	ccic = find_ccic_from_video(video);
 	if (ccic == NULL) {
-		mutex_unlock(&ccic->ccic_mutex);
 		return -EINVAL;
 	}
 
-	if (ccic->state == ISP_PIPELINE_STREAM_STOPPED) {
+	mutex_lock(&ccic->ccic_mutex);
+
+	if (ccic->dma_state == CCIC_DMA_IDLE) {
 		mutex_unlock(&ccic->ccic_mutex);
 		return 0;
 	}
@@ -340,38 +367,48 @@ __ccic_get_format(struct isp_ccic_device *ccic, struct v4l2_subdev_fh *fh,
 		return &ccic->formats[pad];
 }
 
-static void
+static int
 ccic_try_format(struct isp_ccic_device *ccic, struct v4l2_subdev_fh *fh,
 		unsigned int pad, struct v4l2_mbus_framefmt *fmt,
 		enum v4l2_subdev_format_whence which)
 {
 	unsigned int i;
+	int ret = 0;
 
 	switch (pad) {
 	case CCIC_PAD_SINK:
 		for (i = 0; i < ARRAY_SIZE(ccic_input_fmts); i++) {
-			if (fmt->code == ccic_input_fmts[i])
+			if (fmt->code == ccic_input_fmts[i].mbusfmt) {
+				fmt->colorspace = ccic_input_fmts[i].colorspace;
 				break;
+			}
 		}
 
 		if (i >= ARRAY_SIZE(ccic_input_fmts))
-			fmt->code = V4L2_MBUS_FMT_UYVY8_1X16;
+			fmt->code = V4L2_MBUS_FMT_SBGGR10_1X10;
 
 		break;
 
-	case CCIC_PAD_SOURCE:
+	case CCIC_PAD_ISP_SRC:
+	case CCIC_PAD_DMA_SRC:
 		for (i = 0; i < ARRAY_SIZE(ccic_output_fmts); i++) {
-			if (fmt->code == ccic_output_fmts[i])
+			if (fmt->code == ccic_output_fmts[i].mbusfmt) {
+				fmt->colorspace = ccic_input_fmts[i].colorspace;
 				break;
+			}
 		}
 
 		if (i >= ARRAY_SIZE(ccic_output_fmts))
-			fmt->code = V4L2_MBUS_FMT_UYVY8_1X16;
+			fmt->code = V4L2_MBUS_FMT_SBGGR10_1X10;
+		break;
+	default:
+		ret = -EINVAL;
 		break;
 	}
 
-	fmt->colorspace = V4L2_COLORSPACE_JPEG;
 	fmt->field = V4L2_FIELD_NONE;
+
+	return ret;
 }
 
 static int ccic_enum_mbus_code(struct v4l2_subdev *sd,
@@ -387,13 +424,13 @@ static int ccic_enum_mbus_code(struct v4l2_subdev *sd,
 			ret = -EINVAL;
 			goto error;
 		}
-		code->code = ccic_input_fmts[code->index];
+		code->code = ccic_input_fmts[code->index].mbusfmt;
 	} else {
 		if (code->index >= ARRAY_SIZE(ccic_output_fmts)) {
 			ret = -EINVAL;
 			goto error;
 		}
-		code->code = ccic_output_fmts[code->index];
+		code->code = ccic_output_fmts[code->index].mbusfmt;
 	}
 
 error:
@@ -471,15 +508,20 @@ static int ccic_config_format(struct isp_ccic_device *ccic, unsigned int pad)
 	width = format->width;
 	height = format->height;
 
+	ctrl0val = mvisp_reg_readl(isp,
+		CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
+
 	switch (format->code) {
-	case V4L2_MBUS_FMT_YUYV8_2X8:
-		ctrl0val = (0 << 16) | (0x4 << 13);
-		bytesperline = width * 2;
+	case V4L2_MBUS_FMT_SBGGR10_1X10:
+		ctrl0val &= ~0x000001E0;
+		ctrl0val |= ((0x2 << 7) | (0x2 << 5));
+		bytesperline = width * 10 / 8;
 		ypitch = bytesperline / 4;
 		break;
 	case V4L2_MBUS_FMT_UYVY8_1X16:
-		ctrl0val = (3 << 16) | (0x4 << 13);
-		bytesperline = width * 2;
+		ctrl0val &= ~0x0003E1E0;
+		ctrl0val |= (0x4 << 13);
+		bytesperline = width * 16 / 8;
 		ypitch = bytesperline / 4;
 		break;
 	default:
@@ -522,7 +564,10 @@ static int ccic_set_format(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh,
 		goto error;
 	}
 
-	ccic_try_format(ccic, fh, fmt->pad, &fmt->format, fmt->which);
+	ret = ccic_try_format(ccic, fh, fmt->pad, &fmt->format, fmt->which);
+	if (ret < 0)
+		goto error;
+
 	*format = fmt->format;
 
 	if (fmt->which != V4L2_SUBDEV_FORMAT_TRY)
@@ -545,20 +590,22 @@ static int ccic_init_formats(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 		format.pad = CCIC_PAD_SINK;
 		format.which =
 			fh ? V4L2_SUBDEV_FORMAT_TRY : V4L2_SUBDEV_FORMAT_ACTIVE;
-		format.format.code = V4L2_MBUS_FMT_YUYV8_2X8;
+		format.format.code = V4L2_MBUS_FMT_SBGGR10_1X10;
 		format.format.width = 640;
 		format.format.height = 480;
-		format.format.colorspace = V4L2_COLORSPACE_JPEG;
+		format.format.colorspace = V4L2_COLORSPACE_SRGB;
 		format.format.field = V4L2_FIELD_NONE;
+		ret = ccic_set_format(sd, fh, &format);
 
-		format.pad = CCIC_PAD_SOURCE;
+		format.pad = CCIC_PAD_ISP_SRC;
 		format.which =
 			fh ? V4L2_SUBDEV_FORMAT_TRY : V4L2_SUBDEV_FORMAT_ACTIVE;
-		format.format.code = V4L2_MBUS_FMT_UYVY8_1X16;
+		format.format.code = V4L2_MBUS_FMT_SBGGR10_1X10;
 		format.format.width = 640;
 		format.format.height = 480;
-		format.format.colorspace = V4L2_COLORSPACE_JPEG;
-
+		format.format.colorspace = V4L2_COLORSPACE_SRGB;
+		ret = ccic_set_format(sd, fh, &format);
+		format.pad = CCIC_PAD_DMA_SRC;
 		ret = ccic_set_format(sd, fh, &format);
 	} else {
 	/* Copy the active format to a newly opened fh structure */
@@ -579,13 +626,28 @@ static int ccic_init_formats(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 				sizeof(struct v4l2_subdev_format));
 
 		format_active = __ccic_get_format
-			(ccic, fh, CCIC_PAD_SOURCE, V4L2_SUBDEV_FORMAT_ACTIVE);
+			(ccic, fh, CCIC_PAD_ISP_SRC, V4L2_SUBDEV_FORMAT_ACTIVE);
 		if (format_active == NULL) {
 			ret = -EINVAL;
 			goto error;
 		}
 		format_try = __ccic_get_format
-			(ccic, fh, CCIC_PAD_SOURCE, V4L2_SUBDEV_FORMAT_TRY);
+			(ccic, fh, CCIC_PAD_ISP_SRC, V4L2_SUBDEV_FORMAT_TRY);
+		if (format_try == NULL) {
+			ret = -EINVAL;
+			goto error;
+		}
+		memcpy(format_try, format_active,
+				sizeof(struct v4l2_subdev_format));
+
+		format_active = __ccic_get_format
+			(ccic, fh, CCIC_PAD_DMA_SRC, V4L2_SUBDEV_FORMAT_ACTIVE);
+		if (format_active == NULL) {
+			ret = -EINVAL;
+			goto error;
+		}
+		format_try = __ccic_get_format
+			(ccic, fh, CCIC_PAD_DMA_SRC, V4L2_SUBDEV_FORMAT_TRY);
 		if (format_try == NULL) {
 			ret = -EINVAL;
 			goto error;
@@ -632,7 +694,7 @@ static int ccic_set_stream(struct v4l2_subdev *sd, int enable)
 			CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
 		mvisp_reg_writel(isp, 0x0,
 			CCIC_ISP_IOMEM_1, CCIC_IRQ_MASK);
-		mvisp_reg_writel(isp, 0x7,
+		mvisp_reg_writel(isp, 0xFFFFFFFF,
 			CCIC_ISP_IOMEM_1, CCIC_IRQ_STATUS);
 		ccic_clear_mipi(ccic);
 		regval = 0;
@@ -743,13 +805,13 @@ static int ccic_link_setup(struct media_entity *entity,
 		else
 			ccic->output &= ~CCIC_INPUT_SENSOR;
 		break;
-	case CCIC_PAD_SOURCE | MEDIA_ENT_T_DEVNODE:
+	case CCIC_PAD_DMA_SRC | MEDIA_ENT_T_DEVNODE:
 		if (flags & MEDIA_LNK_FL_ENABLED)
 			ccic->output |= CCIC_OUTPUT_MEMORY;
 		else
 			ccic->output &= ~CCIC_OUTPUT_MEMORY;
 		break;
-	case CCIC_PAD_SOURCE | MEDIA_ENT_T_V4L2_SUBDEV:
+	case CCIC_PAD_ISP_SRC | MEDIA_ENT_T_V4L2_SUBDEV:
 		if (flags & MEDIA_LNK_FL_ENABLED)
 			ccic->output |= CCIC_OUTPUT_ISP;
 		else
@@ -782,6 +844,7 @@ static int ccic_init_entities(struct isp_ccic_device *ccic,
 
 	ccic->sensor_type = SENSOR_INVALID;
 	ccic->state = ISP_PIPELINE_STREAM_STOPPED;
+	ccic->dma_state = CCIC_DMA_IDLE;
 	spin_lock_init(&ccic->mipi_flag_lock);
 	spin_lock_init(&ccic->irq_lock);
 	ccic->ccic_id = ccic_id;
@@ -795,7 +858,8 @@ static int ccic_init_entities(struct isp_ccic_device *ccic,
 	v4l2_set_subdevdata(sd, ccic);
 	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 
-	pads[CCIC_PAD_SOURCE].flags = MEDIA_PAD_FL_SOURCE;
+	pads[CCIC_PAD_ISP_SRC].flags = MEDIA_PAD_FL_SOURCE;
+	pads[CCIC_PAD_DMA_SRC].flags = MEDIA_PAD_FL_SOURCE;
 	pads[CCIC_PAD_SINK].flags = MEDIA_PAD_FL_SINK;
 
 	me->ops = &ccic_media_ops;
@@ -816,7 +880,7 @@ static int ccic_init_entities(struct isp_ccic_device *ccic,
 
 	/* Connect the CCIC subdev to the video node. */
 	ret = media_entity_create_link
-				(&ccic->subdev.entity, CCIC_PAD_SOURCE,
+				(&ccic->subdev.entity, CCIC_PAD_DMA_SRC,
 				&ccic->video_out.video.entity, 0, 0);
 	if (ret < 0)
 		return ret;
@@ -904,9 +968,10 @@ static void ccic_isr_buffer(struct isp_ccic_device *ccic,
 	struct mvisp_device *isp = ccic->isp;
 
 	buffer = mvisp_video_buffer_next(&ccic->video_out, 0);
-	if (buffer != NULL)
+	if (buffer != NULL) {
+		buffer->state = ISP_BUF_STATE_ACTIVE;
 		ccic_set_dma_addr(ccic, buffer->paddr, irqeof);
-	else {
+	} else {
 		if (isp->dummy_paddr != 0)
 			ccic_set_dma_addr(ccic, isp->dummy_paddr, irqeof);
 		else

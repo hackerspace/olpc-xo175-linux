@@ -845,7 +845,7 @@ static int mvisp_initialize_modules(struct mvisp_device *isp)
 		/* Connect the submodules. */
 		ret = media_entity_create_link(
 				&isp->mvisp_ccic1.subdev.entity,
-				CCIC_PAD_SOURCE,
+				CCIC_PAD_ISP_SRC,
 				&isp->mvisp_ispdma.subdev.entity,
 				ISPDMA_PAD_SINK, 0);
 		if (ret < 0)

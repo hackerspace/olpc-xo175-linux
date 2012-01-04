@@ -41,7 +41,7 @@
 
 
 static struct isp_format_convert_info formats[] = {
-	{ V4L2_MBUS_FMT_YUYV8_2X8, V4L2_PIX_FMT_YUYV, 16},
+	{ V4L2_MBUS_FMT_SBGGR10_1X10, V4L2_PIX_FMT_SBGGR10, 10},
 	{ V4L2_MBUS_FMT_UYVY8_1X16, V4L2_PIX_FMT_UYVY, 16},
 	{ V4L2_MBUS_FMT_Y12_1X12, V4L2_PIX_FMT_YVU420, 12},
 	{ V4L2_MBUS_FMT_SBGGR8_1X8, V4L2_PIX_FMT_SBGGR8, 8},
@@ -387,6 +387,9 @@ static void isp_video_vb2_buffer_queue(struct vb2_buffer *vb)
 		case ISP_VIDEO_CODEC:
 			state = ISP_PIPELINE_CODEC_QUEUED;
 			break;
+		case ISP_VIDEO_CCIC:
+			state = ISP_PIPELINE_CCIC_QUEUED;
+			break;
 		default:
 			state = 0;
 			break;
@@ -486,6 +489,9 @@ struct isp_video_buffer *mvisp_video_get_next_work_buf(
 		case ISP_VIDEO_CODEC:
 			state = ISP_PIPELINE_CODEC_QUEUED;
 			break;
+		case ISP_VIDEO_CCIC:
+			state = ISP_PIPELINE_CCIC_QUEUED;
+			break;
 		default:
 			state = 0;
 			break;
@@ -573,7 +579,6 @@ struct isp_video_buffer *mvisp_video_buffer_next(struct isp_video *video,
 		else
 			min_drvbuf_cnt = MIN_DRV_BUF;
 
-
 		if ((video->dmabusycnt + video->dmaidlecnt) > min_drvbuf_cnt) {
 			list_del(&buf->dmalist);
 			video->dmabusycnt--;
@@ -611,6 +616,9 @@ struct isp_video_buffer *mvisp_video_buffer_next(struct isp_video *video,
 				break;
 			case ISP_VIDEO_CODEC:
 				state = ISP_PIPELINE_CODEC_QUEUED;
+				break;
+			case ISP_VIDEO_CCIC:
+				state = ISP_PIPELINE_CCIC_QUEUED;
 				break;
 			default:
 				state = 0;
@@ -929,7 +937,6 @@ isp_video_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 		? to_isp_pipeline(&video->video.entity) : &video->pipe;
 	media_entity_pipeline_start(&video->video.entity, &pipe->pipe);
 
-
 	ret = isp_video_check_format(video, vfh);
 	if (ret < 0)
 		goto error;
@@ -945,6 +952,10 @@ isp_video_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 		case ISP_VIDEO_CODEC:
 			state = ISP_PIPELINE_CODEC_STREAM;
 			pipe->output[FAR_END_ISP_DISPLAY] = video;
+			break;
+		case ISP_VIDEO_CCIC:
+			state = ISP_PIPELINE_CCIC_STREAM;
+			pipe->output[FAR_END_CCIC] = video;
 			break;
 		default:
 			state = 0;
@@ -979,12 +990,12 @@ isp_video_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 
 	switch (video->video_type) {
 	case ISP_VIDEO_DISPLAY:
-		ret = isp_video_validate_pipeline(pipe, 0);
+		ret = isp_video_validate_pipeline(pipe, FAR_END_ISP_DISPLAY);
 		if (ret < 0)
 			goto error;
 		break;
 	case ISP_VIDEO_CODEC:
-		ret = isp_video_validate_pipeline(pipe, 1);
+		ret = isp_video_validate_pipeline(pipe, FAR_END_ISP_CODEC);
 		if (ret < 0)
 			goto error;
 		break;
@@ -995,11 +1006,15 @@ isp_video_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 				goto error;
 		}
 		break;
+	case ISP_VIDEO_CCIC:
+		ret = isp_video_validate_pipeline(pipe, FAR_END_CCIC);
+		if (ret < 0)
+			goto error;
+		break;
 	default:
 		goto error;
 		break;
 	}
-
 
 	/* Set the maximum time per frame as the value requested by userspace.
 	 * This is a soft limit that can be overridden if the hardware doesn't
@@ -1037,11 +1052,12 @@ isp_video_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 		video->ops->stream_on_notify(video);
 
 error:
-
 	if (ret < 0) {
-		vb2_streamoff(video->vb2_vidq, video->type);
+		if (video->vb2_vidq) {
+			vb2_streamoff(video->vb2_vidq, video->type);
+			video->vb2_vidq = NULL;
+		}
 		media_entity_pipeline_stop(&video->video.entity);
-		video->vb2_vidq = NULL;
 	}
 
 	if (!ret)
@@ -1081,6 +1097,10 @@ isp_video_streamoff(struct file *file, void *fh, enum v4l2_buf_type type)
 		case ISP_VIDEO_CODEC:
 			state = ISP_PIPELINE_CODEC_QUEUED
 				| ISP_PIPELINE_CODEC_STREAM;
+			break;
+		case ISP_VIDEO_CCIC:
+			state = ISP_PIPELINE_CCIC_QUEUED
+				| ISP_PIPELINE_CCIC_STREAM;
 			break;
 		default:
 			state = 0;
@@ -1246,7 +1266,6 @@ static int isp_video_close(struct file *file)
 static unsigned int isp_video_poll(struct file *file, poll_table *wait)
 {
 	int ret;
-	struct isp_video *video = video_drvdata(file);
 	struct isp_video_fh *vfh = to_isp_video_fh(file->private_data);
 	struct vb2_queue *vbq = vfh->video->vb2_vidq;
 

@@ -32,9 +32,7 @@ MODULE_LICENSE("GPL");
 #define SENSOR_CLOSE 0
 
 static const struct ov8820_datafmt ov8820_colour_fmts[] = {
-	{V4L2_MBUS_FMT_UYVY8_1X16, V4L2_COLORSPACE_JPEG},
-	{V4L2_MBUS_FMT_JPEG_1X8, V4L2_COLORSPACE_JPEG},
-	{V4L2_MBUS_FMT_RGB565_2X8_LE, V4L2_COLORSPACE_SRGB}
+	{V4L2_MBUS_FMT_SBGGR10_1X10, V4L2_COLORSPACE_SRGB},
 };
 
 enum ov8820_output_type {
@@ -50,6 +48,7 @@ struct ov8820_core {
 	u32 width;
 	u32 height;
 	enum ov8820_output_type	output;
+	struct mutex			sensor_mutex;
 };
 
 enum ov8820_register_access_e {
@@ -186,45 +185,62 @@ static int ov8820_detect(struct v4l2_subdev *sd)
 static int ov8820_reset(struct v4l2_subdev *sd, u32 val)
 {
 	int ret = 0;
+	struct ov8820_core *core = to_ov8820_core(sd);
+
+	mutex_lock(&core->sensor_mutex);
 
 	ret = ov8820_write(sd, REG_RESET, RESET_ACT);
 	printk(KERN_NOTICE "cam: ov8820: Reset sensor\n");
 	msleep(20);
 	ret |= ov8820_write(sd, REG_RESET, RESET_DIS);
+
+	mutex_unlock(&core->sensor_mutex);
 	return (ret < 0);
 };
 
 static int ov8820_g_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 {
 	struct ov8820_core *core = to_ov8820_core(sd);
+	int ret = 0;
 
+	mutex_lock(&core->sensor_mutex);
 	switch (ctrl->id) {
 	case V4L2_CID_GAIN:
-		return 0;
+		break;
 	case V4L2_CID_RED_BALANCE:
-		return 0;
+		break;
 	case V4L2_CID_BLUE_BALANCE:
-		return 0;
+		break;
 	case V4L2_CID_HFLIP:
-		return 0;
+		break;
 	case V4L2_CID_VFLIP:
-		return 0;
+		break;
+	default:
+		ret = -EINVAL;
+		break;
 	}
-	return -EINVAL;
+
+	mutex_unlock(&core->sensor_mutex);
+	return ret;
 }
 
 static int ov8820_queryctrl(struct v4l2_subdev *sd, struct v4l2_queryctrl *qc)
 {
-	int i;
+	int i, ret = -EINVAL;
+	struct ov8820_core *core = to_ov8820_core(sd);
+
+	mutex_lock(&core->sensor_mutex);
 
 	for (i = 0; i < ARRAY_SIZE(ov8820_qctrl); i++)
 		if (qc->id && qc->id == ov8820_qctrl[i].id) {
 			memcpy(qc, &(ov8820_qctrl[i]),
 			       sizeof(*qc));
-			return 0;
+			ret = 0;
+			break;
 		}
 
-	return -EINVAL;
+	mutex_unlock(&core->sensor_mutex);
+	return ret;
 }
 
 
@@ -232,15 +248,20 @@ static int ov8820_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 {
 	struct ov8820_core *core = to_ov8820_core(sd);
 	u8 i, n;
+	int ret = 0;
+
+	mutex_lock(&core->sensor_mutex);
+
 	n = ARRAY_SIZE(ov8820_qctrl);
 
 	for (i = 0; i < n; i++) {
 		if (ctrl->id != ov8820_qctrl[i].id)
 			continue;
 		if (ctrl->value < ov8820_qctrl[i].minimum ||
-		    ctrl->value > ov8820_qctrl[i].maximum)
-			return -ERANGE;
-		break;
+		    ctrl->value > ov8820_qctrl[i].maximum) {
+			ret = -ERANGE;
+			goto error;
+		}
 	}
 
 	switch (ctrl->id) {
@@ -251,54 +272,66 @@ static int ov8820_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 	case V4L2_CID_BLUE_BALANCE:
 		break;
 	case V4L2_CID_HFLIP:
-		return 0;
+		break;
 	case V4L2_CID_VFLIP:
-		return 0;
+		break;
 	default:
-		return -EINVAL;
+		ret = -EINVAL;
+		break;
 	}
 
-	return 0;
+error:
+	mutex_unlock(&core->sensor_mutex);
+
+	return ret;
 }
 
 static int ov8820_try_format(struct v4l2_subdev *sd,
 		struct v4l2_mbus_framefmt *fmt)
 {
-	struct ov8820_core *core = to_ov8820_core(sd);
+	int ret = 0;
 
 	fmt->field = V4L2_FIELD_NONE;
 
 	switch (fmt->code) {
-	case V4L2_MBUS_FMT_RGB565_2X8_LE:
+	case V4L2_MBUS_FMT_SBGGR10_1X10:
 		fmt->colorspace = V4L2_COLORSPACE_SRGB;
-		break;
-	case V4L2_MBUS_FMT_UYVY8_1X16:
-		fmt->colorspace = V4L2_COLORSPACE_JPEG;
-		break;
-	case V4L2_MBUS_FMT_JPEG_1X8:
-		fmt->colorspace = V4L2_COLORSPACE_JPEG;
 		break;
 	default:
 		printk(KERN_ERR "ov8820 doesn't support code 0x%08X\n"
 			, fmt->code);
+		ret = -EINVAL;
 		break;
 	}
-	return 0;
+
+	return ret;
 }
 
 static int ov8820_enum_mbus_code(struct v4l2_subdev *sd,
 				struct v4l2_subdev_fh *fh,
 				struct v4l2_subdev_mbus_code_enum *code)
 {
-	if (code->pad > 0)
-		return -EINVAL;
+	struct ov8820_core *core = to_ov8820_core(sd);
+	int ret = 0;
 
-	if (code->index >= ARRAY_SIZE(ov8820_colour_fmts))
-		return -EINVAL;
+	mutex_lock(&core->sensor_mutex);
+
+	if (code->pad > 0) {
+		ret = -EINVAL;
+		goto error;
+	}
+
+	if (code->index >= ARRAY_SIZE(ov8820_colour_fmts)) {
+		ret = -EINVAL;
+		goto error;
+	}
 
 	code->code = ov8820_colour_fmts[code->index].code;
 
-	return 0;
+error:
+	mutex_unlock(&core->sensor_mutex);
+
+	return ret;
 }
 
 static int ov8820_enum_frame_size(struct v4l2_subdev *sd,
@@ -306,9 +339,15 @@ static int ov8820_enum_frame_size(struct v4l2_subdev *sd,
 				struct v4l2_subdev_frame_size_enum *fse)
 {
 	struct v4l2_mbus_framefmt format;
+	struct ov8820_core *core = to_ov8820_core(sd);
+	int ret = 0;
 
-	if (fse->index != 0)
-		return -EINVAL;
+	mutex_lock(&core->sensor_mutex);
+
+	if (fse->index != 0) {
+		ret = -EINVAL;
+		goto error;
+	}
 
 	format.code = fse->code;
 	format.width = 1;
@@ -318,8 +357,10 @@ static int ov8820_enum_frame_size(struct v4l2_subdev *sd,
 	fse->min_width = format.width;
 	fse->min_height = format.height;
 
-	if (format.code != fse->code)
-		return -EINVAL;
+	if (format.code != fse->code) {
+		ret = -EINVAL;
+		goto error;
+	}
 
 	format.code = fse->code;
 	format.width = -1;
@@ -328,54 +369,72 @@ static int ov8820_enum_frame_size(struct v4l2_subdev *sd,
 	ov8820_try_format(sd, &format);
 	fse->max_width = format.width;
 	fse->max_height = format.height;
-	return 0;
-}
 
-static int ov8820_enum_mbus_fmt(struct v4l2_subdev *sd, unsigned index,
-					enum v4l2_mbus_pixelcode *code)
-{
-	if (index > 0)
-		return -EINVAL;
-
-	*code = V4L2_MBUS_FMT_SGRBG8_1X8;
-	return 0;
+error:
+	mutex_unlock(&core->sensor_mutex);
+	return ret;
 }
 
 static int ov8820_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	int ret = 0;
+	struct ov8820_core *core = to_ov8820_core(sd);
+
+	mutex_lock(&core->sensor_mutex);
 #if 0
 	if (!enable)
 		ret = ov8820_write(sd, 0x0100, 0x00);
 #endif
-	printk(KERN_ERR "ov8820_s_stream %d\n", enable);
+	dev_warn(sd->v4l2_dev->dev, "ov8820_s_stream %d\n", enable);
+	mutex_unlock(&core->sensor_mutex);
+
 	return ret;
 }
 
 static int ov8820_g_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *parms)
 {
 	struct v4l2_captureparm *cp = &parms->parm.capture;
+	struct ov8820_core *core = to_ov8820_core(sd);
+	int ret = 0;
 
-	if (parms->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
-		return -EINVAL;
+	mutex_lock(&core->sensor_mutex);
+
+	if (parms->type != V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+		ret = -EINVAL;
+		goto error;
+	}
 
 	memset(cp, 0, sizeof(struct v4l2_captureparm));
 	cp->capability = V4L2_CAP_TIMEPERFRAME;
 
-	return 0;
+error:
+	mutex_unlock(&core->sensor_mutex);
+
+	return ret;
 }
 
 static int ov8820_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *parms)
 {
 	struct v4l2_captureparm *cp = &parms->parm.capture;
 	struct v4l2_fract *tpf = &cp->timeperframe;
+	struct ov8820_core *core = to_ov8820_core(sd);
+	int ret = 0;
 
-	if (parms->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
-		return -EINVAL;
-	if (cp->extendedmode != 0)
-		return -EINVAL;
+	mutex_lock(&core->sensor_mutex);
 
-	return 0;
+	if (parms->type != V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+		ret = -EINVAL;
+		goto error;
+	}
+	if (cp->extendedmode != 0) {
+		ret = -EINVAL;
+		goto error;
+	}
+
+error:
+	mutex_unlock(&core->sensor_mutex);
+
+	return ret;
 }
 
 static struct v4l2_mbus_framefmt *__ov8820_get_format(
@@ -394,18 +453,24 @@ static int ov8820_set_format(struct v4l2_subdev *sd,
 {
 	struct ov8820_core *core = to_ov8820_core(sd);
 	struct v4l2_mbus_framefmt *format;
-	int ret;
+	int ret = 0;
 
+	mutex_lock(&core->sensor_mutex);
 	format = __ov8820_get_format(core, fh, fmt->pad, fmt->which);
-	if (format == NULL)
-		return -EINVAL;
+	if (format == NULL) {
+		ret = -EINVAL;
+		goto error;
+	}
 
-	if (fmt->pad > 0)
-		return -EINVAL;
+	if (fmt->pad > 0) {
+		ret = -EINVAL;
+		goto error;
+	}
+
 
 	ret = ov8820_try_format(sd, &fmt->format);
 	if (ret < 0)
-		return -EINVAL;
+		goto error;
 
 	*format = fmt->format;
 
@@ -414,7 +479,10 @@ static int ov8820_set_format(struct v4l2_subdev *sd,
 		core->height = fmt->format.height;
 	}
 
-	return 0;
+error:
+	mutex_unlock(&core->sensor_mutex);
+
+	return ret;
 }
 
 static int ov8820_get_format(struct v4l2_subdev *sd,
@@ -423,14 +491,22 @@ static int ov8820_get_format(struct v4l2_subdev *sd,
 {
 	struct ov8820_core *core = to_ov8820_core(sd);
 	struct v4l2_mbus_framefmt *format;
+	int ret = 0;
+
+	mutex_lock(&core->sensor_mutex);
 
 	format = __ov8820_get_format(core, fh, fmt->pad, fmt->which);
-	if (format == NULL)
-		return -EINVAL;
+	if (format == NULL) {
+		ret = -EINVAL;
+		goto error;
+	}
 
 	fmt->format = *format;
 
-	return 0;
+error:
+	mutex_unlock(&core->sensor_mutex);
+
+	return ret;
 }
 
 static int ov8820_g_chip_ident(struct v4l2_subdev *sd,
@@ -438,10 +514,17 @@ static int ov8820_g_chip_ident(struct v4l2_subdev *sd,
 {
 	u16 version = 0;
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct ov8820_core *core = to_ov8820_core(sd);
+	int ret;
 
-	return v4l2_chip_ident_i2c_client(client, chip,
-					V4L2_IDENT_OV8820,
-					version);
+	mutex_lock(&core->sensor_mutex);
+
+	ret = v4l2_chip_ident_i2c_client(client, chip,
+			V4L2_IDENT_OV8820, version);
+
+	mutex_unlock(&core->sensor_mutex);
+
+	return ret;
 }
 
 static long ov8820_get_driver_name(struct v4l2_subdev *sd,
@@ -480,7 +563,9 @@ static long ov8820_subdev_ioctl(struct v4l2_subdev *sd,
 			unsigned int cmd, void *arg)
 {
 	int ret = -EINVAL;
+	struct ov8820_core *core = to_ov8820_core(sd);
 
+	mutex_lock(&core->sensor_mutex);
 	switch (cmd) {
 	case VIDIOC_PRIVATE_SENSER_REGISTER_GET:
 		ret = ov8820_register_access(sd,
@@ -497,8 +582,11 @@ static long ov8820_subdev_ioctl(struct v4l2_subdev *sd,
 			(struct v4l2_sensor_get_driver_name *)arg);
 		break;
 	default:
-		return -ENOIOCTLCMD;
+		ret = -ENOIOCTLCMD;
+		break;
 	}
+
+	mutex_unlock(&core->sensor_mutex);
 	return ret;
 }
 
@@ -507,10 +595,15 @@ static int ov8820_subdev_close(struct v4l2_subdev *sd,
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct sensor_platform_data *pdata = client->dev.platform_data;
+	struct ov8820_core *core = to_ov8820_core(sd);
+
+	mutex_lock(&core->sensor_mutex);
 
 	if (pdata)
 		if (pdata->power_on)
 			pdata->power_on(SENSOR_CLOSE, pdata->id);
+
+	mutex_unlock(&core->sensor_mutex);
 
 	return 0;
 }
@@ -520,10 +613,15 @@ static int ov8820_subdev_open(struct v4l2_subdev *sd,
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct sensor_platform_data *pdata = client->dev.platform_data;
+	struct ov8820_core *core = to_ov8820_core(sd);
+
+	mutex_lock(&core->sensor_mutex);
 
 	if (pdata)
 		if (pdata->power_on)
 			pdata->power_on(SENSOR_OPEN, pdata->id);
+
+	mutex_unlock(&core->sensor_mutex);
 
 	return 0;
 }
@@ -534,6 +632,9 @@ static int ov8820_link_setup(struct media_entity *entity,
 {
 	struct v4l2_subdev *sd = media_entity_to_v4l2_subdev(entity);
 	struct ov8820_core *core = to_ov8820_core(sd);
+	int ret = 0;
+
+	mutex_lock(&core->sensor_mutex);
 
 	switch (local->index | media_entity_type(remote->entity)) {
 	case OV8820_PAD_SOURCE | MEDIA_ENT_T_V4L2_SUBDEV:
@@ -544,9 +645,13 @@ static int ov8820_link_setup(struct media_entity *entity,
 		break;
 	default:
 		/* Link from camera to CCIC is fixed... */
-		return -EINVAL;
+		ret = -EINVAL;
+		break;
 	}
-	return 0;
+
+	mutex_unlock(&core->sensor_mutex);
+
+	return ret;
 }
 
 static const struct v4l2_subdev_pad_ops ov8820_pad_ops = {
@@ -566,7 +671,6 @@ static const struct v4l2_subdev_core_ops ov8820_core_ops = {
 };
 
 static const struct v4l2_subdev_video_ops ov8820_video_ops = {
-	.enum_mbus_fmt = ov8820_enum_mbus_fmt,
 	.g_parm = ov8820_g_parm,
 	.s_parm = ov8820_s_parm,
 	.s_stream = ov8820_s_stream,
@@ -616,6 +720,8 @@ static int ov8820_probe(struct i2c_client *client,
 	core = kzalloc(sizeof(struct ov8820_core), GFP_KERNEL);
 	if (!core)
 		return -ENOMEM;
+
+	mutex_init(&core->sensor_mutex);
 
 	if (pdata->power_on) {
 		ret = pdata->power_on(SENSOR_OPEN, pdata->id);

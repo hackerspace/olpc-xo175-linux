@@ -44,8 +44,14 @@ enum isp_ccic_identity {
 };
 
 #define CCIC_PAD_SINK			0
-#define CCIC_PAD_SOURCE			1
-#define CCIC_PADS_NUM			2
+#define CCIC_PAD_ISP_SRC		1
+#define CCIC_PAD_DMA_SRC		2
+#define CCIC_PADS_NUM			3
+
+enum ccic_dma_state {
+	CCIC_DMA_IDLE = 0,
+	CCIC_DMA_BUSY,
+};
 
 enum ccic_input_type {
 	CCIC_INPUT_NONE = 0x0,
@@ -93,6 +99,7 @@ struct isp_ccic_device {
 	spinlock_t				mipi_flag_lock;
 
 	enum mv_isp_sensor_type sensor_type;
+	enum ccic_dma_state		dma_state;
 };
 
 int pxa_ccic_init(struct mvisp_device *isp);

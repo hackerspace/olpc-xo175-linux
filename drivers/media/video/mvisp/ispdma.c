@@ -430,7 +430,6 @@ static void ispdma_set_inaddr(struct isp_ispdma_device *ispdma,
 {
 	struct mvisp_device *isp = to_mvisp_device(ispdma);
 	unsigned int bytesperpixel, width, height, size;
-	unsigned int regval;
 
 	if ((buffer == NULL) || (buffer->paddr == 0))
 		return;
@@ -445,9 +444,8 @@ static void ispdma_set_inaddr(struct isp_ispdma_device *ispdma,
 	case V4L2_MBUS_FMT_UYVY8_1X16:
 		bytesperpixel = 16;
 		break;
-	case V4L2_MBUS_FMT_Y12_1X12:
-		bytesperpixel = 12;
-		regval |= 0x4;
+	case V4L2_MBUS_FMT_SBGGR10_1X10:
+		bytesperpixel = 10;
 		break;
 	default:
 		bytesperpixel = 0;
@@ -493,9 +491,6 @@ static void ispdma_set_disp_outaddr(struct isp_ispdma_device *ispdma,
 		break;
 	case V4L2_MBUS_FMT_UYVY8_1X16:
 		bytesperpixel = 16;
-		break;
-	case V4L2_MBUS_FMT_Y12_1X12:
-		bytesperpixel = 12;
 		break;
 	default:
 		bytesperpixel = 0;
@@ -547,9 +542,6 @@ static void ispdma_set_codec_outaddr(struct isp_ispdma_device *ispdma,
 		break;
 	case V4L2_MBUS_FMT_UYVY8_1X16:
 		bytesperpixel = 16;
-		break;
-	case V4L2_MBUS_FMT_Y12_1X12:
-		bytesperpixel = 12;
 		break;
 	default:
 		bytesperpixel = 0;
@@ -1917,20 +1909,19 @@ __ispdma_get_format(struct isp_ispdma_device *ispdma,
 }
 
 /* ispdma format descriptions */
-static const unsigned int ispdma_input_fmts[] = {
-	V4L2_MBUS_FMT_SBGGR8_1X8,
-	V4L2_MBUS_FMT_UYVY8_1X16,
-	V4L2_MBUS_FMT_Y12_1X12,
+static const struct pad_formats ispdma_input_fmts[] = {
+	{V4L2_MBUS_FMT_SBGGR10_1X10, V4L2_COLORSPACE_SRGB},
+	{V4L2_MBUS_FMT_SBGGR8_1X8, V4L2_COLORSPACE_SRGB},
 };
 
-static const unsigned int ispdma_disp_out_fmts[] = {
-	V4L2_MBUS_FMT_SBGGR8_1X8,
-	V4L2_MBUS_FMT_UYVY8_1X16,
+static const struct pad_formats ispdma_disp_out_fmts[] = {
+	{V4L2_MBUS_FMT_SBGGR8_1X8, V4L2_COLORSPACE_SRGB},
+	{V4L2_MBUS_FMT_UYVY8_1X16, V4L2_COLORSPACE_JPEG},
 };
 
-static const unsigned int ispdma_codec_out_fmts[] = {
-	V4L2_MBUS_FMT_SBGGR8_1X8,
-	V4L2_MBUS_FMT_UYVY8_1X16,
+static const struct pad_formats ispdma_codec_out_fmts[] = {
+	{V4L2_MBUS_FMT_SBGGR8_1X8, V4L2_COLORSPACE_SRGB},
+	{V4L2_MBUS_FMT_UYVY8_1X16, V4L2_COLORSPACE_JPEG},
 };
 
 static void ispdma_try_format(
@@ -1939,6 +1930,8 @@ static void ispdma_try_format(
 				struct v4l2_mbus_framefmt *fmt,
 				enum v4l2_subdev_format_whence which)
 {
+	int i;
+
 	switch (pad) {
 	case ISPDMA_PAD_SINK:
 		if (ispdma->input
@@ -1948,6 +1941,18 @@ static void ispdma_try_format(
 			fmt->height =
 				min_t(u32, fmt->height, ISPDMA_MAX_IN_HEIGHT);
 		}
+
+		for (i = 0; i < ARRAY_SIZE(ispdma_input_fmts); i++) {
+			if (fmt->code == ispdma_input_fmts[i].mbusfmt) {
+				fmt->colorspace =
+					ispdma_input_fmts[i].colorspace;
+				break;
+			}
+		}
+
+		if (i >= ARRAY_SIZE(ispdma_input_fmts))
+			fmt->code = V4L2_MBUS_FMT_SBGGR10_1X10;
+
 		break;
 	case ISPDMA_PAD_DISP_SRC:
 		fmt->width =
@@ -1956,6 +1961,18 @@ static void ispdma_try_format(
 		fmt->height =
 				min_t(u32, fmt->height,
 					ISPDMA_MAX_DISP_HEIGHT);
+
+		for (i = 0; i < ARRAY_SIZE(ispdma_disp_out_fmts); i++) {
+			if (fmt->code == ispdma_disp_out_fmts[i].mbusfmt) {
+				fmt->colorspace =
+					ispdma_disp_out_fmts[i].colorspace;
+				break;
+			}
+		}
+
+		if (i >= ARRAY_SIZE(ispdma_disp_out_fmts))
+			fmt->code = V4L2_MBUS_FMT_UYVY8_1X16;
+
 		break;
 	case ISPDMA_PAD_CODE_SRC:
 		fmt->width =
@@ -1964,15 +1981,22 @@ static void ispdma_try_format(
 		fmt->height =
 				min_t(u32, fmt->height,
 					ISPDMA_MAX_CODEC_HEIGHT);
+
+		for (i = 0; i < ARRAY_SIZE(ispdma_codec_out_fmts); i++) {
+			if (fmt->code == ispdma_codec_out_fmts[i].mbusfmt) {
+				fmt->colorspace =
+					ispdma_codec_out_fmts[i].colorspace;
+				break;
+			}
+		}
+
+		if (i >= ARRAY_SIZE(ispdma_codec_out_fmts))
+			fmt->code = V4L2_MBUS_FMT_UYVY8_1X16;
+
 		break;
 	default:
 		break;
 	}
-
-	if (fmt->code == V4L2_MBUS_FMT_SBGGR8_1X8)
-		fmt->colorspace = V4L2_COLORSPACE_SRGB;
-	else
-		fmt->colorspace = V4L2_COLORSPACE_JPEG;
 
 	fmt->field = V4L2_FIELD_NONE;
 
@@ -1996,7 +2020,7 @@ static int ispdma_enum_mbus_code(struct v4l2_subdev *sd,
 			ret = -EINVAL;
 		else
 			code->code =
-				ispdma_input_fmts[code->index];
+				ispdma_input_fmts[code->index].mbusfmt;
 		break;
 	case ISPDMA_PAD_DISP_SRC:
 		if (code->index >=
@@ -2004,7 +2028,7 @@ static int ispdma_enum_mbus_code(struct v4l2_subdev *sd,
 			ret = -EINVAL;
 		else
 			code->code =
-				ispdma_disp_out_fmts[code->index];
+				ispdma_disp_out_fmts[code->index].mbusfmt;
 		break;
 	case ISPDMA_PAD_CODE_SRC:
 		if (code->index >=
@@ -2012,7 +2036,7 @@ static int ispdma_enum_mbus_code(struct v4l2_subdev *sd,
 			ret = -EINVAL;
 		else
 			code->code =
-				ispdma_codec_out_fmts[code->index];
+				ispdma_codec_out_fmts[code->index].mbusfmt;
 		break;
 	default:
 		ret = -EINVAL;
@@ -2099,9 +2123,9 @@ static int ispdma_config_format(
 		in_bpp = 0;
 		pitch = width * 2;
 		break;
-	case V4L2_MBUS_FMT_Y12_1X12:
-		in_bpp = 2;
-		pitch = width * 16 / 12;
+	case V4L2_MBUS_FMT_SBGGR10_1X10:
+		in_bpp = 1;
+		pitch = width * 10 / 8;
 		break;
 	default:
 		in_bpp = 0;
@@ -2191,10 +2215,10 @@ static int ispdma_init_formats(struct v4l2_subdev *sd,
 		memset(&format, 0, sizeof(format));
 		format.pad = ISPDMA_PAD_SINK;
 		format.which =  V4L2_SUBDEV_FORMAT_ACTIVE;
-		format.format.code = V4L2_MBUS_FMT_Y12_1X12;
+		format.format.code = V4L2_MBUS_FMT_SBGGR10_1X10;
 		format.format.width = 640;
 		format.format.height = 480;
-		format.format.colorspace = V4L2_COLORSPACE_JPEG;
+		format.format.colorspace = V4L2_COLORSPACE_SRGB;
 		format.format.field = V4L2_FIELD_NONE;
 		ispdma_set_format(sd, fh, &format);
 

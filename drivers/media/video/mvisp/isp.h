@@ -53,6 +53,11 @@ enum mvisp_clock_type {
 	ISP_CLK_DXO_MAX,
 };
 
+struct pad_formats {
+	enum v4l2_mbus_pixelcode mbusfmt;
+	enum v4l2_colorspace colorspace;
+};
+
 enum mvisp_mem_resources {
 	ISP_IOMEM_ISPDMA = 0,
 	ISP_IOMEM_IPC,
