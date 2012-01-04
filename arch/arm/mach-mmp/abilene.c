@@ -1420,8 +1420,19 @@ static struct uio_hdmi_platform_data mmp3_hdmi_info __initdata = {
 };
 #endif
 
+static int abilene_board_reset(char mode, const char *cmd)
+{
+#ifdef CONFIG_INPUT_MAX8925_ONKEY
+	extern void max8925_system_restart(char mode, const char *cmd);
+	max8925_system_restart(mode, cmd);
+#endif
+	return 1;
+}
+
 static void __init abilene_init(void)
 {
+	extern int (*board_reset)(char mode, const char *cmd);
+	board_reset = abilene_board_reset;
 	mfp_config(ARRAY_AND_SIZE(abilene_pin_config));
 
 	/* on-chip devices */

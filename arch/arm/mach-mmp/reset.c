@@ -101,8 +101,19 @@ static void do_wdt_reset(const char *cmd)
 #endif
 }
 
+int pxa_board_reset(char mode, const char *cmd)
+{
+	return 0;
+}
+
+int (*board_reset)(char mode, const char *cmd) = pxa_board_reset;
+EXPORT_SYMBOL(board_reset);
+
 static void mmp_arch_reset(char mode, const char *cmd)
 {
+	if (board_reset(mode, cmd))
+		return;
+
 	if ((!cpu_is_pxa910_family()) && (!cpu_is_pxa920_family()) && (!cpu_is_pxa168()))
 		return;
 

@@ -30,6 +30,10 @@
 #define SW_INPUT		(1 << 7)	/* 0/1 -- up/down */
 #define HARDRESET_EN		(1 << 7)
 #define PWREN_EN		(1 << 7)
+#define PWR_OFF			(1 << 6)
+#define SFT_RESET		(1 << 5)
+#define RSTIN_DELAY		(2 << 3)
+#define SFT_DESERTION		(1 << 2)
 
 struct max8925_onkey_info {
 	struct input_dev	*idev;
@@ -38,11 +42,26 @@ struct max8925_onkey_info {
 	int			irq[2];
 };
 
-/*
- * MAX8925 gives us an interrupt when ONKEY is pressed or released.
- * max8925_set_bits() operates I2C bus and may sleep. So implement
- * it in thread IRQ handler.
- */
+/* reserve this static structure for restart interface */
+static struct i2c_client *i2c = NULL;
+
+void max8925_system_restart(char mode, const char *cmd)
+{
+	if (i2c)
+		max8925_reg_write(i2c, MAX8925_RESET_CNFG, SFT_RESET
+				| RSTIN_DELAY | SFT_DESERTION);
+}
+EXPORT_SYMBOL(max8925_system_restart);
+
+void max8925_system_poweroff(void)
+{
+	if (i2c) {
+		max8925_set_bits(i2c, MAX8925_WLED_MODE_CNTL, 1, 0);
+		max8925_set_bits(i2c, MAX8925_RESET_CNFG, PWR_OFF, PWR_OFF);
+	}
+}
+EXPORT_SYMBOL(max8925_system_poweroff);
+
 static irqreturn_t max8925_onkey_handler(int irq, void *data)
 {
 	struct max8925_onkey_info *info = data;
@@ -161,6 +180,8 @@ static int __devinit max8925_onkey_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, info);
 	device_init_wakeup(&pdev->dev, 1);
 
+	/* reserve this interface for reboot API */
+	i2c = info->i2c;
 	return 0;
 
 out_reg:
