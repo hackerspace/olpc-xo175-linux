@@ -17,6 +17,41 @@
 
 #ifdef CONFIG_HOTPLUG_CPU
 
+struct cpu_hotplug_tuners;
+struct hotplug_attr {
+	struct attribute attr;
+	ssize_t (*show)(struct cpu_hotplug_tuners *, char *);
+	ssize_t (*store)(struct cpu_hotplug_tuners *, const char *, size_t count);
+};
+
+#define show_one(file_name, object)					\
+static ssize_t show_##file_name						\
+(struct cpu_hotplug_tuners *tuners, char *buf)				\
+{									\
+	return sprintf(buf, "%u\n", tuners->object);			\
+}
+
+#define store_one(file_name, object)					\
+static ssize_t store_##file_name					\
+(struct cpu_hotplug_tuners *tuners, const char *buf, size_t count)	\
+{									\
+	unsigned int input;						\
+	int ret;							\
+									\
+	ret = sscanf(buf, "%u", &input);				\
+	if (ret != 1)							\
+		return -EINVAL;						\
+	tuners->object = input;						\
+	return count;							\
+}
+
+#define define_hotplug_governor_attr_rw(_name)				\
+store_one(_name, _name)							\
+show_one(_name, _name)							\
+static struct hotplug_attr _name =					\
+__ATTR(_name, 0644, show_##_name, store_##_name)			\
+
+
 #define DEFAULT_SAMPLING_PERIOD				(100000)
 
 #define DEFAULT_SYSTEM_UP_THRESHOLD			(80)
@@ -38,6 +73,7 @@ enum {
 };
 
 struct cpu_hotplug_tuners {
+	struct kobject kobj;
 	struct delayed_work work;
 	struct workqueue_struct *workq;
 	unsigned int sampling_rate;
@@ -408,6 +444,58 @@ out:
 	return ret;
 }
 
+static ssize_t cpu_hotplug_show(struct kobject * kobj, struct attribute * attr ,char * buf)
+{
+	struct hotplug_attr *cattr = container_of(attr, struct hotplug_attr, attr);
+	struct cpu_hotplug_tuners *tuners = container_of(kobj, struct cpu_hotplug_tuners, kobj);
+
+	if (cattr->show)
+		return cattr->show(tuners, buf);
+
+	return 0;
+}
+
+static ssize_t cpu_hotplug_store(struct kobject * kobj, struct attribute * attr,
+		     const char * buf, size_t count)
+{
+	struct hotplug_attr *cattr = container_of(attr, struct hotplug_attr, attr);
+	struct cpu_hotplug_tuners *tuners = container_of(kobj, struct cpu_hotplug_tuners, kobj);
+
+	if (cattr->store)
+		return cattr->store(tuners, buf, count);
+
+	return count;
+}
+
+static const struct sysfs_ops cpu_hotplug_sysfs_ops = {
+	.show = cpu_hotplug_show,
+	.store = cpu_hotplug_store,
+};
+
+define_hotplug_governor_attr_rw(system_down_threshold);
+define_hotplug_governor_attr_rw(system_up_threshold);
+define_hotplug_governor_attr_rw(system_down_periods_threshold);
+define_hotplug_governor_attr_rw(idle_threshold);
+define_hotplug_governor_attr_rw(idle_periods_threshold);
+define_hotplug_governor_attr_rw(sampling_rate);
+define_hotplug_governor_attr_rw(load_ratio);
+
+static struct attribute *tuners_attrs[] = {
+	&system_down_threshold.attr,
+	&system_up_threshold.attr,
+	&system_down_periods_threshold.attr,
+	&idle_threshold.attr,
+	&idle_periods_threshold.attr,
+	&sampling_rate.attr,
+	&load_ratio.attr,
+	NULL
+};
+
+static struct kobj_type cpu_hotplug_ktype = {
+	.sysfs_ops = &cpu_hotplug_sysfs_ops,
+	.default_attrs = tuners_attrs,
+};
+
 static int __init hotplug_governor_init(void)
 {
 	struct cpu_hotplug_tuners *tuners;
@@ -447,6 +535,11 @@ static int __init hotplug_governor_init(void)
 		info = &per_cpu(cpu_hotplug_info, cpu);
 		info->tuners = tuners;
 	}
+
+	ret = kobject_init_and_add(&tuners->kobj, &cpu_hotplug_ktype,
+				&cpu_sysdev_class.kset.kobj, "cpuhotplug");
+	if (ret)
+		goto free_tuners;
 /*	ret = cpufreq_register_notifier(&hotplug_governor_cpufreq_notifier_block,
 			CPUFREQ_TRANSITION_NOTIFIER);
         if (ret < 0) {
