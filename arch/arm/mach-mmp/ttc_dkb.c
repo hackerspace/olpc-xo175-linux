@@ -1607,24 +1607,15 @@ static int mmc0_lp_switch(unsigned int on, int with_card)
 	else
 		mfp_config(&mfp_cfg_mmc0_clk, 1);
 
-	if (!regulator_sd_pad) {
-		/* LDO14, power supply of MMC0 pad */
-		regulator_sd_pad = regulator_get(NULL, "v_ldo14");
-		if (IS_ERR(regulator_sd_pad)) {
-			regulator_sd_pad = NULL;
-		} else {
-			ret = regulator_enable(regulator_sd_pad);
-			if (ret < 0) {
-				printk(KERN_ERR "Failed to enable LDO14, "
-					"SD may not work, ret = %d\n", ret);
-				regulator_sd_pad = NULL;
-			}
-		}
-	}
-
-	if (cpu_is_pxa921()) {
+	/* SD power supply is different on different platforms */
+	/* 			MMC0 pad	MMC0 slot
+		PXA910		LDO14		Ext_LDO(Ext_GPIO5)
+		PXA920		LDO14		Ext_LDO(GPIO15)
+		PXA920H		LDO14		LDO13
+		PXA910H		LDO13		LDO13
+	 */
+	if (cpu_is_pxa910h() || cpu_is_pxa921()) {
 		if (!regulator_sd_slot) {
-			/* on PXA920H board, LDO13, power supply of MMC0 slot */
 			regulator_sd_slot = regulator_get(NULL, "v_ldo13");
 			if (IS_ERR(regulator_sd_slot)) {
 				regulator_sd_slot = NULL;
@@ -1634,24 +1625,46 @@ static int mmc0_lp_switch(unsigned int on, int with_card)
 					printk(KERN_ERR "Failed to enable LDO13, "
 						"SD may not work, ret = %d\n", ret);
 					regulator_sd_slot = NULL;
+				} else if (cpu_is_pxa910h()) {
+					/* PXA910H board uses LDO13 for both pad and slot */
+					regulator_sd_pad = regulator_sd_slot;
 				}
 			}
 		}
-	} else {
-		if (cpu_is_pxa920() || cpu_is_pxa918()) {
-			sd_pwr_en = mfp_to_gpio(GPIO15_MMC1_POWER);
-			if (gpio_request(sd_pwr_en, "SD Power Ctrl")) {
-				printk(KERN_ERR "Failed to request SD_PWR_EN(gpio %d), "
-					"SD card might not work\n", sd_pwr_en);
-				sd_pwr_en = 0;
+	}
+
+	if (!cpu_is_pxa910h()) {
+		if (!regulator_sd_pad) {
+			/* PXA910, PXA920, PXA920H board all use LDO14 for MMC0 pad */
+			regulator_sd_pad = regulator_get(NULL, "v_ldo14");
+			if (IS_ERR(regulator_sd_pad)) {
+				regulator_sd_pad = NULL;
+			} else {
+				ret = regulator_enable(regulator_sd_pad);
+				if (ret < 0) {
+					printk(KERN_ERR "Failed to enable LDO14, "
+						"SD may not work, ret = %d\n", ret);
+					regulator_sd_pad = NULL;
+				}
 			}
-		} else {
-			sd_pwr_en = GPIO_EXT1(5);
-			if (gpio_request(sd_pwr_en, "SD Power Ctrl")) {
-				printk(KERN_ERR "Failed to request SD_PWR_EN(gpio %d), "
-					"SD card might not work\n", sd_pwr_en);
-				sd_pwr_en = 0;
-			}
+		}
+	}
+
+	if (cpu_is_pxa920() || cpu_is_pxa918()) {
+		/* PXA920 board uses GPIO15 to control ext LDO for MMC0 slot */
+		sd_pwr_en = mfp_to_gpio(GPIO15_MMC1_POWER);
+		if (gpio_request(sd_pwr_en, "SD Power Ctrl")) {
+			printk(KERN_ERR "Failed to request SD_PWR_EN(gpio %d), "
+				"SD card might not work\n", sd_pwr_en);
+			sd_pwr_en = 0;
+		}
+	} else if (cpu_is_pxa910()) {
+		/* PXA910 board uses ext_GPIO5 to control ext LDO for MMC0 slot */
+		sd_pwr_en = GPIO_EXT1(5);
+		if (gpio_request(sd_pwr_en, "SD Power Ctrl")) {
+			printk(KERN_ERR "Failed to request SD_PWR_EN(gpio %d), "
+				"SD card might not work\n", sd_pwr_en);
+			sd_pwr_en = 0;
 		}
 	}
 
@@ -1661,7 +1674,7 @@ static int mmc0_lp_switch(unsigned int on, int with_card)
 		if (cpu_is_pxa921()) {
 			if (!regulator_sd_slot)
 				error = 1;
-		} else {
+		} else if (cpu_is_pxa920() || cpu_is_pxa910()) {
 			if (!sd_pwr_en)
 				error = 1;
 		}
@@ -1673,22 +1686,24 @@ static int mmc0_lp_switch(unsigned int on, int with_card)
 	}
 
 	if (on) {
-		if (cpu_is_pxa921()) {
+		if (cpu_is_pxa921() || cpu_is_pxa910h()) {
 			ret = regulator_disable(regulator_sd_slot);
 			if (ret < 0)
-				printk(KERN_ERR "Failed to turn off LDO13 "
-					"for SD slot, ret = %d\n", ret);
+				printk(KERN_ERR "Failed to turn off LDO13, "
+					"SD may not work, ret = %d\n", ret);
 		} else {
 			gpio_direction_output(sd_pwr_en, 0);
 			gpio_free(sd_pwr_en);
 		}
 
-		ret = regulator_disable(regulator_sd_pad);
-		if (ret < 0)
-			printk(KERN_ERR "Failed to turn off LDO14 "
-				"for SD slot, ret = %d\n", ret);
+		if (!cpu_is_pxa910h()) {
+			ret = regulator_disable(regulator_sd_pad);
+			if (ret < 0)
+				printk(KERN_ERR "Failed to turn off LDO14, "
+					"SD may not work, ret = %d\n", ret);
+		}
 	} else {
-		if (cpu_is_pxa921()) {
+		if (cpu_is_pxa921() || cpu_is_pxa910h()) {
 			ret = regulator_enable(regulator_sd_slot);
 			if (ret < 0)
 				printk(KERN_ERR "Failed to turn on LDO13, "
@@ -1698,10 +1713,12 @@ static int mmc0_lp_switch(unsigned int on, int with_card)
 			gpio_free(sd_pwr_en);
 		}
 
-		ret = regulator_enable(regulator_sd_pad);
-		if (ret < 0)
-			printk(KERN_ERR "Failed to turn on LDO14, "
-				"SD may not work, ret = %d\n", ret);
+		if (!cpu_is_pxa910h()) {
+			ret = regulator_enable(regulator_sd_pad);
+			if (ret < 0)
+				printk(KERN_ERR "Failed to turn on LDO14, "
+					"SD may not work, ret = %d\n", ret);
+		}
 	}
 
 	return 0;
