@@ -20,6 +20,7 @@
 #include <linux/delay.h>
 #include <linux/smc91x.h>
 #include <linux/mfd/max8925.h>
+#include <linux/mfd/max77601.h>
 #include <linux/pwm_backlight.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/driver.h>
@@ -891,6 +892,157 @@ static struct i2c_board_info abilene_twsi1_info[] = {
 	},
 };
 
+/*
+ *  this array is shared by 2 pmic, Ustica or max77601
+ *  macro PMIC_POWER_SUPPLY_MAX = max (PM800_ID_RG_MAX,MAX77601_RG_MAX)
+ */
+#define PMIC_POWER_SUPPLY_MAX MAX77601_VREG_MAX
+static struct regulator_consumer_supply abilene_power_supply[PMIC_POWER_SUPPLY_MAX];
+static struct regulator_init_data pmic_regulator_data[PMIC_POWER_SUPPLY_MAX];
+
+#define REG_SUPPLY_INIT(_id, _name, _dev_name) \
+{						\
+	abilene_power_supply[_id].supply =  _name;  \
+	abilene_power_supply[_id].dev_name = _dev_name; \
+}
+
+#define PMIC_REG_INIT(_id, _name, _min, _max, _always, _boot, _supply, _num) \
+{		\
+	pmic_regulator_data[_id].constraints.name = __stringify(_name);        \
+	pmic_regulator_data[_id].constraints.min_uV = _min;    \
+	pmic_regulator_data[_id].constraints.max_uV     = _max;       \
+	pmic_regulator_data[_id].constraints.always_on = _always; \
+	pmic_regulator_data[_id].constraints.boot_on = _boot; \
+	pmic_regulator_data[_id].constraints.valid_ops_mask =  \
+			REGULATOR_CHANGE_VOLTAGE | REGULATOR_CHANGE_STATUS; \
+	pmic_regulator_data[_id].consumer_supplies = _supply; \
+	pmic_regulator_data[_id].num_consumer_supplies = _num;	\
+}
+
+static struct regulator_consumer_supply abilene_max77601_sd3_supply[] = {
+	[0] = {
+		.supply = "pmic_sdmmc",
+	},
+	[1] = {
+		.supply = "vcc_af",
+	},
+	[2] = {
+		.supply = "pmic_2p8v_sens",
+	},
+	[3] = {
+		.supply = "pmic_lcd",
+	},
+};
+
+/*
+  * Use power domain name for supply name, instead of using name like "v_ldo3"
+  * It will easily to support the case that driver use API
+  * struct regulator *regulator_get(struct device *dev, const char *id)
+  * with 2-pmic optional solution in B0
+  */
+static void abilene_power_supply_init(void)
+{
+	REG_SUPPLY_INIT(MAX77601_ID_SD0, "vcc_main_lpm", NULL);
+	REG_SUPPLY_INIT(MAX77601_ID_DVSSD0, "vcc_main", NULL);
+	REG_SUPPLY_INIT(MAX77601_ID_SD1, "v_ddr3", NULL);
+	REG_SUPPLY_INIT(MAX77601_ID_DVSSD1, "v_ddr3_dvs", NULL);
+	REG_SUPPLY_INIT(MAX77601_ID_SD2, "pmic_1p8v", NULL);
+	REG_SUPPLY_INIT(MAX77601_ID_SD3, "pmic_2p8v", NULL);
+	REG_SUPPLY_INIT(MAX77601_ID_SD4, "rsv_sd4", NULL);
+	REG_SUPPLY_INIT(MAX77601_ID_L0, "pmic_1p2v_hsic", NULL);
+	REG_SUPPLY_INIT(MAX77601_ID_L1, "pmic_1p2v_mipi", NULL);
+	REG_SUPPLY_INIT(MAX77601_ID_L2, "pmic_3p3v", NULL);
+	REG_SUPPLY_INIT(MAX77601_ID_L3, "vcc_camera", NULL);
+	REG_SUPPLY_INIT(MAX77601_ID_L4, "rsv_l4", NULL);
+	REG_SUPPLY_INIT(MAX77601_ID_L5, "pmic_bb", NULL);
+	REG_SUPPLY_INIT(MAX77601_ID_L6, "pmic_1p8v_ana", NULL);
+	REG_SUPPLY_INIT(MAX77601_ID_L7, "pmic_1p2v_mipi_logic", NULL);
+	REG_SUPPLY_INIT(MAX77601_ID_L8, "pmic_1p2v_codec", NULL);
+
+	PMIC_REG_INIT(MAX77601_ID_SD0, SD0, 600000, 3387500, 1, 1,
+		&abilene_power_supply[MAX77601_ID_SD0], 1);
+	PMIC_REG_INIT(MAX77601_ID_DVSSD0, DVSSD0, 600000, 3387500, 1, 1,
+		&abilene_power_supply[MAX77601_ID_DVSSD0], 1);
+	PMIC_REG_INIT(MAX77601_ID_SD1, SD1, 800000, 1587500, 1, 1,
+		&abilene_power_supply[MAX77601_ID_SD1], 1);
+	PMIC_REG_INIT(MAX77601_ID_DVSSD1, DVSSD1, 800000, 1587500, 1, 1,
+		&abilene_power_supply[MAX77601_ID_DVSSD1], 1);
+	PMIC_REG_INIT(MAX77601_ID_SD2, SD2, 600000, 3387500, 1, 1,
+		&abilene_power_supply[MAX77601_ID_SD2], 1);
+	/*
+	  * max77601 SD3 is power supply of emmc/vcc_afp/sdmmc and some fixed 2.8V.
+	  * It should be always on and kept at 2.8V B0 board with pmic max77601.
+	  */
+	PMIC_REG_INIT(MAX77601_ID_SD3, SD3, 600000, 3387500, 1, 1,
+		&abilene_max77601_sd3_supply[0], ARRAY_SIZE(abilene_max77601_sd3_supply));
+	PMIC_REG_INIT(MAX77601_ID_SD4, SD4, 600000, 3387500, 0, 0,
+		&abilene_power_supply[MAX77601_ID_SD4], 1);
+
+	PMIC_REG_INIT(MAX77601_ID_L0, LDO0, 800000, 2350000 , 0, 1,
+		&abilene_power_supply[MAX77601_ID_L0], 1);
+	PMIC_REG_INIT(MAX77601_ID_L1, LDO1, 800000, 2350000 , 0, 1,
+		&abilene_power_supply[MAX77601_ID_L1], 1);
+	PMIC_REG_INIT(MAX77601_ID_L2, LDO2, 800000, 3950000 , 1, 1,
+		&abilene_power_supply[MAX77601_ID_L2], 1);
+	PMIC_REG_INIT(MAX77601_ID_L3, LDO3, 800000, 3950000 , 0, 1,
+		&abilene_power_supply[MAX77601_ID_L3], 1);
+	PMIC_REG_INIT(MAX77601_ID_L4, LDO4, 800000, 1587500 , 0, 0,
+		&abilene_power_supply[MAX77601_ID_L4], 1);
+	PMIC_REG_INIT(MAX77601_ID_L5, LDO5, 800000, 3950000 , 1, 1,
+		&abilene_power_supply[MAX77601_ID_L5], 1);
+	PMIC_REG_INIT(MAX77601_ID_L6, LDO6, 800000, 3950000 , 1, 1,
+		&abilene_power_supply[MAX77601_ID_L6], 1);
+	PMIC_REG_INIT(MAX77601_ID_L7, LDO7, 800000, 3950000 , 0, 1,
+		&abilene_power_supply[MAX77601_ID_L7], 1);
+	PMIC_REG_INIT(MAX77601_ID_L8, LDO8, 800000, 3950000 , 0, 1,
+		&abilene_power_supply[MAX77601_ID_L8], 1);
+}
+
+static int abilene_max77601_setup(struct max77601_chip *chip)
+{
+	u8 data = 0x0;
+	/*
+	  * Domain which will dynamic power on/off on abilene:
+	  * pmic_1p2v_hsic(ldo0), pmic_1p2v_mipi(ldo1), vcc_camera(ldo3),
+	  * pmic_bb(ldo5) ,pmic_1p2v_mipi_logic(ldo7),pmic_1p2v_codec(ldo8)
+	  * should be set to Not_FPS mode
+	  */
+	max77601_set_bits(chip, MAX77601_FPS_L0, \
+		MAX77601_FPSSRC_MASK, MAX77601_FPSSRC_NOTFPS);
+	max77601_set_bits(chip, MAX77601_FPS_L1, \
+		MAX77601_FPSSRC_MASK, MAX77601_FPSSRC_NOTFPS);
+	max77601_set_bits(chip, MAX77601_FPS_L3, \
+		MAX77601_FPSSRC_MASK, MAX77601_FPSSRC_NOTFPS);
+	max77601_set_bits(chip, MAX77601_FPS_L5, \
+		MAX77601_FPSSRC_MASK, MAX77601_FPSSRC_NOTFPS);
+	max77601_set_bits(chip, MAX77601_FPS_L7, \
+		MAX77601_FPSSRC_MASK, MAX77601_FPSSRC_NOTFPS);
+	max77601_set_bits(chip, MAX77601_FPS_L8, \
+		MAX77601_FPSSRC_MASK, MAX77601_FPSSRC_NOTFPS);
+
+	/* DVS related part */
+	max77601_read(chip, MAX77601_AME_GPIO, &data, 1);
+	if ((data & MAX77601_AME5_MASK) == MAX77601_AME5_MASK)
+		printk(KERN_INFO "Max77601 SD0 is set to support DVS!\n");
+
+	return 0;
+};
+
+static struct max77601_platform_data abilene_max77601_pdata = {
+	.irq_base  = IRQ_BOARD_START,
+	.regulator = pmic_regulator_data,
+	.setup     = abilene_max77601_setup,
+};
+
+static struct i2c_board_info abilene_twsi1_max77601_info[] = {
+	{
+		.type		= "max77601",
+		.addr		= 0x1c,
+		.irq		= IRQ_MMP3_PMIC,
+		.platform_data	= &abilene_max77601_pdata,
+	},
+};
+
 static struct platform_pwm_backlight_data abilene_lcd_backlight_data = {
 	/* primary backlight */
 	.pwm_id = 2,
@@ -1487,7 +1639,10 @@ static void __init abilene_init(void)
 
 	/* on-chip devices */
 	mmp3_add_uart(3);
-	mmp3_add_twsi(1, &twsi1_pdata, ARRAY_AND_SIZE(abilene_twsi1_info));
+
+	abilene_power_supply_init();
+	mmp3_add_twsi(1, &twsi1_pdata, ARRAY_AND_SIZE(abilene_twsi1_max77601_info));
+
 	mmp3_add_twsi(4, NULL, ARRAY_AND_SIZE(abilene_twsi4_info));
 	mmp3_add_twsi(5, NULL, ARRAY_AND_SIZE(abilene_twsi5_info));
 
@@ -1535,7 +1690,7 @@ static void __init abilene_init(void)
 
 
 	mmp3_add_twsi(3, NULL, ARRAY_AND_SIZE(abilene_twsi3_info));
-	mmp3_add_twsi(6, NULL, ARRAY_AND_SIZE(abilene_twsi6_info));
+
 	abilene_fixed_regulator();
 	wm8994_ldoen();
 
