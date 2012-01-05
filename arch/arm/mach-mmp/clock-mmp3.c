@@ -81,6 +81,10 @@ static int mmp3_clk_pll2_enable(struct clk *clk)
 
 	/* disable PLL2 */
 	value = __raw_readl(MPMU_PLL2CR);
+
+	if (value & (1 << 8))
+		return 0; /* already enabled */
+
 	value &= ~(1 << 8);
 	__raw_writel(value, MPMU_PLL2CR);
 
