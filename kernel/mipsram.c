@@ -116,14 +116,12 @@ static void mipsram_alloc_buffer(void)
 
 static void mipsram_cycle_counter_init(void)
 {
+	/* TODO: need check when enabling MIPSRAM when PJ4 not configured*/
+#ifdef CONFIG_CPU_PJ4
 	unsigned int PMNC_val;
 
 	/* read/modify/write for the PMNC register - start CP14
 	 * Performance Monitor counter */
-#ifndef CONFIG_CPU_PJ4
-	PMNC_val = pmu_read_reg(PMU_PMNC);
-	pmu_write_reg(PMU_PMNC, PMNC_val | PMU_COUNTERS_ENABLE);
-#else
 	/* Bit#0: enables all counters */
 	PMNC_val = 0x1;
 	asm volatile ("mcr p15, 0, %0, c9, c12, 0" : : "r" (PMNC_val));

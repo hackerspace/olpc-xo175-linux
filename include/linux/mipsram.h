@@ -61,22 +61,8 @@ void mipsram_disable_counter(void);
  * ASSUMPTION: This macro is called when interrupts are disabled
  * in _kernel mode_ (not supported in user-space) */
 #ifndef CONFIG_CPU_PJ4
+/* TODO: need enable CA9 operations*/
 #define MIPS_RAM_ADD_TRACE(process_id) {\
-	register unsigned int tIMEsTAMP;\
-	register unsigned int eNTRY = mipsram_desc.current_entry;\
-	if (likely(mipsram_desc.buffer)) {\
-		unsigned int *temp_buffer = &(mipsram_desc.buffer[eNTRY]);\
-		/* Read CCNT timestamp from CP14 */\
-		__asm__ __volatile__("mrc p14, 0, %0, c1, c1, 0" : \
-				"=r" (tIMEsTAMP));\
-		tIMEsTAMP += mipsram_desc.compensation_ticks;\
-		tIMEsTAMP &= MIPSRAM_PP_FIELD_NOT_MSK;  \
-		tIMEsTAMP |= mipsram_desc.current_pp_msk; \
-		*temp_buffer++ = process_id;\
-		*temp_buffer = tIMEsTAMP;\
-		mipsram_desc.current_entry = ((eNTRY+2) & \
-				(MIPS_RAM_BUFFER_SZ-1));\
-	} \
 }
 #else
 #define MIPS_RAM_ADD_TRACE(process_id) {\
