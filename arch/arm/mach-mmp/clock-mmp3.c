@@ -1631,57 +1631,6 @@ static struct clk mmp3_clk_sdh3 = {
 			{APMU_SDH3, 10, 0xf} } },
 };
 
-static int ccic_share_clk_enable(struct clk *clk)
-{
-	u32 val;
-
-	val = __raw_readl(clk->reg_data[SOURCE][CONTROL].reg);
-	/* ccic axi enable clocks */
-	val |= 0x10000;
-	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
-
-	mdelay(10);
-	/* ccic axi clock release reset */
-	val |= 0x8000;
-	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
-
-	return 0;
-}
-
-static void ccic_share_clk_disable(struct clk *clk)
-{
-	u32 val;
-
-	val = __raw_readl(clk->reg_data[SOURCE][CONTROL].reg);
-	val &= ~0x10000;
-	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
-	mdelay(10);
-	val &= ~0x8000;
-	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
-}
-
-struct clkops ccic_share_clk_ops = {
-	.init = NULL,
-	.enable = ccic_share_clk_enable,
-	.disable = ccic_share_clk_disable,
-	.round_rate = NULL,
-	.setrate = NULL,
-};
-
-static struct clk mmp3_clk_ccic0 = {
-	.name = "ccic0",
-	.ops = &ccic_share_clk_ops,
-	.reg_data = {
-		     { {APMU_CCIC_RST, 6, 0x3},
-			{APMU_CCIC_RST, 6, 0x3} },
-		     {{APMU_CCIC_RST, 17, 0xf},
-			{APMU_CCIC_RST, 17, 0xf} } },
-};
-
-static struct clk *ccic_depend_clk[] = {
-	&mmp3_clk_ccic0,
-};
-
 #ifdef CONFIG_VIDEO_MVISP
 
 #define DXOISP_PLL1		1
@@ -1742,6 +1691,13 @@ static int dxoisp_clk_enable(struct clk *clk)
 	writel(reg, APMU_ISPCLK);
 	mdelay(10);
 
+	reg = readl(APMU_CCIC_RST);
+	reg |= 0x1 << 16;
+	writel(reg, APMU_CCIC_RST);
+	mdelay(10);
+	reg |= 0x1 << 15;
+	writel(reg, APMU_CCIC_RST);
+
 	reg = readl(APMU_ISPCLK);
 	reg |= 0x1 << 1;
 	writel(reg, APMU_ISPCLK);
@@ -1772,6 +1728,13 @@ static void dxoisp_clk_disable(struct clk *clk)
 	mdelay(10);
 
 	reg = readl(APMU_ISPCLK);
+
+	reg = readl(APMU_CCIC_RST);
+	reg &= ~(0x1 << 16);
+	writel(reg, APMU_CCIC_RST);
+	mdelay(10);
+	reg &= ~(0x1 << 15);
+	writel(reg, APMU_CCIC_RST);
 
 	reg = readl(APMU_ISPPWR);
 	reg &= ~(0x1 << 8);
@@ -1826,8 +1789,6 @@ static struct clk_mux_sel dxoisp_mux_pll1_pll2[] = {
 
 static struct clk mmp3_clk_dxoisp = {
 	.name = "dxoisp",
-	.dependence = ccic_depend_clk,
-	.dependence_count = ARRAY_SIZE(ccic_depend_clk),
 	.inputs = dxoisp_mux_pll1_pll2,
 	.lookup = {
 		.con_id = "ISP-CLK",
@@ -2283,6 +2244,53 @@ static struct clk_mux_sel ccic_clk_mux[] = {
 	{.input = &mmp3_clk_pll1_d_2, .value = 0},
 	{.input = &mmp3_clk_vctcxo, .value = 2},
 	{0, 0},
+};
+
+static int ccic_share_clk_enable(struct clk *clk)
+{
+	u32 val;
+
+	/* ccic axi enable clocks */
+	val = 0x10000;
+	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+
+	/* ccic axi clock release reset */
+	val |= 0x8000;
+	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+
+	return 0;
+}
+
+static void ccic_share_clk_disable(struct clk *clk)
+{
+	u32 val;
+
+	val = __raw_readl(clk->reg_data[SOURCE][CONTROL].reg);
+	val &= ~0x18000;
+	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+}
+
+struct clkops ccic_share_clk_ops = {
+	.init = NULL,
+	.enable = ccic_share_clk_enable,
+	.disable = ccic_share_clk_disable,
+	.round_rate = NULL,
+	.setrate = NULL,
+};
+
+static struct clk mmp3_clk_ccic0 = {
+	.name = "ccic0",
+	.ops = &ccic_share_clk_ops,
+	.inputs = ccic_clk_mux,
+	.reg_data = {
+		     { {APMU_CCIC_RST, 6, 0x3},
+			{APMU_CCIC_RST, 6, 0x3} },
+		     {{APMU_CCIC_RST, 17, 0xf},
+			{APMU_CCIC_RST, 17, 0xf} } },
+};
+
+static struct clk *ccic_depend_clk[] = {
+	&mmp3_clk_ccic0,
 };
 
 static struct clk mmp3_clk_ccic1 = {
