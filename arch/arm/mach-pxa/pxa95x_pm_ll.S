@@ -1624,23 +1624,18 @@ ENTRY(pm_enter_idle)
 @	None
 @
 
+#ifdef CONFIG_CPU_PJ4
 /*
 Clean-Invalidate the L2 cache lines containing MMU first level descriptors
 for given virtual address (va) with given primary table physical address (ttb).
 Both (va) and (ttb) should  be registers.
-Two options to clean-inv L2: either v7 standard instruction to clean-inv by mva
-   (but then have translate the pa to a valid kernel vma);
-   or clean-inv by PJ4 non-standard instruction by pa.
+Clean-inv by PJ4 non-standard instruction by pa since this code is only for MG.
 */
-#ifdef CONFIG_CPU_PJ4 /* Just make this code easily identified with PJ4 */
 .macro clean_inv_tt_entry, va, ttb
 mov \va, \va, lsr #20
 add \va, \ttb, \va, lsl #2
 mcr p15, 1, \va, c7, c15, 3
 .endm
-#else
-#error "pm_enter_deepidle is for PJ4 only"
-#endif
 
 ENTRY(pm_enter_deepidle)
 @ r0=minimal number of 3.25MHz ticks from entry until return
@@ -1710,6 +1705,7 @@ nop
 @ skip 1 line so if prefetch occurs despite of bx above the line won't be used
 nop
 ENDPROC(pm_enter_deepidle_int)
+#endif
 @*****************************************************************************
 @ pm_enter_cgm_deepidle
 @

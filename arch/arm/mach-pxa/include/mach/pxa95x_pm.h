@@ -539,7 +539,6 @@ extern int set_acipc_cp_enable(unsigned int pm_cp);
 extern void pm_enter_idle(void);
 void pxa95x_cpu_standby(unsigned int, unsigned int, unsigned int, unsigned int);
 extern unsigned int pm_core_pwdn(unsigned int powerState);
-extern unsigned int pm_enter_deepidle(unsigned int);
 extern unsigned int pm_enter_cgm_deepidle(unsigned int);
 extern int pxa95x_query_gwsr(int);
 extern u32 get_mipi_reference_control(void);

@@ -110,6 +110,15 @@ This parameter measure C2 length see JIRA 1495
 This parameter will be extraced through RAMPDUMP*/
 unsigned int g_lastC2time;
 
+#ifdef CONFIG_CPU_PJ4
+extern unsigned int pm_enter_deepidle(unsigned int);
+#else
+static unsigned int pm_enter_deepidle(unsigned int x)
+{
+	pr_err("%s should not be called in non-pj4 core code.\n", __func__);
+	BUG_ON(1);
+}
+#endif
 static void pxa95x_cpu_idle(void)
 {
 	unsigned int c1_enter_time, c1_exit_time, pollreg;
@@ -135,7 +144,14 @@ static void pxa95x_cpu_idle(void)
 	MIPS_RAM_ADD_PM_TRACE(ENTER_IDLE_MIPS_RAM);
 	mipsram_disable_counter();
 #endif
-	if (cpu_is_pxa95x() && !(is_wkr_mg1_1274())) {
+	if (cpu_is_pxa978()) {
+		PWRMODE = (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT);
+		do {
+			pollreg = PWRMODE;
+		} while (pollreg != (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT));
+		cpu_do_idle();
+	}
+	else if (cpu_is_pxa955() && !(is_wkr_mg1_1274())) {
 		PWRMODE = (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT);
 		do {
 			pollreg = PWRMODE;
