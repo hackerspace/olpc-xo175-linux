@@ -99,9 +99,7 @@ DEFINE_ICU_MUX_IRQ(gpu,		IRQ_MMP3_GPU_BASE,	MMP3_ICU_INT_8);
 DEFINE_ICU_MUX_IRQ(twsi,	IRQ_MMP3_TWSI_BASE,	MMP3_ICU_INT_17);
 DEFINE_ICU_MUX_IRQ(hsi2,	IRQ_MMP3_HSI2_BASE,	MMP3_ICU_INT_18);
 DEFINE_ICU_MUX_IRQ(dxo,		IRQ_MMP3_DXO_BASE,	MMP3_ICU_INT_30);
-#if 0
 DEFINE_ICU_MUX_IRQ(misc1,	IRQ_MMP3_MISC1_BASE,	MMP3_ICU_INT_35);
-#endif
 DEFINE_ICU_MUX_IRQ(ci,		IRQ_MMP3_CI_BASE,	MMP3_ICU_INT_42);
 DEFINE_ICU_MUX_IRQ(ssp,		IRQ_MMP3_SSP_BASE,	MMP3_ICU_INT_51);
 DEFINE_ICU_MUX_IRQ(hsi1,	IRQ_MMP3_HSI1_BASE,	MMP3_ICU_INT_55);
@@ -174,10 +172,8 @@ void __init mmp3_init_gic(void)
 			IRQ_MMP3_HSI2_BASE, 2, hsi2_irq_demux);
 	init_mux_irq(&dxo_icu_chip_data, IRQ_MMP3_DXO_MUX,
 			IRQ_MMP3_DXO_BASE, 2, dxo_irq_demux);
-#if 0
 	init_mux_irq(&misc1_icu_chip_data, IRQ_MMP3_MISC1_MUX,
 			IRQ_MMP3_MISC1_BASE, 31, misc1_irq_demux);
-#endif
 	init_mux_irq(&ci_icu_chip_data, IRQ_MMP3_CI_MUX,
 			IRQ_MMP3_CI_BASE, 2, ci_irq_demux);
 	init_mux_irq(&ssp_icu_chip_data, IRQ_MMP3_SSP_MUX,
@@ -194,17 +190,5 @@ void __init mmp3_init_gic(void)
 	 * to be written to clear the interrupt.
 	 */
 	pmic_set_ack(IRQ_MMP3_PMIC);
-
-	/*
-	 * FIXME
-	 * It is required to unmask ICU1_INT_35_MASK_NPMUIRQ_[0-2], 24-22
-	 * bit to enable IRQ_MMP3_PMU_CPU[0-2] (via sysint[86-88])
-	 */
-	{
-		int val;
-		val = __raw_readl(MMP3_ICU_INT_35_MASK);
-		val &= ~((1<<24) | (1<<23) | (1<<22));
-		__raw_writel(val, MMP3_ICU_INT_35_MASK);
-	}
 
 }
