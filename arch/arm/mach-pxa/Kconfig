@@ -664,7 +664,6 @@ config CPU_PXA935
 
 config PXA95x
 	bool
-	select CPU_PJ4 if !(CPU_XSCALE || CPU_XSC3)
 	select MULTI_IRQ_HANDLER
 	select PXA_SSP
 	help
@@ -673,12 +672,15 @@ config PXA95x
 config CPU_PXA955
 	bool
 	select PXA95x
+	select CPU_PJ4 if !(CPU_XSCALE || CPU_XSC3)
+	select PREEMPT_NOTIFIERS
 	help
 	  PXA950 (codename MG1)
 
 config CPU_PXA998
 	bool
 	select PXA95x
+	select CPU_PJ4 if !(CPU_XSCALE || CPU_XSC3)
 	select PREEMPT_NOTIFIERS
 	help
 	  PXA998 (codename Eshel)
@@ -686,6 +688,7 @@ config CPU_PXA998
 config CPU_PXA978
 	bool
 	select PXA95x
+	select CPU_V7 if !(CPU_XSCALE || CPU_XSC3)
 	select PREEMPT_NOTIFIERS
 	help
 	  PXA978 (codename Nevo)
