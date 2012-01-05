@@ -188,7 +188,7 @@ static unsigned long brownstone_pin_config[] __initdata = {
 	GPIO42_MMC2_CLK,
 
 	/* sdio power control */
-	GPIO57_GPIO | MFP_LPM_DRIVE_LOW,
+	GPIO57_GPIO | MFP_LPM_DRIVE_HIGH,
 	GPIO58_GPIO | MFP_LPM_DRIVE_HIGH,
 
 	/* MMC2 */
@@ -356,8 +356,8 @@ static struct regulator_init_data regulator_data[] = {
 	[MAX8925_ID_LDO9] = REG_INIT(LDO9, 750000, 3900000, 1, 1),
 	[MAX8925_ID_LDO10] = REG_INIT(LDO10, 750000, 3900000, 0, 0),
 	[MAX8925_ID_LDO11] = REG_INIT(LDO11, 2800000, 2800000, 0, 0),
-	[MAX8925_ID_LDO12] = REG_INIT(LDO12, 750000, 3900000, 0, 0),
-	[MAX8925_ID_LDO13] = REG_INIT(LDO13, 750000, 1500000, 0, 0),
+	[MAX8925_ID_LDO12] = REG_INIT(LDO12, 750000, 3900000, 1, 0),
+	[MAX8925_ID_LDO13] = REG_INIT(LDO13, 750000, 1500000, 1, 0),
 	[MAX8925_ID_LDO14] = REG_INIT(LDO14, 750000, 3000000, 0, 0),
 	[MAX8925_ID_LDO15] = REG_INIT(LDO15, 750000, 2800000, 0, 0),
 	[MAX8925_ID_LDO16] = REG_INIT(LDO16, 750000, 3900000, 0, 0),
@@ -512,11 +512,41 @@ static struct sdhci_pxa_platdata mmp2_sdh_platdata_mmc1 = {
 	.flags		= PXA_FLAG_CARD_PERMANENT | PXA_FLAG_WAKEUP_HOST,
 	.lp_switch	= mmc1_sdio_switch,
 	.pm_caps	= MMC_PM_KEEP_POWER,
+	.host_caps	= MMC_CAP_POWER_OFF_CARD,
 };
 
 static struct sdhci_pxa_platdata mmp2_sdh_platdata_mmc2 = {
 	.clk_delay_cycles	= 0x1f,
 	.flags		= PXA_FLAG_CARD_PERMANENT | PXA_FLAG_ENABLE_CLOCK_GATING,
+};
+
+static struct regulator_consumer_supply sdio_power_supplies[] = {
+	REGULATOR_SUPPLY("vsdio", "sdhci-pxa.1"),
+};
+
+static struct regulator_init_data sdio_power_data = {
+	.constraints	= {
+		.valid_ops_mask		= REGULATOR_CHANGE_STATUS,
+	},
+	.num_consumer_supplies	= ARRAY_SIZE(sdio_power_supplies),
+	.consumer_supplies	= sdio_power_supplies,
+};
+
+static struct fixed_voltage_config sdio_power = {
+	.supply_name		= "vsdio",
+	.microvolts		= 3300000,
+	.gpio			= mfp_to_gpio(MFP_PIN_GPIO57),
+	.enable_high		= 1,
+	.enabled_at_boot	= 0,
+	.init_data		= &sdio_power_data,
+};
+
+static struct platform_device sdio_power_device = {
+	.name		= "reg-fixed-voltage",
+	.id		= 4,
+	.dev = {
+		.platform_data = &sdio_power,
+	},
 };
 
 static void mmc1_set_power(unsigned int on)
@@ -565,6 +595,17 @@ static void mmc1_set_power(unsigned int on)
 static void __init brownstone_init_mmc(void)
 {
 	int sdmmc_pen = mfp_to_gpio(MFP_PIN_GPIO95);
+#ifdef CONFIG_PM_RUNTIME
+	int RESETn = mfp_to_gpio(MFP_PIN_GPIO58);
+
+	if (gpio_request(RESETn, "sdio RESETn")) {
+		pr_err("Failed to request sdio RESETn gpio\n");
+		return;
+	}
+	gpio_direction_output(RESETn, 1);
+	gpio_free(RESETn);
+	platform_device_register(&sdio_power_device);
+#else
 #ifdef CONFIG_SD8XXX_RFKILL
 	int WIB_PDn;
 	int WIB_RESETn;
@@ -574,6 +615,7 @@ static void __init brownstone_init_mmc(void)
 
 	add_sd8x_rfkill_device(WIB_PDn, WIB_RESETn,
 			&mmp2_sdh_platdata_mmc1.pmmc, &mmc1_set_power);
+#endif
 #endif
 #ifndef CONFIG_MTD_NAND_PXA3xx
 	/*eMMC (MMC3) pins are conflict with NAND*/
