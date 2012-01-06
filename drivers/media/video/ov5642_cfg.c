@@ -7383,7 +7383,7 @@ static struct ov5642_config ov5642_cfg[] = {
 		.firmware_af = firmware_regs_pxa910,
 		.firmware_af_size = N_AF_FIRMWARE_SIZES_PXA910,
 	}, {
-		.name = "saarb-mipi",
+		.name = "tavor-mipi",
 		.init = ov5642_pxa955_mipi_global_init,
 		.fmt = ov5642_pxa955_mipi_fmts,
 		.fmt_size = ARRAY_SIZE(ov5642_pxa955_mipi_fmts),
@@ -7395,7 +7395,7 @@ static struct ov5642_config ov5642_cfg[] = {
 		.firmware_af_size = N_AF_FIRMWARE_SIZES_PXA95x,
 	},
 	{
-		.name = "saarb-mipi-bridge",
+		.name = "tavor-mipi-bridge",
 		.fmt = ov5642_pxa955_mipi_bridge_fmts,
 		.fmt_size = ARRAY_SIZE(ov5642_pxa955_mipi_bridge_fmts),
 		.yuv_res = ov5642_pxa955_mipi_bridge_sizes_yuv,

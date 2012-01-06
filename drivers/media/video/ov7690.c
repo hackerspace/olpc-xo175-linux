@@ -523,7 +523,7 @@ static int ov7690_s_fmt(struct v4l2_subdev *sd,
 		if(ov7690->regs_size)
 			ov7690_write_array(client, ov7690->regs_size);
 
-		msleep(200);
+		msleep(100);
 		to_mipi(mf->code, mf->width, mf->height);
 		break;
 	default:

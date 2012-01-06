@@ -380,63 +380,46 @@ static struct pxa27x_keypad_platform_data keypad_info = {
 #endif /* CONFIG_KEYBOARD_PXA27x || CONFIG_KEYBOARD_PXA27x_MODULE */
 
 #if defined(CONFIG_VIDEO_PXA955)
+/* Camera sensor PowerDowN pins */
+static int pwd_main, pwd_sub;
+
 static int camera0_power(struct device *dev, int flag)
 {
-	int gpio_pin = mfp_to_gpio(MFP_PIN_GPIO81);
-
-	if (gpio_request(gpio_pin, "CAM_EANBLE_HI_SENSOR")) {
-		printk(KERN_ERR "cam: Request GPIO failed,"
-				"gpio: %d\n", gpio_pin);
-		return -EIO;
-	}
-
 	if (flag) {
-		gpio_direction_output(gpio_pin, 0);	/* enable */
+		gpio_direction_output(pwd_main, 0);	/* enable */
 		msleep(1);
 	} else {
-		gpio_direction_output(gpio_pin, 1);	/* disable */
+		gpio_direction_output(pwd_main, 1);	/* disable */
 	}
-
-	gpio_free(gpio_pin);
 	return 0;
 }
 
 static int camera1_power(struct device *dev, int flag)
 {
-	int gpio_pin = mfp_to_gpio(MFP_PIN_GPIO14);
-	int gpio_pin_mipi = mfp_to_gpio(MFP_PIN_GPIO81);
-
-	if (gpio_request(gpio_pin, "CAM_EANBLE_LOW_SENSOR")) {
-		printk(KERN_ERR "cam: Request GPIO failed,"
-				"gpio: %d\n", gpio_pin);
-		return -EIO;
-	}
-
-	if (gpio_request(gpio_pin_mipi, "CAM_EANBLE_HI_SENSOR")) {
-		printk(KERN_ERR "cam: Request GPIO failed,"
-				"gpio: %d\n", gpio_pin_mipi);
-		return -EIO;
-	}
 
 	if (flag) {
-		gpio_direction_output(gpio_pin_mipi, 0);
-		gpio_direction_output(gpio_pin, 0);
+		gpio_direction_output(pwd_main, 0);
+		gpio_direction_output(pwd_sub, 0);
 		msleep(1);
 	} else {
-		gpio_direction_output(gpio_pin_mipi, 1);
-		gpio_direction_output(gpio_pin, 1);
+		gpio_direction_output(pwd_main, 1);
+		gpio_direction_output(pwd_sub, 1);
 	}
-
-	gpio_free(gpio_pin_mipi);
-	gpio_free(gpio_pin);
 	return 0;
 }
 
 static struct i2c_board_info camera_i2c[] = {
 	{
-		I2C_BOARD_INFO("ov5642", 0x3c),
+		I2C_BOARD_INFO("ov5642", 0x3C),
 	}, {
 		I2C_BOARD_INFO("ov7690", 0x21),
+	},
+};
+
+static struct pxa95x_csi_dev csidev[] = {
+	{
+		.irq_num	= 71,
+		.reg_start	= 0x50020000,
 	},
 };
 
@@ -444,43 +427,48 @@ static struct sensor_platform_data camera_sensor[] = {
 	{	/* OV5642 */
 		.mount_pos	= SENSOR_USED \
 					| SENSOR_POS_BACK | SENSOR_RES_HIGH,
+		/* Configure this domain according to hardware connection */
+		/* both of the 2 MIPI lanes are connected to pxa95x on SaarB */
 		.interface	= SOCAM_MIPI_1LANE | SOCAM_MIPI_2LANE,
-		.intrfc_id	= 0,
-		.bridge		= 1,
+		.csi_ctlr	= &csidev[0],	/* connected to CSI0 */
 		.af_cap		= 1,
 		.mclk_mhz	= 26,
 		.vendor_info	= "TRULY",
-		.board_name	= "saarb",
-	}, {	/* OV7690 */
+		.board_name	= "tavor",
+	},
+	{	/* OV7690 */
 		.mount_pos	= SENSOR_USED \
 					| SENSOR_POS_FRONT | SENSOR_RES_LOW,
-		.interface	= 0,
-		.intrfc_id	= 0,
-		.bridge		= 1,
-		.af_cap		= 1,
+		/* OV7690 use OV5642 as bridge, so MIPI config is the same */
+		.interface	= SOCAM_MIPI_1LANE | SOCAM_MIPI_2LANE,
+		.csi_ctlr	= &csidev[0],
+		.af_cap		= 0,
 		.mclk_mhz	= 26,
 		.vendor_info	= "N/A",
-		.board_name	= "saarb",
+		.board_name	= "tavor",
 	},
 };
 
 static struct soc_camera_link iclink[] = {
 	{
-		.bus_id			= 0, /* Must match with the camera ID */
+		.bus_id			= 0, /* Must match with the SCI ID */
 		.board_info		= &camera_i2c[0],
 		.i2c_adapter_id		= 1,
 		.power = camera0_power,
 		.module_name		= "ov5642",
-		/* Configure this flag according to hardware connection */
-		/* Both of the 2 MIPI lanes are connected to pxa95x on Saarb */
+		/* When flags[31] is set, priv domain is pointing to a */
+		/* sensor_platform_data to pass sensor parameters */
+		.flags			= 0x80000000,
 		.priv			= &camera_sensor[0],
 	}, {
-		.bus_id			= 0, /* Must match with the camera ID */
+		.bus_id			= 0, /* Must match with the SCI ID */
 		.board_info		= &camera_i2c[1],
 		.i2c_adapter_id		= 1,
 		.power = camera1_power,
 		.module_name		= "ov7690",
-		/* ov7690 is using ov5642 as bridge, so config is the same*/
+		/* When flags[31] is set, priv domain is pointing to a */
+		/* sensor_platform_data to pass sensor parameters */
+		.flags			= 0x80000000,
 		.priv			= &camera_sensor[1],
 	},
 };
@@ -500,43 +488,27 @@ static struct platform_device camera[] = {
 		},
 	},
 };
-
-static struct pxa95x_csi_dev csidev[] = {
-	{
-		.irq_num	= 71,
-		.reg_start	= 0x50020000,
-	},
-	/*TODO: if there is 2 csi controller, add its info here*/
-	/*
-	{
-		.irq_num	= 71,
-		.reg_base	= 0x50020000,
-	},
-	*/
-};
-
-/*
-* TODO: combine csi controller and camera controller, now we only have one
-* csi controller on pxa95x, and two camera controllers
-*/
-static struct pxa95x_cam_pdata cam_pdata[] = {
-	{
-		.csidev		= &csidev[0],
-	},
-	/*TODO: if there is 2 sci controller, add its info here*/
-	/*
-	{
-		.mclk_mhz	= 26,
-		.csidev		= &csidev[1],
-	},
-	*/
-};
-
 #endif
 
 static void __init init_cam(void)
 {
 #if defined(CONFIG_VIDEO_PXA955)
+	pwd_main = mfp_to_gpio(MFP_PIN_GPIO81);
+	pwd_sub = mfp_to_gpio(MFP_PIN_GPIO14);
+
+	/* Camera hold these GPIO forever, should not be accquired by others */
+	if (pwd_main && gpio_request(pwd_main, "CAM_HI_SENSOR_PWD")) {
+		printk(KERN_ERR "Request GPIO failed,"
+				"gpio: %d\n", pwd_main);
+		pwd_main = 0;
+		return;
+	}
+	if (pwd_sub && gpio_request(pwd_sub, "CAM_LOW_SENSOR_PWD")) {
+		printk(KERN_ERR "Request GPIO failed,"
+				"gpio: %d\n", pwd_sub);
+		pwd_sub = 0;
+		return;
+	}
 
 #if defined(CONFIG_SOC_CAMERA_OV5642)
 	platform_device_register(&camera[0]);
@@ -545,7 +517,6 @@ static void __init init_cam(void)
 	platform_device_register(&camera[1]);
 #endif
 
-	pxa95x_device_cam0.dev.platform_data = &cam_pdata[0];
 	platform_device_register(&pxa95x_device_cam0);
 
 	/* TODO: add sencond camera controller */

@@ -910,7 +910,7 @@ static struct sensor_platform_data camera_sensor[] = {
 		.af_cap		= 1,
 		.mclk_mhz	= 26,
 		.vendor_info	= "SUNNY",
-		.board_name	= "SaarC 3",
+		.board_name	= "tavor",
 	},
 	{/* OV9740 */
 		.mount_pos	= SENSOR_USED \
@@ -923,7 +923,7 @@ static struct sensor_platform_data camera_sensor[] = {
 		.af_cap		= 0,
 		.mclk_mhz	= 26,
 		.vendor_info	= "SUNNY",
-		.board_name	= "SaarC 2.5/3",
+		.board_name	= "tavor",
 	},
 	{/* OV5642 */
 		.mount_pos	= SENSOR_USED \
@@ -936,7 +936,7 @@ static struct sensor_platform_data camera_sensor[] = {
 		.af_cap		= 1,
 		.mclk_mhz	= 26,
 		.vendor_info	= "TRULY",
-		.board_name	= "pxa955-mipi",
+		.board_name	= "tavor",
 	},
 	{/* OV7692 */
 		.mount_pos	= SENSOR_USED \
@@ -949,7 +949,7 @@ static struct sensor_platform_data camera_sensor[] = {
 		.af_cap		= 0,
 		.mclk_mhz	= 26,
 		.vendor_info	= "N/A",
-		.board_name	= "pxa955-mipi",
+		.board_name	= "tavor",
 	},
 };
 

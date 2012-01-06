@@ -129,7 +129,7 @@ int to_mipi(u32 code, u32 width, u32 height)
 struct regval_list *fmt_reg = NULL, *res_reg = NULL;
 int ret;
 	/* ov5642 works as a mipi converter, switch dvp signal to mipi signal*/
-	ret = select_bus_type("saarb-mipi-bridge");
+	ret = select_bus_type("tavor-mipi-bridge");
 	if (ret) {
 		dev_err(&g_i2c_client->dev, \
 			"mipi bridge settings undefined\n");
@@ -570,9 +570,6 @@ static int ov5642_load_fw(struct v4l2_subdev *sd)
 	struct ov5642 *ov5642 = to_ov5642(client);
 	struct soc_camera_device *icd = client->dev.platform_data;
 	struct soc_camera_link *icl;
-#ifdef CONFIG_PXA95x
-	struct sensor_platform_data *pdata;
-#endif
 	int ret = 0;
 
 	icl = to_soc_camera_link(icd);
@@ -580,20 +577,28 @@ static int ov5642_load_fw(struct v4l2_subdev *sd)
 		dev_err(&client->dev, "ov5642 driver needs platform data\n");
 		return -EINVAL;
 	}
-#ifdef CONFIG_PXA95x
-	pdata = icl->priv;
-	if (pdata != NULL) {
-		char name[32];
-		strcpy(name, pdata->board_name);
-		if (pdata->interface & SOCAM_MIPI)
-			strcat(name, "-mipi");
-		else
-			strcat(name, "-dvp");
-		ret = select_bus_type(name);
-#else
+
 	if (icl->priv) {
-		ret = select_bus_type(icl->priv);
+		if (icl->flags & 0x80000000) {
+#ifdef CONFIG_PXA95x
+			/* priv is pointing to sensor_platform_data */
+			struct sensor_platform_data *sensor = icl->priv;
+			char name[32] = {0};
+
+			strcpy(name, sensor->board_name);
+			/* add postfix according to interface flag */
+			icl->flags |= sensor->interface;
+			if (icl->flags & SOCAM_MIPI)
+				strcat(name, "-mipi");
+			else
+				strcat(name, "-dvp");
+
+			ret = select_bus_type(name);
 #endif
+		} else
+			/* priv is pointing to ov5642 profile name */
+			ret = select_bus_type(icl->priv);
+
 		if (ret) {
 			dev_err(&client->dev, "need know interface type\n");
 			return ret;
