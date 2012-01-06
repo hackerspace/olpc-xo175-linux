@@ -450,6 +450,43 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.lpj = 5026132 * 100 / HZ,
 		.name = "1014M",
 	},
+	/* 1196MHz */
+	{
+		.core = 1196,
+		.smcfs = 156,
+		.sflfs = 312,
+		.hss = 208,
+		.axifs = 156,
+		.dmcfs = 800,
+		.display = 416,
+		.df_clk = 78,
+		.gcfs = 500,
+		.gcaxifs = 500,
+		.vmfc = 500,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 5928258 * 100 / HZ,
+		.name = "1196M",
+	},
+	/* 1404MHz */
+	{
+		.core = 1404,
+		.smcfs = 156,
+		.sflfs = 312,
+		.hss = 208,
+		.axifs = 156,
+		.dmcfs = 800,
+		.display = 416,
+		.df_clk = 78,
+		.gcfs = 500,
+		.gcaxifs = 500,
+		.vmfc = 500,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 6959259 * 100 / HZ,
+		.name = "1404M",
+	},
+
 	/* D1 mode */
 	{
 		.vcc_core = 1250,
