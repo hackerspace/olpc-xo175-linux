@@ -190,6 +190,11 @@ static unsigned long ttc_dkb_pxa910h_pin_config[] __initdata = {
 	GPIO47_UART0_RXD,
 	GPIO48_UART0_TXD,
 
+	/* FT5306 TOUCH */
+	GPIO43_GPIO43,
+	GPIO44_GPIO44 | MFP_MEDIUM | MFP_PULL_LOW,
+	GPIO110_GPIO110 | MFP_PULL_HIGH,
+
 	/* GPIO */
 	GPIO16_GPIO16,
 
@@ -851,7 +856,11 @@ static struct pca953x_platform_data max7312_data[] = {
 static int ft5306_touch_io_power_onoff(int on)
 {
 	unsigned int tp_logic_en;
-	tp_logic_en = GPIO_EXT0(MFP_PIN_GPIO15);
+
+	if (cpu_is_pxa910h())
+		tp_logic_en = MFP_PIN_GPIO110;
+	else
+		tp_logic_en = GPIO_EXT0(MFP_PIN_GPIO15);
 
 	if (gpio_request(tp_logic_en, "TP_LOGIC_EN")) {
 		printk(KERN_ERR "Request GPIO failed,"
@@ -859,9 +868,10 @@ static int ft5306_touch_io_power_onoff(int on)
 		return -EIO;
 	}
 
-	if (on)
+	if (on) {
 		gpio_direction_output(tp_logic_en, 1);
-	else
+		msleep(10);
+	} else
 		gpio_direction_output(tp_logic_en, 0);
 
 	gpio_free(tp_logic_en);
@@ -870,17 +880,25 @@ static int ft5306_touch_io_power_onoff(int on)
 
 static void ft5306_touch_reset(void)
 {
-	unsigned int touch_reset = MFP_PIN_GPIO46;
+	unsigned int touch_reset;
+
+	if (cpu_is_pxa910h())
+		touch_reset = MFP_PIN_GPIO44;
+	else
+		touch_reset = MFP_PIN_GPIO46;
 
 	if (gpio_request(touch_reset, "ft5306_reset")) {
 		pr_err("Failed to request GPIO for ft5306_reset pin!\n");
 		goto out;
 	}
 
-	gpio_direction_output(touch_reset, 0);
-	mdelay(5);
 	gpio_direction_output(touch_reset, 1);
-	printk(KERN_INFO "ft5306_touch reset successful.\n");
+	msleep(5);
+	gpio_direction_output(touch_reset, 0);
+	msleep(5);
+	gpio_direction_output(touch_reset, 1);
+	msleep(300);
+	printk(KERN_INFO "ft5306_touch reset done.\n");
 	gpio_free(touch_reset);
 out:
 	return;
@@ -1037,27 +1055,12 @@ static struct i2c_board_info ttc_dkb_pxa910h_i2c_info[] = {
 		.platform_data	= &ttc_dkb_pm8607_info,
 		.irq		= IRQ_PXA910_PMIC_INT,
 	},
-#if defined(CONFIG_TOUCHSCREEN_TPO)
-	{
-		.type		= "tpo_touch",
-		.addr		= 0x18,
-		.irq		= gpio_to_irq(45),
-	},
-#endif
 #if defined(CONFIG_TOUCHSCREEN_FT5306)
 	{
 		.type		= "ft5306_touch",
 		.addr		=  0x3A,
-		.irq		= gpio_to_irq(45),
+		.irq		= gpio_to_irq(43),
 		.platform_data	= &ft5306_touch_data,
-	},
-#endif
-#if defined(CONFIG_TOUCHSCREEN_ELAN)
-	{
-		.type		= "elan_touch",
-		.addr		= 0x8,
-		.irq		= gpio_to_irq(45),
-		.platform_data	= &elan_touch_data,
 	},
 #endif
 };
