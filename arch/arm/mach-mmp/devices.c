@@ -175,11 +175,22 @@ static int usb_phy_init_internal(unsigned int base)
 
 	udelay(100);
 
-	/*USB2_PLL_REG0 = 0x5df0 */
-	u2o_clear(base, USB2_PLL_REG0, (USB2_PLL_FBDIV_MASK_MMP3
-		| USB2_PLL_REFDIV_MASK_MMP3));
-	u2o_set(base, USB2_PLL_REG0, 0xd << USB2_PLL_REFDIV_SHIFT_MMP3
-		| 0xf0 << USB2_PLL_FBDIV_SHIFT_MMP3);
+	if (cpu_is_mmp3_b0()) {
+		u2o_clear(base, USB2_PLL_REG0,
+			USB2_PLL_REFDIV_MASK_MMP3_B0
+			| USB2_PLL_FBDIV_MASK_MMP3_B0);
+
+		u2o_set(base, USB2_PLL_REG0,
+			0xd << USB2_PLL_REFDIV_SHIFT_MMP3_B0
+			| 0xf0 << USB2_PLL_FBDIV_SHIFT_MMP3_B0);
+
+	} else if (cpu_is_mmp3_a0()) {
+		/*USB2_PLL_REG0 = 0x5df0 */
+		u2o_clear(base, USB2_PLL_REG0, (USB2_PLL_FBDIV_MASK_MMP3
+			| USB2_PLL_REFDIV_MASK_MMP3));
+		u2o_set(base, USB2_PLL_REG0, 0xd << USB2_PLL_REFDIV_SHIFT_MMP3
+			| 0xf0 << USB2_PLL_FBDIV_SHIFT_MMP3);
+	}
 
 	/* USB2_PLL_REG1 = 0x3333 */
 	u2o_clear(base, USB2_PLL_REG1, USB2_PLL_PU_PLL_MASK
