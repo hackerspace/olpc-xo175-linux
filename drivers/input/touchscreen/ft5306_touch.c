@@ -341,17 +341,18 @@ ft5306_touch_probe(struct i2c_client *client,
 	touch->irq = client->irq;
 	touch->pen_status = FT5306_PEN_UP;
 	touch->data->power(1);
+
+	if (touch->data->reset)
+		touch->data->reset();
+
 	ret = ft5306_touch_read_reg(0x00, (u8 *)&reg_val);
 	if (ret < 0) {
 		dev_dbg(&client->dev, "ft5306 detect fail!\n");
 		touch->i2c = NULL;
 		return -ENXIO;
 	} else {
-		dev_dbg(&client->dev, "ft5306 reset.\n");
+		dev_dbg(&client->dev, "ft5306 detect ok.\n");
 	}
-
-	if (touch->data->reset)
-		touch->data->reset();
 
 	/* register input device */
 	touch->idev = input_allocate_device();
