@@ -1,0 +1,75 @@
+Note: For Kernel 3.0
+
+TODO List
+---------
+All basic functionalities are ready(OTG,Device,Host).
+Need to verify and fix bug.
+
+Source List
+-----------
+- USB Device: in drivers/usb/gadget/
+  - USB Device Controller driver
+    mv_udc_core.c
+  - USB composite driver
+    composite.c
+  - Android usb driver
+    android.c
+  - USB functions
+    Mass Storage: f_mass_storage.c
+    MTP: f_mtp.c
+    ADB: f_adb.c
+    RNDIS: f_rndis.c
+    Accessory: f_accessory.c
+    ACM: f_acm.c
+- Host: in drivers/usb/host/
+    ehci-mv.c
+- OTG: in drivers/usb/otg/
+    mv_otg.c
+
+How To Use
+----------
+- Enable USB Functions
+  Functions and the device descriptor are configured from user space,
+  take mtp&adb combination as example here:
+  $echo 0       > /sys/class/android_usb/android0/enable
+  $echo 1286    > /sys/class/android_usb/android0/idVendor
+  $echo 0001    > /sys/class/android_usb/android0/idProduct
+  $echo mtp,adb > /sys/class/android_usb/android0/functions
+  $echo 1       > /sys/class/android_usb/android0/enable
+
+- OTG Mode Switch
+  OTG can work as Device(Client) and Host role, there are 2 methods to
+  switch OTG from Device to Host mode.
+  - Insert a Mirco-A usb Adapter.
+  - By command:
+    $echo host > /sys/devices/platform/pxa-otg/inputs/otg_mode
+    Switch back to client mode.
+    $echo client > /sys/devices/platform/pxa-otg/inputs/otg_mode
+
+Constraints
+-----------
+- Windows compability
+  There are some constraints for usb fucntions w/ Windows BUT Linux not.
+  - Each combination should have unique PID to work peacefully w/ Windows.
+  - USB-IF core team mandates that composite devices containing
+    IAD's must use bDeviceClass=0xEF, bDeviceSubClass=0x02, &
+    bDeviceProtocol=0x01 instead of the usual 0x00 in all fields.
+    This is not a problem currently on Linux hosts, but it is a
+    problem when connecting to Windows hosts. Without this the
+    default Microsoft composite driver will not group interfaces
+    properly, which is what allows child function drivers with
+    IAD's to load correctly.
+  - bFirstInterface should be set equal to bInterfaceNumber of
+    the first interface in a grouping.
+  - For ACM,RNDIS IAD class, subclass & prot should match 1st iface
+    Microsoft recommends that the class and subclass fields of
+    an IAD match the same fields from the first interface in the
+    collection that the IAD is grouping. In practice, we are also
+    finding that the protocol fields should also match. Without
+    this, the default Microsoft composite driver may not group
+    interfaces properly, which is what allows child function
+    drivers with IAD's to load correctly.
+  - RNDIS and MTP should be the first interface in the combination.
+- Host AXI bus clock
+  The AXI bus clock shouldn't be shutdown if USB host(OTG and SPH) is working,
+  otherwise Pipe Error(-71, -110...) might come up.
