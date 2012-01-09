@@ -71,6 +71,37 @@ static void pxav3_set_private_registers(struct sdhci_host *host, u8 mask)
 	}
 }
 
+static int sdhci_pxa_safe_regulator_on(struct sdhci_host *host)
+{
+	struct sdhci_pltfm_host *pltfm_host;
+	struct sdhci_pxa *pxa;
+	int ret = 0;
+
+	pltfm_host = sdhci_priv(host);
+	pxa = pltfm_host->priv;
+
+	if (pxa && pxa->pdata && pxa->pdata->check_short_circuit)
+		if (pxa->pdata->check_short_circuit(host,
+			pxa->pdata->mfp_start,
+			pxa->pdata->mfp_num,
+			pxa->pdata->pull_up)) {
+
+			pr_info("WARNING SD short circuit detected\n");
+			ret = 1;
+		}
+
+	if (!ret) {
+		if (pxa && pxa->pdata && pxa->pdata->safe_regulator_on)
+			pxa->pdata->safe_regulator_on(host,
+				pxa->pdata->mfp_start,
+				pxa->pdata->mfp_num);
+		else
+			regulator_enable(host->vmmc);
+	}
+
+	return ret;
+}
+
 #define MAX_WAIT_COUNT 5
 static void pxav3_gen_init_74_clocks(struct sdhci_host *host, u8 power_mode)
 {
@@ -281,6 +312,7 @@ static struct sdhci_ops pxav3_sdhci_ops = {
 	.platform_send_init_74_clocks = pxav3_gen_init_74_clocks,
 	.signal_vol_change = pxav3_signal_vol_change,
 	.access_constrain = pxav3_access_constrain,
+	.safe_regulator_on = sdhci_pxa_safe_regulator_on,
 };
 
 static int ext_cd_init(void *data)

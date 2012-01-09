@@ -55,6 +55,37 @@ static void pxa95x_handle_cdint(struct sdhci_host *host)
 	}
 }
 
+static int sdhci_pxa_safe_regulator_on(struct sdhci_host *host)
+{
+	struct sdhci_pltfm_host *pltfm_host;
+	struct sdhci_pxa *pxa;
+	int ret = 0;
+
+	pltfm_host = sdhci_priv(host);
+	pxa = pltfm_host->priv;
+
+	if (pxa && pxa->pdata && pxa->pdata->check_short_circuit)
+		if (pxa->pdata->check_short_circuit(host,
+			pxa->pdata->mfp_start,
+			pxa->pdata->mfp_num,
+			pxa->pdata->pull_up)) {
+
+			pr_info("WARNING SD short circuit detected\n");
+			ret = 1;
+		}
+
+	if (!ret) {
+		if (pxa && pxa->pdata && pxa->pdata->safe_regulator_on)
+			pxa->pdata->safe_regulator_on(host,
+				pxa->pdata->mfp_start,
+				pxa->pdata->mfp_num);
+		else
+			regulator_enable(host->vmmc);
+	}
+
+	return ret;
+}
+
 static void sdhci_pxa_notify_change(struct platform_device *pdev, int state)
 {
 	struct sdhci_host *host = platform_get_drvdata(pdev);
@@ -68,11 +99,15 @@ static void sdhci_pxa_notify_change(struct platform_device *pdev, int state)
 			dev_dbg(&pdev->dev, "card inserted.\n");
 			host->quirks |= SDHCI_QUIRK_BROKEN_CARD_DETECTION;
 			spin_unlock_irqrestore(&host->lock, flags);
-			if (host->vmmc) {
-				pr_info("mmc power on vmmc=0x%x\n",
-					(int)host->vmmc);
-				regulator_enable(host->vmmc);
+
+			if(sdhci_pxa_safe_regulator_on(host)) {
+				spin_lock_irqsave(&host->lock, flags);
+				host->quirks &= ~SDHCI_QUIRK_BROKEN_CARD_DETECTION;
+				spin_unlock_irqrestore(&host->lock, flags);
+				return;
 			}
+			pr_info("mmc power on vmmc=0x%x\n",
+					(int)host->vmmc);
 		} else if(!state && old_state) {
 			old_state = state;
 			dev_dbg(&pdev->dev, "card removed.\n");
@@ -281,6 +316,7 @@ static struct sdhci_ops pxav2_sdhci_ops = {
 	.access_constrain = pxav2_access_constrain,
 	.handle_cdint = pxa95x_handle_cdint,
 	.is_present = ext_cd_status,
+	.safe_regulator_on = sdhci_pxa_safe_regulator_on,
 #ifdef CONFIG_MMC_SDHCI_IO_ACCESSORS
 	.read_l = sdhci_pxa_read_l,
 	.read_w = sdhci_pxa_read_w,

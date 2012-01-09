@@ -281,6 +281,7 @@ struct sdhci_ops {
 	void	(*access_constrain)(struct sdhci_host *host, unsigned int ac);
 	void	(*handle_cdint)(struct sdhci_host *host);
 	int	(*is_present)(struct sdhci_host *host);
+	int	(*safe_regulator_on)(struct sdhci_host *host);
 };
 
 #ifdef CONFIG_MMC_SDHCI_IO_ACCESSORS

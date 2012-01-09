@@ -20,7 +20,6 @@
 #include <linux/pm_qos_params.h>
 #include <linux/mmc/sdhci.h>
 
-
 /* pxa specific flag */
 /* Require clock free running */
 #define PXA_FLAG_ENABLE_CLOCK_GATING (1<<0)
@@ -71,9 +70,19 @@ struct sdhci_pxa_platdata {
 	unsigned int	host_caps;
 	unsigned int	quirks;
 	unsigned int	pm_caps;
+	int		mfp_start;
+	int		mfp_num;
+	int		pull_up;/*1--external pull-up, 0--no external pull-up*/
 	void	(*signal_1v8)(int set);
 	int	(*lp_switch)(unsigned int on, int with_card);
+<<<<<<< HEAD
 	void (*handle_cdint)(struct sdhci_host *host);
+=======
+	int	(*check_short_circuit)(struct sdhci_host *, const int,
+			const int, const int);
+	int	(*safe_regulator_on)(struct sdhci_host *, const int,
+			const int);
+>>>>>>> 476eb1f... mmc: add safe regulator on for SD slot
 	struct	pm_qos_request_list	qos_idle;
 #ifdef CONFIG_WAKELOCK
 	struct wake_lock	idle_lock;

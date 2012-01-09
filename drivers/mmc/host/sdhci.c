@@ -2353,7 +2353,12 @@ int sdhci_resume_host(struct sdhci_host *host)
 	int ret;
 
 	if (host->vmmc) {
-		int ret = regulator_enable(host->vmmc);
+		int ret;
+		if (host->ops->safe_regulator_on)
+			ret = host->ops->safe_regulator_on(host);
+		else
+			ret = regulator_enable(host->vmmc);
+
 		if (ret)
 			return ret;
 	}
@@ -2841,7 +2846,12 @@ int sdhci_add_host(struct sdhci_host *host)
 		printk(KERN_INFO "%s: no vmmc regulator found\n", mmc_hostname(mmc));
 		host->vmmc = NULL;
 	} else {
-		regulator_enable(host->vmmc);
+		if (host->ops->safe_regulator_on) {
+			ret = host->ops->safe_regulator_on(host);
+			if (ret)
+				goto untasklet;
+		} else
+			regulator_enable(host->vmmc);
 	}
 
 	host->vsdio = regulator_get(mmc_dev(mmc), "vsdio");
