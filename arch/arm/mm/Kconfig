@@ -968,3 +968,11 @@ config CACHE_TAUROS3_WRITETHROUGH
 	depends on CACHE_L2X0
 	help
 	  Say Y here to use the Tauros3 L2 cache in writethrough mode.
+
+config CACHE_TAUROS3_DISABLE_MEMORY_MAPPED_FUNCTIONS
+	bool "Disable Tauros3 memory mapped cache maintenance functions"
+	depends on CACHE_L2X0
+	help
+	  Say Y here to disable Tauros3 memory mapped cache maintenance functions.
+	  In Tauros3, when "Point of Coherence" cache maintenance operations are
+	  applied on a given address, both the L1 and L2 are automatically taken care of.
