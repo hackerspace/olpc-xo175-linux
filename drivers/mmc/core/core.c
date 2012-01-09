@@ -1980,6 +1980,40 @@ int mmc_resume_host(struct mmc_host *host)
 }
 EXPORT_SYMBOL(mmc_resume_host);
 
+#ifdef CONFIG_MMC_BLOCK_AUTO_RESUME
+int mmc_auto_resume(struct mmc_host *host, int on)
+{
+	struct mmc_card *card = host->card;
+
+	if (on) {
+		spin_lock_irq(&host->lock);
+		if (atomic_read(&card->suspended) || atomic_read(&host->suspended)) {
+			spin_unlock_irq(&host->lock);
+			printk(KERN_WARNING "%s: blk req in suspended \n",
+				mmc_hostname(host));
+			wake_lock(&host->auto_resume_wake_lock);
+			/*
+			* On Suspend: CARD-level, then Low-Level(card->host->suspended)
+			* On Resume: Low-Level, then CARD level
+			* So wait for BOTH supend-exit
+			*/
+			while ( atomic_read(&card->suspended) || atomic_read(&card->host->suspended))
+				msleep(1);
+			msleep(1);/*This gives the chance to schedule the suspend/resume thread */
+		} else
+			spin_unlock_irq(&host->lock);
+	} else {
+		if( wake_lock_active(&host->auto_resume_wake_lock) ) {
+			/*If the wake lock is active, extend the wake lock for
+			0.5s*/
+			wake_lock_timeout(&host->auto_resume_wake_lock, HZ/2);
+		}
+	}
+	return 0;
+}
+EXPORT_SYMBOL(mmc_auto_resume);
+#endif
+
 /* Do the card removal on suspend if card is assumed removeable
  * Do that in pm notifier while userspace isn't yet frozen, so we will be able
    to sync the card.

@@ -217,8 +217,9 @@ struct mmc_card {
 
 	struct dentry		*debugfs_root;
 	/* external interrupt arrived after sdio function suspended */
-	u8                      pending_interrupt;
-	u8                      disabled;
+	u8			pending_interrupt;
+	u8			disabled;
+	atomic_t		suspended;
 };
 
 /*

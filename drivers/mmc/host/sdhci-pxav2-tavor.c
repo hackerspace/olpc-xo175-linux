@@ -347,6 +347,10 @@ static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
 			host->mmc->pm_flags |= MMC_PM_ALWAYS_ACTIVE;
 		}
 
+		if (pdata && pdata->flags & PXA_FLAG_KEEP_POWER_IN_SUSPEND) {
+			host->mmc->pm_flags |= MMC_PM_KEEP_POWER;
+		}
+
 		if (pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING) {
 			pxav2_access_constrain(host, 1);
 			host->mmc->caps |= MMC_CAP_ENABLE_BUS_CLK_GATING;
@@ -448,22 +452,30 @@ static int __devexit sdhci_pxav2_remove(struct platform_device *pdev)
 static int sdhci_pxav2_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct sdhci_host *host = platform_get_drvdata(pdev);
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_pxa *pxa = pltfm_host->priv;
 	int ret = 0;
 
 	/* Skip the suspend process if the controller is to be accessed during suspend */
 	BUG_ON(!host || !host->mmc);
-	if(host->mmc->pm_flags & MMC_PM_ALWAYS_ACTIVE) {
+	if(pxa->pdata->flags & PXA_FLAG_KEEP_POWER_IN_SUSPEND)
+		return ret;
+
+	if (atomic_read(&host->mmc->suspended)) {
+		printk(KERN_WARNING"%s already suspended\n", mmc_hostname(host->mmc));
 		return ret;
 	}
+
+	atomic_inc(&host->mmc->suspended);
 
 	if (device_may_wakeup(&pdev->dev))
 		enable_irq_wake(host->irq);
 
 	ret = sdhci_suspend_host(host, state);
-	if (ret)
+	if (ret) {
+		atomic_dec(&host->mmc->suspended);
 		return ret;
-
-	host->mmc->suspended = 1;
+	}
 
 	return ret;
 }
@@ -471,20 +483,22 @@ static int sdhci_pxav2_suspend(struct platform_device *pdev, pm_message_t state)
 static int sdhci_pxav2_resume(struct platform_device *pdev)
 {
 	struct sdhci_host *host = platform_get_drvdata(pdev);
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_pxa *pxa = pltfm_host->priv;
 	int ret = 0;
 
 	/* Skip the resume process if the controller is to be accessed during suspend */
 	BUG_ON(!host || !host->mmc);
-	if(host->mmc->pm_flags & MMC_PM_ALWAYS_ACTIVE) {
+	if(pxa->pdata->flags & PXA_FLAG_KEEP_POWER_IN_SUSPEND) {
 		return ret;
 	}
 
-	host->mmc->suspended = 0;
 	ret = sdhci_resume_host(host);
 
 	if (device_may_wakeup(&pdev->dev))
 		disable_irq_wake(host->irq);
 
+	atomic_dec(&host->mmc->suspended);
 	return ret;
 }
 #endif	/* CONFIG_PM */

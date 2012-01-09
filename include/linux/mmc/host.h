@@ -267,6 +267,7 @@ struct mmc_host {
 	struct delayed_work	detect;
 	struct wake_lock	detect_wake_lock;
 	void                    *detect_complete;
+	struct wake_lock	auto_resume_wake_lock;	/*wake lock for auto resume*/
 	const struct mmc_bus_ops *bus_ops;	/* current bus driver */
 	unsigned int		bus_refs;	/* reference counter */
 
@@ -299,7 +300,7 @@ struct mmc_host {
 	} embedded_sdio_data;
 #endif
 
-	u32                     suspended;
+	atomic_t		suspended;
 	unsigned long		private[0] ____cacheline_aligned;
 };
 
@@ -341,6 +342,9 @@ extern int mmc_resume_bus(struct mmc_host *host);
 
 extern int mmc_suspend_host(struct mmc_host *);
 extern int mmc_resume_host(struct mmc_host *);
+#ifdef CONFIG_MMC_BLOCK_AUTO_RESUME
+extern int mmc_auto_resume(struct mmc_host *, int);
+#endif
 
 extern int mmc_power_save_host(struct mmc_host *host);
 extern int mmc_power_restore_host(struct mmc_host *host);

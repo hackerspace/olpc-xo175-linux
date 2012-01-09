@@ -31,10 +31,12 @@
 /* adding host sleep feature needs a wakelock,
        for sdio slot on Tavor/MG/Nevo only */
 #define PXA_FLAG_HS_NEED_WAKELOCK (1<<3)
-/* controller always active during suspend */
+/* MMC functionality always active during suspend */
 #define PXA_FLAG_ACITVE_IN_SUSPEND (1<<4)
 /* wifi wakeup host sleep feature */
 #define PXA_FLAG_WAKEUP_HOST (1<<5)
+/* controller always active during suspend */
+#define PXA_FLAG_KEEP_POWER_IN_SUSPEND (1<<6)
 
 /*
  * struct pxa_sdhci_platdata() - Platform device data for PXA SDHCI

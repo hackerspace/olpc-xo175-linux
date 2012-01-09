@@ -1106,6 +1106,10 @@ static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 	struct mmc_blk_data *md = mq->data;
 	struct mmc_card *card = md->queue.card;
 
+#ifdef CONFIG_MMC_BLOCK_AUTO_RESUME
+	mmc_auto_resume(card->host, 1);
+#endif
+
 #ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
 	if (mmc_bus_needs_resume(card->host)) {
 		mmc_resume_bus(card->host);
@@ -1133,6 +1137,10 @@ static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 
 out:
 	mmc_release_host(card->host);
+
+#ifdef CONFIG_MMC_BLOCK_AUTO_RESUME
+	mmc_auto_resume(card->host, 0);
+#endif
 	return ret;
 }
 
@@ -1491,6 +1499,7 @@ static int mmc_blk_suspend(struct mmc_card *card, pm_message_t state)
 		return 0;
 	}
 
+	atomic_inc(&card->suspended);
 	if (md) {
 		mmc_queue_suspend(&md->queue);
 		list_for_each_entry(part_md, &md->part, part) {
@@ -1526,6 +1535,7 @@ static int mmc_blk_resume(struct mmc_card *card)
 			mmc_queue_resume(&part_md->queue);
 		}
 	}
+	atomic_dec(&card->suspended);
 	return 0;
 }
 #else

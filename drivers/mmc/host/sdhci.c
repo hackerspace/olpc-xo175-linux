@@ -2358,7 +2358,6 @@ int sdhci_resume_host(struct sdhci_host *host)
 			return ret;
 	}
 
-
 	if (host->flags & (SDHCI_USE_SDMA | SDHCI_USE_ADMA)) {
 		if (host->ops->enable_dma)
 			host->ops->enable_dma(host);

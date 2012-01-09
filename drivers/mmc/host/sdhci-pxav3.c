@@ -331,24 +331,36 @@ static int sdhci_pxav3_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct sdhci_host *host = platform_get_drvdata(pdev);
 	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_pxa *pxa = pltfm_host->priv;
 	int ret = 0;
+
+	if(pxa->pdata->flags & PXA_FLAG_KEEP_POWER_IN_SUSPEND)
+		return ret;
+
+	if (atomic_read(&host->mmc->suspended)) {
+		printk(KERN_WARNING"%s already suspended\n", mmc_hostname(host->mmc));
+		return ret;
+	}
+	atomic_inc(&host->mmc->suspended);
 
 	if (device_may_wakeup(&pdev->dev))
 		enable_irq_wake(host->irq);
 
 	ret = sdhci_suspend_host(host, state);
-	if (ret)
+	if (ret) {
+		atomic_dec(&host->mmc->suspended);
 		return ret;
+	}
 
 	if (pdata->lp_switch) {
 		ret = pdata->lp_switch(1, (int)host->mmc->card);
 		if (ret) {
+			atomic_dec(&host->mmc->suspended);
 			sdhci_resume_host(host);
 			dev_err(&pdev->dev, "fail to switch gpio, resume..\n");
 		}
 	}
-	if (!ret)
-		host->mmc->suspended = 1;
 
 	return ret;
 }
@@ -357,16 +369,22 @@ static int sdhci_pxav3_resume(struct platform_device *pdev)
 {
 	struct sdhci_host *host = platform_get_drvdata(pdev);
 	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_pxa *pxa = pltfm_host->priv;
 	int ret = 0;
+
+	if(pxa->pdata->flags & PXA_FLAG_KEEP_POWER_IN_SUSPEND)
+		return ret;
 
 	if (pdata->lp_switch)
 		pdata->lp_switch(0, (int)host->mmc->card);
 
-	host->mmc->suspended = 0;
 	ret = sdhci_resume_host(host);
 
 	if (device_may_wakeup(&pdev->dev))
 		disable_irq_wake(host->irq);
+
+	atomic_dec(&host->mmc->suspended);
 
 	return ret;
 }
