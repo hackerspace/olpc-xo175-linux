@@ -821,6 +821,14 @@ __kuser_cmpxchg_pj4b_errata_6011:
 	.align	5
 #endif
 
+#if defined(CONFIG_PJ4B_ERRATA_6359_LIGHTWEIGHT)
+__kuser_memory_barrier_errata_6359_lightweight:
+	smp_dmb	arm
+	usr_ret	lr
+
+	.align	5
+#endif
+
 /*
  * Reference prototype:
  *
@@ -854,8 +862,16 @@ __kuser_cmpxchg_pj4b_errata_6011:
  */
 
 __kuser_memory_barrier:				@ 0xffff0fa0
+#if defined(CONFIG_PJ4B_ERRATA_6359_LIGHTWEIGHT)
+	/*
+	 * smp_dmb is now defined as "DMB + 8 NOPs", which exceeds the 8 words
+	 * limitation of kuser function. We jump to another place for workaround.
+	 */
+	b	__kuser_memory_barrier_errata_6359_lightweight
+#else
 	smp_dmb	arm
 	usr_ret	lr
+#endif
 
 	.align	5
 

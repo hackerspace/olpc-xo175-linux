@@ -192,11 +192,23 @@
 	.macro	smp_dmb mode
 #ifdef CONFIG_SMP
 #if __LINUX_ARM_ARCH__ >= 7
-#ifdef CONFIG_PJ4B_ERRATA_6359
+#if defined(CONFIG_PJ4B_ERRATA_6359)
 	.ifeqs "\mode","arm"
 	ALT_SMP(dsb)
 	.else
 	ALT_SMP(W(dsb))
+	.endif
+#elif defined(CONFIG_PJ4B_ERRATA_6359_LIGHTWEIGHT)
+	.ifeqs "\mode","arm"
+	ALT_SMP(dmb)
+	.rept	8
+	ALT_SMP(nop)
+	.endr
+	.else
+	ALT_SMP(W(dmb))
+	.rept	8
+	ALT_SMP(W(nop))
+	.endr
 	.endif
 #else
 	.ifeqs "\mode","arm"

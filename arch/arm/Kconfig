@@ -1292,10 +1292,17 @@ config PJ4B_ERRATA_6107
 
 config PJ4B_ERRATA_6359
 	bool "PJ4B errata 6359"
-	depends on CPU_PJ4B
+	depends on CPU_PJ4B && !PJ4B_ERRATA_6359_LIGHTWEIGHT
 	help
 	  Boradcast DMB operations do not fully synchronize local cache hits. This option
 	  replaces all occurences of DMB with DSB.
+
+config PJ4B_ERRATA_6359_LIGHTWEIGHT
+	bool "PJ4B errata 6359 lightweight"
+	depends on CPU_PJ4B
+	help
+	  Boradcast DMB operations do not fully synchronize local cache hits. This option
+	  add 8 NOP after DMB.
 
 endmenu
 

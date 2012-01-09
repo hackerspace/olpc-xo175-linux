@@ -134,8 +134,10 @@ extern unsigned int user_debug;
 #if __LINUX_ARM_ARCH__ >= 7
 #define isb() __asm__ __volatile__ ("isb" : : : "memory")
 #define dsb() __asm__ __volatile__ ("dsb" : : : "memory")
-#ifdef CONFIG_PJ4B_ERRATA_6359
+#if defined(CONFIG_PJ4B_ERRATA_6359)
 #define dmb() __asm__ __volatile__ ("dsb" : : : "memory")
+#elif defined(CONFIG_PJ4B_ERRATA_6359_LIGHTWEIGHT)
+#define dmb() __asm__ __volatile__ ("dmb\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n" : : : "memory")
 #else
 #define dmb() __asm__ __volatile__ ("dmb" : : : "memory")
 #endif

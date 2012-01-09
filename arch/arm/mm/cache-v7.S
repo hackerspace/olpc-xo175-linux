@@ -42,8 +42,13 @@ ENDPROC(v7_flush_icache_all)
  *	- mm    - mm_struct describing address space
  */
 ENTRY(v7_flush_dcache_all)
-#ifdef CONFIG_PJ4B_ERRATA_6359
+#if defined(CONFIG_PJ4B_ERRATA_6359)
 	dsb
+#elif defined(CONFIG_PJ4B_ERRATA_6359_LIGHTWEIGHT)
+	dmb
+	.rept 8
+	nop
+	.endr
 #else
 	dmb					@ ensure ordering with previous memory accesses
 #endif
