@@ -101,6 +101,13 @@ config INPUT_MAX8925_ONKEY
 	  To compile this driver as a module, choose M here: the module
 	  will be called max8925_onkey.
 
+config INPUT_MAX77601_ONKEY
+	tristate "MAX77601 ONKEY support"
+	depends on MFD_MAX77601
+	help
+	  Support the ONKEY of MAX77601 PMICs as an input device
+	  reporting power button status.
+
 config INPUT_APANEL
 	tristate "Fujitsu Lifebook Application Panel buttons"
 	depends on X86 && I2C && LEDS_CLASS
