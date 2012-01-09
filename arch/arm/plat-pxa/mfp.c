@@ -26,68 +26,6 @@
 
 #include <plat/mfp.h>
 
-#define MFPR_SIZE	(PAGE_SIZE)
-
-/* MFPR register bit definitions */
-#define MFPR_PULL_SEL		(0x1 << 15)
-#define MFPR_PULLUP_EN		(0x1 << 14)
-#define MFPR_PULLDOWN_EN	(0x1 << 13)
-#define MFPR_SLEEP_SEL		(0x1 << 9)
-#define MFPR_SLEEP_OE_N		(0x1 << 7)
-#define MFPR_EDGE_CLEAR		(0x1 << 6)
-#define MFPR_EDGE_FALL_EN	(0x1 << 5)
-#define MFPR_EDGE_RISE_EN	(0x1 << 4)
-
-#define MFPR_SLEEP_DATA(x)	(((x) & 0x1) << 8)
-#define MFPR_DRIVE(x)		(((x) & 0x7) << 10)
-#define MFPR_AF_SEL(x)		(((x) & 0x7) << 0)
-
-#define MFPR_EDGE_NONE		(MFPR_EDGE_CLEAR)
-#define MFPR_EDGE_RISE		(MFPR_EDGE_RISE_EN)
-#define MFPR_EDGE_FALL		(MFPR_EDGE_FALL_EN)
-#define MFPR_EDGE_BOTH		(MFPR_EDGE_RISE | MFPR_EDGE_FALL)
-
-/*
- * Table that determines the low power modes outputs, with actual settings
- * used in parentheses for don't-care values. Except for the float output,
- * the configured driven and pulled levels match, so if there is a need for
- * non-LPM pulled output, the same configuration could probably be used.
- *
- * Output value  sleep_oe_n  sleep_data  pullup_en  pulldown_en  pull_sel
- *                 (bit 7)    (bit 8)    (bit 14)     (bit 13)   (bit 15)
- *
- * Drive 0          0          0           0           X(1)       0
- * Drive 1          0          1           X(1)        0	  0
- * Pull hi (1)      1          X(1)        1           0	  0
- * Pull lo (0)      1          X(0)        0           1	  0
- * Z (float)        1          X(0)        0           0	  0
- */
-#define MFPR_LPM_DRIVE_LOW	(MFPR_SLEEP_DATA(0) | MFPR_PULLDOWN_EN)
-#define MFPR_LPM_DRIVE_HIGH    	(MFPR_SLEEP_DATA(1) | MFPR_PULLUP_EN)
-#define MFPR_LPM_PULL_LOW      	(MFPR_LPM_DRIVE_LOW  | MFPR_SLEEP_OE_N)
-#define MFPR_LPM_PULL_HIGH     	(MFPR_LPM_DRIVE_HIGH | MFPR_SLEEP_OE_N)
-#define MFPR_LPM_FLOAT         	(MFPR_SLEEP_OE_N)
-#define MFPR_LPM_MASK		(0xe080)
-
-/*
- * The pullup and pulldown state of the MFP pin at run mode is by default
- * determined by the selected alternate function. In case that some buggy
- * devices need to override this default behavior,  the definitions below
- * indicates the setting of corresponding MFPR bits
- *
- * Definition       pull_sel  pullup_en  pulldown_en
- * MFPR_PULL_NONE       0         0        0
- * MFPR_PULL_LOW        1         0        1
- * MFPR_PULL_HIGH       1         1        0
- * MFPR_PULL_BOTH       1         1        1
- * MFPR_PULL_FLOAT	1         0        0
- */
-#define MFPR_PULL_NONE		(0)
-#define MFPR_PULL_LOW		(MFPR_PULL_SEL | MFPR_PULLDOWN_EN)
-#define MFPR_PULL_BOTH		(MFPR_PULL_LOW | MFPR_PULLUP_EN)
-#define MFPR_PULL_HIGH		(MFPR_PULL_SEL | MFPR_PULLUP_EN)
-#define MFPR_PULL_FLOAT		(MFPR_PULL_SEL)
-
 /* mfp_spin_lock is used to ensure that MFP register configuration
  * (most likely a read-modify-write operation) is atomic, and that
  * mfp_table[] is consistent
