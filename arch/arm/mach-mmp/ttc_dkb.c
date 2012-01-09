@@ -513,6 +513,20 @@ static unsigned int ttc_dkb_matrix_key_map[] = {
 	KEY(6, 4, KEY_RIGHT),
 };
 
+static unsigned int ttc_dkb_910h_matrix_key_map[] = {
+	KEY(0, 0, KEY_BACKSPACE),
+	KEY(0, 1, KEY_END),
+
+	KEY(1, 0, KEY_SEND),
+	KEY(1, 1, KEY_HOME),
+
+	KEY(2, 0, KEY_MENU),
+	KEY(2, 1, KEY_RIGHTCTRL),
+
+	KEY(3, 0, KEY_VOLUMEUP),
+	KEY(3, 1, KEY_VOLUMEDOWN),
+};
+
 static struct pxa3xx_nand_platform_data dkb_nand_info = {
 	.attr		= ARBI_EN | NAKED_CMD | POLLING,
 	.num_cs		= 1,
@@ -523,6 +537,14 @@ static struct pxa27x_keypad_platform_data ttc_dkb_keypad_info __initdata = {
 	.matrix_key_cols	= 5,
 	.matrix_key_map		= ttc_dkb_matrix_key_map,
 	.matrix_key_map_size	= ARRAY_SIZE(ttc_dkb_matrix_key_map),
+	.debounce_interval	= 30,
+};
+
+static struct pxa27x_keypad_platform_data ttc_dkb_910h_keypad_info __initdata = {
+	.matrix_key_rows	= 4,
+	.matrix_key_cols	= 2,
+	.matrix_key_map		= ttc_dkb_910h_matrix_key_map,
+	.matrix_key_map_size	= ARRAY_SIZE(ttc_dkb_910h_matrix_key_map),
 	.debounce_interval	= 30,
 };
 
@@ -2336,7 +2358,11 @@ static void __init ttc_dkb_init(void)
 	/* enable vcxo for audio */
 	__raw_writel(0x1, MPMU_VRCR);
 
-	pxa910_add_keypad(&ttc_dkb_keypad_info);
+	if (cpu_is_pxa910h())
+		pxa910_add_keypad(&ttc_dkb_910h_keypad_info);
+	else
+		pxa910_add_keypad(&ttc_dkb_keypad_info);
+
 	pxa910_add_cnm();
 	if (cpu_is_pxa920() || cpu_is_pxa910()) {
 		pxa910_add_twsi(0, &dkb_i2c_pdata, ARRAY_AND_SIZE(ttc_dkb_i2c_info));
