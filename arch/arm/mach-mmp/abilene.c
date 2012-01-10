@@ -932,6 +932,9 @@ static struct regulator_consumer_supply abilene_max77601_sd3_supply[] = {
 	[3] = {
 		.supply = "pmic_lcd",
 	},
+	[4] = {
+		.supply = "pmic_2p8v",
+	},
 };
 
 /*
@@ -1196,9 +1199,9 @@ static int tpk_r800_set_power(int on)
 {
 	struct regulator *vcc = NULL;
 
-	vcc = regulator_get(NULL, "v_ldo8");
+	vcc = regulator_get(NULL, "pmic_2p8v");
 	if (IS_ERR(vcc)) {
-		pr_err("%s can't open!\n", "v_ldo8");
+		pr_err("Failed to get regulator pmic_2p8v!\n");
 		return -EIO;
 	}
 
