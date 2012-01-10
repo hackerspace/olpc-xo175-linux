@@ -61,6 +61,7 @@ struct mutex op_change_mutex;
 /* setting the default voltage level to 1.05V */
 unsigned int D2voltageLevelValue = 0x0D;
 extern struct info_head dvfm_trace_list;
+static unsigned int mm_pll_freq;
 
 /* Counter Structure for Debugging ENTER/EXIT D2/CGM */
 pxa95x_DVFM_LPM_Global_Count DVFMLPMGlobalCount = { 0, 0, 0 };
@@ -424,9 +425,9 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.dmcfs = 800,
 		.display = 312,
 		.df_clk = 78,
-		.gcfs = 500,
-		.gcaxifs = 500,
-		.vmfc = 500,
+		.gcfs = 498,
+		.gcaxifs = 498,
+		.vmfc = 498,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
 		.lpj = 4020906 * 100 / HZ,
@@ -442,9 +443,9 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.dmcfs = 800,
 		.display = 312,
 		.df_clk = 78,
-		.gcfs = 500,
-		.gcaxifs = 500,
-		.vmfc = 500,
+		.gcfs = 498,
+		.gcaxifs = 498,
+		.vmfc = 498,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
 		.lpj = 5026132 * 100 / HZ,
@@ -460,9 +461,9 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.dmcfs = 800,
 		.display = 416,
 		.df_clk = 78,
-		.gcfs = 500,
-		.gcaxifs = 500,
-		.vmfc = 500,
+		.gcfs = 600,
+		.gcaxifs = 600,
+		.vmfc = 600,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
 		.lpj = 5928258 * 100 / HZ,
@@ -478,9 +479,9 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.dmcfs = 800,
 		.display = 416,
 		.df_clk = 78,
-		.gcfs = 500,
-		.gcaxifs = 500,
-		.vmfc = 500,
+		.gcfs = 600,
+		.gcaxifs = 600,
+		.vmfc = 600,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
 		.lpj = 6959259 * 100 / HZ,
@@ -730,7 +731,8 @@ static int freq2reg(struct pxa95x_fv_info *fv_info, struct dvfm_md_opt *orig)
 				fv_info->gcfs = 0;
 			else if (orig->gcfs == 156)
 				fv_info->gcfs = 1;
-			else if (orig->gcfs == 500)
+			else if (orig->gcfs == 498
+				|| orig->gcfs == 600)
 				fv_info->gcfs = 5;
 			else
 				res = -EINVAL;
@@ -742,7 +744,8 @@ static int freq2reg(struct pxa95x_fv_info *fv_info, struct dvfm_md_opt *orig)
 				fv_info->gcaxifs = 0;
 			else if (orig->gcaxifs == 156)
 				fv_info->gcaxifs = 1;
-			else if (orig->gcaxifs == 500)
+			else if (orig->gcaxifs == 498
+				|| orig->gcaxifs == 600)
 				fv_info->gcaxifs = 5;
 			else
 				res = -EINVAL;
@@ -754,7 +757,8 @@ static int freq2reg(struct pxa95x_fv_info *fv_info, struct dvfm_md_opt *orig)
 				fv_info->vmfc = 2;
 			else if (orig->vmfc == 156)
 				fv_info->vmfc = 0;
-			else if (orig->vmfc == 500)
+			else if (orig->vmfc == 498
+				|| orig->vmfc == 600)
 				fv_info->vmfc = 5;
 			else
 				res = -EINVAL;
@@ -806,6 +810,35 @@ static int freq2reg(struct pxa95x_fv_info *fv_info, struct dvfm_md_opt *orig)
 int md2fvinfo(struct pxa95x_fv_info *fv_info, struct dvfm_md_opt *orig)
 {
 	return freq2reg(fv_info, orig);
+}
+
+static inline unsigned int get_mm_pll_freq(void)
+{
+	unsigned int mmpllr, fbdiv, refdiv, vcodiv_sel, vcodiv, freq = 0;
+	mmpllr = MM_PLL_PARAM;
+	fbdiv = (mmpllr & MMPLL_FBDIV_MASK) >> 5;
+	refdiv = mmpllr & MMPLL_REFDIV_MASK;
+	vcodiv_sel = (mmpllr & MMPLL_VCODIV_SEL_MASK) >> 20;
+	switch (vcodiv_sel) {
+	case 0:
+		vcodiv = 1;
+		break;
+	case 2:
+		vcodiv = 2;
+		break;
+	case 5:
+		vcodiv = 4;
+		break;
+	case 8:
+		vcodiv = 8;
+		break;
+	default:
+		pr_err("wrong vcodiv!\n");
+		BUG_ON(1);
+		break;
+	}
+	freq = (26 * fbdiv / refdiv) / vcodiv;
+	return freq;
 }
 
 static inline unsigned int get_core_pll(void)
@@ -993,7 +1026,7 @@ static int reg2freq(void *driver_data, struct dvfm_md_opt *fv_info)
 			else if (tmp == 3)
 				fv_info->gcfs = 416;
 			else if (tmp == 5)
-				fv_info->gcfs = 500;
+				fv_info->gcfs = mm_pll_freq;
 			tmp = fv_info->gcaxifs;
 			if (tmp == 0)
 				fv_info->gcaxifs = 208;
@@ -1004,7 +1037,7 @@ static int reg2freq(void *driver_data, struct dvfm_md_opt *fv_info)
 			else if (tmp == 3)
 				fv_info->gcaxifs = 416;
 			else if (tmp == 5)
-				fv_info->gcaxifs = 500;
+				fv_info->gcaxifs = mm_pll_freq;
 			tmp = fv_info->vmfc;
 			if (tmp == 0)
 				fv_info->vmfc = 156;
@@ -1015,7 +1048,7 @@ static int reg2freq(void *driver_data, struct dvfm_md_opt *fv_info)
 			else if (tmp == 3)
 				fv_info->vmfc = 416;
 			else if (tmp == 5)
-				fv_info->vmfc = 500;
+				fv_info->vmfc = mm_pll_freq;
 			tmp = fv_info->display;
 			if (tmp == 0)
 				fv_info->display = 104;
@@ -1369,6 +1402,58 @@ static int set_ddr_208Mhz(struct pxa95x_dvfm_info *info,
 	return rc;
 }
 
+static inline unsigned int mm_pll_freq2reg(unsigned int x)
+{
+	switch (x) {
+	case 498:
+		/* VCODIV_SEL=5 KVCO=5 FBDIV=230(0xE6) REFDIV=3*/
+		return 5 << 20 | 5 << 16 | 0xE6 << 5 | 3 << 0;
+	case 600:
+		/* VCODIV_SEL=5 KVCO=7 FBDIV=277(0x115) REFDIV=3*/
+		return 5 << 20 | 7 << 16 | 0x115 << 5 | 3 << 0;
+	default:
+		pr_err("Unsupported MM PLL frequency %d!\n", x);
+		return 0;
+	}
+}
+
+static inline void set_mm_pll_freq(void *driver_data,
+				   struct dvfm_md_opt *old,
+				   struct dvfm_md_opt *new,
+				   uint32_t accr0)
+{
+	uint32_t acsr0;
+	struct pxa95x_dvfm_info *info = driver_data;
+	uint32_t mm_pll_param, tmp;
+	/* Change MM PLL frequency if needed*/
+	if (new->gcfs >= 498 && mm_pll_freq != new->gcfs) {
+		mm_pll_param = MM_PLL_PARAM;
+		mm_pll_param &= ~(MMPLL_VCODIV_SEL_MASK
+				| MMPLL_KVCO_MASK
+				| MMPLL_FBDIV_MASK
+				| MMPLL_REFDIV_MASK);
+		mm_pll_param |= mm_pll_freq2reg(new->gcfs);
+		if (old->gcfs >= 498) {
+			/*Switch to 416Mhz clock before change MM PLL*/
+			tmp = accr0;
+			tmp &= ~(ACCR0_GCFS_MASK
+				| ACCR0_GCAXIFS_MASK
+				| ACCR0_VMFC_MASK);
+			tmp |= (0x3 << ACCR0_GCFS_OFFSET
+				| 0x3 << ACCR0_GCAXIFS_OFFSET
+				| 0x3 << ACCR0_VMFC_OFFSET);
+			__raw_writel(tmp, info->clkmgr_base + ACCR0_OFF);
+			do {
+				acsr0 = __raw_readl(info->clkmgr_base + ACSR0_OFF);
+			} while (tmp != acsr0);
+		}
+		MM_PLL_PARAM = mm_pll_param;
+		while (!(MM_PLL_CTRL & MMPLL_PWR_ST))
+			;
+		mm_pll_freq = new->gcfs;
+	}
+}
+
 /* TODO: sugguest to differentiate the operating point definition from
  * register info.And we can remove *reg_new here, and convert dvfm_md_opt to
  * it in the routine. That will make it much more clear.
@@ -1471,6 +1556,8 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 	accr &= ~(mask | mask2);
 	accr |= data | data2;
 	if (cpu_is_pxa978()) {
+		set_mm_pll_freq(driver_data, old, new, accr0);
+
 		write_accr_accr1((u32) sram_map + 0x9000,
 				(u32) sram_map + 0xa000 - 4, accr, accr1,
 				mask, data, (u32) info->clkmgr_base,
@@ -1927,8 +2014,8 @@ static int set_freq(void *driver_data, struct dvfm_md_opt *old,
 
 	if (cpu_is_pxa978()) {
 		/* turn on MM PLL if needed */
-		if ((new->gcfs >= 500 || new->vmfc >= 500) &&
-				(old->gcfs < 500 && old->vmfc < 500))
+		if ((new->gcfs >= 498 || new->vmfc >= 498) &&
+				(old->gcfs < 498 && old->vmfc < 498))
 			mm_pll_enable(1);
 	}
 
@@ -1959,8 +2046,8 @@ static int set_freq(void *driver_data, struct dvfm_md_opt *old,
 
 	if (cpu_is_pxa978()) {
 		/* turn off MM PLL if needed */
-		if ((new->gcfs < 500 && new->vmfc < 500) &&
-				(old->gcfs >= 500 || old->vmfc >= 500))
+		if ((new->gcfs < 498 && new->vmfc < 498) &&
+				(old->gcfs >= 498 || old->vmfc >= 498))
 			mm_pll_enable(0);
 	}
 
@@ -3286,6 +3373,7 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 		DDR_CLK_PROFILES = DDR_CLK_PROFILES & ~0x30;
 
 		ForceVCTCXO_EN = 1;
+		mm_pll_freq = get_mm_pll_freq();
 	}
 
 	rc = dvfm_find_index("User", &user_index);
