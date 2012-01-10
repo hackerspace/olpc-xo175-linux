@@ -481,7 +481,7 @@ static inline u8 l2cap_get_auth_type(struct l2cap_chan *chan)
 	if (chan->chan_type == L2CAP_CHAN_RAW) {
 		switch (chan->sec_level) {
 		case BT_SECURITY_HIGH:
-			return HCI_AT_NO_BONDING_MITM;
+			return HCI_AT_DEDICATED_BONDING_MITM;
 		case BT_SECURITY_MEDIUM:
 			return HCI_AT_DEDICATED_BONDING;
 		case BT_SECURITY_MEDIUM_GENERAL:
