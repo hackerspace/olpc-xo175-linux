@@ -1410,7 +1410,7 @@ endif # ACPI
 
 config SENSORS_CM3601
 	tristate "Light sensor and Proximity sensor"
-	depends on INPUT
+	depends on INPUT && MFD_88PM860X
 	default y
 	help
 	  This driver provides support for the CM3601 light sensor and proximity sensor
