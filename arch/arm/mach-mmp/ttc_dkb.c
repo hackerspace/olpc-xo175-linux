@@ -1699,7 +1699,7 @@ static int mmc0_lp_switch(unsigned int on, int with_card)
 		if (cpu_is_pxa921()) {
 			if (!regulator_sd_slot)
 				error = 1;
-		} else if (cpu_is_pxa920() || cpu_is_pxa910()) {
+		} else if (cpu_is_pxa920() || cpu_is_pxa918() || cpu_is_pxa910()) {
 			if (!sd_pwr_en)
 				error = 1;
 		}
@@ -2364,7 +2364,7 @@ static void __init ttc_dkb_init(void)
 		pxa910_add_keypad(&ttc_dkb_keypad_info);
 
 	pxa910_add_cnm();
-	if (cpu_is_pxa920() || cpu_is_pxa910()) {
+	if (cpu_is_pxa920() || cpu_is_pxa918() || cpu_is_pxa910()) {
 		pxa910_add_twsi(0, &dkb_i2c_pdata, ARRAY_AND_SIZE(ttc_dkb_i2c_info));
 	} else if (cpu_is_pxa921()) {
 		pxa910_add_twsi(0, &dkb_i2c_pdata, ARRAY_AND_SIZE(ttc_dkb_pxa921_i2c_info));
