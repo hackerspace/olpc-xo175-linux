@@ -450,7 +450,6 @@ struct pxa168fb_info {
 
 	/* suspend/resume related */
 	struct early_suspend    early_suspend;
-	unsigned		dma_ctrl0;
 	unsigned		irq_mask;
 
 	struct fb_var_screeninfo var_bak;

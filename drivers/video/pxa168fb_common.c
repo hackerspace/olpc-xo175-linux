@@ -672,6 +672,10 @@ int check_modex_active(struct pxa168fb_info *fbi)
 
 	active = fbi->active && fbi->dma_on;
 
+	/* disable all layers if in suspend */
+	if (!gfx_info.fbi[0]->active)
+		active = 0;
+
 	pr_debug("%s fbi[%d] vid %d fbi->active %d"
 		" dma_on %d: %d\n", __func__, fbi->id,
 		fbi->vid, fbi->active, fbi->dma_on, active);

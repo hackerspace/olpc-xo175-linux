@@ -1192,16 +1192,18 @@ static int _pxa168fb_suspend(struct pxa168fb_info *fbi)
 {
 	struct fb_info *info = fbi->fb_info;
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-	u32 clk;
+	u32 clk, mask = CFG_GRA_ENA_MASK;
 
 	/* notify others */
 	fb_set_suspend(info, 1);
 
-	/* stop graphics dma transaction */
-	fbi->dma_ctrl0 = dma_ctrl_read(fbi->id, 0) & ~CFG_GRA_ENA_MASK;
-	dma_ctrl_set(fbi->id, 0, CFG_GRA_ENA_MASK, 0);
+	/* stop dma transaction */
+#ifndef CONFIG_PXA168_V4L2_OVERLAY
+	mask |= CFG_DMA_ENA_MASK;
+#endif
+	dma_ctrl_set(fbi->id, 0, mask, 0);
 
-	/*Before disable lcd clk, disable all lcd interrupts*/
+	/* Before disable lcd clk, disable all lcd interrupts */
 	fbi->irq_mask = readl(fbi->reg_base + SPU_IRQ_ENA);
 	irq_mask_set(fbi->id, 0xffffffff, 0);
 
@@ -1262,9 +1264,12 @@ static int _pxa168fb_resume(struct pxa168fb_info *fbi)
 
 	/* restore dma after resume */
 	fbi->active = 1;
-	if (check_modex_active(fbi))
-		fbi->dma_ctrl0 |= CFG_GRA_ENA_MASK;
-	dma_ctrl_write(fbi->id, 0, fbi->dma_ctrl0);
+#ifndef CONFIG_ANDROID
+	set_dma_active(fbi);
+#ifndef CONFIG_PXA168_V4L2_OVERLAY
+	set_dma_active(ovly_info.fbi[fbi->id]);
+#endif
+#endif
 
 	/* notify others */
 	fb_set_suspend(info, 0);

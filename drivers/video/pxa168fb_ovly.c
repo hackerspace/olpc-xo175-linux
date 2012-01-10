@@ -620,12 +620,10 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 		val = CFG_DMA_ENA(check_modex_active(fbi));
 		if (vid_on == 0 && fbi->vdma_enable == 1)
 			pxa688_vdma_release(fbi);
-		if (!val) {
+		if (!val)
 			/* switch off, disable DMA */
 			dma_ctrl_set(fbi->id, 0, mask, val);
-			/* in case already suspended, save in sw */
-			gfx_info.fbi[fbi->id]->dma_ctrl0 &= ~mask;
-		} else if (list_empty(&fbi->buf_waitlist.dma_queue) &&
+		else if (list_empty(&fbi->buf_waitlist.dma_queue) &&
 			!fbi->buf_current)
 			/* switch on, but no buf flipped, return error */
 			; /* ret = -EAGAIN; */
