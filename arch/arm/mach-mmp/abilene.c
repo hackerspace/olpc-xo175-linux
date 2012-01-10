@@ -1099,6 +1099,12 @@ static void abilene_sd_signal_1v8(int set)
 #ifdef CONFIG_SD8XXX_RFKILL
 static void mmp3_8787_set_power(unsigned int on)
 {
+	/*
+	 * FIXME: 32K_CLK is shared with pmic io interface power on B0 with max77601
+	 * Don't touch this domain. But can be controlled on B0 with Ustica, add
+	 * operation later for Ustica.
+	 */
+#if 0
 	static struct regulator *v_ldo17;
 	static int f_enabled = 0;
 	/* v_ldo17 1.2v for 32k clk pull up*/
@@ -1122,6 +1128,7 @@ static void mmp3_8787_set_power(unsigned int on)
 		}
 		f_enabled = 0;
 	}
+#endif
 }
 #endif
 
