@@ -1663,48 +1663,20 @@ static int update_freq_for_voltage_change(void *driver_data,
 	return 0;
 }
 
-static void mm_pll_enable(unsigned int enable)
+static inline void pxa95x_set_core_freq(struct pxa95x_dvfm_info *info,
+					struct dvfm_md_opt *old,
+					struct dvfm_md_opt *new)
 {
-	if (enable) {
-		MM_PLL_CTRL |= MMPLL_PWRON;
-		while (!(MM_PLL_CTRL & MMPLL_PWR_ST))
-			;
-	} else
-		MM_PLL_CTRL &= ~MMPLL_PWRON;
-}
-
-static int set_freq(void *driver_data, struct dvfm_md_opt *old,
-		    struct dvfm_md_opt *new)
-{
-	struct pxa95x_dvfm_info *info = driver_data;
-	int low_ddr;
 	volatile uint32_t accr, acsr;
 
-	if (cpu_is_pxa978()) {
-		/* turn on MM PLL if needed */
-		if ((new->gcfs >= 500 || new->vmfc >= 500) &&
-				(old->gcfs < 500 && old->vmfc < 500))
-			mm_pll_enable(1);
-	}
-	/* check whether new OP is single PLL mode */
-	if (new->dmcfs == 208 || new->dmcfs == 312)
-		low_ddr = 1;
-	else
-		low_ddr = 0;
+	set_trim_values(old, new);
 
-	if (!cpu_is_pxa978())
-		set_trim_values(old, new);
-
-	/* turn on Grayback PLL */
-	if (!low_ddr && !check_grayback_pll(info))
-		set_grayback_pll(info, 1);
 	if (check_mts(old, new) == 2)
 		set_mts(info, 2);
 
 	/*If the alvl3HighVoltage does not equal to zero
 	   then this mechanism is active */
-	if (!cpu_is_pxa978() && ((new->xl == 38) || (old->xl == 38))
-	    && alvl3HighVoltage)
+	if (((new->xl == 38) || (old->xl == 38)) && alvl3HighVoltage)
 		update_freq_for_voltage_change(info, old, new);
 
 	accr = __raw_readl(info->clkmgr_base + ACCR_OFF);
@@ -1735,12 +1707,211 @@ static int set_freq(void *driver_data, struct dvfm_md_opt *old,
 		 != (acsr & (ACCR_XL_MASK | ACCR_XN_MASK)));
 
 	udelay(1);
+}
+
+static inline unsigned int syspll_freq2reg(unsigned int x)
+{
+	switch (x) {
+	case 104:
+		return 0 << 1;
+	case 156:
+		return 1 << 1;
+	case 208:
+		return 2 << 1;
+	case 312:
+		return 3 << 1;
+	case 416:
+		return 4 << 1;
+	default:
+		return -1;
+	}
+}
+
+static inline unsigned int corepll_freq2reg(unsigned int x)
+{
+	switch (x) {
+	case 624:
+		/* FBDIV=144, KVCO=1 */
+		return 0x90 << 5 | 1 << 21;
+	case 806:
+		/* FBDIV=186, KVCO=3 */
+		return 0xba << 5 | 3 << 21;
+	case 1014:
+		/* FBDIV=234, KVCO=5 */
+		return 0xea << 5 | 5 << 21;
+	default:
+		pr_err("The core frequency %uMHz is not supported.\n", x);
+		return 0;
+	}
+}
+
+static volatile u32 __iomem *addr_data_ram_control, *l2_control_addr;
+static inline void set_data_laterncy(unsigned int value)
+{
+	__asm__("dsb");
+	writel(0, l2_control_addr);
+	writel(value, addr_data_ram_control);
+	writel(1, l2_control_addr);
+	__asm__("dsb");
+}
+
+int is_wkr_nevo_1744(void)
+{
+	/* Will be fixed in D0 stepping */
+	if (cpu_is_pxa978())
+		return 1;
+	else
+		return 0;
+}
+
+static inline void pxa978_set_core_freq(struct pxa95x_dvfm_info *info,
+		struct dvfm_md_opt *old, struct dvfm_md_opt *new)
+{
+	unsigned int frq_change_ctl, corepllr, aicsr;
+
+	/* when DDR is using core PLL, we need to change DDR first to make
+	 * sure it will not impact the core PLL FC
+	 */
+	/*if (unlikely(old->dmcfs == 624))
+		do_ddr_fc();*/ /* TODO */
+
+	/* set cache laterncy if necessary */
+	if (new->core <= 416 && old->core > 416)
+		set_data_laterncy(0x353);
+
+	pr_debug("CA9 Core Frequency change.\n");
+
+	frq_change_ctl = FRQ_CHANGE_CTL;
+	frq_change_ctl &= ~ACLK_RATIO_MASK;
+	/* Set aclk ratio */
+	if (new->core > 156)
+		frq_change_ctl |= 0x1 << ACLK_RATIO_OFFSET;
+
+	if (new->core < 624) {
+		/* From System/Core PLL frequency to System PLL frequency */
+		frq_change_ctl &= ~(SYS_FREQ_SEL_MASK | CLK_SRC_MASK |
+				AC_GO_MASK);
+		frq_change_ctl |= syspll_freq2reg(new->core);
+	} else {
+		/* From System/Core PLL frequency to Core PLL frequency */
+		corepllr = COREPLLR;
+		corepllr &= ~(MC_GO_MASK | FBDIV_MASK | KVCO_MASK);
+		corepllr |= corepll_freq2reg(new->core) | PLL_EN_MASK;
+		/* From System PLL, manual change Core PLL */
+		if (old->core < 624) {
+			corepllr |= MC_GO_MASK;
+			/* Make sure previous manual change has completed */
+			while (COREPLLR & MC_GO_MASK)
+				;
+			COREPLLR = corepllr;
+			/* Polling until manual change completes */
+			while (COREPLLR & MC_GO_MASK)
+				;
+			frq_change_ctl &= ~(AC_GO_MASK);
+		} else {
+			COREPLLR = corepllr;
+			frq_change_ctl |= AC_GO_MASK;
+		}
+		frq_change_ctl |= CLK_SRC_MASK;
+	}
+	FRQ_CHANGE_CTL = frq_change_ctl;
+
+	pr_debug("CA9 Core FC Stage 1 Completed.\n");
+
+	/* enable ACCU interrupt */
+	ICMR2 |= 0x100000;
+
+	aicsr = AICSR;
+	/* don't clear AICSR wakeup status */
+	aicsr &= ~(AICSR_STATUS_BITS_PXA978);
+	/* enable bit 0 and clear CFCIS*/
+	aicsr |= AICSR_CFCIS | AICSR_CFCIE;
+	AICSR = aicsr;
+
+	PWRMODE |= (PXA978_CORE_FC | PXA95x_PM_I_Q_BIT);
+	while ((PWRMODE & (PXA978_CORE_FC | PXA95x_PM_I_Q_BIT)) !=
+		(PXA978_CORE_FC | PXA95x_PM_I_Q_BIT))
+		;
+
+	__asm__("dsb");
+	__asm__("wfi");
+
+	aicsr = AICSR;
+	/* don't clear AICSR wakeup status */
+	aicsr &= ~(AICSR_STATUS_BITS_PXA978);
+	/* clear CFCIS*/
+	aicsr |= AICSR_CFCIS;
+	AICSR = aicsr;
+
+	pr_debug("CA9 Core FC Stage 2 Completed.\n");
+	/* set cache laterncy if necessary */
+	if (new->core > 416 && old->core <= 416)
+		set_data_laterncy(0x232);
+	if (!is_wkr_nevo_1744()) {
+		/* From Core PLL frequency to System PLL */
+		if (old->core >= 624 && new->core < 624) {
+			/* Should we turn off Core PLL here? TODO */
+			/* Make sure it is using System PLL  */
+			while (FRQ_CHANGE_ST & CLK_SRC_MASK)
+				;
+			corepllr = COREPLLR;
+			corepllr &= ~PLL_EN_MASK;
+			corepllr |= MC_GO_MASK;
+			COREPLLR = corepllr;
+			/* Polling to make sure Core PLL is off */
+			while (COREPLLR & MC_GO_MASK)
+				;
+		}
+	}
+}
+
+static void mm_pll_enable(unsigned int enable)
+{
+	if (enable) {
+		MM_PLL_CTRL |= MMPLL_PWRON;
+		while (!(MM_PLL_CTRL & MMPLL_PWR_ST))
+			;
+	} else
+		MM_PLL_CTRL &= ~MMPLL_PWRON;
+}
+
+static int set_freq(void *driver_data, struct dvfm_md_opt *old,
+		struct dvfm_md_opt *new)
+{
+	struct pxa95x_dvfm_info *info = driver_data;
+	int low_ddr = 0;
+
+	if (cpu_is_pxa978()) {
+		/* turn on MM PLL if needed */
+		if ((new->gcfs >= 500 || new->vmfc >= 500) &&
+				(old->gcfs < 500 && old->vmfc < 500))
+			mm_pll_enable(1);
+	}
+
+	if (!cpu_is_pxa978()) {
+		/* check whether new OP is single PLL mode */
+		if (new->dmcfs == 208 || new->dmcfs == 312)
+			low_ddr = 1;
+		else
+			low_ddr = 0;
+
+		/* turn on Grayback PLL */
+		if (!low_ddr && !check_grayback_pll(info))
+			set_grayback_pll(info, 1);
+	}
+
+	if (cpu_is_pxa978())
+		pxa978_set_core_freq(info, old, new);
+	else
+		pxa95x_set_core_freq(info, old, new);
 
 	update_bus_freq(info, old, new);
 
-	/* turn off Grayback PLL wen no need it */
-	if (low_ddr)
-		set_grayback_pll(info, 0);
+	if (!cpu_is_pxa978()) {
+		/* turn off Grayback PLL wen no need it */
+		if (low_ddr)
+			set_grayback_pll(info, 0);
+	}
 
 	if (cpu_is_pxa978()) {
 		/* turn off MM PLL if needed */
@@ -3046,6 +3217,9 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 
 	pxa95x_df_init(info);
 	addr_trim_value_wa = ioremap(0x58110000, 0x30);
+
+	addr_data_ram_control = ioremap(0x5812010c, 0x4);
+	l2_control_addr = ioremap(0x58120100, 0x4);
 
 	pxa95x_poweri2c_init(info);
 	op_init(info, &pxa95x_dvfm_op_list);

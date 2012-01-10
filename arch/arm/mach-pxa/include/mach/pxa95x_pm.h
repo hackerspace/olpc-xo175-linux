@@ -147,6 +147,24 @@
 #define AICSR_STATUS_BITS	\
 	(AICSR_PCIS | AICSR_FCIS | AICSR_TCIS | AICSR_WSIDLE)
 
+#define AICSR_MMPLCIS	(1 << 15)
+#define AICSR_MMPLCIE	(1 << 14)
+#define AICSR_PPLCIS	(1 << 13)
+#define AICSR_PPLCIE	(1 << 12)
+#define AICSR_D0CGIS	(1 << 11)
+#define AICSR_D0CGIE	(1 << 10)
+#define AICSR_VCIS	(1 << 7)
+#define AICSR_VCIE	(1 << 6)
+#define AICSR_DFCIS	(1 << 5)
+#define AICSR_DFCIE	(1 << 4)
+#define AICSR_CPLLIS	(1 << 3)
+#define AICSR_CPLLIE	(1 << 2)
+#define AICSR_CFCIS	(1 << 1)
+#define AICSR_CFCIE	(1 << 0)
+#define AICSR_STATUS_BITS_PXA978	\
+	(AICSR_DFCIS | AICSR_CFCIS | AICSR_CPLLIS | AICSR_D0CGIS	\
+	| AICSR_VCIS | AICSR_PPLCIS | AICSR_MMPLCIS)
+
 /* Bits definition for RTC Register */
 #define RTSR_PICE	(1 << 15)
 #define RTSR_PIALE	(1 << 14)
@@ -260,6 +278,7 @@
 #define PXA95x_PM_S2D3C4	0x06
 #define PXA95x_PM_S0D2C2	0x03
 #define PXA95x_PM_S3D4C4	0x07
+#define PXA978_CORE_FC		0x04
 #define PXA95x_PM_S0D1C2	0x02
 #define PXA95x_PM_S0D0C1	0x01
 #if defined(CONFIG_PXA95x)

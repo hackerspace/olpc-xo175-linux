@@ -287,6 +287,7 @@
 #define ACCR1_MMC3_48_52	(1 << 0)	/* MMC3 frequency control: 0 = 624/13 Mhz, 1 = 624/12 Mhz */
 
 #define AC_GO_MASK		(1 << 31)	/* Core PLL Automatic Change GO */
+#define ACLK_RATIO_OFFSET	(4)		/* FRQ_CHANGE_CTL ACLK_RATIO offset*/
 #define ACLK_RATIO_MASK		(3 << 4)	/* ACLK Ratio setting: 0 = core, 1 = core/2, 2 = core/3 */
 #define SYS_FREQ_SEL_MASK	(7 << 1)	/* System PLL Clock Selection */
 #define CLK_SRC_MASK		(1 << 0)	/* Clock Source Selection */
