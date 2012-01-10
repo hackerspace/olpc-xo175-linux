@@ -1731,14 +1731,20 @@ static inline unsigned int corepll_freq2reg(unsigned int x)
 {
 	switch (x) {
 	case 624:
-		/* FBDIV=144, KVCO=1 */
-		return 0x90 << 5 | 1 << 21;
+		/* FBDIV=144, KVCO=1  VCODIV=2 PPDIV=1 */
+		return 0x90 << 5 | 1 << 21 | 2 << 17 | 0 << 25;
 	case 806:
-		/* FBDIV=186, KVCO=3 */
-		return 0xba << 5 | 3 << 21;
+		/* FBDIV=186, KVCO=3 VCODIV=2 PPDIV=1 */
+		return 0xba << 5 | 3 << 21 | 2 << 17 | 0 << 25;
 	case 1014:
-		/* FBDIV=234, KVCO=5 */
-		return 0xea << 5 | 5 << 21;
+		/* FBDIV=234, KVCO=5 VCODIV=2 PPDIV=1 */
+		return 0xea << 5 | 5 << 21 | 2 << 17 | 0 << 25;
+	case 1196:
+		/* FBDIV=276, KVCO=7 VCODIV=2 PPDIV=1 */
+		return 0x114 << 5 | 7 << 21 | 2 << 17 | 0 << 25;
+	case 1404:
+		/* FBDIV=162, KVCO=2 VCODIV=1 PPDIV=1 */
+		return 0xa2 << 5 | 2 << 21 | 0 << 17 | 0 << 25;
 	default:
 		pr_err("The core frequency %uMHz is not supported.\n", x);
 		return 0;
@@ -1795,7 +1801,8 @@ static inline void pxa978_set_core_freq(struct pxa95x_dvfm_info *info,
 	} else {
 		/* From System/Core PLL frequency to Core PLL frequency */
 		corepllr = COREPLLR;
-		corepllr &= ~(MC_GO_MASK | FBDIV_MASK | KVCO_MASK);
+		corepllr &= ~(MC_GO_MASK | FBDIV_MASK | KVCO_MASK
+			     | PPDIV_MASK | VCODIV_SEL_MASK);
 		corepllr |= corepll_freq2reg(new->core) | PLL_EN_MASK;
 		/* From System PLL, manual change Core PLL */
 		if (old->core < 624) {
