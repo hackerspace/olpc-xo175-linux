@@ -49,6 +49,42 @@
 #endif
 
 
+/* interrupt timestamp collection to get:
+ * 0. ITC_NONE		don't enable any timestamp collection
+ * 1. ITC_INTERVAL	collect timestamps each time enter lcd interrupt
+ *			service, normally only display done interrupt is
+ *			enabled, should be same as LCD refresh period;
+ *			while test results shows it takes longer time
+ * 2. ITC_VSYNC		collect timestamp for display done interrupt and
+ *			vsync interrupt
+ * 3. ITC_GFX_DONE	collect timestamp for display done interrupt and
+ *			graphics layer frame done(dma finish) interrupt
+ * 4. ITC_VID_DONE	collect timestamp for display done interrupt and
+ *			video layer frame done(dma finish) interrupt
+ * 5. ITC_HANDLER	collect timestamp for display done interrupt and
+ *			main handler finish time
+ * usage:
+ * "echo x > /sys/devices/platform/pxa168-fb.0/itc" to enable/disable
+ * "cat /sys/devices/platform/pxa168-fb.0/itc" to get timestamps
+ *
+ * note: only panel path timestamp collection is supported now
+ */
+#define ITC_MAX_NUM		32
+#define ITC_NONE		(irqtm_check == 0)
+#define ITC_INTERVAL		(irqtm_check == 1)
+#define ITC_VSYNC		(irqtm_check == 2)
+#define ITC_GFX_DONE		(irqtm_check == 3)
+#define ITC_VID_DONE		(irqtm_check == 4)
+#define ITC_HANDLER		(irqtm_check == 5)
+#define gettime(val, count, update) do {			\
+	count %= ITC_MAX_NUM;					\
+	do_gettimeofday(&val[update ? count++ : count]);	\
+} while (0)
+static int ct1, ct2, irqtm_check, irqtm_adjust = 1000;
+static struct timeval t0, t1[ITC_MAX_NUM], t2[ITC_MAX_NUM];
+
+/* interrupt number collection to get real frame rate */
+#define VSYNC_CHECK_TIME	(10 * HZ)
 #define DEBUG_VSYNC_PATH(id)	(gfx_info.fbi[(id)]->debug & 3)
 #define DEBUG_ERR_IRQ(id)	(gfx_info.fbi[(id)]->debug & 4)
 static int gfx_udflow_count;
@@ -63,6 +99,48 @@ static int f1_count;
 static int vf0_count;
 static int vf1_count;
 static struct timer_list vsync_timer;
+
+static void vsync_check_timer(unsigned long data)
+{
+	int id = DEBUG_VSYNC_PATH(0);
+
+	/* disable count interrupts */
+	irq_mask_set(id, vsync_imask(id) | gf0_imask(id) |
+		gf1_imask(id) | vf0_imask(id) | vf1_imask(id), 0);
+
+	vsync_check = 0;
+	del_timer(&vsync_timer);
+	pr_info("fbi %d: irq_count %d\n", id, irq_count);
+	pr_info("\tvsync_count %d\n",  vsync_count);
+	pr_info("\tdispd_count %d\n",  dispd_count);
+	pr_info("\tf0_count %d\n", f0_count);
+	pr_info("\tf1_count %d\n", f1_count);
+	pr_info("\tvf0_count %d\n", vf0_count);
+	pr_info("\tvf1_count %d\n", vf1_count);
+}
+
+static void vsync_check_count(void)
+{
+	int path = DEBUG_VSYNC_PATH(0);
+	int mask = vsync_imask(path) | gf0_imask(path) | gf1_imask(path)
+		| vf0_imask(path) | vf1_imask(path);
+
+	/* enable count interrupts */
+	irq_mask_set(path, mask, mask);
+	irq_status_clear(path, mask);
+
+	/* clear counts */
+	vsync_count = dispd_count = irq_count = 0;
+	f0_count = f1_count = vf0_count = vf1_count = 0;
+	ct1 = 0; memset(t1, 0, sizeof(t1));
+	ct2 = 0; memset(t2, 0, sizeof(t2));
+
+	/* trigger vsync check */
+	vsync_check = 1;
+	init_timer(&vsync_timer);
+	vsync_timer.function = vsync_check_timer;
+	mod_timer(&vsync_timer, jiffies + 10*HZ);
+}
 
 #define DEFAULT_REFRESH		60	/* Hz */
 
@@ -336,6 +414,10 @@ static void set_clock_divider(struct pxa168fb_info *fbi)
 			pr_debug("%s pixclock %d x %d divider_int %d\n",
 				__func__, var->pixclock, x, divider_int);
 		}
+		x = var->xres + var->left_margin + var->hsync_len +
+			var->right_margin;
+		fbi->frm_usec = var->pixclock * (var->yres + var->upper_margin
+			+ var->vsync_len + var->lower_margin) / 1000 * x / 1000;
 		return;
 	}
 
@@ -726,7 +808,23 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)dev_id;
 	u32 isr_en = readl(fbi->reg_base + SPU_IRQ_ISR) &
 		readl(fbi->reg_base + SPU_IRQ_ENA);
-	u32 id, dispd, err, sts;
+	u32 id, dispd, err, sts, isr_delayed = 0;
+
+	if (ITC_INTERVAL) {
+		gettime(t1, ct1, 0);
+
+		t0 = ct1 ? t1[ct1 - 1] : t1[ITC_MAX_NUM - 1];
+		if (t0.tv_sec) {
+			t2[ct2].tv_usec = t1[ct1].tv_usec -
+				t0.tv_usec;
+			if (t1[ct1].tv_sec > t0.tv_sec)
+				t2[ct2].tv_usec += 1000000;
+			if (t2[ct2].tv_usec > (gfx_info.fbi[0]->frm_usec
+					+ irqtm_adjust))
+				isr_delayed = 1;
+		}
+		ct1++; ct2++; ct2 %= ITC_MAX_NUM;
+	}
 
 	do {
 		irq_status_clear(0, isr_en);
@@ -736,6 +834,13 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 			for (id = 0; id < 2; id++) {
 				sts = dispd & display_done_imask(id);
 				if (sts) {
+					if (vsync_check &&
+						id == DEBUG_VSYNC_PATH(0)) {
+						if (!ITC_INTERVAL)
+							gettime(t1, ct1, 1);
+						dispd_count++;
+					}
+
 #if defined(CONFIG_CPU_MMP2) && defined(CONFIG_CPU_FREQ)
 					wakeup_freq_seq();
 #endif
@@ -744,9 +849,9 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 #endif
 					pxa168_fb_isr(id);
 
-					if (vsync_check &&
+					if (ITC_HANDLER && vsync_check &&
 						id == DEBUG_VSYNC_PATH(0))
-						dispd_count++;
+						gettime(t2, ct2, 1);
 				}
 			}
 		}
@@ -783,21 +888,41 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 			id = DEBUG_VSYNC_PATH(0);
 			if (isr_en & path_imasks(id))
 				irq_count++;
-			if (isr_en & gf0_imask(id))
+			if (isr_en & gf0_imask(id)) {
+				if (ITC_GFX_DONE)
+					gettime(t2, ct2, 1);
 				f0_count++;
-			if (isr_en & gf1_imask(id))
+			}
+			if (isr_en & gf1_imask(id)) {
+				if (ITC_GFX_DONE)
+					gettime(t2, ct2, 1);
 				f1_count++;
-			if (isr_en & vf0_imask(id))
+			}
+			if (isr_en & vf0_imask(id)) {
+				if (ITC_VID_DONE)
+					gettime(t2, ct2, 1);
 				vf0_count++;
-			if (isr_en & vf1_imask(id))
+			}
+			if (isr_en & vf1_imask(id)) {
+				if (ITC_VID_DONE)
+					gettime(t2, ct2, 1);
 				vf1_count++;
-			if (isr_en & vsync_imask(id))
+			}
+			if (isr_en & vsync_imask(id)) {
+				if (ITC_VSYNC)
+					gettime(t2, ct2, 1);
 				vsync_count++;
+			}
 		}
-	} while ((isr_en = readl(gfx_info.fbi[0]->reg_base + SPU_IRQ_ISR)) &
+	} while (((isr_en = readl(gfx_info.fbi[0]->reg_base + SPU_IRQ_ISR)) &
 			readl(gfx_info.fbi[0]->reg_base + SPU_IRQ_ENA) &
-			(path_imasks(0) | path_imasks(1) | err_imasks));
+			(path_imasks(0) | path_imasks(1) | err_imasks)) &&
+			!(irqtm_check && vsync_check));
 
+	if (isr_delayed)
+		printk(KERN_DEBUG "%lu.%lu - %lu.%lu) = %lu\n",
+			t1[ct1].tv_sec, t1[ct1].tv_usec, t0.tv_sec,
+			t0.tv_usec, t2[ct2].tv_usec);
 	return IRQ_HANDLED;
 }
 
@@ -1072,8 +1197,7 @@ static int pxa168fb_init_mode(struct fb_info *info,
 	struct pxa168fb_info *fbi = info->par;
 	struct fb_var_screeninfo *var = &info->var;
 	int ret = 0;
-	u32 total_w, total_h, refresh;
-	u64 div_result;
+	u32 refresh;
 	const struct fb_videomode *m;
 
 	dev_dbg(info->dev, "Enter %s\n", __func__);
@@ -1099,7 +1223,11 @@ static int pxa168fb_init_mode(struct fb_info *info,
 	var->xres_virtual = var->xres;
 	var->yres_virtual = var->yres * 2;
 
+#if 0
 	if (!var->pixclock) {
+		u32 total_w, total_h;
+		u64 div_result;
+
 		/* correct pixclock. */
 		total_w = var->xres + var->left_margin + var->right_margin +
 			var->hsync_len;
@@ -1110,6 +1238,7 @@ static int pxa168fb_init_mode(struct fb_info *info,
 		do_div(div_result, total_w * total_h * refresh);
 		var->pixclock = (u32)div_result;
 	}
+#endif
 	return ret;
 }
 
@@ -1342,7 +1471,8 @@ static ssize_t lcd_show(struct device *dev, struct device_attribute *attr,
 	struct lcd_regs *regs = get_regs(fbi->id);
 	int id = fbi->id;
 
-	pr_info("fbi %d base 0x%p\n", fbi->id, fbi->reg_base);
+	printk("fbi %d base 0x%p, frm %luus\n", fbi->id,
+			fbi->reg_base, fbi->frm_usec);
 	pr_info("var\n");
 	pr_info("\t xres              %4d yres              %4d\n",
 			var->xres,		var->yres);
@@ -1552,25 +1682,67 @@ static ssize_t vsync_store(
 }
 static DEVICE_ATTR(vsync, S_IRUGO | S_IWUSR, vsync_show, vsync_store);
 
-#define VSYNC_CHECK_TIME	(10 * HZ)
-static void vsync_check_timer(unsigned long data)
+static ssize_t itc_show(struct device *dev, struct device_attribute *attr,
+		char *buf)
 {
-	int id = DEBUG_VSYNC_PATH(0);
+	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
+	int i, j, s = 0, val;
 
-	/* disable count interrupts */
-	irq_mask_set(id, vsync_imask(id) | gf0_imask(id) |
-		gf1_imask(id) | vf0_imask(id) | vf1_imask(id), 0);
+	s += sprintf(buf + s, "irqtm_check - %d\n 0: none\n 1: irq intervals\n"
+		" 2: display done .vs. vsync\n 3: display done .vs. gfx done\n"
+		" 4: display done .vs. vid done\n 5: lcd main handler\n",
+		irqtm_check);
 
-	vsync_check = 0;
-	del_timer(&vsync_timer);
-	pr_info("fbi %d: irq_count %d\n", id, irq_count);
-	pr_info("\tvsync_count %d\n",  vsync_count);
-	pr_info("\tdispd_count %d\n",  dispd_count);
-	pr_info("\tf0_count %d\n", f0_count);
-	pr_info("\tf1_count %d\n", f1_count);
-	pr_info("\tvf0_count %d\n", vf0_count);
-	pr_info("\tvf1_count %d\n", vf1_count);
+	s += sprintf(buf + s, "\nt1 - display done, t2 - ");
+	if (ITC_INTERVAL)
+		s += sprintf(buf + s, "irq interval\n");
+	else if (ITC_VSYNC)
+		s += sprintf(buf + s, "vsync\n");
+	else if (ITC_GFX_DONE)
+		s += sprintf(buf + s, "gfx frame done\n");
+	else if (ITC_VID_DONE)
+		s += sprintf(buf + s, "vid frame done\n");
+	else if (ITC_HANDLER)
+		s += sprintf(buf + s, "main handler\n");
+	else
+		s += sprintf(buf + s, "none\n");
+
+	s += sprintf(buf + s, "     t1     t2 :   ");
+	if (ITC_INTERVAL)
+		s += sprintf(buf + s, "t2-frm_usec\n");
+	else
+		s += sprintf(buf + s, "t2-t1\n");
+	for (i = 0; i < ITC_MAX_NUM; i++) {
+		if (ITC_INTERVAL) {
+			val = 0;
+			if ((int)t2[i].tv_usec > 10000)
+				val = (int)t2[i].tv_usec - fbi->frm_usec;
+		} else
+			val = t2[i].tv_usec - t1[i].tv_usec;
+
+		for (j = 0; j < ITC_MAX_NUM; j++) {
+			val = (val < -10000 || val > 10000) ?
+				(t2[j].tv_usec - t1[i].tv_usec) : val;
+		}
+
+		s += sprintf(buf + s, " %6ld %6ld :  %6d", t1[i].tv_usec,
+			t2[i].tv_usec, val);
+		s += sprintf(buf + s, "\n");
+	}
+	return s;
 }
+
+static ssize_t itc_store(struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t size)
+{
+	sscanf(buf, "%d", &irqtm_check);
+
+	if (irqtm_check && !ITC_INTERVAL)
+		vsync_check_count();
+
+	return size;
+}
+static DEVICE_ATTR(itc, S_IRUGO | S_IWUSR, itc_show, itc_store);
 
 static struct proc_dir_entry *pxa168fb_proc;
 static unsigned int proc_reg;
@@ -1583,7 +1755,6 @@ static int pxa168fb_proc_write(struct file *file, const char *buffer,
 	char kbuf[11], vol[11];
 	int index, reg_val, i;
 	unsigned addr = (unsigned)gfx_info.fbi[0]->reg_base;
-	u32 mask;
 
 	if (count >= 12)
 		return -EINVAL;
@@ -1602,6 +1773,12 @@ static int pxa168fb_proc_write(struct file *file, const char *buffer,
 		__raw_writel(reg_val, addr + proc_reg);
 		pr_info("set reg @ 0x%x: 0x%x\n", proc_reg,
 			__raw_readl(addr + proc_reg));
+		return count;
+	} else if ('t' == kbuf[0] && 'm' == kbuf[1]) {
+		memcpy(vol, kbuf+2, count-2);
+		/* set the register value */
+		irqtm_adjust = (int) simple_strtoul(vol, NULL, 10);
+		printk("irqtm_adjust: %d\n", irqtm_adjust);
 		return count;
 	} else if ('l' == kbuf[0]) {
 		for (i = 0; i < 0x300; i += 4) {
@@ -1635,22 +1812,7 @@ static int pxa168fb_proc_write(struct file *file, const char *buffer,
 				info->screen_size/2);
 		break;
 	case 9:
-		index = DEBUG_VSYNC_PATH(0);
-		/* enable count interrupts */
-		mask = vsync_imask(index) | gf0_imask(index) |
-			gf1_imask(index) | vf0_imask(index) | vf1_imask(index);
-		irq_mask_set(index, mask, mask);
-		irq_status_clear(index, mask);
-
-		init_timer(&vsync_timer);
-		vsync_timer.function = vsync_check_timer;
-		vsync_check = 1;
-		vsync_count = 0;
-		dispd_count = 0;
-		irq_count = 0;
-		f0_count = f1_count = 0;
-		vf0_count = vf1_count = 0;
-		mod_timer(&vsync_timer, jiffies + 10*HZ);
+		vsync_check_count();
 		break;
 
 	default:
@@ -1964,6 +2126,14 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	if (ret < 0) {
 		pr_err("device attr create fail: %d\n", ret);
 		goto failed_free_irq;
+	}
+
+	if (!fbi->id) {
+		ret = device_create_file(&pdev->dev, &dev_attr_itc);
+		if (ret < 0) {
+			pr_err("device attr create fail: %d\n", ret);
+			return ret;
+		}
 	}
 
 	if (!proc_inited) {

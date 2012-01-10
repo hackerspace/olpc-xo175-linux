@@ -383,6 +383,7 @@ struct regshadow_list {
 struct pxa168fb_info {
 	struct device		*dev;
 	struct clk		*clk;
+	__kernel_suseconds_t	frm_usec;
 	int			id;
 	int			vid;
 	void			*reg_base;
