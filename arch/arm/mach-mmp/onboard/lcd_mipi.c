@@ -770,6 +770,10 @@ void __init brownstone_add_lcd_mipi(void)
 
 	if (board_is_mmp2_brownstone_rev5()) {
 		video_modes_brownstone[0].yres = 800;
+		video_modes_brownstone[0].vsync_len = 1;
+		video_modes_brownstone[0].lower_margin = 1;
+		video_modes_brownstone[0].upper_margin = 35;
+
 		mi = &mmp2_mipi_lcd_info;
 		mi->max_fb_size = video_modes_brownstone[0].xres *
 		video_modes_brownstone[0].yres * 8 + 4096;
