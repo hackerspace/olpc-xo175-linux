@@ -102,15 +102,18 @@ struct dvfm_md_opt {
 	unsigned int xl;
 	unsigned int xn;
 	unsigned int core;
+	unsigned int aclk;
 	unsigned int smcfs;
 	unsigned int sflfs;
 	unsigned int hss;
 	unsigned int axifs;	/* AXI Bus Frequency */
+	unsigned int display;
 	unsigned int dsi;
 	unsigned int dmcfs;
 	unsigned int df_clk;
 	unsigned int empi_clk;
 	unsigned int gcfs;	/*GC frequency */
+	unsigned int gcaxifs;
 	unsigned int vmfc;	/*Vmeta frequency */
 	unsigned int power_mode;
 	unsigned int flag;
@@ -136,7 +139,9 @@ struct pxa95x_fv_info {
 	int axifs;		/* AXI Bus Frequency */
 	int dsi;
 	unsigned int gcfs;
+	unsigned int gcaxifs;
 	unsigned int vmfc;
+	unsigned int display;
 	unsigned int lpj;	/* New value for loops_per_jiffy */
 };
 
