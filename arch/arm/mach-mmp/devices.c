@@ -175,63 +175,64 @@ static int usb_phy_init_internal(unsigned int base)
 
 	udelay(100);
 
+	/*USB2_PLL_REG0 = 0x5df0 */
 	u2o_clear(base, USB2_PLL_REG0, (USB2_PLL_FBDIV_MASK_MMP3
 		| USB2_PLL_REFDIV_MASK_MMP3));
-	/*
-	 * Still need to decide values for PLLVDD18 and PLLVDD12 for MMP3.
-	 * Set to default for now.
-	 */
-	u2o_set(base, USB2_PLL_REG0, 0x1 << USB2_PLL_VDD18_SHIFT_MMP3
-		| 0x1 << USB2_PLL_VDD12_SHIFT_MMP3
-		| 0xf0 << USB2_PLL_FBDIV_SHIFT_MMP3
-		| 0xd << USB2_PLL_REFDIV_SHIFT_MMP3);
+	u2o_set(base, USB2_PLL_REG0, 0xd << USB2_PLL_REFDIV_SHIFT_MMP3
+		| 0xf0 << USB2_PLL_FBDIV_SHIFT_MMP3);
 
+	/* USB2_PLL_REG1 = 0x3333 */
 	u2o_clear(base, USB2_PLL_REG1, USB2_PLL_PU_PLL_MASK
-		| USB2_PLL_CALI12_MASK_MMP3
+		| USB2_PLL_ICP_MASK_MMP3
 		| USB2_PLL_KVCO_MASK_MMP3
-		| USB2_PLL_ICP_MASK_MMP3);
-
+		| USB2_PLL_CALI12_MASK_MMP3);
 	u2o_set(base, USB2_PLL_REG1, 1 << USB2_PLL_PU_PLL_SHIFT_MMP3
-		| 3 << USB2_PLL_CAL12_SHIFT_MMP3 | 2 << USB2_PLL_ICP_SHIFT_MMP3
+		| 1 << USB2_PLL_LOCK_BYPASS_SHIFT_MMP3
+		| 3 << USB2_PLL_ICP_SHIFT_MMP3
 		| 3 << USB2_PLL_KVCO_SHIFT_MMP3
-		| 1 << USB2_PLL_LOCK_BYPASS_SHIFT_MMP3);
+		| 3 << USB2_PLL_CAL12_SHIFT_MMP3);
 
+	/* USB2_TX_REG0 = 0x288 */
 	u2o_clear(base, USB2_TX_REG0, USB2_TX_IMPCAL_VTH_MASK_MMP3);
 	u2o_set(base, USB2_TX_REG0, 2 << USB2_TX_IMPCAL_VTH_SHIFT_MMP3);
 
-	u2o_clear(base, USB2_TX_REG1, USB2_TX_CK60_PHSEL_MASK_MMP3
+	/* USB2_TX_REG1 = 0x7c4 */
+	u2o_clear(base, USB2_TX_REG1, USB2_TX_VDD12_MASK_MMP3
 		| USB2_TX_AMP_MASK_MMP3
-		| USB2_TX_VDD12_MASK_MMP3);
-
-	u2o_set(base, USB2_TX_REG1,  4 << USB2_TX_CK60_PHSEL_SHIFT_MMP3
+		| USB2_TX_CK60_PHSEL_MASK_MMP3);
+	u2o_set(base, USB2_TX_REG1, 3 << USB2_TX_VDD12_SHIFT_MMP3
 		| 4 << USB2_TX_AMP_SHIFT_MMP3
-		| 3 << USB2_TX_VDD12_SHIFT_MMP3);
+		| 4 << USB2_TX_CK60_PHSEL_SHIFT_MMP3);
 
+	/* USB2_TX_REG2 = 0xaff */
 	u2o_clear(base, USB2_TX_REG2, 3 << USB2_TX_DRV_SLEWRATE_SHIFT);
-	u2o_set(base, USB2_TX_REG2, 3 << USB2_TX_DRV_SLEWRATE_SHIFT);
+	u2o_set(base, USB2_TX_REG2, 2 << USB2_TX_DRV_SLEWRATE_SHIFT);
 
-	u2o_clear(base, USB2_RX_REG0, USB2_RX_SQ_THRESH_MASK_MMP3
-		| USB2_RX_SQ_LENGTH_MASK_MMP3);
-	u2o_set(base, USB2_RX_REG0, 0xa << USB2_RX_SQ_THRESH_SHIFT_MMP3
-		| 2 << USB2_RX_SQ_LENGTH_SHIFT_MMP3);
+	/* USB2_RX_REG0 =  0xaaa1 */
+	u2o_clear(base, USB2_RX_REG0, USB2_RX_SQ_THRESH_MASK_MMP3);
+	u2o_set(base, USB2_RX_REG0, 0xa << USB2_RX_SQ_THRESH_SHIFT_MMP3);
 
+	/* USB2_ANA_REG1 =  0x5680 */
 	u2o_set(base, USB2_ANA_REG1, 0x1 << USB2_ANA_PU_ANA_SHIFT_MMP3);
 
+	/* USB2_OTG_REG0 =  0x8 */
 	u2o_set(base, USB2_OTG_REG0, 0x1 << USB2_OTG_PU_OTG_SHIFT_MMP3);
 
 	/* PLL Power up has been done in usb2CIEnableAppSubSysClocks routine
 	*  PLL VCO and TX Impedance Calibration Timing for Eshel & MMP3
-	*  PU   __________|-------------------------------|
-	*  VCOCAL START	___________________|----------------------|
-	*  REG_RCAL_START_____________________________|--|_________|
-	*			| 200us  | 400us   |40| 400us   | USB PHY READY
+	*		   _____________________________________
+	*  PU   __________|
+	*			   ____________________________
+	*  VCOCAL START	__________|
+	*				  ___
+	*  REG_RCAL_START________________|   |________|_________
+	*		  | 200us |400us |40 | 400us  | USB PHY READY
 	* ------------------------------------------------------------------
 	*/
 	/* Calibrate PHY */
-
 	udelay(200);
 	u2o_set(base, USB2_PLL_REG1, 1 << USB2_PLL_VCOCAL_START_SHIFT_MMP3);
-	udelay(200);
+	udelay(400);
 	u2o_set(base, USB2_TX_REG0, 1 << USB2_TX_RCAL_START_SHIFT_MMP3);
 	udelay(40);
 	u2o_clear(base, USB2_TX_REG0, 1 << USB2_TX_RCAL_START_SHIFT_MMP3);
@@ -243,7 +244,7 @@ static int usb_phy_init_internal(unsigned int base)
 		mdelay(1);
 		loops++;
 		if (loops > 100) {
-			printk(KERN_WARNING "PLL_READY not set after 100mS.");
+			pr_warn("PLL_READY not set after 100mS.");
 			break;
 		}
 	}
@@ -576,6 +577,7 @@ void pxa_usb_phy_deinit(unsigned int base)
 
 #ifdef CONFIG_USB_EHCI_PXA_U2H_HSIC
 #ifdef CONFIG_CPU_MMP3
+
 int mmp3_hsic_phy_init(unsigned int base)
 {
 	unsigned int otgphy;

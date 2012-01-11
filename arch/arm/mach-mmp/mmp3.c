@@ -493,15 +493,14 @@ int mmp3_hsic_private_init(struct mv_op_regs *opregs, unsigned int phyregs)
 	u32 status;
 	int count;
 
-	hsic_int = __raw_readl(phyregs + HSIC_INT);
-	status = __raw_readl(&opregs->portsc[0]);
 	/*disable connect irq*/
+	hsic_int = __raw_readl(phyregs + HSIC_INT);
 	hsic_int &= ~HSIC_INT_CONNECT_INT_EN;
 	__raw_writel(hsic_int, phyregs + HSIC_INT);
 
 	/* enable port power and reserved bit 25 */
 	status = __raw_readl(&opregs->portsc[0]);
-	status |= (0x00001000) | (1 << 25);
+	status |= (PORTSCX_PORT_POWER) | (1 << 25);
 	/* Clear bits 30:31 for HSIC to be enabled */
 	status &= ~(0x3 << 30);
 	__raw_writel(status, &opregs->portsc[0]);
@@ -521,19 +520,17 @@ int mmp3_hsic_private_init(struct mv_op_regs *opregs, unsigned int phyregs)
 	count = 0x10000;
 	do {
 		hsic_int = __raw_readl(phyregs + HSIC_INT);
-		status = __raw_readl(&opregs->portsc[0]);
 		count--;
-	} while ((count >= 0) && !(hsic_int & HSIC_INT_HS_READY)
-		&& !(hsic_int & HSIC_INT_CONNECT));
+	} while ((count >= 0)
+		&& !(hsic_int & (HSIC_INT_HS_READY | HSIC_INT_CONNECT)));
 	if (count <= 0) {
-		printk(KERN_INFO "HSIC_INT_HS_READY not set: hsic_int 0x%x\n",
-			hsic_int);
+		pr_err("HS_READY not set: hsic_int 0x%x\n", hsic_int);
 		return -EAGAIN;
 	}
 
 	/* issue port reset */
 	status = __raw_readl(&opregs->portsc[0]);
-	status |= (1<<8);
+	status |= PORTSCX_PORT_RESET;
 	__raw_writel(status, &opregs->portsc[0]);
 
 	/* check reset done */
@@ -541,11 +538,12 @@ int mmp3_hsic_private_init(struct mv_op_regs *opregs, unsigned int phyregs)
 	do {
 		status = __raw_readl(&opregs->portsc[0]);
 		count--;
-	} while ((count >= 0) && !(status & (1<<8)));
+	} while ((count >= 0) && !(status & PORTSCX_PORT_RESET));
 	if (count <= 0) {
-		printk(KERN_INFO "port reset not done: portsc 0x%x\n", status);
+		pr_err("port reset not done: portsc 0x%x\n", status);
 		return -EAGAIN;
 	}
+
 	return 0;
 }
 
