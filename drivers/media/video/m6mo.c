@@ -21,13 +21,18 @@
 #include <media/v4l2-common.h>
 #include <media/v4l2-chip-ident.h>
 #include <media/soc_camera.h>
+#include <linux/interrupt.h>
+#include <mach/gpio.h>
 
 #include "m6mo.h"
 
 #define	DRV_NAME	"m6mo"
 
+static DECLARE_COMPLETION(irq_recv);
+
 static const struct m6mo_datafmt m6mo_colour_fmts[] = {
-	{V4L2_MBUS_FMT_UYVY8_2X8, V4L2_COLORSPACE_JPEG},
+	{V4L2_MBUS_FMT_UYVY8_2X8,	V4L2_COLORSPACE_JPEG},
+	{V4L2_MBUS_FMT_JPEG_1X8,	V4L2_COLORSPACE_JPEG},
 };
 
 static struct m6mo_format_struct {
@@ -36,6 +41,10 @@ static struct m6mo_format_struct {
 } m6mo_fmts[] = {
 	{
 		.code	=	V4L2_MBUS_FMT_UYVY8_2X8,
+		.regs	=	NULL,
+	},
+	{
+		.code	=	V4L2_MBUS_FMT_JPEG_1X8,
 		.regs	=	NULL,
 	},
 };
@@ -70,7 +79,7 @@ static struct m6mo_win_size m6mo_sizes[] = {
 		.height	= 720,
 		.regs	= NULL,	/* 720p */
 	},
-#if 0	/* Not supportting 1080p now, needs follow up*/
+#if 1	/* Not supportting 1080p now, needs follow up*/
 	{
 		.width	= 1920,
 		.height	= 1080,
@@ -78,8 +87,24 @@ static struct m6mo_win_size m6mo_sizes[] = {
 	},
 #endif
 };
-
 #define N_M6MO_SIZES (ARRAY_SIZE(m6mo_sizes))
+
+static struct m6mo_win_size m6mo_jpg_sizes[] = {
+	{
+		.width	= 640,
+		.height	= 480,
+	},
+	{
+		.width	= 2560,
+		.height	= 1920,
+	},
+	{
+		.width	= 3264,
+		.height	= 2448,
+	},
+};
+#define N_M6MO_JPG_SIZES (ARRAY_SIZE(m6mo_jpg_sizes))
+
 #define N_M6MO_FMTS (ARRAY_SIZE(m6mo_fmts))
 
 static struct m6mo_info *to_info(const struct i2c_client *client)
@@ -145,6 +170,8 @@ static int m6mo_write(struct i2c_client *c, u16 reg, u8 value)
 {
 	u8 cmd_buf[5] = {5, ISP_REG_WRITE, WD_BYTES(reg), value};
 
+	if (reg >= INVALID_ADDR)
+		return -EINVAL;
 	return i2c_master_send(c, cmd_buf, 5);
 }
 
@@ -164,15 +191,34 @@ static inline int m6mo_reset(struct i2c_client *client)
 {
 	struct m6mo_info *info = to_info(client);
 
-	printk(KERN_NOTICE "cam: m6mo: reset isp\n");
+	m6mo_power(info, ISP_SENSOR_CLOSE);
 	m6mo_power(info, SENSOR_CLOSE);
+	init_completion(&irq_recv);
 	m6mo_power(info, SENSOR_OPEN);
-	m6mo_write(client, CAM_START, 1);
-	/* Wait here to let ISP start up */
-	msleep(30);
+	m6mo_power(info, ISP_SENSOR_OPEN);
+	info->isp_state = M6MO_UNINIT;
 	return 0;
 }
 
+static inline int m6mo_wait_for(struct i2c_client *client, \
+					u16 addr, u8 val, \
+					int timeout)
+{
+	int ret;
+
+	/* Enable IRQ to listen to interrupt*/
+	m6mo_write(client,	SYSP_IRQ_ROOT,	0x01);
+	m6mo_write(client,	addr,	val);
+	ret = wait_for_completion_interruptible_timeout(&irq_recv, \
+						msecs_to_jiffies(timeout));
+	if (ret <= 0) {
+		printk("m6mo: wait irq time out\n");
+		return -EAGAIN;
+	}
+	/* Read to clear IRQ */
+	m6mo_read(client,	SYSP_IRQ_STATE,	&ret);
+	return ret;
+}
 static __attribute__ ((unused)) int m6mo_read_sensor(struct i2c_client *client, u16 addr, u8 *val)
 {
 	/* Send sensor 2-BYTE addr to ISP */
@@ -210,6 +256,105 @@ static int m6mo_detect(struct i2c_client *client)
 		return -EBUSY;
 	}
 	return 0;
+}
+
+static int m6mo_monitor_prepare(struct i2c_client *client, int res)
+{
+	struct m6mo_info *info = to_info(client);
+
+	m6mo_write(client,	MONT_OUTPUT_IF,	OUTPUT_MIPI);	/* MIPI output */
+	m6mo_write(client,	MONT_SIZE,	res);	/* resolution */
+	m6mo_write(client,	MONT_FPS,	0x02);	/* FPS */
+	m6mo_write(client,	MONT_ROTATE,	ROT_NONE);
+	info->isp_state = M6MO_PRE_MNT;
+	return 0;
+}
+
+static int m6mo_monitor_start(struct i2c_client *client)
+{
+	struct m6mo_info *info = to_info(client);
+	int ret;
+
+	m6mo_write(client, SYSP_IRQ_EN, 0xFF);
+	ret = m6mo_wait_for(client, SYSP_MODE, MODE_MONIT, 1500);
+	if (ret < 0) {
+		printk(KERN_ERR "m6mo: failed to changed to monitor mode\n");
+		return ret;
+	}
+	info->isp_state = M6MO_MONITOR;
+	printk("m6mo: changed to monitor mode\n");
+	return ret;
+}
+
+static int m6mo_capture_prepare(struct i2c_client *client, int res)
+{
+	struct m6mo_info *info = to_info(client);
+	char size_max[4] = {DW_BYTES(0x400000)};
+	int ret;
+#if 0
+	ret = m6mo_wait_for(client, 0x0A02, 0x00, 30);
+	if (ret < 0) {
+		printk("m6mo: AF clear failed\n");
+		return ret;
+	}
+	ret = m6mo_wait_for(client, 0x0A02, 0x01, 1500);
+	m6mo_read(client,	0x0A03, &ret);
+	if (ret < 0) {
+		printk("m6mo: AF failed with 0x%02X\n", ret);
+		return ret;
+	}
+	printk("m6mo: AF done with 0x%02X\n", ret);
+#endif
+	m6mo_write(client, STPP_MAIN_SIZE, res);
+	m6mo_write(client, SYSP_IRQ_EN, 0xFF);
+	ret = m6mo_wait_for(client,	SYSP_MODE,	MODE_STILL, 700);
+	if (ret < 0) {
+		printk("m6mo: failed to change to still capture mode\n");
+		return ret;
+	}
+	ret = m6mo_wait_for(client,	INVALID_ADDR,	0x00,	100);
+	if (ret < 0) {
+		printk("m6mo: capture failed to compelete\n");
+		return ret;
+	}
+
+	m6mo_write_n(client, STPP_JPEG_SIZE_MAX, size_max, 4);
+	m6mo_write(client,	STPC_SEL_MF,	0x01);
+
+	info->isp_state = M6MO_PRE_JPG;
+	return 0;
+}
+
+static int m6mo_capture_start(struct i2c_client *client)
+{
+	struct m6mo_info *info = to_info(client);
+
+	printk("m6mo: Send JPEG frame");
+	m6mo_write(client,	SYSP_IRQ_ROOT,		0x01);
+	info->isp_state = M6MO_CAP_JPG;
+	m6mo_write(client,	STPC_TRANS_START,	0x01);
+	return 0;
+}
+
+static void m6mo_fetch_frame(struct work_struct *work)
+{
+	struct m6mo_info *info = container_of(work, struct m6mo_info, frame_wq);
+	struct i2c_client *client = v4l2_get_subdevdata(&info->subdev);
+	char tmp[4];
+	int ret = 0;
+
+	m6mo_read(client,	SYSP_IRQ_STATE,		tmp);
+	ret = 0;
+	m6mo_read_n(client,	STPC_GET_SIZE,		tmp,	4);
+	ret = (tmp[0]<<24) + (tmp[1]<<16) + (tmp[2]<<8)+tmp[3];
+	if (ret == 0xFFFFFFFF)
+		printk("m6mo: JPEG encode failure\n");
+	else
+		printk("m6mo: JPEG size is %d\n", ret);
+	if (info->isp_state != M6MO_CAP_JPG)
+		return;
+	m6mo_write(client,	SYSP_IRQ_ROOT,		0x01);
+	m6mo_write(client,	STPC_TRANS_START,	0x01);
 }
 
 /* FIXME: only setup framework now, need convert power sequence to setting
@@ -464,13 +609,27 @@ static int m6mo_s_register(struct v4l2_subdev *sd,
 static int m6mo_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct m6mo_info *info = to_info(client);
+
 	if (enable)
 		/* TODO: add streamon setting here */
-		;
+		switch (info->isp_state) {
+		case M6MO_PRE_MNT:
+			return m6mo_monitor_start(client);
+		case M6MO_PRE_JPG:
+			return m6mo_capture_start(client);
+		default:
+			break;
+		}
 	else {
 		/* FIXME: need to contact fujitsu for streamoff regs */
-		m6mo_reset(client);
-		msleep(50);
+		switch (info->isp_state) {
+		case M6MO_CAP_JPG:
+			info->isp_state = M6MO_PRE_JPG;
+			break;
+		default:
+			break;
+		}
 	}
 	return 0;
 }
@@ -489,57 +648,66 @@ static int m6mo_g_fmt(struct v4l2_subdev *sd,
 	return 0;
 }
 
+
+
 static int m6mo_s_fmt(struct v4l2_subdev *sd,
 			 struct v4l2_mbus_framefmt *mf)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct m6mo_info *info = to_info(client);
 	int ret = 0;
-	struct i2c_client *c = v4l2_get_subdevdata(sd);
-	unsigned char res, fps;
 
 	switch (mf->code) {
 	case V4L2_MBUS_FMT_UYVY8_2X8:
-		switch (mf->width) {
-		case 1280:
-			res = 0x21;
-			fps = 0x02;
+		switch (mf->height) {
+		case 720:
+			m6mo_monitor_prepare(client, SIZE_720P);
 			break;
-		case 1920:
-			res = 0x28;
-			fps = 0x02;
+		case 1080:
+			m6mo_monitor_prepare(client, SIZE_1080P);
 			break;
 		default:
-			/* Default value to be VGA @ 30FPS */
-			res = 0x17;
-			fps = 0x02;
-		}
-		m6mo_reset(c);
-		m6mo_write(c, 0x0100, 0x02);	/* MIPI output */
-		m6mo_write(c, 0x0101, res);	/* resolution */
-		m6mo_write(c, 0x0102, fps);	/* FPS */
-
-		m6mo_write(c, 0x0104, 0x01);
-		m6mo_write(c, 0x0107, 0x00);
-
-		m6mo_write(c, 0x0306, 0x01);
-		m6mo_write(c, 0x0309, 0x1E);
-
-		m6mo_write(c, 0x012D, 0x00);
-		m6mo_write(c, 0x0010, 0x00);
-		m6mo_write(c, 0x000B, 0x02);
-		msleep(40);
-
-		m6mo_power(info, ISP_SENSOR_CLOSE);
-		m6mo_power(info, ISP_SENSOR_OPEN);
-
-		m6mo_write(c, 0x0A00, 0x02);
-		m6mo_write(c, 0x0A16, 0x01);
-		m6mo_write(c, 0x0A02, 0x01);
-		printk(KERN_INFO "cam: m6mo: set format YUV(%d, %d) done\n", \
-			mf->width, mf->height);
+			m6mo_monitor_prepare(client, SIZE_VGA_30FPS);
+			break;
+		};
 		break;
 
+	case V4L2_MBUS_FMT_JPEG_1X8:
+		if (info->isp_state != M6MO_MONITOR) {
+			printk("m6mo: must change to monitor mode first\n");
+			m6mo_monitor_prepare(client, 480);
+			m6mo_monitor_start(client);
+		}
+		switch (mf->height) {
+		case 120:
+			m6mo_capture_prepare(client, MAIN_SIZE_QQVGA);
+			break;
+		case 240:
+			m6mo_capture_prepare(client, MAIN_SIZE_QVGA);
+			break;
+		case 480:
+			m6mo_capture_prepare(client, MAIN_SIZE_VGA);
+			break;
+		case 768:
+			m6mo_capture_prepare(client, MAIN_SIZE_XGA);
+			break;
+		case 960:
+			m6mo_capture_prepare(client, MAIN_SIZE_1M);
+			break;
+		case 1200:
+			m6mo_capture_prepare(client, MAIN_SIZE_2M);
+			break;
+		case 1536:
+			m6mo_capture_prepare(client, MAIN_SIZE_3M);
+			break;
+		case 1920:
+			m6mo_capture_prepare(client, MAIN_SIZE_5M);
+			break;
+		case 2448:
+			m6mo_capture_prepare(client, MAIN_SIZE_8M);
+			break;
+		};
+		break;
 	default:
 		printk(KERN_ERR "cam: not supported fmt!\n");
 		ret = -EINVAL;
@@ -581,20 +749,38 @@ static int m6mo_try_fmt(struct v4l2_subdev *sd,
 		return -EINVAL;
 	}
 
-	/* enum the supported sizes*/
-	for (i = 0; i < N_M6MO_SIZES; i++) {
-		if (mf->width == m6mo_sizes[i].width
-			&& mf->height == m6mo_sizes[i].height) {
-			info->regs_size = m6mo_sizes[i].regs;
-			break;
+	switch (mf->code) {
+	case V4L2_MBUS_FMT_UYVY8_2X8:
+		/* enum the supported sizes*/
+		for (i = 0; i < N_M6MO_SIZES; i++) {
+			if (mf->width == m6mo_sizes[i].width
+				&& mf->height == m6mo_sizes[i].height) {
+				info->regs_size = m6mo_sizes[i].regs;
+				break;
+			}
 		}
+		if (i >= N_M6MO_SIZES) {
+			printk(KERN_ERR "cam: m6mo unsupported yuv size, " \
+					"w%d, h%d!\n", mf->width, mf->height);
+			return -EINVAL;
+		}
+		break;
+	case V4L2_MBUS_FMT_JPEG_1X8:
+		/* enum the supported sizes*/
+		for (i = 0; i < N_M6MO_JPG_SIZES; i++) {
+			if (mf->width == m6mo_jpg_sizes[i].width
+				&& mf->height == m6mo_jpg_sizes[i].height) {
+				info->regs_size = m6mo_jpg_sizes[i].regs;
+				break;
+			}
+		}
+		if (i >= N_M6MO_JPG_SIZES) {
+			printk(KERN_ERR "cam: m6mo unsupported jpeg size, " \
+					"w%d, h%d!\n", mf->width, mf->height);
+			return -EINVAL;
+		}
+		break;
 	}
-	if (i >= N_M6MO_SIZES) {
-		printk(KERN_ERR "cam: m6mo unsupported window size, " \
-				"w%d, h%d!\n", mf->width, mf->height);
-		return -EINVAL;
-	}
-
 	mf->field = V4L2_FIELD_NONE;
 	mf->colorspace = V4L2_COLORSPACE_JPEG;
 	return 0;
@@ -616,6 +802,13 @@ static int m6mo_enum_fsizes(struct v4l2_subdev *sd,
 		fsize->discrete.height = m6mo_sizes[fsize->index].height;
 		fsize->discrete.width = m6mo_sizes[fsize->index].width;
 		break;
+	case V4L2_MBUS_FMT_JPEG_1X8:
+		if (fsize->index >= N_M6MO_JPG_SIZES)
+			return -EINVAL;
+		fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
+		fsize->discrete.height = m6mo_jpg_sizes[fsize->index].height;
+		fsize->discrete.width = m6mo_jpg_sizes[fsize->index].width;
+		break;
 	default:
 		dev_err(&client->dev, "ov5642 unsupported format!\n");
 		return -EINVAL;
@@ -626,33 +819,23 @@ static int m6mo_enum_fsizes(struct v4l2_subdev *sd,
 static int sensor_init(struct v4l2_subdev *sd)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
-	struct m6mo_info *info = i2c_get_clientdata(client);
+	struct m6mo_info *info = to_info(client);
+	int val;
 
 	m6mo_reset(client);
-
-	m6mo_write(client, 0x0100, 0x02);	/* MIPI output */
-	m6mo_write(client, 0x0101, 0x17);	/* resolution */
-	m6mo_write(client, 0x0102, 0x02);	/* 30FPS */
-	m6mo_write(client, 0x0106, 0x01);
-	m6mo_write(client, 0x0109, 0x00);
-
-	m6mo_write(client, 0x0304, 0x01);
-	m6mo_write(client, 0x0307, 0x01);
-
-	m6mo_write(client, 0x012D, 0x00);
-	m6mo_write(client, 0x0010, 0x00);
-	m6mo_write(client, 0x000B, 0x02);
-	msleep(100);
-
-	m6mo_power(info, ISP_SENSOR_CLOSE);
-	msleep(100);
-	m6mo_power(info, ISP_SENSOR_OPEN);
-	msleep(100);
-
-	m6mo_write(client, 0x0A16, 0x01);
-	m6mo_write(client, 0x0A02, 0x01);
-
-	printk(KERN_NOTICE "cam: m6mo initialized for YUV\n");
+	m6mo_write(client,	SYSP_IRQ_EN,	0xFF);
+	m6mo_write(client,	SYSP_IRQ_ROOT,	0x01);
+	m6mo_write(client,	CAM_START,	1);
+	val = wait_for_completion_interruptible_timeout(&irq_recv, \
+							msecs_to_jiffies(200));
+	if (val <= 0) {
+		printk("m6mo: ISP no response after start\n");
+		return -EAGAIN;
+	}
+	/* Clear IRQ */
+	m6mo_read(client, SYSP_IRQ_STATE, &val);
+	info->isp_state = M6MO_SETUP;
+	printk("m6mo: isp stated\n");
 	return 0;
 }
 
@@ -681,6 +864,15 @@ static struct v4l2_subdev_ops m6mo_subdev_ops = {
 	.video	= &m6mo_subdev_video_ops,
 };
 
+static irqreturn_t m6mo_irq_handler(int irq, void *data)
+{
+	struct m6mo_info *info = data;
+	complete(&irq_recv);
+	if (info->isp_state == M6MO_CAP_JPG)
+		schedule_work(&info->frame_wq);
+	return IRQ_HANDLED;
+}
+
 static int m6mo_probe(struct i2c_client *client,
 			 const struct i2c_device_id *did)
 {
@@ -688,6 +880,8 @@ static int m6mo_probe(struct i2c_client *client,
 	struct soc_camera_device *icd = client->dev.platform_data;
 	struct i2c_adapter *adapter = to_i2c_adapter(client->dev.parent);
 	struct soc_camera_link *icl;
+	struct sensor_platform_data *pdata;
+	unsigned int irq_gpio;
 	int ret;
 
 	if (!icd) {
@@ -736,6 +930,18 @@ static int m6mo_probe(struct i2c_client *client,
 	ret = m6mo_detect(client);
 	if (!ret) {
 		printk(KERN_NOTICE "cam: Fujitsu m6mo sensor detected!\n");
+		pdata = icl->priv;
+		irq_gpio = pdata->pin_aux;
+
+		ret = request_irq(gpio_to_irq(irq_gpio), m6mo_irq_handler, \
+				IRQF_TRIGGER_RISING | IRQF_ONESHOT, \
+				DRV_NAME, info);
+		if (ret) {
+			printk("m6mo: failed to request irq\n");
+			return -ENOMEM;
+		}
+		INIT_WORK(&info->frame_wq, m6mo_fetch_frame);
+		info->isp_state = M6MO_UNINIT;
 		return 0;
 	}
 	printk(KERN_ERR "cam: failed to detect Fujitsu m6mo!\n");

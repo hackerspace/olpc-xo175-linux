@@ -14,6 +14,16 @@ enum {
 	ISP_MEM_WRITE_32	= 8,
 };
 
+enum _m6mo_state {
+	M6MO_UNINIT		= 0,
+	M6MO_SETUP,
+	M6MO_PRE_MNT,
+	M6MO_MONITOR,
+	M6MO_PRE_JPG,
+	M6MO_CAP_JPG,
+	M6MO_CAP_YUV,
+};
+
 /*
 00 SYSP
 01 MNIA
@@ -41,17 +51,33 @@ enum category_parameter {
 		STAT_SETIN		= 1,
 		STAT_MONIT		= 2,
 		STAT_FOCUS		= 3,
-		STAT_SGCAP		= 4,
-		STAT_PREVW		= 5,
-	SYSP_INTEN		= 0x0010,
+		STAT_FACED		= 4,
+		STAT_MTCAP		= 5,
+		STAT_SGCAP		= 6,
+		STAT_PREVW		= 7,
+	SYSP_IRQ_EN		= 0x0010,
+	SYSP_IRQ_ROOT		= 0x0012,
+	SYSP_IRQ_STATE		= 0x001C,
+		IS_MODE			= (1<<0),
+		IS_AF			= (1<<1),
+		IS_ZOOM			= (1<<2),
+		IS_CAP			= (1<<3),
+		IS_SYNC			= (1<<4),
+		IS_FD			= (1<<5),
+		IS_LENS			= (1<<6),
+		IS_SOUND		= (1<<7),
 
-/* Category 1: Monitor and still parameter */
+/* Category 1: Monitor and still parameter A */
 	MONT_OUTPUT_IF		= 0x0100,
 		OUTPUT_YUV		= 0,
 		OUTPUT_HDMI		= 1,
 		OUTPUT_MIPI		= 2,
 	MONT_SIZE		= 0x0101,
+		SIZE_QCIF		= 0x05,
+		SIZE_CIF		= 0x0E,
+		SIZE_QVGA		= 0x09,
 		SIZE_VGA_30FPS		= 0x17,
+		SIZE_SVGA		= 0x1F,	/* 800X600*/
 		SIZE_720P		= 0x21,
 		SIZE_1080P		= 0x28,
 		SIZE_VGA_60FPS		= 0x32,
@@ -66,9 +92,16 @@ enum category_parameter {
 		SHD_OFF			= 0,
 		SHD_ON			= 1,
 		SHD_MANUAL		= 2,
-	MONT_ORTN		= 0x012D,
-		ORTN_HORIZON		= 0,
-		ORTN_VERTICAL		= 1,
+	MONT_ROTATE		= 0x012D,
+		ROT_NONE		= 0,
+		ROT_CLK		= 1,
+		ROT_ANTICLK		= 2,
+/* Category 1: Monitor and still parameter B */
+	MONT_ZOOM_SET		= 0x0201,
+	MONT_ZOOM_POS		= 0x0202,
+	MONT_ZOOM_STEP		= 0x0203,
+	MONT_FLIP		= 0x0252,
+	MONT_MIRROR		= 0x0253,
 
 /* Category 7: EXIF information */
 	EXIF_HEAD		= 0x0700,
@@ -81,11 +114,16 @@ enum category_parameter {
 		FMT_JPEG_H422		= 0x01,
 		FMT_JPEG_H420		= 0x02,
 		FMT_RAW			= 0x07,
-	STPP_SET_SIZE		= 0x0B01,
-		SIZE_VGA		= 0x09,
-		SIZE_3M			= 0x1B,
-		SIZE_5M			= 0x1F,
-		SIZE_8M			= 0x25,
+	STPP_MAIN_SIZE		= 0x0B01,
+		MAIN_SIZE_QQVGA		= 0x00,
+		MAIN_SIZE_QVGA		= 0x02,
+		MAIN_SIZE_VGA		= 0x09,
+		MAIN_SIZE_XGA		= 0x0F,	/* 1024 X 768 */
+		MAIN_SIZE_1M			= 0x14,	/* 1280 X 960 */
+		MAIN_SIZE_2M			= 0x17,	/* 1600 X 1200 */
+		MAIN_SIZE_3M			= 0x1B,	/* 2048 X 1536 */
+		MAIN_SIZE_5M			= 0x1F,	/* 2560 X 1920 */
+		MAIN_SIZE_8M			= 0x25,	/* 3264 X 2448 */
 	STPP_JPEG_SIZE_MAX3	= 0x0B0F,
 	STPP_JPEG_SIZE_MAX2	= 0x0B10,
 	STPP_JPEG_SIZE_MAX1	= 0x0B11,
@@ -98,6 +136,9 @@ enum category_parameter {
 	STPP_JPEG_SIZE_MIN	= STPP_JPEG_SIZE_MIN3,
 
 /* category C: Still picture control */
+	STPC_MODE		= 0x0C00,
+		CAP_SIGNAL		= 0x00,
+		CAP_MUILT		= 0x01,
 	STPC_SEL_MF		= 0x0C06,
 	STPC_TRANS_START	= 0x0C09,
 		TRANS_MAIN		= 0x01,
@@ -115,6 +156,8 @@ enum category_parameter {
 
 /* category F: Flash ROM */
 	CAM_START		= 0x0F12,
+/* All above address is invalid*/
+	INVALID_ADDR		= 0x1000,
 };
 
 enum m6mo_operations {
@@ -157,7 +200,7 @@ __attribute__ ((unused)) struct isp_oper YUV_VGA[] = {
 	{OPER_WRITE,	0x0304, 	0x01	},
 	{OPER_WRITE,	0x0307, 	0x01	},
 	{OPER_WRITE,	0x012D, 	0x00	},
-	{OPER_WRITE,	SYSP_INTEN,	0	},
+	{OPER_WRITE,	SYSP_IRQ_EN,	0	},
 	{OPER_WRITE,	SYSP_MODE,	MODE_MONIT	},
 	{OPER_SLEEP,	0,		100	},
 	{OPER_TRIGGER},
@@ -174,7 +217,7 @@ __attribute__ ((unused)) struct isp_oper YUV_720P[] = {
 	{OPER_WRITE,	0x0304, 	0x01	},
 	{OPER_WRITE,	0x0307, 	0x01	},
 	{OPER_WRITE,	0x012D, 	0x00	},
-	{OPER_WRITE,	SYSP_INTEN,	0	},
+	{OPER_WRITE,	SYSP_IRQ_EN,	0	},
 	{OPER_WRITE,	SYSP_MODE,	MODE_MONIT	},
 	{OPER_SLEEP,	0,		100	},
 	{OPER_TRIGGER},
@@ -191,7 +234,7 @@ __attribute__ ((unused)) struct isp_oper YUV_1080P[] = {
 	{OPER_WRITE,	0x0304, 	0x01	},
 	{OPER_WRITE,	0x0307, 	0x01	},
 	{OPER_WRITE,	0x012D, 	0x00	},
-	{OPER_WRITE,	SYSP_INTEN,	0	},
+	{OPER_WRITE,	SYSP_IRQ_EN,	0	},
 	{OPER_WRITE,	SYSP_MODE,	MODE_MONIT	},
 	{OPER_SLEEP,	0,		100	},
 	{OPER_TRIGGER},
@@ -217,6 +260,9 @@ struct m6mo_info {
 
 	struct regval_list *regs_fmt;
 	struct regval_list *regs_size;
+
+	enum _m6mo_state isp_state;
+	struct work_struct frame_wq;
 };
 
 #endif /* _M6MO_H_ */

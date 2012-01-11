@@ -848,7 +848,7 @@ static int camera0_power(struct device *dev, int flag)
 			break;
 		case SENSOR_CLOSE:
 			gpio_direction_output(pwd_isp, 0);	/* disable */
-			mdelay(1);
+			mdelay(50);
 			break;
 		case ISP_SENSOR_OPEN:
 			gpio_direction_output(pwd_main, 1);	/* enable */
@@ -935,6 +935,7 @@ static struct sensor_platform_data camera_sensor[] = {
 		.interface	= SOCAM_MIPI \
 				| SOCAM_MIPI_1LANE | SOCAM_MIPI_2LANE,
 		.csi_ctlr	= &csidev[0],	/* connected to CSI0 */
+		.pin_aux	= MFP_PIN_GPIO102,
 		.af_cap		= 1,
 		.mclk_mhz	= 26,
 		.vendor_info	= "SUNNY",
