@@ -467,7 +467,7 @@ static struct soc_camera_ops ov5642_ops = {
 static int ov5642_firmware_download(struct i2c_client *client)
 {
 	int ret = 0, i, j, size;
-	unsigned char val, sysctl;
+	unsigned char sysctl;
 	char data[258];
 	OV5642_FIRMWARE_ARRAY *firmware_regs = NULL;
 
@@ -487,17 +487,6 @@ static int ov5642_firmware_download(struct i2c_client *client)
 		ret = ov5642_write(client, REG_SYS, (sysctl & ~SYS_SWPD));
 		if (unlikely(ret < 0))
 			return -EIO;
-	}
-
-	/* Before start downloading firmware, check focus state, should be 0 */
-	ret = ov5642_read(client, 0x3027, &val);
-	if (unlikely(ret < 0)) {
-		return -EIO;
-	}
-	if (unlikely(val != 0)) {
-		dev_err(&client->dev, "Before download AF firmware " \
-				"STA_FOCUS = 0x%02X, should be 0\n", val);
-		return -EBUSY;
 	}
 
 	/* Actually start to download firmware */
