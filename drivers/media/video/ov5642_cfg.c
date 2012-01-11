@@ -6787,17 +6787,11 @@ int set_stream(struct i2c_client *client, int enable)
 	case 0:	/* bus name: pxa910-dvp */
 	case 1:	/* bus name: pxa910-mipi */
 		if (enable) {
-			ret = ov5642_write(client, 0x4201, 0x00);
-			if (ret < 0)
-				goto out;
 			ret = ov5642_write(client, 0x4202, 0x00);
 			if (ret < 0)
 				goto out;
 		} else {
-			ret = ov5642_write(client, 0x4201, 0x01);
-			if (ret < 0)
-				goto out;
-			ret = ov5642_write(client, 0x4202, 0x00);
+			ret = ov5642_write(client, 0x4202, 0x0f);
 			if (ret < 0)
 				goto out;
 		}
