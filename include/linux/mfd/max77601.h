@@ -136,6 +136,7 @@ enum {
 /* DVS register */
 #define MAX77601_AME_GPIO		0x40
 #define MAX77601_AME5_MASK		(0x1 << 5)
+#define MAX77601_AME4_MASK		(0x1 << 4)
 
 /* ROV register */
 #define MAX77601_CNFG2SD		0x22

@@ -1035,6 +1035,10 @@ static int abilene_max77601_setup(struct max77601_chip *chip)
 	if ((data & MAX77601_AME5_MASK) == MAX77601_AME5_MASK)
 		printk(KERN_INFO "Max77601 SD0 is set to support DVS!\n");
 
+	/* Set GPIO4 to alternative mode to enable ext_32K_in */
+	max77601_set_bits(chip, MAX77601_AME_GPIO, \
+		MAX77601_AME4_MASK, MAX77601_AME4_MASK);
+
 	return 0;
 };
 
