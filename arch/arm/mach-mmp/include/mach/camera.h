@@ -27,5 +27,7 @@ struct sensor_platform_data {
 	int (*platform_set)(int, struct clk*);
 };
 
+void mv_set_sensor_attached(bool sensor_attached);
+
 #endif
 

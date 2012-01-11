@@ -60,6 +60,7 @@
 static struct wake_lock idle_lock;
 static struct pm_qos_request_list mv_camera_qos_req_min;
 static struct pm_qos_request_list mv_camera_qos_disable_cpufreq;
+static struct mv_camera_dev *g_mv_cam_dev;
 
 static void set_power_constraint(int min)
 {
@@ -139,6 +140,8 @@ struct mv_camera_dev {
 	struct vb2_alloc_ctx *vb_alloc_ctx;
 	int frame_rate;
 	struct pm_qos_request_list qos_idle;
+
+	bool sensor_attached;
 };
 
 /*
@@ -761,6 +764,7 @@ static int mv_camera_add_device(struct soc_camera_device *icd)
 	if ((ret < 0) && (ret != -ENOIOCTLCMD))
 		dev_info(icd->dev.parent, "cam: Failed to initialize subdev: "\
 					"%d\n", ret);
+
 	return 0;
 }
 
@@ -1072,6 +1076,12 @@ static int mv_camera_get_formats(struct soc_camera_device *icd, u32 idx,
 	return formats;
 }
 
+void mv_set_sensor_attached(bool sensor_attached)
+{
+	if (g_mv_cam_dev != NULL)
+		g_mv_cam_dev->sensor_attached = sensor_attached;
+}
+
 static struct soc_camera_host_ops mv_soc_camera_host_ops = {
 	.owner = THIS_MODULE,
 	.add = mv_camera_add_device,
@@ -1106,9 +1116,11 @@ static int __devinit mv_camera_probe(struct platform_device *pdev)
 
 	pcdev = kzalloc(sizeof(*pcdev), GFP_KERNEL);
 	if (!pcdev) {
+		g_mv_cam_dev = NULL;
 		dev_err(&pdev->dev, "Could not allocate pcdev\n");
 		return -ENOMEM;
-	}
+	} else
+		g_mv_cam_dev = pcdev;
 
 	pcdev->res = res;
 	pcdev->pdev = pdev;
@@ -1161,6 +1173,12 @@ static int __devinit mv_camera_probe(struct platform_device *pdev)
 	err = soc_camera_host_register(&pcdev->soc_host);
 	if (err)
 		goto exit_free_irq;
+
+	if (pcdev->sensor_attached == false) {
+		err = -ENODEV;
+		goto exit_unregister_soc_camera_host;
+	}
+
 #ifdef CONFIG_CPU_MMP2
 	/* on brownstone v5 ccic2 depends on ccic1,
 	   so there can't disable ccic1 and ccic2 clk */
@@ -1170,6 +1188,8 @@ static int __devinit mv_camera_probe(struct platform_device *pdev)
 
 	return 0;
 
+exit_unregister_soc_camera_host:
+	soc_camera_host_unregister(&pcdev->soc_host);
 exit_free_irq:
 	free_irq(pcdev->irq, pcdev);
 	ccic_power_down(pcdev);

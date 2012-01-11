@@ -732,6 +732,7 @@ static int ov5642_video_probe(struct soc_camera_device *icd,
 		goto out;
 	dev_err(&client->dev, "OmniVision ov5642 sensor detected\n");
 
+	mv_set_sensor_attached(true);
 	ov5642->model = V4L2_IDENT_OV5642;
 
 out:
