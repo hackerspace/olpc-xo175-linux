@@ -197,6 +197,8 @@ static unsigned long ttc_dkb_pxa910h_pin_config[] __initdata = {
 
 	/* GPIO */
 	GPIO16_GPIO16,
+	GPIO29_GPIO29,
+	GPIO30_GPIO30,
 
 	/* DFI */
 	DF_IO0_ND_IO0,

@@ -11,6 +11,7 @@
 #include <mach/mfp-pxa910.h>
 #include <mach/pxa910.h>
 #include <mach/pxa168fb.h>
+#include <mach/cputype.h>
 
 #include "../common.h"
 
@@ -459,7 +460,12 @@ void __init dkb_add_lcd_truly(void)
 {
 	unsigned int CSn_NO_COL;
 	struct pxa168fb_mach_info *fb = &truly_lcd_info,
-				 *ovly = &truly_lcd_ovly_info;
+				  *ovly = &truly_lcd_ovly_info;
+	if (cpu_is_pxa910h()) {
+		fb->spi_gpio_cs = mfp_to_gpio(MFP_PIN_GPIO30);
+		fb->spi_gpio_reset = mfp_to_gpio(MFP_PIN_GPIO29);
+	}
+
 	CSn_NO_COL = __raw_readl(dmc_membase + SDRAM_CONFIG0_TYPE1) >> 4;
 	CSn_NO_COL &= 0xF;
 	if (CSn_NO_COL <= 0x2) {
