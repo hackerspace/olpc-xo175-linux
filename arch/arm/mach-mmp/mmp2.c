@@ -30,6 +30,7 @@
 #include <mach/irqs.h>
 #include <mach/dma.h>
 #include <plat/mfp.h>
+#include <plat/pm.h>
 #include <mach/gpio.h>
 #include <mach/devices.h>
 #include <mach/mmp2.h>
@@ -784,11 +785,11 @@ struct clkops vmeta_clk_ops = {
 };
 
 #ifdef CONFIG_UIO_VMETA
-void vmeta_pwr(unsigned int en)
+void vmeta_power_switch(unsigned int enable)
 {
 	u32 clk_rst = APMU_VMETA_CLK_RES_CTRL;
 	int reg = readl(clk_rst);
-	if (VMETA_PWR_ENABLE == en) {
+	if (VMETA_PWR_ENABLE == enable) {
 		/* Power on */
 		/* Enable Hardware power mode */
 		reg |= APMU_MMP2_VMETA_PWR_CTRL;
@@ -820,7 +821,7 @@ void vmeta_pwr(unsigned int en)
 		reg |= (0 << APMU_MMP2_VMETA_CLK_SEL_SHIFT);
 		reg |= (0x5 << APMU_MMP2_VMETA_ACLK_SEL_SHIFT);
 		writel(reg, clk_rst);
-	} else if (VMETA_PWR_DISABLE == en) {
+	} else if (VMETA_PWR_DISABLE == enable) {
 		/* Power off */
 		reg &= ~APMU_MMP2_VMETA_ISB;
 		writel(reg, clk_rst);
@@ -1320,17 +1321,15 @@ struct platform_device mmp2_device_rtc = {
 };
 
 /* Update vmeta clock source and freqency according to vop */
-int mmp_update_vmeta_clk(struct vmeta_instance *vi)
+static void update_vmeta_clk(int vop)
 {
 	u32 clk_rst = APMU_VMETA_CLK_RES_CTRL;
 	int reg;
-	if (!vi)
-		return -1;
 	reg = readl(clk_rst);
 	/* Clock source select */
 	reg &= ~APMU_MMP2_VMETA_CLK_SEL_MASK;
 	reg &= ~APMU_MMP2_VMETA_ACLK_SEL_MASK;
-	if (vi->vop <= VMETA_OP_720P_MAX) {
+	if (vop <= VMETA_OP_720P_MAX) {
 		/* 400M: PLL1 devided by 2 */
 		reg |= (0 << APMU_MMP2_VMETA_CLK_SEL_SHIFT);
 		reg |= (0x5 << APMU_MMP2_VMETA_ACLK_SEL_SHIFT);
@@ -1340,26 +1339,94 @@ int mmp_update_vmeta_clk(struct vmeta_instance *vi)
 		reg |= (0x6 << APMU_MMP2_VMETA_ACLK_SEL_SHIFT);
 	}
 	writel(reg, clk_rst);
-	return 0;
 }
 
-int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
+static void mmp_vmeta_unset_op_constraint_work(struct work_struct *work)
 {
-	return 0;
+	struct vmeta_instance *vi = container_of(work, struct vmeta_instance, unset_op_work.work);
+
+	vi->vop_real = VMETA_OP_INVALID;
+	pm_qos_update_request(&vi->qos_idle, PM_QOS_DEFAULT_VALUE);
+	pm_qos_update_request(&vi->qos_cpufreq_min, PM_QOS_DEFAULT_VALUE);
 }
+
 int vmeta_init_constraint(struct vmeta_instance *vi)
 {
+	mutex_init(&vi->op_mutex);
+	INIT_DELAYED_WORK(&vi->unset_op_work, mmp_vmeta_unset_op_constraint_work);
+	pm_qos_add_request(&vi->qos_cpufreq_min, PM_QOS_CPUFREQ_MIN,
+			PM_QOS_DEFAULT_VALUE);
+	pm_qos_add_request(&vi->qos_idle, PM_QOS_CPU_DMA_LATENCY,
+			PM_QOS_DEFAULT_VALUE);
 	return 0;
 }
+
 int vmeta_clean_constraint(struct vmeta_instance *vi)
 {
+	cancel_delayed_work_sync(&vi->unset_op_work);
+	pm_qos_remove_request(&vi->qos_cpufreq_min);
+	pm_qos_remove_request(&vi->qos_idle);
+	printk(KERN_INFO "vmeta op clean up\n");
+
 	return 0;
 }
+
+/* mmp2 vmeta dvfm, vop
+ * VGA:		1~7
+ * 720P:	8~13
+ * 1080P:	14
+ */
 int vmeta_freq_change(struct vmeta_instance *vi, int step)
 {
+	int vop = vi->vop + step;
+
+	if (vop > VMETA_OP_MIN && vop < VMETA_OP_MAX)
+		return vop;
+	else
+		return -1;
+}
+
+/* Vmeta ops:
+ * Resolution <= VGA			-- 1~7  200MHz
+ * VGA < Resolution <=720p		-- 8~13 400MHz
+ * Resolution > 720p			-- 14   800MHz
+ */
+int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
+{
+	int vop = vi->vop;
+
+	mutex_lock(&vi->op_mutex);
+	if (on) {
+		cancel_delayed_work_sync(&vi->unset_op_work);
+		if (vop < VMETA_OP_MIN || vop > VMETA_OP_MAX) {
+			printk(KERN_DEBUG "unsupport vmeta vop=%d\n", vi->vop);
+			vop = VMETA_OP_1080P_MAX;
+		}
+		if (vop == vi->vop_real)
+			goto out;
+
+		pm_qos_update_request(&vi->qos_idle, EXIT_LATENCY_CORE_EXTIDLE);
+		if (vop >= VMETA_OP_VGA && vop <= VMETA_OP_VGA_MAX) {
+			printk(KERN_DEBUG "VGA!!!\n");
+			pm_qos_update_request(&vi->qos_cpufreq_min, 400);
+		} else if (vop >= VMETA_OP_720P && vop <= VMETA_OP_720P_MAX) {
+			printk(KERN_DEBUG "720P!!!\n");
+			pm_qos_update_request(&vi->qos_cpufreq_min, 400);
+		} else { /* 1080p and default ops */
+			printk(KERN_DEBUG "1080P!!!\n");
+			pm_qos_update_request(&vi->qos_cpufreq_min, 800);
+		}
+		update_vmeta_clk(vop);
+		vi->vop_real = vop;
+		printk(KERN_DEBUG "set dvfm vop_real=%d\n", vi->vop_real);
+	} else {
+		if (!vi->plat_data->power_down_ms)
+			vi->plat_data->power_down_ms = 100;
+		schedule_delayed_work(&vi->unset_op_work, msecs_to_jiffies(vi->plat_data->power_down_ms));
+	}
+
+out:
+	mutex_unlock(&vi->op_mutex);
 	return 0;
 }
-void vmeta_power_switch(unsigned int enable)
-{
 
-}
