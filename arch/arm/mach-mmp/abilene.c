@@ -1023,6 +1023,13 @@ static int abilene_max77601_setup(struct max77601_chip *chip)
 	max77601_set_bits(chip, MAX77601_FPS_L8, \
 		MAX77601_FPSSRC_MASK, MAX77601_FPSSRC_NOTFPS);
 
+	/*
+	  * Set pmic_1p2v_codec to 1.2V, for temp usage, will add to codec
+	  * power framework if possible later
+	  */
+	data = (0x3 << 6 ) | 0x8;
+	max77601_write(chip, 0x33, &data, 1);
+
 	/* DVS related part */
 	max77601_read(chip, MAX77601_AME_GPIO, &data, 1);
 	if ((data & MAX77601_AME5_MASK) == MAX77601_AME5_MASK)
