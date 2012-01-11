@@ -186,13 +186,17 @@ int pxa168fb_spi_send(struct pxa168fb_info *fbi, void *value,
 	if (spi_byte_len == 3)
 		spi_byte_len = 4;
 
+	/*After set mode1 it need a time to pull up the spi singals,
+	 * or it would cause the wrong waveform when send spi command,
+	 * especially on pxa910h*/
 	iopad = readl(fbi->reg_base + SPU_IOPAD_CONTROL);
-	for (i = 0; i < count; i++) {
-		if ((iopad & CFG_IOPADMODE_MASK) != PIN_MODE_DUMB_18_SPI)
-			writel(PIN_MODE_DUMB_18_SPI |
-				 (iopad & ~CFG_IOPADMODE_MASK),
-				fbi->reg_base + SPU_IOPAD_CONTROL);
+	if ((iopad & CFG_IOPADMODE_MASK) != PIN_MODE_DUMB_18_SPI)
+		writel(PIN_MODE_DUMB_18_SPI |
+			(iopad & ~CFG_IOPADMODE_MASK),
+			fbi->reg_base + SPU_IOPAD_CONTROL);
+	udelay(20);
 
+	for (i = 0; i < count; i++) {
 		if (spi_gpio_cs != -1)
 			gpio_direction_output(spi_gpio_cs, 0);
 
@@ -232,9 +236,11 @@ int pxa168fb_spi_send(struct pxa168fb_info *fbi, void *value,
 		writel(x, fbi->reg_base + LCD_SPU_SPI_CTRL);
 		if (spi_gpio_cs != -1)
 			gpio_direction_output(spi_gpio_cs, 1);
-		if ((iopad & CFG_IOPADMODE_MASK) != PIN_MODE_DUMB_18_SPI)
-			writel(iopad, fbi->reg_base + SPU_IOPAD_CONTROL);
 	}
+
+	if ((iopad & CFG_IOPADMODE_MASK) != PIN_MODE_DUMB_18_SPI)
+		writel(iopad, fbi->reg_base + SPU_IOPAD_CONTROL);
+
 	if (spi_gpio_cs != -1)
 		gpio_free(spi_gpio_cs);
 	return 0;
