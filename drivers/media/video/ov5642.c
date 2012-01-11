@@ -606,6 +606,7 @@ static int ov5642_g_frame_interval(struct v4l2_subdev *sd,
 				struct v4l2_subdev_frame_interval *inter)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct ov5642 *ov5642 = to_ov5642(client);
 	int mclk;
 
 	/*Usd integer member*/
@@ -686,6 +687,7 @@ static int ov5642_g_frame_interval(struct v4l2_subdev *sd,
 	if (!hts || !vts)
 		return -EINVAL;
 	frame_rate = sys_clk * 1000000 / (hts * vts);
+	ov5642->frame_rate = frame_rate;
 	dev_dbg(&client->dev, "frame_rate: %d,"
 			"hts:%x, vts:%x\n", frame_rate, hts, vts);
 
