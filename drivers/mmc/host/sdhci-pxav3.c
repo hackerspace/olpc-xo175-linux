@@ -285,6 +285,7 @@ static int pxav3_ext_cd_status(struct sdhci_host *host)
 
 	pltfm_host = sdhci_priv(host);
 	pxa = pltfm_host->priv;
+
 	if (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION)
 		return 1;
 	else
@@ -306,6 +307,20 @@ static irqreturn_t ext_cd_irq_thread(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+static int sdhci_pxa_recovery(struct sdhci_host *host)
+{
+	struct sdhci_pltfm_host *pltfm_host;
+	struct sdhci_pxa *pxa;
+
+	pltfm_host = sdhci_priv(host);
+	pxa = pltfm_host->priv;
+
+	if (pxa && pxa->pdata && pxa->pdata->recovery)
+		return pxa->pdata->recovery(host, pxa->pdata);
+
+	return ERR_CONTINUE;
+}
+
 static struct sdhci_ops pxav3_sdhci_ops = {
 	.platform_reset_exit = pxav3_set_private_registers,
 	.set_uhs_signaling = pxav3_set_uhs_signaling,
@@ -313,6 +328,7 @@ static struct sdhci_ops pxav3_sdhci_ops = {
 	.signal_vol_change = pxav3_signal_vol_change,
 	.access_constrain = pxav3_access_constrain,
 	.safe_regulator_on = sdhci_pxa_safe_regulator_on,
+	.recovery = sdhci_pxa_recovery,
 };
 
 static int ext_cd_init(void *data)

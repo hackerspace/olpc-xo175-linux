@@ -310,6 +310,20 @@ static inline void sdhci_pxa_write_b(struct sdhci_host *host, u8 val, int reg)
 }
 #endif
 
+static int sdhci_pxa_recovery(struct sdhci_host *host)
+{
+	struct sdhci_pltfm_host *pltfm_host;
+	struct sdhci_pxa *pxa;
+
+	pltfm_host = sdhci_priv(host);
+	pxa = pltfm_host->priv;
+
+	if (pxa && pxa->pdata && pxa->pdata->recovery)
+		return pxa->pdata->recovery(host, pxa->pdata);
+
+	return ERR_CONTINUE;
+}
+
 static struct sdhci_ops pxav2_sdhci_ops = {
 	.get_max_clock = pxav2_get_max_clock,
 	.platform_8bit_width = pxav2_mmc_set_width,
@@ -317,6 +331,7 @@ static struct sdhci_ops pxav2_sdhci_ops = {
 	.handle_cdint = pxa95x_handle_cdint,
 	.is_present = ext_cd_status,
 	.safe_regulator_on = sdhci_pxa_safe_regulator_on,
+	.recovery = sdhci_pxa_recovery,
 #ifdef CONFIG_MMC_SDHCI_IO_ACCESSORS
 	.read_l = sdhci_pxa_read_l,
 	.read_w = sdhci_pxa_read_w,

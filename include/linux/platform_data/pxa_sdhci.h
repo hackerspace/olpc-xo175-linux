@@ -59,6 +59,7 @@
  * @handle_cdint: special SDIO card interrupt hanlder
  * @idle_lock: wake lock for idle
  */
+struct sdhci_pxa_platdata;
 struct sdhci_pxa_platdata {
 	unsigned int	flags;
 	unsigned int	clk_delay_cycles;
@@ -73,16 +74,31 @@ struct sdhci_pxa_platdata {
 	int		mfp_start;
 	int		mfp_num;
 	int		pull_up;/*1--external pull-up, 0--no external pull-up*/
+
+	int		recovery_status;/* mmc recovery status */
+#define SDHCI_RECOVERY_INIT		0
+#define SDHCI_RECOVERY_DEL		1
+#define SDHCI_RECOVERY_DS		2
+#define SDHCI_RECOVERY_CLK_SLOW		3
+#define SDHCI_RECOVERY_OUTER		4
+#define SDHCI_RECOVERY_SIM		5
+#define SDHCI_RECOVERY_REM		6
+#define SDHCI_RECOVERY_FINISH		31
+
+	int		highspeed;/*indicate whether it's highspeed card*/
+	unsigned int	ori_ds;/*original drive strength*/
+	unsigned int 	ori_del;/*original delay clock*/
+	u32		del_addr;/*delay clock VA*/
+	unsigned int	ori_clk;/*original bus clock*/
+
 	void	(*signal_1v8)(int set);
 	int	(*lp_switch)(unsigned int on, int with_card);
-<<<<<<< HEAD
 	void (*handle_cdint)(struct sdhci_host *host);
-=======
 	int	(*check_short_circuit)(struct sdhci_host *, const int,
 			const int, const int);
 	int	(*safe_regulator_on)(struct sdhci_host *, const int,
 			const int);
->>>>>>> 476eb1f... mmc: add safe regulator on for SD slot
+	int	(*recovery)(struct sdhci_host *, struct sdhci_pxa_platdata *);
 	struct	pm_qos_request_list	qos_idle;
 #ifdef CONFIG_WAKELOCK
 	struct wake_lock	idle_lock;
@@ -99,7 +115,9 @@ struct sdhci_pxa {
 
 	struct sdhci_pxa_platdata       *pdata;
 };
+
 #ifdef CONFIG_CPU_PXA910
 int mmc1_idle_switch(u32 on);
 #endif
+
 #endif /* _PXA_SDHCI_H_ */

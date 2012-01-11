@@ -229,6 +229,14 @@ void mmc_wait_for_req(struct mmc_host *host, struct mmc_request *mrq)
 
 EXPORT_SYMBOL(mmc_wait_for_req);
 
+int mmc_recovery(struct mmc_host *host, struct mmc_request *mrq)
+{
+	if(host->ops->recovery)
+		return host->ops->recovery(host);
+	else
+		return ERR_CONTINUE;
+}
+EXPORT_SYMBOL(mmc_recovery);
 /**
  *	mmc_wait_for_cmd - start a command and wait for completion
  *	@host: MMC host to start command
@@ -666,6 +674,7 @@ void mmc_set_clock(struct mmc_host *host, unsigned int hz)
 	__mmc_set_clock(host, hz);
 	mmc_host_clk_release(host);
 }
+EXPORT_SYMBOL(mmc_set_clock);
 
 #ifdef CONFIG_MMC_CLKGATE
 /*

@@ -549,10 +549,6 @@ static int get_card_status(struct mmc_card *card, u32 *status, int retries)
 	return err;
 }
 
-#define ERR_RETRY	2
-#define ERR_ABORT	1
-#define ERR_CONTINUE	0
-
 static int mmc_blk_cmd_error(struct request *req, const char *name, int error,
 	bool status_valid, u32 status)
 {
@@ -812,6 +808,16 @@ static inline void mmc_apply_rel_rw(struct mmc_blk_request *brq,
 	}
 }
 
+#ifdef CONFIG_MMC_NONSTANDARD_RECOVERY
+static int mmc_blk_data_recovery(struct mmc_card *card, struct mmc_blk_request *brq)
+{
+	int ret;
+
+	ret = mmc_recovery(card->host, &(brq->mrq));
+	return ret;
+}
+#endif
+
 #define CMD_ERRORS							\
 	(R1_OUT_OF_RANGE |	/* Command argument out of range */	\
 	 R1_ADDRESS_ERROR |	/* Misaligned address */		\
@@ -1010,6 +1016,15 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *req)
 		}
 
 		if (brq.data.error) {
+#ifdef CONFIG_MMC_NONSTANDARD_RECOVERY
+			switch (mmc_blk_data_recovery(card, &brq)) {
+			case ERR_RETRY:
+				continue;
+			case ERR_CONTINUE:
+			default:
+				break;
+			}
+#endif
 			pr_err("%s: error %d transferring data, sector %u, nr %u, cmd response %#x, card status %#x\n",
 				req->rq_disk->disk_name, brq.data.error,
 				(unsigned)blk_rq_pos(req),

@@ -406,5 +406,8 @@ extern void mmc_unregister_driver(struct mmc_driver *);
 
 extern void mmc_fixup_device(struct mmc_card *card,
 			     const struct mmc_fixup *table);
+#define ERR_RETRY	2
+#define ERR_ABORT	1
+#define ERR_CONTINUE	0
 
 #endif /* LINUX_MMC_CARD_H */

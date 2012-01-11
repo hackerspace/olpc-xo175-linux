@@ -17,6 +17,15 @@ config MMC_UNSAFE_RESUME
 	  This option sets a default which can be overridden by the
 	  module parameter "removable=0" or "removable=1".
 
+config MMC_NONSTANDARD_RECOVERY
+	bool "MMC non-standard recovery"
+	help
+	  This will try to recover the MMC/SD card from bad status.However,
+	  the capability is depends on the host controller. This recovery is
+	  beyond the MMC/SD standard.
+
+	  If unsure, say N.
+
 config MMC_CLKGATE
 	bool "MMC host clock gating (EXPERIMENTAL)"
 	depends on EXPERIMENTAL
