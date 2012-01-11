@@ -497,14 +497,21 @@ static int pxa95x_pcm_abu_trigger(struct snd_pcm_substream *substream, int cmd)
 
 		/* before runnin, need to check if it need to configure
 		   non-active DMA channel*/
-		/* playback stream is not active,
-		   need to use record stream parameter */
 		if (!p_abu_dma_dev->b_stream_active[SNDRV_PCM_STREAM_PLAYBACK]) {
 
 			period_bytes = p_abu_dma_dev->
-				stream_hw_params[SNDRV_PCM_STREAM_CAPTURE].period_bytes;
+				stream_hw_params[SNDRV_PCM_STREAM_PLAYBACK].period_bytes;
 			period_nums =  p_abu_dma_dev->
-				stream_hw_params[SNDRV_PCM_STREAM_CAPTURE].period_nums;
+				stream_hw_params[SNDRV_PCM_STREAM_PLAYBACK].period_nums;
+
+			/* if playback parameter is not set,
+			   need to use record stream parameter */
+			if (period_bytes == 0 || period_nums == 0) {
+				period_bytes = p_abu_dma_dev->
+					stream_hw_params[SNDRV_PCM_STREAM_CAPTURE].period_bytes;
+				period_nums =  p_abu_dma_dev->
+					stream_hw_params[SNDRV_PCM_STREAM_CAPTURE].period_nums;
+			}
 
 			pxa95x_pcm_abu_cfg_dma_desc(p_abu_dev_ctx, period_bytes,
 						    period_nums,
@@ -512,13 +519,20 @@ static int pxa95x_pcm_abu_trigger(struct snd_pcm_substream *substream, int cmd)
 						    false);
 		}
 
-		/* recording stream is not active,
-		   need to use palyback stream parameter */
 		if (!p_abu_dma_dev->b_stream_active[SNDRV_PCM_STREAM_CAPTURE]) {
 			period_bytes = p_abu_dma_dev->
-				stream_hw_params[SNDRV_PCM_STREAM_PLAYBACK].period_bytes;
+				stream_hw_params[SNDRV_PCM_STREAM_CAPTURE].period_bytes;
 			period_nums = p_abu_dma_dev->
-				stream_hw_params[SNDRV_PCM_STREAM_PLAYBACK].period_nums;
+				stream_hw_params[SNDRV_PCM_STREAM_CAPTURE].period_nums;
+
+			/* if recording parameter is not set,
+			   need to use palyback stream parameter */
+			if (period_bytes == 0 || period_nums == 0) {
+				period_bytes = p_abu_dma_dev->
+					stream_hw_params[SNDRV_PCM_STREAM_PLAYBACK].period_bytes;
+				period_nums =  p_abu_dma_dev->
+					stream_hw_params[SNDRV_PCM_STREAM_PLAYBACK].period_nums;
+			}
 
 			pxa95x_pcm_abu_cfg_dma_desc(p_abu_dev_ctx, period_bytes,
 						    period_nums,
@@ -581,41 +595,13 @@ static int pxa95x_pcm_abu_trigger(struct snd_pcm_substream *substream, int cmd)
 
 		} else {
 
-			if (p_abu_dma_dev->
-			    b_stream_active[SNDRV_PCM_STREAM_PLAYBACK]) {
+			period_bytes = p_abu_dma_dev->
+				stream_hw_params[substream->stream].period_bytes;
+			period_nums = p_abu_dma_dev->
+				stream_hw_params[substream->stream].period_nums;
 
-				period_bytes = p_abu_dma_dev->
-				    stream_hw_params[SNDRV_PCM_STREAM_PLAYBACK].
-				    period_bytes;
-				period_nums = p_abu_dma_dev->
-				    stream_hw_params[SNDRV_PCM_STREAM_PLAYBACK].
-				    period_nums;
-
-				pxa95x_pcm_abu_cfg_dma_desc(p_abu_dev_ctx,
-						    period_bytes,
-						    period_nums,
-						    SNDRV_PCM_STREAM_CAPTURE,
-						    false);
-			}
-
-			if (p_abu_dma_dev->
-			    b_stream_active[SNDRV_PCM_STREAM_CAPTURE]) {
-
-				period_bytes =
-				    p_abu_dma_dev->
-				    stream_hw_params[SNDRV_PCM_STREAM_CAPTURE].
-				    period_bytes;
-				period_nums =
-				    p_abu_dma_dev->
-				    stream_hw_params[SNDRV_PCM_STREAM_CAPTURE].
-				    period_nums;
-
-				pxa95x_pcm_abu_cfg_dma_desc(p_abu_dev_ctx,
-						    period_bytes,
-						    period_nums,
-						    SNDRV_PCM_STREAM_PLAYBACK,
-						    false);
-			}
+			pxa95x_pcm_abu_cfg_dma_desc(p_abu_dev_ctx, period_bytes,
+				period_nums, substream->stream, false);
 
 			DDADR(p_abu_dma_dev->dma_ch[substream->stream]) =
 			    p_abu_dma_dev->dma_desc_paddr[substream->stream];
