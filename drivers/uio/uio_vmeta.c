@@ -96,99 +96,6 @@ static int vmeta_priv_unlock(struct vmeta_instance *vi)
 	}
 }
 
-#ifdef CONFIG_DVFM
-static struct dvfm_lock dvfm_lock = {
-	.lock = __SPIN_LOCK_UNLOCKED(dvfm_lock.lock),
-	.dev_idx = -1,
-	.count = 0,
-};
-#endif
-
-static void set_dvfm_constraint(struct vmeta_instance *vi)
-{
-#ifdef CONFIG_DVFM
-	int ret = 0;
-	spin_lock(&dvfm_lock.lock);
-	if (dvfm_lock.count++ == 0) {
-		/* Disable dvfm for now for MG1,
-		 * todo: later should try to restore to optimize for power */
-		if (vi->plat_data->set_dvfm_constraint) {
-			ret =
-			    vi->plat_data->set_dvfm_constraint(vi,
-							       dvfm_lock.
-							       dev_idx);
-			if (ret) {
-				printk(KERN_ERR
-				       "vmeta dvfm disable error with %d\n",
-				       ret);
-			}
-			vi->power_constraint = 1;
-			if (timer_pending(&vi->power_timer))
-				del_timer(&vi->power_timer);
-		}
-	} else {
-		dvfm_lock.count--;
-	}
-	spin_unlock(&dvfm_lock.lock);
-#endif
-}
-
-static void __unset_dvfm_constraint(struct vmeta_instance *vi)
-{
-#ifdef CONFIG_DVFM
-	int ret;
-	spin_lock(&dvfm_lock.lock);
-	if (dvfm_lock.count == 0) {
-		if (vi->plat_data->unset_dvfm_constraint) {
-			ret =
-			    vi->plat_data->unset_dvfm_constraint(vi,
-								 dvfm_lock.
-								 dev_idx);
-			if (ret) {
-				printk(KERN_ERR
-				       "vmeta dvfm enable error with %d\n",
-				       ret);
-			}
-
-			vi->power_constraint = 0;
-		}
-	}
-	spin_unlock(&dvfm_lock.lock);
-#endif
-}
-
-static void unset_dvfm_constraint(struct vmeta_instance *vi)
-{
-#ifdef CONFIG_DVFM
-	spin_lock(&dvfm_lock.lock);
-	if (dvfm_lock.count == 0) {
-		spin_unlock(&dvfm_lock.lock);
-		return;
-	}
-	if (--dvfm_lock.count == 0) {
-		vi->power_timer.expires =
-		    jiffies + msecs_to_jiffies(vi->power_down_ms);
-		if (!timer_pending(&vi->power_timer))
-			add_timer(&vi->power_timer);
-	} else
-		dvfm_lock.count++;
-	spin_unlock(&dvfm_lock.lock);
-#endif
-}
-
-static void update_vmeta_clk(struct vmeta_instance *vi)
-{
-	if (vi && vi->plat_data && vi->plat_data->update_vmeta_clk)
-		vi->plat_data->update_vmeta_clk(vi);
-}
-
-static void vmeta_power_timer_handler(unsigned long data)
-{
-	struct vmeta_instance *vi = (struct vmeta_instance *)data;
-
-	__unset_dvfm_constraint(vi);
-}
-
 int vmeta_power_status(void)
 {
 	if (vmeta_inst)
@@ -206,12 +113,7 @@ static int vmeta_power_on(struct vmeta_instance *vi)
 		return 0;
 	}
 
-#ifdef CONFIG_DVFM
-	if (vi->plat_data->disable_lpm)
-		vi->plat_data->disable_lpm(dvfm_lock.dev_idx);
-#endif
-
-	vmeta_pwr(VMETA_PWR_ENABLE);
+	vmeta_power_switch(VMETA_PWR_ENABLE);
 	vi->power_status = 1;
 
 	mutex_unlock(&vi->mutex);
@@ -220,14 +122,17 @@ static int vmeta_power_on(struct vmeta_instance *vi)
 
 static int vmeta_clk_on(struct vmeta_instance *vi)
 {
+	int ret;
+
 	mutex_lock(&vi->mutex);
 	if (vi->clk_status != 0) {
 		mutex_unlock(&vi->mutex);
 		return 0;
 	}
 
-	set_dvfm_constraint(vi);
-	update_vmeta_clk(vi);
+	ret = vmeta_runtime_constraint(vi, 1);
+	if (ret)
+		printk(KERN_ERR "vmeta op disable error with %d\n", ret);
 
 	if (NULL != vi->axi_clk)
 		clk_enable(vi->axi_clk);
@@ -277,11 +182,7 @@ static int vmeta_clk_switch(struct vmeta_instance *vi, unsigned long clk_flag)
 		signed char step;
 		step = (signed char)((clk_flag & (0xff << 8)) >> 8);
 		vmeta_print(KERN_INFO"[vmeta] +/- step= %d\n", step);
-		if (step > 0 && vi->plat_data->increase_core_freq)
-			ret = vi->plat_data->increase_core_freq(vi, step);
-		else if (step < 0 && vi->plat_data->decrease_core_freq)
-			ret = vi->plat_data->decrease_core_freq(vi, 0 - step);
-
+		ret = vmeta_freq_change(vi, step);
 		if (ret < 0) {
 			mutex_unlock(&vi->mutex);
 			return ret;
@@ -330,25 +231,16 @@ static int vmeta_power_off(struct vmeta_instance *vi)
 		return 0;
 	}
 
-	vmeta_pwr(VMETA_PWR_DISABLE);
+	vmeta_power_switch(VMETA_PWR_DISABLE);
 	vi->power_status = 0;
-
-#ifdef CONFIG_DVFM
-	if (vi->plat_data->enable_lpm)
-		vi->plat_data->enable_lpm(dvfm_lock.dev_idx);
-
-	if (vi->plat_data->clean_dvfm_constraint) {
-		vi->plat_data->clean_dvfm_constraint(vi, dvfm_lock.dev_idx);
-		printk(KERN_INFO "vmeta op clean up\n");
-	}
-#endif
-
 	mutex_unlock(&vi->mutex);
 	return 0;
 }
 
 static int vmeta_clk_off(struct vmeta_instance *vi)
 {
+	int ret;
+
 	mutex_lock(&vi->mutex);
 	if (vi->clk_status == 0) {
 		mutex_unlock(&vi->mutex);
@@ -361,7 +253,9 @@ static int vmeta_clk_off(struct vmeta_instance *vi)
 	if (NULL != vi->axi_clk)
 		clk_disable(vi->axi_clk);
 
-	unset_dvfm_constraint(vi);
+	ret = vmeta_runtime_constraint(vi, 0);
+	if (ret)
+		printk(KERN_ERR "vmeta unset_op_constraint error with %d\n", ret);
 	vi->clk_status = 0;
 	mutex_unlock(&vi->mutex);
 #ifdef CONFIG_PXA95x
@@ -774,11 +668,6 @@ static int vmeta_probe(struct platform_device *pdev)
 	mutex_init(&(vi->mutex));
 	vmeta_lock_init(vi);
 
-	init_timer(&vi->power_timer);
-	vi->power_timer.data = (unsigned long)vi;
-	vi->power_timer.function = vmeta_power_timer_handler;
-	vi->power_down_ms = 10;
-
 	vi->vop = VMETA_OP_INVALID;
 	vi->vop_real = VMETA_OP_INVALID;
 	ret = uio_register_device(&pdev->dev, &vi->uio_info);
@@ -806,10 +695,7 @@ static int vmeta_probe(struct platform_device *pdev)
 		}
 	}
 
-#ifdef CONFIG_DVFM
-	if (vi->plat_data->init_dvfm_constraint)
-		vi->plat_data->init_dvfm_constraint(vi, dvfm_lock.dev_idx);
-#endif
+	vmeta_init_constraint(vi);
 	vmeta_inst = vi;
 	return 0;
 
@@ -853,9 +739,12 @@ err_pdata:
 static int vmeta_remove(struct platform_device *pdev)
 {
 	struct vmeta_instance *vi = platform_get_drvdata(pdev);
+
 #ifdef CONFIG_VMETA_POLLING_MODE
 	del_timer_sync(&vi->irq_poll_timer);
 #endif
+	vmeta_clean_constraint(vi);
+
 	uio_unregister_device(&vi->uio_info);
 #ifdef CONFIG_MEM_FOR_MULTIPROCESS
 	dma_free_coherent(&pdev->dev, KERNEL_SHARE_SIZE,
@@ -913,21 +802,11 @@ static struct platform_driver vmeta_driver = {
 
 static int __init vmeta_init(void)
 {
-#ifdef CONFIG_DVFM
-	int ret;
-	ret = dvfm_register("VMETA", &dvfm_lock.dev_idx);
-	if (ret)
-		printk(KERN_ERR "vmeta dvfm register fail(%d)\n", ret);
-#endif
-
 	return platform_driver_register(&vmeta_driver);
 }
 
 static void __exit vmeta_exit(void)
 {
-#ifdef CONFIG_DVFM
-	dvfm_unregister("VMETA", &dvfm_lock.dev_idx);
-#endif
 	platform_driver_unregister(&vmeta_driver);
 }
 
