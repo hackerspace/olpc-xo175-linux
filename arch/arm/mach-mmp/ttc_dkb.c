@@ -74,9 +74,6 @@ static int __init emmc_setup(char *__unused)
 __setup("emmc_boot", emmc_setup);
 
 static unsigned long ttc_dkb_pin_config[] __initdata = {
-	/* GPS GPIO */
-	GPIO45_GPIO, /*share with TPO reset*/
-
 	/* UART2 GPS UART */
 	GPIO43_UART2_RXD,
 	GPIO44_UART2_TXD,
@@ -192,6 +189,10 @@ static unsigned long ttc_dkb_pxa910h_pin_config[] __initdata = {
 	GPIO47_UART0_RXD,
 	GPIO48_UART0_TXD,
 
+	/* UART2 GPS UART */
+	GPIO45_UART2_RXD,
+	GPIO46_UART2_TXD,
+
 	/* FT5306 TOUCH */
 	GPIO43_GPIO43,
 	GPIO44_GPIO44 | MFP_MEDIUM | MFP_PULL_LOW,
@@ -204,6 +205,8 @@ static unsigned long ttc_dkb_pxa910h_pin_config[] __initdata = {
 	GPIO16_GPIO16,
 	GPIO29_GPIO29,
 	GPIO30_GPIO30,
+	GPIO31_GPIO31,	/* GPS_LDO_EN */
+	GPIO32_GPIO32,	/* GPS_ON_OFF */
 	GPIO79_GPIO79,	/* Ambient and Proximity Sensor INT */
 
 	/* DFI */
@@ -888,7 +891,7 @@ static int ft5306_touch_io_power_onoff(int on)
 	unsigned int tp_logic_en;
 
 	if (cpu_is_pxa910h())
-		tp_logic_en = MFP_PIN_GPIO110;
+		tp_logic_en = mfp_to_gpio(MFP_PIN_GPIO110);
 	else
 		tp_logic_en = GPIO_EXT0(MFP_PIN_GPIO15);
 
@@ -913,9 +916,9 @@ static void ft5306_touch_reset(void)
 	unsigned int touch_reset;
 
 	if (cpu_is_pxa910h())
-		touch_reset = MFP_PIN_GPIO44;
+		touch_reset = mfp_to_gpio(MFP_PIN_GPIO44);
 	else
-		touch_reset = MFP_PIN_GPIO46;
+		touch_reset = mfp_to_gpio(MFP_PIN_GPIO46);
 
 	if (gpio_request(touch_reset, "ft5306_reset")) {
 		pr_err("Failed to request GPIO for ft5306_reset pin!\n");
@@ -2138,13 +2141,20 @@ static void gps_power_on(void)
 {
 	unsigned int gps_ldo, gps_rst_n;
 
-	gps_ldo = (cpu_is_pxa920_family()) ? GPIO_EXT1(8) : GPIO_EXT1(7);
+	if (cpu_is_pxa910h())
+		gps_ldo = mfp_to_gpio(MFP_PIN_GPIO31);
+	else if (cpu_is_pxa910())
+		gps_ldo = GPIO_EXT1(7);
+	else /* for PXA920, PXA918, PXA921 */
+		gps_ldo = GPIO_EXT1(8);
+
 	if (gpio_request(gps_ldo, "gpio_gps_ldo")) {
 		pr_err("Request GPIO failed, gpio: %d\n", gps_ldo);
 		return;
 	}
 
 	gps_rst_n = (cpu_is_pxa920_family()) ? GPIO_EXT1(11) : mfp_to_gpio(MFP_PIN_GPIO15);
+
 	if (gpio_request(gps_rst_n, "gpio_gps_rst")) {
 		pr_err("Request GPIO failed, gpio: %d\n", gps_rst_n);
 		goto out;
@@ -2167,13 +2177,25 @@ static void gps_power_off(void)
 {
 	unsigned int gps_ldo, gps_rst_n, gps_on;
 
-	gps_ldo = (cpu_is_pxa920_family()) ? GPIO_EXT1(8) : GPIO_EXT1(7);
+	if (cpu_is_pxa910h())
+		gps_ldo = mfp_to_gpio(MFP_PIN_GPIO31);
+	else if (cpu_is_pxa910())
+		gps_ldo = GPIO_EXT1(7);
+	else
+		gps_ldo = GPIO_EXT1(8);
+
 	if (gpio_request(gps_ldo, "gpio_gps_ldo")) {
 		pr_err("Request GPIO failed, gpio: %d\n", gps_ldo);
 		return;
 	}
 
-	gps_on = (cpu_is_pxa920_family()) ? GPIO_EXT1(10) : GPIO_EXT1(1);
+	if (cpu_is_pxa910h())
+		gps_on = mfp_to_gpio(MFP_PIN_GPIO32);
+	else if (cpu_is_pxa910())
+		gps_on = GPIO_EXT1(1);
+	else
+		gps_on = GPIO_EXT1(10);
+
 	if (gpio_request(gps_on, "gpio_gps_on")) {
 		pr_err("Request GPIO failed,gpio: %d\n", gps_on);
 		goto out1;
@@ -2218,7 +2240,13 @@ static void gps_on_off(int flag)
 {
 	unsigned int gps_on;
 
-	gps_on = (cpu_is_pxa920_family()) ? GPIO_EXT1(10) : GPIO_EXT1(1);
+	if (cpu_is_pxa910h())
+		gps_on = mfp_to_gpio(MFP_PIN_GPIO32);
+	else if (cpu_is_pxa910())
+		gps_on = GPIO_EXT1(1);
+	else
+		gps_on = GPIO_EXT1(10);
+
 	if (gpio_request(gps_on, "gpio_gps_on")) {
 		pr_err("Request GPIO failed, gpio: %d\n", gps_on);
 		return;
