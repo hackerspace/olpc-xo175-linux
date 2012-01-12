@@ -925,7 +925,7 @@ config ARCH_HAS_BARRIERS
 
 config PJ4_RETURNSTACK_ISSUE
 	bool "PJ4 core issue: enable return stack would cause system unstable"
-	depends on CPU_PJ4
+	depends on CPU_PJ4 || CPU_PJ4B
 	default y
 	help
 		This option enables the workaround for Marvell PJ4 to disable return
