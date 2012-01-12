@@ -763,18 +763,18 @@ static unsigned int matrix_key_map_dkb2[] = {
 	KEY(1, 0, KEY_OK),
 	KEY(1, 1, KEY_HOME),
 	KEY(1, 2, KEY_CAMERA),
-	KEY(2, 0, KEY_LEFT),
-	KEY(2, 1, KEY_RIGHT),
+	KEY(2, 0, KEY_MENU),
+	KEY(2, 1, KEY_SEND),
 	KEY(2, 2, KEY_RIGHT),/*not exist*/
-	KEY(3, 0, KEY_UP),
-	KEY(3, 1, KEY_DOWN),
+	KEY(3, 0, KEY_VOLUMEUP),
+	KEY(3, 1, KEY_VOLUMEDOWN),
 	KEY(3, 2, KEY_DOWN),/*not exists*/
 };
 
 static struct pxa27x_keypad_platform_data keypad_info_dkb2 = {
 	.matrix_key_rows = 4,
 	.matrix_key_cols = 3,
-	.matrix_key_map = matrix_key_map,
+	.matrix_key_map = matrix_key_map_dkb2,
 	.matrix_key_map_size = ARRAY_SIZE(matrix_key_map_dkb2),
 	.debounce_interval = 30,
 	.active_low = 1,
