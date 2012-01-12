@@ -206,7 +206,8 @@ static struct pxa168fb_mach_info tv_out_info = {
 	.mmap = 0,
 	.max_fb_size = TV_FB_XRES * TV_FB_YRES * 8 + 4096,
 	.phy_type = DPI,
-	.vdma_enable = 0,
+	.vdma_enable = 1,
+	.sram_size = 30 * 1024,
 };
 
 static struct pxa168fb_mach_info tv_out_ovly_info = {
@@ -226,6 +227,7 @@ static struct pxa168fb_mach_info tv_out_ovly_info = {
 	.mmap = 0,
 	.max_fb_size = TV_FB_XRES * TV_FB_YRES * 8 + 4096,
 	.vdma_enable = 0,
+	.sram_size = 30 * 1024,
 };
 
 
@@ -271,7 +273,6 @@ static struct pxa168fb_mach_info mmp2_tv_hdmi_info __initdata = {
 	.mmap			= 0,
 	.max_fb_size		= 1920 * 1080 * 8 + 4096,
 	.vdma_enable		= 1,
-	.sram_paddr		= 0,
 	.sram_size		= 30 * 1024,
 #ifdef CONFIG_PXA688_CMU
 	.ioctl			= pxa688_cmu_ioctl,
@@ -293,7 +294,6 @@ static struct pxa168fb_mach_info mmp2_tv_hdmi_ovly_info __initdata = {
 	.mmap			= 0,
 	.max_fb_size            = 1920 * 1080 * 8 + 4096,
 	.vdma_enable		= 0,
-	.sram_paddr		= 0,
 	.sram_size		= 30 * 1024,
 };
 

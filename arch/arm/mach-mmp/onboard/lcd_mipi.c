@@ -381,7 +381,6 @@ static struct pxa168fb_mach_info mipi_lcd_info = {
 	.spi_gpio_reset = -1,
 	.mmap = 1,
 	.vdma_enable = 1,
-	.sram_paddr = 0,
 	.sram_size  = 30 * 1024,
 	.max_fb_size = 0,
 	.phy_type = DSI2DPI,
@@ -411,6 +410,7 @@ static struct pxa168fb_mach_info mipi_lcd_ovly_info = {
 	.mmap = 0,
 	.max_fb_size = 0,
 	.vdma_enable = 0,
+	.sram_size = 30 * 1024,
 };
 
 #define     DSI1_BITCLK(div)			((div)<<8)
@@ -713,7 +713,6 @@ static struct pxa168fb_mach_info mmp2_mipi_lcd_info __initdata = {
 	.mmap			= 1,
 	.max_fb_size		= 1280 * 720 * 8 + 4096,
 	.vdma_enable		= 1,
-	.sram_paddr		= 0,
 	.sram_size		= 30 * 1024,
 	.phy_type		= DSI2DPI,
 	.phy_init		= dsi_init,
@@ -753,7 +752,6 @@ static struct pxa168fb_mach_info mmp2_mipi_lcd_ovly_info __initdata = {
 	.mmap			= 0,
 	.max_fb_size            = 1280 * 720 * 8 + 4096,
 	.vdma_enable		= 0,
-	.sram_paddr		= 0,
 	.sram_size		= 30 * 1024,
 };
 

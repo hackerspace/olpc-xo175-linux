@@ -598,9 +598,6 @@ struct pxa168fb_mach_info {
 	 * vdma option
 	 */
 	unsigned int vdma_enable;
-	unsigned int vdma_lines;
-	unsigned int sram_paddr;
-	unsigned int sram_vaddr;
 	unsigned int sram_size;
 	/*
 	 * power on/off function.
