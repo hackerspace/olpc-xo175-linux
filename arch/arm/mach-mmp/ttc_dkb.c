@@ -32,6 +32,8 @@
 #include <linux/io.h>
 #include <linux/sd8x_rfkill.h>
 #include <linux/mmc/host.h>
+#include <linux/cwmi.h>
+#include <linux/cwgd.h>
 #include <asm/mach-types.h>
 #include <asm/uaccess.h>
 #include <asm/mach/arch.h>
@@ -196,9 +198,13 @@ static unsigned long ttc_dkb_pxa910h_pin_config[] __initdata = {
 	GPIO110_GPIO110 | MFP_PULL_HIGH,
 
 	/* GPIO */
+	GPIO07_GPIO07,	/* Gyro Sensor INT */
+	GPIO09_GPIO09,	/* Magnetic Sensor INT */
+	GPIO10_GPIO10,	/* G-sensor INT */
 	GPIO16_GPIO16,
 	GPIO29_GPIO29,
 	GPIO30_GPIO30,
+	GPIO79_GPIO79,	/* Ambient and Proximity Sensor INT */
 
 	/* DFI */
 	DF_IO0_ND_IO0,
@@ -958,7 +964,35 @@ static struct elan_touch_platform_data elan_touch_data = {
 	.power = touch_io_power_onoff,
 };
 #endif
+
+#if defined(CONFIG_SENSORS_LIS331DL)
 static unsigned long lis33ldl_min_delay = 50;
+#endif
+
+#if defined(CONFIG_SENSORS_CWMI)
+static struct cwmi_platform_data cwmi_acc_data = {
+	.axes = {
+		1, 0, 0,
+		0, 1, 0,
+		0, 0, 1},
+};
+static struct cwmi_platform_data cwmi_mag_data = {
+	.axes = {
+		1, 0, 0,
+		0, 1, 0,
+		0, 0, 1},
+};
+#endif
+
+#if defined(CONFIG_SENSORS_CWGD)
+static struct cwgd_platform_data cwgd_data = {
+	.axes = {
+		1, 0, 0,
+		0, 1, 0,
+		0, 0, 1},
+};
+#endif
+
 static struct i2c_board_info ttc_dkb_i2c_info[] = {
 	{
 		.type		= "88PM860x",
@@ -1087,9 +1121,38 @@ static struct i2c_board_info ttc_dkb_pxa910h_i2c_info[] = {
 		.platform_data	= &ft5306_touch_data,
 	},
 #endif
+#if defined(CONFIG_SENSORS_ROHM_BH1772)
+	{
+		.type		= "rohm_ls",
+		.addr		= 0x38,
+		.irq		= IRQ_GPIO(79),
+	},
+#endif
 };
 
 static struct i2c_board_info ttc_dkb_pxa910h_pwr_i2c_info[] = {
+#if defined(CONFIG_SENSORS_CWMI)
+	{
+		.type		= "cwmi_acc",
+		.addr		= 0x19,
+		.irq		= IRQ_GPIO(10),
+		.platform_data	= &cwmi_acc_data,
+	},
+	{
+		.type		= "cwmi_mag",
+		.addr		= 0x1e,
+		.irq		= IRQ_GPIO(9),
+		.platform_data	= &cwmi_mag_data,
+	},
+#endif
+#if defined(CONFIG_SENSORS_CWGD)
+	{
+		.type		= "cwgd",
+		.addr		= 0x69,
+		.irq		= IRQ_GPIO(7),
+		.platform_data	= &cwgd_data,
+	},
+#endif
 };
 
 /* workaround for reset i2c bus by GPIO53 -SCL, GPIO54 -SDA */
