@@ -1724,3 +1724,24 @@ void pxa_boot_flash_init(int sync_mode)
 	}
 }
 EXPORT_SYMBOL(pxa_boot_flash_init);
+
+int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
+{
+	return 0;
+}
+int vmeta_init_constraint(struct vmeta_instance *vi)
+{
+	return 0;
+}
+int vmeta_clean_constraint(struct vmeta_instance *vi)
+{
+	return 0;
+}
+int vmeta_freq_change(struct vmeta_instance *vi, int step)
+{
+	return 0;
+}
+void vmeta_power_switch(unsigned int enable)
+{
+
+}

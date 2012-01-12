@@ -1342,3 +1342,24 @@ int mmp_update_vmeta_clk(struct vmeta_instance *vi)
 	writel(reg, clk_rst);
 	return 0;
 }
+
+int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
+{
+	return 0;
+}
+int vmeta_init_constraint(struct vmeta_instance *vi)
+{
+	return 0;
+}
+int vmeta_clean_constraint(struct vmeta_instance *vi)
+{
+	return 0;
+}
+int vmeta_freq_change(struct vmeta_instance *vi, int step)
+{
+	return 0;
+}
+void vmeta_power_switch(unsigned int enable)
+{
+
+}

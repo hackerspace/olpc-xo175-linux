@@ -11,7 +11,6 @@
 #define _VMETA_H_
 
 #include <linux/uio_driver.h>
-struct vmeta_plat_pdata;
 
 struct vmeta_instance {
 	void *reg_base;
@@ -34,19 +33,10 @@ struct vmeta_instance {
 	struct vmeta_plat_data *plat_data;
 };
 
-struct vmeta_plat_data {
-	int (*set_dvfm_constraint)(struct vmeta_instance *vi, int idx);
-	int (*unset_dvfm_constraint)(struct vmeta_instance *vi, int idx);
-	int (*clean_dvfm_constraint)(struct vmeta_instance *vi, int idx);
-	int (*init_dvfm_constraint)(struct vmeta_instance *vi, int idx);
-	irqreturn_t (*bus_irq_handler)(int irq, void *dev_id);
-	int axi_clk_available;
-	int (*decrease_core_freq)(const struct vmeta_instance *vi,
-					const int step);
-	int (*increase_core_freq)(const struct vmeta_instance *vi,
-					const int step);
-	void (*disable_lpm)(int idx);
-	void (*enable_lpm)(int idx);
-	int (*update_vmeta_clk)(struct vmeta_instance *vi);
-};
+extern int vmeta_runtime_constraint(struct vmeta_instance *vi, int on);
+extern int vmeta_init_constraint(struct vmeta_instance *vi);
+extern int vmeta_clean_constraint(struct vmeta_instance *vi);
+extern int vmeta_freq_change(struct vmeta_instance *vi, int step);
+extern void vmeta_power_switch(unsigned int enable);
+
 #endif
