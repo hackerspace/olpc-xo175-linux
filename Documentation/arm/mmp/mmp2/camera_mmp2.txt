@@ -1,0 +1,181 @@
+Note: for Kernel 3.0.0
+
+TODO List
+---------
+All basic functions are ready (ccic + ov5642 mipi).
+
+1. Unify ov5642 sensor setting and align with:
+a. Currently different platforms use different ov5642 setting.
+b. After finished unify multi-platform setting, ov5642_mmp2.h will be replaced
+by ov5642_cfg.c.
+c. The target is use current ov5642 mmp2 setting in all MMP3/MMP2/MG/Nevo/TD
+platforms and patches is on-going.
+
+2. Face detect function has not been verified because up-level is not ready.
+
+3. CCIC output YUV422Planar and YUV420Planar have not been verified.
+
+4. Performance enhancement:
+Shorten shutter lag time of still capture for customer requirement
+
+5. Power optimization:
+a. Close all clocks and power supply when camera didn't be used
+CCIC2 depends on some CCIC1 clocks, need clarify and find the minimal dependency
+b. Camera must be stable when do suspend and resume
+c. Camera should can work on OP2 400M / OP3 800M / OP4 1G when DVFM on
+
+6. Bugs need be fixed:
+a. Green screen will sometimes happen during preview and bug-fix is on-going.
+Potenial Reason: The enqued buf didn't be filled with right data by DMA
+but be dequed to upper-level directly sometimes.
+Still in investigating buffer management of videobuf2.
+b. Flicker will sometimes happen during preview.
+Potenial Reason 1: HW issue
+Try to replace another sensor module and the issue may will disappear.
+Potenial Reason 2: SW issue
+Still in investigation
+
+7. Potenial tasks:
+a. Support other sensors from OV or other sensor vendors with MIPI or DVP mode
+b. Support DxO + OV8820 on Brownstone REV5 boards
+c. Support YUV420P with YV12 (Current YUV420P mapped to I420)
+
+Source List
+-----------
+******platform config related files******
+arch/arm/mach-mmp/include/mach/mfp-mmp2.h
+arch/arm/mach-mmp/include/mach/regs-apmu.h
+arch/arm/mach-mmp/include/mach/mmp2.h
+arch/arm/mach-mmp/mmp2.c
+arch/arm/mach-mmp/brownstone.c
+
+******ov5642 sensor driver related files******
+drivers/media/video/ov5642_cfg.c
+drivers/media/video/ov5642_mmp2.h
+drivers/media/video/ov5642.c
+drivers/media/video/ov5642.h
+
+******soc controller related files******
+drivers/media/video/soc_camera.c
+drivers/media/video/mv_camera.c
+
+******driver buffer managemaent related files******
+drivers/media/video/videobuf2-core.c
+
+How To Work
+----------
+OV5642 <-> SOC Camera <-> Camera Engine <-> Camera HAL <-> Camera App
+sensor  |  Controller  |    Abstractor   | Camera Config |  APP UI
+         Driver        |    Middleware   |      Android System
+
+How To Use
+----------
+Currently camera with ov5642 mipi mode can work on generic linux or android
+system.
+In Android, we can use Camera feature by Camera App
+Besides for Camra App in Android, Camera Engine can provide test case to help
+test and debug camera functions.
+But need build MrvlCameraDemo and libcameraengine.so in android source tree.
+MrvlCameraDemo can run many camera test case including:
+preview/capture/resolution switch and so on
+
+For example:
+shell@android:/data # ./MrvlCameraDemo
+Select the desired test
+	0 - DV/DSC (actively dequeue) test
+	1 - DV/DSC (dequeue based on event) test
+	2 - Video fps test
+	3 - Camera speed
+	4 - Dequeue single port test
+	5 - Flush port test
+	6 - State transition test
+	7 - Stress test of resolution switch
+	8 - Stress test of sensor digital zoom
+	a - all
+	q - quit
+
+Camera Engine test case also can provide dump infomation function and it's very
+useful feature for debugging camera issue.
+
+Constraints
+-----------
+1. Currently, camera must work at OP3 800M for stablity issue even DVFM on
+2. Can't set DMA burst size to 256 byte when CCIC output Planar formats
+3. Must disable OV8820 config on Brownstone REV5 because upper-level still can't
+support DxO + OV8820 in Android
+
+How To Debug
+----------
+Issus debugging summary:
+1. Preview display black or Capture image is black
+Buffer used out (no buffer enque)
+JPEG Header Check result in frame dropped
+
+2. Preview or Capture result in system hang
+GC or vMeta or Audio (Video Recording)
+
+3. Can't support non camera sensor
+Android boot issue (media service)
+Surplus camera init operation in camera suspend / resume
+
+4. Preview display issue
+Test case issue
+(Call overlay driver with old parameters after overlay driver had updated)
+Sensor software reset
+
+5. Suspend / Resume fail
+Android close camera operation didn't finished when enter suspend after
+early-suspend
+Related with DVFM constraints implementation
+
+6. Burst Capture issue
+JPEG Header Check result in frame dropped, no enough buffer for deque operation
+
+7. LCD flick issue (Brownstone REV5)
+Too much frame dropped
+MIPI DPHY setting
+
+8. MMP2 profile8 issue
+Upgrade voltage from 1.75v to 2.0v at 800MHz op
+
+9. Preview / Capture will result in system hang in stress test
+GC or DVFM
+
+10. Camera + EMMC stress test result in System hang
+EXT4 file system issue (journal)
+
+11. Camera <-> Camcorder switch, test case resolution and format switch or
+early suspend stress will result in system hang
+Open / Close camera sensor
+Sensor will stop output (No MIPI Signal)
+Board Design issue (share v_sd2 with other component, can't shut down all power
+supply for sensor)
+Use PWDN pin replace RESET pin and keep all power supply enabled (Need do ECN)
+
+12. 1080p preview will display green screen sometimes
+Downgrade sensor VCO frequency from 1.6G to ~800MHz can reduce probability
+Downgrade frame rate can reduce probability, if frame rate < 30, can work on
+some "Golden sensor module"
+Related with sensor module stability
+
+13. V4L2 polling failed issue in stress
+Fake polling failed for performance issue (add timeout in poll function can fix)
+Sensor didn't output data (no MIPI Signal)
+MIPI data error (Check IRQ_STATUS)
+MIPI lane didn't match
+MIPI CCIC DPHY value
+PWDN pin control sensor impact sensor registers value:
+Some sensor registers which located on sensor power down domain will remain the
+former value
+Sensor Setting (didn't find the issue in software reset mode)
+Workaround is ensure the all sensor registers get the right value every time
+
+14. Preview / Capture quality issue
+Sensor setting (AE / AWB)
+Sensor noise (point) / Power noise (line)
+Board Design (optical)
+Brightness
+
+15. Camera Power issue
+GPIO Input Mode
+Sensor power up / power down unpaired
