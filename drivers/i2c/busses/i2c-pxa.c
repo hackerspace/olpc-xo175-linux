@@ -715,7 +715,7 @@ static int i2c_pxa_pio_set_master(struct pxa_i2c *i2c)
 	 * Wait for the bus to become free.
 	 */
 	while (timeout-- && readl(_ISR(i2c)) & (ISR_IBB | ISR_UB)) {
-		udelay(1000);
+		msleep(1);
 		show_state(i2c);
 	}
 
@@ -737,7 +737,7 @@ static int i2c_pxa_pio_set_master(struct pxa_i2c *i2c)
 static int i2c_pxa_do_pio_xfer(struct pxa_i2c *i2c,
 			       struct i2c_msg *msg, int num)
 {
-	unsigned long timeout = 500000; /* 5 seconds */
+	unsigned long timeout = 100000; /* 1 seconds */
 	int ret = 0;
 
 	ret = i2c_pxa_pio_set_master(i2c);
