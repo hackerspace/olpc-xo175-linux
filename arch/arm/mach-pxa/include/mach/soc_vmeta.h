@@ -28,31 +28,12 @@
 #define VMETA_PWR_DISABLE	0x0
 
 struct vmeta_plat_data {
-	int (*set_dvfm_constraint)(struct vmeta_instance *vi, int idx);
-	int (*unset_dvfm_constraint)(struct vmeta_instance *vi, int idx);
-	int (*clean_dvfm_constraint)(struct vmeta_instance *vi, int idx);
-	int (*init_dvfm_constraint)(struct vmeta_instance *vi, int idx);
 	irqreturn_t (*bus_irq_handler)(int irq, void *dev_id);
 	int axi_clk_available;
-	int (*decrease_core_freq)(const struct vmeta_instance *vi,
-					const int step);
-	int (*increase_core_freq)(const struct vmeta_instance *vi,
-					const int step);
-	void (*disable_lpm)(int idx);
-	void (*enable_lpm)(int idx);
-	int (*update_vmeta_clk)(struct vmeta_instance *vi);
 	int power_down_ms;
 };
 
 void vmeta_pwr(unsigned int enableDisable);
 irqreturn_t pxa95x_vmeta_bus_irq_handler(int irq, void *dev_id);
-int pxa95x_vmeta_set_dvfm_constraint(struct vmeta_instance *vi, int idx);
-int pxa95x_vmeta_unset_dvfm_constraint(struct vmeta_instance *vi, int idx);
 void __init pxa95x_set_vmeta_info(void *info);
-int pxa95x_vmeta_increase_core_freq(const struct vmeta_instance *vi,
-				    const int step);
-int pxa95x_vmeta_decrease_core_freq(const struct vmeta_instance *vi,
-				    const int step);
-int pxa95x_vmeta_clean_dvfm_constraint(struct vmeta_instance *vi, int idx);
-int pxa95x_vmeta_init_dvfm_constraint(struct vmeta_instance *vi, int idx);
 #endif

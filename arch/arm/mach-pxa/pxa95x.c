@@ -1186,15 +1186,8 @@ void __init pxa95x_set_i2c_power_info(struct i2c_pxa_platform_data *info)
 #if defined(CONFIG_UIO_VMETA)
 static struct vmeta_plat_data vmeta_plat_data = {
 	.bus_irq_handler = pxa95x_vmeta_bus_irq_handler,
-	.set_dvfm_constraint = pxa95x_vmeta_set_dvfm_constraint,
-	.unset_dvfm_constraint = pxa95x_vmeta_unset_dvfm_constraint,
-	.init_dvfm_constraint = pxa95x_vmeta_init_dvfm_constraint,
-	.clean_dvfm_constraint = pxa95x_vmeta_clean_dvfm_constraint,
 	.axi_clk_available = 1,
-	.decrease_core_freq = pxa95x_vmeta_decrease_core_freq,
-	.increase_core_freq = pxa95x_vmeta_increase_core_freq,
-	.disable_lpm = dvfm_disable_lowpower,
-	.enable_lpm = dvfm_enable_lowpower,
+	.power_down_ms = 10,
 };
 #endif /*(CONFIG_UIO_VMETA)*/
 
@@ -1727,23 +1720,104 @@ void pxa_boot_flash_init(int sync_mode)
 }
 EXPORT_SYMBOL(pxa_boot_flash_init);
 
+static struct dvfm_lock dvfm_lock = {
+	.lock = __SPIN_LOCK_UNLOCKED(dvfm_lock.lock),
+	.dev_idx = -1,
+	.count = 0,
+};
+
+static void vmeta_power_timer_handler(unsigned long data)
+{
+	struct vmeta_instance *vi = (struct vmeta_instance *)data;
+	int ret;
+	spin_lock(&dvfm_lock.lock);
+	if (dvfm_lock.count == 0) {
+		ret = pxa95x_vmeta_unset_dvfm_constraint(vi, dvfm_lock.dev_idx);
+		if (ret) {
+			printk(KERN_ERR "vmeta dvfm enable error with %d\n",
+				ret);
+		}
+		vi->power_constraint = 0;
+	}
+	spin_unlock(&dvfm_lock.lock);
+}
 int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
 {
+	int ret = 0;
+	if (1 == on) {
+		spin_lock(&dvfm_lock.lock);
+		if (dvfm_lock.count++ == 0) {
+		/* Disable dvfm for now for MG1,
+		 * todo: later should try to restore to optimize for power */
+			ret = pxa95x_vmeta_set_dvfm_constraint(vi,
+						dvfm_lock.dev_idx);
+			if (ret)
+				printk(KERN_ERR
+				"vmeta dvfm disable error with %d\n", ret);
+			vi->power_constraint = 1;
+			if (timer_pending(&vi->power_timer))
+				del_timer(&vi->power_timer);
+		} else {
+			dvfm_lock.count--;
+		}
+		spin_unlock(&dvfm_lock.lock);
+	} else if (0 == on) {
+		spin_lock(&dvfm_lock.lock);
+		if (dvfm_lock.count == 0) {
+			spin_unlock(&dvfm_lock.lock);
+			return 0;
+		}
+		if (--dvfm_lock.count == 0) {
+			vi->power_timer.expires = jiffies +
+			msecs_to_jiffies(vmeta_plat_data.power_down_ms);
+			if (!timer_pending(&vi->power_timer))
+				add_timer(&vi->power_timer);
+		} else
+			dvfm_lock.count++;
+		spin_unlock(&dvfm_lock.lock);
+	}
 	return 0;
 }
 int vmeta_init_constraint(struct vmeta_instance *vi)
 {
+	int ret;
+
+	init_timer(&vi->power_timer);
+	vi->power_timer.data = (unsigned long)vi;
+	vi->power_timer.function = vmeta_power_timer_handler;
+	vmeta_plat_data.power_down_ms = 10;
+
+	ret = dvfm_register("VMETA", &dvfm_lock.dev_idx);
+	if (ret)
+		printk(KERN_ERR "vmeta dvfm register fail(%d)\n", ret);
+
+	pxa95x_vmeta_init_dvfm_constraint(vi, dvfm_lock.dev_idx);
 	return 0;
 }
 int vmeta_clean_constraint(struct vmeta_instance *vi)
 {
+	pxa95x_vmeta_clean_dvfm_constraint(NULL, dvfm_lock.dev_idx);
+	dvfm_unregister("VMETA", &dvfm_lock.dev_idx);
 	return 0;
 }
 int vmeta_freq_change(struct vmeta_instance *vi, int step)
 {
-	return 0;
+	int ret = 0;
+	if (step > 0)
+		ret = pxa95x_vmeta_increase_core_freq(vi, step);
+	else if (step < 0)
+		ret = pxa95x_vmeta_decrease_core_freq(vi, 0 - step);
+	return ret;
 }
 void vmeta_power_switch(unsigned int enable)
 {
-
+	if (VMETA_PWR_ENABLE == enable) {
+		dvfm_disable_lowpower(dvfm_lock.dev_idx);
+		vmeta_pwr(VMETA_PWR_ENABLE);
+	} else if (VMETA_PWR_DISABLE == enable) {
+		vmeta_pwr(VMETA_PWR_DISABLE);
+		pxa95x_vmeta_clean_dvfm_constraint(NULL, dvfm_lock.dev_idx);
+		printk(KERN_INFO "vmeta op clean up\n");
+		dvfm_enable_lowpower(dvfm_lock.dev_idx);
+	}
 }
