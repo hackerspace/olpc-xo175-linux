@@ -864,8 +864,12 @@ int flip_buffer(struct fb_info *info, unsigned long arg)
 		}
 		ret = check_surface(info, &surface, shadowreg);
 		if (ret > 0) {
-			/* update other parameters other than buf addr */
 			pxa168fb_set_var(info, shadowreg, ret);
+
+			/* If only address need update, we update immediately */
+			if (shadowreg->flags == UPDATE_ADDR)
+				pxa168fb_set_regs(fbi, shadowreg);
+
 			list_add_tail(&shadowreg_list->dma_queue,
 				&fbi->buf_waitlist.dma_queue);
 			ret = 0;
@@ -1151,8 +1155,6 @@ void set_start_address(struct fb_info *info, int xoffset, int yoffset,
 		shadowreg->paddr0[1] = addr_u0;
 		shadowreg->paddr0[2] = addr_v0;
 	}
-
-
 }
 
 void set_dma_control0(struct pxa168fb_info *fbi, struct regshadow *shadowreg)
