@@ -160,11 +160,16 @@ static int max17042_get_current(struct max17042_device_info *di)
 static int max17042_get_temperature(struct max17042_device_info *di)
 {
 	int ret = 0;
-	u16 val = 0;
+	signed short val = 0;
 	ret = max17042_read_reg(di->client, MAX17042_TEMP, &val);
 	if (ret < 0)
 		return ret;
-	ret = (val >> 8) * 10;
+	val >>= 8;
+	if (val & 0x80) {
+		val = (0x7f & ~val) + 1;
+		val *= -1;
+	}
+	ret = val * 10;
 	return ret;
 }
 
