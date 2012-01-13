@@ -86,9 +86,8 @@ static int sdhci_pxa_safe_regulator_on(struct sdhci_host *host)
 	return ret;
 }
 
-static void sdhci_pxa_notify_change(struct platform_device *pdev, int state)
+void sdhci_pxa_notify_change(struct sdhci_host *host, int state)
 {
-	struct sdhci_host *host = platform_get_drvdata(pdev);
 	unsigned long flags;
 	static int old_state = 0;
 
@@ -96,7 +95,6 @@ static void sdhci_pxa_notify_change(struct platform_device *pdev, int state)
 		spin_lock_irqsave(&host->lock, flags);
 		if (state && !old_state) {
 			old_state = state;
-			dev_dbg(&pdev->dev, "card inserted.\n");
 			host->quirks |= SDHCI_QUIRK_BROKEN_CARD_DETECTION;
 			spin_unlock_irqrestore(&host->lock, flags);
 
@@ -110,7 +108,6 @@ static void sdhci_pxa_notify_change(struct platform_device *pdev, int state)
 					(int)host->vmmc);
 		} else if(!state && old_state) {
 			old_state = state;
-			dev_dbg(&pdev->dev, "card removed.\n");
 			host->quirks &= ~SDHCI_QUIRK_BROKEN_CARD_DETECTION;
 
 			if (host->mrq) {
@@ -134,6 +131,7 @@ static void sdhci_pxa_notify_change(struct platform_device *pdev, int state)
 		mmc_detect_change(host->mmc, msecs_to_jiffies(200));
 	}
 }
+EXPORT_SYMBOL(sdhci_pxa_notify_change);
 
 static inline int ext_cd_val(int gpio, int invert)
 {
@@ -167,23 +165,33 @@ static int ext_cd_status(struct sdhci_host *host)
 
 static irqreturn_t sdhci_pxa_cd_irq_thread(int irq, void *dev_id)
 {
-	struct platform_device *pdev = dev_id;
-	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	struct sdhci_host *host = (struct sdhci_host *)dev_id;
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_pxa *pxa = (struct sdhci_pxa *)pltfm_host->priv;
+	unsigned long flags;
 	int status;
 
 	wake_lock_timeout(&cd_wake_lock, WAKE_LOCK_CD_TIMEOUT);
 
 	msleep(600);
-	status = ext_cd_val(pdata->ext_cd_gpio, pdata->ext_cd_gpio_invert);
-	sdhci_pxa_notify_change(pdev, status);
+	status = ext_cd_val(pxa->pdata->ext_cd_gpio, pxa->pdata->ext_cd_gpio_invert);
+	if (status) {
+		spin_lock_irqsave(&host->lock, flags);
+		pxa->pdata->recovery_status = SDHCI_RECOVERY_INIT;
+		spin_unlock_irqrestore(&host->lock, flags);
+	}
+	sdhci_pxa_notify_change(host, status);
 
 	return IRQ_HANDLED;
 }
 
 static int ext_cd_init(void *data)
 {
-	struct platform_device *pdev = data;
-	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	struct sdhci_host *host = (struct sdhci_host *)data;
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_pxa *pxa = (struct sdhci_pxa *)pltfm_host->priv;
+	struct sdhci_pxa_platdata *pdata = pxa->pdata;
+
 	int err, cd_irq, ext_cd_gpio;
 	int status;
 
@@ -205,7 +213,7 @@ static int ext_cd_init(void *data)
 
 	err = request_threaded_irq(cd_irq, NULL, sdhci_pxa_cd_irq_thread,
 				   IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
-				   "MMC card detect", pdev);
+				   "MMC card detect", host);
 	if (err) {
 		printk(KERN_ERR "%s: MMC/SD/SDIO: "
 		       "can't request card detect IRQ\n", __func__);
@@ -213,7 +221,7 @@ static int ext_cd_init(void *data)
 	}
 
 	status = ext_cd_val(pdata->ext_cd_gpio, pdata->ext_cd_gpio_invert);
-	sdhci_pxa_notify_change(pdev, status);
+	sdhci_pxa_notify_change(host, status);
 
 	return 0;
 
@@ -432,7 +440,7 @@ static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, host);
 
 	if (pdata && pdata->ext_cd_gpio)
-		ext_cd_init(pdev);
+		ext_cd_init(host);
 
 	device_init_wakeup(&pdev->dev, 0);
 #ifdef CONFIG_SD8XXX_RFKILL

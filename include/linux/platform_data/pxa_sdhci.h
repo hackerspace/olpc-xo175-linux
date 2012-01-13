@@ -120,4 +120,6 @@ struct sdhci_pxa {
 int mmc1_idle_switch(u32 on);
 #endif
 
+extern void sdhci_pxa_notify_change(struct sdhci_host *host, int state);
+
 #endif /* _PXA_SDHCI_H_ */
