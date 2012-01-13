@@ -145,16 +145,6 @@ static void mmp2_sspa_rx_disable(struct ssp_device *sspa)
 	mmp2_sspa_write_reg(sspa, SSPA_RXSP, sspa_sp);
 }
 
-static void mmp2_sspa_sysclk_disable(struct ssp_device *sspa)
-{
-	unsigned int val;
-
-	/* disable sspa clk */
-	val = __raw_readl(AUD_CTL);
-	val &= ~AUD_CTL_SYSCLK_ENA;
-	__raw_writel(val, AUD_CTL);
-}
-
 static void mmp2_sspa_dump_reg(struct ssp_device *sspa)
 {
 	dev_dbg(&sspa->pdev->dev, "RXD         %08x RXID        %08x\n",
@@ -283,13 +273,6 @@ static int mmp2_sspa_suspend(struct snd_soc_dai *cpu_dai)
 	pr_debug("txctrl %x txsp %x txfifo_ll %x txint_mask %x\n",
 		sspa_priv->txctrl, sspa_priv->txsp,
 		sspa_priv->txfifo_ll, sspa_priv->txint_mask);
-
-	if (cpu_dai->id == MMP2_SSPA1) {
-		aud_ctrl      = __raw_readl(AUD_CTL);
-		aud_pll_ctrl0 = __raw_readl(AUD_PLL_CTL0);
-		aud_pll_ctrl1 = __raw_readl(AUD_PLL_CTL1);
-		mmp2_sspa_sysclk_disable(sspa);
-	}
 
 	mmp2_sspa_tx_disable(sspa);
 	mmp2_sspa_rx_disable(sspa);

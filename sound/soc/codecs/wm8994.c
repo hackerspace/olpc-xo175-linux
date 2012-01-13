@@ -2503,6 +2503,37 @@ static int wm8994_resume(struct snd_soc_codec *codec)
 		break;
 	}
 
+	snd_soc_update_bits(codec, WM8994_INTERRUPT_CONTROL,
+			WM8994_IM_IRQ_MASK, WM8994_IM_IRQ);
+
+	snd_soc_update_bits(codec, WM8994_INTERRUPT_STATUS_2_MASK,
+			WM8994_IM_MIC2_DET_EINT_MASK |
+			WM8994_IM_MIC2_SHRT_EINT_MASK,
+			WM8994_IM_MIC2_DET_EINT |
+			WM8994_IM_MIC2_SHRT_EINT);
+
+	snd_soc_update_bits(codec, WM8994_POWER_MANAGEMENT_1,
+			WM8994_MICB2_ENA_MASK |
+			WM8994_VMID_SEL_MASK,
+			0);
+
+	snd_soc_update_bits(codec, WM8994_MICBIAS,
+			WM8994_MICD_ENA_MASK,
+			WM8994_MICD_ENA);
+
+	snd_soc_update_bits(codec, WM8994_POWER_MANAGEMENT_1,
+			WM8994_MICB2_ENA_MASK |
+			WM8994_VMID_SEL_MASK,
+			WM8994_MICB2_ENA |
+			(0x1 << WM8994_VMID_SEL_SHIFT));
+
+	snd_soc_update_bits(codec, WM8994_INTERRUPT_STATUS_2_MASK,
+			WM8994_IM_MIC2_DET_EINT_MASK |
+			WM8994_IM_MIC2_SHRT_EINT_MASK, 0);
+
+	snd_soc_update_bits(codec, WM8994_INTERRUPT_CONTROL,
+			WM8994_IM_IRQ_MASK, 0);
+
 	return 0;
 }
 #else
