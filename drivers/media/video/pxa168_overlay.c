@@ -28,6 +28,7 @@
 #include <linux/irq.h>
 #include <linux/clk.h>
 #include <linux/slab.h>
+#include <linux/earlysuspend.h>
 
 #include <media/v4l2-dev.h>
 #include <media/v4l2-ioctl.h>
@@ -163,6 +164,9 @@ struct pxa168_overlay {
 	 * So ignore vb2 flag in driver
 	 */
 	bool streaming;
+
+	/* suspend/resume related */
+	struct early_suspend    early_suspend;
 
 	struct v4l2_pix_format pix;
 	struct v4l2_pix_format_mplane	pix_mp;
@@ -1950,6 +1954,27 @@ static int pxa168_ovly_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void pxa168_early_suspend(struct early_suspend *h)
+{
+	struct pxa168_overlay *ovly = container_of(h, struct pxa168_overlay,
+						 early_suspend);
+
+	dma_ctrl_set(ovly->id, 0, CFG_DMA_ENA_MASK, 0);
+	return;
+}
+static void pxa168_late_resume(struct early_suspend *h)
+{
+#ifndef CONFIG_ANDROID
+	struct pxa168_overlay *ovly = container_of(h, struct pxa168_overlay,
+						 early_suspend);
+	if (ovly->dma_ctrl0 & CFG_DMA_ENA_MASK)
+		dma_ctrl_set(ovly->id, 0, CFG_DMA_ENA_MASK, CFG_DMA_ENA_MASK);
+#endif
+	return;
+}
+#endif
+
 static int __devinit pxa168_ovly_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -2014,6 +2039,16 @@ static int __devinit pxa168_ovly_probe(struct platform_device *pdev)
 		goto error0;
 
 	v4l2_dbg(1, debug, ovly->vdev, "v4l2_ovly %d probed\n", ovly->id);
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	/* let video layer suspend first and resume late than graphic layer */
+	ovly->early_suspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB -
+					(ovly->id + 3);
+	ovly->early_suspend.suspend = pxa168_early_suspend;
+	ovly->early_suspend.resume = pxa168_late_resume;
+	register_early_suspend(&ovly->early_suspend);
+#endif
+
 	return 0;
 
 error0:
