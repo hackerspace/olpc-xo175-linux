@@ -323,13 +323,8 @@ static void __init mmp_init_dxoisp(void)
 #ifdef CONFIG_UIO_VMETA
 static struct vmeta_plat_data mmp_vmeta_plat_data = {
 	.bus_irq_handler = NULL,
-	.set_dvfm_constraint = NULL,
-	.unset_dvfm_constraint = NULL,
-	.clean_dvfm_constraint = NULL,
-	.init_dvfm_constraint = NULL,
 	.axi_clk_available = 0,
-	.decrease_core_freq = NULL,
-	.increase_core_freq = NULL,
+	.power_down_ms = 100,
 };
 
 static void __init mmp_init_vmeta(void)

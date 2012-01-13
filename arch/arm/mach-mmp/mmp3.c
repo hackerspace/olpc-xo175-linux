@@ -555,23 +555,11 @@ int mmp3_hsic_private_init(struct mv_op_regs *opregs, unsigned int phyregs)
 #endif  /* CONFIG_USB_SUPPORT */
 #ifdef CONFIG_UIO_VMETA
 /* vmeta soc specific functions */
-int mmp__vmeta_set_dvfm_constraint(int idx)
-{
-	return 0;
-	/*dvfm_disable(idx);*/
-}
-
-int mmp__vmeta_unset_dvfm_constraint(int idx)
-{
-	return 0;
-	/*dvfm_enable(idx);*/
-}
-
-void vmeta_pwr(unsigned int enableDisable)
+void vmeta_power_switch(unsigned int enable)
 {
 	unsigned int reg_vmpwr = 0;
 	reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
-	if (VMETA_PWR_ENABLE == enableDisable) {
+	if (VMETA_PWR_ENABLE == enable) {
 		if (reg_vmpwr & (APMU_VMETA_PWRUP_ON|APMU_VMETA_ISB))
 			return; /*Pwr is already on*/
 
@@ -625,7 +613,7 @@ void vmeta_pwr(unsigned int enableDisable)
 		reg_vmpwr &= ~APMU_VMETA_AXICLK_EN;
 		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
 
-	} else if (VMETA_PWR_DISABLE == enableDisable) {
+	} else if (VMETA_PWR_DISABLE == enable) {
 		if ((reg_vmpwr & (APMU_VMETA_PWRUP_ON|APMU_VMETA_ISB)) == 0)
 			return; /*Pwr is already off*/
 
@@ -656,25 +644,24 @@ void vmeta_pwr(unsigned int enableDisable)
 	}
 }
 
-int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
-{
-	return 0;
-}
 int vmeta_init_constraint(struct vmeta_instance *vi)
 {
 	return 0;
 }
+
 int vmeta_clean_constraint(struct vmeta_instance *vi)
 {
 	return 0;
 }
+
 int vmeta_freq_change(struct vmeta_instance *vi, int step)
 {
 	return 0;
 }
-void vmeta_power_switch(unsigned int enable)
-{
 
+int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
+{
+	return 0;
 }
 
 #endif
