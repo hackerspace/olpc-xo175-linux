@@ -1281,7 +1281,7 @@ static int vidioc_s_fmt_vid_overlay(struct file *file, void *fh,
 		ovly->win.global_alpha = 255;
 		/*Fix me */
 		ovly->ckey_alpha.mode = FB_DISABLE_COLORKEY_MODE;
-		ovly->ckey_alpha.alphapath = FB_CONFIG_ALPHA;
+		ovly->ckey_alpha.alphapath = FB_GRA_PATH_ALPHA;
 		ovly->ckey_alpha.config = ovly->win.global_alpha;
 
 	}
