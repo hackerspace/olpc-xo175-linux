@@ -962,3 +962,9 @@ config DISABLE_CLEAN_INTERVENTION
 	depends on CPU_PJ4B
 	help
 	  This option disables clean intervention.
+
+config CACHE_TAUROS3_WRITETHROUGH
+	bool "Force Tauros3 L2 cache write through"
+	depends on CACHE_L2X0
+	help
+	  Say Y here to use the Tauros3 L2 cache in writethrough mode.

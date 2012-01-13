@@ -324,6 +324,7 @@ void __init l2x0_init(void __iomem *base, __u32 aux_val, __u32 aux_mask)
 {
 	__u32 aux;
 	__u32 way_size = 0;
+	__u32 debug_ctrl;
 	const char *type;
 
 	l2x0_base = base;
@@ -359,6 +360,12 @@ void __init l2x0_init(void __iomem *base, __u32 aux_val, __u32 aux_mask)
 #ifdef CONFIG_CACHE_L2X0_PREFETCH
 	/* Configure double line fill and prefetch */
 	writel_relaxed(0x70000000, l2x0_base + L2X0_PREFETCH_CTRL);
+#endif
+
+	debug_ctrl = readl_relaxed(l2x0_base + L2X0_DEBUG_CTRL);
+#ifdef CONFIG_CACHE_TAUROS3_WRITETHROUGH
+	debug_ctrl |= (1 << 1);
+	writel_relaxed(debug_ctrl, l2x0_base + L2X0_DEBUG_CTRL);
 #endif
 
 	/*
@@ -397,4 +404,5 @@ void __init l2x0_init(void __iomem *base, __u32 aux_val, __u32 aux_mask)
 	printk(KERN_INFO "%s cache controller enabled\n", type);
 	printk(KERN_INFO "l2x0: %d ways, CACHE_ID 0x%08x, AUX_CTRL 0x%08x, Cache size: %d B\n",
 			l2x0_ways, l2x0_cache_id, aux, l2x0_size);
+	printk(KERN_INFO "l2x0: DEBUG_CTRL 0x%08x\n", debug_ctrl);
 }
