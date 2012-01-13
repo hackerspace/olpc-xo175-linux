@@ -1063,6 +1063,7 @@ static int mmp3_hsic1_reset(void)
 	gpio_direction_output(reset, 0);
 	mdelay(100);
 	gpio_direction_output(reset, 1);
+	mdelay(50);
 
 	gpio_free(reset);
 	return 0;
