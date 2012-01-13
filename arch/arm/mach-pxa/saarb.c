@@ -23,6 +23,8 @@
 #include <linux/regulator/machine.h>
 #include <linux/sd8x_rfkill.h>
 #include <linux/mmc/host.h>
+#include <linux/mmc/card.h>
+#include <linux/slab.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -1086,6 +1088,332 @@ out:
 	return ret;
 }
 
+#ifdef CONFIG_MMC_CLKGATE
+extern unsigned int mmc_host_clk_rate(struct mmc_host *host);
+#endif
+/*
+ *In pxa_xxx functions below, do not use spin_lock protection.
+ *It should be protected out of them.
+*/
+static int pxa_sd_recover_init(struct sdhci_host *host, struct sdhci_pxa_platdata *pdata)
+{
+	/*Currently, we only care the clock pin's drive strength*/
+	pdata->ori_ds = (mfp_read(MFP_PIN_GPIO56) >> 11) & 0x3;
+
+	pdata->del_addr = (u32) ioremap(0x5550A204, sizeof(u32));
+	if(!pdata->del_addr) {
+		printk(KERN_ERR"sd recover init fail: ioremap\n");
+	}
+	pdata->ori_del = readl(pdata->del_addr);
+
+	pdata->highspeed = !!(mmc_card_highspeed(host->mmc->card));
+#ifdef CONFIG_MMC_CLKGATE
+	pdata->ori_clk = mmc_host_clk_rate(host->mmc);
+#else
+	pdata->ori_clk = host->mmc->ios.clock;
+#endif
+	printk("recover init del=0x%x, hs=%d, ds=0x%x, bus_clk=%d,\n",
+		pdata->ori_del, pdata->highspeed, pdata->ori_ds,
+		pdata->ori_clk);
+
+	return 0;
+}
+
+#define RETCLK_DEL_NUM		20
+#define RETCLK_DEL_IDX_MAX	(RETCLK_DEL_NUM-1)
+/*
+ The delay values have "optimized order" for high speed and normal speed
+ 0x1000, 0x1001, 0x1002, 0x1003, 0x1004, - 200ps, 400ps,600ps, 800ps, 1000ps
+ 0x2004, 0x200C, 0x2014, 0x201C, 0x2024, - 1.2ns, 1.4ns,1.6ns, 1.8ns, 2ns
+ 0x3024, 0x3064, 0x30A4, 0x30E4, 0x3124, - 2.2ns, 2.4ns,2.6ns, 2.8ns, 3ns
+ 0x4124, 0x4324, 0x4524, 0x4724, 0x4924, - 3.2ns, 3.4ns,3.6ns, 3.8ns, 4ns
+*/
+
+static u32 retclk_del[2][RETCLK_DEL_NUM] =
+{
+ { /* Normal Speed */
+ 0x1001, 0x1000, 0x1002, 0x1003, 0x1004,
+ 0x2004, 0x200C, 0x2014, 0x201C, 0x2024,
+ 0x3024, 0x3064, 0x30A4, 0x30E4, 0x3124,
+ 0x4124, 0x4324, 0x4524, 0x4724, 0x4924,
+ },
+ { /* High Speed */
+ 0x3124, 0x4124, 0x30E4, 0x4924, 0x30A4,
+ 0x4724, 0x4524, 0x4324, 0x3064, 0x3024,
+ 0x2024, 0x201C, 0x2014, 0x200C, 0x2004,
+ 0x1004, 0x1003, 0x1002, 0x1001, 0x1000,
+ }
+};
+
+/*
+* @return:
+* ERR_RETRY -- DEL CLK has been changed. Require upper layer retry
+* ERR_ABORT -- All values have been tried. Goto next recovery state.
+*/
+static int pxa_del_clk_tune(struct sdhci_host *host, struct sdhci_pxa_platdata *pdata)
+{
+	static unsigned int clk_idx = 0;
+	u32 del_val;
+
+	if (clk_idx <= RETCLK_DEL_IDX_MAX) {
+		del_val = pdata->ori_del & 0xFFFF8000;/* bit31~15 reserved */
+		del_val |= del_val | retclk_del[pdata->highspeed][clk_idx];
+		writel(del_val, pdata->del_addr);
+		printk("clk_tune idx=%d del_val=0x%x\n", clk_idx, del_val);
+		clk_idx++;
+		return ERR_RETRY;
+	} else {
+		clk_idx = 0;
+		writel(pdata->ori_del, pdata->del_addr);
+		printk("del_clk_tune finished, restore to orig val\n");
+		return ERR_ABORT;
+	}
+}
+
+static void _set_ds(struct sdhci_host *host, struct sdhci_pxa_platdata *pdata, int ds)
+{
+	int i;
+	u32 val;
+
+	for(i=0; i<pdata->mfp_num;i++) {
+		val = mfp_read(pdata->mfp_start+i);
+		printk("pin[%d] changed from 0x%x", pdata->mfp_start+i, val);
+		val = (val & ~(0x3 << 11)) | ((ds & 0x3) << 11);
+		mfp_write(pdata->mfp_start+i, val);
+		printk("to 0x%x \n", val);
+	}
+}
+
+/*
+* @return:
+* ERR_RETRY -- DS has been changed. Require upper layer retry
+* ERR_ABORT -- All values have been tried. Goto next recovery state.
+*/
+static int pxa_ds_tune(struct sdhci_host *host, struct sdhci_pxa_platdata *pdata)
+{
+	static unsigned int ds_idx = 0;
+
+	/*
+	*Drive Strength has 3 options, slow(00b, 01b), medium(10b), fast(11b)
+	*For MG, we only use medium and fast. And only change once
+	*/
+	if (ds_idx == 0) {
+		printk("change ds ori=%d \n", pdata->ori_ds);
+		if (pdata->ori_ds == 0x2) {
+			_set_ds(host, pdata, 0x3);/* set as fast */
+			ds_idx = 2;
+		}
+		else if(pdata->ori_ds == 0x3) {
+			_set_ds(host, pdata, 0x2);/* set as medium */
+			ds_idx = 2;
+		}
+		else {
+			_set_ds(host, pdata, 0x2);/* set as medium */
+			ds_idx = 1;
+		}
+	} else if(ds_idx == 1) {
+		_set_ds(host, pdata, 0x3);/* set as fast */
+		ds_idx = 2;
+	} else if(ds_idx == 2) {
+		ds_idx = 0;
+		_set_ds(host, pdata, pdata->ori_ds);/* set as default*/
+		printk("restore to orig ds\n");
+		return ERR_ABORT;
+	}
+
+	return ERR_RETRY;
+}
+
+extern void mmc_set_clock(struct mmc_host *host, unsigned int hz);
+
+/*
+* @return:
+* ERR_RETRY -- bus clock has been changed. Require upper layer retry
+* ERR_ABORT -- All values have been tried. Goto next recovery state.
+*/
+static int pxa_bus_clk_tune(struct sdhci_host *host, struct sdhci_pxa_platdata *pdata)
+{
+	static unsigned int bus_clk = 0;
+	if (!bus_clk)
+		bus_clk = pdata->ori_clk/2;
+	else
+		bus_clk = bus_clk/2;
+
+	/* For some SD card, mmc controller cannot work below 24MHz*/
+	if (bus_clk < 24000000) {
+		bus_clk = 0;
+		mmc_set_clock(host->mmc, pdata->ori_clk);
+		printk("restore bus clock as %d\n", pdata->ori_clk);
+		return ERR_ABORT;
+	} else {
+		mmc_set_clock(host->mmc, bus_clk);
+		printk("set bus clock as %d\n", bus_clk);
+		return ERR_RETRY;
+	}
+}
+
+static void sd_sim_work(struct work_struct *work)
+{
+	struct sdhci_host *host;
+	unsigned long flags;
+	host = container_of(work, struct sdhci_host, sim_work);
+
+	/*
+	* Remove the SD card, ensure there are no SD operations in the queue
+	* then insert again after 1 s.
+	* Remember we should execute every steps including power on sequence
+	*/
+	sdhci_pxa_notify_change(host, 0);
+	msleep(5000);
+	sdhci_pxa_notify_change(host, 1);
+
+	spin_lock_irqsave(&host->lock, flags);
+	host->in_sim = 0;
+	spin_unlock_irqrestore(&host->lock, flags);
+}
+/*
+* @return:
+* ERR_RETRY -- S/W remove & insert completed. Require upper layer retry
+* ERR_ABORT -- This way has been tried. Goto next recovery state.
+*/
+static int pxa_remove_insert_sim(struct sdhci_host *host, struct sdhci_pxa_platdata *pdata)
+{
+	static int sim_count = 0;/* We only retry once*/
+
+	if (host->in_sim)
+		return ERR_RETRY;
+
+	if(!sim_count) {
+		INIT_WORK(&(host->sim_work), sd_sim_work);
+		sim_count++;
+		printk("S/W simulation starts\n");
+		host->in_sim = 1;
+		queue_work(system_long_wq, &(host->sim_work));
+		return ERR_RETRY;
+	} else {
+		printk("S/W simulation has been tried\n");
+		return ERR_ABORT;
+	}
+}
+
+static int pxa_remove_sd(struct sdhci_host *host, struct sdhci_pxa_platdata *pdata)
+{
+	printk("recovery: remove_sd\n");
+	sdhci_pxa_notify_change(host, 0);
+
+	return ERR_ABORT;
+}
+
+static int pxa_outer_tune(struct sdhci_host *host, struct sdhci_pxa_platdata *pdata)
+{
+	static int outer_count = 0;
+
+	/*
+	* Out of the code, we may retry by single block read, etc.
+	* so, try it before further recovery.
+	*/
+	if (outer_count++ == 0)
+		return ERR_CONTINUE;
+	else {
+		outer_count = 0;
+		return ERR_ABORT;
+	}
+}
+
+/*
+* recovery process:
+* - Save original parameters
+* - First delay clock calibration
+* - First drive strength switch
+* - Second delay clock calibration
+* - Second drive strength switch -- (optional)
+* - Third delay clock calibration -- depends on second drive strength switch
+* - restore delay clock and drive strength and try 48MHz --> 24MHz.
+* - S/W remove-insert simulation
+*/
+static int pxa_sd_recovery(struct sdhci_host *host, struct sdhci_pxa_platdata *pdata)
+{
+	unsigned long flags;
+	int ret = ERR_CONTINUE;
+
+	spin_lock_irqsave(&host->lock, flags);
+retry:
+	switch (pdata->recovery_status) {
+	case SDHCI_RECOVERY_INIT:
+		pxa_sd_recover_init(host, pdata);
+		pdata->recovery_status = SDHCI_RECOVERY_DEL;
+		printk("recovery[INIT] next=%d \n",pdata->recovery_status);
+		goto retry;
+	case SDHCI_RECOVERY_DEL:
+		ret = pxa_del_clk_tune(host, pdata);
+		if (ret == ERR_RETRY)
+			goto exit;
+		else if (ret == ERR_ABORT) {
+			pdata->recovery_status = SDHCI_RECOVERY_DS;
+			printk("recovery[DEL] next=%d \n",pdata->recovery_status);
+			goto retry;
+		}
+		break;
+	case SDHCI_RECOVERY_DS:
+		ret = pxa_ds_tune(host, pdata);
+		if (ret == ERR_RETRY) {
+			pdata->recovery_status = SDHCI_RECOVERY_DEL;
+			printk("recovery[DS] next=%d \n",pdata->recovery_status);
+			goto retry;
+		} else if (ret == ERR_ABORT) {
+			pdata->recovery_status = SDHCI_RECOVERY_CLK_SLOW;
+			printk("recovery[DS] next=%d \n",pdata->recovery_status);
+			goto retry;
+		}
+		break;
+	case SDHCI_RECOVERY_CLK_SLOW:
+		ret = pxa_bus_clk_tune(host, pdata);
+		if (ret == ERR_RETRY)
+			goto exit;
+		else if (ret == ERR_ABORT) {
+			pdata->recovery_status = SDHCI_RECOVERY_OUTER;
+			printk("recovery_status[clk slow] next =%d \n",pdata->recovery_status);
+			goto retry;
+		}
+		break;
+	case SDHCI_RECOVERY_OUTER:
+		ret = pxa_outer_tune(host, pdata);
+		if (ret == ERR_CONTINUE) {
+			goto exit;
+		}
+		else if (ret == ERR_ABORT) {
+			pdata->recovery_status = SDHCI_RECOVERY_SIM;
+			printk("recovery_status[SDHCI_RECOVERY_OUTER] next =%d \n",pdata->recovery_status);
+			goto retry;
+		}
+	case SDHCI_RECOVERY_SIM:
+		spin_unlock_irqrestore(&host->lock, flags);
+		ret = pxa_remove_insert_sim(host, pdata);
+		spin_lock_irqsave(&host->lock, flags);
+		if (ret == ERR_RETRY)
+			goto exit;
+		else if (ret == ERR_ABORT) {
+			pdata->recovery_status = SDHCI_RECOVERY_REM;
+			printk("recovery_status[sim] next=%d \n",pdata->recovery_status);
+			goto retry;
+		}
+		break;
+	case SDHCI_RECOVERY_REM:
+		spin_unlock_irqrestore(&host->lock, flags);
+		pxa_remove_sd(host, pdata);
+		spin_lock_irqsave(&host->lock, flags);
+		pdata->recovery_status = SDHCI_RECOVERY_FINISH;
+	case SDHCI_RECOVERY_FINISH:
+		/* TODO Any further recovery? */
+		printk("saarb recovery completion\n");
+		break;
+	}
+
+exit:
+	spin_unlock_irqrestore(&host->lock, flags);
+	return ret;
+}
+
 static struct sdhci_pxa_platdata mci1_platform_data = {
 	.flags = PXA_FLAG_ENABLE_CLOCK_GATING |
 			PXA_FLAG_ACITVE_IN_SUSPEND,
@@ -1096,6 +1424,7 @@ static struct sdhci_pxa_platdata mci1_platform_data = {
 	.pull_up = 0,
 	.check_short_circuit = pxa_check_sd_short_circuit,
 	.safe_regulator_on = pxa_safe_sd_on,
+	.recovery = pxa_sd_recovery,
 };
 
 static struct sdhci_pxa_platdata mci2_platform_data = {
