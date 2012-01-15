@@ -293,8 +293,8 @@ config SND_MMP_SOC_BROWNSTONE
 config SND_MMP_SOC_MMP3ASOC
         bool "SoC Audio support for MMP3 aSoc"
 	depends on SND_MMP_SOC && (MACH_ABILENE || MACH_YELLOWSTONE) && SND_MMP_LEGACY_SOC
-	select MFD_WM8994
-	select SND_SOC_WM8994
+	select MFD_88PM80X
+	select SND_SOC_88PM805
 	select SND_SOC_HDMI
 	select REGULATOR_FIXED_VOLTAGE
 	help

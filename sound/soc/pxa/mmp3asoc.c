@@ -42,8 +42,7 @@
 #include <mach/regs-mpmu.h>
 #include <mach/regs-apmu.h>
 
-#include <linux/mfd/wm8994/registers.h>
-#include "../codecs/wm8994.h"
+#include "../codecs/88pm805-codec.h"
 #include "mmp2-squ.h"
 #include "mmp2-sspa.h"
 #include <linux/delay.h>
@@ -74,24 +73,25 @@ static void mmp3asoc_ext_control(struct snd_soc_dapm_context *dapm, int func)
 		break;
 	case MMP3ASOC_HS_MIC_FUNC:
 		if (mmp3asoc_hs_mic_func == MMP3ASOC_CTRL_ON)
-			snd_soc_dapm_enable_pin(dapm, "Headset Mic");
+			snd_soc_dapm_enable_pin(dapm, "Headset Mic 2");
 		else
-			snd_soc_dapm_disable_pin(dapm, "Headset Mic");
+			snd_soc_dapm_disable_pin(dapm, "Headset Mic 2");
 		break;
 	case MMP3ASOC_SPK_FUNC:
 		if (mmp3asoc_spk_func == MMP3ASOC_CTRL_ON) {
-			snd_soc_dapm_enable_pin(dapm, "Ext Left Spk");
-			snd_soc_dapm_enable_pin(dapm, "Ext Right Spk");
+			snd_soc_dapm_enable_pin(dapm, "Ext Spk");
 		} else {
-			snd_soc_dapm_disable_pin(dapm, "Ext Left Spk");
-			snd_soc_dapm_disable_pin(dapm, "Ext Right Spk");
+			snd_soc_dapm_disable_pin(dapm, "Ext Spk");
 		}
 		break;
 	case MMP3ASOC_MAIN_MIC_FUNC:
-		if (mmp3asoc_main_mic_func == MMP3ASOC_CTRL_ON)
-			snd_soc_dapm_enable_pin(dapm, "Main Mic");
-		else
-			snd_soc_dapm_disable_pin(dapm, "Main Mic");
+		if (mmp3asoc_main_mic_func == MMP3ASOC_CTRL_ON) {
+			snd_soc_dapm_enable_pin(dapm, "Ext Mic 1");
+			snd_soc_dapm_enable_pin(dapm, "Ext Mic 3");
+		} else {
+			snd_soc_dapm_disable_pin(dapm, "Ext Mic 1");
+			snd_soc_dapm_disable_pin(dapm, "Ext Mic 3");
+		}
 		break;
 	default:
 		pr_err("wrong func type\n");
@@ -195,28 +195,36 @@ static int mmp3asoc_set_main_mic(struct snd_kcontrol *kcontrol,
 }
 
 static const struct snd_soc_dapm_widget mmp3asoc_dapm_widgets[] = {
-	SND_SOC_DAPM_SPK("Ext Left Spk", NULL),
-	SND_SOC_DAPM_SPK("Ext Right Spk", NULL),
-	SND_SOC_DAPM_HP("Headset Stereophone", NULL),
+	SND_SOC_DAPM_HP("Headphone Stereophone", NULL),
+	SND_SOC_DAPM_LINE("Lineout Out 1", NULL),
+	SND_SOC_DAPM_LINE("Lineout Out 2", NULL),
+	SND_SOC_DAPM_SPK("Ext Speaker", NULL),
+	SND_SOC_DAPM_MIC("Ext Mic 1", NULL),
 	SND_SOC_DAPM_MIC("Headset Mic", NULL),
-	SND_SOC_DAPM_MIC("Main Mic", NULL),
+	SND_SOC_DAPM_MIC("Ext Mic 3", NULL),
 };
 
 static const struct snd_soc_dapm_route mmp3asoc_dapm_routes[] = {
-	{"Ext Left Spk", NULL, "SPKOUTLP"},
-	{"Ext Left Spk", NULL, "SPKOUTLN"},
+	{"Headset Stereophone", NULL, "HS1"},
+	{"Headset Stereophone", NULL, "HS2"},
 
-	{"Ext Right Spk", NULL, "SPKOUTRP"},
-	{"Ext Right Spk", NULL, "SPKOUTRN"},
+	{"Ext Speaker", NULL, "LSP"},
+	{"Ext Speaker", NULL, "LSN"},
 
-	{"Headset Stereophone", NULL, "HPOUT1L"},
-	{"Headset Stereophone", NULL, "HPOUT1R"},
+	{"Lineout Out 1", NULL, "LINEOUT1"},
+	{"Lineout Out 2", NULL, "LINEOUT2"},
 
-	{"IN1RN", NULL, "MICBIAS1"},
-	{"MICBIAS1", NULL, "Headset Mic"},
+	{"MIC1P", NULL, "Mic1 Bias"},
+	{"MIC1N", NULL, "Mic1 Bias"},
+	{"Mic1 Bias", NULL, "Ext Mic 1"},
 
-	{"DMIC1DAT", NULL, "MICBIAS1"},
-	{"MICBIAS1", NULL, "Main Mic"},
+	{"MIC2P", NULL, "Mic1 Bias"},
+	{"MIC2N", NULL, "Mic1 Bias"},
+	{"Mic1 Bias", NULL, "Headset Mic 2"},
+
+	{"MIC3P", NULL, "Mic3 Bias"},
+	{"MIC3N", NULL, "Mic3 Bias"},
+	{"Mic3 Bias", NULL, "Ext Mic 3"},
 };
 
 static const char *const jack_function[] = {
@@ -234,7 +242,7 @@ static const struct soc_enum mmp3asoc_enum[] = {
 	SOC_ENUM_SINGLE_EXT(2, main_mic_function),
 };
 
-static const struct snd_kcontrol_new mmp3asoc_wm8994_controls[] = {
+static const struct snd_kcontrol_new mmp3asoc_elba_controls[] = {
 	SOC_ENUM_EXT("Headphone Function", mmp3asoc_enum[0],
 		     mmp3asoc_get_headphone, mmp3asoc_set_headphone),
 	SOC_ENUM_EXT("Headset Mic Function", mmp3asoc_enum[1],
@@ -244,83 +252,6 @@ static const struct snd_kcontrol_new mmp3asoc_wm8994_controls[] = {
 	SOC_ENUM_EXT("Main Mic Function", mmp3asoc_enum[3],
 		     mmp3asoc_get_main_mic, mmp3asoc_set_main_mic),
 };
-
-#ifdef CONFIG_SWITCH_WM8994_HEADSET
-static struct snd_soc_codec *mmp3asoc_wm8994_codec;
-
-int wm8994_headset_detect(void)
-{
-	struct snd_soc_codec *codec;
-	int status1, status2, reg;
-	int ret = 0;
-	static int headset_last_status;
-
-	codec = mmp3asoc_wm8994_codec;
-	if (codec == NULL)
-		return 0;
-
-	/* disable interrupt, mask interrupt mask */
-	snd_soc_write(codec, WM8994_INTERRUPT_CONTROL, 0x1);
-	/* mask MICBIAS interrupt */
-	snd_soc_write(codec, WM8994_INTERRUPT_STATUS_2_MASK,
-			 0xffff);
-
-	/* CHECK_HEAD_PLUGIN: when headset plugin, it would trigger a
-	 * transition state(state = 2) before it can finally get the
-	 * correct state(state = 1). to avoid bad event report, we
-	 * would double check the state when getting a state =2 and
-	 * the last status is no headset/headphone plugin. */
-CHECK_HEADSET_PLUGIN:
-	status1 = snd_soc_read(codec, WM8994_INTERRUPT_STATUS_1);
-	status2 = snd_soc_read(codec, WM8994_INTERRUPT_STATUS_2);
-
-	reg = snd_soc_read(codec, WM8994_INTERRUPT_RAW_STATUS_2);
-
-	switch (reg & (WM8994_MIC2_SHRT_STS | WM8994_MIC2_DET_STS)) {
-	case WM8994_MIC2_DET_STS:
-		ret = 1;
-		break;
-	case (WM8994_MIC2_SHRT_STS | WM8994_MIC2_DET_STS):
-		ret = 2;
-		break;
-	default:
-		ret = 0;
-		break;
-	}
-
-	if (ret == 2 && headset_last_status == 0) {
-		msleep(200);
-		headset_last_status = 1;
-		goto CHECK_HEADSET_PLUGIN;
-	} else if (ret > 0)
-		headset_last_status = 1;
-	else
-		headset_last_status = 0;
-
-	/* clear all irqs */
-	snd_soc_write(codec, WM8994_INTERRUPT_RAW_STATUS_2, 0);
-	snd_soc_write(codec, WM8994_INTERRUPT_STATUS_1, status1);
-	snd_soc_write(codec, WM8994_INTERRUPT_STATUS_2, status2);
-
-	/* enable interrupt, unmask interrupt mask */
-	snd_soc_write(codec, WM8994_INTERRUPT_CONTROL, 0x0);
-	/* unmask MICBIAS interrupt */
-	snd_soc_write(codec, WM8994_INTERRUPT_STATUS_2_MASK,
-			 0xffe7);
-
-	/* reset clocking to make sure trigger irq */
-	snd_soc_update_bits(codec, WM8994_CLOCKING_2,
-			WM8994_DBCLK_DIV_MASK |
-			WM8994_TOCLK_DIV_MASK,
-			(2 << WM8994_DBCLK_DIV_SHIFT) |
-			(4 << WM8994_TOCLK_DIV_SHIFT));
-
-	snd_soc_update_bits(codec, WM8994_CLOCKING_1,
-			WM8994_TOCLK_ENA_MASK,
-			WM8994_TOCLK_ENA);
-	return ret;
-}
-#endif
 
 static int codec_hdmi_init(struct snd_soc_pcm_runtime *rtd)
 {
@@ -426,7 +357,7 @@ static void audio_subsystem_pll_config(void)
 
 }
 
-static int codec_wm8994_init(struct snd_soc_pcm_runtime *rtd)
+static int codec_elba_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
@@ -437,8 +368,8 @@ static int codec_wm8994_init(struct snd_soc_pcm_runtime *rtd)
 	audio_subsystem_pll_config();
 
 	/* Add mmp3asoc specific controls */
-	err = snd_soc_add_controls(codec, mmp3asoc_wm8994_controls,
-				   ARRAY_SIZE(mmp3asoc_wm8994_controls));
+	err = snd_soc_add_controls(codec, mmp3asoc_elba_controls,
+				   ARRAY_SIZE(mmp3asoc_elba_controls));
 	if (err < 0)
 		return err;
 
@@ -450,27 +381,32 @@ static int codec_wm8994_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_add_routes(dapm, mmp3asoc_dapm_routes,
 				ARRAY_SIZE(mmp3asoc_dapm_routes));
 
-	snd_soc_dapm_enable_pin(dapm, "Ext Left Spk");
-	snd_soc_dapm_enable_pin(dapm, "Ext Right Spk");
-	snd_soc_dapm_enable_pin(dapm, "Headset Stereophone");
-	snd_soc_dapm_enable_pin(dapm, "Headset Mic");
-	snd_soc_dapm_enable_pin(dapm, "Main Mic");
+	snd_soc_dapm_enable_pin(dapm, "Ext Speaker");
+	snd_soc_dapm_enable_pin(dapm, "Ext Mic 1");
+	snd_soc_dapm_enable_pin(dapm, "Ext Mic 3");
+	snd_soc_dapm_disable_pin(dapm, "Headset Mic 2");
+	snd_soc_dapm_disable_pin(dapm, "Headset Stereophone");
 
 	/* set endpoints to not connected */
-	snd_soc_dapm_nc_pin(dapm, "HPOUT2P");
-	snd_soc_dapm_nc_pin(dapm, "HPOUT2N");
-	snd_soc_dapm_nc_pin(dapm, "LINEOUT1N");
-	snd_soc_dapm_nc_pin(dapm, "LINEOUT1P");
-	snd_soc_dapm_nc_pin(dapm, "LINEOUT2N");
-	snd_soc_dapm_nc_pin(dapm, "LINEOUT2P");
-	snd_soc_dapm_nc_pin(dapm, "IN1LN");
-	snd_soc_dapm_nc_pin(dapm, "IN1LP");
-	snd_soc_dapm_nc_pin(dapm, "IN1RP");
-	snd_soc_dapm_nc_pin(dapm, "IN2LP:VXRN");
-	snd_soc_dapm_nc_pin(dapm, "IN2RN");
-	snd_soc_dapm_nc_pin(dapm, "IN2RP:VXRP");
+	snd_soc_dapm_nc_pin(dapm, "AUX1");
+	snd_soc_dapm_nc_pin(dapm, "AUX2");
+	snd_soc_dapm_nc_pin(dapm, "MIC1P");
+	snd_soc_dapm_nc_pin(dapm, "MIC1N");
+	snd_soc_dapm_nc_pin(dapm, "MIC2P");
+	snd_soc_dapm_nc_pin(dapm, "MIC2N");
+	snd_soc_dapm_nc_pin(dapm, "MIC3P");
+	snd_soc_dapm_nc_pin(dapm, "MIC3N");
 
-	/* init: disable HEADSET, enable SPK */
+	/* output widget */
+	snd_soc_dapm_nc_pin(dapm, "HS1");
+	snd_soc_dapm_nc_pin(dapm, "HS2");
+	snd_soc_dapm_nc_pin(dapm, "LINEOUT1");
+	snd_soc_dapm_nc_pin(dapm, "LINEOUT2");
+	snd_soc_dapm_nc_pin(dapm, "EARP");
+	snd_soc_dapm_nc_pin(dapm, "EARN");
+	snd_soc_dapm_nc_pin(dapm, "LSP");
+	snd_soc_dapm_nc_pin(dapm, "LSN");
+
 	mutex_lock(&codec->mutex);
 	mmp3asoc_headphone_func = MMP3ASOC_CTRL_OFF;
 	mmp3asoc_hs_mic_func = MMP3ASOC_CTRL_OFF;
@@ -480,66 +416,9 @@ static int codec_wm8994_init(struct snd_soc_pcm_runtime *rtd)
 	mmp3asoc_ext_control(dapm, MMP3ASOC_HS_MIC_FUNC);
 	mmp3asoc_ext_control(dapm, MMP3ASOC_SPK_FUNC);
 	mmp3asoc_ext_control(dapm, MMP3ASOC_MAIN_MIC_FUNC);
-
 	snd_soc_dapm_sync(dapm);
 	mutex_unlock(&codec->mutex);
 
-#ifdef CONFIG_SWITCH_WM8994_HEADSET
-	mmp3asoc_wm8994_codec = codec;
-	headset_detect_func = wm8994_headset_detect;
-
-	snd_soc_update_bits(codec, WM8994_CLOCKING_2,
-			    WM8994_DBCLK_DIV_MASK |
-			    WM8994_TOCLK_DIV_MASK,
-			    (2 << WM8994_DBCLK_DIV_SHIFT) |
-			    (4 << WM8994_TOCLK_DIV_SHIFT));
-
-	snd_soc_update_bits(codec, WM8994_CLOCKING_1,
-			    WM8994_TOCLK_ENA_MASK,
-			    WM8994_TOCLK_ENA);
-
-	snd_soc_update_bits(codec, WM8994_IRQ_DEBOUNCE,
-			    WM8994_MIC2_DET_DB_MASK |
-			    WM8994_MIC2_SHRT_DB_MASK,
-			    WM8994_MIC2_DET_DB |
-			    WM8994_MIC2_SHRT_DB);
-
-	/* 3. GPIO setup */
-	/* 3.1 setup the GPIOn as IRQ output */
-	snd_soc_write(codec, WM8994_GPIO_1, 0x0003);
-
-	snd_soc_update_bits(codec, WM8994_MICBIAS,
-			    WM8994_MICD_ENA_MASK |
-			    WM8994_MICD_SCTHR_MASK,
-			    WM8994_MICD_ENA |
-			    (1 << WM8994_MICD_SCTHR_SHIFT));
-
-	/* turn on micbias 1/2 always */
-	snd_soc_update_bits(codec, WM8994_POWER_MANAGEMENT_1,
-			    WM8994_MICB1_ENA_MASK |
-			    WM8994_MICB2_ENA_MASK,
-			    WM8994_MICB1_ENA |
-			    WM8994_MICB2_ENA);
-
-	/* unmask mic2 shrt and det int */
-	snd_soc_update_bits(codec, WM8994_INTERRUPT_STATUS_2_MASK,
-			    WM8994_IM_MIC2_SHRT_EINT_MASK |
-			    WM8994_IM_MIC2_DET_EINT_MASK, 0);
-
-	/* unmask int */
-	snd_soc_update_bits(codec, WM8994_INTERRUPT_CONTROL,
-			    WM8994_IM_IRQ_MASK, 0);
-
-#endif
-
-#if 0
-	/* need to enable Reg(0x302) bit 13, bit 12 for wm8994 master */
-	snd_soc_update_bits(codec, WM8994_AIF1_MASTER_SLAVE,
-			    WM8994_AIF1_CLK_FRC_MASK |
-			    WM8994_AIF1_LRCLK_FRC_MASK,
-			    WM8994_AIF1_CLK_FRC |
-			    WM8994_AIF1_LRCLK_FRC);
-#endif
 	return 0;
 }
 
@@ -630,28 +509,20 @@ static int mmp3asoc_hdmi_hw_params(struct snd_pcm_substream *substream,
 
 	return 0;
 }
-static int mmp3asoc_wm8994_startup(struct snd_pcm_substream *substream)
+static int mmp3asoc_elba_startup(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	struct snd_soc_codec *codec = rtd->codec;
 
 	cpu_dai->driver->playback.formats = SNDRV_PCM_FMTBIT_S16_LE;
 	cpu_dai->driver->capture.formats = SNDRV_PCM_FMTBIT_S16_LE;
 	cpu_dai->driver->playback.rates = MMP3ASOC_SAMPLE_RATES;
 	cpu_dai->driver->capture.rates = MMP3ASOC_SAMPLE_RATES;
 
-	/* turn on micbias 1/2 always */
-	snd_soc_update_bits(codec, WM8994_POWER_MANAGEMENT_1,
-			    WM8994_MICB1_ENA_MASK |
-			    WM8994_MICB2_ENA_MASK,
-			    WM8994_MICB1_ENA |
-			    WM8994_MICB2_ENA);
-
 	return 0;
 }
 
-static int mmp3asoc_wm8994_hw_params(struct snd_pcm_substream *substream,
+static int mmp3asoc_elba_hw_params(struct snd_pcm_substream *substream,
 			      struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -717,8 +588,8 @@ static int mmp3asoc_wm8994_hw_params(struct snd_pcm_substream *substream,
 	snd_soc_dai_set_clkdiv(cpu_dai, 0, sspa_div);
 	snd_soc_dai_set_sysclk(cpu_dai, 0, sysclk, 0);
 
-	/* set wm8994 sysclk */
-	snd_soc_dai_set_sysclk(codec_dai, WM8994_SYSCLK_MCLK1, sysclk, 0);
+	/* set elba sysclk */
+	snd_soc_dai_set_sysclk(codec_dai, 0, 0, PM805_CODEC_CLK_DIR_OUT);
 
 	return 0;
 }
@@ -745,22 +616,22 @@ static struct snd_soc_ops mmp3asoc_machine_ops[] = {
 	 .hw_params = mmp3asoc_hdmi_hw_params,
 	 },
 	{
-	 .startup = mmp3asoc_wm8994_startup,
-	 .hw_params = mmp3asoc_wm8994_hw_params,
+	 .startup = mmp3asoc_elba_startup,
+	 .hw_params = mmp3asoc_elba_hw_params,
 	 },
 };
 
 /* digital audio interface glue - connects codec <--> CPU */
-static struct snd_soc_dai_link mmp3_asoc_wm8994_dai[] = {
+static struct snd_soc_dai_link mmp3_asoc_elba_dai[] = {
 	{
-	 .name = "WM8994 I2S",
+	 .name = "ELBA I2S",
 	 .stream_name = "I2S Audio",
-	 .codec_name = "wm8994-codec",
+	 .codec_name = "88pm80x-codec",
 	 .platform_name = "mmp3-pcm-audio",
 	 .cpu_dai_name = "mmp3-sspa-dai.0",
-	 .codec_dai_name = "wm8994-aif1",
+	 .codec_dai_name = "88pm805-i2s",
 	 .ops = &mmp3asoc_machine_ops[1],
-	 .init = codec_wm8994_init,
+	 .init = codec_elba_init,
 	 },
 };
 
@@ -781,7 +652,7 @@ static struct snd_soc_dai_link mmp3_asoc_hdmi_dai[] = {
 static struct snd_soc_card snd_soc_mmp3asoc[] = {
 	{
 	 .name = "mmp3 asoc",
-	 .dai_link = &mmp3_asoc_wm8994_dai[0],
+	 .dai_link = &mmp3_asoc_elba_dai[0],
 	 .num_links = 1,
 	 .probe = mmp3asoc_probe,
 #ifdef CONFIG_PM
