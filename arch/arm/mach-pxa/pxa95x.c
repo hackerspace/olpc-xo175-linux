@@ -970,7 +970,7 @@ static DEFINE_PXA3_CKEN(pxa95x_pwm1, PWM1, 13000000);
 static DEFINE_PXA3_CKEN(pxa95x_abu, ABU, 20000000);
 static DEFINE_PXA3_CKEN(pxa95x_gpio, GPIO, 0);
 static DEFINE_PXA3_CKEN(pxa95x_bootrom, BOOT, 0);
-static DEFINE_PXA3_CKEN(pxa95x_tpm, TPM, 0, 0);
+static DEFINE_PXA3_CKEN(pxa95x_tpm, TPM, 0);
 
 static struct clk *common_depend_clk[] = {
 	&clk_pxa95x_axi,
