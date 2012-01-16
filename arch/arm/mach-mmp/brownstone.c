@@ -1237,6 +1237,28 @@ static int cywee_set_power(int on)
 	return 0;
 }
 
+static int twsi6_set_power(int on)
+{
+	static struct regulator *twsi6_5vp;
+
+	if (!twsi6_5vp) {
+		twsi6_5vp = regulator_get(NULL, "v_5vp");
+		if (IS_ERR(twsi6_5vp)) {
+			twsi6_5vp = NULL;
+			pr_err("%s:Failed to get v_5vp!\n", __func__);
+			return -ENODEV;
+		}
+	}
+	if (on)
+		regulator_enable(twsi6_5vp);
+	else
+		regulator_disable(twsi6_5vp);
+
+	return 0;
+
+}
+
+
 static struct touchscreen_platform_data tpk_r800_data = {
 	.set_power  = r800_set_power,
 };
@@ -1504,6 +1526,7 @@ static void __init brownstone_init_headset(void)
 static struct uio_hdmi_platform_data mmp2_hdmi_info __initdata = {
 	.sspa_reg_base = 0xD42A0C00,
 	.gpio = mfp_to_gpio(GPIO46_HDMI_DET),
+	.hdmi_v5p_power = &twsi6_set_power,
 };
 #endif
 
