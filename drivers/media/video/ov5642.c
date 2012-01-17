@@ -26,6 +26,9 @@
 #include <mach/mmp2_plat_ver.h>
 #endif
 #include "ov5642.h"
+#ifdef CONFIG_CPU_PXA910
+#include <mach/cputype.h>
+#endif
 
 MODULE_DESCRIPTION("OmniVision OV5642 Camera Driver");
 MODULE_LICENSE("GPL");
@@ -39,6 +42,10 @@ MODULE_LICENSE("GPL");
 
 #define REG_TIMINGCTRL	0x3818
 #define REG_ARRAYCTRL	0x3621
+
+#ifdef CONFIG_CPU_PXA910
+#define REG_ODCC 0x302c
+#endif
 
 struct i2c_client *g_i2c_client;
 
@@ -329,6 +336,15 @@ static int ov5642_s_fmt(struct v4l2_subdev *sd,
 		if (ret)
 			return ret;
 	}
+
+#ifdef CONFIG_CPU_PXA910
+	if (cpu_is_pxa910h()){
+		ret = ov5642_write(client,REG_ODCC,0x62);
+		if (ret<0)
+			return ret;
+	}
+#endif
+
 	/* bus name: pxa688-mipi, bus_type is 5 */
 	/* bus name: pxa2128-mipi, bus_type is 4 */
 	if (get_bus_type() == 4 || get_bus_type() == 5) {
