@@ -45,6 +45,7 @@ MODULE_LICENSE("GPL");
 
 #ifdef CONFIG_CPU_PXA910
 #define REG_ODCC 0x302c
+#define REG_PWCCONTROL 0x3030
 #endif
 
 struct i2c_client *g_i2c_client;
@@ -339,6 +340,9 @@ static int ov5642_s_fmt(struct v4l2_subdev *sd,
 
 #ifdef CONFIG_CPU_PXA910
 	if (cpu_is_pxa910h()){
+		ret = ov5642_write(client,REG_PWCCONTROL,0x0b);
+		if (ret<0)
+			return ret;
 		ret = ov5642_write(client,REG_ODCC,0x62);
 		if (ret<0)
 			return ret;
