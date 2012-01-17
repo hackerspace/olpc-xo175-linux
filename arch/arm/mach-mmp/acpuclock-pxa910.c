@@ -321,7 +321,7 @@ static struct pxa910_md_opt pxa921_op_array[] = {
 		.baclk = 250,
 		.xpclk = 250,
 		.dclk = 250,
-		.aclk = 156,
+		.aclk = 208,
 		.lpj = 500*500000/HZ,
 		.name = "500MHz",
 	},
