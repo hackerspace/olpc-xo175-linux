@@ -214,6 +214,13 @@ static unsigned long ttc_dkb_pxa910h_pin_config[] __initdata = {
 	GPIO32_GPIO32,	/* GPS_ON_OFF */
 	GPIO79_GPIO79,	/* Ambient and Proximity Sensor INT */
 
+	/* CAMERA GPIO */
+	GPIO49_GPIO49,		/* CAM_EN */
+	GPIO50_GPIO50,		/* CAM_AFEN */
+	GPIO115_GPIO115,	/* CAM_EN2 */
+	GPIO116_GPIO116,	/* CAM_PW */
+	GPIO124_GPIO124,	/* CAM_RESET */
+
 	/* DFI */
 	DF_IO0_ND_IO0,
 	DF_IO1_ND_IO1,
@@ -1337,7 +1344,11 @@ static int cam_ldo12_1p2v_enable(int on)
 	static struct regulator *r_vcam;
 	static int f_enabled;
 	if (on && (!f_enabled)) {
-		r_vcam = regulator_get(NULL, "v_ldo12");
+		if (cpu_is_pxa910h()) {
+			r_vcam = regulator_get(NULL, "v_ldo14");
+		} else {
+			r_vcam = regulator_get(NULL, "v_ldo12");
+		}
 		if (IS_ERR(r_vcam)) {
 			r_vcam = NULL;
 			return -EIO;
@@ -1364,18 +1375,48 @@ static int camera_sensor_power(struct device *dev, int on)
 	unsigned int cam_pwr;
 	unsigned int cam_reset;
 	unsigned int cam_afen;
+	unsigned int cam_en;
+	unsigned int cam_en2;
+
 	int sensor = 1;
 	/* actually, no small power down pin needed */
-	cam_pwr = sensor ? GPIO_EXT0(6) : 0;
-	cam_reset = sensor ? GPIO_EXT0(4) : GPIO_EXT0(14);
-	cam_afen = mfp_to_gpio(MFP_PIN_GPIO49);
+	if (cpu_is_pxa910h()) {
+		cam_afen = mfp_to_gpio(GPIO50_GPIO50);
+		cam_en2 = mfp_to_gpio(GPIO115_GPIO115);
+		cam_pwr = mfp_to_gpio(GPIO116_GPIO116);
+		cam_reset = mfp_to_gpio(GPIO124_GPIO124);
+		cam_en = mfp_to_gpio(GPIO49_GPIO49);
+	} else {
+		cam_pwr = sensor ? GPIO_EXT0(6) : 0;
+		cam_reset = sensor ? GPIO_EXT0(4) : GPIO_EXT0(14);
+		cam_afen = mfp_to_gpio(GPIO49_GPIO49);
+		cam_en = 0;
+		cam_en2 = 0;
+	}
 
-	if (cam_pwr)
+	if (cam_en) {
+		if (gpio_request(cam_en, "CAM_EN")) {
+			printk(KERN_ERR "Request GPIO failed,"
+					"gpio: %d\n", cam_en);
+			return -EIO;
+		}
+	}
+
+	if (cam_en2) {
+		if (gpio_request(cam_en2, "CAM_EN2")) {
+			printk(KERN_ERR "Request GPIO failed,"
+					"gpio: %d\n", cam_en2);
+			return -EIO;
+		}
+	}
+
+	if (cam_pwr) {
 		if (gpio_request(cam_pwr, "CAM_PWR")) {
 			printk(KERN_ERR "Request GPIO failed,"
 					"gpio: %d\n", cam_pwr);
 			return -EIO;
 		}
+	}
 
 	if (gpio_request(cam_reset, "CAM_RESET")) {
 		printk(KERN_ERR "Request GPIO failed,"
@@ -1389,6 +1430,12 @@ static int camera_sensor_power(struct device *dev, int on)
 	}
 
 	if (on) {
+		if (cam_en)
+			gpio_direction_output(cam_en,1);
+		mdelay(1);
+		if (cam_en2)
+			gpio_direction_output(cam_en2,1);
+		mdelay(1);
 		gpio_direction_output(cam_afen, 1);
 		mdelay(1);
 		if (cam_pwr)
@@ -1408,12 +1455,25 @@ static int camera_sensor_power(struct device *dev, int on)
 		if (cam_pwr)
 			gpio_direction_output(cam_pwr, 1);
 		gpio_direction_output(cam_afen, 0);
+		mdelay(1);
+		if (cam_en2) {
+			gpio_direction_output(cam_en2,0);
+			mdelay(1);
+		}
+		if (cam_en) {
+			gpio_direction_output(cam_en,0);
+			mdelay(1);
+		}
 		cam_ldo12_1p2v_enable(0);
 	}
 	if (cam_pwr)
 		gpio_free(cam_pwr);
 	gpio_free(cam_reset);
 	gpio_free(cam_afen);
+	if (cam_en2)
+		gpio_free(cam_en2);
+	if (cam_en)
+		gpio_free(cam_en);
 	return 0;
 }
 
@@ -2584,6 +2644,14 @@ static void __init ttc_dkb_init(void)
 		pxa910_add_twsi(0, &dkb_i2c_pdata, ARRAY_AND_SIZE(ttc_dkb_pxa910h_i2c_info));
 		pxa910_add_twsi(1, &ttc_dkb_pwr_i2c_pdata,
 				ARRAY_AND_SIZE(ttc_dkb_pxa910h_pwr_i2c_info));
+		/* change the adapt id to 1, camera sensor is on pwri2c bus*/
+#if defined(CONFIG_SOC_CAMERA_OV5642)
+		((struct soc_camera_link *)(dkb_ov5642_dvp.dev.platform_data))
+			->i2c_adapter_id = 1;
+#elif defined(CONFIG_SOC_CAMERA_OV5640)
+		((struct soc_camera_link *)(dkb_ov5640_mipi.dev.platform_data))
+			->i2c_adapter_id = 1;
+#endif
 	} else {
 		printk(KERN_ERR "Unsupported platform!\n");
 		BUG();
