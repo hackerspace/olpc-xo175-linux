@@ -50,6 +50,21 @@
 #include <asm/mach-types.h>
 #include <mach/sram.h>
 
+static struct pxa168fb_vdma_info vdma0 = {
+	.ch = 0,
+	.path = 0,
+	.sram_paddr = 0,
+	.sram_size = 0,
+	.enable = 0,
+};
+static struct pxa168fb_vdma_info vdma1 = {
+	.ch = 1,
+	.path = 1,
+	.sram_paddr = 0,
+	.sram_size = 0,
+	.enable = 0,
+};
+
 /* convert pix fmt to vmode */
 static FBVideoMode pixfmt_to_vmode(int pix_fmt)
 {
@@ -98,42 +113,42 @@ static FBVideoMode pixfmt_to_vmode(int pix_fmt)
 
 #define vdma_ctrl(id)		(id ? VDMA_CTRL_2 : VDMA_CTRL_1)
 
-static u32 lcd_pitch_read(struct pxa168fb_info *fbi)
+static u32 lcd_pitch_read(struct pxa168fb_vdma_info *lcd_vdma)
 {
-	struct lcd_regs *regs = get_regs(fbi->id);
+	struct lcd_regs *regs = get_regs(lcd_vdma->path);
 	u32 reg = (u32)&regs->g_pitch;
 
-	if (fbi->vid)
+	if (lcd_vdma->vid)
 		reg = (u32)&regs->v_pitch_yc;
 
 	return __raw_readl(reg) & 0xffff;
 }
 
-static u32 lcd_height_read(struct pxa168fb_info *fbi)
+static u32 lcd_height_read(struct pxa168fb_vdma_info *lcd_vdma)
 {
-	struct lcd_regs *regs = get_regs(fbi->id);
+	struct lcd_regs *regs = get_regs(lcd_vdma->path);
 	u32 reg = (u32)&regs->g_size;
 
-	if (fbi->vid)
+	if (lcd_vdma->vid)
 		reg = (u32)&regs->v_size;
 
 	return (__raw_readl(reg) & 0xfff0000) >> 16;
 }
 
-static u32 lcd_width_read(struct pxa168fb_info *fbi)
+static u32 lcd_width_read(struct pxa168fb_vdma_info *lcd_vdma)
 {
-	struct lcd_regs *regs = get_regs(fbi->id);
+	struct lcd_regs *regs = get_regs(lcd_vdma->path);
 	u32 reg = (u32)&regs->g_size;
 
-	if (fbi->vid)
+	if (lcd_vdma->vid)
 		reg = (u32)&regs->v_size;
 
 	return __raw_readl(reg) & 0xfff;
 }
 
-static u32 vdma_ctrl_read(struct pxa168fb_info *fbi)
+static u32 vdma_ctrl_read(struct pxa168fb_vdma_info *lcd_vdma)
 {
-	u32 reg = (u32)fbi->reg_base + vdma_ctrl(fbi->id);
+	u32 reg = (u32)lcd_vdma->reg_base + vdma_ctrl(lcd_vdma->ch);
 
 	return __raw_readl(reg);
 }
@@ -218,10 +233,10 @@ static int __get_vdma_rot_ctrl(int vmode, int angle, int yuv_format)
 	return reg;
 }
 
-static int __get_vdma_src_sz(struct pxa168fb_info *fbi,
+static int __get_vdma_src_sz(struct pxa168fb_vdma_info *lcd_vdma,
 		int vmode, int width, int height)
 {
-	int res = lcd_pitch_read(fbi) * height;
+	int res = lcd_pitch_read(lcd_vdma) * height;
 
 	if (vmode == FB_VMODE_YUV422PACKED_IRE_90_270)
 		return res >> 1;
@@ -229,16 +244,16 @@ static int __get_vdma_src_sz(struct pxa168fb_info *fbi,
 		return res;
 }
 
-static int __get_vdma_sa(struct pxa168fb_info *fbi, int vmode,
+static int __get_vdma_sa(struct pxa168fb_vdma_info *lcd_vdma, int vmode,
 		int width, int height, int bpp, int rotation)
 {
-	struct lcd_regs *regs = get_regs(fbi->id);
+	struct lcd_regs *regs = get_regs(lcd_vdma->path);
 	int addr = 0;
 
 	if (vmode == FB_VMODE_YUV422PACKED_IRE_90_270)
 		bpp = 2;
 
-	if (fbi->vid)
+	if (lcd_vdma->vid)
 		addr = readl(&regs->v_y0);
 	else
 		addr = readl(&regs->g_0);
@@ -257,10 +272,10 @@ static int __get_vdma_sa(struct pxa168fb_info *fbi, int vmode,
 
 }
 
-static int __get_vdma_sz(struct pxa168fb_info *fbi, int vmode,
+static int __get_vdma_sz(struct pxa168fb_vdma_info *lcd_vdma, int vmode,
 		int rotation, int width, int height, int bpp)
 {
-	int src_pitch = lcd_pitch_read(fbi);
+	int src_pitch = lcd_pitch_read(lcd_vdma);
 
 	if (vmode == FB_VMODE_YUV422PACKED_IRE_90_270)
 		bpp = 2;
@@ -279,10 +294,10 @@ static int __get_vdma_sz(struct pxa168fb_info *fbi, int vmode,
 
 }
 
-static int __get_vdma_pitch(struct pxa168fb_info *fbi, int vmode,
+static int __get_vdma_pitch(struct pxa168fb_vdma_info *lcd_vdma, int vmode,
 		int rotation, int width, int height, int bpp)
 {
-	int src_bpp = bpp, src_pitch = lcd_pitch_read(fbi);
+	int src_bpp = bpp, src_pitch = lcd_pitch_read(lcd_vdma);
 
 	if (vmode == FB_VMODE_YUV422PACKED_IRE_90_270)
 		src_bpp = 2;
@@ -301,7 +316,8 @@ static int __get_vdma_pitch(struct pxa168fb_info *fbi, int vmode,
 
 }
 
-static int __get_vdma_ctrl(struct pxa168fb_info *fbi, int rotation, int line)
+static int __get_vdma_ctrl(struct pxa168fb_vdma_info *lcd_vdma,
+				int rotation, int line)
 {
 	if (!rotation || (rotation == 1))
 		return (line << 8) | 0xa1;
@@ -316,12 +332,12 @@ static void pxa688_vdma_clkset(int en)
 				APMU_LCD2_CLK_RES_CTRL);
 }
 
-static int pxa688_vdma_get_linenum(struct pxa168fb_info *fbi, int angle)
+static int pxa688_vdma_get_linenum(struct pxa168fb_vdma_info *lcd_vdma)
 {
-	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 	int mulfactor, lines, lines_exp;
-	int pitch = lcd_pitch_read(fbi);
-	int height = lcd_height_read(fbi);
+	int pitch = lcd_pitch_read(lcd_vdma);
+	int height = lcd_height_read(lcd_vdma);
+	int angle = lcd_vdma->rotation;
 
 	if (!pitch)
 		return 0;
@@ -330,7 +346,7 @@ static int pxa688_vdma_get_linenum(struct pxa168fb_info *fbi, int angle)
 		mulfactor = 2;
 	else
 		mulfactor = 16;
-	lines = (mi->sram_size / pitch)&(~(mulfactor-1));
+	lines = (lcd_vdma->sram_size / pitch)&(~(mulfactor-1));
 
 	if (lines < 2)
 		return 0; /* at least 2 lines*/
@@ -346,16 +362,20 @@ static int pxa688_vdma_get_linenum(struct pxa168fb_info *fbi, int angle)
 	lines -= lines_exp;
 	pr_debug("lines %d lines_exp %d angle %d mulfactor %d height %d"
 		" pitch %d sram_size %d\n", lines, lines_exp, angle,
-		mulfactor, height, pitch, mi->sram_size);
+		mulfactor, height, pitch, lcd_vdma->sram_size);
 	return lines;
 }
 
-static void pxa688_vdma_set(struct pxa168fb_info *fbi, u32 psqu,
-	unsigned int lines, int pix_fmt, int rotation, unsigned format)
+static void pxa688_vdma_set(struct pxa168fb_vdma_info *lcd_vdma)
 {
-	struct vdma_regs *vdma = (struct vdma_regs *)((u32)fbi->reg_base
+	struct vdma_regs *vdma = (struct vdma_regs *)((u32)lcd_vdma->reg_base
 			+ VDMA_ARBR_CTRL);
-	struct vdma_ch_regs *vdma_ch = fbi->id ? &vdma->ch2 : &vdma->ch1;
+	struct vdma_ch_regs *vdma_ch = lcd_vdma->ch ? &vdma->ch2 : &vdma->ch1;
+	u32 psqu = lcd_vdma->sram_paddr;
+	unsigned int lines = lcd_vdma->vdma_lines;
+	int pix_fmt = lcd_vdma->pix_fmt;
+	int rotation = lcd_vdma->rotation;
+	unsigned format = lcd_vdma->yuv_format;
 	unsigned int reg, width, height, bpp;
 	FBVideoMode vmode;
 
@@ -364,9 +384,9 @@ static void pxa688_vdma_set(struct pxa168fb_info *fbi, u32 psqu,
 		return;
 	}
 
-	width = lcd_width_read(fbi);
-	height = lcd_height_read(fbi);
-	bpp = lcd_pitch_read(fbi) / width;
+	width = lcd_width_read(lcd_vdma);
+	height = lcd_height_read(lcd_vdma);
+	bpp = lcd_pitch_read(lcd_vdma) / width;
 	vmode = pixfmt_to_vmode(pix_fmt);
 	if (vmode < 0) {
 		pr_err("%s pix_fmt %d not supported\n", __func__, pix_fmt);
@@ -374,38 +394,38 @@ static void pxa688_vdma_set(struct pxa168fb_info *fbi, u32 psqu,
 	}
 
 	if (!psqu) {
-		pxa688_vdma_release(fbi);
+		pxa688_vdma_release(lcd_vdma->path, lcd_vdma->vid);
 		return;
 	} else {
 		/* select video layer or graphics layer */
-		reg = readl(fbi->reg_base + LCD_PN2_SQULN2_CTRL);
-		if (fbi->vid)
-			reg |= 1 << (24 + fbi->id);
+		reg = readl(lcd_vdma->reg_base + LCD_PN2_SQULN2_CTRL);
+		if (lcd_vdma->vid)
+			reg |= 1 << (24 + lcd_vdma->path);
 		else
-			reg &= ~(1 << (24 + fbi->id));
-		writel(reg, fbi->reg_base + LCD_PN2_SQULN2_CTRL);
+			reg &= ~(1 << (24 + lcd_vdma->path));
+		writel(reg, lcd_vdma->reg_base + LCD_PN2_SQULN2_CTRL);
 	}
 	reg = (u32)psqu | ((lines/2-1)<<1 | 0x1);
-	writel(reg, fbi->reg_base + squln_ctrl(fbi->id));
+	writel(reg, lcd_vdma->reg_base + squln_ctrl(lcd_vdma->path));
 
 	pr_debug("%s psqu %x reg %x, width %d height %d bpp %d lines %d\n",
 		__func__, psqu, reg, width, height, bpp, lines);
 
 	/* src/dst addr */
-	reg = __get_vdma_sa(fbi, vmode, width, height, bpp, rotation);
+	reg = __get_vdma_sa(lcd_vdma, vmode, width, height, bpp, rotation);
 	writel(reg, &vdma_ch->src_addr);
 	writel((u32)psqu, &vdma_ch->dst_addr);
 
 	/* source size */
-	reg = __get_vdma_src_sz(fbi, vmode, width, height);
+	reg = __get_vdma_src_sz(lcd_vdma, vmode, width, height);
 	writel(reg, &vdma_ch->src_size);
 
 	/* size */
-	reg = __get_vdma_sz(fbi, vmode, rotation, width, height, bpp);
+	reg = __get_vdma_sz(lcd_vdma, vmode, rotation, width, height, bpp);
 	writel(reg, &vdma_ch->dst_size);
 
 	/* pitch */
-	reg = __get_vdma_pitch(fbi, vmode, rotation, width, height, bpp);
+	reg = __get_vdma_pitch(lcd_vdma, vmode, rotation, width, height, bpp);
 	writel(reg, &vdma_ch->pitch);
 
 	/* rotation ctrl */
@@ -413,73 +433,130 @@ static void pxa688_vdma_set(struct pxa168fb_info *fbi, u32 psqu,
 	writel(reg, &vdma_ch->rot_ctrl);
 
 	if (vmode == FB_VMODE_YUV422PACKED_SWAPYUorV && rotation == 180) {
-		reg = dma_ctrl_read(fbi->id, 0);
+		reg = dma_ctrl_read(lcd_vdma->path, 0);
 		reg &= ~(0x1 << 2);
-		dma_ctrl_write(fbi->id, 0, reg);
+		dma_ctrl_write(lcd_vdma->path, 0, reg);
 	}
 
 	/* control */
-	reg = __get_vdma_ctrl(fbi, rotation, lines);
+	reg = __get_vdma_ctrl(lcd_vdma, rotation, lines);
 	writel(reg, &vdma_ch->ctrl);
 }
 
-void pxa688_vdma_config(struct pxa168fb_info *fbi)
+static void vdma_sel_config(struct pxa168fb_vdma_info *lcd_vdma)
 {
-	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
+	u32 reg = readl(lcd_vdma->reg_base + LCD_PN2_SQULN2_CTRL);
 
-	pr_debug("%s fbi %d vid %d vdma_enable %d active %d\n",
-		__func__, fbi->id, fbi->vid, fbi->vdma_enable, fbi->active);
-	if (fbi->vdma_enable && fbi->active) {
-		int active = check_modex_active(fbi);
-		if (active) {
-			mi->vdma_lines = pxa688_vdma_get_linenum(fbi,
-				fbi->surface.viewPortInfo.rotation);
-			pxa688_vdma_set(fbi, mi->sram_paddr, mi->vdma_lines,
-				fbi->pix_fmt, fbi->surface.viewPortInfo.rotation,
-				fbi->surface.viewPortInfo.yuv_format);
+	switch (lcd_vdma->path) {
+	case 0:
+		reg &= ~(1 << 30);
+		break;
+	case 1:
+		reg &= ~(1 << 31);
+		break;
+	case 2:
+		reg |= 1 << (lcd_vdma->ch ? 31 : 30);
+	default:
+		break;
+	}
+	writel(reg, lcd_vdma->reg_base + LCD_PN2_SQULN2_CTRL);
+}
+
+struct pxa168fb_vdma_info *request_vdma(int path, int vid)
+{
+	struct pxa168fb_vdma_info *vdma = 0;
+
+	if ((vdma0.path == path) && (vdma0.vid == vid) && vdma0.enable)
+		return &vdma0;
+	else if ((vdma1.path == path) && (vdma1.vid == vid) && vdma1.enable)
+		return &vdma1;
+
+	switch (path) {
+	case 0:
+		vdma = vdma0.enable ? 0 : &vdma0;
+		break;
+	case 1:
+		vdma = vdma1.enable ? 0 : &vdma1;
+		break;
+	case 2:
+		if (!vdma1.enable)
+			vdma = &vdma1;
+		else if (!vdma0.enable)
+			vdma = &vdma0;
+	default:
+		break;
+	}
+
+	if (vdma) {
+		vdma->path = path;
+		vdma->vid = vid;
+	}
+	return vdma;
+}
+
+void pxa688_vdma_config(struct pxa168fb_vdma_info *lcd_vdma)
+{
+	pr_debug("%s path %d vid %d vdma_enable %d active %d\n",
+		__func__, lcd_vdma->path, lcd_vdma->vid,
+		lcd_vdma->enable, lcd_vdma->active);
+	if (lcd_vdma->enable && lcd_vdma->active) {
+		if (lcd_vdma->dma_on) {
+			lcd_vdma->vdma_lines = pxa688_vdma_get_linenum(lcd_vdma);
+			pxa688_vdma_set(lcd_vdma);
 		} else
-			pxa688_vdma_release(fbi);
+			pxa688_vdma_release(lcd_vdma->path, lcd_vdma->vid);
 	}
 }
 
-void pxa688_vdma_init(struct pxa168fb_info *fbi)
+void pxa688_vdma_init(struct pxa168fb_vdma_info *lcd_vdma)
 {
-	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
+	struct pxa168fb_mach_info *mi = lcd_vdma->dev->platform_data;
 
 	if (mi->vdma_enable) {
-		mi->sram_vaddr = (u32)sram_alloc("mmp-videosram",
-			mi->sram_size, (dma_addr_t *)&mi->sram_paddr);
-		if (mi->sram_paddr) {
-			fbi->vdma_enable = mi->vdma_enable;
+		lcd_vdma->sram_size = mi->sram_size;
+		lcd_vdma->sram_vaddr = (u32)sram_alloc("mmp-videosram",
+			mi->sram_size, (dma_addr_t *)&lcd_vdma->sram_paddr);
+		if (lcd_vdma->sram_paddr) {
+			vdma_sel_config(lcd_vdma);
+			lcd_vdma->enable = mi->vdma_enable;
 			pr_info("vdma enabled, sram_paddr 0x%x sram_size 0x%x\n",
-				mi->sram_paddr, mi->sram_size);
+				lcd_vdma->sram_paddr, mi->sram_size);
 		} else
-			pr_warn("%s fbi %d vdma enable failed\n",
-				__func__, fbi->id);
-		pxa688_vdma_clkset(1);
-	}
+			pr_warn("%s path %d vdma enable failed\n",
+				__func__, lcd_vdma->path);
+	} else if (!lcd_vdma->sram_size)
+		lcd_vdma->sram_size = mi->sram_size;
+
+	pxa688_vdma_clkset(1);
 }
 
-void pxa688_vdma_release(struct pxa168fb_info *fbi)
+void pxa688_vdma_release(int path, int vid)
 {
-	struct vdma_regs *vdma = (struct vdma_regs *)((u32)fbi->reg_base
-			+ VDMA_ARBR_CTRL);
-	struct vdma_ch_regs *vdma_ch = fbi->id ? &vdma->ch2 : &vdma->ch1;
+	struct pxa168fb_vdma_info *lcd_vdma = request_vdma(path, vid);
+	struct vdma_regs *vdma;
+	struct vdma_ch_regs *vdma_ch;
 	unsigned reg; /*, isr, current_time, irq_mask; */
 
-	if (!(vdma_ctrl_read(fbi) & 1))
+	if (!lcd_vdma)
+		return;
+
+	vdma = (struct vdma_regs *)((u32)lcd_vdma->reg_base
+			+ VDMA_ARBR_CTRL);
+	vdma_ch = lcd_vdma->ch ? &vdma->ch2 : &vdma->ch1;
+
+	if (!(vdma_ctrl_read(lcd_vdma) & 1))
 		return;
 #if 0
-	isr = readl(fbi->reg_base + SPU_IRQ_ISR);
-	if (fbi->id == 0)
+	isr = readl(lcd_vdma->reg_base + SPU_IRQ_ISR);
+	if (lcd_vdma->ch == 0)
 		irq_mask = DMA_FRAME_IRQ0_MASK | DMA_FRAME_IRQ1_MASK;
-	else if (fbi->id == 1)
+	else if (lcd_vdma->ch == 1)
 		irq_mask = TV_DMA_FRAME_IRQ0_MASK | TV_DMA_FRAME_IRQ1_MASK;
 	else
 		irq_mask = PN2_DMA_FRAME_IRQ0_MASK | PN2_DMA_FRAME_IRQ1_MASK;
-	irq_status_clear(fbi, irq_mask);
+	irq_status_clear(lcd_vdma->ch, irq_mask);
 	current_time = jiffies;
-	while ((readl(fbi->reg_base + SPU_IRQ_ISR) &	irq_mask) == 0) {
+	while ((readl(lcd_vdma->reg_base + SPU_IRQ_ISR) &	irq_mask) == 0) {
 		if (jiffies_to_msecs(jiffies - current_time) > EOF_TIMEOUT) {
 			pr_err("EOF not detected !");
 			break;
@@ -492,73 +569,90 @@ void pxa688_vdma_release(struct pxa168fb_info *fbi)
 	writel(reg, &vdma_ch->ctrl);
 
 	/* disable squ access */
-	reg = readl(fbi->reg_base + squln_ctrl(fbi->id));
+	reg = readl(lcd_vdma->reg_base + squln_ctrl(lcd_vdma->path));
 	reg &= (~0x1);
-	writel(reg, fbi->reg_base + squln_ctrl(fbi->id));
+	writel(reg, lcd_vdma->reg_base + squln_ctrl(lcd_vdma->path));
 #ifdef CONFIG_PXA688_MISC
-	if (fbi->id == fb_vsmooth && (gfx_vsmooth || vid_vsmooth))
-		writel(reg, fbi->reg_base + squln_ctrl(fb_filter));
+	if (lcd_vdma->path == fb_vsmooth && (gfx_vsmooth || vid_vsmooth))
+		writel(reg, lcd_vdma->reg_base + squln_ctrl(fb_filter));
 #endif
-	printk(KERN_DEBUG "%s fbi %d squln_ctrl %x\n", __func__,
-		fbi->id, readl(fbi->reg_base + squln_ctrl(fbi->id)));
+	printk(KERN_DEBUG "%s path %d squln_ctrl %x\n", __func__, lcd_vdma->path,
+		readl(lcd_vdma->reg_base + squln_ctrl(lcd_vdma->path)));
 }
 
-void pxa688_vdma_en(struct pxa168fb_info *fbi, int enable)
+void pxa688_vdma_en(struct pxa168fb_vdma_info *lcd_vdma, int enable, int vid)
 {
-	struct pxa168fb_info *fbi_sec = fbi->vid ?
-		gfx_info.fbi[fbi->id] : ovly_info.fbi[fbi->id];
-	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-	struct fb_info *info = fbi->vid ?
-		fbi_sec->fb_info : fbi->fb_info;
-	struct fb_var_screeninfo *var = &info->var;
 	u32 reg;
 
-	if ((fbi->id == 1) && (var->vmode & FB_VMODE_INTERLACED) && enable)
-		return;
-
-	if (fbi->vdma_enable == enable)
-		return;
+	if ((lcd_vdma->path == 1) && enable) {
+		reg = dma_ctrl_read(lcd_vdma->path, 1);
+		if (reg & (CFG_TV_INTERLACE_EN | CFG_TV_NIB))
+			return;
+	}
 
 	if (enable) {
-		reg = readl(fbi->reg_base + squln_ctrl(fbi->id));
-		if ((reg & 0x1) || fbi_sec->vdma_enable) {
+		if ((lcd_vdma->enable) && (lcd_vdma->vid == vid))
+			return;
+		reg = readl(lcd_vdma->reg_base + squln_ctrl(lcd_vdma->path));
+		if ((reg & 0x1) || lcd_vdma->enable) {
 			pr_warn("%s vdma has been enabled for"
 				" another layer\n", __func__);
 			return;
 		}
-		mi->sram_vaddr = (u32)sram_alloc("mmp-videosram",
-			mi->sram_size, (dma_addr_t *)&mi->sram_paddr);
-		if (mi->sram_paddr) {
-			fbi->vdma_enable = 1;
-			pr_info("vdma enabled, vaddr:%x, paddr:%x\n",
-				mi->sram_vaddr, mi->sram_paddr);
+		vdma_sel_config(lcd_vdma);
+
+		lcd_vdma->sram_vaddr = (u32)sram_alloc("mmp-videosram",
+			lcd_vdma->sram_size, (dma_addr_t *)&lcd_vdma->sram_paddr);
+		if (lcd_vdma->sram_paddr) {
+			lcd_vdma->enable = 1;
+			lcd_vdma->vid = vid;
 		} else
-			pr_warn("%s fbi %d vdma enable failed\n",
-				__func__, fbi->id);
+			pr_warn("%s path %d vdma enable failed\n",
+				__func__, lcd_vdma->path);
 	} else {
-		fbi->vdma_enable = 0;
-		pxa688_vdma_release(fbi);
+		if (!lcd_vdma->enable || (lcd_vdma->vid != vid))
+			return;
+		pxa688_vdma_release(lcd_vdma->path, lcd_vdma->vid);
+		lcd_vdma->enable = 0;
 		sram_free("mmp-videosram",
-			(dma_addr_t *)mi->sram_vaddr, mi->sram_size);
-		mi->sram_paddr = 0;
-		mi->sram_vaddr = 0;
-		pr_info("%s fbi%s %d vdma disabled\n", __func__,
-			fbi->vid ? "_ovly" : " ", fbi->id);
+			(dma_addr_t *)lcd_vdma->sram_vaddr, lcd_vdma->sram_size);
+		lcd_vdma->sram_paddr = 0;
+		lcd_vdma->sram_vaddr = 0;
 	}
+
+	pr_info("path %d %s layer, vdma %d %s, sram size:0x%x, vaddr:0x%x, paddr:0x%x\n",
+		lcd_vdma->path, lcd_vdma->vid ? "vid" : "gfx",
+		lcd_vdma->ch, lcd_vdma->enable ? "enabled" : "disabled",
+		lcd_vdma->sram_size, lcd_vdma->sram_vaddr, lcd_vdma->sram_paddr);
 }
 
 ssize_t vdma_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
 	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
-	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 	struct vdma_regs *vdma = (struct vdma_regs *)((u32)fbi->reg_base
 			+ VDMA_ARBR_CTRL);
 
-	pr_info("\tmi->vdma_enable:  %d\n", mi->vdma_enable);
-	pr_info("\tfbi->vdma_enable: %d\n", fbi->vdma_enable);
+	pr_info("\nbasic info\n");
+	pr_info("\nvdma0:\n");
+	pr_info("\tlcd_vdma->ch:     %d\n", vdma0.ch);
+	pr_info("\tlcd_vdma->path:   %d\n", vdma0.path);
+	pr_info("\tlcd_vdma->vid:    %d\n", vdma0.vid);
+	pr_info("\tlcd_vdma->enable: %d\n", vdma0.enable);
+	pr_info("\tvdma_lines     %d\n", vdma0.vdma_lines);
+	pr_info("\tsram_paddr     0x%x\n", vdma0.sram_paddr);
+	pr_info("\tsram_size      0x%x\n", vdma0.sram_size);
 
-	pr_info("vdma regs base 0x%p\n", vdma);
+	pr_info("\nvdma1:\n");
+	pr_info("\tlcd_vdma->ch:     %d\n", vdma1.ch);
+	pr_info("\tlcd_vdma->path:   %d\n", vdma1.path);
+	pr_info("\tlcd_vdma->vid:    %d\n", vdma1.vid);
+	pr_info("\tlcd_vdma->enable: %d\n", vdma1.enable);
+	pr_info("\tvdma_lines     %d\n", vdma1.vdma_lines);
+	pr_info("\tsram_paddr     0x%x\n", vdma1.sram_paddr);
+	pr_info("\tsram_size      0x%x\n", vdma1.sram_size);
+
+	pr_info("\nvdma regs base 0x%p\n", vdma);
 	pr_info("\tarbr_ctr       (@%3x):\t0x%x\n",
 		 (int)(&vdma->arbr_ctr)&0xfff, readl(&vdma->arbr_ctr));
 	pr_info("\tirq_raw        (@%3x):\t0x%x\n",
@@ -626,33 +720,65 @@ ssize_t vdma_show(struct device *dev, struct device_attribute *attr,
 		 (int)(fbi->reg_base + LCD_PN2_SQULN2_CTRL)&0xfff,
 		 readl(fbi->reg_base + LCD_PN2_SQULN2_CTRL));
 
-	pr_info("\nbasic info\n");
-	pr_info("\tvdma_lines     %d\n", mi->vdma_lines);
-	pr_info("\tsram_paddr     0x%x\n", mi->sram_paddr);
-	pr_info("\tsram_size      0x%x\n", mi->sram_size);
-
 	return sprintf(buf, "%d\n", fbi->id);
 }
+
+#define MMP2_VDMA_SIZE 90
+#define MMP3_VDMA_SIZE 64
 ssize_t vdma_store(
 		struct device *dev, struct device_attribute *attr,
 		const char *buf, size_t size)
 {
-	int enable = 0;
 	char vol[10];
-	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
-	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
+	struct pxa168fb_vdma_info *lcd_vdma = 0;
+	unsigned int path, vid, enable, tmp0, tmp1;
 
-	if (!mi) {
-		pr_err("fbi %d not available\n", fbi->id);
-		return size;
+	if ('s' == buf[0]) {
+		if (vdma0.enable || vdma1.enable) {
+			pr_err("vdma must disabled first before set sram size\n");
+			return size;
+		}
+		memcpy(vol, (void *)((u32)buf + 1), size - 1);
+		if (sscanf(vol, "%u %u", &tmp0, &tmp1) != 2) {
+			pr_err("vdma sram size setting cmd should be like: "
+				"s panel_vdma0_size(KB) tv_vdma1_size(KB)\n");
+			return size;
+		}
+#ifdef CONFIG_CPU_MMP2
+		if ((tmp0 + tmp1) > MMP2_VDMA_SIZE) {
+#endif
+#ifdef CONFIG_CPU_MMP3
+		if ((tmp0 + tmp1) > MMP3_VDMA_SIZE) {
+#endif
+			pr_err("size exceed the max size of video sram\n");
+			return size;
+		}
+		vdma0.sram_size = tmp0 * 1024;
+		vdma1.sram_size = tmp1 * 1024;
+		pr_info("vdma0 size 0x%x, vdma1 size 0x%x\n",
+			vdma0.sram_size, vdma1.sram_size);
+	} else if ('e' == buf[0]) {
+		memcpy(vol, (void *)((u32)buf + 1), size - 1);
+		if (sscanf(vol, "%u %u %u", &path,
+			&vid, &enable) != 3) {
+			pr_err("enable/disable vdma cmd should be like: "
+				"e path layer enable/disable\n");
+			return size;
+		}
+		lcd_vdma = request_vdma(path, vid);
+		if (!lcd_vdma) {
+			if (enable)
+				pr_err("request fail, vdma has been occupied!\n");
+			return size;
+		}
+		if (!lcd_vdma->sram_size && enable) {
+			pr_err("ERR: SRAM size is 0KB!!!!\n");
+			return size;
+		}
+		pxa688_vdma_en(lcd_vdma, enable, vid);
 	}
-
-	memcpy(vol, (void *)(u32)buf, size);
-	enable = (int)simple_strtoul(vol, NULL, 10);
-	pxa688_vdma_en(fbi, enable);
 
 	return size;
 }
 DEVICE_ATTR(vdma, S_IRUGO | S_IWUSR, vdma_show, vdma_store);
-
 #endif

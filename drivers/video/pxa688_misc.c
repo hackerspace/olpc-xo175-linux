@@ -203,10 +203,9 @@ void pxa688fb_partdisp_update(int id)
 static int pxa688fb_map_layers(int src, int dst, int vid, int en)
 {
 	struct pxa168fb_info *fbi = gfx_info.fbi[0];
-	struct pxa168fb_info *fbi_gfx = gfx_info.fbi[dst];
-	struct pxa168fb_info *fbi_ovly = ovly_info.fbi[dst];
 	u32 map = (u32)fbi->reg_base + LCD_IO_OVERL_MAP_CTRL;
 	u32 val = readl(map), shift, vdma;
+	struct pxa168fb_vdma_info *lcd_vdma = 0;
 
 	/* map src path dma to dst */
 	switch (dst) {
@@ -268,7 +267,8 @@ top_ctrl:
 
 
 #ifdef CONFIG_PXA688_VDMA
-	if (vid ? fbi_ovly->vdma_enable : fbi_gfx->vdma_enable) {
+	lcd_vdma = request_vdma(dst, vid);
+	if (lcd_vdma && lcd_vdma->enable) {
 		vdma = readl((u32)fbi->reg_base + LCD_PN2_SQULN2_CTRL);
 		switch (src) {
 		case 2:
@@ -448,23 +448,27 @@ static void pxa688fb_clone_intf_ctrl(int src, int dst)
 	writel(mask, base + intf_ctrl(dst));
 }
 
-static void pxa688fb_clone_vdma(int src, int dst)
+static void pxa688fb_clone_vdma(int src, int dst, int vid)
 {
-	struct pxa168fb_info *fbi_gfx = gfx_info.fbi[src];
 	struct pxa168fb_info *fbi = gfx_info.fbi[0];
 	u32 base = (u32)fbi->reg_base, mask, vdma;
+	struct pxa168fb_vdma_info *lcd_vdma = 0;
 
 #ifdef CONFIG_PXA688_VDMA
 	mask = readl(base + LCD_PN2_SQULN2_CTRL);
 	vdma = readl(base + squln_ctrl(src));
-	/* vdma for graphic layer */
-	if (fbi_gfx->vdma_enable) {
-		mask &= ~(dst ? ((dst & 1) ? (1 << 25) :
-			(1 << 26)) : (1 << 24));
-	} else
-	/* vdma for video layer */
-		mask |= dst ? ((dst & 1) ? (1 << 25) : (1 << 26)) : (1 << 24);
-
+	lcd_vdma = request_vdma(src, vid);
+	if (lcd_vdma && lcd_vdma->enable) {
+		if (!lcd_vdma->vid) {
+			/* vdma for graphic layer */
+			mask &= ~(dst ? ((dst & 1) ? (1 << 25) :
+				(1 << 26)) : (1 << 24));
+		} else {
+			/* vdma for video layer */
+			mask |= dst ? ((dst & 1) ? (1 << 25) :
+				(1 << 26)) : (1 << 24);
+		}
+	}
 	writel(vdma, base + squln_ctrl(dst));
 	writel(mask, base + LCD_PN2_SQULN2_CTRL);
 #endif
@@ -685,7 +689,7 @@ int pxa688fb_vsmooth_set(int id, int vid, int en)
 	}
 
 	/* vdma clone */
-	pxa688fb_clone_vdma(dst, filter);
+	pxa688fb_clone_vdma(dst, filter, vid);
 
 	pxa688fb_map_layers(filter, dst, vid, en);
 	pxa688fb_vsmooth_config(filter, dst, vid, en);

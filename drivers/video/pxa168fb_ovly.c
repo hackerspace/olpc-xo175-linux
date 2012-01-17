@@ -618,12 +618,11 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 
 		fbi->dma_on = vid_on ? 1 : 0;
 		val = CFG_DMA_ENA(check_modex_active(fbi));
-		if (vid_on == 0 && fbi->vdma_enable == 1)
-			pxa688_vdma_release(fbi);
-		if (!val)
+		if (!val && gfx_info.fbi[0]->active) {
+			pxa688_vdma_release(fbi->id, fbi->vid);
 			/* switch off, disable DMA */
 			dma_ctrl_set(fbi->id, 0, mask, val);
-		else if (list_empty(&fbi->buf_waitlist.dma_queue) &&
+		} else if (list_empty(&fbi->buf_waitlist.dma_queue) &&
 			!fbi->buf_current)
 			/* switch on, but no buf flipped, return error */
 			; /* ret = -EAGAIN; */
@@ -757,7 +756,7 @@ static int pxa168fb_release(struct fb_info *fi, int user)
 
 	/* Force Video DMA engine off at release and reset the DMA format.*/
 	if (atomic_dec_and_test(&fbi->op_count)) {
-		pxa688_vdma_release(fbi);
+		pxa688_vdma_release(fbi->id, fbi->vid);
 		mask = CFG_DMA_ENA_MASK | CFG_DMAFORMAT_MASK;
 		dma_ctrl_set(fbi->id, 0, mask, 0);
 		pxa688fb_vsmooth_set(fbi->id, 1, 0);
@@ -989,6 +988,7 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	struct pxa168fb_info *fbi;
 	struct lcd_regs *regs;
 	struct resource *res;
+	struct pxa168fb_vdma_info *lcd_vdma = 0;
 	int ret;
 
 	mi = pdev->dev.platform_data;
@@ -1105,7 +1105,13 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 #endif
 
 	/* init vdma clock/sram, etc. */
-	pxa688_vdma_init(fbi);
+	lcd_vdma = request_vdma(fbi->id, fbi->vid);
+	if (lcd_vdma) {
+		lcd_vdma->dev = fbi->dev;
+		lcd_vdma->reg_base = fbi->reg_base;
+		pxa688_vdma_init(lcd_vdma);
+	} else
+		pr_warn("path %d layer %d: request vdma fail\n", fbi->id, fbi->vid);
 
 	/*
 	 * Fill in sane defaults.

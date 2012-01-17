@@ -1106,7 +1106,15 @@ void pxa168fb_list_init(struct pxa168fb_info *fbi)
 
 void pxa168fb_misc_update(struct pxa168fb_info *fbi)
 {
-	pxa688_vdma_config(fbi);
+	struct pxa168fb_vdma_info *lcd_vdma = 0;
+
+	lcd_vdma = request_vdma(fbi->id, fbi->vid);
+	if (lcd_vdma) {
+		vdma_info_update(lcd_vdma, fbi->active, fbi->dma_on, fbi->pix_fmt,
+				fbi->surface.viewPortInfo.rotation,
+				fbi->surface.viewPortInfo.yuv_format);
+		pxa688_vdma_config(lcd_vdma);
+	}
 	if (fbi->vid && vid_vsmooth)
 		pxa688fb_vsmooth_set(fbi->id, 1, vid_vsmooth);
 	if (!fbi->vid) {

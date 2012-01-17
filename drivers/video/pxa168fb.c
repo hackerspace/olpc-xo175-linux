@@ -498,29 +498,18 @@ static void set_dumb_panel_control(struct fb_info *info)
 static void set_tv_interlace(void)
 {
 	struct pxa168fb_info *fbi = gfx_info.fbi[1];
-	struct pxa168fb_info *fbi_ovly = ovly_info.fbi[1];
 	struct fb_info *info = fbi->fb_info;
 	struct fb_var_screeninfo *v = &info->var;
 	struct lcd_regs *regs = get_regs(fbi->id);
 	int x, y, yres, interlaced = 0, vsync_ctrl;
-	static int gfx_vdma, ovly_vdma;
+	static int vdma_enabled, vdma_layer;
+	struct pxa168fb_vdma_info *lcd_vdma = 0;
 
 	dev_dbg(info->dev, "Enter %s\n", __func__);
 
 	if (v->vmode & FB_VMODE_INTERLACED) {
 		/* enable interlaced mode */
 		interlaced = CFG_TV_INTERLACE_EN | CFG_TV_NIB;
-
-		/* interlaced mode, TV path VDMA should be disabled */
-		if (fbi->vdma_enable) {
-			gfx_vdma = 1;
-			pxa688_vdma_en(fbi, 0);
-		} else if (fbi_ovly) {
-			if (fbi_ovly->vdma_enable) {
-				ovly_vdma = 1;
-				pxa688_vdma_en(fbi_ovly, 0);
-			}
-		}
 
 		x = v->xres + v->right_margin + v->hsync_len + v->left_margin;
 
@@ -540,18 +529,27 @@ static void set_tv_interlace(void)
 		/* odd field */
 		writel((yres << 16) | v->xres, &regs->screen_active);
 		writel((y << 16) | x, &regs->screen_size);
-	} else {
-		/* vdma recovery */
-		if (gfx_vdma) {
-			gfx_vdma = 0;
-			pxa688_vdma_en(fbi, 1);
-		} else if (ovly_vdma) {
-			ovly_vdma = 0;
-			pxa688_vdma_en(fbi_ovly, 1);
-		}
 	}
-
 	dma_ctrl_set(fbi->id, 1, CFG_TV_INTERLACE_EN | CFG_TV_NIB, interlaced);
+
+	lcd_vdma = request_vdma(fbi->id, 0);
+	if (!lcd_vdma) {
+		lcd_vdma = request_vdma(fbi->id, 1);
+		if (!lcd_vdma)
+			return;
+	}
+	if (v->vmode & FB_VMODE_INTERLACED) {
+		/* interlaced mode, TV path VDMA should be disabled */
+		if (lcd_vdma->enable) {
+			vdma_enabled = 1;
+			vdma_layer = lcd_vdma->vid;
+			pxa688_vdma_en(lcd_vdma, 0, lcd_vdma->vid);
+		}
+	} else if (vdma_enabled) {
+		/* vdma recovery */
+		vdma_enabled = 0;
+		pxa688_vdma_en(lcd_vdma, 1, vdma_layer);
+	}
 }
 
 static void set_dumb_screen_dimensions(struct fb_info *info)
@@ -1075,9 +1073,11 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 		fbi->dma_on = gra_on ? 1 : 0;
 		mask = CFG_GRA_ENA_MASK;
 		val = CFG_GRA_ENA(check_modex_active(fbi));
-		if (!val)
+		if (!val && gfx_info.fbi[0]->active) {
+			pxa688_vdma_release(fbi->id, fbi->vid);
 			/* switch off, disable DMA */
 			dma_ctrl_set(fbi->id, 0, mask, val);
+		}
 
 		printk(KERN_DEBUG"SWITCH_GRA_OVLY fbi %d dma_on %d, val %d\n",
 			fbi->id, fbi->dma_on, val);
@@ -1157,7 +1157,8 @@ static int pxa168fb_release(struct fb_info *info, int user)
 	pr_info("%s GFX layer, fbi %d opened %d times ----\n",
 		__func__, fbi->id, atomic_read(&fbi->op_count));
 
-	atomic_dec(&fbi->op_count);
+	if (atomic_dec_and_test(&fbi->op_count))
+		pxa688_vdma_release(fbi->id, fbi->vid);
 
 	/* Turn off compatibility mode */
 	var->nonstd &= ~0xff000000;
@@ -1846,6 +1847,7 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	int irq, irq_mask, irq_enable_value, ret = 0;
 	struct dsi_info *di = NULL;
 	static int proc_inited;
+	struct pxa168fb_vdma_info *lcd_vdma = 0;
 
 	mi = pdev->dev.platform_data;
 	if (mi == NULL) {
@@ -2028,7 +2030,13 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 		mi->sclk_src, (int)clk_get_rate(fbi->clk));
 
 	/* init vdma clock/sram, etc. */
-	pxa688_vdma_init(fbi);
+	lcd_vdma = request_vdma(fbi->id, fbi->vid);
+	if (lcd_vdma) {
+		lcd_vdma->dev = fbi->dev;
+		lcd_vdma->reg_base = fbi->reg_base;
+		pxa688_vdma_init(lcd_vdma);
+	} else
+		pr_warn("path %d layer %d: request vdma fail\n", fbi->id, fbi->vid);
 
 	/* Fill in sane defaults */
 	pxa168fb_set_default(fbi, mi);	/* FIXME */

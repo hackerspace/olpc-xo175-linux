@@ -377,6 +377,24 @@ struct regshadow_list {
 	struct list_head dma_queue;
 };
 
+struct pxa168fb_vdma_info {
+	struct device	*dev;
+	void		*reg_base;
+	int		ch;
+	/* path id, 0->panel, 1->TV, 2->panel2 */
+	int		path;
+	int		pix_fmt;
+	unsigned int	sram_size;
+	unsigned int	rotation;
+	unsigned int	yuv_format;
+	unsigned int	vdma_lines;
+	unsigned int	sram_paddr;
+	unsigned int	sram_vaddr;
+	unsigned	vid:1,
+			active:1,
+			dma_on:1,
+			enable:1;
+};
 /*
  * PXA LCD controller private state.
  */
@@ -419,7 +437,6 @@ struct pxa168fb_info {
 	int                     io_pin_allocation;
 	int			pix_fmt;
 	int			debug;
-	int			vdma_enable;
 	unsigned		is_blanked:1,
 				surface_set:1,
 				active:1;
@@ -685,15 +702,32 @@ extern void dsi_lanes_enable(struct pxa168fb_info *fbi, int en);
 /* VDMA related */
 #ifdef CONFIG_PXA688_VDMA
 #define EOF_TIMEOUT 20
-extern void pxa688_vdma_init(struct pxa168fb_info *fbi);
-extern void pxa688_vdma_config(struct pxa168fb_info *fbi);
-extern void pxa688_vdma_release(struct pxa168fb_info *fbi);
-extern void pxa688_vdma_en(struct pxa168fb_info *fbi, int enable);
+extern struct pxa168fb_vdma_info *request_vdma(int path, int vid);
+extern void pxa688_vdma_init(struct pxa168fb_vdma_info *lcd_vdma);
+extern void pxa688_vdma_config(struct pxa168fb_vdma_info *lcd_vdma);
+extern void pxa688_vdma_release(int path, int vid);
+extern void pxa688_vdma_en(struct pxa168fb_vdma_info *lcd_vdma,
+			int enable, int vid);
+static inline void vdma_info_update(struct pxa168fb_vdma_info *lcd_vdma,
+		int active, int dma_on, int pix_fmt, unsigned int rotation,
+		unsigned int yuv_format)
+{
+	lcd_vdma->active = active;
+	lcd_vdma->dma_on = dma_on;
+	lcd_vdma->pix_fmt = pix_fmt;
+	lcd_vdma->rotation = rotation;
+	lcd_vdma->yuv_format = yuv_format;
+}
 #else
-#define pxa688_vdma_init(fbi)		do {} while (0)
-#define pxa688_vdma_config(fbi)		do {} while (0)
-#define pxa688_vdma_release(fbi)	do {} while (0)
-#define pxa688_vdma_en(fbi, enable)	do {} while (0)
+static inline struct pxa168fb_vdma_info *request_vdma(int path, int vid) {}
+static inline void pxa688_vdma_init(struct pxa168fb_vdma_info *lcd_vdma) {}
+static inline void pxa688_vdma_config(struct pxa168fb_vdma_info *lcd_vdma) {}
+static inline void pxa688_vdma_release(int path, int vid) {}
+static inline void pxa688_vdma_en(struct pxa168fb_vdma_info *lcd_vdma,
+				int enable, int vid) {}
+static inline void vdma_info_update(struct pxa168fb_vdma_info *lcd_vdma,
+				int active, int dma_on, int pix_fmt, unsigned int rotation,
+				unsigned int yuv_format) {}
 #endif
 
 /* misc */
