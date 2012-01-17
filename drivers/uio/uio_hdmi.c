@@ -47,19 +47,20 @@ struct hdmi_instance {
 	int (*hdmi_power)(int on);
 	struct pm_qos_request_list qos_cpufreq_min;
 	struct pm_qos_request_list qos_cpufreq_disable;
+	struct pm_qos_request_list qos_idle;
 };
 #if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 
 static void set_power_constraint(struct hdmi_instance *hi, int min)
 {
-	if (!min)
-		return;
+	pm_qos_update_request(&hi->qos_idle, EXIT_LATENCY_CORE_EXTIDLE);
 	pm_qos_update_request(&hi->qos_cpufreq_min, min);
 	pm_qos_update_request(&hi->qos_cpufreq_disable, 1);
 }
 
 static void unset_power_constraint(struct hdmi_instance *hi)
 {
+	pm_qos_update_request(&hi->qos_idle, PM_QOS_DEFAULT_VALUE);
 	pm_qos_update_request(&hi->qos_cpufreq_min, PM_QOS_DEFAULT_VALUE);
 	pm_qos_update_request(&hi->qos_cpufreq_disable, PM_QOS_DEFAULT_VALUE);
 }
@@ -372,6 +373,8 @@ static int hdmi_probe(struct platform_device *pdev)
 	pm_qos_add_request(&hi->qos_cpufreq_min, PM_QOS_CPUFREQ_MIN,
 			PM_QOS_DEFAULT_VALUE);
 	pm_qos_add_request(&hi->qos_cpufreq_disable, PM_QOS_CPUFREQ_DISABLE,
+			PM_QOS_DEFAULT_VALUE);
+	pm_qos_add_request(&hi->qos_idle, PM_QOS_CPU_DMA_LATENCY,
 			PM_QOS_DEFAULT_VALUE);
 
 	platform_set_drvdata(pdev, hi);
