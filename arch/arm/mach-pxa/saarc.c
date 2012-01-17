@@ -1202,6 +1202,24 @@ static struct uio_hdmi_platform_data hdtx_uio_data = {
 };
 #endif
 
+static struct pxa95xfb_mach_info ihdmi_base_info __initdata = {
+        .id                     = "HDMI-Base",
+        .num_modes              = 1,
+        .pix_fmt_in             = PIX_FMTIN_RGB_16,
+        .pix_fmt_out            = PIX_FMTOUT_24_RGB888,
+        .panel_type             = LCD_Controller_TV_HDMI,
+        .window                 = 4,
+        .mixer_id               = 2,
+        .zorder                 = 0,
+        .converter              = LCD_M2HDMI,
+        .output                 = OUTPUT_HDMI,
+        .active                 = 1,
+#ifndef CONFIG_UIO_HDMI
+        .panel_power                    = hdtx_power,
+#endif
+        .invert_pixclock        = 1,
+};
+
 static struct pxa95xfb_mach_info ihdmi_ovly_info __initdata = {
 	.id                     = "HDMI-Ovly",
 	.num_modes              = 1,
@@ -1313,8 +1331,10 @@ static void __init init_lcd(void)
 #else
 	pxa_register_device(&pxa978_device_ihdmi, &mv_ihdmi_format);
 #endif
+	ihdmi_base_info.modes = &video_modes_ihdmi[mv_ihdmi_format-1];
+	set_pxa95x_fb_ovly_info(&ihdmi_base_info, 1);
 	ihdmi_ovly_info.modes = &video_modes_ihdmi[mv_ihdmi_format-1];
-	set_pxa95x_fb_ovly_info(&ihdmi_ovly_info, 1);
+	set_pxa95x_fb_ovly_info(&ihdmi_ovly_info, 2);
 #elif defined(CONFIG_HDMI_ADV7533)
 	set_pxa95x_fb_ovly_info(&adv7533_hdmi_ovly_info, 1);
 #endif

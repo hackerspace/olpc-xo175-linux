@@ -15,7 +15,7 @@
 /* ---------------------------------------------- */
 #include <linux/fb.h>
 
-#define PXA95xFB_FB_NUM           3
+#define PXA95xFB_FB_NUM           4
 
 typedef enum {
 	LCD_MIXER_DISABLE = 0,
