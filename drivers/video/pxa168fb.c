@@ -1073,7 +1073,9 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 		fbi->dma_on = gra_on ? 1 : 0;
 		mask = CFG_GRA_ENA_MASK;
 		val = CFG_GRA_ENA(check_modex_active(fbi));
-		dma_ctrl_set(fbi->id, 0, mask, val);
+		if (!val)
+			/* switch off, disable DMA */
+			dma_ctrl_set(fbi->id, 0, mask, val);
 
 		printk(KERN_DEBUG"SWITCH_GRA_OVLY fbi %d dma_on %d, val %d\n",
 			fbi->id, fbi->dma_on, val);
