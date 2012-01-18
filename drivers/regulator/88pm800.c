@@ -712,7 +712,7 @@ static int __devinit pm800_regulator_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	info->i2c = (chip->id == CHIP_PM800) ? chip->client : chip->companion;
+	info->i2c = chip->power_page;
 	info->chip = chip;
 
 /*	in PM800 there are 2 range for all bucks:
