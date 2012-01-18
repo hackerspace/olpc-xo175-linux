@@ -15,6 +15,8 @@
 
 #include <asm/cputime.h>
 
+#ifdef CONFIG_SMP
+
 #define DEFAULT_SAMPLING_PERIOD				(100000)
 
 #define DEFAULT_SYSTEM_UP_THRESHOLD			(80)
@@ -484,3 +486,5 @@ static void __exit hotplug_governor_exit(void)
 }
 module_init(hotplug_governor_init);
 module_exit(hotplug_governor_exit);
+
+#endif /* CONFIG_SMP */
