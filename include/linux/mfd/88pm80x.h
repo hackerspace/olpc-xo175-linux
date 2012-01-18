@@ -376,6 +376,10 @@ enum {
 #define PM805_MAIN_POWERUP		(0x01)
 #define PM805_INT_STATUS0		(0x02)	/*for ena/dis all interrupts */
 
+#define PM805_STATUS0_INT_CLEAR		(1 << 0)
+#define PM805_STATUS0_INV_INT		(1 << 1)
+#define PM800_STATUS0_INT_MASK		(1 << 2)
+
 #define PM805_INT_STATUS1		(0x03)
 #define PM805_INT_STATUS2		(0x04)
 #define PM805_INT_MASK1			(0x05)

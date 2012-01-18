@@ -20,6 +20,7 @@
 #include <linux/switch.h>
 #include <linux/regulator/machine.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
 
 static struct resource rtc_resources[] = {
 	{
@@ -429,6 +430,161 @@ static struct irq_chip pm80x_irq_chip = {
 	.irq_disable = pm80x_irq_disable,
 };
 
+static struct pm80x_irq_data pm805_irqs[] = {
+	[PM805_IRQ_LDO_OFF] = {/*0*/
+		.reg		= PM805_INT_STATUS1,
+		.mask_reg	= PM805_INT_MASK1,
+		.offs		= 1 << 5,
+	},
+	[PM805_IRQ_SRC_DPLL_LOCK] = {
+		.reg		= PM805_INT_STATUS1,
+		.mask_reg	= PM805_INT_MASK1,
+		.offs		= 1 << 4,
+	},
+	[PM805_IRQ_CLIP_FAULT] = {
+		.reg		= PM805_INT_STATUS1,
+		.mask_reg	= PM805_INT_MASK1,
+		.offs		= 1 << 3,
+	},
+	[PM805_IRQ_MIC_CONFLICT] = {
+		.reg		= PM805_INT_STATUS1,
+		.mask_reg	= PM805_INT_MASK1,
+		.offs		= 1 << 2,
+	},
+	[PM805_IRQ_HP2_SHRT] = {
+		.reg		= PM805_INT_STATUS1,
+		.mask_reg	= PM805_INT_MASK1,
+		.offs		= 1 << 1,
+	},
+	[PM805_IRQ_HP1_SHRT] = {/*5*/
+		.reg		= PM805_INT_STATUS1,
+		.mask_reg	= PM805_INT_MASK1,
+		.offs		= 1 << 0,
+	},
+	[PM805_IRQ_FINE_PLL_FAULT] = {
+		.reg		= PM805_INT_STATUS2,
+		.mask_reg	= PM805_INT_MASK2,
+		.offs		= 1 << 5,
+	},
+	[PM805_IRQ_RAW_PLL_FAULT] = {
+		.reg		= PM805_INT_STATUS2,
+		.mask_reg	= PM805_INT_MASK2,
+		.offs		= 1 << 4,
+	},
+	[PM805_IRQ_VOLP_BTN_DET] = {
+		.reg		= PM805_INT_STATUS2,
+		.mask_reg	= PM805_INT_MASK2,
+		.offs		= 1 << 3,
+	},
+	[PM805_IRQ_VOLM_BTN_DET] = {
+		.reg		= PM805_INT_STATUS2,
+		.mask_reg	= PM805_INT_MASK2,
+		.offs		= 1 << 2,
+	},
+	[PM805_IRQ_SHRT_BTN_DET] = {/*10*/
+		.reg		= PM805_INT_STATUS2,
+		.mask_reg	= PM805_INT_MASK2,
+		.offs		= 1 << 1,
+	},
+	[PM805_IRQ_MIC_DET] = {/*11*/
+		.reg		= PM805_INT_STATUS2,
+		.mask_reg	= PM805_INT_MASK2,
+		.offs		= 1 << 0,
+	},
+};
+
+static irqreturn_t pm805_irq(int irq, void *data)
+{
+	struct pm80x_chip *chip = data;
+	struct pm80x_irq_data *irq_data;
+	struct i2c_client *i2c;
+	int read_reg = -1, value = 0;
+	int i;
+	struct pm80x_chip *chip1;
+
+	i2c = chip->companion;
+
+	for (i = 0; i < ARRAY_SIZE(pm805_irqs); i++) {
+		irq_data = &pm805_irqs[i];
+		if (read_reg != irq_data->reg) {
+			read_reg = irq_data->reg;
+			value = pm80x_reg_read(i2c, irq_data->reg);
+		}
+		if (value & irq_data->enable)
+			handle_nested_irq(chip->irq_companion_base + i);
+	}
+	return IRQ_HANDLED;
+}
+
+static void pm805_irq_lock(unsigned int irq)
+{
+	struct pm80x_chip *chip = get_irq_chip_data(irq);
+
+	mutex_lock(&chip->companion_irq_lock);
+}
+
+static void pm805_irq_sync_unlock(unsigned int irq)
+{
+	struct pm80x_chip *chip = get_irq_chip_data(irq);
+	struct pm80x_irq_data *irq_data;
+	struct i2c_client *i2c;
+	static unsigned char cached[PM805_INT_REG_NUM] = {0x0};
+	unsigned char mask[PM805_INT_REG_NUM];
+	int i;
+
+	i2c = chip->companion;
+
+	/* Load cached value. In initial, all IRQs are masked */
+	for (i = 0; i < PM805_INT_REG_NUM; i++)
+		mask[i] = cached[i];
+	for (i = 0; i < ARRAY_SIZE(pm805_irqs); i++) {
+		irq_data = &pm805_irqs[i];
+		switch (irq_data->mask_reg) {
+		case PM805_INT_MASK1:
+			mask[0] &= ~irq_data->offs;
+			mask[0] |= irq_data->enable;
+			break;
+		case PM805_INT_MASK2:
+			mask[1] &= ~irq_data->offs;
+			mask[1] |= irq_data->enable;
+			break;
+		default:
+			dev_err(chip->dev, "wrong IRQ\n");
+			break;
+		}
+	}
+	/* update mask into registers */
+	for (i = 0; i < PM805_INT_REG_NUM; i++) {
+		if (mask[i] != cached[i]) {
+			cached[i] = mask[i];
+			pm80x_reg_write(i2c, PM805_INT_MASK1 + i, mask[i]);
+		}
+	}
+
+	mutex_unlock(&chip->companion_irq_lock);
+}
+
+static void pm805_irq_enable(unsigned int irq)
+{
+	struct pm80x_chip *chip = get_irq_chip_data(irq);
+	pm805_irqs[irq - chip->irq_companion_base].enable
+		= pm805_irqs[irq - chip->irq_companion_base].offs;
+}
+
+static void pm805_irq_disable(unsigned int irq)
+{
+	struct pm80x_chip *chip = get_irq_chip_data(irq);
+	pm805_irqs[irq - chip->irq_companion_base].enable = 0;
+}
+
+static struct irq_chip pm805_irq_chip = {
+	.name			= "88pm805",
+	.bus_lock		= pm805_irq_lock,
+	.bus_sync_unlock	= pm805_irq_sync_unlock,
+	.enable		= pm805_irq_enable,
+	.disable		= pm805_irq_disable,
+};
+
 static int __devinit device_gpadc_init(struct pm80x_chip *chip,
 				       struct pm80x_platform_data *pdata)
 {
@@ -489,7 +645,7 @@ out:
 	return ret;
 }
 
-static int __devinit device_irq_init(struct pm80x_chip *chip,
+static int __devinit device_irq_init_800(struct pm80x_chip *chip,
 				     struct pm80x_platform_data *pdata)
 {
 	struct i2c_client *i2c = chip->client;
@@ -579,10 +735,110 @@ out:
 	return ret;
 }
 
-static void device_irq_exit(struct pm80x_chip *chip)
+static void device_irq_exit_800(struct pm80x_chip *chip)
 {
 	if (chip->core_irq)
 		free_irq(chip->core_irq, chip);
+}
+
+static int __devinit device_irq_init_805(struct pm80x_chip *chip,
+				     struct pm80x_platform_data *pdata)
+{
+	struct i2c_client *i2c = chip->companion;
+	unsigned char status_buf[PM805_INT_REG_NUM];
+	unsigned long flags = IRQF_TRIGGER_FALLING | IRQF_ONESHOT;
+	struct irq_desc *desc;
+	int i, data, mask, ret = -EINVAL;
+	int __irq;
+
+	if (!pdata || !chip->irq_companion_base) {
+		dev_warn(chip->dev, "No interrupt support on IRQ base\n");
+		return -EINVAL;
+	}
+
+	mask = PM805_STATUS0_INT_CLEAR | PM805_STATUS0_INV_INT
+			| PM800_STATUS0_INT_MASK;
+
+	data = 0;
+	chip->irq_mode = 0;
+
+	if (pdata->irq_mode) {
+		data |= PM805_STATUS0_INT_CLEAR;
+		chip->irq_mode = 1;
+	}
+
+	/* Set active low */
+	/* data |= PM805_STATUS0_INV_INT; */
+
+	ret = pm80x_set_bits(i2c, PM805_INT_STATUS0, mask, data);
+	if (ret < 0)
+		goto out;
+
+	/* Need to use delay between accesses to 32K-registers */
+	msleep(1);
+
+	/* mask all IRQs */
+	memset(status_buf, 0, PM805_INT_REG_NUM);
+	ret = pm80x_bulk_write(i2c, PM805_INT_MASK1,
+				PM805_INT_REG_NUM, status_buf);
+	if (ret < 0)
+		goto out;
+
+	/* Need to use delay between accesses to 32K-registers */
+	msleep(1);
+
+	if (chip->irq_mode) {
+		/* clear interrupt status by write */
+		memset(status_buf, 0xFF, PM805_INT_REG_NUM);
+		ret = pm80x_bulk_write(i2c, PM805_INT_STATUS1,
+					PM805_INT_REG_NUM, status_buf);
+	} else {
+		/* clear interrupt status by read */
+		ret = pm80x_bulk_read(i2c, PM805_INT_STATUS1,
+					PM805_INT_REG_NUM, status_buf);
+	}
+	if (ret < 0)
+		goto out;
+
+	mutex_init(&chip->companion_irq_lock);
+
+	if (!chip->irq_companion)
+		goto out;
+
+	desc = irq_to_desc(chip->irq_companion);
+	pm805_irq_chip.set_wake = desc->chip->set_wake;
+
+	/* register IRQ by genirq */
+	for (i = 0; i < ARRAY_SIZE(pm805_irqs); i++) {
+		__irq = i + chip->irq_companion_base;
+		set_irq_chip_data(__irq, chip);
+		set_irq_chip_and_handler(__irq, &pm805_irq_chip,
+					 handle_edge_irq);
+		set_irq_nested_thread(__irq, 1);
+#ifdef CONFIG_ARM
+		set_irq_flags(__irq, IRQF_VALID);
+#else
+		set_irq_noprobe(__irq);
+#endif
+	}
+
+	ret = request_threaded_irq(chip->irq_companion, NULL, pm805_irq, flags,
+				   "88pm805", chip);
+	if (ret) {
+		dev_err(chip->dev, "Failed to request IRQ: %d\n", ret);
+		chip->irq_companion = 0;
+	}
+
+	return 0;
+out:
+	chip->irq_companion = 0;
+	return ret;
+}
+
+static void device_irq_exit_805(struct pm80x_chip *chip)
+{
+	if (chip->irq_companion)
+		free_irq(chip->irq_companion, chip);
 }
 
 static int __devinit device_805_init(struct pm80x_chip *chip,
@@ -610,7 +866,7 @@ static int __devinit device_805_init(struct pm80x_chip *chip,
 	   and it is not shared we can put there NULL */
 	chip->companion_chip = chip805;
 
-	ret = device_irq_init(chip, pdata);
+	ret = device_irq_init_805(chip, pdata);
 
 	if (ret < 0)
 		goto out_dev;
@@ -640,7 +896,7 @@ static int __devinit device_805_init(struct pm80x_chip *chip,
 
 out_dev:
 	mfd_remove_devices(chip->dev);
-	device_irq_exit(chip);
+	device_irq_exit_805(chip);
 	kfree(chip805);
 	return 1;
 }
@@ -721,7 +977,7 @@ static void __devinit device_800_init(struct pm80x_chip *chip,
 		goto out;
 	}
 
-	ret = device_irq_init(chip, pdata);
+	ret = device_irq_init_800(chip, pdata);
 	if (ret < 0) {
 		dev_info(chip->dev,
 			 "[%s][%s]FAIL device_irq_init:out\n",
@@ -768,12 +1024,23 @@ static void __devinit device_800_init(struct pm80x_chip *chip,
 		goto out_dev;
 	}
 
+	/* Initializain actions to enable 88pm805 */
+
+	/* Clear WDT */
+	pm80x_reg_write(chip->base_page, 0x0E, 0x00);
+	/* Enable 32Khz-out-1 and resetoutn */
+	pm80x_reg_write(chip->base_page, 0xE1, 0xB0);
+	/* Enable 32Khz-out-3  low jitter */
+	pm80x_reg_write(chip->base_page, 0x21, 0x20);
+	/* Enable 32Khz-out-3 */
+	pm80x_reg_write(chip->base_page, 0xE2, 0x22);
+
 	return;
 out_dev:
 	mfd_remove_devices(chip->dev);
 	destroy_workqueue(chip->monitor_wqueue);
 out_work:
-	device_irq_exit(chip);
+	device_irq_exit_800(chip);
 out:
 	return;
 }
@@ -821,7 +1088,8 @@ void __devexit pm80x_device_exit(struct pm80x_chip *chip)
 {
 	flush_workqueue(chip->monitor_wqueue);
 	destroy_workqueue(chip->monitor_wqueue);
-	device_irq_exit(chip);
+	device_irq_exit_800(chip);
+	device_irq_exit_805(chip);
 	mfd_remove_devices(chip->dev);
 	kfree(chip->companion_chip);
 }
