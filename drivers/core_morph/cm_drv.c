@@ -188,7 +188,7 @@ static int cm_trigger_swap(int target_core_id)
 
 
 	if (core_id == target_core_id) {
-		printk(KERN_ERR "already at target core, quit\n");
+		printk(KERN_DEBUG "already at target core, quit\n");
 		return 0;
 	}
 
@@ -234,8 +234,6 @@ static int core_morph_task(void *data)
 
 		/* double check whether this swap is required */
 		khz_curr = mmp3_getfreq(MMP3_CLK_MP1);
-		/* printk(KERN_INFO "current freq: %lu\n", khz_curr);
-		printk(KERN_INFO "old freq: %d\n", prev_freqs.old); */
 
 		if (((prev_freqs.old <= MMP3_CM_THRESHOLD_FREQ) && (khz_curr <= MMP3_CM_THRESHOLD_FREQ))
 			|| ((prev_freqs.old > MMP3_CM_THRESHOLD_FREQ) && (khz_curr > MMP3_CM_THRESHOLD_FREQ))) {
@@ -304,6 +302,13 @@ static int __cpuinit cm_cpu_callback(struct notifier_block *nfb,
 	unsigned long flags;
 
 	switch (action) {
+	case CPU_UP_PREPARE:
+	case CPU_UP_PREPARE_FROZEN:
+		mutex_lock(&cmtask_lock);
+		printk(KERN_DEBUG "MP2 is going to be plugged in\n");
+		cm_trigger_swap(CM_CPU_MP1);
+		mutex_unlock(&cmtask_lock);
+		break;
 	case CPU_DEAD:
 		if (num_online_cpus() > 1) {
 			printk(KERN_ERR "more than 1 CPU online, quit core morphing\n");
@@ -318,7 +323,7 @@ static int __cpuinit cm_cpu_callback(struct notifier_block *nfb,
 		if (khz_curr <= MMP3_CM_THRESHOLD_FREQ) {
 			cm_trigger_swap(CM_CPU_MM);
 		} else {
-			printk(KERN_ERR " *** MP1 high OP!\n");
+			printk(KERN_DEBUG "use MP1!\n");
 		}
 
 		mutex_unlock(&cmtask_lock);
