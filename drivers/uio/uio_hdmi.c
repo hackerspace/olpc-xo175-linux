@@ -422,7 +422,7 @@ static struct platform_driver hdmi_driver = {
 	.probe	= hdmi_probe,
 	.remove	= hdmi_remove,
 	.driver = {
-		.name	= "mmp-hdmi",
+		.name	= "uio-hdmi",
 		.owner	= THIS_MODULE,
 	},
 #ifdef CONFIG_PM
