@@ -37,7 +37,7 @@
 #include <linux/switch.h>
 #include <mach/camera.h>
 #include <media/soc_camera.h>
-
+#include <mach/uio_hdmi.h>
 #include <mach/audio.h>
 #include <mach/usb-regs.h>
 #include <plat/pxa27x_keypad.h>
@@ -1132,7 +1132,7 @@ static void __init init_cam(void)
 #if defined(CONFIG_MV_IHDMI)
 static int mv_ihdmi_format = 4;
 
-static void hdtx_power(bool en)
+static int hdtx_power(int en)
 {
 	struct regulator *v_ldo;
 	int pin1 = mfp_to_gpio(MFP_PIN_GPIO13);
@@ -1140,7 +1140,7 @@ static void hdtx_power(bool en)
 	v_ldo = regulator_get(NULL, "v_ihdmi");
 	if (IS_ERR(v_ldo)) {
 		printk(KERN_ERR "hdmi: fail to get ldo handle!\n");
-		return;
+		return -EINVAL;
 	}
 
 	if (en) {
@@ -1156,7 +1156,7 @@ static void hdtx_power(bool en)
 		printk(KERN_ERR "hdmi: hdmi-cp failed!\n");
 		gpio_free(pin1);
 		regulator_put(v_ldo);
-		return;
+		return -EINVAL;
 	}
 
 	gpio_direction_output(pin1, en);
@@ -1166,7 +1166,17 @@ static void hdtx_power(bool en)
 	printk(KERN_INFO "hdmi: turn charge pump 5V to %d\n", en);
 
 	regulator_put(v_ldo);
+	return 0;
 }
+
+#ifdef CONFIG_UIO_HDMI
+static struct uio_hdmi_platform_data hdtx_uio_data = {
+	.sspa_reg_base = 0x41900000,
+	.itlc_reg_base = 0x4410c000,
+	.gpio = MFP_PIN_GPIO112,
+	.hdmi_v5p_power = hdtx_power,
+};
+#endif
 
 static struct pxa95xfb_mach_info ihdmi_ovly_info __initdata = {
 	.id                     = "HDMI-Ovly",
@@ -1180,7 +1190,9 @@ static struct pxa95xfb_mach_info ihdmi_ovly_info __initdata = {
 	.converter		= LCD_M2HDMI,
 	.output			= OUTPUT_HDMI,
 	.active			= 1,
+#ifndef CONFIG_UIO_HDMI
 	.panel_power			= hdtx_power,
+#endif
 	.invert_pixclock	= 1,
 };
 #endif
@@ -1272,7 +1284,11 @@ static void __init init_lcd(void)
 	set_pxa95x_fb_info(&lcd_info);
 	set_pxa95x_fb_ovly_info(&lcd_ovly_info, 0);
 #if defined(CONFIG_MV_IHDMI)
+#ifdef CONFIG_UIO_HDMI
+	pxa_register_device(&pxa978_device_uio_ihdmi, &hdtx_uio_data);
+#else
 	pxa_register_device(&pxa978_device_ihdmi, &mv_ihdmi_format);
+#endif
 	ihdmi_ovly_info.modes = &video_modes_ihdmi[mv_ihdmi_format-1];
 	set_pxa95x_fb_ovly_info(&ihdmi_ovly_info, 1);
 #elif defined(CONFIG_HDMI_ADV7533)
