@@ -663,6 +663,9 @@ static int clk_pxa95x_ihdmi_setrate(struct clk *clk, unsigned long rate)
 	mdelay(1);
 	/* Enable PLL */
 	/* p_Regs->HDMI_PLL_PU = HDMI_PLL_PWR_PLL_ON; */
+	p_Regs->HDMI_PHY_CTL1 = 0xC9200040;
+	p_Regs->HDMI_PHY_CTL2 = 0x0000DDDD;
+	p_Regs->HDMI_PLL_DEBUG1 |= 0x00024900;
 
 	/* For several frequencys, use optimal parameters from the table
 	   - else, calculate according to spec */
@@ -1093,7 +1096,7 @@ static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_vmeta, NULL, "VMETA_CLK"),
 	INIT_CLKREG(&clk_pxa95x_dsi0, NULL, "PXA95x_DSI0CLK"),
 	INIT_CLKREG(&clk_pxa95x_dsi1, NULL, "PXA95x_DSI1CLK"),
-	INIT_CLKREG(&clk_pxa95x_ihdmi, NULL, "PXA95x_iHDMICLK"),
+	INIT_CLKREG(&clk_pxa95x_ihdmi, NULL, "HDMICLK"),
 	INIT_CLKREG(&clk_pxa95x_lcd, "pxa95x-fb", "PXA95x_LCDCLK"),
 	INIT_CLKREG(&clk_pxa95x_axi, NULL, "AXICLK"),
 	INIT_CLKREG(&clk_pxa95x_imu, NULL, "IMUCLK"),

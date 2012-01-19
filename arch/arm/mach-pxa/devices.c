@@ -1887,4 +1887,18 @@ struct platform_device pxa978_device_ihdmi = {
 	.resource	= mv_ihdmi_resources,
 	.num_resources	= ARRAY_SIZE(mv_ihdmi_resources),
 };
+#ifdef CONFIG_UIO_HDMI
+struct platform_device pxa978_device_uio_ihdmi = {
+	.name		= "uio-hdmi",
+	.id		= -1,
+	.dev		= {
+		.dma_mask = &mv_ihdmi_dma_mask,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	},
+	.resource	= mv_ihdmi_resources,
+	.num_resources	= ARRAY_SIZE(mv_ihdmi_resources),
+};
+
+#endif
+
 #endif
