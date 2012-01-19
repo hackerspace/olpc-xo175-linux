@@ -105,7 +105,7 @@ static int __devinit pxa95xfb_vid_probe(struct platform_device *pdev)
 			goto failed;
 		}
 	} else if (mi->converter == LCD_M2HDMI) {
-		clk = clk_get(&pdev->dev, "PXA95x_iHDMICLK");
+		clk = clk_get(&pdev->dev, "HDMICLK");
 		if (IS_ERR(clk)) {
 			dev_err(&pdev->dev, "unable to get internal HDMI CLK");
 			goto failed;

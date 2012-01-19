@@ -1173,6 +1173,7 @@ static void converter_set_dsi(struct pxa95xfb_conv_info *conv)
 		dsi_init_video_non_burst(conv);
 }
 
+#ifndef CONFIG_UIO_HDMI
 static void interlacer_enable(int enable)
 {
 	static u8 *enable_interlacer;
@@ -1185,6 +1186,7 @@ static void interlacer_enable(int enable)
 	else
 		*enable_interlacer &= 0xFE;
 }
+#endif
 
 static void converter_set_hdmi(struct pxa95xfb_info *fbi)
 {
@@ -1192,19 +1194,18 @@ static void converter_set_hdmi(struct pxa95xfb_info *fbi)
 	struct fb_videomode *m = &fbi->mode;
 
 	void *conv_base = conv->conv_base;
-	u32 x, hdmi_format, hdmi_freq;
+	u32 x, hdmi_format = 4;
 
-	hdmi_format = 4; /*Todo: */
-
+#ifndef CONFIG_UIO_HDMI
 	/*Init HDMI Phy*/
-	hdmi_freq = ((74170000 * HDMI_PLL_DIV_VALUE)/1000000) + 1;
+	u32 hdmi_freq = ((74170000 * HDMI_PLL_DIV_VALUE)/1000000) + 1;
 	/* Set HDMI clock */
 	clk_enable(conv->clk);
 	if (clk_set_rate(conv->clk, hdmi_freq * 1000000)) {
 		printk(KERN_ERR "HDMI PLL set failed!\n\r");
 		return;
 	}
-
+#endif
 	msleep(10);
 
 	/*Set Gamma correction*/
@@ -1242,16 +1243,23 @@ static void converter_set_hdmi(struct pxa95xfb_info *fbi)
 	writel(x, conv_base + HDMI_CONV_CTL);
 
 	/* Set clock dividers */
-	x = HDMI_CLK_DIV_PCLK_DIV(HDMI_PLL_DIV_VALUE)
-		|HDMI_CLK_DIV_CEC_REFCLK_DIV(HDMI_PLL_DIV_VALUE)
-		|HDMI_CLK_DIV_PR_CLK_DIV(HDMI_PLL_DIV_VALUE);
-	writel(x, conv_base + HDMI_CLK_DIV);
-
+	if (!cpu_is_pxa978_Cx()) {
+		x = HDMI_CLK_DIV_PCLK_DIV(HDMI_PLL_DIV_VALUE)
+			|HDMI_CLK_DIV_CEC_REFCLK_DIV(HDMI_PLL_DIV_VALUE)
+			|HDMI_CLK_DIV_PR_CLK_DIV(HDMI_PLL_DIV_VALUE);
+		writel(x, conv_base + HDMI_CLK_DIV);
+	} else {
+		writel(0x5, conv_base + HDMI_CLK_DIV);
+		writel(0x5, conv_base + HDMI_PCLK_DIV);
+		writel(0x5, conv_base + HDMI_TCLK_DIV);
+		writel(0x5, conv_base + HDMI_PRCLK_DIV);
+	}
+#ifndef CONFIG_UIO_HDMI/* TODO: finally would be removed*/
 	if (hdmi_format == 5 || hdmi_format == 10 || hdmi_format == 11)
 		interlacer_enable(1);
 	else
 		interlacer_enable(0);
-
+#endif
 }
 
 #ifdef CONFIG_MV_IHDMI
@@ -1280,7 +1288,9 @@ static void converter_onoff(struct pxa95xfb_info *fbi, int on)
 			converter_set_hdmi(fbi);
 			controller_enable_disable(fbi, LCD_Controller_Enable);
 #ifdef CONFIG_MV_IHDMI
+#ifndef CONFIG_UIO_HDMI
 			mv_ihdmiinit();
+#endif
 #endif
 		}
 		if (CONVERTER_IS_DSI(conv->converter) && !conv->conf_dsi_video_mode){
@@ -2488,7 +2498,7 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 			return PTR_ERR(clk);
 		}
 	} else if (mi->converter == LCD_M2HDMI) {
-		clk = clk_get(&pdev->dev, "PXA95x_iHDMICLK");
+		clk = clk_get(&pdev->dev, "HDMICLK");
 		if (IS_ERR(clk)) {
 			dev_err(&pdev->dev, "unable to get internal HDMI CLK");
 			return PTR_ERR(clk);
