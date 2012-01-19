@@ -113,7 +113,7 @@ config VMETA_POLLING_MODE
 
 config UIO_HDMI
 	tristate "Userspace HDMI driver"
-	depends on UIO && (CPU_MMP2 || CPU_MMP3)
+	depends on UIO && !CPU_PXA955
 	default y
 	help
 	  Userspace IO interface to the Marvell hdmi controller.

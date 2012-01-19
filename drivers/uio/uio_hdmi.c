@@ -22,8 +22,10 @@
 #include <linux/pm_qos_params.h>
 #include <mach/uio_hdmi.h>
 #include <linux/earlysuspend.h>
+#ifndef CONFIG_CPU_PXA978
 #include <mach/addr-map.h>
 #include <mach/cputype.h>
+#endif
 #include <plat/pm.h>
 
 static atomic_t hdmi_state = ATOMIC_INIT(0);
@@ -46,7 +48,7 @@ struct hdmi_instance {
 	struct pm_qos_request_list qos_cpufreq_min;
 	struct pm_qos_request_list qos_cpufreq_disable;
 };
-static unsigned gsspa1_reg_base;
+#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 
 static void set_power_constraint(struct hdmi_instance *hi, int min)
 {
@@ -69,14 +71,13 @@ static u32 hdmi_direct_read(unsigned addr)
 
 	return __raw_readl(hdmi_addr + addr);
 }
-
 static void hdmi_direct_write(unsigned addr, unsigned data)
 {
        u32 hdmi_addr = AXI_VIRT_BASE + 0xbc00;
 
 	__raw_writel(data, hdmi_addr + addr);
 }
-
+#endif
 int hdmi_open(struct uio_info *info, struct inode *inode, void *file_priv)
 {
 	return 0;
@@ -95,12 +96,12 @@ static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 	struct hdmi_instance *hi =
 		container_of(info, struct hdmi_instance, uio_info);
 	int hpd = -1;
-
+	int hdmi_freq = 0;
 	switch (cmd) {
 	case SSPA1_GET_VALUE:
 		if (copy_from_user(&offset, argp, sizeof(offset)))
 			return -EFAULT;
-		tmp = readl(gsspa1_reg_base + offset);
+		tmp = readl(hi->sspa1_reg_base + offset);
 		if (copy_to_user(argp, &tmp, sizeof(tmp)))
 			return -EFAULT;
 		break;
@@ -138,6 +139,27 @@ static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 			pr_err("copy to user error !\n");
 			return -EFAULT;
 		}
+		break;
+#ifdef CONFIG_CPU_PXA978
+	case HDMI_PLL_ENABLE:
+		clk_enable(hi->clk);
+		break;
+	case HDMI_PLL_DISABLE:
+		clk_disable(hi->clk);
+		break;
+	case HDMI_PLL_SETRATE:
+		if (copy_from_user(&hdmi_freq, argp, sizeof(hdmi_freq)))
+			return -EFAULT;
+		printk("uio_hdmi: HDMI_PLL_SETRATE freq = %d\n", hdmi_freq);
+		if (clk_set_rate(hi->clk, hdmi_freq * 1000000)) {
+			pr_err(KERN_ERR "uio_hdmi: HDMI PLL set failed!\n");
+			return -EFAULT;
+		}
+		break;
+#endif
+	default:
+		pr_err("uio_hdmi: no suppprt ioctl!\n");
+		return -EFAULT;
 	}
 	return 0;
 }
@@ -146,7 +168,7 @@ static int hdmi_remove(struct platform_device *pdev)
 {
 	return 0;
 }
-
+#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 void hdmi_3d_sync_view(void)
 {
 	u32 reg;
@@ -158,27 +180,30 @@ void hdmi_3d_sync_view(void)
 	hdmi_direct_write(0x30, reg);
 }
 EXPORT_SYMBOL(hdmi_3d_sync_view);
+#endif
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void hdmi_early_suspend(struct early_suspend *h)
 {
+#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 	struct hdmi_instance *hi =
 		container_of(h, struct hdmi_instance, early_suspend);
-
-	early_suspend_flag = 1;
 	if (atomic_read(&hdmi_state) == 1)
 		unset_power_constraint(hi);
+#endif
+	early_suspend_flag = 1;
 
 	return;
 }
 static void hdmi_late_resume(struct early_suspend *h)
 {
+#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 	struct hdmi_instance *hi =
 		container_of(h, struct hdmi_instance, early_suspend);
-
-	early_suspend_flag = 0;
 	if (atomic_read(&hdmi_state) == 1)
 		set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
+#endif
+	early_suspend_flag = 0;
 	return;
 }
 #endif
@@ -225,7 +250,9 @@ static void hdmi_delayed_func(struct work_struct *work)
 	struct hdmi_instance *hi = container_of((struct delayed_work *)work,
 			struct hdmi_instance, hpd_work);
 	if (late_disable_flag) {
+#ifndef CONFIG_CPU_PXA978
 		if (cpu_is_mmp2())
+#endif
 			clk_disable(hi->clk);
 		late_disable_flag = 0;
 	} else {
@@ -245,20 +272,28 @@ static void hdmi_switch_work(struct work_struct *work)
 			late_disable_flag = 1; /*wait for hdmi disbaled*/
 			if (hi->hdmi_power)
 				hi->hdmi_power(0);
+
+#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 			if (early_suspend_flag == 0)
 				unset_power_constraint(hi);
+#endif
 			/*if hdmi_state change, report hpd*/
 			uio_event_notify(&hi->uio_info);
 		}
 	} else {
 		if (atomic_cmpxchg(&hdmi_state, 0, 1) == 0) {
-			if (cpu_is_mmp2()) {
+#ifndef CONFIG_CPU_PXA978
+			if (cpu_is_mmp2())
+#endif
+			{
 				if (hi->hdmi_power)
 					hi->hdmi_power(1);
 				clk_enable(hi->clk);
 			}
+#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 			if (early_suspend_flag == 0)
 				set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
+#endif
 			/*if hdmi_state change, report hpd*/
 			uio_event_notify(&hi->uio_info);
 		}
@@ -298,7 +333,7 @@ static int hdmi_probe(struct platform_device *pdev)
 	struct hdmi_instance *hi;
 	int ret;
 	struct uio_hdmi_platform_data *pdata;
-
+	printk("%s: ==========================+\n", __func__);
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	pdata = pdev->dev.platform_data;
 	if (res == NULL) {
@@ -326,23 +361,22 @@ static int hdmi_probe(struct platform_device *pdev)
 		goto out_free;
 	}
 
-	hi->sspa1_reg_base = ioremap_nocache(pdata->sspa_reg_base, 0xff);
-	if (hi->sspa1_reg_base == NULL) {
-		printk(KERN_WARNING "failed to request register memory\n");
-		ret = -EBUSY;
-		goto out_free;
+	if (pdata->sspa_reg_base) {
+		hi->sspa1_reg_base = ioremap_nocache(pdata->sspa_reg_base, 0xff);
+		if (hi->sspa1_reg_base == NULL) {
+			printk(KERN_WARNING "failed to request register memory\n");
+			ret = -EBUSY;
+			goto out_free;
+		}
 	}
-
 	pm_qos_add_request(&hi->qos_cpufreq_min, PM_QOS_CPUFREQ_MIN,
 			PM_QOS_DEFAULT_VALUE);
 	pm_qos_add_request(&hi->qos_cpufreq_disable, PM_QOS_CPUFREQ_DISABLE,
 			PM_QOS_DEFAULT_VALUE);
 
-	gsspa1_reg_base = (unsigned)hi->sspa1_reg_base;
-
 	platform_set_drvdata(pdev, hi);
 
-	hi->uio_info.name = "mmp-hdmi";
+	hi->uio_info.name = "uio-hdmi";
 	hi->uio_info.version = "build1";
 	hi->uio_info.irq_flags = IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING;
 	hi->uio_info.handler = hpd_handler;
@@ -352,15 +386,18 @@ static int hdmi_probe(struct platform_device *pdev)
 		hi->edid_bus_num = 6;
 
 	ret = gpio_request(pdata->gpio, pdev->name);
-	if (ret < 0)
+	if (ret < 0) {
+		printk(KERN_ERR "%s: failed in gpio_request\n", __func__);
 		goto out_free;
-
+	}
 	ret = gpio_direction_input(pdata->gpio);
-	if (ret < 0)
+	if (ret < 0) {
+		printk(KERN_ERR "%s: failed in gpio_direction_input\n", __func__);
 		goto out_free;
-
+	}
 	hi->uio_info.irq = gpio_to_irq(pdata->gpio);
 	if (hi->uio_info.irq < 0) {
+		printk(KERN_ERR "%s: failed in gpio_to_irq\n", __func__);
 		ret = hi->uio_info.irq;
 		goto out_free;
 	}
@@ -371,6 +408,14 @@ static int hdmi_probe(struct platform_device *pdev)
 	hi->uio_info.mem[0].size = res->end - res->start + 1;
 	hi->uio_info.mem[0].name = "hdmi-iomap";
 	hi->uio_info.priv = hi;
+
+	if (pdata->itlc_reg_base) {
+		hi->uio_info.mem[1].internal_addr =
+			ioremap_nocache(pdata->itlc_reg_base, 0xff);
+		hi->uio_info.mem[1].addr = pdata->itlc_reg_base;
+		hi->uio_info.mem[1].memtype = UIO_MEM_PHYS;
+		hi->uio_info.mem[1].size = 0xff;
+	}
 
 	hi->uio_info.open = hdmi_open;
 	hi->uio_info.release = hdmi_release;
@@ -388,14 +433,22 @@ static int hdmi_probe(struct platform_device *pdev)
 	ret = gpio_get_value(hi->gpio);
 	printk(KERN_INFO"%s hpd 0x%x------------\n", __func__, ret);
 	if (ret == 0) {
-		clk_enable(hi->clk);
 		atomic_set(&hdmi_state, 1);
+#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 		set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
+#endif
 		if (hi->hdmi_power)
 			hi->hdmi_power(1);
-	} else if (cpu_is_mmp3()) {
+#ifndef CONFIG_CPU_PXA978
+		clk_enable(hi->clk);
+#endif
+	}
+#ifndef CONFIG_CPU_PXA978
+	else if (cpu_is_mmp3())
+	{
 		clk_enable(hi->clk);
 	}
+#endif
 
 	setup_timer(&hi->jitter_timer, work_launch, (unsigned long)hi);
 	INIT_WORK(&hi->work, hdmi_switch_work);
@@ -407,7 +460,8 @@ static int hdmi_probe(struct platform_device *pdev)
 	hi->early_suspend.resume = hdmi_late_resume;
 	register_early_suspend(&hi->early_suspend);
 #endif
-
+	platform_set_drvdata(pdev, hi);
+	printk("%s: ==========================-\n", __func__);
 	return 0;
 
 out_free:
