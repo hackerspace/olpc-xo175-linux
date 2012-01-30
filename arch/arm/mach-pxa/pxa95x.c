@@ -859,14 +859,7 @@ static const struct clkops clk_gcu_ops = {
 static int clk_mmc_enable(struct clk *clk)
 {
 	unsigned long mask;
-
-	/* turning on MMC bus clock. */
-	if (cpu_is_pxa978_Cx()) {
-		mask = 1 << (clk->enable_val - 64) | 1 << (CKEN_MMC_BUS - 64);
-	} else {
-		mask = 1 << (clk->enable_val - 64) | 1 << ((clk->enable_val - 64) + 13);
-	}
-
+	mask = 1 << (clk->enable_val - 64) | 1 << ((clk->enable_val - 64) + 13);
 	CKENC |= mask;
 	return 0;
 }
@@ -874,20 +867,8 @@ static int clk_mmc_enable(struct clk *clk)
 static void clk_mmc_disable(struct clk *clk)
 {
 	unsigned long mask;
-
-	if (cpu_is_pxa978_Cx())
-		mask = ~(1 << (clk->enable_val - 64));
-	else
-		mask = ~(1 << (clk->enable_val - 64) | 1 << ((clk->enable_val - 64) + 13));
+	mask = ~(1 << (clk->enable_val - 64) | 1 << ((clk->enable_val - 64) + 13));
 	CKENC &= mask;
-
-	/* turning off MMC bus clock. */
-	if (cpu_is_pxa978_Cx() && !(CKENC & ((1 << (CKEN_PXA95x_MMC1 - 64))
-					| (1 << (CKEN_PXA95x_MMC2 - 64))
-					| (1 << (CKEN_PXA95x_MMC3 - 64))
-					| (1 << (CKEN_PXA95x_MMC4 - 64))
-					)))
-		CKENC &= ~(1 << (CKEN_MMC_BUS - 64));
 }
 
 static const struct clkops clk_mmc_ops = {
@@ -990,29 +971,67 @@ static struct clk *mmc_usb_depend_clk[] = {
 	&clk_pxa95x_imu,
 };
 
-static struct clk clk_pxa95x_sdh0 = {
+static struct clk clk_pxa955_sdh0 = {
 	.dependence = mmc_usb_depend_clk,
 	.dependence_count = ARRAY_SIZE(mmc_usb_depend_clk),
 	.ops = &clk_mmc_ops,
 	.enable_val = CKEN_PXA95x_MMC1,
 };
 
-static struct clk clk_pxa95x_sdh1 = {
+static struct clk clk_pxa955_sdh1 = {
 	.dependence = mmc_usb_depend_clk,
 	.dependence_count = ARRAY_SIZE(mmc_usb_depend_clk),
 	.ops = &clk_mmc_ops,
 	.enable_val = CKEN_PXA95x_MMC2,
 };
-static struct clk clk_pxa95x_sdh2 = {
+static struct clk clk_pxa955_sdh2 = {
 	.dependence = mmc_usb_depend_clk,
 	.dependence_count = ARRAY_SIZE(mmc_usb_depend_clk),
 	.ops = &clk_mmc_ops,
 	.enable_val = CKEN_PXA95x_MMC3,
 };
-static struct clk clk_pxa95x_sdh3 = {
+static struct clk clk_pxa955_sdh3 = {
 	.dependence = mmc_usb_depend_clk,
 	.dependence_count = ARRAY_SIZE(mmc_usb_depend_clk),
 	.ops = &clk_mmc_ops,
+	.enable_val = CKEN_PXA95x_MMC4,
+};
+
+static struct clk clk_mmc_bus = {
+	.dependence = mmc_usb_depend_clk,
+	.dependence_count = ARRAY_SIZE(mmc_usb_depend_clk),
+	.ops = &clk_pxa3xx_cken_ops,
+	.enable_val = CKEN_MMC_BUS,
+};
+
+static struct clk *mmc_depend_clk[] = {
+	&clk_mmc_bus,
+};
+
+static struct clk clk_pxa978_sdh0 = {
+	.dependence = mmc_depend_clk,
+	.dependence_count = ARRAY_SIZE(mmc_depend_clk),
+	.ops = &clk_pxa3xx_cken_ops,
+	.enable_val = CKEN_PXA95x_MMC1,
+};
+
+
+static struct clk clk_pxa978_sdh1 = {
+	.dependence = mmc_depend_clk,
+	.dependence_count = ARRAY_SIZE(mmc_depend_clk),
+	.ops = &clk_pxa3xx_cken_ops,
+	.enable_val = CKEN_PXA95x_MMC2,
+};
+static struct clk clk_pxa978_sdh2 = {
+	.dependence = mmc_depend_clk,
+	.dependence_count = ARRAY_SIZE(mmc_depend_clk),
+	.ops = &clk_pxa3xx_cken_ops,
+	.enable_val = CKEN_PXA95x_MMC3,
+};
+static struct clk clk_pxa978_sdh3 = {
+	.dependence = mmc_depend_clk,
+	.dependence_count = ARRAY_SIZE(mmc_depend_clk),
+	.ops = &clk_pxa3xx_cken_ops,
 	.enable_val = CKEN_PXA95x_MMC4,
 };
 
@@ -1071,7 +1090,8 @@ static struct clk clk_pxa95x_lcd = {
 	.enable_val = CKEN_DISPLAY,
 };
 
-static struct clk_lookup pxa95x_clkregs[] = {
+static struct clk_lookup common_clkregs[] = {
+
 	INIT_CLKREG(&clk_pxa95x_pout, NULL, "CLK_POUT"),
 	INIT_CLKREG(&clk_pxa95x_tout_s0, NULL, "CLK_TOUT_S0"),
 	/* Power I2C clock is always on */
@@ -1102,10 +1122,6 @@ static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_imu, NULL, "IMUCLK"),
 	INIT_CLKREG(&clk_pxa95x_u2o, NULL, "U2OCLK"),
         INIT_CLKREG(&clk_pxa95x_gcu, NULL, "GCCLK"),
-	INIT_CLKREG(&clk_pxa95x_sdh0, "sdhci-pxa.0", "PXA-SDHCLK"),
-	INIT_CLKREG(&clk_pxa95x_sdh1, "sdhci-pxa.1", "PXA-SDHCLK"),
-	INIT_CLKREG(&clk_pxa95x_sdh2, "sdhci-pxa.2", "PXA-SDHCLK"),
-	INIT_CLKREG(&clk_pxa95x_sdh3, "sdhci-pxa.3", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_pxa95x_abu, NULL, "PXA95X_ABUCLK"),
 	INIT_CLKREG(&clk_pxa95x_smc, NULL, "SMCCLK"),
 	INIT_CLKREG(&clk_pxa3xx_nand, "pxa3xx-nand", NULL),
@@ -1115,6 +1131,21 @@ static struct clk_lookup pxa95x_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_sci2, NULL, "SCI2CLK"),
 	INIT_CLKREG(&clk_pxa95x_csi_tx_esc, NULL, "CSI_TX_ESC"),
 	INIT_CLKREG(&clk_pxa95x_tpm, NULL, "TPM"),
+};
+
+static struct clk_lookup pxa955_specific_clkregs[] = {
+	INIT_CLKREG(&clk_pxa955_sdh0, "sdhci-pxa.0", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_pxa955_sdh1, "sdhci-pxa.1", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_pxa955_sdh2, "sdhci-pxa.2", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_pxa955_sdh3, "sdhci-pxa.3", "PXA-SDHCLK"),
+};
+
+static struct clk_lookup pxa978_specific_clkregs[] = {
+	INIT_CLKREG(&clk_mmc_bus, NULL, "MMC_BUS"),
+	INIT_CLKREG(&clk_pxa978_sdh0, "sdhci-pxa.0", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_pxa978_sdh1, "sdhci-pxa.1", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_pxa978_sdh2, "sdhci-pxa.2", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_pxa978_sdh3, "sdhci-pxa.3", "PXA-SDHCLK"),
 };
 
 static void pxa_ack_ext_wakeup(struct irq_data *d)
@@ -1272,9 +1303,23 @@ static void cken_clear_always_set_always_setup(void)
 	}
 }
 
+static inline void clock_lookup_init(struct clk_lookup *clk_lookup, int count)
+{
+	int i;
+	for (i = 0; i < count; i++) {
+		struct clk *c = clk_lookup[i].clk;
+		clk_init(c);
+		INIT_LIST_HEAD(&c->shared_bus_list);
+		if (!c->lookup.dev_id && !c->lookup.con_id)
+			c->lookup.con_id = c->name;
+		c->lookup.clk = c;
+		clkdev_add(&clk_lookup[i]);
+	}
+}
+
 static int __init pxa95x_init(void)
 {
-	int ret = 0, i;
+	int ret = 0;
 
 	/* dvfm device */
 #ifdef CONFIG_PXA95x_DVFM
@@ -1317,31 +1362,6 @@ static int __init pxa95x_init(void)
 			| (1 << (CKEN_ABU - 32))
 			| (1 << (CKEN_PWM0 - 32))
 			| (1 << (CKEN_PWM1 - 32)));
-	if (cpu_is_pxa978_Cx()) {
-	CKENC &= ~((1 << (CKEN_PXA95x_MMC1 - 64))
-			| (1 << (CKEN_PXA95x_MMC2 - 64))
-			| (1 << (CKEN_PXA95x_MMC3 - 64))
-			| (1 << (CKEN_PXA95x_MMC4 - 64))
-			| (1 << (CKEN_USB_PRL - 64))
-			| (1 << (CKEN_USBH_PRL - 64))
-			| (1 << (CKEN_USB_BUS - 64))
-			| (1 << (CKEN_USBH_BUS - 64))
-			| (1 << (CKEN_MMC_BUS - 64))
-			| (1 << (CKEN_IMU - 64))
-			| (1 << (CKEN_I2C2 - 64))
-			| (1 << (CKEN_I2C3 - 64))
-			| (1 << (CKEN_AXI_2X - 64))
-			| (1 << (CKEN_SCI1 - 64))
-			| (1 << (CKEN_SCI2 - 64))
-			| (1 << (CKEN_CSI_TX - 64))
-			| (1 << (CKEN_GC_1X - 64))
-			| (1 << (CKEN_GC_2X - 64))
-			| (1 << (CKEN_DSI_TX1 - 64))
-			| (1 << (CKEN_DSI_TX2 - 64))
-			| (1 << (CKEN_DISPLAY - 64))
-			| (1 << (CKEN_PIXEL - 64))
-			| (1 << (CKEN_AXI - 64)));
-	} else {
 	CKENC &= ~((1 << (CKEN_PXA95x_MMC1 - 64))
 			| (1 << (CKEN_PXA95x_MMC2 - 64))
 			| (1 << (CKEN_PXA95x_MMC3 - 64))
@@ -1368,7 +1388,6 @@ static int __init pxa95x_init(void)
 			| (1 << (CKEN_DISPLAY - 64))
 			| (1 << (CKEN_PIXEL - 64))
 			| (1 << (CKEN_AXI - 64)));
-	}
 
 	mfp_init_base(io_p2v(MFPR_BASE));
 	if (cpu_is_pxa978())
@@ -1386,15 +1405,14 @@ static int __init pxa95x_init(void)
 	 */
 	ASCR &= ~(ASCR_RDH | ASCR_D1S | ASCR_D2S | ASCR_D3S);
 
-	for (i = 0; i < ARRAY_SIZE(pxa95x_clkregs); i++) {
-		struct clk *c = pxa95x_clkregs[i].clk;
-		clk_init(c);
-		INIT_LIST_HEAD(&c->shared_bus_list);
-		if (!c->lookup.dev_id && !c->lookup.con_id)
-			c->lookup.con_id = c->name;
-		c->lookup.clk = c;
-		clkdev_add(&pxa95x_clkregs[i]);
-	}
+	clock_lookup_init(common_clkregs, ARRAY_SIZE(common_clkregs));
+	if (cpu_is_pxa978())
+		clock_lookup_init(pxa978_specific_clkregs,
+				  ARRAY_SIZE(pxa978_specific_clkregs));
+	else
+		clock_lookup_init(pxa955_specific_clkregs,
+				  ARRAY_SIZE(pxa955_specific_clkregs));
+
 	if ((ret = pxa_init_dma(IRQ_DMA, 32)))
 		return ret;
 
