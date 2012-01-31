@@ -225,7 +225,7 @@ static unsigned int *pri_axi, *pri_ci1, *pri_ci2, *pri_gcu;
 
 static int dvfm_dev_idx;
 
-static unsigned int vid_mem_limit = 16;	/* Video memory limit, in Mb */
+static unsigned int vid_mem_limit = 32;	/* Video memory limit, in Mb */
 static unsigned int skip_frame;
 
 typedef enum {
@@ -504,8 +504,9 @@ void csi_enable(struct pxa95x_csi_dev *csi, int sci_idx)
 			val = (val&0xF0) | csi_val;
 		else
 			val = (val&0x0F) | (csi_val<<4);
+		break;
 	default:
-		printk(KERN_ERR "cam: unknow SCI index\n");
+		printk(KERN_ERR "cam: unknow SCI index: %d\n", sci_idx);
 		WARN_ON(1);
 	}
 	csi_reg_write(csi, REG_CSSCR, val);

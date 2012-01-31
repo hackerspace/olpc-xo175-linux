@@ -1225,7 +1225,7 @@ static struct soc_camera_link iclink[] = {
 		.priv			= &camera_sensor[0],
 	},
 	{
-		.bus_id			= 0, /* Must match with the camera ID */
+		.bus_id			= 1, /* Must match with the camera ID */
 		.board_info		= &camera_i2c[1],
 		.i2c_adapter_id		= 1,
 		.power = camera1_power,
@@ -1354,6 +1354,7 @@ static void __init init_cam(void)
 		break;
 	}
 	platform_device_register(&pxa95x_device_cam0);
+	platform_device_register(&pxa95x_device_cam1);
 #endif
 }
 
