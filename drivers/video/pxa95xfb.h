@@ -13,6 +13,7 @@
 
 #include <linux/types.h>
 #include <mach/pxa95xfb.h>
+#include <plat/overlay_ioctl.h>
 
 /* ---------------------------------------------- */
 /*             type definition                    */
