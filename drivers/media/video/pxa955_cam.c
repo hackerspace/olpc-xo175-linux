@@ -1576,10 +1576,6 @@ static void pxa955_cam_remove_device(struct soc_camera_device *icd)
 			};
 		}
 	}
-	printk(KERN_INFO "cam: next time \"%s\" will be initialized as "\
-			"%c%c%c%c, %ux%u\n", icl->module_name,\
-			pixfmtstr(icd->current_fmt->host_fmt->fourcc),\
-			icd->user_width, icd->user_height);
 
 #ifdef _ARB_CHANGE_
 		*pri_axi = 0;
