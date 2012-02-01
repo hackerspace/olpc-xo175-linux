@@ -169,6 +169,8 @@ struct soc_regs {
 			unsigned rcomp;
 		}; /* Tavor DMC */
 	};
+	unsigned oem_unique_id_l;
+	unsigned oem_unique_id_h;
 };
 
 /* Main RAMDUMP data structure */
@@ -329,6 +331,8 @@ static void save_peripheral_regs(struct ramdump_state *d)
 #ifdef CONFIG_PXA95x
 	d->soc.avcr = __REG(0x40f50094);
 	d->soc.ser_fuse_reg2 = __REG(0x40f50208);
+	d->soc.oem_unique_id_l = __REG(0x40f5021c); /* ser_fuse_reg7 */
+	d->soc.oem_unique_id_h = __REG(0x40f50220); /* ser_fuse_reg8 */
 	if (cpu_is_pxa968() || cpu_is_pxa955()) {
 		d->soc.mdtac = __REG(0x48100010);
 		d->soc.rcomp = __REG(0x48100100);
