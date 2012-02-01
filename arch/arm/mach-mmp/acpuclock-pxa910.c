@@ -1068,6 +1068,7 @@ static void PMUcore2_fc_seq(struct pxa910_md_opt *cop,
 	union pmua_cc cc_ap, cc_cp;
 	u32 dclk2x = top->dclk * 2;
 	int two_step = 0;
+	int axi_ddr_fc = 0;
 
 	cc_cp.v = __raw_readl(APMU_CP_CCR);
 	cc_cp.b.core_allow_spd_chg = 1;
@@ -1076,18 +1077,17 @@ static void PMUcore2_fc_seq(struct pxa910_md_opt *cop,
 	cc_ap.v = __raw_readl(APMU_CCR);
 	cc_ap.b.core_allow_spd_chg = 1;
 
-	/* If PLL2 is involved, two-step frequency change is needed */
-	if (old->pll2freq || top->pll2freq)
+	/* If clock source is changed, two-step frequency change is needed */
+	if (cop->ap_clk_src != top->ap_clk_src ||
+		cop->axi_clk_src != top->axi_clk_src ||
+		cop->ddr_clk_src != top->ddr_clk_src)
 		two_step = 1;
 
-	/* async5 async4 async3_1 async3 are always 1 */
+	/* async5 async4 async3_1 async3 async1 are always 1 */
 	cc_ap.b.async5 = 1;
 	cc_ap.b.async4 = 1;
 	cc_ap.b.async3_1 = 1;
 	cc_ap.b.async3 = 1;
-
-	/* use async mode when doing core/axi frequency change */
-	cc_ap.b.async2 = 1;
 	cc_ap.b.async1 = 1;
 
 	if ((cop->ap_clk_src != top->ap_clk_src)
@@ -1102,6 +1102,13 @@ static void PMUcore2_fc_seq(struct pxa910_md_opt *cop,
 		cc_ap.b.xp_clk_div = top->ap_clk_src / top->xpclk - 1;
 		cc_ap.b.core_freq_chg_req = 1;
 		if (two_step) {
+			/* calculate sync mode for the intermediate PP*/
+			if ((top->ap_clk_src == cop->ddr_clk_src)
+			    && (top->pdclk == cop->dclk))
+				cc_ap.b.async2 = 0;
+			else
+				cc_ap.b.async2 = 1;
+
 			__raw_writel(cc_ap.v, APMU_CCR);
 			wait_for_fc_done();
 			cc_ap.b.core_freq_chg_req = 0;
@@ -1110,36 +1117,32 @@ static void PMUcore2_fc_seq(struct pxa910_md_opt *cop,
 
 	if ((cop->axi_clk_src != top->axi_clk_src)
 	    || (cop->aclk != top->aclk)) {
+		axi_ddr_fc = 1;
 		if (two_step)
 			set_axi_clk_sel(top);
 		cc_ap.b.bus_clk_div = top->axi_clk_src / top->aclk - 1;
 		cc_ap.b.bus_freq_chg_req = 1;
 	}
 
-	/* set sync mode if possible when doing ddr frequency change */
+	if ((cop->ddr_clk_src != top->ddr_clk_src)
+	    || (cop->dclk != top->dclk)) {
+		axi_ddr_fc = 1;
+		if (two_step)
+			set_ddr_clk_sel(top);
+		cc_ap.b.ddr_clk_div = top->ddr_clk_src / dclk2x - 1;
+		cc_ap.b.ddr_freq_chg_req = 1;
+	}
+
+	/* calculate sync mode for the final PP*/
 	if ((top->ap_clk_src == top->ddr_clk_src)
 	    && (top->pdclk == top->dclk))
 		cc_ap.b.async2 = 0;
 	else
 		cc_ap.b.async2 = 1;
-	/* keep ASYNC mode for CP ddr access for all operating points */
-	/* if ((cop->cp_clk_src == top->ddr_clk_src)
-	    && (cop->cp_pdclk == top->dclk))
-		cc_ap.b.async1 = 0;
-	else
-		cc_ap.b.async1 = 1; */
 
-	if ((cop->ddr_clk_src != top->ddr_clk_src)
-	    || (cop->dclk != top->dclk)
-	    || (cc_ap.b.async2 == 0) || (cc_ap.b.async1 == 0)) {
-		if (two_step)
-			set_ddr_clk_sel(top);
-		cc_ap.b.ddr_clk_div = top->ddr_clk_src / dclk2x - 1;
-		cc_ap.b.ddr_freq_chg_req = 1;
-		if (two_step) {
-			freq_change(sram_last_page, cc_ap.v, APMU_CP_CCR);
-			cc_ap.b.ddr_freq_chg_req = 0;
-		}
+	if (two_step && axi_ddr_fc) {
+		freq_change(sram_last_page, cc_ap.v, APMU_CP_CCR);
+		cc_ap.b.ddr_freq_chg_req = 0;
 	}
 
 	/*
