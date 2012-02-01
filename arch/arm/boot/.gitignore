@@ -1,5 +1,6 @@
 Image
 zImage
+zImage-signed
 xipImage
 bootpImage
 uImage
