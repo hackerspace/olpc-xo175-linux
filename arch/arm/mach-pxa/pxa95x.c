@@ -1666,6 +1666,7 @@ unsigned cp_area_addr(void)
 	including the non-CP area at the beginning of the 16MB aligned range. */
 	return _cp_area_addr[0]&0xFF000000;
 }
+EXPORT_SYMBOL(cp_area_addr);
 
 void pxa95x_cpmem_reserve(void)
 {
