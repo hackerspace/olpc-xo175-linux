@@ -463,6 +463,10 @@ config KEYBOARD_SUNKBD
 	  To compile this driver as a module, choose M here: the
 	  module will be called sunkbd.
 
+config KEYBOARD_KBDE
+	tristate "KBD emulation driver"
+	help
+	  no help
 config KEYBOARD_SH_KEYSC
 	tristate "SuperH KEYSC keypad support"
 	depends on SUPERH || ARCH_SHMOBILE
