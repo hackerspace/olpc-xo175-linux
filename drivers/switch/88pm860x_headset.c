@@ -350,6 +350,12 @@ static int headset_switch_probe(struct platform_device *pdev)
 	pm860x_set_bits(info->i2c, PM8607_HEADSET_DECTION,
 			PM8607_HEADSET_EN_HS_DET, 1);
 
+	/* Setting MIC_BAIS1 & 2 current capability to max 575uA*/
+	pm860x_set_bits(info->i2c,
+			PM8607_AUDIO_REG_BASE +
+			PM8607_AUDIO_ADC_ANALOG_PROGRAM4,
+			PM8607_MICBAIS_CURRENT, 0x03);
+
 	INIT_WORK(&info->work_headset, headset_switch_work);
 	INIT_WORK(&info->work_hook, hook_switch_work);
 

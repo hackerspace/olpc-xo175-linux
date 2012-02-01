@@ -218,6 +218,8 @@ enum {
 #define PM8607_HEADSET_BTN_DBNC			(0x3 << 3)
 #define PM8607_HEADSET_PERIOD			(0x3 << 1)
 
+#define PM8607_MICBAIS_CURRENT		(0x3 << 0)
+
 /* Vibrator Control Registers */
 #define PM8607_VIBRATOR_SET		(0x28)
 #define PM8607_VIBRATOR_PWM		(0x29)
