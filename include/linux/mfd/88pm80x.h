@@ -473,6 +473,8 @@ enum {
 };
 
 struct pm80x_chip {
+	/*chip_version can only on the top of the struct*/
+	unsigned char chip_version;
 	struct device *dev;
 	struct mutex io_lock;
 	struct mutex irq_lock;
@@ -499,8 +501,6 @@ struct pm80x_chip {
 	int irq_companion;
 	int irq_companion_base;
 	void *companion_chip;
-	unsigned char chip_version;
-
 };
 
 struct pm805_chip {

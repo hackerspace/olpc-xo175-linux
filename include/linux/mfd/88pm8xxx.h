@@ -70,5 +70,6 @@ enum {
 	PM8XXX_IDPIN_USE_GPADC3,
 };
 
+#define get_pmic_version(chip) (*(unsigned char *) chip)
 
 #endif /* __LINUX_MFD_88PMXXX_H */

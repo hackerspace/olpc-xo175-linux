@@ -520,6 +520,8 @@ enum enum_charger_type {
 };
 
 struct pm860x_chip {
+	/*chip_version can only on the top of the struct*/
+	unsigned char		chip_version;
 	struct device		*dev;
 	struct mutex		io_lock;
 	struct mutex		irq_lock;
@@ -532,7 +534,6 @@ struct pm860x_chip {
 	int			irq_mode;
 	int			irq_base;
 	int			core_irq;
-	unsigned char		chip_version;
 	struct workqueue_struct	*monitor_wqueue;
 };
 
