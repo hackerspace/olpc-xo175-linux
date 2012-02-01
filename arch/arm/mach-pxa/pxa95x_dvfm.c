@@ -1883,15 +1883,7 @@ static inline unsigned int corepll_freq2reg(unsigned int x)
 	}
 }
 
-static volatile u32 __iomem *addr_data_ram_control, *l2_control_addr;
-static inline void set_data_laterncy(unsigned int value)
-{
-	__asm__("dsb");
-	writel(0, l2_control_addr);
-	writel(value, addr_data_ram_control);
-	writel(1, l2_control_addr);
-	__asm__("dsb");
-}
+static volatile u32 __iomem *l2_base_addr;
 
 int is_wkr_nevo_1744(void)
 {
@@ -1902,6 +1894,7 @@ int is_wkr_nevo_1744(void)
 		return 0;
 }
 
+extern void set_data_latency(unsigned int, unsigned int, unsigned int);
 static inline void pxa978_set_core_freq(struct pxa95x_dvfm_info *info,
 		struct dvfm_md_opt *old, struct dvfm_md_opt *new)
 {
@@ -1913,9 +1906,10 @@ static inline void pxa978_set_core_freq(struct pxa95x_dvfm_info *info,
 	/*if (unlikely(old->dmcfs == 624))
 		do_ddr_fc();*/ /* TODO */
 
-	/* set cache laterncy if necessary */
+	/* set cache latency if necessary */
 	if (new->core <= 416 && old->core > 416)
-		set_data_laterncy(0x353);
+		set_data_latency((unsigned int)(sram_map + 0xb000),
+				(unsigned int)l2_base_addr, 0x353);
 
 	pr_debug("CA9 Core Frequency change.\n");
 
@@ -1983,9 +1977,10 @@ static inline void pxa978_set_core_freq(struct pxa95x_dvfm_info *info,
 	AICSR = aicsr;
 
 	pr_debug("CA9 Core FC Stage 2 Completed.\n");
-	/* set cache laterncy if necessary */
+	/* set cache latency if necessary */
 	if (new->core > 416 && old->core <= 416)
-		set_data_laterncy(0x232);
+		set_data_latency((unsigned int)sram_map + 0xb000,
+				(unsigned int)l2_base_addr, 0x232);
 	if (!is_wkr_nevo_1744()) {
 		/* From Core PLL frequency to System PLL */
 		if (old->core >= 624 && new->core < 624) {
@@ -3340,7 +3335,7 @@ static void pxa95x_df_init(struct pxa95x_dvfm_info *info)
 
 extern unsigned int pxa_chip_id;
 #define ISRAM_START 0x5c000000
-extern void pxa95x_init_sram(unsigned int);
+extern void pxa95x_init_sram(unsigned int, unsigned int);
 static int pxa95x_freq_probe(struct platform_device *pdev)
 {
 	struct resource *res;
@@ -3351,7 +3346,8 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 	sram_size = (128 * 1024);
 	sram_map = (u32) __arm_ioremap(ISRAM_START, sram_size, MT_MEMORY_NONCACHED);
 
-	pxa95x_init_sram((unsigned int) sram_map + 0x9000);
+	pxa95x_init_sram((unsigned int) sram_map + 0x9000,
+			(unsigned int) sram_map + 0xb000);
 
 	/* initialize the information necessary to frequency/voltage change
 	 * operation */
@@ -3401,10 +3397,7 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 
 	pxa95x_df_init(info);
 	addr_trim_value_wa = ioremap(0x58110000, 0x30);
-
-	addr_data_ram_control = ioremap(0x5812010c, 0x4);
-	l2_control_addr = ioremap(0x58120100, 0x4);
-
+	l2_base_addr = ioremap(0x58120000, 0x1000);
 	pxa95x_poweri2c_init(info);
 
 	if (cpu_is_pxa978())

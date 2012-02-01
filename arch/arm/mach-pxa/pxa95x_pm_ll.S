@@ -110,6 +110,7 @@ ENTRY(pxa95x_cpu_deepsleep)
 @
 @ Inputs:
 @	r0 = Start address of relocated program
+@	r1 = Start address of uncacheable area
 @
 @ Outputs:
 @	None
@@ -125,6 +126,14 @@ rel_sram:
 	stmia	r0!, {r5 - r12}
 	cmp	r3, r4
 	ble	rel_sram
+
+	ldr	r3, =set_data_latency_start
+	ldr	r4, =set_data_latency_end
+rel_sram1:
+	ldmia	r3!, {r5 - r12}
+	stmia	r1!, {r5 - r12}
+	cmp	r3, r4
+	ble	rel_sram1
 
 	ldmfd	sp!, {r0 - r12, pc}
 
@@ -204,6 +213,36 @@ retry1:
 	mov	sp, r12				@ restore stack address
 	ldmfd   sp!, {r0 - r12, pc}
 pm_enter_sram_end:
+	nop
+
+@**************************************************************************
+@ set_data_latency
+@
+@ r0: relocated sram address
+@ r1: L2 base address
+@ r2: latency value
+@
+ENTRY(set_data_latency)
+
+	@ save registers on stack
+	stmfd	sp!, {r0 - r3, lr}
+	mov	pc, r0		@jump to relocated program
+
+set_data_latency_start:
+	dsb
+	mov	r3, #0
+	str	r3, [r1, #0x730]	@ sync l2 cache
+resync:
+	ldr	r3, [r1, #0x730]
+	cmp	r3, #0
+	bne	resync
+	str	r3, [r1, #0x100]	@ disable l2 cache
+	str	r2, [r1, #0x10c]	@ write latency value
+	mov	r3, #1
+	str	r3, [r1, #0x100]	@ enable l2 cache
+	dsb
+	ldmfd   sp!, {r0 - r3, pc}
+set_data_latency_end:
 	nop
 
 @*****************************************************************************
