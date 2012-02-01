@@ -32,6 +32,7 @@ static atomic_t hdmi_state = ATOMIC_INIT(0);
 static int early_suspend_flag;
 static int late_disable_flag;
 enum connect_lock con_lock;
+static bool timer_inited = 0;
 
 struct hdmi_instance {
 	struct clk *clk;
@@ -328,7 +329,8 @@ static irqreturn_t hpd_handler(int irq, struct uio_info *dev_info)
 		container_of(dev_info, struct hdmi_instance, uio_info);
 
 	pr_debug("%s\n", __func__);
-	mod_timer(&hi->jitter_timer, jiffies + HZ);
+	if (timer_inited)
+		mod_timer(&hi->jitter_timer, jiffies + HZ);
 
 	/*Don't report hpd in top half, wait for jitter is gone.*/
 	return IRQ_NONE;
@@ -439,24 +441,25 @@ static int hdmi_probe(struct platform_device *pdev)
 		goto out_free;
 	}
 
+#ifdef CONFIG_CPU_PXA978
+	if (hi->hdmi_power)
+		hi->hdmi_power(1); /* nevo need 5v to detect hpd*/
+#endif
 	/* Check HDMI cable when boot up */
 	ret = gpio_get_value(hi->gpio);
 	printk(KERN_INFO"%s hpd %s\n",
 		__func__, (ret == hi->hpd_in)?"plug in":"pull out");
+#ifdef CONFIG_CPU_PXA978 /* nevo*/
+	if (ret == hi->hpd_in)
+		atomic_set(&hdmi_state, 1);
+#else /* mmp2 & mmp3*/
 	if (ret == hi->hpd_in) {
 		atomic_set(&hdmi_state, 1);
-#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 		set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
-#endif
 		if (hi->hdmi_power)
 			hi->hdmi_power(1);
-#ifndef CONFIG_CPU_PXA978
 		clk_enable(hi->clk);
-#endif
-	}
-#ifndef CONFIG_CPU_PXA978
-	else if (cpu_is_mmp3())
-	{
+	} else if (cpu_is_mmp3()) {
 		clk_enable(hi->clk);
 	}
 #endif
@@ -464,6 +467,7 @@ static int hdmi_probe(struct platform_device *pdev)
 	setup_timer(&hi->jitter_timer, work_launch, (unsigned long)hi);
 	INIT_WORK(&hi->work, hdmi_switch_work);
 	INIT_DELAYED_WORK(&hi->hpd_work, hdmi_delayed_func);
+	timer_inited = 1;
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	hi->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
