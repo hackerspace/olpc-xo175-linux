@@ -1053,9 +1053,7 @@ static int pm860x_batt_get_prop(struct power_supply *psy,
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
-		mutex_lock(&info->lock);
 		val->intval = info->status;
-		mutex_unlock(&info->lock);
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
 		mutex_lock(&info->lock);
@@ -1063,9 +1061,7 @@ static int pm860x_batt_get_prop(struct power_supply *psy,
 		mutex_unlock(&info->lock);
 		break;
 	case POWER_SUPPLY_PROP_PRESENT:
-		mutex_lock(&info->lock);
 		val->intval = info->present;
-		mutex_unlock(&info->lock);
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
 		ret = calc_capacity(info, &data);
