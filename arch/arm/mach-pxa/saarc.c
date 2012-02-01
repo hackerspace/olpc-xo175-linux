@@ -1463,9 +1463,9 @@ static int hdtx_power(int en)
 	if (en) {
 		regulator_set_voltage(v_ldo, 3300000, 3300000);
 		regulator_enable(v_ldo);
-		printk(KERN_INFO "hdmi: turn on ldo12 to 3.3v.\n");
+		printk(KERN_INFO "hdmi: turn on hdmi-term to 3.3v.\n");
 	} else {
-		printk(KERN_INFO "hdmi: turn off LDO\n");
+		printk(KERN_INFO "hdmi: turn off hdmi-term\n");
 		regulator_disable(v_ldo);
 	}
 
@@ -1480,7 +1480,7 @@ static int hdtx_power(int en)
 	msleep(10);
 
 	gpio_free(pin1);
-	printk(KERN_INFO "hdmi: turn charge pump 5V to %d\n", en);
+	printk(KERN_INFO "hdmi: turn %s charge pump 5V\n", en?"ON":"OFF");
 
 	regulator_put(v_ldo);
 	return 0;
@@ -1492,7 +1492,16 @@ static struct uio_hdmi_platform_data hdtx_uio_data = {
 	.itlc_reg_base = 0x4410c000,
 	.gpio = MFP_PIN_GPIO112,
 	.hdmi_v5p_power = hdtx_power,
+	.edid_bus_num = 3,	/* edid on i2c-3*/
+	.hpd_val = 0x10000,	/* hpd-gpio-112 pin, when plug in, its value is 1<<16*/
 };
+
+static void __init init_hdmi(void)
+{
+	mfp_cfg_t hpd_pin = GPIO112_HDMI_HPD;
+	mfp_config(&hpd_pin, 1);
+	pxa_register_device(&pxa978_device_uio_ihdmi, &hdtx_uio_data);
+}
 #endif
 
 static struct pxa95xfb_mach_info ihdmi_base_info __initdata = {
@@ -1620,7 +1629,7 @@ static void __init init_lcd(void)
 	set_pxa95x_fb_ovly_info(&lcd_ovly_info, 0);
 #if defined(CONFIG_MV_IHDMI)
 #ifdef CONFIG_UIO_HDMI
-	pxa_register_device(&pxa978_device_uio_ihdmi, &hdtx_uio_data);
+	init_hdmi();
 #else
 	pxa_register_device(&pxa978_device_ihdmi, &mv_ihdmi_format);
 #endif
