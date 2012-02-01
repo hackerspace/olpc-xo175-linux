@@ -37,6 +37,7 @@ struct hdmi_instance {
 	struct clk *clk;
 	void *reg_base;
 	void *sspa1_reg_base;
+	unsigned int hpd_in; /* if cable plug in, this is the gpio value*/
 	unsigned int gpio;
 	unsigned int edid_bus_num;
 	struct timer_list jitter_timer;
@@ -96,7 +97,7 @@ static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 	void *argp = (void *)arg;
 	struct hdmi_instance *hi =
 		container_of(info, struct hdmi_instance, uio_info);
-	int hpd = -1;
+	int hpd = -1, status;
 	int hdmi_freq = 0;
 	switch (cmd) {
 	case SSPA1_GET_VALUE:
@@ -115,7 +116,12 @@ static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 			hpd = 0;
 			con_lock = UNLOCK;
 		} else {
-			hpd = gpio_get_value(hi->gpio);
+			status = gpio_get_value(hi->gpio);
+			/* hdmi stack recognize 0 as connected, 1 as disconnected*/
+			if (status == hi->hpd_in)
+				hpd = 0;
+			else
+				hpd = 1;
 			/*if disconnected HDMI , late_disable_flag is
 			 * 1, 300 ms is the time wait for HDMI is
 			 * disabled, then disp1_axi_bus can be disabled.
@@ -226,7 +232,7 @@ static int hdmi_resume(struct platform_device *pdev)
 {
 	struct hdmi_instance *hi = platform_get_drvdata(pdev);
 
-	if (gpio_get_value(hi->gpio) == 0) {
+	if (gpio_get_value(hi->gpio) == hi->hpd_in) {
 		/*if connected, reset HDMI*/
 		atomic_set(&hdmi_state, 1);
 		clk_enable(hi->clk);
@@ -268,7 +274,7 @@ static void hdmi_switch_work(struct work_struct *work)
 		container_of(work, struct hdmi_instance, work);
 	int state = gpio_get_value(hi->gpio);
 
-	if(state!=0) {
+	if(state != hi->hpd_in) {
 		if (atomic_cmpxchg(&hdmi_state, 1, 0) == 1) {
 			late_disable_flag = 1; /*wait for hdmi disbaled*/
 			if (hi->hdmi_power)
@@ -384,6 +390,7 @@ static int hdmi_probe(struct platform_device *pdev)
 	hi->uio_info.irq_flags = IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING;
 	hi->uio_info.handler = hpd_handler;
 	hi->gpio = pdata->gpio;
+	hi->hpd_in = pdata->hpd_val;
 	hi->edid_bus_num = pdata->edid_bus_num;
 	if (hi->edid_bus_num == 0)
 		hi->edid_bus_num = 6;
@@ -434,8 +441,9 @@ static int hdmi_probe(struct platform_device *pdev)
 
 	/* Check HDMI cable when boot up */
 	ret = gpio_get_value(hi->gpio);
-	printk(KERN_INFO"%s hpd 0x%x------------\n", __func__, ret);
-	if (ret == 0) {
+	printk(KERN_INFO"%s hpd %s\n",
+		__func__, (ret == hi->hpd_in)?"plug in":"pull out");
+	if (ret == hi->hpd_in) {
 		atomic_set(&hdmi_state, 1);
 #if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 		set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
