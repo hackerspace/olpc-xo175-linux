@@ -783,6 +783,8 @@ int dvfm_register(const char *name, int *id)
 	if (name == NULL)
 		return -EINVAL;
 
+	*id = -1;  /* Set undefined index by default */
+
 	/* device name is stricted in 32 bytes */
 	len = strlen(name);
 	if (len > DVFM_MAX_NAME)
