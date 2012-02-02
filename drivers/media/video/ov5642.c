@@ -687,12 +687,12 @@ static int ov5642_g_frame_interval(struct v4l2_subdev *sd,
 }
 
 static struct v4l2_subdev_core_ops ov5642_subdev_core_ops = {
-	.g_chip_ident = ov5642_g_chip_ident,
-	.init = ov5642_init,
-	.s_ctrl	= ov5642_s_ctrl,
+	.g_chip_ident	= ov5642_g_chip_ident,
+	.init		= ov5642_init,
+	.s_ctrl		= ov5642_s_ctrl,
 #ifdef CONFIG_VIDEO_ADV_DEBUG
-	.g_register = ov5642_g_register,
-	.s_register = ov5642_s_register,
+	.g_register	= ov5642_g_register,
+	.s_register	= ov5642_s_register,
 #endif
 };
 

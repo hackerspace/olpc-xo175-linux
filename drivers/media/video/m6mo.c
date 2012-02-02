@@ -816,7 +816,7 @@ static int m6mo_enum_fsizes(struct v4l2_subdev *sd,
 	return 0;
 }
 
-static int sensor_init(struct v4l2_subdev *sd)
+static int m6mo_init(struct v4l2_subdev *sd, u32 plat)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct m6mo_info *info = to_info(client);
@@ -843,7 +843,7 @@ static struct v4l2_subdev_core_ops m6mo_subdev_core_ops = {
 	.g_ctrl		= m6mo_g_ctrl,
 	.s_ctrl		= m6mo_s_ctrl,
 	.g_chip_ident	= m6mo_g_chip_ident,
-	.load_fw	= sensor_init,
+	.init		= m6mo_init,
 #ifdef CONFIG_VIDEO_ADV_DEBUG
 	.g_register	= m6mo_g_register,
 	.s_register	= m6mo_s_register,

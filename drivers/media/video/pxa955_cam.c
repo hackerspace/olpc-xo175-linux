@@ -1492,7 +1492,7 @@ static int pxa955_cam_add_device(struct soc_camera_device *icd)
 	sci_init(pcdev);
 	csi_clkdiv(pcdev->csidev);
 
-	ret = v4l2_subdev_call(sd, core, load_fw);
+	ret = v4l2_subdev_call(sd, core, init, 0);
 	if ((ret < 0) && (ret != -ENOIOCTLCMD))
 		dev_info(icd->dev.parent, "cam: Failed to initialize subdev: "\
 					"%d\n", ret);
