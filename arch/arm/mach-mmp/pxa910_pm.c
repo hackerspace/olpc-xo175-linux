@@ -809,7 +809,7 @@ static int __init pxa910_pm_init(void)
 	wake_lock_init(&system_wakeup, WAKE_LOCK_SUSPEND, "system_wakeup_detect");
 
 	pm_idle = pxa910_do_idle;
-	pm_power_off = pm860x_system_poweroff;
+	pm_power_off = pm8xxx_system_poweroff;
 
 	vctcxo_clk = clk_get(NULL, "VCTCXO");
 	if (IS_ERR(vctcxo_clk)) {

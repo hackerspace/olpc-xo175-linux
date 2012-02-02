@@ -149,7 +149,7 @@ static struct mfd_cell touch_devs[] = {
 };
 
 static struct mfd_cell onkey_devs[] = {
-	{"88pm860x-onkey", -1,},
+	{"88pm8xxx-onkey", -1,},
 };
 
 static struct mfd_cell codec_devs[] = {

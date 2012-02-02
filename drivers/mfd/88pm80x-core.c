@@ -60,7 +60,7 @@ static struct mfd_cell vbus_devs[] = {
 
 static struct resource onkey_resources[] = {
 	{
-	 .name = "88pm80x-onkey",
+	 .name = "88pm8xxx-onkey",
 	 .start = PM800_IRQ_ONKEY,
 	 .end = PM800_IRQ_ONKEY,
 	 .flags = IORESOURCE_IRQ,
@@ -69,7 +69,7 @@ static struct resource onkey_resources[] = {
 
 static struct mfd_cell onkey_devs[] = {
 	{
-	 .name = "88pm80x-onkey",
+	 .name = "88pm8xxx-onkey",
 	 .num_resources = 1,
 	 .resources = &onkey_resources[0],
 	 .id = -1,

@@ -71,5 +71,6 @@ enum {
 };
 
 #define get_pmic_version(chip) (*(unsigned char *) chip)
+extern void pm8xxx_system_poweroff(void);
 
 #endif /* __LINUX_MFD_88PMXXX_H */
