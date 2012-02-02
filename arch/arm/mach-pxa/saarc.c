@@ -22,6 +22,8 @@
 #include <linux/regulator/machine.h>
 #include <linux/sd8x_rfkill.h>
 #include <linux/mmc/sdhci.h>
+#include <linux/mmc/host.h>
+#include <linux/mmc/card.h>
 #include <linux/i2c/adp8885.h>
 #include <linux/proc_fs.h>
 
@@ -441,6 +443,25 @@ static void wifi_set_power(unsigned int on)
 }
 
 #if defined(CONFIG_MMC_SDHCI_PXAV2_TAVOR) || defined(CONFIG_MMC_SDHCI_PXAV3)
+static struct wake_lock wifi_delayed_work_wake_lock;
+
+static void pxa95x_handle_cdint(struct sdhci_host *host)
+{
+	if (mmc_card_sdio(host->mmc->card) && host->mmc->card->disabled) { /* host sleep feature case */
+		/* disable CARD INT 1st to avoid serving CARD INT repeatedly */
+		host->mmc->ops->enable_sdio_irq(host->mmc, 0);
+
+		/* get wakelock to trigger devices resume sequence,
+		necessary for the current PM implementation - partial suspend.
+		And when the Full-suspend is implemented in future, such wakelock will be delected */
+		wake_lock_timeout(&wifi_delayed_work_wake_lock, 3*HZ);
+		printk(KERN_INFO"[sd/sdio]-->sdhci-irq: get_sdio_wakelock, 3 seconds.\n");
+	} else { /* normal case */
+		mmc_signal_sdio_irq(host->mmc);
+		pr_debug("[sd/sdio]-->sdhci-irq: mmc_signal_sdio_irq.\n");
+	}
+}
+
 static struct sdhci_pxa_platdata mci0_platform_data = {
 	.flags	= PXA_FLAG_CARD_PERMANENT |
 				PXA_FLAG_SD_8_BIT_CAPABLE_SLOT |
@@ -455,10 +476,10 @@ static struct sdhci_pxa_platdata mci1_platform_data = {
 };
 
 static struct sdhci_pxa_platdata mci2_platform_data = {
-	.flags  = PXA_FLAG_CARD_PERMANENT |
-				PXA_FLAG_HS_NEED_WAKELOCK,
+	.flags  = PXA_FLAG_CARD_PERMANENT,
 	.pm_caps = MMC_PM_KEEP_POWER |
 				MMC_PM_IRQ_ALWAYS_ON,
+	.handle_cdint = pxa95x_handle_cdint,
 };
 
 static void __init init_mmc(void)
@@ -1757,6 +1778,8 @@ static void __init init(void)
 
 #if defined(CONFIG_MMC_SDHCI_PXAV2_TAVOR) || defined(CONFIG_MMC_SDHCI_PXAV3)
 	init_mmc();
+	wake_lock_init(&wifi_delayed_work_wake_lock,
+					WAKE_LOCK_SUSPEND, "wifi_delayed_work");
 #endif
 
 	/* Init boot flash - sync mode in case of ONENAND */
