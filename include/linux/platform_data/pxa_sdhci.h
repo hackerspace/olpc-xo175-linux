@@ -18,6 +18,8 @@
 #include <linux/wakelock.h>
 #endif
 #include <linux/pm_qos_params.h>
+#include <linux/mmc/sdhci.h>
+
 
 /* pxa specific flag */
 /* Require clock free running */
@@ -53,6 +55,7 @@
  * @pm_caps: pm_caps of platfrom
  * @signal_1v8: signaling change to 1.8V
  * @lp_switch(): slot operations needed while going in/out low-power mode
+ * @handle_cdint: special SDIO card interrupt hanlder
  * @idle_lock: wake lock for idle
  */
 struct sdhci_pxa_platdata {
@@ -68,6 +71,7 @@ struct sdhci_pxa_platdata {
 	unsigned int	pm_caps;
 	void	(*signal_1v8)(int set);
 	int	(*lp_switch)(unsigned int on, int with_card);
+	void (*handle_cdint)(struct sdhci_host *host);
 	struct	pm_qos_request_list	qos_idle;
 #ifdef CONFIG_WAKELOCK
 	struct wake_lock	idle_lock;

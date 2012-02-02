@@ -419,6 +419,9 @@ static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 		if (pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING)
 			host->mmc->caps |= MMC_CAP_ENABLE_BUS_CLK_GATING;
 
+		if (pdata->handle_cdint)
+			pxav3_sdhci_ops.handle_cdint = pdata->handle_cdint;
+
 		if (pdata->quirks)
 			host->quirks |= pdata->quirks;
 		if (pdata->host_caps)
