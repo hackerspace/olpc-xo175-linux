@@ -44,6 +44,7 @@ extern enum pxa9xx_force_lpm LastForceLPM;
 extern unsigned int ForceLPMWakeup;
 extern int RepeatMode;
 extern int ForceVCTCXO_EN;
+extern int ForceC0;
 
 extern uint32_t profilerRecommendationPP;
 extern uint32_t profilerRecommendationEnable;

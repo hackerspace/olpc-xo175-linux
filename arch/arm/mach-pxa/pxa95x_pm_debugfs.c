@@ -81,6 +81,15 @@ static ssize_t PXA9xx_PI2C_write(struct file *file,
 				 const char __user *ubuf,
 				 size_t count, loff_t *ppos);
 
+static ssize_t PXA9xx_force_C0_read(struct file *file,
+							char __user *userbuf,
+							size_t count,
+							loff_t *ppos);
+static ssize_t PXA9xx_force_C0_write(struct file *file,
+							const char __user *ubuf,
+							size_t count,
+							loff_t *ppos);
+
 /* The exec names of the enum defined in debug_pm.h */
 const char pxa9xx_force_lpm_names__[][LPM_NAMES_LEN] = {
 	"PXA9xx_Force_None",
@@ -90,9 +99,10 @@ const char pxa9xx_force_lpm_names__[][LPM_NAMES_LEN] = {
 };
 
 static struct dentry *dbgfs_root, *pmLogger_file, *forceVCTCXO_EN_file,
-		     *ForceLPM_file, *MeasureCoreFreq_file,
-		     *profilerRecommendation_file, *GcVmetaStats_file,
-		     *PI2C_file;
+			*ForceLPM_file, *MeasureCoreFreq_file,
+			*profilerRecommendation_file, *GcVmetaStats_file,
+			*PI2C_file,
+			*ForceC0_file;
 
 uint32_t ForceLPMWakeups_tmp;
 uint32_t ForceLPM_tmp;
@@ -109,6 +119,12 @@ static const struct file_operations PXA9xx_file_force_VCTCXO_EN = {
 	.owner = THIS_MODULE,
 	.read = PXA9xx_force_VCTCXO_EN_read,
 	.write = PXA9xx_force_VCTCXO_EN_write,
+};
+
+static const struct file_operations PXA9xx_file_force_C0 = { \
+	.owner		= THIS_MODULE, \
+	.read		= PXA9xx_force_C0_read, \
+	.write		 = PXA9xx_force_C0_write, \
 };
 
 static const struct file_operations PXA9xx_file_op_profilerRecommendation = {
@@ -285,6 +301,51 @@ static ssize_t PXA9xx_force_VCTCXO_EN_write(struct file *file,
 		ForceVCTCXO_EN = 0;
 	else
 		ForceVCTCXO_EN = 1;
+
+	return count;
+}
+
+static ssize_t PXA9xx_force_C0_read(struct file *file,
+					char __user *userbuf,
+					size_t count,
+					loff_t *ppos)
+{
+	char buf[30] = { 0 };
+	int ret = 0;
+
+	if (ForceC0)
+		ret = snprintf(buf, sizeof(buf) - 1,
+				"Force_C0 is ON\n");
+	else
+		ret = snprintf(buf, sizeof(buf) - 1,
+				"Force_C0 is OFF\n");
+
+	if (-1 == ret)
+		return ret;
+
+	return simple_read_from_buffer(userbuf, count, ppos, buf, ret);
+}
+
+static ssize_t PXA9xx_force_C0_write(struct file *file,
+					const char __user *ubuf,
+					size_t count,
+					loff_t *ppos)
+{
+	unsigned int val;
+	char buf[USER_BUF_SIZE] = {0};
+	int pos = 0;
+	int min_size;
+
+	/* copy user's input to kernel space */
+	min_size = min_t(char, sizeof(buf)-1, count);
+	if (copy_from_user(buf, ubuf, min_size))
+		return -EFAULT;
+	pos += sscanf(buf, "%d", &val);
+
+	if (val == 0)
+		ForceC0 = 0;
+	else
+		ForceC0 = 1;
 
 	return count;
 }
@@ -1008,9 +1069,7 @@ void pxa_9xx_power_init_debugfs(void)
 		pmLogger_file = debugfs_create_file("pmLogger", 0600,
 						    dbgfs_root, NULL,
 						    &PXA9xx_file_op_pmLogger);
-		if (pmLogger_file)
-			printk(KERN_WARNING "%s success\n", __func__);
-		else
+		if (!pmLogger_file)
 			errRet = -EINVAL;
 
 		forceVCTCXO_EN_file = debugfs_create_file("forceVCTCXO_EN",
@@ -1026,26 +1085,26 @@ void pxa_9xx_power_init_debugfs(void)
 						    dbgfs_root, NULL,
 						    &PXA9xx_file_op_ForceLPM);
 
-		if (ForceLPM_file)
-			printk(KERN_WARNING "%s success\n", __func__);
-		else
+		if (!ForceLPM_file)
 			errRet = -EINVAL;
 
 		MeasureCoreFreq_file = debugfs_create_file("MeasureCoreFreq",
 							   0400, dbgfs_root,
 							   NULL,
 							   &PXA9xx_file_op_MeasureCoreFreq);
-		if (MeasureCoreFreq_file)
-			printk(KERN_WARNING "%s success\n", __func__);
-		else
+		if (!MeasureCoreFreq_file)
 			errRet = -EINVAL;
 
 		PI2C_file = debugfs_create_file("PI2C", 0600,
 						dbgfs_root, NULL,
 						&PXA9xx_file_PI2C);
-		if (PI2C_file)
-			printk(KERN_WARNING "%s success\n", __func__);
-		else
+		if (!PI2C_file)
+			errRet = -EINVAL;
+
+		ForceC0_file = debugfs_create_file("ForceC0", 0600,
+						dbgfs_root, NULL,
+						&PXA9xx_file_force_C0);
+		if (!ForceC0_file)
 			errRet = -EINVAL;
 
 		profilerRecommendation_file =
@@ -1053,17 +1112,13 @@ void pxa_9xx_power_init_debugfs(void)
 					dbgfs_root, NULL,
 					&PXA9xx_file_op_profilerRecommendation);
 
-		if (profilerRecommendation_file)
-			printk(KERN_WARNING "%s success\n", __func__);
-		else
+		if (!profilerRecommendation_file)
 			errRet = -EINVAL;
 
 		GcVmetaStats_file = debugfs_create_file("GcVmetaStats", 0600,
 							dbgfs_root, NULL,
 							&PXA9xx_file_op_gc_vmeta_stats);
-		if (GcVmetaStats_file)
-			printk(KERN_WARNING "%s success\n", __func__);
-		else
+		if (!GcVmetaStats_file)
 			errRet = -EINVAL;
 
 		if (errRet) {
