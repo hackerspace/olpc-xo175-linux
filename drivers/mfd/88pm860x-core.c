@@ -899,6 +899,7 @@ static void __devinit device_8607_init(struct pm860x_chip *chip,
 	ret = pm860x_reg_read(i2c, PM8607_CHIP_ID);
 	if (ret < 0) {
 		dev_err(chip->dev, "Failed to read CHIP ID: %d\n", ret);
+		BUG_ON(1);
 		goto out;
 	}
 
@@ -911,6 +912,7 @@ static void __devinit device_8607_init(struct pm860x_chip *chip,
 	} else {
 		dev_err(chip->dev, "Failed to detect Marvell 88PM8607:Chip ID: %02x\n",
 		ret);
+		BUG_ON(1);
 		goto out;
 	}
 	ret = pm860x_reg_read(i2c, PM8607_BUCK3);
