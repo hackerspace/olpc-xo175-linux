@@ -608,7 +608,19 @@ static struct regulator_init_data regulator_data[] = {
 	[MAX8925_ID_LDO12] = REG_INIT(LDO12, 750000, 3900000, 0, 0),
 	[MAX8925_ID_LDO13] = REG_INIT(LDO13, 750000, 1500000, 0, 0),
 	[MAX8925_ID_LDO14] = REG_INIT(LDO14, 750000, 3000000, 0, 0),
-	[MAX8925_ID_LDO15] = REG_INIT(LDO15, 750000, 2800000, 0, 0),
+	[MAX8925_ID_LDO15] =
+		{
+			.constraints = {
+				.name		= "LDO15",
+				.min_uV		= 2800000,
+				.max_uV		= 2800000,
+				.always_on	= 1,
+				.boot_on	= 0,
+				},
+			.num_consumer_supplies	= 1,
+			.consumer_supplies	=
+				&regulator_supply[MAX8925_ID_LDO15],
+		},
 	[MAX8925_ID_LDO16] = REG_INIT(LDO16, 750000, 3900000, 0, 0),
 	[MAX8925_ID_LDO17] = REG_INIT(LDO17, 1000000, 1500000, 0, 0),
 	[MAX8925_ID_LDO18] = REG_INIT(LDO18, 650000, 2250000, 1, 1),
