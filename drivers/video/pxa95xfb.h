@@ -13,7 +13,7 @@
 
 #include <linux/types.h>
 #include <mach/pxa95xfb.h>
-#include <plat/overlay_ioctl.h>
+#include <plat/fb_ioctl.h>
 
 /* ---------------------------------------------- */
 /*             type definition                    */
@@ -819,8 +819,6 @@ struct pxa95xfb_conv_info {
 	struct loop_kthread thread;
 
 };
-
-#define MAX_QUEUE_NUM   30
 
 /*
  * PXA LCD controller private state.

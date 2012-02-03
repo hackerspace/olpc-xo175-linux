@@ -161,6 +161,8 @@
 #define FB_SYNC_COLORKEY_TO_CHROMA          1
 #define FB_SYNC_CHROMA_TO_COLORKEY          2
 
+#define MAX_QUEUE_NUM 30
+
 /* ---------------------------------------------- */
 /*              Data Structure                    */
 /* ---------------------------------------------- */
