@@ -647,6 +647,7 @@ err:
 int pxa168vid_apply_changes(struct pxa168_overlay *ovly)
 {
 	struct lcd_regs *regs;
+	struct pxa168fb_vdma_info *lcd_vdma = 0;
 	unsigned long addr_y0, addr_u0, addr_v0;
 	unsigned long addr_y1 = 0, addr_u1 = 0, addr_v1 = 0;
 	u32 bpp, offset;
@@ -692,6 +693,13 @@ int pxa168vid_apply_changes(struct pxa168_overlay *ovly)
 
 		dma_ctrl_write(ovly->id, 0, ovly->dma_ctl0);
 		ovly->update = 0;
+	}
+
+	lcd_vdma = request_vdma(ovly->id, 1);
+	if (lcd_vdma) {
+		vdma_info_update(lcd_vdma, ovly->opened,
+			ovly->streaming, ovly->pix.pixelformat, 0, 0);
+		pxa688_vdma_config(lcd_vdma);
 	}
 
 	return 0;
@@ -994,6 +1002,7 @@ static int pxa168_ovly_release(struct file *file)
 		ovly->streaming = 0;
 	}
 	spin_unlock_irqrestore(&ovly->vbq_lock, flags);
+	pxa688_vdma_release(ovly->id, 1);
 
 	/* Turn off the pipeline */
 	ret = pxa168vid_apply_changes(ovly);
@@ -1628,6 +1637,7 @@ static int vidioc_streamoff(struct file *file, void *fh, enum v4l2_buf_type i)
 	spin_lock_irqsave(vbq_lock, flags);
 	ovly->streaming = 0;
 	spin_unlock_irqrestore(vbq_lock, flags);
+	pxa688_vdma_release(ovly->id, 1);
 
 	mutex_unlock(ovly_lock);
 	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: stream off!\n", ovly->id);
@@ -1912,7 +1922,7 @@ success:
 	printk(KERN_INFO VOUT_NAME ": registered and initialized "
 	       "video%d: minor num %d [v4l2]\n", vdev->num, vdev->minor);
 
-	return -ENODEV;
+	return 0;
 }
 
 static void pxa168_ovly_cleanup_device(struct pxa168_overlay *ovly)
@@ -1982,6 +1992,7 @@ static int __devinit pxa168_ovly_probe(struct platform_device *pdev)
 	struct pxa168fb_mach_info *mi;
 	struct lcd_regs *regs;
 	struct resource *res;
+	struct pxa168fb_vdma_info *lcd_vdma = 0;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res == NULL)
@@ -2012,6 +2023,15 @@ static int __devinit pxa168_ovly_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto error0;
 	}
+
+	/* init vdma clock/sram, etc. */
+	lcd_vdma = request_vdma(ovly->id, 1);
+	if (lcd_vdma) {
+		lcd_vdma->dev = ovly->dev;
+		lcd_vdma->reg_base = ovly->reg_base;
+		pxa688_vdma_init(lcd_vdma);
+	} else
+		pr_warn("path %d video layer : request vdma fail\n", ovly->id);
 
 	/*
 	 * Configure default register values.
