@@ -1156,8 +1156,16 @@ static struct pxa95x_csi_dev csidev[] = {
 	},
 };
 
+enum {
+	ID_M6MO_SAARC	= 0,
+	ID_M6MO_DKB,
+	ID_OV9740,
+	ID_OV5642,
+	ID_OV7692,
+};
+
 static struct sensor_platform_data camera_sensor[] = {
-	{/* M6MO */
+	[ID_M6MO_SAARC] = {/* M6MO on SaarC 3*/
 		.mount_pos	= SENSOR_USED \
 					| SENSOR_POS_BACK | SENSOR_RES_HIGH,
 		/* Configure this domain according to hardware connection */
@@ -1165,13 +1173,31 @@ static struct sensor_platform_data camera_sensor[] = {
 		.interface	= SOCAM_MIPI \
 				| SOCAM_MIPI_1LANE | SOCAM_MIPI_2LANE,
 		.csi_ctlr	= &csidev[0],	/* connected to CSI0 */
-		.pin_aux	= MFP_PIN_GPIO102,
+		.pin_pwdn	= MFP_PIN_GPIO24,	/* M6MO PWD pin */
+		.pin_aux	= MFP_PIN_GPIO18,	/* OV8820 PWD pin */
+		.pin_irq	= MFP_PIN_GPIO102,	/* M6MO irq pin */
 		.af_cap		= 1,
 		.mclk_mhz	= 26,
 		.vendor_info	= "SUNNY",
-		.board_name	= "tavor",
+		.board_name	= "SaarC 3",
 	},
-	{/* OV9740 */
+	[ID_M6MO_DKB] = {/* M6MO on DKB 2*/
+		.mount_pos	= SENSOR_USED \
+					| SENSOR_POS_BACK | SENSOR_RES_HIGH,
+		/* Configure this domain according to hardware connection */
+		/* both of the 2 MIPI lanes are connected to pxa97x on EVB */
+		.interface	= SOCAM_MIPI \
+				| SOCAM_MIPI_1LANE | SOCAM_MIPI_2LANE,
+		.csi_ctlr	= &csidev[0],	/* connected to CSI0 */
+		.pin_pwdn	= MFP_PIN_GPIO24,	/* M6MO PWD pin */
+		.pin_aux	= MFP_PIN_GPIO25,	/* OV8820 PWD pin */
+		.pin_irq	= MFP_PIN_GPIO18,	/* M6MO irq pin */
+		.af_cap		= 1,
+		.mclk_mhz	= 26,
+		.vendor_info	= "SUNNY",
+		.board_name	= "DKB 2",
+	},
+	[ID_OV9740] = {/* OV9740 on SaarC3 and DKB2*/
 		.mount_pos	= SENSOR_USED \
 					| SENSOR_POS_FRONT | SENSOR_RES_LOW,
 		/* Configure this domain according to hardware connection */
@@ -1179,12 +1205,13 @@ static struct sensor_platform_data camera_sensor[] = {
 		.interface	= SOCAM_MIPI \
 				| SOCAM_MIPI_1LANE | SOCAM_MIPI_2LANE,
 		.csi_ctlr	= &csidev[1],	/* connected to CSI1 */
+		.pin_pwdn	= MFP_PIN_GPIO26,
 		.af_cap		= 0,
 		.mclk_mhz	= 26,
 		.vendor_info	= "SUNNY",
-		.board_name	= "tavor",
+		.board_name	= "SaarC 2/3",
 	},
-	{/* OV5642 */
+	[ID_OV5642] = {/* OV5642 */
 		.mount_pos	= SENSOR_USED \
 					| SENSOR_POS_BACK | SENSOR_RES_HIGH,
 		/* Configure this domain according to hardware connection */
@@ -1192,12 +1219,13 @@ static struct sensor_platform_data camera_sensor[] = {
 		.interface	= SOCAM_MIPI \
 				| SOCAM_MIPI_1LANE | SOCAM_MIPI_2LANE,
 		.csi_ctlr	= &csidev[0],	/* connected to CSI0 */
+		.pin_pwdn	= MFP_PIN_GPIO25,
 		.af_cap		= 1,
 		.mclk_mhz	= 26,
 		.vendor_info	= "TRULY",
 		.board_name	= "tavor",
 	},
-	{/* OV7692 */
+	[ID_OV7692] = {/* OV7692 */
 		.mount_pos	= SENSOR_USED \
 					| SENSOR_POS_FRONT | SENSOR_RES_LOW,
 		/* Configure this domain according to hardware connection */
@@ -1205,15 +1233,16 @@ static struct sensor_platform_data camera_sensor[] = {
 		.interface	= SOCAM_MIPI \
 				| SOCAM_MIPI_1LANE,
 		.csi_ctlr	= &csidev[1],	/* connected to CSI1*/
+		.pin_pwdn	= MFP_PIN_GPIO26,
 		.af_cap		= 0,
 		.mclk_mhz	= 26,
 		.vendor_info	= "N/A",
-		.board_name	= "tavor",
+		.board_name	= "SaarC 2",
 	},
 };
 
 static struct soc_camera_link iclink[] = {
-	{
+	[ID_M6MO_SAARC] = {
 		.bus_id			= 0, /* Must match with the camera ID */
 		.board_info		= &camera_i2c[0],
 		.i2c_adapter_id		= 1,
@@ -1224,7 +1253,18 @@ static struct soc_camera_link iclink[] = {
 		.flags			= 0x80000000,
 		.priv			= &camera_sensor[0],
 	},
-	{
+	[ID_M6MO_DKB] = {
+		.bus_id			= 0, /* Must match with the camera ID */
+		.board_info		= &camera_i2c[0],
+		.i2c_adapter_id		= 1,
+		.power = camera0_power,
+		.module_name		= "m6mo",
+		/* When flags[31] is set, priv domain is pointing to a */
+		/* sensor_platform_data to pass sensor parameters */
+		.flags			= 0x80000000,
+		.priv			= &camera_sensor[1],
+	},
+	[ID_OV9740] = {
 		.bus_id			= 1, /* Must match with the camera ID */
 		.board_info		= &camera_i2c[1],
 		.i2c_adapter_id		= 1,
@@ -1233,9 +1273,9 @@ static struct soc_camera_link iclink[] = {
 		/* When flags[31] is set, priv domain is pointing to a */
 		/* sensor_platform_data to pass sensor parameters */
 		.flags			= 0x80000000,
-		.priv			= &camera_sensor[1],
+		.priv			= &camera_sensor[2],
 	},
-	{
+	[ID_OV5642] = {
 		.bus_id			= 0, /* Must match with the camera ID */
 		.board_info		= &camera_i2c[2],
 		.i2c_adapter_id		= 1,
@@ -1244,9 +1284,9 @@ static struct soc_camera_link iclink[] = {
 		/* When flags[31] is set, priv domain is pointing to a */
 		/* sensor_platform_data to pass sensor parameters */
 		.flags			= 0x80000000,
-		.priv			= &camera_sensor[2],
+		.priv			= &camera_sensor[3],
 	},
-	{
+	[ID_OV7692] = {
 		.bus_id			= 0, /* Must match with the camera ID */
 		.board_info		= &camera_i2c[3],
 		.i2c_adapter_id		= 1,
@@ -1255,35 +1295,44 @@ static struct soc_camera_link iclink[] = {
 		/* When flags[31] is set, priv domain is pointing to a */
 		/* sensor_platform_data to pass sensor parameters */
 		.flags			= 0x80000000,
-		.priv			= &camera_sensor[3],
+		.priv			= &camera_sensor[4],
 	},
 };
 
 static struct platform_device __attribute__((unused)) camera[] = {
-	{
+	[ID_M6MO_SAARC] = {
 		.name	= "soc-camera-pdrv",
 		.id	= 0,
 		.dev	= {
 			.platform_data = &iclink[0],
 		},
-	}, {
+	},
+	[ID_M6MO_DKB] = {
 		.name	= "soc-camera-pdrv",
-		.id	= 1,
+		.id	= 0,
 		.dev	= {
 			.platform_data = &iclink[1],
 		},
 	},
-	{
-		.name	= "soc-camera-pdrv",
-		.id	= 0,
-		.dev	= {
-			.platform_data = &iclink[2],
-		},
-	}, {
+	[ID_OV9740] = {
 		.name	= "soc-camera-pdrv",
 		.id	= 1,
 		.dev	= {
+			.platform_data = &iclink[2],
+		},
+	},
+	[ID_OV5642] = {
+		.name	= "soc-camera-pdrv",
+		.id	= 0,
+		.dev	= {
 			.platform_data = &iclink[3],
+		},
+	},
+	[ID_OV7692] = {
+		.name	= "soc-camera-pdrv",
+		.id	= 1,
+		.dev	= {
+			.platform_data = &iclink[4],
 		},
 	},
 };
@@ -1336,20 +1385,28 @@ static void __init init_cam(void)
 	case OBM_SAAR_C2_NEVO_A0_V10_BOARD:
 		printk(KERN_NOTICE "cam: saarc: Probing camera on SaarC 2\n");
 #if defined(CONFIG_SOC_CAMERA_OV5642)
-		platform_device_register(&camera[2]);
+		platform_device_register(&camera[ID_OV5642]);
 #endif
 #if defined(CONFIG_SOC_CAMERA_OV7692)
-		platform_device_register(&camera[3]);
+		platform_device_register(&camera[ID_OV7692]);
+#endif
+		break;
+	case OBM_DKB_2_NEVO_C0_BOARD:
+		printk(KERN_NOTICE "cam: saarc: Probing camera on DKB 2\n");
+#if defined(CONFIG_SOC_CAMERA_M6MO)
+		platform_device_register(&camera[ID_M6MO_DKB]);
+#endif
+#if defined(CONFIG_SOC_CAMERA_OV9740)
+		platform_device_register(&camera[ID_OV9740]);
 #endif
 		break;
 	default: /* For SaarC 2.5 and 3*/
-		printk(KERN_NOTICE "cam: saarc: Probing camera on "\
-					"SaarC 2.5/3\n");
+		printk(KERN_NOTICE "cam: saarc: Probing camera on SaarC 3\n");
 #if defined(CONFIG_SOC_CAMERA_M6MO)
-		platform_device_register(&camera[0]);
+		platform_device_register(&camera[ID_M6MO_SAARC]);
 #endif
 #if defined(CONFIG_SOC_CAMERA_OV9740)
-		platform_device_register(&camera[1]);
+		platform_device_register(&camera[ID_OV9740]);
 #endif
 		break;
 	}

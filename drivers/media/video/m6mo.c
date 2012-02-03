@@ -931,7 +931,7 @@ static int m6mo_probe(struct i2c_client *client,
 	if (!ret) {
 		printk(KERN_NOTICE "cam: Fujitsu m6mo sensor detected!\n");
 		pdata = icl->priv;
-		irq_gpio = pdata->pin_aux;
+		irq_gpio = pdata->pin_irq;
 
 		ret = request_irq(gpio_to_irq(irq_gpio), m6mo_irq_handler, \
 				IRQF_TRIGGER_RISING | IRQF_ONESHOT, \

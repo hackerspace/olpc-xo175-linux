@@ -91,6 +91,7 @@ struct sensor_platform_data {
 	int af_cap;	/* Auto focus capability */
 	int pin_pwdn;	/* GPIO pin for power down */
 	int pin_aux;	/* Auxiliary power down pin */
+	int pin_irq;	/* Interrupt pin */
 	int mclk_mhz;	/* Perfered MCLK for sensor in MHz */
 	void *vendor_info;	/* Sensor vendor name or module name */
 	char *board_name;	/* Board name */
