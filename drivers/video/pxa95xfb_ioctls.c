@@ -473,6 +473,9 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 					lcdc_set_lcd_controller(fbi);
 				converter_openclose(fbi, on);
 				fbi->controller_on = 0;
+				/* tricky workaround for id = 2/3 which shares same channel */
+				if (fbi->id == 2 || fbi->id == 3)
+					pxa95xfbi[5 - fbi->id]->controller_on = 0;
 				fbi->user_addr = 0;
 				lcdc_set_fr_addr(fbi, &fbi->fb_info->var);
 			}
