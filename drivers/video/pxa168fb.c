@@ -795,7 +795,9 @@ static int pxa168fb_pan_display(struct fb_var_screeninfo *var,
 
 	set_start_address(info, var->xoffset, var->yoffset, &fbi->shadowreg);
 	fbi->shadowreg.flags |= UPDATE_ADDR;
-	pxa168fb_set_regs(fbi, &fbi->shadowreg);
+	if (fbi->shadowreg.flags == UPDATE_ADDR)
+		/* only if address needs to be updated */
+		pxa168fb_set_regs(fbi, &fbi->shadowreg);
 
 	if (NEED_VSYNC(fbi))
 		wait_for_vsync(fbi);
