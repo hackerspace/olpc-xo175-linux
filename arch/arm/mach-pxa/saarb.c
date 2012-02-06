@@ -118,6 +118,7 @@ static struct pm860x_power_pdata power = {
 	.disable_rf_fn  = disable_rf,
 };
 
+#if defined(CONFIG_SENSORS_CM3601)
 static int cm3601_request_resource(unsigned char gpio_num, char *name)
 {
 	int ret = 0;
@@ -139,6 +140,7 @@ static struct pm860x_cm3601_pdata cm3601_platform_info = {
 	.request_source	=	cm3601_request_resource,
 	.release_source	=	cm3601_release_resource,
 };
+#endif
 
 static struct pm860x_headset_pdata headset_platform_info	 = {
 	.headset_flag = 0,
