@@ -91,14 +91,6 @@ static void do_wdt_reset(const char *cmd)
 		writel(0xeb10, watchdog_virt_base + TMR_WSAR);
 		writel(0x20 + count, watchdog_virt_base + TMR_WMR);
 	}
-
-	/* avoid reboot fail due to power off charge feature,
-	 * set pmic 0x3e:0, simulate on-key detect event
-	 * in rdinit script
-	 */
-#ifdef CONFIG_MFD_88PM860X
-	pm860x_codec_reg_write(0x3e, 0x1);
-#endif
 }
 
 int pxa_board_reset(char mode, const char *cmd)
