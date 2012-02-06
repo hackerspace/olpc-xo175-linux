@@ -666,13 +666,13 @@ struct snd_soc_dai_driver mmp2_sspa_dai = {
 	.suspend = mmp2_sspa_suspend,
 	.resume = mmp2_sspa_resume,
 	.playback = {
-		.channels_min = 1,
+		.channels_min = 2,
 		.channels_max = 128,
 		.rates = MMP2_SSPA_RATES,
 		.formats = MMP2_SSPA_FORMATS,
 	},
 	.capture = {
-		.channels_min = 1,
+		.channels_min = 2,
 		.channels_max = 2,
 		.rates = MMP2_SSPA_RATES,
 		.formats = MMP2_SSPA_FORMATS,
