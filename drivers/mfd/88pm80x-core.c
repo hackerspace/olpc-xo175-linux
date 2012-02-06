@@ -500,7 +500,6 @@ static irqreturn_t pm805_irq(int irq, void *data)
 	struct i2c_client *i2c;
 	int read_reg = -1, value = 0;
 	int i;
-	struct pm80x_chip *chip1;
 
 	i2c = chip->companion;
 
@@ -516,16 +515,16 @@ static irqreturn_t pm805_irq(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static void pm805_irq_lock(unsigned int irq)
+static void pm805_irq_lock(struct irq_data *data)
 {
-	struct pm80x_chip *chip = get_irq_chip_data(irq);
+	struct pm80x_chip *chip = irq_data_get_irq_chip_data(data);
 
 	mutex_lock(&chip->companion_irq_lock);
 }
 
-static void pm805_irq_sync_unlock(unsigned int irq)
+static void pm805_irq_sync_unlock(struct irq_data *data)
 {
-	struct pm80x_chip *chip = get_irq_chip_data(irq);
+	struct pm80x_chip *chip = irq_data_get_irq_chip_data(data);
 	struct pm80x_irq_data *irq_data;
 	struct i2c_client *i2c;
 	static unsigned char cached[PM805_INT_REG_NUM] = {0x0};
@@ -564,25 +563,25 @@ static void pm805_irq_sync_unlock(unsigned int irq)
 	mutex_unlock(&chip->companion_irq_lock);
 }
 
-static void pm805_irq_enable(unsigned int irq)
+static void pm805_irq_enable(struct irq_data *data)
 {
-	struct pm80x_chip *chip = get_irq_chip_data(irq);
-	pm805_irqs[irq - chip->irq_companion_base].enable
-		= pm805_irqs[irq - chip->irq_companion_base].offs;
+	struct pm80x_chip *chip = irq_data_get_irq_chip_data(data);
+	pm805_irqs[data->irq - chip->irq_companion_base].enable
+		= pm805_irqs[data->irq - chip->irq_companion_base].offs;
 }
 
-static void pm805_irq_disable(unsigned int irq)
+static void pm805_irq_disable(struct irq_data *data)
 {
-	struct pm80x_chip *chip = get_irq_chip_data(irq);
-	pm805_irqs[irq - chip->irq_companion_base].enable = 0;
+	struct pm80x_chip *chip = irq_data_get_irq_chip_data(data);
+	pm805_irqs[data->irq - chip->irq_companion_base].enable = 0;
 }
 
 static struct irq_chip pm805_irq_chip = {
 	.name			= "88pm805",
-	.bus_lock		= pm805_irq_lock,
-	.bus_sync_unlock	= pm805_irq_sync_unlock,
-	.enable		= pm805_irq_enable,
-	.disable		= pm805_irq_disable,
+	.irq_bus_lock		= pm805_irq_lock,
+	.irq_bus_sync_unlock	= pm805_irq_sync_unlock,
+	.irq_enable		= pm805_irq_enable,
+	.irq_disable		= pm805_irq_disable,
 };
 
 static int __devinit device_gpadc_init(struct pm80x_chip *chip,
@@ -806,19 +805,19 @@ static int __devinit device_irq_init_805(struct pm80x_chip *chip,
 		goto out;
 
 	desc = irq_to_desc(chip->irq_companion);
-	pm805_irq_chip.set_wake = desc->chip->set_wake;
+	pm805_irq_chip.irq_set_wake = desc->irq_data.chip->irq_set_wake;
 
 	/* register IRQ by genirq */
 	for (i = 0; i < ARRAY_SIZE(pm805_irqs); i++) {
 		__irq = i + chip->irq_companion_base;
-		set_irq_chip_data(__irq, chip);
-		set_irq_chip_and_handler(__irq, &pm805_irq_chip,
+		irq_set_chip_data(__irq, chip);
+		irq_set_chip_and_handler(__irq, &pm805_irq_chip,
 					 handle_edge_irq);
-		set_irq_nested_thread(__irq, 1);
+		irq_set_nested_thread(__irq, 1);
 #ifdef CONFIG_ARM
 		set_irq_flags(__irq, IRQF_VALID);
 #else
-		set_irq_noprobe(__irq);
+		irq_set_noprobe(__irq);
 #endif
 	}
 
