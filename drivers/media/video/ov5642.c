@@ -539,7 +539,7 @@ static int ov5642_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 	return ret;
 }
 
-static int ov5642_load_fw(struct v4l2_subdev *sd)
+static int ov5642_init(struct v4l2_subdev *sd, u32 plat)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct ov5642 *ov5642 = to_ov5642(client);
@@ -688,7 +688,7 @@ static int ov5642_g_frame_interval(struct v4l2_subdev *sd,
 
 static struct v4l2_subdev_core_ops ov5642_subdev_core_ops = {
 	.g_chip_ident = ov5642_g_chip_ident,
-	.load_fw = ov5642_load_fw,
+	.init = ov5642_init,
 	.s_ctrl	= ov5642_s_ctrl,
 #ifdef CONFIG_VIDEO_ADV_DEBUG
 	.g_register = ov5642_g_register,
