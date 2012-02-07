@@ -402,7 +402,9 @@ static void mv_set_contig_buffer(struct mv_camera_dev *pcdev, int frame)
 {
 	struct mv_buffer *buf;
 	struct v4l2_pix_format *fmt = &pcdev->pix_format;
+	unsigned long flags = 0;
 
+	spin_lock_irqsave(&pcdev->list_lock, flags);
 	/*
 	 * If there are no available buffers, go into single mode
 	 */
@@ -420,7 +422,7 @@ static void mv_set_contig_buffer(struct mv_camera_dev *pcdev, int frame)
 		}
 		set_bit(CF_SINGLE_BUFFER, &pcdev->flags);
 		singles++;
-		return;
+		goto out_unlock;
 	}
 	/*
 	 * OK, we have a buffer we can use.
@@ -438,14 +440,17 @@ static void mv_set_contig_buffer(struct mv_camera_dev *pcdev, int frame)
 	}
 	pcdev->vb_bufs[frame] = buf;
 	clear_bit(CF_SINGLE_BUFFER, &pcdev->flags);
+out_unlock:
+	spin_unlock_irqrestore(&pcdev->list_lock, flags);
+	return;
 }
 
 static void mv_dma_setup(struct mv_camera_dev *pcdev)
 {
-	ccic_reg_write(pcdev, REG_CTRL1, C1_TWOBUFS);
 	pcdev->nbufs = 2;
 	mv_set_contig_buffer(pcdev, 0);
 	mv_set_contig_buffer(pcdev, 1);
+	ccic_reg_write(pcdev, REG_CTRL1, C1_TWOBUFS);
 }
 
 /*
@@ -494,6 +499,7 @@ static int mv_videobuf_prepare(struct vb2_buffer *vb)
 	struct mv_camera_dev *pcdev = ici->priv;
 	struct mv_buffer *buf = container_of(vb, struct mv_buffer, vb_buf);
 	unsigned long size;
+	unsigned long flags = 0;
 	int bytes_per_line = soc_mbus_bytes_per_line(icd->user_width,
 		icd->current_fmt->host_fmt);
 	if (bytes_per_line < 0)
@@ -501,10 +507,10 @@ static int mv_videobuf_prepare(struct vb2_buffer *vb)
 
 	dev_dbg(&pcdev->pdev->dev, "%s (vb=0x%p) 0x%p %lu\n", __func__, vb,
 		vb2_plane_vaddr(vb, 0), vb2_get_plane_payload(vb, 0));
-
+	spin_lock_irqsave(&pcdev->list_lock, flags);
 	/* Added list head initialization on alloc */
 	WARN(!list_empty(&buf->queue), "Buffer %p on queue!\n", vb);
-
+	spin_unlock_irqrestore(&pcdev->list_lock, flags);
 	BUG_ON(NULL == icd->current_fmt);
 	size = vb2_plane_size(vb, 0);
 	vb2_set_plane_payload(vb, 0, size);
@@ -518,15 +524,17 @@ static void mv_videobuf_queue(struct vb2_buffer *vb)
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct mv_camera_dev *pcdev = ici->priv;
 	struct mv_buffer *buf = container_of(vb, struct mv_buffer, vb_buf);
-	unsigned long flags;
+	unsigned long flags = 0;
 	int start;
 	dma_addr_t dma_handle;
 	u32 base_size = icd->user_width * icd->user_height;
 
 	dma_handle = vb2_dma_contig_plane_paddr(vb, 0);
 	BUG_ON(!dma_handle);
+	spin_lock_irqsave(&pcdev->list_lock, flags);
 	/* Wait until two buffers already queued to the list, then start DMA*/
 	start = (pcdev->state == S_BUFWAIT) && !list_empty(&pcdev->buffers);
+	spin_unlock_irqrestore(&pcdev->list_lock, flags);
 
 	if (pcdev->pix_format.pixelformat == V4L2_PIX_FMT_YUV422P) {
 		buf->yuv_p.y = dma_handle;
@@ -554,7 +562,7 @@ static void mv_videobuf_cleanup(struct vb2_buffer *vb)
 		struct soc_camera_device, vb2_vidq);
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct mv_camera_dev *pcdev = ici->priv;
-	unsigned long flags;
+	unsigned long flags = 0;
 
 	spin_lock_irqsave(&pcdev->list_lock, flags);
 	/*queue list must be initialized before del*/
@@ -579,6 +587,7 @@ static int mv_start_streaming(struct vb2_queue *vq)
 		struct soc_camera_device, vb2_vidq);
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct mv_camera_dev *pcdev = ici->priv;
+	unsigned long flags = 0;
 
 	if (pcdev->state != S_IDLE)
 		return -EINVAL;
@@ -590,10 +599,13 @@ static int mv_start_streaming(struct vb2_queue *vq)
 	 * destination.  So go into a wait state and hope they
 	 * give us buffers soon.
 	 */
+	spin_lock_irqsave(&pcdev->list_lock, flags);
 	if (list_empty(&pcdev->buffers)) {
 		pcdev->state = S_BUFWAIT;
+		spin_unlock_irqrestore(&pcdev->list_lock, flags);
 		return 0;
 	}
+	spin_unlock_irqrestore(&pcdev->list_lock, flags);
 	return mv_read_setup(pcdev);
 }
 
@@ -603,7 +615,7 @@ static int mv_stop_streaming(struct vb2_queue *vq)
 		struct soc_camera_device, vb2_vidq);
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct mv_camera_dev *pcdev = ici->priv;
-	unsigned long flags;
+	unsigned long flags = 0;
 
 	if (pcdev->state == S_BUFWAIT) {
 		/* They never gave us buffers */
@@ -668,7 +680,8 @@ static void mv_buffer_done(struct mv_camera_dev *pcdev,
  */
 static inline void ccic_frame_complete(struct mv_camera_dev *pcdev, int frame)
 {
-	struct mv_buffer *buf = pcdev->vb_bufs[frame];
+	struct mv_buffer *buf;
+	unsigned long flags = 0;
 
 	frames++;
 	/*
@@ -676,11 +689,13 @@ static inline void ccic_frame_complete(struct mv_camera_dev *pcdev, int frame)
 	 */
 	if (pcdev->state != S_STREAMING)
 		return;
-
+	spin_lock_irqsave(&pcdev->list_lock, flags);
+	buf = pcdev->vb_bufs[frame];
 	if (!test_bit(CF_SINGLE_BUFFER, &pcdev->flags)) {
 		delivered++;
 		mv_buffer_done(pcdev, frame, &buf->vb_buf);
 	}
+	spin_unlock_irqrestore(&pcdev->list_lock, flags);
 	mv_set_contig_buffer(pcdev, frame);
 }
 
