@@ -85,7 +85,6 @@ static void unset_power_constraint(int min)
 
 #define MAX_DMA_BUFS 2
 
-#define CF_DMA_ACTIVE	 3	/* A frame is incoming */
 #define CF_SINGLE_BUFFER 5	/* Running with a single buffer */
 
 /*
@@ -667,11 +666,10 @@ static void mv_buffer_done(struct mv_camera_dev *pcdev,
 /*
  * Interrupt handler stuff
  */
-static void ccic_frame_complete(struct mv_camera_dev *pcdev, int frame)
+static inline void ccic_frame_complete(struct mv_camera_dev *pcdev, int frame)
 {
 	struct mv_buffer *buf = pcdev->vb_bufs[frame];
 
-	clear_bit(CF_DMA_ACTIVE, &pcdev->flags);
 	frames++;
 	/*
 	 * "This should never happen"
@@ -698,9 +696,6 @@ static irqreturn_t mv_camera_irq(int irq, void *data)
 	for (frame = 0; frame < pcdev->nbufs; frame++)
 		if (irqs & (IRQ_EOF0 << frame))
 			ccic_frame_complete(pcdev, frame);
-
-	if (irqs & (IRQ_SOF0 | IRQ_SOF1 | IRQ_SOF2))
-		set_bit(CF_DMA_ACTIVE, &pcdev->flags);
 
 	return IRQ_HANDLED;
 }
