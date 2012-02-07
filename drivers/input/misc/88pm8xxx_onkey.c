@@ -133,8 +133,8 @@ static int __devinit pm8xxx_onkey_probe(struct platform_device *pdev)
 	} else if (info->pmic_id <= PM800_CHIP_END) {
 		info->chip80x = (struct pm80x_chip *) chip;
 		info->i2c = info->chip80x->base_page;
-		info->irq = irq + info->chip80x->irq_base;
-		info->core_irq = info->chip80x->core_irq;
+		info->irq = irq + info->chip80x->pm800_chip->irq_base;
+		info->core_irq = info->chip80x->pm800_chip->irq;
 	}
 	pm8xxx_info = info;
 	info->idev = input_allocate_device();

@@ -298,7 +298,7 @@ static int pm80x_rtc_suspend(struct device *dev)
 	struct pm80x_rtc_info *info = dev_get_drvdata(dev);
 
 	if (device_may_wakeup(dev)) {
-		enable_irq_wake(info->chip->core_irq);
+		enable_irq_wake(info->chip->pm800_chip->irq);
 		enable_irq_wake(info->irq);
 	}
 	return 0;
@@ -309,7 +309,7 @@ static int pm80x_rtc_resume(struct device *dev)
 	struct pm80x_rtc_info *info = dev_get_drvdata(dev);
 
 	if (device_may_wakeup(dev)) {
-		disable_irq_wake(info->chip->core_irq);
+		disable_irq_wake(info->chip->pm800_chip->irq);
 		disable_irq_wake(info->irq);
 	}
 	return 0;

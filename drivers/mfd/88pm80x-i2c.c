@@ -325,6 +325,54 @@ static int verify_addr(struct i2c_client *i2c)
 	return 0;
 }
 
+static int pm800_pages_init(struct pm80x_chip *chip,
+		struct pm80x_platform_data *pdata, struct i2c_client *client)
+{
+	/* PM800 block base 0x30 */
+	if (pdata->base_page_addr) {
+		chip->base_page_addr = pdata->base_page_addr;
+		chip->base_page = i2c_new_dummy(chip->client->adapter,
+						chip->base_page_addr);
+		i2c_set_clientdata(chip->base_page, chip);
+	} else
+		dev_info(&client->dev,
+			 "PM800 block base 0x30: No base_page_addr\n");
+
+	/* PM800 block power 0x31 */
+	if (pdata->power_page_addr &&
+		(pdata->power_page_addr != client->addr)) {
+		chip->power_page_addr = pdata->power_page_addr;
+		chip->power_page = i2c_new_dummy(chip->client->adapter,
+						 chip->power_page_addr);
+		i2c_set_clientdata(chip->power_page, chip);
+	} else
+		dev_info(&client->dev,
+			 "PM800 block power 0x31: No power_page_addr\n");
+
+	/* PM800 block GPADC 0x32 */
+	if (pdata->gpadc_page_addr &&
+		(pdata->gpadc_page_addr != client->addr)) {
+		chip->gpadc_page_addr = pdata->gpadc_page_addr;
+		chip->gpadc_page = i2c_new_dummy(chip->client->adapter,
+						 chip->gpadc_page_addr);
+		i2c_set_clientdata(chip->gpadc_page, chip);
+	} else
+		dev_info(&client->dev,
+			 "PM800 block GPADC 0x32: No gpadc_page_addr\n");
+
+	/* PM800 block test page 0x37 */
+	if (pdata->test_page_addr &&
+		(pdata->test_page_addr != client->addr)) {
+		chip->test_page_addr = pdata->test_page_addr;
+		chip->test_page = i2c_new_dummy(chip->client->adapter,
+						chip->test_page_addr);
+		i2c_set_clientdata(chip->test_page, chip);
+	} else
+		dev_info(&client->dev,
+			 "PM800 block test page 0x37: No test_page_addr\n");
+	return 0;
+}
+
 static int __devinit pm80x_probe(struct i2c_client *client,
 				 const struct i2c_device_id *id)
 {
@@ -347,6 +395,9 @@ static int __devinit pm80x_probe(struct i2c_client *client,
 	mutex_init(&chip->io_lock);
 	dev_set_drvdata(chip->dev, chip);
 
+	chip->irq_base = pdata->irq_base;
+	chip->irq_companion = pdata->irq_companion;
+
 	/*
 	 * Both client and companion client shares same platform driver.
 	 * Driver distinguishes them by pdata->companion_addr.
@@ -354,7 +405,7 @@ static int __devinit pm80x_probe(struct i2c_client *client,
 	 * At the same time, the companion_addr shouldn't equal to client
 	 * address.
 	 */
-	/*PM805 0x38 */
+	/* Companion chip */
 	if (pdata->companion_addr && (pdata->companion_addr != client->addr)) {
 		chip->companion_addr = pdata->companion_addr;
 		chip->companion = i2c_new_dummy(chip->client->adapter,
@@ -365,53 +416,16 @@ static int __devinit pm80x_probe(struct i2c_client *client,
 	} else
 		dev_info(&client->dev, "No companion_addr\n");
 
-	/*PM800 block base 0x30 */
-	if (pdata->base_page_addr && (pdata->base_page_addr != client->addr)) {
-		chip->base_page_addr = pdata->base_page_addr;
-		chip->base_page = i2c_new_dummy(chip->client->adapter,
-						chip->base_page_addr);
-		i2c_set_clientdata(chip->base_page, chip);
-	} else
-		dev_info(&client->dev,
-			 "PM800 block base 0x30" ":No base_page_addr\n");
+	if (chip->id == CHIP_PM800)
+		pm800_pages_init(chip, pdata, client);
 
-	/*PM800 block power 0x31 */
-	if (pdata->power_page_addr &&
-	(pdata->power_page_addr != client->addr)) {
-		chip->power_page_addr = pdata->power_page_addr;
-		chip->power_page = i2c_new_dummy(chip->client->adapter,
-						 chip->power_page_addr);
-		i2c_set_clientdata(chip->power_page, chip);
-	} else
-		dev_info(&client->dev,
-			 "PM800 block power 0x31:" "No power_page_addr\n");
-
-	/*PM800 block GPADC 0x32 */
-	if (pdata->gpadc_page_addr &&
-	(pdata->gpadc_page_addr != client->addr)) {
-		chip->gpadc_page_addr = pdata->gpadc_page_addr;
-		chip->gpadc_page = i2c_new_dummy(chip->client->adapter,
-						 chip->gpadc_page_addr);
-		i2c_set_clientdata(chip->gpadc_page, chip);
-	} else
-		dev_info(&client->dev,
-			 "PM800 block GPADC 0x32:" "No gpadc_page_addr\n");
-
-	/*PM800 block test page 0x37 */
-	if (pdata->test_page_addr &&
-	(pdata->test_page_addr != client->addr)) {
-		chip->test_page_addr = pdata->test_page_addr;
-		chip->test_page = i2c_new_dummy(chip->client->adapter,
-						chip->test_page_addr);
-		i2c_set_clientdata(chip->test_page, chip);
-	} else
-		dev_info(&client->dev,
-			 "PM800 block test page 0x37:" "No test_page_addr\n");
 	pm80x_device_init(chip, pdata);
 
 	pmic_cache_init(chip->id);
 
-	g_pm80x_chip = chip;
+	if (chip->id == CHIP_PM800)
+		g_pm80x_chip = chip;
+
 	return 0;
 }
 

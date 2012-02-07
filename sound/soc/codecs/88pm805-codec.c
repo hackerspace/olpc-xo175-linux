@@ -59,6 +59,7 @@ static unsigned int pm805_read_reg_cache(struct snd_soc_codec *codec,
 					  unsigned int reg)
 {
 	unsigned char *cache = codec->reg_cache;
+	struct pm80x_chip *chip = (struct pm80x_chip *)codec->control_data;
 	struct i2c_client *i2c;
 
 	BUG_ON(reg >= codec->reg_size);
@@ -66,11 +67,11 @@ static unsigned int pm805_read_reg_cache(struct snd_soc_codec *codec,
 	if (!pm805_volatile(reg))
 		return cache[reg];
 
-	i2c = ((struct pm80x_chip *)codec->control_data)->companion;
+	i2c = chip->pm805_chip->client;
 #ifdef CONFIG_CPU_PXA978
-	if (reg >= PM800_CLASS_D_INDEX) {
+	if (chip->base_page && reg >= PM800_CLASS_D_INDEX) {
 		reg = reg - PM800_CLASS_D_INDEX + PM800_CLASS_D_REG_BASE;
-		i2c = ((struct pm80x_chip *)codec->control_data)->base_page;
+		i2c = chip->base_page;
 	}
 #endif
 	return pm80x_reg_read(i2c, reg);
@@ -80,6 +81,7 @@ static int pm805_write_reg_cache(struct snd_soc_codec *codec,
 				  unsigned int reg, unsigned int value)
 {
 	unsigned char *cache = codec->reg_cache;
+	struct pm80x_chip *chip = (struct pm80x_chip *)codec->control_data;
 	struct i2c_client *i2c;
 
 	BUG_ON(reg >= codec->reg_size);
@@ -91,11 +93,11 @@ static int pm805_write_reg_cache(struct snd_soc_codec *codec,
 	if (!pm805_volatile(reg))
 		cache[reg] = (unsigned char)value;
 
-	i2c = ((struct pm80x_chip *)codec->control_data)->companion;
+	i2c = chip->pm805_chip->client;
 #ifdef CONFIG_CPU_PXA978
-	if (reg >= PM800_CLASS_D_INDEX) {
+	if (chip->base_page && reg >= PM800_CLASS_D_INDEX) {
 		reg = reg - PM800_CLASS_D_INDEX + PM800_CLASS_D_REG_BASE;
-		i2c = ((struct pm80x_chip *)codec->control_data)->base_page;
+		i2c = chip->base_page;
 	}
 #endif
 
@@ -421,13 +423,13 @@ static int pm805_audio_resume(struct snd_soc_codec *codec)
 static int pm805_probe(struct snd_soc_codec *codec)
 {
 	struct pm805_priv *pm805 = snd_soc_codec_get_drvdata(codec);
+	struct pm80x_chip *chip = pm805->chip;
 	int ret;
 
 	pm805->codec = codec;
+	codec->control_data = chip;
 
-	codec->control_data = pm805->chip;
-
-	ret = pm80x_bulk_read(pm805->chip->companion, PM805_CODEC_BASE,
+	ret = pm80x_bulk_read(pm805->i2c, PM805_CODEC_BASE,
 			       PM805_CODEC_REG_SIZE, codec->reg_cache);
 	if (ret < 0) {
 		dev_err(codec->dev, "Failed to fill register cache: %d\n",
@@ -435,13 +437,15 @@ static int pm805_probe(struct snd_soc_codec *codec)
 		goto out;
 	}
 #ifdef CONFIG_CPU_PXA978
-	ret = pm80x_bulk_read(pm805->chip->base_page, PM800_CLASS_D_REG_BASE,
-			       CODEC_TOTAL_REG_SIZE - PM805_CODEC_REG_SIZE,
-			       codec->reg_cache + PM805_CODEC_REG_SIZE);
-	if (ret < 0) {
-		dev_err(codec->dev, "Failed to fill register cache: %d\n",
-			ret);
-		goto out;
+	if (chip->base_page) {
+		ret = pm80x_bulk_read(chip->base_page, PM800_CLASS_D_REG_BASE,
+				CODEC_TOTAL_REG_SIZE - PM805_CODEC_REG_SIZE,
+				codec->reg_cache + PM805_CODEC_REG_SIZE);
+		if (ret < 0) {
+			dev_err(codec->dev, "Failed to fill register cache: %d\n",
+					ret);
+			goto out;
+		}
 	}
 #endif
 	/* add below snd ctls to keep align with audio server */
@@ -483,7 +487,7 @@ static int __devinit pm805_codec_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	pm805->chip = chip;
-	pm805->i2c = chip->companion;
+	pm805->i2c = chip->pm805_chip->client;
 
 	platform_set_drvdata(pdev, pm805);
 
@@ -493,7 +497,7 @@ static int __devinit pm805_codec_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "Failed to get IRQ resources\n");
 			goto out;
 		}
-		pm805->irq[i] = res->start + chip->irq_companion_base;
+		pm805->irq[i] = res->start + chip->pm805_chip->irq_base;
 		strncpy(pm805->name[i], res->name, MAX_NAME_LEN);
 	}
 

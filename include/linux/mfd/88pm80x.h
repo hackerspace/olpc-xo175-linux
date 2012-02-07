@@ -478,13 +478,25 @@ enum {
 	PM805_MAX_IRQ,
 };
 
+struct pm80x_subchip {
+	struct device *dev;
+	struct pm80x_chip *chip;
+	struct pm80x_platform_data *pdata;
+	struct i2c_client *client;
+	int irq;
+	int irq_base;
+	int irq_mode;
+};
+
 struct pm80x_chip {
 	/*chip_version can only on the top of the struct*/
 	unsigned char chip_version;
 	struct device *dev;
+	struct pm80x_subchip *pm800_chip;
+	struct pm80x_subchip *pm805_chip;
 	struct mutex io_lock;
-	struct mutex irq_lock;
-	struct mutex companion_irq_lock;
+	struct mutex pm800_irq_lock;
+	struct mutex pm805_irq_lock;
 	struct i2c_client *client;
 	struct i2c_client *companion;	/* companion chip client */
 	struct i2c_client *base_page;	/* chip client for base page */
@@ -501,19 +513,8 @@ struct pm80x_chip {
 	unsigned short gpadc_page_addr;	/* gpadc page I2C address */
 	unsigned short test_page_addr;	/* test page I2C address */
 	int id;
-	int irq_mode;
 	int irq_base;
-	int core_irq;
 	int irq_companion;
-	int irq_companion_base;
-	void *companion_chip;
-};
-
-struct pm805_chip {
-	struct device *dev;
-	struct pm80x_chip *chip;
-	struct pm80x_platform_data *pdata;
-	struct i2c_client *client;
 };
 
 enum {
@@ -547,8 +548,8 @@ struct pm80x_platform_data {
 	unsigned short test_page_addr;	/* test page regs I2C address */
 	int i2c_port;		/* Controlled by GI2C or PI2C */
 	int irq_mode;		/* Clear interrupt by read/write(0/1) */
-	int irq_base;		/* IRQ base number of 88pm860x */
-	int irq_companion;	/*IRQ number of 88pm805 */
+	int irq_base;		/* IRQ base number of 88pm80x */
+	int irq_companion;	/* IRQ number of companion chip */
 	int batt_det;		/* enable/disable */
 	int num_regulators;
 };
