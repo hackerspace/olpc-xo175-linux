@@ -105,6 +105,7 @@ struct dvfm_driver {
 	int (*dump) (void *driver_data, struct op_info * md, char *buf);
 	char *(*name) (void *driver_data, struct op_info * md);
 	int (*request_set) (void *driver_data, int index);
+	int (*request_set_relation_high) (void *driver_data, int index);
 	int (*enable_dvfm) (void *driver_data, int dev_id);
 	int (*disable_dvfm) (void *driver_data, int dev_id);
 	int (*enable_op) (void *driver_data, int index, int relation);

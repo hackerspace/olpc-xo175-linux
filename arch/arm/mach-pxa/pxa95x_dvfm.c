@@ -2391,6 +2391,36 @@ out:
 	return ret;
 }
 
+static int pxa95x_request_op_relation_high(void *driver_data, int index)
+{
+	struct dvfm_freqs freqs;
+	struct op_info *info = NULL;
+	struct dvfm_md_opt *md = NULL;
+	int relation, ret;
+	ret = dvfm_find_op(index, &info);
+	if (ret)
+		goto out;
+	freqs.old = cur_op;
+	freqs.new = index;
+	md = (struct dvfm_md_opt *)(info->op);
+	switch (md->power_mode) {
+	case POWER_MODE_D1:
+	case POWER_MODE_D2:
+	case POWER_MODE_CG:
+		relation = RELATION_STICK;
+		ret = pxa95x_set_op(driver_data, &freqs, index, relation);
+		break;
+	default:
+		relation = RELATION_HIGH;
+		ret = pxa95x_set_op(driver_data, &freqs, index, relation);
+		if (!ret)
+			preferred_op = index;
+		break;
+	}
+out:
+	return ret;
+}
+
 /* Produce a operating point table */
 static int op_init(void *driver_data, struct info_head *op_table)
 {
@@ -2782,6 +2812,7 @@ static struct dvfm_driver pxa95x_driver = {
 	.dump = dump_op,
 	.name = get_op_name,
 	.request_set = pxa95x_request_op,
+	.request_set_relation_high = pxa95x_request_op_relation_high,
 	.enable_dvfm = pxa95x_enable_dvfm,
 	.disable_dvfm = pxa95x_disable_dvfm,
 	.enable_op = pxa95x_enable_op,

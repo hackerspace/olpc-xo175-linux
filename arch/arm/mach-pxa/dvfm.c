@@ -343,6 +343,25 @@ int dvfm_request_op(int index)
 }
 EXPORT_SYMBOL(dvfm_request_op);
 
+/* Request operating point with RELATION_HIGH */
+int dvfm_request_op_relation_high(int index)
+{
+	int ret = -EFAULT;
+
+	/* check whether dvfm is enabled */
+	if (!dvfm_driver || !dvfm_driver->count)
+		return -EINVAL;
+	if (dvfm_driver->request_set_relation_high) {
+		pm_logger_app_add_trace(1, PM_OP_REQ,
+					dvfm_driver->read_time(), index);
+		ret = dvfm_driver->request_set_relation_high(dvfm_driver->priv,
+				index);
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL(dvfm_request_op_relation_high);
+
 /*
  * Device remove the constraint on OP.
  */
