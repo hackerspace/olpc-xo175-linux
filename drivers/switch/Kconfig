@@ -17,6 +17,12 @@ config SWITCH_HEADSET
         depends on GENERIC_GPIO
         help
           Say Y here to enable headset & hook switch support.
+config SWITCH_88PM80X_HEADSET
+	tristate "88pm80x Headset Switch support"
+	depends on GENERIC_GPIO
+	default y
+	help
+	  Say Y here to enable headset & hook switch support.
 
 config SWITCH_HEADSET_HOST_GPIO
 	bool "Headset Switch Host GPIO support"

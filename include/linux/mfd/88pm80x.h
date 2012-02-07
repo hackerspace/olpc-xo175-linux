@@ -396,7 +396,7 @@ enum {
 #define PM805_INT_REG_NUM		(2)
 
 #define PM805_MIC_DET1			(0x07)
-#define PM800_MIC_DET_EN_MIC_DET (1 << 0)
+#define PM805_MIC_DET_EN_MIC_DET (1 << 0)
 #define PM805_MIC_DET2			(0x08)
 #define PM805_MIC_DET_STATUS1	(0x09)
 /*where is 2?*/
