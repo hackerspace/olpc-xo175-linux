@@ -24,6 +24,157 @@
 
 #include "pxa95xfb.h"
 
+#include <linux/fs.h>
+#include <linux/uaccess.h>
+
+typedef struct tagBITMAPINFOHEADER{
+	unsigned int    biSize;
+	int             biWidth;
+	int             biHeight;
+	short           biPlanes;
+	short           biBitCount;
+	unsigned int    biCompression;
+	unsigned int    biSizeImage;
+	int             biXPelsPerMeter;
+	int             biYPelsPerMeter;
+	unsigned int    biClrUsed;
+	unsigned int    biClrImportant;
+} __attribute((packed)) BITMAPINFOHEADER;
+
+typedef struct tagBITMAPFILEHEADER {
+	short           bfType;
+	unsigned int    bfSize;
+	short           bfReserved1;
+	short           bfReserved2;
+	unsigned int    bfOffBits;
+} __attribute((packed)) BITMAPFILEHEADER;
+
+void dump_buffer(struct pxa95xfb_info *fbi, int yoffset)
+{
+	static int c;
+	char name[128];
+	struct file *f;
+	mm_segment_t old_fs;
+	int ret;
+	BITMAPFILEHEADER    bmFileHeader;
+	BITMAPINFOHEADER    bmInfoHeader;
+	unsigned char *pbits;
+	int w = fbi->mode.xres, h = fbi->mode.yres;
+	int size = fbi->mode.xres * fbi->mode.yres * 3;
+	unsigned char *pSrc, *pDst, *pSrcLine, *pDstLine;
+	int i, j;
+
+	if (fbi->user_addr) {
+		int vmode = fbi->surface.videoMode;
+		w = fbi->surface.viewPortInfo.srcWidth;
+		h = fbi->surface.viewPortInfo.srcHeight;
+		if (vmode != FB_VMODE_RGB565 && vmode != FB_VMODE_RGBA888 && vmode !=
+FB_VMODE_RGB888UNPACK) {
+			pr_err("format not support for dump buffer!!!");
+			return;
+		}
+		pSrcLine = (unsigned char *)ioremap(fbi->user_addr, w*h*fbi->bpp/8);
+	} else {
+		w = fbi->mode.xres;
+		h = fbi->mode.yres;
+		pSrcLine = (unsigned char *)(fbi->fb_start + yoffset * fbi->bpp/8 * w);
+	}
+
+	size = w * h * 3;
+
+    memset(&bmFileHeader, 0, sizeof(BITMAPFILEHEADER));
+    bmFileHeader.bfType        = 0x4D42;
+    bmFileHeader.bfSize        = sizeof(BITMAPFILEHEADER);
+    bmFileHeader.bfReserved1   = 0;
+    bmFileHeader.bfReserved2   = 0;
+    bmFileHeader.bfOffBits     = sizeof(BITMAPFILEHEADER) + sizeof(
+BITMAPINFOHEADER);
+
+    memset(&bmInfoHeader, 0, sizeof(BITMAPINFOHEADER));
+    bmInfoHeader.biSize        = sizeof(BITMAPINFOHEADER);
+    bmInfoHeader.biWidth       = w;
+    bmInfoHeader.biHeight      = h;
+    bmInfoHeader.biPlanes      = 1;
+    bmInfoHeader.biBitCount    = 24;
+    bmInfoHeader.biCompression = 0;/*BI_RGB;*/
+
+	pbits = vmalloc(size);
+	if (!pbits)
+	{
+		vfree(pbits);
+		return ;
+	}
+
+	pDstLine = pbits + (h-1) * w * 3;
+
+	switch (fbi->bpp)
+	{
+		case 16:
+		for(i = 0; i < h; i++) {
+			pSrc = pSrcLine;
+			pDst = pDstLine;
+			for(j = 0; j < w; j++) {
+				unsigned short rgb = *(unsigned short*)pSrc;
+				pDst[0] = ((rgb & 0x001f) << 3);
+				pDst[1] =  ((rgb & 0x07e0) >> 3);
+				pDst[2] = ((rgb & 0xf800) >> 8);
+				pSrc += 2;
+				pDst += 3;
+			}
+			pSrcLine += 2*w;
+			pDstLine -= 3*w;
+		}
+		break;
+
+		case 32:
+		for(i = 0; i < h; i++) {
+			pSrc = pSrcLine;
+			pDst = pDstLine;
+			for(j = 0; j < w; j++) {
+				pDst[0] = pSrc[0];
+				pDst[1] = pSrc[1];
+				pDst[2] = pSrc[2];
+				pSrc += 4;
+				pDst += 3;
+			}
+			pSrcLine += 4*w;
+			pDstLine -= 3*w;
+		}
+		break;
+
+		default:
+		pr_err("format not supported\n");
+		break;
+	}
+
+	sprintf(name, "/data/fb%d.%04d.bmp", fbi->id, c);
+	c++;
+	printk("creat %s\n", name);
+	f = filp_open(name, O_RDWR | O_CREAT | O_LARGEFILE, 0);
+	if (IS_ERR(f)) {
+		pr_err("dump fail: fail to open\n");
+		vfree(pbits);
+		return;
+	}
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+	ret = f->f_op->write(f, (const char *)&bmFileHeader, sizeof(BITMAPFILEHEADER), &f->f_pos);
+	pr_info("168 %d write to %d\n", (int)ret, (int)f->f_pos);
+	ret = f->f_op->write(f, (const char *)&bmInfoHeader, sizeof(BITMAPINFOHEADER), &f->f_pos);
+	pr_info("170 %d write to %d\n", (int)ret, (int)f->f_pos);
+	ret = f->f_op->write(f, pbits, size, &f->f_pos);
+	pr_info("172 %d write to %d\n", (int)ret, (int)f->f_pos);
+
+	set_fs(old_fs);
+	if (ret < 0) {
+		pr_err("dump fail: fail to write\n");
+		vfree(pbits);
+		return;
+	}
+	filp_close(f, NULL);
+	vfree(pbits);
+}
+
 static void controller_enable_disable(struct pxa95xfb_info *fbi, int onoff);
 
 struct pxa95xfb_info * pxa95xfbi[PXA95xFB_FB_NUM];
@@ -1936,6 +2087,25 @@ static ssize_t vsync_store(
 
 static DEVICE_ATTR(vsync, S_IRUGO | S_IWUSR, vsync_show, vsync_store);
 
+int dump;
+static ssize_t dump_show(struct device *dev, struct device_attribute *attr,
+		char *buf)
+{
+	return sprintf(buf, "dump: %d\n", dump);
+}
+
+static ssize_t dump_store(
+		struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t size)
+{
+
+	sscanf(buf, "%d", &dump);
+
+	return size;
+}
+
+static DEVICE_ATTR(dump, S_IRUGO | S_IWUSR, dump_show, dump_store);
+
 
 /*
  * The hardware clock divider has an integer and a fractional
@@ -2262,6 +2432,9 @@ int pxa95xfb_pan_display(struct fb_var_screeninfo *var,
 		struct fb_info *info)
 {
 	struct pxa95xfb_info *fbi = (struct pxa95xfb_info *)info->par;
+
+	if (dump)
+		dump_buffer(fbi, var->yoffset);
 
 	lcdc_set_fr_addr(fbi, var);
 
@@ -2688,6 +2861,12 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 			" to /dev/fb%d <%s>.\n", conv->output?"HDMI":"PANEL", info->node, info->fix.id);
 
 	ret = device_create_file(&pdev->dev, &dev_attr_vsync);
+	if (ret < 0) {
+		printk(KERN_INFO "%s, device attr create fail: %d\n", __func__, ret);
+		goto failed_free_cmap;
+	}
+
+	ret = device_create_file(&pdev->dev, &dev_attr_dump);
 	if (ret < 0) {
 		printk(KERN_INFO "%s, device attr create fail: %d\n", __func__, ret);
 		goto failed_free_cmap;
