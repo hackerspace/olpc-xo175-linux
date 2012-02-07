@@ -129,6 +129,7 @@ struct mv_camera_dev {
 
 	struct list_head buffers; /*available frames*/
 	spinlock_t list_lock;
+	struct mutex s_mutex;	/* Access to this structure */
 	struct v4l2_pix_format pix_format;
 	unsigned long platform_flags;
 	unsigned long flags;
@@ -529,6 +530,7 @@ static void mv_videobuf_queue(struct vb2_buffer *vb)
 	dma_addr_t dma_handle;
 	u32 base_size = icd->user_width * icd->user_height;
 
+	mutex_lock(&pcdev->s_mutex);
 	dma_handle = vb2_dma_contig_plane_paddr(vb, 0);
 	BUG_ON(!dma_handle);
 	spin_lock_irqsave(&pcdev->list_lock, flags);
@@ -553,6 +555,7 @@ static void mv_videobuf_queue(struct vb2_buffer *vb)
 	spin_unlock_irqrestore(&pcdev->list_lock, flags);
 	if (start)
 		mv_read_setup(pcdev);
+	mutex_unlock(&pcdev->s_mutex);
 }
 
 static void mv_videobuf_cleanup(struct vb2_buffer *vb)
@@ -588,9 +591,13 @@ static int mv_start_streaming(struct vb2_queue *vq)
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct mv_camera_dev *pcdev = ici->priv;
 	unsigned long flags = 0;
+	int ret;
 
-	if (pcdev->state != S_IDLE)
-		return -EINVAL;
+	mutex_lock(&pcdev->s_mutex);
+	if (pcdev->state != S_IDLE) {
+		ret = -EINVAL;
+		goto out_unlock;
+	}
 
 	/*
 	 * Videobuf2 sneakily hoards all the buffers and won't
@@ -603,10 +610,14 @@ static int mv_start_streaming(struct vb2_queue *vq)
 	if (list_empty(&pcdev->buffers)) {
 		pcdev->state = S_BUFWAIT;
 		spin_unlock_irqrestore(&pcdev->list_lock, flags);
-		return 0;
+		ret = 0;
+		goto out_unlock;
 	}
 	spin_unlock_irqrestore(&pcdev->list_lock, flags);
-	return mv_read_setup(pcdev);
+	ret = mv_read_setup(pcdev);
+out_unlock:
+	mutex_unlock(&pcdev->s_mutex);
+	return ret;
 }
 
 static int mv_stop_streaming(struct vb2_queue *vq)
@@ -616,14 +627,18 @@ static int mv_stop_streaming(struct vb2_queue *vq)
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct mv_camera_dev *pcdev = ici->priv;
 	unsigned long flags = 0;
+	int ret = 0;
 
+	mutex_lock(&pcdev->s_mutex);
 	if (pcdev->state == S_BUFWAIT) {
 		/* They never gave us buffers */
 		pcdev->state = S_IDLE;
-		return 0;
+		goto out_unlock;
 	}
-	if (pcdev->state != S_STREAMING)
-		return -EINVAL;
+	if (pcdev->state != S_STREAMING) {
+		ret = -EINVAL;
+		goto out_unlock;
+	}
 
 	ccic_stop_dma(pcdev);
 	pcdev->state = S_IDLE;
@@ -631,7 +646,9 @@ static int mv_stop_streaming(struct vb2_queue *vq)
 	spin_lock_irqsave(&pcdev->list_lock, flags);
 	INIT_LIST_HEAD(&pcdev->buffers);
 	spin_unlock_irqrestore(&pcdev->list_lock, flags);
-	return 0;
+out_unlock:
+	mutex_unlock(&pcdev->s_mutex);
+	return ret;
 }
 
 static struct vb2_ops mv_videobuf_ops = {
@@ -1099,6 +1116,7 @@ static int __devinit mv_camera_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&pcdev->buffers);
 
 	spin_lock_init(&pcdev->list_lock);
+	mutex_init(&pcdev->s_mutex);
 	pm_qos_add_request(&pcdev->qos_idle, PM_QOS_CPU_DMA_LATENCY,
 			PM_QOS_DEFAULT_VALUE);
 	/*
