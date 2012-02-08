@@ -115,6 +115,7 @@
 #define PERI_PLL_PARAM	__REG(0x40F400B4)	/* Peripheral PLL Parameters Register */
 #define MM_PLL_CTRL	__REG(0x40F400BC)	/* Multi-media PLL Control Register */
 #define MM_PLL_PARAM	__REG(0x40F400C0)	/* Multi-media PLL Parameters Register */
+#define AVLCR		__REG(0x40F400A8)	/* Application Subsystem Voltage Level Change Register */
 
 #define VMPWR_PWON		(1 << 0)
 #define VMPWR_PWR_ST		(1 << 2)
@@ -301,6 +302,15 @@
 #define VCODIV_SEL_MASK		(0xf << 17)	/* Core PLL VCODIV_SEL Value Configuration */
 #define FBDIV_MASK		(0x1ff << 5)	/* Core PLL FBDIV Value Configuration */
 #define REFDIV_MASK		(0x1f << 0)	/* Core PLL REFDIV Value Configuration */
+
+#define AVLCR_VC_GO_MASK	(0x1 << 0)
+#define AVLCR_LEVEL_OFFSET	1
+#define AVLCR_LEVEL_MASK	(0x3 << AVLCR_LEVEL_OFFSET)
+
+#define VLT_LEVEL_0		0
+#define VLT_LEVEL_1		1
+#define VLT_LEVEL_2		2
+#define VLT_LEVEL_3		3
 
 /*
  * Clock Enable Bit

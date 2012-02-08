@@ -366,6 +366,7 @@ static struct dvfm_md_opt pxa955_op_array[] = {
 static struct dvfm_md_opt pxa978_op_array[] = {
 	/* 156MHz -- single PLL mode */
 	{
+		.vcc_core = VLT_LEVEL_0,
 		.core = 156,
 		.smcfs = 104,
 		.sflfs = 156,	/* IMC */
@@ -384,6 +385,7 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 	},
 	/* 312MHz -- two PLL mode */
 	{
+		.vcc_core = VLT_LEVEL_0,
 		.core = 312,
 		.smcfs = 104,
 		.sflfs = 156,
@@ -402,6 +404,7 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 	},
 	/* 624MHz */
 	{
+		.vcc_core = VLT_LEVEL_1,
 		.core = 624,
 		.smcfs = 156,
 		.sflfs = 208,
@@ -420,6 +423,7 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 	},
 	/* 806MHz */
 	{
+		.vcc_core = VLT_LEVEL_2,
 		.core = 806,
 		.smcfs = 156,
 		.sflfs = 312,
@@ -438,6 +442,7 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 	},
 	/* 1014MHz */
 	{
+		.vcc_core = VLT_LEVEL_2,
 		.core = 1014,
 		.smcfs = 156,
 		.sflfs = 312,
@@ -456,6 +461,7 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 	},
 	/* 1196MHz */
 	{
+		.vcc_core = VLT_LEVEL_3,
 		.core = 1196,
 		.smcfs = 156,
 		.sflfs = 312,
@@ -474,6 +480,7 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 	},
 	/* 1404MHz */
 	{
+		.vcc_core = VLT_LEVEL_3,
 		.core = 1404,
 		.smcfs = 156,
 		.sflfs = 312,
@@ -1155,6 +1162,26 @@ static char *get_op_name(void *driver_data, struct op_info *p)
 	return q->name;
 }
 
+static void pxa978_set_voltage_level(unsigned int level)
+{
+	unsigned int avlcr = AVLCR;
+
+	/* clean GO bit and LEVEL bit */
+	avlcr &= (~(AVLCR_VC_GO_MASK));
+	avlcr &= (~(AVLCR_LEVEL_MASK));
+
+	/* set GO bit and LEVEL bit */
+	avlcr |= ((level << AVLCR_LEVEL_OFFSET) | (AVLCR_VC_GO_MASK));
+
+	/* write to hw */
+	AVLCR = avlcr;
+
+	/* polling until GO bit is reset again */
+	while ((avlcr & AVLCR_VC_GO_MASK))
+		avlcr = AVLCR;
+}
+
+
 static int update_voltage(void *driver_data, struct dvfm_md_opt *old,
 			  struct dvfm_md_opt *new)
 {
@@ -1163,6 +1190,18 @@ static int update_voltage(void *driver_data, struct dvfm_md_opt *old,
 	   only if the PowerDisabled flag is set (using sys) */
 	if (DvfmDisabled)
 		return 0;
+
+	/* voltage de-coupeling only for Nevo */
+	if (cpu_is_pxa978()) {
+		if (old->vcc_core != new->vcc_core) {
+			/* if changing from voltage level 0,1 to 3 and vice versa
+			 * do voltage change to level 2 between */
+			if (((old->vcc_core <= VLT_LEVEL_1) && (new->vcc_core == VLT_LEVEL_3)) ||
+			   ((old->vcc_core == VLT_LEVEL_3) && (new->vcc_core <= VLT_LEVEL_1)))
+				pxa978_set_voltage_level(VLT_LEVEL_2);
+			pxa978_set_voltage_level(new->vcc_core);
+		}
+	}
 
 	if (!(info->flags & PXA95x_USE_POWER_I2C))
 		pxa95x_dvfm_set_core_voltage(new->vcc_core);
