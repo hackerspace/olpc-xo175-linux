@@ -418,6 +418,7 @@ struct mmp2_op {
 	int	dclk_mhz;
 	int	aclk_mhz;
 };
+extern struct mmp2_op mmp2_ops[];
 
 void mmp2_fc_seq(int old_idx, int new_idx);
 int mmp2_get_op_freq(int idx);
