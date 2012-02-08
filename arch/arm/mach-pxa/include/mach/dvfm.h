@@ -166,6 +166,9 @@ extern int dvfm_disable_op_name(char *, int);
 extern int dvfm_enable_op_name_no_change(char *, int);
 extern int dvfm_disable_op_name_no_change(char *, int);
 
+extern void dvfm_disable_op_for_caddo(int dev_idx);
+extern void dvfm_enable_op_for_caddo(int dev_idx);
+
 extern void dvfm_disable_lowpower(int dev_idx);
 extern void dvfm_enable_lowpower(int dev_idx);
 extern void dvfm_disable_global(int dev_idx);

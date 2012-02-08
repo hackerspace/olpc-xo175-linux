@@ -579,6 +579,24 @@ void dvfm_enable_lowpower(int dev_idx)
 
 }
 EXPORT_SYMBOL(dvfm_enable_lowpower);
+extern int hss_change_over(void);
+
+void dvfm_disable_op_for_caddo(int dev_idx)
+{
+	dvfm_disable_lowpower(dev_idx);
+	dvfm_disable(dev_idx);
+	BUG_ON(irqs_disabled());
+	while (!hss_change_over());
+}
+EXPORT_SYMBOL(dvfm_disable_op_for_caddo);
+
+void dvfm_enable_op_for_caddo(int dev_idx)
+{
+	dvfm_enable_lowpower(dev_idx);
+	dvfm_enable(dev_idx);
+}
+EXPORT_SYMBOL(dvfm_enable_op_for_caddo);
+
 
 /* disable frequency change */
 void dvfm_disable_global(int dev_idx)
