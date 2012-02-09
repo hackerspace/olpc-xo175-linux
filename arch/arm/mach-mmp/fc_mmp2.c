@@ -143,6 +143,14 @@ int mmp2_get_op_freq(int idx)
 }
 EXPORT_SYMBOL(mmp2_get_op_freq);
 
+struct mmp2_op* mmp2_get_op_info(int op_idx)
+{
+	if (op_idx < 0 || op_idx >= mmp2_get_op_number())
+		return NULL;
+	return &(mmp2_ops[op_idx]);
+}
+EXPORT_SYMBOL(mmp2_get_op_info);
+
 typedef enum {
 	PLL1_div_2 = 0,
 	PLL1,
