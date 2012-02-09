@@ -235,7 +235,7 @@ static const struct snd_kcontrol_new brownstone_wm8994_controls[] = {
 		     brownstone_get_internal_mic, brownstone_set_internal_mic),
 };
 
-#ifdef CONFIG_SWITCH_HEADSET
+#ifdef CONFIG_SWITCH_WM8994_HEADSET
 static struct snd_soc_codec *brownstone_zsp_wm8994_codec;
 
 int wm8994_headset_detect(void)
@@ -336,7 +336,7 @@ static int codec_wm8994_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_sync(dapm);
 
 
-#ifdef CONFIG_SWITCH_HEADSET
+#ifdef CONFIG_SWITCH_WM8994_HEADSET
 
 	brownstone_zsp_wm8994_codec = codec;
 	headset_detect_func = wm8994_headset_detect;
@@ -443,6 +443,7 @@ static int brownstone_zsp_wm8994_startup(struct snd_pcm_substream *substream)
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+	struct snd_soc_codec *codec = rtd->codec;
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct ssp_device *sspa = snd_soc_dai_get_drvdata(cpu_dai);
 	struct pxa910_runtime_data *prtd = runtime->private_data;
@@ -478,6 +479,13 @@ static int brownstone_zsp_wm8994_startup(struct snd_pcm_substream *substream)
 	codec_dai->driver->ops->set_fmt(codec_dai, format);
 	codec_dai->driver->ops->set_sysclk(codec_dai,
 				WM8994_SYSCLK_MCLK1, 11289600 , 0);
+
+	/* turn on micbias 1/2 always */
+	snd_soc_update_bits(codec, WM8994_POWER_MANAGEMENT_1,
+			    WM8994_MICB1_ENA_MASK |
+			    WM8994_MICB2_ENA_MASK,
+			    WM8994_MICB1_ENA |
+			    WM8994_MICB2_ENA);
 
 	return 0;
 }
