@@ -2045,7 +2045,7 @@ int mmc1_idle_switch(u32 on)
 #ifdef CONFIG_SD8XXX_RFKILL
 	struct mmc_host *pmmc = *pxa910_sdh_platdata_mmc1.pmmc;
 
-	if (!pmmc || !pmmc->card || pmmc->suspended)
+	if (!pmmc || !pmmc->card || atomic_read(&pmmc->suspended))
 		return 0;
 #endif
 
