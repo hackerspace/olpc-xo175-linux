@@ -233,6 +233,7 @@ static int vmeta_power_off(struct vmeta_instance *vi)
 
 	vmeta_power_switch(VMETA_PWR_DISABLE);
 	vi->power_status = 0;
+	vi->vop_real = VMETA_OP_INVALID;
 	mutex_unlock(&vi->mutex);
 	return 0;
 }
