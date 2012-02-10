@@ -1958,6 +1958,7 @@ static void __init init(void)
 #ifdef CONFIG_PROC_FS
 	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD)
 		create_sparrow_rf_proc_file();
+	create_sirf_proc_file();
 #endif
 
 }

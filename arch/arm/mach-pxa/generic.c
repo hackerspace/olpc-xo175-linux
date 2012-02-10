@@ -19,6 +19,9 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <linux/clk.h>
+#include <linux/regulator/machine.h>
+#include <linux/proc_fs.h>
 
 #include <mach/hardware.h>
 #include <asm/system.h>
@@ -34,6 +37,7 @@
 
 #include <plat/pxa3xx_onenand.h>
 #include <plat/pxa3xx_nand.h>
+#include <plat/mfp.h>
 #include "generic.h"
 
 void (*abu_mfp_init_func)(bool);
@@ -178,7 +182,6 @@ static int set_partition_info(u32 flash_size, u32 page_size, struct pxa3xx_onena
 }
 void onenand_init(int sync_enable)
 {
-	u32 temp;
 	if (sync_enable) {
 		onenand_sync_clk_cfg();
 		onenand_platinfo.mmcontrol = onenand_mmcontrol;
@@ -272,3 +275,267 @@ void pxa95x_ssp_mfp_init(bool bssp)
 	else
 		panic("pxa95x_abu_mfp_init called with NULL pointer!\n");
 }
+
+#ifdef CONFIG_PROC_FS
+
+#define GEN_REG3		__REG(0x42404008)
+
+static struct regulator *g_gps_regulator;
+static int g_gps_reset, g_gps_on;
+static int g_is_gps_on;
+static struct clk *clk_tout_s0;
+
+static void gps_eclk(int flag);
+
+/* GPS: power on/off control */
+static void gps_power_on(void)
+{
+	if (g_is_gps_on) {
+		pr_err("%s: gps driver already on\n", __func__);
+		return;
+	}
+
+	switch (get_board_id()) {
+	case OBM_SAAR_B_MG1_C0_V12_BOARD:
+	case OBM_SAAR_B_MG2_A0_V13_BOARD:
+	case OBM_SAAR_B_MG2_A0_V14_BOARD:
+	case OBM_SAAR_B_MG2_B0_V15_BOARD:
+	case OBM_SAAR_B_MG2_C0_V26_BOARD:
+		g_gps_reset = mfp_to_gpio(MFP_PIN_GPIO61);
+		g_gps_on = mfp_to_gpio(MFP_PIN_GPIO62);
+		break;
+	case OBM_EVB_NEVO_1_2_BOARD:
+	case OBM_SAAR_C3_NEVO_C0_V10_BOARD:
+	case OBM_DKB_2_NEVO_C0_BOARD:
+		g_gps_reset = mfp_to_gpio(MFP_PIN_GPIO106);
+		g_gps_on = mfp_to_gpio(MFP_PIN_GPIO104);
+		break;
+	}
+
+	if (gpio_request(g_gps_reset, "gpio_gps_reset")) {
+		pr_err("%s: g_gps_reset request failed: %d\n", __func__, g_gps_reset);
+		return;
+	}
+	pr_info("%s: g_gps_reset ok: %d\n", __func__, g_gps_reset);
+
+	if (gpio_request(g_gps_on, "gpio_gps_on")) {
+		pr_err("%s: gpio_gps_on request failed: %d\n", __func__, g_gps_on);
+		goto exit1;
+	}
+	pr_info("%s: gpio_gps_on ok: %d\n", __func__, g_gps_on);
+
+	g_gps_regulator = regulator_get(NULL, "v_gps");
+	if (!g_gps_regulator) {
+		pr_err("%s: regulator_get failed: v_gps\n", __func__);
+		goto exit2;
+	}
+	pr_info("%s: regulator_get ok: v_gps\n", __func__);
+
+	gpio_direction_output(g_gps_reset, 0);
+	gpio_direction_output(g_gps_on, 0);
+	gps_eclk(0);
+
+	clk_tout_s0 = clk_get(NULL, "CLK_TOUT_S0");
+	if (IS_ERR(clk_tout_s0)) {
+		pr_err("%s: unable to get tout_s0 clock\n", __func__);
+		goto exit3;
+	}
+	clk_enable(clk_tout_s0);
+
+	if (regulator_enable(g_gps_regulator) < 0) {
+		pr_err("%s: regulator_enable failed: v_gps\n", __func__);
+		goto exit4;
+	}
+
+	g_is_gps_on = 1;
+	pr_info("%s: sirf gps chip powered on\n", __func__);
+	return;
+
+exit4:
+	regulator_put(g_gps_regulator);
+	g_gps_regulator = NULL;
+exit3:
+	clk_put(clk_tout_s0);
+	clk_tout_s0 = NULL;
+exit2:
+	gpio_free(g_gps_on);
+	g_gps_on = (int) NULL;
+exit1:
+	gpio_free(g_gps_reset);
+	g_gps_reset = (int) NULL;
+}
+
+static void gps_power_off(void)
+{
+	if (!g_is_gps_on) {
+		pr_warning("%s: gps driver already off\n", __func__);
+		/* In this case, do not return, release all resources. */
+	}
+
+	gps_eclk(0);
+
+	if (clk_tout_s0) {
+		clk_disable(clk_tout_s0);
+		clk_put(clk_tout_s0);
+	}
+
+	if (g_gps_reset) {
+		gpio_direction_input(g_gps_reset);
+		gpio_free(g_gps_reset);
+		g_gps_reset = (int) NULL;
+	}
+
+	if (g_gps_on) {
+		gpio_direction_input(g_gps_on);
+		gpio_free(g_gps_on);
+		g_gps_on = (int) NULL;
+	}
+
+	if (g_gps_regulator) {
+		if (regulator_disable(g_gps_regulator) < 0)
+			pr_err("%s: regulator_disable failed: g_gps_regulator\n", __func__);
+		regulator_put(g_gps_regulator);
+		g_gps_regulator = NULL;
+	}
+
+	g_is_gps_on = 0;
+	pr_info("%s: sirf gps chip powered off\n", __func__);
+}
+
+static void gps_reset(int flag)
+{
+	if (!g_gps_reset) {
+		pr_err("%s: illegal handle, g_gps_reset: %d\n", __func__, g_gps_reset);
+		return;
+	}
+	if ((flag != 0) && (flag != 1)) {
+		pr_err("%s: illegal value, flag: %d\n", __func__, flag);
+		return;
+	}
+
+	gpio_direction_output(g_gps_reset, flag);
+	/*pr_info("%s: sirf gps chip reset\n", __func__);*/
+}
+
+static void gps_on_off(int flag)
+{
+	if (!g_gps_on) {
+		pr_err("%s: illegal handle, g_gps_on: %d\n", __func__, g_gps_on);
+		return;
+	}
+	if ((flag != 0) && (flag != 1)) {
+		pr_err("%s: illegal value, flag: %d\n", __func__, flag);
+		return;
+	}
+	gpio_direction_output(g_gps_on, flag);
+	/*pr_info("%s: sirf gps chip offon\n", __func__);*/
+}
+
+static void gps_eclk(int flag)
+{
+	unsigned long reg_image;
+	unsigned long cpsr;
+
+	if ((flag != 0) && (flag != 1)) {
+		pr_err("%s: illegal value, flag: %d\n", __func__, flag);
+		return;
+	}
+
+	/* lock interrupts */
+	local_irq_save(cpsr);
+
+	/* read GEN_REG3 register */
+	reg_image = GEN_REG3;
+
+	/* ignore (clear) all bits, accept bits 0 & 1 () */
+	reg_image &= 0x00000003;
+
+	/* modify the value of CKRSW1 bit */
+	if (flag)
+		reg_image |= (1 << 16); /* set bit 16 (CKRSW1) */
+	else
+		reg_image &= ~(1 << 16); /* clear bit 16 (CKRSW1) */
+
+	/* write GEN_REG3 register */
+	GEN_REG3 = reg_image;
+
+	/* unlock interrupts */
+	local_irq_restore(cpsr);
+
+	/*pr_info("%s: sirf gps chip eclk\n", __func__);*/
+}
+
+#define SIRF_STATUS_LEN	16
+static char sirf_status[SIRF_STATUS_LEN] = "off";
+
+static ssize_t sirf_read_proc(char *page, char **start, off_t off,
+				int count, int *eof, void *data)
+{
+	int len = strlen(sirf_status);
+
+	sprintf(page, "%s\n", sirf_status);
+	return len + 1;
+}
+
+static ssize_t sirf_write_proc(struct file *filp,
+				const char *buff, size_t len, loff_t *off)
+{
+	char messages[256];
+	int flag, ret;
+	char buffer[7];
+
+	if (len > 255)
+		len = 255;
+
+	memset(messages, 0, sizeof(messages));
+
+	if (!buff || copy_from_user(messages, buff, len))
+		return -EFAULT;
+
+	if (strlen(messages) > (SIRF_STATUS_LEN - 1)) {
+		pr_warning("%s: messages too long, (%d) %s\n",
+			__func__, strlen(messages), messages);
+		return -EFAULT;
+	}
+
+	if (strncmp(messages, "off", 3) == 0) {
+		strcpy(sirf_status, "off");
+		gps_power_off();
+	} else if (strncmp(messages, "on", 2) == 0) {
+		strcpy(sirf_status, "on");
+		gps_power_on();
+	} else if (strncmp(messages, "reset", 5) == 0) {
+		strcpy(sirf_status, messages);
+		ret = sscanf(messages, "%s %d", buffer, &flag);
+		if (ret == 2)
+			gps_reset(flag);
+	} else if (strncmp(messages, "sirfon", 5) == 0) {
+		strcpy(sirf_status, messages);
+		ret = sscanf(messages, "%s %d", buffer, &flag);
+		if (ret == 2)
+			gps_on_off(flag);
+	} else if (strncmp(messages, "eclk", 4) == 0) {
+		strcpy(sirf_status, messages);
+		ret = sscanf(messages, "%s %d", buffer, &flag);
+		if (ret == 2)
+			gps_eclk(flag);
+	} else
+		pr_info("usage: echo [off|on|reset|sirfon|eclk] [0|1] > /proc/driver/sirf\n");
+
+	return len;
+}
+
+void create_sirf_proc_file(void)
+{
+	struct proc_dir_entry *sirf_proc_file = NULL;
+
+	sirf_proc_file = create_proc_entry("driver/sirf", 0644, NULL);
+	if (!sirf_proc_file) {
+		pr_err("%s: create proc file failed\n", __func__);
+		return;
+	}
+
+	sirf_proc_file->read_proc = sirf_read_proc;
+	sirf_proc_file->write_proc = (write_proc_t *)sirf_write_proc;
+}
+#endif

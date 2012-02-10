@@ -138,6 +138,7 @@ void onenand_init(int sync_enable);
 
 void nand_init(void);
 void pxa_boot_flash_init(int sync_mode);
+void create_sirf_proc_file(void);
 
 void __init pxa_set_ffuart_info(void *info);
 void __init pxa_set_btuart_info(void *info);

@@ -1618,6 +1618,10 @@ static void __init saarb_init(void)
 	pxa9xx_device_u2o.dev.platform_data = (void *)&pxa9xx_usb_pdata;
 	platform_device_register(&pxa9xx_device_u2o);
 #endif
+
+#ifdef CONFIG_PROC_FS
+	create_sirf_proc_file();
+#endif
 }
 
 MACHINE_START(SAARB, "PXA968")
