@@ -152,7 +152,7 @@ static int saarc_pcm_prepare(struct snd_pcm_substream *substream)
 
 	__raw_writel(sscr0 | 0x41D0003F, ssp->mmio_base + SSCR0);
 	__raw_writel(sscr1 | 0x03B01DC0, ssp->mmio_base + SSCR1);
-	__raw_writel(0x02100004, ssp->mmio_base + SSPSP);
+	__raw_writel(0x02100000, ssp->mmio_base + SSPSP);
 
 	return 0;
 }
@@ -176,7 +176,7 @@ static int saarc_ihdmi_prepare(struct snd_pcm_substream *substream)
 	val = (sscr1 | 0x00B01DC0) & (~0x03000000);/* config ssp as master*/
 	__raw_writel(sscr0 | 0x41D0003F, ssp->mmio_base + SSCR0);
 	__raw_writel(val, ssp->mmio_base + SSCR1);
-	__raw_writel(0x02100004, ssp->mmio_base + SSPSP);
+	__raw_writel(0x02100000, ssp->mmio_base + SSPSP);
 
 	return 0;
 }
