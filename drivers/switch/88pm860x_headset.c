@@ -18,7 +18,7 @@
 #include <linux/i2c.h>
 #include <linux/interrupt.h>
 #include <linux/mfd/88pm860x.h>
-#include <linux/mfd/88pm860x-headset.h>
+#include <linux/mfd/88pm8xxx-headset.h>
 #include <linux/init.h>
 #include <linux/switch.h>
 #include <linux/workqueue.h>
@@ -56,7 +56,7 @@ struct headset_switch_data {
 };
 
 static struct device *hsdetect_dev;
-static struct PM860X_HS_IOCTL hs_detect;
+static struct PM8XXX_HS_IOCTL hs_detect;
 
 /* on TD_DKB, the headset jack circuit logic is opposite to the
  * design of levante spec, so if headset status is connected in
@@ -109,11 +109,11 @@ static void headset_switch_work(struct work_struct *work)
 	value = info->headset_flag ? !value : value;
 	/* headset detected */
 	if (value) {
-		switch_data->state = PM860X_HEADSET_ADD;
+		switch_data->state = PM8XXX_HEADSET_ADD;
 
 		/* for telephony */
 		kobject_uevent(&hsdetect_dev->kobj, KOBJ_ADD);
-		hs_detect.hsdetect_status = PM860X_HEADSET_ADD;
+		hs_detect.hsdetect_status = PM8XXX_HEADSET_ADD;
 
 		/* enable MIC bias to enable hook detection, we must enable mic bias first
 		 * otherwise we may get false hook detection */
@@ -133,12 +133,12 @@ static void headset_switch_work(struct work_struct *work)
 		 * without MIC, headphone; otherwise, it's headset. */
 		value &= PM8607_STATUS_HOOK;
 		if (value) {
-			switch_data->state = PM860X_HEADPHONE_ADD;
-			hs_detect.hsmic_status = PM860X_HS_MIC_REMOVE;
+			switch_data->state = PM8XXX_HEADPHONE_ADD;
+			hs_detect.hsmic_status = PM8XXX_HS_MIC_REMOVE;
 		}
 
 		/* unmask hook interrupt only if the headset has a Mic */
-		if (switch_data->state == PM860X_HEADSET_ADD) {
+		if (switch_data->state == PM8XXX_HEADSET_ADD) {
 			pm860x_set_bits(info->i2c, PM8607_INT_MASK_3,
 					PM8607_INT_EN_HOOK, PM8607_INT_EN_HOOK);
 		} else {
@@ -159,12 +159,12 @@ static void headset_switch_work(struct work_struct *work)
 		pm860x_set_bits(info->i2c, PM8607_INT_MASK_3,
 				PM8607_INT_EN_HOOK, 0);
 
-		switch_data->state = PM860X_HEADSET_REMOVE;
+		switch_data->state = PM8XXX_HEADSET_REMOVE;
 
 		/*for telephony */
 		kobject_uevent(&hsdetect_dev->kobj, KOBJ_REMOVE);
-		hs_detect.hsdetect_status = PM860X_HEADSET_REMOVE;
-		hs_detect.hsmic_status = PM860X_HS_MIC_ADD;
+		hs_detect.hsdetect_status = PM8XXX_HEADSET_REMOVE;
+		hs_detect.hsmic_status = PM8XXX_HS_MIC_ADD;
 	}
 
 	pr_info("headset_switch_work to %d\n", switch_data->state);
@@ -200,16 +200,16 @@ static void hook_switch_work(struct work_struct *work)
 
 	/* hook pressed */
 	if (value) {
-		switch_data->state = PM860X_HOOKSWITCH_PRESSED;
+		switch_data->state = PM8XXX_HOOKSWITCH_PRESSED;
 		/*for telephony */
 		kobject_uevent(&hsdetect_dev->kobj, KOBJ_ONLINE);
-		hs_detect.hookswitch_status = PM860X_HOOKSWITCH_PRESSED;
+		hs_detect.hookswitch_status = PM8XXX_HOOKSWITCH_PRESSED;
 	} else {
 		/* hook released */
-		switch_data->state = PM860X_HOOKSWITCH_RELEASED;
+		switch_data->state = PM8XXX_HOOKSWITCH_RELEASED;
 		/*for telephony */
 		kobject_uevent(&hsdetect_dev->kobj, KOBJ_OFFLINE);
-		hs_detect.hookswitch_status = PM860X_HOOKSWITCH_RELEASED;
+		hs_detect.hookswitch_status = PM8XXX_HOOKSWITCH_RELEASED;
 	}
 
 	pr_info("hook state switch to %d\n", switch_data->state);
@@ -358,7 +358,7 @@ static int headset_switch_probe(struct platform_device *pdev)
 	hs_detect.hsdetect_status = 0;
 	hs_detect.hookswitch_status = 0;
 	/*default 4_POLES */
-	hs_detect.hsmic_status = PM860X_HS_MIC_ADD;
+	hs_detect.hsmic_status = PM8XXX_HS_MIC_ADD;
 
 	/* Perform initial detection */
 	headset_switch_work(&info->work_headset);
@@ -412,7 +412,7 @@ static int headset_switch_suspend(struct platform_device *pdev,
 
 	/*  enable HOOK detection when headset is connected, thus hook press
 	 *  can wake up core from suspend mode */
-	if (switch_data->state == PM860X_HEADSET_ADD) {
+	if (switch_data->state == PM8XXX_HEADSET_ADD) {
 		pm860x_set_bits(info->i2c, PM8607_MIC_DECTION,
 				PM8607_MIC_DET_EN_MIC_DET, 1);
 	}
@@ -426,7 +426,7 @@ static int headset_switch_resume(struct platform_device *pdev)
 	struct headset_switch_data *switch_data = info->psw_data_headset;
 
 	/* enable MIC/HOOK detection when headset is connected. */
-	if (switch_data->state == PM860X_HEADSET_ADD) {
+	if (switch_data->state == PM8XXX_HEADSET_ADD) {
 		pm860x_set_bits(info->i2c, PM8607_MIC_DECTION,
 				PM8607_MIC_DET_EN_MIC_DET, 1);
 	}
@@ -437,14 +437,14 @@ static int headset_switch_resume(struct platform_device *pdev)
 static long pm860x_hsdetect_ioctl(struct file *file,
 				 unsigned int cmd, unsigned long arg)
 {
-	struct PM860X_HS_IOCTL hs_ioctl;
+	struct PM8XXX_HS_IOCTL hs_ioctl;
 
 	if (copy_from_user(&hs_ioctl,
-			   (void *)arg, sizeof(struct PM860X_HS_IOCTL)))
+			   (void *)arg, sizeof(struct PM8XXX_HS_IOCTL)))
 		return -EFAULT;
 
 	switch (cmd) {
-	case PM860X_HSDETECT_STATUS:
+	case PM8XXX_HSDETECT_STATUS:
 		hs_ioctl.hsdetect_status = hs_detect.hsdetect_status;
 		hs_ioctl.hookswitch_status = hs_detect.hookswitch_status;
 #if defined(ENABLE_HS_DETECT_POLES)
@@ -453,7 +453,7 @@ static long pm860x_hsdetect_ioctl(struct file *file,
 		pr_info("hsdetect_ioctl PM860X_HSDETECT_STATUS\n");
 		break;
 
-	case PM860X_HOOKSWITCH_STATUS:
+	case PM8XXX_HOOKSWITCH_STATUS:
 		hs_ioctl.hookswitch_status = hs_detect.hookswitch_status;
 		hs_ioctl.hsdetect_status = hs_detect.hsdetect_status;
 #if defined(ENABLE_HS_DETECT_POLES)
@@ -467,7 +467,7 @@ static long pm860x_hsdetect_ioctl(struct file *file,
 
 	}
 	return copy_to_user((void *)arg, &hs_ioctl,
-			    sizeof(struct PM860X_HS_IOCTL));
+			    sizeof(struct PM8XXX_HS_IOCTL));
 }
 
 static struct platform_driver headset_switch_driver = {
