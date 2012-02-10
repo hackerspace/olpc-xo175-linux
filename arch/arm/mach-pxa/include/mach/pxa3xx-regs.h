@@ -253,6 +253,8 @@
 #else
 #define ACCR_XL_MASK		(0x3f)		/* Core PLL Run-Mode-to-Oscillator Ratio */
 #endif
+#define ACCR_RESERVED_MASK_978	(0xC47307FF)		/* ACCR Reserved bits mask in Nevo C0*/
+
 
 #define ACCR_AXI(x)		(((x) & 0x3) << 28)
 #define ACCR_SMCFS(x)		(((x) & 0x7) << 23)

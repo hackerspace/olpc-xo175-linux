@@ -44,9 +44,9 @@ error_ret:
  */
 	.text
 	.align 5
-ENTRY(write_accr_accr1)
+ENTRY(write_accr_accr0)
 /* lr register will be the instruction just after invoke of
- * write_accr_accr1 */
+ * write_accr_accr0 */
 	b	enter_sram
 
 /* pxa95x_cpu_standby()
@@ -131,50 +131,37 @@ rel_sram:
 @	r0: start address
 @	r1: stack address
 @	r2: accr value
-@	r3: accr1 value
+@	r3: accr0 value
 @	r4: mask value
 @	r5: data value
 @	r6: ACCU base address
 @	r7: MC base address
-@	r8: dummy_read address
+
 enter_sram:
 	@ save registers on stack
 	stmfd	sp!, {r0 - r12, lr}
 	@ load the left arguments into registers
 	add	r12, sp, #56
-        ldmfd   r12!, {r4 - r8}
+        ldmfd   r12!, {r4 - r7}
 	mov	r12, sp			@ save sp in r12
 	mov	sp, r1			@ set up new stack address
 	stmfd	sp!, {lr}		@ store the return address
 
-	@ Load ACCR & ACCR1 & dummy_read into TLB
+	@ Load ACCU & DDR base address into TLB
 	@ only one from each page (4KB)
-	ldr	r9, [r6]		@ load ACCR address into TLB
-	@ldr	r10, [r6, #0x4]		@ load ACSR address into TLB
-	ldr	r11, [r6, #0x20]	@ load ACCR1 address into TLB
-	ldr	r9, [r7, #0x7e0]	@ load SDRAM CTL address into TLB
-	@ldr	r10, [r7, #0x410]	@ load User Init Comm address into TLB
-	@ldr	r9, [r7, #0x1B0]	@ load DRAM Status address into TLB
-	@ldr	r11, [r8]		@ load dummy_read address into TLB
-
+	ldr	r9, [r6]		@ load ACCU base address into TLB
+	ldr	r9, [r7]		@ load SDRAM base address into TLB
+	ldr	r9, [r0]		@ load code start address into TLB
 	mov	pc, r0			@ jump to relocated program
 
 pm_enter_sram_start:
-	@ Block all requests
-@ Don't: reg-table will block
-@	ldr	r9, [r7, #0x7e0]
-@	orr	r9, r9, #0xf00
-@	str	r9, [r7, #0x7e0]
-	@ THIS CODE MIGHT BE CACHEABLE.
-	@ Have to prevent potential L2 allocation and L2 eviction as a result
-	@ Disable L2
-	mrc     p15, 0, r8, c1, c0, 1
-	bic     r10, r8, #2
-	mcr     p15, 0, r10, c1, c0, 1
+
+	mrc	p15, 0, r8, c1, c0, 0
+	bic 	r9, r8, #0x800
+	mcr	p15, 0, r9, c1, c0, 0	@ disable branch predictor
 	isb
 
 	str	r2, [r6]		@ write ACCR
-	str	r3, [r6, #0x20]		@ write ACCR1
 
 retry:	ldr	r9, [r6]		@ read ACCR
 	ldr	r10, [r6, #0x4]		@ read ACSR
@@ -189,11 +176,6 @@ retry:	ldr	r9, [r6]		@ read ACCR
 	cmp	r9, r10
 	bne	retry
 
-	@ Polling when DDR is in self-refresh mode
-SR:	ldr	r9, [r7, #0x1B0]
-	tst	r9, #0x10
-	bne	SR
-
 	@ Issue MRW to LPDDR2 to update the RL
 	mov	r9, #0x3000000
 	orr	r9, r9, #0x20000
@@ -207,18 +189,20 @@ SR:	ldr	r9, [r7, #0x1B0]
 	bic	r9, r9, #0xf00
 	bic	r9, r9, #0x1
 	str	r9, [r7, #0x7e0]
-
 	dsb
-	@ldr	r10, [r8]		@ dummy read
-	@dmb
-	@ Restore L2
-	mcr     p15, 0, r8, c1, c0, 1
+
+	mcr	p15, 0, r8, c1, c0, 0	@ restore branch predictor
 	isb
+
+retry1:
+	str	r3, [r6, #0x50]		@ write ACCR0
+	ldr	r10, [r6, #0x54]	@read ACSR0
+	cmp	r3, r10
+	bne	retry1
 
 	ldmfd	sp!, {lr}
 	mov	sp, r12				@ restore stack address
-
-        ldmfd   sp!, {r0 - r12, pc}
+	ldmfd   sp!, {r0 - r12, pc}
 pm_enter_sram_end:
 	nop
 

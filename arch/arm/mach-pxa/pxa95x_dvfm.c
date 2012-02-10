@@ -1457,19 +1457,43 @@ static inline void set_mm_pll_freq(void *driver_data,
 	}
 }
 
+static inline void choose_regtable(unsigned int new_dmcfs)
+{
+	switch (new_dmcfs) {
+	case 7:
+	case 6:
+	case 5:
+		DDR_FC_REG_TBL = 3;
+		break;
+	case 4:
+		DDR_FC_REG_TBL = 2;
+		break;
+	case 3:
+	case 2:
+	case 1:
+		DDR_FC_REG_TBL = 1;
+		break;
+	case 0:
+		DDR_FC_REG_TBL = 0;
+		break;
+	default:
+		BUG_ON(1);
+		break;
+	}
+}
+
 /* TODO: sugguest to differentiate the operating point definition from
  * register info.And we can remove *reg_new here, and convert dvfm_md_opt to
  * it in the routine. That will make it much more clear.
  */
-static u32 *dummy_addr;
-extern void write_accr_accr1(u32, u32, u32, u32, u32, u32, u32, u32, u32);
+extern void write_accr_accr0(u32, u32, u32, u32, u32, u32, u32, u32);
 static u32 sram_size, sram_map;
 static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 			   struct dvfm_md_opt *new)
 {
 	struct pxa95x_dvfm_info *info = driver_data;
 	struct pxa95x_fv_info fv_info;
-	uint32_t accr, acsr, accr1 = 0, accr0 = 0, acsr0, mask = 0, mask2 = 0;
+	uint32_t accr, acsr, accr1 = 0, accr0 = 0, mask0 = 0, mask = 0, mask2 = 0;
 	unsigned int data = 0, data2 = 0;
 
 	freq2reg(&fv_info, new);
@@ -1503,6 +1527,7 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 	accr1 = __raw_readl(info->clkmgr_base + ACCR1_OFF);
 	if (cpu_is_pxa978()) {
 		accr0 = __raw_readl(info->clkmgr_base + ACCR0_OFF);
+		mask0 |= ACCR_RESERVED_MASK_978;
 	}
 	if (old->smcfs != new->smcfs) {
 		data |= (fv_info.smcfs << ACCR_SMCFS_OFFSET);
@@ -1526,10 +1551,11 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 			accr1 |= (fv_info.vmfc << ACCR1_VMFC_OFFSET);
 		}
 	} else {
-/*		if (old->dmcfs != new->dmcfs) {
+		if (old->dmcfs != new->dmcfs) {
 			data |= (fv_info.dmcfs << ACCR_DMCFS_OFFSET_978);
 			mask |= ACCR_DMCFS_MASK_978;
-		}*/
+			choose_regtable(fv_info.dmcfs);
+		}
 		if (old->gcfs != new->gcfs) {
 			accr0 &= ~(ACCR0_GCFS_MASK | ACCR0_GCAXIFS_MASK);
 			accr0 |= (fv_info.gcfs << ACCR0_GCFS_OFFSET) |
@@ -1556,31 +1582,14 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 		data2 |= (fv_info.axifs << ACCR_AXIFS_OFFSET);
 		mask2 |= ACCR_AXIFS_MASK;
 	}
-	accr &= ~(mask | mask2);
+	accr &= ~(mask0 | mask | mask2);
 	accr |= data | data2;
 	if (cpu_is_pxa978()) {
 		set_mm_pll_freq(driver_data, old, new, accr0);
-
-		write_accr_accr1((u32) sram_map + 0x9000,
-				(u32) sram_map + 0xa000 - 4, accr, accr1,
+		write_accr_accr0((u32) sram_map + 0x9000,
+				(u32) sram_map + 0xa000 - 4, accr, accr0,
 				mask, data, (u32) info->clkmgr_base,
-				(u32) info->dmc_base, (u32) dummy_addr);
-		__raw_writel(accr, info->clkmgr_base + ACCR_OFF);
-
-		/* wait until ACSR is changed */
-		do {
-			accr = __raw_readl(info->clkmgr_base + ACCR_OFF);
-			acsr = __raw_readl(info->clkmgr_base + ACSR_OFF);
-		} while ((((accr & mask) != data) || ((acsr & mask) != data)) ||
-				((accr & ACCR_AXIFS_MASK) >> ACCR_AXIFS_OFFSET !=
-					(acsr & ACSR_AXIFS_MASK) >> ACSR_AXIFS_OFFSET));
-
-		/* Write ACCR and ACCR0 one by one */
-		__raw_writel(accr0, info->clkmgr_base + ACCR0_OFF);
-		/* wait until ACSR0 is changed */
-		do {
-			acsr0 = __raw_readl(info->clkmgr_base + ACSR0_OFF);
-		} while (accr0 != acsr0);
+				(u32) info->dmc_base);
 	} else {
 		__raw_writel(accr, info->clkmgr_base + ACCR_OFF);
 		__raw_writel(accr1, info->clkmgr_base + ACCR1_OFF);
@@ -1590,17 +1599,13 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 			accr = __raw_readl(info->clkmgr_base + ACCR_OFF);
 			acsr = __raw_readl(info->clkmgr_base + ACSR_OFF);
 		} while ((((accr & mask) != data) || ((acsr & mask) != data)) ||
-				((accr & ACCR_AXIFS_MASK) >> ACCR_AXIFS_OFFSET !=
-				 (acsr & ACSR_AXIFS_MASK) >> ACSR_AXIFS_OFFSET));
+			((accr & ACCR_AXIFS_MASK) >> ACCR_AXIFS_OFFSET !=
+			 (acsr & ACSR_AXIFS_MASK) >> ACSR_AXIFS_OFFSET) ||
+			((accr & ACCR_GCFS_MASK) >> ACCR_GCFS_OFFSET
+			!= ((acsr & ACSR_GCFS_MASK) >> ACSR_GCFS_OFFSET)));
+		if (old->dmcfs != new->dmcfs)
+			polling_dmc(info);
 	}
-	do {
-		accr = __raw_readl(info->clkmgr_base + ACCR_OFF);
-		acsr = __raw_readl(info->clkmgr_base + ACSR_OFF);
-	} while (((accr & ACCR_GCFS_MASK) >> ACCR_GCFS_OFFSET
-		  != ((acsr & ACSR_GCFS_MASK) >> ACSR_GCFS_OFFSET)));
-	if (!cpu_is_pxa978() && old->dmcfs != new->dmcfs)
-		polling_dmc(info);
-
 	return 0;
 }
 
@@ -2022,31 +2027,23 @@ static int set_freq(void *driver_data, struct dvfm_md_opt *old,
 			mm_pll_enable(1);
 	}
 
-	if (!cpu_is_pxa978()) {
-		/* check whether new OP is single PLL mode */
-		if (new->dmcfs == 208 || new->dmcfs == 312)
-			low_ddr = 1;
-		else
-			low_ddr = 0;
+	/* check whether new OP is single PLL mode */
+	if (new->dmcfs == 208 || new->dmcfs == 312)
+		low_ddr = 1;
+	else
+		low_ddr = 0;
 
-		/* turn on Grayback PLL */
-		if (!low_ddr && !check_grayback_pll(info))
-			set_grayback_pll(info, 1);
-	}
+	/* turn on DDR PLL */
+	if (!low_ddr && !check_grayback_pll(info))
+		set_grayback_pll(info, 1);
 
 	if (cpu_is_pxa978())
 		pxa978_set_core_freq(info, old, new);
 	else
 		pxa95x_set_core_freq(info, old, new);
-
 	update_bus_freq(info, old, new);
-
-	if (!cpu_is_pxa978()) {
-		/* turn off Grayback PLL wen no need it */
-		if (low_ddr)
-			set_grayback_pll(info, 0);
-	}
-
+	if (low_ddr)
+		set_grayback_pll(info, 0);
 	if (cpu_is_pxa978()) {
 		/* turn off MM PLL if needed */
 		if ((new->gcfs < 498 && new->vmfc < 498) &&
@@ -3352,7 +3349,7 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 	int rc, user_index = -1;
 
 	sram_size = (128 * 1024);
-	sram_map = __arm_ioremap(ISRAM_START, sram_size, MT_MEMORY);
+	sram_map = (u32) __arm_ioremap(ISRAM_START, sram_size, MT_MEMORY_NONCACHED);
 
 	pxa95x_init_sram((unsigned int) sram_map + 0x9000);
 
@@ -3409,6 +3406,10 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 	l2_control_addr = ioremap(0x58120100, 0x4);
 
 	pxa95x_poweri2c_init(info);
+
+	if (cpu_is_pxa978())
+		mm_pll_freq = get_mm_pll_freq();
+
 	op_init(info, &pxa95x_dvfm_op_list);
 
 	rc = dvfm_register_driver(&pxa95x_driver, &pxa95x_dvfm_op_list);
@@ -3417,10 +3418,8 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 
 	CKENA &= ~(1 << CKEN_SMC | 1 << CKEN_NAND);
 
-	if (cpu_is_pxa978()) {
+	if (cpu_is_pxa978())
 		ForceVCTCXO_EN = 1;
-		mm_pll_freq = get_mm_pll_freq();
-	}
 
 	rc = dvfm_find_index("User", &user_index);
 	if (!rc) {
