@@ -3418,27 +3418,17 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 	CKENA &= ~(1 << CKEN_SMC | 1 << CKEN_NAND);
 
 	if (cpu_is_pxa978()) {
-		/* Set the DDR clock profiler register.
-		 * Maybe removed if this to be done in OBM.
-		 * Because we can't change profile setting
-		 * when using it, we need to change OP to
-		 * do it*/
-		pxa95x_request_op(info, 1);
-		DDR_CLK_PROFILES = DDR_CLK_PROFILES & ~0xcf;
-		pxa95x_request_op(info, 3);
-		DDR_CLK_PROFILES = DDR_CLK_PROFILES & ~0x30;
-
 		ForceVCTCXO_EN = 1;
 		mm_pll_freq = get_mm_pll_freq();
 	}
 
 	rc = dvfm_find_index("User", &user_index);
 	if (!rc) {
-		rc |= dvfm_disable_op_name("BOOT OP", user_index);
-		rc |= dvfm_disable_op_name("CUSTOM OP", user_index);
-		rc |= dvfm_disable_op_name("208M_HF", user_index);
-		rc |= dvfm_disable_op_name("312M", user_index);
-		rc |= dvfm_disable_op_name("416M_VGA", user_index);
+		rc |= dvfm_disable_op_name_no_change("BOOT OP", user_index);
+		rc |= dvfm_disable_op_name_no_change("CUSTOM OP", user_index);
+		rc |= dvfm_disable_op_name_no_change("208M_HF", user_index);
+		rc |= dvfm_disable_op_name_no_change("312M", user_index);
+		rc |= dvfm_disable_op_name_no_change("416M_VGA", user_index);
 		if (rc)
 			printk(KERN_ERR "Error disable op\n");
 
