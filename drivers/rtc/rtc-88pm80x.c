@@ -55,6 +55,7 @@ static long pm80x_rtcmon_ioctl(struct file *file, unsigned int cmd,
 	void __user *uarg = (void __user *)arg;
 	struct rtc_time tm = { 0 };
 	int ret = 0;
+
 	switch (cmd) {
 	case RTC_CHANGE_SUB:
 		{
@@ -387,6 +388,7 @@ static int __devinit pm80x_rtc_probe(struct platform_device *pdev)
 		goto out_rtc;
 	}
 #ifdef CONFIG_RTC_MON
+	g_pdev = pdev;
 	ret = misc_register(&rtcmon_miscdev);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "Failed to register rtcmon: %d\n", ret);
