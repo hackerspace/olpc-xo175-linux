@@ -34,6 +34,7 @@
 #include <linux/i2c/l3g4200d.h>
 #endif
 #include <linux/sd8x_rfkill.h>
+#include <linux/mmc/sdhci.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -787,6 +788,8 @@ static void __init yellowstone_init_mmc(void)
 	mmp3_add_sdh(2, &mmp3_sdh_platdata_mmc2); /* eMMC */
 
 	mfp_config(ARRAY_AND_SIZE(mmc1_pin_config));
+	if (cpu_is_mmp3_b0())
+		mmp3_sdh_platdata_mmc0.quirks = SDHCI_QUIRK_INVERTED_WRITE_PROTECT;
 	mmp3_add_sdh(0, &mmp3_sdh_platdata_mmc0); /* SD/MMC */
 
 	/* SDIO for WIFI card */
