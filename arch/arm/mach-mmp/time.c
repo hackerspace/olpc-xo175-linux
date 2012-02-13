@@ -84,14 +84,14 @@ static inline uint32_t timer_read(int counter)
 	if (counter) {
 		/* 32KHz timer */
 		do {
-			val = __raw_readl(TIMERS_VIRT_BASE + TMR_CR(2));
-			val2 = __raw_readl(TIMERS_VIRT_BASE + TMR_CR(2));
+			val = __raw_readl(TIMERS_VIRT_BASE + TMR_CR(1));
+			val2 = __raw_readl(TIMERS_VIRT_BASE + TMR_CR(1));
 		} while (val2 != val);
 	} else {
-		__raw_writel(1, TIMERS_VIRT_BASE + TMR_CVWR(2));
+		__raw_writel(1, TIMERS_VIRT_BASE + TMR_CVWR(0));
 		/* We should delay 3 times of ticks to get the timer update */
 		udelay(DELAY_US);
-		val =  __raw_readl(TIMERS_VIRT_BASE + TMR_CVWR(2));
+		val =  __raw_readl(TIMERS_VIRT_BASE + TMR_CVWR(0));
 	}
 
 	return val;
@@ -268,19 +268,16 @@ static void __init timer_config(void)
 	uint32_t cer = __raw_readl(TIMERS_VIRT_BASE + TMR_CER);
 	uint32_t cmr = __raw_readl(TIMERS_VIRT_BASE + TMR_CMR);
 
-	/* disable Timer 0 & 1 & 2*/
-	__raw_writel(cer & ~0x7, TIMERS_VIRT_BASE + TMR_CER);
+	/* disable Timer 0 & 1 */
+	__raw_writel(cer & ~0x3, TIMERS_VIRT_BASE + TMR_CER);
 
 	/* clock frequency from clock/reset control register for Timer 0 */
-	ccr &= ~0x7f;			/* Timer 0 (2-bit), Timer 1 (3-bit), Timer 2 (2-bit)) */
+	ccr &= ~0x1f;			/* Timer 0 (2-bit), Timer 1 (3-bit) */
 	ccr |= TMR_CCR_CS_1(1);		/* Timer 1 -- 32KHz */
-#ifdef CONFIG_PXA_32KTIMER
-	ccr |= TMR_CCR_CS_2(2);		/* Timer 2 -- 32KHz */
-#endif
 	__raw_writel(ccr, TIMERS_VIRT_BASE + TMR_CCR);
 
 	/* free-running mode */
-	__raw_writel(cmr | 0x07, TIMERS_VIRT_BASE + TMR_CMR);
+	__raw_writel(cmr | 0x03, TIMERS_VIRT_BASE + TMR_CMR);
 
 	__raw_writel(0x0, TIMERS_VIRT_BASE + TMR_PLCR(0)); /* free-running */
 	__raw_writel(0x7, TIMERS_VIRT_BASE + TMR_ICR(0));  /* clear status */
@@ -289,13 +286,10 @@ static void __init timer_config(void)
 	__raw_writel(0x0, TIMERS_VIRT_BASE + TMR_PLCR(1)); /* free-running */
 	__raw_writel(0x7, TIMERS_VIRT_BASE + TMR_ICR(1));  /* clear status */
 	__raw_writel(0x0, TIMERS_VIRT_BASE + TMR_IER(1));  /* disable int */
-	/* Timer 2 */
-	__raw_writel(0x0, TIMERS_VIRT_BASE + TMR_PLCR(2)); /* free-running */
-	__raw_writel(0x7, TIMERS_VIRT_BASE + TMR_ICR(2));  /* clear status */
-	__raw_writel(0x0, TIMERS_VIRT_BASE + TMR_IER(2));  /* disable int */
+
 
 	/* enable timer counter */
-	__raw_writel(cer | 0x07, TIMERS_VIRT_BASE + TMR_CER);
+	__raw_writel(cer | 0x03, TIMERS_VIRT_BASE + TMR_CER);
 }
 
 static struct irqaction timer_fast_irq = {
