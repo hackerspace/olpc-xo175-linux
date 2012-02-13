@@ -143,9 +143,6 @@ static int timer_set_next_event(unsigned long delta,
 				struct clock_event_device *dev)
 {
 	unsigned long flags, next;
-	uint32_t cer = __raw_readl(TIMERS_VIRT_BASE + TMR_CER);
-	uint32_t reg;
-	unsigned int i;
 
 	if (delta < MIN_DELTA)
 		delta = MIN_DELTA;
@@ -153,51 +150,19 @@ static int timer_set_next_event(unsigned long delta,
 	local_irq_save(flags);
 
 #ifdef CONFIG_PXA_32KTIMER
-	/* set preloader reg value */
-	__raw_writel(0, TIMERS_VIRT_BASE + TMR_PLVR(1));
-	/* disable clk counter */
-	__raw_writel(cer & ~0x2, TIMERS_VIRT_BASE + TMR_CER);
-	/* clear pending interrupt status */
-	__raw_writel(0x0, TIMERS_VIRT_BASE + TMR_IER(1));
-	__raw_writel(0x1, TIMERS_VIRT_BASE + TMR_ICR(1));
-	/* change clk source to 13M to fasten 2 wait cycle */
-	reg = __raw_readl(APBC_PXA168_TIMERS);
-	__raw_writel(reg & 0xf, APBC_PXA168_TIMERS);
-	reg = __raw_readl(TIMERS_VIRT_BASE + TMR_CCR);
-	__raw_writel(reg & 0x63, TIMERS_VIRT_BASE + TMR_CCR);
-	/*
-	 * If camera source is 13M, then 2 cycle is 155ns. For
-	 * 806M cpu, a nop operation takes 4/806 * 10 ^ 9 = 5ns.
-	 * So the circulate count is 155/5 = 31. Use 100 for safe.
-	 * */
-	for (i = 0; i < 100; i++)
-		__asm__ __volatile__("nop");
-	/* set delta value */
-	__raw_writel(delta - 2, TIMERS_VIRT_BASE + TMR_TN_MM(1,0));
-	/* change clk source back to 32.768K */
-	reg = __raw_readl(APBC_PXA168_TIMERS);
-	__raw_writel(reg | 0x30, APBC_PXA168_TIMERS);
-	reg = __raw_readl(TIMERS_VIRT_BASE + TMR_CCR);
-	__raw_writel(reg | 0x4, TIMERS_VIRT_BASE + TMR_CCR);
-	/* enable interrupt, timer counter */
-	__raw_writel(0x1, TIMERS_VIRT_BASE + TMR_IER(1));
-	__raw_writel(cer | 0x2, TIMERS_VIRT_BASE + TMR_CER);
+	/* clear pending interrupt status and enable */
+	__raw_writel(0x01, TIMERS_VIRT_BASE + TMR_ICR(1));
+	__raw_writel(0x01, TIMERS_VIRT_BASE + TMR_IER(1));
+
+	next = timer_read(1) + delta;
+	__raw_writel(next, TIMERS_VIRT_BASE + TMR_TN_MM(1, 0));
 #else
-	/* set preloader reg value */
-	__raw_writel(0, TIMERS_VIRT_BASE + TMR_PLVR(0));
-	/* disable clk counter */
-	__raw_writel(cer & ~0x1, TIMERS_VIRT_BASE + TMR_CER);
-	/* clear pending interrupt status */
-	__raw_writel(0x0, TIMERS_VIRT_BASE + TMR_IER(0));
-	__raw_writel(0x1, TIMERS_VIRT_BASE + TMR_ICR(0));
-	/* Use 200 to ensure 3.25M timer is also safe */
-	for (i = 0; i < 200; i++)
-		__asm__ __volatile__("nop");
-	/* set delta value */
-	__raw_writel(delta - 2, TIMERS_VIRT_BASE + TMR_TN_MM(0,0));
-	/* enable interrupt, timer counter */
-	__raw_writel(0x1, TIMERS_VIRT_BASE + TMR_IER(0));
-	__raw_writel(cer | 0x1, TIMERS_VIRT_BASE + TMR_CER);
+	/* clear pending interrupt status and enable */
+	__raw_writel(0x01, TIMERS_VIRT_BASE + TMR_ICR(0));
+	__raw_writel(0x01, TIMERS_VIRT_BASE + TMR_IER(0));
+
+	next = timer_read(0) + delta;
+	__raw_writel(next, TIMERS_VIRT_BASE + TMR_TN_MM(0, 0));
 #endif
 
 	local_irq_restore(flags);
