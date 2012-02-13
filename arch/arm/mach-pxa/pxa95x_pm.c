@@ -197,6 +197,11 @@ static struct pxa95x_pm_regs pxa95x_pm_regs;
 
 static unsigned long pm_state;
 
+/* for pm logger print */
+static unsigned int lpm_exit_timestamp;
+static void pm_log_wakeup_reason(unsigned int wakeup_data);
+static unsigned int pxa95x_get_gwsr(int reg_num);
+
 static u32 disable_sram_use;
 int get_pm_state(void)
 {
@@ -1028,7 +1033,7 @@ static unsigned int pm_postset_standby(void)
 	unsigned int wakeup_data;
 
 	wakeup_data = pm_query_wakeup_src();
-	/*dump_wakeup_src(&waked); */
+	pm_log_wakeup_reason(wakeup_data);
 
 	/* clear RDH */
 	ASCR &= ~ASCR_RDH;
@@ -1182,12 +1187,28 @@ static unsigned int pm_postset_clockgate(void)
 	unsigned int wakeup_data;
 
 	wakeup_data = pm_query_wakeup_src();
-	/*dump_wakeup_src(&waked); */
+	pm_log_wakeup_reason(wakeup_data);
 
 	pxa95x_clear_pm_status(0);
 	pm_clear_wakeup_src(wakeup_src);
 
 	return wakeup_data;
+}
+
+static void pm_log_wakeup_reason(unsigned int wakeup_data)
+{
+	int i;
+	unsigned int regs[6];
+
+	/* print if this is gpio wakeup */
+	if (wakeup_data & PXA95x_PM_WE_GENERIC(13)) {
+		for (i = 1; i <= 6; i++)
+			regs[i-1] = pxa95x_get_gwsr(i);
+
+		pm_logger_app_add_trace(7, PM_WAKEUP_GPIO, lpm_exit_timestamp,
+		regs[0], regs[1], regs[2], regs[3],
+		regs[4], regs[5]);
+	}
 }
 
 void enter_lowpower_mode(int state)
@@ -1300,6 +1321,7 @@ void enter_lowpower_mode(int state)
 			calc_switchtime(end_tick, start_tick);
 #endif
 
+			lpm_exit_timestamp = start_tick;
 			wakeup_data = pm_postset_standby();
 
 			pm_logger_app_add_trace(1, PM_D1_EXIT, start_tick, wakeup_data);
@@ -1428,6 +1450,7 @@ void enter_lowpower_mode(int state)
 			calc_switchtime(end_tick, start_tick);
 #endif
 			last_d2exit_time = start_tick;
+			lpm_exit_timestamp = start_tick;
 			wakeup_data = pm_postset_standby();
 			pm_logger_app_add_trace(1, PM_D2_EXIT, start_tick, wakeup_data);
 		} else
@@ -1535,6 +1558,7 @@ void enter_lowpower_mode(int state)
 			}
 
 			start_tick = OSCR4;
+			lpm_exit_timestamp = start_tick;
 #ifdef CONFIG_PXA95x_DVFM_STATS
 			calc_switchtime(end_tick, start_tick);
 #endif
@@ -2008,6 +2032,12 @@ int pxa95x_query_gwsr(int pin)
 	ret = __raw_readl(bpb_membase + GWSR(off));
 	ret = (ret >> (pin - (off - 1) * 32)) & 1;
 	return ret;
+}
+
+/* reg_num is in 1..6 */
+static unsigned int pxa95x_get_gwsr(int reg_num)
+{
+	return __raw_readl(bpb_membase + GWSR(reg_num));
 }
 
 static int __init pxa95x_pm_init(void)

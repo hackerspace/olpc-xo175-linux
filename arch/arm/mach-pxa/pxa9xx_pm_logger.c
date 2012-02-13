@@ -69,7 +69,9 @@ u8 *pm_logger_app_db[][MAX_DATA_NUM] = {
 	{"OP SET", "FREQ", "ACCR", "ACSR"},
 	{"C2 ENTRY"},
 	{"C2 EXIT", "ICHP"},
-	{"INFO"}
+	{"INFO"},
+	{"WAKEUP GPIO", "GWSR1", "GWSR2", "GWSR3",
+		"GWSR4", "GWSR5", "GWSR6"}
 };
 
 /* var to avoid a print because of previous print */

@@ -56,6 +56,22 @@ static u8 ***database;
 sync(24)+event num(8) - time stamp - arguments ...
 sync(24)+event num(8) - time stamp - arguments ... */
 
+/*
+ * Checks for the end of buffer
+ */
+static unsigned int is_pm_parser_end_of_buffer(int entry)
+{
+	int count = PM_PARSER_EOB_PATTERN_COUNT;
+
+	while (count > 0) {
+		if (pm_logger.buffer[(entry++) & (pm_logger.buffSize-1)] !=
+				PM_PARSER_EOB_PATTERN)
+			return 0;
+		count--;
+	}
+
+	return 1;
+}
 
 /*
  * Calculates the number of event arguments by counting the number
@@ -76,10 +92,8 @@ int get_pm_parser_args_num(int tsIndex)
 			PM_LOG_SYNC_PATTERN)
 			break;
 
-		/* 3 empty cells. end of buffer true values */
-		if ((pm_logger.buffer[entry] == 0) &&
-		(pm_logger.buffer[(entry+1) & (pm_logger.buffSize-1)] == 0) &&
-		(pm_logger.buffer[(entry+2) & (pm_logger.buffSize-1)] == 0))
+		/* check for end of buffer */
+		if (is_pm_parser_end_of_buffer(entry))
 			break;
 
 		args_num++; /* still arguments. increment count and continue  */
@@ -125,9 +139,20 @@ static int get_pm_parser_start_entry(void)
 /*
  * Checks if given string is equal to database name.
  */
-static int pm_parser_check_db_name(const char *db_name, const char *name)
+static unsigned int pm_parser_check_db_name(const char *db_name, const char *name)
 {
 	return (strlen(db_name) == strlen(name) && strcmp(db_name, name) == 0);
+}
+
+/*
+ * Check if parser print as unsigned int
+ */
+static unsigned int is_pm_parser_dec_print(const char *db_name)
+{
+	if (strlen(db_name) == 4 && strcmp(db_name, "FREQ") == 0)
+		return 1;
+
+	return 0;
 }
 
 /*
@@ -315,6 +340,8 @@ void pm_parser_display_log(int subsystem)
 
 				if (valstr != NULL)
 					printk(",%s:%s", dbstr, valstr);
+				else if (is_pm_parser_dec_print(dbstr))
+					printk(",%s:%u", dbstr, val);
 				else
 					printk(",%s:0x%x", dbstr, val);
 				i++;

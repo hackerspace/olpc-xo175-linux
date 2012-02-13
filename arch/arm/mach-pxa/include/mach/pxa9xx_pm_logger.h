@@ -18,7 +18,7 @@
 /* total buffer size (in cells) = *MUST* be an exponent of 2 */
 #define PM_LOGGER_BUFFER_SZ_DEFAULT ((1024*32) / sizeof(unsigned int))	/*32K */
 #define PM_LOGGER_BUFFER_SZ_MIN ((1024*8) / sizeof(unsigned int))	/*8K */
-#define PM_LOGGER_BUFFER_SZ_MAX ((1024*128) / sizeof(unsigned int))	/*128K */
+#define PM_LOGGER_BUFFER_SZ_MAX ((1024*1024) / sizeof(unsigned int))	/*1M */
 #define PM_LOG_SYNC_PATTERN 0x7E7E7E00
 #define MAX_DATA_NUM 10
 #define PM_LOG_EVENT_MASK 0xFF
@@ -54,8 +54,9 @@ struct pm_logger_descriptor {
 #define PM_C2_ENTRY 16
 #define PM_C2_EXIT 17
 #define PM_STRING 18
+#define PM_WAKEUP_GPIO 19
 
-#define PM_EVENTS_NUM 19
+#define PM_EVENTS_NUM 20
 
 /* start/stop */
 #define PM_LOGGER_STOP 0
