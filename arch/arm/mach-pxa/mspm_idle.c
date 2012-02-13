@@ -307,8 +307,11 @@ void mspm_do_idle(void)
 	int ret = -EINVAL;
 	unsigned int msec, ticks;
 	int delta;
-	if (ForceC0)
+
+	if (ForceC0) {
+		local_irq_enable();
 		return;
+	}
 
 	BUG_ON(!irqs_disabled());
 
