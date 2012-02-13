@@ -3625,8 +3625,8 @@ static int __init pxa95x_freq_init(void)
 	/* power is detemined by uboot */
 	/* Set before registration below otherwise pxa95x_freq_probe attempts
 	   to set op and call DVFM code */
-	PowerDisabled = cpu_is_pxa978() ? 1 : temp_PowerDisabled;
-	DvfmDisabled = cpu_is_pxa978() ? 1 : temp_DvfmDisabled;
+	PowerDisabled = temp_PowerDisabled;
+	DvfmDisabled = temp_DvfmDisabled;
 	printk(KERN_DEBUG "Initial power state: PowerDisabled = %d, DvfmDisabled = %d\n",
 	       PowerDisabled, DvfmDisabled);
 	ret = misc_register(&dvfm_misc_device);
