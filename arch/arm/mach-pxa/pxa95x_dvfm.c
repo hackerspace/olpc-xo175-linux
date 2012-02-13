@@ -1885,6 +1885,14 @@ static inline unsigned int corepll_freq2reg(unsigned int x)
 
 static volatile u32 __iomem *l2_base_addr;
 
+int is_wkr_nevo_2059(void)
+{
+	if (cpu_is_pxa978())
+		return 1;
+	else
+		return 0;
+}
+
 int is_wkr_nevo_1744(void)
 {
 	/* Will be fixed in D0 stepping */
@@ -2485,6 +2493,8 @@ static int op_init(void *driver_data, struct info_head *op_table)
 		memcpy(p->op, &proc->op_array[i], sizeof(struct dvfm_md_opt));
 		if (!cpu_is_pxa978())
 			md->core = 13 * md->xl * md->xn;
+		if (is_wkr_nevo_2059())
+			md->display = 312;
 		p->index = index++;
 		list_add_tail(&(p->list), &(op_table->list));
 	}
@@ -3419,8 +3429,10 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 		rc |= dvfm_disable_op_name_no_change("BOOT OP", user_index);
 		rc |= dvfm_disable_op_name_no_change("CUSTOM OP", user_index);
 		rc |= dvfm_disable_op_name_no_change("208M_HF", user_index);
-		rc |= dvfm_disable_op_name_no_change("312M", user_index);
 		rc |= dvfm_disable_op_name_no_change("416M_VGA", user_index);
+		rc |= dvfm_disable_op_name_no_change("1196M", user_index);
+		rc |= dvfm_disable_op_name_no_change("1404M", user_index);
+
 		if (rc)
 			printk(KERN_ERR "Error disable op\n");
 
