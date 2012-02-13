@@ -41,9 +41,6 @@
 #define DRIVER_AUTHOR "MARVELL"
 #define DRIVER_DESC "Power management event Parser"
 
-#define GET_DB_STRING(db, row, col) \
-	(u8 *)(*(db + row*MAX_DATA_NUM + col))
-
 /* module information */
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);

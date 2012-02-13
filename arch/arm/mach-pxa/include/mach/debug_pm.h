@@ -36,6 +36,29 @@ enum stats_clk_event {
 #include <linux/uaccess.h>
 #include <linux/seq_file.h>
 
+/* for pm logger dump*/
+struct pm_logger_header {
+	unsigned int app_table_size;
+	unsigned int op_table_size;
+	unsigned int dvfm_table_size;
+	unsigned int buffer_size;
+};
+
+struct pm_logger_buffer_descriptor {
+	char *buffer; /* main copy buffer */
+	unsigned int len;
+	struct pm_logger_header header;
+};
+
+extern struct proc_op_array *proc_op;
+
+#define EVENT_DB_ROW_MAGIC			0x44424C4E
+#define OP_TABLE_ROW_MAGIC			0x4F504C4E
+#define DEV_TABLE_ROW_MAGIC			0x44564C4E
+#define EVENT_DB_HEADER_MAGIC		0x45564442
+#define OP_TABLE_HEADER_MAGIC		0x4F505442
+#define DEV_TABLE_HEADER_MAGIC		0x44565442
+
 #ifdef CONFIG_DEBUG_FS
 #define LPM_NAMES_LEN 20
 extern const char pxa9xx_force_lpm_names__[][LPM_NAMES_LEN];

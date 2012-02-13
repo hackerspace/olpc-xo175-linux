@@ -6,10 +6,13 @@
 #include <mach/debug_pm.h>
 #include <asm/system.h>
 #include <asm/io.h>
+#include <asm/byteorder.h>
 #include <mach/hardware.h>
 #include <mach/pxa9xx_pm_logger.h>
 #include <mach/pxa9xx_pm_parser.h>
 #include <mach/regs-ost.h>
+#include <mach/dvfm.h>
+#include <mach/pxa95x_dvfm.h>
 
 #include <mach/mfp.h>
 #include <mach/mfp-pxa3xx.h>
@@ -91,6 +94,15 @@ static ssize_t PXA9xx_force_C0_write(struct file *file,
 							size_t count,
 							loff_t *ppos);
 
+static ssize_t PXA9xx_pm_logger_buffer_read(struct file *file,
+							char __user *userbuf,
+							size_t count,
+							loff_t *ppos);
+static int PXA9xx_pm_logger_buffer_open(struct inode *inode,
+							struct file *file);
+static int PXA9xx_pm_logger_buffer_release(struct inode *inode,
+							struct file *file);
+
 /* The exec names of the enum defined in debug_pm.h */
 const char pxa9xx_force_lpm_names__[][LPM_NAMES_LEN] = {
 	"PXA9xx_Force_None",
@@ -103,7 +115,8 @@ static struct dentry *dbgfs_root, *pmLogger_file, *forceVCTCXO_EN_file,
 			*ForceLPM_file, *MeasureCoreFreq_file,
 			*profilerRecommendation_file, *GcVmetaStats_file,
 			*PI2C_file,
-			*ForceC0_file;
+			*ForceC0_file,
+			*pmLoggerBuffer_file;
 
 uint32_t ForceLPMWakeups_tmp;
 uint32_t ForceLPM_tmp;
@@ -158,6 +171,13 @@ static const struct file_operations PXA9xx_file_op_MeasureCoreFreq = {
 	.llseek = seq_lseek,
 	.release = single_release,
 	.open = pxa_9xx_power_MeasureCoreFreq_open,
+};
+
+static const struct file_operations PXA9xx_file_buffer_pmLogger = {
+	.owner = THIS_MODULE,
+	.read = PXA9xx_pm_logger_buffer_read,
+	.open = PXA9xx_pm_logger_buffer_open,
+	.release = PXA9xx_pm_logger_buffer_release,
 };
 
 void print_pm_logger_usage()
@@ -802,6 +822,202 @@ static int pxa_9xx_power_MeasureCoreFreq_open(struct inode *inode,
 	return single_open(file, MeasureCoreFreq, NULL);
 }
 
+static int start_status = PM_LOGGER_STOP;
+static struct pm_logger_buffer_descriptor  pm_logger_buffer;
+
+/*
+ * Open - copy all data to be dumped to buffer.
+ */
+static int PXA9xx_pm_logger_buffer_open(struct inode *inode,
+							struct file *file)
+{
+	size_t size = 0, tmp_size;
+	char *dst_buff, *logger_buff, *tmp_buff;
+	struct dvfm_trace_info *dev_ptr;
+	unsigned char ***database;
+	int event, i;
+	unsigned int magic;
+
+	/* stop logger before dumping data */
+	start_status = get_pm_logger_app_status();
+	pm_logger_app_stop();
+
+	/* calculate buffer size */
+	/* logger size */
+	tmp_size =  get_pm_logger_app_buffSize()*sizeof(unsigned int);
+	size += tmp_size;
+	pm_logger_buffer.header.buffer_size = tmp_size;
+
+	/* event database size */
+	database = get_pm_logger_app_db();
+	tmp_size = sizeof(unsigned int);
+	for (event = 0; event < PM_EVENTS_NUM; event++) {
+		tmp_size += sizeof(unsigned int);
+		for (i = 0; i < MAX_DATA_NUM; i++) {
+			char *dbstr = GET_DB_STRING(database, event, i);
+			if (NULL != dbstr)
+				tmp_size += strlen(dbstr);
+			tmp_size += sizeof(unsigned char);
+		}
+	}
+	size += tmp_size;
+	pm_logger_buffer.header.app_table_size = tmp_size - 4;
+
+	/* op table size */
+	tmp_size = sizeof(unsigned int);
+	tmp_size += ((OP_NAME_LEN +
+			sizeof(unsigned int)) * proc_op->nr_op);
+	size += tmp_size;
+	pm_logger_buffer.header.op_table_size = tmp_size - 4;
+
+	/* dvfm trace list */
+	tmp_size = sizeof(unsigned int);
+	read_lock(&dvfm_trace_list.lock);
+	list_for_each_entry(dev_ptr, &dvfm_trace_list.list,	list) {
+		if (dev_ptr != NULL) {
+			tmp_size += sizeof(unsigned int); /* row magic */
+			tmp_size += sizeof(unsigned char) + DVFM_MAX_NAME;
+					/* index + DVFM_MAX_NAME */
+		}
+	}
+	read_unlock(&dvfm_trace_list.lock);
+	size += tmp_size;
+	pm_logger_buffer.header.dvfm_table_size = tmp_size - 4;
+
+	/* allocate buffer and copy data to it */
+	dst_buff = kzalloc(size, GFP_KERNEL);
+	if (dst_buff == ZERO_SIZE_PTR)
+		return -1;
+
+	tmp_buff = dst_buff;
+
+	/* logger data */
+	logger_buff = (char *)get_pm_logger_app_buffer();
+	memcpy(tmp_buff, logger_buff, pm_logger_buffer.header.buffer_size);
+	tmp_buff += pm_logger_buffer.header.buffer_size;
+
+	/* event database data */
+	magic = htonl(EVENT_DB_HEADER_MAGIC);
+	memcpy(tmp_buff, &magic, sizeof(unsigned int));
+	tmp_buff += sizeof(unsigned int);
+	for (event = 0; event < PM_EVENTS_NUM; event++) {
+		magic = htonl(EVENT_DB_ROW_MAGIC);
+		memcpy(tmp_buff, &magic, sizeof(unsigned int));
+		tmp_buff += sizeof(unsigned int);
+		for (i = 0; i < MAX_DATA_NUM; i++) {
+			char *dbstr = GET_DB_STRING(database, event, i);
+			if (NULL != dbstr) {
+				size_t len = strlen(dbstr);
+				memcpy(tmp_buff, dbstr, len);
+				tmp_buff += len;
+			}
+			*tmp_buff++ = 0;
+		}
+	}
+
+	/* op table data */
+	magic = htonl(OP_TABLE_HEADER_MAGIC);
+	memcpy(tmp_buff, &magic, sizeof(unsigned int));
+	tmp_buff += sizeof(unsigned int);
+	for (i = 0; i < proc_op->nr_op; i++) {
+		magic = htonl(OP_TABLE_ROW_MAGIC);
+		memcpy(tmp_buff, &magic, sizeof(unsigned int));
+		tmp_buff += sizeof(unsigned int);
+		memcpy(tmp_buff, &proc_op->op_array[i].name,
+				OP_NAME_LEN);
+		tmp_buff += OP_NAME_LEN;
+	}
+
+	/* dvfm trace list data */
+	magic = htonl(DEV_TABLE_HEADER_MAGIC);
+	memcpy(tmp_buff, &magic, sizeof(unsigned int));
+	tmp_buff += sizeof(unsigned int);
+	read_lock(&dvfm_trace_list.lock);
+	list_for_each_entry(dev_ptr, &dvfm_trace_list.list, list) {
+		if (dev_ptr != NULL) {
+			magic = htonl(DEV_TABLE_ROW_MAGIC);
+			memcpy(tmp_buff, &magic, sizeof(unsigned int));
+			tmp_buff += sizeof(unsigned int);
+			*tmp_buff++ = (unsigned char)dev_ptr->index;
+			memcpy(tmp_buff, dev_ptr->name, DVFM_MAX_NAME);
+			tmp_buff += DVFM_MAX_NAME;
+		}
+	}
+	read_unlock(&dvfm_trace_list.lock);
+
+	pm_logger_buffer.buffer = dst_buff;
+	pm_logger_buffer.len = size;
+	file->private_data = &pm_logger_buffer;
+	return 0;
+}
+
+/*
+ * Read - hex dump buffer.
+ * Format is: "PM01234 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF\n"
+ */
+static ssize_t PXA9xx_pm_logger_buffer_read(struct file *file,
+							char __user *userbuf,
+							size_t count,
+							loff_t *ppos)
+{
+	ssize_t ret;
+	int pos = 0, ofs = 0, buf_size = 0;
+	struct pm_logger_buffer_descriptor *desc = file->private_data;
+	const u8 *ptr;
+	char *buf;
+	size_t pm_buff_len = desc->len;
+
+	/* allocate size according to following calc:
+	 * 16 bytes per line in dump
+	 * 3 bytes per each + foreach line PM+offset+\n +
+	 * 16 bytes to protect allocation from misaligned copy */
+	buf_size = (3 * pm_buff_len) + ((pm_buff_len/16) * (2+5+1)) + 16;
+	ptr = desc->buffer;
+	if (!ptr) {
+		printk(KERN_WARNING "Invalid Buffer\n");
+		return -ENOMEM;
+	}
+	buf = kzalloc(buf_size, GFP_KERNEL);
+	if (!buf) {
+		printk(KERN_WARNING "Can not allocate Buffer\n");
+		return -ENOMEM;
+	}
+	pos += scnprintf(buf + pos, buf_size - pos, "\nPM Logger dump\n");
+
+	/* dump each line */
+	for (ofs = 0 ; ofs < pm_buff_len ; ofs += 16) {
+		pos += scnprintf(buf + pos, buf_size - pos, "PM%05x ", ofs);
+		hex_dump_to_buffer(ptr + ofs, 16 , 16, 1, buf + pos,
+			buf_size - pos, 0);
+		pos += strlen(buf + pos);
+		if (buf_size - pos > 0)
+			buf[pos++] = '\n';
+	}
+
+	ret = simple_read_from_buffer(userbuf, count, ppos, buf, pos);
+	kfree(buf);
+	return ret;
+}
+
+/*
+ * Release - restart logger if needed, release memory
+ */
+static int PXA9xx_pm_logger_buffer_release(struct inode *inode,
+							struct file *file)
+{
+	struct pm_logger_buffer_descriptor *desc;
+
+	if (PM_LOGGER_START == start_status) {
+		pm_logger_app_start();
+		start_status = PM_LOGGER_STOP;
+	}
+
+	desc  = file->private_data;
+	kfree(desc->buffer);
+
+	return 0;
+}
+
 /********************************************************/
 
 #define UINT8_T char
@@ -1171,6 +1387,13 @@ void pxa_9xx_power_init_debugfs(void)
 							dbgfs_root, NULL,
 							&PXA9xx_file_op_gc_vmeta_stats);
 		if (!GcVmetaStats_file)
+			errRet = -EINVAL;
+
+		pmLoggerBuffer_file = debugfs_create_file("pmLoggerData",
+						0400, dbgfs_root,
+						&pm_logger_buffer,
+						&PXA9xx_file_buffer_pmLogger);
+		if (!pmLoggerBuffer_file)
 			errRet = -EINVAL;
 
 		if (errRet) {

@@ -78,6 +78,13 @@ typedef struct {
 } pxa95x_DVFM_LPM_Global_Count;
 /* end of defines for debug */
 
+struct proc_op_array {
+	unsigned int chip_id;
+	char *cpu_name;
+	struct dvfm_md_opt *op_array;
+	unsigned int nr_op;
+};
+
 enum {
 	POWER_MODE_D0 = 0,
 	POWER_MODE_D1,

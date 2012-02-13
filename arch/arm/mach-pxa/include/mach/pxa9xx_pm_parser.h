@@ -19,6 +19,9 @@
 #define PM_PARSER_EOB_PATTERN_COUNT 10
 #define PM_PARSER_EOB_PATTERN 0x00000000
 
+#define GET_DB_STRING(db, row, col) \
+	(u8 *)(*(db + row*MAX_DATA_NUM + col))
+
 extern struct info_head dvfm_trace_list;
 extern struct info_head pxa95x_dvfm_op_list;
 

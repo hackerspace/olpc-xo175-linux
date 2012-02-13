@@ -506,12 +506,8 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.name = "CG",
 	},
 };
-struct proc_op_array {
-	unsigned int chip_id;
-	char *cpu_name;
-	struct dvfm_md_opt *op_array;
-	unsigned int nr_op;
-};
+
+struct proc_op_array *proc_op;
 
 static struct proc_op_array proc_op_arrays[] = {
 	{0x2600, "pxa955", ARRAY_AND_SIZE(pxa955_op_array)},
@@ -2519,6 +2515,7 @@ static int op_init(void *driver_data, struct info_head *op_table)
 		write_unlock_irqrestore(&op_table->lock, flags);
 		return -EIO;
 	} else {
+		proc_op = proc;
 		printk("initializing op table for %s\n", proc->cpu_name);
 	}
 	for (i = 0, index = 0; i < proc->nr_op; i++) {
