@@ -123,6 +123,60 @@ static int get_pm_parser_start_entry(void)
 }
 
 /*
+ * Checks if given string is equal to database name.
+ */
+static int pm_parser_check_db_name(const char *db_name, const char *name)
+{
+	return (strlen(db_name) == strlen(name) && strcmp(db_name, name) == 0);
+}
+
+/*
+ * Returns device name on given index.
+ */
+static char *pm_parser_get_dev_name(unsigned int index)
+{
+	char *ret = NULL;
+	struct dvfm_trace_info *dev_ptr = NULL;
+
+	read_lock(&dvfm_trace_list.lock);
+	list_for_each_entry(dev_ptr, &dvfm_trace_list.list,	list) {
+		if (dev_ptr != NULL) {
+			if ((unsigned int)dev_ptr->index == index) {
+				ret = dev_ptr->name;
+				break;
+			}
+		}
+	}
+	read_unlock(&dvfm_trace_list.lock);
+	return ret;
+}
+
+/*
+ * Returns OP name on given index.
+ */
+static char *pm_parser_get_op_name(unsigned int index)
+{
+	char *ret = NULL;
+	struct op_info *opinfo_ptr = NULL;
+	struct dvfm_md_opt *op_ptr = NULL;
+
+	read_lock(&pxa95x_dvfm_op_list.lock);
+	list_for_each_entry(opinfo_ptr, &pxa95x_dvfm_op_list.list, list) {
+		if (opinfo_ptr != NULL) {
+			if ((unsigned int)opinfo_ptr->index == index) {
+				op_ptr = (struct dvfm_md_opt *) opinfo_ptr->op;
+				if (op_ptr != NULL)	{
+					ret = op_ptr->name;
+					break;
+				}
+			}
+		}
+	}
+	read_unlock(&pxa95x_dvfm_op_list.lock);
+	return ret;
+}
+
+/*
  * Display buffer content. use database to display event and
  * registers' names.
  */
@@ -131,9 +185,6 @@ void pm_parser_display_log(int subsystem)
 
 	int first_entry, entry, i, args_num, start_status = PM_LOGGER_STOP;
 	u32 ts = 0, event, first_ts, total_time;
-	struct dvfm_trace_info *dev_ptr;
-	struct op_info *opinfo_ptr;
-	struct dvfm_md_opt *op_ptr;
 	const char *dbstr;
 	char *valstr;
 	unsigned int val;
@@ -200,58 +251,30 @@ void pm_parser_display_log(int subsystem)
 		} else
 			printk(",%x", event); /* event number */
 
+		/* print arguments */
 		while (args_num) {
-			/* print strings from database */
 			dbstr = GET_DB_STRING(database, event, i);
 			val = pm_logger.buffer[entry];
 			valstr = NULL;
 			if (dbstr != NULL) {
-				if (strlen(dbstr) == 3
-				&& strcmp(dbstr, "DEV") == 0) {
-					read_lock(&dvfm_trace_list.lock);
-					list_for_each_entry(dev_ptr,
-						&dvfm_trace_list.list,
-						list)
-					{
-						if ((unsigned int)dev_ptr->index == val) {
-							valstr = dev_ptr->name;
-							break;
-						}
-					}
-					read_unlock(&dvfm_trace_list.lock);
-				} else if (strlen(dbstr) == 2
-						&& strcmp(dbstr, "OP") == 0) {
-					read_lock(&pxa95x_dvfm_op_list.lock);
-					list_for_each_entry(opinfo_ptr,
-						&pxa95x_dvfm_op_list.list,
-						list)
-					{
-						if ((unsigned int)opinfo_ptr->index == val) {
-							op_ptr = (struct dvfm_md_opt *) opinfo_ptr->op;
-							if (op_ptr != NULL)	{
-								valstr = op_ptr->name;
-								break;
-							}
-						}
-					}
-					read_unlock(&pxa95x_dvfm_op_list.lock);
-				}
+				if (pm_parser_check_db_name(dbstr, "DEV"))
+					valstr = pm_parser_get_dev_name(val);
+				else if (pm_parser_check_db_name(dbstr, "OP"))
+					valstr = pm_parser_get_op_name(val);
 
 				if (valstr != NULL)
 					printk(",%s:%s", dbstr, valstr);
 				else
 					printk(",%s:0x%x", dbstr, val);
 				i++;
-			} else {
-				/* information is not found in database.
-				print raw data instead */
+			} else
 				printk(",raw data:0x%x",
 					pm_logger.buffer[entry]);
-			}
 
 			entry = (entry+1) & (pm_logger.buffSize-1);
 			args_num--;
 		}
+
 		printk("\n");
 	} while (entry != first_entry);
 
