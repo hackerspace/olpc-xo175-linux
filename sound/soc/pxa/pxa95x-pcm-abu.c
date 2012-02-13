@@ -94,7 +94,7 @@ static void pxa95x_pcm_abu_set_dvfm_constraint(int abu_dev_idx,
 	pxa95x_pcm_abu_stop_calc_time(p_ctx);
 
 	/* Disable Lowpower mode */
-	dvfm_disable_op_name("D1", abu_dev_idx);
+	dvfm_disable_op_name_no_change("D1", abu_dev_idx);
 }
 
 static void pxa95x_pcm_abu_unset_dvfm_constraint(int abu_dev_idx,
@@ -106,7 +106,7 @@ static void pxa95x_pcm_abu_unset_dvfm_constraint(int abu_dev_idx,
 	pxa95x_pcm_abu_start_calc_time(p_ctx);
 
 	/* Enable Lowpower mode */
-	dvfm_enable_op_name("D1", abu_dev_idx);
+	dvfm_enable_op_name_no_change("D1", abu_dev_idx);
 }
 
 static inline struct abu_device_ctx *pxa95x_pcm_abu_get_ctx(struct

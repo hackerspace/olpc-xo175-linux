@@ -3138,7 +3138,7 @@ long dvfm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			BUG_ON(1);
 			break;
 		}
-		dvfm_enable_op_name("D2", disable_idx);
+		dvfm_enable_op_name_no_change("D2", disable_idx);
 		rc = dvfm_find_index("SHMEM", &disable_idx);
 		if (rc != 0) {
 			printk(KERN_ERR "%s (%d) failed get SHMEM index from"
@@ -3146,7 +3146,7 @@ long dvfm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			BUG_ON(1);
 			break;
 		}
-		dvfm_enable_op_name("D2", disable_idx);
+		dvfm_enable_op_name_no_change("D2", disable_idx);
 		break;
 
 	case POWER_DISABLE:

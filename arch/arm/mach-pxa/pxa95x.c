@@ -1548,44 +1548,51 @@ int pxa95x_vmeta_set_dvfm_constraint(struct vmeta_instance *vi, int idx)
 		return -1;
 	}
 
-	dvfm_disable_op_name("156M", idx);
-	dvfm_disable_op_name("156M_HF", idx);
-	dvfm_disable_op_name("988M", idx);
-
 	vi->vop_real = vi->vop;
-	switch (vi->vop_real) {
-	case VMETA_OP_VGA:
-		dvfm_enable_op_name("208M_HF", idx);
-		dvfm_enable_op_name("416M_VGA", idx);
-		dvfm_disable_op_name("416M", idx);
-		break;
-	case VMETA_OP_VGA+1:
-		dvfm_disable_op_name("416M", idx);
-		dvfm_enable_op_name("416M_VGA", idx);
-		dvfm_disable_op_name("208M_HF", idx);
-		break;
-	case VMETA_OP_VGA+2:
-		dvfm_disable_op_name("416M", idx);
-		dvfm_disable_op_name("208M_HF", idx);
-		dvfm_disable_op_name("416M_VGA", idx);
-		break;
-	case VMETA_OP_720P:
-	case VMETA_OP_INVALID:
-		dvfm_disable_op_name("208M_HF", idx);
-		dvfm_disable_op_name("416M_VGA", idx);
-		break;
-	case VMETA_OP_720P+1:
-		dvfm_disable_op_name("208M_HF", idx);
-		dvfm_disable_op_name("416M_VGA", idx);
-		dvfm_disable_op_name("416M", idx);
-		break;
-	case VMETA_OP_720P+2:
-	default:
-		dvfm_disable_op_name("208M_HF", idx);
-		dvfm_disable_op_name("416M_VGA", idx);
-		dvfm_disable_op_name("416M", idx);
+
+	if (!cpu_is_pxa978()) {
+		dvfm_disable_op_name("156M", idx);
+		dvfm_disable_op_name("156M_HF", idx);
+		dvfm_disable_op_name("988M", idx);
+
+		switch (vi->vop_real) {
+		case VMETA_OP_VGA:
+			dvfm_enable_op_name("208M_HF", idx);
+			dvfm_enable_op_name("416M_VGA", idx);
+			dvfm_disable_op_name("416M", idx);
+			break;
+		case VMETA_OP_VGA+1:
+			dvfm_disable_op_name("416M", idx);
+			dvfm_enable_op_name("416M_VGA", idx);
+			dvfm_disable_op_name("208M_HF", idx);
+			break;
+		case VMETA_OP_VGA+2:
+			dvfm_disable_op_name("416M", idx);
+			dvfm_disable_op_name("208M_HF", idx);
+			dvfm_disable_op_name("416M_VGA", idx);
+			break;
+		case VMETA_OP_720P:
+		case VMETA_OP_INVALID:
+			dvfm_disable_op_name("208M_HF", idx);
+			dvfm_disable_op_name("416M_VGA", idx);
+			break;
+		case VMETA_OP_720P+1:
+			dvfm_disable_op_name("208M_HF", idx);
+			dvfm_disable_op_name("416M_VGA", idx);
+			dvfm_disable_op_name("416M", idx);
+			break;
+		case VMETA_OP_720P+2:
+		default:
+			dvfm_disable_op_name("208M_HF", idx);
+			dvfm_disable_op_name("416M_VGA", idx);
+			dvfm_disable_op_name("416M", idx);
+			dvfm_disable_op_name("624M", idx);
+			break;
+		}
+	} else {
 		dvfm_disable_op_name("624M", idx);
-		break;
+		dvfm_disable_op_name("312M", idx);
+		dvfm_disable_op_name("156M", idx);
 	}
 
 	return 0;
@@ -1593,34 +1600,39 @@ int pxa95x_vmeta_set_dvfm_constraint(struct vmeta_instance *vi, int idx)
 
 int pxa95x_vmeta_unset_dvfm_constraint(struct vmeta_instance *vi, int idx)
 {
-	dvfm_enable_op_name("156M", idx);
-	dvfm_enable_op_name("156M_HF", idx);
-	dvfm_enable_op_name("624M", idx);
-	dvfm_enable_op_name("988M", idx);
+	if (!cpu_is_pxa978()) {
+		dvfm_enable_op_name("156M", idx);
+		dvfm_enable_op_name("156M_HF", idx);
+		dvfm_enable_op_name("624M", idx);
+		dvfm_enable_op_name("988M", idx);
 
-	/* It's already power off, e.g. in pause case */
-	if (vi->power_status == 0)
-		vi->vop_real = VMETA_OP_INVALID;
+		/* It's already power off, e.g. in pause case */
+		if (vi->power_status == 0)
+			vi->vop_real = VMETA_OP_INVALID;
 
-	switch (vi->vop_real) {
-	case VMETA_OP_VGA:
-	case VMETA_OP_VGA+1:
-	case VMETA_OP_VGA+2:
-		dvfm_disable_op_name("416M", idx);
-		dvfm_enable_op_name("208M_HF", idx);
-		dvfm_enable_op_name("416M_VGA", idx);
-		break;
-	case VMETA_OP_720P:
-	case VMETA_OP_720P+1:
-	case VMETA_OP_720P+2:
-	case VMETA_OP_INVALID:
-	default:
-		dvfm_disable_op_name("208M_HF", idx);
-		dvfm_disable_op_name("416M_VGA", idx);
-		dvfm_enable_op_name("416M", idx);
-		break;
+		switch (vi->vop_real) {
+		case VMETA_OP_VGA:
+		case VMETA_OP_VGA+1:
+		case VMETA_OP_VGA+2:
+			dvfm_disable_op_name("416M", idx);
+			dvfm_enable_op_name("208M_HF", idx);
+			dvfm_enable_op_name("416M_VGA", idx);
+			break;
+		case VMETA_OP_720P:
+		case VMETA_OP_720P+1:
+		case VMETA_OP_720P+2:
+		case VMETA_OP_INVALID:
+		default:
+			dvfm_disable_op_name("208M_HF", idx);
+			dvfm_disable_op_name("416M_VGA", idx);
+			dvfm_enable_op_name("416M", idx);
+			break;
+		}
+	} else {
+		dvfm_enable_op_name("156M", idx);
+		dvfm_enable_op_name("312M", idx);
+		dvfm_enable_op_name("624M", idx);
 	}
-
 	vi->vop_real = VMETA_OP_INVALID;
 
 	return 0;
@@ -1730,18 +1742,24 @@ static struct dvfm_lock dvfm_lock = {
 	.count = 0,
 };
 
-static void vmeta_power_timer_handler(unsigned long data)
+static void vmeta_work_handler(struct work_struct *work)
 {
-	struct vmeta_instance *vi = (struct vmeta_instance *)data;
 	int ret;
+	struct vmeta_instance *vi = container_of(work,
+						 struct vmeta_instance,
+						 unset_op_work.work);
 	spin_lock(&dvfm_lock.lock);
 	if (dvfm_lock.count == 0) {
+		spin_unlock(&dvfm_lock.lock);
+		mutex_lock(&vi->mutex);
 		ret = pxa95x_vmeta_unset_dvfm_constraint(vi, dvfm_lock.dev_idx);
 		if (ret) {
 			printk(KERN_ERR "vmeta dvfm enable error with %d\n",
-				ret);
+			       ret);
 		}
 		vi->power_constraint = 0;
+		mutex_unlock(&vi->mutex);
+		return;
 	}
 	spin_unlock(&dvfm_lock.lock);
 }
@@ -1751,6 +1769,7 @@ int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
 	if (1 == on) {
 		spin_lock(&dvfm_lock.lock);
 		if (dvfm_lock.count++ == 0) {
+			spin_unlock(&dvfm_lock.lock);
 		/* Disable dvfm for now for MG1,
 		 * todo: later should try to restore to optimize for power */
 			ret = pxa95x_vmeta_set_dvfm_constraint(vi,
@@ -1759,12 +1778,11 @@ int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
 				printk(KERN_ERR
 				"vmeta dvfm disable error with %d\n", ret);
 			vi->power_constraint = 1;
-			if (timer_pending(&vi->power_timer))
-				del_timer(&vi->power_timer);
+			cancel_delayed_work_sync(&vi->unset_op_work);
 		} else {
 			dvfm_lock.count--;
+			spin_unlock(&dvfm_lock.lock);
 		}
-		spin_unlock(&dvfm_lock.lock);
 	} else if (0 == on) {
 		spin_lock(&dvfm_lock.lock);
 		if (dvfm_lock.count == 0) {
@@ -1772,10 +1790,16 @@ int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
 			return 0;
 		}
 		if (--dvfm_lock.count == 0) {
-			vi->power_timer.expires = jiffies +
-			msecs_to_jiffies(vmeta_plat_data.power_down_ms);
-			if (!timer_pending(&vi->power_timer))
-				add_timer(&vi->power_timer);
+			if (timer_pending(&vi->unset_op_work.timer))
+				mod_timer(&vi->unset_op_work.timer,
+					  jiffies + msecs_to_jiffies
+					  (vmeta_plat_data.power_down_ms));
+			else
+				schedule_delayed_work_on(0,
+							 &vi->unset_op_work,
+							 msecs_to_jiffies(
+							 vmeta_plat_data.
+							 power_down_ms));
 		} else
 			dvfm_lock.count++;
 		spin_unlock(&dvfm_lock.lock);
@@ -1785,10 +1809,7 @@ int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
 int vmeta_init_constraint(struct vmeta_instance *vi)
 {
 	int ret;
-
-	init_timer(&vi->power_timer);
-	vi->power_timer.data = (unsigned long)vi;
-	vi->power_timer.function = vmeta_power_timer_handler;
+	INIT_DELAYED_WORK(&vi->unset_op_work, vmeta_work_handler);
 	vmeta_plat_data.power_down_ms = 10;
 
 	ret = dvfm_register("VMETA", &dvfm_lock.dev_idx);

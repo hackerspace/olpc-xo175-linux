@@ -470,9 +470,9 @@ static void set_dvfm_constraint(void)
 	spin_lock_irqsave(&dvfm_lock.lock, dvfm_lock.flags);
 	if (dvfm_lock.count++ == 0) {
 		/* Disable lowpower mode */
-		dvfm_disable_op_name("D1", dvfm_lock.dev_idx);
-		dvfm_disable_op_name("D2", dvfm_lock.dev_idx);
-		dvfm_disable_op_name("CG", dvfm_lock.dev_idx);
+		dvfm_disable_op_name_no_change("D1", dvfm_lock.dev_idx);
+		dvfm_disable_op_name_no_change("D2", dvfm_lock.dev_idx);
+		dvfm_disable_op_name_no_change("CG", dvfm_lock.dev_idx);
 	}
 	spin_unlock_irqrestore(&dvfm_lock.lock, dvfm_lock.flags);
 }
@@ -484,9 +484,9 @@ static void unset_dvfm_constraint(void)
 		printk(KERN_WARNING "Keypad constraint has been removed.\n");
 	} else if (--dvfm_lock.count == 0) {
 		/* Enable lowpower mode */
-		dvfm_enable_op_name("D1", dvfm_lock.dev_idx);
-		dvfm_enable_op_name("D2", dvfm_lock.dev_idx);
-		dvfm_enable_op_name("CG", dvfm_lock.dev_idx);
+		dvfm_enable_op_name_no_change("D1", dvfm_lock.dev_idx);
+		dvfm_enable_op_name_no_change("D2", dvfm_lock.dev_idx);
+		dvfm_enable_op_name_no_change("CG", dvfm_lock.dev_idx);
 	}
 	spin_unlock_irqrestore(&dvfm_lock.lock, dvfm_lock.flags);
 }
