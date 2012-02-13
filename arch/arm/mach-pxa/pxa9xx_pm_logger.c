@@ -68,7 +68,8 @@ u8 *pm_logger_app_db[][MAX_DATA_NUM] = {
 	{"OP DIS NO CHANGE", "OP", "DEV"},
 	{"OP SET", "FREQ", "ACCR", "ACSR"},
 	{"C2 ENTRY"},
-	{"C2 EXIT", "ICHP"}
+	{"C2 EXIT", "ICHP"},
+	{"INFO"}
 };
 
 /* var to avoid a print because of previous print */
@@ -403,5 +404,115 @@ void turn_on_pm_logger_print(void)
 {
 	pm_logger_print = 1;
 }
+
+/*
+ * Add string aligned to 32-bit, ending with 0.
+ */
+static unsigned int pm_logger_app_add_string(unsigned int entry, char *string)
+{
+	size_t size;
+	int word_size;
+
+	size = strlen(string) + 1;
+	word_size = ((size-1) / sizeof(unsigned int)) + 1;
+
+	/* split string */
+	if ((entry + word_size) > pm_logger_app.buffSize) {
+		int first_size = (pm_logger_app.buffSize - entry)*
+				sizeof(unsigned int);
+		memcpy((void *)(&pm_logger_app.buffer[entry]),
+				string, first_size);
+		string += first_size;
+		memset((void *)(&pm_logger_app.buffer[0]), 0,
+				(word_size*sizeof(unsigned int)) - first_size);
+		memcpy((void *)(&pm_logger_app.buffer[0]),
+				string, size - first_size);
+	} /* regular string copy */
+	else {
+		memset((void *)(&pm_logger_app.buffer[entry]), 0,
+				word_size*sizeof(unsigned int));
+		memcpy((void *)(&pm_logger_app.buffer[entry]),
+				string, size);
+	}
+
+	return word_size;
+}
+
+/*
+ * Add string trace, arguments recieved in array.
+ */
+void pm_logger_app_add_temp_trace_array(unsigned int num_args,
+				unsigned int timeStamp,
+				char *string,
+				unsigned int *var_array)
+{
+	int i = 0;
+	unsigned int entry = pm_logger_app.current_entry;
+
+	if (pm_logger_app.enabled == PM_LOGGER_STOP) /* do noting */
+		return;
+
+	/* if end of buffer and ONESHOT mode, stop */
+	if ((pm_logger_app.mode == PM_LOGGER_ONESHOT_MODE) &&
+		(entry+2+num_args > pm_logger_app.buffSize-1)) {
+		pr_info("PM LOGGER APP: buffer is full\n");
+		pm_logger_app_stop();
+		return;
+	}
+
+	/* add 24 bits of sync pattern and 8 bit of event num */
+	pm_logger_app.buffer[entry++] =
+	(PM_STRING & PM_LOG_EVENT_MASK) | PM_LOG_SYNC_PATTERN;
+	entry = entry & (pm_logger_app.buffSize - 1);
+
+	/* add time stamp */
+	pm_logger_app.buffer[entry++] = timeStamp;
+	entry = entry & (pm_logger_app.buffSize - 1);
+
+	/* add string */
+	entry += pm_logger_app_add_string(entry, string);
+	entry = entry & (pm_logger_app.buffSize - 1);
+
+	/* add arguements */
+	while (i < num_args) {
+		pm_logger_app.buffer[entry++] = var_array[i];
+		entry = entry & (pm_logger_app.buffSize - 1);
+		i++;
+	}
+
+	/* update current entry */
+	pm_logger_app.current_entry = entry;
+}
+EXPORT_SYMBOL(pm_logger_app_add_temp_trace_array);
+
+/*
+ * Add string trace with given num of parameters.
+ */
+void pm_logger_app_add_temp_trace(unsigned int num_args,
+				unsigned int timeStamp,
+				char *string,
+				...)
+{
+	va_list ap;
+	unsigned int *var_array;
+	int i = 0;
+
+	var_array = kzalloc(num_args*sizeof(unsigned int), GFP_KERNEL);
+	if (var_array == ZERO_SIZE_PTR) {
+		pr_info("\nCan't allocate buffer\n");
+		return;
+	}
+
+	/* add arguements */
+	va_start(ap, string);
+	while (i < num_args)
+		var_array[i++] = va_arg(ap, unsigned int);
+	va_end(ap);
+
+	pm_logger_app_add_temp_trace_array(num_args, timeStamp,
+			string, var_array);
+	kfree(var_array);
+}
+EXPORT_SYMBOL(pm_logger_app_add_temp_trace);
 
 subsys_initcall(pm_logger_app_init);

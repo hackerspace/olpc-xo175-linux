@@ -177,6 +177,49 @@ static char *pm_parser_get_op_name(unsigned int index)
 }
 
 /*
+ * Print string trace by characters, return size in cells
+ */
+static int print_string_trace(unsigned int entry, unsigned int args_num)
+{
+	int string_size = 0, first_part = 0;
+	int broken_string = false;
+	char *char_buffer = (char *)&pm_logger.buffer[entry];
+
+	while (string_size < args_num) {
+		string_size++;
+		char_buffer += sizeof(unsigned int);
+
+		/* this cell is the end of string, since it ends with 0 */
+		if (*(char_buffer - 1) == 0)
+			break;
+
+		if ((entry + string_size) >= pm_logger.buffSize
+						&& broken_string == false) {
+			broken_string = true;
+			first_part = string_size;
+			char_buffer = (char *)&pm_logger.buffer[0];
+		}
+	}
+
+	if (broken_string == true) {
+		char *tmp_buf = kzalloc((first_part*sizeof(unsigned int))+1,
+								GFP_KERNEL);
+		memcpy(tmp_buf,
+			&pm_logger.buffer[entry],
+			first_part*sizeof(unsigned int));
+		printk(":%s", tmp_buf);
+		char_buffer = (char *)&pm_logger.buffer[0];
+		printk("%s", char_buffer);
+		kfree(tmp_buf);
+	} else {
+		char_buffer = (char *)&pm_logger.buffer[entry];
+		printk(":%s", char_buffer);
+	}
+
+	return string_size;
+}
+
+/*
  * Display buffer content. use database to display event and
  * registers' names.
  */
@@ -220,28 +263,29 @@ void pm_parser_display_log(int subsystem)
 	first_ts = pm_logger.buffer[(first_entry+1) & (pm_logger.buffSize-1)];
 
 	entry = first_entry;
+
+	/* start parsing logger */
 	do {
 
 		if ((pm_logger.buffer[entry] & PM_LOG_SYNC_PATTERN)
 			!= PM_LOG_SYNC_PATTERN)
 			break;
 
-		/* event num */
+		/* get event num */
 		event = pm_logger.buffer[entry] & PM_LOG_EVENT_MASK;
 		entry = (entry+1) & (pm_logger.buffSize-1);
 
-		/* ts */
-		/* from this point there are no more events */
+		/* get ts and print */
 		if (pm_logger.buffer[entry] == 0)
-			break;
+			break; /* from this point there are no more events */
 		ts = pm_logger.buffer[entry];
 		printk("%u", ts);
 
-		/* args num */
+		/* get args num */
 		args_num = get_pm_parser_args_num(entry);
 		entry = (entry+1) & (pm_logger.buffSize-1);
 
-		/* print data strings using database */
+		/* print event */
 		i = 0;
 		if (GET_DB_STRING(database, event, i) != NULL) {
 			/* event name */
@@ -250,6 +294,13 @@ void pm_parser_display_log(int subsystem)
 			i++;
 		} else
 			printk(",%x", event); /* event number */
+
+		/* handle string trace */
+		if (event == PM_STRING) {
+			int string_size = print_string_trace(entry, args_num);
+			args_num -= string_size;
+			entry = (entry+string_size) & (pm_logger.buffSize-1);
+		}
 
 		/* print arguments */
 		while (args_num) {
@@ -286,8 +337,8 @@ void pm_parser_display_log(int subsystem)
 	total_time = (ts-first_ts)/32;
 
 	/* print header */
-	printk("\nTotal Log Time: %u milisecs",
+	pr_info("\nTotal Log Time: %u milisecs",
 		total_time);
-	printk("\nTotal Buffer Size: %u bytes\n",
+	pr_info("\nTotal Buffer Size: %u bytes\n",
 		pm_logger.buffSize * sizeof(unsigned int));
 }

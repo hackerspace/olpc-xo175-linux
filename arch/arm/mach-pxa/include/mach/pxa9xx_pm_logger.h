@@ -51,6 +51,11 @@ struct pm_logger_descriptor {
 #define	PM_OP_EN_NO_CHANGE 13
 #define	PM_OP_DIS_NO_CHANGE 14
 #define PM_SET_OP 15
+#define PM_C2_ENTRY 16
+#define PM_C2_EXIT 17
+#define PM_STRING 18
+
+#define PM_EVENTS_NUM 19
 
 /* start/stop */
 #define PM_LOGGER_STOP 0
@@ -87,5 +92,11 @@ void pm_logger_app_set_debug_length_in_msec(unsigned int msec);
 void turn_on_pm_logger_print(void);
 void debug_check_active_time(unsigned int active_time_stop,
 			     unsigned int active_time_start);
+void pm_logger_app_add_temp_trace(unsigned int num_args,
+					unsigned int timeStamp, char *string,
+					...);
+void pm_logger_app_add_temp_trace_array(unsigned int num_args,
+					unsigned int timeStamp, char *string,
+					unsigned int *var_array);
 
 #endif

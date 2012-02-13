@@ -12,6 +12,7 @@
 #define PM_LOGGER_CHANGE_ONESHOT_MODE 6
 #define PM_LOGGER_CHANGE_REG_MODE 7
 #define PM_LOGGER_SET_MAX_D2_ACTIVE_TIME 8
+#define PM_LOGGER_ADD_STRING 9
 
 void print_pm_logger_usage(void);
 

@@ -23,6 +23,7 @@
 #include <linux/debugfs.h>
 #include <linux/uaccess.h>
 #include <linux/seq_file.h>
+#include <linux/slab.h>
 
 enum pxa9xx_force_lpm ForceLPM = PXA9xx_Force_None;
 enum pxa9xx_force_lpm LastForceLPM = PXA9xx_Force_None;
@@ -161,16 +162,17 @@ static const struct file_operations PXA9xx_file_op_MeasureCoreFreq = {
 
 void print_pm_logger_usage()
 {
-	printk(KERN_INFO "PM Logger Usage:\n"
-	       "0\t- print comm log\n"
-	       "1\t- print apps log\n"
-	       "2\t- clear buffer\n"
-	       "3\t- enable apps logger\n"
-	       "4\t- disable apps logger\n"
-	       "5, size\t- change buffer size in KB\n"
-	       "6\t- change mode to one shot\n"
-	       "7\t- change mode to regular\n"
-	       "8, msec\t- print apps log when active time > msec\n");
+	pr_info("PM Logger Usage:\n"
+		"0- print comm log\n"
+		"1- print apps log\n"
+		"2- clear buffer\n"
+		"3- enable apps logger\n"
+		"4- disable apps logger\n"
+		"5, size- change buffer size in KB\n"
+		"6- change mode to one shot\n"
+		"7- change mode to regular\n"
+		"8, msec- print apps log when active time bigger than msec\n"
+		"9, string{, val1, val2, ...} -add string message and parameters\n");
 }
 
 static ssize_t PXA9xx_pm_logger_read(struct file *file,
@@ -186,10 +188,11 @@ static ssize_t PXA9xx_pm_logger_write(struct file *file,
 				      size_t count, loff_t *ppos)
 {
 	unsigned int pmlogger_val, pmlogger_val2;
-
 	char buf[USER_BUF_SIZE] = { 0 };
-	int pos = 0;
-	int min_size;
+	int pos = 0, min_size, num_args = 0;
+	char *pch, *string, *pparams;
+	char string_val[USER_BUF_SIZE] = {0};
+	unsigned int *var_array;
 
 	/* copy user's input to kernel space */
 	min_size = min_t(char, sizeof(buf) - 1, count);
@@ -208,23 +211,23 @@ static ssize_t PXA9xx_pm_logger_write(struct file *file,
 		break;
 
 	case PM_LOGGER_BUF_CLEAR:
-		printk(KERN_INFO "\nClearing buffer\n");
+		pr_info("\nClearing buffer\n");
 		pm_logger_app_clear();
 		break;
 
 	case PM_LOGGER_START_LOG:
-		printk(KERN_INFO "\nEnable logger\n");
+		pr_info("\nEnable logger\n");
 		pm_logger_app_start();
 		break;
 
 	case PM_LOGGER_STOP_LOG:
-		printk(KERN_INFO "\nDisable logger\n");
+		pr_info("\nDisable logger\n");
 		pm_logger_app_stop();
 		break;
 
 	case PM_LOGGER_CHANGE_BUF_SIZE:
 		sscanf(buf + pos + 1, "%d", &pmlogger_val2);
-		printk(KERN_INFO "\nChanging buffer size to %d KB\n",
+		pr_info("\nChanging buffer size to %d KB\n",
 		       pmlogger_val2);
 		/* send the function the size in cells */
 		pm_logger_app_change_buffSize((pmlogger_val2 * 1024) /
@@ -232,24 +235,75 @@ static ssize_t PXA9xx_pm_logger_write(struct file *file,
 		break;
 
 	case PM_LOGGER_CHANGE_ONESHOT_MODE:
-		printk(KERN_INFO "\nChanging to one shot mode\n");
+		pr_info("\nChanging to one shot mode\n");
 		set_pm_logger_app_mode(PM_LOGGER_ONESHOT_MODE);
 		break;
 
 	case PM_LOGGER_CHANGE_REG_MODE:
-		printk(KERN_INFO "\nChanging to regular mode\n");
+		pr_info("\nChanging to regular mode\n");
 		set_pm_logger_app_mode(PM_LOGGER_REG_MODE);
 		break;
 
 	case PM_LOGGER_SET_MAX_D2_ACTIVE_TIME:
 		pos += sscanf(buf + pos + 1, "%u", &pmlogger_val2);
 		if (pmlogger_val2)
-			printk(KERN_INFO "\nSet debug_length_in_msec to %d\n",
+			pr_info("\nSet debug_length_in_msec to %d\n",
 			       pmlogger_val2);
 		else
-			printk(KERN_INFO
-			       "\nDisable debug_length_in_msec feature\n");
+			pr_info("\nDisable debug_length_in_msec feature\n");
 		pm_logger_app_set_debug_length_in_msec(pmlogger_val2);
+		break;
+
+	case PM_LOGGER_ADD_STRING:
+		/* get pointer to string */
+		string = strpbrk(buf, ",");
+		if (string == NULL) {
+			pr_info("\nNo string was found\n");
+			break;
+		}
+		string++;
+
+		/* get pointer to params */
+		pparams = strpbrk(string, ",");
+
+		/* get string */
+		strncpy(&string_val[0], string, USER_BUF_SIZE);
+		string_val[USER_BUF_SIZE - 1] = 0;
+
+		/* if no params, add only string */
+		if (pparams == NULL) {
+			pr_info("\nAdding single string\n");
+			pm_logger_app_add_temp_trace(0, OSCR4, &string_val[0]);
+			break;
+		} else
+			*pparams = 0;
+
+		/* get params num */
+		pch = pparams;
+		while ((NULL != pch) && (pch < &buf[USER_BUF_SIZE])) {
+			num_args++;
+			pch = strpbrk(pch+1, ",");
+		}
+		var_array = kzalloc(num_args*sizeof(unsigned int),
+					GFP_KERNEL);
+		if (var_array == ZERO_SIZE_PTR) {
+			pr_info("\nCan't allocate buffer\n");
+			break;
+		}
+
+		/* fill array with params */
+		pch = pparams;
+		num_args = 0;
+		while ((NULL != pch) && (pch < &buf[USER_BUF_SIZE])) {
+			sscanf(pch+1, "%x", &pmlogger_val2);
+			var_array[num_args++] = pmlogger_val2;
+			pch = strpbrk(pch+1, ",");
+		}
+
+		pr_info("\nAdding string with arguments\n");
+		pm_logger_app_add_temp_trace_array(num_args,
+					OSCR4, &string_val[0], var_array);
+		kfree(var_array);
 		break;
 
 	default:
