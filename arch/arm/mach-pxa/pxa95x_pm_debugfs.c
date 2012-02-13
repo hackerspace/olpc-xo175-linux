@@ -1076,9 +1076,7 @@ void pxa_9xx_power_init_debugfs(void)
 							  0600, dbgfs_root,
 							  NULL,
 							  &PXA9xx_file_force_VCTCXO_EN);
-		if (forceVCTCXO_EN_file)
-			printk(KERN_WARNING "%s success\n", __func__);
-		else
+		if (!forceVCTCXO_EN_file)
 			errRet = -EINVAL;
 
 		ForceLPM_file = debugfs_create_file("ForceLPM", 0600,
