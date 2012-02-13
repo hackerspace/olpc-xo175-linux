@@ -61,15 +61,18 @@ struct pm_logger_descriptor {
 #define PM_LOGGER_ONESHOT_MODE 1
 
 /* functions */
-extern void pm_logger_app_add_trace_short(int event,
-					  unsigned int timeStamp,
-					  unsigned int arg1, unsigned int arg2);
-extern void pm_logger_app_add_trace(unsigned int num_args,
-				    int event, unsigned int timeStamp, ...);
-extern void pm_logger_app_clear(void);
-extern void pm_parser_display_log(int subsystem);
+void pm_logger_app_add_trace_short(int event,
+				   unsigned int timeStamp,
+				   unsigned int arg1,
+				   unsigned int arg2);
+void pm_logger_app_add_trace(unsigned int num_args,
+			     int event,
+			     unsigned int timeStamp,
+			     ...);
+void pm_logger_app_clear(void);
+void pm_parser_display_log(int subsystem);
 int pm_logger_app_alloc_buffer(void);
-extern int pm_logger_app_change_buffSize(unsigned int new_buffSize);
+int pm_logger_app_change_buffSize(unsigned int new_buffSize);
 void pm_logger_app_start(void);
 void pm_logger_app_stop(void);
 void set_pm_logger_app_mode(int mode);

@@ -12,7 +12,7 @@
  *  publishhed by the Free Software Foundation.
  */
 
-#include <linux/version.h>
+ #include <linux/version.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/fs.h>
@@ -29,10 +29,9 @@
 #include <linux/platform_device.h>
 #include <linux/io.h>
 #include <asm/pgtable.h>
+#include <mach/pmu.h>
 #include <mach/dvfm.h>
-#ifdef CONFIG_PXA95x_DVFM
 #include <mach/pxa95x_dvfm.h>
-#endif
 
 #include <linux/semaphore.h>
 #include <mach/pxa9xx_pm_parser.h>
@@ -57,18 +56,11 @@ static u8 ***database;
 sync(24)+event num(8) - time stamp - arguments ...
 sync(24)+event num(8) - time stamp - arguments ... */
 
-/******************************************************************************
-* Function: get_pm_parser_args_num
-*******************************************************************************
-* Description: calculates the number of event arguments by counting the number
-*			   entries between ts and next sync pattern
-*
-* Parameters: entry of timestamp
-*
-* Return value: event argument's num
-*
-* Notes:
-******************************************************************************/
+
+/*
+ * Calculates the number of event arguments by counting the number
+ * of entries between ts and next sync pattern.
+ */
 int get_pm_parser_args_num(int tsIndex)
 {
 
@@ -77,97 +69,89 @@ int get_pm_parser_args_num(int tsIndex)
 	int size = pm_logger.buffSize;
 
 	while (size != 0) {
-		entry = (entry + 1) & (pm_logger.buffSize - 1);	/* like modulo */
+		entry = (entry+1) & (pm_logger.buffSize-1); /* like modulo */
 
 		/* this is sync pattern. stop */
 		if ((pm_logger.buffer[entry] & PM_LOG_SYNC_MASK) ==
-		    PM_LOG_SYNC_PATTERN)
+			PM_LOG_SYNC_PATTERN)
 			break;
 
 		/* 3 empty cells. end of buffer true values */
 		if ((pm_logger.buffer[entry] == 0) &&
-		    (pm_logger.buffer[(entry + 1) & (pm_logger.buffSize - 1)] ==
-		     0)
-		    && (pm_logger.
-			buffer[(entry + 2) & (pm_logger.buffSize - 1)] == 0))
+		(pm_logger.buffer[(entry+1) & (pm_logger.buffSize-1)] == 0) &&
+		(pm_logger.buffer[(entry+2) & (pm_logger.buffSize-1)] == 0))
 			break;
 
-		args_num++;	/* still arguments. increment count and continue  */
+		args_num++; /* still arguments. increment count and continue  */
 		size--;
 	}
 
 	return args_num;
 }
 
-/******************************************************************************
-* Function: get_pm_parser_start_entry
-*******************************************************************************
-* Description: find start entry using current entry
-*
-* Parameters: none
-*
-* Return value: start entry
-*
-* Notes:
-******************************************************************************/
+/*
+ * Find start entry using current entry.
+ */
 static int get_pm_parser_start_entry(void)
 {
-
 	int entry = pm_logger.current_entry;
 	int size = pm_logger.buffSize;
+
+	/* check if buffer is allocated */
+	if (pm_logger.buffer == NULL) {
+		pr_info("PM Parser: apps logger is disabled\n");
+		return -1;
+	}
 
 	/* search first sync pattern starting from current entry */
 	while (size != 0) {
 		/* this is sync pattern. stop */
 		if ((pm_logger.buffer[entry] & PM_LOG_SYNC_MASK) ==
-		    PM_LOG_SYNC_PATTERN)
+			PM_LOG_SYNC_PATTERN)
 			return entry;
 		else {
 			/* not sync pattern yet. continue searching */
-			entry = (entry + 1) & (pm_logger.buffSize - 1);
+			entry = (entry+1) & (pm_logger.buffSize-1);
 			size--;
 		}
 	}
 
 	/* loop only once on buffer.
-	   this is for cases the buffer empty and no sync pattern is found */
+	this is for cases the buffer empty and no sync pattern is found */
+	pr_info("PM Parser: Buffer is empty\n");
 	return -1;
 }
 
-/******************************************************************************
-* Function: pm_parser_display_log
-*******************************************************************************
-* Description: display buffer content. use database to display event and
-*			   registers' names
-*
-* Parameters: APP_SS for apps logger display,
-* COMM_SS for comm logger display
-*
-* Return value: none
-*
-* Notes:
-******************************************************************************/
+/*
+ * Display buffer content. use database to display event and
+ * registers' names.
+ */
 void pm_parser_display_log(int subsystem)
 {
 
 	int first_entry, entry, i, args_num, start_status = PM_LOGGER_STOP;
 	u32 ts = 0, event, first_ts, total_time;
+	struct dvfm_trace_info *dev_ptr;
+	struct op_info *opinfo_ptr;
+	struct dvfm_md_opt *op_ptr;
 	const char *dbstr;
 	char *valstr;
 	unsigned int val;
 
-	printk(KERN_INFO "*****START PM LOGGER TRACE*****\n");
+
+	pr_info("\n*****START PM LOGGER TRACE*****\n");
 
 	switch (subsystem) {
 	case COMM_SS:
-		printk(KERN_INFO "PM Parser: not supported yet\n");
+		pr_info("PM Parser: not supported yet\n");
 		return;
 	case APP_SS:
 		/* stop logger tracing until praser prints all */
 		start_status = get_pm_logger_app_status();
 		pm_logger_app_stop();
 		pm_logger.buffSize = get_pm_logger_app_buffSize();
-		pm_logger.current_entry = get_pm_logger_app_current_entry();
+		pm_logger.current_entry =
+				get_pm_logger_app_current_entry();
 		pm_logger.buffer = get_pm_logger_app_buffer();
 		database = get_pm_logger_app_db();
 		break;
@@ -176,86 +160,76 @@ void pm_parser_display_log(int subsystem)
 	/* get start entry to print from it */
 	first_entry = get_pm_parser_start_entry();
 	if (first_entry == -1) {
-		printk(KERN_INFO "PM Parser: Buffer is empty\n");
 		if ((subsystem == APP_SS) && (start_status == PM_LOGGER_START))
-			pm_logger_app_start();	/* restart */
+			pm_logger_app_start(); /* restart */
 		return;
 	}
 
 	/* get first ts for the header at the end */
-	first_ts =
-	    pm_logger.buffer[(first_entry + 1) & (pm_logger.buffSize - 1)];
+	first_ts = pm_logger.buffer[(first_entry+1) & (pm_logger.buffSize-1)];
 
 	entry = first_entry;
 	do {
+
 		if ((pm_logger.buffer[entry] & PM_LOG_SYNC_PATTERN)
-		    != PM_LOG_SYNC_PATTERN)
+			!= PM_LOG_SYNC_PATTERN)
 			break;
 
 		/* event num */
 		event = pm_logger.buffer[entry] & PM_LOG_EVENT_MASK;
-		entry = (entry + 1) & (pm_logger.buffSize - 1);
+		entry = (entry+1) & (pm_logger.buffSize-1);
 
 		/* ts */
 		/* from this point there are no more events */
 		if (pm_logger.buffer[entry] == 0)
 			break;
 		ts = pm_logger.buffer[entry];
-		printk(KERN_INFO "%u", ts);
+		printk("%u", ts);
 
 		/* args num */
 		args_num = get_pm_parser_args_num(entry);
-		entry = (entry + 1) & (pm_logger.buffSize - 1);
+		entry = (entry+1) & (pm_logger.buffSize-1);
 
 		/* print data strings using database */
 		i = 0;
 		if (GET_DB_STRING(database, event, i) != NULL) {
 			/* event name */
-			printk(KERN_INFO ",%s",
-			       GET_DB_STRING(database, event, i));
+			printk(",%s",
+				GET_DB_STRING(database, event, i));
 			i++;
 		} else
-			printk(KERN_INFO ",%x", event);	/* event number */
+			printk(",%x", event); /* event number */
 
 		while (args_num) {
 			/* print strings from database */
 			dbstr = GET_DB_STRING(database, event, i);
 			val = pm_logger.buffer[entry];
 			valstr = NULL;
-#ifdef CONFIG_PXA95x_DVFM
 			if (dbstr != NULL) {
 				if (strlen(dbstr) == 3
-				    && strcmp(dbstr, "DEV") == 0) {
-					struct dvfm_trace_info *dev_ptr;
+				&& strcmp(dbstr, "DEV") == 0) {
 					read_lock(&dvfm_trace_list.lock);
 					list_for_each_entry(dev_ptr,
-							    &dvfm_trace_list.
-							    list, list) {
-						if ((unsigned int)dev_ptr->
-							index == val) {
+						&dvfm_trace_list.list,
+						list)
+					{
+						if ((unsigned int)dev_ptr->index == val) {
 							valstr = dev_ptr->name;
 							break;
 						}
 					}
 					read_unlock(&dvfm_trace_list.lock);
 				} else if (strlen(dbstr) == 2
-					   && strcmp(dbstr, "OP") == 0) {
-					struct op_info *opinfo_ptr;
-					struct dvfm_md_opt *op_ptr;
+						&& strcmp(dbstr, "OP") == 0) {
 					read_lock(&pxa95x_dvfm_op_list.lock);
 					list_for_each_entry(opinfo_ptr,
-							    &pxa95x_dvfm_op_list.
-							    list, list) {
-						if ((unsigned int)
-							opinfo_ptr->index ==
-							val) {
-							op_ptr =
-							    (struct dvfm_md_opt
-							     *)opinfo_ptr->op;
-							if (op_ptr) {
-								valstr =
-								    op_ptr->
-								    name;
+						&pxa95x_dvfm_op_list.list,
+						list)
+					{
+						if ((unsigned int)opinfo_ptr->index == val) {
+							op_ptr = (struct dvfm_md_opt *) opinfo_ptr->op;
+							if (op_ptr != NULL)	{
+								valstr = op_ptr->name;
 								break;
 							}
 						}
@@ -264,24 +238,21 @@ void pm_parser_display_log(int subsystem)
 				}
 
 				if (valstr != NULL)
-					printk(KERN_INFO ",%s:%s", dbstr,
-					       valstr);
+					printk(",%s:%s", dbstr, valstr);
 				else
-					printk(KERN_INFO ",%s:0x%x", dbstr,
-					       val);
+					printk(",%s:0x%x", dbstr, val);
 				i++;
-			} else
-#else
-			/* information is not found in database.
-			   print raw data instead */
-			printk(KERN_INFO ",raw data:0x%x",
-			       pm_logger.buffer[entry]);
-#endif
+			} else {
+				/* information is not found in database.
+				print raw data instead */
+				printk(",raw data:0x%x",
+					pm_logger.buffer[entry]);
+			}
 
-			entry = (entry + 1) & (pm_logger.buffSize - 1);
+			entry = (entry+1) & (pm_logger.buffSize-1);
 			args_num--;
 		}
-		printk(KERN_INFO "\n");
+		printk("\n");
 	} while (entry != first_entry);
 
 	/* restart logger tracing */
@@ -289,10 +260,11 @@ void pm_parser_display_log(int subsystem)
 		pm_logger_app_start();
 
 	/* calculate total log time for header */
-	total_time = (ts - first_ts) / 32;
+	total_time = (ts-first_ts)/32;
 
 	/* print header */
-	printk(KERN_INFO "\nTotal Log Time: %u milisecs", total_time);
-	printk(KERN_INFO "\nTotal Buffer Size: %u bytes\n",
-	       pm_logger.buffSize * sizeof(unsigned int));
+	printk("\nTotal Log Time: %u milisecs",
+		total_time);
+	printk("\nTotal Buffer Size: %u bytes\n",
+		pm_logger.buffSize * sizeof(unsigned int));
 }
