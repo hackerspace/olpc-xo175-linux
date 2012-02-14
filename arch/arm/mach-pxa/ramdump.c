@@ -620,8 +620,12 @@ EXPORT_SYMBOL(ramdump_attach_ramfile);
 /************************************************************************/
 
 extern unsigned cp_area_addr(void);
+extern int is_nevo_td;
 static int __init ramdump_init(void)
 {
+	if (is_nevo_td)
+		return -EPERM;
+
 	if (!rdc_pa) /* not overriden on CMDLINE */
 		rdc_pa = cp_area_addr() + RDC_OFFSET;
 	isram_va = ioremap_cached(ISRAM_PA, ISRAM_SIZE);

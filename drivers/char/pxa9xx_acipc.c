@@ -49,7 +49,7 @@
 #if defined(CONFIG_PXA95x) || defined(CONFIG_PXA93x)
 #include <mach/hardware.h>
 
-static int is_nevo_td = 0;
+int is_nevo_td = 0;
 static int __init nevo_td_setup(char *__unused)
 {
         return is_nevo_td = 1;
