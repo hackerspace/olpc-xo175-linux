@@ -513,7 +513,8 @@ static APBC_CLK(keypad, PXA910_KPC, 0, 32000);
 static APBC_CLK(1wire,  PXA910_ONEWIRE,  0, 26000000);
 
 static APMU_CLK_OPS(nand, NAND, 0x019b, 156000000, &nand_clk_ops);
-static APMU_CLK(u2o, USB, 0x1b, 480000000);
+static APMU_CLK(u2o, USB, 0x9, 480000000);
+static APMU_CLK(u2h, USB, 0x012, 480000000);
 static APMU_CLK(sdh0, SDH0, 0x001b, 44500000);
 static APMU_CLK(sdh1, SDH1, 0x001b, 44500000);
 /* Configure the clock as 52MHz since eMMC is used on SDH2 at pxa920
