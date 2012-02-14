@@ -400,7 +400,7 @@ CONFIG_ARM_FLUSH_CONSOLE_ON_RESTART=y
 # CONFIG_USE_OF is not set
 CONFIG_ZBOOT_ROM_TEXT=0x0
 CONFIG_ZBOOT_ROM_BSS=0x0
-CONFIG_CMDLINE="rdinit=/busybox/rdinit androidboot.console=ttyS2 console=ttyS2,115200 mem=512M panic_debug reserve_pmem=160M fb_share audiobuf_resv=1M"
+CONFIG_CMDLINE="rdinit=/busybox/rdinit androidboot.console=ttyS2 console=ttyS2,38400 mem=512M panic_debug reserve_pmem=160M fb_share audiobuf_resv=1M"
 CONFIG_CMDLINE_FROM_BOOTLOADER=y
 # CONFIG_CMDLINE_EXTEND is not set
 # CONFIG_CMDLINE_FORCE is not set
