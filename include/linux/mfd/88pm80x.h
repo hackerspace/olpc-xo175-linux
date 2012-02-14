@@ -546,7 +546,7 @@ struct pm80x_platform_data {
 	int batt_det;		/* enable/disable */
 	int num_regulators;
 };
-
+#ifdef CONFIG_MFD_88PM80X
 extern int pm80x_reg_read(struct i2c_client *, int);
 extern int pm80x_reg_write(struct i2c_client *, int, unsigned char);
 extern int pm80x_codec_reg_read(int reg);
@@ -568,4 +568,60 @@ extern int pm805_device_init(struct pm80x_chip *chip,
 			     struct pm80x_platform_data *pdata) __devinit;
 extern void pm805_device_exit(struct pm80x_chip *chip) __devexit;
 
+#else
+
+static inline int pm80x_reg_read(struct i2c_client *i2c, int reg)
+{
+	return 0;
+}
+static inline int pm80x_reg_write(struct i2c_client *i2c, int reg, unsigned char data)
+{
+	return 0;
+}
+static inline int pm80x_codec_reg_read(int reg)
+{
+	return 0;
+}
+static inline int pm80x_codec_reg_write(int reg, unsigned char data)
+{
+	return 0;
+}
+static inline int pm80x_codec_reg_set_bits(int reg,
+				    unsigned char mask, unsigned char data)
+{
+	return 0;
+}
+static inline int pm80x_bulk_read(struct i2c_client *i2c, int reg,
+		    int count, unsigned char *buf)
+{
+	return 0;
+}
+static inline int pm80x_bulk_write(struct i2c_client *i2c, int reg,
+		     int count, unsigned char *buf)
+{
+	return 0;
+}
+static inline int pm80x_set_bits(struct i2c_client *i2c, int reg,
+		   unsigned char mask, unsigned char data)
+{
+	return 0;
+}
+static inline int pm805_debug_reg_read(struct i2c_client *i2c, int reg)
+{
+	return 0;
+}
+static inline int pm805_debug_reg_write(struct i2c_client *i2c, int reg,
+				unsigned char data)
+{
+	return 0;
+}
+static inline int pm80x_device_init(struct pm80x_chip *chip,
+			     struct pm80x_platform_data *pdata)
+{
+	return 0;
+}
+static inline void pm80x_device_exit(struct pm80x_chip *chip)
+{
+}
+#endif
 #endif /* __LINUX_MFD_88PM80X_H */

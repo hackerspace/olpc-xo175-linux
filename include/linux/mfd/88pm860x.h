@@ -608,7 +608,7 @@ struct pm860x_platform_data {
 	int		(*fixup)(struct pm860x_chip *,
 			struct pm860x_platform_data *);
 };
-
+#ifdef CONFIG_MFD_88PM860X
 extern int pm8606_ref_gp_and_osc_get(struct pm860x_chip *, u16);
 extern int pm8606_ref_gp_and_osc_release(struct pm860x_chip *, u16);
 extern int pm860x_reg_read(struct i2c_client *, int);
@@ -638,4 +638,99 @@ extern void pm860x_set_charger_type(enum enum_charger_type type );
 extern int pm860x_battery_update_soc(void);
 extern void pm860x_set_vbus_output(int);
 
+#else
+static inline int pm8606_ref_gp_and_osc_get(struct pm860x_chip *chip, u16 client)
+{
+	return 0;
+}
+static inline int pm8606_ref_gp_and_osc_release(struct pm860x_chip *chip, u16 client)
+{
+	return 0;
+}
+static inline int pm860x_reg_read(struct i2c_client *i2c, int reg)
+{
+	return 0;
+}
+static inline int pm860x_reg_write(struct i2c_client *i2c, int reg,
+		     unsigned char data)
+{
+	return 0;
+}
+static inline int pm860x_codec_reg_read(int reg)
+{
+	return 0;
+}
+static inline int pm860x_codec_reg_write(int reg, unsigned char data)
+{
+	return 0;
+}
+static inline int pm860x_codec_reg_set_bits(int reg, unsigned char mask, unsigned char data)
+{
+	return 0;
+}
+static inline int pm860x_bulk_read(struct i2c_client *i2c, int reg,
+		     int count, unsigned char *buf)
+{
+	return 0;
+}
+static inline int pm860x_bulk_write(struct i2c_client *i2c, int reg,
+		      int count, unsigned char *buf)
+{
+	return 0;
+}
+static inline int pm860x_set_bits(struct i2c_client *i2c, int reg,
+		    unsigned char mask, unsigned char data)
+{
+	return 0;
+}
+static inline int pm860x_page_reg_read(struct i2c_client *i2c, int reg)
+{
+	return 0;
+}
+static inline int pm860x_page_reg_write(struct i2c_client *i2c, int reg,
+			  unsigned char data)
+{
+	return 0;
+}
+static inline int pm860x_page_bulk_read(struct i2c_client *i2c, int reg,
+			  int count, unsigned char *buf)
+{
+	return 0;
+}
+static inline int pm860x_page_bulk_write(struct i2c_client *i2c, int reg,
+			   int count, unsigned char *buf)
+{
+	return 0;
+}
+static inline int pm860x_page_set_bits(struct i2c_client *i2c, int reg,
+			 unsigned char mask, unsigned char data)
+{
+	return 0;
+}
+static inline int pm860x_device_init(struct pm860x_chip *chip,
+			      struct pm860x_platform_data *pdata)
+{
+	return 0;
+}
+static inline void pm860x_device_exit(struct pm860x_chip *chip)
+{
+	return 0;
+}
+static inline int pm860x_calc_resistor(void)
+{
+	return 0;
+}
+static inline void pm860x_set_charger_type(enum enum_charger_type type )
+{
+	return;
+}
+static inline int pm860x_battery_update_soc(void)
+{
+	return 0;
+}
+static inline void pm860x_set_vbus_output(int x)
+{
+	return;
+}
+#endif
 #endif /* __LINUX_MFD_88PM860X_H */
