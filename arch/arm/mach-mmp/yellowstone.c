@@ -372,6 +372,8 @@ static struct pxa27x_keypad_platform_data mmp3_keypad_info = {
 };
 
 /* PMIC Regulator 88PM800 */
+/* Power Supply ECOs:
+ * ECO#6: V_2P8(LDO14) is wired to LDO7, so LDO14 should keep off */
 static struct regulator_consumer_supply regulator_supplies[] = {
 	/* BUCK power supplies: BUCK[1..5] */
 	[PM800_ID_BUCK1] = REGULATOR_SUPPLY("V_PMIC_SD0", NULL),
@@ -386,14 +388,14 @@ static struct regulator_consumer_supply regulator_supplies[] = {
 	[PM800_ID_LDO4]  = REGULATOR_SUPPLY("V_LDO4", NULL),
 	[PM800_ID_LDO5]  = REGULATOR_SUPPLY("V_3P3", NULL),
 	[PM800_ID_LDO6]  = REGULATOR_SUPPLY("V_PMIC", NULL),
-	[PM800_ID_LDO7]  = REGULATOR_SUPPLY("V_LDO7", NULL),
+	[PM800_ID_LDO7]  = REGULATOR_SUPPLY("V_2P8"/*V_LDO7*/, NULL),
 	[PM800_ID_LDO8]  = REGULATOR_SUPPLY("V_1P2_HSIC", NULL),
 	[PM800_ID_LDO9]  = REGULATOR_SUPPLY("V_1P8_USBFE", NULL),
 	[PM800_ID_LDO10] = REGULATOR_SUPPLY("V_LCD", NULL),
 	[PM800_ID_LDO11] = REGULATOR_SUPPLY("V_1P2_CODEC", NULL),
 	[PM800_ID_LDO12] = REGULATOR_SUPPLY("V_LDO12", NULL),
 	[PM800_ID_LDO13] = REGULATOR_SUPPLY("V_SDMMC", NULL),
-	[PM800_ID_LDO14] = REGULATOR_SUPPLY("V_2P8", NULL),
+	[PM800_ID_LDO14] = REGULATOR_SUPPLY("V_LDO14"/*V_2P8*/, NULL),
 	[PM800_ID_LDO15] = REGULATOR_SUPPLY("V_LDO15", NULL),
 	[PM800_ID_LDO16] = REGULATOR_SUPPLY("VBAT_FEM", NULL),
 	[PM800_ID_LDO17] = REGULATOR_SUPPLY("V_BB", NULL),
@@ -457,14 +459,14 @@ static struct regulator_init_data pm800_regulator_data[] = {
 	[PM800_ID_LDO4]  = REG_INIT(LDO4,  1200000, 3300000, 0, 0),
 	[PM800_ID_LDO5]  = REG_INIT(LDO5,  1200000, 3300000, 1, 1),
 	[PM800_ID_LDO6]  = REG_INIT(LDO6,  1200000, 3300000, 1, 1),
-	[PM800_ID_LDO7]  = REG_INIT(LDO7,  1200000, 3300000, 0, 0),
+	[PM800_ID_LDO7]  = REG_INIT(LDO7,  1200000, 3300000, 1, 1),
 	[PM800_ID_LDO8]  = REG_INIT(LDO8,  1200000, 3300000, 1, 1),
 	[PM800_ID_LDO9]  = REG_INIT(LDO9,  1200000, 3300000, 1, 1),
 	[PM800_ID_LDO10] = REG_INIT(LDO10, 1200000, 3300000, 1, 1),
 	[PM800_ID_LDO11] = REG_INIT(LDO11, 1200000, 3300000, 1, 1),
 	[PM800_ID_LDO12] = REG_INIT(LDO12, 1200000, 3300000, 0, 0),
 	[PM800_ID_LDO13] = REG_INIT(LDO13, 1200000, 3300000, 1, 1),
-	[PM800_ID_LDO14] = REG_INIT(LDO14, 1200000, 3300000, 1, 1),
+	[PM800_ID_LDO14] = REG_INIT(LDO14, 1200000, 3300000, 0, 0),
 	[PM800_ID_LDO15] = REG_INIT(LDO15, 1200000, 3300000, 0, 0),
 	[PM800_ID_LDO16] = REG_INIT(LDO16, 1200000, 3300000, 0, 0),
 	[PM800_ID_LDO17] = REG_INIT(LDO17, 1200000, 3300000, 0, 0),
@@ -1115,6 +1117,9 @@ static void __init yellowstone_init(void)
 	mmp3_hsic1_device.dev.platform_data = (void *)&mmp3_hsic1_pdata;
 	platform_device_register(&mmp3_hsic1_device);
 #endif
+	/* If we have a full configuration then disable any regulators
+	 * which are not in use or always_on. */
+	regulator_has_full_constraints();
 }
 
 MACHINE_START(YELLOWSTONE, "YellowStone")
