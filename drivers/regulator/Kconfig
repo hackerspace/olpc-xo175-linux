@@ -323,5 +323,15 @@ config REGULATOR_TPS65910
 	help
 	  This driver supports TPS65910 voltage regulator chips.
 
+config REGULATOR_FAN53555
+	tristate "Fairchild FAN5355 Regulator"
+	depends on I2C
+	help
+	  This driver supports Fairchild FAN5355 Digitally Programmable
+	  TinyBuck Regulator. The FAN53555 is a step-down switching voltage
+	  regulator that delivers a digitally programmable output from an
+	  input voltage supply of 2.5V to 5.5V. The output voltage is
+	  programmed through an I2C interface.
+
 endif
 
