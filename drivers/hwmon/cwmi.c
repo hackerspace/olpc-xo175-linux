@@ -29,19 +29,31 @@
 #include <linux/interrupt.h>
 #include <linux/cwmi.h>
 #include <linux/slab.h>
+#include <linux/earlysuspend.h>
 
 #define USE_VIRTUAL_ORIENTATION_SENSOR		1
+#define USE_VIRTUAL_ROTATIONVECTOR_SENSOR		1
+#define USE_VIRTUAL_GRAVITY_SENSOR		1
+#define USE_VIRTUAL_LINEARACCELERATION_SENSOR		1
 
-#define ORI_NAME	"cwmi_orientation"
-#define DEV_NAME	"cwmi"
+#define ORI_NAME	"CyWee Orientation"
+#define GRA_NAME	"CyWee Gravity"
+#define LIN_NAME	"CyWee Linear Acceleration"
+#define ROT_NAME	"CyWee Rotation Vector"
 
-#define DEFAULT_SAMPLE_INTERVAL		10
+#define DEV_NAME	"CyWee CWMI Magnetic Field"
+#define ACC_NAME	"CyWee CWMI Accelerometer"
+
+#define DEFAULT_SAMPLE_INTERVAL		200
 #define ACC_MAX						2000
 #define MAG_MAX						4096
 
 #define SENSOR_TYPE_ACC				1
 #define SENSOR_TYPE_MAG				2
 #define SENSOR_TYPE_ORI				3
+#define SENSOR_TYPE_GRA				9
+#define SENSOR_TYPE_LIN				0xa
+#define SENSOR_TYPE_ROT				0xb
 
 #define WAIT_DATA_READY				0
 
@@ -165,6 +177,9 @@ struct i2c_cwmi_sensor {
 
 	unsigned int sample_interval;
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	struct early_suspend early_suspend;
+#endif
 	atomic_t enabled;
 	struct mutex lock;
 	int zero_offset[3];
@@ -268,7 +283,10 @@ static int cwmi_set_delay(struct i2c_cwmi_sensor *sensor, int delay)
 {
 	bool is_acc = (sensor->type == SENSOR_TYPE_ACC) ? true : false;
 	u8 odr_mask = is_acc ? ODR_MASK_ACC : ODR_MASK_MAG;
-	u64 delay_ns = delay * NSEC_PER_MSEC;
+	u64 delay_ns =
+	    (sensor->sample_interval >
+	     delay) ? delay * NSEC_PER_MSEC : sensor->sample_interval *
+	    NSEC_PER_MSEC;
 	u8 value = 0;
 	u8 ctrl_reg = is_acc ? CTRL_REG1_A : CRA_REG_M;
 	int res;
@@ -353,8 +371,7 @@ static int cwmi_is_sensor_enabled(const char *name)
 static int cwmi_ori_report_control(struct i2c_cwmi_sensor *sensor)
 {
 	int value = (cwmi_is_sensor_enabled(ORI_NAME) << 16) |
-	    (cwmi_is_sensor_enabled(I2C_MAG_NAME) << 17) |
-	    sensor->sample_interval;
+	    (cwmi_is_sensor_enabled(DEV_NAME) << 17) | sensor->sample_interval;
 	struct i2c_cwmi_sensor *ori_sensor = cwmi_find_sensor(ORI_NAME);
 
 	pr_debug("%s(): value = 0x%08X\n", __func__, value);
@@ -364,6 +381,60 @@ static int cwmi_ori_report_control(struct i2c_cwmi_sensor *sensor)
 		input_sync(ori_sensor->input);
 	} else {
 		pr_err("Cannot find orientation sensor\n");
+		return -ENODEV;
+	}
+	return 0;
+}
+
+static int cwmi_gra_report_control(struct i2c_cwmi_sensor *sensor)
+{
+	int value = (cwmi_is_sensor_enabled(GRA_NAME) << 15) |
+	    (cwmi_is_sensor_enabled(DEV_NAME) << 17) | sensor->sample_interval;
+	struct i2c_cwmi_sensor *gra_sensor = cwmi_find_sensor(GRA_NAME);
+
+	pr_debug("%s(): value = 0x%08X\n", __func__, value);
+
+	if (gra_sensor) {
+		input_report_abs(gra_sensor->input, ABS_THROTTLE, value);
+		input_sync(gra_sensor->input);
+	} else {
+		pr_err("Cannot find gravity sensor\n");
+		return -ENODEV;
+	}
+	return 0;
+}
+
+static int cwmi_lin_report_control(struct i2c_cwmi_sensor *sensor)
+{
+	int value = (cwmi_is_sensor_enabled(LIN_NAME) << 14) |
+	    (cwmi_is_sensor_enabled(DEV_NAME) << 17) | sensor->sample_interval;
+	struct i2c_cwmi_sensor *lin_sensor = cwmi_find_sensor(LIN_NAME);
+
+	pr_debug("%s(): value = 0x%08X\n", __func__, value);
+
+	if (lin_sensor) {
+		input_report_abs(lin_sensor->input, ABS_THROTTLE, value);
+		input_sync(lin_sensor->input);
+	} else {
+		pr_err("Cannot find linear_acceleration sensor\n");
+		return -ENODEV;
+	}
+	return 0;
+}
+
+static int cwmi_rot_report_control(struct i2c_cwmi_sensor *sensor)
+{
+	int value = (cwmi_is_sensor_enabled(ROT_NAME) << 13) |
+	    (cwmi_is_sensor_enabled(DEV_NAME) << 17) | sensor->sample_interval;
+	struct i2c_cwmi_sensor *rot_sensor = cwmi_find_sensor(ROT_NAME);
+
+	pr_debug("%s(): value = 0x%08X\n", __func__, value);
+
+	if (rot_sensor) {
+		input_report_abs(rot_sensor->input, ABS_THROTTLE, value);
+		input_sync(rot_sensor->input);
+	} else {
+		pr_err("Cannot find rotation_vector sensor\n");
 		return -ENODEV;
 	}
 	return 0;
@@ -389,7 +460,73 @@ static int cwmi_ori_enable(struct i2c_cwmi_sensor *sensor, int enabled)
 
 	return 0;
 }
+
+static int cwmi_gra_enable(struct i2c_cwmi_sensor *sensor, int enabled)
+{
+	if (enabled) {
+		if (!atomic_cmpxchg(&sensor->enabled, 0, 1)) {
+			if (cwmi_gra_report_control(sensor)) {
+				atomic_cmpxchg(&sensor->enabled, 1, 0);
+				pr_err
+				    ("CWMI: gravity sensor power on failed.\n");
+				return -1;
+			}
+		}
+	} else {
+		if (atomic_cmpxchg(&sensor->enabled, 1, 0))
+			cwmi_gra_report_control(sensor);
+	}
+
+	pr_debug("cwmi gravity %s\n", enabled ? "enabled" : "disabled");
+
+	return 0;
+}
+
+static int cwmi_lin_enable(struct i2c_cwmi_sensor *sensor, int enabled)
+{
+	if (enabled) {
+		if (!atomic_cmpxchg(&sensor->enabled, 0, 1)) {
+			if (cwmi_lin_report_control(sensor)) {
+				atomic_cmpxchg(&sensor->enabled, 1, 0);
+				pr_err
+				    ("CWMI: linear_acceleration sensor power on failed.\n");
+				return -1;
+			}
+		}
+	} else {
+		if (atomic_cmpxchg(&sensor->enabled, 1, 0))
+			cwmi_lin_report_control(sensor);
+	}
+
+	pr_debug("cwmi linear_acceleration %s\n",
+		 enabled ? "enabled" : "disabled");
+
+	return 0;
+}
+
+static int cwmi_rot_enable(struct i2c_cwmi_sensor *sensor, int enabled)
+{
+	if (enabled) {
+		if (!atomic_cmpxchg(&sensor->enabled, 0, 1)) {
+			if (cwmi_rot_report_control(sensor)) {
+				atomic_cmpxchg(&sensor->enabled, 1, 0);
+				pr_err
+				    ("CWMI: rotation_vector sensor power on failed.\n");
+				return -1;
+			}
+		}
+	} else {
+		if (atomic_cmpxchg(&sensor->enabled, 1, 0))
+			cwmi_rot_report_control(sensor);
+	}
+
+	pr_debug("cwmi rotation_vector %s\n", enabled ? "enabled" : "disabled");
+
+	return 0;
+}
+
 #else /* USE_VIRTUAL_ORIENTATION_SENSOR */
+
 static int cwmi_ori_report_control(struct i2c_cwmi_sensor *sensor)
 {
 	return 0;
@@ -399,6 +536,37 @@ static int cwmi_ori_enable(struct i2c_cwmi_sensor *sensor, int enabled)
 {
 	return 0;
 }
+
+static int cwmi_gra_report_control(struct i2c_cwmi_sensor *sensor)
+{
+	return 0;
+}
+
+static int cwmi_gra_enable(struct i2c_cwmi_sensor *sensor, int enabled)
+{
+	return 0;
+}
+
+static int cwmi_lin_report_control(struct i2c_cwmi_sensor *sensor)
+{
+	return 0;
+}
+
+static int cwmi_lin_enable(struct i2c_cwmi_sensor *sensor, int enabled)
+{
+	return 0;
+}
+
+static int cwmi_rot_report_control(struct i2c_cwmi_sensor *sensor)
+{
+	return 0;
+}
+
+static int cwmi_rot_enable(struct i2c_cwmi_sensor *sensor, int enabled)
+{
+	return 0;
+}
+
 #endif /* USE_VIRTUAL_ORIENTATION_SENSOR */
 
 static int cwmi_mag_set_op_mode(struct i2c_cwmi_sensor *sensor, u8 mode)
@@ -424,7 +592,8 @@ static int cwmi_mag_read(struct i2c_cwmi_sensor *sensor)
 	u8 buf[6];
 	int hw_d[3] = { 0 };
 
-	if (cwmi_i2c_read(sensor, MAG_DATA_X_H | READ_MULTIPLE_BYTES, buf, sizeof(buf)) < 0)
+	if (cwmi_i2c_read
+	    (sensor, MAG_DATA_X_H | READ_MULTIPLE_BYTES, buf, sizeof(buf)) < 0)
 		return -1;
 
 	hw_d[0] = (int)(buf[0] << 8 | buf[1]);
@@ -458,8 +627,8 @@ static int cwmi_align_axis(struct i2c_cwmi_sensor *sensor, int *aligned_data)
 	}
 
 	axes =
-	    ((struct cwmi_platform_data *)sensor->client->dev.platform_data)->
-	    axes;
+	    ((struct cwmi_platform_data *)sensor->client->dev.
+	     platform_data)->axes;
 	for (i = 0; i < 3; i++) {
 		sum = 0;
 		for (j = 0; j < 3; j++)
@@ -487,8 +656,13 @@ static int cwmi_mag_enable(struct i2c_cwmi_sensor *sensor, int enabled)
 {
 	if (enabled) {
 		if (!atomic_cmpxchg(&sensor->enabled, 0, 1)) {
-			if (((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power)
-				((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power(1);
+			if (((struct cwmi_platform_data *)(sensor->client->dev.
+							   platform_data))->
+			    set_power)
+				((struct cwmi_platform_data *)(sensor->client->
+							       dev.
+							       platform_data))->
+				    set_power(1);
 			if (cwmi_mag_power_on(sensor)) {
 				atomic_cmpxchg(&sensor->enabled, 1, 0);
 				pr_err("CWMI: magnetometer power on failed.\n");
@@ -510,14 +684,15 @@ static int cwmi_mag_enable(struct i2c_cwmi_sensor *sensor, int enabled)
 				    (sensor, CTRL_REG6_A, &value, 1))
 					return -1;
 				value = CTRL_REG6_A_VAL;
-				if (cwmi_i2c_write(sensor, CTRL_REG6_A, &value, 1))
+				if (cwmi_i2c_write
+				    (sensor, CTRL_REG6_A, &value, 1))
 					return -1;
 				enable_irq(sensor->client->irq);
 			} else
 				schedule_delayed_work(&sensor->input_work,
 						      msecs_to_jiffies
-						      (sensor->sample_interval));
-
+						      (sensor->
+						       sample_interval));
 			pr_debug("cwmi magnetometer enabled\n");
 		}
 
@@ -529,9 +704,16 @@ static int cwmi_mag_enable(struct i2c_cwmi_sensor *sensor, int enabled)
 				cancel_delayed_work_sync(&sensor->input_work);
 			cwmi_ori_report_control(sensor);
 			cwmi_mag_power_off(sensor);
-			if (((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power)
-				((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power(0);
+			if (((struct cwmi_platform_data *)(sensor->client->dev.
+							   platform_data))->
+			    set_power)
+				((struct cwmi_platform_data *)(sensor->client->
+							       dev.
+							       platform_data))->
+				    set_power(0);
 			pr_debug("cwmi magnetometer disabled\n");
+
+			sensor->sample_interval = DEFAULT_SAMPLE_INTERVAL;
 		}
 	}
 
@@ -593,8 +775,13 @@ static int cwmi_acc_enable(struct i2c_cwmi_sensor *sensor, int enabled)
 {
 	if (enabled) {
 		if (!atomic_cmpxchg(&sensor->enabled, 0, 1)) {
-			if (((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power)
-				((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power(1);
+			if (((struct cwmi_platform_data *)(sensor->client->dev.
+							   platform_data))->
+			    set_power)
+				((struct cwmi_platform_data *)(sensor->client->
+							       dev.
+							       platform_data))->
+				    set_power(1);
 			if (cwmi_acc_power_on(sensor)) {
 				atomic_cmpxchg(&sensor->enabled, 1, 0);
 				pr_err
@@ -607,7 +794,8 @@ static int cwmi_acc_enable(struct i2c_cwmi_sensor *sensor, int enabled)
 			else
 				schedule_delayed_work(&sensor->input_work,
 						      msecs_to_jiffies
-						      (sensor->sample_interval));
+						      (sensor->
+						       sample_interval));
 
 			pr_debug("cwmi accelerometer enabled\n");
 		}
@@ -621,8 +809,15 @@ static int cwmi_acc_enable(struct i2c_cwmi_sensor *sensor, int enabled)
 			cwmi_acc_power_off(sensor);
 
 			pr_debug("cwmi accelerometer disabled\n");
-			if (((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power)
-				((struct cwmi_platform_data *)(sensor->client->dev.platform_data))->set_power(0);
+			if (((struct cwmi_platform_data *)(sensor->client->dev.
+							   platform_data))->
+			    set_power)
+				((struct cwmi_platform_data *)(sensor->client->
+							       dev.
+							       platform_data))->
+				    set_power(0);
+
+			sensor->sample_interval = DEFAULT_SAMPLE_INTERVAL;
 		}
 	}
 
@@ -640,10 +835,16 @@ static int active_set(struct device *dev,
 
 	pr_debug("%s(): %s\n", __func__, input->name);
 
-	if (strcmp(input->name, I2C_ACC_NAME) == 0)
+	if (strcmp(input->name, ACC_NAME) == 0)
 		cwmi_acc_enable(sensor, enabled);
 	else if (strcmp(input->name, ORI_NAME) == 0)
 		cwmi_ori_enable(sensor, enabled);
+	else if (strcmp(input->name, GRA_NAME) == 0)
+		cwmi_gra_enable(sensor, enabled);
+	else if (strcmp(input->name, LIN_NAME) == 0)
+		cwmi_lin_enable(sensor, enabled);
+	else if (strcmp(input->name, ROT_NAME) == 0)
+		cwmi_rot_enable(sensor, enabled);
 	else
 		cwmi_mag_enable(sensor, enabled);
 
@@ -670,7 +871,14 @@ static int interval_show(struct device *dev,
 	struct i2c_cwmi_sensor *sensor =
 	    (struct i2c_cwmi_sensor *)input_get_drvdata(input);
 
-	return sprintf(buf, "%d\n", sensor->sample_interval);
+	if (!sensor->use_interrupt)
+		return sprintf(buf, "%d\n", sensor->sample_interval);
+	else {
+		pr_err
+		    ("Sensor[%s] is in interrupt mode, getting interval is not allowed\n",
+		     input->name);
+		return -EINVAL;
+	}
 }
 
 static int interval_set(struct device *dev,
@@ -687,12 +895,13 @@ static int interval_set(struct device *dev,
 	if (res < 0)
 		return res;
 
-
 	if (!sensor->is_virtual && atomic_read(&sensor->enabled)) {
 		pr_info("Sensor [%s] interval is %ld\n", input->name, val);
 		cwmi_set_delay(sensor, (int)val);
 	} else
-		pr_err("Sensor[%s] has been disabled, interval set is not allowed", input->name);
+		pr_err
+		    ("Sensor[%s] has been disabled, interval set is not allowed\n",
+		     input->name);
 	return count;
 }
 
@@ -712,17 +921,20 @@ static int data_show(struct device *dev,
 	int aligned_data[3];
 
 	if (atomic_read(&sensor->enabled)) {
-		if (strcmp(input->name, I2C_ACC_NAME) == 0)
+		if (strcmp(input->name, ACC_NAME) == 0)
 			cwmi_acc_read(sensor);
 		else
 			cwmi_mag_read(sensor);
-
 		if (cwmi_align_axis(sensor, aligned_data))
 			pr_err("%s(): axis alignment failed.\n", __func__);
-		return sprintf(buf, "%d %d %d\n", aligned_data[0], aligned_data[1],
-				aligned_data[2]);
-	} else
+		return sprintf(buf, "%d %d %d\n", aligned_data[0],
+			       aligned_data[1], aligned_data[2]);
+	} else {
+		pr_err
+		    ("Sensor[%s] has been disabled, getting data is not allowed\n",
+		     input->name);
 		return -EINVAL;
+	}
 }
 
 static int status_show(struct device *dev,
@@ -731,8 +943,10 @@ static int status_show(struct device *dev,
 	return 0;
 }
 
-static DEVICE_ATTR(active, S_IRUGO | S_IWUSR | S_IWGRP, active_show, active_set);
-static DEVICE_ATTR(interval, S_IRUGO | S_IWUSR | S_IWGRP, interval_show, interval_set);
+static DEVICE_ATTR(active, S_IRUGO | S_IWUSR | S_IWGRP, active_show,
+		   active_set);
+static DEVICE_ATTR(interval, S_IRUGO | S_IWUSR | S_IWGRP, interval_show,
+		   interval_set);
 static DEVICE_ATTR(data, S_IRUGO, data_show, NULL);
 static DEVICE_ATTR(wake, S_IWUSR | S_IWGRP, NULL, wake_set);
 static DEVICE_ATTR(status, S_IRUGO, status_show, NULL);
@@ -774,7 +988,6 @@ static void cwmi_acc_report_values(struct i2c_cwmi_sensor *sensor)
 	input_report_abs(sensor->input, ABS_HAT0X, aligned_data[0]);
 	input_report_abs(sensor->input, ABS_HAT0Y, aligned_data[1]);
 	input_report_abs(sensor->input, ABS_HAT1X, aligned_data[2]);
-
 	input_sync(sensor->input);
 
 	pr_debug("ax=%04d, ay=%04d, az=%04d\n",
@@ -857,7 +1070,7 @@ static int cwmi_acc_input_init(struct i2c_cwmi_sensor *sensor)
 		goto failed;
 	}
 
-	sensor->input->name = I2C_ACC_NAME;
+	sensor->input->name = ACC_NAME;
 	sensor->input->id.bustype = BUS_I2C;
 	input_set_drvdata(sensor->input, sensor);
 
@@ -896,7 +1109,7 @@ static int cwmi_mag_input_init(struct i2c_cwmi_sensor *sensor)
 		goto failed;
 	}
 
-	sensor->input->name = I2C_MAG_NAME;
+	sensor->input->name = DEV_NAME;
 	sensor->input->id.bustype = BUS_I2C;
 	input_set_drvdata(sensor->input, sensor);
 
@@ -926,6 +1139,7 @@ failed:
 }
 
 #if USE_VIRTUAL_ORIENTATION_SENSOR
+
 static int cwmi_ori_input_init(struct i2c_cwmi_sensor *sensor)
 {
 	int err = 0;
@@ -946,11 +1160,127 @@ static int cwmi_ori_input_init(struct i2c_cwmi_sensor *sensor)
 	input_set_abs_params(sensor->input, ABS_Y, -MAG_MAX, MAG_MAX, 0, 0);
 	input_set_abs_params(sensor->input, ABS_Z, -MAG_MAX, MAG_MAX, 0, 0);
 	input_set_abs_params(sensor->input, ABS_THROTTLE, 0, 0x1ffff, 0, 0);
+	input_set_abs_params(sensor->input, ABS_BRAKE, 0, 5, 0, 0);
+	input_set_abs_params(sensor->input, ABS_MISC, 0, 5, 0, 0);
 
 	err = input_register_device(sensor->input);
 	if (err) {
 		dev_err(&sensor->input->dev,
 			"Failed to register input device for orientation sensor\n");
+		input_free_device(sensor->input);
+		sensor->input = NULL;
+		goto failed;
+	}
+
+	return 0;
+
+failed:
+	return err;
+}
+
+static int cwmi_gra_input_init(struct i2c_cwmi_sensor *sensor)
+{
+	int err = 0;
+
+	sensor->input = input_allocate_device();
+	if (!sensor->input) {
+		err = -ENOMEM;
+		pr_err("Failed to allocate input device\n");
+		goto failed;
+	}
+
+	sensor->input->name = GRA_NAME;
+	sensor->input->id.bustype = BUS_VIRTUAL;
+	input_set_drvdata(sensor->input, sensor);
+
+	set_bit(EV_ABS, sensor->input->evbit);
+	input_set_abs_params(sensor->input, ABS_X, -MAG_MAX, MAG_MAX, 0, 0);
+	input_set_abs_params(sensor->input, ABS_Y, -MAG_MAX, MAG_MAX, 0, 0);
+	input_set_abs_params(sensor->input, ABS_Z, -MAG_MAX, MAG_MAX, 0, 0);
+	input_set_abs_params(sensor->input, ABS_THROTTLE, 0, 0x1ffff, 0, 0);
+	input_set_abs_params(sensor->input, ABS_BRAKE, 0, 5, 0, 0);
+	input_set_abs_params(sensor->input, ABS_MISC, 0, 5, 0, 0);
+
+	err = input_register_device(sensor->input);
+	if (err) {
+		dev_err(&sensor->input->dev,
+			"Failed to register input device for GRA sensor\n");
+		input_free_device(sensor->input);
+		sensor->input = NULL;
+		goto failed;
+	}
+
+	return 0;
+
+failed:
+	return err;
+}
+
+static int cwmi_lin_input_init(struct i2c_cwmi_sensor *sensor)
+{
+	int err = 0;
+
+	sensor->input = input_allocate_device();
+	if (!sensor->input) {
+		err = -ENOMEM;
+		pr_err("Failed to allocate input device\n");
+		goto failed;
+	}
+
+	sensor->input->name = LIN_NAME;
+	sensor->input->id.bustype = BUS_VIRTUAL;
+	input_set_drvdata(sensor->input, sensor);
+
+	set_bit(EV_ABS, sensor->input->evbit);
+	input_set_abs_params(sensor->input, ABS_X, -MAG_MAX, MAG_MAX, 0, 0);
+	input_set_abs_params(sensor->input, ABS_Y, -MAG_MAX, MAG_MAX, 0, 0);
+	input_set_abs_params(sensor->input, ABS_Z, -MAG_MAX, MAG_MAX, 0, 0);
+	input_set_abs_params(sensor->input, ABS_THROTTLE, 0, 0x1ffff, 0, 0);
+	input_set_abs_params(sensor->input, ABS_BRAKE, 0, 5, 0, 0);
+	input_set_abs_params(sensor->input, ABS_MISC, 0, 5, 0, 0);
+
+	err = input_register_device(sensor->input);
+	if (err) {
+		dev_err(&sensor->input->dev,
+			"Failed to register input device for LIN sensor\n");
+		input_free_device(sensor->input);
+		sensor->input = NULL;
+		goto failed;
+	}
+
+	return 0;
+
+failed:
+	return err;
+}
+
+static int cwmi_rot_input_init(struct i2c_cwmi_sensor *sensor)
+{
+	int err = 0;
+
+	sensor->input = input_allocate_device();
+	if (!sensor->input) {
+		err = -ENOMEM;
+		pr_err("Failed to allocate input device\n");
+		goto failed;
+	}
+
+	sensor->input->name = ROT_NAME;
+	sensor->input->id.bustype = BUS_VIRTUAL;
+	input_set_drvdata(sensor->input, sensor);
+
+	set_bit(EV_ABS, sensor->input->evbit);
+	input_set_abs_params(sensor->input, ABS_X, -MAG_MAX, MAG_MAX, 0, 0);
+	input_set_abs_params(sensor->input, ABS_Y, -MAG_MAX, MAG_MAX, 0, 0);
+	input_set_abs_params(sensor->input, ABS_Z, -MAG_MAX, MAG_MAX, 0, 0);
+	input_set_abs_params(sensor->input, ABS_THROTTLE, 0, 0x1ffff, 0, 0);
+	input_set_abs_params(sensor->input, ABS_BRAKE, 0, 5, 0, 0);
+	input_set_abs_params(sensor->input, ABS_MISC, 0, 5, 0, 0);
+
+	err = input_register_device(sensor->input);
+	if (err) {
+		dev_err(&sensor->input->dev,
+			"Failed to register input device for ROT sensor\n");
 		input_free_device(sensor->input);
 		sensor->input = NULL;
 		goto failed;
@@ -1003,7 +1333,135 @@ failed_alloc:
 	pr_err("Orientation sensor initialization failed\n");
 	return err;
 }
+
+static int cwmi_gra_sensor_init(void)
+{
+	int err = 0;
+	struct i2c_cwmi_sensor *sensor;
+
+	sensor = kzalloc(sizeof(struct i2c_cwmi_sensor), GFP_KERNEL);
+	if (sensor == NULL) {
+		pr_err("Failed to allocate memory\n");
+		err = -ENOMEM;
+		goto failed_alloc;
+	}
+
+	sensor->sample_interval = DEFAULT_SAMPLE_INTERVAL;
+	atomic_set(&sensor->enabled, 0);
+	mutex_init(&sensor->lock);
+	sensor->is_virtual = true;
+	sensor->type = SENSOR_TYPE_GRA;
+
+	err = cwmi_gra_input_init(sensor);
+	if (err)
+		goto exit_free;
+
+	/* Creates attributes */
+	err =
+	    sysfs_create_group(&sensor->input->dev.kobj,
+			       &sysfs_attribute_group);
+	if (err)
+		goto exit_free_input;
+
+	list_add(&sensor->list, &sensors);
+
+	return 0;
+
+exit_free_input:
+	input_free_device(sensor->input);
+exit_free:
+	kfree(sensor);
+failed_alloc:
+	pr_err("Gravity sensor initialization failed\n");
+	return err;
+}
+
+static int cwmi_lin_sensor_init(void)
+{
+	int err = 0;
+	struct i2c_cwmi_sensor *sensor;
+
+	sensor = kzalloc(sizeof(struct i2c_cwmi_sensor), GFP_KERNEL);
+	if (sensor == NULL) {
+		pr_err("Failed to allocate memory\n");
+		err = -ENOMEM;
+		goto failed_alloc;
+	}
+
+	sensor->sample_interval = DEFAULT_SAMPLE_INTERVAL;
+	atomic_set(&sensor->enabled, 0);
+	mutex_init(&sensor->lock);
+	sensor->is_virtual = true;
+	sensor->type = SENSOR_TYPE_LIN;
+
+	err = cwmi_lin_input_init(sensor);
+	if (err)
+		goto exit_free;
+
+	/* Creates attributes */
+	err =
+	    sysfs_create_group(&sensor->input->dev.kobj,
+			       &sysfs_attribute_group);
+	if (err)
+		goto exit_free_input;
+
+	list_add(&sensor->list, &sensors);
+
+	return 0;
+
+exit_free_input:
+	input_free_device(sensor->input);
+exit_free:
+	kfree(sensor);
+failed_alloc:
+	pr_err("Linear_acceleration sensor initialization failed\n");
+	return err;
+}
+
+static int cwmi_rot_sensor_init(void)
+{
+	int err = 0;
+	struct i2c_cwmi_sensor *sensor;
+
+	sensor = kzalloc(sizeof(struct i2c_cwmi_sensor), GFP_KERNEL);
+	if (sensor == NULL) {
+		pr_err("Failed to allocate memory\n");
+		err = -ENOMEM;
+		goto failed_alloc;
+	}
+
+	sensor->sample_interval = DEFAULT_SAMPLE_INTERVAL;
+	atomic_set(&sensor->enabled, 0);
+	mutex_init(&sensor->lock);
+	sensor->is_virtual = true;
+	sensor->type = SENSOR_TYPE_ROT;
+
+	err = cwmi_rot_input_init(sensor);
+	if (err)
+		goto exit_free;
+
+	/* Creates attributes */
+	err =
+	    sysfs_create_group(&sensor->input->dev.kobj,
+			       &sysfs_attribute_group);
+	if (err)
+		goto exit_free_input;
+
+	list_add(&sensor->list, &sensors);
+
+	return 0;
+
+exit_free_input:
+	input_free_device(sensor->input);
+exit_free:
+	kfree(sensor);
+failed_alloc:
+	pr_err("Rotation_vector sensor initialization failed\n");
+	return err;
+}
+
 #else
+
 static int cwmi_ori_sensor_init(void)
 {
 	return 0;
@@ -1013,6 +1471,65 @@ static int cwmi_ori_input_init(struct i2c_cwmi_sensor *sensor)
 {
 	return 0;
 }
+
+static int cwmi_gra_sensor_init(void)
+{
+	return 0;
+}
+
+static int cwmi_gra_input_init(struct i2c_cwmi_sensor *sensor)
+{
+	return 0;
+}
+
+static int cwmi_lin_sensor_init(void)
+{
+	return 0;
+}
+
+static int cwmi_lin_input_init(struct i2c_cwmi_sensor *sensor)
+{
+	return 0;
+}
+
+static int cwmi_rot_sensor_init(void)
+{
+	return 0;
+}
+
+static int cwmi_rot_input_init(struct i2c_cwmi_sensor *sensor)
+{
+	return 0;
+}
+
+#endif
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void cwmi_early_suspend(struct early_suspend *h)
+{
+	struct i2c_cwmi_sensor *sensor =
+	    container_of(h, struct i2c_cwmi_sensor, early_suspend);
+	if (atomic_cmpxchg(&sensor->enabled, 1, 0)) {
+		if (((struct cwmi_platform_data *)(sensor->client->dev.
+						   platform_data))->set_power)
+			((struct cwmi_platform_data *)(sensor->client->dev.
+						       platform_data))->
+			    set_power(0);
+	}
+}
+
+static void cwmi_late_resume(struct early_suspend *h)
+{
+	struct i2c_cwmi_sensor *sensor =
+	    container_of(h, struct i2c_cwmi_sensor, early_suspend);
+	if (!atomic_cmpxchg(&sensor->enabled, 0, 1)) {
+		if (((struct cwmi_platform_data *)(sensor->client->dev.
+						   platform_data))->set_power)
+			((struct cwmi_platform_data *)(sensor->client->dev.
+						       platform_data))->
+			    set_power(1);
+	}
+}
 #endif
 
 static int cwmi_probe(struct i2c_client *client, const struct i2c_device_id *id)
@@ -1021,8 +1538,11 @@ static int cwmi_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	int err = 0;
 	u8 value;
 
-	if (((struct cwmi_platform_data *)(client->dev.platform_data))->set_power)
-		((struct cwmi_platform_data *)(client->dev.platform_data))->set_power(1);
+	if (((struct cwmi_platform_data *)(client->dev.platform_data))->
+	    set_power)
+		((struct cwmi_platform_data *)(client->dev.platform_data))->
+		    set_power(1);
+
 	sensor = kzalloc(sizeof(struct i2c_cwmi_sensor), GFP_KERNEL);
 	if (sensor == NULL) {
 		pr_err("Failed to allocate memory\n");
@@ -1087,12 +1607,26 @@ static int cwmi_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 	if (!cwmi_find_sensor(ORI_NAME))
 		cwmi_ori_sensor_init();
+	if (!cwmi_find_sensor(GRA_NAME))
+		cwmi_gra_sensor_init();
+	if (!cwmi_find_sensor(LIN_NAME))
+		cwmi_lin_sensor_init();
+	if (!cwmi_find_sensor(ROT_NAME))
+		cwmi_rot_sensor_init();
 
-	pr_info("%s i2c device created (Interruptible=%d).\n",
-		client->name, sensor->use_interrupt);
+	pr_info("%s i2c device created (Interruptible=%d).\n", client->name,
+		sensor->use_interrupt);
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	sensor->early_suspend.level = EARLY_SUSPEND_LEVEL_STOP_DRAWING;
+	sensor->early_suspend.suspend = cwmi_early_suspend;
+	sensor->early_suspend.resume = cwmi_late_resume;
+	register_early_suspend(&sensor->early_suspend);
+#endif
 
-	if (((struct cwmi_platform_data *)(client->dev.platform_data))->set_power)
-		((struct cwmi_platform_data *)(client->dev.platform_data))->set_power(0);
+	if (((struct cwmi_platform_data *)(client->dev.platform_data))->
+	    set_power)
+		((struct cwmi_platform_data *)(client->dev.platform_data))->
+		    set_power(0);
 	return 0;
 
 exit_free_irq:
