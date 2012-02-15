@@ -19,13 +19,12 @@
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/smc91x.h>
-#include <linux/mfd/max8925.h>
+#include <linux/mfd/88pm80x.h>
 #include <linux/pwm_backlight.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/driver.h>
-#include <linux/regulator/ds4432.h>
-#include <linux/mfd/wm8994/pdata.h>
 #include <linux/regulator/fixed.h>
+#include <linux/regulator/fan53555.h>
 #include <linux/switch.h>
 #if defined(CONFIG_SENSORS_LSM303DLHC_ACC) || \
 	defined(CONFIG_SENSORS_LSM303DLHC_MAG)
@@ -45,7 +44,6 @@
 #include <mach/irqs.h>
 #include <mach/regs-mpmu.h>
 #include <mach/soc_vmeta.h>
-#include <mach/tc35876x.h>
 #include <mach/uio_hdmi.h>
 #if defined(CONFIG_SPI_PXA2XX)
 #include <linux/spi/spi.h>
@@ -202,24 +200,7 @@ static unsigned long mmc3_pin_config[] __initdata = {
 /* soc  camera */
 static int camera_sensor_power(struct device *dev, int on)
 {
-	static int f_enabled;
 	int cam_pwdn = mfp_to_gpio(MFP_PIN_GPIO68);
-	struct regulator *v_ldo3;
-
-	/* We rely on mipi brige also connect the mipi signal */
-	/* v_ldo3 MIPI BRIDGE CHIP PLL, 1.2V */
-	v_ldo3 = regulator_get(NULL, "v_ldo3");
-	if (IS_ERR(v_ldo3)) {
-		v_ldo3 = NULL;
-		return -EIO;
-	}
-	if (on) {
-		regulator_set_voltage(v_ldo3, 1200000, 1200000);
-		regulator_enable(v_ldo3);
-	} else
-		regulator_disable(v_ldo3);
-
-	regulator_put(v_ldo3);
 
 	if (gpio_request(cam_pwdn, "CAM_PWDN")) {
 		printk(KERN_ERR"Request GPIO failed, gpio: %d\n", cam_pwdn);
@@ -269,8 +250,8 @@ static void pxa2128_cam_ctrl_power(int on)
 
 static int pxa2128_cam_clk_init(struct device *dev, int init)
 {
-	static struct regulator *v_ldo14;
-	static struct regulator *v_ldo15;
+	static struct regulator *af_vcc;
+	static struct regulator *avdd;
 	struct mv_cam_pdata *data = dev->platform_data;
 	int cam_enable = mfp_to_gpio(MFP_PIN_GPIO1);
 	unsigned long tx_clk_esc;
@@ -294,15 +275,15 @@ static int pxa2128_cam_clk_init(struct device *dev, int init)
 		return -EIO;
 	}
 
-	v_ldo14 = regulator_get(NULL, "v_ldo14");
-	if (IS_ERR(v_ldo14)) {
-		v_ldo14 = NULL;
+	af_vcc = regulator_get(NULL, "V_2P8");
+	if (IS_ERR(af_vcc)) {
+		af_vcc = NULL;
 		return -EIO;
 	}
 
-	v_ldo15 = regulator_get(NULL, "v_ldo15");
-	if (IS_ERR(v_ldo15)) {
-		v_ldo15 = NULL;
+	avdd = regulator_get(NULL, "AVDD_CAM_2P8V");
+	if (IS_ERR(avdd)) {
+		avdd = NULL;
 		return -EIO;
 	}
 	if ((!data->clk_enabled) && init) {
@@ -312,10 +293,10 @@ static int pxa2128_cam_clk_init(struct device *dev, int init)
 			return PTR_ERR(data->clk);
 		}
 		data->clk_enabled = 1;
-		regulator_set_voltage(v_ldo14, 3000000, 3000000);
-		regulator_enable(v_ldo14);
-		regulator_set_voltage(v_ldo15, 2800000, 2800000);
-		regulator_enable(v_ldo15);
+		regulator_set_voltage(af_vcc, 3000000, 3000000);
+		regulator_enable(af_vcc);
+		regulator_set_voltage(avdd, 2800000, 2800000);
+		regulator_enable(avdd);
 
 		gpio_direction_output(cam_enable, 1);
 		gpio_free(cam_enable);
@@ -324,10 +305,10 @@ static int pxa2128_cam_clk_init(struct device *dev, int init)
 
 	if (!init && data->clk_enabled) {
 		clk_put(data->clk);
-		regulator_disable(v_ldo14);
-		regulator_put(v_ldo14);
-		regulator_disable(v_ldo15);
-		regulator_put(v_ldo15);
+		regulator_disable(af_vcc);
+		regulator_put(af_vcc);
+		regulator_disable(avdd);
+		regulator_put(avdd);
 		gpio_direction_output(cam_enable, 0);
 		gpio_free(cam_enable);
 		return 0;
@@ -390,45 +371,64 @@ static struct pxa27x_keypad_platform_data mmp3_keypad_info = {
 	.active_low = 1,
 };
 
-static struct regulator_consumer_supply max8925_regulator_supply[] = {
-	[0] = {
-		.supply = "DBVDD",
-		},
-	[1] = {
-		.supply = "AVDD2",
-		},
-	[2] = {
-		.supply = "CPVDD",
-		},
+/* PMIC Regulator 88PM800 */
+static struct regulator_consumer_supply regulator_supplies[] = {
+	/* BUCK power supplies: BUCK[1..5] */
+	[PM800_ID_BUCK1] = REGULATOR_SUPPLY("V_PMIC_SD0", NULL),
+	[PM800_ID_BUCK2] = REGULATOR_SUPPLY("V_DDR3", NULL),
+	[PM800_ID_BUCK3] = REGULATOR_SUPPLY("V_SD3", NULL),
+	[PM800_ID_BUCK4] = REGULATOR_SUPPLY("V_1P8", NULL),
+	[PM800_ID_BUCK5] = REGULATOR_SUPPLY("V_SD5", NULL),
+	/* LDO power supplies: LDO[1..19] */
+	[PM800_ID_LDO1]  = REGULATOR_SUPPLY("V_LDO1", NULL),
+	[PM800_ID_LDO2]  = REGULATOR_SUPPLY("V_MIC_BIAS", NULL),
+	[PM800_ID_LDO3]  = REGULATOR_SUPPLY("V_1P2_MIPI", NULL),
+	[PM800_ID_LDO4]  = REGULATOR_SUPPLY("V_LDO4", NULL),
+	[PM800_ID_LDO5]  = REGULATOR_SUPPLY("V_3P3", NULL),
+	[PM800_ID_LDO6]  = REGULATOR_SUPPLY("V_PMIC", NULL),
+	[PM800_ID_LDO7]  = REGULATOR_SUPPLY("V_LDO7", NULL),
+	[PM800_ID_LDO8]  = REGULATOR_SUPPLY("V_1P2_HSIC", NULL),
+	[PM800_ID_LDO9]  = REGULATOR_SUPPLY("V_1P8_USBFE", NULL),
+	[PM800_ID_LDO10] = REGULATOR_SUPPLY("V_LCD", NULL),
+	[PM800_ID_LDO11] = REGULATOR_SUPPLY("V_1P2_CODEC", NULL),
+	[PM800_ID_LDO12] = REGULATOR_SUPPLY("V_LDO12", NULL),
+	[PM800_ID_LDO13] = REGULATOR_SUPPLY("V_SDMMC", NULL),
+	[PM800_ID_LDO14] = REGULATOR_SUPPLY("V_2P8", NULL),
+	[PM800_ID_LDO15] = REGULATOR_SUPPLY("V_LDO15", NULL),
+	[PM800_ID_LDO16] = REGULATOR_SUPPLY("VBAT_FEM", NULL),
+	[PM800_ID_LDO17] = REGULATOR_SUPPLY("V_BB", NULL),
+	[PM800_ID_LDO18] = REGULATOR_SUPPLY("AVDD_CAM_2P8V", NULL),
+	[PM800_ID_LDO19] = REGULATOR_SUPPLY("V_1P8_ANA", NULL),
 };
 
-static struct regulator_consumer_supply regulator_supply[] = {
-	[MAX8925_ID_SD1]	= REGULATOR_SUPPLY("v_sd1", NULL),
-	[MAX8925_ID_SD2]	= REGULATOR_SUPPLY("v_sd2", NULL),
-	[MAX8925_ID_SD3]	= REGULATOR_SUPPLY("v_sd3", NULL),
-	[MAX8925_ID_LDO1]	= REGULATOR_SUPPLY("v_ldo1", NULL),
-	[MAX8925_ID_LDO2]	= REGULATOR_SUPPLY("v_ldo2", NULL),
-	[MAX8925_ID_LDO3]	= REGULATOR_SUPPLY("v_ldo3", NULL),
-	[MAX8925_ID_LDO4]	= REGULATOR_SUPPLY("v_ldo4", NULL),
-	[MAX8925_ID_LDO5]	= REGULATOR_SUPPLY("v_ldo5", NULL),
-	[MAX8925_ID_LDO6]	= REGULATOR_SUPPLY("v_ldo6", NULL),
-	[MAX8925_ID_LDO7]	= REGULATOR_SUPPLY("v_ldo7", NULL),
-	[MAX8925_ID_LDO8]	= REGULATOR_SUPPLY("v_ldo8", NULL),
-	[MAX8925_ID_LDO9]	= REGULATOR_SUPPLY("v_ldo9", NULL),
-	[MAX8925_ID_LDO10]	= REGULATOR_SUPPLY("v_ldo10", NULL),
-	[MAX8925_ID_LDO11]	= REGULATOR_SUPPLY("v_ldo11", NULL),
-	[MAX8925_ID_LDO12]	= REGULATOR_SUPPLY("v_ldo12", NULL),
-	[MAX8925_ID_LDO13]	= REGULATOR_SUPPLY("v_ldo13", NULL),
-	[MAX8925_ID_LDO14]	= REGULATOR_SUPPLY("v_ldo14", NULL),
-	[MAX8925_ID_LDO15]	= REGULATOR_SUPPLY("v_ldo15", NULL),
-	[MAX8925_ID_LDO16]	= REGULATOR_SUPPLY("v_ldo16", NULL),
-	[MAX8925_ID_LDO17]	= REGULATOR_SUPPLY("v_ldo17", NULL),
-	[MAX8925_ID_LDO18]	= REGULATOR_SUPPLY("v_ldo18", NULL),
-	[MAX8925_ID_LDO19]	= REGULATOR_SUPPLY("v_ldo19", NULL),
-	[MAX8925_ID_LDO20]	= REGULATOR_SUPPLY("v_ldo20", NULL),
+static int regulator_index[] = {
+	PM800_ID_BUCK1,
+	PM800_ID_BUCK2,
+	PM800_ID_BUCK3,
+	PM800_ID_BUCK4,
+	PM800_ID_BUCK5,
+	PM800_ID_LDO1,
+	PM800_ID_LDO2,
+	PM800_ID_LDO3,
+	PM800_ID_LDO4,
+	PM800_ID_LDO5,
+	PM800_ID_LDO6,
+	PM800_ID_LDO7,
+	PM800_ID_LDO8,
+	PM800_ID_LDO9,
+	PM800_ID_LDO10,
+	PM800_ID_LDO11,
+	PM800_ID_LDO12,
+	PM800_ID_LDO13,
+	PM800_ID_LDO14,
+	PM800_ID_LDO15,
+	PM800_ID_LDO16,
+	PM800_ID_LDO17,
+	PM800_ID_LDO18,
+	PM800_ID_LDO19,
 };
 
-#define REG_INIT(_name, _min, _max, _always, _boot)		\
+#define REG_INIT(_name, _min, _max, _always, _boot)	\
 {								\
 	.constraints = {					\
 		.name		= __stringify(_name),		\
@@ -440,92 +440,95 @@ static struct regulator_consumer_supply regulator_supply[] = {
 				| REGULATOR_CHANGE_STATUS,	\
 	},							\
 	.num_consumer_supplies	= 1,				\
-	.consumer_supplies	= &regulator_supply[MAX8925_ID_##_name], \
+	.consumer_supplies	= &regulator_supplies[PM800_ID_##_name], \
+	.driver_data = &regulator_index[PM800_ID_##_name],	\
 }
-
-static struct regulator_init_data regulator_data[] = {
-	[MAX8925_ID_SD1] = REG_INIT(SD1, 637500, 1425000, 0, 0),
-	[MAX8925_ID_SD2] = {
-				.constraints = {
-						.name = "SD2",
-						.min_uV = 650000,
-						.max_uV = 2225000,
-						.always_on = 1,
-						.boot_on = 1,
-						},
-				.num_consumer_supplies =
-				ARRAY_SIZE(max8925_regulator_supply),
-				.consumer_supplies = max8925_regulator_supply,
-				},
-	[MAX8925_ID_SD3] = REG_INIT(SD3, 750000, 3900000, 1, 1),
-	[MAX8925_ID_LDO1] = REG_INIT(LDO1, 750000, 3900000, 1, 1),
-	[MAX8925_ID_LDO2] = REG_INIT(LDO2, 650000, 2250000, 1, 1),
-	[MAX8925_ID_LDO3] = REG_INIT(LDO3, 1000000, 1500000, 0, 0),
-	[MAX8925_ID_LDO4] = REG_INIT(LDO4, 750000, 3900000, 1, 1),
-	[MAX8925_ID_LDO5] = REG_INIT(LDO5, 750000, 3900000, 0, 0),
-	[MAX8925_ID_LDO6] = REG_INIT(LDO6, 750000, 3900000, 0, 0),
-	[MAX8925_ID_LDO7] = REG_INIT(LDO7, 750000, 3900000, 1, 1),
-	[MAX8925_ID_LDO8] = REG_INIT(LDO8, 750000, 3900000, 1, 1),
-	[MAX8925_ID_LDO9] = REG_INIT(LDO9, 750000, 3900000, 1, 1),
-	[MAX8925_ID_LDO10] = REG_INIT(LDO10, 750000, 3900000, 0, 0),
-	[MAX8925_ID_LDO11] = REG_INIT(LDO11, 750000, 3900000, 1, 1),
-	[MAX8925_ID_LDO12] = REG_INIT(LDO12, 750000, 3900000, 0, 0),
-	[MAX8925_ID_LDO13] = REG_INIT(LDO13, 750000, 1500000, 0, 0),
-	[MAX8925_ID_LDO14] = REG_INIT(LDO14, 750000, 3000000, 0, 0),
-	[MAX8925_ID_LDO15] = REG_INIT(LDO15, 750000, 2800000, 0, 0),
-	[MAX8925_ID_LDO16] = REG_INIT(LDO16, 750000, 3900000, 0, 0),
-	[MAX8925_ID_LDO17] = REG_INIT(LDO17, 1000000, 1500000, 0, 0),
-	[MAX8925_ID_LDO18] = REG_INIT(LDO18, 650000, 2250000, 1, 1),
-	[MAX8925_ID_LDO19] = REG_INIT(LDO19, 750000, 3900000, 0, 0),
-	[MAX8925_ID_LDO20] = REG_INIT(LDO20, 750000, 3900000, 1, 1),
+static struct regulator_init_data pm800_regulator_data[] = {
+	/* BUCK power supplies: BUCK[1..5] */
+	[PM800_ID_BUCK1] = REG_INIT(BUCK1,  600000, 4550000, 1, 1),
+	[PM800_ID_BUCK2] = REG_INIT(BUCK2,  600000, 4550000, 1, 1),
+	[PM800_ID_BUCK3] = REG_INIT(BUCK3,  600000, 4550000, 1, 1),
+	[PM800_ID_BUCK4] = REG_INIT(BUCK4,  600000, 4550000, 1, 1),
+	[PM800_ID_BUCK5] = REG_INIT(BUCK5,  600000, 4550000, 0, 0),
+	/* LDO power supplies: LDO[1..19] */
+	[PM800_ID_LDO1]  = REG_INIT(LDO1,   600000, 1500000, 0, 0),
+	[PM800_ID_LDO2]  = REG_INIT(LDO2,   600000, 1500000, 0, 0),
+	[PM800_ID_LDO3]  = REG_INIT(LDO3,  1200000, 3300000, 1, 1),
+	[PM800_ID_LDO4]  = REG_INIT(LDO4,  1200000, 3300000, 0, 0),
+	[PM800_ID_LDO5]  = REG_INIT(LDO5,  1200000, 3300000, 1, 1),
+	[PM800_ID_LDO6]  = REG_INIT(LDO6,  1200000, 3300000, 1, 1),
+	[PM800_ID_LDO7]  = REG_INIT(LDO7,  1200000, 3300000, 0, 0),
+	[PM800_ID_LDO8]  = REG_INIT(LDO8,  1200000, 3300000, 1, 1),
+	[PM800_ID_LDO9]  = REG_INIT(LDO9,  1200000, 3300000, 1, 1),
+	[PM800_ID_LDO10] = REG_INIT(LDO10, 1200000, 3300000, 1, 1),
+	[PM800_ID_LDO11] = REG_INIT(LDO11, 1200000, 3300000, 1, 1),
+	[PM800_ID_LDO12] = REG_INIT(LDO12, 1200000, 3300000, 0, 0),
+	[PM800_ID_LDO13] = REG_INIT(LDO13, 1200000, 3300000, 1, 1),
+	[PM800_ID_LDO14] = REG_INIT(LDO14, 1200000, 3300000, 1, 1),
+	[PM800_ID_LDO15] = REG_INIT(LDO15, 1200000, 3300000, 0, 0),
+	[PM800_ID_LDO16] = REG_INIT(LDO16, 1200000, 3300000, 0, 0),
+	[PM800_ID_LDO17] = REG_INIT(LDO17, 1200000, 3300000, 0, 0),
+	[PM800_ID_LDO18] = REG_INIT(LDO18, 1700000, 3300000, 0, 0),
+	[PM800_ID_LDO19] = REG_INIT(LDO19, 1700000, 3300000, 1, 1),
 };
 
+static struct pm80x_platform_data pm800_info = {
+	.base_page_addr = 0x30,		/* BASE page */
+	.power_page_addr = 0x31,	/* POWER */
+	.gpadc_page_addr = 0x32,	/* GPADC */
+	.test_page_addr = 0x37,		/* TEST */
+	.irq_mode = 0,	/* 0: clear IRQ by read */
+	.irq_base = IRQ_BOARD_START,
 
+	.num_regulators = ARRAY_SIZE(pm800_regulator_data),
+	.regulator	    = pm800_regulator_data,
+};
+/* End Of PM800 */
 
-static struct max8925_platform_data yellowstone_max8925_info = {
-	.irq_base		= IRQ_BOARD_START,
-
-	.regulator[MAX8925_ID_SD1] = &regulator_data[MAX8925_ID_SD1],
-	.regulator[MAX8925_ID_SD2] = &regulator_data[MAX8925_ID_SD2],
-	.regulator[MAX8925_ID_SD3] = &regulator_data[MAX8925_ID_SD3],
-	.regulator[MAX8925_ID_LDO1] = &regulator_data[MAX8925_ID_LDO1],
-	.regulator[MAX8925_ID_LDO2] = &regulator_data[MAX8925_ID_LDO2],
-	.regulator[MAX8925_ID_LDO3] = &regulator_data[MAX8925_ID_LDO3],
-	.regulator[MAX8925_ID_LDO4] = &regulator_data[MAX8925_ID_LDO4],
-	.regulator[MAX8925_ID_LDO5] = &regulator_data[MAX8925_ID_LDO5],
-	.regulator[MAX8925_ID_LDO6] = &regulator_data[MAX8925_ID_LDO6],
-	.regulator[MAX8925_ID_LDO7] = &regulator_data[MAX8925_ID_LDO7],
-	.regulator[MAX8925_ID_LDO8] = &regulator_data[MAX8925_ID_LDO8],
-	.regulator[MAX8925_ID_LDO9] = &regulator_data[MAX8925_ID_LDO9],
-	.regulator[MAX8925_ID_LDO10] = &regulator_data[MAX8925_ID_LDO10],
-	.regulator[MAX8925_ID_LDO11] = &regulator_data[MAX8925_ID_LDO11],
-	.regulator[MAX8925_ID_LDO12] = &regulator_data[MAX8925_ID_LDO12],
-	.regulator[MAX8925_ID_LDO13] = &regulator_data[MAX8925_ID_LDO13],
-	.regulator[MAX8925_ID_LDO14] = &regulator_data[MAX8925_ID_LDO14],
-	.regulator[MAX8925_ID_LDO15] = &regulator_data[MAX8925_ID_LDO15],
-	.regulator[MAX8925_ID_LDO16] = &regulator_data[MAX8925_ID_LDO16],
-	.regulator[MAX8925_ID_LDO17] = &regulator_data[MAX8925_ID_LDO17],
-	.regulator[MAX8925_ID_LDO18] = &regulator_data[MAX8925_ID_LDO18],
-	.regulator[MAX8925_ID_LDO19] = &regulator_data[MAX8925_ID_LDO19],
-	.regulator[MAX8925_ID_LDO20] = &regulator_data[MAX8925_ID_LDO20],
+/* Core Voltage Regulator: V_MAIN */
+static struct regulator_consumer_supply fan53555_regulator_supply[] = {
+	REGULATOR_SUPPLY("V_MAIN", NULL),
 };
 
-static struct i2c_pxa_platform_data twsi1_pdata = {
-	.use_pio		 = 1,
+static struct regulator_init_data fan53555_regulator_data = {
+	.constraints = {
+		.name = "V_MAIN",
+		.min_uV = 600000,
+		.max_uV = 1230000,
+		.always_on = 1,
+		.boot_on = 1,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE
+			| REGULATOR_CHANGE_STATUS | REGULATOR_CHANGE_MODE,
+		.valid_modes_mask = REGULATOR_MODE_FAST | REGULATOR_MODE_NORMAL,
+	},
+	.num_consumer_supplies = ARRAY_SIZE(fan53555_regulator_supply),
+	.consumer_supplies = fan53555_regulator_supply,
+};
+
+static struct fan53555_platform_data fan53555_pdata = {
+	.regulator = &fan53555_regulator_data,
+	.slew_rate = FAN53555_SLEW_RATE_64MV, /* mV/uS */
+	.sleep_vsel_id = FAN53555_VSEL_ID_0, /* VSEL0 */
+	.sleep_vol = 1000000, /* uV */
 };
 
 static struct i2c_board_info yellowstone_twsi1_info[] = {
 	{
-		.type		= "max8925",
-		.addr		= 0x3c,
-		.irq		= IRQ_MMP3_PMIC,
-		.platform_data	= &yellowstone_max8925_info,
+		.type = "88PM80x",
+		.addr = 0x34,
+		.irq  = IRQ_MMP3_PMIC,
+		.platform_data = &pm800_info,
+	},
+	{
+		.type = "fan53555",
+		.addr = 0x60,
+		.platform_data = &fan53555_pdata,
 	},
 };
 
 static int motion_sensor_set_power(int on, const char *device_name)
 {
-	static struct regulator *v_ldo8[3];
+	static struct regulator *vdd[3];
 	static int is_enabled[3] = {0, 0, 0};
 	int device_index = -1;
 
@@ -544,20 +547,21 @@ static int motion_sensor_set_power(int on, const char *device_name)
 
 	if ((device_index >= 0) && (device_index <= 2)) {
 		if (on && (!is_enabled[device_index])) {
-			v_ldo8[device_index] = regulator_get(NULL, "v_ldo8");
-			if (IS_ERR(v_ldo8[device_index])) {
-				v_ldo8[device_index] = NULL;
+			vdd[device_index] = regulator_get(NULL, "V_2P8");
+			if (IS_ERR(vdd[device_index])) {
+				vdd[device_index] = NULL;
 				return -ENODEV;
 			} else {
-				regulator_set_voltage(v_ldo8[device_index], 2800000, 2800000);
-				regulator_enable(v_ldo8[device_index]);
+				regulator_set_voltage(vdd[device_index],
+						2800000, 2800000);
+				regulator_enable(vdd[device_index]);
 				is_enabled[device_index] = 1;
 			}
 		}
 		if ((!on) && is_enabled[device_index]) {
-			regulator_disable(v_ldo8[device_index]);
-			regulator_put(v_ldo8[device_index]);
-			v_ldo8[device_index] = NULL;
+			regulator_disable(vdd[device_index]);
+			regulator_put(vdd[device_index]);
+			vdd[device_index] = NULL;
 			is_enabled[device_index] = 0;
 		}
 	} else
@@ -652,329 +656,38 @@ static struct platform_device yellowstone_lcd_backlight_devices = {
 	},
 };
 
-#if defined(CONFIG_TC35876X)
-/* force LDO3 & LDO17 always on */
-static int tc358765_init(void)
-{
-	struct regulator *vcc = NULL;
-
-	/* enable LDO for MIPI bridge */
-	vcc = regulator_get(NULL, "v_ldo17");
-	if (IS_ERR(vcc))
-		vcc = NULL;
-	else {
-		regulator_enable(vcc);
-		regulator_set_voltage(vcc, 1200000, 1200000);
-	}
-	vcc = regulator_get(NULL, "v_ldo3");
-	if (IS_ERR(vcc))
-		vcc = NULL;
-	else {
-		regulator_enable(vcc);
-		regulator_set_voltage(vcc, 1200000, 1200000);
-	}
-
-	return 0;
-}
-
-static struct tc35876x_platform_data tc358765_data = {
-	.platform_init = tc358765_init,
-	.id = TC358765_CHIPID,
-	.id_reg = TC358765_CHIPID_REG,
-};
-#endif
-
 static struct i2c_board_info yellowstone_twsi5_info[] = {
-#if defined(CONFIG_TC35876X)
-	{
-		.type		= "tc35876x",
-		.addr		= 0x0f,
-		.platform_data	= &tc358765_data,
-	},
-#endif
-};
-
-static int max17083_ds4432_convert(int path, int mode,
-			int iparam, int *oparam) {
-	if (mode == DS4432_DCDC_VOLTAGE_TO_CURRENT)
-		*oparam = (iparam - 1275000) / 100; /* vV -> 10 nA */
-	else
-		*oparam = iparam * 100 + 1275000; /* 10 nA -> vV */
-	return 0;
-}
-
-static struct regulator_consumer_supply ds4432_supply[] = {
-	REGULATOR_SUPPLY("vcc_main", NULL),
-};
-
-static struct ds4432_dac_data ds4432_data[] = {
-	[0] = {
-		.initdat = {
-			.constraints    = {
-				.name           = "vcc_main range",
-				.min_uV         = 903000,
-				.max_uV         = 1349400,
-				.always_on      = 1,
-				.boot_on        = 1,
-				.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
-			},
-			.num_consumer_supplies  = 1,
-			.consumer_supplies      = &ds4432_supply[0],
-		},
-		.name = "max17083+ds4432",
-		.type = REGULATOR_VOLTAGE,
-		.dac_path = 1,
-		.cstep_10nA = 62, /* (0.997/(16*100000))*100000000 10nA */
-		.param_convert = max17083_ds4432_convert,
-	},
-	/* ds4432 has two paths, we may register two here, however
-	   the two seems to be tied together on current board. we need to
-	   keep one unused and the other to do real control
-	*/
-};
-
-static struct ds4432_platform_data yellowstone_ds4432_info = {
-	.regulator_count = sizeof(ds4432_data)/sizeof(ds4432_data[0]),
-	.regulators = ds4432_data,
-
 };
 
 static struct i2c_board_info yellowstone_twsi6_info[] = {
-	{
-		.type		= "ds4432",
-		.addr		= 0x48,
-		.platform_data	= &yellowstone_ds4432_info,
-	},
-};
-
-static int wm8994_ldoen(void)
-{
-	int gpio = mfp_to_gpio(GPIO06_WM8994_LDOEN);
-
-	if (gpio_request(gpio, "wm8994 ldoen gpio")) {
-		printk(KERN_INFO "gpio %d request failed\n", gpio);
-		return -1;
-	}
-
-	gpio_direction_output(gpio, 1);
-	mdelay(1);
-	gpio_free(gpio);
-
-	return 0;
-}
-
-static struct regulator_consumer_supply yellowstone_wm8994_regulator_supply[]
-							= {
-	[0] = {
-		.supply = "AVDD1",
-		},
-	[1] = {
-		.supply = "DCVDD",
-		},
-};
-
-struct regulator_init_data yellowstone_wm8994_regulator_init_data[] = {
-	[0] = {
-		.constraints = {
-				.name = "wm8994-ldo1",
-				.min_uV = 2400000,
-				.max_uV = 3100000,
-				.always_on = 1,
-				.boot_on = 1,
-				},
-		.num_consumer_supplies = 1,
-		.consumer_supplies = &yellowstone_wm8994_regulator_supply[0],
-		},
-	[1] = {
-		.constraints = {
-				.name = "wm8994-ldo2",
-				.min_uV = 900000,
-				.max_uV = 1200000,
-				.always_on = 1,
-				.boot_on = 1,
-				},
-		.num_consumer_supplies = 1,
-		.consumer_supplies = &yellowstone_wm8994_regulator_supply[1],
-		},
-};
-
-struct wm8994_pdata yellowstone_wm8994_pdata = {
-	.ldo[0] = {
-			.enable = 0,
-			.init_data = &yellowstone_wm8994_regulator_init_data[0],
-			.supply = "AVDD1",
-
-		},
-	.ldo[1] = {
-		.enable = 0,
-		.init_data = &yellowstone_wm8994_regulator_init_data[1],
-		.supply = "DCVDD",
-
-		},
-};
-
-static struct regulator_consumer_supply yellowstone_fixed_regulator_supply[] = {
-	[0] = {
-		.supply = "SPKVDD1",
-		},
-	[1] = {
-		.supply = "SPKVDD2",
-		},
 };
 
 static struct i2c_board_info yellowstone_twsi3_info[] = {
-	{
-	 .type = "wm8994",
-	 .addr = 0x1a,
-	 .platform_data = &yellowstone_wm8994_pdata,
-	 },
 };
-
-struct regulator_init_data yellowstone_fixed_regulator_init_data[] = {
-	[0] = {
-		.constraints = {
-				.name = "wm8994-SPK1",
-				.always_on = 1,
-				.boot_on = 1,
-				},
-		.num_consumer_supplies = 1,
-		.consumer_supplies = &yellowstone_fixed_regulator_supply[0],
-		},
-	[1] = {
-		.constraints = {
-				.name = "wm8994-SPK2",
-				.always_on = 1,
-				.boot_on = 1,
-				},
-		.num_consumer_supplies = 1,
-		.consumer_supplies = &yellowstone_fixed_regulator_supply[1],
-		},
-};
-
-struct fixed_voltage_config yellowstone_fixed_pdata[2] = {
-	[0] = {
-		.supply_name = "SPKVDD1",
-		.microvolts = 3700000,
-		.init_data = &yellowstone_fixed_regulator_init_data[0],
-		.gpio = -1,
-		},
-	[1] = {
-		.supply_name = "SPKVDD2",
-		.microvolts = 3700000,
-		.init_data = &yellowstone_fixed_regulator_init_data[1],
-		.gpio = -1,
-		},
-};
-
-static struct platform_device fixed_device[] = {
-	[0] = {
-		.name = "reg-fixed-voltage",
-		.id = 0,
-		.dev = {
-			.platform_data = &yellowstone_fixed_pdata[0],
-			},
-		.num_resources = 0,
-		},
-	[1] = {
-		.name = "reg-fixed-voltage",
-		.id = 1,
-		.dev = {
-			.platform_data = &yellowstone_fixed_pdata[1],
-			},
-		.num_resources = 0,
-		},
-};
-
-static struct platform_device *fixed_rdev[] __initdata = {
-	&fixed_device[0],
-	&fixed_device[1],
-};
-
-static void yellowstone_fixed_regulator(void)
-{
-	platform_add_devices(fixed_rdev, ARRAY_SIZE(fixed_rdev));
-}
-
-#if defined(CONFIG_SWITCH_HEADSET_HOST_GPIO)
-static struct gpio_switch_platform_data headset_switch_device_data = {
-	.name = "h2w",
-	.gpio = mfp_to_gpio(GPIO23_GPIO),
-	.name_on = NULL,
-	.name_off = NULL,
-	.state_on = NULL,
-	.state_off = NULL,
-};
-
-static struct platform_device headset_switch_device = {
-	.name            = "headset",
-	.id              = 0,
-	.dev             = {
-		.platform_data = &headset_switch_device_data,
-	},
-};
-
-static int wm8994_gpio_irq(void)
-{
-	int gpio = mfp_to_gpio(GPIO23_GPIO);
-
-	if (gpio_request(gpio, "wm8994 irq")) {
-		printk(KERN_INFO "gpio %d request failed\n", gpio);
-		return -1;
-	}
-
-	gpio_direction_input(gpio);
-	mdelay(1);
-	gpio_free(gpio);
-	return 0;
-}
-
-static void __init yellowstone_init_headset(void)
-{
-	wm8994_gpio_irq();
-	platform_device_register(&headset_switch_device);
-}
-#endif
 
 #ifdef CONFIG_SD8XXX_RFKILL
 static void mmp3_8787_set_power(unsigned int on)
 {
-	static struct regulator *v_ldo19;
-	static struct regulator *v_ldo17;
+	static struct regulator *vbat_fem;
 	static int f_enabled = 0;
-	/* v_ldo19 3.3v */
-	/* v_ldo17 1.2v for 32k clk pull up*/
+	/* VBAT_FEM 3.3v */
 	if (on && (!f_enabled)) {
-		v_ldo17 = regulator_get(NULL, "v_ldo17");
-		if (IS_ERR(v_ldo17)) {
-			v_ldo17 = NULL;
-			printk(KERN_ERR"get v_ldo17 failed %s %d \n", __func__, __LINE__);
+		vbat_fem = regulator_get(NULL, "VBAT_FEM");
+		if (IS_ERR(vbat_fem)) {
+			vbat_fem = NULL;
+			pr_err("get VBAT_FEM failed %s.\n", __func__);
 		} else {
-			regulator_set_voltage(v_ldo17, 1200000, 1200000);
-			regulator_enable(v_ldo17);
-			f_enabled = 1;
-		}
-
-		v_ldo19 = regulator_get(NULL, "v_ldo19");
-		if (IS_ERR(v_ldo19)) {
-			v_ldo19 = NULL;
-			printk(KERN_ERR"get v_ldo19 failed %s %d \n", __func__, __LINE__);
-		} else {
-			regulator_set_voltage(v_ldo19, 3300000, 3300000);
-			regulator_enable(v_ldo19);
+			regulator_set_voltage(vbat_fem, 3300000, 3300000);
+			regulator_enable(vbat_fem);
 			f_enabled = 1;
 		}
 	}
 
 	if (f_enabled && (!on)) {
-		if (v_ldo17) {
-			regulator_disable(v_ldo17);
-			regulator_put(v_ldo17);
-			v_ldo17 = NULL;
-		}
-		if (v_ldo19) {
-			regulator_disable(v_ldo19);
-			regulator_put(v_ldo19);
-			v_ldo19 = NULL;
+		if (vbat_fem) {
+			regulator_disable(vbat_fem);
+			regulator_put(vbat_fem);
+			vbat_fem = NULL;
 		}
 		f_enabled = 0;
 	}
@@ -985,23 +698,23 @@ static void mmp3_8787_set_power(unsigned int on)
 #include <linux/mmc/host.h>
 static void yellowstone_sd_signal_1v8(int set)
 {
-	static struct regulator *v_ldo_sd;
+	static struct regulator *v_sdmmc;
 	int vol;
 
-	v_ldo_sd = regulator_get(NULL, "v_ldo11");
-	if (IS_ERR(v_ldo_sd)) {
-		printk(KERN_ERR "Failed to get v_ldo11\n");
+	v_sdmmc = regulator_get(NULL, "V_SDMMC");
+	if (IS_ERR(v_sdmmc)) {
+		printk(KERN_ERR "Failed to get V_SDMMC\n");
 		return;
 	}
 
 	vol = set ? 1800000 : 3000000;
-	regulator_set_voltage(v_ldo_sd, vol, vol);
-	regulator_enable(v_ldo_sd);
+	regulator_set_voltage(v_sdmmc, vol, vol);
+	regulator_enable(v_sdmmc);
 
 	mmp3_io_domain_1v8(AIB_SDMMC_IO_REG, set);
 
 	msleep(10);
-	regulator_put(v_ldo_sd);
+	regulator_put(v_sdmmc);
 }
 
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc0 = {
@@ -1144,28 +857,28 @@ static int mmp3_hsic1_reset(void)
 
 static int mmp3_hsic1_set_vbus(unsigned int vbus)
 {
-	static struct regulator *ldo5;
+	static struct regulator *v_1p2_hsic;
 
 	printk(KERN_INFO "%s: set %d\n", __func__, vbus);
 	if (vbus) {
-		if (!ldo5) {
-			ldo5 = regulator_get(NULL, "v_ldo5");
-			if (IS_ERR(ldo5)) {
-				printk(KERN_INFO "ldo5 not found\n");
+		if (!v_1p2_hsic) {
+			v_1p2_hsic = regulator_get(NULL, "V_1P2_HSIC");
+			if (IS_ERR(v_1p2_hsic)) {
+				printk(KERN_INFO "V_1P2_HSIC not found\n");
 				return -EIO;
 			}
-			regulator_set_voltage(ldo5, 1200000, 1200000);
-			regulator_enable(ldo5);
+			regulator_set_voltage(v_1p2_hsic, 1200000, 1200000);
+			regulator_enable(v_1p2_hsic);
 			printk(KERN_INFO "%s: enable regulator\n", __func__);
 			udelay(2);
 		}
 
 		mmp3_hsic1_reset();
 	} else {
-		if (ldo5) {
-			regulator_disable(ldo5);
-			regulator_put(ldo5);
-			ldo5 = NULL;
+		if (v_1p2_hsic) {
+			regulator_disable(v_1p2_hsic);
+			regulator_put(v_1p2_hsic);
+			v_1p2_hsic = NULL;
 		}
 	}
 
@@ -1227,24 +940,24 @@ static void __init mmp_init_vmeta(void)
        && defined(CONFIG_NTRIG_SPI)
 static int ntrig_set_power(int on)
 {
-	struct regulator *v_ldo16;
-	v_ldo16 = regulator_get(NULL, "v_ldo16");
-	if (IS_ERR(v_ldo16)) {
-		v_ldo16 = NULL;
-		pr_err("%s: enable ldo16 for touch fail!\n", __func__);
+	struct regulator *v_3p3;
+	v_3p3 = regulator_get(NULL, "V_3P3");
+	if (IS_ERR(v_3p3)) {
+		v_3p3 = NULL;
+		pr_err("%s: enable V_3P3 for touch fail!\n", __func__);
 		return -EIO;
 	}
 	else {
 		if (on) {
-			regulator_set_voltage(v_ldo16, 3300000, 3300000);
-			regulator_enable(v_ldo16);
+			regulator_set_voltage(v_3p3, 3300000, 3300000);
+			regulator_enable(v_3p3);
 		}
 		else {
-			regulator_disable(v_ldo16);
-			v_ldo16 = NULL;
+			regulator_disable(v_3p3);
+			v_3p3 = NULL;
 		}
 		msleep(100);
-		regulator_put(v_ldo16);
+		regulator_put(v_3p3);
 	}
 	return 1;
 }
@@ -1317,24 +1030,21 @@ static inline void mmp3_init_spi(void) {
 }
 #endif
 
-static int abilene_board_reset(char mode, const char *cmd)
+static int yellowstone_board_reset(char mode, const char *cmd)
 {
-#ifdef CONFIG_INPUT_MAX8925_ONKEY
-	extern void max8925_system_restart(char mode, const char *cmd);
-	max8925_system_restart(mode, cmd);
-#endif
+	/* TODO: add board reset routine */
 	return 1;
 }
 
 static void __init yellowstone_init(void)
 {
 	extern int (*board_reset)(char mode, const char *cmd);
-	board_reset = abilene_board_reset;
+	board_reset = yellowstone_board_reset;
 	mfp_config(ARRAY_AND_SIZE(yellowstone_pin_config));
 
 	/* on-chip devices */
 	mmp3_add_uart(3);
-	mmp3_add_twsi(1, &twsi1_pdata, ARRAY_AND_SIZE(yellowstone_twsi1_info));
+	mmp3_add_twsi(1, NULL, ARRAY_AND_SIZE(yellowstone_twsi1_info));
 	mmp3_add_twsi(4, NULL, ARRAY_AND_SIZE(yellowstone_twsi4_info));
 	mmp3_add_twsi(5, NULL, ARRAY_AND_SIZE(yellowstone_twsi5_info));
 	mmp3_add_twsi(6, NULL, ARRAY_AND_SIZE(yellowstone_twsi6_info));
@@ -1373,17 +1083,11 @@ static void __init yellowstone_init(void)
 #endif
 
 	mmp3_add_twsi(3, NULL, ARRAY_AND_SIZE(yellowstone_twsi3_info));
-	yellowstone_fixed_regulator();
-	wm8994_ldoen();
 
 	/* audio sspa support */
 	mmp3_add_sspa(1);
 	mmp3_add_sspa(2);
 	mmp3_add_audiosram(&mmp3_audiosram_info);
-
-#if defined(CONFIG_SWITCH_HEADSET_HOST_GPIO)
-	yellowstone_init_headset();
-#endif
 
 #if defined(CONFIG_VIDEO_MV)
 	platform_device_register(&abilene_ov5642);
