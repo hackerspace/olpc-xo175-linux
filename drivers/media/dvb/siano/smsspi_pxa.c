@@ -34,7 +34,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <linux/io.h>
 #include <mach/dma.h>
-#include <mach/cputype.h>
 #include <mach/addr-map.h>
 #include <mach/hardware.h>
 
