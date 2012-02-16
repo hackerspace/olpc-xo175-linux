@@ -2610,6 +2610,11 @@ static void __init ttc_dkb_init(void)
 
 #ifdef CONFIG_FB_PXA168
 	mfp_config(ARRAY_AND_SIZE(lcd_tpo_pin_config));
+
+	/* PXA910H board uses TRULY wvga panel */
+	if (cpu_is_pxa910h())
+		wvga_lcd = TRULY_WVGA_PANEL;
+
 	if (TRULY_WVGA_PANEL == is_wvga_lcd()) {
 		dkb_add_lcd_truly();
 		pr_info("LCD: truly WVGA panel selected.\n");
