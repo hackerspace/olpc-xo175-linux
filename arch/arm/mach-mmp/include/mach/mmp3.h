@@ -67,6 +67,7 @@ extern struct pxa_device_desc mmp3_device_hdmi;
 extern struct pxa_device_desc mmp3_device_videosram;
 
 extern struct platform_device mmp3_device_rtc;
+extern struct platform_device mmp3_device_vnc_touch;
 extern struct pxa_device_desc mmp3_device_sspa1;
 extern struct pxa_device_desc mmp3_device_sspa2;
 extern struct pxa_device_desc mmp3_device_ssp1;

@@ -340,6 +340,11 @@ struct platform_device mmp3_device_rtc = {
 	.num_resources  = ARRAY_SIZE(mmp3_resource_rtc),
 };
 
+struct platform_device mmp3_device_vnc_touch = {
+	.name   = "vnc-ts",
+	.id     = -1,
+};
+
 #ifdef CONFIG_USB_SUPPORT
 static u64 usb_dma_mask = ~(u32)0;
 

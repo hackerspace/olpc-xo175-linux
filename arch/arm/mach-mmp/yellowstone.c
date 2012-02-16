@@ -1368,6 +1368,10 @@ static void __init yellowstone_init(void)
 
 	platform_device_register(&mmp3_device_rtc);
 
+#if defined(CONFIG_TOUCHSCREEN_VNC)
+	platform_device_register(&mmp3_device_vnc_touch);
+#endif
+
 	mmp3_add_twsi(3, NULL, ARRAY_AND_SIZE(yellowstone_twsi3_info));
 	yellowstone_fixed_regulator();
 	wm8994_ldoen();

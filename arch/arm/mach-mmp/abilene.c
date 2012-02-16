@@ -1528,6 +1528,11 @@ static void __init abilene_init(void)
 
 	platform_device_register(&mmp3_device_rtc);
 
+#if defined(CONFIG_TOUCHSCREEN_VNC)
+	platform_device_register(&mmp3_device_vnc_touch);
+#endif
+
+
 	mmp3_add_twsi(3, NULL, ARRAY_AND_SIZE(abilene_twsi3_info));
 	mmp3_add_twsi(6, NULL, ARRAY_AND_SIZE(abilene_twsi6_info));
 	abilene_fixed_regulator();
