@@ -33,7 +33,7 @@
 #include <linux/uaccess.h>
 #include <linux/proc_fs.h>
 
-#ifdef CONFIG_PXA688_DSI
+#ifdef CONFIG_PXA688_PHY
 
 #include "pxa168fb.h"
 #include <mach/io.h>
@@ -78,7 +78,8 @@ static unsigned int dsi_lane[5] = {0, 0x1, 0x3, 0x7, 0xf};
 void pxa168fb_dsi_send(struct pxa168fb_info *fbi, void *value)
 {
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-	struct dsi_regs *dsi = (struct dsi_regs *)mi->dsi->regs;
+	struct dsi_info *di = (struct dsi_info *)mi->phy_info;
+	struct dsi_regs *dsi = (struct dsi_regs *)di->regs;
 	u8 *dsi_cmd_tmp = (u8 *)value;
 	int count = (int)(*dsi_cmd_tmp);
 	u8 *dsi_cmd = (u8 *)&dsi_cmd_tmp[1];
@@ -136,7 +137,8 @@ void pxa168fb_dsi_send(struct pxa168fb_info *fbi, void *value)
 #if 0 /* original version */
 {
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-	struct dsi_regs *dsi = (struct dsi_regs *)mi->dsi->regs;
+	struct dsi_info *di = (struct dsi_info *)mi->phy_info;
+	struct dsi_regs *dsi = (struct dsi_regs *)di->regs;
 	int loop = 0, tmp = 0;
 	u8 *dsi_cmd = (u8 *)value;
 	int count = (int)(*dsi_cmd);
@@ -178,7 +180,8 @@ void pxa168fb_dsi_send(struct pxa168fb_info *fbi, void *value)
 void dsi_cclk_set(struct pxa168fb_info *fbi, int en)
 {
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-	struct dsi_regs *dsi = (struct dsi_regs *)mi->dsi->regs;
+	struct dsi_info *di = (struct dsi_info *)mi->phy_info;
+	struct dsi_regs *dsi = (struct dsi_regs *)di->regs;
 
 	if (en)
 		writel(0x1, &dsi->phy_ctrl1);
@@ -190,8 +193,8 @@ void dsi_cclk_set(struct pxa168fb_info *fbi, int en)
 void dsi_lanes_enable(struct pxa168fb_info *fbi, int en)
 {
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-	struct dsi_regs *dsi = (struct dsi_regs *)mi->dsi->regs;
-	struct dsi_info *di = mi->dsi;
+	struct dsi_info *di = (struct dsi_info *)mi->phy_info;
+	struct dsi_regs *dsi = (struct dsi_regs *)di->regs;
 	u32 reg = readl(&dsi->phy_ctrl2);
 
 	if (en)
@@ -206,7 +209,8 @@ void dsi_lanes_enable(struct pxa168fb_info *fbi, int en)
 void dsi_set_dphy(struct pxa168fb_info *fbi)
 {
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-	struct dsi_regs *dsi = (struct dsi_regs *)mi->dsi->regs;
+	struct dsi_info *di = (struct dsi_info *)mi->phy_info;
+	struct dsi_regs *dsi = (struct dsi_regs *)di->regs;
 	u32 ui, lpx_clk, lpx_time, ta_get, ta_go, wakeup, reg;
 	u32 hs_prep, hs_zero, hs_trail, hs_exit, ck_zero, ck_trail, ck_exit;
 
@@ -289,7 +293,8 @@ void dsi_set_dphy(struct pxa168fb_info *fbi)
 void dsi_reset(struct pxa168fb_info *fbi, int hold)
 {
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-	struct dsi_regs *dsi = (struct dsi_regs *)mi->dsi->regs;
+	struct dsi_info *di = (struct dsi_info *)mi->phy_info;
+	struct dsi_regs *dsi = (struct dsi_regs *)di->regs;
 	volatile unsigned int reg;
 
 	printk(KERN_DEBUG "%s\n", __func__);
@@ -309,9 +314,9 @@ void dsi_set_controller(struct pxa168fb_info *fbi)
 {
 	struct fb_var_screeninfo *var = &(fbi->fb_info->var);
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-	struct dsi_regs *dsi = (struct dsi_regs *)mi->dsi->regs;
+	struct dsi_info *di = (struct dsi_info *)mi->phy_info;
+	struct dsi_regs *dsi = (struct dsi_regs *)di->regs;
 	struct dsi_lcd_regs *dsi_lcd = &dsi->lcd1;
-	struct dsi_info *di = mi->dsi;
 	unsigned hsync_b, hbp_b, hact_b, hex_b, hfp_b, httl_b;
 	unsigned hsync, hbp, hact, hfp, httl, h_total, v_total;
 	unsigned hsa_wc, hbp_wc, hact_wc, hex_wc, hfp_wc, hlp_wc;
@@ -449,18 +454,19 @@ void dsi_set_controller(struct pxa168fb_info *fbi)
 	writel(((var->yres)<<16) | (v_total), &dsi_lcd->timing2);
 }
 
-ssize_t dsi_show(struct device *dev, struct device_attribute *attr,
-		char *buf)
+static void dsi_dump(struct pxa168fb_info *fbi)
 {
-	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
+	struct dsi_info *di = (struct dsi_info *)mi->phy_info;
 	struct dsi_regs *dsi;
+	dsi = (struct dsi_regs *)di->regs;
 
-	if (!mi || !mi->dsi) {
-		pr_info("no dsi interface available\n");
-		goto out;
+	if (!di) {
+		pr_err("%s: no dsi info available\n", __func__);
+		return;
 	}
-	dsi = (struct dsi_regs *)mi->dsi->regs;
+	pr_info("dsi_info: ch %d lanes %d bpp %d\n\n", di->id,
+			di->lanes, di->bpp);
 
 	pr_info("dsi regs base 0x%p\n", dsi);
 	pr_info("\tctrl0      (@%3x):\t0x%x\n", (int)(&dsi->ctrl0)&0xfff,
@@ -585,11 +591,24 @@ ssize_t dsi_show(struct device *dev, struct device_attribute *attr,
 	pr_info("\tslot_cnt1 (@%3x):\t0x%x\n",
 					 (int)(&dsi->lcd2.slot_cnt1)&0xfff,
 					 readl(&dsi->lcd2.slot_cnt1));
+}
+
+ssize_t phy_show(struct device *dev, struct device_attribute *attr,
+		char *buf)
+{
+	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
+	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
+
+	if (!mi)
+		goto out;
+
+	if ((mi->phy_type & (DSI | DSI2DPI)))
+		dsi_dump(fbi);
 
 out:
-	return sprintf(buf, "%d\n", fbi->id);
+	return sprintf(buf, "fbi %d\n", fbi->id);
 }
-ssize_t dsi_store(
+ssize_t phy_store(
 		struct device *dev, struct device_attribute *attr,
 		const char *buf, size_t size)
 {
@@ -600,6 +619,6 @@ ssize_t dsi_store(
 
 	return size;
 }
-DEVICE_ATTR(dsi, S_IRUGO | S_IWUSR, dsi_show, dsi_store);
+DEVICE_ATTR(phy, S_IRUGO | S_IWUSR, phy_show, phy_store);
 
 #endif

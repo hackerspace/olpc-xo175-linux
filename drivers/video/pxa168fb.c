@@ -560,7 +560,7 @@ static void set_dumb_screen_dimensions(struct fb_info *info)
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 	struct fb_var_screeninfo *v = &info->var;
 	struct lcd_regs *regs = get_regs(fbi->id);
-	struct dsi_info *di = mi->dsi;
+	struct dsi_info *di = (struct dsi_info *)mi->phy_info;
 	int x, y, h_porch, vec = 10, vsync_ctrl;
 
 	dev_dbg(info->dev, "Enter %s fb %d regs->screen_active 0x%p\n",
@@ -1755,7 +1755,7 @@ static int pxa168fb_proc_write(struct file *file, const char *buffer,
 {
 	struct fb_info *info = gfx_info.fbi[0]->fb_info;
 	struct pxa168fb_mach_info *mi = gfx_info.fbi[0]->dev->platform_data;
-	struct dsi_info *di = mi->dsi;
+	struct dsi_info *di = (struct dsi_info *)mi->phy_info;
 	char kbuf[11], vol[11];
 	int index, reg_val, i;
 	unsigned addr = (unsigned)gfx_info.fbi[0]->reg_base;
@@ -1844,7 +1844,7 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct clk *clk;
 	int irq, irq_mask, irq_enable_value, ret = 0;
-	struct dsi_info *di;
+	struct dsi_info *di = NULL;
 	static int proc_inited;
 
 	mi = pdev->dev.platform_data;
@@ -1896,7 +1896,8 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	}
 
 	gfx_info.fbi[fbi->id] = fbi;
-	di = mi->dsi;
+	if (mi->phy_type & (DSI | DSI2DPI))
+		di = (struct dsi_info *)mi->phy_info;
 	if (di) {
 		pr_info("fb%d dsi %d di->lanes %d di->bpp %d\n",
 			fbi->id, di->id, di->lanes, di->bpp);
@@ -1906,8 +1907,7 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 		else
 			di->regs = (unsigned)ioremap_nocache\
 			(DSI2_REGS_PHYSICAL_BASE, sizeof(struct dsi_regs));
-	} else
-		pr_info("fb%d no dsi info\n", fbi->id);
+	}
 
 	fbi->fb_info = info;
 	platform_set_drvdata(pdev, fbi);
@@ -2094,13 +2094,11 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	register_early_suspend(&fbi->early_suspend);
 #endif
 
-#ifdef CONFIG_PXA688_DSI
-	if (mi->phy_type & (DSI2DPI | DSI)) {
-		ret = device_create_file(&pdev->dev, &dev_attr_dsi);
-		if (ret < 0) {
-			pr_err("device attr create fail: %d\n", ret);
-			goto failed_free_irq;
-		}
+#ifdef CONFIG_PXA688_PHY
+	ret = device_create_file(&pdev->dev, &dev_attr_phy);
+	if (ret < 0) {
+		pr_err("device attr create fail: %d\n", ret);
+		goto failed_free_irq;
 	}
 #endif
 

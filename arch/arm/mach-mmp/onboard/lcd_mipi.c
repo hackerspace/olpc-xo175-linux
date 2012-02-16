@@ -150,8 +150,7 @@ static int dsi_set_tc358765(struct pxa168fb_info *fbi)
 	int status;
 #ifdef CONFIG_TC35876X
 	struct fb_var_screeninfo *var = &(fbi->fb_info->var);
-	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-	struct dsi_info *di = mi->dsi;
+	struct dsi_info *di = &dsiinfo;
 	u16 chip_id = 0;
 
 	status = tc35876x_read16(TC358765_CHIPID_REG, &chip_id);
@@ -317,7 +316,7 @@ static int abilene_lcd_power(struct pxa168fb_info *fbi,
 
 static int dsi_init(struct pxa168fb_info *fbi)
 {
-#ifdef CONFIG_PXA688_DSI
+#ifdef CONFIG_PXA688_PHY
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 	int ret = 0;
 
@@ -389,7 +388,7 @@ static struct pxa168fb_mach_info mipi_lcd_info = {
 	.phy_init = dsi_init,
 	.dsi2dpi_set = dsi_set_tc358765,
 	.xcvr_reset = tc358765_reset,
-	.dsi = &dsiinfo,
+	.phy_info = &dsiinfo,
 	.pxa168fb_lcd_power = &abilene_lcd_power,
 	.sclk_src = 520000000,
 };
@@ -420,7 +419,7 @@ static struct pxa168fb_mach_info mipi_lcd_ovly_info = {
 #define     CLK_INT_DIV_MASK			0x000000FF
 static void calculate_lcd_sclk(struct pxa168fb_mach_info *mi)
 {
-	struct dsi_info *di = mi->dsi;
+	struct dsi_info *di = &dsiinfo;
 	struct fb_videomode *modes = &mi->modes[0];
 	u32 total_w, total_h, pclk2bclk_rate, byteclk, bitclk,
 	    pclk_div, bitclk_div = 1;
@@ -724,7 +723,7 @@ static struct pxa168fb_mach_info mmp2_mipi_lcd_info __initdata = {
 #else
 #error Please select CONFIG_TC35876X in menuconfig to enable DSI bridge
 #endif
-	.dsi			= &dsiinfo,
+	.phy_info		= &dsiinfo,
 	.pxa168fb_lcd_power     = &brownstone_lcd_power,
 #ifdef CONFIG_PXA688_CMU
 	.cmu_cal = {{-1, 47, 2, 2},

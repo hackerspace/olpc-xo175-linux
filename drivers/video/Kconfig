@@ -1880,12 +1880,12 @@ config FB_PXA168
 	select FB_CFB_FILLRECT
 	select FB_CFB_COPYAREA
 	select FB_CFB_IMAGEBLIT
-        select PXA688_DSI if (CPU_MMP3 || CPU_MMP2)
+        select PXA688_PHY if (CPU_MMP3 || CPU_MMP2)
 	---help---
 	  Frame buffer driver for the built-in LCD controller in the Marvell
 	  MMP processor.
 
-config PXA688_DSI
+config PXA688_PHY
         bool "MMP2/MMP3 LCD DSI support"
         depends on FB && (CPU_MMP3 || CPU_MMP2)
 

@@ -575,6 +575,7 @@ struct pxa168fb_mach_info {
 	*/
 	unsigned int	phy_type;
 	int		(*phy_init)(struct pxa168fb_info *);
+	void		*phy_info;
 
 	/*
 	 * vdma option
@@ -599,7 +600,6 @@ struct pxa168fb_mach_info {
 	 * dsi setting function
 	 */
 	void (*dsi_set)(struct pxa168fb_info *);
-	struct dsi_info *dsi;
 	/*
 	 * special ioctls
 	 */
@@ -652,7 +652,7 @@ struct pxa168fb_gra_partdisp {
 #define LCD_ISR_CLEAR_MASK_PXA910       0xffff00cc
 
 extern int fb_share;
-extern struct device_attribute dev_attr_dsi;
+extern struct device_attribute dev_attr_phy;
 extern struct device_attribute dev_attr_vdma;
 extern struct fbi_info gfx_info;
 extern struct fbi_info ovly_info;
