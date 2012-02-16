@@ -10,11 +10,83 @@
 #include <linux/slab.h>
 #include <linux/platform_device.h>
 #include <linux/mfd/88pm860x.h>
+#include <plat/usb.h>
+#include <linux/delay.h>
+
+#define STATUS2_VBUS        (1 << 4)
+#define GPADC2_MEAS1		0x79
+#define GPADC2_MEAS2		0x7A
+#define GPADC2_LOW_TH		0x61
+#define GPADC2_UPP_TH		0x69
+#define MEAS_ENABLE1		0x50
+#define MEAS_GP2_EN		(1 << 6)
+#define GPADC_MISC1		0x57
+#define GPFSM_EN		(1 << 0)
+#define MISC1_GPIO1_DIR		(1 << 3)
+#define MISC1_GPIO1_VAL		(1 << 4)
+#define MISC1_GPIO2_DIR		(1 << 5)
+#define MISC1_GPIO2_VAL		(1 << 6)
 
 struct pm860x_vbus_info {
 	struct pm860x_chip	*chip;
 	int			irq;
 };
+
+int pm860x_read_vbus_val(void)
+{
+	int ret;
+	ret = pm860x_codec_reg_read(2);
+	if (ret & STATUS2_VBUS)
+		ret = VBUS_HIGH;
+	else
+		ret = VBUS_LOW;
+	return ret;
+};
+
+int pm860x_read_id_val(void)
+{
+	int ret, data;
+	ret = pm860x_codec_reg_read(GPADC2_MEAS1);
+	data = ret << 4;
+	ret = pm860x_codec_reg_read(GPADC2_MEAS2);
+	data |= ret & 0x0F;
+	if (data > 0x10) {
+		ret = 1;
+		pm860x_codec_reg_write(GPADC2_LOW_TH, 0x10);
+		pm860x_codec_reg_write(GPADC2_UPP_TH, 0xff);
+	} else {
+		ret = 0;
+		pm860x_codec_reg_write(GPADC2_LOW_TH, 0);
+		pm860x_codec_reg_write(GPADC2_UPP_TH, 0x10);
+	}
+
+	return ret;
+};
+
+void pm860x_init_id(void)
+{
+	pm860x_codec_reg_set_bits(MEAS_ENABLE1, MEAS_GP2_EN, MEAS_GP2_EN);
+	pm860x_codec_reg_set_bits(GPADC_MISC1, GPFSM_EN, GPFSM_EN);
+}
+
+int pm860x_set_vbus(unsigned int vbus)
+{
+	unsigned int data = 0, mask;
+	if (vbus == VBUS_HIGH)
+		data = MISC1_GPIO1_DIR | MISC1_GPIO1_VAL;
+	mask = 	MISC1_GPIO1_DIR | MISC1_GPIO1_VAL;
+
+	pm860x_codec_reg_set_bits(PM8607_A1_MISC1, mask, data);
+
+	mdelay(20);
+
+	if (pm860x_read_vbus_val() != vbus)
+		pr_info("vbus set failed %x\n", vbus);
+	else
+		pr_info("vbus set done %x\n", vbus);
+
+	return 0;
+}
 
 static int __devinit pm860x_vbus_probe(struct platform_device *pdev)
 {

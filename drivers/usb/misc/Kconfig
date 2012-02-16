@@ -253,3 +253,13 @@ config USB_VBUS_88PM860X
 
 	  To compile this driver as a module, choose M here: the module will
 	  be called 88pm860x_vbus.
+
+config USB_VBUS_88PM80X
+        tristate "Marvell USB 88PM80x VBus"
+        depends on MFD_88PM80X && USB
+        help
+          Say Y here if you have a 88PM860x PMIC to detect USB VBus event.
+          If unsure, say N.
+
+          To compile this driver as a module, choose M here: the module will
+          be called 88pm80x_vbus.

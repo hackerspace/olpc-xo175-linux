@@ -637,7 +637,10 @@ extern int pm860x_calc_resistor(void);
 extern void pm860x_set_charger_type(enum enum_charger_type type );
 extern int pm860x_battery_update_soc(void);
 extern void pm860x_set_vbus_output(int);
-
+extern int pm860x_read_vbus_val(void);
+extern int pm860x_read_id_val(void);
+extern void pm860x_init_id(void);
+extern int pm860x_set_vbus(unsigned int vbus);
 #else
 static inline int pm8606_ref_gp_and_osc_get(struct pm860x_chip *chip, u16 client)
 {
@@ -731,6 +734,21 @@ static inline int pm860x_battery_update_soc(void)
 static inline void pm860x_set_vbus_output(int x)
 {
 	return;
+}
+static inline int pm860x_read_vbus_val(void)
+{
+	return 0;
+}
+static inline int pm860x_read_id_val(void)
+{
+	return 0;
+}
+static inline void pm860x_init_id(void)
+{
+}
+static inline int pm860x_set_vbus(unsigned int vbus)
+{
+	return 0;
 }
 #endif
 #endif /* __LINUX_MFD_88PM860X_H */

@@ -1043,7 +1043,7 @@ static int __devinit device_800_init(struct pm80x_chip *chip,
 		goto out_dev;
 	}
 
-	if (pdata && pdata->vbus) {
+	if (pdata) {
 		ret = mfd_add_devices(chip->dev, 0, &vbus_devs[0],
 				      ARRAY_SIZE(vbus_devs),
 				      &vbus_resources[0], pm800_chip->irq_base);

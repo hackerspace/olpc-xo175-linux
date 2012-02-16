@@ -530,6 +530,13 @@ enum {
 	PM80X_IDPIN_USE_GPADC3,
 };
 
+struct pm80x_vbus_pdata {
+	int             supply;
+	int             idpin;
+	unsigned int    reg_base;       /* Physical address */
+	unsigned int    reg_end;        /* Physical address end */
+};
+
 struct pm80x_rtc_pdata {
 	int		(*sync)(unsigned int ticks);
 	int		vrtc;
@@ -575,6 +582,10 @@ extern int pm805_device_init(struct pm80x_chip *chip,
 			     struct pm80x_platform_data *pdata) __devinit;
 extern void pm805_device_exit(struct pm80x_chip *chip) __devexit;
 
+extern int pm80x_read_id_val(void);
+extern void pm80x_init_id(void);
+extern int pm80x_set_vbus(unsigned int vbus);
+extern int pm80x_read_vbus_val(void);
 #else
 
 static inline int pm80x_reg_read(struct i2c_client *i2c, int reg)
@@ -629,6 +640,21 @@ static inline int pm80x_device_init(struct pm80x_chip *chip,
 }
 static inline void pm80x_device_exit(struct pm80x_chip *chip)
 {
+}
+static inline int pm80x_read_id_val(void)
+{
+	return 0;
+}
+static inline void pm80x_init_id(void)
+{
+}
+static inline int pm80x_set_vbus(unsigned int vbus)
+{
+	return 0;
+}
+static inline int pm80x_read_vbus_val(void)
+{
+	return 0;
 }
 #endif
 #endif /* __LINUX_MFD_88PM80X_H */
