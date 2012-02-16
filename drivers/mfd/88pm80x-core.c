@@ -705,7 +705,7 @@ static int __devinit device_irq_init_800(struct pm80x_chip *chip,
 		goto out;
 
 	desc = irq_to_desc(chip->core_irq);
-
+	pm80x_irq_chip.irq_set_wake = desc->irq_data.chip->irq_set_wake;
 	/* register IRQ by genirq */
 	for (i = 0; i < ARRAY_SIZE(pm80x_irqs); i++) {
 		__irq = i + chip->irq_base;
