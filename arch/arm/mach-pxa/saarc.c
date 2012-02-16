@@ -1982,9 +1982,9 @@ static void __init init(void)
 
 	/* adjust acc sensor axes */
 	if (get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD) {
-		cwmi_acc_data.axes[0] = 1;
-		cwmi_acc_data.axes[4] = -1;
-		cwmi_acc_data.axes[8] = 1;
+		cwmi_acc_data.axes[0] = -1;
+		cwmi_acc_data.axes[4] = 1;
+		cwmi_acc_data.axes[8] = -1;
 		cwmi_mag_data.axes[0] = -1;
 		cwmi_mag_data.axes[4] = 1;
 		cwmi_mag_data.axes[8] = -1;
@@ -1994,9 +1994,9 @@ static void __init init(void)
 	}
 	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD) {
 		i2c3_info[0].irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO10));
-		cwmi_acc_data.axes[1] = 1;
-		cwmi_acc_data.axes[3] = -1;
-		cwmi_acc_data.axes[8] = -1;
+		cwmi_acc_data.axes[1] = -1;
+		cwmi_acc_data.axes[3] = 1;
+		cwmi_acc_data.axes[8] = 1;
 		cwmi_mag_data.axes[1] = -1;
 		cwmi_mag_data.axes[3] = 1;
 		cwmi_mag_data.axes[8] = 1;
