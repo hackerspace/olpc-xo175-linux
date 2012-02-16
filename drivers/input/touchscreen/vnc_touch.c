@@ -102,6 +102,7 @@ static void vnc_ts_handler(u8 pen_state, u16 tem_x, u16 tem_y)
 		/*send measure to user here.*/
 		input_report_abs(vnc_ts_input_dev, ABS_X, tem_x & 0xfff);
 		input_report_abs(vnc_ts_input_dev, ABS_Y, tem_y & 0xfff);
+		input_report_abs(vnc_ts_input_dev, ABS_PRESSURE, 1);
 		input_report_key(vnc_ts_input_dev, BTN_TOUCH, 1);
 		input_sync(vnc_ts_input_dev);
 
