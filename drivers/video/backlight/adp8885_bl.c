@@ -420,36 +420,6 @@ static int __devexit adp8885_remove(struct i2c_client *client)
 	return 0;
 }
 
-#ifdef CONFIG_PM
-static int adp8885_i2c_suspend(struct i2c_client *client, pm_message_t message)
-{
-	int ret;
-	struct adp8885_bl *data = i2c_get_clientdata(client);
-
-	ret = adp8885_clr_bits(client, MDCR, NSTBY);
-
-	if (data->pdata->chip_enable)
-		ret = data->pdata->chip_enable(false);
-
-	return ret;
-}
-
-static int adp8885_i2c_resume(struct i2c_client *client)
-{
-	int ret;
-	struct adp8885_bl *data = i2c_get_clientdata(client);
-
-	if (data->pdata->chip_enable)
-		ret = data->pdata->chip_enable(true);
-	ret = adp8885_set_bits(client, MDCR, NSTBY);
-
-	return ret;
-}
-#else
-#define adp8885_i2c_suspend NULL
-#define adp8885_i2c_resume NULL
-#endif
-
 static const struct i2c_device_id adp8885_id[] = {
 	{"adp8885", 0},
 	{}
@@ -463,8 +433,6 @@ static struct i2c_driver adp8885_driver = {
 		   },
 	.probe = adp8885_probe,
 	.remove = __devexit_p(adp8885_remove),
-	.suspend = adp8885_i2c_suspend,
-	.resume = adp8885_i2c_resume,
 	.id_table = adp8885_id,
 };
 
