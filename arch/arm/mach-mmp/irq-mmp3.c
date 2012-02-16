@@ -146,8 +146,30 @@ static void pmic_set_ack(int mux_irq)
 	chip->irq_ack = pmic_irq_ack;
 }
 
+static void icu1_mask_irq(int irq)
+{
+	uint32_t r = __raw_readl(ICU1_INT_CONF(irq));
+
+	r &= ~ICU1_INT_ROUTE_PJMP1_IRQ;
+	r &= ~ICU1_INT_ROUTE_PJMP1_FIQ;
+	__raw_writel(r, ICU1_INT_CONF(irq));
+}
+
+static void icu2_mask_irq(int irq)
+{
+	uint32_t r = __raw_readl(ICU2_INT_CONF(irq));
+
+	r &= ~ICU2_INT_ROUTE_PJMP2_IRQ;
+	r &= ~ICU2_INT_ROUTE_PJMP2_FIQ;
+	r &= ~ICU2_INT_ROUTE_PJMM_IRQ;
+	r &= ~ICU2_INT_ROUTE_PJMM_FIQ;
+	__raw_writel(r, ICU2_INT_CONF(irq));
+}
+
 void __init mmp3_init_gic(void)
 {
+	int i;
+
 	/* disable global irq of ICU for MP1, MP2, MM*/
 	__raw_writel(0x1, MMP3_ICU_GBL_IRQ1_MSK);
 	__raw_writel(0x1, MMP3_ICU_GBL_IRQ2_MSK);
@@ -155,6 +177,11 @@ void __init mmp3_init_gic(void)
 	__raw_writel(0x1, MMP3_ICU_GBL_IRQ4_MSK);
 	__raw_writel(0x1, MMP3_ICU_GBL_IRQ5_MSK);
 	__raw_writel(0x1, MMP3_ICU_GBL_IRQ6_MSK);
+
+	for (i = 0; i < 64; i++) {
+		icu1_mask_irq(i);
+		icu2_mask_irq(i);
+	}
 
 	gic_arch_extn.irq_set_wake = mmp3_set_wake;
 

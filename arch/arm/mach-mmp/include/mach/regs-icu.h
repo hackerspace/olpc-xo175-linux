@@ -97,9 +97,14 @@
 + * IRQ6 routes to PJ4-mm FIQ
 + */
 
-#define ICU1_INT_ROUTE_PJ4MP1_IRQ	(1 << 5)  /* IRQ1_EN */
-#define ICU2_INT_ROUTE_PJ4MP2_IRQ	(1 << 4)  /* IRQ3_EN */
-#define ICU2_INT_ROUTE_PJ4mm_IRQ	(1 << 6)  /* IRQ5_EN */
+#define ICU1_INT_ROUTE_SP_IRQ_FIQ	(1 << 4)
+#define ICU1_INT_ROUTE_PJMP1_IRQ	(1 << 5)
+#define ICU1_INT_ROUTE_PJMP1_FIQ	(1 << 6)
+
+#define ICU2_INT_ROUTE_PJMP2_IRQ	(1 << 4)
+#define ICU2_INT_ROUTE_PJMP2_FIQ	(1 << 5)
+#define ICU2_INT_ROUTE_PJMM_IRQ		(1 << 6)
+#define ICU2_INT_ROUTE_PJMM_FIQ		(1 << 7)
 
 #define MMP3_ICU_IRQ_55_CONF		ICU1_REG(0x0DC)
 #define MMP3_ICU_IRQ0_SEL_INT_NUM	ICU1_REG(0x100)
