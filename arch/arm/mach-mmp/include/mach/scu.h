@@ -10,4 +10,9 @@
 #define SCU_INVALIDATE		0x0c
 #define SCU_FPGA_REVISION	0x10
 
+/*
+ * Snoop filter registers
+ */
+#define SNOOP_FILTER_ENABLE		0xC20
+
 #endif

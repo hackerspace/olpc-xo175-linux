@@ -957,6 +957,20 @@ config DISABLE_SCU_PIPELINE
 	help
 	  This option disables SCU pipeline.
 
+config ENABLE_WRITE_EVICTS
+	bool "Enable the function of write-evicts"
+	depends on CPU_PJ4B
+	default n
+	help
+	  This option enables the function of write-evicts.
+
+config ENABLE_SNOOP_FILTER
+	bool "Enable the function of snoop filter"
+	depends on CPU_PJ4B
+	default n
+	help
+	  This option enables the function of snoop filter.
+
 config DISABLE_CLEAN_INTERVENTION
 	bool "Disable clean intervention"
 	depends on CPU_PJ4B

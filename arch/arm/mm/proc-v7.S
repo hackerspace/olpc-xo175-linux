@@ -354,6 +354,26 @@ __v7_setup:
 	orr	r0, r0, #(1 << 4)
 	mcr	p15, 1, r0, c15, c1, 1
 #endif
+
+#ifdef CONFIG_ENABLE_WRITE_EVICTS
+	mrc	p15, 1, r0, c15, c1, 2
+	orr	r0, r0, #(1 << 31)		@ Write evicts
+	mcr	p15, 1, r0, c15, c1, 2
+#endif
+
+#ifdef CONFIG_ENABLE_SNOOP_FILTER
+#ifdef CONFIG_CPU_MMP3
+	#include <mach/addr-map.h>
+	#include <mach/scu.h>
+	ldr	r5, =PGU_PHYS_BASE
+	add	r5, r5, #SNOOP_FILTER_ENABLE
+	mov	r0, #0xffffffff
+	str	r0,[r5]
+#else
+	#error unsupported platform
+#endif
+#endif
+
 #ifdef CONFIG_DISABLE_CLEAN_INTERVENTION
 	mrc	p15, 1, r0, c15, c1, 1
 	orr	r0, r0, #(1 << 16)
