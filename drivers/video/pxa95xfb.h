@@ -820,6 +820,12 @@ struct pxa95xfb_conv_info {
 
 };
 
+struct buf_addr {
+	u32 y;
+	u32 u;
+	u32 v;
+};
+
 /*
  * PXA LCD controller private state.
  */
@@ -878,9 +884,9 @@ struct pxa95xfb_info {
 	unsigned                mem_status:1;
 
 	/*overlay related*/
-	u32 buf_freelist[MAX_QUEUE_NUM];
-	u32 buf_waitlist[MAX_QUEUE_NUM];
-	u32 buf_current;
+	struct buf_addr buf_freelist[MAX_QUEUE_NUM];
+	struct buf_addr buf_waitlist[MAX_QUEUE_NUM];
+	struct buf_addr buf_current;
 };
 
 /* ---------------------------------------------- */

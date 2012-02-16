@@ -128,55 +128,53 @@ static void set_surface(struct pxa95xfb_info *fbi,
 
 }
 
-static void __attribute__ ((unused)) buf_print(struct pxa95xfb_info *fbi)
+static inline void buf_print(struct pxa95xfb_info *fbi)
 {
 	int i;
-	printk("Curent buff: %x \n", fbi->buf_current);
+	pr_info("Curent buff: %x \n", fbi->buf_current.y);
 
-	printk("buf_waitlist:");
+	pr_info("buf_waitlist:");
 	for (i = 0; i < MAX_QUEUE_NUM; i++) {
-		if (fbi->buf_waitlist[i])
-			printk("<%d: %x> ", i, fbi->buf_waitlist[i]);
+		if (fbi->buf_waitlist[i].y)
+			pr_info("<%d: %x> ", i, fbi->buf_waitlist[i].y);
 	}
-	printk("\n");
+	pr_info("\n");
 
-	printk("buf_freelist:");
+	pr_info("buf_freelist:");
 	for (i = 0; i < MAX_QUEUE_NUM; i++) {
-		if (fbi->buf_freelist[i])
-			printk("<%d: %x> ", i, fbi->buf_freelist[i]);
+		if (fbi->buf_freelist[i].y)
+			pr_info("<%d: %x> ", i, fbi->buf_freelist[i].y);
 	}
-	printk("\n");
+	pr_info("\n");
 }
 
-static u32 buf_dequeue(u32 *list)
+static void buf_dequeue(struct buf_addr *list, struct buf_addr *buf)
 {
 	int i;
-	u32 ret;
 
 	if (!list){
 		printk(KERN_ALERT "%s: invalid list\n", __func__);
-		return -1;
+		return;
 	}
 
-	ret = list[0];
+	memcpy(buf, list, sizeof(struct buf_addr));
 
 	for (i = 1; i < MAX_QUEUE_NUM; i++) {
-		if (!list[i]){
-			list[i-1] = 0;
+		if (!list[i].y) {
+			memset(&list[i-1], 0, sizeof(struct buf_addr));
 			break;
 		}
-		list[i-1] = list[i];
-		/*printk(KERN_INFO "%s: move buff %x from list[%d] to list[%d]\n", __func__, list[i], i, i-1);*/
+		memcpy(&list[i-1], &list[i], sizeof(struct buf_addr));
+		/*printk(KERN_INFO "%s: move buff %x from list[%d] to list[%d]\n", __func__, list[i].y, i, i-1);*/
 	}
 
 	if (i >= MAX_QUEUE_NUM)
 		printk(KERN_ALERT "%s: buffer overflow\n",  __func__);
 
-	/*printk(KERN_INFO "%s: dequeue: %x\n", __func__, ret);*/
-	return ret;
+	/*printk(KERN_INFO "%s: dequeue: %x\n", __func__, buf->y);*/
 }
 
-static int buf_enqueue(u32 *list, u32 buf)
+static int buf_enqueue(struct buf_addr *list, struct buf_addr *buf)
 {
 	int i;
 
@@ -186,15 +184,15 @@ static int buf_enqueue(u32 *list, u32 buf)
 	}
 
 	for (i = 0; i < MAX_QUEUE_NUM; i++) {
-		if (!list[i]) {
-			list[i] = buf;
-			/*printk(KERN_INFO "%s: add buff %x to list[%d]\n", __func__, buf, i);*/
+		if (!list[i].y) {
+			memcpy(&list[i], buf, sizeof(struct buf_addr));
+			/*printk(KERN_INFO "%s: add buff %x to list[%d]\n", __func__, buf->y, i);*/
 			return 0;
 		}
 
-		if (list[i] == buf) {
+		if (memcmp(&list[i], buf, sizeof(struct buf_addr))) {
 			/* already in list, free this request. */
-			printk(KERN_WARNING "%s: buff %x is same as list[%d]\n", __func__, buf, i);
+			printk(KERN_WARNING "%s: buff %x is same as list[%d]\n", __func__, buf->y, i);
 			return 0;
 		}
 	}
@@ -205,26 +203,27 @@ static int buf_enqueue(u32 *list, u32 buf)
 	return -2;
 }
 
-static void buf_clear(u32 *list)
+static void buf_clear(struct buf_addr *list)
 {
 	/* Check null pointer. */
 	if (list)
-		memset(list, 0, MAX_QUEUE_NUM * sizeof(u8 *));
+		memset(list, 0, MAX_QUEUE_NUM * sizeof(struct buf_addr));
 }
 
 /* fake endframe when suspend or overlay off */
 static void buf_fake_endframe(void * p)
 {
 	struct pxa95xfb_info *fbi = p;
-	u32 t = buf_dequeue(fbi->buf_waitlist);
-	while (t) {
+	struct buf_addr t;
+	buf_dequeue(fbi->buf_waitlist, &t);
+	while (t.y) {
 		/*pr_info("%s: move %x to current, move %x to freelist\n",
-			__func__, t, fbi->buf_current);*/
+			__func__, t.y, fbi->buf_current.y);*/
 		/*enqueue current to freelist*/
-		buf_enqueue(fbi->buf_freelist, fbi->buf_current);
+		buf_enqueue(fbi->buf_freelist, &fbi->buf_current);
 		/*dequeue waitlist[0] to current*/
-		fbi->buf_current = t;
-		t = buf_dequeue(fbi->buf_waitlist);
+		memcpy(&fbi->buf_current, &t, sizeof(struct buf_addr));
+		buf_dequeue(fbi->buf_waitlist, &t);
 	}
 
 }
@@ -232,20 +231,21 @@ static void buf_fake_endframe(void * p)
 void lcdc_vid_buf_endframe(void * p)
 {
 	struct pxa95xfb_info *fbi = p;
-	u32 t = buf_dequeue(fbi->buf_waitlist);
-	if (t) {
+	struct buf_addr t;
+	buf_dequeue(fbi->buf_waitlist, &t);
+	if (t.y) {
 		/*printk(KERN_INFO "%s: move %x to current, move %x to freelist\n",
-			__func__, t, fbi->buf_current);*/
+			__func__, t.y, fbi->buf_current.y);*/
 		/*enqueue current to freelist*/
-		buf_enqueue(fbi->buf_freelist, fbi->buf_current);
+		buf_enqueue(fbi->buf_freelist, &fbi->buf_current);
 		/*dequeue waitlist[0] to current*/
-		fbi->buf_current = t;
+		memcpy(&fbi->buf_current, &t, sizeof(struct buf_addr));
 	}
 
 	/*if new waitlist[0] set buf*/
-	if(fbi->buf_waitlist[0]){
-		/*printk(KERN_INFO "%s: flip buf %x on\n", __func__, fbi->buf_waitlist[0]);*/
-		fbi->user_addr = fbi->buf_waitlist[0];
+	if (fbi->buf_waitlist[0].y) {
+		/*printk(KERN_INFO "%s: flip buf %x on\n", __func__, fbi->buf_waitlist.y);*/
+		fbi->user_addr = fbi->buf_waitlist[0].y;
 		lcdc_set_fr_addr(fbi, &fbi->fb_info->var);
 	}
 }
@@ -264,7 +264,7 @@ void lcdc_vid_clean(struct pxa95xfb_info *fbi)
 	/* clear buffer list. */
 	buf_clear(fbi->buf_freelist);
 	buf_clear(fbi->buf_waitlist);
-	fbi->buf_current = 0;
+	memset(&fbi->buf_current, 0, sizeof(struct buf_addr));
 	local_irq_restore(x);
 }
 
@@ -343,7 +343,7 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 	case FB_IOCTL_FLIP_VID_BUFFER:
 	{
 		struct _sOvlySurface surface;
-		u8 *start_addr;
+		struct buf_addr *start_addr;
 
 		mutex_lock(&fbi->access_ok);
 		/* Get user-mode data. */
@@ -353,20 +353,20 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 			return -EFAULT;
 		}
 
-		start_addr = surface.videoBufferAddr.startAddr[0];
+		start_addr = (struct buf_addr *)(surface.videoBufferAddr.startAddr);
 
 		if (fbi->on && !fbi->controller_on) {
 			set_surface(fbi, surface.videoMode,
 						&surface.viewPortInfo,
 						&surface.viewPortOffset);
-			WARN_ON(fbi->buf_waitlist[0]);
+			WARN_ON(fbi->buf_waitlist[0].y);
 			local_irq_save(x);
 			/*if !waitlist[0] enqueue buf to waitlist*/
 			/*printk(KERN_INFO "%s: flip %x on\n",
 			__func__, (u32)start_addr);*/
-			fbi->user_addr = (u32)start_addr;
+			fbi->user_addr = start_addr->y;
 			lcdc_set_fr_addr(fbi, &fbi->fb_info->var);
-			buf_enqueue(fbi->buf_waitlist, (u32)start_addr);
+			buf_enqueue(fbi->buf_waitlist, start_addr);
 			buf_fake_endframe(fbi);
 			local_irq_restore(x);
 			converter_openclose(fbi, fbi->on);
@@ -381,7 +381,7 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 
 		/* Fix the first green frames when camera preview */
 		if( !fbi->controller_on ) {
-			buf_enqueue(fbi->buf_freelist, (u32)start_addr);
+			buf_enqueue(fbi->buf_freelist, start_addr);
 			mutex_unlock(&fbi->access_ok);
 			return 0;
 		}
@@ -398,9 +398,9 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 					&surface.viewPortInfo,
 					&surface.viewPortOffset);
 			local_irq_save(x);
-			fbi->user_addr = (u32)start_addr;
+			fbi->user_addr = start_addr->y;
 			lcdc_set_fr_addr(fbi, &fbi->fb_info->var);
-			buf_enqueue(fbi->buf_waitlist, (u32)start_addr);
+			buf_enqueue(fbi->buf_waitlist, start_addr);
 			buf_fake_endframe(fbi);
 			local_irq_restore(x);
 			fbi->on = 1;
@@ -408,13 +408,13 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 		} else {
 			local_irq_save(x);
 			/*if !waitlist[0] enqueue buf to waitlist*/
-			if (!fbi->buf_waitlist[0]) {
+			if (!fbi->buf_waitlist[0].y) {
 				/*printk(KERN_INFO "%s: flip %x on\n",
-				__func__, (u32)start_addr);*/
-				fbi->user_addr = (u32)start_addr;
+				__func__, start_addr->y);*/
+				fbi->user_addr = start_addr->y;
 				lcdc_set_fr_addr(fbi, &fbi->fb_info->var);
 			}
-			buf_enqueue(fbi->buf_waitlist, (u32)start_addr);
+			buf_enqueue(fbi->buf_waitlist, start_addr);
 			local_irq_restore(x);
 		}
 
@@ -427,8 +427,9 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 		 * move all buffers as "switched"*/
 		if (pxa95xfbi[0]->suspend || !fbi->on)
 			buf_fake_endframe(fbi);
+
 		if (copy_to_user(argp, fbi->buf_freelist,
-					MAX_QUEUE_NUM*sizeof(u8 *))) {
+				MAX_QUEUE_NUM * sizeof(struct buf_addr))) {
 			local_irq_restore(x);
 			return -EFAULT;
 		}
