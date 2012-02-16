@@ -42,6 +42,26 @@ static int mmp3_enter_idle_c1(struct cpuidle_device *dev,
 	return idletime_us;
 }
 
+static int mmp3_enter_idle_c2(struct cpuidle_device *dev,
+	struct cpuidle_state *state)
+{
+	struct timespec ts_preidle, ts_postidle;
+	int idletime_us;
+
+	local_irq_disable();
+	getnstimeofday(&ts_preidle);
+
+	mmp3_pm_enter_c2(dev->cpu);
+
+	getnstimeofday(&ts_postidle);
+	idletime_us = (ts_postidle.tv_sec - ts_preidle.tv_sec) *
+		USEC_PER_SEC + (ts_postidle.tv_nsec - ts_preidle.tv_nsec) /
+		NSEC_PER_USEC;
+	local_irq_enable();
+
+	return idletime_us;
+}
+
 static int mmp3_cpuidle_register_device(unsigned int cpu)
 {
 	struct cpuidle_device *device;
@@ -67,7 +87,7 @@ static int mmp3_cpuidle_register_device(unsigned int cpu)
 	state->target_residency = state->exit_latency * 2;
 	state->flags = CPUIDLE_FLAG_TIME_VALID;
 	/* FIXME: C2 doesn't work now, use c1 instead temporarily */
-	state->enter = mmp3_enter_idle_c1;
+	state->enter = mmp3_enter_idle_c2;
 	device->state_count++;
 
 	if (cpuidle_register_device(device)) {
