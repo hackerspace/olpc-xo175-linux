@@ -59,7 +59,7 @@ struct smschar_device_t {
 
 /*!  Holds the major number of the device node. may be changed at load
 time.*/
-int smschar_major = 251;
+int smschar_major = 0;
 
 /*!  Holds the first minor number of the device node.
 may be changed at load time.*/
