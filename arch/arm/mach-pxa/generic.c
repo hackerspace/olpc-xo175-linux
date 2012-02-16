@@ -37,6 +37,7 @@
 
 #include <plat/pxa3xx_onenand.h>
 #include <plat/pxa3xx_nand.h>
+#include <linux/delay.h>
 #include <plat/mfp.h>
 #include "generic.h"
 
@@ -276,6 +277,36 @@ void pxa95x_ssp_mfp_init(bool bssp)
 		panic("pxa95x_abu_mfp_init called with NULL pointer!\n");
 }
 
+
+static unsigned int rfic_reset_gpio_pin = EINVAL;
+
+void update_rfreset_gpio_num(unsigned int gpio_pin_num)
+{
+	rfic_reset_gpio_pin = gpio_pin_num;
+}
+
+void pxa9xx_platform_rfic_reset(unsigned short in_len,  void *in_buf,
+				unsigned short out_len, void *out_buf)
+{
+	int uDelay = *((int *)in_buf);
+	pr_info("%s: RFIC RPC gpio_request recieved, delay=%d!\n",
+	__func__, uDelay);
+
+	if (rfic_reset_gpio_pin == EINVAL) {
+		pr_err("%s: invalid value of rfic_reset_gpio_pin\n",
+		__func__);
+		return;
+	}
+	if (gpio_request(rfic_reset_gpio_pin, "RFIC reset RPC")) {
+		pr_err("RFIC RPC gpio_request: failed!\n");
+		return;
+	}
+	gpio_direction_output(rfic_reset_gpio_pin, 0);
+	udelay(uDelay);
+	gpio_direction_output(rfic_reset_gpio_pin, 1);
+	gpio_free(rfic_reset_gpio_pin);
+}
+EXPORT_SYMBOL(pxa9xx_platform_rfic_reset);
 #ifdef CONFIG_PROC_FS
 
 #define GEN_REG3		__REG(0x42404008)

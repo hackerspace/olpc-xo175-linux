@@ -111,6 +111,10 @@ static struct pm860x_power_pdata power = {
 	.disable_rf_fn  = disable_rf,
 };
 
+static void init_rfreset_gpio(void)
+{
+	update_rfreset_gpio_num(MFP_PIN_GPIO112);
+}
 #if defined(CONFIG_SENSORS_CM3601)
 static int cm3601_request_resource(unsigned char gpio_num, char *name)
 {
@@ -2076,7 +2080,7 @@ static void __init init(void)
 	}
 	create_sirf_proc_file();
 #endif
-
+	init_rfreset_gpio();
 }
 
 MACHINE_START(NEVOSAARC, "PXA978")
