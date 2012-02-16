@@ -388,20 +388,20 @@ static void pxa688_colorkey_set(int id, int vid, int en)
 
 static int pxa688fb_clone_clk(int src, int dst)
 {
-	struct pxa168fb_info *fbi = gfx_info.fbi[0];
-	u32 base = (u32)fbi->reg_base, mask = ~0;
+	u32 mask = ~0;
 
 	if (src == 1 || dst == 1)
 		/* TV path TCLK_DIV definitions different vs SCLK_DIV */
 		mask = 0xd000000f;
 	/* enable dst path clock */
-	writel(readl(base + clk_div(src)) & mask, base + clk_div(dst));
 	if (dst == 2 && src <= 1) {
 		/* pn2 TCLK_DIV */
 		mask = src ? 2 : 1;
-		writel((mask << 30) | (mask << 2) | (mask),
-			base + LCD_PN2_TCLK_DIV);
-	}
+		lcd_clk_set(dst, clk_tclk, (mask << 30) | (mask << 2) | (mask),
+				(mask << 30) | (mask << 2) | (mask));
+	} else
+		lcd_clk_set(dst, clk_sclk, lcd_clk_get(src, clk_sclk) & mask,
+			lcd_clk_get(src, clk_sclk) & mask);
 
 	return 0;
 }

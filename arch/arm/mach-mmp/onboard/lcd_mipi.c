@@ -417,7 +417,7 @@ static struct pxa168fb_mach_info mipi_lcd_ovly_info = {
 #define     DSI1_BITCLK_DIV_MASK		0x00000F00
 #define     CLK_INT_DIV(div)			(div)
 #define     CLK_INT_DIV_MASK			0x000000FF
-static void calculate_lcd_sclk(struct pxa168fb_mach_info *mi)
+static void calculate_dsi_clk(struct pxa168fb_mach_info *mi)
 {
 	struct dsi_info *di = &dsiinfo;
 	struct fb_videomode *modes = &mi->modes[0];
@@ -483,6 +483,51 @@ static void calculate_lcd_sclk(struct pxa168fb_mach_info *mi)
 
 	mi->sclk_div &= ~(DSI1_BITCLK_DIV_MASK | CLK_INT_DIV_MASK);
 	mi->sclk_div |= DSI1_BITCLK(bitclk_div) | CLK_INT_DIV(pclk_div);
+}
+
+static void calculate_lvds_clk(struct pxa168fb_mach_info *mi)
+{
+	struct fb_videomode *modes = &mi->modes[0];
+	u32 total_w, total_h, pclk, div, use_pll1;
+
+	total_w = modes->xres + modes->left_margin +
+		modes->right_margin + modes->hsync_len;
+	total_h = modes->yres + modes->upper_margin +
+		modes->lower_margin + modes->vsync_len;
+
+	pclk = total_w * total_h * modes->refresh;
+
+	/* use pll1 by default
+	 * we could set a more flexible clocking options by selecting pll3 */
+	use_pll1 = 1;
+	if (use_pll1) {
+		/* src clock is 800MHz */
+		div = 800000000 / pclk;
+		if (div * pclk < 800000000)
+			div++;
+		mi->sclk_src = 800000000;
+		mi->sclk_div = 0x20000000 | div;
+	} else {
+		div = 150000000 / pclk;
+		if (div * pclk < 150000000)
+			div++;
+		mi->sclk_src = pclk * div;
+		mi->sclk_div = 0xe0000000 | div;
+	}
+
+	pr_debug("\n%s sclk_src %d sclk_div 0x%x\n", __func__,
+			mi->sclk_src, mi->sclk_div);
+}
+
+static void calculate_lcd_sclk(struct pxa168fb_mach_info *mi)
+{
+
+	if (mi->phy_type & (DSI | DSI2DPI))
+		calculate_dsi_clk(mi);
+	else if (mi->phy_type & LVDS)
+		calculate_lvds_clk(mi);
+	else
+		return;
 }
 
 #define DDR_MEM_CTRL_BASE 0xD0000000

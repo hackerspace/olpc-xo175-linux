@@ -217,25 +217,68 @@ void irq_status_clear(int id, u32 mask)
 	writel(mi->isr_clear_mask & (~mask), fbi->reg_base + SPU_IRQ_ISR);
 }
 
-int sclk_div_get(int id)
+u32 clk_reg(int id, u32 type)
 {
 	struct pxa168fb_info *fbi = gfx_info.fbi[0];
-	u32 val = readl(fbi->reg_base + clk_div(id));
+	u32 offset = 0;
 
-	pr_debug("%s SCLK 0x%x\n", __func__, val);
-	return val & 0xff;
+	switch (type) {
+	case clk_sclk:
+		offset = id ? (id & 1 ? LCD_TCLK_DIV : LCD_PN2_SCLK_DIV)
+				: LCD_CFG_SCLK_DIV;
+		break;
+	case clk_lvds_rd:
+		offset = LCD_LVDS_SCLK_DIV_RD;
+		break;
+	case clk_lvds_wr:
+		offset = LCD_LVDS_SCLK_DIV_WR;
+		break;
+	case clk_tclk:
+		if (id == 1)
+			offset = LCD_TCLK_DIV;
+		else if (id == 2)
+			offset = LCD_PN2_TCLK_DIV;
+		break;
+	default:
+		pr_err("%s path %d type %x not found\n", __func__, id, type);
+		break;
+	}
+
+	if (offset)
+		return (u32)fbi->reg_base + offset;
+
+	return 0;
 }
 
-void sclk_div_set(int id, int divider)
+int lcd_clk_get(int id, u32 type)
 {
-	struct pxa168fb_info *fbi = gfx_info.fbi[0];
-	u32 val = readl(fbi->reg_base + clk_div(id));
+	u32 reg = clk_reg(id, type), val;
 
-	val &= ~0xff; val |= divider;
-	writel(val, fbi->reg_base + clk_div(fbi->id));
+	if (!reg)
+		return 0;
 
-	pr_debug("%s divider %x SCLK 0x%x\n", __func__, divider,
-		readl(fbi->reg_base + clk_div(id)));
+	val = __raw_readl(reg);
+	pr_debug("%s path %d type %d: 0x%x (@ 0x%x)\n", __func__,
+		id, type, val, clk_reg(id, type));
+	return val;
+}
+
+void lcd_clk_set(int id, u32 type, u32 mask, u32 val)
+{
+	u32 reg = clk_reg(id, type), tmp1, tmp2;
+
+	if (!reg)
+		return;
+
+	tmp1 = tmp2 = __raw_readl(reg);
+	tmp2 &= ~mask;
+	tmp2 |= val;
+	if (tmp1 != tmp2)
+		__raw_writel(tmp2, reg);
+
+	pr_debug("%s type %d mask %x val %x: 0x%x -> 0x%x (@ 0x%x)\n",
+		__func__, type, mask, val, tmp1, tmp2,
+		clk_reg(id, type) & 0xfff);
 }
 
 int pxa168fb_spi_send(struct pxa168fb_info *fbi, void *value,
@@ -384,20 +427,23 @@ static void set_clock_divider(struct pxa168fb_info *fbi)
 {
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 	struct fb_var_screeninfo *var = &fbi->fb_info->var;
-	u32 divider_int, needed_pixclk, div_temp, x = 0;
+	u32 divider_int, needed_pixclk, val, x = 0;
 	u64 div_result;
 
 	/* check whether divider is fixed by platform */
 	if (mi->sclk_div) {
-		div_temp = mi->sclk_div;
+		val = mi->sclk_div;
 		/*for 480i and 576i, pixel clock should be half of
 		 * the spec value because of pixel repetition */
 		if ((var->yres == 480 || var->yres == 576) &&
 			(var->vmode == FB_VMODE_INTERLACED)) {
-			div_temp &= ~0xf;
-			div_temp |= (mi->sclk_div & 0xf) << 1;
+			val &= ~0xf;
+			val |= (mi->sclk_div & 0xf) << 1;
 		}
-		writel(div_temp, fbi->reg_base + clk_div(fbi->id));
+
+		lcd_clk_set(fbi->id, clk_sclk, 0xffffffff, val);
+		if (mi->phy_type & LVDS)
+			lcd_clk_set(fbi->id, clk_lvds_wr, 0xffffffff, val);
 		if (!var->pixclock) {
 			divider_int = mi->sclk_div & CLK_INT_DIV_MASK;
 			if (!divider_int)
@@ -453,7 +499,7 @@ static void set_clock_divider(struct pxa168fb_info *fbi)
 	/* Set setting to reg */
 	x |= divider_int;
 	if (fbi->id != 1)
-		writel(x, fbi->reg_base + clk_div(fbi->id));
+		lcd_clk_set(fbi->id, clk_sclk, CLK_INT_DIV_MASK, x);
 }
 
 void enable_graphic_layer(int id)
@@ -703,7 +749,6 @@ pxa168fb_setcolreg(unsigned int regno, unsigned int red, unsigned int green,
 static int pxa168fb_active(struct pxa168fb_info *fbi, int active)
 {
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-	int clk = 0;
 
 	dev_dbg(fbi->fb_info->dev, "Enter %s fbi[%d] active %d\n",
 			__func__, fbi->id, active);
@@ -719,14 +764,12 @@ static int pxa168fb_active(struct pxa168fb_info *fbi, int active)
 		fbi->active = 0;
 
 		/* disable path clock */
-		clk = readl(fbi->reg_base + clk_div(fbi->id)) | SCLK_DISABLE;
-		writel(clk, fbi->reg_base + clk_div(fbi->id));
+		lcd_clk_set(fbi->id, clk_sclk, SCLK_DISABLE, SCLK_DISABLE);
 	}
 
 	if (active && !fbi->active) {
 		/* enable path clock */
-		clk = readl(fbi->reg_base + clk_div(fbi->id)) & (~SCLK_DISABLE);
-		writel(clk, fbi->reg_base + clk_div(fbi->id));
+		lcd_clk_set(fbi->id, clk_sclk, SCLK_DISABLE, 0);
 
 		/* enable external panel power */
 		if (pxa168fb_power(fbi, mi, 1))
@@ -1326,7 +1369,7 @@ static int _pxa168fb_suspend(struct pxa168fb_info *fbi)
 {
 	struct fb_info *info = fbi->fb_info;
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-	u32 clk, mask = CFG_GRA_ENA_MASK;
+	u32 mask = CFG_GRA_ENA_MASK;
 
 	/* notify others */
 	fb_set_suspend(info, 1);
@@ -1349,8 +1392,7 @@ static int _pxa168fb_suspend(struct pxa168fb_info *fbi)
 	fbi->active = 0;
 
 	/* disable pixel clock */
-	clk = readl(fbi->reg_base + clk_div(fbi->id)) | SCLK_DISABLE;
-	writel(clk, fbi->reg_base + clk_div(fbi->id));
+	lcd_clk_set(fbi->id, clk_sclk, SCLK_DISABLE, SCLK_DISABLE);
 
 	/* disable clock */
 	clk_disable(fbi->clk);
@@ -1363,7 +1405,6 @@ static int _pxa168fb_resume(struct pxa168fb_info *fbi)
 {
 	struct fb_info *info = fbi->fb_info;
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-	u32 clk;
 
 	/* enable clock */
 	if (mi->sclk_src)
@@ -1371,8 +1412,7 @@ static int _pxa168fb_resume(struct pxa168fb_info *fbi)
 	clk_enable(fbi->clk);
 
 	/* enable pixel clock */
-	clk = readl(fbi->reg_base + clk_div(fbi->id)) & (~SCLK_DISABLE);
-	writel(clk, fbi->reg_base + clk_div(fbi->id));
+	lcd_clk_set(fbi->id, clk_sclk, SCLK_DISABLE, 0);
 
 	/* enable external panel power */
 	if (pxa168fb_power(fbi, mi, 1))
@@ -1608,9 +1648,16 @@ again:
 	pr_info("\tirq_status    ( @%3x ) 0x%8x\n",
 		 (int)(SPU_IRQ_ISR) & 0xfff,
 		 readl(fbi->reg_base + SPU_IRQ_ISR));
-	pr_info("\tclk_div       ( @%3x ) 0x%x\n",
-		 (int)(clk_div(id)) & 0xfff,
-		 readl(fbi->reg_base + clk_div(id)));
+	pr_info("\tclk_sclk      ( @%3x ) 0x%x\n",
+		 (int)(clk_reg(id, clk_sclk)) & 0xfff,
+		 readl(clk_reg(id, clk_sclk)));
+	if (clk_reg(id, clk_tclk))
+		pr_info("\tclk_tclk      ( @%3x ) 0x%x\n",
+			(int)(clk_reg(id, clk_tclk)) & 0xfff,
+			readl(clk_reg(id, clk_tclk)));
+	pr_info("\tclk_lvds      ( @%3x ) 0x%x\n",
+		 (int)(clk_reg(id, clk_lvds_rd)) & 0xfff,
+		 readl(clk_reg(id, clk_lvds_rd)));
 	/* TV path registers */
 	if (fbi->id == 1) {
 		pr_info("\ntv path interlace related:\n");

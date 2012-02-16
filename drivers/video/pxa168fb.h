@@ -818,6 +818,8 @@ struct lcd_regs {
 
 #define LCD_PN2_SCLK_DIV			(0x01EC)
 #define LCD_PN2_TCLK_DIV			(0x01F0)
+#define LCD_LVDS_SCLK_DIV_WR			(0x01F4)
+#define LCD_LVDS_SCLK_DIV_RD			(0x01FC)
 #define PN2_LCD_DMA_START_ADDR_Y0		(0x0200)
 #define PN2_LCD_DMA_START_ADDR_U0		(0x0204)
 #define PN2_LCD_DMA_START_ADDR_V0		(0x0208)
@@ -874,6 +876,11 @@ struct lcd_regs {
 #define ALL_LAYER_ALPHA_SEL			(0x02F4)
 #define TIMING_MASTER_CONTROL			(0x02F8)
 #define LCD_2ND_BLD_CTL				(0x02Fc)
+
+#define clk_sclk	(1 << 0)
+#define clk_tclk	(1 << 1)
+#define clk_lvds_rd	(1 << 2)
+#define clk_lvds_wr	(1 << 3)
 
 #define gra_partdisp_ctrl_hor(id)	((id) ? (((id) & 1) ? \
 	LCD_TVG_CUTHPXL : PN2_LCD_GRA_CUTHPXL) : LCD_GRA_CUTHPXL)
@@ -1683,8 +1690,5 @@ struct vdma_regs {
 #define ICR_DRV_ROUTE_TV	0x1
 #define ICR_DRV_ROUTE_LCD1	0x2
 #define ICR_DRV_ROUTE_LCD2	0x3
-
-#define clk_div(id)	((id) ? ((id) & 1 ? LCD_TCLK_DIV : \
-			LCD_PN2_SCLK_DIV) : LCD_CFG_SCLK_DIV)
 
 #endif	/* __PXA168FB_H__ */

@@ -1066,7 +1066,7 @@ int dispd_dma_enabled(struct pxa168fb_info *fbi)
 		return 0;
 
 	/* check whether path clock is disabled */
-	if (readl(fbi->reg_base + clk_div(fbi->id)) & (SCLK_DISABLE))
+	if (lcd_clk_get(fbi->id, clk_sclk) & SCLK_DISABLE)
 		return 0;
 
 	/* in modex dma may not be enabled */

@@ -336,6 +336,7 @@ struct _pxa168fb_gamma {
 #define DPI		0
 #define DSI2DPI		1
 #define DSI		2
+#define LVDS		4
 
 #ifdef __KERNEL__
 #include <linux/interrupt.h>
@@ -680,8 +681,8 @@ extern void dma_ctrl_write(int id, int ctrl1, u32 value);
 extern void dma_ctrl_set(int id, int ctrl1, u32 mask, u32 value);
 extern void irq_mask_set(int id, u32 mask, u32 val);
 extern void irq_status_clear(int id, u32 mask);
-extern int sclk_div_get(int id);
-extern void sclk_div_set(int id, int divider);
+extern int lcd_clk_get(int id, u32 type);
+extern void lcd_clk_set(int id, u32 type, u32 mask, u32 val);
 
 extern int pxa168fb_spi_send(struct pxa168fb_info *fbi, void *cmd,
 				 int count, unsigned int spi_gpio_cs);
