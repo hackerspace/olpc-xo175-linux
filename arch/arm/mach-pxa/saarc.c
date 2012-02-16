@@ -1605,6 +1605,16 @@ static void __init init_lcd(void)
 }
 #endif
 
+static mfp_cfg_t pxa95x_hsl_mfp_cfg[] = {
+	/* HSL for PXA978 */
+	MFP116_HSL_CLK,
+	MFP117_HSL_DATA0,
+	MFP118_HSL_DATA1,
+	MFP119_HSL_DATA2,
+	MFP120_HSL_DATA3,
+	MFP121_HSL_DATA4
+};
+
 static mfp_cfg_t pxa95x_abu_mfp_cfg[] = {
 	/* ABU of MG1 */
 	GPIO63_ABU_RXD,
@@ -1914,6 +1924,32 @@ static void create_sparrow_rf_proc_file(void)
 	proc_file->write_proc = (write_proc_t *)sparrow_rf_write_proc;
 }
 
+static void hsl_mfpr_set(void)
+{
+	pxa3xx_mfp_config(ARRAY_AND_SIZE(pxa95x_hsl_mfp_cfg));
+	pr_info("the MFP for MicroSD is switched to HSP for IML. \n");
+}
+
+static ssize_t hsl_mfpr_write_proc(struct file *filp,
+				const char *buff, size_t len, loff_t *off)
+{
+	hsl_mfpr_set();
+	return len;
+}
+
+static void create_hsl_mfpr_proc_file(void)
+{
+	struct proc_dir_entry *proc_file = NULL;
+
+	proc_file = create_proc_entry("driver/hsl_mfpr", 0644, NULL);
+	if (!proc_file) {
+		pr_err("%s: create proc file failed\n", __func__);
+		return;
+	}
+
+	proc_file->write_proc = (write_proc_t *)hsl_mfpr_write_proc;
+
+}
 #endif
 
 static void __init init(void)
@@ -2014,8 +2050,10 @@ static void __init init(void)
 #endif
 
 #ifdef CONFIG_PROC_FS
-	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD)
+	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD) {
 		create_sparrow_rf_proc_file();
+		create_hsl_mfpr_proc_file();
+	}
 	create_sirf_proc_file();
 #endif
 
