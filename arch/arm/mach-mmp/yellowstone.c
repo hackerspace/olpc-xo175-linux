@@ -88,6 +88,7 @@ static unsigned long yellowstone_pin_config[] __initdata = {
 
 	/*PWM3*/
 	GPIO53_PWM3,
+	GPIO84_GPIO,
 
 	/* SSPA1 (I2S) */
 	GPIO23_GPIO,
@@ -642,12 +643,31 @@ static struct i2c_board_info yellowstone_twsi4_info[] = {
 #endif
 };
 
+static int yellowstone_pwm_init(struct device *dev)
+{
+	int gpio = mfp_to_gpio(GPIO84_GPIO);
+
+	if (!cpu_is_mmp3_b0())
+		return 0;
+
+	if (gpio_request(gpio, "LCD_BKL_EN")) {
+		printk(KERN_INFO "gpio %d request failed\n", gpio);
+		return -1;
+	}
+
+	gpio_direction_output(gpio, 1);
+	gpio_free(gpio);
+
+	return 0;
+}
+
 static struct platform_pwm_backlight_data yellowstone_lcd_backlight_data = {
 	/* primary backlight */
 	.pwm_id = 2,
 	.max_brightness = 100,
 	.dft_brightness = 50,
 	.pwm_period_ns = 2000000,
+	.init = yellowstone_pwm_init,
 };
 
 static struct platform_device yellowstone_lcd_backlight_devices = {

@@ -43,6 +43,120 @@ static struct fb_videomode video_modes_yellowstone[] = {
 		},
 };
 
+static int abilene_lvds_power(struct pxa168fb_info *fbi,
+				unsigned int spi_gpio_cs,
+				unsigned int spi_gpio_reset, int on)
+{
+	struct regulator *v_ldo10, *v_ldo19;
+	int lcd_rst_n;
+
+	/*
+	 * FIXME: It is board related, baceuse zx will be replaced soon,
+	 * it is temproary distinguished by cpu
+	 */
+	lcd_rst_n = mfp_to_gpio(GPIO128_LCD_RST);
+	/* v_ldo19 AVDD_LVDS, 1.8V */
+	v_ldo19 = regulator_get(NULL, "v_ldo19");
+	/* v_ldo10, 2.8v */
+	v_ldo10 = regulator_get(NULL, "v_ldo10");
+
+	if (IS_ERR(v_ldo19) || IS_ERR(v_ldo10)) {
+		pr_err("%s regulator get error!\n", __func__);
+		v_ldo19 = NULL;
+		v_ldo10 = NULL;
+		return -EIO;
+	}
+
+	if (gpio_request(lcd_rst_n, "lcd reset gpio")) {
+		pr_err("gpio %d request failed\n", lcd_rst_n);
+		return -EIO;
+	}
+
+	if (on) {
+		/* v_ldo19 AVDD_LVDS, 1.8V */
+		regulator_set_voltage(v_ldo19, 1800000, 1800000);
+		regulator_enable(v_ldo19);
+
+		regulator_set_voltage(v_ldo10, 2800000, 2800000);
+		regulator_enable(v_ldo10);
+
+		/* release panel from reset */
+		gpio_direction_output(lcd_rst_n, 1);
+	} else {
+		/* disable v_ldo10 2.8v */
+		regulator_disable(v_ldo10);
+		regulator_put(v_ldo10);
+
+		/* disable v_ldo19 1.8v */
+		regulator_disable(v_ldo19);
+		regulator_put(v_ldo19);
+
+		gpio_direction_output(lcd_rst_n, 0);
+	}
+
+	gpio_free(lcd_rst_n);
+
+	pr_debug("%s on %d\n", __func__, on);
+	return 0;
+}
+
+static int yellowstone_lvds_power(struct pxa168fb_info *fbi,
+			     unsigned int spi_gpio_cs,
+			     unsigned int spi_gpio_reset, int on)
+{
+	struct regulator *v_lcd, *v_1p8_ana;
+	int lcd_rst_n;
+
+	/*
+	 * FIXME: It is board related, baceuse zx will be replaced soon,
+	 * it is temproary distinguished by cpu
+	 */
+	lcd_rst_n = mfp_to_gpio(GPIO128_LCD_RST);
+	/* V_1P8_ANA, AVDD_LVDS, 1.8v */
+	v_1p8_ana = regulator_get(NULL, "V_1P8_ANA");
+	/* V_LCD 3.3v */
+	v_lcd = regulator_get(NULL, "V_LCD");
+
+	if (IS_ERR(v_1p8_ana) || IS_ERR(v_lcd)) {
+		pr_err("%s regulator get error!\n", __func__);
+		v_1p8_ana = NULL;
+		v_lcd = NULL;
+		return -EIO;
+	}
+
+	if (gpio_request(lcd_rst_n, "lcd reset gpio")) {
+		pr_err("gpio %d request failed\n", lcd_rst_n);
+		return -EIO;
+	}
+
+	if (on) {
+		regulator_set_voltage(v_1p8_ana, 1800000, 1800000);
+		regulator_enable(v_1p8_ana);
+
+		regulator_set_voltage(v_lcd, 3300000, 3300000);
+		regulator_enable(v_lcd);
+
+		/* release panel from reset */
+		gpio_direction_output(lcd_rst_n, 1);
+	} else {
+		/* disable v_ldo10 3.3v */
+		regulator_disable(v_lcd);
+		regulator_put(v_lcd);
+
+		/* disable v_ldo19 1.8v */
+		regulator_disable(v_1p8_ana);
+		regulator_put(v_1p8_ana);
+
+		/* set panel reset */
+		gpio_direction_output(lcd_rst_n, 0);
+	}
+
+	gpio_free(lcd_rst_n);
+
+	pr_debug("%s on %d\n", __func__, on);
+	return 0;
+}
+
 static struct lvds_info lvdsinfo = {
 	.src	= LVDS_SRC_PN,
 	.fmt	= LVDS_FMT_18BIT,
@@ -55,6 +169,11 @@ static void lvds_hook(struct pxa168fb_mach_info *mi)
 	mi->phy_info = (void *)&lvdsinfo;
 
 	mi->modes->refresh = 60;
+
+	if (machine_is_yellowstone())
+		mi->pxa168fb_lcd_power = yellowstone_lvds_power;
+	else if (machine_is_abilene())
+		mi->pxa168fb_lcd_power = abilene_lvds_power;
 }
 
 /*
@@ -551,7 +670,7 @@ static void calculate_lcd_sclk(struct pxa168fb_mach_info *mi)
 void __init abilene_add_lcd_mipi(void)
 {
 	unsigned char __iomem *dmc_membase;
-	unsigned int CSn_NO_COL;
+	unsigned int CSn_NO_COL, lvds_en;
 
 	struct pxa168fb_mach_info *fb = &mipi_lcd_info, *ovly =
 	    &mipi_lcd_ovly_info;
@@ -563,6 +682,11 @@ void __init abilene_add_lcd_mipi(void)
 	ovly->num_modes = fb->num_modes;
 	ovly->modes = fb->modes;
 	ovly->max_fb_size = fb->max_fb_size;
+
+	/* FIXME: select DSI2LVDS by default on abilene. */
+	lvds_en = 0;
+	if (cpu_is_mmp3_b0() && lvds_en)
+		lvds_hook(fb);
 
 	/* Re-calculate lcd clk source and divider
 	 * according to dsi lanes and output format.
