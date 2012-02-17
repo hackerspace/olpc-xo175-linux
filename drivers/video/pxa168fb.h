@@ -876,6 +876,10 @@ struct lcd_regs {
 #define ALL_LAYER_ALPHA_SEL			(0x02F4)
 #define TIMING_MASTER_CONTROL			(0x02F8)
 #define LCD_2ND_BLD_CTL				(0x02Fc)
+#define LVDS_SRC_MASK				(3 << 30)
+#define LVDS_SRC_SHIFT				(30)
+#define LVDS_FMT_MASK				(1 << 28)
+#define LVDS_FMT_SHIFT				(28)
 
 #define clk_sclk	(1 << 0)
 #define clk_tclk	(1 << 1)
@@ -1274,6 +1278,93 @@ struct dsi_regs {
 #define DSI_ESC_CLK				66  /* Unit: Mhz */
 #define DSI_ESC_CLK_T				15  /* Unit: ns */
 
+/* LVDS */
+/* LVDS_PHY_CTRL */
+#define LVDS_PHY_CTL				0x2A4
+#define LVDS_PLL_LOCK				(1 << 31)
+#define LVDS_PHY_EXT_MASK			(7 << 28)
+#define LVDS_PHY_EXT_SHIFT			(28)
+#define LVDS_CLK_PHASE_MASK			(0x7f << 16)
+#define LVDS_CLK_PHASE_SHIFT			(16)
+#define LVDS_SSC_RESET_EXT			(1 << 13)
+#define LVDS_SSC_MODE_DOWN_SPREAD		(1 << 12)
+#define LVDS_SSC_EN				(1 << 11)
+#define LVDS_PU_PLL				(1 << 10)
+#define LVDS_PU_TX				(1 << 9)
+#define LVDS_PU_IVREF				(1 << 8)
+#define LVDS_CLK_SEL				(1 << 7)
+#define LVDS_CLK_SEL_LVDS_PCLK			(1 << 7)
+#define LVDS_PD_CH_MASK				(0x3f << 1)
+#define LVDS_PD_CH(ch)				((ch) << 1)
+#define LVDS_RST				(1 << 0)
+
+#define LVDS_PHY_CTL_EXT	0x2A8
+
+/* LVDS_PHY_CTRL_EXT1 */
+#define LVDS_SSC_RNGE_MASK			(0x7ff << 16)
+#define LVDS_SSC_RNGE_SHIFT			(16)
+#define LVDS_RESERVE_IN_MASK			(0xf << 12)
+#define LVDS_RESERVE_IN_SHIFT			(12)
+#define LVDS_TEST_MON_MASK			(0x7 << 8)
+#define LVDS_TEST_MON_SHIFT			(8)
+#define LVDS_POL_SWAP_MASK			(0x3f << 0)
+#define LVDS_POL_SWAP_SHIFT			(0)
+
+/* LVDS_PHY_CTRL_EXT2 */
+#define LVDS_TX_DIF_AMP_MASK			(0xf << 24)
+#define LVDS_TX_DIF_AMP_SHIFT			(24)
+#define LVDS_TX_DIF_CM_MASK			(0x3 << 22)
+#define LVDS_TX_DIF_CM_SHIFT			(22)
+#define LVDS_SELLV_TXCLK_MASK			(0x1f << 16)
+#define LVDS_SELLV_TXCLK_SHIFT			(16)
+#define LVDS_TX_CMFB_EN				(0x1 << 15)
+#define LVDS_TX_TERM_EN				(0x1 << 14)
+#define LVDS_SELLV_TXDATA_MASK			(0x1f << 8)
+#define LVDS_SELLV_TXDATA_SHIFT			(8)
+#define LVDS_SELLV_OP7_MASK			(0x3 << 6)
+#define LVDS_SELLV_OP7_SHIFT			(6)
+#define LVDS_SELLV_OP6_MASK			(0x3 << 4)
+#define LVDS_SELLV_OP6_SHIFT			(4)
+#define LVDS_SELLV_OP9_MASK			(0x3 << 2)
+#define LVDS_SELLV_OP9_SHIFT			(2)
+#define LVDS_STRESSTST_EN			(0x1 << 0)
+
+/* LVDS_PHY_CTRL_EXT3 */
+#define LVDS_KVCO_MASK				(0xf << 28)
+#define LVDS_KVCO_SHIFT				(28)
+#define LVDS_CTUNE_MASK				(0x3 << 26)
+#define LVDS_CTUNE_SHIFT			(26)
+#define LVDS_VREG_IVREF_MASK			(0x3 << 24)
+#define LVDS_VREG_IVREF_SHIFT			(24)
+#define LVDS_VDDL_MASK				(0xf << 20)
+#define LVDS_VDDL_SHIFT				(20)
+#define LVDS_VDDM_MASK				(0x3 << 18)
+#define LVDS_VDDM_SHIFT				(18)
+#define LVDS_FBDIV_MASK				(0xf << 8)
+#define LVDS_FBDIV_SHIFT			(8)
+#define LVDS_REFDIV_MASK			(0x7f << 0)
+#define LVDS_REFDIV_SHIFT			(0)
+
+/* LVDS_PHY_CTRL_EXT4 */
+#define LVDS_SSC_FREQ_DIV_MASK			(0xffff << 16)
+#define LVDS_SSC_FREQ_DIV_SHIFT			(16)
+#define LVDS_INTPI_MASK				(0xf << 12)
+#define LVDS_INTPI_SHIFT			(12)
+#define LVDS_VCODIV_SEL_SE_MASK			(0xf << 8)
+#define LVDS_VCODIV_SEL_SE_SHIFT		(8)
+#define LVDS_RESET_INTP_EXT			(0x1 << 7)
+#define LVDS_VCO_VRNG_MASK			(0x7 << 4)
+#define LVDS_VCO_VRNG_SHIFT			(4)
+#define LVDS_PI_EN				(0x1 << 3)
+#define LVDS_ICP_MASK				(0x7 << 0)
+#define LVDS_ICP_SHIFT				(0)
+
+/* LVDS_PHY_CTRL_EXT5 */
+#define LVDS_FREQ_OFFSET_MASK			(0x1ffff << 15)
+#define LVDS_FREQ_OFFSET_SHIFT			(15)
+#define LVDS_FREQ_OFFSET_VALID			(0x1 << 2)
+#define LVDS_FREQ_OFFSET_MODE_CK_DIV4_OUT	(0x1 << 1)
+#define LVDS_FREQ_OFFSET_MODE_EN		(0x1 << 0)
 
 /* VDMA */
 struct vdma_ch_regs {

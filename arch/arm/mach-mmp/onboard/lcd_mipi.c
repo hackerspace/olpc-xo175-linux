@@ -43,6 +43,20 @@ static struct fb_videomode video_modes_yellowstone[] = {
 		},
 };
 
+static struct lvds_info lvdsinfo = {
+	.src	= LVDS_SRC_PN,
+	.fmt	= LVDS_FMT_18BIT,
+};
+
+static void lvds_hook(struct pxa168fb_mach_info *mi)
+{
+	mi->phy_type = LVDS;
+	mi->phy_init = pxa688_lvds_init;
+	mi->phy_info = (void *)&lvdsinfo;
+
+	mi->modes->refresh = 60;
+}
+
 /*
  * dsi bpp : rgb_mode
  *    16   : DSI_LCD_INPUT_DATA_RGB_MODE_565;
@@ -595,6 +609,9 @@ void __init yellowstone_add_lcd_mipi(void)
 	ovly->num_modes = fb->num_modes;
 	ovly->modes = fb->modes;
 	ovly->max_fb_size = fb->max_fb_size;
+
+	if (cpu_is_mmp3_b0())
+		lvds_hook(fb);
 
 	/* Re-calculate lcd clk source and divider
 	 * according to dsi lanes and output format.

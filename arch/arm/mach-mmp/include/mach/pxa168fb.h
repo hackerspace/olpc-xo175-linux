@@ -517,6 +517,19 @@ struct dsi_info {
 	unsigned	eotp_en;
 	struct dsi_phy  *phy;
 };
+
+/* LVDS info */
+struct lvds_info {
+#define LVDS_SRC_PN	0
+#define LVDS_SRC_CMU	1
+#define LVDS_SRC_PN2	2
+#define LVDS_SRC_TV	3
+	u32	src;
+#define LVDS_FMT_24BIT	0
+#define LVDS_FMT_18BIT	1
+	u32	fmt;
+};
+
 /*
  * CMU information
  */
@@ -696,6 +709,9 @@ extern void dsi_set_dphy(struct pxa168fb_info *fbi);
 extern void dsi_reset(struct pxa168fb_info *fbi, int hold);
 extern void dsi_set_controller(struct pxa168fb_info *fbi);
 extern void dsi_lanes_enable(struct pxa168fb_info *fbi, int en);
+
+/* LVDS related */
+extern int pxa688_lvds_init(struct pxa168fb_info *fbi);
 
 /* VDMA related */
 #ifdef CONFIG_PXA688_VDMA

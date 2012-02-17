@@ -593,6 +593,163 @@ static void dsi_dump(struct pxa168fb_info *fbi)
 					 readl(&dsi->lcd2.slot_cnt1));
 }
 
+/* select LVDS_PHY_CTL_EXTx */
+#define lvds_ext_select(ext, tmp, reg) do {				\
+	if ((ext < 0) || (ext > 5)) {					\
+		pr_err("%s ext %d not supported\n", __func__, ext);	\
+		return 0;						\
+	}								\
+	reg = (u32)gfx_info.fbi[0]->reg_base + LVDS_PHY_CTL;		\
+	if (ext) {							\
+		/* select LVDS_PHY_CTL_EXTx */				\
+		tmp = readl(reg) & (~LVDS_PHY_EXT_MASK);		\
+		writel(tmp | (ext - 1) << LVDS_PHY_EXT_SHIFT, reg);	\
+		/* switch to LVDS_PHY_CTL_EXTx */			\
+		reg -= LVDS_PHY_CTL; reg += LVDS_PHY_CTL_EXT;		\
+	}								\
+} while (0)
+
+static u32 lvds_get(int ext)
+{
+	u32 reg, tmp;
+
+	lvds_ext_select(ext, tmp, reg);
+
+	return readl(reg);
+}
+
+static int lvds_set(int ext, u32 mask, u32 val)
+{
+	u32 reg, tmp, tmp2;
+
+	lvds_ext_select(ext, tmp, reg);
+
+	tmp = tmp2 = readl(reg);
+	tmp2 &= ~mask; tmp2 |= val;
+	if (tmp != tmp2)
+		writel(tmp2, reg);
+
+	return 0;
+}
+
+static void lvds_dump(struct pxa168fb_info *fbi)
+{
+	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
+	struct lvds_info *lvds = (struct lvds_info *)mi->phy_info;
+	u32 reg = (u32)fbi->reg_base + LCD_2ND_BLD_CTL;
+	char *str;
+
+	switch (lvds->src) {
+	case LVDS_SRC_PN:
+		str = "PN";
+		break;
+	case LVDS_SRC_CMU:
+		str = "CMU";
+		break;
+	case LVDS_SRC_PN2:
+		str = "PN2";
+		break;
+	case LVDS_SRC_TV:
+		str = "TV";
+		break;
+	default:
+		str = "?";
+		break;
+	};
+
+	pr_info("lvds_info: src %s fmt %s\n", str,
+		(lvds->fmt & LVDS_FMT_18BIT) ? "18bit" : "24bit");
+	pr_info("LCD_2ND_BLD_CTL(0x%x): 0x%x\n\n", reg & 0xfff, readl(reg));
+
+	pr_info("LVDS_PHY_CTL: 0x%x\n", lvds_get(0));
+	pr_info("        EXT1: 0x%x\n", lvds_get(1));
+	pr_info("        EXT2: 0x%x\n", lvds_get(2));
+	pr_info("        EXT3: 0x%x\n", lvds_get(3));
+	pr_info("        EXT4: 0x%x\n", lvds_get(4));
+	pr_info("        EXT5: 0x%x\n", lvds_get(5));
+}
+
+int pxa688_lvds_config(struct lvds_info *lvds)
+{
+	u32 reg = (u32)gfx_info.fbi[0]->reg_base + LCD_2ND_BLD_CTL;
+	u32 val = readl(reg) & ~(LVDS_SRC_MASK | LVDS_FMT_MASK);
+
+	val |= (lvds->src << LVDS_SRC_SHIFT) | (lvds->fmt << LVDS_FMT_SHIFT);
+	writel(val, reg);
+
+	return 0;
+}
+
+int pxa688_lvds_init(struct pxa168fb_info *fbi)
+{
+	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
+	struct lvds_info *lvds = (struct lvds_info *)mi->phy_info;
+	int count = 100000;
+	u32 mask, val;
+
+	/* configure lvds src and fmt */
+	pxa688_lvds_config(lvds);
+
+	/* release LVDS PHY from reset */
+	lvds_set(0, LVDS_RST, 0);
+	mdelay(100);
+
+	/* disable LVDS channel 0-5 power-down */
+	lvds_set(0, LVDS_PD_CH_MASK, 0);
+
+	/* select LVDS_PCLK instead of REFCLK as LVDS PHY clock */
+	lvds_set(0, LVDS_CLK_SEL, LVDS_CLK_SEL_LVDS_PCLK);
+
+	/* power up IP */
+	lvds_set(0, LVDS_PU_IVREF, LVDS_PU_IVREF);
+
+	/* REFDIV = 0x3, reference clock divider
+	 * FBDIV = 0xa, feedback clock divider
+	 * KVCO = 0x4, 1.7G - 1.9G */
+	mask = LVDS_REFDIV_MASK | LVDS_FBDIV_MASK | LVDS_REFDIV_MASK
+		| LVDS_CTUNE_MASK | LVDS_VREG_IVREF_MASK
+		| LVDS_VDDL_MASK | LVDS_VDDM_MASK;
+	val = (0x6 << LVDS_REFDIV_SHIFT) | (0x1 << LVDS_FBDIV_SHIFT)
+		| (0x4 << LVDS_KVCO_SHIFT | (0x2 << LVDS_CTUNE_SHIFT)
+		| (0x2 << LVDS_VREG_IVREF_SHIFT) | (0x9 << LVDS_VDDL_SHIFT)
+		| (0x1 << LVDS_VDDM_SHIFT));
+	lvds_set(3, mask, val);
+
+	/* VCO_VRNG = 0x3, LVDS PLL V to I gain control, for KVCO[3:0] = 0x4 */
+	mask = LVDS_VCO_VRNG_MASK | LVDS_ICP_MASK | LVDS_PI_EN
+		| LVDS_VCODIV_SEL_SE_MASK | LVDS_INTPI_MASK;
+	val = (0x3 << LVDS_VCO_VRNG_SHIFT) | (0x1 << LVDS_ICP_SHIFT)
+		| LVDS_PI_EN | (0xd << LVDS_VCODIV_SEL_SE_SHIFT)
+		| (0x3 << LVDS_INTPI_SHIFT);
+	lvds_set(4, mask, val);
+
+	/* enable PUPLL/PUTX to power up rest of PLL and TX */
+	lvds_set(0, LVDS_PU_TX | LVDS_PU_PLL, LVDS_PU_TX | LVDS_PU_PLL);
+
+	/* poll on lock bit until LVDS PLL locks */
+	while (!(lvds_get(0) & LVDS_PLL_LOCK) && count--);
+	if (count <= 0) {
+		pr_err("%s failed\n", __func__);
+		lvds_dump(fbi);
+	}
+
+	/* enable common mode feedback circuit */
+	mask = LVDS_SELLV_OP9_MASK | LVDS_SELLV_OP7_MASK | LVDS_SELLV_OP6_MASK
+		| LVDS_SELLV_TXDATA_MASK | LVDS_SELLV_TXCLK_MASK | LVDS_TX_DIF_CM_MASK
+		| LVDS_TX_DIF_AMP_MASK | LVDS_TX_TERM_EN | LVDS_TX_CMFB_EN;
+	val = (0x1 << LVDS_SELLV_OP9_SHIFT) | (0x1 << LVDS_SELLV_OP7_SHIFT)
+		| (0x1 << LVDS_SELLV_OP6_SHIFT) | (0xa << LVDS_SELLV_TXDATA_SHIFT)
+		| (0xa << LVDS_SELLV_TXCLK_SHIFT) | (0x3 << LVDS_TX_DIF_CM_SHIFT)
+		| (0x8 << LVDS_TX_DIF_AMP_SHIFT) | LVDS_TX_CMFB_EN;
+	lvds_set(2, mask, val);
+
+	/* Flip all the N\P pins in order to get correct display,
+	 * the pins might be inverted in the chip */
+	lvds_set(1, LVDS_POL_SWAP_MASK, 0x3f << LVDS_POL_SWAP_SHIFT);
+
+	return 0;
+}
+
 ssize_t phy_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
@@ -601,6 +758,9 @@ ssize_t phy_show(struct device *dev, struct device_attribute *attr,
 
 	if (!mi)
 		goto out;
+
+	if (mi->phy_type & LVDS)
+		lvds_dump(fbi);
 
 	if ((mi->phy_type & (DSI | DSI2DPI)))
 		dsi_dump(fbi);
