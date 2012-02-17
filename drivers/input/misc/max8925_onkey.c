@@ -140,14 +140,16 @@ static int __devinit max8925_onkey_probe(struct platform_device *pdev)
 	irq[1] += chip->irq_base;
 
 	error = request_threaded_irq(irq[0], NULL, max8925_onkey_handler,
-				     IRQF_ONESHOT, "onkey-down", info);
+				     IRQF_ONESHOT | IRQF_NO_SUSPEND,
+				     "onkey-down", info);
 	if (error < 0) {
 		dev_err(chip->dev, "Failed to request IRQ: #%d: %d\n",
 			irq[0], error);
 		goto out;
 	}
 	error = request_threaded_irq(irq[1], NULL, max8925_onkey_handler,
-				     IRQF_ONESHOT, "onkey-up", info);
+				     IRQF_ONESHOT | IRQF_NO_SUSPEND,
+				     "onkey-up", info);
 	if (error < 0) {
 		dev_err(chip->dev, "Failed to request IRQ: #%d: %d\n",
 			irq[1], error);

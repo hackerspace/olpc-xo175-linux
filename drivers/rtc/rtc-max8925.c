@@ -290,7 +290,8 @@ static int __devinit max8925_rtc_probe(struct platform_device *pdev)
 	irq = chip->irq_base + MAX8925_IRQ_RTC_ALARM0;
 
 	ret = request_threaded_irq(irq, NULL, rtc_update_handler,
-				   IRQF_ONESHOT, "rtc-alarm0", info);
+				   IRQF_ONESHOT | IRQF_NO_SUSPEND,
+				   "rtc-alarm0", info);
 	if (ret < 0) {
 		dev_err(chip->dev, "Failed to request IRQ: #%d: %d\n",
 			irq, ret);
