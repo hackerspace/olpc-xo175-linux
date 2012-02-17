@@ -231,13 +231,11 @@ enum {
 #define PM800_LDO_POWER_GOOD_STS3	(0x04)
 #define PM800_LDO_LAST_GROUP		(0x05)	/*reg#? not sure */
 
-/* Regulator Control Registers */
-#define PM800_LDO1_VOUT1		(0x08)	/*yhanin: */
-
-/* according to Eran need to write to all 3 the same*/
-#define PM800_LDO1_VOUT2		(0x09)
-
-#define PM800_LDO1_VOUT		(0x0A)
+/* Regulator Control Registers: BUCK1,BUCK5,LDO1 have DVC */
+/* LDO1 with DVC[0..3] */
+#define PM800_LDO1_VOUT		(0x08) /* VOUT1 */
+#define PM800_LDO1_VOUT_2	(0x09)
+#define PM800_LDO1_VOUT_3	(0x0A)
 #define PM800_LDO2_VOUT		(0x0B)
 #define PM800_LDO3_VOUT		(0x0C)
 #define PM800_LDO4_VOUT		(0x0D)
@@ -263,12 +261,20 @@ enum {
 #define PM800_SLEEP_BUCK3	(0x32)
 #define PM800_SLEEP_BUCK4	(0x33)
 #define PM800_SLEEP_BUCK5	(0x34)
-#define PM800_BUCK1			(0x3F)
+/* BUCK1 with DVC[0..3] */
+#define PM800_BUCK1			(0x3C)
+#define PM800_BUCK1_1		(0x3D)
+#define PM800_BUCK1_2		(0x3E)
+#define PM800_BUCK1_3		(0x3F)
 #define PM800_BUCK2			(0x40)
 #define PM800_BUCK3			(0x41)
 #define PM800_BUCK3_DOUBLE	(1 << 6)
 #define PM800_BUCK4			(0x42)
+/* BUCK5 with DVC[0..3] */
 #define PM800_BUCK5			(0x43)
+#define PM800_BUCK5_1		(0x44)
+#define PM800_BUCK5_2		(0x45)
+#define PM800_BUCK5_3		(0x46)
 
 #define PM800_BUCK_ENA		(0x50)
 #define PM800_LDO_ENA1_1	(0x51)
