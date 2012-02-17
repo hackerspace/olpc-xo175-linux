@@ -648,7 +648,7 @@ static int m6mo_g_fmt(struct v4l2_subdev *sd,
 	return 0;
 }
 
-
+static int m6mo_init(struct v4l2_subdev *sd, u32 plat);
 
 static int m6mo_s_fmt(struct v4l2_subdev *sd,
 			 struct v4l2_mbus_framefmt *mf)
@@ -657,6 +657,7 @@ static int m6mo_s_fmt(struct v4l2_subdev *sd,
 	struct m6mo_info *info = to_info(client);
 	int ret = 0;
 
+	m6mo_init(sd, 0);
 	switch (mf->code) {
 	case V4L2_MBUS_FMT_UYVY8_2X8:
 		switch (mf->height) {
@@ -835,7 +836,7 @@ static int m6mo_init(struct v4l2_subdev *sd, u32 plat)
 	/* Clear IRQ */
 	m6mo_read(client, SYSP_IRQ_STATE, &val);
 	info->isp_state = M6MO_SETUP;
-	printk("m6mo: isp stated\n");
+	printk("m6mo: isp started\n");
 	return 0;
 }
 
