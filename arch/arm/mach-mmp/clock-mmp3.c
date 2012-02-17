@@ -2162,6 +2162,19 @@ static void ccic_clk_init(struct clk *clk)
 {
 	const struct clk_mux_sel *sel;
 	u32 val = 0;
+	int reg = 0;
+
+	/* Since CCIC is moved to ISPDMA power island on B0 board,
+	need additional power enabling to access CCIC */
+	if (cpu_is_mmp3_b0()) {
+		reg = readl(APMU_ISPPWR);
+		reg |= 0x3 << 9;
+		writel(reg, APMU_ISPPWR);
+		mdelay(10);
+		reg |= 0x1 << 8;
+		writel(reg, APMU_ISPPWR);
+		mdelay(10);
+	}
 
 	/* by default select pll1/2 as clock source and divider 1 */
 	clk->mul = 1;
