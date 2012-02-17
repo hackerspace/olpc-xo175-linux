@@ -1507,28 +1507,10 @@ static int cwmi_rot_input_init(struct i2c_cwmi_sensor *sensor)
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void cwmi_early_suspend(struct early_suspend *h)
 {
-	struct i2c_cwmi_sensor *sensor =
-	    container_of(h, struct i2c_cwmi_sensor, early_suspend);
-	if (atomic_cmpxchg(&sensor->enabled, 1, 0)) {
-		if (((struct cwmi_platform_data *)(sensor->client->dev.
-						   platform_data))->set_power)
-			((struct cwmi_platform_data *)(sensor->client->dev.
-						       platform_data))->
-			    set_power(0);
-	}
 }
 
 static void cwmi_late_resume(struct early_suspend *h)
 {
-	struct i2c_cwmi_sensor *sensor =
-	    container_of(h, struct i2c_cwmi_sensor, early_suspend);
-	if (!atomic_cmpxchg(&sensor->enabled, 0, 1)) {
-		if (((struct cwmi_platform_data *)(sensor->client->dev.
-						   platform_data))->set_power)
-			((struct cwmi_platform_data *)(sensor->client->dev.
-						       platform_data))->
-			    set_power(1);
-	}
 }
 #endif
 

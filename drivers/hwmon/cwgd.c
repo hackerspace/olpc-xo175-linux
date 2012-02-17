@@ -1053,31 +1053,10 @@ static int cwgd_resume(struct device *dev)
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void cwgd_early_suspend(struct early_suspend *h)
 {
-	struct i2c_cwgd_sensor *sensor =
-	    container_of(h, struct i2c_cwgd_sensor, early_suspend);
-/*	cwgd_suspend(&sensor->client->dev);*/
-	if (atomic_cmpxchg(&sensor->enabled, 1, 0)) {
-		if (((struct cwgd_platform_data *)(sensor->client->dev.
-						   platform_data))->set_power)
-			((struct cwgd_platform_data *)(sensor->client->dev.
-						       platform_data))->
-			    set_power(0);
-	}
-
 }
 
 static void cwgd_late_resume(struct early_suspend *h)
 {
-	struct i2c_cwgd_sensor *sensor =
-	    container_of(h, struct i2c_cwgd_sensor, early_suspend);
-/*	cwgd_resume(&sensor->client->dev);*/
-	if (!atomic_cmpxchg(&sensor->enabled, 0, 1)) {
-		if (((struct cwgd_platform_data *)(sensor->client->dev.
-						   platform_data))->set_power)
-			((struct cwgd_platform_data *)(sensor->client->dev.
-						       platform_data))->
-			    set_power(1);
-	}
 }
 #endif
 
