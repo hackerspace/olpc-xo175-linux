@@ -137,7 +137,6 @@ static unsigned long yellowstone_pin_config[] __initdata = {
 	GPIO22_KP_DKIN6 | MFP_PULL_HIGH,
 
 	PMIC_PMIC_INT | MFP_LPM_EDGE_FALL,
-	GPIO06_WM8994_LDOEN,
 
 	GPIO128_LCD_RST,
 
