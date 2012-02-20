@@ -1505,6 +1505,7 @@ static void __init abilene_init(void)
 	/* backlight */
 	mmp3_add_pwm(3);
 	platform_device_register(&abilene_lcd_backlight_devices);
+	mmp3_add_thermal();
 
 #ifdef CONFIG_ANDROID_PMEM
 	pxa_add_pmem();
