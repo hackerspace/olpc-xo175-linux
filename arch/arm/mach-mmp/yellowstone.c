@@ -221,7 +221,7 @@ static int camera_sensor_power(struct device *dev, int on)
 	return 0;
 }
 
-static struct i2c_board_info abilene_i2c_camera[] = {
+static struct i2c_board_info yellowstone_i2c_camera[] = {
 	{
 		I2C_BOARD_INFO("ov5642", 0x3c),
 	},
@@ -230,14 +230,14 @@ static struct i2c_board_info abilene_i2c_camera[] = {
 static struct soc_camera_link iclink_ov5642 = {
 	.bus_id         = 1,            /* Must match with the camera ID */
 	.power          = camera_sensor_power,
-	.board_info     = &abilene_i2c_camera[0],
-	.i2c_adapter_id = 3,
+	.board_info     = &yellowstone_i2c_camera[0],
+	.i2c_adapter_id = 2,
 	.flags = SOCAM_MIPI,
 	.module_name    = "ov5642",
 	.priv = "pxa2128-mipi",
 };
 
-static struct platform_device abilene_ov5642 = {
+static struct platform_device yellowstone_ov5642 = {
 	.name   = "soc-camera-pdrv",
 	.id     = 0,
 	.dev    = {
@@ -1115,7 +1115,7 @@ static void __init yellowstone_init(void)
 	mmp3_add_audiosram(&mmp3_audiosram_info);
 
 #if defined(CONFIG_VIDEO_MV)
-	platform_device_register(&abilene_ov5642);
+	platform_device_register(&yellowstone_ov5642);
 	mmp3_add_cam(1, &mv_cam_data);
 #endif
 
