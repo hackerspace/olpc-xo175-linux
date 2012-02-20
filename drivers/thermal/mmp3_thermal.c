@@ -163,6 +163,8 @@ static int mmp3_thermal_remove(struct platform_device *pdev)
 {
 	thermal_zone_device_unregister(therm_dev);
 	pr_info("MMP3: Kernel Thermal management unregistered\n");
+
+	return 0;
 }
 
 static struct platform_driver mmp3_thermal_driver = {
