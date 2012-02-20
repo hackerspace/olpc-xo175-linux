@@ -1430,6 +1430,57 @@ static struct clk mmp3_clk_hdmi = {
 	.dependence_count = ARRAY_SIZE(disp_depend_clk),
 };
 
+static int thermal_clk_enable(struct clk *clk)
+{
+	uint32_t clk_rst, i;
+	ulong inc[4] = {0, 0x8, 0xc, 0x10};
+	ulong base;
+
+	for (i = 0; i < 4; i ++) {
+		base = (ulong)clk->clk_rst + inc[i];
+		clk_rst = __raw_readl(base);
+		clk_rst |= APBC_FNCLK | APBC_FNCLKSEL(0x0);
+		__raw_writel(clk_rst, base);
+		/*
+		 * delay two cycles of the solwest clock between the APB
+		 * bus clock and the functional module clock.
+		 */
+		udelay(10);
+
+		clk_rst |= APBC_APBCLK;
+		__raw_writel(clk_rst, base);
+		udelay(10);
+
+		clk_rst &= ~(APBC_RST);
+		__raw_writel(clk_rst, base);
+	}
+
+	return 0;
+}
+
+static void thermal_clk_disable(struct clk *clk)
+{
+	int inc[4] = {0, 0x8, 0xc, 0x10}, i;
+
+	for (i = 0; i < 4; i ++)
+		__raw_writel(0, clk->clk_rst + inc[i]);
+	mdelay(1);
+}
+
+struct clkops thermal_clk_ops = {
+	.enable = thermal_clk_enable,
+	.disable = thermal_clk_disable,
+};
+
+static struct clk mmp3_clk_thermal = {
+	.name = "mmp-thermal",
+	.lookup = {
+		.con_id = "THERMALCLK",
+	},
+	.clk_rst = (void __iomem *)APBC_MMP2_THSENS1,
+	.ops = &thermal_clk_ops,
+};
+
 static void sdhc_clk_init(struct clk *clk)
 {
 	const struct clk_mux_sel *sel;
@@ -2407,6 +2458,7 @@ static struct clk *mmp3_clks_ptr[] = {
 	&mmp3_clk_sdh3,
 	&mmp3_clk_disp1_axi,
 	&mmp3_clk_hdmi,
+	&mmp3_clk_thermal,
 	&mmp3_clk_ccic1,
 	&mmp3_clk_ccic2,
 #ifdef CONFIG_UIO_VMETA

@@ -65,6 +65,7 @@ extern struct pxa_device_desc mmp3_device_fb_tv_ovly;
 extern struct pxa_device_desc mmp3_device_v4l2_tv_ovly;
 extern struct pxa_device_desc mmp3_device_hdmi;
 extern struct pxa_device_desc mmp3_device_videosram;
+extern struct pxa_device_desc mmp3_device_thermal;
 
 extern struct platform_device mmp3_device_rtc;
 extern struct platform_device mmp3_device_vnc_touch;
@@ -143,6 +144,11 @@ static inline int mmp3_add_uart(int id)
 	}
 
 	return pxa_register_device(d, NULL, 0);
+}
+
+static inline int mmp3_add_thermal(void)
+{
+	return pxa_register_device(&mmp3_device_thermal, NULL, 0);
 }
 
 static inline int mmp3_add_twsi(int id, struct i2c_pxa_platform_data *data,
