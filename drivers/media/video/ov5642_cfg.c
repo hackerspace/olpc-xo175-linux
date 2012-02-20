@@ -6786,20 +6786,12 @@ int set_stream(struct i2c_client *client, int enable)
 	case 4: /* bus name: pxa2128-mipi */
 	case 5: /* bus name: pxa688-mipi */
 		if (enable) {
-			ret = ov5642_read(client, 0x3008, &val);
-			if (ret < 0)
-				goto out;
-			val &= ~0x40;
-			ret = ov5642_write(client, 0x3008, val);
+			ret = ov5642_write(client, 0x4202, 0x00);
 			if (ret < 0)
 				goto out;
 		} else {
 			/* stop after one frame */
-			ret = ov5642_read(client, 0x3008, &val);
-			if (ret < 0)
-				goto out;
-			val |= 0x40;
-			ret = ov5642_write(client, 0x3008, val);
+			ret = ov5642_write(client, 0x4202, 0x0f);
 			if (ret < 0)
 				goto out;
 		}

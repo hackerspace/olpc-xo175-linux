@@ -299,14 +299,6 @@ static int ov5642_s_fmt(struct v4l2_subdev *sd,
 	struct ov5642 *ov5642 = to_ov5642(client);
 	unsigned char val;
 
-	/* bus name: pxa688-mipi, bus_type is 5 */
-	/* bus name: pxa2128-mipi, bus_type is 4 */
-	if (get_bus_type() == 4 || get_bus_type() == 5) {
-		/* sensor resume from software power down mode */
-		ov5642_read(client, REG_SYS, &val);
-		val &= ~0x40;
-		ov5642_write(client, REG_SYS, val);
-	}
 
 	if (ov5642->regs_default) {
 		ret = ov5642_write_array(client, ov5642->regs_default);
@@ -371,10 +363,8 @@ static int ov5642_s_fmt(struct v4l2_subdev *sd,
 				return ret;
 		}
 
-		/* sensor enter software power down mode */
-		ov5642_read(client, REG_SYS, &val);
-		val |= 0x40;
-		ov5642_write(client, REG_SYS, val);
+		/* sensor stop output after stream off */
+		ov5642_write(client, 0x4202, 0x0f);
 	}
 	return ret;
 }
@@ -497,17 +487,6 @@ static int ov5642_firmware_download(struct i2c_client *client)
 		return -ENODEV;
 	}
 
-	/* Check and clear software power down bit */
-	ret = ov5642_read(client, REG_SYS, &sysctl);
-	if (unlikely(ret < 0)) {
-		dev_err(&client->dev, "cam: I2C failed to get 0x3008 value\n");
-		return -EIO;
-	}
-	if (unlikely(sysctl & SYS_SWPD)) {
-		ret = ov5642_write(client, REG_SYS, (sysctl & ~SYS_SWPD));
-		if (unlikely(ret < 0))
-			return -EIO;
-	}
 
 	/* Actually start to download firmware */
 	for (i = 0; i < size; i++) {
@@ -524,10 +503,6 @@ static int ov5642_firmware_download(struct i2c_client *client)
 	}
 
 	dev_info(&client->dev, "AF firmware downloaded\n");
-	/* Recover ov5642 power state */
-	ret = ov5642_write(client, REG_SYS, sysctl&(~SYS_RESET));
-	if (unlikely(ret < 0))
-		return -EIO;
 
 	return (ret > 0) ? 0 : ret;
 }
