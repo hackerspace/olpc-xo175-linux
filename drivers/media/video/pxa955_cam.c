@@ -200,6 +200,19 @@ MODULE_SUPPORTED_DEVICE("Video");
 static unsigned int *pri_axi, *pri_ci1, *pri_ci2, *pri_gcu;
 #endif
 
+enum {
+	SCI_PIXFMT_DEFAULT,
+	SCI_PIXFMT_YVU,
+};
+
+/* Default output sequence is Y/U/V.
+ * Currently we need switch U/V channels for YVU.
+ * May add more for new requirements. */
+static const int yuv_output_sequence[][3] = {
+	[SCI_PIXFMT_DEFAULT] = {0, 1, 2},
+	[SCI_PIXFMT_YVU] = {0, 2, 1},
+};
+
 /* During sensor format change, its output may get unstable, if controller
  * is turned on immediately, some unreasonable input may drive controller
  * into a deadloop reporting errors repeatedly. */
@@ -272,6 +285,7 @@ struct pxa955_cam_dev {
 	unsigned int dma_buf_size;		/* allocated size */
 	unsigned int channels;
 	unsigned int channel_size[CHANNEL_NUM];
+	unsigned int sci_pixfmt;
 
 	/* streaming buffers */
 	spinlock_t spin_lock;  /* Access to device */
@@ -823,8 +837,8 @@ static int dma_alloc_desc(struct pxa_buf_node *buf_node,
 
 	for (i = 0; i < pcdev->channels; i++) {
 		printk(KERN_DEBUG "cam: index %d, channels %d\n", vb->i, i);
-		desc = &buf_node->dma_desc[i];
-		len = pcdev->channel_size[i];
+		desc = &buf_node->dma_desc[yuv_output_sequence[pcdev->sci_pixfmt][i]];
+		len = pcdev->channel_size[yuv_output_sequence[pcdev->sci_pixfmt][i]];
 
 		desc->sglen = (len + SINGLE_DESC_TRANS_MAX - 1) / \
 				SINGLE_DESC_TRANS_MAX;
@@ -1008,6 +1022,8 @@ static void sci_s_fmt(struct pxa955_cam_dev *pcdev,
 {
 	unsigned int size = fmt->width*fmt->height;
 
+	pcdev->sci_pixfmt = SCI_PIXFMT_DEFAULT;
+
 	switch (fmt->pixelformat) {
 
 	case V4L2_PIX_FMT_RGB565:
@@ -1051,6 +1067,8 @@ static void sci_s_fmt(struct pxa955_cam_dev *pcdev,
 					SCICR1_FMT_OUT(FMT_YUV422PACKET));
 		break;
 
+	case V4L2_PIX_FMT_YVU420:
+		pcdev->sci_pixfmt = SCI_PIXFMT_YVU;
 	case V4L2_PIX_FMT_YUV420:
 		/* only accept YUV422 as input */
 		pcdev->channels = 3;
@@ -1617,6 +1635,12 @@ static const struct soc_mbus_pixelfmt pxa955_camera_formats[] = {
 	}, {
 		.fourcc			= V4L2_PIX_FMT_YUV420,
 		.name			= "YUV420P",
+		.bits_per_sample	= 12,
+		.packing		= SOC_MBUS_PACKING_1_5X8,
+		.order			= SOC_MBUS_ORDER_LE,
+	}, {
+		.fourcc			= V4L2_PIX_FMT_YVU420,
+		.name			= "YVU420P",
 		.bits_per_sample	= 12,
 		.packing		= SOC_MBUS_PACKING_1_5X8,
 		.order			= SOC_MBUS_ORDER_LE,
