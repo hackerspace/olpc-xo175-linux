@@ -17,6 +17,7 @@
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/usb/mv_usb.h>
+#include <linux/notifier.h>
 
 #include <asm/smp_twd.h>
 #include <asm/mach/time.h>
@@ -785,3 +786,28 @@ void gc_pwr(int power_on)
 	}
 }
 EXPORT_SYMBOL_GPL(gc_pwr);
+
+#ifdef CONFIG_MMP3_THERMAL
+extern unsigned long read_temperature_sensor(int index);
+static int
+thermal_check(struct notifier_block *this, unsigned long event, void *ptr)
+{
+	printk(KERN_ERR "Current Temp0: %ld Temp1: %ld Temp2 %ld\n\n",
+			read_temperature_sensor(0),
+			read_temperature_sensor(1),
+			read_temperature_sensor(2));
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block panic_thermal_check = {
+	.notifier_call = thermal_check,
+};
+
+static int __init panic_notifier(void)
+{
+	atomic_notifier_chain_register(&panic_notifier_list, &panic_thermal_check);
+	return 0;
+}
+
+core_initcall(panic_notifier);
+#endif

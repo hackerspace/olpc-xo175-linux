@@ -44,7 +44,7 @@ static int gray_decode(unsigned int gray)
 	return num;
 }
 
-static unsigned long read_temperature_sensor(int index)
+unsigned long read_temperature_sensor(int index)
 {
 	int i;
 	unsigned long data;
@@ -66,6 +66,7 @@ static unsigned long read_temperature_sensor(int index)
 
 	return gray_decode(data) * 5 / 2 + 26;
 }
+EXPORT_SYMBOL(read_temperature_sensor);
 
 static int th_sys_get_temp(struct thermal_zone_device *thermal,
 		unsigned long *temp)
