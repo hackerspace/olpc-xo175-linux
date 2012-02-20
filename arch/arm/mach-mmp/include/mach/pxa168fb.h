@@ -733,7 +733,10 @@ static inline void vdma_info_update(struct pxa168fb_vdma_info *lcd_vdma,
 	lcd_vdma->yuv_format = yuv_format;
 }
 #else
-static inline struct pxa168fb_vdma_info *request_vdma(int path, int vid) {}
+static inline struct pxa168fb_vdma_info *request_vdma(int path, int vid)
+{
+	return 0;
+}
 static inline void pxa688_vdma_init(struct pxa168fb_vdma_info *lcd_vdma) {}
 static inline void pxa688_vdma_config(struct pxa168fb_vdma_info *lcd_vdma) {}
 static inline void pxa688_vdma_release(int path, int vid) {}
