@@ -36,6 +36,11 @@
 #if defined(CONFIG_SENSORS_L3G4200D_GYR)
 #include <linux/i2c/l3g4200d.h>
 #endif
+#if defined(CONFIG_SPI_PXA2XX)
+#include <linux/spi/spi.h>
+#include <linux/spi/pxa2xx_spi.h>
+#include <linux/spi/ntrig_spi.h>
+#endif
 #include <linux/sd8x_rfkill.h>
 
 #include <asm/mach-types.h>
@@ -153,6 +158,14 @@ static unsigned long abilene_pin_config[] __initdata = {
 
 	/* HSIC1 reset pin*/
 	GPIO96_HSIC_RESET,
+
+	/* SSP4 */
+	GPIO78_SSP_CLK,
+	GPIO79_SSP_FRM,
+	GPIO80_SSP_TXD,
+	GPIO81_SSP_RXD,
+	GPIO101_GPIO, /* TS INT*/
+	GPIO85_GPIO, /* TS_IO_EN */
 };
 
 static unsigned long mmc1_pin_config[] __initdata = {
@@ -331,6 +344,74 @@ static struct vmeta_plat_data mmp_vmeta_plat_data = {
 static void __init mmp_init_vmeta(void)
 {
 	mmp_set_vmeta_info(&mmp_vmeta_plat_data);
+}
+#endif
+
+#if (defined(CONFIG_SPI_PXA2XX) || defined(CONFIG_SPI_PXA2XX_MODULE)) \
+       && defined(CONFIG_NTRIG_SPI)
+static struct pxa2xx_spi_master pxa_ssp_master_info = {
+	.num_chipselect = 1,
+	.enable_dma = 1,
+};
+
+static struct pxa2xx_spi_chip touch_spi_device = {
+	.tx_threshold = 1,
+	.rx_threshold = 1,
+};
+static struct ntrig_spi_platform_data ntrig_data = {
+	.oe_gpio = mfp_to_gpio(GPIO85_GPIO), /*magic number print from vendor's code*/
+	.oe_inverted = 0,/*magic number print from vendor's code*/
+	.pwr_gpio = -1,
+	.irq_flags = IRQF_DISABLED | IRQF_TRIGGER_RISING,
+	.set_power = NULL,
+};
+
+static struct spi_board_info __initdata ntrig_spi_board_info[] = {
+	{
+		.modalias = "ntrig_spi",
+		.bus_num = 5,
+		.chip_select = 0,
+		.mode = SPI_MODE_0,
+		.max_speed_hz = 6500000,
+		.platform_data = &ntrig_data,
+		.irq = IRQ_GPIO(mfp_to_gpio(GPIO101_GPIO)),
+		.controller_data = &touch_spi_device,
+	},
+};
+
+static int ntrig_gpio_set(void)
+{
+	int gpio = mfp_to_gpio(GPIO101_GPIO);
+
+	if (gpio_request(gpio, "N-trig irq")) {
+			pr_err("gpio %d request failed\n", gpio);
+			return -1;
+	}
+	gpio_direction_input(gpio);
+	gpio_free(gpio);
+
+	gpio = mfp_to_gpio(GPIO85_GPIO);
+	if (gpio_request(gpio, "N-trig Power")) {
+		pr_err("gpio %d request failed\n", gpio);
+		return -1;
+	}
+
+	gpio_direction_output(gpio, 1);
+	mdelay(1);
+	gpio_free(gpio);
+
+	return 0;
+}
+
+static void __init mmp3_init_spi(void)
+{
+
+	ntrig_gpio_set();
+	mmp3_add_ssp(4);
+	mmp3_add_spi(5, &pxa_ssp_master_info);
+
+	if ((spi_register_board_info(ntrig_spi_board_info, ARRAY_SIZE(ntrig_spi_board_info))) != 0)
+			pr_err("%s: spi_register_board_info returned error\n", __func__);
 }
 #endif
 
@@ -1708,6 +1789,9 @@ static void __init abilene_init(void)
 	mmp_init_dxoisp();
 #endif
 
+#ifdef CONFIG_NTRIG_SPI
+	mmp3_init_spi();
+#endif
 	platform_device_register(&mmp3_device_rtc);
 
 #if defined(CONFIG_TOUCHSCREEN_VNC)
