@@ -185,6 +185,12 @@ static int chip_power_on(struct smsspi_dev *drv_info)
 #ifdef DRIVER_HANDLE_GPIO
 	int chip_en;
 
+	struct cmmb_platform_data *pdataa;
+
+	pdataa = drv_info->spi->dev.platform_data;
+	if (pdataa && pdataa->cmmb_regulator)
+		pdataa->cmmb_regulator(1);
+
 	chip_en = drv_info->gpio_power;
 	if (gpio_request(chip_en, "cmmb power")) {
 		pr_warning("[ERROR] failed to request GPIO for CMMB POWER\n");
@@ -216,6 +222,9 @@ static int chip_power_down(struct smsspi_dev *drv_info)
 #ifdef DRIVER_HANDLE_GPIO
 	int chip_en;
 
+	struct cmmb_platform_data *pdataa;
+	pdataa = drv_info->spi->dev.platform_data;
+
 	chip_en = drv_info->gpio_power;
 	if (gpio_request(chip_en, "cmmb power")) {
 		pr_warning("failed to request GPIO for CMMB POWER\n");
@@ -225,6 +234,9 @@ static int chip_power_down(struct smsspi_dev *drv_info)
 	gpio_direction_output(chip_en, 0);
 	gpio_free(chip_en);
 	msleep(100);	/* TODO:Check with HW Engineer */
+
+	if (pdataa && pdataa->cmmb_regulator)
+		pdataa->cmmb_regulator(0);
 
 	return 0;
 #else

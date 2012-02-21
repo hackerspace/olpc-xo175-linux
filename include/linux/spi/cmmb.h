@@ -8,6 +8,8 @@ struct cmmb_platform_data {
 	int (*cs_assert) (void);
 	int (*cs_deassert) (void);
 
+	int (*cmmb_regulator) (bool en);
+
 	int gpio_power;
 	int gpio_reset;
 	int gpio_cs;
