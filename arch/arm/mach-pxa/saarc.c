@@ -385,7 +385,6 @@ static void regulator_init_pm800(void)
 	REG_INIT(i++, PM800_ID, LDO9, 2400000, 3300000, 1, 1);
 	REG_INIT(i++, PM800_ID, LDO8, 1800000, 3300000, 1, 1);
 	REG_INIT(i++, PM800_ID, LDO6, 1200000, 3300000, 0, 0);
-
 	REG_INIT(i++, PM800_ID, LDO14, 1800000, 3300000, 0, 0);
 	REG_INIT(i++, PM800_ID, LDO15, 1800000, 3300000, 0, 0);
 
@@ -394,8 +393,10 @@ static void regulator_init_pm800(void)
 	switch (get_board_id()) {
 	case OBM_DKB_2_NEVO_C0_BOARD:
 		/* Turn on LDO12 and 17 before wifi regulator support added */
+		REG_SUPPLY_INIT(PM800_ID_LDO2, "Vdd_CMMB12", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO12, "v_wifi_1v8", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO17, "v_wifi_3v3", NULL);
+		REG_INIT(i++, PM800_ID, LDO2, 1200000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO12, 1800000, 1800000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO17, 3300000, 3300000, 0, 0);
 		break;
@@ -1481,9 +1482,12 @@ static int cmmb_power_reset(void)
 	return 0;
 }
 
+static int cmmb_regulator(bool en);
 static int cmmb_power_on(void)
 {
 	int cmmb_en;
+
+	cmmb_regulator(1);
 
 	cmmb_en = mfp_to_gpio(MFP_PIN_GPIO16);
 	if (gpio_request(cmmb_en, "cmmb power")) {
@@ -1518,6 +1522,8 @@ static int cmmb_power_off(void)
 	gpio_free(cmmb_en);
 	msleep(100);
 
+	cmmb_regulator(0);
+
 	return 0;
 }
 /*.
@@ -1541,12 +1547,57 @@ static int cmmb_cs_deassert(void)
 	return 0;
 }
 
+static int cmmb_regulator(bool en)
+{
+
+	struct regulator *v_ldo1v2, *v_ldo1v8;
+	int regulator_enabled_1v2, regulator_enabled_1v8;
+
+	v_ldo1v2 = regulator_get(NULL, "Vdd_CMMB12");
+
+	if (IS_ERR(v_ldo1v2)) {
+		printk(KERN_ERR "cmmb: fail to get ldo1v2 handle!\n");
+		return -EINVAL;
+	}
+
+	v_ldo1v8 = regulator_get(NULL, "Vdd_IO");
+
+	if (IS_ERR(v_ldo1v8)) {
+		printk(KERN_ERR "cmmb: fail to get ldo1v8 handle!\n");
+		regulator_put(v_ldo1v2);
+		return -EINVAL;
+	}
+
+	if (en) {
+		regulator_set_voltage(v_ldo1v2, 1200000, 1200000);
+		regulator_set_voltage(v_ldo1v8, 1800000, 1800000);
+		regulator_enable(v_ldo1v2);
+		regulator_enable(v_ldo1v8);
+		printk(KERN_INFO "cmmb: turn on ldo1v2 and ldo1v8 to high.\n");
+	} else {
+		regulator_enabled_1v2 = regulator_is_enabled(v_ldo1v2);
+		regulator_enabled_1v8 = regulator_is_enabled(v_ldo1v8);
+
+		if ((regulator_enabled_1v2) && (regulator_enabled_1v8)) {
+			printk(KERN_INFO "cmmb: turn off LDO\n");
+			regulator_disable(v_ldo1v2);
+			regulator_disable(v_ldo1v8);
+		}
+	}
+
+	regulator_put(v_ldo1v2);
+	regulator_put(v_ldo1v8);
+	return 0;
+}
+
 static struct cmmb_platform_data cmmb_info = {
 	.power_on = cmmb_power_on,
 	.power_off = cmmb_power_off,
 	.power_reset = cmmb_power_reset,
 	.cs_assert = cmmb_cs_assert,
 	.cs_deassert = cmmb_cs_deassert,
+
+	.cmmb_regulator = cmmb_regulator,
 
 	.gpio_power = mfp_to_gpio(MFP_PIN_GPIO16),
 	.gpio_reset = mfp_to_gpio(MFP_PIN_GPIO17),
