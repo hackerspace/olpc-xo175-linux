@@ -12,17 +12,17 @@
 #include <mach/mmp2_plat_ver.h>
 
 static struct fb_videomode video_modes_abilene[] = {
-	/* innolux WVGA mode info */
 	[0] = {
-		.refresh = 60,
+		/* panel refresh rate should <= 55(Hz) */
+		.refresh = 55,
 		.xres = 1280,
-		.yres = 720,
+		.yres = 800,
 		.hsync_len = 2,
-		.left_margin = 10,
-		.right_margin = 216,
+		.left_margin = 64,
+		.right_margin = 64,
 		.vsync_len = 2,
-		.upper_margin = 10,
-		.lower_margin = 4,
+		.upper_margin = 8,
+		.lower_margin = 8,
 		.sync = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
 		},
 };
