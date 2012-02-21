@@ -864,10 +864,16 @@ static struct clk mmp3_clk_cpu = {
 	.ops = &clk_cpu_ops,
 };
 
-
+#define GC300_CLK_DIV(n)	((n & 0xF) << 28)
+#define GC300_CLK_DIV_MSK	GC300_CLK_DIV(0xF)
 #define GC_CLK_DIV(n)		((n & 0xF) << 24)
 #define GC_CLK_DIV_GET(n)	((n >> 24) & 0xF)
 #define GC_CLK_DIV_MSK		GC_CLK_DIV(0xF)
+#define GC300_AXICLK_EN		(1 << 19)
+#define GC300_BUS_CLK_SRC(n)	((n & 3) << 16)
+#define GC300_BUS_CLK_SRC_MSK	GC300_BUS_CLK_SRC(3)
+#define GC300_CLK_INPUT(n)	((n & 3) << 12)
+#define GC300_CLK_INPUT_MSK	GC300_CLK_INPUT(3)
 #define GC_CLK_SRC_SEL(n)	((n & 3) << 6)
 #define GC_CLK_SRC_SEL_MSK	GC_CLK_SRC_SEL(3)
 #define		CS_PLL1		0
@@ -927,10 +933,22 @@ static int gc_clk_enable(struct clk *clk)
 	gc_rate_cfg = GC_CLK_RATE(clk->div,
 		clk->inputs[i].value, clk->enable_val);
 	gc_rate_cfg &= GC_CLK_RATE_MSK;
+
 	GC_SET_BITS(gc_rate_cfg, GC_CLK_RATE_MSK);
+
+	/* set GC300 the divide to 0x4 as default */
+	GC_SET_BITS(GC300_CLK_DIV(4), GC300_CLK_DIV_MSK);
+	/* set GC300 bus clock select 200MHz */
+	GC_SET_BITS(GC300_BUS_CLK_SRC(0), GC300_BUS_CLK_SRC_MSK);
+	/* set GC300 clock source as PLL1 */
+	GC_SET_BITS(GC300_CLK_INPUT(0), GC300_CLK_INPUT_MSK);
 
 	GC_SET_BITS(GC_CLK_EN, 0);
 	udelay(100);
+
+	GC_SET_BITS(GC300_AXICLK_EN, 0);
+	udelay(100);
+
 	GC_SET_BITS(GC_AXICLK_EN, 0);
 	udelay(100);
 
