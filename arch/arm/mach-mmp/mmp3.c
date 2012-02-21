@@ -618,6 +618,12 @@ void vmeta_power_switch(unsigned int enable)
 		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
 
 	} else if (VMETA_PWR_DISABLE == enable) {
+		/* FIXME there's silicon issue in the b0 stepping, power off
+		 * the clock will break the vmeta functionality. Now workaround
+		 * it to keep the power always on
+		 */
+		return;
+
 		if ((reg_vmpwr & (APMU_VMETA_PWRUP_ON|APMU_VMETA_ISB)) == 0)
 			return; /*Pwr is already off*/
 
