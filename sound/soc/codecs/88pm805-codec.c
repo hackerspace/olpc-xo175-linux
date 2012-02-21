@@ -104,6 +104,66 @@ static int pm805_write_reg_cache(struct snd_soc_codec *codec,
 	return pm80x_reg_write(i2c, reg, value);
 }
 
+static int pm805_bulk_read_reg(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	return 0;
+}
+static int pm805_bulk_write_reg(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	struct soc_mixer_control *mc =
+		(struct soc_mixer_control *)kcontrol->private_value;
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	unsigned int reg = mc->reg;
+	unsigned char buf[64];
+	int i, count = 0;
+	struct pm80x_chip *chip = (struct pm80x_chip *)codec->control_data;
+	struct i2c_client *i2c = chip->pm805_chip->client;
+
+	count = (ucontrol->value.integer.value[0] & 0xff);
+
+	if (count < 1 || count > PM805_MIXER_COEFFICIENT_MAX_NUM) {
+		printk("pm805_write_burst_reg: error count %d, must between 1~32\n", count);
+		return -EINVAL;
+	}
+
+	pr_debug("pm805_burst_write 0x%x, count %d\n", reg, count);
+
+	for (i = 0; i < count; i++) {
+		buf[i] = (ucontrol->value.integer.value[i + 1]);
+		pr_debug("    value 0x%x\n", buf[i]);
+	}
+
+	return pm80x_bulk_write(i2c, reg, count, buf);
+}
+
+static int pm805_info_volsw(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_info *uinfo)
+{
+	struct soc_mixer_control *mc =
+		(struct soc_mixer_control *)kcontrol->private_value;
+	int platform_max;
+
+	if (!mc->platform_max)
+		mc->platform_max = mc->max;
+	platform_max = mc->platform_max;
+
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
+
+	uinfo->count = PM805_MIXER_COEFFICIENT_MAX_NUM + 1;
+	uinfo->value.integer.min = 0;
+	uinfo->value.integer.max = platform_max;
+	return 0;
+}
+
+#define SOC_SINGLE_INFO(xname, xreg, xshift, xmax, xinvert,\
+	 xhandler_get, xhandler_put, xhandler_info) \
+{	.iface = SNDRV_CTL_ELEM_IFACE_MIXER, .name = xname, \
+	.info = xhandler_info, \
+	.get = xhandler_get, .put = xhandler_put, \
+	.private_value = SOC_SINGLE_VALUE(xreg, xshift, xmax, xinvert) }
+
 static const struct snd_kcontrol_new pm805_audio_controls[] = {
 	/* Main Section */
 	SOC_SINGLE("PM805_CODEC_ID", PM805_CODEC_ID, 0, 0xff, 0),
@@ -177,7 +237,8 @@ static const struct snd_kcontrol_new pm805_audio_controls[] = {
 	SOC_SINGLE("PM805_CODEC_VOL_SEL_CHANNEL_4", PM805_CODEC_VOL_SEL_CHANNEL_4, 0, 0xff, 0),
 	SOC_SINGLE("PM805_CODEC_MIX_EQ_COEFFICIENT_1", PM805_CODEC_MIX_EQ_COEFFICIENT_1, 0, 0xff, 0),
 	SOC_SINGLE("PM805_CODEC_MIX_EQ_COEFFICIENT_2", PM805_CODEC_MIX_EQ_COEFFICIENT_2, 0, 0xff, 0),
-	SOC_SINGLE("PM805_CODEC_MIX_EQ_COEFFICIENT_3", PM805_CODEC_MIX_EQ_COEFFICIENT_3, 0, 0xff, 0),
+	SOC_SINGLE_INFO("PM805_CODEC_MIX_EQ_COEFFICIENT_3", PM805_CODEC_MIX_EQ_COEFFICIENT_3, 0, 0xff, 0,
+			pm805_bulk_read_reg, pm805_bulk_write_reg, pm805_info_volsw),
 	SOC_SINGLE("PM805_CODEC_MIX_EQ_COEFFICIENT_4", PM805_CODEC_MIX_EQ_COEFFICIENT_4, 0, 0xff, 0),
 	SOC_SINGLE("PM805_CODEC_CLIP_BITS_1", PM805_CODEC_CLIP_BITS_1, 0, 0xff, 0),
 	SOC_SINGLE("PM805_CODEC_CLIP_BITS_2", PM805_CODEC_CLIP_BITS_2, 0, 0xff, 0),
