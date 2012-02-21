@@ -5,6 +5,12 @@ config PXA_SSP
 	help
 	  Enable support for PXA2xx SSP ports
 
+config PXA_PANIC_FLUSH
+	bool "PXA cache flush when panic"
+	depends on KEXEC
+	help
+	  Enable support for flush all cache during panic
+
 config PXA_32KTIMER
 	bool "PXA 32K Timer"
 	depends on (ARCH_PXA || ARCH_MMP)

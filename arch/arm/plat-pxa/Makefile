@@ -11,6 +11,7 @@ obj-$(CONFIG_ARCH_MMP)		+= mfp.o
 obj-$(CONFIG_CPU_MMP3)		+= clock.o dvfs.o
 
 obj-$(CONFIG_HAVE_PWM)		+= pwm.o
+obj-$(CONFIG_PXA_PANIC_FLUSH)	+= panic.o
 obj-$(CONFIG_PXA_SSP)		+= ssp.o
 #Support for PMEM
 ifeq ($(CONFIG_ANDROID_PMEM),y)

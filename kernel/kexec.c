@@ -938,14 +938,16 @@ struct kimage *kexec_image;
 struct kimage *kexec_crash_image;
 
 static DEFINE_MUTEX(kexec_mutex);
-static void crash_update(struct pt_regs *regs)
+void crash_update(struct pt_regs *regs)
 {
-	if (kexec_crash_image) {
+	if (mutex_trylock(&kexec_mutex)) {
 		struct pt_regs fixed_regs;
 
 		crash_setup_regs(&fixed_regs, regs);
 		crash_save_vmcoreinfo();
 		machine_crash_update(&fixed_regs);
+
+		mutex_unlock(&kexec_mutex);
 	}
 }
 

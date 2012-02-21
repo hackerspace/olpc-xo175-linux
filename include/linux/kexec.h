@@ -127,6 +127,7 @@ extern asmlinkage long compat_sys_kexec_load(unsigned long entry,
 extern struct page *kimage_alloc_control_pages(struct kimage *image,
 						unsigned int order);
 extern void crash_kexec(struct pt_regs *);
+extern void crash_update(struct pt_regs *);
 int kexec_should_crash(struct task_struct *);
 void crash_save_cpu(struct pt_regs *regs, int cpu);
 void crash_save_vmcoreinfo(void);
@@ -216,6 +217,7 @@ void crash_free_reserved_phys_range(unsigned long begin, unsigned long end);
 #else /* !CONFIG_KEXEC */
 struct pt_regs;
 struct task_struct;
+static inline void crash_update(struct pt_regs *regs) { }
 static inline void crash_kexec(struct pt_regs *regs) { }
 static inline int kexec_should_crash(struct task_struct *p) { return 0; }
 #endif /* CONFIG_KEXEC */
