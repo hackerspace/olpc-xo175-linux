@@ -1988,6 +1988,7 @@ static int mmc0_lp_switch(unsigned int on, int with_card)
 
 /* MMC0 controller for SD-MMC */
 static struct sdhci_pxa_platdata pxa910_sdh_platdata_mmc0 = {
+	.quirks2		= SDHCI_QUIRK2_MISSING_DUMMY_CLK,
 	.flags			= PXA_FLAG_ENABLE_CLOCK_GATING,
 	.clk_delay_sel		= 1,
 	.clk_delay_cycles	= 2,
@@ -2004,6 +2005,7 @@ static struct sdhci_pxa_platdata pxa910_sdh_platdata_mmc1 = {
 
 /* MMC2 controller for eMMC */
 static struct sdhci_pxa_platdata pxa910_sdh_platdata_mmc2 = {
+	.quirks2		= SDHCI_QUIRK2_MISSING_DUMMY_CLK,
 	.flags			= PXA_FLAG_ENABLE_CLOCK_GATING
 					| PXA_FLAG_CARD_PERMANENT
 					| PXA_FLAG_SD_8_BIT_CAPABLE_SLOT,
