@@ -283,6 +283,8 @@ struct sdhci_ops {
 	int	(*is_present)(struct sdhci_host *host);
 	int	(*safe_regulator_on)(struct sdhci_host *host);
 	int	(*recovery)(struct sdhci_host *host);
+	void	(*platform_8_dummy_clock)(struct sdhci_host *host,
+				unsigned int clk_rate, int flag);
 };
 
 #ifdef CONFIG_MMC_SDHCI_IO_ACCESSORS

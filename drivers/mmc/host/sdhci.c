@@ -44,6 +44,7 @@
 #define MAX_TUNING_LOOP 40
 
 static unsigned int debug_quirks = 0;
+static unsigned int debug_quirks2 = 0;
 
 static void sdhci_finish_data(struct sdhci_host *);
 
@@ -1243,6 +1244,13 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 
 	sdhci_access_constrain(host, 1);
 
+#ifndef CONFIG_MMC_CLKGATE
+	if (host->quirks2 & SDHCI_QUIRK2_MISSING_DUMMY_CLK)
+		if (host->ops->platform_8_dummy_clock)
+			host->ops->platform_8_dummy_clock(host,
+					host->mmc->ios.clock, 1);
+#endif
+
 #ifndef SDHCI_USE_LEDS_CLASS
 	sdhci_activate_led(host);
 #endif
@@ -1975,6 +1983,13 @@ static void sdhci_tasklet_finish(unsigned long param)
 #ifndef SDHCI_USE_LEDS_CLASS
 	sdhci_deactivate_led(host);
 #endif
+#ifndef CONFIG_MMC_CLKGATE
+	if (host->quirks2 & SDHCI_QUIRK2_MISSING_DUMMY_CLK)
+		if (host->ops->platform_8_dummy_clock)
+			host->ops->platform_8_dummy_clock(host,
+					host->mmc->ios.clock, 0);
+#endif
+
 	sdhci_access_constrain(host, 0);
 
 	mmiowb();
@@ -2466,6 +2481,8 @@ int sdhci_add_host(struct sdhci_host *host)
 
 	if (debug_quirks)
 		host->quirks = debug_quirks;
+	if (debug_quirks2)
+		host->quirks2 = debug_quirks2;
 
 	sdhci_reset(host, SDHCI_RESET_ALL);
 
@@ -3007,9 +3024,11 @@ module_init(sdhci_drv_init);
 module_exit(sdhci_drv_exit);
 
 module_param(debug_quirks, uint, 0444);
+module_param(debug_quirks2, uint, 0444);
 
 MODULE_AUTHOR("Pierre Ossman <pierre@ossman.eu>");
 MODULE_DESCRIPTION("Secure Digital Host Controller Interface core driver");
 MODULE_LICENSE("GPL");
 
 MODULE_PARM_DESC(debug_quirks, "Force certain quirks.");
+MODULE_PARM_DESC(debug_quirks, "Force certain quirks2.");
