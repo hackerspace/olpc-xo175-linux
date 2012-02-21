@@ -1134,6 +1134,7 @@ static void mmp3_8787_set_power(unsigned int on)
 
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc0 = {
 	.clk_delay_cycles	= 0x1F,
+	.quirks			= SDHCI_QUIRK_INVERTED_WRITE_PROTECT,
 	/*
 	  * FIXME: pmic_sdmmc is fixed 2.8V on B0 with max77601,
 	  * can not support 1.8V signal function
