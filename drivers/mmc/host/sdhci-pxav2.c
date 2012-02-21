@@ -21,6 +21,7 @@
 #include <linux/init.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
+#include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/gpio.h>
 #include <linux/mmc/card.h>
@@ -47,6 +48,22 @@
 #define MMC_CARD		0x1000
 #define MMC_WIDTH		0x0100
 
+static void pxav2_hw_clock_gating(struct sdhci_host *host, int enable)
+{
+	u16 tmp = 0;
+
+	if (enable) {
+		tmp = readw(host->ioaddr + SD_FIFO_PARAM);
+		tmp &= ~CLK_GATE_SETTING_BITS;
+		writew(tmp, host->ioaddr + SD_FIFO_PARAM);
+	} else {
+		tmp = readw(host->ioaddr + SD_FIFO_PARAM);
+		tmp &= ~CLK_GATE_SETTING_BITS;
+		tmp |= CLK_GATE_SETTING_BITS;
+		writew(tmp, host->ioaddr + SD_FIFO_PARAM);
+	}
+}
+
 static void pxav2_set_private_registers(struct sdhci_host *host, u8 mask)
 {
 	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
@@ -71,16 +88,8 @@ static void pxav2_set_private_registers(struct sdhci_host *host, u8 mask)
 			writew(tmp, host->ioaddr + SD_CLOCK_BURST_SIZE_SETUP);
 		}
 
-		if (pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING) {
-			tmp = readw(host->ioaddr + SD_FIFO_PARAM);
-			tmp &= ~CLK_GATE_SETTING_BITS;
-			writew(tmp, host->ioaddr + SD_FIFO_PARAM);
-		} else {
-			tmp = readw(host->ioaddr + SD_FIFO_PARAM);
-			tmp &= ~CLK_GATE_SETTING_BITS;
-			tmp |= CLK_GATE_SETTING_BITS;
-			writew(tmp, host->ioaddr + SD_FIFO_PARAM);
-		}
+		pxav2_hw_clock_gating(host,
+			pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING);
 	}
 }
 
@@ -130,11 +139,47 @@ static void pxav2_access_constrain(struct sdhci_host *host, unsigned int ac)
 #endif
 }
 
+/* special operation to add 8 dummy clock after every command
+ * Before request, disable h/w clock gating; after request done,
+ * delay a specific time accodring to the clock rate and enable
+ * h/w clock gating again.
+ * according to clk_rate, calc the delay time, and use the ndelay function
+ */
+#define DUMMY_CLKS 8
+static void pxav2_8_dummy_clock(struct sdhci_host *host,
+					unsigned int clk_rate, int flag)
+{
+	struct sdhci_pxa *pxa = sdhci_priv(host);
+	struct sdhci_pxa_platdata *pdata = pxa->pdata;
+
+	unsigned long tick_ns;
+
+	if (!pdata)
+		return;
+
+	BUG_ON(clk_rate == 0);
+
+	tick_ns = DIV_ROUND_UP(1000000000, clk_rate);
+
+	if (pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING) {
+		if (flag)
+			pxav2_hw_clock_gating(host, 0);
+		else {
+			ndelay(DUMMY_CLKS * tick_ns);
+			pxav2_hw_clock_gating(host, 1);
+		}
+	} else {
+		if (!flag)
+			ndelay(DUMMY_CLKS * tick_ns);
+	}
+}
+
 static struct sdhci_ops pxav2_sdhci_ops = {
 	.get_max_clock = pxav2_get_max_clock,
 	.platform_reset_exit = pxav2_set_private_registers,
 	.platform_8bit_width = pxav2_mmc_set_width,
 	.access_constrain = pxav2_access_constrain,
+	.platform_8_dummy_clock = pxav2_8_dummy_clock,
 };
 
 static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
@@ -185,6 +230,8 @@ static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
 
 		if (pdata->quirks)
 			host->quirks |= pdata->quirks;
+		if (pdata->quirks2)
+			host->quirks2 |= pdata->quirks2;
 		if (pdata->host_caps)
 			host->mmc->caps |= pdata->host_caps;
 		if (pdata->pm_caps)

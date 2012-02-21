@@ -71,6 +71,7 @@ struct sdhci_pxa_platdata {
 	unsigned int	host_caps;
 	unsigned int	host_caps_disable;
 	unsigned int	quirks;
+	unsigned int	quirks2;
 	unsigned int	pm_caps;
 	int		mfp_start;
 	int		mfp_num;
