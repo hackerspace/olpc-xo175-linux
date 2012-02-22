@@ -1610,7 +1610,7 @@ static inline void mmp3_mod_idle_config(struct mmp3_cpu_idle_config *cic,
 	writel(the_value, cic->idle_config);
 }
 
-#define MMP3_IDLE_CHECK_DVM_EVENTS
+/*#define MMP3_IDLE_CHECK_DVM_EVENTS*/
 #define MMP3_PM_C1_INCG 0x0
 #define MMP3_PM_C1_EXCG 0x2
 #define MMP3_PM_C2_LPPD 0x62
@@ -1618,6 +1618,7 @@ static inline void mmp3_mod_idle_config(struct mmp3_cpu_idle_config *cic,
 
 void mmp3_pm_enter_idle(int cpu)
 {
+	register u32 reg;
 	u32 state = MMP3_PM_C1_INCG;
 	struct mmp3_cpu_idle_config *cic;
 
@@ -1627,6 +1628,17 @@ void mmp3_pm_enter_idle(int cpu)
 	/* no DFC in process*/
 	trace_idle_entry(state);
 
+	/* need to make sure this configuration is on every core */
+	__asm__ volatile ("mrc p15, 1, %0, c15, c1, 0" : "=r" (reg));
+#if defined(MMP3_IDLE_CHECK_DVM_EVENTS)
+	/* enable DVM wake up for software check */
+	reg &= ~(1 << 22);
+#else
+	/* disable DVM wake up for software check */
+	reg |= (1 << 22);
+#endif
+	__asm__ volatile ("mcr p15, 1, %0, c15, c1, 0" : : "r" (reg));
+
 	/* Still need to check DFC flag for case where IPI call will not
 	 * be processed, for example hotplug.
 	 */
@@ -1634,11 +1646,11 @@ void mmp3_pm_enter_idle(int cpu)
 #if defined(CONFIG_SMP) && defined(MMP3_IDLE_CHECK_DVM_EVENTS)
 		while (1) {
 			__asm__ __volatile__ ("wfi");
-			if ((__raw_readl(cic->freq_status) != 0) ||
+			if ((__raw_readl(cic->freq_status) != 0)
 #ifdef CONFIG_ARM_GIC
-			((__raw_readl(cic->intr_status) & 0x3ff) != 1023) ||
+			|| ((__raw_readl(cic->intr_status) & 0x3ff) != 1023)
 #endif
-			((__raw_readl(cic->wake_status) & 0x7fffc7ff) != 0)) {
+			) {
 				/* real wake up, break loop to handle*/
 				break;
 			}
