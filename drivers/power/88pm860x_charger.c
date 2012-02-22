@@ -655,18 +655,7 @@ static int start_fastcharge(struct pm860x_charger_info *info)
 			      CC7_BAT_REM_EN | CC7_IFSM_EN);
 	if (ret < 0)
 		goto out;
-	/* hw fix workaround: disable BC_SHORT by setting in testpage,
-	only occur before sanremo C1 */
-	if((info->chip->chip_version <= PM8607_CHIP_C1) && !info->bc_short){
-		info->bc_short = 1;/* disable bc_short mechanism*/
-		buf[0] = buf[2] = 0x0;
-		buf[1] = 0x60;
-		buf[3] = 0xff;
-		buf[4] = 0x9f;
-		buf[5] = 0xfd;
-		pm860x_page_bulk_write(info->i2c, 0xC8, 6, buf);
-		pm860x_page_reg_write(info->i2c, 0xCF, 0x02);
-	}
+
 	/* trigger fastcharge */
 	ret = pm860x_set_bits(info->i2c, PM8607_CHG_CTRL1, 3,
 			      CC1_MODE_FASTCHARGE);
@@ -683,12 +672,7 @@ static int stop_charge(struct pm860x_charger_info *info, int vbatt)
 	if (vbatt > CHARGE_THRESHOLD && info->online) {
 		set_vbatt_threshold(info, CHARGE_THRESHOLD, 0);
 	}
-	/*hw fix workaround: enable bc_short again after fast charge finished*/
-	if((info->chip->chip_version <= PM8607_CHIP_C1) && info->bc_short){
-		info->bc_short = 0;/* enable bc_short mechanism */
-		msleep(2);
-		pm860x_page_reg_write(info->i2c, 0xCF, 0x0);
-	}
+
 	return 0;
 }
 
