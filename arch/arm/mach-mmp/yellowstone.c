@@ -475,6 +475,10 @@ static struct regulator_init_data pm800_regulator_data[] = {
 	[PM800_ID_LDO19] = REG_INIT(LDO19, 1700000, 3300000, 1, 1),
 };
 
+static struct pm80x_rtc_pdata pm80x_rtc = {
+	.rtc_wakeup	= 0,
+};
+
 static struct pm80x_platform_data pm800_info = {
 	.base_page_addr = 0x30,		/* BASE page */
 	.power_page_addr = 0x31,	/* POWER */
@@ -485,6 +489,7 @@ static struct pm80x_platform_data pm800_info = {
 
 	.num_regulators = ARRAY_SIZE(pm800_regulator_data),
 	.regulator	    = pm800_regulator_data,
+	.rtc = &pm80x_rtc,
 };
 /* End Of PM800 */
 
