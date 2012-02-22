@@ -975,6 +975,7 @@ static struct i2c_board_info abilene_twsi1_info[] = {
 	},
 };
 
+#ifdef CONFIG_REGULATOR_MAX77601
 /*
  *  this array is shared by 2 pmic, Ustica or max77601
  *  macro PMIC_POWER_SUPPLY_MAX = max (PM800_ID_RG_MAX,MAX77601_RG_MAX)
@@ -1139,6 +1140,7 @@ static struct i2c_board_info abilene_twsi1_max77601_info[] = {
 		.platform_data	= &abilene_max77601_pdata,
 	},
 };
+#endif
 
 static struct platform_pwm_backlight_data abilene_lcd_backlight_data = {
 	/* primary backlight */
@@ -1749,8 +1751,10 @@ static void __init abilene_init(void)
 	/* on-chip devices */
 	mmp3_add_uart(3);
 
+#ifdef CONFIG_REGULATOR_MAX77601
 	abilene_power_supply_init();
 	mmp3_add_twsi(1, &twsi1_pdata, ARRAY_AND_SIZE(abilene_twsi1_max77601_info));
+#endif
 
 	mmp3_add_twsi(4, NULL, ARRAY_AND_SIZE(abilene_twsi4_info));
 	mmp3_add_twsi(5, NULL, ARRAY_AND_SIZE(abilene_twsi5_info));
