@@ -250,6 +250,7 @@ enum {
 	MMP3_PP_400,
 	MMP3_PP_800,
 	MMP3_PP_1066,
+	MMP3_PP_1200,
 };
 static struct mmp3_freq_plan mmp3_pps[] = {
 	/* DDR settings will be fixed upon init according to DDR module used */
@@ -294,6 +295,12 @@ static struct mmp3_freq_plan mmp3_pps[] = {
 	[MMP3_PP_1066] = {
 		.name = "MMP3_PP_1066",
 		.core = {{MMP3_FREQ_OP_GET, 3, 0, 0, 0, 1, 1, 2, 2},},
+		.axi  = {{MMP3_FREQ_OP_GET, 0, 0, 1},},
+		.dram = {{MMP3_FREQ_OP_GET, 1, 0, 0},},
+	},
+	[MMP3_PP_1200] = {
+		.name = "MMP3_PP_1200",
+		.core = {{MMP3_FREQ_OP_GET, 2, 0, 0, 0, 1, 1, 2, 2},},
 		.axi  = {{MMP3_FREQ_OP_GET, 0, 0, 1},},
 		.dram = {{MMP3_FREQ_OP_GET, 1, 0, 0},},
 	},
