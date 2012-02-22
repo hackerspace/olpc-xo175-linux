@@ -676,7 +676,7 @@ static struct attribute_group attr_group = {
  */
 int __init mspm_init_mips(void)
 {
-	int i;
+	int i, low_pp_found = 0;
 	memset(&op_mips, 0, MAX_OP_NUM * sizeof(struct mspm_mips));
 #ifdef CONFIG_PXA95x_DVFM
 	mspm_op_num = dvfm_op_count();
@@ -687,7 +687,12 @@ int __init mspm_init_mips(void)
 		ret = dvfm_get_opinfo(i, &info);
 		if (ret)
 			continue;
-		md_op = (struct dvfm_md_opt *)info->op;
+		md_op = (struct dvfm_md_opt *) info->op;
+
+		if (md_op->core == 156 && !low_pp_found) {
+			down_freq_op = i;
+			low_pp_found = 1;
+		}
 		op_mips[i].mips = md_op->core;
 		op_mips[i].mem = md_op->dmcfs;
 		if (op_mips[i].mips) {
@@ -705,12 +710,14 @@ int __init mspm_init_mips(void)
 		op_mips[i + 1].l_thres = op_mips[i].h_thres * op_mips[i].mips
 		    / op_mips[i + 1].mips;
 #endif
+	if (!low_pp_found)
+		printk(KERN_ERR "%s Low PP was not found for IdleProfiler, \
+		 down_freq_op =%d\n", __func__, down_freq_op);
 	return mspm_op_num;
 }
 
 int __init mspm_prof_init(void)
 {
-	int rc;
 	if (sysfs_create_group(power_kobj, &attr_group))
 		return -EFAULT;
 
@@ -732,12 +739,6 @@ int __init mspm_prof_init(void)
 	dvfm_register_notifier(&notifier_freq_block, DVFM_FREQUENCY_NOTIFIER);
 	dvfm_register("MSPM PROF", &dvfm_dev_idx);
 
-	rc = dvfm_find_index("156M", &down_freq_op);
-	if (!rc) {
-		printk(KERN_ERR "%s Low PP was not found for IdleProfiler\n",
-		       __func__);
-		down_freq_op = 0;
-	}
 	INIT_WORK(&down_freq, down_freq_worker);
 	return 0;
 }
