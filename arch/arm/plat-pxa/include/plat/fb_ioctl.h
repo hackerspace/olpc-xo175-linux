@@ -8,8 +8,8 @@
  * published by the Free Software Foundation.
  */
 
-#ifndef __ASM_PLAT_OVERLAY_IOCTL_H
-#define __ASM_PLAT_OVERLAY_IOCTL_H
+#ifndef __ASM_PLAT_FB_IOCTL_H
+#define __ASM_PLAT_FB_IOCTL_H
 /* ---------------------------------------------- */
 /*              IOCTL Definition                  */
 /* ---------------------------------------------- */
@@ -215,4 +215,42 @@ struct _sOvlySurface {
 	struct _sVideoBufferAddr videoBufferAddr;
 };
 
-#endif /* __ASM_PLAT_OVERLAY_IOCTL_H */
+struct mvdisp_cmu_config {
+	unsigned int addr;
+	unsigned int data;
+};
+
+struct mvdisp_cmu_pip {
+	unsigned int left;
+	unsigned int right;
+	unsigned int top;
+	unsigned int bottom;
+};
+
+struct mvdisp_partdisp {
+	/* path id, 0->panel, 1->TV, 2->panel2 */
+	int id;
+	/* partial display horizontal starting pixel number
+	 * NOTE: it must be 64x */
+	unsigned int horpix_start;
+	/* partial display vertical starting line number */
+	unsigned int vertline_start;
+	/* partial display horizontal ending pixel number
+	 * NOTE: it must be 64x */
+	unsigned int horpix_end;
+	/* partial display vertical ending line number */
+	unsigned int vertline_end;
+	/* graphic color for partial disabled area,
+	 * color format should be RGB565 */
+	unsigned short color;
+};
+
+struct mvdisp_gamma {
+#define GAMMA_ENABLE	(1 << 0)
+#define GAMMA_DUMP	(1 << 1)
+	unsigned int	flag;
+#define GAMMA_TABLE_LEN	256
+	char 		table[GAMMA_TABLE_LEN];
+};
+
+#endif /* __ASM_PLAT_FB_IOCTL_H */

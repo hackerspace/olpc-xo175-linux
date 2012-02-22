@@ -47,7 +47,7 @@ int vid_vsmooth;
 static int debug;
 
 /* graphic layer partial display, color format should be RGB565 */
-int pxa688fb_partdisp_set(struct pxa168fb_gra_partdisp grap)
+int pxa688fb_partdisp_set(struct mvdisp_partdisp grap)
 {
 	struct pxa168fb_info *fbi = gfx_info.fbi[1];
 	struct fb_info *info = fbi->fb_info;
@@ -554,7 +554,7 @@ static int pxa688fb_clone_gfx(int src, int dst, int en)
 {
 	struct lcd_regs *regs_src = get_regs(src);
 	struct lcd_regs *regs_dst = get_regs(dst);
-	struct pxa168fb_gra_partdisp grap;
+	struct mvdisp_partdisp grap;
 
 	/* enable dst path clock */
 	pxa688fb_clone_clk(src, dst);
@@ -801,7 +801,7 @@ ssize_t misc_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
 	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
-	struct pxa168fb_gra_partdisp grap;
+	struct mvdisp_partdisp grap;
 	u32 mask;
 
 	grap.id = fbi->id;
@@ -841,7 +841,7 @@ ssize_t misc_store(
 		const char *buf, size_t size)
 {
 	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
-	struct pxa168fb_gra_partdisp grap;
+	struct mvdisp_partdisp grap;
 	char vol[30];
 	int tmp;
 

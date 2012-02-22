@@ -1027,7 +1027,7 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 	unsigned char param;
 	struct pxa168fb_info *fbi = info->par;
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
-	struct pxa168fb_gra_partdisp grap;
+	struct mvdisp_partdisp grap;
 
 #ifdef CONFIG_DYNAMIC_PRINTK_DEBUG
 	debug_identify_called_ioctl(info, cmd, arg);
@@ -1131,7 +1131,7 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 	case FB_IOCTL_GRA_PARTDISP:
 		if (copy_from_user(&grap, argp, sizeof(grap)))
 			return -EFAULT;
-		pxa688fb_partdisp_set(grap);
+		return pxa688fb_partdisp_set(grap);
 		break;
 
 	case FB_IOCTL_GAMMA_SET:

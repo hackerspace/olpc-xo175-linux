@@ -78,8 +78,8 @@ int pxa688_cmu_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
 {
 	struct pxa168fb_info *fbi = info->par;
 	void __user *argp = (void __user *)arg;
-	struct _pxa168fb_cmu_config cmu_config;
-	struct _pxa168fb_cmu_pip rect;
+	struct mvdisp_cmu_config cmu_config;
+	struct mvdisp_cmu_pip rect;
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 	struct cmu_res res;
 	int val, val_top, val_io_overl, val_bln_ctl, vsync_enable, hsync_enable;

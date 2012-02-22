@@ -120,57 +120,6 @@ find_best_mode(struct pxa168fb_info *fbi, struct fb_var_screeninfo *var)
 }
 #endif
 
-static void pxa168_sync_colorkey_structures(struct pxa168fb_info *fbi,
-						 int direction)
-{
-	struct _sColorKeyNAlpha *colorkey = &fbi->ckey_alpha;
-	struct pxa168_fb_chroma *chroma = &fbi->chroma;
-	unsigned int temp;
-
-	dev_dbg(fbi->fb_info->dev, "ENTER %s\n", __func__);
-	if (direction == FB_SYNC_COLORKEY_TO_CHROMA) {
-		chroma->mode        = colorkey->mode;
-		chroma->y_alpha     = (colorkey->Y_ColorAlpha) & 0xff;
-		chroma->y           = (colorkey->Y_ColorAlpha >> 8) & 0xff;
-		chroma->y1          = (colorkey->Y_ColorAlpha >> 16) & 0xff;
-		chroma->y2          = (colorkey->Y_ColorAlpha >> 24) & 0xff;
-
-		chroma->u_alpha     = (colorkey->U_ColorAlpha) & 0xff;
-		chroma->u           = (colorkey->U_ColorAlpha >> 8) & 0xff;
-		chroma->u1          = (colorkey->U_ColorAlpha >> 16) & 0xff;
-		chroma->u2          = (colorkey->U_ColorAlpha >> 24) & 0xff;
-
-		chroma->v_alpha     = (colorkey->V_ColorAlpha) & 0xff;
-		chroma->v           = (colorkey->V_ColorAlpha >> 8) & 0xff;
-		chroma->v1          = (colorkey->V_ColorAlpha >> 16) & 0xff;
-		chroma->v2          = (colorkey->V_ColorAlpha >> 24) & 0xff;
-	}
-
-
-	if (direction == FB_SYNC_CHROMA_TO_COLORKEY) {
-
-		colorkey->mode = chroma->mode;
-		temp = chroma->y_alpha;
-		temp |= chroma->y << 8;
-		temp |= chroma->y1 << 16;
-		temp |= chroma->y2 << 24;
-		colorkey->Y_ColorAlpha = temp;
-
-		temp = chroma->u_alpha;
-		temp |= chroma->u << 8;
-		temp |= chroma->u1 << 16;
-		temp |= chroma->u2 << 24;
-		colorkey->U_ColorAlpha = temp;
-
-		temp = chroma->v_alpha;
-		temp |= chroma->v << 8;
-		temp |= chroma->v1 << 16;
-		temp |= chroma->v2 << 24;
-		colorkey->V_ColorAlpha = temp;
-
-	}
-}
-
 static u32 pxa168fb_ovly_set_colorkeyalpha(struct pxa168fb_info *fbi)
 {
 	struct _sColorKeyNAlpha color_a = fbi->ckey_alpha;
@@ -580,9 +529,6 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 		return ret;
 	}
 
-	case FB_IOCTL_SET_MEMORY_TOGGLE:
-		break;
-
 	case FB_IOCTL_SET_COLORKEYnALPHA:
 		if (copy_from_user(&fbi->ckey_alpha, argp,
 		    sizeof(struct _sColorKeyNAlpha)))
@@ -590,20 +536,6 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 
 		pxa168fb_ovly_set_colorkeyalpha(fbi);
 		break;
-	case FB_IOCTL_GET_CHROMAKEYS:
-		pxa168_sync_colorkey_structures(fbi,
-			 FB_SYNC_COLORKEY_TO_CHROMA);
-		return copy_to_user(argp, &fbi->chroma,
-			 sizeof(struct pxa168_fb_chroma)) ? -EFAULT : 0;
-	case FB_IOCTL_PUT_CHROMAKEYS:
-		if (copy_from_user(&fbi->chroma, argp,
-			 sizeof(struct pxa168_fb_chroma)))
-			return -EFAULT;
-		pxa168_sync_colorkey_structures(fbi,
-			 FB_SYNC_CHROMA_TO_COLORKEY);
-		pxa168fb_ovly_set_colorkeyalpha(fbi);
-		return copy_to_user(argp, &fbi->chroma,
-		 sizeof(struct pxa168_fb_chroma)) ? -EFAULT : 0;
 
 	case FB_IOCTL_GET_COLORKEYnALPHA:
 		if (copy_to_user(argp, &fbi->ckey_alpha,
