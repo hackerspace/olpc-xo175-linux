@@ -64,8 +64,6 @@ enum {
 	MMP3_FREQCH_DRAM	= MMP3_FREQCH_DRAM_CH1 | MMP3_FREQCH_DRAM_CH2,
 	MMP3_FREQCH_AXI		= (1u << 26),
 
-	MMP3_FREQCH_START	= 0,
-	MMP3_FREQCH_COMPLETE	= 1,
 };
 
 #define FIELD2DIV(x) ((x) + 1)
@@ -1075,43 +1073,6 @@ static void mmp3_udpate_ddr_parameter_table(struct mmp3_pmu *pmu,
 	}
 }
 
-#define WFINOP_WFENOP ((1u << 24) | (1u << 13))
-static void mmp3_disable_idle(void *p)
-{
-	register unsigned long regval;
-	__asm__ __volatile__ ("mrc p15, 1, %0, c15, c1, 1" : "=r" (regval));
-	regval |= WFINOP_WFENOP;
-	__asm__ __volatile__ ("mcr p15, 1, %0, c15, c1, 1" : : "r" (regval));
-}
-
-static void mmp3_enable_idle(void *p)
-{
-	register unsigned long regval;
-	__asm__ __volatile__ ("mrc p15, 1, %0, c15, c1, 1" : "=r" (regval));
-	regval &= ~WFINOP_WFENOP;
-	__asm__ __volatile__ ("mcr p15, 1, %0, c15, c1, 1" : : "r" (regval));
-}
-
-static void mmp3_smp_notify_dfc(int stat)
-{
-	struct cpumask mask;
-
-	/*
-	 * A0 need to all cores run, we implement this by set IPI broadcase
-	 * and use WFIasNOP and WFEasNOP, to control idle behavior on each
-	 * core
-	 */
-	cpumask_setall(&mask);
-
-	if (stat == MMP3_FREQCH_START) {
-		mmp3_disable_idle(NULL);
-		smp_call_function_many(&mask, mmp3_disable_idle, NULL, 1);
-	} else {
-		smp_call_function_many(&mask, mmp3_enable_idle, NULL, 1);
-		mmp3_enable_idle(NULL);
-	}
-}
-
 static inline u32 cyc2us(u32 cycle)
 {
 	return (cycle >> 2) + (cycle >> 5) + (cycle >> 6)
@@ -1401,7 +1362,6 @@ static void mmp3_schedule_freqch_loose(struct mmp3_pmu *pmu,
 	time = 0;
 	same = 0;
 	__raw_writel(1, pmu->swstat);
-	mmp3_smp_notify_dfc(MMP3_FREQCH_START);
 
 	spin_lock_irqsave(&dfcsch_lock, savedflags);
 	if (dfcsch_active && (pl->dram.op == MMP3_FREQ_OP_UPDATE)) {
@@ -1442,7 +1402,6 @@ static void mmp3_schedule_freqch_loose(struct mmp3_pmu *pmu,
 	mmp3_dfc_postchange(pmu, pl, &logentry, time, same);
 
 	__raw_writel(0, pmu->swstat);
-	mmp3_smp_notify_dfc(MMP3_FREQCH_COMPLETE);
 }
 
 static int mmp3_pp_find_bound(struct mmp3_pmu *pmu, int id, u32 khz)
@@ -1610,7 +1569,7 @@ static inline void mmp3_mod_idle_config(struct mmp3_cpu_idle_config *cic,
 	writel(the_value, cic->idle_config);
 }
 
-/*#define MMP3_IDLE_CHECK_DVM_EVENTS*/
+/*#define MMP3_WAKE_ON_DVM*/
 #define MMP3_PM_C1_INCG 0x0
 #define MMP3_PM_C1_EXCG 0x2
 #define MMP3_PM_C2_LPPD 0x62
@@ -1630,7 +1589,7 @@ void mmp3_pm_enter_idle(int cpu)
 
 	/* need to make sure this configuration is on every core */
 	__asm__ volatile ("mrc p15, 1, %0, c15, c1, 0" : "=r" (reg));
-#if defined(MMP3_IDLE_CHECK_DVM_EVENTS)
+#if defined(MMP3_WAKE_ON_DVM)
 	/* enable DVM wake up for software check */
 	reg &= ~(1 << 22);
 #else
@@ -1639,26 +1598,15 @@ void mmp3_pm_enter_idle(int cpu)
 #endif
 	__asm__ volatile ("mcr p15, 1, %0, c15, c1, 0" : : "r" (reg));
 
-	/* Still need to check DFC flag for case where IPI call will not
-	 * be processed, for example hotplug.
-	 */
-	if (likely(__raw_readl(cic->freq_status) == 0)) {
-#if defined(CONFIG_SMP) && defined(MMP3_IDLE_CHECK_DVM_EVENTS)
-		while (1) {
-			__asm__ __volatile__ ("wfi");
-			if ((__raw_readl(cic->freq_status) != 0)
-#ifdef CONFIG_ARM_GIC
-			|| ((__raw_readl(cic->intr_status) & 0x3ff) != 1023)
-#endif
-			) {
-				/* real wake up, break loop to handle*/
-				break;
-			}
-		}
-#else
-		arch_idle();
-#endif
+#if defined(CONFIG_SMP) && defined(MMP3_WAKE_ON_DVM) && defined(CONFIG_ARM_GIC)
+	while (1) {
+		__asm__ __volatile__ ("wfi");
+		if ((__raw_readl(cic->intr_status) & 0x3ff) != 1023)
+			break; /* real wake up, break loop to handle*/
 	}
+#else
+	arch_idle();
+#endif
 
 	trace_idle_exit(__raw_readl(cic->wake_status));
 }
@@ -1674,34 +1622,16 @@ void mmp3_pm_enter_c2(int cpu)
 	__raw_writel(readl(APMU_ISLD_CPUMC_PDWN_CTRL) & ~(0x1 << 6),
 			 APMU_ISLD_CPUMC_PDWN_CTRL);
 
-	if (likely(__raw_readl(cic->freq_status) == 0)) {
+	mmp3_mod_idle_config(cic, state);
+	/* no DFC in process*/
+	trace_idle_entry(state);
 
-		mmp3_mod_idle_config(cic, state);
-		/* no DFC in process*/
-		trace_idle_entry(state);
+	flush_cache_all();
+	dsb();
+	arch_idle();
 
-#if defined(CONFIG_SMP) && defined(MMP3_IDLE_CHECK_DVM_EVENTS)
-		while (1) {
-			flush_cache_all();
-			dsb();
-			__asm__ __volatile__ ("wfi");
+	trace_idle_exit(__raw_readl(cic->wake_status));
 
-			if ((__raw_readl(cic->freq_status) != 0) ||
-#ifdef CONFIG_ARM_GIC
-			((__raw_readl(cic->intr_status) & 0x3ff) != 1023) ||
-#endif
-			((__raw_readl(cic->wake_status) & 0x7fffc7ff) != 0)) {
-				/* real wake up, break loop to handle*/
-				break;
-			}
-		}
-#else
-		flush_cache_all();
-		dsb();
-		arch_idle();
-#endif
-		trace_idle_exit(__raw_readl(cic->wake_status));
-	}
 	__raw_writel(readl(APMU_ISLD_CPUMC_PDWN_CTRL) | (0x1 << 6),
 			APMU_ISLD_CPUMC_PDWN_CTRL);
 }
