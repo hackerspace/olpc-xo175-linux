@@ -26,6 +26,7 @@
 #include <linux/regulator/driver.h>
 #include <linux/regulator/ds4432.h>
 #include <linux/i2c/tpk_r800.h>
+#include <linux/mfd/88pm80x.h>
 #include <linux/mfd/wm8994/pdata.h>
 #include <linux/regulator/fixed.h>
 #include <linux/switch.h>
@@ -106,7 +107,7 @@ static unsigned long abilene_pin_config[] __initdata = {
 
 	/* SSPA1 (I2S) */
 	GPIO23_GPIO,
-	GPIO24_I2S_SYSCLK,
+	GPIO24_AUDPLL_SYSCLK,
 	GPIO25_I2S_BITCLK,
 	GPIO26_I2S_SYNC,
 	GPIO27_I2S_DATA_OUT,
@@ -1135,6 +1136,9 @@ static int abilene_max77601_setup(struct max77601_chip *chip)
 	data = (0x3 << 6 ) | 0x14;
 	max77601_write(chip, 0x2D, &data, 1);
 
+	data = 0x1;
+	max77601_write(chip, 0x3A, &data, 1);
+
 	/* DVS related part */
 	max77601_read(chip, MAX77601_AME_GPIO, &data, 1);
 	if ((data & MAX77601_AME5_MASK) == MAX77601_AME5_MASK)
@@ -1615,19 +1619,10 @@ struct regulator_init_data abilene_wm8994_regulator_init_data[] = {
 		},
 };
 
-struct wm8994_pdata abilene_wm8994_pdata = {
-	.ldo[0] = {
-			.enable = 0,
-			.init_data = &abilene_wm8994_regulator_init_data[0],
-			.supply = "AVDD1",
-
-		},
-	.ldo[1] = {
-		.enable = 0,
-		.init_data = &abilene_wm8994_regulator_init_data[1],
-		.supply = "DCVDD",
-
-		},
+static struct pm80x_platform_data pm805_info = {
+	.irq_mode		= 0,
+	.irq_base		= IRQ_BOARD_START + MAX77601_MAX_IRQ,
+	.i2c_port		= PI2C_PORT,
 };
 
 static struct regulator_consumer_supply abilene_fixed_regulator_supply[] = {
@@ -1641,9 +1636,10 @@ static struct regulator_consumer_supply abilene_fixed_regulator_supply[] = {
 
 static struct i2c_board_info abilene_twsi3_info[] = {
 	{
-	 .type = "wm8994",
-	 .addr = 0x1a,
-	 .platform_data = &abilene_wm8994_pdata,
+	 .type = "88PM80x",
+	 .addr = 0x38,
+	 .irq = gpio_to_irq(mfp_to_gpio(GPIO23_GPIO)),
+	 .platform_data = &pm805_info,
 	 },
 };
 
