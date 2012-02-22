@@ -93,13 +93,9 @@ static int mmp3_clk_pll2_enable(struct clk *clk)
 	value |= 1 << 0;
 	__raw_writel(value, MPMU_PLL2_CTRL2);
 
-	/*
-	 * PLL2 control register 1 - program VCODIV_SEL_SE = 0,
-	 * ICP = 4, KVCO = 1 and VCRNG = 0
-	 */
-	__raw_writel(0x01090099, MPMU_PLL2_CTRL1);
-	/* MPMU_PLL2CR: Program PLL2 VCO for 1334Mhz -REFD = 3, FBD = 0x9A */
-	__raw_writel(0x001A6A00, MPMU_PLL2CR);
+	/* Program PLL2 for 1200Mhz, (VCO 2.4G)*/
+	__raw_writel(0x05390699, MPMU_PLL2_CTRL1);
+	__raw_writel(0x001C5200, MPMU_PLL2CR);
 
 	/* enable PLL2 */
 	value = __raw_readl(MPMU_PLL2CR);
@@ -145,7 +141,7 @@ static struct clkops mmp3_clk_pll2_ops = {
 
 static struct clk mmp3_clk_pll2 = {
 	.name = "pll2",
-	.rate = 1334000000,
+	.rate = 1200000000,
 	.ops = &mmp3_clk_pll2_ops,
 };
 
@@ -187,6 +183,46 @@ static struct clk mmp3_clk_pll1_clkoutp = {
 	.div = 3,
 	.ops = &mmp3_clk_pll1_clkoutp_ops,
 };
+
+static int mmp3_clk_pll2_clkoutp_enable(struct clk *clk)
+{
+	u32 value = __raw_readl(PMUM_PLL_DIFF_CTRL);
+	/* Set PLL2 CLKOUTP post VCO divider as 2.5 */
+	value &= ~(0xf << 5);
+	value |= 3u << 5;
+	value |= 1u << 9;
+	__raw_writel(value, PMUM_PLL_DIFF_CTRL);
+
+	return 0;
+}
+
+static void mmp3_clk_pll2_clkoutp_disable(struct clk *clk)
+{
+	u32 value = __raw_readl(PMUM_PLL_DIFF_CTRL);
+	__raw_writel(value & ~(1 << 9), PMUM_PLL_DIFF_CTRL);
+}
+
+static struct clkops mmp3_clk_pll2_clkoutp_ops = {
+	.enable = mmp3_clk_pll2_clkoutp_enable,
+	.disable = mmp3_clk_pll2_clkoutp_disable,
+};
+
+/*
+ * NOTE: pll2_clkoutp and pll2 both divided from PLL2 VCO, which is 2.4G
+ *.in current configuration. And pll2 has a post didiver 2, pll2_clkoutp
+ * has a post didiver 2.5. Since we don't expose pll2_VCO as a visible
+ * clock, here we use pll2 as its parent to workaround. So we have to
+ * set the div as 5 and mul as 4.
+ */
+static struct clk mmp3_clk_pll2_clkoutp = {
+	.name = "pll2_clkoutp",
+	.rate = 960000000,
+	.parent = &mmp3_clk_pll2,
+	.mul = 4,
+	.div = 5,
+	.ops = &mmp3_clk_pll2_clkoutp_ops,
+};
+
 
 static struct clk mmp3_clk_vctcxo = {
 	.name = "vctcxo",
