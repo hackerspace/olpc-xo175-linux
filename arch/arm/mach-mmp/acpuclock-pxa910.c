@@ -1274,6 +1274,84 @@ out:
 	return ret;
 }
 
+int pxa910_get_lowest_PP(void)
+{
+	return op_array[0].pclk;
+}
+EXPORT_SYMBOL(pxa910_get_lowest_PP);
+
+/*
+  * FIXME : Need to set to lowest PP just before AP suspend.
+  * we can not use interface pxa910_set_freq as it will check
+  * whether condition md_new->pclk < constraint_min_freq is
+  * true.constraint_min_freq is controlled by cpufreq framework,
+  * and is set to 500M/624M on 920H/920 by userspace cpufreqd.
+  * This function is only used by kernel to issue freq-chg for
+  * suspend/resume sequence.
+  */
+int pxa910_freq_chg(int cpufreq)
+{
+	struct pxa910_md_opt *md_new, *md_old;
+	int ret = 0;
+	unsigned int tbindex = 0, i;
+
+	mutex_lock(&freqs_mutex);
+
+	/*
+	 * FIXME : to consider the different CPU's maximum core clock case,
+	 * but make sure the maximum PP is at the end of PP table.
+	 */
+	if (cpufreq > op_array[op_array_size - 1].pclk)
+		cpufreq = op_array[op_array_size - 1].pclk;
+
+	for (i = 0; i < op_array_size; i++) {
+		if (op_array[i].pclk >= cpufreq) {
+			tbindex = i;
+			break;
+		}
+	}
+
+	if (tbindex >= op_array_size) {
+		pr_err("pxa910_freq_chg set cpu frequency failed!\n");
+		goto out;
+	}
+
+	md_new = &op_array[tbindex];
+	if (md_new == cur_md)
+		goto out;
+	md_old = cur_md;
+
+	/*if new op's voltage higher than cur op's,
+	   increase the voltage before changing op */
+	if (md_new->vcc_core > md_old->vcc_core) {
+		if (pxa910_dvfm_set_core_voltage(md_new->vcc_core) < 0) {
+			ret = VOL_UP_FAIL;
+			pr_err("voltage up failed, still at %d\n",
+			       md_old->vcc_core);
+			goto out;
+		}
+	}
+
+	set_freq(md_old, md_new);
+	cur_md = md_new;
+	loops_per_jiffy = md_new->lpj;
+
+	/*if new op's voltage lower than cur op's,
+	   decrease the voltage after changing op */
+	if (md_new->vcc_core < md_old->vcc_core) {
+		if (pxa910_dvfm_set_core_voltage(md_new->vcc_core) < 0) {
+			ret = VOL_DOWN_FAIL;
+			pr_err("voltage down failed, still at %d\n",
+			       md_old->vcc_core);
+			goto out;
+		}
+	}
+out:
+	mutex_unlock(&freqs_mutex);
+	return ret;
+}
+EXPORT_SYMBOL(pxa910_freq_chg);
+
 /* Get current setting, and record it in fv_info structure
  */
 static int capture_op_info(struct pxa910_md_opt *fv_info)

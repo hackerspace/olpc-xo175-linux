@@ -68,6 +68,11 @@ static struct clk *vctcxo_clk;
 extern void pxa910_cpu_disable_l2(void* param);
 extern void pxa910_cpu_enable_l2(void* param);
 
+extern int pxa910_get_freq(void);
+extern int pxa910_get_lowest_PP(void);
+extern int pxa910_freq_chg(int cpufreq);
+static int cur_freq;
+
 int pxa910_power_config_register(struct pxa910_peripheral_config_ops *ops)
 {
 	wakeup_ops = ops;
@@ -599,6 +604,10 @@ static int pxa910_pm_enter(suspend_state_t state)
  */
 static int pxa910_pm_prepare(void)
 {
+	/* set to the lowest PP */
+	cur_freq = pxa910_get_freq();
+	pxa910_freq_chg(pxa910_get_lowest_PP());
+
 	pxa910_pm_enter_lowpower_mode(POWER_MODE_UDR);
 	return 0;
 }
@@ -611,6 +620,9 @@ static void pxa910_pm_finish(void)
 	pm_state = PM_SUSPEND_ON;
 	pxa910_pm_enter_lowpower_mode(POWER_MODE_CORE_INTIDLE);
 	pm860x_codec_reg_write(PM8607_AUDIO_REG_BASE + PM8607_AUDIO_SHORTS, 0xaa);
+
+	/* restore PP after resume */
+	pxa910_freq_chg(cur_freq);
 }
 
 static void pxa910_pm_wake(void)
