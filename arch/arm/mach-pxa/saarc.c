@@ -26,6 +26,8 @@
 #include <linux/mmc/card.h>
 #include <linux/i2c/adp8885.h>
 #include <linux/proc_fs.h>
+#include <linux/notifier.h>
+#include <linux/reboot.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -1952,6 +1954,23 @@ static void create_hsl_mfpr_proc_file(void)
 }
 #endif
 
+static int reboot_notifier_func(struct notifier_block *this,
+		unsigned long code, void *cmd)
+{
+	int reg = (PM80X_BASE_PAGE << 8) | 0xef;
+
+	if (cmd && (0 == strcmp(cmd, "recovery"))) {
+		printk("Enter recovery mode\n");
+		pm80x_codec_reg_write(reg, 0x1);
+	} else
+		pm80x_codec_reg_write(reg, 0x0);
+
+	return 0;
+}
+static struct notifier_block reboot_notifier = {
+	.notifier_call = reboot_notifier_func,
+};
+
 static void __init init(void)
 {
 	if (get_pmic_id() >= PM800_CHIP_A0) {
@@ -1961,6 +1980,7 @@ static void __init init(void)
 			__FILE__, __func__, PM8XXX_REGULATOR_MAX);
 		pxa9xx_usb_pdata.vbus = NULL;
 
+		register_reboot_notifier(&reboot_notifier);
 	} else {
 		regulator_init_pm8607();
 		pr_info( \
