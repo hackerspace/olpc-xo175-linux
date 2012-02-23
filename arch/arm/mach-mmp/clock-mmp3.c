@@ -2103,10 +2103,11 @@ static struct clk mmp3_clk_dxoccic = {
 #define VMETA_PLL1		0
 #define VMETA_PLL2		1
 #define VMETA_PLL1_OUTP		2
+#define VMETA_PLL2_OUTP		3
 
 static void vmeta_clk_init(struct clk *clk)
 {
-	clk->rate = clk_get_rate(&mmp3_clk_pll1_clkoutp)/2; /* 533MHz */
+	clk->rate = clk_get_rate(&mmp3_clk_pll1_clkoutp) / 2;
 	clk->enable_val = VMETA_PLL1_OUTP;
 	clk->div = 2;
 	clk->mul = 1;
@@ -2130,6 +2131,8 @@ static int vmeta_clk_enable(struct clk *clk)
 	reg &= ~APMU_VMETA_CLK_DIV_MASK;
 	reg |= (clk->inputs[clk->enable_val].value) << APMU_VMETA_CLK_SEL_SHIFT;
 	reg |= (clk->div) << APMU_VMETA_CLK_DIV_SHIFT;
+	reg &= ~(3u << 11); /* vmeta BUS PLL1/2*/
+	reg |= (2u << 11);
 	writel(reg, clk->clk_rst);
 
 	reg = readl(clk->clk_rst);
@@ -2160,10 +2163,14 @@ static long vmeta_clk_round_rate(struct clk *clk, unsigned long rate)
 		return clk_get_rate(&mmp3_clk_pll1_clkoutp)/4; /* 266M */
 	else if (rate <= clk_get_rate(&mmp3_clk_pll1)/2)
 		return clk_get_rate(&mmp3_clk_pll1)/2; /* 400M */
+	else if (rate <= clk_get_rate(&mmp3_clk_pll2_clkoutp)/2)
+		return clk_get_rate(&mmp3_clk_pll2_clkoutp)/2; /* 480M */
 	else if (rate <= clk_get_rate(&mmp3_clk_pll1_clkoutp)/2)
 		return clk_get_rate(&mmp3_clk_pll1_clkoutp)/2; /* 533M */
+	else if (rate <= clk_get_rate(&mmp3_clk_pll2)/2)
+		return clk_get_rate(&mmp3_clk_pll2)/2; /* 600M */
 	else
-		return clk_get_rate(&mmp3_clk_pll2)/2; /* 667M */
+		return clk_get_rate(&mmp3_clk_pll1); /* 800M */
 }
 
 static int vmeta_clk_setrate(struct clk *clk, unsigned long rate)
@@ -2181,6 +2188,10 @@ static int vmeta_clk_setrate(struct clk *clk, unsigned long rate)
 		clk->enable_val = VMETA_PLL1;
 		clk->div = 2;
 		clk_reparent(clk, &mmp3_clk_pll1);
+	} else if (rate == clk_get_rate(&mmp3_clk_pll2_clkoutp)/2) {
+		clk->enable_val = VMETA_PLL2_OUTP;
+		clk->div = 2;
+		clk_reparent(clk, &mmp3_clk_pll2_clkoutp);
 	} else if (rate == clk_get_rate(&mmp3_clk_pll1_clkoutp)/2) {
 		clk->enable_val = VMETA_PLL1_OUTP;
 		clk->div = 2;
@@ -2189,6 +2200,10 @@ static int vmeta_clk_setrate(struct clk *clk, unsigned long rate)
 		clk->enable_val = VMETA_PLL2;
 		clk->div = 2;
 		clk_reparent(clk, &mmp3_clk_pll2);
+	} else if (rate == clk_get_rate(&mmp3_clk_pll1)) {
+		clk->enable_val = VMETA_PLL1;
+		clk->div = 1;
+		clk_reparent(clk, &mmp3_clk_pll1);
 	} else {
 		pr_err("%s: unexpected vmeta clock rate %ld\n", __func__, rate);
 		BUG();
@@ -2209,6 +2224,7 @@ static struct clk_mux_sel vmeta_mux_pll1_pll2[] = {
 	{.input = &mmp3_clk_pll1, .value = 0},
 	{.input = &mmp3_clk_pll2, .value = 1},
 	{.input = &mmp3_clk_pll1_clkoutp, .value = 2},
+	{.input = &mmp3_clk_pll2_clkoutp, .value = 3},
 	{0, 0},
 };
 
@@ -2509,6 +2525,7 @@ static struct clk *mmp3_clks_ptr[] = {
 	&mmp3_clk_pll1,
 	&mmp3_clk_pll2,
 	&mmp3_clk_pll1_clkoutp,
+	&mmp3_clk_pll2_clkoutp,
 	&mmp3_clk_vctcxo,
 	&mmp3_clk_32k,
 	&mmp3_clk_core_root,
