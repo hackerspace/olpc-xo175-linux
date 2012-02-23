@@ -23,12 +23,51 @@ enum {
 	MMP3_CLK_TOP_NUM,
 };
 
+struct dmc_regtable_entry {
+	u32 reg;
+	u32 b2c;
+	u32 b2s;
+};
+struct dmc_regtable {
+	u32 count;
+	struct dmc_regtable_entry *entry;
+};
+
+enum {
+	DMCRT_TM = 0,
+	DMCRT_PH,
+	DMCRT_RL,
+	DMCRT_WL,
+	DMCRT_TYPECNT,
+
+	DMC_MODE_4X = (1u << 0),
+};
+
+struct dmc_timing_entry {
+	u32 dsrc;
+	u32 mode4x;
+	u32 pre_d;
+	u32 cas;
+	struct dmc_regtable table[DMCRT_TYPECNT];
+};
+#define DEF_DMC_TAB_ENTRY(label, a)		\
+	[label] = {ARRAY_SIZE(a), a}
+
+#define DEF_DMC_TAB(tm, ph, rl, wl)			\
+	{						\
+		DEF_DMC_TAB_ENTRY(DMCRT_TM, tm),	\
+		DEF_DMC_TAB_ENTRY(DMCRT_PH, ph),	\
+		DEF_DMC_TAB_ENTRY(DMCRT_RL, rl),	\
+		DEF_DMC_TAB_ENTRY(DMCRT_WL, wl),	\
+	}
+
+
 void mmp3_setfreq(int clkid, unsigned long khz);
 unsigned long mmp3_getfreq(int clkid);
 int mmp3_get_pp_number(void);
 unsigned long mmp3_get_pp_freq(int ppidx, int clkid);
 void mmp3_pm_enter_idle(int cpu);
-
+void mmp3_pm_update_dram_timing_table(int count, struct dmc_timing_entry *tab);
 
 enum {
 	TRACE_DFC_MARKER_CORE = (1u << 0),
