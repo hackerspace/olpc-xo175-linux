@@ -42,6 +42,7 @@ struct op_switch {
 	unsigned int max_tick;
 	unsigned int timestamp;
 	unsigned int count;
+	unsigned int sum_ticks;
 };
 
 static struct op_switch op_switch[OP_NUM][OP_NUM];
@@ -228,9 +229,14 @@ static ssize_t switch_time_show(struct sys_device *sys_dev,
 	for (i = 0; i < op_num; i++) {
 		len += sprintf(buf + len, "OP%d\t", i);
 		for (j = 0; j < op_num; j++) {
-			len += sprintf(buf + len, "%d(%d,%d)\t",
-				       dvfm_driver->
-				       ticks_to_usec(op_switch[i][j].last_tick),
+			if (op_switch[i][j].count == 0)
+				len += sprintf(buf + len, "%d", 0);
+			else
+				len += sprintf(buf + len, "%d",
+					       dvfm_driver->
+					       ticks_to_usec(op_switch[i][j].sum_ticks) /
+					       op_switch[i][j].count);
+			len += sprintf(buf + len, "(%d,%d)\t",
 				       dvfm_driver->
 				       ticks_to_usec(op_switch[i][j].min_tick),
 				       dvfm_driver->
@@ -243,6 +249,23 @@ static ssize_t switch_time_show(struct sys_device *sys_dev,
 
 SYSDEV_ATTR(switch_time, 0444, switch_time_show, NULL);
 
+/* Init op_switch[OP_NUM][OP_NUM] */
+static void switch_time_init()
+{
+	int i, j;
+
+	for (i = 0; i < OP_NUM; i++) {
+		for (j = 0; j < OP_NUM; j++) {
+			op_switch[i][j].last_tick = 0;
+			op_switch[i][j].min_tick = 0;
+			op_switch[i][j].max_tick = 0;
+			op_switch[i][j].timestamp = 0;
+			op_switch[i][j].count = 0;
+			op_switch[i][j].sum_ticks = 0;
+		}
+	}
+}
+
 /* Re-collect static information */
 static ssize_t stats_store(struct sys_device *sys_dev,
 			   struct sysdev_attribute *attr, const char *buf,
@@ -253,6 +276,7 @@ static ssize_t stats_store(struct sys_device *sys_dev,
 	sscanf(buf, "%u", &cap_flag);
 	if (cap_flag == 1) {
 		cap_init();
+		switch_time_init();
 	} else if (cap_flag == 0) {
 		cap_deinit();
 		write_event_chan();
@@ -577,6 +601,8 @@ int calc_switchtime_end(int old, int new, unsigned int ticks)
 	time = (ticks > p->timestamp) ? ticks - p->timestamp
 	    : 0xFFFFFFFF - p->timestamp + ticks;
 	p->last_tick = time;
+	p->sum_ticks = p->sum_ticks + time;
+	p->count = p->count + 1;
 	if (time > p->max_tick)
 		p->max_tick = time;
 	if (time < p->min_tick || p->min_tick == 0)
@@ -655,6 +681,7 @@ int __init dvfm_stats_init(void)
 	dvfm_event_table_init();
 	dvfm_timeslot_table_init();
 	cap_init();
+	switch_time_init();
 	ret = sysdev_driver_register(&cpu_sysdev_class, &dvfm_stats_driver);
 	if (ret)
 		printk(KERN_ERR "Can't register DVFM STATS in sysfs\n");
