@@ -72,6 +72,13 @@ static unsigned long abilene_pin_config[] __initdata = {
 	GPIO51_UART3_RXD,
 	GPIO52_UART3_TXD,
 
+	/* UART2 GPS*/
+	GPIO47_UART2_RXD,
+	GPIO48_UART2_TXD,
+	GPIO49_UART2_CTS,
+	GPIO50_UART2_RTS,
+	GPIO2_GPIO, /* PRES_INT_N GPS*/
+
 	/* TWSI5 */
 	GPIO99_TWSI5_SCL,
 	GPIO100_TWSI5_SDA,
@@ -109,6 +116,15 @@ static unsigned long abilene_pin_config[] __initdata = {
 	/* camera */
 	GPIO67_GPIO,
 	GPIO73_CAM_MCLK,
+	GPIO0_GPIO, /* CAM1_RST_N */
+	GPIO1_GPIO, /* CAM2_RST_N */
+
+	/* Camera Flasher */
+	GPIO12_GPIO, /* FLASH_EN */
+
+	/* Gyroscope L3G4200D */
+	GPIO65_GPIO, /* GYRO_INT_1 */
+	GPIO66_GPIO, /* GYRO_INT_2 */
 
 	/* DFI */
 	GPIO168_DFI_D0,
