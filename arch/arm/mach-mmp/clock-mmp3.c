@@ -900,36 +900,38 @@ static struct clk mmp3_clk_cpu = {
 	.ops = &clk_cpu_ops,
 };
 
-#define GC300_CLK_DIV(n)	((n & 0xF) << 28)
-#define GC300_CLK_DIV_MSK	GC300_CLK_DIV(0xF)
-#define GC_CLK_DIV(n)		((n & 0xF) << 24)
-#define GC_CLK_DIV_GET(n)	((n >> 24) & 0xF)
-#define GC_CLK_DIV_MSK		GC_CLK_DIV(0xF)
-#define GC300_AXICLK_EN		(1 << 19)
-#define GC300_BUS_CLK_SRC(n)	((n & 3) << 16)
-#define GC300_BUS_CLK_SRC_MSK	GC300_BUS_CLK_SRC(3)
-#define GC300_CLK_INPUT(n)	((n & 3) << 12)
-#define GC300_CLK_INPUT_MSK	GC300_CLK_INPUT(3)
-#define GC_CLK_SRC_SEL(n)	((n & 3) << 6)
-#define GC_CLK_SRC_SEL_MSK	GC_CLK_SRC_SEL(3)
+#define GC2D_CLK_DIV(n)		((n & 0xF) << 28)
+#define GC2D_CLK_DIV_MSK	GC2D_CLK_DIV(0xF)
+#define GC2D_CLK_SRC_SEL(n)	((n & 3) << 12)
+#define GC2D_CLK_SRC_SEL_MSK	GC2D_CLK_SRC_SEL(3)
+#define GC2D_ACLK_SEL(n)	((n & 3) << 16)
+#define GC2D_ACLK_SEL_MSK	GC2D_ACLK_SEL(3)
+
+#define GC3D_CLK_DIV(n)		((n & 0xF) << 24)
+#define GC3D_CLK_DIV_MSK	GC3D_CLK_DIV(0xF)
+#define GC3D_CLK_SRC_SEL(n)	((n & 3) << 6)
+#define GC3D_CLK_SRC_SEL_MSK	GC3D_CLK_SRC_SEL(3)
+#define GC3D_ACLK_SEL(n)	((n & 3) << 4)
+#define GC3D_ACLK_SEL_MSK	GC3D_ACLK_SEL(3)
+
 #define		CS_PLL1		0
 #define		CS_PLL2		1
 #define		CS_PLL1_COP	2
 #define		CS_PLL2_COP	3
-#define GC_ACLK_SEL(n)		((n & 3) << 4)
-#define GC_ACLK_SEL_MSK		GC_ACLK_SEL(3)
 #define		PLL1D4		0
 #define		PLL1D6		1
 #define		PLL1D2		2
 #define		PLL2D2		3
-#define GC_CLK_EN		(1 << 3)
-#define GC_AXICLK_EN		(1 << 2)
+#define GC_CLK_EN		(1u << 3)
+#define GC_AXICLK_EN		((1u << 2) | (1u << 19))
 
-#define GC_CLK_RATE(div, src, aclk) (GC_CLK_DIV(div) |\
-	GC_CLK_SRC_SEL(src) | GC_ACLK_SEL(aclk))
+#define GC_CLK_RATE(div, src, aclk)					\
+	(GC2D_CLK_DIV(div) | GC2D_CLK_SRC_SEL(src) | GC2D_ACLK_SEL(aclk)\
+	| GC3D_CLK_DIV(div) | GC3D_CLK_SRC_SEL(src) | GC3D_ACLK_SEL(aclk))
 
-#define GC_CLK_RATE_MSK	(GC_CLK_DIV_MSK |\
-	GC_CLK_SRC_SEL_MSK | GC_ACLK_SEL_MSK)
+#define GC_CLK_RATE_MSK							\
+	(GC2D_CLK_DIV_MSK | GC2D_CLK_SRC_SEL_MSK | GC2D_ACLK_SEL_MSK	\
+	| GC3D_CLK_DIV_MSK | GC3D_CLK_SRC_SEL_MSK | GC3D_ACLK_SEL_MSK)
 
 #define GC_SET_BITS(set, clear)	{\
 	unsigned long tmp;\
@@ -941,7 +943,7 @@ static struct clk mmp3_clk_cpu = {
 
 static void gc_clk_init(struct clk *clk)
 {
-	clk->rate = clk_get_rate(&mmp3_clk_pll1_clkoutp)/2;
+	clk->rate = clk_get_rate(&mmp3_clk_pll1_clkoutp) / 2;
 	clk->enable_val = PLL1D2; /* reuse this field for the ACLK setting */
 	clk->div = 2;
 	clk->mul = 1;
@@ -972,17 +974,7 @@ static int gc_clk_enable(struct clk *clk)
 
 	GC_SET_BITS(gc_rate_cfg, GC_CLK_RATE_MSK);
 
-	/* set GC300 the divide to 0x4 as default */
-	GC_SET_BITS(GC300_CLK_DIV(4), GC300_CLK_DIV_MSK);
-	/* set GC300 bus clock select 200MHz */
-	GC_SET_BITS(GC300_BUS_CLK_SRC(0), GC300_BUS_CLK_SRC_MSK);
-	/* set GC300 clock source as PLL1 */
-	GC_SET_BITS(GC300_CLK_INPUT(0), GC300_CLK_INPUT_MSK);
-
 	GC_SET_BITS(GC_CLK_EN, 0);
-	udelay(100);
-
-	GC_SET_BITS(GC300_AXICLK_EN, 0);
 	udelay(100);
 
 	GC_SET_BITS(GC_AXICLK_EN, 0);
@@ -1006,8 +998,14 @@ static long gc_clk_round_rate(struct clk *clk, unsigned long rate)
 		return clk_get_rate(&mmp3_clk_pll1_clkoutp)/3; /* 354M */
 	else if (rate <= clk_get_rate(&mmp3_clk_pll1)/2)
 		return clk_get_rate(&mmp3_clk_pll1)/2; /* 400M */
-	else
+	else if (rate <= clk_get_rate(&mmp3_clk_pll2_clkoutp)/2)
+		return clk_get_rate(&mmp3_clk_pll2_clkoutp)/2; /* 480M */
+	else if (rate <= clk_get_rate(&mmp3_clk_pll1_clkoutp)/2)
 		return clk_get_rate(&mmp3_clk_pll1_clkoutp)/2; /* 531M */
+	else if (rate <= clk_get_rate(&mmp3_clk_pll2)/2)
+		return clk_get_rate(&mmp3_clk_pll2)/2; /* 600M */
+	else
+		return clk_get_rate(&mmp3_clk_pll1); /* 800M */
 }
 
 static int gc_clk_setrate(struct clk *clk, unsigned long rate)
@@ -1029,10 +1027,22 @@ static int gc_clk_setrate(struct clk *clk, unsigned long rate)
 		clk->enable_val = PLL1D2;
 		clk->div = 2;
 		clk_reparent(clk, &mmp3_clk_pll1);
+	} else if (rate == clk_get_rate(&mmp3_clk_pll2_clkoutp)/2) {
+		clk->enable_val = PLL1D2;
+		clk->div = 2;
+		clk_reparent(clk, &mmp3_clk_pll2_clkoutp);
 	} else if (rate == clk_get_rate(&mmp3_clk_pll1_clkoutp)/2) {
 		clk->enable_val = PLL1D2;
 		clk->div = 2;
 		clk_reparent(clk, &mmp3_clk_pll1_clkoutp);
+	} else if (rate == clk_get_rate(&mmp3_clk_pll2)/2) {
+		clk->enable_val = PLL2D2;
+		clk->div = 2;
+		clk_reparent(clk, &mmp3_clk_pll2);
+	} else if (rate == clk_get_rate(&mmp3_clk_pll1)) {
+		clk->enable_val = PLL1D2;
+		clk->div = 1;
+		clk_reparent(clk, &mmp3_clk_pll1);
 	} else {
 		pr_err("%s: unexpected gc clock rate %ld\n", __func__, rate);
 		BUG();
@@ -1054,6 +1064,7 @@ static struct clk_mux_sel gc_mux_pll1_pll2[] = {
 	{.input = &mmp3_clk_pll1, .value = 0},
 	{.input = &mmp3_clk_pll2, .value = 1},
 	{.input = &mmp3_clk_pll1_clkoutp, .value = 2},
+	{.input = &mmp3_clk_pll2_clkoutp, .value = 3},
 	{0, 0},
 };
 
