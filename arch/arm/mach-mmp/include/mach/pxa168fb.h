@@ -404,11 +404,6 @@ struct fbi_info {
 #define LCD_ISR_CLEAR_MASK_PXA168       0xffffffff
 #define LCD_ISR_CLEAR_MASK_PXA910       0xffff00cc
 
-extern int fb_share;
-extern struct device_attribute dev_attr_phy;
-extern struct device_attribute dev_attr_vdma;
-extern struct fbi_info gfx_info;
-extern struct fbi_info ovly_info;
 extern struct lcd_regs *get_regs(int id);
 extern struct cmu_calibration cmu_cal[3];
 extern struct cmu_calibration cmu_cal_letter_box[3];

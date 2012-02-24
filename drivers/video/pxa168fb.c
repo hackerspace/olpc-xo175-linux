@@ -80,16 +80,11 @@
 	count %= ITC_MAX_NUM;					\
 	do_gettimeofday(&val[update ? count++ : count]);	\
 } while (0)
-static int ct1, ct2, irqtm_check, irqtm_adjust = 1000;
+static int ct1, ct2, irqtm_check;
 static struct timeval t0, t1[ITC_MAX_NUM], t2[ITC_MAX_NUM];
 
 /* interrupt number collection to get real frame rate */
 #define VSYNC_CHECK_TIME	(10 * HZ)
-#define DEBUG_VSYNC_PATH(id)	(gfx_info.fbi[(id)]->debug & 3)
-#define DEBUG_ERR_IRQ(id)	(gfx_info.fbi[(id)]->debug & 4)
-static int gfx_udflow_count;
-static int vid_udflow_count;
-static int axi_err_count;
 static int vsync_check;
 static int irq_count;
 static int vsync_count;
@@ -102,7 +97,7 @@ static struct timer_list vsync_timer;
 
 static void vsync_check_timer(unsigned long data)
 {
-	int id = DEBUG_VSYNC_PATH(0);
+	int id = DBG_VSYNC_PATH;
 
 	/* disable count interrupts */
 	irq_mask_set(id, vsync_imask(id) | gf0_imask(id) |
@@ -119,12 +114,16 @@ static void vsync_check_timer(unsigned long data)
 	pr_info("\tvf1_count %d\n", vf1_count);
 }
 
-static void vsync_check_count(void)
+void vsync_check_count()
 {
-	int path = DEBUG_VSYNC_PATH(0);
+	int path = DBG_VSYNC_PATH;
 	int mask = vsync_imask(path) | gf0_imask(path) | gf1_imask(path)
 		| vf0_imask(path) | vf1_imask(path);
 
+	if (vsync_check) {
+		pr_alert("count vsync ongoing, try again after 10s\n");
+		return;
+	}
 	/* enable count interrupts */
 	irq_mask_set(path, mask, mask);
 	irq_status_clear(path, mask);
@@ -147,12 +146,15 @@ static void vsync_check_count(void)
 static unsigned int max_fb_size = 0;
 static unsigned int fb_size_from_cmd = 0;
 
-/* LCD mode switch
- * fb_share mode:
- * TV path graphics layer share same frame buffer with panel path
+/* Globals:
+ * fb_share mode: TV path graphics share same frame buffer with panel path
  */
 int fb_share = 0;
 struct fbi_info gfx_info;
+int gfx_udflow_count = 0;
+int vid_udflow_count = 0;
+int axi_err_count = 0;
+int debug_flag = 0;
 
 struct lcd_regs *get_regs(int id)
 {
@@ -851,7 +853,7 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)dev_id;
 	u32 isr_en = readl(fbi->reg_base + SPU_IRQ_ISR) &
 		readl(fbi->reg_base + SPU_IRQ_ENA);
-	u32 id, dispd, err, sts, isr_delayed = 0;
+	u32 id, dispd, err, sts;
 
 	if (ITC_INTERVAL) {
 		gettime(t1, ct1, 0);
@@ -862,9 +864,6 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 				t0.tv_usec;
 			if (t1[ct1].tv_sec > t0.tv_sec)
 				t2[ct2].tv_usec += 1000000;
-			if (t2[ct2].tv_usec > (gfx_info.fbi[0]->frm_usec
-					+ irqtm_adjust))
-				isr_delayed = 1;
 		}
 		ct1++; ct2++; ct2 %= ITC_MAX_NUM;
 	}
@@ -878,7 +877,7 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 				sts = dispd & display_done_imask(id);
 				if (sts) {
 					if (vsync_check &&
-						id == DEBUG_VSYNC_PATH(0)) {
+						id == DBG_VSYNC_PATH) {
 						if (!ITC_INTERVAL)
 							gettime(t1, ct1, 1);
 						dispd_count++;
@@ -893,7 +892,7 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 					pxa168_fb_isr(id);
 
 					if (ITC_HANDLER && vsync_check &&
-						id == DEBUG_VSYNC_PATH(0))
+						id == DBG_VSYNC_PATH)
 						gettime(t2, ct2, 1);
 				}
 			}
@@ -905,30 +904,30 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 			for (id = 0; id < 3; id++) {
 				if (err & gfx_udflow_imask(id)) {
 					gfx_udflow_count++;
-					if (DEBUG_ERR_IRQ(0))
-						pr_err("fb%d gfx underflow\n", id);
+					if (DBG_ERR_IRQ)
+						pr_err("fb%d gfx udflow\n", id);
 				}
 				if (err & vid_udflow_imask(id)) {
 					vid_udflow_count++;
-					if (DEBUG_ERR_IRQ(0))
-						pr_err("fb%d vid underflow\n", id);
+					if (DBG_ERR_IRQ)
+						pr_err("fb%d vid udflow\n", id);
 				}
 			}
 			if (err & AXI_BUS_ERROR_IRQ_ENA_MASK) {
 				axi_err_count++;
-				if (DEBUG_ERR_IRQ(0))
+				if (DBG_ERR_IRQ)
 					pr_info("axi bus err\n");
 			}
 			if (err & AXI_LATENCY_TOO_LONG_IRQ_ENA_MASK) {
 				axi_err_count++;
-				if (DEBUG_ERR_IRQ(0))
+				if (DBG_ERR_IRQ)
 					pr_info("axi lantency too long\n");
 			}
 		}
 
 		/* count interrupts numbers in 10s */
 		if (vsync_check) {
-			id = DEBUG_VSYNC_PATH(0);
+			id = DBG_VSYNC_PATH;
 			if (isr_en & path_imasks(id))
 				irq_count++;
 			if (isr_en & gf0_imask(id)) {
@@ -962,10 +961,6 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 			(path_imasks(0) | path_imasks(1) | err_imasks)) &&
 			!(irqtm_check && vsync_check));
 
-	if (isr_delayed)
-		printk(KERN_DEBUG "%lu.%lu - %lu.%lu) = %lu\n",
-			t1[ct1].tv_sec, t1[ct1].tv_usec, t0.tv_sec,
-			t0.tv_usec, t2[ct2].tv_usec);
 	return IRQ_HANDLED;
 }
 
@@ -1506,219 +1501,31 @@ static int pxa168fb_resume(struct platform_device *pdev)
 
 #endif /* CONFIG_PM */
 
-/************************************************************************/
-
-static ssize_t lcd_show(struct device *dev, struct device_attribute *attr,
-		char *buf)
+static size_t vsync_help(char *buf)
 {
-	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
-	struct fb_var_screeninfo *var = &fbi->fb_info->var;
-	struct lcd_regs *regs = get_regs(fbi->id);
-	int id = fbi->id;
+	int s = 0, f = DUMP_SPRINTF;
 
-	printk("fbi %d base 0x%p, frm %luus\n", fbi->id,
-			fbi->reg_base, fbi->frm_usec);
-	pr_info("var\n");
-	pr_info("\t xres              %4d yres              %4d\n",
-			var->xres,		var->yres);
-	pr_info("\t xres_virtual      %4d yres_virtual      %4d\n",
-			var->xres_virtual,	var->yres_virtual);
-	pr_info("\t xoffset           %4d yoffset           %4d\n",
-			var->xoffset,		var->yoffset);
-	pr_info("\t left_margin(hbp)  %4d right_margin(hfp) %4d\n",
-			var->left_margin,	var->right_margin);
-	pr_info("\t upper_margin(vbp) %4d lower_margin(vfp) %4d\n",
-			var->upper_margin,	var->lower_margin);
-	pr_info("\t hsync_len         %4d vsync_len         %4d\n",
-			var->hsync_len,		var->vsync_len);
-	pr_info("\t bits_per_pixel    %d\n", var->bits_per_pixel);
-	pr_info("\t pixclock          %d\n", var->pixclock);
-	pr_info("\t sync              0x%x\n", var->sync);
-	pr_info("\t vmode             0x%x\n", var->vmode);
-	pr_info("\t rotate            0x%x\n", var->rotate);
-	pr_info("\n");
+	mvdisp_dump(f, "commands:\n");
+	mvdisp_dump(f, " - dump path(pn/tv/pn2:0/1/2) graphics layer"
+			" wait vsync @ pan_display or not\n");
+	mvdisp_dump(f, "\tcat vsync\n");
+	mvdisp_dump(f, " - enable[1]/disable[0] wait vsync @ pan_display\n");
+	mvdisp_dump(f, "\techo [en/dis:1/0] > vsync\n");
 
-#ifdef CONFIG_PXA688_MISC
-again:
-	regs = get_regs(id);
-#endif
-	pr_info("video layer\n");
-	pr_info("\tv_y0        ( @%3x ) 0x%x\n",
-		 (int)(&regs->v_y0) & 0xfff, readl(&regs->v_y0));
-	pr_info("\tv_u0        ( @%3x ) 0x%x\n",
-		 (int)(&regs->v_u0) & 0xfff, readl(&regs->v_u0));
-	pr_info("\tv_v0        ( @%3x ) 0x%x\n",
-		 (int)(&regs->v_v0) & 0xfff, readl(&regs->v_v0));
-	pr_info("\tv_c0        ( @%3x ) 0x%x\n",
-		 (int)(&regs->v_c0) & 0xfff, readl(&regs->v_c0));
-	pr_info("\tv_y1        ( @%3x ) 0x%x\n",
-		 (int)(&regs->v_y1) & 0xfff, readl(&regs->v_y1));
-	pr_info("\tv_u1        ( @%3x ) 0x%x\n",
-		 (int)(&regs->v_u1) & 0xfff, readl(&regs->v_u1));
-	pr_info("\tv_v1        ( @%3x ) 0x%x\n",
-		 (int)(&regs->v_v1) & 0xfff, readl(&regs->v_v1));
-	pr_info("\tv_c1        ( @%3x ) 0x%x\n",
-		 (int)(&regs->v_c1) & 0xfff, readl(&regs->v_c1));
-	pr_info("\tv_pitch_yc  ( @%3x ) 0x%x\n",
-		 (int)(&regs->v_pitch_yc) & 0xfff, readl(&regs->v_pitch_yc));
-	pr_info("\tv_pitch_uv  ( @%3x ) 0x%x\n",
-		 (int)(&regs->v_pitch_uv) & 0xfff, readl(&regs->v_pitch_uv));
-	pr_info("\tv_start     ( @%3x ) 0x%x\n",
-		 (int)(&regs->v_start) & 0xfff, readl(&regs->v_start));
-	pr_info("\tv_size      ( @%3x ) 0x%x\n",
-		 (int)(&regs->v_size) & 0xfff, readl(&regs->v_size));
-	pr_info("\tv_size_z    ( @%3x ) 0x%x\n",
-		 (int)(&regs->v_size_z) & 0xfff, readl(&regs->v_size_z));
-	pr_info("\n");
-
-	pr_info("graphic layer\n");
-	pr_info("\tg_0       ( @%3x ) 0x%x\n", (int)(&regs->g_0) & 0xfff,
-						 readl(&regs->g_0));
-	pr_info("\tg_1       ( @%3x ) 0x%x\n", (int)(&regs->g_1) & 0xfff,
-						 readl(&regs->g_1));
-	pr_info("\tg_pitch   ( @%3x ) 0x%x\n", (int)(&regs->g_pitch) & 0xfff,
-						 readl(&regs->g_pitch));
-	pr_info("\tg_start   ( @%3x ) 0x%x\n", (int)(&regs->g_start) & 0xfff,
-						 readl(&regs->g_start));
-	pr_info("\tg_size    ( @%3x ) 0x%x\n", (int)(&regs->g_size) & 0xfff,
-						 readl(&regs->g_size));
-	pr_info("\tg_size_z  ( @%3x ) 0x%x\n", (int)(&regs->g_size_z) & 0xfff,
-						 readl(&regs->g_size_z));
-	pr_info("\n");
-
-	pr_info("hardware cursor\n");
-	pr_info("\thc_start  ( @%3x ) 0x%x\n", (int)(&regs->hc_start) & 0xfff,
-						  readl(&regs->hc_start));
-	pr_info("\thc_size   ( @%3x ) 0x%x\n", (int)(&regs->hc_size) & 0xfff,
-						 readl(&regs->hc_size));
-	pr_info("\n");
-
-	pr_info("screen info\n");
-	pr_info("\tscreen_size     ( @%3x ) 0x%x\n",
-		(int)(&regs->screen_size) & 0xfff,
-		 readl(&regs->screen_size));
-	pr_info("\tscreen_active   ( @%3x ) 0x%x\n",
-		(int)(&regs->screen_active) & 0xfff,
-		 readl(&regs->screen_active));
-	pr_info("\tscreen_h_porch  ( @%3x ) 0x%x\n",
-		(int)(&regs->screen_h_porch) & 0xfff,
-		 readl(&regs->screen_h_porch));
-	pr_info("\tscreen_v_porch  ( @%3x ) 0x%x\n",
-		(int)(&regs->screen_v_porch) & 0xfff,
-		 readl(&regs->screen_v_porch));
-	pr_info("\n");
-
-	pr_info("color\n");
-	pr_info("\tblank_color     ( @%3x ) 0x%x\n",
-		 (int)(&regs->blank_color) & 0xfff,
-		 readl(&regs->blank_color));
-	pr_info("\thc_Alpha_color1 ( @%3x ) 0x%x\n",
-		 (int)(&regs->hc_Alpha_color1) & 0xfff,
-		 readl(&regs->hc_Alpha_color1));
-	pr_info("\thc_Alpha_color2 ( @%3x ) 0x%x\n",
-		 (int)(&regs->hc_Alpha_color2) & 0xfff,
-		 readl(&regs->hc_Alpha_color2));
-	pr_info("\tv_colorkey_y    ( @%3x ) 0x%x\n",
-		 (int)(&regs->v_colorkey_y) & 0xfff,
-		 readl(&regs->v_colorkey_y));
-	pr_info("\tv_colorkey_u    ( @%3x ) 0x%x\n",
-		 (int)(&regs->v_colorkey_u) & 0xfff,
-		 readl(&regs->v_colorkey_u));
-	pr_info("\tv_colorkey_v    ( @%3x ) 0x%x\n",
-		 (int)(&regs->v_colorkey_v) & 0xfff,
-		 readl(&regs->v_colorkey_v));
-	pr_info("\n");
-
-	pr_info("control\n");
-	pr_info("\tvsync_ctrl    ( @%3x ) 0x%x\n",
-		 (int)(&regs->vsync_ctrl) & 0xfff,
-		 readl(&regs->vsync_ctrl));
-	pr_info("\tdma_ctrl0     ( @%3x ) 0x%x\n",
-		 (int)(dma_ctrl(0, id)) & 0xfff,
-		 readl(fbi->reg_base + dma_ctrl0(id)));
-	pr_info("\tdma_ctrl1     ( @%3x ) 0x%x\n",
-		 (int)(dma_ctrl(1, id)) & 0xfff,
-		 readl(fbi->reg_base + dma_ctrl1(id)));
-	pr_info("\tintf_ctrl     ( @%3x ) 0x%x\n",
-		 (int)(intf_ctrl(id)) & 0xfff,
-		 readl(fbi->reg_base + intf_ctrl(id)));
-	pr_info("\tirq_enable    ( @%3x ) 0x%8x\n",
-		 (int)(SPU_IRQ_ENA) & 0xfff,
-		 readl(fbi->reg_base + SPU_IRQ_ENA));
-	pr_info("\tirq_status    ( @%3x ) 0x%8x\n",
-		 (int)(SPU_IRQ_ISR) & 0xfff,
-		 readl(fbi->reg_base + SPU_IRQ_ISR));
-	pr_info("\tclk_sclk      ( @%3x ) 0x%x\n",
-		 (int)(clk_reg(id, clk_sclk)) & 0xfff,
-		 readl(clk_reg(id, clk_sclk)));
-	if (clk_reg(id, clk_tclk))
-		pr_info("\tclk_tclk      ( @%3x ) 0x%x\n",
-			(int)(clk_reg(id, clk_tclk)) & 0xfff,
-			readl(clk_reg(id, clk_tclk)));
-	pr_info("\tclk_lvds      ( @%3x ) 0x%x\n",
-		 (int)(clk_reg(id, clk_lvds_rd)) & 0xfff,
-		 readl(clk_reg(id, clk_lvds_rd)));
-	/* TV path registers */
-	if (fbi->id == 1) {
-		pr_info("\ntv path interlace related:\n");
-		pr_info("\tv_h_total       ( @%3x ) 0x%8x\n",
-			(int)(LCD_TV_V_H_TOTAL_FLD) & 0xfff,
-			readl(fbi->reg_base + LCD_TV_V_H_TOTAL_FLD));
-		pr_info("\tv_porch         ( @%3x ) 0x%8x\n",
-			(int)(LCD_TV_V_PORCH_FLD) & 0xfff,
-			readl(fbi->reg_base + LCD_TV_V_PORCH_FLD));
-		pr_info("\tvsync_ctrl      ( @%3x ) 0x%8x\n",
-			(int)(LCD_TV_SEPXLCNT_FLD) & 0xfff,
-			readl(fbi->reg_base + LCD_TV_SEPXLCNT_FLD));
-	}
-
-	pr_info("\n");
-
-#ifdef CONFIG_PXA688_MISC
-	if (id == fb_vsmooth) {
-		id = fb_filter;
-		pr_info("========== fb_vsmooth = %d ==========\n", fb_vsmooth);
-		goto again;
-	}
-#endif
-
-	return sprintf(buf, "fb %d: active %d, debug 0x%x\n"
-		"DEBUG_VSYNC_PATH %d DEBUG_ERR_IRQ %d DEBUG_TV_ACTIVE %d\n"
-		"gfx_underflow %d vid_underflow %d axi_err %d dma_on %d\n",
-		fbi->id, fbi->active, fbi->debug, DEBUG_VSYNC_PATH(fbi->id),
-		DEBUG_ERR_IRQ(fbi->id), DEBUG_TV_ACTIVE(fbi->id),
-		gfx_udflow_count, vid_udflow_count, axi_err_count, fbi->dma_on);
+	return s;
 }
-
-static ssize_t lcd_store(
-		struct device *dev, struct device_attribute *attr,
-		const char *buf, size_t size)
-{
-	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
-
-	/* fbi->debug usage:
-	 *	bit 0-1: indicates to count vsync number for which path, "0" "1"
-	 *	0: count vsync number for pn path
-	 *	1: count vsync number for tv path
-	 *	2: count vsync number for p2 path, not valid yet
-	 *	bit 2: show bus error interrupts on screen, "4"
-	 *	bit 3: enable TV path graphics layer dma always, "8"
-	 *	bit 4: enable do not restore var in release "16"
-	 */
-	sscanf(buf, "%d", &fbi->debug);
-
-	return size;
-}
-
-static DEVICE_ATTR(lcd, S_IRUGO | S_IWUSR, lcd_show, lcd_store);
 
 static ssize_t vsync_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
 	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
+	int s = 0;
 
-	return sprintf(buf, "fbi %d wait vsync: %d\n",
-			 fbi->id, fbi->wait_vsync);
+	s += sprintf(buf, "path %d wait vsync @ pan_display %s\n\n",
+			 fbi->id, fbi->wait_vsync ? "enabled" : "disabled");
+	s += vsync_help(buf + s);
+
+	return s;
 }
 
 static ssize_t vsync_store(
@@ -1734,36 +1541,56 @@ static ssize_t vsync_store(
 }
 static DEVICE_ATTR(vsync, S_IRUGO | S_IWUSR, vsync_show, vsync_store);
 
+static ssize_t itc_help(char *buf)
+{
+	int s = 0, f = DUMP_SPRINTF;
+
+	mvdisp_dump(f, "\ncommands:\n");
+	mvdisp_dump(f, " - dump display controller interrupt timestamps\n");
+	mvdisp_dump(f, "\tcat itc\n");
+	mvdisp_dump(f, " - set interrupt timestamp collection flag\n");
+	mvdisp_dump(f, "   [0]: disable all timestamps collection\n");
+	mvdisp_dump(f, "   [1]: collect timestamp each time enter lcd"
+			" interrupts service\n");
+	mvdisp_dump(f, "   [2]: collect timestamp for display done interrupt"
+			" and vsync interrupt\n");
+	mvdisp_dump(f, "   [3]: collect timestamp for display done interrupt"
+			" and graphic frame done interrupt\n");
+	mvdisp_dump(f, "   [4]: collect timestamp for display done interrupt"
+			" and video frame done interrupt\n");
+	mvdisp_dump(f, "   [5]: collect timestamp for display done interrupt"
+			" and main handler finish time\n");
+	mvdisp_dump(f, "\techo [0/1/2/3/4/5] > itc\n");
+
+	return s;
+}
+
 static ssize_t itc_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
 	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
-	int i, j, s = 0, val;
+	int i, j, s = 0, val, f = 1;
 
-	s += sprintf(buf + s, "irqtm_check - %d\n 0: none\n 1: irq intervals\n"
-		" 2: display done .vs. vsync\n 3: display done .vs. gfx done\n"
-		" 4: display done .vs. vid done\n 5: lcd main handler\n",
-		irqtm_check);
-
-	s += sprintf(buf + s, "\nt1 - display done, t2 - ");
+	mvdisp_dump(f, "irqtm_check %d: t1 - %s, t2 - ", irqtm_check,
+			irqtm_check ? "display done" : "none");
 	if (ITC_INTERVAL)
-		s += sprintf(buf + s, "irq interval\n");
+		mvdisp_dump(f, "irq interval\n");
 	else if (ITC_VSYNC)
-		s += sprintf(buf + s, "vsync\n");
+		mvdisp_dump(f, "vsync\n");
 	else if (ITC_GFX_DONE)
-		s += sprintf(buf + s, "gfx frame done\n");
+		mvdisp_dump(f, "gfx frame done\n");
 	else if (ITC_VID_DONE)
-		s += sprintf(buf + s, "vid frame done\n");
+		mvdisp_dump(f, "vid frame done\n");
 	else if (ITC_HANDLER)
-		s += sprintf(buf + s, "main handler\n");
+		mvdisp_dump(f, "main handler\n");
 	else
-		s += sprintf(buf + s, "none\n");
+		mvdisp_dump(f, "none\n");
 
-	s += sprintf(buf + s, "     t1     t2 :   ");
+	mvdisp_dump(f, "     t1     t2 :   ");
 	if (ITC_INTERVAL)
-		s += sprintf(buf + s, "t2-frm_usec\n");
+		mvdisp_dump(f, "t2-frm_usec\n");
 	else
-		s += sprintf(buf + s, "t2-t1\n");
+		mvdisp_dump(f, "t2-t1\n");
 	for (i = 0; i < ITC_MAX_NUM; i++) {
 		if (ITC_INTERVAL) {
 			val = 0;
@@ -1777,10 +1604,12 @@ static ssize_t itc_show(struct device *dev, struct device_attribute *attr,
 				(t2[j].tv_usec - t1[i].tv_usec) : val;
 		}
 
-		s += sprintf(buf + s, " %6ld %6ld :  %6d", t1[i].tv_usec,
+		mvdisp_dump(f, " %6ld %6ld :  %6d", t1[i].tv_usec,
 			t2[i].tv_usec, val);
-		s += sprintf(buf + s, "\n");
+		mvdisp_dump(f, "\n");
 	}
+
+	s += itc_help(buf + s);
 	return s;
 }
 
@@ -1796,94 +1625,6 @@ static ssize_t itc_store(struct device *dev, struct device_attribute *attr,
 }
 static DEVICE_ATTR(itc, S_IRUGO | S_IWUSR, itc_show, itc_store);
 
-static struct proc_dir_entry *pxa168fb_proc;
-static unsigned int proc_reg;
-static int pxa168fb_proc_write(struct file *file, const char *buffer,
-			unsigned long count, void *data)
-{
-	struct fb_info *info = gfx_info.fbi[0]->fb_info;
-	struct pxa168fb_mach_info *mi = gfx_info.fbi[0]->dev->platform_data;
-	struct dsi_info *di = (struct dsi_info *)mi->phy_info;
-	char kbuf[11], vol[11];
-	int index, reg_val, i;
-	unsigned addr = (unsigned)gfx_info.fbi[0]->reg_base;
-
-	if (count >= 12)
-		return -EINVAL;
-	if (copy_from_user(kbuf, buffer, count))
-		return -EFAULT;
-
-	if ('-' == kbuf[0]) {
-		memcpy(vol, kbuf+1, count-1);
-		proc_reg = (int) simple_strtoul(vol, NULL, 16);
-		pr_info("reg @ 0x%x: 0x%x\n", proc_reg,
-			__raw_readl(addr + proc_reg));
-		return count;
-	} else if ('0' == kbuf[0] && 'x' == kbuf[1]) {
-		/* set the register value */
-		reg_val = (int)simple_strtoul(kbuf, NULL, 16);
-		__raw_writel(reg_val, addr + proc_reg);
-		pr_info("set reg @ 0x%x: 0x%x\n", proc_reg,
-			__raw_readl(addr + proc_reg));
-		return count;
-	} else if ('t' == kbuf[0] && 'm' == kbuf[1]) {
-		memcpy(vol, kbuf+2, count-2);
-		/* set the register value */
-		irqtm_adjust = (int) simple_strtoul(vol, NULL, 10);
-		printk("irqtm_adjust: %d\n", irqtm_adjust);
-		return count;
-	} else if ('l' == kbuf[0]) {
-		for (i = 0; i < 0x300; i += 4) {
-			if (!(i % 16) && i)
-				pr_info("\n0x%3x: ", i);
-			pr_info(" %8x", __raw_readl(addr + i));
-		}
-		pr_info("\n");
-		return count;
-	} else if ('d' == kbuf[0]) {
-		if (!di) {
-			pr_info("fb0 no dsi info\n");
-			return count;
-		}
-		addr = (unsigned)di->regs;
-		for (i = 0x0; i < 0x200; i += 4) {
-			if (!(i % 16))
-				pr_info("\n0x%3x: ", i);
-			pr_info(" %8x", __raw_readl(addr + i));
-		}
-		pr_info("\n");
-		return count;
-	}
-
-	index = (int)simple_strtoul(kbuf, NULL, 10);
-
-	switch (index) {
-	case 4:
-		memset(info->screen_base, 2, info->screen_size/2);
-		memset(info->screen_base + info->screen_size/4, 8,
-				info->screen_size/2);
-		break;
-	case 9:
-		vsync_check_count();
-		break;
-
-	default:
-		return -EINVAL;
-	}
-
-	return count;
-}
-
-static int pxa168fb_proc_read(char *buffer, char **buffer_location,
-	off_t offset, int buffer_length, int *zero, void *ptr)
-{
-	if (offset > 0)
-		return 0;
-
-	return sprintf(buffer, "fb_share %d reg @ 0x%x: 0x%x\n", fb_share,
-		 proc_reg, __raw_readl(gfx_info.fbi[0]->reg_base + proc_reg));
-}
-
 static int __devinit pxa168fb_probe(struct platform_device *pdev)
 {
 	struct pxa168fb_mach_info *mi;
@@ -1893,7 +1634,6 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	struct clk *clk;
 	int irq, irq_mask, irq_enable_value, ret = 0;
 	struct dsi_info *di = NULL;
-	static int proc_inited;
 	struct pxa168fb_vdma_info *lcd_vdma = 0;
 
 	mi = pdev->dev.platform_data;
@@ -2191,13 +1931,6 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 			pr_err("device attr create fail: %d\n", ret);
 			return ret;
 		}
-	}
-
-	if (!proc_inited) {
-		proc_inited = 1;
-		pxa168fb_proc = create_proc_entry("pxa168fb" , 0666 , NULL);
-		pxa168fb_proc->read_proc = pxa168fb_proc_read;
-		pxa168fb_proc->write_proc = pxa168fb_proc_write;
 	}
 
 #ifdef CONFIG_ANDROID

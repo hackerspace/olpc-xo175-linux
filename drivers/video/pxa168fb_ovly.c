@@ -858,34 +858,6 @@ static int pxa168fb_fb_sync(struct fb_info *info)
 	return 0;
 }
 
-static ssize_t debug_show(struct device *dev, struct device_attribute *attr,
-		char *buf)
-{
-	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
-
-	return sprintf(buf, "fbi %d debug %d active %d,"
-		"surface_set %d dma_on %d\n", fbi->id, fbi->debug,
-		 fbi->active, fbi->surface_set, fbi->dma_on);
-}
-
-static ssize_t debug_store(
-		struct device *dev, struct device_attribute *attr,
-		const char *buf, size_t size)
-{
-	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
-	int	tmp;
-
-	sscanf(buf, "%d", &tmp);
-	/* 0: disable all debug info
-	 * 1: enable log for buffer management
-	 */
-	fbi->debug = tmp;
-
-	return size;
-}
-
-static DEVICE_ATTR(debug, S_IRUGO | S_IWUSR, debug_show, debug_store);
-
 static struct fb_ops pxa168fb_ops = {
 	.owner		= THIS_MODULE,
 	.fb_open	= pxa168fb_open,
@@ -1105,7 +1077,7 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	}
 #endif
 
-	ret = device_create_file(&pdev->dev, &dev_attr_debug);
+	ret = device_create_file(&pdev->dev, &dev_attr_lcd);
 	if (ret < 0) {
 		pr_err("device attr create fail: %d\n", ret);
 		goto failed;

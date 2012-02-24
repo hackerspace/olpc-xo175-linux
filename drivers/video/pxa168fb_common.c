@@ -1,4 +1,5 @@
 #include <linux/kernel.h>
+#include <linux/clk.h>
 #include <linux/slab.h>
 #include <linux/dma-mapping.h>
 #include <linux/uaccess.h>
@@ -1408,3 +1409,286 @@ irqreturn_t pxa168_fb_isr(int id)
 	}
 	return IRQ_HANDLED;
 }
+
+/*****************************************************************************/
+static int pxa168fb_regs_dump(int id, char *buf)
+{
+	struct pxa168fb_info *fbi = gfx_info.fbi[0];
+	struct lcd_regs *regs = get_regs(id);
+	int s = 0, f = DUMP_SPRINTF;
+
+	mvdisp_dump(f, "register base: 0x%p\n", fbi->reg_base);
+	mvdisp_dump(f, "  video layer\n");
+	mvdisp_dump(f, "\tv_y0        ( @%3x ) 0x%x\n",
+		 (int)(&regs->v_y0) & 0xfff, readl(&regs->v_y0));
+	mvdisp_dump(f, "\tv_u0        ( @%3x ) 0x%x\n",
+		 (int)(&regs->v_u0) & 0xfff, readl(&regs->v_u0));
+	mvdisp_dump(f, "\tv_v0        ( @%3x ) 0x%x\n",
+		 (int)(&regs->v_v0) & 0xfff, readl(&regs->v_v0));
+	mvdisp_dump(f, "\tv_c0        ( @%3x ) 0x%x\n",
+		 (int)(&regs->v_c0) & 0xfff, readl(&regs->v_c0));
+	mvdisp_dump(f, "\tv_y1        ( @%3x ) 0x%x\n",
+		 (int)(&regs->v_y1) & 0xfff, readl(&regs->v_y1));
+	mvdisp_dump(f, "\tv_u1        ( @%3x ) 0x%x\n",
+		 (int)(&regs->v_u1) & 0xfff, readl(&regs->v_u1));
+	mvdisp_dump(f, "\tv_v1        ( @%3x ) 0x%x\n",
+		 (int)(&regs->v_v1) & 0xfff, readl(&regs->v_v1));
+	mvdisp_dump(f, "\tv_c1        ( @%3x ) 0x%x\n",
+		 (int)(&regs->v_c1) & 0xfff, readl(&regs->v_c1));
+	mvdisp_dump(f, "\tv_pitch_yc  ( @%3x ) 0x%x\n",
+		 (int)(&regs->v_pitch_yc) & 0xfff, readl(&regs->v_pitch_yc));
+	mvdisp_dump(f, "\tv_pitch_uv  ( @%3x ) 0x%x\n",
+		 (int)(&regs->v_pitch_uv) & 0xfff, readl(&regs->v_pitch_uv));
+	mvdisp_dump(f, "\tv_start     ( @%3x ) 0x%x\n",
+		 (int)(&regs->v_start) & 0xfff, readl(&regs->v_start));
+	mvdisp_dump(f, "\tv_size      ( @%3x ) 0x%x\n",
+		 (int)(&regs->v_size) & 0xfff, readl(&regs->v_size));
+	mvdisp_dump(f, "\tv_size_z    ( @%3x ) 0x%x\n",
+		 (int)(&regs->v_size_z) & 0xfff, readl(&regs->v_size_z));
+
+	mvdisp_dump(f, "  graphic layer\n");
+	mvdisp_dump(f, "\tg_0         ( @%3x ) 0x%x\n",
+		(int)(&regs->g_0) & 0xfff, readl(&regs->g_0));
+	mvdisp_dump(f, "\tg_1         ( @%3x ) 0x%x\n",
+		(int)(&regs->g_1) & 0xfff, readl(&regs->g_1));
+	mvdisp_dump(f, "\tg_pitch     ( @%3x ) 0x%x\n",
+		(int)(&regs->g_pitch) & 0xfff, readl(&regs->g_pitch));
+	mvdisp_dump(f, "\tg_start     ( @%3x ) 0x%x\n",
+		(int)(&regs->g_start) & 0xfff, readl(&regs->g_start));
+	mvdisp_dump(f, "\tg_size      ( @%3x ) 0x%x\n",
+		(int)(&regs->g_size) & 0xfff, readl(&regs->g_size));
+	mvdisp_dump(f, "\tg_size_z    ( @%3x ) 0x%x\n",
+		(int)(&regs->g_size_z) & 0xfff, readl(&regs->g_size_z));
+
+	mvdisp_dump(f, "  hardware cursor\n");
+	mvdisp_dump(f, "\thc_start    ( @%3x ) 0x%x\n",
+		(int)(&regs->hc_start) & 0xfff, readl(&regs->hc_start));
+	mvdisp_dump(f, "\thc_size     ( @%3x ) 0x%x\n",
+		(int)(&regs->hc_size) & 0xfff, readl(&regs->hc_size));
+
+	mvdisp_dump(f, "  screen\n");
+	mvdisp_dump(f, "\tscreen_size     ( @%3x ) 0x%x\n",
+		(int)(&regs->screen_size) & 0xfff,
+		 readl(&regs->screen_size));
+	mvdisp_dump(f, "\tscreen_active   ( @%3x ) 0x%x\n",
+		(int)(&regs->screen_active) & 0xfff,
+		 readl(&regs->screen_active));
+	mvdisp_dump(f, "\tscreen_h_porch  ( @%3x ) 0x%x\n",
+		(int)(&regs->screen_h_porch) & 0xfff,
+		 readl(&regs->screen_h_porch));
+	mvdisp_dump(f, "\tscreen_v_porch  ( @%3x ) 0x%x\n",
+		(int)(&regs->screen_v_porch) & 0xfff,
+		 readl(&regs->screen_v_porch));
+
+	mvdisp_dump(f, "  color\n");
+	mvdisp_dump(f, "\tblank_color     ( @%3x ) 0x%x\n",
+		 (int)(&regs->blank_color) & 0xfff,
+		 readl(&regs->blank_color));
+	mvdisp_dump(f, "\thc_Alpha_color1 ( @%3x ) 0x%x\n",
+		 (int)(&regs->hc_Alpha_color1) & 0xfff,
+		 readl(&regs->hc_Alpha_color1));
+	mvdisp_dump(f, "\thc_Alpha_color2 ( @%3x ) 0x%x\n",
+		 (int)(&regs->hc_Alpha_color2) & 0xfff,
+		 readl(&regs->hc_Alpha_color2));
+	mvdisp_dump(f, "\tv_colorkey_y    ( @%3x ) 0x%x\n",
+		 (int)(&regs->v_colorkey_y) & 0xfff,
+		 readl(&regs->v_colorkey_y));
+	mvdisp_dump(f, "\tv_colorkey_u    ( @%3x ) 0x%x\n",
+		 (int)(&regs->v_colorkey_u) & 0xfff,
+		 readl(&regs->v_colorkey_u));
+	mvdisp_dump(f, "\tv_colorkey_v    ( @%3x ) 0x%x\n",
+		 (int)(&regs->v_colorkey_v) & 0xfff,
+		 readl(&regs->v_colorkey_v));
+
+	mvdisp_dump(f, "  control\n");
+	mvdisp_dump(f, "\tvsync_ctrl      ( @%3x ) 0x%x\n",
+		 (int)(&regs->vsync_ctrl) & 0xfff,
+		 readl(&regs->vsync_ctrl));
+	mvdisp_dump(f, "\tdma_ctrl0       ( @%3x ) 0x%x\n",
+		 (int)(dma_ctrl(0, id)) & 0xfff,
+		 readl(fbi->reg_base + dma_ctrl0(id)));
+	mvdisp_dump(f, "\tdma_ctrl1       ( @%3x ) 0x%x\n",
+		 (int)(dma_ctrl(1, id)) & 0xfff,
+		 readl(fbi->reg_base + dma_ctrl1(id)));
+	mvdisp_dump(f, "\tintf_ctrl       ( @%3x ) 0x%x\n",
+		 (int)(intf_ctrl(id)) & 0xfff,
+		 readl(fbi->reg_base + intf_ctrl(id)));
+	mvdisp_dump(f, "\tirq_enable      ( @%3x ) 0x%8x\n",
+		 (int)(SPU_IRQ_ENA) & 0xfff,
+		 readl(fbi->reg_base + SPU_IRQ_ENA));
+	mvdisp_dump(f, "\tirq_status      ( @%3x ) 0x%8x\n",
+		 (int)(SPU_IRQ_ISR) & 0xfff,
+		 readl(fbi->reg_base + SPU_IRQ_ISR));
+	mvdisp_dump(f, "\tclk_sclk        ( @%3x ) 0x%x\n",
+		 (int)(clk_reg(id, clk_sclk)) & 0xfff,
+		 readl(clk_reg(id, clk_sclk)));
+	if (clk_reg(id, clk_tclk))
+		mvdisp_dump(f, "\tclk_tclk        ( @%3x ) 0x%x\n",
+			(int)(clk_reg(id, clk_tclk)) & 0xfff,
+			readl(clk_reg(id, clk_tclk)));
+	mvdisp_dump(f, "\tclk_lvds        ( @%3x ) 0x%x\n",
+		 (int)(clk_reg(id, clk_lvds_rd)) & 0xfff,
+		 readl(clk_reg(id, clk_lvds_rd)));
+
+	/* TV path registers */
+	if (id == 1) {
+		mvdisp_dump(f, "\ntv path interlace related:\n");
+		mvdisp_dump(f, "\tv_h_total         ( @%3x ) 0x%8x\n",
+			(int)(LCD_TV_V_H_TOTAL_FLD) & 0xfff,
+			readl(fbi->reg_base + LCD_TV_V_H_TOTAL_FLD));
+		mvdisp_dump(f, "\tv_porch           ( @%3x ) 0x%8x\n",
+			(int)(LCD_TV_V_PORCH_FLD) & 0xfff,
+			readl(fbi->reg_base + LCD_TV_V_PORCH_FLD));
+		mvdisp_dump(f, "\tvsync_ctrl        ( @%3x ) 0x%8x\n",
+			(int)(LCD_TV_SEPXLCNT_FLD) & 0xfff,
+			readl(fbi->reg_base + LCD_TV_SEPXLCNT_FLD));
+	}
+
+	mvdisp_dump(f, "\n");
+	return s;
+}
+
+/************************************************************************/
+static size_t lcd_help(char *buf)
+{
+	int s = 0, f = DUMP_SPRINTF;
+
+	mvdisp_dump(f, "commands:\n");
+	mvdisp_dump(f, " - dump path(pn/tv/pn2:0/1/2) registers, var info\n");
+	mvdisp_dump(f, "\tcat lcd\n");
+	mvdisp_dump(f, " - dump all display controller registers\n");
+	mvdisp_dump(f, "\techo l > /proc/pxa168fb\n");
+	mvdisp_dump(f, " - dump register @ [offset_hex]\n");
+	mvdisp_dump(f, "\techo -0x[offset_hex] > lcd\n");
+	mvdisp_dump(f, " - set register @ [offset_hex] with [value_hex]\n");
+	mvdisp_dump(f, "\techo 0x[value_hex] > lcd\n");
+	mvdisp_dump(f, " - count path(pn/tv/pn2:[0/1/2]) interrupts"
+			" within 10s\n");
+	mvdisp_dump(f, "\techo v[path:0/1/2] > lcd\n");
+	mvdisp_dump(f, " - enable[1]/disable[0] error interrupts dump"
+			" (underflow/axi error) at run time\n");
+	mvdisp_dump(f, "\techo e[en/dis:1/0] > lcd\n");
+	mvdisp_dump(f, " - enable[1]/disable[0] flip/free buffers info"
+			" dump (print level KERN_DEBUG)\n");
+	mvdisp_dump(f, "\techo d[en/dis:1/0] > lcd\n");
+
+	return s;
+}
+
+static ssize_t lcd_show(struct device *dev, struct device_attribute *attr,
+		char *buf)
+{
+	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
+	struct fb_var_screeninfo *var = &fbi->fb_info->var;
+	int s = 0, f = DUMP_SPRINTF;
+
+	mvdisp_dump(f, "path %d:\n\tactive %d, dma_on %d\n",
+		fbi->id, fbi->active, fbi->dma_on);
+	if (!fbi->vid)
+		mvdisp_dump(f, "\tpath frm time %luus, clk_src %luMHz\n",
+			fbi->frm_usec, clk_get_rate(fbi->clk)/1000000);
+	mvdisp_dump(f, "\tgfx_udflow %d, vid_udflow %d, axi_err %d\n",
+		gfx_udflow_count, vid_udflow_count, axi_err_count);
+	mvdisp_dump(f, "\tdebug %d, DBG_VSYNC_PATH %d, DBG_ERR_IRQ %d\n",
+		fbi->debug, DBG_VSYNC_PATH, DBG_ERR_IRQ);
+
+	mvdisp_dump(f, "var info:\n");
+	mvdisp_dump(f, "\txres              %4d yres              %4d\n",
+		var->xres, var->yres);
+	mvdisp_dump(f, "\txres_virtual      %4d yres_virtual      %4d\n",
+		var->xres_virtual, var->yres_virtual);
+	mvdisp_dump(f, "\txoffset           %4d yoffset           %4d\n",
+		var->xoffset, var->yoffset);
+	mvdisp_dump(f, "\tleft_margin(hbp)  %4d right_margin(hfp) %4d\n",
+		var->left_margin, var->right_margin);
+	mvdisp_dump(f, "\tupper_margin(vbp) %4d lower_margin(vfp) %4d\n",
+		var->upper_margin, var->lower_margin);
+	mvdisp_dump(f, "\thsync_len         %4d vsync_len         %4d\n",
+		var->hsync_len,	var->vsync_len);
+	mvdisp_dump(f, "\tbits_per_pixel    %d\n", var->bits_per_pixel);
+	mvdisp_dump(f, "\tpixclock          %d\n", var->pixclock);
+	mvdisp_dump(f, "\tsync              0x%x\n", var->sync);
+	mvdisp_dump(f, "\tvmode             0x%x\n", var->vmode);
+	mvdisp_dump(f, "\trotate            0x%x\n\n", var->rotate);
+
+	s += pxa168fb_regs_dump(fbi->id, buf + s);
+#ifdef CONFIG_PXA688_MISC
+	if (fbi->id == fb_vsmooth) {
+		mvdisp_dump(f, "=== vertical smooth path %d by filter %d==\n",
+			fb_vsmooth, fb_filter);
+		s += pxa168fb_regs_dump(fb_filter, buf + s);
+	}
+#endif
+
+	s += lcd_help(buf + s);
+
+	return s;
+}
+
+static u32 mvdisp_reg;
+static ssize_t lcd_store(
+		struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t size)
+{
+	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
+	u32 addr = (u32)fbi->reg_base, i, tmp;
+	char vol[30];
+
+	if (size > 30) {
+		pr_err("%s size = %d > max 30 chars\n", __func__, size);
+		return size;
+	}
+
+	if ('d' == buf[0]) {
+		memcpy(vol, (void *)((u32)buf + 1), size - 1);
+		fbi->debug = (int) simple_strtoul(vol, NULL, 10);
+		/* fbi->debug usage:
+		 *	1: show flip/get freelist sequence
+		 */
+		return size;
+	} else if ('e' == buf[0]) {
+		memcpy(vol, (void *)((u32)buf + 1), size - 1);
+		tmp = (int) simple_strtoul(vol, NULL, 10) << DBG_ERR_SHIFT;
+		if (tmp != DBG_ERR_IRQ) {
+			debug_flag &= ~DBG_ERR_MASK; debug_flag |= tmp;
+		}
+		return size;
+	} else if ('v' == buf[0]) {
+		if (size > 2) {
+			memcpy(vol, (void *)((u32)buf + 1), size - 1);
+			tmp = (int) simple_strtoul(vol, NULL, 10) << DBG_VSYNC_SHIFT;
+		} else
+			tmp = fbi->id;
+		if (tmp != DBG_VSYNC_PATH) {
+			debug_flag &= ~DBG_VSYNC_MASK; debug_flag |= tmp;
+		}
+		vsync_check_count();
+		return size;
+	} else if ('-' == buf[0]) {
+		memcpy(vol, buf+1, size-1);
+		mvdisp_reg = (int) simple_strtoul(vol, NULL, 16);
+		pr_info("reg @ 0x%x: 0x%x\n", mvdisp_reg,
+			__raw_readl(addr + mvdisp_reg));
+		return size;
+	} else if ('0' == buf[0] && 'x' == buf[1]) {
+		/* set the register value */
+		tmp = (int)simple_strtoul(buf, NULL, 16);
+		__raw_writel(tmp, addr + mvdisp_reg);
+		pr_info("set reg @ 0x%x: 0x%x\n", mvdisp_reg,
+			__raw_readl(addr + mvdisp_reg));
+		return size;
+	} else if ('l' == buf[0]) {
+		pr_info("\ndisplay controller regs\n");
+		for (i = 0; i < 0x300; i += 4) {
+			if (!(i % 16))
+				printk("\n0x%3x: ", i);
+			printk(" %8x", __raw_readl(addr + i));
+		}
+		pr_info("\n");
+		return size;
+	}
+
+	return size;
+}
+
+DEVICE_ATTR(lcd, S_IRUGO | S_IWUSR, lcd_show, lcd_store);

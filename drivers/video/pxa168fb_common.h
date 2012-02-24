@@ -7,9 +7,38 @@
 #define RESET_BUF	0x1
 #define FREE_ENTRY	0x2
 
+#define DBG_VSYNC_SHIFT	(0)
+#define DBG_VSYNC_MASK	(0x3 << DBG_VSYNC_SHIFT)
+#define DBG_VSYNC_PATH	((debug_flag & DBG_VSYNC_MASK) >> DBG_VSYNC_SHIFT)
+#define DBG_ERR_SHIFT	(2)
+#define DBG_ERR_MASK	(0x1 << DBG_ERR_SHIFT)
+#define DBG_ERR_IRQ	((debug_flag & DBG_ERR_MASK) >> DBG_ERR_SHIFT)
+#define DBG_IRQ_PATH	(debug_flag & DBG_VSYNC_MASK)
+
 #define NEED_VSYNC(fbi)	(fbi->wait_vsync && dispd_dma_enabled(fbi))
 
-#define DEBUG_TV_ACTIVE(id)	(gfx_info.fbi[(id)]->debug & 8)
+#define DUMP_SPRINTF	(1 << 0)
+#define DUMP_PRINFO	(1 << 1)
+#define mvdisp_dump(flag, fmt, ...)	do {			\
+	if (flag & DUMP_SPRINTF)				\
+		s += sprintf(buf + s, fmt, ##__VA_ARGS__);	\
+	if (flag & DUMP_PRINFO)					\
+		pr_info(fmt, ##__VA_ARGS__);			\
+} while (0)
+
+extern int fb_share;
+extern int gfx_udflow_count;
+extern int vid_udflow_count;
+extern int axi_err_count;
+extern int debug_flag;
+extern struct fbi_info gfx_info;
+extern struct fbi_info ovly_info;
+extern struct device_attribute dev_attr_lcd;
+extern struct device_attribute dev_attr_phy;
+extern struct device_attribute dev_attr_vdma;
+
+extern u32 clk_reg(int id, u32 type);
+extern void vsync_check_count(void);
 extern int unsupport_format(struct pxa168fb_info *fbi,
 	 struct _sViewPortInfo viewPortInfo, FBVideoMode videoMode);
 extern int convert_pix_fmt(u32 vmode);

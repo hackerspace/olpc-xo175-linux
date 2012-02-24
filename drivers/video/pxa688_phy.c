@@ -48,6 +48,8 @@
 #include <mach/regs-mpmu.h>
 #include <asm/mach-types.h>
 
+#include "pxa168fb_common.h"
+
 /* dsi phy timing */
 static struct dsi_phy phy = {
 	.hs_prep_constant	= 60,    /* Unit: ns. */
@@ -454,7 +456,7 @@ void dsi_set_controller(struct pxa168fb_info *fbi)
 	writel(((var->yres)<<16) | (v_total), &dsi_lcd->timing2);
 }
 
-static void dsi_dump(struct pxa168fb_info *fbi)
+static int dsi_dump(struct pxa168fb_info *fbi, int f, char *buf, int s)
 {
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 	struct dsi_info *di = (struct dsi_info *)mi->phy_info;
@@ -463,134 +465,123 @@ static void dsi_dump(struct pxa168fb_info *fbi)
 
 	if (!di) {
 		pr_err("%s: no dsi info available\n", __func__);
-		return;
+		return s;
 	}
-	pr_info("dsi_info: ch %d lanes %d bpp %d\n\n", di->id,
+	mvdisp_dump(f, "dsi_info: ch %d lanes %d bpp %d\n\n", di->id,
 			di->lanes, di->bpp);
 
-	pr_info("dsi regs base 0x%p\n", dsi);
-	pr_info("\tctrl0      (@%3x):\t0x%x\n", (int)(&dsi->ctrl0)&0xfff,
-						 readl(&dsi->ctrl0));
-	pr_info("\tctrl1      (@%3x):\t0x%x\n", (int)(&dsi->ctrl1)&0xfff,
-						 readl(&dsi->ctrl1));
-	pr_info("\tirq_status (@%3x):\t0x%x\n", (int)(&dsi->irq_status)&0xfff,
-						 readl(&dsi->irq_status));
-	pr_info("\tirq_mask   (@%3x):\t0x%x\n", (int)(&dsi->irq_mask)&0xfff,
-						 readl(&dsi->irq_mask));
-	pr_info("\tcmd0       (@%3x):\t0x%x\n", (int)(&dsi->cmd0)&0xfff,
-						 readl(&dsi->cmd0));
-	pr_info("\tcmd1       (@%3x):\t0x%x\n", (int)(&dsi->cmd1)&0xfff,
-						 readl(&dsi->cmd1));
-	pr_info("\tcmd2       (@%3x):\t0x%x\n", (int)(&dsi->cmd2)&0xfff,
-						 readl(&dsi->cmd2));
-	pr_info("\tcmd3       (@%3x):\t0x%x\n", (int)(&dsi->cmd3)&0xfff,
-						 readl(&dsi->cmd3));
-	pr_info("\tdat0       (@%3x):\t0x%x\n", (int)(&dsi->dat0)&0xfff,
-						 readl(&dsi->dat0));
-	pr_info("\tsmt_cmd    (@%3x):\t0x%x\n", (int)(&dsi->smt_cmd)&0xfff,
-						 readl(&dsi->smt_cmd));
-	pr_info("\tsmt_ctrl0  (@%3x):\t0x%x\n", (int)(&dsi->smt_ctrl0)&0xfff,
-						 readl(&dsi->smt_ctrl0));
-	pr_info("\tsmt_ctrl1  (@%3x):\t0x%x\n", (int)(&dsi->smt_ctrl1)&0xfff,
-						 readl(&dsi->smt_ctrl1));
-	pr_info("\trx0_status (@%3x):\t0x%x\n", (int)(&dsi->rx0_status)&0xfff,
-						 readl(&dsi->rx0_status));
-	pr_info("\trx0_header (@%3x):\t0x%x\n", (int)(&dsi->rx0_header)&0xfff,
-						 readl(&dsi->rx0_header));
-	pr_info("\trx1_status (@%3x):\t0x%x\n", (int)(&dsi->rx1_status)&0xfff,
-						 readl(&dsi->rx1_status));
-	pr_info("\trx1_header (@%3x):\t0x%x\n", (int)(&dsi->rx1_header)&0xfff,
-						 readl(&dsi->rx1_header));
-	pr_info("\trx_ctrl    (@%3x):\t0x%x\n", (int)(&dsi->rx_ctrl)&0xfff,
-						 readl(&dsi->rx_ctrl));
-	pr_info("\trx_ctrl1   (@%3x):\t0x%x\n", (int)(&dsi->rx_ctrl1)&0xfff,
-						 readl(&dsi->rx_ctrl1));
-	pr_info("\trx2_status (@%3x):\t0x%x\n", (int)(&dsi->rx2_status)&0xfff,
-						 readl(&dsi->rx2_status));
-	pr_info("\trx2_header (@%3x):\t0x%x\n", (int)(&dsi->rx2_header)&0xfff,
-						 readl(&dsi->rx2_header));
-	pr_info("\tphy_ctrl1  (@%3x):\t0x%x\n", (int)(&dsi->phy_ctrl1)&0xfff,
-						 readl(&dsi->phy_ctrl1));
-	pr_info("\tphy_ctrl2  (@%3x):\t0x%x\n", (int)(&dsi->phy_ctrl2)&0xfff,
-						 readl(&dsi->phy_ctrl2));
-	pr_info("\tphy_ctrl3  (@%3x):\t0x%x\n", (int)(&dsi->phy_ctrl3)&0xfff,
-						 readl(&dsi->phy_ctrl3));
-	pr_info("\tphy_status0(@%3x):\t0x%x\n", (int)(&dsi->phy_status0)&0xfff,
-						 readl(&dsi->phy_status0));
-	pr_info("\tphy_rcomp0 (@%3x):\t0x%x\n", (int)(&dsi->phy_rcomp0)&0xfff,
-						 readl(&dsi->phy_rcomp0));
-	pr_info("\tphy_timing0(@%3x):\t0x%x\n", (int)(&dsi->phy_timing0)&0xfff,
-						 readl(&dsi->phy_timing0));
-	pr_info("\tphy_timing1(@%3x):\t0x%x\n", (int)(&dsi->phy_timing1)&0xfff,
-						 readl(&dsi->phy_timing1));
-	pr_info("\tphy_timing2(@%3x):\t0x%x\n", (int)(&dsi->phy_timing2)&0xfff,
-						 readl(&dsi->phy_timing2));
-	pr_info("\tphy_timing3(@%3x):\t0x%x\n", (int)(&dsi->phy_timing3)&0xfff,
-						 readl(&dsi->phy_timing3));
-	pr_info("\tphy_timing4(@%3x):\t0x%x\n", (int)(&dsi->phy_timing4)&0xfff,
-						 readl(&dsi->phy_timing4));
-	pr_info("\tphy_timing5(@%3x):\t0x%x\n", (int)(&dsi->phy_timing5)&0xfff,
-						 readl(&dsi->phy_timing5));
-	pr_info("\tmem_ctrl   (@%3x):\t0x%x\n", (int)(&dsi->mem_ctrl)&0xfff,
-						 readl(&dsi->mem_ctrl));
-	pr_info("\ttx_timer   (@%3x):\t0x%x\n", (int)(&dsi->tx_timer)&0xfff,
-						 readl(&dsi->tx_timer));
-	pr_info("\trx_timer   (@%3x):\t0x%x\n", (int)(&dsi->rx_timer)&0xfff,
-						 readl(&dsi->rx_timer));
-	pr_info("\tturn_timer (@%3x):\t0x%x\n", (int)(&dsi->turn_timer)&0xfff,
-						 readl(&dsi->turn_timer));
+	mvdisp_dump(f, "dsi regs base 0x%p\n", dsi);
+	mvdisp_dump(f, "\tctrl0      (@%3x):\t0x%x\n",
+		(int)(&dsi->ctrl0)&0xfff, readl(&dsi->ctrl0));
+	mvdisp_dump(f, "\tctrl1      (@%3x):\t0x%x\n",
+		(int)(&dsi->ctrl1)&0xfff, readl(&dsi->ctrl1));
+	mvdisp_dump(f, "\tirq_status (@%3x):\t0x%x\n",
+		(int)(&dsi->irq_status)&0xfff, readl(&dsi->irq_status));
+	mvdisp_dump(f, "\tirq_mask   (@%3x):\t0x%x\n",
+		(int)(&dsi->irq_mask)&0xfff, readl(&dsi->irq_mask));
+	mvdisp_dump(f, "\tcmd0       (@%3x):\t0x%x\n",
+		(int)(&dsi->cmd0)&0xfff, readl(&dsi->cmd0));
+	mvdisp_dump(f, "\tcmd1       (@%3x):\t0x%x\n",
+		(int)(&dsi->cmd1)&0xfff, readl(&dsi->cmd1));
+	mvdisp_dump(f, "\tcmd2       (@%3x):\t0x%x\n",
+		(int)(&dsi->cmd2)&0xfff, readl(&dsi->cmd2));
+	mvdisp_dump(f, "\tcmd3       (@%3x):\t0x%x\n",
+		(int)(&dsi->cmd3)&0xfff, readl(&dsi->cmd3));
+	mvdisp_dump(f, "\tdat0       (@%3x):\t0x%x\n",
+		(int)(&dsi->dat0)&0xfff, readl(&dsi->dat0));
+	mvdisp_dump(f, "\tsmt_cmd    (@%3x):\t0x%x\n",
+		(int)(&dsi->smt_cmd)&0xfff, readl(&dsi->smt_cmd));
+	mvdisp_dump(f, "\tsmt_ctrl0  (@%3x):\t0x%x\n",
+		(int)(&dsi->smt_ctrl0)&0xfff, readl(&dsi->smt_ctrl0));
+	mvdisp_dump(f, "\tsmt_ctrl1  (@%3x):\t0x%x\n",
+		(int)(&dsi->smt_ctrl1)&0xfff, readl(&dsi->smt_ctrl1));
+	mvdisp_dump(f, "\trx0_status (@%3x):\t0x%x\n",
+		(int)(&dsi->rx0_status)&0xfff, readl(&dsi->rx0_status));
+	mvdisp_dump(f, "\trx0_header (@%3x):\t0x%x\n",
+		(int)(&dsi->rx0_header)&0xfff, readl(&dsi->rx0_header));
+	mvdisp_dump(f, "\trx1_status (@%3x):\t0x%x\n",
+		(int)(&dsi->rx1_status)&0xfff, readl(&dsi->rx1_status));
+	mvdisp_dump(f, "\trx1_header (@%3x):\t0x%x\n",
+		(int)(&dsi->rx1_header)&0xfff, readl(&dsi->rx1_header));
+	mvdisp_dump(f, "\trx_ctrl    (@%3x):\t0x%x\n",
+		(int)(&dsi->rx_ctrl)&0xfff, readl(&dsi->rx_ctrl));
+	mvdisp_dump(f, "\trx_ctrl1   (@%3x):\t0x%x\n",
+		(int)(&dsi->rx_ctrl1)&0xfff, readl(&dsi->rx_ctrl1));
+	mvdisp_dump(f, "\trx2_status (@%3x):\t0x%x\n",
+		(int)(&dsi->rx2_status)&0xfff, readl(&dsi->rx2_status));
+	mvdisp_dump(f, "\trx2_header (@%3x):\t0x%x\n",
+		(int)(&dsi->rx2_header)&0xfff, readl(&dsi->rx2_header));
+	mvdisp_dump(f, "\tphy_rcomp0 (@%3x):\t0x%x\n",
+		(int)(&dsi->phy_rcomp0)&0xfff, readl(&dsi->phy_rcomp0));
+	mvdisp_dump(f, "\tphy_timing0(@%3x):\t0x%x\n",
+		(int)(&dsi->phy_timing0)&0xfff, readl(&dsi->phy_timing0));
+	mvdisp_dump(f, "\tphy_timing1(@%3x):\t0x%x\n",
+		(int)(&dsi->phy_timing1)&0xfff, readl(&dsi->phy_timing1));
+	mvdisp_dump(f, "\tphy_timing2(@%3x):\t0x%x\n",
+		(int)(&dsi->phy_timing2)&0xfff, readl(&dsi->phy_timing2));
+	mvdisp_dump(f, "\tphy_timing3(@%3x):\t0x%x\n",
+		(int)(&dsi->phy_timing3)&0xfff, readl(&dsi->phy_timing3));
+	mvdisp_dump(f, "\tphy_timing4(@%3x):\t0x%x\n",
+		(int)(&dsi->phy_timing4)&0xfff, readl(&dsi->phy_timing4));
+	mvdisp_dump(f, "\tphy_timing5(@%3x):\t0x%x\n",
+		(int)(&dsi->phy_timing5)&0xfff, readl(&dsi->phy_timing5));
+	mvdisp_dump(f, "\tmem_ctrl   (@%3x):\t0x%x\n",
+		(int)(&dsi->mem_ctrl)&0xfff, readl(&dsi->mem_ctrl));
+	mvdisp_dump(f, "\ttx_timer   (@%3x):\t0x%x\n",
+		(int)(&dsi->tx_timer)&0xfff, readl(&dsi->tx_timer));
+	mvdisp_dump(f, "\trx_timer   (@%3x):\t0x%x\n",
+		(int)(&dsi->rx_timer)&0xfff, readl(&dsi->rx_timer));
+	mvdisp_dump(f, "\tturn_timer (@%3x):\t0x%x\n",
+		(int)(&dsi->turn_timer)&0xfff, readl(&dsi->turn_timer));
 
-	pr_info("\nlcd1 regs\n");
-	pr_info("\tctrl0     (@%3x):\t0x%x\n", (int)(&dsi->lcd1.ctrl0)&0xfff,
-						 readl(&dsi->lcd1.ctrl0));
-	pr_info("\tctrl1     (@%3x):\t0x%x\n", (int)(&dsi->lcd1.ctrl1)&0xfff,
-						 readl(&dsi->lcd1.ctrl1));
-	pr_info("\ttiming0   (@%3x):\t0x%x\n", (int)(&dsi->lcd1.timing0)&0xfff,
-						 readl(&dsi->lcd1.timing0));
-	pr_info("\ttiming1   (@%3x):\t0x%x\n", (int)(&dsi->lcd1.timing1)&0xfff,
-						 readl(&dsi->lcd1.timing1));
-	pr_info("\ttiming2   (@%3x):\t0x%x\n", (int)(&dsi->lcd1.timing2)&0xfff,
-						 readl(&dsi->lcd1.timing2));
-	pr_info("\ttiming3   (@%3x):\t0x%x\n", (int)(&dsi->lcd1.timing3)&0xfff,
-						 readl(&dsi->lcd1.timing3));
-	pr_info("\twc0       (@%3x):\t0x%x\n", (int)(&dsi->lcd1.wc0)&0xfff,
-						 readl(&dsi->lcd1.wc0));
-	pr_info("\twc1       (@%3x):\t0x%x\n", (int)(&dsi->lcd1.wc1)&0xfff,
-						 readl(&dsi->lcd1.wc1));
-	pr_info("\twc2       (@%3x):\t0x%x\n", (int)(&dsi->lcd1.wc2)&0xfff,
-						 readl(&dsi->lcd1.wc2));
-	pr_info("\tslot_cnt0 (@%3x):\t0x%x\n",
-					 (int)(&dsi->lcd1.slot_cnt0)&0xfff,
-					 readl(&dsi->lcd1.slot_cnt0));
-	pr_info("\tslot_cnt1 (@%3x):\t0x%x\n",
-					 (int)(&dsi->lcd1.slot_cnt1)&0xfff,
-					 readl(&dsi->lcd1.slot_cnt1));
+	mvdisp_dump(f, "\nlcd1 regs\n");
+	mvdisp_dump(f, "\tctrl0     (@%3x):\t0x%x\n",
+		(int)(&dsi->lcd1.ctrl0)&0xfff, readl(&dsi->lcd1.ctrl0));
+	mvdisp_dump(f, "\tctrl1     (@%3x):\t0x%x\n",
+		(int)(&dsi->lcd1.ctrl1)&0xfff, readl(&dsi->lcd1.ctrl1));
+	mvdisp_dump(f, "\ttiming0   (@%3x):\t0x%x\n",
+		(int)(&dsi->lcd1.timing0)&0xfff, readl(&dsi->lcd1.timing0));
+	mvdisp_dump(f, "\ttiming1   (@%3x):\t0x%x\n",
+		(int)(&dsi->lcd1.timing1)&0xfff, readl(&dsi->lcd1.timing1));
+	mvdisp_dump(f, "\ttiming2   (@%3x):\t0x%x\n",
+		(int)(&dsi->lcd1.timing2)&0xfff, readl(&dsi->lcd1.timing2));
+	mvdisp_dump(f, "\ttiming3   (@%3x):\t0x%x\n",
+		(int)(&dsi->lcd1.timing3)&0xfff, readl(&dsi->lcd1.timing3));
+	mvdisp_dump(f, "\twc0       (@%3x):\t0x%x\n",
+		(int)(&dsi->lcd1.wc0)&0xfff, readl(&dsi->lcd1.wc0));
+	mvdisp_dump(f, "\twc1       (@%3x):\t0x%x\n",
+		(int)(&dsi->lcd1.wc1)&0xfff, readl(&dsi->lcd1.wc1));
+	mvdisp_dump(f, "\twc2       (@%3x):\t0x%x\n",
+		(int)(&dsi->lcd1.wc2)&0xfff, readl(&dsi->lcd1.wc2));
+	mvdisp_dump(f, "\tslot_cnt0 (@%3x):\t0x%x\n",
+		(int)(&dsi->lcd1.slot_cnt0)&0xfff, readl(&dsi->lcd1.slot_cnt0));
+	mvdisp_dump(f, "\tslot_cnt1 (@%3x):\t0x%x\n",
+		(int)(&dsi->lcd1.slot_cnt1)&0xfff, readl(&dsi->lcd1.slot_cnt1));
 
-	pr_info("\nlcd2 regs\n");
-	pr_info("\tctrl0     (@%3x):\t0x%x\n", (int)(&dsi->lcd2.ctrl0)&0xfff,
-						 readl(&dsi->lcd2.ctrl0));
-	pr_info("\tctrl1     (@%3x):\t0x%x\n", (int)(&dsi->lcd2.ctrl1)&0xfff,
-						 readl(&dsi->lcd2.ctrl1));
-	pr_info("\ttiming0   (@%3x):\t0x%x\n", (int)(&dsi->lcd2.timing0)&0xfff,
-						 readl(&dsi->lcd2.timing0));
-	pr_info("\ttiming1   (@%3x):\t0x%x\n", (int)(&dsi->lcd2.timing1)&0xfff,
-						 readl(&dsi->lcd2.timing1));
-	pr_info("\ttiming2   (@%3x):\t0x%x\n", (int)(&dsi->lcd2.timing2)&0xfff,
-						 readl(&dsi->lcd2.timing2));
-	pr_info("\ttiming3   (@%3x):\t0x%x\n", (int)(&dsi->lcd2.timing3)&0xfff,
-						 readl(&dsi->lcd2.timing3));
-	pr_info("\twc0       (@%3x):\t0x%x\n", (int)(&dsi->lcd2.wc0)&0xfff,
-						 readl(&dsi->lcd2.wc0));
-	pr_info("\twc1       (@%3x):\t0x%x\n", (int)(&dsi->lcd2.wc1)&0xfff,
-						 readl(&dsi->lcd2.wc1));
-	pr_info("\twc2       (@%3x):\t0x%x\n", (int)(&dsi->lcd2.wc2)&0xfff,
-						 readl(&dsi->lcd2.wc2));
-	pr_info("\tslot_cnt0 (@%3x):\t0x%x\n",
-					 (int)(&dsi->lcd2.slot_cnt0)&0xfff,
-					 readl(&dsi->lcd2.slot_cnt0));
-	pr_info("\tslot_cnt1 (@%3x):\t0x%x\n",
-					 (int)(&dsi->lcd2.slot_cnt1)&0xfff,
-					 readl(&dsi->lcd2.slot_cnt1));
+	mvdisp_dump(f, "\nlcd2 regs\n");
+	mvdisp_dump(f, "\tctrl0     (@%3x):\t0x%x\n",
+		(int)(&dsi->lcd2.ctrl0)&0xfff, readl(&dsi->lcd2.ctrl0));
+	mvdisp_dump(f, "\tctrl1     (@%3x):\t0x%x\n",
+		(int)(&dsi->lcd2.ctrl1)&0xfff, readl(&dsi->lcd2.ctrl1));
+	mvdisp_dump(f, "\ttiming0   (@%3x):\t0x%x\n",
+		(int)(&dsi->lcd2.timing0)&0xfff, readl(&dsi->lcd2.timing0));
+	mvdisp_dump(f, "\ttiming1   (@%3x):\t0x%x\n",
+		(int)(&dsi->lcd2.timing1)&0xfff, readl(&dsi->lcd2.timing1));
+	mvdisp_dump(f, "\ttiming2   (@%3x):\t0x%x\n",
+		(int)(&dsi->lcd2.timing2)&0xfff, readl(&dsi->lcd2.timing2));
+	mvdisp_dump(f, "\ttiming3   (@%3x):\t0x%x\n",
+		(int)(&dsi->lcd2.timing3)&0xfff, readl(&dsi->lcd2.timing3));
+	mvdisp_dump(f, "\twc0       (@%3x):\t0x%x\n",
+		(int)(&dsi->lcd2.wc0)&0xfff, readl(&dsi->lcd2.wc0));
+	mvdisp_dump(f, "\twc1       (@%3x):\t0x%x\n",
+		(int)(&dsi->lcd2.wc1)&0xfff, readl(&dsi->lcd2.wc1));
+	mvdisp_dump(f, "\twc2       (@%3x):\t0x%x\n",
+		(int)(&dsi->lcd2.wc2)&0xfff, readl(&dsi->lcd2.wc2));
+	mvdisp_dump(f, "\tslot_cnt0 (@%3x):\t0x%x\n",
+		(int)(&dsi->lcd2.slot_cnt0)&0xfff, readl(&dsi->lcd2.slot_cnt0));
+	mvdisp_dump(f, "\tslot_cnt1 (@%3x):\t0x%x\n",
+		(int)(&dsi->lcd2.slot_cnt1)&0xfff, readl(&dsi->lcd2.slot_cnt1));
+	return s;
 }
 
 /* select LVDS_PHY_CTL_EXTx */
@@ -632,7 +623,7 @@ static int lvds_set(int ext, u32 mask, u32 val)
 	return 0;
 }
 
-static void lvds_dump(struct pxa168fb_info *fbi)
+static int lvds_dump(struct pxa168fb_info *fbi, int f, char *buf, int s)
 {
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 	struct lvds_info *lvds = (struct lvds_info *)mi->phy_info;
@@ -657,16 +648,19 @@ static void lvds_dump(struct pxa168fb_info *fbi)
 		break;
 	};
 
-	pr_info("lvds_info: src %s fmt %s\n", str,
+	mvdisp_dump(f, "lvds_info: src %s fmt %s\n", str,
 		(lvds->fmt & LVDS_FMT_18BIT) ? "18bit" : "24bit");
-	pr_info("LCD_2ND_BLD_CTL(0x%x): 0x%x\n\n", reg & 0xfff, readl(reg));
+	mvdisp_dump(f, "LCD_2ND_BLD_CTL(0x%x): 0x%x\n\n",
+		reg & 0xfff, readl(reg));
 
-	pr_info("LVDS_PHY_CTL: 0x%x\n", lvds_get(0));
-	pr_info("        EXT1: 0x%x\n", lvds_get(1));
-	pr_info("        EXT2: 0x%x\n", lvds_get(2));
-	pr_info("        EXT3: 0x%x\n", lvds_get(3));
-	pr_info("        EXT4: 0x%x\n", lvds_get(4));
-	pr_info("        EXT5: 0x%x\n", lvds_get(5));
+	mvdisp_dump(f, "LVDS_PHY_CTL: 0x%x\n", lvds_get(0));
+	mvdisp_dump(f, "        EXT1: 0x%x\n", lvds_get(1));
+	mvdisp_dump(f, "        EXT2: 0x%x\n", lvds_get(2));
+	mvdisp_dump(f, "        EXT3: 0x%x\n", lvds_get(3));
+	mvdisp_dump(f, "        EXT4: 0x%x\n", lvds_get(4));
+	mvdisp_dump(f, "        EXT5: 0x%x\n", lvds_get(5));
+
+	return s;
 }
 
 int pxa688_lvds_config(struct lvds_info *lvds)
@@ -730,7 +724,7 @@ int pxa688_lvds_init(struct pxa168fb_info *fbi)
 	while (!(lvds_get(0) & LVDS_PLL_LOCK) && count--);
 	if (count <= 0) {
 		pr_err("%s failed\n", __func__);
-		lvds_dump(fbi);
+		lvds_dump(fbi, DUMP_PRINFO, NULL, 0);
 	}
 
 	/* enable common mode feedback circuit */
@@ -755,18 +749,19 @@ ssize_t phy_show(struct device *dev, struct device_attribute *attr,
 {
 	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
+	int s = 0;
 
 	if (!mi)
 		goto out;
 
 	if (mi->phy_type & LVDS)
-		lvds_dump(fbi);
+		s += lvds_dump(fbi, DUMP_SPRINTF, buf, s);
 
 	if ((mi->phy_type & (DSI | DSI2DPI)))
-		dsi_dump(fbi);
+		s += dsi_dump(fbi, DUMP_SPRINTF, buf, s);
 
 out:
-	return sprintf(buf, "fbi %d\n", fbi->id);
+	return s;
 }
 ssize_t phy_store(
 		struct device *dev, struct device_attribute *attr,
@@ -775,7 +770,6 @@ ssize_t phy_store(
 	int value;
 
 	sscanf(buf, "%d", &value);
-	pr_info("%s\n", __func__);
 
 	return size;
 }

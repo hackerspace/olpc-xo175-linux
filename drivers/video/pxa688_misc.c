@@ -34,7 +34,7 @@
 #include <asm/irq.h>
 #include <mach/pxa168fb.h>
 
-#include "pxa168fb.h"
+#include "pxa168fb_common.h"
 
 /* fb_vsmooth: the path that need to do smoothing. e.g. TV
  * fb_filter: the path that used for smoothing. e.g. PN2
@@ -797,12 +797,45 @@ dump:
 	return 0;
 }
 
+static ssize_t misc_help(char *buf)
+{
+	int s = 0, f = DUMP_SPRINTF;
+
+	mvdisp_dump(f, "commands:\n");
+	mvdisp_dump(f, " - dump partial display and vertical"
+			" smooth settings\n");
+	mvdisp_dump(f, "\tcat misc\n");
+	mvdisp_dump(f, " - select path(pn/tv/pn2:0/1/2]) to be"
+			" vertical smoothed\n");
+	mvdisp_dump(f, "\techo s[path:0/1/2] > misc\n");
+	mvdisp_dump(f, " - select path(pn/tv/pn2:0/1/2]) to work as filter"
+			" when vertical smooth enabled\n");
+	mvdisp_dump(f, "\techo f[path:0/1/2] > misc\n");
+	mvdisp_dump(f, " - graphics layer vertical vsmooth"
+			" enable[1]/disable[0]\n");
+	mvdisp_dump(f, "\techo g[en/dis:1/0] > misc\n");
+	mvdisp_dump(f, " - video layer vertical vsmooth"
+			" enable[1]/disable[0]\n");
+	mvdisp_dump(f, "\techo v[en/dis:1/0] > misc\n");
+	mvdisp_dump(f, " - vertical smooth kernel debug"
+			" enable[1]/disable[0]\n");
+	mvdisp_dump(f, "\techo d[en/dis:1/0] > misc\n");
+	mvdisp_dump(f, " - set graphics layer partial display area from pixel"
+			" [h_start][v_start]\n   to pixel [h_end][v_end]"
+			"  with RGB565 format [color]\n");
+	mvdisp_dump(f, "\techo p [h_start] [v_start] [h_end] [v_end]"
+			" [color] > misc\n");
+
+	return s;
+}
+
 ssize_t misc_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
 	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
 	struct mvdisp_partdisp grap;
 	u32 mask;
+	int s = 0;
 
 	grap.id = fbi->id;
 again:
@@ -822,8 +855,8 @@ again:
 	grap.color |= ((mask & 0xf000) >> 12) << 8;
 	grap.color |= ((mask & 0xf0000000) >> 28) << 12;
 
-	pr_info("fbi %d:\nhorpix_start:%d vertline_start:%d "
-		"horpix_end:%d vertline_end:%d color:%d\n",
+	s += sprintf(buf + s, "partial display:\n  path %d, h_start %d,"
+		"v_start %d, h_end %d, v_end %d, color %d\n\n",
 		grap.id, grap.horpix_start, grap.vertline_start,
 		grap.horpix_end, grap.vertline_end, grap.color);
 
@@ -833,8 +866,12 @@ again:
 		goto again;
 	}
 
-	return sprintf(buf, "filter(%d)->vsmooth(%d) gfx %d vid %d dbg %d\n",
-		fb_filter, fb_vsmooth, gfx_vsmooth, vid_vsmooth, debug);
+	s += sprintf(buf + s, "vertical smooth:\n  filter(%d)->vsmooth(%d),"
+		" gfx %d, vid %d, debug %d\n\n", fb_filter, fb_vsmooth,
+		gfx_vsmooth, vid_vsmooth, debug);
+
+	s += misc_help(buf + s);
+	return s;
 }
 ssize_t misc_store(
 		struct device *dev, struct device_attribute *attr,

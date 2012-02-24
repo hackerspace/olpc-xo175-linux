@@ -35,7 +35,7 @@
 
 #ifdef CONFIG_PXA688_CMU
 
-#include "pxa168fb.h"
+#include "pxa168fb_common.h"
 #include <mach/io.h>
 #include <mach/irqs.h>
 #include <mach/pxa168fb.h>

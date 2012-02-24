@@ -638,101 +638,121 @@ void pxa688_vdma_en(struct pxa168fb_vdma_info *lcd_vdma, int enable, int vid)
 		lcd_vdma->sram_size, lcd_vdma->sram_vaddr, lcd_vdma->sram_paddr);
 }
 
+static ssize_t vdma_help(char *buf)
+{
+	int s = 0, f = DUMP_SPRINTF;
+
+	mvdisp_dump(f, "commands:\n");
+	mvdisp_dump(f, " - dump VDMA configuration, registers\n");
+	mvdisp_dump(f, "\tcat vdma\n");
+	mvdisp_dump(f, " - enable[1]/disable[0] vdma for path(pn/tv/pn2:"
+			"[0/1/2]) graphics/video[0/1] layer\n");
+	mvdisp_dump(f, "\techo e [path:0/1/2] [layer:0/1]"
+			" [en/dis:1/0] > vdma\n");
+	mvdisp_dump(f, " - configure vdma channel sram size with KB unit\n");
+	mvdisp_dump(f, "\techo s [vdma_ch0_size](KB)"
+			" [vdma_ch1_size](KB) > vdma\n");
+
+	return s;
+}
+
 ssize_t vdma_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
 	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
 	struct vdma_regs *vdma = (struct vdma_regs *)((u32)fbi->reg_base
 			+ VDMA_ARBR_CTRL);
+	int s = 0, f = DUMP_SPRINTF;
 
-	pr_info("\nbasic info\n");
-	pr_info("\nvdma0:\n");
-	pr_info("\tlcd_vdma->ch:     %d\n", vdma0.ch);
-	pr_info("\tlcd_vdma->path:   %d\n", vdma0.path);
-	pr_info("\tlcd_vdma->vid:    %d\n", vdma0.vid);
-	pr_info("\tlcd_vdma->enable: %d\n", vdma0.enable);
-	pr_info("\tvdma_lines     %d\n", vdma0.vdma_lines);
-	pr_info("\tsram_paddr     0x%x\n", vdma0.sram_paddr);
-	pr_info("\tsram_size      0x%x\n", vdma0.sram_size);
+	mvdisp_dump(f, "vdma0:\n");
+	mvdisp_dump(f, "\tlcd_vdma->ch:     %d\n", vdma0.ch);
+	mvdisp_dump(f, "\tlcd_vdma->path:   %d\n", vdma0.path);
+	mvdisp_dump(f, "\tlcd_vdma->vid:    %d\n", vdma0.vid);
+	mvdisp_dump(f, "\tlcd_vdma->enable: %d\n", vdma0.enable);
+	mvdisp_dump(f, "\tvdma_lines        %d\n", vdma0.vdma_lines);
+	mvdisp_dump(f, "\tsram_paddr        0x%x\n", vdma0.sram_paddr);
+	mvdisp_dump(f, "\tsram_size         %dKB\n", vdma0.sram_size/1024);
 
-	pr_info("\nvdma1:\n");
-	pr_info("\tlcd_vdma->ch:     %d\n", vdma1.ch);
-	pr_info("\tlcd_vdma->path:   %d\n", vdma1.path);
-	pr_info("\tlcd_vdma->vid:    %d\n", vdma1.vid);
-	pr_info("\tlcd_vdma->enable: %d\n", vdma1.enable);
-	pr_info("\tvdma_lines     %d\n", vdma1.vdma_lines);
-	pr_info("\tsram_paddr     0x%x\n", vdma1.sram_paddr);
-	pr_info("\tsram_size      0x%x\n", vdma1.sram_size);
+	mvdisp_dump(f, "vdma1:\n");
+	mvdisp_dump(f, "\tlcd_vdma->ch:     %d\n", vdma1.ch);
+	mvdisp_dump(f, "\tlcd_vdma->path:   %d\n", vdma1.path);
+	mvdisp_dump(f, "\tlcd_vdma->vid:    %d\n", vdma1.vid);
+	mvdisp_dump(f, "\tlcd_vdma->enable: %d\n", vdma1.enable);
+	mvdisp_dump(f, "\tvdma_lines     %d\n", vdma1.vdma_lines);
+	mvdisp_dump(f, "\tsram_paddr     0x%x\n", vdma1.sram_paddr);
+	mvdisp_dump(f, "\tsram_size      %dKB\n", vdma1.sram_size/1024);
 
-	pr_info("\nvdma regs base 0x%p\n", vdma);
-	pr_info("\tarbr_ctr       (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\nregister base: 0x%p\n", fbi->reg_base);
+	mvdisp_dump(f, "\tarbr_ctr       (@%3x):\t0x%x\n",
 		 (int)(&vdma->arbr_ctr)&0xfff, readl(&vdma->arbr_ctr));
-	pr_info("\tirq_raw        (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tirq_raw        (@%3x):\t0x%x\n",
 		 (int)(&vdma->irq_raw)&0xfff, readl(&vdma->irq_raw));
-	pr_info("\tirq_mask       (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tirq_mask       (@%3x):\t0x%x\n",
 		 (int)(&vdma->irq_mask)&0xfff, readl(&vdma->irq_mask));
-	pr_info("\tirq_status     (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tirq_status     (@%3x):\t0x%x\n",
 		 (int)(&vdma->irq_status)&0xfff, readl(&vdma->irq_status));
-	pr_info("\tmdma_arbr_ctrl (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tmdma_arbr_ctrl (@%3x):\t0x%x\n",
 	 (int)(&vdma->mdma_arbr_ctrl)&0xfff, readl(&vdma->mdma_arbr_ctrl));
 
-	pr_info("\nch1 regs\n");
-	pr_info("\tdc_saddr       (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "  channel 1\n");
+	mvdisp_dump(f, "\tdc_saddr       (@%3x):\t0x%x\n",
 		 (int)(&vdma->ch1.dc_saddr)&0xfff, readl(&vdma->ch1.dc_saddr));
-	pr_info("\tdc_size        (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tdc_size        (@%3x):\t0x%x\n",
 		 (int)(&vdma->ch1.dc_size)&0xfff, readl(&vdma->ch1.dc_size));
-	pr_info("\tctrl           (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tctrl           (@%3x):\t0x%x\n",
 		 (int)(&vdma->ch1.ctrl)&0xfff, readl(&vdma->ch1.ctrl));
-	pr_info("\tsrc_size       (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tsrc_size       (@%3x):\t0x%x\n",
 		 (int)(&vdma->ch1.src_size)&0xfff, readl(&vdma->ch1.src_size));
-	pr_info("\tsrc_addr       (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tsrc_addr       (@%3x):\t0x%x\n",
 		 (int)(&vdma->ch1.src_addr)&0xfff, readl(&vdma->ch1.src_addr));
-	pr_info("\tdst_addr       (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tdst_addr       (@%3x):\t0x%x\n",
 		 (int)(&vdma->ch1.dst_addr)&0xfff, readl(&vdma->ch1.dst_addr));
-	pr_info("\tdst_size       (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tdst_size       (@%3x):\t0x%x\n",
 		 (int)(&vdma->ch1.dst_size)&0xfff, readl(&vdma->ch1.dst_size));
-	pr_info("\tpitch          (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tpitch          (@%3x):\t0x%x\n",
 		 (int)(&vdma->ch1.pitch)&0xfff, readl(&vdma->ch1.pitch));
-	pr_info("\trot_ctrl       (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\trot_ctrl       (@%3x):\t0x%x\n",
 		 (int)(&vdma->ch1.rot_ctrl)&0xfff, readl(&vdma->ch1.rot_ctrl));
-	pr_info("\tram_ctrl0      (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tram_ctrl0      (@%3x):\t0x%x\n",
 	 (int)(&vdma->ch1.ram_ctrl0)&0xfff, readl(&vdma->ch1.ram_ctrl0));
-	pr_info("\tram_ctrl1      (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tram_ctrl1      (@%3x):\t0x%x\n",
 	 (int)(&vdma->ch1.ram_ctrl1)&0xfff, readl(&vdma->ch1.ram_ctrl1));
 
-	pr_info("\nch2 regs\n");
-	pr_info("\tdc_saddr       (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "  channel 2\n");
+	mvdisp_dump(f, "\tdc_saddr       (@%3x):\t0x%x\n",
 		 (int)(&vdma->ch2.dc_saddr)&0xfff, readl(&vdma->ch2.dc_saddr));
-	pr_info("\tdc_size        (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tdc_size        (@%3x):\t0x%x\n",
 		 (int)(&vdma->ch2.dc_size)&0xfff, readl(&vdma->ch2.dc_size));
-	pr_info("\tctrl           (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tctrl           (@%3x):\t0x%x\n",
 		 (int)(&vdma->ch2.ctrl)&0xfff, readl(&vdma->ch2.ctrl));
-	pr_info("\tsrc_size       (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tsrc_size       (@%3x):\t0x%x\n",
 		 (int)(&vdma->ch2.src_size)&0xfff, readl(&vdma->ch2.src_size));
-	pr_info("\tsrc_addr       (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tsrc_addr       (@%3x):\t0x%x\n",
 		 (int)(&vdma->ch2.src_addr)&0xfff, readl(&vdma->ch2.src_addr));
-	pr_info("\tdst_addr       (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tdst_addr       (@%3x):\t0x%x\n",
 		 (int)(&vdma->ch2.dst_addr)&0xfff, readl(&vdma->ch2.dst_addr));
-	pr_info("\tdst_size       (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tdst_size       (@%3x):\t0x%x\n",
 		 (int)(&vdma->ch2.dst_size)&0xfff, readl(&vdma->ch2.dst_size));
-	pr_info("\tpitch          (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tpitch          (@%3x):\t0x%x\n",
 		 (int)(&vdma->ch2.pitch)&0xfff, readl(&vdma->ch2.pitch));
-	pr_info("\trot_ctrl       (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\trot_ctrl       (@%3x):\t0x%x\n",
 		 (int)(&vdma->ch2.rot_ctrl)&0xfff, readl(&vdma->ch2.rot_ctrl));
-	pr_info("\tram_ctrl0      (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tram_ctrl0      (@%3x):\t0x%x\n",
 	 (int)(&vdma->ch2.ram_ctrl0)&0xfff, readl(&vdma->ch2.ram_ctrl0));
-	pr_info("\tram_ctrl1      (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tram_ctrl1      (@%3x):\t0x%x\n",
 	 (int)(&vdma->ch2.ram_ctrl1)&0xfff, readl(&vdma->ch2.ram_ctrl1));
 
-	pr_info("\nlcd related regs\n");
-	pr_info("\tsquln_ctrl     (@%3x):\t0x%x\n",
+	mvdisp_dump(f, "  display controller related\n");
+	mvdisp_dump(f, "\tsquln_ctrl     (@%3x):\t0x%x\n",
 		 (int)(fbi->reg_base + squln_ctrl(fbi->id))&0xfff,
 		 readl(fbi->reg_base + squln_ctrl(fbi->id)));
-	pr_info("\tpn2_squln2_ctrl(@%3x):\t0x%x\n",
+	mvdisp_dump(f, "\tpn2_squln2_ctrl(@%3x):\t0x%x\n\n",
 		 (int)(fbi->reg_base + LCD_PN2_SQULN2_CTRL)&0xfff,
 		 readl(fbi->reg_base + LCD_PN2_SQULN2_CTRL));
 
-	return sprintf(buf, "%d\n", fbi->id);
+	s += vdma_help(buf + s);
+
+	return s;
 }
 
 #define MMP2_VDMA_SIZE 90
@@ -741,19 +761,19 @@ ssize_t vdma_store(
 		struct device *dev, struct device_attribute *attr,
 		const char *buf, size_t size)
 {
-	char vol[10];
 	struct pxa168fb_vdma_info *lcd_vdma = 0;
 	unsigned int path, vid, enable, tmp0, tmp1;
+	char vol[10];
 
 	if ('s' == buf[0]) {
 		if (vdma0.enable || vdma1.enable) {
-			pr_err("vdma must disabled first before set sram size\n");
+			pr_err("vdma must disabled first before set size\n");
 			return size;
 		}
 		memcpy(vol, (void *)((u32)buf + 1), size - 1);
 		if (sscanf(vol, "%u %u", &tmp0, &tmp1) != 2) {
 			pr_err("vdma sram size setting cmd should be like: "
-				"s panel_vdma0_size(KB) tv_vdma1_size(KB)\n");
+				"s [vdma_ch0_size](KB) [vdma_ch1_size](KB)\n");
 			return size;
 		}
 #ifdef CONFIG_CPU_MMP2
@@ -774,13 +794,14 @@ ssize_t vdma_store(
 		if (sscanf(vol, "%u %u %u", &path,
 			&vid, &enable) != 3) {
 			pr_err("enable/disable vdma cmd should be like: "
-				"e path layer enable/disable\n");
+				"e [0/1/2](pn/tv/pn2 path) [0/1](graphics/"
+				"video layer) [1/0](enable/disable)\n");
 			return size;
 		}
 		lcd_vdma = request_vdma(path, vid);
 		if (!lcd_vdma) {
 			if (enable)
-				pr_err("request fail, vdma has been occupied!\n");
+				pr_err("request fail, vdma is occupied!\n");
 			return size;
 		}
 		if (!lcd_vdma->sram_size && enable) {
