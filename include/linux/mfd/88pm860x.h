@@ -714,7 +714,7 @@ static inline int pm860x_device_init(struct pm860x_chip *chip,
 }
 static inline void pm860x_device_exit(struct pm860x_chip *chip)
 {
-	return 0;
+	return;
 }
 static inline int pm860x_calc_resistor(void)
 {
