@@ -1192,8 +1192,16 @@ exit_unregister_soc_camera_host:
 	soc_camera_host_unregister(&pcdev->soc_host);
 exit_free_irq:
 	free_irq(pcdev->irq, pcdev);
+#ifdef CONFIG_CPU_MMP2
+	/* on brownstone v5 ccic2 depends on ccic1,
+	   so there can't disable ccic1 and ccic2 clk */
+	if (!board_is_mmp2_brownstone_rev5()) {
+#endif
 	ccic_power_down(pcdev);
 	ccic_disable_clk(pcdev);
+#ifdef CONFIG_CPU_MMP2
+	}
+#endif
 exit_iounmap:
 	iounmap(base);
 exit_release:
