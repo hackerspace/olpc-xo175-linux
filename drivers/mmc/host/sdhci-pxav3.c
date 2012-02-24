@@ -511,6 +511,12 @@ static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 		goto err_add_host;
 	}
 
+	/* remove the caps that supported by the controller but not available
+	 * for certain platforms.
+	 */
+	if (pdata && pdata->host_caps_disable)
+		host->mmc->caps &= ~(pdata->host_caps_disable);
+
 	platform_set_drvdata(pdev, host);
 
 	if (pdata->flags & PXA_FLAG_WAKEUP_HOST)
