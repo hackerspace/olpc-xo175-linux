@@ -385,6 +385,28 @@ static int lcd_twsi5_set(int en)
 	return 0;
 }
 
+static int backlight_pwm_set(int en)
+{
+	int gpio;
+	mfp_cfg_t gpio53_gpio = MFP_CFG_ALL(GPIO53, AF0,
+				MEDIUM, PULL_HIGH, PULL_HIGH);
+
+	mfp_config(&gpio53_gpio, 1);
+	gpio = mfp_to_gpio(GPIO53_GPIO);
+	if (gpio_request(gpio, "gpio53")) {
+		printk(KERN_INFO "gpio %d request failed\n", gpio);
+		return -1;
+	}
+
+	if (en)
+		gpio_direction_output(gpio, 1);
+	else
+		gpio_direction_output(gpio, 0);
+
+	gpio_free(gpio);
+	return 0;
+}
+
 static int abilene_lcd_power(struct pxa168fb_info *fbi,
 			     unsigned int spi_gpio_cs,
 			     unsigned int spi_gpio_reset, int on)
@@ -437,10 +459,19 @@ static int abilene_lcd_power(struct pxa168fb_info *fbi,
 		printk(KERN_INFO "gpio %d request failed\n", lcd_rst_n);
 		return -1;
 	}
-	if (on)
+	if (on) {
 		gpio_direction_output(lcd_rst_n, 1);
-	else
+		/* FIXME workaround for Abilene Rev5 backlight issue */
+		if (machine_is_abilene() && cpu_is_mmp3_b0()) {
+			mdelay(100);
+			backlight_pwm_set(1);
+		}
+	} else {
 		gpio_direction_output(lcd_rst_n, 0);
+		/* FIXME workaround for Abilene Rev5 backlight issue */
+		if (machine_is_abilene() && cpu_is_mmp3_b0())
+			backlight_pwm_set(0);
+	}
 	gpio_free(lcd_rst_n);
 
 	printk(KERN_DEBUG "%s on %d\n", __func__, on);
