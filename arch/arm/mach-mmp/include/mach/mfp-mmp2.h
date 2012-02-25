@@ -429,6 +429,9 @@
 /* HSIC1 RESET - Abilene A0 Board */
 #define GPIO96_HSIC_RESET	MFP_CFG_LPM(GPIO96, AF0, DRIVE_LOW)
 
+/* BB Power Enable - Abilene Rev.5 */
+#define GPIO63_BB_POWER_EN	MFP_CFG(GPIO63, AF0)
+
 /* Codec */
 #define GPIO45_WM8994_LDOEN	MFP_CFG(GPIO45, AF0)
 

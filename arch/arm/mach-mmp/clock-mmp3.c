@@ -1803,9 +1803,9 @@ static struct clk mmp3_clk_sdh3 = {
 
 static void hsi_clk_init(struct clk *clk)
 {
-	/* HSI Clock default value is PLL1/2/2 */
-	clk->rate = clk_get_rate(&mmp3_clk_pll1)/4; /* 200MHz */
-	clk->enable_val = HSI_PLL1_DIV_2;
+	/* HSI Clock default value is PLL1/2: 400MHz */
+	clk->rate = clk_get_rate(&mmp3_clk_pll1)/2; /* 400MHz */
+	clk->enable_val = HSI_PLL1;
 	clk->div = 2;
 	clk->mul = 1;
 	clk_reparent(clk, &mmp3_clk_pll1);
@@ -1816,11 +1816,6 @@ static int hsi_clk_enable(struct clk *clk)
 	int reg;
 
 	clk_reparent(clk, clk->inputs[clk->enable_val].input);
-
-	/* Enable SLIM Bus AXI Clock */
-	reg = readl(APMU_SLIM_CLK_RES_CTRL);
-	reg |= 0x9;
-	writel(reg, APMU_SLIM_CLK_RES_CTRL);
 
 	/* Configure HSI Controller Clock */
 	reg = readl(MPMU_HSI_CLK_RES_CTRL);
@@ -1834,6 +1829,12 @@ static int hsi_clk_enable(struct clk *clk)
 	reg |= 0x1 << 7;
 	reg |= 0x1 << 6;
 	writel(reg, MPMU_HSI_CLK_RES_CTRL);
+
+	/* enable APMU HSI bus and release HSI reset */
+	reg = readl(APMU_BUS);
+	reg |= 3 << 14;
+	writel(reg, APMU_BUS);
+
 	mdelay(10);
 
 	return 0;
@@ -1848,11 +1849,6 @@ static void hsi_clk_disable(struct clk *clk)
 	reg &= ~(0x1 << 7);
 	reg &= ~(0x1 << 6);
 	writel(reg, MPMU_HSI_CLK_RES_CTRL);
-
-	/* Disable SLIM Bus AXI Clock */
-	reg = readl(APMU_SLIM_CLK_RES_CTRL);
-	reg &= ~0x9;
-	writel(reg, APMU_SLIM_CLK_RES_CTRL);
 }
 
 static long hsi_clk_round_rate(struct clk *clk, unsigned long rate)

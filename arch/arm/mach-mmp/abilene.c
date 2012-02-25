@@ -181,6 +181,9 @@ static unsigned long abilene_pin_config[] __initdata = {
 	HSI_CAFLAG,
 	HSI_CADATA,
 
+	/* BB Power Enable: on b0, it changes to GPIO63 */
+	GPIO63_BB_POWER_EN,
+
 	/* SSP4 */
 	GPIO78_SSP_CLK,
 	GPIO79_SSP_FRM,
@@ -240,6 +243,26 @@ static struct sram_bank mmp3_videosram_info = {
 	.pool_name = "mmp-videosram",
 	.step = VIDEO_SRAM_GRANULARITY,
 };
+
+static int pcie_bb_power_on(int on)
+{
+	int pcie_power = mfp_to_gpio(GPIO63_BB_POWER_EN);
+
+	printk ("PCIE_BB_POWER_ENABLE started \n");
+
+	if (gpio_request(pcie_power, "PCIE_BB_POWER_ENABLE"))
+		return -EIO;
+
+	printk ("PCIE_BB_POWER_ENABLE started, step 1, on = %d\n", on);
+	if (on)
+		gpio_direction_output(pcie_power, 1);
+	else
+		gpio_direction_output(pcie_power, 0);
+
+	gpio_free(pcie_power);
+
+	return 0;
+}
 
 #ifdef CONFIG_VIDEO_MVISP_OV8820
 static int ov8820_sensor_power_on(int on, int flag)
@@ -1109,6 +1132,9 @@ static int abilene_max77601_setup(struct max77601_chip *chip)
 	data = (0x3 << 6 ) | 0x8;
 	max77601_write(chip, 0x33, &data, 1);
 
+	data = (0x3 << 6 ) | 0x14;
+	max77601_write(chip, 0x2D, &data, 1);
+
 	/* DVS related part */
 	max77601_read(chip, MAX77601_AME_GPIO, &data, 1);
 	if ((data & MAX77601_AME5_MASK) == MAX77601_AME5_MASK)
@@ -1907,6 +1933,8 @@ static void __init abilene_init(void)
 #endif
 
 #ifdef CONFIG_MMP3_HSI
+	/* power up mini pcie slot */
+	pcie_bb_power_on(1);
 	mmp_init_hsi();
 #endif
 
