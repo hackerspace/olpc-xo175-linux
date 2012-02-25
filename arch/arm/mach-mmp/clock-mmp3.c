@@ -1795,6 +1795,118 @@ static struct clk mmp3_clk_sdh3 = {
 			{APMU_SDH3, 10, 0xf} } },
 };
 
+#ifdef CONFIG_MMP3_HSI
+
+#define HSI_PLL1_DIV_2		0
+#define HSI_PLL1			1
+#define HSI_PLL2			2
+
+static void hsi_clk_init(struct clk *clk)
+{
+	/* HSI Clock default value is PLL1/2/2 */
+	clk->rate = clk_get_rate(&mmp3_clk_pll1)/4; /* 200MHz */
+	clk->enable_val = HSI_PLL1_DIV_2;
+	clk->div = 2;
+	clk->mul = 1;
+	clk_reparent(clk, &mmp3_clk_pll1);
+}
+
+static int hsi_clk_enable(struct clk *clk)
+{
+	int reg;
+
+	clk_reparent(clk, clk->inputs[clk->enable_val].input);
+
+	/* Enable SLIM Bus AXI Clock */
+	reg = readl(APMU_SLIM_CLK_RES_CTRL);
+	reg |= 0x9;
+	writel(reg, APMU_SLIM_CLK_RES_CTRL);
+
+	/* Configure HSI Controller Clock */
+	reg = readl(MPMU_HSI_CLK_RES_CTRL);
+	reg &= ~0x3F;
+	reg |= (clk->enable_val);
+	reg |= (clk->div) << 2;
+	writel(reg, MPMU_HSI_CLK_RES_CTRL);
+
+	/* Release HSI Controller Reset */
+	reg = readl(MPMU_HSI_CLK_RES_CTRL);
+	reg |= 0x1 << 7;
+	reg |= 0x1 << 6;
+	writel(reg, MPMU_HSI_CLK_RES_CTRL);
+	mdelay(10);
+
+	return 0;
+}
+
+static void hsi_clk_disable(struct clk *clk)
+{
+	int reg;
+
+	/* Reset HSI Controller */
+	reg = readl(MPMU_HSI_CLK_RES_CTRL);
+	reg &= ~(0x1 << 7);
+	reg &= ~(0x1 << 6);
+	writel(reg, MPMU_HSI_CLK_RES_CTRL);
+
+	/* Disable SLIM Bus AXI Clock */
+	reg = readl(APMU_SLIM_CLK_RES_CTRL);
+	reg &= ~0x9;
+	writel(reg, APMU_SLIM_CLK_RES_CTRL);
+}
+
+static long hsi_clk_round_rate(struct clk *clk, unsigned long rate)
+{
+	if (rate <= clk_get_rate(&mmp3_clk_pll1)/4)
+		return clk_get_rate(&mmp3_clk_pll1)/4; /* 200M */
+	else
+		return clk_get_rate(&mmp3_clk_pll1)/2; /* 400M */
+}
+
+static int hsi_clk_setrate(struct clk *clk, unsigned long rate)
+{
+	clk->mul = 1;
+	if (rate == clk_get_rate(&mmp3_clk_pll1)/4) {
+		clk->enable_val = HSI_PLL1_DIV_2;
+		clk->div = 2;
+		clk_reparent(clk, &mmp3_clk_pll1);
+	} else if (rate == clk_get_rate(&mmp3_clk_pll1)/2) {
+		clk->enable_val = HSI_PLL1;
+		clk->div = 2;
+		clk_reparent(clk, &mmp3_clk_pll1);
+	} else {
+		pr_err("%s: unexpected hsi clock rate %ld\n",
+			__func__, rate);
+		BUG();
+	}
+
+	return 0;
+}
+
+struct clkops hsi_clk_ops = {
+	.init		= hsi_clk_init,
+	.enable		= hsi_clk_enable,
+	.disable	= hsi_clk_disable,
+	.setrate	= hsi_clk_setrate,
+	.round_rate	= hsi_clk_round_rate,
+};
+
+static struct clk_mux_sel hsi_mux_pll1_pll2[] = {
+	{.input = &mmp3_clk_pll1, .value = 0},
+	{.input = &mmp3_clk_pll2, .value = 1},
+	{0, 0},
+};
+
+static struct clk mmp3_clk_hsi = {
+	.name = "hsiclk",
+	.inputs = hsi_mux_pll1_pll2,
+	.lookup = {
+		.con_id = "hsi-clk",
+	},
+	.clk_rst = (void __iomem *)MPMU_HSI_CLK_RES_CTRL,
+	.ops = &hsi_clk_ops,
+};
+#endif
 #ifdef CONFIG_VIDEO_MVISP
 
 #define DXOISP_PLL1		1
@@ -2562,6 +2674,9 @@ static struct clk *mmp3_clks_ptr[] = {
 #ifdef CONFIG_VIDEO_MVISP
 	&mmp3_clk_dxoisp,
 	&mmp3_clk_dxoccic,
+#endif
+#ifdef CONFIG_MMP3_HSI
+	&mmp3_clk_hsi,
 #endif
 };
 

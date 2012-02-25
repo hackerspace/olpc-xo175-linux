@@ -446,5 +446,15 @@
 #define GPIO86_LED_R		MFP_CFG_LPM(GPIO86, AF0, PULL_HIGH)
 #define GPIO87_LED_G		MFP_CFG_LPM(GPIO87, AF0, PULL_HIGH)
 
+/* HSI */
+#define HSI_ACWAKE              MFP_CFG(GPIO115, AF2)
+#define HSI_ACREADY             MFP_CFG(GPIO116, AF2)
+#define HSI_ACFLAG              MFP_CFG(GPIO117, AF2)
+#define HSI_ACDATA              MFP_CFG(GPIO118, AF2)
+#define HSI_CAWAKE              MFP_CFG(GPIO119, AF2)
+#define HSI_CAREADY             MFP_CFG(GPIO120, AF2)
+#define HSI_CAFLAG              MFP_CFG(GPIO121, AF2)
+#define HSI_CADATA              MFP_CFG(GPIO122, AF2)
+
 #endif /* __ASM_MACH_MFP_MMP2_H */
 

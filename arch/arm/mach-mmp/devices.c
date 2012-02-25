@@ -18,6 +18,9 @@
 #include <mach/soc_vmeta.h>
 #include <mach/regs-pmu.h>
 #include <mach/isp_dev.h>
+#include <mach/hsi_dev.h>
+#include <mach/regs-icu.h>
+
 
 int __init pxa_register_device(struct pxa_device_desc *desc,
 				void *data, size_t size)
@@ -808,6 +811,71 @@ void __init mmp_register_dxoisp(struct mvisp_platform_data *data)
 			"unable to register dxo device: %d\n", ret);
 }
 #endif
+#ifdef CONFIG_MMP3_HSI
+int hsi_config_int(void *param)
+{
+	int reg;
+
+	/* Disable IRQ for all cores */
+	reg = readl(MMP3_ICU_IRQ_55_CONF);
+	reg &= ~0x70;
+	writel(reg, MMP3_ICU_IRQ_55_CONF);
+
+	/* Enable HSI Interrupt */
+	reg = readl(MMP3_ICU_INT_55_MASK);
+	reg &= ~0x8;
+	writel(reg, MMP3_ICU_INT_55_MASK);
+
+	/*Enable IRQ on all core */
+	reg = readl(MMP3_ICU_IRQ_55_CONF);
+	reg |= 0x70;
+	writel(reg, MMP3_ICU_IRQ_55_CONF);
+
+	return 0;
+}
+
+static u64 mmp_hsi_dma_mask = DMA_BIT_MASK(32);
+
+static struct resource mmp3_hsi_resource[] = {
+	[0] = {
+		.name   = "func_reg_base",
+		.start  = 0xD4204000,
+		.end    = 0xD4204FFF,
+		.flags  = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = IRQ_MMP3_HSI1,
+		.end = IRQ_MMP3_HSI1,
+		.flags = IORESOURCE_IRQ,
+	}
+};
+
+struct platform_device mmp3_hsi_device = {
+	.name           = "mmp3_hsi",
+	.id             = 0,
+	.dev			= {
+		.dma_mask = &mmp_hsi_dma_mask,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	},
+	.num_resources  = ARRAY_SIZE(mmp3_hsi_resource),
+	.resource       = mmp3_hsi_resource,
+};
+
+void __init mmp_register_hsi(struct hsi_platform_data *data)
+{
+	int ret;
+
+	data->hsi_config_int = hsi_config_int;
+	mmp3_hsi_device.dev.platform_data = data;
+
+	ret = platform_device_register(&mmp3_hsi_device);
+	if (ret)
+		dev_err(&(mmp3_hsi_device.dev),
+			"unable to register hsi device: %d\n", ret);
+}
+
+#endif
+
 
 #ifdef CONFIG_UIO_VMETA
 static u64 mmp_vmeta_dam_mask = DMA_BIT_MASK(32);
