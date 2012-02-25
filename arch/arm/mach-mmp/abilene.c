@@ -55,6 +55,7 @@
 #include <mach/tc35876x.h>
 #include <mach/camera.h>
 #include <mach/isp_dev.h>
+#include <mach/hsi_dev.h>
 #include <plat/pmem.h>
 #include <plat/usb.h>
 #include <mach/sram.h>
@@ -170,6 +171,15 @@ static unsigned long abilene_pin_config[] __initdata = {
 
 	/* HSIC1 reset pin*/
 	GPIO96_HSIC_RESET,
+	/* HSI */
+	HSI_ACWAKE,
+	HSI_ACREADY,
+	HSI_ACFLAG,
+	HSI_ACDATA,
+	HSI_CAWAKE,
+	HSI_CAREADY,
+	HSI_CAFLAG,
+	HSI_CADATA,
 
 	/* SSP4 */
 	GPIO78_SSP_CLK,
@@ -347,6 +357,16 @@ static void __init mmp_init_dxoisp(void)
 }
 #endif
 
+#ifdef CONFIG_MMP3_HSI
+static struct hsi_platform_data mmp_hsi_plat_data = {
+	.hsi_config_int = NULL,
+};
+
+static void __init mmp_init_hsi(void)
+{
+	mmp_register_hsi(&mmp_hsi_plat_data);
+}
+#endif
 
 #ifdef CONFIG_UIO_VMETA
 static struct vmeta_plat_data mmp_vmeta_plat_data = {
@@ -1885,6 +1905,11 @@ static void __init abilene_init(void)
 #ifdef CONFIG_ANDROID_PMEM
 	pxa_add_pmem();
 #endif
+
+#ifdef CONFIG_MMP3_HSI
+	mmp_init_hsi();
+#endif
+
 #ifdef CONFIG_UIO_VMETA
 	mmp_init_vmeta();
 #endif
