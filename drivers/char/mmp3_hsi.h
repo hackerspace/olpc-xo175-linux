@@ -488,11 +488,13 @@ int hsi_receive_dma_chain(int channel, u32 **data,
 int hsi_reset_tx(void);
 int hsi_reset_rx(void);
 
+bool hsi_disable_tx_fifo_int(int channel, struct strt_hsi_tx_ch_cfg *tx_cfg);
 bool hsi_disable_tx_fifo_req(int channel, struct strt_hsi_tx_ch_cfg *tx_cfg);
 bool hsi_enable_tx_fifo_req(int channel, struct strt_hsi_tx_ch_cfg *tx_cfg);
 bool hsi_enable_tx_fifo_cpu(int channel, struct strt_hsi_tx_ch_cfg *tx_cfg);
 bool hsi_enable_tx_fifo_dma(int channel, struct strt_hsi_tx_ch_cfg *tx_cfg);
 
+bool hsi_disable_rx_fifo_int(int channel, struct strt_hsi_rx_ch_cfg *rx_cfg);
 bool hsi_disable_rx_fifo_req(int channel, struct strt_hsi_rx_ch_cfg *rx_cfg);
 bool hsi_enable_rx_fifo_req(int channel, struct strt_hsi_rx_ch_cfg *rx_cfg);
 bool hsi_enable_rx_fifo_cpu(int channel, struct strt_hsi_rx_ch_cfg *rx_cfg);

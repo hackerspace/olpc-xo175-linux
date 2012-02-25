@@ -74,7 +74,7 @@ static struct hsi_cfg_strt hsi_config = {
 	.tx_wake_impl = HSI_TX_WAKE_NOT_IMPL,
 	.rx_wake_impl = HSI_RX_WAKE_NOT_IMPL,
 	.tltc_pre_scaler = 0x0,
-	.tx_rate_div = 0x1,
+	.tx_rate_div = 0x0,
 	.rx_rate_div = 0x0,
 	.fto_cnt_ena = FTO_DISABLED,
 	.fto_cnt = 0,
@@ -159,19 +159,13 @@ static int hsi_handle_rx_thrs_int(int channel)
 static int hsi_dma_rx_done_handler(int channel)
 {
 	struct strt_hsi_rx_ch_cfg *rx_cfg;
-	u32 channel_mask;
 
 	rx_cfg = &(hsi_core->hsi_config->rx_chnl_config[channel]);
 
 	hsi_disable_rx_fifo_req(channel, rx_cfg);
+	hsi_disable_rx_fifo_int(channel, rx_cfg);
 
 	rx_cfg->rx_busy = false;
-
-	/* Clear channel mask for frame lost and thresold*/
-	channel_mask = HSI_READ32(CHNL_INT_MASK + (channel << 2));
-	channel_mask &= ~HSI_CH_MSK_RX;
-	HSI_WRITE32(CHNL_INT_MASK + (channel << 2), channel_mask);
-	rx_cfg->rx_fifo_int_ena = false;
 
 	if (rx_cfg->rx_dma_handler)
 		rx_cfg->rx_dma_handler(channel, rx_cfg->dma_cookie);
@@ -188,6 +182,13 @@ static int hsi_dma_rx_err_handler(int channel)
 	rx_cfg->dma_err = true;
 
 	dev_err(hsi_core->dev, "rx dma err\n");
+
+	return 0;
+}
+
+static int hsi_rx_frm_lost_handler(int channel)
+{
+	dev_warn(hsi_core->dev, "rx frame lost err\n");
 
 	return 0;
 }
@@ -278,20 +279,14 @@ static int hsi_dma_tx_err_handler(int channel)
 
 static int hsi_dma_tx_done_handler(int channel)
 {
-	u32 channel_mask;
 	struct strt_hsi_tx_ch_cfg *tx_cfg;
 
 	tx_cfg = &(hsi_core->hsi_config->tx_chnl_config[channel]);
 
 	hsi_disable_tx_fifo_req(channel, tx_cfg);
+	hsi_disable_tx_fifo_int(channel, tx_cfg);
 
 	tx_cfg->tx_busy = false;
-
-	/* Clear channel mask for frame lost and thresold*/
-	channel_mask = HSI_READ32(CHNL_INT_MASK + (channel << 2));
-	channel_mask &= ~HSI_CH_MSK_TX;
-	HSI_WRITE32(CHNL_INT_MASK + (channel << 2), channel_mask);
-	tx_cfg->tx_fifo_int_ena = false;
 
 	if (tx_cfg->tx_dma_handler)
 		tx_cfg->tx_dma_handler(channel, tx_cfg->dma_cookie);
@@ -324,6 +319,8 @@ static int hsi_channel_int_handler(int channel)
 		ret = hsi_dma_rx_done_handler(channel);
 	if (channel_status & HSI_CH_STATUS_RX_DMA_ERR)
 		ret = hsi_dma_rx_err_handler(channel);
+	if (channel_status & HSI_CH_STATUS_RX_FRM_LOST)
+		ret = hsi_rx_frm_lost_handler(channel);
 
 
 exit:
@@ -553,7 +550,7 @@ static int mmp3_hsi_config_hw(struct hsi_cfg_strt *hsi_config)
 			reg = HSI_MODIFY32(reg, 0, 0, 1);
 		else
 			reg = HSI_MODIFY32(reg, 0, 0, 0);
-		HSI_WRITE32(TLTC_CONFIG + ch*4, reg);
+		HSI_WRITE32(TLTC_CONFIG + (ch << 2), reg);
 	}
 
 	/* Set up RX FIFO configuration register */
@@ -695,7 +692,7 @@ static int mmp3_hsi_init_database(void)
 	tx_config->tx_ch_fifo_thrs = 1;
 	tx_config->tx_ch_priority = 1;
 	tx_config = &hsi_config.tx_chnl_config[DATA_CH];
-	tx_config->tx_ch_fifo_base = 32;
+	tx_config->tx_ch_fifo_base = 64;
 	tx_config->tx_ch_fifo_size = 32;
 	tx_config->tx_ch_fifo_thrs = 32;
 	tx_config->tx_ch_priority = 1;
@@ -724,7 +721,7 @@ static int mmp3_hsi_init_database(void)
 	rx_config->rx_ch_fifo_size = 32;
 	rx_config->rx_ch_fifo_thrs = 1;
 	rx_config = &hsi_config.rx_chnl_config[DATA_CH];
-	rx_config->rx_ch_fifo_base = 32;
+	rx_config->rx_ch_fifo_base = 64;
 	rx_config->rx_ch_fifo_size = 32;
 	rx_config->rx_ch_fifo_thrs = 1;
 
@@ -854,6 +851,21 @@ bool hsi_enable_rx_fifo_req(int channel, struct strt_hsi_rx_ch_cfg *rx_cfg)
 	return rx_fifo_req_ena;
 }
 
+bool hsi_disable_rx_fifo_int(int channel, struct strt_hsi_rx_ch_cfg *rx_cfg)
+{
+	u32 channel_mask;
+	bool rx_fifo_int_ena = rx_cfg->rx_fifo_int_ena;
+
+	if (rx_fifo_int_ena == true) {
+		channel_mask = HSI_READ32(CHNL_INT_MASK + (channel << 2));
+		channel_mask &= ~HSI_CH_MSK_RX;
+		HSI_WRITE32(CHNL_INT_MASK + (channel << 2), channel_mask);
+		rx_cfg->rx_fifo_int_ena = false;
+	}
+
+	return rx_fifo_int_ena;
+}
+
 bool hsi_enable_rx_fifo_int(int channel, struct strt_hsi_rx_ch_cfg *rx_cfg)
 {
 	u32 channel_mask;
@@ -874,6 +886,7 @@ bool hsi_enable_rx_fifo_int(int channel, struct strt_hsi_rx_ch_cfg *rx_cfg)
 		else {
 			channel_mask |= HSI_CH_MSK_RX_DMA_DONE;
 			channel_mask |= HSI_CH_MSK_RX_DMA_ERR;
+			channel_mask |= HSI_CH_MSK_RX_FRM_LOST;
 		}
 		HSI_WRITE32(CHNL_INT_MASK + (channel << 2), channel_mask);
 
@@ -973,6 +986,9 @@ int hsi_config_cpu_rx_channel(int channel,
 		reg = HSI_MODIFY32(reg, 0, 0, 0);
 		HSI_WRITE32(RX_FIFO_CONFIG + (channel << 2), reg);
 		rx_cfg->rx_fifo_enable = false;
+
+		hsi_disable_rx_fifo_int(channel, rx_cfg);
+
 		goto exit;
 	}
 
@@ -1017,6 +1033,9 @@ int hsi_config_dma_rx_channel(int channel,
 		reg = HSI_MODIFY32(reg, 0, 0, 0);
 		HSI_WRITE32(RX_FIFO_CONFIG + (channel << 2), reg);
 		rx_cfg->rx_fifo_enable = false;
+
+		hsi_disable_rx_fifo_int(channel, rx_cfg);
+
 		goto exit;
 	}
 
@@ -1031,7 +1050,7 @@ EXPORT_SYMBOL(hsi_config_dma_rx_channel);
 
 int hsi_receive(int channel, u32 *data, u32 byte_count)
 {
-	u32 frame_rcv, channel_mask;
+	u32 frame_rcv;
 	int ret = 0;
 	unsigned long flags;
 	struct strt_hsi_rx_ch_cfg *rx_cfg;
@@ -1079,18 +1098,13 @@ int hsi_receive(int channel, u32 *data, u32 byte_count)
 
 exit:
 	hsi_disable_rx_fifo_req(channel, rx_cfg);
-
-	/* Clear channel mask*/
-	channel_mask = HSI_READ32(CHNL_INT_MASK + (channel << 2));
-	channel_mask &= ~HSI_CH_MSK_RX;
-	HSI_WRITE32(CHNL_INT_MASK + (channel << 2), channel_mask);
+	hsi_disable_rx_fifo_int(channel, rx_cfg);
 
 	spin_lock_irqsave(&hsi_core->s_irqlock, flags);
 	rx_cfg->rx_busy = false;
 	rx_cfg->rx_frame = NULL;
 	rx_cfg->rx_frame_cnt = 0;
 	rx_cfg->rx_frame_rcv = 0;
-	rx_cfg->rx_fifo_int_ena = false;
 	spin_unlock_irqrestore(&hsi_core->s_irqlock, flags);
 
 	HSI_UNLOCK(0);
@@ -1194,6 +1208,23 @@ bool hsi_enable_tx_fifo_req(int channel, struct strt_hsi_tx_ch_cfg *tx_cfg)
 	}
 
 	return tx_fifo_req_ena;
+}
+
+bool hsi_disable_tx_fifo_int(int channel, struct strt_hsi_tx_ch_cfg *tx_cfg)
+{
+	u32 channel_mask;
+	bool tx_fifo_int_ena = tx_cfg->tx_fifo_int_ena;
+
+	tx_cfg->tx_fifo_int_ena = false;
+
+	if (tx_fifo_int_ena == true) {
+		channel_mask = HSI_READ32(CHNL_INT_MASK + (channel << 2));
+		channel_mask &= ~HSI_CH_MSK_TX;
+		HSI_WRITE32(CHNL_INT_MASK + (channel << 2), channel_mask);
+		tx_cfg->tx_fifo_int_ena = false;
+	}
+
+	return tx_fifo_int_ena;
 }
 
 bool hsi_enable_tx_fifo_int(int channel, struct strt_hsi_tx_ch_cfg *tx_cfg)
@@ -1310,8 +1341,9 @@ int hsi_config_cpu_tx_channel(int channel, bool enable_fifo)
 		reg  = HSI_READ32(TX_FIFO_CONFIG + (channel << 2));
 		reg = HSI_MODIFY32(reg, 0, 0, 0);
 		HSI_WRITE32(TX_FIFO_CONFIG + (channel << 2), reg);
-
 		tx_cfg->tx_fifo_enable = false;
+
+		hsi_disable_tx_fifo_int(channel, tx_cfg);
 
 		goto exit;
 	}
@@ -1361,6 +1393,8 @@ int hsi_config_dma_tx_channel(int channel,
 
 		tx_cfg->tx_fifo_enable = false;
 
+		hsi_disable_tx_fifo_int(channel, tx_cfg);
+
 		goto exit;
 	}
 
@@ -1386,8 +1420,7 @@ int hsi_transmit_nblk(int channel, u32 *data, u32 byte_count, u32 *tx_cnt)
 	long rc = 0;
 	int ret = 0;
 	int burst_size, burst_cnt, frame_left;
-	u32 channel_mask, frame_num;
-	u32 frame_count;
+	u32 frame_num, frame_count;
 
 	tx_cfg = &(hsi_core->hsi_config->tx_chnl_config[channel]);
 
@@ -1456,17 +1489,13 @@ exit:
 	if (tx_cnt)
 		*tx_cnt = tx_cfg->tx_frame_sent;
 
-	/* Clear channel mask for frame lost and thresold*/
-	channel_mask = HSI_READ32(CHNL_INT_MASK + (channel << 2));
-	channel_mask &= ~HSI_CH_MSK_TX;
-	HSI_WRITE32(CHNL_INT_MASK + (channel << 2), channel_mask);
+	hsi_disable_tx_fifo_int(channel, tx_cfg);
 
 	spin_lock_irqsave(&hsi_core->s_irqlock, flags);
 	tx_cfg->tx_busy = false;
 	tx_cfg->tx_frame = NULL;
 	tx_cfg->tx_frame_cnt = 0;
 	tx_cfg->tx_frame_sent = 0;
-	tx_cfg->tx_fifo_int_ena = false;
 	spin_unlock_irqrestore(&hsi_core->s_irqlock, flags);
 
 	HSI_UNLOCK(0);
@@ -1612,18 +1641,18 @@ int hsi_set_work_mode(enum hsi_work_mode_enum mode)
 	case HSI_BOOTROM_MODE:
 		hsi_core->hsi_config->ch_bits = HSI_IF_CHANNEL_BITS_1;
 		hsi_core->hsi_config->trans_mode = HSI_IF_OP_MODE_STREAM;
-		hsi_core->hsi_config->tx_rate_div = 0x3;
+		hsi_core->hsi_config->tx_rate_div = 0x7;
 		hsi_core->hsi_config->mode = HSI_BOOTROM_MODE;
 		reg = HSI_READ32(HSI_CONFIG1);
 		/* Channel BIT set to 1 */
-		reg = HSI_MODIFY32(reg, 18, 16, 1);
+		reg = HSI_MODIFY32(reg, 18, 16, hsi_core->hsi_config->ch_bits);
 		/* Use stream mode */
-		reg = HSI_MODIFY32(reg, 8, 8, 0);
+		reg = HSI_MODIFY32(reg, 8, 8, hsi_core->hsi_config->trans_mode);
 		HSI_WRITE32(HSI_CONFIG1, reg);
 
 		/* Set TX divider */
 		reg = HSI_READ32(HSI_CONFIG2);
-		reg = HSI_MODIFY32(reg, 15, 0, 0x3);
+		reg = HSI_MODIFY32(reg, 15, 0, hsi_core->hsi_config->tx_rate_div);
 		HSI_WRITE32(HSI_CONFIG2, reg);
 		break;
 	case HSI_CPIMAGE_MODE:
@@ -1633,14 +1662,14 @@ int hsi_set_work_mode(enum hsi_work_mode_enum mode)
 		hsi_core->hsi_config->mode = HSI_CPIMAGE_MODE;
 		reg = HSI_READ32(HSI_CONFIG1);
 		/* Channel BIT set to 2 */
-		reg = HSI_MODIFY32(reg, 18, 16, 2);
+		reg = HSI_MODIFY32(reg, 18, 16, hsi_core->hsi_config->ch_bits);
 		/* Use frame mode */
-		reg = HSI_MODIFY32(reg, 8, 8, 1);
+		reg = HSI_MODIFY32(reg, 8, 8, hsi_core->hsi_config->trans_mode);
 		HSI_WRITE32(HSI_CONFIG1, reg);
 
 		/* Set TX divider */
 		reg = HSI_READ32(HSI_CONFIG2);
-		reg = HSI_MODIFY32(reg, 15, 0, 0x1);
+		reg = HSI_MODIFY32(reg, 15, 0, hsi_core->hsi_config->tx_rate_div);
 		HSI_WRITE32(HSI_CONFIG2, reg);
 		break;
 	default:
