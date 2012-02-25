@@ -426,7 +426,7 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 			gOvlySurface.viewPortInfo.srcHeight = tmp;
 		}
 
-		ret = check_surface(fi, &gOvlySurface, &fbi->shadowreg);
+		ret = check_surface(fi, &gOvlySurface);
 		if (ret > 0) {
 			pxa168fb_set_par(fi);
 			ret = 0;
@@ -450,7 +450,7 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 		if (unsupport_format(fbi, gOvlySurface.viewPortInfo,
 			 gOvlySurface.videoMode))
 			return -EFAULT;
-		ret = check_surface(fi, &gOvlySurface, &fbi->shadowreg);
+		ret = check_surface(fi, &gOvlySurface);
 		if (ret > 0) {
 			pxa168fb_set_par(fi);
 			ret = 0;
@@ -483,7 +483,7 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 			return -EFAULT;
 		}
 
-		ret = check_surface(fi, &gOvlySurface, &fbi->shadowreg);
+		ret = check_surface(fi, &gOvlySurface);
 		if (ret > 0) {
 			pxa168fb_set_par(fi);
 			ret = 0;

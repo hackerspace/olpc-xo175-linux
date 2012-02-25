@@ -47,8 +47,7 @@ extern int determine_best_pix_fmt(struct fb_var_screeninfo *var,
 	struct pxa168fb_info *fbi);
 extern int pxa168fb_check_var(struct fb_var_screeninfo *var,
 	 struct fb_info *fi);
-extern int check_surface(struct fb_info *fi, struct _sOvlySurface *surface,
-	 struct regshadow *shadowreg);
+extern int check_surface(struct fb_info *fi, struct _sOvlySurface *surface);
 extern int check_surface_addr(struct fb_info *fi,
 	 struct _sOvlySurface *surface);
 extern int check_modex_active(struct pxa168fb_info *fbi);

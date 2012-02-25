@@ -689,6 +689,13 @@ static int pxa168fb_set_par(struct fb_info *info)
 
 	info->fix.line_length = var->xres_virtual * var->bits_per_pixel / 8;
 
+	/* when lcd is suspend, read or write lcd controller's
+	* register is not effective, so just return*/
+	if (!(gfx_info.fbi[fbi->id]->active)) {
+		printk(KERN_DEBUG"LCD is not active, don't touch hardware\n");
+		return 0;
+	}
+
 	set_dumb_screen_dimensions(info);
 
 	/* Calculate clock divisor. */

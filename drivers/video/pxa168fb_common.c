@@ -591,8 +591,7 @@ int pxa168fb_check_var(struct fb_var_screeninfo *var, struct fb_info *fi)
 	return 0;
 }
 
-int check_surface(struct fb_info *fi, struct _sOvlySurface *surface,
-		 struct regshadow *shadowreg)
+int check_surface(struct fb_info *fi, struct _sOvlySurface *surface)
 {
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)fi->par;
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
@@ -781,6 +780,7 @@ void buf_endframe(void *point)
 
 	/* Update new surface settings */
 	pxa168fb_set_regs(fbi, shadowreg);
+
 	if (fbi->buf_current)
 		list_add_tail(&fbi->buf_current->dma_queue,
 				&fbi->buf_freelist.dma_queue);
@@ -863,7 +863,7 @@ int flip_buffer(struct fb_info *info, unsigned long arg)
 			memset(&fbi->surface, 0, sizeof(fbi->surface));
 			fbi->surface.videoMode = -1;
 		}
-		ret = check_surface(info, &surface, shadowreg);
+		ret = check_surface(info, &surface);
 		if (ret > 0) {
 			pxa168fb_set_var(info, shadowreg, ret);
 
@@ -893,7 +893,7 @@ int flip_buffer(struct fb_info *info, unsigned long arg)
 			return -EINVAL;
 		}
 
-		ret = check_surface(info, &surface, shadowreg);
+		ret = check_surface(info, &surface);
 		if (ret > 0) {
 			/* update other parameters other than buf addr */
 			pxa168fb_set_var(info, shadowreg, ret);
@@ -1329,6 +1329,13 @@ int pxa168fb_set_var(struct fb_info *info, struct regshadow *shadowreg,
 void pxa168fb_set_regs(struct pxa168fb_info *fbi, struct regshadow *shadowreg)
 {
 	struct lcd_regs *regs = get_regs(fbi->id);
+
+	/* when lcd is suspend, read or write lcd controller's
+	* register is not effective, so just return*/
+	if (!(gfx_info.fbi[fbi->id]->active)) {
+		printk(KERN_DEBUG"LCD is not active, don't touch hardware\n");
+		return;
+	}
 
 	if (shadowreg->flags & UPDATE_ADDR) {
 		if (fbi->vid) {
