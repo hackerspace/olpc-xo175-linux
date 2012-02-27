@@ -264,20 +264,19 @@ static inline void pxav2_access_constrain(struct sdhci_host *host, unsigned int 
 	struct sdhci_pxa *pxa = pltfm_host->priv;
 
 	/* if clock gating is enabled, we can dynamically gate/ungate controller CKEN clk */
-	if (pxa->pdata && (pxa->pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING)) {
-		if (!ac && pxa->clk_enable) {
-			clk_disable(pltfm_host->clk);
-			pxa->clk_enable = 0;
-		} else if (ac && !pxa->clk_enable) {
+	if (ac && !pxa->clk_enable) {
+		if(pltfm_host->dvfm_dev_idx > 0)
+			dvfm_disable_lowpower(pltfm_host->dvfm_dev_idx);
+		if (pxa->pdata && (pxa->pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING))
 			clk_enable(pltfm_host->clk);
-			pxa->clk_enable = 1;
-		}
+		pxa->clk_enable = 1;
+	} else if (!ac && pxa->clk_enable) {
+		if (pxa->pdata && (pxa->pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING))
+			clk_disable(pltfm_host->clk);
+		if(pltfm_host->dvfm_dev_idx > 0)
+			dvfm_enable_lowpower(pltfm_host->dvfm_dev_idx);
+		pxa->clk_enable = 0;
 	}
-
-	if(ac && (pltfm_host->dvfm_dev_idx > 0))
-		dvfm_disable_lowpower(pltfm_host->dvfm_dev_idx);
-	else if(!ac && (pltfm_host->dvfm_dev_idx > 0))
-		dvfm_enable_lowpower(pltfm_host->dvfm_dev_idx);
 }
 
 #ifdef CONFIG_MMC_SDHCI_IO_ACCESSORS
