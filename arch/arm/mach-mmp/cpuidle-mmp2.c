@@ -61,13 +61,6 @@ static int mmp2_enter_idle(struct cpuidle_device *dev,
 			mode = POWER_MODE_APPS_IDLE;
 		if (state == &dev->states[3])
 			mode = POWER_MODE_CHIP_SLEEP;
-
-		/*
-		 * consider support wakelock
-		 * if using qos to contrsaint, block in place where required
-		 */
-		if (has_wake_lock(WAKE_LOCK_IDLE))
-			mode = POWER_MODE_CORE_EXTIDLE;
 	}
 
 	mmp2_pm_enter_lowpower_mode(mode);
