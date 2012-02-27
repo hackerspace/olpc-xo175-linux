@@ -160,7 +160,7 @@ static int pm80x_vbus_suspend(struct device *dev)
 	struct pm80x_vbus_info *vbus = dev_get_drvdata(dev);
 
 	if (device_may_wakeup(dev)) {
-		enable_irq_wake(vbus->chip->core_irq);
+		enable_irq_wake(vbus->chip->pm800_chip->irq);
 		enable_irq_wake(vbus->irq);
 	}
 
@@ -172,7 +172,7 @@ static int pm80x_vbus_resume(struct device *dev)
 	struct pm80x_vbus_info *vbus = dev_get_drvdata(dev);
 
 	if (device_may_wakeup(dev)) {
-		disable_irq_wake(vbus->chip->core_irq);
+		disable_irq_wake(vbus->chip->pm800_chip->irq);
 		disable_irq_wake(vbus->irq);
 	}
 
