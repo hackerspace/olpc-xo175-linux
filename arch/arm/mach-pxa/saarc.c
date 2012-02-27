@@ -994,11 +994,28 @@ static char *pxa9xx_usb_clock_name[] = {
 	[1] = "IMUCLK",
 	[2] = "U2OCLK",
 };
+static struct mv_usb_addon_irq pm80x_id = {
+	.irq	= IRQ_BOARD_START + PM800_IRQ_GPADC2,
+	.poll	= pm80x_read_id_val,
+	.init	= pm80x_init_id,
+};
+
+static struct mv_usb_addon_irq pm80x_vbus = {
+	.irq	= IRQ_BOARD_START + PM800_IRQ_CHG,
+	.poll	= pm80x_read_vbus_val,
+};
+
+static struct mv_usb_addon_irq pm860x_id = {
+	.irq	= IRQ_BOARD_START + PM8607_IRQ_GPADC2,
+	.poll	= pm860x_read_id_val,
+	.init	= pm860x_init_id,
+};
 
 static struct mv_usb_addon_irq pm860x_vbus = {
 	.irq	= IRQ_BOARD_START + PM8607_IRQ_CHG,
 	.poll	= read_vbus_val,
 };
+
 
 static struct mv_usb_platform_data pxa9xx_usb_pdata = {
 	.clknum		= 3,
@@ -2071,7 +2088,9 @@ static void __init init(void)
 		pr_info( \
 			"[%s][%s]regulator_init_pm800 maxNum[%d] init\n",
 			__FILE__, __func__, PM8XXX_REGULATOR_MAX);
-		pxa9xx_usb_pdata.vbus = NULL;
+		pxa9xx_usb_pdata.vbus = &pm80x_vbus;
+		pxa9xx_usb_pdata.id = &pm80x_id;
+		pxa9xx_usb_pdata.set_vbus = pm80x_set_vbus;
 
 		register_reboot_notifier(&reboot_notifier);
 	} else {
@@ -2080,6 +2099,8 @@ static void __init init(void)
 			"[%s][%s]regulator_init_pm8607 maxNum[%d] init\n",
 			__FILE__, __func__, PM8XXX_REGULATOR_MAX);
 		pxa9xx_usb_pdata.vbus = &pm860x_vbus;
+		pxa9xx_usb_pdata.id = &pm860x_id;
+		pxa9xx_usb_pdata.set_vbus = pm860x_set_vbus;
 	}
 
 #if defined(CONFIG_BACKLIGHT_ADP8885)
@@ -2160,6 +2181,16 @@ static void __init init(void)
 #ifdef CONFIG_USB_PXA_U2O
 	pxa9xx_device_u2o.dev.platform_data = (void *)&pxa9xx_usb_pdata;
 	platform_device_register(&pxa9xx_device_u2o);
+#endif
+
+#ifdef CONFIG_USB_PXA_U2O_OTG
+	pxa9xx_device_u2ootg.dev.platform_data = (void *)&pxa9xx_usb_pdata;
+	platform_device_register(&pxa9xx_device_u2ootg);
+#endif
+
+#ifdef CONFIG_USB_EHCI_PXA_U2O
+	pxa9xx_device_u2oehci.dev.platform_data = (void *)&pxa9xx_usb_pdata;
+	platform_device_register(&pxa9xx_device_u2oehci);
 #endif
 
 #ifdef CONFIG_PROC_FS
