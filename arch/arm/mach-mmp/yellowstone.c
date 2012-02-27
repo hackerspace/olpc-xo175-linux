@@ -479,6 +479,29 @@ static struct pm80x_rtc_pdata pm80x_rtc = {
 	.rtc_wakeup	= 0,
 };
 
+static int pm800_plat_config(struct pm80x_chip *chip,
+				struct pm80x_platform_data *pdata)
+{
+	if (!chip || !pdata ||
+		chip->id != CHIP_PM800 ||
+		!chip->base_page) {
+		pr_err("%s:chip or pdata is not availiable!\n", __func__);
+		return -EINVAL;
+	}
+	/* Disable watch dog */
+	pm80x_set_bits(chip->base_page, PM800_WAKEUP2, (0xF << 4), 0);
+	/* Select XO 32KHZ(USE_XO)
+	 * Force all CLK32K_1/2/3 buffers to use the XO 32KHZ */
+	pm80x_set_bits(chip->base_page, PM800_RTC_CONTROL, (1 << 7), (1 << 7));
+	/* Enable 32K out1 from XO: EXT_32K_IN */
+	pm80x_set_bits(chip->base_page, PM800_RTC_MISC2, 0x3, 0x2);
+	/* Enable 32K out2 from XO: 32K_CLK for WIFI,PM805 */
+	pm80x_set_bits(chip->base_page, PM800_RTC_MISC2,
+					(0x3 << 2), (0x2 << 2));
+
+	return 0;
+}
+
 static struct pm80x_platform_data pm800_info = {
 	.base_page_addr = 0x30,		/* BASE page */
 	.power_page_addr = 0x31,	/* POWER */
@@ -490,6 +513,7 @@ static struct pm80x_platform_data pm800_info = {
 	.num_regulators = ARRAY_SIZE(pm800_regulator_data),
 	.regulator	    = pm800_regulator_data,
 	.rtc = &pm80x_rtc,
+	.pm800_plat_config = pm800_plat_config,
 };
 /* End Of PM800 */
 
