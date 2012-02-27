@@ -2558,6 +2558,7 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 	fbi->mixer_id = mi->mixer_id;
 	fbi->converter = mi->converter;
 	fbi->user_addr = 0;
+	fbi->controller_on = 1;
 
 	fbi->vsync_en = 0;
 	fbi->eof_intr_en = 1;

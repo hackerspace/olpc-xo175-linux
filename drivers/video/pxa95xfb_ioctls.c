@@ -190,7 +190,7 @@ static int buf_enqueue(struct buf_addr *list, struct buf_addr *buf)
 			return 0;
 		}
 
-		if (memcmp(&list[i], buf, sizeof(struct buf_addr))) {
+		if (list[i].y == buf->y) {
 			/* already in list, free this request. */
 			printk(KERN_WARNING "%s: buff %x is same as list[%d]\n", __func__, buf->y, i);
 			return 0;
