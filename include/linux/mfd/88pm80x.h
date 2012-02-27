@@ -559,6 +559,10 @@ struct pm80x_platform_data {
 	int irq_companion;	/* IRQ number of companion chip */
 	int batt_det;		/* enable/disable */
 	int num_regulators;
+	int (*pm800_plat_config)(struct pm80x_chip *chip,
+				struct pm80x_platform_data *pdata);
+	int (*pm805_plat_config)(struct pm80x_chip *chip,
+				struct pm80x_platform_data *pdata);
 };
 #ifdef CONFIG_MFD_88PM80X
 extern int pm80x_reg_read(struct i2c_client *, int);

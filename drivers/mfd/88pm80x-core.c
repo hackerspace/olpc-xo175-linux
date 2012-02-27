@@ -914,6 +914,9 @@ static int __devinit device_805_init(struct pm80x_chip *chip,
 		goto out_dev;
 	}
 
+	if (pdata->pm805_plat_config)
+		pdata->pm805_plat_config(chip, pdata);
+
 	return 0;
 
 out_dev:
@@ -1070,16 +1073,9 @@ static int __devinit device_800_init(struct pm80x_chip *chip,
 			goto out_dev;
 		}
 	}
-	/* Initializain actions to enable 88pm805 */
 
-	/* Clear WDT */
-	pm80x_reg_write(chip->base_page, 0x0E, 0x00);
-	/* Enable 32Khz-out-1 and resetoutn */
-	pm80x_reg_write(chip->base_page, 0xE1, 0xB0);
-	/* Enable 32Khz-out-3  low jitter */
-	pm80x_reg_write(chip->base_page, 0x21, 0x20);
-	/* Enable 32Khz-out-3 */
-	pm80x_reg_write(chip->base_page, 0xE2, 0x22);
+	if (pdata->pm800_plat_config)
+		pdata->pm800_plat_config(chip, pdata);
 
 	return 0;
 out_dev:
