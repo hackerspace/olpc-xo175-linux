@@ -713,7 +713,18 @@ static struct i2c_board_info yellowstone_twsi5_info[] = {
 static struct i2c_board_info yellowstone_twsi6_info[] = {
 };
 
+static struct pm80x_platform_data pm805_info = {
+	.irq_mode = 0,
+	.irq_base = IRQ_BOARD_START + PM800_MAX_IRQ,
+};
+
 static struct i2c_board_info yellowstone_twsi3_info[] = {
+	{
+		.type = "88PM80x",
+		.addr = 0x38,
+		.irq  = gpio_to_irq(mfp_to_gpio(GPIO23_GPIO)),
+		.platform_data = &pm805_info,
+	},
 };
 
 #ifdef CONFIG_SD8XXX_RFKILL
