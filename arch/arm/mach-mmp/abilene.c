@@ -61,6 +61,7 @@
 #include <mach/axis_sensor.h>
 #include <mach/uio_hdmi.h>
 #include <media/soc_camera.h>
+#include <mach/mmp3_pm.h>
 
 #include "common.h"
 #include "onboard.h"
@@ -1716,11 +1717,143 @@ static int abilene_board_reset(char mode, const char *cmd)
 	return 1;
 }
 
+#define DMCU_SDRAM_TIMING1 0x80
+#define DMCU_SDRAM_TIMING2 0x84
+#define DMCU_SDRAM_TIMING3 0x88
+#define DMCU_SDRAM_TIMING4 0x8c
+#define DMCU_SDRAM_TIMING5 0x90
+#define DMCU_SDRAM_TIMING6 0x94
+#define DMCU_SDRAM_TIMING7 0x98
+#define DMCU_PHY_CTRL3 0x220
+#define DMCU_PHY_DQ_BYTE_SEL 0x300
+#define DMCU_PHY_DLL_CTRL_BYTE1 0x304
+#define DMCU_PHY_DLL_WL_SEL 0x380
+#define DMCU_PHY_DLL_WL_CTRL0 0x384
+#define ALLBITS (0xFFFFFFFF)
+
+static struct dmc_regtable_entry khx1600c9s3k_2x400mhz[] = {
+	{DMCU_SDRAM_TIMING1, ALLBITS, 0x911403CF},
+	{DMCU_SDRAM_TIMING2, ALLBITS, 0x64660414},
+	{DMCU_SDRAM_TIMING3, ALLBITS, 0xC2003053},
+	{DMCU_SDRAM_TIMING4, ALLBITS, 0x34F4A187},
+	{DMCU_SDRAM_TIMING5, ALLBITS, 0x000F20C1},
+	{DMCU_SDRAM_TIMING6, ALLBITS, 0x04040200},
+	{DMCU_SDRAM_TIMING7, ALLBITS, 0x00005501},
+};
+
+static struct dmc_regtable_entry khx1600c9s3k_2x533mhz[] = {
+	{DMCU_SDRAM_TIMING1, ALLBITS, 0x911B03CF},
+	{DMCU_SDRAM_TIMING2, ALLBITS, 0x74780564},
+	{DMCU_SDRAM_TIMING3, ALLBITS, 0xC200406C},
+	{DMCU_SDRAM_TIMING4, ALLBITS, 0x3694DA09},
+	{DMCU_SDRAM_TIMING5, ALLBITS, 0x00142101},
+	{DMCU_SDRAM_TIMING6, ALLBITS, 0x04040200},
+	{DMCU_SDRAM_TIMING7, ALLBITS, 0x00006601},
+};
+
+const struct dmc_regtable_entry khx1600c9s3k_2x600mhz[] = {
+	{DMCU_SDRAM_TIMING1, ALLBITS, 0x955E03CF},
+	{DMCU_SDRAM_TIMING2, ALLBITS, 0x84890614},
+	{DMCU_SDRAM_TIMING3, ALLBITS, 0xC200487C},
+	{DMCU_SDRAM_TIMING4, ALLBITS, 0x4762F24A},
+	{DMCU_SDRAM_TIMING5, ALLBITS, 0x00162121},
+	{DMCU_SDRAM_TIMING6, ALLBITS, 0x04040200},
+	{DMCU_SDRAM_TIMING7, ALLBITS, 0x00006601},
+};
+
+static struct dmc_regtable_entry khx1600c9s3k_4x400mhz[] = {
+	{DMCU_SDRAM_TIMING1, ALLBITS, 0x59A803CF},
+	{DMCU_SDRAM_TIMING2, ALLBITS, 0xB5B88812},
+	{DMCU_SDRAM_TIMING3, ALLBITS, 0x610060A5},
+	{DMCU_SDRAM_TIMING4, ALLBITS, 0x59D7430E},
+	{DMCU_SDRAM_TIMING5, ALLBITS, 0x001D2181},
+	{DMCU_SDRAM_TIMING6, ALLBITS, 0x02120501},
+	{DMCU_SDRAM_TIMING7, ALLBITS, 0x00008801},
+};
+
+static struct dmc_regtable_entry khx1600c9s3k_phy[] = {
+	{DMCU_PHY_DQ_BYTE_SEL, ALLBITS, 0x00000000},
+	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00001080},
+	{DMCU_PHY_DQ_BYTE_SEL, ALLBITS, 0x00000001},
+	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00001080},
+	{DMCU_PHY_DQ_BYTE_SEL, ALLBITS, 0x00000002},
+	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00001080},
+	{DMCU_PHY_DQ_BYTE_SEL, ALLBITS, 0x00000003},
+	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00001080},
+	{DMCU_PHY_CTRL3, ALLBITS, 0x00004055},
+};
+
+static struct dmc_regtable_entry khx1600c9s3k_wl[] = {
+	{DMCU_PHY_DLL_WL_SEL, ALLBITS, 0x00000100},
+	{DMCU_PHY_DLL_WL_CTRL0, ALLBITS, 0x001A001A},
+	{DMCU_PHY_DLL_WL_SEL, ALLBITS, 0x00000101},
+	{DMCU_PHY_DLL_WL_CTRL0, ALLBITS, 0x00160016},
+	{DMCU_PHY_DLL_WL_SEL, ALLBITS, 0x00000102},
+	{DMCU_PHY_DLL_WL_CTRL0, ALLBITS, 0x001A001A},
+	{DMCU_PHY_DLL_WL_SEL, ALLBITS, 0x00000103},
+	{DMCU_PHY_DLL_WL_CTRL0, ALLBITS, 0x00190019},
+
+};
+static struct dmc_timing_entry khx1600c9s3k_table[] = {
+	{
+		.dsrc = 1,
+		.mode4x = 0,
+		.pre_d = 0,
+		.cas = 0x0008800,
+		.table = {
+			DEF_DMC_TAB_ENTRY(DMCRT_TM, khx1600c9s3k_2x400mhz),
+			DEF_DMC_TAB_ENTRY(DMCRT_PH, khx1600c9s3k_phy),
+			DEF_DMC_TAB_ENTRY(DMCRT_WL, khx1600c9s3k_wl),
+		},
+	},
+	{
+		.dsrc = 3,
+		.mode4x = 0,
+		.pre_d = 0,
+		.cas = 0x0008800,
+		.table = {
+			DEF_DMC_TAB_ENTRY(DMCRT_TM, khx1600c9s3k_2x533mhz),
+			DEF_DMC_TAB_ENTRY(DMCRT_PH, khx1600c9s3k_phy),
+			DEF_DMC_TAB_ENTRY(DMCRT_WL, khx1600c9s3k_wl),
+		},
+	},
+/*	{
+		.dsrc = 2,
+		.mode4x = 0,
+		.pre_d = 0,
+		.cas = 0x0008800,
+		.table = {
+			DEF_DMC_TAB_ENTRY(DMCRT_TM, khx1600c9s3k_2x600mhz),
+			DEF_DMC_TAB_ENTRY(DMCRT_PH, khx1600c9s3k_phy),
+			DEF_DMC_TAB_ENTRY(DMCRT_WL, khx1600c9s3k_wl),
+		},
+	},
+	{
+		.dsrc = 0,
+		.mode4x = 1,
+		.pre_d = 0,
+		.cas = 0x0008800,
+		.table = {
+			DEF_DMC_TAB_ENTRY(DMCRT_TM, khx1600c9s3k_4x400mhz),
+			DEF_DMC_TAB_ENTRY(DMCRT_PH, khx1600c9s3k_phy),
+			DEF_DMC_TAB_ENTRY(DMCRT_WL, khx1600c9s3k_wl),
+		},
+	},
+*/
+};
+static void abilene_update_ddr_info()
+{
+	mmp3_pm_update_dram_timing_table(ARRAY_SIZE(khx1600c9s3k_table),
+						khx1600c9s3k_table);
+}
+
 static void __init abilene_init(void)
 {
 	extern int (*board_reset)(char mode, const char *cmd);
 	board_reset = abilene_board_reset;
 	mfp_config(ARRAY_AND_SIZE(abilene_pin_config));
+
+	abilene_update_ddr_info();
 
 	/* on-chip devices */
 	mmp3_add_uart(3);
