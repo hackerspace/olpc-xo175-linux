@@ -94,6 +94,10 @@ bs_do_fcs:
 	cmp	r7, #0x0
 	bne	1b
 
+	@ disable DDR APS
+	ldr	r7, =0x0
+	str	r7, [r1, #0x080]
+
 	@ ddr blocking
 	ldr	r7, =0x1
 	str	r7, [r1, #0x7e0]
@@ -354,6 +358,10 @@ dll_update:
 
 	ldr	r7, =0x0
 	str	r7, [r1, #0x7e0]
+
+	@ enable DDR APS
+	ldr	r7, =0x90045000
+	str	r7, [r1, #0x080]
 
 	b	out
 dummy_read:
