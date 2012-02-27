@@ -368,13 +368,11 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 	{
 		.vcc_core = VLT_LEVEL_0,
 		.core = 156,
-		.smcfs = 104,
 		.sflfs = 156,	/* IMC */
 		.hss = 104,	/* System Bus, and Display is the same */
 		.axifs = 78,
 		.dmcfs = 208,
 		.display = 104,
-		.df_clk = 52,
 		.gcfs = 156,
 		.gcaxifs = 156,
 		.vmfc = 156,
@@ -387,13 +385,11 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 	{
 		.vcc_core = VLT_LEVEL_0,
 		.core = 312,
-		.smcfs = 104,
 		.sflfs = 156,
 		.hss = 104,
 		.axifs = 78,
 		.dmcfs = 312,
 		.display = 104,
-		.df_clk = 52,
 		.gcfs = 156,
 		.gcaxifs = 156,
 		.vmfc = 156,
@@ -406,13 +402,11 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 	{
 		.vcc_core = VLT_LEVEL_1,
 		.core = 624,
-		.smcfs = 156,
 		.sflfs = 208,
 		.hss = 156,
 		.axifs = 104,
 		.dmcfs = 400,
 		.display = 156,
-		.df_clk = 78,
 		.gcfs = 312,
 		.gcaxifs = 312,
 		.vmfc = 312,
@@ -425,13 +419,11 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 	{
 		.vcc_core = VLT_LEVEL_2,
 		.core = 806,
-		.smcfs = 156,
 		.sflfs = 312,
 		.hss = 208,
 		.axifs = 156,
 		.dmcfs = 800,
 		.display = 312,
-		.df_clk = 78,
 		.gcfs = 498,
 		.gcaxifs = 498,
 		.vmfc = 498,
@@ -444,13 +436,11 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 	{
 		.vcc_core = VLT_LEVEL_2,
 		.core = 1014,
-		.smcfs = 156,
 		.sflfs = 312,
 		.hss = 208,
 		.axifs = 156,
 		.dmcfs = 800,
 		.display = 312,
-		.df_clk = 78,
 		.gcfs = 498,
 		.gcaxifs = 498,
 		.vmfc = 498,
@@ -463,13 +453,11 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 	{
 		.vcc_core = VLT_LEVEL_3,
 		.core = 1196,
-		.smcfs = 156,
 		.sflfs = 312,
 		.hss = 208,
 		.axifs = 156,
 		.dmcfs = 800,
 		.display = 416,
-		.df_clk = 78,
 		.gcfs = 600,
 		.gcaxifs = 600,
 		.vmfc = 600,
@@ -482,13 +470,11 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 	{
 		.vcc_core = VLT_LEVEL_3,
 		.core = 1404,
-		.smcfs = 156,
 		.sflfs = 312,
 		.hss = 208,
 		.axifs = 156,
 		.dmcfs = 800,
 		.display = 416,
-		.df_clk = 78,
 		.gcfs = 600,
 		.gcaxifs = 600,
 		.vmfc = 600,
@@ -612,9 +598,9 @@ static int dump_op(void *driver_data, struct op_info *p, char *buf)
 				: "Enabled", count);
 		if (cpu_is_pxa978())
 			len += sprintf(buf + len, "vcore:%d vsram:%d core:%d "
-				"smcfs:%d sflfs:%d hss:%d dmcfs:%d display:%d ",
+				"sflfs:%d hss:%d dmcfs:%d display:%d ",
 				md->vcc_core, md->vcc_sram, md->core,
-				md->smcfs, md->sflfs, md->hss, md->dmcfs, md->display);
+				md->sflfs, md->hss, md->dmcfs, md->display);
 		else
 			len += sprintf(buf + len, "vcore:%d vsram:%d xl:%d xn:%d "
 				"smcfs:%d sflfs:%d hss:%d dmcfs:%d ",
@@ -623,8 +609,12 @@ static int dump_op(void *driver_data, struct op_info *p, char *buf)
 		len += sprintf(buf + len, "axifs:%d ", md->axifs);
 		len += sprintf(buf + len, "gcfs:%d vmfc:%d ", md->gcfs,
 			       md->vmfc);
-		len += sprintf(buf + len, "df_clk:%d power_mode:%d flag:%d\n",
-			       md->df_clk, md->power_mode, md->flag);
+		if (!cpu_is_pxa978())
+			len += sprintf(buf + len, "df_clk:%d power_mode:%d flag:%d\n",
+				       md->df_clk, md->power_mode, md->flag);
+		else
+			len += sprintf(buf + len, "power_mode:%d flag:%d\n",
+				       md->power_mode, md->flag);
 	}
 	return len;
 }
@@ -664,16 +654,18 @@ static int freq2reg(struct pxa95x_fv_info *fv_info, struct dvfm_md_opt *orig)
 		res = 0;
 		fv_info->xl = orig->xl;
 		fv_info->xn = orig->xn;
-		if (orig->smcfs == 78)
-			fv_info->smcfs = 0;
-		else if (orig->smcfs == 104)
-			fv_info->smcfs = 2;
-		else if (orig->smcfs == 156)
-			fv_info->smcfs = 4;
-		else if (orig->smcfs == 208)
-			fv_info->smcfs = 5;
-		else
-			res = -EINVAL;
+		if (!cpu_is_pxa978()) {
+			if (orig->smcfs == 78)
+				fv_info->smcfs = 0;
+			else if (orig->smcfs == 104)
+				fv_info->smcfs = 2;
+			else if (orig->smcfs == 156)
+				fv_info->smcfs = 4;
+			else if (orig->smcfs == 208)
+				fv_info->smcfs = 5;
+			else
+				res = -EINVAL;
+		}
 		if (orig->sflfs == 104)
 			fv_info->sflfs = 0;
 		else if (orig->sflfs == 156)
@@ -805,13 +797,14 @@ static int freq2reg(struct pxa95x_fv_info *fv_info, struct dvfm_md_opt *orig)
 			else
 				res = -EINVAL;
 		}
-		tmp = orig->smcfs / orig->df_clk;
-		if (tmp == 2)
-			fv_info->df_clk = 2;
-		else if (tmp == 4)
-			fv_info->df_clk = 3;
-		if (!cpu_is_pxa978())
+		if (!cpu_is_pxa978()) {
+			tmp = orig->smcfs / orig->df_clk;
+			if (tmp == 2)
+				fv_info->df_clk = 2;
+			else if (tmp == 4)
+				fv_info->df_clk = 3;
 			fv_info->empi_clk = fv_info->df_clk;
+		}
 	}
 
 	return res;
@@ -923,17 +916,19 @@ static int reg2freq(void *driver_data, struct dvfm_md_opt *fv_info)
 		res = 0;
 		/* set S0D0 operating pointer */
 		fv_info->power_mode = POWER_MODE_D0;
-		tmp = fv_info->smcfs;
-		if (tmp == 0)
-			fv_info->smcfs = 78;
-		else if (tmp == 2)
-			fv_info->smcfs = 104;
-		else if (tmp == 4)
-			fv_info->smcfs = 156;
-		else if (tmp == 5)
-			fv_info->smcfs = 208;
-		else
-			res = -EINVAL;
+		if (!cpu_is_pxa978()) {
+			tmp = fv_info->smcfs;
+			if (tmp == 0)
+				fv_info->smcfs = 78;
+			else if (tmp == 2)
+				fv_info->smcfs = 104;
+			else if (tmp == 4)
+				fv_info->smcfs = 156;
+			else if (tmp == 5)
+				fv_info->smcfs = 208;
+			else
+				res = -EINVAL;
+		}
 		tmp = fv_info->sflfs;
 		if (tmp == 0)
 			fv_info->sflfs = 104;
@@ -987,16 +982,17 @@ static int reg2freq(void *driver_data, struct dvfm_md_opt *fv_info)
 			} else
 				res = -EINVAL;
 		}
-		tmp = fv_info->df_clk;
-		if (tmp == 1)
-			fv_info->df_clk = fv_info->smcfs;
-		else if (tmp == 2)
-			fv_info->df_clk = fv_info->smcfs / 2;
-		else if (tmp == 3)
-			fv_info->df_clk = fv_info->smcfs / 4;
-		if (!cpu_is_pxa978())
-			fv_info->empi_clk = fv_info->df_clk;
+		if (!cpu_is_pxa978()) {
+			tmp = fv_info->df_clk;
+			if (tmp == 1)
+				fv_info->df_clk = fv_info->smcfs;
+			else if (tmp == 2)
+				fv_info->df_clk = fv_info->smcfs / 2;
+			else if (tmp == 3)
+				fv_info->df_clk = fv_info->smcfs / 4;
 
+			fv_info->empi_clk = fv_info->df_clk;
+		}
 		tmp = fv_info->axifs;
 		if (tmp == 0)
 			fv_info->axifs = 104;
@@ -1093,6 +1089,10 @@ static int capture_op_info(void *driver_data, struct dvfm_md_opt *fv_info)
 			fv_info->xn = (acsr >> ACCR_XN_OFFSET) & 0x07;
 		}
 		fv_info->smcfs = (acsr >> ACCR_SMCFS_OFFSET) & 0x07;
+		if (cpu_is_pxa978() && fv_info->smcfs != 0x0) {
+			printk(KERN_INFO "SMC frquency is not the lowest, check OBM setting!\n");
+			WARN_ON(1);
+		}
 		fv_info->sflfs = (acsr >> ACCR_SFLFS_OFFSET) & 0x03;
 		fv_info->hss = (acsr >> ACCR_HSS_OFFSET) & 0x03;
 		if (!cpu_is_pxa978())
@@ -1100,11 +1100,12 @@ static int capture_op_info(void *driver_data, struct dvfm_md_opt *fv_info)
 		else
 			fv_info->dmcfs = (acsr >> ACCR_DMCFS_OFFSET_978) & 0x07;
 		fv_info->power_mode = POWER_MODE_D0;
-		memclkcfg = __raw_readl(info->smc_base + MEMCLKCFG_OFF);
-		fv_info->df_clk = (memclkcfg >> MEMCLKCFG_DF_OFFSET) & 0x07;
-		if (!cpu_is_pxa978())
+		if (!cpu_is_pxa978()) {
+			memclkcfg = __raw_readl(info->smc_base + MEMCLKCFG_OFF);
+			fv_info->df_clk = (memclkcfg >> MEMCLKCFG_DF_OFFSET) & 0x07;
 			fv_info->empi_clk = (memclkcfg >>
 					     MEMCLKCFG_EMPI_OFFSET) & 0x07;
+		}
 		fv_info->axifs = (acsr >> ACSR_AXIFS_OFFSET) & 0x03;
 		accr1 = __raw_readl(info->clkmgr_base + ACCR1_OFF);
 		acsr0 = __raw_readl(info->clkmgr_base + ACSR0_OFF);
@@ -1567,8 +1568,8 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 	if (cpu_is_pxa978()) {
 		accr0 = __raw_readl(info->clkmgr_base + ACCR0_OFF);
 		mask0 |= ACCR_RESERVED_MASK_978;
-	}
-	if (old->smcfs != new->smcfs) {
+	} else if (old->smcfs != new->smcfs) {
+		/* Don't change smc freq in pxa978*/
 		data |= (fv_info.smcfs << ACCR_SMCFS_OFFSET);
 		mask |= ACCR_SMCFS_MASK;
 	}
@@ -2397,8 +2398,10 @@ static int pxa95x_set_op(void *driver_data, struct dvfm_freqs *freqs,
 		}
 
 		md = (struct dvfm_md_opt *)p->op;
-		ckena = CKENA;
-		CKENA |= (1 << CKEN_SMC) | (1 << CKEN_NAND);
+		if (!cpu_is_pxa978()) {
+			ckena = CKENA;
+			CKENA |= (1 << CKEN_SMC) | (1 << CKEN_NAND);
+		}
 		switch (md->power_mode) {
 		case POWER_MODE_D0:
 			/* this means that op is forced by user for debug */
@@ -2417,8 +2420,8 @@ static int pxa95x_set_op(void *driver_data, struct dvfm_freqs *freqs,
 			break;
 		}
 	}
-
-	CKENA = ckena;
+	if (!cpu_is_pxa978())
+		CKENA = ckena;
 	if (md->power_mode == POWER_MODE_D0) {
 		mutex_unlock(&op_change_mutex);
 	}
@@ -3442,9 +3445,10 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "smc_regs");
 	if (!res)
 		goto err;
-	info->smc_base = ioremap(res->start, res->end - res->start + 1);
-
-	pxa95x_df_init(info);
+	if (!cpu_is_pxa978()) {
+		info->smc_base = ioremap(res->start, res->end - res->start + 1);
+		pxa95x_df_init(info);
+	}
 	addr_trim_value_wa = ioremap(0x58110000, 0x30);
 	l2_base_addr = ioremap(0x58120000, 0x1000);
 	pxa95x_poweri2c_init(info);
@@ -3457,8 +3461,8 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 	rc = dvfm_register_driver(&pxa95x_driver, &pxa95x_dvfm_op_list);
 	if (disabe_high_pp_on_low_voltage_board() != 0)
 		goto err;
-
-	CKENA &= ~(1 << CKEN_SMC | 1 << CKEN_NAND);
+	if (!cpu_is_pxa978())
+		CKENA &= ~(1 << CKEN_SMC | 1 << CKEN_NAND);
 
 	if (cpu_is_pxa978())
 		ForceVCTCXO_EN = 1;
@@ -3503,7 +3507,8 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 	return rc;
 err:
 	printk(KERN_ERR "pxa95x_dvfm init failed\n");
-	CKENA &= ~(1 << CKEN_SMC | 1 << CKEN_NAND);
+	if (!cpu_is_pxa978())
+		CKENA &= ~(1 << CKEN_SMC | 1 << CKEN_NAND);
 	kzfree(pxa95x_driver.priv);
 	return -EIO;
 }

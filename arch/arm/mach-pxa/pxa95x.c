@@ -1366,6 +1366,9 @@ static int __init pxa95x_init(void)
 			| (1 << CKEN_STUART)
 			| (1 << CKEN_KEYPAD) | (1 << CKEN_TPM));
 
+	if (cpu_is_pxa978())
+		CKENA &= ~(1 << (CKEN_SMC) | 1 << (CKEN_NAND));
+
 	CKENB &= ~((1 << (CKEN_I2C - 32))
 			| (1 << (CKEN_HSI - 32))
 			| (1 << (CKEN_VMETA - 32))
