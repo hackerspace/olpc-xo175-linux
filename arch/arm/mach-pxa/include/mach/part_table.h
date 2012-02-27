@@ -88,28 +88,28 @@ static struct mtd_partition __attribute__((unused))
 	},
 	[4] = {
 		.name        = "system",
-		.offset      = 0x0e40000,
-		.size        = 0xa000000,     /* mount fs */
+		.offset      = 0x1880000,
+		.size        = 0xF000000,     /* 240MB, mount fs */
 	},
 	[5] = {
 		.name        = "userdata",
-		.offset      = 0xae40000,
-		.size        = 0x131c0000,     /* mount fs */
+		.offset      = 0x10880000,
+		.size        = 0xCD80000,     /* 205.5MB, mount fs */
 	},
 	[6] = {
 		.name        = "telephony",
-		.offset      = 0x1E000000,
-		.size        = 0x1400000,     /* mount fs */
+		.offset      = 0x1D600000,
+		.size        = 0xC00000,     /* 12MB, mount fs */
 	},
 	[7] = {
 		.name        = "NVMFS",
-		.offset      = 0x1F400000,
-		.size        = 0x100000,     /* mount fs */
+		.offset      = 0x1E200000,
+		.size        = 0x400000,     /* 4MB, mount fs */
 	},
 	[8] = {
-		.name        = "Linux BBT",	/*Must not exceed 0xfb00000 (Mvrl BBT)*/
-		.offset      = 0x1f500000,
-		.size        = 0x0100000,
+		.name        = "Linux BBT",	/*Must not exceed 0x1F600000 (Mvrl BBT)*/
+		.offset      = 0x1F500000,
+		.size        = 0x100000,
 		.mask_flags  = MTD_WRITEABLE,  /* force read-only */
 	},
 	/* NOTES: We reserve some blocks for PXA3xx BBM at the end of NAND.
