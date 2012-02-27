@@ -277,6 +277,28 @@ static struct pm860x_platform_data pm8607_info = {
 	.num_backlights	= ARRAY_SIZE(backlight),
 };
 
+static int pm800_plat_config(struct pm80x_chip *chip,
+				struct pm80x_platform_data *pdata)
+{
+	if (!chip || !pdata ||
+		chip->id != CHIP_PM800 ||
+		!chip->base_page) {
+		pr_err("%s:chip or pdata is not availiable!\n", __func__);
+		return -EINVAL;
+	}
+	/* Initializain actions to enable 88pm805 */
+	/* Clear WDT */
+	pm80x_reg_write(chip->base_page, 0x0E, 0x00);
+	/* Enable 32Khz-out-1 and resetoutn */
+	pm80x_reg_write(chip->base_page, 0xE1, 0xB0);
+	/* Enable 32Khz-out-3  low jitter */
+	pm80x_reg_write(chip->base_page, 0x21, 0x20);
+	/* Enable 32Khz-out-3 */
+	pm80x_reg_write(chip->base_page, 0xE2, 0x22);
+
+	return 0;
+}
+
 static struct pm80x_platform_data pm800_info = {
 	.regulator	= regulator_data,
 	.rtc  = &pm80x_rtc,
@@ -291,6 +313,7 @@ static struct pm80x_platform_data pm800_info = {
 	.irq_companion		= gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO96)),
 
 	.i2c_port		= PI2C_PORT,
+	.pm800_plat_config = pm800_plat_config,
 };
 
 extern struct pxa95x_freq_mach_info freq_mach_info;
