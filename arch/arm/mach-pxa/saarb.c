@@ -336,6 +336,12 @@ static char *pxa9xx_usb_clock_name[] = {
 	[2] = "U2OCLK",
 };
 
+static struct mv_usb_addon_irq pm860x_id = {
+	.irq	= IRQ_BOARD_START + PM8607_IRQ_GPADC2,
+	.poll	= pm860x_read_id_val,
+	.init	= pm860x_init_id,
+};
+
 static struct mv_usb_addon_irq pmic_vbus = {
 	.irq	= IRQ_BOARD_START + PM8607_IRQ_CHG,
 	.poll	= read_vbus_val,
@@ -344,10 +350,11 @@ static struct mv_usb_addon_irq pmic_vbus = {
 static struct mv_usb_platform_data pxa9xx_usb_pdata = {
 	.clknum		= 3,
 	.clkname	= pxa9xx_usb_clock_name,
+	.id		= &pm860x_id,
 	.vbus		= &pmic_vbus,
 	.mode		= MV_USB_MODE_OTG,
 	.phy_init	= pxa9xx_usb_phy_init,
-	.set_vbus	= NULL,
+	.set_vbus	= pm860x_set_vbus,
 };
 #endif
 
@@ -1624,6 +1631,16 @@ static void __init saarb_init(void)
 #ifdef CONFIG_USB_PXA_U2O
 	pxa9xx_device_u2o.dev.platform_data = (void *)&pxa9xx_usb_pdata;
 	platform_device_register(&pxa9xx_device_u2o);
+#endif
+
+#ifdef CONFIG_USB_PXA_U2O_OTG
+	pxa9xx_device_u2ootg.dev.platform_data = (void *)&pxa9xx_usb_pdata;
+	platform_device_register(&pxa9xx_device_u2ootg);
+#endif
+
+#ifdef CONFIG_USB_EHCI_PXA_U2O
+	pxa9xx_device_u2oehci.dev.platform_data = (void *)&pxa9xx_usb_pdata;
+	platform_device_register(&pxa9xx_device_u2oehci);
 #endif
 
 #ifdef CONFIG_PROC_FS
