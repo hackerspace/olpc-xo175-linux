@@ -740,9 +740,9 @@ int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
 #define GC_ACLK_SEL(n)		((n & 3) << 4)
 #define GC_ACLK_SEL_MSK		GC_ACLK_SEL(3)
 #define GC_CLK_EN		(1 << 3)
-#define GC_AXICLK_EN		(1 << 2)
+#define GC_AXICLK_EN		((1 << 2) | (1 << 19))
 #define GC_RST			(1 << 1)
-#define GC_AXI_RST		(1 << 0)
+#define GC_AXI_RST		((1 << 0) | (1 << 18))
 
 #define GC_CLK_RATE(div, src, aclk) (GC_CLK_DIV(div) |\
 	GC_CLK_SRC_SEL(src) | GC_ACLK_SEL(aclk))
