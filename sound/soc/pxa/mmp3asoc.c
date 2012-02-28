@@ -280,6 +280,8 @@ static void audio_subsystem_poweron(void)
 	__raw_modify(APMU_AUDIO_CLK_RES_CTRL, 0, (1u << 9));
 	/* enable power switch 11 */
 	__raw_modify(APMU_AUDIO_CLK_RES_CTRL, 0, (2u << 9));
+	/* enable audio memory redundancy start */
+	__raw_modify(APMU_AUDIO_CLK_RES_CTRL, 0, (1u << 2));
 	/* enable SRAM power */
 	__raw_modify(APMU_AUDIO_SRAM_PWR, 0, 0x5);
 	__raw_modify(APMU_AUDIO_SRAM_PWR, 0, 0xa);
@@ -338,16 +340,23 @@ static void audio_subsystem_poweroff(void)
 
 static void audio_subsystem_pll_config(void)
 {
-	/* select audio pll */
-	__raw_writel(0x908a1881, SSPA_AUD_PLL_CTRL0);
+	/* select audio pll: Fvco = 135.4752MHz; OCLK = 22.5792MHz;
+	 * DIV_MODULO[2:0] = 0b001;
+	 * FRACT[27:8] = 0x8a18;
+	 * DIV_FBCCLK[1:0] = 0b00; */
+	__raw_writel(0x908a1899, SSPA_AUD_PLL_CTRL0);
 	msleep(100);
 
-	/* select audio pll */
-	__raw_writel(0x10801, SSPA_AUD_PLL_CTRL1);
+	/* sspa_aud_pll_ctrl1[11] = 1 to choose audio PLL
+	 * div : 12, 44.1K
+	 * DIV_OCLK_PATTERN[1:0] = 0b01; */
+	__raw_writel(0x2e010801, SSPA_AUD_PLL_CTRL1);
 	msleep(100);
 
-	/* div : 12, 44.1K */
-	__raw_writel(0x911185, SSPA_AUD_CTRL);
+	/* audio clock select: choose separate clock source for sspa1 and sspa2.
+	 * sspa_aud_ctrl[7] = 0, sspa1 chooses pm_vctcxo;
+	 * sspa_aud_ctrl[23] = 0, sspa2 chooses i2s_sc_apb; */
+	__raw_writel(0x111109, SSPA_AUD_CTRL);
 	msleep(100);
 
 	/* Switch the source clock for core and AXI clock to Audio PLL*/
@@ -367,6 +376,7 @@ static int codec_elba_init(struct snd_soc_pcm_runtime *rtd)
 	/* currently the audio pll of mmp3 a0 stepping is not working */
 	audio_subsystem_pll_config();
 
+#if 0
 	/* Add mmp3asoc specific controls */
 	err = snd_soc_add_controls(codec, mmp3asoc_elba_controls,
 				   ARRAY_SIZE(mmp3asoc_elba_controls));
@@ -418,7 +428,7 @@ static int codec_elba_init(struct snd_soc_pcm_runtime *rtd)
 	mmp3asoc_ext_control(dapm, MMP3ASOC_MAIN_MIC_FUNC);
 	snd_soc_dapm_sync(dapm);
 	mutex_unlock(&codec->mutex);
-
+#endif
 	return 0;
 }
 
@@ -464,7 +474,7 @@ static int mmp3asoc_hdmi_hw_params(struct snd_pcm_substream *substream,
 	sspa_div = freq_out;
 	do_div(sspa_div, sspa_mclk);
 
-#ifdef CONFIG_SND_WM8994_MASTER_MODE
+#ifdef CONFIG_SND_ELBA_MASTER_MODE
 	snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_I2S |
 			    SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBM_CFM);
 	snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_I2S |
@@ -503,9 +513,12 @@ static int mmp3asoc_hdmi_hw_params(struct snd_pcm_substream *substream,
 		break;
 	}
 
+	/* SSPA clock ctrl register changes, and can't use previous API */
+#if 0
 	snd_soc_dai_set_pll(cpu_dai, SSPA_AUDIO_PLL, 0, freq_in, freq_out);
 	snd_soc_dai_set_clkdiv(cpu_dai, 0, sspa_div);
 	snd_soc_dai_set_sysclk(cpu_dai, 0, sysclk, 0);
+#endif
 
 	return 0;
 }
@@ -545,7 +558,7 @@ static int mmp3asoc_elba_hw_params(struct snd_pcm_substream *substream,
 	sspa_div = freq_out;
 	do_div(sspa_div, sspa_mclk);
 
-#ifdef CONFIG_SND_WM8994_MASTER_MODE
+#ifdef CONFIG_SND_ELBA_MASTER_MODE
 	snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_I2S |
 			    SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBM_CFM);
 	snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_I2S |
@@ -558,6 +571,9 @@ static int mmp3asoc_elba_hw_params(struct snd_pcm_substream *substream,
 #endif
 
 	/* workaround for audio PLL, and should be removed after A1 */
+	/* SSPA2 clock formula: sysclk = (PLL1/4) * ISCCR1 Nom/Denom4
+	 * for 48k, the sysclk should be 12.2880MHz, but here we only get
+	 * approximate 12.458MHz */
 	switch (params_rate(params)) {
 	case 48000:
 		__raw_writel(0xd0040040, MPMU_ISCCRX1);
@@ -584,9 +600,12 @@ static int mmp3asoc_elba_hw_params(struct snd_pcm_substream *substream,
 		break;
 	}
 
+	/* SSPA clock ctrl register changes, and can't use previous API */
+#if 0
 	snd_soc_dai_set_pll(cpu_dai, SSPA_AUDIO_PLL, 0, freq_in, freq_out);
 	snd_soc_dai_set_clkdiv(cpu_dai, 0, sspa_div);
 	snd_soc_dai_set_sysclk(cpu_dai, 0, sysclk, 0);
+#endif
 
 	/* set elba sysclk */
 	snd_soc_dai_set_sysclk(codec_dai, 0, 0, PM805_CODEC_CLK_DIR_OUT);
