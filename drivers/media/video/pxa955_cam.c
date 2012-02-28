@@ -181,12 +181,10 @@ MODULE_SUPPORTED_DEVICE("Video");
 #define SCICR0_CI_EN	0x80000000	/* Camera Interface Enable */
 
 /* REG_SCIFIFO */
-#define SCIFIFO_Fx_EN	0x0010	/* FIFO 0 Enable */
-
+#define SCIFIFO_TFS_64	0x0002
 #define SCIFIFO_F0_EN	0x0010	/* FIFO 0 Enable */
 #define SCIFIFO_F1_EN	0x0020	/* FIFO 1 Enable */
 #define SCIFIFO_F2_EN	0x0040	/* FIFO 2 Enable */
-#define SCIFIFO_FX_EN(n)	((n) << 4)	/* Input Pixel Format (4 bits) */
 
 /* REG_SCIDBRx*/
 #define SCIDBR_EN	(0x1u<<1)	/*DMA Branch Enable*/
@@ -225,7 +223,7 @@ static unsigned int *pri_axi, *pri_ci1, *pri_ci2, *pri_gcu;
 
 static int dvfm_dev_idx;
 
-static unsigned int vid_mem_limit = 32;	/* Video memory limit, in Mb */
+static unsigned int vid_mem_limit = 64;	/* Video memory limit, in Mb */
 static unsigned int skip_frame;
 
 typedef enum {
@@ -1094,6 +1092,7 @@ static void sci_enable(struct pxa955_cam_dev *pcdev)
 		val = SCIFIFO_F0_EN << i;
 		sci_reg_set_bit(pcdev, REG_SCIFIFO, val);
 	}
+	sci_reg_set_bit(pcdev, REG_SCIFIFO, SCIFIFO_TFS_64);
 
 	/* start_dma */
 	for (i = 0; i < pcdev->channels; i++)
@@ -1498,9 +1497,9 @@ static int pxa955_cam_add_device(struct soc_camera_device *icd)
 		dev_info(icd->dev.parent, "cam: Failed to initialize subdev: "\
 					"%d\n", ret);
 
-	printk(KERN_INFO "cam: Hardware path is \"%s\" => CSI#%d => SCI#%d\n", \
-			icl->module_name, pcdev->csidev->id, icd->iface);
-
+	printk(KERN_INFO "cam: path ready %s => CSI#%d => SCI#%d => " \
+			"/dev/video%d\n", icl->module_name, pcdev->csidev->id, \
+			icd->iface, pcdev->soc_host.nr);
 	return 0;
 
 exit_csi_irq:
@@ -1604,7 +1603,7 @@ static void pxa955_cam_remove_device(struct soc_camera_device *icd)
 	kfree(pcdev->csidev);
 	pcdev->csidev = NULL;
 	/* Now CSI is totally dead..This is its last words */
-	printk(KERN_INFO "cam: path killed: \"%s\" => CSI#%d => SCI#%d\n", \
+	printk(KERN_INFO "cam: path free: %s => CSI#%d => SCI#%d\n", \
 			icl->module_name, i, icd->iface);
 }
 
@@ -1795,8 +1794,7 @@ static int pxa955_cam_set_fmt(struct soc_camera_device *icd,
 	ctrl.id = V4L2_CID_PRIVATE_GET_MIPI_PHY;
 	ret = v4l2_subdev_call(sd, core, g_ctrl, &ctrl);
 	if ((ret < 0) || (ctrl.value == 0)) {
-		printk(KERN_NOTICE "cam: sensor don't have advice on CSI phy "\
-				"timing, use default D_PHY timing\n");
+		printk(KERN_NOTICE "cam: use default D_PHY timing\n");
 		pcdev->csidev->phy_cfg = &default_phy_val;
 	} else
 		pcdev->csidev->phy_cfg = (struct mipi_phy *)ctrl.value;
@@ -2116,19 +2114,24 @@ static void ccic_timeout_handler(unsigned long data)
 	static unsigned int reset_cnt = 1;
 	struct pxa955_cam_dev *pcdev = (struct pxa955_cam_dev *)data;
 	int csi_irqs, sci_irqs;
+	int frame_flag = CSI_CONT_SOF_INT_STS | CSI_CONT_EOF_INT_STS;
 
 	csi_irqs = csi_reg_read(pcdev->csidev, REG_CSxINST);
 	csi_reg_write(pcdev->csidev, REG_CSxINST, csi_irqs);
-	if (csi_irqs & (CSI_CONT_SOF_INT_STS | CSI_CONT_EOF_INT_STS)) {
+
+	if (unlikely(csi_irqs & ~(frame_flag|0x01)))
+		/* There are some error bit set */
+		printk(KERN_INFO "cam: CSxINST = 0x%08X\n", csi_irqs);
+
+	if ((csi_irqs & frame_flag) == frame_flag) {
+		/* SOF and EOF is set, suppose CSI is normal */
 		sci_irqs = sci_reg_read(pcdev, REG_SCISR);
-		printk(KERN_INFO "cam: csi looking good, but no EOFX, check " \
-			"SCISR = 0x%08X----------------<%d>\n", \
-			sci_irqs, reset_cnt);
+		printk(KERN_INFO "cam: mipi normal, SCISR = 0x%08X-----------" \
+			"-------------------------<%d>\n", sci_irqs, reset_cnt);
 		/* not CSI fault, don't reset CSI here*/
 	} else {
-		printk(KERN_INFO "cam: mipi_err, call reset workqueue, " \
-			"CSxINST = 0x%08X----------------<%d>\n", \
-			csi_irqs, reset_cnt++);
+		printk(KERN_INFO "cam: CSxINST = 0x%08X, call reset workqueue" \
+			"-----------------------<%d>\n", csi_irqs, reset_cnt++);
 		schedule_work(&pcdev->reset_wq);
 	}
 }
