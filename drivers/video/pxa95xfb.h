@@ -53,6 +53,13 @@ typedef enum
 	LCD_Controller_NULL = 0x1F,
 }LCD_Controller_CLIENT_ID;
 
+typedef enum {
+	LCD_ALPHA_INVALID = 0,
+	LCD_COLORKEY,
+	LCD_WINALPHA,
+	LCD_PIXELALPHA,
+} LCD_ALPHAMODE;
+
 /*   registers address */
 #define LCD_CTL			0x0
 #define LCD_CTL_STS		0x0004
@@ -848,7 +855,6 @@ struct pxa95xfb_info {
 	wait_queue_head_t	w_intr_wq;
 	struct mutex		access_ok;
 	struct _sOvlySurface    surface;
-	struct _sColorKeyNAlpha ckey_alpha;
 	struct fb_videomode	mode;
 	int                     fixed_output;
 	unsigned char		*hwc_buf;
@@ -887,6 +893,11 @@ struct pxa95xfb_info {
 	struct buf_addr buf_freelist[MAX_QUEUE_NUM];
 	struct buf_addr buf_waitlist[MAX_QUEUE_NUM];
 	struct buf_addr buf_current;
+
+	/* alpha of this layer*/
+	struct _sColorKeyNAlpha ckey_alpha;
+	LCD_ALPHAMODE alphamode;
+	u32 alphacolor;
 };
 
 /* ---------------------------------------------- */
@@ -895,12 +906,12 @@ struct pxa95xfb_info {
 extern struct pxa95xfb_info * pxa95xfbi[PXA95xFB_FB_NUM];
 extern struct pxa95xfb_conv_info pxa95xfb_conv[4];
 
-__u32 lcdc_set_colorkeyalpha(struct pxa95xfb_info *fbi);
+u32 lcdc_set_colorkeyalpha(struct pxa95xfb_info *fbi);
 void lcdc_set_pix_fmt(struct fb_var_screeninfo *var, int pix_fmt);
 void lcdc_set_mode_to_var(struct pxa95xfb_info *fbi, struct fb_var_screeninfo *var,
 		     const struct fb_videomode *mode);
-__u32 lcdc_set_fr_addr(struct pxa95xfb_info *fbi, struct fb_var_screeninfo * var);
-__u32 lcdc_get_fr_addr(struct pxa95xfb_info *fbi);
+u32 lcdc_set_fr_addr(struct pxa95xfb_info *fbi, struct fb_var_screeninfo * var);
+u32 lcdc_get_fr_addr(struct pxa95xfb_info *fbi);
 void lcdc_set_lcd_controller(struct pxa95xfb_info *fbi);
 int lcdc_wait_for_vsync(struct pxa95xfb_info *fbi);
 void lcdc_correct_pixclock(struct fb_videomode * m);

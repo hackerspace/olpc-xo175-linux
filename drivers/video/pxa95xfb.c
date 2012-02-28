@@ -1964,21 +1964,20 @@ void lcdc_correct_pixclock(struct fb_videomode * m)
 	printk(KERN_INFO "LCD %s: pixclock %d\n", __func__, m->pixclock);
 }
 
+/* alphamode: 0: colorkey, 1: window alpha, 2: per-pixel alpha*/
 u32 lcdc_set_colorkeyalpha(struct pxa95xfb_info *fbi)
 {
-	if (fbi->ckey_alpha.mode == FB_ENABLE_RGB_COLORKEY_MODE) {
+	if (fbi->alphamode == LCD_COLORKEY) {
 		/* color key mode, alpha regs = 0*/
-		unsigned int color = (fbi->ckey_alpha.Y_ColorAlpha << 16) |
-			(fbi->ckey_alpha.U_ColorAlpha << 8) | fbi->ckey_alpha.V_ColorAlpha;
-		writel(color, fbi->reg_base + LCD_CH0_CLR_MATCH  + 4*fbi->window);
+		writel(fbi->alphacolor, fbi->reg_base + LCD_CH0_CLR_MATCH  + 4*fbi->window);
 		writel(0, fbi->reg_base + LCD_CH0_ALPHA  + 4*fbi->window);
-		pr_info("fb%d: colorkey mode, key %x\n", fbi->id, color);
-	} else if (fbi->ckey_alpha.alphapath == FB_CONFIG_ALPHA) {
+		pr_info("fb%d: colorkey mode, key %x\n", fbi->id, fbi->alphacolor);
+	} else if (fbi->alphamode == LCD_WINALPHA) {
 		/* global alpha mode */
-		unsigned int alpha = LCD_CHx_ALPHA_CH_ALPHA(fbi->ckey_alpha.config) | LCD_CHx_ALPHA_W_ALPHA_EN;
+		u32 alpha = LCD_CHx_ALPHA_CH_ALPHA(fbi->alphacolor) | LCD_CHx_ALPHA_W_ALPHA_EN;
 		writel(alpha, fbi->reg_base + LCD_CH0_ALPHA  + 4*fbi->window);
-		pr_info("fb%d: global alpha mode, alpha %x\n", fbi->id, fbi->ckey_alpha.config);
-	} else if (fbi->ckey_alpha.alphapath == FB_GRA_PATH_ALPHA) {
+		pr_info("fb%d: global alpha mode, alpha %x\n", fbi->id, fbi->alphacolor);
+	} else if (fbi->alphamode == LCD_PIXELALPHA) {
 		writel(LCD_CHx_ALPHA_CLR_KEY_EN(2), fbi->reg_base + LCD_CH0_ALPHA  + 4*fbi->window);
 		pr_info("fb%d: per-pixel alpha mode\n", fbi->id);
 	} else
@@ -2339,8 +2338,10 @@ static void pxa95xfb_gfx_power(struct pxa95xfb_info *fbi, int on)
 		clk_enable(fbi->clk_lcd);
 
 		for(i= 0; i< PXA95xFB_FB_NUM; i++){
-			if(pxa95xfbi[i] && pxa95xfbi[i]->open_count)
+			if(pxa95xfbi[i] && pxa95xfbi[i]->open_count) {
+				lcdc_set_colorkeyalpha(fbi);
 				lcdc_set_lcd_controller(pxa95xfbi[i]);
+			}
 		}
 
 		/* set scale registers for fb1*/
@@ -2352,9 +2353,6 @@ static void pxa95xfb_gfx_power(struct pxa95xfb_info *fbi, int on)
 			if(pxa95xfbi[i] && pxa95xfbi[i]->open_count)
 				converter_power(pxa95xfbi[i], on);
 		}
-
-		/*FIXME: dsi video mode would be broken if enter/exit D2*/
-		lcdc_set_colorkeyalpha(fbi);
 
 		fbi->suspend = 0;
 		printk(KERN_INFO "LCD power up\n");

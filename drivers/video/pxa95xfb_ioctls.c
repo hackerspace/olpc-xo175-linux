@@ -441,18 +441,42 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 				sizeof(struct _sVideoBufferAddr)) ? -EFAULT : 0;
 	case FB_IOCTL_SET_MEMORY_TOGGLE:
 		break;
-	case FB_IOCTL_SET_COLORKEYnALPHA:
-		if (copy_from_user(&fbi->ckey_alpha, argp,
-					sizeof(struct _sColorKeyNAlpha)))
-			return -EFAULT;
-		if (!pxa95xfbi[0]->suspend)
-			lcdc_set_colorkeyalpha(fbi);
-		break;
 	case FB_IOCTL_GET_COLORKEYnALPHA:
 		if (copy_to_user(argp, &fbi->ckey_alpha,
 					sizeof(struct _sColorKeyNAlpha)))
 			return -EFAULT;
+	case FB_IOCTL_SET_COLORKEYnALPHA:
+	{
+		struct _sColorKeyNAlpha *ckey_alpha;
+		u32 color;
+		if (copy_from_user(&fbi->ckey_alpha, argp,
+					sizeof(struct _sColorKeyNAlpha)))
+			return -EFAULT;
+		ckey_alpha = &fbi->ckey_alpha;
+
+		layer_id = (fbi->id & (~1)) + (ckey_alpha->alphapath == FB_VID_PATH_ALPHA);
+		fbi = pxa95xfbi[layer_id];
+
+		if (ckey_alpha->mode == FB_ENABLE_RGB_COLORKEY_MODE) {
+			fbi->alphacolor = (ckey_alpha->Y_ColorAlpha << 16) |
+				(ckey_alpha->U_ColorAlpha << 8) | ckey_alpha->V_ColorAlpha;
+			fbi->alphamode = LCD_COLORKEY;
+		} else if (ckey_alpha->mode == FB_DISABLE_COLORKEY_MODE) {
+			if (ckey_alpha->alphapath == FB_CONFIG_ALPHA) {
+				fbi->alphamode = LCD_WINALPHA;
+				fbi->alphacolor = ckey_alpha->config;
+			} else
+				fbi->alphamode = LCD_PIXELALPHA;
+		} else {
+			pr_info("fb%d: unsupported mode\n", fbi->id);
+			fbi->alphamode = LCD_ALPHA_INVALID;
+		}
+
+		if (!pxa95xfbi[0]->suspend)
+			lcdc_set_colorkeyalpha(fbi);
+
 		break;
+	}
 	case FB_IOCTL_SWITCH_VID_OVLY:
 		/* fbi->id: 0,1 -> 1, 2,3 -> 3*/
 	case FB_IOCTL_SWITCH_GRA_OVLY:
