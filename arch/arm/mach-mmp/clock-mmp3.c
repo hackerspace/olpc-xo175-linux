@@ -3196,6 +3196,8 @@ static struct clk mmp3_list_clks[] = {
 			0xbf, 100000000, &mmp3_clk_pll1, &nand_clk_ops),
 	APMU_CLK_OPS("hsic1", NULL, "HSIC1CLK", USBHSIC1,
 			0x1b, 480000000, NULL, &hsic_clk_ops),
+	APMU_CLK_OPS("hsic2", NULL, "HSIC2CLK", USBHSIC2,
+			0x1b, 480000000, NULL, &hsic_clk_ops),
 };
 
 static void mmp3_init_one_clock(struct clk *c)

@@ -1462,6 +1462,20 @@ static struct mv_usb_platform_data mmp3_hsic1_pdata = {
 	.private_init	= mmp3_hsic_private_init,
 };
 
+static char *mmp3_hsic2_clock_name[] = {
+	[0] = "U2OCLK",
+	[1] = "HSIC2CLK",
+};
+
+static struct mv_usb_platform_data mmp3_hsic2_pdata = {
+	.clknum         = 2,
+	.clkname        = mmp3_hsic2_clock_name,
+	.vbus           = NULL,
+	.mode           = MV_USB_MODE_HOST,
+	.phy_init       = mmp3_hsic_phy_init,
+	.set_vbus       = mmp3_hsic1_set_vbus,
+	.private_init   = mmp3_hsic_private_init,
+};
 #endif
 
 #endif
@@ -1999,8 +2013,13 @@ static void __init abilene_init(void)
 #endif
 
 #ifdef CONFIG_USB_EHCI_PXA_U2H_HSIC
-	mmp3_hsic1_device.dev.platform_data = (void *)&mmp3_hsic1_pdata;
-	platform_device_register(&mmp3_hsic1_device);
+	if (cpu_is_mmp3_b0()) {
+		mmp3_hsic2_device.dev.platform_data = (void *)&mmp3_hsic2_pdata;
+		platform_device_register(&mmp3_hsic2_device);
+	} else {
+		mmp3_hsic1_device.dev.platform_data = (void *)&mmp3_hsic1_pdata;
+		platform_device_register(&mmp3_hsic1_device);
+	}
 #endif
 }
 

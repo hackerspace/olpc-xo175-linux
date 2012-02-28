@@ -81,6 +81,7 @@ extern struct platform_device mmp3_device_u2o;
 extern struct platform_device mmp3_device_u2ootg;
 extern struct platform_device mmp3_device_u2oehci;
 extern struct platform_device mmp3_hsic1_device;
+extern struct platform_device mmp3_hsic2_device;
 
 static inline void mmp3_io_domain_1v8(u16 reg, int set)
 {

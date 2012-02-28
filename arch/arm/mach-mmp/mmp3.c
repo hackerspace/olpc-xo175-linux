@@ -494,6 +494,40 @@ struct platform_device mmp3_hsic1_device = {
 	.resource	= mmp3_hsic1_resources,
 };
 
+static struct resource mmp3_hsic2_resources[] = {
+	/* reg base */
+	[0] = {
+		.start  = MMP3_HSIC2_REGBASE + U2x_CAPREGS_OFFSET,
+		.end    = MMP3_HSIC2_REGBASE + USB_REG_RANGE,
+		.flags  = IORESOURCE_MEM,
+		.name   = "capregs",
+	},
+	/* phybase */
+	[1] = {
+		.start  = MMP3_HSIC2_PHYBASE,
+		.end    = MMP3_HSIC2_PHYBASE + USB_PHY_RANGE,
+		.flags  = IORESOURCE_MEM,
+		.name   = "phyregs",
+	},
+	[2] = {
+		.start  = IRQ_MMP3_USB_HS2,
+		.end    = IRQ_MMP3_USB_HS2,
+		.flags  = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mmp3_hsic2_device = {
+	.name           = "mmp3-hsic",
+	.id             = -1,
+	.dev            = {
+		.dma_mask               = &usb_dma_mask,
+		.coherent_dma_mask      = DMA_BIT_MASK(32),
+	},
+
+	.num_resources  = ARRAY_SIZE(mmp3_hsic2_resources),
+	.resource       = mmp3_hsic2_resources,
+};
+
 int mmp3_hsic_private_init(struct mv_op_regs *opregs, unsigned int phyregs)
 {
 	u32 hsic_int;
