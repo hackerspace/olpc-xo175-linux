@@ -597,6 +597,8 @@ int mmp3_hsic_private_init(struct mv_op_regs *opregs, unsigned int phyregs)
 void vmeta_power_switch(unsigned int enable)
 {
 	unsigned int reg_vmpwr = 0;
+	unsigned int timeout;
+
 	reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
 	if (VMETA_PWR_ENABLE == enable) {
 		if (reg_vmpwr & (APMU_VMETA_PWRUP_ON|APMU_VMETA_ISB))
@@ -610,6 +612,22 @@ void vmeta_power_switch(unsigned int enable)
 		reg_vmpwr |= APMU_VMETA_PWRUP_ON;
 		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
 		udelay(100);
+
+		/* 1.a Assert the redundancy repair signal */
+		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
+		reg_vmpwr |= APMU_VMETA_REDUN_START;
+		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
+
+		/* 1.b Poll and wait the REDUN_START bit back to 0*/
+		timeout = 1000;
+		do {
+			if (--timeout == 0) {
+				WARN(1, "vmeta: REDUN_START timeout!\n");
+				return;
+			}
+			udelay(100);
+			reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
+		} while (reg_vmpwr & APMU_VMETA_REDUN_START);
 
 		/* 2. enable vMeta AXI clock */
 		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);

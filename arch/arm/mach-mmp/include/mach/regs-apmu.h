@@ -138,6 +138,8 @@
 #define APMU_VMETA_CLK_EN			(1 << 4)
 /* VMeta Technology AXI Clock Enable */
 #define APMU_VMETA_AXICLK_EN			(1 << 3)
+/* VMeta Technology Memory Redundancy Repair Start */
+#define APMU_VMETA_REDUN_START			(1 << 2)
 /* VMeta Technology Peripheral Reset 1 */
 #define APMU_VMETA_RST				(1 << 1)
 /* VMeta Technology AXI Reset */
