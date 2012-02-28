@@ -258,6 +258,14 @@ void mmp2_pm_enter_lowpower_mode(int state)
 	__raw_writel(apcr, MPMU_APCR);	/* 0xfe086000 */
 }
 
+void mmp2_cpu_do_idle(void)
+{
+	if ((mmp2_pm_info_p->dmcu_base) && (mmp2_pm_info_p->pm_vaddr))
+		jump_to_lp_sram((mmp2_pm_info_p->pm_vaddr),
+					mmp2_pm_info_p->dmcu_base);
+	else
+		cpu_do_idle();
+}
 
 static int mmp2_pm_enter(suspend_state_t state)
 {
@@ -291,7 +299,7 @@ static int mmp2_pm_enter(suspend_state_t state)
 	pm_mpmu_clk_disable();		/* disable clocks in MPMU */
 
 	printk(KERN_INFO "%s: before suspend\n", __func__);
-	cpu_do_idle();
+	mmp2_cpu_do_idle();
 	printk(KERN_INFO "%s: after suspend\n", __func__);
 
 	pm_mpmu_clk_enable();		/* enable clocks in MPMU */
@@ -386,6 +394,11 @@ static int __init mmp2_pm_init(void)
 	mmp2_pm_info_p->pmum_base = ioremap(MMP2_PMUM_BASE, MMP2_PMUM_END - MMP2_PMUM_BASE + 1);
 	mmp2_pm_info_p->pmua_base = ioremap(MMP2_PMUA_BASE, MMP2_PMUA_END - MMP2_PMUA_BASE + 1);
 	mmp2_pm_info_p->dmcu_base = ioremap(MMP2_DMCU_BASE, MMP2_DMCU_END - MMP2_DMCU_BASE + 1);
+	mmp2_pm_info_p->fc_vaddr = (void *)FC_VIRT_BASE;
+	mmp2_pm_info_p->fc_vstack = (void *)FC_VIRT_BASE + 0x800;
+	mmp2_pm_info_p->pm_vaddr = (void *)FC_VIRT_BASE + 0xc00;
+
+	copy_lp_to_sram(mmp2_pm_info_p->pm_vaddr);
 
 	return 0;
 err:

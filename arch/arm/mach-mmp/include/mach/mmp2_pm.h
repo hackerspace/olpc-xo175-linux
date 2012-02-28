@@ -403,6 +403,7 @@ struct mmp2_pm_info {
 	void *dmcu_base;
 	void *fc_vaddr;
 	void *fc_vstack;
+	void *pm_vaddr;
 	int (*fc_seq_init)(void);
 	int (*fc_seq_prepare)(struct mmp2_fc_param *param);
 	int (*fc_seq_exe)(void *vaddr, void *vstack, struct mmp2_fc_param *param);
@@ -432,6 +433,9 @@ int wakeup_freq_seq(void);
 
 extern void mmp2_pm_enter_lowpower_mode(int state);
 extern unsigned int mmp2_get_pj4_clk(void);
+extern void *copy_lp_to_sram(void *vaddr);
+extern unsigned int jump_to_lp_sram(void *addr, void *va_dmcu);
+extern void mmp2_cpu_do_idle(void);
 #endif
 
 #endif

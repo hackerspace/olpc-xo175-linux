@@ -487,8 +487,6 @@ out:
 void mmp2_fc_seq(int old_idx, int new_idx)
 {
 	mmp2_fc_debug("enter fc seq: old_idx=%d new_idx=%d\n", old_idx, new_idx);
-	mmp2_pm_info_p->fc_vaddr = pm_fc_vaddr;
-	mmp2_pm_info_p->fc_vstack = pm_fc_vstack;
 	PMUcore2_hw_fc_seq(mmp2_pm_info_p, old_idx, new_idx);
 }
 EXPORT_SYMBOL(mmp2_fc_seq);

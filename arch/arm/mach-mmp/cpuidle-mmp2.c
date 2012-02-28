@@ -82,7 +82,10 @@ static int mmp2_enter_idle(struct cpuidle_device *dev,
 		__raw_writel(apcr & 0xff087fff, MPMU_APCR);
 	}
 
-	cpu_do_idle();
+	if (mode == POWER_MODE_CORE_EXTIDLE)
+		cpu_do_idle();
+	else
+		mmp2_cpu_do_idle();
 
 	if ((mode == POWER_MODE_CHIP_SLEEP)
 			|| (mode == POWER_MODE_APPS_SLEEP)) {
