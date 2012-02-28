@@ -62,6 +62,10 @@ static struct cdev *cm_cdev;		/* char device structure */
 static struct class *cm_class;
 static struct device *cm_dev;
 
+#if defined(CONFIG_CPU_FREQ) || defined(CONFIG_HOTPLUG)
+static DEFINE_MUTEX(cmtask_lock);
+#endif
+
 #ifdef DEBUG
 #define dump_regs()					\
 do {							\
@@ -213,7 +217,6 @@ static int cm_trigger_swap(int target_core_id)
 /* avoid from entering core_morph_task & mmp3_cpufreq_target
  * on two CPUs
  */
-static DEFINE_MUTEX(cmtask_lock);
 static struct cpufreq_freqs prev_freqs;
 static int core_morph_task(void *data)
 {
