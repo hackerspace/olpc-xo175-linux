@@ -28,6 +28,7 @@
 #include <mach/regs-apbc.h>
 #include <mach/regs-apmu.h>
 #include <mach/regs-mpmu.h>
+#include <mach/regs-pmu.h>
 #include <mach/cputype.h>
 #include <mach/irqs.h>
 #include <mach/gpio.h>
@@ -38,6 +39,7 @@
 #include <mach/soc_vmeta.h>
 #include <mach/mmp_dma.h>
 #include <linux/memblock.h>
+#include <linux/regdump_ops.h>
 
 #include <linux/platform_device.h>
 
@@ -138,6 +140,114 @@ static void __init mmp3_init_gpio(void)
 
 	pxa_init_gpio(IRQ_MMP3_GPIO, 0, 167, NULL);
 }
+
+#ifdef CONFIG_REGDUMP
+static struct regdump_ops pmua_regdump_ops = {
+	.dev_name = "MMP3-PMUA",
+};
+
+static struct regdump_region pmua_dump_region[] = {
+	{"PMUA_CC_SP",			0x000, 4, regdump_cond_true},
+	{"PMUA_CC_PJ",			0x004, 4, regdump_cond_true},
+	{"PMUA_DM_CC_SP",		0x008, 4, regdump_cond_true},
+	{"PMUA_DM_CC_PJ",		0x00c, 4, regdump_cond_true},
+	{"PMUA_FC_TIMER",		0x010, 4, regdump_cond_true},
+	{"PMUA_SP_IDLE_CFG",		0x014, 4, regdump_cond_true},
+	{"PMUA_PJ_IDLE_CFG",		0x018, 4, regdump_cond_true},
+	{"PMUA_CCIC_CLK_GATE_CTRL",	0x028, 4, regdump_cond_true},
+	{"PMUA_FBRC1_CLK_GATE_CTRL",	0x02c, 4, regdump_cond_true},
+	{"PMUA_FBRC2_CLK_GATE_CTRL",	0x030, 4, regdump_cond_true},
+	{"PMUA_PMU_CLK_GATE_CTRL",	0x040, 4, regdump_cond_true},
+	{"PMUA_IRE_CLK_RES_CTRL",	0x048, 4, regdump_cond_true},
+	{"PMUA_DISPLAY1_CLK_RES_CTRL",	0x04c, 4, regdump_cond_true},
+	{"PMUA_CCIC_CLK_RES_CTRL",	0x050, 4, regdump_cond_true},
+	{"PMUA_SDH1_CLK_RES_CTRL",	0x054, 4, regdump_cond_true},
+	{"PMUA_SDH2_CLK_RES_CTRL",	0x058, 4, regdump_cond_true},
+	{"PMUA_USB_CLK_RES_CTRL",	0x05c, 4, regdump_cond_true},
+	{"PMUA_NF_CLK_RES_CTRL",	0x060, 4, regdump_cond_true},
+	{"PMUA_DMA_CLK_RES_CTRL",	0x064, 4, regdump_cond_true},
+	{"PMUA_WTM_CLK_RES_CTRL",	0x068, 4, regdump_cond_true},
+	{"PMUA_BUS_CLK_RES_CTRL",	0x06c, 4, regdump_cond_true},
+	{"PMUA_WAKE_CLR_MASK",		0x07c, 4, regdump_cond_true},
+	{"PMUA_PWR_STBL_TIMER",		0x084, 4, regdump_cond_true},
+	{"PMUA_SRAM_PWR_DWN",		0x08c, 4, regdump_cond_true},
+	{"PMUA_CORE_STATUS",		0x090, 4, regdump_cond_true},
+	{"PMUA_RES_FRM_SLP_CLR",	0x094, 4, regdump_cond_true},
+	{"PMUA_AP_IRWC",		0x09c, 4, regdump_cond_true},
+	{"PMUA_AP_ISR",			0x0a0, 4, regdump_cond_true},
+	{"PMUA_VMETA_CLK_RES_CTRL",	0x0a4, 4, regdump_cond_true},
+	{"PMUA_MC_HW_SLP_TYPE",		0x0b0, 4, regdump_cond_true},
+	{"PMUA_MC_SLP_REQ_PJ",		0x0b4, 4, regdump_cond_true},
+	{"PMUA_MC_SW_SLP_TYPE",		0x0c0, 4, regdump_cond_true},
+	{"PMUA_PLL_SEL_STATUS",		0x0c4, 4, regdump_cond_true},
+	{"PMUA_GC_CLK_RES_CTRL",	0x0cc, 4, regdump_cond_true},
+	{"PMUA_SMC_CLK_RES_CTRL",	0x0d4, 4, regdump_cond_true},
+	{"PMUA_GLB_CLK_CTRL",		0x0dc, 4, regdump_cond_true},
+	{"PMUA_PWR_ONOFF_CTRL",		0x0e0, 4, regdump_cond_true},
+	{"PMUA_PWR_ISL_TIMER",		0x0e4, 4, regdump_cond_true},
+	{"PMUA_SDH3_CLK_RES_CTRL",	0x0e8, 4, regdump_cond_true},
+	{"PMUA_SDH4_CLK_RES_CTRL",	0x0ec, 4, regdump_cond_true},
+	{"PMUA_CCIC2_CLK_RES_CTRL",	0x0f4, 4, regdump_cond_true},
+	{"PMUA_HSIC1_CLK_RES_CTRL",	0x0f8, 4, regdump_cond_true},
+	{"PMUA_HSIC2_CLK_RES_CTRL",	0x0fc, 4, regdump_cond_true},
+	{"PMUA_FSIC3_CLK_RES_CTRL",	0x100, 4, regdump_cond_true},
+	{"PMUA_SLIM_CLK_RES_CTRL",	0x104, 4, regdump_cond_true},
+	{"PMUA_AUDIO_CLK_RES_CTRL",	0x10c, 4, regdump_cond_true},
+	{"PMUA_DISPLAY2_CLK_RES_CTRL",	0x110, 4, regdump_cond_true},
+	{"PMUA_CCIC2_CLK_GATE_CTRL",	0x118, 4, regdump_cond_true},
+	{"PMUA_MC_PAR_CTRL",		0x11c, 4, regdump_cond_true},
+	{"PMUA_SPMI_CLK_RES_CTRL",	0x140, 4, regdump_cond_true},
+	{"PMUA_EPD_CLK_RES_CTRL",	0x144, 4, regdump_cond_true},
+	{"PMUA_USB3SS_CLK_RES_CTRL",	0x148, 4, regdump_cond_true},
+	{"PMUA_CC2_SP",			0x14c, 4, regdump_cond_true},
+	{"PMUA_CC2_PJ",			0x150, 4, regdump_cond_true},
+	{"PMUA_DM2_CC_SP",		0x154, 4, regdump_cond_true},
+	{"PMUA_DM2_CC_PJ",		0x158, 4, regdump_cond_true},
+	{"PMUA_SDH5_CLK_RES_CTRL",	0x160, 4, regdump_cond_true},
+	{"PMUA_DSA_CLK_RES_CTRL",	0x164, 4, regdump_cond_true},
+	{"IOC_CTRL",			0x184, 4, regdump_cond_true},
+	{"PMUA_CC3_PJ",			0x188, 4, regdump_cond_true},
+	{"PMUA_TPIU_CLK_RES_CTRL",	0x18c, 4, regdump_cond_true},
+	{"PMUA_DEBUG2",			0x190, 4, regdump_cond_true},
+	{"PMUA_RF1P_CTRL",		0x1c0, 4, regdump_cond_true},
+	{"PMUA_RF2P_CTRL",		0x1c4, 4, regdump_cond_true},
+	{"PMUA_SR1P_CTRL",		0x1c8, 4, regdump_cond_true},
+	{"PMUA_SR2P_CTRL",		0x1cc, 4, regdump_cond_true},
+	{"PMUA_SR1P_CTRL",		0x1c8, 4, regdump_cond_true},
+	{"PMUA_BROM_CTRL",		0x1d0, 4, regdump_cond_true},
+	{"PMUA_ISP_PWR_CTRL",		0x1fc, 4, regdump_cond_true},
+	{"PMUA_PJ_IDLE_CFG2",		0x200, 4, regdump_cond_true},
+	{"PMUA_PJ_IDLE_CFG3",		0x204, 4, regdump_cond_true},
+	{"PMUA_FASTENET_CLK_RES_CTRL",	0x210, 4, regdump_cond_true},
+	{"PMUA_ISLAND_PWR_STATUS",	0x220, 4, regdump_cond_true},
+	{"PMUA_ISP_CLK_RES_CTRL",	0x224, 4, regdump_cond_true},
+	{"PMUA_AUDIO_ISLAND_SRAM_PWR_DWN_CTRL",	0x240, 4, regdump_cond_true},
+	{"PMUA_GENERIC_CTRL",		0x244, 4, regdump_cond_true},
+	{"PMUA_PJ_C0_CC4",		0x248, 4, regdump_cond_true},
+	{"PMUA_PJ_C1_CC4",		0x24c, 4, regdump_cond_true},
+	{"PMUA_PJ_C2_CC4",		0x250, 4, regdump_cond_true},
+	{"PMUA_PJ_MP_SUBSYS_CC",	0x254, 4, regdump_cond_true},
+	{"PMUA_MC1_DOUBLER_CTRL",	0x258, 4, regdump_cond_true},
+	{"PMUA_MC2_DOUBLER_CTRL",	0x25c, 4, regdump_cond_true},
+	{"PMUA_DOUBLER_GENERIC_CTRL",	0x260, 4, regdump_cond_true},
+	{"PMUA_MC1_DOUBLER_STAT",	0x264, 4, regdump_cond_true},
+	{"PMUA_MC2_DOUBLER_STAT",	0x268, 4, regdump_cond_true},
+	{"PMUA_SDHM_DLL_CTRL0",		0x26c, 4, regdump_cond_true},
+	{"PMUA_SDHM_DLL_CTRL1",		0x270, 4, regdump_cond_true},
+	{"PMUA_SDHM_DLL_STAT0",		0x274, 4, regdump_cond_true},
+	{"PMUA_SDHM_DLL_STAT1",		0x278, 4, regdump_cond_true}
+};
+
+static void __init mmp3_init_pmua_regdump(void)
+{
+	pmua_regdump_ops.base = PMUA_VIRT_BASE;
+	pmua_regdump_ops.regions = pmua_dump_region;
+	pmua_regdump_ops.reg_nums = ARRAY_SIZE(pmua_dump_region);
+	register_regdump_ops(&pmua_regdump_ops);
+}
+#else
+static void inline  __init mmp3_init_pmua_regdump() {}
+#endif
 
 void __init mmp3_init_irq(void)
 {
@@ -283,6 +393,7 @@ static int __init mmp3_init(void)
 	mfp_init_addr(mmp3_addr_map);
 
 	mmp3_init_gpio();
+	mmp3_init_pmua_regdump();
 
 	pxa_init_dma(IRQ_MMP3_DMA_RIQ, 16);
 	mmp_init_dma(IRQ_MMP3_DMA_RIQ);
