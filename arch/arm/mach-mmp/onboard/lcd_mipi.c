@@ -462,15 +462,19 @@ static int abilene_lcd_power(struct pxa168fb_info *fbi,
 	if (on) {
 		gpio_direction_output(lcd_rst_n, 1);
 		/* FIXME workaround for Abilene Rev5 backlight issue */
+#ifdef CONFIG_MACH_ABILENE
 		if (machine_is_abilene() && cpu_is_mmp3_b0()) {
 			mdelay(100);
 			backlight_pwm_set(1);
 		}
+#endif
 	} else {
 		gpio_direction_output(lcd_rst_n, 0);
 		/* FIXME workaround for Abilene Rev5 backlight issue */
+#ifdef CONFIG_MACH_ABILENE
 		if (machine_is_abilene() && cpu_is_mmp3_b0())
 			backlight_pwm_set(0);
+#endif
 	}
 	gpio_free(lcd_rst_n);
 
