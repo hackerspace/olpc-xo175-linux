@@ -17,6 +17,7 @@
 #include <linux/mtd/onenand.h>
 #include <linux/interrupt.h>
 #include <linux/mfd/88pm860x.h>
+#include <linux/keyreset.h>
 #include <linux/i2c/pca9575.h>
 #include <linux/i2c/pca953x.h>
 #include <linux/i2c/elan_touch.h>
@@ -2592,6 +2593,22 @@ static int is_wvga_lcd(void)
 	return wvga_lcd;
 }
 
+#ifdef CONFIG_INPUT_KEYRESET
+static struct keyreset_platform_data ttc_dkb_panic_keys_pdata = {
+	.keys_down = {
+		KEY_HOME,
+		KEY_VOLUMEUP,
+		0
+	},
+	.panic_before_reset = 1,
+};
+
+static struct platform_device ttc_dkb_panic_keys_device = {
+	.name = KEYRESET_NAME,
+	.dev.platform_data = &ttc_dkb_panic_keys_pdata,
+};
+#endif
+
 static void __init ttc_dkb_init(void)
 {
 	if (cpu_is_pxa910h())
@@ -2599,6 +2616,11 @@ static void __init ttc_dkb_init(void)
 	else
 		mfp_config(ARRAY_AND_SIZE(ttc_dkb_pin_config));
 	tds_mfp_init();
+
+#ifdef CONFIG_INPUT_KEYRESET
+	if (platform_device_register(&ttc_dkb_panic_keys_device))
+		printk(KERN_WARNING "%s: register reset key fail\n", __func__);
+#endif
 
 #ifdef CONFIG_DMABOUNCE
 	pxa910_dmabounce_setup();
