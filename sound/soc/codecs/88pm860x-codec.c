@@ -1095,14 +1095,18 @@ static const struct snd_soc_dapm_route audio_map[] = {
  */
 static int pm860x_digital_mute(struct snd_soc_dai *codec_dai, int mute)
 {
+	/* don't implement digital mute as FM may be active */
+#if 0
 	struct snd_soc_codec *codec = codec_dai->codec;
 	int data = 0, mask = MUTE_LEFT | MUTE_RIGHT;
 
 	if (mute)
 		data = mask;
+
 	snd_soc_update_bits(codec, PM860X_DAC_OFFSET, mask, data);
 	snd_soc_update_bits(codec, PM860X_EAR_CTRL_2,
 			    RSYNC_CHANGE, RSYNC_CHANGE);
+#endif
 	return 0;
 }
 
@@ -1144,7 +1148,8 @@ static int pm860x_pcm_hw_params(struct snd_pcm_substream *substream,
 	default:
 		return -EINVAL;
 	}
-	snd_soc_update_bits(codec, PM860X_PCM_RATE, 0x0f, inf);
+	/* don't set HW sample rate, and leave it to audio server */
+	//snd_soc_update_bits(codec, PM860X_PCM_RATE, 0x0f, inf);
 
 	return 0;
 }
@@ -1251,7 +1256,8 @@ static int pm860x_i2s_hw_params(struct snd_pcm_substream *substream,
 	default:
 		return -EINVAL;
 	}
-	snd_soc_update_bits(codec, PM860X_I2S_IFACE_4, 0xf, inf);
+	/* don't set HW sample rate, and leave it to audio server */
+	//snd_soc_update_bits(codec, PM860X_I2S_IFACE_4, 0xf, inf);
 
 	return 0;
 }
