@@ -80,6 +80,9 @@ void max8925_system_restart(char mode, const char *cmd)
 			__raw_writel(0x2, REG_RTC_BR1);
 		}
 	}
+	/* set recovery bit when enterint recovery mode */
+	if (cmd && !strcmp(cmd, "recovery"))
+		__raw_writel(0x1, REG_RTC_BR0);
 
 	max8925_reg_write(i2c, MAX8925_RESET_CNFG, SFT_RESET
 			| RSTIN_DELAY | SFT_DESERTION);
@@ -241,6 +244,8 @@ static int __devinit max8925_onkey_probe(struct platform_device *pdev)
 	i2c = info->i2c;
 	onkey_info = info;
 
+	/* clear recovery bit */
+	__raw_writel(0x0, REG_RTC_BR0);
 	return 0;
 
 out_reg:
