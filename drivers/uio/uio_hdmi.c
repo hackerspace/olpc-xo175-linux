@@ -158,7 +158,7 @@ static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 	case HDMI_PLL_SETRATE:
 		if (copy_from_user(&hdmi_freq, argp, sizeof(hdmi_freq)))
 			return -EFAULT;
-		printk("uio_hdmi: HDMI_PLL_SETRATE freq = %d\n", hdmi_freq);
+		printk("uio_hdmi: set TMDS clk freq = %dMhz\n", hdmi_freq/5);
 		if (clk_set_rate(hi->clk, hdmi_freq * 1000000)) {
 			pr_err(KERN_ERR "uio_hdmi: HDMI PLL set failed!\n");
 			return -EFAULT;
@@ -274,14 +274,13 @@ static void hdmi_switch_work(struct work_struct *work)
 	struct hdmi_instance *hi =
 		container_of(work, struct hdmi_instance, work);
 	int state = gpio_get_value(hi->gpio);
-
 	if(state != hi->hpd_in) {
 		if (atomic_cmpxchg(&hdmi_state, 1, 0) == 1) {
+			printk("uio_hdmi: cable pull out\n\n");
 			late_disable_flag = 1; /*wait for hdmi disbaled*/
+#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 			if (hi->hdmi_power)
 				hi->hdmi_power(0);
-
-#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 			if (early_suspend_flag == 0)
 				unset_power_constraint(hi);
 #endif
@@ -290,15 +289,13 @@ static void hdmi_switch_work(struct work_struct *work)
 		}
 	} else {
 		if (atomic_cmpxchg(&hdmi_state, 0, 1) == 0) {
-#ifndef CONFIG_CPU_PXA978
-			if (cpu_is_mmp2())
-#endif
-			{
+			printk("uio_hdmi: cable plug in\n\n");
+#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
+			if (cpu_is_mmp2()) {
 				if (hi->hdmi_power)
 					hi->hdmi_power(1);
 				clk_enable(hi->clk);
 			}
-#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 			if (early_suspend_flag == 0)
 				set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
 #endif

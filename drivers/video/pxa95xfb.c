@@ -2146,7 +2146,8 @@ u32 lcdc_set_colorkeyalpha(struct pxa95xfb_info *fbi)
 		/* global alpha mode */
 		u32 alpha = LCD_CHx_ALPHA_CH_ALPHA(fbi->alphacolor) | LCD_CHx_ALPHA_W_ALPHA_EN;
 		writel(alpha, fbi->reg_base + LCD_CH0_ALPHA  + 4*fbi->window);
-		pr_info("fb%d: global alpha mode, alpha %x\n", fbi->id, fbi->alphacolor);
+		/*pr_info("fb%d: global alpha mode, alpha %x\n",
+			fbi->id, fbi->alphacolor);*/
 	} else if (fbi->alphamode == LCD_PIXELALPHA) {
 		writel(LCD_CHx_ALPHA_CLR_KEY_EN(2), fbi->reg_base + LCD_CH0_ALPHA  + 4*fbi->window);
 		pr_info("fb%d: per-pixel alpha mode\n", fbi->id);

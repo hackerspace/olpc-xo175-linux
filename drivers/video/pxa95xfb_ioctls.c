@@ -192,7 +192,8 @@ static int buf_enqueue(struct buf_addr *list, struct buf_addr *buf)
 
 		if (list[i].y == buf->y) {
 			/* already in list, free this request. */
-			printk(KERN_WARNING "%s: buff %x is same as list[%d]\n", __func__, buf->y, i);
+			/*printk(KERN_WARNING "%s: buff %x is same as list[%d]\n",
+				__func__, buf->y, i);*/
 			return 0;
 		}
 	}
@@ -356,6 +357,7 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 		start_addr = (struct buf_addr *)(surface.videoBufferAddr.startAddr);
 
 		if (fbi->on && !fbi->controller_on) {
+			printk(KERN_INFO "really turn on fb%d\n", fbi->id);
 			set_surface(fbi, surface.videoMode,
 						&surface.viewPortInfo,
 						&surface.viewPortOffset);
