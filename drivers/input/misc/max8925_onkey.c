@@ -27,6 +27,12 @@
 #include <linux/mfd/max8925.h>
 #include <linux/slab.h>
 
+#include <asm/system.h>
+#include <linux/io.h>
+#include <asm/mach-types.h>
+#include <mach/mfp-mmp2.h>
+#include <mach/mmp2_plat_ver.h>
+
 #define SW_INPUT		(1 << 7)	/* 0/1 -- up/down */
 #define HARDRESET_EN		(1 << 7)
 #define PWREN_EN		(1 << 7)
@@ -35,30 +41,77 @@
 #define RSTIN_DELAY		(2 << 3)
 #define SFT_DESERTION		(1 << 2)
 
+#define MAX8925_CMD_VCHG	0xd0
+#define MAX8925_ADC_VCHG	0x64
+
 struct max8925_onkey_info {
 	struct input_dev	*idev;
+	struct max8925_chip	*chip;
 	struct i2c_client	*i2c;
 	struct device		*dev;
 	int			irq[2];
+	int			chg_state;
 };
 
-/* reserve this static structure for restart interface */
+/* reserve this static structure for restart/poweroff interface */
+static struct max8925_onkey_info *onkey_info;
 static struct i2c_client *i2c = NULL;
 
+#define REG_RTC_BR0	0xfe010014
+#define REG_RTC_BR1	0xfe010018
 void max8925_system_restart(char mode, const char *cmd)
 {
-	if (i2c)
-		max8925_reg_write(i2c, MAX8925_RESET_CNFG, SFT_RESET
-				| RSTIN_DELAY | SFT_DESERTION);
+	if (!i2c || !onkey_info) {
+		pr_err("max8925_restart: Invalid value.\n");
+		return ;
+	}
+
+	if (board_is_mmp2_brownstone_rev5()) {
+		if (!onkey_info->chg_state) {
+			/*
+			 * set charge bit:
+			 * uboot will try to boot up android in next power cycle
+			 */
+			__raw_writel(0x1, REG_RTC_BR1);
+		} else {
+			/* set charge bit:
+			 * uboot will charge to full in next powe cycle
+			 */
+			__raw_writel(0x2, REG_RTC_BR1);
+		}
+	}
+
+	max8925_reg_write(i2c, MAX8925_RESET_CNFG, SFT_RESET
+			| RSTIN_DELAY | SFT_DESERTION);
 }
 EXPORT_SYMBOL(max8925_system_restart);
 
 void max8925_system_poweroff(void)
 {
-	if (i2c) {
-		max8925_set_bits(i2c, MAX8925_WLED_MODE_CNTL, 1, 0);
-		max8925_set_bits(i2c, MAX8925_RESET_CNFG, PWR_OFF, PWR_OFF);
+	unsigned char buf[2] = { 0, 0 };
+	int vchg;
+
+	if (!i2c || !onkey_info) {
+		pr_err("max8925_poweroff: Invalid value.\n");
+		return ;
 	}
+
+	if (board_is_mmp2_brownstone_rev5()) {
+		/* if system is in charging, do reboot instead of power off */
+		max8925_reg_write(onkey_info->chip->adc, MAX8925_CMD_VCHG, 0);
+		max8925_bulk_read(onkey_info->chip->adc,
+					MAX8925_ADC_VCHG, 2, buf);
+		vchg = ((buf[0] << 8) | buf[1]) >> 4;
+		if (vchg * 2 > 4500) {
+			onkey_info->chg_state = 1;
+			max8925_system_restart(0, 0);
+			/* should not get here */
+			return ;
+		}
+	}
+
+	max8925_set_bits(i2c, MAX8925_WLED_MODE_CNTL, 1, 0);
+	max8925_set_bits(i2c, MAX8925_RESET_CNFG, PWR_OFF, PWR_OFF);
 }
 EXPORT_SYMBOL(max8925_system_poweroff);
 
@@ -134,8 +187,10 @@ static int __devinit max8925_onkey_probe(struct platform_device *pdev)
 	if (!info)
 		return -ENOMEM;
 
+	info->chip = chip;
 	info->i2c = chip->i2c;
 	info->dev = &pdev->dev;
+	info->chg_state = 0;
 	irq[0] += chip->irq_base;
 	irq[1] += chip->irq_base;
 
@@ -184,6 +239,8 @@ static int __devinit max8925_onkey_probe(struct platform_device *pdev)
 
 	/* reserve this interface for reboot API */
 	i2c = info->i2c;
+	onkey_info = info;
+
 	return 0;
 
 out_reg:
