@@ -33,6 +33,7 @@ struct keyreset_state {
 	int key_down;
 	int key_up;
 	int restart_disabled;
+	int need_panic;
 	int (*reset_fn)(void);
 };
 
@@ -86,6 +87,10 @@ static void keyreset_event(struct input_handle *handle, unsigned int type,
 	if (value && !state->restart_disabled &&
 	    state->key_down == state->key_down_target) {
 		state->restart_disabled = 1;
+		if (state->need_panic) {
+			panic("Kernel Panic trigger by keyboard!!!\n");
+			while(1);
+		}
 		if (restart_requested)
 			panic("keyboard reset failed, %d", restart_requested);
 		if (state->reset_fn) {
@@ -195,6 +200,10 @@ static int keyreset_probe(struct platform_device *pdev)
 
 	if (pdata->reset_fn)
 		state->reset_fn = pdata->reset_fn;
+	if (pdata->panic_before_reset)
+		state->need_panic = 1;
+	else
+		state->need_panic = 0;
 
 	state->input_handler.event = keyreset_event;
 	state->input_handler.connect = keyreset_connect;
