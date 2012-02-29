@@ -1809,7 +1809,7 @@ int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
 				printk(KERN_ERR
 				"vmeta dvfm disable error with %d\n", ret);
 			vi->power_constraint = 1;
-			cancel_delayed_work_sync(&vi->unset_op_work);
+			cancel_delayed_work(&vi->unset_op_work);
 		} else {
 			dvfm_lock.count--;
 			spin_unlock(&dvfm_lock.lock);
