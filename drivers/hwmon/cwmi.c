@@ -619,6 +619,9 @@ static int cwmi_align_axis(struct i2c_cwmi_sensor *sensor, int *aligned_data)
 	int sum = 0;
 	int *axes = NULL;
 
+	if (!(sensor) || !(sensor->client))
+		return -1;
+
 	if (!(struct cwmi_platform_data *)sensor->client->dev.platform_data) {
 		aligned_data[0] = sensor->data[0];
 		aligned_data[1] = sensor->data[1];
@@ -918,12 +921,12 @@ static int data_show(struct device *dev,
 	struct input_dev *input = to_input_dev(dev);
 	struct i2c_cwmi_sensor *sensor =
 	    (struct i2c_cwmi_sensor *)input_get_drvdata(input);
-	int aligned_data[3];
+	int aligned_data[3] = {3 * 0};
 
 	if (atomic_read(&sensor->enabled)) {
 		if (strcmp(input->name, ACC_NAME) == 0)
 			cwmi_acc_read(sensor);
-		else
+		else if (strcmp(input->name, DEV_NAME) == 0)
 			cwmi_mag_read(sensor);
 		if (cwmi_align_axis(sensor, aligned_data))
 			pr_err("%s(): axis alignment failed.\n", __func__);
