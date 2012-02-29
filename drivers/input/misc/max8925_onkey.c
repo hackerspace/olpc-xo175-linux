@@ -57,6 +57,41 @@ struct max8925_onkey_info {
 static struct max8925_onkey_info *onkey_info;
 static struct i2c_client *i2c = NULL;
 
+static void max8925_disable_ldo(int addr)
+{
+	int ldo_seq;
+
+	ldo_seq = (max8925_reg_read(i2c, addr) >> 2) & 0x7;
+	max8925_set_bits(i2c, addr, 1 << 0, 0);
+	if (ldo_seq != 0x7)
+		max8925_set_bits(i2c, addr, 0x7 << 2, 0x7 << 2);
+
+	return ;
+}
+
+static void max8925_disable_all_ldo(void)
+{
+	/*
+	 * disable all the ldos which are not automatically
+	 * powered on at the sequence #1
+	 */
+	max8925_disable_ldo(MAX8925_LDOCTL3);
+	max8925_disable_ldo(MAX8925_LDOCTL5);
+	max8925_disable_ldo(MAX8925_LDOCTL6);
+	max8925_disable_ldo(MAX8925_LDOCTL7);
+	max8925_disable_ldo(MAX8925_LDOCTL8);
+	max8925_disable_ldo(MAX8925_LDOCTL10);
+	max8925_disable_ldo(MAX8925_LDOCTL11);
+	max8925_disable_ldo(MAX8925_LDOCTL13);
+	max8925_disable_ldo(MAX8925_LDOCTL14);
+	max8925_disable_ldo(MAX8925_LDOCTL15);
+	max8925_disable_ldo(MAX8925_LDOCTL16);
+	max8925_disable_ldo(MAX8925_LDOCTL17);
+	max8925_disable_ldo(MAX8925_LDOCTL19);
+
+	return ;
+}
+
 #define REG_RTC_BR0	0xfe010014
 #define REG_RTC_BR1	0xfe010018
 void max8925_system_restart(char mode, const char *cmd)
@@ -84,6 +119,7 @@ void max8925_system_restart(char mode, const char *cmd)
 	if (cmd && !strcmp(cmd, "recovery"))
 		__raw_writel(0x1, REG_RTC_BR0);
 
+	max8925_disable_all_ldo();
 	max8925_reg_write(i2c, MAX8925_RESET_CNFG, SFT_RESET
 			| RSTIN_DELAY | SFT_DESERTION);
 }
@@ -113,6 +149,7 @@ void max8925_system_poweroff(void)
 		}
 	}
 
+	max8925_disable_all_ldo();
 	max8925_set_bits(i2c, MAX8925_WLED_MODE_CNTL, 1, 0);
 	max8925_set_bits(i2c, MAX8925_RESET_CNFG, PWR_OFF, PWR_OFF);
 }
