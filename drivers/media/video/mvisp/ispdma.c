@@ -181,24 +181,204 @@ static void ispdma_reg_dump(struct isp_ispdma_device *ispdma)
 	return;
 }
 
-static int ispdma_getdelta(struct v4l2_ispdma_timeinfo *param)
+static int ispdma_dump_regs(struct isp_ispdma_device *ispdma,
+			struct v4l2_ispdma_dump_registers *regs)
 {
-	struct timeval tv_tick;
-	long total_secs, total_usecs;
+	struct mvisp_device *isp = to_mvisp_device(ispdma);
 
-	do_gettimeofday(&tv_tick);
+	if (NULL == regs || NULL == isp)
+		return -EINVAL;
 
-	if ((param->sec != 0) || (param->usec != 0)) {
-		total_secs = tv_tick.tv_sec - param->sec;
-		if (total_secs > 10 || total_secs < 0)
-			return -EINVAL;
-		total_usecs = tv_tick.tv_usec - param->usec;
-		param->delta = total_secs * 1000000 + total_usecs;
-	} else
+	regs->ispdma_mainctrl = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_MAINCTRL);
+	regs->ispdma_dmaena = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_DMA_ENA);
+	regs->ispdma_clkena = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_CLKENA);
+	regs->ispdma_irqraw = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_IRQRAW);
+	regs->ispdma_irqmask = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_IRQMASK);
+	regs->ispdma_irqstat = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_IRQSTAT);
+	regs->ispdma_insz = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_INSZ);
+	regs->ispdma_inpsdma_ctrl = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_INPSDMA_CTRL);
+	regs->ispdma_fbtx0_sdca = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX0_SDCA);
+	regs->ispdma_fbtx0_dcsz = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX0_DCSZ);
+	regs->ispdma_fbtx0_ctrl = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX0_CTRL);
+	regs->ispdma_fbtx0_dstsz = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX0_DSTSZ);
+	regs->ispdma_fbtx0_dstaddr = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX0_DSTADDR);
+	regs->ispdma_fbtx0_tmr = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX0_TMR);
+	regs->ispdma_fbtx0_ramctrl = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX0_RAMCTRL);
+	regs->ispdma_fbrx0_sdca = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX0_SDCA);
+	regs->ispdma_fbrx0_dcsz = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX0_DCSZ);
+	regs->ispdma_fbrx0_ctrl = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX0_CTRL);
+	regs->ispdma_fbrx0_tmr = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX0_TMR);
+	regs->ispdma_fbrx0_ramctrl = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX0_RAMCTRL);
+	regs->ispdma_fbrx0_stat = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX0_STAT);
+	regs->ispdma_fbtx1_sdca = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX1_SDCA);
+	regs->ispdma_fbtx1_dcsz = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX1_DCSZ);
+	regs->ispdma_fbtx1_ctrl = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX1_CTRL);
+	regs->ispdma_fbtx1_dstsz = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX1_DSTSZ);
+	regs->ispdma_fbtx1_dstaddr = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX1_DSTADDR);
+	regs->ispdma_fbtx1_tmr = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX1_TMR);
+	regs->ispdma_fbtx1_ramctrl = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX1_RAMCTRL);
+	regs->ispdma_fbrx1_sdca = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX1_SDCA);
+	regs->ispdma_fbrx1_dcsz = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX1_DCSZ);
+	regs->ispdma_fbrx1_ctrl = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX1_CTRL);
+	regs->ispdma_fbrx1_tmr = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX1_TMR);
+	regs->ispdma_fbrx1_ramctrl = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX1_RAMCTRL);
+	regs->ispdma_fbrx1_stat = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX1_STAT);
+	regs->ispdma_fbtx2_sdca = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX2_SDCA);
+	regs->ispdma_fbtx2_dcsz = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX2_DCSZ);
+	regs->ispdma_fbtx2_ctrl = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX2_CTRL);
+	regs->ispdma_fbtx2_dstsz = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX2_DSTSZ);
+	regs->ispdma_fbtx2_dstaddr = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX2_DSTADDR);
+	regs->ispdma_fbtx2_tmr = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX2_TMR);
+	regs->ispdma_fbtx2_ramctrl = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX2_RAMCTRL);
+	regs->ispdma_fbrx2_sdca = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX2_SDCA);
+	regs->ispdma_fbrx2_dcsz = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX2_DCSZ);
+	regs->ispdma_fbrx2_ctrl = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX2_CTRL);
+	regs->ispdma_fbrx2_tmr = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX2_TMR);
+	regs->ispdma_fbrx2_ramctrl	= mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX2_RAMCTRL);
+	regs->ispdma_fbrx2_stat = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX2_STAT);
+	regs->ispdma_fbrx2_sdca = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX3_SDCA);
+	regs->ispdma_fbtx3_dcsz = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX3_DCSZ);
+	regs->ispdma_fbtx3_ctrl = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX3_CTRL);
+	regs->ispdma_fbtx3_dstsz = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX3_DSTSZ);
+	regs->ispdma_fbtx3_dstaddr = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX3_DSTADDR);
+	regs->ispdma_fbtx3_tmr = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX3_TMR);
+	regs->ispdma_fbtx3_ramctrl = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBTX3_RAMCTRL);
+	regs->ispdma_fbtx3_sdca = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX3_SDCA);
+	regs->ispdma_fbrx3_dcsz = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX3_DCSZ);
+	regs->ispdma_fbrx3_ctrl = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX3_CTRL);
+	regs->ispdma_fbrx3_tmr = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX3_TMR);
+	regs->ispdma_fbrx3_ramctrl = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX3_RAMCTRL);
+	regs->ispdma_fbrx3_stat = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_FBRX3_STAT);
+	regs->ispdma_disp_ctrl = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_DISP_CTRL);
+	regs->ispdma_disp_dstsz = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_DISP_DSTSZ);
+	regs->ispdma_disp_dstaddr = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_DISP_DSTADDR);
+	regs->ispdma_disp_ramctrl = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_DISP_RAMCTRL);
+	regs->ispdma_disp_pitch = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_DISP_PITCH);
+	regs->ispdma_codec_ctrl = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_CODEC_CTRL);
+	regs->ispdma_codec_dstsz = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_CODEC_DSTSZ);
+	regs->ispdma_codec_dstaddr = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_CODEC_DSTADDR);
+	regs->ispdma_codec_ramctrl = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_CODEC_RAMCTRL);
+	regs->ispdma_codec_stat = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_CODEC_STAT);
+	regs->ispdma_codec_pitch = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_CODEC_PITCH);
+	regs->ispdma_codec_vbsz = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_CODEC_VBSZ);
+	regs->ispdma_inpsdma_srcaddr = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_INPSDMA_SRCADDR);
+	regs->ispdma_inpsdma_srcsz = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_INPSDMA_SRCSZ);
+	regs->ispdma_inpsdma_pixsz = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISPDMA_INPSDMA_PIXSZ);
+	regs->isp_irqraw = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISP_IRQRAW);
+	regs->isp_irqmask = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISP_IRQMASK);
+	regs->isp_irqstat = mvisp_reg_readl(isp,
+			ISP_IOMEM_ISPDMA, ISP_IRQSTAT);
+
+	return 0;
+
+}
+
+static inline u32 cyc2us(u32 cycle)
+{
+	return (cycle >> 2) + (cycle >> 5) + (cycle >> 6)
+		+ (cycle >> 7) + (cycle >> 9) + (cycle >> 10);
+}
+
+static inline u32 read_timestamp(void)
+{
+	unsigned long r1, r2;
+	__asm__ __volatile__ ("mrrc p15, 0, %0, %1, c14"
+		: "=r" (r1), "=r" (r2) : : "cc");
+	return r1;
+}
+
+static int ispdma_getdelta(struct v4l2_ispdma_timeinfo *param, bool delta)
+{
+	unsigned long cur_us = 0;
+
+	if (NULL == param)
+		return -EINVAL;
+
+	cur_us = cyc2us(read_timestamp());
+
+	if (delta)
+		param->delta = cur_us - param->timestamp;
+	else
 		param->delta = 0;
 
-	param->sec = tv_tick.tv_sec;
-	param->usec = tv_tick.tv_usec;
+	param->timestamp = cur_us;
 
 	return 0;
 }
@@ -225,8 +405,7 @@ static int ispdma_wait_ipc(struct isp_ispdma_device *ispdma,
 	}
 
 	INIT_COMPLETION(ispdma->ipc_event);
-	ipc_wait->tickinfo.sec = ispdma->tickinfo.sec;
-	ipc_wait->tickinfo.usec = ispdma->tickinfo.usec;
+	ipc_wait->tickinfo.timestamp = ispdma->tickinfo.timestamp;
 	spin_unlock_irqrestore(&ispdma->ipc_irq_lock, flags);
 
 	return ret;
@@ -238,9 +417,7 @@ void mv_ispdma_ipc_isr_handler(struct isp_ispdma_device *ispdma)
 
 	spin_lock_irqsave(&ispdma->ipc_irq_lock, flags);
 	ispdma->ipc_event_cnt++;
-	ispdma->tickinfo.sec = 0;
-	ispdma->tickinfo.usec = 0;
-	ispdma_getdelta(&ispdma->tickinfo);
+	ispdma_getdelta(&ispdma->tickinfo, false);
 	complete_all(&ispdma->ipc_event);
 	spin_unlock_irqrestore(&ispdma->ipc_irq_lock, flags);
 }
@@ -1225,11 +1402,21 @@ void mv_ispdma_dma_isr_handler(struct isp_ispdma_device *ispdma
 				ISP_IOMEM_ISPDMA, ISPDMA_IRQMASK);
 	}
 
-	if (irq_status & DISP_DMA_EOF)
-		ispdma_disp_handler(ispdma, &ispdma->vd_disp_out);
+	if (irq_status & DISP_PS_EOF)
+		ispdma_getdelta(&ispdma->dma_timeinfo.disp_ps_timeinfo, false);
 
-	if (irq_status & CODEC_DMA_EOF)
+	if (irq_status & DISP_DMA_EOF) {
+		ispdma_getdelta(&ispdma->dma_timeinfo.disp_dma_timeinfo, false);
+		ispdma_disp_handler(ispdma, &ispdma->vd_disp_out);
+	}
+
+	if (irq_status & CODEC_PS_EOF)
+		ispdma_getdelta(&ispdma->dma_timeinfo.codec_ps_timeinfo, false);
+
+	if (irq_status & CODEC_DMA_EOF) {
+		ispdma_getdelta(&ispdma->dma_timeinfo.codec_dma_timeinfo, false);
 		ispdma_codec_handler(ispdma, &ispdma->vd_codec_out);
+	}
 
 	if (irq_status & INPUT_DMA_EOF)
 		ispdma_input_handler(ispdma, &ispdma->vd_in);
@@ -1784,6 +1971,43 @@ static int ispdma_config_codec(struct isp_ispdma_device *ispdma,
 	return 0;
 }
 
+static int ispdma_copy_timeinfo(
+		struct v4l2_ispdma_timeinfo *dest,
+		const struct v4l2_ispdma_timeinfo *src)
+{
+	if (NULL == dest || NULL == src)
+		return -EINVAL;
+
+	dest->timestamp = src->timestamp;
+	dest->delta = src->delta;
+
+	return 0;
+}
+
+static int ispdma_get_dma_timeinfo(struct isp_ispdma_device *ispdma,
+		struct v4l2_ispdma_dma_timeinfo *dma_timeinfo)
+{
+	unsigned long dma_irq_flags;
+
+	if (NULL == dma_timeinfo || NULL == ispdma)
+		return -EINVAL;
+
+	spin_lock_irqsave(&ispdma->dma_irq_lock, dma_irq_flags);
+
+	ispdma_copy_timeinfo(&dma_timeinfo->disp_dma_timeinfo,
+			&ispdma->dma_timeinfo.disp_dma_timeinfo);
+	ispdma_copy_timeinfo(&dma_timeinfo->disp_ps_timeinfo,
+			&ispdma->dma_timeinfo.disp_ps_timeinfo);
+	ispdma_copy_timeinfo(&dma_timeinfo->codec_dma_timeinfo,
+			&ispdma->dma_timeinfo.codec_dma_timeinfo);
+	ispdma_copy_timeinfo(&dma_timeinfo->codec_ps_timeinfo,
+			&ispdma->dma_timeinfo.codec_ps_timeinfo);
+
+	spin_unlock_irqrestore(&ispdma->dma_irq_lock, dma_irq_flags);
+
+	return 0;
+}
+
 static long ispdma_ioctl(struct v4l2_subdev *sd
 			, unsigned int cmd, void *arg)
 {
@@ -1826,7 +2050,16 @@ static long ispdma_ioctl(struct v4l2_subdev *sd
 
 		break;
 	case VIDIOC_PRIVATE_ISPDMA_GETDELTA:
-		ret = ispdma_getdelta((struct v4l2_ispdma_timeinfo *) arg);
+		ret = ispdma_getdelta(
+				(struct v4l2_ispdma_timeinfo *) arg, false);
+		break;
+	case VIDIOC_PRIVATE_ISPDMA_DUMP_REGISTERS:
+		ret = ispdma_dump_regs(ispdma,
+				(struct v4l2_ispdma_dump_registers *) arg);
+		break;
+	case VIDIOC_PRIVATE_ISPDMA_GET_DMA_TIMEINFO:
+		ret = ispdma_get_dma_timeinfo(ispdma,
+				(struct v4l2_ispdma_dma_timeinfo *) arg);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;

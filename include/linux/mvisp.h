@@ -39,9 +39,8 @@ struct v4l2_dxoipc_set_fb {
 };
 
 struct v4l2_ispdma_timeinfo {
-	long	sec;
-	long	usec;
-	long	delta;
+	unsigned long	timestamp;
+	unsigned long	delta;
 };
 
 struct v4l2_dxoipc_ipcwait {
@@ -104,6 +103,112 @@ struct v4l2_ccic_config_mipi {
 	int start_mipi;
 };
 
+struct v4l2_ccic_dump_registers {
+	unsigned long y0_base_addr;
+	unsigned long y1_base_addr;
+	unsigned long y2_base_addr;
+	unsigned long irq_raw_status;
+	unsigned long irq_status;
+	unsigned long irq_mask;
+	unsigned long ctrl_0;
+	unsigned long ctrl_1;
+	unsigned long clock_ctrl;
+	unsigned long csi2_irq_raw_status;
+	unsigned long csi2_dphy3;
+	unsigned long csi2_dphy5;
+	unsigned long csi2_dphy6;
+	unsigned long img_size;
+	unsigned long img_pitch;
+};
+
+struct v4l2_ispdma_dump_registers {
+	unsigned long ispdma_mainctrl;
+	unsigned long ispdma_dmaena;
+	unsigned long ispdma_clkena;
+	unsigned long ispdma_irqraw;
+	unsigned long ispdma_irqmask;
+	unsigned long ispdma_irqstat;
+	unsigned long ispdma_insz;
+	unsigned long ispdma_inpsdma_ctrl;
+	unsigned long ispdma_fbtx0_sdca;
+	unsigned long ispdma_fbtx0_dcsz;
+	unsigned long ispdma_fbtx0_ctrl;
+	unsigned long ispdma_fbtx0_dstsz;
+	unsigned long ispdma_fbtx0_dstaddr;
+	unsigned long ispdma_fbtx0_tmr;
+	unsigned long ispdma_fbtx0_ramctrl;
+	unsigned long ispdma_fbrx0_sdca;
+	unsigned long ispdma_fbrx0_dcsz;
+	unsigned long ispdma_fbrx0_ctrl;
+	unsigned long ispdma_fbrx0_tmr;
+	unsigned long ispdma_fbrx0_ramctrl;
+	unsigned long ispdma_fbrx0_stat;
+	unsigned long ispdma_fbtx1_sdca;
+	unsigned long ispdma_fbtx1_dcsz;
+	unsigned long ispdma_fbtx1_ctrl;
+	unsigned long ispdma_fbtx1_dstsz;
+	unsigned long ispdma_fbtx1_dstaddr;
+	unsigned long ispdma_fbtx1_tmr;
+	unsigned long ispdma_fbtx1_ramctrl;
+	unsigned long ispdma_fbrx1_sdca;
+	unsigned long ispdma_fbrx1_dcsz;
+	unsigned long ispdma_fbrx1_ctrl;
+	unsigned long ispdma_fbrx1_tmr;
+	unsigned long ispdma_fbrx1_ramctrl;
+	unsigned long ispdma_fbrx1_stat;
+	unsigned long ispdma_fbtx2_sdca;
+	unsigned long ispdma_fbtx2_dcsz;
+	unsigned long ispdma_fbtx2_ctrl;
+	unsigned long ispdma_fbtx2_dstsz;
+	unsigned long ispdma_fbtx2_dstaddr;
+	unsigned long ispdma_fbtx2_tmr;
+	unsigned long ispdma_fbtx2_ramctrl;
+	unsigned long ispdma_fbrx2_sdca;
+	unsigned long ispdma_fbrx2_dcsz;
+	unsigned long ispdma_fbrx2_ctrl;
+	unsigned long ispdma_fbrx2_tmr;
+	unsigned long ispdma_fbrx2_ramctrl;
+	unsigned long ispdma_fbrx2_stat;
+	unsigned long ispdma_fbtx3_sdca;
+	unsigned long ispdma_fbtx3_dcsz;
+	unsigned long ispdma_fbtx3_ctrl;
+	unsigned long ispdma_fbtx3_dstsz;
+	unsigned long ispdma_fbtx3_dstaddr;
+	unsigned long ispdma_fbtx3_tmr;
+	unsigned long ispdma_fbtx3_ramctrl;
+	unsigned long ispdma_fbrx3_sdca;
+	unsigned long ispdma_fbrx3_dcsz;
+	unsigned long ispdma_fbrx3_ctrl;
+	unsigned long ispdma_fbrx3_tmr;
+	unsigned long ispdma_fbrx3_ramctrl;
+	unsigned long ispdma_fbrx3_stat;
+	unsigned long ispdma_disp_ctrl;
+	unsigned long ispdma_disp_dstsz;
+	unsigned long ispdma_disp_dstaddr;
+	unsigned long ispdma_disp_ramctrl;
+	unsigned long ispdma_disp_pitch;
+	unsigned long ispdma_codec_ctrl;
+	unsigned long ispdma_codec_dstsz;
+	unsigned long ispdma_codec_dstaddr;
+	unsigned long ispdma_codec_ramctrl;
+	unsigned long ispdma_codec_stat;
+	unsigned long ispdma_codec_pitch;
+	unsigned long ispdma_codec_vbsz;
+	unsigned long ispdma_inpsdma_srcaddr;
+	unsigned long ispdma_inpsdma_srcsz;
+	unsigned long ispdma_inpsdma_pixsz;
+	unsigned long isp_irqraw;
+	unsigned long isp_irqmask;
+	unsigned long isp_irqstat;
+};
+
+struct v4l2_ispdma_dma_timeinfo {
+	struct v4l2_ispdma_timeinfo disp_dma_timeinfo;
+	struct v4l2_ispdma_timeinfo disp_ps_timeinfo;
+	struct v4l2_ispdma_timeinfo codec_dma_timeinfo;
+	struct v4l2_ispdma_timeinfo codec_ps_timeinfo;
+};
+
 #define VIDIOC_PRIVATE_DXOIPC_SET_FB \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 1, struct v4l2_dxoipc_set_fb)
 #define VIDIOC_PRIVATE_DXOIPC_WAIT_IPC \
@@ -126,5 +231,10 @@ struct v4l2_ccic_config_mipi {
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 10, struct v4l2_ispdma_timeinfo)
 #define VIDIOC_PRIVATE_CCIC_CONFIG_MIPI \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 11, struct v4l2_ccic_config_mipi)
-
+#define VIDIOC_PRIVATE_CCIC_DUMP_REGISTERS \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 12, struct v4l2_ccic_dump_registers)
+#define VIDIOC_PRIVATE_ISPDMA_DUMP_REGISTERS \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 13, struct v4l2_ispdma_dump_registers)
+#define VIDIOC_PRIVATE_ISPDMA_GET_DMA_TIMEINFO \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 14, struct v4l2_ispdma_dma_timeinfo)
 #endif	/* ISP_USER_H */

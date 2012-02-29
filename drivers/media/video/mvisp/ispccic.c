@@ -93,6 +93,49 @@ static void ccic_dump_regs(struct mvisp_device *isp)
 	dev_warn(isp->dev, "ccic_set_stream PITCH: 0x%08lX\n", regval);
 }
 
+static int ccic_dump_registers(struct isp_ccic_device *ccic,
+			struct v4l2_ccic_dump_registers *regs)
+{
+	struct mvisp_device *isp = ccic->isp;
+
+	if (NULL == regs || NULL == isp)
+		return -EINVAL;
+
+	regs->y0_base_addr = mvisp_reg_readl(isp,
+			CCIC_ISP_IOMEM_1, CCIC_Y0_BASE_ADDR);
+	regs->y1_base_addr = mvisp_reg_readl(isp,
+			CCIC_ISP_IOMEM_1, CCIC_Y1_BASE_ADDR);
+	regs->y2_base_addr = mvisp_reg_readl(isp,
+			CCIC_ISP_IOMEM_1, CCIC_Y2_BASE_ADDR);
+	regs->irq_raw_status = mvisp_reg_readl(isp,
+			CCIC_ISP_IOMEM_1, CCIC_IRQ_RAW_STATUS);
+	regs->irq_status = mvisp_reg_readl(isp,
+			CCIC_ISP_IOMEM_1, CCIC_IRQ_STATUS);
+	regs->irq_mask = mvisp_reg_readl(isp,
+			CCIC_ISP_IOMEM_1, CCIC_IRQ_MASK);
+	regs->ctrl_0 = mvisp_reg_readl(isp,
+			CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
+	regs->ctrl_1 = mvisp_reg_readl(isp,
+			CCIC_ISP_IOMEM_1, CCIC_CTRL_1);
+	regs->clock_ctrl = mvisp_reg_readl(isp,
+			CCIC_ISP_IOMEM_1, CCIC_CLOCK_CTRL);
+	regs->csi2_irq_raw_status = mvisp_reg_readl(isp,
+			CCIC_ISP_IOMEM_1, CCIC_CSI2_IRQ_RAW_STATUS);
+	regs->csi2_dphy3 = mvisp_reg_readl(isp,
+			CCIC_ISP_IOMEM_1, CCIC_CSI2_DPHY3);
+	regs->csi2_dphy5 = mvisp_reg_readl(isp,
+			CCIC_ISP_IOMEM_1, CCIC_CSI2_DPHY5);
+	regs->csi2_dphy6 = mvisp_reg_readl(isp,
+			CCIC_ISP_IOMEM_1, CCIC_CSI2_DPHY6);
+	regs->img_size = mvisp_reg_readl(isp,
+			CCIC_ISP_IOMEM_1, CCIC_IMG_SIZE);
+	regs->img_pitch = mvisp_reg_readl(isp,
+			CCIC_ISP_IOMEM_1, CCIC_IMG_PITCH);
+
+	return 0;
+}
+
+
 static void ccic_set_dma_addr(struct isp_ccic_device *ccic,
 	dma_addr_t	paddr, enum isp_ccic_irq_type irqeof)
 {
@@ -738,6 +781,10 @@ static long ccic_ioctl(struct v4l2_subdev *sd
 	case VIDIOC_PRIVATE_CCIC_CONFIG_MIPI:
 		ret = ccic_io_config_mipi
 			(ccic, (struct v4l2_ccic_config_mipi *)arg);
+		break;
+	case VIDIOC_PRIVATE_CCIC_DUMP_REGISTERS:
+		ret = ccic_dump_registers
+			(ccic, (struct v4l2_ccic_dump_registers *)arg);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;

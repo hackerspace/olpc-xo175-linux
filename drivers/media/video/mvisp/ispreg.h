@@ -40,6 +40,7 @@ struct isp_reg_context {
 #define ISPDMA_IRQRAW				0x0010
 #define ISPDMA_IRQMASK				0x0014
 #define ISPDMA_IRQSTAT				0x0018
+#define ISP_IRQRAW					0x0D00
 #define ISP_IRQMASK					0x0D04
 #define ISP_IRQSTAT					0x0D08
 #define ISPDMA_INSZ					0x0020
