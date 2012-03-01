@@ -376,6 +376,12 @@ static int __init mmp2_pm_init(void)
 
 	suspend_set_ops(&mmp2_pm_ops);
 
+	/*
+	 * Set bit 0, Slow clock Select 32K clock input instead of VCXO
+	 * VCXO is chosen by default, which would be disabled in suspend
+	 */
+	__raw_writel(0x5, MPMU_SCCR);
+
 	/* Clear default low power control bit */
 	apcr = __raw_readl(MPMU_APCR);
 	apcr &= ~PMUM_SLPEN & ~PMUM_DDRCORSD & ~PMUM_APBSD & ~PMUM_AXISD;
