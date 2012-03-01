@@ -1369,6 +1369,12 @@ static int __attribute__ ((unused)) set_dmc60(void *driver_data, int flag)
  */
 extern int display_enabled;
 static int new_hss = -1, cur_hss;
+static int is_hss_change_over = 1;
+int hss_change_over(void)
+{
+	return is_hss_change_over;
+}
+EXPORT_SYMBOL(hss_change_over);
 
 void update_hss(void)
 {
@@ -1387,6 +1393,7 @@ void update_hss(void)
 		} while ((accr & mask) != data || (acsr & mask) != data);
 		cur_hss = new_hss;
 	}
+	is_hss_change_over = 1;
 }
 
 static int set_ddr_pll(struct pxa95x_dvfm_info *info)
@@ -1531,7 +1538,6 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 	struct pxa95x_fv_info fv_info;
 	uint32_t accr, acsr, accr1 = 0, accr0 = 0, mask0 = 0, mask = 0, mask2 = 0;
 	unsigned int data = 0, data2 = 0;
-
 	freq2reg(&fv_info, new);
 	if (!cpu_is_pxa978()) {
 		/* moving from High DDR to other High DDR frequency */
@@ -1607,6 +1613,7 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 		}
 	}
 	if (old->hss != new->hss) {
+		is_hss_change_over = 0;
 		if (cpu_is_pxa978() || !display_enabled) {
 			data |= (fv_info.hss << ACCR_HSS_OFFSET);
 			mask |= ACCR_HSS_MASK;
@@ -1642,6 +1649,8 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 		if (old->dmcfs != new->dmcfs)
 			polling_dmc(info);
 	}
+	if (cpu_is_pxa978() || !display_enabled)
+		 is_hss_change_over = 1;
 	return 0;
 }
 
