@@ -31,6 +31,7 @@
 #include <mach/gpio.h>
 #include <mach/regs-apbc.h>
 #include <mach/regs-icu.h>
+#include <mach/regs-ciu.h>
 #include <mach/regs-smc.h>
 #include <mach/regs-timers.h>
 #include <mach/mmp2_pm.h>
@@ -381,6 +382,13 @@ static int __init mmp2_pm_init(void)
 	 * VCXO is chosen by default, which would be disabled in suspend
 	 */
 	__raw_writel(0x5, MPMU_SCCR);
+
+	/*
+	 * Clear bit 23 of CIU_CPU_CONF
+	 * direct PJ4 to DDR access through Memory Controller slow queue
+	 * fast queue has issue and cause lcd will flick
+	 */
+	__raw_writel(__raw_readl(CIU_CPU_CONF) & ~(0x1<<23), CIU_CPU_CONF);
 
 	/* Clear default low power control bit */
 	apcr = __raw_readl(MPMU_APCR);
