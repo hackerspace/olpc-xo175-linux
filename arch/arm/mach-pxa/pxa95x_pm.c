@@ -190,7 +190,7 @@ extern void pxa95x_pm_clear_Dcache_L2Cache(void);
 extern void pxa95x_pm_invalidate_Dcache_L2Cache(void);
 
 #ifdef CONFIG_IPM
-static struct clk *clk_tout_s0, *clk_pout;
+static struct clk *clk_tout_s0, *clk_pout, *clk_gc;
 #endif
 
 static struct pxa95x_pm_regs pxa95x_pm_regs;
@@ -1144,21 +1144,32 @@ void vmeta_pwr(unsigned int enableDisable)
 void gc_pwr(int enableDisable)
 {
 	unsigned int gcpwr = 0;
-
+	unsigned int gc_clk_on = 1 << (CKEN_GC_1X - 64) | 1 << (CKEN_GC_2X - 64);
 	gcpwr = GCPWR;
 	if (GC_PWR_ENABLE == enableDisable) {
 		if (gcpwr & GCPWR_PWR_ST)
 			return;	/*Pwr is already on */
+		/*gc clock on*/
+		clk_enable(clk_gc);
+		/*gc power on*/
 		GCPWR = GCPWR_SETALLWAYS | GCPWR_PWON;
+		/* poll for gc power mode status*/
 		do {
 			gcpwr = GCPWR;
 		} while ((gcpwr & GCPWR_PWR_ST) != GCPWR_PWR_ST);
 		gcpwr = GCPWR;
+		/*De-assert reset*/
 		gcpwr |= GCPWR_RST_N;
 		GCPWR = gcpwr;
+		/*gc clock off*/
+		clk_disable(clk_gc);
 	} else if (GC_PWR_DISABLE == enableDisable) {
 		if ((gcpwr & GCPWR_PWR_ST) != GCPWR_PWR_ST)
 			return;	/*Pwr is already off */
+		if (CKENC & gc_clk_on) {
+			printk(KERN_ERR "GC clock is still on, can't power off GC !\n");
+			BUG_ON(1);
+		}
 		/* GCPWR_RST_N,GCPWR_PWON = 0 */
 		GCPWR = GCPWR_SETALLWAYS;
 		do {
@@ -2068,6 +2079,11 @@ static int __init pxa95x_pm_init(void)
 	if (IS_ERR(clk_pout)) {
 		pr_err("unable to get pout clock");
 		return PTR_ERR(clk_pout);
+	}
+	clk_gc = clk_get(NULL, "GCCLK");
+	if (IS_ERR(clk_gc)) {
+		pr_err("unable to get gc clock");
+		return PTR_ERR(clk_gc);
 	}
 
 	/* if nowhere use tout_s0, it would be disable */
