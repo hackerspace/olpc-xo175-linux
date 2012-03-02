@@ -162,14 +162,20 @@ static void mmp3_init_l2x0(void)
 		   [25]		reserved, SBO/RAO
 		   [26]		Non-secure lockdown enable
 		   [27]		Non-secure interrupt access enable
-		   [28..31]	reserved, SBZ
+		   [28]		data prefetch enable
+		   [29]		instruction prefetch enable
+		   [30..31]	reserved, SBZ
 		*/
 		/*
 		   forece NO WA, for A0 memory performance, bug in WA
 		   64KB way-size
 		   clear bit[16] to make sure l2x0_init call take it as 8-way
+		   Overall enabling of L2 prefetching, when enabled, the
+		   L2X0 prefetching kernel config can take effect. The feature
+		   requires both here and the config code in L2X0 driver
+		   to work.
 		*/
-		l2x0_init(l2x0_base, 0x00860000, 0xE200FFFF);
+		l2x0_init(l2x0_base, 0x30860000, 0xC200FFFF);
 	}
 }
 #else
