@@ -57,6 +57,43 @@ static struct mfd_cell vbus_devs[] = {
 	 .id = -1,
 	 },
 };
+static struct resource pm80x_gpio_resources[] = {
+	{
+		.name = "gpio-00",
+		.start = PM800_IRQ_GPIO0,
+		.end = PM800_IRQ_GPIO0,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.name = "gpio-01",
+		.start = PM800_IRQ_GPIO1,
+		.end = PM800_IRQ_GPIO1,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.name = "gpio-02",
+		.start = PM800_IRQ_GPIO2,
+		.end = PM800_IRQ_GPIO2,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.name = "gpio-03",
+		.start = PM800_IRQ_GPIO3,
+		.end = PM800_IRQ_GPIO3,
+		.flags = IORESOURCE_IRQ,
+	}, {
+		.name = "gpio-04",
+		.start = PM800_IRQ_GPIO4,
+		.end = PM800_IRQ_GPIO4,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct mfd_cell pm80x_gpio_devs[] = {
+	{
+	.name = "88pm80x-gpio",
+	.num_resources = ARRAY_SIZE(pm80x_gpio_resources),
+	.resources = &pm80x_gpio_resources[0],
+	.id = -1,
+	},
+};
 
 static struct resource onkey_resources[] = {
 	{
@@ -1073,7 +1110,12 @@ static int __devinit device_800_init(struct pm80x_chip *chip,
 			goto out_dev;
 		}
 	}
-
+	ret = mfd_add_devices(chip->dev, 0, &pm80x_gpio_devs[0],
+				ARRAY_SIZE(pm80x_gpio_devs), NULL, pm800_chip->irq_base);
+	if (ret < 0) {
+		dev_err(chip->dev, "Failed to add gpio subdev\n");
+		goto out_dev;
+	}
 	if (pdata->pm800_plat_config)
 		pdata->pm800_plat_config(chip, pdata);
 
