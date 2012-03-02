@@ -250,7 +250,7 @@ static int ccic_config_image(struct mv_camera_dev *pcdev)
 	imgsz_h = (fmt->height << IMGSZ_V_SHIFT) & IMGSZ_V_MASK;
 	imgsz_w = fmt->bytesperline & IMGSZ_H_MASK;
 
-	if (fmt->pixelformat == V4L2_PIX_FMT_YUV420)
+	if (fmt->pixelformat == V4L2_PIX_FMT_YUV420 || fmt->pixelformat == V4L2_PIX_FMT_YVU420)
 		imgsz_w = (fmt->bytesperline * 4 / 3) & IMGSZ_H_MASK;
 	else if (fmt->pixelformat == V4L2_PIX_FMT_JPEG)
 		imgsz_h = (fmt->sizeimage / fmt->bytesperline) << IMGSZ_V_SHIFT;
@@ -274,6 +274,7 @@ static int ccic_config_image(struct mv_camera_dev *pcdev)
 		widthuv = fmt->width / 2;
 		break;
 	case V4L2_PIX_FMT_YUV420:
+	case V4L2_PIX_FMT_YVU420:
 		widthy = fmt->width;
 		widthuv = fmt->width / 2;
 		break;
@@ -294,6 +295,7 @@ static int ccic_config_image(struct mv_camera_dev *pcdev)
 			C0_YUVE_YVYU, C0_DF_MASK);
 		break;
 	case V4L2_PIX_FMT_YUV420:
+	case V4L2_PIX_FMT_YVU420:
 		ccic_reg_write_mask(pcdev, REG_CTRL0,
 			C0_DF_YUV | C0_YUV_420PL |
 			C0_YUVE_YVYU, C0_DF_MASK);
@@ -418,7 +420,7 @@ static void mv_set_contig_buffer(struct mv_camera_dev *pcdev, int frame)
 		ccic_reg_write(pcdev, frame == 0 ?
 				REG_Y0BAR : REG_Y1BAR, buf->yuv_p.y);
 		if (fmt->pixelformat == V4L2_PIX_FMT_YUV422P ||
-				fmt->pixelformat == V4L2_PIX_FMT_YUV420) {
+				fmt->pixelformat == V4L2_PIX_FMT_YUV420 ||fmt->pixelformat == V4L2_PIX_FMT_YVU420) {
 			ccic_reg_write(pcdev, frame == 0 ?
 					REG_U0BAR : REG_U1BAR, buf->yuv_p.u);
 			ccic_reg_write(pcdev, frame == 0 ?
@@ -436,7 +438,7 @@ static void mv_set_contig_buffer(struct mv_camera_dev *pcdev, int frame)
 	ccic_reg_write(pcdev, frame == 0 ?
 			REG_Y0BAR : REG_Y1BAR, buf->yuv_p.y);
 	if (fmt->pixelformat == V4L2_PIX_FMT_YUV422P ||
-			fmt->pixelformat == V4L2_PIX_FMT_YUV420) {
+			fmt->pixelformat == V4L2_PIX_FMT_YUV420 || fmt->pixelformat == V4L2_PIX_FMT_YVU420) {
 		ccic_reg_write(pcdev, frame == 0 ?
 				REG_U0BAR : REG_U1BAR, buf->yuv_p.u);
 		ccic_reg_write(pcdev, frame == 0 ?
@@ -549,7 +551,11 @@ static void mv_videobuf_queue(struct vb2_buffer *vb)
 		buf->yuv_p.y = dma_handle;
 		buf->yuv_p.u = buf->yuv_p.y + base_size;
 		buf->yuv_p.v = buf->yuv_p.u + base_size / 4;
-	} else {
+	} else if (pcdev->pix_format.pixelformat == V4L2_PIX_FMT_YVU420) {
+		buf->yuv_p.y = dma_handle;
+		buf->yuv_p.v = buf->yuv_p.y + base_size;
+		buf->yuv_p.u = buf->yuv_p.v + base_size / 4;
+	}else {
 		buf->yuv_p.y = dma_handle;
 	}
 
@@ -1010,6 +1016,13 @@ static const struct soc_mbus_pixelfmt ccic_formats[] = {
 	{
 		.fourcc = V4L2_PIX_FMT_YUV420,
 		.name = "YUV420PLANAR",
+		.bits_per_sample = 12,
+		.packing = SOC_MBUS_PACKING_NONE,
+		.order = SOC_MBUS_ORDER_LE,
+	},
+	{
+		.fourcc = V4L2_PIX_FMT_YVU420,
+		.name = "YVU420PLANAR",
 		.bits_per_sample = 12,
 		.packing = SOC_MBUS_PACKING_NONE,
 		.order = SOC_MBUS_ORDER_LE,
