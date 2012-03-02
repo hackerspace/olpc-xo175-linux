@@ -216,8 +216,7 @@ void mmp2_pm_enter_lowpower_mode(int state)
 
 	idle_cfg = __raw_readl(APMU_IDLE_CFG);
 	apcr = __raw_readl(MPMU_APCR);
-
-	apcr &= ~(PMUM_SLPEN | PMUM_DDRCORSD | PMUM_APBSD | PMUM_AXISD);
+	apcr &= ~(PMUM_SLPEN | PMUM_DDRCORSD | PMUM_APBSD | PMUM_AXISD | 1<<13);
 	apcr &= ~PMUM_VCTCXOSD;
 	idle_cfg &= ~PMUA_MOH_IDLE;
 
@@ -387,7 +386,7 @@ static int __init mmp2_pm_init(void)
 
 	/* Clear default low power control bit */
 	apcr = __raw_readl(MPMU_APCR);
-	apcr &= ~PMUM_SLPEN & ~PMUM_DDRCORSD & ~PMUM_APBSD & ~PMUM_AXISD;
+	apcr &= ~(PMUM_SLPEN | PMUM_DDRCORSD | PMUM_APBSD | PMUM_AXISD | 1<<13);
 	__raw_writel(apcr, MPMU_APCR);
 
 	wake_lock_init(&wakelock_pmic_wakeup,
