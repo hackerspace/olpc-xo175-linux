@@ -1763,10 +1763,10 @@ static int __init mmp3_pm_init(void)
 
 	/* set default ddr table */
 	for (j = 0; j < pmu->ppscnt; j++) {
-		pmu->pps[i].dram.op = MMP3_FREQ_OP_GET;
-		pmu->pps[i].dram.dsrc = pmu->pl_curr.dram.dsrc;
-		pmu->pps[i].dram.pre_d = pmu->pl_curr.dram.pre_d;
-		pmu->pps[i].dram.mode4x = pmu->pl_curr.dram.mode4x;
+		pmu->pps[j].dram.op = MMP3_FREQ_OP_GET;
+		pmu->pps[j].dram.dsrc = pmu->pl_curr.dram.dsrc;
+		pmu->pps[j].dram.pre_d = pmu->pl_curr.dram.pre_d;
+		pmu->pps[j].dram.mode4x = pmu->pl_curr.dram.mode4x;
 	}
 
 	/* now let's hold source reference */
