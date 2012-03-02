@@ -54,6 +54,7 @@ enum ipi_msg_type {
 	IPI_CALL_FUNC_SINGLE,
 	IPI_CPU_STOP,
 	IPI_CPU_BACKTRACE,
+	IPI_CPU_SYNC_COHERENCY,
 };
 
 int __cpuinit __cpu_up(unsigned int cpu)
@@ -612,6 +613,8 @@ static void ipi_cpu_backtrace(unsigned int cpu, struct pt_regs *regs)
 	}
 }
 
+extern void handle_coherency_maint_req(void *p);
+
 /*
  * Main handler for inter-processor interrupts
  */
@@ -646,6 +649,10 @@ asmlinkage void __exception_irq_entry do_IPI(int ipinr, struct pt_regs *regs)
 
 	case IPI_CPU_BACKTRACE:
 		ipi_cpu_backtrace(cpu, regs);
+		break;
+
+	case IPI_CPU_SYNC_COHERENCY:
+		handle_coherency_maint_req(NULL);
 		break;
 
 	default:

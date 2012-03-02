@@ -23,6 +23,7 @@
 #include <linux/clocksource.h>
 #include <plat/clock.h>
 #include <linux/time.h>
+#include <asm/mach/map.h>
 #include <asm/proc-fns.h>
 #include <asm/cacheflush.h>
 #include <mach/hardware.h>
@@ -1621,6 +1622,9 @@ static inline void mmp3_mod_idle_config(struct mmp3_cpu_idle_config *cic,
 #define MMP3_PM_C1_INCG 0x0
 #define MMP3_PM_C1_EXCG 0x2
 #define MMP3_PM_C2_LPPD 0x62
+#define MMP3_PM_C2_L1_L2_PWD 0x820004e2
+#define MMP3_PM_C2_L1_PWD 0x82000462
+#define MMP3_PM_C2_L1_RETENT_L2_PWD 0x800004a2
 #define MMP3_PM_C2_MPPD 0x72
 
 void mmp3_pm_enter_idle(int cpu)
@@ -1659,29 +1663,212 @@ void mmp3_pm_enter_idle(int cpu)
 	trace_idle_exit(__raw_readl(cic->wake_status));
 }
 
+#ifdef CONFIG_SMP
+enum ipi_msg_type {
+	IPI_TIMER = 2,
+	IPI_RESCHEDULE,
+	IPI_CALL_FUNC,
+	IPI_CALL_FUNC_SINGLE,
+	IPI_CPU_STOP,
+	IPI_CPU_BACKTRACE,
+	IPI_CPU_SYNC_COHERENCY,
+};
+
+static u32 num_cpus;
+static spinlock_t *c2_lock_p;
+static int *coherent_state;
+static int *hand_shake_req;
+
+void handle_coherency_maint_req(void *p)
+{
+	register u32 reg;
+	int handshake_done = 0;
+	int i;
+	int cpu_id = smp_processor_id();
+
+	dsb();
+
+	/* set FW = 0 */
+	__asm__ volatile ("mrc p15, 0, %0, c1, c0, 1" : "=r" (reg));
+	reg &= ~(1 << 0);
+	__asm__ volatile ("mcr p15, 0, %0, c1, c0, 1" : : "r" (reg));
+	isb();
+	dsb();
+
+	coherent_state[cpu_id] = 0;
+
+	/* wait for all requests to drop */
+	while (!handshake_done) {
+		handshake_done = 1;
+		for (i = 0; i < num_cpus; i++)
+			if (hand_shake_req[i])
+				handshake_done = 0;
+		dsb();
+	}
+
+	/* set FW = 1 */
+	__asm__ volatile ("mrc p15, 0, %0, c1, c0, 1" : "=r" (reg));
+	reg |= (1 << 0);
+	__asm__ volatile ("mcr p15, 0, %0, c1, c0, 1" : : "r" (reg));
+
+	coherent_state[cpu_id] = 1;
+	isb();
+	dsb();
+}
+
+static inline void send_sync_ipi(int cpu, unsigned int irq)
+{
+	unsigned long map = 0;
+
+	map |= 1 << smp_hardid[cpu];
+	dsb();
+	writel_relaxed(map << 16 | IPI_CPU_SYNC_COHERENCY,
+			GIC_DIST_VIRT_BASE + GIC_DIST_SOFTINT);
+}
+
+static int leave_coherency(int cpu_id)
+{
+	register u32 reg;
+	int handshake_done = 0;
+	int i;
+
+	if (!arch_spin_trylock(&(&c2_lock_p->rlock)->raw_lock))
+		return 0;
+
+	hand_shake_req[cpu_id] = 1;
+
+	/* set FW = 0 */
+	__asm__ volatile ("mrc p15, 0, %0, c1, c0, 1" : "=r" (reg));
+	reg &= ~(1 << 0);
+	__asm__ volatile ("mcr p15, 0, %0, c1, c0, 1" : : "r" (reg));
+	/* flush_cache_all contains dsb and isb */
+	flush_cache_all();
+
+	coherent_state[cpu_id] = 0;
+
+	for (i = 0; i < num_cpus; i++) {
+		if (coherent_state[i] && i != cpu_id)
+			send_sync_ipi(i, IPI_CPU_SYNC_COHERENCY);
+	}
+
+	while (!handshake_done) {
+		handshake_done = 1;
+		for (i = 0; i < num_cpus; i++)
+			if (coherent_state[i] && i != cpu_id)
+				handshake_done = 0;
+		dsb();
+	}
+
+	/* set SMPnAMP = 0 */
+	__asm__ volatile ("mrc p15, 0, %0, c1, c0, 1" : "=r" (reg));
+	reg &= ~(1 << 6);
+	__asm__ volatile ("mcr p15, 0, %0, c1, c0, 1" : : "r" (reg));
+	isb();
+	dsb();
+
+	hand_shake_req[cpu_id] = 0;
+	dsb();
+
+	arch_spin_unlock(&(&c2_lock_p->rlock)->raw_lock);
+	isb();
+	dsb();
+
+	return 1;
+}
+
+static int join_coherency(int cpu_id)
+{
+	register u32 reg;
+	int handshake_done = 0;
+	int i;
+
+	arch_spin_lock(&(&c2_lock_p->rlock)->raw_lock);
+	isb();
+	dsb();
+
+	hand_shake_req[cpu_id] = 1;
+
+	for (i = 0; i < num_cpus; i++) {
+		if (coherent_state[i] && i != cpu_id)
+			send_sync_ipi(i, IPI_CPU_SYNC_COHERENCY);
+	}
+
+	while (!handshake_done) {
+		handshake_done = 1;
+		for (i = 0; i < num_cpus; i++)
+			if (coherent_state[i] && i != cpu_id)
+				handshake_done = 0;
+		dsb();
+	}
+
+	/* set FW = 1 and SMP = 1 */
+	__asm__ volatile ("mrc p15, 0, %0, c1, c0, 1" : "=r" (reg));
+	reg |= ((1 << 0) | (1 << 6));
+	__asm__ volatile ("mcr p15, 0, %0, c1, c0, 1" : : "r" (reg));
+
+	coherent_state[cpu_id] = 1;
+	isb();
+	dsb();
+
+	hand_shake_req[cpu_id] = 0;
+	dsb();
+
+	arch_spin_unlock(&(&c2_lock_p->rlock)->raw_lock);
+	isb();
+	dsb();
+
+	return 1;
+}
+#endif
+
+static u32 pj_cc4_ctl[3] = {APMU_PJ_C0_CC4, APMU_PJ_C1_CC4, APMU_PJ_C2_CC4};
+
 void mmp3_pm_enter_c2(int cpu)
 {
-	u32 state = MMP3_PM_C2_LPPD;
+	u32 state = MMP3_PM_C2_L1_PWD;
 	struct mmp3_cpu_idle_config *cic;
 	int core_id = mmp3_smpid();
 
-	cic = &(mmp3_percpu[core_id].cic);
+#ifdef CONFIG_SMP
+	if (!leave_coherency(cpu))
+		return ;
+#endif
 
-	__raw_writel(readl(APMU_ISLD_CPUMC_PDWN_CTRL) & ~(0x1 << 6),
-			 APMU_ISLD_CPUMC_PDWN_CTRL);
+	cic = &(mmp3_percpu[core_id].cic);
 
 	mmp3_mod_idle_config(cic, state);
 	/* no DFC in process*/
 	trace_idle_entry(state);
 
+#if defined(CONFIG_SMP)
+	while (1) {
+		dsb();
+		__raw_writel(__raw_readl(pj_cc4_ctl[core_id])| 0x1, pj_cc4_ctl[core_id]);
+		__asm__ __volatile__ ("wfi");
+		__raw_writel(__raw_readl(pj_cc4_ctl[core_id])& ~0x1, pj_cc4_ctl[core_id]);
+
+#ifdef CONFIG_ARM_GIC
+		if (((__raw_readl(cic->intr_status) & 0x3ff) != 1023) ||
+#endif
+		((__raw_readl(cic->wake_status) & 0x7fffc7ff) != 0)) {
+			/* real wake up, break loop to handle*/
+			break;
+		}
+	}
+#else
 	flush_cache_all();
 	dsb();
 	arch_idle();
+#endif
+
+#ifdef CONFIG_SMP
+	join_coherency(cpu);
+#endif
+
+	state = MMP3_PM_C1_INCG;
+	mmp3_mod_idle_config(cic, state);
 
 	trace_idle_exit(__raw_readl(cic->wake_status));
-
-	__raw_writel(readl(APMU_ISLD_CPUMC_PDWN_CTRL) | (0x1 << 6),
-			APMU_ISLD_CPUMC_PDWN_CTRL);
 }
 
 
@@ -1692,16 +1879,47 @@ static void mmp3_do_idle(void)
 	local_irq_enable();
 }
 
+#ifdef CONFIG_SMP
+extern unsigned long c2_reserve_pa;
+#define C2_RESERVE_SIZE	(1024 * 1024)
+#endif
+
 static int __init mmp3_pm_init(void)
 {
 	int i, j;
 	u32 ddrt;
+#ifdef CONFIG_SMP
+	char *uncached_data;
+#endif
 	struct mmp3_pmu *pmu = &mmp3_pmu_config;
+
+#ifdef CONFIG_SMP
+	/* FIXME: Here we assume all cores will be on before here! */
+	num_cpus = num_online_cpus();
+#endif
 
 	pmu->swstat_store = 0;
 	pmu->swstat = &(pmu->swstat_store);
 	spin_lock_init(&(pmu->mmp3_fc_spin));
 	mutex_init(&(pmu->mmp3_fc_lock));
+
+#ifdef CONFIG_SMP
+	uncached_data = __arm_ioremap(c2_reserve_pa, PAGE_SIZE, MT_UNCACHED);
+	if (uncached_data == NULL) {
+		pr_err("%s: failed to remap memory for C2\n", __func__);
+		BUG();
+	}
+
+	coherent_state = (unsigned int *)uncached_data;
+	/* we are at coherent state */
+	for (i = 0; i < num_cpus; i++)
+		coherent_state[i] = 1;
+	hand_shake_req = (unsigned int *)(&coherent_state[num_cpus]);
+	for (i = 0; i < num_cpus; i++)
+		hand_shake_req[i] = 0;
+	c2_lock_p = (spinlock_t *)(&hand_shake_req[num_cpus]);
+	spin_lock_init(c2_lock_p);
+#endif
 
 	for (j = 0; j < ARRAY_SIZE(mmp3_fccs); j++) {
 		mmp3_fccs[j].source =
@@ -1718,6 +1936,7 @@ static int __init mmp3_pm_init(void)
 
 	/* ignore SP idle status for DFC */
 	__raw_writel(0x00000001, APMU_DEBUG);
+	__raw_writel(0x0, APMU_DEBUG2);
 
 	pm_idle = mmp3_do_idle;
 

@@ -96,6 +96,11 @@ static struct mfp_addr_map mmp3_addr_map[] __initdata = {
 	MFP_ADDR_END,
 };
 
+#ifdef CONFIG_SMP
+unsigned long c2_reserve_pa;
+#define C2_RESERVE_SIZE	(1024 * 1024)
+#endif
+
 void __init mmp3_reserve(void)
 {
 	/*
@@ -109,6 +114,15 @@ void __init mmp3_reserve(void)
 
 	/*reserve memory for pmem*/
 	pxa_reserve_pmem_memblock();
+#ifdef CONFIG_SMP
+	c2_reserve_pa = memblock_alloc(C2_RESERVE_SIZE, PAGE_SIZE);
+	if (!c2_reserve_pa) {
+		pr_err("%s: failed to reserve memory for C2\n", __func__);
+		BUG();
+	}
+	BUG_ON(memblock_free(c2_reserve_pa, C2_RESERVE_SIZE));
+	BUG_ON(0 != memblock_remove(c2_reserve_pa, C2_RESERVE_SIZE));
+#endif
 }
 
 static void __init mmp3_init_gpio(void)

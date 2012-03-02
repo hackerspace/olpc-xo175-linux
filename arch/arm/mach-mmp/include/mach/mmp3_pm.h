@@ -67,6 +67,8 @@ unsigned long mmp3_getfreq(int clkid);
 int mmp3_get_pp_number(void);
 unsigned long mmp3_get_pp_freq(int ppidx, int clkid);
 void mmp3_pm_enter_idle(int cpu);
+void mmp3_pm_enter_c2(int cpu);
+
 void mmp3_pm_update_dram_timing_table(int count, struct dmc_timing_entry *tab);
 
 enum {
