@@ -272,8 +272,8 @@ static int mmp2_pm_enter(suspend_state_t state)
 {
 	int temp;
 
-	temp = __raw_readl(ICU_INT_CONF(IRQ_MMP2_PMIC_MUX));
-	if (!(temp & ICU_INT_ROUTE_PJ4_IRQ)) {
+	temp = __raw_readl(MMP2_ICU_INT4_MASK);
+	if (temp & (1<<1)) {
 		printk(KERN_ERR "%s: PMIC interrupt is handling\n", __func__);
 		return -EAGAIN;
 	}
