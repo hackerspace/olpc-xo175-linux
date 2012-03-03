@@ -341,6 +341,11 @@ static void gps_power_on(void)
 		g_gps_reset = mfp_to_gpio(MFP_PIN_GPIO106);
 		g_gps_on = mfp_to_gpio(MFP_PIN_GPIO104);
 		break;
+	default:
+		g_gps_reset = 0;
+		g_gps_on = 0;
+		pr_err("%s: Unknown board type!\n", __func__);
+		break;
 	}
 
 	if (gpio_request(g_gps_reset, "gpio_gps_reset")) {
@@ -362,7 +367,7 @@ static void gps_power_on(void)
 	}
 	pr_info("%s: regulator_get ok: v_gps\n", __func__);
 
-	gpio_direction_output(g_gps_reset, 0);
+	gpio_direction_output(g_gps_reset, 1);
 	gpio_direction_output(g_gps_on, 0);
 	gps_eclk(0);
 
