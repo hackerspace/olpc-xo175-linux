@@ -1831,7 +1831,10 @@ static int ntrig_spi_resume(struct spi_device *spi)
 	/* ntrig_spi_send_driver_alive(spi); */
 	spi_set_pwr(privdata, true);
 	enable_irq(privdata->spi->irq);
-
+#ifdef CONFIG_CPU_MMP3
+	/* re-check ntrig can work around TS_INT keep high issue after resume on MMP3 platforms */
+	check_ntrig(privdata->spi);
+#endif
 	return 0;
 }
 #endif
@@ -1861,7 +1864,7 @@ static struct spi_driver ntrig_spi_driver = {
 	.shutdown	= ntrig_spi_shutdown,
 	.remove		= __devexit_p(ntrig_spi_remove),
 };
-#ifdef CONFIG_CPU_MMP2
+
 static int check_ntrig(struct spi_device *spi)
 {
 	u8 msg_read[4];
@@ -1918,110 +1921,7 @@ static int check_ntrig(struct spi_device *spi)
 	}
 	return ret;
 }
-#else
-u8 msg_rx[512];
-u8 msg_tx[512];
 
-static int ntrig_spi_read(struct spi_device *spi, u8 *rxbuf, int len)
-{
-	u8 *rx_buf = ((unsigned int)msg_rx) & (~0x0000003F);
-	u8 *tx_buf = ((unsigned int)msg_tx) & (~0x0000003F);
-
-	memset(tx_buf, 0xFF,len);
-
-	struct spi_transfer	t = {
-			.rx_buf		= rx_buf,
-			.tx_buf		= tx_buf,
-			.len		= len,
-		};
-	struct spi_message	m;
-
-	spi_message_init(&m);
-	spi_message_add_tail(&t, &m);
-	spi_sync(spi, &m);
-
-	memcpy(rxbuf, rx_buf, len);
-
-	return 0;
-
-}
-
-static int ntrig_spi_write(struct spi_device *spi, u8 *txbuf, int len)
-{
-	u8 *rx_buf = ((unsigned int)msg_rx) & (~0x0000003F);
-	u8 *tx_buf = ((unsigned int)msg_tx) & (~0x0000003F);
-
-	memcpy(tx_buf, txbuf, len);
-
-	struct spi_transfer	t = {
-			.rx_buf		= rx_buf,
-			.tx_buf		= tx_buf,
-			.len		= len,
-		};
-	struct spi_message	m;
-
-	spi_message_init(&m);
-	spi_message_add_tail(&t, &m);
-	spi_sync(spi, &m);
-
-	return 0;
-}
-
-static int check_ntrig(struct spi_device *spi)
-{
-	u8 msg_read[14];
-	struct _ntrig_low_msg msg_write;
-
-	int i = 0,ret = 0, retry = 0;
-
-
-	while (1) {
-		retry = 0;
-
-		msg_write.type = LOWMSG_TYPE_COMMAND;
-		msg_write.length = 14;
-		msg_write.flags= 0;
-		msg_write.channel= LOWMSG_CHANNEL_CONTROL;
-		msg_write.function= LOWMSG_FUNCTION_GET_FW_VERSION;
-		msg_write.data[0] = 0xa1;
-		msg_write.data[1] = 0x01;
-		msg_write.data[2] = LOWMSG_FUNCTION_GET_FW_VERSION;
-		msg_write.data[3] = 0x03;
-		msg_write.data[4] = 0;
-		msg_write.data[5] = 0x01;
-		msg_write.data[6] = 0;
-		msg_write.data[7] = 0x08;
-
-		printk("%s:Begin to GetFWVersion\n", __func__);
-		ntrig_spi_write(spi, (u8 *)&msg_write, 14);
-
-		msleep(500);
-
-		while(retry < MAX_RETRY) {
-			ntrig_spi_read(spi,(u8 *)&msg_read, 1);
-
-			printk("msg0 read0x%x\n", msg_read[0]);
-			if (msg_read[0] == 0xa5) {
-				ntrig_spi_read(spi,(u8 *)&msg_read, 3);
-				for (i = 0; i < 3; i++)
-						printk("msg%d read0x%x\n", i,msg_read[i]);
-
-				if (msg_read[0] == 0x5a && msg_read[1] ==0xe7 && msg_read[2] == 0x7e) {
-					ntrig_spi_read(spi, (u8 *)&msg_read, 14);
-						for (i = 0; i < 14; i++)
-							printk(KERN_DEBUG "0x%x ", msg_read[i]);
-						ret = 1;
-						return ret;
-						//break;
-				}
-			}
-			retry++;
-		}
-	}
-	return ret;
-
-}
-#endif
 /** 
  * initialize the SPI driver. Called by board init code 
  */
@@ -2046,6 +1946,10 @@ static void ntrig_late_resume(struct early_suspend *h)
 	spi_set_pwr(pdata, true);
 	watchdog_timer.is_suspended = false;
 	enable_irq(pdata->spi->irq);
+#ifdef CONFIG_CPU_MMP3
+	/* re-check ntrig can work around TS_INT keep high issue after resume on MMP3 platforms */
+	check_ntrig(pdata->spi);
+#endif
 	return;
 }
 #endif
@@ -2130,13 +2034,11 @@ static int __devinit ntrig_spi_probe(struct spi_device *spi)
 
 #endif
 
-	if (machine_is_brownstone()) {
-		ret = check_ntrig(spi);
-		if (!ret) {
-			pr_err("%s: ntrig detects fail!\n", __func__);
-			ret = -ENXIO;
-			return ret;
-		}
+	ret = check_ntrig(spi);
+	if (!ret) {
+		ntrig_dbg("%s: ntrig detects fail!\n", __FUNCTION__);
+		ret = -ENXIO;
+		return ret;
 	}
 
 	sema_init(&pdata->spi_lock, 1);
