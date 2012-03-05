@@ -235,23 +235,152 @@ void mmp2_pm_enter_lowpower_mode(int state)
 		apcr |= PMUM_AXISD;			/* set AXISDD bit */
 		apcr |= PMUM_DDRCORSD;			/* set DDRCORSD bit */
 		idle_cfg |= PMUA_MOH_PWRDWN;		/* PJ power down */
+		apcr |= PMUM_DTCMSD;
 		/* fall through */
 	case POWER_MODE_CORE_EXTIDLE:
 		idle_cfg |= PMUA_MOH_IDLE;		/* set the IDLE bit */
 		idle_cfg &= ~(0x3<<28);
 		idle_cfg |= 0x000a0000;
-		/* fall through */
+		break;
 	case POWER_MODE_CORE_INTIDLE:
+		apcr &= ~PMUM_DTCMSD;
 		break;
 	}
 
 	/* set DSPSD, DTCMSD, BBSD, MSASLPEN */
-	apcr |= PMUM_DSPSD | PMUM_DTCMSD | PMUM_BBSD;
+	apcr |= PMUM_DSPSD | PMUM_BBSD;
 
 	/* finally write the registers back */
 	__raw_writel(idle_cfg, APMU_IDLE_CFG);
 	__raw_writel(apcr, MPMU_APCR);	/* 0xfe086000 */
 }
+
+/************************************************************
+ *	WTM related code start
+ ***********************************************************/
+struct wtm_cmd {
+	volatile unsigned int prim_cmd_parm0;          /* 0x0  */
+	volatile unsigned int prim_cmd_parm1;          /* 0x4  */
+	volatile unsigned int prim_cmd_parm2;          /* 0x8  */
+	volatile unsigned int prim_cmd_parm3;          /* 0xc  */
+	volatile unsigned int prim_cmd_parm4;          /* 0x10 */
+	volatile unsigned int prim_cmd_parm5;          /* 0x14 */
+	volatile unsigned int prim_cmd_parm6;          /* 0x18 */
+	volatile unsigned int prim_cmd_parm7;          /* 0x1c */
+	volatile unsigned int prim_cmd_parm8;          /* 0x20 */
+	volatile unsigned int prim_cmd_parm9;          /* 0x24 */
+	volatile unsigned int prim_cmd_parm10;         /* 0x28 */
+	volatile unsigned int prim_cmd_parm11;         /* 0x2c */
+	volatile unsigned int prim_cmd_parm12;         /* 0x30 */
+	volatile unsigned int prim_cmd_parm13;         /* 0x34 */
+	volatile unsigned int prim_cmd_parm14;         /* 0x38 */
+	volatile unsigned int prim_cmd_parm15;         /* 0x3c */
+	volatile unsigned int secure_processor_cmd;    /* 0x40 */
+};
+
+/*
+ * WTM register file for host communication
+ */
+struct wtm_mail_box {
+	volatile unsigned int prim_cmd_parm0;          /* 0x0  */
+	volatile unsigned int prim_cmd_parm1;          /* 0x4  */
+	volatile unsigned int prim_cmd_parm2;          /* 0x8  */
+	volatile unsigned int prim_cmd_parm3;          /* 0xc  */
+	volatile unsigned int prim_cmd_parm4;          /* 0x10 */
+	volatile unsigned int prim_cmd_parm5;          /* 0x14 */
+	volatile unsigned int prim_cmd_parm6;          /* 0x18 */
+	volatile unsigned int prim_cmd_parm7;          /* 0x1c */
+	volatile unsigned int prim_cmd_parm8;          /* 0x20 */
+	volatile unsigned int prim_cmd_parm9;          /* 0x24 */
+	volatile unsigned int prim_cmd_parm10;         /* 0x28 */
+	volatile unsigned int prim_cmd_parm11;         /* 0x2c */
+	volatile unsigned int prim_cmd_parm12;         /* 0x30 */
+	volatile unsigned int prim_cmd_parm13;         /* 0x34 */
+	volatile unsigned int prim_cmd_parm14;         /* 0x38 */
+	volatile unsigned int prim_cmd_parm15;         /* 0x3c */
+	volatile unsigned int secure_processor_cmd;    /* 0x40 */
+	volatile unsigned char reserved_0x44[60];
+	volatile unsigned int cmd_return_status;       /* 0x80 */
+	volatile unsigned int cmd_status_0;            /* 0x84 */
+	volatile unsigned int cmd_status_1;            /* 0x88 */
+	volatile unsigned int cmd_status_2;            /* 0x8c */
+	volatile unsigned int cmd_status_3;            /* 0x90 */
+	volatile unsigned int cmd_status_4;            /* 0x94 */
+	volatile unsigned int cmd_status_5;            /* 0x98 */
+	volatile unsigned int cmd_status_6;            /* 0x9c */
+	volatile unsigned int cmd_status_7;            /* 0xa0 */
+	volatile unsigned int cmd_status_8;            /* 0xa4 */
+	volatile unsigned int cmd_status_9;            /* 0xa8 */
+	volatile unsigned int cmd_status_10;           /* 0xac */
+	volatile unsigned int cmd_status_11;           /* 0xb0 */
+	volatile unsigned int cmd_status_12;           /* 0xb4 */
+	volatile unsigned int cmd_status_13;           /* 0xb8 */
+	volatile unsigned int cmd_status_14;           /* 0xbc */
+	volatile unsigned int cmd_status_15;           /* 0xc0 */
+	volatile unsigned int cmd_fifo_status;         /* 0xc4 */
+	volatile unsigned int host_interrupt_register; /* 0xc8 */
+	volatile unsigned int host_interrupt_mask;     /* 0xcc */
+	volatile unsigned int host_exception_address;  /* 0xd0 */
+	volatile unsigned int sp_trust_register;       /* 0xd4 */
+	volatile unsigned int wtm_identification;      /* 0xd8 */
+	volatile unsigned int wtm_revision;            /* 0xdc */
+};
+
+#define WTM_BASE                        0xD4290000
+#define WTM_PRIM_CMD_COMPLETE_MASK      (1 << 0)
+
+unsigned int mmp2_ack_from_wtm   = 0x0;
+static volatile struct wtm_mail_box *wtm_mb;
+
+static int wtm_exe_cmd(struct wtm_cmd *cmd)
+{
+	int i;
+
+	volatile unsigned int *pcmd = &cmd->prim_cmd_parm0;
+	volatile unsigned int *phi = &wtm_mb->prim_cmd_parm0;
+
+	for (i = 0; i <= 16; i++)
+		*phi++ = *pcmd++;
+
+	/* try 10000 times */
+	for (i = 0; i < 10000; i++) {
+		if (wtm_mb->host_interrupt_register &
+				WTM_PRIM_CMD_COMPLETE_MASK) {
+			/* clean interrupt */
+			wtm_mb->host_interrupt_register = 0xFFFFFFFF;
+			return wtm_mb->cmd_return_status;
+		}
+		udelay(1);
+	}
+
+	/* read fail */
+	return -1;
+}
+
+#define WTM_GET_TRUST_STATUS_REGISTER   0x1000
+static int wtm_trig_wtmirq(void)
+{
+	struct wtm_cmd cmd;
+	int status;
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.secure_processor_cmd = WTM_GET_TRUST_STATUS_REGISTER;
+	status = wtm_exe_cmd(&cmd);
+	if (status < 0) {
+		mmp2_ack_from_wtm = 0;
+		goto out;
+	}
+
+	mmp2_ack_from_wtm   = 1;
+
+out:
+	if (!mmp2_ack_from_wtm)
+		printk(KERN_ERR "!!! no ack received from WTM\n");
+	return status;
+}
+/************************************************************
+ *	WTM related code end
+ ***********************************************************/
 
 void mmp2_cpu_do_idle(void)
 {
@@ -334,6 +463,25 @@ static int mmp2_pm_prepare(void)
 static void mmp2_pm_finish(void)
 {
 	mmp2_pm_enter_lowpower_mode(POWER_MODE_CORE_INTIDLE);
+	{
+		u32 temp = 0;
+
+		/*
+		 * 1. trigger irq to wake up SP
+		 * 2. disable SPSD of PMUM_PCR_PJ
+		 * 3. check whether SP is in ext idle, if so, repeat step 1 and 2
+		 */
+
+		do {
+			if (temp & (0x1 << 29))
+				printk(KERN_ERR "SP in ext idle, repeat step 1 and step 2\n");
+			wtm_trig_wtmirq();
+			temp = __raw_readl(MPMU_APSR);
+			while (!(temp & (0x1 << 26)))
+				temp = __raw_readl(MPMU_APSR);
+		} while (temp & (0x1 << 29));
+	}
+
 }
 
 static void mmp2_pm_wake(void)
@@ -407,6 +555,9 @@ static int __init mmp2_pm_init(void)
 	mmp2_pm_info_p->pm_vaddr = (void *)FC_VIRT_BASE + 0xc00;
 
 	copy_lp_to_sram(mmp2_pm_info_p->pm_vaddr);
+
+	/* init mail box address for wtm */
+	wtm_mb = (volatile struct wtm_mail_box *)ioremap(WTM_BASE, sizeof(struct wtm_mail_box));
 
 	return 0;
 err:
