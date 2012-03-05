@@ -230,9 +230,9 @@ static void ccic_disable_clk(struct mv_camera_dev *pcdev)
 {
 	struct mv_cam_pdata *mcam = pcdev->pdev->dev.platform_data;
 
-	mcam->enable_clk(&pcdev->pdev->dev, 0);
 	ccic_reg_write(pcdev, REG_CLKCTRL, 0x0);
 	ccic_reg_write(pcdev, REG_CTRL1, 0x0);
+	mcam->enable_clk(&pcdev->pdev->dev, 0);
 }
 
 static int ccic_config_image(struct mv_camera_dev *pcdev)
