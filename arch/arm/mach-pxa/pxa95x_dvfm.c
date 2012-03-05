@@ -372,7 +372,6 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.hss = 104,	/* System Bus, and Display is the same */
 		.axifs = 78,
 		.dmcfs = 208,
-		.display = 104,
 		.gcfs = 156,
 		.gcaxifs = 156,
 		.vmfc = 156,
@@ -389,7 +388,6 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.hss = 104,
 		.axifs = 78,
 		.dmcfs = 312,
-		.display = 104,
 		.gcfs = 156,
 		.gcaxifs = 156,
 		.vmfc = 156,
@@ -406,7 +404,6 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.hss = 156,
 		.axifs = 104,
 		.dmcfs = 400,
-		.display = 156,
 		.gcfs = 312,
 		.gcaxifs = 312,
 		.vmfc = 312,
@@ -423,7 +420,6 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.hss = 208,
 		.axifs = 156,
 		.dmcfs = 800,
-		.display = 312,
 		.gcfs = 498,
 		.gcaxifs = 498,
 		.vmfc = 498,
@@ -440,7 +436,6 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.hss = 208,
 		.axifs = 156,
 		.dmcfs = 800,
-		.display = 312,
 		.gcfs = 498,
 		.gcaxifs = 498,
 		.vmfc = 498,
@@ -457,7 +452,6 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.hss = 208,
 		.axifs = 156,
 		.dmcfs = 800,
-		.display = 416,
 		.gcfs = 600,
 		.gcaxifs = 600,
 		.vmfc = 600,
@@ -474,7 +468,6 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.hss = 208,
 		.axifs = 156,
 		.dmcfs = 800,
-		.display = 416,
 		.gcfs = 600,
 		.gcaxifs = 600,
 		.vmfc = 600,
@@ -594,9 +587,9 @@ static int dump_op(void *driver_data, struct op_info *p, char *buf)
 				: "Enabled", count);
 		if (cpu_is_pxa978())
 			len += sprintf(buf + len, "vcore:%d vsram:%d core:%d "
-				"sflfs:%d hss:%d dmcfs:%d display:%d ",
+				"sflfs:%d hss:%d dmcfs:%d ",
 				md->vcc_core, md->vcc_sram, md->core,
-				md->sflfs, md->hss, md->dmcfs, md->display);
+				md->sflfs, md->hss, md->dmcfs);
 		else
 			len += sprintf(buf + len, "vcore:%d vsram:%d xl:%d xn:%d "
 				"smcfs:%d sflfs:%d hss:%d dmcfs:%d ",
@@ -758,18 +751,6 @@ static int freq2reg(struct pxa95x_fv_info *fv_info, struct dvfm_md_opt *orig)
 			else if (orig->vmfc == 498
 				|| orig->vmfc == 600)
 				fv_info->vmfc = 5;
-			else
-				res = -EINVAL;
-			if (orig->display == 416)
-				fv_info->display = 4;
-			else if (orig->display == 312)
-				fv_info->display = 3;
-			else if (orig->display == 208)
-				fv_info->display = 2;
-			else if (orig->display == 156)
-				fv_info->display = 1;
-			else if (orig->display == 104)
-				fv_info->display = 0;
 			else
 				res = -EINVAL;
 		} else {
@@ -1051,19 +1032,6 @@ static int reg2freq(void *driver_data, struct dvfm_md_opt *fv_info)
 				fv_info->vmfc = 416;
 			else if (tmp == 5)
 				fv_info->vmfc = mm_pll_freq;
-			tmp = fv_info->display;
-			if (tmp == 0)
-				fv_info->display = 104;
-			else if (tmp == 1)
-				fv_info->display = 156;
-			else if (tmp == 2)
-				fv_info->display = 208;
-			else if (tmp == 3)
-				fv_info->display = 312;
-			else if (tmp == 4)
-				fv_info->display = 416;
-			else
-				res = -EINVAL;
 		}
 	}
 	return res;
@@ -1112,7 +1080,6 @@ static int capture_op_info(void *driver_data, struct dvfm_md_opt *fv_info)
 			fv_info->gcfs = (acsr0 >> ACSR0_GCFS_OFFSET) & 0x07;
 			fv_info->gcaxifs = (acsr0 >> ACSR0_GCAXIFS_OFFSET) & 0x07;
 			fv_info->vmfc = (acsr0 >> ACSR0_VMFC_OFFSET) & 0x07;
-			fv_info->display = (acsr0 >> ACSR0_DCFS_OFFSET) & 0x07;
 		}
 
 		/* Convert bits into frequency */
@@ -1529,14 +1496,14 @@ static inline void choose_regtable(unsigned int new_dmcfs)
  * register info.And we can remove *reg_new here, and convert dvfm_md_opt to
  * it in the routine. That will make it much more clear.
  */
-extern void write_accr_accr0(u32, u32, u32, u32, u32, u32, u32, u32);
 static u32 sram_size, sram_map;
 static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 			   struct dvfm_md_opt *new)
 {
 	struct pxa95x_dvfm_info *info = driver_data;
 	struct pxa95x_fv_info fv_info;
-	uint32_t accr, acsr, accr1 = 0, accr0 = 0, mask0 = 0, mask = 0, mask2 = 0;
+	uint32_t accr, acsr, acsr0, accr1 = 0, accr0 = 0,
+		 accr_reserved_mask = 0, mask0 = 0, mask = 0, mask2 = 0;
 	unsigned int data = 0, data2 = 0;
 	freq2reg(&fv_info, new);
 	if (!cpu_is_pxa978()) {
@@ -1569,7 +1536,7 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 	accr1 = __raw_readl(info->clkmgr_base + ACCR1_OFF);
 	if (cpu_is_pxa978()) {
 		accr0 = __raw_readl(info->clkmgr_base + ACCR0_OFF);
-		mask0 |= ACCR_RESERVED_MASK_978;
+		accr_reserved_mask = ACCR_RESERVED_MASK_978;
 	} else if (old->smcfs != new->smcfs) {
 		/* Don't change smc freq in pxa978*/
 		data |= (fv_info.smcfs << ACCR_SMCFS_OFFSET);
@@ -1602,14 +1569,12 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 			accr0 &= ~(ACCR0_GCFS_MASK | ACCR0_GCAXIFS_MASK);
 			accr0 |= (fv_info.gcfs << ACCR0_GCFS_OFFSET) |
 				(fv_info.gcaxifs << ACCR0_GCAXIFS_OFFSET);
+			mask0 |= (ACCR0_GCFS_MASK | ACCR0_GCAXIFS_MASK);
 		}
 		if (old->vmfc != new->vmfc) {
 			accr0 &= ~(ACCR0_VMFC_MASK);
 			accr0 |= (fv_info.vmfc << ACCR0_VMFC_OFFSET);
-		}
-		if (old->display != new->display) {
-			accr0 &= ~(ACCR0_DCFS_MASK);
-			accr0 |= (fv_info.display << ACCR0_DCFS_OFFSET);
+			mask0 |= ACCR0_VMFC_MASK;
 		}
 	}
 	if (old->hss != new->hss) {
@@ -1625,14 +1590,22 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 		data2 |= (fv_info.axifs << ACCR_AXIFS_OFFSET);
 		mask2 |= ACCR_AXIFS_MASK;
 	}
-	accr &= ~(mask0 | mask | mask2);
+	accr &= ~(accr_reserved_mask | mask | mask2);
 	accr |= data | data2;
 	if (cpu_is_pxa978()) {
 		set_mm_pll_freq(driver_data, old, new, accr0);
-		write_accr_accr0((u32) sram_map + 0x9000,
-				(u32) sram_map + 0xa000 - 4, accr, accr0,
-				mask, data, (u32) info->clkmgr_base,
+		/* Write ACCR and ACCR0 one by one */
+		write_accr_in_sram((u32) sram_map + 0x9000,
+				(u32) sram_map + 0xa000 - 4, accr,
+				data, mask, (u32) info->clkmgr_base,
 				(u32) info->dmc_base);
+
+		__raw_writel(accr0, info->clkmgr_base + ACCR0_OFF);
+		/* wait until ACSR0 is changed */
+		do {
+			acsr0 = __raw_readl(info->clkmgr_base + ACSR0_OFF);
+		} while ((accr0 & mask0) != (acsr0 & mask0));
+
 	} else {
 		__raw_writel(accr, info->clkmgr_base + ACCR_OFF);
 		__raw_writel(accr1, info->clkmgr_base + ACCR1_OFF);
@@ -2541,8 +2514,6 @@ static int op_init(void *driver_data, struct info_head *op_table)
 		memcpy(p->op, &proc->op_array[i], sizeof(struct dvfm_md_opt));
 		if (!cpu_is_pxa978())
 			md->core = 13 * md->xl * md->xn;
-		if (is_wkr_nevo_2059())
-			md->display = 312;
 		p->index = index++;
 		list_add_tail(&(p->list), &(op_table->list));
 	}

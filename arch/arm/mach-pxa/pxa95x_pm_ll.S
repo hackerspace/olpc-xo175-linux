@@ -38,13 +38,13 @@ error_ret:
 	nop
 	beq	error_ret
 
-/* write_accr_accr1
+/* write_accr_in_sram
  *
- * Entry point for update accr and accr1 without access DDR
+ * Entry point for update accr without access DDR
  */
 	.text
 	.align 5
-ENTRY(write_accr_accr0)
+ENTRY(write_accr_in_sram)
 /* lr register will be the instruction just after invoke of
  * write_accr_accr0 */
 	b	enter_sram
@@ -140,26 +140,25 @@ rel_sram1:
 @	r0: start address
 @	r1: stack address
 @	r2: accr value
-@	r3: accr0 value
+@	r3: data value
 @	r4: mask value
-@	r5: data value
-@	r6: ACCU base address
-@	r7: MC base address
+@	r5: ACCU base address
+@	r6: MC base address
 
 enter_sram:
 	@ save registers on stack
 	stmfd	sp!, {r0 - r12, lr}
 	@ load the left arguments into registers
 	add	r12, sp, #56
-        ldmfd   r12!, {r4 - r7}
+        ldmfd   r12!, {r4 - r6}
 	mov	r12, sp			@ save sp in r12
 	mov	sp, r1			@ set up new stack address
 	stmfd	sp!, {lr}		@ store the return address
 
 	@ Load ACCU & DDR base address into TLB
 	@ only one from each page (4KB)
-	ldr	r9, [r6]		@ load ACCU base address into TLB
-	ldr	r9, [r7]		@ load SDRAM base address into TLB
+	ldr	r9, [r5]		@ load ACCU base address into TLB
+	ldr	r9, [r6]		@ load SDRAM base address into TLB
 	ldr	r9, [r0]		@ load code start address into TLB
 	mov	pc, r0			@ jump to relocated program
 
@@ -170,15 +169,15 @@ pm_enter_sram_start:
 	mcr	p15, 0, r9, c1, c0, 0	@ disable branch predictor
 	isb
 
-	str	r2, [r6]		@ write ACCR
+	str	r2, [r5]		@ write ACCR
 
-retry:	ldr	r9, [r6]		@ read ACCR
-	ldr	r10, [r6, #0x4]		@ read ACSR
+retry:	ldr	r9, [r5]		@ read ACCR
+	ldr	r10, [r5, #0x4]		@ read ACSR
 	and	r11, r4, r9
-	cmp	r11, r5
+	cmp	r11, r3
 	bne	retry
 	and	r11, r4, r10
-	cmp	r11, r5
+	cmp	r11, r3
 	bne	retry
 	ubfx	r9, r9, #28, #2
 	ubfx	r10, r10, #21, #2
@@ -189,25 +188,19 @@ retry:	ldr	r9, [r6]		@ read ACCR
 	mov	r9, #0x3000000
 	orr	r9, r9, #0x20000
 	orr	r10, r9, #1
-	str	r10, [r7, #0x410]
+	str	r10, [r6, #0x410]
 	orr	r10, r9, #2
-	str	r10, [r7, #0x410]
+	str	r10, [r6, #0x410]
 
        @ Unblock all requests
-	ldr	r9, [r7, #0x7e0]
+	ldr	r9, [r6, #0x7e0]
 	bic	r9, r9, #0xf00
 	bic	r9, r9, #0x1
-	str	r9, [r7, #0x7e0]
+	str	r9, [r6, #0x7e0]
 	dsb
 
 	mcr	p15, 0, r8, c1, c0, 0	@ restore branch predictor
 	isb
-
-retry1:
-	str	r3, [r6, #0x50]		@ write ACCR0
-	ldr	r10, [r6, #0x54]	@read ACSR0
-	cmp	r3, r10
-	bne	retry1
 
 	ldmfd	sp!, {lr}
 	mov	sp, r12				@ restore stack address

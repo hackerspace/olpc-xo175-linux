@@ -168,5 +168,6 @@ extern int md2fvinfo(struct pxa95x_fv_info *fv_info, struct dvfm_md_opt *orig);
 extern int ForceC0;
 
 extern pxa95x_DVFM_LPM_Global_Count DVFMLPMGlobalCount;
+extern void write_accr_in_sram(u32, u32, u32, u32, u32, u32, u32);
 
 #endif
