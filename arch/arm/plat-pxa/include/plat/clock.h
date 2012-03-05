@@ -93,6 +93,9 @@ struct clk {
 	int fnclksel;
 	/* value for clock enable (APMU) */
 	uint32_t enable_val;
+#ifdef CONFIG_DEBUG_FS
+	struct dentry		*dent;	/* For visible tree hierarchy */
+#endif
 };
 
 void clk_init(struct clk *clk);
