@@ -53,6 +53,7 @@
 #include <mach/mmp2_plat_ver.h>
 #endif
 
+#include <mach/regs-apmu.h>
 #include <mach/camera.h>
 #include "mv_camera.h"
 #include <plat/pm.h>
@@ -459,11 +460,24 @@ static void mv_dma_setup(struct mv_camera_dev *pcdev)
 	ccic_reg_write(pcdev, REG_CTRL1, C1_TWOBUFS);
 }
 
+void ccic_ctlr_reset(struct mv_camera_dev *pcdev)
+{
+	struct mv_cam_pdata *mcam = pcdev->pdev->dev.platform_data;
+	unsigned long val;
+
+	if (mcam->bus_type == SOCAM_MIPI) {
+		val = readl(APMU_CCIC_RST);
+		writel(val & ~0x2, APMU_CCIC_RST);
+		writel(val | 0x2, APMU_CCIC_RST);
+	}
+}
+
 /*
  * Get everything ready, and start grabbing frames.
  */
 static int mv_read_setup(struct mv_camera_dev *pcdev)
 {
+	ccic_ctlr_reset(pcdev);
 	ccic_config_phy(pcdev, 1);
 	ccic_irq_enable(pcdev);
 	mv_dma_setup(pcdev);
@@ -732,6 +746,10 @@ static irqreturn_t mv_camera_irq(int irq, void *data)
 	u32 frame;
 
 	irqs = ccic_reg_read(pcdev, REG_IRQSTAT);
+
+	if (irqs & IRQ_OVERFLOW)
+		printk("irq overflow!\n");
+
 	ccic_reg_write(pcdev, REG_IRQSTAT, irqs);
 
 	for (frame = 0; frame < pcdev->nbufs; frame++)
