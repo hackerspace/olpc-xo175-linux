@@ -1113,9 +1113,10 @@ thales_adc		MACH_THALES_ADC		THALES_ADC		3492
 ubisys_p9d_evp		MACH_UBISYS_P9D_EVP	UBISYS_P9D_EVP		3493
 atdgp318		MACH_ATDGP318		ATDGP318		3494
 yellowstone		MACH_YELLOWSTONE	YELLOWSTONE		3495
+mk2			MACH_MK2                MK2                     3497
+orchid			MACH_ORCHID		ORCHID			3498
 # add MG/Nevo related machine types: keep the value to align with old version
 saarb			MACH_SAARB		SAARB			2139
 saarc			MACH_NEVOSAARC		NEVOSAARC		2980
 nevodkb			MACH_NEVODKB		NEVODKB			3496
 nevo_evb3		MACH_NEVOEVB3		NEVOEVB3		2969
-mk2			MACH_MK2		MK2			3497

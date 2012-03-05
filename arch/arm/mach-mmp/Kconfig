@@ -97,6 +97,12 @@ config MACH_YELLOWSTONE
 	select HAVE_PWM
 	select ARM_GIC
 
+config MACH_ORCHID
+	bool "Marvell's MMP3 Orchid Development Board"
+	select CPU_MMP3
+	select HAVE_PWM
+	select ARM_GIC
+
 config PXA910_1G_DDR_WORKAROUND
 	bool "Marvell's PXA910 1G DDR Workaround"
 	depends on CPU_PXA910
