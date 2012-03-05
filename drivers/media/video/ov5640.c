@@ -472,7 +472,7 @@ static struct soc_camera_ops ov5640_ops = {
 	.set_bus_param = ov5640_set_bus_param,
 };
 
-static int ov5640_load_fw(struct v4l2_subdev *sd)
+static int ov5640_init(struct v4l2_subdev *sd, u32 plat)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	int ret = 0;
@@ -569,7 +569,7 @@ static int ov5640_g_frame_interval(struct v4l2_subdev *sd,
 
 static struct v4l2_subdev_core_ops ov5640_subdev_core_ops = {
 	.g_chip_ident = ov5640_g_chip_ident,
-	.load_fw = ov5640_load_fw,
+	.init = ov5640_init,
 #ifdef CONFIG_VIDEO_ADV_DEBUG
 	.g_register = ov5640_g_register,
 	.s_register = ov5640_s_register,
