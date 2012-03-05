@@ -246,11 +246,6 @@ void mmp2_pm_enter_lowpower_mode(int state)
 		break;
 	}
 
-	/* program the memory controller hardware sleep type and auto wakeup */
-	idle_cfg |= PMUA_MOH_DIS_MC_SW_REQ;
-	idle_cfg |= PMUA_MOH_MC_WAKE_EN;
-	__raw_writel(0x0, APMU_MC_HW_SLP_TYPE);		/* auto refresh */
-
 	/* set DSPSD, DTCMSD, BBSD, MSASLPEN */
 	apcr |= PMUM_DSPSD | PMUM_DTCMSD | PMUM_BBSD;
 
