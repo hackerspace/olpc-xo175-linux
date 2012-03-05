@@ -53,7 +53,6 @@ struct i2c_client *g_i2c_client;
 static const struct ov5642_datafmt ov5642_colour_fmts[] = {
 	{V4L2_MBUS_FMT_UYVY8_2X8, V4L2_COLORSPACE_JPEG},
 	{V4L2_MBUS_FMT_JPEG_1X8, V4L2_COLORSPACE_JPEG},
-	{V4L2_MBUS_FMT_RGB565_2X8_LE, V4L2_COLORSPACE_SRGB}
 };
 
 static const struct v4l2_queryctrl ov5642_controls[] = {
@@ -134,8 +133,9 @@ static int ov5642_write_array(struct i2c_client *c, struct regval_list * vals)
 
 int to_mipi(u32 code, u32 width, u32 height)
 {
-struct regval_list *fmt_reg = NULL, *res_reg = NULL;
-int ret;
+	struct regval_list *fmt_reg = NULL, *res_reg = NULL;
+	int ret;
+
 	/* ov5642 works as a mipi converter, switch dvp signal to mipi signal*/
 	ret = select_bus_type("tavor-mipi-bridge");
 	if (ret) {
@@ -212,6 +212,58 @@ static int ov5642_s_register(struct v4l2_subdev *sd,
 }
 #endif
 
+/*
+ * mipi_set: set 1 when need mipi set registers, 0 for no need
+ * lane_set: set 1 when need lane set registers, 0 for no need
+ * lane_num: return the number of lane
+ */
+static int ov5642_get_platform_mipi_config(int *mipi_set, int *lane_set, int *lane_num)
+{
+	int bus_type;
+
+	bus_type = get_bus_type();
+
+	switch (bus_type) {
+	case 2:	/* bus name: pxa955-mipi */
+		if (mipi_set && lane_set && lane_num) {
+			*mipi_set = 1;
+			*lane_set = 1;
+			*lane_num = 1;
+			return 0;
+		}
+		break;
+	case 4: /* bus name: pxa2128-mipi */
+		if (mipi_set && lane_set && lane_num) {
+			*mipi_set = 1;
+			*lane_set = 0;
+			*lane_num = 2;
+			return 0;
+		}
+		break;
+	case 5: /* bus name: pxa688-mipi */
+		if (mipi_set && lane_set && lane_num) {
+			*mipi_set = 1;
+#ifdef CONFIG_CPU_MMP2
+			if (board_is_mmp2_brownstone_rev5()) {
+				*lane_set = 1;
+				*lane_num = 1;
+			} else
+#endif
+			{
+				*lane_set = 0;
+				*lane_num = 2;
+			}
+			return 0;
+		}
+		break;
+	default:
+		printk(KERN_ERR "ov5642 no mipi config for platform: %d\n", bus_type);
+		break;
+	}
+
+	return -EINVAL;
+}
+
 static int ov5642_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
@@ -237,6 +289,7 @@ static int ov5642_try_fmt(struct v4l2_subdev *sd,
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct ov5642 *ov5642 = to_ov5642(client);
+	int mipi_set, lane_set, lane_num;
 
 	ov5642->regs_fmt = get_fmt_regs(mf->code, mf->width, mf->height);
 
@@ -244,7 +297,9 @@ static int ov5642_try_fmt(struct v4l2_subdev *sd,
 			mf->code, mf->width, mf->height);
 	ov5642->regs_default = get_fmt_default_setting(mf->code);
 
+	ov5642->regs_mipi_set = NULL;
 	ov5642->regs_lane_set = NULL;
+	ov5642->regs_mipi_lane = NULL;
 
 	mf->field = V4L2_FIELD_NONE;
 
@@ -259,10 +314,14 @@ static int ov5642_try_fmt(struct v4l2_subdev *sd,
 			dev_err(&client->dev, "ov5642 unsupported yuv resolution!\n");
 			return -EINVAL;
 		}
-#ifdef CONFIG_CPU_MMP2
-		if (board_is_mmp2_brownstone_rev5())
-			ov5642->regs_lane_set = get_yuv_lane_set(mf->width, mf->height);
-#endif
+		if (!ov5642_get_platform_mipi_config(&mipi_set, &lane_set, &lane_num)) {
+			if(mipi_set == 1)
+				ov5642->regs_mipi_set = get_mipi_set_regs();
+			if(lane_set == 1)
+				ov5642->regs_lane_set = get_yuv_lane_set(mf->width, mf->height);
+			if(lane_num > 0)
+				ov5642->regs_mipi_lane = get_mipi_lane_regs(lane_num);
+		}
 		if (mf->code == V4L2_MBUS_FMT_RGB565_2X8_LE)
 			mf->colorspace = V4L2_COLORSPACE_SRGB;
 		else
@@ -276,10 +335,14 @@ static int ov5642_try_fmt(struct v4l2_subdev *sd,
 			dev_err(&client->dev, "ov5642 unsupported yuv resolution!\n");
 			return -EINVAL;
 		}
-#ifdef CONFIG_CPU_MMP2
-		if (board_is_mmp2_brownstone_rev5())
-			ov5642->regs_lane_set = get_jpg_lane_set(mf->width, mf->height);
-#endif
+		if (!ov5642_get_platform_mipi_config(&mipi_set, &lane_set, &lane_num)) {
+			if(mipi_set == 1)
+				ov5642->regs_mipi_set = get_mipi_set_regs();
+			if(lane_set == 1)
+				ov5642->regs_lane_set = get_jpg_lane_set(mf->width, mf->height);
+			if(lane_num > 0)
+				ov5642->regs_mipi_lane = get_mipi_lane_regs(lane_num);
+		}
 		mf->colorspace = V4L2_COLORSPACE_JPEG;
 		break;
 	default:
@@ -297,8 +360,6 @@ static int ov5642_s_fmt(struct v4l2_subdev *sd,
 	int ret = 0;
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct ov5642 *ov5642 = to_ov5642(client);
-	unsigned char val;
-
 
 	if (ov5642->regs_default) {
 		ret = ov5642_write_array(client, ov5642->regs_default);
@@ -341,28 +402,22 @@ static int ov5642_s_fmt(struct v4l2_subdev *sd,
 	}
 #endif
 
+	if (ov5642->regs_mipi_set) {
+		ret = ov5642_write_array(client, ov5642->regs_mipi_set);
+		if (ret)
+			return ret;
+	}
+
+	if (ov5642->regs_mipi_lane) {
+		ret = ov5642_write_array(client, ov5642->regs_mipi_lane);
+		if (ret)
+			return ret;
+	}
+
+	/* bus name: pxa955-mipi, bus_type is 2*/
 	/* bus name: pxa688-mipi, bus_type is 5 */
 	/* bus name: pxa2128-mipi, bus_type is 4 */
-	if (get_bus_type() == 4 || get_bus_type() == 5) {
-	    /* Initialize MIPI settings */
-		ov5642->regs_mipi_set = get_mipi_set_regs();
-		if (ov5642->regs_mipi_set) {
-			ret = ov5642_write_array(client, ov5642->regs_mipi_set);
-			if (ret)
-				return ret;
-		}
-#ifdef CONFIG_CPU_MMP2
-		if (board_is_mmp2_brownstone_rev5())
-			ov5642->regs_mipi_lane = get_mipi_lane_regs(1);
-		else
-#endif
-			ov5642->regs_mipi_lane = get_mipi_lane_regs(2);
-		if (ov5642->regs_mipi_lane) {
-			ret = ov5642_write_array(client, ov5642->regs_mipi_lane);
-			if (ret)
-				return ret;
-		}
-
+	if (get_bus_type() == 2 || get_bus_type() == 4 || get_bus_type() == 5) {
 		/* sensor stop output after stream off */
 		ov5642_write(client, 0x4202, 0x0f);
 	}
@@ -477,7 +532,6 @@ static struct soc_camera_ops ov5642_ops = {
 static int ov5642_firmware_download(struct i2c_client *client)
 {
 	int ret = 0, i, j, size;
-	unsigned char sysctl;
 	char data[258];
 	OV5642_FIRMWARE_ARRAY *firmware_regs = NULL;
 
@@ -486,7 +540,6 @@ static int ov5642_firmware_download(struct i2c_client *client)
 		dev_err(&client->dev, "No AF firmware available\n");
 		return -ENODEV;
 	}
-
 
 	/* Actually start to download firmware */
 	for (i = 0; i < size; i++) {
