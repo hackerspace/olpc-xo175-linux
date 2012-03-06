@@ -1065,17 +1065,8 @@ static int ntrig_gpio_set(void)
 			return -1;
 	}
 	gpio_direction_input(gpio);
-
-	gpio = mfp_to_gpio(GPIO85_GPIO);
-	if (gpio_request(gpio, "N-trig Power")) {
-		pr_err("gpio %d request failed\n", gpio);
-		return -1;
-	}
-
-	gpio_direction_output(gpio, 0);
 	mdelay(1);
 	gpio_free(gpio);
-
 	return 0;
 }
 
