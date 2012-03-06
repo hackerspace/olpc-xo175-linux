@@ -440,7 +440,7 @@ extern struct pxa168fb_vdma_info *request_vdma(int path, int vid);
 extern void pxa688_vdma_init(struct pxa168fb_vdma_info *lcd_vdma);
 extern void pxa688_vdma_config(struct pxa168fb_vdma_info *lcd_vdma);
 extern void pxa688_vdma_release(int path, int vid);
-extern void pxa688_vdma_en(struct pxa168fb_vdma_info *lcd_vdma,
+extern int pxa688_vdma_en(struct pxa168fb_vdma_info *lcd_vdma,
 			int enable, int vid);
 static inline void vdma_info_update(struct pxa168fb_vdma_info *lcd_vdma,
 		int active, int dma_on, int pix_fmt, unsigned int rotation,
@@ -460,8 +460,11 @@ static inline struct pxa168fb_vdma_info *request_vdma(int path, int vid)
 static inline void pxa688_vdma_init(struct pxa168fb_vdma_info *lcd_vdma) {}
 static inline void pxa688_vdma_config(struct pxa168fb_vdma_info *lcd_vdma) {}
 static inline void pxa688_vdma_release(int path, int vid) {}
-static inline void pxa688_vdma_en(struct pxa168fb_vdma_info *lcd_vdma,
-				int enable, int vid) {}
+static inline int pxa688_vdma_en(struct pxa168fb_vdma_info *lcd_vdma,
+				int enable, int vid)
+{
+	return -EINVAL;
+}
 static inline void vdma_info_update(struct pxa168fb_vdma_info *lcd_vdma,
 				int active, int dma_on, int pix_fmt, unsigned int rotation,
 				unsigned int yuv_format) {}

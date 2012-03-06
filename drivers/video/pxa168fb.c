@@ -1030,6 +1030,8 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 	struct pxa168fb_info *fbi = info->par;
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 	struct mvdisp_partdisp grap;
+	struct mvdisp_vdma vdma;
+	struct pxa168fb_vdma_info *lcd_vdma = 0;
 
 #ifdef CONFIG_DYNAMIC_PRINTK_DEBUG
 	debug_identify_called_ioctl(info, cmd, arg);
@@ -1145,6 +1147,21 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 		return -EINVAL;
 #endif
 		break;
+
+	case FB_IOCTL_VDMA_SET:
+		if (copy_from_user(&vdma, argp, sizeof(vdma)))
+			return -EFAULT;
+		lcd_vdma = request_vdma(vdma.path, vdma.layer);
+		if (!lcd_vdma) {
+			if (vdma.enable)
+				pr_err("request fail, vdma is occupied!\n");
+			return -EINVAL;
+		}
+		if (!lcd_vdma->sram_size && vdma.enable) {
+			pr_err("ERR: SRAM size is 0KB!!!!\n");
+			return -EINVAL;
+		}
+		return pxa688_vdma_en(lcd_vdma, vdma.enable, vdma.layer);
 
 	default:
 		if (mi->ioctl)

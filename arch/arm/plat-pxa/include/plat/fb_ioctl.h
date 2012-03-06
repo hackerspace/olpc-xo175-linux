@@ -90,6 +90,9 @@
 /* Graphic partial display ctrl */
 #define FB_IOCTL_GRA_PARTDISP			_IO(FB_IOC_MAGIC, 24)
 
+/* VDMA enable/disable */
+#define FB_IOCTL_VDMA_SET			_IO(FB_IOC_MAGIC, 25)
+
 /* Global alpha blend controls - Maintaining compatibility with existing
    user programs. */
 #define FB_IOCTL_PUT_VIDEO_ALPHABLEND            0xeb
@@ -243,6 +246,14 @@ struct mvdisp_partdisp {
 	/* graphic color for partial disabled area,
 	 * color format should be RGB565 */
 	unsigned short color;
+};
+
+struct mvdisp_vdma {
+	/* path id, 0->panel, 1->TV, 2->panel2 */
+	unsigned int path;
+	/* 0: grafhics, 1: video */
+	unsigned int layer;
+	unsigned int enable;
 };
 
 struct mvdisp_gamma {

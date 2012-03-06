@@ -592,24 +592,24 @@ void pxa688_vdma_release(int path, int vid)
 		readl(lcd_vdma->reg_base + squln_ctrl(lcd_vdma->path)));
 }
 
-void pxa688_vdma_en(struct pxa168fb_vdma_info *lcd_vdma, int enable, int vid)
+int pxa688_vdma_en(struct pxa168fb_vdma_info *lcd_vdma, int enable, int vid)
 {
 	u32 reg;
 
 	if ((lcd_vdma->path == 1) && enable) {
 		reg = dma_ctrl_read(lcd_vdma->path, 1);
 		if (reg & (CFG_TV_INTERLACE_EN | CFG_TV_NIB))
-			return;
+			return -EFAULT;
 	}
 
 	if (enable) {
 		if ((lcd_vdma->enable) && (lcd_vdma->vid == vid))
-			return;
+			return 0;
 		reg = readl(lcd_vdma->reg_base + squln_ctrl(lcd_vdma->path));
 		if ((reg & 0x1) || lcd_vdma->enable) {
 			pr_warn("%s vdma has been enabled for"
 				" another layer\n", __func__);
-			return;
+			return -EINVAL;
 		}
 		vdma_sel_config(lcd_vdma);
 
@@ -618,12 +618,14 @@ void pxa688_vdma_en(struct pxa168fb_vdma_info *lcd_vdma, int enable, int vid)
 		if (lcd_vdma->sram_paddr) {
 			lcd_vdma->enable = 1;
 			lcd_vdma->vid = vid;
-		} else
+		} else {
 			pr_warn("%s path %d vdma enable failed\n",
 				__func__, lcd_vdma->path);
+			return -EFAULT;
+		}
 	} else {
 		if (!lcd_vdma->enable || (lcd_vdma->vid != vid))
-			return;
+			return 0;
 		pxa688_vdma_release(lcd_vdma->path, lcd_vdma->vid);
 		lcd_vdma->enable = 0;
 		sram_free("mmp-videosram",
@@ -632,10 +634,11 @@ void pxa688_vdma_en(struct pxa168fb_vdma_info *lcd_vdma, int enable, int vid)
 		lcd_vdma->sram_vaddr = 0;
 	}
 
-	pr_info("path %d %s layer, vdma %d %s, sram size:0x%x, vaddr:0x%x, paddr:0x%x\n",
+	pr_debug("path %d %s layer, vdma %d %s, sram size:0x%x, vaddr:0x%x, paddr:0x%x\n",
 		lcd_vdma->path, lcd_vdma->vid ? "vid" : "gfx",
 		lcd_vdma->ch, lcd_vdma->enable ? "enabled" : "disabled",
 		lcd_vdma->sram_size, lcd_vdma->sram_vaddr, lcd_vdma->sram_paddr);
+	return 0;
 }
 
 static ssize_t vdma_help(char *buf)
