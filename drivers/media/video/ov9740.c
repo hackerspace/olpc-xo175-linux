@@ -798,12 +798,8 @@ static int ov9740_s_stream(struct v4l2_subdev *sd, int enable)
 
 	} else {
 		dev_dbg(&client->dev, "Disabling Streaming\n");
-		/* Software Reset */
-		ret = ov9740_reg_write(client, OV9740_SOFTWARE_RESET, 0x01);
-		if (!ret)
-			/* Setting Streaming to Standby */
-			ret = ov9740_reg_write(client, OV9740_MODE_SELECT,
-					       0x00);
+		/* Setting Streaming to Standby */
+		ret = ov9740_reg_write(client, OV9740_MODE_SELECT, 0x00);
 	}
 
 	return ret;
