@@ -65,6 +65,7 @@ struct pxa95xfb_mach_info {
 
 	int		num_modes;
 	struct fb_videomode *modes;
+	int		init_mode;
 
 	/*
 	 * Pix_fmt

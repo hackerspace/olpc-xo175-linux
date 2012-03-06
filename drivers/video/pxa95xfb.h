@@ -864,7 +864,6 @@ struct pxa95xfb_info {
 	struct fb_info          *fb_info;
 	int                     io_pin_allocation;
 	int			pix_fmt;
-	__u32			bpp;
 	unsigned		is_blanked:1;
 	unsigned                edid:1;
 	unsigned                cursor_enabled:1;
@@ -889,6 +888,8 @@ struct pxa95xfb_info {
 	 */
 	unsigned                mem_status:1;
 
+	u32 pixel_offset;
+
 	/*overlay related*/
 	struct buf_addr buf_freelist[MAX_QUEUE_NUM];
 	struct buf_addr buf_waitlist[MAX_QUEUE_NUM];
@@ -900,17 +901,40 @@ struct pxa95xfb_info {
 	u32 alphacolor;
 };
 
+
 /* ---------------------------------------------- */
 /*             var & functions for LCD controller                  */
 /* ---------------------------------------------- */
 extern struct pxa95xfb_info * pxa95xfbi[PXA95xFB_FB_NUM];
 extern struct pxa95xfb_conv_info pxa95xfb_conv[4];
 
+static int inline pix_fmt_to_bpp(int pix_fmt)
+{
+	switch (pix_fmt) {
+	case PIX_FMTIN_RGB_16:
+		return 2;
+	case PIX_FMTIN_RGB_24:
+	case PIX_FMTIN_RGB_32:
+		return 4;
+	case PIX_FMTIN_RGB_24_PACK:
+		return 3;
+	case PIX_FMTIN_YUV420:
+	case PIX_FMTIN_YUV422:
+	case PIX_FMTIN_YUV444:
+		return 1;
+	case PIX_FMTIN_YUV422IL:
+		return 2;
+	case PIX_FMT_PSEUDOCOLOR:
+		return 1;
+	default:
+		return 0;
+	}
+}
+
+
 u32 lcdc_set_colorkeyalpha(struct pxa95xfb_info *fbi);
 void lcdc_set_pix_fmt(struct fb_var_screeninfo *var, int pix_fmt);
-void lcdc_set_mode_to_var(struct pxa95xfb_info *fbi, struct fb_var_screeninfo *var,
-		     const struct fb_videomode *mode);
-u32 lcdc_set_fr_addr(struct pxa95xfb_info *fbi, struct fb_var_screeninfo * var);
+u32 lcdc_set_fr_addr(struct pxa95xfb_info *fbi);
 u32 lcdc_get_fr_addr(struct pxa95xfb_info *fbi);
 void lcdc_set_lcd_controller(struct pxa95xfb_info *fbi);
 int lcdc_wait_for_vsync(struct pxa95xfb_info *fbi);

@@ -105,14 +105,13 @@ static void set_surface(struct pxa95xfb_info *fbi,
 		fbi->surface.videoMode = new_mode;
 		fbi->pix_fmt = convert_pix_fmt(new_mode);
 		lcdc_set_pix_fmt(var, fbi->pix_fmt);
-		fbi->bpp = var->bits_per_pixel;
 	}
 
 	/* check view port settings.*/
 	if (new_info) {
 		memcpy(&fbi->surface.viewPortInfo, new_info, sizeof(struct _sViewPortInfo));
 		if (!new_info->yPitch)
-			fbi->surface.viewPortInfo.yPitch = new_info->srcWidth*fbi->bpp/8;
+			fbi->surface.viewPortInfo.yPitch = new_info->srcWidth*pix_fmt_to_bpp(fbi->pix_fmt);
 		printk(KERN_INFO "Ovly update: [%d %d] - [%d %d], ycpitch %d\n",
 			new_info->srcWidth, new_info->srcHeight,
 			new_info->zoomXSize, new_info->zoomYSize,
@@ -247,7 +246,7 @@ void lcdc_vid_buf_endframe(void * p)
 	if (fbi->buf_waitlist[0].y) {
 		/*printk(KERN_INFO "%s: flip buf %x on\n", __func__, fbi->buf_waitlist.y);*/
 		fbi->user_addr = fbi->buf_waitlist[0].y;
-		lcdc_set_fr_addr(fbi, &fbi->fb_info->var);
+		lcdc_set_fr_addr(fbi);
 	}
 }
 
@@ -259,7 +258,7 @@ void lcdc_vid_clean(struct pxa95xfb_info *fbi)
 	fbi->user_addr = 0;
 	fbi->surface.videoMode = -1;
 	fbi->surface.viewPortInfo.srcWidth = var->xres;
-	fbi->surface.viewPortInfo.yPitch = var->xres * fbi->bpp / 8;
+	fbi->surface.viewPortInfo.yPitch = var->xres * pix_fmt_to_bpp(fbi->pix_fmt);
 	fbi->surface.viewPortInfo.srcHeight = var->yres;
 	local_irq_save(x);
 	/* clear buffer list. */
@@ -367,7 +366,7 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 			/*printk(KERN_INFO "%s: flip %x on\n",
 			__func__, (u32)start_addr);*/
 			fbi->user_addr = start_addr->y;
-			lcdc_set_fr_addr(fbi, &fbi->fb_info->var);
+			lcdc_set_fr_addr(fbi);
 			buf_enqueue(fbi->buf_waitlist, start_addr);
 			buf_fake_endframe(fbi);
 			local_irq_restore(x);
@@ -401,7 +400,7 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 					&surface.viewPortOffset);
 			local_irq_save(x);
 			fbi->user_addr = start_addr->y;
-			lcdc_set_fr_addr(fbi, &fbi->fb_info->var);
+			lcdc_set_fr_addr(fbi);
 			buf_enqueue(fbi->buf_waitlist, start_addr);
 			buf_fake_endframe(fbi);
 			local_irq_restore(x);
@@ -414,7 +413,7 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 				/*printk(KERN_INFO "%s: flip %x on\n",
 				__func__, start_addr->y);*/
 				fbi->user_addr = start_addr->y;
-				lcdc_set_fr_addr(fbi, &fbi->fb_info->var);
+				lcdc_set_fr_addr(fbi);
 			}
 			buf_enqueue(fbi->buf_waitlist, start_addr);
 			local_irq_restore(x);
@@ -450,7 +449,6 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 	case FB_IOCTL_SET_COLORKEYnALPHA:
 	{
 		struct _sColorKeyNAlpha *ckey_alpha;
-		u32 color;
 		if (copy_from_user(&fbi->ckey_alpha, argp,
 					sizeof(struct _sColorKeyNAlpha)))
 			return -EFAULT;
@@ -504,7 +502,7 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 				if (fbi->id == 2 || fbi->id == 3)
 					pxa95xfbi[5 - fbi->id]->controller_on = 0;
 				fbi->user_addr = 0;
-				lcdc_set_fr_addr(fbi, &fbi->fb_info->var);
+				lcdc_set_fr_addr(fbi);
 			}
 		}
 		mutex_unlock(&fbi->access_ok);

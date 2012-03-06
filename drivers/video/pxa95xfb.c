@@ -68,35 +68,35 @@ void dump_buffer(struct pxa95xfb_info *fbi, int yoffset)
 		int vmode = fbi->surface.videoMode;
 		w = fbi->surface.viewPortInfo.srcWidth;
 		h = fbi->surface.viewPortInfo.srcHeight;
-		if (vmode != FB_VMODE_RGB565 && vmode != FB_VMODE_RGBA888 && vmode !=
-FB_VMODE_RGB888UNPACK) {
+		if (vmode != FB_VMODE_RGB565 && vmode != FB_VMODE_RGBA888
+				&& vmode != FB_VMODE_RGB888UNPACK) {
 			pr_err("format not support for dump buffer!!!");
 			return;
 		}
-		pSrcLine = (unsigned char *)ioremap(fbi->user_addr, w*h*fbi->bpp/8);
+		pSrcLine = (unsigned char *)ioremap(fbi->user_addr, w*h*pix_fmt_to_bpp(fbi->pix_fmt));
 	} else {
 		w = fbi->mode.xres;
 		h = fbi->mode.yres;
-		pSrcLine = (unsigned char *)(fbi->fb_start + yoffset * fbi->bpp/8 * w);
+		pSrcLine = (unsigned char *)(fbi->fb_start + yoffset * pix_fmt_to_bpp(fbi->pix_fmt) * w);
 	}
 
 	size = w * h * 3;
 
-    memset(&bmFileHeader, 0, sizeof(BITMAPFILEHEADER));
-    bmFileHeader.bfType        = 0x4D42;
-    bmFileHeader.bfSize        = sizeof(BITMAPFILEHEADER);
-    bmFileHeader.bfReserved1   = 0;
-    bmFileHeader.bfReserved2   = 0;
-    bmFileHeader.bfOffBits     = sizeof(BITMAPFILEHEADER) + sizeof(
-BITMAPINFOHEADER);
+	memset(&bmFileHeader, 0, sizeof(BITMAPFILEHEADER));
+	bmFileHeader.bfType        = 0x4D42;
+	bmFileHeader.bfSize        = sizeof(BITMAPFILEHEADER);
+	bmFileHeader.bfReserved1   = 0;
+	bmFileHeader.bfReserved2   = 0;
+	bmFileHeader.bfOffBits     = sizeof(BITMAPFILEHEADER) + sizeof(
+	BITMAPINFOHEADER);
 
-    memset(&bmInfoHeader, 0, sizeof(BITMAPINFOHEADER));
-    bmInfoHeader.biSize        = sizeof(BITMAPINFOHEADER);
-    bmInfoHeader.biWidth       = w;
-    bmInfoHeader.biHeight      = h;
-    bmInfoHeader.biPlanes      = 1;
-    bmInfoHeader.biBitCount    = 24;
-    bmInfoHeader.biCompression = 0;/*BI_RGB;*/
+	memset(&bmInfoHeader, 0, sizeof(BITMAPINFOHEADER));
+	bmInfoHeader.biSize        = sizeof(BITMAPINFOHEADER);
+	bmInfoHeader.biWidth       = w;
+	bmInfoHeader.biHeight      = h;
+	bmInfoHeader.biPlanes      = 1;
+	bmInfoHeader.biBitCount    = 24;
+	bmInfoHeader.biCompression = 0;/*BI_RGB;*/
 
 	pbits = vmalloc(size);
 	if (!pbits)
@@ -107,9 +107,9 @@ BITMAPINFOHEADER);
 
 	pDstLine = pbits + (h-1) * w * 3;
 
-	switch (fbi->bpp)
+	switch (fbi->pix_fmt)
 	{
-		case 16:
+	case PIX_FMTIN_RGB_16:
 		for(i = 0; i < h; i++) {
 			pSrc = pSrcLine;
 			pDst = pDstLine;
@@ -125,8 +125,8 @@ BITMAPINFOHEADER);
 			pDstLine -= 3*w;
 		}
 		break;
-
-		case 32:
+	case PIX_FMTIN_RGB_24:
+	case PIX_FMTIN_RGB_32:
 		for(i = 0; i < h; i++) {
 			pSrc = pSrcLine;
 			pDst = pDstLine;
@@ -141,8 +141,7 @@ BITMAPINFOHEADER);
 			pDstLine -= 3*w;
 		}
 		break;
-
-		default:
+	default:
 		pr_err("format not supported\n");
 		break;
 	}
@@ -159,11 +158,8 @@ BITMAPINFOHEADER);
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
 	ret = f->f_op->write(f, (const char *)&bmFileHeader, sizeof(BITMAPFILEHEADER), &f->f_pos);
-	pr_info("168 %d write to %d\n", (int)ret, (int)f->f_pos);
 	ret = f->f_op->write(f, (const char *)&bmInfoHeader, sizeof(BITMAPINFOHEADER), &f->f_pos);
-	pr_info("170 %d write to %d\n", (int)ret, (int)f->f_pos);
 	ret = f->f_op->write(f, pbits, size, &f->f_pos);
-	pr_info("172 %d write to %d\n", (int)ret, (int)f->f_pos);
 
 	set_fs(old_fs);
 	if (ret < 0) {
@@ -1413,6 +1409,20 @@ static void converter_set_hdmi(struct pxa95xfb_info *fbi)
 #endif
 }
 
+
+static void converter_mode_set(struct pxa95xfb_conv_info *conv, struct fb_videomode *mode)
+{
+	conv->xres = mode->xres;
+	conv->yres = mode->yres;
+	conv->left_margin = mode->left_margin;
+	conv->right_margin = mode->right_margin;
+	conv->upper_margin = mode->upper_margin;
+	conv->lower_margin = mode->lower_margin;
+	conv->hsync_len = mode->hsync_len;
+	conv->vsync_len = mode->vsync_len;
+}
+
+
 #ifdef CONFIG_MV_IHDMI
 extern int mv_ihdmiinit(void);
 #endif
@@ -1429,6 +1439,8 @@ static void converter_onoff(struct pxa95xfb_info *fbi, int on)
 
 		if(conv->reset)
 			conv->reset();
+
+		converter_mode_set(conv, &fbi->mode);
 
 		if(CONVERTER_IS_DSI(conv->converter))
 			converter_set_dsi(conv);
@@ -1550,14 +1562,17 @@ void converter_init(struct pxa95xfb_info *fbi)
 	struct pxa95xfb_conv_info *conv = &pxa95xfb_conv[fbi->converter - 1];
 	int ret;
 	conv->conv_base = CONVERTER_BASE_ADDRESS(fbi->reg_base, conv->converter);
-	conv->xres = fbi->mode.xres;
-	conv->yres = fbi->mode.yres;
-	conv->left_margin = fbi->mode.left_margin;
-	conv->right_margin = fbi->mode.right_margin;
-	conv->upper_margin = fbi->mode.upper_margin;
-	conv->lower_margin = fbi->mode.lower_margin;
-	conv->hsync_len = fbi->mode.hsync_len;
-	conv->vsync_len = fbi->mode.vsync_len;
+
+	if (conv->converter == LCD_M2DSI0)
+		conv->clk = clk_get(NULL, "PXA95x_DSI0CLK");
+	else if (conv->converter == LCD_M2DSI1)
+		conv->clk = clk_get(NULL, "PXA95x_DSI1CLK");
+	else if (conv->converter == LCD_M2HDMI)
+		conv->clk = clk_get(NULL, "HDMICLK");
+
+	if (IS_ERR(conv->clk))
+		pr_err("unable to get converter DSI0 CLK\n");
+
 	/* TODO : hard code here: if DSI + HDMI, it's adv chip*/
 	if(CONVERTER_IS_DSI(conv->converter) && conv->output == OUTPUT_PANEL) {
 		conv->dsi_clock_val = 156;
@@ -1896,7 +1911,7 @@ static void set_fetch(struct pxa95xfb_info *fbi)
 		/*FIXME: for yuv, this value might be not correct*/
 		dmadesc_cpu->LCD_CH_CMDx = (fbi->user_addr)?
 			fbi->surface.viewPortInfo.srcHeight * fbi->surface.viewPortInfo.yPitch:
-			m->yres * m->xres * fbi->bpp /8;
+			m->yres * m->xres * pix_fmt_to_bpp(fbi->pix_fmt);
 		dmadesc_cpu->LCD_NXT_DESC_ADDRx = dmadesc_dma;
 		writel(dmadesc_dma, fbi->reg_base + LCD_NXT_DESC_ADDR0 + channel * 0x40);
 
@@ -1925,7 +1940,7 @@ static void set_window(struct pxa95xfb_info *fbi)
 		LCD_WIN0_CROP1 + fbi->window * 0x40;
 
 	xsrc = (fbi->surface.viewPortInfo.yPitch)?
-		fbi->surface.viewPortInfo.yPitch * 8 / fbi->bpp: m->xres;
+		fbi->surface.viewPortInfo.yPitch / pix_fmt_to_bpp(fbi->pix_fmt) : m->xres;
 	ysrc = (fbi->surface.viewPortInfo.srcHeight)?
 		fbi->surface.viewPortInfo.srcHeight : m->yres;
 
@@ -1935,7 +1950,7 @@ static void set_window(struct pxa95xfb_info *fbi)
 	writel(x, fbi->reg_base + ctl_offset);
 
 	/* set cropping */
-	rcrop = (fbi->surface.viewPortInfo.yPitch * 8 / fbi->bpp -
+	rcrop = (fbi->surface.viewPortInfo.yPitch / pix_fmt_to_bpp(fbi->pix_fmt) -
 			fbi->surface.viewPortInfo.srcWidth);
 	x = LCD_WINx_CROP1_RC(rcrop/4);
 	writel(x, fbi->reg_base + crop1_offset);
@@ -2226,42 +2241,17 @@ void lcdc_set_pix_fmt(struct fb_var_screeninfo *var, int pix_fmt)
 	}
 }
 
-void lcdc_set_mode_to_var(struct pxa95xfb_info *fbi, struct fb_var_screeninfo *var,
-			 const struct fb_videomode *mode)
-{
-	dev_dbg(fbi->fb_info->dev, "Enter %s\n", __FUNCTION__);
-
-	var->xres = mode->xres;
-	var->yres = mode->yres;
-	var->xres_virtual = var->xres;
-	var->yres_virtual = (var->xres * var->yres * 4 > fbi->fb_size)? (var->yres): (var->yres*2);
-	var->grayscale = 0;
-	var->accel_flags = FB_ACCEL_NONE;
-	var->pixclock = mode->pixclock;
-	var->left_margin = mode->left_margin;
-	var->right_margin = mode->right_margin;
-	var->upper_margin = mode->upper_margin;
-	var->lower_margin = mode->lower_margin;
-	var->hsync_len = mode->hsync_len;
-	var->vsync_len = mode->vsync_len;
-	var->sync = mode->sync;
-	var->vmode = mode->vmode;
-	var->rotate = FB_ROTATE_UR;
-}
-
-u32 lcdc_set_fr_addr(struct pxa95xfb_info *fbi, struct fb_var_screeninfo * var)
+u32 lcdc_set_fr_addr(struct pxa95xfb_info *fbi)
 {
 	DisplayControllerFrameDescriptor *dmadesc_cpu;
 	u32 addr = fbi->user_addr ? fbi->user_addr: fbi->fb_start_dma;
-	/* assert user pointer uses no var->x/y offset*/
-	u32 pixel_offset = fbi->user_addr ? 0:
-		(var->yoffset * var->xres_virtual + var->xoffset);
+	u32 pixel_offset = fbi->user_addr ? 0 : fbi->pixel_offset;
 
 	if(fbi->pix_fmt >= PIX_FMTIN_YUV420 && fbi->pix_fmt <= PIX_FMTIN_YUV444){
 		/* set three channels: 456 for plannar YUV channels: assert fbi->window = 4*/
 		/* y size is for YUV plannar only: when yres_virtual  > yres, still use yres to make sure YUV is continous*/
-		u32 y_size = fbi->user_addr? (fbi->surface.viewPortInfo.yPitch * 8 / fbi->bpp
-				* fbi->surface.viewPortInfo.srcHeight) : (var->xres * var->yres);
+		u32 y_size = fbi->user_addr? (fbi->surface.viewPortInfo.yPitch
+				* fbi->surface.viewPortInfo.srcHeight) : (fbi->mode.xres * fbi->mode.yres);
 		dmadesc_cpu = (DisplayControllerFrameDescriptor *)((u32)fbi->fb_start - 16*5);
 		dmadesc_cpu->LCD_FR_ADDRx = addr + pixel_offset;
 
@@ -2285,7 +2275,7 @@ u32 lcdc_set_fr_addr(struct pxa95xfb_info *fbi, struct fb_var_screeninfo * var)
 		}
 	}else{
 		dmadesc_cpu = (DisplayControllerFrameDescriptor *)((u32)fbi->fb_start- 16*(fbi->window + 1));
-		dmadesc_cpu->LCD_FR_ADDRx = addr + pixel_offset* var->bits_per_pixel /8;
+		dmadesc_cpu->LCD_FR_ADDRx = addr + pixel_offset * pix_fmt_to_bpp(fbi->pix_fmt);
 	}
 	dmadesc_cpu = (DisplayControllerFrameDescriptor *)((u32)fbi->fb_start- 16*(fbi->window + 1));
 	return dmadesc_cpu->LCD_FR_ADDRx;
@@ -2441,14 +2431,15 @@ int pxa95xfb_pan_display(struct fb_var_screeninfo *var,
 	if (dump)
 		dump_buffer(fbi, var->yoffset);
 
-	lcdc_set_fr_addr(fbi, var);
+	fbi->pixel_offset = var->yoffset * var->xres_virtual + var->xoffset;
+	lcdc_set_fr_addr(fbi);
 
 	lcdc_wait_for_vsync(fbi);
 
 	return 0;
 }
 
-int pxa95xfb_set_par(struct fb_info *info)
+int var_update(struct fb_info *info)
 {
 	struct pxa95xfb_info *fbi = info->par;
 	struct fb_var_screeninfo *var = &info->var;
@@ -2461,25 +2452,36 @@ int pxa95xfb_set_par(struct fb_info *info)
 		return -EINVAL;
 	lcdc_set_pix_fmt(var, pix_fmt);
 	fbi->pix_fmt = pix_fmt;
-	fbi->bpp = var->bits_per_pixel;
 
 	/* set var according to best video mode*/
 	m = (struct fb_videomode *)fb_match_mode(var, &info->modelist);
 	if(!m){
 		printk(KERN_WARNING "set par: no match mode, turn to best mode\n");
 		m = (struct fb_videomode *)fb_find_best_mode(var,&info->modelist);
+		fb_videomode_to_var(var, m);
 	}
-	lcdc_set_mode_to_var(fbi, var, m);
 	memcpy(&fbi->mode, m, sizeof(struct fb_videomode));
 
+	/* fix to 2* yres */
+	var->yres_virtual = var->xres * 2;
 	info->fix.visual = (pix_fmt == PIX_FMT_PSEUDOCOLOR)?
 		FB_VISUAL_PSEUDOCOLOR: FB_VISUAL_TRUECOLOR;
 	info->fix.line_length = var->xres_virtual * var->bits_per_pixel / 8;
 	info->fix.ypanstep = var->yres;
+	return 0;
+}
 
+int pxa95xfb_set_par(struct fb_info *info)
+{
+	struct pxa95xfb_info *fbi = info->par;
+	struct fb_var_screeninfo *var = &info->var;
+	int ret = var_update(info);
+	if (ret != 0)
+		return ret;
 
 	/* configure graphics dma always*/
-	lcdc_set_fr_addr(fbi, var);
+	fbi->pixel_offset = var->yoffset * var->xres_virtual + var->xoffset;
+	lcdc_set_fr_addr(fbi);
 
 	if(!pxa95xfbi[0]->suspend)
 		lcdc_set_lcd_controller(fbi);
@@ -2648,7 +2650,7 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 	struct pxa95xfb_info *fbi = 0;
 	struct pxa95xfb_conv_info *conv;
 	struct resource *res;
-	struct clk *clk_lcd, *clk = NULL;
+	struct clk *clk_lcd;
 	int irq_ctl, irq_conv, ret;
 	int i;
 
@@ -2661,27 +2663,6 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 	clk_lcd = clk_get(&pdev->dev, "PXA95x_LCDCLK");
 	if (IS_ERR(clk_lcd)) {
 		dev_err(&pdev->dev, "unable to get LCDCLK");
-		return PTR_ERR(clk_lcd);
-	}
-
-	if (mi->converter == LCD_M2DSI0) {
-		clk = clk_get(&pdev->dev, "PXA95x_DSI0CLK");
-		if (IS_ERR(clk)) {
-			dev_err(&pdev->dev, "unable to get DSI0 CLK");
-			return PTR_ERR(clk);
-		}
-	} else if (mi->converter == LCD_M2DSI1) {
-		clk = clk_get(&pdev->dev, "PXA95x_DSI1CLK");
-		if (IS_ERR(clk)) {
-			dev_err(&pdev->dev, "unable to get DSI1 CLK");
-			return PTR_ERR(clk);
-		}
-	} else if (mi->converter == LCD_M2HDMI) {
-		clk = clk_get(&pdev->dev, "HDMICLK");
-		if (IS_ERR(clk)) {
-			dev_err(&pdev->dev, "unable to get internal HDMI CLK");
-			return PTR_ERR(clk);
-		}
 	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -2717,21 +2698,19 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 		ret = -EINVAL;
 		goto failed_free_clk;
 	}
+	memset(fbi, 0, sizeof(fbi));
+
 	fbi->fb_info = info;
 	platform_set_drvdata(pdev, fbi);
 	fbi->clk_lcd = clk_lcd;
 	fbi->dev = &pdev->dev;
 	fbi->on = 1;
-	fbi->active = 0;
 	fbi->open_count = fbi->on;/*if fbi on as default, open count +1 as default*/
-	fbi->is_blanked = 0;
-	fbi->suspend = 0;
-	fbi->debug = 0;
 	fbi->window = mi->window;
 	fbi->zorder = mi->zorder;
 	fbi->mixer_id = mi->mixer_id;
 	fbi->converter = mi->converter;
-	fbi->user_addr = 0;
+	fbi->pix_fmt = mi->pix_fmt_in;
 	fbi->controller_on = 1;
 
 	fbi->vsync_en = 0;
@@ -2744,11 +2723,6 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 		mutex_init(&mutex_mixer_update[i]);
 		init_waitqueue_head(&wq_mixer_update[i]);
 	}
-
-	/*set surface related to 0: fb0 not use it*/
-	memset(&fbi->surface, 0, sizeof(fbi->surface));
-	memset(&fbi->mode, 0, sizeof(struct fb_videomode));
-
 	/* Map registers.*/
 	fbi->reg_base = ioremap_nocache(res->start, res->end - res->start);
 	if (fbi->reg_base == NULL) {
@@ -2770,6 +2744,18 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 	fbi->fb_start_dma = fbi->fb_start_dma + PAGE_SIZE;
 	memset(fbi->fb_start, 0xf8, fbi->fb_size);
 
+
+	/* Set video mode and init var*/
+	for(i = 0; i < mi->num_modes; i++)
+		lcdc_correct_pixclock(&mi->modes[i]);
+	fb_videomode_to_modelist(mi->modes, mi->num_modes, &info->modelist);
+
+	memcpy(&fbi->mode, &mi->modes[mi->init_mode], sizeof(struct fb_videomode));
+	lcdc_set_pix_fmt(&info->var, fbi->pix_fmt);
+	fb_videomode_to_var(&info->var, &fbi->mode);
+	/* fix to 2* yres */
+	info->var.yres_virtual = info->var.yres * 2;
+
 	/* Initialise static fb parameters.*/
 	info->flags = FBINFO_DEFAULT | FBINFO_PARTIAL_PAN_OK |
 		FBINFO_HWACCEL_XPAN | FBINFO_HWACCEL_YPAN;
@@ -2778,29 +2764,22 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 	info->fix.type = FB_TYPE_PACKED_PIXELS;
 	info->fix.type_aux = 0;
 	info->fix.xpanstep = 0;
-	info->fix.ypanstep = 0;
+	info->fix.ypanstep = info->var.yres;
 	info->fix.ywrapstep = 0;
 	info->fix.mmio_start = res->start;
 	info->fix.mmio_len = res->end - res->start + 1;
 	info->fix.accel = FB_ACCEL_NONE;
-	info->fbops = &pxa95xfb_gfx_ops;
-	info->pseudo_palette = fbi->pseudo_palette;
 	info->fix.smem_start = fbi->fb_start_dma;
 	info->fix.smem_len = fbi->fb_size;
+	info->fix.visual = (fbi->pix_fmt == PIX_FMT_PSEUDOCOLOR)?
+		FB_VISUAL_PSEUDOCOLOR: FB_VISUAL_TRUECOLOR;
+	info->fix.line_length = info->var.xres_virtual * pix_fmt_to_bpp(fbi->pix_fmt);
+
+	info->fbops = &pxa95xfb_gfx_ops;
+	info->pseudo_palette = fbi->pseudo_palette;
 	info->screen_base = fbi->fb_start;
 	info->screen_size = fbi->fb_size;
 
-	/* Set video mode and init var*/
-	for(i = 0; i < mi->num_modes; i++)
-		lcdc_correct_pixclock(&mi->modes[i]);
-	fb_videomode_to_modelist(mi->modes, mi->num_modes, &info->modelist);
-
-	/* init var: according to modes[0] */
-	lcdc_set_pix_fmt(&info->var, mi->pix_fmt_in);
-	lcdc_set_mode_to_var(fbi, &info->var, &mi->modes[0]);
-	memcpy(&fbi->mode, &mi->modes[0], sizeof(struct fb_videomode));
-
-	info->var.xoffset = info->var.yoffset = 0;
 	/* set global var at last*/
 	pxa95xfbi[0] = fbi;
 
@@ -2826,14 +2805,14 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 	/*set ch4 as un-transparent for YVU use*/
 	writel(0x800000ff, fbi->reg_base + LCD_CH4_ALPHA);
 
-	pxa95xfb_set_par(info);
+	lcdc_set_fr_addr(fbi);
+	lcdc_set_lcd_controller(fbi);
 
 	/*init converter*/
 	conv = &pxa95xfb_conv[fbi->converter -1];
 	if(!conv->inited){
 		conv->inited = 1;
 		conv->output = mi->output;
-		conv->clk = clk;
 		conv->irq = irq_conv;
 		conv->pix_fmt_out = mi->pix_fmt_out;
 		conv->active = mi->active;
@@ -2888,9 +2867,7 @@ failed_free_irq_conv:
 	free_irq(irq_ctl, fbi);
 failed_free_clk:
 	clk_disable(fbi->clk_lcd);
-	clk_disable(clk);
 	clk_put(fbi->clk_lcd);
-	clk_put(clk);
 failed:
 	pr_err("pxa95x-fb: frame buffer device init failed\n");
 	platform_set_drvdata(pdev, NULL);
