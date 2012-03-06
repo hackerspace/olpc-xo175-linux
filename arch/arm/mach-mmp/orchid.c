@@ -519,13 +519,16 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 	return 0;
 }
 
-static struct pm80x_platform_data pm800_info = {
+static struct pm80x_platform_data pm80x_info = {
 	.base_page_addr = 0x30,		/* BASE page */
 	.power_page_addr = 0x31,	/* POWER */
 	.gpadc_page_addr = 0x32,	/* GPADC */
 	.test_page_addr = 0x37,		/* TEST */
 	.irq_mode = 0,	/* 0: clear IRQ by read */
 	.irq_base = IRQ_BOARD_START,
+	/* Codec PM805 */
+	.companion_addr = 0x39,
+	.irq_companion = gpio_to_irq(mfp_to_gpio(GPIO97_GPIO)),
 
 	.num_regulators = ARRAY_SIZE(pm800_regulator_data),
 	.regulator	    = pm800_regulator_data,
@@ -566,7 +569,7 @@ static struct i2c_board_info orchid_twsi1_info[] = {
 		.type = "88PM80x",
 		.addr = 0x34,
 		.irq  = IRQ_MMP3_PMIC,
-		.platform_data = &pm800_info,
+		.platform_data = &pm80x_info,
 	},
 	{
 		.type = "fan53555",
@@ -716,11 +719,6 @@ static struct i2c_board_info orchid_twsi5_info[] = {
 
 /* TODO: For NFC module and HDMI */
 static struct i2c_board_info orchid_twsi6_info[] = {
-};
-
-static struct pm80x_platform_data pm805_info = {
-	.irq_mode = 0,
-	.irq_base = IRQ_BOARD_START + PM800_MAX_IRQ,
 };
 
 /* TODO: for QV8820, OV9740 */
