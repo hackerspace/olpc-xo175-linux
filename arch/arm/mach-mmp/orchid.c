@@ -537,6 +537,7 @@ static struct pm80x_platform_data pm80x_info = {
 };
 /* End Of PM800 */
 
+#if 0
 /* Core Voltage Regulator: V_MAIN */
 static struct regulator_consumer_supply fan53555_regulator_supply[] = {
 	REGULATOR_SUPPLY("V_MAIN", NULL),
@@ -563,6 +564,7 @@ static struct fan53555_platform_data fan53555_pdata = {
 	.sleep_vsel_id = FAN53555_VSEL_ID_0, /* VSEL0 */
 	.sleep_vol = 1000000, /* uV */
 };
+#endif
 
 static struct i2c_board_info orchid_twsi1_info[] = {
 	{
@@ -571,11 +573,13 @@ static struct i2c_board_info orchid_twsi1_info[] = {
 		.irq  = IRQ_MMP3_PMIC,
 		.platform_data = &pm80x_info,
 	},
+#if 0
 	{
 		.type = "fan53555",
 		.addr = 0x60,
 		.platform_data = &fan53555_pdata,
 	},
+#endif
 };
 
 /* TODO: for charger FAN5405 */
