@@ -786,8 +786,6 @@ static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc0 = {
 
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc1 = {
 	.flags          = PXA_FLAG_CARD_PERMANENT,
-	.pm_caps        = MMC_PM_KEEP_POWER | MMC_PM_IRQ_ALWAYS_ON,
-	.host_caps      = MMC_CAP_POWER_OFF_CARD,
 };
 
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc2 = {
@@ -795,53 +793,13 @@ static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc2 = {
 	.host_caps	= MMC_CAP_1_8V_DDR,
 };
 
-static struct regulator_consumer_supply sdio_power_supplies[] = {
-	REGULATOR_SUPPLY("vsdio", "sdhci-pxa.1"),
-};
-
-static struct regulator_init_data sdio_power_data = {
-	.constraints    = {
-		.valid_ops_mask         = REGULATOR_CHANGE_STATUS,
-	},
-	.num_consumer_supplies  = ARRAY_SIZE(sdio_power_supplies),
-	.consumer_supplies      = sdio_power_supplies,
-};
-
-static struct fixed_voltage_config sdio_power = {
-	.supply_name            = "vsdio",
-	.microvolts             = 1800000,
-	.gpio                   = mfp_to_gpio(MFP_PIN_GPIO57),
-	.enable_high            = 1,
-	.enabled_at_boot        = 0,
-	.init_data              = &sdio_power_data,
-};
-
-static struct platform_device sdio_power_device = {
-	.name           = "reg-fixed-voltage",
-	.id             = 2,
-	.dev = {
-		.platform_data = &sdio_power,
-	},
-};
-
 static void __init yellowstone_init_mmc(void)
 {
-#ifdef CONFIG_PM_RUNTIME
-	int RESETn = mfp_to_gpio(MFP_PIN_GPIO58);
-	if (gpio_request(RESETn, "sdio RESETn")) {
-		pr_err("Failed to request sdio RESETn gpio\n");
-		return;
-	}
-	gpio_direction_output(RESETn, 1);
-	gpio_free(RESETn);
-	platform_device_register(&sdio_power_device);
-#else
 #ifdef CONFIG_SD8XXX_RFKILL
 	int WIB_PDn = mfp_to_gpio(GPIO57_GPIO);
 	int WIB_RESETn = mfp_to_gpio(GPIO58_GPIO);
 	add_sd8x_rfkill_device(WIB_PDn, WIB_RESETn,\
 			&mmp3_sdh_platdata_mmc1.pmmc, mmp3_8787_set_power);
-#endif
 #endif
 	mfp_config(ARRAY_AND_SIZE(mmc3_pin_config));
 	mmp3_add_sdh(2, &mmp3_sdh_platdata_mmc2); /* eMMC */
