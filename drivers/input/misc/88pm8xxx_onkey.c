@@ -55,8 +55,6 @@ static struct pm8xxx_onkey_info *pm8xxx_info;
 void pm8xxx_system_restart(void)
 {
 	struct i2c_client *i2c;
-	u8 buf[4];
-	u32 ticks;
 	if (!pm8xxx_info || !pm8xxx_info->i2c)
 		return;
 	i2c = pm8xxx_info->i2c;
@@ -64,24 +62,10 @@ void pm8xxx_system_restart(void)
 	if (pm8xxx_info->pmic_id <= PM8607_CHIP_END)
 		/* TODO: For PM8607 */;
 	else if (pm8xxx_info->pmic_id <= PM800_CHIP_END) {
-		/* 1.Disable alarm1 */
-		pm80x_set_bits(i2c, PM800_RTC_CONTROL, 0x1, 0);
-		/* 2.Read RTC counter */
-		pm80x_bulk_read(i2c, PM800_RTC_COUNTER1, 4, buf);
-		ticks = (buf[3] << 24) | (buf[2] << 16) |
-				(buf[1] << 8) | buf[0];
-		/* 2.Calculate alarm expire counter: after 1s here */
-		ticks += 1;
-		buf[0] = ticks & 0xFF;
-		buf[1] = (ticks >> 8) & 0xFF;
-		buf[2] = (ticks >> 16) & 0xFF;
-		buf[3] = (ticks >> 24) & 0xFF;
-		/* 4.Set alarm1 */
-		pm80x_bulk_write(i2c, PM800_RTC_EXPIRE1_1, 4, buf);
-		/* 5.Use XO and enable alarm1 */
-		pm80x_set_bits(i2c, PM800_RTC_CONTROL, (1 << 7), (1 << 7));
-		pm80x_set_bits(i2c, PM800_RTC_CONTROL, 0x1, 0x1);
-		/* 6.Issue SW power down */
+		/* 1.Enable FAULT_WU and FAULT_WU_EN */
+		pm80x_set_bits(i2c, PM800_RTC_MISC5, (1 << 3), (1 << 3));
+		pm80x_set_bits(i2c, PM800_RTC_MISC5, (1 << 2), (1 << 2));
+		/* 2.Issue SW power down */
 		pm80x_set_bits(i2c, PM800_WAKEUP1, (1 << 5), (1 << 5));
 		/* Rebooting... */
 	}
