@@ -73,5 +73,6 @@ obj-$(CONFIG_MMP3_HSI)		+= mmp3_hsi.o
 obj-$(CONFIG_MMP2_MDMA)		+= mmp2_mdma.o
 obj-$(CONFIG_MMP_ZSP)           += mmp_zsp.o mmp_zsp_mm.o
 obj-$(CONFIG_MMP_ZMQ)           += mmp_zmq.o
+obj-$(CONFIG_MMP3_SYSSET)  	+= mmp3_systemsetting.o
 
 obj-$(CONFIG_MXDCMMB) += maxscend/
