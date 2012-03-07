@@ -26,13 +26,6 @@
 #include <linux/regulator/fixed.h>
 #include <linux/regulator/fan53555.h>
 #include <linux/switch.h>
-#if defined(CONFIG_SENSORS_LSM303DLHC_ACC) || \
-	defined(CONFIG_SENSORS_LSM303DLHC_MAG)
-#include <linux/i2c/lsm303dlhc.h>
-#endif
-#if defined(CONFIG_SENSORS_L3G4200D_GYR)
-#include <linux/i2c/l3g4200d.h>
-#endif
 #include <linux/sd8x_rfkill.h>
 #include <linux/mmc/sdhci.h>
 
@@ -586,96 +579,6 @@ static struct i2c_board_info orchid_twsi1_info[] = {
 static struct i2c_board_info orchid_twsi2_info[] = {
 };
 
-static int motion_sensor_set_power(int on, const char *device_name)
-{
-	static struct regulator *vdd[3];
-	static int is_enabled[3] = {0, 0, 0};
-	int device_index = -1;
-
-#if defined(CONFIG_SENSORS_LSM303DLHC_ACC)
-	if (!strcmp(device_name, LSM303DLHC_ACC_DEV_NAME))
-		device_index = 0;
-#endif
-#if defined(CONFIG_SENSORS_LSM303DLHC_MAG)
-	if (!strcmp(device_name, LSM303DLHC_MAG_DEV_NAME))
-		device_index = 1;
-#endif
-#if defined(CONFIG_SENSORS_L3G4200D_GYR)
-	if (!strcmp(device_name, L3G4200D_GYR_DEV_NAME))
-		device_index = 2;
-#endif
-
-	if ((device_index >= 0) && (device_index <= 2)) {
-		if (on && (!is_enabled[device_index])) {
-			vdd[device_index] = regulator_get(NULL, "V_2P8");
-			if (IS_ERR(vdd[device_index])) {
-				vdd[device_index] = NULL;
-				return -ENODEV;
-			} else {
-				regulator_set_voltage(vdd[device_index],
-						2800000, 2800000);
-				regulator_enable(vdd[device_index]);
-				is_enabled[device_index] = 1;
-			}
-		}
-		if ((!on) && is_enabled[device_index]) {
-			regulator_disable(vdd[device_index]);
-			regulator_put(vdd[device_index]);
-			vdd[device_index] = NULL;
-			is_enabled[device_index] = 0;
-		}
-	} else
-		return -EPERM;
-	return 0;
-}
-
-#if defined(CONFIG_SENSORS_LSM303DLHC_ACC)
-static struct lsm303dlhc_acc_platform_data lsm303dlhc_acc_data = {
-	.poll_interval = 1000,
-	.min_interval = 10,
-	.g_range = LSM303DLHC_ACC_G_2G,
-	.axis_map_x = 0,
-	.axis_map_y = 1,
-	.axis_map_z = 2,
-	.negate_x = 1,
-	.negate_y = 1,
-	.negate_z = 1,
-	.gpio_int1 = -EINVAL,
-	.gpio_int2 = -EINVAL,
-	.set_power = motion_sensor_set_power,
-};
-#endif
-
-#if defined(CONFIG_SENSORS_LSM303DLHC_MAG)
-static struct lsm303dlhc_mag_platform_data lsm303dlhc_mag_data = {
-	.poll_interval = 1000,
-	.min_interval = 10,
-	.h_range = LSM303DLHC_H_2_5G,
-	.axis_map_x = 0,
-	.axis_map_y = 1,
-	.axis_map_z = 2,
-	.negate_x = 0,
-	.negate_y = 0,
-	.negate_z = 0,
-	.set_power = motion_sensor_set_power,
-};
-#endif
-
-#if defined(CONFIG_SENSORS_L3G4200D_GYR)
-static struct l3g4200d_gyr_platform_data l3g4200d_gyr_data = {
-	.poll_interval = 1000,
-	.min_interval = 10,
-	.fs_range = L3G4200D_GYR_FS_2000DPS,
-	.axis_map_x = 0,
-	.axis_map_y = 1,
-	.axis_map_z = 2,
-	.negate_x = 0,
-	.negate_y = 0,
-	.negate_z = 0,
-	.set_power = motion_sensor_set_power,
-};
-#endif
-
 /* TODO: for 3 AXIS GRYOSCOPE, E-COMPASS,
  *       PROXIMITY and AMBIENT sensor and
  *       GPS*/
@@ -932,100 +835,6 @@ static struct vmeta_plat_data mmp_vmeta_plat_data = {
 static void __init mmp_init_vmeta(void)
 {
 	mmp_set_vmeta_info(&mmp_vmeta_plat_data);
-}
-#endif
-
-#if (defined(CONFIG_SPI_PXA2XX) || defined(CONFIG_SPI_PXA2XX_MODULE)) \
-       && defined(CONFIG_NTRIG_SPI)
-static int ntrig_set_power(int on)
-{
-	struct regulator *v_3p3;
-	v_3p3 = regulator_get(NULL, "V_3P3");
-	if (IS_ERR(v_3p3)) {
-		v_3p3 = NULL;
-		pr_err("%s: enable V_3P3 for touch fail!\n", __func__);
-		return -EIO;
-	}
-	else {
-		if (on) {
-			regulator_set_voltage(v_3p3, 3300000, 3300000);
-			regulator_enable(v_3p3);
-		}
-		else {
-			regulator_disable(v_3p3);
-			v_3p3 = NULL;
-		}
-		msleep(100);
-		regulator_put(v_3p3);
-	}
-	return 1;
-}
-
-static struct pxa2xx_spi_master pxa_ssp_master_info = {
-	.num_chipselect = 1,
-	.enable_dma = 1,
-};
-
-static struct pxa2xx_spi_chip touch_spi_device = {
-	.tx_threshold = 1,
-	.rx_threshold = 1,
-};
-static struct ntrig_spi_platform_data ntrig_data = {
-	.oe_gpio = mfp_to_gpio(GPIO85_GPIO), /*magic number print from vendor's code*/
-	.oe_inverted = 1,/*magic number print from vendor's code*/
-	.pwr_gpio = -1,
-	.irq_flags = IRQF_DISABLED | IRQF_TRIGGER_RISING,
-	.set_power = ntrig_set_power,
-};
-
-static struct spi_board_info __initdata ntrig_spi_board_info[] = {
-	{
-		.modalias = "ntrig_spi",
-		.bus_num = 5,
-		.chip_select = 0,
-		.mode = SPI_MODE_0,
-		.max_speed_hz = 13000000,
-		.platform_data = &ntrig_data,
-		.irq = IRQ_GPIO(mfp_to_gpio(GPIO101_GPIO)),
-		.controller_data = &touch_spi_device,
-	},
-};
-
-static int ntrig_gpio_set(void)
-{
-	int gpio = mfp_to_gpio(GPIO101_GPIO);
-
-	if (gpio_request(gpio, "N-trig irq")) {
-			pr_err("gpio %d request failed\n", gpio);
-			return -1;
-	}
-	gpio_direction_input(gpio);
-
-	gpio = mfp_to_gpio(GPIO85_GPIO);
-	if (gpio_request(gpio, "N-trig Power")) {
-		pr_err("gpio %d request failed\n", gpio);
-		return -1;
-	}
-
-	gpio_direction_output(gpio, 0);
-	mdelay(1);
-	gpio_free(gpio);
-
-	return 0;
-}
-
-static void __init mmp3_init_spi(void)
-{
-
-	ntrig_gpio_set();
-	mmp3_add_ssp(4);
-	mmp3_add_spi(5, &pxa_ssp_master_info);
-
-	if ((spi_register_board_info(ntrig_spi_board_info, ARRAY_SIZE(ntrig_spi_board_info))) != 0)
-			pr_err("%s: spi_register_board_info returned error\n", __func__);
-}
-#else
-static inline void mmp3_init_spi(void) {
 }
 #endif
 
@@ -1294,7 +1103,6 @@ static void __init orchid_init(void)
 #ifdef CONFIG_MMC_SDHCI_PXAV3
 	orchid_init_mmc();
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
-	mmp3_init_spi();
 
 	platform_device_register(&mmp3_device_rtc);
 
