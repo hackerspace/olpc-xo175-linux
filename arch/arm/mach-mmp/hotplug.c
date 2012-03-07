@@ -36,7 +36,7 @@ static inline void platform_do_lowpower(unsigned int cpu)
 		/*
 		 * here's the WFI
 		 */
-		mmp3_pm_enter_idle(hardid);
+		mmp3_pm_enter_c2(hardid);
 
 		if (pen_release == hardid) {
 			/*
