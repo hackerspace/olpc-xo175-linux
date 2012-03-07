@@ -765,9 +765,9 @@ static void orchid_sd_signal_1v8(int set)
 	static struct regulator *v_sdmmc;
 	int vol;
 
-	v_sdmmc = regulator_get(NULL, "V_SDMMC");
+	v_sdmmc = regulator_get(NULL, "V_LDO13_2V8");
 	if (IS_ERR(v_sdmmc)) {
-		printk(KERN_ERR "Failed to get V_SDMMC\n");
+		printk(KERN_ERR "Failed to get V_LDO13_2V8\n");
 		return;
 	}
 
