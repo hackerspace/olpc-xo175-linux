@@ -208,16 +208,17 @@ struct watchdog_timer_t
 	spinlock_t lock;
 };
 
-static struct watchdog_timer_t watchdog_timer = {	.work_q = NULL,
-													.interval = 0,
-													.is_enabled = false,
-													.is_suspended = false,
-													.is_exit = false,
-													.is_msg_sent = false,
-													.msg_count = 0,
-													.pdata = NULL,
-													.kobj = NULL };
-
+static struct watchdog_timer_t watchdog_timer = {
+	.work_q = NULL,
+	.interval = 0,
+	.is_enabled = false,
+	.is_suspended = false,
+	.is_exit = false,
+	.is_msg_sent = false,
+	.msg_count = 0,
+	.pdata = NULL,
+	.kobj = NULL,
+};
 
 static ntrig_counter spi_cntrs_list[CNTR_NUMBER_OF_SPI_CNTRS] =
 {
@@ -1446,12 +1447,12 @@ static ssize_t ntrig_spi_test_store(struct kobject *kobj, struct kobj_attribute 
 		msg->msg.function = 0x0C; /* GET_FW_VERSION */
 		msg->msg.data[0] = 0xa1;
 		msg->msg.data[1] = 0x01;
-		msg->msg.data[2] = 0x03;
-		msg->msg.data[3] = 0x0c;
-		msg->msg.data[4] = 0x01;
-		msg->msg.data[5] = 0x00;
-		msg->msg.data[6] = 0x08;
-		msg->msg.data[7] = 0;
+		msg->msg.data[2] = 0x0c;
+		msg->msg.data[3] = 0x03;
+		msg->msg.data[4] = 0x00;
+		msg->msg.data[5] = 0x01;
+		msg->msg.data[6] = 0x00;
+		msg->msg.data[7] = 0x08;
 		for(i=8; i<122; i++) {
 			msg->msg.data[i] = 0xff;
 		}
@@ -1487,12 +1488,12 @@ static ssize_t ntrig_spi_test_store(struct kobject *kobj, struct kobj_attribute 
 		txbuf->msg.function = 0x0C; /* GET_FW_VERSION */
 		txbuf->msg.data[0] = 0xa1;
 		txbuf->msg.data[1] = 0x01;
-		txbuf->msg.data[2] = 0x03;
-		txbuf->msg.data[3] = 0x0c;
-		txbuf->msg.data[4] = 0x01;
-		txbuf->msg.data[5] = 0x00;
-		txbuf->msg.data[6] = 0x08;
-		txbuf->msg.data[7] = 0;
+		txbuf->msg.data[2] = 0x0c;
+		txbuf->msg.data[3] = 0x03;
+		txbuf->msg.data[4] = 0x00;
+		txbuf->msg.data[5] = 0x01;
+		txbuf->msg.data[6] = 0x00;
+		txbuf->msg.data[7] = 0x08;
 		for(i=8; i<122; i++) {
 			txbuf->msg.data[i] = 0xff;
 		}
@@ -1570,7 +1571,7 @@ static ssize_t ntrig_spi_test_store(struct kobject *kobj, struct kobj_attribute 
 		msg->msg.data[3] = 0x03;
 		msg->msg.data[4] = 0x00;
 		msg->msg.data[5] = 0x01;
-		msg->msg.data[6] = 0;
+		msg->msg.data[6] = 0x00;
 		msg->msg.data[7] = 0x04;
 		for(i=8; i<122; i++) {
 			msg->msg.data[i] = 0xff;
@@ -1725,9 +1726,6 @@ static void ntrig_spi_test_release(struct kobject *kobj)
  */
 #define NTRIG_SPI_TEST_DIRECTORY	"spi_test"
 #define NTRIG_SPI_TEST_FILE_NAME	"test"
-
-
-
 static struct kobject* ntrig_create_spi_test_file(void)
 {
 	int retval;
@@ -1799,6 +1797,9 @@ static int ntrig_spi_remove(struct spi_device *spi);
 
 #ifdef CONFIG_PM
 #ifndef CONFIG_HAS_EARLYSUSPEND
+#ifdef CONFIG_CPU_MMP3
+static void control_ntrig(struct spi_device *spi, bool enable);
+#endif
 /**
  * called when suspending the device (sleep with preserve 
  * memory) 
@@ -1806,6 +1807,10 @@ static int ntrig_spi_remove(struct spi_device *spi);
 static int ntrig_spi_suspend(struct spi_device *spi, pm_message_t mesg)
 {
 	struct ntrig_spi_privdata* privdata = dev_get_drvdata(&spi->dev);
+#ifdef CONFIG_CPU_MMP3
+	/* send control command to disable ntrig touch if touch can't be powered off on MMP3 platform */
+	control_ntrig(privdata->spi, false);
+#endif
 	disable_irq(privdata->spi->irq);
 	flush_workqueue(watchdog_timer.work_q);
 	watchdog_timer.is_suspended = true;
@@ -1832,8 +1837,8 @@ static int ntrig_spi_resume(struct spi_device *spi)
 	spi_set_pwr(privdata, true);
 	enable_irq(privdata->spi->irq);
 #ifdef CONFIG_CPU_MMP3
-	/* re-check ntrig can work around TS_INT keep high issue after resume on MMP3 platforms */
-	check_ntrig(privdata->spi);
+	/* send control command to enable ntrig touch if touch can't be powered off on MMP3 platform */
+	control_ntrig(privdata->spi, true);
 #endif
 	return 0;
 }
@@ -1867,42 +1872,37 @@ static struct spi_driver ntrig_spi_driver = {
 
 static int check_ntrig(struct spi_device *spi)
 {
-	u8 msg_read[4];
-	struct _ntrig_low_msg msg_write;
-	u8 buf[14], buf_tmp[114];
-	int i = 0,ret = 0, retry = 0;
+	struct _ntrig_low_bus_msg msg_write;
+	u8 msg_read[14];
+	int i = 0, ret = 0, retry = 0;
 
 	/* Master sent 4xFF and Preamble before sending the message.
 	It masks the SLave Ready INT and starts scanning for Preamble */
-	for (i = 0; i < 4; i++)
-		buf[i] = 0xff;
-	buf[4] = 0xa5;
-	buf[5] = 0x5a;
-	buf[6] = 0xe7;
-	buf[7] = 0x7e;
-	spi_write(spi, buf, 8);
-
+	msg_write.preamble = 0xFFFFFFFF;
+	msg_write.pattern[0] = 0xa5;
+	msg_write.pattern[1] = 0x5a;
+	msg_write.pattern[2] = 0xe7;
+	msg_write.pattern[3] = 0x7e;
 	/* Starts sending the message */
-	msg_write.type = LOWMSG_TYPE_COMMAND;
-	msg_write.length = 14;
-	msg_write.flags= 0;
-	msg_write.channel= LOWMSG_CHANNEL_CONTROL;
-	msg_write.function= LOWMSG_FUNCTION_GET_FW_VERSION;
-	msg_write.data[0] = 0xa1;
-	msg_write.data[1] = 0x01;
-	msg_write.data[2] = LOWMSG_FUNCTION_GET_FW_VERSION;
-	msg_write.data[3] = 0x03;
-	msg_write.data[4] = 0;
-	msg_write.data[5] = 0x01;
-	msg_write.data[6] = 0;
-	msg_write.data[7] = 0x08;
-	printk(KERN_DEBUG "%s:Begin to GetFWVersion\n", __func__);
-	spi_write(spi, (u8 *)&msg_write, 14);
-
+	msg_write.msg.type = LOWMSG_TYPE_COMMAND;
+	msg_write.msg.length = 14;
+	msg_write.msg.flags= 0;
+	msg_write.msg.channel= LOWMSG_CHANNEL_CONTROL;
+	msg_write.msg.function= LOWMSG_FUNCTION_GET_FW_VERSION;
+	msg_write.msg.data[0] = 0xa1;
+	msg_write.msg.data[1] = 0x01;
+	msg_write.msg.data[2] = 0x0c;
+	msg_write.msg.data[3] = 0x03;
+	msg_write.msg.data[4] = 0x00;
+	msg_write.msg.data[5] = 0x01;
+	msg_write.msg.data[6] = 0x00;
+	msg_write.msg.data[7] = 0x08;
 	/*Keep sending 0xFF until the end of Packet (PacketSize is 136 bytes long) */
-	for(i = 0; i < 114; i++)
-		buf_tmp[i] = 0xff;
-	spi_write(spi, buf_tmp, 114);
+	for(i=8; i<122; i++)
+		msg_write.msg.data[i] = 0xFF;
+
+	printk(KERN_DEBUG "%s:Begin to GetFWVersion\n", __func__);
+	spi_write(spi, (u8 *)&msg_write, 136);
 	msleep(500);
 
 	while(retry < MAX_RETRY) {
@@ -1910,11 +1910,11 @@ static int check_ntrig(struct spi_device *spi)
 		if (msg_read[0] == 0xa5) {
 			spi_read(spi, msg_read, 3);
 			if (msg_read[0] == 0x5a && msg_read[1] ==0xe7 && msg_read[2] == 0x7e) {
-				spi_read(spi, (u8 *)&buf, 14);
-					for (i = 0; i < 14; i++)
-						printk(KERN_DEBUG "0x%x ", buf[i]);
-					ret = 1;
-					return ret;
+				spi_read(spi, msg_read, 14);
+				for (i = 0; i < 14; i++)
+					printk(KERN_DEBUG "print receive data: 0x%x ", msg_read[i]);
+				ret = 1;
+				return ret;
 			}
 		}
 		retry++;
@@ -1922,13 +1922,60 @@ static int check_ntrig(struct spi_device *spi)
 	return ret;
 }
 
-/** 
+#ifdef CONFIG_CPU_MMP3
+/**
+ * Send Control command to disable ntrig touch when early_suspend / suspend
+ * Send Control command to enable ntrig touch when late_resume / resume
+ */
+static void control_ntrig(struct spi_device *spi, bool enable)
+{
+	struct _ntrig_low_bus_msg msg_write;
+	int i = 0;
+
+	/* Master sent 4xFF and Preamble before sending the message.
+	It masks the SLave Ready INT and starts scanning for Preamble */
+	msg_write.preamble = 0xFFFFFFFF;
+	msg_write.pattern[0] = 0xa5;
+	msg_write.pattern[1] = 0x5a;
+	msg_write.pattern[2] = 0xe7;
+	msg_write.pattern[3] = 0x7e;
+	/* Starts sending the message */
+	msg_write.msg.type = LOWMSG_TYPE_COMMAND;
+	msg_write.msg.length = 0x0e00;
+	msg_write.msg.flags= 0;
+	msg_write.msg.channel= LOWMSG_CHANNEL_CONTROL;
+	msg_write.msg.function= LOWMSG_FUNCTION_CONTROL_FEATURE;
+	msg_write.msg.data[0] = 0xa1;
+	msg_write.msg.data[1] = 0x01;
+	if (enable)
+		msg_write.msg.data[2] = 0x0f;
+	else
+		msg_write.msg.data[2] = 0x14;
+	msg_write.msg.data[3] = 0x03;
+	msg_write.msg.data[4] = 0x00;
+	msg_write.msg.data[5] = 0x01;
+	msg_write.msg.data[6] = 0x00;
+	msg_write.msg.data[7] = 0x04;
+	/*Keep sending 0xFF until the end of Packet (PacketSize is 136 bytes long) */
+	for(i=8; i<122; i++)
+		msg_write.msg.data[i] = 0xFF;
+
+	spi_write(spi, (u8 *)&msg_write, 136);
+	msleep(500);
+}
+#endif
+
+/**
  * initialize the SPI driver. Called by board init code 
  */
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void ntrig_early_suspend(struct early_suspend *h)
 {
 	struct ntrig_spi_privdata *pdata = container_of(h, struct ntrig_spi_privdata, early_suspend);
+#ifdef CONFIG_CPU_MMP3
+	/* send control command to disable ntrig touch if touch can't be powered off on MMP3 platform */
+	control_ntrig(pdata->spi, false);
+#endif
 	disable_irq(pdata->spi->irq);
 	flush_workqueue(watchdog_timer.work_q);
 	watchdog_timer.is_suspended = true;
@@ -1947,8 +1994,8 @@ static void ntrig_late_resume(struct early_suspend *h)
 	watchdog_timer.is_suspended = false;
 	enable_irq(pdata->spi->irq);
 #ifdef CONFIG_CPU_MMP3
-	/* re-check ntrig can work around TS_INT keep high issue after resume on MMP3 platforms */
-	check_ntrig(pdata->spi);
+	/* send control command to enable ntrig touch if touch can't be powered off on MMP3 platform */
+	control_ntrig(pdata->spi, true);
 #endif
 	return;
 }
