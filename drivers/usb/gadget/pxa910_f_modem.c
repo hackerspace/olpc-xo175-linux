@@ -1138,11 +1138,24 @@ gs_marvell_modem_port_alloc(unsigned port_num,
 static int pxa_gs_ioctl(struct tty_struct *tty, unsigned int cmd,
 		    unsigned long arg)
 {
-	struct pxa910_gs_port *port = tty->driver_data;
-	struct pxa_f_acm *acm = pxa_port_to_acm(port->port_usb);
+	struct pxa910_gs_port *port;
+	struct pxa_f_acm *acm;
 
+	if (tty == NULL) {
+		pr_err("%s cmd %u. call from context [%d:%d]: tty is NULL pointer\n",
+			   __func__, cmd, current->pid, current->tgid);
+		return -EIO;
+	}
+	port = tty->driver_data;
 	if (port == NULL) {
-		printk(KERN_ERR "pxa_gs_ioctl: NULL port pointer\n");
+		pr_err("%s cmd %u. call from context [%d:%d]: tty->driver_data is NULL pointer\n",
+			   __func__, cmd, current->pid, current->tgid);
+		return -EIO;
+	}
+	acm = pxa_port_to_acm(port->port_usb);
+	if (acm == NULL) {
+		pr_err("%s cmd %u. call from context [%d:%d]: acm is NULL pointer\n",
+			   __func__, cmd, current->pid, current->tgid);
 		return -EIO;
 	}
 
@@ -1170,6 +1183,8 @@ static int pxa_gs_ioctl(struct tty_struct *tty, unsigned int cmd,
 		pxa_acm_notify_serial_state(acm);
 		break;
 	default:
+		pr_err("%s cmd %u. call from context [%d:%d]: Command not implemented\n",
+			   __func__, cmd, current->pid, current->tgid);
 		/* could not handle ioctl */
 		return -ENOIOCTLCMD;
 
