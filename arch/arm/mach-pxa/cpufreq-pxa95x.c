@@ -299,7 +299,7 @@ unsigned int pxa95x_cpufreq_getavg(struct cpufreq_policy *policy,
 		firstwindow = 0;
 		for (i = 0; i < load_info->opnum; i++) {
 			if (load_table[i].table_item->frequency ==
-			    policy->cur * MHZ_TO_KHZ) {
+			    policy->cur) {
 				load_info->last_index = i;
 				load_table[i].prev_cpu_idle =
 				    get_cpu_idle_time(cpu,
