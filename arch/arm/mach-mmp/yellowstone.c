@@ -1272,33 +1272,17 @@ static int pm800_i2c_read_reg(u8 addr, u8 reg, u8 *buf, int len)
 
 static int yellowstone_board_reset(char mode, const char *cmd)
 {
-	u8 buf[4];
-	u32 ticks;
+	u8 buf;
 	/* Reset TWSI1 unit firstly */
 	writel(0x4060, reg_icr);
 	udelay(500);
 	writel(0x60, reg_icr);
 	udelay(500);
-	/* 1. Disable alarm1 */
-	pm800_i2c_write_reg(0x30, 0xD0, 0x80);
-	/* 2. Read RTC counter */
-	pm800_i2c_read_reg(0x30, 0xD1, buf, 4);
-	ticks = (buf[3] << 24) | (buf[2] << 16) |
-			(buf[1] << 8) | buf[0];
-	/* 3.Calculate alarm expire counter: after 1s here */
-	ticks += 1;
-	buf[0] = ticks & 0xFF;
-	buf[1] = (ticks >> 8) & 0xFF;
-	buf[2] = (ticks >> 16) & 0xFF;
-	buf[3] = (ticks >> 24) & 0xFF;
-	/* 4.Set alarm1 */
-	pm800_i2c_write_reg(0x30, 0xD5, buf[0]);
-	pm800_i2c_write_reg(0x30, 0xD6, buf[1]);
-	pm800_i2c_write_reg(0x30, 0xD7, buf[2]);
-	pm800_i2c_write_reg(0x30, 0xD8, buf[3]);
-	/* 5.Use XO and enable alarm1 */
-	pm800_i2c_write_reg(0x30, 0xD0, 0x81);
-	/* 6.Issue SW power down */
+	/* 1.Enable FAULT_WU and FAULT_WU_EN */
+	pm800_i2c_read_reg(0x30, 0xE7, &buf, 1);
+	buf |= ((1 << 3) | (1 << 2));
+	pm800_i2c_write_reg(0x30, 0xE7, buf);
+	/* 2.Issue SW power down */
 	pm800_i2c_write_reg(0x30, 0x0D, 0x20);
 	/* Rebooting... */
 	return 1;
