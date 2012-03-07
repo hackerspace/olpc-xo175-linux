@@ -123,29 +123,6 @@ static struct sysdev_driver cpufreq_stats_driver = {
 	.remove = stats_rm,
 };
 
-static int freq_limits_get(int *freq_table, int num_pp, int *max, int *min)
-{
-	int max_freq;
-	int min_freq;
-	int i;
-
-	max_freq = 0;
-	min_freq = 0x7FFFFFFF;
-
-	for (i = 0; i < num_pp; i++) {
-		if (max_freq < freq_table[i])
-			max_freq = freq_table[i];
-
-		if (min_freq > freq_table[i])
-			min_freq = freq_table[i];
-	}
-
-	*max = max_freq;
-	*min = min_freq;
-
-	return 0;
-}
-
 static int setup_freqs_table(struct cpufreq_policy *policy,
 			     int *freqs_table, int num)
 {
@@ -383,8 +360,6 @@ static int pxa95x_cpufreq_init(struct cpufreq_policy *policy)
 {
 	int current_freq_khz;
 	int ret = 0;
-	int max_freq = 0;
-	int min_freq = 0;
 
 	pxa95x_cpufreq_policy = policy;
 
@@ -394,25 +369,16 @@ static int pxa95x_cpufreq_init(struct cpufreq_policy *policy)
 	if (ret)
 		pr_err("failed to get cpu frequency table");
 
-	ret = freq_limits_get(core_freqs_table, num_pp, &max_freq, &min_freq);
-	if (ret)
-		pr_err("failed to get cpu frequency limits");
-
 	/* set to 0 to indicate that no user configured */
 	/* cpufreq until now */
 	current_freq_khz = dvfm_current_core_freq_get() * MHZ_TO_KHZ;
 
-	pr_debug("max_freq=%d, min_freq=%d", max_freq, min_freq);
-
-	/* set default policy and cpuinfo */
-	policy->cpuinfo.min_freq = min_freq * MHZ_TO_KHZ;
-	policy->cpuinfo.max_freq = max_freq * MHZ_TO_KHZ;
 	/* Set to 100us latency.
 	 * This will cause the sampling_rate to 100ms.
 	 * Need to tuning it later */
 	policy->cpuinfo.transition_latency = 100 * 1000;
 
-	policy->cur = policy->min = policy->max = current_freq_khz;
+	policy->cur = current_freq_khz;
 
 	/* setup cpuinfo frequency table */
 	ret = setup_freqs_table(policy, core_freqs_table, num_pp);
