@@ -1746,14 +1746,14 @@ static int leave_coherency(int cpu_id)
 
 	coherent_state[cpu_id] = 0;
 
-	for (i = 0; i < num_cpus; i++) {
+	for_each_online_cpu(i) {
 		if (coherent_state[i] && i != cpu_id)
 			send_sync_ipi(i, IPI_CPU_SYNC_COHERENCY);
 	}
 
 	while (!handshake_done) {
 		handshake_done = 1;
-		for (i = 0; i < num_cpus; i++)
+		for_each_online_cpu(i)
 			if (coherent_state[i] && i != cpu_id)
 				handshake_done = 0;
 		dsb();
@@ -1788,14 +1788,14 @@ static int join_coherency(int cpu_id)
 
 	hand_shake_req[cpu_id] = 1;
 
-	for (i = 0; i < num_cpus; i++) {
+	for_each_online_cpu(i) {
 		if (coherent_state[i] && i != cpu_id)
 			send_sync_ipi(i, IPI_CPU_SYNC_COHERENCY);
 	}
 
 	while (!handshake_done) {
 		handshake_done = 1;
-		for (i = 0; i < num_cpus; i++)
+		for_each_online_cpu(i)
 			if (coherent_state[i] && i != cpu_id)
 				handshake_done = 0;
 		dsb();
