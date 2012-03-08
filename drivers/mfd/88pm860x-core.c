@@ -395,44 +395,82 @@ static int __devinit device_gpadc_init(struct pm860x_chip *chip,
 {
 	struct i2c_client *i2c = (chip->id == CHIP_PM8607) ? chip->client \
 				: chip->companion;
-	int data;
-	int ret;
+	int data, ret = 0;
 
 	/* initialize GPADC without activating it */
 
-	if (!pdata || !pdata->touch)
-		return 0;
+	if (pdata && pdata->touch) {
+		/* set GPADC MISC1 register */
+		data = 0;
+		data |= (pdata->touch->gpadc_prebias << 1)
+			& PM8607_GPADC_PREBIAS_MASK;
+		data |= (pdata->touch->slot_cycle << 3)
+			& PM8607_GPADC_SLOT_CYCLE_MASK;
+		data |= (pdata->touch->off_scale << 5)
+			& PM8607_GPADC_OFF_SCALE_MASK;
+		data |= (pdata->touch->sw_cal << 7)
+			& PM8607_GPADC_SW_CAL_MASK;
+		if (data) {
+			ret = pm860x_reg_write(i2c, PM8607_GPADC_MISC1, data);
+			if (ret < 0)
+				goto out;
+		}
+		/* set tsi prebias time */
+		if (pdata->touch->tsi_prebias) {
+			data = pdata->touch->tsi_prebias;
+			ret = pm860x_reg_write(i2c, PM8607_TSI_PREBIAS, data);
+			if (ret < 0)
+				goto out;
+		}
+		/* set prebias & prechg time of pen detect */
+		data = 0;
+		data |= pdata->touch->pen_prebias & PM8607_PD_PREBIAS_MASK;
+		data |= (pdata->touch->pen_prechg << 5)
+			& PM8607_PD_PRECHG_MASK;
+		if (data) {
+			ret = pm860x_reg_write(i2c, PM8607_PD_PREBIAS, data);
+			if (ret < 0)
+				goto out;
+		}
 
-	/* set GPADC MISC1 register */
-	data = 0;
-	data |= (pdata->touch->gpadc_prebias << 1) & PM8607_GPADC_PREBIAS_MASK;
-	data |= (pdata->touch->slot_cycle << 3) & PM8607_GPADC_SLOT_CYCLE_MASK;
-	data |= (pdata->touch->off_scale << 5) & PM8607_GPADC_OFF_SCALE_MASK;
-	data |= (pdata->touch->sw_cal << 7) & PM8607_GPADC_SW_CAL_MASK;
-	if (data) {
-		ret = pm860x_reg_write(i2c, PM8607_GPADC_MISC1, data);
-		if (ret < 0)
-			goto out;
-	}
-	/* set tsi prebias time */
-	if (pdata->touch->tsi_prebias) {
-		data = pdata->touch->tsi_prebias;
-		ret = pm860x_reg_write(i2c, PM8607_TSI_PREBIAS, data);
-		if (ret < 0)
-			goto out;
-	}
-	/* set prebias & prechg time of pen detect */
-	data = 0;
-	data |= pdata->touch->pen_prebias & PM8607_PD_PREBIAS_MASK;
-	data |= (pdata->touch->pen_prechg << 5) & PM8607_PD_PRECHG_MASK;
-	if (data) {
-		ret = pm860x_reg_write(i2c, PM8607_PD_PREBIAS, data);
-		if (ret < 0)
-			goto out;
+		ret = pm860x_set_bits(i2c, PM8607_GPADC_MISC1,
+				      PM8607_GPADC_EN, PM8607_GPADC_EN);
 	}
 
-	ret = pm860x_set_bits(i2c, PM8607_GPADC_MISC1,
-			      PM8607_GPADC_EN, PM8607_GPADC_EN);
+	/*
+	This function configures the ADC as requires for
+	CP implementation.CP does not "own" the ADC configuration
+	registers and relies on AP.
+	Reason: enable automatic ADC measurements needed
+	for CP to get VBAT and RF temperature readings.
+	*/
+	data = pm860x_reg_read(i2c, PM8607_MEAS_EN1);
+	/* Enable auto ADC (RF temprature, and VBAT)*/
+	data |= (PM8607_MEAS_EN1_TINT | PM8607_MEAS_EN1_RFTMP);
+	pm860x_reg_write(i2c, PM8607_MEAS_EN1, data);
+
+	data = 0 ;
+	data = (PM8607_GPADC_MISC1_GPFSM_EN				|
+			PM8607_GPPADC_GP_PREBIAS_TIME(0x01)		|
+			PM8607_GPPADC_SLOW_MODE(0x01));
+	pm860x_reg_write(i2c, PM8607_GPADC_MISC1, data);
+
+	/* set for Temprature mesurmants*/
+	data = 0 ;
+
+	if (pdata && (pdata->batt_det == 0)) {
+		data = (PM8607_GPADC_GP_BIAS_EN0		|
+					PM8607_GPADC_GP_BIAS_EN1	|
+					PM8607_GPADC_GP_BIAS_EN2	|
+					PM8607_GPADC_GP_BIAS_EN3);
+	} else {
+		data = (PM8607_GPADC_GP_BIAS_EN0		|
+					PM8607_GPADC_GP_BIAS_EN2	|
+					PM8607_GPADC_GP_BIAS_EN3);
+	}
+	pm860x_reg_write(i2c, PM8607_GPADC_MISC2, data);
+	pr_info( \
+	"device_gpadc_init:initialize GPADC!!!\n");
 out:
 	return ret;
 }

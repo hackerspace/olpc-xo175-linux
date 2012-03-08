@@ -252,6 +252,9 @@ enum {
 #define PM8607_PD_PREBIAS		(0x56)	/* prebias time */
 #define PM8607_GPADC_MISC1		(0x57)
 
+#define PM8607_GPADC_MISC1_GPFSM_EN		(1 << 0)
+#define PM8607_GPPADC_GP_PREBIAS_TIME(x)	(x << 1)
+#define PM8607_GPPADC_SLOW_MODE(x)		(x << 3)
 #define PM8607_GPADC_MISC2		(0x59)
 #define PM8607_GPADC_GP_BIAS_EN0	(1 << 0)
 #define PM8607_GPADC_GP_BIAS_EN1	(1 << 1)
