@@ -512,7 +512,9 @@ static struct sdhci_pxa_platdata mmp2_sdh_platdata_mmc1 = {
 	.flags		= PXA_FLAG_CARD_PERMANENT | PXA_FLAG_WAKEUP_HOST,
 	.lp_switch	= mmc1_sdio_switch,
 	.pm_caps	= MMC_PM_KEEP_POWER,
+#ifndef CONFIG_SD8XXX_RFKILL
 	.host_caps	= MMC_CAP_POWER_OFF_CARD,
+#endif
 };
 
 static struct sdhci_pxa_platdata mmp2_sdh_platdata_mmc2 = {
@@ -595,17 +597,7 @@ static void mmc1_set_power(unsigned int on)
 static void __init brownstone_init_mmc(void)
 {
 	int sdmmc_pen = mfp_to_gpio(MFP_PIN_GPIO95);
-#ifdef CONFIG_PM_RUNTIME
-	int RESETn = mfp_to_gpio(MFP_PIN_GPIO58);
 
-	if (gpio_request(RESETn, "sdio RESETn")) {
-		pr_err("Failed to request sdio RESETn gpio\n");
-		return;
-	}
-	gpio_direction_output(RESETn, 1);
-	gpio_free(RESETn);
-	platform_device_register(&sdio_power_device);
-#else
 #ifdef CONFIG_SD8XXX_RFKILL
 	int WIB_PDn;
 	int WIB_RESETn;
@@ -615,6 +607,19 @@ static void __init brownstone_init_mmc(void)
 
 	add_sd8x_rfkill_device(WIB_PDn, WIB_RESETn,
 			&mmp2_sdh_platdata_mmc1.pmmc, &mmc1_set_power);
+#else
+#ifdef CONFIG_PM_RUNTIME
+	/* workaround: use rfkill, pm_rumtiem need ldo12 and ldo13 alwayes on */
+	int RESETn = mfp_to_gpio(MFP_PIN_GPIO58);
+
+	if (gpio_request(RESETn, "sdio RESETn")) {
+		pr_err("Failed to request sdio RESETn gpio\n");
+		return;
+	}
+	gpio_direction_output(RESETn, 1);
+	gpio_free(RESETn);
+	platform_device_register(&sdio_power_device);
+
 #endif
 #endif
 #ifndef CONFIG_MTD_NAND_PXA3xx
