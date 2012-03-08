@@ -264,4 +264,11 @@ config CHARGER_MAX8900
 	help
 	  Say Y to include support for MAX8900 charger driver.
 
+config CHARGER_FAN540X
+	tristate "Fairchild FAN5400 Family Battery Charger Support"
+	depends on I2C
+	help
+	  This driver support Fairchild FAN5400 Family USB-Compliant
+	  Singel-Cell Li-Ion Switching Charger with USB-OTG Boost Regulator.
+
 endif # POWER_SUPPLY
