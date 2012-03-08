@@ -189,8 +189,8 @@ static unsigned long mmc2_pin_config[] __initdata = {
 	GPIO42_MMC2_CLK,
 
 	/* GPIO used for power */
-	GPIO58_GPIO, /* WIFI_RST_N */
-	GPIO57_GPIO, /* WIFI_PD_N */
+	GPIO17_GPIO, /* WIFI_RST_N */
+	GPIO16_GPIO, /* WIFI_PD_N */
 };
 
 static unsigned long mmc3_pin_config[] __initdata = {
@@ -476,7 +476,7 @@ static struct regulator_init_data pm800_regulator_data[] = {
 	[PM800_ID_LDO13] = REG_INIT(LDO13, 1200000, 3300000, 1, 1),
 	[PM800_ID_LDO14] = REG_INIT(LDO14, 1200000, 3300000, 1, 1),
 	[PM800_ID_LDO15] = REG_INIT(LDO15, 1200000, 3300000, 0, 1),
-	[PM800_ID_LDO16] = REG_INIT(LDO16, 1200000, 3300000, 0, 0),
+	[PM800_ID_LDO16] = REG_INIT(LDO16, 1200000, 3300000, 1, 1),
 	[PM800_ID_LDO17] = REG_INIT(LDO17, 1200000, 3300000, 1, 1),
 	[PM800_ID_LDO18] = REG_INIT(LDO18, 1700000, 3300000, 1, 1),
 	[PM800_ID_LDO19] = REG_INIT(LDO19, 1700000, 3300000, 1, 1),
@@ -635,26 +635,27 @@ static struct i2c_board_info orchid_twsi3_info[] = {
 #ifdef CONFIG_SD8XXX_RFKILL
 static void mmp3_8787_set_power(unsigned int on)
 {
-	static struct regulator *vbat_fem;
+	static struct regulator *v_ldo16;
 	static int f_enabled = 0;
+
 	/* VBAT_FEM 3.3v */
 	if (on && (!f_enabled)) {
-		vbat_fem = regulator_get(NULL, "VBAT_FEM");
-		if (IS_ERR(vbat_fem)) {
-			vbat_fem = NULL;
-			pr_err("get VBAT_FEM failed %s.\n", __func__);
+		v_ldo16 = regulator_get(NULL, "V_LDO16_3V3");
+		if (IS_ERR(v_ldo16)) {
+			v_ldo16 = NULL;
+			pr_err("get V_LDO16_3V3 failed %s.\n", __func__);
 		} else {
-			regulator_set_voltage(vbat_fem, 3300000, 3300000);
-			regulator_enable(vbat_fem);
+			regulator_set_voltage(v_ldo16, 3300000, 3300000);
+			regulator_enable(v_ldo16);
 			f_enabled = 1;
 		}
 	}
 
 	if (f_enabled && (!on)) {
-		if (vbat_fem) {
-			regulator_disable(vbat_fem);
-			regulator_put(vbat_fem);
-			vbat_fem = NULL;
+		if (v_ldo16) {
+			regulator_disable(v_ldo16);
+			regulator_put(v_ldo16);
+			v_ldo16 = NULL;
 		}
 		f_enabled = 0;
 	}
@@ -692,7 +693,9 @@ static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc0 = {
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc1 = {
 	.flags          = PXA_FLAG_CARD_PERMANENT,
 	.pm_caps        = MMC_PM_KEEP_POWER | MMC_PM_IRQ_ALWAYS_ON,
+#ifndef CONFIG_SD8XXX_RFKILL
 	.host_caps      = MMC_CAP_POWER_OFF_CARD,
+#endif
 };
 
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc2 = {
@@ -715,7 +718,7 @@ static struct regulator_init_data sdio_power_data = {
 static struct fixed_voltage_config sdio_power = {
 	.supply_name            = "vsdio",
 	.microvolts             = 1800000,
-	.gpio                   = mfp_to_gpio(MFP_PIN_GPIO57),
+	.gpio                   = mfp_to_gpio(MFP_PIN_GPIO16),
 	.enable_high            = 1,
 	.enabled_at_boot        = 0,
 	.init_data              = &sdio_power_data,
@@ -723,7 +726,7 @@ static struct fixed_voltage_config sdio_power = {
 
 static struct platform_device sdio_power_device = {
 	.name           = "reg-fixed-voltage",
-	.id             = 2,
+	.id             = 1,
 	.dev = {
 		.platform_data = &sdio_power,
 	},
@@ -731,21 +734,23 @@ static struct platform_device sdio_power_device = {
 
 static void __init orchid_init_mmc(void)
 {
+#ifdef CONFIG_SD8XXX_RFKILL
+	int WIB_PDn = mfp_to_gpio(GPIO16_GPIO);
+	int WIB_RESETn = mfp_to_gpio(GPIO17_GPIO);
+	add_sd8x_rfkill_device(WIB_PDn, WIB_RESETn,\
+			&mmp3_sdh_platdata_mmc1.pmmc, mmp3_8787_set_power);
+#else
 #ifdef CONFIG_PM_RUNTIME
-	int RESETn = mfp_to_gpio(MFP_PIN_GPIO58);
+	int RESETn = mfp_to_gpio(MFP_PIN_GPIO17);
 	if (gpio_request(RESETn, "sdio RESETn")) {
 		pr_err("Failed to request sdio RESETn gpio\n");
 		return;
 	}
+	gpio_direction_output(RESETn, 0);
+	msleep(1);
 	gpio_direction_output(RESETn, 1);
 	gpio_free(RESETn);
-	platform_device_register(&sdio_power_device);
-#else
-#ifdef CONFIG_SD8XXX_RFKILL
-	int WIB_PDn = mfp_to_gpio(GPIO57_GPIO);
-	int WIB_RESETn = mfp_to_gpio(GPIO58_GPIO);
-	add_sd8x_rfkill_device(WIB_PDn, WIB_RESETn,\
-			&mmp3_sdh_platdata_mmc1.pmmc, mmp3_8787_set_power);
+        platform_device_register(&sdio_power_device);
 #endif
 #endif
 	mfp_config(ARRAY_AND_SIZE(mmc3_pin_config));
