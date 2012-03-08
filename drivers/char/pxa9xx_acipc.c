@@ -98,16 +98,26 @@ u32 set_DDR_avail_flag(void);
 #define acipc_writel(off, v)	__raw_writel((v), acipc->mmio_base + (off))
 
 static const enum acipc_events acipc_priority_table_dkb[ACIPC_NUMBER_OF_EVENTS] = {
+#ifdef CONFIG_CPU_PXA978
+	ACIPC_DDR_READY_REQ,
+	ACIPC_DDR_RELQ_REQ,
+#endif
 	ACIPC_RINGBUF_TX_STOP,
 	ACIPC_RINGBUF_TX_RESUME,
 	ACIPC_PORT_FLOWCONTROL,
 	ACIPC_SPARE,
 	ACIPC_SPARE,
 	ACIPC_SPARE,
+#ifdef CONFIG_CPU_PXA910
 	ACIPC_SPARE,
 	ACIPC_SPARE,
 	ACIPC_SHM_PACKET_NOTIFY,
 	ACIPC_IPM
+#endif
+#ifdef CONFIG_CPU_PXA978
+	ACIPC_SHM_PACKET_NOTIFY,
+	ACIPC_SHM_PEER_SYNC
+#endif
 };
 
 /*PXA910 specific define*/
@@ -587,10 +597,6 @@ static void register_pm_events(void)
 #else
 static void register_pm_events(void)
 {
-	/* Nevo DKB is TD technoloy with different event handler. */
-	if (is_nevo_td)
-		return;
-
 	acipc_event_bind(ACIPC_DDR_RELQ_REQ | ACIPC_DDR_260_RELQ_REQ |
 			 ACIPC_DDR_260_READY_REQ | ACIPC_DDR_READY_REQ,
 			 acipc_kernel_callback, ACIPC_CB_NORMAL,
