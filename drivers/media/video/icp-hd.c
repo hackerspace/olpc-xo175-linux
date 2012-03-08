@@ -75,18 +75,6 @@ static struct mipi_phy icphd_timings[] = {
 #define N_ICPHD_TIMINGS ARRAY_SIZE(icphd_timings)
 
 static struct icphd_win_size icphd_sizes[] = {
-#if 0
-	{
-		.width	= 640,
-		.height	= 480,
-		.regs	= NULL,	/* VGA */
-	},
-	{
-		.width	= 1280,
-		.height	= 720,
-		.regs	= NULL,	/* 720p */
-	},
-#endif
 	{
 		.width	= 1920,
 		.height	= 1080,
@@ -97,14 +85,6 @@ static struct icphd_win_size icphd_sizes[] = {
 #define N_ICPHD_SIZES (ARRAY_SIZE(icphd_sizes))
 
 static struct icphd_win_size icphd_jpg_sizes[] = {
-	{
-		.width	= 640,
-		.height	= 480,
-	},
-	{
-		.width	= 2560,
-		.height	= 1920,
-	},
 	{
 		.width	= 3264,
 		.height	= 2448,
@@ -582,8 +562,6 @@ static int icphd_s_register(struct v4l2_subdev *sd,
 
 static int icphd_s_stream(struct v4l2_subdev *sd, int enable)
 {
-	struct i2c_client *client = v4l2_get_subdevdata(sd);
-	struct icphd_info *info = to_info(client);
 	return 0;
 }
 
@@ -607,9 +585,16 @@ static int icphd_s_fmt(struct v4l2_subdev *sd,
 			 struct v4l2_mbus_framefmt *mf)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
-	struct icphd_info *info = to_info(client);
 	int ret = 0;
 
+	switch (mf->code) {
+	case V4L2_MBUS_FMT_UYVY8_2X8:
+		icphd_write_w(client, 0x1000, 0x2000);
+		break;
+	case V4L2_MBUS_FMT_JPEG_1X8:
+		icphd_write_w(client, 0x1000, 0x2001);
+		break;
+	}
 	return ret;
 }
 
@@ -716,7 +701,7 @@ static int icphd_init(struct v4l2_subdev *sd, u32 plat)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	int i;
-	u16 val, tmp;
+	u16 val;
 
 	msleep(10);
 	icphd_load_basic(client);
@@ -734,32 +719,6 @@ static int icphd_init(struct v4l2_subdev *sd, u32 plat)
 	}
 	return -EAGAIN;
 bootdata:
-#if 0
-	tmp = icphd_read_w(client, 0x1000);
-	printk("CTRL is 0x%04X\n", tmp);
-	tmp &= (~0xC000);
-	tmp |= 0x4000;
-	icphd_write_w(client, 0x1000, 0x4000);
-	icphd_write_d(client, 0x2058, 0x07037f26);
-	icphd_write_d(client, 0x205c, 0x08030105);
-	icphd_write_d(client, 0x2064, 0x00EA0000);
-	icphd_write_w(client, 0x201a, 0);
-	icphd_write_w(client, 0x2008, 384);
-	icphd_write_w(client, 0x200A, 2880);
-	icphd_write_w(client, 0x200C, 522);
-	icphd_write_w(client, 0x200E, 1926);
-	icphd_write_w(client, 0x2000, 1920);
-	icphd_write_w(client, 0x2002, 1080);
-	icphd_write_w(client, 0x2024, 30000);
-	icphd_write_w(client, 0x2028, 33000);
-	icphd_write_w(client, 0x2018, 0x0001);
-	tmp &= (~0xC000);
-	tmp |= 0x8000;
-	icphd_write_w(client, 0x1000, 0x8000);
-	msleep(20);
-	tmp = icphd_read_w(client, 0x1000);
-	printk("CTRL is 0x%04X\n", tmp);
-#endif
 	mdelay(200);
 	icphd_load_bootdata(client);
 	mdelay(200);
