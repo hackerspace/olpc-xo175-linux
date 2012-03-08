@@ -103,10 +103,10 @@ static unsigned long orchid_pin_config[] __initdata = {
 	GPIO22_GPIO,	/* CAM2 reset input */
 
 	/* Keypad */
-	GPIO08_KP_MKIN4 | MFP_PULL_HIGH,
-	GPIO09_KP_MKOUT4 | MFP_PULL_HIGH,
-	GPIO10_KP_MKIN5 | MFP_PULL_HIGH,
-	GPIO11_KP_MKOUT5 | MFP_PULL_HIGH,
+	GPIO08_KP_MKIN4,
+	GPIO09_KP_MKOUT4,
+	GPIO10_KP_MKIN5,
+	GPIO11_KP_MKOUT5,
 
 	/* PMIC */
 	PMIC_PMIC_INT | MFP_LPM_EDGE_FALL,
@@ -366,19 +366,19 @@ static struct mv_cam_pdata mv_cam_data = {
 /* sensor init over */
 #endif
 
+static unsigned int orchid_matrix_key_map[] = {
+	KEY(4, 4, KEY_VOLUMEUP),
+	KEY(5, 4, KEY_VOLUMEDOWN),
+	KEY(4, 5, KEY_CAMERA),
+	KEY(5, 5, KEY_CAMERA),
+};
+
 static struct pxa27x_keypad_platform_data mmp3_keypad_info = {
-	.direct_key_map = {
-		KEY_BACK,
-		KEY_MENU,
-		KEY_HOME,
-		KEY_SEARCH,
-		KEY_VOLUMEUP,
-		KEY_RESERVED,
-		KEY_VOLUMEDOWN,
-	},
-	.direct_key_num = 7,
-	.debounce_interval = 30,
-	.active_low = 1,
+	.matrix_key_rows	= 6,
+	.matrix_key_cols	= 6,
+	.matrix_key_map		= orchid_matrix_key_map,
+	.matrix_key_map_size	= ARRAY_SIZE(orchid_matrix_key_map),
+	.debounce_interval	= 30,
 };
 
 /* PMIC Regulator 88PM800 */
