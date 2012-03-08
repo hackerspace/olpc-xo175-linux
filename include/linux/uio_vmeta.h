@@ -11,22 +11,9 @@
 
 typedef unsigned int vmeta_instance_status;
 
-typedef struct _vmeta_user_info {
-	int usertype;	/*0:dec, 1:enc */
-	int strm_fmt;	/*0:mpeg1, 1:mpeg2, 2:mpeg4, 3:h261, 4:h263, 5:h264,
-			6:vc1 ap, 7:jpeg, 8:mjpeg, 10:vc1 sp&mp */
-	int width;
-	int height;
-	int perf_req;	/*-99: expect lowest perf, -1: expect lower perf,
-			0: default perf, 1: expect higher perf,
-			99: expect highest perf*/
-	int curr_op;	/*Filled by driver, inform the
-			high-level the current OP */
-} vmeta_user_info_t;
-
 typedef struct _id_instance {
 	vmeta_instance_status status;
-	vmeta_user_info_t info;
+	vmeta_user_info info;
 	int frame_rate;
 	pid_t pid;
 	unsigned int pt;	/*pthread_t*/
@@ -61,20 +48,6 @@ typedef struct _kernel_share {
 #define VMETA_CMD_PRIV_LOCK		_IO(IOP_MAGIC, 7)
 #define VMETA_CMD_PRIV_UNLOCK		_IO(IOP_MAGIC, 8)
 #define VMETA_CMD_REG_UNREG		_IO(IOP_MAGIC, 9)
-
-#ifndef VMETA_OP_MAX
-#define VMETA_OP_MAX		15
-#define VMETA_OP_MIN		0
-#define VMETA_OP_VGA		1
-#define VMETA_OP_720P		8
-#define VMETA_OP_1080P		14
-#define VMETA_OP_VGA_MAX	(VMETA_OP_720P-1)
-#define VMETA_OP_720P_MAX	(VMETA_OP_1080P-1)
-#define VMETA_OP_1080P_MAX	VMETA_OP_1080P
-#define VMETA_OP_VGA_ENC	VMETA_OP_720P
-#define VMETA_OP_VGA_ENC_MAX	VMETA_OP_720P_MAX
-#define VMETA_OP_INVALID -1
-#endif
 
 /*
 This API is exposed in kernel space to inform other componets, like GC

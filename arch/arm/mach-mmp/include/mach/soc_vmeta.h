@@ -13,6 +13,7 @@
 #include <linux/mutex.h>
 
 #include <linux/uio_driver.h>
+#include <linux/vdec_os_api.h>
 #include <linux/uio_vmeta.h>
 #include <linux/vmeta.h>
 
