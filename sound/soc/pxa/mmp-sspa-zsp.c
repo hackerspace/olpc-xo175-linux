@@ -179,59 +179,39 @@ static struct snd_soc_dai_ops mmp_sspa_zsp_dai_ops = {
 	.set_sysclk	= mmp_sspa_zsp_set_dai_sysclk,
 };
 
-struct snd_soc_dai_driver mmp_sspa_zsp_dai[] = {
-	{
-		.name = "mmp-sspa-dai.0",
-		.id = 0,
-		.suspend = mmp_sspa_zsp_suspend,
-		.resume = mmp_sspa_zsp_resume,
-		.playback = {
-			.channels_min = 1,
-			.channels_max = 128,
-			.rates = PXA688_SSPA_RATES,
-			.formats = PXA688_SSPA_FORMATS,},
-		.capture = {
-			.channels_min = 1,
-			.channels_max = 2,
-			.rates = PXA688_SSPA_RATES,
-			.formats = PXA688_SSPA_FORMATS,},
-		.ops = &mmp_sspa_zsp_dai_ops,
+struct snd_soc_dai_driver mmp_sspa_zsp_dai = {
+	.suspend = mmp_sspa_zsp_suspend,
+	.resume = mmp_sspa_zsp_resume,
+	.playback = {
+		.channels_min = 1,
+		.channels_max = 128,
+		.rates = PXA688_SSPA_RATES,
+		.formats = PXA688_SSPA_FORMATS,
 	},
-	{
-		.name = "mmp-sspa-dai.1",
-		.id = 1,
-		.suspend = mmp_sspa_zsp_suspend,
-		.resume = mmp_sspa_zsp_resume,
-		.playback = {
-			.channels_min = 1,
-			.channels_max = 128,
-			.rates = PXA688_SSPA_RATES,
-			.formats = PXA688_SSPA_FORMATS,},
-		.capture = {
-			.channels_min = 1,
-			.channels_max = 2,
-			.rates = PXA688_SSPA_RATES,
-			.formats = PXA688_SSPA_FORMATS,},
-		.ops = &mmp_sspa_zsp_dai_ops,
+	.capture = {
+		.channels_min = 1,
+		.channels_max = 2,
+		.rates = PXA688_SSPA_RATES,
+		.formats = PXA688_SSPA_FORMATS,
 	},
+	.ops = &mmp_sspa_zsp_dai_ops,
 };
 EXPORT_SYMBOL_GPL(mmp_sspa_zsp_dai);
 
 static __devinit int asoc_mmp_sspa_zsp_probe(struct platform_device *pdev)
 {
-	return snd_soc_register_dais(&pdev->dev, mmp_sspa_zsp_dai,
-				ARRAY_SIZE(mmp_sspa_zsp_dai));
+	return snd_soc_register_dai(&pdev->dev, &mmp_sspa_zsp_dai);
 }
 
 static __devexit int asoc_mmp_sspa_zsp_remove(struct platform_device *pdev)
 {
-	snd_soc_unregister_dais(&pdev->dev, ARRAY_SIZE(mmp_sspa_zsp_dai));
+	snd_soc_unregister_dai(&pdev->dev);
 	return 0;
 }
 
 static struct platform_driver asoc_mmp_sspa_zsp_driver = {
 	.driver = {
-		.name = "mmp-zsp-sspa-dai",
+		.name = "mmp-sspa-dai",
 		.owner = THIS_MODULE,
 	},
 	.probe = asoc_mmp_sspa_zsp_probe,
