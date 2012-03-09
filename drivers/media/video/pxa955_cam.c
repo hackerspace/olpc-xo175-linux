@@ -1110,7 +1110,8 @@ static void sci_enable(struct pxa955_cam_dev *pcdev)
 		val = SCIFIFO_F0_EN << i;
 		sci_reg_set_bit(pcdev, REG_SCIFIFO, val);
 	}
-	sci_reg_set_bit(pcdev, REG_SCIFIFO, SCIFIFO_TFS_64);
+	if (cpu_is_pxa978())
+		sci_reg_set_bit(pcdev, REG_SCIFIFO, SCIFIFO_TFS_64);
 
 	/* start_dma */
 	for (i = 0; i < pcdev->channels; i++)
