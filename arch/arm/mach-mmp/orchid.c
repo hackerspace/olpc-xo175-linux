@@ -46,6 +46,7 @@
 #endif
 #include <plat/usb.h>
 #include <media/soc_camera.h>
+#include <mach/hsi_dev.h>
 #include <mach/sram.h>
 #include <plat/pmem.h>
 
@@ -843,6 +844,24 @@ static void __init mmp_init_vmeta(void)
 }
 #endif
 
+#ifdef CONFIG_MMP3_HSI
+static struct hsi_platform_data mmp_hsi_plat_data = {
+	.hsi_config_int = NULL,
+};
+static void __init mmp_init_hsi(void)
+{
+	mmp_register_hsi(&mmp_hsi_plat_data);
+}
+#endif
+
+static void __init mmp_init_ap_cp(void)
+{
+	mfp_config(ARRAY_AND_SIZE(ap_cp_pin_config));
+#ifdef CONFIG_MMP3_HSI
+	mmp_init_hsi();
+#endif
+}
+
 /* Only for reboot routine */
 static const u32 reg_idbr = APB_VIRT_BASE + 0x11000 + 0x08;
 static const u32 reg_icr = APB_VIRT_BASE + 0x11000 + 0x10;
@@ -1085,7 +1104,7 @@ static void __init orchid_init(void)
 #ifdef CONFIG_ANDROID_PMEM
 	pxa_add_pmem();
 #endif
-
+	mmp_init_ap_cp();
 #ifdef CONFIG_UIO_VMETA
 	mmp_init_vmeta();
 #endif
