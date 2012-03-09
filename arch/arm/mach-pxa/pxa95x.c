@@ -1110,7 +1110,6 @@ static struct clk_lookup common_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_ffuart, "pxa2xx-uart.0", NULL),
 	INIT_CLKREG(&clk_pxa95x_btuart, "pxa2xx-uart.1", NULL),
 	INIT_CLKREG(&clk_pxa95x_stuart, "pxa2xx-uart.2", NULL),
-	INIT_CLKREG(&clk_pxa95x_stuart, "pxa2xx-ir", "UARTCLK"),
 	INIT_CLKREG(&clk_pxa95x_i2c1, "pxa95x-i2c.0", NULL),
 	INIT_CLKREG(&clk_pxa95x_i2c2, "pxa95x-i2c.1", NULL),
 	INIT_CLKREG(&clk_pxa95x_i2c3, "pxa95x-i2c.2", NULL),
