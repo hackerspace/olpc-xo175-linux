@@ -58,13 +58,13 @@ static struct PM8XXX_HS_IOCTL hs_detect;
 
 void pm80x_headphone_handler(int status)
 {
-	if (pm80x_info == NULL)
-		return ;
-	if (pm80x_info->psw_data_headset != NULL) {
-		pm80x_info->status = status;
-		queue_work(pm80x_info->chip->monitor_wqueue,
-			&pm80x_info->work_headset);
-	}
+	if (!pm80x_info || !pm80x_info->psw_data_headset
+		|| !pm80x_info->chip || !pm80x_info->chip->monitor_wqueue)
+		return;
+
+	pm80x_info->status = status;
+	queue_work(pm80x_info->chip->monitor_wqueue,
+		&pm80x_info->work_headset);
 }
 
 static irqreturn_t pm80x_hook_handler(int irq, void *data)
@@ -221,7 +221,7 @@ static int pm80x_headset_switch_probe(struct platform_device *pdev)
 	if (!info)
 		return -ENOMEM;
 	info->chip = chip;
-	info->i2c = chip->companion;
+	info->i2c = chip->pm805_chip->client;
 	info->dev = &pdev->dev;
 	info->irq_headset = irq_headset + chip->pm805_chip->irq_base;
 	info->irq_hook = irq_hook + chip->pm805_chip->irq_base;
@@ -286,7 +286,6 @@ err_switch_dev_register:
 	kfree(switch_data_hook);
 out_irq_hook:
 	free_irq(info->irq_headset, info);
-out_irq_headset:
 	kfree(info);
 	return ret;
 }
@@ -315,15 +314,11 @@ static int __devexit pm80x_headset_switch_remove(struct platform_device *pdev)
 static int pm80x_headset_switch_suspend(struct platform_device *pdev,
 					  pm_message_t state)
 {
-	struct pm80x_headset_info *info = platform_get_drvdata(pdev);
-	struct headset_switch_data *switch_data = info->psw_data_headset;
 	return 0;
 }
 
 static int pm80x_headset_switch_resume(struct platform_device *pdev)
 {
-	struct pm80x_headset_info *info = platform_get_drvdata(pdev);
-	struct headset_switch_data *switch_data = info->psw_data_headset;
 	return 0;
 }
 

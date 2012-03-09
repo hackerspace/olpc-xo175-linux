@@ -90,7 +90,7 @@ static int pm80x_gpio_resume(struct platform_device *pdev)
 	return 0;
 }
 
-static int pm80x_gpio_suspend(struct platform_device *pdev)
+static int pm80x_gpio_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	return 0;
 }
@@ -122,7 +122,7 @@ static int pm80x_gpio_init(void)
 }
 late_initcall(pm80x_gpio_init);
 
-static int pm80x_gpio_exit(void)
+static void __exit pm80x_gpio_exit(void)
 {
 	platform_driver_unregister(&pm80x_gpio_driver);
 	misc_deregister(&pm80x_gpio_miscdev);
