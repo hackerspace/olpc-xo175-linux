@@ -143,6 +143,11 @@ enum {
 #define MAX77601_CNFG2SD		0x22
 #define MAX77601_ROV_EN_SD0		(0x1 << 2)
 
+/* ONOFF register */
+#define MAX77601_ONOFFCNFG2		0x42
+#define MAX77601_ONOFFCNFG1		0x41
+#define MAX77601_SFT_RST_WK		0x80
+#define MAX77601_SFT_RST		0x80
 
 struct max77601_chip {
 	struct device *dev;
@@ -160,8 +165,6 @@ struct max77601_platform_data {
 	int irq_base;
 	int (*setup) (struct max77601_chip *);
 };
-
-
 
 int max77601_read(struct max77601_chip *chip, u8 addr, u8 * values,
 		  unsigned int len);

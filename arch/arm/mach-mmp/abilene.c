@@ -1764,12 +1764,30 @@ static struct uio_hdmi_platform_data mmp3_hdmi_info __initdata = {
 };
 #endif
 
+extern int __raw_i2c_bus_reset(u8 bus_num);
+extern int __raw_i2c_write_reg(u8 bus_num, u8 addr, u8 reg, u8 val);
+extern int __raw_i2c_read_reg(u8 bus_num, u8 addr, u8 reg, u8 *buf, int len);
+
+static void max77601_system_restart(void)
+{
+	u8 data;
+
+	__raw_i2c_read_reg(1, 0x1c, MAX77601_ONOFFCNFG2, &data, 1);
+	data |= MAX77601_SFT_RST_WK;
+	__raw_i2c_write_reg(1, 0x1c, MAX77601_ONOFFCNFG2, data);
+
+	__raw_i2c_read_reg(1, 0x1c, MAX77601_ONOFFCNFG1, &data, 1);
+	data |= MAX77601_SFT_RST;
+	__raw_i2c_write_reg(1, 0x1c, MAX77601_ONOFFCNFG1, data);
+
+	mdelay(10);
+}
+
 static int abilene_board_reset(char mode, const char *cmd)
 {
-#ifdef CONFIG_INPUT_MAX8925_ONKEY
-	extern void max8925_system_restart(char mode, const char *cmd);
-	max8925_system_restart(mode, cmd);
-#endif
+	/* Reset TWSI1 unit firstly */
+	__raw_i2c_bus_reset(1);
+	max77601_system_restart();
 	return 1;
 }
 
