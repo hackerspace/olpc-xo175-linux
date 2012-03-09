@@ -58,6 +58,7 @@
 #define PXA_UART_TX	0
 #define PXA_UART_RX	1
 
+#define SIZE_OF_NAME 20
 struct uart_pxa_port {
 	struct uart_port        port;
 	unsigned int            ier;
@@ -76,6 +77,7 @@ struct uart_pxa_port {
 #else
 	struct wake_lock idle_lock[2];
 	struct pm_qos_request_list qos_idle[2];
+	char idle_lock_name[2][SIZE_OF_NAME];
 #endif
 	int			txdma;
 	int			rxdma;
@@ -1514,20 +1516,25 @@ static int serial_pxa_probe(struct platform_device *dev)
 			sport->dma_enable = 1;
 	}
 
+#ifdef CONFIG_PXA95x
 	for (i = 0; i < 2; i++) {
 		sprintf(dev_name, "%s.%s", sport->name,
 				(i == PXA_UART_RX) ? "rx" : "tx");
 
-#ifdef CONFIG_PXA95x
 		sport->dvfm_dev_idx[i] = -1;
 		dvfm_register(dev_name, &(sport->dvfm_dev_idx[i]));
+	}
 #else
+	for (i = 0; i < 2; i++) {
+		snprintf(sport->idle_lock_name[i], sizeof(sport->idle_lock_name[i]), \
+			"%s.%s.idle", sport->name, (i == PXA_UART_RX) ? "rx" : "tx");
+
 		pm_qos_add_request(&sport->qos_idle[i], PM_QOS_CPU_DMA_LATENCY,
 				PM_QOS_DEFAULT_VALUE);
 		wake_lock_init(&sport->idle_lock[i], WAKE_LOCK_IDLE,
-				(const char *)dev_name);
-#endif
+				(const char *)sport->idle_lock_name[i]);
 	}
+#endif
 
 #ifdef CONFIG_PXA95x
 	sport->notifier_freq_block.notifier_call = uart_notifier_freq;
