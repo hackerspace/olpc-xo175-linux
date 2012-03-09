@@ -516,8 +516,8 @@ static int brownstone_zsp_hw_params(struct snd_pcm_substream *substream,
 	cpu_dai->driver->capture.rates = \
 		snd_pcm_rate_to_rate_bit(params_rate(params));
 
-	if (strcmp(codec_dai->name, "WM8994 AIF1") == 0 ||
-		strcmp(codec_dai->name, "WM8994 AIF2") == 0) {
+	if (strcmp(codec_dai->name, "wm8994-aif1") == 0 ||
+		strcmp(codec_dai->name, "wm8994-aif2") == 0) {
 		int retclk;
 		struct mmp_zsp_clkcfg zspclkcfg;
 
