@@ -33,9 +33,9 @@
 #define HSI_LOCK(USER) (mutex_lock(&(hsi_core->hsi_mutex)))
 #define HSI_UNLOCK(USER) (mutex_unlock(&(hsi_core->hsi_mutex)))
 
-#define HSI_READ32(OFFSET) (readl(hsi_core->mmio_hsi_base + (OFFSET)))
+#define HSI_READ32(OFFSET) (__raw_readl(hsi_core->mmio_hsi_base + (OFFSET)))
 #define HSI_WRITE32(OFFSET, VALUE) \
-	(writel((VALUE), hsi_core->mmio_hsi_base + (OFFSET)))
+	(__raw_writel((VALUE), hsi_core->mmio_hsi_base + (OFFSET)))
 #define HSI_MASK32(MSB, LSB) \
 	((~((u32)0-(u32)(1<<(1+(MSB)-(LSB))))) << (LSB))
 #define HSI_LSB_MASK32(MSB) (~((u32)0-(u32)(1<<(MSB))))
@@ -474,6 +474,7 @@ int hsi_config_dma_rx_channel(int channel,
 	hsi_dma_done_handler_ptr rx_dma_hdlr, bool enable_fifo);
 
 int hsi_transmit(int chnl, u32 *data, u32 byte_cnt);
+int hsi_transmit_cmd(int chnl, u32 *data, u32 byte_cnt, u32 *tx_cnt);
 int hsi_transmit_nblk(int chnl, u32 *data, u32 byte_cnt, u32 *tx_cnt);
 int hsi_transmit_dma(int chnl, u32 *data, u32 byte_cnt, void * cookie);
 int hsi_transmit_dma_chain(int channel, u32 **data,

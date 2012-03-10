@@ -58,7 +58,7 @@
 
 #include "mmp3_hsi.h"
 
-
+#define HSI_DEBUG		0
 #define FRAME_PER_FIFO	2
 #define MSEC_TO_US	1000
 #define SEC_TO_US	1000000
@@ -91,7 +91,7 @@ static struct hsi_cfg_strt hsi_config = {
 
 static bool read_data_from_fifo(u32 frame_count, int channel)
 {
-	u32 frame_data;
+	u32 frame_data, frame_head, frame_channel, cmd_ack = 0;
 	bool ret = true;
 	struct strt_hsi_rx_ch_cfg *rx_cfg;
 
@@ -99,14 +99,33 @@ static bool read_data_from_fifo(u32 frame_count, int channel)
 
 	while (frame_count != 0) {
 		frame_data = HSI_READ32(RX_FIFO + (channel << 3));
-		if (rx_cfg->rx_cpu_handler)
-			rx_cfg->rx_cpu_handler(channel, frame_data);
+		frame_head = frame_data >> 28;
+		/* reply ACK if it's open connection */
+		if (frame_head == 0x07) {
+			frame_channel = (frame_data >> 24) & 0xf;
+			if (frame_channel > HSI_CH_NUM) {
+				pr_err("channel number out of range: %d\n",
+						frame_channel);
+				ret = false;
+				break;
+			}
+
+			cmd_ack = (0xb << 28) | (frame_channel << 24);
+			/* send ACK */
+			HSI_WRITE32(TX_FIFO + (channel << 3), cmd_ack);
+		} else if (frame_head == 0x0b) {
+		/* receiver ACK, and don't deliver it to DL layer */
+			frame_count--;
+			continue;
+		}
 
 		if (rx_cfg->rx_frame == NULL) {
 			frame_count--;
 			continue;
 		}
 
+		if (rx_cfg->rx_cpu_handler)
+			rx_cfg->rx_cpu_handler(channel, frame_data);
 		if (rx_cfg->rx_frame_rcv < rx_cfg->rx_frame_cnt) {
 			*rx_cfg->rx_frame = frame_data;
 			rx_cfg->rx_frame++;
@@ -277,8 +296,11 @@ static int hsi_dma_tx_err_handler(int channel)
 	return 0;
 }
 
+/* we don't need dma tx done and don't notify data link driver.
+ * only enable for debug purpose */
 static int hsi_dma_tx_done_handler(int channel)
 {
+#if HSI_DEBUG
 	struct strt_hsi_tx_ch_cfg *tx_cfg;
 
 	tx_cfg = &(hsi_core->hsi_config->tx_chnl_config[channel]);
@@ -290,6 +312,7 @@ static int hsi_dma_tx_done_handler(int channel)
 
 	if (tx_cfg->tx_dma_handler)
 		tx_cfg->tx_dma_handler(channel, tx_cfg->dma_cookie);
+#endif
 
 	return 0;
 }
@@ -1245,7 +1268,6 @@ bool hsi_enable_tx_fifo_int(int channel, struct strt_hsi_tx_ch_cfg *tx_cfg)
 		if (tx_cfg->tx_fifo_req_sel == HSI_FIFO_REQ_INT)
 			channel_mask |= HSI_CH_MSK_TX_FIFO_THRS;
 		else {
-			channel_mask |= HSI_CH_MSK_TX_DMA_DONE;
 			channel_mask |= HSI_CH_MSK_TX_DMA_ERR;
 		}
 		HSI_WRITE32(CHNL_INT_MASK + (channel << 2), channel_mask);
@@ -1409,9 +1431,24 @@ EXPORT_SYMBOL(hsi_config_dma_tx_channel);
 
 int hsi_transmit(int channel, u32 *data, u32 byte_count)
 {
-	return hsi_transmit_nblk(channel, data, byte_count, NULL);
+	if (byte_count == 4)
+		return hsi_transmit_cmd(channel, data, byte_count, NULL);
+	if (byte_count > 4)
+		return hsi_transmit_nblk(channel, data, byte_count, NULL);
+	else
+		return -EINVAL;
 }
 EXPORT_SYMBOL(hsi_transmit);
+
+int hsi_transmit_cmd(int channel, u32 *data, u32 byte_count, u32 *tx_cnt)
+{
+	HSI_LOCK(0);
+	HSI_WRITE32(TX_FIFO + (channel << 3), *data);
+	HSI_UNLOCK(0);
+
+	return 0;
+}
+EXPORT_SYMBOL(hsi_transmit_cmd);
 
 int hsi_transmit_nblk(int channel, u32 *data, u32 byte_count, u32 *tx_cnt)
 {
@@ -1505,7 +1542,6 @@ EXPORT_SYMBOL(hsi_transmit_nblk);
 
 int hsi_transmit_dma(int channel, u32 *paddr, u32 byte_count, void *cookie)
 {
-	unsigned long flags;
 	struct strt_hsi_tx_ch_cfg *tx_cfg;
 	u32 reg;
 	int burst_size;
@@ -1515,16 +1551,6 @@ int hsi_transmit_dma(int channel, u32 *paddr, u32 byte_count, void *cookie)
 		- tx_cfg->tx_ch_fifo_thrs) * 4;
 	if (burst_size <= 0)
 		return -EINVAL;
-
-	spin_lock_irqsave(&hsi_core->s_irqlock, flags);
-	if (tx_cfg->tx_busy) {
-		spin_unlock_irqrestore(&hsi_core->s_irqlock, flags);
-		return -EBUSY;
-	} else {
-		tx_cfg->tx_busy = true;
-		tx_cfg->dma_err = false;
-	}
-	spin_unlock_irqrestore(&hsi_core->s_irqlock, flags);
 
 	HSI_LOCK(0);
 
