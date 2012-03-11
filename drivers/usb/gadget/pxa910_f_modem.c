@@ -916,6 +916,76 @@ marvell_modem_rx_callback gs_marvell_modem_rx_csd_callback =
 	(marvell_modem_rx_callback) NULL;
 EXPORT_SYMBOL(gs_marvell_modem_rx_csd_callback);
 
+
+/*
+ * The following callback is used for notifying a client on the IOCTL
+ * event that was received by the modem.
+ * This notification is needed by the AP implementation of the
+ * PPP module.
+ */
+typedef int (*marvell_modem_ioctl_notify_callback)
+		(struct tty_struct *tty, unsigned int cmd, unsigned long arg);
+
+marvell_modem_ioctl_notify_callback
+	gs_marvell_modem_ioctl_notify_callback =
+	(marvell_modem_ioctl_notify_callback) NULL;
+EXPORT_SYMBOL(gs_marvell_modem_ioctl_notify_callback);
+
+/*
+ * gs_marvell_modem_send_to_atcmdsrv
+ *
+ * This function allows for direct connection between
+ * the PPP server and the AT Command Server.
+ * This functionality is needed because during PPP handshake,
+ * it needs to send AT commands to the AT Command Server
+ * (mimicking the path from PC to AT Command Server)
+ */
+int gs_marvell_modem_send_to_atcmdsrv(char *buf, int count)
+{
+	struct pxa910_gs_port *port = NULL;
+	struct tty_struct *tty;
+	struct pxa_f_acm *acm;
+	unsigned long flags, modem_state;
+
+	/* Assume that we have only one port */
+	port = pxa910_ports[GS_MODEM_PORT_BASE].port;
+
+	spin_lock_irqsave(&port->port_lock, flags);
+
+	tty = port->port_tty;
+
+	if (tty == NULL || tty->driver_data == NULL || port->port_usb == NULL) {
+		spin_unlock_irqrestore(&port->port_lock, flags);
+		return count;
+	}
+
+	spin_unlock_irqrestore(&port->port_lock, flags);
+
+	/* sync with gs_ioctl, get the same f_acm!*/
+	acm = pxa_port_to_acm(port->port_usb);
+
+	spin_lock_irqsave(&port->port_lock, flags);
+	modem_state = acm->modem_state;
+	spin_unlock_irqrestore(&port->port_lock, flags);
+
+	if (modem_state != MODEM_CONTROL_MODE) {
+
+		count = tty_insert_flip_string(tty, buf, count);
+
+		if (count) {
+
+			tty_flip_buffer_push(tty);
+
+			wake_up_interruptible(&tty->read_wait);
+
+		}
+	} else
+		pr_err("%s: Message from TTY dropped\n", __func__);
+
+	return count;
+}
+EXPORT_SYMBOL(gs_marvell_modem_send_to_atcmdsrv);
+
 static int gs_marvell_modem_write(struct tty_struct *tty,
 				  const unsigned char *buf, int count)
 {
@@ -1140,6 +1210,7 @@ static int pxa_gs_ioctl(struct tty_struct *tty, unsigned int cmd,
 {
 	struct pxa910_gs_port *port;
 	struct pxa_f_acm *acm;
+	int    rc = 0;
 
 	if (tty == NULL) {
 		pr_err("%s cmd %u. call from context [%d:%d]: tty is NULL pointer\n",
@@ -1186,11 +1257,18 @@ static int pxa_gs_ioctl(struct tty_struct *tty, unsigned int cmd,
 		pr_err("%s cmd %u. call from context [%d:%d]: Command not implemented\n",
 			   __func__, cmd, current->pid, current->tgid);
 		/* could not handle ioctl */
-		return -ENOIOCTLCMD;
+		rc = -ENOIOCTLCMD;
 
 	}
 
-	return 0;
+	/*
+	 * Check if notification callback is registered, and if so
+	 * call it.
+	 */
+	if (gs_marvell_modem_ioctl_notify_callback != NULL)
+		rc = gs_marvell_modem_ioctl_notify_callback(tty, cmd, arg);
+
+	return rc;
 }
 
 static const struct tty_operations gs_marvell_modem_tty_ops = {
