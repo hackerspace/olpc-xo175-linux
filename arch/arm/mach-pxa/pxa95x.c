@@ -22,7 +22,6 @@
 #include <linux/memblock.h>
 #include <linux/sysdev.h>
 #include <linux/delay.h>
-#include <linux/uio_vmeta.h>
 
 #include <asm/hardware/cache-tauros2.h>
 #ifdef CONFIG_CACHE_L2X0
@@ -41,6 +40,8 @@
 #include <mach/pxa95x_dvfm.h>
 #include <mach/pmu.h>
 #include <mach/debug_pm.h>
+
+#include <linux/uio_vmeta.h>
 
 #include <plat/pmem.h>
 #include <plat/clock.h>
