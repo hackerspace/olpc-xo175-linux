@@ -20,6 +20,7 @@
 #include <linux/delay.h>
 #include <linux/smc91x.h>
 #include <linux/mfd/88pm80x.h>
+#include <linux/i2c/ft5306_touch.h>
 #include <linux/pwm_backlight.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/driver.h>
@@ -42,7 +43,6 @@
 #if defined(CONFIG_SPI_PXA2XX)
 #include <linux/spi/spi.h>
 #include <linux/spi/pxa2xx_spi.h>
-#include <linux/spi/ntrig_spi.h>
 #endif
 #include <plat/usb.h>
 #include <media/soc_camera.h>
@@ -88,6 +88,10 @@ static unsigned long orchid_pin_config[] __initdata = {
 	/* TWSI6 */
 	GPIO47_TWSI6_SCL,
 	GPIO48_TWSI6_SDA,
+
+	/* FT5306 Touch */
+	GPIO7_GPIO | MFP_PULL_LOW,
+	GPIO13_GPIO,
 
 	/* SSPA1 (I2S) */
 	GPIO24_I2S_SYSCLK,
@@ -146,7 +150,6 @@ static unsigned long orchid_pin_config[] __initdata = {
 	GPIO4_GPIO,
 	GPIO5_GPIO,
 	GPIO6_GPIO,
-	GPIO7_GPIO,
 
 	/* misc */
 	SMART_BAT,
@@ -618,8 +621,70 @@ static struct platform_device orchid_lcd_backlight_devices = {
 	},
 };
 
-/* TODO: For touch panel */
+#if defined(CONFIG_TOUCHSCREEN_FT5306)
+static int ft5306_touch_io_power_onoff(int on)
+{
+	struct regulator *v_ldo14_2v8;
+	v_ldo14_2v8 = regulator_get(NULL, "V_LDO14_2V8");
+	if (IS_ERR(v_ldo14_2v8)) {
+		v_ldo14_2v8 = NULL;
+		pr_err("%s: enable V_LDO14_2V8 for touch fail!\n", __func__);
+		return -EIO;
+	}
+	else {
+		if (on) {
+			regulator_set_voltage(v_ldo14_2v8, 2800000, 2800000);
+			regulator_enable(v_ldo14_2v8);
+		}
+		else {
+			regulator_disable(v_ldo14_2v8);
+			v_ldo14_2v8 = NULL;
+		}
+		msleep(100);
+		regulator_put(v_ldo14_2v8);
+	}
+	return 0;
+}
+
+static void ft5306_touch_reset(void)
+{
+	unsigned int touch_reset;
+
+	touch_reset = mfp_to_gpio(MFP_PIN_GPIO13);
+
+	if (gpio_request(touch_reset, "ft5306_reset")) {
+		pr_err("Failed to request GPIO for ft5306_reset pin!\n");
+		goto out;
+	}
+
+	gpio_direction_output(touch_reset, 1);
+	msleep(5);
+	gpio_direction_output(touch_reset, 0);
+	msleep(5);
+	gpio_direction_output(touch_reset, 1);
+	msleep(300);
+	printk(KERN_INFO "ft5306_touch reset done.\n");
+	gpio_free(touch_reset);
+out:
+	return;
+}
+
+static struct ft5306_touch_platform_data ft5306_touch_data = {
+	.power = ft5306_touch_io_power_onoff,
+	.reset = ft5306_touch_reset,
+};
+#endif
+
+/* touch panel */
 static struct i2c_board_info orchid_twsi5_info[] = {
+#if defined(CONFIG_TOUCHSCREEN_FT5306)
+	{
+		.type		= "ft5306_touch",
+		.addr		=  0x38,
+		.irq  = gpio_to_irq(mfp_to_gpio(GPIO7_GPIO)),
+		.platform_data	= &ft5306_touch_data,
+	},
+#endif
 };
 
 /* TODO: For NFC module and HDMI */
