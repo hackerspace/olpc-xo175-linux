@@ -53,9 +53,12 @@ static int max77601_onkey_suspend(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct max77601_chip *chip = dev_get_drvdata(pdev->dev.parent);
+	struct max77601_onkey_info *info = platform_get_drvdata(pdev);
 
-	if (device_may_wakeup(dev))
+	if (device_may_wakeup(dev)) {
 		enable_irq_wake(chip->core_irq);
+		enable_irq_wake(info->irq);
+	}
 
 	return 0;
 }
@@ -64,9 +67,12 @@ static int max77601_onkey_resume(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct max77601_chip *chip = dev_get_drvdata(pdev->dev.parent);
+	struct max77601_onkey_info *info = platform_get_drvdata(pdev);
 
-	if (device_may_wakeup(dev))
+	if (device_may_wakeup(dev)) {
 		disable_irq_wake(chip->core_irq);
+		disable_irq_wake(info->irq);
+	}
 
 	return 0;
 }
