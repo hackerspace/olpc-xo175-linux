@@ -236,6 +236,7 @@ static int max77601_irq_init(struct max77601_chip *chip, int irq,
 	unsigned long flags =
 	    IRQF_TRIGGER_LOW | IRQF_ONESHOT | IRQF_DISABLED;
 	u8 data;
+	struct irq_desc *desc;
 
 	if (!pdata || !pdata->irq_base) {
 		dev_warn(chip->dev, "No interrupt support on IRQ base\n");
@@ -255,6 +256,14 @@ static int max77601_irq_init(struct max77601_chip *chip, int irq,
 	chip->irq_base = pdata->irq_base;
 	chip->core_irq = irq;
 
+	if (!chip->core_irq) {
+		dev_warn(chip->dev, "No interrupt support on core IRQ\n");
+		return -EINVAL;
+	}
+
+	desc = irq_to_desc(chip->core_irq);
+	max77601_irqtop_chip.irq_set_wake = desc->irq_data.chip->irq_set_wake;
+
 	/* register with genirq */
 	for (i = pdata->irq_base;
 	     i < (pdata->irq_base + MAX77601_IRQTOP_NR_INTS); i++) {
@@ -263,11 +272,6 @@ static int max77601_irq_init(struct max77601_chip *chip, int irq,
 					 handle_edge_irq);
 		set_irq_flags(i, IRQF_VALID);
 		irq_set_nested_thread(i, 1);
-	}
-
-	if (!irq) {
-		dev_warn(chip->dev, "No interrupt support on core IRQ\n");
-		return -EINVAL;
 	}
 
 	ret = request_threaded_irq(irq, NULL, max77601_irqtop_isr, flags,
