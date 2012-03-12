@@ -241,15 +241,22 @@ static __attribute__ ((unused)) int m6mo_write_sensor(struct i2c_client *client,
 static int m6mo_detect(struct i2c_client *client)
 {
 	u8 v[6];
+	int ret;
 
-	m6mo_write(client, CAM_START, 1);
+	ret = m6mo_write(client, CAM_START, 1);
+	if (ret < 0)
+		return -EAGAIN;
+
 	msleep(10);
-	m6mo_read_n(client, SYSP_CUSTOMER_CODE, v, 6);
+	ret = m6mo_read_n(client, SYSP_CUSTOMER_CODE, v, 6);
+	if (ret < 0)
+		return -EIO;
 	printk(KERN_NOTICE "cam: m6mo: magic_code: 0x%02X%02X, " \
 		"firmware_ver: 0x%02X%02X, hardware_ver: 0x%02X%02X\n", \
 		v[0], v[1], v[2], v[3], v[4], v[5]);
-
-	m6mo_read(client, SYSP_STATUS, v);
+	ret = m6mo_read(client, SYSP_STATUS, v);
+	if (ret < 0)
+		return -EIO;
 	if (unlikely(v[0] != STAT_SETIN)) {
 		printk(KERN_ERR "cam: m6mo: ISP status error: 0x%02X, " \
 				"failed to initialize\n", v[0]);
