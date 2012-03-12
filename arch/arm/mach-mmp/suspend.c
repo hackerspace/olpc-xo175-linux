@@ -54,11 +54,7 @@ static int mmp3_pm_enter(suspend_state_t state)
 	 * make sure the interrupt is enabled here.
 	 */
 
-	/*
-	 * FIXME: Currently due to silicon issue, we use C1 as suspend state.
-	 * Will fix when hardware is ready.
-	 */
-	mmp3_pm_enter_idle(smp_processor_id());
+	mmp3_pm_enter_d2();
 
 	return 0;
 }

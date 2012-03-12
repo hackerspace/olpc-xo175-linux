@@ -31,6 +31,7 @@
 #include <mach/regs-apmu.h>
 #include <mach/regs-mpmu.h>
 #include <mach/regs-ciu.h>
+#include <mach/regs-icu.h>
 #include <mach/system.h>
 #ifdef CONFIG_TRACEPOINTS
 #define CREATE_TRACE_POINTS
@@ -1876,6 +1877,175 @@ static void mmp3_do_idle(void)
 	if (!need_resched())
 		mmp3_pm_enter_idle(smp_processor_id());
 	local_irq_enable();
+}
+
+static void program_ddr3_calibration_cmd_b0(unsigned int dmcu, unsigned int tabidx)
+{
+	COMMON_DEF(dmcu);
+	BEGIN_TABLE(tabidx);
+
+	/* make sure that Mck4 is halt for any read\write commands */
+	INSERT_ENTRY(DMCU_SDRAM_CTRL14, ALLBITS, 0x2);
+	/* PHY DLL reset */
+	INSERT_ENTRY(DMCU_PHY_CTRL14, ALLBITS, 0x20000000);
+	/* PHY DLL Update */
+	INSERT_ENTRY(DMCU_PHY_CTRL14, ALLBITS, 0x40000000);
+	/* Sync 2x clock (EOP) */
+	PAUSE_ENTRY(DMCU_PHY_CTRL14, ALLBITS, 0x80000000);
+
+	/* Reset DLL */
+	INSERT_ENTRY(DMCU_SDRAM_CTRL1, 0, 0x40);
+	/* Send LMR0 DLL */
+	INSERT_ENTRY(DMCU_USER_COMMAND0, ALLBITS, 0x03000100);
+	/* Send LMR2 DLL */
+	INSERT_ENTRY(DMCU_USER_COMMAND0, ALLBITS, 0x03000400);
+	/* ZQ Calibration */
+	INSERT_ENTRY(DMCU_USER_COMMAND0, ALLBITS, 0x03001000);
+	/* resume scheduler */
+	LAST_ENTRY(DMCU_SDRAM_CTRL14, ALLBITS, 0x0);
+}
+
+static void program_lpddr2_calibration_cmd_b0(unsigned int dmcu, unsigned int tabidx)
+{
+	COMMON_DEF(dmcu);
+	BEGIN_TABLE(tabidx);
+
+	/* make sure that Mck4 is halt for any read\write commands */
+	INSERT_ENTRY(DMCU_SDRAM_CTRL14, ALLBITS, 0x2);
+	/* PHY DLL reset */
+	INSERT_ENTRY(DMCU_PHY_CTRL14, ALLBITS, 0x20000000);
+	/* PHY DLL Update */
+	INSERT_ENTRY(DMCU_PHY_CTRL14, ALLBITS, 0x40000000);
+	/* Sync 2x clock (EOP) */
+	PAUSE_ENTRY(DMCU_PHY_CTRL14, ALLBITS, 0x80000000);
+
+	/* MR 1 */
+	INSERT_ENTRY(DMCU_USER_COMMAND1, ALLBITS, 0x03020001);
+	/* MR 2 */
+	INSERT_ENTRY(DMCU_USER_COMMAND1, ALLBITS, 0x03020002);
+	/* resume scheduler */
+	LAST_ENTRY(DMCU_SDRAM_CTRL14, ALLBITS, 0x0);
+}
+
+static void program_dll_table_b0(unsigned int dmcu, unsigned int tabidx)
+{
+	u32 mc_parctr;
+	unsigned int ddr_type;
+
+	ddr_type = (__raw_readl(dmcu + 0x58) & 0x1C) >> 2;
+	if (ddr_type == 0x2)
+		program_ddr3_calibration_cmd_b0(dmcu, tabidx);
+	else
+		program_lpddr2_calibration_cmd_b0(dmcu, tabidx);
+
+	mc_parctr = __raw_readl(APMU_MC_PAR_CTRL) & ~(0x4);
+	if (dmcu == (u32)mmp3_pmu_config.dmcu[0]) {
+		mc_parctr &= ~(0x7 << 5);
+		mc_parctr |= (tabidx << 5);
+	} else {
+		mc_parctr &= ~(0x7 << 8);
+		mc_parctr |= (tabidx << 8);
+	}
+	__raw_writel(mc_parctr, APMU_MC_PAR_CTRL);
+}
+
+static void mmp3_pm_c2_cfg(int cpu)
+{
+	struct mmp3_cpu_idle_config *cic;
+	int core_id = mmp3_smpid();
+
+	cic = &(mmp3_percpu[core_id].cic);
+	mmp3_mod_idle_config(cic, MMP3_PM_C2_L1_L2_PWD);
+}
+
+static u32 ccic, gc, vmeta, audio_clk, audio_dsa, isld, apcr;
+void mmp3_set_wakeup_src(void)
+{
+	int val = 0;
+
+	/* enable wakeup 7 as wakeup input source */
+	val |= (1 << 7);
+	__raw_writel(val, MPMU_AWUCRM);
+}
+
+static void d2(void)
+{
+	u32 reg;
+
+	/* walk around for B0: program dll table before entering D2 */
+	program_dll_table_b0((u32)mmp3_pmu_config.dmcu[0], 0);
+	program_dll_table_b0((u32)mmp3_pmu_config.dmcu[1], 0);
+
+	ccic = __raw_readl(APMU_CCIC_RST);
+	gc = __raw_readl(APMU_GC);
+	vmeta = __raw_readl(APMU_VMETA);
+	/* Disable power to other power islands: ISP, GC and VMeta */
+	__raw_writel(0x00, APMU_CCIC_RST);
+	__raw_writel(0x00, APMU_GC);
+	__raw_writel(0x00, APMU_VMETA);
+
+	/* Disable power to Audio island */
+	audio_clk = __raw_readl(APMU_AUDIO_CLK_RES_CTRL);
+	audio_dsa = __raw_readl(APMU_AUDIO_DSA);
+	isld = __raw_readl(APMU_ISLD_DSPA_CTRL);
+	__raw_writel(0x00, APMU_AUDIO_CLK_RES_CTRL);
+	__raw_writel(0x00, APMU_AUDIO_DSA);
+	__raw_writel(0x00, APMU_ISLD_DSPA_CTRL);
+
+	reg = __raw_readl(APMU_AUDIO_SRAM_PWR);
+	reg |= (0x3 << 6);
+	reg |= (0x3 << 8);
+	reg |= (0x3 << 10);
+	__raw_writel(reg, APMU_AUDIO_SRAM_PWR);
+
+	/* Dragonite power control */
+	__raw_writel(0xbe086000, MPMU_CPCR);
+
+	apcr = __raw_readl(MPMU_APCR);
+	/* PJ power control, wake up port 4 enabled*/
+	__raw_writel(__raw_readl(MPMU_APCR) | (1 << 31) | (1 << 27) |
+			(1 << 26)  | (1 << 20) | (1 << 21) |
+			(1 << 22) | (1 << 23) | (1 << 19) |
+			(1 << 16) | (1 << 17) | (1 << 25),
+			MPMU_APCR);
+}
+
+void mmp3_pm_enter_d2(void)
+{
+	d2();
+	mmp3_pm_c2_cfg(smp_processor_id());
+	mmp3_set_wakeup_src();
+
+	/* walk around: keep SL2 power on */
+	__raw_writel(__raw_readl(0xfe282a48) | (1 << 15), 0xfe282a48);
+	/* walk around: keep pclk on */
+	__raw_writel(__raw_readl(APMU_CC2_PJ) | (1u << 31), APMU_CC2_PJ);
+
+	printk("before suspend\n");
+	flush_cache_all();
+	dsb();
+	/* flush outer cache */
+	outer_flush_all();
+	dsb();
+
+	__asm__ __volatile__ ("wfi");
+	printk("after resume\n");
+
+	/* walk around: shut pclk off to save power */
+	__raw_writel(__raw_readl(APMU_CC2_PJ) & ~(1u << 31), APMU_CC2_PJ);
+	/* walk around: clear SL2 power bit */
+	__raw_writel(__raw_readl(0xfe282a48) & ~(1 << 15), 0xfe282a48);
+
+	__raw_writel(apcr, MPMU_APCR);
+
+	/* resotre audio clocks otherwise will hang later */
+	__raw_writel(audio_clk, APMU_AUDIO_CLK_RES_CTRL);
+	__raw_writel(audio_dsa, APMU_AUDIO_DSA);
+	__raw_writel(isld, APMU_ISLD_DSPA_CTRL);
+
+	__raw_writel(ccic, APMU_CCIC_RST);
+	__raw_writel(gc, APMU_GC);
+	__raw_writel(vmeta, APMU_VMETA);
 }
 
 #ifdef CONFIG_SMP

@@ -89,6 +89,7 @@
 #define APMU_PWR_STATUS_REG     APMU_REG(0x00f0)
 
 #define APMU_ISLD_CPUMC_PDWN_CTRL	APMU_REG(0x01f8)
+#define APMU_MC_PAR_CTRL		APMU_REG(0x011c)
 
 /* Debug register */
 #define APMU_DEBUG		APMU_REG(0x0088)
