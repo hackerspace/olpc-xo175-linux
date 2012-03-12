@@ -125,6 +125,8 @@
 #define PM_START		0x40f50000
 #define PM_END			0x40f5018f
 
+#define REMAP_C2_REG	0x581100a4
+
 /* Bits definition for Clock Control Register */
 #define ACCR_PCCE	(1 << 11)
 
@@ -276,6 +278,7 @@
 
 /* value for PWRMODE register */
 #define PXA95x_PM_S2D3C4	0x06
+#define PXA978_PM_S0D0CG	0x06
 #define PXA95x_PM_S0D2C2	0x03
 #define PXA95x_PM_S3D4C4	0x07
 #define PXA978_CORE_FC		0x04
@@ -561,6 +564,7 @@ struct pxa95x_peripheral_wakeup_ops {
 	int (*tsi) (pm_wakeup_src_t src, int enable);
 	int (*cmwdt) (pm_wakeup_src_t src, int enable);
 };
+extern unsigned int *remap_c2_reg;
 
 #define GC_PWR_ENABLE		(1)
 #define GC_PWR_DISABLE		(0)
@@ -574,6 +578,7 @@ extern unsigned int pm_core_pwdn(unsigned int powerState);
 extern unsigned int pm_enter_cgm_deepidle(unsigned int);
 extern int pxa95x_query_gwsr(int);
 extern u32 get_mipi_reference_control(void);
+extern void ca9_enter_idle(unsigned int pwrmode, unsigned int sramaddr, unsigned int l2c_base_address);
 
 #endif
 #endif

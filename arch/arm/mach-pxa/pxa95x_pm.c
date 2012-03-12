@@ -34,6 +34,7 @@
 #include <mach/mfp-pxa3xx.h>
 #include <mach/gpio.h>
 #include <mach/debug_pm.h>
+#include <mach/ca9_regs.h>
 #ifdef CONFIG_ISPT
 #include <mach/pxa_ispt.h>
 #endif
@@ -183,6 +184,8 @@ unsigned char __iomem *ost_membase;
 EXPORT_SYMBOL(ost_membase);
 unsigned char __iomem *pm_membase;
 
+unsigned int *remap_c2_reg;
+
 extern void pxa95x_cpu_sleep(unsigned int, unsigned int);
 extern void pxa95x_cpu_resume(void);
 extern void pxa95x_init_standby(unsigned int);
@@ -220,7 +223,8 @@ int is_wkr_mg1_1358(void)
 	 * because they are reserved but this JIRA is relevant for PXA950 as
 	 * well since bit 21 is controlling 13M D2 enable functionality
 	 */
-
+	if (cpu_is_pxa978())
+		return 0;
 	/* It's PXA955 */
 	if ((cpuid & 0x0000FFF0) == 0x5810)
 		return 1;
@@ -451,6 +455,7 @@ static void pxa95x_gpio_restore(struct gpio_regs *context)
 	GFER3 = context->gfer3;
 }
 
+struct pl310_registers pl310_regs;
 static void pxa95x_sysbus_init(struct pxa95x_pm_regs *context)
 {
 	context->smc.membase = ioremap(SMC_START, SMC_END - SMC_START + 1);
@@ -462,11 +467,16 @@ static void pxa95x_sysbus_init(struct pxa95x_pm_regs *context)
 
 	isram_size = (128 * 1024);
 
-	context->sram_map = __arm_ioremap(ISRAM_START, isram_size, MT_MEMORY_ITCM);
+	context->sram_map = __arm_ioremap(ISRAM_START, isram_size, MT_MEMORY_NONCACHED);
 	context->sram = vmalloc(isram_size);
 	/* Two words begun from 0xC0000000 are used to store key information.
 	 */
 	context->data_pool = (unsigned char *)0xC0000000;
+	if (cpu_is_pxa978()) {
+		pl310_regs.memset = ioremap(L2310_ADDR_START, L2310_ADDR_END - L2310_ADDR_START + 1);
+		printk(KERN_DEBUG "pl310_regs.memset = 0x%lx, Start: 0x%lx END: 0x%lx\n",
+						pl310_regs.memset, L2310_ADDR_START, L2310_ADDR_END);
+	}
 }
 
 static void pxa95x_sysbus_save(struct pxa95x_pm_regs *context)
@@ -1077,7 +1087,7 @@ unsigned int pm_core_pwdn(unsigned int powerState)
 {
 	unsigned int cpupwr = 0;
 
-	if (cpu_is_pxa95x()) {
+	if (cpu_is_pxa95x() && !(cpu_is_pxa978())) {
 		/*This function is called before & after LPM
 		   Normal functionallity is that outside of these functions
 		   the register will be set to 0x0001 -
@@ -1188,7 +1198,7 @@ static void cken_rsvd_bit_mask_setup(void)
 {
 	ckena_rsvd_bit_mask = 0x00080001;
 	ckenb_rsvd_bit_mask = 0x97FCF040;
-	ckenc_rsvd_bit_mask = 0x00000000;
+	ckenc_rsvd_bit_mask = 0x00C00000;
 }
 
 extern int calc_switchtime(unsigned int, unsigned int);
@@ -1221,6 +1231,12 @@ static void pm_log_wakeup_reason(unsigned int wakeup_data)
 		regs[4], regs[5]);
 	}
 }
+
+unsigned int get_sram_base(void)
+{
+	return (unsigned int) pxa95x_pm_regs.sram_map;
+}
+
 
 void enter_lowpower_mode(int state)
 {
@@ -1308,9 +1324,15 @@ void enter_lowpower_mode(int state)
 						cpupwr);
 
 				sram = (unsigned int)pxa95x_pm_regs.sram_map;
-				pxa95x_cpu_standby(sram + 0x8000, sram + 0xa000 - 4,
-						(unsigned int)&start_tick,
-						power_state);
+				if (cpu_is_pxa978()) {
+					ca9_enter_idle(pollreg, sram + 0x8000,
+							(u32)pl310_regs.memset);
+				} else {
+					pxa95x_cpu_standby(sram + 0x8000,
+							sram + 0xa000 - 4,
+							(unsigned int) &start_tick,
+							power_state);
+				}
 #if defined(CONFIG_PXA9XX_ACIPC)
 				set_DDR_avail_flag();
 			} else
@@ -1408,9 +1430,15 @@ void enter_lowpower_mode(int state)
 						cpupwr);
 
 				sram = (unsigned int)pxa95x_pm_regs.sram_map;
-				pxa95x_cpu_standby(sram + 0x8000, sram + 0xa000 - 4,
-						(unsigned int)&start_tick,
-						power_state);
+				if (cpu_is_pxa978()) { /*Nevo C0*/
+					ca9_enter_idle(pollreg, sram + 0x8000,
+							(u32)pl310_regs.memset);
+				} else {
+					pxa95x_cpu_standby(sram + 0x8000,
+							sram + 0xa000 - 4,
+							(unsigned int) &start_tick,
+							power_state);
+				}
 
 				if (is_wkr_mg1_1468())
 					enable_axi_lpm_exit();
@@ -1467,6 +1495,21 @@ void enter_lowpower_mode(int state)
 		} else
 			pm_clear_wakeup_src(wakeup_src);
 	} else if (state == POWER_MODE_CG) {
+		/*
+		According to the spec,
+		the following steps are required before entering CGM
+		*/
+
+		/* Enable ACCU internal interrupt */
+		ICMR2 |= 0x00100000;
+		/* Turn on wakeup to core during idle mode */
+		aicsr = AICSR;
+		/* enable bit 10 - wakeup during core idle */
+		aicsr |= AICSR_WEIDLE;
+		/* do not write to status bits (write to clear) */
+		aicsr &= ~AICSR_STATUS_BITS;
+		AICSR = aicsr;
+
 		ispt_power_state_cgm();
 		pm_select_wakeup_src(PXA95x_PM_CG, wakeup_src);
 
@@ -1495,10 +1538,17 @@ void enter_lowpower_mode(int state)
 #endif
 
 			/* PWRMODE = C1 */
-			PWRMODE = (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT);
-			do {
-				pollreg = PWRMODE;
-			} while (pollreg != (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT));
+			if (cpu_is_pxa978()) {
+				PWRMODE = (PXA978_PM_S0D0CG | PXA95x_PM_I_Q_BIT);
+				do {
+					pollreg = PWRMODE;
+				} while (pollreg != (PXA978_PM_S0D0CG | PXA95x_PM_I_Q_BIT));
+			} else {
+				PWRMODE = (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT);
+				do {
+					pollreg = PWRMODE;
+				} while (pollreg != (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT));
+			}
 
 			cken[0] = CKENA;
 			cken[1] = CKENB;
@@ -1543,12 +1593,18 @@ void enter_lowpower_mode(int state)
 			   loop was calibrated to create ~25uSec delay.
 			   therefor for PP 2-7 set 6000 loop count and for PP1 set 1500
 			   */
-			if (cur_op < 2)
-				pm_enter_cgm_deepidle
-					(CPU_LOOP_COUNT_ON_EXIT_CGM_LOW_PP);
-			else
-				pm_enter_cgm_deepidle
-					(CPU_LOOP_COUNT_ON_EXIT_CGM_HIGH_PP);
+			sram = (unsigned int) pxa95x_pm_regs.sram_map;
+			if (cpu_is_pxa978()) {
+				ca9_enter_idle(pollreg, sram + 0x8000,
+						(u32)pl310_regs.memset);
+			} else {
+				if (cur_op < 2)
+					pm_enter_cgm_deepidle
+						(CPU_LOOP_COUNT_ON_EXIT_CGM_LOW_PP);
+				else
+					pm_enter_cgm_deepidle
+						(CPU_LOOP_COUNT_ON_EXIT_CGM_HIGH_PP);
+			}
 			if (is_wkr_mg1_1274())
 				pxa95x_pm_invalidate_Dcache_L2Cache();
 			/* restore clocks after exiting from clock gated mode */
@@ -2159,6 +2215,8 @@ static int __init pxa95x_pm_init(void)
 	/* Setting C2 as default */
 #ifdef CONFIG_PXA95x_DVFM
 	pm_core_pwdn(CPU_PDWN_LPM_EXIT);
+	if (cpu_is_pxa978())
+		remap_c2_reg = ioremap(REMAP_C2_REG , 0x4);
 #endif
 
 	/* Enabling ACCU and BPMU interrupts */
@@ -2171,7 +2229,7 @@ static int __init pxa95x_pm_init(void)
 	/* if SRAM is allocate to GB by uboot param, the lpm code will not be
 	 * copied to SRAM. note, power cannot be enabled if sram allocate to
 	 * GB */
-	if (!disable_sram_use)
+	if (!disable_sram_use && !(cpu_is_pxa978()))
 		pxa95x_init_standby((unsigned int)pxa95x_pm_regs.sram_map +
 				    0x8000);
 

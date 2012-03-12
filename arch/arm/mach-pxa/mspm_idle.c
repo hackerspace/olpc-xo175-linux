@@ -32,6 +32,7 @@
 #include <mach/regs-ost.h>
 #include <mach/pxa95x_dvfm.h>
 #include <mach/mspm_prof.h>
+#include <mach/ca9_regs.h>
 #ifdef CONFIG_ISPT
 #include <mach/pxa_ispt.h>
 #endif
@@ -119,11 +120,16 @@ static unsigned int pm_enter_deepidle(unsigned int x)
 	BUG_ON(1);
 }
 #endif
+extern unsigned int get_sram_base(void);
+extern struct pl310_registers pl310_regs;
+extern unsigned int c2_allow;
 static void pxa95x_cpu_idle(void)
 {
 	unsigned int c1_enter_time, c1_exit_time, pollreg;
 	struct op_info *info = NULL;
 	int op;
+	unsigned int sram_base = get_sram_base();
+	static unsigned int counter, counter2;
 	DVFMLPMGlobalCount.D0C1_Enter_count++;
 	op = dvfm_get_op(&info);
 
@@ -145,13 +151,29 @@ static void pxa95x_cpu_idle(void)
 	mipsram_disable_counter();
 #endif
 	if (cpu_is_pxa978()) {
-		PWRMODE = (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT);
-		do {
-			pollreg = PWRMODE;
-		} while (pollreg != (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT));
-		cpu_do_idle();
-	}
-	else if (cpu_is_pxa955() && !(is_wkr_mg1_1274())) {
+		if (sram_base && c2_allow) {
+			PWRMODE = 0x0;
+			PWRMODE = (PXA978_PM_S0D0CG | PXA95x_PM_I_Q_BIT);
+			do {
+				pollreg = PWRMODE;
+			} while (pollreg !=
+					(PXA978_PM_S0D0CG | PXA95x_PM_I_Q_BIT));
+			ca9_enter_idle(pollreg, sram_base + 0x8000, (unsigned int)pl310_regs.memset);
+			counter++;
+			if (counter == 10000) {
+				counter2++;
+				printk(KERN_DEBUG "%d passed core idle\n", counter2);
+				counter = 0;
+			}
+
+		} else {
+			PWRMODE = (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT);
+			do {
+				pollreg = PWRMODE;
+			} while (pollreg != (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT));
+			cpu_do_idle();
+		}
+	} else if (cpu_is_pxa955() && !(is_wkr_mg1_1274())) {
 		PWRMODE = (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT);
 		do {
 			pollreg = PWRMODE;
