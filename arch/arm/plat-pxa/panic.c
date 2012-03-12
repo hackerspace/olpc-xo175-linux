@@ -18,6 +18,14 @@
 #include <asm/cacheflush.h>
 #include <asm/setup.h>
 
+static int emmdenable;
+static int __init emmd_setup(char *__unused)
+{
+	emmdenable = 1;
+	return 1;
+}
+__setup("emmd", emmd_setup);
+
 static int has_died;
 static int crash_enable;
 static void *indicator;
@@ -118,7 +126,10 @@ static struct attribute_group attr_group = {
 static int __init pxa_panic_notifier(void)
 {
 	struct page *page;
-	crash_enable = 0;
+	if (emmdenable)
+		crash_enable = 1;
+	else
+		crash_enable = 0;
 	if (sysfs_create_group(power_kobj, &attr_group))
 		return -1;
 
