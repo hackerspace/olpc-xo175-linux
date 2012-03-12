@@ -672,7 +672,7 @@ config MMP3_SYSSET
 	depends on CPU_MMP3
 	default y
 	help
-	 Please say Y here if want to support MMP2 system clock setting export
+	 Please say Y here if want to support MMP3 system clock setting export
 
 
 config MMP_ZSP
