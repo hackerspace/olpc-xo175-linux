@@ -2325,6 +2325,7 @@ int sdhci_suspend_host(struct sdhci_host *host, pm_message_t state)
 {
 	int ret;
 
+	sdhci_access_constrain(host, 1);
 	sdhci_disable_card_detection(host);
 
 	/* Disable tuning since we are suspending */
@@ -2337,7 +2338,7 @@ int sdhci_suspend_host(struct sdhci_host *host, pm_message_t state)
 
 	ret = mmc_suspend_host(host->mmc);
 	if (ret)
-		return ret;
+		goto suspend_exit;
 
 	mmc_claim_host(host->mmc);
 	if (host->mmc->card && host->mmc->card->pending_interrupt) {
@@ -2347,7 +2348,8 @@ int sdhci_suspend_host(struct sdhci_host *host, pm_message_t state)
 		sdhci_enable_card_detection(host);
 		mmc_resume_host(host->mmc);
 		mmc_release_host(host->mmc);
-		return  -EBUSY;
+		ret = -EBUSY;
+		goto suspend_exit;
 	}
 	if (host->mmc->card)
 		host->mmc->card->disabled = 1;
@@ -2370,7 +2372,8 @@ int sdhci_suspend_host(struct sdhci_host *host, pm_message_t state)
 		sdhci_resume_host(host);
 		ret = -EBUSY;
 	}
-
+suspend_exit:
+	sdhci_access_constrain(host, 0);
 	return ret;
 }
 
@@ -2380,15 +2383,15 @@ int sdhci_resume_host(struct sdhci_host *host)
 {
 	int ret;
 
+	sdhci_access_constrain(host, 1);
 	if (host->vmmc) {
-		int ret;
 		if (host->ops->safe_regulator_on)
 			ret = host->ops->safe_regulator_on(host);
 		else
 			ret = regulator_enable(host->vmmc);
 
 		if (ret)
-			return ret;
+			goto resume_exit;
 	}
 
 	if (host->flags & (SDHCI_USE_SDMA | SDHCI_USE_ADMA)) {
@@ -2405,7 +2408,7 @@ int sdhci_resume_host(struct sdhci_host *host)
 		ret = request_irq(host->irq, sdhci_irq, IRQF_SHARED,
 				mmc_hostname(host->mmc), host);
 		if (ret)
-			return ret;
+			goto resume_exit;
 	}
 
 	sdhci_init(host, (host->mmc->pm_flags & MMC_PM_KEEP_POWER));
@@ -2421,7 +2424,8 @@ int sdhci_resume_host(struct sdhci_host *host)
 	if ((host->version >= SDHCI_SPEC_300) && host->tuning_count &&
 	    (host->tuning_mode == SDHCI_TUNING_MODE_1))
 		host->flags |= SDHCI_NEEDS_RETUNING;
-
+resume_exit:
+	sdhci_access_constrain(host, 0);
 	return ret;
 }
 
