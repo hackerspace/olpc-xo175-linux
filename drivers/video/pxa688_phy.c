@@ -77,6 +77,79 @@ static struct dsi_phy phy = {
 
 static unsigned int dsi_lane[5] = {0, 0x1, 0x3, 0x7, 0xf};
 
+static int is_odd_1s(u32 data)
+{
+	int num = 0;
+
+	while (data) {
+		if (data % 2)
+			num++;
+		data = data >> 1;
+	}
+	if (num % 2)
+		return 1;
+	return 0;
+}
+
+static unsigned char caluate_ecc(u32 data)
+{
+	int ecc_bit_depend[6], i;
+	u32 tmp;
+	unsigned char ret = 0;
+
+	ecc_bit_depend[0] = 0xf12cb7;
+	ecc_bit_depend[1] = 0xf2555b;
+	ecc_bit_depend[2] = 0x749a6d;
+	ecc_bit_depend[3] = 0xb8e38e;
+	ecc_bit_depend[4] = 0xdf03f0;
+	ecc_bit_depend[5] = 0xeffc00;
+
+	for (i = 0; i < 6; i++) {
+		tmp = data & ecc_bit_depend[i];
+		ret |= is_odd_1s(tmp) ? (1 << i) : 0;
+	}
+	return ret;
+}
+
+/* FIXME: only for short packet */
+void dsi_send_cmd(struct pxa168fb_info *fbi,
+	enum dsi_packet_di data_type, enum dsi_packet_dcs_id dcs, u8 parameter)
+{
+	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
+	struct dsi_info *di = (struct dsi_info *)mi->phy_info;
+	struct dsi_regs *dsi = (struct dsi_regs *)di->regs;
+	u32 send_data, waddr, tmp, ecc, count;
+
+	send_data = data_type & 0xff;
+	send_data |= (dcs & 0xff) << 8;
+	send_data |= (parameter & 0xff) << 16;
+
+	ecc = caluate_ecc(send_data);
+	send_data |= (ecc & 0xff) << 24;
+
+	writel(send_data, &dsi->dat0);
+
+	waddr = 0xc0000000;
+	writel(waddr, &dsi->cmd3);
+	count = 1000;
+	while (readl(&dsi->cmd3) & 0x80000000 && count)
+		count--;
+	if (count <= 0)
+		pr_err("%s error!\n", __func__);
+
+	tmp = 0xC8000000 | 4;
+	writel(tmp, &dsi->cmd0);
+
+	pr_debug("send data:%x, cmd3:%x, cmd0:%x\n",
+		send_data, waddr, tmp);
+	/* wait for completion */
+	count = 1000;
+	while (readl(&dsi->cmd0) & 0x80000000 && count)
+		count--;
+	if (count <= 0)
+		pr_err("%s error!\n", __func__);
+}
+
 void pxa168fb_dsi_send(struct pxa168fb_info *fbi, void *value)
 {
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
@@ -197,12 +270,11 @@ void dsi_lanes_enable(struct pxa168fb_info *fbi, int en)
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 	struct dsi_info *di = (struct dsi_info *)mi->phy_info;
 	struct dsi_regs *dsi = (struct dsi_regs *)di->regs;
-	u32 reg = readl(&dsi->phy_ctrl2);
+	u32 reg = readl(&dsi->phy_ctrl2) & ~(0xf << 4);
 
+	reg &= ~(0xf << 4);
 	if (en)
 		reg |= (dsi_lane[di->lanes] << 4);
-	else
-		reg &= ~(dsi_lane[di->lanes] << 4);
 
 	pr_debug("%s %d: phy_ctrl2 0x%x\n", __func__, en, reg);
 	writel(reg, &dsi->phy_ctrl2);
@@ -378,8 +450,6 @@ void dsi_set_controller(struct pxa168fb_info *fbi)
 		 &dsi->phy_ctrl2);
 	writel(dsi_lane[di->lanes] << DSI_CPU_CMD_1_CFG_TXLP_LPDT_SHIFT,
 		 &dsi->cmd1);
-	if (mi->phy_type == DSI)
-		mi->dsi_set(fbi);
 
 	/* SET UP LCD1 TIMING REGISTERS FOR DSI BUS */
 	/* NOTE: Some register values were obtained by trial and error */
@@ -456,6 +526,25 @@ void dsi_set_controller(struct pxa168fb_info *fbi)
 	writel(((var->yres)<<16) | (v_total), &dsi_lcd->timing2);
 }
 
+void set_dsi_low_power_mode(struct pxa168fb_info *fbi)
+{
+	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
+	struct dsi_info *di = (struct dsi_info *)mi->phy_info;
+	struct dsi_regs *dsi = (struct dsi_regs *)di->regs;
+	u32 reg = readl(&dsi->phy_ctrl2);
+
+	/* enable data lane data0*/
+	reg &= ~(0xf << 4);
+	reg |= (1 << 4);
+	writel(reg, &dsi->phy_ctrl2);
+
+	/* LPDT TX enabled for data0 */
+	reg = readl(&dsi->cmd1);
+	reg &= ~(0xf << 20);
+	reg |= 1 << DSI_CPU_CMD_1_CFG_TXLP_LPDT_SHIFT;
+	writel(reg, &dsi->cmd1);
+}
+
 static int dsi_dump(struct pxa168fb_info *fbi, int f, char *buf, int s)
 {
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
@@ -489,6 +578,10 @@ static int dsi_dump(struct pxa168fb_info *fbi, int f, char *buf, int s)
 		(int)(&dsi->cmd3)&0xfff, readl(&dsi->cmd3));
 	mvdisp_dump(f, "\tdat0       (@%3x):\t0x%x\n",
 		(int)(&dsi->dat0)&0xfff, readl(&dsi->dat0));
+	mvdisp_dump(f, "\tstatus0    (@%3x):\t0x%x\n",
+		(int)(&dsi->status0)&0xfff, readl(&dsi->status0));
+	mvdisp_dump(f, "\tstatus1    (@%3x):\t0x%x\n",
+		(int)(&dsi->status1)&0xfff, readl(&dsi->status1));
 	mvdisp_dump(f, "\tsmt_cmd    (@%3x):\t0x%x\n",
 		(int)(&dsi->smt_cmd)&0xfff, readl(&dsi->smt_cmd));
 	mvdisp_dump(f, "\tsmt_ctrl0  (@%3x):\t0x%x\n",
@@ -511,6 +604,14 @@ static int dsi_dump(struct pxa168fb_info *fbi, int f, char *buf, int s)
 		(int)(&dsi->rx2_status)&0xfff, readl(&dsi->rx2_status));
 	mvdisp_dump(f, "\trx2_header (@%3x):\t0x%x\n",
 		(int)(&dsi->rx2_header)&0xfff, readl(&dsi->rx2_header));
+	mvdisp_dump(f, "\tphy_ctrl1 (@%3x):\t0x%x\n",
+		(int)(&dsi->phy_ctrl1)&0xfff, readl(&dsi->phy_ctrl1));
+	mvdisp_dump(f, "\tphy_ctrl2 (@%3x):\t0x%x\n",
+		(int)(&dsi->phy_ctrl2)&0xfff, readl(&dsi->phy_ctrl2));
+	mvdisp_dump(f, "\tphy_ctrl3 (@%3x):\t0x%x\n",
+		(int)(&dsi->phy_ctrl3)&0xfff, readl(&dsi->phy_ctrl3));
+	mvdisp_dump(f, "\tphy_status0 (@%3x):\t0x%x\n",
+		(int)(&dsi->phy_status0)&0xfff, readl(&dsi->phy_status0));
 	mvdisp_dump(f, "\tphy_rcomp0 (@%3x):\t0x%x\n",
 		(int)(&dsi->phy_rcomp0)&0xfff, readl(&dsi->phy_rcomp0));
 	mvdisp_dump(f, "\tphy_timing0(@%3x):\t0x%x\n",

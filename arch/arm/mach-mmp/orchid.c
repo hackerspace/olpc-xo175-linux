@@ -908,8 +908,8 @@ static void __init orchid_init(void)
 	mmp3_add_keypad(&mmp3_keypad_info);
 	mmp3_add_videosram(&mmp3_videosram_info);
 #ifdef CONFIG_FB_PXA168
-	/* orchid_add_lcd_mipi(); */
-	/* mmp3_add_tv_out(); */
+	orchid_add_lcd_mipi();
+	mmp3_add_tv_out();
 #endif
 
 #ifdef CONFIG_UIO_HDMI

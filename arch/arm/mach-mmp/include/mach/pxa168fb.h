@@ -367,10 +367,9 @@ struct pxa168fb_mach_info {
 	 */
 	int (*dsi2dpi_set)(struct pxa168fb_info *);
 	int (*xcvr_reset)(struct pxa168fb_info *);
-	/*
-	 * dsi setting function
-	 */
-	void (*dsi_set)(struct pxa168fb_info *);
+
+	/* init config for panel via dsi */
+	void (*dsi_panel_config)(struct pxa168fb_info *);
 	/*
 	 * special ioctls
 	 */
@@ -383,6 +382,29 @@ struct pxa168fb_mach_info {
 struct fbi_info {
 	struct pxa168fb_info *fbi[3];
 };
+
+enum dsi_packet_di {
+	/* for sleep in/out display on/off */
+	DSI_DI_DCS_WRITE_N = 0x5,
+	/* for set_pixel_format */
+	DSI_DI_DCS_WRITE_1P = 0x15,
+	/* for video mode off */
+	DSI_DI_PERIPHE_CMD_OFF = 0x22,
+	/* for video mode on */
+	DSI_DI_PERIPHE_CMD_ON = 0x32,
+};
+
+enum dsi_packet_dcs_id {
+	DSI_DCS_SLEEP_EXIT = 0x11,
+	DSI_DCS_SLEEP_IN = 0x10,
+	DSI_DCS_DISPLAY_ON = 0x29,
+	DSI_DCS_DISPLAY_OFF = 0x28,
+	DSI_DCS_SET_PIXEL_FMT = 0x3a,
+};
+
+#define BPP_16		0x55
+#define BPP_18		0x66
+#define BPP_24		0x77
 
 /* LCD partial display */
 #define THRESHOLD_PN	64
@@ -424,6 +446,9 @@ extern int pxa688_cmu_ioctl(struct fb_info *info, unsigned int cmd,
 
 /* dsi related */
 extern void pxa168fb_dsi_send(struct pxa168fb_info *fbi, void *value);
+extern void dsi_send_cmd(struct pxa168fb_info *fbi,
+	enum dsi_packet_di data_type, enum dsi_packet_dcs_id dcs, u8 parameter);
+extern void set_dsi_low_power_mode(struct pxa168fb_info *fbi);
 extern void dsi_cclk_set(struct pxa168fb_info *fbi, int en);
 extern void dsi_set_dphy(struct pxa168fb_info *fbi);
 extern void dsi_reset(struct pxa168fb_info *fbi, int hold);

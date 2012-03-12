@@ -43,6 +43,21 @@ static struct fb_videomode video_modes_yellowstone[] = {
 		},
 };
 
+static struct fb_videomode video_modes_orchid[] = {
+	[0] = {
+		 /* panel refresh rate should <= 55(Hz) */
+		.refresh = 54,
+		.xres = 540,
+		.yres = 960,
+		.hsync_len = 6,
+		.left_margin = 21,
+		.right_margin = 20,
+		.vsync_len = 2,
+		.upper_margin = 32,
+		.lower_margin = 32,
+		.sync = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
+		},
+};
 static int abilene_lvds_power(struct pxa168fb_info *fbi,
 				unsigned int spi_gpio_cs,
 				unsigned int spi_gpio_reset, int on)
@@ -157,6 +172,78 @@ static int yellowstone_lvds_power(struct pxa168fb_info *fbi,
 	return 0;
 }
 
+static int orchid_lcd_power(struct pxa168fb_info *fbi,
+			     unsigned int spi_gpio_cs,
+			     unsigned int spi_gpio_reset, int on)
+{
+	static struct regulator *lcd_iovdd, *lcd_avdd;
+	int lcd_rst_n;
+
+	lcd_rst_n = mfp_to_gpio(GPIO49_LCD_RST_N);
+	if (gpio_request(lcd_rst_n, "lcd reset gpio")) {
+		pr_err("gpio %d request failed\n", lcd_rst_n);
+		return -EIO;
+	}
+
+	/* LCD_IOVDD, 1.8v */
+	if (!lcd_iovdd) {
+		lcd_iovdd = regulator_get(NULL, "V_LDO15_1V8");
+		if (IS_ERR(lcd_iovdd)) {
+			pr_err("%s regulator get error!\n", __func__);
+			lcd_iovdd = NULL;
+			goto regu_lcd_iovdd;
+		}
+	}
+
+	/* LCD_AVDD 3.1v */
+	if (!lcd_avdd) {
+		lcd_avdd = regulator_get(NULL, "V_LDO17_3V1");
+		if (IS_ERR(lcd_avdd)) {
+			pr_err("%s regulator get error!\n", __func__);
+			lcd_avdd = NULL;
+			goto regu_lcd_avdd;
+		}
+	}
+
+	if (on) {
+		regulator_set_voltage(lcd_iovdd, 1800000, 1800000);
+		regulator_enable(lcd_iovdd);
+
+		regulator_set_voltage(lcd_avdd, 3100000, 3100000);
+		regulator_enable(lcd_avdd);
+
+		mdelay(50);
+		/* release panel from reset */
+		gpio_direction_output(lcd_rst_n, 1);
+		udelay(20);
+		gpio_direction_output(lcd_rst_n, 0);
+		udelay(50);
+		gpio_direction_output(lcd_rst_n, 1);
+	} else {
+		/* disable LCD_AVDD 3.1v */
+		regulator_disable(lcd_avdd);
+
+		/* disable LCD_IOVDD 1.8v */
+		regulator_disable(lcd_iovdd);
+
+		/* set panel reset */
+		gpio_direction_output(lcd_rst_n, 0);
+	}
+
+	gpio_free(lcd_rst_n);
+	pr_debug("%s on %d\n", __func__, on);
+
+	return 0;
+
+regu_lcd_iovdd:
+	gpio_free(lcd_rst_n);
+
+regu_lcd_avdd:
+	regulator_put(lcd_iovdd);
+
+	return -EIO;
+}
+
 static struct lvds_info lvdsinfo = {
 	.src	= LVDS_SRC_PN,
 	.fmt	= LVDS_FMT_18BIT,
@@ -184,6 +271,16 @@ static void lvds_hook(struct pxa168fb_mach_info *mi)
 static struct dsi_info dsiinfo = {
 	.id = 1,
 	.lanes = 4,
+	.bpp = 16,
+	.rgb_mode = DSI_LCD_INPUT_DATA_RGB_MODE_565,
+	.burst_mode = DSI_BURST_MODE_BURST,
+	.hbp_en = 1,
+	.hfp_en = 1,
+};
+
+static struct dsi_info orchid_dsiinfo = {
+	.id = 2,
+	.lanes = 2,
 	.bpp = 16,
 	.rgb_mode = DSI_LCD_INPUT_DATA_RGB_MODE_565,
 	.burst_mode = DSI_BURST_MODE_BURST,
@@ -349,6 +446,28 @@ static int dsi_set_tc358765(struct pxa168fb_info *fbi)
 	return 0;
 }
 
+static void panel_init_config(struct pxa168fb_info *fbi)
+{
+	enum dsi_packet_di data_type;
+	enum dsi_packet_dcs_id dcs;
+	unsigned char pix_fmt = BPP_16;
+
+	set_dsi_low_power_mode(fbi);
+
+	/* pixel format set 16bpp*/
+	data_type = DSI_DI_DCS_WRITE_1P;
+	dcs = DSI_DCS_SET_PIXEL_FMT;
+	dsi_send_cmd(fbi, data_type, dcs, pix_fmt);
+
+	data_type = DSI_DI_DCS_WRITE_N;
+	dcs = DSI_DCS_SLEEP_EXIT;
+	dsi_send_cmd(fbi, data_type, dcs, 0);
+	mdelay(200);
+
+	dcs = DSI_DCS_DISPLAY_ON;
+	dsi_send_cmd(fbi, data_type, dcs, 0);
+}
+
 static int lcd_twsi5_set(int en)
 {
 	int gpio;
@@ -498,23 +617,28 @@ static int dsi_init(struct pxa168fb_info *fbi)
 	/* dsi out of reset */
 	dsi_reset(fbi, 0);
 
+	/* turn on DSI continuous clock */
+	dsi_cclk_set(fbi, 1);
+
 	/* set dphy */
 	dsi_set_dphy(fbi);
+
+	/* init panel settings via dsi */
+	if (mi->phy_type == DSI)
+		mi->dsi_panel_config(fbi);
 
 	/* put all lanes to LP-11 state  */
 	dsi_lanes_enable(fbi, 0);
 	dsi_lanes_enable(fbi, 1);
 
 	/*  reset the bridge */
-	if (mi->xcvr_reset)
+	if (mi->xcvr_reset) {
 		mi->xcvr_reset(fbi);
+		mdelay(10);
+	}
 
-	mdelay(10);
 	/* set dsi controller */
 	dsi_set_controller(fbi);
-
-	/* turn on DSI continuous clock */
-	dsi_cclk_set(fbi, 1);
 
 	/* set dsi to dpi conversion chip */
 	if (mi->phy_type == DSI2DPI) {
@@ -587,7 +711,7 @@ static struct pxa168fb_mach_info mipi_lcd_ovly_info = {
 #define     CLK_INT_DIV_MASK			0x000000FF
 static void calculate_dsi_clk(struct pxa168fb_mach_info *mi)
 {
-	struct dsi_info *di = &dsiinfo;
+	struct dsi_info *di = (struct dsi_info *)mi->phy_info;
 	struct fb_videomode *modes = &mi->modes[0];
 	u32 total_w, total_h, pclk2bclk_rate, byteclk, bitclk,
 	    pclk_div, bitclk_div = 1;
@@ -771,6 +895,58 @@ void __init yellowstone_add_lcd_mipi(void)
 
 	if (cpu_is_mmp3_b0())
 		lvds_hook(fb);
+
+	/* Re-calculate lcd clk source and divider
+	 * according to dsi lanes and output format.
+	 */
+	calculate_lcd_sclk(fb);
+
+	dmc_membase = ioremap(DDR_MEM_CTRL_BASE, 0x30);
+	CSn_NO_COL = __raw_readl(dmc_membase + SDRAM_CONFIG_TYPE1_CS0) >> 4;
+	CSn_NO_COL &= 0xF;
+	if (CSn_NO_COL <= 0x2) {
+		/*
+		 *If DDR page size < 4KB,
+		 *select no crossing 1KB boundary check
+		 */
+		fb->io_pad_ctrl |= CFG_BOUNDARY_1KB;
+		ovly->io_pad_ctrl |= CFG_BOUNDARY_1KB;
+	}
+	iounmap(dmc_membase);
+
+	/* add frame buffer drivers */
+	mmp3_add_fb(fb);
+	/* add overlay driver */
+#ifdef CONFIG_PXA168_V4L2_OVERLAY
+	mmp3_add_v4l2_ovly(ovly);
+#else
+	mmp3_add_fb_ovly(ovly);
+#endif
+}
+#endif
+
+#ifdef CONFIG_MACH_ORCHID
+void __init orchid_add_lcd_mipi(void)
+{
+	unsigned char __iomem *dmc_membase;
+	unsigned int CSn_NO_COL;
+
+	struct pxa168fb_mach_info *fb = &mipi_lcd_info, *ovly =
+	    &mipi_lcd_ovly_info;
+
+	fb->num_modes = ARRAY_SIZE(video_modes_orchid);
+	fb->modes = video_modes_orchid;
+	fb->max_fb_size = video_modes_orchid[0].xres *
+		video_modes_orchid[0].xres * 8 + 4096;
+	ovly->num_modes = fb->num_modes;
+	ovly->modes = fb->modes;
+	ovly->max_fb_size = fb->max_fb_size;
+
+	fb->phy_type = DSI;
+	fb->xcvr_reset = NULL;
+	fb->phy_info = (void *)&orchid_dsiinfo;
+	fb->dsi_panel_config = panel_init_config;
+	fb->pxa168fb_lcd_power = orchid_lcd_power;
 
 	/* Re-calculate lcd clk source and divider
 	 * according to dsi lanes and output format.

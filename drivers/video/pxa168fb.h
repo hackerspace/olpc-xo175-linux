@@ -1074,7 +1074,9 @@ struct dsi_regs {
 	u32 cmd2;
 	u32 cmd3;
 	u32 dat0;
-	u32 reserved3[7];
+	u32 status0;
+	u32 status1;
+	u32 reserved3[5];
 
 	u32 smt_cmd;
 	u32 smt_ctrl0;

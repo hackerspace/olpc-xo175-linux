@@ -429,6 +429,7 @@ static void set_clock_divider(struct pxa168fb_info *fbi)
 {
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 	struct fb_var_screeninfo *var = &fbi->fb_info->var;
+	struct dsi_info *di = (struct dsi_info *)mi->phy_info;
 	u32 divider_int, needed_pixclk, val, x = 0;
 	u64 div_result;
 
@@ -443,9 +444,22 @@ static void set_clock_divider(struct pxa168fb_info *fbi)
 			val |= (mi->sclk_div & 0xf) << 1;
 		}
 
-		lcd_clk_set(fbi->id, clk_sclk, 0xffffffff, val);
-		if (mi->phy_type & LVDS)
+		/* for lcd controller */
+		lcd_clk_set(fbi->id, clk_sclk, 0xfffff0ff, val & (~0xf00));
+
+		/* FIXME: for dsi/lvds clock */
+		if (mi->phy_type & (DSI | DSI2DPI)) {
+			if (di->id == 1)
+				lcd_clk_set(0, clk_sclk, 0xf00, val & 0xf00);
+			else if (di->id == 2) {
+				/* LCD_TCLK_DIV 0x9c: (11:8) for DSI2 */
+				lcd_clk_set(1, clk_sclk, 0xf00, val & 0xf00);
+				/* LCD_PN2_SCLK_DIV 0x1ec: (31:28) (7:0) for DSI2 */
+				lcd_clk_set(2, clk_sclk, 0xfffff0ff, val & (~0xf00));
+			}
+		} else if (mi->phy_type & LVDS)
 			lcd_clk_set(fbi->id, clk_lvds_wr, 0xffffffff, val);
+
 		if (!var->pixclock) {
 			divider_int = mi->sclk_div & CLK_INT_DIV_MASK;
 			if (!divider_int)
