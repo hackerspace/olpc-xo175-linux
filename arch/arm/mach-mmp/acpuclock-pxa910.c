@@ -228,7 +228,7 @@ static struct pxa910_md_opt pxa920_op_array[] = {
 	   .lpj = 801*500000/HZ,
 	   .name = "801MHz",
 	   }, */
-	/* core 806MHz ddr 201MHz bus 208MHz */
+	/* core 806MHz ddr 201MHz bus 156MHz */
 	{
 	 .pp = 13,
 	 .vcc_core = 1300000,
@@ -237,7 +237,7 @@ static struct pxa910_md_opt pxa920_op_array[] = {
 	 .baclk = 201,
 	 .xpclk = 403,
 	 .dclk = 201,
-	 .aclk = 208,
+	 .aclk = 156,
 	 .lpj = 806 * 500000 / HZ,
 	 .name = "806MHz",
 	 },
@@ -312,7 +312,7 @@ static struct pxa910_md_opt pxa921_op_array[] = {
 		.lpj = 312*500000/HZ,
 		.name = "312MHz",
 	},
-	/* core 500.5MHz ddr 250MHz bus 250MHz */
+	/* core 500.5MHz ddr 250MHz bus 156MHz */
 	{
 		.pp = 4,
 		.vcc_core = 1225000,
@@ -321,11 +321,11 @@ static struct pxa910_md_opt pxa921_op_array[] = {
 		.baclk = 250,
 		.xpclk = 250,
 		.dclk = 250,
-		.aclk = 208,
+		.aclk = 156,
 		.lpj = 500*500000/HZ,
 		.name = "500MHz",
 	},
-	/* core 1001MHz ddr 250MHz bus 208MHz */
+	/* core 1001MHz ddr 250MHz bus 156MHz */
 	{
 		.pp = 10,
 		.vcc_core = 1350000,
@@ -334,7 +334,7 @@ static struct pxa910_md_opt pxa921_op_array[] = {
 		.baclk = 250,
 		.xpclk = 500,
 		.dclk = 250,
-		.aclk = 208,
+		.aclk = 156,
 		.lpj = 1001*500000/HZ,
 		.name = "1001MHz",
 	},
@@ -389,7 +389,7 @@ static struct pxa910_md_opt pxa910_op_array[] = {
 	 .baclk = 201,
 	 .xpclk = 403,
 	 .dclk = 201,
-	 .aclk = 208,
+	 .aclk = 156,
 	 .lpj = 806 * 500000 / HZ,
 	 .name = "806MHz",
 	 },
@@ -422,7 +422,7 @@ static struct pxa910_md_opt pxa910h_op_array[] = {
 		.lpj = 500*500000/HZ,
 		.name = "500MHz",
 	},
-	/* core 1001MHz ddr 250MHz bus 208MHz */
+	/* core 1001MHz ddr 250MHz bus 156MHz */
 	{
 		.pp = 10,
 		.vcc_core = 1400000,
@@ -431,7 +431,7 @@ static struct pxa910_md_opt pxa910h_op_array[] = {
 		.baclk = 250,
 		.xpclk = 500,
 		.dclk = 250,
-		.aclk = 208,
+		.aclk = 156,
 		.lpj = 1001*500000/HZ,
 		.name = "1001MHz",
 	},
