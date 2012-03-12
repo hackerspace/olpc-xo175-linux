@@ -414,4 +414,4 @@ err:
 	return -ENOMEM;
 }
 
-module_init(mmp2_pm_init);
+early_initcall(mmp2_pm_init);

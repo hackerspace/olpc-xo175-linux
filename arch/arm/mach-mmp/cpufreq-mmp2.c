@@ -220,7 +220,7 @@ static int __init cpufreq_init(void)
 
 	return cpufreq_register_driver(&mmp2_cpufreq_driver);
 }
-late_initcall(cpufreq_init);
+module_init(cpufreq_init);
 
 static void __exit cpufreq_exit(void)
 {

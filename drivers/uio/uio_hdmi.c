@@ -507,7 +507,7 @@ static int __init hdmi_init(void)
 	return platform_driver_register(&hdmi_driver);
 }
 
-module_init(hdmi_init);
+late_initcall(hdmi_init);
 module_exit(hdmi_exit);
 
 MODULE_DESCRIPTION("UIO driver for Marvell hdmi");
