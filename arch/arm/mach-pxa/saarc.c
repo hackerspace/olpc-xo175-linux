@@ -1427,7 +1427,7 @@ static struct platform_device __attribute__((unused)) camera[] = {
 	},
 	[ID_ICPHD] = {
 		.name	= "soc-camera-pdrv",
-		.id	= 0,
+		.id	= 2,
 		.dev	= {
 			.platform_data = &iclink[ID_ICPHD],
 		},
