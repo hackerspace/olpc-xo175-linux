@@ -598,34 +598,21 @@ static struct i2c_board_info orchid_twsi4_info[] = {
 
 static int orchid_pwm_init(struct device *dev)
 {
-	int gpio = mfp_to_gpio(GPIO84_GPIO);
-
-	if (!cpu_is_mmp3_b0())
-		return 0;
-
-	if (gpio_request(gpio, "LCD_BKL_EN")) {
-		printk(KERN_INFO "gpio %d request failed\n", gpio);
-		return -1;
-	}
-
-	gpio_direction_output(gpio, 1);
-	gpio_free(gpio);
-
 	return 0;
 }
 
 static struct platform_pwm_backlight_data orchid_lcd_backlight_data = {
 	/* primary backlight */
-	.pwm_id = 2,
+	.pwm_id = 0,
 	.max_brightness = 100,
 	.dft_brightness = 50,
-	.pwm_period_ns = 2000000,
+	.pwm_period_ns = 2000,
 	.init = orchid_pwm_init,
 };
 
 static struct platform_device orchid_lcd_backlight_devices = {
 	.name = "pwm-backlight",
-	.id = 2,
+	.id = 0,
 	.dev = {
 		.platform_data = &orchid_lcd_backlight_data,
 	},
@@ -930,7 +917,7 @@ static void __init orchid_init(void)
 #endif
 
 	/* backlight */
-	mmp3_add_pwm(3);
+	mmp3_add_pwm(1);
 	platform_device_register(&orchid_lcd_backlight_devices);
 
 	mmp3_add_thermal();
