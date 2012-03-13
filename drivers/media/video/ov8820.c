@@ -416,7 +416,6 @@ error:
 static int ov8820_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *parms)
 {
 	struct v4l2_captureparm *cp = &parms->parm.capture;
-	struct v4l2_fract *tpf = &cp->timeperframe;
 	struct ov8820_core *core = to_ov8820_core(sd);
 	int ret = 0;
 

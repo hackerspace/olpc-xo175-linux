@@ -265,19 +265,6 @@ static int mvisp_pipeline_enable(struct isp_pipeline *pipe,
 	return ret;
 }
 
-static int mvisp_pipeline_wait(struct mvisp_device *isp,
-			     int(*busy)(struct mvisp_device *isp))
-{
-	unsigned long timeout = jiffies + ISP_STOP_TIMEOUT;
-
-	while (!time_after(jiffies, timeout)) {
-		if (!busy(isp))
-			return 0;
-	}
-
-	return 1;
-}
-
 static int mvisp_pipeline_disable(struct isp_pipeline *pipe)
 {
 	struct media_entity *entity;
