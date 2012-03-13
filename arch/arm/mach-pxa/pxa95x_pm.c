@@ -96,6 +96,10 @@ extern int EnableD2VoltageChange;
 extern unsigned int D2voltageLevelValue;
 extern int cur_op;
 
+#ifdef CONFIG_INPUT_88PM8XXX_ONKEY
+extern void pm8xxx_system_poweroff(void);
+#endif
+
 int PowerDisabled;		/* enables/disables pm */
 
 #ifdef CONFIG_PXA9XX_ACIPC
@@ -2124,7 +2128,13 @@ static int __init pxa95x_pm_init(void)
 	enable_deepidle |= IDLE_CG;
 #endif
 	orig_poweroff = pm_power_off;
-	pm_power_off = pxa95x_pm_poweroff;
+
+#ifdef CONFIG_INPUT_88PM8XXX_ONKEY
+	if (cpu_is_pxa978())
+		pm_power_off = pm8xxx_system_poweroff;
+	else
+#endif
+		pm_power_off = pxa95x_pm_poweroff;
 
 	clk_tout_s0 = clk_get(NULL, "CLK_TOUT_S0");
 	if (IS_ERR(clk_tout_s0)) {
