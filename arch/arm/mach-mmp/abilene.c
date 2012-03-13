@@ -1129,6 +1129,10 @@ static int abilene_max77601_setup(struct max77601_chip *chip)
 	data = 0x1;
 	max77601_write(chip, 0x3A, &data, 1);
 
+	/* Set vcc_core to 0.8V in sleep mode */
+	data = 0x10;
+	max77601_write(chip, 0x16, &data, 1);
+
 	/* DVS related part */
 	max77601_read(chip, MAX77601_AME_GPIO, &data, 1);
 	if ((data & MAX77601_AME5_MASK) == MAX77601_AME5_MASK)
