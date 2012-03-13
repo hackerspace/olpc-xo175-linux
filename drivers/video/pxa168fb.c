@@ -39,6 +39,7 @@
 #include <mach/gpio.h>
 #include <plat/pm.h>
 #include "pxa168fb_common.h"
+#include <asm/cacheflush.h>
 
 #ifdef CONFIG_CPU_MMP2
 #include <mach/mmp2_pm.h>
@@ -1975,6 +1976,13 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	if (fbi->fb_start && (!fbi->id || !fb_share)) {
 		fb_prepare_logo(info, 0);
 		fb_show_logo(info, 0);
+		/* The size of frambuffer is too large to use
+		 * dma_alloc_writecombine to alloc non-cacheable dma buffer,
+		 * we use __get_free_pages instead. Therefore, it needs
+		 * flushing cache after frambuffer filled. Otherwise, the
+		 * logo data would lose some lines in cache when begins
+		 * to display */
+		flush_cache_all();
 	}
 #endif
 	return 0;
