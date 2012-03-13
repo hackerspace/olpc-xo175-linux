@@ -412,4 +412,9 @@
 #define CKEN_PWM7	12	/* < PWMCCR4 offset  */
 #define PWMCLKEN_SLOW	(1 << 6)	/* PWM SLOW CLK enble Reset */
 
+/*
+ * Application Subsystem Clock - Continued
+ */
+#define DDR_SC_CTRL2	__REG(0x40A000E4)	/* DDR Sequence Control 2 Register */
+
 #endif /* __ASM_ARCH_PXA3XX_REGS_H */

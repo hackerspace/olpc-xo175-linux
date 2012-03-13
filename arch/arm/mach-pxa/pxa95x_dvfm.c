@@ -3746,9 +3746,6 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 	if (!cpu_is_pxa978())
 		CKENA &= ~(1 << CKEN_SMC | 1 << CKEN_NAND);
 
-	if (cpu_is_pxa978())
-		ForceVCTCXO_EN = 1;
-
 	rc = dvfm_find_index("User", &user_index);
 	if (!rc) {
 		rc |= dvfm_disable_op_name_no_change("BOOT OP", user_index);
@@ -3759,7 +3756,6 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 		rc |= dvfm_disable_op_name_no_change("1404M", user_index);
 		rc |= dvfm_disable_op_name_no_change("1508M", user_index);
 		rc |= dvfm_disable_op_name_no_change("D1", user_index);
-		rc |= dvfm_disable_op_name_no_change("D2", user_index);
 		rc |= dvfm_disable_op_name_no_change("CG", user_index);
 
 		if (rc)
