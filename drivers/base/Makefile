@@ -20,5 +20,7 @@ endif
 obj-$(CONFIG_SYS_HYPERVISOR) += hypervisor.o
 obj-$(CONFIG_REGDUMP) += regdump.o
 
+obj-$(CONFIG_SYNC)	+= sync.o
+
 ccflags-$(CONFIG_DEBUG_DRIVER) := -DDEBUG
 
