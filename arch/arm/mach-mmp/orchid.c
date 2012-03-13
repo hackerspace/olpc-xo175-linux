@@ -49,6 +49,7 @@
 #include <mach/hsi_dev.h>
 #include <mach/sram.h>
 #include <plat/pmem.h>
+#include <linux/power/fan540x_charger.h>
 
 #include "common.h"
 #include "onboard.h"
@@ -576,8 +577,17 @@ static struct i2c_board_info orchid_twsi1_info[] = {
 #endif
 };
 
-/* TODO: for charger FAN5405 */
+static struct fan540x_charger_pdata fan5405_pdata = {
+	.monitor_interval = 20,	/* seconds */
+	.gpio_dis = mfp_to_gpio(GPIO44_GPIO),
+};
+
 static struct i2c_board_info orchid_twsi2_info[] = {
+	{
+		.type = "fan5405",
+		.addr = 0x6A,
+		.platform_data = &fan5405_pdata,
+	},
 };
 
 /* TODO: for 3 AXIS GRYOSCOPE, E-COMPASS,
