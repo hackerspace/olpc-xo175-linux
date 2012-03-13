@@ -787,36 +787,33 @@ static char *mmp3_usb_clock_name[] = {
 	[0] = "U2OCLK",
 };
 
-static int pxa_usb_set_vbus(unsigned int vbus)
+static int pxa_usb_set_vbus(unsigned int on)
 {
-	int gpio = mfp_to_gpio(GPIO82_VBUS_EN);
-
-	printk(KERN_INFO "%s: set %d\n", __func__, vbus);
-
-	/* 5V power supply to external port */
-	if (gpio_request(gpio, "OTG VBUS Enable")) {
-		printk(KERN_INFO "gpio %d request failed\n", gpio);
-		return -1;
-	}
-
-	if (vbus)
-		gpio_direction_output(gpio, 1);
-	else
-		gpio_direction_output(gpio, 0);
-
-	gpio_free(gpio);
-
+	fan540x_set_vbus(on);
 	return 0;
 }
+
+static struct mv_usb_addon_irq pm80x_vbus = {
+	.irq	= IRQ_BOARD_START + PM800_IRQ_CHG,
+	.poll	= pm80x_read_vbus_val,
+};
+
+static struct mv_usb_addon_irq pm80x_id = {
+	.irq	= IRQ_BOARD_START + PM800_IRQ_GPADC2,
+	.poll	= pm80x_read_id_val,
+	.init	= pm80x_init_id,
+};
 
 static struct mv_usb_platform_data mmp3_usb_pdata = {
 	.clknum		= 1,
 	.clkname	= mmp3_usb_clock_name,
-	.vbus		= NULL,
+	.vbus		= &pm80x_vbus,
+	.id 		= &pm80x_id,
 	.mode		= MV_USB_MODE_OTG,
 	.phy_init	= pxa_usb_phy_init,
-	.phy_deinit     = pxa_usb_phy_deinit,
+	.phy_deinit	= pxa_usb_phy_deinit,
 	.set_vbus	= pxa_usb_set_vbus,
+	.otg_force_a_bus_req = 1,
 };
 #endif
 
@@ -1141,8 +1138,6 @@ static void __init orchid_init(void)
 #endif
 
 #ifdef CONFIG_USB_PXA_U2O
-	/* Place VBUS_EN low by default */
-	pxa_usb_set_vbus(0);
 	mmp3_device_u2o.dev.platform_data = (void *)&mmp3_usb_pdata;
 	platform_device_register(&mmp3_device_u2o);
 #endif
