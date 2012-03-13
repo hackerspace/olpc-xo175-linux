@@ -2056,8 +2056,16 @@ static int init_wakeup(pm_wakeup_src_t *src)
 	return 0;
 }
 
+u32 *sd_normal_int_err_status0, *sd_normal_int_err_status1, *sd_normal_int_err_status2;
+#include <mach/regs-intc.h>
+static int is_wkr_nevo_2243(void)
+{
+	return cpu_is_pxa978();
+}
+
 static int query_wakeup(unsigned int reg, pm_wakeup_src_t *src)
 {
+	int is_mmc = 0;
 	memset(src, 0, sizeof(pm_wakeup_src_t));
 	if (reg & PXA95x_PM_WE_RTC)
 		src->bits.rtc = 1;
@@ -2069,6 +2077,11 @@ static int query_wakeup(unsigned int reg, pm_wakeup_src_t *src)
 		src->bits.ext0 = 1;
 	if (reg & PXA95x_PM_WE_KP)
 		src->bits.mkey = 1;
+	if (reg & PXA95x_PM_WE_MMC3) {
+		src->bits.mmc3_dat1 = 1;
+		if (is_wkr_nevo_2243())
+			is_mmc = 1;
+	}
 	if (reg & PXA95x_PM_WE_GENERIC(3))
 		src->bits.tsi = 1;
 	if (reg & PXA95x_PM_WE_GENERIC(9))
@@ -2084,6 +2097,26 @@ static int query_wakeup(unsigned int reg, pm_wakeup_src_t *src)
 			src->bits.uart1 = 1;
 		if (pxa95x_query_gwsr(123))
 			src->bits.mmc1_cd = 1;
+	}
+	if (is_wkr_nevo_2243()) {
+		/* Clear unexpected irq. */
+		/* MMC0 interrupt pending. */
+		if ((ICIP3 & (1 << (72 - 64)))) {
+			writel(0xffffffff, sd_normal_int_err_status0);
+		}
+
+		/* MMC1 interrupt pending. */
+		if ((ICIP3 & (1 << (73 - 64)))) {
+			writel(0xffffffff, sd_normal_int_err_status1);
+		}
+
+		/* MMC2 interrupt pending. */
+		if ((ICIP3 & (1 << (74 - 64)))) {
+			writel(0xfffffeff, sd_normal_int_err_status2);
+		}
+		if (!is_mmc) {
+			writel(0x100, sd_normal_int_err_status2);
+		}
 	}
 
 	return 0;
@@ -2430,6 +2463,12 @@ static void __init init(void)
 
 #if defined(CONFIG_MMC_SDHCI_PXAV2_TAVOR) || defined(CONFIG_MMC_SDHCI_PXAV3)
 	init_mmc();
+	if (is_wkr_nevo_2243()) {
+		sd_normal_int_err_status0 = ioremap(0x55000030, 0x4);
+		sd_normal_int_err_status1 = ioremap(0x55100030, 0x4);
+		sd_normal_int_err_status2 = ioremap(0x55200030, 0x4);
+	}
+
 	wake_lock_init(&wifi_delayed_work_wake_lock,
 					WAKE_LOCK_SUSPEND, "wifi_delayed_work");
 #endif
