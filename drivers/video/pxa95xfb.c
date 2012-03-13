@@ -1853,7 +1853,7 @@ static int determine_best_pix_fmt(struct fb_var_screeninfo *var)
 				printk("%s: BGR888 packed format is not supported!\n", __func__);
 		}
 
-		if (var->bits_per_pixel == 32 && var->transp.length == 8) {
+		if (var->bits_per_pixel == 32 && var->transp.offset == 24) {
 			if (var->red.offset >= var->blue.offset)
 				return PIX_FMTIN_RGB_32;
 			else
