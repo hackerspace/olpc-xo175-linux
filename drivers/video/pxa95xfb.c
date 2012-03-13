@@ -2044,7 +2044,6 @@ static void set_mixer(struct pxa95xfb_info *fbi)
 		b_mixer_update[fbi->mixer_id] = 1;
 
 	writel(x, fbi->reg_base + ctl0_off);
-	fbi->active = fbi->on;
 
 	if (display_enabled && (mixer_update || mixer_onoff)) {
 		int ret = wait_event_interruptible_timeout(wq_mixer_update[fbi->mixer_id],
@@ -2151,8 +2150,10 @@ u32 lcdc_set_colorkeyalpha(struct pxa95xfb_info *fbi)
 	} else if (fbi->alphamode == LCD_PIXELALPHA) {
 		writel(LCD_CHx_ALPHA_CLR_KEY_EN(2), fbi->reg_base + LCD_CH0_ALPHA  + 4*fbi->window);
 		pr_info("fb%d: per-pixel alpha mode\n", fbi->id);
-	} else
-		pr_info("fb%d: unsupported mode\n", fbi->id);
+	} else {
+		writel(0x800000ff, fbi->reg_base + LCD_CH0_ALPHA  + 4*fbi->window);
+		pr_info("fb%d: unsupported mode, set un-transparent\n", fbi->id);
+	}
 	return 0;
 }
 
@@ -2306,6 +2307,9 @@ void lcdc_set_lcd_controller(struct pxa95xfb_info *fbi)
 
 	/* set fetch registers */
 	set_fetch(fbi);
+
+	lcdc_set_colorkeyalpha(fbi);
+
 	/* set window registers */
 	set_window(fbi);
 
@@ -2512,10 +2516,8 @@ static void pxa95xfb_gfx_power(struct pxa95xfb_info *fbi, int on)
 		clk_enable(fbi->clk_lcd);
 
 		for(i= 0; i< PXA95xFB_FB_NUM; i++){
-			if(pxa95xfbi[i] && pxa95xfbi[i]->open_count) {
-				lcdc_set_colorkeyalpha(fbi);
+			if(pxa95xfbi[i] && pxa95xfbi[i]->open_count)
 				lcdc_set_lcd_controller(pxa95xfbi[i]);
-			}
 		}
 
 		/* set scale registers for fb1*/

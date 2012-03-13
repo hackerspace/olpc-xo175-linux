@@ -474,8 +474,8 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 			fbi->alphamode = LCD_ALPHA_INVALID;
 		}
 
-		if (!pxa95xfbi[0]->suspend)
-			lcdc_set_colorkeyalpha(fbi);
+		if (!pxa95xfbi[0]->suspend && fbi->controller_on)
+			lcdc_set_lcd_controller(fbi);
 
 		break;
 	}
