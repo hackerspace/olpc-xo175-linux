@@ -1062,6 +1062,20 @@ static int __devinit device_800_init(struct pm80x_chip *chip,
 		goto out;
 	}
 
+	/*
+	 * alarm wake up bit will be clear in device_irq_init(),
+	 * read before that
+	 */
+	ret = pm80x_reg_read(chip->base_page, PM800_RTC_CONTROL);
+	if (ret < 0) {
+		dev_err(chip->dev, "Failed to read RTC register: %d\n", ret);
+		goto out;
+	}
+	if (ret & PM800_ALARM_WAKEUP) {
+		if (pdata && pdata->rtc)
+			pdata->rtc->rtc_wakeup = 1;
+	}
+
 	ret = device_gpadc_init(chip, pdata);
 	if (ret < 0) {
 		dev_info(chip->dev,

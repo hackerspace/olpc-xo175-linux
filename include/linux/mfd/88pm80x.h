@@ -208,6 +208,12 @@ enum {
 #define PM800_RTC_MISC3			(0xE3)
 #define PM800_RTC_MISC4			(0xE4)
 
+/* bit definitions of RTC Register 1 (0xD0) */
+#define PM800_ALARM1_EN			(1 << 0)
+#define PM800_ALARM_WAKEUP		(1 << 4)
+#define PM800_ALARM			(1 << 5)
+#define PM800_RTC1_USE_XO		(1 << 7)
+
 /*for save RTC offset*/
 #define PM800_USER_DATA1		(0xE8)
 #define PM800_USER_DATA2		(0xE9)

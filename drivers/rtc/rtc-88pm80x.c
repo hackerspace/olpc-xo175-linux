@@ -39,12 +39,6 @@ struct pm80x_rtc_info {
 	int (*sync) (unsigned int ticks);
 };
 
-/* bit definitions of RTC Register 1 (0xD0) */
-#define ALARM1_EN		(1 << 0)
-#define ALARM_WAKEUP		(1 << 4)
-#define ALARM			(1 << 5)
-#define RTC1_USE_XO		(1 << 7)
-
 static int pm80x_rtc_read_time(struct device *dev, struct rtc_time *tm);
 
 #ifdef CONFIG_RTC_MON
@@ -102,8 +96,8 @@ static irqreturn_t rtc_update_handler(int irq, void *data)
 	struct pm80x_rtc_info *info = (struct pm80x_rtc_info *)data;
 	int mask;
 	printk("rtc update handler\n");
-	mask = ALARM | ALARM_WAKEUP;
-	pm80x_set_bits(info->i2c, PM800_RTC_CONTROL, mask | ALARM1_EN, mask);
+	mask = PM800_ALARM | PM800_ALARM_WAKEUP;
+	pm80x_set_bits(info->i2c, PM800_RTC_CONTROL, mask | PM800_ALARM1_EN, mask);
 	rtc_update_irq(info->rtc_dev, 1, RTC_AF);
 	return IRQ_HANDLED;
 }
@@ -113,10 +107,10 @@ static int pm80x_rtc_alarm_irq_enable(struct device *dev, unsigned int enabled)
 	struct pm80x_rtc_info *info = dev_get_drvdata(dev);
 
 	if (enabled)
-		pm80x_set_bits(info->i2c, PM800_RTC_CONTROL, ALARM1_EN,
-			       ALARM1_EN);
+		pm80x_set_bits(info->i2c, PM800_RTC_CONTROL, PM800_ALARM1_EN,
+			       PM800_ALARM1_EN);
 	else
-		pm80x_set_bits(info->i2c, PM800_RTC_CONTROL, ALARM1_EN, 0);
+		pm80x_set_bits(info->i2c, PM800_RTC_CONTROL, PM800_ALARM1_EN, 0);
 	return 0;
 }
 
@@ -220,8 +214,8 @@ static int pm80x_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 
 	rtc_time_to_tm(ticks, &alrm->time);
 	ret = pm80x_reg_read(info->i2c, PM800_RTC_CONTROL);
-	alrm->enabled = (ret & ALARM1_EN) ? 1 : 0;
-	alrm->pending = (ret & (ALARM | ALARM_WAKEUP)) ? 1 : 0;
+	alrm->enabled = (ret & PM800_ALARM1_EN) ? 1 : 0;
+	alrm->pending = (ret & (PM800_ALARM | PM800_ALARM_WAKEUP)) ? 1 : 0;
 	return 0;
 }
 
@@ -232,7 +226,8 @@ static int pm80x_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 	unsigned long ticks, base, data;
 	unsigned char buf[4];
 	int mask;
-	pm80x_set_bits(info->i2c, PM800_RTC_CONTROL, ALARM1_EN, 0);
+
+	pm80x_set_bits(info->i2c, PM800_RTC_CONTROL, PM800_ALARM1_EN, 0);
 
 	pm80x_bulk_read(info->i2c, PM800_RTC_EXPIRE2_1, 4, buf);
 	base = (buf[3] << 24) | (buf[2] << 16) | (buf[1] << 8) | buf[0];
@@ -259,12 +254,12 @@ static int pm80x_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 	buf[3] = (data >> 24) & 0xff;
 	pm80x_bulk_write(info->i2c, PM800_RTC_EXPIRE1_1, 4, buf);
 	if (alrm->enabled) {
-		mask = ALARM | ALARM_WAKEUP | ALARM1_EN;
+		mask = PM800_ALARM | PM800_ALARM_WAKEUP | PM800_ALARM1_EN;
 		pm80x_set_bits(info->i2c, PM800_RTC_CONTROL, mask, mask);
 	} else {
-		mask = ALARM | ALARM_WAKEUP | ALARM1_EN;
+		mask = PM800_ALARM | PM800_ALARM_WAKEUP | PM800_ALARM1_EN;
 		pm80x_set_bits(info->i2c, PM800_RTC_CONTROL, mask,
-			       ALARM | ALARM_WAKEUP);
+			       PM800_ALARM | PM800_ALARM_WAKEUP);
 	}
 	return 0;
 }
@@ -329,6 +324,7 @@ static int __devinit pm80x_rtc_probe(struct platform_device *pdev)
 	struct rtc_time tm;
 	unsigned long ticks = 0;
 	int ret;
+
 	pdata = pdev->dev.platform_data;
 	if (pdata == NULL)
 		dev_warn(&pdev->dev, "No platform data!\n");
@@ -400,7 +396,7 @@ static int __devinit pm80x_rtc_probe(struct platform_device *pdev)
 	 * enable internal XO instead of internal 3.25MHz clock since it can
 	 * free running in PMIC power-down state.
 	 */
-	pm80x_set_bits(info->i2c, PM800_RTC_CONTROL, RTC1_USE_XO, RTC1_USE_XO);
+	pm80x_set_bits(info->i2c, PM800_RTC_CONTROL, PM800_RTC1_USE_XO, PM800_RTC1_USE_XO);
 
 	if (pdev->dev.parent->platform_data) {
 		pm80x_pdata = pdev->dev.parent->platform_data;
