@@ -319,6 +319,18 @@ static struct pm80x_platform_data pm800_info = {
 };
 
 extern struct pxa95x_freq_mach_info freq_mach_info;
+
+static void headsetflag_init_pm800(void)
+{
+	switch (get_board_id()) {
+	case OBM_DKB_2_NEVO_C0_BOARD:
+		pm800_info.headset_flag = 1;
+		break;
+	default:
+		pm800_info.headset_flag = 0;
+		break;
+	}
+}
 static void regulator_init_pm8607(void)
 {
 	int i = 0;
@@ -2339,6 +2351,8 @@ static void __init init(void)
 		pxa9xx_usb_pdata.set_vbus = pm860x_set_vbus;
 	}
 
+	if (get_pmic_id() >= PM800_CHIP_A0)
+		headsetflag_init_pm800();
 #if defined(CONFIG_BACKLIGHT_ADP8885)
 	if (OBM_SAAR_C25_NEVO_B0_V10_BOARD == get_board_id())
 		adp8885_data.num_chs = 1;
