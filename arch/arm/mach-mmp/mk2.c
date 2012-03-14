@@ -155,24 +155,22 @@ static unsigned long mk2_pin_config[] __initdata = {
 	GPIO139_GPIO,
 
 	/* mk2 gpio keypad */
-        GPIO147_GPIO,
-        GPIO148_GPIO,
-        GPIO150_GPIO,
-        GPIO154_GPIO,
+	GPIO147_GPIO,
+	GPIO148_GPIO,
+	GPIO150_GPIO,
+	GPIO154_GPIO,
 
 	PMIC_PMIC_INT | MFP_LPM_EDGE_FALL,
 	GPIO06_WM8994_LDOEN,
 	GPIO128_LCD_RST,
-        /* backlight */
-        GPIO17_GPIO,
-        /* LVDS */
-        GPIO83_GPIO,
-
+	/* backlight */
+	GPIO17_GPIO,
+	/* LVDS */
+	GPIO83_GPIO,
 
 	/* OTG vbus enable signal */
 	/* VBUS_EN for MK2 */
-        GPIO77_GPIO,
-
+	GPIO77_GPIO,
 
 	/* HSIC1 reset pin*/
 	GPIO96_HSIC_RESET,
@@ -197,9 +195,9 @@ static unsigned long mk2_pin_config[] __initdata = {
 	GPIO101_GPIO, /* TS INT*/
 	GPIO85_GPIO, /* TS_IO_EN */
 
-        /* touch for mk2*/
-        GPIO153_GPIO,
-        GPIO101_GPIO,
+	/* touch for mk2*/
+	GPIO153_GPIO,
+	GPIO101_GPIO,
 
 	/* HDMI */
 	GPIO54_HDMI_CEC,
@@ -454,6 +452,7 @@ static struct mv_cam_pdata mv_cam_data = {
 };
 /* sensor init over */
 #endif
+
 /* mk2 GPIO Keyboard */
 #define INIT_KEY(_code, _gpio, _active_low, _desc)	\
 	{						\
@@ -497,7 +496,6 @@ static int motion_sensor_set_power(int on, const char *device_name)
 	/* GPIO power enable */
 	if (gpio_request(gsen_pwr_en, "GSENSOR Enable")) {
 		printk(KERN_INFO "gpio %d request failed\n", gsen_pwr_en);
-		printk( "gpio %d request failed\n", gsen_pwr_en);
 		return -1;
 	}
 #if defined(CONFIG_SENSORS_LSM303DLHC_ACC)
@@ -968,7 +966,7 @@ static char *mmp3_usb_clock_name[] = {
 static int pxa_usb_set_vbus(unsigned int vbus)
 {
 	/* int gpio = mfp_to_gpio(GPIO62_VBUS_EN); */
-        int gpio = mfp_to_gpio(GPIO77_GPIO); /*mk2*/
+	int gpio = mfp_to_gpio(GPIO77_GPIO); /*mk2*/
 
 	printk(KERN_INFO "%s: set %d\n", __func__, vbus);
 
@@ -1080,17 +1078,15 @@ static int tc358765_init(void)
 	struct regulator *vcc = NULL;
 	int ret = 0;
 
-        int lvds_en = mfp_to_gpio(GPIO83_GPIO);
+	int lvds_en = mfp_to_gpio(GPIO83_GPIO);
 
-        /* LVDS power enable */
-        if (gpio_request(lvds_en, "lvds Enable")) {
-                printk(KERN_INFO "gpio %d request failed\n", lvds_en);
-                printk( "gpio %d request failed\n", lvds_en);
-                return -1;
-           }
-        gpio_direction_output(lvds_en, 0);
-        mdelay(200);
-
+	/* LVDS power enable */
+	if (gpio_request(lvds_en, "lvds Enable")) {
+		printk(KERN_ERR "gpio %d request failed\n", lvds_en);
+		return -1;
+	}
+	gpio_direction_output(lvds_en, 0);
+	mdelay(200);
 
 	/* enable LDO for MIPI bridge */
 	vcc = regulator_get(NULL, "pmic_1p2v_mipi");
@@ -1108,13 +1104,9 @@ static int tc358765_init(void)
 		ret = regulator_set_voltage(vcc, 1200000, 1200000);
 	}
 
-        printk( "LVDS +++\r\n");
-        mdelay(5);
-        printk( "LVDS ---\r\n");
-        gpio_direction_output(lvds_en, 1);
-        printk( "LVDS ok\r\n");
-        gpio_free(lvds_en);
-
+	mdelay(5);
+	gpio_direction_output(lvds_en, 1);
+	gpio_free(lvds_en);
 
 	return 0;
 }
@@ -1125,59 +1117,57 @@ static struct tc35876x_platform_data tc358765_data = {
 	.id_reg = TC358765_CHIPID_REG,
 };
 #endif
+
 /* enable EETI EXC7200 touch controller */
 #ifdef CONFIG_TOUCHSCREEN_EGALAX_I2C
 static void exc7200_config(void)
 {
-       int gpio = 0,
-           gpio_value = 0,
-           ret = 0;
-       pr_info("%s()\n", __func__);
+	int gpio = 0,
+	gpio_value = 0,
+	ret = 0;
+	pr_info("%s()\n", __func__);
 
-       /* DIGITIZER_3V3_EN - GPIO153_GPIO153 */
-       gpio = mfp_to_gpio(GPIO153_GPIO);
-       ret = gpio_request(gpio, "digitizer_3v3");
-       if(ret < 0)
-       {
-                printk(KERN_ERR "%s: Fail to digitizer_3v3 (gpio %d) for \
-				touch! (errno = %d)\n", __func__, gpio, ret);
-                return;
-       }
+	/* DIGITIZER_3V3_EN - GPIO153_GPIO153 */
+	gpio = mfp_to_gpio(GPIO153_GPIO);
+	ret = gpio_request(gpio, "digitizer_3v3");
+	if(ret < 0){
+		printk(KERN_ERR "%s: Fail to digitizer_3v3 (gpio %d) for \
+			touch! (errno = %d)\n", __func__, gpio, ret);
+		return;
+	}
 
-       gpio_value = gpio_get_value(gpio);
-       if(!gpio_value) /* digitizer_3v3_en is not powered */
-       {
-                pr_info("%s: Power up touch (pull up gpio %d).\n",
-				__func__, gpio);
-                gpio_direction_output(gpio, 1);
-       }
-       else
-       {
-                pr_info("%s: gpio %d state is high (%d).\n",
-				__func__, gpio, gpio_value);
-       }
+	gpio_value = gpio_get_value(gpio);
+	if(!gpio_value){ /* digitizer_3v3_en is not powered */
+		pr_info("%s: Power up touch (pull up gpio %d).\n",
+			__func__, gpio);
+		gpio_direction_output(gpio, 1);
+	}
+	else{
+		pr_info("%s: gpio %d state is high (%d).\n",
+			__func__, gpio, gpio_value);
+	}
 
-       mdelay(1);
-       gpio_free(gpio);
+	mdelay(1);
+	gpio_free(gpio);
 
-       /* LCD_TOUCH_INT - GPIO101_GPIO101 */
-       gpio = mfp_to_gpio(GPIO101_GPIO);
-       ret = gpio_request(gpio, "lcd_touch_int");
+	/* LCD_TOUCH_INT - GPIO101_GPIO101 */
+	gpio = mfp_to_gpio(GPIO101_GPIO);
+	ret = gpio_request(gpio, "lcd_touch_int");
 
-       if(ret < 0)
-       {
-                printk(KERN_ERR "%s: Fail to rquest lcd_touch_int (gpio %d)\
+	if(ret < 0){
+		printk(KERN_ERR "%s: Fail to rquest lcd_touch_int (gpio %d)\
 			for touch irq! (errno = %d)\n", __func__, gpio, ret);
-                return;
-       }
+		return;
+	}
 
-       pr_info("%s: config lcd_touch_int (gpio %d) input!\n", __func__, gpio);
-       gpio_direction_input(gpio);
-       mdelay(1);
+	pr_info("%s: config lcd_touch_int (gpio %d) input!\n", __func__, gpio);
+	gpio_direction_input(gpio);
+	mdelay(1);
 
-       gpio_free(gpio);
+	gpio_free(gpio);
 }
 #endif /* CONFIG_TOUCHSCREEN_EGALAX_I2C */
+
 static int wm8994_ldoen(void)
 {
 	int gpio = mfp_to_gpio(GPIO06_WM8994_LDOEN);
@@ -1375,34 +1365,30 @@ static struct i2c_board_info mk2_twsi3_info[] = {
 		.platform_data	= &tc358765_data,
 	},
 #endif
-        {
-	         .type = "wm8994",
-		 .addr = 0x1a,
-	         .platform_data = &mk2_wm8994_pdata,
-         },
-
+	{
+		.type = "wm8994",
+		.addr = 0x1a,
+		.platform_data = &mk2_wm8994_pdata,
+	},
 };
+
 static struct i2c_board_info mk2_twsi5_info[] = {
 /* enable EETI EXC7200 touch controller, 20110812 */
 #ifdef CONFIG_TOUCHSCREEN_EGALAX_I2C
-        {
-
-                .type           = "egalax_i2c",
-                .addr           = 0x04,
-                .irq            = gpio_to_irq(101),
-        },
+	{
+		.type           = "egalax_i2c",
+		.addr           = 0x04,
+		.irq            = gpio_to_irq(101),
+	},
 #endif /* CONFIG_TOUCHSCREEN_EGALAX_I2C */
 };
 
-
 static int gsensor_power_en(int onoff)
 {
-
 	int gsen_pwr_en = mfp_to_gpio(GPIO87_GPIO);
 	/* GPIO power enable */
 	if (gpio_request(gsen_pwr_en, "GSENSOR Enable")) {
 		printk(KERN_INFO "gpio %d request failed\n", gsen_pwr_en);
-		printk( "gpio %d request failed\n", gsen_pwr_en);
 		return -1;
 	}
 	gpio_direction_output(gsen_pwr_en, onoff);
@@ -1412,78 +1398,74 @@ static int gsensor_power_en(int onoff)
 	return 0;
 }
 
-
 int backlight_power_en(int onoff)
 {
+	int bkl_en = mfp_to_gpio(GPIO17_GPIO);
+	/* GPIO power enable */
+	if (gpio_request(bkl_en, "Backlight Enable")) {
+		printk(KERN_INFO "gpio %d request failed\n", bkl_en);
+		return -1;
+	}
+	gpio_direction_output(bkl_en, onoff);
 
-       int bkl_en = mfp_to_gpio(GPIO17_GPIO);
-        /* GPIO power enable */
-        if (gpio_request(bkl_en, "Backlight Enable")) {
-                printk(KERN_INFO "gpio %d request failed\n", bkl_en);
-                printk( "gpio %d request failed\n", bkl_en);
-                return -1;
-        }
-        gpio_direction_output(bkl_en, onoff);
+	printk( "BKL ok\r\n");
 
-        printk( "BKL ok\r\n");
-
-        gpio_free(bkl_en);
-       return 0;
+	gpio_free(bkl_en);
+	return 0;
 }
+
 int lcd_power_en(int onoff)
 {
+	int lcd_en = mfp_to_gpio(GPIO152_GPIO);
+	/* GPIO power enable */
+	if (gpio_request(lcd_en, "lcd Enable")) {
+		printk(KERN_INFO "gpio %d request failed\n", lcd_en);
+		printk( "gpio %d request failed\n", lcd_en);
+		return -1;
+	}
+	gpio_direction_output(lcd_en, 0);
 
-       int lcd_en = mfp_to_gpio(GPIO152_GPIO);
-        /* GPIO power enable */
-       if (gpio_request(lcd_en, "lcd Enable")) {
-                printk(KERN_INFO "gpio %d request failed\n", lcd_en);
-                printk( "gpio %d request failed\n", lcd_en);
-                return -1;
-        }
-        gpio_direction_output(lcd_en, 0);
+	mdelay(200);
+	gpio_direction_output(lcd_en, 1);
 
-        mdelay(200);
-        gpio_direction_output(lcd_en, 1);
+	printk( "LCD ok\r\n");
 
-        printk( "LCD ok\r\n");
-
-        gpio_free(lcd_en);
-       return 0;
+	gpio_free(lcd_en);
+	return 0;
 }
+
 static int hdmi_power_on(void)
 {
-        int hdmi_pwr_en = mfp_to_gpio(GPIO160_GPIO);
+	int hdmi_pwr_en = mfp_to_gpio(GPIO160_GPIO);
 
-        if (gpio_request(hdmi_pwr_en, "hdmi_pwr_en"))
-        {       printk(KERN_ERR "Request GPIO failed, gpio: %d.\n",
-			hdmi_pwr_en);
-                return -1;
-        }
-        printk("%s: hdmi_pwr_en.\n", __FUNCTION__);
-        gpio_direction_output(hdmi_pwr_en, 1);    /* power on */
+	if (gpio_request(hdmi_pwr_en, "hdmi_pwr_en")){
+		printk(KERN_ERR "Request GPIO failed, gpio: %d.\n", hdmi_pwr_en);
+		return -1;
+	}
+	printk("%s: hdmi_pwr_en.\n", __FUNCTION__);
+	gpio_direction_output(hdmi_pwr_en, 1);    /* power on */
 
-        gpio_free(hdmi_pwr_en);
-        return 0;
+	gpio_free(hdmi_pwr_en);
+	return 0;
 }
 
 static int usb_hub_power_on (int onoff)
 {
+	/*int usbhub_pwr_en = mfp_to_gpio(GPIO166_GPIO);
+	For B0 board hub power is controlled by LDO */
+	int reset = mfp_to_gpio(GPIO96_HSIC_RESET);
 
-       /*int usbhub_pwr_en = mfp_to_gpio(GPIO166_GPIO);
-       For B0 board hub power is controlled by LDO */
-        int reset = mfp_to_gpio(GPIO96_HSIC_RESET);
+	if (gpio_request(reset, "hsic reset")) {
+		pr_err("Failed to request hsic reset gpio\n");
+		return -EIO;
+	}
 
-        if (gpio_request(reset, "hsic reset")) {
-                pr_err("Failed to request hsic reset gpio\n");
-                return -EIO;
-        }
+	gpio_direction_output(reset, ~onoff);
+	mdelay(20);
+	gpio_direction_output(reset, onoff);
+	gpio_free(reset);
 
-        gpio_direction_output(reset, ~onoff);
-        mdelay(20);
-        gpio_direction_output(reset, onoff);
-        gpio_free(reset);
-
-       return 0;
+	return 0;
 }
 
 
@@ -1495,16 +1477,16 @@ static void __init mk2_init(void)
 	mmp3_add_uart(3);
 	/* mmp3_add_twsi(1, NULL, ARRAY_AND_SIZE(mk2_twsi1_info)); */
 	mk2_power_supply_init();
-        mmp3_add_twsi(1, NULL, ARRAY_AND_SIZE(mk2_twsi1_info));
+	mmp3_add_twsi(1, NULL, ARRAY_AND_SIZE(mk2_twsi1_info));
 	mmp3_add_twsi(4, NULL, ARRAY_AND_SIZE(mk2_twsi4_info));
 	mmp3_add_twsi(3, NULL, ARRAY_AND_SIZE(mk2_twsi3_info));
 	mmp3_add_twsi(5, NULL, ARRAY_AND_SIZE(mk2_twsi5_info));
 	/* for hdmi edid */
 	/* mmp3_add_twsi(6, NULL, ARRAY_AND_SIZE(mk2_twsi6_info));*/
 
-        platform_device_register(&gpio_keys);
-        backlight_power_en(1);
-        lcd_power_en(1);
+	platform_device_register(&gpio_keys);
+	backlight_power_en(1);
+	lcd_power_en(1);
 	hdmi_power_on();
 	usb_hub_power_on(1);
 
@@ -1576,8 +1558,8 @@ static void __init mk2_init(void)
 	gsensor_power_en(1);
 /* enable EETI EXC7200 touch controller */
 #ifdef CONFIG_TOUCHSCREEN_EGALAX_I2C
-        /* Configure irq for exc7200 touch panel */
-        exc7200_config();
+	/* Configure irq for exc7200 touch panel */
+	exc7200_config();
 #endif /*CONFIG_TOUCHSCREEN_EGALAX_I2C */
 }
 
