@@ -58,6 +58,22 @@ static struct fb_videomode video_modes_orchid[] = {
 		.sync = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
 		},
 };
+
+static struct fb_videomode video_modes_mk2[] = {
+	[0] = {
+		.refresh = 60,
+		.xres = 1024,
+		.yres = 768,
+		.hsync_len = 20,
+		.left_margin = 160,
+		.right_margin = 24,
+		.vsync_len = 16,
+		.upper_margin = 29,
+		.lower_margin = 3,
+		.sync = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
+		},
+};
+
 static int abilene_lvds_power(struct pxa168fb_info *fbi,
 				unsigned int spi_gpio_cs,
 				unsigned int spi_gpio_reset, int on)
@@ -296,7 +312,8 @@ static int tc358765_reset(struct pxa168fb_info *fbi)
 	gpio = mfp_to_gpio(GPIO83_LCD_RST);
 #endif
 
-#if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_YELLOWSTONE)
+#if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_YELLOWSTONE) \
+	|| defined(CONFIG_MACH_MK2)
 	gpio = mfp_to_gpio(GPIO128_LCD_RST);
 #endif
 
@@ -599,6 +616,110 @@ static int abilene_lcd_power(struct pxa168fb_info *fbi,
 
 	printk(KERN_DEBUG "%s on %d\n", __func__, on);
 	return 0;
+}
+
+static int  mk2_lcd_power_en(int on)
+{
+	int vlcd_3v3_en;
+
+	vlcd_3v3_en = mfp_to_gpio(GPIO152_VLCD_3V3);
+	if (gpio_request(vlcd_3v3_en, "vlcd 3v3 gpio")) {
+		pr_err("gpio %d request failed\n", vlcd_3v3_en);
+		return -EIO;
+	}
+
+	if (on)
+		gpio_direction_output(vlcd_3v3_en, 1);
+	else
+		gpio_direction_output(vlcd_3v3_en, 0);
+	gpio_free(vlcd_3v3_en);
+
+	return 0;
+}
+
+static int mk2_lcd_power(struct pxa168fb_info *fbi,
+			     unsigned int spi_gpio_cs,
+			     unsigned int spi_gpio_reset, int on)
+{
+	static struct regulator *mipi_1p2v = NULL,
+		*mipi_logic_1p2v = NULL;
+	int mipi_rst, bl_en;
+
+	/*
+	 * FIXME: It is board related, baceuse zx will be replaced soon,
+	 * it is temproary distinguished by cpu
+	 */
+	mipi_rst = mfp_to_gpio(GPIO128_LCD_RST);
+	if (gpio_request(mipi_rst, "lcd reset gpio")) {
+		pr_err("gpio %d request failed\n", mipi_rst);
+		return -EIO;
+	}
+
+	bl_en = mfp_to_gpio(GPIO17_BL_EN);
+	if (gpio_request(bl_en, "lcd bl_en gpio")) {
+		pr_err("gpio %d request failed\n", bl_en);
+		goto gpio_req_bl_en;
+	}
+
+	/* pmic_1p2v_mipi, 1.2v */
+	if (!mipi_1p2v) {
+		mipi_1p2v = regulator_get(NULL, "PMIC_LDO1");
+		if (IS_ERR(mipi_1p2v)) {
+			pr_err("%s regulator get error!\n", __func__);
+			mipi_1p2v = NULL;
+			goto regu_mipi_1p2v;
+		}
+	}
+
+	/* pmic_1p2v_mipi_logic, 1.2v */
+	if (!mipi_logic_1p2v) {
+		mipi_logic_1p2v = regulator_get(NULL, "PMIC_LDO7");
+		if (IS_ERR(mipi_logic_1p2v)) {
+			pr_err("%s regulator get error!\n", __func__);
+			mipi_logic_1p2v = NULL;
+			goto regu_mipi_logic_1p2v;
+		}
+	}
+
+	if (on) {
+		mk2_lcd_power_en(1);
+
+		regulator_set_voltage(mipi_1p2v, 1200000, 1200000);
+		regulator_enable(mipi_1p2v);
+
+		regulator_set_voltage(mipi_logic_1p2v, 1200000, 1200000);
+		regulator_enable(mipi_logic_1p2v);
+
+		/* release panel from reset */
+		gpio_direction_output(mipi_rst, 1);
+		gpio_direction_output(bl_en, 1);
+	} else {
+		gpio_direction_output(bl_en, 0);
+		/* set panel reset */
+		gpio_direction_output(mipi_rst, 0);
+
+		regulator_disable(mipi_logic_1p2v);
+
+		regulator_disable(mipi_1p2v);
+
+		mk2_lcd_power_en(0);
+	}
+
+	gpio_free(mipi_rst);
+	gpio_free(bl_en);
+	pr_debug("%s on %d\n", __func__, on);
+
+	return 0;
+
+regu_mipi_logic_1p2v:
+	regulator_put(mipi_1p2v);
+
+regu_mipi_1p2v:
+	gpio_free(bl_en);
+
+gpio_req_bl_en:
+	gpio_free(mipi_rst);
+	return -EIO;
 }
 
 static int dsi_init(struct pxa168fb_info *fbi)
@@ -990,6 +1111,62 @@ void __init orchid_add_lcd_mipi(void)
 	mmp3_add_fb_ovly(ovly);
 #endif
 	vsmooth_init(1, 2);
+}
+#endif
+
+#ifdef CONFIG_MACH_MK2
+void __init mk2_add_lcd_mipi(void)
+{
+	unsigned char __iomem *dmc_membase;
+	unsigned int CSn_NO_COL, lvds_en;
+
+	struct pxa168fb_mach_info *fb = &mipi_lcd_info, *ovly =
+	    &mipi_lcd_ovly_info;
+
+	fb->num_modes = ARRAY_SIZE(video_modes_mk2);
+	fb->modes = video_modes_mk2;
+	fb->max_fb_size = video_modes_mk2[0].xres *
+		video_modes_mk2[0].xres * 8 + 4096;
+	ovly->num_modes = fb->num_modes;
+	ovly->modes = fb->modes;
+	ovly->max_fb_size = fb->max_fb_size;
+
+	/* FIXME: V_LCD_3P3V enabled firstly,
+	 * there would be a blank flicker if not */
+	mk2_lcd_power_en(1);
+	fb->pxa168fb_lcd_power = mk2_lcd_power;
+
+	/* FIXME: select DSI2LVDS by default on mk2. */
+	lvds_en = 0;
+	if (cpu_is_mmp3_b0() && lvds_en)
+		lvds_hook(fb);
+
+	/* Re-calculate lcd clk source and divider
+	 * according to dsi lanes and output format.
+	 */
+	calculate_lcd_sclk(fb);
+
+	dmc_membase = ioremap(DDR_MEM_CTRL_BASE, 0x30);
+	CSn_NO_COL = __raw_readl(dmc_membase + SDRAM_CONFIG_TYPE1_CS0) >> 4;
+	CSn_NO_COL &= 0xF;
+	if (CSn_NO_COL <= 0x2) {
+		/*
+		 *If DDR page size < 4KB,
+		 *select no crossing 1KB boundary check
+		 */
+		fb->io_pad_ctrl |= CFG_BOUNDARY_1KB;
+		ovly->io_pad_ctrl |= CFG_BOUNDARY_1KB;
+	}
+	iounmap(dmc_membase);
+
+	/* add frame buffer drivers */
+	mmp3_add_fb(fb);
+	/* add overlay driver */
+#ifdef CONFIG_PXA168_V4L2_OVERLAY
+	mmp3_add_v4l2_ovly(ovly);
+#else
+	mmp3_add_fb_ovly(ovly);
+#endif
 }
 #endif
 

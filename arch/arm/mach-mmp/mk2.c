@@ -162,11 +162,11 @@ static unsigned long mk2_pin_config[] __initdata = {
 
 	PMIC_PMIC_INT | MFP_LPM_EDGE_FALL,
 	GPIO06_WM8994_LDOEN,
+	/* LCD */
+	GPIO152_VLCD_3V3,
 	GPIO128_LCD_RST,
 	/* backlight */
-	GPIO17_GPIO,
-	/* LVDS */
-	GPIO83_GPIO,
+	GPIO17_BL_EN,
 
 	/* OTG vbus enable signal */
 	/* VBUS_EN for MK2 */
@@ -979,39 +979,38 @@ static struct mv_usb_platform_data mmp3_hsic2_pdata = {
 static int tc358765_init(void)
 {
 	struct regulator *vcc = NULL;
-	int ret = 0;
-
-	int lvds_en = mfp_to_gpio(GPIO83_GPIO);
+	int ret = 0, mipi_rst = mfp_to_gpio(GPIO128_LCD_RST);
 
 	/* LVDS power enable */
-	if (gpio_request(lvds_en, "lvds Enable")) {
-		printk(KERN_ERR "gpio %d request failed\n", lvds_en);
+	if (gpio_request(mipi_rst, "lcd reset gpio")) {
+		printk(KERN_INFO "gpio %d request failed\n", mipi_rst);
 		return -1;
 	}
-	gpio_direction_output(lvds_en, 0);
-	mdelay(200);
+	gpio_direction_output(mipi_rst, 0);
 
-	/* enable LDO for MIPI bridge */
-	vcc = regulator_get(NULL, "pmic_1p2v_mipi");
+	/* enable LDO1 & LDO7 for MIPI bridge */
+	vcc = regulator_get(NULL, "PMIC_LDO1");
 	if (IS_ERR(vcc))
 		vcc = NULL;
 	else {
-		regulator_enable(vcc);
 		ret = regulator_set_voltage(vcc, 1200000, 1200000);
+		regulator_enable(vcc);
+		regulator_put(vcc);
 	}
-	vcc = regulator_get(NULL, "pmic_1p2v_mipi_logic");
+	vcc = regulator_get(NULL, "PMIC_LDO7");
 	if (IS_ERR(vcc))
 		vcc = NULL;
 	else {
-		regulator_enable(vcc);
 		ret = regulator_set_voltage(vcc, 1200000, 1200000);
+		regulator_enable(vcc);
+		regulator_put(vcc);
 	}
 
 	mdelay(5);
-	gpio_direction_output(lvds_en, 1);
-	gpio_free(lvds_en);
+	gpio_direction_output(mipi_rst, 1);
+	gpio_free(mipi_rst);
 
-	return 0;
+	return ret;
 }
 
 static struct tc35876x_platform_data tc358765_data = {
@@ -1301,42 +1300,6 @@ static int gsensor_power_en(int onoff)
 	return 0;
 }
 
-int backlight_power_en(int onoff)
-{
-	int bkl_en = mfp_to_gpio(GPIO17_GPIO);
-	/* GPIO power enable */
-	if (gpio_request(bkl_en, "Backlight Enable")) {
-		printk(KERN_INFO "gpio %d request failed\n", bkl_en);
-		return -1;
-	}
-	gpio_direction_output(bkl_en, onoff);
-
-	printk( "BKL ok\r\n");
-
-	gpio_free(bkl_en);
-	return 0;
-}
-
-int lcd_power_en(int onoff)
-{
-	int lcd_en = mfp_to_gpio(GPIO152_GPIO);
-	/* GPIO power enable */
-	if (gpio_request(lcd_en, "lcd Enable")) {
-		printk(KERN_INFO "gpio %d request failed\n", lcd_en);
-		printk( "gpio %d request failed\n", lcd_en);
-		return -1;
-	}
-	gpio_direction_output(lcd_en, 0);
-
-	mdelay(200);
-	gpio_direction_output(lcd_en, 1);
-
-	printk( "LCD ok\r\n");
-
-	gpio_free(lcd_en);
-	return 0;
-}
-
 static int hdmi_power_on(void)
 {
 	int hdmi_pwr_en = mfp_to_gpio(GPIO160_GPIO);
@@ -1386,16 +1349,14 @@ static void __init mk2_init(void)
 	/* mmp3_add_twsi(6, NULL, ARRAY_AND_SIZE(mk2_twsi6_info));*/
 
 	platform_device_register(&gpio_keys);
-	backlight_power_en(1);
-	lcd_power_en(1);
 	hdmi_power_on();
 	usb_hub_power_on(1);
 
 
 	mmp3_add_videosram(&mmp3_videosram_info);
 #ifdef CONFIG_FB_PXA168
-	/* mk2_add_lcd_mipi(); */
-	/* mmp3_add_tv_out(); */
+	mk2_add_lcd_mipi();
+	mmp3_add_tv_out();
 #endif
 
 #ifdef CONFIG_UIO_HDMI
