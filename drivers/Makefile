@@ -124,3 +124,4 @@ obj-y				+= clk/
 
 obj-$(CONFIG_HWSPINLOCK)	+= hwspinlock/
 obj-$(CONFIG_CORE_MORPHING)	+= core_morph/
+obj-$(CONFIG_PM_DEVFREQ)	+= devfreq/
