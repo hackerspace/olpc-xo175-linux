@@ -559,6 +559,7 @@ struct pm80x_platform_data {
 	int irq_companion;	/* IRQ number of companion chip */
 	int batt_det;		/* enable/disable */
 	int num_regulators;
+	int headset_flag;
 	int (*pm800_plat_config)(struct pm80x_chip *chip,
 				struct pm80x_platform_data *pdata);
 	int (*pm805_plat_config)(struct pm80x_chip *chip,

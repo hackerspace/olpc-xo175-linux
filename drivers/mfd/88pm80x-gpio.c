@@ -19,6 +19,7 @@ struct pm80x_gpio_info {
 	int 				irq_gpio02;
 	int 				irq_gpio03;
 	int 				irq_gpio04;
+	int				gpio04_flag;
 };
 #define GPIO4_MODE 		(0x08)
 
@@ -35,18 +36,26 @@ static irqreturn_t pm80x_gpio04_handler(int irq, void *data)
 	int value = 0;
 	mdelay(50);
 	value = pm80x_reg_read(info->i2c, PM800_GPIO_4_CNTRL);
-	if (value & PM800_GPIO4_VAL)
-		pm80x_headphone_handler(0);
+	if (info->gpio04_flag)
+		pm80x_headphone_handler(value & PM800_GPIO4_VAL);
 	else
-		pm80x_headphone_handler(1);
+		pm80x_headphone_handler(~value & PM800_GPIO4_VAL);
 	return IRQ_HANDLED;
 }
 static int pm80x_gpio_probe(struct platform_device *pdev)
 {
 	struct pm80x_chip *chip = dev_get_drvdata(pdev->dev.parent);
 	struct pm80x_gpio_info *info;
+	struct pm80x_platform_data *pm80x_pdata;
 	int irq_gpio04;
 	int ret;
+
+	if (pdev->dev.parent->platform_data) {
+		pm80x_pdata = pdev->dev.parent->platform_data;
+	} else {
+		pr_debug("Invalid pm80x platform data!\n");
+		return -EINVAL;
+	}
 	irq_gpio04 = platform_get_irq(pdev, 4);
 	if (irq_gpio04 < 0) {
 		dev_err(&pdev->dev, "No IRQ resource for gpio04!\n");
@@ -60,7 +69,7 @@ static int pm80x_gpio_probe(struct platform_device *pdev)
 	info->dev = &pdev->dev;
 	info->irq_gpio04 = irq_gpio04;
 	info->i2c = chip->base_page;
-
+	info->gpio04_flag = pm80x_pdata->headset_flag;
 	ret = request_threaded_irq(info->irq_gpio04, NULL, pm80x_gpio04_handler,
 					IRQF_ONESHOT, "gpio-04", info);
 	if (ret < 0) {
