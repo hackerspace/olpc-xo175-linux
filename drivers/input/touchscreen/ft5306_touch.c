@@ -112,17 +112,22 @@ static void ft5306_touch_work(struct work_struct *work)
 	tem_x1 = ((u16) (ft5306_buf[3] & 0xF) << 8) | (u16) ft5306_buf[4];
 	tem_y1 = ((u16) (ft5306_buf[5] & 0xF) << 8) | (u16) ft5306_buf[6];
 	tem_x2 = ((u16) (ft5306_buf[9] & 0xF) << 8) | (u16) ft5306_buf[10];
-	tem_y2 =
-	    ((u16) (ft5306_buf[11] & 0xF) << 8) | (u16) ft5306_buf[12];
+	tem_y2 = ((u16) (ft5306_buf[11] & 0xF) << 8) | (u16) ft5306_buf[12];
 
-	dev_dbg(&touch->i2c->dev,
-	       "cj:ft5306_touch.c----x1:%d,y1:%d;x2:%d,y2:%d.\n", tem_x1,
-	       tem_y1, tem_x2, tem_y2);
+	dev_dbg(&touch->i2c->dev, "cj:ft5306_touch.c----x1:%d,y1:%d;x2:%d,y2:%d.\n",
+		tem_x1, tem_y1, tem_x2, tem_y2);
 	tmp = ft5306_buf[2] & 0x07;
 	if (tmp == 1) {
 		/* One finger */
 		dev_dbg(&touch->i2c->dev, "cj:ft5306_touch.c----One finger.\n");
 		touch->pen_status = FT5306_PEN_DOWN;
+		if (touch->data->abs_flag == 1)
+			tem_x1 = 539 - tem_x1;
+		else if (touch->data->abs_flag == 2) {
+			tem_x1 = 539 - tem_x1;
+			tem_y1 = 1059 - tem_y1;
+		} else if (touch->data->abs_flag == 3)
+			tem_y1 = 1059 - tem_y1;
 
 		input_report_abs(touch->idev, ABS_MT_TRACKING_ID, 0);
 		input_report_abs(touch->idev, ABS_PRESSURE, 255);
@@ -138,6 +143,18 @@ static void ft5306_touch_work(struct work_struct *work)
 		/* Two fingers */
 		dev_dbg(&touch->i2c->dev, "ft5306_touch.c----Two finger.\n");
 		touch->pen_status = FT5306_PEN_DOWN;
+		if (touch->data->abs_flag == 1) {
+			tem_x1 = 539 - tem_x1;
+			tem_x2 = 539 - tem_x2;
+		} else if (touch->data->abs_flag == 2) {
+			tem_x1 = 539 - tem_x1;
+			tem_y1 = 1059 - tem_y1;
+			tem_x2 = 539 - tem_x2;
+			tem_y2 = 1059 - tem_y2;
+		} else if (touch->data->abs_flag == 3) {
+			tem_y1 = 1059 - tem_y1;
+			tem_y2 = 1059 - tem_y2;
+		}
 
 		input_report_abs(touch->idev, ABS_MT_TRACKING_ID, 0);
 		input_report_abs(touch->idev, ABS_PRESSURE, 255);
@@ -381,13 +398,23 @@ ft5306_touch_probe(struct i2c_client *client,
 	__set_bit(BTN_2, touch->idev->keybit);
 
 	input_set_abs_params(touch->idev, ABS_MT_TOUCH_MAJOR, 0, 16, 0, 0);
-	input_set_abs_params(touch->idev, ABS_X, 0, 480, 0, 0);
-	input_set_abs_params(touch->idev, ABS_Y, 0, 800, 0, 0);
+	if (touch->data->abs_x_max && touch->data->abs_y_max) {
+		input_set_abs_params(touch->idev, ABS_X, 0, touch->data->abs_x_max, 0, 0);
+		input_set_abs_params(touch->idev, ABS_Y, 0, touch->data->abs_y_max, 0, 0);
+	} else {
+		input_set_abs_params(touch->idev, ABS_X, 0, 480, 0, 0);
+		input_set_abs_params(touch->idev, ABS_Y, 0, 800, 0, 0);
+	}
 	input_set_abs_params(touch->idev, ABS_PRESSURE, 0, 255, 0, 0);
 
-	/*   muti touch */
-	input_set_abs_params(touch->idev, ABS_MT_POSITION_X, 0, 480, 0, 0);
-	input_set_abs_params(touch->idev, ABS_MT_POSITION_Y, 0, 800, 0, 0);
+	/* muti touch */
+	if (touch->data->abs_x_max && touch->data->abs_y_max) {
+		input_set_abs_params(touch->idev, ABS_MT_POSITION_X, 0, touch->data->abs_x_max, 0, 0);
+		input_set_abs_params(touch->idev, ABS_MT_POSITION_Y, 0, touch->data->abs_y_max, 0, 0);
+	} else {
+		input_set_abs_params(touch->idev, ABS_MT_POSITION_X, 0, 480, 0, 0);
+		input_set_abs_params(touch->idev, ABS_MT_POSITION_Y, 0, 800, 0, 0);
+	}
 
 	ret = input_register_device(touch->idev);
 	if (ret) {

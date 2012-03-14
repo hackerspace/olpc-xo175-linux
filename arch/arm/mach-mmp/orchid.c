@@ -672,6 +672,9 @@ out:
 static struct ft5306_touch_platform_data ft5306_touch_data = {
 	.power = ft5306_touch_io_power_onoff,
 	.reset = ft5306_touch_reset,
+	.abs_x_max = 540,
+	.abs_y_max = 960,
+	.abs_flag = 2,	/* convert the frame of axes 180 degree by clockwise */
 };
 #endif
 
