@@ -656,146 +656,6 @@ static struct pxa27x_keypad_platform_data mmp3_keypad_info = {
 	.active_low = 1,
 };
 
-static struct regulator_consumer_supply max8925_regulator_supply[] = {
-	[0] = {
-		.supply = "DBVDD",
-		},
-	[1] = {
-		.supply = "AVDD2",
-		},
-	[2] = {
-		.supply = "CPVDD",
-		},
-};
-
-static struct regulator_consumer_supply regulator_supply[] = {
-	[MAX8925_ID_SD1]	= REGULATOR_SUPPLY("v_sd1", NULL),
-	[MAX8925_ID_SD2]	= REGULATOR_SUPPLY("v_sd2", NULL),
-	[MAX8925_ID_SD3]	= REGULATOR_SUPPLY("v_sd3", NULL),
-	[MAX8925_ID_LDO1]	= REGULATOR_SUPPLY("v_ldo1", NULL),
-	[MAX8925_ID_LDO2]	= REGULATOR_SUPPLY("v_ldo2", NULL),
-	[MAX8925_ID_LDO3]	= REGULATOR_SUPPLY("v_ldo3", NULL),
-	[MAX8925_ID_LDO4]	= REGULATOR_SUPPLY("v_ldo4", NULL),
-	[MAX8925_ID_LDO5]	= REGULATOR_SUPPLY("v_ldo5", NULL),
-	[MAX8925_ID_LDO6]	= REGULATOR_SUPPLY("v_ldo6", NULL),
-	[MAX8925_ID_LDO7]	= REGULATOR_SUPPLY("v_ldo7", NULL),
-	[MAX8925_ID_LDO8]	= REGULATOR_SUPPLY("v_ldo8", NULL),
-	[MAX8925_ID_LDO9]	= REGULATOR_SUPPLY("v_ldo9", NULL),
-	[MAX8925_ID_LDO10]	= REGULATOR_SUPPLY("v_ldo10", NULL),
-	[MAX8925_ID_LDO11]	= REGULATOR_SUPPLY("v_ldo11", NULL),
-	[MAX8925_ID_LDO12]	= REGULATOR_SUPPLY("v_ldo12", NULL),
-	[MAX8925_ID_LDO13]	= REGULATOR_SUPPLY("v_ldo13", NULL),
-	[MAX8925_ID_LDO14]	= REGULATOR_SUPPLY("v_ldo14", NULL),
-	[MAX8925_ID_LDO15]	= REGULATOR_SUPPLY("v_ldo15", NULL),
-	[MAX8925_ID_LDO16]	= REGULATOR_SUPPLY("v_ldo16", NULL),
-	[MAX8925_ID_LDO17]	= REGULATOR_SUPPLY("v_ldo17", NULL),
-	[MAX8925_ID_LDO18]	= REGULATOR_SUPPLY("v_ldo18", NULL),
-	[MAX8925_ID_LDO19]	= REGULATOR_SUPPLY("v_ldo19", NULL),
-	[MAX8925_ID_LDO20]	= REGULATOR_SUPPLY("v_ldo20", NULL),
-};
-
-#define REG_INIT(_name, _min, _max, _always, _boot)		\
-{								\
-	.constraints = {					\
-		.name		= __stringify(_name),		\
-		.min_uV		= _min,				\
-		.max_uV		= _max,				\
-		.always_on	= _always,			\
-		.boot_on	= _boot,			\
-		.valid_ops_mask	= REGULATOR_CHANGE_VOLTAGE	\
-				| REGULATOR_CHANGE_STATUS,	\
-	},							\
-	.num_consumer_supplies	= 1,				\
-	.consumer_supplies	= &regulator_supply[MAX8925_ID_##_name], \
-}
-
-static struct regulator_init_data regulator_data[] = {
-	[MAX8925_ID_SD1] = REG_INIT(SD1, 637500, 1425000, 0, 0),
-	[MAX8925_ID_SD2] = {
-				.constraints = {
-						.name = "SD2",
-						.min_uV = 650000,
-						.max_uV = 2225000,
-						.always_on = 1,
-						.boot_on = 1,
-						},
-				.num_consumer_supplies =
-				ARRAY_SIZE(max8925_regulator_supply),
-				.consumer_supplies = max8925_regulator_supply,
-				},
-	[MAX8925_ID_SD3] = REG_INIT(SD3, 750000, 3900000, 1, 1),
-	[MAX8925_ID_LDO1] = REG_INIT(LDO1, 750000, 3900000, 1, 1),
-	[MAX8925_ID_LDO2] = REG_INIT(LDO2, 650000, 2250000, 1, 1),
-	[MAX8925_ID_LDO3] = REG_INIT(LDO3, 1000000, 1500000, 0, 0),
-	[MAX8925_ID_LDO4] = REG_INIT(LDO4, 750000, 3900000, 1, 1),
-	[MAX8925_ID_LDO5] = REG_INIT(LDO5, 750000, 3900000, 0, 0),
-	[MAX8925_ID_LDO6] = REG_INIT(LDO6, 750000, 3900000, 0, 0),
-	[MAX8925_ID_LDO7] = REG_INIT(LDO7, 750000, 3900000, 1, 1),
-	[MAX8925_ID_LDO8] = REG_INIT(LDO8, 750000, 3900000, 1, 1),
-	[MAX8925_ID_LDO9] = REG_INIT(LDO9, 750000, 3900000, 1, 1),
-	[MAX8925_ID_LDO10] = REG_INIT(LDO10, 750000, 3900000, 0, 0),
-	[MAX8925_ID_LDO11] = REG_INIT(LDO11, 750000, 3900000, 1, 1),
-	[MAX8925_ID_LDO12] = REG_INIT(LDO12, 750000, 3900000, 0, 0),
-	[MAX8925_ID_LDO13] = REG_INIT(LDO13, 750000, 1500000, 0, 0),
-	[MAX8925_ID_LDO14] = REG_INIT(LDO14, 750000, 3000000, 0, 0),
-	[MAX8925_ID_LDO15] =
-		{
-			.constraints = {
-				.name		= "LDO15",
-				.min_uV		= 2800000,
-				.max_uV		= 2800000,
-				.always_on	= 1,
-				.boot_on	= 0,
-				},
-			.num_consumer_supplies	= 1,
-			.consumer_supplies	=
-				&regulator_supply[MAX8925_ID_LDO15],
-		},
-	[MAX8925_ID_LDO16] = REG_INIT(LDO16, 750000, 3900000, 0, 0),
-	[MAX8925_ID_LDO17] = REG_INIT(LDO17, 1000000, 1500000, 0, 0),
-	[MAX8925_ID_LDO18] = REG_INIT(LDO18, 650000, 2250000, 1, 1),
-	[MAX8925_ID_LDO19] = REG_INIT(LDO19, 750000, 3900000, 0, 0),
-	[MAX8925_ID_LDO20] = REG_INIT(LDO20, 750000, 3900000, 1, 1),
-};
-
-/* max8925 power for battery/charger */
-static struct max8925_power_pdata abilene_power_data = {
-	.batt_detect		= 0,	/* can't detect battery by ID pin */
-	.topoff_threshold	= MAX8925_TOPOFF_THR_10PER,
-	.fast_charge		= MAX8925_FCHG_1000MA,
-	.bat_max8925_en		= 1,	/* battery monitor en/disable */
-	.chg_port_config	= CHG_PORT_WALL,	/* PMIC wired config */
-};
-
-static struct max8925_platform_data abilene_max8925_info = {
-	.irq_base		= IRQ_BOARD_START,
-	.power			= &abilene_power_data,
-
-	.regulator[MAX8925_ID_SD1] = &regulator_data[MAX8925_ID_SD1],
-	.regulator[MAX8925_ID_SD2] = &regulator_data[MAX8925_ID_SD2],
-	.regulator[MAX8925_ID_SD3] = &regulator_data[MAX8925_ID_SD3],
-	.regulator[MAX8925_ID_LDO1] = &regulator_data[MAX8925_ID_LDO1],
-	.regulator[MAX8925_ID_LDO2] = &regulator_data[MAX8925_ID_LDO2],
-	.regulator[MAX8925_ID_LDO3] = &regulator_data[MAX8925_ID_LDO3],
-	.regulator[MAX8925_ID_LDO4] = &regulator_data[MAX8925_ID_LDO4],
-	.regulator[MAX8925_ID_LDO5] = &regulator_data[MAX8925_ID_LDO5],
-	.regulator[MAX8925_ID_LDO6] = &regulator_data[MAX8925_ID_LDO6],
-	.regulator[MAX8925_ID_LDO7] = &regulator_data[MAX8925_ID_LDO7],
-	.regulator[MAX8925_ID_LDO8] = &regulator_data[MAX8925_ID_LDO8],
-	.regulator[MAX8925_ID_LDO9] = &regulator_data[MAX8925_ID_LDO9],
-	.regulator[MAX8925_ID_LDO10] = &regulator_data[MAX8925_ID_LDO10],
-	.regulator[MAX8925_ID_LDO11] = &regulator_data[MAX8925_ID_LDO11],
-	.regulator[MAX8925_ID_LDO12] = &regulator_data[MAX8925_ID_LDO12],
-	.regulator[MAX8925_ID_LDO13] = &regulator_data[MAX8925_ID_LDO13],
-	.regulator[MAX8925_ID_LDO14] = &regulator_data[MAX8925_ID_LDO14],
-	.regulator[MAX8925_ID_LDO15] = &regulator_data[MAX8925_ID_LDO15],
-	.regulator[MAX8925_ID_LDO16] = &regulator_data[MAX8925_ID_LDO16],
-	.regulator[MAX8925_ID_LDO17] = &regulator_data[MAX8925_ID_LDO17],
-	.regulator[MAX8925_ID_LDO18] = &regulator_data[MAX8925_ID_LDO18],
-	.regulator[MAX8925_ID_LDO19] = &regulator_data[MAX8925_ID_LDO19],
-	.regulator[MAX8925_ID_LDO20] = &regulator_data[MAX8925_ID_LDO20],
-};
-
 static int motion_sensor_set_power(int on, const char *device_name)
 {
 	static struct regulator *pmic_2p8v_sens[3];
@@ -969,15 +829,6 @@ static struct i2c_board_info abilene_twsi4_info[] = {
 		.platform_data  = &l3g4200d_gyr_data,
 	},
 #endif
-};
-
-static struct i2c_board_info abilene_twsi1_info[] = {
-	{
-		.type		= "max8925",
-		.addr		= 0x3c,
-		.irq		= IRQ_MMP3_PMIC,
-		.platform_data	= &abilene_max8925_info,
-	},
 };
 
 #ifdef CONFIG_REGULATOR_MAX77601
@@ -1175,6 +1026,7 @@ static struct platform_device abilene_lcd_backlight_devices = {
 
 #ifdef CONFIG_MMC_SDHCI_PXAV3
 #include <linux/mmc/host.h>
+#if 0
 static void abilene_sd_signal_1v8(int set)
 {
 	static struct regulator *v_ldo_sd;
@@ -1195,6 +1047,7 @@ static void abilene_sd_signal_1v8(int set)
 	msleep(10);
 	regulator_put(v_ldo_sd);
 }
+#endif
 
 #ifdef CONFIG_SD8XXX_RFKILL
 static void mmp3_8787_set_power(unsigned int on)
@@ -1518,59 +1371,6 @@ static struct i2c_board_info abilene_twsi5_info[] = {
 		.platform_data	= &tpk_r800_data,
 	},
 #endif
-};
-
-static int max17083_ds4432_convert(int path, int mode,
-			int iparam, int *oparam) {
-	if (mode == DS4432_DCDC_VOLTAGE_TO_CURRENT)
-		*oparam = (iparam - 1275000) / 100; /* vV -> 10 nA */
-	else
-		*oparam = iparam * 100 + 1275000; /* 10 nA -> vV */
-	return 0;
-}
-
-static struct regulator_consumer_supply ds4432_supply[] = {
-	REGULATOR_SUPPLY("vcc_main", NULL),
-};
-
-static struct ds4432_dac_data ds4432_data[] = {
-	[0] = {
-		.initdat = {
-			.constraints    = {
-				.name           = "vcc_main range",
-				.min_uV         = 903000,
-				.max_uV         = 1349400,
-				.always_on      = 1,
-				.boot_on        = 1,
-				.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
-			},
-			.num_consumer_supplies  = 1,
-			.consumer_supplies      = &ds4432_supply[0],
-		},
-		.name = "max17083+ds4432",
-		.type = REGULATOR_VOLTAGE,
-		.dac_path = 1,
-		.cstep_10nA = 62, /* (0.997/(16*100000))*100000000 10nA */
-		.param_convert = max17083_ds4432_convert,
-	},
-	/* ds4432 has two paths, we may register two here, however
-	   the two seems to be tied together on current board. we need to
-	   keep one unused and the other to do real control
-	*/
-};
-
-static struct ds4432_platform_data abilene_ds4432_info = {
-	.regulator_count = sizeof(ds4432_data)/sizeof(ds4432_data[0]),
-	.regulators = ds4432_data,
-
-};
-
-static struct i2c_board_info abilene_twsi6_info[] = {
-	{
-		.type		= "ds4432",
-		.addr		= 0x48,
-		.platform_data	= &abilene_ds4432_info,
-	},
 };
 
 static int wm8994_ldoen(void)
@@ -1911,7 +1711,7 @@ static struct dmc_timing_entry khx1600c9s3k_table[] = {
 	},
 */
 };
-static void abilene_update_ddr_info()
+static void abilene_update_ddr_info(void)
 {
 	mmp3_pm_update_dram_timing_table(ARRAY_SIZE(khx1600c9s3k_table),
 						khx1600c9s3k_table);
