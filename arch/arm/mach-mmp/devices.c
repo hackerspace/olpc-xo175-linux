@@ -642,6 +642,68 @@ void mmp3_hsic_phy_deinit(unsigned int base)
 
 #endif
 
+#ifdef CONFIG_CPU_MMP3
+u32 u3d_phy_read(u32 base, u32 reg)
+{
+	u32 addr, data;
+	addr = base;
+	data = base + 0x4;
+
+	writel(reg, addr);
+	return readl(data);
+}
+
+void u3d_phy_write(u32 base, u32 reg, u32 value)
+{
+	u32 addr, data;
+	addr = base;
+	data = base + 0x4;
+
+	writel(reg, addr);
+	writel(value, data);
+}
+
+void pxa_u3d_phy_deinit(unsigned int base)
+{
+	u32 val;
+
+	printk(KERN_INFO "%s\n", __func__);
+
+	/* Power down Reference Analog current, bit 15
+	 * Power down PLL, bit 14
+	 * Power down Receiver, bit 13
+	 * Power down Transmitter, bit 12
+	 * of USB3_POWER_PLL_CONTROL register
+	 */
+	val = u3d_phy_read(base, 0x1);
+	val &= ~(0xF << 12);
+	u3d_phy_write(base, 0x1, val);
+	udelay(100);
+}
+
+void pxa_u3d_phy_disable(void)
+{
+	unsigned int val;
+	void __iomem *phy_reg;
+	phy_reg = ioremap(0xD422B800, 0x1000);
+
+	/* enable usb3 clock */
+	val = readl(PMUA_REG(0x148));
+	val = 0x9;
+	writel(val, PMUA_REG(0x148));
+
+	/* deinit usb3 phy */
+	pxa_u3d_phy_deinit((unsigned int)phy_reg);
+
+	/* disable usb3 clock */
+	val = readl(PMUA_REG(0x148));
+	val = 0x0;
+	writel(val, PMUA_REG(0x148));
+
+	iounmap(phy_reg);
+}
+#endif
+
 #ifdef CONFIG_USB_SUPPORT
 static u64 usb_dma_mask = ~(u32)0;
 
