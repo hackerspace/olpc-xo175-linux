@@ -384,7 +384,6 @@ static void regulator_init_pm800(void)
 	REG_SUPPLY_INIT(PM800_ID_LDO18, "v_gps", NULL);
 	REG_SUPPLY_INIT(PM800_ID_LDO16, "v_cam", NULL);
 	REG_SUPPLY_INIT(PM800_ID_LDO13, "vmmc", "sdhci-pxa.1");
-	REG_SUPPLY_INIT(PM800_ID_LDO9, "v_8787", NULL);
 	REG_SUPPLY_INIT(PM800_ID_LDO8, "v_lcd", NULL);
 	REG_SUPPLY_INIT(PM800_ID_LDO6, "v_ihdmi", NULL);
 	/*
@@ -402,9 +401,6 @@ static void regulator_init_pm800(void)
 	REG_INIT(i++, PM800_ID, LDO18, 1200000, 3300000, 0, 0);
 	REG_INIT(i++, PM800_ID, LDO16, 1800000, 3300000, 0, 0);
 	REG_INIT(i++, PM800_ID, LDO13, 1800000, 3300000, 0, 0);
-	/*For BU turn on WiFi LDO always on,
-	 *  need to fix after by WiFi Team*/
-	REG_INIT(i++, PM800_ID, LDO9, 2400000, 3300000, 1, 1);
 	REG_INIT(i++, PM800_ID, LDO8, 1800000, 3300000, 1, 1);
 	REG_INIT(i++, PM800_ID, LDO6, 1200000, 3300000, 0, 0);
 	REG_INIT(i++, PM800_ID, LDO14, 1800000, 3300000, 0, 0);
@@ -416,14 +412,22 @@ static void regulator_init_pm800(void)
 	case OBM_DKB_2_NEVO_C0_BOARD:
 		/* Turn on LDO12 and 17 before wifi regulator support added */
 		REG_SUPPLY_INIT(PM800_ID_LDO2, "Vdd_CMMB12", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO9, "v_vibrator", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO12, "v_wifi_1v8", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO17, "v_wifi_3v3", NULL);
 		REG_INIT(i++, PM800_ID, LDO2, 1200000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO9, 2800000, 2800000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO12, 1800000, 1800000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO17, 3300000, 3300000, 0, 0);
 		break;
 	default:
+		REG_SUPPLY_INIT(PM800_ID_LDO9, "v_8787", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO10, "v_vibrator", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO17, "VSim", NULL);
+		/*For BU turn on WiFi LDO always on,
+		 *  need to fix after by WiFi Team*/
+		REG_INIT(i++, PM800_ID, LDO9, 2400000, 3300000, 1, 1);
+		REG_INIT(i++, PM800_ID, LDO10, 2800000, 2800000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO17, 1800000, 3300000, 0, 0);
 		break;
 	}
@@ -727,6 +731,29 @@ static void __init init_mmc(void)
 }
 #endif
 
+static void vibrator_set_power(int on)
+{
+	struct regulator *v_ldo = regulator_get(NULL, "v_vibrator");
+
+	if (IS_ERR(v_ldo)) {
+		v_ldo = NULL;
+		pr_err("Get regulator error\n");
+		return;
+	}
+
+	if (on)
+		regulator_enable(v_ldo);
+	else
+		regulator_disable(v_ldo);
+
+	regulator_put(v_ldo);
+	v_ldo = NULL;
+}
+
+static struct pm80x_vibrator_pdata vibrator_pdata = {
+	.vibrator_power = vibrator_set_power,
+};
+
 static int cywee_set_power(int on)
 {
 	struct regulator *v_ldo11;
@@ -967,6 +994,7 @@ static void register_i2c_board_info(void)
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_C25));
 		break;
 	case OBM_DKB_2_NEVO_C0_BOARD:
+		pm800_info.vibrator = &vibrator_pdata;
 		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info));
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_DKB));
 		break;
