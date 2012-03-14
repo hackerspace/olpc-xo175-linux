@@ -399,6 +399,23 @@ typedef enum {
 /* LCD_MIXERx_TIM4 bits */
 #define LCD_MIXERx_TIM4_TSH(n)        ((n)<<0)
 
+/* LCD DITHER */
+#define LCD_DITHER_CTL			0x1048
+#define LCD_DITHER_TBL			0x104c
+#define LCD_DSI_DITHER_CTL		0x5048
+#define LCD_DSI_DITHER_TBL		0x504c
+#define LCD_DITHER_TBL_IND(x)		((x) << 5)
+#define LCD_DITHER_MODE(x)		((x) << 2)
+#define LCD_DITHER_4X8_EN		(2)
+#define LCD_DITHER_EN			(1)
+
+#define LCD_DITHER_TB_4X4_IND0		(0x3b19f7d5)
+#define LCD_DITHER_TB_4X4_IND1		(0x082ac4e6)
+#define LCD_DITHER_TB_4X8_IND0		(0xf7d508e6)
+#define LCD_DITHER_TB_4X8_IND1		(0x3b194c2a)
+#define LCD_DITHER_TB_4X8_IND2		(0xc4e6d5f7)
+#define LCD_DITHER_TB_4X8_IND3		(0x082a193b)
+
 /*LCD DSI Dx register offsets*/
 #define LCD_DSI_DxSCR0_OFFSET		0x0000
 #define LCD_DSI_DxCONV_GEN_NULL_BLANK_OFFSET	0x0034

@@ -2080,6 +2080,46 @@ static void set_scale(struct pxa95xfb_info *fbi)
 	}
 }
 
+static void set_dither(struct pxa95xfb_info *fbi, int table_4x8, int enable, int mode)
+{
+	u32 ctl_off, tbl_off, ctl;
+	if (fbi->converter == LCD_M2PARALELL_CONVERTER) {
+		ctl_off = LCD_DITHER_CTL;
+		tbl_off = LCD_DITHER_TBL;
+	} else if (fbi->converter == LCD_M2DSI1) {
+		ctl_off = LCD_DSI_DITHER_CTL;
+		tbl_off = LCD_DSI_DITHER_TBL;
+	} else {
+		printk(KERN_ERR "%s: converter[%d] not support dither!\n", __func__, fbi->converter);
+		return;
+	}
+
+	if (!enable) {
+		ctl = readl(fbi->reg_base + ctl_off);
+		ctl &= ~LCD_DITHER_EN;
+		writel(ctl, fbi->reg_base + ctl_off);
+		printk(KERN_INFO "%s: converter[%d] disabled!\n", __func__, fbi->converter);
+	} else {
+		if (table_4x8) {
+			ctl = LCD_DITHER_EN | LCD_DITHER_4X8_EN | LCD_DITHER_MODE(mode);
+			writel(ctl | LCD_DITHER_TBL_IND(0), fbi->reg_base + ctl_off);
+			writel(LCD_DITHER_TB_4X8_IND0, fbi->reg_base + tbl_off);
+			writel(ctl | LCD_DITHER_TBL_IND(1), fbi->reg_base + ctl_off);
+			writel(LCD_DITHER_TB_4X8_IND1, fbi->reg_base + tbl_off);
+			writel(ctl | LCD_DITHER_TBL_IND(2), fbi->reg_base + ctl_off);
+			writel(LCD_DITHER_TB_4X8_IND2, fbi->reg_base + tbl_off);
+			writel(ctl | LCD_DITHER_TBL_IND(3), fbi->reg_base + ctl_off);
+			writel(LCD_DITHER_TB_4X8_IND3, fbi->reg_base + tbl_off);
+		} else {
+			ctl = LCD_DITHER_EN | LCD_DITHER_MODE(mode);
+			writel(ctl | LCD_DITHER_TBL_IND(0), fbi->reg_base + ctl_off);
+			writel(LCD_DITHER_TB_4X4_IND0, fbi->reg_base + tbl_off);
+			writel(ctl | LCD_DITHER_TBL_IND(1), fbi->reg_base + ctl_off);
+			writel(LCD_DITHER_TB_4X4_IND1, fbi->reg_base + tbl_off);
+		}
+	}
+}
+
 static ssize_t vsync_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
@@ -2801,6 +2841,18 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 
 	/* set scale registers for fb1*/
 	set_scale(fbi);
+
+	if (mi->dither_en) {
+		int dither_mode = -1;
+		if (mi->pix_fmt_out == PIX_FMTOUT_16_RGB565)
+			dither_mode = 1;
+		else if (mi->pix_fmt_out == PIX_FMTOUT_18_RGB666)
+			dither_mode = 2;
+		else
+			printk(KERN_ERR "fb%d dither format %d unsupported\n", fbi->id, mi->pix_fmt_out);
+		if (dither_mode > 0)
+			set_dither(fbi, mi->dither_tbl_4x8, mi->dither_en, dither_mode);
+	}
 
 	/*set ch4 as un-transparent for YVU use*/
 	writel(0x800000ff, fbi->reg_base + LCD_CH4_ALPHA);

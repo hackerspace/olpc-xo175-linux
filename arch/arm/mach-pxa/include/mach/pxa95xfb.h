@@ -92,6 +92,9 @@ struct pxa95xfb_mach_info {
 	unsigned	gpio_output_mask:8;
 	unsigned	gpio_output_data:8;
 
+	unsigned int dither_tbl_4x8;
+	unsigned int dither_en;
+
 	/* PXA95x mixer configure */
 	int	window;
 	int			mixer_id;
