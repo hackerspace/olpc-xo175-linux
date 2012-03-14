@@ -868,7 +868,6 @@ static char *mmp3_usb_clock_name[] = {
 
 static int pxa_usb_set_vbus(unsigned int vbus)
 {
-	/* int gpio = mfp_to_gpio(GPIO62_VBUS_EN); */
 	int gpio = mfp_to_gpio(GPIO77_GPIO); /*mk2*/
 
 	printk(KERN_INFO "%s: set %d\n", __func__, vbus);
@@ -897,6 +896,7 @@ static struct mv_usb_platform_data mmp3_usb_pdata = {
 	.phy_init	= pxa_usb_phy_init,
 	.phy_deinit	= pxa_usb_phy_deinit,
 	.set_vbus	= pxa_usb_set_vbus,
+	.otg_force_a_bus_req = 1,
 };
 #endif
 
@@ -1437,17 +1437,18 @@ static void __init mk2_init(void)
 #endif
 
 #ifdef CONFIG_USB_PXA_U2O
+	pxa_usb_set_vbus(0);
 	mmp3_device_u2o.dev.platform_data = (void *)&mmp3_usb_pdata;
-	/* platform_device_register(&mmp3_device_u2o); */
+	platform_device_register(&mmp3_device_u2o);
 #endif
 
 #ifdef CONFIG_USB_EHCI_PXA_U2O
 	mmp3_device_u2oehci.dev.platform_data = (void *)&mmp3_usb_pdata;
-	/* platform_device_register(&mmp3_device_u2oehci); */
+	platform_device_register(&mmp3_device_u2oehci);
 
 #ifdef CONFIG_USB_PXA_U2O_OTG
 	mmp3_device_u2ootg.dev.platform_data = (void *)&mmp3_usb_pdata;
-	/* platform_device_register(&mmp3_device_u2ootg); */
+	platform_device_register(&mmp3_device_u2ootg);
 #endif
 #endif
 
