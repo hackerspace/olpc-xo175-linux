@@ -971,10 +971,6 @@ static struct i2c_board_info abilene_twsi4_info[] = {
 #endif
 };
 
-static struct i2c_pxa_platform_data twsi1_pdata = {
-	.use_pio		 = 1,
-};
-
 static struct i2c_board_info abilene_twsi1_info[] = {
 	{
 		.type		= "max8925",
@@ -1934,7 +1930,7 @@ static void __init abilene_init(void)
 
 #ifdef CONFIG_REGULATOR_MAX77601
 	abilene_power_supply_init();
-	mmp3_add_twsi(1, &twsi1_pdata, ARRAY_AND_SIZE(abilene_twsi1_max77601_info));
+	mmp3_add_twsi(1, NULL, ARRAY_AND_SIZE(abilene_twsi1_max77601_info));
 #endif
 
 	mmp3_add_twsi(4, NULL, ARRAY_AND_SIZE(abilene_twsi4_info));
