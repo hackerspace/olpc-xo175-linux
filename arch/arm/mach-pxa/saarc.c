@@ -952,6 +952,7 @@ static void register_i2c_board_info(void)
 	case OBM_SAAR_C25_NEVO_B0_V10_BOARD:
 	case OBM_EVB_NEVO_1_2_BOARD:
 	case OBM_SAAR_C3_NEVO_C0_V10_BOARD:
+	case OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ:
 		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info));
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_C25));
 		break;
@@ -2358,6 +2359,7 @@ static void __init init(void)
 		adp8885_data.num_chs = 1;
 	else if (OBM_EVB_NEVO_1_2_BOARD == get_board_id() ||
 			OBM_SAAR_C3_NEVO_C0_V10_BOARD == get_board_id() ||
+			OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ == get_board_id() ||
 			OBM_DKB_2_NEVO_C0_BOARD == get_board_id()) {
 		adp8885_data.chip_enable = adp8885_bl_enable;
 		adp8885_data.num_chs = 2;
@@ -2365,7 +2367,8 @@ static void __init init(void)
 #endif
 
 	/* adjust acc sensor axes */
-	if (get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD) {
+	if (get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD
+	   || get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ) {
 		cwmi_acc_data.axes[0] = -1;
 		cwmi_acc_data.axes[4] = 1;
 		cwmi_acc_data.axes[8] = -1;
@@ -2480,6 +2483,7 @@ static int __init saarc_pm_init(void)
 			break;
 
 		case OBM_SAAR_C3_NEVO_C0_V10_BOARD:
+		case OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ:
 		case OBM_EVB_NEVO_1_2_BOARD:
 			cur_profiler = MSPM_PROFILER;
 			break;
