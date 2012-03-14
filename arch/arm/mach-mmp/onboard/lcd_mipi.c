@@ -822,6 +822,19 @@ static void calculate_lcd_sclk(struct pxa168fb_mach_info *mi)
 		return;
 }
 
+static void vsmooth_init(int vsmooth_ch, int filter_ch)
+{
+#ifdef CONFIG_PXA688_MISC
+	/* set TV path vertical smooth, panel2 as filter channel,
+	 * vertical smooth is disabled by default to avoid underrun
+	 * when video playback, to enable/disable graphics/video
+	 * layer vertical smooth:
+	 * echo g0/g1/v0/v1 > /sys/deivces/platform/pxa168-fb.1/misc
+	 */
+	fb_vsmooth = vsmooth_ch; fb_filter = filter_ch;
+#endif
+}
+
 #define DDR_MEM_CTRL_BASE 0xD0000000
 #define SDRAM_CONFIG_TYPE1_CS0 0x20	/* MMP3 */
 
@@ -873,6 +886,7 @@ void __init abilene_add_lcd_mipi(void)
 #else
 	mmp3_add_fb_ovly(ovly);
 #endif
+	vsmooth_init(1, 2);
 }
 #endif
 
@@ -922,6 +936,7 @@ void __init yellowstone_add_lcd_mipi(void)
 #else
 	mmp3_add_fb_ovly(ovly);
 #endif
+	vsmooth_init(1, 2);
 }
 #endif
 
@@ -974,6 +989,7 @@ void __init orchid_add_lcd_mipi(void)
 #else
 	mmp3_add_fb_ovly(ovly);
 #endif
+	vsmooth_init(1, 2);
 }
 #endif
 
@@ -1202,15 +1218,6 @@ void __init brownstone_add_lcd_mipi(void)
 	mmp2_add_fb(&mmp2_mipi_lcd_info);
 	mmp2_add_fb_ovly(&mmp2_mipi_lcd_ovly_info);
 #endif
-
-#ifdef CONFIG_PXA688_MISC
-	/* set TV path vertical smooth, panel2 as filter channel,
-	 * vertical smooth is disabled by default to avoid underrun
-	 * when video playback, to enable/disable graphics/video
-	 * layer vertical smooth:
-	 * echo g0/g1/v0/v1 > /sys/deivces/platform/pxa168-fb.1/misc
-	 */
-	fb_vsmooth = 1; fb_filter = 2;
-#endif
+	vsmooth_init(1, 2);
 }
 #endif
