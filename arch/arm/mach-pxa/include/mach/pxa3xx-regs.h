@@ -32,6 +32,7 @@
 #define OSCC_VCTVSTB_OFFSET (20)
 #define OSCC_VCTVCEN	(1 << 23)
 #define OSCC_VCTVSTB	(1 << OSCC_VCTVSTB_OFFSET)
+#define OSCC_DPLS	(1 << 17)
 #define OSCC_PEN	(1 << 11)		/* 13MHz POUT */
 #define OSCC_TENS3	(1 << 10)
 #define OSCC_TENS2	(1 << 9)
@@ -298,10 +299,13 @@
 #define MC_GO_MASK		(1 << 31)	/* Core PLL Manual Change GO */
 #define PLL_EN_MASK		(1 << 26)	/* PLL On/Off control */
 #define PPDIV_MASK		(1 << 25)	/* External Divider PPDIV Value COnfiguration */
-#define KVCO_MASK		(0xf << 21)	/* Core PLL KVCO Value Configuratioin */
-#define VCODIV_SEL_MASK		(0xf << 17)	/* Core PLL VCODIV_SEL Value Configuration */
-#define FBDIV_MASK		(0x1ff << 5)	/* Core PLL FBDIV Value Configuration */
-#define REFDIV_MASK		(0x1f << 0)	/* Core PLL REFDIV Value Configuration */
+#define KVCO_MASK		(0xf << 21)	/* Core/DDR PLL KVCO Value Configuratioin */
+#define VCODIV_SEL_MASK		(0xf << 17)	/* Core/DDR PLL VCODIV_SEL Value Configuration */
+#define FBDIV_MASK		(0x1ff << 5)	/* Core/DDR PLL FBDIV Value Configuration */
+#define REFDIV_MASK		(0x1f << 0)	/* Core/DDR PLL REFDIV Value Configuration */
+
+#define DDRPLL_FC_OFFSET	(16)
+#define DDRPLL_FC_MASK		(1 << 16)	/* DDR PLL frequency change request*/
 
 #define AVLCR_VC_GO_MASK	(0x1 << 0)
 #define AVLCR_LEVEL_OFFSET	1

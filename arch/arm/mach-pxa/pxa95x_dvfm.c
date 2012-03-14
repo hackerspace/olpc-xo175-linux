@@ -64,7 +64,7 @@ struct mutex op_change_mutex;
 /* setting the default voltage level to 1.05V */
 unsigned int D2voltageLevelValue = 0x0D;
 extern struct info_head dvfm_trace_list;
-static unsigned int mm_pll_freq;
+static unsigned int mm_pll_freq, ddr_pll_freq;
 
 /* Counter Structure for Debugging ENTER/EXIT D2/CGM */
 pxa95x_DVFM_LPM_Global_Count DVFMLPMGlobalCount = { 0, 0, 0 };
@@ -403,7 +403,7 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.sflfs = 208,
 		.hss = 156,
 		.axifs = 104,
-		.dmcfs = 400,
+		.dmcfs = 398,
 		.gcfs = 312,
 		.gcaxifs = 312,
 		.vmfc = 312,
@@ -419,7 +419,7 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.sflfs = 312,
 		.hss = 208,
 		.axifs = 156,
-		.dmcfs = 800,
+		.dmcfs = 797,
 		.gcfs = 498,
 		.gcaxifs = 498,
 		.vmfc = 498,
@@ -435,7 +435,7 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.sflfs = 312,
 		.hss = 208,
 		.axifs = 156,
-		.dmcfs = 800,
+		.dmcfs = 797,
 		.gcfs = 498,
 		.gcaxifs = 498,
 		.vmfc = 498,
@@ -451,7 +451,7 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.sflfs = 312,
 		.hss = 208,
 		.axifs = 156,
-		.dmcfs = 800,
+		.dmcfs = 797,
 		.gcfs = 600,
 		.gcaxifs = 600,
 		.vmfc = 600,
@@ -467,7 +467,145 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.sflfs = 312,
 		.hss = 208,
 		.axifs = 156,
-		.dmcfs = 800,
+		.dmcfs = 797,
+		.gcfs = 600,
+		.gcaxifs = 600,
+		.vmfc = 600,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 6959259 * 100 / HZ,
+		.name = "1404M",
+	},
+
+	/* D1 mode */
+	{
+		.vcc_core = 1250,
+		.power_mode = POWER_MODE_D1,
+		.flag = OP_FLAG_FACTORY,
+		.name = "D1",
+	},
+	/* D2 mode */
+	{
+		.vcc_core = 1250,
+		.power_mode = POWER_MODE_D2,
+		.flag = OP_FLAG_FACTORY,
+		.name = "D2",
+	},
+	/* CG (clock gated) mode */
+	{
+		.vcc_core = 1250,
+		.power_mode = POWER_MODE_CG,
+		.flag = OP_FLAG_FACTORY,
+		.name = "CG",
+	},
+};
+
+
+static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
+	/* 156MHz -- single PLL mode */
+	{
+		.vcc_core = VLT_LEVEL_0,
+		.core = 156,
+		.sflfs = 156,	/* IMC */
+		.hss = 104,	/* System Bus, and Display is the same */
+		.axifs = 78,
+		.dmcfs = 208,
+		.gcfs = 156,
+		.gcaxifs = 156,
+		.vmfc = 156,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 778128 * 100 / HZ,
+		.name = "156M",
+	},
+	/* 312MHz -- two PLL mode */
+	{
+		.vcc_core = VLT_LEVEL_0,
+		.core = 312,
+		.sflfs = 156,
+		.hss = 104,
+		.axifs = 78,
+		.dmcfs = 312,
+		.gcfs = 156,
+		.gcaxifs = 156,
+		.vmfc = 156,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 1556256 * 100 / HZ,
+		.name = "312M",
+	},
+	/* 624MHz */
+	{
+		.vcc_core = VLT_LEVEL_1,
+		.core = 624,
+		.sflfs = 208,
+		.hss = 156,
+		.axifs = 104,
+		.dmcfs = 450,
+		.gcfs = 312,
+		.gcaxifs = 312,
+		.vmfc = 312,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 3112960 * 100 / HZ,
+		.name = "624M",
+	},
+	/* 806MHz */
+	{
+		.vcc_core = VLT_LEVEL_2,
+		.core = 806,
+		.sflfs = 312,
+		.hss = 208,
+		.axifs = 156,
+		.dmcfs = 901,
+		.gcfs = 498,
+		.gcaxifs = 498,
+		.vmfc = 498,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 4020906 * 100 / HZ,
+		.name = "806M",
+	},
+	/* 1014MHz */
+	{
+		.vcc_core = VLT_LEVEL_2,
+		.core = 1014,
+		.sflfs = 312,
+		.hss = 208,
+		.axifs = 156,
+		.dmcfs = 901,
+		.gcfs = 498,
+		.gcaxifs = 498,
+		.vmfc = 498,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 5026132 * 100 / HZ,
+		.name = "1014M",
+	},
+	/* 1196MHz */
+	{
+		.vcc_core = VLT_LEVEL_3,
+		.core = 1196,
+		.sflfs = 312,
+		.hss = 208,
+		.axifs = 156,
+		.dmcfs = 1066,
+		.gcfs = 600,
+		.gcaxifs = 600,
+		.vmfc = 600,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 5928258 * 100 / HZ,
+		.name = "1196M",
+	},
+	/* 1404MHz */
+	{
+		.vcc_core = VLT_LEVEL_3,
+		.core = 1404,
+		.sflfs = 312,
+		.hss = 208,
+		.axifs = 156,
+		.dmcfs = 1066,
 		.gcfs = 600,
 		.gcaxifs = 600,
 		.vmfc = 600,
@@ -506,6 +644,7 @@ static struct proc_op_array proc_op_arrays[] = {
 	{0x2600, "pxa955", ARRAY_AND_SIZE(pxa955_op_array)},
 	{0x2800, "pxa968", ARRAY_AND_SIZE(pxa955_op_array)},
 	{0x2a00, "pxa978", ARRAY_AND_SIZE(pxa978_op_array)},
+	{0x2a00, "pxa978", ARRAY_AND_SIZE(pxa978_op_array_high_mips)},
 };
 
 extern void pxa_clkcfg_write(unsigned int, unsigned char __iomem *);
@@ -692,9 +831,13 @@ static int freq2reg(struct pxa95x_fv_info *fv_info, struct dvfm_md_opt *orig)
 				fv_info->dmcfs = 2;
 			else if (orig->dmcfs == 416)
 				fv_info->dmcfs = 3;
-			else if (orig->dmcfs == 400)
+			else if (orig->dmcfs == 398 ||
+				 orig->dmcfs == 450 ||
+				 orig->dmcfs == 533)
 				fv_info->dmcfs = 4;
-			else if (orig->dmcfs == 800)
+			else if (orig->dmcfs == 797 ||
+				orig->dmcfs == 901 ||
+				orig->dmcfs == 1066)
 				fv_info->dmcfs = 6;
 			else if (orig->dmcfs == (orig->core >> 1))
 				fv_info->dmcfs = 5;
@@ -821,6 +964,44 @@ static inline unsigned int get_mm_pll_freq(void)
 	return freq;
 }
 
+static inline unsigned int get_ddr_pll_freq(void)
+{
+	unsigned int ddrpll, m, n, vcodiv_sel, vcodiv, freq;
+	ddrpll = DDRPLLR;
+	m = ddrpll & REFDIV_MASK;
+	n = (ddrpll & FBDIV_MASK) >> 5;
+	vcodiv_sel = (ddrpll & VCODIV_SEL_MASK) >> 17;
+	switch (vcodiv_sel) {
+	case 0:
+		vcodiv = 1;
+		break;
+	case 2:
+		vcodiv = 2;
+		break;
+	case 4:
+		vcodiv = 3;
+		break;
+	case 5:
+		vcodiv = 4;
+		break;
+	case 6:
+		vcodiv = 5;
+		break;
+	case 7:
+		vcodiv = 6;
+		break;
+	case 8:
+		vcodiv = 8;
+		break;
+	default:
+		pr_err("wrong ddr pll vcodiv!\n");
+		BUG_ON(1);
+		break;
+	}
+	freq = 26 * n / m / vcodiv;
+	return freq;
+}
+
 static inline unsigned int get_core_pll(void)
 {
 	unsigned int corepllr, m, n, vcodiv, l, freq;
@@ -935,11 +1116,11 @@ static int reg2freq(void *driver_data, struct dvfm_md_opt *fv_info)
 			else if (tmp == 3)
 				fv_info->dmcfs = 416;
 			else if (tmp == 4)
-				fv_info->dmcfs = 400;
+				fv_info->dmcfs = ddr_pll_freq >> 1;
 			else if (tmp == 5)
 				fv_info->dmcfs = get_core_pll() >> 1;
 			else if (tmp == 6)
-				fv_info->dmcfs = 800;
+				fv_info->dmcfs = ddr_pll_freq;
 			else if (tmp == 7)
 				fv_info->dmcfs = get_core_pll();
 			else
@@ -1467,6 +1648,24 @@ static inline void set_mm_pll_freq(void *driver_data,
 	}
 }
 
+static inline unsigned int ddr_pll_freq2reg(unsigned int x)
+{
+	switch (x) {
+	case 797:
+		/* KVCO=3 VCODIV_SEL=2 FBDIV=184(0xB8) REFDIV=3*/
+		return 3 << 21 | 2 << 17 | 0xB8 << 5 | 3 << 0;
+	case 901:
+		/* KVCO=4 VCODIV_SEL=2 FBDIV=208(0xD0) REFDIV=3*/
+		return 4 << 21 | 2 << 17 | 0xD0 << 5 | 3 << 0;
+	case 1066:
+		/* KVCO=6 VCODIV_SEL=2 FBDIV=246(0xF6) REFDIV=3*/
+		return 6 << 21 | 2 << 17 | 0xF6 << 5 | 3 << 0;
+	default:
+		pr_err("Unsupported DDR PLL frequency %d!\n", x);
+		return 0;
+	}
+}
+
 static inline void choose_regtable(unsigned int new_dmcfs)
 {
 	switch (new_dmcfs) {
@@ -1492,11 +1691,69 @@ static inline void choose_regtable(unsigned int new_dmcfs)
 	}
 }
 
+static u32 sram_size, sram_map;
+
+static unsigned int get_ddr_pll_freq_from_dmcfs(unsigned int dmcfs)
+{
+	unsigned int freq;
+	if (dmcfs == 398)
+		freq = 797;
+	else if (dmcfs == 450)
+		freq = 901;
+	else if (dmcfs == 533)
+		freq = 1066;
+	else if (dmcfs == 797 || dmcfs == 901 || dmcfs == 1066)
+		freq = dmcfs;
+	else
+		freq = 0;
+
+	return freq;
+}
+
+static inline void set_ddr_pll_freq(void *driver_data,
+				    struct dvfm_md_opt *old,
+				    struct dvfm_md_opt *new,
+				    uint32_t accr)
+{
+	uint32_t ddrpll, oldfreq, newfreq, data, mask;
+	struct pxa95x_dvfm_info *info = driver_data;
+	oldfreq = get_ddr_pll_freq_from_dmcfs(old->dmcfs);
+	newfreq = get_ddr_pll_freq_from_dmcfs(new->dmcfs);
+	if (newfreq && newfreq != ddr_pll_freq) {
+		ddrpll = DDRPLLR;
+		ddrpll &= ~(KVCO_MASK | VCODIV_SEL_MASK |
+			FBDIV_MASK | REFDIV_MASK | DDRPLL_FC_MASK);
+		ddrpll |= ddr_pll_freq2reg(newfreq);
+		ddrpll |= 1 << DDRPLL_FC_OFFSET;
+
+		if (oldfreq) {
+			/*Already on DDR PLL, need to switch to 416Mhz
+			  before change DDR PLL */
+			data = 0x3 << 11;
+			mask = ACCR_DMCFS_MASK_978;
+			accr &= ~mask;
+			accr |= data;
+			choose_regtable(3);
+			write_accr_in_sram((u32) sram_map + 0x9000,
+			(u32) sram_map + 0xa000 - 4, accr,
+			data, mask, (u32) info->clkmgr_base,
+			(u32) info->dmc_base);
+		}
+		DDRPLLR = ddrpll;
+		do {
+			ddrpll = DDRPLLR;
+		} while ((ddrpll & DDRPLL_FC_MASK) >> DDRPLL_FC_OFFSET);
+		while (!(OSCC & OSCC_DPLS))
+			;
+		ddr_pll_freq = newfreq;
+	}
+}
+
 /* TODO: sugguest to differentiate the operating point definition from
  * register info.And we can remove *reg_new here, and convert dvfm_md_opt to
  * it in the routine. That will make it much more clear.
  */
-static u32 sram_size, sram_map;
+
 static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 			   struct dvfm_md_opt *new)
 {
@@ -1563,6 +1820,7 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 		if (old->dmcfs != new->dmcfs) {
 			data |= (fv_info.dmcfs << ACCR_DMCFS_OFFSET_978);
 			mask |= ACCR_DMCFS_MASK_978;
+			set_ddr_pll_freq(driver_data, old, new, accr);
 			choose_regtable(fv_info.dmcfs);
 		}
 		if (old->gcfs != new->gcfs) {
@@ -2487,6 +2745,10 @@ static int op_init(void *driver_data, struct info_head *op_table)
 	for (i = 0; i < ARRAY_SIZE(proc_op_arrays); i++) {
 		if (proc_op_arrays[i].chip_id == info->chip_id) {
 			proc = &proc_op_arrays[i];
+			if (0x2a00 == proc_op_arrays[i].chip_id &&
+			    0x2a00 == proc_op_arrays[i + 1].chip_id &&
+			    get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ)
+				proc = &proc_op_arrays[i + 1];
 			break;
 		}
 	}
@@ -3429,10 +3691,10 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 	addr_trim_value_wa = ioremap(0x58110000, 0x30);
 	l2_base_addr = ioremap(0x58120000, 0x1000);
 	pxa95x_poweri2c_init(info);
-
-	if (cpu_is_pxa978())
+	if (cpu_is_pxa978()) {
 		mm_pll_freq = get_mm_pll_freq();
-
+		ddr_pll_freq = get_ddr_pll_freq();
+	}
 	op_init(info, &pxa95x_dvfm_op_list);
 
 	rc = dvfm_register_driver(&pxa95x_driver, &pxa95x_dvfm_op_list);
