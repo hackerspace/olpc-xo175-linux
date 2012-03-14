@@ -5,44 +5,78 @@
 #include <linux/platform_device.h>
 #include <linux/input.h>
 #include <linux/interrupt.h>
+#include <linux/mfd/88pm8xxx.h>
 #include <linux/mfd/88pm860x.h>
+#include <linux/mfd/88pm80x.h>
 #include <linux/slab.h>
 
 #include "../staging/android/timed_output.h"
 
 struct vibrator_info {
-	struct pm860x_chip *chip;
-	struct i2c_client *i2c;
+	void *chip;
+	void (*power)(int on);
 	struct timed_output_dev vibrator_timed_dev;
 	struct timer_list vibrate_timer;
 	struct work_struct vibrator_off_work;
-	unsigned char vibratorA;	/*PM8606_VIBRATORA register offset */
-	unsigned char vibratorB;	/*PM8606_VIBRATORB register offset */
+	struct mutex vib_mutex;
+	int enable;
 };
 
 #define VIBRA_OFF_VALUE	0
 #define VIBRA_ON_VALUE	1
 
-int pm860x_control_vibrator(struct pm860x_chip *chip, struct i2c_client *i2c,
-			    unsigned char value)
+int pm8xxx_control_vibrator(struct vibrator_info *info, unsigned char value)
 {
-	if (value == VIBRA_OFF_VALUE) {
-		pm860x_reg_write(i2c, PM8606_VIBRATORA, 0x00);
-		pm8606_ref_gp_and_osc_release(chip, LDO_VBR_EN);
-		pm860x_reg_write(i2c, PM8606_VIBRATORB, 0xFF);
-	} else if (value == VIBRA_ON_VALUE) {
-		pm8606_ref_gp_and_osc_get(chip, LDO_VBR_EN);
-		pm860x_reg_write(i2c, PM8606_VIBRATORA, 0x01);
-		pm860x_reg_write(i2c, PM8606_VIBRATORB, 0xFF);
+	unsigned char pmic_id = get_pmic_version(info->chip);
+	struct i2c_client *i2c;
+
+	mutex_lock(&info->vib_mutex);
+	if (info->enable == value) {
+		mutex_unlock(&info->vib_mutex);
+		return 0;
 	}
+
+	if (pmic_id <= PM8607_CHIP_END) {
+		struct pm860x_chip *chip860x = (struct pm860x_chip *)info->chip;
+		i2c = (chip860x->id == CHIP_PM8606) ?
+			chip860x->client : chip860x->companion;
+
+		if (value == VIBRA_OFF_VALUE) {
+			pm860x_reg_write(i2c, PM8606_VIBRATORA, 0x00);
+			pm8606_ref_gp_and_osc_release(chip860x, LDO_VBR_EN);
+			pm860x_reg_write(i2c, PM8606_VIBRATORB, 0xFF);
+		} else if (value == VIBRA_ON_VALUE) {
+			pm8606_ref_gp_and_osc_get(chip860x, LDO_VBR_EN);
+			pm860x_reg_write(i2c, PM8606_VIBRATORA, 0x01);
+			pm860x_reg_write(i2c, PM8606_VIBRATORB, 0xFF);
+		}
+	} else if (pmic_id <= PM800_CHIP_END){
+		i2c = ((struct pm80x_chip *)info->chip)->base_page;
+
+		if (value == VIBRA_OFF_VALUE) {
+			pm80x_reg_write(i2c, PM800_PWM4, 0x0);
+			if (info->power)
+				info->power(0);
+		}
+		else if (value == VIBRA_ON_VALUE) {
+			if (info->power)
+				info->power(1);
+			pm80x_reg_write(i2c, PM800_PWM1, 0x3f);
+			pm80x_reg_write(i2c, PM800_PWM4, 0x1);
+		}
+	}
+	info->enable = value;
+	mutex_unlock(&info->vib_mutex);
+
 	return 0;
 }
 
 static void vibrator_off_worker(struct work_struct *work)
 {
 	struct vibrator_info *info;
+
 	info = container_of(work, struct vibrator_info, vibrator_off_work);
-	pm860x_control_vibrator(info->chip, info->i2c, 0);
+	pm8xxx_control_vibrator(info, VIBRA_OFF_VALUE);
 }
 
 static void on_vibrate_timer_expired(unsigned long x)
@@ -58,8 +92,9 @@ static void vibrator_enable_set_timeout(struct timed_output_dev *sdev,
 	struct vibrator_info *info;
 	info = container_of(sdev, struct vibrator_info, vibrator_timed_dev);
 	pr_debug("Vibrator: Set duration: %dms\n", timeout);
-	pm860x_control_vibrator(info->chip, info->i2c, 1);
-	mod_timer(&info->vibrate_timer, jiffies + msecs_to_jiffies(timeout));
+
+	if (!mod_timer(&info->vibrate_timer, jiffies + msecs_to_jiffies(timeout)))
+		pm8xxx_control_vibrator(info, VIBRA_ON_VALUE);
 	return;
 }
 
@@ -76,22 +111,13 @@ static int vibrator_get_remaining_time(struct timed_output_dev *sdev)
 static int vibrator_probe(struct platform_device *pdev)
 {
 	int ret = 0;
-	struct resource *res;
-	struct pm860x_chip *chip = dev_get_drvdata(pdev->dev.parent);
+	void *chip = dev_get_drvdata(pdev->dev.parent);
 	struct vibrator_info *info =
 	    kzalloc(sizeof(struct vibrator_info), GFP_KERNEL);
 	if (!info)
 		return -ENOMEM;
-	res = platform_get_resource(pdev, IORESOURCE_IO, 0);
-	if (res == NULL) {
-		dev_err(&pdev->dev, "No I/O resource!\n");
-		kfree(info);
-		return -EINVAL;
-	}
-	info->vibratorA = res->start;
-	info->vibratorB = res->end;
+
 	info->chip = chip;
-	info->i2c = (chip->id == CHIP_PM8606) ? chip->client : chip->companion;
 
 	/* Setup timed_output obj */
 	info->vibrator_timed_dev.name = "vibrator";
@@ -106,10 +132,20 @@ static int vibrator_probe(struct platform_device *pdev)
 	}
 
 	INIT_WORK(&info->vibrator_off_work, vibrator_off_worker);
+	mutex_init(&info->vib_mutex);
+	info->enable = 0;
 
 	init_timer(&info->vibrate_timer);
 	info->vibrate_timer.function = on_vibrate_timer_expired;
 	info->vibrate_timer.data = (unsigned long)info;
+
+	if (get_pmic_version(chip) > PM8607_CHIP_END) {
+		struct pm80x_vibrator_pdata *pdata;
+
+		pdata = pdev->dev.platform_data;
+		if (pdata)
+			info->power = pdata->vibrator_power;
+	}
 
 	platform_set_drvdata(pdev, info);
 

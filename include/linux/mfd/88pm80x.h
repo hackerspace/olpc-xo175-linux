@@ -560,10 +560,15 @@ struct pm80x_headset_pdata {
 	int		gpio_val_bit;
 };
 
+struct pm80x_vibrator_pdata {
+	void		(*vibrator_power)(int on);
+};
+
 struct pm80x_platform_data {
 	struct pm80x_rtc_pdata *rtc;
 	struct pm80x_headset_pdata *headset;
 	struct pm80x_vbus_pdata *vbus;
+	struct pm80x_vibrator_pdata *vibrator;
 	struct regulator_init_data *regulator;
 
 	unsigned short companion_addr;	/* companion chip I2C address */

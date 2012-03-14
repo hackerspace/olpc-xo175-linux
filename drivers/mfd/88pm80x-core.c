@@ -113,6 +113,13 @@ static struct mfd_cell onkey_devs[] = {
 	 },
 };
 
+static struct mfd_cell vibrator_devs[] = {
+	{
+	 .name = "android-vibrator",
+	 .id = -1,
+	},
+};
+
 static struct resource codec_resources[] = {
 	{
 	 /* Headset microphone insertion or removal */
@@ -1122,6 +1129,17 @@ static int __devinit device_800_init(struct pm80x_chip *chip,
 	if (ret < 0) {
 		dev_err(chip->dev, "Failed to add onkey subdev\n");
 		goto out_dev;
+	}
+
+	if (pdata && pdata->vibrator) {
+		vibrator_devs[0].platform_data = pdata->vibrator;
+		vibrator_devs[0].pdata_size = sizeof(struct pm80x_vibrator_pdata);
+		ret = mfd_add_devices(chip->dev, 0, &vibrator_devs[0],
+				ARRAY_SIZE(vibrator_devs), NULL, 0);
+		if (ret < 0) {
+			dev_err(chip->dev, "Failed to add vibrator subdev\n");
+			goto out_dev;
+		}
 	}
 
 	if (pdata && pdata->rtc) {
