@@ -1934,8 +1934,10 @@ static int __init mmp3_pm_init(void)
 		}
 	}
 
-	/* ignore SP idle status for DFC */
-	__raw_writel(0x00000001, APMU_DEBUG);
+	/* 1. set bit[0] to ignore SP idle status for DFC
+	 * 2. set bit[1] to mask the Moltres halt ack to DFC state machine
+	 */
+	__raw_writel(0x00000003, APMU_DEBUG);
 	__raw_writel(0x0, APMU_DEBUG2);
 
 	pm_idle = mmp3_do_idle;
