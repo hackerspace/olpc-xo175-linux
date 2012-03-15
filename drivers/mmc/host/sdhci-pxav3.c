@@ -374,7 +374,7 @@ err_request_cd:
 	return -1;
 }
 
-
+#ifdef CONFIG_PM
 static int sdhci_pxav3_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct sdhci_host *host = platform_get_drvdata(pdev);
@@ -436,6 +436,7 @@ static int sdhci_pxav3_resume(struct platform_device *pdev)
 
 	return ret;
 }
+#endif
 
 static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 {
