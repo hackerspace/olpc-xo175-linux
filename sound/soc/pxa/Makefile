@@ -45,6 +45,7 @@ snd-soc-imote2-objs := imote2.o
 snd-soc-raumfeld-objs := raumfeld.o
 snd-soc-ttc-dkb-objs := ttc-dkb.o
 snd-soc-mmp3asoc-objs := mmp3asoc.o
+snd-soc-mk2-objs := mk2.o
 snd-soc-brownstone-objs := brownstone.o
 snd-soc-brownstone-zsp-objs := brownstone-zsp.o
 
@@ -69,5 +70,6 @@ obj-$(CONFIG_SND_PXA2XX_SOC_IMOTE2) += snd-soc-imote2.o
 obj-$(CONFIG_SND_SOC_RAUMFELD) += snd-soc-raumfeld.o
 obj-$(CONFIG_SND_PXA910_SOC_TTC_DKB) += snd-soc-ttc-dkb.o
 obj-$(CONFIG_SND_MMP_SOC_MMP3ASOC) += snd-soc-mmp3asoc.o
+obj-$(CONFIG_SND_MMP_SOC_MK2) += snd-soc-mk2.o
 obj-$(CONFIG_SND_MMP_SOC_BROWNSTONE) += snd-soc-brownstone.o
 obj-$(CONFIG_SND_MMP_ZSP_SOC_BROWNSTONE) += snd-soc-brownstone-zsp.o

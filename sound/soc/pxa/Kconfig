@@ -300,6 +300,17 @@ config SND_MMP_SOC_MMP3ASOC
 	help
 	  Say Y if you want to add support for SoC audio on MMP3
 
+config SND_MMP_SOC_MK2
+        bool "SoC Audio support for MMP3 MK2"
+	depends on SND_MMP_SOC && SND_MMP_LEGACY_SOC
+        select MFD_WM8994
+        select SND_SOC_WM8994
+        select SND_SOC_HDMI
+        select REGULATOR_FIXED_VOLTAGE
+	help
+	  Say Y if you want to add support for MMP3 audio on MK2
+
+
 config SND_MMP_ZSP_SOC_BROWNSTONE
 	tristate "Audio support for brownstone platform (zsp)"
 	depends on SND_MMP_ZSP_SOC && MACH_BROWNSTONE
