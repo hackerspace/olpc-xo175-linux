@@ -271,25 +271,51 @@ static void __init mmp_init_vmeta(void)
 /* soc  camera */
 static int camera_ov5642_power(struct device *dev, int on)
 {
+	static struct regulator *avdd_2v8;
+	static struct regulator *dovdd_1v8;
 	int cam_enable = mfp_to_gpio(GPIO64_GPIO);
 	int cam_reset = mfp_to_gpio(GPIO0_GPIO);
 	int crystal_enable = mfp_to_gpio(GPIO69_GPIO);
 
+	if (!avdd_2v8) {
+		avdd_2v8 = regulator_get(NULL, "PMIC_V3_2V8");
+		if (IS_ERR(avdd_2v8)) {
+			pr_err("%s regulator get avdd_2v8 error!\n", __func__);
+			avdd_2v8 = NULL;
+			goto regu_avdd_2v8;
+		}
+	}
+
+	if (!dovdd_1v8) {
+		dovdd_1v8 = regulator_get(NULL, "PMIC_V2_1V8");
+		if (IS_ERR(dovdd_1v8)) {
+			pr_err("%s regulator get dovdd_1v8 error!\n", __func__);
+			dovdd_1v8 = NULL;
+			goto regu_dovdd_1v8;
+		}
+	}
+
 	if (gpio_request(cam_enable, "CAM_ENABLE_HI_SENSOR")) {
 		printk(KERN_ERR "Request GPIO failed, gpio: %d\n", cam_enable);
-		return -EIO;
+		goto cam_enable_failed;
 	}
 	if (gpio_request(cam_reset, "CAM_OV5642_RESET")) {
 		printk(KERN_ERR "Request GPIO failed, gpio: %d\n", cam_reset);
-		return -EIO;
+		goto cam_reset_failed;
 	}
 	if (gpio_request(crystal_enable, "CAM_OV5642_CRYSTAL")) {
 		printk(KERN_ERR "Request GPIO failed, gpio: %d\n"
 				, crystal_enable);
-		return -EIO;
+		goto crystal_enable_failed;
 	}
 
-	if(on){
+	if (on) {
+		regulator_set_voltage(dovdd_1v8, 1800000, 1800000);
+		regulator_enable(dovdd_1v8);
+
+		regulator_set_voltage(avdd_2v8, 2800000, 2800000);
+		regulator_enable(avdd_2v8);
+
 		gpio_direction_output(crystal_enable, 1);
 		gpio_direction_output(cam_reset, 0);
 		gpio_direction_output(cam_enable, 1);
@@ -299,11 +325,14 @@ static int camera_ov5642_power(struct device *dev, int on)
 		msleep(10);
 		gpio_direction_output(cam_reset, 1);
 		msleep(10);
-	}
-	else{
+	} else {
 		gpio_direction_output(crystal_enable, 0);
 		gpio_direction_output(cam_enable, 0);
 		gpio_direction_output(cam_reset, 0);
+
+		regulator_disable(avdd_2v8);
+		regulator_disable(dovdd_1v8);
+
 	}
 
 	gpio_free(crystal_enable);
@@ -311,6 +340,17 @@ static int camera_ov5642_power(struct device *dev, int on)
 	gpio_free(cam_reset);
 
 	return 0;
+
+crystal_enable_failed:
+	gpio_free(cam_reset);
+cam_reset_failed:
+	gpio_free(cam_enable);
+cam_enable_failed:
+	regulator_put(dovdd_1v8);
+regu_dovdd_1v8:
+	regulator_put(avdd_2v8);
+regu_avdd_2v8:
+	return -EIO;
 }
 
 static struct i2c_board_info mk2_i2c_camera[] = {
@@ -348,11 +388,8 @@ static void pxa2128_cam_ctrl_power(int on)
 static int pxa2128_cam_clk_init(struct device *dev, int init)
 {
 	struct mv_cam_pdata *data = dev->platform_data;
-	static struct regulator *avdd_2v8;
-	static struct regulator *dovdd_1v8;
 	unsigned long tx_clk_esc;
 	struct clk *pll1;
-	int ret = 0;
 
 	pll1 = clk_get(dev, "pll1");
 	if (IS_ERR(pll1)) {
@@ -367,57 +404,22 @@ static int pxa2128_cam_clk_init(struct device *dev, int init)
 
 	clk_put(pll1);
 
-	if (!avdd_2v8) {
-		avdd_2v8 = regulator_get(NULL, "PMIC_V3_2V8");
-		if (IS_ERR(avdd_2v8)) {
-			pr_err("%s regulator get error!\n", __func__);
-			avdd_2v8 = NULL;
-			ret = -EIO;
-			goto regu_avdd_2v8;
-		}
-	}
-
-	if (!dovdd_1v8) {
-		dovdd_1v8 = regulator_get(NULL, "PMIC_V2_1V8");
-		if (IS_ERR(dovdd_1v8)) {
-			pr_err("%s regulator get error!\n", __func__);
-			dovdd_1v8 = NULL;
-			ret = -EIO;
-			goto regu_dovdd_1v8;
-		}
-	}
 	if (init) {
 		if (!data->clk_enabled) {
 			data->clk = clk_get(dev, "CCICRSTCLK");
 			if (IS_ERR(data->clk)) {
 				dev_err(dev, "Could not get rstclk\n");
-				ret = PTR_ERR(data->clk);
-				goto rstclk_fail;
+				return PTR_ERR(data->clk);
 			}
 			data->clk_enabled = 1;
-
 		}
-		regulator_set_voltage(dovdd_1v8, 1800000, 1800000);
-		regulator_enable(dovdd_1v8);
-
-		regulator_set_voltage(avdd_2v8, 2800000, 2800000);
-		regulator_enable(avdd_2v8);
 	} else {
-		regulator_disable(avdd_2v8);
-		regulator_disable(dovdd_1v8);
-
 		if (data->clk_enabled) {
 			clk_put(data->clk);
 			return 0;
 		}
 	}
 	return 0;
-rstclk_fail:
-	regulator_put(dovdd_1v8);
-regu_dovdd_1v8:
-	regulator_put(avdd_2v8);
-regu_avdd_2v8:
-	return ret;
 }
 
 static void pxa2128_cam_set_clk(struct device *dev, int on)
