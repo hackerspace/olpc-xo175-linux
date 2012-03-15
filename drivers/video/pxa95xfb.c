@@ -271,7 +271,9 @@ static void set_dvfm_constraint_hdmi(void)
 	/* Disable Lowpower mode */
 	dvfm_disable_op_name("156M", dvfm_dev_idx);
 	dvfm_disable_op_name("156M_HF", dvfm_dev_idx);
+	dvfm_disable_op_name("312M", dvfm_dev_idx);
 	dvfm_disable_op_name("416M", dvfm_dev_idx);
+	dvfm_disable_op_name("624M", dvfm_dev_idx);
 }
 
 static void unset_dvfm_constraint(void)
@@ -287,7 +289,9 @@ static void unset_dvfm_constraint_hdmi(void)
 	/* Enable Lowpower mode */
 	dvfm_enable_op_name("156M", dvfm_dev_idx);
 	dvfm_enable_op_name("156M_HF", dvfm_dev_idx);
+	dvfm_enable_op_name("312M", dvfm_dev_idx);
 	dvfm_enable_op_name("416M", dvfm_dev_idx);
+	dvfm_enable_op_name("624M", dvfm_dev_idx);
 }
 
 static void dsi_set_time(struct pxa95xfb_conv_info *conv, int freq)
