@@ -348,10 +348,11 @@ static void pxa2128_cam_ctrl_power(int on)
 static int pxa2128_cam_clk_init(struct device *dev, int init)
 {
 	struct mv_cam_pdata *data = dev->platform_data;
-	static struct regulator *vcc_af;
-	static struct regulator *vcc_camera;
+	static struct regulator *avdd_2v8;
+	static struct regulator *dovdd_1v8;
 	unsigned long tx_clk_esc;
 	struct clk *pll1;
+	int ret = 0;
 
 	pll1 = clk_get(dev, "pll1");
 	if (IS_ERR(pll1)) {
@@ -365,52 +366,58 @@ static int pxa2128_cam_clk_init(struct device *dev, int init)
 			| ((38 * tx_clk_esc / 1000 - 1) & 0xff);
 
 	clk_put(pll1);
+
+	if (!avdd_2v8) {
+		avdd_2v8 = regulator_get(NULL, "PMIC_V3_2V8");
+		if (IS_ERR(avdd_2v8)) {
+			pr_err("%s regulator get error!\n", __func__);
+			avdd_2v8 = NULL;
+			ret = -EIO;
+			goto regu_avdd_2v8;
+		}
+	}
+
+	if (!dovdd_1v8) {
+		dovdd_1v8 = regulator_get(NULL, "PMIC_V2_1V8");
+		if (IS_ERR(dovdd_1v8)) {
+			pr_err("%s regulator get error!\n", __func__);
+			dovdd_1v8 = NULL;
+			ret = -EIO;
+			goto regu_dovdd_1v8;
+		}
+	}
 	if (init) {
 		if (!data->clk_enabled) {
 			data->clk = clk_get(dev, "CCICRSTCLK");
 			if (IS_ERR(data->clk)) {
 				dev_err(dev, "Could not get rstclk\n");
-				return PTR_ERR(data->clk);
+				ret = PTR_ERR(data->clk);
+				goto rstclk_fail;
 			}
 			data->clk_enabled = 1;
 
 		}
-		vcc_af = regulator_get(NULL, "vcc_af");
-		if (IS_ERR(vcc_af)) {
-			vcc_af = NULL;
-			return -EIO;
-		} else {
-			regulator_set_voltage(vcc_af, 2800000, 2800000);
-			regulator_enable(vcc_af);
-		}
+		regulator_set_voltage(dovdd_1v8, 1800000, 1800000);
+		regulator_enable(dovdd_1v8);
 
-		vcc_camera = regulator_get(NULL, "vcc_camera");
-		if (IS_ERR(vcc_camera)) {
-			vcc_camera = NULL;
-			return -EIO;
-		} else {
-			regulator_set_voltage(vcc_camera, 2800000, 2800000);
-			regulator_enable(vcc_camera);
-		}
+		regulator_set_voltage(avdd_2v8, 2800000, 2800000);
+		regulator_enable(avdd_2v8);
 	} else {
-		if (vcc_af) {
-			regulator_disable(vcc_af);
-			regulator_put(vcc_af);
-			vcc_af = NULL;
-		}
-		if (vcc_camera) {
-			regulator_disable(vcc_camera);
-			regulator_put(vcc_camera);
-			vcc_camera = NULL;
-		}
+		regulator_disable(avdd_2v8);
+		regulator_disable(dovdd_1v8);
 
 		if (data->clk_enabled) {
 			clk_put(data->clk);
 			return 0;
 		}
 	}
-
 	return 0;
+rstclk_fail:
+	regulator_put(dovdd_1v8);
+regu_dovdd_1v8:
+	regulator_put(avdd_2v8);
+regu_avdd_2v8:
+	return ret;
 }
 
 static void pxa2128_cam_set_clk(struct device *dev, int on)
@@ -1379,8 +1386,8 @@ static void __init mk2_init(void)
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
 
 #if defined(CONFIG_VIDEO_MV)
-	/* platform_device_register(&mk2_ov5642); */
-	/* mmp3_add_cam(0, &mv_cam_data); */
+	platform_device_register(&mk2_ov5642);
+	mmp3_add_cam(0, &mv_cam_data);
 #endif
 
 	platform_device_register(&mmp3_device_rtc);
