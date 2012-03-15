@@ -708,6 +708,13 @@ static struct i2c_board_info orchid_twsi4_info[] = {
 		.platform_data = &cwmi_mag_data,
 	},
 #endif
+#if defined(CONFIG_SENSORS_ROHM_BH1772)
+	{
+		.type = "rohm_ls",
+		.addr = 0x38,
+		.irq = gpio_to_irq(mfp_to_gpio(GPIO129_GPIO)),
+	},
+#endif
 };
 
 static int orchid_pwm_init(struct device *dev)
@@ -793,8 +800,8 @@ static struct ft5306_touch_platform_data ft5306_touch_data = {
 static struct i2c_board_info orchid_twsi5_info[] = {
 #if defined(CONFIG_TOUCHSCREEN_FT5306)
 	{
-		.type		= "ft5306_touch",
-		.addr		=  0x38,
+		.type = "ft5306_touch",
+		.addr = 0x38,
 		.irq  = gpio_to_irq(mfp_to_gpio(GPIO7_GPIO)),
 		.platform_data	= &ft5306_touch_data,
 	},
