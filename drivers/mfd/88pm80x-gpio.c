@@ -20,6 +20,8 @@ struct pm80x_gpio_info {
 	int 				irq_gpio03;
 	int 				irq_gpio04;
 	int				gpio04_flag;
+	int				headset_gpio;
+	int				headset_gpio_val;
 };
 #define GPIO4_MODE 		(0x08)
 
@@ -34,12 +36,16 @@ static irqreturn_t pm80x_gpio04_handler(int irq, void *data)
 {
 	struct pm80x_gpio_info *info = data;
 	int value = 0;
+	int mask;
 	mdelay(50);
-	value = pm80x_reg_read(info->i2c, PM800_GPIO_4_CNTRL);
+
+	mask = info->headset_gpio_val;
+	value = pm80x_reg_read(info->i2c, info->headset_gpio);
+
 	if (info->gpio04_flag)
-		pm80x_headphone_handler(value & PM800_GPIO4_VAL);
+		pm80x_headphone_handler(value & mask);
 	else
-		pm80x_headphone_handler(~value & PM800_GPIO4_VAL);
+		pm80x_headphone_handler(~value & mask);
 	return IRQ_HANDLED;
 }
 static int pm80x_gpio_probe(struct platform_device *pdev)
@@ -49,6 +55,7 @@ static int pm80x_gpio_probe(struct platform_device *pdev)
 	struct pm80x_platform_data *pm80x_pdata;
 	int irq_gpio04;
 	int ret;
+	int val;
 
 	if (pdev->dev.parent->platform_data) {
 		pm80x_pdata = pdev->dev.parent->platform_data;
@@ -56,7 +63,9 @@ static int pm80x_gpio_probe(struct platform_device *pdev)
 		pr_debug("Invalid pm80x platform data!\n");
 		return -EINVAL;
 	}
-	irq_gpio04 = platform_get_irq(pdev, 4);
+
+	irq_gpio04 = platform_get_irq(pdev, pm80x_pdata->headset->gpio);
+
 	if (irq_gpio04 < 0) {
 		dev_err(&pdev->dev, "No IRQ resource for gpio04!\n");
 		return -EINVAL;
@@ -70,6 +79,8 @@ static int pm80x_gpio_probe(struct platform_device *pdev)
 	info->irq_gpio04 = irq_gpio04;
 	info->i2c = chip->base_page;
 	info->gpio04_flag = pm80x_pdata->headset_flag;
+	info->headset_gpio = pm80x_pdata->headset->gpio_ctl;
+	info->headset_gpio_val = pm80x_pdata->headset->gpio_val_bit;
 	ret = request_threaded_irq(info->irq_gpio04, NULL, pm80x_gpio04_handler,
 					IRQF_ONESHOT, "gpio-04", info);
 	if (ret < 0) {
@@ -79,8 +90,12 @@ static int pm80x_gpio_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, info);
 	/*set gpio04 as input mode. */
 	pm80x_set_bits(info->i2c, PM800_INT_ENA_4,
-					PM800_GPIO4_INT_ENA4, PM800_GPIO4_INT_ENA4);
-	pm80x_reg_write(info->i2c, PM800_GPIO_4_CNTRL, GPIO4_MODE);
+			pm80x_pdata->headset->gpio_enable_irq,
+			pm80x_pdata->headset->gpio_enable_irq);
+	val = pm80x_reg_read(info->i2c, pm80x_pdata->headset->gpio_ctl);
+	val &= pm80x_pdata->headset->gpio_set_mask;
+	val |= pm80x_pdata->headset->gpio_set_val;
+	pm80x_reg_write(info->i2c, pm80x_pdata->headset->gpio_ctl , val);
 	pm80x_gpio04_handler(0, info);
 	return 0;
 }

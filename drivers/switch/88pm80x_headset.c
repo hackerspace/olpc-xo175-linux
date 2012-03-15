@@ -39,6 +39,7 @@ struct pm80x_headset_info {
 	int irq_headset;
 	int irq_hook;
 	int status;
+	int gpio_num;
 	struct work_struct work_headset, work_hook;
 	struct delayed_work delayed_work;
 	struct headset_switch_data *psw_data_headset, *psw_data_hook;
@@ -58,13 +59,25 @@ static struct PM8XXX_HS_IOCTL hs_detect;
 
 void pm80x_headphone_handler(int status)
 {
-	if (!pm80x_info || !pm80x_info->psw_data_headset
-		|| !pm80x_info->chip || !pm80x_info->chip->monitor_wqueue)
-		return;
+	if (pm80x_info->gpio_num == 3) {
+		if (!pm80x_info || !pm80x_info->psw_data_headset
+			|| !pm80x_info->chip
+			|| !pm80x_info->chip->pm805_wqueue)
+			return;
 
-	pm80x_info->status = status;
-	queue_work(pm80x_info->chip->monitor_wqueue,
-		&pm80x_info->work_headset);
+		pm80x_info->status = status;
+		queue_work(pm80x_info->chip->pm805_wqueue,
+			&pm80x_info->work_headset);
+	} else {
+		if (!pm80x_info || !pm80x_info->psw_data_headset
+			|| !pm80x_info->chip
+			|| !pm80x_info->chip->pm800_wqueue)
+			return;
+
+		pm80x_info->status = status;
+		queue_work(pm80x_info->chip->pm800_wqueue,
+			&pm80x_info->work_headset);
+	}
 }
 
 static irqreturn_t pm80x_hook_handler(int irq, void *data)
@@ -73,8 +86,13 @@ static irqreturn_t pm80x_hook_handler(int irq, void *data)
 
 	/* hook interrupt */
 	if (info->psw_data_hook != NULL) {
-		queue_work(info->chip->monitor_wqueue,
+		if (info->gpio_num == 3)
+			queue_work(info->chip->pm805_wqueue,
 				   &info->work_hook);
+		else
+			queue_work(info->chip->pm800_wqueue,
+				   &info->work_hook);
+
 	}
 	return IRQ_HANDLED;
 }
@@ -195,6 +213,7 @@ static ssize_t switch_headset_print_state(struct switch_dev *sdev,
 static int pm80x_headset_switch_probe(struct platform_device *pdev)
 {
 	struct pm80x_chip *chip = dev_get_drvdata(pdev->dev.parent);
+	struct pm80x_platform_data *pm80x_pdata;
 	struct pm80x_headset_info *info;
 	struct gpio_switch_platform_data *pdata_headset =
 	    pdev->dev.platform_data;
@@ -202,6 +221,13 @@ static int pm80x_headset_switch_probe(struct platform_device *pdev)
 	struct headset_switch_data *switch_data_headset =
 	    NULL, *switch_data_hook = NULL;
 	int irq_headset, irq_hook, ret = 0;
+
+	if (pdev->dev.parent->platform_data) {
+		pm80x_pdata = pdev->dev.parent->platform_data;
+	} else {
+		pr_debug("Invalid pm80x platform data!\n");
+		return -EINVAL;
+	}
 
 	if (pdata_headset == NULL || pdata_hook == NULL) {
 		pr_debug("Invalid gpio switch platform data!\n");
@@ -221,6 +247,7 @@ static int pm80x_headset_switch_probe(struct platform_device *pdev)
 	if (!info)
 		return -ENOMEM;
 	info->chip = chip;
+	info->gpio_num = pm80x_pdata->headset->gpio;
 	info->i2c = chip->pm805_chip->client;
 	info->dev = &pdev->dev;
 	info->irq_headset = irq_headset + chip->pm805_chip->irq_base;

@@ -173,6 +173,7 @@ enum {
 #define PM800_GPIO2_GPIO_MODE(x)	(x << 1)
 #define PM800_GPIO3_VAL				(1 << 4)
 #define PM800_GPIO3_GPIO_MODE(x)	(x << 5)
+#define PM800_GPIO3_MODE_MASK		0x1F
 
 #define PM800_GPIO_4_CNTRL			(0x32)
 #define PM800_GPIO4_VAL				(1 << 0)
@@ -504,7 +505,8 @@ struct pm80x_chip {
 	struct i2c_client *gpadc_page;	/* chip client for gpadc page */
 	struct i2c_client *test_page;	/* chip client for test page */
 
-	struct workqueue_struct *monitor_wqueue;
+	struct workqueue_struct *pm800_wqueue;
+	struct workqueue_struct *pm805_wqueue;
 
 	int buck3_double;	/* DVC ramp slope double */
 	unsigned short companion_addr;
@@ -543,8 +545,18 @@ struct pm80x_rtc_pdata {
 	int             rtc_wakeup;
 };
 
+struct pm80x_headset_pdata {
+	int		gpio;
+	int		gpio_ctl;
+	int		gpio_enable_irq;
+	int		gpio_set_mask;
+	int		gpio_set_val;
+	int		gpio_val_bit;
+};
+
 struct pm80x_platform_data {
 	struct pm80x_rtc_pdata *rtc;
+	struct pm80x_headset_pdata *headset;
 	struct pm80x_vbus_pdata *vbus;
 	struct regulator_init_data *regulator;
 

@@ -943,6 +943,15 @@ static int __devinit device_805_init(struct pm80x_chip *chip,
 	dev_info(chip->dev, "[%s][%s]mfd_add_devices headset_devs\n",
 		 __FILE__, __func__);
 
+	chip->pm805_wqueue = create_singlethread_workqueue("88pm805");
+	if (!chip->pm805_wqueue) {
+		dev_info(chip->dev,
+			 "[%s][%s]FAIL pm805_wqueue:out_work\n",
+			 __FILE__, __func__);
+		ret = -ESRCH;
+		goto out_dev;
+	}
+
 	ret = mfd_add_devices(chip->dev, 0, &headset_devs[0],
 			      ARRAY_SIZE(headset_devs),
 			      &headset_resources[0], 0);
@@ -958,6 +967,7 @@ static int __devinit device_805_init(struct pm80x_chip *chip,
 
 out_dev:
 	mfd_remove_devices(chip->dev);
+	destroy_workqueue(chip->pm805_wqueue);
 	device_irq_exit_805(chip);
 	kfree(pm805_chip);
 	return 1;
@@ -1069,10 +1079,10 @@ static int __devinit device_800_init(struct pm80x_chip *chip,
 	}
 
 	/* PM800 common wqueue: used in headset, battery, rtc */
-	chip->monitor_wqueue = create_singlethread_workqueue("88pm80x");
-	if (!chip->monitor_wqueue) {
+	chip->pm800_wqueue = create_singlethread_workqueue("88pm80x");
+	if (!chip->pm800_wqueue) {
 		dev_info(chip->dev,
-			 "[%s][%s]FAIL monitor_wqueue:out_work\n",
+			 "[%s][%s]FAIL pm800_wqueue:out_work\n",
 			 __FILE__, __func__);
 		ret = -ESRCH;
 		goto out_work;
@@ -1122,7 +1132,7 @@ static int __devinit device_800_init(struct pm80x_chip *chip,
 	return 0;
 out_dev:
 	mfd_remove_devices(chip->dev);
-	destroy_workqueue(chip->monitor_wqueue);
+	destroy_workqueue(chip->pm800_wqueue);
 out_work:
 	device_irq_exit_800(chip);
 out:
@@ -1168,8 +1178,10 @@ int __devinit pm80x_device_init(struct pm80x_chip *chip,
 
 void __devexit pm80x_device_exit(struct pm80x_chip *chip)
 {
-	flush_workqueue(chip->monitor_wqueue);
-	destroy_workqueue(chip->monitor_wqueue);
+	flush_workqueue(chip->pm800_wqueue);
+	destroy_workqueue(chip->pm800_wqueue);
+	flush_workqueue(chip->pm805_wqueue);
+	destroy_workqueue(chip->pm805_wqueue);
 	device_irq_exit_800(chip);
 	device_irq_exit_805(chip);
 	mfd_remove_devices(chip->dev);
