@@ -575,10 +575,8 @@ static void mmc1_set_power(unsigned int on)
 	if (on) {
 		regulator_set_voltage(v_ldo13, 3300000, 3300000);
 		regulator_set_voltage(v_ldo12, 1800000, 1800000);
-		if (!regulator_is_enabled(v_ldo13))
-			regulator_enable(v_ldo13);
-		if (!regulator_is_enabled(v_ldo12))
-			regulator_enable(v_ldo12);
+		regulator_enable(v_ldo13);
+		regulator_enable(v_ldo12);
 		mfp_config(&mfp_cfg_on, 1);
 	} else {
 		mfp_config(&mfp_cfg_off, 1);
@@ -1415,8 +1413,7 @@ static int ntrig_set_power(int on)
 	}
 	if (on) {
 		regulator_set_voltage(v_ldo16, 3300000, 3300000);
-		if (!regulator_is_enabled(v_ldo16))
-			regulator_enable(v_ldo16);
+		regulator_enable(v_ldo16);
 	} else {
 		if (regulator_is_enabled(v_ldo16) > 0)
 			regulator_force_disable(v_ldo16);
