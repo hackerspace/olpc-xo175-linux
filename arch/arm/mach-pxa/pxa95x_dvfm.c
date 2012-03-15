@@ -1618,24 +1618,33 @@ static inline void set_mm_pll_freq(void *driver_data,
 {
 	uint32_t acsr0;
 	struct pxa95x_dvfm_info *info = driver_data;
-	uint32_t mm_pll_param, tmp;
+	uint32_t mm_pll_param, tmp, next_mm_pll_freq;
+	if (new->gcfs == 498 && new->vmfc == 600 ||
+	    new->vmfc == 498 && new->gcfs == 600) {
+		printk(KERN_ERR "Wrong GC and VMETA frequency!\n");
+		BUG_ON(1);
+	}
+	next_mm_pll_freq = new->gcfs >= 498 ? new->gcfs : (new->vmfc >= 498 ? new->vmfc : 0);
 	/* Change MM PLL frequency if needed*/
-	if (new->gcfs >= 498 && mm_pll_freq != new->gcfs) {
+	if (next_mm_pll_freq && mm_pll_freq != next_mm_pll_freq) {
 		mm_pll_param = MM_PLL_PARAM;
 		mm_pll_param &= ~(MMPLL_VCODIV_SEL_MASK
 				| MMPLL_KVCO_MASK
 				| MMPLL_FBDIV_MASK
 				| MMPLL_REFDIV_MASK);
-		mm_pll_param |= mm_pll_freq2reg(new->gcfs);
-		if (old->gcfs >= 498) {
+		mm_pll_param |= mm_pll_freq2reg(next_mm_pll_freq);
+
+		if (old->gcfs >= 498 || old->vmfc >= 498) {
 			/*Switch to 416Mhz clock before change MM PLL*/
 			tmp = accr0;
-			tmp &= ~(ACCR0_GCFS_MASK
-				| ACCR0_GCAXIFS_MASK
-				| ACCR0_VMFC_MASK);
-			tmp |= (0x3 << ACCR0_GCFS_OFFSET
-				| 0x3 << ACCR0_GCAXIFS_OFFSET
-				| 0x3 << ACCR0_VMFC_OFFSET);
+			if (old->gcfs >= 498) {
+				tmp &= ~(ACCR0_GCFS_MASK | ACCR0_GCAXIFS_MASK);
+				tmp |= (0x3 << ACCR0_GCFS_OFFSET | 0x3 << ACCR0_GCAXIFS_OFFSET);
+			}
+			if (old->vmfc >= 498) {
+				tmp &= ~ACCR0_VMFC_MASK;
+				tmp |= 0x3 << ACCR0_VMFC_OFFSET;
+			}
 			__raw_writel(tmp, info->clkmgr_base + ACCR0_OFF);
 			do {
 				acsr0 = __raw_readl(info->clkmgr_base + ACSR0_OFF);
@@ -1644,7 +1653,7 @@ static inline void set_mm_pll_freq(void *driver_data,
 		MM_PLL_PARAM = mm_pll_param;
 		while (!(MM_PLL_CTRL & MMPLL_PWR_ST))
 			;
-		mm_pll_freq = new->gcfs;
+		mm_pll_freq = next_mm_pll_freq;
 	}
 }
 
