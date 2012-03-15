@@ -29,6 +29,7 @@
 #include <linux/switch.h>
 #include <linux/sd8x_rfkill.h>
 #include <linux/mmc/sdhci.h>
+#include <linux/cwgd.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -88,6 +89,10 @@ static unsigned long orchid_pin_config[] __initdata = {
 	/* TWSI6 */
 	GPIO47_TWSI6_SCL,
 	GPIO48_TWSI6_SDA,
+
+	/* TWSI4 */
+	TWSI4_SCL,
+	TWSI4_SDA,
 
 	/* FT5306 Touch */
 	GPIO7_GPIO | MFP_PULL_LOW,
@@ -593,10 +598,55 @@ static struct i2c_board_info orchid_twsi2_info[] = {
 	},
 };
 
-/* TODO: for 3 AXIS GRYOSCOPE, E-COMPASS,
- *       PROXIMITY and AMBIENT sensor and
- *       GPS*/
+/*
+ * 3 AXIS GRYOSCOPE, E-COMPASS,
+ * PROXIMITY and AMBIENT sensor, GPS
+ */
+static int cywee_set_power(int on)
+{
+	static struct regulator *v_ldo14_2v8;
+
+	v_ldo14_2v8 = regulator_get(NULL, "V_LDO14_2V8");
+	if (IS_ERR(v_ldo14_2v8)) {
+		v_ldo14_2v8 = NULL;
+		return -EIO;
+	}
+
+	if(on) {
+		regulator_set_voltage(v_ldo14_2v8, 2800000, 2800000);
+		regulator_enable(v_ldo14_2v8);
+	} else {
+		regulator_disable(v_ldo14_2v8);
+		regulator_put(v_ldo14_2v8);
+		v_ldo14_2v8 = NULL;
+	}
+	msleep(100);
+	return 0;
+}
+
+#if defined(CONFIG_SENSORS_CWGD)
+static struct cwgd_platform_data cwgd_plat_data = {
+	.set_power = cywee_set_power,
+	.axes = {
+		-1, 0, 0,
+		0, 1, 0,
+		0, 0, -1
+	},
+};
+#endif
+
 static struct i2c_board_info orchid_twsi4_info[] = {
+#if defined(CONFIG_SENSORS_CWGD)
+	{
+		.type = "cwgd",
+		/*
+		 * R1 mount(High) write=0xD4, Read=0xD5
+		 * R1 mount(Low)  write=0xD2, Read=0xD3
+		 */
+		.addr = 0x69,
+		.platform_data  = &cwgd_plat_data,
+	},
+#endif
 };
 
 static int orchid_pwm_init(struct device *dev)
