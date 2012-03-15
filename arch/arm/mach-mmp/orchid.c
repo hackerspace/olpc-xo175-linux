@@ -30,6 +30,7 @@
 #include <linux/sd8x_rfkill.h>
 #include <linux/mmc/sdhci.h>
 #include <linux/cwgd.h>
+#include <linux/cwmi.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -602,7 +603,8 @@ static struct i2c_board_info orchid_twsi2_info[] = {
  * 3 AXIS GRYOSCOPE, E-COMPASS,
  * PROXIMITY and AMBIENT sensor, GPS
  */
-static int cywee_set_power(int on)
+#if defined(CONFIG_SENSORS_CWGD)
+static int cywee_cwgd_set_power(int on)
 {
 	static struct regulator *v_ldo14_2v8;
 
@@ -624,12 +626,53 @@ static int cywee_set_power(int on)
 	return 0;
 }
 
-#if defined(CONFIG_SENSORS_CWGD)
 static struct cwgd_platform_data cwgd_plat_data = {
-	.set_power = cywee_set_power,
+	.set_power = cywee_cwgd_set_power,
 	.axes = {
 		-1, 0, 0,
 		0, 1, 0,
+		0, 0, -1
+	},
+};
+#endif
+
+#if defined(CONFIG_SENSORS_CWMI)
+static int cywee_cwmi_set_power(int on)
+{
+	static struct regulator *v_ldo14_2v8;
+
+	v_ldo14_2v8 = regulator_get(NULL, "V_LDO14_2V8");
+	if (IS_ERR(v_ldo14_2v8)) {
+		v_ldo14_2v8 = NULL;
+		return -EIO;
+	}
+
+	if(on) {
+		regulator_set_voltage(v_ldo14_2v8, 2800000, 2800000);
+		regulator_enable(v_ldo14_2v8);
+	} else {
+		regulator_disable(v_ldo14_2v8);
+		regulator_put(v_ldo14_2v8);
+		v_ldo14_2v8 = NULL;
+	}
+	msleep(100);
+	return 0;
+}
+
+static struct cwmi_platform_data cwmi_acc_data = {
+	.set_power = cywee_cwmi_set_power,
+	.axes = {
+		0, 1, 0,
+		1, 0, 0,
+		0, 0, -1
+	},
+};
+
+static struct cwmi_platform_data cwmi_mag_data = {
+	.set_power = cywee_cwmi_set_power,
+	.axes = {
+		0, 1, 0,
+		1, 0, 0,
 		0, 0, -1
 	},
 };
@@ -644,7 +687,25 @@ static struct i2c_board_info orchid_twsi4_info[] = {
 		 * R1 mount(Low)  write=0xD2, Read=0xD3
 		 */
 		.addr = 0x69,
-		.platform_data  = &cwgd_plat_data,
+		.platform_data = &cwgd_plat_data,
+	},
+#endif
+#if defined(CONFIG_SENSORS_CWMI)
+	{
+		.type = "cwmi_acc",
+		/*
+		 * write addr 0x32, read addr 0x33
+		 */
+		.addr = 0x19,
+		.platform_data = &cwmi_acc_data,
+	},
+	{
+		.type = "cwmi_mag",
+		/*
+		 * write addr 0x3C, read addr 0x3D
+		 */
+		.addr = 0x1e,
+		.platform_data = &cwmi_mag_data,
 	},
 #endif
 };
