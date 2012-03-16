@@ -2029,6 +2029,8 @@ static void __init abilene_init(void)
 		platform_device_register(&mmp3_hsic1_device);
 	}
 #endif
+
+	pxa_u3d_phy_disable();
 }
 
 MACHINE_START(ABILENE, "Abilene")
