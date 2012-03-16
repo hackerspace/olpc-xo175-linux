@@ -17,6 +17,7 @@
 #include <linux/io.h>
 #include <linux/delay.h>
 #include <linux/debugfs.h>
+#include <linux/uaccess.h>
 
 #include <plat/clock.h>
 
@@ -383,7 +384,73 @@ struct clk *get_clock_by_name(const char *name)
 	return ret;
 }
 
-#ifdef CONFIG_DEBUG_FS
+#if defined(CONFIG_DEBUG_FS)
+DEFINE_MUTEX(clk_mutex);
+static int clk_enable_open(struct inode *inode, struct file *filp)
+{
+	filp->private_data = inode->i_private;
+	return 0;
+}
+
+static ssize_t
+clk_enable_read(struct file *filp, char __user *ubuf, size_t cnt,
+		loff_t *ppos)
+{
+	struct clk *clk= filp->private_data;
+	char buf[5];
+	int ret;
+
+	mutex_lock(&clk_mutex);
+	sprintf(buf, "%4x", clk->refcnt);
+	mutex_unlock(&clk_mutex);
+	buf[4] = '\n';
+
+	ret = simple_read_from_buffer(ubuf, cnt, ppos, buf, 5);
+
+	return ret;
+}
+
+static ssize_t
+clk_enable_write(struct file *filp, const char __user *ubuf, size_t cnt,
+		 loff_t *ppos)
+{
+	struct clk *clk= filp->private_data;
+	char buf[64];
+	unsigned long val;
+	int ret;
+
+	if (cnt >= sizeof(buf))
+		return -EINVAL;
+
+	if (copy_from_user(&buf, ubuf, cnt))
+		return -EFAULT;
+
+	buf[cnt] = 0;
+
+	ret = strict_strtoul(buf, 10, &val);
+	if (ret < 0)
+		return ret;
+
+	if (val != 0 && val != 1)
+		return -EINVAL;
+
+	*ppos += cnt;
+	mutex_lock(&clk_mutex);
+	if (val)
+		clk_enable(clk);
+	else
+		clk_disable(clk);
+	mutex_unlock(&clk_mutex);
+
+	return cnt;
+}
+
+static const struct file_operations clk_enable_fops = {
+	.open = clk_enable_open,
+	.read = clk_enable_read,
+	.write = clk_enable_write,
+};
+
 /*
  *	debugfs support to trace clock tree hierarchy and attributes
  */
@@ -409,6 +476,11 @@ static int clk_debugfs_register_one(struct clk *c)
 		goto err_out;
 	}
 	d = debugfs_create_u32("rate", S_IRUGO, c->dent, (u32 *)&c->rate);
+	if (!d) {
+		err = -ENOMEM;
+		goto err_out;
+	}
+	d = debugfs_create_file("enable", 0644, c->dent, c, &clk_enable_fops);
 	if (!d) {
 		err = -ENOMEM;
 		goto err_out;
