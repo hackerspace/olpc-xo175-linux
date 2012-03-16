@@ -502,7 +502,17 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 	return 0;
 }
 
+static struct pm80x_headset_pdata pm80x_headset = {
+	.gpio	= 3,			/* GPIO 3 */
+	.gpio_ctl = 0x31,		/* PM800 GPIO 3 */
+	.gpio_enable_irq = (1 << 3),
+	.gpio_set_mask = 0x0f,
+	.gpio_set_val = 0x0,
+	.gpio_val_bit = (1 << 4),
+};
+
 static struct pm80x_platform_data pm800_info = {
+	.headset = &pm80x_headset,
 	.base_page_addr = 0x30,		/* BASE page */
 	.power_page_addr = 0x31,	/* POWER */
 	.gpadc_page_addr = 0x32,	/* GPADC */
@@ -716,6 +726,7 @@ static struct i2c_board_info yellowstone_twsi6_info[] = {
 static struct pm80x_platform_data pm805_info = {
 	.irq_mode = 0,
 	.irq_base = IRQ_BOARD_START + PM800_MAX_IRQ,
+	.headset = &pm80x_headset,
 };
 
 static struct i2c_board_info yellowstone_twsi3_info[] = {
