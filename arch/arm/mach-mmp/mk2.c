@@ -1390,7 +1390,7 @@ static void __init mk2_init(void)
 #endif
 
 #ifdef CONFIG_UIO_VMETA
-	/* mmp_init_vmeta(); */
+	mmp_init_vmeta();
 #endif
 
 #ifdef CONFIG_MMC_SDHCI_PXAV3
