@@ -27,7 +27,7 @@
 #define HDMI_FREQ_CONSTRAINT PM_QOS_DEFAULT_VALUE
 #endif
 
-#if defined(CONFIG_CPU_MMP2) && defined(CONFIG_CPU_FREQ)
+#if defined(CONFIG_CPU_MMP2) && defined(CONFIG_CPU_FREQ) && defined(CONFIG_PM)
 void pwr_i2c_conflict_mutex_lock(void);
 void pwr_i2c_conflict_mutex_unlock(void);
 #else

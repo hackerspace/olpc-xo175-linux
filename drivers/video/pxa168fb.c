@@ -905,7 +905,7 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 						dispd_count++;
 					}
 
-#if defined(CONFIG_CPU_MMP2) && defined(CONFIG_CPU_FREQ)
+#if defined(CONFIG_CPU_MMP2) && defined(CONFIG_CPU_FREQ) && defined(CONFIG_PM)
 					wakeup_freq_seq();
 #endif
 #ifdef CONFIG_PXA168_V4L2_OVERLAY
