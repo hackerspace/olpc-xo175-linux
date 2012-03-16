@@ -301,7 +301,17 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 	return 0;
 }
 
+static struct pm80x_headset_pdata pm80x_headset = {
+	.gpio	= 4,			/* GPIO 4 */
+	.gpio_ctl = 0x32,		/* PM800 GPIO 4 */
+	.gpio_enable_irq = (1 << 4),
+	.gpio_set_mask = 0xff,
+	.gpio_set_val = 0x08,
+	.gpio_val_bit = (1 << 0),
+};
+
 static struct pm80x_platform_data pm800_info = {
+	.headset = &pm80x_headset,
 	.regulator	= regulator_data,
 	.rtc  = &pm80x_rtc,
 	.companion_addr		= 0x38,
