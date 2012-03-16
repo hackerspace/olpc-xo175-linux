@@ -1036,6 +1036,8 @@ static void __init orchid_init(void)
 	/* If we have a full configuration then disable any regulators
 	 * which are not in use or always_on. */
 	regulator_has_full_constraints();
+
+	pxa_u3d_phy_disable();
 }
 
 MACHINE_START(ORCHID, "Orchid")
