@@ -25,8 +25,6 @@ static inline void platform_do_lowpower(unsigned int cpu)
 {
 	int hardid = smp_hardid[cpu];
 
-	flush_cache_all();
-	dsb();
 	/*
 	 * there is no power-control hardware on this platform, so all
 	 * we can do is put the core into WFI; this is safe as the calling
