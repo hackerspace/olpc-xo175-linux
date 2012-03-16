@@ -254,7 +254,7 @@ static void regulator_init(void)
 
 	switch (get_board_id()) {
 	case OBM_SAAR_B_MG1_C0_V12_BOARD:
-		REG_SUPPLY_INIT(PM8607_ID_LDO12, "v_hdmi", "1-003b");
+		REG_SUPPLY_INIT(PM8607_ID_LDO12, "v_hdmi", NULL);
 		REG_SUPPLY_INIT(PM8607_ID_LDO13, "v_gps", NULL);
 		REG_SUPPLY_INIT(PM8607_ID_LDO14, "vmmc", "sdhci-pxa.1");
 
@@ -652,6 +652,23 @@ static struct pxa95xfb_mach_info lcd_ovly_info_wvga /*__initdata*/ = {
 	.reset = panel_reset,
 };
 
+static struct pxa95xfb_mach_info hdmi_base_info __initdata = {
+	.id                     = "HDMI-Base",
+	.modes                  = video_modes_si9226,
+	.num_modes              = ARRAY_SIZE(video_modes_si9226),
+	.pix_fmt_in             = PIX_FMTIN_YUV420,
+	.pix_fmt_out            = PIX_FMTOUT_24_RGB888,
+	.panel_type             = LCD_Controller_Active,
+	/*as hdmi-ovly use same win4 with lcd-ovly, they should not open at the same time*/
+	.window                 = 4,
+	.mixer_id               = 0,
+	.zorder                 = 1,
+	.converter              = LCD_M2PARALELL_CONVERTER,
+	.output                 = OUTPUT_HDMI,
+	.active                 = 1,
+	.invert_pixclock        = 1,
+};
+
 static struct pxa95xfb_mach_info hdmi_ovly_info __initdata = {
 	.id                     = "HDMI-Ovly",
 	.modes                  = video_modes_si9226,
@@ -669,7 +686,6 @@ static struct pxa95xfb_mach_info hdmi_ovly_info __initdata = {
 	.invert_pixclock        = 1,
 };
 
-
 static void __init init_lcd(void)
 {
 	if (get_board_id() == OBM_SAAR_B_MG2_B0_V15_BOARD
@@ -680,7 +696,9 @@ static void __init init_lcd(void)
 		set_pxa95x_fb_info(&lcd_info);
 		set_pxa95x_fb_ovly_info(&lcd_ovly_info, 0);
 #ifdef CONFIG_HDMI_SI9226
-		set_pxa95x_fb_ovly_info(&hdmi_ovly_info, 1);
+		platform_device_register(&pxa95x_device_uio_si9226);
+		set_pxa95x_fb_ovly_info(&hdmi_base_info, 1);
+		set_pxa95x_fb_ovly_info(&hdmi_ovly_info, 2);
 #endif
 	}
 }
@@ -887,13 +905,13 @@ static struct pxa95x_peripheral_wakeup_ops wakeup_ops = {
 #endif
 
 #if defined(CONFIG_HDMI_SI9226)
-static void SI9226_hdmi_power(struct device *dev, int on)
+static void SI9226_hdmi_power(int on)
 {
 	static struct regulator *vhdmi;
 	static int vhdmi_inited;
 
 	if (get_board_id() < OBM_SAAR_B_MG2_A0_V13_BOARD && !vhdmi_inited) {
-		vhdmi = regulator_get(dev, "v_hdmi");
+		vhdmi = regulator_get(NULL, "v_hdmi");
 		if (!IS_ERR(vhdmi))
 			vhdmi_inited = 1;
 		else

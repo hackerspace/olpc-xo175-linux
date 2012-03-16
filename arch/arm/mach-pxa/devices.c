@@ -1947,5 +1947,11 @@ struct platform_device pxa978_device_uio_ihdmi = {
 };
 
 #endif
+#endif
 
+#ifdef CONFIG_UIO_SI9226
+struct platform_device pxa95x_device_uio_si9226 = {
+	.name		= "uio-si9226",
+	.id		= -1,
+};
 #endif
