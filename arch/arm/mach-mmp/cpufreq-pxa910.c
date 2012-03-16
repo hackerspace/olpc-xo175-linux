@@ -18,9 +18,12 @@
 #include <linux/cpu.h>
 #include <linux/slab.h>
 #include <linux/pm_qos_params.h>
+#include <linux/suspend.h>
 #include "acpuclock.h"
 
 static struct pm_qos_request_list cpufreq_qos_req_min;
+static DEFINE_MUTEX(pxa910_cpufreq_lock);
+static bool is_suspended;
 
 static int pxa910_cpufreq_verify(struct cpufreq_policy *policy)
 {
@@ -44,21 +47,28 @@ static int pxa910_cpufreq_target(struct cpufreq_policy *policy,
 	struct cpufreq_frequency_table *table =
 		cpufreq_frequency_get_table(smp_processor_id());
 
+	mutex_lock(&pxa910_cpufreq_lock);
+	if (is_suspended) {
+		goto out;
+	}
+
 	if (cpufreq_frequency_table_target(policy, table, target_freq, relation,
 			&index)) {
 		pr_err("cpufreq: invalid target_freq: %d\n", target_freq);
+		mutex_unlock(&pxa910_cpufreq_lock);
 		return -EINVAL;
 	}
 
 	if (policy->cur == table[index].frequency)
-		return 0;
+		goto out;
 
 #ifdef CONFIG_CPU_FREQ_DEBUG
 	pr_info("target_freq is %d, index is %d\n", target_freq, index);
 #endif
 
 	pm_qos_update_request(&cpufreq_qos_req_min, table[index].frequency/1000);
-
+out:
+	mutex_unlock(&pxa910_cpufreq_lock);
 	return 0;
 }
 
@@ -98,8 +108,33 @@ static struct cpufreq_driver pxa910_cpufreq_driver = {
 	.attr		= pxa_freq_attr,
 };
 
+static int pxa910_cpufreq_pm_notifier(struct notifier_block *nb,
+	unsigned long event, void *dummy)
+{
+	mutex_lock(&pxa910_cpufreq_lock);
+	if (event == PM_SUSPEND_PREPARE) {
+		is_suspended = true;
+		pr_info("%s: disable cpu freq-chg before suspend\n",
+				__func__);
+	} else if (event == PM_POST_SUSPEND) {
+		is_suspended = false;
+		pr_info("%s: enable cpu freq-chg after resume\n",
+				__func__);
+	}
+	mutex_unlock(&pxa910_cpufreq_lock);
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block pxa910_cpu_pm_notifier = {
+	.notifier_call = pxa910_cpufreq_pm_notifier,
+};
+
 static int __init cpufreq_init(void)
 {
+#ifdef CONFIG_SUSPEND
+	register_pm_notifier(&pxa910_cpu_pm_notifier);
+#endif
 	return cpufreq_register_driver(&pxa910_cpufreq_driver);
 }
 module_init(cpufreq_init);
