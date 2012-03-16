@@ -1385,6 +1385,7 @@ static void __init mk2_init(void)
 	mmp3_add_pwm(3);
 	platform_device_register(&mk2_lcd_backlight_devices);
 
+	mmp3_add_thermal();
 #ifdef CONFIG_ANDROID_PMEM
 	pxa_add_pmem();
 #endif
