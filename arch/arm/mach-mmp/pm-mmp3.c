@@ -1829,16 +1829,15 @@ void mmp3_pm_enter_c2(int cpu)
 	struct mmp3_cpu_idle_config *cic;
 	int core_id = mmp3_smpid();
 
+	trace_idle_entry(state);
+
 #ifdef CONFIG_SMP
 	if (!leave_coherency(cpu))
 		return ;
 #endif
 
 	cic = &(mmp3_percpu[core_id].cic);
-
 	mmp3_mod_idle_config(cic, state);
-	/* no DFC in process*/
-	trace_idle_entry(state);
 
 #if defined(CONFIG_SMP)
 	while (1) {
