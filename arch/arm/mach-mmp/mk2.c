@@ -716,7 +716,7 @@ static struct regulator_init_data max77601_regulator_data[] = {
 	[MAX77601_ID_SD2]	 = REG_INIT(SD2,	600000, 3387500, 1, 1),
 	[MAX77601_ID_SD3]	 = REG_INIT(SD3,	600000, 3387500, 1, 1),
 	/* Linear regulators: L[0..8] */
-	[MAX77601_ID_L0] = REG_INIT(L0, 800000, 2350000, 0, 0),
+	[MAX77601_ID_L0] = REG_INIT(L0, 800000, 2350000, 0, 1),
 	[MAX77601_ID_L1] = REG_INIT(L1, 800000, 2350000, 0, 1),
 	[MAX77601_ID_L2] = REG_INIT(L2, 800000, 3950000, 1, 1),
 	[MAX77601_ID_L3] = REG_INIT(L3, 800000, 3950000, 0, 0),
@@ -910,59 +910,92 @@ static struct mv_usb_platform_data mmp3_usb_pdata = {
 #endif
 
 #ifdef CONFIG_USB_EHCI_PXA_U2H_HSIC
-static int mmp3_hsic1_reset(void)
+/* USB3503 hub reset:HSIC_RST_N */
+static int hsic_hub_reset(void)
 {
-	int reset;
-	reset = mfp_to_gpio(GPIO96_HSIC_RESET);
-
-	if (gpio_request(reset, "hsic reset")) {
-		pr_err("Failed to request hsic reset gpio\n");
+	int rst_n = mfp_to_gpio(GPIO96_HSIC_RESET);
+	if (gpio_request(rst_n, "hsic hub reset")) {
+		pr_err("Failed to request hsic hub reset gpio:%d\n", rst_n);
 		return -EIO;
 	}
-
-	gpio_direction_output(reset, 0);
+	gpio_direction_output(rst_n, 0);
 	mdelay(100);
-	gpio_direction_output(reset, 1);
-	mdelay(50);
-
-	gpio_free(reset);
+	gpio_direction_output(rst_n, 1);
+	gpio_free(rst_n);
+	mdelay(10);
 	return 0;
 }
-
-static int mmp3_hsic1_set_vbus(unsigned int vbus)
+/* USB3503 hub power:USB_VBAT */
+static int hsic_hub_power(int on)
 {
-	static struct regulator *pmic_1p2v_hsic;
-
-	printk(KERN_INFO "%s: set %d\n", __func__, vbus);
-	if (vbus) {
-		if (!pmic_1p2v_hsic) {
-			pmic_1p2v_hsic = regulator_get(NULL, "pmic_1p2v_hsic");
-			if (IS_ERR(pmic_1p2v_hsic)) {
-				printk(KERN_INFO "ldo5 not found\n");
-				return -EIO;
-			}
-			regulator_set_voltage(pmic_1p2v_hsic, 1200000, 1200000);
-			regulator_enable(pmic_1p2v_hsic);
-			printk(KERN_INFO "%s: enable regulator\n", __func__);
-			udelay(2);
-		}
-
-		mmp3_hsic1_reset();
-	} else {
-		if (pmic_1p2v_hsic) {
-			regulator_disable(pmic_1p2v_hsic);
-			regulator_put(pmic_1p2v_hsic);
-			pmic_1p2v_hsic = NULL;
+	static struct regulator *vbat;
+	static bool enabled;
+	if (!vbat) {
+		vbat = regulator_get(NULL, "PMIC_LDO2");
+		if (IS_ERR(vbat)) {
+			pr_err("%s:Failed to get PMIC_LDO2!\n", __func__);
+			vbat = NULL;
+			return -EIO;
 		}
 	}
-
+	if (on) {
+		if (enabled)
+			return 0;
+		regulator_set_voltage(vbat, 3300000, 3300000);
+		regulator_enable(vbat);
+		enabled = 1;
+	} else {
+		if (!enabled)
+			return 0;
+		regulator_disable(vbat);
+		enabled = 0;
+	}
+	mdelay(5);
+	return 0;
+}
+/* HSIC1_PAD_VDDQ */
+static int hsic2_pad_vdd_power(int on)
+{
+	static struct regulator *vdd;
+	static bool enabled;
+	if (!vdd) {
+		vdd = regulator_get(NULL, "PMIC_LDO0");
+		if (IS_ERR(vdd)) {
+			pr_err("%s:Failed to get PMIC_LDO0!\n", __func__);
+			vdd = NULL;
+			return -EIO;
+		}
+	}
+	if (on) {
+		if (enabled)
+			return 0;
+		regulator_set_voltage(vdd, 1200000, 1200000);
+		regulator_enable(vdd);
+		enabled = 1;
+	} else {
+		if (!enabled)
+			return 0;
+		regulator_disable(vdd);
+		enabled = 0;
+	}
+	mdelay(5);
 	return 0;
 }
 
-static char *mmp3_hsic1_clock_name[] = {
-	[0] = "U2OCLK",
-	[1] = "HSIC1CLK",
-};
+static int mmp3_hsic_set_vbus(unsigned int on)
+{
+	int ret = 0;
+	ret = hsic2_pad_vdd_power(on);
+	if (ret)
+		goto out;
+	ret = hsic_hub_power(on);
+	if (ret)
+		goto out;
+	ret = hsic_hub_reset();
+out:
+	pr_err("%s: failed to set vbus\n", __func__);
+	return ret;
+}
 
 static char *mmp3_hsic2_clock_name[] = {
 	[0] = "U2OCLK",
@@ -975,10 +1008,9 @@ static struct mv_usb_platform_data mmp3_hsic2_pdata = {
 	.vbus		= NULL,
 	.mode		= MV_USB_MODE_HOST,
 	.phy_init	= mmp3_hsic_phy_init,
-	.set_vbus	= mmp3_hsic1_set_vbus,
-	.private_init	= mmp3_hsic_private_init,
+	.set_vbus	= mmp3_hsic_set_vbus,
+	.private_init = mmp3_hsic_private_init,
 };
-
 #endif
 
 #endif
@@ -1324,26 +1356,6 @@ static int hdmi_power_on(void)
 	return 0;
 }
 
-static int usb_hub_power_on (int onoff)
-{
-	/*int usbhub_pwr_en = mfp_to_gpio(GPIO166_GPIO);
-	For B0 board hub power is controlled by LDO */
-	int reset = mfp_to_gpio(GPIO96_HSIC_RESET);
-
-	if (gpio_request(reset, "hsic reset")) {
-		pr_err("Failed to request hsic reset gpio\n");
-		return -EIO;
-	}
-
-	gpio_direction_output(reset, ~onoff);
-	mdelay(20);
-	gpio_direction_output(reset, onoff);
-	gpio_free(reset);
-
-	return 0;
-}
-
-
 static void __init mk2_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(mk2_pin_config));
@@ -1359,8 +1371,6 @@ static void __init mk2_init(void)
 
 	platform_device_register(&gpio_keys);
 	hdmi_power_on();
-	usb_hub_power_on(1);
-
 
 	mmp3_add_videosram(&mmp3_videosram_info);
 #ifdef CONFIG_FB_PXA168
@@ -1424,7 +1434,7 @@ static void __init mk2_init(void)
 
 #ifdef CONFIG_USB_EHCI_PXA_U2H_HSIC
 	mmp3_hsic2_device.dev.platform_data = (void *)&mmp3_hsic2_pdata;
-	/* platform_device_register(&mmp3_hsic2_device); */
+	platform_device_register(&mmp3_hsic2_device);
 #endif
 
 	gsensor_power_en(1);
