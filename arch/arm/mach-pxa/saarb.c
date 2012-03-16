@@ -355,6 +355,7 @@ static struct mv_usb_platform_data pxa9xx_usb_pdata = {
 	.mode		= MV_USB_MODE_OTG,
 	.phy_init	= pxa9xx_usb_phy_init,
 	.set_vbus	= pm860x_set_vbus,
+	.otg_force_a_bus_req = 1,
 };
 #endif
 
