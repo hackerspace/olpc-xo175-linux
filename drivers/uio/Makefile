@@ -9,3 +9,4 @@ obj-$(CONFIG_UIO_NETX)	+= uio_netx.o
 obj-$(CONFIG_UIO_VMETA)	+= uio_vmeta.o
 obj-$(CONFIG_UIO_PRUSS)         += uio_pruss.o
 obj-$(CONFIG_UIO_HDMI) += uio_hdmi.o
+obj-$(CONFIG_UIO_SI9226) += uio_si9226.o

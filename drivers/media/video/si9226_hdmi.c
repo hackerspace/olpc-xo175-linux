@@ -478,12 +478,6 @@ static int	si_hdmi_init(void)
 static int si_hdmi_start_streaming(void)
 {
 
-	/*Set power state to D0*/
-	if (si_hdmi_set_power_state(SII92XX_POWER_STATE_D0_STATE, 1)) {
-		printk(KERN_ERR "[HDMI] Set power state fail\n");
-		return -EIO;
-	}
-
 	/*Enable system control*/
 	if (si_hdmi_set_system_control(hdmi_type, 0, 0, 0)) {
 		printk(KERN_ERR "[HDMI] Set system control enable fail\n");
@@ -493,114 +487,68 @@ static int si_hdmi_start_streaming(void)
 	return 0;
 }
 
-
-static void (*hdmi_power)(struct device *dev, int on);
+static void (*hdmi_power)(int on);
 static bool is_enable;
-
-static ssize_t sii9226_enable_store(struct device *dev,
-				      struct device_attribute *attr,
-				      const char *buf, size_t count)
+static bool detect;
+int sii9226_enable(bool en)
 {
 	u8 value;
-	unsigned long enable = simple_strtoul(buf, NULL, 10);
-
-	if (enable == 1) {
+	if (en == 1) {
 		if (is_enable == 0) {
-			if (hdmi_power)
-				hdmi_power(dev, 1);
-			msleep(10);
-
 			si_hdmi_init();
 			si_hdmi_start_streaming();
-			is_enable = enable;
+			is_enable = en;
 
 			printk(KERN_NOTICE "[HDMI]: power up HDMI\n");
 		} else {
-
 			printk(KERN_ERR "[HDMI]: it is already enabled\n");
 		}
-	} else if (enable == 0) {
-
+	} else if (en == 0) {
 		if (is_enable == 1) {
-
 			/*enable Rx-sense and hot-plug before enter to D3*/
 			value = hdmi_read(0x3d);
 			value |= 0x3;
 			hdmi_write(0x3d, value);
-
 			/*enter D3 power state*/
-			if (si_hdmi_set_power_state(SII92XX_POWER_STATE_D3_STATE, 0))
-				printk(KERN_ERR "[HDMI]: Set power state to D3 done, ignore i2c error\n");
-			is_enable = enable;
-
-			if (hdmi_power)
-				hdmi_power(dev, 0);
-
+			is_enable = en;
 			printk(KERN_ERR "[HDMI]: power down HDMI\n");
 		} else {
 			printk(KERN_ERR "[HDMI]: it is already disable\n");
 		}
 	} else
 		printk(KERN_ERR "[HDMI]: invalid parameter, please set 1-enable, 0-disable\n");
-	return count;
+	return 0;
 }
 
-static ssize_t sii9226_enable_show(struct device *dev,
-				     struct device_attribute *attr, char *buf)
+int sii9226_detect(void)
 {
-	return sprintf(buf, "%d\n", is_enable);
-}
+	int value, status = 0;
+	value = hdmi_read(0x3d);
+	/* bit2 is set means cable is pulged*/
+	if (value & 1 << 2)
+		status = 1;
 
-static ssize_t sii9226_detect_show(struct device *dev,
-				     struct device_attribute *attr, char *buf)
-{
-	int value, detect = 0;
-
-	if (is_enable) {
-		value = hdmi_read(0x3d);
-		/* bit2 is set means cable is pulged*/
-		if (value & 1 << 2) {
-			detect = 1;
-			printk(KERN_NOTICE "[HDMI]: hdmi cable is pluged\n");
-		} else {
-			printk(KERN_NOTICE "[HDMI]: hdmi cable is un-pluged\n");
-		}
-
-	} else {
-		printk(KERN_ERR "[HDMI]: hdmi has been powered down\n");
+	if (status != detect) {
+		detect = status;
+		printk(KERN_INFO "hdmi cable is %s\n", status?"plug in":"pull out");
 	}
-	return sprintf(buf, "%d\n", detect);
+	return status;
 }
-
-static DEVICE_ATTR(enable, S_IRUGO|S_IWUGO,
-		   sii9226_enable_show, sii9226_enable_store);
-static DEVICE_ATTR(detect, S_IRUGO,
-		   sii9226_detect_show, NULL);
-
-static struct attribute *sii9226_attributes[] = {
-	&dev_attr_enable.attr,
-	&dev_attr_detect.attr,
-	NULL
-};
-
-static struct attribute_group sii9226_attribute_group = {
-	.attrs = sii9226_attributes
-};
 
 static int __devinit pxa95x_hdmi_probe(struct i2c_client *client, const struct i2c_device_id *client_id)
 {
-	int ret;
-
+	printk("%s: probe id %d, %s\n",
+		__func__, (int)client_id->driver_data, client->name);
 	g_i2c_client[client_id->driver_data] = client;
-	if (client_id->driver_data == 0)
-		hdmi_power = client->dev.platform_data;
 
 	if (client_id->driver_data == 0) {
-		ret = sysfs_create_group(&client->dev.kobj, &sii9226_attribute_group);
-		if (ret < 0) {
-			printk(KERN_ERR "[HDMI]: failed to create file node!\n");
-			return -EIO;
+		hdmi_power = client->dev.platform_data;
+		/* always power on for hot plug detect*/
+		if (hdmi_power) {
+			hdmi_power(1);
+			msleep(10);
 		}
+		si_hdmi_set_power_state(SII92XX_POWER_STATE_D0_STATE, 1);
 	}
 
 	return 0;
@@ -633,7 +581,8 @@ static int __init hdmi_init(void)
 {
 	return i2c_add_driver(&pxa95x_hdmi_driver);
 }
-late_initcall(hdmi_init);
+
+module_init(hdmi_init);
 
 MODULE_AUTHOR("Tianxf");
 MODULE_DESCRIPTION("MHL driver for PXA95x");
