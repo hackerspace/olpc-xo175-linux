@@ -822,9 +822,11 @@ static int mmc3_wakeup(pm_wakeup_src_t src, int enable)
 	unsigned int ret = 0;
 	mfp_cfg_t mfp_c;
 	if (enable) {
-		mfp_c = GPIO88_MMC3_DAT1 | MFP_LPM_EDGE_BOTH;
-		pxa3xx_mfp_config(&mfp_c, 1);
-		ret |= PXA95x_PM_WE_MMC3;
+		if (src.bits.mmc3_dat1) {
+			mfp_c = GPIO88_MMC3_DAT1 | MFP_LPM_EDGE_BOTH;
+			pxa3xx_mfp_config(&mfp_c, 1);
+			ret |= PXA95x_PM_WE_MMC3;
+		}
 	} else {
 		mfp_c = GPIO88_MMC3_DAT1 | MFP_LPM_EDGE_NONE;
 		pxa3xx_mfp_config(&mfp_c, 1);
