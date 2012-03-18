@@ -75,9 +75,14 @@ enum {
 };
 
 #define OVH_OTIS_DEFAULT	OVH_TEMP_100C
+#define OVH_OTIS_LOW_THRES	OVH_TEMP_90C
 #define OVH_OVWF_DEFAULT	OVH_TEMP_105C
 #define TSS_THRESHOLD		OVH_OTIS_DEFAULT
 #define OVH_TO_TEMP_CONVERT(x) (((x - 1) * 5) + 80)
+#define OVH_OTIS_LOW_THRES_PXA978	0xBE /*~90C*/
+#define OVH_OTIS_DEFAULT_PXA978		0xB1 /*~100C*/
+#define OVH_OVWF_DEFAULT_PXA978		0xAA /*~105C*/
+#define OVH_TO_TEMP_CONVERT_PXA978(x) ((3153000 - (x * 10000)) / 13825)
 static struct timer_list temp_detecting_timer;
 static struct work_struct overheating_work;
 static int overheating_status;
@@ -865,9 +870,6 @@ static void pxa95x_pm_poweroff(void)
 	unsigned int mode = PXA95x_PM_DEEPSLEEP;
 	unsigned long cser;
 	printk(KERN_INFO "Enter pxa95x_pm_poweroff\n");
-
-	if (!cpu_is_pxa978())
-		PMCR |= 0x01;	/* Workaround of Micco reset */
 
 	pm_select_wakeup_src(mode, wakeup_src);
 	/* No need to set CKEN bits in PowerOff path */
@@ -2056,27 +2058,46 @@ static void log_overheating_event(unsigned char *str_log)
 	/* TODO: record the warning into NVM and nodify the user */
 }
 
+static unsigned int overheating_core_cooled_down(unsigned int pmcr,	unsigned int average_meas)
+{
+	unsigned int ret = 0;
+	if (cpu_is_pxa978()) {
+		if (!(pmcr & PMCR_TIE) &&
+			(average_meas < OVH_TO_TEMP_CONVERT_PXA978( \
+			OVH_OTIS_LOW_THRES_PXA978)))
+			ret = 1;
+	} else /* Not PXA978*/
+		if (average_meas < OVH_TO_TEMP_CONVERT(OVH_OTIS_LOW_THRES))
+			ret = 1;
+	return ret;
+}
 static void detect_core_temp(unsigned long data)
 {
 	struct timer_list *timer = &temp_detecting_timer;
 	static int conscutive_counter, average_meas;
+	unsigned int pmcr = PMCR;
 	/* detect the temp of core */
-	if (cpu_is_pxa978())
+	if (cpu_is_pxa978()) {
 		temp_of_core = (PSR >> PSR_TSS_OFF) & 0x1ff;
-	else
+		temp_of_core = OVH_TO_TEMP_CONVERT_PXA978(temp_of_core);
+	} else {
 		temp_of_core = (PSR >> PSR_TSS_OFF) & 0x7;
+		if (temp_of_core == 0)
+			temp_of_core = 80;
+		else
+			temp_of_core = OVH_TO_TEMP_CONVERT(temp_of_core);
+	}
 
-	if (temp_of_core == 0)
-		temp_of_core = 80;
-	else
-		temp_of_core = OVH_TO_TEMP_CONVERT(temp_of_core);
 	average_meas += (temp_of_core / 3);
 	conscutive_counter++;
 	if (conscutive_counter == 3) {
-		if (average_meas < OVH_TO_TEMP_CONVERT(TSS_THRESHOLD)
-		    && !(PMCR & PMCR_TIE)) {
+		if (overheating_core_cooled_down(pmcr, average_meas)) {
 			log_overheating_event("INFO: AP core cooled down!");
-			PMCR |= PMCR_TIE;
+			/* do not clean other status bits
+			 * and do not write to sw gpio reset*/
+			pmcr &= ~(PMCR_STATUS_BITS|PMCR_RSVD_CLR_ALWAYS_MASK);
+			pmcr |= PMCR_TIE;
+			PMCR = pmcr;
 #ifdef CONFIG_PXA95x_DVFM
 			overheating_status = CORE_COLLING_DETECTED;
 			schedule_work(&overheating_work);
@@ -2086,8 +2107,7 @@ static void detect_core_temp(unsigned long data)
 			mod_timer(timer, jiffies + FRQ_TEMP);
 		}
 
-		pr_debug("%s:PSR 0x%x PMCR 0x%x OVH 0x%x\n", __func__, PSR,
-			 PMCR, OVH);
+		pr_debug("%s:PSR 0x%x PMCR 0x%x OVH 0x%x\n", __func__, PSR, pmcr, OVH);
 		average_meas = conscutive_counter = 0;
 	} else {		/*waiting for 3 consecutive reads */
 		/* reset the timer */
@@ -2098,22 +2118,29 @@ static void detect_core_temp(unsigned long data)
 static irqreturn_t core_overhearting_irq(int irq, void *data)
 {
 	struct timer_list *timer = &temp_detecting_timer;
-
+	unsigned int pmcr = PMCR;
 #ifdef CONFIG_PXA95x_DVFM
 	overheating_status = CORE_OVERHEATING_DETECTED;
 	schedule_work(&overheating_work);
 #endif
-	pr_debug("%s:PSR 0x%x PMCR 0x%x OVH 0x%x\n", __func__, PSR, PMCR, OVH);
-	if (PMCR & PMCR_TIS) {
+	pr_debug("%s:PSR 0x%x PMCR 0x%x OVH 0x%x\n", __func__, PSR, pmcr, OVH);
+	if (pmcr & PMCR_TIS) {
 		/* disable the interrupt & clear the status bit */
-		PMCR &= ~PMCR_TIE;
-		PMCR |= PMCR_TIS;
+		/* do not clean other status bits
+		 * and do not write to sw gpio reset*/
+		pmcr &= ~(PMCR_STATUS_BITS|PMCR_RSVD_CLR_ALWAYS_MASK|PMCR_TIE);
+		/* clean overtemp bit*/
+		pmcr |= PMCR_TIS;
+		PMCR = pmcr;
 
 		log_overheating_event("WARNING: AP core is OVERHEATING!");
 
 		/* start the timer for measuring the temp of core */
 		mod_timer(timer, jiffies + FRQ_TEMP);
-	}
+	} else
+		WARN_ON(1);	/*This should not happen since currently
+		only the overtemperature is used as int source of
+		MPMU*/
 	return IRQ_HANDLED;
 }
 
@@ -2126,7 +2153,7 @@ static void overheating_init(void)
 {
 	struct timer_list *timer = &temp_detecting_timer;
 	int retval;
-
+	unsigned int pmcr;
 	/* irq setup after old hardware state is cleaned up */
 	retval = request_irq(IRQ_SGP, core_overhearting_irq,
 			     IRQF_DISABLED, "Overheating", NULL);
@@ -2136,9 +2163,20 @@ static void overheating_init(void)
 		return;
 	}
 
-	OVH = (OVH_OTIS_DEFAULT) << OVH_OTIF_OFF;
-	OVH |= (OVH_OVWF_DEFAULT) << OVH_OVWF_OFF;
-	PMCR |= (PMCR_TIE | PMCR_TIS);
+	if (!cpu_is_pxa978()) {
+		OVH = (OVH_OTIS_DEFAULT) << OVH_OTIF_OFF;
+		OVH |= (OVH_OVWF_DEFAULT) << OVH_OVWF_OFF;
+	} else {
+		OVH = (OVH_OTIS_DEFAULT_PXA978) << OVH_OTIF_OFF;
+		OVH |= (OVH_OVWF_DEFAULT_PXA978) << OVH_OVWF_OFF;
+	}
+
+	pmcr = PMCR;
+	/* do not clean other status bits
+	 * and do not write to sw gpio reset*/
+	pmcr &= ~(PMCR_STATUS_BITS|PMCR_RSVD_CLR_ALWAYS_MASK);
+	pmcr |= (PMCR_TIE | PMCR_TIS);
+	PMCR = pmcr;
 	OVH |= OVH_TEMP_EN;
 	OVH |= OVH_OWM;
 

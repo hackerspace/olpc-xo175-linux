@@ -67,11 +67,19 @@
 
 #define PMCR_BIE	(1 << 0)		/* Interrupt Enable for nBATT_FAULT */
 #define PMCR_BIS	(1 << 1)		/* Interrupt Status for nBATT_FAULT */
+#define PMCR_CSMRIE	(1 << 4)		/* Interrupt Enable for Communication Subsystem Memory Request*/
+#define PMCR_CSMRIS	(1 << 5)		/* Interrupt Status for Communication Subsystem Memory Request*/
+#define PMCR_CSWDIE	(1 << 6)		/* Interrupt Enable for Communication Subsystem Watchdog Reset*/
+#define PMCR_CSWDIS	(1 << 7)		/* Interrupt Status for Communication Subsystem Watchdog Reset*/
+#define PMCR_CSIE	(1 << 8)		/* Interrupt Enable for Communication Subsystem D4 Entry Complete */
+#define PMCR_CSIS	(1 << 9)		/* Interrupt Status for Communication Subsystem D4 Entry Complete */
 #define PMCR_TIE	(1 << 10)		/* Interrupt Enable for XScale Core Frequency Change */
 #define PMCR_TIS	(1 << 11)		/* Interrupt Status for XScale Core Frequency Change */
 #define PMCR_VIE	(1 << 12)		/* Interrupt Enable for VCC_APPS and VCC_SRAM Voltage Change */
 #define PMCR_VIS	(1 << 13)		/* Interrupt Status for VCC_APPS and VCC_SRAM Voltage Change */
 #define PMCR_SWGR	(1 << 31)		/* Software GPIO Reset */
+#define PMCR_STATUS_BITS (PMCR_TIS|PMCR_CSIS|PMCR_CSWDIS|PMCR_CSMRIS|PMCR_BIS)
+#define PMCR_RSVD_CLR_ALWAYS_MASK	(0x7FFFF03F)
 #define PSR_TSS_OFF	(12)
 #define OVH_TEMP_EN	(1 << 0)		/* Enable for Temperature Sensor */
 #define VLSCR_VLT_LVL_SEL_EN	(1 << 8)

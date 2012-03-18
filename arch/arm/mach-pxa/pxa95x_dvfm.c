@@ -1843,10 +1843,23 @@ int temperture_sensor_int_high_freq_pp_callback(int highTempDetected)
 	int rc, user_index;
 	rc = dvfm_find_index("User", &user_index);
 	if (!rc) {
-		if (highTempDetected == CORE_OVERHEATING_DETECTED)
-			rc = dvfm_disable_op_name("988M", user_index);
-		else
-			rc = dvfm_enable_op_name("988M", user_index);
+		if (highTempDetected == CORE_OVERHEATING_DETECTED) {
+			if (cpu_is_pxa978()) {
+				rc |= dvfm_disable_op_name("1196M", user_index);
+				rc |= dvfm_disable_op_name("1404M", user_index);
+			} else {
+				rc |= dvfm_disable_op_name("806M", user_index);
+				rc |= dvfm_disable_op_name("988M", user_index);
+			}
+		} else {
+			if (cpu_is_pxa978()) {
+				rc |= dvfm_enable_op_name("1404M", user_index);
+				rc |= dvfm_enable_op_name("1196M", user_index);
+			} else {
+				rc |= dvfm_enable_op_name("988M", user_index);
+				rc |= dvfm_enable_op_name("806M", user_index);
+			}
+		}
 	}
 
 	return rc;
