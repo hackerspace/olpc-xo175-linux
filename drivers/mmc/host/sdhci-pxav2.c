@@ -42,7 +42,7 @@
 #define SDCLK_SEL_SHIFT		8
 #define SDCLK_SEL_MASK		0x3
 #define SDCLK_DELAY_SHIFT	10
-#define SDCLK_DELAY_MASK	0x3c
+#define SDCLK_DELAY_MASK	0xf
 
 #define SD_CE_ATA_2		0xea
 #define MMC_CARD		0x1000
