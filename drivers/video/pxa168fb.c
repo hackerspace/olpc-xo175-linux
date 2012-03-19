@@ -1424,8 +1424,11 @@ static int _pxa168fb_suspend(struct pxa168fb_info *fbi)
 
 	fbi->active = 0;
 
-	/* disable pixel clock */
-	lcd_clk_set(fbi->id, clk_sclk, SCLK_DISABLE, SCLK_DISABLE);
+	if (fbi->id != 1) {
+		/* disable pixel clock, expect TV path which need it
+		 * for audio playback @ early suspend */
+		lcd_clk_set(fbi->id, clk_sclk, SCLK_DISABLE, SCLK_DISABLE);
+	}
 
 	/* disable clock */
 	clk_disable(fbi->clk);
@@ -1444,8 +1447,10 @@ static int _pxa168fb_resume(struct pxa168fb_info *fbi)
 		clk_set_rate(fbi->clk, mi->sclk_src);
 	clk_enable(fbi->clk);
 
-	/* enable pixel clock */
-	lcd_clk_set(fbi->id, clk_sclk, SCLK_DISABLE, 0);
+	if (fbi->id != 1) {
+		/* enable pixel clock */
+		lcd_clk_set(fbi->id, clk_sclk, SCLK_DISABLE, 0);
+	}
 
 	/* enable external panel power */
 	if (pxa168fb_power(fbi, mi, 1))
