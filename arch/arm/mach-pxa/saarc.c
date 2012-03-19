@@ -1143,6 +1143,7 @@ static struct mv_usb_platform_data pxa9xx_usb_pdata = {
 	.clkname	= pxa9xx_usb_clock_name,
 	.vbus		= NULL,
 	.mode		= MV_USB_MODE_OTG,
+	.otg_force_a_bus_req = 1,
 	.phy_init	= pxa9xx_usb_phy_init,
 	.set_vbus	= NULL,
 	.otg_force_a_bus_req = 1,
