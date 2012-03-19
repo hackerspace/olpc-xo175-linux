@@ -790,12 +790,37 @@ out:
 	return;
 }
 
+static u32 ft5306_virtual_key_code[4] = {
+	KEY_MENU,
+	KEY_HOME,
+	KEY_SEARCH,
+	KEY_BACK,
+};
+
+static u32 ft5306_get_virtual_key(u16 x_pos, u16 y_pos, u16 x_max, u16 y_max)
+{
+	int unit = (x_max / 13);
+
+	if ((unit < x_pos) && (x_pos < 3 * unit))
+		return ft5306_virtual_key_code[0];
+	else if ((4 * unit < x_pos) && (x_pos < 6 * unit))
+		return ft5306_virtual_key_code[1];
+	else if ((7 * unit < x_pos) && (x_pos < 9 * unit))
+		return ft5306_virtual_key_code[2];
+	else if ((10 * unit < x_pos) && (x_pos < 12 * unit))
+		return ft5306_virtual_key_code[3];
+	else
+		return KEY_RESERVED;
+}
+
 static struct ft5306_touch_platform_data ft5306_touch_data = {
 	.power = ft5306_touch_io_power_onoff,
 	.reset = ft5306_touch_reset,
+	.keypad = ft5306_get_virtual_key, /* get virtual key code */
 	.abs_x_max = 540,
 	.abs_y_max = 960,
 	.abs_flag = 2,	/* convert the frame of axes 180 degree by clockwise */
+	.virtual_key = 1,	/* enable virtual key for android */
 };
 #endif
 

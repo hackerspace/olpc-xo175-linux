@@ -25,9 +25,10 @@
 #include <linux/i2c/ft5306_touch.h>
 #include <plat/mfp.h>
 
-
 struct ft5306_touch {
 	struct input_dev *idev;
+	struct input_dev *virtual_key;
+	int virtual_key_mode;
 	struct i2c_client *i2c;
 	struct work_struct work;
 	struct ft5306_touch_platform_data *data;
@@ -41,10 +42,11 @@ static u8 ft5306_buf[FT5306_LEN];
 static u8 ft5306_mode_cmd_sleep[2] = { 0xA5, 0x03 };
 static u8 ft5306_cmd[2] = { 0x0, 0x0 };
 
-
-
 #define FT5306_PEN_UP	0
 #define FT5306_PEN_DOWN	1
+
+#define FT5306_KEY_UP   0
+#define FT5306_KEY_DOWN 1
 
 int ft5306_touch_read_reg(u8 reg, u8 *pval)
 {
@@ -104,8 +106,8 @@ static void ft5306_touch_work(struct work_struct *work)
 	u16 tem_y1 = 0;
 	u16 tem_x2 = 0;
 	u16 tem_y2 = 0;
-	u8 tmp;
-	u8 ret;
+	u8 tmp = 0, ret = 0;
+	u32 key_scancode = 0;
 
 	ret = ft5306_touch_read(ft5306_buf, 31);
 
@@ -129,20 +131,32 @@ static void ft5306_touch_work(struct work_struct *work)
 		} else if (touch->data->abs_flag == 3)
 			tem_y1 = 1059 - tem_y1;
 
-		input_report_abs(touch->idev, ABS_MT_TRACKING_ID, 0);
-		input_report_abs(touch->idev, ABS_PRESSURE, 255);
-		input_report_abs(touch->idev, ABS_X, tem_x1);
-		input_report_abs(touch->idev, ABS_Y, tem_y1);
-		input_report_abs(touch->idev, ABS_MT_TOUCH_MAJOR, 16);
-		input_report_abs(touch->idev, ABS_MT_POSITION_X, tem_x1);
-		input_report_abs(touch->idev, ABS_MT_POSITION_Y, tem_y1);
-		input_report_key(touch->idev, BTN_TOUCH, 1);
-		input_mt_sync(touch->idev);
-		input_sync(touch->idev);
+		if (touch->data->virtual_key && (tem_y1 > touch->data->abs_y_max) && touch->data->keypad) {
+			touch->virtual_key_mode = 1;
+			key_scancode = touch->data->keypad(tem_x1, tem_y1, touch->data->abs_x_max, touch->data->abs_y_max);
+			input_report_key(touch->virtual_key, key_scancode, FT5306_KEY_DOWN);
+			input_sync(touch->virtual_key);
+		} else {
+			touch->virtual_key_mode = 0;
+			input_report_abs(touch->idev, ABS_MT_TRACKING_ID, 0);
+			input_report_abs(touch->idev, ABS_PRESSURE, 255);
+			input_report_abs(touch->idev, ABS_X, tem_x1);
+			input_report_abs(touch->idev, ABS_Y, tem_y1);
+			input_report_abs(touch->idev, ABS_MT_TOUCH_MAJOR, 16);
+			input_report_abs(touch->idev, ABS_MT_POSITION_X, tem_x1);
+			input_report_abs(touch->idev, ABS_MT_POSITION_Y, tem_y1);
+			input_report_key(touch->idev, BTN_TOUCH, 1);
+			input_mt_sync(touch->idev);
+			input_sync(touch->idev);
+		}
 	} else if (tmp == 0x2) {
 		/* Two fingers */
 		dev_dbg(&touch->i2c->dev, "ft5306_touch.c----Two finger.\n");
 		touch->pen_status = FT5306_PEN_DOWN;
+
+		if (touch->data->virtual_key)
+			touch->virtual_key_mode = 0;
+
 		if (touch->data->abs_flag == 1) {
 			tem_x1 = 539 - tem_x1;
 			tem_x2 = 539 - tem_x2;
@@ -182,11 +196,25 @@ static void ft5306_touch_work(struct work_struct *work)
 		dev_dbg(&touch->i2c->dev, "cj:ft5306_touch.c----No finger.\n");
 		touch->pen_status = FT5306_PEN_UP;
 
-		input_report_abs(touch->idev, ABS_PRESSURE, 0);
-		input_report_key(touch->idev, BTN_TOUCH, 0);
-		input_report_key(touch->idev, BTN_2, 0);
-		input_report_abs(touch->idev, ABS_MT_TOUCH_MAJOR, 0);
-		input_sync(touch->idev);
+		if (touch->data->virtual_key && touch->virtual_key_mode && touch->data->keypad) {
+			if (touch->data->abs_flag == 1)
+				tem_x1 = 539 - tem_x1;
+			else if (touch->data->abs_flag == 2) {
+				tem_x1 = 539 - tem_x1;
+				tem_y1 = 1059 - tem_y1;
+			} else if (touch->data->abs_flag == 3)
+				tem_y1 = 1059 - tem_y1;
+			key_scancode = touch->data->keypad(tem_x1, tem_y1, touch->data->abs_x_max, touch->data->abs_y_max);
+			input_report_key(touch->virtual_key, key_scancode, FT5306_KEY_UP);
+			input_sync(touch->virtual_key);
+			touch->virtual_key_mode = 0;
+		} else {
+			input_report_abs(touch->idev, ABS_PRESSURE, 0);
+			input_report_key(touch->idev, BTN_TOUCH, 0);
+			input_report_key(touch->idev, BTN_2, 0);
+			input_report_abs(touch->idev, ABS_MT_TOUCH_MAJOR, 0);
+			input_sync(touch->idev);
+		}
 	}
 }
 
@@ -269,7 +297,6 @@ static ssize_t ft5306_reg_store(struct device *dev,
 	}
 	return len;
 }
-
 
 static DEVICE_ATTR(reg_show, 0444, ft5306_reg_show, NULL);
 static DEVICE_ATTR(reg_store, 0664, NULL, ft5306_reg_store);
@@ -424,6 +451,29 @@ ft5306_touch_probe(struct i2c_client *client,
 		goto out_rg;
 	}
 
+	if (touch->data->virtual_key) {
+		touch->virtual_key = input_allocate_device();
+		if (touch->idev == NULL) {
+			dev_dbg(&client->dev, "%s: failed to allocate input dev\n", __func__);
+			ret = -ENOMEM;
+			goto out_rg;
+		}
+		/* set the name to ft5306-keypad for the android level recognition */
+		touch->virtual_key->name = "ft5306-keypad";
+		touch->virtual_key->id.bustype = BUS_HOST;
+		touch->virtual_key->open = ft5306_touch_open;
+		touch->virtual_key->close = ft5306_touch_close;
+
+		set_bit(EV_KEY, touch->virtual_key->evbit);
+		bitmap_fill(touch->virtual_key->keybit, KEY_MAX);
+
+		ret = input_register_device(touch->virtual_key);
+		if (ret) {
+			dev_dbg(&client->dev, "%s: unabled to register input device, ret = %d\n", __func__, ret);
+			goto out_vrg;
+		}
+	}
+
 	ret = request_irq(touch->irq, ft5306_touch_irq_handler,
 			  IRQF_DISABLED | IRQF_TRIGGER_FALLING,
 			  "ft5306 touch", touch);
@@ -447,6 +497,9 @@ ft5306_touch_probe(struct i2c_client *client,
 
 out_irg:
 	free_irq(touch->irq, touch);
+out_vrg:
+	if (touch->data->virtual_key)
+		input_free_device(touch->virtual_key);
 out_rg:
 	input_free_device(touch->idev);
 out:
