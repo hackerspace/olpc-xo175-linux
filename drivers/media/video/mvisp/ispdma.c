@@ -621,6 +621,9 @@ static void ispdma_set_inaddr(struct isp_ispdma_device *ispdma,
 	case V4L2_MBUS_FMT_UYVY8_1X16:
 		bytesperpixel = 16;
 		break;
+	case V4L2_MBUS_FMT_Y12_1X12:
+		bytesperpixel = 12;
+		break;
 	case V4L2_MBUS_FMT_SBGGR10_1X10:
 		bytesperpixel = 10;
 		break;
@@ -668,6 +671,9 @@ static void ispdma_set_disp_outaddr(struct isp_ispdma_device *ispdma,
 		break;
 	case V4L2_MBUS_FMT_UYVY8_1X16:
 		bytesperpixel = 16;
+		break;
+	case V4L2_MBUS_FMT_Y12_1X12:
+		bytesperpixel = 12;
 		break;
 	default:
 		bytesperpixel = 0;
@@ -719,6 +725,9 @@ static void ispdma_set_codec_outaddr(struct isp_ispdma_device *ispdma,
 		break;
 	case V4L2_MBUS_FMT_UYVY8_1X16:
 		bytesperpixel = 16;
+		break;
+	case V4L2_MBUS_FMT_Y12_1X12:
+		bytesperpixel = 12;
 		break;
 	default:
 		bytesperpixel = 0;
@@ -2145,6 +2154,8 @@ __ispdma_get_format(struct isp_ispdma_device *ispdma,
 static const struct pad_formats ispdma_input_fmts[] = {
 	{V4L2_MBUS_FMT_SBGGR10_1X10, V4L2_COLORSPACE_SRGB},
 	{V4L2_MBUS_FMT_SBGGR8_1X8, V4L2_COLORSPACE_SRGB},
+	{V4L2_MBUS_FMT_UYVY8_1X16, V4L2_COLORSPACE_JPEG},
+	{V4L2_MBUS_FMT_Y12_1X12, V4L2_COLORSPACE_JPEG},
 };
 
 static const struct pad_formats ispdma_disp_out_fmts[] = {
@@ -2359,6 +2370,10 @@ static int ispdma_config_format(
 	case V4L2_MBUS_FMT_SBGGR10_1X10:
 		in_bpp = 1;
 		pitch = width * 10 / 8;
+		break;
+	case V4L2_MBUS_FMT_Y12_1X12:
+		in_bpp = 2;
+		pitch = width * 16 / 12;
 		break;
 	default:
 		in_bpp = 0;

@@ -890,6 +890,9 @@ isp_video_qbuf(struct file *file, void *fh
 	struct vb2_queue *vbq = &vfh->vb2_queue;
 	int ret;
 
+	if (b->memory == V4L2_MEMORY_USERPTR && b->length == 0)
+		return -EINVAL;
+
 	ret = vb2_qbuf(vbq, b);
 
 	return ret;
