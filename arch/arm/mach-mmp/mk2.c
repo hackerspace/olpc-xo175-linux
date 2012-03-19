@@ -993,7 +993,8 @@ static int mmp3_hsic_set_vbus(unsigned int on)
 		goto out;
 	ret = hsic_hub_reset();
 out:
-	pr_err("%s: failed to set vbus\n", __func__);
+	if (ret)
+		pr_err("%s: failed to set vbus\n", __func__);
 	return ret;
 }
 
@@ -1111,145 +1112,115 @@ static void exc7200_config(void)
 }
 #endif /* CONFIG_TOUCHSCREEN_EGALAX_I2C */
 
-static int wm8994_ldoen(void)
+/* WM8994 external power supply */
+static struct regulator_consumer_supply wm8994_power1_supplies[] = {
+	REGULATOR_SUPPLY("DBVDD", NULL),
+	REGULATOR_SUPPLY("AVDD2", NULL),
+	REGULATOR_SUPPLY("CPVDD", NULL),
+};
+
+static struct regulator_consumer_supply wm8994_power2_supplies[] = {
+	REGULATOR_SUPPLY("SPKVDD1", NULL),
+	REGULATOR_SUPPLY("SPKVDD2", NULL),
+};
+
+static struct regulator_init_data wm8994_fixed_power1_init_data = {
+	.constraints = {
+		.always_on = 1,
+	},
+	.num_consumer_supplies	= ARRAY_SIZE(wm8994_power1_supplies),
+	.consumer_supplies	= wm8994_power1_supplies,
+};
+
+static struct regulator_init_data wm8994_fixed_power2_init_data = {
+	.constraints = {
+		.always_on = 1,
+	},
+	.num_consumer_supplies	= ARRAY_SIZE(wm8994_power2_supplies),
+	.consumer_supplies	= wm8994_power2_supplies,
+};
+
+static struct fixed_voltage_config wm8994_fixed_power1_config = {
+	.supply_name = "V1P8_8994",
+	.microvolts = 1800000,
+	.gpio = -EINVAL,
+	.init_data = &wm8994_fixed_power1_init_data,
+};
+
+static struct fixed_voltage_config wm8994_fixed_power2_config = {
+	.supply_name = "5V_S0_8994",
+	.microvolts = 5000000,
+	.gpio = -EINVAL,
+	.init_data = &wm8994_fixed_power2_init_data,
+};
+
+static struct platform_device wm8994_fixed_power1 = {
+	.name = "reg-fixed-voltage",
+	.id = 0,
+	.dev = {
+		.platform_data = &wm8994_fixed_power1_config,
+	},
+};
+
+static struct platform_device wm8994_fixed_power2 = {
+	.name = "reg-fixed-voltage",
+	.id = 1,
+	.dev = {
+		.platform_data = &wm8994_fixed_power2_config,
+	},
+};
+
+static struct platform_device *mk2_fixed_rdev[] __initdata = {
+	&wm8994_fixed_power1,
+	&wm8994_fixed_power2,
+};
+
+static void mk2_fixed_regulator_init(void)
 {
-	int gpio = mfp_to_gpio(GPIO06_WM8994_LDOEN);
-
-	if (gpio_request(gpio, "wm8994 ldoen gpio")) {
-		printk(KERN_INFO "gpio %d request failed\n", gpio);
-		return -1;
-	}
-
-	gpio_direction_output(gpio, 1);
-	mdelay(1);
-	gpio_free(gpio);
-
-	return 0;
+	platform_add_devices(mk2_fixed_rdev, ARRAY_SIZE(mk2_fixed_rdev));
 }
 
-static struct regulator_consumer_supply mk2_wm8994_regulator_supply[] = {
-	[0] = {
-		.supply = "AVDD1",
-		},
-	[1] = {
-		.supply = "DCVDD",
-		},
+/* WM8994: LDO1 => AVDD1(3.0V); LDO2 => DCVDD(1.0V) */
+static struct regulator_consumer_supply wm8994_avdd1_supply =
+	REGULATOR_SUPPLY("AVDD1", NULL);
+
+static struct regulator_consumer_supply wm8994_dcvdd_supply =
+	REGULATOR_SUPPLY("DCVDD", NULL);
+
+static struct regulator_init_data wm8994_ldo1_data = {
+	.constraints = {
+		.name = "AVDD1_3.0V",
+		.min_uV = 2400000,
+		.max_uV = 3100000,
+		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
+		.always_on = 1,
+	},
+	.num_consumer_supplies = 1,
+	.consumer_supplies = &wm8994_avdd1_supply,
 };
 
-struct regulator_init_data mk2_wm8994_regulator_init_data[] = {
-	[0] = {
-		.constraints = {
-				.name = "wm8994-ldo1",
-				.min_uV = 2400000,
-				.max_uV = 3100000,
-				.always_on = 1,
-				.boot_on = 1,
-				},
-		.num_consumer_supplies = 1,
-		.consumer_supplies = &mk2_wm8994_regulator_supply[0],
-		},
-	[1] = {
-		.constraints = {
-				.name = "wm8994-ldo2",
-				.min_uV = 900000,
-				.max_uV = 1200000,
-				.always_on = 1,
-				.boot_on = 1,
-				},
-		.num_consumer_supplies = 1,
-		.consumer_supplies = &mk2_wm8994_regulator_supply[1],
-		},
+static struct regulator_init_data wm8994_ldo2_data = {
+	.constraints = {
+		.name = "DCVDD_1.0V",
+		.min_uV = 900000,
+		.max_uV = 1200000,
+		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
+		.always_on = 1,
+	},
+	.num_consumer_supplies = 1,
+	.consumer_supplies = &wm8994_dcvdd_supply,
 };
 
-struct wm8994_pdata mk2_wm8994_pdata = {
-	.ldo[0] = {
-			.enable = 0,
-			.init_data = &mk2_wm8994_regulator_init_data[0],
-			.supply = "AVDD1",
-
-		},
-	.ldo[1] = {
-		.enable = 0,
-		.init_data = &mk2_wm8994_regulator_init_data[1],
-		.supply = "DCVDD",
-
-		},
+static struct wm8994_pdata mk2_wm8994_pdata = {
+	.ldo[0]	= {
+		/* FIXME: keep LDO output always on */
+		/* .enable = mfp_to_gpio(GPIO06_WM8994_LDOEN), */
+		.init_data = &wm8994_ldo1_data
+	},
+	.ldo[1]	= {
+		.init_data = &wm8994_ldo2_data
+	},
 };
-
-
-static struct regulator_consumer_supply mk2_fixed_regulator_supply[] = {
-	[0] = {
-		.supply = "SPKVDD1",
-		},
-	[1] = {
-		.supply = "SPKVDD2",
-		},
-};
-
-struct regulator_init_data mk2_fixed_regulator_init_data[] = {
-	[0] = {
-		.constraints = {
-				.name = "wm8994-SPK1",
-				.always_on = 1,
-				.boot_on = 1,
-				},
-		.num_consumer_supplies = 1,
-		.consumer_supplies = &mk2_fixed_regulator_supply[0],
-		},
-	[1] = {
-		.constraints = {
-				.name = "wm8994-SPK2",
-				.always_on = 1,
-				.boot_on = 1,
-				},
-		.num_consumer_supplies = 1,
-		.consumer_supplies = &mk2_fixed_regulator_supply[1],
-		},
-};
-
-struct fixed_voltage_config mk2_fixed_pdata[2] = {
-	[0] = {
-		.supply_name = "SPKVDD1",
-		.microvolts = 3700000,
-		.init_data = &mk2_fixed_regulator_init_data[0],
-		.gpio = -1,
-		},
-	[1] = {
-		.supply_name = "SPKVDD2",
-		.microvolts = 3700000,
-		.init_data = &mk2_fixed_regulator_init_data[1],
-		.gpio = -1,
-		},
-};
-
-static struct platform_device fixed_device[] = {
-	[0] = {
-		.name = "reg-fixed-voltage",
-		.id = 0,
-		.dev = {
-			.platform_data = &mk2_fixed_pdata[0],
-			},
-		.num_resources = 0,
-		},
-	[1] = {
-		.name = "reg-fixed-voltage",
-		.id = 1,
-		.dev = {
-			.platform_data = &mk2_fixed_pdata[1],
-			},
-		.num_resources = 0,
-		},
-};
-
-static struct platform_device *fixed_rdev[] __initdata = {
-	&fixed_device[0],
-	&fixed_device[1],
-};
-
-static void mk2_fixed_regulator(void)
-{
-	platform_add_devices(fixed_rdev, ARRAY_SIZE(fixed_rdev));
-}
 
 #if defined(CONFIG_SWITCH_HEADSET_HOST_GPIO)
 static struct gpio_switch_platform_data headset_switch_device_data = {
@@ -1356,6 +1327,20 @@ static int hdmi_power_on(void)
 	return 0;
 }
 
+static int wm8994_ldo_enable(void)
+{
+	int ldo_en = mfp_to_gpio(GPIO06_WM8994_LDOEN);
+	pr_info("%s: Enable WM8994 LDO output\n", __func__);
+	if (gpio_request(ldo_en, "WM8994_LDOEN")) {
+		pr_err("Failed to request gpio%d!\n", ldo_en);
+		return -EIO;
+	}
+	gpio_direction_output(ldo_en, 1);
+	gpio_free(ldo_en);
+	mdelay(50);
+	return 0;
+}
+
 static void __init mk2_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(mk2_pin_config));
@@ -1405,8 +1390,8 @@ static void __init mk2_init(void)
 
 	platform_device_register(&mmp3_device_rtc);
 
-	mk2_fixed_regulator();
-	wm8994_ldoen();
+	wm8994_ldo_enable();
+	mk2_fixed_regulator_init();
 
 	/* audio sspa support */
 	mmp3_add_sspa(1);
