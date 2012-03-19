@@ -46,6 +46,7 @@
 #include <mach/regs-mpmu.h>
 #include <mach/soc_vmeta.h>
 #include <mach/uio_hdmi.h>
+#include <mach/isp_dev.h>
 #if defined(CONFIG_SPI_PXA2XX)
 #include <linux/spi/spi.h>
 #include <linux/spi/pxa2xx_spi.h>
@@ -99,7 +100,9 @@ static unsigned long yellowstone_pin_config[] __initdata = {
 	GPIO28_I2S_SDATA_IN,
 
 	/* camera */
+	GPIO64_GPIO,
 	GPIO68_GPIO,
+	GPIO0_GPIO,
 	GPIO1_GPIO,
 	GPIO73_CAM_MCLK,
 
@@ -196,6 +199,119 @@ static unsigned long mmc3_pin_config[] __initdata = {
         GPIO145_MMC3_CMD,
         GPIO146_MMC3_CLK,
 };
+
+
+#ifdef CONFIG_VIDEO_MVISP_OV8820
+static int ov8820_sensor_power_on(int on, int flag)
+{
+	struct regulator *af_vcc;
+	struct regulator *avdd;
+	int rst = mfp_to_gpio(MFP_PIN_GPIO0);
+	int pwdn = mfp_to_gpio(MFP_PIN_GPIO64);
+
+	if (gpio_request(pwdn, "CAM_ENABLE_LOW"))
+		return -EIO;
+
+	if (gpio_request(rst, "CAM_RESET_HI"))
+		return -EIO;
+
+	af_vcc = regulator_get(NULL, "V_2P8");
+	if (IS_ERR(af_vcc)) {
+		af_vcc = NULL;
+		return -EIO;
+	}
+
+	avdd = regulator_get(NULL, "AVDD_CAM_2P8V");
+	if (IS_ERR(avdd)) {
+		avdd = NULL;
+		return -EIO;
+	}
+
+	/* Enable voltage for camera sensor OV8820 */
+	if (on) {
+		regulator_set_voltage(af_vcc, 2800000, 2800000);
+		regulator_enable(af_vcc);
+		regulator_set_voltage(avdd, 2800000, 2800000);
+		regulator_enable(avdd);
+		mdelay(10);
+		gpio_direction_output(pwdn, 1);
+		mdelay(5);
+	} else {
+		regulator_disable(af_vcc);
+		regulator_disable(avdd);
+		gpio_direction_output(pwdn, 0);
+	}
+
+    /* pwdn is low active, reset the sensor now*/
+	gpio_direction_output(rst, 0);
+	mdelay(20);
+	/* pwdn is low active, enable the sensor now*/
+	gpio_direction_output(rst, 1);
+	gpio_free(rst);
+	gpio_free(pwdn);
+
+	regulator_put(af_vcc);
+	regulator_put(avdd);
+
+	return 0;
+}
+
+static struct sensor_platform_data ov8820_platdata = {
+	.id = 0,
+	.power_on = ov8820_sensor_power_on,
+	.platform_set = NULL,
+};
+
+static struct i2c_board_info ov8820_info = {
+	.type = "ov8820",
+	.addr = 0x36,
+	.platform_data = &ov8820_platdata,
+};
+
+static struct mvisp_subdev_i2c_board_info ov8820_isp_info[] = {
+	[0] = {
+		.board_info = &ov8820_info,
+		.i2c_adapter_id = 2,
+	},
+	[1] = {
+		.board_info = NULL,
+		.i2c_adapter_id = 0,
+	},
+};
+
+static struct mvisp_v4l2_subdevs_group dxoisp_subdevs_group[] = {
+	[0] = {
+		.i2c_board_info = ov8820_isp_info,
+		.if_type = ISP_INTERFACE_CCIC_1,
+	},
+	[1] = {
+		.i2c_board_info = NULL,
+		.if_type = 0,
+	},
+};
+#endif
+
+#ifdef CONFIG_VIDEO_MVISP
+#ifndef CONFIG_VIDEO_MVISP_OV8820
+static struct mvisp_v4l2_subdevs_group dxoisp_subdevs_group[] = {
+	[0] = {
+		.i2c_board_info = NULL,
+		.if_type = 0,
+	},
+};
+#endif
+
+static struct mvisp_platform_data mmp_dxoisp_plat_data = {
+	.subdev_group = dxoisp_subdevs_group,
+	.ccic_dummy_ena = false,
+	.ispdma_dummy_ena = false,
+};
+
+static void __init mmp_init_dxoisp(void)
+{
+	mmp_register_dxoisp(&mmp_dxoisp_plat_data);
+}
+#endif
 
 #if defined(CONFIG_VIDEO_MV)
 /* soc  camera */
@@ -1013,6 +1129,7 @@ static struct pxa2xx_spi_master pxa_ssp_master_info = {
 static struct pxa2xx_spi_chip touch_spi_device = {
 	.tx_threshold = 1,
 	.rx_threshold = 1,
+	.gpio_cs = -1,
 };
 static struct ntrig_spi_platform_data ntrig_data = {
 	.oe_gpio = mfp_to_gpio(GPIO85_GPIO), /*magic number print from vendor's code*/
@@ -1156,6 +1273,10 @@ static void __init yellowstone_init(void)
 #if defined(CONFIG_VIDEO_MV)
 	platform_device_register(&yellowstone_ov5642);
 	mmp3_add_cam(1, &mv_cam_data);
+#endif
+
+#ifdef CONFIG_VIDEO_MVISP
+	mmp_init_dxoisp();
 #endif
 
 #ifdef CONFIG_USB_PXA_U2O
