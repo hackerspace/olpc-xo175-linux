@@ -803,7 +803,7 @@ static int ccic_link_setup(struct media_entity *entity,
 		if (flags & MEDIA_LNK_FL_ENABLED)
 			ccic->input |= CCIC_INPUT_SENSOR;
 		else
-			ccic->output &= ~CCIC_INPUT_SENSOR;
+			ccic->input &= ~CCIC_INPUT_SENSOR;
 		break;
 	case CCIC_PAD_DMA_SRC | MEDIA_ENT_T_DEVNODE:
 		if (flags & MEDIA_LNK_FL_ENABLED)
