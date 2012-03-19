@@ -675,6 +675,9 @@ void dvfm_disable_op_for_caddo(int dev_idx)
 {
 	dvfm_disable_lowpower(dev_idx);
 	dvfm_disable(dev_idx);
+	/*In NEVO, 806M and 624M have different hss freq*/
+	if (cpu_is_pxa978())
+		dvfm_disable_op_name("624M", dev_idx);
 	BUG_ON(irqs_disabled());
 	while (!hss_change_over());
 }
@@ -684,6 +687,9 @@ void dvfm_enable_op_for_caddo(int dev_idx)
 {
 	dvfm_enable_lowpower(dev_idx);
 	dvfm_enable(dev_idx);
+	/*In NEVO, 806M and 624M have different hss freq*/
+	if (cpu_is_pxa978())
+		dvfm_enable_op_name("624M", dev_idx);
 }
 EXPORT_SYMBOL(dvfm_enable_op_for_caddo);
 
