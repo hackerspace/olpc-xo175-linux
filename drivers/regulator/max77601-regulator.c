@@ -21,65 +21,6 @@
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
 
-#define MAX77601_VREG_SD0		0x16
-#define MAX77601_VREG_DVSSD0		0x1B
-#define MAX77601_VREG_SD0_CFG		0x1D
-#define MAX77601_VREG_DVSSD0_CFG	0x1D
-
-#define MAX77601_VREG_SD1		0x17
-#define MAX77601_VREG_DVSSD1		0x1C
-#define MAX77601_VREG_SD1_CFG		0x1E
-#define MAX77601_VREG_DVSSD1_CFG	0x1E
-
-#define MAX77601_VREG_SD2	0x18
-#define MAX77601_VREG_SD2_CFG	0x1F
-
-#define MAX77601_VREG_SD3	0x19
-#define MAX77601_VREG_SD4	0x1A
-#define MAX77601_VREG_SD3_CFG	0x20
-#define MAX77601_VREG_SD4_CFG	0x21
-
-#define MAX77601_VREG_LDO0      0x23
-#define MAX77601_VREG_LDO0_CFG2	0x24
-#define MAX77601_VREG_LDO1		0x25
-#define MAX77601_VREG_LDO1_CFG2	0x26
-#define MAX77601_VREG_LDO2		0x27
-#define MAX77601_VREG_LDO2_CFG2	0x28
-#define MAX77601_VREG_LDO3		0x29
-#define MAX77601_VREG_LDO3_CFG2	0x2A
-#define MAX77601_VREG_LDO4		0x2B
-#define MAX77601_VREG_LDO4_CFG2	0x2C
-#define MAX77601_VREG_LDO5		0x2D
-#define MAX77601_VREG_LDO5_CFG2	0x2E
-#define MAX77601_VREG_LDO6		0x2F
-#define MAX77601_VREG_LDO6_CFG2	0x30
-#define MAX77601_VREG_LDO7		0x31
-#define MAX77601_VREG_LDO7_CFG2	0x32
-#define MAX77601_VREG_LDO8		0x33
-#define MAX77601_VREG_LDO8_CFG2	0x34
-
-/* When FPSSRC_Lx[1:0]=0b11 in FPS_x register
- * not configured as part of a flexible power sequence.
- */
-#define MAX77601_MODE_NORMAL		0x3
-#define MAX77601_MODE_LPM		0x2
-#define MAX77601_MODE_GLPM		0x1
-#define MAX77601_MODE_DISABLE		0x0
-/* When FPSSRC_Lx[1:0]!=0b11 in FPS_x register */
-#define MAX77601_MODE_FPS_NORMAL	0x3
-#define MAX77601_MODE_FPS_LPM		0x2
-#define MAX77601_MODE_FPS_GLPM		0x1
-
-#define MAX77601_VREG_TYPE_SD		0x00
-#define MAX77601_VREG_TYPE_LDO		0x01
-
-#define MAX77601_SD_MODE_M		0x30
-#define MAX77601_SD_MODE_SHIFT		4
-#define MAX77601_LDO_MODE_M		0xC0
-#define MAX77601_LDO_MODE_SHIFT	6
-
-#define MAX77601_LDO_VOLT_M		0x3F
-
 struct max77601_vreg {
 	struct regulator_dev *rdev;
 	struct max77601_chip *chip;
