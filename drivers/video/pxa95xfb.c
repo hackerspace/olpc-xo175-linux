@@ -266,32 +266,12 @@ static void set_dvfm_constraint(void)
 	dvfm_disable_op_name_no_change("CG", dvfm_dev_idx);
 }
 
-static void set_dvfm_constraint_hdmi(void)
-{
-	/* Disable Lowpower mode */
-	dvfm_disable_op_name("156M", dvfm_dev_idx);
-	dvfm_disable_op_name("156M_HF", dvfm_dev_idx);
-	dvfm_disable_op_name("312M", dvfm_dev_idx);
-	dvfm_disable_op_name("416M", dvfm_dev_idx);
-	dvfm_disable_op_name("624M", dvfm_dev_idx);
-}
-
 static void unset_dvfm_constraint(void)
 {
 	/* Enable Lowpower mode */
 	dvfm_enable_op_name_no_change("D1", dvfm_dev_idx);
 	dvfm_enable_op_name_no_change("D2", dvfm_dev_idx);
 	dvfm_enable_op_name_no_change("CG", dvfm_dev_idx);
-}
-
-static void unset_dvfm_constraint_hdmi(void)
-{
-	/* Enable Lowpower mode */
-	dvfm_enable_op_name("156M", dvfm_dev_idx);
-	dvfm_enable_op_name("156M_HF", dvfm_dev_idx);
-	dvfm_enable_op_name("312M", dvfm_dev_idx);
-	dvfm_enable_op_name("416M", dvfm_dev_idx);
-	dvfm_enable_op_name("624M", dvfm_dev_idx);
 }
 
 static void dsi_set_time(struct pxa95xfb_conv_info *conv, int freq)
@@ -1436,11 +1416,6 @@ static void converter_onoff(struct pxa95xfb_info *fbi, int on)
 	if(conv->on == on){
 		printk(KERN_INFO "converter %s is already %s\n", conv->name, conv->on?"On":"Off");
 	}else if(on){
-		if(conv->output == OUTPUT_HDMI) {
-			set_dvfm_constraint_hdmi();
-			msleep(100);
-		}
-
 		if(conv->reset)
 			conv->reset();
 
@@ -1488,10 +1463,6 @@ static void converter_onoff(struct pxa95xfb_info *fbi, int on)
 		/* reset it to save 1mA more */
 		if(conv->reset)
 			conv->reset();
-
-		if(conv->output == OUTPUT_HDMI)
-			unset_dvfm_constraint_hdmi();
-
 		printk(KERN_INFO "converter %s is Off\n", conv->name);
 	}
 }
@@ -1925,9 +1896,15 @@ static void set_fetch(struct pxa95xfb_info *fbi)
 		x |= LCD_FETCH_CTLx_CHAN_EN|LCD_FETCH_CTLx_SRC_FOR(fbi->pix_fmt) |LCD_FETCH_CTLx_BUS_ERR_INT_EN;
 		if(fbi->eof_intr_en && channel == start_channel)
 			x |= LCD_FETCH_CTLx_END_FR_INT_EN;
-		if (cpu_is_pxa978_Cx())
-			x |= LCD_FETCH_CTLx_MAX_OUTSTANDING_REQ(3)
-				| LCD_FETCH_CTLx_ARLEN(3);
+		if (cpu_is_pxa978_Cx()) {
+			if (fbi->converter == LCD_M2HDMI) {
+				x |= LCD_FETCH_CTLx_MAX_OUTSTANDING_REQ(0x7)
+					| LCD_FETCH_CTLx_ARLEN(0xf);
+			} else {
+				x |= LCD_FETCH_CTLx_MAX_OUTSTANDING_REQ(3)
+					| LCD_FETCH_CTLx_ARLEN(3);
+			}
+		}
 		writel(x, fbi->reg_base + LCD_FETCH_CTL0 + channel * 0x40);
 	}
 
