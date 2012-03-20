@@ -20,8 +20,10 @@
 #include <linux/uaccess.h>
 #include <linux/slab.h>
 #include <mach/uio_hdmi.h>
+#include <mach/dvfm.h>
 #include <linux/earlysuspend.h>
 #include <plat/pm.h>
+
 
 static atomic_t hdmi_state = ATOMIC_INIT(0);
 static int early_suspend_flag;
@@ -50,6 +52,7 @@ int hdmi_release(struct uio_info *info, struct inode *indoe, void *file_priv)
 
 extern int sii9226_enable(bool en);
 extern int sii9226_detect(void);
+static int dvfm_dev_idx;
 
 static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 		void *file_priv)
@@ -65,10 +68,18 @@ static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 		}
 		break;
 	case HDMI_PLL_ENABLE:
+		/* Disable Lowpower mode */
+		dvfm_disable_op_name("156M", dvfm_dev_idx);
+		dvfm_disable_op_name("156M_HF", dvfm_dev_idx);
+		dvfm_disable_op_name("416M", dvfm_dev_idx);
 		sii9226_enable(1);
 		printk("%s: enabled\n", __func__);
 		break;
 	case HDMI_PLL_DISABLE:
+		/* Enable Lowpower mode */
+		dvfm_enable_op_name("156M", dvfm_dev_idx);
+		dvfm_enable_op_name("156M_HF", dvfm_dev_idx);
+		dvfm_enable_op_name("416M", dvfm_dev_idx);
 		sii9226_enable(0);
 		printk("%s: disabled\n", __func__);
 		break;
@@ -99,11 +110,8 @@ static void hdmi_late_resume(struct early_suspend *h)
 static int hdmi_suspend(struct platform_device *pdev, pm_message_t mesg)
 {
 	struct hdmi_instance *hi = platform_get_drvdata(pdev);
-
-	if (atomic_read(&hdmi_state) == 1) {
-		if (hi->hdmi_power)
-			hi->hdmi_power(0);
-	}
+	if (hi->hdmi_power)
+		hi->hdmi_power(0);
 	pdev->dev.power.power_state = mesg;
 
 	return 0;
@@ -111,6 +119,9 @@ static int hdmi_suspend(struct platform_device *pdev, pm_message_t mesg)
 
 static int hdmi_resume(struct platform_device *pdev)
 {
+	struct hdmi_instance *hi = platform_get_drvdata(pdev);
+	if (hi->hdmi_power)
+		hi->hdmi_power(0);
 #if 0/*TODO*/
 
 	struct hdmi_instance *hi = platform_get_drvdata(pdev);
@@ -265,6 +276,7 @@ static void __init hdmi_exit(void)
 
 static int __init hdmi_init(void)
 {
+	dvfm_register("uio-si9226", &dvfm_dev_idx);
 	return platform_driver_register(&hdmi_driver);
 }
 
