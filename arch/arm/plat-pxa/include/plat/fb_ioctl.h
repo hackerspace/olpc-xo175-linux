@@ -264,4 +264,10 @@ struct mvdisp_gamma {
 	char 		table[GAMMA_TABLE_LEN];
 };
 
+enum {
+	SYNC_SELF,
+	SYNC_PANEL,
+	SYNC_TV,
+	SYNC_PANEL_TV,
+};
 #endif /* __ASM_PLAT_FB_IOCTL_H */

@@ -377,7 +377,8 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 		return 0;
 		break;
 	case FB_IOCTL_WAIT_VSYNC:
-		wait_for_vsync(fbi);
+		param = (arg & 0x3);
+		wait_for_vsync(fbi, param);
 		break;
 	case FB_IOCTL_GET_VIEWPORT_INFO:/*if rotate 90/270, w/h swap*/
 		mutex_lock(&fbi->access_ok);
@@ -845,7 +846,7 @@ static int pxa168fb_pan_display(struct fb_var_screeninfo *var,
 	pxa168fb_set_regs(fbi, &fbi->shadowreg);
 
 	if (NEED_VSYNC(fbi))
-		wait_for_vsync(fbi);
+		wait_for_vsync(fbi, SYNC_SELF);
 
 	return 0;
 }
@@ -854,7 +855,7 @@ static int pxa168fb_fb_sync(struct fb_info *info)
 {
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)info->par;
 
-	wait_for_vsync(fbi);
+	wait_for_vsync(fbi, SYNC_SELF);
 	return 0;
 }
 

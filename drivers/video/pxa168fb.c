@@ -865,7 +865,7 @@ static int pxa168fb_pan_display(struct fb_var_screeninfo *var,
 		pxa168fb_set_regs(fbi, &fbi->shadowreg);
 
 	if (NEED_VSYNC(fbi))
-		wait_for_vsync(fbi);
+		wait_for_vsync(fbi, SYNC_SELF);
 
 	return 0;
 }
@@ -1059,7 +1059,8 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 		pxa168fb_clear_framebuffer(info);
 		break;
 	case FB_IOCTL_WAIT_VSYNC:
-		wait_for_vsync(fbi);
+		param = (arg & 0x3);
+		wait_for_vsync(fbi, param);
 		break;
 	case FB_IOCTL_WAIT_VSYNC_ON:
 		fbi->wait_vsync = 1;
@@ -1121,8 +1122,6 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 
 	case FB_IOCTL_FLIP_VID_BUFFER:
 		val = flip_buffer(info, arg);
-		if (NEED_VSYNC(fbi))
-			wait_for_vsync(fbi);
 		return val;
 	case FB_IOCTL_GET_FREELIST:
 		return get_freelist(info, arg);
@@ -1253,7 +1252,7 @@ static int pxa168fb_release(struct fb_info *info, int user)
 	fbi->pix_fmt = determine_best_pix_fmt(var, fbi);
 
 	if (NEED_VSYNC(fbi))
-		wait_for_vsync(fbi);
+		wait_for_vsync(fbi, SYNC_SELF);
 
 	return 0;
 }

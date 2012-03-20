@@ -909,7 +909,7 @@ int flip_buffer(struct fb_info *info, unsigned long arg)
 		/* copy buffer */
 		if (input_data) {
 			if (NEED_VSYNC(fbi))
-				wait_for_vsync(fbi);
+				wait_for_vsync(fbi, SYNC_SELF);
 			/* if support hw DMA, replace this. */
 			if (copy_from_user(fbi->fb_start,
 						input_data, length)){
@@ -1085,17 +1085,51 @@ void clear_dispd_irq(struct pxa168fb_info *fbi)
 	}
 }
 
-void wait_for_vsync(struct pxa168fb_info *fbi)
+void wait_for_vsync(struct pxa168fb_info *fbi, unsigned char param)
 {
-	atomic_set(&fbi->w_intr, 0);
+	struct fbi_info *info = fbi->vid ? &ovly_info : &gfx_info;
+	int ret = 0;
+
 	pr_debug("fbi->id %d vid: %d\n", fbi->id, fbi->vid);
 
-	wait_event_interruptible_timeout(fbi->w_intr_wq,
-		atomic_read(&fbi->w_intr), HZ/20);
-
-	/* handle timeout case, to w/a irq miss */
-	if (atomic_read(&fbi->w_intr) == 0)
-		clear_dispd_irq(fbi);
+	switch (param) {
+	case SYNC_SELF:
+		atomic_set(&fbi->w_intr, 0);
+		ret = wait_event_interruptible_timeout(gfx_info.fbi[0]->w_intr_wq,
+				atomic_read(&fbi->w_intr), HZ/20);
+		if (!ret)
+			clear_dispd_irq(fbi);
+		break;
+	case SYNC_PANEL:
+		atomic_set(&info->fbi[0]->w_intr, 0);
+		ret = wait_event_interruptible_timeout(gfx_info.fbi[0]->w_intr_wq,
+				atomic_read(&info->fbi[0]->w_intr), HZ/20);
+		if (!ret)
+			clear_dispd_irq(info->fbi[0]);
+		break;
+	case SYNC_TV:
+		atomic_set(&info->fbi[1]->w_intr, 0);
+		ret = wait_event_interruptible_timeout(gfx_info.fbi[0]->w_intr_wq,
+				atomic_read(&info->fbi[1]->w_intr), HZ/20);
+		if (!ret)
+			clear_dispd_irq(info->fbi[1]);
+		break;
+	case SYNC_PANEL_TV:
+		atomic_set(&info->fbi[0]->w_intr, 0);
+		atomic_set(&info->fbi[1]->w_intr, 0);
+		ret = wait_event_interruptible_timeout(gfx_info.fbi[0]->w_intr_wq,
+				atomic_read(&info->fbi[0]->w_intr) &&
+				atomic_read(&info->fbi[1]->w_intr), HZ/20);
+		if (!ret) {
+			if (atomic_read(&info->fbi[0]->w_intr) == 0)
+				clear_dispd_irq(info->fbi[0]);
+			if (atomic_read(&info->fbi[1]->w_intr) == 0)
+				clear_dispd_irq(info->fbi[1]);
+		}
+		break;
+	default:
+		break;
+	}
 }
 
 void pxa168fb_list_init(struct pxa168fb_info *fbi)
@@ -1408,10 +1442,10 @@ irqreturn_t pxa168_fb_isr(int id)
 			spin_unlock(&fbi->buf_lock);
 		}
 
-		/* wake up queue. */
+		/* wake up queue, only use one queue for all layer */
 		if (atomic_read(&fbi->w_intr) == 0) {
 			atomic_set(&fbi->w_intr, 1);
-			wake_up(&fbi->w_intr_wq);
+			wake_up(&gfx_info.fbi[0]->w_intr_wq);
 		}
 	}
 	return IRQ_HANDLED;

@@ -1550,7 +1550,7 @@ static int vidioc_dqbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 	return ret;
 }
 
-extern void wait_for_vsync(struct pxa168fb_info *fbi);
+extern void wait_for_vsync(struct pxa168fb_info *fbi, unsigned char param);
 extern void hdmi_3d_sync_view(void);
 static int vidioc_streamon(struct file *file, void *fh, enum v4l2_buf_type i)
 {
@@ -1606,7 +1606,7 @@ static int vidioc_streamon(struct file *file, void *fh, enum v4l2_buf_type i)
 	ovly->streaming = 1;
 	if (ovly->hdmi3d && (1 == ovly->id)) {
 		spin_unlock_irqrestore(vbq_lock, flags);
-		wait_for_vsync(registered_fb[1]->par);
+		wait_for_vsync(registered_fb[1]->par, SYNC_SELF);
 		hdmi_3d_sync_view();
 		spin_lock_irqsave(vbq_lock, flags);
 	}
