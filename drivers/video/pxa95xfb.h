@@ -842,6 +842,7 @@ struct pxa95xfb_conv_info {
 
 	struct loop_kthread thread;
 
+	atomic_t	w_intr;
 };
 
 struct buf_addr {
@@ -868,8 +869,7 @@ struct pxa95xfb_info {
 	dma_addr_t		fb_start_dma;
 	void			*fb_start;
 	int			fb_size;
-	atomic_t		w_intr;
-	wait_queue_head_t	w_intr_wq;
+
 	struct mutex		access_ok;
 	struct _sOvlySurface    surface;
 	struct fb_videomode	mode;
@@ -954,7 +954,7 @@ void lcdc_set_pix_fmt(struct fb_var_screeninfo *var, int pix_fmt);
 u32 lcdc_set_fr_addr(struct pxa95xfb_info *fbi);
 u32 lcdc_get_fr_addr(struct pxa95xfb_info *fbi);
 void lcdc_set_lcd_controller(struct pxa95xfb_info *fbi);
-int lcdc_wait_for_vsync(struct pxa95xfb_info *fbi);
+void lcdc_wait_for_vsync(u32 conv_id1, u32 conv_id2);
 void lcdc_correct_pixclock(struct fb_videomode * m);
 void *lcdc_alloc_framebuffer(size_t size, dma_addr_t *dma);
 

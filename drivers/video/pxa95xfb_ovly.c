@@ -135,7 +135,6 @@ static int __devinit pxa95xfb_vid_probe(struct platform_device *pdev)
 	fbi->eof_handler = lcdc_vid_buf_endframe;
 
 	mutex_init(&fbi->access_ok);
-	init_waitqueue_head(&fbi->w_intr_wq);
 
 	/* Map LCD controller registers.*/
 	fbi->reg_base = ioremap_nocache(res->start, res->end - res->start);

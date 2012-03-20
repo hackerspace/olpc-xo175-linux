@@ -214,7 +214,7 @@ int display_enabled = 0;
 static wait_queue_head_t	wq_mixer_update[MIXER_NUM];
 static int	b_mixer_update[MIXER_NUM];
 static struct mutex	mutex_mixer_update[MIXER_NUM];
-
+static wait_queue_head_t	g_vsync_wq;
 
 #define DSI_CMDLINE_TIMEOUT 0
 #define DSI_CMDLINE_CMD 1
@@ -1498,6 +1498,11 @@ static irqreturn_t converter_handle_irq(int irq, void *dev_id)
 		/*workaround here: hss change when dvfm is only permitted when converter eof*/
 		if(conv->output == OUTPUT_PANEL)
 			update_hss();
+		if (!atomic_read(&conv->w_intr)) {
+			atomic_set(&conv->w_intr, 1);
+			wake_up(&g_vsync_wq);
+		}
+
 		/*printk(KERN_ALERT "%s: DSI Converter eof observed!\n", __func__);*/
 	}
 	if (CONVERTER_IS_DSI(conv->converter)){
@@ -2330,26 +2335,34 @@ void lcdc_set_lcd_controller(struct pxa95xfb_info *fbi)
 	mutex_unlock(&mutex_mixer_update[fbi->mixer_id]);
 }
 
-int lcdc_wait_for_vsync(struct pxa95xfb_info *fbi)
+/* workaround here for para: id: converter_id 1, converter_id 2*/
+void lcdc_wait_for_vsync(u32 conv_id1, u32 conv_id2)
 {
-	u32 t, ret = 0;
-	static u32 c = 0, s = 0;
+	u32 ret = 0;
 
-	if (fbi && fbi->vsync_en) {
-		t = OSCR;
-		atomic_set(&fbi->w_intr, 0);
-		ret = wait_event_interruptible_timeout(fbi->w_intr_wq,
-				atomic_read(&fbi->w_intr), 60 * HZ / 1000);
-		t = (OSCR - t) *4/ 13000;
-		c++;
-		s += t;
-		/*if(c %100 == 0)
-			printk(KERN_INFO "%s: %d times, average = %dms\n", __func__, c, s/c);*/
-		/*printk(KERN_INFO "%s: ch %d time %d ms\n", __func__, fbi->window, t);*/
-		if(!ret)
-			printk(KERN_WARNING "warning %s:failed\n",__func__);
+	if (conv_id1 && conv_id2 <= LCD_M2HDMI)
+		atomic_set(&pxa95xfb_conv[conv_id1].w_intr, 0);
+	else {
+		printk(KERN_ERR "warning %s: para error: conv_id: %d %d\n", __func__, conv_id1, conv_id2);
+		return;
 	}
-	return ret;
+
+	if (conv_id2 && conv_id2 <= LCD_M2HDMI) {
+		atomic_set(&pxa95xfb_conv[conv_id2].w_intr, 0);
+		ret = wait_event_interruptible_timeout(g_vsync_wq,
+			atomic_read(&pxa95xfb_conv[conv_id1].w_intr) && atomic_read(&pxa95xfb_conv[conv_id2].w_intr),
+			60 * HZ / 1000);
+	} else {
+		ret = wait_event_interruptible_timeout(g_vsync_wq,
+			atomic_read(&pxa95xfb_conv[conv_id1].w_intr),
+			60 * HZ / 1000);
+	}
+
+	if(!ret)
+		printk(KERN_ERR "warning %s: waiting vsync failed: conv_id: %d: %d %d: %d\n",
+			__func__, atomic_read(&pxa95xfb_conv[conv_id1].w_intr),
+			atomic_read(&pxa95xfb_conv[conv_id2].w_intr), conv_id1, conv_id2);
+	return;
 }
 
 void *lcdc_alloc_framebuffer(size_t size, dma_addr_t *dma)
@@ -2454,8 +2467,8 @@ int pxa95xfb_pan_display(struct fb_var_screeninfo *var,
 
 	fbi->pixel_offset = var->yoffset * var->xres_virtual + var->xoffset;
 	lcdc_set_fr_addr(fbi);
-
-	lcdc_wait_for_vsync(fbi);
+	if (fbi->vsync_en)
+		lcdc_wait_for_vsync(fbi->converter, 0);
 
 	return 0;
 }
@@ -2618,10 +2631,6 @@ static irqreturn_t pxa95xfb_gfx_handle_irq_ctl(int irq, void *dev_id)
 			if(pxa95xfbi[i] && pxa95xfbi[i]->on && pxa95xfbi[i]->eof_intr_en){
 				if(x & LCD_FETCH_INT_STS0_END_FRx(pxa95xfbi[i]->window) ){
 					/*printk(KERN_INFO "%s: fetch %d EOF intr: fr= %x\n",__func__, pxa95xfbi[i]->window, lcdc_get_fr_addr(pxa95xfbi[i]));*/
-					if(pxa95xfbi[i]->vsync_en){
-						atomic_set(&pxa95xfbi[i]->w_intr, 1);
-						wake_up(&pxa95xfbi[i]->w_intr_wq);
-					}
 					if(pxa95xfbi[i]->eof_handler){
 						pxa95xfbi[i]->eof_handler(pxa95xfbi[i]);
 					}
@@ -2739,7 +2748,7 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 	fbi->eof_handler = lcdc_vid_buf_endframe;
 
 	mutex_init(&fbi->access_ok);
-	init_waitqueue_head(&fbi->w_intr_wq);
+	init_waitqueue_head(&g_vsync_wq);
 	for (i = 0; i < MIXER_NUM; i++) {
 		mutex_init(&mutex_mixer_update[i]);
 		init_waitqueue_head(&wq_mixer_update[i]);

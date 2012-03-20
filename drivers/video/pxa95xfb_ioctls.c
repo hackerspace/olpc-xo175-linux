@@ -287,7 +287,16 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 		fbi->vsync_en = 0;
 		break;
 	case FB_IOCTL_WAIT_VSYNC:
-		lcdc_wait_for_vsync(fbi);
+		if (arg > 0x3)
+			printk(KERN_ERR "WAIT_VSYNC: invalid para %d\n", (u32)arg);
+		else if (arg == 0)
+			lcdc_wait_for_vsync(fbi->converter, 0);
+		else if (arg== 1)
+			lcdc_wait_for_vsync(pxa95xfbi[0]->converter, 0);
+		else if (arg == 2)
+			lcdc_wait_for_vsync(pxa95xfbi[2]->converter, 0);
+		else if (arg == 3)
+			lcdc_wait_for_vsync(pxa95xfbi[0]->converter, pxa95xfbi[2]->converter);
 		break;
 	case FB_IOCTL_GET_VIEWPORT_INFO:
 		return copy_to_user(argp, &gOvlySurface.viewPortInfo,
