@@ -47,6 +47,7 @@
 #include <mach/cputype.h>
 #endif
 #if defined(CONFIG_PXA95x) || defined(CONFIG_PXA93x)
+#include <mach/regs-ost.h>
 #include <mach/hardware.h>
 
 int is_nevo_td = 0;
@@ -458,6 +459,54 @@ static void set_constraint(void)
 	spin_unlock_irqrestore(&acipc_lock.lock, acipc_lock.flags);
 }
 
+static unsigned int oscr_ts_1, oscr_ts_2;
+struct workqueue_struct *acipc_wq;
+struct work_struct acipc_ddr_hi_freq_acquire, acipc_ddr_hi_freq_release;
+
+static void acipc_ddr_hi_freq_acquire_handler(struct work_struct *work)
+{
+	unsigned long flags;
+	if (cpu_is_pxa95x()) {
+		dvfm_enable_op_name("156M_HF", \
+		acipc_lock.dev_idx);
+		/* 208MHz and 208+HF should be
+		reconsidered by System eng */
+		/*dvfm_enable_op_name("208M_HF",\
+			acipc_lock.dev_idx);*/
+		/*dvfm_disable_op_name("208M",	\
+		acipc_lock.dev_idx);*/
+	}
+	dvfm_disable_op_name("156M", acipc_lock.dev_idx);
+	/* MIPSRAM and ACIPC event should be atomic*/
+	local_irq_save(flags);
+	acipc_event_set(ACIPC_DDR_260_READY_ACK);
+	MIPS_RAM_ADD_PM_TRACE(ACIPC_HF_DDR_REQ_HANDHELD_MIPS_RAM);
+	oscr_ts_2 = OSCR;
+	local_irq_restore(flags);
+	if ((oscr_ts_2 - oscr_ts_1) > MAX_ACIPC_REACT_TIME) {
+		printk(KERN_WARNING "%s: constraint aquiring is slow %d cycles.\n",
+			__func__, oscr_ts_2 - oscr_ts_1);
+		BUG_ON(1);
+	}
+}
+
+static void acipc_ddr_hi_freq_release_handler(struct work_struct *work)
+{
+	dvfm_enable_op_name("156M", acipc_lock.dev_idx);
+	if (cpu_is_pxa95x()) {
+		/* 208MHz and 208+HF should be
+		reconsidered by System eng */
+		/*dvfm_enable_op_name("208M", \
+		acipc_lock.dev_idx);
+		dvfm_disable_op_name("208M_HF",	\
+		acipc_lock.dev_idx);*/
+		dvfm_disable_op_name("156M_HF", \
+		acipc_lock.dev_idx);
+	}
+	MIPS_RAM_ADD_PM_TRACE(ACIPC_HF_DDR_REL_HANDHELD_MIPS_RAM);
+}
+
+
 static u32 acipc_kernel_callback(u32 events_status)
 {
 	unsigned int ReceivedData;
@@ -502,45 +551,30 @@ static u32 acipc_kernel_callback(u32 events_status)
 		}
 	}
 	if (events_status & ACIPC_DDR_260_READY_REQ) {
+		MIPS_RAM_ADD_PM_TRACE( \
+		ACIPC_HF_DDR_REQ_RECEIVED_MIPS_RAM);
 		if (acipc_lock.ddr260_cnt++ == 0) {
-			MIPS_RAM_ADD_PM_TRACE( \
-			ACIPC_HF_DDR_REQ_RECEIVED_MIPS_RAM);
-			if (cpu_is_pxa95x()) {
-				dvfm_enable_op_name("156M_HF", \
-				acipc_lock.dev_idx);
-				/* 208MHz and 208+HF should be
-				reconsidered by System eng */
-				/*dvfm_enable_op_name("208M_HF",\
-					acipc_lock.dev_idx);*/
-				/*dvfm_disable_op_name("208M",	\
-				acipc_lock.dev_idx);*/
-			}
-			dvfm_disable_op_name("156M", acipc_lock.dev_idx);
+#if defined(CONFIG_PXA95x) || defined(CONFIG_PXA93x)
+			oscr_ts_1 = OSCR;
+#endif
+			queue_work(acipc_wq , &acipc_ddr_hi_freq_acquire);
+		} else {
+			acipc_event_set(ACIPC_DDR_260_READY_ACK);
+			MIPS_RAM_ADD_PM_TRACE(ACIPC_HF_DDR_REQ_HANDHELD_MIPS_RAM);
 		}
-		acipc_event_set(ACIPC_DDR_260_READY_ACK);
-		MIPS_RAM_ADD_PM_TRACE(ACIPC_HF_DDR_REQ_HANDHELD_MIPS_RAM);
 	}
 	if (events_status & ACIPC_DDR_260_RELQ_REQ) {
+		MIPS_RAM_ADD_PM_TRACE( \
+		ACIPC_HF_DDR_REL_RECEIVED_MIPS_RAM);
 		acipc_event_set(ACIPC_DDR_260_RELQ_ACK);
 		if (acipc_lock.ddr260_cnt == 0) {
 			printk(KERN_WARNING "%s: constraint was removed.\n",
 				__func__);
 		} else if (--acipc_lock.ddr260_cnt == 0) {
-			MIPS_RAM_ADD_PM_TRACE( \
-			ACIPC_HF_DDR_REL_RECEIVED_MIPS_RAM);
-			dvfm_enable_op_name("156M", acipc_lock.dev_idx);
-			if (cpu_is_pxa95x()) {
-				/* 208MHz and 208+HF should be
-				reconsidered by System eng */
-				/*dvfm_enable_op_name("208M", \
-				acipc_lock.dev_idx);
-				dvfm_disable_op_name("208M_HF",	\
-				acipc_lock.dev_idx);*/
-				dvfm_disable_op_name("156M_HF", \
-				acipc_lock.dev_idx);
-			}
+			queue_work(acipc_wq , &acipc_ddr_hi_freq_release);
+		} else {
+			MIPS_RAM_ADD_PM_TRACE(ACIPC_HF_DDR_REL_HANDHELD_MIPS_RAM);
 		}
-		MIPS_RAM_ADD_PM_TRACE(ACIPC_HF_DDR_REL_HANDHELD_MIPS_RAM);
 	}
 	if (acipc_lock.ddr208_cnt || acipc_lock.ddr260_cnt)
 		acipc_change_driver_state(1);
@@ -768,9 +802,14 @@ static int __devinit pxa9xx_acipc_probe(struct platform_device *pdev)
 		}
 		acipc->irq[i] = irq;
 	}
-
 	register_pm_events();
 	pr_info("pxa9xx AC-IPC initialized!\n");
+
+#if defined(CONFIG_PXA95x) || defined(CONFIG_PXA93x)
+	INIT_WORK(&acipc_ddr_hi_freq_acquire, acipc_ddr_hi_freq_acquire_handler);
+	INIT_WORK(&acipc_ddr_hi_freq_release, acipc_ddr_hi_freq_release_handler);
+	acipc_wq = alloc_workqueue("ACIPC_WQ", WQ_HIGHPRI, 0);
+#endif
 
 	return 0;
 
