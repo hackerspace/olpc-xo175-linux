@@ -660,14 +660,30 @@ static struct i2c_board_info mk2_twsi4_info[] = {
 
 static int mk2_max77601_setup(struct max77601_chip *chip)
 {
-	u8 data = 0x0;
-	/* DVS related part */
-	max77601_read(chip, MAX77601_AME_GPIO, &data, 1);
-	if ((data & MAX77601_AME5_MASK) == MAX77601_AME5_MASK)
-		printk(KERN_INFO "Max77601 SD0 is set to support DVS!\n");
-	/* Set GPIO4 to alternative mode to enable ext_32K_in */
-	max77601_set_bits(chip, MAX77601_AME_GPIO, \
-		MAX77601_AME4_MASK, MAX77601_AME4_MASK);
+	u8 data = 0;
+	if (!chip)
+		return -EINVAL;
+	/* Set LDO0 and LDO1 work at NOT FPS mode
+	 * which can be en/disabled dynamically */
+	max77601_set_bits(chip, MAX77601_FPS_L0,
+		MAX77601_FPSSRC_NOTFPS, MAX77601_FPSSRC_NOTFPS);
+	max77601_set_bits(chip, MAX77601_FPS_L1,
+		MAX77601_FPSSRC_NOTFPS, MAX77601_FPSSRC_NOTFPS);
+
+	/* Set GPIO5 as SD0 DVS(DVSSD0) input: PMIC_GPIO5(VCXO_EN) */
+	max77601_set_bits(chip, MAX77601_AME_GPIO,
+			MAX77601_AME5_MASK, MAX77601_AME5_MASK);
+	/* Set GPIO5 active low, VCXO_EN is low when suspend */
+	max77601_set_bits(chip, MAX77601_CNFG_GPIO5, MAX77601_GPIO_DIR, 0);
+
+	/* Set GPIO4 as 32kHZ output(32K_OUT1): EXT_32K_IN */
+	max77601_set_bits(chip, MAX77601_AME_GPIO,
+			MAX77601_AME4_MASK, MAX77601_AME4_MASK);
+
+	/* Set suspend voltage(DVSSD0) */
+	data = 0x20; /* 1.0V */
+	max77601_write(chip, MAX77601_VREG_DVSSD0, &data, 1);
+
 
 	return 0;
 };
