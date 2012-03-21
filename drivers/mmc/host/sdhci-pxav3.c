@@ -32,6 +32,10 @@
 #include "sdhci-pltfm.h"
 #include <plat/pm.h>
 
+#ifdef CONFIG_CPU_PXA978
+#include <mach/dvfm.h>
+#endif
+
 #define SD_CLOCK_BURST_SIZE_SETUP		0x10A
 #define SDCLK_SEL	0x100
 #define SDCLK_DELAY_SHIFT	9
@@ -203,7 +207,10 @@ static void pxav3_access_constrain(struct sdhci_host *host, unsigned int ac)
 {
 	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
 	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
-
+#ifdef CONFIG_CPU_PXA978
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_pxa *pxa = pltfm_host->priv;
+#endif
 	if (!pdata)
 		return;
 
@@ -217,6 +224,18 @@ static void pxav3_access_constrain(struct sdhci_host *host, unsigned int ac)
 		pm_qos_update_request(&pdata->qos_idle, PM_QOS_CONSTRAINT);
 	else
 		pm_qos_update_request(&pdata->qos_idle, PM_QOS_DEFAULT_VALUE);
+
+#ifdef CONFIG_CPU_PXA978
+	if (ac && !pxa->clk_enable) {
+		if (pltfm_host->dvfm_dev_idx)
+			dvfm_disable_lowpower(pltfm_host->dvfm_dev_idx);
+		pxa->clk_enable = 1;
+	} else if (!ac && pxa->clk_enable) {
+		if (pltfm_host->dvfm_dev_idx)
+			dvfm_enable_lowpower(pltfm_host->dvfm_dev_idx);
+		pxa->clk_enable = 0;
+	}
+#endif
 }
 
 static void ext_cd_notify_change(struct platform_device *pdev, int state)
@@ -473,6 +492,13 @@ static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 		| SDHCI_QUIRK_NO_ENDATTR_IN_NOPDESC;
 
 	if (pdata) {
+		pm_qos_add_request(&pdata->qos_idle, PM_QOS_CPU_DMA_LATENCY,
+			PM_QOS_DEFAULT_VALUE);
+	#ifdef CONFIG_WAKELOCK
+		wake_lock_init(&pdata->idle_lock, WAKE_LOCK_IDLE,
+			(const char *)mmc_hostname(host->mmc));
+	#endif
+
 		if (pdata->flags & PXA_FLAG_CARD_PERMANENT) {
 			/* on-chip device */
 			host->quirks |= SDHCI_QUIRK_BROKEN_CARD_DETECTION;
@@ -483,8 +509,18 @@ static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 		if (pdata->flags & PXA_FLAG_SD_8_BIT_CAPABLE_SLOT)
 			host->mmc->caps |= MMC_CAP_8_BIT_DATA;
 
-		if (pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING)
+		if (pdata && pdata->flags & PXA_FLAG_ACITVE_IN_SUSPEND) {
+			host->mmc->pm_flags |= MMC_PM_ALWAYS_ACTIVE;
+		}
+
+		if (pdata && pdata->flags & PXA_FLAG_KEEP_POWER_IN_SUSPEND) {
+			host->mmc->pm_flags |= MMC_PM_KEEP_POWER;
+		}
+
+		if (pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING) {
+			pxav3_access_constrain(host, 1);
 			host->mmc->caps |= MMC_CAP_ENABLE_BUS_CLK_GATING;
+		}
 
 		if (pdata->handle_cdint)
 			pxav3_sdhci_ops.handle_cdint = pdata->handle_cdint;
@@ -495,15 +531,16 @@ static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 			host->mmc->caps |= pdata->host_caps;
 		if (pdata->pm_caps)
 			host->mmc->pm_caps |= pdata->pm_caps;
-
-	pm_qos_add_request(&pdata->qos_idle, PM_QOS_CPU_DMA_LATENCY,
-			PM_QOS_DEFAULT_VALUE);
-	#ifdef CONFIG_WAKELOCK
-		wake_lock_init(&pdata->idle_lock, WAKE_LOCK_IDLE,
-			(const char *)mmc_hostname(host->mmc));
-	#endif
 	}
 
+#ifdef CONFIG_CPU_PXA978
+	ret = dvfm_register((char *)mmc_hostname(host->mmc), &pltfm_host->dvfm_dev_idx);
+	if(ret) {
+		pr_err("Error %d: Fails to register %s into dvfm.\n",
+				ret, mmc_hostname(host->mmc));
+		goto err_clk_get;
+	}
+#endif
 	host->ops = &pxav3_sdhci_ops;
 
 	ret = sdhci_add_host(host);
