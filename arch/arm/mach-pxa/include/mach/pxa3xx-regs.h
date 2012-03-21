@@ -56,6 +56,7 @@
 #define PWSR		__REG(0x40F50014)	/* Power Manager Wake-up Status Register */
 #define PECR		__REG(0x40F50018)	/* Power Manager EXT_WAKEUP[1:0] Control Register */
 #define OVH		__REG(0x40F50020)	/* Overheating Control Register */
+#define VLSCR		__REG(0x40F5005C)	/* Voltage Level Select Control Register */
 #define DCDCSR		__REG(0x40F50080)	/* DC-DC Controller Status Register */
 #define SDCR		__REG(0x40F5008C)	/* SRAM State-retentive Control Register */
 #define AVCR		__REG(0x40F50094)	/* VCC_MAIN Voltage Control Register */
@@ -74,6 +75,17 @@
 #define PSR_TSS_OFF	(12)
 #define OVH_TEMP_EN	(1 << 0)		/* Enable for Temperature Sensor */
 #ifdef CONFIG_CPU_PXA978
+#define VLSCR_VLT_LVL_SEL_EN	(1 << 8)
+#define VLSCR_LVL0_SINGLE_RAIL	(1 << 9)
+#define VLSCR_LVL1_SINGLE_RAIL	(1 << 10)
+#define VLSCR_LVL2_SINGLE_RAIL	(1 << 11)
+#define VLSCR_LVL3_SINGLE_RAIL	(1 << 12)
+#define VLSCR_LPM_SINGLE_RAIL	(1 << 13)
+#define VLSCR_VCT0_LVL0_REMAP_MASK	(3 << 16)
+#define VLSCR_VCT0_LVL1_REMAP_MASK	(3 << 18)
+#define VLSCR_VCT0_LVL2_REMAP_MASK	(3 << 20)
+#define VLSCR_VCT0_LVL3_REMAP_MASK	(3 << 22)
+
 #define OVH_OWM		(1 << 19)		/* Over-heating WDT Enable */
 #define OVH_OVWF_OFF	(10)			/* WDT Reset Temperature Over-heating Threshold */
 #else

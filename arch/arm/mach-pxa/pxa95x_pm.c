@@ -1241,7 +1241,14 @@ unsigned int get_sram_base(void)
 	return (unsigned int) pxa95x_pm_regs.sram_map;
 }
 
-
+#define VLSCR_D2_VALUE (VLSCR_LVL2_SINGLE_RAIL | VLSCR_LVL3_SINGLE_RAIL \
+		| VLSCR_LPM_SINGLE_RAIL)
+#define VLSCR_D1_VALUE (VLSCR_LVL2_SINGLE_RAIL | VLSCR_LVL3_SINGLE_RAIL)
+#define VLSCR_SINGLE_RAIL_MASK (VLSCR_LPM_SINGLE_RAIL \
+		| VLSCR_LVL1_SINGLE_RAIL | VLSCR_LVL2_SINGLE_RAIL \
+		| VLSCR_LVL3_SINGLE_RAIL | VLSCR_LVL0_SINGLE_RAIL \
+		| VLSCR_VCT0_LVL0_REMAP_MASK | VLSCR_VCT0_LVL1_REMAP_MASK \
+		| VLSCR_VCT0_LVL2_REMAP_MASK | VLSCR_VCT0_LVL3_REMAP_MASK)
 void enter_lowpower_mode(int state)
 {
 	unsigned int start_tick = 0, end_tick = 0;
@@ -1322,6 +1329,7 @@ void enter_lowpower_mode(int state)
 					pollreg = PWRMODE;
 				} while (pollreg != (PXA95x_PM_S0D1C2 | PXA95x_PM_I_Q_BIT));
 
+
 				pm_logger_app_add_trace(6, PM_D1_ENTRY, end_tick,
 						pollreg, CKENA, CKENB, CKENC,
 						get_mipi_reference_control(),
@@ -1329,6 +1337,12 @@ void enter_lowpower_mode(int state)
 
 				sram = (unsigned int)pxa95x_pm_regs.sram_map;
 				if (cpu_is_pxa978()) {
+					/* D1 is using dual rail mode */
+					unsigned int vlscr = VLSCR;
+					vlscr &= ~(VLSCR_SINGLE_RAIL_MASK);
+					vlscr |= (VLSCR_D1_VALUE);
+					VLSCR = vlscr;
+
 					ca9_enter_idle(pollreg, sram + 0x8000,
 							(u32)pl310_regs.memset);
 				} else {
@@ -1435,6 +1449,12 @@ void enter_lowpower_mode(int state)
 
 				sram = (unsigned int)pxa95x_pm_regs.sram_map;
 				if (cpu_is_pxa978()) { /*Nevo C0*/
+					/* D2 is using single rail mode */
+					unsigned int vlscr = VLSCR;
+					vlscr &= ~(VLSCR_SINGLE_RAIL_MASK);
+					vlscr |= (VLSCR_D2_VALUE);
+					VLSCR = vlscr;
+
 					ca9_enter_idle(pollreg, sram + 0x8000,
 							(u32)pl310_regs.memset);
 				} else {
