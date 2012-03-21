@@ -683,7 +683,8 @@ static int mk2_max77601_setup(struct max77601_chip *chip)
 	/* Set suspend voltage(DVSSD0) */
 	data = 0x20; /* 1.0V */
 	max77601_write(chip, MAX77601_VREG_DVSSD0, &data, 1);
-
+	/* Set VCC_CORE(SD0) work at forced PWM mode */
+	max77601_set_bits(chip, MAX77601_VREG_SD0_CFG, (1 << 2), (1 << 2));
 
 	return 0;
 };
