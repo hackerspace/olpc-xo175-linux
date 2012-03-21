@@ -864,21 +864,21 @@ int flip_buffer(struct fb_info *info, unsigned long arg)
 			fbi->surface.videoMode = -1;
 		}
 		ret = check_surface(info, &surface);
-		if (ret > 0) {
+		if (ret >= 0) {
 			pxa168fb_set_var(info, shadowreg, ret);
+			if (ret) {
+				/* we update immediately if only addr update */
+				if (shadowreg->flags == UPDATE_ADDR)
+					pxa168fb_set_regs(fbi, shadowreg);
 
-			/* If only address need update, we update immediately */
-			if (shadowreg->flags == UPDATE_ADDR)
-				pxa168fb_set_regs(fbi, shadowreg);
-
-			list_add_tail(&shadowreg_list->dma_queue,
-				&fbi->buf_waitlist.dma_queue);
-			ret = 0;
-		} else if (!ret)
-			/* enqueue the repeated buffer to freelist */
-			list_add_tail(&shadowreg_list->dma_queue,
-				&fbi->buf_freelist.dma_queue);
-		else {
+				list_add_tail(&shadowreg_list->dma_queue,
+					&fbi->buf_waitlist.dma_queue);
+				ret = 0;
+			} else
+				/* enqueue the repeated buffer to freelist */
+				list_add_tail(&shadowreg_list->dma_queue,
+					&fbi->buf_freelist.dma_queue);
+		} else {
 			pr_err("fbi %d (line %d): vid %d, check surface"
 				"return error\n", fbi->id, __LINE__, fbi->vid);
 			ret = -EFAULT;
@@ -894,11 +894,10 @@ int flip_buffer(struct fb_info *info, unsigned long arg)
 		}
 
 		ret = check_surface(info, &surface);
-		if (ret > 0) {
-			/* update other parameters other than buf addr */
+		if (ret >= 0) {
 			pxa168fb_set_var(info, shadowreg, ret);
 			ret = 0;
-		} else if (ret < 0) {
+		} else {
 			pr_err("fbi %d (line %d): vid %d, check surface"
 				"return error\n", fbi->id, __LINE__, fbi->vid);
 			kfree(shadowreg_list);
@@ -1353,9 +1352,9 @@ int pxa168fb_set_var(struct fb_info *info, struct regshadow *shadowreg,
 		set_screen(fbi, shadowreg);
 	if (flags & UPDATE_MODE)
 		set_dma_control0(fbi, shadowreg);
-	if (flags & UPDATE_ADDR)
-		set_start_address(info, info->var.xoffset,
-			info->var.yoffset, shadowreg);
+	/* buffer return to user in shadowreg_list->shadowreg */
+	set_start_address(info, info->var.xoffset,
+		info->var.yoffset, shadowreg);
 	shadowreg->flags = flags;
 	return 0;
 }
