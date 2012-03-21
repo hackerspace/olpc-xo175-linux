@@ -190,6 +190,13 @@ static int saarb_hdmi_startup(struct snd_pcm_substream * substream)
 	return 0;
 }
 
+static int saarb_hdmi_shutdown(struct snd_pcm_substream * substream)
+{
+	pxa95x_abu_mfp_init(true);
+	pr_info("[saarb_hdmi_shutdown]: switch to ABU\n");
+	return 0;
+}
+
 static struct snd_soc_ops saarb_i2s_ops = {
 	.hw_params	= saarb_i2s_hw_params,
 	.startup	= saarb_i2s_startup,
@@ -204,6 +211,7 @@ static struct snd_soc_ops saarb_pcm_ops = {
 static struct snd_soc_ops saarb_hdmi_ops = {
 	.hw_params	= saarb_hdmi_hw_params,
 	.startup	= saarb_hdmi_startup,
+	.shutdown	= saarb_hdmi_shutdown,
 };
 
 static struct snd_soc_dai_link saarb_dai[] = {
