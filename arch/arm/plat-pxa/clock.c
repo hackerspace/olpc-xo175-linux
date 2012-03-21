@@ -464,6 +464,9 @@ static int clk_debugfs_register_one(struct clk *c)
 	char s[255];
 	char *p = s;
 
+	if (!c->name) {
+		return -EINVAL;
+	}
 	p += sprintf(p, "%s", c->name);
 	d = debugfs_create_dir(s, pa ? pa->dent : clk_debugfs_root);
 	if (!d)
