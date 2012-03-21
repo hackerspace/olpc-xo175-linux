@@ -30,6 +30,7 @@ static int early_suspend_flag;
 static int late_disable_flag;
 enum connect_lock con_lock;
 static bool timer_inited = 0;
+static int si9226_suspend = 0;
 
 struct hdmi_instance {
 	struct timer_list jitter_timer;
@@ -62,6 +63,9 @@ static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 	switch (cmd) {
 	case HPD_PIN_READ:
 		val = sii9226_detect();
+		/* if enter suspend, always report as disconnected*/
+		if (si9226_suspend == 1)
+			val = 0;
 		if (copy_to_user(argp, &val, sizeof(int))) {
 			pr_err("%s: copy_to_user error !~!\n", __func__);
 			return -EFAULT;
@@ -110,9 +114,11 @@ static void hdmi_late_resume(struct early_suspend *h)
 static int hdmi_suspend(struct platform_device *pdev, pm_message_t mesg)
 {
 	struct hdmi_instance *hi = platform_get_drvdata(pdev);
+	sii9226_enable(0);
 	if (hi->hdmi_power)
 		hi->hdmi_power(0);
 	pdev->dev.power.power_state = mesg;
+	si9226_suspend = 1;
 
 	return 0;
 }
@@ -121,7 +127,9 @@ static int hdmi_resume(struct platform_device *pdev)
 {
 	struct hdmi_instance *hi = platform_get_drvdata(pdev);
 	if (hi->hdmi_power)
-		hi->hdmi_power(0);
+		hi->hdmi_power(1);
+	sii9226_enable(1);
+	si9226_suspend = 0;
 #if 0/*TODO*/
 
 	struct hdmi_instance *hi = platform_get_drvdata(pdev);
