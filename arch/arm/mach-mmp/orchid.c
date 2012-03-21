@@ -807,7 +807,7 @@ static u32 ft5306_get_virtual_key(u16 x_pos, u16 y_pos, u16 x_max, u16 y_max)
 		return ft5306_virtual_key_code[1];
 	else if ((7 * unit < x_pos) && (x_pos < 9 * unit))
 		return ft5306_virtual_key_code[2];
-	else if ((10 * unit < x_pos) && (x_pos < 12 * unit))
+	else if ((10 * unit < x_pos) && (x_pos < 13 * unit))
 		return ft5306_virtual_key_code[3];
 	else
 		return KEY_RESERVED;
