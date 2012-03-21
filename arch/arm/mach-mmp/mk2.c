@@ -1251,12 +1251,30 @@ static void __init mk2_init_headset(void)
 }
 #endif
 
+static int hdmi_power(int on)
+{
+	int hdmi_pwr_en = mfp_to_gpio(GPIO160_GPIO);
+
+	if (gpio_request(hdmi_pwr_en, "hdmi_pwr_en")) {
+		printk(KERN_ERR "Request GPIO failed, gpio: %d.\n", hdmi_pwr_en);
+		return -1;
+	}
+	if (on)
+		gpio_direction_output(hdmi_pwr_en, 1);
+	else
+		gpio_direction_output(hdmi_pwr_en, 0);
+	gpio_free(hdmi_pwr_en);
+	return 0;
+}
+
 #ifdef CONFIG_UIO_HDMI
 static struct uio_hdmi_platform_data mmp3_hdmi_info __initdata = {
 	.sspa_reg_base = 0xD42A0C00,
 	/* Fix me: gpio 59 lpm pull ? */
 	.gpio = mfp_to_gpio(GPIO59_HDMI_DET),
 	.edid_bus_num = 6,
+	.hdmi_v5p_power = &hdmi_power,
+	.hpd_val = 0,
 };
 #endif
 
@@ -1286,6 +1304,8 @@ static struct i2c_board_info mk2_twsi5_info[] = {
 #endif /* CONFIG_TOUCHSCREEN_EGALAX_I2C */
 };
 
+static struct i2c_board_info mk2_twsi6_info[] = {
+};
 static int gsensor_power_en(int onoff)
 {
 	int gsen_pwr_en = mfp_to_gpio(GPIO87_GPIO);
@@ -1298,21 +1318,6 @@ static int gsensor_power_en(int onoff)
 
 	printk( "G-sensor %s\r\n", onoff?"turn ON":"turn OFF");
 	gpio_free(gsen_pwr_en);
-	return 0;
-}
-
-static int hdmi_power_on(void)
-{
-	int hdmi_pwr_en = mfp_to_gpio(GPIO160_GPIO);
-
-	if (gpio_request(hdmi_pwr_en, "hdmi_pwr_en")){
-		printk(KERN_ERR "Request GPIO failed, gpio: %d.\n", hdmi_pwr_en);
-		return -1;
-	}
-	printk("%s: hdmi_pwr_en.\n", __FUNCTION__);
-	gpio_direction_output(hdmi_pwr_en, 1);    /* power on */
-
-	gpio_free(hdmi_pwr_en);
 	return 0;
 }
 
@@ -1341,10 +1346,9 @@ static void __init mk2_init(void)
 	mmp3_add_twsi(3, NULL, ARRAY_AND_SIZE(mk2_twsi3_info));
 	mmp3_add_twsi(5, NULL, ARRAY_AND_SIZE(mk2_twsi5_info));
 	/* for hdmi edid */
-	/* mmp3_add_twsi(6, NULL, ARRAY_AND_SIZE(mk2_twsi6_info));*/
+	mmp3_add_twsi(6, NULL, ARRAY_AND_SIZE(mk2_twsi6_info));
 
 	platform_device_register(&gpio_keys);
-	hdmi_power_on();
 
 	mmp3_add_videosram(&mmp3_videosram_info);
 #ifdef CONFIG_FB_PXA168
@@ -1353,7 +1357,7 @@ static void __init mk2_init(void)
 #endif
 
 #ifdef CONFIG_UIO_HDMI
-	/* mmp3_add_hdmi(&mmp3_hdmi_info); */
+	mmp3_add_hdmi(&mmp3_hdmi_info);
 #endif
 	/* backlight */
 	mmp3_add_pwm(3);
