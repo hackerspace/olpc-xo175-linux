@@ -228,7 +228,10 @@ static int pm80x_headset_switch_probe(struct platform_device *pdev)
 		pr_debug("Invalid pm80x platform data!\n");
 		return -EINVAL;
 	}
-
+	if (!pm80x_pdata->headset) {
+		dev_err(&pdev->dev, "No headset platform info!\n");
+		return -EINVAL;
+	}
 	if (pdata_headset == NULL || pdata_hook == NULL) {
 		pr_debug("Invalid gpio switch platform data!\n");
 		return -EBUSY;

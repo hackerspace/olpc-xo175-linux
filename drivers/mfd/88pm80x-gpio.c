@@ -64,6 +64,10 @@ static int pm80x_gpio_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
+	if (!pm80x_pdata->headset) {
+		dev_err(&pdev->dev, "No headset platform info!\n");
+		return -EINVAL;
+	}
 	irq_gpio04 = platform_get_irq(pdev, pm80x_pdata->headset->gpio);
 
 	if (irq_gpio04 < 0) {
