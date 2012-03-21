@@ -2340,28 +2340,28 @@ void lcdc_wait_for_vsync(u32 conv_id1, u32 conv_id2)
 {
 	u32 ret = 0;
 
-	if (conv_id1 && conv_id2 <= LCD_M2HDMI)
-		atomic_set(&pxa95xfb_conv[conv_id1].w_intr, 0);
+	if (conv_id1 && conv_id1 <= LCD_M2HDMI)
+		atomic_set(&pxa95xfb_conv[conv_id1 - 1].w_intr, 0);
 	else {
 		printk(KERN_ERR "warning %s: para error: conv_id: %d %d\n", __func__, conv_id1, conv_id2);
 		return;
 	}
 
 	if (conv_id2 && conv_id2 <= LCD_M2HDMI) {
-		atomic_set(&pxa95xfb_conv[conv_id2].w_intr, 0);
+		atomic_set(&pxa95xfb_conv[conv_id2 - 1].w_intr, 0);
 		ret = wait_event_interruptible_timeout(g_vsync_wq,
-			atomic_read(&pxa95xfb_conv[conv_id1].w_intr) && atomic_read(&pxa95xfb_conv[conv_id2].w_intr),
+			atomic_read(&pxa95xfb_conv[conv_id1 - 1].w_intr) && atomic_read(&pxa95xfb_conv[conv_id2 - 1].w_intr),
 			60 * HZ / 1000);
 	} else {
 		ret = wait_event_interruptible_timeout(g_vsync_wq,
-			atomic_read(&pxa95xfb_conv[conv_id1].w_intr),
+			atomic_read(&pxa95xfb_conv[conv_id1 - 1].w_intr),
 			60 * HZ / 1000);
 	}
 
 	if(!ret)
 		printk(KERN_ERR "warning %s: waiting vsync failed: conv_id: %d: %d %d: %d\n",
-			__func__, atomic_read(&pxa95xfb_conv[conv_id1].w_intr),
-			atomic_read(&pxa95xfb_conv[conv_id2].w_intr), conv_id1, conv_id2);
+			__func__, conv_id1, atomic_read(&pxa95xfb_conv[conv_id1 - 1].w_intr),
+			conv_id2, atomic_read(&pxa95xfb_conv[conv_id2 - 1].w_intr));
 	return;
 }
 
