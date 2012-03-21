@@ -19,6 +19,8 @@
 /* Clock Reset Control */
 #define APMU_CC_SP	APMU_REG(0x000)
 #define APMU_CC_PJ	APMU_REG(0x004)
+#define APMU_CC2_PJ	APMU_REG(0x150)
+#define APMU_CC3_PJ	APMU_REG(0x188)
 #define APMU_DM_CC_SP	APMU_REG(0x008)
 #define APMU_DM_CC_PJ	APMU_REG(0x00c)
 #define APMU_SP_IDLE_CFG	APMU_REG(0x014)
@@ -44,6 +46,7 @@
 #if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 #define APMU_SDH2	APMU_REG(0x0e8)
 #define APMU_SDH3	APMU_REG(0x0ec)
+#define APMU_SDH4	APMU_REG(0x15c)
 #elif defined(CONFIG_CPU_PXA910)
 #define APMU_SDH2	APMU_REG(0x0e0)
 #endif

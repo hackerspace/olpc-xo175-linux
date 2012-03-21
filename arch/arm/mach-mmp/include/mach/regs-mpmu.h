@@ -40,7 +40,13 @@
 #define MPMU_SD_ROT_WAKE_CLR	MPMU_REG(0x007c)
 #define MPMU_PLL2_CTRL1 MPMU_REG(0x0414)
 #define MPMU_PLL2_CTRL2 MPMU_REG(0x0418)
+
+#if defined(CONFIG_CPU_MMP3)
+#define MPMU_PLL1_CTRL  MPMU_REG(0x005c)    /* MMP3 PLL1 control reg */
+#else
 #define MPMU_PLL1_CTRL  MPMU_REG(0x0418)    /* MMP2 PLL1 control reg */
+#endif
+
 #define MPMU_TS		MPMU_REG(0x0080)
 #define MPMU_WDTPCR	MPMU_REG(0x0200)
 #define MPMU_APCR	MPMU_REG(0x1000)
