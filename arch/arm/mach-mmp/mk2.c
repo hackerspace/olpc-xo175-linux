@@ -502,11 +502,6 @@ static int motion_sensor_set_power(int on, const char *device_name)
 	int device_index = -1;
 	int gsen_pwr_en = mfp_to_gpio(GPIO87_GPIO);
 
-	/* GPIO power enable */
-	if (gpio_request(gsen_pwr_en, "GSENSOR Enable")) {
-		printk(KERN_INFO "gpio %d request failed\n", gsen_pwr_en);
-		return -1;
-	}
 #if defined(CONFIG_SENSORS_LSM303DLHC_ACC)
 	if (!strcmp(device_name, LSM303DLHC_ACC_DEV_NAME))
 		device_index = 0;
@@ -516,9 +511,15 @@ static int motion_sensor_set_power(int on, const char *device_name)
 		device_index = 1;
 #endif
 
-	if ((device_index >= 0) && (device_index <= 2)) {
+	if ((device_index >= 0) && (device_index <= 1)) {
+		/* GPIO power enable */
+		if (gpio_request(gsen_pwr_en, "GSENSOR Enable")) {
+			printk(KERN_INFO "gpio %d request failed\n", gsen_pwr_en);
+			return -1;
+		}
+
 		if (on && (!is_enabled[device_index])) {
-			pmic_2p8v_sens[device_index] = regulator_get(NULL, "pmic_2p8v_sens");
+			pmic_2p8v_sens[device_index] = regulator_get(NULL, "PMIC_V3_2V8");
 			if (IS_ERR(pmic_2p8v_sens[device_index])) {
 				pmic_2p8v_sens[device_index] = NULL;
 				return -ENODEV;
@@ -526,11 +527,9 @@ static int motion_sensor_set_power(int on, const char *device_name)
 				regulator_set_voltage(pmic_2p8v_sens[device_index], 2800000, 2800000);
 				regulator_enable(pmic_2p8v_sens[device_index]);
 				is_enabled[device_index] = 1;
-			}
 
-			gpio_direction_output(gsen_pwr_en, 1);
-			gpio_free(gsen_pwr_en);
-			/* printk( "LSM303 G-sensor/M-sensor power enable\r\n"); */
+				gpio_direction_output(gsen_pwr_en, 1);
+			}
 		}
 		if ((!on) && is_enabled[device_index]) {
 			regulator_disable(pmic_2p8v_sens[device_index]);
@@ -538,10 +537,10 @@ static int motion_sensor_set_power(int on, const char *device_name)
 			pmic_2p8v_sens[device_index] = NULL;
 			is_enabled[device_index] = 0;
 
-          gpio_direction_output(gsen_pwr_en, 0);
-	       gpio_free(gsen_pwr_en);
-			/* printk( "LSM303 G-sensor/M-sensor power disable\r\n"); */
+			gpio_direction_output(gsen_pwr_en, 0);
 		}
+
+		gpio_free(gsen_pwr_en);
 	} else
 		return -EPERM;
 	return 0;
@@ -586,7 +585,7 @@ static int cm3623_set_power(int on)
 	int changed = 0;
 
 	if (on && (!enabled)) {
-		pmic_2p8v_sens = regulator_get(NULL, "pmic_2p8v_sens");
+		pmic_2p8v_sens = regulator_get(NULL, "PMIC_V3_2V8"); /*Fix Me: conflict with schematics*/
 		if (IS_ERR(pmic_2p8v_sens)) {
 			pmic_2p8v_sens = NULL;
 			return -EIO;
