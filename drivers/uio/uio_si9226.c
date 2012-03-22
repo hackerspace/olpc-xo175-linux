@@ -73,9 +73,12 @@ static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 		break;
 	case HDMI_PLL_ENABLE:
 		/* Disable Lowpower mode */
-		dvfm_disable_op_name("156M", dvfm_dev_idx);
-		dvfm_disable_op_name("156M_HF", dvfm_dev_idx);
 		dvfm_disable_op_name("416M", dvfm_dev_idx);
+		dvfm_disable_op_name("416M_VGA", dvfm_dev_idx);
+		dvfm_disable_op_name("208M_HF", dvfm_dev_idx);
+		dvfm_disable_op_name("156M_HF", dvfm_dev_idx);
+		dvfm_disable_op_name("156M", dvfm_dev_idx);
+		msleep(100);
 		sii9226_enable(1);
 		printk("%s: enabled\n", __func__);
 		break;
@@ -83,6 +86,8 @@ static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 		/* Enable Lowpower mode */
 		dvfm_enable_op_name("156M", dvfm_dev_idx);
 		dvfm_enable_op_name("156M_HF", dvfm_dev_idx);
+		dvfm_enable_op_name("208M_HF", dvfm_dev_idx);
+		dvfm_enable_op_name("416M_VGA", dvfm_dev_idx);
 		dvfm_enable_op_name("416M", dvfm_dev_idx);
 		sii9226_enable(0);
 		printk("%s: disabled\n", __func__);

@@ -769,8 +769,8 @@ struct fb_videomode video_modes_truly1p3624[] = {
 
 struct fb_videomode video_modes_si9226[] = {
 	[0] = {
-		.pixclock       = 41701,
-		.refresh        = 50,
+		.pixclock       = 74170,
+		.refresh        = 60,
 		.xres           = 1280,
 		.yres           = 720,
 		.hsync_len      = 0x45, /*HSW*/
