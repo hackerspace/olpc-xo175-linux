@@ -458,7 +458,7 @@ struct regval_list yuv_1080P_tab[] = {
 
 struct regval_list yuv_5M_tab[] = {
 	{0x3035, 0x11}, /* 11 */
-	{0x3036, 0x4e}, /* 14fps */
+	{0x3036, 0x4e}, /* 14fps, 0x54 for 15fps, but axi must > = 168MHZ */
 	{0x3820, 0x40},
 	{0x3821, 0x06},
 	{0x3814, 0x11},
@@ -482,7 +482,12 @@ struct regval_list yuv_5M_tab[] = {
 	{0x5001, 0x83},
 	{0x4004, 0x06},
 	{0x4005, 0x1a},
-	{0x4837, 0x20}, /* 0a */
+	/*
+	 * 0x4837 is used to adjust mipi set time. It should be determined
+	 * by mipi clock. 0x0a and 0x20 are experienced value for TD current
+	 * settings.
+	 */
+	{0x4837, 0x0a},
 	{0x4713, 0x02},
 	{0x4407, 0x0c},
 	{0x460b, 0x37},
