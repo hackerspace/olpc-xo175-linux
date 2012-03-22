@@ -810,6 +810,13 @@ int pxa168_ovly_set_colorkeyalpha(struct pxa168_overlay *ovly)
 	writel(color_a->U_ColorAlpha, &regs->v_colorkey_u);
 	writel(color_a->V_ColorAlpha, &regs->v_colorkey_v);
 
+	if (ovly->fbuf.flags & V4L2_FBUF_FLAG_GLOBAL_ALPHA)
+		/* disable pix alpha mode because it was enabled by default */
+		dma_ctrl_set(ovly->id, 0, CFG_NOBLENDING_MASK,
+			CFG_NOBLENDING(1));
+	else
+		dma_ctrl_set(ovly->id, 0, CFG_NOBLENDING_MASK, 0);
+
 	if (ovly->id != 2) {
 		/* enable DMA colorkey on GRA/VID layer in panel/TV path */
 		x = readl(ovly->reg_base + LCD_TV_CTRL1);
@@ -1268,31 +1275,38 @@ static int vidioc_s_fmt_vid_overlay(struct file *file, void *fh,
 	}
 
 	if (ovly->trans_enabled) {
+		/* color key enabled */
 		ovly->win.chromakey = f->fmt.win.chromakey;
 		ovly->trans_key = ovly->win.chromakey;
 		ovly->ckey_alpha.Y_ColorAlpha = ovly->win.chromakey;
 		ovly->ckey_alpha.U_ColorAlpha = ovly->win.chromakey;
 		ovly->ckey_alpha.V_ColorAlpha = ovly->win.chromakey;
+		ovly->ckey_alpha.mode = FB_ENABLE_RGB_COLORKEY_MODE;
 	} else {
 		ovly->win.chromakey = 0;
 		ovly->trans_key = ovly->win.chromakey;
 		ovly->ckey_alpha.Y_ColorAlpha = 0;
 		ovly->ckey_alpha.U_ColorAlpha = 0;
 		ovly->ckey_alpha.V_ColorAlpha = 0;
-	}
-	if (ovly->alpha_enabled) {
-		ovly->win.global_alpha = f->fmt.win.global_alpha;
-		/*Fix me */
-		ovly->ckey_alpha.mode = FB_ENABLE_RGB_COLORKEY_MODE;
-		ovly->ckey_alpha.alphapath = FB_GRA_PATH_ALPHA;
-		ovly->ckey_alpha.config = ovly->win.global_alpha;
-	} else {
-		ovly->win.global_alpha = 255;
-		/*Fix me */
 		ovly->ckey_alpha.mode = FB_DISABLE_COLORKEY_MODE;
-		ovly->ckey_alpha.alphapath = FB_GRA_PATH_ALPHA;
-		ovly->ckey_alpha.config = ovly->win.global_alpha;
+	}
 
+	if (ovly->alpha_enabled) {
+		/* pixel alpha or config alpha enabled */
+		if (ovly->fbuf.flags & V4L2_FBUF_FLAG_GLOBAL_ALPHA) {
+			ovly->win.global_alpha = f->fmt.win.global_alpha;
+			ovly->ckey_alpha.config = ovly->win.global_alpha;
+			if (ovly->ckey_alpha.mode == FB_DISABLE_COLORKEY_MODE)
+				ovly->ckey_alpha.alphapath = FB_CONFIG_ALPHA;
+			else
+				ovly->ckey_alpha.alphapath = FB_GRA_PATH_ALPHA;
+		} else
+			/* pixel alpha enabled */
+			ovly->ckey_alpha.alphapath = FB_GRA_PATH_ALPHA;
+	} else {
+		ovly->win.global_alpha = 0xff;
+		ovly->ckey_alpha.config = ovly->win.global_alpha;
+		ovly->ckey_alpha.alphapath = FB_GRA_PATH_ALPHA;
 	}
 
 	pxa168_ovly_set_colorkeyalpha(ovly);
