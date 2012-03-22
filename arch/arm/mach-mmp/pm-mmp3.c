@@ -1608,7 +1608,6 @@ void mmp3_pm_update_dram_timing_table(int count, struct dmc_timing_entry *tab)
 }
 EXPORT_SYMBOL_GPL(mmp3_pm_update_dram_timing_table);
 
-
 /* Low Power IDLE related function */
 static inline void mmp3_mod_idle_config(struct mmp3_cpu_idle_config *cic,
 			u32 target_value) {
@@ -1627,6 +1626,7 @@ static inline void mmp3_mod_idle_config(struct mmp3_cpu_idle_config *cic,
 #define MMP3_PM_C2_L1_PWD 0x82000462
 #define MMP3_PM_C2_L1_RETENT_L2_PWD 0x800004a2
 #define MMP3_PM_C2_MPPD 0x72
+#define MMP3_PM_D2_L2_PWD 0x00000462
 
 void mmp3_pm_enter_idle(int cpu)
 {
@@ -1949,15 +1949,6 @@ static void program_dll_table_b0(unsigned int dmcu, unsigned int tabidx)
 	__raw_writel(mc_parctr, APMU_MC_PAR_CTRL);
 }
 
-static void mmp3_pm_c2_cfg(int cpu)
-{
-	struct mmp3_cpu_idle_config *cic;
-	int core_id = mmp3_smpid();
-
-	cic = &(mmp3_percpu[core_id].cic);
-	mmp3_mod_idle_config(cic, MMP3_PM_C2_L1_L2_PWD);
-}
-
 static u32 ccic, gc, vmeta, audio_clk, audio_dsa, isld, apcr;
 void mmp3_set_wakeup_src(void)
 {
@@ -1965,6 +1956,8 @@ void mmp3_set_wakeup_src(void)
 
 	/* enable wakeup 7 as wakeup input source */
 	val |= (1 << 7);
+	/* enable rtc as wakeup input source */
+	val |= ((1 << 17) | (1 << 4));
 	__raw_writel(val, MPMU_AWUCRM);
 }
 
@@ -2012,16 +2005,35 @@ static void d2(void)
 
 void mmp3_pm_enter_d2(void)
 {
+	struct mmp3_cpu_idle_config *cic;
+	int core_id = mmp3_smpid();
+	u32 the_value;
+
+	cic = &(mmp3_percpu[core_id].cic);
+
 	d2();
-	mmp3_pm_c2_cfg(smp_processor_id());
+	mmp3_mod_idle_config(cic, MMP3_PM_D2_L2_PWD);
+
+	/* d2 workaround: shut down AT clock by setting bit [31]
+	 * of PMUA_PJ_IDLE_CONFIG */
+	the_value = readl(cic->idle_config);
+	the_value &= ~(1 << 31);
+	writel(the_value, cic->idle_config);
+
 	mmp3_set_wakeup_src();
 
-	/* walk around: keep SL2 power on */
+	/* workaround: keep SL2 power on */
 	__raw_writel(__raw_readl(0xfe282a48) | (1 << 15), 0xfe282a48);
-	/* walk around: keep pclk on */
-	__raw_writel(__raw_readl(APMU_CC2_PJ) | (1u << 31), APMU_CC2_PJ);
+	/* d2 workaround: pclk off */
+	/* __raw_writel(__raw_readl(APMU_CC2_PJ) | (1u << 31), APMU_CC2_PJ); */
 
 	printk("before suspend\n");
+
+	/* d2 workaround: enable RTC & PMIC ICU wake up */
+	__raw_writel(0x2f, ICU1_REG(0x10));
+	__raw_writel(0x2f, ICU1_REG(0x14));
+
+
 	flush_cache_all();
 	dsb();
 	/* flush outer cache */
@@ -2029,11 +2041,15 @@ void mmp3_pm_enter_d2(void)
 	dsb();
 
 	__asm__ __volatile__ ("wfi");
+
+	__raw_writel(0x0, ICU1_REG(0x10));
+	__raw_writel(0x0, ICU1_REG(0x14));
+
 	printk("after resume\n");
 
-	/* walk around: shut pclk off to save power */
-	__raw_writel(__raw_readl(APMU_CC2_PJ) & ~(1u << 31), APMU_CC2_PJ);
-	/* walk around: clear SL2 power bit */
+	/* d2 workaround: no need to shut pclk off anymore */
+	/* __raw_writel(__raw_readl(APMU_CC2_PJ) & ~(1u << 31), APMU_CC2_PJ); */
+	/* workaround: clear SL2 power bit */
 	__raw_writel(__raw_readl(0xfe282a48) & ~(1 << 15), 0xfe282a48);
 
 	__raw_writel(apcr, MPMU_APCR);
@@ -2046,6 +2062,13 @@ void mmp3_pm_enter_d2(void)
 	__raw_writel(ccic, APMU_CCIC_RST);
 	__raw_writel(gc, APMU_GC);
 	__raw_writel(vmeta, APMU_VMETA);
+
+	/* re-enable AT clock */
+	the_value = readl(cic->idle_config);
+	the_value |= (1 << 31);
+	writel(the_value, cic->idle_config);
+
+	mmp3_mod_idle_config(cic, MMP3_PM_C1_INCG);
 }
 
 #ifdef CONFIG_SMP
