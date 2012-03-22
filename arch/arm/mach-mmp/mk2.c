@@ -102,9 +102,6 @@ static unsigned long mk2_pin_config[] __initdata = {
 	GPIO27_I2S_DATA_OUT,
 	GPIO28_I2S_SDATA_IN,
 
-	/* CM3623 INT */
-	GPIO138_GPIO | MFP_PULL_HIGH,
-
 	/* Camera */
 	GPIO67_GPIO,
 	GPIO73_CAM_MCLK,
@@ -123,32 +120,6 @@ static unsigned long mk2_pin_config[] __initdata = {
 	/* Gyroscope L3G4200D */
 	GPIO65_GPIO, /* GYRO_INT_1 */
 	GPIO66_GPIO, /* GYRO_INT_2 */
-
-	/* DFI */
-	GPIO168_DFI_D0,
-	GPIO167_DFI_D1,
-	GPIO166_DFI_D2,
-	GPIO165_DFI_D3,
-	GPIO107_DFI_D4,
-	GPIO106_DFI_D5,
-	GPIO105_DFI_D6,
-	GPIO104_DFI_D7,
-	GPIO111_DFI_D8,
-	GPIO164_DFI_D9,
-	GPIO163_DFI_D10,
-	GPIO162_DFI_D11,
-	GPIO161_DFI_D12,
-	GPIO110_DFI_D13,
-	GPIO109_DFI_D14,
-	GPIO108_DFI_D15,
-	GPIO143_ND_nCS0,
-	GPIO144_ND_nCS1,
-	GPIO147_ND_nWE,
-	GPIO148_ND_nRE,
-	GPIO150_ND_ALE,
-	GPIO149_ND_CLE,
-	GPIO112_ND_RDY0,
-	GPIO160_GPIO,
 
 	/* mk2 hp detect */
 	GPIO130_GPIO,
@@ -216,6 +187,8 @@ static unsigned long mmc1_pin_config[] __initdata = {
 	GPIO135_MMC1_CLK,
 	GPIO140_MMC1_CD | MFP_PULL_HIGH,
 	GPIO141_MMC1_WP | MFP_PULL_HIGH,
+	/* V_SD_EN */
+	GPIO138_GPIO | MFP_PULL_HIGH,
 };
 
 /* MMC2 is used for WIB card */
@@ -230,6 +203,10 @@ static unsigned long mmc2_pin_config[] __initdata = {
 	/* GPIO used for power */
 	GPIO58_GPIO, /* WIFI_RST_N */
 	GPIO57_GPIO, /* WIFI_PD_N */
+
+	/* GPIO for wake (not used) */
+	GPIO55_GPIO, /* WL_BT_WAKE */
+	GPIO56_GPIO, /* WLAN_WAKE */
 };
 static unsigned long mmc3_pin_config[] __initdata = {
 	GPIO108_MMC3_DAT7,
@@ -242,6 +219,8 @@ static unsigned long mmc3_pin_config[] __initdata = {
 	GPIO164_MMC3_DAT0,
 	GPIO145_MMC3_CMD,
 	GPIO146_MMC3_CLK,
+	/* MMC3_nRST */
+	GPIO149_GPIO | MFP_PULL_HIGH,
 };
 
 static struct sram_bank mmp3_audiosram_info = {
@@ -781,77 +760,48 @@ static struct platform_device mk2_lcd_backlight_devices = {
 };
 
 #ifdef CONFIG_MMC_SDHCI_PXAV3
-#include <linux/mmc/host.h>
-static void mk2_sd_signal_1v8(int set)
-{
-	static struct regulator *v_ldo_sd;
-	int vol;
-
-	v_ldo_sd = regulator_get(NULL, "pmic_sdmmc");
-	if (IS_ERR(v_ldo_sd)) {
-		printk(KERN_ERR "Failed to get pmic_sdmmc\n");
-		return;
-	}
-
-	vol = set ? 1800000 : 3000000;
-	regulator_set_voltage(v_ldo_sd, vol, vol);
-	regulator_enable(v_ldo_sd);
-
-	mmp3_io_domain_1v8(AIB_SDMMC_IO_REG, set);
-
-	msleep(10);
-	regulator_put(v_ldo_sd);
-}
-
 #ifdef CONFIG_SD8XXX_RFKILL
 static void mmp3_8787_set_power(unsigned int on)
 {
 	/*
-	 * FIXME: 32K_CLK is shared with pmic io interface power on B0 with max77601
-	 * Don't touch this domain. But can be controlled on B0 with Ustica, add
-	 * operation later for Ustica.
+	 * 1. WIFI_1V8 <-- PMIC_V2_1V8
+	 * this regulator is defined as alwasy on.
+	 * but the control code can still be put here.
+	 * 2. WIFI_3D3V <-- 3D3VS0
+	 * this power domain is supplied by kbc which can't be accessed here.
 	 */
-#if 0
-	static struct regulator *v_ldo17;
-	static int f_enabled = 0;
-	/* v_ldo17 1.2v for 32k clk pull up*/
-	if (on && (!f_enabled)) {
-		v_ldo17 = regulator_get(NULL, "v_ldo17");
-		if (IS_ERR(v_ldo17)) {
-			v_ldo17 = NULL;
-			printk(KERN_ERR"get v_ldo17 failed %s %d \n", __func__, __LINE__);
-		} else {
-			regulator_set_voltage(v_ldo17, 1200000, 1200000);
-			regulator_enable(v_ldo17);
-			f_enabled = 1;
+	static struct regulator *wifi_1v8;
+	if (!wifi_1v8) {
+		wifi_1v8 = regulator_get(NULL, "PMIC_V2_1V8");
+		if (IS_ERR(wifi_1v8)) {
+			wifi_1v8 = NULL;
+			printk(KERN_ERR"get wifi_1v8 failed %s %d \n", __func__, __LINE__);
+			return;
 		}
 	}
-
-	if (f_enabled && (!on)) {
-		if (v_ldo17) {
-			regulator_disable(v_ldo17);
-			regulator_put(v_ldo17);
-			v_ldo17 = NULL;
-		}
-		f_enabled = 0;
+	if (on) {
+		regulator_set_voltage(wifi_1v8, 1800000, 1800000);
+		regulator_enable(wifi_1v8);
+	} else {
+		regulator_disable(wifi_1v8);
 	}
-#endif
 }
 #endif
 
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc0 = {
 	.clk_delay_cycles	= 0x1F,
+	/*
+	 * All of sd power is supplied by PMIC_V3_2V8,
+	 * which is shared by many devices like emmc.
+	 * So it must be fixed at 2.8v and can not support
+	 * 1.8V signal function and uhs mode.
+	 */
 	.host_caps_disable	=
 			MMC_CAP_UHS_SDR12 |
 			MMC_CAP_UHS_SDR25 |
 			MMC_CAP_UHS_SDR104 |
 			MMC_CAP_UHS_SDR50 |
 			MMC_CAP_UHS_DDR50,
-	/*
-	  * FIXME: pmic_sdmmc is fixed 2.8V on B0 with max77601,
-	  * can not support 1.8V signal function
-	  */
-	/* .signal_1v8		= mk2_sd_signal_1v8, */
 };
 
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc1 = {
@@ -866,6 +816,8 @@ static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc2 = {
 
 static void __init mk2_init_mmc(void)
 {
+	int v_sd_en = mfp_to_gpio(GPIO138_GPIO);
+	int emmc_reset_n = mfp_to_gpio(GPIO149_GPIO);
 #ifdef CONFIG_SD8XXX_RFKILL
 	int WIB_PDn = mfp_to_gpio(GPIO57_GPIO);
 	int WIB_RESETn = mfp_to_gpio(GPIO58_GPIO);
@@ -873,9 +825,30 @@ static void __init mk2_init_mmc(void)
 			&mmp3_sdh_platdata_mmc1.pmmc, mmp3_8787_set_power);
 #endif
 	mfp_config(ARRAY_AND_SIZE(mmc3_pin_config));
+	/*
+	 * H/W reset function is temporarily disabled by default,
+	 * which can be written once by extended CSD register. (JESD84-A441)
+	 * Release emmc from reset anyway here.
+	 */
+	if (gpio_request(emmc_reset_n, "EMMC_RESET_N")) {
+		printk(KERN_ERR "Request GPIO failed, gpio: %d\n", emmc_reset_n);
+	} else {
+		gpio_direction_output(emmc_reset_n, 1);
+		gpio_free(emmc_reset_n);
+	}
 	mmp3_add_sdh(2, &mmp3_sdh_platdata_mmc2); /* eMMC */
 
 	mfp_config(ARRAY_AND_SIZE(mmc1_pin_config));
+	/*
+	 * The gpio v_sd_en control the vdd of card slot.
+	 * Enable it here.
+	 */
+	if (gpio_request(v_sd_en, "V_SD_EN")) {
+		printk(KERN_ERR "Request GPIO failed, gpio: %d\n", v_sd_en);
+	} else {
+		gpio_direction_output(v_sd_en, 1);
+		gpio_free(v_sd_en);
+	}
 	mmp3_add_sdh(0, &mmp3_sdh_platdata_mmc0); /* SD/MMC */
 
 	/* SDIO for WIFI card */
