@@ -163,6 +163,16 @@ config RTC_DRV_88PM80X
 	  This driver can also be built as a module. If so, the module
 	  will be called rtc-88pm80x.
 
+config RTC_DRV_MAX77601
+	tristate "Maxim MAX77601"
+	depends on RTC_CLASS && I2C && MFD_MAX77601
+	help
+	  If you say yes here you get support for RTC function in Maxim
+	  MAX77601 chips.
+
+	  This driver can also be built as a module. If so, the module
+	  will be called rtc-max77601.
+
 config RTC_DRV_DS1307
 	tristate "Dallas/Maxim DS1307/37/38/39/40, ST M41T00, EPSON RX-8025"
 	help

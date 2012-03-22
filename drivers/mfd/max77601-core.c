@@ -64,6 +64,23 @@ static struct mfd_cell onkey_devs[] = {
 	},
 };
 
+static struct resource rtc_resources[] = {
+	{
+		.name = "max77601-rtc",
+		.start = MAX77601_IRQTOP_RTC,
+		.end = MAX77601_IRQTOP_RTC,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct mfd_cell rtc_devs[] = {
+	{
+		.name = "max77601-rtc",
+		.num_resources = ARRAY_SIZE(rtc_resources),
+		.resources = &rtc_resources[0],
+		.id = -1,
+	},
+};
 
 struct max77601_irq_data {
 	int reg;
@@ -284,49 +301,58 @@ static int max77601_irq_init(struct max77601_chip *chip, int irq,
 	return ret;
 }
 
+static void max77601_irq_exit(struct max77601_chip *chip)
+{
+	if (chip->core_irq)
+		free_irq(chip->core_irq, chip);
+}
 
 int __devinit max77601_device_init(struct max77601_chip *chip,
 				   struct max77601_platform_data *pdata)
 {
-	int i, ret;
-
-	ret = max77601_irq_init(chip, chip->i2c->irq, pdata);
-	if (ret < 0) {
-		dev_err(chip->dev, "Failed to init irq!\n");
-		return ret;
+	int i, ret = 0;
+	if (!pdata) {
+		dev_err(chip->dev, "platform data is unavailable!\n");
+		return -EINVAL;
 	}
-
-	/* Regulator devices */
-	if (pdata) {
-		for (i = 0; i < ARRAY_SIZE(regulator_devs); i++) {
-			regulator_devs[i].platform_data =
-			    &pdata->regulator[i];
-			regulator_devs[i].pdata_size =
-			    sizeof(struct regulator_init_data);
-			ret =
-			    mfd_add_devices(chip->dev, 0,
-					    &regulator_devs[i], 1, NULL,
-					    0);
-			if (ret < 0) {
-				dev_err(chip->dev,
-					"Failed to init regulator %d!\n",
-					regulator_devs[i].id);
-				return ret;
-			}
+	/* IRQ init */
+	ret = max77601_irq_init(chip, chip->i2c->irq, pdata);
+	if (ret) {
+		dev_err(chip->dev, "Failed to init irq!\n");
+		goto err_irq_init;
+	}
+	/* Regulator device */
+	for (i = 0; i < ARRAY_SIZE(regulator_devs); i++) {
+		regulator_devs[i].platform_data = &pdata->regulator[i];
+		regulator_devs[i].pdata_size = sizeof(struct regulator_init_data);
+		ret = mfd_add_devices(chip->dev, 0, &regulator_devs[i], 1, NULL, 0);
+		if (ret) {
+			dev_err(chip->dev, "Failed to init regulator %d!\n", regulator_devs[i].id);
+			goto err_mfd_regulator;
 		}
 	}
-
-	/* onkey device */
+	/* Onkey device */
 	ret = mfd_add_devices(chip->dev, 0, &onkey_devs[0],
-		      ARRAY_SIZE(onkey_devs),
-		      &onkey_resources[0], 0);
-	if (ret < 0) {
+				ARRAY_SIZE(onkey_devs), &onkey_resources[0], 0);
+	if (ret) {
 		dev_err(chip->dev, "Failed to add onkey subdev\n");
-		return ret;
+		goto err_mfd_onkey;
 	}
-
 	/* RTC device */
+	ret = mfd_add_devices(chip->dev, 0, &rtc_devs[0],
+				ARRAY_SIZE(rtc_devs), &rtc_resources[0], chip->irq_base);
+	if (ret) {
+		dev_err(chip->dev, "Failed to add onkey subdev\n");
+		goto err_mfd_rtc;
+	}
+	return ret;
 
+err_mfd_rtc:
+err_mfd_onkey:
+err_mfd_regulator:
+	mfd_remove_devices(chip->dev);
+	max77601_irq_exit(chip);
+err_irq_init:
 	return ret;
 }
 
