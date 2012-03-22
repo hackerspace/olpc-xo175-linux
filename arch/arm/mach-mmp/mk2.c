@@ -771,6 +771,8 @@ static void mmp3_8787_set_power(unsigned int on)
 	 * this power domain is supplied by kbc which can't be accessed here.
 	 */
 	static struct regulator *wifi_1v8;
+	static int f_enabled = 0;
+
 	if (!wifi_1v8) {
 		wifi_1v8 = regulator_get(NULL, "PMIC_V2_1V8");
 		if (IS_ERR(wifi_1v8)) {
@@ -779,11 +781,14 @@ static void mmp3_8787_set_power(unsigned int on)
 			return;
 		}
 	}
-	if (on) {
+	if (on && (!f_enabled)) {
 		regulator_set_voltage(wifi_1v8, 1800000, 1800000);
 		regulator_enable(wifi_1v8);
-	} else {
+		f_enabled = 1;
+	}
+	if (f_enabled && (!on)) {
 		regulator_disable(wifi_1v8);
+		f_enabled = 0;
 	}
 }
 #endif
