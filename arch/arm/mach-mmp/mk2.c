@@ -1340,8 +1340,69 @@ static int wm8994_ldo_enable(void)
 	return 0;
 }
 
+extern int __raw_i2c_bus_reset(u8 bus_num);
+extern int __raw_i2c_write_reg(u8 bus_num, u8 addr, u8 reg, u8 val);
+extern int __raw_i2c_read_reg(u8 bus_num, u8 addr, u8 reg, u8 *buf, int len);
+static void max77601_system_restart(void)
+{
+	u8 data;
+
+	__raw_i2c_read_reg(1, 0x1c, MAX77601_ONOFFCNFG2, &data, 1);
+	data |= MAX77601_SFT_RST_WK;
+	__raw_i2c_write_reg(1, 0x1c, MAX77601_ONOFFCNFG2, data);
+
+	__raw_i2c_read_reg(1, 0x1c, MAX77601_ONOFFCNFG1, &data, 1);
+	data |= MAX77601_SFT_RST;
+	__raw_i2c_write_reg(1, 0x1c, MAX77601_ONOFFCNFG1, data);
+
+	mdelay(10);
+}
+
+static void max77601_power_off(void)
+{
+	u8 data;
+
+	__raw_i2c_read_reg(1, 0x1c, MAX77601_ONOFFCNFG2, &data, 1);
+	data &= ~MAX77601_SFT_RST_WK;
+	__raw_i2c_write_reg(1, 0x1c, MAX77601_ONOFFCNFG2, data);
+
+	__raw_i2c_read_reg(1, 0x1c, MAX77601_ONOFFCNFG1, &data, 1);
+	data |= MAX77601_SFT_RST;
+	__raw_i2c_write_reg(1, 0x1c, MAX77601_ONOFFCNFG1, data);
+
+	mdelay(10);
+}
+
+static int mk2_board_reset(char mode, const char *cmd)
+{
+	u8 kdata;
+	/* Reset TWSI1 unit firstly */
+	__raw_i2c_bus_reset(1);
+	/* Tell KBC this is reboot not power off */
+	__raw_i2c_read_reg(1, 0x15, 0x26, &kdata, 1);
+	kdata |= 0x01;
+	__raw_i2c_write_reg(1, 0x15, 0x26, kdata);
+	max77601_system_restart();
+	return 1;
+}
+
+static void mk2_power_off(void)
+{
+	u8 kdata;
+	/* Reset TWSI1 unit firstly */
+	__raw_i2c_bus_reset(1);
+	/* Tell KBC this is power off */
+	__raw_i2c_read_reg(1, 0x15, 0x26, &kdata, 1);
+	kdata &= ~0x01;
+	__raw_i2c_write_reg(1, 0x15, 0x26, kdata);
+	max77601_power_off();
+}
+
 static void __init mk2_init(void)
 {
+	extern int (*board_reset)(char mode, const char *cmd);
+	board_reset = mk2_board_reset;
+	pm_power_off = mk2_power_off;
 	mfp_config(ARRAY_AND_SIZE(mk2_pin_config));
 
 	/* on-chip devices */
