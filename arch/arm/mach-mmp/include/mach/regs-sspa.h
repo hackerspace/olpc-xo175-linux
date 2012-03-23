@@ -99,6 +99,7 @@
 #define SSPA_AUD_CTRL_SYSCLK_ENA		(1 << 0)
 
 /* SSPA Audio PLL Control 0 Register */
+#define SSPA_AUD_PLL_CTRL0_DIV_MCLK1(x) 	((x) << 31)
 #define SSPA_AUD_PLL_CTRL0_DIV_OCLK_MODULO(x)	((x) << 28)
 #define SSPA_AUD_PLL_CTRL0_FRACT(x)		((x) << 8)
 #define SSPA_AUD_PLL_CTRL0_ENA_DITHER		(1 << 7)
@@ -112,6 +113,11 @@
 #define SSPA_AUD_PLL_CTRL0_PU			(1 << 0)
 
 /* SSPA Audio PLL Control 1 Register */
+#define SSPA_AUD_PLL_CTRL1_EN_VCOX2_MMP3	(1 << 31)
+#define SSPA_AUD_PLL_CTRL1_DIV_MCLK_MSB2(x)	((x) << 29)
+#define SSPA_AUD_PLL_CTRL1_DIV_FBCCLK_MSB(x)	((x) << 25)
+#define SSPA_AUD_PLL_CTRL1_SEL_FAST_CLK 	(1 << 24)
+/* this bit is only for MMP2, MMP3 use EN_VCXO2_MMP3 */
 #define SSPA_AUD_PLL_CTRL1_EN_VCOX2		(1 << 17)
 #define SSPA_AUD_PLL_CTRL1_PLL_LOCK		(1 << 16)
 #define SSPA_AUD_PLL_CTRL1_CLK_SEL_AUDIO_PLL	(1 << 11)

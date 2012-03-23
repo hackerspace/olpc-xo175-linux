@@ -81,25 +81,29 @@ struct pll_set {
 
 static struct pll_set audio_pll_set[] = {
 /* in out mclk fbcclk fract postdiv modulo pattern */
-{26000000, 147456000, 0, 1, 0x00da1,  1, 0, 0},
-{26000000,  36864000, 0, 1, 0x00da1,  4, 0, 0},
-{26000000,  24576000, 0, 1, 0x00da1,  6, 1, 1},
-{26000000,  18432000, 0, 1, 0x00da1,  8, 1, 0},
-{26000000,  16384000, 0, 1, 0x00da1,  9, 1, 2},
-{26000000,  12288000, 0, 1, 0x00da1, 12, 2, 1},
-{26000000,   9216000, 0, 1, 0x00da1, 16, 2, 0},
-{26000000,   8192000, 0, 1, 0x00da1, 18, 2, 2},
-{26000000,   6144000, 0, 1, 0x00da1, 24, 4, 1},
-{26000000,   4096000, 0, 1, 0x00da1, 36, 4, 2},
-{26000000,   3072000, 0, 1, 0x00da1, 48, 6, 1},
-{26000000,   2048000, 0, 1, 0x00da1, 72, 6, 2},
-{26000000, 135475200, 0, 0, 0x08a18,  1, 0, 0},
-{26000000,  33868800, 0, 0, 0x08a18,  4, 0, 0},
-{26000000,  22579200, 0, 0, 0x08a18,  6, 1, 1},
-{26000000,  16934400, 0, 0, 0x08a18,  8, 1, 0},
-{26000000,  11289600, 0, 0, 0x08a18, 12, 2, 1},
-{26000000,   8467200, 0, 0, 0x08a18, 16, 2, 0},
-{26000000,   5644800, 0, 0, 0x08a18, 24, 4, 1},
+{26000000, 147456000, 6, 34, 0x00da1,  1, 3, 0},
+{26000000,  36864000, 6, 34, 0x00da1,  4, 0, 0},
+{26000000,  24576000, 6, 34, 0x00da1,  6, 1, 1},
+{26000000,  18432000, 6, 34, 0x00da1,  8, 1, 0},
+{26000000,  16384000, 6, 34, 0x00da1,  9, 1, 2},
+{26000000,  12288000, 6, 34, 0x00da1, 12, 2, 1},
+{26000000,   9216000, 6, 34, 0x00da1, 16, 2, 0},
+{26000000,   8192000, 6, 34, 0x00da1, 18, 2, 2},
+{26000000,   6144000, 6, 34, 0x00da1, 24, 4, 1},
+{26000000,   4096000, 6, 34, 0x00da1, 36, 4, 2},
+{26000000,   3072000, 6, 34, 0x00da1, 48, 6, 1},
+{26000000,   2048000, 6, 34, 0x00da1, 72, 6, 2},
+{26000000, 135475200, 6, 31, 0x08a18,  1, 3, 0},
+{26000000,  33868800, 6, 31, 0x08a18,  4, 0, 0},
+{26000000,  22579200, 6, 31, 0x08a18,  6, 1, 1},
+{26000000,  16934400, 6, 31, 0x08a18,  8, 1, 0},
+{26000000,  11289600, 6, 31, 0x08a18, 12, 2, 1},
+{26000000,   8467200, 6, 31, 0x08a18, 16, 2, 0},
+{26000000,   5644800, 6, 31, 0x08a18, 24, 4, 1},
+{26000000, 104000000, 8, 32,     0x0,  1, 3, 0},
+{26000000,  52000000, 8, 32,     0x0,  2, 5, 0},
+{26000000,  26000000, 8, 32,     0x0,  4, 0, 0},
+{26000000,  13000000, 8, 32,     0x0,  8, 1, 0},
 };
 
 static struct mmp2_adma_params mmp2_pcm_adma_params[] = {
@@ -477,22 +481,21 @@ static int mmp2_sspa_set_dai_pll(struct snd_soc_dai *cpu_dai, int pll_id,
 		if (i == ARRAY_SIZE(audio_pll_set))
 			return -EINVAL;
 
-		val = SSPA_AUD_PLL_CTRL1_CLK_SEL_AUDIO_PLL |
+		val = SSPA_AUD_PLL_CTRL1_DIV_MCLK_MSB2(((set->mclk) & 0xc) >> 2) |
+		      SSPA_AUD_PLL_CTRL1_DIV_FBCCLK_MSB(((set->fbcclk) & 0x3c) >> 2) |
+		      SSPA_AUD_PLL_CTRL1_CLK_SEL_AUDIO_PLL |
 		      SSPA_AUD_PLL_CTRL1_PLL_LOCK |
 		      SSPA_AUD_PLL_CTRL1_DIV_OCLK_PATTERN(set->oclk_pattern);
 		__raw_writel(val, SSPA_AUD_PLL_CTRL1);
 
-		val = SSPA_AUD_PLL_CTRL0_DIV_OCLK_MODULO(set->oclk_modulo) |
+		val = SSPA_AUD_PLL_CTRL0_DIV_MCLK1(((set->mclk) & 0x2) >> 1) |
+		      SSPA_AUD_PLL_CTRL0_DIV_OCLK_MODULO(set->oclk_modulo) |
 		      SSPA_AUD_PLL_CTRL0_FRACT(set->fract) |
 		      SSPA_AUD_PLL_CTRL0_ENA_DITHER |
-		      SSPA_AUD_PLL_CTRL0_DIV_FBCCLK(set->fbcclk) |
-		      SSPA_AUD_PLL_CTRL0_DIV_MCLK(set->mclk) |
+		      SSPA_AUD_PLL_CTRL0_DIV_FBCCLK((set->fbcclk) & 0x3) |
+		      SSPA_AUD_PLL_CTRL0_DIV_MCLK((set->mclk) & 0x1) |
 		      SSPA_AUD_PLL_CTRL0_PU;
-#ifdef CONFIG_CPU_MMP3
-		/* on MMP3 SPEC, AUD_CTRL0[31] is MCLK_DIV[1], need to
-		 * enable this bit to get the correct bit clock */
-		val |= (1 << 31);
-#endif
+
 		__raw_writel(val, SSPA_AUD_PLL_CTRL0);
 
 		val = __raw_readl(SSPA_AUD_CTRL);
