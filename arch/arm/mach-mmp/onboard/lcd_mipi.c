@@ -55,7 +55,7 @@ static struct fb_videomode video_modes_orchid[] = {
 		.vsync_len = 2,
 		.upper_margin = 32,
 		.lower_margin = 32,
-		.sync = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
+		.sync = FB_SYNC_HOR_HIGH_ACT,
 		},
 };
 
