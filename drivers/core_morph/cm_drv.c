@@ -300,10 +300,7 @@ static struct notifier_block cm_cpufreq_notifier_block = {
 static int __cpuinit cm_cpu_callback(struct notifier_block *nfb,
 					unsigned long action, void *hcpu)
 {
-	unsigned int cpu = (unsigned long)hcpu;
 	unsigned long khz_curr;
-	int core_id;
-	unsigned long flags;
 
 	switch (action) {
 	case CPU_UP_PREPARE:
