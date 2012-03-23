@@ -613,12 +613,12 @@ static ssize_t mmp3_sysset_read(struct device *dev, struct device_attribute *att
 	/* ddr interleave */
 	inter = ddr_interleave_get();
 
-	len = sprintf(buf, "PLL1[%d], PLL2[%d], PLL3[%d], PLL1_P[%d]\n"
-			"PLL2_P[%d], MP1[%d], MP2[%d], MM[%d], DDR1[%d]\n"
-			"DDR2[%d], AXI1[%d], AXI2[%d], GC2000[%d]\n"
-			"GC300[%d], GC_BUS[%d], VMETA[%d], VMETA_BUS[%d]\n"
-			"ISP[%d], SDH1[%d], SDH2[%d], SDH3[%d], SDH4[%d]\n"
-			"SDH5[%d], CCIC[%d], CCIC2[%d], DDR_INTERLEAVE[%s]\n",
+	len = sprintf(buf, "\nPLL1[%d], PLL2[%d], PLL3[%d], PLL1_P[%d], "
+			"PLL2_P[%d]\n\nMP1[%d], MP2[%d], MM[%d]\n\nDDR1[%d], "
+			"DDR2[%d]\n\nAXI1[%d], AXI2[%d]\n\nGC2000[%d], "
+			"GC300[%d], GC_BUS[%d]\n\nVMETA[%d], VMETA_BUS[%d]\n\n"
+			"ISP[%d]\n\nSDH1[%d], SDH2[%d], SDH3[%d], SDH4[%d], "
+			"SDH5[%d]\n\nCCIC[%d], CCIC2[%d]\n\nDDR_INTERLEAVE[%s]\n\n",
 			pll1, pll2, pll3, pll1_p, pll2_p,
 			mp1_clk, mp2_clk, mm_clk, ddr1_clk, ddr2_clk,
 			axi1_clk, axi2_clk, gc2000_clk, gc300_clk, gc_bus,
