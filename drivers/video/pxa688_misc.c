@@ -797,6 +797,103 @@ dump:
 	return 0;
 }
 
+static void dither_dump(struct pxa168fb_info *fbi)
+{
+	u32 base = (u32)fbi->reg_base;
+	u32 mask = readl(base + LCD_DITHER_CTRL);
+	int enabled, mode, table;
+
+	enabled = mask & (fbi->id ? DITHER_EN2 : DITHER_EN1);
+	if (!enabled)
+		pr_info("fbi%d dither was disabled\n", fbi->id);
+	else {
+		mode = mask & (fbi->id ? DITHER_MODE2(7) : DITHER_MODE1(7));
+		mode = mode >> (fbi->id ? DITHER_MODE2_SHIFT :
+			DITHER_MODE1_SHIFT);
+		table = mask & (fbi->id ? DITHER_4X8_EN2 : DITHER_4X8_EN1);
+		table = table >> (fbi->id ? DITHER_4X8_EN2_SHIFT :
+			DITHER_4X8_EN1_SHIFT);
+
+		pr_info("fbi%d dither mode:%d, table:%d\n",
+			fbi->id, mode, table);
+		mask &= ~DITHER_TBL_INDEX_SEL(3);
+		if (!table) {
+			writel(mask, base + LCD_DITHER_CTRL);
+			pr_info("4x4table index0:%x",
+				readl(base + LCD_DITHER_TBL_DATA));
+			writel(mask | DITHER_TBL_INDEX_SEL(1),
+				base + LCD_DITHER_CTRL);
+			pr_info("4x4table index1:%x",
+				readl(base + LCD_DITHER_TBL_DATA));
+		} else {
+			writel(mask, base + LCD_DITHER_CTRL);
+			pr_info("4x8table index0:%x",
+				readl(base + LCD_DITHER_TBL_DATA));
+			writel(mask | DITHER_TBL_INDEX_SEL(1),
+				base + LCD_DITHER_CTRL);
+			pr_info("4x8table index1:%x",
+				readl(base + LCD_DITHER_TBL_DATA));
+			writel(mask | DITHER_TBL_INDEX_SEL(2),
+				base + LCD_DITHER_CTRL);
+			pr_info("4x8table index2:%x",
+				readl(base + LCD_DITHER_TBL_DATA));
+			writel(mask | DITHER_TBL_INDEX_SEL(3),
+				base + LCD_DITHER_CTRL);
+			pr_info("4x8table index3:%x",
+				readl(base + LCD_DITHER_TBL_DATA));
+		}
+	}
+}
+
+void dither_set(struct pxa168fb_info *fbi, int table, int mode, int enable)
+{
+	u32 base = (u32)fbi->reg_base;
+	u32 mask = readl(base + LCD_DITHER_CTRL);
+
+	if (fbi->id && fbi->id != 2) {
+		pr_err("%s fbi:%d dither not support\n", __func__, fbi->id);
+		return;
+	}
+
+	if (!enable) {
+		mask &= ~(fbi->id ? DITHER_EN2 : DITHER_EN1);
+		writel(mask, base + LCD_DITHER_CTRL);
+		goto dump;
+	}
+
+	if (!fbi->id) {
+		mask = table ? DITHER_4X8_EN1 : 0;
+		mask |= DITHER_MODE1(mode);
+		mask |= DITHER_EN1;
+	} else {
+		mask = table ? DITHER_4X8_EN2 : 0;
+		mask |= DITHER_MODE2(mode);
+		mask |= DITHER_EN2;
+	}
+
+	if (!table) {
+		/* 4X4 table */
+		writel(mask, base + LCD_DITHER_CTRL);
+		writel(DITHER_TB_4X4_INDEX0, base + LCD_DITHER_TBL_DATA);
+		writel(mask | DITHER_TBL_INDEX_SEL(1), base + LCD_DITHER_CTRL);
+		writel(DITHER_TB_4X4_INDEX1, base + LCD_DITHER_TBL_DATA);
+	} else {
+		/* 4X8 table */
+		writel(mask, base + LCD_DITHER_CTRL);
+		writel(DITHER_TB_4X8_INDEX0, base + LCD_DITHER_TBL_DATA);
+		writel(mask | DITHER_TBL_INDEX_SEL(1), base + LCD_DITHER_CTRL);
+		writel(DITHER_TB_4X8_INDEX1, base + LCD_DITHER_TBL_DATA);
+		writel(mask | DITHER_TBL_INDEX_SEL(2), base + LCD_DITHER_CTRL);
+		writel(DITHER_TB_4X8_INDEX2, base + LCD_DITHER_TBL_DATA);
+		writel(mask | DITHER_TBL_INDEX_SEL(3), base + LCD_DITHER_CTRL);
+		writel(DITHER_TB_4X8_INDEX3, base + LCD_DITHER_TBL_DATA);
+	}
+
+dump:
+	if (debug)
+		dither_dump(fbi);
+}
+
 static ssize_t misc_help(char *buf)
 {
 	int s = 0, f = DUMP_SPRINTF;
@@ -825,6 +922,9 @@ static ssize_t misc_help(char *buf)
 			"  with RGB565 format [color]\n");
 	mvdisp_dump(f, "\techo p [h_start] [v_start] [h_end] [v_end]"
 			" [color] > misc\n");
+	mvdisp_dump(f, " - dither setting\n");
+	mvdisp_dump(f, "\techo i [4x4/4x8 table: 0/1]"
+		" [RBG444/RGB565/RGB666 mode: 0/1/2] [en/dis:1/0] > misc\n");
 
 	return s;
 }
@@ -880,7 +980,7 @@ ssize_t misc_store(
 	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
 	struct mvdisp_partdisp grap;
 	char vol[30];
-	int tmp;
+	int tmp, table, mode, enable;
 
 	if (size > 30) {
 		pr_err("%s size = %d > max 30 chars\n", __func__, size);
@@ -956,6 +1056,15 @@ ssize_t misc_store(
 			}
 		}
 		pr_info("lcd_part_disp\n");
+	} else if ('i' == buf[0]) {
+		memcpy(vol, (void *)((u32)buf + 1), size - 1);
+		if (sscanf(vol, "%u %u %u", &table, &mode, &enable) != 3) {
+			pr_err("dithering cmd should be:"
+				"i table mode enable\n");
+			return size;
+		}
+		dither_set(fbi, table, mode, enable);
+		pr_info("dither setting\n");
 	} else
 		pr_err("%s unknown command %s\n", __func__, buf);
 

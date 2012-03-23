@@ -1872,6 +1872,9 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	pxa168fb_set_default(fbi, mi);	/* FIXME */
 	pxa168fb_set_par(info);
 
+	if (mi->dither_en)
+		dither_set(fbi, mi->dither_table, mi->dither_mode, 1);
+
 	/* Allocate color map */
 	if (fb_alloc_cmap(&info->cmap, 256, 0) < 0) {
 		ret = -ENOMEM;

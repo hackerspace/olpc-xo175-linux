@@ -337,6 +337,19 @@ struct pxa168fb_mach_info {
 	unsigned	active:1;
 	unsigned	enable_lcd:1;
 	unsigned	mmap:1;
+
+	/*
+	 * dither option
+	 */
+	unsigned	dither_en:1;
+#define DITHER_TBL_4X4	0
+#define DITHER_TBL_4X8	1
+	unsigned	dither_table:1;
+#define DITHER_MODE_RBG444	0
+#define DITHER_MODE_RGB565	1
+#define DITHER_MODE_RGB666	2
+	unsigned	dither_mode:2;
+
 	/*
 	 * SPI control
 	 */
@@ -507,6 +520,8 @@ extern int pxa688fb_partdisp_set(struct mvdisp_partdisp grap);
 extern void pxa688fb_partdisp_update(int id);
 extern int gamma_set(int path, int flag, char *gamma_table);
 extern void gamma_dump(int path, int lines);
+extern void dither_set(struct pxa168fb_info *fbi,
+	int table, int mode, int enable);
 #else
 static inline int pxa688fb_vsmooth_set(int id, int vid, int en)
 {
@@ -519,6 +534,7 @@ static inline int pxa688fb_partdisp_set(struct mvdisp_partdisp grap)
 static inline void pxa688fb_partdisp_update(int id) { }
 #define gamma_set(path, flag, gamma_table)		do {} while (0)
 #define gamma_dump(path, lines)				do {} while(0)
+#define dither_set(fbi, table, mode, enable)	do {} while (0)
 #endif
 
 #endif /* __KERNEL__ */

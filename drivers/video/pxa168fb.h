@@ -150,6 +150,29 @@ struct lcd_regs {
 /* 32 bit TV Path Cloc	Divider  */
 #define LCD_TCLK_DIV					(0x009C)
 
+/* dither configure */
+#define LCD_DITHER_CTRL				(0x00A0)
+#define DITHER_TBL_INDEX_SEL(s)		((s) << 16)
+#define DITHER_MODE2(m)				((m) << 12)
+#define DITHER_MODE2_SHIFT			(12)
+#define DITHER_4X8_EN2				(1 << 9)
+#define DITHER_4X8_EN2_SHIFT		(9)
+#define DITHER_EN2					(1 << 8)
+#define DITHER_MODE1(m)				((m) << 4)
+#define DITHER_MODE1_SHIFT			(4)
+#define DITHER_4X8_EN1				(1 << 1)
+#define DITHER_4X8_EN1_SHIFT		(1)
+#define DITHER_EN1					(1)
+
+/* dither table data was fixed by video bpp of input and output*/
+#define DITHER_TB_4X4_INDEX0		(0x3b19f7d5)
+#define DITHER_TB_4X4_INDEX1		(0x082ac4e6)
+#define DITHER_TB_4X8_INDEX0		(0xf7d508e6)
+#define DITHER_TB_4X8_INDEX1		(0x3b194c2a)
+#define DITHER_TB_4X8_INDEX2		(0xc4e6d5f7)
+#define DITHER_TB_4X8_INDEX3		(0x082a193b)
+#define LCD_DITHER_TBL_DATA		(0x00A4)
+
 /* Video Frame 0&1 start address registers */
 #define	LCD_SPU_DMA_START_ADDR_Y0	0x00C0
 #define	LCD_SPU_DMA_START_ADDR_U0	0x00C4
