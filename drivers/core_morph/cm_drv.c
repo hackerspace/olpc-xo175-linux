@@ -31,9 +31,10 @@
 #include <asm/irq.h>
 #include <asm/io.h>
 #include <mach/mmp3_pm.h>
+#include <mach/mmp_cm.h>
 
-#define CM_CPU_MP1	0
-#define CM_CPU_MM	1
+#define CM_CPU_MP1	MMP_CM_CPU_ID_MP1
+#define CM_CPU_MM	MMP_CM_CPU_ID_MM
 
 #define CMD_QUERY_CORE_ID	0
 #define CMD_SWAP_CORES		1
@@ -48,7 +49,6 @@ __asm__ __volatile__ (			\
 
 /* core morphing api */
 extern int cm_do_swap(void);
-extern int cm_get_active_core_id(void);
 extern unsigned int get_reg(int);
 
 static struct task_struct *cm_task;
@@ -163,7 +163,8 @@ static int swap_show(struct device *dev, struct device_attribute *attr, char *bu
 	if (core_id < 0)
 		len = sprintf(buf, "get wrong core id %d\n", core_id);
 	else
-		len = sprintf(buf, "current core id is %d\n", core_id);
+		len = sprintf(buf, "active core id is: sw%d:hw%d:cm%x\n",
+			core_id, hard_smp_processor_id(), readl(MMP_CM_REG));
 
 	return len;
 }

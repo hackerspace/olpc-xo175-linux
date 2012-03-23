@@ -21,8 +21,8 @@
 #include <linux/err.h>
 #include <linux/slab.h>
 #include <linux/clocksource.h>
-#include <plat/clock.h>
 #include <linux/time.h>
+#include <plat/clock.h>
 #include <asm/mach/map.h>
 #include <asm/proc-fns.h>
 #include <asm/cacheflush.h>
@@ -38,9 +38,24 @@
 #endif
 #include <mach/mmp3_pm.h>
 #include <mach/smp.h>
+#include <mach/mmp_cm.h>
 
 static inline int mmp3_smpid(void)
 {
+#ifdef CONFIG_CORE_MORPHING
+	/*
+	 * after set morph bit, mm core will return back core id
+	 * is 0 from CP15 CPUID register; so need check core
+	 * morphing's module and get the active id number.
+	 *
+	 * if core is mm core, the need force to return core id = 2.
+	 * so idle functions can set idle_cfg and cc4 registers for
+	 * mm core correctly.
+	 */
+	if (cm_get_active_core_id() == MMP_CM_CPU_ID_MM)
+		return 2;
+#endif
+
 	return hard_smp_processor_id();
 }
 
