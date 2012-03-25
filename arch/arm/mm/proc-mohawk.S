@@ -96,16 +96,6 @@ ENTRY(cpu_mohawk_do_idle)
 	mov	pc, lr
 
 /*
- *	flush_icache_all()
- *
- *	Flush the whole I-cache.
- */
-ENTRY(mohawk_flush_icache_all)
-	mcr	p15, 0, ip, c7, c5, 0		@ invalidate I cache
-	mcr	p15, 0, ip, c7, c10, 0		@ drain write buffer
-	mov	pc, lr
-
-/*
  *	flush_user_cache_all()
  *
  *	Clean and invalidate all cache entries in a particular
@@ -302,7 +292,6 @@ ENTRY(mohawk_dma_unmap_area)
 ENDPROC(mohawk_dma_unmap_area)
 
 ENTRY(mohawk_cache_fns)
-	.long	mohawk_flush_icache_all
 	.long	mohawk_flush_kern_cache_all
 	.long	mohawk_flush_user_cache_all
 	.long	mohawk_flush_user_cache_range
