@@ -631,11 +631,11 @@ static int mmp3asoc_hdmi_hw_params(struct snd_pcm_substream *substream,
 	default:
 		break;
 	}
-/*
+
 	snd_soc_dai_set_pll(cpu_dai, SSPA_AUDIO_PLL, 0, freq_in, freq_out);
 	snd_soc_dai_set_clkdiv(cpu_dai, 0, sspa_div);
 	snd_soc_dai_set_sysclk(cpu_dai, 0, sysclk, 0);
-*/
+
 	return 0;
 }
 static int mmp3asoc_wm8994_startup(struct snd_pcm_substream *substream)
@@ -723,11 +723,11 @@ static int mmp3asoc_wm8994_hw_params(struct snd_pcm_substream *substream,
 	default:
 		break;
 	}
-/*
+
 	snd_soc_dai_set_pll(cpu_dai, SSPA_AUDIO_PLL, 0, freq_in, freq_out);
 	snd_soc_dai_set_clkdiv(cpu_dai, 0, sspa_div);
 	snd_soc_dai_set_sysclk(cpu_dai, 0, sysclk, 0);
-*/
+
 	/* set wm8994 sysclk */
 	snd_soc_dai_set_sysclk(codec_dai, WM8994_SYSCLK_MCLK1, sysclk, 0);
 
