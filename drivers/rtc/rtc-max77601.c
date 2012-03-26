@@ -30,14 +30,6 @@ enum {
 	RTC_BYTE_CNT
 };
 
-enum {
-	MAX77601_RTCINT_RTC60S = 0,
-	MAX77601_RTCINT_RTCA1,
-	MAX77601_RTCINT_RTCA2,
-	MAX77601_RTCINT_SMPL,
-	MAX77601_RTCINT_RTC1S,
-};
-
 struct max77601_rtc_info {
 	struct device *dev;
 	struct i2c_client *i2c;
@@ -142,7 +134,7 @@ static int max77601_rtc_set_bits(struct max77601_rtc_info *info,
 	return ret;
 }
 
-/* Register value to rtc time */
+/* Convert register value to rtc time */
 static int max77601_rtc_reg_to_tm(u8 *reg, struct rtc_time *tm)
 {
 	u8 wkday = reg[RTC_WEEKDAY] & 0x7F;	/* 6:0 */
@@ -167,10 +159,11 @@ static int max77601_rtc_reg_to_tm(u8 *reg, struct rtc_time *tm)
 	return 0;
 }
 
-/* RTC time to register value */
+/* Convert rtc time to register value */
 static int max77601_rtc_tm_to_reg(struct rtc_time *tm, u8 *reg, int alarm)
 {
 	u8 alarm_bit = alarm ? 0x80 : 0x00;
+	unsigned long time, days;
 
 	reg[RTC_YEAR] = (tm->tm_year - MAX77601_YEAR_BASE) | alarm_bit;
 	reg[RTC_MONTH] = (tm->tm_mon + 1) | alarm_bit;
@@ -178,7 +171,14 @@ static int max77601_rtc_tm_to_reg(struct rtc_time *tm, u8 *reg, int alarm)
 	reg[RTC_HOUR] = tm->tm_hour | alarm_bit;
 	reg[RTC_MIN] = tm->tm_min | alarm_bit;
 	reg[RTC_SEC] = tm->tm_sec | alarm_bit;
-	reg[RTC_WEEKDAY] = (1 << tm->tm_wday) | alarm_bit;
+
+	/* Adjust day of week */
+	/* Convert Gregorian date to seconds since 01-01-1970 00:00:00 */
+	rtc_tm_to_time(tm, &time);
+	days = time / (3600 * 24);
+	/* Correct day of the week, 1970-01-01 was a Thursday */
+	tm->tm_wday = (days + 4) % 7;
+	reg[RTC_WEEKDAY] = (1 << tm->tm_wday);
 
 	return 0;
 }
@@ -378,8 +378,6 @@ static int max77601_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 	u8 buf[RTC_BYTE_CNT] = {0};
 	int ret;
 
-	if (max77601_rtc_valid_tm(&alrm->time))
-		return -EINVAL;
 	ret = max77601_rtc_tm_to_reg(&alrm->time, buf, 1);
 	if (ret)
 		return ret;
@@ -390,29 +388,18 @@ static int max77601_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 	return max77601_rtc_alarm_irq_enable(dev, alrm->enabled ? 1 : 0);
 }
 
-static int max77601_rtc_ajust_wday_reg(struct max77601_rtc_info *info)
+static int max77601_rtc_adjust_wday_reg(struct max77601_rtc_info *info)
 {
 	struct rtc_time tm;
 	u8 buf[RTC_BYTE_CNT];
-	unsigned long time, days;
-	int wday, ret;
+	int ret;
 	ret = max77601_rtc_read_sync(info, MAX77601_RTCSEC, buf, RTC_BYTE_CNT);
 	if (ret)
 		return ret;
 	ret = max77601_rtc_reg_to_tm(buf, &tm);
 	if (ret)
 		return ret;
-	/* Convert Gregorian date to seconds since 01-01-1970 00:00:00 */
-	rtc_tm_to_time(&tm, &time);
-	days = time / (3600 * 24);
-	/* Correct day of the week, 1970-01-01 was a Thursday */
-	wday = (days + 4) % 7;
-	/* Right, no need to ajust */
-	if (tm.tm_wday == wday)
-		return 0;
-	/* Incorrect, Ajust... */
-	tm.tm_wday = wday;
-	/* Write back to RTC */
+	/* Adjust wday, write back to RTC */
 	ret = max77601_rtc_tm_to_reg(&tm, buf, 0);
 	if (ret)
 		return ret;
@@ -434,15 +421,13 @@ static int max77601_rtc_device_init(struct max77601_rtc_info *info)
 		return ret;
 	/* UDF and RBUDF is cleared upon read */
 	mask = data = MAX77601_FCUR;
-	data = MAX77601_FCUR;
 	ret = max77601_rtc_set_bits_commit(info, MAX77601_RTCUPDATE0,
 					mask, data);
 	if (ret)
 		return ret;
 	/* Enable BCD and HRMODE bit access */
-	mask = MAX77601_BCDM | MAX77601_HRMODEM;
-	data = MAX77601_BCDM | MAX77601_HRMODEM;
-	ret = max77601_rtc_set_bits_commit(info, MAX77601_RTCCNTLM, mask, data);
+	buf = MAX77601_BCDM | MAX77601_HRMODEM;
+	ret = max77601_rtc_write_commit(info, MAX77601_RTCCNTLM, &buf, 1);
 	if (ret)
 		return ret;
 	/* Date Mode: Binary; Hour format: 24-Hour mode */
@@ -451,11 +436,11 @@ static int max77601_rtc_device_init(struct max77601_rtc_info *info)
 	if (ret)
 		return ret;
 	/* Disable BCD and HRMODE bit access */
-	mask = MAX77601_BCDM | MAX77601_HRMODEM;
-	data = 0;
-	ret = max77601_rtc_set_bits_commit(info, MAX77601_RTCCNTLM, mask, data);
+	buf = 0;
+	ret = max77601_rtc_write_commit(info, MAX77601_RTCCNTLM, &buf, 1);
 	/* Adjust week day */
-	ret = max77601_rtc_ajust_wday_reg(info);
+	ret = max77601_rtc_adjust_wday_reg(info);
+
 	return ret;
 }
 
