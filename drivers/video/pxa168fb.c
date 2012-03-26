@@ -1327,7 +1327,7 @@ static void pxa168fb_set_default(struct pxa168fb_info *fbi,
 		struct pxa168fb_mach_info *mi)
 {
 	struct lcd_regs *regs = get_regs(fbi->id);
-	u32 dma_ctrl1 = 0x2012ff81, flag, tmp;
+	u32 dma_ctrl1 = 0x2032ff81, flag, tmp;
 
 	/*
 	 * LCD Global control(LCD_TOP_CTRL) should be configed before
