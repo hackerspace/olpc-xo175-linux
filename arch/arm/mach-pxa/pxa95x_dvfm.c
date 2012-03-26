@@ -476,7 +476,22 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.lpj = 6959259 * 100 / HZ,
 		.name = "1404M",
 	},
-
+	/* 1508MHz */
+	{
+		.vcc_core = VLT_LEVEL_3,
+		.core = 1508,
+		.sflfs = 312,
+		.hss = 208,
+		.axifs = 156,
+		.dmcfs = 797,
+		.gcfs = 600,
+		.gcaxifs = 600,
+		.vmfc = 600,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 7474760 * 100 / HZ,
+		.name = "1508M",
+	},
 	/* D1 mode */
 	{
 		.vcc_core = 1250,
@@ -613,6 +628,22 @@ static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
 		.flag = OP_FLAG_FACTORY,
 		.lpj = 6959259 * 100 / HZ,
 		.name = "1404M",
+	},
+	/* 1508MHz */
+	{
+		.vcc_core = VLT_LEVEL_3,
+		.core = 1508,
+		.sflfs = 312,
+		.hss = 208,
+		.axifs = 156,
+		.dmcfs = 1066,
+		.gcfs = 600,
+		.gcaxifs = 600,
+		.vmfc = 600,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 7474760 * 100 / HZ,
+		.name = "1508M",
 	},
 
 	/* D1 mode */
@@ -2162,6 +2193,9 @@ static inline unsigned int corepll_freq2reg(unsigned int x)
 	case 1404:
 		/* FBDIV=162, KVCO=2 VCODIV=1 PPDIV=1 */
 		return 0xa2 << 5 | 2 << 21 | 0 << 17 | 0 << 25;
+	case 1508:
+		/* FBDIV=174, KVCO=2 VCODIV=1 PPDIV=1 */
+		return 0xae << 5 | 2 << 21 | 0 << 17 | 0 << 25;
 	default:
 		pr_err("The core frequency %uMHz is not supported.\n", x);
 		return 0;
@@ -3723,6 +3757,7 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 		rc |= dvfm_disable_op_name_no_change("416M_VGA", user_index);
 		rc |= dvfm_disable_op_name_no_change("1196M", user_index);
 		rc |= dvfm_disable_op_name_no_change("1404M", user_index);
+		rc |= dvfm_disable_op_name_no_change("1508M", user_index);
 		rc |= dvfm_disable_op_name_no_change("D1", user_index);
 		rc |= dvfm_disable_op_name_no_change("D2", user_index);
 		rc |= dvfm_disable_op_name_no_change("CG", user_index);
