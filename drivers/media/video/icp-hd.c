@@ -177,17 +177,24 @@ static int icphd_write_w(struct i2c_client *c, u16 reg, u16 value)
 	return (ret < 0) ? ret : 0;
 }
 
+#define HUNK_SIZE	0x400
+
 static int icphd_write_wa(struct i2c_client *c, u16 reg, u16 *value, u16 cnt)
 {
-	int ret = 0;
-	u16 i;
+	static u8 i2c_buffer[2 + HUNK_SIZE * 2];
+	int i, ret = 0;
+	u8 *pdata = i2c_buffer;
 
+	*pdata++ = reg >> 8;
+	*pdata++ = reg;
 	for (i = 0; i < cnt; i++) {
-		ret = icphd_write_w(c, reg, *value);
-		value++;
-		reg += 2;
+		*pdata++ = value[i] >> 8;
+		*pdata++ = value[i] & 0xFF;
 	}
-	return ret;
+	ret = i2c_master_send(c, i2c_buffer, 2 + cnt * 2);
+	if (ret < 0)
+		return ret;
+	return 0;
 }
 
 static int icphd_write_d(struct i2c_client *c, u16 reg, u32 value)
@@ -217,16 +224,6 @@ static int icphd_write_n(struct i2c_client *c, u16 reg, void *buffer, u8 len)
 static inline int icphd_reset(struct i2c_client *client)
 {
 
-	return 0;
-}
-
-static __attribute__ ((unused)) int icphd_read_sensor(struct i2c_client *client, u16 addr, u8 *val)
-{
-	return 0;
-}
-
-static __attribute__ ((unused)) int icphd_write_sensor(struct i2c_client *client, u16 addr, u8 val)
-{
 	return 0;
 }
 
@@ -357,19 +354,23 @@ static int icphd_load_basic(struct i2c_client *client)
 
 static int icphd_load_bootdata(struct i2c_client *client)
 {
-	int hunk_size, idx = 0, size = ARRAY_SIZE(mt9e013_bootdata_1080p);
+	int hunk_size = HUNK_SIZE, idx = 0;
+	int size = ARRAY_SIZE(mt9e013_bootdata_1080p);
+	u16 addr = 0x8000;
 
 	printk("icphd: loading bootdata ");
 	while (size > 0) {
-		if (size > 0x1000)
-			hunk_size = 0x1000;
-		else
+		if (size < hunk_size)
 			hunk_size = size;
-		icphd_write_wa(client, 0x8000, mt9e013_bootdata_1080p + idx, hunk_size);
+
+		icphd_write_wa(client, addr, mt9e013_bootdata_1080p + idx, \
+				hunk_size);
 		printk(".");
 		size -= hunk_size;
 		idx += hunk_size;
-		msleep(23);
+		addr += hunk_size * 2;
+		if (addr >= 0xA000)
+			addr = 0x8000;
 	}
 	printk("done\n");
 	return 0;
@@ -705,7 +706,7 @@ static int icphd_init(struct v4l2_subdev *sd, u32 plat)
 
 	msleep(10);
 	icphd_load_basic(client);
-	msleep(100);
+	msleep(50);
 	val = icphd_read_w(client, 0x601A);
 	val |= 0x0001;
 	icphd_write_w(client, 0x601A, val);
@@ -719,9 +720,9 @@ static int icphd_init(struct v4l2_subdev *sd, u32 plat)
 	}
 	return -EAGAIN;
 bootdata:
-	mdelay(200);
+	mdelay(50);
 	icphd_load_bootdata(client);
-	mdelay(200);
+	mdelay(50);
 	icphd_write_w(client, 0x6002, 0xFFFF);
 	printk(KERN_INFO "icp-hd: ISP initialzed\n");
 	return 0;
