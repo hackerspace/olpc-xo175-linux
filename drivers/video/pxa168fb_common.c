@@ -1202,18 +1202,12 @@ void set_start_address(struct fb_info *info, int xoffset, int yoffset,
 void set_dma_control0(struct pxa168fb_info *fbi, struct regshadow *shadowreg)
 {
 	struct pxa168fb_mach_info *mi;
-	u32 x = 0, x_bk = 0, pix_fmt;
+	u32 x = 0, pix_fmt;
 
 	dev_dbg(fbi->fb_info->dev, "Enter %s\n", __func__);
 
 	mi = fbi->dev->platform_data;
 	pix_fmt = fbi->pix_fmt;
-
-	/* Get reg's current value */
-	x_bk = x = dma_ctrl_read(fbi->id, 0);
-
-	/* clear affected bits */
-	x &= ~dma_mask(fbi->vid);
 
 	/* If we are in a pseudo-color mode, we need to enable
 	 * palette lookup  */
