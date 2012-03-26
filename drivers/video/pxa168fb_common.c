@@ -618,10 +618,6 @@ int check_surface(struct fb_info *fi, struct _sOvlySurface *surface)
 				return -1;
 			}
 		}
-		var->xres_virtual = new_info->srcWidth;
-		var->yres_virtual = new_info->srcHeight * 2;
-		var->xres = new_info->srcWidth;
-		var->yres = new_info->srcHeight;
 		fbi->surface.viewPortInfo = *new_info;
 		ret |= UPDATE_VIEW;
 	}
@@ -996,13 +992,13 @@ int get_freelist(struct fb_info *info, unsigned long arg)
 
 	/* Collect expired frame to list */
 	collectFreeBuf(fbi, fbi->filterBufList, &fbi->buf_freelist);
+	spin_unlock_irqrestore(&fbi->buf_lock, flags);
+
 	if (copy_to_user(argp, fbi->filterBufList,
 				3*MAX_QUEUE_NUM*sizeof(u8 *))) {
-		spin_unlock_irqrestore(&fbi->buf_lock, flags);
 		return -EFAULT;
 	}
 	clearFilterBuf(fbi->filterBufList, RESET_BUF);
-	spin_unlock_irqrestore(&fbi->buf_lock, flags);
 
 	if (fbi->debug == 1)
 		printk(KERN_DEBUG"fbi %d vid %d get freelist end\n",
