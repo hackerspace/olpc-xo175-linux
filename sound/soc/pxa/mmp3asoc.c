@@ -514,11 +514,9 @@ static int mmp3asoc_hdmi_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	/* SSPA clock ctrl register changes, and can't use previous API */
-#if 0
 	snd_soc_dai_set_pll(cpu_dai, SSPA_AUDIO_PLL, 0, freq_in, freq_out);
 	snd_soc_dai_set_clkdiv(cpu_dai, 0, sspa_div);
 	snd_soc_dai_set_sysclk(cpu_dai, 0, sysclk, 0);
-#endif
 
 	return 0;
 }
@@ -601,11 +599,9 @@ static int mmp3asoc_elba_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	/* SSPA clock ctrl register changes, and can't use previous API */
-#if 0
 	snd_soc_dai_set_pll(cpu_dai, SSPA_AUDIO_PLL, 0, freq_in, freq_out);
 	snd_soc_dai_set_clkdiv(cpu_dai, 0, sspa_div);
 	snd_soc_dai_set_sysclk(cpu_dai, 0, sysclk, 0);
-#endif
 
 	/* set elba sysclk */
 	snd_soc_dai_set_sysclk(codec_dai, 0, 0, PM805_CODEC_CLK_DIR_OUT);
