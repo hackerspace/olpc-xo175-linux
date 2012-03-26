@@ -135,7 +135,7 @@ static unsigned long orchid_pin_config[] __initdata = {
 
 	/* HDMI */
 	GPIO18_GPIO | MFP_PULL_HIGH,	/* HDMI_EN */
-	GPIO43_GPIO,			/* HDMI_HPD */
+	GPIO43_HDMI_DET,		/* HDMI_HPD */
 	GPIO113_HDMI_CEC,
 
 	/* HSI */
@@ -892,6 +892,10 @@ static struct i2c_board_info orchid_twsi5_info[] = {
 
 /* TODO: For NFC module and HDMI */
 static struct i2c_board_info orchid_twsi6_info[] = {
+	{
+		.type = "hdmi_edid",
+		.addr = (0xA0 >> 1),
+	},
 };
 
 /* TODO: for QV8820, OV9740 */
@@ -1074,12 +1078,30 @@ static struct mv_usb_platform_data mmp3_usb_pdata = {
 
 #endif
 
+static int hdmi_power(int on)
+{
+	int hdmi_pwr_en = mfp_to_gpio(GPIO18_GPIO);
+
+	if (gpio_request(hdmi_pwr_en, "hdmi_pwr_en")) {
+		printk(KERN_ERR "Request GPIO failed, gpio: %d.\n", hdmi_pwr_en);
+		return -1;
+	}
+	if (on)
+		gpio_direction_output(hdmi_pwr_en, 1);
+	else
+		gpio_direction_output(hdmi_pwr_en, 0);
+	gpio_free(hdmi_pwr_en);
+	return 0;
+}
 
 #ifdef CONFIG_UIO_HDMI
 static struct uio_hdmi_platform_data mmp3_hdmi_info __initdata = {
 	.sspa_reg_base = 0xD42A0C00,
 	/* Fix me: gpio 59 lpm pull ? */
-	.gpio = mfp_to_gpio(GPIO59_HDMI_DET),
+	.gpio = mfp_to_gpio(GPIO43_HDMI_DET),
+	.edid_bus_num = 6,
+	.hdmi_v5p_power = &hdmi_power,
+	.hpd_val = 0x800,
 };
 #endif
 
