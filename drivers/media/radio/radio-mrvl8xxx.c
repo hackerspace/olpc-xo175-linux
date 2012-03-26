@@ -68,9 +68,15 @@ static int radio_nr = -1;
 
 #define FM_SET_POWER_MODE   0x5D
 
+#define FM_SET_RSSI_PEAK	0x11
+#define FM_SET_RSSI		0x63
+
 #define FM_SET_VOLUME		0x65
 #define FM_GET_VOLUME		0x66
 
+#define FM_SET_AFC		0x98
+#define FM_SET_MPX		0x9A
+#define FM_SET_CHANNEL_STEP_SIZE 0x35
 
 #define FM_EVENT_RDS_DATA	0x81
 #define FM_EVENT_CUR_RSSI	0x82
@@ -80,6 +86,7 @@ static int radio_nr = -1;
 #define FM_EVENT_LOW_RSSI	0x86
 #define FM_EVENT_LOW_CMI	0x87
 #define FM_EVENT_HCI_GENE	0xA0
+#define FM_EVENT_FOUND_CHANNEL 0x88
 
 
 #define FM_FREQ_LOW			87500
@@ -93,17 +100,21 @@ static int radio_nr = -1;
 
 #define MRVL8XXX_CID_BASE	(V4L2_CID_PRIVATE_BASE)
 #define MRVL8XXX_CID_OP_MODE   (MRVL8XXX_CID_BASE + 0x100)
+#define MRVL8XXX_CID_SCAN_ALL   (MRVL8XXX_CID_BASE + 0x101)
 
 #define CMD_OPCODE(ogf, ocf)	((uint16_t)((ocf & 0x3FF) | (ogf & 0x3F) << 10))
 #define FM_OPCODE	CMD_OPCODE(0x3F, 0x280)
 
 #define PINMUX_OPCODE	CMD_OPCODE(0x3F, 0x2A)
 #define FM_PINMUX	0x03
+#define DEFAULT_CMD_WAIT_TIME 10
+/* scan all takes 40+ seconds before sending reply */
+#define SCAN_ALL_WAIT_TIME 80
 
 struct cmdrequest {
 	uint8_t		idx;
 	uint8_t		len;
-	uint32_t	val;
+	uint64_t	val;
 };
 
 struct mrvl8xxx_device {
@@ -175,7 +186,8 @@ error:
 	return -1;
 }
 
-static int mrvl8xxx_hci_sendcmd(struct mrvl8xxx_device *dev, uint16_t opcode, uint8_t idx, uint32_t val, int len)
+static int mrvl8xxx_hci_sendcmd(struct mrvl8xxx_device *dev,
+	uint16_t opcode, uint8_t idx, uint64_t val, int len)
 {
 	struct socket *sock = dev->sock;
 	uint8_t type = HCI_COMMAND_PKT;
@@ -215,7 +227,8 @@ static int mrvl8xxx_hci_sendcmd(struct mrvl8xxx_device *dev, uint16_t opcode, ui
 	return err;
 }
 
-static int mrvl8xxx_hci_sendcmd_sync(struct mrvl8xxx_device *dev, uint16_t opcode, uint8_t idx, uint32_t val, int len)
+static int mrvl8xxx_hci_sendcmd_sync(struct mrvl8xxx_device *dev,
+	uint16_t opcode, uint8_t idx, uint64_t val, int len, int wait_time)
 {
 	DECLARE_COMPLETION_ONSTACK(complete);
 	int retry_count = 3;
@@ -232,7 +245,7 @@ cmd_start:
 	if (mrvl8xxx_hci_sendcmd(dev, opcode, idx, val, len) < 0)
 		goto cmd_end;
 
-	if (!wait_for_completion_timeout(&complete, HZ*10)) {
+	if (!wait_for_completion_timeout(&complete, HZ*wait_time)) {
 		if (retry_count) {
 			retry_count--;
 			goto cmd_start;
@@ -329,6 +342,7 @@ static int mrvl8xxx_hci_parse_event(struct mrvl8xxx_device *dev, char *buf, int 
 		case FM_EVENT_LOW_RSSI:
 		case FM_EVENT_LOW_CMI:
 		case FM_EVENT_HCI_GENE:
+		case FM_EVENT_FOUND_CHANNEL:
 			dev->ebuf[dev->ein] = 0;
 			if (size > 4)
 				size = 4;
@@ -352,37 +366,54 @@ static void mrvl8xxx_op_mode_receiver(struct mrvl8xxx_device *dev)
 	printk(KERN_DEBUG "[fm] select radio mode\n");
 
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_RESET, 0, 0);
+		FM_RESET, 0, 0, DEFAULT_CMD_WAIT_TIME);
 	/* [0x02] set mode, stop tansceivers */
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_SET_MODE, 0x00, 1);
+		FM_SET_MODE, 0x00, 1, DEFAULT_CMD_WAIT_TIME);
 	/* [0x01] set crystal frequency 26000000 */
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_RECEIVER_INIT, 26000000, 4);
+		FM_RECEIVER_INIT, 26000000, 4, DEFAULT_CMD_WAIT_TIME);
 	/* [0x1A] set audio patch audio path(0x00) analog;
 		i2s operation(0x00) slave; i2s mode (i2s) */
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_SET_AUDIO_PATH, 0x000000, 3);
+		FM_SET_AUDIO_PATH, 0x000000, 3, DEFAULT_CMD_WAIT_TIME);
 	/* [0x3F] set sampling rate(0x07) 44.1kHz;
 		bclk/lrclk division factor(0x00) 32X */
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_SET_SAMPLE_RATE, 0x0007, 2);
+		FM_SET_SAMPLE_RATE, 0x0007, 2, DEFAULT_CMD_WAIT_TIME);
 	/* [0x13] set fm band(0x03) China band (87.5~108.1MHz) */
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_SET_BAND, 0x03, 1);
+		FM_SET_BAND, 0x03, 1, DEFAULT_CMD_WAIT_TIME);
 	/* [0x65] set volume, range 0~2048 linear scale, 170=0 dB */
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_SET_VOLUME, 0x0064, 2);
+		FM_SET_VOLUME, 0x0064, 2, DEFAULT_CMD_WAIT_TIME);
 	/* [0x02] set mode, start audio and RDS receiver */
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_SET_MODE, 0x03, 1);
+		FM_SET_MODE, 0x03, 1, DEFAULT_CMD_WAIT_TIME);
 	/* [0x2E] set event interrupt mask
 		bit[0], RSSI low
 		bit[1], New RDS data
 		bit[2], RSSI indication */
 	dev->intr_mask = 0x07;
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_SET_INT_MASK, dev->intr_mask, 4);
+		FM_SET_INT_MASK, dev->intr_mask, 4, DEFAULT_CMD_WAIT_TIME);
+	/* Set step to 100 kHz */
+	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
+		FM_SET_CHANNEL_STEP_SIZE, 0x0064, 4, DEFAULT_CMD_WAIT_TIME);
+	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
+		FM_SET_BAND, 0x03, 1, DEFAULT_CMD_WAIT_TIME);
+	/* [0x63] Set RSSI Threshold to default value 180=0xB4 */
+	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
+		FM_SET_RSSI, 0x00B4, 2, DEFAULT_CMD_WAIT_TIME);
+	/* [0x11] Set RSSI peak threshold for scan search */
+	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
+		FM_SET_RSSI_PEAK, 0x000F, 2, DEFAULT_CMD_WAIT_TIME);
+	/* [0x98] Set AFC Frequency CFG */
+	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
+		FM_SET_AFC, 0x00141919, 4, DEFAULT_CMD_WAIT_TIME);
+	/* [0x9A] Set MPX CFG */
+	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
+		FM_SET_MPX, 0x011403, 3, DEFAULT_CMD_WAIT_TIME);
 }
 
 static void mrvl8xxx_op_mode_transmitter(struct mrvl8xxx_device *dev)
@@ -390,43 +421,43 @@ static void mrvl8xxx_op_mode_transmitter(struct mrvl8xxx_device *dev)
 	printk(KERN_DEBUG "[fm] select transmitter mode\n");
 
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_RESET, 0, 0);
+		FM_RESET, 0, 0, DEFAULT_CMD_WAIT_TIME);
 	/* [0x02] set mode, stop tansceivers */
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_SET_MODE, 0x00, 1);
+		FM_SET_MODE, 0x00, 1, DEFAULT_CMD_WAIT_TIME);
 	/* [0x03] set pinmux for transmitter */
 	mrvl8xxx_hci_sendcmd_sync(dev, PINMUX_OPCODE,
-		FM_PINMUX, 0x02, 1);
+		FM_PINMUX, 0x02, 1, DEFAULT_CMD_WAIT_TIME);
 	/* [0x01] set crystal frequency 38400000 */
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_RECEIVER_INIT, 0x0249F000, 4);
+		FM_RECEIVER_INIT, 0x0249F000, 4, DEFAULT_CMD_WAIT_TIME);
 	/* [0x1A] set audio patch audio path(0x01) i2s_fm;
 		i2s operation(0x01) master; i2s mode (i2s) */
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_SET_AUDIO_PATH, 0x000101, 3);
+		FM_SET_AUDIO_PATH, 0x000101, 3, DEFAULT_CMD_WAIT_TIME);
 	/* [0x3F] set sampling rate(0x07) 44.1kHz;
 		bclk/lrclk division factor(0x00) 32X */
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_SET_SAMPLE_RATE, 0x0007, 2);
+		FM_SET_SAMPLE_RATE, 0x0007, 2, DEFAULT_CMD_WAIT_TIME);
 	/* [0x09] set search mode(0x01) manual */
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_SET_SEARCH_MODE, 0x01, 1);
+		FM_SET_SEARCH_MODE, 0x01, 1, DEFAULT_CMD_WAIT_TIME);
 	/* [0x13] set fm band(0x03) China band (87.5~108.1MHz) */
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_SET_BAND, 0x03, 1);
+		FM_SET_BAND, 0x03, 1, DEFAULT_CMD_WAIT_TIME);
 	/* [0x65] set volume, range 0~2048 linear scale, 170=0 dB */
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_SET_VOLUME, 0x3E8, 2);
+		FM_SET_VOLUME, 0x3E8, 2, DEFAULT_CMD_WAIT_TIME);
 	/* [0x5d] set power mode(0x00) high power (3.3v PA supply */
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_SET_POWER_MODE, 0x00, 1);
+		FM_SET_POWER_MODE, 0x00, 1, DEFAULT_CMD_WAIT_TIME);
 	/* [0x02] set mode, start audio and RDS transmitter */
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_SET_MODE, 0x07, 1);
+		FM_SET_MODE, 0x07, 1, DEFAULT_CMD_WAIT_TIME);
 	/* [0x2E] set event interrupt mask, disable all interrupts */
 	dev->intr_mask = 0x00;
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_SET_INT_MASK, dev->intr_mask, 4);
+		FM_SET_INT_MASK, dev->intr_mask, 4, DEFAULT_CMD_WAIT_TIME);
 }
 
 static int mrvl8xxx_vidioc_querycap(struct file *file, void *priv, struct v4l2_capability *v)
@@ -471,7 +502,8 @@ static int mrvl8xxx_vidioc_g_frequency(struct file *file, void *priv, struct v4l
 
 	f->type = V4L2_TUNER_RADIO;
 
-	retval = mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE, FM_GET_CHANNEL, 0, 0);
+	retval = mrvl8xxx_hci_sendcmd_sync(dev,
+		FM_OPCODE, FM_GET_CHANNEL, 0, 0, DEFAULT_CMD_WAIT_TIME);
 	if (retval >= 0) {
 		f->frequency = dev->request.val;
 	}
@@ -482,6 +514,8 @@ static int mrvl8xxx_vidioc_g_frequency(struct file *file, void *priv, struct v4l
 static int mrvl8xxx_vidioc_s_frequency(struct file *file, void *priv,	struct v4l2_frequency *f)
 {
 	struct mrvl8xxx_device *dev = &mrvl8xxx_dev;
+	int64_t cmd_send;
+	int retval;
 
 	if (f->tuner != 0 || f->type != V4L2_TUNER_RADIO)
 		return -EINVAL;
@@ -490,7 +524,10 @@ static int mrvl8xxx_vidioc_s_frequency(struct file *file, void *priv,	struct v4l
 		return -EINVAL;
 	}
 
-	return mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE, FM_SET_CHANNEL, f->frequency, 4);
+	cmd_send = f->frequency | ((uint64_t) 0x0LL);
+	retval = mrvl8xxx_hci_sendcmd_sync(dev,
+		FM_OPCODE, FM_SET_CHANNEL, cmd_send, 5, DEFAULT_CMD_WAIT_TIME);
+	return retval;
 }
 
 static int mrvl8xxx_vidioc_queryctrl(struct file *file, void *priv,	struct v4l2_queryctrl *qc)
@@ -532,19 +569,24 @@ static int mrvl8xxx_vidioc_g_ctrl(struct file *file, void *priv,
 	int retval;
 
 	if (ctrl->id >= MRVL8XXX_CID_BASE && ctrl->id <= (MRVL8XXX_CID_BASE+0xFF)) {
-		retval = mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE, ctrl->id - MRVL8XXX_CID_BASE, 0, 0);
+		retval = mrvl8xxx_hci_sendcmd_sync(dev,
+			FM_OPCODE, ctrl->id - MRVL8XXX_CID_BASE, 0, 0,
+			DEFAULT_CMD_WAIT_TIME);
 		ctrl->value = dev->request.val;
 		return retval;
 	}
 
 	switch (ctrl->id) {
 		case V4L2_CID_AUDIO_MUTE:
-			retval = mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE, FM_GET_MUTE, 0, 0);
+			retval = mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
+				FM_GET_MUTE, 0, 0, DEFAULT_CMD_WAIT_TIME);
 			ctrl->value = dev->request.val;
 			break;
 
 		case V4L2_CID_AUDIO_VOLUME:
-			retval = mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE, FM_GET_VOLUME, 0, 0);
+			retval = mrvl8xxx_hci_sendcmd_sync(dev,
+				FM_OPCODE, FM_GET_VOLUME, 0, 0,
+				DEFAULT_CMD_WAIT_TIME);
 			ctrl->value = dev->request.val;
 			break;
 
@@ -560,36 +602,54 @@ static int mrvl8xxx_vidioc_s_ctrl (struct file *file, void *priv,
 {
 	struct mrvl8xxx_device *dev = &mrvl8xxx_dev;
 	int retval;
+	uint64_t cmd_send = 0;
 
-    if (ctrl->id >= MRVL8XXX_CID_BASE && ctrl->id <= (MRVL8XXX_CID_BASE+0xFF)) {
-		retval = mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE, ctrl->id - MRVL8XXX_CID_BASE, ctrl->value, 4);
+	if (ctrl->id >= MRVL8XXX_CID_BASE
+		&& ctrl->id <= (MRVL8XXX_CID_BASE+0xFF)) {
+		retval = mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
+			ctrl->id - MRVL8XXX_CID_BASE, ctrl->value, 4,
+			DEFAULT_CMD_WAIT_TIME);
 		return retval;
 	}
 
 	switch (ctrl->id) {
-		case V4L2_CID_AUDIO_MUTE:
-			retval = mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE, FM_SET_MUTE, ctrl->value ? 0x06 : 0, 1);
-			break;
+	case V4L2_CID_AUDIO_MUTE:
+		retval = mrvl8xxx_hci_sendcmd_sync(dev,
+			FM_OPCODE, FM_SET_MUTE,
+			ctrl->value ? 0x06 : 0, 1,
+			DEFAULT_CMD_WAIT_TIME);
+	break;
 
-		case V4L2_CID_AUDIO_VOLUME:
-			retval = mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE, FM_SET_VOLUME, ctrl->value & 0x7FF, 2);
-			break;
+	case V4L2_CID_AUDIO_VOLUME:
+		retval = mrvl8xxx_hci_sendcmd_sync(dev,
+			FM_OPCODE, FM_SET_VOLUME,
+			ctrl->value & 0x7FF, 2,
+			DEFAULT_CMD_WAIT_TIME);
+	break;
 
-		case MRVL8XXX_CID_OP_MODE:
-			if (ctrl->value == 0) {
-				mrvl8xxx_op_mode_receiver(dev);
-			} else if (ctrl->value == 1) {
-				mrvl8xxx_op_mode_transmitter(dev);
-			} else {
-				printk(KERN_ERR "[fm] unknown fm mode:%d\n",
-					ctrl->value);
-				return -EINVAL;
-			}
-			retval = 0;
-			break;
+	case MRVL8XXX_CID_SCAN_ALL:
+		cmd_send = ctrl->value | ((uint64_t) 0x100000000LL);
+		retval = mrvl8xxx_hci_sendcmd_sync(dev,
+			FM_OPCODE, FM_SET_CHANNEL, cmd_send, 5,
+			SCAN_ALL_WAIT_TIME);
+			/* set timeout to 80 seconds */
+	break;
 
-		default:
+	case MRVL8XXX_CID_OP_MODE:
+		if (ctrl->value == 0) {
+			mrvl8xxx_op_mode_receiver(dev);
+		} else if (ctrl->value == 1) {
+			mrvl8xxx_op_mode_transmitter(dev);
+		} else {
+			printk(KERN_ERR "[fm] unknown fm mode:%d\n",
+				ctrl->value);
 			return -EINVAL;
+		}
+		retval = 0;
+	break;
+
+	default:
+	return -EINVAL;
 	}
 
 	return retval;
@@ -721,9 +781,15 @@ static int mrvl8xxx_fops_release(struct file *file)
 		return 0;
 
 	if (dev->thread) {
-		mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE, FM_SET_INT_MASK, 0x00, 4);
-		mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE, FM_SET_VOLUME, 0x0000, 2);
-		mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE, FM_SET_MODE, 0x00, 1);
+		mrvl8xxx_hci_sendcmd_sync(dev,
+			FM_OPCODE, FM_SET_INT_MASK, 0x00, 4,
+			DEFAULT_CMD_WAIT_TIME);
+		mrvl8xxx_hci_sendcmd_sync(dev,
+			FM_OPCODE, FM_SET_VOLUME, 0x0000, 2,
+			DEFAULT_CMD_WAIT_TIME);
+		mrvl8xxx_hci_sendcmd_sync(dev,
+			FM_OPCODE, FM_SET_MODE, 0x00, 1,
+			DEFAULT_CMD_WAIT_TIME);
 
 		get_task_struct(dev->thread);
 
@@ -837,7 +903,7 @@ static void mrvl8xxx_sleep_early_suspend(struct early_suspend *h)
 	struct mrvl8xxx_device *dev = &mrvl8xxx_dev;
 	/* disable all the fm events after early suspend */
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_SET_INT_MASK, 0x00000000, 4);
+		FM_SET_INT_MASK, 0x00000000, 4, DEFAULT_CMD_WAIT_TIME);
 }
 
 static void mrvl8xxx_normal_late_resume(struct early_suspend *h)
@@ -845,7 +911,7 @@ static void mrvl8xxx_normal_late_resume(struct early_suspend *h)
 	struct mrvl8xxx_device *dev = &mrvl8xxx_dev;
 	/* re-enable the events after resume */
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_SET_INT_MASK, dev->intr_mask, 4);
+		FM_SET_INT_MASK, dev->intr_mask, 4, DEFAULT_CMD_WAIT_TIME);
 }
 
 static struct early_suspend mrvl8xxx_early_suspend_desc = {
