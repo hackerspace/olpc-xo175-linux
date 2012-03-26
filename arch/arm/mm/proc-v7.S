@@ -359,6 +359,13 @@ __v7_setup:
 	orr	r0, r0, #(1 << 16)
 	mcr	p15, 1, r0, c15, c1, 1
 #endif
+
+#ifdef CONFIG_PJ4B_ERRATA_6409
+	mrc	p15, 1, r0, c15, c1, 1
+	bic	r0, r0, #0x4			@ Disable Static BP
+	mcr	p15, 1, r0, c15, c1, 1
+#endif
+
 #ifdef CONFIG_PJ4B_ERRATA_6107
 	mrc	p15, 1, r0, c15, c1, 0
 	orr	r0, r0, #(1 << 0)		@ disable L0

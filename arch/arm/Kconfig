@@ -1304,6 +1304,13 @@ config PJ4B_ERRATA_6359_LIGHTWEIGHT
 	  Boradcast DMB operations do not fully synchronize local cache hits. This option
 	  add 8 NOP after DMB.
 
+config PJ4B_ERRATA_6409
+	bool "PJ4B errata 6409"
+	depends on CPU_PJ4B
+	help
+	  IFU predicts-taken a branch, but tells ROB not-taken. This option disable static
+	  branch prediction
+
 endmenu
 
 source "arch/arm/common/Kconfig"
