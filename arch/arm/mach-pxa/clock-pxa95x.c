@@ -944,11 +944,19 @@ static inline void clock_lookup_init(struct clk_lookup *clk_lookup, int count)
 	int i;
 	for (i = 0; i < count; i++) {
 		struct clk *c = clk_lookup[i].clk;
+		c->lookup = clk_lookup[i];
 		clk_init(c);
 		INIT_LIST_HEAD(&c->shared_bus_list);
 		if (!c->lookup.dev_id && !c->lookup.con_id)
 			c->lookup.con_id = c->name;
-		c->lookup.clk = c;
+		if (!c->name) {
+			if (c->lookup.con_id)
+				c->name = c->lookup.con_id;
+			else if (c->lookup.dev_id)
+				c->name = c->lookup.dev_id;
+			else
+				printk(KERN_ERR "clock has no name!\n");
+		}
 		clkdev_add(&clk_lookup[i]);
 	}
 }
