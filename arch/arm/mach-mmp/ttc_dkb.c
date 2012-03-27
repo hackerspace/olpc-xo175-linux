@@ -82,8 +82,8 @@ static unsigned long ttc_dkb_pin_config[] __initdata = {
 	GPIO44_UART2_TXD,
 
 	/* UART0 FFUART */
-	GPIO47_UART0_RXD,
-	GPIO48_UART0_TXD,
+	GPIO47_UART0_RXD | MFP_PULL_HIGH,
+	GPIO48_UART0_TXD | MFP_PULL_HIGH,
 
 	/* UART1 BT_UART */
 	GPIO29_UART1_CTS,
