@@ -150,53 +150,7 @@ static int adp8885_clr_bits(struct i2c_client *client, u8 reg, u8 mask)
 	return ret;
 }
 
-static int adp8885_bl_set(struct backlight_device *bl, int brightness)
-{
-	struct adp8885_ch *data = bl_get_data(bl);
-	struct i2c_client *client = data->bl->client;
-	int ch = data->id;
-	int ret = 0;
-
-	ret = adp8885_write(client, CH_SET(ch), (u8) brightness);
-	if (ret)
-		return ret;
-
-	if (data->current_brightness && brightness == 0)
-		ret = adp8885_set_bits(client, DIMCFG, DIMCFG_EN(ch));
-	else if (data->current_brightness == 0 && brightness)
-		ret = adp8885_clr_bits(client, DIMCFG, DIMCFG_EN(ch));
-
-	if (!ret)
-		data->current_brightness = brightness;
-
-	return ret;
-}
-
-static int adp8885_bl_update_status(struct backlight_device *bl)
-{
-	int brightness = bl->props.brightness;
-	if (bl->props.power != FB_BLANK_UNBLANK)
-		brightness = 0;
-
-	if (bl->props.fb_blank != FB_BLANK_UNBLANK)
-		brightness = 0;
-
-	return adp8885_bl_set(bl, brightness);
-}
-
-static int adp8885_bl_get_brightness(struct backlight_device *bl)
-{
-	struct adp8885_ch *data = bl_get_data(bl);
-
-	return data->current_brightness;
-}
-
-static const struct backlight_ops adp8885_bl_ops = {
-	.update_status = adp8885_bl_update_status,
-	.get_brightness = adp8885_bl_get_brightness,
-};
-
-static int __devinit adp8885_bl_setup(struct i2c_client *client)
+static int adp8885_bl_setup(struct i2c_client *client)
 {
 	struct adp8885_bl *data = i2c_get_clientdata(client);
 	struct adp8885_bl_platform_data *pdata = data->pdata;
@@ -225,7 +179,7 @@ static int __devinit adp8885_bl_setup(struct i2c_client *client)
 	return ret;
 }
 
-static int __devinit adp8885_ch_setup(struct backlight_device *bl, int ch)
+static int adp8885_ch_setup(struct backlight_device *bl, int ch)
 {
 	struct adp8885_ch *data = bl_get_data(bl);
 	struct i2c_client *client = data->bl->client;
@@ -277,6 +231,76 @@ static int __devinit adp8885_ch_setup(struct backlight_device *bl, int ch)
 
 	return ret;
 }
+
+static int adp8885_bl_set(struct backlight_device *bl, int brightness)
+{
+	struct adp8885_ch *data = bl_get_data(bl);
+	struct i2c_client *client = data->bl->client;
+	struct adp8885_bl_platform_data *pdata = data->bl->pdata;
+	int ch = data->id;
+	int ret = 0;
+
+	if (data->current_brightness == 0 && brightness) {
+		if (pdata->chip_enable) {
+			ret = pdata->chip_enable(true);
+			if (ret) {
+				dev_err(&client->dev,
+					"failed to enable chip!\n");
+				return ret;
+			}
+		}
+
+		ret = adp8885_bl_setup(client);
+		if(ret) {
+			dev_err(&client->dev, "failed to adp8885_bl_setup!\n");
+			return ret;
+		}
+
+		ret = adp8885_ch_setup(bl, ch);
+		if(ret) {
+			dev_err(&client->dev, "failed to adp8885_ch_setup!\n");
+			return ret;
+		}
+	}
+
+	ret = adp8885_write(client, CH_SET(ch), (u8) brightness);
+	if (ret)
+		return ret;
+
+	if (data->current_brightness && brightness == 0)
+		ret = adp8885_set_bits(client, DIMCFG, DIMCFG_EN(ch));
+	else if (data->current_brightness == 0 && brightness)
+		ret = adp8885_clr_bits(client, DIMCFG, DIMCFG_EN(ch));
+
+	if (!ret)
+		data->current_brightness = brightness;
+
+	return ret;
+}
+
+static int adp8885_bl_update_status(struct backlight_device *bl)
+{
+	int brightness = bl->props.brightness;
+	if (bl->props.power != FB_BLANK_UNBLANK)
+		brightness = 0;
+
+	if (bl->props.fb_blank != FB_BLANK_UNBLANK)
+		brightness = 0;
+
+	return adp8885_bl_set(bl, brightness);
+}
+
+static int adp8885_bl_get_brightness(struct backlight_device *bl)
+{
+	struct adp8885_ch *data = bl_get_data(bl);
+
+	return data->current_brightness;
+}
+
+static const struct backlight_ops adp8885_bl_ops = {
+	.update_status = adp8885_bl_update_status,
+	.get_brightness = adp8885_bl_get_brightness,
+};
 
 static int __devinit adp8885_probe(struct i2c_client *client,
 				   const struct i2c_device_id *id)
