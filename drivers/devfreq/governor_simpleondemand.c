@@ -51,7 +51,10 @@ static int devfreq_simple_ondemand_func(struct devfreq *df,
 		stat.total_time >>= 7;
 	}
 
-	/* Set MAX if it's busy enough */
+	/*
+	 * busy time > 90 run this path
+	 * Set MAX if it's busy enough
+	 */
 	if (stat.busy_time * 100 >
 	    stat.total_time * dfso_upthreshold) {
 		*freq = UINT_MAX;
@@ -64,14 +67,22 @@ static int devfreq_simple_ondemand_func(struct devfreq *df,
 		return 0;
 	}
 
-	/* Keep the current frequency */
+	/*
+	 * 90 > busy time > 85 run this path ; busy time > 85
+	 * Keep the current frequency
+	 */
 	if (stat.busy_time * 100 >
 	    stat.total_time * (dfso_upthreshold - dfso_downdifferential)) {
 		*freq = stat.current_frequency;
 		return 0;
 	}
 
-	/* Set the desired frequency based on the load */
+	/*
+	 * busy time < 85 runs this path ; if buystime < 88
+	 * , the freq is actually down, so via path freq only
+	 * goes down not high.
+	 * set the desired frequency based on the load
+	 */
 	a = stat.busy_time;
 	a *= stat.current_frequency;
 	b = div_u64(a, stat.total_time);
