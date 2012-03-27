@@ -129,9 +129,12 @@ static void pm80x_headset_switch_work(struct work_struct *work)
 		 pm80x_set_bits(info->i2c, PM805_DWS_SETTING, PM805_EXTMIC_BIAS, PM805_EXTMIC_BIAS);
 		msleep(500);
 		value = (unsigned char)pm80x_reg_read(info->i2c, PM805_MIC_DET_STATUS1);
-		value &= PM805_STATUS_HEADSET;
-		/*mic detected*/
-		if (value) {
+
+		/* mic detected, now in 88pm805 there is a problem, when Mic detected,
+		 * PM805_MIC_DET_STATUS1 read as 0x1; Mic not detected,
+		 * PM805_MIC_DET_STATUS1 read as 0xf;
+		 */
+		if (value == PM805_STATUS_HEADSET) {
 			switch_data->state = PM8XXX_HEADSET_ADD;
 			/*enable short button interrupt*/
 			pm80x_set_bits(info->i2c, PM805_INT_MASK2, PM805_SHRT_BTN_DET, PM805_SHRT_BTN_DET);
