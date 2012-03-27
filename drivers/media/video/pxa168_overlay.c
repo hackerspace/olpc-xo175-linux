@@ -93,11 +93,7 @@ const static struct v4l2_fmtdesc pxa168_formats[] = {
 	},
 	{
 	 .description = "RGB565",
-	 .pixelformat = V4L2_PIX_FMT_RGB565,
-	},
-	{
-	 .description = "RGB555",
-	 .pixelformat = V4L2_PIX_FMT_RGB555X,
+	 .pixelformat = V4L2_PIX_FMT_RGB565X,
 	},
 	{
 	 .description = "RGB8888, unpacked",
@@ -582,35 +578,37 @@ int pxa168vid_init(struct pxa168_overlay *ovly)
 		ovly->ypitch = pix->width << 1;
 		ovly->uvpitch = 0;
 		break;
-	case V4L2_PIX_FMT_RGB555X:
-		reg |= CFG_DMAFORMAT(VMODE_RGB1555);
-	case V4L2_PIX_FMT_RGB565:
-		reg |= (mi->panel_rbswap) ? (0) : (CFG_DMA_SWAPRB(1));
+	case V4L2_PIX_FMT_RGB565X:
+		/* most significant byte: RED; least significant byte: BLUE */
+		reg |= (mi->panel_rbswap) ? (0) : CFG_DMA_SWAPRB(1);
 		ovly->ypitch = pix->width << 1;
 		ovly->uvpitch = 0;
 		break;
 	case V4L2_PIX_FMT_BGR24:
 		reg |= CFG_DMAFORMAT(VMODE_RGB888PACKED);
-		reg |= (mi->panel_rbswap) ? CFG_DMA_SWAPRB(1) : (0);
-
+		/* most significant byte: RED; least significant byte: BLUE */
+		reg |= (mi->panel_rbswap) ? (0) : CFG_DMA_SWAPRB(1);
 		ovly->ypitch = pix->width * 3;
 		ovly->uvpitch = 0;
 		break;
 	case V4L2_PIX_FMT_RGB24:
 		reg |= CFG_DMAFORMAT(VMODE_RGB888PACKED);
-		reg |= (mi->panel_rbswap) ? (0) : CFG_DMA_SWAPRB(1);
+		/* most significant byte: BLUE; least significant byte: RED */
+		reg |= (mi->panel_rbswap) ? CFG_DMA_SWAPRB(1) : (0);
 		ovly->ypitch = pix->width * 3;
 		ovly->uvpitch = 0;
 		break;
 	case V4L2_PIX_FMT_BGR32:
-		reg |= (mi->panel_rbswap) ? CFG_DMA_SWAPRB(1) : (0);
 		reg |= CFG_DMAFORMAT(VMODE_RGBA888);
+		/* most significant byte: RED; least significant byte: BLUE */
+		reg |= (mi->panel_rbswap) ? (0) : (CFG_DMA_SWAPRB(1));
 		ovly->ypitch = pix->width << 2;
 		ovly->uvpitch = 0;
 		break;
 	case V4L2_PIX_FMT_RGB32:
 		reg |= CFG_DMAFORMAT(VMODE_RGBA888);
-		reg |= (mi->panel_rbswap) ? (0) : (CFG_DMA_SWAPRB(1));
+		/* most significant byte: BLUE; least significant byte: RED */
+		reg |= (mi->panel_rbswap) ? CFG_DMA_SWAPRB(1) : (0);
 		ovly->ypitch = pix->width << 2;
 		ovly->uvpitch = 0;
 		break;
