@@ -258,12 +258,18 @@ static int hdmi_resume(struct platform_device *pdev)
 {
 	struct hdmi_instance *hi = platform_get_drvdata(pdev);
 
+#if defined(CONFIG_CPU_PXA978) || defined(CONFIG_CPU_MMP3)
+	if (hi->hdmi_power)
+		hi->hdmi_power(1);
+#endif
 	if (gpio_get_value(hi->gpio) == hi->hpd_in) {
 		/*if connected, reset HDMI*/
 		atomic_set(&hdmi_state, 1);
 		clk_enable(hi->clk);
+#ifdef CONFIG_CPU_MMP2
 		if (hi->hdmi_power)
 			hi->hdmi_power(1);
+#endif
 		con_lock = FIRST_ACCESS_LOCK;
 		/* send disconnect event to upper layer */
 		uio_event_notify(&hi->uio_info);
@@ -304,7 +310,7 @@ static void hdmi_switch_work(struct work_struct *work)
 			printk("uio_hdmi: cable pull out\n\n");
 			late_disable_flag = 1; /*wait for hdmi disbaled*/
 #if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
-			if (hi->hdmi_power)
+			if (cpu_is_mmp2() && hi->hdmi_power)
 				hi->hdmi_power(0);
 			if (early_suspend_flag == 0)
 				unset_power_constraint(hi);
@@ -465,9 +471,13 @@ static int hdmi_probe(struct platform_device *pdev)
 
 #ifdef CONFIG_CPU_PXA978
 	dvfm_register("uio-hdmi", &dvfm_dev_idx);
-	if (hi->hdmi_power)
-		hi->hdmi_power(1); /* nevo need 5v to detect hpd*/
 #endif
+
+#if defined(CONFIG_CPU_PXA978) || defined(CONFIG_CPU_MMP3)
+	if (hi->hdmi_power)
+		hi->hdmi_power(1); /* mmp3 and nevo need 5v to detect hpd*/
+#endif
+
 	/* Check HDMI cable when boot up */
 	ret = gpio_get_value(hi->gpio);
 	printk(KERN_INFO"%s hpd %s\n",
@@ -479,7 +489,7 @@ static int hdmi_probe(struct platform_device *pdev)
 	if (ret == hi->hpd_in) {
 		atomic_set(&hdmi_state, 1);
 		set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
-		if (hi->hdmi_power)
+		if (cpu_is_mmp2() && hi->hdmi_power)
 			hi->hdmi_power(1);
 		clk_enable(hi->clk);
 	} else if (cpu_is_mmp3()) {
