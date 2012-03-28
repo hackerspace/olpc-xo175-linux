@@ -345,7 +345,7 @@ struct pxa168fb_mach_info {
 #define DITHER_TBL_4X4	0
 #define DITHER_TBL_4X8	1
 	unsigned	dither_table:1;
-#define DITHER_MODE_RBG444	0
+#define DITHER_MODE_RGB444	0
 #define DITHER_MODE_RGB565	1
 #define DITHER_MODE_RGB666	2
 	unsigned	dither_mode:2;

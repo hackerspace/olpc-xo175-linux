@@ -281,16 +281,32 @@ static void lvds_hook(struct pxa168fb_mach_info *mi)
 
 static void dither_config(struct pxa168fb_mach_info *mi)
 {
-	mi->dither_en = 1;
-	/* dither table was related to resolution
-	 * 4x4 table could be select for all cases.
-	 * we can select 4x8 table if xres is much
-	 * bigger than yres */
-	mi->dither_table = DITHER_TBL_4X4;
-	/* dither mode was related to panel,
-	 * select RGB666 mode by default,
-	 * that is source 24 bpp output to 18 bpp */
-	mi->dither_mode = DITHER_MODE_RGB666;
+	struct lvds_info *lvds;
+	struct dsi_info *dsi;
+	int bpp;
+
+	if (mi->phy_type == LVDS) {
+		lvds = (struct lvds_info *)mi->phy_info;
+		bpp = (lvds->fmt == LVDS_FMT_18BIT) ? 18 : 24;
+	} else {
+		dsi = (struct dsi_info *)mi->phy_info;
+		bpp = dsi->bpp;
+	}
+
+	if (bpp < 24) {
+		mi->dither_en = 1;
+		/* dither table was related to resolution
+		 * 4x4 table could be select for all cases.
+		 * we can select 4x8 table if xres is much
+		 * bigger than yres */
+		mi->dither_table = DITHER_TBL_4X4;
+		if (bpp == 18)
+			mi->dither_mode = DITHER_MODE_RGB666;
+		else if (bpp == 16)
+			mi->dither_mode = DITHER_MODE_RGB565;
+		else
+			mi->dither_mode = DITHER_MODE_RGB444;
+	}
 }
 
 /*
@@ -993,9 +1009,9 @@ void __init abilene_add_lcd_mipi(void)
 	/* FIXME: select DSI2LVDS by default on abilene. */
 	lvds_en = 0;
 	if (cpu_is_mmp3_b0()) {
-		dither_config(fb);
 		if (lvds_en)
 			lvds_hook(fb);
+		dither_config(fb);
 	}
 
 	/* Re-calculate lcd clk source and divider
@@ -1046,8 +1062,8 @@ void __init yellowstone_add_lcd_mipi(void)
 	ovly->max_fb_size = fb->max_fb_size;
 
 	if (cpu_is_mmp3_b0()) {
-		dither_config(fb);
 		lvds_hook(fb);
+		dither_config(fb);
 	}
 
 	/* Re-calculate lcd clk source and divider
@@ -1161,9 +1177,9 @@ void __init mk2_add_lcd_mipi(void)
 	/* FIXME: select DSI2LVDS by default on mk2. */
 	lvds_en = 0;
 	if (cpu_is_mmp3_b0()) {
-		dither_config(fb);
 		if (lvds_en)
 			lvds_hook(fb);
+		dither_config(fb);
 	}
 
 	/* Re-calculate lcd clk source and divider
