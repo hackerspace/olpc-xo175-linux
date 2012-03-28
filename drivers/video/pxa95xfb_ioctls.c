@@ -402,8 +402,6 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 					&surface.viewPortOffset)
 				&& !pxa95xfbi[0]->suspend) {
 			/* in this case, surface mode changed, need sync */
-			fbi->on = 0;
-			lcdc_set_lcd_controller(fbi);
 			set_surface(fbi, surface.videoMode,
 					&surface.viewPortInfo,
 					&surface.viewPortOffset);
@@ -413,7 +411,6 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 			buf_enqueue(fbi->buf_waitlist, start_addr);
 			buf_fake_endframe(fbi);
 			local_irq_restore(x);
-			fbi->on = 1;
 			lcdc_set_lcd_controller(fbi);
 		} else {
 			local_irq_save(x);
