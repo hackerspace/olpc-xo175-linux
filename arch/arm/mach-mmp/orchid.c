@@ -134,7 +134,7 @@ static unsigned long orchid_pin_config[] __initdata = {
 	GPIO61_LED_B_CTRL,
 
 	/* HDMI */
-	GPIO18_GPIO | MFP_PULL_HIGH,	/* HDMI_EN */
+	GPIO18_GPIO,			/* HDMI_EN */
 	GPIO43_HDMI_DET,		/* HDMI_HPD */
 	GPIO113_HDMI_CEC,
 
@@ -1117,6 +1117,7 @@ static int hdmi_power(int on)
 		gpio_direction_output(hdmi_pwr_en, 1);
 	else
 		gpio_direction_output(hdmi_pwr_en, 0);
+	mdelay(1);
 	gpio_free(hdmi_pwr_en);
 	return 0;
 }
