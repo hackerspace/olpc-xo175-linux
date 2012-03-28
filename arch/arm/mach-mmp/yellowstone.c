@@ -513,6 +513,7 @@ static struct pm80x_headset_pdata pm80x_headset = {
 
 static struct pm80x_platform_data pm800_info = {
 	.headset = &pm80x_headset,
+	.headset_flag = 1,
 	.base_page_addr = 0x30,		/* BASE page */
 	.power_page_addr = 0x31,	/* POWER */
 	.gpadc_page_addr = 0x32,	/* GPADC */
@@ -727,6 +728,7 @@ static struct pm80x_platform_data pm805_info = {
 	.irq_mode = 0,
 	.irq_base = IRQ_BOARD_START + PM800_MAX_IRQ,
 	.headset = &pm80x_headset,
+	.headset_flag = 1,
 };
 
 static struct i2c_board_info yellowstone_twsi3_info[] = {
