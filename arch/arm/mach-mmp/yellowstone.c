@@ -347,6 +347,7 @@ static struct mv_cam_pdata mv_cam_data = {
 	.qos_req_min = 0,
 	.dma_burst = 128,
 	.bus_type = SOCAM_MIPI,
+	.ccic_num_flag = 1,
 	.mclk_min = 26,
 	.mclk_src = 3,
 	.controller_power = pxa2128_cam_ctrl_power,

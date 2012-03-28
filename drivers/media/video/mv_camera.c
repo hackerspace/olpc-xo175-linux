@@ -466,6 +466,11 @@ void ccic_ctlr_reset(struct mv_camera_dev *pcdev)
 	unsigned long val;
 
 	if (mcam->bus_type == SOCAM_MIPI) {
+		if (mcam->ccic_num_flag) { /* use ccic2 */
+			val = readl(APMU_CCIC2_RST);
+			writel(val & ~0x2, APMU_CCIC2_RST);
+			writel(val | 0x2, APMU_CCIC2_RST);
+		}
 		val = readl(APMU_CCIC_RST);
 		writel(val & ~0x2, APMU_CCIC_RST);
 		writel(val | 0x2, APMU_CCIC_RST);
