@@ -97,7 +97,7 @@ u32 set_DDR_avail_flag(void);
 #define acipc_readl(off)	__raw_readl(acipc->mmio_base + (off))
 #define acipc_writel(off, v)	__raw_writel((v), acipc->mmio_base + (off))
 
-#if defined(CONFIG_PXA978) || defined(CONFIG_PXA910)
+#if defined(CONFIG_CPU_PXA978) || defined(CONFIG_CPU_PXA910)
 static const enum acipc_events acipc_priority_table_dkb[ACIPC_NUMBER_OF_EVENTS] = {
 #ifdef CONFIG_CPU_PXA978
 	ACIPC_DDR_READY_REQ,
@@ -725,7 +725,7 @@ static int __devinit pxa9xx_acipc_probe(struct platform_device *pdev)
 		acipc->acipc_db.event_db[i].mask = acipc_priority_table_dkb[i];
 #endif
 #if defined(CONFIG_PXA95x) || defined(CONFIG_PXA93x)
-#if defined(CONFIG_PXA978)
+#if defined(CONFIG_CPU_PXA978)
 		if (is_nevo_td) {
 			acipc->acipc_db.event_db[i].IIR_bit = acipc_priority_table_dkb[i];
 			acipc->acipc_db.event_db[i].mask = acipc_priority_table_dkb[i];
@@ -734,7 +734,7 @@ static int __devinit pxa9xx_acipc_probe(struct platform_device *pdev)
 #endif
 			acipc->acipc_db.event_db[i].IIR_bit = acipc_priority_table[i];
 			acipc->acipc_db.event_db[i].mask = acipc_priority_table[i];
-#if defined(CONFIG_PXA978)
+#if defined(CONFIG_CPU_PXA978)
 		}
 #endif
 #endif
