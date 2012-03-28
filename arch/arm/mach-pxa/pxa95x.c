@@ -1447,10 +1447,6 @@ static int __init pxa95x_init(void)
 #if defined(CONFIG_UIO_VMETA)
 	pxa95x_set_vmeta_info(&vmeta_plat_data);
 #endif
-
-	/* Set vmeta clock as 312MHz always */
-	ACCR |=  0x00200000;
-
 	return ret;
 }
 
