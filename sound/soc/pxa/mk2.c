@@ -215,7 +215,8 @@ static const struct snd_soc_dapm_route mmp3asoc_dapm_routes[] = {
 	{"IN1RN", NULL, "MICBIAS2"},
 	{"MICBIAS2", NULL, "Headset Mic"},
 
-	{"DMIC1DAT", NULL, "MICBIAS1"},
+	{"IN1LP", NULL, "MICBIAS1"},
+	{"IN1LN", NULL, "MICBIAS1"},
 	{"MICBIAS1", NULL, "Main Mic"},
 };
 
@@ -471,8 +472,6 @@ static int codec_wm8994_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_nc_pin(dapm, "LINEOUT1P");
 	snd_soc_dapm_nc_pin(dapm, "LINEOUT2N");
 	snd_soc_dapm_nc_pin(dapm, "LINEOUT2P");
-	snd_soc_dapm_nc_pin(dapm, "IN1LN");
-	snd_soc_dapm_nc_pin(dapm, "IN1LP");
 	snd_soc_dapm_nc_pin(dapm, "IN1RP");
 	snd_soc_dapm_nc_pin(dapm, "IN2LP:VXRN");
 	snd_soc_dapm_nc_pin(dapm, "IN2RN");
