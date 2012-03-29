@@ -654,7 +654,7 @@ static int vmeta_probe(struct platform_device *pdev)
 	vi->irq_poll_timer.data = (unsigned long)vi;
 	vi->irq_poll_timer.function = vmeta_irq_poll_timer_handler;
 #else
-	vi->uio_info.irq_flags = IRQF_DISABLED;
+	vi->uio_info.irq_flags = IRQF_ONESHOT;
 	vi->uio_info.irq = irq_func;
 	vi->uio_info.handler = vmeta_func_irq_handler;
 	vi->uio_info.irqcontrol = vmeta_irqcontrol;
