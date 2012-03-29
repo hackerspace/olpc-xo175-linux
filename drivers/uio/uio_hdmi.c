@@ -466,12 +466,6 @@ static int hdmi_probe(struct platform_device *pdev)
 	if (pdata->hdmi_v5p_power)
 		hi->hdmi_power = pdata->hdmi_v5p_power;
 
-	ret = uio_register_device(&pdev->dev, &hi->uio_info);
-	if (ret) {
-		printk(KERN_ERR"%s: register device fails !!!\n", __func__);
-		goto out_free;
-	}
-
 #ifdef CONFIG_CPU_PXA978
 	dvfm_register("uio-hdmi", &dvfm_dev_idx);
 #endif
@@ -500,6 +494,12 @@ static int hdmi_probe(struct platform_device *pdev)
 	}
 #endif
 
+	ret = uio_register_device(&pdev->dev, &hi->uio_info);
+	if (ret) {
+		printk(KERN_ERR"%s: register device fails !!!\n", __func__);
+		goto out_free;
+	}
+
 	setup_timer(&hi->jitter_timer, work_launch, (unsigned long)hi);
 	INIT_WORK(&hi->work, hdmi_switch_work);
 	INIT_DELAYED_WORK(&hi->hpd_work, hdmi_delayed_func);
@@ -518,6 +518,13 @@ static int hdmi_probe(struct platform_device *pdev)
 out_free:
 	clk_disable(hi->clk);
 	clk_put(hi->clk);
+#if defined(CONFIG_CPU_PXA978) || defined(CONFIG_CPU_MMP3)
+	if (hi->hdmi_power)
+		hi->hdmi_power(0);
+#else
+	if (atomic_read(&hdmi_state) && (hi->hdmi_power))
+		hi->hdmi_power(0);
+#endif
 	kfree(hi);
 
 	return ret;
