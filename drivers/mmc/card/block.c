@@ -956,7 +956,10 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *req)
 		mmc_queue_bounce_pre(mq);
 
 		mmc_wait_for_req(card->host, &brq.mrq);
-
+#ifdef CONFIG_MMC_BLOCK_CMD13_AFTER_CMD18
+		if (brq.cmd.opcode == MMC_READ_MULTIPLE_BLOCK)
+			mmc_send_status(card, NULL);
+#endif
 		mmc_queue_bounce_post(mq);
 
 		/*
