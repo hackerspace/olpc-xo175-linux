@@ -493,6 +493,31 @@ static struct regulator_init_data pm800_regulator_data[] = {
 	[PM800_ID_LDO19] = REG_INIT(LDO19, 1700000, 3300000, 1, 1),
 };
 
+#if defined(CONFIG_VIBRATOR_88PM8XXX)
+static void vibrator_set_power(int on)
+{
+	static struct regulator *v_ldo10_2v8;
+
+	if (!v_ldo10_2v8) {
+		v_ldo10_2v8 = regulator_get(NULL, "V_LDO10_2V8");
+		if (IS_ERR(v_ldo10_2v8)) {
+			v_ldo10_2v8 = NULL;
+			return;
+		}
+	}
+
+	if (on) {
+		regulator_set_voltage(v_ldo10_2v8, 2800000, 2800000);
+		regulator_enable(v_ldo10_2v8);
+	} else
+		regulator_disable(v_ldo10_2v8);
+}
+
+static struct pm80x_vibrator_pdata vibrator_pdata = {
+	.vibrator_power = vibrator_set_power,
+};
+#endif
+
 static struct pm80x_rtc_pdata pm80x_rtc = {
 	.rtc_wakeup	= 0,
 };
@@ -545,7 +570,10 @@ static struct pm80x_platform_data pm80x_info = {
 	.irq_companion = gpio_to_irq(mfp_to_gpio(GPIO97_GPIO)),
 
 	.num_regulators = ARRAY_SIZE(pm800_regulator_data),
-	.regulator	    = pm800_regulator_data,
+	.regulator = pm800_regulator_data,
+#if defined(CONFIG_VIBRATOR_88PM8XXX)
+	.vibrator = &vibrator_pdata,
+#endif
 	.rtc = &pm80x_rtc,
 	.pm800_plat_config = pm800_plat_config,
 };
