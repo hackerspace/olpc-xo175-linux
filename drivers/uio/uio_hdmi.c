@@ -59,7 +59,7 @@ struct hdmi_instance {
 static void set_power_constraint(struct hdmi_instance *hi, int min)
 {
 #if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
-	pm_qos_update_request(&hi->qos_idle, EXIT_LATENCY_CORE_EXTIDLE);
+	pm_qos_update_request(&hi->qos_idle, PM_QOS_CONSTRAINT);
 	pm_qos_update_request(&hi->qos_cpufreq_min, min);
 	pm_qos_update_request(&hi->qos_cpufreq_disable, 1);
 #endif
