@@ -646,20 +646,20 @@ static int cywee_cwgd_set_power(int on)
 {
 	static struct regulator *v_ldo14_2v8;
 
-	v_ldo14_2v8 = regulator_get(NULL, "V_LDO14_2V8");
-	if (IS_ERR(v_ldo14_2v8)) {
-		v_ldo14_2v8 = NULL;
-		return -EIO;
+	if (!v_ldo14_2v8) {
+		v_ldo14_2v8 = regulator_get(NULL, "V_LDO14_2V8");
+		if (IS_ERR(v_ldo14_2v8)) {
+			v_ldo14_2v8 = NULL;
+			return -EIO;
+		}
 	}
 
 	if(on) {
 		regulator_set_voltage(v_ldo14_2v8, 2800000, 2800000);
 		regulator_enable(v_ldo14_2v8);
-	} else {
+	} else
 		regulator_disable(v_ldo14_2v8);
-		regulator_put(v_ldo14_2v8);
-		v_ldo14_2v8 = NULL;
-	}
+
 	msleep(100);
 	return 0;
 }
@@ -679,20 +679,20 @@ static int cywee_cwmi_set_power(int on)
 {
 	static struct regulator *v_ldo14_2v8;
 
-	v_ldo14_2v8 = regulator_get(NULL, "V_LDO14_2V8");
-	if (IS_ERR(v_ldo14_2v8)) {
-		v_ldo14_2v8 = NULL;
-		return -EIO;
+	if (!v_ldo14_2v8) {
+		v_ldo14_2v8 = regulator_get(NULL, "V_LDO14_2V8");
+		if (IS_ERR(v_ldo14_2v8)) {
+			v_ldo14_2v8 = NULL;
+			return -EIO;
+		}
 	}
 
 	if(on) {
 		regulator_set_voltage(v_ldo14_2v8, 2800000, 2800000);
 		regulator_enable(v_ldo14_2v8);
-	} else {
+	} else
 		regulator_disable(v_ldo14_2v8);
-		regulator_put(v_ldo14_2v8);
-		v_ldo14_2v8 = NULL;
-	}
+
 	msleep(100);
 	return 0;
 }
@@ -827,25 +827,24 @@ static struct platform_device orchid_lcd_backlight_devices = {
 #if defined(CONFIG_TOUCHSCREEN_FT5306)
 static int ft5306_touch_io_power_onoff(int on)
 {
-	struct regulator *v_ldo14_2v8;
-	v_ldo14_2v8 = regulator_get(NULL, "V_LDO14_2V8");
-	if (IS_ERR(v_ldo14_2v8)) {
-		v_ldo14_2v8 = NULL;
-		pr_err("%s: enable V_LDO14_2V8 for touch fail!\n", __func__);
-		return -EIO;
-	}
-	else {
-		if (on) {
-			regulator_set_voltage(v_ldo14_2v8, 2800000, 2800000);
-			regulator_enable(v_ldo14_2v8);
-		}
-		else {
-			regulator_disable(v_ldo14_2v8);
+	static struct regulator *v_ldo14_2v8;
+
+	if (!v_ldo14_2v8) {
+		v_ldo14_2v8 = regulator_get(NULL, "V_LDO14_2V8");
+		if (IS_ERR(v_ldo14_2v8)) {
 			v_ldo14_2v8 = NULL;
+			pr_err("%s: enable V_LDO14_2V8 for touch fail!\n", __func__);
+			return -EIO;
 		}
-		msleep(100);
-		regulator_put(v_ldo14_2v8);
 	}
+
+	if (on) {
+		regulator_set_voltage(v_ldo14_2v8, 2800000, 2800000);
+		regulator_enable(v_ldo14_2v8);
+	} else
+		regulator_disable(v_ldo14_2v8);
+
+	msleep(100);
 	return 0;
 }
 
