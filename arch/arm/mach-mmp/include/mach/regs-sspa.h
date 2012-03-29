@@ -12,10 +12,12 @@
 
 #define SSPA1_REG(x)		(SSPA1_VIRT_BASE + (x))
 #define SSPA2_REG(x)		(SSPA2_VIRT_BASE + (x))
+#define DSP_AUDIO_REG(x)	(DSP_AUDIO_CONFIG_REG + (x))
 
 #define SSPA_AUD_CTRL		SSPA1_REG(0x34)
 #define SSPA_AUD_PLL_CTRL0	SSPA1_REG(0x38)
 #define SSPA_AUD_PLL_CTRL1	SSPA1_REG(0x3c)
+#define DSP_AUDIO_AUX_CORE	DSP_AUDIO_REG(0x18)
 
 /*
  * PXA688 SSPA Serial Port Registers

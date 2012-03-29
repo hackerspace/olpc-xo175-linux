@@ -16,12 +16,68 @@
 #include <mach/regs-mpmu.h>
 #include <mach/regs-apmu.h>
 #include <mach/regs-ciu.h>
+#include <mach/regs-sspa.h>
 
 #define VCXO 26000000
 
 static u32 pd[9] = {2, 3, 4, 5, 6, 8, 10, 12, 16};
 static char *ddr_inter[] = {"4k", "16k", "64k", "256k", "1024k", "512m",
 	"1g", "none"};
+
+/* The audio vco table in
+ * audio pll spec
+ */
+static struct audio_vco_pll {
+	u32 nmclk:4;
+	u32 nfbc:6;
+	u32 fract:20;
+	u32 vco;
+} av_array[] = {
+	{3, 31, 0x8a18, 135475200},
+	{3, 34, 0xda1, 147456000},
+	{4, 32, 0x0, 104000000},
+	{5, 35, 0x8208, 135475200},
+	{5, 38, 0xaaaa, 147456000},
+	{5, 27, 0x3269, 104000000},
+	{6, 31, 0x8a18, 135475200},
+	{6, 34, 0xda1, 147456000},
+	{8, 32, 0, 104000000},
+	{10, 35, 0x8208, 135475200},
+	{10, 38, 0xaaaa, 147456000},
+	{10, 27, 0x3269, 104000000},
+	{5, 27, 0x3978, 135475200},
+	{6, 35, 0xb44b, 147456000},
+	{7, 29, 0x4384, 104000000},
+	{3, 36, 0, 135475200},
+	{3, 39, 0x4ccc, 147456000},
+	{5, 46, 0x155f, 104000000},
+	{3, 33, 0x2526, 135475200},
+	{3, 36, 0, 147456000},
+	{5, 42, 0x7b01, 104000000},
+};
+
+/* The audio pll table in
+ * audio pll spec
+ */
+static struct audio_pll_output {
+	u32 div_module:3;
+	u32 div_pattern:2;
+	u32 divider:8;
+} ap_output[] = {
+	{0b011, 0b00, 1},
+	{0b101, 0b00, 2},
+	{0b000, 0b00, 4},
+	{0b001, 0b01, 6},
+	{0b001, 0b00, 8},
+	{0b001, 0b10, 9},
+	{0b010, 0b01, 12},
+	{0b010, 0b00, 16},
+	{0b010, 0b10, 18},
+	{0b100, 0b01, 24},
+	{0b100, 0b10, 36},
+	{0b110, 0b01, 48},
+	{0b110, 0b10, 72},
+};
 
 static u32 pll_clk_calculate(u32 refdiv, u32 fbdiv, u32 postdiv)
 {
@@ -273,6 +329,75 @@ static int ddr_interleave_get(void)
 	return 7;
 }
 
+/*
+ * match vco and audio pll in av_array[] and
+ * ap_output[] */
+
+static u32 get_audio_pll(void)
+{
+	u32 nmclk;
+	u32 nfbc;
+	u32 fract;
+	u32 div_module;
+	u32 div_pattern;
+	u32 sspa1_aud_ctrl1;
+	u32 sspa1_aud_ctrl2;
+
+	int i;
+	int vco_size;
+	int pll_size;
+	int vco = 0;
+	int divider = 0;
+
+	sspa1_aud_ctrl1 = readl(SSPA_AUD_PLL_CTRL0);
+	sspa1_aud_ctrl2 = readl(SSPA_AUD_PLL_CTRL1);
+
+	nmclk = (sspa1_aud_ctrl1 >> 2 & 0x1) |
+		((sspa1_aud_ctrl2 >> 29 & 0x3) << 2) |
+		((sspa1_aud_ctrl1 >> 31 & 0x1) << 1);
+
+	nfbc = ((sspa1_aud_ctrl2 >> 25 & 0xf) << 2) |
+		(sspa1_aud_ctrl1 >> 3 & 0x3);
+
+	fract = sspa1_aud_ctrl1 >> 8 & 0xfffff;
+
+	div_module = (sspa1_aud_ctrl1 >> 28 & 0x7);
+	div_pattern = (sspa1_aud_ctrl2 & 0x3);
+	vco_size = sizeof(av_array) / sizeof(struct audio_vco_pll);
+	pll_size = sizeof(ap_output) / sizeof(struct audio_pll_output);
+
+	for (i = 0; i < vco_size; i++) {
+		if (av_array[i].nmclk == nmclk &&
+			av_array[i].nfbc == nfbc &&
+			av_array[i].fract == fract) {
+				vco = av_array[i].vco;
+				break;
+			}
+	}
+
+	if (vco == 0) {
+		pr_err("invalid audio vco setting\n");
+		return 0;
+	}
+
+	for (i = 0; i < pll_size; i++) {
+		if (ap_output[i].div_module == div_module &&
+			ap_output[i].div_pattern == div_pattern) {
+			divider = ap_output[i].divider;
+			break;
+		}
+	}
+
+	if (divider == 0) {
+		pr_err("invalid audio pll divider setting\n");
+		return 0;
+	}
+
+	pr_debug("vco is %d, divider is %d\n", vco, divider);
+
+	return vco / divider;
+}
+
 static ssize_t mmp3_sysset_read(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
@@ -292,6 +417,8 @@ static ssize_t mmp3_sysset_read(struct device *dev, struct device_attribute *att
 	u32 apmu_isp;
 	u32 apmu_ccic2;
 	u32 apmu_ccic;
+	u32 dsp_audio_aux;
+
 	u32 pll_sel_status;
 	u32 ddr1_clk;
 	u32 ddr2_clk;
@@ -309,6 +436,8 @@ static ssize_t mmp3_sysset_read(struct device *dev, struct device_attribute *att
 	u32 ccic_clk;
 	u32 ccic2_clk;
 	u32 sdh_clk[5];
+	u32 audio_pll;
+	u32 zsp_clk;
 
 	int i;
 	int tmp;
@@ -613,18 +742,33 @@ static ssize_t mmp3_sysset_read(struct device *dev, struct device_attribute *att
 	/* ddr interleave */
 	inter = ddr_interleave_get();
 
+	/* zsp */
+	audio_pll = get_audio_pll();
+	dsp_audio_aux = readl(DSP_AUDIO_AUX_CORE);
+	tmp = (dsp_audio_aux >> 4) & 0x3;
+	if (tmp == 0)
+		zsp_clk = audio_pll;
+	else if (tmp == 1)
+		zsp_clk = pll1;
+	else
+		zsp_clk = 0;
+	tmp = ( dsp_audio_aux >> 1) & 0x7;
+	zsp_clk /= tmp;
+
 	len = sprintf(buf, "\nPLL1[%d], PLL2[%d], PLL3[%d], PLL1_P[%d], "
 			"PLL2_P[%d]\n\nMP1[%d], MP2[%d], MM[%d]\n\nDDR1[%d], "
 			"DDR2[%d]\n\nAXI1[%d], AXI2[%d]\n\nGC2000[%d], "
 			"GC300[%d], GC_BUS[%d]\n\nVMETA[%d], VMETA_BUS[%d]\n\n"
 			"ISP[%d]\n\nSDH1[%d], SDH2[%d], SDH3[%d], SDH4[%d], "
-			"SDH5[%d]\n\nCCIC[%d], CCIC2[%d]\n\nDDR_INTERLEAVE[%s]\n\n",
+			"SDH5[%d]\n\nCCIC[%d], CCIC2[%d]\n\nDDR_INTERLEAVE[%s]\n\n"
+			"AUDIO_PLL[%d], ZSP[%d]\n\n",
 			pll1, pll2, pll3, pll1_p, pll2_p,
 			mp1_clk, mp2_clk, mm_clk, ddr1_clk, ddr2_clk,
 			axi1_clk, axi2_clk, gc2000_clk, gc300_clk, gc_bus,
 			vmeta_clk, vmeta_bus_clk, isp_clk,
 			sdh_clk[0], sdh_clk[1], sdh_clk[2], sdh_clk[3],
-			sdh_clk[4], ccic_clk, ccic2_clk, ddr_inter[inter]);
+			sdh_clk[4], ccic_clk, ccic2_clk, ddr_inter[inter],
+			audio_pll, zsp_clk);
 
 	return len;
 }
