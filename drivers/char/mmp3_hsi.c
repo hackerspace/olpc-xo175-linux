@@ -114,18 +114,21 @@ static bool read_data_from_fifo(u32 frame_count, int channel)
 			/* send ACK */
 			HSI_WRITE32(TX_FIFO + (channel << 3), cmd_ack);
 		} else if (frame_head == 0x0b) {
-		/* receiver ACK, and don't deliver it to DL layer */
-			frame_count--;
-			continue;
+		/* ACK is processed by IPC automatically */
+			if (hsi_core->hsi_config->mode == HSI_CPIMAGE_MODE) {
+				pr_err("%s: IPC err.\n", __func__);
+				continue;
+			}
 		}
+
+		if (rx_cfg->rx_cpu_handler)
+			rx_cfg->rx_cpu_handler(channel, frame_data);
 
 		if (rx_cfg->rx_frame == NULL) {
 			frame_count--;
 			continue;
 		}
 
-		if (rx_cfg->rx_cpu_handler)
-			rx_cfg->rx_cpu_handler(channel, frame_data);
 		if (rx_cfg->rx_frame_rcv < rx_cfg->rx_frame_cnt) {
 			*rx_cfg->rx_frame = frame_data;
 			rx_cfg->rx_frame++;
@@ -172,6 +175,12 @@ static int hsi_handle_rx_thrs_int(int channel)
 			BIT_RX_FRM_CNT_MSB, BIT_RX_FRM_CNT_LSB);
 	}
 
+	return 0;
+}
+
+static int hsi_ipc_cmd_rcv_handler(int channel)
+{
+	/* do nothing here */
 	return 0;
 }
 
@@ -344,7 +353,8 @@ static int hsi_channel_int_handler(int channel)
 		ret = hsi_dma_rx_err_handler(channel);
 	if (channel_status & HSI_CH_STATUS_RX_FRM_LOST)
 		ret = hsi_rx_frm_lost_handler(channel);
-
+	if (channel_status & HSI_CH_STATUS_IPC_CMD)
+		ret = hsi_ipc_cmd_rcv_handler(channel);
 
 exit:
 	channel_status &= HSI_CH_STATUS_CLR_ALL_MASK;
@@ -726,6 +736,7 @@ static int mmp3_hsi_init_database(void)
 		rx_config->rx_fifo_req_ena = false;
 		rx_config->rx_fifo_int_ena = false;
 		rx_config->rx_fifo_enable = false;
+		rx_config->ipc_cmd_rcv_ena = false;
 		rx_config->rx_ch_fifo_base = 0;
 		rx_config->rx_ch_fifo_size = 0;
 		rx_config->rx_ch_fifo_thrs = 0;
@@ -872,6 +883,43 @@ bool hsi_enable_rx_fifo_req(int channel, struct strt_hsi_rx_ch_cfg *rx_cfg)
 	}
 
 	return rx_fifo_req_ena;
+}
+
+bool hsi_disable_ipc_cmd_rcv_int(int channel, struct strt_hsi_rx_ch_cfg *rx_cfg)
+{
+	u32 channel_mask;
+	bool ipc_cmd_rcv_ena = rx_cfg->ipc_cmd_rcv_ena;
+
+	if (channel != DATA_CH)
+		return false;
+
+	if (ipc_cmd_rcv_ena == true) {
+		channel_mask = HSI_READ32(CHNL_INT_MASK + (channel << 2));
+		channel_mask &= ~HSI_CH_MSK_IPC_CMD;
+		HSI_WRITE32(CHNL_INT_MASK + (channel << 2), channel_mask);
+		rx_cfg->ipc_cmd_rcv_ena = false;
+	}
+
+	return ipc_cmd_rcv_ena;
+}
+
+bool hsi_enable_ipc_cmd_rcv_int(int channel, struct strt_hsi_rx_ch_cfg *rx_cfg)
+{
+	u32 channel_mask;
+	bool ipc_cmd_rcv_ena = rx_cfg->ipc_cmd_rcv_ena;
+
+	if (channel != DATA_CH)
+		return false;
+
+	if (ipc_cmd_rcv_ena == false) {
+		pr_info("enable ipc cmd rcv int\n");
+		channel_mask = HSI_READ32(CHNL_INT_MASK + (channel << 2));
+		channel_mask |= HSI_CH_MSK_IPC_CMD;
+		HSI_WRITE32(CHNL_INT_MASK + (channel << 2), channel_mask);
+		rx_cfg->ipc_cmd_rcv_ena = true;
+	}
+
+	return ipc_cmd_rcv_ena;
 }
 
 bool hsi_disable_rx_fifo_int(int channel, struct strt_hsi_rx_ch_cfg *rx_cfg)
@@ -1166,7 +1214,7 @@ int hsi_receive_dma(int channel, u32 *paddr, u32 byte_count, void * cookie)
 	hsi_enable_rx_fifo_dma(channel, rx_cfg);
 	hsi_enable_rx_fifo_int(channel, rx_cfg);
 
-	HSI_WRITE32(RX_DMA_DADR + (channel << 2), paddr);
+	HSI_WRITE32(RX_DMA_DADR + (channel << 2), (u32)paddr);
 	HSI_WRITE32(RX_DMA_DLEN + (channel << 2), byte_count & 0xFFFF);
 	reg = HSI_READ32(RX_DMA_CTRL + (channel << 2));
 	reg = HSI_MODIFY32(reg, 16, 16, 0);
@@ -1558,7 +1606,7 @@ int hsi_transmit_dma(int channel, u32 *paddr, u32 byte_count, void *cookie)
 	hsi_enable_tx_fifo_dma(channel, tx_cfg);
 	hsi_enable_tx_fifo_int(channel, tx_cfg);
 
-	HSI_WRITE32(TX_DMA_SADR + (channel << 2), paddr);
+	HSI_WRITE32(TX_DMA_SADR + (channel << 2), (u32)paddr);
 
 	reg = HSI_READ32(TX_DMA_DLEN + (channel << 2));
 	reg = HSI_MODIFY32(reg, 15, 0, byte_count & 0xFFFF);
@@ -1663,6 +1711,7 @@ EXPORT_SYMBOL(hsi_reset_rx);
 int hsi_set_work_mode(enum hsi_work_mode_enum mode)
 {
 	u32 reg;
+	struct strt_hsi_rx_ch_cfg *rx_cfg;
 	switch (mode) {
 	case HSI_BOOTROM_MODE:
 		hsi_core->hsi_config->ch_bits = HSI_IF_CHANNEL_BITS_1;
@@ -1697,6 +1746,14 @@ int hsi_set_work_mode(enum hsi_work_mode_enum mode)
 		reg = HSI_READ32(HSI_CONFIG2);
 		reg = HSI_MODIFY32(reg, 15, 0, hsi_core->hsi_config->tx_rate_div);
 		HSI_WRITE32(HSI_CONFIG2, reg);
+
+		/* enable IPC for ACK */
+		reg = HSI_READ32(HSI_CNTRL);
+		reg = HSI_MODIFY32(reg, 15, 12, 0xB);
+		reg = HSI_MODIFY32(reg, 8, 8, 1);
+		HSI_WRITE32(HSI_CNTRL, reg);
+		rx_cfg = &(hsi_core->hsi_config->rx_chnl_config[DATA_CH]);
+		hsi_enable_ipc_cmd_rcv_int(DATA_CH, rx_cfg);
 		break;
 	default:
 		break;
