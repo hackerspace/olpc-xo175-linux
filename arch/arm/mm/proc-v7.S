@@ -19,6 +19,10 @@
 
 #include "proc-macros.S"
 
+#ifdef CONFIG_PJ4B_ERRATA_6382
+#include <asm/pj4b-errata-6382.h>
+#endif
+
 #define TTB_S		(1 << 1)
 #define TTB_RGN_NC	(0 << 3)
 #define TTB_RGN_OC_WBWA	(1 << 3)
@@ -85,7 +89,11 @@ ENTRY(cpu_v7_dcache_clean_area)
 #ifdef CONFIG_PJ4B_ERRATA_6026
 1:	mcr	p15, 0, r0, c7, c14, 1		@ clean & invalidate D / U line
 #else
-1:	mcr	p15, 0, r0, c7, c10, 1		@ clean D entry
+1:
+#ifdef CONFIG_PJ4B_ERRATA_6382
+	pj4b_errata_6382 r3				@ DSB + delay loop before any clean only cache maintenance operations
+#endif
+	mcr	p15, 0, r0, c7, c10, 1		@ clean D entry
 #endif
 	add	r0, r0, r2
 	subs	r1, r1, r2
@@ -177,6 +185,9 @@ ENTRY(cpu_v7_set_pte_ext)
 #ifdef CONFIG_PJ4B_ERRATA_6026
 	mcr	p15, 0, r0, c7, c14, 1		@ clean & invalidate D / U line
 #else
+#ifdef CONFIG_PJ4B_ERRATA_6382
+	pj4b_errata_6382 r3				@ DSB + delay loop before any clean only cache maintenance operations
+#endif
 	mcr	p15, 0, r0, c7, c10, 1		@ flush_pte
 #endif
 #endif

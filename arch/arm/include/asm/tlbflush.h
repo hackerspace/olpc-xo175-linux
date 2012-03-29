@@ -14,6 +14,10 @@
 
 #include <asm/glue.h>
 
+#ifdef CONFIG_PJ4B_ERRATA_6382
+#include <asm/pj4b-errata-6382.h>
+#endif
+
 #define TLB_V3_PAGE	(1 << 0)
 #define TLB_V4_U_PAGE	(1 << 1)
 #define TLB_V4_D_PAGE	(1 << 2)
@@ -525,14 +529,18 @@ static inline void flush_pmd_entry(pmd_t *pmd)
 {
 	const unsigned int __tlb_flag = __cpu_tlb_flags;
 
-	if (tlb_flag(TLB_DCLEAN))
+	if (tlb_flag(TLB_DCLEAN)) {
 #ifdef CONFIG_PJ4B_ERRATA_6026
 		asm("mcr	p15, 0, %0, c7, c14, 1	@ flush_pmd"
 			: : "r" (pmd) : "cc");
 #else
+#ifdef CONFIG_PJ4B_ERRATA_6382
+		pj4b_errata_6382();
+#endif
 		asm("mcr	p15, 0, %0, c7, c10, 1	@ flush_pmd"
 			: : "r" (pmd) : "cc");
 #endif
+	}
 
 	if (tlb_flag(TLB_L2CLEAN_FR))
 		asm("mcr	p15, 1, %0, c15, c9, 1  @ L2 flush_pmd"
@@ -546,14 +554,18 @@ static inline void clean_pmd_entry(pmd_t *pmd)
 {
 	const unsigned int __tlb_flag = __cpu_tlb_flags;
 
-	if (tlb_flag(TLB_DCLEAN))
+	if (tlb_flag(TLB_DCLEAN)) {
 #ifdef CONFIG_PJ4B_ERRATA_6026
 		asm("mcr	p15, 0, %0, c7, c14, 1	@ flush_pmd"
 			: : "r" (pmd) : "cc");
 #else
+#ifdef CONFIG_PJ4B_ERRATA_6382
+		pj4b_errata_6382();
+#endif
 		asm("mcr	p15, 0, %0, c7, c10, 1	@ flush_pmd"
 			: : "r" (pmd) : "cc");
 #endif
+	}
 
 	if (tlb_flag(TLB_L2CLEAN_FR))
 		asm("mcr	p15, 1, %0, c15, c9, 1  @ L2 flush_pmd"

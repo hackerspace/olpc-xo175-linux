@@ -1311,6 +1311,17 @@ config PJ4B_ERRATA_6409
 	  IFU predicts-taken a branch, but tells ROB not-taken. This option disable static
 	  branch prediction
 
+config PJ4B_ERRATA_6382
+	bool "PJ4B errata 6382"
+	depends on CPU_PJ4B
+	help
+	  When the snoop filter is enabled, there is a rare condition that exists when a cache
+	  clean operation is stalled waiting for a memory buffer. If during this time, a fill
+	  to the same set occurs before the cache clean operation can allocate, the cache line
+	  of interest can get evicted from the L1 by the fill. If a snoop occurs during this
+	  time, it is possible for the snoop intervention data to get corrupted. This workaround
+	  implement a DSB + delay loop before any clean only cache maintenance operations.
+
 endmenu
 
 source "arch/arm/common/Kconfig"

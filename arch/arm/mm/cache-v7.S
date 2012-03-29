@@ -17,6 +17,10 @@
 
 #include "proc-macros.S"
 
+#ifdef CONFIG_PJ4B_ERRATA_6382
+#include <asm/pj4b-errata-6382.h>
+#endif
+
 /*
  *	v7_flush_icache_all()
  *
@@ -200,6 +204,9 @@ ENTRY(v7_coherent_user_range)
 #ifdef CONFIG_PJ4B_ERRATA_6026
  USER(	mcr	p15, 0, r12, c7, c14, 1	)	@ clean & invalidate D line to the point of unification
 #else
+#ifdef CONFIG_PJ4B_ERRATA_6382
+	pj4b_errata_6382 r3					@ DSB + delay loop before any clean only cache maintenance operations
+#endif
  USER(	mcr	p15, 0, r12, c7, c11, 1	)	@ clean D line to the point of unification
 #endif
 	add	r12, r12, r2
@@ -312,6 +319,9 @@ v7_dma_clean_range:
 #ifdef CONFIG_PJ4B_ERRATA_6026
 	mcr	p15, 0, r0, c7, c14, 1		@ clean & invalidate D / U line
 #else
+#ifdef CONFIG_PJ4B_ERRATA_6382
+	pj4b_errata_6382 r3				@ DSB + delay loop before any clean only cache maintenance operations
+#endif
 	mcr	p15, 0, r0, c7, c10, 1		@ clean D / U line
 #endif
 	add	r0, r0, r2
