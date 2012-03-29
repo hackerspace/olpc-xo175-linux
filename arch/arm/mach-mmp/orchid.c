@@ -708,7 +708,7 @@ static struct i2c_board_info orchid_twsi4_info[] = {
 		 * write addr 0x32, read addr 0x33
 		 */
 		.addr = 0x19,
-		.irq = gpio_to_irq(mfp_to_gpio(GPIO130_GPIO)),
+		.irq = gpio_to_irq(mfp_to_gpio(GPIO139_GPIO)),
 		.platform_data = &cwmi_acc_data,
 	},
 	{
@@ -717,7 +717,7 @@ static struct i2c_board_info orchid_twsi4_info[] = {
 		 * write addr 0x3C, read addr 0x3D
 		 */
 		.addr = 0x1e,
-		.irq = gpio_to_irq(mfp_to_gpio(GPIO139_GPIO)),
+		/*.irq = gpio_to_irq(mfp_to_gpio(GPIO139_GPIO)),*/
 		.platform_data = &cwmi_mag_data,
 	},
 #endif
