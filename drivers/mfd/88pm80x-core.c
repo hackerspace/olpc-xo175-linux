@@ -651,14 +651,16 @@ static int __devinit device_gpadc_init(struct pm80x_chip *chip,
 	struct i2c_client *i2c_gpadc = chip->gpadc_page;
 	int data = 0, mask = 0, ret = 0;
 
+	if (!i2c_gpadc) {
+		dev_warn(chip->dev, "Warning: I2C gpdac page is not available!\n");
+		return -EINVAL;
+	}
 	/* initialize GPADC without activating it */
-
 	/* turn on GPADC measurments */
 	ret = pm80x_set_bits(i2c_gpadc,
 			     PM800_GPADC_MISC_CONFIG2,
 			     PM800_GPADC_MISC_GPFSM_EN,
 			     PM800_GPADC_MISC_GPFSM_EN);
-
 	if (ret < 0)
 		goto out;
 	/*
@@ -683,26 +685,56 @@ static int __devinit device_gpadc_init(struct pm80x_chip *chip,
 	   GPADC sampling = 1 slot for all GPADCs */
 
 	/* set for Temprature mesurmants */
-	mask = (PM800_GPADC_GP_BIAS_EN0 |
-		PM800_GPADC_GP_BIAS_EN1 |
-		PM800_GPADC_GP_BIAS_EN2 | PM800_GPADC_GP_BIAS_EN3);
+	mask = (PM800_GPADC_GP_BIAS_EN0 | PM800_GPADC_GP_BIAS_EN1 |
+			PM800_GPADC_GP_BIAS_EN2 | PM800_GPADC_GP_BIAS_EN3);
 
 	if (pdata && (pdata->batt_det == 0)) {
-		data = (PM800_GPADC_GP_BIAS_EN0 |
-			PM800_GPADC_GP_BIAS_EN1 |
+		data = (PM800_GPADC_GP_BIAS_EN0 | PM800_GPADC_GP_BIAS_EN1 |
 			PM800_GPADC_GP_BIAS_EN2 | PM800_GPADC_GP_BIAS_EN3);
 	} else {
-		data = (PM800_GPADC_GP_BIAS_EN0 |
-			PM800_GPADC_GP_BIAS_EN2 | PM800_GPADC_GP_BIAS_EN3);
+		data = (PM800_GPADC_GP_BIAS_EN0 | PM800_GPADC_GP_BIAS_EN2 |
+				PM800_GPADC_GP_BIAS_EN3);
 	}
-	pm80x_set_bits(i2c_gpadc, PM800_GP_BIAS_ENA1, mask, data);
-	dev_info(chip->dev, "pm80x device_gpadc_init:initialize GPADC!!!\n");
+	ret = pm80x_set_bits(i2c_gpadc, PM800_GP_BIAS_ENA1, mask, data);
+	if (ret < 0)
+		goto out;
+
+	dev_info(chip->dev, "pm80x device_gpadc_init: Done\n");
 	return 0;
 
 out:
-	dev_info(chip->dev, "pm80x device_gpadc_init:FAIL initialize !!!\n");
-
+	dev_info(chip->dev, "pm80x device_gpadc_init: Failed!\n");
 	return ret;
+}
+
+static void genirq_init_800(struct pm80x_chip *chip, int irq_base)
+{
+	int i, __irq;
+	for (i = 0; i < ARRAY_SIZE(pm800_irqs); i++) {
+		__irq = i + irq_base;
+		irq_set_chip_data(__irq, chip);
+		irq_set_chip_and_handler(__irq, &pm800_irq_chip,
+						handle_edge_irq);
+		irq_set_nested_thread(__irq, 1);
+#ifdef CONFIG_ARM
+		set_irq_flags(__irq, IRQF_VALID);
+#else
+		irq_set_noprobe(__irq);
+#endif
+	}
+}
+
+static void genirq_exit_800(int irq_base)
+{
+	int i, __irq;
+	for (i = 0; i < ARRAY_SIZE(pm800_irqs); i++) {
+		__irq = i + irq_base;
+#ifdef CONFIG_ARM
+		set_irq_flags(__irq, 0);
+#endif
+		irq_set_chip_and_handler(__irq, NULL, NULL);
+		irq_set_chip_data(__irq, NULL);
+	}
 }
 
 static int __devinit device_irq_init_800(struct pm80x_chip *chip,
@@ -713,8 +745,8 @@ static int __devinit device_irq_init_800(struct pm80x_chip *chip,
 	unsigned char status_buf[PM800_INT_REG_NUM];
 	unsigned long flags = IRQF_TRIGGER_FALLING | IRQF_ONESHOT | IRQF_SHARED;
 	struct irq_desc *desc;
-	int i, data, mask, ret = -EINVAL;
-	int irq, irq_base, __irq;
+	int data, mask, ret = -EINVAL;
+	int irq, irq_base;
 
 	if (!pdata) {
 		dev_warn(chip->dev, "missing platform data\n");
@@ -773,11 +805,39 @@ static int __devinit device_irq_init_800(struct pm80x_chip *chip,
 	desc = irq_to_desc(irq);
 	pm800_irq_chip.irq_set_wake = desc->irq_data.chip->irq_set_wake;
 
-	/* register IRQ by genirq */
-	for (i = 0; i < ARRAY_SIZE(pm800_irqs); i++) {
+	/* Register IRQ by genirq */
+	genirq_init_800(chip, irq_base);
+	/* Request IRQ */
+	ret = request_threaded_irq(irq, NULL, pm800_irq, flags,
+				   "88pm800", chip);
+	if (ret) {
+		pm800_chip->irq = 0;
+		dev_err(chip->dev, "Failed to request pm800 IRQ: %d\n", ret);
+		goto out_request_irq;
+	}
+	return 0;
+
+out_request_irq:
+	genirq_exit_800(irq_base);
+out:
+	return ret;
+}
+
+static void device_irq_exit_800(struct pm80x_chip *chip)
+{
+	if (chip->pm800_chip && chip->pm800_chip->irq) {
+		free_irq(chip->pm800_chip->irq, chip);
+		genirq_exit_800(chip->pm800_chip->irq_base);
+	}
+}
+
+static void genirq_init_805(struct pm80x_chip *chip, int irq_base)
+{
+	int i, __irq;
+	for (i = 0; i < ARRAY_SIZE(pm805_irqs); i++) {
 		__irq = i + irq_base;
 		irq_set_chip_data(__irq, chip);
-		irq_set_chip_and_handler(__irq, &pm800_irq_chip,
+		irq_set_chip_and_handler(__irq, &pm805_irq_chip,
 					 handle_edge_irq);
 		irq_set_nested_thread(__irq, 1);
 #ifdef CONFIG_ARM
@@ -786,23 +846,19 @@ static int __devinit device_irq_init_800(struct pm80x_chip *chip,
 		irq_set_noprobe(__irq);
 #endif
 	}
-
-	ret = request_threaded_irq(irq, NULL, pm800_irq, flags,
-				   "88pm800", chip);
-	if (ret) {
-		dev_err(chip->dev, "Failed to request IRQ: %d\n", ret);
-		goto out;
-	}
-
-	return 0;
-out:
-	return ret;
 }
 
-static void device_irq_exit_800(struct pm80x_chip *chip)
+static void genirq_exit_805(int irq_base)
 {
-	if (chip->pm800_chip && chip->pm800_chip->irq)
-		free_irq(chip->pm800_chip->irq, chip);
+	int i, __irq;
+	for (i = 0; i < ARRAY_SIZE(pm805_irqs); i++) {
+		__irq = i + irq_base;
+#ifdef CONFIG_ARM
+		set_irq_flags(__irq, 0);
+#endif
+		irq_set_chip_and_handler(__irq, NULL, NULL);
+		irq_set_chip_data(__irq, NULL);
+	}
 }
 
 static int __devinit device_irq_init_805(struct pm80x_chip *chip,
@@ -813,8 +869,8 @@ static int __devinit device_irq_init_805(struct pm80x_chip *chip,
 	unsigned char status_buf[PM805_INT_REG_NUM];
 	unsigned long flags = IRQF_TRIGGER_FALLING | IRQF_ONESHOT;
 	struct irq_desc *desc;
-	int i, data, mask, ret = -EINVAL;
-	int irq, irq_base, __irq;
+	int data, mask, ret = -EINVAL;
+	int irq, irq_base;
 
 	if (!pdata) {
 		dev_warn(chip->dev, "missing platform data\n");
@@ -877,35 +933,31 @@ static int __devinit device_irq_init_805(struct pm80x_chip *chip,
 
 	desc = irq_to_desc(irq);
 	pm805_irq_chip.irq_set_wake = desc->irq_data.chip->irq_set_wake;
-	/* register IRQ by genirq */
-	for (i = 0; i < ARRAY_SIZE(pm805_irqs); i++) {
-		__irq = i + irq_base;
-		irq_set_chip_data(__irq, chip);
-		irq_set_chip_and_handler(__irq, &pm805_irq_chip,
-					 handle_edge_irq);
-		irq_set_nested_thread(__irq, 1);
-#ifdef CONFIG_ARM
-		set_irq_flags(__irq, IRQF_VALID);
-#else
-		irq_set_noprobe(__irq);
-#endif
-	}
 
+	/* Register IRQ by genirq */
+	genirq_init_805(chip, irq_base);
+	/* Request IRQ */
 	ret = request_threaded_irq(irq, NULL, pm805_irq, flags,
 				   "88pm805", chip);
 	if (ret) {
-		dev_err(chip->dev, "Failed to request IRQ: %d\n", ret);
+		pm805_chip->irq = 0;
+		dev_err(chip->dev, "Failed to request pm805 IRQ: %d\n", ret);
+		goto out_request_irq;
 	}
-
 	return 0;
+
+out_request_irq:
+	genirq_exit_805(irq_base);
 out:
 	return ret;
 }
 
 static void device_irq_exit_805(struct pm80x_chip *chip)
 {
-	if (chip->pm805_chip && chip->pm805_chip->irq)
+	if (chip->pm805_chip && chip->pm805_chip->irq) {
 		free_irq(chip->pm805_chip->irq, chip);
+		genirq_exit_805(chip->pm805_chip->irq_base);
+	}
 }
 
 static int __devinit device_805_init(struct pm80x_chip *chip,
@@ -916,7 +968,7 @@ static int __devinit device_805_init(struct pm80x_chip *chip,
 	struct pm80x_subchip *pm805_chip;
 
 	dev_info(chip->dev,
-		"pm80x:device_805_init slave addr[%x]\n", i2c->addr);
+		"pm80x:%s slave addr[0x%x]\n", __func__, i2c->addr);
 
 	/* Init PM805 subchip */
 	pm805_chip = kzalloc(sizeof(struct pm80x_subchip), GFP_KERNEL);
@@ -933,63 +985,70 @@ static int __devinit device_805_init(struct pm80x_chip *chip,
 			: chip->irq_base + PM800_MAX_IRQ;
 
 	ret = device_irq_init_805(chip, pdata);
+	if (ret < 0) {
+		dev_err(chip->dev, "Failed to init pm805 irq!\n");
+		goto out_irq_init;
+	}
 
-	if (ret < 0)
-		goto out_dev;
-
-	dev_info(chip->dev, "[%s][%s]mfd_add_devices codec_devs\n",
-		 __FILE__, __func__);
+	chip->pm805_wqueue = create_singlethread_workqueue("88pm805");
+	if (!chip->pm805_wqueue) {
+		dev_info(chip->dev,
+			"[%s]Failed to create pm805_wqueue\n", __func__);
+		ret = -ESRCH;
+		goto out_work;
+	}
 
 	ret = mfd_add_devices(chip->dev, 0, &codec_devs[0],
 			      ARRAY_SIZE(codec_devs), &codec_resources[0], 0);
 	if (ret < 0) {
 		dev_err(chip->dev, "Failed to add codec subdev\n");
-		goto out_dev;
-	}
-
-	dev_info(chip->dev, "[%s][%s]mfd_add_devices headset_devs\n",
-		 __FILE__, __func__);
-
-	chip->pm805_wqueue = create_singlethread_workqueue("88pm805");
-	if (!chip->pm805_wqueue) {
+		goto out_codec;
+	} else
 		dev_info(chip->dev,
-			 "[%s][%s]FAIL pm805_wqueue:out_work\n",
-			 __FILE__, __func__);
-		ret = -ESRCH;
-		goto out_dev;
-	}
+			"[%s]:Added mfd codec_devs\n", __func__);
 
 	ret = mfd_add_devices(chip->dev, 0, &headset_devs[0],
 			      ARRAY_SIZE(headset_devs),
 			      &headset_resources[0], 0);
 	if (ret < 0) {
 		dev_err(chip->dev, "Failed to add headset subdev\n");
-		goto out_dev;
-	}
+		goto out_headset;
+	} else
+		dev_info(chip->dev,
+			"[%s]:Added mfd headset_devs\n", __func__);
 
 	if (pdata->pm805_plat_config)
 		pdata->pm805_plat_config(chip, pdata);
 
 	return 0;
 
-out_dev:
+out_headset:
 	mfd_remove_devices(chip->dev);
+out_codec:
 	destroy_workqueue(chip->pm805_wqueue);
+out_work:
 	device_irq_exit_805(chip);
-	kfree(pm805_chip);
-	return 1;
+out_irq_init:
+	kfree(chip->pm805_chip);
+	chip->pm805_chip = NULL;
+	return ret;
 }
 
 static int __devinit device_regulator_init(struct pm80x_chip *chip,
-					   struct i2c_client *i2c,
-					   struct pm80x_platform_data *pdata)
+				struct pm80x_platform_data *pdata)
 {
 	struct regulator_init_data *initdata;
 	int ret = 0;
 	int i, seq;
 
-	if ((pdata == NULL) || (pdata->regulator == NULL))
+	if (!pdata || !pdata->regulator) {
+		dev_warn(chip->dev, "Warning: Regulator pdata is not available!\n");
 		return 0;
+	}
+	if (!chip->power_page) {
+		dev_warn(chip->dev, "Warning: I2C power page is not available!\n");
+		return 0;
+	}
 
 	if (pdata->num_regulators > ARRAY_SIZE(regulator_devs))
 		pdata->num_regulators = ARRAY_SIZE(regulator_devs);
@@ -1000,6 +1059,7 @@ static int __devinit device_regulator_init(struct pm80x_chip *chip,
 		if ((seq < 0) || (seq > PM800_ID_RG_MAX)) {
 			dev_err(chip->dev, "Wrong ID(%d) on regulator(%s)\n",
 				seq, initdata->constraints.name);
+			ret = -EINVAL;
 			goto out_err;
 		}
 		memcpy(&regulator_pdata[i], &pdata->regulator[i],
@@ -1016,10 +1076,11 @@ static int __devinit device_regulator_init(struct pm80x_chip *chip,
 			goto out_err;
 		}
 	}
+	dev_info(chip->dev, "[%s]:Added mfd regulator_devs\n", __func__);
 	return 0;
 
 out_err:
-	return 1;
+	return ret;
 }
 
 static int __devinit device_800_init(struct pm80x_chip *chip,
@@ -1061,11 +1122,10 @@ static int __devinit device_800_init(struct pm80x_chip *chip,
 	if ((pmic_id >= PM800_CHIP_A0) && (pmic_id <= PM800_CHIP_END)) {
 		chip->chip_version = ret;
 		dev_info(chip->dev,
-			 "pm80x:Marvell 88PM800 (ID: %02x) detected\n", ret);
+			 "88PM80x:Marvell 88PM800 (ID:0x%x) detected\n", ret);
 	} else {
 		dev_err(chip->dev,
-			"Failed to detect Marvell 88PM800:Chip ID: %02x\n",
-			ret);
+			"Failed to detect Marvell 88PM800:ChipID[0x%x]\n", ret);
 		goto out;
 	}
 
@@ -1086,30 +1146,27 @@ static int __devinit device_800_init(struct pm80x_chip *chip,
 	ret = device_gpadc_init(chip, pdata);
 	if (ret < 0) {
 		dev_info(chip->dev,
-			 "[%s][%s]FAIL device_gpadc_init:out\n",
-			 __FILE__, __func__);
+			 "[%s]Failed to init gpadc\n", __func__);
 		goto out;
 	}
 
 	ret = device_irq_init_800(chip, pdata);
 	if (ret < 0) {
 		dev_info(chip->dev,
-			 "[%s][%s]FAIL device_irq_init:out\n",
-			 __FILE__, __func__);
+			"[%s]Failed to init pm800 irq\n", __func__);
 		goto out;
 	}
 
 	/* PM800 common wqueue: used in headset, battery, rtc */
-	chip->pm800_wqueue = create_singlethread_workqueue("88pm80x");
+	chip->pm800_wqueue = create_singlethread_workqueue("88pm800");
 	if (!chip->pm800_wqueue) {
 		dev_info(chip->dev,
-			 "[%s][%s]FAIL pm800_wqueue:out_work\n",
-			 __FILE__, __func__);
+			"[%s]Failed to create pm800_wqueue\n", __func__);
 		ret = -ESRCH;
 		goto out_work;
 	}
 
-	if (device_regulator_init(chip, i2c_base, pdata)) {
+	if (device_regulator_init(chip, pdata)) {
 		dev_err(chip->dev, "Failed to init regulators\n");
 		goto out_dev;
 	}
@@ -1121,7 +1178,9 @@ static int __devinit device_800_init(struct pm80x_chip *chip,
 		if (ret < 0) {
 			dev_err(chip->dev, "Failed to add vbus subdev\n");
 			goto out_dev;
-		}
+		} else
+			dev_info(chip->dev,
+				"[%s]:Added mfd vbus_devs\n", __func__);
 	}
 
 	ret = mfd_add_devices(chip->dev, 0, &onkey_devs[0],
@@ -1129,7 +1188,9 @@ static int __devinit device_800_init(struct pm80x_chip *chip,
 	if (ret < 0) {
 		dev_err(chip->dev, "Failed to add onkey subdev\n");
 		goto out_dev;
-	}
+	} else
+		dev_info(chip->dev,
+			"[%s]:Added mfd onkey_devs\n", __func__);
 
 	if (pdata && pdata->vibrator) {
 		vibrator_devs[0].platform_data = pdata->vibrator;
@@ -1139,7 +1200,9 @@ static int __devinit device_800_init(struct pm80x_chip *chip,
 		if (ret < 0) {
 			dev_err(chip->dev, "Failed to add vibrator subdev\n");
 			goto out_dev;
-		}
+		} else
+			dev_info(chip->dev,
+				"[%s]:Added mfd vibrator_devs\n", __func__);
 	}
 
 	if (pdata && pdata->rtc) {
@@ -1150,14 +1213,18 @@ static int __devinit device_800_init(struct pm80x_chip *chip,
 		if (ret < 0) {
 			dev_err(chip->dev, "Failed to add rtc subdev\n");
 			goto out_dev;
-		}
+		} else
+			dev_info(chip->dev,
+				"[%s]:Added mfd rtc_devs\n", __func__);
 	}
 	ret = mfd_add_devices(chip->dev, 0, &pm80x_gpio_devs[0],
 				ARRAY_SIZE(pm80x_gpio_devs), NULL, pm800_chip->irq_base);
 	if (ret < 0) {
 		dev_err(chip->dev, "Failed to add gpio subdev\n");
 		goto out_dev;
-	}
+	} else
+		dev_info(chip->dev,
+			"[%s]:Added mfd gpio_devs\n", __func__);
 	if (pdata->pm800_plat_config)
 		pdata->pm800_plat_config(chip, pdata);
 
@@ -1168,54 +1235,67 @@ out_dev:
 out_work:
 	device_irq_exit_800(chip);
 out:
-	return -EINVAL;
+	kfree(chip->pm800_chip);
+	chip->pm800_chip = NULL;
+	return ret;
 }
 
 int __devinit pm80x_device_init(struct pm80x_chip *chip,
 				struct pm80x_platform_data *pdata)
 {
-	switch (chip->id) {
+	int ret = 0;
 
+	switch (chip->id) {
 	case CHIP_PM800:
 		/* set PM800 as main chip */
-		device_800_init(chip, chip->client, pdata);
+		ret = device_800_init(chip, chip->client, pdata);
 		break;
-
 	case CHIP_PM805:
 		/* set PM805 as main chip */
-		device_805_init(chip, chip->client, pdata);
+		ret = device_805_init(chip, chip->client, pdata);
 		break;
-
+	}
+	if (ret) {
+		dev_err(chip->dev, "%s failed!\n", __func__);
+		return ret;
 	}
 
 	if (chip->companion) {
-
 		switch (chip->id) {
-
 		case CHIP_PM800:
 			/* PM800 is main chip, PM805 is companion chip */
-			device_805_init(chip, chip->companion, pdata);
+			ret = device_805_init(chip, chip->companion, pdata);
 			break;
-
 		case CHIP_PM805:
 			/* PM805 is main chip, PM800 is companion chip */
-			device_800_init(chip, chip->companion, pdata);
+			ret = device_800_init(chip, chip->companion, pdata);
 			break;
-
 		}
 	}
+	if (ret)
+		dev_err(chip->dev, "%s failed!\n", __func__);
 
-	return 0;
+	return ret;
 }
 
 void __devexit pm80x_device_exit(struct pm80x_chip *chip)
 {
-	flush_workqueue(chip->pm800_wqueue);
-	destroy_workqueue(chip->pm800_wqueue);
-	flush_workqueue(chip->pm805_wqueue);
-	destroy_workqueue(chip->pm805_wqueue);
-	device_irq_exit_800(chip);
-	device_irq_exit_805(chip);
+	if (chip->pm800_chip) {
+		device_irq_exit_800(chip);
+		if (chip->pm800_wqueue) {
+			flush_workqueue(chip->pm800_wqueue);
+			destroy_workqueue(chip->pm800_wqueue);
+		}
+		kfree(chip->pm800_chip);
+	}
+	if (chip->pm805_chip) {
+		device_irq_exit_805(chip);
+		if (chip->pm805_wqueue) {
+			flush_workqueue(chip->pm805_wqueue);
+			destroy_workqueue(chip->pm805_wqueue);
+		}
+		kfree(chip->pm805_chip);
+	}
 	mfd_remove_devices(chip->dev);
 }
 
