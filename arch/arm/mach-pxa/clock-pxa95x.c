@@ -15,6 +15,7 @@
 #include <plat/clock.h>
 #include <mach/pxa3xx-regs.h>
 #include <mach/debug_pm.h>
+#include <mach/pxa95x_dvfm.h>
 #include "dsi_hdmi_pll.h"
 #include "clock.h"
 
@@ -484,9 +485,85 @@ static void clk_pxa95x_lcd_disable(struct clk *dsi_clk)
 		   | (1 << (CKEN_PIXEL - 64)));
 }
 
+static long clk_pxa95x_lcd_round_rate(struct clk *lcd_clk, unsigned long rate)
+{
+	if (rate <= 104)
+		rate = 104;
+	else if (rate <= 156)
+		rate = 156;
+	else if (rate <= 208)
+		rate = 208;
+	else if (rate <= 312)
+		rate = 312;
+	else if (rate <= 416)
+		rate = 416;
+	else {
+		printk(KERN_ERR "LCD don't support rate: %lu\n", rate);
+		return -1;
+	}
+	return rate;
+}
+
+unsigned long clk_pxa95x_lcd_getrate(struct clk *lcd_clk)
+{
+	unsigned long rate;
+	rate = ACCR0 & 0x7;
+	switch (rate) {
+	case 0:
+		rate = 104;
+		break;
+	case 1:
+		rate = 156;
+		break;
+	case 2:
+		rate = 208;
+		break;
+	case 3:
+		rate = 312;
+		break;
+	case 4:
+		rate = 416;
+		break;
+	default:
+		return -1;
+	}
+	return rate;
+}
+
+static int clk_pxa95x_lcd_setrate(struct clk *lcd_clk, unsigned long rate)
+{
+	unsigned int value, mask = 0x7;
+	switch (rate) {
+	case 104:
+		value = 0;
+		break;
+	case 156:
+		value = 1;
+		break;
+	case 208:
+		value = 2;
+		break;
+	case 312:
+		value = 3;
+		break;
+	case 416:
+		value = 4;
+		break;
+	default:
+		printk(KERN_ERR "LCD don't suppport rate: %lu\n", rate);
+		return -1;
+	}
+	write_accr0(value, mask);
+	return 0;
+}
+
 static const struct clkops clk_pxa95x_lcd_ops = {
+	.init = common_clk_init,
 	.enable = clk_pxa95x_lcd_enable,
 	.disable = clk_pxa95x_lcd_disable,
+	.round_rate = clk_pxa95x_lcd_round_rate,
+	.getrate = clk_pxa95x_lcd_getrate,
+	.setrate = clk_pxa95x_lcd_setrate,
 };
 
 static int clk_axi_enable(struct clk *clk)

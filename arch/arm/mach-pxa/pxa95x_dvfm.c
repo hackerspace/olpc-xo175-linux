@@ -707,6 +707,25 @@ static int ispt_block_dvfm(int enable, int dev_id)
 }
 #endif
 
+void write_accr0(unsigned int value, unsigned int mask)
+{
+	unsigned int accr0, acsr0;
+	unsigned long flags;
+	local_fiq_disable();
+	local_irq_save(flags);
+
+	accr0 = ACCR0;
+	accr0 &= ~mask;
+	accr0 |= value;
+	ACCR0 = accr0;
+	do {
+		acsr0 = ACSR0;
+	} while ((accr0 & mask) != (acsr0 & mask));
+
+	local_irq_restore(flags);
+	local_fiq_enable();
+}
+
 static struct regulator *v_buck1;
 
 static unsigned int pxa95x_dvfm_get_core_voltage(void)
