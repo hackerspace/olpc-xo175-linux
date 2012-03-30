@@ -302,6 +302,29 @@ static unsigned long pll2_get_clk(void)
 	return pll_clk_calculate(refdiv, fbdiv);
 }
 
+/* usb: u2o clock */
+
+static void u2o_clk_enable(struct clk *clk)
+{
+	__raw_writel(clk->enable_val, clk->clk_rst);
+}
+
+static void u2o_clk_disable(struct clk *clk)
+{
+	unsigned int val;
+
+	/* USB AXI should be always released from reset
+	 * even though AXI clock be disabled */
+	val = __raw_readl(clk->clk_rst);
+	val &= ~(0x1 << 3);
+	__raw_writel(val, clk->clk_rst);
+}
+
+struct clkops u2o_clk_ops = {
+	.enable		= u2o_clk_enable,
+	.disable	= u2o_clk_disable,
+};
+
 static struct clk clk_usb_phy;
 #define GC_USB_PHY_EN	1
 static void gc800_clk_enable(struct clk *clk)
@@ -1052,7 +1075,7 @@ static APBC_CLK(keypad, MMP2_KPC, 0, 32768);
 static APBC_CLK(rtc, MMP2_RTC, 0x8, 32768);
 
 static APMU_CLK(nand, NAND, 0xbf, 100000000);
-static APMU_CLK(u2o, USB, 0x9, 480000000);
+static APMU_CLK_OPS(u2o, USB, 0x9, 480000000, &u2o_clk_ops);
 static APMU_CLK_OPS(sdh0, SDH0, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(sdh1, SDH1, 0x1b, 200000000, &sdhc_clk_ops);
 static APMU_CLK_OPS(sdh2, SDH2, 0x1b, 200000000, &sdhc_clk_ops);
