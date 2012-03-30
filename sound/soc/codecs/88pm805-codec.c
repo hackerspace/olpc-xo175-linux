@@ -99,6 +99,16 @@ static int pm805_write_reg_cache(struct snd_soc_codec *codec,
 		reg = reg - PM800_CLASS_D_INDEX + PM800_CLASS_D_REG_BASE;
 		i2c = chip->base_page;
 	}
+
+	/* Enable pm800 audio mode */
+	if (chip->base_page && reg == PM805_CODEC_MAIN_POWERUP) {
+		if (value & PM805_STBY_B)
+			pm80x_set_bits(chip->base_page, PM800_LOW_POWER_CONFIG_2,
+					PM800_AUDIO_MODE_EN, PM800_AUDIO_MODE_EN);
+		else
+			pm80x_set_bits(chip->base_page, PM800_LOW_POWER_CONFIG_2,
+					PM800_AUDIO_MODE_EN, 0);
+	}
 #endif
 
 	return pm80x_reg_write(i2c, reg, value);

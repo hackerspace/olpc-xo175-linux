@@ -132,6 +132,9 @@
 
 #define PM800_CLASS_D_REG_BASE			0x48
 
+#define PM800_LOW_POWER_CONFIG_2		0x21
+#define PM800_AUDIO_MODE_EN			(0x1 << 3)
+
 /* bits definition */
 #define PM805_CODEC_CLK_DIR_IN		0
 #define PM805_CODEC_CLK_DIR_OUT		1
