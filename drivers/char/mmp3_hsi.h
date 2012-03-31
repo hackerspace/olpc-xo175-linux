@@ -394,7 +394,6 @@ struct strt_hsi_rx_ch_cfg {
 	bool rx_fifo_req_ena;
 	bool rx_fifo_int_ena;
 	bool rx_fifo_enable;
-	bool ipc_cmd_rcv_ena;
 
 	u32 rx_ch_fifo_base;
 	u32 rx_ch_fifo_size;
