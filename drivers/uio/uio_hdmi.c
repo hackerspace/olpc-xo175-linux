@@ -36,7 +36,9 @@ static int early_suspend_flag;
 static int late_disable_flag;
 enum connect_lock con_lock;
 static bool timer_inited = 0;
+#ifdef CONFIG_CPU_PXA978
 static int dvfm_dev_idx;
+#endif
 
 struct hdmi_instance {
 	struct clk *clk;
@@ -127,7 +129,9 @@ static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 	struct hdmi_instance *hi =
 		container_of(info, struct hdmi_instance, uio_info);
 	int hpd = -1, status;
+#ifdef CONFIG_CPU_PXA978
 	int hdmi_freq = 0;
+#endif
 	switch (cmd) {
 	case SSPA1_GET_VALUE:
 		if (copy_from_user(&offset, argp, sizeof(offset)))
