@@ -159,7 +159,6 @@ static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 			if (late_disable_flag && hpd)
 				schedule_delayed_work(&hi->hpd_work,
 						msecs_to_jiffies(300));
-
 		}
 
 		pr_debug("early_suspend_flag %d Kernel space: hpd is %d\n",
@@ -178,12 +177,10 @@ static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 		break;
 #ifdef CONFIG_CPU_PXA978
 	case HDMI_PLL_ENABLE:
-		set_power_constraint(hi, -1);
 		clk_enable(hi->clk);
 		break;
 	case HDMI_PLL_DISABLE:
 		clk_disable(hi->clk);
-		unset_power_constraint(hi);
 		break;
 	case HDMI_PLL_SETRATE:
 		if (copy_from_user(&hdmi_freq, argp, sizeof(hdmi_freq)))
@@ -314,6 +311,8 @@ static void hdmi_switch_work(struct work_struct *work)
 				hi->hdmi_power(0);
 			if (early_suspend_flag == 0)
 				unset_power_constraint(hi);
+#else
+			unset_power_constraint(hi);
 #endif
 			/*if hdmi_state change, report hpd*/
 			uio_event_notify(&hi->uio_info);
@@ -321,6 +320,7 @@ static void hdmi_switch_work(struct work_struct *work)
 	} else {
 		if (atomic_cmpxchg(&hdmi_state, 0, 1) == 0) {
 			printk("uio_hdmi: cable plug in\n\n");
+
 #if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 			if (cpu_is_mmp2()) {
 				if (hi->hdmi_power)
@@ -329,6 +329,9 @@ static void hdmi_switch_work(struct work_struct *work)
 			}
 			if (early_suspend_flag == 0)
 				set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
+#else
+			set_power_constraint(hi, -1);
+			clk_enable(hi->clk);
 #endif
 			/*if hdmi_state change, report hpd*/
 			uio_event_notify(&hi->uio_info);
