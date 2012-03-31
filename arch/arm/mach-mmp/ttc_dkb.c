@@ -1643,6 +1643,7 @@ struct mv_cam_pdata mv_cam_data = {
 	.qos_req_min = 624,
 	.dma_burst = 64,
 	/*.bus_type = SOCAM_MIPI, */
+	.mipi_enabled = 0,
 	.mclk_min = 24,
 	.mclk_src = 2,
 	.controller_power = pxa910_cam_ctrl_power,

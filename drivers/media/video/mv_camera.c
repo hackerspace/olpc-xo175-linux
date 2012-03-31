@@ -190,17 +190,21 @@ static void ccic_config_phy(struct mv_camera_dev *pcdev, int enable)
 		ccic_reg_write(pcdev, REG_CSI2_DPHY5, mcam->dphy[1]);
 		/* 0x43 actives 2 lanes; */
 		/* 0x41 actives 1 lane(Brownstone v5 ov5642); */
-#ifdef CONFIG_CPU_MMP2
-		if (board_is_mmp2_brownstone_rev5())
-			ccic_reg_write(pcdev, REG_CSI2_CTRL0, 0x41);
-		else
-#endif
-			ccic_reg_write(pcdev, REG_CSI2_CTRL0, 0x43);
+		if (mcam->mipi_enabled == 0) {
+		#ifdef CONFIG_CPU_MMP2
+			if (board_is_mmp2_brownstone_rev5())
+				ccic_reg_write(pcdev, REG_CSI2_CTRL0, 0x41);
+			else
+		#endif
+				ccic_reg_write(pcdev, REG_CSI2_CTRL0, 0x43);
+			mcam->mipi_enabled = 1;
+		}
 	} else {
 		ccic_reg_write(pcdev, REG_CSI2_DPHY3, 0x0);
 		ccic_reg_write(pcdev, REG_CSI2_DPHY6, 0x0);
 		ccic_reg_write(pcdev, REG_CSI2_DPHY5, 0x0);
 		ccic_reg_write(pcdev, REG_CSI2_CTRL0, 0x0);
+		mcam->mipi_enabled = 0;
 	}
 }
 
@@ -482,7 +486,6 @@ void ccic_ctlr_reset(struct mv_camera_dev *pcdev)
  */
 static int mv_read_setup(struct mv_camera_dev *pcdev)
 {
-	ccic_ctlr_reset(pcdev);
 	ccic_config_phy(pcdev, 1);
 	ccic_irq_enable(pcdev);
 	mv_dma_setup(pcdev);
@@ -670,6 +673,7 @@ static int mv_stop_streaming(struct vb2_queue *vq)
 
 	ccic_stop_dma(pcdev);
 	pcdev->state = S_IDLE;
+	ccic_ctlr_reset(pcdev);
 
 	spin_lock_irqsave(&pcdev->list_lock, flags);
 	INIT_LIST_HEAD(&pcdev->buffers);

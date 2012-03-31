@@ -12,6 +12,7 @@ struct mv_cam_pdata {
 	int		dphy[3];
 	int		bus_type;
 	int		ccic_num_flag; /*ccic1:0; ccic2:1 */
+	int		mipi_enabled;
 	int		dma_burst;
 	int		qos_req_min;
 	int		mclk_min;
