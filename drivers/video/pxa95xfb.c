@@ -1547,9 +1547,10 @@ void converter_init(struct pxa95xfb_info *fbi)
 		conv->clk = clk_get(NULL, "PXA95x_DSI0CLK");
 	else if (conv->converter == LCD_M2DSI1)
 		conv->clk = clk_get(NULL, "PXA95x_DSI1CLK");
+#ifndef CONFIG_UIO_HDMI
 	else if (conv->converter == LCD_M2HDMI)
 		conv->clk = clk_get(NULL, "HDMICLK");
-
+#endif
 	if (IS_ERR(conv->clk))
 		pr_err("unable to get converter DSI0 CLK\n");
 
@@ -2363,11 +2364,12 @@ void lcdc_wait_for_vsync(u32 conv_id1, u32 conv_id2)
 			atomic_read(&pxa95xfb_conv[conv_id1 - 1].w_intr),
 			60 * HZ / 1000);
 	}
-
+	/*
 	if(!ret)
 		printk(KERN_ERR "warning %s: waiting vsync failed: conv_id: %d: %d %d: %d\n",
 			__func__, conv_id1, atomic_read(&pxa95xfb_conv[conv_id1 - 1].w_intr),
-			conv_id2, atomic_read(&pxa95xfb_conv[conv_id2 - 1].w_intr));
+			conv_id2, atomic_read(&pxa95xfb_conv[conv_id2 - 1].w_intr));*/
+
 	return;
 }
 

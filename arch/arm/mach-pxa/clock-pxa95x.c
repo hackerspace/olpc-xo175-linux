@@ -333,17 +333,30 @@ static int clk_pxa95x_ihdmi_enable(struct clk *hdmi_clk)
 {
 	set_mipi_reference_control();
 	dsi_enable_status = 1;
+	printk("hdmi: pll enable\n");
 	return 0;
 }
 
 static void clk_pxa95x_ihdmi_disable(struct clk *hdmi_clk)
 {
 	struct HDMIRegisters *p_Regs = get_ihdmi_pll();
+	/* Reset the phy */
+	p_Regs->HDMI_PHY_CTL2 = 0x5;
+	p_Regs->HDMI_PHY_CTL1 &= (0xFFF8007F);
+	p_Regs->HDMI_PHY_CTL1 &= ~(HDMI_PHY_CTL1_REG_PD_IREF(0)
+				   | HDMI_PHY_CTL1_REG_PD_TX(0xf));
+	p_Regs->HDMI_PHY_CTL1 |= HDMI_PHY_CTL1_REG_RESET_TX_OFF;
+	mdelay(1);
+	p_Regs->HDMI_PHY_CTL1 &= HDMI_PHY_CTL1_REG_RESET_TX_ON;
+	/* Reset the vpll HW state machine */
+	p_Regs->HDMI_PLL_DEBUG2 &= ~HDMI_PLL_DEBUG2_PLL_CTRL_RSTN;
+	mdelay(1);
 
 	p_Regs->HDMI_PLL_PU = 0;
 	mdelay(1);
 	hdmi_enable_status = 0;
 	clear_mipi_reference_control();
+	printk("hdmi: pll disable\n");
 }
 
 /* place real turn on when setrate: enable -> setrate */
@@ -395,7 +408,7 @@ static int clk_pxa95x_ihdmi_setrate(struct clk *clk, unsigned long rate)
 	mdelay(1);
 	/* Disable PLL */
 	p_Regs->HDMI_PLL_PU = 0;
-	mdelay(1);
+	mdelay(10);
 	/* Release reset the vpll HW state machine */
 	p_Regs->HDMI_PLL_DEBUG2 |= HDMI_PLL_DEBUG2_PLL_CTRL_RSTN;
 	mdelay(1);
@@ -404,7 +417,7 @@ static int clk_pxa95x_ihdmi_setrate(struct clk *clk, unsigned long rate)
 	p_Regs->HDMI_PHY_CTL1 = 0xC9200040;
 	p_Regs->HDMI_PHY_CTL2 = 0x0000DDDD;
 	p_Regs->HDMI_PLL_DEBUG1 |= 0x00024900;
-
+	printk("hdmi: TMDS clk set to %dMhz\n", hdmi_clk/5);
 	/* For several frequencys, use optimal parameters from the table
 	   - else, calculate according to spec */
 	switch (hdmi_clk) {
