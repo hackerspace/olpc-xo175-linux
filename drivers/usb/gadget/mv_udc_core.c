@@ -1494,6 +1494,9 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 
 #if defined CONFIG_ARCH_PXA && defined CONFIG_DVFM
 	dvfm_register("U2O", &dvfm_dev_idx);
+	if(udc->pdata->vbus && udc->pdata->vbus->poll() == VBUS_HIGH){
+		dvfm_disable_lowpower(dvfm_dev_idx);
+	}
 #endif
 	return 0;
 }
