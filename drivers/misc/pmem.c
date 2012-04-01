@@ -968,6 +968,21 @@ void put_pmem_file(struct file *file)
 void sync_pmem_area(void *vaddr, unsigned long addr, unsigned long len,
 		unsigned int cmd, enum dma_data_direction dir)
 {
+	unsigned long end;
+
+	end = addr + len;
+	if (ALIGN(end, ARCH_DMA_MINALIGN) != end) {
+		pr_warning("pmem: flushing cache on unaligned end\n");
+		end &= ~(ARCH_DMA_MINALIGN - 1);
+	}
+	if ((ALIGN((u32)vaddr, ARCH_DMA_MINALIGN) != (u32)vaddr)
+		|| (ALIGN(addr, ARCH_DMA_MINALIGN) != addr)) {
+		pr_warning("pmem: flushing cache on unaligned start\n");
+		vaddr = (void *)ALIGN((u32)vaddr, ARCH_DMA_MINALIGN);
+		addr = ALIGN(addr, ARCH_DMA_MINALIGN);
+	}
+	len = end - addr;
+
 	switch (cmd) {
 	case PMEM_CACHE_FLUSH:
 		dmac_flush_range(vaddr, vaddr + len);
@@ -1025,16 +1040,15 @@ void sync_pmem_file(struct file *file, unsigned long offset, unsigned long len,
 					cmd, dir);
 		goto end;
 	}
-	/* otherwise, flush the region of the file we are drawing */
+	/* only flush the partial region of the file we are drawing */
 	list_for_each(elt, &data->region_list) {
 		region_node = list_entry(elt, struct pmem_region_node, list);
 		if ((offset >= region_node->region.offset) &&
 		    ((offset + len) <= (region_node->region.offset +
 			region_node->region.len))) {
 
-			sync_pmem_area(vaddr + region_node->region.offset,
-				addr + region_node->region.offset,
-				region_node->region.len, cmd, dir);
+			sync_pmem_area(vaddr + offset, addr + offset,
+					len, cmd, dir);
 			break;
 		}
 	}
