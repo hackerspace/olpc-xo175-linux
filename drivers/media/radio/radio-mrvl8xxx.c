@@ -361,7 +361,7 @@ static int mrvl8xxx_hci_parse_event(struct mrvl8xxx_device *dev, char *buf, int 
 	return 0;
 }
 
-static void mrvl8xxx_op_mode_receiver(struct mrvl8xxx_device *dev)
+static void mrvl8xxx_op_mode_receiver(struct mrvl8xxx_device *dev, int audio_mode)
 {
 	printk(KERN_DEBUG "[fm] select radio mode\n");
 
@@ -373,10 +373,20 @@ static void mrvl8xxx_op_mode_receiver(struct mrvl8xxx_device *dev)
 	/* [0x01] set crystal frequency 26000000 */
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
 		FM_RECEIVER_INIT, 26000000, 4, DEFAULT_CMD_WAIT_TIME);
-	/* [0x1A] set audio patch audio path(0x00) analog;
-		i2s operation(0x00) slave; i2s mode (i2s) */
-	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		FM_SET_AUDIO_PATH, 0x000000, 3, DEFAULT_CMD_WAIT_TIME);
+    if (audio_mode) {
+        /* audio_mode = 1, digital(i2s) mode */
+	    mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
+		    FM_SET_AUDIO_PATH, 0x030001, 3, DEFAULT_CMD_WAIT_TIME);
+        /* select set 2 I2S interfaces which connect to SAI2 */
+	    mrvl8xxx_hci_sendcmd_sync(dev, PINMUX_OPCODE,
+		    FM_PINMUX, 0x02, 1, DEFAULT_CMD_WAIT_TIME);
+    } else {
+	    /* [0x1A] set audio patch audio path(0x00) analog;
+		    i2s operation(0x00) slave; i2s mode (i2s) */
+	    mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
+		    FM_SET_AUDIO_PATH, 0x000000, 3, DEFAULT_CMD_WAIT_TIME);
+    }
+
 	/* [0x3F] set sampling rate(0x07) 44.1kHz;
 		bclk/lrclk division factor(0x00) 32X */
 	mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
@@ -637,8 +647,12 @@ static int mrvl8xxx_vidioc_s_ctrl (struct file *file, void *priv,
 
 	case MRVL8XXX_CID_OP_MODE:
 		if (ctrl->value == 0) {
-			mrvl8xxx_op_mode_receiver(dev);
+            /* FM analog mode */
+			mrvl8xxx_op_mode_receiver(dev, 0);
 		} else if (ctrl->value == 1) {
+            /* FM digital mode */
+			mrvl8xxx_op_mode_receiver(dev, 1);
+		} else if (ctrl->value == 2) {
 			mrvl8xxx_op_mode_transmitter(dev);
 		} else {
 			printk(KERN_ERR "[fm] unknown fm mode:%d\n",
