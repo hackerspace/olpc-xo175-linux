@@ -1509,6 +1509,8 @@ static ssize_t debug_read(struct file *file, char __user *buf, size_t count,
 	const int debug_bufmax = 4096;
 	static char buffer[4096];
 	int n = 0;
+	int i, nr_blk = 0, nr_free_blk = 0, max_blk_order = -1;
+	int free_mem = 0, total_mem = 0;
 
 	dev_dbg(pmem[id].dev, "debug open\n");
 	n += scnprintf(buffer + n, debug_bufmax,
@@ -1525,6 +1527,40 @@ static ssize_t debug_read(struct file *file, char __user *buf, size_t count,
 			"num:3 -- Enable OOM killer in PMEM.\n");
 	n += scnprintf(buffer + n, debug_bufmax,
 			"\n\n----dump interface----\n");
+
+	down_read(&pmem[id].bitmap->sem);
+	for (i = 0; i < pmem[id].bitmap->num_entries;) {
+		if (!pmem[id].bitmap->bits[i].allocated) {
+			if (max_blk_order < pmem[id].bitmap->bits[i].order)
+				max_blk_order = pmem[id].bitmap->bits[i].order;
+			nr_free_blk++;
+			free_mem += 1 << pmem[id].bitmap->bits[i].order;
+		}
+		nr_blk++;
+		total_mem += 1 << pmem[id].bitmap->bits[i].order;
+		i += 1 << pmem[id].bitmap->bits[i].order;
+	}
+	up_read(&pmem[id].bitmap->sem);
+	free_mem <<= PAGE_SHIFT;
+	total_mem <<= PAGE_SHIFT;
+
+	n += scnprintf(buffer + n, debug_bufmax, "---Free Memory:%d(MB) [%dMB]---\n",
+			free_mem >> 20, total_mem >> 20);
+
+	if (max_blk_order >= 0) {
+		free_mem = 1 << (max_blk_order + PAGE_SHIFT - 10);
+		n += scnprintf(buffer + n, debug_bufmax, "---Max Block Memory:");
+		if (free_mem < 1024)
+			n += scnprintf(buffer + n, debug_bufmax, "%d(KB)---\n",
+					free_mem);
+		else
+			n += scnprintf(buffer + n, debug_bufmax, "%d(MB)---\n",
+					free_mem >> 10);
+	}
+	n += scnprintf(buffer + n, debug_bufmax, "---Free Blocks:%d, Total Blocks:%d---\n",
+			nr_free_blk, nr_blk);
+	n += scnprintf(buffer + n, debug_bufmax, "\n");
+
 	n += scnprintf(buffer + n, debug_bufmax,
 		      "pid #: mapped regions (offset, len) (offset,len)...\n");
 
