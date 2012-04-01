@@ -252,21 +252,24 @@ static int dump_bitmap(int id)
 	if (buf == NULL)
 		goto out;
 
-	n += sprintf(buf + n, "\n[Used:Compound:Order]\n");
+	n += sprintf(buf + n, "\n[Page Index:Used:Compound:Order]\n");
 	for (i = 0; i < pmem[id].bitmap->num_entries;) {
-		n += sprintf(buf + n, "[%d:%d:%d] ",
+		n += sprintf(buf + n, "[%d:%d:%d:%d] ", i,
 				pmem[id].bitmap->bits[i].allocated,
 				pmem[id].bitmap->bits[i].compound,
 				pmem[id].bitmap->bits[i].order);
 		i += 1 << pmem[id].bitmap->bits[i].order;
-		if (++col == 8) {
+		if (++col == 4) {
 			col = 0;
 			n += sprintf(buf + n, "\n");
+			dev_dbg(pmem[id].dev, "%s", buf);
+			n = 0;
 		}
 	}
-	n += sprintf(buf + n, "\n");
-
-	dev_dbg(pmem[id].dev, "%s", buf);
+	if (col) {
+		n += sprintf(buf + n, "\n");
+		dev_dbg(pmem[id].dev, "%s", buf);
+	}
 	kfree(buf);
 out:
 	return n;
