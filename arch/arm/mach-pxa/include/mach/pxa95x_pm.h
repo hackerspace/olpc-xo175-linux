@@ -371,6 +371,11 @@
 #define SleepState_end			(SleepState_flushFunc + WORD_SIZE)
 #define SleepState_size			(SleepState_end - SleepState_begin)
 
+/*pxa978 core power mode*/
+#define PWRDM_POWER_C1		0x0
+#define PWRDM_POWER_C2		0x1
+
+
 #ifndef __ASSEMBLY__
 
 typedef struct {
@@ -565,6 +570,7 @@ struct pxa95x_peripheral_wakeup_ops {
 	int (*cmwdt) (pm_wakeup_src_t src, int enable);
 };
 extern unsigned int *remap_c2_reg;
+extern unsigned int  *pl310_membase;
 
 #define GC_PWR_ENABLE		(1)
 #define GC_PWR_DISABLE		(0)
@@ -578,8 +584,8 @@ extern unsigned int pm_core_pwdn(unsigned int powerState);
 extern unsigned int pm_enter_cgm_deepidle(unsigned int);
 extern int pxa95x_query_gwsr(int);
 extern u32 get_mipi_reference_control(void);
-extern void ca9_enter_idle(unsigned int pwrmode, unsigned int sramaddr, unsigned int l2c_base_address);
-
+extern unsigned int get_c2_sram_base(void);
+extern void pxa978_pm_enter(unsigned int save_mode);
 #endif
 #endif
 #endif

@@ -17,12 +17,17 @@
  *	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
-
 #include <mach/ca9_asm.h>
-#include <mach/ca9_regs.h>
-#include <mach/pxa95x_pm.h>
 #include <asm/outercache.h>
+#include <linux/suspend.h>
+#include <asm/cacheflush.h>
+#include <asm/suspend.h>
+#include <linux/cpu_pm.h>
+#include <mach/pxa95x_pm.h>
+#include <asm/io.h>
 #include <mach/pxa3xx-regs.h>
+#include <linux/delay.h>
+
 /* Part of the code based on the below ARM code and modified */
 /*
  * Copyright (C) 2008-2010 ARM Limited
@@ -44,43 +49,53 @@
  *		misrepresented as being the original software.
  * 3. This notice may not be removed or altered from any source distribution.
  */
-
-#define __nop() do { asm volatile ("nop" : : : "memory"); } while (0)
-
-void flushL2VaRange(phys_addr_t start, phys_addr_t end)
-{
-	outer_flush_range(VirtualToPhysical(start), VirtualToPhysical(end));
-}
-
-void cleanL2VaRange(phys_addr_t start, phys_addr_t end)
-{
-	/*actually this will clean all because the range > L2 cache size*/
-	outer_clean_range(0, 0x10000000);
-}
-void invalidL2All(void)
-{
-	outer_inv_all();
-}
-
 #define PWRMODE_L2_DIS_IN_C2 0x40
-
-void ca9_enter_idle(unsigned int pwrmode, unsigned int sramaddr, unsigned int l2c_base_address)
+static int pxa978_suspend_finish(unsigned int core_mode)
 {
-	struct pl310_context pl310;
-	unsigned int remap_addr = VirtualToPhysical(sramaddr);
-	unsigned int pmu_context[PMU_DATA_SIZE/sizeof(unsigned int)];
-	unsigned int vfp_context[VFP_DATA_SIZE/sizeof(unsigned int)];
-	unsigned int debug_context[DEBUG_DATA_SIZE/sizeof(unsigned int)];
-	/* Remap 0 physical to SRAM so reset will runs the C2 restore code */
-	*remap_c2_reg = ((remap_addr>>13)|1)&0x1fff;
-	save_vfp((unsigned int *)&vfp_context);
-	save_ca9_debug((unsigned int *)&debug_context);
-	save_performance_monitors((unsigned int *)&pmu_context);
+	unsigned int power_mode = PWRMODE;
+	if (power_mode & PWRMODE_L2_DIS_IN_C2) {
+		/* In L2$ non-retentive mode, two option:
+		 *1. clean all before c2, inv all after c2
+		 *2. flush all before c2
+		 *but we mush use the first one. for after power on, L2 is
+		 *in an unpredicatable state of all data, tag, status bit
+		 */
+		/*this will actually call clean_all() */
+		outer_clean_range(0, 0xFFFFFFFF);
+	}
+	pxa978_cpu_suspend(get_c2_sram_base(), pl310_membase, core_mode,
+			   power_mode & PWRMODE_L2_DIS_IN_C2);
+	return 0;
+}
 
-	ca9_enter_c2_wrapper(&pl310, l2c_base_address, pwrmode & PWRMODE_L2_DIS_IN_C2, sramaddr);
+void c2_address_unremap(void)
+{
+	__raw_writel(0, remap_c2_reg);
+}
 
-	restore_performance_monitors((unsigned int *)&pmu_context);
-	restore_ca9_debug((unsigned int *)&debug_context);
-	restore_vfp((unsigned int *)&vfp_context);
-	*remap_c2_reg = 0;
+void c2_address_remap(void)
+{
+	unsigned c2_addr = VirtualToPhysical(get_c2_sram_base());
+	__raw_writel(((c2_addr >> 13) | 1) & 0x1FFF, remap_c2_reg);
+}
+
+void pxa978_pm_enter(unsigned int core_mode)
+{
+	unsigned int debug_context[DEBUG_DATA_SIZE / sizeof(unsigned int)];
+	unsigned int pmu_context[PMU_DATA_SIZE / sizeof(unsigned int)];
+	if (core_mode == PWRDM_POWER_C2) {
+		c2_address_remap();
+		save_pxa978_debug((unsigned int *)&debug_context);
+		save_performance_monitors((unsigned int *)&pmu_context);
+		cpu_pm_enter();
+		cpu_suspend(core_mode, pxa978_suspend_finish);
+	} else	if (core_mode == PWRDM_POWER_C1)
+		pxa978_suspend_finish(core_mode);
+
+	if (core_mode == PWRDM_POWER_C2) {
+		cpu_pm_exit();
+		restore_performance_monitors((unsigned int *)&pmu_context);
+		restore_pxa978_debug((unsigned int *)&debug_context);
+		c2_address_unremap();
+	}
 }

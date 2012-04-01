@@ -285,14 +285,11 @@ static ssize_t dvfm_c2_allow_store(struct sys_device *sys_dev,
 	return len;
 }
 
-extern unsigned int *remap_c2_reg;
-
 static ssize_t dvfm_c2_allow_show(struct sys_device *sys_dev,
 			  struct sysdev_attribute *attr, char *buf)
 {
 	unsigned int len;
 	printk("\n [%s] c2_allow = %d", __func__, c2_allow);
-	printk("\n [%s] REMAP reg = 0x%x, value = 0x%x", __func__, remap_c2_reg, *remap_c2_reg);
 	return len;
 }
 SYSDEV_ATTR(c2_allow, 0644, dvfm_c2_allow_show, dvfm_c2_allow_store);

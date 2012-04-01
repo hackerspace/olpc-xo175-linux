@@ -34,7 +34,6 @@
 #include <mach/mfp-pxa3xx.h>
 #include <mach/gpio.h>
 #include <mach/debug_pm.h>
-#include <mach/ca9_regs.h>
 #ifdef CONFIG_ISPT
 #include <mach/pxa_ispt.h>
 #endif
@@ -54,7 +53,6 @@
 /* mtd.h declares another DEBUG macro definition */
 #undef DEBUG
 #include <linux/mtd/mtd.h>
-
 /* The first 32KB is reserved and can't be accessed by kernel.
  * This restrict is only valid on BootROM V2.
  */
@@ -187,8 +185,8 @@ EXPORT_SYMBOL(dmc_membase);
 unsigned char __iomem *ost_membase;
 EXPORT_SYMBOL(ost_membase);
 unsigned char __iomem *pm_membase;
-
-unsigned int *remap_c2_reg;
+unsigned int __iomem *pl310_membase;
+unsigned int __iomem *remap_c2_reg;
 
 extern void pxa95x_cpu_sleep(unsigned int, unsigned int);
 extern void pxa95x_cpu_resume(void);
@@ -458,8 +456,6 @@ static void pxa95x_gpio_restore(struct gpio_regs *context)
 	GFER2 = context->gfer2;
 	GFER3 = context->gfer3;
 }
-
-struct pl310_registers pl310_regs;
 static void pxa95x_sysbus_init(struct pxa95x_pm_regs *context)
 {
 	context->smc.membase = ioremap(SMC_START, SMC_END - SMC_START + 1);
@@ -477,9 +473,7 @@ static void pxa95x_sysbus_init(struct pxa95x_pm_regs *context)
 	 */
 	context->data_pool = (unsigned char *)0xC0000000;
 	if (cpu_is_pxa978()) {
-		pl310_regs.memset = ioremap(L2310_ADDR_START, L2310_ADDR_END - L2310_ADDR_START + 1);
-		printk(KERN_DEBUG "pl310_regs.memset = 0x%lx, Start: 0x%lx END: 0x%lx\n",
-						pl310_regs.memset, L2310_ADDR_START, L2310_ADDR_END);
+		pl310_membase = ioremap(0x58120000, 0x1000);
 	}
 }
 
@@ -1249,6 +1243,11 @@ unsigned int get_sram_base(void)
 		| VLSCR_LVL3_SINGLE_RAIL | VLSCR_LVL0_SINGLE_RAIL \
 		| VLSCR_VCT0_LVL0_REMAP_MASK | VLSCR_VCT0_LVL1_REMAP_MASK \
 		| VLSCR_VCT0_LVL2_REMAP_MASK | VLSCR_VCT0_LVL3_REMAP_MASK)
+unsigned int get_c2_sram_base(void)
+{
+	return (unsigned int) (pxa95x_pm_regs.sram_map + 0x8000);
+}
+
 void enter_lowpower_mode(int state)
 {
 	unsigned int start_tick = 0, end_tick = 0;
@@ -1342,9 +1341,7 @@ void enter_lowpower_mode(int state)
 					vlscr &= ~(VLSCR_SINGLE_RAIL_MASK);
 					vlscr |= (VLSCR_D1_VALUE);
 					VLSCR = vlscr;
-
-					ca9_enter_idle(pollreg, sram + 0x8000,
-							(u32)pl310_regs.memset);
+					pxa978_pm_enter(PWRDM_POWER_C2);
 				} else {
 					pxa95x_cpu_standby(sram + 0x8000,
 							sram + 0xa000 - 4,
@@ -1454,9 +1451,8 @@ void enter_lowpower_mode(int state)
 					vlscr &= ~(VLSCR_SINGLE_RAIL_MASK);
 					vlscr |= (VLSCR_D2_VALUE);
 					VLSCR = vlscr;
+					pxa978_pm_enter(PWRDM_POWER_C2);
 
-					ca9_enter_idle(pollreg, sram + 0x8000,
-							(u32)pl310_regs.memset);
 				} else {
 					pxa95x_cpu_standby(sram + 0x8000,
 							sram + 0xa000 - 4,
@@ -1619,8 +1615,7 @@ void enter_lowpower_mode(int state)
 			   */
 			sram = (unsigned int) pxa95x_pm_regs.sram_map;
 			if (cpu_is_pxa978()) {
-				ca9_enter_idle(pollreg, sram + 0x8000,
-						(u32)pl310_regs.memset);
+				pxa978_pm_enter(PWRDM_POWER_C2);
 			} else {
 				if (cur_op < 2)
 					pm_enter_cgm_deepidle
