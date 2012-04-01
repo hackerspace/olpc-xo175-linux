@@ -352,6 +352,7 @@ static void *smscore_alloc_common_buf(u32 size, dma_addr_t *dma)
 	struct page **pages;
 	void *start;
 
+	size = PAGE_ALIGN(size);
 	nr = size >> PAGE_SHIFT;
 	start = kmalloc(size, GFP_KERNEL | __GFP_ZERO);
 	if (start == NULL)
@@ -359,8 +360,10 @@ static void *smscore_alloc_common_buf(u32 size, dma_addr_t *dma)
 
 	*dma = virt_to_phys(start);
 	pages = vmalloc(sizeof(struct page *) * nr);
-	if (pages == NULL)
+	if (pages == NULL) {
+		kfree(start);
 		return NULL;
+	}
 
 	while (i < nr) {
 		pages[i] = phys_to_page(*dma + (i << PAGE_SHIFT));
@@ -453,6 +456,8 @@ int smscore_register_device(struct smsdevice_params_t *params,
 	#if (ALLOC_COMMON_BUF_BY_KMALLOC > 0)
 		buf_alloc->p = smscore_alloc_common_buf(buf_alloc->size,
 						&buf_alloc->phys);
+		if (buf_alloc->phys)
+			buf_alloc->kaddr = phys_to_virt(buf_alloc->phys);
 	#else
 		buf_alloc->p = dma_alloc_coherent(NULL, buf_alloc->size,
 			&buf_alloc->phys, GFP_KERNEL | GFP_DMA);
@@ -599,8 +604,9 @@ static int smscore_init_ir(struct smscore_device_t *coredev)
 int smscore_start_device(struct smscore_device_t *coredev)
 {
 	int rc = 0;
-	int board_id = smscore_get_board_id(coredev);
+	int board_id;
 
+	board_id = smscore_get_board_id(coredev);
 #ifdef REQUEST_FIRMWARE_SUPPORTED
 	int mode;
 	int type = sms_get_board(board_id)->type;

@@ -124,6 +124,7 @@ struct smscore_buffer_t {
 
 	/* private members, read-only for clients */
 	void *p;
+	void *kaddr;
 	dma_addr_t phys;
 	unsigned long offset_in_common;
 };
