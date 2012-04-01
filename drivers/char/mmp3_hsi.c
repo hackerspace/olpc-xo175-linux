@@ -833,7 +833,8 @@ static int __devinit mmp3_hsi_probe(struct platform_device *pdev)
 	}
 
 	mmp3_hsi_config_hw(hsi_core->hsi_config);
-	hsi_core->plat_data->hsi_config_int(NULL);
+	if (hsi_core->plat_data && hsi_core->plat_data->hsi_config_int)
+		hsi_core->plat_data->hsi_config_int(NULL);
 	enable_irq(irq);
 
 	mmp3_hsi_enable_hw();

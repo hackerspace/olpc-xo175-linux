@@ -876,23 +876,10 @@ void __init mmp_register_dxoisp(struct mvisp_platform_data *data)
 #ifdef CONFIG_MMP3_HSI
 int hsi_config_int(void *param)
 {
-	int reg;
-
-	/* Disable IRQ for all cores */
-	reg = readl(MMP3_ICU_IRQ_55_CONF);
-	reg &= ~0x70;
-	writel(reg, MMP3_ICU_IRQ_55_CONF);
-
-	/* Enable HSI Interrupt */
-	reg = readl(MMP3_ICU_INT_55_MASK);
-	reg &= ~0x8;
-	writel(reg, MMP3_ICU_INT_55_MASK);
-
-	/*Enable IRQ on all core */
-	reg = readl(MMP3_ICU_IRQ_55_CONF);
-	reg |= 0x70;
-	writel(reg, MMP3_ICU_IRQ_55_CONF);
-
+	/*
+	 * all mmp3 interrupts are route to GIC and bypass ICU
+	 * so should _NOT_ enable ICU HSI register here.
+	 */
 	return 0;
 }
 
