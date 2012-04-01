@@ -527,7 +527,7 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 {
 	if (!chip || !pdata ||
 		chip->id != CHIP_PM800 ||
-		!chip->base_page) {
+		!chip->base_page || !chip->power_page) {
 		pr_err("%s:chip or pdata is not availiable!\n", __func__);
 		return -EINVAL;
 	}
@@ -544,6 +544,12 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 	/* Enable 32K out3 from XO, low-jitter: REF_32K_CLK */
 	pm80x_set_bits(chip->base_page, PM800_RTC_MISC2,
 					(0x3 << 4), (0x2 << 4));
+
+	/* Set BUCK1(AP VCC_CORE) sleep votage as 0.8V(0x10) */
+	pm80x_set_bits(chip->power_page, PM800_SLEEP_BUCK1, 0x7F, 0x10);
+	/* Enable BUCK1 sleep mode */
+	pm80x_set_bits(chip->power_page, PM800_BUCK_SLP1,
+		PM800_BUCK1_SLP1_MASK, (0x01 << PM800_BUCK1_SLP1_SHIFT));
 
 	return 0;
 }
