@@ -29,6 +29,7 @@ static int mmp3_enter_idle_c1(struct cpuidle_device *dev,
 	int idletime_us;
 
 	local_irq_disable();
+	local_fiq_disable();
 	getnstimeofday(&ts_preidle);
 
 	mmp3_pm_enter_idle(dev->cpu);
@@ -37,6 +38,7 @@ static int mmp3_enter_idle_c1(struct cpuidle_device *dev,
 	idletime_us = (ts_postidle.tv_sec - ts_preidle.tv_sec) *
 		USEC_PER_SEC + (ts_postidle.tv_nsec - ts_preidle.tv_nsec) /
 		NSEC_PER_USEC;
+	local_fiq_enable();
 	local_irq_enable();
 
 	return idletime_us;
@@ -49,6 +51,7 @@ static int mmp3_enter_idle_c2(struct cpuidle_device *dev,
 	int idletime_us;
 
 	local_irq_disable();
+	local_fiq_disable();
 	getnstimeofday(&ts_preidle);
 
 	mmp3_pm_enter_c2(dev->cpu);
@@ -57,6 +60,7 @@ static int mmp3_enter_idle_c2(struct cpuidle_device *dev,
 	idletime_us = (ts_postidle.tv_sec - ts_preidle.tv_sec) *
 		USEC_PER_SEC + (ts_postidle.tv_nsec - ts_preidle.tv_nsec) /
 		NSEC_PER_USEC;
+	local_fiq_enable();
 	local_irq_enable();
 
 	return idletime_us;
