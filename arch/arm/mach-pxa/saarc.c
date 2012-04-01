@@ -2389,6 +2389,55 @@ static void create_hsl_mfpr_proc_file(void)
 	proc_file->write_proc = (write_proc_t *)hsl_mfpr_write_proc;
 
 }
+
+static ssize_t pcm_mfp_write_proc(struct file *filp,
+				const char *buff, size_t len, loff_t *off)
+{
+	char a;
+
+	if(copy_from_user(&a, buff, 1))
+		return -EINVAL;
+	switch (a) {
+	case '0':
+		{
+			unsigned long mfp = GPIO60_GPIO;
+			unsigned int gpio = MFP_PIN_GPIO60;
+			mfp_config(&mfp, 1);
+			gpio_request(gpio, NULL);
+			gpio_direction_input(gpio);
+			gpio_free(gpio);
+			printk("Switch MFP60(pcm_tx) to GPIO input\n");
+		break;
+		}
+	case '1':
+		ssp3_mfp_init(false);
+		printk("PCM port is switched to GSSP1\n");
+		break;
+	case '2':
+		ssp3_mfp_init(true);
+		printk("PCM port is switched to BSSP3\n");
+		break;
+	default:
+		printk("[PCM_MFP] Error: invalid configuration\n");
+		break;
+	}
+	return len;
+}
+
+static void create_pcm_mfp_proc_file(void)
+{
+	struct proc_dir_entry *proc_file = NULL;
+
+	proc_file = create_proc_entry("driver/pcm_mfp", 0644, NULL);
+	if (!proc_file) {
+		pr_err("%s: create proc file failed\n", __func__);
+		return;
+	}
+
+	proc_file->write_proc = (write_proc_t *)pcm_mfp_write_proc;
+
+}
+
 #endif
 
 static int reboot_notifier_func(struct notifier_block *this,
@@ -2471,7 +2520,6 @@ static void __init init(void)
 	}
 
 	set_abu_init_func(abu_mfp_init);
-	set_ssp_init_func(ssp3_mfp_init);
 
 	platform_device_add_data(&pxa95x_device_i2c1, &i2c1_pdata,
 				 sizeof(i2c1_pdata));
@@ -2542,6 +2590,7 @@ static void __init init(void)
 		create_hsl_mfpr_proc_file();
 	}
 	create_sirf_proc_file();
+	create_pcm_mfp_proc_file();
 #endif
 	init_rfreset_gpio();
 }

@@ -132,13 +132,6 @@ static int saarc_i2s_startup(struct snd_pcm_substream * substream)
 	return 0;
 }
 
-static int saarc_pcm_startup(struct snd_pcm_substream * substream)
-{
-	pxa95x_ssp_mfp_init(true);
-	pr_info("[saarc_pcm_startup]: switch to BSSP3\n");
-	return 0;
-}
-
 static int saarc_pcm_prepare(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -155,12 +148,6 @@ static int saarc_pcm_prepare(struct snd_pcm_substream *substream)
 	__raw_writel(0x02100000, ssp->mmio_base + SSPSP);
 
 	return 0;
-}
-
-static void saarc_pcm_shutdown(struct snd_pcm_substream * substream)
-{
-	pxa95x_ssp_mfp_init(false);
-	pr_info("[saarc_pcm_startup]: switch to GSSP1\n");
 }
 
 static int saarc_ihdmi_prepare(struct snd_pcm_substream *substream)
@@ -187,8 +174,6 @@ static struct snd_soc_ops saarc_i2s_ops = {
 };
 
 static struct snd_soc_ops saarc_pcm_ops = {
-	.startup	= saarc_pcm_startup,
-	.shutdown	= saarc_pcm_shutdown,
 	.prepare	= saarc_pcm_prepare,
 };
 
