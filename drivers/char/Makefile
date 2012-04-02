@@ -66,7 +66,8 @@ obj-$(CONFIG_VIBRATOR_88PM8XXX) += android_vibrator.o
 obj-$(CONFIG_JS_RTC)		+= js-rtc.o
 js-rtc-y = rtc.o
 
-obj-$(CONFIG_PXA9XX_ACIPC)  += pxa9xx_acipc.o
+obj-$(CONFIG_PXA9XX_ACIPC)	+= pxa9xx_acipc.o
+obj-$(CONFIG_PXA9XX_SIM)	+= pxa9xx_sim.o
 obj-$(CONFIG_PXA910_IRE)	+= pxa910_ire.o
 obj-$(CONFIG_MMP2_SYSSET)	+= mmp2_systemsetting.o
 obj-$(CONFIG_MMP3_HSI)		+= mmp3_hsi.o

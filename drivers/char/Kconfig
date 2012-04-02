@@ -654,6 +654,24 @@ config PXA9XX_ACIPC
 	  Please say Y here if want to support Application to Communication
 	  Intel-Processor Communication on PXA910,PXA93x,PXA95x chip
 
+config PXA9XX_SIM
+	tristate "PXA9XX SIM Driver"
+	depends on PXA95x || PXA970 || PXA998
+	default n
+	help
+	  Please say Y here if want to enable SIM support at the APPS side
+	  of the pxa95x, PXA970 or PXA998 chips
+
+config PXA9XX_SIM_DUAL_FIXED
+	bool "Fixed SIM support"
+	depends on PXA9XX_SIM
+	default n
+	help
+	  This adds support for fixed SIM in two SIMs board configuration, when
+	  in addition to removable SIM (SIM1) there is also fixed (soldered)
+	  SIM on board.
+	  If unsure, say N.
+
 config PXA910_IRE
         tristate "image rotation engine"
         depends on CPU_PXA910
