@@ -58,6 +58,8 @@ struct dpm_drv_wd_data {
 
 static int async_error;
 
+extern unsigned int suspend_cb_start_index, suspend_cb_end_index;
+
 /**
  * device_pm_init - Initialize the PM-related part of a device object.
  * @dev: Device object being initialized.
@@ -624,6 +626,7 @@ static void dpm_drv_timeout(unsigned long data)
 void dpm_resume(pm_message_t state)
 {
 	struct device *dev;
+	unsigned int counter = 0;
 	ktime_t starttime = ktime_get();
 
 	might_sleep();
@@ -648,7 +651,11 @@ void dpm_resume(pm_message_t state)
 
 			mutex_unlock(&dpm_list_mtx);
 
-			error = device_resume(dev, state, false);
+			if (counter >= suspend_cb_start_index &&
+			    counter <= suspend_cb_end_index)
+				error = device_resume(dev, state, false);
+			counter++;
+
 			if (error)
 				pm_dev_err(dev, state, "", error);
 
@@ -979,6 +986,7 @@ int dpm_suspend(pm_message_t state)
 {
 	ktime_t starttime = ktime_get();
 	int error = 0;
+	unsigned int counter = 0;
 
 	might_sleep();
 
@@ -991,7 +999,10 @@ int dpm_suspend(pm_message_t state)
 		get_device(dev);
 		mutex_unlock(&dpm_list_mtx);
 
-		error = device_suspend(dev);
+		if (counter >= suspend_cb_start_index &&
+		    counter <= suspend_cb_end_index)
+			error = device_suspend(dev);
+		counter++;
 
 		mutex_lock(&dpm_list_mtx);
 		if (error) {
