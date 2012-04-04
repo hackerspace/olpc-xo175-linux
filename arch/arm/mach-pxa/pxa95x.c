@@ -171,6 +171,12 @@ static struct mfp_addr_map pxa95x_mfp_addr_map[] __initdata = {
 	MFP_ADDR(GPIO105, 0x0328),
 	MFP_ADDR(GPIO106, 0x0404),
 
+	MFP_ADDR(GPIO110, 0x031c),
+
+	MFP_ADDR(GPIO129, 0x0468),
+	MFP_ADDR(GPIO130, 0x0464),
+	MFP_ADDR(GPIO131, 0x0470),
+
 	MFP_ADDR(GPIO159, 0x0524),
 	MFP_ADDR(GPIO163, 0x0534),
 	MFP_ADDR(GPIO167, 0x0544),
@@ -180,6 +186,10 @@ static struct mfp_addr_map pxa95x_mfp_addr_map[] __initdata = {
 	MFP_ADDR(GPIO171, 0x0554),
 	MFP_ADDR(GPIO172, 0x0558),
 	MFP_ADDR(GPIO173, 0x055c),
+
+	MFP_ADDR(GPIO188, 0x0318),
+	MFP_ADDR(GPIO189, 0x0314),
+	MFP_ADDR(GPIO190, 0x0320),
 
 	MFP_ADDR(nXCVREN, 0x0204),
 	MFP_ADDR(DF_CLE_nOE, 0x020c),
@@ -216,11 +226,6 @@ static struct mfp_addr_map pxa95x_mfp_addr_map[] __initdata = {
 	MFP_ADDR(DF_IO13, 0x0288),
 	MFP_ADDR(DF_IO14, 0x028c),
 	MFP_ADDR(DF_IO15, 0x0290),
-
-	MFP_ADDR(GSIM_UIO, 0x0314),
-	MFP_ADDR(GSIM_UCLK, 0x0318),
-	MFP_ADDR(GSIM_UDET, 0x031c),
-	MFP_ADDR(GSIM_nURST, 0x0320),
 
 	MFP_ADDR(PMIC_INT, 0x06c8),
 

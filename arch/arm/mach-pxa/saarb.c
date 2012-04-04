@@ -45,7 +45,9 @@
 #include <mach/usb-regs.h>
 #include <mach/audio.h>
 #include <plat/pxa27x_keypad.h>
-
+#ifdef CONFIG_PXA9XX_SIM
+#include <plat/pxa9xx_sim.h>
+#endif
 #include <mach/mspm_prof.h>
 
 #include <plat/usb.h>
@@ -241,6 +243,44 @@ static struct pm860x_platform_data pm8607_info = {
 	.num_leds	= ARRAY_SIZE(led),
 	.num_backlights	= ARRAY_SIZE(backlight),
 };
+
+#ifdef CONFIG_PXA9XX_SIM
+/*
+ * Switch from SIM2 to SIM1
+ *		Set RF_IF_17..19 MFPRs to AF_0
+ *		Set GSIM_XXX MFPRs to AF_3
+ *
+ * Switch from SIM1 to SIM2
+ *		Set GSIM_XXX MFPRs to AF_0
+ *		Set RF_IF_17..19 MFPRs to AF_4
+ */
+static struct sim_mfp_reg sim_mfprs[] = {
+	/* SIM 1 (removable SIM card) */
+	{.reg_num = MFP_PIN_GPIO188,	.new_val = 0x124b,}, /* GSIM_UCLK */
+	{.reg_num = MFP_PIN_GPIO189,	.new_val = 0x12cb }, /* GSIM_UIO */
+	{.reg_num = MFP_PIN_GPIO190,	.new_val = 0x134b }, /* GSIM_nURST */
+#ifdef CONFIG_PXA9XX_SIM_DUAL_FIXED
+	/* SIM2 (soldered SIM) */
+	{.reg_num = MFP_PIN_GPIO129,	.new_val = 0x124c }, /* RF_IF17 */
+	{.reg_num = MFP_PIN_GPIO130,	.new_val = 0x12cc }, /* RF_IF18 */
+	{.reg_num = MFP_PIN_GPIO131,	.new_val = 0x134c }, /* RF_IF19 */
+#endif
+};
+
+static struct sim_platform_data sim_plat_data = {
+	.sim_mfp_cfg	= sim_mfprs,
+#ifdef CONFIG_PXA9XX_SIM_DUAL_FIXED
+	.sim1_cd_gpio	= mfp_to_gpio(MFP_PIN_GPIO110), /* GSIM_UDET */
+	.sim1_cd_invert	= 1,
+#endif
+};
+
+static struct platform_device sim_dev = {
+	.name		= "pxa-sim",
+	.id		= -1,
+	.dev.platform_data = &sim_plat_data,
+};
+#endif
 
 extern struct pxa95x_freq_mach_info freq_mach_info;
 static void regulator_init(void)
@@ -1666,6 +1706,9 @@ static void __init saarb_init(void)
 
 #ifdef CONFIG_PROC_FS
 	create_sirf_proc_file();
+#endif
+#ifdef CONFIG_PXA9XX_SIM
+	platform_device_register(&sim_dev);
 #endif
 	init_rfreset_gpio();
 }
