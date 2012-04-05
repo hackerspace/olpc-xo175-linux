@@ -39,7 +39,8 @@ enum {
 	PM800_CHIP_A0  = 0x60,
 	PM800_CHIP_A1  = 0x61,
 	PM800_CHIP_B0  = 0x62,
-	PM800_CHIP_END = PM800_CHIP_B0,
+	PM800_CHIP_C0  = 0x63,
+	PM800_CHIP_END = PM800_CHIP_C0,
 
 	/* Make sure to update this to the last stepping */
 	PM8XXX_CHIP_END = PM800_CHIP_END
