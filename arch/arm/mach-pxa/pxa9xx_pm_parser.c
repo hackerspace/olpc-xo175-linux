@@ -32,6 +32,7 @@
 #include <mach/pmu.h>
 #include <mach/dvfm.h>
 #include <mach/pxa95x_dvfm.h>
+#include <mach/pxa95x_pm.h>
 
 #include <linux/semaphore.h>
 #include <mach/pxa9xx_pm_parser.h>
@@ -48,6 +49,10 @@ MODULE_LICENSE("GPL");
 
 struct pm_logger_descriptor pm_logger;
 static u8 ***database;
+
+static u32 d1_exits_on_timer;
+static u32 d2_exits_on_timer;
+static u32 cgm_exits_on_timer;
 
 /* this is how the pm logger looks like:
 sync(24)+event num(8) - time stamp - arguments ...
@@ -68,6 +73,30 @@ static unsigned int is_pm_parser_end_of_buffer(int entry)
 	}
 
 	return 1;
+}
+
+/*
+* counts specific events
+*/
+static void pm_parser_count_timer_wakeups(u32 event, int args_num, int entry)
+{
+	/* lpm exits */
+	if (((event == PM_D1_EXIT) || (event == PM_D2_EXIT) ||
+	    (event == PM_CGM_EXIT)) && (args_num > 0)) {
+
+		u32 wakeup_src = pm_logger.buffer[entry];
+		entry = (entry+1) & (pm_logger.buffSize-1);
+
+		/* wakeup reason is timer */
+		if (wakeup_src & PXA95x_PM_WE_OST) {
+			if (event == PM_D1_EXIT)
+				d1_exits_on_timer++;
+			else if (event == PM_D2_EXIT)
+				d2_exits_on_timer++;
+			else if (event == PM_CGM_EXIT)
+				cgm_exits_on_timer++;
+		}
+	}
 }
 
 /*
@@ -254,6 +283,7 @@ void pm_parser_display_log(int subsystem)
 	char *valstr;
 	unsigned int val;
 
+	d1_exits_on_timer = d2_exits_on_timer = cgm_exits_on_timer = 0;
 
 	pr_info("\n*****START PM LOGGER TRACE*****\n");
 
@@ -306,6 +336,9 @@ void pm_parser_display_log(int subsystem)
 		/* get args num */
 		args_num = get_pm_parser_args_num(entry);
 		entry = (entry+1) & (pm_logger.buffSize-1);
+
+		/* count timer wakeup events */
+		pm_parser_count_timer_wakeups(event, args_num, entry);
 
 		/* print event */
 		i = 0;
@@ -365,4 +398,6 @@ void pm_parser_display_log(int subsystem)
 		total_time);
 	pr_info("\nTotal Buffer Size: %u bytes\n",
 		pm_logger.buffSize * sizeof(unsigned int));
+	pr_info("\nLPM wakeup from timer:  CGM- %u , D1- %u , D2- %u.\n",
+		cgm_exits_on_timer, d1_exits_on_timer, d2_exits_on_timer);
 }
