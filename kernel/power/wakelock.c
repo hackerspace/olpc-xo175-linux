@@ -350,6 +350,8 @@ static DECLARE_WORK(suspend_work, suspend);
 #else
 
 #include <linux/kthread.h>
+#include <mach/regs-ost.h>
+#include <mach/pxa9xx_pm_logger.h> /* for pm debug tracing */
 
 enum {
 	SUSPEND_STATE_ACTIVE,
@@ -427,7 +429,8 @@ static void suspend_func(void)
 					pr_info("suspend: pm_suspend returned with no event\n");
 				wake_lock_timeout(&unknown_wakeup, HZ / 2);
 			}
-		}
+		} else
+			pm_logger_app_add_trace(0, PM_SUSPEND_ENTER, OSCR4);
 		break;
 
 	case TRANS_SUSPEND_TO_ACTIVE:
@@ -457,6 +460,7 @@ static void suspend_func(void)
 		dpm_resume_end(PMSG_RESUME);
 		thaw_processes();
 		printk(KERN_WARNING "suspend: Enter state SUSPEND_STATE_ACTIVE\n");
+		pm_logger_app_add_trace(0, PM_SUSPEND_EXIT, OSCR4);
 		break;
 
 	}
