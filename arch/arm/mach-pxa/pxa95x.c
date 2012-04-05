@@ -230,6 +230,9 @@ static struct mfp_addr_map pxa95x_mfp_addr_map[] __initdata = {
 };
 
 static struct mfp_addr_map pxa978_mfp_addr_map[] __initdata = {
+	/*PMIC interrupt pin*/
+	MFP_ADDR(PMIC_INT, 0x204),
+
 	/* MFP Pins*/
 	MFP_ADDR_X(GPIO0, GPIO132, 0x208),
 
