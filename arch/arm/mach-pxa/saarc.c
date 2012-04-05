@@ -290,7 +290,11 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 	}
 	/* Initializain actions to enable 88pm805 */
 	/* Clear WDT */
-	pm80x_reg_write(chip->base_page, 0x0E, 0x00);
+	/*clear this bit will cause system restart in C0, C0 has
+	* different register definition with B0
+	*/
+	if (get_pmic_id() == PM800_CHIP_B0)
+		pm80x_reg_write(chip->base_page, 0x0E, 0x00);
 	/* Enable 32Khz-out-1 and resetoutn */
 	pm80x_reg_write(chip->base_page, 0xE1, 0xB0);
 	/* Enable 32Khz-out-3  low jitter */
