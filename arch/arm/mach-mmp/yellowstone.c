@@ -534,11 +534,14 @@ static struct regulator_consumer_supply fan53555_regulator_supply[] = {
 	REGULATOR_SUPPLY("V_MAIN", NULL),
 };
 
+/* FAN53555 VOUT range:
+ * Option 0/1/3/5:	600<-->1230mV
+ * Option 4:		603<-->1411mV */
 static struct regulator_init_data fan53555_regulator_data = {
 	.constraints = {
 		.name = "V_MAIN",
 		.min_uV = 600000,
-		.max_uV = 1230000,
+		.max_uV = 1411038,
 		.always_on = 1,
 		.boot_on = 1,
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE
