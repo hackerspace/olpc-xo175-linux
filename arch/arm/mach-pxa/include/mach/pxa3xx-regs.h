@@ -74,7 +74,6 @@
 #define PMCR_SWGR	(1 << 31)		/* Software GPIO Reset */
 #define PSR_TSS_OFF	(12)
 #define OVH_TEMP_EN	(1 << 0)		/* Enable for Temperature Sensor */
-#ifdef CONFIG_CPU_PXA978
 #define VLSCR_VLT_LVL_SEL_EN	(1 << 8)
 #define VLSCR_LVL0_SINGLE_RAIL	(1 << 9)
 #define VLSCR_LVL1_SINGLE_RAIL	(1 << 10)
@@ -86,6 +85,7 @@
 #define VLSCR_VCT0_LVL2_REMAP_MASK	(3 << 20)
 #define VLSCR_VCT0_LVL3_REMAP_MASK	(3 << 22)
 
+#ifdef CONFIG_CPU_PXA978
 #define OVH_OWM		(1 << 19)		/* Over-heating WDT Enable */
 #define OVH_OVWF_OFF	(10)			/* WDT Reset Temperature Over-heating Threshold */
 #else
