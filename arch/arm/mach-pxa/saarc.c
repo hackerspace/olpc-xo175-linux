@@ -1941,11 +1941,11 @@ static void panel_reset(void)
 		return;
 	}
 	gpio_direction_output(reset_pin, 1);
-	mdelay(1);
+	msleep(1);
 	gpio_direction_output(reset_pin, 0);
-	mdelay(1);
+	msleep(1);
 	gpio_direction_output(reset_pin, 1);
-	mdelay(10);
+	msleep(10);
 	gpio_free(reset_pin);
 }
 

@@ -917,14 +917,14 @@ void panel_power_tc3587(int ssp_port, int on)
 	if (on) {
 		/* SLPOUT*/
 		ssp_lcd_send_cmd_para(ssp, ARRAY_AND_SIZE(lcd_panel_slpout), 0x1ff);
-		mdelay(120);
+		msleep(120);
 		/* DISON */
 		ssp_lcd_send_cmd_para(ssp, ARRAY_AND_SIZE(lcd_panel_dison), 0x1ff);
-		mdelay(100);
+		msleep(100);
 	} else {
 		/* DISOFF  */
 		ssp_lcd_send_cmd_para(ssp, ARRAY_AND_SIZE(lcd_panel_disoff), 0x1ff);
-		mdelay(60);
+		msleep(60);
 		/* SLPIN */
 		ssp_lcd_send_cmd_para(ssp, ARRAY_AND_SIZE(lcd_panel_slpin), 0x1ff);
 	}
@@ -939,17 +939,17 @@ void panel_power_trulywvga(int ssp_port, int on)
 	if (on) {
 		/* INIT */
 		ssp_lcd_send_cmd_para(ssp, ARRAY_AND_SIZE(lcd_panel_init), 0xffff);
-		mdelay(200);
+		msleep(200);
 		/* SLPOUT*/
 		ssp_lcd_send_cmd_para(ssp, ARRAY_AND_SIZE(lcd_panel_slpout), 0xffff);
-		mdelay(120);
+		msleep(120);
 		/* DISON */
 		ssp_lcd_send_cmd_para(ssp, ARRAY_AND_SIZE(lcd_panel_dison), 0xffff);
-		mdelay(100);
+		msleep(100);
 	} else {
 		/* DISOFF  */
 		ssp_lcd_send_cmd_para(ssp, ARRAY_AND_SIZE(lcd_panel_disoff), 0xffff);
-		mdelay(60);
+		msleep(60);
 		/* SLPIN */
 		ssp_lcd_send_cmd_para(ssp, ARRAY_AND_SIZE(lcd_panel_slpin), 0xffff);
 	}
