@@ -112,8 +112,8 @@ static ssize_t duty_cycle_show(struct sys_device *sys_dev,
 
 	total_ticks = 0;
 	for (i = 0; i < (event_num / 2); i++) {
-		total_ticks += op_ticks_array[i].runtime
-		    + op_ticks_array[i].idletime;
+		total_ticks += (u64)op_ticks_array[i].runtime
+		    + (u64)op_ticks_array[i].idletime;
 	}
 	if (total_ticks == 0) {
 		len = sprintf(buf, "No OP change, no duty cycle info\n");
@@ -250,7 +250,7 @@ static ssize_t switch_time_show(struct sys_device *sys_dev,
 SYSDEV_ATTR(switch_time, 0444, switch_time_show, NULL);
 
 /* Init op_switch[OP_NUM][OP_NUM] */
-static void switch_time_init()
+static void switch_time_init(void)
 {
 	int i, j;
 
