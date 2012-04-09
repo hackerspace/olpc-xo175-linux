@@ -904,8 +904,7 @@ static struct clk mmp3_clk_cpu = {
 #define GC2D_CLK_DIV_MSK	GC2D_CLK_DIV(0xF)
 #define GC2D_CLK_SRC_SEL(n)	((n & 3) << 12)
 #define GC2D_CLK_SRC_SEL_MSK	GC2D_CLK_SRC_SEL(3)
-#define GC2D_ACLK_SEL(n)	((n & 3) << 16)
-#define GC2D_ACLK_SEL_MSK	GC2D_ACLK_SEL(3)
+#define GC2D_AXICLK_EN		(1u << 19)
 
 #define GC3D_CLK_DIV(n)		((n & 0xF) << 24)
 #define GC3D_CLK_DIV_MSK	GC3D_CLK_DIV(0xF)
@@ -913,6 +912,23 @@ static struct clk mmp3_clk_cpu = {
 #define GC3D_CLK_SRC_SEL_MSK	GC3D_CLK_SRC_SEL(3)
 #define GC3D_ACLK_SEL(n)	((n & 3) << 4)
 #define GC3D_ACLK_SEL_MSK	GC3D_ACLK_SEL(3)
+#define GC3D_AXICLK_EN		(1u << 2)
+
+#define GC2D3D_CLK_EN		(1u << 3)
+
+#define GC_PWRUP(n)		((n & 3) << 9)
+#define GC_PWRUP_MSK		GC_PWRUP(3)
+#define GC_ISB			(1u << 8)
+
+#define GC_CLK_RATE(div, src, aclk)				\
+	(GC2D_CLK_DIV(div) | GC2D_CLK_SRC_SEL(src)		\
+	| GC3D_CLK_DIV(div) | GC3D_CLK_SRC_SEL(src)		\
+	| GC3D_ACLK_SEL(aclk))
+
+#define GC_CLK_RATE_MSK						\
+	(GC2D_CLK_DIV_MSK | GC2D_CLK_SRC_SEL_MSK		\
+	| GC3D_CLK_DIV_MSK | GC3D_CLK_SRC_SEL_MSK		\
+	| GC3D_ACLK_SEL_MSK)
 
 #define		CS_PLL1		0
 #define		CS_PLL2		1
@@ -922,16 +938,8 @@ static struct clk mmp3_clk_cpu = {
 #define		PLL1D6		1
 #define		PLL1D2		2
 #define		PLL2D2		3
-#define GC_CLK_EN		(1u << 3)
-#define GC_AXICLK_EN		((1u << 2) | (1u << 19))
 
-#define GC_CLK_RATE(div, src, aclk)					\
-	(GC2D_CLK_DIV(div) | GC2D_CLK_SRC_SEL(src) | GC2D_ACLK_SEL(aclk)\
-	| GC3D_CLK_DIV(div) | GC3D_CLK_SRC_SEL(src) | GC3D_ACLK_SEL(aclk))
 
-#define GC_CLK_RATE_MSK							\
-	(GC2D_CLK_DIV_MSK | GC2D_CLK_SRC_SEL_MSK | GC2D_ACLK_SEL_MSK	\
-	| GC3D_CLK_DIV_MSK | GC3D_CLK_SRC_SEL_MSK | GC3D_ACLK_SEL_MSK)
 
 #define GC_SET_BITS(set, clear)	{\
 	unsigned long tmp;\
@@ -974,18 +982,20 @@ static int gc_clk_enable(struct clk *clk)
 
 	GC_SET_BITS(gc_rate_cfg, GC_CLK_RATE_MSK);
 
-	GC_SET_BITS(GC_CLK_EN, 0);
-	udelay(100);
+	GC_SET_BITS(GC2D3D_CLK_EN, 0);
+	udelay(60);
 
-	GC_SET_BITS(GC_AXICLK_EN, 0);
-	udelay(100);
+	GC_SET_BITS(GC2D_AXICLK_EN | GC3D_AXICLK_EN, 0);
+	udelay(60);
 
 	return 0;
 }
 
 static void gc_clk_disable(struct clk *clk)
 {
-	GC_SET_BITS(0, GC_CLK_EN | GC_AXICLK_EN);
+	GC_SET_BITS(0, GC2D_AXICLK_EN | GC3D_AXICLK_EN);
+	GC_SET_BITS(0, GC2D3D_CLK_EN);
+	udelay(50);
 }
 
 static long gc_clk_round_rate(struct clk *clk, unsigned long rate)
