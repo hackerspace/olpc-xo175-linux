@@ -2647,8 +2647,12 @@ static int pxa95x_set_op(void *driver_data, struct dvfm_freqs *freqs,
 		md = (struct dvfm_md_opt *)(freqs->new_info.op);
 		old_md = (struct dvfm_md_opt *)(freqs->old_info.op);
 
-		/* System should enter D2 from the lowest op */
-		if ((md->power_mode == POWER_MODE_D2) &&
+		/* System should enter D2 from the lowest op.
+		 * For Nevo, enter D1 also from the lowest op
+		 * This is a temperary solution. When tuning power,
+		 * maybe it is better to enter D1 from PP2. TODO */
+		if (((md->power_mode == POWER_MODE_D2) ||
+			(md->power_mode == POWER_MODE_D1 && cpu_is_pxa978())) &&
 		    old_md->power_mode == POWER_MODE_D0 &&
 		    old_md->core > lowest_freq_op->core) {
 			struct dvfm_freqs temp_freqs;
