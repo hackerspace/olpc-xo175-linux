@@ -21,7 +21,6 @@
  */
 
 #include <linux/kernel.h>
-#include <mach/cputype.h>
 #include <linux/init.h>
 #include <linux/module.h>
 
