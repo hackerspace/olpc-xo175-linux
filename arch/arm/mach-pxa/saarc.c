@@ -27,6 +27,7 @@
 #include <linux/proc_fs.h>
 #include <linux/notifier.h>
 #include <linux/reboot.h>
+#include <linux/nfc/pn544.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -310,6 +311,89 @@ static void regulator_init_pm800(void)
 	pr_info("%s: select saarC NEVO austica ldo map\n", __func__);
 
 	pm800_info.num_regulators = i;
+}
+
+
+/* The following structure is for pn544 I2C device */
+#if defined(CONFIG_PN544_NFC)
+static int pn65n_request_resources(struct i2c_client *client)
+{
+	int ret = 0;
+
+	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
+		pr_err("%s : need I2C_FUNC_I2C\n", __func__);
+		return  -ENODEV;
+	}
+	ret = gpio_request(MFP_PIN_GPIO130, " PN65N irq");
+
+	if (ret)
+		return  -ENODEV;
+	gpio_direction_input(MFP_PIN_GPIO130);
+
+	return 0;
+}
+
+static void pn65n_free_resources(void)
+{
+	gpio_free(MFP_PIN_GPIO130);
+}
+
+static int pn65n_test(void)
+{
+
+	return MFP_PIN_GPIO130;
+}
+
+static void nfc_poweron(int mode)
+{
+	int nfc_en;
+
+	nfc_en = mfp_to_gpio(MFP_PIN_GPIO127);
+
+	if (gpio_request(nfc_en, "nfc power")) {
+		printk(KERN_ERR "nfc: fail to request gpio en!\n");
+		gpio_free(nfc_en);
+	}
+
+	gpio_direction_output(nfc_en, 1);
+	msleep(20);
+
+	gpio_free(nfc_en);
+}
+
+static void nfc_poweroff(void)
+{
+	int nfc_en;
+
+	nfc_en = mfp_to_gpio(MFP_PIN_GPIO127);
+
+	if (gpio_request(nfc_en, "nfc power")) {
+		printk(KERN_ERR "nfc: fail to request gpio en!\n");
+		gpio_free(nfc_en);
+	}
+
+	gpio_direction_output(nfc_en, 0);
+	msleep(20);
+
+	gpio_free(nfc_en);
+}
+
+static struct pn544_nfc_platform_data pn544_data = {
+	.request_resources	= pn65n_request_resources,
+	.free_resources	= pn65n_free_resources,
+	.test			= pn65n_test,
+	.enable		= nfc_poweron,
+	.disable		= nfc_poweroff,
+	.regulator_num	= 0,
+};
+
+#endif
+
+static void __init init_nfc(void)
+{
+	mfp_cfg_t config = MFP_PIN_GPIO130;
+	mfp_config(&config, 1);/*for nfc irq gpio irq*/
+
 }
 
 static struct i2c_board_info i2c1_80x_info[] = {
@@ -857,6 +941,14 @@ static struct i2c_board_info i2c3_info[] = {
 		.irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO9)),
 		.platform_data = &cwgd_plat_data,
 	 },
+#endif
+
+#if defined(CONFIG_PN544_NFC)
+	{
+		I2C_BOARD_INFO("pn544", 0x28),
+		.irq            = gpio_to_irq(MFP_PIN_GPIO130),
+		.platform_data  = &pn544_data,
+	},
 #endif
 
 #if defined(CONFIG_C_TEC_OPTIC_TP)
@@ -2679,6 +2771,10 @@ static void __init init(void)
 
 #if defined(CONFIG_FB_PXA95x)
 	init_lcd();
+#endif
+
+#if defined(CONFIG_PN544_NFC)
+	init_nfc();
 #endif
 
 #if defined(CONFIG_MMC_SDHCI_PXAV2_TAVOR) || defined(CONFIG_MMC_SDHCI_PXAV3)

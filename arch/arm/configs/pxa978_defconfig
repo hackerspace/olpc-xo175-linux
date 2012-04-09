@@ -2354,7 +2354,8 @@ CONFIG_LEDS_TRIGGER_TIMER=y
 #
 # iptables trigger is under Netfilter config (LED target)
 #
-# CONFIG_NFC_DEVICES is not set
+CONFIG_NFC_DEVICES=y
+CONFIG_PN544_NFC=y
 CONFIG_SWITCH=y
 # CONFIG_SWITCH_GPIO is not set
 CONFIG_SWITCH_HEADSET=y
