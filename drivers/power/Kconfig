@@ -215,6 +215,12 @@ config BATTERY_INTEL_MID
 	  Say Y here to enable the battery driver on Intel MID
 	  platforms.
 
+config BATTERY_FAN4010
+	tristate "Fairchild FAN4010 Current Sensor Battery Support"
+	help
+	  This driver support Fairchild FAN4010 high-side current sense
+	  amplifier designed for battery-powered systems.
+
 config CHARGER_ISP1704
 	tristate "ISP1704 USB Charger Detection"
 	depends on USB_OTG_UTILS
