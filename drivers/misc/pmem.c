@@ -847,6 +847,7 @@ static int pmem_mmap(struct file *file, struct vm_area_struct *vma)
 		up_write(&pmem[id].bitmap->sem);
 		data->index = index;
 	}
+	data->vma = NULL;
 	/* either no space was available or an error occured */
 	if (!has_allocation(file)) {
 		ret = -EINVAL;
@@ -910,6 +911,8 @@ static int pmem_mmap(struct file *file, struct vm_area_struct *vma)
 	}
 	data->vma = vma;
 	vma->vm_ops = &vm_ops;
+	up_write(&data->sem);
+	return 0;
 error:
 	up_write(&data->sem);
 	return ret;
