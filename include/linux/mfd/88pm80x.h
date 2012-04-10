@@ -174,11 +174,15 @@ enum {
 #define PM800_GPIO3_VAL				(1 << 4)
 #define PM800_GPIO3_GPIO_MODE(x)	(x << 5)
 #define PM800_GPIO3_MODE_MASK		0x1F
+#define PM800_GPIO3_HEADSET_MODE	PM800_GPIO3_GPIO_MODE(6)
 
 #define PM800_GPIO_4_CNTRL			(0x32)
 #define PM800_GPIO4_VAL				(1 << 0)
 #define PM800_GPIO4_GPIO_MODE(x)	(x << 1)
 
+#define PM800_HEADSET_CNTRL		(0x38)
+#define PM800_HEADSET_DET_EN		(1 << 7)
+#define PM800_HSDET_SLP			(1 << 1)
 /*PWM register*/
 #define PM800_PWM1		(0x40)
 #define PM800_PWM2		(0x41)
@@ -460,6 +464,9 @@ enum {
 #define PM800_GPADC3_MEAS2		0x5B
 #define PM800_GPADC4_MEAS1		0x5C
 #define PM800_GPADC4_MEAS2		0x5D
+
+#define PM800_GPADC4_AVG1		0xA8
+#define PM800_GPADC4_AVG2		0xA9
 /*********************************/
 /*page 7 TEST PAGE: slave adder 0x07*/
 /********************************/
@@ -645,6 +652,7 @@ struct pm80x_headset_pdata {
 	int		gpio_set_mask;
 	int		gpio_set_val;
 	int		gpio_val_bit;
+	void		(*mic_set_power)(int on);
 };
 
 struct pm80x_vibrator_pdata {

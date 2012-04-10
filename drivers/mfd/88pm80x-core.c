@@ -165,6 +165,21 @@ static struct resource headset_resources[] = {
 		 },
 };
 
+static struct resource headset_resources_800[] = {
+	{
+		.name = "gpio-03",
+		.start = PM800_IRQ_GPIO3,
+		.end = PM800_IRQ_GPIO3,
+		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.name = "gpadc4",
+		.start = PM800_IRQ_GPADC4,
+		.end = PM800_IRQ_GPADC4,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
 static struct gpio_switch_platform_data headset_switch_device_data[] = {
 	{
 	 /* headset switch */
@@ -202,8 +217,18 @@ static struct mfd_cell headset_devs[] = {
 	 .id = -1,
 	 .platform_data = headset_switch_device_data,
 	 .pdata_size = sizeof(headset_switch_device_data),
-	 }
-	,
+	 },
+};
+
+static struct mfd_cell headset_devs_800[] = {
+	{
+	 .name = "88pm800-headset",
+	 .num_resources = ARRAY_SIZE(headset_resources_800),
+	 .resources = &headset_resources_800[0],
+	 .id = -1,
+	 .platform_data = headset_switch_device_data,
+	 .pdata_size = sizeof(headset_switch_device_data),
+	 },
 };
 
 static struct resource regulator_resources[] = {
@@ -1007,16 +1032,16 @@ static int __devinit device_805_init(struct pm80x_chip *chip,
 		dev_info(chip->dev,
 			"[%s]:Added mfd codec_devs\n", __func__);
 
-	ret = mfd_add_devices(chip->dev, 0, &headset_devs[0],
-			      ARRAY_SIZE(headset_devs),
-			      &headset_resources[0], 0);
-	if (ret < 0) {
-		dev_err(chip->dev, "Failed to add headset subdev\n");
-		goto out_headset;
-	} else
-		dev_info(chip->dev,
-			"[%s]:Added mfd headset_devs\n", __func__);
-
+	if (chip->chip_version == PM800_CHIP_B0) {
+		ret = mfd_add_devices(chip->dev, 0, &headset_devs[0],
+				      ARRAY_SIZE(headset_devs),
+				      &headset_resources[0], 0);
+		if (ret < 0) {
+			dev_err(chip->dev, "Failed to add headset subdev\n");
+			goto out_headset;
+		} else
+			dev_info(chip->dev, "[%s]:Added mfd headset_devs\n", __func__);
+	}
 	if (pdata->pm805_plat_config)
 		pdata->pm805_plat_config(chip, pdata);
 
@@ -1192,6 +1217,16 @@ static int __devinit device_800_init(struct pm80x_chip *chip,
 		dev_info(chip->dev,
 			"[%s]:Added mfd onkey_devs\n", __func__);
 
+	if (chip->chip_version >= PM800_CHIP_C0) {
+		ret = mfd_add_devices(chip->dev, 0, &headset_devs_800[0],
+					ARRAY_SIZE(headset_devs_800), &headset_resources_800[0], 0);
+		if (ret < 0) {
+			dev_err(chip->dev, "Failed to add headset subdev\n");
+			goto out_dev;
+		} else
+			dev_info(chip->dev, "[%s]:Added mfd headset_devs\n", __func__);
+	}
+
 	if (pdata && pdata->vibrator) {
 		vibrator_devs[0].platform_data = pdata->vibrator;
 		vibrator_devs[0].pdata_size = sizeof(struct pm80x_vibrator_pdata);
@@ -1217,14 +1252,17 @@ static int __devinit device_800_init(struct pm80x_chip *chip,
 			dev_info(chip->dev,
 				"[%s]:Added mfd rtc_devs\n", __func__);
 	}
-	ret = mfd_add_devices(chip->dev, 0, &pm80x_gpio_devs[0],
-				ARRAY_SIZE(pm80x_gpio_devs), NULL, pm800_chip->irq_base);
-	if (ret < 0) {
-		dev_err(chip->dev, "Failed to add gpio subdev\n");
-		goto out_dev;
-	} else
-		dev_info(chip->dev,
-			"[%s]:Added mfd gpio_devs\n", __func__);
+
+	if (chip->chip_version == PM800_CHIP_B0) {
+		ret = mfd_add_devices(chip->dev, 0, &pm80x_gpio_devs[0],
+					ARRAY_SIZE(pm80x_gpio_devs), NULL, pm800_chip->irq_base);
+		if (ret < 0) {
+			dev_err(chip->dev, "Failed to add gpio subdev\n");
+			goto out_dev;
+		} else
+			dev_info(chip->dev, "[%s]:Added mfd gpio_devs\n", __func__);
+	}
+
 	if (pdata->pm800_plat_config)
 		pdata->pm800_plat_config(chip, pdata);
 
