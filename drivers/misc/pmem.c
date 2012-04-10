@@ -605,7 +605,7 @@ static unsigned long pmem_len(int id, struct pmem_data *data)
 	}
 }
 
-static void *pmem_start_vaddr(int id, struct pmem_data *data)
+static int pmem_start_vaddr(int id, struct pmem_data *data)
 {
 	struct file *master_file;
 	int put_needed;
@@ -618,8 +618,11 @@ static void *pmem_start_vaddr(int id, struct pmem_data *data)
 		fput_light(master_file, put_needed);
 	}
 
-	BUG_ON(!data || !data->vma);
-	return (void *) data->vma->vm_start;
+	if (!data || !data->vma) {
+		WARN(1, "failed to fetch virtual address in pmem\n");
+		return -EFAULT;
+	}
+	return 0;
 }
 
 /*
@@ -895,6 +898,7 @@ int get_pmem_addr(struct file *file, unsigned long *start,
 {
 	struct pmem_data *data;
 	int id = get_id(file);
+	int ret;
 
 	if (!is_pmem_file(file) || !has_allocation(file)) {
 		return -1;
@@ -910,7 +914,12 @@ int get_pmem_addr(struct file *file, unsigned long *start,
 	down_read(&data->sem);
 	*start = pmem_start_addr(id, data);
 	*len = pmem_len(id, data);
-	*vstart = (unsigned long)pmem_start_vaddr(id, data);
+	ret = pmem_start_vaddr(id, data);
+	if (ret < 0) {
+		up_read(&data->sem);
+		return ret;
+	}
+	*vstart = data->vma->vm_start;
 	up_read(&data->sem);
 #if PMEM_DEBUG
 	down_write(&data->sem);
@@ -1006,7 +1015,7 @@ void sync_pmem_file(struct file *file, unsigned long offset, unsigned long len,
 	unsigned int cmd, enum dma_data_direction dir)
 {
 	struct pmem_data *data;
-	int id;
+	int id, ret;
 	void *vaddr;
 	unsigned long addr;
 	struct pmem_region_node *region_node;
@@ -1026,7 +1035,12 @@ void sync_pmem_file(struct file *file, unsigned long offset, unsigned long len,
 		return;
 
 	down_read(&data->sem);
-	vaddr = pmem_start_vaddr(id, data);
+	ret = pmem_start_vaddr(id, data);
+	if (ret < 0) {
+		up_read(&data->sem);
+		return;
+	}
+	vaddr = (void *)data->vma->vm_start;
 	addr = pmem_start_addr(id, data);
 	/*
 	 * if this isn't a submmapped file, don't flush the whole thing
