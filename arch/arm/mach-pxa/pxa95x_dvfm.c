@@ -377,7 +377,7 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.vmfc = 156,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
-		.lpj = 778128 * 100 / HZ,
+		.lpj = 1546480 * 100 / HZ,
 		.name = "156M",
 	},
 	/* 312MHz -- two PLL mode */
@@ -393,7 +393,7 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.vmfc = 156,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
-		.lpj = 1556256 * 100 / HZ,
+		.lpj = 3092960 * 100 / HZ,
 		.name = "312M",
 	},
 	/* 624MHz */
@@ -409,7 +409,7 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.vmfc = 312,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
-		.lpj = 3112960 * 100 / HZ,
+		.lpj = 6185922 * 100 / HZ,
 		.name = "624M",
 	},
 	/* 806MHz */
@@ -425,7 +425,7 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.vmfc = 498,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
-		.lpj = 4020906 * 100 / HZ,
+		.lpj = 7790150 * 100 / HZ,
 		.name = "806M",
 	},
 	/* 1014MHz */
@@ -441,7 +441,7 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.vmfc = 498,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
-		.lpj = 5026132 * 100 / HZ,
+		.lpj = 10052123 * 100 / HZ,
 		.name = "1014M",
 	},
 	/* 1196MHz */
@@ -457,7 +457,7 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.vmfc = 600,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
-		.lpj = 5928258 * 100 / HZ,
+		.lpj = 11856350 * 100 / HZ,
 		.name = "1196M",
 	},
 	/* 1404MHz */
@@ -473,7 +473,7 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.vmfc = 600,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
-		.lpj = 6959259 * 100 / HZ,
+		.lpj = 13918324 * 100 / HZ,
 		.name = "1404M",
 	},
 	/* 1508MHz */
@@ -489,7 +489,7 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.vmfc = 600,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
-		.lpj = 7474760 * 100 / HZ,
+		.lpj = 14949311 * 100 / HZ,
 		.name = "1508M",
 	},
 	/* D1 mode */
@@ -530,7 +530,7 @@ static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
 		.vmfc = 156,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
-		.lpj = 778128 * 100 / HZ,
+		.lpj = 1546480 * 100 / HZ,
 		.name = "156M",
 	},
 	/* 312MHz -- two PLL mode */
@@ -546,7 +546,7 @@ static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
 		.vmfc = 156,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
-		.lpj = 1556256 * 100 / HZ,
+		.lpj = 3092960 * 100 / HZ,
 		.name = "312M",
 	},
 	/* 624MHz */
@@ -562,7 +562,7 @@ static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
 		.vmfc = 312,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
-		.lpj = 3112960 * 100 / HZ,
+		.lpj = 6185922 * 100 / HZ,
 		.name = "624M",
 	},
 	/* 806MHz */
@@ -578,7 +578,7 @@ static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
 		.vmfc = 498,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
-		.lpj = 4020906 * 100 / HZ,
+		.lpj = 7790150 * 100 / HZ,
 		.name = "806M",
 	},
 	/* 1014MHz */
@@ -594,7 +594,7 @@ static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
 		.vmfc = 498,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
-		.lpj = 5026132 * 100 / HZ,
+		.lpj = 10052123 * 100 / HZ,
 		.name = "1014M",
 	},
 	/* 1196MHz */
@@ -610,7 +610,7 @@ static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
 		.vmfc = 600,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
-		.lpj = 5928258 * 100 / HZ,
+		.lpj = 11856350 * 100 / HZ,
 		.name = "1196M",
 	},
 	/* 1404MHz */
@@ -626,7 +626,7 @@ static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
 		.vmfc = 600,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
-		.lpj = 6959259 * 100 / HZ,
+		.lpj = 13918324 * 100 / HZ,
 		.name = "1404M",
 	},
 	/* 1508MHz */
@@ -642,7 +642,7 @@ static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
 		.vmfc = 600,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
-		.lpj = 7474760 * 100 / HZ,
+		.lpj = 14949311 * 100 / HZ,
 		.name = "1508M",
 	},
 
