@@ -1100,7 +1100,7 @@ static int __devexit pm860x_charger_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_PM && !defined(CONFIG_PXA95x_SUSPEND)
 static int pm860x_charger_suspend(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
@@ -1160,7 +1160,7 @@ static struct platform_driver pm860x_charger_driver = {
 	.driver		= {
 		.name	= "88pm860x-charger",
 		.owner	= THIS_MODULE,
-#ifdef CONFIG_PM
+#ifdef CONFIG_PM && !defined(CONFIG_PXA95x_SUSPEND)
 		.pm	= &pm860x_charger_pm_ops,
 #endif
 	},
