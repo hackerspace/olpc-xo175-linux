@@ -52,6 +52,7 @@
 #include <mach/sram.h>
 #include <plat/pmem.h>
 #include <linux/power/fan540x_charger.h>
+#include <linux/power/fan4010_battery.h>
 
 #include "common.h"
 #include "onboard.h"
@@ -527,7 +528,7 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 {
 	if (!chip || !pdata ||
 		chip->id != CHIP_PM800 ||
-		!chip->base_page || !chip->power_page) {
+		!chip->base_page || !chip->power_page || !chip->gpadc_page) {
 		pr_err("%s:chip or pdata is not availiable!\n", __func__);
 		return -EINVAL;
 	}
@@ -550,6 +551,34 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 	/* Enable BUCK1 sleep mode */
 	pm80x_set_bits(chip->power_page, PM800_BUCK_SLP1,
 		PM800_BUCK1_SLP1_MASK, (0x01 << PM800_BUCK1_SLP1_SHIFT));
+
+	/* Enable VBAT ADC */
+	pm80x_set_bits(chip->gpadc_page, PM800_GPADC_MEAS_EN1,
+					PM800_MEAS_EN1_VBAT,
+					PM800_MEAS_EN1_VBAT);
+
+	/* Enable GPADC0 for battery online detect */
+	pm80x_set_bits(chip->gpadc_page, PM800_GPADC_MEAS_EN2,
+					PM800_MEAS_GP0_EN,
+					PM800_MEAS_GP0_EN);
+	/* GPADC0 BIAS source is controlled by GP_BIAS_OUT */
+	pm80x_set_bits(chip->gpadc_page, PM800_GP_BIAS_ENA1,
+					PM800_GPADC_GP_BIAS_EN0,
+					PM800_GPADC_GP_BIAS_EN0);
+	/* Disable GPADC0 bias source */
+	pm80x_set_bits(chip->gpadc_page, PM800_GP_BIAS_OUT1,
+					PM800_BIAS_OUT_GP0, 0);
+
+	/* Enable GPADC1 for system current sense */
+	pm80x_set_bits(chip->gpadc_page, PM800_GPADC_MEAS_EN2,
+					PM800_MEAS_GP1_EN, PM800_MEAS_GP1_EN);
+	/* GPADC1 BIAS source is controlled by GP_BIAS_OUT */
+	pm80x_set_bits(chip->gpadc_page, PM800_GP_BIAS_ENA1,
+					PM800_GPADC_GP_BIAS_EN1,
+					PM800_GPADC_GP_BIAS_EN1);
+	/* Disable GPADC1 bias source */
+	pm80x_set_bits(chip->gpadc_page, PM800_GP_BIAS_OUT1,
+					PM800_BIAS_OUT_GP1, 0);
 
 	return 0;
 }
@@ -630,9 +659,16 @@ static struct i2c_board_info orchid_twsi1_info[] = {
 #endif
 };
 
+/* Batteries supplied to */
+static char *fan540x_supplied_to[] = {
+	"fan4010-battery",
+};
+
 static struct fan540x_charger_pdata fan5405_pdata = {
 	.monitor_interval = 20,	/* seconds */
 	.gpio_dis = mfp_to_gpio(GPIO44_GPIO),
+	.supplied_to = fan540x_supplied_to,
+	.num_supplicants = ARRAY_SIZE(fan540x_supplied_to),
 };
 
 static struct i2c_board_info orchid_twsi2_info[] = {
@@ -640,6 +676,83 @@ static struct i2c_board_info orchid_twsi2_info[] = {
 		.type = "fan5405",
 		.addr = 0x6A,
 		.platform_data = &fan5405_pdata,
+	},
+};
+
+/* VBAT detected by VBAT_SNS */
+static int orchid_get_bat_vol(void)
+{
+	int ret, vbat = 0;
+	ret = pm80x_codec_reg_read((PM80X_GPADC_PAGE << 8)
+					| PM800_VBAT_MEAS1);
+	if (ret < 0)
+		return 0;
+	vbat = ret << 4;
+	ret = pm80x_codec_reg_read((PM80X_GPADC_PAGE << 8)
+					| PM800_VBAT_MEAS2);
+	if (ret < 0)
+		return 0;
+	vbat |= (ret & 0xF);
+	vbat = (vbat * 5600) >> 12;
+	return vbat;
+}
+
+/* SYS_CURRENT detected by GPADC1 */
+static int orchid_get_sys_cur_vol(void)
+{
+	int ret, vol;
+	ret = pm80x_codec_reg_read((PM80X_GPADC_PAGE << 8)
+					| PM800_GPADC1_MEAS1);
+	if (ret < 0)
+		return 0;
+	vol = ret << 4;
+	ret = pm80x_codec_reg_read((PM80X_GPADC_PAGE << 8)
+					| PM800_GPADC1_MEAS2);
+	if (ret < 0)
+		return 0;
+	vol |= (ret & 0xF);
+	vol = (vol * 1400) >> 12;
+	return vol;
+}
+
+/* Battery detected by GPADC0: NTC = 120K;
+ * No Battery: BAT_NTC = 1.8*(470K/(150K+470K))=1.36V;
+ * Battery insert: BAT_NTC =1.8*(93K/(93K+150K))=0.7V */
+static int orchid_get_bat_state(void)
+{
+	int ret, vol;
+	ret = pm80x_codec_reg_read((PM80X_GPADC_PAGE << 8)
+					| PM800_GPADC0_MEAS1);
+	if (ret < 0)
+		return 0;
+	vol = ret << 4;
+	ret = pm80x_codec_reg_read((PM80X_GPADC_PAGE << 8)
+					| PM800_GPADC0_MEAS2);
+	if (ret < 0)
+		return 0;
+	vol |= (ret & 0xF);
+	vol = (vol * 1400) >> 12;
+	/* If BAT_NTC <= 1000mV, take as battery inserted */
+	if (vol <= 1000)
+		return 1;
+	return 0;
+}
+
+static struct fan4010_battery_pdata fan4010_pdata = {
+	.interval = 30,	/* seconds */
+	.bat_design_cap = 1500,	/* mAh */
+	.r_bat = 140,	/* milli-ohms */
+	.r_sns = 20,	/* milli-ohms */
+	.r_vout = 1300,	/* ohms */
+	.get_bat_vol = orchid_get_bat_vol,
+	.get_sys_cur_vol = orchid_get_sys_cur_vol,
+	.get_bat_state = orchid_get_bat_state,
+};
+
+static struct platform_device fan4010_device = {
+	.name = "fan4010-battery",
+	.dev = {
+		.platform_data = &fan4010_pdata,
 	},
 };
 
@@ -1287,6 +1400,7 @@ static void __init orchid_init(void)
 	platform_device_register(&mmp3_device_u2ootg);
 #endif
 #endif
+	platform_device_register(&fan4010_device);
 
 	/* If we have a full configuration then disable any regulators
 	 * which are not in use or always_on. */
