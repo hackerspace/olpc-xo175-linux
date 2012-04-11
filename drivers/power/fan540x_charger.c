@@ -327,6 +327,8 @@ static int fan540x_charger_enable(struct fan540x_device_info *di)
 	fan540x_set_bits(i2c, FAN540x_CNTL1, CNTL1_HZ_MODE, 0);
 	/* Set VOREG */
 	fan540x_set_voreg(di, di->voreg);
+	/* Clear IO_LEVEL, charge current controlled by IOCHARGE */
+	fan540x_set_bits(i2c, FAN540x_SP_CHG, SPCHG_IO_LEVEL, 0);
 	/* Set input current limit */
 	fan540x_set_input_cur(di, di->input_cur);
 	/* Set charge current limit */
@@ -369,8 +371,8 @@ static int fan540x_chg_notifier_callback(struct notifier_block *nb,
 	case VBUS_CHARGER:
 		/* Standard Downstream Port */
 		di->supply_type = POWER_SUPPLY_TYPE_USB;
-		di->input_cur = CUR_INLIM_500MA;
-		di->chg_cur = CUR_CHG_850MA;
+		di->input_cur = CUR_INLIM_NO;
+		di->chg_cur = CUR_CHG_1250MA;
 		/* Charger states */
 		di->usb_chg_online = 1;
 		di->ac_chg_online = 0;
@@ -379,7 +381,7 @@ static int fan540x_chg_notifier_callback(struct notifier_block *nb,
 		/* Dedicated Charging Port */
 		di->supply_type = POWER_SUPPLY_TYPE_USB_DCP;
 		di->input_cur = CUR_INLIM_NO;
-		di->chg_cur = CUR_CHG_950MA;
+		di->chg_cur = CUR_CHG_1250MA;
 		/* Charger states */
 		di->usb_chg_online = 0;
 		di->ac_chg_online = 1;
@@ -388,7 +390,7 @@ static int fan540x_chg_notifier_callback(struct notifier_block *nb,
 		/* Adapter Charger */
 		di->supply_type = POWER_SUPPLY_TYPE_MAINS;
 		di->input_cur = CUR_INLIM_NO;
-		di->chg_cur = CUR_CHG_950MA;
+		di->chg_cur = CUR_CHG_1250MA;
 		/* Charger states */
 		di->usb_chg_online = 0;
 		di->ac_chg_online = 1;
@@ -425,6 +427,31 @@ static void chg_monitor_work_func(struct work_struct *work)
 	schedule_delayed_work(&di->chg_monitor_work, HZ * di->monitor_interval);
 }
 
+/* MUST and ONLY before any other register is written */
+static int fan540x_safety_reg_init(struct fan540x_device_info *di)
+{
+	int ret;
+	u8 data = 0x70;	/* ISAFE:1.25A, VSAFE:4.2V */
+
+	ret = fan540x_read_reg(di->client, FAN540x_SAFETY);
+	if (ret)
+		return ret;
+	/* If it is, return */
+	if (ret == data)
+		return 0;
+	/* Set VSAFE and ISAFE */
+	ret = fan540x_write_reg(di->client, FAN540x_SAFETY, data);
+	if (ret)
+		return ret;
+	/* Verify */
+	ret = fan540x_read_reg(di->client, FAN540x_SAFETY);
+	if (ret != data) {
+		pr_err("%s: failed to init SAFETY register\n", __func__);
+		return -1;
+	}
+	return 0;
+}
+
 static int fan540x_charger_setup(struct fan540x_device_info *di,
 				struct fan540x_charger_pdata *pdata)
 {
@@ -439,8 +466,13 @@ static int fan540x_charger_setup(struct fan540x_device_info *di,
 		(ret & INFO_VENDOR_MASK) >> INFO_VENDOR_SHIFT,
 		(ret & INFO_PN_MASK) >> INFO_PN_SHIFT,
 		(ret & INFO_REV_MASK) >> INFO_REV_SHIFT);
+	/* Update ISAFE and VSAFE */
+	fan540x_safety_reg_init(di);
 	/* Reset charge paramters firstly */
 	fan540x_reset_reg(di);
+	/* Set Vlowv as 3.4V */
+	fan540x_set_bits(di->client, FAN540x_CNTL1,
+			CNTL1_LOWV_MASK, 0x0 << CNTL1_LOWV_SHIFT);
 	/* Init monitor interval: seconds */
 	if ((pdata->monitor_interval <= 0) || (pdata->monitor_interval > 30)) {
 		dev_err(di->dev, "monitor interval is out of range,"
