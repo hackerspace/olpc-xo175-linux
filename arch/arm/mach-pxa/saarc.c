@@ -308,6 +308,23 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 	return 0;
 }
 
+static void mic_set_power(unsigned int on)
+{
+	struct regulator	*v_ldo = regulator_get(NULL, "mic_bias");
+	if (IS_ERR(v_ldo)) {
+		v_ldo = NULL;
+		pr_err("Get regulator error\n");
+		return;
+	}
+	if (on)
+		regulator_enable(v_ldo);
+	else
+		regulator_disable(v_ldo);
+
+	regulator_put(v_ldo);
+	v_ldo = NULL;
+}
+
 static struct pm80x_headset_pdata pm80x_headset = {
 	.gpio	= 4,			/* GPIO 4 */
 	.gpio_ctl = 0x32,		/* PM800 GPIO 4 */
@@ -315,6 +332,7 @@ static struct pm80x_headset_pdata pm80x_headset = {
 	.gpio_set_mask = 0xff,
 	.gpio_set_val = 0x08,
 	.gpio_val_bit = (1 << 0),
+	.mic_set_power = mic_set_power,
 };
 
 static struct pm80x_platform_data pm800_info = {
@@ -495,6 +513,7 @@ static struct i2c_board_info i2c1_80x_info[] = {
 };
 
 static struct clk *clk_tout_s0;
+
 
 /* specific 8787 power on/off setting for SAARB */
 static void wifi_set_power(unsigned int on)
