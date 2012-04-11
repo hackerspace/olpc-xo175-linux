@@ -2448,10 +2448,9 @@ static int update_freq(void *driver_data, struct dvfm_freqs *freqs)
 	if (old.core > new.core)
 		update_voltage(info, &old, &new);
 
-#ifndef CONFIG_CPU_FREQ
-	if (new.power_mode == POWER_MODE_D0)
-		loops_per_jiffy = new.lpj;
-#endif
+	if (cur_profiler == MSPM_PROFILER)
+		if (new.power_mode == POWER_MODE_D0)
+			loops_per_jiffy = new.lpj;
 
 	return 0;
 }
@@ -2462,31 +2461,33 @@ extern void enter_lowpower_mode(int state);
 static void do_freq_notify(void *driver_data, struct dvfm_freqs *freqs)
 {
 	struct pxa95x_dvfm_info *info = driver_data;
-#ifdef CONFIG_CPU_FREQ
 	struct cpufreq_freqs cpufreq_freqs;
 
-	/* Normally frequency change will not happen in IRQ disable path.
-	 * But there are some special case, such as enter LPM from lowest
-	 * OP. */
-	if (!irqs_disabled()) {
-		cpufreq_freqs.old =
-			((struct dvfm_md_opt *)(freqs->old_info.op))->core
-			* MHZ_TO_KHZ;
-		cpufreq_freqs.new =
-			((struct dvfm_md_opt *)(freqs->new_info.op))->core
-			* MHZ_TO_KHZ;
-		cpufreq_freqs.cpu = smp_processor_id();
-		cpufreq_notify_transition(&cpufreq_freqs, CPUFREQ_PRECHANGE);
+	if (cur_profiler == CPUFREQ_PROFILER) {
+
+		/* Normally frequency change will not happen in
+		 * IRQ disable path. But there are some special
+		 * case, such as enter LPM from lowest OP.
+		 */
+		if (!irqs_disabled()) {
+			cpufreq_freqs.old =
+				((struct dvfm_md_opt *)(freqs->old_info.op))
+				->core * MHZ_TO_KHZ;
+			cpufreq_freqs.new =
+				((struct dvfm_md_opt *)(freqs->new_info.op))
+				->core * MHZ_TO_KHZ;
+			cpufreq_freqs.cpu = smp_processor_id();
+			cpufreq_notify_transition(&cpufreq_freqs,
+						  CPUFREQ_PRECHANGE);
+		}
 	}
-#endif
 	dvfm_notifier_frequency(freqs, DVFM_FREQ_PRECHANGE);
 	update_freq(info, freqs);
 	dvfm_notifier_frequency(freqs, DVFM_FREQ_POSTCHANGE);
-#ifdef CONFIG_CPU_FREQ
-	if (!irqs_disabled()) {
-		cpufreq_notify_transition(&cpufreq_freqs, CPUFREQ_POSTCHANGE);
-	}
-#endif
+	if (cur_profiler == CPUFREQ_PROFILER)
+		if (!irqs_disabled())
+			cpufreq_notify_transition(&cpufreq_freqs,
+						  CPUFREQ_POSTCHANGE);
 #ifdef CONFIG_PXA_MIPSRAM
 	update_op_mips_ram(freqs->old, freqs->new);
 #endif
@@ -2668,11 +2669,14 @@ static int pxa95x_set_op(void *driver_data, struct dvfm_freqs *freqs,
 				memcpy(&(freqs->old_info), lowest_op_info,
 				       sizeof(struct op_info));
 				freqs->old = lowest_freq_index;
-#ifdef CONFIG_CPU_FREQ
-				/* Update here since this routine is with IRQ disabled
-				 * So it is not updated in do_freq_notify */
-				loops_per_jiffy = ((struct dvfm_md_opt *)lowest_op_info->op)->lpj;
-#endif
+				if (cur_profiler == CPUFREQ_PROFILER) {
+					/* Update here since this routine
+					 * is with IRQ disabled, So it is
+					 * not updated in do_freq_notify */
+					loops_per_jiffy =
+						((struct dvfm_md_opt *)
+						lowest_op_info->op)->lpj;
+				}
 			}
 		}
 
