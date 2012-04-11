@@ -27,8 +27,10 @@
 DECLARE_WAIT_QUEUE_HEAD(rtc_update_head);
 #endif
 
+/* PXA95x does not calibrate the RTC voltage */
+#ifndef CONFIG_PXA95x
 #define VRTC_CALIBRATION
-
+#endif
 struct pm860x_rtc_info {
 	struct pm860x_chip	*chip;
 	struct i2c_client	*i2c;
