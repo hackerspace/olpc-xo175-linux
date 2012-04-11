@@ -347,7 +347,7 @@ static struct soc_camera_link iclink_ov5642 = {
 	.i2c_adapter_id = 2,
 	.flags = SOCAM_MIPI,
 	.module_name    = "ov5642",
-	.priv = "pxa2128-mipi",
+	.priv = "mk2-mipi",
 };
 
 static struct platform_device mk2_ov5642 = {
