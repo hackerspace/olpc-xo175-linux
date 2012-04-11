@@ -154,4 +154,5 @@ extern struct ov5642_win_size *get_jpg_size_array(void);
 extern struct regval_list *get_mipi_set_regs(void);
 extern struct regval_list *get_mipi_lane_regs(int num);
 extern struct regval_list *get_yuv_resolution_regs(int width, int height);
+extern struct regval_list *get_color_effect_regs(void);
 #endif
