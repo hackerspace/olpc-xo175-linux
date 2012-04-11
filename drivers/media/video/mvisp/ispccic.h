@@ -100,6 +100,7 @@ struct isp_ccic_device {
 
 	enum mv_isp_sensor_type sensor_type;
 	enum ccic_dma_state		dma_state;
+	int lanes;
 };
 
 int pxa_ccic_init(struct mvisp_device *isp);

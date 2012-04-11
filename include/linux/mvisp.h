@@ -101,6 +101,7 @@ struct v4l2_ispdma_reset {
 
 struct v4l2_ccic_config_mipi {
 	int start_mipi;
+	int lanes;
 };
 
 struct v4l2_ccic_dump_registers {

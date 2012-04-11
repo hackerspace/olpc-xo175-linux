@@ -201,6 +201,12 @@ static int ccic_configure_mipi(struct isp_ccic_device *ccic)
 	struct mvisp_device *isp = ccic->isp;
 	unsigned long mipi_lock_flags;
 	bool valid_sensor;
+	int lanes = ccic->lanes;
+
+	if (lanes == 0) {
+		dev_warn(isp->dev, "CCIC lanes num not set, set it to 2\n");
+		lanes = 2;
+	}
 
 	spin_lock_irqsave(&ccic->mipi_flag_lock, mipi_lock_flags);
 	if (ccic->mipi_config_flag != MIPI_NOT_SET) {
@@ -215,8 +221,12 @@ static int ccic_configure_mipi(struct isp_ccic_device *ccic)
 		case SENSOR_OV5642:
 			mvisp_reg_writel(isp, 0x1B0B,
 				CCIC_ISP_IOMEM_1, CCIC_CSI2_DPHY3);
-			mvisp_reg_writel(isp, 0x33,
-				CCIC_ISP_IOMEM_1, CCIC_CSI2_DPHY5);
+			if (unlikely(lanes == 1))
+				mvisp_reg_writel(isp, 0x11,
+				  CCIC_ISP_IOMEM_1, CCIC_CSI2_DPHY5);
+			else
+				mvisp_reg_writel(isp, 0x33,
+				  CCIC_ISP_IOMEM_1, CCIC_CSI2_DPHY5);
 			mvisp_reg_writel(isp, 0x1A03,
 				CCIC_ISP_IOMEM_1, CCIC_CSI2_DPHY6);
 			valid_sensor = true;
@@ -224,8 +234,15 @@ static int ccic_configure_mipi(struct isp_ccic_device *ccic)
 		case SENSOR_OV8820:
 			mvisp_reg_writel(isp, 0x0A06,
 				CCIC_ISP_IOMEM_1, CCIC_CSI2_DPHY3);
-			mvisp_reg_writel(isp, 0x33,
-				CCIC_ISP_IOMEM_1, CCIC_CSI2_DPHY5);
+			if (lanes == 4)
+				mvisp_reg_writel(isp, 0xff,
+				  CCIC_ISP_IOMEM_1, CCIC_CSI2_DPHY5);
+			else if (unlikely(lanes == 1))
+				mvisp_reg_writel(isp, 0x11,
+				  CCIC_ISP_IOMEM_1, CCIC_CSI2_DPHY5);
+			else
+				mvisp_reg_writel(isp, 0x33,
+				  CCIC_ISP_IOMEM_1, CCIC_CSI2_DPHY5);
 			mvisp_reg_writel(isp, 0x1A03,
 				CCIC_ISP_IOMEM_1, CCIC_CSI2_DPHY6);
 			valid_sensor = true;
@@ -233,9 +250,18 @@ static int ccic_configure_mipi(struct isp_ccic_device *ccic)
 		default:
 			break;
 		}
-		if (valid_sensor  == true)
-			mvisp_reg_writel(isp,
-				0x43, CCIC_ISP_IOMEM_1, CCIC_CSI2_CTRL0);
+		if (valid_sensor  == true) {
+			if (lanes == 4) {
+				mvisp_reg_writel(isp,
+				  0x47, CCIC_ISP_IOMEM_1, CCIC_CSI2_CTRL0);
+			} else if (lanes == 1) {
+				mvisp_reg_writel(isp,
+				  0x41, CCIC_ISP_IOMEM_1, CCIC_CSI2_CTRL0);
+			} else {
+				mvisp_reg_writel(isp,
+				  0x43, CCIC_ISP_IOMEM_1, CCIC_CSI2_CTRL0);
+			}
+		}
 		break;
 	case CCIC_ID_2:
 		break;
@@ -763,9 +789,10 @@ static int ccic_io_config_mipi(struct isp_ccic_device *ccic,
 	if (NULL == mipi_cfg)
 		return -EINVAL;
 
-	if (mipi_cfg->start_mipi != 0)
+	if (mipi_cfg->start_mipi != 0) {
+		ccic->lanes = mipi_cfg->lanes;
 		ccic_configure_mipi(ccic);
-	else
+	} else
 		ccic_clear_mipi(ccic);
 
 	return 0;
