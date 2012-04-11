@@ -37,6 +37,9 @@ static inline int freezable(struct task_struct * p)
 	return 1;
 }
 
+#define MAX_FAILED_TASKS 10
+static struct task_struct *failed_freeze_list[MAX_FAILED_TASKS];
+
 static int try_to_freeze_tasks(bool sig_only)
 {
 	struct task_struct *g, *p;
@@ -78,8 +81,11 @@ static int try_to_freeze_tasks(bool sig_only)
 			 * stop sees TIF_FREEZE.
 			 */
 			if (!task_is_stopped_or_traced(p) &&
-			    !freezer_should_skip(p))
+			    !freezer_should_skip(p)) {
+				if (todo < MAX_FAILED_TASKS)
+					failed_freeze_list[todo] = p;
 				todo++;
+				}
 		} while_each_thread(g, p);
 		read_unlock(&tasklist_lock);
 
@@ -124,11 +130,20 @@ static int try_to_freeze_tasks(bool sig_only)
 					sig_only ? "user space " : "tasks ");
 		}
 		else {
+			int i;
 			printk("\n");
 			printk(KERN_ERR "Freezing of tasks failed after %d.%02d seconds "
 			       "(%d tasks refusing to freeze, wq_busy=%d):\n",
 			       elapsed_csecs / 100, elapsed_csecs % 100,
 			       todo - wq_busy, wq_busy);
+			printk(KERN_ERR "%s: the following task failed to freezed\n",
+					__func__);
+			for (i = 0; i < todo && i < MAX_FAILED_TASKS; i++) {
+				printk(KERN_ERR "pid %d tgid = %d name %s\n",
+					failed_freeze_list[i]->pid,
+					failed_freeze_list[i]->tgid,
+					failed_freeze_list[i]->comm);
+			}
 		}
 		thaw_workqueues();
 
