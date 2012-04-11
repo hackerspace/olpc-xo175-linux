@@ -28,7 +28,6 @@ MODULE_LICENSE("GPL");
 #define REG_PIDH    0x300a
 #define REG_PIDL    0x300b
 
-struct i2c_client *g_i2c_client;
 int frame_rate;
 
 static const struct ov5640_datafmt ov5640_colour_fmts[] = {
@@ -40,6 +39,28 @@ static struct ov5640_win_size {
 	int width;
 	int height;
 } ov5640_win_sizes[] = {
+#ifdef CONFIG_PXA95x
+	/* VGA */
+	{
+		.width = 640,
+		.height = 480,
+	},
+	/* 720 */
+	{
+		.width = 1280,
+		.height = 720,
+	},
+	/* 1080 */
+	{
+		.width = 1920,
+		.height = 1080,
+	},
+	/* full */
+	{
+		.width = 2592,
+		.height = 1944,
+	},
+#else
 	/* QCIF */
 	{
 		.width = 176,
@@ -70,6 +91,7 @@ static struct ov5640_win_size {
 		.width = 2592,
 		.height = 1944,
 	},
+#endif
 };
 
 /* capture jpeg size */
@@ -79,12 +101,27 @@ static struct ov5640_win_size ov5640_win_sizes_jpeg[] = {
 		.width = 2592,
 		.height = 1944,
 	},
+#ifndef CONFIG_PXA95x
 	/* 3M */
 	{
 		.width = 2048,
 		.height = 1536,
 	},
+#endif
 };
+
+#ifdef CONFIG_PXA95x
+static struct mipi_phy ov5640_timings[] = {
+	{ /* ov5640 default timing */
+		.cl_termen	= 0x00,
+		.cl_settle	= 0x08,
+		.hs_termen	= 0x07,
+		.hs_settle	= 0x0F,
+		.hs_rx_to	= 0xFFFF,
+		.lane		= 2,
+	},
+};
+#endif
 
 /* Find a data format by a pixel code in an array */
 static const struct ov5640_datafmt *ov5640_find_datafmt(
@@ -180,6 +217,65 @@ static int ov5640_detect(struct i2c_client *client)
 	return 0;
 }
 
+static int ov5640_firmware_download(struct i2c_client *client)
+{
+	int ret = 0, i, j, size;
+	char data[258];
+
+	size = N_FIRMWARE_SIZES_OV5640;
+	if (unlikely(size <= 0)) {
+		dev_err(&client->dev, "No AF firmware available\n");
+		return -ENODEV;
+	}
+
+	/* Actually start to download firmware */
+	for (i = 0; i < size; i++) {
+		data[0] = firmware_regs_ov5640[i].reg_base >> 8;
+		data[1] = firmware_regs_ov5640[i].reg_base;
+		for (j = 0; j < firmware_regs_ov5640[i].len; j++)
+			data[j+2] = firmware_regs_ov5640[i].value[j];
+		ret = i2c_master_send(client, data, firmware_regs_ov5640[i].len+2);
+		if (ret < 0) {
+			dev_err(&client->dev, "i2c error %s %d\n",
+				__func__, __LINE__);
+			break;
+		}
+	}
+
+	dev_info(&client->dev, "AF firmware downloaded\n");
+
+	return (ret > 0) ? 0 : ret;
+}
+
+#ifdef CONFIG_PXA95x
+static int ov5640_get_mipi_phy(struct i2c_client *client, __s32 *value)
+{
+	if (unlikely((void *)value == NULL))
+		return -EPERM;
+	/* Camera driver provide a address to fill in timing info */
+	*value = (__s32)&(ov5640_timings[0]);
+	return 0;
+}
+#endif
+
+static int ov5640_g_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	int ret;
+
+	switch (ctrl->id) {
+#ifdef CONFIG_PXA95x
+	case V4L2_CID_PRIVATE_GET_MIPI_PHY:
+		ret = ov5640_get_mipi_phy(client, &ctrl->value);
+		break;
+#endif
+	default:
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+
 static int ov5640_g_chip_ident(struct v4l2_subdev *sd,
 				   struct v4l2_dbg_chip_ident *id)
 {
@@ -237,6 +333,7 @@ static int ov5640_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	int ret = 0;
+
 	ret = set_stream(client, enable);
 	if (ret < 0)
 		dev_err(&client->dev, "ov5640 set stream error\n");
@@ -339,12 +436,23 @@ static int ov5640_s_fmt(struct v4l2_subdev *sd,
 			dev_info(&client->dev, "choose 480*320 setting!\n");
 			break;
 		case 640:
+#ifdef CONFIG_PXA95x
+			pregs_default = init_global_tab;
+#endif
 			pregs = yuv_VGA_tab;
 			dev_info(&client->dev, "choose vga setting!\n");
 			break;
 		case 720:
 			pregs = yuv_D1_tab;
 			dev_info(&client->dev, "choose d1 setting!\n");
+			break;
+		case 1280:
+			pregs = yuv_720P_tab;
+			dev_info(&client->dev, "choose 720P setting!\n");
+			break;
+		case 1920:
+			pregs = yuv_1080P_tab;
+			dev_info(&client->dev, "choose 1080P setting!\n");
 			break;
 		case 2592:
 			pregs = yuv_5M_tab;
@@ -450,6 +558,21 @@ static int ov5640_enum_fsizes(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static const struct v4l2_queryctrl ov5640_controls[] = {
+	{
+		.id = V4L2_CID_PRIVATE_FIRMWARE_DOWNLOAD,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "AF/FD etc. firmware download",
+	},
+#ifdef CONFIG_PXA95x
+	{
+		.id = V4L2_CID_PRIVATE_GET_MIPI_PHY,
+		.type = V4L2_CTRL_TYPE_CTRL_CLASS,
+		.name = "get mipi timing"
+	},
+#endif
+};
+
 static unsigned long ov5640_query_bus_param(struct soc_camera_device
 						*icd)
 {
@@ -470,7 +593,28 @@ static int ov5640_set_bus_param(struct soc_camera_device *icd,
 static struct soc_camera_ops ov5640_ops = {
 	.query_bus_param = ov5640_query_bus_param,
 	.set_bus_param = ov5640_set_bus_param,
+	.controls = ov5640_controls,
+	.num_controls = ARRAY_SIZE(ov5640_controls),
 };
+
+static int ov5640_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	const struct v4l2_queryctrl *qctrl;
+	int ret = 0;
+
+	qctrl = soc_camera_find_qctrl(&ov5640_ops, ctrl->id);
+	if (!qctrl)
+		return -EINVAL;
+	switch (ctrl->id) {
+	case V4L2_CID_PRIVATE_FIRMWARE_DOWNLOAD:
+		ret = ov5640_firmware_download(client);
+		break;
+	default:
+		ret = -EINVAL;
+	}
+	return ret;
+}
 
 static int ov5640_init(struct v4l2_subdev *sd, u32 plat)
 {
@@ -568,6 +712,8 @@ static int ov5640_g_frame_interval(struct v4l2_subdev *sd,
 }
 
 static struct v4l2_subdev_core_ops ov5640_subdev_core_ops = {
+	.g_ctrl	= ov5640_g_ctrl,
+	.s_ctrl	= ov5640_s_ctrl,
 	.g_chip_ident = ov5640_g_chip_ident,
 	.init = ov5640_init,
 #ifdef CONFIG_VIDEO_ADV_DEBUG
@@ -628,8 +774,6 @@ static int ov5640_probe(struct i2c_client *client,
 	struct soc_camera_device *icd = client->dev.platform_data;
 	struct i2c_adapter *adapter = to_i2c_adapter(client->dev.parent);
 	int ret;
-
-	g_i2c_client = client;
 
 	if (!icd) {
 		dev_err(&client->dev, "missing soc-camera data!\n");
