@@ -257,7 +257,7 @@ static int ov5642_get_platform_mipi_config(int *mipi_set, int *lane_set, int *la
 		}
 		break;
 	default:
-		printk(KERN_ERR "ov5642 no mipi config for platform: %d\n", bus_type);
+		printk(KERN_DEBUG "ov5642 no mipi config for platform: %d\n", bus_type);
 		break;
 	}
 
