@@ -813,28 +813,19 @@ static int ext_wakeup(pm_wakeup_src_t src, int enable)
 static int key_wakeup(pm_wakeup_src_t src, int enable)
 {
 	unsigned int ret = 0;
+	unsigned int i = 0;
+	unsigned int key_matrix = 5;
+	/*GPIO0, GPIO2, GPIO4,GPIO6,GPIO8*/
 	if (enable) {
 		if (src.bits.mkey) {
-			static mfp_cfg_t key_edgeboth_cfg[] = {
-				GPIO0_KP_MKIN_0 | MFP_LPM_EDGE_BOTH,
-				GPIO2_KP_MKIN_1 | MFP_LPM_EDGE_BOTH,
-				GPIO4_KP_MKIN_2 | MFP_LPM_EDGE_BOTH,
-				GPIO6_KP_MKIN_3 | MFP_LPM_EDGE_BOTH,
-				GPIO8_KP_MKIN_4 | MFP_LPM_EDGE_BOTH,
-			};
-			pxa3xx_mfp_config(ARRAY_AND_SIZE(key_edgeboth_cfg));
+			for (i = 0; i < key_matrix; i++)
+				lpm_mfpr_edge_config(MFP_PIN_GPIO0 + i*2, MFP_LPM_EDGE_BOTH);
 			ret |= PXA95x_PM_WE_KP;
 		}
 	} else {
 		if (src.bits.mkey) {
-			static mfp_cfg_t key_edgenone_cfg[] = {
-				GPIO0_KP_MKIN_0 | MFP_LPM_EDGE_NONE,
-				GPIO2_KP_MKIN_1 | MFP_LPM_EDGE_NONE,
-				GPIO4_KP_MKIN_2 | MFP_LPM_EDGE_NONE,
-				GPIO6_KP_MKIN_3 | MFP_LPM_EDGE_NONE,
-				GPIO8_KP_MKIN_4 | MFP_LPM_EDGE_NONE,
-			};
-			pxa3xx_mfp_config(ARRAY_AND_SIZE(key_edgenone_cfg));
+			for (i = 0; i < key_matrix; i++)
+				lpm_mfpr_edge_config(MFP_PIN_GPIO0 + i*2, MFP_LPM_EDGE_NONE);
 		}
 	}
 	return ret;
@@ -843,17 +834,13 @@ static int key_wakeup(pm_wakeup_src_t src, int enable)
 static int mmc1_wakeup(pm_wakeup_src_t src, int enable)
 {
 	unsigned int ret = 0;
-	mfp_cfg_t mfp_c;
 	if (enable) {
 		if (src.bits.mmc1_cd) {
-			mfp_c = GPIO47_GPIO | MFP_LPM_EDGE_BOTH;
-			pxa3xx_mfp_config(&mfp_c, 1);
+			lpm_mfpr_edge_config(MFP_PIN_GPIO47, MFP_LPM_EDGE_BOTH);
 			ret |= PXA95x_PM_WE_GENERIC(13);
 		}
-	} else {
-		mfp_c = GPIO47_GPIO | MFP_LPM_EDGE_NONE;
-		pxa3xx_mfp_config(&mfp_c, 1);
-	}
+	} else
+		lpm_mfpr_edge_config(MFP_PIN_GPIO47, MFP_LPM_EDGE_NONE);
 
 	return ret;
 }
@@ -861,17 +848,14 @@ static int mmc1_wakeup(pm_wakeup_src_t src, int enable)
 static int mmc3_wakeup(pm_wakeup_src_t src, int enable)
 {
 	unsigned int ret = 0;
-	mfp_cfg_t mfp_c;
 	if (enable) {
 		if (src.bits.mmc3_dat1) {
-			mfp_c = GPIO88_MMC3_DAT1 | MFP_LPM_EDGE_BOTH;
-			pxa3xx_mfp_config(&mfp_c, 1);
+			/*GPIO88_MMC3_DAT1*/
+			lpm_mfpr_edge_config(MFP_PIN_GPIO88, MFP_LPM_EDGE_BOTH);
 			ret |= PXA95x_PM_WE_MMC3;
 		}
-	} else {
-		mfp_c = GPIO88_MMC3_DAT1 | MFP_LPM_EDGE_NONE;
-		pxa3xx_mfp_config(&mfp_c, 1);
-	}
+	} else
+		lpm_mfpr_edge_config(MFP_PIN_GPIO88, MFP_LPM_EDGE_NONE);
 
 	return ret;
 }
@@ -879,28 +863,21 @@ static int mmc3_wakeup(pm_wakeup_src_t src, int enable)
 static int uart_wakeup(pm_wakeup_src_t src, int enable)
 {
 	unsigned int ret = 0;
-	mfp_cfg_t m;
-
 	if (enable) {
 		if (src.bits.uart1) {
-			m = GPIO53_UART1_RXD | MFP_LPM_EDGE_FALL;
-			pxa3xx_mfp_config(&m, 1);
+			lpm_mfpr_edge_config(MFP_PIN_GPIO53, MFP_LPM_EDGE_FALL);
 			ret |= PXA95x_PM_WE_GENERIC(9);
 		}
 		if (src.bits.uart2) {
-			m = GPIO45_UART3_RXD | MFP_LPM_EDGE_FALL;
-			pxa3xx_mfp_config(&m, 1);
+			lpm_mfpr_edge_config(MFP_PIN_GPIO45, MFP_LPM_EDGE_FALL);
 			/* note: on pxa930, uart2 use this bit */
+			ret |= PXA95x_PM_WE_GENERIC(2);
 		}
 	} else {
-		if (src.bits.uart1) {
-			m = GPIO53_UART1_RXD | MFP_LPM_EDGE_NONE;
-			pxa3xx_mfp_config(&m, 1);
-		}
-		if (src.bits.uart2) {
-			m = GPIO45_UART3_RXD | MFP_LPM_EDGE_NONE;
-			pxa3xx_mfp_config(&m, 1);
-		}
+		if (src.bits.uart1)
+			lpm_mfpr_edge_config(MFP_PIN_GPIO53, MFP_LPM_EDGE_NONE);
+		if (src.bits.uart2)
+			lpm_mfpr_edge_config(MFP_PIN_GPIO45, MFP_LPM_EDGE_NONE);
 	}
 	return ret;
 }
@@ -908,18 +885,14 @@ static int uart_wakeup(pm_wakeup_src_t src, int enable)
 static int tsi_wakeup(pm_wakeup_src_t src, int enable)
 {
 	unsigned int ret = 0;
-	mfp_cfg_t m;
 	if (enable) {
 		if (src.bits.tsi) {
-			m = PMIC_INT_GPIO83 | MFP_LPM_FLOAT | MFP_LPM_EDGE_FALL;
-			pxa3xx_mfp_config(&m, 1);
+			lpm_mfpr_edge_config(MFP_PIN_PMIC_INT, MFP_LPM_EDGE_FALL);
 			ret |= PXA95x_PM_WE_GENERIC(3);
 		}
 	} else {
-		if (src.bits.tsi) {
-			m = PMIC_INT_GPIO83 | MFP_LPM_FLOAT | MFP_LPM_EDGE_NONE;
-			pxa3xx_mfp_config(&m, 1);
-		}
+		if (src.bits.tsi)
+			lpm_mfpr_edge_config(MFP_PIN_PMIC_INT, MFP_LPM_EDGE_NONE);
 	}
 	return ret;
 }

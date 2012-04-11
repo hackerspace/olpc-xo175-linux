@@ -617,6 +617,7 @@ void mfp_write(int mfp, unsigned long mfpr_val);
 void mfp_config(unsigned long *mfp_cfgs, int num);
 void mfp_config_run(void);
 void mfp_config_lpm(void);
+void lpm_mfpr_edge_config(int mfp, unsigned long val);
 #endif /* CONFIG_PXA3xx || CONFIG_PXA93x || CONFIG_PXA95x || CONFIG_ARCH_MMP */
 
 #endif /* __ASM_PLAT_MFP_H */
