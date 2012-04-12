@@ -114,9 +114,10 @@
 #define RESET_PIN_NUM			151
 #define SPI_CS_PIN_NUM			34
 
-#define SPIDEV_MAJOR            153	/* assigned */
+#define SPIDEV_MAJOR            0	/* assigned */
 #define N_SPI_MINORS            32	/* ... up to 256 */
 static unsigned long minors[N_SPI_MINORS / BITS_PER_LONG];
+static int mxdspi_major = SPIDEV_MAJOR;
 
 static LIST_HEAD(device_list);
 static DEFINE_MUTEX(device_list_lock);
@@ -759,7 +760,7 @@ static int mxdspidev_probe(struct spi_device *spi)
 	if (minor < N_SPI_MINORS) {
 		struct device *dev;
 
-		cmmb_dev->devt = MKDEV(SPIDEV_MAJOR, minor);
+		cmmb_dev->devt = MKDEV(mxdspi_major, minor);
 		dev = device_create(mxdspidev_class, &spi->dev, cmmb_dev->devt,
 				    cmmb_dev, "mxdspidev1.%ld", minor);
 		status = IS_ERR(dev) ? PTR_ERR(dev) : 0;
@@ -842,21 +843,24 @@ static int __init mxdspidev_init(void)
 	 */
 	BUILD_BUG_ON(N_SPI_MINORS > 256);
 	LOG_DEBUG("mxdspidev_init\n");
-	if (SPIDEV_MAJOR)
-		status = register_chrdev(SPIDEV_MAJOR, "spi", &mxdspidev_fops);
+
+	status = register_chrdev(mxdspi_major, "spi", &mxdspidev_fops);
 	if (status < 0)
 		return status;
+	else if (mxdspi_major == 0)
+		mxdspi_major = status;
+	LOG_DEBUG("mxdspi major is %d\n", mxdspi_major);
 
 	mxdspidev_class = class_create(THIS_MODULE, "mxdspidev");
 	if (IS_ERR(mxdspidev_class)) {
-		unregister_chrdev(SPIDEV_MAJOR, mxdspidev_spi.driver.name);
+		unregister_chrdev(mxdspi_major, mxdspidev_spi.driver.name);
 		return PTR_ERR(mxdspidev_class);
 	}
 
 	status = spi_register_driver(&mxdspidev_spi);
 	if (status < 0) {
 		class_destroy(mxdspidev_class);
-		unregister_chrdev(SPIDEV_MAJOR, mxdspidev_spi.driver.name);
+		unregister_chrdev(mxdspi_major, mxdspidev_spi.driver.name);
 	}
 	return status;
 }
@@ -866,7 +870,7 @@ static void __exit mxdspidev_exit(void)
 {
 	spi_unregister_driver(&mxdspidev_spi);
 	class_destroy(mxdspidev_class);
-	unregister_chrdev(SPIDEV_MAJOR, mxdspidev_spi.driver.name);
+	unregister_chrdev(mxdspi_major, mxdspidev_spi.driver.name);
 }
 module_exit(mxdspidev_exit);
 
