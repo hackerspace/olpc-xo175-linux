@@ -582,13 +582,94 @@ static struct android_usb_function rndis_function = {
 struct mass_storage_function_config {
 	struct fsg_config fsg;
 	struct fsg_common *common;
+	int nluns;
 };
+
+static char *lun_name[FSG_MAX_LUNS] = {
+	"lun0",
+	"lun1",
+	"lun2",
+	"lun3",
+	"lun4",
+	"lun5",
+	"lun6",
+	"lun7",
+};
+
+static inline char *get_lun_name(int num, int nluns)
+{
+	BUG_ON(num < 0 || num > (nluns - 1));
+	/* If only 1 lun, using default name:"lun" */
+	if (nluns == 1)
+		return "lun";
+	else
+		return lun_name[num];
+}
+
+static int mass_storage_fsg_init(struct usb_composite_dev *cdev,
+				struct android_usb_function *f,
+				struct mass_storage_function_config *config)
+{
+	struct fsg_common *common;
+	int nluns = config->nluns;
+	char *name;
+	int i, ret;
+
+	config->fsg.nluns = nluns;
+	for (i = 0; i < nluns; i++)
+		config->fsg.luns[i].removable = 1;
+
+	common = fsg_common_init(NULL, cdev, &config->fsg);
+	if (IS_ERR(common))
+		return PTR_ERR(common);
+
+	/* Create symlinks */
+	for (i = 0; i < nluns; i++) {
+		name = get_lun_name(i, nluns);
+		ret = sysfs_create_link(&f->dev->kobj,
+				&common->luns[i].dev.kobj, name);
+		if (ret) {
+			while (i-- > 0) {
+				name = get_lun_name(i, nluns);
+				sysfs_remove_link(&f->dev->kobj, name);
+			}
+			goto err_create_symlink;
+		}
+	}
+
+	config->common = common;
+	return 0;
+
+err_create_symlink:
+	fsg_common_release(&common->ref);
+	return ret;
+}
+
+static void mass_storage_fsg_release(struct android_usb_function *f)
+{
+	struct mass_storage_function_config *config = f->config;
+	struct fsg_common *common = config->common;
+	int nluns = config->fsg.nluns;
+	char *name;
+	int i;
+
+	if (nluns < 1)
+		return;
+	/* Remove symlinks */
+	i = nluns - 1;
+	while (i >= 0) {
+		name = get_lun_name(i, nluns);
+		sysfs_remove_link(&f->dev->kobj, name);
+		i--;
+	}
+
+	fsg_common_release(&common->ref);
+}
 
 static int mass_storage_function_init(struct android_usb_function *f,
 					struct usb_composite_dev *cdev)
 {
 	struct mass_storage_function_config *config;
-	struct fsg_common *common;
 	int err;
 
 	config = kzalloc(sizeof(struct mass_storage_function_config),
@@ -596,30 +677,21 @@ static int mass_storage_function_init(struct android_usb_function *f,
 	if (!config)
 		return -ENOMEM;
 
-	config->fsg.nluns = 1;
-	config->fsg.luns[0].removable = 1;
-
-	common = fsg_common_init(NULL, cdev, &config->fsg);
-	if (IS_ERR(common)) {
-		kfree(config);
-		return PTR_ERR(common);
-	}
-
-	err = sysfs_create_link(&f->dev->kobj,
-				&common->luns[0].dev.kobj,
-				"lun");
+	/* Init nluns=1 by default */
+	config->nluns = 1;
+	err = mass_storage_fsg_init(cdev, f, config);
 	if (err) {
 		kfree(config);
 		return err;
 	}
 
-	config->common = common;
 	f->config = config;
 	return 0;
 }
 
 static void mass_storage_function_cleanup(struct android_usb_function *f)
 {
+	mass_storage_fsg_release(f);
 	kfree(f->config);
 	f->config = NULL;
 }
@@ -628,6 +700,14 @@ static int mass_storage_function_bind_config(struct android_usb_function *f,
 						struct usb_configuration *c)
 {
 	struct mass_storage_function_config *config = f->config;
+	int ret;
+	/* If nluns configuration changed, need to update */
+	if (config->nluns != config->fsg.nluns) {
+		mass_storage_fsg_release(f);
+		ret = mass_storage_fsg_init(c->cdev, f, config);
+		if (ret)
+			return ret;
+	}
 	return fsg_bind_config(c->cdev, c, config->common);
 }
 
@@ -655,8 +735,37 @@ static DEVICE_ATTR(inquiry_string, S_IRUGO | S_IWUSR,
 					mass_storage_inquiry_show,
 					mass_storage_inquiry_store);
 
+static ssize_t mass_storage_nluns_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct mass_storage_function_config *config = f->config;
+	return sprintf(buf, "%d\n", config->nluns);
+}
+
+static ssize_t mass_storage_nluns_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct mass_storage_function_config *config = f->config;
+	int value;
+
+	sscanf(buf, "%d", &value);
+	if (value < 1)
+		value = 1;
+	else if (value > FSG_MAX_LUNS)
+		value = FSG_MAX_LUNS;
+	config->nluns = value;
+	return size;
+}
+
+static DEVICE_ATTR(nluns, S_IRUGO | S_IWUSR,
+				mass_storage_nluns_show,
+				mass_storage_nluns_store);
+
 static struct device_attribute *mass_storage_function_attributes[] = {
 	&dev_attr_inquiry_string,
+	&dev_attr_nluns,
 	NULL
 };
 
