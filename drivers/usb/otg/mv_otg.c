@@ -17,6 +17,7 @@
 #include <linux/clk.h>
 #include <linux/workqueue.h>
 #include <linux/platform_device.h>
+#include <linux/wakelock.h>
 
 #include <linux/usb.h>
 #include <linux/usb/ch9.h>
@@ -44,6 +45,7 @@ static const char driver_name[] = "mv_otg";
 
 static struct mv_otg *the_transceiver;
 static int otg_force_host_mode;
+static struct wake_lock suspend_lock;
 
 static char *state_string[] = {
 	"undefined",
@@ -285,6 +287,7 @@ static int mv_otg_enable_internal(struct mv_otg *mvotg)
 
 static int mv_otg_enable(struct mv_otg *mvotg)
 {
+	wake_lock(&suspend_lock);
 	if (mvotg->clock_gating)
 		return mv_otg_enable_internal(mvotg);
 	return 0;
@@ -305,6 +308,9 @@ static void mv_otg_disable(struct mv_otg *mvotg)
 {
 	if (mvotg->clock_gating)
 		mv_otg_disable_internal(mvotg);
+
+	if (wake_lock_active(&suspend_lock))
+		wake_unlock(&suspend_lock);
 }
 
 static void mv_otg_update_inputs(struct mv_otg *mvotg)
@@ -733,6 +739,8 @@ int mv_otg_remove(struct platform_device *dev)
 	otg_set_transceiver(NULL);
 	platform_set_drvdata(dev, NULL);
 
+	wake_lock_destroy(&suspend_lock);
+
 	kfree(mvotg);
 	the_transceiver = NULL;
 
@@ -898,6 +906,8 @@ static int mv_otg_probe(struct platform_device *dev)
 		if (pdata->vbus->init)
 			pdata->vbus->init();
 	}
+
+	wake_lock_init(&suspend_lock, WAKE_LOCK_SUSPEND, "mv_otg_suspend");
 
 	if (pdata->disable_otg_clock_gating)
 		mvotg->clock_gating = 0;
