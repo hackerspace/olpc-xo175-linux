@@ -66,6 +66,53 @@ struct pxa95x_csi_dev {
 };
 
 enum {
+	CAMP_PWD_MAIN	= 0,
+	CAMP_RST_MAIN,
+	CAMP_PWD_SUB,
+	CAMP_AVDD,
+	CAMP_AFVCC,
+	CAMP_END,
+	CAMP_PWD	= 0,
+	CAMP_RST,
+};
+
+enum {
+	PIN_TYPE_NULL	= 0,
+	PIN_TYPE_GPIO,
+	PIN_TYPE_LDO,
+	PIN_TYPE_END,
+};
+
+enum cam_pin_level {
+	LEVEL_NEG	= 0,
+	LEVEL_POS,
+	LEVEL_LOW	= 0,
+	LEVEL_HIGH,
+};
+
+struct sensor_power_pin {
+	__u8	id;
+	__u8	value;
+	__u16	delay_ms;
+};
+
+struct layout_mapping {
+	char	*name;
+	int	type;
+	union {
+		char *ldo;
+		int gpio;
+	} layout;
+	__u16	level_on;
+	__u16	level_off;
+	__u32	init_data;
+	union {
+		struct regulator *ldo;
+		int gpio;
+	} handle;
+};
+
+enum {
 	SENSOR_USED		= (1 << 31),
 	SENSOR_UNUSED		= 0,
 	SENSOR_POS_LEFT		= (1 << 2),
@@ -95,7 +142,8 @@ struct sensor_platform_data {
 	int mclk_mhz;	/* Perfered MCLK for sensor in MHz */
 	void *vendor_info;	/* Sensor vendor name or module name */
 	char *board_name;	/* Board name */
-	char reserved[20];
+	struct sensor_power_pin *power_on_seq;
+	struct sensor_power_pin *power_off_seq;
 };
 
 #endif /* CONFIG_SOC_CAMERA */
