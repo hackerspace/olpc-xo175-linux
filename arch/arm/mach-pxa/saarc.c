@@ -341,6 +341,7 @@ static void headsetflag_init_pm800(void)
 {
 	switch (get_board_id()) {
 	case OBM_DKB_2_NEVO_C0_BOARD:
+	case OBM_DKB_2_NEVO_C0_BOARD_533MHZ:
 		pm800_info.headset_flag = 1;
 		break;
 	default:
@@ -407,6 +408,7 @@ static void regulator_init_pm800(void)
 	REG_INIT(i++, PM800_ID, LDO15, 1800000, 3300000, 0, 0);
 	switch (get_board_id()) {
 	case OBM_DKB_2_NEVO_C0_BOARD:
+	case OBM_DKB_2_NEVO_C0_BOARD_533MHZ:
 		/* Turn on LDO12 and 17 before wifi regulator support added */
 		/*OBM haven't support DKB 2.1 version yet,  so currently we
 		* distinguish it by Procida version
@@ -503,7 +505,8 @@ static void wifi_set_power(unsigned int on)
 	struct regulator *v_ldo12 = NULL;
 	struct regulator *v_ldo17 = NULL;
 
-	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD) {
+	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
+			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ) {
 		v_ldo12 = regulator_get(NULL, "v_wifi_1v8");
 		if (IS_ERR(v_ldo12)) {
 			v_ldo12 = NULL;
@@ -521,7 +524,8 @@ static void wifi_set_power(unsigned int on)
 	wlan_pd_mfp = pxa3xx_mfp_read(gpio_power_down);
 
 	if (on) {
-		if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD) {
+		if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
+				get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ) {
 			regulator_enable(v_ldo12);
 			regulator_enable(v_ldo17);
 			gpio_request(gpio_wifi_en, "WIB_EN");
@@ -542,14 +546,16 @@ static void wifi_set_power(unsigned int on)
 
 		/* disable 32KHz TOUT */
 		clk_disable(clk_tout_s0);
-		if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD) {
+		if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
+				get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ) {
 			gpio_direction_output(gpio_wifi_en, 0);
 			gpio_free(gpio_wifi_en);
 			regulator_disable(v_ldo12);
 			regulator_disable(v_ldo17);
 		}
 	}
-	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD) {
+	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
+			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ) {
 		regulator_put(v_ldo12);
 		regulator_put(v_ldo17);
 	}
@@ -746,7 +752,8 @@ static void __init init_mmc(void)
 	int gpio_rst, gpio_pd;
 
 	gpio_pd = mfp_to_gpio(MFP_PIN_GPIO70);
-	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD) {
+	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
+			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ) {
 		gpio_rst = mfp_to_gpio(MFP_PIN_GPIO97);
 		mci1_platform_data.ext_cd_gpio = mfp_to_gpio(MFP_PIN_GPIO128);
 	} else
@@ -1034,6 +1041,7 @@ static void register_i2c_board_info(void)
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_C25));
 		break;
 	case OBM_DKB_2_NEVO_C0_BOARD:
+	case OBM_DKB_2_NEVO_C0_BOARD_533MHZ:
 		pm800_info.vibrator = &vibrator_pdata;
 		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info));
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_DKB));
@@ -1773,6 +1781,7 @@ static void __init init_cam(void)
 		pwd_isp	= 0;
 		break;
 	case OBM_DKB_2_NEVO_C0_BOARD:
+	case OBM_DKB_2_NEVO_C0_BOARD_533MHZ:
 		pwd_main = mfp_to_gpio(MFP_PIN_GPIO25);
 		pwd_sub = mfp_to_gpio(MFP_PIN_GPIO26);
 		pwd_isp	= mfp_to_gpio(MFP_PIN_GPIO24);
@@ -1817,6 +1826,7 @@ static void __init init_cam(void)
 #endif
 		break;
 	case OBM_DKB_2_NEVO_C0_BOARD:
+	case OBM_DKB_2_NEVO_C0_BOARD_533MHZ:
 		printk(KERN_NOTICE "cam: saarc: Probing camera on DKB 2\n");
 #if defined(CONFIG_SOC_CAMERA_ICPHD)
 		platform_device_register(&camera[ID_ICPHD]);
@@ -2495,7 +2505,8 @@ static void __init init(void)
 	else if (OBM_EVB_NEVO_1_2_BOARD == get_board_id() ||
 			OBM_SAAR_C3_NEVO_C0_V10_BOARD == get_board_id() ||
 			OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ == get_board_id() ||
-			OBM_DKB_2_NEVO_C0_BOARD == get_board_id()) {
+			OBM_DKB_2_NEVO_C0_BOARD == get_board_id() ||
+			OBM_DKB_2_NEVO_C0_BOARD_533MHZ == get_board_id()) {
 		adp8885_data.chip_enable = adp8885_bl_enable;
 		adp8885_data.num_chs = 2;
 	}
@@ -2514,7 +2525,8 @@ static void __init init(void)
 		cwgd_plat_data.axes[4] = 1;
 		cwgd_plat_data.axes[8] = -1;
 	}
-	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD) {
+	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
+			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ) {
 		i2c3_info[0].irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO10));
 		cwmi_acc_data.axes[1] = -1;
 		cwmi_acc_data.axes[3] = 1;
@@ -2540,7 +2552,8 @@ static void __init init(void)
 	register_i2c_board_info();
 
 #if defined(CONFIG_KEYBOARD_PXA27x) || defined(CONFIG_KEYBOARD_PXA27x_MODULE)
-	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD)
+	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
+			get_board_id == OBM_DKB_2_NEVO_C0_BOARD_533MHZ)
 		pxa_set_keypad_info(&keypad_info_dkb2);
 	else
 		pxa_set_keypad_info(&keypad_info);
@@ -2573,7 +2586,8 @@ static void __init init(void)
 
 #if (defined CONFIG_CMMB)
 	/*spi device*/
-	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD)
+	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
+			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ)
 		nevo_dkb_init_spi();
 #endif
 
@@ -2593,7 +2607,8 @@ static void __init init(void)
 #endif
 
 #ifdef CONFIG_PROC_FS
-	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD) {
+	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
+			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ) {
 		create_sparrow_rf_proc_file();
 		create_hsl_mfpr_proc_file();
 	}
@@ -2619,6 +2634,7 @@ static int __init saarc_pm_init(void)
 	printk("Enable Power of Saar board.\n");
 	switch (get_board_id()) {
 		case OBM_DKB_2_NEVO_C0_BOARD:
+		case OBM_DKB_2_NEVO_C0_BOARD_533MHZ:
 			cur_profiler = CPUFREQ_PROFILER;
 			mspm_idle_load();
 			break;
