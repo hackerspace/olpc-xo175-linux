@@ -412,6 +412,8 @@ static int fan540x_chg_notifier_callback(struct notifier_block *nb,
 		/* Start charing */
 		fan540x_charger_enable(di);
 	}
+	power_supply_changed(&di->usb);
+	power_supply_changed(&di->ac);
 
 	return NOTIFY_OK;
 }
