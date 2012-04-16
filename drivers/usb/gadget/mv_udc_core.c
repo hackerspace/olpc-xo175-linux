@@ -594,6 +594,9 @@ static int  mv_ep_disable(struct usb_ep *_ep)
 
 	udc = ep->udc;
 
+	if (!udc->active)
+		return 0;
+
 	/* Get the endpoint queue head address */
 	dqh = ep->dqh;
 
@@ -838,6 +841,9 @@ static int mv_ep_dequeue(struct usb_ep *_ep, struct usb_request *_req)
 
 	if (!_ep || !_req)
 		return -EINVAL;
+
+	if (!udc->active)
+		return 0;
 
 	spin_lock_irqsave(&ep->udc->lock, flags);
 	stopped = ep->stopped;
@@ -2336,6 +2342,11 @@ usb_reg_show(struct device *dev, struct device_attribute *attr, char *buf)
 		return -1;
 	}
 
+	if (!udc->active) {
+		ret = sprintf(buf, "The controller is clock off now.\n");
+		return ret;
+	}
+
 	ret = sprintf(buf, "usbcmd: 0x%x\n",
 			readl(&udc->op_regs->usbcmd));
 	ret += sprintf(buf + ret, "usbsts: 0x%x\n",
@@ -2368,7 +2379,6 @@ usb_reg_show(struct device *dev, struct device_attribute *attr, char *buf)
 	for (i = 0; i < 16; i++)
 		ret += sprintf(buf + ret, "epctrlx[%d]: 0x%x\n",
 			i, readl(&udc->op_regs->epctrlx[i]));
-
 	return ret;
 }
 
