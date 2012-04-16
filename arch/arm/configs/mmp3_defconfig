@@ -2303,7 +2303,7 @@ CONFIG_DEVFREQ_GOV_USERSPACE=y
 #
 # DEVFREQ Drivers
 #
-# CONFIG_DDR_DEVFREQ is not set
+CONFIG_DDR_DEVFREQ=y
 
 #
 # File systems
