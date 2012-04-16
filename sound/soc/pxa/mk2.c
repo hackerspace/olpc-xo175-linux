@@ -491,6 +491,10 @@ static int codec_wm8994_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_sync(dapm);
 	mutex_unlock(&codec->mutex);
 
+	/* Here is workround for MK2 headset MIC detect,
+	used to fix mk2 headset MIC always attend problem */
+	snd_soc_write(codec, WM8994_MICBIAS, 0x0047);
+
 #ifdef CONFIG_SWITCH_WM8994_HEADSET
 	mmp3asoc_wm8994_codec = codec;
 	headset_detect_func = wm8994_headset_detect;
