@@ -225,7 +225,10 @@ static int PM800_ID_regulator_index[] = {
 	regulator_supply[_i].dev_name	= _dev_name;	\
 }
 
-#define REG_INIT(_id, _chip, _name, _min, _max, _always, _boot)\
+/* notes: apply_uV which means proper voltage value (latest set value or min)
+* would be applied first time when enabled. So it would be set 1 if min voltage
+* == max voltage*/
+#define REG_INIT(_id, _chip, _name, _min, _max, _always, _boot)	\
 {									\
 	int _i = _id;				\
 	regulator_data[_i].constraints.name	=	__stringify(_name);	\
@@ -240,6 +243,7 @@ static int PM800_ID_regulator_index[] = {
 		&regulator_supply[_chip##_##_name];	\
 	regulator_data[_i].driver_data	=	\
 		&_chip##_regulator_index[_chip##_##_name];	\
+	regulator_data[_i].constraints.apply_uV = (_min == _max);	\
 }
 
 static struct pm860x_rtc_pdata rtc = {
@@ -427,51 +431,46 @@ static void regulator_init_pm800(void)
 	switch (get_board_id()) {
 	case OBM_DKB_2_NEVO_C0_BOARD:
 	case OBM_DKB_2_NEVO_C0_BOARD_533MHZ:
-	case OBM_DKB_2_1_NEVO_C0_BOARD:
 		/* Turn on LDO12 and 17 before wifi regulator support added */
-		/*OBM haven't support DKB 2.1 version yet,  so currently we
-		* distinguish it by Procida version
-		*/
-		if (get_pmic_id() == PM800_CHIP_C0) {
-			REG_SUPPLY_INIT(PM800_ID_LDO18, "Vdd_IO", NULL);
-			REG_SUPPLY_INIT(PM800_ID_LDO2, "mic_bias", NULL);
-			REG_SUPPLY_INIT(PM800_ID_LDO17, "v_cam_af_vcc", NULL);
-			REG_SUPPLY_INIT(PM800_ID_LDO9, "v_wifi_3v3", NULL);
-			REG_SUPPLY_INIT(PM800_ID_LDO10, "v_vibrator", NULL);
-			REG_SUPPLY_INIT(PM800_ID_LDO12, "vmmc", "sdhci-pxa.1");
-			REG_SUPPLY_INIT(PM800_ID_LDO13, "v_wifi_1v8", NULL);
-			REG_SUPPLY_INIT(PM800_ID_LDO19, "v_gps", NULL);
-			/*DKB2.1 use a new gps module, need to contorl LDO11*/
-			REG_SUPPLY_INIT(PM800_ID_LDO11, "v_gps_3v3", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO14, "Vdd_IO", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO11, "v_cywee", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO13, "vmmc", "sdhci-pxa.1");
+		REG_SUPPLY_INIT(PM800_ID_LDO18, "v_gps", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO2, "Vdd_CMMB12", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO9, "v_vibrator", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO12, "v_wifi_1v8", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO17, "v_wifi_3v3", NULL);
 
-			REG_SUPPLY_INIT(PM800_ID_LDO18, "Vdd_IO", NULL);
-			REG_INIT(i++, PM800_ID, LDO2, 1200000, 3300000, 0, 0);
-			REG_INIT(i++, PM800_ID, LDO17, 1200000, 3300000, 0, 0);
-			REG_INIT(i++, PM800_ID, LDO9, 3300000, 3300000, 0, 0);
-			REG_INIT(i++, PM800_ID, LDO10, 2800000, 2800000, 0, 0);
-			REG_INIT(i++, PM800_ID, LDO12, 1800000, 3300000, 0, 0);
-			REG_INIT(i++, PM800_ID, LDO13, 1800000, 1800000, 0, 0);
-			REG_INIT(i++, PM800_ID, LDO19, 1200000, 3300000, 0, 0);
-			REG_INIT(i++, PM800_ID, LDO11, 1200000, 3300000, 0, 0);
-		} else {
-			REG_SUPPLY_INIT(PM800_ID_LDO14, "Vdd_IO", NULL);
-			REG_SUPPLY_INIT(PM800_ID_LDO11, "v_cywee", NULL);
-			REG_SUPPLY_INIT(PM800_ID_LDO13, "vmmc", "sdhci-pxa.1");
-			REG_SUPPLY_INIT(PM800_ID_LDO18, "v_gps", NULL);
-			REG_SUPPLY_INIT(PM800_ID_LDO2, "Vdd_CMMB12", NULL);
-			REG_SUPPLY_INIT(PM800_ID_LDO9, "v_vibrator", NULL);
-			REG_SUPPLY_INIT(PM800_ID_LDO12, "v_wifi_1v8", NULL);
-			REG_SUPPLY_INIT(PM800_ID_LDO17, "v_wifi_3v3", NULL);
+		REG_INIT(i++, PM800_ID, LDO14, 1800000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO11, 2800000, 2800000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO13, 1800000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO18, 1200000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO2, 1200000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO9, 2800000, 2800000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO12, 1800000, 1800000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO17, 3300000, 3300000, 0, 0);
+		break;
+	case OBM_DKB_2_1_NEVO_C0_BOARD:
+		REG_SUPPLY_INIT(PM800_ID_LDO18, "Vdd_IO", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO2, "mic_bias", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO17, "v_cam_af_vcc", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO9, "v_wifi_3v3", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO10, "v_vibrator", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO12, "vmmc", "sdhci-pxa.1");
+		REG_SUPPLY_INIT(PM800_ID_LDO13, "vmmc_io", "sdhci-pxa.1");
+		REG_SUPPLY_INIT(PM800_ID_LDO19, "v_gps", NULL);
+		/*DKB2.1 use a new gps module, need to contorl LDO11*/
+		REG_SUPPLY_INIT(PM800_ID_LDO11, "v_gps_3v3", NULL);
 
-			REG_INIT(i++, PM800_ID, LDO14, 1800000, 3300000, 0, 0);
-			REG_INIT(i++, PM800_ID, LDO11, 2800000, 2800000, 0, 0);
-			REG_INIT(i++, PM800_ID, LDO13, 1800000, 3300000, 0, 0);
-			REG_INIT(i++, PM800_ID, LDO18, 1200000, 3300000, 0, 0);
-			REG_INIT(i++, PM800_ID, LDO2, 1200000, 3300000, 0, 0);
-			REG_INIT(i++, PM800_ID, LDO9, 2800000, 2800000, 0, 0);
-			REG_INIT(i++, PM800_ID, LDO12, 1800000, 1800000, 0, 0);
-			REG_INIT(i++, PM800_ID, LDO17, 3300000, 3300000, 0, 0);
-		}
+		REG_INIT(i++, PM800_ID, LDO18, 1800000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO2, 1200000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO17, 1200000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO9, 3300000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO10, 2800000, 2800000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO12, 2800000, 2800000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO13, 2800000, 2800000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO19, 1200000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO11, 1200000, 3300000, 0, 0);
 		break;
 	default:
 		REG_SUPPLY_INIT(PM800_ID_LDO14, "Vdd_IO", NULL);
