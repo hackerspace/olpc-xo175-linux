@@ -2521,7 +2521,7 @@ int var_update(struct fb_info *info)
 	memcpy(&fbi->mode, m, sizeof(struct fb_videomode));
 
 	/* fix to 2* yres */
-	var->yres_virtual = var->xres * 2;
+	var->yres_virtual = var->yres * 2;
 	info->fix.visual = (pix_fmt == PIX_FMT_PSEUDOCOLOR)?
 		FB_VISUAL_PSEUDOCOLOR: FB_VISUAL_TRUECOLOR;
 	info->fix.line_length = var->xres_virtual * var->bits_per_pixel / 8;
