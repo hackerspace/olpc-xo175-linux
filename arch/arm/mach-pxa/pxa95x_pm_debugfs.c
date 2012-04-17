@@ -16,9 +16,11 @@
 
 #include <mach/mfp.h>
 #include <mach/mfp-pxa3xx.h>
+#include <mach/pxa3xx-regs.h>
 #include <mach/gpio.h>
 #include <linux/delay.h>
 #include "generic.h"
+#include <mach/pxa9xx_DRO_Status.h>
 
 /*
  * Debug fs
@@ -88,6 +90,10 @@ static int pxa_9xx_gc_vmeta_stats_read(struct file *file,
 				       char __user *userbuf,
 				       size_t count, loff_t *ppos);
 
+static ssize_t PXA9xx_DRO_Status_Read(struct file *file,
+				      char __user *userbuf,
+				      size_t count, loff_t *ppos);
+
 static ssize_t PXA9xx_force_VCTCXO_EN_read(struct file *file,
 					   char __user *userbuf,
 					   size_t count, loff_t *ppos);
@@ -128,7 +134,7 @@ const char pxa9xx_force_lpm_names__[][LPM_NAMES_LEN] = {
 	"PXA9xx_Force_CGM"
 };
 
-static struct dentry *dbgfs_root, *pmLogger_file, *forceVCTCXO_EN_file,
+static struct dentry *dbgfs_root, *pmLogger_file, *DRO_Status, *forceVCTCXO_EN_file,
 			*ForceLPM_file, *MeasureCoreFreq_file,
 			*profilerRecommendation_file, *GcTicks_file,
 			*VmTicks_file,
@@ -146,6 +152,11 @@ static const struct file_operations PXA9xx_file_op_pmLogger = {
 	.owner = THIS_MODULE,
 	.read = PXA9xx_pm_logger_read,
 	.write = PXA9xx_pm_logger_write,
+};
+
+static const struct file_operations PXA9xx_file_DRO_Status = {
+	.owner = THIS_MODULE,
+	.read = PXA9xx_DRO_Status_Read,
 };
 
 static const struct file_operations PXA9xx_file_force_VCTCXO_EN = {
@@ -365,6 +376,551 @@ static ssize_t PXA9xx_pm_logger_write(struct file *file,
 
 	return count;
 }
+
+static inline void __iomem *irq_base(int i)
+{
+	static unsigned long phys_base[] = {
+		0x40d00000,
+		0x40d0009c,
+		0x40d00130,
+	};
+
+	return (void __iomem *)io_p2v(phys_base[i]);
+}
+
+unsigned int comm_restore[64];
+
+void readcomm(void)
+{
+	unsigned int *wArmResAddr;
+	int i = 0;
+
+	wArmResAddr = (unsigned int *)0xC0000000;
+
+	for (i = 0; i < 64; i++)
+		comm_restore[i] = readl(wArmResAddr + i);
+}
+
+void restorcomm(void)
+{
+	unsigned int *wArmResAddr;
+	int i = 0;
+
+	wArmResAddr = (unsigned int *)0xC0000000;
+
+	for (i = 0; i < 64; i++)
+		writel(comm_restore[i], wArmResAddr + i);
+}
+
+/*	This function is for CP "nop loop" code	*/
+void commCodeCopy(void)
+{
+	unsigned int *wMsaResAddr, *wArmResAddr;
+	wArmResAddr = (unsigned int *)0xC0000000;
+	wMsaResAddr = (unsigned int *)0xC0000020;
+
+	writel(0xE3A00701, wArmResAddr++);	/*	ARM INSTRUCTION -- mov r0, #0x00040000	*/
+	writel(0xEE010F10, wArmResAddr++);	/*	ARM INSTRUCTION -- mcr 15, 0, r0, cr1, cr0, {0} ;enable ITCM	*/
+	writel(0xE3A00A07, wArmResAddr++);	/*	ARM INSTRUCTION -- mov r0, #0x00007000	*/
+	writel(0xE59F1004, wArmResAddr++);	/*	ARM INSTRUCTION -- ldr r1, [pc, #4]	*/
+	writel(0xE5801000, wArmResAddr++);	/*	ARM INSTRUCTION -- str r1, [r0]	*/
+	writel(0xE1A0F000, wArmResAddr++);	/*	ARM INSTRUCTION -- mov pc, r0	*/
+	writel(0xEAFFFFFE, wArmResAddr++);	/*	ARM INSTRUCTION -- b	*/
+
+	writel(0xFFE0E149, wMsaResAddr++);	/*	P1.l = 0x1400;P1 now contains ITEST_DATA_0_ADDR	*/
+	writel(0x1400E109, wMsaResAddr++);	/*	R1 = 0x50 (z);R1 now contains 0x0000_0050 ( machine code for jump(p0))	*/
+	writel(0x0050E121, wMsaResAddr++);	/*	[P1] = R1	*/
+	writel(0xE1099309, wMsaResAddr++);	/*	P1.l = 0x1300;P1 now contains ITEST_COMMAND_0_ADDR	*/
+	writel(0x60181300, wMsaResAddr++);	/*	R0 = 0x03 (x);R0 now contains 0x0000_0003	*/
+	writel(0xE1089308, wMsaResAddr++);	/*	[P1] = R0;Perform write to top of ISRAM (0xCFF0_0000)	*/
+	writel(0xE1480000, wMsaResAddr++);	/*	P0.l = 0x0000	*/
+	writel(0x0050CFF0, wMsaResAddr++);	/*	P0.h = 0xCFF0;P0 now contains 0xCFF0_0000	*/
+}
+
+/*The function will calculate float like data, then output to the kernel serial port */
+unsigned int temperature_cal(unsigned int *temper)
+{
+	unsigned int result, fraction;
+
+	result = (*temper) * 10000;
+
+	/*This numbers is just according to the temperature spec*/
+	result = (unsigned int)div_u64_rem((3153000 - result), 13825,
+			&fraction);
+
+	fraction = fraction * 100 / 13825;
+
+	*temper = result;
+
+	return fraction;
+}
+
+static ssize_t PXA9xx_DRO_Status_Read(struct file *file,
+				      char __user *userbuf,
+				      size_t count, loff_t *ppos)
+{
+	unsigned int wTmp;
+	int i = 0, irq_count = 0;
+	unsigned int cser = 0;
+	int j, x, k;
+	unsigned int fTmp;
+	unsigned int fOFFICIAL_VALUE;	/*Decalred as average of SVT*/
+	unsigned int fOtherThanZeroCnt;	/*Count the number of all SVT(NVT) counters */
+	unsigned int fTotalOfficialCnt;	/*All SVT(NVT) count for All parts */
+	unsigned long saved_icmr[4];
+	int level;
+
+	bool blVproCountMeAsWell = 0;
+	bool blCoreCountMeAsWell = 0;
+
+	/*The following variables is used to the number of counters */
+	unsigned int wTotalOfficialCntBR_GB_TOP[3] = { 0, 0, 0 };	/*Total TOP+BR+GB counter value for LVT,SVT,HVT */
+	unsigned int wTotalOfficialCntBR_TOP_PS[3] = { 0, 0, 0 };	/*Total TOP+BR counter value for LVT,SVT,HVT */
+
+	unsigned int wTotalOfficialCnt_VPRO[2] = { 0, 0 };	/*LVT and NVT's total count */
+	unsigned int wTotalOfficialCnt_CORTEX[2] = { 0, 0 };	/*LVT and NVT's total count */
+
+	/*The following variable is used to count the number of counters */
+
+	unsigned int wBR_GB_TOP_DROs[3] = { 0, 0, 0 };	/*TOP+BR+GB LVT, TOP+BR+GB SVT, TOP+BR+GB HVT */
+	unsigned int wBR_TOP_PS_DROs[3] = { 0, 0, 0 };	/*TOP+BR LVT, TOP+BR SVT, TOP+BR HVT */
+	unsigned int wCortexDROs[2] = { 0, 0 };	/* CORTEX LVT and CORTEX NVT */
+	unsigned int wVproDROs[2] = { 0, 0 };	/* VPRO LVT and VPRO NVT */
+
+	for (irq_count = 0; irq_count < 3; irq_count++) {
+		void __iomem *base = irq_base(irq_count);
+		saved_icmr[irq_count] = __raw_readl(base + (0x004));
+		__raw_writel(0x00000000, base + (0x004));
+	}
+
+	pr_info("%s", __func__);
+	DRO_base = ioremap(0x42440154, 0xC);
+	Vmeta_base = ioremap(0x40F40090, 0x4);
+	BPB_PRID = ioremap(0x4600FF80, 0x4);
+	MPMU_CSER_ADDR = ioremap(0x40F5001C, 0x4);
+	fOtherThanZeroCnt = 0;
+	fTotalOfficialCnt = 0;
+	fOFFICIAL_VALUE = 0;
+
+	wDroCntWidth = wDroInfo[i++];
+	iwMaxDroChain = wDroInfo[i++];
+
+	for (j = 0; j < DRO_MAX_NUM; j++) {	/*Get every chain's name, stored into DroGroup and DroType */
+		sDrosChainInfo[j].wBitPosition = j;
+		/*sDrosChainInfo[j].wDrosNum = wDroInfo[i++];*/
+
+		sDrosChainInfo[j].chDroGroup[0] = wDroInfo[i] & 0xFF;
+		sDrosChainInfo[j].chDroGroup[1] = (wDroInfo[i] & 0xFF00) >> 8;
+		sDrosChainInfo[j].chDroGroup[2] =
+		    (wDroInfo[i] & 0xFF0000) >> 16;
+		sDrosChainInfo[j].chDroGroup[3] =
+		    (wDroInfo[i++] & 0xFF000000) >> 24;
+		sDrosChainInfo[j].chDroGroup[4] = 0x0;
+
+		sDrosChainInfo[j].chDroType[0] = wDroInfo[i] & 0xFF;
+		sDrosChainInfo[j].chDroType[1] = (wDroInfo[i] & 0xFF00) >> 8;
+		sDrosChainInfo[j].chDroType[2] = (wDroInfo[i] & 0xFF0000) >> 16;
+		sDrosChainInfo[j].chDroType[3] =
+		    (wDroInfo[i++] & 0xFF000000) >> 24;
+		sDrosChainInfo[j].chDroType[4] = 0x0;
+		/*if(sDrosChainInfo[j].wDrosNum > wMaxDrosPerGroup) wMaxDrosPerGroup = sDrosChainInfo[j].wDrosNum; */
+	}
+
+	level = (AVLSR >> 1) & 0x3;
+	pr_info("The current voltage level : Level %d\n", level);
+
+	/*put comm in reset and prepare branch self code*/
+	cser = readl(MPMU_CSER_ADDR);
+	writel(0x0, MPMU_CSER_ADDR);
+	mdelay(10);	/*At least need to wait 60 us*/
+	readcomm();
+	commCodeCopy();
+	/*release comm from reset.*/
+	writel(0x1, MPMU_CSER_ADDR);
+
+	/*enable vpro - Nevo C0 bug requires special power up*/
+	if (readl(BPB_PRID) == 0x2a60) {
+		writel(0xC007FF00, BPMU_VMPWR_ADDR);
+		writel(0xC007FF01, BPMU_VMPWR_ADDR);
+		udelay(100);
+		writel(0x0007FF01, BPMU_VMPWR_ADDR);
+		while (!(readl(BPMU_VMPWR_ADDR) & 0xC))
+			;
+	} else if (readl(BPB_PRID) == 0x2a80) {
+		unsigned int tmp = 0;
+		tmp = readl(BPMU_VMPWR_ADDR);
+		writel((tmp | 0x01), BPMU_VMPWR_ADDR);
+		while (!(readl(BPMU_VMPWR_ADDR) & 0x4))
+			;
+	}
+
+	mdelay(100);
+	OSCR = 0;
+	writel(0x2, DRO_JCON_REG_ADDR);	/* sw reset*/
+	udelay(2);
+	writel(0x0, DRO_JCON_REG_ADDR);	/* sw reset*/
+	udelay(2);
+	writel(0x64, DRO_START_CNT_ADDR);	/* start after 100 cycles */
+	writel(0x82 << 1, DRO_SW_ACT_ADDR);	/* start duration 130 cycles */
+	writel(0x3D, DRO_JCON_REG_ADDR);
+	udelay(2);
+	writel(0x82 << 1 | 0x1, DRO_SW_ACT_ADDR);	/*set test duration and set start bit*/
+	while (readl(DRO_SW_ACT_ADDR) & 0x1)
+		;
+	udelay(2);
+
+	writel(0x11, DRO_JCON_REG_ADDR);
+	udelay(2);
+
+	writel(0x80000039, DRO_JCON_REG_ADDR);
+	while (readl(DRO_JCON_REG_ADDR) != 0x80000039)
+		;
+	writel(0x00000039, DRO_JCON_REG_ADDR);
+	while (readl(DRO_JCON_REG_ADDR) != 0x00000039)
+		;
+	writel(0x80000039, DRO_JCON_REG_ADDR);
+	while (readl(DRO_JCON_REG_ADDR) != 0x80000039)
+		;
+	writel(0x00000039, DRO_JCON_REG_ADDR);
+	while (readl(DRO_JCON_REG_ADDR) != 0x00000039)
+		;
+
+	for (k = 0; k < iwMaxDroChain; k++) {	/*max chain's width = 16, the real max should be 14 sets */
+		for (i = 0; i < wDroCntWidth; i++) {	/*all counter's width = 16 bits */
+			/*To read 16 bits from all 11 chains */
+			writel(0x80000039, DRO_JCON_REG_ADDR);
+			while (readl(DRO_JCON_REG_ADDR) != 0x80000039)
+				;
+			writel(0x00000039, DRO_JCON_REG_ADDR);
+			while (readl(DRO_JCON_REG_ADDR) != 0x00000039)
+				;
+			/* one bit of All the chain, so totally 16, because of 16-bit count */
+			wTmp = readl(DRO_RES_RD_ADDR);
+			pr_debug("0x%X\n", wTmp);
+			for (x = 0; x < DRO_MAX_NUM; x++) {	/* to get one bit for every chain, there are totally 11 chains used now*/
+				/* x represent the number of the chain */
+				/* i represent the count in the chain */
+				wTmpData[x][i] =
+				    ((wTmp &
+				      (1 << sDrosChainInfo[x].wBitPosition)) >>
+				     (sDrosChainInfo[x].wBitPosition)) + '0';
+				pr_debug("The wTmpData[%d][%d] is %c\n", x, i, wTmpData[x][i]);
+			}
+		}
+		for (x = 0; x < DRO_MAX_NUM; x++) {
+			wTmpData[x][DRO_MAX_NUM] = 0x0;
+			sDrosChainInfo[x].wCnt = droBin2Hex(wTmpData[x]);
+			pr_debug("sDrosChainInfo[%d].wCnt is %u\n", x, sDrosChainInfo[x].wCnt);
+			/*sDrosChainInfo[x].wCnt represent the data of the chain */
+			fTmp = 130 / 3.25;	/*130 cycles of measurment, the unit of this should be 10e-6 sec, us*/
+			sDrosChainInfo[x].fFreq =
+			    (sDrosChainInfo[x].wCnt / fTmp); /*The chain's frequency*/
+			if (sDrosChainInfo[x].wCnt) {
+				/*support merged lvt/nvt dros in cortex & vpro*/
+				if (!strcmp
+				    (sDrosChainInfo[x].chDroGroup, "CORE")) {
+					blCoreCountMeAsWell =
+					    blCoreCountMeAsWell ? 0 : 1;
+					if (blCoreCountMeAsWell) {
+						/*The reson why only for NVT(for CORE, VPRT) and LVT : the SVT=NVT*/
+						fOtherThanZeroCnt++;
+						fTotalOfficialCnt +=
+						    sDrosChainInfo[x].wCnt;
+						wTotalOfficialCnt_CORTEX[1] +=
+						    sDrosChainInfo[x].wCnt;
+						wCortexDROs[1]++;
+						pr_debug
+						    ("core %d counter for NVT is %d\n",
+						     k, sDrosChainInfo[x].wCnt);
+						pr_debug("core %d freq for NVT is %u\n", k, sDrosChainInfo[x].fFreq);
+						pr_debug("CORE_NVT");
+					} else {
+						wTotalOfficialCnt_CORTEX[0] +=
+						    sDrosChainInfo[x].wCnt;
+						wCortexDROs[0]++;
+						pr_debug
+						    ("core %d counter for LVT is %d\n",
+						     k, sDrosChainInfo[x].wCnt);
+						pr_debug("core %d freq for LVT is %u\n", k, sDrosChainInfo[x].fFreq);
+						pr_debug("CORE_LVT");
+					}
+				} else
+				    if (!strcmp
+					(sDrosChainInfo[x].chDroGroup,
+					 "VPRO")) {
+					blVproCountMeAsWell =
+					    blVproCountMeAsWell ? 0 : 1;
+					if (blVproCountMeAsWell) {
+						fOtherThanZeroCnt++;
+						fTotalOfficialCnt +=
+						    sDrosChainInfo[x].wCnt;
+						wTotalOfficialCnt_VPRO[1] +=
+						    sDrosChainInfo[x].wCnt;
+						wVproDROs[1]++;
+						pr_debug("VPRO_NVT");
+						pr_debug
+						    ("vpro %d counter for NVT is %d",
+						     k, sDrosChainInfo[x].wCnt);
+						pr_debug("vpro %d freq for NVT is %u\n", k, sDrosChainInfo[x].fFreq);
+					} else {
+						wTotalOfficialCnt_VPRO[0] +=
+						    sDrosChainInfo[x].wCnt;
+						wVproDROs[0]++;
+						pr_debug("VPRO_LVT");
+						pr_debug
+						    ("vpro %d counter for LVT is %d",
+						     k, sDrosChainInfo[x].wCnt);
+						pr_debug("vpro %d freq for LVT is %u\n", k, sDrosChainInfo[x].fFreq);
+					}
+				}
+
+				if (strstr(sDrosChainInfo[x].chDroType, "SVT")) {
+					fOtherThanZeroCnt++;
+					fTotalOfficialCnt +=
+					    sDrosChainInfo[x].wCnt;
+					if (!strcmp
+					    (sDrosChainInfo[x].chDroGroup,
+					     "GB")) {
+						wTotalOfficialCntBR_GB_TOP[1] +=
+						    sDrosChainInfo[x].wCnt;
+						wBR_GB_TOP_DROs[1]++;
+						pr_debug("GB_SVT");
+						pr_debug
+						    ("GB %d counter for SVT is %d",
+						     k, sDrosChainInfo[x].wCnt);
+						pr_debug("GB %d freq for SVT is %u\n", k, sDrosChainInfo[x].fFreq);
+					} else
+					    if (!strcmp
+						(sDrosChainInfo[x].chDroGroup,
+						 "BR")) {
+						pr_debug("BR_SVT");
+						pr_debug
+						    ("BR %d counter for SVT is %d",
+						     k, sDrosChainInfo[x].wCnt);
+						/*TODO: What is the poly shrink*/
+						pr_debug("BR %d freq for SVT is %u\n", k, sDrosChainInfo[x].fFreq);
+						if (k == 1) {	/*poly shrink*/
+							wTotalOfficialCntBR_TOP_PS
+							    [1] +=
+							    sDrosChainInfo
+							    [x].wCnt;
+							wBR_TOP_PS_DROs[1]++;
+						} else {
+							wTotalOfficialCntBR_GB_TOP
+							    [1] +=
+							    sDrosChainInfo
+							    [x].wCnt;
+							wBR_GB_TOP_DROs[1]++;
+						}
+					} else
+					    if (!strcmp
+						(sDrosChainInfo[x].chDroGroup,
+						 "TOP")) {
+						pr_debug("TOP_SVT");
+						pr_debug
+						    ("TOP %d counter for SVT is %d",
+						     k, sDrosChainInfo[x].wCnt);
+						pr_debug("TOP %d freq for SVT is %u\n", k, sDrosChainInfo[x].fFreq);
+						if (k == 1 || k == 2 || k == 3 || k == 4 || k == 6) {	/*poly shrink*/
+							wTotalOfficialCntBR_TOP_PS
+							    [1] +=
+							    sDrosChainInfo
+							    [x].wCnt;
+							wBR_TOP_PS_DROs[1]++;
+						} else {
+							wTotalOfficialCntBR_GB_TOP
+							    [1] +=
+							    sDrosChainInfo
+							    [x].wCnt;
+							wBR_GB_TOP_DROs[1]++;
+						}
+					}
+				} else
+				    if (strstr
+					(sDrosChainInfo[x].chDroType, "LVT")) {
+					if (!strcmp
+					    (sDrosChainInfo[x].chDroGroup,
+					     "GB")) {
+						pr_debug("GB_LVT");
+						pr_debug
+						    ("GB %d counter for LVT is %d",
+						     k, sDrosChainInfo[x].wCnt);
+						pr_debug("GB %d freq for LVT is %u\n", k, sDrosChainInfo[x].fFreq);
+						wTotalOfficialCntBR_GB_TOP[0] +=
+						    sDrosChainInfo[x].wCnt;
+						wBR_GB_TOP_DROs[0]++;
+					} else
+					    if (!strcmp
+						(sDrosChainInfo[x].chDroGroup,
+						 "BR")) {
+						pr_debug("BR_LVT");
+						pr_debug
+						    ("BR %d counter for LVT is %d",
+						     k, sDrosChainInfo[x].wCnt);
+						pr_debug("BR %d freq for LVT is %u\n", k, sDrosChainInfo[x].fFreq);
+						if (k == 1) {	/*poly shrink*/
+							wTotalOfficialCntBR_TOP_PS
+							    [0] +=
+							    sDrosChainInfo
+							    [x].wCnt;
+							wBR_TOP_PS_DROs[0]++;
+						} else {
+							wTotalOfficialCntBR_GB_TOP
+							    [0] +=
+							    sDrosChainInfo
+							    [x].wCnt;
+							wBR_GB_TOP_DROs[0]++;
+						}
+					} else
+					    if (!strcmp
+						(sDrosChainInfo[x].chDroGroup,
+						 "TOP")) {
+						pr_debug("TOP_LVT");
+						pr_debug
+						    ("TOP %d counter for LVT is %d",
+						     k, sDrosChainInfo[x].wCnt);
+						pr_debug("TOP %d freq for LVT is %u\n", k, sDrosChainInfo[x].fFreq);
+						if (k == 1 || k == 2 || k == 3 || k == 4 || k == 6) {	/*poly shrink*/
+							wTotalOfficialCntBR_TOP_PS
+							    [0] +=
+							    sDrosChainInfo
+							    [x].wCnt;
+							wBR_TOP_PS_DROs[0]++;
+						} else {
+							wTotalOfficialCntBR_GB_TOP
+							    [0] +=
+							    sDrosChainInfo
+							    [x].wCnt;
+							wBR_GB_TOP_DROs[0]++;
+						}
+					}
+				} else
+				    if (strstr
+					(sDrosChainInfo[x].chDroType, "HVT")) {
+					if (!strcmp
+					    (sDrosChainInfo[x].chDroGroup,
+					     "GB")) {
+						wTotalOfficialCntBR_GB_TOP[2] +=
+						    sDrosChainInfo[x].wCnt;
+						wBR_GB_TOP_DROs[2]++;
+						pr_debug("HVT_GB");
+						pr_debug
+						    ("GB %d counter for HVT is %d",
+						     k, sDrosChainInfo[x].wCnt);
+						pr_debug("GB %d freq for HVT is %u\n", k, sDrosChainInfo[x].fFreq);
+					} else
+					    if (!strcmp
+						(sDrosChainInfo[x].chDroGroup,
+						 "BR")) {
+						pr_debug("HVT_BR");
+						pr_debug
+						    ("BR %d counter for HVT is %d",
+						     k, sDrosChainInfo[x].wCnt);
+						pr_debug("BR %d freq for HVT is %u\n", k, sDrosChainInfo[x].fFreq);
+						if (k == 1) {	/*poly shrink*/
+							wTotalOfficialCntBR_TOP_PS
+							    [2] +=
+							    sDrosChainInfo
+							    [x].wCnt;
+							wBR_TOP_PS_DROs[2]++;
+						} else {
+							wTotalOfficialCntBR_GB_TOP
+							    [2] +=
+							    sDrosChainInfo
+							    [x].wCnt;
+							wBR_GB_TOP_DROs[2]++;
+						}
+					} else
+					    if (!strcmp
+						(sDrosChainInfo[x].chDroGroup,
+						 "TOP")) {
+						pr_debug("HVT_TOP");
+						pr_debug
+						    ("TOP %d counter for HVT is %d",
+						     k, sDrosChainInfo[x].wCnt);
+						pr_debug("TOP %d freq for HVT is %u\n", k, sDrosChainInfo[x].fFreq);
+						if (k == 1 || k == 2 || k == 3 || k == 4 || k == 6) {	/*poly shrink*/
+							wTotalOfficialCntBR_TOP_PS
+							    [2] +=
+							    sDrosChainInfo
+							    [x].wCnt;
+							wBR_TOP_PS_DROs[2]++;
+						} else {
+							wTotalOfficialCntBR_GB_TOP
+							    [2] +=
+							    sDrosChainInfo
+							    [x].wCnt;
+							wBR_GB_TOP_DROs[2]++;
+						}
+					}
+				}
+			}
+		}
+	}
+	writel(0x0, MPMU_CSER_ADDR);
+
+	if (readl(BPB_PRID) == 0x2a60) {
+		writel(0x0007FF00, BPMU_VMPWR_ADDR);
+		while ((readl(BPMU_VMPWR_ADDR) & 0xC))
+			;
+	} else if (readl(BPB_PRID) == 0x2a80) {
+		unsigned int tmp = 0;
+		tmp = readl(BPMU_VMPWR_ADDR);
+		writel((tmp & (~0x01)), BPMU_VMPWR_ADDR);
+		while ((readl(BPMU_VMPWR_ADDR) & 0x4))
+			;
+	}
+	mdelay(100);
+	writel(0, DRO_JCON_REG_ADDR);
+	restorcomm();
+	writel(cser, MPMU_CSER_ADDR);
+	mdelay(10);
+
+	fOFFICIAL_VALUE =
+	    (fTotalOfficialCnt / fOtherThanZeroCnt) / (unsigned int)fTmp;
+	pr_info("SVT + NVT For All chain is %dMHz\n", fOFFICIAL_VALUE);
+
+		pr_info("TOP+BR+GB LVT = %dMHz\n",
+			((wTotalOfficialCntBR_GB_TOP[0] / wBR_GB_TOP_DROs[0]) /
+			 fTmp));
+		pr_info("TOP+BR+GB SVT = %dMHz\n",
+			((wTotalOfficialCntBR_GB_TOP[1] / wBR_GB_TOP_DROs[1]) /
+			 fTmp));
+		pr_info("TOP+BR+GB HVT = %dMHz\n",
+			((wTotalOfficialCntBR_GB_TOP[2] / wBR_GB_TOP_DROs[2]) /
+			 fTmp));
+		pr_info("TOP+BR LVT [PS] = %dMHz\n",
+			((wTotalOfficialCntBR_TOP_PS[0] / wBR_TOP_PS_DROs[0]) /
+			 fTmp));
+		pr_info("TOP+BR SVT [PS] = %dMHz\n",
+			((wTotalOfficialCntBR_TOP_PS[1] / wBR_TOP_PS_DROs[1]) /
+			 fTmp));
+		pr_info("TOP+BR HVT [PS] = %dMHz\n",
+			((wTotalOfficialCntBR_TOP_PS[2] / wBR_TOP_PS_DROs[2]) /
+			 fTmp));
+		pr_info("CORTEX LVT = %dMHz\n",
+			((wTotalOfficialCnt_CORTEX[0] / wCortexDROs[0]) /
+			 fTmp));
+		pr_info("CORTEX NVT = %dMHz\n",
+			((wTotalOfficialCnt_CORTEX[1] / wCortexDROs[1]) /
+			 fTmp));
+		pr_info("VPRO LVT = %dMHz\n",
+			((wTotalOfficialCnt_VPRO[0] / wVproDROs[0]) / fTmp));
+		pr_info("VPRO NVT = %dMHz\n",
+			((wTotalOfficialCnt_VPRO[1] / wVproDROs[1]) / fTmp));
+
+	iounmap(DRO_base);
+	iounmap(Vmeta_base);
+	iounmap(BPB_PRID);
+	iounmap(MPMU_CSER_ADDR);
+
+	for (irq_count = 0; irq_count < 3; irq_count++) {
+		void __iomem *base = irq_base(irq_count);
+		__raw_writel(saved_icmr[irq_count], base + (0x004));
+	}
+	return 0;
+}
+
 
 static ssize_t PXA9xx_force_VCTCXO_EN_read(struct file *file,
 					   char __user *userbuf,
@@ -1676,6 +2232,12 @@ void pxa_9xx_power_init_debugfs(void)
 						    dbgfs_root, NULL,
 						    &PXA9xx_file_op_pmLogger);
 		if (!pmLogger_file)
+			errRet = -EINVAL;
+
+		DRO_Status = debugfs_create_file("DRO_Status", 0400,
+						 dbgfs_root, NULL,
+						 &PXA9xx_file_DRO_Status);
+		if (!DRO_Status)
 			errRet = -EINVAL;
 
 		forceVCTCXO_EN_file = debugfs_create_file("forceVCTCXO_EN",
