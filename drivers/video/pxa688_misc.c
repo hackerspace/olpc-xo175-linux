@@ -643,9 +643,6 @@ static int pxa168fb_vsmooth_check(int id, int src, int dst, int vid, int en)
 	struct lcd_regs *regs;
 	int x, x_z;
 
-	if (vid ? (!ovly_info.fbi[fb_vsmooth]) : (!gfx_info.fbi[fb_vsmooth]))
-		return -EINVAL;
-
 	if (id != fb_vsmooth) {
 		if (debug)
 			pr_info("%s: fbi %d != fb_vsmooth %d\n",

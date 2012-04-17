@@ -699,6 +699,8 @@ int pxa168vid_apply_changes(struct pxa168_overlay *ovly)
 			ovly->streaming, ovly->pix.pixelformat, 0, 0);
 		pxa688_vdma_config(lcd_vdma);
 	}
+	if (vid_vsmooth)
+		pxa688fb_vsmooth_set(ovly->id, 1, vid_vsmooth);
 
 	return 0;
 }
@@ -1008,6 +1010,7 @@ static int pxa168_ovly_release(struct file *file)
 	}
 	spin_unlock_irqrestore(&ovly->vbq_lock, flags);
 	pxa688_vdma_release(ovly->id, 1);
+	pxa688fb_vsmooth_set(ovly->id, 1, 0);
 
 	/* Turn off the pipeline */
 	ret = pxa168vid_apply_changes(ovly);
@@ -1623,6 +1626,7 @@ static int vidioc_streamon(struct file *file, void *fh, enum v4l2_buf_type i)
 		spin_lock_irqsave(vbq_lock, flags);
 	}
 	dma_ctrl_set(ovly->id, 0, CFG_DMA_ENA_MASK, CFG_DMA_ENA_MASK);
+	pxa688fb_vsmooth_set(ovly->id, 1, vid_vsmooth);
 out:
 	spin_unlock_irqrestore(vbq_lock, flags);
 stream_on:
@@ -1650,6 +1654,7 @@ static int vidioc_streamoff(struct file *file, void *fh, enum v4l2_buf_type i)
 	ovly->streaming = 0;
 	spin_unlock_irqrestore(vbq_lock, flags);
 	pxa688_vdma_release(ovly->id, 1);
+	pxa688fb_vsmooth_set(ovly->id, 1, 0);
 
 	mutex_unlock(ovly_lock);
 	v4l2_dbg(1, debug, ovly->vdev, "ovly %d: stream off!\n", ovly->id);
