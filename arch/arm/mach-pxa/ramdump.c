@@ -310,14 +310,6 @@ static inline void get_usr_regs(unsigned *dest, unsigned mode)
 
 static void save_peripheral_regs(struct ramdump_state *d)
 {
-#ifdef CONFIG_CPU_PJ4
-	unsigned long *cfgreg;
-	cfgreg = ioremap_nocache(0x48100f10, 0x4);
-	if (cfgreg) {
-		d->acc.cfgreg0 = *cfgreg;
-		iounmap(cfgreg);
-	}
-#endif
 	d->acc.accr = ACCR;
 	d->acc.acsr = ACSR;
 	d->acc.aicsr = AICSR;
