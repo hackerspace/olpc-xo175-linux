@@ -159,7 +159,7 @@ MODULE_DEVICE_TABLE(platform, i2c_pxa_id_table);
 #define ISR_MSD		(1 << 12)	   /* master stop detected */
 #define ISR_TXDONE      (1 << 13)  /* transaction done */
 #define ISR_RXSR        (1 << 14)  /* receive fifo service request */
-#define ISR_TXSR        (1 << 15)  /* transmit fifo sercice request */
+#define ISR_TXSR        (1 << 15)  /* transmit fifo service request */
 #define ISR_RXF         (1 << 16)  /* receive fifo full */
 #define ISR_RXOV        (1 << 17)  /* receive fifo overrun */
 #define ISR_RXUN        (1 << 18)  /* receive fifo underrun */
@@ -298,7 +298,7 @@ struct pxa_i2c {
 #define I2C_PXA_FIFO_TSHLD_RX	0x8
 #define I2C_PXA_FIFO_TSHLD_TX	0x0
 #define I2C_PXA_FIFO_ENTRY_RX	0x10
-#define I2C_PXA_FIFO_ENTRY_TX	0x10
+#define I2C_PXA_FIFO_ENTRY_TX	0x8
 
 #define assert(expr) \
 	if(unlikely(!(expr))) {				        \
@@ -1247,7 +1247,7 @@ static int i2c_pxa_do_xfer_with_fifo(struct pxa_i2c *i2c, struct i2c_msg *msg, i
 
 	if(!i2c->fifo_transaction_down)
 	{
-		timeout = wait_event_timeout(i2c->wait, i2c->fifo_transaction_down == true,  MAX_XFER_TIMEOUT_US/1000/8+10); /*78 mSec*/
+		timeout = wait_event_timeout(i2c->wait, i2c->fifo_transaction_down == true, 50); /*~400mSec*/
 	}
 	if (unlikely(i2c->irq_warn != IRQ_WARN_NONE)) {
 		if (unlikely(i2c->irq_warn > IRQ_WARN_UNKNOWN))
@@ -1483,6 +1483,7 @@ static u32 i2c_pxa_irq_txempty_with_fifo(struct pxa_i2c *i2c, u32 isr)
 	u32 dbgCntr = 0;
 	u16 fifo_write_value;
 	u32 icr = readl(_ICR(i2c));
+
 	ICR_LOG = icr;
 
 	if(isr & (ISR_ALD)){
@@ -1529,7 +1530,6 @@ static u32 i2c_pxa_irq_txempty_with_fifo(struct pxa_i2c *i2c, u32 isr)
 		if (isr & ISR_RXF)
 		{
 			u32 i;
-
 			if(i2c->msg->flags & I2C_M_RD)
 				for(i = 0; ((i < I2C_PXA_FIFO_ENTRY_RX) && (i2c->fifo_read_byte_num < i2c->msg->len));i++)
 				{
@@ -1542,18 +1542,22 @@ static u32 i2c_pxa_irq_txempty_with_fifo(struct pxa_i2c *i2c, u32 isr)
 		if (isr & ISR_RXSR)
 		{
 			u32 i;
-			if(i2c->msg->flags & I2C_M_RD)
-				for(i = 0; ((i < I2C_PXA_FIFO_TSHLD_RX) && (i2c->fifo_read_byte_num < i2c->msg->len));i++)
-				{
-					i2c->msg->buf[i2c->fifo_read_byte_num++]=readl(_RFIFO(i2c));
-					/*printk("ISR_RXSR, data[%d] = 0x%01x\n", (i2c->fifo_read_byte_num-1),i2c->msg->buf[i2c->fifo_read_byte_num-1]);*/
-				}
+			/*if receive both RXF & RXSR, only need read one time in ISR_RXF*/
+			if ((isr & ISR_RXF) == 0) {
+				if(i2c->msg->flags & I2C_M_RD)
+					for(i = 0; ((i < I2C_PXA_FIFO_TSHLD_RX) && (i2c->fifo_read_byte_num < i2c->msg->len));i++)
+					{
+						i2c->msg->buf[i2c->fifo_read_byte_num++]=readl(_RFIFO(i2c));
+						/*printk("ISR_RXSR, data[%d] = 0x%01x\n", (i2c->fifo_read_byte_num-1),i2c->msg->buf[i2c->fifo_read_byte_num-1]);*/
+					}
+			}
 			writel(ISR_RXSR, _ISR(i2c));
 
 		}
 		if (isr & ISR_RXOV)
 		{
 			writel(ISR_RXOV, _ISR(i2c));
+			printk(KERN_ERR "i2c: error: lost some data!!!\n");
 		}
 		if (isr & ISR_RXUN)
 		{
@@ -1562,7 +1566,6 @@ static u32 i2c_pxa_irq_txempty_with_fifo(struct pxa_i2c *i2c, u32 isr)
 	}
 
 	if (isr & (ISR_TXOV | ISR_TXSR | ISR_TXDONE)) {
-
 		if(isr & ISR_TXDONE)
 		{
 			i2c->msg_num = 0;
@@ -1959,10 +1962,8 @@ static irqreturn_t i2c_pxa_handler(int this_irq, void *dev_id)
 {
 	struct pxa_i2c *i2c = dev_id;
 	u32 isr, dbgCntr = 0;
-
 	isr = readl(_ISR(i2c));
 	ISR_LOG = isr;
-
 /****
 	if (i2c_debug > 2 && 0) {
 		dev_dbg(&i2c->adap.dev, "%s: ISR=%08x, ICR=%08x, IBMR=%02x\n",
@@ -2022,7 +2023,6 @@ static irqreturn_t i2c_pxa_handler(int this_irq, void *dev_id)
 		i2c_pxa_scream_blue_murder(i2c, "spurious irq");
 		i2c_pxa_master_complete(i2c, I2C_NULL_BUFFER);
 	}
-
 	return IRQ_HANDLED;
 } /*i2c_pxa_handler*/
 
