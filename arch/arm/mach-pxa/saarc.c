@@ -228,7 +228,7 @@ static void regulator_init_pm800(void)
 	int i = 0;
 
 	REG_SUPPLY_INIT(PM800_ID_LDO16, "v_cam", NULL);
-	REG_SUPPLY_INIT(PM800_ID_LDO8, "v_lcd", NULL);
+	REG_SUPPLY_INIT(PM800_ID_LDO8, "v_lcd_cywee_touch", NULL);
 	REG_SUPPLY_INIT(PM800_ID_LDO6, "v_ihdmi", NULL);
 	/*
 	for NFC integration - adding 3 regulators:
@@ -240,7 +240,7 @@ static void regulator_init_pm800(void)
 	*/
 
 	REG_INIT(i++, PM800_ID, LDO16, 1800000, 3300000, 0, 0);
-	REG_INIT(i++, PM800_ID, LDO8, 1800000, 3300000, 1, 1);
+	REG_INIT(i++, PM800_ID, LDO8, 1800000, 3300000, 0, 1);
 	REG_INIT(i++, PM800_ID, LDO6, 1200000, 3300000, 0, 0);
 	switch (get_board_id()) {
 	case OBM_DKB_2_NEVO_C0_BOARD:
