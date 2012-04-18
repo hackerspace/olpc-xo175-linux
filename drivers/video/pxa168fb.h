@@ -1073,9 +1073,15 @@ struct dsi_lcd_regs {
 	u32 wc0;
 	u32 wc1;
 	u32 wc2;
-	u32 reserved[1];
+	u32 reserved2[1];
 	u32 slot_cnt0;
 	u32 slot_cnt1;
+	u32 reserved3[2];
+	u32 status_0;
+	u32 status_1;
+	u32 status_2;
+	u32 status_3;
+	u32 status_4;
 };
 
 struct dsi_regs {
@@ -1099,7 +1105,10 @@ struct dsi_regs {
 	u32 dat0;
 	u32 status0;
 	u32 status1;
-	u32 reserved3[5];
+	u32 status2;
+	u32 status3;
+	u32 status4;
+	u32 reserved3[2];
 
 	u32 smt_cmd;
 	u32 smt_ctrl0;
@@ -1125,7 +1134,9 @@ struct dsi_regs {
 	u32 phy_ctrl2;
 	u32 phy_ctrl3;
 	u32 phy_status0;
-	u32 reserved6[7];
+	u32 phy_status1;
+	u32 reserved6[5];
+	u32 phy_status2;
 
 #define DSI_PHY_RCOMP_0		0x0B0   /* DPHY Rcomp Control Register */
 	u32 phy_rcomp0;
@@ -1140,8 +1151,8 @@ struct dsi_regs {
 	u32 phy_timing1;
 	u32 phy_timing2;
 	u32 phy_timing3;
-	u32 phy_timing4;
-	u32 phy_timing5;
+	u32 phy_code_0;
+	u32 phy_code_1;
 	u32 reserved8[2];
 	u32 mem_ctrl;
 	u32 tx_timer;
@@ -1159,7 +1170,7 @@ struct dsi_regs {
 #define DSI_LCD1_WC_1			0x124   /* Word Count register 1 */
 #define DSI_LCD1_WC_2			0x128   /* Word Count register 2 */
 	struct dsi_lcd_regs lcd1;
-	u32 reserved10[18];
+	u32 reserved10[11];
 	struct dsi_lcd_regs lcd2;
 };
 
