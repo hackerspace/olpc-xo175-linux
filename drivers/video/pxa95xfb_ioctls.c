@@ -379,11 +379,13 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 			buf_enqueue(fbi->buf_waitlist, start_addr);
 			buf_fake_endframe(fbi);
 			local_irq_restore(x);
-			converter_openclose(fbi, fbi->on);
 
-			if(!pxa95xfbi[0]->suspend)
-				lcdc_set_lcd_controller(fbi);
-			fbi->controller_on = fbi->on;
+			lcdc_set_lcd_controller(fbi);
+			if (!conv_is_on(fbi))
+				converter_onoff(fbi, 1);
+
+			conv_ref_inc(fbi);
+			fbi->controller_on = 1;
 			mutex_unlock(&fbi->access_ok);
 			return 0;
 		}
@@ -399,8 +401,7 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 		/* user pointer way */
 		if (check_surface(fbi, surface.videoMode,
 					&surface.viewPortInfo,
-					&surface.viewPortOffset)
-				&& !pxa95xfbi[0]->suspend) {
+					&surface.viewPortOffset)) {
 			/* in this case, surface mode changed, need sync */
 			set_surface(fbi, surface.videoMode,
 					&surface.viewPortInfo,
@@ -432,7 +433,7 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 		local_irq_save(x);
 		/* safe check: when lcd is suspend,
 		 * move all buffers as "switched"*/
-		if (pxa95xfbi[0]->suspend || !fbi->on)
+		if (!fbi->on)
 			buf_fake_endframe(fbi);
 
 		if (copy_to_user(argp, fbi->buf_freelist,
@@ -478,7 +479,7 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 			fbi->alphamode = LCD_ALPHA_INVALID;
 		}
 
-		if (!pxa95xfbi[0]->suspend && fbi->controller_on)
+		if (fbi->controller_on)
 			lcdc_set_lcd_controller(fbi);
 
 		break;
@@ -500,9 +501,12 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 			printk(KERN_INFO "PXA95xfb%d: switch: %s\n",
 				fbi->id, fbi->on ? "on" : "off");
 			if (!fbi->on && fbi->controller_on) {
-				if(!pxa95xfbi[0]->suspend)
+				conv_ref_dec(fbi);
+				if (conv_is_on(fbi))
+					converter_onoff(fbi, 0);
+				else
 					lcdc_set_lcd_controller(fbi);
-				converter_openclose(fbi, on);
+
 				fbi->controller_on = 0;
 				/* tricky workaround for id = 2/3 which shares same channel */
 				if (fbi->id == 2 || fbi->id == 3)

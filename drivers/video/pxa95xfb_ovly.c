@@ -209,11 +209,14 @@ static int __devinit pxa95xfb_vid_probe(struct platform_device *pdev)
 		converter_init(fbi);
 	}
 
-	if(fbi->on)
-		converter_openclose(fbi, 1);
-
-	lcdc_set_fr_addr(fbi);
-	lcdc_set_lcd_controller(fbi);
+	/* turn on when boot */
+	if(fbi->on) {
+		lcdc_set_fr_addr(fbi);
+		lcdc_set_lcd_controller(fbi);
+		if (!conv_is_on(fbi))
+			converter_onoff(fbi, 1);
+		conv_ref_inc(fbi);
+	}
 
 	/* Allocate color map.*/
 	if (fb_alloc_cmap(&info->cmap, 256, 0) < 0) {

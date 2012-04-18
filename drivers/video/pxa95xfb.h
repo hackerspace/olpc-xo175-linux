@@ -861,7 +861,6 @@ struct pxa95xfb_info {
 	int                     id;
 	int			on;
 	int			controller_on;
-	int			active;
 	int			suspend;
 	int			open_count;
 	void			*reg_base;
@@ -958,8 +957,41 @@ void lcdc_wait_for_vsync(u32 conv_id1, u32 conv_id2);
 void lcdc_correct_pixclock(struct fb_videomode * m);
 void *lcdc_alloc_framebuffer(size_t size, dma_addr_t *dma);
 
-void converter_openclose(struct pxa95xfb_info *fbi, int open);
+#define fb2conv(fbi) pxa95xfb_conv[fbi->converter - 1]
+static inline int conv_is_on(struct pxa95xfb_info *fbi)
+{
+	return (fb2conv(fbi).ref_count > 0);
+}
+static inline int conv_ref_inc(struct pxa95xfb_info *fbi)
+{
+	printk(KERN_INFO "%s of fbi%d refer count is increased from %d to %d\n",
+		fb2conv(fbi).name, fbi->id, fb2conv(fbi).ref_count,
+		fb2conv(fbi).ref_count + 1);
+	return (fb2conv(fbi).ref_count++);
+}
+static inline int conv_ref_dec(struct pxa95xfb_info *fbi)
+{
+	if (fb2conv(fbi).ref_count <= 0) {
+		printk(KERN_INFO "%s of fbi%d refer count is already %d!\n",
+			fb2conv(fbi).name, fbi->id, fb2conv(fbi).ref_count);
+		return 0;
+	} else {
+		printk(KERN_INFO "%s of fbi%d refer count is increased from %d to %d\n",
+			fb2conv(fbi).name, fbi->id, fb2conv(fbi).ref_count,
+			fb2conv(fbi).ref_count - 1);
+		return (fb2conv(fbi).ref_count--);
+	}
+}
+static inline int conv_ref_clr(struct pxa95xfb_info *fbi)
+{
+	printk(KERN_INFO "%s of fbi%d refer count is cleared from %d to 0\n",
+		fb2conv(fbi).name, fbi->id, fb2conv(fbi).ref_count);
+	return 0;
+}
+
+
 void converter_init(struct pxa95xfb_info *fbi);
+void converter_onoff(struct pxa95xfb_info *fbi, int on);
 
 void lcdc_vid_clean(struct pxa95xfb_info *fbi);
 void lcdc_vid_buf_endframe(void * p);

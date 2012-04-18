@@ -171,8 +171,6 @@ void dump_buffer(struct pxa95xfb_info *fbi, int yoffset)
 	vfree(pbits);
 }
 
-static void controller_enable_disable(struct pxa95xfb_info *fbi, int onoff);
-
 struct pxa95xfb_info * pxa95xfbi[PXA95xFB_FB_NUM];
 struct pxa95xfb_conv_info pxa95xfb_conv[4] = {
 	[0] = {
@@ -998,66 +996,6 @@ static void dsi_send_frame(struct pxa95xfb_conv_info * conv)
 	}
 }
 
-static u32 dsi_init(struct pxa95xfb_conv_info * conv)
-{
-	u8 ret = 1;
-
-	/*Set default values - Low Power and 2 lanes*/
-	dsi_set_lanes_number(conv, conv->dsi_lanes);
-	dsi_set_power_mode(conv, LCD_Controller_DSI_LPDT);
-
-	/*Enable the DSI*/
-	if(!dsi_enable_disable(conv, DSI_ENABLE)){
-		printk("%s: dsi_enable_disable failed!!\n", __func__);
-		return 0;
-	}
-
-	/*Enable the LCD controller*/
-	controller_enable_disable(pxa95xfbi[0], LCD_Controller_Enable);
-	msleep(100);
-
-	/*End of inialization - init board*/
-	printk("%s: Init_board\n", __func__);
-
-	/*Handle board - only support this currently */
-	if (conv->dsi_init_cmds && !dsi_send_cmd_array(conv, conv->dsi_init_cmds)){
-		printk("%s: dsi_init_board failed!!\n", __func__);
-		return 0;
-	}
-
-	/*Set power mode*/
-	dsi_set_power_mode(conv, LCD_Controller_DSI_RIHS);
-
-	return ret;
-
-}
-
-static u32 dsi_enter_sleep(struct pxa95xfb_conv_info *conv)
-{
-	u32 x;
-	/*for video mode, we need to disable FIFO*/
-	if (conv->conf_dsi_video_mode) {
-		x = readl(conv->conv_base + LCD_DSI_DxSCR0_OFFSET);
-		writel(x | LCD_DSI_DxSCR0_SP_BREAK_INT_EN | LCD_DSI_DxSCR0_BREAK,
-			conv->conv_base + LCD_DSI_DxSCR0_OFFSET);
-		/* TODO: checking DxINST0 would always fail
-		* and only SP_UNDRUN_INT_STS is set, just do wait now*/
-		msleep(50);
-		pr_info("%s: disable fifo when video mode done, DxINST0 = %x!!!\n",
-			__func__, readl(conv->conv_base + LCD_DSI_DxINST0_OFFSET));
-		writel(LCD_DSI_DxINST0_BREAK_INT_STS,
-			conv->conv_base + LCD_DSI_DxINST0_OFFSET);
-	}
-
-	dsi_set_power_mode(conv, LCD_Controller_DSI_LPDT);
-	msleep(10);
-	if (conv->dsi_sleep_cmds && !dsi_send_cmd_array(conv, conv->dsi_sleep_cmds)) {
-		printk("%s: dsi_send_enter_sleep failed!!\n", __func__);
-		return 0;
-	}
-	return 1;
-}
-
 static int loop_kthread_body(void *arg)
 {
 	struct loop_kthread * thread = arg;
@@ -1295,14 +1233,77 @@ static void converter_set_dsi(struct pxa95xfb_conv_info *conv)
 		,conv_base + LCD_DSI_DxSCR0_OFFSET);
 
 	/*Send DSI commands and enable dsi*/
-	if(!dsi_init(conv))
-		printk(KERN_ERR "%s: dsi_init failed!!\n", __func__);
+	/*Set default values - Low Power and 2 lanes*/
+	dsi_set_lanes_number(conv, conv->dsi_lanes);
+	dsi_set_power_mode(conv, LCD_Controller_DSI_LPDT);
 
-	if(conv->conf_dsi_video_mode == DSI_VIDEO_MODE)
-		dsi_init_video_burst(conv);
-	else if(conv->conf_dsi_video_mode == DSI_VIDEO_MODE_NON_BURST)
-		dsi_init_video_non_burst(conv);
+	/*Enable the DSI*/
+	if(!dsi_enable_disable(conv, DSI_ENABLE))
+		printk("%s: dsi_enable_disable failed!!\n", __func__);
 }
+
+
+static void converter_stop_dsi(struct pxa95xfb_conv_info *conv)
+{
+	u32 x;
+	/*for video mode, we need to disable FIFO*/
+	if (conv->conf_dsi_video_mode) {
+		x = readl(conv->conv_base + LCD_DSI_DxSCR0_OFFSET);
+		writel(x | LCD_DSI_DxSCR0_SP_BREAK_INT_EN | LCD_DSI_DxSCR0_BREAK,
+			conv->conv_base + LCD_DSI_DxSCR0_OFFSET);
+		/* TODO: checking DxINST0 would always fail
+		* and only SP_UNDRUN_INT_STS is set, just do wait now*/
+		msleep(50);
+		pr_info("%s: disable fifo when video mode done, DxINST0 = %x!!!\n",
+			__func__, readl(conv->conv_base + LCD_DSI_DxINST0_OFFSET));
+		writel(LCD_DSI_DxINST0_BREAK_INT_STS,
+			conv->conv_base + LCD_DSI_DxINST0_OFFSET);
+	} else
+		loop_kthread_pause(&conv->thread);
+
+	msleep(10);
+
+	dsi_set_power_mode(conv, LCD_Controller_DSI_LPDT);
+
+	/* will not send dsi sleep cmds now:
+	* currently as mixer off may failed when dsi is stopped,
+	* we do mixer off before dsi stop. however, when mixer is off
+	* send dsi command might be failed. So not send dsi sleep commands
+	* as we will finally reset dsi output device to save power
+	msleep(10);
+	if (conv->dsi_sleep_cmds && !dsi_send_cmd_array(conv, conv->dsi_sleep_cmds))
+		printk("%s: dsi_send_enter_sleep failed!!\n", __func__);
+	*/
+	/*Enable the DSI*/
+	if(!dsi_enable_disable(conv, DSI_DISABLE))
+		printk("%s: dsi_enable_disable failed!!\n", __func__);
+
+	return;
+}
+
+
+static void converter_start_dsi(struct pxa95xfb_conv_info *conv)
+{
+	/*End of inialization - init board*/
+	printk("%s: Init_board\n", __func__);
+
+	/*Handle board - only support this currently */
+	if (conv->dsi_init_cmds && !dsi_send_cmd_array(conv, conv->dsi_init_cmds)){
+		printk("%s: dsi_init_board failed!!\n", __func__);
+		return;
+	}
+
+	/*Set power mode*/
+	dsi_set_power_mode(conv, LCD_Controller_DSI_RIHS);
+
+	if (conv->conf_dsi_video_mode == DSI_VIDEO_MODE)
+		dsi_init_video_burst(conv);
+	else if (conv->conf_dsi_video_mode == DSI_VIDEO_MODE_NON_BURST)
+		dsi_init_video_non_burst(conv);
+	else
+		loop_kthread_resume(&conv->thread);
+}
+
 
 #ifndef CONFIG_UIO_HDMI
 static void interlacer_enable(int enable)
@@ -1393,7 +1394,15 @@ static void converter_set_hdmi(struct pxa95xfb_info *fbi)
 #endif
 }
 
-
+static void hdmi_set_SSP_CLK(struct pxa95xfb_info *fbi, int on)
+{
+	u32 x = readl(fbi->reg_base + LCD_CTL);
+	if (on)
+		x |= LCD_CTL_CLK_SSP_EN;
+	else
+		x &= ~LCD_CTL_CLK_SSP_EN;
+	writel(x, fbi->reg_base + LCD_CTL);
+}
 static void converter_mode_set(struct pxa95xfb_conv_info *conv, struct fb_videomode *mode)
 {
 	conv->xres = mode->xres;
@@ -1410,69 +1419,62 @@ static void converter_mode_set(struct pxa95xfb_conv_info *conv, struct fb_videom
 #ifdef CONFIG_MV_IHDMI
 extern int mv_ihdmiinit(void);
 #endif
-static void converter_onoff(struct pxa95xfb_info *fbi, int on)
+static void mixer_onoff(struct pxa95xfb_info *fbi, int on);
+void converter_onoff(struct pxa95xfb_info *fbi, int on)
 {
-	struct pxa95xfb_conv_info *conv = &pxa95xfb_conv[fbi->converter - 1];
-	if(conv->on == on){
+	struct pxa95xfb_conv_info *conv = &fb2conv(fbi);
+	if(conv->on == on) {
 		printk(KERN_INFO "converter %s is already %s\n", conv->name, conv->on?"On":"Off");
-	}else if(on){
+	} else if(on) {
 		if(conv->reset)
 			conv->reset();
+		if(conv->power)
+			conv->power(1);
 
 		converter_mode_set(conv, &fbi->mode);
 
-		if(CONVERTER_IS_DSI(conv->converter))
+		if (CONVERTER_IS_DSI(conv->converter))
 			converter_set_dsi(conv);
-		else if(LCD_M2PARALELL_CONVERTER == conv->converter){
+		else if (LCD_M2PARALELL_CONVERTER == conv->converter)
 			converter_set_parallel(fbi);
-			controller_enable_disable(fbi, LCD_Controller_Enable);
-		} else if (LCD_M2HDMI == conv->converter) {
+		else if (LCD_M2HDMI == conv->converter) {
 			converter_set_hdmi(fbi);
-			controller_enable_disable(fbi, LCD_Controller_Enable);
-#ifdef CONFIG_MV_IHDMI
-#ifndef CONFIG_UIO_HDMI
+			hdmi_set_SSP_CLK(fbi, 1);
+#if defined(CONFIG_MV_IHDMI) && !defined(CONFIG_UIO_HDMI)
 			mv_ihdmiinit();
 #endif
-#endif
-		}
-		if (CONVERTER_IS_DSI(conv->converter) && !conv->conf_dsi_video_mode){
-			loop_kthread_resume(&conv->thread);
 		}
 
-		if(conv->power)
-			conv->power(1);
+		/* enable mixer to do real conv enable! */
+		mixer_onoff(fbi, 1);
+
+		if (CONVERTER_IS_DSI(conv->converter))
+			converter_start_dsi(conv);
 
 		conv->on = on;
 		printk(KERN_INFO "converter %s is On\n", conv->name);
 	}else{
 		conv->on = on;
 
-		if (CONVERTER_IS_DSI(conv->converter) && !conv->conf_dsi_video_mode){
-			loop_kthread_pause(&conv->thread);
-		}
-
-		if(conv->power)
-			conv->power(0);
+		/* disable mixer to do real conv disable! */
+		mixer_onoff(fbi, 0);
 
 		if (CONVERTER_IS_DSI(conv->converter))
-			dsi_enter_sleep(conv);
+			converter_stop_dsi(conv);
+		if (LCD_M2HDMI == conv->converter)
+			hdmi_set_SSP_CLK(fbi, 0);
 
 		if (conv->clk)
 			clk_disable(conv->clk);
+
+		if(conv->power)
+			conv->power(0);
 
 		/* reset it to save 1mA more */
 		if(conv->reset)
 			conv->reset();
 		printk(KERN_INFO "converter %s is Off\n", conv->name);
 	}
-}
-
-static void converter_power(struct pxa95xfb_info *fbi, int on)
-{
-	struct pxa95xfb_conv_info *conv = &pxa95xfb_conv[fbi->converter - 1];
-
-	if((on && conv->ref_count) || (!on) )
-		converter_onoff(fbi, on);
 }
 
 #ifdef CONFIG_PXA95x_DVFM
@@ -1520,23 +1522,6 @@ static irqreturn_t converter_handle_irq(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-void converter_openclose(struct pxa95xfb_info *fbi, int open)
-{
-	struct pxa95xfb_conv_info *conv = &pxa95xfb_conv[fbi->converter - 1];
-
-	if(open){
-		conv->ref_count ++;
-		if(!pxa95xfbi[0]->suspend && conv->ref_count == 1)
-			converter_onoff(fbi,1);
-		printk(KERN_INFO "converter open: %s refer count = %d", conv->name, conv->ref_count);
-	}else{
-		conv->ref_count --;
-		if(!pxa95xfbi[0]->suspend && conv->ref_count == 0)
-			converter_onoff(fbi, 0);
-		printk(KERN_INFO "converter close: %s refer count = %d", conv->name, conv->ref_count);
-	}
-}
-
 void converter_init(struct pxa95xfb_info *fbi)
 {
 	struct pxa95xfb_conv_info *conv = &pxa95xfb_conv[fbi->converter - 1];
@@ -1580,7 +1565,7 @@ void converter_init(struct pxa95xfb_info *fbi)
 	}
 }
 
-static void __attribute__ ((unused)) dump_regs_base(struct pxa95xfb_info *fbi)
+static void inline dump_regs_base(struct pxa95xfb_info *fbi)
 {
 	printk("LCD_CTL = %x\n", readl(fbi->reg_base + LCD_CTL));
 	printk("LCD_CTL_STS = %x\n", readl(fbi->reg_base + LCD_CTL_STS));
@@ -1610,7 +1595,7 @@ static void __attribute__ ((unused)) dump_regs_base(struct pxa95xfb_info *fbi)
 	printk("DSI D1SSR  = 0x%x\n", readl(fbi->reg_base + 0x3104));
 }
 
-static void __attribute__ ((unused)) dump_regs_ovly(struct pxa95xfb_info *fbi)
+static void inline dump_regs_ovly(struct pxa95xfb_info *fbi)
 {
 	if (fbi->pix_fmt == 7 || fbi->pix_fmt < 3) {
 		printk("LCD_NXT_DESC_ADDR4 = %x\n", readl(fbi->reg_base + LCD_NXT_DESC_ADDR4));
@@ -1652,7 +1637,7 @@ static void __attribute__ ((unused)) dump_regs_ovly(struct pxa95xfb_info *fbi)
 
 }
 
-static void __attribute__ ((unused)) dump_regs_dsi(struct pxa95xfb_info *fbi)
+static void inline dump_regs_dsi(struct pxa95xfb_info *fbi)
 {
 	/*TBD - pass converter as an argumnet for dynamic choice*/
 	void *conv_base =
@@ -1719,8 +1704,6 @@ static void controller_enable_disable(struct pxa95xfb_info *fbi, int onoff)
 				retry = 0;
 			ctrl |= LCD_CTL_LCD_EN | LCD_CTL_GMIX_INT_EN | LCD_CTL_AXI32_EN
 				| LCD_CTL_GFETCH_INT_EN | LCD_CTL_GWIN_INT_EN;
-			if (fbi->converter == LCD_M2HDMI)
-				ctrl |= LCD_CTL_CLK_SSP_EN;
 			/*make sure quick disable is cleared*/
 			ctrl &= ~LCD_CTL_LCD_QD;
 			writel(ctrl, fbi->reg_base + LCD_CTL);
@@ -1739,8 +1722,6 @@ static void controller_enable_disable(struct pxa95xfb_info *fbi, int onoff)
 				retry = 0;
 			ctrl = readl(fbi->reg_base + LCD_CTL);
 			ctrl &= ~(LCD_CTL_LCD_EN);
-			if (fbi->converter == LCD_M2HDMI)
-				ctrl &= ~(LCD_CTL_CLK_SSP_EN);
 			writel(ctrl, fbi->reg_base + LCD_CTL);
 			display_enabled = 0;
 			/* after disable, the LCD_CTL_INT_STS[LCD_CTL_INT_STS_LCD_DIS_INT_STS]
@@ -1979,11 +1960,49 @@ static void set_window(struct pxa95xfb_info *fbi)
 	writel(x, fbi->reg_base + LCD_WIN4_CFG);
 }
 
+static void mixer_onoff(struct pxa95xfb_info *fbi, int on)
+{
+	u32 ctl0_off = LCD_MIXER0_CTL0 + fbi->mixer_id* 0x100;
+	int ret;
+	u32 x;
 
+	mutex_lock(&mutex_mixer_update[fbi->mixer_id]);
+	x = readl(fbi->reg_base + ctl0_off);
+
+	/* check */
+	if ((!!(x & LCD_MIXERx_CTL0_MIX_EN)) == on) {
+		printk(KERN_INFO "mixer%d status %x already %d\n", fbi->mixer_id, x, on);
+		return;
+	}
+	if (on && ((x & LCD_MIXERx_CTL0_ALL_OL_MASK) == LCD_MIXERx_CTL0_ALL_OL_DISABLE)) {
+		printk(KERN_ERR "mixer%d on but all layers are off\n", fbi->mixer_id);
+		return;
+	}
+	if (!on) {
+		x &= ~LCD_MIXERx_CTL0_ALL_OL_DISABLE;
+		x |= LCD_MIXERx_CTL0_ALL_OL_DISABLE;
+	}
+	x &= ~LCD_MIXERx_CTL0_MIX_EN;
+	if (on)
+		x |= LCD_MIXERx_CTL0_MIX_EN;
+
+	printk(KERN_INFO "Mixer%d %s\n", fbi->mixer_id, on ? "On": "Off");
+	b_mixer_update[fbi->mixer_id] = 1;
+	writel(x, fbi->reg_base + ctl0_off);
+
+	ret = wait_event_interruptible_timeout(wq_mixer_update[fbi->mixer_id],
+					!b_mixer_update[fbi->mixer_id], 60 * HZ / 1000);
+	if (!ret)
+		printk(KERN_ERR "Mixer%d %s failed!\n", fbi->mixer_id, on ? "On": "Off");
+	mutex_unlock(&mutex_mixer_update[fbi->mixer_id]);
+
+}
+
+/* contains only mixer update, mixer onoff set to mixer_onoff */
 static void set_mixer(struct pxa95xfb_info *fbi)
 {
 	u32 x;
-	u32 mixer_onoff, layer_onoff, mixer_pre, layer_pre, mixer_new, layer_new, mixer_update;
+	u32 layer_onoff, mixer_stat, layer_pre, layer_new, mixer_update;
 	struct fb_videomode * m = &fbi->mode;
 
 	u32 ctl0_off = LCD_MIXER0_CTL0 + fbi->mixer_id* 0x100;
@@ -2030,34 +2049,34 @@ static void set_mixer(struct pxa95xfb_info *fbi)
 	/* laste setp: check whether separate to mixer on/off, layer on/off
 	 * LCD_MIXERx_CTL0_DISP_UPDATE should be set as the last step */
 	x = readl(fbi->reg_base + ctl0_off);
-	mixer_pre = x & LCD_MIXERx_CTL0_MIX_EN;
+	mixer_stat = x & LCD_MIXERx_CTL0_MIX_EN;
 	layer_pre = x & LCD_MIXERx_CTL0_OLx_ID_MASK(fbi->zorder);
 	layer_new = (fbi->on)?
 		LCD_MIXERx_CTL0_OLx_ID(fbi->zorder, LCD_Controller_WGe0 + fbi->window):
 		LCD_MIXERx_CTL0_OLx_ID_MASK(fbi->zorder);
 	x &= ~ LCD_MIXERx_CTL0_OLx_ID_MASK(fbi->zorder);
 	x |= layer_new;
-
-	mixer_new = ((x & LCD_MIXERx_CTL0_ALL_OL_MASK) != LCD_MIXERx_CTL0_ALL_OL_DISABLE)?LCD_MIXERx_CTL0_MIX_EN:0;
-	x &= ~LCD_MIXERx_CTL0_MIX_EN;
-	x |= mixer_new;
-
-	mixer_onoff = mixer_pre != mixer_new;
 	layer_onoff = layer_pre != layer_new;
 
-	mixer_update = (!mixer_onoff && mixer_new) && (layer_onoff || fbi->on);
+	if (layer_onoff &&
+		(x & LCD_MIXERx_CTL0_ALL_OL_MASK) == LCD_MIXERx_CTL0_ALL_OL_DISABLE)
+		printk(KERN_ERR "Warning! mixer%d: last layer shutoff\n", fbi->mixer_id);
+
+	mixer_update = (mixer_stat && (layer_onoff || fbi->on));
 	x |= mixer_update?LCD_MIXERx_CTL0_DISP_UPDATE:0;
 
-	if (mixer_update || mixer_onoff)
+	if (mixer_update) {
 		b_mixer_update[fbi->mixer_id] = 1;
+		printk(KERN_INFO "Mixer%d update\n", fbi->mixer_id);
+	}
 
 	writel(x, fbi->reg_base + ctl0_off);
 
-	if (display_enabled && (mixer_update || mixer_onoff)) {
+	if (mixer_update) {
 		int ret = wait_event_interruptible_timeout(wq_mixer_update[fbi->mixer_id],
 				!b_mixer_update[fbi->mixer_id], 60 * HZ / 1000);
 		if (!ret)
-			pr_err("mixer update failed\n");
+			printk(KERN_ERR "mixer update failed\n");
 	}
 }
 
@@ -2316,9 +2335,6 @@ u32 lcdc_set_fr_addr(struct pxa95xfb_info *fbi)
 
 u32 lcdc_get_fr_addr(struct pxa95xfb_info *fbi)
 {
-	if(pxa95xfbi[0]->suspend)
-		return 0;
-
 	/*according to spec, fr_adr is 4-31 bit, but actually it's 0-31bit */
 	return (readl(fbi->reg_base + LCD_FR_ADDR0 + 0x40*fbi->window));
 }
@@ -2525,30 +2541,28 @@ int pxa95xfb_set_par(struct fb_info *info)
 	fbi->pixel_offset = var->yoffset * var->xres_virtual + var->xoffset;
 	lcdc_set_fr_addr(fbi);
 
-	if(!pxa95xfbi[0]->suspend)
-		lcdc_set_lcd_controller(fbi);
+	lcdc_set_lcd_controller(fbi);
 
 	return 0;
 }
 
 static void pxa95xfb_gfx_power(struct pxa95xfb_info *fbi, int on)
 {
-	int i;
-
 	mutex_lock(&fbi->access_ok);
 	if(on == (!fbi->suspend)){
 		printk(KERN_INFO "LCD power already %s\n", on?"up":"down");
 	} else if(!on){
 		fbi->suspend = 1;
 
-		for(i= 0; i< PXA95xFB_FB_NUM; i++){
-			if(pxa95xfbi[i] && pxa95xfbi[i]->open_count)
-				converter_power(pxa95xfbi[i], on);
-		}
+		converter_onoff(fbi, 0);
 
+		/* removed due to SI issue.
+		* mixer disable used instead of controller disable
+		* also, clock is not disabled
 		controller_enable_disable(fbi, LCD_Controller_Quick_Disable);
-
 		clk_disable(fbi->clk_lcd);
+		*/
+		display_enabled = 0;
 
 		unset_dvfm_constraint();
 
@@ -2557,22 +2571,15 @@ static void pxa95xfb_gfx_power(struct pxa95xfb_info *fbi, int on)
 		/* to turn on the display */
 		set_dvfm_constraint();
 
+		/* removed due to SI issue.
+		* mixer disable used instead of controller disable
+		* also, clock is not disabled
 		clk_enable(fbi->clk_lcd);
+		*/
+		display_enabled = 1;
 
-		for(i= 0; i< PXA95xFB_FB_NUM; i++){
-			if(pxa95xfbi[i] && pxa95xfbi[i]->open_count)
-				lcdc_set_lcd_controller(pxa95xfbi[i]);
-		}
-
-		/* set scale registers for fb1*/
-		set_scale(fbi);
-
-		msleep(10);
-
-		for(i= 0; i< PXA95xFB_FB_NUM; i++){
-			if(pxa95xfbi[i] && pxa95xfbi[i]->open_count)
-				converter_power(pxa95xfbi[i], on);
-		}
+		lcdc_set_lcd_controller(fbi);
+		converter_onoff(fbi, 1);
 
 		fbi->suspend = 0;
 		printk(KERN_INFO "LCD power up\n");
@@ -2742,7 +2749,7 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, fbi);
 	fbi->clk_lcd = clk_lcd;
 	fbi->dev = &pdev->dev;
-	fbi->on = 1;
+	fbi->on = 1; /* must! */
 	fbi->open_count = fbi->on;/*if fbi on as default, open count +1 as default*/
 	fbi->window = mi->window;
 	fbi->zorder = mi->zorder;
@@ -2835,7 +2842,7 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 
 	/* Enable AXI32 before modifying the controller registers */
 	writel(LCD_CTL_AXI32_EN, fbi->reg_base + LCD_CTL);
-	controller_enable_disable(fbi, LCD_Controller_Disable);
+	controller_enable_disable(fbi, LCD_Controller_Enable);
 
 	/* set scale registers for fb1*/
 	set_scale(fbi);
@@ -2855,9 +2862,6 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 	/*set ch4 as un-transparent for YVU use*/
 	writel(0x800000ff, fbi->reg_base + LCD_CH4_ALPHA);
 
-	lcdc_set_fr_addr(fbi);
-	lcdc_set_lcd_controller(fbi);
-
 	/*init converter*/
 	conv = &pxa95xfb_conv[fbi->converter -1];
 	if(!conv->inited){
@@ -2875,8 +2879,10 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 		converter_init(fbi);
 	}
 
-	if(fbi->on)
-		converter_openclose(fbi, 1);
+	lcdc_set_fr_addr(fbi);
+	lcdc_set_lcd_controller(fbi);
+	converter_onoff(fbi, 1);
+	conv_ref_inc(fbi);
 
 	/* For FB framework: Allocate color map and Register framebuffer*/
 	if (fb_alloc_cmap(&info->cmap, 256, 0) < 0) {
