@@ -133,6 +133,8 @@ struct l2x0_regs {
 	unsigned long filter_end;
 	unsigned long prefetch_ctrl;
 	unsigned long pwr_ctrl;
+	/* If L2 is global disabled, we need also save/restore it */
+	unsigned long ctrl;
 };
 
 extern struct l2x0_regs l2x0_saved_regs;

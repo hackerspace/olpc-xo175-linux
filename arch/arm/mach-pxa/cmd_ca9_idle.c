@@ -27,6 +27,7 @@
 #include <asm/io.h>
 #include <mach/pxa3xx-regs.h>
 #include <linux/delay.h>
+#include <asm/hardware/cache-l2x0.h>
 
 /* Part of the code based on the below ARM code and modified */
 /*
@@ -65,8 +66,7 @@ static int pxa978_suspend_finish(unsigned long core_mode)
 		/*WR for NEVO-2344. l2$ content lost in D1*/
 		outer_disable();
 	}
-	pxa978_cpu_suspend(get_c2_sram_base() + 0x10, pl310_membase, core_mode,
-			   power_mode & PWRMODE_L2_DIS_IN_C2);
+	pxa978_cpu_suspend(core_mode);
 	return 0;
 }
 

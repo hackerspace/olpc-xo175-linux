@@ -85,23 +85,15 @@ pxa978_save_reset_handler:
 	add	r0, r2, #0x10
 	bl	VirtualToPhysical 	@ modified r0,r1
 	str	r0, [r2, #0x0c]
-	ldmfd		sp!,{r4-r12,pc}
+	ldmfd	sp!,{r4-r12,pc}
 
 	.global pxa978_cpu_suspend
 pxa978_cpu_suspend:
-	cmp	r2, #0x0
+	cmp	r0, #0x0
 	beq	pxa978_enter_c1
-	mov 	r6, r1		@l2c base address virtual
-	mov	r7, r3		@PWR_MODE
-save_pl310:
-	ldr	r1, [r6, #L2X0_CTRL]
-	ldr 	r2, [r6, #L2X0_AUX_CTRL]
-	ldr 	r3, [r6, #L2X0_TAG_LATENCY_CTRL]
-	ldr 	r4, [r6, #L2X0_DATA_LATENCY_CTRL]
-	stm 	r0!,{r1-r4}
-	ldr 	r1, [r6, #L2X0_PREFETCH_CTRL]
-	ldr 	r2, [r6, #L2X0_POWER_CTRL]
-	stm 	r0!,{r1-r2}
+
+	.extern pl310_suspend
+	bl pl310_suspend
 
 	@disable L1$, for NEVO C0
 	mrc p15,0,r1,c1,c0,0
@@ -148,15 +140,18 @@ inv_wait:
 	bne	inv_wait
 	str	r2, [r6, #L2X0_CACHE_SYNC]
 restore_pl310:
+	ldr	r0, pl310_saved_regs_phys_addr	@ phys address of l2x0_saved_regs
 	ldm 	r0!, {r2-r5}
 	str	r3, [r6, #L2X0_AUX_CTRL]
 	str	r4, [r6, #L2X0_TAG_LATENCY_CTRL]
 	str	r5, [r6, #L2X0_DATA_LATENCY_CTRL]
-	ldm 	r0!, {r3-r4}
-	str	r3, [r6, #L2X0_PREFETCH_CTRL]
-	str	r4, [r6, #L2X0_POWER_CTRL]
-	mov	r2, #1
-	str	r2, [r6, #L2X0_CTRL]		@enable L2$
+	ldm 	r0!, {r2-r5}
+	str	r2, [r6, #L2X0_ADDR_FILTER_START]
+	str	r3, [r6, #L2X0_ADDR_FILTER_END]
+	str	r4, [r6, #L2X0_PREFETCH_CTRL]
+	str	r5, [r6, #L2X0_POWER_CTRL]
+	ldr 	r2, [r0]
+	str	r2, [r6, #L2X0_CTRL]
 
 	@invalidate L1 I cache, for nevo c0
 	@TODO: to distingush c0 and d0
@@ -173,6 +168,10 @@ c2_restore:
 	.long	0
 c2_data:
 	.long	0
+
+	.global pl310_saved_regs_phys_addr
+pl310_saved_regs_phys_addr:
+	.long	0	@ preserve to store l2x0_saved_regs_phys_addr
 
 	.global	VirtualToPhysical
 VirtualToPhysical:

@@ -25,6 +25,7 @@
 #ifdef CONFIG_CACHE_L2X0
 #include <asm/hardware/cache-l2x0.h>
 #endif
+#include <asm/cacheflush.h>
 #include <mach/hardware.h>
 #include <mach/gpio.h>
 #include <mach/pxa3xx-regs.h>
@@ -371,6 +372,19 @@ struct pxa95x_freq_mach_info freq_mach_info = {
 	.flags = PXA95x_USE_POWER_I2C,
 };
 
+#ifdef CONFIG_CACHE_L2X0
+extern u32 l2x0_saved_regs_phys_addr;
+extern u32 pl310_saved_regs_phys_addr;
+static inline void l2x0_save_regs_phys_addr(u32 *addr_ptr, u32 addr)
+{
+	BUG_ON(!addr_ptr);
+	*addr_ptr = addr;
+	flush_cache_all();
+	outer_clean_range(virt_to_phys(addr_ptr),
+			virt_to_phys(addr_ptr) + sizeof(*addr_ptr));
+}
+#endif
+
 static int __init pxa95x_init(void)
 {
 	int ret = 0;
@@ -386,12 +400,15 @@ static int __init pxa95x_init(void)
 #endif
 
 #ifdef CONFIG_CACHE_L2X0
-	if (cpu_is_pxa978_Cx()) {
+	if (cpu_is_pxa978()) {
 		void *l2x0_base = ioremap_nocache(0x58120000, 0x1000);
 		if (!l2x0_base)
 			return -ENOMEM;
 		/* Args 1,2: don't change AUX_CTRL */
 		l2x0_init(l2x0_base, 0x30000000, ~0);
+		l2x0_init(l2x0_base, 0, ~0);
+		l2x0_save_regs_phys_addr(&pl310_saved_regs_phys_addr,
+				l2x0_saved_regs_phys_addr);
 	}
 #endif
 	mfp_init_base(io_p2v(MFPR_BASE));

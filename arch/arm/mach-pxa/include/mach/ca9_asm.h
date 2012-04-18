@@ -13,6 +13,5 @@ sramaddr[13..0]=0 is enforced.
 These registers are saved in SRAM at the given address,
 right after the reset vector code. Aproximae size: 0xc0 bytes.
 */
-void pxa978_cpu_suspend(unsigned int sramaddr, unsigned int *l2c_base_address,
-			unsigned int core_mode, unsigned int pwrmode);
+void pxa978_cpu_suspend(unsigned int core_mode);
 void pxa978_save_reset_handler(unsigned int sramaddr);
