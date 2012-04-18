@@ -98,6 +98,13 @@ save_pl310:
 	ldr 	r1, [r6, #L2X0_PREFETCH_CTRL]
 	ldr 	r2, [r6, #L2X0_POWER_CTRL]
 	stm 	r0!,{r1-r2}
+
+	@disable L1$, for NEVO C0
+	mrc p15,0,r1,c1,c0,0
+	bic r1, r1, #0x1000
+	bic r1, r1, #0x0004
+	mcr p15,0,r1,c1,c0,0
+
 /*C2 entry*/
 	dsb
 	wfi
@@ -146,6 +153,12 @@ restore_pl310:
 	str	r4, [r6, #L2X0_POWER_CTRL]
 	mov	r2, #1
 	str	r2, [r6, #L2X0_CTRL]		@enable L2$
+
+	@invalidate L1 I cache, for nevo c0
+	@TODO: to distingush c0 and d0
+	mov	r2, #0
+	mcr	p15, 0, r2, c7, c1, 0
+
 	b cpu_resume
 
 /*reset handler for C2 exit */

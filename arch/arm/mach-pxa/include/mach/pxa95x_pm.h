@@ -289,6 +289,7 @@
 #else
 #define PXA95x_PM_I_Q_BIT	0x00
 #endif
+#define PWRMODE_L2_DIS_IN_C2 0x40
 
 /* CPSR Processor constants */
 #define CPSR_Mode_MASK		(0x0000001F)

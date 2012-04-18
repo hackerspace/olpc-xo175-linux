@@ -49,7 +49,6 @@
  *		misrepresented as being the original software.
  * 3. This notice may not be removed or altered from any source distribution.
  */
-#define PWRMODE_L2_DIS_IN_C2 0x40
 static int pxa978_suspend_finish(unsigned int core_mode)
 {
 	unsigned int power_mode = PWRMODE;
@@ -62,6 +61,9 @@ static int pxa978_suspend_finish(unsigned int core_mode)
 		 */
 		/*this will actually call clean_all() */
 		outer_clean_range(0, 0xFFFFFFFF);
+	} else if ((power_mode & 0x07) == PXA95x_PM_S0D1C2) {
+		/*WR for NEVO-2344. l2$ content lost in D1*/
+		outer_disable();
 	}
 	pxa978_cpu_suspend(get_c2_sram_base(), pl310_membase, core_mode,
 			   power_mode & PWRMODE_L2_DIS_IN_C2);
