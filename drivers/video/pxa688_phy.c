@@ -52,10 +52,10 @@
 
 /* dsi phy timing */
 static struct dsi_phy phy = {
-	.hs_prep_constant	= 60,    /* Unit: ns. */
-	.hs_prep_ui		= 5,
-	.hs_zero_constant	= 85,
-	.hs_zero_ui		= 5,
+	.hs_prep_constant	= 40,    /* Unit: ns. */
+	.hs_prep_ui		= 4,
+	.hs_zero_constant	= 145,
+	.hs_zero_ui		= 10,
 	.hs_trail_constant	= 0,
 	.hs_trail_ui		= 64,
 	.hs_exit_constant	= 100,
@@ -65,6 +65,10 @@ static struct dsi_phy phy = {
 	.ck_trail_constant	= 60,
 	.ck_trail_ui		= 0,
 	.req_ready		= 0x3c,
+	.wakeup_constant        = 1000000,
+	.wakeup_ui      = 0,
+	.lpx_constant       = 50,
+	.lpx_ui     = 0,
 };
 
 #define dsi_ex_pixel_cnt		0
@@ -285,52 +289,77 @@ void dsi_set_dphy(struct pxa168fb_info *fbi)
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 	struct dsi_info *di = (struct dsi_info *)mi->phy_info;
 	struct dsi_regs *dsi = (struct dsi_regs *)di->regs;
-	u32 ui, lpx_clk, lpx_time, ta_get, ta_go, wakeup, reg;
-	u32 hs_prep, hs_zero, hs_trail, hs_exit, ck_zero, ck_trail, ck_exit;
+	int ui, lpx_clk, lpx_time, ta_get, ta_go, wakeup, reg;
+	int hs_prep, hs_zero, hs_trail, hs_exit, ck_zero, ck_trail, ck_exit;
 
 	ui = 1000/dsi_hsclk + 1;
-	lpx_clk = (DSI_ESC_CLK / dsi_lpclk / 2) - 1;
+	pr_debug("ui:%d\n", ui);
+
+	lpx_clk = (phy.lpx_constant + phy.lpx_ui * ui) / DSI_ESC_CLK_T;
 	lpx_time = (lpx_clk + 1) * DSI_ESC_CLK_T;
+	pr_debug("lpx_clk:%d, condition (TIME_LPX:%d > 50)\n",
+		lpx_clk, lpx_time);
+
 	/* Below is for NT35451 */
-	ta_get = ((lpx_time * 10 + (DSI_ESC_CLK_T >> 1)) / DSI_ESC_CLK_T) - 1;
-	ta_go  = ((lpx_time * 4 + (DSI_ESC_CLK_T >> 1)) / DSI_ESC_CLK_T) - 1;
-	wakeup = 0xfff0;
+	ta_get = lpx_time * 5 / DSI_ESC_CLK_T - 1;
+	ta_go = lpx_time * 4 / DSI_ESC_CLK_T - 1;
+	pr_debug("ta_get:%d, condition (TIME_TA_GET:%d == 5*TIME_LPX:%d)\n",
+		ta_get, (ta_get + 1) * DSI_ESC_CLK_T, lpx_time * 5);
+	pr_debug("ta_go:%d, condition (TIME_TA_GO:%d == 4*TIME_LPX:%d)\n",
+		ta_go, (ta_go + 1) * DSI_ESC_CLK_T, lpx_time * 4);
+
+	wakeup = phy.wakeup_constant;
+	wakeup = wakeup / DSI_ESC_CLK_T + 1;
+	pr_debug("wakeup:%d, condition (WAKEUP:%d > MIN:%d)\n",
+		wakeup, (wakeup + 1) * DSI_ESC_CLK_T, 1000000);
 
 	hs_prep = phy.hs_prep_constant + phy.hs_prep_ui * ui;
-	hs_prep = ((hs_prep + (DSI_ESC_CLK_T >> 1)) / DSI_ESC_CLK_T) - 1;
+	hs_prep = hs_prep / DSI_ESC_CLK_T + 1;
+	pr_debug("hs_prep:%d, condition (HS_PREP_MAX:%d > HS_PREP:%d "
+		"> HS_PREP_MIN:%d)\n", hs_prep, 85 + 6 * ui,
+		(hs_prep + 1) * DSI_ESC_CLK_T, 40 + 4 * ui);
 
 	/* Our hardware added 3-byte clk automatically.
 	 * 3-byte 3 * 8 * ui.
 	 */
-	hs_zero = phy.hs_zero_constant + phy.hs_zero_ui * ui;
-	if (hs_zero > (24 * ui))
-		hs_zero -= (24 * ui);
-	else
-		hs_zero = DSI_ESC_CLK_T;
-
-	if (hs_zero > (DSI_ESC_CLK_T * 2))
-		hs_zero = ((hs_zero + (DSI_ESC_CLK_T >> 1)) / DSI_ESC_CLK_T)
-			 - 1;
-	else
-		hs_zero = 1;
+	hs_zero = phy.hs_zero_constant + phy.hs_zero_ui * ui -
+		(hs_prep + 1) * DSI_ESC_CLK_T;
+	hs_zero = (hs_zero - (3 * ui << 3)) / DSI_ESC_CLK_T + 4;
+	if (hs_zero < 0)
+		hs_zero = 0;
+	pr_debug("hs_zero:%d, condition (HS_ZERO + HS_PREP:%d > SUM_MIN:%d)\n",
+		hs_zero, (hs_zero - 2) * DSI_ESC_CLK_T + 24 * ui +
+		(hs_prep + 1) * DSI_ESC_CLK_T, 145 + 10 * ui);
 
 	hs_trail = phy.hs_trail_constant + phy.hs_trail_ui * ui;
-	hs_trail = ((hs_trail + (DSI_ESC_CLK_T >> 1)) / DSI_ESC_CLK_T) - 1;
+	hs_trail = hs_trail / DSI_ESC_CLK_T + 1;
+	pr_debug("hs_trail:%d, condition (HS_TRAIL:%d > MIN1:%d / MIN2:%d "
+		"/ MIN3:%d)\n", hs_trail, (hs_trail + 1) * DSI_ESC_CLK_T,
+		8 * ui, 60 + 4 * ui, 64 * ui);
 
 	hs_exit = phy.hs_exit_constant + phy.hs_exit_ui * ui;
-	hs_exit = ((hs_exit + (DSI_ESC_CLK_T >> 1)) / DSI_ESC_CLK_T) - 1;
+	hs_exit = hs_exit / DSI_ESC_CLK_T + 1;
+	pr_debug("hs_exit:%d, condition (HS_EXIT:%d > MIN:%d)\n",
+		hs_exit, (hs_exit + 1) * DSI_ESC_CLK_T, 100);
 
-	ck_zero = phy.ck_zero_constant + phy.ck_zero_ui * ui;
-	ck_zero = ((ck_zero + (DSI_ESC_CLK_T >> 1)) / DSI_ESC_CLK_T) - 1;
+	ck_zero = phy.ck_zero_constant + phy.ck_zero_ui * ui -
+		(hs_prep + 1) * DSI_ESC_CLK_T;
+	ck_zero = ck_zero / DSI_ESC_CLK_T + 1;
+	pr_debug("ck_zero:%d, condition (CK_ZERO + CK_PREP:%d > SUM_MIN:%d)\n",
+		ck_zero, (ck_zero + 1) * DSI_ESC_CLK_T +
+		(hs_prep + 1) * DSI_ESC_CLK_T, 300);
 
 	ck_trail = phy.ck_trail_constant + phy.ck_trail_ui * ui;
-	ck_trail = ((ck_trail + (DSI_ESC_CLK_T >> 1)) / DSI_ESC_CLK_T) - 1;
+	ck_trail = ck_trail / DSI_ESC_CLK_T + 1;
+	pr_debug("ck_trail:%d, condition (CK_TRIAL:%d > MIN:%d)\n",
+		ck_trail, (ck_trail + 1) * DSI_ESC_CLK_T, 60);
 
 	ck_exit = hs_exit;
+	pr_debug("ck_exit:%d\n", ck_exit);
 
 	/* bandgap ref enable */
 	reg = readl(&dsi->phy_rcomp0);
-	reg |= (1<<9);
+	reg |= (1 << 9);
 	writel(reg, &dsi->phy_rcomp0);
 
 	/* timing_0 */

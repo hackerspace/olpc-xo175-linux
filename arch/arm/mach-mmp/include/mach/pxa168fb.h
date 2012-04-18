@@ -236,6 +236,10 @@ struct dsi_phy {
 	unsigned int ck_trail_constant;
 	unsigned int ck_trail_ui;
 	unsigned int req_ready;
+	unsigned int wakeup_constant;
+	unsigned int wakeup_ui;
+	unsigned int lpx_constant;
+	unsigned int lpx_ui;
 };
 
 struct dsi_info {

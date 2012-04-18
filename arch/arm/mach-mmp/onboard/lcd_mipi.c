@@ -46,15 +46,15 @@ static struct fb_videomode video_modes_yellowstone[] = {
 static struct fb_videomode video_modes_orchid[] = {
 	[0] = {
 		 /* panel refresh rate should <= 55(Hz) */
-		.refresh = 54,
+		.refresh = 55,
 		.xres = 540,
 		.yres = 960,
-		.hsync_len = 6,
-		.left_margin = 21,
-		.right_margin = 20,
+		.hsync_len = 2,
+		.left_margin = 50,
+		.right_margin = 50,
 		.vsync_len = 2,
-		.upper_margin = 32,
-		.lower_margin = 32,
+		.upper_margin = 8,
+		.lower_margin = 8,
 		.sync = FB_SYNC_HOR_HIGH_ACT,
 		},
 };
@@ -64,12 +64,12 @@ static struct fb_videomode video_modes_mk2[] = {
 		.refresh = 60,
 		.xres = 1024,
 		.yres = 768,
-		.hsync_len = 20,
+		.hsync_len = 10,
 		.left_margin = 160,
-		.right_margin = 24,
-		.vsync_len = 16,
-		.upper_margin = 29,
-		.lower_margin = 3,
+		.right_margin = 200,
+		.vsync_len = 2,
+		.upper_margin = 18,
+		.lower_margin = 18,
 		.sync = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
 		},
 };
@@ -870,18 +870,6 @@ static void calculate_dsi_clk(struct pxa168fb_mach_info *mi)
 	if (!di)
 		return;
 
-	if (di->lanes == 4) {
-		if (di->bpp == 16)
-			modes->right_margin = 325;
-		else if (di->bpp == 24)
-			modes->right_margin = 206;
-	} else if (di->lanes == 2) {
-		if (di->bpp == 16)
-			modes->right_margin = 179;
-		else if (di->bpp == 24)
-			modes->right_margin = 116;
-	}
-
 	/*
 	 * When DSI is used to refresh panel, the timing configuration should
 	 * follow the rules below:
@@ -994,6 +982,7 @@ void __init abilene_add_lcd_mipi(void)
 {
 	unsigned char __iomem *dmc_membase;
 	unsigned int CSn_NO_COL, lvds_en;
+	struct dsi_info *dsi;
 
 	struct pxa168fb_mach_info *fb = &mipi_lcd_info, *ovly =
 	    &mipi_lcd_ovly_info;
@@ -1012,6 +1001,13 @@ void __init abilene_add_lcd_mipi(void)
 		if (lvds_en)
 			lvds_hook(fb);
 		dither_config(fb);
+	}
+
+	if (fb->phy_type & (DSI | DSI2DPI)) {
+		dsi = (struct dsi_info *)fb->phy_info;
+		if (dsi->bpp == 16)
+			video_modes_abilene[0].right_margin =
+			(dsi->lanes == 4) ? 315 : 178;
 	}
 
 	/* Re-calculate lcd clk source and divider
@@ -1049,6 +1045,7 @@ void __init yellowstone_add_lcd_mipi(void)
 {
 	unsigned char __iomem *dmc_membase;
 	unsigned int CSn_NO_COL;
+	struct dsi_info *dsi;
 
 	struct pxa168fb_mach_info *fb = &mipi_lcd_info, *ovly =
 	    &mipi_lcd_ovly_info;
@@ -1056,7 +1053,7 @@ void __init yellowstone_add_lcd_mipi(void)
 	fb->num_modes = ARRAY_SIZE(video_modes_yellowstone);
 	fb->modes = video_modes_yellowstone;
 	fb->max_fb_size = video_modes_yellowstone[0].xres *
-		video_modes_abilene[0].xres * 8 + 4096;
+		video_modes_yellowstone[0].xres * 8 + 4096;
 	ovly->num_modes = fb->num_modes;
 	ovly->modes = fb->modes;
 	ovly->max_fb_size = fb->max_fb_size;
@@ -1064,6 +1061,13 @@ void __init yellowstone_add_lcd_mipi(void)
 	if (cpu_is_mmp3_b0()) {
 		lvds_hook(fb);
 		dither_config(fb);
+	}
+
+	if (fb->phy_type & (DSI | DSI2DPI)) {
+		dsi = (struct dsi_info *)fb->phy_info;
+		if (dsi->bpp == 16)
+			video_modes_yellowstone[0].right_margin =
+			(dsi->lanes == 4) ? 315 : 178;
 	}
 
 	/* Re-calculate lcd clk source and divider
@@ -1398,9 +1402,8 @@ void __init brownstone_add_lcd_mipi(void)
 
 	if (board_is_mmp2_brownstone_rev5()) {
 		video_modes_brownstone[0].yres = 800;
-		video_modes_brownstone[0].vsync_len = 1;
-		video_modes_brownstone[0].lower_margin = 1;
-		video_modes_brownstone[0].upper_margin = 35;
+		video_modes_brownstone[0].lower_margin = 35;
+		video_modes_brownstone[0].upper_margin = 15;
 
 		mi = &mmp2_mipi_lcd_info;
 		mi->max_fb_size = video_modes_brownstone[0].xres *
