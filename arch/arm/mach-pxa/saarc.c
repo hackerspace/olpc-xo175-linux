@@ -238,12 +238,10 @@ static void regulator_init_pm800(void)
 	 since they are needed by NFC driver. to prevent harm to the system
 	 i'm setting them to "unused" LDOs
 	*/
-	REG_SUPPLY_INIT(PM800_ID_LDO15, "VBat", NULL);
 
 	REG_INIT(i++, PM800_ID, LDO16, 1800000, 3300000, 0, 0);
 	REG_INIT(i++, PM800_ID, LDO8, 1800000, 3300000, 1, 1);
 	REG_INIT(i++, PM800_ID, LDO6, 1200000, 3300000, 0, 0);
-	REG_INIT(i++, PM800_ID, LDO15, 1800000, 3300000, 0, 0);
 	switch (get_board_id()) {
 	case OBM_DKB_2_NEVO_C0_BOARD:
 	case OBM_DKB_2_NEVO_C0_BOARD_533MHZ:
