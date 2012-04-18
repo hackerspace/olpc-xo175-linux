@@ -202,8 +202,8 @@ int array_soc[][2] = {  {4170, 100},
 			{3716, 19}, {3709, 18}, {3703, 17}, {3698, 16},
 			{3692, 15}, {3683, 14}, {3675, 13}, {3670, 12},
 			{3665, 11}, {3661, 10}, {3657, 9},  {3649, 8},
-			{3637, 7},  {3622, 8},	{3609, 6},  {3580, 4},
-			{3658, 3},  {3540, 2},  {3510, 1},  {3429, 0} };
+			{3637, 7}, {3622, 6}, {3609, 5}, {3580, 4},
+			{3558, 3}, {3540, 2}, {3510, 1}, {3429, 0} };
 
 static struct ccnt ccnt_data;
 static struct pm860x_battery_info *ginfo;
@@ -2141,16 +2141,7 @@ static int pm860x_battery_resume(struct device *dev)
 		disable_irq_wake(info->irq_batt);
 		disable_irq_wake(info->irq_cc);
 	}
-
-	if(info->chip->chip_version >= PM8607_CHIP_C1){
-		calc_soc(info, OCV_MODE_SLEEP, &info->start_soc);
-		/*when pm860x sleep fail, the vbat_sleep will be 0, so fix it*/
-		if(info->start_soc < 0){
-			calc_soc(info, OCV_MODE_ACTIVE, &info->start_soc);
-		}
-		clear_ccnt(info, &ccnt_data);
-		dev_dbg(dev,"resume:soc:%d\n",info->start_soc);
-	}
+	calc_ccnt(info, &ccnt_data);
 	queue_delayed_work(info->chip->monitor_wqueue, &info->monitor_work,
 			   MONITOR_INTERVAL);
 	return 0;
