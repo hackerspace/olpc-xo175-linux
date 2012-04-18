@@ -449,7 +449,7 @@ static struct mv_cam_pdata mv_cam_data = {
 		.active_low = _active_low,		\
 		.desc       = _desc,			\
 		.type       = EV_KEY,			\
-		.wakeup     = 1,			\
+		.wakeup     = 0,			\
 		.debounce_interval     = 0,			\
 	}
 
