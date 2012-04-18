@@ -1952,12 +1952,15 @@ static void __init nevo_dkb_init_spi(void)
 
 #if defined(CONFIG_MV_IHDMI)
 static int mv_ihdmi_format = 4;
-
+static int hdtx_en;
 static int hdtx_power(int en)
 {
 	struct regulator *v_ldo;
 	int pin1 = mfp_to_gpio(MFP_PIN_GPIO13);
-
+	if (hdtx_en == en) {
+		printk("hdmi: already turn %s\n", en?"on":"off");
+		return 0;
+	}
 	v_ldo = regulator_get(NULL, "v_ihdmi");
 	if (IS_ERR(v_ldo)) {
 		printk(KERN_ERR "hdmi: fail to get ldo handle!\n");
@@ -1987,6 +1990,7 @@ static int hdtx_power(int en)
 	printk(KERN_INFO "hdmi: turn %s charge pump 5V\n", en?"ON":"OFF");
 
 	regulator_put(v_ldo);
+	hdtx_en = en;
 	return 0;
 }
 
