@@ -58,7 +58,9 @@ struct dpm_drv_wd_data {
 
 static int async_error;
 
+#ifdef CONFIG_PXA95x_SUSPEND
 extern unsigned int suspend_cb_start_index, suspend_cb_end_index;
+#endif
 
 /**
  * device_pm_init - Initialize the PM-related part of a device object.
@@ -626,7 +628,9 @@ static void dpm_drv_timeout(unsigned long data)
 void dpm_resume(pm_message_t state)
 {
 	struct device *dev;
+#ifdef CONFIG_PXA95x_SUSPEND
 	unsigned int counter = 0;
+#endif
 	ktime_t starttime = ktime_get();
 
 	might_sleep();
@@ -651,10 +655,14 @@ void dpm_resume(pm_message_t state)
 
 			mutex_unlock(&dpm_list_mtx);
 
+#ifdef CONFIG_PXA95x_SUSPEND
 			if (counter >= suspend_cb_start_index &&
 			    counter <= suspend_cb_end_index)
 				error = device_resume(dev, state, false);
 			counter++;
+#else
+			error = device_resume(dev, state, false);
+#endif
 
 			if (error)
 				pm_dev_err(dev, state, "", error);
@@ -986,7 +994,9 @@ int dpm_suspend(pm_message_t state)
 {
 	ktime_t starttime = ktime_get();
 	int error = 0;
+#ifdef CONFIG_PXA95x_SUSPEND
 	unsigned int counter = 0;
+#endif
 
 	might_sleep();
 
@@ -999,10 +1009,14 @@ int dpm_suspend(pm_message_t state)
 		get_device(dev);
 		mutex_unlock(&dpm_list_mtx);
 
+#ifdef CONFIG_PXA95x_SUSPEND
 		if (counter >= suspend_cb_start_index &&
 		    counter <= suspend_cb_end_index)
 			error = device_suspend(dev);
 		counter++;
+#else
+		error = device_suspend(dev);
+#endif
 
 		mutex_lock(&dpm_list_mtx);
 		if (error) {
