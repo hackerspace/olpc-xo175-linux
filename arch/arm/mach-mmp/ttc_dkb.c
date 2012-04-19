@@ -66,7 +66,8 @@
 
 #define TTCDKB_NR_IRQS		(IRQ_BOARD_START + 24)
 
-static int emmc_boot;
+int emmc_boot;
+EXPORT_SYMBOL(emmc_boot);
 static int __init emmc_setup(char *__unused)
 {
 #if defined(CONFIG_MMC_SDHCI_PXAV2)
