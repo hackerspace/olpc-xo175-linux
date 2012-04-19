@@ -1355,7 +1355,6 @@ static void converter_set_hdmi(struct pxa95xfb_info *fbi)
 
 	x |= HDMI_MIXERx_TIM0_PCP | HDMI_MIXERx_TIM0_VSYNC_DEL;
 	writel(x, conv_base + HDMI_MIXER_TIM0);
-
 	x = HDMI_MIXERx_TIM2_BLW(m->left_margin - 1)
 		|HDMI_MIXERx_TIM2_ELW(m->right_margin - 1);
 	writel(x, conv_base + HDMI_MIXER_TIM2);
@@ -2189,15 +2188,15 @@ void lcdc_correct_pixclock(struct fb_videomode * m)
 {
 	u64 div_result;
 	u32 total_w, total_h, refresh;
-
-	refresh = (m->refresh)? m->refresh: DEFAULT_REFRESH;
-	total_w = m->xres + m->left_margin + m->right_margin + m->hsync_len;
-	total_h = m->yres + m->upper_margin + m->lower_margin + m->vsync_len;
-	div_result = 1000000000000ll;
-	do_div(div_result, total_w * total_h * refresh);
-	m->pixclock = div_result;
-
-	printk(KERN_INFO "LCD %s: pixclock %d\n", __func__, m->pixclock);
+	if ((m->xres) && (m->yres)) {
+		refresh = (m->refresh)? m->refresh: DEFAULT_REFRESH;
+		total_w = m->xres + m->left_margin + m->right_margin + m->hsync_len;
+		total_h = m->yres + m->upper_margin + m->lower_margin + m->vsync_len;
+		div_result = 1000000000000ll;
+		do_div(div_result, total_w * total_h * refresh);
+		m->pixclock = div_result;
+		printk(KERN_INFO "LCD %s: pixclock %d\n", __func__, m->pixclock);
+	}
 }
 
 /* alphamode: 0: colorkey, 1: window alpha, 2: per-pixel alpha*/
@@ -2429,13 +2428,6 @@ int pxa95xfb_check_var(struct fb_var_screeninfo *var,
 		return -EINVAL;
 	if (var->yoffset + var->yres > var->yres_virtual)
 		return -EINVAL;
-	if (var->xres + var->right_margin +
-			var->hsync_len + var->left_margin > 2048)
-		return -EINVAL;
-	if (var->yres + var->lower_margin +
-			var->vsync_len + var->upper_margin > 2048)
-		return -EINVAL;
-
 	/*
 	 * Check size of framebuffer.
 	 */
@@ -2519,7 +2511,9 @@ int var_update(struct fb_info *info)
 		fb_videomode_to_var(var, m);
 	}
 	memcpy(&fbi->mode, m, sizeof(struct fb_videomode));
-
+	if ((fbi->id == 2) || (fbi->id == 0)) {
+		memcpy(&pxa95xfbi[fbi->id + 1]->mode, m, sizeof(struct fb_videomode));
+	}
 	/* fix to 2* yres */
 	var->yres_virtual = var->yres * 2;
 	info->fix.visual = (pix_fmt == PIX_FMT_PSEUDOCOLOR)?

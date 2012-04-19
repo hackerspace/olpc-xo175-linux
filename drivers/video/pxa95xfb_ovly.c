@@ -77,6 +77,8 @@ static int __devinit pxa95xfb_vid_probe(struct platform_device *pdev)
 	struct resource *res;
 	int irq_conv, ret = 0, i;
 	struct pxa95xfb_conv_info *conv;
+	int max_x, max_y;
+	max_x = max_y = 0;
 
 	mi = pdev->dev.platform_data;
 	if (mi == NULL) {
@@ -143,8 +145,14 @@ static int __devinit pxa95xfb_vid_probe(struct platform_device *pdev)
 		goto failed;
 	}
 
+	for(i = 0; i < mi->num_modes; i++) {
+		if ((max_x * max_y) < (mi->modes[i].xres * mi->modes[i].yres)) {
+			max_x = mi->modes[i].xres;
+			max_y = mi->modes[i].yres;
+		}
+	}
 	/* Allocate framebuffer memory.*/
-	fbi->fb_size = PAGE_ALIGN(mi->modes[0].xres * mi->modes[0].yres * 4 + PAGE_SIZE);
+	fbi->fb_size = PAGE_ALIGN(max_x * max_y * 4 + PAGE_SIZE);
 	fbi->fb_start = lcdc_alloc_framebuffer(fbi->fb_size + PAGE_SIZE,
 				&fbi->fb_start_dma);
 	if (fbi->fb_start == NULL) {
@@ -161,10 +169,14 @@ static int __devinit pxa95xfb_vid_probe(struct platform_device *pdev)
 	fb_videomode_to_modelist(mi->modes, mi->num_modes, &info->modelist);
 
 	lcdc_set_pix_fmt(&info->var, mi->pix_fmt_in);
-	fb_videomode_to_var(&info->var, &mi->modes[0]);
+	fb_videomode_to_var(&info->var, &mi->modes[mi->init_mode]);
 	memcpy(&fbi->mode, &mi->modes[mi->init_mode], sizeof(struct fb_videomode));
+
 	/* fix to 2* yres */
 	info->var.yres_virtual = info->var.yres * 2;
+	if (mi->output == OUTPUT_HDMI) {
+		info->var.yres_virtual = info->var.yres;
+	}
 
 	/* Initialise static fb parameters.*/
 	info->flags = FBINFO_DEFAULT | FBINFO_PARTIAL_PAN_OK |
