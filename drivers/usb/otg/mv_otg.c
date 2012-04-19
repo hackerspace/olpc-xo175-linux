@@ -28,6 +28,9 @@
 
 #include <mach/hardware.h>
 #include <asm/mach-types.h>
+#ifdef CONFIG_PXA95x
+#include <mach/dvfm.h>
+#endif
 
 #include <plat/usb.h>
 
@@ -46,6 +49,9 @@ static const char driver_name[] = "mv_otg";
 static struct mv_otg *the_transceiver;
 static int otg_force_host_mode;
 static struct wake_lock suspend_lock;
+#ifdef CONFIG_PXA95x
+static int dvfm_dev_idx;
+#endif
 
 static char *state_string[] = {
 	"undefined",
@@ -287,6 +293,9 @@ static int mv_otg_enable_internal(struct mv_otg *mvotg)
 
 static int mv_otg_enable(struct mv_otg *mvotg)
 {
+#ifdef CONFIG_PXA95x
+	dvfm_disable_lowpower(dvfm_dev_idx);
+#endif
 	wake_lock(&suspend_lock);
 	if (mvotg->clock_gating)
 		return mv_otg_enable_internal(mvotg);
@@ -311,6 +320,9 @@ static void mv_otg_disable(struct mv_otg *mvotg)
 
 	if (wake_lock_active(&suspend_lock))
 		wake_unlock(&suspend_lock);
+#ifdef CONFIG_PXA95x
+	dvfm_enable_lowpower(dvfm_dev_idx);
+#endif
 }
 
 static void mv_otg_update_inputs(struct mv_otg *mvotg)
@@ -1006,11 +1018,17 @@ static struct platform_driver mv_otg_driver = {
 
 static int __init mv_otg_init(void)
 {
+#ifdef CONFIG_PXA95x
+	dvfm_register("MV_OTG", &dvfm_dev_idx);
+#endif
 	return platform_driver_register(&mv_otg_driver);
 }
 
 static void __exit mv_otg_exit(void)
 {
+#ifdef CONFIG_PXA95x
+	dvfm_unregister("MV_OTG", &dvfm_dev_idx);
+#endif
 	platform_driver_unregister(&mv_otg_driver);
 }
 
