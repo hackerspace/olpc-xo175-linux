@@ -327,8 +327,8 @@ static struct dsi_info dsiinfo = {
 static struct dsi_info orchid_dsiinfo = {
 	.id = 2,
 	.lanes = 2,
-	.bpp = 16,
-	.rgb_mode = DSI_LCD_INPUT_DATA_RGB_MODE_565,
+	.bpp = 24,
+	.rgb_mode = DSI_LCD_INPUT_DATA_RGB_MODE_888,
 	.burst_mode = DSI_BURST_MODE_BURST,
 	.hbp_en = 1,
 	.hfp_en = 1,
@@ -497,14 +497,8 @@ static void panel_init_config(struct pxa168fb_info *fbi)
 {
 	enum dsi_packet_di data_type;
 	enum dsi_packet_dcs_id dcs;
-	unsigned char pix_fmt = BPP_16;
 
 	set_dsi_low_power_mode(fbi);
-
-	/* pixel format set 16bpp*/
-	data_type = DSI_DI_DCS_WRITE_1P;
-	dcs = DSI_DCS_SET_PIXEL_FMT;
-	dsi_send_cmd(fbi, data_type, dcs, pix_fmt);
 
 	data_type = DSI_DI_DCS_WRITE_N;
 	dcs = DSI_DCS_SLEEP_EXIT;
