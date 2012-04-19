@@ -376,7 +376,7 @@ static void mrvl8xxx_op_mode_receiver(struct mrvl8xxx_device *dev, int audio_mod
     if (audio_mode) {
         /* audio_mode = 1, digital(i2s) mode */
 	    mrvl8xxx_hci_sendcmd_sync(dev, FM_OPCODE,
-		    FM_SET_AUDIO_PATH, 0x030001, 3, DEFAULT_CMD_WAIT_TIME);
+		    FM_SET_AUDIO_PATH, 0x000001, 3, DEFAULT_CMD_WAIT_TIME);
         /* select set 2 I2S interfaces which connect to SAI2 */
 	    mrvl8xxx_hci_sendcmd_sync(dev, PINMUX_OPCODE,
 		    FM_PINMUX, 0x02, 1, DEFAULT_CMD_WAIT_TIME);
