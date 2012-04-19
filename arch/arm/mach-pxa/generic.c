@@ -335,6 +335,7 @@ static void gps_power_on(void)
 	case OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ:
 	case OBM_DKB_2_NEVO_C0_BOARD:
 	case OBM_DKB_2_NEVO_C0_BOARD_533MHZ:
+	case OBM_DKB_2_1_NEVO_C0_BOARD:
 		g_gps_reset = mfp_to_gpio(MFP_PIN_GPIO106);
 		g_gps_on = mfp_to_gpio(MFP_PIN_GPIO104);
 		break;

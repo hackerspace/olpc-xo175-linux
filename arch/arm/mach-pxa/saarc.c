@@ -427,6 +427,7 @@ static void regulator_init_pm800(void)
 	switch (get_board_id()) {
 	case OBM_DKB_2_NEVO_C0_BOARD:
 	case OBM_DKB_2_NEVO_C0_BOARD_533MHZ:
+	case OBM_DKB_2_1_NEVO_C0_BOARD:
 		/* Turn on LDO12 and 17 before wifi regulator support added */
 		/*OBM haven't support DKB 2.1 version yet,  so currently we
 		* distinguish it by Procida version
@@ -525,7 +526,8 @@ static void wifi_set_power(unsigned int on)
 	struct regulator *v_ldo17 = NULL;
 
 	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
-			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ) {
+			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
+			get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD) {
 		v_ldo12 = regulator_get(NULL, "v_wifi_1v8");
 		if (IS_ERR(v_ldo12)) {
 			v_ldo12 = NULL;
@@ -544,7 +546,8 @@ static void wifi_set_power(unsigned int on)
 
 	if (on) {
 		if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
-				get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ) {
+				get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
+				get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD) {
 			regulator_enable(v_ldo12);
 			regulator_enable(v_ldo17);
 			gpio_request(gpio_wifi_en, "WIB_EN");
@@ -566,7 +569,8 @@ static void wifi_set_power(unsigned int on)
 		/* disable 32KHz TOUT */
 		clk_disable(clk_tout_s0);
 		if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
-				get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ) {
+				get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
+				get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD) {
 			gpio_direction_output(gpio_wifi_en, 0);
 			gpio_free(gpio_wifi_en);
 			regulator_disable(v_ldo12);
@@ -574,7 +578,8 @@ static void wifi_set_power(unsigned int on)
 		}
 	}
 	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
-			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ) {
+			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
+			get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD) {
 		regulator_put(v_ldo12);
 		regulator_put(v_ldo17);
 	}
@@ -772,7 +777,8 @@ static void __init init_mmc(void)
 
 	gpio_pd = mfp_to_gpio(MFP_PIN_GPIO70);
 	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
-			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ) {
+			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
+			get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD) {
 		gpio_rst = mfp_to_gpio(MFP_PIN_GPIO97);
 		mci1_platform_data.ext_cd_gpio = mfp_to_gpio(MFP_PIN_GPIO128);
 	} else
@@ -1061,6 +1067,7 @@ static void register_i2c_board_info(void)
 		break;
 	case OBM_DKB_2_NEVO_C0_BOARD:
 	case OBM_DKB_2_NEVO_C0_BOARD_533MHZ:
+	case OBM_DKB_2_1_NEVO_C0_BOARD:
 		pm800_info.vibrator = &vibrator_pdata;
 		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info));
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_DKB));
@@ -1850,6 +1857,7 @@ static void __init init_cam(void)
 		break;
 	case OBM_DKB_2_NEVO_C0_BOARD:
 	case OBM_DKB_2_NEVO_C0_BOARD_533MHZ:
+	case OBM_DKB_2_1_NEVO_C0_BOARD:
 		pwd_main = mfp_to_gpio(MFP_PIN_GPIO25);
 		pwd_sub = mfp_to_gpio(MFP_PIN_GPIO26);
 		pwd_isp	= mfp_to_gpio(MFP_PIN_GPIO24);
@@ -1900,6 +1908,7 @@ static void __init init_cam(void)
 		break;
 	case OBM_DKB_2_NEVO_C0_BOARD:
 	case OBM_DKB_2_NEVO_C0_BOARD_533MHZ:
+	case OBM_DKB_2_1_NEVO_C0_BOARD:
 		printk(KERN_NOTICE "cam: saarc: Probing camera on DKB 2\n");
 #if defined(CONFIG_SOC_CAMERA_M6MO)
 		platform_device_register(&camera[ID_M6MO_DKB]);
@@ -2830,7 +2839,8 @@ static void __init init(void)
 			OBM_SAAR_C3_NEVO_C0_V10_BOARD == get_board_id() ||
 			OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ == get_board_id() ||
 			OBM_DKB_2_NEVO_C0_BOARD == get_board_id() ||
-			OBM_DKB_2_NEVO_C0_BOARD_533MHZ == get_board_id()) {
+			OBM_DKB_2_NEVO_C0_BOARD_533MHZ == get_board_id() ||
+			OBM_DKB_2_1_NEVO_C0_BOARD == get_board_id()) {
 		adp8885_data.chip_enable = adp8885_bl_enable;
 		adp8885_data.num_chs = 2;
 	}
@@ -2850,7 +2860,8 @@ static void __init init(void)
 		cwgd_plat_data.axes[8] = -1;
 	}
 	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
-			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ) {
+			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
+			get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD) {
 		i2c3_info[0].irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO10));
 		cwmi_acc_data.axes[1] = -1;
 		cwmi_acc_data.axes[3] = 1;
@@ -2877,7 +2888,8 @@ static void __init init(void)
 
 #if defined(CONFIG_KEYBOARD_PXA27x) || defined(CONFIG_KEYBOARD_PXA27x_MODULE)
 	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
-			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ)
+			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
+			get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD)
 		pxa_set_keypad_info(&keypad_info_dkb2);
 	else
 		pxa_set_keypad_info(&keypad_info);
@@ -2911,7 +2923,8 @@ static void __init init(void)
 #if (defined CONFIG_CMMB)
 	/*spi device*/
 	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
-			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ)
+			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
+			get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD)
 		nevo_dkb_init_spi();
 #endif
 
@@ -2932,7 +2945,8 @@ static void __init init(void)
 
 #ifdef CONFIG_PROC_FS
 	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
-			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ) {
+			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
+			get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD) {
 		create_sparrow_rf_proc_file();
 		create_hsl_mfpr_proc_file();
 	}
@@ -2957,20 +2971,21 @@ static int __init saarc_pm_init(void)
 {
 	printk("Enable Power of Saar board.\n");
 	switch (get_board_id()) {
-		case OBM_DKB_2_NEVO_C0_BOARD:
-		case OBM_DKB_2_NEVO_C0_BOARD_533MHZ:
-			cur_profiler = CPUFREQ_PROFILER;
-			mspm_idle_load();
-			break;
+	case OBM_DKB_2_NEVO_C0_BOARD:
+	case OBM_DKB_2_NEVO_C0_BOARD_533MHZ:
+	case OBM_DKB_2_1_NEVO_C0_BOARD:
+		cur_profiler = CPUFREQ_PROFILER;
+		mspm_idle_load();
+		break;
 
-		case OBM_SAAR_C3_NEVO_C0_V10_BOARD:
-		case OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ:
-		case OBM_EVB_NEVO_1_2_BOARD:
-			cur_profiler = MSPM_PROFILER;
-			break;
-		default:
-			pr_err("Bad board ID in %s\n", __func__);
-			BUG();
+	case OBM_SAAR_C3_NEVO_C0_V10_BOARD:
+	case OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ:
+	case OBM_EVB_NEVO_1_2_BOARD:
+		cur_profiler = MSPM_PROFILER;
+		break;
+	default:
+		pr_err("Bad board ID in %s\n", __func__);
+		BUG();
 	}
 	return 0;
 }
