@@ -473,8 +473,9 @@ static int dsi_set_tc358765(struct pxa168fb_info *fbi)
 	/* REG 0x204,DAT 0x00000001 */
 	tc35876x_write32(DSI_STARTDSI, 0x0000001);
 
-	/* REG 0x450,DAT 0x00012020, VSDELAY = 8 pixels */
-	tc35876x_write32(VPCTRL, 0x00800020);
+	/* REG 0x450,DAT 0x00012020, VSDELAY = 8 pixels,
+	 * enable magic square if in_bpp == 24, out_bpp == 18 */
+	tc35876x_write32(VPCTRL, 0x00800020 | (di->bpp == 24 ? 1 : 0));
 
 	/* REG 0x454,DAT 0x00200008*/
 	tc35876x_write32(HTIM1, ((var->left_margin) << 16)
@@ -1406,6 +1407,9 @@ void __init brownstone_add_lcd_mipi(void)
 		mi->max_fb_size = video_modes_brownstone[0].xres *
 		video_modes_brownstone[0].yres * 8 + 4096;
 	}
+
+	/*FIXME: set 24bpp output by default for mmp2 */
+	dsi->bpp = 24;
 
 	if (dsi->bpp == 24) {
 		mmp2_mipi_lcd_info.sclk_src = 800000000 / (dsi->lanes / 2);
