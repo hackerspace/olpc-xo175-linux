@@ -59,6 +59,9 @@ static struct PM8XXX_HS_IOCTL hs_detect;
 
 void pm80x_headphone_handler(int status)
 {
+	if (!pm80x_info)
+		return;
+
 	if (pm80x_info->gpio_num == 3) {
 		if (!pm80x_info || !pm80x_info->psw_data_headset
 			|| !pm80x_info->chip

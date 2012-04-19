@@ -56,6 +56,8 @@ enum {
 #define PM800_NUM_LDO (19)	/*19 Bucks */
 
 /* 88PM805 Registers */
+#define PM805_CHIP_ID			(0x00)
+
 /*Audio*/
 
 /*88PM800 registers*/
@@ -591,7 +593,8 @@ struct pm80x_subchip {
 
 struct pm80x_chip {
 	/*chip_version can only on the top of the struct*/
-	unsigned char chip_version;
+	unsigned char chip800_version;
+	unsigned char chip805_version;
 	struct device *dev;
 	struct pm80x_subchip *pm800_chip;
 	struct pm80x_subchip *pm805_chip;

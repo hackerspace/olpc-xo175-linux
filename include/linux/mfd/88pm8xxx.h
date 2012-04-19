@@ -46,6 +46,11 @@ enum {
 	PM8XXX_CHIP_END = PM800_CHIP_END
 };
 
+enum {
+	PM805_CHIP_B0  = 0x03,
+	PM805_CHIP_C0  = 0x04,
+};
+
 enum enum_result {
 	ENUMERATION_START	= 0,
 	ENUMERATION_500MA,

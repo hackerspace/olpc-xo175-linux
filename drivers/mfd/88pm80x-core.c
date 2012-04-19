@@ -1009,6 +1009,13 @@ static int __devinit device_805_init(struct pm80x_chip *chip,
 	pm805_chip->irq_base = (chip->id == CHIP_PM805) ? chip->irq_base
 			: chip->irq_base + PM800_MAX_IRQ;
 
+	ret = pm80x_reg_read(i2c, PM805_CHIP_ID);
+	if (ret < 0) {
+		dev_err(chip->dev, "Failed to read CHIP ID: %d\n", ret);
+		goto out_chip_id;
+	}
+	chip->chip805_version = ret;
+
 	ret = device_irq_init_805(chip, pdata);
 	if (ret < 0) {
 		dev_err(chip->dev, "Failed to init pm805 irq!\n");
@@ -1032,7 +1039,7 @@ static int __devinit device_805_init(struct pm80x_chip *chip,
 		dev_info(chip->dev,
 			"[%s]:Added mfd codec_devs\n", __func__);
 
-	if (chip->chip_version == PM800_CHIP_B0) {
+	if (chip->chip805_version == PM805_CHIP_B0) {
 		ret = mfd_add_devices(chip->dev, 0, &headset_devs[0],
 				      ARRAY_SIZE(headset_devs),
 				      &headset_resources[0], 0);
@@ -1054,6 +1061,7 @@ out_codec:
 out_work:
 	device_irq_exit_805(chip);
 out_irq_init:
+out_chip_id:
 	kfree(chip->pm805_chip);
 	chip->pm805_chip = NULL;
 	return ret;
@@ -1145,7 +1153,7 @@ static int __devinit device_800_init(struct pm80x_chip *chip,
 	pmic_id = ret & PM8XXX_VERSION_MASK;
 
 	if ((pmic_id >= PM800_CHIP_A0) && (pmic_id <= PM800_CHIP_END)) {
-		chip->chip_version = ret;
+		chip->chip800_version = ret;
 		dev_info(chip->dev,
 			 "88PM80x:Marvell 88PM800 (ID:0x%x) detected\n", ret);
 	} else {
@@ -1217,7 +1225,7 @@ static int __devinit device_800_init(struct pm80x_chip *chip,
 		dev_info(chip->dev,
 			"[%s]:Added mfd onkey_devs\n", __func__);
 
-	if (chip->chip_version >= PM800_CHIP_C0) {
+	if (chip->chip800_version >= PM800_CHIP_C0) {
 		ret = mfd_add_devices(chip->dev, 0, &headset_devs_800[0],
 					ARRAY_SIZE(headset_devs_800), &headset_resources_800[0], 0);
 		if (ret < 0) {
@@ -1253,7 +1261,7 @@ static int __devinit device_800_init(struct pm80x_chip *chip,
 				"[%s]:Added mfd rtc_devs\n", __func__);
 	}
 
-	if (chip->chip_version == PM800_CHIP_B0) {
+	if (chip->chip800_version == PM800_CHIP_B0) {
 		ret = mfd_add_devices(chip->dev, 0, &pm80x_gpio_devs[0],
 					ARRAY_SIZE(pm80x_gpio_devs), NULL, pm800_chip->irq_base);
 		if (ret < 0) {
