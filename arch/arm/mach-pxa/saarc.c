@@ -633,23 +633,26 @@ static struct pm80x_vibrator_pdata vibrator_pdata = {
 
 static int cywee_set_power(int on)
 {
-	struct regulator *v_ldo11;
-	v_ldo11 = regulator_get(NULL, "v_cywee");
+	struct regulator *v_ldo;
+	if (get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD)
+		v_ldo = regulator_get(NULL, "v_lcd_cywee_touch");
+	else
+		v_ldo = regulator_get(NULL, "v_cywee");
 
-	if (IS_ERR(v_ldo11)) {
-		v_ldo11 = NULL;
+	if (IS_ERR(v_ldo)) {
+		v_ldo = NULL;
 		return -EIO;
 	}
 
 	if (on) {
-		regulator_enable(v_ldo11);
+		regulator_enable(v_ldo);
 		msleep(100);
 	} else {
 		msleep(100);
-		regulator_disable(v_ldo11);
+		regulator_disable(v_ldo);
 	}
-	regulator_put(v_ldo11);
-	v_ldo11 = NULL;
+	regulator_put(v_ldo);
+	v_ldo = NULL;
 	return 0;
 }
 
