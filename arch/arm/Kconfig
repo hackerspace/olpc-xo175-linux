@@ -155,6 +155,10 @@ config ARCH_HAS_CPUFREQ
 	  and that the relevant menu configurations are displayed for
 	  it.
 
+config ARCH_HAS_DEVFREQ
+	bool
+	default y
+
 config ARCH_HAS_CPU_IDLE_WAIT
        def_bool y
 
@@ -551,6 +555,7 @@ config ARCH_MMP
 	select PLAT_PXA
 	select SPARSE_IRQ
 	select ARCH_HAS_CPUFREQ
+	select ARCH_HAS_DEVFREQ
 	select GENERIC_ALLOCATOR
 	help
 	  Support for Marvell's PXA168/PXA910(MMP), MMP2 and MMP3 processor line.

@@ -64,6 +64,7 @@ extern struct pxa_device_desc mmp3_device_fb_tv;
 extern struct pxa_device_desc mmp3_device_fb_tv_ovly;
 extern struct pxa_device_desc mmp3_device_v4l2_tv_ovly;
 extern struct pxa_device_desc mmp3_device_hdmi;
+extern struct pxa_device_desc mmp3_device_ddr_devfreq;
 extern struct pxa_device_desc mmp3_device_videosram;
 extern struct pxa_device_desc mmp3_device_thermal;
 
@@ -192,6 +193,11 @@ static inline int mmp3_add_cam(int id, struct mv_cam_pdata *cam)
 	}
 
 	return pxa_register_device(d, cam, sizeof(*cam));
+}
+
+static inline int mmp3_add_ddr_devfreq(void)
+{
+	return pxa_register_device(&mmp3_device_ddr_devfreq, NULL, 0);
 }
 
 static inline int mmp3_add_nand(struct pxa3xx_nand_platform_data *info)
