@@ -252,12 +252,44 @@ failed:
 	return ret;
 }
 
+#ifdef CONFIG_PM
+static int pxa95xfb_ovly_suspend(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct pxa95xfb_info *fbi = platform_get_drvdata(pdev);
+
+	/* disable fb hdmi when suspend */
+	if (fbi->id >= 2 && fbi->controller_on) {
+		conv_ref_clr(fbi);
+		converter_onoff(fbi, 0);
+		fbi->controller_on = 0;
+		fbi->user_addr = 0;
+		lcdc_set_fr_addr(fbi);
+	}
+
+	return 0;
+}
+
+static int pxa95xfb_ovly_resume(struct device *dev)
+{
+	return 0;
+}
+
+static const struct dev_pm_ops pxa95xfb_ovly_pm_ops = {
+	.suspend	= pxa95xfb_ovly_suspend,
+	.resume		= pxa95xfb_ovly_resume,
+};
+#endif
+
 static struct platform_driver pxa95xfb_vid_driver = {
 	.driver		= {
 		.name	= "pxa95xfb-ovly",
 		.owner	= THIS_MODULE,
 	},
 	.probe		= pxa95xfb_vid_probe,
+#ifdef CONFIG_PM
+	.suspend	= &pxa95xfb_ovly_pm_ops,
+#endif
 };
 
 static int __devinit pxa95xfb_vid_init(void)
