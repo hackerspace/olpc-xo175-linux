@@ -49,7 +49,7 @@
  *		misrepresented as being the original software.
  * 3. This notice may not be removed or altered from any source distribution.
  */
-static int pxa978_suspend_finish(unsigned int core_mode)
+static int pxa978_suspend_finish(unsigned long core_mode)
 {
 	unsigned int power_mode = PWRMODE;
 	if (power_mode & PWRMODE_L2_DIS_IN_C2) {
@@ -65,7 +65,7 @@ static int pxa978_suspend_finish(unsigned int core_mode)
 		/*WR for NEVO-2344. l2$ content lost in D1*/
 		outer_disable();
 	}
-	pxa978_cpu_suspend(get_c2_sram_base(), pl310_membase, core_mode,
+	pxa978_cpu_suspend(get_c2_sram_base() + 0x10, pl310_membase, core_mode,
 			   power_mode & PWRMODE_L2_DIS_IN_C2);
 	return 0;
 }
@@ -81,7 +81,7 @@ void c2_address_remap(void)
 	__raw_writel(((c2_addr >> 13) | 1) & 0x1FFF, remap_c2_reg);
 }
 
-void pxa978_pm_enter(unsigned int core_mode)
+void pxa978_pm_enter(unsigned long core_mode)
 {
 	unsigned int debug_context[DEBUG_DATA_SIZE / sizeof(unsigned int)];
 	unsigned int pmu_context[PMU_DATA_SIZE / sizeof(unsigned int)];

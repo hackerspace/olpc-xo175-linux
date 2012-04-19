@@ -49,6 +49,7 @@
 #include <mach/pxa9xx_pm_logger.h>	/* for pm debug tracing */
 #include <mach/dma.h>
 #include <asm/mach/map.h>
+#include <mach/ca9_asm.h>
 
 /* mtd.h declares another DEBUG macro definition */
 #undef DEBUG
@@ -2240,8 +2241,10 @@ static int __init pxa95x_pm_init(void)
 	/* Setting C2 as default */
 #ifdef CONFIG_PXA95x_DVFM
 	pm_core_pwdn(CPU_PDWN_LPM_EXIT);
-	if (cpu_is_pxa978())
+	if (cpu_is_pxa978()) {
 		remap_c2_reg = ioremap(REMAP_C2_REG , 0x4);
+		pxa978_save_reset_handler(get_c2_sram_base());
+	}
 #endif
 
 	/* Enabling ACCU and BPMU interrupts */
@@ -2273,7 +2276,7 @@ static int __init pxa95x_pm_init(void)
 	return 0;
 }
 
-late_initcall(pxa95x_pm_init);
+module_init(pxa95x_pm_init);
 
 /* uboot parameters handling */
 

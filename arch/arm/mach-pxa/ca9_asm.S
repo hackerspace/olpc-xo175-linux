@@ -67,15 +67,13 @@ pxa978_enter_c1:
 	wfi
 	bx	lr
 
-	.global pxa978_cpu_suspend
-pxa978_cpu_suspend:
-	cmp	r2, #0x0
-	beq	pxa978_enter_c1
-	mov 	r6, r1		@l2c base address virtual
-	mov	r7, r3		@PWR_MODE
+	.global pxa978_save_reset_handler
+pxa978_save_reset_handler:
+	stmfd	sp!, {r4-r12,lr}
 	mov	r2, r0, lsr #14
 	mov	r2, r2, lsl #14
-@ copy reset handler to SRAM
+
+	@ copy reset handler to SRAM
 	adr	r3, reset_chunk
 	ldrd	r0, [r3]
 	strd	r0, [r2]
@@ -85,10 +83,16 @@ pxa978_cpu_suspend:
 	str	r0, [r2, #0x08]
 
 	add	r0, r2, #0x10
-	mov	r5, r0
 	bl	VirtualToPhysical 	@ modified r0,r1
 	str	r0, [r2, #0x0c]
-	mov	r0, r5
+	ldmfd		sp!,{r4-r12,pc}
+
+	.global pxa978_cpu_suspend
+pxa978_cpu_suspend:
+	cmp	r2, #0x0
+	beq	pxa978_enter_c1
+	mov 	r6, r1		@l2c base address virtual
+	mov	r7, r3		@PWR_MODE
 save_pl310:
 	ldr	r1, [r6, #L2X0_CTRL]
 	ldr 	r2, [r6, #L2X0_AUX_CTRL]
