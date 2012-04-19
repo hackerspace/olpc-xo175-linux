@@ -800,7 +800,7 @@ struct fb_videomode video_modes_adv7533[] = {
 };
 
 /* refer to EIA-CEA-861-D format list*/
-struct fb_videomode video_modes_ihdmi[] = {
+struct fb_videomode video_modes_ihdmi[16] = {
 	[0] = { /* 640x480p */
 		.pixclock		= 25170,
 		.refresh		= 60,
