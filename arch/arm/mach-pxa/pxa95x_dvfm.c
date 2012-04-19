@@ -67,7 +67,7 @@ struct mutex op_change_mutex;
 /* setting the default voltage level to 1.05V */
 unsigned int D2voltageLevelValue = 0x0D;
 extern struct info_head dvfm_trace_list;
-static unsigned int mm_pll_freq, ddr_pll_freq;
+static unsigned int ddr_pll_freq;
 
 /* Counter Structure for Debugging ENTER/EXIT D2/CGM */
 pxa95x_DVFM_LPM_Global_Count DVFMLPMGlobalCount = { 0, 0, 0 };
@@ -898,35 +898,6 @@ int md2fvinfo(struct pxa95x_fv_info *fv_info, struct dvfm_md_opt *orig)
 	return freq2reg(fv_info, orig);
 }
 
-static inline unsigned int get_mm_pll_freq(void)
-{
-	unsigned int mmpllr, fbdiv, refdiv, vcodiv_sel, vcodiv, freq = 0;
-	mmpllr = MM_PLL_PARAM;
-	fbdiv = (mmpllr & MMPLL_FBDIV_MASK) >> 5;
-	refdiv = mmpllr & MMPLL_REFDIV_MASK;
-	vcodiv_sel = (mmpllr & MMPLL_VCODIV_SEL_MASK) >> 20;
-	switch (vcodiv_sel) {
-	case 0:
-		vcodiv = 1;
-		break;
-	case 2:
-		vcodiv = 2;
-		break;
-	case 5:
-		vcodiv = 4;
-		break;
-	case 8:
-		vcodiv = 8;
-		break;
-	default:
-		pr_err("wrong vcodiv!\n");
-		BUG_ON(1);
-		break;
-	}
-	freq = (26 * fbdiv / refdiv) / vcodiv;
-	return freq;
-}
-
 static inline unsigned int get_ddr_pll_freq(void)
 {
 	unsigned int ddrpll, m, n, vcodiv_sel, vcodiv, freq;
@@ -1507,21 +1478,6 @@ static int set_ddr_208Mhz(struct pxa95x_dvfm_info *info,
 	polling_dmc(info);
 	/* the frequency is 208 now we can change  the clock source PLL */
 	return rc;
-}
-
-static inline unsigned int mm_pll_freq2reg(unsigned int x)
-{
-	switch (x) {
-	case 498:
-		/* VCODIV_SEL=5 KVCO=5 FBDIV=230(0xE6) REFDIV=3*/
-		return 5 << 20 | 5 << 16 | 0xE6 << 5 | 3 << 0;
-	case 600:
-		/* VCODIV_SEL=5 KVCO=7 FBDIV=277(0x115) REFDIV=3*/
-		return 5 << 20 | 7 << 16 | 0x115 << 5 | 3 << 0;
-	default:
-		pr_err("Unsupported MM PLL frequency %d!\n", x);
-		return 0;
-	}
 }
 
 static inline unsigned int ddr_pll_freq2reg(unsigned int x)
@@ -2135,16 +2091,6 @@ static inline void pxa978_set_core_freq(struct pxa95x_dvfm_info *info,
 				;
 		}
 	}
-}
-
-static void mm_pll_enable(unsigned int enable)
-{
-	if (enable) {
-		MM_PLL_CTRL |= MMPLL_PWRON;
-		while (!(MM_PLL_CTRL & MMPLL_PWR_ST))
-			;
-	} else
-		MM_PLL_CTRL &= ~MMPLL_PWRON;
 }
 
 static int set_freq(void *driver_data, struct dvfm_md_opt *old,
@@ -3554,7 +3500,6 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 	l2_base_addr = ioremap(0x58120000, 0x1000);
 	pxa95x_poweri2c_init(info);
 	if (cpu_is_pxa978()) {
-		mm_pll_freq = get_mm_pll_freq();
 		ddr_pll_freq = get_ddr_pll_freq();
 	}
 	op_init(info, &pxa95x_dvfm_op_list);

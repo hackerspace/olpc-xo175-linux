@@ -12,6 +12,7 @@
  */
 #include <linux/io.h>
 #include <linux/delay.h>
+#include <linux/clk.h>
 #include <plat/clock.h>
 #include <mach/pxa3xx-regs.h>
 #include <mach/debug_pm.h>
@@ -428,7 +429,7 @@ static int clk_pxa95x_ihdmi_setrate(struct clk *clk, unsigned long rate)
 	p_Regs->HDMI_PHY_CTL1 = 0xC9200040;
 	p_Regs->HDMI_PHY_CTL2 = 0x0000DDDD;
 	p_Regs->HDMI_PLL_DEBUG1 |= 0x00024900;
-	printk("hdmi: TMDS clk set to %dMhz\n", hdmi_clk/5);
+	printk(KERN_INFO "hdmi: TMDS clk set to %dMhz\n", hdmi_clk / 5);
 	/* For several frequencys, use optimal parameters from the table
 	   - else, calculate according to spec */
 	switch (hdmi_clk) {
@@ -647,6 +648,105 @@ static const struct clkops clk_pxa9xx_u2o_ops = {
 	.disable = clk_pxa9xx_u2o_disable,
 };
 
+static void mm_pll_enable(unsigned int enable)
+{
+	if (enable) {
+		MM_PLL_CTRL |= MMPLL_PWRON;
+		while (!(MM_PLL_CTRL & MMPLL_PWR_ST))
+			;
+	} else
+		MM_PLL_CTRL &= ~MMPLL_PWRON;
+}
+
+static inline unsigned int get_mm_pll_freq(void)
+{
+	unsigned int mmpllr, fbdiv, refdiv, vcodiv_sel, vcodiv, freq = 0;
+	mmpllr = MM_PLL_PARAM;
+	fbdiv = (mmpllr & MMPLL_FBDIV_MASK) >> 5;
+	refdiv = mmpllr & MMPLL_REFDIV_MASK;
+	vcodiv_sel = (mmpllr & MMPLL_VCODIV_SEL_MASK) >> 20;
+	switch (vcodiv_sel) {
+	case 0:
+		vcodiv = 1;
+		break;
+	case 2:
+		vcodiv = 2;
+		break;
+	case 5:
+		vcodiv = 4;
+		break;
+	case 8:
+		vcodiv = 8;
+		break;
+	default:
+		pr_err("wrong vcodiv!\n");
+		BUG_ON(1);
+		break;
+	}
+	freq = (26 * fbdiv / refdiv) / vcodiv;
+	return freq;
+}
+
+static inline unsigned int mm_pll_freq2reg(unsigned int x)
+{
+	switch (x) {
+	case 498:
+		/* VCODIV_SEL=5 KVCO=5 FBDIV=230(0xE6) REFDIV=3 */
+		return 5 << 20 | 5 << 16 | 0xE6 << 5 | 3 << 0;
+	case 600:
+		/* VCODIV_SEL=5 KVCO=7 FBDIV=277(0x115) REFDIV=3 */
+		return 5 << 20 | 7 << 16 | 0x115 << 5 | 3 << 0;
+	default:
+		pr_err("Unsupported MM PLL frequency %d!\n", x);
+		return 0;
+	}
+}
+
+static inline void set_mmpll_freq(unsigned int rate)
+{
+	uint32_t mm_pll_param;
+	if ((rate != 498) && (rate != 600))
+		return;
+	mm_pll_param = MM_PLL_PARAM;
+	mm_pll_param &= ~(MMPLL_VCODIV_SEL_MASK
+			  | MMPLL_KVCO_MASK
+			  | MMPLL_FBDIV_MASK | MMPLL_REFDIV_MASK);
+	mm_pll_param |= mm_pll_freq2reg(rate);
+
+	MM_PLL_PARAM = mm_pll_param;
+	while (!(MM_PLL_CTRL & MMPLL_PWR_ST))
+		;
+}
+
+static int clk_mmpll_enable(struct clk *clk)
+{
+	mm_pll_enable(1);
+	return 1;
+}
+
+static void clk_mmpll_disable(struct clk *clk)
+{
+	mm_pll_enable(0);
+}
+
+static unsigned long clk_mmpll_getrate(struct clk *mmpll)
+{
+	return get_mm_pll_freq();
+}
+
+static int clk_mmpll_setrate(struct clk *mmpll, unsigned long rate)
+{
+	set_mmpll_freq(rate);
+	return 0;
+}
+
+static const struct clkops clk_mmpll_ops = {
+	.enable = clk_mmpll_enable,
+	.disable = clk_mmpll_disable,
+	.getrate = clk_mmpll_getrate,
+	.setrate = clk_mmpll_setrate,
+};
+
 static int clk_gcu_enable(struct clk *clk)
 {
 	gc_vmeta_stats_clk_event(GC_CLK_ON);
@@ -662,9 +762,143 @@ static void clk_gcu_disable(struct clk *clk)
 	gc_vmeta_stats_clk_event(GC_CLK_OFF);
 }
 
+static long clk_pxa95x_gc_round_rate(struct clk *gc_clk, unsigned long rate)
+{
+	if (rate <= 156000000)
+		rate = 156000000;
+	else if (rate <= 208000000)
+		rate = 208000000;
+	else if (rate <= 312000000)
+		rate = 312000000;
+	else if (rate <= 416000000)
+		rate = 416000000;
+	else if (rate <= 498000000)
+		rate = 498000000;
+	else
+		rate = 600000000;
+
+	return rate;
+}
+
+static unsigned long clk_pxa95x_gc_getrate(struct clk *gc_clk)
+{
+	unsigned long rate;
+	rate = (ACCR0 >> 9) & 0x7;
+
+	switch (rate) {
+	case 0:
+		rate = 208;
+		break;
+	case 1:
+		rate = 156;
+		break;
+	case 2:
+		rate = 312;
+		break;
+	case 3:
+		rate = 416;
+		break;
+	case 5:
+		rate = get_mm_pll_freq();
+		break;
+	default:
+		return -1;
+	}
+	return rate * 1000000;
+}
+
+#define GCVMETA_WR
+/* flag = 1 means gc frequency change
+ * flag = 0 means vmeta frequency change
+ * current solution is change both GC and vMeta to 500/600
+ * if GC or vMeta are at MMPLL and the other want to change
+ * to MMPLL or change MMPLL's frequency.
+ */
+static void mm_pll_setting(int flag, unsigned rate, unsigned int value, unsigned int mask)
+{
+	unsigned int tmp, gcfs, vmfc, ori_gc, ori_vmeta;
+	struct clk *gc_clk, *vmeta_clk;
+	gc_clk = clk_get(NULL, "GCCLK");
+	vmeta_clk = clk_get(NULL, "VMETA_CLK");
+	gcfs = clk_get_rate(gc_clk) / 1000000;
+	vmfc = clk_get_rate(vmeta_clk) / 1000000;
+	rate = rate / 1000000;
+	if (rate < 498) {
+		write_accr0(value, mask);
+		if ((flag && (vmfc < 498) && (gcfs >= 498)) ||
+		   (!flag && (gcfs < 498) && (vmfc >= 498)))
+			mm_pll_enable(0);
+		return;
+	} else if (vmfc < 498 && gcfs < 498)
+		mm_pll_enable(1);
+
+	if (get_mm_pll_freq() == rate) {
+		write_accr0(value, mask);
+		return;
+	}
+	tmp = ACCR0;
+	ori_gc = ACCR0 & (ACCR0_GCFS_MASK | ACCR0_GCAXIFS_MASK);
+	ori_vmeta = ACCR0 & ACCR0_VMFC_MASK;
+	if (gcfs >= 498) {
+		tmp &= ~(ACCR0_GCFS_MASK | ACCR0_GCAXIFS_MASK);
+		tmp |= (0x3 << ACCR0_GCFS_OFFSET | 0x3 << ACCR0_GCAXIFS_OFFSET);
+		if (!flag && (gcfs != rate)) {
+			value |= ori_gc;
+			mask |= (ACCR0_GCFS_MASK | ACCR0_GCAXIFS_MASK);
+			gc_clk->rate = rate;
+		}
+	}
+	if (vmfc >= 498) {
+		tmp &= ~ACCR0_VMFC_MASK;
+		tmp |= 0x3 << ACCR0_VMFC_OFFSET;
+		if (flag && (vmfc != rate)) {
+			value |= ori_vmeta;
+			mask |= ACCR0_VMFC_MASK;
+			vmeta_clk->rate = rate;
+		}
+	}
+	ACCR0 = tmp;
+	set_mmpll_freq(rate);
+	write_accr0(value, mask);
+}
+
+static int clk_pxa95x_gcu_setrate(struct clk *gc_clk, unsigned long rate)
+{
+	unsigned int value, mask = 0x3F << 6;
+	switch (rate) {
+	case 208000000:
+		value = 0;
+		break;
+	case 156000000:
+		value = (0x1 << 3) | 0x1;
+		break;
+	case 312000000:
+		value = (0x2 << 3) | 0x2;
+		break;
+	case 416000000:
+		value = (0x3 << 3) | 0x3;
+		break;
+	case 498000000:
+	case 600000000:
+		value = (0x5 << 3) | 0x5;
+		break;
+	default:
+		printk(KERN_ERR "GC doesn't suppport rate: %lu\n", rate);
+		return -1;
+	}
+#ifdef GCVMETA_WR
+	mm_pll_setting(1, rate, value << 6, mask);
+#endif
+	return 0;
+}
+
 static const struct clkops clk_gcu_ops = {
+	.init = common_clk_init,
 	.enable = clk_gcu_enable,
 	.disable = clk_gcu_disable,
+	.round_rate = clk_pxa95x_gc_round_rate,
+	.getrate = clk_pxa95x_gc_getrate,
+	.setrate = clk_pxa95x_gcu_setrate,
 };
 
 static int clk_csi_tx_esc_enable(struct clk *csi_clk)
@@ -812,6 +1046,91 @@ static const struct clkops clk_pxa95x_smc_ops = {
 	.enable = clk_pxa95x_smc_enable,
 	.disable = clk_pxa95x_smc_disable,
 	.getrate = clk_pxa95x_smc_getrate,
+};
+
+static long clk_pxa95x_vmeta_round_rate(struct clk *vmeta_clk,
+					unsigned long rate)
+{
+	if (rate <= 156000000)
+		rate = 156000000;
+	else if (rate <= 208000000)
+		rate = 208000000;
+	else if (rate <= 312000000)
+		rate = 312000000;
+	else if (rate <= 416000000)
+		rate = 416000000;
+	else if (rate <= 498000000)
+		rate = 498000000;
+	else
+		rate = 600000000;
+	return rate;
+}
+
+static unsigned long clk_pxa95x_vmeta_getrate(struct clk *vmeta_clk)
+{
+	unsigned long rate;
+	rate = (ACCR0 >> 3) & 0x7;
+	switch (rate) {
+	case 0:
+		rate = 156000000;
+		break;
+	case 1:
+		rate = 312000000;
+		break;
+	case 2:
+		rate = 208000000;
+		break;
+	case 3:
+		rate = 416000000;
+		break;
+	case 5:
+		rate = get_mm_pll_freq() * 1000000;
+		break;
+	default:
+		return -1;
+	}
+	return rate;
+}
+
+static int clk_pxa95x_vmeta_setrate(struct clk *vmeta_clk, unsigned long rate)
+{
+	unsigned int value, mask = 0x7 << 3;
+	switch (rate) {
+	case 156000000:
+		value = 0;
+		break;
+	case 208000000:
+		value = 2;
+		break;
+	case 312000000:
+		value = 1;
+		break;
+	case 416000000:
+		value = 3;
+		break;
+	case 498000000:
+		value = 5;
+		break;
+	case 600000000:
+		value = 5;
+		break;
+	default:
+		printk(KERN_ERR "VMeta don't suppport rate: %lu\n", rate);
+		return -1;
+	}
+#ifdef GCVMETA_WR
+	mm_pll_setting(0, rate, value << 3, mask);
+#endif
+	return 0;
+}
+
+static const struct clkops clk_pxa95x_vmeta_ops = {
+	.init = common_clk_init,
+	.disable = clk_pxa3xx_cken_disable,
+	.enable = clk_pxa3xx_cken_enable,
+	.round_rate = clk_pxa95x_vmeta_round_rate,
+	.getrate = clk_pxa95x_vmeta_getrate,
+	.setrate = clk_pxa95x_vmeta_setrate,
 };
 
 static DEFINE_CK(pxa95x_dsi0, DSI_TX1, &clk_pxa95x_dsi_ops);
@@ -965,8 +1284,7 @@ static struct clk clk_pxa95x_sci2 = {
 static struct clk clk_pxa95x_vmeta = {
 	.dependence = common_depend_clk,
 	.dependence_count = ARRAY_SIZE(common_depend_clk),
-	.rate = 312000000,
-	.ops = &clk_pxa3xx_cken_ops,
+	.ops = &clk_pxa95x_vmeta_ops,
 	.enable_val = CKEN_VMETA,
 };
 
@@ -980,6 +1298,10 @@ static struct clk clk_pxa95x_lcd = {
 	.dependence_count = ARRAY_SIZE(lcd_depend_clk),
 	.ops = &clk_pxa95x_lcd_ops,
 	.enable_val = CKEN_DISPLAY,
+};
+
+static struct clk clk_pxa978_mmpll = {
+	.ops = &clk_mmpll_ops,
 };
 
 static struct clk_lookup common_clkregs[] = {
@@ -1037,6 +1359,7 @@ static struct clk_lookup pxa978_specific_clkregs[] = {
 	INIT_CLKREG(&clk_pxa978_sdh1, "sdhci-pxa.1", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_pxa978_sdh2, "sdhci-pxa.2", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_pxa978_sdh3, "sdhci-pxa.3", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_pxa978_mmpll, NULL, "MM_PLL"),
 };
 
 static inline void clock_lookup_init(struct clk_lookup *clk_lookup, int count)
