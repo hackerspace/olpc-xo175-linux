@@ -1747,7 +1747,6 @@ static void __init abilene_init(void)
 #ifdef CONFIG_UIO_HDMI
 	mmp3_add_hdmi(&mmp3_hdmi_info);
 #endif
-	mmp3_add_ddr_devfreq();
 	/* backlight */
 	mmp3_add_pwm(3);
 	platform_device_register(&abilene_lcd_backlight_devices);
