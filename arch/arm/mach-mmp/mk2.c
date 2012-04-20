@@ -985,7 +985,8 @@ static int mmp3_hsic_set_vbus(unsigned int on)
 	ret = hsic_hub_power(on);
 	if (ret)
 		goto out;
-	ret = hsic_hub_reset();
+	if (on)
+		ret = hsic_hub_reset();
 out:
 	if (ret)
 		pr_err("%s: failed to set vbus\n", __func__);
@@ -1003,6 +1004,7 @@ static struct mv_usb_platform_data mmp3_hsic2_pdata = {
 	.vbus		= NULL,
 	.mode		= MV_USB_MODE_HOST,
 	.phy_init	= mmp3_hsic_phy_init,
+	.phy_deinit	= mmp3_hsic_phy_deinit,
 	.set_vbus	= mmp3_hsic_set_vbus,
 	.private_init = mmp3_hsic_private_init,
 };
