@@ -52,6 +52,7 @@
 #define   IRQ_TWSIE       0x00000400    /* TWSI error */
 #define   TWSIIRQS (IRQ_TWSIW|IRQ_TWSIR|IRQ_TWSIE)
 #define   FRAMEIRQS_EOF (IRQ_EOF0|IRQ_EOF1|IRQ_EOF2 | IRQ_OVERFLOW)
+#define   FRAMEIRQS_SOF (IRQ_SOF0|IRQ_SOF1|IRQ_SOF2)
 #define   ALLIRQS (TWSIIRQS|FRAMEIRQS|IRQ_OVERFLOW)
 #define REG_IRQMASK	0x2c	/* IRQ mask - same bits as IRQSTAT */
 #define REG_IRQSTAT	0x30	/* IRQ status / clear */

@@ -88,6 +88,7 @@ static void unset_power_constraint(int min)
 #define MAX_DMA_BUFS 2
 
 #define CF_SINGLE_BUFFER 5	/* Running with a single buffer */
+#define CF_SOF 6
 
 /*
  * Basic frame stats
@@ -354,12 +355,15 @@ static int ccic_config_image(struct mv_camera_dev *pcdev)
 static void ccic_irq_enable(struct mv_camera_dev *pcdev)
 {
 	ccic_reg_write(pcdev, REG_IRQSTAT, FRAMEIRQS_EOF);
+	ccic_reg_write(pcdev, REG_IRQSTAT, FRAMEIRQS_SOF);
 	ccic_reg_set_bit(pcdev, REG_IRQMASK, FRAMEIRQS_EOF);
+	ccic_reg_set_bit(pcdev, REG_IRQMASK, FRAMEIRQS_SOF);
 }
 
 static void ccic_irq_disable(struct mv_camera_dev *pcdev)
 {
 	ccic_reg_clear_bit(pcdev, REG_IRQMASK, FRAMEIRQS_EOF);
+	ccic_reg_clear_bit(pcdev, REG_IRQMASK, FRAMEIRQS_SOF);
 }
 
 static void ccic_start(struct mv_camera_dev *pcdev)
@@ -620,7 +624,7 @@ static int mv_start_streaming(struct vb2_queue *vq)
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct mv_camera_dev *pcdev = ici->priv;
 	unsigned long flags = 0;
-	int ret;
+	int ret, frame;
 
 	mutex_lock(&pcdev->s_mutex);
 	if (pcdev->state != S_IDLE) {
@@ -645,6 +649,8 @@ static int mv_start_streaming(struct vb2_queue *vq)
 	spin_unlock_irqrestore(&pcdev->list_lock, flags);
 	ret = mv_read_setup(pcdev);
 out_unlock:
+	for (frame = 0; frame < pcdev->nbufs; frame++)
+		clear_bit(CF_SOF+frame, &pcdev->flags);
 	mutex_unlock(&pcdev->s_mutex);
 	return ret;
 }
@@ -760,8 +766,14 @@ static irqreturn_t mv_camera_irq(int irq, void *data)
 	ccic_reg_write(pcdev, REG_IRQSTAT, irqs);
 
 	for (frame = 0; frame < pcdev->nbufs; frame++)
-		if (irqs & (IRQ_EOF0 << frame))
+		if (irqs & (IRQ_SOF0 << frame))
+			set_bit(CF_SOF+frame, &pcdev->flags);
+
+	for (frame = 0; frame < pcdev->nbufs; frame++)
+		if (irqs & (IRQ_EOF0 << frame) && test_bit(CF_SOF+frame, &pcdev->flags)) {
 			ccic_frame_complete(pcdev, frame);
+			clear_bit(CF_SOF+frame, &pcdev->flags);
+		}
 
 	return IRQ_HANDLED;
 }
