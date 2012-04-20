@@ -12,7 +12,6 @@
 #include <linux/interrupt.h>
 #include <linux/i2c.h>
 #include <linux/i2c/pxa95x-i2c.h>
-#include <linux/mfd/88pm860x.h>
 #include <linux/mfd/88pm80x.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
@@ -61,134 +60,15 @@
 
 #define NEVOSAARC_NR_IRQS	(IRQ_BOARD_START + 40)
 
-static struct pm860x_backlight_pdata backlight[] = {
-	{
-		/*backlight data*/
-		.id	= PM8606_ID_BACKLIGHT,
-		.iset = PM8606_WLED_CURRENT(0x12),
-		.flags	= PM8606_BACKLIGHT1,
-	},
-	{
-		/*keypad backlight data*/
-		.id	= PM8606_ID_BACKLIGHT,
-		.pwm = 0x10,
-		.iset = PM8606_WLED_CURRENT(0x05),
-		.flags	= PM8606_BACKLIGHT2,
-	},
-};
-
-static struct pm860x_led_pdata led[] = {
-	{
-		.id	= PM8606_ID_LED,
-		.iset	= PM8606_LED_CURRENT(12),
-		.flags	= PM8606_LED1_RED,
-	}, {
-		.id	= PM8606_ID_LED,
-		.iset	= PM8606_LED_CURRENT(12),
-		.flags	= PM8606_LED1_GREEN,
-	}, {
-		.id	= PM8606_ID_LED,
-		.iset	= PM8606_LED_CURRENT(12),
-		.flags	= PM8606_LED1_BLUE,
-	}, {
-		.id	= PM8606_ID_LED,
-		.iset	= PM8606_LED_CURRENT(12),
-		.flags	= PM8606_LED2_RED,
-	}, {
-		.id	= PM8606_ID_LED,
-		.iset	= PM8606_LED_CURRENT(12),
-		.flags	= PM8606_LED2_GREEN,
-	}, {
-		.id	= PM8606_ID_LED,
-		.iset	= PM8606_LED_CURRENT(12),
-		.flags	= PM8606_LED2_BLUE,
-	},
-};
-
-static void disable_rf(void)
-{
-}
-
-static struct pm860x_power_pdata power = {
-	.disable_rf_fn  = disable_rf,
-};
-
 static void init_rfreset_gpio(void)
 {
 	update_rfreset_gpio_num(MFP_PIN_GPIO112);
 }
-#if defined(CONFIG_SENSORS_CM3601)
-static int cm3601_request_resource(unsigned char gpio_num, char *name)
-{
-	int ret = 0;
-	ret = gpio_request(mfp_to_gpio(gpio_num), name);
-	if (ret) {
-			printk(KERN_ERR "%s: can't request GPIO %d.\n", __func__, gpio_num);
-			return -1;
-	}
-	return ret;
-}
 
-static void cm3601_release_resource(unsigned char gpio_num)
-{
-	gpio_free(gpio_num);
-}
-
-static struct pm860x_cm3601_pdata cm3601_platform_info = {
-	.gpio_cm3601_enable =   MFP_PIN_GPIO133,
-	.gpio_ps_output =       MFP_PIN_GPIO135,
-	.gpio_ps_enable =       MFP_PIN_GPIO134,
-	.request_source =       cm3601_request_resource,
-	.release_source =       cm3601_release_resource,
-};
-#endif
-
-static struct pm860x_headset_pdata headset_platform_info	 = {
-	.headset_flag = 0,
-	/* headset switch */
-	.headset_data[0].name = "h2w",
-	.headset_data[0].gpio = 0,
-	.headset_data[0].name_on = NULL,
-	.headset_data[0].name_off = NULL,
-	.headset_data[0].state_on = NULL,
-	.headset_data[0].state_off = NULL,
-	/* hook switch */
-	.headset_data[1].name = "h3w",
-	.headset_data[1].gpio = 0,
-	.headset_data[1].name_on = NULL,
-	.headset_data[1].name_off = NULL,
-	.headset_data[1].state_on = NULL,
-	.headset_data[1].state_off = NULL,
-};
-
-
-/* TODO: check the regulator data carefully */
-#define PM8XXX_REGULATOR_MAX ((PM8607_ID_RG_MAX > PM800_ID_RG_MAX) ? \
-		PM8607_ID_RG_MAX : PM800_ID_RG_MAX)
+#define PM8XXX_REGULATOR_MAX PM800_ID_RG_MAX
 
 static struct regulator_consumer_supply regulator_supply[PM8XXX_REGULATOR_MAX];
 static struct regulator_init_data regulator_data[PM8XXX_REGULATOR_MAX];
-
-static int PM8607_ID_regulator_index[] = {
-	PM8607_ID_BUCK1,
-	PM8607_ID_BUCK2,
-	PM8607_ID_BUCK3,
-	PM8607_ID_LDO1,
-	PM8607_ID_LDO2,
-	PM8607_ID_LDO3,
-	PM8607_ID_LDO4,
-	PM8607_ID_LDO5,
-	PM8607_ID_LDO6,
-	PM8607_ID_LDO7,
-	PM8607_ID_LDO8,
-	PM8607_ID_LDO9,
-	PM8607_ID_LDO10,
-	PM8607_ID_LDO11,
-	PM8607_ID_LDO12,
-	PM8607_ID_LDO13,
-	PM8607_ID_LDO14,
-	PM8607_ID_LDO15,
-};
 
 static int PM800_ID_regulator_index[] = {
 	PM800_ID_BUCK1,
@@ -246,41 +126,12 @@ static int PM800_ID_regulator_index[] = {
 	regulator_data[_i].constraints.apply_uV = (_min == _max);	\
 }
 
-static struct pm860x_rtc_pdata rtc = {
-	.vrtc           = 1,
-	.rtc_wakeup     = 0,
-#ifdef CONFIG_RTC_DRV_PXA
-	.sync		= pxa_rtc_sync_time,
-#endif
-};
-
 static struct pm80x_rtc_pdata pm80x_rtc = {
 	.vrtc           = 1,
 	.rtc_wakeup     = 0,
 #ifdef CONFIG_RTC_DRV_PXA
 	.sync		= pxa_rtc_sync_time,
 #endif
-};
-
-static struct pm860x_platform_data pm8607_info = {
-	.backlight	= &backlight[0],
-	.led		= &led[0],
-	.power		= &power,
-	.regulator	= regulator_data,
-#if defined(CONFIG_SENSORS_CM3601)
-	.cm3601		= &cm3601_platform_info,
-#endif
-	.headset = &headset_platform_info,
-	.rtc		= &rtc,
-	.companion_addr	= 0x10,
-
-	.irq_mode	= 0,
-	.irq_base	= IRQ_BOARD_START,
-
-	.i2c_port	= PI2C_PORT,
-
-	.num_leds	= ARRAY_SIZE(led),
-	.num_backlights	= ARRAY_SIZE(backlight),
 };
 
 static int pm800_plat_config(struct pm80x_chip *chip,
@@ -371,41 +222,6 @@ static void headsetflag_init_pm800(void)
 		break;
 	}
 }
-static void regulator_init_pm8607(void)
-{
-	int i = 0;
-
-	if (PXA95x_USE_POWER_I2C != freq_mach_info.flags) {
-		REG_SUPPLY_INIT(PM8607_ID_BUCK1, "v_buck1", "pxa95x-freq");
-		REG_INIT(i++, PM8607_ID, BUCK1, 1000000, 1500000, 1, 1);
-	}
-
-	/* for hdmi */
-	REG_SUPPLY_INIT(PM8607_ID_LDO12, "v_ihdmi", NULL);
-	REG_INIT(i++, PM8607_ID, LDO12, 1200000, 3300000, 0, 0);
-
-	switch (get_board_id()) {
-
-	case OBM_SAAR_C2_NEVO_A0_V10_BOARD:
-		REG_SUPPLY_INIT(PM8607_ID_LDO1, "v_gps", NULL);
-		REG_SUPPLY_INIT(PM8607_ID_LDO9, "v_cam", NULL);
-		REG_SUPPLY_INIT(PM8607_ID_LDO13, "vmmc", "sdhci-pxa.1");
-		REG_SUPPLY_INIT(PM8607_ID_LDO10, "v_cywee", NULL);
-
-		REG_INIT(i++, PM8607_ID, LDO1, 1200000, 3300000, 0, 0);
-		REG_INIT(i++, PM8607_ID, LDO9, 1800000, 3300000, 0, 0);
-		REG_INIT(i++, PM8607_ID, LDO13, 1800000, 3300000, 0, 0);
-		REG_INIT(i++, PM8607_ID, LDO10, 2800000, 2800000, 0, 0);
-		printk(KERN_INFO "%s: select saarC NEVO ldo map\n", __func__);
-	break;
-
-	default:
-		printk(KERN_ERR "%s: The board type is not defined!\n ", __func__);
-		BUG();
-	}
-
-	pm8607_info.num_regulators = i;
-}
 
 static void regulator_init_pm800(void)
 {
@@ -495,14 +311,6 @@ static void regulator_init_pm800(void)
 
 	pm800_info.num_regulators = i;
 }
-
-static struct i2c_board_info i2c1_860x_info[] = {
-	{
-		I2C_BOARD_INFO("88PM860x", 0x34),
-		.platform_data	= &pm8607_info,
-		.irq            = IRQ_PMIC_INT,
-	},
-};
 
 static struct i2c_board_info i2c1_80x_info[] = {
 	{
@@ -873,33 +681,6 @@ static struct cwgd_platform_data cwgd_plat_data = {
 
 static int ssd2531_ts_pins[] = { MFP_PIN_GPIO8, MFP_PIN_GPIO7 };
 
-#if defined(CONFIG_HDMI_ADV7533)
-static void adv7533_hdmi_reset(void)
-{
-	int pin0 = mfp_to_gpio(MFP_PIN_GPIO15);
-	int pin1 = mfp_to_gpio(MFP_PIN_GPIO13);
-	printk(KERN_INFO "hdmi: adv7533_hdmi_reset+\n");
-
-	if (gpio_request(pin0, "hdmi-reset0")) {
-		printk(KERN_ERR "hdmi: gpio_request0: failed!\n");
-	}
-	if (gpio_request(pin1, "hdmi-reset1")) {
-		printk(KERN_ERR "hdmi: gpio_request1: failed!\n");
-	}
-	gpio_direction_output(pin1, 1);
-	msleep(10);
-	gpio_direction_output(pin0, 0);
-	msleep(10);
-	gpio_direction_output(pin0, 1);
-	msleep(10);
-	gpio_direction_output(pin0, 0);
-	msleep(10);
-	gpio_free(pin0);
-	gpio_free(pin1);
-	printk(KERN_INFO "hdmi: adv7533_hdmi_reset-\n");
-}
-#endif
-
 #if defined(CONFIG_BACKLIGHT_ADP8885)
 static struct adp8885_bl_channel_data adp8885_ch[] = {
 	{	/* Display backlight */
@@ -972,15 +753,6 @@ static struct i2c_board_info i2c2_info_DKB[] = {
 #endif
 };
 
-static struct i2c_board_info i2c2_info_C2[] = {
-#if defined(CONFIG_TOUCHSCREEN_SSD2531)
-	{
-		I2C_BOARD_INFO("ssd2531_ts", 0x5c),
-		.platform_data = ssd2531_ts_pins,
-	},
-#endif
-};
-
 static struct i2c_board_info i2c2_info_C25[] = {
 #if defined(CONFIG_SENSORS_APDS990X_MRVL)
 	{
@@ -1024,21 +796,6 @@ static struct i2c_board_info i2c3_info[] = {
 		.platform_data = &cwgd_plat_data,
 	 },
 #endif
-#if defined(CONFIG_HDMI_ADV7533)
-	{
-		I2C_BOARD_INFO("adv7533-packet", 0x38),
-	},
-	{
-		I2C_BOARD_INFO("adv7533-main", 0x39),
-	},
-	{
-		I2C_BOARD_INFO("adv7533-cec_dsi", 0x2c),
-	},
-	{
-		I2C_BOARD_INFO("adv7533-edid", 0x3f),
-		.platform_data = adv7533_hdmi_reset,
-	},
-#endif
 
 #if defined(CONFIG_C_TEC_OPTIC_TP)
 	{
@@ -1052,12 +809,6 @@ static void register_i2c_board_info(void)
 {
 
 	switch (get_board_id()) {
-	case OBM_SAAR_C2_NEVO_A0_V10_BOARD:
-		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_860x_info));
-		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_C2));
-		break;
-
-	case OBM_SAAR_C25_NEVO_B0_V10_BOARD:
 	case OBM_EVB_NEVO_1_2_BOARD:
 	case OBM_SAAR_C3_NEVO_C0_V10_BOARD:
 	case OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ:
@@ -1103,19 +854,6 @@ static struct platform_device *devices[] __initdata = {
 };
 
 #if defined(CONFIG_USB_PXA_U2O) || defined(CONFIG_USB_EHCI_PXA_U2O)
-#define STATUS2_VBUS        (1 << 4)
-
-static int	read_vbus_val(void)
-{
-	int ret;
-	ret = pm860x_codec_reg_read(2);
-	if (ret & STATUS2_VBUS)
-		ret = VBUS_HIGH;
-	else
-		ret = VBUS_LOW;
-	return ret;
-};
-
 static char *pxa9xx_usb_clock_name[] = {
 	[0] = "AXICLK",
 	[1] = "IMUCLK",
@@ -1131,18 +869,6 @@ static struct mv_usb_addon_irq pm80x_vbus = {
 	.irq	= IRQ_BOARD_START + PM800_IRQ_CHG,
 	.poll	= pm80x_read_vbus_val,
 };
-
-static struct mv_usb_addon_irq pm860x_id = {
-	.irq	= IRQ_BOARD_START + PM8607_IRQ_GPADC2,
-	.poll	= pm860x_read_id_val,
-	.init	= pm860x_init_id,
-};
-
-static struct mv_usb_addon_irq pm860x_vbus = {
-	.irq	= IRQ_BOARD_START + PM8607_IRQ_CHG,
-	.poll	= read_vbus_val,
-};
-
 
 static struct mv_usb_platform_data pxa9xx_usb_pdata = {
 	.clknum		= 3,
@@ -2285,25 +2011,6 @@ static struct pxa95xfb_mach_info ihdmi_ovly_info __initdata = {
 };
 #endif
 
-#if defined(CONFIG_HDMI_ADV7533)
-static struct pxa95xfb_mach_info adv7533_hdmi_ovly_info __initdata = {
-	.id                     = "HDMI-Ovly",
-	.modes                  = video_modes_adv7533,
-	.num_modes              = ARRAY_SIZE(video_modes_adv7533),
-	.pix_fmt_in             = PIX_FMTIN_YUV420,
-	.pix_fmt_out            = PIX_FMTOUT_24_RGB888,
-	.panel_type             = LCD_Controller_Active,
-	/*as hdmi-ovly use same win4 with lcd-ovly, they should not open at the same time*/
-	.window					= 4,
-	.mixer_id				= 1,
-	.zorder					= 0,
-	.converter				= LCD_M2DSI1,
-	.output					= OUTPUT_HDMI,
-	.active					= 1,
-	.invert_pixclock		= 1,
-};
-#endif
-
 static void panel_power(int on)
 {
 	panel_power_trulywvga(1, on);
@@ -2381,8 +2088,6 @@ static void __init init_lcd(void)
 	set_pxa95x_fb_ovly_info(&ihdmi_base_info, 1);
 	ihdmi_ovly_info.modes = &video_modes_ihdmi[mv_ihdmi_format-1];
 	set_pxa95x_fb_ovly_info(&ihdmi_ovly_info, 2);
-#elif defined(CONFIG_HDMI_ADV7533)
-	set_pxa95x_fb_ovly_info(&adv7533_hdmi_ovly_info, 1);
 #endif
 }
 #endif
@@ -2819,18 +2524,9 @@ static void __init init(void)
 		pxa9xx_usb_pdata.set_vbus = pm80x_set_vbus;
 
 		register_reboot_notifier(&reboot_notifier);
-	} else {
-		regulator_init_pm8607();
-		pr_info( \
-			"[%s][%s]regulator_init_pm8607 maxNum[%d] init\n",
-			__FILE__, __func__, PM8XXX_REGULATOR_MAX);
-		pxa9xx_usb_pdata.vbus = &pm860x_vbus;
-		pxa9xx_usb_pdata.id = &pm860x_id;
-		pxa9xx_usb_pdata.set_vbus = pm860x_set_vbus;
+		headsetflag_init_pm800();
 	}
 
-	if (get_pmic_id() >= PM800_CHIP_A0)
-		headsetflag_init_pm800();
 #if defined(CONFIG_BACKLIGHT_ADP8885)
 	if (OBM_SAAR_C25_NEVO_B0_V10_BOARD == get_board_id())
 		adp8885_data.num_chs = 1;
