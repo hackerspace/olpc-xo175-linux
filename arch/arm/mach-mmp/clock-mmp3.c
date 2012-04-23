@@ -43,6 +43,7 @@
 #define MMP3_PROTECT_BUSCLKRST(x)	((x) & 0x000001c3)
 #define MMP3_PROTECT_FCCR(x)		((x) & 0xff83ffff)
 
+
 /* Dynamic Frequency Change Part */
 enum {
 	MMP3_FREQ_OP_GET = 0,
@@ -1947,17 +1948,6 @@ static int dxoisp_clk_enable(struct clk *clk)
 {
 	int reg;
 
-	reg = readl(APMU_ISPPWR);
-	reg |= 0x1 << 9;
-	writel(reg, APMU_ISPPWR);
-	mdelay(10);
-	reg |= 0x3 << 9;
-	writel(reg, APMU_ISPPWR);
-	mdelay(10);
-	reg |= 0x1 << 8;
-	writel(reg, APMU_ISPPWR);
-	mdelay(10);
-
 	reg = readl(APMU_ISPCLK);
 	reg &= ~0xF00;
 	reg |= (clk->div) << 8;
@@ -2017,13 +2007,6 @@ static void dxoisp_clk_disable(struct clk *clk)
 	mdelay(10);
 	reg &= ~(0x1 << 15);
 	writel(reg, APMU_CCIC_RST);
-
-	reg = readl(APMU_ISPPWR);
-	reg &= ~(0x1 << 8);
-	writel(reg, APMU_ISPPWR);
-	mdelay(10);
-	reg &= ~(0x3 << 9);
-	writel(reg, APMU_ISPPWR);
 
 }
 
@@ -2363,18 +2346,6 @@ static void ccic_clk_init(struct clk *clk)
 	u32 val = 0;
 	int reg = 0;
 
-	/* Since CCIC is moved to ISPDMA power island on B0 board,
-	need additional power enabling to access CCIC */
-	if (cpu_is_mmp3_b0()) {
-		reg = readl(APMU_ISPPWR);
-		reg |= 0x3 << 9;
-		writel(reg, APMU_ISPPWR);
-		mdelay(10);
-		reg |= 0x1 << 8;
-		writel(reg, APMU_ISPPWR);
-		mdelay(10);
-	}
-
 	/* by default select pll1/2 as clock source and divider 1 */
 	clk->mul = 1;
 	clk->div = 1;
@@ -2445,6 +2416,7 @@ static void ccic_clk_disable(struct clk *clk)
 	else
 		val &= ~((1 << 26) | (1 << 28));
 	__raw_writel(val, APMU_CCIC_DBG);
+
 }
 
 static long ccic_clk_round_rate(struct clk *clk, unsigned long rate)
