@@ -94,7 +94,6 @@ static unsigned long mk2_pin_config[] __initdata = {
 	GPIO53_PWM3,
 
 	/* SSPA1 (I2S) */
-	GPIO23_GPIO,
 	GPIO24_I2S_SYSCLK,
 	GPIO25_I2S_BITCLK,
 	GPIO26_I2S_SYNC,
@@ -121,6 +120,7 @@ static unsigned long mk2_pin_config[] __initdata = {
 	GPIO66_GPIO, /* GYRO_INT_2 */
 
 	/* mk2 hp detect */
+	GPIO23_GPIO,
 	GPIO130_GPIO,
 	GPIO139_GPIO,
 
@@ -1223,7 +1223,7 @@ static struct wm8994_pdata mk2_wm8994_pdata = {
 #if defined(CONFIG_SWITCH_HEADSET_HOST_GPIO)
 static struct gpio_switch_platform_data headset_switch_device_data = {
 	.name = "h2w",
-	.gpio = mfp_to_gpio(GPIO130_GPIO),
+	.gpio = mfp_to_gpio(GPIO23_GPIO),
 	.name_on = NULL,
 	.name_off = NULL,
 	.state_on = NULL,
@@ -1240,7 +1240,7 @@ static struct platform_device headset_switch_device = {
 
 static int wm8994_gpio_irq(void)
 {
-	int gpio = mfp_to_gpio(GPIO130_GPIO);
+	int gpio = mfp_to_gpio(GPIO23_GPIO);
 
 	if (gpio_request(gpio, "wm8994 irq")) {
 		printk(KERN_INFO "gpio %d request failed\n", gpio);
