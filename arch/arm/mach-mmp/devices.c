@@ -865,6 +865,8 @@ void __init mmp_register_dxoisp(struct mvisp_platform_data *data)
 	int ret;
 
 	data->mvisp_reset = mvisp_reset_hw;
+	data->mvisp_power_control = isppwr_power_control;
+
 	mmp_device_dxoisp.dev.platform_data = data;
 
 	ret = platform_device_register(&mmp_device_dxoisp);

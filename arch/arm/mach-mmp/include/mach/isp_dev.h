@@ -48,9 +48,11 @@ struct mvisp_platform_data {
 	bool ccic_dummy_ena;
 	bool ispdma_dummy_ena;
 	int (*mvisp_reset)(void *param);
+	int (*mvisp_power_control)(int);
 };
 
 void __init mmp_register_dxoisp(struct mvisp_platform_data *pdata);
 int mvisp_reset_hw(void *param);
+int isppwr_power_control(int on);
 
 #endif

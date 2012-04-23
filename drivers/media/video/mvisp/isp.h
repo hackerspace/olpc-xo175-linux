@@ -88,6 +88,8 @@ struct mvisp_device {
 	resource_size_t mmio_size[ISP_IOMEM_LAST];
 	struct clk		*clock[ISP_CLK_DXO_MAX];
 
+	int (*mvisp_power_control)(int);
+
 	/* dummy buffer for all isp */
 	bool			ccic_dummy_ena;
 	bool			ispdma_dummy_ena;

@@ -500,6 +500,11 @@ struct mvisp_device *mvisp_get(struct mvisp_device *isp)
 	if (isp->ref_count > 0)
 		goto out;
 
+	if( isp->mvisp_power_control == NULL || isp->mvisp_power_control(1) < 0){
+		__isp = NULL;
+		goto out;
+	}
+
 	if (mvisp_enable_clocks(isp) < 0) {
 		__isp = NULL;
 		goto out;
@@ -532,6 +537,9 @@ void mvisp_put(struct mvisp_device *isp)
 		mvisp_disable_interrupts(isp);
 		mvisp_save_context(isp, NULL);
 		mvisp_disable_clocks(isp);
+		if( isp->mvisp_power_control != NULL)
+			isp->mvisp_power_control(0);
+
 	}
 	mutex_unlock(&isp->mvisp_mutex);
 }
@@ -979,6 +987,7 @@ static int mvisp_probe(struct platform_device *pdev)
 	isp->has_context = false;
 	isp->ccic_dummy_ena = pdata->ccic_dummy_ena;
 	isp->ispdma_dummy_ena = pdata->ispdma_dummy_ena;
+	isp->mvisp_power_control = pdata->mvisp_power_control;
 
 	platform_set_drvdata(pdev, isp);
 
