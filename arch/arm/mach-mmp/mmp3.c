@@ -895,6 +895,57 @@ int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
 	| GC3D_CLK_DIV_MSK | GC3D_CLK_SRC_SEL_MSK		\
 	| GC3D_ACLK_SEL_MSK)
 
+/*
+	1. Since CCIC is moved to ISPDMA power island on B0 board,
+	need additional power enabling to access CCIC
+	2.DXO and smart sensor will conflict that share this
+	PMUA_ISP_PWR_CTRL.So if one of any sensor is poweron,
+	we all can't poweroff ISP.
+*/
+
+static atomic_t isppwr_count;
+int isppwr_power_control(int on)
+{
+	int reg;
+
+	if (on) {
+		if (0 == atomic_read(&isppwr_count)) {
+			reg = readl(APMU_ISPPWR);
+			reg |= 0x1 << 9;
+			writel(reg, APMU_ISPPWR);
+			mdelay(10);
+
+			reg |= 0x3 << 9;
+			writel(reg, APMU_ISPPWR);
+			mdelay(10);
+
+			reg |= 0x1 << 8;
+			writel(reg, APMU_ISPPWR);
+			mdelay(10);
+		}
+
+		if (atomic_inc_return(&isppwr_count) < 1) {
+			printk(KERN_ERR "isp power on err\n");
+			return -EINVAL;
+		}
+	} else {
+		if( 1 == atomic_read(&isppwr_count)) {
+			reg = readl(APMU_ISPPWR);
+			reg &= ~(0x1 << 8);
+			writel(reg, APMU_ISPPWR);
+			mdelay(10);
+			reg &= ~(0x3 << 9);
+			writel(reg, APMU_ISPPWR);
+
+			atomic_set(&isppwr_count, 0);
+		} else if(atomic_dec_return(&isppwr_count) < 0) {
+			printk(KERN_ERR "isp power off err\n");
+			return -EINVAL;
+		}
+	}
+	return 0;
+}
+
 void gc_pwr(int power_on)
 {
 	unsigned long regval;
