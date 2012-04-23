@@ -59,6 +59,60 @@ static inline int mmp3_smpid(void)
 	return hard_smp_processor_id();
 }
 
+#ifdef CONFIG_SMP
+enum ipi_msg_type {
+	IPI_TIMER = 2,
+	IPI_RESCHEDULE,
+	IPI_CALL_FUNC,
+	IPI_CALL_FUNC_SINGLE,
+	IPI_CPU_STOP,
+	IPI_CPU_BACKTRACE,
+	IPI_CPU_SYNC_COHERENCY,
+};
+
+#define MP1_COHT_STATE_OFFSET	0x0
+#define MP2_COHT_STATE_OFFSET	0x4
+#define MP1_HANDSHAKE_OFFSET	0x8
+#define MP2_HANDSHAKE_OFFSET	0xc
+
+#define SEM4_OFFSET		0x20
+
+#define MP1_C1_CFG_OFFSET	0x100
+#define MP1_C2_CFG_OFFSET	0x104
+#define MP2_C1_CFG_OFFSET	0x108
+#define MP2_C2_CFG_OFFSET	0x10c
+#define MM_C1_CFG_OFFSET	0x110
+#define MM_C2_CFG_OFFSET	0x114
+#define CM_CID_OFFSET		0x118
+
+#define INT_STATUS_ADDR_OFFSET	0x200
+#define WAKE_STATUS_ADDR_OFFSET	0x204
+#define SGIR_ADDR_OFFSET	0x208
+#define APMU_BASE_ADDR_OFFSET	0x20c
+
+static u32 num_cpus;
+static char *sync_buf;
+static volatile int *coherent_state;
+
+extern int mmp3_trigger_dfc_ll(u32 dfc_val, u32 buf_base);
+extern int mmp3_coherent_handler(u32 buf_base);
+extern int mmp3_enter_c2(u32 buf_base);
+
+static void set_sync_buf(u32 offset, u32 val)
+{
+	u32 *data;
+
+	data = (u32 *)(sync_buf + offset);
+	*data = val;
+	return;
+}
+
+void handle_coherency_maint_req(void *p)
+{
+	mmp3_coherent_handler((u32)sync_buf);
+}
+#endif
+
 #define pm_print(args...) printk(args)
 
 /* Dynamic Frequency Change Part */
@@ -1211,34 +1265,40 @@ static u32 mmp3_prepare_freqch(struct mmp3_pmu *pmu,
 	return change;
 }
 
-
 static void mmp3_dfc_trigger(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
 	union trace_dfc_log *logentry, u32 change, u32 *time, u32*same)
 {
-	unsigned long flags;
-	u32 val, samex, timex;
+	u32 samex, timex;
+	u32 dfc_val;
+	int ret;
 
 	if (change == 0)
 		return;
 
-	/* compose trigger val */
-	val = __raw_readl(pmu->cc);
-	val = MMP3_PROTECT_CC(val); /* set reserved */
-	val = val | change | (MMP3_FREQCH_VOLTING);
-
-	spin_lock_irqsave(&(pmu->mmp3_fc_spin), flags);
+	/* unmask and clear all dfc irqs */
+	writel(0x1fff, APMU_REG(0x98));
+	writel(0x1fff, APMU_REG(0xa0));
 
 	timex = read_timestamp();
 
-	dsb();
+	/* compose trigger val */
+	dfc_val = __raw_readl(pmu->cc);
+	dfc_val = MMP3_PROTECT_CC(dfc_val); /* set reserved */
+	dfc_val = dfc_val | change | (MMP3_FREQCH_VOLTING);
 
-	/* trigger change*/
-	__raw_writel(val, pmu->cc);
+	ret = mmp3_trigger_dfc_ll(dfc_val, (u32)sync_buf);
+
+	/* clear dfc irq status */
+	__raw_writel(0x1fff, APMU_REG(0xa0));
+	__raw_writel(0x0, APMU_REG(0xa0));
+	__raw_writel(0x0, APMU_REG(0x98));
 
 	timex = read_timestamp() - timex;
-	spin_unlock_irqrestore(&(pmu->mmp3_fc_spin), flags);
 
-	/* done, PJ_RD_STATUS should have been cleared by HW*/
+	if (ret) {
+		printk(KERN_WARNING "%s: failed acquire lock\n", __func__);
+		return;
+	}
 
 	/* now read back current frequency settings, for query*/
 	mmp3_get_freq_plan(pmu, &pmu->pl_curr, true);
@@ -1679,216 +1739,48 @@ void mmp3_pm_enter_idle(int cpu)
 	trace_idle_exit(__raw_readl(cic->wake_status));
 }
 
-#ifdef CONFIG_SMP
-enum ipi_msg_type {
-	IPI_TIMER = 2,
-	IPI_RESCHEDULE,
-	IPI_CALL_FUNC,
-	IPI_CALL_FUNC_SINGLE,
-	IPI_CPU_STOP,
-	IPI_CPU_BACKTRACE,
-	IPI_CPU_SYNC_COHERENCY,
-};
-
-static u32 num_cpus;
-static spinlock_t *c2_lock_p;
-static int *coherent_state;
-static int *hand_shake_req;
-
-void handle_coherency_maint_req(void *p)
-{
-	register u32 reg;
-	int handshake_done = 0;
-	int i;
-	int cpu_id = smp_processor_id();
-
-	dsb();
-
-	/* set FW = 0 */
-	__asm__ volatile ("mrc p15, 0, %0, c1, c0, 1" : "=r" (reg));
-	reg &= ~(1 << 0);
-	__asm__ volatile ("mcr p15, 0, %0, c1, c0, 1" : : "r" (reg));
-	isb();
-	dsb();
-
-	coherent_state[cpu_id] = 0;
-
-	/* wait for all requests to drop */
-	while (!handshake_done) {
-		handshake_done = 1;
-		for (i = 0; i < num_cpus; i++)
-			if (hand_shake_req[i])
-				handshake_done = 0;
-		dsb();
-	}
-
-	/* set FW = 1 */
-	__asm__ volatile ("mrc p15, 0, %0, c1, c0, 1" : "=r" (reg));
-	reg |= (1 << 0);
-	__asm__ volatile ("mcr p15, 0, %0, c1, c0, 1" : : "r" (reg));
-
-	coherent_state[cpu_id] = 1;
-	isb();
-	dsb();
-}
-
-static inline void send_sync_ipi(int cpu, unsigned int irq)
-{
-	unsigned long map = 0;
-
-	map |= 1 << smp_hardid[cpu];
-	dsb();
-	writel_relaxed(map << 16 | IPI_CPU_SYNC_COHERENCY,
-			GIC_DIST_VIRT_BASE + GIC_DIST_SOFTINT);
-}
-
-static int leave_coherency(int cpu_id)
-{
-	register u32 reg;
-	int handshake_done = 0;
-	int i;
-
-	if (!arch_spin_trylock(&(&c2_lock_p->rlock)->raw_lock))
-		return 0;
-
-	hand_shake_req[cpu_id] = 1;
-
-	/* set FW = 0 */
-	__asm__ volatile ("mrc p15, 0, %0, c1, c0, 1" : "=r" (reg));
-	reg &= ~(1 << 0);
-	__asm__ volatile ("mcr p15, 0, %0, c1, c0, 1" : : "r" (reg));
-	/* flush_cache_all contains dsb and isb */
-	flush_cache_all();
-
-	coherent_state[cpu_id] = 0;
-
-	for_each_online_cpu(i) {
-		if (coherent_state[i] && i != cpu_id)
-			send_sync_ipi(i, IPI_CPU_SYNC_COHERENCY);
-	}
-
-	while (!handshake_done) {
-		handshake_done = 1;
-		for_each_online_cpu(i)
-			if (coherent_state[i] && i != cpu_id)
-				handshake_done = 0;
-		dsb();
-	}
-
-	/* set SMPnAMP = 0 */
-	__asm__ volatile ("mrc p15, 0, %0, c1, c0, 1" : "=r" (reg));
-	reg &= ~(1 << 6);
-	__asm__ volatile ("mcr p15, 0, %0, c1, c0, 1" : : "r" (reg));
-	isb();
-	dsb();
-
-	hand_shake_req[cpu_id] = 0;
-	dsb();
-
-	arch_spin_unlock(&(&c2_lock_p->rlock)->raw_lock);
-	isb();
-	dsb();
-
-	return 1;
-}
-
-static int join_coherency(int cpu_id)
-{
-	register u32 reg;
-	int handshake_done = 0;
-	int i;
-
-	arch_spin_lock(&(&c2_lock_p->rlock)->raw_lock);
-	isb();
-	dsb();
-
-	hand_shake_req[cpu_id] = 1;
-
-	for_each_online_cpu(i) {
-		if (coherent_state[i] && i != cpu_id)
-			send_sync_ipi(i, IPI_CPU_SYNC_COHERENCY);
-	}
-
-	while (!handshake_done) {
-		handshake_done = 1;
-		for_each_online_cpu(i)
-			if (coherent_state[i] && i != cpu_id)
-				handshake_done = 0;
-		dsb();
-	}
-
-	/* set FW = 1 and SMP = 1 */
-	__asm__ volatile ("mrc p15, 0, %0, c1, c0, 1" : "=r" (reg));
-	reg |= ((1 << 0) | (1 << 6));
-	__asm__ volatile ("mcr p15, 0, %0, c1, c0, 1" : : "r" (reg));
-
-	coherent_state[cpu_id] = 1;
-	isb();
-	dsb();
-
-	hand_shake_req[cpu_id] = 0;
-	dsb();
-
-	arch_spin_unlock(&(&c2_lock_p->rlock)->raw_lock);
-	isb();
-	dsb();
-
-	return 1;
-}
-#endif
-
-static u32 pj_cc4_ctl[3] = {APMU_PJ_C0_CC4, APMU_PJ_C1_CC4, APMU_PJ_C2_CC4};
-
 void mmp3_pm_enter_c2(int cpu)
 {
 	u32 state = MMP3_PM_C2_L1_PWD;
 	struct mmp3_cpu_idle_config *cic;
 	int core_id = mmp3_smpid();
+	u32 c1_cfg, c2_cfg;
 
 	trace_idle_entry(state);
 
-#ifdef CONFIG_SMP
-	if (!leave_coherency(cpu))
-		return ;
-#endif
-
 	cic = &(mmp3_percpu[core_id].cic);
-	mmp3_mod_idle_config(cic, state);
 
-#if defined(CONFIG_SMP)
-	while (1) {
-		dsb();
-		__raw_writel(__raw_readl(pj_cc4_ctl[core_id])| 0x1, pj_cc4_ctl[core_id]);
-		__asm__ __volatile__ ("wfi");
-		/* disable global irq of ICU for MP1, MP2, MM*/
-		__raw_writel(0x1, MMP3_ICU_GBL_IRQ1_MSK);
-		__raw_writel(0x1, MMP3_ICU_GBL_IRQ2_MSK);
-		__raw_writel(0x1, MMP3_ICU_GBL_IRQ3_MSK);
-		__raw_writel(0x1, MMP3_ICU_GBL_IRQ4_MSK);
-		__raw_writel(0x1, MMP3_ICU_GBL_IRQ5_MSK);
-		__raw_writel(0x1, MMP3_ICU_GBL_IRQ6_MSK);
-		__raw_writel(__raw_readl(pj_cc4_ctl[core_id])& ~0x1, pj_cc4_ctl[core_id]);
+	c2_cfg  = readl(cic->idle_config);
+	c2_cfg &= cic->idle_config_keep_mask;
+	c2_cfg |= (MMP3_PM_C2_L1_PWD & cic->idle_config_valid_mask);
 
-#ifdef CONFIG_ARM_GIC
-		if (((__raw_readl(cic->intr_status) & 0x3ff) != 1023) ||
-#endif
-		((__raw_readl(cic->wake_status) & 0x7fffc7ff) != 0)) {
-			/* real wake up, break loop to handle*/
-			break;
-		}
+	c1_cfg  = readl(cic->idle_config);
+	c1_cfg &= cic->idle_config_keep_mask;
+	c1_cfg |= (MMP3_PM_C1_INCG & cic->idle_config_valid_mask);
+
+	if (core_id == 0 || core_id == 2)
+		set_sync_buf(CM_CID_OFFSET, core_id);
+
+	if (core_id == 0) {
+		set_sync_buf(MP1_C1_CFG_OFFSET, c1_cfg);
+		set_sync_buf(MP1_C2_CFG_OFFSET, c2_cfg);
+	} else if (core_id == 1) {
+		set_sync_buf(MP2_C1_CFG_OFFSET, c1_cfg);
+		set_sync_buf(MP2_C2_CFG_OFFSET, c2_cfg);
+	} else if (core_id == 2) {
+		set_sync_buf(MM_C1_CFG_OFFSET, c1_cfg);
+		set_sync_buf(MM_C2_CFG_OFFSET, c2_cfg);
 	}
-#else
-	flush_cache_all();
-	dsb();
-	arch_idle();
-#endif
 
-#ifdef CONFIG_SMP
-	join_coherency(cpu);
-#endif
+	mmp3_enter_c2((u32)sync_buf);
 
-	state = MMP3_PM_C1_INCG;
-	mmp3_mod_idle_config(cic, state);
+	/* disable global irq of ICU for MP1, MP2, MM*/
+	__raw_writel(0x1, MMP3_ICU_GBL_IRQ1_MSK);
+	__raw_writel(0x1, MMP3_ICU_GBL_IRQ2_MSK);
+	__raw_writel(0x1, MMP3_ICU_GBL_IRQ3_MSK);
+	__raw_writel(0x1, MMP3_ICU_GBL_IRQ4_MSK);
+	__raw_writel(0x1, MMP3_ICU_GBL_IRQ5_MSK);
+	__raw_writel(0x1, MMP3_ICU_GBL_IRQ6_MSK);
 
 	trace_idle_exit(__raw_readl(cic->wake_status));
 }
@@ -2102,9 +1994,6 @@ static int __init mmp3_pm_init(void)
 {
 	int i, j;
 	u32 ddrt;
-#ifdef CONFIG_SMP
-	char *uncached_data;
-#endif
 	struct mmp3_pmu *pmu = &mmp3_pmu_config;
 
 #ifdef CONFIG_SMP
@@ -2118,21 +2007,23 @@ static int __init mmp3_pm_init(void)
 	mutex_init(&(pmu->mmp3_fc_lock));
 
 #ifdef CONFIG_SMP
-	uncached_data = __arm_ioremap(c2_reserve_pa, PAGE_SIZE, MT_UNCACHED);
-	if (uncached_data == NULL) {
+	sync_buf = __arm_ioremap(c2_reserve_pa, PAGE_SIZE, MT_UNCACHED);
+	if (sync_buf == NULL) {
 		pr_err("%s: failed to remap memory for C2\n", __func__);
 		BUG();
 	}
 
-	coherent_state = (unsigned int *)uncached_data;
+	memset(sync_buf, 0x0, PAGE_SIZE);
+
+	set_sync_buf(INT_STATUS_ADDR_OFFSET, (u32)INTR_STAT);
+	set_sync_buf(WAKE_STATUS_ADDR_OFFSET, (u32)WAKE_STAT);
+	set_sync_buf(SGIR_ADDR_OFFSET, (u32)(GIC_DIST_VIRT_BASE + GIC_DIST_SOFTINT));
+	set_sync_buf(APMU_BASE_ADDR_OFFSET, APMU_VIRT_BASE);
+
+	coherent_state = (unsigned int *)sync_buf;
 	/* we are at coherent state */
 	for (i = 0; i < num_cpus; i++)
 		coherent_state[i] = 1;
-	hand_shake_req = (unsigned int *)(&coherent_state[num_cpus]);
-	for (i = 0; i < num_cpus; i++)
-		hand_shake_req[i] = 0;
-	c2_lock_p = (spinlock_t *)(&hand_shake_req[num_cpus]);
-	spin_lock_init(c2_lock_p);
 #endif
 
 	for (j = 0; j < ARRAY_SIZE(mmp3_fccs); j++) {
@@ -2151,7 +2042,7 @@ static int __init mmp3_pm_init(void)
 	/* 1. set bit[0] to ignore SP idle status for DFC
 	 * 2. set bit[1] to mask the Moltres halt ack to DFC state machine
 	 */
-	__raw_writel(0x00000003, APMU_DEBUG);
+	__raw_writel(0x00000001, APMU_DEBUG);
 	__raw_writel(0x0, APMU_DEBUG2);
 
 	pm_idle = mmp3_do_idle;

@@ -12,7 +12,7 @@ clock.o
 obj-$(CONFIG_CPU_MMP2)		+= mmp2.o irq-mmp2.o clock.o mmp_dma.o \
 sram.o mmp2_sspa.o mmp2_fuse.o clock-audio.o
 obj-$(CONFIG_CPU_MMP3)		+= mmp3.o irq-mmp3.o mmp_dma.o mmp2_sspa.o \
-sram.o delay-mmp3.o clock-mmp3.o dvfs-mmp3.o hotplug_governor.o
+sram.o delay-mmp3.o clock-mmp3.o dvfs-mmp3.o hotplug_governor.o mmp3_coherent_fix.o
 obj-$(CONFIG_SMP)		+= platsmp.o headsmp.o
 obj-$(CONFIG_HOTPLUG_CPU)	+= hotplug.o
 ifeq ($(CONFIG_SOC_LOCAL_TIMERS),y)
