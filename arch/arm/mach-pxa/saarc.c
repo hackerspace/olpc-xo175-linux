@@ -270,8 +270,8 @@ static void regulator_init_pm800(void)
 		REG_SUPPLY_INIT(PM800_ID_LDO17, "v_cam_af_vcc", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO9, "v_wifi_3v3", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO10, "v_vibrator", NULL);
-		REG_SUPPLY_INIT(PM800_ID_LDO12, "vmmc", "sdhci-pxa.1");
-		REG_SUPPLY_INIT(PM800_ID_LDO13, "vmmc_io", "sdhci-pxa.1");
+		REG_SUPPLY_INIT(PM800_ID_LDO12, "vmmc_io", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO13, "vmmc", "sdhci-pxa.1");
 		REG_SUPPLY_INIT(PM800_ID_LDO19, "v_gps", NULL);
 		/*DKB2.1 use a new gps module, need to contorl LDO11*/
 		REG_SUPPLY_INIT(PM800_ID_LDO11, "v_gps_3v3", NULL);
@@ -281,7 +281,7 @@ static void regulator_init_pm800(void)
 		REG_INIT(i++, PM800_ID, LDO17, 1200000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO9, 3300000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO10, 2800000, 2800000, 0, 0);
-		REG_INIT(i++, PM800_ID, LDO12, 2800000, 2800000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO12, 1800000, 2800000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO13, 2800000, 2800000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO19, 1200000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO11, 1200000, 3300000, 0, 0);
@@ -566,6 +566,29 @@ out:
 	return ret;
 }
 
+/*
+* This function is support for low voltage card.
+* Host should switch the voltage from 3.3v to 1.8v
+* if both the host and the card support SD Rev. 3.0 in indentification stage.
+*/
+static void pxa_mci1_signal_1v8(struct sdhci_host *host, int set)
+{
+	int vol,retval;
+	struct regulator *v_ldo_vmmc_x;
+	vol = set ? 1800000 : 2800000;
+
+	v_ldo_vmmc_x = regulator_get(NULL, "vmmc_io");
+	if (IS_ERR(v_ldo_vmmc_x)) {
+		printk(KERN_ERR "Failed to get VMMC_IO\n");
+		return;
+	}
+	retval = regulator_set_voltage(v_ldo_vmmc_x, vol, vol);
+	regulator_enable(v_ldo_vmmc_x);
+	msleep(10);
+	regulator_put(v_ldo_vmmc_x);
+	return;
+}
+
 static struct sdhci_pxa_platdata mci1_platform_data = {
 	.flags = PXA_FLAG_ENABLE_CLOCK_GATING |
 			PXA_FLAG_ACITVE_IN_SUSPEND,
@@ -576,6 +599,7 @@ static struct sdhci_pxa_platdata mci1_platform_data = {
 	.pull_up = 0,
 	.check_short_circuit = pxa_check_sd_short_circuit,
 	.safe_regulator_on = pxa_safe_sd_on,
+	.signal_1v8 = pxa_mci1_signal_1v8,
 };
 
 static struct sdhci_pxa_platdata mci2_platform_data = {
