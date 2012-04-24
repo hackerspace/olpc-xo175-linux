@@ -333,6 +333,7 @@ static void l2x0_disable(void)
 
 static void l2x0_unlock(u32 cache_id)
 {
+#ifndef CONFIG_CPU_MMP3
 	int lockregs;
 	int i;
 
@@ -348,6 +349,7 @@ static void l2x0_unlock(u32 cache_id)
 		writel_relaxed(0x0, l2x0_base + L2X0_LOCKDOWN_WAY_I_BASE +
 			       i * L2X0_LOCKDOWN_STRIDE);
 	}
+#endif
 }
 
 void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
@@ -431,8 +433,10 @@ void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
 		writel_relaxed(1, l2x0_base + L2X0_CTRL);
 	}
 
+#ifndef CONFIG_CPU_MMP3
 	/* Enable power features in contrller */
 	writel_relaxed(0x3, l2x0_base + L2X0_POWER_CTRL);
+#endif
 
 #ifndef CONFIG_CACHE_TAUROS3_DISABLE_MEMORY_MAPPED_FUNCTIONS
 	outer_cache.inv_range = l2x0_inv_range;
