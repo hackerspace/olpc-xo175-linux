@@ -251,6 +251,12 @@ int is_wkr_mg1_1677(void)
 	return cpu_is_pxa955_E0();
 }
 
+/* workaround for bug JIRA NEVO-2368 */
+int is_wkr_nevo_2368(void)
+{
+	return cpu_is_pxa978();
+}
+
 static u32 ddadr[32], dtadr[32], dsadr[32], dcmd[32];
 void save_dma_registers(void)
 {
@@ -1315,6 +1321,11 @@ void enter_lowpower_mode(int state)
 			if (is_wkr_mg1_1677())
 				save_dma_registers();
 
+			if (likely(!ForceVCTCXO_EN)) {
+				clk_disable(clk_pout);
+				if (is_wkr_nevo_2368())
+					OSCC &= ~OSCC_VCTVCEN;
+			}
 #if defined(CONFIG_PXA9XX_ACIPC)
 			if (0 == clear_DDR_avail_flag()) {
 				CHECK_APPS_COMM_SYNC
@@ -1356,6 +1367,11 @@ void enter_lowpower_mode(int state)
 						shared flag=1. should not happen. \
 						check the apps-comm sync \n", __func__);
 #endif
+			if (likely(!ForceVCTCXO_EN)) {
+				if (is_wkr_nevo_2368())
+					OSCC |= OSCC_VCTVCEN;
+				clk_enable(clk_pout);
+			}
 
 			if (is_wkr_mg1_1677())
 				restore_dma_registers();
