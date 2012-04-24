@@ -1209,9 +1209,15 @@ unsigned int ckenb_rsvd_bit_mask;
 unsigned int ckenc_rsvd_bit_mask;
 static void cken_rsvd_bit_mask_setup(void)
 {
-	ckena_rsvd_bit_mask = 0x00080001;
-	ckenb_rsvd_bit_mask = 0x97FCF040;
-	ckenc_rsvd_bit_mask = 0x00C00000;
+	if (cpu_is_pxa978()) {
+		ckena_rsvd_bit_mask = 0x00000001;
+		ckenb_rsvd_bit_mask = 0x97FCF040;
+		ckenc_rsvd_bit_mask = 0x00000000;
+	} else {
+		ckena_rsvd_bit_mask = 0x00080001;
+		ckenb_rsvd_bit_mask = 0x97FCF040;
+		ckenc_rsvd_bit_mask = 0x00C00000;
+	}
 }
 
 extern int calc_switchtime(unsigned int, unsigned int);
@@ -1540,21 +1546,6 @@ void enter_lowpower_mode(int state)
 		} else
 			pm_clear_wakeup_src(wakeup_src);
 	} else if (state == POWER_MODE_CG) {
-		/*
-		According to the spec,
-		the following steps are required before entering CGM
-		*/
-
-		/* Enable ACCU internal interrupt */
-		ICMR2 |= 0x00100000;
-		/* Turn on wakeup to core during idle mode */
-		aicsr = AICSR;
-		/* enable bit 10 - wakeup during core idle */
-		aicsr |= AICSR_WEIDLE;
-		/* do not write to status bits (write to clear) */
-		aicsr &= ~AICSR_STATUS_BITS;
-		AICSR = aicsr;
-
 		ispt_power_state_cgm();
 		pm_select_wakeup_src(PXA95x_PM_CG, wakeup_src);
 
@@ -2272,6 +2263,7 @@ static int __init pxa95x_pm_init(void)
 	if (cpu_is_pxa978()) {
 		remap_c2_reg = ioremap(REMAP_C2_REG , 0x4);
 		pxa978_save_reset_handler(get_c2_sram_base());
+		c2_address_remap();
 	}
 #endif
 

@@ -85,7 +85,6 @@ void pxa978_pm_enter(unsigned long pwrmode)
 	unsigned int debug_context[DEBUG_DATA_SIZE / sizeof(unsigned int)];
 	unsigned int pmu_context[PMU_DATA_SIZE / sizeof(unsigned int)];
 
-	c2_address_remap();
 	save_pxa978_debug((unsigned int *)&debug_context);
 	save_performance_monitors((unsigned int *)&pmu_context);
 	cpu_pm_enter();
@@ -94,5 +93,4 @@ void pxa978_pm_enter(unsigned long pwrmode)
 	cpu_pm_exit();
 	restore_performance_monitors((unsigned int *)&pmu_context);
 	restore_pxa978_debug((unsigned int *)&debug_context);
-	c2_address_unremap();
 }

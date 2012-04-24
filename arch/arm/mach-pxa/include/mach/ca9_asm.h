@@ -15,3 +15,4 @@ right after the reset vector code. Aproximae size: 0xc0 bytes.
 */
 void pxa978_cpu_suspend(unsigned int pwrmode);
 void pxa978_save_reset_handler(unsigned int sramaddr);
+void c2_address_remap(void);
