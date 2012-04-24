@@ -150,6 +150,18 @@ struct pmem_info {
 	int (*release)(struct inode *, struct file *);
 };
 
+struct pmem_allocation_list {
+	unsigned int	dev_id;
+	unsigned int	index;
+	unsigned int	order;
+	unsigned int	pages;
+	int	compound;
+	pid_t	pid;
+	struct list_head list;
+};
+
+static LIST_HEAD(pmem_alloc_list);
+static DEFINE_MUTEX(alloc_lock);
 static DEFINE_MUTEX(pmem_oom_lock);
 static struct pmem_info pmem[PMEM_MAX_DEVICES];
 static int id_count;
@@ -280,6 +292,8 @@ static int pmem_free(int id, int index)
 	/* caller should hold the write lock on pmem_sem! */
 	int buddy, curr;
 	int compound;
+	struct pmem_allocation_list *alloc;
+	struct list_head *h1;
 
 	if (pmem[id].no_allocator) {
 		pmem[id].allocated = 0;
@@ -319,6 +333,21 @@ static int pmem_free(int id, int index)
 		}
 	} while (curr < pmem[id].bitmap->num_entries);
 	dump_bitmap(id);
+
+	mutex_lock(&alloc_lock);
+	if (!list_empty(&pmem_alloc_list)) {
+		list_for_each(h1, &pmem_alloc_list) {
+			alloc = list_entry(h1, struct pmem_allocation_list, list);
+			if (index == alloc->index) {
+				list_del(h1);
+				mutex_unlock(&alloc_lock);
+				kfree(alloc);
+				return 0;
+			}
+		}
+	}
+	dev_err(pmem[id].dev, "failed to remove message from allocation list\n");
+	mutex_unlock(&alloc_lock);
 
 	return 0;
 }
@@ -449,6 +478,8 @@ static int __pmem_allocate(int id, unsigned long len)
 	int best_fit, compound_fit;
 	int pages = 0;
 	unsigned long order = pmem_order(len);
+	struct task_struct *tsk;
+	struct pmem_allocation_list *list;
 
 	if (pmem[id].no_allocator) {
 		dev_dbg(pmem[id].dev, "no allocator");
@@ -460,6 +491,10 @@ static int __pmem_allocate(int id, unsigned long len)
 
 	if (order > PMEM_MAX_ORDER)
 		return -1;
+
+	list = kzalloc(sizeof(struct pmem_allocation_list), GFP_KERNEL);
+	if (!list)
+		return -ENOMEM;
 
 	best_fit = -1;
 	compound_fit = -1;
@@ -522,6 +557,9 @@ static int __pmem_allocate(int id, unsigned long len)
 	 */
 	curr = best_fit;
 	pages = ALIGN(len, PMEM_MIN_ALLOC) >> PMEM_MIN_SHIFT;
+	mutex_lock(&alloc_lock);
+	list->index = best_fit;
+	list->pages = 0;
 	while (pages > 0) {
 		while (pages < (1 << PMEM_ORDER(id, curr))) {
 			int buddy;
@@ -535,8 +573,18 @@ static int __pmem_allocate(int id, unsigned long len)
 		pages = pages - (1 << PMEM_ORDER(id, curr));
 		pmem[id].bitmap->bits[curr].allocated = 1;
 		pmem[id].bitmap->bits[curr].compound = (pages > 0) ? 1 : 0;
+		if (pmem[id].bitmap->bits[curr].compound)
+			list->compound = 1;
+		list->pages += 1 << PMEM_ORDER(id, curr);
 		curr = PMEM_NEXT_INDEX(id, curr);
 	}
+	tsk = get_current();
+	list->pid = tsk->pid;
+	list->dev_id = id;
+	list->order = order;
+	list_add(&list->list, &pmem_alloc_list);
+	mutex_unlock(&alloc_lock);
+
 	return best_fit;
 }
 
@@ -560,7 +608,6 @@ static int pmem_allocate(int id, unsigned long len)
 	if (ret == -EAGAIN)
 		dev_warn(pmem[id].dev, "Failed to re-allocate %lu bytes "
 				"memory\n", len);
-
 out:
 	dump_bitmap(id);
 	return ret;
@@ -1516,7 +1563,8 @@ static ssize_t debug_open(struct inode *inode, struct file *file)
 static ssize_t debug_read(struct file *file, char __user *buf, size_t count,
 			  loff_t *ppos)
 {
-	struct list_head *elt, *elt2;
+	struct list_head *elt, *elt2, *h1;
+	struct pmem_allocation_list *alloc;
 	struct pmem_data *data;
 	struct pmem_region_node *region_node;
 	int id = (int)file->private_data;
@@ -1524,7 +1572,7 @@ static ssize_t debug_read(struct file *file, char __user *buf, size_t count,
 	static char buffer[4096];
 	int n = 0;
 	int i, nr_blk = 0, nr_free_blk = 0, max_blk_order = -1;
-	int free_mem = 0, total_mem = 0;
+	int free_mem = 0, total_mem = 0, alloc_mem = 0;
 
 	dev_dbg(pmem[id].dev, "debug open\n");
 	n += scnprintf(buffer + n, debug_bufmax,
@@ -1563,7 +1611,7 @@ static ssize_t debug_read(struct file *file, char __user *buf, size_t count,
 
 	if (max_blk_order >= 0) {
 		free_mem = 1 << (max_blk_order + PAGE_SHIFT - 10);
-		n += scnprintf(buffer + n, debug_bufmax, "---Max Block Memory:");
+		n += scnprintf(buffer + n, debug_bufmax, "---Max Free Block Memory:");
 		if (free_mem < 1024)
 			n += scnprintf(buffer + n, debug_bufmax, "%d(KB)---\n",
 					free_mem);
@@ -1575,8 +1623,21 @@ static ssize_t debug_read(struct file *file, char __user *buf, size_t count,
 			nr_free_blk, nr_blk);
 	n += scnprintf(buffer + n, debug_bufmax, "\n");
 
+	n+= scnprintf(buffer + n, debug_bufmax, "----Allocation list-----\n");
+	mutex_lock(&alloc_lock);
+	list_for_each(h1, &pmem_alloc_list) {
+		alloc = list_entry(h1, struct pmem_allocation_list, list);
+		n += scnprintf(buffer + n, debug_bufmax, "PID(%d), Index(%d), Pages(%d), Compound(%d), Dev(%d)\n",
+				alloc->pid, alloc->index, alloc->pages, alloc->compound, alloc->dev_id);
+		alloc_mem += alloc->pages;
+	}
+	n += scnprintf(buffer + n, debug_bufmax, "\n");
+	n += scnprintf(buffer + n, debug_bufmax, "Total Allocated memory: %dpages, %d(MB)\n", alloc_mem, (alloc_mem * 4) >> 10);
+	n += scnprintf(buffer + n, debug_bufmax, "\n");
+	mutex_unlock(&alloc_lock);
 	n += scnprintf(buffer + n, debug_bufmax,
 		      "pid #: mapped regions (offset, len) (offset,len)...\n");
+
 
 	mutex_lock(&pmem[id].data_list_lock);
 	list_for_each(elt, &pmem[id].data_list) {
