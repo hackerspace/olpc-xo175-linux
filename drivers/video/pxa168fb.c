@@ -636,6 +636,10 @@ static void set_dumb_screen_dimensions(struct fb_info *info)
 		h_porch = (v->xres + v->right_margin) * vec / 10 - v->xres;
 		h_porch = (v->left_margin * vec / 10) << 16 | h_porch;
 		vsync_ctrl = 0x01330133;
+		if (di->master_mode)
+			writel(timing_master_config(fbi->id,
+				di->id - 1, di->id - 1),
+				fbi->reg_base + TIMING_MASTER_CONTROL);
 	} else {
 		h_porch = (v->left_margin) << 16 | v->right_margin;
 

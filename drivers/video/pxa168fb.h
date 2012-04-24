@@ -898,6 +898,13 @@ struct lcd_regs {
 #define LCD_PN2_SQULN2_CTRL			(0x02F0)
 #define ALL_LAYER_ALPHA_SEL			(0x02F4)
 #define TIMING_MASTER_CONTROL			(0x02F8)
+#define MASTER_ENH(id)				(1 << (id))
+#define MASTER_ENV(id)				(1 << ((id) + 4))
+#define DSI_START_SEL_SHIFT(id)		(((id) << 1) + 8)
+#define timing_master_config(path, dsi_id, lcd_id) \
+	(MASTER_ENH(path) | MASTER_ENV(path) | \
+	(((lcd_id) + ((dsi_id) << 1)) << DSI_START_SEL_SHIFT(path)))
+
 #define LCD_2ND_BLD_CTL				(0x02Fc)
 #define LVDS_SRC_MASK				(3 << 30)
 #define LVDS_SRC_SHIFT				(30)

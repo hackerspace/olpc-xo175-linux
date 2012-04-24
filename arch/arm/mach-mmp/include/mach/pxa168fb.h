@@ -249,6 +249,7 @@ struct dsi_info {
 	unsigned	bpp;
 	unsigned	rgb_mode;
 	unsigned	burst_mode;
+	unsigned	master_mode;
 	unsigned	lpm_line_en;
 	unsigned	lpm_frame_en;
 	unsigned	last_line_turn;

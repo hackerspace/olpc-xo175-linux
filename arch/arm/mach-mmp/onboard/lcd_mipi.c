@@ -51,11 +51,11 @@ static struct fb_videomode video_modes_orchid[] = {
 		.yres = 960,
 		.hsync_len = 2,
 		.left_margin = 50,
-		.right_margin = 50,
+		.right_margin = 70,
 		.vsync_len = 2,
 		.upper_margin = 8,
 		.lower_margin = 8,
-		.sync = FB_SYNC_HOR_HIGH_ACT,
+		.sync = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
 		},
 };
 
@@ -1000,6 +1000,8 @@ void __init abilene_add_lcd_mipi(void)
 
 	if (fb->phy_type & (DSI | DSI2DPI)) {
 		dsi = (struct dsi_info *)fb->phy_info;
+		dsi->master_mode = 1;
+		dsi->hfp_en = 0;
 		if (dsi->bpp == 16)
 			video_modes_abilene[0].right_margin =
 			(dsi->lanes == 4) ? 325 : 179;
@@ -1063,6 +1065,8 @@ void __init yellowstone_add_lcd_mipi(void)
 
 	if (fb->phy_type & (DSI | DSI2DPI)) {
 		dsi = (struct dsi_info *)fb->phy_info;
+		dsi->master_mode = 1;
+		dsi->hfp_en = 0;
 		if (dsi->bpp == 16)
 			video_modes_yellowstone[0].right_margin =
 			(dsi->lanes == 4) ? 325 : 179;
@@ -1106,6 +1110,7 @@ void __init orchid_add_lcd_mipi(void)
 {
 	unsigned char __iomem *dmc_membase;
 	unsigned int CSn_NO_COL;
+	struct dsi_info *dsi;
 
 	struct pxa168fb_mach_info *fb = &mipi_lcd_info, *ovly =
 	    &mipi_lcd_ovly_info;
@@ -1123,6 +1128,9 @@ void __init orchid_add_lcd_mipi(void)
 	fb->phy_info = (void *)&orchid_dsiinfo;
 	fb->dsi_panel_config = panel_init_config;
 	fb->pxa168fb_lcd_power = orchid_lcd_power;
+	dsi = (struct dsi_info *)fb->phy_info;
+	dsi->master_mode = 1;
+	dsi->hfp_en = 0;
 
 	if (cpu_is_mmp3_b0())
 		dither_config(fb);
@@ -1162,6 +1170,7 @@ void __init mk2_add_lcd_mipi(void)
 {
 	unsigned char __iomem *dmc_membase;
 	unsigned int CSn_NO_COL, lvds_en;
+	struct dsi_info *dsi;
 
 	struct pxa168fb_mach_info *fb = &mipi_lcd_info, *ovly =
 	    &mipi_lcd_ovly_info;
@@ -1185,6 +1194,12 @@ void __init mk2_add_lcd_mipi(void)
 		if (lvds_en)
 			lvds_hook(fb);
 		dither_config(fb);
+	}
+
+	if (fb->phy_type & (DSI | DSI2DPI)) {
+		dsi = (struct dsi_info *)fb->phy_info;
+		dsi->master_mode = 1;
+		dsi->hfp_en = 0;
 	}
 
 	/* Re-calculate lcd clk source and divider

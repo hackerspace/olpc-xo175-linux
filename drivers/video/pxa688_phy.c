@@ -545,8 +545,8 @@ void dsi_set_controller(struct pxa168fb_info *fbi)
 	writel(reg, &dsi->ctrl1);
 
 	/* DSI_CTRL_0 */
-	reg = DSI_CTRL_0_CFG_LCD1_SLV | DSI_CTRL_0_CFG_LCD1_TX_EN |
-		 DSI_CTRL_0_CFG_LCD1_EN;
+	reg = (di->master_mode ? 0 : DSI_CTRL_0_CFG_LCD1_SLV) |
+		DSI_CTRL_0_CFG_LCD1_TX_EN | DSI_CTRL_0_CFG_LCD1_EN;
 	if (di->id & 2)
 		reg = reg << 1;
 	writel(reg, &dsi->ctrl0);
