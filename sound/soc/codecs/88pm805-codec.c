@@ -116,7 +116,7 @@ static int pm805_bulk_write_reg(struct snd_kcontrol *kcontrol,
 		(struct soc_mixer_control *)kcontrol->private_value;
 	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
 	unsigned int reg = mc->reg;
-	unsigned char buf[64];
+	unsigned char buf[PM805_MIXER_COEFFICIENT_MAX_NUM];
 	int i, count = 0;
 	struct pm80x_chip *chip = (struct pm80x_chip *)codec->control_data;
 	struct i2c_client *i2c = chip->pm805_chip->client;

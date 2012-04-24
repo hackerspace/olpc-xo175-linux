@@ -179,6 +179,6 @@
 #define PM805_SAI1_EN		(0x1 << 0)
 #define PM805_SAI2_EN		(0x1 << 1)
 
-#define PM805_MIXER_COEFFICIENT_MAX_NUM		32
+#define PM805_MIXER_COEFFICIENT_MAX_NUM		65
 
 #endif	/* __88PM805_CODEC_H */
