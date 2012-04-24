@@ -61,6 +61,7 @@ struct pn544_info {
 	struct miscdevice miscdev;
 	struct i2c_client *i2c_dev;
 	struct regulator_bulk_data regs[3];
+	unsigned int	regs_num;
 
 	enum pn544_state state;
 	wait_queue_head_t read_wait;
@@ -75,10 +76,6 @@ struct pn544_info {
 	unsigned int remain;	/* remain data in rbuf */
 	unsigned int offset;    /* offset in rbuf */
 };
-
-static const char reg_vdd_io[]	= "Vdd_IO";
-static const char reg_vbat[]	= "VBat";
-static const char reg_vsim[]	= "VSim";
 
 /* sysfs interface */
 static ssize_t pn544_test(struct device *dev,
@@ -98,7 +95,7 @@ static int pn544_enable(struct pn544_info *info, int mode)
 
 	int r;
 
-	r = regulator_bulk_enable(ARRAY_SIZE(info->regs), info->regs);
+	r = regulator_bulk_enable(info->regs_num, info->regs);
 	if (r < 0)
 		return r;
 
@@ -138,7 +135,7 @@ static void pn544_disable(struct pn544_info *info)
 	msleep(PN544_RESETVEN_TIME);
 
 	info->read_irq = PN544_NONE;
-	regulator_bulk_disable(ARRAY_SIZE(info->regs), info->regs);
+	regulator_bulk_disable(info->regs_num, info->regs);
 }
 
 static int check_crc(u8 *buf, int buflen)
@@ -760,9 +757,16 @@ static int __devinit pn544_probe(struct i2c_client *client,
 	struct pn544_info *info;
 	struct pn544_nfc_platform_data *pdata;
 	int r = 0;
+	int i = 0;
 
 	dev_dbg(&client->dev, "%s\n", __func__);
 	dev_dbg(&client->dev, "IRQ: %d\n", client->irq);
+
+	pdata = client->dev.platform_data;
+	if (!pdata) {
+		dev_err(&client->dev, "No platform data\n");
+		return -EINVAL;
+	}
 
 	/* private data allocation */
 	info = kzalloc(sizeof(struct pn544_info), GFP_KERNEL);
@@ -782,11 +786,16 @@ static int __devinit pn544_probe(struct i2c_client *client,
 		goto err_buf_alloc;
 	}
 
-	info->regs[0].supply = reg_vdd_io;
-	info->regs[1].supply = reg_vbat;
-	info->regs[2].supply = reg_vsim;
-	r = regulator_bulk_get(&client->dev, ARRAY_SIZE(info->regs),
-				 info->regs);
+	info->regs_num = pdata->regulator_num;
+	if (info->regs_num > 3) {
+		dev_warn(&client->dev, "the regulator should less than 3.\n");
+		info->regs_num = 3;
+	}
+
+	for (i = 0; i < info->regs_num; i++)
+		info->regs[i].supply = pdata->regulator_name[i];
+
+	r = regulator_bulk_get(&client->dev, info->regs_num, info->regs);
 	if (r < 0)
 		goto err_buf_alloc;
 
@@ -797,12 +806,6 @@ static int __devinit pn544_probe(struct i2c_client *client,
 	mutex_init(&info->mutex);
 	init_waitqueue_head(&info->read_wait);
 	i2c_set_clientdata(client, info);
-	pdata = client->dev.platform_data;
-	if (!pdata) {
-		dev_err(&client->dev, "No platform data\n");
-		r = -EINVAL;
-		goto err_reg;
-	}
 
 	if (!pdata->request_resources) {
 		dev_err(&client->dev, "request_resources() missing\n");
@@ -857,7 +860,7 @@ err_res:
 	if (pdata->free_resources)
 		pdata->free_resources();
 err_reg:
-	regulator_bulk_free(ARRAY_SIZE(info->regs), info->regs);
+	regulator_bulk_free(info->regs_num, info->regs);
 err_buf_alloc:
 	if (info->rbuf)
 		kfree(info->rbuf);
@@ -894,7 +897,7 @@ static __devexit int pn544_remove(struct i2c_client *client)
 	if (pdata->free_resources)
 		pdata->free_resources();
 
-	regulator_bulk_free(ARRAY_SIZE(info->regs), info->regs);
+	regulator_bulk_free(info->regs_num, info->regs);
 	kfree(info->rbuf);
 	kfree(info->wbuf);
 	kfree(info);

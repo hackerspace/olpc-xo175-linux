@@ -100,6 +100,9 @@ struct pn544_nfc_platform_data {
 	void (*enable) (int fw);
 	int (*test) (void);
 	void (*disable) (void);
+
+	unsigned int	regulator_num;
+	char		**regulator_name;
 };
 #endif /* __KERNEL__ */
 
