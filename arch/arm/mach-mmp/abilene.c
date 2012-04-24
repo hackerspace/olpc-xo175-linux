@@ -603,6 +603,10 @@ static int pxa2128_cam_clk_init(struct device *dev, int init)
 static void pxa2128_cam_set_clk(struct device *dev, int on)
 {
 	struct mv_cam_pdata *data = dev->platform_data;
+
+	if (cpu_is_mmp3_b0())
+		isppwr_power_control(on);
+
 	if (on)
 		clk_enable(data->clk);
 	else
