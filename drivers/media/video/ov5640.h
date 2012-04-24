@@ -19,6 +19,8 @@ struct ov5640 {
 	int model;	/* V4L2_IDENT_OV5642* codes from v4l2-chip-ident.h */
 	struct v4l2_rect rect;
 	u32 pixfmt;
+	int res_idx;
+	int fmt_is_jpeg;
 	struct i2c_client *client;
 	struct soc_camera_device icd;
 };

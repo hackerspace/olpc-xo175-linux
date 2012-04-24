@@ -38,27 +38,34 @@ static const struct ov5640_datafmt ov5640_colour_fmts[] = {
 static struct ov5640_win_size {
 	int width;
 	int height;
+#ifdef CONFIG_PXA95x
+	int phy_cfg_id;
+#endif
 } ov5640_win_sizes[] = {
 #ifdef CONFIG_PXA95x
 	/* VGA */
 	{
 		.width = 640,
 		.height = 480,
+		.phy_cfg_id = 0,
 	},
 	/* 720 */
 	{
 		.width = 1280,
 		.height = 720,
+		.phy_cfg_id = 1,
 	},
 	/* 1080 */
 	{
 		.width = 1920,
 		.height = 1080,
+		.phy_cfg_id = 1,
 	},
 	/* full */
 	{
 		.width = 2592,
 		.height = 1944,
+		.phy_cfg_id = 2,
 	},
 #else
 	/* QCIF */
@@ -94,14 +101,23 @@ static struct ov5640_win_size {
 #endif
 };
 
+#define N_OV5640_RESOLUTIONS_YUV (ARRAY_SIZE(ov5640_win_sizes))
+
 /* capture jpeg size */
 static struct ov5640_win_size ov5640_win_sizes_jpeg[] = {
+#ifdef CONFIG_PXA95x
+	/* full */
+	{
+		.width = 2592,
+		.height = 1944,
+		.phy_cfg_id = 0,
+	},
+#else
 	/* full */
 	{
 		.width = 2592,
 		.height = 1944,
 	},
-#ifndef CONFIG_PXA95x
 	/* 3M */
 	{
 		.width = 2048,
@@ -110,11 +126,29 @@ static struct ov5640_win_size ov5640_win_sizes_jpeg[] = {
 #endif
 };
 
+#define N_OV5640_RESOLUTIONS_JPEG (ARRAY_SIZE(ov5640_win_sizes_jpeg))
+
 #ifdef CONFIG_PXA95x
 static struct mipi_phy ov5640_timings[] = {
-	{ /* ov5640 default timing */
+	{ /* ov5640 default mipi PHY config */
 		.cl_termen	= 0x00,
-		.cl_settle	= 0x08,
+		.cl_settle	= 0x04,
+		.hs_termen	= 0x05,
+		.hs_settle	= 0x09,
+		.hs_rx_to	= 0xFFFF,
+		.lane		= 2,
+	},
+	{ /* For 384Mhz: 720p or 1080p */
+		.cl_termen	= 0x00,
+		.cl_settle	= 0x04,
+		.hs_termen	= 0x0F,
+		.hs_settle	= 0x19,
+		.hs_rx_to	= 0xFFFF,
+		.lane		= 2,
+	},
+	{ /* For 5M YUV */
+		.cl_termen	= 0x00,
+		.cl_settle	= 0x04,
 		.hs_termen	= 0x07,
 		.hs_settle	= 0x0F,
 		.hs_rx_to	= 0xFFFF,
@@ -250,10 +284,19 @@ static int ov5640_firmware_download(struct i2c_client *client)
 #ifdef CONFIG_PXA95x
 static int ov5640_get_mipi_phy(struct i2c_client *client, __s32 *value)
 {
+	struct ov5640 *ov5640 = to_ov5640(client);
+	int idx = 0;
+
 	if (unlikely((void *)value == NULL))
 		return -EPERM;
-	/* Camera driver provide a address to fill in timing info */
-	*value = (__s32)&(ov5640_timings[0]);
+
+	if (ov5640->fmt_is_jpeg == 1) {
+		idx = ov5640_win_sizes_jpeg[ov5640->res_idx].phy_cfg_id;
+	} else {
+		idx = ov5640_win_sizes[ov5640->res_idx].phy_cfg_id;
+	}
+
+	*value = (__s32)&(ov5640_timings[idx]);
 	return 0;
 }
 #endif
@@ -343,12 +386,39 @@ static int ov5640_enum_fmt(struct v4l2_subdev *sd,
 	return 0;
 }
 
+/* select nearest higher resolution */
+static int ov5640_res_roundup(struct i2c_client *client, u32 *width, u32 *height)
+{
+	int i;
+	struct ov5640 *ov5640 = to_ov5640(client);
+
+	if (ov5640->fmt_is_jpeg == 1) {
+		for (i = 0; i < N_OV5640_RESOLUTIONS_JPEG; i++)
+			if ((ov5640_win_sizes_jpeg[i].width >= *width) &&
+			    (ov5640_win_sizes_jpeg[i].height >= *height)) {
+				*width = ov5640_win_sizes_jpeg[i].width;
+				*height = ov5640_win_sizes_jpeg[i].height;
+				return i;
+			}
+	} else {
+		for (i = 0; i < N_OV5640_RESOLUTIONS_YUV; i++)
+			if ((ov5640_win_sizes[i].width >= *width) &&
+			    (ov5640_win_sizes[i].height >= *height)) {
+				*width = ov5640_win_sizes[i].width;
+				*height = ov5640_win_sizes[i].height;
+				return i;
+			}
+	}
+
+	return -1;
+}
+
 static int ov5640_try_fmt(struct v4l2_subdev *sd,
 			   struct v4l2_mbus_framefmt *mf)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct ov5640 *ov5640 = to_ov5640(client);
 	const struct ov5640_datafmt *fmt;
-	int i;
 
 	fmt = ov5640_find_datafmt(mf->code, ov5640_colour_fmts,
 				   ARRAY_SIZE(ov5640_colour_fmts));
@@ -357,42 +427,23 @@ static int ov5640_try_fmt(struct v4l2_subdev *sd,
 		return -EINVAL;
 	}
 
-	mf->field = V4L2_FIELD_NONE;
+	/* distinguish JPEG from YUV for different d-phy config */
+	ov5640->fmt_is_jpeg = 0;
 
-	switch (mf->code) {
-	case V4L2_MBUS_FMT_UYVY8_2X8:
-	case V4L2_MBUS_FMT_VYUY8_2X8:
-		/* enum the supported sizes*/
-		for (i = 0; i < ARRAY_SIZE(ov5640_win_sizes); i++)
-			if (mf->width == ov5640_win_sizes[i].width
-				&& mf->height == ov5640_win_sizes[i].height)
-				break;
-
-		if (i >= ARRAY_SIZE(ov5640_win_sizes)) {
-			dev_err(&client->dev, "ov5640 unsupported window"
-				"size, w%d, h%d!\n", mf->width, mf->height);
-			return -EINVAL;
-		}
-		mf->colorspace = V4L2_COLORSPACE_JPEG;
-		break;
-	case V4L2_MBUS_FMT_JPEG_1X8:
-		/* enum the supported sizes for JPEG*/
-		for (i = 0; i < ARRAY_SIZE(ov5640_win_sizes_jpeg); i++)
-			if (mf->width == ov5640_win_sizes_jpeg[i].width &&
-				mf->height == ov5640_win_sizes_jpeg[i].height)
-				break;
-
-		if (i >= ARRAY_SIZE(ov5640_win_sizes_jpeg)) {
-			dev_err(&client->dev, "ov5640 unsupported jpeg size!\n");
-			return -EINVAL;
-		}
-		mf->colorspace = V4L2_COLORSPACE_JPEG;
-		break;
-	default:
-		dev_err(&client->dev, "ov5640 doesn't support code"
-				"%d\n", mf->code);
-		break;
+	if (mf->code == V4L2_MBUS_FMT_JPEG_1X8) {
+		ov5640->fmt_is_jpeg = 1;
 	}
+
+	ov5640->res_idx = ov5640_res_roundup(client, &mf->width, &mf->height);
+
+	if (ov5640->res_idx < 0) {
+		dev_err(&client->dev, "ov5640 unsupported resolution!\n");
+		return -EINVAL;
+	}
+
+	mf->field = V4L2_FIELD_NONE;
+	mf->colorspace = V4L2_COLORSPACE_JPEG;
+
 	return 0;
 }
 
