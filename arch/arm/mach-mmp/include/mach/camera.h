@@ -30,6 +30,6 @@ struct sensor_platform_data {
 };
 
 void mv_set_sensor_attached(bool sensor_attached);
-
+int isppwr_power_control(int on);
 #endif
 
