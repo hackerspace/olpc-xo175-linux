@@ -89,9 +89,6 @@ pxa978_save_reset_handler:
 
 	.global pxa978_cpu_suspend
 pxa978_cpu_suspend:
-	cmp	r0, #0x0
-	beq	pxa978_enter_c1
-
 	.extern pl310_suspend
 	bl pl310_suspend
 

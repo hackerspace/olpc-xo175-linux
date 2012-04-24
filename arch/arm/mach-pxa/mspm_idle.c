@@ -125,7 +125,6 @@ static void pxa95x_cpu_idle(void)
 	unsigned int c1_enter_time, c1_exit_time, pollreg;
 	struct op_info *info = NULL;
 	int op;
-	static unsigned int counter, counter2;
 	DVFMLPMGlobalCount.D0C1_Enter_count++;
 	op = dvfm_get_op(&info);
 
@@ -154,14 +153,7 @@ static void pxa95x_cpu_idle(void)
 				pollreg = PWRMODE;
 			} while (pollreg !=
 					(PXA978_PM_S0D0CG | PXA95x_PM_I_Q_BIT));
-			pxa978_pm_enter(PWRDM_POWER_C2);
-			counter++;
-			if (counter == 10000) {
-				counter2++;
-				printk(KERN_DEBUG "%d passed core idle\n", counter2);
-				counter = 0;
-			}
-
+			pxa978_pm_enter(pollreg);
 		} else {
 			PWRMODE = (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT);
 			do {

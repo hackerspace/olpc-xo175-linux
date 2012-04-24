@@ -1361,7 +1361,7 @@ void enter_lowpower_mode(int state)
 					vlscr &= ~(VLSCR_SINGLE_RAIL_MASK);
 					vlscr |= (VLSCR_D1_VALUE);
 					VLSCR = vlscr;
-					pxa978_pm_enter(PWRDM_POWER_C2);
+					pxa978_pm_enter(pollreg);
 				} else {
 					pxa95x_cpu_standby(sram + 0x8000,
 							sram + 0xa000 - 4,
@@ -1476,7 +1476,7 @@ void enter_lowpower_mode(int state)
 					vlscr &= ~(VLSCR_SINGLE_RAIL_MASK);
 					vlscr |= (VLSCR_D2_VALUE);
 					VLSCR = vlscr;
-					pxa978_pm_enter(PWRDM_POWER_C2);
+					pxa978_pm_enter(pollreg);
 
 				} else {
 					pxa95x_cpu_standby(sram + 0x8000,
@@ -1640,7 +1640,7 @@ void enter_lowpower_mode(int state)
 			   */
 			sram = (unsigned int) pxa95x_pm_regs.sram_map;
 			if (cpu_is_pxa978()) {
-				pxa978_pm_enter(PWRDM_POWER_C2);
+				pxa978_pm_enter(pollreg);
 			} else {
 				if (cur_op < 2)
 					pm_enter_cgm_deepidle

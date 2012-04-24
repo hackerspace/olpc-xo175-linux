@@ -50,10 +50,9 @@
  *		misrepresented as being the original software.
  * 3. This notice may not be removed or altered from any source distribution.
  */
-static int pxa978_suspend_finish(unsigned long core_mode)
+static int pxa978_suspend_finish(unsigned long pwrmode)
 {
-	unsigned int power_mode = PWRMODE;
-	if (power_mode & PWRMODE_L2_DIS_IN_C2) {
+	if (pwrmode & PWRMODE_L2_DIS_IN_C2) {
 		/* In L2$ non-retentive mode, two option:
 		 *1. clean all before c2, inv all after c2
 		 *2. flush all before c2
@@ -62,11 +61,11 @@ static int pxa978_suspend_finish(unsigned long core_mode)
 		 */
 		/*this will actually call clean_all() */
 		outer_clean_range(0, 0xFFFFFFFF);
-	} else if ((power_mode & 0x07) == PXA95x_PM_S0D1C2) {
+	} else if ((pwrmode & 0x07) == PXA95x_PM_S0D1C2) {
 		/*WR for NEVO-2344. l2$ content lost in D1*/
 		outer_disable();
 	}
-	pxa978_cpu_suspend(core_mode);
+	pxa978_cpu_suspend(pwrmode);
 	return 0;
 }
 
@@ -81,23 +80,19 @@ void c2_address_remap(void)
 	__raw_writel(((c2_addr >> 13) | 1) & 0x1FFF, remap_c2_reg);
 }
 
-void pxa978_pm_enter(unsigned long core_mode)
+void pxa978_pm_enter(unsigned long pwrmode)
 {
 	unsigned int debug_context[DEBUG_DATA_SIZE / sizeof(unsigned int)];
 	unsigned int pmu_context[PMU_DATA_SIZE / sizeof(unsigned int)];
-	if (core_mode == PWRDM_POWER_C2) {
-		c2_address_remap();
-		save_pxa978_debug((unsigned int *)&debug_context);
-		save_performance_monitors((unsigned int *)&pmu_context);
-		cpu_pm_enter();
-		cpu_suspend(core_mode, pxa978_suspend_finish);
-	} else	if (core_mode == PWRDM_POWER_C1)
-		pxa978_suspend_finish(core_mode);
 
-	if (core_mode == PWRDM_POWER_C2) {
-		cpu_pm_exit();
-		restore_performance_monitors((unsigned int *)&pmu_context);
-		restore_pxa978_debug((unsigned int *)&debug_context);
-		c2_address_unremap();
-	}
+	c2_address_remap();
+	save_pxa978_debug((unsigned int *)&debug_context);
+	save_performance_monitors((unsigned int *)&pmu_context);
+	cpu_pm_enter();
+	cpu_suspend(pwrmode, pxa978_suspend_finish);
+
+	cpu_pm_exit();
+	restore_performance_monitors((unsigned int *)&pmu_context);
+	restore_pxa978_debug((unsigned int *)&debug_context);
+	c2_address_unremap();
 }
