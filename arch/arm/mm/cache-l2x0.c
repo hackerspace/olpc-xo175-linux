@@ -359,6 +359,10 @@ void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
 	u32 debug_ctrl;
 	const char *type;
 
+#ifdef CONFIG_CPU_MMP3
+	u32 aux2;
+#endif
+
 	l2x0_base = base;
 
 	l2x0_cache_id = readl_relaxed(l2x0_base + L2X0_CACHE_ID);
@@ -403,6 +407,15 @@ void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
 #ifdef CONFIG_CACHE_TAUROS3_WRITETHROUGH
 	debug_ctrl |= (1 << 1);
 	writel_relaxed(debug_ctrl, l2x0_base + L2X0_DEBUG_CTRL);
+#endif
+
+#ifdef CONFIG_CPU_MMP3
+	aux2 = readl_relaxed(l2x0_base + TAUROS3_SL2_AUX2);
+#ifdef CONFIG_CACHE_TAUROS3_ENABLE_FULL_WRITE_LINE
+	aux2 |= (1 << 13);
+	writel_relaxed(aux2, l2x0_base + TAUROS3_SL2_AUX2);
+	aux2 = readl_relaxed(l2x0_base + TAUROS3_SL2_AUX2);
+#endif
 #endif
 
 	/*
@@ -453,6 +466,9 @@ void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
 	printk(KERN_INFO "l2x0: %d ways, CACHE_ID 0x%08x, AUX_CTRL 0x%08x, Cache size: %d B\n",
 			l2x0_ways, l2x0_cache_id, aux, l2x0_size);
 	printk(KERN_INFO "l2x0: DEBUG_CTRL 0x%08x\n", debug_ctrl);
+#ifdef CONFIG_CPU_MMP3
+	printk(KERN_INFO "tauros3: SL2_AUX2 0x%08x\n", aux2);
+#endif
 }
 
 #ifdef CONFIG_OF

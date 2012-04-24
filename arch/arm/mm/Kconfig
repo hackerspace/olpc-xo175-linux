@@ -990,3 +990,9 @@ config CACHE_TAUROS3_DISABLE_MEMORY_MAPPED_FUNCTIONS
 	  Say Y here to disable Tauros3 memory mapped cache maintenance functions.
 	  In Tauros3, when "Point of Coherence" cache maintenance operations are
 	  applied on a given address, both the L1 and L2 are automatically taken care of.
+
+config CACHE_TAUROS3_ENABLE_FULL_WRITE_LINE
+	bool "Enable Tauros3 full write line"
+	depends on CACHE_L2X0 && CPU_MMP3
+	help
+	  This option enables Tauros3 L2 cache full write line.
