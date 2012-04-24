@@ -893,6 +893,7 @@ static int mv_camera_set_fmt(struct soc_camera_device *icd,
 
 	/*To get frame_rate*/
 	inter.pad = mcam->mclk_min;
+#ifdef DEBUG_FR
 	ret = v4l2_subdev_call(sd, video, g_frame_interval, &inter);
 	if (ret < 0) {
 		dev_err(dev, "Can't get frame_rate %s %d\n"
@@ -901,6 +902,7 @@ static int mv_camera_set_fmt(struct soc_camera_device *icd,
 	} else
 		pcdev->frame_rate =
 			inter.interval.numerator/inter.interval.denominator;
+#endif
 #ifdef CONFIG_CPU_PXA910
 	/* Update dphy value */
 	mcam->dphy[0] = ((1 + inter.pad * 80 / 1000) & 0xff) << 8
