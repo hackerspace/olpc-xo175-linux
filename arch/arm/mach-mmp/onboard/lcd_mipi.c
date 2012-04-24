@@ -1002,7 +1002,10 @@ void __init abilene_add_lcd_mipi(void)
 		dsi = (struct dsi_info *)fb->phy_info;
 		if (dsi->bpp == 16)
 			video_modes_abilene[0].right_margin =
-			(dsi->lanes == 4) ? 315 : 178;
+			(dsi->lanes == 4) ? 325 : 179;
+		else if (dsi->bpp == 24)
+			video_modes_abilene[0].right_margin =
+			(dsi->lanes == 4) ? 206 : 116;
 	}
 
 	/* Re-calculate lcd clk source and divider
@@ -1062,7 +1065,10 @@ void __init yellowstone_add_lcd_mipi(void)
 		dsi = (struct dsi_info *)fb->phy_info;
 		if (dsi->bpp == 16)
 			video_modes_yellowstone[0].right_margin =
-			(dsi->lanes == 4) ? 315 : 178;
+			(dsi->lanes == 4) ? 325 : 179;
+		else if (dsi->bpp == 24)
+			video_modes_yellowstone[0].right_margin =
+			(dsi->lanes == 4) ? 206 : 116;
 	}
 
 	/* Re-calculate lcd clk source and divider
