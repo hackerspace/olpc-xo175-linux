@@ -34,7 +34,6 @@
 #include <linux/i2c/lsm303dlhc.h>
 #endif
 #include <linux/sd8x_rfkill.h>
-
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <asm/setup.h>
@@ -404,6 +403,9 @@ static int pxa2128_cam_clk_init(struct device *dev, int init)
 static void pxa2128_cam_set_clk(struct device *dev, int on)
 {
 	struct mv_cam_pdata *data = dev->platform_data;
+
+	isppwr_power_control(on);
+
 	if (on)
 		clk_enable(data->clk);
 	else
