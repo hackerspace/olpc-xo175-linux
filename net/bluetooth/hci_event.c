@@ -1463,6 +1463,7 @@ static inline void hci_conn_complete_evt(struct hci_dev *hdev, struct sk_buff *s
 	} else if (ev->link_type != ACL_LINK)
 		hci_proto_connect_cfm(conn, ev->status);
 
+	mod_timer(&hdev->rs_timer, jiffies + msecs_to_jiffies(10*1000));
 unlock:
 	hci_dev_unlock(hdev);
 
