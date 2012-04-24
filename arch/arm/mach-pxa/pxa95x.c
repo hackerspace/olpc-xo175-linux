@@ -378,7 +378,7 @@ static int __init pxa95x_init(void)
 		if (!l2x0_base)
 			return -ENOMEM;
 		/* Args 1,2: don't change AUX_CTRL */
-		l2x0_init(l2x0_base, 0, ~0);
+		l2x0_init(l2x0_base, 0x30000000, ~0);
 	}
 #endif
 	mfp_init_base(io_p2v(MFPR_BASE));
