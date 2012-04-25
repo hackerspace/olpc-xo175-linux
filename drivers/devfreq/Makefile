@@ -4,3 +4,4 @@ obj-$(CONFIG_DEVFREQ_GOV_PERFORMANCE)	+= governor_performance.o
 obj-$(CONFIG_DEVFREQ_GOV_POWERSAVE)	+= governor_powersave.o
 obj-$(CONFIG_DEVFREQ_GOV_USERSPACE)	+= governor_userspace.o
 obj-$(CONFIG_DDR_DEVFREQ)		+= mmp3_ddr.o
+obj-$(CONFIG_VMETA_DEVFREQ)		+= devfreq-vmeta.o

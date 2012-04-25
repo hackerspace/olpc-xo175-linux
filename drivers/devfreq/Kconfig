@@ -75,5 +75,58 @@ config DDR_DEVFREQ
 	help
 	  This adds the devfreq driver for MMP3.
 
+config VMETA_DEVFREQ
+	bool "vMeta devfreq driver"
+	help
+	  This adds the devfreq driver of vMeta
+
+if VMETA_DEVFREQ
+choice
+	bool "vMeta devfreq default governor"
+	default DEVFREQ_DEFAULT_GOV_USERSPACE if PXA95x
+	help
+	  this selects the default governor of vMeta
+	  devfreq driver
+
+config DEVFREQ_DEFAULT_GOV_PERFORMANCE
+	bool "performance"
+	select DEVFREQ_GOV_PERFORMANCE
+	help
+	  Use the DEVFreq governor 'performance' as default. This sets
+	  the frequency statically to the highest frequency supported by
+	  the vMeta.
+
+config DEVFREQ_DEFAULT_GOV_POWERSAVE
+	bool "powersave"
+	select DEVFREQ_GOV_POWERSAVE
+	help
+	  Use the DEVFreq governor 'powersave' as default. This sets
+	  the frequency statically to the lowest frequency supported by
+	  the vMeta.
+
+config DEVFREQ_DEFAULT_GOV_USERSPACE
+	bool "userspace"
+	select DEVFREQ_GOV_USERSPACE
+	help
+	  Use the DEVFreq governor 'userspace' as default. This allows
+	  you to set the vMeta frequency manually or when a userspace
+	  program shall be able to set the vMeta dynamically without having
+	  to enable the userspace governor manually.
+
+config DEVFREQ_DEFAULT_GOV_SIMPLE_ONDEMAND
+	bool "simple ondemand"
+	select DEVFREQ_GOV_SIMPLE_ONDEMAND
+	select DEVFREQ_GOV_PERFORMANCE
+	help
+	  Use the DEVFreq governor 'simple ondemand' as default. This allows
+	  you to get a full dynamic frequency capable system by simply
+	  loading your devfreq low-level hardware driver.
+	  Be aware that not all devfreq drivers support the simple ondemand
+	  governor. If unsure have a look at the help section of the
+	  driver. Fallback governor will be the performance governor.
+endchoice
+
+endif # VMETA_DEVFREQ
+
 
 endif # PM_DEVFREQ
