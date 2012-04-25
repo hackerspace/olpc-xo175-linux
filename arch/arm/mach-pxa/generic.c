@@ -110,10 +110,18 @@ static struct map_desc common_io_desc[] __initdata = {
 		.length		= 0x00010000,
 		.type		= MT_DEVICE,
 	}, {
-		/* Mem Ctl */
+		/* Static Mem Ctl */
+		/* Note, that from pxa3xx this uses the 2nd alias physical
+		0x4axxxxxx mapped to 0xf6000000. The 1st alias is 0x48xxxxxx */
 		.virtual	= SMEMC_VIRT,
 		.pfn		= __phys_to_pfn(PXA3XX_SMEMC_BASE),
-		.length		= 0x00200000,
+		.length		= 0x00100000, /* < 1MB */
+		.type		= MT_DEVICE
+	}, {
+		/* Dynamic Memory Controller */
+		.virtual	= 0xf6100000,
+		.pfn		= __phys_to_pfn(0x48100000),
+		.length		= 0x00100000, /* < 1MB */
 		.type		= MT_DEVICE
 	}
 };
