@@ -240,6 +240,7 @@ static struct pm860x_platform_data pm8607_info = {
 	.irq_base	= IRQ_BOARD_START,
 
 	.i2c_port	= GI2C_PORT,
+	.batt_det	= 1,
 	.num_leds	= ARRAY_SIZE(led),
 	.num_backlights	= ARRAY_SIZE(backlight),
 };
