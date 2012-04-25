@@ -2818,7 +2818,8 @@ static int op_init(void *driver_data, struct info_head *op_table)
 			if (0x2a00 == proc_op_arrays[i].chip_id &&
 			    0x2a00 == proc_op_arrays[i + 1].chip_id &&
 			   (get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ ||
-			    get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ))
+			    get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
+			    get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD))
 				proc = &proc_op_arrays[i + 1];
 			break;
 		}
