@@ -38,6 +38,9 @@
 #include <mach/regs-usb.h>
 #include <mach/soc_vmeta.h>
 #include <mach/mmp_dma.h>
+#include <mach/regs-zsp.h>
+#include <mach/mmp-zsp.h>
+#include <mach/regs-sspa.h>
 #include <linux/memblock.h>
 #include <linux/regdump_ops.h>
 
@@ -52,6 +55,12 @@
 
 #define APMASK(i)	(GPIO_REGS_VIRT + BANK_OFF(i) + 0x9c)
 #define ISP_POLL_COUNT (10)
+
+#ifdef CONFIG_MMP_ZSP
+struct audio_dsp_pwr_status aud_pwr_status = {
+	0, 0, 0, 0,
+};
+#endif
 
 static struct mfp_addr_map mmp3_addr_map[] __initdata = {
 	MFP_ADDR_X(GPIO0, GPIO58, 0x54),
@@ -913,6 +922,339 @@ out:
 
 #endif
 
+#ifdef CONFIG_MMP_ZSP
+
+struct zsp_pwr_opt {
+	u32 core_source;
+	u32 core_devider;
+};
+
+static struct zsp_pwr_opt
+	core_clock_matrix[MMP_ZSP_CORECLKSRC_NUMBER][MMP_ZSP_SPD_NUMBER] = {
+	{ /* use PMU*/
+		{ 0, 0},	/* fast, PLL1/2 ~400/1, 400MHz */
+		{ 0, 2},	/* medium,	PLL1/2 ~400/3, 133Mhz */
+		{ 3, 2},	/* slow,  PLL1/8 ~100/3, 33MHz */
+	},
+	{ /* use Audio PLL */
+		{ 0, 0},	/* fast, /1, ~271/295MHz */
+		{ 0, 1},	/* medium, /2, 133Mhz */
+		{ 0, 7},	/* slow, /8, ~33MHz */
+	},
+};
+
+
+#define __raw_modify(addr, toclear, toset)              \
+	do {                                            \
+		volatile unsigned int tval;             \
+		tval = __raw_readl(addr);               \
+		tval &= ~toclear;                       \
+		tval |= toset;                          \
+		__raw_writel(tval, (addr));             \
+		tval = __raw_readl(addr);               \
+		udelay(100);                            \
+	} while (0)
+
+
+static void mmp_zsp_domain_on(int spd, int src, int asclk)
+{
+	int value;
+	int timeout;
+
+	/* power on audio system */
+	if (aud_pwr_status.main_pwr_cnt == 0) {
+		value = __raw_readl(APMU_AUDIO_CLK_RES_CTRL);
+		value |= (0x1 << 9);
+		__raw_writel(value, APMU_AUDIO_CLK_RES_CTRL);
+		udelay(10);
+		value |= (0x1 << 10);
+		__raw_writel(value, APMU_AUDIO_CLK_RES_CTRL);
+		udelay(10);
+
+		/* SRAM redundency repair */
+		value |= 0x4;
+		__raw_writel(value, APMU_AUDIO_CLK_RES_CTRL);
+		timeout = 30000;
+		while (timeout--) {
+			value = __raw_readl(APMU_AUDIO_CLK_RES_CTRL);
+			if ((value & 0x4) == 0)
+				break;
+			udelay(10);
+		}
+		udelay(10);
+
+		/* enable SRAM SW ENA*/
+		value = __raw_readl(APMU_AUDIO_SRAM_PWR);
+		value |= 0x5;
+		__raw_writel(value, APMU_AUDIO_SRAM_PWR);
+		udelay(10);
+		value |= 0xA;
+		__raw_writel(value, APMU_AUDIO_SRAM_PWR);
+		udelay(10);
+
+		/* memory power management */
+		value = __raw_readl(APMU_ISLD_DSPA_CTRL);
+		value &= ~0x7;
+		__raw_writel(value, APMU_ISLD_DSPA_CTRL);
+		udelay(10);
+		/* enable dummy clocks for SRAMs */
+		value = readl(APMU_ISLD_DSPA_CTRL);
+		value |= (0x1 << 4);
+		__raw_writel(value, APMU_ISLD_DSPA_CTRL);
+		udelay(300);
+		value = __raw_readl(APMU_ISLD_DSPA_CTRL);
+		value &= ~(0x1 << 4);
+		__raw_writel(value, APMU_ISLD_DSPA_CTRL);
+		udelay(10);
+
+		/* clear reset for axi and apb clocks */
+		value = readl(APMU_AUDIO_DSA);
+		value |= 0xA;
+		__raw_writel(value, APMU_AUDIO_DSA);
+		udelay(100);
+		value |= 0x5;
+		__raw_writel(value, APMU_AUDIO_DSA);
+		udelay(10);
+
+		/* release for reset */
+		value = __raw_readl(APMU_AUDIO_CLK_RES_CTRL);
+		value |= 0x12;
+		__raw_writel(value, APMU_AUDIO_CLK_RES_CTRL);
+		udelay(10);
+		/* release for isolation */
+		value |= 0x1 << 8;
+		__raw_writel(value, APMU_AUDIO_CLK_RES_CTRL);
+		udelay(100);
+	}
+	aud_pwr_status.main_pwr_cnt++;
+
+	if (aud_pwr_status.aud_dev_cnt == 0) {
+		/* SSPA1 BIT/SYSCLK */
+		/* Audio PLL is used here, no need external clock*/
+		/*_raw_writel(0xd3ee2276, MPMU_ISCCRX0);
+		__raw_writel(0xd0040040, MPMU_ISCCRX1);
+		udelay(10);
+		__raw_modify(MPMU_CCGR, 0, 0x20);*/
+	}
+	aud_pwr_status.aud_dev_cnt++;
+
+	if (aud_pwr_status.aud_pll_cnt == 0) {
+		__raw_writel(0x908A1898, SSPA_AUD_PLL_CTRL0);
+		udelay(100);
+		/* select OCLK, Slow audio PLL */
+		/*__raw_writel(0x2E000001, SSPA_AUD_PLL_CTRL1);*/
+		/* select fast audiio PLL */
+		__raw_writel(0xAF000001, SSPA_AUD_PLL_CTRL1);
+		udelay(100);
+		 __raw_writel(0x908A1899, SSPA_AUD_PLL_CTRL0);
+		udelay(100);
+
+		/* sspa_aud_pll_ctrl1[11] = 1 to choose audio PLL */
+		__raw_modify(SSPA_AUD_PLL_CTRL1, 0x0, 0x800);
+	}
+	aud_pwr_status.aud_pll_cnt++;
+
+	/* timer clock, src Audio PLL, div 12 */
+	__raw_modify(ZSP_TIM_13M_CLK_RES, 0x0, 0x64);
+	udelay(10);
+	/* enable and release reset*/
+	__raw_modify(ZSP_TIM_13M_CLK_RES, 0x0, 0x3);
+
+	/* set SSPA to fast audio PLL with M/N divider */
+	__raw_modify(ZSP_SSP_CLK_RES, 0x0, 0x30000);
+	__raw_modify(ZSP_SLIM_CLK_RES, 0xFFFFFFFF, 0x00100100);
+	__raw_modify(ZSP_SLIM_CLK_RES_2, 0x3FFFFFFF, 0xC0010002);
+	__raw_modify(ZSP_SLIM_CLK_RES, 0x0, 0xE);
+
+	/* config ZSP core peripherals */
+	__raw_modify(ZSP_CTRL_REG, 0xFFFFFFF, 0x141B05);
+	udelay(100);
+	__raw_modify(ZSP_CTRL_REG, 0x0, 0x18);
+	udelay(10);
+	aud_pwr_status.zsp_cnt++;
+
+	__raw_modify(ZSP_CORE_CLK_RES, 0x3, 0x4);
+	udelay(100);
+	/* switch to audio PLL, divide 1*/
+	__raw_modify(ZSP_CORE_CLK_RES, 0x0, 0x30);
+	__raw_modify(ZSP_CORE_FREQ_CHG, 0xE, 0x0);
+	/* enable divider*/
+	__raw_modify(ZSP_CORE_CLK_RES, 0x0, 0x8);
+	/* enabled core clock and release reset*/
+	__raw_modify(ZSP_CORE_CLK_RES, 0x4, 0x3);
+	udelay(10);
+	__raw_modify(ZSP_CORE_FREQ_CHG, 0x0, 0x1);
+	udelay(10);
+	do {
+		value = readl(ZSP_CORE_FREQ_CHG);
+		udelay(10);
+	} while ((value & 0x1) != 0);
+	return;
+}
+
+static void mmp_zsp_domain_halt(void)
+{
+	u32 value;
+	if (aud_pwr_status.zsp_cnt > 0) {
+		aud_pwr_status.zsp_cnt--;
+		if (aud_pwr_status.zsp_cnt == 0) {
+			/* reset audio peripheral */
+			__raw_modify(ZSP_CORE_CLK_RES, 0x3, 0x4);
+			udelay(100);
+			/* switch to  pll1*/
+			__raw_modify(ZSP_CORE_CLK_RES, 0x30, 0x0);
+			/* set divider 2*/
+			__raw_modify(ZSP_CORE_FREQ_CHG, 0xE, 0x4);
+			/* enable divider*/
+			__raw_modify(ZSP_CORE_CLK_RES, 0x0, 0x8);
+			/* enabled core clock and release reset*/
+			__raw_modify(ZSP_CORE_CLK_RES, 0x4, 0x3);
+			udelay(10);
+			__raw_modify(ZSP_CORE_FREQ_CHG, 0x0, 0x1);
+			udelay(10);
+			do {
+				value = readl(ZSP_CORE_FREQ_CHG);
+				udelay(10);
+			} while ((value & 0x1) != 0);
+		}
+	}
+
+	if (aud_pwr_status.aud_dev_cnt > 0)
+		aud_pwr_status.aud_dev_cnt--;
+
+	if (aud_pwr_status.aud_pll_cnt > 0) {
+		aud_pwr_status.aud_pll_cnt--;
+		if (aud_pwr_status.aud_pll_cnt == 0) {
+			__raw_modify(SSPA_AUD_PLL_CTRL1, 0x800, 0x0);
+			__raw_modify(SSPA_AUD_PLL_CTRL0, 0x1, 0x0);
+		}
+	}
+
+	if (aud_pwr_status.main_pwr_cnt > 0) {
+		aud_pwr_status.main_pwr_cnt--;
+		if (aud_pwr_status.main_pwr_cnt == 0) {
+			/* enable isolation */
+			__raw_modify(APMU_AUDIO_CLK_RES_CTRL, 0x100, 0);
+			/* assert AXI and peripheral reset */
+			__raw_modify(APMU_AUDIO_CLK_RES_CTRL, 0x3, 0);
+			/* gate axi and peripheral clock */
+			__raw_modify(APMU_AUDIO_CLK_RES_CTRL, 0x18, 0);
+
+			__raw_modify(APMU_AUDIO_DSA, 0xF, 0x0);
+			__raw_modify(APMU_AUDIO_SRAM_PWR, 0xF, 0x0);
+
+			/* power off */
+			__raw_modify(APMU_AUDIO_CLK_RES_CTRL, 0x600, 0);
+
+			aud_pwr_status.aud_dev_cnt = 0;
+			aud_pwr_status.zsp_cnt = 0;
+			aud_pwr_status.aud_pll_cnt = 0;
+		}
+	}
+
+	return;
+}
+
+static void mmp_zsp_start_core(void)
+{
+	int value;
+
+	writel(0x0000, ZSP_CONFIG_SVTADDR);
+	udelay(5);
+
+	value = readl(ZSP_CTRL_REG);
+	value &= ~0x2;
+	writel(value, ZSP_CTRL_REG);
+	udelay(100);
+
+	/* release reset */
+	value = readl(ZSP_CTRL_REG);
+	value |= 0x2;
+	writel(value, ZSP_CTRL_REG);
+	udelay(10);
+
+}
+
+static struct mmp_zsp_platform_device mmp_zsp_op = {
+	.clkcfg = {
+		.spd	= MMP_ZSP_SPD_PERFORMACE,
+		.src	= MMP_ZSP_CORECLKSRC_AUDIOPLL,
+		.asclk	= MMP_ZSP_ASCLK_24576000,
+	},
+	.sram_size = MMP_AUDIO_RAM_SIZE,
+	.domain_halt	= mmp_zsp_domain_halt,
+	.domain_on	= mmp_zsp_domain_on,
+	.start_core	= mmp_zsp_start_core,
+	.hw_memcpy = NULL,
+};
+static struct resource mmp_zsp_resources[] = {
+	/* reg base */
+	[0] = {
+		.start	= 0xC0140000,
+		.end	= 0xC014FFFF,
+		.flags	= IORESOURCE_MEM,
+		.name	= "audio-device",
+	},
+	/* ZSP IPC base */
+	[1] = {
+		.start	= 0xC0160000,
+		.end	= 0xC016FFFF,
+		.flags	= IORESOURCE_MEM,
+		.name	= "audio-ipc1",
+	},
+	/* ZSP iTCM window */
+	[2] = {
+		.start	= 0xC6100000,
+		.end	= 0xC611FFFF,
+		.flags	= IORESOURCE_MEM,
+		.name	= "audio-itcm",
+	},
+	/* ZSP dTCM window */
+	[3] = {
+		.start	= 0xC6080000,
+		.end	= 0xC609FFFF,
+		.flags	= IORESOURCE_MEM,
+		.name	= "audio-dtcm",
+	},
+	/* Audio IPC IRQ*/
+	[4] = {
+		.start	= IRQ_MMP3_DSP_AUDIO_7,
+		.end	= IRQ_MMP3_DSP_AUDIO_7,
+		.flags	= IORESOURCE_IRQ,
+		.name	= "audio-irq",
+	},
+};
+static u64 mmp_zsp_dmamask = DMA_BIT_MASK(32);
+static struct platform_device mmp_zsp_device = {
+	.name		= "mmp-zsp",
+	.id		= -1,
+	.dev		= {
+		.dma_mask		= &mmp_zsp_dmamask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+	},
+	.num_resources	= ARRAY_SIZE(mmp_zsp_resources),
+	.resource	= mmp_zsp_resources,
+};
+void mmp_zsp_platform_device_init(void)
+{
+	struct platform_device *pdev = &mmp_zsp_device;
+	int ret;
+
+	if (cpu_is_mmp3()) {
+
+		ret = platform_device_add_data(pdev, &mmp_zsp_op,
+			sizeof(mmp_zsp_op));
+		if (ret) {
+			printk(KERN_ERR "zsp_device_init fail: %d\n", ret);
+			return;
+		}
+		platform_device_register(pdev);
+		printk(KERN_INFO "ZSP device registered\n");
+	} else {
+		printk(KERN_INFO "ZSP device does not exist\n");
+	}
+}
+#endif
 
 #define GC2D_CLK_DIV(n)		((n & 0xF) << 28)
 #define GC2D_CLK_DIV_MSK	GC2D_CLK_DIV(0xF)

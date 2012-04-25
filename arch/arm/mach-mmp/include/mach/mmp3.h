@@ -84,6 +84,7 @@ extern struct platform_device mmp3_device_u2oehci;
 extern struct platform_device mmp3_hsic1_device;
 extern struct platform_device mmp3_hsic2_device;
 
+extern void mmp_zsp_platform_device_init(void);
 extern void pxa_u3d_phy_disable(void);
 
 static inline void mmp3_io_domain_1v8(u16 reg, int set)
