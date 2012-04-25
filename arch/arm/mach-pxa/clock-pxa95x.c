@@ -487,16 +487,16 @@ static void clk_pxa95x_lcd_disable(struct clk *dsi_clk)
 
 static long clk_pxa95x_lcd_round_rate(struct clk *lcd_clk, unsigned long rate)
 {
-	if (rate <= 104)
-		rate = 104;
-	else if (rate <= 156)
-		rate = 156;
-	else if (rate <= 208)
-		rate = 208;
-	else if (rate <= 312)
-		rate = 312;
-	else if (rate <= 416)
-		rate = 416;
+	if (rate <= 104000000)
+		rate = 104000000;
+	else if (rate <= 156000000)
+		rate = 156000000;
+	else if (rate <= 208000000)
+		rate = 208000000;
+	else if (rate <= 312000000)
+		rate = 312000000;
+	else if (rate <= 416000000)
+		rate = 416000000;
 	else {
 		printk(KERN_ERR "LCD don't support rate: %lu\n", rate);
 		return -1;
@@ -527,26 +527,26 @@ unsigned long clk_pxa95x_lcd_getrate(struct clk *lcd_clk)
 	default:
 		return -1;
 	}
-	return rate;
+	return rate * 1000000;
 }
 
 static int clk_pxa95x_lcd_setrate(struct clk *lcd_clk, unsigned long rate)
 {
 	unsigned int value, mask = 0x7;
 	switch (rate) {
-	case 104:
+	case 104000000:
 		value = 0;
 		break;
-	case 156:
+	case 156000000:
 		value = 1;
 		break;
-	case 208:
+	case 208000000:
 		value = 2;
 		break;
-	case 312:
+	case 312000000:
 		value = 3;
 		break;
-	case 416:
+	case 416000000:
 		value = 4;
 		break;
 	default:
