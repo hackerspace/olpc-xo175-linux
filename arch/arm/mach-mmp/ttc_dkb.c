@@ -185,6 +185,7 @@ static unsigned long ttc_dkb_pin_config[] __initdata = {
 	GPIO09_KP_MKOUT4,
 	GPIO12_KP_MKIN6,
 
+	GPIO122_RF_GPIO122,
 	/* AGPS GPIO */
 	GPIO45_GPIO45, /*share with TPO reset*/
 	/* RDA8207 XOUT2_EN enable signal for AGPS clock */
@@ -2616,6 +2617,7 @@ static struct platform_device ttc_dkb_panic_keys_device = {
 static void __init ttc_dkb_init(void)
 {
 	unsigned int dcdc_en;
+	unsigned int gpio122;
 
 	dcdc_en = mfp_to_gpio(GPIO112_RF_GPIO112);
 	if (gpio_request(dcdc_en, "DCDC EN"))
@@ -2628,6 +2630,12 @@ static void __init ttc_dkb_init(void)
 	else
 		mfp_config(ARRAY_AND_SIZE(ttc_dkb_pin_config));
 	tds_mfp_init();
+
+	gpio122 = mfp_to_gpio(GPIO122_RF_GPIO122);
+	if (gpio_request(gpio122, "GPIO 122"))
+		printk(KERN_ERR "Request GPIO122 failed. \n");
+	gpio_direction_output(gpio122, 0);
+	gpio_free(gpio122);
 
 #ifdef CONFIG_INPUT_KEYRESET
 	if (platform_device_register(&ttc_dkb_panic_keys_device))
