@@ -199,6 +199,8 @@ enum {
 #define PM8607_MIC_DECTION		(0x37)
 #define PM8607_HEADSET_DECTION	(0x38)
 
+#define PM8607_MISC_REG0        (0x3A)
+
 /* bit definitions of  MEAS_EN1*/
 #define PM8607_MIC_DET_EN_MIC_DET	(1 << 0)
 #define PM8607_HEADSET_EN_HS_DET	(1 << 0)
@@ -249,6 +251,17 @@ enum {
 #define PM8607_TSI_PREBIAS		(0x55)	/* prebias time */
 #define PM8607_PD_PREBIAS		(0x56)	/* prebias time */
 #define PM8607_GPADC_MISC1		(0x57)
+
+#define PM8607_GPADC_MISC2		(0x59)
+#define PM8607_GPADC_GP_BIAS_EN0	(1 << 0)
+#define PM8607_GPADC_GP_BIAS_EN1	(1 << 1)
+#define PM8607_GPADC_GP_BIAS_EN2	(1 << 2)
+#define PM8607_GPADC_GP_BIAS_EN3	(1 << 3)
+
+/* This is a previous name, Needed for backward compatibility
+ * Should be removed in a different patch */
+#define PM8607_GPADC3_GP_BIAS_A3	(1 << 3)
+#define PM8607_GPADC2_GP_BIAS_OUT2	(1 << 6)
 
 /* bit definitions of  MEAS_EN1*/
 #define PM8607_MEAS_EN1_VBAT           (1 << 0)
@@ -325,13 +338,6 @@ enum {
 #define PM8607_VBAT_MAX			(0x9D)
 #define PM8607_VCHG_MAX			(0x9E)
 #define PM8607_VSYS_MAX			(0x9F)
-
-#define PM8607_GPADC_MISC2         0x59
-#define PM8607_GPADC0_GP_BIAS_A0	(1 << 0)
-#define PM8607_GPADC1_GP_BIAS_A1	(1 << 1)
-#define PM8607_GPADC2_GP_BIAS_A2	(1 << 2)
-#define PM8607_GPADC3_GP_BIAS_A3	(1 << 3)
-#define PM8607_GPADC2_GP_BIAS_OUT2	(1 << 6)
 
 /* RTC Control Registers */
 #define PM8607_RTC1			(0xA0)
@@ -604,6 +610,8 @@ struct pm860x_platform_data {
 	int		i2c_port;	/* Controlled by GI2C or PI2C */
 	int		irq_mode;	/* Clear interrupt by read/write(0/1) */
 	int		irq_base;	/* IRQ base number of 88pm860x */
+	int		batt_det;	/* battery detect is enabled
+					 * 0 - disable for PXA910 , 1 enable*/
 	int		num_leds;
 	int		num_backlights;
 	int		num_regulators;

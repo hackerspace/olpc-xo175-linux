@@ -26,6 +26,7 @@
 
 /* bit definitions of Status Query Interface 2 */
 #define STATUS2_CHG		(1 << 2)
+#define STATUS2_BAT		(1 << 3)
 
 /* bit definitions of Reset Out Register */
 #define RESET_SW_PD		(1 << 7)
@@ -65,6 +66,7 @@
 #define CC4_BTEMP_MON_EN	(1 << 7)
 
 /* bit definitions of Charger Control 6 Register */
+#define CC6_BAT_DET_GPADC1	(1 << 0)
 #define CC6_BAT_OV_EN		(1 << 2)
 #define CC6_BAT_UV_EN		(1 << 3)
 #define CC6_UV_VBAT_SET		(0x3 << 6)/*2.8v*/
@@ -124,6 +126,7 @@ struct pm860x_charger_info {
 	unsigned		present:1;	/* battery present */
 	unsigned		allowed:1;
 	unsigned		bc_short:1;	/*1 disable 0 enable */
+	unsigned		batdet:1;
 };
 
 static char *pm860x_supplied_to[] = {
@@ -242,6 +245,14 @@ irqreturn_t pm860x_charger_handler(int irq, void *data)
 		info->online = 0;
 		info->allowed = 0;
 	}
+
+	if (info->batdet == 1) {
+		if (ret & STATUS2_BAT)
+			info->present = 1;
+		else
+			info->present = 0;
+	}
+
 	mutex_unlock(&info->lock);
 	dev_dbg(info->dev, "%s, Charger:%s, Allowed:%d\n", __func__,
 		(info->online) ? "online" : "N/A", info->allowed);
@@ -709,7 +720,9 @@ static int set_charging_fsm(struct pm860x_charger_info *info)
 		goto out;
 	}
 	mutex_lock(&info->lock);
-	info->present = data.intval;
+
+	if (info->batdet == 0)
+		info->present = data.intval;
 
 	dev_dbg(info->dev, "Entering FSM:%s, Charger:%s, Battery:%s, "
 		"Allowed:%d\n",
@@ -801,6 +814,13 @@ static int pm860x_init_charger(struct pm860x_charger_info *info)
 
 	mutex_lock(&info->lock);
 	info->state = FSM_INIT;
+
+	ret = pm860x_set_bits(info->i2c, PM8607_CHG_CTRL6,
+				CC6_BAT_DET_GPADC1,
+				CC6_BAT_DET_GPADC1);
+	if (ret < 0)
+		goto out;
+
 	ret = pm860x_reg_read(info->i2c, PM8607_STATUS_2);
 	if (ret < 0)
 		goto out;
@@ -811,6 +831,14 @@ static int pm860x_init_charger(struct pm860x_charger_info *info)
 		info->online = 0;
 		info->allowed = 0;
 	}
+
+	if (info->batdet == 1) {
+		if (ret & STATUS2_BAT)
+			info->present = 1;
+		else
+			info->present = 0;
+	}
+
 	info->charge_type = DEFAULT_CHARGER;
 	mutex_unlock(&info->lock);
 
@@ -910,6 +938,7 @@ static void remove_pm860x_power_proc_file(void)
 static __devinit int pm860x_charger_probe(struct platform_device *pdev)
 {
 	struct pm860x_chip *chip = dev_get_drvdata(pdev->dev.parent);
+	struct pm860x_platform_data *pdata = chip->dev->platform_data;
 	struct pm860x_charger_info *info;
 	int ret, i, j, count;
 
@@ -930,6 +959,7 @@ static __devinit int pm860x_charger_probe(struct platform_device *pdev)
 	}
 	ginfo = info;
 	info->irq_nums = j;
+	info->batdet = pdata->batt_det;
 
 	info->chip = chip;
 	info->i2c = (chip->id == CHIP_PM8607) ? chip->client : chip->companion;
