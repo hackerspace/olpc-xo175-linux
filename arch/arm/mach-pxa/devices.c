@@ -1955,3 +1955,10 @@ struct platform_device pxa95x_device_uio_si9226 = {
 	.id		= -1,
 };
 #endif
+
+#ifdef CONFIG_VMETA_DEVFREQ
+struct platform_device pxa95x_device_vMeta_devfreq = {
+	.name = "devfreq-vMeta",
+	.id = -1,
+};
+#endif

@@ -366,6 +366,9 @@ static struct platform_device *devices[] __initdata = {
 #if defined(CONFIG_TOUCHSCREEN_VNC)
 	&vnc_device,
 #endif
+#if defined(CONFIG_VMETA_DEVFREQ)
+	&pxa95x_device_vMeta_devfreq,
+#endif
 };
 
 struct pxa95x_freq_mach_info freq_mach_info = {

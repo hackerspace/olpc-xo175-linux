@@ -68,6 +68,7 @@ extern struct platform_device vnc_device;
 extern struct platform_device pxa978_device_ihdmi;
 extern struct platform_device pxa978_device_uio_ihdmi;
 extern struct platform_device pxa95x_device_uio_si9226;
+extern struct platform_device pxa95x_device_vMeta_devfreq;
 
 void __init pxa_register_device(struct platform_device *dev, void *data);
 extern void __init pxa95x_set_mci_info(int id, void *info);
