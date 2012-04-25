@@ -2615,6 +2615,14 @@ static struct platform_device ttc_dkb_panic_keys_device = {
 
 static void __init ttc_dkb_init(void)
 {
+	unsigned int dcdc_en;
+
+	dcdc_en = mfp_to_gpio(GPIO112_RF_GPIO112);
+	if (gpio_request(dcdc_en, "DCDC EN"))
+		printk(KERN_ERR "Request GPIO112 failed. \n");
+	gpio_direction_output(dcdc_en, 0);
+	gpio_free(dcdc_en);
+
 	if (cpu_is_pxa910h())
 		mfp_config(ARRAY_AND_SIZE(ttc_dkb_pxa910h_pin_config));
 	else
