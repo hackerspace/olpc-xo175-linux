@@ -2183,6 +2183,10 @@ static void ccic_timeout_handler(unsigned long data)
 		printk(KERN_INFO "cam: mipi normal, SCISR = 0x%08X-----------" \
 			"-------------------------<%d>\n", sci_irqs, reset_cnt);
 		/* not CSI fault, don't reset CSI here*/
+#ifdef _CONTROLLER_DEADLOOP_RESET_
+			mod_timer(&pcdev->reset_timer, \
+					jiffies + MIPI_RESET_TIMEOUT);
+#endif
 	} else {
 		printk(KERN_INFO "cam: CSxINST = 0x%08X, call reset workqueue" \
 			"-----------------------<%d>\n", csi_irqs, reset_cnt++);
