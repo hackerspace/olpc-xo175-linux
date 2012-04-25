@@ -253,10 +253,9 @@ failed:
 }
 
 #ifdef CONFIG_PM
-static int pxa95xfb_ovly_suspend(struct device *dev)
+static int pxa95xfb_ovly_suspend(struct platform_device *dev, pm_message_t state)
 {
-	struct platform_device *pdev = to_platform_device(dev);
-	struct pxa95xfb_info *fbi = platform_get_drvdata(pdev);
+	struct pxa95xfb_info *fbi = platform_get_drvdata(dev);
 
 	/* disable fb hdmi when suspend */
 	if (fbi->id >= 2 && fbi->controller_on) {
@@ -270,15 +269,10 @@ static int pxa95xfb_ovly_suspend(struct device *dev)
 	return 0;
 }
 
-static int pxa95xfb_ovly_resume(struct device *dev)
+static int pxa95xfb_ovly_resume(struct platform_device *dev)
 {
 	return 0;
 }
-
-static const struct dev_pm_ops pxa95xfb_ovly_pm_ops = {
-	.suspend	= pxa95xfb_ovly_suspend,
-	.resume		= pxa95xfb_ovly_resume,
-};
 #endif
 
 static struct platform_driver pxa95xfb_vid_driver = {
@@ -288,7 +282,8 @@ static struct platform_driver pxa95xfb_vid_driver = {
 	},
 	.probe		= pxa95xfb_vid_probe,
 #ifdef CONFIG_PM
-	.suspend	= &pxa95xfb_ovly_pm_ops,
+	.suspend	= pxa95xfb_ovly_suspend,
+	.resume		= pxa95xfb_ovly_resume,
 #endif
 };
 
