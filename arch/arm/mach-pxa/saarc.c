@@ -240,7 +240,7 @@ static void regulator_init_pm800(void)
 	*/
 
 	REG_INIT(i++, PM800_ID, LDO16, 1800000, 3300000, 0, 0);
-	REG_INIT(i++, PM800_ID, LDO8, 1800000, 3300000, 0, 1);
+	REG_INIT(i++, PM800_ID, LDO8, 1800000, 3300000, 0, 0);
 	REG_INIT(i++, PM800_ID, LDO6, 1200000, 3300000, 0, 0);
 	switch (get_board_id()) {
 	case OBM_DKB_2_NEVO_C0_BOARD:
@@ -2038,7 +2038,22 @@ static struct pxa95xfb_mach_info ihdmi_ovly_info __initdata = {
 
 static void panel_power(int on)
 {
-	panel_power_trulywvga(1, on);
+	static struct regulator *vlcd;
+	if (!vlcd) {
+		vlcd = regulator_get(NULL, "v_lcd_cywee_touch");
+		if (IS_ERR(vlcd)) {
+			printk(KERN_ERR "lcd: fail to get ldo handle!\n");
+			vlcd = NULL;
+			return;
+		}
+	}
+	if (on) {
+		regulator_enable(vlcd);
+		panel_power_trulywvga(1, on);
+	} else {
+		panel_power_trulywvga(1, on);
+		regulator_disable(vlcd);
+	}
 }
 
 static void panel_reset(void)
