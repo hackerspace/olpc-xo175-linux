@@ -31,6 +31,7 @@
 #include <linux/i2c.h>
 #include <plat/mfp.h>
 #include <linux/gpio.h>
+#include <linux/SSD2531_touch.h>
 
 #define TOUCHSCREEN_X_AXIS_MIN				(0)
 #define TOUCHSCREEN_X_AXIS_MAX				(479)
@@ -73,6 +74,7 @@ struct ssd2531_ts_data {
 };
 
 struct ssd2531_ts_data *g_p_ssd2531_data;
+struct ssd2531_platform_data *touch_data;
 /*////////////////////////////////////////////////////////////////////////*/
 static int ssd2531_ts_reset(void);
 static int ssd2531_ts_init(void);
@@ -212,11 +214,26 @@ static int ssd2531_i2c_write_word(u8 reg, u16 val)
 int ssd2531_ts_wakeup(int enable)
 {
 	u8 reg;
+	int ret = 0;
 	printk(KERN_NOTICE "ssd2531_ts_wakeup");
 	reg =
 	    ((enable ==
 	      1) ? SSD2531_SYSTEM_ENABLE_REG : SSD2531_SYSTEM_DISABLE_REG);
-	return ssd2531_i2c_write(reg, 0x00);
+	if (enable == 1) {
+		if (touch_data->set_power) {
+			ret = touch_data->set_power(1);
+			if (ret)
+				return ret;
+		}
+		/*Enable/disable operation will cause i2c no response
+		  So, don't checke the return value here.*/
+		ssd2531_i2c_write(reg, 0x00);
+	} else {
+		ssd2531_i2c_write(reg, 0x00);
+		if (touch_data->set_power)
+			return touch_data->set_power(0);
+	}
+	return ret;
 }
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -647,7 +664,8 @@ ssd2531_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		return -ENOMEM;
 	}
 
-	mfp_pins = (int *)client->dev.platform_data;
+	touch_data = ((struct ssd2531_platform_data *)(client->dev.platform_data));
+	mfp_pins = touch_data->pin_data;
 	if (mfp_pins == NULL)
 		return -EINVAL;
 
@@ -767,6 +785,7 @@ ssd2531_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
 #endif
 
 	printk(KERN_NOTICE "--ssd2531_i2c_probe - exit OK\n");
+
 	return 0;
 err_irq_failed:
 	cancel_delayed_work_sync(g_p_ssd2531_data->work);

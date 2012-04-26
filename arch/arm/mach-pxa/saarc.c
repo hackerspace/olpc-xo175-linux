@@ -46,7 +46,7 @@
 #include <plat/pxa27x_keypad.h>
 #include <linux/spi/pxa2xx_spi.h>
 #include <linux/spi/cmmb.h>
-
+#include <linux/SSD2531_touch.h>
 #include <plat/usb.h>
 
 #include "devices.h"
@@ -631,6 +631,26 @@ static struct pm80x_vibrator_pdata vibrator_pdata = {
 	.vibrator_power = vibrator_set_power,
 };
 
+static int touch_set_power(int on)
+{
+	struct regulator *v_ldo;
+	v_ldo = regulator_get(NULL, "v_lcd_cywee_touch");
+
+	if (IS_ERR(v_ldo)) {
+		v_ldo = NULL;
+		return -EIO;
+	}
+
+	if (on) {
+		regulator_enable(v_ldo);
+	} else {
+		regulator_disable(v_ldo);
+	}
+	regulator_put(v_ldo);
+	v_ldo = NULL;
+	return 0;
+}
+
 static int cywee_set_power(int on)
 {
 	struct regulator *v_ldo;
@@ -681,6 +701,10 @@ static struct cwgd_platform_data cwgd_plat_data = {
 };
 
 static int ssd2531_ts_pins[] = { MFP_PIN_GPIO8, MFP_PIN_GPIO7 };
+static struct ssd2531_platform_data touch_platform_data = {
+	.set_power = touch_set_power,
+	.pin_data = ssd2531_ts_pins,
+};
 
 #if defined(CONFIG_BACKLIGHT_ADP8885)
 static struct adp8885_bl_channel_data adp8885_ch[] = {
@@ -743,7 +767,7 @@ static struct i2c_board_info i2c2_info_DKB[] = {
 #if defined(CONFIG_TOUCHSCREEN_SSD2531)
 	{
 		I2C_BOARD_INFO("ssd2531_ts", 0x5c),
-		.platform_data = ssd2531_ts_pins,
+		.platform_data = (void *)&touch_platform_data,
 	},
 #endif
 #if defined(CONFIG_BACKLIGHT_ADP8885)
@@ -765,7 +789,7 @@ static struct i2c_board_info i2c2_info_C25[] = {
 #if defined(CONFIG_TOUCHSCREEN_SSD2531)
 	{
 		I2C_BOARD_INFO("ssd2531_ts", 0x5c),
-		.platform_data = ssd2531_ts_pins,
+		.platform_data = (void *)&touch_platform_data,
 	},
 #endif
 #if defined(CONFIG_BACKLIGHT_ADP8885)
