@@ -400,9 +400,6 @@ static int __init pxa95x_init(void)
 	if ((ret = pxa_init_dma(IRQ_DMA, 32)))
 		return ret;
 
-	register_syscore_ops(&pxa_irq_syscore_ops);
-	register_syscore_ops(&pxa_gpio_syscore_ops);
-
 	ret = platform_add_devices(devices, ARRAY_SIZE(devices));
 
 	pxa_set_ffuart_info(NULL);
