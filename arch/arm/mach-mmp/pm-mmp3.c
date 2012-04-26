@@ -357,10 +357,12 @@ static struct mmp3_freq_plan mmp3_pps[] = {
 		.core = {{MMP3_FREQ_OP_GET, 3, 0, 0, 0, 1, 1, 2, 2},},
 		.axi  = {{MMP3_FREQ_OP_GET, 1, 1, 2},},
 	},
+#if MMP3_TEST_PP
 	{
 		.core = {{MMP3_FREQ_OP_GET, 2, 0, 0, 0, 1, 1, 2, 2},},
 		.axi  = {{MMP3_FREQ_OP_GET, 1, 1, 2},},
 	},
+#endif
 };
 
 static struct mmp3_pmu mmp3_pmu_config = {
