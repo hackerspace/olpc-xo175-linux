@@ -877,6 +877,7 @@ int set_acipc_cp_enable(unsigned int pm_cp)
 	internal_acipc_pm_cp = pm_cp;
 	return 0;
 }
+EXPORT_SYMBOL(set_acipc_cp_enable);
 
 u32 clear_DDR_avail_flag(void)
 {
@@ -989,6 +990,7 @@ void acipc_start_cp_constraints(void)
 	set_constraint();
 	set_DDR_avail_flag();
 }
+EXPORT_SYMBOL(acipc_start_cp_constraints);
 
 u32 get_ddr_avail_state(void)
 {
