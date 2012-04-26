@@ -167,7 +167,7 @@ Reg_Item ssd2531_Init[] = {
 	{CMD_1B, 0xC1, 0x02},
 	{CMD_1B, 0xD5, 0x0F},
 	{CMD_1B, 0xD9, 0x01},
-	{CMD_1B, 0x25, 0x04},
+	{CMD_1B, 0x25, 0x02},
 };
 
 Reg_Item ssd2533_Init[] = {	/* for SSD2532 or SSD2533 */
@@ -307,7 +307,7 @@ static unsigned ts_gpio_table[]={
 };
 ****************************************************************/
 
-#define PROCFS_NAME "ssd253x-mode"
+#define PROCFS_NAME "driver/ssd253x-mode"
 static struct proc_dir_entry *TP_PROC_FILE;
 extern struct proc_dir_entry proc_root;
 
@@ -591,8 +591,14 @@ static int ssd253x_Proc_Write(struct file *filp, const char *buffer, unsigned lo
 		}
 		break;
 	}
-	if ((lbuf[0] >= 0) && (lbuf[0] <= 2))
-		ssl_priv->working_mode = lbuf[0];
+	if ((lbuf[0] >= 0) && (lbuf[0] <= 2)) {
+		if (ssl_priv->working_mode != lbuf[0]) {
+			ssl_priv->working_mode = lbuf[0];
+			hrtimer_start(&ssl_priv->timer, ktime_set(0,
+					1000000000), HRTIMER_MODE_REL);
+			/*check again after 1s */
+		}
+	}
 	return count;
 }
 
@@ -1084,10 +1090,6 @@ static void ssd253x_ts_work(struct work_struct *work)
 			hrtimer_start(&ssl_priv->timer,
 					ktime_set(0, 500000000),
 					HRTIMER_MODE_REL); /*check again after 500ms*/
-		else
-			hrtimer_start(&ssl_priv->timer,
-					ktime_set(0, 1000000000),
-					HRTIMER_MODE_REL); /*check again after 1s*/
 	} else {
 		ssl_priv->cal_tick = 0;
 		hrtimer_start(&ssl_priv->timer,
