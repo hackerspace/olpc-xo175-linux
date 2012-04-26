@@ -1284,10 +1284,6 @@ static int capture_op_info(void *driver_data, struct dvfm_md_opt *fv_info)
 			fv_info->xn = (acsr >> ACCR_XN_OFFSET) & 0x07;
 		}
 		fv_info->smcfs = (acsr >> ACCR_SMCFS_OFFSET) & 0x07;
-		if (cpu_is_pxa978() && fv_info->smcfs != 0x0) {
-			printk(KERN_INFO "SMC frquency is not the lowest, check OBM setting!\n");
-			WARN_ON(1);
-		}
 		fv_info->sflfs = (acsr >> ACCR_SFLFS_OFFSET) & 0x03;
 		fv_info->hss = (acsr >> ACCR_HSS_OFFSET) & 0x03;
 		if (!cpu_is_pxa978())
