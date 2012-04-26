@@ -2617,11 +2617,22 @@ static int pxa95xfb_gfx_blank(int blank, struct fb_info *info)
 	return 0;
 }
 
+static int get_valid_fetchid_for_ihdmi(void)
+{
+	int i;
+	for (i = 0; i < PXA95xFB_FB_NUM; i++)
+		if (pxa95xfbi[i] && pxa95xfbi[i]->converter == LCD_M2HDMI
+				&& pxa95xfbi[i]->controller_on)
+			return pxa95xfbi[i]->window;
+	return -1;
+}
+
 static irqreturn_t pxa95xfb_gfx_handle_irq_ctl(int irq, void *dev_id)
 {
 	struct pxa95xfb_info *fbi = (struct pxa95xfb_info *)dev_id;
 	u32	 g, x;
 	int i;
+
 
 	g = readl(fbi->reg_base + LCD_CTL_INT_STS);
 	/*do nothing with LCD EN/DIS/Q_DIS: we don't enable these intr*/
@@ -2650,6 +2661,16 @@ static irqreturn_t pxa95xfb_gfx_handle_irq_ctl(int irq, void *dev_id)
 						pxa95xfbi[i]->eof_handler(pxa95xfbi[i]);
 					}
 				}
+			}
+		}
+
+		/* FIXME: for HDMI, as converter irq is lost, what we could do is using FETCH EOF of HDMI(fbi2/3) */
+
+		if (!atomic_read(&pxa95xfb_conv[LCD_M2HDMI - 1].w_intr)) {
+			int ihdmi_fetchid = get_valid_fetchid_for_ihdmi();
+			if (ihdmi_fetchid > 0 &&  (x & LCD_FETCH_INT_STS0_END_FRx(ihdmi_fetchid))) {
+				atomic_set(&pxa95xfb_conv[LCD_M2HDMI - 1].w_intr, 1);
+				wake_up(&g_vsync_wq);
 			}
 		}
 	}
