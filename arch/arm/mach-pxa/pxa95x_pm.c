@@ -343,153 +343,6 @@ int is_wkr_mg1_1468(void)
 	return cpu_is_pxa95x();
 }
 
-static void pxa95x_intc_save(struct intc_regs *context)
-{
-	unsigned int temp, i;
-
-	context->iccr = ICCR;
-	for (i = 0; i < 32; i++)
-		context->ipr[i] = __raw_readl(&IPR(i));
-	for (i = 0; i < 21; i++)
-		context->ipr2[i] = __raw_readl(&IPR(i));
-
-	/* load registers by accessing co-processor */
-	__asm__("mrc\tp6, 0, %0, c1, c0, 0" : "=r"(temp));
-	context->icmr = temp;
-	__asm__("mrc\tp6, 0, %0, c7, c0, 0" : "=r"(temp));
-	context->icmr2 = temp;
-	__asm__("mrc\tp6, 0, %0, c2, c0, 0" : "=r"(temp));
-	context->iclr = temp;
-	__asm__("mrc\tp6, 0, %0, c8, c0, 0" : "=r"(temp));
-	context->iclr2 = temp;
-}
-
-static void pxa95x_intc_restore(struct intc_regs *context)
-{
-	unsigned int temp, i;
-
-	ICCR = context->iccr;
-	for (i = 0; i < 32; i++)
-		__raw_writel(context->ipr[i], &IPR(i));
-	for (i = 0; i < 21; i++)
-		__raw_writel(context->ipr2[i], &IPR(i));
-
-	temp = context->icmr;
-	__asm__("mcr\tp6, 0, %0, c1, c0, 0" : : "r"(temp));
-	temp = context->icmr2;
-	__asm__("mcr\tp6, 0, %0, c7, c0, 0" : : "r"(temp));
-	temp = context->iclr;
-	__asm__("mcr\tp6, 0, %0, c2, c0, 0" : : "r"(temp));
-	temp = context->iclr2;
-	__asm__("mcr\tp6, 0, %0, c8, c0, 0" : : "r"(temp));
-}
-
-static void pxa95x_clk_save(struct clock_regs *context)
-{
-	context->aicsr = AICSR;
-	context->ckena = CKENA;
-	context->ckenb = CKENB;
-	context->oscc = OSCC;
-	/* Disable the processor to use the ring oscillator output clock
-	 * as a clock source when transitioning from any low-power mode
-	 * to D0 mode.
-	 */
-	ACCR &= ~ACCR_PCCE;
-}
-
-static void pxa95x_clk_restore(struct clock_regs *context)
-{
-	context->aicsr &= (AICSR_PCIE | AICSR_TCIE | AICSR_FCIE);
-	AICSR = context->aicsr;
-	CKENA = context->ckena;
-	CKENB = context->ckenb;
-	OSCC = context->oscc;
-}
-
-static void pxa95x_ost_save(struct ost_regs *context)
-{
-	context->oscr4 = OSCR4;
-	context->omcr4 = OMCR4;
-	context->osmr4 = OSMR4;
-	context->oier = OIER;
-}
-
-static void pxa95x_ost_restore(struct ost_regs *context)
-{
-	OSCR4 = context->oscr4;
-	OMCR4 = context->omcr4;
-	OSMR4 = context->osmr4;
-	OIER = context->oier;
-}
-
-static void pxa95x_mfp_save(struct mfp_regs *context)
-{
-	int i;
-
-	for (i = 0; i < MAX_MFP_PINS; i++)
-		context->mfp[i] = __raw_readl(&__REG(MFPR_BASE) + (i << 2));
-}
-
-static void pxa95x_mfp_restore(struct mfp_regs *context)
-{
-	int i;
-
-	for (i = 0; i < MAX_MFP_PINS; i++)
-		__raw_writel(context->mfp[i], &__REG(MFPR_BASE) + (i << 2));
-}
-
-/* The setting of GPIO will be restored.
- * The status of GPIO Edge Status will be lost.
- */
-static void pxa95x_gpio_save(struct gpio_regs *context)
-{
-	context->gpdr0 = GPDR0;
-	context->gpdr1 = GPDR1;
-	context->gpdr2 = GPDR2;
-	context->gpdr3 = GPDR3;
-
-	context->gplr0 = GPLR0;
-	context->gplr1 = GPLR1;
-	context->gplr2 = GPLR2;
-	context->gplr3 = GPLR3;
-
-	context->grer0 = GRER0;
-	context->grer1 = GRER1;
-	context->grer2 = GRER2;
-	context->grer3 = GRER3;
-
-	context->gfer0 = GFER0;
-	context->gfer1 = GFER1;
-	context->gfer2 = GFER2;
-	context->gfer3 = GFER3;
-}
-
-static void pxa95x_gpio_restore(struct gpio_regs *context)
-{
-	GPDR0 = context->gpdr0;
-	GPDR1 = context->gpdr1;
-	GPDR2 = context->gpdr2;
-	GPDR3 = context->gpdr3;
-
-	GPSR0 = context->gplr0;
-	GPSR1 = context->gplr1;
-	GPSR2 = context->gplr2;
-	GPSR3 = context->gplr3;
-	GPCR0 = ~(context->gplr0);
-	GPCR1 = ~(context->gplr1);
-	GPCR2 = ~(context->gplr2);
-	GPCR3 = ~(context->gplr3);
-
-	GRER0 = context->grer0;
-	GRER1 = context->grer1;
-	GRER2 = context->grer2;
-	GRER3 = context->grer3;
-
-	GFER0 = context->gfer0;
-	GFER1 = context->gfer1;
-	GFER2 = context->gfer2;
-	GFER3 = context->gfer3;
-}
 static void pxa95x_sysbus_init(struct pxa95x_pm_regs *context)
 {
 	context->smc.membase = ioremap(SMC_START, SMC_END - SMC_START + 1);
@@ -511,80 +364,6 @@ static void pxa95x_sysbus_init(struct pxa95x_pm_regs *context)
 	}
 }
 
-static void pxa95x_sysbus_save(struct pxa95x_pm_regs *context)
-{
-	unsigned char __iomem *base = NULL;
-	unsigned int tmp;
-
-	/* static memory controller */
-	base = context->smc.membase;
-	context->smc.msc0 = readl(base + MSC0_OFF);
-	context->smc.msc1 = readl(base + MSC1_OFF);
-	context->smc.sxcnfg = readl(base + SXCNFG_OFF);
-	context->smc.memclkcfg = readl(base + MEMCLKCFG_OFF);
-	context->smc.cscfg0 = readl(base + CSADRCFG0_OFF);
-	context->smc.cscfg1 = readl(base + CSADRCFG1_OFF);
-	context->smc.cscfg2 = readl(base + CSADRCFG2_OFF);
-	context->smc.cscfg3 = readl(base + CSADRCFG3_OFF);
-	context->smc.csmscfg = readl(base + CSMSADRCFG_OFF);
-
-	/* system bus arbiters */
-	base = context->arb.membase;
-	context->arb.ctl1 = readl(base + ARBCTL1_OFF);
-	context->arb.ctl2 = readl(base + ARBCTL2_OFF);
-
-	/* pmu controller */
-	if (!cpu_is_pxa978())
-		context->pmu.pecr = PECR;
-
-	context->pmu.pvcr = PVCR;
-	/* clear PSR */
-	tmp = PSR;
-	tmp &= 0x07;
-	PSR = tmp;
-
-	pxa95x_intc_save(&(context->intc));
-	pxa95x_clk_save(&(context->clock));
-	pxa95x_ost_save(&(context->ost));
-	pxa95x_mfp_save(&(context->mfp));
-	pxa95x_gpio_save(&(context->gpio));
-}
-
-static void pxa95x_sysbus_restore(struct pxa95x_pm_regs *context)
-{
-	unsigned char __iomem *base = NULL;
-
-	pxa95x_mfp_restore(&(context->mfp));
-	pxa95x_gpio_restore(&(context->gpio));
-	pxa95x_ost_restore(&(context->ost));
-	pxa95x_intc_restore(&(context->intc));
-	pxa95x_clk_restore(&(context->clock));
-
-	/* PMU controller */
-	if (!cpu_is_pxa978()) {
-		/* status information will be lost in PECR */
-		PECR = 0xA0000000;
-		PECR = (context->pmu.pecr | PECR_E1IS | PECR_E0IS);
-	}
-	PVCR = context->pmu.pvcr;
-
-	/* system bus arbiters */
-	base = context->arb.membase;
-	writel(context->arb.ctl1, base + ARBCTL1_OFF);
-	writel(context->arb.ctl2, base + ARBCTL2_OFF);
-
-	/* static memory controller */
-	base = context->smc.membase;
-	writel(context->smc.msc0, base + MSC0_OFF);
-	writel(context->smc.msc1, base + MSC1_OFF);
-	writel(context->smc.sxcnfg, base + SXCNFG_OFF);
-	writel(context->smc.memclkcfg, base + MEMCLKCFG_OFF);
-	writel(context->smc.cscfg0, base + CSADRCFG0_OFF);
-	writel(context->smc.cscfg1, base + CSADRCFG1_OFF);
-	writel(context->smc.cscfg2, base + CSADRCFG2_OFF);
-	writel(context->smc.cscfg3, base + CSADRCFG3_OFF);
-	writel(context->smc.csmscfg, base + CSMSADRCFG_OFF);
-}
 
 static void pxa95x_pm_set_clk(char *id, int enable)
 {
@@ -600,35 +379,6 @@ static void pxa95x_pm_set_clk(char *id, int enable)
 		clk_enable(clk);
 	else
 		clk_disable(clk);
-}
-
-/* This function is used to set unit clock before system enters sleep.
- */
-static void pxa95x_pm_set_cken(void)
-{
-	/*
-	 * turn off SMC, GPIO,INTC clocks to save power in sleep mode.
-	 * they will be turn on by BLOB during wakeup
-	 */
-	pxa95x_pm_set_clk("SMCCLK", 0);
-	pxa95x_pm_set_clk("GPIOCLK", 0);
-	/*
-	 * turn on clocks used by bootrom during wakeup
-	 * they will be turn off by BLOB during wakeup
-	 * D0CKEN_A clocks: bootrom, No.19
-	 */
-	pxa95x_pm_set_clk("BOOTCLK", 1);
-	/* Trusted parts */
-	pxa95x_pm_set_clk("SMCCLK", 1);
-}
-
-/* This function is used to restore unit clock after system resumes.
- */
-static void pxa95x_pm_restore_cken(void)
-{
-	pxa95x_pm_set_clk("SMCCLK", 1);
-	pxa95x_pm_set_clk("GPIOCLK", 1);
-	pxa95x_pm_set_clk("BOOTCLK", 0);
 }
 
 /* This function is used to clear power manager status.
@@ -874,7 +624,7 @@ static unsigned int pm_query_wakeup_src(void)
 	return data;
 }
 
-static void dump_wakeup_src(pm_wakeup_src_t *src)
+static void __attribute__ ((unused)) dump_wakeup_src(pm_wakeup_src_t *src)
 {
 	printk(KERN_DEBUG "wakeup source: ");
 	if (src->bits.rtc)
@@ -950,12 +700,6 @@ void pxa95x_wakeup_unregister(void)
 EXPORT_SYMBOL(pxa95x_wakeup_unregister);
 
 /*************************************************************************/
-static void flush_cpu_cache(void)
-{
-	__cpuc_flush_kern_all();
-	/* __cpuc_flush_l2cache_all(); */
-}
-
 struct os_header {
 	int version;
 	int identifier;
@@ -1830,25 +1574,8 @@ static int pxa95x_pm_enter(suspend_state_t state)
  */
 static int pxa95x_pm_prepare(void)
 {
-	if (0) {
-#ifdef CONFIG_IPM
-	/* Disable deep idle when system enters low power mode */
-	save_deepidle = enable_deepidle;
-	enable_deepidle = 0;
-#endif
-	if (pm_state == PM_SUSPEND_MEM) {
-		/* backup data in ISRAM */
-		memcpy(pxa95x_pm_regs.sram, pxa95x_pm_regs.sram_map,
-		       isram_size);
-	} else if (pm_state == PM_SUSPEND_STANDBY) {
-		/* FIXME: allocat SRAM to execute D1/D2 entry/exit code.
-		 * Try not to use it in the future.
-		 */
-		/* backup data in ISRAM */
-		memcpy(pxa95x_pm_regs.sram, pxa95x_pm_regs.sram_map, 1024);
-	}
-	} else
-		pr_debug("Prepare done.\n");
+	pr_debug("Prepare done.\n");
+
 	return 0;
 }
 
@@ -1857,21 +1584,7 @@ static int pxa95x_pm_prepare(void)
  */
 static void pxa95x_pm_finish(void)
 {
-	if (0) {
-#ifdef CONFIG_IPM
-	enable_deepidle = save_deepidle;
-#endif
-	if (pm_state == PM_SUSPEND_MEM) {
-		/* restore data in ISRAM */
-		memcpy(pxa95x_pm_regs.sram_map, pxa95x_pm_regs.sram,
-		       isram_size);
-	} else if (pm_state == PM_SUSPEND_STANDBY) {
-		/* restore data in ISRAM */
-		memcpy(pxa95x_pm_regs.sram_map, pxa95x_pm_regs.sram, 1024);
-	}
-	pm_state = PM_SUSPEND_ON;
-	} else
-		pr_debug("Finish done.\n");
+	pr_debug("Finish done.\n");
 }
 
 static int pxa95x_pm_valid(suspend_state_t state)
