@@ -899,6 +899,17 @@ warnings */
 		local_irq_restore(flags);
 		return ddr_avail_flag;	/*returning 0*/
 	}
+
+	/*
+	 * In suspend, D2/CG will be entered without constraint checking.
+	 * This is to make sure D2 can't be entered if DDR request is acquired.
+	 */
+	if (acipc_lock.ddr208_cnt > 0) {
+		pr_debug("ACIPC has required DDR. Enter CG instead.\n");
+		local_irq_restore(flags);
+		return 1;
+	}
+
 	/* critical section ... */
 	ACIPC_IIR_READ(IIR_val);
 	if (!(IIR_val&ACIPC_DDR_READY_REQ)) {
@@ -1003,6 +1014,54 @@ u32 get_acipc_pending_events(void)
 	ACIPC_IIR_READ(iir_val);
 	return iir_val;
 }
+
+int acipc_handle_DDR_req_relq(void)
+{
+	int ret = 0;
+
+	IPC_ENTER();
+
+	ACIPC_IIR_READ(acipc->IIR_val);	/* read the IIR */
+
+	/*
+	 * If both events bit set, we don't know how many interrupts occured.
+	 * We will guess both events occured only once.
+	 */
+	if ((acipc->IIR_val & ACIPC_DDR_READY_REQ) &&
+			(acipc->IIR_val &ACIPC_DDR_RELQ_REQ)) {
+		printk(KERN_DEBUG "##############WARNING#################\n.");
+		printk(KERN_DEBUG "Both events, DDR req and relq, happen"
+			       "before handling.\n");
+	}
+
+	if (ACIPC_DDR_READY_REQ & acipc->IIR_val) {
+		pr_debug("ACIPC_DDR_READY_REQ happen.\n");
+		/* Clean the event(s) and call callback */
+		acipc_writel_withdummy(IPC_ICR, ACIPC_DDR_READY_REQ);
+		acipc_kernel_callback(ACIPC_DDR_READY_REQ);
+	}
+
+	if (ACIPC_DDR_RELQ_REQ & acipc->IIR_val) {
+		pr_debug("ACIPC_DDR_RELQ_REQ happen.\n");
+		/* Clean the event(s) and call callback */
+		acipc_writel_withdummy(IPC_ICR, ACIPC_DDR_RELQ_REQ);
+		acipc_kernel_callback(ACIPC_DDR_RELQ_REQ);
+	}
+
+	/*
+	 * If other events happen than DDR req and relq, start resume.
+	 */
+	if (acipc->IIR_val & ~(ACIPC_DDR_READY_REQ | ACIPC_DDR_RELQ_REQ)) {
+		pr_debug("Other events happen: 0x%08x, ", acipc->IIR_val);
+		pr_debug("Exit suspend.\n");
+		ret = 1;
+	}
+
+	IPC_LEAVE();
+
+	return ret;
+}
+EXPORT_SYMBOL(acipc_handle_DDR_req_relq);
 #endif
 
 enum acipc_return_code ACIPCEventBind(u32 user_event,
