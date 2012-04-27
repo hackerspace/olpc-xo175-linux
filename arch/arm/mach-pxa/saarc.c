@@ -290,17 +290,15 @@ static void regulator_init_pm800(void)
 		REG_SUPPLY_INIT(PM800_ID_LDO14, "Vdd_IO", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO11, "v_cywee", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO13, "vmmc", "sdhci-pxa.1");
-		REG_SUPPLY_INIT(PM800_ID_LDO9, "v_8787", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO9, "v_wifi_3v3", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO10, "v_vibrator", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO17, "VSim", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO18, "v_gps", NULL);
-		/*For BU turn on WiFi LDO always on,
-		 *  need to fix after by WiFi Team*/
-		 REG_INIT(i++, PM800_ID, LDO14, 1800000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO14, 1800000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO11, 2800000, 2800000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO13, 1800000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO18, 1200000, 3300000, 0, 0);
-		REG_INIT(i++, PM800_ID, LDO9, 2400000, 3300000, 1, 1);
+		REG_INIT(i++, PM800_ID, LDO9, 3300000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO10, 2800000, 2800000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO17, 1800000, 3300000, 0, 0);
 		break;
@@ -320,29 +318,30 @@ static struct i2c_board_info i2c1_80x_info[] = {
 
 static struct clk *clk_tout_s0;
 
-
-/* specific 8787 power on/off setting for SAARB */
+/* specific 8787 power on/off setting for SAARC/DKB Nevo */
 static void wifi_set_power(unsigned int on)
 {
 	unsigned long wlan_pd_mfp = 0;
 	int gpio_power_down = mfp_to_gpio(MFP_PIN_GPIO70);
 	int gpio_wifi_en = mfp_to_gpio(MFP_PIN_GPIO102);
-	struct regulator *v_ldo12 = NULL;
-	struct regulator *v_ldo17 = NULL;
+	struct regulator *wifi_1v8 = NULL;
+	struct regulator *wifi_3v3 = NULL;
+
+	wifi_3v3 = regulator_get(NULL, "v_wifi_3v3");
+	if (IS_ERR(wifi_3v3)) {
+		wifi_3v3 = NULL;
+		printk("get wifi_3v3 regulator error\n");
+		return;
+	}
 
 	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
-			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
-			get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD) {
-		v_ldo12 = regulator_get(NULL, "v_wifi_1v8");
-		if (IS_ERR(v_ldo12)) {
-			v_ldo12 = NULL;
-			return;
-		}
-		v_ldo17 = regulator_get(NULL, "v_wifi_3v3");
-		if (IS_ERR(v_ldo17)) {
-			regulator_put(v_ldo12);
-			v_ldo12 = NULL;
-			v_ldo17 = NULL;
+			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ) {
+		wifi_1v8 = regulator_get(NULL, "v_wifi_1v8");
+		if (IS_ERR(wifi_1v8)) {
+			printk("get wifi_1v8 regulator error\n");
+			regulator_put(wifi_3v3);
+			wifi_3v3 = NULL;
+			wifi_1v8 = NULL;
 			return;
 		}
 	}
@@ -351,13 +350,18 @@ static void wifi_set_power(unsigned int on)
 
 	if (on) {
 		if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
+				get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ)
+			regulator_enable(wifi_1v8);
+
+		regulator_enable(wifi_3v3);
+
+		if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
 				get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
 				get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD) {
-			regulator_enable(v_ldo12);
-			regulator_enable(v_ldo17);
 			gpio_request(gpio_wifi_en, "WIB_EN");
 			gpio_direction_output(gpio_wifi_en, 1);
 		}
+
 		/* set wlan_pd pin to output high in low power
 			mode to ensure 8787 is not power off in low power mode*/
 		wlan_pd_mfp |= 0x100;
@@ -373,21 +377,26 @@ static void wifi_set_power(unsigned int on)
 
 		/* disable 32KHz TOUT */
 		clk_disable(clk_tout_s0);
+
+		if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
+				get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ)
+			regulator_disable(wifi_1v8);
+
 		if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
 				get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
 				get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD) {
 			gpio_direction_output(gpio_wifi_en, 0);
 			gpio_free(gpio_wifi_en);
-			regulator_disable(v_ldo12);
-			regulator_disable(v_ldo17);
 		}
+
+		regulator_disable(wifi_3v3);
 	}
+
 	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
-			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
-			get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD) {
-		regulator_put(v_ldo12);
-		regulator_put(v_ldo17);
-	}
+			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ)
+		regulator_put(wifi_1v8);
+
+	regulator_put(wifi_3v3);
 }
 
 #if defined(CONFIG_MMC_SDHCI_PXAV2_TAVOR) || defined(CONFIG_MMC_SDHCI_PXAV3)
