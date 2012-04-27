@@ -410,9 +410,8 @@ static ssize_t mmp3_sysset_read(struct device *dev, struct device_attribute *att
 	u32 mpmu_fccr;
 	u32 mpmu_pll2cr;
 	u32 mpmu_pdc;
-	u32 apmu_cc_pj;
-	u32 apmu_cc2_pj;
-	u32 apmu_cc3_pj;
+	u32 apmu_dm_cc_pj;
+	u32 apmu_dm2_cc_pj;
 	u32 apmu_gc;
 	u32 apmu_vmeta;
 	u32 apmu_isp;
@@ -456,18 +455,17 @@ static ssize_t mmp3_sysset_read(struct device *dev, struct device_attribute *att
 	mpmu_fccr = readl(MPMU_FCCR);
 	mpmu_pdc = readl(PMUM_PLL_DIFF_CTRL);
 	mpmu_pll2cr = readl(MPMU_PLL2CR);
-	apmu_cc_pj = readl(APMU_CC_PJ);
-	apmu_cc2_pj = readl(APMU_CC2_PJ);
-	apmu_cc3_pj = readl(APMU_CC3_PJ);
+	apmu_dm_cc_pj = readl(APMU_DM_CC_PJ);
+	apmu_dm2_cc_pj = readl(APMU_DM2_CC_PJ);
 	apmu_core_status = readl(APMU_CORE_STATUS);
 	pll_sel_status = readl(APMU_PLL_SEL_STATUS);
 
 	/* mp1 */
 	tmp = (pll_sel_status >> 3) & 0x7;
 	mp1_clk = clk_selection(tmp, pll1, pll2, pll1_p);
-	tmp = apmu_cc_pj & 0x7;
+	tmp = apmu_dm_cc_pj & 0x7;
 	mp1_clk /= tmp + 1;
-	tmp = (apmu_cc2_pj >> 9) & 0xf;
+	tmp = (apmu_dm2_cc_pj >> 9) & 0xf;
 	mp1_clk /= tmp + 1;
 	if (cpu_online(0))
 		core_status[0] = "online";
@@ -477,9 +475,9 @@ static ssize_t mmp3_sysset_read(struct device *dev, struct device_attribute *att
 	/* mp2 */
 	tmp = (pll_sel_status >> 3) & 0x7;
 	mp2_clk = clk_selection(tmp, pll1, pll2, pll1_p);
-	tmp = apmu_cc_pj & 0x7;
+	tmp = apmu_dm_cc_pj & 0x7;
 	mp2_clk /= tmp + 1;
-	tmp = (apmu_cc2_pj >> 13) & 0xf;
+	tmp = (apmu_dm2_cc_pj >> 13) & 0xf;
 	mp2_clk /= tmp + 1;
 	if (cpu_online(1))
 		core_status[1] = "online";
@@ -489,9 +487,9 @@ static ssize_t mmp3_sysset_read(struct device *dev, struct device_attribute *att
 	/* mm */
 	tmp = (pll_sel_status >> 3) & 0x7;
 	mm_clk = clk_selection(tmp, pll1, pll2, pll1_p);
-	tmp = apmu_cc_pj & 0x7;
+	tmp = apmu_dm_cc_pj & 0x7;
 	mm_clk /= tmp + 1;
-	tmp = (apmu_cc2_pj >> 17) & 0xf;
+	tmp = (apmu_dm2_cc_pj >> 17) & 0xf;
 	mm_clk /= tmp + 1;
 	if ((apmu_core_status >> 10) & 0x1)
 		core_status[2] = "online";
@@ -501,7 +499,7 @@ static ssize_t mmp3_sysset_read(struct device *dev, struct device_attribute *att
 	/* ddr1 */
 	tmp = (pll_sel_status >> 6) & 0x7;
 	ddr1_clk = clk_selection(tmp, pll1, pll2, pll1_p);
-	tmp = (apmu_cc_pj >> 12) & 0x7;
+	tmp = (apmu_dm_cc_pj >> 12) & 0x7;
 	ddr1_clk /= tmp + 1;
 	/* it is 2x value in spec */
 	ddr1_clk /= 2;
@@ -509,7 +507,7 @@ static ssize_t mmp3_sysset_read(struct device *dev, struct device_attribute *att
 	/* ddr2 */
 	tmp = (pll_sel_status >> 6) & 0x7;
 	ddr2_clk = clk_selection(tmp, pll1, pll2, pll1_p);
-	tmp = (apmu_cc3_pj >> 17) & 0x7;
+	tmp = (apmu_dm_cc_pj >> 9) & 0x7;
 	ddr2_clk /= tmp + 1;
 	/* it is 2x value in spec */
 	ddr2_clk /= 2;
@@ -517,13 +515,13 @@ static ssize_t mmp3_sysset_read(struct device *dev, struct device_attribute *att
 	/* axi1 */
 	tmp = (pll_sel_status >> 9) & 0x7;
 	axi1_clk = clk_selection(tmp, pll1, pll2, pll1_p);
-	tmp = (apmu_cc_pj >> 15) & 0x7;
+	tmp = (apmu_dm_cc_pj >> 15) & 0x7;
 	axi1_clk /= tmp + 1;
 
 	/* axi2 */
 	tmp = (pll_sel_status >> 9) & 0x7;
 	axi2_clk = clk_selection(tmp, pll1, pll2, pll1_p);
-	tmp = apmu_cc2_pj & 0x7;
+	tmp = apmu_dm2_cc_pj & 0x7;
 	axi2_clk /= tmp + 1;
 
 	/* GC2000, GC300, GC bus */
