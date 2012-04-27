@@ -286,11 +286,24 @@ static struct irq_chip pxa_ext_wakeup_chip = {
 	.irq_set_type       = pxa_set_ext_wakeup_type,
 };
 
-/*
- *  * For pxa95x, it's not necessary to use irq to wakeup system.
- *   */
-int pxa95x_set_wake(struct irq_data *d, unsigned int on)
+int pxa95x_set_wake(struct irq_data *data, unsigned int on)
 {
+	int irq = data->irq;
+	struct irq_desc *desc = irq_to_desc(data->irq);
+
+	if (unlikely(irq >= nr_irqs)) {
+		pr_err("IRQ nubmers are out of boundary!\n");
+		return -EINVAL;
+	}
+
+	if (on) {
+		if (desc->action)
+			desc->action->flags |= IRQF_NO_SUSPEND;
+	} else {
+		if (desc->action)
+			desc->action->flags &= ~IRQF_NO_SUSPEND;
+	}
+
 	return 0;
 }
 
