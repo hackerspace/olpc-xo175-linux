@@ -95,6 +95,32 @@ extern int EnableD2VoltageChange;
 extern unsigned int D2voltageLevelValue;
 extern int cur_op;
 
+#define VLSCR_D2_VALUE (VLSCR_LVL2_SINGLE_RAIL | VLSCR_LVL3_SINGLE_RAIL \
+		| VLSCR_LPM_SINGLE_RAIL)
+#define VLSCR_D1_VALUE (VLSCR_LVL2_SINGLE_RAIL | VLSCR_LVL3_SINGLE_RAIL)
+#define VLSCR_SINGLE_RAIL_MASK (VLSCR_LPM_SINGLE_RAIL \
+		| VLSCR_LVL1_SINGLE_RAIL | VLSCR_LVL2_SINGLE_RAIL \
+		| VLSCR_LVL3_SINGLE_RAIL | VLSCR_LVL0_SINGLE_RAIL \
+		| VLSCR_VCT0_LVL0_REMAP_MASK | VLSCR_VCT0_LVL1_REMAP_MASK \
+		| VLSCR_VCT0_LVL2_REMAP_MASK | VLSCR_VCT0_LVL3_REMAP_MASK)
+
+/* masks of the reserved bits */
+unsigned int ckena_rsvd_bit_mask;
+unsigned int ckenb_rsvd_bit_mask;
+unsigned int ckenc_rsvd_bit_mask;
+static void cken_rsvd_bit_mask_setup(void)
+{
+	if (cpu_is_pxa978()) {
+		ckena_rsvd_bit_mask = 0x00000001;
+		ckenb_rsvd_bit_mask = 0x97FCF040;
+		ckenc_rsvd_bit_mask = 0x00000000;
+	} else {
+		ckena_rsvd_bit_mask = 0x00080001;
+		ckenb_rsvd_bit_mask = 0x97FCF040;
+		ckenc_rsvd_bit_mask = 0x00C00000;
+	}
+}
+
 #ifdef CONFIG_INPUT_88PM8XXX_ONKEY
 extern void pm8xxx_system_poweroff(void);
 #endif
@@ -106,6 +132,7 @@ extern u32 set_DDR_avail_flag(void);
 extern u32 clear_DDR_avail_flag(void);
 extern u32 get_acipc_pending_events(void);
 extern void acipc_start_cp_constraints(void);
+extern int acipc_handle_DDR_req_relq(void);
 #endif
 
 #define CHECK_APPS_COMM_SYNC						\
@@ -740,10 +767,6 @@ static void pm_select_wakeup_src(enum pxa95x_pm_mode lp_mode,
 				tmp |= (PWER_WER1 | PWER_WEF1);
 			PWER = tmp;
 		}
-
-		AD3SR = 0xFFFFFFFF;
-		AD3ER = 0;
-		AD3ER = reg_src;
 	}
 	if (lp_mode == PXA95x_PM_DEEPSLEEP) {
 		if (!cpu_is_pxa978()) {
@@ -941,72 +964,191 @@ struct os_header {
 	int reserved;
 };
 
+static void pm_preset_standby(void)
+{
+	pxa95x_clear_pm_status(0);
+}
+
+static void enter_d2(void)
+{
+	unsigned int pollreg, vlscr = VLSCR;
+	pr_debug("enter D2.\n");
+	AD2D0SR = 0xFFFFFFFF;
+	AD2D0ER = 0;
+	AD2D0ER = PXA95x_PM_WE_RTC		/* RTC */
+		| PXA95x_PM_WE_MSL0		/* ACS-IPC */
+		| PXA95x_PM_WE_GENERIC(3);	/* On-key */
+	pm_preset_standby();
+
+	if (is_wkr_mg1_1468())
+		enable_axi_lpm_entry();
+
+	save_dma_registers();
+
+	/* PWRMODE = D2 */
+	PWRMODE = (PXA95x_PM_S0D2C2 | PXA95x_PM_I_Q_BIT);
+	do {
+		pollreg = PWRMODE;
+	} while (pollreg != (PXA95x_PM_S0D2C2 | PXA95x_PM_I_Q_BIT));
+
+	/* D2 is using single rail mode */
+	vlscr &= ~(VLSCR_SINGLE_RAIL_MASK);
+	vlscr |= (VLSCR_D2_VALUE);
+	VLSCR = vlscr;
+
+	pxa978_pm_enter(pollreg);
+
+	if (is_wkr_mg1_1468())
+		enable_axi_lpm_exit();
+
+	restore_dma_registers();
+	pr_debug("exit D2.\n");
+}
+
+static void enter_cg(void)
+{
+	unsigned int pollreg, reg;
+	unsigned int cken[3] = {0, 0, 0 };
+
+	pr_debug("enter CG.\n");
+	ACGD0SR = 0xFFFFFFFF;
+	ACGD0ER = 0;
+	ACGD0ER = PXA95x_PM_WE_RTC		/* RTC */
+		| PXA95x_PM_WE_MSL0		/* ACS-IPC */
+		| PXA95x_PM_WE_INTC		/* IRQ or FIQ */
+#if 0
+		| PXA95x_PM_WE_DMC		/* DMC interrupt */
+#endif
+		| PXA95x_PM_WE_GENERIC(3);	/* On-key */
+
+	PWRMODE = (PXA978_PM_S0D0CG | PXA95x_PM_I_Q_BIT);
+	do {
+		pollreg = PWRMODE;
+	} while (pollreg != (PXA978_PM_S0D0CG | PXA95x_PM_I_Q_BIT));
+
+	cken[0] = CKENA;
+	cken[1] = CKENB;
+	cken[2] = CKENC;
+
+	/* writing 1 to AGENP[2] to enable the wakeup detection
+	 * window */
+	AGENP |= AGENP_SAVE_WK;
+
+	/*
+	 * Turn off all clocks except PX1 bus clock,
+	 * DMEMC clock and reserved bits
+	 */
+	CKENA = ckena_rsvd_bit_mask | (1 << 8);
+	reg = CKENA;
+	CKENB = ckenb_rsvd_bit_mask | (1 << 29);
+	reg = CKENB;
+	CKENC = ckenc_rsvd_bit_mask;
+	reg = CKENC;
+
+	/*
+	 * making sure that registers are written with the correct value
+	 * before moving on
+	 */
+	while ((CKENA != (ckena_rsvd_bit_mask | (1 << 8))) ||
+			(CKENB != (ckenb_rsvd_bit_mask | (1 << 29))) ||
+			(CKENC != ckenc_rsvd_bit_mask)) {
+	};
+	/* Turn off PX1 bus clock */
+	CKENB &= ~(1 << 29);
+
+	pxa978_pm_enter(pollreg);
+
+	/* restore clocks after exiting from clock gated mode */
+	CKENA = cken[0];
+	reg = CKENA;
+	CKENB = cken[1];
+	reg = CKENB;
+	CKENC = cken[2];
+	reg = CKENC;
+	pr_debug("exit CG.\n");
+}
+
+#define ACS_DDR_REQ (1 << 19)
+#define ACS_DDR_260_REQ (1 << 8)
+#define ACS_RELQ_OTHERS (1 << 5)
 int pxa95x_pm_enter_sleep(struct pxa95x_pm_regs *pm_regs)
 {
-	pxa95x_sysbus_save(pm_regs);
+	unsigned int wakeup_data, icip, icip2, icip3;
+	unsigned long flags;
 
-	pm_select_wakeup_src(PXA95x_PM_SLEEP, wakeup_src);
+	local_fiq_disable();
+	local_irq_save(flags);
 
-	pxa95x_pm_set_cken();
+	while (1) {
+		wakeup_data = 0;
+		/* Configure edge detection */
+		pm_select_wakeup_src(PXA95x_PM_SLEEP, wakeup_src);
+		pr_debug("start loop.\n");
+		icip = ICIP, icip2 = ICIP2, icip3 = ICIP3;
+		/* check if any IRQ/FIQ pending */
+		if (!(icip || icip2 || icip3 || ICFP || ICFP2 || ICFP3)) {
+#if defined(CONFIG_PXA9XX_ACIPC)
+			if (0 == clear_DDR_avail_flag()) {
+				CHECK_APPS_COMM_SYNC
+#endif
+				enter_d2();
+#if defined(CONFIG_PXA9XX_ACIPC)
+				set_DDR_avail_flag();
+			} else {
+				enter_cg();
+			}
+#endif
+			wakeup_data = pm_query_wakeup_src();
 
-	/* should set:modeSaveFlags, areaAddress, flushFunc, psprAddress,
-	 * extendedChecksumByteCount */
-	pm_regs->pm_data.modeSaveFlags = 0x3f;	/* PM_MODE_SAVE_FLAG_SVC; */
-	pm_regs->pm_data.flushFunc = flush_cpu_cache;
-	pm_regs->pm_data.areaAddress = (unsigned int)&(pm_regs->pm_data);
-	pm_regs->pm_data.psprAddress = (unsigned int)&PSPR;
-	pm_regs->pm_data.extendedChecksumByteCount =
-	    sizeof(struct pxa95x_pm_regs) - sizeof(struct pm_save_data);
-	pr_debug("ext size:%d, save size%d\n",
-		 pm_regs->pm_data.extendedChecksumByteCount,
-		 sizeof(struct pm_save_data));
+			pr_debug("Wakeup by 0x%08x.\n", wakeup_data);
+			pxa95x_clear_pm_status(0);
+			icip = ICIP, icip2 = ICIP2, icip3 = ICIP3;
+		} else {
+			if (icip & (ACS_RELQ_OTHERS | ACS_DDR_REQ)) {
+				pr_debug("New ACIPC event pending: ");
+				if (icip & ACS_DDR_REQ)
+					pr_debug("DDR REQ.\n");
+				else
+					pr_debug("DDR RELQ.\n");
+			}
+			else {
+				pr_info("Unexpected interrupt pending. Exit!\n"
+						"Unmasked interrupt: 0x%08x, 0x"
+						"%08x, 0x%08x.\n", icip & ICMR,
+						icip2 & ICMR2, icip3 & ICMR3);
+				break;
+			}
+		}
+		/* Clear edge detection */
+		pm_clear_wakeup_src(wakeup_src);
 
-	/* save the resume back address into SDRAM */
-	pm_regs->word0 = __raw_readl(pm_regs->data_pool);
-	pm_regs->word1 = __raw_readl(pm_regs->data_pool + 4);
-	__raw_writel(virt_to_phys(pxa95x_cpu_resume), pm_regs->data_pool);
-	__raw_writel(virt_to_phys(&(pm_regs->pm_data)), pm_regs->data_pool + 4);
-
-	pxa95x_clear_pm_status(1);
-
-	pr_debug("ready to sleep:0x%x\n", virt_to_phys(&(pm_regs->pm_data)));
+		/* Exit suspend when wakeup by other source than ACIPC */
+		if (wakeup_data & ~(PXA95x_PM_WE_MSL0)) {
+			pr_debug("Exit suspend waked by: 0x%08x.\nUnmasked "
+					"interrupt: 0x%08x, 0x%08x, 0x%08x.\n",
+					wakeup_data, icip & ICMR,
+					icip2 & ICMR2, icip3 & ICMR3);
+			break;
+		}
+		/* Exit suspend when ACS_DDR_260_REQ pended */
+		if (icip2 & ACS_DDR_260_REQ) {
+			pr_debug("Exit suspend since hi-freq DDR request.\n");
+			break;
+		}
 
 #if defined(CONFIG_PXA9XX_ACIPC)
-	if (0 == clear_DDR_avail_flag()) {
-		CHECK_APPS_COMM_SYNC
+		pr_debug("Handle ACIPC events, interrupts status: ");
+		pr_debug("ICIP: 0x%08x, ICIP2: 0x%08x, ICIP3: 0x%08x.\n",
+				icip, icip2, icip3);
+		/* wakeup by DDR request or relinquish, clear interrupt */
+		if (acipc_handle_DDR_req_relq()) {
+			break;
+		}
 #endif
-		    /* go to Zzzz */
-		    pxa95x_cpu_sleep((unsigned int)&(pm_regs->pm_data),
-				     virt_to_phys(&(pm_regs->pm_data)));
-#if defined(CONFIG_PXA9XX_ACIPC)
-		/* set the DDR_AVAIL flag for comm */
-		set_DDR_avail_flag();
+	}
 
-	} else
-		printk(KERN_ERR "******EDDR WARNING: %s DDR_req=1 shared "
-		       "flag=1.should not happen. check the apps-comm "
-		       "sync\n", __func__);
-#endif
-
-	/* come back */
-	__raw_writel(pm_regs->word0, pm_regs->data_pool);
-	__raw_writel(pm_regs->word1, pm_regs->data_pool + 4);
-
-	pxa95x_pm_restore_cken();
-
-	pm_query_wakeup_src();
-	dump_wakeup_src(&waked);
-	pxa95x_sysbus_restore(pm_regs);
-
-	pxa95x_clear_pm_status(1);
-
-	/* clear RDH */
-	ASCR &= ~ASCR_RDH;
-
-	pm_clear_wakeup_src(wakeup_src);
-
-	pr_debug("*** made it back from sleep\n");
-
+	local_irq_restore(flags);
+	local_fiq_enable();
 	return 0;
 }
 
@@ -1037,11 +1179,6 @@ static void pxa95x_pm_poweroff(void)
 	__asm__("wfi");
 }
 #endif
-
-static void pm_preset_standby(void)
-{
-	pxa95x_clear_pm_status(0);
-}
 
 static unsigned int pm_postset_standby(void)
 {
@@ -1203,22 +1340,6 @@ void gc_pwr(int enableDisable)
 EXPORT_SYMBOL(gc_pwr);
 
 #ifdef CONFIG_PXA95x_DVFM
-/* masks of the reserved bits */
-unsigned int ckena_rsvd_bit_mask;
-unsigned int ckenb_rsvd_bit_mask;
-unsigned int ckenc_rsvd_bit_mask;
-static void cken_rsvd_bit_mask_setup(void)
-{
-	if (cpu_is_pxa978()) {
-		ckena_rsvd_bit_mask = 0x00000001;
-		ckenb_rsvd_bit_mask = 0x97FCF040;
-		ckenc_rsvd_bit_mask = 0x00000000;
-	} else {
-		ckena_rsvd_bit_mask = 0x00080001;
-		ckenb_rsvd_bit_mask = 0x97FCF040;
-		ckenc_rsvd_bit_mask = 0x00C00000;
-	}
-}
 
 extern int calc_switchtime(unsigned int, unsigned int);
 
@@ -1256,14 +1377,6 @@ unsigned int get_sram_base(void)
 	return (unsigned int) pxa95x_pm_regs.sram_map;
 }
 
-#define VLSCR_D2_VALUE (VLSCR_LVL2_SINGLE_RAIL | VLSCR_LVL3_SINGLE_RAIL \
-		| VLSCR_LPM_SINGLE_RAIL)
-#define VLSCR_D1_VALUE (VLSCR_LVL2_SINGLE_RAIL | VLSCR_LVL3_SINGLE_RAIL)
-#define VLSCR_SINGLE_RAIL_MASK (VLSCR_LPM_SINGLE_RAIL \
-		| VLSCR_LVL1_SINGLE_RAIL | VLSCR_LVL2_SINGLE_RAIL \
-		| VLSCR_LVL3_SINGLE_RAIL | VLSCR_LVL0_SINGLE_RAIL \
-		| VLSCR_VCT0_LVL0_REMAP_MASK | VLSCR_VCT0_LVL1_REMAP_MASK \
-		| VLSCR_VCT0_LVL2_REMAP_MASK | VLSCR_VCT0_LVL3_REMAP_MASK)
 unsigned int get_c2_sram_base(void)
 {
 	return (unsigned int) (pxa95x_pm_regs.sram_map + 0x8000);
@@ -1717,6 +1830,7 @@ static int pxa95x_pm_enter(suspend_state_t state)
  */
 static int pxa95x_pm_prepare(void)
 {
+	if (0) {
 #ifdef CONFIG_IPM
 	/* Disable deep idle when system enters low power mode */
 	save_deepidle = enable_deepidle;
@@ -1733,7 +1847,8 @@ static int pxa95x_pm_prepare(void)
 		/* backup data in ISRAM */
 		memcpy(pxa95x_pm_regs.sram, pxa95x_pm_regs.sram_map, 1024);
 	}
-
+	} else
+		pr_debug("Prepare done.\n");
 	return 0;
 }
 
@@ -1742,6 +1857,7 @@ static int pxa95x_pm_prepare(void)
  */
 static void pxa95x_pm_finish(void)
 {
+	if (0) {
 #ifdef CONFIG_IPM
 	enable_deepidle = save_deepidle;
 #endif
@@ -1754,6 +1870,8 @@ static void pxa95x_pm_finish(void)
 		memcpy(pxa95x_pm_regs.sram_map, pxa95x_pm_regs.sram, 1024);
 	}
 	pm_state = PM_SUSPEND_ON;
+	} else
+		pr_debug("Finish done.\n");
 }
 
 static int pxa95x_pm_valid(suspend_state_t state)
