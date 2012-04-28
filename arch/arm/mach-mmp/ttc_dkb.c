@@ -1082,14 +1082,14 @@ static unsigned long lis33ldl_min_delay = 50;
 #if defined(CONFIG_SENSORS_CWMI)
 static struct cwmi_platform_data cwmi_acc_data = {
 	.axes = {
+		0, -1, 0,
 		1, 0, 0,
-		0, 1, 0,
 		0, 0, 1},
 };
 static struct cwmi_platform_data cwmi_mag_data = {
 	.axes = {
+		0, -1, 0,
 		1, 0, 0,
-		0, 1, 0,
 		0, 0, 1},
 };
 #endif
@@ -1253,13 +1253,13 @@ static struct i2c_board_info ttc_dkb_pxa910h_pwr_i2c_info[] = {
 	{
 		.type		= "cwmi_acc",
 		.addr		= 0x19,
-		.irq		= IRQ_GPIO(10),
+		.irq		= IRQ_GPIO(9),
 		.platform_data	= &cwmi_acc_data,
 	},
 	{
 		.type		= "cwmi_mag",
 		.addr		= 0x1e,
-		.irq		= IRQ_GPIO(9),
+		/*Do not define irq, mag only support polling*/
 		.platform_data	= &cwmi_mag_data,
 	},
 #endif
