@@ -761,8 +761,7 @@ static int mxdspidev_probe(struct spi_device *spi)
 
 		cmmb_dev->devt = MKDEV(SPIDEV_MAJOR, minor);
 		dev = device_create(mxdspidev_class, &spi->dev, cmmb_dev->devt,
-				    cmmb_dev, "mxdspidev%d.%d",
-				    spi->master->bus_num, spi->chip_select);
+				    cmmb_dev, "mxdspidev1.%ld", minor);
 		status = IS_ERR(dev) ? PTR_ERR(dev) : 0;
 	} else {
 		dev_dbg(&spi->dev, "no minor number available!\n");
