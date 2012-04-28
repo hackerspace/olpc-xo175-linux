@@ -298,7 +298,7 @@ struct pxa_i2c {
 #define I2C_PXA_FIFO_TSHLD_RX	0x8
 #define I2C_PXA_FIFO_TSHLD_TX	0x0
 #define I2C_PXA_FIFO_ENTRY_RX	0x10
-#define I2C_PXA_FIFO_ENTRY_TX	0x8
+#define I2C_PXA_FIFO_ENTRY_TX	0x10
 
 #define assert(expr) \
 	if(unlikely(!(expr))) {				        \
