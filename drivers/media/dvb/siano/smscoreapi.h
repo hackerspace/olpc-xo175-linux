@@ -47,6 +47,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #endif
 
 #define RX_64K_MODE		/* for 64K RX data */
+/* for 26MHz crystal input HW module */
+/* #define CRYSTAL_26MHz */
 #define SW_POWERDOWN_MODE			1
 #define ALLOC_COMMON_BUF_MULTIPLE	1
 #define ALLOC_COMMON_BUF_BY_KMALLOC 1
@@ -209,6 +211,7 @@ struct smscore_device_t {
 	struct completion gpio_configuration_done, gpio_set_level_done;
 	struct completion gpio_get_level_done, ir_init_done;
 	struct completion loopback_res_done, rx_64k_done, powerdown_res_done;
+	struct completion newcrystal_res_done;
 
 	/* Buffer management */
 	wait_queue_head_t buffer_mng_waitq;

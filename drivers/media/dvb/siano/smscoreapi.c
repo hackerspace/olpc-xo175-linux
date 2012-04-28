@@ -1076,6 +1076,29 @@ int smscore_64Kmode_req(struct smscore_device_t *coredev)
 }
 #endif
 
+#ifdef CRYSTAL_26MHz
+int smscore_26MHz_req(struct smscore_device_t *coredev)
+{
+	char msgbuff[252];
+	int rc = 0;
+	struct SmsMsgData_ST *p26MMsg = (struct SmsMsgData_ST *)msgbuff;
+
+	p26MMsg->xMsgHeader.msgType = MSG_SMS_NEW_CRYSTAL_REQ;
+	p26MMsg->xMsgHeader.msgSrcId = SMS_HOST_INTERNAL;
+	p26MMsg->xMsgHeader.msgDstId = HIF_TASK;
+	p26MMsg->xMsgHeader.msgFlags = 0;
+	p26MMsg->xMsgHeader.msgLength =
+		sizeof(struct SmsMsgData_ST) + sizeof(unsigned long);
+	p26MMsg->msgData[0] = 2600;
+
+	smsendian_handle_tx_message((struct SmsMsgHdr_ST *)p26MMsg);
+	rc = smscore_sendrequest_and_wait(coredev, p26MMsg,
+			p26MMsg->xMsgHeader.msgLength,
+			&coredev->newcrystal_res_done);
+	return 0;
+}
+#endif
+
 int smscore_powerdown_req(struct smscore_device_t *coredev)
 {
 	int rc;
@@ -1295,7 +1318,9 @@ int smscore_set_device_mode(struct smscore_device_t *coredev, int mode)
 		#ifdef RX_64K_MODE
 			smscore_64Kmode_req(coredev);
 		#endif
-
+		#ifdef CRYSTAL_26MHz
+		smscore_26MHz_req(coredev);
+		#endif
 	} else {
 		if (mode < DEVICE_MODE_DVBT || mode > DEVICE_MODE_DVBT_BDA) {
 			sms_err("invalid mode specified %d", mode);
@@ -1549,6 +1574,9 @@ void smscore_onresponse(struct smscore_device_t *coredev,
 			break;
 		case MSG_SMS_SET_MAX_TX_MSG_LEN_RES:
 			complete(&coredev->rx_64k_done);
+			break;
+		case MSG_SMS_NEW_CRYSTAL_RES:
+			complete(&coredev->newcrystal_res_done);
 			break;
 		case MSG_SMS_POWER_DOWN_RES:
 			coredev->powerdown_mode_supported = 0;
