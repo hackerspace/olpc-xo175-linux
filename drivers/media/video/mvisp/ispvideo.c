@@ -405,7 +405,8 @@ static void isp_video_vb2_buffer_queue(struct vb2_buffer *vb)
 	video->dmaidlecnt++;
 
 	/* Notify the subdev of qbuf event */
-	video->ops->qbuf_notify(video);
+	if (video->streaming && video->ops->qbuf_notify)
+		video->ops->qbuf_notify(video);
 
 	return;
 }
@@ -954,7 +955,7 @@ isp_video_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 			break;
 		case ISP_VIDEO_CODEC:
 			state = ISP_PIPELINE_CODEC_STREAM;
-			pipe->output[FAR_END_ISP_DISPLAY] = video;
+			pipe->output[FAR_END_ISP_CODEC] = video;
 			break;
 		case ISP_VIDEO_CCIC:
 			state = ISP_PIPELINE_CCIC_STREAM;

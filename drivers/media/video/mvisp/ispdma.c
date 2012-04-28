@@ -512,7 +512,7 @@ static int ispdma_set_fb_reg(struct mvisp_device *isp,
 		ISP_IOMEM_ISPDMA, ISPDMA_FBTX0_SDCA + regoffset);
 	mvisp_reg_writel(isp, regval,
 		ISP_IOMEM_ISPDMA, ISPDMA_FBTX0_DCSZ + regoffset);
-	regval = 0x1 < 9;
+	regval = 0x1 << 9;
 	mvisp_reg_writel(isp, regval,
 		ISP_IOMEM_ISPDMA, ISPDMA_FBTX0_RAMCTRL + regoffset);
 
@@ -530,7 +530,7 @@ static int ispdma_set_fb_reg(struct mvisp_device *isp,
 	mvisp_reg_writel(isp, regval,
 		ISP_IOMEM_ISPDMA, ISPDMA_FBTX0_TMR + regoffset);
 
-	regval = 0x1400 | ((cfg_fb->burst_write >> 7) & FBTX_DMABRSTSZ);
+	regval = 0x1400 | ((cfg_fb->burst_write >> 3) & FBTX_DMABRSTSZ);
 	mvisp_reg_writel(isp, regval,
 		ISP_IOMEM_ISPDMA, ISPDMA_FBTX0_CTRL + regoffset);
 
@@ -540,7 +540,7 @@ static int ispdma_set_fb_reg(struct mvisp_device *isp,
 		ISP_IOMEM_ISPDMA, ISPDMA_FBRX0_SDCA + regoffset);
 	mvisp_reg_writel(isp, regval,
 		ISP_IOMEM_ISPDMA, ISPDMA_FBRX0_DCSZ + regoffset);
-	regval = 0x1 < 9;
+	regval = 0x1 << 9;
 	mvisp_reg_writel(isp, regval,
 		ISP_IOMEM_ISPDMA, ISPDMA_FBRX0_RAMCTRL + regoffset);
 
