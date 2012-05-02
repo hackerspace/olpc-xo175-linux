@@ -1294,6 +1294,7 @@ int pxa910_freq_chg(int cpufreq)
 	struct pxa910_md_opt *md_new, *md_old;
 	int ret = 0;
 	unsigned int tbindex = 0, i;
+	unsigned long flags;
 
 	mutex_lock(&freqs_mutex);
 
@@ -1332,7 +1333,9 @@ int pxa910_freq_chg(int cpufreq)
 		}
 	}
 
+	local_irq_save(flags);
 	set_freq(md_old, md_new);
+	local_irq_restore(flags);
 	cur_md = md_new;
 	loops_per_jiffy = md_new->lpj;
 
