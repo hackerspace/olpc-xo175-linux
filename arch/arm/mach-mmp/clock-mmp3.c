@@ -982,21 +982,14 @@ static int gc_clk_enable(struct clk *clk)
 	gc_rate_cfg &= GC_CLK_RATE_MSK;
 
 	GC_SET_BITS(gc_rate_cfg, GC_CLK_RATE_MSK);
-
-	GC_SET_BITS(GC2D3D_CLK_EN, 0);
-	udelay(60);
-
-	GC_SET_BITS(GC2D_AXICLK_EN | GC3D_AXICLK_EN, 0);
-	udelay(60);
+	GC_SET_BITS(GC2D3D_CLK_EN | GC2D_AXICLK_EN | GC3D_AXICLK_EN, 0);
 
 	return 0;
 }
 
 static void gc_clk_disable(struct clk *clk)
 {
-	GC_SET_BITS(0, GC2D_AXICLK_EN | GC3D_AXICLK_EN);
-	GC_SET_BITS(0, GC2D3D_CLK_EN);
-	udelay(50);
+	GC_SET_BITS(0, GC2D_AXICLK_EN | GC3D_AXICLK_EN | GC2D3D_CLK_EN);
 }
 
 static long gc_clk_round_rate(struct clk *clk, unsigned long rate)
@@ -2222,12 +2215,6 @@ static int vmeta_clk_enable(struct clk *clk)
 	clk_reparent(clk, clk->inputs[clk->enable_val].input);
 
 	reg = readl(clk->clk_rst);
-	reg |= APMU_VMETA_AXICLK_EN;
-	writel(reg, clk->clk_rst);
-	reg = readl(clk->clk_rst);
-	udelay(100);
-
-	reg = readl(clk->clk_rst);
 	reg &= ~APMU_VMETA_CLK_SEL_MASK;
 	reg &= ~APMU_VMETA_CLK_DIV_MASK;
 	reg |= (clk->inputs[clk->enable_val].value) << APMU_VMETA_CLK_SEL_SHIFT;
@@ -2237,9 +2224,8 @@ static int vmeta_clk_enable(struct clk *clk)
 	writel(reg, clk->clk_rst);
 
 	reg = readl(clk->clk_rst);
-	reg |= APMU_VMETA_CLK_EN;
+	reg |= (APMU_VMETA_AXICLK_EN | APMU_VMETA_CLK_EN);
 	writel(reg, clk->clk_rst);
-	udelay(100);
 
 	return 0;
 }
@@ -2249,10 +2235,7 @@ static void vmeta_clk_disable(struct clk *clk)
 	int reg;
 
 	reg = readl(clk->clk_rst);
-	reg &= ~APMU_VMETA_CLK_EN;
-	writel(reg, clk->clk_rst);
-	reg = readl(clk->clk_rst);
-	reg &= ~APMU_VMETA_AXICLK_EN;
+	reg &= ~(APMU_VMETA_CLK_EN | APMU_VMETA_AXICLK_EN);
 	writel(reg, clk->clk_rst);
 }
 

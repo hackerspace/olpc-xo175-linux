@@ -736,65 +736,70 @@ void vmeta_power_switch(unsigned int enable)
 		if (reg_vmpwr & (APMU_VMETA_PWRUP_ON|APMU_VMETA_ISB))
 			return; /*Pwr is already on*/
 
+		/* 0. reset to boot default value, source to PLL1 */
+		writel(APMU_VMETA_CLK_RES_CTRL_DFT, APMU_VMETA_CLK_RES_CTRL);
+
 		/* 1. Turn on power switches */
 		reg_vmpwr |= APMU_VMETA_PWRUP_SLOW_RAMP;
 		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
-
+		udelay(10);
 		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
 		reg_vmpwr |= APMU_VMETA_PWRUP_ON;
 		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
-		udelay(100);
+		udelay(10);
 
-		/* 1.a Assert the redundancy repair signal */
+		/* 2. disable isolation*/
+		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
+		reg_vmpwr |= APMU_VMETA_ISB;
+		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
+
+		/* 3 Assert the redundancy repair signal */
 		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
 		reg_vmpwr |= APMU_VMETA_REDUN_START;
 		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
-
-		/* 1.b Poll and wait the REDUN_START bit back to 0*/
 		timeout = 1000;
 		do {
 			if (--timeout == 0) {
 				WARN(1, "vmeta: REDUN_START timeout!\n");
 				return;
 			}
-			udelay(100);
+			udelay(10);
 			reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
 		} while (reg_vmpwr & APMU_VMETA_REDUN_START);
 
-		/* 2. enable vMeta AXI clock */
+		/* 4 enable dummy clock to the SRAM*/
+		reg_vmpwr = readl(APMU_ISLD_VMETA_PDWN_CTRL);
+		reg_vmpwr |= APMU_ISLD_CMEM_DMMYCLK_EN;
+		writel(reg_vmpwr, APMU_ISLD_VMETA_PDWN_CTRL);
+		udelay(250);
+		reg_vmpwr = readl(APMU_ISLD_VMETA_PDWN_CTRL);
+		reg_vmpwr &= ~APMU_ISLD_CMEM_DMMYCLK_EN;
+		writel(reg_vmpwr, APMU_ISLD_VMETA_PDWN_CTRL);
+
+		/* 5. enable vMeta AXI clock */
 		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
 		reg_vmpwr |= APMU_VMETA_AXICLK_EN;
 		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
-		udelay(100);
 
-		/* 3. set up vMeta source to PLL1 to avoid source dependency*/
-		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
-		reg_vmpwr &= ~APMU_VMETA_CLK_SEL_MASK;
-		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
+		/* 6. set up vMeta if required*/
 
-		/* 4. enable vMeta clock */
+		/* 7. enable vMeta clock */
 		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
 		reg_vmpwr |= APMU_VMETA_CLK_EN;
 		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
-		udelay(100);
 
-		/* 5. disable isolation*/
-		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
-		reg_vmpwr |= APMU_VMETA_ISB;
-		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
-
-		/* 6. deassert AXI reset*/
+		/* 8. deassert AXI reset*/
 		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
 		reg_vmpwr |= APMU_VMETA_AXI_RST;
 		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
 
-		/* 7. deassert vMeta reset*/
+		/* 9. deassert vMeta reset*/
 		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
 		reg_vmpwr |= APMU_VMETA_RST;
 		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
-		udelay(100);
+		udelay(10);
 
-		/* 8 gate clock */
+		/* 10. gate clock */
 		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
 		reg_vmpwr &= ~APMU_VMETA_CLK_EN;
 		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
@@ -818,19 +823,12 @@ void vmeta_power_switch(unsigned int enable)
 
 		/* 2. reset*/
 		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
-		reg_vmpwr &= ~APMU_VMETA_AXI_RST;
-		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
-
-		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
-		reg_vmpwr &= ~APMU_VMETA_RST;
+		reg_vmpwr &= ~(APMU_VMETA_AXI_RST | APMU_VMETA_RST);
 		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
 
 		/* 3. make sure clock disabled*/
 		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
-		reg_vmpwr &= ~APMU_VMETA_CLK_EN;
-		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
-		reg_vmpwr = readl(APMU_VMETA_CLK_RES_CTRL);
-		reg_vmpwr &= ~APMU_VMETA_AXICLK_EN;
+		reg_vmpwr &= ~(APMU_VMETA_CLK_EN | APMU_VMETA_AXICLK_EN);
 		writel(reg_vmpwr, APMU_VMETA_CLK_RES_CTRL);
 
 		/* 4. turn off power */
@@ -895,6 +893,7 @@ int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
 	| GC3D_CLK_DIV_MSK | GC3D_CLK_SRC_SEL_MSK		\
 	| GC3D_ACLK_SEL_MSK)
 
+#define GC_CLKRST_BOOT_DEFAULT GC_CLK_RATE(3, 0, 0)
 /*
 	1. Since CCIC is moved to ISPDMA power island on B0 board,
 	need additional power enabling to access CCIC
@@ -955,77 +954,64 @@ void gc_pwr(int power_on)
 		if (regval & (GC_PWRUP_MSK | GC_ISB))
 			return; /*Pwr is already on*/
 
+		/* 0, set to boot default value, source on PLL1*/
+		writel(GC_CLKRST_BOOT_DEFAULT, APMU_GC_CLK_RES_CTRL);
+
 		/* 1. Turn on power switches */
 		regval = readl(APMU_GC_CLK_RES_CTRL);
 		regval &= ~GC_PWRUP_MSK;
 		regval |= GC_PWRUP(1);
 		writel(regval, APMU_GC_CLK_RES_CTRL);
-		udelay(100);
+		udelay(10);
 		regval |= GC_PWRUP(3);
 		writel(regval, APMU_GC_CLK_RES_CTRL);
-		udelay(100);
+		udelay(10);
 
-		/* 2. set up source to PLL1 to avoid source dependency */
-		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval &= ~GC_CLK_RATE_MSK;
-		regval |= GC_CLK_RATE(4, 0, 0);
-		writel(regval, APMU_GC_CLK_RES_CTRL);
-
-		/* 3. enable clocks */
-		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval |= GC2D3D_CLK_EN;
-		writel(regval, APMU_GC_CLK_RES_CTRL);
-		udelay(100);
-		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval |= GC2D_AXICLK_EN;
-		writel(regval, APMU_GC_CLK_RES_CTRL);
-		udelay(100);
-		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval |= GC3D_AXICLK_EN;
-		writel(regval, APMU_GC_CLK_RES_CTRL);
-		udelay(100);
-
-		/* 4. disable isolation*/
+		/* 2. disable isolation*/
 		regval = readl(APMU_GC_CLK_RES_CTRL);
 		regval |= GC_ISB;
 		writel(regval, APMU_GC_CLK_RES_CTRL);
 
-		/* 5. deassert reset*/
+		/* 3. enable SRAM dummy clock*/
+
+		regval = readl(APMU_ISLD_GC2000_PDWN_CTRL);
+		regval |= APMU_ISLD_CMEM_DMMYCLK_EN;
+		writel(regval, APMU_ISLD_GC2000_PDWN_CTRL);
+		udelay(250);
+		regval = readl(APMU_ISLD_GC2000_PDWN_CTRL);
+		regval &= ~APMU_ISLD_CMEM_DMMYCLK_EN;
+		writel(regval, APMU_ISLD_GC2000_PDWN_CTRL);
+
+		/* 4. enable AXI clocks*/
+		regval = readl(APMU_GC_CLK_RES_CTRL);
+		regval |= (GC3D_AXICLK_EN | GC2D_AXICLK_EN);
+		writel(regval, APMU_GC_CLK_RES_CTRL);
+
+		/* 5. change source if necessary*/
+
+		/* 6. enable GC clock */
+		regval = readl(APMU_GC_CLK_RES_CTRL);
+		regval |= GC2D3D_CLK_EN;
+		writel(regval, APMU_GC_CLK_RES_CTRL);
+
+		/* 7. deassert resets*/
+		/* GC300 requires AXI reset first, not align with B0 datasheet*/
 		regval = readl(APMU_GC_CLK_RES_CTRL);
 		regval |= GC2D3D_RST_N;
 		writel(regval, APMU_GC_CLK_RES_CTRL);
 		udelay(100);
 		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval |= GC2D_AXI_RST_N;
+		regval |= (GC2D_AXI_RST_N | GC3D_AXI_RST_N);
 		writel(regval, APMU_GC_CLK_RES_CTRL);
-		udelay(100);
-		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval |= GC3D_AXI_RST_N;
-		writel(regval, APMU_GC_CLK_RES_CTRL);
-		udelay(100);
 
-		/* 6 gate clock */
+		/* 8 gate clock */
 		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval &= ~(GC2D_AXICLK_EN | GC3D_AXICLK_EN);
+		regval &= ~(GC2D_AXICLK_EN | GC3D_AXICLK_EN | GC2D3D_CLK_EN);
 		writel(regval, APMU_GC_CLK_RES_CTRL);
-		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval &= ~GC2D3D_CLK_EN;
-		writel(regval, APMU_GC_CLK_RES_CTRL);
-		udelay(100);
 
 	} else {
 		if ((regval & (GC_PWRUP_MSK | GC_ISB)) == 0)
 			return; /*Pwr is already off*/
-
-		/* get clock running */
-		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval |= GC2D3D_CLK_EN;
-		writel(regval, APMU_GC_CLK_RES_CTRL);
-		udelay(100);
-		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval |= (GC2D_AXICLK_EN | GC3D_AXICLK_EN);
-		writel(regval, APMU_GC_CLK_RES_CTRL);
-		udelay(100);
 
 		/* 1. isolation */
 		regval = readl(APMU_GC_CLK_RES_CTRL);
@@ -1036,21 +1022,16 @@ void gc_pwr(int power_on)
 		regval = readl(APMU_GC_CLK_RES_CTRL);
 		regval &= ~(GC2D_AXI_RST_N | GC3D_AXI_RST_N | GC2D3D_RST_N);
 		writel(regval, APMU_GC_CLK_RES_CTRL);
-		udelay(100);
 
 		/* 3. make sure clock disabled*/
 		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval &= ~(GC2D_AXICLK_EN | GC3D_AXICLK_EN);
-		writel(regval, APMU_GC_CLK_RES_CTRL);
-		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval &= ~GC2D3D_CLK_EN;
+		regval &= ~(GC2D_AXICLK_EN | GC3D_AXICLK_EN | GC2D3D_CLK_EN);
 		writel(regval, APMU_GC_CLK_RES_CTRL);
 
 		/* 4. turn off power */
 		regval = readl(APMU_GC_CLK_RES_CTRL);
 		regval &= ~GC_PWRUP_MSK;
 		writel(regval, APMU_GC_CLK_RES_CTRL);
-		udelay(100);
 	}
 }
 EXPORT_SYMBOL_GPL(gc_pwr);

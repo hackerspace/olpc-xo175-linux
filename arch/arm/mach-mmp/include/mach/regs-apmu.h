@@ -90,7 +90,17 @@
 #define APMU_PWR_BLK_TMR_REG    APMU_REG(0x00dc)
 #define APMU_PWR_STATUS_REG     APMU_REG(0x00f0)
 
+#define APMU_ISLD_CI_PDWN_CTRL		APMU_REG(0x01e0)
+#define APMU_ISLD_DSPA_PDWN_CTRL	APMU_REG(0x01e4)
+#define APMU_ISLD_BCM_PDWN_CTRL		APMU_REG(0x01e8)
+#define APMU_ISLD_LCDMIPI_PDWN_CTRL	APMU_REG(0x01ec)
+#define APMU_ISLD_VMETA_PDWN_CTRL	APMU_REG(0x01f0)
+#define APMU_ISLD_GC2000_PDWN_CTRL	APMU_REG(0x01f4)
 #define APMU_ISLD_CPUMC_PDWN_CTRL	APMU_REG(0x01f8)
+
+#define APMU_ISLD_CMEM_CLKGATE_BYPASS	(1u << 5)
+#define APMU_ISLD_CMEM_DMMYCLK_EN	(1u << 4)
+
 #define APMU_MC_PAR_CTRL		APMU_REG(0x011c)
 
 /* Debug register */
@@ -150,6 +160,7 @@
 #define APMU_VMETA_RST				(1 << 1)
 /* VMeta Technology AXI Reset */
 #define APMU_VMETA_AXI_RST			(1 << 0)
+#define APMU_VMETA_CLK_RES_CTRL_DFT		(APMU_VMETA_CLK_DIV_4)
 
 /* VMeta Technology Clock/Reset Control Register For MMP2 */
 /* [31:16]	Reserved */
