@@ -514,6 +514,62 @@ int pxa9xx_usb_phy_init(unsigned int base)
 	init_done = 1;
 	return 0;
 }
+
+int pxa978_usb_phy_init(unsigned int base)
+{
+	usb_phy_module    *p_usb_phy_module = (usb_phy_module*)(void*)base;
+	p_usb_phy_module->PLL_CTRL_0    &= ~(USB2_PLL_FBDIV_MASK_NEW_PHY | USB2_PLL_REFDIV_MASK_NEW_PHY);
+
+	p_usb_phy_module->PLL_CTRL_0    |= (0x3<<USB2_PLL_VDD18_SHIFT |
+			                           0xf0<<USB2_PLL_FBDIV_SHIFT |
+                                       0xd<<USB2_PLL_REFDIV_SHIFT_NEW_PHY);
+
+	p_usb_phy_module->PLL_CTRL_1    &= ~(USB2_PLL_CONTROL_BY_PIN_MASK);
+
+	p_usb_phy_module->PLL_CTRL_1    |= (0x1 << USB2_PLL_PU_PLL_SHIFT);
+	/*according to DM, following delay is necessary*/
+	udelay(200);
+
+	p_usb_phy_module->TX_CH_CTRL_0  &= ~(USB2_TX_IMPCAL_VTH_MASK);
+
+	p_usb_phy_module->TX_CH_CTRL_0  |= (5<<USB2_TX_IMPCAL_VTH_SHIFT);
+
+	p_usb_phy_module->TX_CH_CTRL_1  &= ~(USB2_TX_CK60_PHSEL_MASK |
+                                         USB2_TX_AMP_MASK |
+                                         USB2_TX_VDD12_MASK);
+
+	p_usb_phy_module->TX_CH_CTRL_1  |= (4<<USB2_TX_CK60_PHSEL_SHIFT |
+                                        4<<USB2_TX_AMP_SHIFT |
+                                        3<<USB2_TX_VDD12_SHIFT);
+
+	p_usb_phy_module->RX_CH_CTRL_0  &= ~(USB2_RX_SQ_THRESH_MASK |
+                                         USB2_RX_SQ_LENGTH_MASK);
+
+	p_usb_phy_module->RX_CH_CTRL_0  |= (0xa<<USB2_RX_SQ_THRESH_SHIFT |
+                                        2<<USB2_RX_SQ_LENGTH_SHIFT);
+
+	p_usb_phy_module->ANALOG_CTRL_1 |=(0x1<<USB2_ANA_PU_ANA_SHIFT|
+			                           1<<USB2_R_ROTATE_SEL);
+
+	p_usb_phy_module->OTG_CTRL_0    |= (0x1<<USB2_OTG_PU_OTG_SHIFT);
+
+	p_usb_phy_module->DIGITAL_CTRL_4|= (0x3<<USB2_PLL_VDD12_SHIFT);
+	/* currently we don't verify that PLL_READY signal was set, as it does not set at ESHEL A1 chip */
+	/* instead, we are waiting 100msec and continue */
+	udelay (100);
+	return 0;
+}
+
+void pxa978_usb_phy_deinit(unsigned int base)
+{
+	/*to save power disable OTG PU, PLL, and analogy output*/
+	usb_phy_module    *p_usb_phy_module = (usb_phy_module*)(void*)base;
+
+	p_usb_phy_module->PLL_CTRL_1    &= ~(0x1 << USB2_PLL_PU_PLL_SHIFT);
+	p_usb_phy_module->ANALOG_CTRL_1 &= ~(0x1 << USB2_ANA_PU_ANA_SHIFT);
+	p_usb_phy_module->OTG_CTRL_0    &= ~(0x1 << USB2_OTG_PU_OTG_SHIFT);
+}
+
 #endif
 /*
 return: -1 -- failure:exceed limit; >=0 -- success;

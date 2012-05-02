@@ -1828,6 +1828,26 @@ static struct resource pxa9xx_u2o_resources[] = {
 	},
 };
 
+static struct resource pxa978_u2o_resources[] = {
+	[0] = {
+		.start	= PXA935_U2O_REGBASE + 0x100,
+		.end	= PXA935_U2O_REGBASE + USB_REG_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "capregs",
+	},
+	[1] = {
+		.start	= USB_PHY_MODULE_BASE_ADDR,
+		.end	= USB_PHY_MODULE_BASE_ADDR + USB_PHY_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "phyregs",
+	},
+	[2] = {
+		.start	= IRQ_U2O,
+		.end	= IRQ_U2O,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
 struct platform_device pxa9xx_device_u2o = {
 	.name		= "pxa-u2o",
 	.id		= -1,
@@ -1839,6 +1859,16 @@ struct platform_device pxa9xx_device_u2o = {
 	.resource	= pxa9xx_u2o_resources,
 };
 
+struct platform_device pxa978_device_u2o = {
+	.name		= "pxa-u2o",
+	.id		= -1,
+	.dev		= {
+		.dma_mask	= &u2o_dma_mask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+	},
+	.num_resources	= ARRAY_SIZE(pxa978_u2o_resources),
+	.resource	= pxa978_u2o_resources,
+};
 #ifdef CONFIG_USB_PXA_U2O_OTG
 static struct resource pxa9xx_u2ootg_resources[] = {
 	[0] = {
@@ -1860,6 +1890,26 @@ static struct resource pxa9xx_u2ootg_resources[] = {
 	},
 };
 
+static struct resource pxa978_u2ootg_resources[] = {
+	[0] = {
+		.start	= PXA935_U2O_REGBASE + 0x100,
+		.end	= PXA935_U2O_REGBASE + USB_REG_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "capregs",
+	},
+	[1] = {
+		.start	= USB_PHY_MODULE_BASE_ADDR,
+		.end	= USB_PHY_MODULE_BASE_ADDR + USB_PHY_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "phyregs",
+	},
+	[2] = {
+		.start	= IRQ_U2O,
+		.end	= IRQ_U2O,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
 struct platform_device pxa9xx_device_u2ootg = {
 	.name		= "pxa-otg",
 	.id		= -1,
@@ -1869,6 +1919,17 @@ struct platform_device pxa9xx_device_u2ootg = {
 	},
 	.num_resources	= ARRAY_SIZE(pxa9xx_u2ootg_resources),
 	.resource	= pxa9xx_u2ootg_resources,
+};
+
+struct platform_device pxa978_device_u2ootg = {
+	.name		= "pxa-otg",
+	.id		= -1,
+	.dev		= {
+		.dma_mask	= &u2o_dma_mask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+	},
+	.num_resources	= ARRAY_SIZE(pxa978_u2ootg_resources),
+	.resource	= pxa978_u2ootg_resources,
 };
 #endif
 
@@ -1893,6 +1954,25 @@ static struct resource pxa9xx_u2oehci_resources[] = {
 	},
 };
 
+static struct resource pxa978_u2oehci_resources[] = {
+	[0] = {
+		.start	= PXA935_U2O_REGBASE + 0x100,
+		.end	= PXA935_U2O_REGBASE + USB_REG_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "capregs",
+	},
+	[1] = {
+		.start	= USB_PHY_MODULE_BASE_ADDR,
+		.end	= USB_PHY_MODULE_BASE_ADDR + USB_PHY_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "phyregs",
+	},
+	[2] = {
+		.start	= IRQ_U2O,
+		.end	= IRQ_U2O,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
 struct platform_device pxa9xx_device_u2oehci = {
 	.name		= "pxa-u2oehci",
 	.id		= -1,
@@ -1902,6 +1982,17 @@ struct platform_device pxa9xx_device_u2oehci = {
 	},
 	.num_resources	= ARRAY_SIZE(pxa9xx_u2oehci_resources),
 	.resource	= pxa9xx_u2oehci_resources,
+};
+
+struct platform_device pxa978_device_u2oehci = {
+	.name		= "pxa-u2oehci",
+	.id		= -1,
+	.dev		= {
+		.dma_mask	= &u2o_dma_mask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+	},
+	.num_resources	= ARRAY_SIZE(pxa978_u2oehci_resources),
+	.resource	= pxa978_u2oehci_resources,
 };
 #endif
 

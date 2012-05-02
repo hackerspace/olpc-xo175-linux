@@ -1024,13 +1024,14 @@ static struct mv_usb_addon_irq pm80x_vbus = {
 	.poll	= pm80x_read_vbus_val,
 };
 
-static struct mv_usb_platform_data pxa9xx_usb_pdata = {
+static struct mv_usb_platform_data pxa978_usb_pdata = {
 	.clknum		= 3,
 	.clkname	= pxa9xx_usb_clock_name,
 	.vbus		= NULL,
 	.mode		= MV_USB_MODE_OTG,
 	.otg_force_a_bus_req = 1,
-	.phy_init	= pxa9xx_usb_phy_init,
+	.phy_init	= pxa978_usb_phy_init,
+	.phy_deinit	= pxa978_usb_phy_deinit,
 	.set_vbus	= NULL,
 	.otg_force_a_bus_req = 1,
 };
@@ -2696,9 +2697,9 @@ static void __init init(void)
 		pr_info( \
 			"[%s][%s]regulator_init_pm800 maxNum[%d] init\n",
 			__FILE__, __func__, PM8XXX_REGULATOR_MAX);
-		pxa9xx_usb_pdata.vbus = &pm80x_vbus;
-		pxa9xx_usb_pdata.id = &pm80x_id;
-		pxa9xx_usb_pdata.set_vbus = pm80x_set_vbus;
+		pxa978_usb_pdata.vbus = &pm80x_vbus;
+		pxa978_usb_pdata.id = &pm80x_id;
+		pxa978_usb_pdata.set_vbus = pm80x_set_vbus;
 
 		register_reboot_notifier(&reboot_notifier);
 		headsetflag_init_pm800();
@@ -2805,18 +2806,18 @@ static void __init init(void)
 #endif
 
 #ifdef CONFIG_USB_PXA_U2O
-	pxa9xx_device_u2o.dev.platform_data = (void *)&pxa9xx_usb_pdata;
-	platform_device_register(&pxa9xx_device_u2o);
+	pxa978_device_u2o.dev.platform_data = (void *)&pxa978_usb_pdata;
+	platform_device_register(&pxa978_device_u2o);
 #endif
 
 #ifdef CONFIG_USB_PXA_U2O_OTG
-	pxa9xx_device_u2ootg.dev.platform_data = (void *)&pxa9xx_usb_pdata;
-	platform_device_register(&pxa9xx_device_u2ootg);
+	pxa978_device_u2ootg.dev.platform_data = (void *)&pxa978_usb_pdata;
+	platform_device_register(&pxa978_device_u2ootg);
 #endif
 
 #ifdef CONFIG_USB_EHCI_PXA_U2O
-	pxa9xx_device_u2oehci.dev.platform_data = (void *)&pxa9xx_usb_pdata;
-	platform_device_register(&pxa9xx_device_u2oehci);
+	pxa978_device_u2oehci.dev.platform_data = (void *)&pxa978_usb_pdata;
+	platform_device_register(&pxa978_device_u2oehci);
 #endif
 
 #ifdef CONFIG_PROC_FS
