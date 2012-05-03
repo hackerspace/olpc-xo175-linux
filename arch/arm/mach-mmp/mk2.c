@@ -53,6 +53,7 @@
 #include <mach/axis_sensor.h>
 #include <mach/uio_hdmi.h>
 #include <media/soc_camera.h>
+#include <mach/mmp3_pm.h>
 
 #include "common.h"
 #include "onboard.h"
@@ -1519,6 +1520,8 @@ static void __init mk2_init(void)
 	/* If we have a full configuration then disable any regulators
 	 * which are not in use or always_on. */
 	regulator_has_full_constraints();
+
+	mmp3_set_vcc_main_reg_id("VCC_CORE");
 }
 
 MACHINE_START(MK2, "mk2")
