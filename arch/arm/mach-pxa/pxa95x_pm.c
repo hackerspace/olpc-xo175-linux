@@ -724,6 +724,8 @@ static void enter_d2(void)
 		| PXA95x_PM_WE_GENERIC(3);	/* On-key */
 	pm_preset_standby();
 
+	clk_disable(clk_pout);
+
 	if (is_wkr_mg1_1468())
 		enable_axi_lpm_entry();
 
@@ -746,6 +748,9 @@ static void enter_d2(void)
 		enable_axi_lpm_exit();
 
 	restore_dma_registers();
+
+	clk_enable(clk_pout);
+
 	pr_debug("exit D2.\n");
 }
 
