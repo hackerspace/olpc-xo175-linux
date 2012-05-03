@@ -149,20 +149,7 @@ static int freq_notify_and_change(unsigned int cpu_idx, unsigned int pp_index)
 	for_each_online_cpu(cpu)
 		cpufreq_notify_transition(&freqs[cpu], CPUFREQ_PRECHANGE);
 
-	/*
-	 * FIXME:
-	 * clk_set_rate(cpu_clk, highest_speed);
-	 * clk_set_rate will do spinlock with irq off, which is not
-	 * valid for cpu frequency change case, one reason is the DFC
-	 * routine will do mutex lock since it can be called from cpufreq
-	 * and other agents like DDR and AXI thing. To do spinlock with
-	 * irq off at top level do no good to complex and long clock change
-	 * sequence, especially the sequency requires some system call that
-	 * cannot be called from this kind of context.
-	 * We will do a clock tree solution later that will solve the problem.
-	 * Now we just call the raw clock change pointer to bypass the lock.
-	 */
-	cpu_clk->ops->setrate(cpu_clk, highest_speed);
+	clk_set_rate(cpu_clk, highest_speed);
 
 	for_each_online_cpu(cpu) {
 		freqs[cpu].new = mmp3_cpufreq_get(cpu);

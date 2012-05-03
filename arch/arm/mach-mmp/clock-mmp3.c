@@ -899,6 +899,7 @@ static struct clkops clk_cpu_ops = {
 static struct clk mmp3_clk_cpu = {
 	.name = "cpu",
 	.ops = &clk_cpu_ops,
+	.dynamic_change = 1,
 };
 
 #define GC2D_CLK_DIV(n)		((n & 0xF) << 28)
