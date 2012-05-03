@@ -402,9 +402,11 @@ static int ov5642_s_fmt(struct v4l2_subdev *sd,
 	}
 #endif
 
-	ret = ov5642_write_array(client, get_color_effect_regs());
-	if (ret)
-		return ret;
+	if (get_color_effect_regs()) {
+		ret = ov5642_write_array(client, get_color_effect_regs());
+		if (ret)
+			return ret;
+	}
 
 	if (ov5642->regs_mipi_set) {
 		ret = ov5642_write_array(client, ov5642->regs_mipi_set);

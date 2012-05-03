@@ -5389,7 +5389,7 @@ static struct regval_list color_effects[] = {
 	{0x568e, 0x62},
 	{0x568f, 0x26},
 	{0x3a13, 0x30},	/* important */
-	{0x3503, 0x07},	/* important */
+	{0x3503, 0x00},	/* important: 0x00 Auto-enable; 0x07 Manual */
 #endif
 #if 1
 /* CIP */
@@ -6387,5 +6387,8 @@ struct regval_list *get_mipi_lane_regs(int num)
 }
 struct regval_list *get_color_effect_regs(void)
 {
-	return color_effects;
+	if (!strcmp("mk2-mipi", ov5642_cfg[bus_type_index].name))
+		return color_effects;
+	else
+		return NULL;
 }
