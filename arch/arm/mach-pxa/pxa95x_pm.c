@@ -1156,12 +1156,19 @@ void vmeta_pwr(unsigned int enableDisable)
 	}
 }
 
+static struct dvfm_lock dvfm_lock = {
+	.lock = __SPIN_LOCK_UNLOCKED(dvfm_lock.lock),
+	.dev_idx = -1,
+	.count = 0,
+};
+
 void gc_pwr(int enableDisable)
 {
 	unsigned int gcpwr = 0;
 	unsigned int gc_clk_on = 1 << (CKEN_GC_1X - 64) | 1 << (CKEN_GC_2X - 64);
 	gcpwr = GCPWR;
 	if (GC_PWR_ENABLE == enableDisable) {
+		dvfm_disable_lowpower(dvfm_lock.dev_idx);
 		if (gcpwr & GCPWR_PWR_ST)
 			return;	/*Pwr is already on */
 		/*gc clock on*/
@@ -1190,6 +1197,7 @@ void gc_pwr(int enableDisable)
 		do {
 			gcpwr = GCPWR;
 		} while ((gcpwr & GCPWR_PWR_ST) == GCPWR_PWR_ST);
+		dvfm_enable_lowpower(dvfm_lock.dev_idx);
 	}
 }
 EXPORT_SYMBOL(gc_pwr);
@@ -2145,6 +2153,7 @@ static unsigned int pxa95x_get_gwsr(int reg_num)
 
 static int __init pxa95x_pm_init(void)
 {
+	int ret = 0;
 #ifdef CONFIG_IPM
 	unsigned int oscc, dmemvlr;
 
@@ -2183,6 +2192,9 @@ static int __init pxa95x_pm_init(void)
 		pr_err("unable to get gc clock");
 		return PTR_ERR(clk_gc);
 	}
+	ret = dvfm_register("Galcore", &dvfm_lock.dev_idx);
+	if (ret)
+		printk(KERN_ERR "GC dvfm register fail(%d)\n", ret);
 
 	/* if nowhere use tout_s0, it would be disable */
 	clk_enable(clk_tout_s0);
