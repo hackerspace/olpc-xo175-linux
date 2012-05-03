@@ -162,11 +162,6 @@ static pm_wakeup_src_t waked;	/* It records the latest wakeup source */
 
 static struct pxa95x_peripheral_wakeup_ops *wakeup_ops;
 
-/* How long we will in sleep mode if duty cycle. */
-unsigned int pm_sleeptime = 58;	/* In seconds. */
-EXPORT_SYMBOL(pm_sleeptime);
-unsigned int pm_msleeptime;	/* In miliseconds. */
-
 /* Flag of reseting CP */
 unsigned int pm_cp;
 
@@ -402,53 +397,6 @@ static void pxa95x_clear_pm_status(int sys_level)
 	ARSR = tmp;
 }
 
-/* This function is used to set RTC time.
- * When it timeouts, it will wakeup system from low power mode.
- * There's limitation that only 65 seconds sleep time can be set by this way.
- * And user should avoid to use PIAR because it will be used as wakeup timer.
- *
- * Notice:
- * User can also choice use another RTC register to trigger wakeup event.
- * If so, keep pm_sleeptime as 0. Otherwise, those RTC registers event
- * will make user confused. System will only serve the first RTC event.
- */
-static void pxa95x_set_wakeup_sec(int sleeptime)
-{
-	unsigned int tmp;
-	if (sleeptime) {
-		/* PIAR can not more than 65535 */
-		if (sleeptime > 65)
-			sleeptime = 65;
-		pr_debug("Set RTC to wakeup system after %d sec\n", sleeptime);
-		tmp = RTSR;
-		tmp &= ~(RTSR_PICE | RTSR_PIALE);
-		RTSR = tmp;
-		/* set PIAR to sleep time, in ms */
-		PIAR = sleeptime * 1000;
-
-		tmp = RTSR;
-		tmp |= RTSR_PICE;
-		RTSR = tmp;
-	}
-}
-
-/* This function is used to set OS Timer4 time.
- * The time interval may not be accurate. Because it's derived from 32.768kHz
- * oscillator.
- */
-static void pxa95x_set_wakeup_msec(int msleeptime)
-{
-	unsigned int tmp;
-	if (msleeptime) {
-		pr_debug("Set OS Timer4 to wakeup system after %d msec\n",
-			 msleeptime);
-		/* set the time interval of sleep */
-		tmp = OSCR4;
-		OSSR = 0x10;
-		OSMR4 = tmp + msleeptime * 32768 / 1000;
-	}
-}
-
 /*
  * Clear the wakeup source event.
  */
@@ -492,11 +440,9 @@ static void pm_select_wakeup_src(enum pxa95x_pm_mode lp_mode,
 	if (wakeup_ops->tsi)
 		reg_src |= wakeup_ops->tsi(src, 1);
 	if (src.bits.rtc) {
-		pxa95x_set_wakeup_sec(pm_sleeptime);
 		reg_src |= PXA95x_PM_WE_RTC;
 	}
 	if (src.bits.ost) {
-		pxa95x_set_wakeup_msec(pm_msleeptime);
 		reg_src |= PXA95x_PM_WE_OST;
 	}
 	if (src.bits.msl)
@@ -911,8 +857,6 @@ static void pxa95x_pm_poweroff(void)
 	if (!cpu_is_pxa978())
 		PMCR |= 0x01;	/* Workaround of Micco reset */
 
-	/* Disable sleeptime interface at here */
-	pm_sleeptime = 0;
 	pm_select_wakeup_src(mode, wakeup_src);
 	/* No need to set CKEN bits in PowerOff path */
 	/* pxa95x_pm_set_cken(); */
@@ -1643,8 +1587,6 @@ static struct kobj_attribute _name##_attr = {				\
 	.store	= _name##_store,					\
 }
 
-pm_attr(sleeptime, pm_sleeptime);
-pm_attr(msleeptime, pm_msleeptime);
 #ifdef CONFIG_IPM
 
 static int tokenizer(char **tbuf, const char *userbuf, ssize_t n,
@@ -1840,8 +1782,6 @@ static struct kobj_attribute reg_attr = {
 };
 
 static struct attribute *g[] = {
-	&sleeptime_attr.attr,
-	&msleeptime_attr.attr,
 #ifdef CONFIG_IPM
 	&deepidle_attr.attr,
 #endif
