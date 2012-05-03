@@ -51,6 +51,7 @@
 #define MFPR_VIRT_BASE	(APB_VIRT_BASE + 0x1e000)
 
 #define APMASK(i)	(GPIO_REGS_VIRT + BANK_OFF(i) + 0x9c)
+#define ISP_POLL_COUNT (10)
 
 static struct mfp_addr_map mmp3_addr_map[] __initdata = {
 	MFP_ADDR_X(GPIO0, GPIO58, 0x54),
@@ -906,21 +907,90 @@ static atomic_t isppwr_count;
 int isppwr_power_control(int on)
 {
 	int reg;
+	unsigned char count = ISP_POLL_COUNT;
 
 	if (on) {
 		if (0 == atomic_read(&isppwr_count)) {
+			/*set ISP regs to the default value*/
+			writel(0, APMU_ISPCLK);
+			writel(0, APMU_ISPPWR);
+
+			/*1. turn on the power switch*/
 			reg = readl(APMU_ISPPWR);
 			reg |= 0x1 << 9;
 			writel(reg, APMU_ISPPWR);
-			mdelay(10);
-
+			udelay(10);
 			reg |= 0x3 << 9;
 			writel(reg, APMU_ISPPWR);
-			mdelay(10);
+			udelay(10);
 
+			/*2. disable isp isolation*/
 			reg |= 0x1 << 8;
 			writel(reg, APMU_ISPPWR);
-			mdelay(10);
+
+			/*3. start memory redundacy repair*/
+			reg = readl(APMU_ISPCLK);
+			reg |= 0x1 << 2;
+			writel(reg, APMU_ISPCLK);
+			udelay(10);
+			while ((readl(APMU_ISPCLK) & (0x1 << 2)) && count--)
+				udelay(5);
+			if (readl(APMU_ISPCLK) & (0x1 << 2))
+				printk(KERN_ERR "dxoisp err in memory redundacy repair\n");
+
+			/*4. enable dummy clocks to the SRAMS*/
+			reg = readl(APMU_ISLD_CI_CTRL);
+			reg |= 0x1 << 4;
+			writel(reg, APMU_ISLD_CI_CTRL);
+			udelay(250);
+			reg &= ~(0x1 << 4);
+			writel(reg, APMU_ISLD_CI_CTRL);
+
+			/*5. enable clks*/
+			/*enable ISP AXI clock*/
+			reg = readl(APMU_ISPCLK);
+			reg |= 0x1 << 3;
+			writel(reg, APMU_ISPCLK);
+			/*clock source and clock divider */
+			reg &= ~0xF00;
+			reg |= 0x2 << 8;
+			writel(reg, APMU_ISPCLK);
+			reg &= ~0xC0;
+			reg |= 0x1 << 6;
+			writel(reg, APMU_ISPCLK);
+			/*enable ISP clk*/
+			reg |= 0x1 << 4;
+			writel(reg, APMU_ISPCLK);
+			/*enable CCIC1 AXI Arbiter clock*/
+			reg = readl(APMU_CCIC_RST);
+			reg |= 0x1 << 15;
+			writel(reg, APMU_CCIC_RST);
+
+			/*6. de-asset*/
+			/*De-Assert ISP AXI reset*/
+			reg = readl(APMU_ISPCLK);
+			reg |= 0x1 << 0;
+			writel(reg, APMU_ISPCLK);
+			/*De-Assert ISP software reset*/
+			reg |= 0x1 << 1;
+			writel(reg, APMU_ISPCLK);
+			/*De-Assert CCIC1 AXI Arbiter reset*/
+			reg = readl(APMU_CCIC_RST);
+			reg |= 0x1 << 16;
+			writel(reg, APMU_CCIC_RST);
+
+			/*7. gate clk*/
+			/*disable ccic1 AXI Arbiter Clock*/
+			reg = readl(APMU_CCIC_RST);
+			reg &= ~(0x1 << 15);
+			writel(reg, APMU_CCIC_RST);
+			/*Disable ISP AXI clock*/
+			reg = readl(APMU_ISPCLK);
+			reg &= ~(0x1 << 4);
+			writel(reg, APMU_ISPCLK);
+			/*Disable ISP clock*/
+			reg &= ~(0x1 << 3);
+			writel(reg, APMU_ISPCLK);
 		}
 
 		if (atomic_inc_return(&isppwr_count) < 1) {
@@ -929,10 +999,44 @@ int isppwr_power_control(int on)
 		}
 	} else {
 		if( 1 == atomic_read(&isppwr_count)) {
+			/*enable clk for reset*/
+			reg = readl(APMU_ISPCLK);
+			reg |= 0x1 << 3;
+			writel(reg, APMU_ISPCLK);
+			reg |= 0x1 << 4;
+			writel(reg, APMU_ISPCLK);
+			reg = readl(APMU_CCIC_RST);
+			reg |= 0x1 << 15;
+			writel(reg, APMU_CCIC_RST);
+
+			/*start to power down ISP*/
+			/*1. enable isp isolation*/
 			reg = readl(APMU_ISPPWR);
 			reg &= ~(0x1 << 8);
 			writel(reg, APMU_ISPPWR);
-			mdelay(10);
+
+			/*2. assert*/
+			reg = readl(APMU_CCIC_RST);
+			reg &= ~(0x1 << 16);
+			writel(reg, APMU_CCIC_RST);
+			reg = readl(APMU_ISPCLK);
+			reg &= ~(0x1 << 0);
+			writel(reg, APMU_ISPCLK);
+			reg &= ~(0x1 << 1);
+			writel(reg, APMU_ISPCLK);
+
+			/*3. gate clk*/
+			reg = readl(APMU_CCIC_RST);
+			reg &= ~(0x1 << 15);
+			writel(reg, APMU_CCIC_RST);
+			reg = readl(APMU_ISPCLK);
+			reg &= ~(0x1 << 4);
+			writel(reg, APMU_ISPCLK);
+			reg &= ~(0x1 << 3);
+			writel(reg, APMU_ISPCLK);
+
+			/*4. turn off the power switch*/
+			reg = readl(APMU_ISPPWR);
 			reg &= ~(0x3 << 9);
 			writel(reg, APMU_ISPPWR);
 

@@ -1941,6 +1941,7 @@ static int dxoisp_clk_enable(struct clk *clk)
 {
 	int reg;
 
+	/*clock source and clock divider */
 	reg = readl(APMU_ISPCLK);
 	reg &= ~0xF00;
 	reg |= (clk->div) << 8;
@@ -1949,26 +1950,18 @@ static int dxoisp_clk_enable(struct clk *clk)
 	reg |= (clk->enable_val) << 6;
 	writel(reg, APMU_ISPCLK);
 
-	reg |= 0x1 << 4;
-	writel(reg, APMU_ISPCLK);
-	mdelay(10);
+	/*enable ISP AXI clock*/
 	reg |= 0x1 << 3;
 	writel(reg, APMU_ISPCLK);
-	mdelay(10);
 
+	/*enable ISP clk*/
+	reg |= 0x1 << 4;
+	writel(reg, APMU_ISPCLK);
+
+	/*enable CCIC AXI Arbiter clock*/
 	reg = readl(APMU_CCIC_RST);
-	reg |= 0x1 << 16;
-	writel(reg, APMU_CCIC_RST);
-	mdelay(10);
 	reg |= 0x1 << 15;
 	writel(reg, APMU_CCIC_RST);
-
-	reg = readl(APMU_ISPCLK);
-	reg |= 0x1 << 1;
-	writel(reg, APMU_ISPCLK);
-	mdelay(10);
-	reg |= 0x1 << 0;
-	writel(reg, APMU_ISPCLK);
 
 	return 0;
 }
@@ -1977,30 +1970,19 @@ static void dxoisp_clk_disable(struct clk *clk)
 {
 	int reg;
 
-	reg = readl(APMU_ISPCLK);
-	reg &= ~(0x1 << 1);
-	writel(reg, APMU_ISPCLK);
-	mdelay(10);
-	reg &= ~(0x1 << 0);
-	writel(reg, APMU_ISPCLK);
-	mdelay(10);
-
-	reg &= ~(0x1 << 4);
-	writel(reg, APMU_ISPCLK);
-	mdelay(10);
-	reg &= ~(0x1 << 3);
-	writel(reg, APMU_ISPCLK);
-	mdelay(10);
-
-	reg = readl(APMU_ISPCLK);
-
+	/*disable ccic AXI Arbiter Clock*/
 	reg = readl(APMU_CCIC_RST);
-	reg &= ~(0x1 << 16);
-	writel(reg, APMU_CCIC_RST);
-	mdelay(10);
 	reg &= ~(0x1 << 15);
 	writel(reg, APMU_CCIC_RST);
 
+	/*Disable ISP AXI clock*/
+	reg = readl(APMU_ISPCLK);
+	reg &= ~(0x1 << 4);
+	writel(reg, APMU_ISPCLK);
+
+	/*Disable ISP clock*/
+	reg &= ~(0x1 << 3);
+	writel(reg, APMU_ISPCLK);
 }
 
 static long dxoisp_clk_round_rate(struct clk *clk, unsigned long rate)

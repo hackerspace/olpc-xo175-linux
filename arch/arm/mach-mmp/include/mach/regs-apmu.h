@@ -61,6 +61,7 @@
 
 #define APMU_ISPPWR	APMU_REG(0x1FC)
 #define APMU_ISPCLK	APMU_REG(0x224)
+#define APMU_ISLD_CI_CTRL       APMU_REG(0x01E0)
 
 #define APMU_CP_CCR             APMU_REG(0x0000)
 #define APMU_CCR                APMU_REG(0x0004)
