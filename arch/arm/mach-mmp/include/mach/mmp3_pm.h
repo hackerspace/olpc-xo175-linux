@@ -69,6 +69,7 @@ unsigned long mmp3_get_pp_freq(int ppidx, int clkid);
 void mmp3_pm_enter_idle(int cpu);
 void mmp3_pm_enter_c2(int cpu);
 void mmp3_pm_enter_d2(void);
+void mmp3_set_vcc_main_reg_id(const char *name);
 
 void mmp3_pm_update_dram_timing_table(int count, struct dmc_timing_entry *tab);
 
