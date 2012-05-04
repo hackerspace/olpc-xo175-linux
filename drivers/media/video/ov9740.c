@@ -945,6 +945,7 @@ static int ov9740_s_fmt(struct v4l2_subdev *sd,
 	enum v4l2_mbus_pixelcode code = mf->code;
 	struct ov9740_priv *priv = to_ov9740(sd);
 	int ret;
+	u8 val;
 
 	switch (code) {
 	case V4L2_MBUS_FMT_UYVY8_2X8:
@@ -958,6 +959,13 @@ static int ov9740_s_fmt(struct v4l2_subdev *sd,
 				     ARRAY_SIZE(ov9740_defaults));
 	if (ret < 0)
 		return ret;
+
+/* mmp3 orchid uses 2 lanes and it had better create lane struct
+	to distinguish lane num. So it is only workaround */
+#ifdef CONFIG_CPU_MMP3
+	ov9740_reg_read(client, 0x301f, &val);
+	ov9740_reg_write(client, 0x301f, val | 0x40);
+#endif
 
 	ret = ov9740_reg_write_array(client, \
 		ov9740_resolutions[priv->res_idx].setting,
