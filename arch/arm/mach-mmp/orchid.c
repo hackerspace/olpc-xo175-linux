@@ -319,47 +319,101 @@ static void __init mmp_init_dxoisp(void)
 /* soc  camera */
 static int camera_sensor_power(struct device *dev, int on)
 {
-	int cam_pwdn = mfp_to_gpio(MFP_PIN_GPIO68);
+	static struct regulator *dvdd, *dovdd, *avdd;
+	int cam_reset = mfp_to_gpio(MFP_PIN_GPIO22);
+	int cam_pwdn = mfp_to_gpio(MFP_PIN_GPIO20);
+	struct mv_cam_pdata *data = dev->platform_data;
+
+	if (!dovdd) {
+		dovdd = regulator_get(NULL, "V_BUCK3_1V8");
+		if (IS_ERR(dovdd)) {
+			dovdd = NULL;
+			goto regu_dovdd_1v8;
+		}
+	}
+	if (!dvdd) {
+		dvdd = regulator_get(NULL, "V_LDO8_1V5");
+		if (IS_ERR(dvdd)) {
+			dvdd = NULL;
+			goto regu_dvdd_1v5;
+		}
+	}
+	if (!avdd) {
+		avdd = regulator_get(NULL, "V_LDO11_2V8");
+		if (IS_ERR(avdd)) {
+			avdd = NULL;
+			goto regu_avdd_2v8;
+		}
+	}
+	if (gpio_request(cam_reset, "CAM_ENABLE_HI_SENSOR")) {
+		printk(KERN_ERR"Request GPIO failed, gpio: %d\n", cam_reset);
+		goto cam_reset_failed;
+	}
 
 	if (gpio_request(cam_pwdn, "CAM_PWDN")) {
 		printk(KERN_ERR"Request GPIO failed, gpio: %d\n", cam_pwdn);
-		return -EIO;
+		goto cam_pwdn_failed;
 	}
 
-	/* pull up camera pwdn pin to disable camera sensor */
-	/* pull down camera pwdn pin to enable camera sensor */
-	if (on)
+	if (on) {
+		regulator_set_voltage(dovdd, 1800000, 1800000);
+		regulator_enable(dovdd);
+		regulator_set_voltage(dvdd, 1500000, 1500000);
+		regulator_enable(dvdd);
+		regulator_set_voltage(avdd, 2800000, 2800000);
+		regulator_enable(avdd);
+		msleep(10);
+
 		gpio_direction_output(cam_pwdn, 0);
-	else
+		msleep(10);
+		gpio_direction_output(cam_reset, 1);
+		msleep(10);
+	} else {
 		gpio_direction_output(cam_pwdn, 1);
+		gpio_direction_output(cam_reset, 0);
 
-	msleep(100);
+		regulator_disable(dvdd);
+		regulator_disable(avdd);
+		regulator_disable(dovdd);
+	}
 
+	gpio_free(cam_reset);
 	gpio_free(cam_pwdn);
 	return 0;
+
+cam_pwdn_failed:
+	gpio_free(cam_reset);
+cam_reset_failed:
+	regulator_put(avdd);
+regu_avdd_2v8:
+	regulator_put(dvdd);
+regu_dvdd_1v5:
+	regulator_put(dovdd);
+regu_dovdd_1v8:
+	return -EIO;
 }
 
 static struct i2c_board_info orchid_i2c_camera[] = {
 	{
-		I2C_BOARD_INFO("ov5642", 0x3c),
+		I2C_BOARD_INFO("ov9740", 0x10),
 	},
 };
 
-static struct soc_camera_link iclink_ov5642 = {
+static struct soc_camera_link iclink_ov9740 = {
 	.bus_id         = 1,            /* Must match with the camera ID */
 	.power          = camera_sensor_power,
 	.board_info     = &orchid_i2c_camera[0],
 	.i2c_adapter_id = 2,
 	.flags = SOCAM_MIPI,
-	.module_name    = "ov5642",
+	.module_name    = "ov9740",
 	.priv = "pxa2128-mipi",
 };
 
-static struct platform_device orchid_ov5642 = {
+static struct platform_device orchid_ov9740 = {
 	.name   = "soc-camera-pdrv",
 	.id     = 0,
 	.dev    = {
-		.platform_data = &iclink_ov5642,
+		.platform_data = &iclink_ov9740,
 	},
 };
 static void pxa2128_cam_ctrl_power(int on)
@@ -369,10 +423,7 @@ static void pxa2128_cam_ctrl_power(int on)
 
 static int pxa2128_cam_clk_init(struct device *dev, int init)
 {
-	static struct regulator *af_vcc;
-	static struct regulator *avdd;
 	struct mv_cam_pdata *data = dev->platform_data;
-	int cam_enable = mfp_to_gpio(MFP_PIN_GPIO1);
 	unsigned long tx_clk_esc;
 	struct clk *pll1;
 
@@ -389,50 +440,22 @@ static int pxa2128_cam_clk_init(struct device *dev, int init)
 	data->dphy[2] = ((534 * tx_clk_esc / 2000 - 1) & 0xff) << 8
 			| ((38 * tx_clk_esc / 1000 - 1) & 0xff);
 
-	if (gpio_request(cam_enable, "CAM_ENABLE_HI_SENSOR")) {
-		printk(KERN_ERR"Request GPIO failed, gpio: %d\n", cam_enable);
-		return -EIO;
-	}
-
-	af_vcc = regulator_get(NULL, "V_2P8");
-	if (IS_ERR(af_vcc)) {
-		af_vcc = NULL;
-		return -EIO;
-	}
-
-	avdd = regulator_get(NULL, "AVDD_CAM_2P8V");
-	if (IS_ERR(avdd)) {
-		avdd = NULL;
-		return -EIO;
-	}
-	if ((!data->clk_enabled) && init) {
-		data->clk = clk_get(dev, "CCICRSTCLK");
-		if (IS_ERR(data->clk)) {
-			dev_err(dev, "Could not get rstclk\n");
-			return PTR_ERR(data->clk);
+	if (init) {
+		if (!data->clk_enabled) {
+			data->clk = clk_get(dev, "CCICRSTCLK");
+			if (IS_ERR(data->clk)) {
+				dev_err(dev, "Could not get rstclk\n");
+				return PTR_ERR(data->clk);
+			}
+			data->clk_enabled = 1;
 		}
-		data->clk_enabled = 1;
-		regulator_set_voltage(af_vcc, 3000000, 3000000);
-		regulator_enable(af_vcc);
-		regulator_set_voltage(avdd, 2800000, 2800000);
-		regulator_enable(avdd);
-
-		gpio_direction_output(cam_enable, 1);
-		gpio_free(cam_enable);
-		return 0;
+	} else {
+		if (data->clk_enabled) {
+			clk_put(data->clk);
+			return 0;
+		}
 	}
-
-	if (!init && data->clk_enabled) {
-		clk_put(data->clk);
-		regulator_disable(af_vcc);
-		regulator_put(af_vcc);
-		regulator_disable(avdd);
-		regulator_put(avdd);
-		gpio_direction_output(cam_enable, 0);
-		gpio_free(cam_enable);
-		return 0;
-	}
-	return -EFAULT;
+	return 0;
 }
 
 static void pxa2128_cam_set_clk(struct device *dev, int on)
@@ -462,9 +485,9 @@ static int get_mclk_src(int src)
 }
 
 static struct mv_cam_pdata mv_cam_data = {
-	.name = "ABILENE",
+	.name = "ORCHID",
 	.clk_enabled = 0,
-	.dphy = {0x1b0b, 0x33, 0x1a03},
+	.dphy = {0xd04, 0x33, 0x1001},
 	.qos_req_min = 0,
 	.dma_burst = 128,
 	.bus_type = SOCAM_MIPI,
@@ -1506,7 +1529,7 @@ static void __init orchid_init(void)
 	mmp3_add_audiosram(&mmp3_audiosram_info);
 
 #if defined(CONFIG_VIDEO_MV)
-	platform_device_register(&orchid_ov5642);
+	platform_device_register(&orchid_ov9740);
 	mmp3_add_cam(1, &mv_cam_data);
 #endif
 
