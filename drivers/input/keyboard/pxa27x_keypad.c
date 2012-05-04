@@ -817,11 +817,7 @@ static int __devinit pxa27x_keypad_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, keypad);
-#ifdef CONFIG_PXA95x_SUSPEND
 	device_init_wakeup(&pdev->dev, 0);
-#else
-	device_init_wakeup(&pdev->dev, 1);
-#endif
 	pxa27x_keypad_create_proc_file(input_dev);
 	g_pxa27x_keypad = keypad;
 	return 0;
