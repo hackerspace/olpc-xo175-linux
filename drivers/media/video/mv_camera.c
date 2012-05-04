@@ -895,8 +895,13 @@ static int mv_camera_set_fmt(struct soc_camera_device *icd,
 			| (1 + inter.pad * 35 / 1000);
 #endif
 #ifdef CONFIG_CPU_MMP3
-	/* Update dphy value */
-	mcam->dphy[0] = ((2 + inter.pad * 110 / 1000) & 0xff) << 8
+	/* ORCHID board uses ov9740 and dphy value needs to tune in future
+		it is only workaround */
+	if (!strcmp("ORCHID", mcam->name))
+		mcam->dphy[0] = 0xd04;
+	else
+		/* Update dphy value */
+		mcam->dphy[0] = ((2 + inter.pad * 110 / 1000) & 0xff) << 8
 			| (1 + inter.pad * 35 / 1000);
 
 #endif
