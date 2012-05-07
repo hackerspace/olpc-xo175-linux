@@ -14,7 +14,12 @@
 #include <linux/devfreq.h>
 #include <linux/clk.h>
 
+#ifdef CONFIG_PXA95x
+#include <mach/dvfs.h>
+#endif
+
 #define CLK_NAME "VMETA_CLK"
+#define HZ_TO_KHZ	1000
 
 #ifdef CONFIG_DEVFREQ_DEFAULT_GOV_PERFORMANCE
 #define DEVFREQ_DEFAULT_GOVERNOR	(&devfreq_performance)
@@ -37,10 +42,24 @@ static int vmeta_target(struct device *dev, unsigned long *freq)
 	struct platform_device *pdev = container_of(dev, struct platform_device,
 						    dev);
 	struct vMeta_devfreq_data *data = platform_get_drvdata(pdev);
+	int ret = 0;
+#ifdef CONFIG_PXA95x
+	extern struct dvfs vmeta_dvfs;
+	struct dvfs_freqs dvfs_freqs;
+	dvfs_freqs.old = clk_get_rate(data->vclk) / HZ_TO_KHZ;
+	dvfs_freqs.new = *freq / HZ_TO_KHZ;
+	dvfs_freqs.dvfs = &vmeta_dvfs;
+	if (dvfs_freqs.old < dvfs_freqs.new)
+		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
+#endif
 
-	clk_set_rate(data->vclk, *freq);
+	ret = clk_set_rate(data->vclk, *freq);
 
-	return 0;
+#ifdef CONFIG_PXA95x
+	if (dvfs_freqs.old > dvfs_freqs.new)
+		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
+#endif
+	return ret;
 }
 
 static struct devfreq_dev_profile vMeta_devfreq_profile = {
