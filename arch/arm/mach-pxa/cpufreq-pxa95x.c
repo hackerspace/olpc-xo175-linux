@@ -19,6 +19,7 @@
 #include <linux/slab.h>
 #include <linux/kernel_stat.h>
 #include <linux/tick.h>
+#include <linux/suspend.h>
 #if defined(CONFIG_PXA95x_DVFM)
 #include <mach/dvfm.h>
 #include <mach/pxa95x_dvfm.h>
@@ -58,6 +59,11 @@ struct cpu_load_info {
 };
 
 static DEFINE_PER_CPU(struct cpu_load_info, pxa95x_cpu_load_info);
+
+#ifdef CONFIG_SUSPEND
+static DEFINE_MUTEX(pxa95x_cpufreq_lock);
+static int is_suspended;
+#endif
 
 /* Interface under SYSFS */
 /* Display duty cycles on all operating points */
@@ -181,6 +187,10 @@ static int pxa95x_cpufreq_target(struct cpufreq_policy *policy,
 	int index;
 	struct cpufreq_frequency_table *table =
 	    cpufreq_frequency_get_table(policy->cpu);
+
+	if (is_suspended) {
+		return 0;
+	}
 
 	if (cpufreq_frequency_table_target(policy, table, target_freq, relation,
 					   &index)) {
@@ -402,6 +412,30 @@ static struct freq_attr *pxa_freq_attr[] = {
 	NULL,
 };
 
+#ifdef CONFIG_SUSPEND
+static int pxa95x_cpufreq_pm_notifier(struct notifier_block *nb,
+	unsigned long event, void *dummy)
+{
+	mutex_lock(&pxa95x_cpufreq_lock);
+	if (event == PM_SUSPEND_PREPARE) {
+		is_suspended = true;
+		pr_info("%s: disable cpu freq-chg before suspend\n",
+				__func__);
+	} else if (event == PM_POST_SUSPEND) {
+		is_suspended = false;
+		pr_info("%s: enable cpu freq-chg after resume\n",
+				__func__);
+	}
+	mutex_unlock(&pxa95x_cpufreq_lock);
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block pxa95x_cpu_pm_notifier = {
+	.notifier_call = pxa95x_cpufreq_pm_notifier,
+};
+#endif
+
 static struct cpufreq_driver pxa95x_cpufreq_driver = {
 	.verify = pxa95x_cpufreq_verify,
 	.target = pxa95x_cpufreq_target,
@@ -416,6 +450,9 @@ static int __init cpufreq_init(void)
 {
 	int ret;
 
+#ifdef CONFIG_SUSPEND
+	register_pm_notifier(&pxa95x_cpu_pm_notifier);
+#endif
 	ret = sysdev_driver_register(&cpu_sysdev_class, &cpufreq_stats_driver);
 	if (ret)
 		printk(KERN_ERR "Can't register cpufreq STATS in sysfs\n");
