@@ -1574,6 +1574,11 @@ static int pxa95x_pm_enter(suspend_state_t state)
  */
 static int pxa95x_pm_prepare(void)
 {
+	/* Request OP1 before entering suspend.
+	 * This is for Nevo C0 silicon issue which can't wakeup core
+	 * if core freq > 915MHz. Nevo-2067.
+	 * And it can also save power when AP is in D0CG. */
+	dvfm_request_op(1);
 	pr_debug("Prepare done.\n");
 
 	return 0;
