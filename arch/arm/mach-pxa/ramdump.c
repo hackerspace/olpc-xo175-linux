@@ -413,7 +413,7 @@ static void ramdump_save_static_context(struct ramdump_state *d)
 	d->cp15pj4.uropid	= get_reg_asm("mrc p15, 0, %0, c13, c0, 3");
 	d->cp15pj4.privpid	= get_reg_asm("mrc p15, 0, %0, c13, c0, 4");
 #ifdef CONFIG_CPU_PJ4
-	if (!cpu_is_pxa978_Cx()) {
+	if (!cpu_is_pxa978()) {
 		/* PJ4 spesific */
 		d->cp15pj4.auxdmc0 = get_reg_asm("mrc p15, 1, %0, c15, c1, 0");
 		d->cp15pj4.auxdmc1 = get_reg_asm("mrc p15, 1, %0, c15, c1, 1");
@@ -430,7 +430,7 @@ static void ramdump_save_static_context(struct ramdump_state *d)
 	d->pfmpj4.ovf		= get_reg_asm("mrc p15, 0, %0, c9, c12, 3");
 #ifdef CONFIG_CPU_PJ4
 /* Write-only: on CA9 results in undefined instruction exception */
-	if (!cpu_is_pxa978_Cx())
+	if (!cpu_is_pxa978())
 		d->pfmpj4.softinc = get_reg_asm("mrc p15, 0, %0, c9, c12, 4");
 #endif
 	d->pfmpj4.csel		= get_reg_asm("mrc p15, 0, %0, c9, c12, 5");

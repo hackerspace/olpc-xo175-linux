@@ -395,7 +395,7 @@ static int __init pxa95x_init(void)
 #endif
 
 #ifdef CONFIG_CACHE_TAUROS2
-	if (!cpu_is_pxa978_Cx())
+	if (!cpu_is_pxa978())
 		tauros2_init();
 #endif
 

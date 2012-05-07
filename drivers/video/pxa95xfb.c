@@ -1374,17 +1374,11 @@ static void converter_set_hdmi(struct pxa95xfb_info *fbi)
 	writel(x, conv_base + HDMI_CONV_CTL);
 
 	/* Set clock dividers */
-	if (!cpu_is_pxa978_Cx()) {
-		x = HDMI_CLK_DIV_PCLK_DIV(HDMI_PLL_DIV_VALUE)
-			|HDMI_CLK_DIV_CEC_REFCLK_DIV(HDMI_PLL_DIV_VALUE)
-			|HDMI_CLK_DIV_PR_CLK_DIV(HDMI_PLL_DIV_VALUE);
-		writel(x, conv_base + HDMI_CLK_DIV);
-	} else {
-		writel(0x5, conv_base + HDMI_CLK_DIV);
-		writel(0x5, conv_base + HDMI_PCLK_DIV);
-		writel(0x5, conv_base + HDMI_TCLK_DIV);
-		writel(0x5, conv_base + HDMI_PRCLK_DIV);
-	}
+	x = HDMI_CLK_DIV_PCLK_DIV(HDMI_PLL_DIV_VALUE)
+		|HDMI_CLK_DIV_CEC_REFCLK_DIV(HDMI_PLL_DIV_VALUE)
+		|HDMI_CLK_DIV_PR_CLK_DIV(HDMI_PLL_DIV_VALUE);
+	writel(x, conv_base + HDMI_CLK_DIV);
+
 #ifndef CONFIG_UIO_HDMI/* TODO: finally would be removed*/
 	if (hdmi_format == 5 || hdmi_format == 10 || hdmi_format == 11)
 		interlacer_enable(1);
@@ -1888,7 +1882,7 @@ static void set_fetch(struct pxa95xfb_info *fbi)
 		x |= LCD_FETCH_CTLx_CHAN_EN|LCD_FETCH_CTLx_SRC_FOR(fbi->pix_fmt) |LCD_FETCH_CTLx_BUS_ERR_INT_EN;
 		if(fbi->eof_intr_en && channel == start_channel)
 			x |= LCD_FETCH_CTLx_END_FR_INT_EN;
-		if (cpu_is_pxa978_Cx()) {
+		if (cpu_is_pxa978()) {
 			if (fbi->converter == LCD_M2HDMI) {
 				x |= LCD_FETCH_CTLx_MAX_OUTSTANDING_REQ(0x7)
 					| LCD_FETCH_CTLx_ARLEN(0xf);

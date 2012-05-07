@@ -1127,7 +1127,7 @@ void vmeta_pwr(unsigned int enableDisable)
 	if (VMETA_PWR_ENABLE == enableDisable) {
 		if (vmpwr & VMPWR_PWR_ST)
 			return;	/*Pwr is already on */
-		if (cpu_is_pxa978_Cx()) {
+		if (cpu_is_pxa978()) {
 			VMPWR = 0xc0070000 | VMPWR_SETALLWAYS;
 			VMPWR = 0xc0070000 | VMPWR_SETALLWAYS | VMPWR_PWON;
 			usleep_range(100, 100);
@@ -1145,7 +1145,7 @@ void vmeta_pwr(unsigned int enableDisable)
 	} else if (VMETA_PWR_DISABLE == enableDisable) {
 		if ((vmpwr & VMPWR_PWR_ST) != VMPWR_PWR_ST)
 			return;	/*Pwr is already off */
-		if (cpu_is_pxa978_Cx()) {
+		if (cpu_is_pxa978()) {
 			VMPWR = 0x70000 | VMPWR_SETALLWAYS;
 			usleep_range(100, 100);
 			do {

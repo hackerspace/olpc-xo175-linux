@@ -1077,7 +1077,7 @@ static void cken_clear_always_set_always_setup(void)
 	/* CKENA[19] is CKEN_TPM, not set it like spec define */
 	ckena_set_always_bits_mask = 0x00000001;
 	ckenb_set_always_bits_mask = 0xd7fcf040;
-	if (cpu_is_pxa978_Cx())
+	if (cpu_is_pxa978())
 		ckenc_set_always_bits_mask = 0x00038000;
 	else
 		ckenc_set_always_bits_mask = 0x00000000;

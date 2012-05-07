@@ -598,7 +598,7 @@ static void __init init_mmc(void)
 	} else
 		gpio_rst = mfp_to_gpio(MFP_PIN_GPIO99);
 
-        if (cpu_is_pxa978_Cx())
+	if (cpu_is_pxa978())
                 mci1_platform_data.quirks = SDHCI_QUIRK_INVERTED_WRITE_PROTECT;
 
 	/*add emmc only, need to add sdcard and sdio later*/
