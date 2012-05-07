@@ -932,7 +932,7 @@ static int pxa910_gs_write(struct tty_struct *tty, const unsigned char *buf,
 	unsigned long flags;
 	int status;
 
-	pr_vdebug("pxa910_gs_write: ttyGS%d (%p) writing %d bytes\n",
+	pr_debug("pxa910_gs_write: ttyGS%d (%p) writing %d bytes\n",
 		  port->port_num, tty, count);
 
 	spin_lock_irqsave(&port->port_lock, flags);
