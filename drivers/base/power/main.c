@@ -59,7 +59,9 @@ struct dpm_drv_wd_data {
 static int async_error;
 
 #ifdef CONFIG_PXA95x_SUSPEND
-extern unsigned int suspend_cb_start_index, suspend_cb_end_index;
+extern unsigned int suspend_cb_start_index;
+extern unsigned int suspend_cb_end_index;
+extern unsigned int suspend_cb_skip_index;
 #endif
 
 /**
@@ -657,7 +659,8 @@ void dpm_resume(pm_message_t state)
 
 #ifdef CONFIG_PXA95x_SUSPEND
 			if (counter >= suspend_cb_start_index &&
-			    counter <= suspend_cb_end_index)
+			    counter <= suspend_cb_end_index &&
+			    counter != suspend_cb_skip_index)
 				error = device_resume(dev, state, false);
 			counter++;
 #else
@@ -1011,7 +1014,8 @@ int dpm_suspend(pm_message_t state)
 
 #ifdef CONFIG_PXA95x_SUSPEND
 		if (counter >= suspend_cb_start_index &&
-		    counter <= suspend_cb_end_index)
+		    counter <= suspend_cb_end_index &&
+		    counter != suspend_cb_skip_index)
 			error = device_suspend(dev);
 		counter++;
 #else

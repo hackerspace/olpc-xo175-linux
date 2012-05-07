@@ -354,26 +354,53 @@ android_freezer_disable_store(struct kobject *kobj, struct kobj_attribute *attr,
 
 power_attr(android_freezer_disable);
 
-unsigned int suspend_cb_start_index = 0, suspend_cb_end_index = 0xFFFFFFFF;
+unsigned int suspend_cb_start_index;
+unsigned int suspend_cb_end_index = 0xFFFFFFFF;
+unsigned int suspend_cb_skip_index = 0xFFFFFFFF;
 
+/* do only indexes cb */
 static ssize_t
 suspend_cb_index_show(struct kobject *kobj, struct kobj_attribute *attr,
 char *buf)
 {
-	return sprintf(buf, "suspend callback functions indexes: %u - %u \n",
-			suspend_cb_start_index, suspend_cb_end_index);
+	return sprintf(buf,
+		       "suspend callback functions indexes: %u - %u\n",
+		       suspend_cb_start_index, suspend_cb_end_index);
 }
 
 static ssize_t
 suspend_cb_index_store(struct kobject *kobj, struct kobj_attribute *attr,
 	const char *buf, size_t n)
 {
-	sscanf(buf, "%u,%u", &suspend_cb_start_index, &suspend_cb_end_index);
+	sscanf(buf, "%u,%u",
+	       &suspend_cb_start_index, &suspend_cb_end_index);
 	return 0;
 }
 
 power_attr(suspend_cb_index);
 
+/* skip cb index */
+static ssize_t
+suspend_skip_index_show(struct kobject *kobj,
+			struct kobj_attribute *attr,
+			char *buf)
+{
+	return sprintf(buf,
+		       "skiping callback function: %u\n",
+		       suspend_cb_skip_index);
+}
+
+static ssize_t
+suspend_skip_index_store(struct kobject *kobj,
+			 struct kobj_attribute *attr,
+			 const char *buf, size_t n)
+{
+	sscanf(buf, "%u",
+	       &suspend_cb_skip_index);
+	return 0;
+}
+
+power_attr(suspend_skip_index);
 #endif
 
 static struct attribute * g[] = {
@@ -396,6 +423,7 @@ static struct attribute * g[] = {
 #ifdef CONFIG_PXA95x_SUSPEND
 	&android_freezer_disable_attr.attr,
 	&suspend_cb_index_attr.attr,
+	&suspend_skip_index_attr.attr,
 #endif
 	NULL,
 };
