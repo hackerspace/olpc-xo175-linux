@@ -712,6 +712,12 @@ config MMP3_HSI
 	help
 	  Please say Y here if want to support MMP3 HSI
 
+config LED_FLASH_ADP1650
+	tristate "LED flash controller adp1650 support"
+	default n
+	help
+	  Please say Y here if want to control LED/flash by adp1650
+
 source "drivers/char/maxscend/Kconfig"
 
 endmenu

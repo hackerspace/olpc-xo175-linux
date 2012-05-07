@@ -77,3 +77,5 @@ obj-$(CONFIG_MMP_ZMQ)           += mmp_zmq.o
 obj-$(CONFIG_MMP3_SYSSET)  	+= mmp3_systemsetting.o
 
 obj-$(CONFIG_MXDCMMB) += maxscend/
+
+obj-$(CONFIG_LED_FLASH_ADP1650) += adp1650.o
