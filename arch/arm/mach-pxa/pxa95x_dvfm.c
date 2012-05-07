@@ -375,9 +375,6 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.hss = 104,	/* System Bus, and Display is the same */
 		.axifs = 78,
 		.dmcfs = 208,
-		.gcfs = 156,
-		.gcaxifs = 156,
-		.vmfc = 156,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
 		.lpj = 1546480 * 100 / HZ,
@@ -391,9 +388,6 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.hss = 104,
 		.axifs = 78,
 		.dmcfs = 312,
-		.gcfs = 156,
-		.gcaxifs = 156,
-		.vmfc = 156,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
 		.lpj = 3092960 * 100 / HZ,
@@ -407,9 +401,6 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.hss = 156,
 		.axifs = 104,
 		.dmcfs = 398,
-		.gcfs = 312,
-		.gcaxifs = 312,
-		.vmfc = 312,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
 		.lpj = 6185922 * 100 / HZ,
@@ -423,9 +414,6 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.hss = 208,
 		.axifs = 156,
 		.dmcfs = 797,
-		.gcfs = 498,
-		.gcaxifs = 498,
-		.vmfc = 498,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
 		.lpj = 7790150 * 100 / HZ,
@@ -439,9 +427,6 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.hss = 208,
 		.axifs = 156,
 		.dmcfs = 797,
-		.gcfs = 498,
-		.gcaxifs = 498,
-		.vmfc = 498,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
 		.lpj = 10052123 * 100 / HZ,
@@ -455,9 +440,6 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.hss = 208,
 		.axifs = 156,
 		.dmcfs = 797,
-		.gcfs = 600,
-		.gcaxifs = 600,
-		.vmfc = 600,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
 		.lpj = 11856350 * 100 / HZ,
@@ -471,9 +453,6 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.hss = 208,
 		.axifs = 156,
 		.dmcfs = 797,
-		.gcfs = 600,
-		.gcaxifs = 600,
-		.vmfc = 600,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
 		.lpj = 13918324 * 100 / HZ,
@@ -487,9 +466,6 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 		.hss = 208,
 		.axifs = 156,
 		.dmcfs = 797,
-		.gcfs = 600,
-		.gcaxifs = 600,
-		.vmfc = 600,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
 		.lpj = 14949311 * 100 / HZ,
@@ -528,9 +504,6 @@ static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
 		.hss = 104,	/* System Bus, and Display is the same */
 		.axifs = 78,
 		.dmcfs = 208,
-		.gcfs = 156,
-		.gcaxifs = 156,
-		.vmfc = 156,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
 		.lpj = 1546480 * 100 / HZ,
@@ -544,9 +517,6 @@ static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
 		.hss = 104,
 		.axifs = 78,
 		.dmcfs = 312,
-		.gcfs = 156,
-		.gcaxifs = 156,
-		.vmfc = 156,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
 		.lpj = 3092960 * 100 / HZ,
@@ -560,9 +530,6 @@ static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
 		.hss = 156,
 		.axifs = 104,
 		.dmcfs = 450,
-		.gcfs = 312,
-		.gcaxifs = 312,
-		.vmfc = 312,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
 		.lpj = 6185922 * 100 / HZ,
@@ -576,9 +543,6 @@ static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
 		.hss = 208,
 		.axifs = 156,
 		.dmcfs = 901,
-		.gcfs = 498,
-		.gcaxifs = 498,
-		.vmfc = 498,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
 		.lpj = 7790150 * 100 / HZ,
@@ -592,9 +556,6 @@ static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
 		.hss = 208,
 		.axifs = 156,
 		.dmcfs = 901,
-		.gcfs = 498,
-		.gcaxifs = 498,
-		.vmfc = 498,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
 		.lpj = 10052123 * 100 / HZ,
@@ -608,9 +569,6 @@ static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
 		.hss = 208,
 		.axifs = 156,
 		.dmcfs = 1066,
-		.gcfs = 600,
-		.gcaxifs = 600,
-		.vmfc = 600,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
 		.lpj = 11856350 * 100 / HZ,
@@ -624,9 +582,6 @@ static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
 		.hss = 208,
 		.axifs = 156,
 		.dmcfs = 1066,
-		.gcfs = 600,
-		.gcaxifs = 600,
-		.vmfc = 600,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
 		.lpj = 13918324 * 100 / HZ,
@@ -640,9 +595,6 @@ static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
 		.hss = 208,
 		.axifs = 156,
 		.dmcfs = 1066,
-		.gcfs = 600,
-		.gcaxifs = 600,
-		.vmfc = 600,
 		.power_mode = POWER_MODE_D0,
 		.flag = OP_FLAG_FACTORY,
 		.lpj = 14949311 * 100 / HZ,
@@ -788,12 +740,11 @@ static int dump_op(void *driver_data, struct op_info *p, char *buf)
 				md->vcc_core, md->vcc_sram, md->xl, md->xn,
 				md->smcfs, md->sflfs, md->hss, md->dmcfs);
 		len += sprintf(buf + len, "axifs:%d ", md->axifs);
-		len += sprintf(buf + len, "gcfs:%d vmfc:%d ", md->gcfs,
-			       md->vmfc);
-		if (!cpu_is_pxa978())
+		if (!cpu_is_pxa978()) {
+			len += sprintf(buf + len, "gcfs:%d vmfc:%d ", md->gcfs, md->vmfc);
 			len += sprintf(buf + len, "df_clk:%d power_mode:%d flag:%d\n",
 				       md->df_clk, md->power_mode, md->flag);
-		else
+		} else
 			len += sprintf(buf + len, "power_mode:%d flag:%d\n",
 				       md->power_mode, md->flag);
 	}
@@ -909,47 +860,7 @@ static int freq2reg(struct pxa95x_fv_info *fv_info, struct dvfm_md_opt *orig)
 			else
 				res = -EINVAL;
 		}
-		if (cpu_is_pxa978()) {
-			if (orig->gcfs == 416)
-				fv_info->gcfs = 3;
-			else if (orig->gcfs == 312)
-				fv_info->gcfs = 2;
-			else if (orig->gcfs == 208)
-				fv_info->gcfs = 0;
-			else if (orig->gcfs == 156)
-				fv_info->gcfs = 1;
-			else if (orig->gcfs == 498
-				|| orig->gcfs == 600)
-				fv_info->gcfs = 5;
-			else
-				res = -EINVAL;
-			if (orig->gcaxifs == 416)
-				fv_info->gcaxifs = 3;
-			else if (orig->gcaxifs == 312)
-				fv_info->gcaxifs = 2;
-			else if (orig->gcaxifs == 208)
-				fv_info->gcaxifs = 0;
-			else if (orig->gcaxifs == 156)
-				fv_info->gcaxifs = 1;
-			else if (orig->gcaxifs == 498
-				|| orig->gcaxifs == 600)
-				fv_info->gcaxifs = 5;
-			else
-				res = -EINVAL;
-			if (orig->vmfc == 416)
-				fv_info->vmfc = 3;
-			if (orig->vmfc == 312)
-				fv_info->vmfc = 1;
-			else if (orig->vmfc == 208)
-				fv_info->vmfc = 2;
-			else if (orig->vmfc == 156)
-				fv_info->vmfc = 0;
-			else if (orig->vmfc == 498
-				|| orig->vmfc == 600)
-				fv_info->vmfc = 5;
-			else
-				res = -EINVAL;
-		} else {
+		if (!cpu_is_pxa978()) {
 			if (orig->gcfs >= 400)
 				fv_info->gcfs = 3;
 			else if (orig->gcfs == 312)
@@ -969,8 +880,7 @@ static int freq2reg(struct pxa95x_fv_info *fv_info, struct dvfm_md_opt *orig)
 				fv_info->vmfc = 0;
 			else
 				res = -EINVAL;
-		}
-		if (!cpu_is_pxa978()) {
+
 			tmp = orig->smcfs / orig->df_clk;
 			if (tmp == 2)
 				fv_info->df_clk = 2;
@@ -1232,40 +1142,6 @@ static int reg2freq(void *driver_data, struct dvfm_md_opt *fv_info)
 				fv_info->vmfc = 312;
 			else if (tmp == 3)
 				fv_info->vmfc = 400;
-		} else {
-			tmp = fv_info->gcfs;
-			if (tmp == 0)
-				fv_info->gcfs = 208;
-			else if (tmp == 1)
-				fv_info->gcfs = 156;
-			else if (tmp == 2)
-				fv_info->gcfs = 312;
-			else if (tmp == 3)
-				fv_info->gcfs = 416;
-			else if (tmp == 5)
-				fv_info->gcfs = mm_pll_freq;
-			tmp = fv_info->gcaxifs;
-			if (tmp == 0)
-				fv_info->gcaxifs = 208;
-			else if (tmp == 1)
-				fv_info->gcaxifs = 156;
-			else if (tmp == 2)
-				fv_info->gcaxifs = 312;
-			else if (tmp == 3)
-				fv_info->gcaxifs = 416;
-			else if (tmp == 5)
-				fv_info->gcaxifs = mm_pll_freq;
-			tmp = fv_info->vmfc;
-			if (tmp == 0)
-				fv_info->vmfc = 156;
-			else if (tmp == 1)
-				fv_info->vmfc = 312;
-			else if (tmp == 2)
-				fv_info->vmfc = 208;
-			else if (tmp == 3)
-				fv_info->vmfc = 416;
-			else if (tmp == 5)
-				fv_info->vmfc = mm_pll_freq;
 		}
 	}
 	return res;
@@ -1648,52 +1524,6 @@ static inline unsigned int mm_pll_freq2reg(unsigned int x)
 	}
 }
 
-static inline void set_mm_pll_freq(void *driver_data,
-				   struct dvfm_md_opt *old,
-				   struct dvfm_md_opt *new,
-				   uint32_t accr0)
-{
-	uint32_t acsr0;
-	struct pxa95x_dvfm_info *info = driver_data;
-	uint32_t mm_pll_param, tmp, next_mm_pll_freq;
-	if ((new->gcfs == 498 && new->vmfc == 600) ||
-	    (new->vmfc == 498 && new->gcfs == 600)) {
-		printk(KERN_ERR "Wrong GC and VMETA frequency!\n");
-		BUG_ON(1);
-	}
-	next_mm_pll_freq = new->gcfs >= 498 ? new->gcfs : (new->vmfc >= 498 ? new->vmfc : 0);
-	/* Change MM PLL frequency if needed*/
-	if (next_mm_pll_freq && mm_pll_freq != next_mm_pll_freq) {
-		mm_pll_param = MM_PLL_PARAM;
-		mm_pll_param &= ~(MMPLL_VCODIV_SEL_MASK
-				| MMPLL_KVCO_MASK
-				| MMPLL_FBDIV_MASK
-				| MMPLL_REFDIV_MASK);
-		mm_pll_param |= mm_pll_freq2reg(next_mm_pll_freq);
-
-		if (old->gcfs >= 498 || old->vmfc >= 498) {
-			/*Switch to 416Mhz clock before change MM PLL*/
-			tmp = accr0;
-			if (old->gcfs >= 498) {
-				tmp &= ~(ACCR0_GCFS_MASK | ACCR0_GCAXIFS_MASK);
-				tmp |= (0x3 << ACCR0_GCFS_OFFSET | 0x3 << ACCR0_GCAXIFS_OFFSET);
-			}
-			if (old->vmfc >= 498) {
-				tmp &= ~ACCR0_VMFC_MASK;
-				tmp |= 0x3 << ACCR0_VMFC_OFFSET;
-			}
-			__raw_writel(tmp, info->clkmgr_base + ACCR0_OFF);
-			do {
-				acsr0 = __raw_readl(info->clkmgr_base + ACSR0_OFF);
-			} while (tmp != acsr0);
-		}
-		MM_PLL_PARAM = mm_pll_param;
-		while (!(MM_PLL_CTRL & MMPLL_PWR_ST))
-			;
-		mm_pll_freq = next_mm_pll_freq;
-	}
-}
-
 static inline unsigned int ddr_pll_freq2reg(unsigned int x)
 {
 	switch (x) {
@@ -1805,8 +1635,8 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 {
 	struct pxa95x_dvfm_info *info = driver_data;
 	struct pxa95x_fv_info fv_info;
-	uint32_t accr, acsr, acsr0, accr1 = 0, accr0 = 0,
-		 accr_reserved_mask = 0, mask0 = 0, mask = 0, mask2 = 0;
+	uint32_t accr, acsr, accr1 = 0, accr_reserved_mask = 0,
+		 mask = 0, mask2 = 0;
 	unsigned int data = 0, data2 = 0;
 	freq2reg(&fv_info, new);
 	if (!cpu_is_pxa978()) {
@@ -1837,10 +1667,7 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 	}
 	accr = __raw_readl(info->clkmgr_base + ACCR_OFF);
 	accr1 = __raw_readl(info->clkmgr_base + ACCR1_OFF);
-	if (cpu_is_pxa978()) {
-		accr0 = __raw_readl(info->clkmgr_base + ACCR0_OFF);
-		accr_reserved_mask = ACCR_RESERVED_MASK_978;
-	} else if (old->smcfs != new->smcfs) {
+	if (!cpu_is_pxa978() && (old->smcfs != new->smcfs)) {
 		/* Don't change smc freq in pxa978*/
 		data |= (fv_info.smcfs << ACCR_SMCFS_OFFSET);
 		mask |= ACCR_SMCFS_MASK;
@@ -1862,24 +1689,11 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 			accr1 &= ~(ACCR1_VMFC_MASK);
 			accr1 |= (fv_info.vmfc << ACCR1_VMFC_OFFSET);
 		}
-	} else {
-		if (old->dmcfs != new->dmcfs) {
+	} else if (old->dmcfs != new->dmcfs) {
 			data |= (fv_info.dmcfs << ACCR_DMCFS_OFFSET_978);
 			mask |= ACCR_DMCFS_MASK_978;
 			set_ddr_pll_freq(driver_data, old, new, accr);
 			choose_regtable(fv_info.dmcfs);
-		}
-		if (old->gcfs != new->gcfs) {
-			accr0 &= ~(ACCR0_GCFS_MASK | ACCR0_GCAXIFS_MASK);
-			accr0 |= (fv_info.gcfs << ACCR0_GCFS_OFFSET) |
-				(fv_info.gcaxifs << ACCR0_GCAXIFS_OFFSET);
-			mask0 |= (ACCR0_GCFS_MASK | ACCR0_GCAXIFS_MASK);
-		}
-		if (old->vmfc != new->vmfc) {
-			accr0 &= ~(ACCR0_VMFC_MASK);
-			accr0 |= (fv_info.vmfc << ACCR0_VMFC_OFFSET);
-			mask0 |= ACCR0_VMFC_MASK;
-		}
 	}
 	if (old->hss != new->hss) {
 		is_hss_change_over = 0;
@@ -1897,19 +1711,10 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 	accr &= ~(accr_reserved_mask | mask | mask2);
 	accr |= data | data2;
 	if (cpu_is_pxa978()) {
-		set_mm_pll_freq(driver_data, old, new, accr0);
-		/* Write ACCR and ACCR0 one by one */
 		write_accr_in_sram((u32) sram_map + 0x9000,
 				(u32) sram_map + 0xa000 - 4, accr,
 				data, mask, (u32) info->clkmgr_base,
 				(u32) info->dmc_base);
-
-		__raw_writel(accr0, info->clkmgr_base + ACCR0_OFF);
-		/* wait until ACSR0 is changed */
-		do {
-			acsr0 = __raw_readl(info->clkmgr_base + ACSR0_OFF);
-		} while ((accr0 & mask0) != (acsr0 & mask0));
-
 	} else {
 		__raw_writel(accr, info->clkmgr_base + ACCR_OFF);
 		__raw_writel(accr1, info->clkmgr_base + ACCR1_OFF);
@@ -2348,13 +2153,6 @@ static int set_freq(void *driver_data, struct dvfm_md_opt *old,
 	struct pxa95x_dvfm_info *info = driver_data;
 	int low_ddr = 0;
 
-	if (cpu_is_pxa978()) {
-		/* turn on MM PLL if needed */
-		if ((new->gcfs >= 498 || new->vmfc >= 498) &&
-				(old->gcfs < 498 && old->vmfc < 498))
-			mm_pll_enable(1);
-	}
-
 	/* check whether new OP is single PLL mode */
 	if (new->dmcfs == 208 || new->dmcfs == 312)
 		low_ddr = 1;
@@ -2372,12 +2170,6 @@ static int set_freq(void *driver_data, struct dvfm_md_opt *old,
 	update_bus_freq(info, old, new);
 	if (low_ddr)
 		set_grayback_pll(info, 0);
-	if (cpu_is_pxa978()) {
-		/* turn off MM PLL if needed */
-		if ((new->gcfs < 498 && new->vmfc < 498) &&
-				(old->gcfs >= 498 || old->vmfc >= 498))
-			mm_pll_enable(0);
-	}
 
 	pm_logger_app_add_trace(3, PM_SET_OP, OSCR4, new->core, ACCR, ACSR);
 
