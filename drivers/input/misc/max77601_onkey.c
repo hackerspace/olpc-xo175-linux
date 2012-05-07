@@ -22,7 +22,8 @@ struct max77601_onkey_info {
 	struct input_dev	*idev;
 	struct i2c_client	*i2c;
 	struct device		*dev;
-	int			irq;
+	struct max77601_chip *chip;
+	int irq;
 };
 
 /*
@@ -33,18 +34,25 @@ struct max77601_onkey_info {
 static irqreturn_t max77601_onkey_handler(int irq, void *data)
 {
 	struct max77601_onkey_info *info = data;
-	int ret, event = -1;
+	u8 status;
+	int ret;
 
-	ret = max77601_pmic_reg_read(MAX77601_ONOFFIRQ_REG);
-	/* 0 - up, 1- down */
-	if (ret & MAX77601_ONOFFIRQ_EN0_RM)
-		event = 1;
-	else if (ret & MAX77601_ONOFFIRQ_EN0_FM)
-		event = 0;
-	input_report_key(info->idev, KEY_POWER, event);
-	input_sync(info->idev);
+	ret = max77601_read(info->chip, MAX77601_ONOFFIRQ_REG, &status, 1);
+	if (ret < 0)
+		return IRQ_NONE;
 
-	dev_dbg(info->dev, "onkey ret :%x, event : %d\n", ret, event);
+	/* Event: 0 - up, 1- down */
+	if (status & MAX77601_ONOFFIRQ_EN0_RM) {
+		input_report_key(info->idev, KEY_POWER, 1);
+		input_sync(info->idev);
+		dev_dbg(info->dev, "Onkey: DOWN\n");
+	}
+	if (status & MAX77601_ONOFFIRQ_EN0_FM) {
+		input_report_key(info->idev, KEY_POWER, 0);
+		input_sync(info->idev);
+		dev_dbg(info->dev, "Onkey: UP\n");
+	}
+
 	return IRQ_HANDLED;
 }
 
@@ -112,6 +120,7 @@ static int __devinit max77601_onkey_probe(struct platform_device *pdev)
 	info->i2c = chip->i2c;
 	info->dev = &pdev->dev;
 	irq += chip->irq_base;
+	info->chip = chip;
 
 	error = request_threaded_irq(irq, NULL, max77601_onkey_handler,
 				     IRQF_ONESHOT, "onkey", info);
