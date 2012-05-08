@@ -19,6 +19,7 @@
 #include <linux/delay.h>
 #include <linux/clk.h>
 #include <linux/syscore_ops.h>
+#include <linux/mmp2_mdma.h>
 #include <asm/hardware/cache-tauros2.h>
 
 #include <asm/mach/time.h>
@@ -989,9 +990,11 @@ static struct mmp_zsp_platform_device mmp_zsp_op = {
 		.src	= MMP_ZSP_CORECLKSRC_AUDIOPLL,
 		.asclk	= MMP_ZSP_ASCLK_24576000,
 	},
+	.sram_size = MMP_AUDIO_RAM_SIZE,
 	.domain_halt	= mmp_zsp_domain_halt,
 	.domain_on	= mmp_zsp_domain_on,
 	.start_core	= mmp_zsp_start_core,
+	.hw_memcpy = mdma_pmemcpy,
 };
 static struct resource mmp_zsp_resources[] = {
 	/* reg base:*/
@@ -1001,22 +1004,29 @@ static struct resource mmp_zsp_resources[] = {
 		.flags	= IORESOURCE_MEM,
 		.name	= "audio-device",
 	},
-	/* ZSP iTCM window */
+	/* ZSP IPC base */
 	[1] = {
+		.start	= 0xd42a1400,
+		.end	= 0xd42a1400,
+		.flags	= IORESOURCE_MEM,
+		.name	= "audio-ipc1",
+	},
+	/* ZSP iTCM window */
+	[2] = {
 		.start	= 0xc0040000,
 		.end	= 0xc004ffff,
 		.flags	= IORESOURCE_MEM,
 		.name	= "audio-itcm",
 	},
 	/* ZSP dTCM window */
-	[2] = {
+	[3] = {
 		.start	= 0xc0000000,
 		.end	= 0xc001ffff,
 		.flags	= IORESOURCE_MEM,
 		.name	= "audio-dtcm",
 	},
 	/* Audio IPC IRQ*/
-	[3] = {
+	[4] = {
 		.start	= IRQ_MMP2_PZIPC,
 		.end	= IRQ_MMP2_PZIPC,
 		.flags	= IORESOURCE_IRQ,
