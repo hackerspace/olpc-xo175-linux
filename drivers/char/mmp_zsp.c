@@ -42,14 +42,14 @@
 #include <asm/atomic.h>
 #include <asm/io.h>
 #include <linux/wakelock.h>
-//#include <mach/mmp2_audiosram.h>
 #include <mach/sram.h>
+
+#define SRAM_OFFSET_FOR_DTCM 0x7000
 
 /* mmp PZIPC registers */
 #define IPC_ISRW	0x0008
 #define IPC_ICR		0x000C
 #define IPC_IIR		0x0010
-#define MMP2_AUDIO_RAM_SIZE	(16*1024)
 
 
 #define pzipc_readl(pszp, off) \
@@ -76,15 +76,18 @@ typedef struct {
 	struct platform_device *	_dev;
 	struct mmp_zsp_platform_device *_devop;
 	bool				_pending_clkcfg;
-	void *				_regs_base;
-	void *				_ipc_regs_base;
-	void *				_sram_base;
+	void				*_regs_base;
+	void				*_ipc_regs_base;
+	void				*_sram_base;
 	phys_addr_t			_sram_pa;
 	resource_size_t			_sram_sz;
+	resource_size_t			_sram_sz_used;
 	phys_addr_t			_itcm_pa;
+	void				*_itcm_va;
 	resource_size_t			_itcm_sz;
 	resource_size_t			_itcm_sz_used;
 	phys_addr_t			_dtcm_pa;
+	void				*_dtcm_va;
 	resource_size_t			_dtcm_sz;
 	resource_size_t			_dtcm_sz_used;
 	unsigned int			_irq;
@@ -93,15 +96,16 @@ typedef struct {
 	volatile bool			_ready;
 	volatile bool			_zspup;
 	zsp_ipc_cft_t			_ipcmap[IPC_MAX_NUM];
-	void * 				pbuffer;
-	void * 				pbuffer_aligned;
+	void				*pbuffer;
+	void				*pbuffer_aligned;
 	dma_addr_t 			dma_handle;
 	dma_addr_t 			dma_handle_aligned;
 	bool				firmware_loaded;
 } zsp_device_t;
+
 static zsp_device_t gs_zsp = {
 	NULL, NULL, false, NULL, NULL, NULL,
-	0, 0, 0, 0, 0, 0, 0, 0, -1, {0}, {{1},}, false, false,
+	0, 0, 0, 0, NULL, 0, 0, 0, NULL, 0, 0, -1, {0}, {{1},}, false, false,
 	{
 		/*client id */		/* interrupt bit*/	/* handler */
 		{IPC_HANDSHAKE_ID,		IPC_INTERRUPT_BIT_0_0,	NULL},
@@ -145,7 +149,6 @@ enum pzipc_return_code pzipc_set_interrupt(enum ipc_client_id client_id)
 	if (client_id >= IPC_MAX_NUM)
 		return PZIPC_RC_WRONG_PARAM;
 
-	/*printk("pzipc_set_interrupt %d\n", client_id);*/
 	pzipc_writel(pzsp, IPC_ISRW, pzsp->_ipcmap[client_id].ipc_irq_bit);
 	return PZIPC_RC_OK;
 }
@@ -209,6 +212,7 @@ static void zsp_halt(zsp_device_t * pzsp)
 
 	pzsp->_devop->domain_halt();
 }
+
 static void zsp_on(zsp_device_t * pzsp)
 {
 	if ((pzsp == NULL)
@@ -219,6 +223,7 @@ static void zsp_on(zsp_device_t * pzsp)
 			pzsp->_devop->clkcfg.src,
 			pzsp->_devop->clkcfg.asclk);
 }
+
 static void zsp_start_core(zsp_device_t * pzsp)
 {
 	if ((pzsp == NULL)
@@ -227,8 +232,8 @@ static void zsp_start_core(zsp_device_t * pzsp)
 
 	pzsp->_devop->start_core();
 }
-static int zsp_loadbin(const char * pname, u32 offset, u32 targetphyaddr,
-	struct platform_device *pdev) {
+static int zsp_loadbin(const char *pname, u32 offset, u32 targetphyaddr,
+	void *targetvirtaddr, struct platform_device *pdev) {
 
 	zsp_device_t * pzsp;
 	int ret = -1;
@@ -240,25 +245,33 @@ static int zsp_loadbin(const char * pname, u32 offset, u32 targetphyaddr,
 
 	ret = request_firmware(&fw, pname, &pdev->dev);
 	if (ret){
-		printk(KERN_ERR "%s:load firmware %s fail\n", __func__, pname);
+		printk(KERN_ERR "%s:load firmware %s fail -- ret %d\n", __func__
+			, pname, ret);
 		return ret;
 	}
 
 	fw_ptr		=(char *)fw->data;
 	fw_size		= (u32)fw->size;
-	adjusted_size	= ZALIGN256(fw_size,u32) + 256;
+	adjusted_size	= ZALIGN256(fw_size, u32);
 
 	memcpy(pzsp->pbuffer_aligned + offset, fw_ptr, fw_size);
 
-	/*
-	printk("%s:load %s, from:%p(0x%08x/0x%08x) to 0x%08x, size:0x%x/0x%x\n",
-		__func__, pname, pbuffer, sourcephyaddr, dma_handle,
-		targetphyaddr, fw_size, adjusted_size);
-	*/
-
-	ret = mdma_pmemcpy(targetphyaddr, pzsp->dma_handle_aligned + offset, adjusted_size);
-
 	if (memcmp(fw_ptr, pzsp->pbuffer_aligned + offset, fw_size) != 0) {
+		printk(KERN_ERR "%s: memory content doesnot match\n", __func__);
+		ret = -1;
+		goto cleanup;
+	}
+	if (pzsp->_devop->hw_memcpy != NULL) {
+		ret = pzsp->_devop->hw_memcpy(targetphyaddr,
+			pzsp->dma_handle_aligned + offset, adjusted_size);
+	} else {
+		memcpy(targetvirtaddr,
+			pzsp->pbuffer_aligned + offset, adjusted_size);
+		ret = adjusted_size;
+	}
+
+	if (memcmp(targetvirtaddr, pzsp->pbuffer_aligned + offset,
+		adjusted_size) != 0) {
 		printk(KERN_ERR "%s: memory content doesnot match\n", __func__);
 		ret = -1;
 		goto cleanup;
@@ -268,8 +281,12 @@ static int zsp_loadbin(const char * pname, u32 offset, u32 targetphyaddr,
 			pzsp->_itcm_sz_used += 0x400;
 		else
 			pzsp->_itcm_sz_used += adjusted_size;
-	} else if ((targetphyaddr >= pzsp->_dtcm_pa) && (targetphyaddr < pzsp->_dtcm_pa + pzsp->_dtcm_sz)) {
+	} else if ((targetphyaddr >= pzsp->_dtcm_pa) &&
+		(targetphyaddr < pzsp->_dtcm_pa + pzsp->_dtcm_sz)) {
 		pzsp->_dtcm_sz_used += adjusted_size;
+	} else if ((targetphyaddr >= pzsp->_sram_pa) &&
+		(targetphyaddr < pzsp->_sram_pa + pzsp->_sram_sz)) {
+		pzsp->_sram_sz_used += adjusted_size;
 	}
 
 	ret = 0;
@@ -278,6 +295,7 @@ cleanup:
 	if (ret == -1) {
 		pzsp->_itcm_sz_used = 0;
 		pzsp->_dtcm_sz_used = 0;
+		pzsp->_sram_sz_used = 0;
 	}
 	release_firmware(fw);
 	return ret;
@@ -293,40 +311,73 @@ static int zsp_doreset(struct platform_device *pdev, int timeout_ms) {
 	pzsp = (zsp_device_t *)platform_get_drvdata(pdev);
 	zsp_on(pzsp);
 
+	memset(pzsp->_sram_base, 0x00, pzsp->_sram_sz);
+
 	if (!pzsp->firmware_loaded) {
-		ret = zsp_loadbin("zsp_ints.bin", 0, pzsp->_itcm_pa, pdev);
+		ret = zsp_loadbin("zsp_ints.bin",
+			0, pzsp->_itcm_pa, pzsp->_itcm_va, pdev);
 		if (ret != 0) {
 			printk(KERN_ERR "%s: load ints.bin failed\n", __func__);
 			goto cleanup;
 		}
-		ret = zsp_loadbin("zsp_text.bin", 0x400, pzsp->_itcm_pa+0x400, pdev);
+		ret = zsp_loadbin("zsp_text.bin",
+			0x400, pzsp->_itcm_pa + 0x400,
+			pzsp->_itcm_va + 0x400, pdev);
 		if (ret != 0) {
 			printk(KERN_ERR "%s: load text.bin failed\n", __func__);
 			goto cleanup;
 		}
-		ret = zsp_loadbin("zsp_data.bin", ZALIGN256(pzsp->_itcm_sz + 255, u32), pzsp->_dtcm_pa, pdev);
+		if (pzsp->_devop->hw_memcpy != NULL) {
+			ret = zsp_loadbin("zsp_data.bin",
+				ZALIGN256(pzsp->_itcm_sz + 255, u32),
+				pzsp->_dtcm_pa, pzsp->_dtcm_va, pdev);
+		} else {
+			ret = zsp_loadbin("zsp_data.bin",
+				ZALIGN256(pzsp->_itcm_sz + 255, u32),
+				pzsp->_sram_pa + SRAM_OFFSET_FOR_DTCM,
+				pzsp->_sram_base + SRAM_OFFSET_FOR_DTCM, pdev);
+		}
 		if (ret != 0) {
 			printk(KERN_ERR "%s: load data.bin failed\n", __func__);
 			goto cleanup;
 		}
 		pzsp->firmware_loaded = true;
 	} else {
-		ret = mdma_pmemcpy(pzsp->_itcm_pa, pzsp->dma_handle_aligned, pzsp->_itcm_sz_used);
+		if (pzsp->_devop->hw_memcpy != NULL)
+			ret = pzsp->_devop->hw_memcpy(pzsp->_itcm_pa,
+				pzsp->dma_handle_aligned, pzsp->_itcm_sz_used);
+		else {
+			memcpy(pzsp->_itcm_va,
+				pzsp->pbuffer_aligned, pzsp->_itcm_sz_used);
+			ret = pzsp->_itcm_sz_used;
+		}
 		if (ret != pzsp->_itcm_sz_used) {
 			printk(KERN_ERR "%s: fill itcm failed\n", __func__);
 			goto cleanup;
 		}
-		ret = mdma_pmemcpy(pzsp->_dtcm_pa, pzsp->dma_handle_aligned + ZALIGN256(pzsp->_itcm_sz + 255, u32),
+		if (pzsp->_devop->hw_memcpy != NULL) {
+			ret = pzsp->_devop->hw_memcpy(pzsp->_dtcm_pa,
+				pzsp->dma_handle_aligned +
+				ZALIGN256(pzsp->_itcm_sz + 255, u32),
 				pzsp->_dtcm_sz_used);
-		if (ret != pzsp->_dtcm_sz_used) {
-			printk(KERN_ERR "%s: fill dtcm failed\n", __func__);
-			goto cleanup;
+			if (ret != pzsp->_dtcm_sz_used) {
+				printk(KERN_ERR "%s: fill dtcm failed\n", __func__);
+				goto cleanup;
+			}
+		} else {
+			memcpy(pzsp->_sram_base + SRAM_OFFSET_FOR_DTCM,
+				pzsp->pbuffer_aligned +
+				ZALIGN256(pzsp->_itcm_sz + 255, u32),
+				pzsp->_sram_sz_used);
+			ret = pzsp->_sram_sz_used;
+			if (ret != pzsp->_sram_sz_used) {
+				printk(KERN_ERR "%s: fill sram failed\n", __func__);
+				goto cleanup;
+			}
 		}
 	}
 
 	ret = pzipc_add_isr(IPC_HANDSHAKE_ID, zsp_ap_handshake_isr);
-	ret = pzipc_add_isr(IPC_DMEM_REQ_ID, zsp_dmem_req_isr);
-	ret = pzipc_add_isr(IPC_DMEM_RLS_ID, zsp_dmem_rls_isr);
 	if (PZIPC_RC_OK != ret) {
 		printk(KERN_ERR "%s: cannot hand shake with ZSP\n", __func__);
 		return -EINVAL;
@@ -345,7 +396,7 @@ static int zsp_doreset(struct platform_device *pdev, int timeout_ms) {
 			pzipc_set_interrupt(IPC_HANDSHAKE_ID);
 			ret = 0;
 
-			goto cleanup;
+			goto done;
 		}
 	}
 
@@ -353,6 +404,8 @@ static int zsp_doreset(struct platform_device *pdev, int timeout_ms) {
 	ret = -EINVAL;
 
 cleanup:
+	zsp_halt(pzsp);
+done:
 	pzipc_remove_isr(IPC_HANDSHAKE_ID);
 	return ret;
 }
@@ -422,17 +475,24 @@ EXPORT_SYMBOL(zsp_local_stop);
 
 void* zsp_get_datawnd(void)
 {
-	zsp_device_t * pzsp = &gs_zsp;
+	zsp_device_t *pzsp = &gs_zsp;
 	return pzsp->_sram_base;
 }
 EXPORT_SYMBOL(zsp_get_datawnd);
 
-int zsp_set_clock_preference(u32 opmask, struct mmp_zsp_clkcfg * pcfg)
+struct mmp_zsp_platform_device *zsp_get_devop()
+{
+	zsp_device_t *pzsp = &gs_zsp;
+	return pzsp->_devop;
+}
+EXPORT_SYMBOL(zsp_get_devop);
+
+int zsp_set_clock_preference(u32 opmask, struct mmp_zsp_clkcfg *pcfg)
 {
 	int ret, bit;
-	int * pparam;
-	int * plocal;
-	zsp_device_t * pzsp = &gs_zsp;
+	int *pparam;
+	int *plocal;
+	zsp_device_t *pzsp = &gs_zsp;
 
 	ret = -EFAULT;
 	mutex_lock(&(pzsp->_floadlock));
@@ -515,6 +575,14 @@ static int __devinit zsp_probe(struct platform_device *pdev)
 	pzsp->_ready	= false;
 
 	mutex_init(&(pzsp->_floadlock));
+
+	pzsp->_devop = pdev->dev.platform_data;
+	if (pzsp->_devop == NULL) {
+		printk(KERN_ERR "failed to get zsp platform ops\n");
+		ret = -EBUSY;
+		goto cleanup;
+	}
+
 	/* map ZSP register area */
 	resource = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (resource == NULL) {
@@ -528,18 +596,48 @@ static int __devinit zsp_probe(struct platform_device *pdev)
 		ret = -EBUSY;
 		goto cleanup;
 	}
-	pzsp->_ipc_regs_base = pzsp->_regs_base + ZSP_IPC_BASE;
 
-	/* map audio buffer sram area */
-	pzsp->_sram_sz = MMP2_AUDIO_RAM_SIZE;
-	if ((pzsp->_sram_base = sram_alloc("audio sram", pzsp->_sram_sz, &pzsp->_sram_pa)) == NULL) {
-		printk(KERN_ERR "failed to map audio sram\n");
-		ret = -EBUSY;
+	resource = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (resource == NULL) {
+		printk(KERN_ERR "resource 0 for %s not exist\n", pdev->name);
+		ret = -ENXIO;
 		goto cleanup;
 	}
+	if (resource->start == resource->end) {
+		/* mmp2 case */
+		pzsp->_ipc_regs_base = (void *) resource->start;
+		pzsp->_sram_sz = pzsp->_devop->sram_size;
+		pzsp->_sram_base = sram_alloc("audio sram",
+			pzsp->_sram_sz, &pzsp->_sram_pa);
+		if (pzsp->_sram_base == NULL) {
+			printk(KERN_ERR "failed to map audio sram\n");
+			ret = -EBUSY;
+			goto cleanup;
+		}
+	} else {
+		/* mmp3 case */
+		pzsp->_ipc_regs_base = ioremap_nocache(resource->start,
+				resource->end - resource->start + 1);
+		if (pzsp->_ipc_regs_base == NULL) {
+			printk(KERN_ERR "failed to map IPC resource 0\n");
+			ret = -EBUSY;
+			goto cleanup;
+		}
+
+		pzsp->_sram_pa = 0xD1030000;
+		pzsp->_sram_sz = pzsp->_devop->sram_size;
+		pzsp->_sram_base = ioremap_nocache(0xD1030000,
+					pzsp->_sram_sz);
+		if (pzsp->_sram_base == NULL) {
+			printk(KERN_ERR "failed to map audio sram\n");
+			ret = -EBUSY;
+			goto cleanup;
+		}
+	}
+
 
 	/* get tcm sram area */
-	resource = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	resource = platform_get_resource(pdev, IORESOURCE_MEM, 2);
 	if (resource == NULL) {
 		printk(KERN_ERR "resource 1 for %s not exist\n", pdev->name);
 		ret = -ENXIO;
@@ -547,7 +645,15 @@ static int __devinit zsp_probe(struct platform_device *pdev)
 	}
 	pzsp->_itcm_pa = resource->start;
 	pzsp->_itcm_sz = resource->end - resource->start + 1;
-	resource = platform_get_resource(pdev, IORESOURCE_MEM, 2);
+	pzsp->_itcm_va = ioremap_nocache(resource->start,
+		resource->end - resource->start + 1);
+	if (pzsp->_itcm_va == NULL) {
+		printk(KERN_ERR "failed to map itcm resource 0\n");
+		ret = -EBUSY;
+		goto cleanup;
+	}
+
+	resource = platform_get_resource(pdev, IORESOURCE_MEM, 3);
 	if (resource == NULL) {
 		printk(KERN_ERR "resource 2 for %s not exist\n", pdev->name);
 		ret = -ENXIO;
@@ -555,6 +661,14 @@ static int __devinit zsp_probe(struct platform_device *pdev)
 	}
 	pzsp->_dtcm_pa = resource->start;
 	pzsp->_dtcm_sz = resource->end - resource->start + 1;
+	pzsp->_dtcm_va = ioremap_nocache(resource->start,
+		resource->end - resource->start + 1);
+	if (pzsp->_dtcm_va == NULL) {
+		printk(KERN_ERR "failed to map dtcm resource 0\n");
+		ret = -EBUSY;
+		goto cleanup;
+	}
+
 
 	/* get IRQ */
 	if ((irq = platform_get_irq(pdev, 0)) < 0 ) {
@@ -565,19 +679,13 @@ static int __devinit zsp_probe(struct platform_device *pdev)
 	pzsp->_irq = (unsigned int)irq;
 
 	ret_hook = request_irq(pzsp->_irq, pzipc_interrupt_handler,
-			IRQF_DISABLED, "pzipc", pzsp);
+			0, "pzipc", pzsp);
 	if (ret_hook != 0) {
 		printk(KERN_ERR "failed to request irq\n");
 		ret = -EBUSY;
 		goto cleanup;
 	}
 
-	pzsp->_devop = pdev->dev.platform_data;
-	if (pzsp->_devop == NULL) {
-		printk(KERN_ERR "failed to get zsp platform ops\n");
-		ret = -EBUSY;
-		goto cleanup;
-	}
 
 	platform_set_drvdata(pdev, pzsp);
 
@@ -585,8 +693,6 @@ static int __devinit zsp_probe(struct platform_device *pdev)
 	pzsp->_ready	= true;
 	pzsp->_dev	= pdev;
 	pzsp->_ccnt.counter = 0;
-
-	zsp_halt(pzsp); /* now we do late firmware load */
 
 	pzsp->pbuffer	= dmam_alloc_coherent(&pdev->dev, pzsp->_itcm_sz + pzsp->_dtcm_sz + 512,
 				&pzsp->dma_handle, GFP_KERNEL);
@@ -603,33 +709,23 @@ static int __devinit zsp_probe(struct platform_device *pdev)
 
 	printk(KERN_INFO "ZSP driver started\n");
 
-/*
-	printk(" >>>>>>>>>>>>>>> %p %p %p %p 0x%08x 0x%08x 0x%08x\n"
-		, pzsp->_devop, pzsp->_regs_base, pzsp->_ipc_regs_base
-		, pzsp->_sram_base , pzsp->_sram_pa
-		, pzsp->_itcm_pa, pzsp->_dtcm_pa
-		);
-
-	printk(" >>>>>>>>>>>>>>> %p, %p, %p\n"
-			, pzsp->_devop->domain_halt
-			, pzsp->_devop->domain_on
-			, pzsp->_devop->start_core
-		);
-*/
 	return 0;
 
 cleanup:
-	if (ret_hook == 0) {
+	if (ret_hook == 0)
 		free_irq(pzsp->_irq, pzsp);
-	}
 
-	if (pzsp->_regs_base != NULL) {
+	if (pzsp->_regs_base != NULL)
 		iounmap(pzsp->_regs_base);
-	}
 
-	if (pzsp->_sram_base != NULL) {
+	if (pzsp->_sram_base != NULL)
 		iounmap(pzsp->_sram_base);
-	}
+
+	if (pzsp->_itcm_va != NULL)
+		iounmap(pzsp->_itcm_va);
+
+	if (pzsp->_dtcm_va != NULL)
+		iounmap(pzsp->_dtcm_va);
 
 	pzsp->_irq = -1;
 	pzsp->_regs_base = NULL;
@@ -672,6 +768,7 @@ static int __devexit zsp_remove(struct platform_device *pdev)
 		pzsp->_sram_base = NULL;
 		pzsp->_sram_pa	= 0;
 		pzsp->_sram_sz	= 0;
+		pzsp->_sram_sz_used = 0;
 		pzsp->_itcm_pa	= 0;
 		pzsp->_itcm_sz	= 0;
 		pzsp->_itcm_sz_used	= 0;

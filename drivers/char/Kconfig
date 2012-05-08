@@ -695,13 +695,13 @@ config MMP3_SYSSET
 
 config MMP_ZSP
         tristate "ZSP host driver for MMP ZSP audio processor"
-        depends on CPU_MMP2
+        depends on CPU_MMP2 || CPU_MMP3
         help
           Please say Y here if want to support ZSP for MMP
 
 config MMP_ZMQ
         tristate "PJ-ZSP message queue interface"
-        depends on CPU_MMP2 && MMP_ZSP
+        depends on (CPU_MMP2 || CPU_MMP3) && MMP_ZSP
         help
           Please say Y here if want to support message queue for PJ-ZSP communication
 

@@ -559,6 +559,7 @@ typedef struct zmq_instance_t_ {
 	zmq_bind_list_t		_bind_list;
 	zmq_shm_t *		_pshm_map;
 	atomic_t		_dobjcnt;
+	struct mmp_zsp_platform_device *_devop;
 	/* simple for direct map */
 #ifdef ZMQ_USING_DIRECT_DISPATCH_MAPPING
 	zmq_deliver_queue_t *	_zmq_deliver_map[ZMQ_MSG_CLASS_NUMBER]
@@ -1132,6 +1133,9 @@ static int zmq_mdma_proxy_thread(void * pctx) {
 
 	pinstance = (zmq_instance_t *)pctx;
 	printk(KERN_INFO "%s:%d: ZMQ: MDMA proxy started\n", __func__, __LINE__);
+	if (pinstance->_devop->hw_memcpy == NULL)
+		goto exit;
+
 	while (1) {
 		if (!wait_for_completion_timeout(&(pinstance->_mdma_wake),
 						msecs_to_jiffies(60*1000)))
@@ -1155,19 +1159,13 @@ static int zmq_mdma_proxy_thread(void * pctx) {
 			if (	ZMQ_MDMA_ALIGNED(pentry->_byteaddr_dst) &&
 				ZMQ_MDMA_ALIGNED(pentry->_byteaddr_src) &&
 				ZMQ_MDMA_ALIGNED(pentry->_byte_cnt)) {
-/*
-				zmq_dt(ZMQ_DT_MDMA, ("%d: MDMA copy 0x%08x bytes"
-						" from 0x%08x=>0x%08x, ret=%d\n"
-					,__LINE__, pentry->_byte_cnt,
-					pentry->_byteaddr_src,
-					pentry->_byteaddr_dst, (int)copied));
-*/
 				retry = 10;
 				while (retry-- > 0) {
-					copied = mdma_pmemcpy(pentry->_byteaddr_dst,
-							pentry->_byteaddr_src,
-							pentry->_byte_cnt);
-					if (	(copied == -ERESTARTSYS) ||
+					copied = pinstance->_devop->hw_memcpy(
+						pentry->_byteaddr_dst,
+						pentry->_byteaddr_src,
+						pentry->_byte_cnt);
+					if ((copied == -ERESTARTSYS) ||
 						(copied == pentry->_byte_cnt)) {
 						break;
 					}
@@ -1200,6 +1198,8 @@ static int zmq_mdma_proxy_thread(void * pctx) {
 		zmq_firmware_release(pinstance);
 		if (pinstance->_mdma_exit) break;
 	}
+
+exit:
 	printk(KERN_INFO "%s:%d: ZMQ: MDMA proxy stopped\n", __func__, __LINE__);
 	return 0;
 }
@@ -1260,7 +1260,6 @@ static bool zmq_init(zmq_instance_t ** ppinstance)
 	}
 	/* instance ok */
 	pinstance->_pshm_map = (zmq_shm_t *)zsp_get_datawnd();
-
 	if (pinstance->_pshm_map == NULL ) {
 		/* free instance */
 		zmq_free(pinstance);
@@ -1269,6 +1268,13 @@ static bool zmq_init(zmq_instance_t ** ppinstance)
 	}
 
 	/* SHM will be initialized by ZSP firmware, don't touch here */
+	pinstance->_devop = zsp_get_devop();
+	if (pinstance->_devop == NULL) {
+		/* free instance */
+		zmq_free(pinstance);
+		printk(KERN_ERR "%s: cannot get devop\n", __func__);
+		return false;
+	}
 
 	zmq_bl_init(&pinstance->_bind_list);
 
@@ -1279,7 +1285,8 @@ static bool zmq_init(zmq_instance_t ** ppinstance)
 	pinstance->_logger = NULL;
 	pinstance->_mdma = NULL;
 
-	zmq_load_mdma_proxy(pinstance);
+	if (pinstance->_devop->hw_memcpy != NULL)
+		zmq_load_mdma_proxy(pinstance);
 
 	memset(pinstance->_zmq_deliver_map, 0,
 		sizeof(pinstance->_zmq_deliver_map));
@@ -1414,8 +1421,7 @@ static bool zmq_request_session(zmq_instance_t * pinstance,
 		}
 
 		if (pbc->_hdr._response != ZMQ_CMD_RESPONSE_OK) {
-			printk(KERN_ERR "%s: %d: abort, reach ZSP limit\n",
-				__func__,__LINE__);
+			printk(KERN_ERR "%s: %d: abort, reach ZSP limit\n", __func__, __LINE__);
 			res = false;
 			goto clean_up;
 		}
@@ -2172,8 +2178,8 @@ int kzmq_write(void* hkzmq, void *pmsg, int len)
 	}
 
 	if ( (pmsg == NULL) || (len > ( sizeof(packet._message))) ) {
-		printk(KERN_ERR "%s: %d: message buffer invalid\n",
-			__func__,__LINE__);
+		printk(KERN_ERR "%s: %d: message buffer invalid, pmsg = %p, len = %d\n",
+			__func__, __LINE__, pmsg, len);
 		return -1;
 	}
 
@@ -2335,9 +2341,10 @@ static int zmq_devif_open( struct inode *inode, struct file *filp )
 						__func__,__LINE__);
 					return -ENOENT;
 				}
-				if ( (filp->private_data =zmq_bind(
-					pinstance, s_matchtab[i]._type))
-					== NULL) {
+
+				filp->private_data = zmq_bind(pinstance,
+					s_matchtab[i]._type);
+				if (filp->private_data == NULL) {
 					printk(KERN_ERR "%s: %d: bind failed\n",
 						__func__,__LINE__);
 					return -EBUSY;
@@ -2345,9 +2352,9 @@ static int zmq_devif_open( struct inode *inode, struct file *filp )
 				return 0;
 			}
 		}
-		return ENOENT;
-	}
-	else return ENOENT;
+		return -ENOENT;
+	} else
+		return -ENOENT;
 
 	return 0;
 }
@@ -2548,10 +2555,19 @@ static long zmq_devif_ioctl(struct file *file,
 	case ZMQ_IOC_MDMA_PMEMCPY:
 		{
 			zmq_ioc_pmemcpy_param_t	param;
+			zmq_instance_t *pinstance;
+
+			pinstance = zmq_get_instance();
+
+			if (pinstance->_devop->hw_memcpy == NULL) {
+				ret = -ENOTTY;
+				break;
+			}
 
 			ZMQ_IOCTL_ENTER(param, ret);
-			ret = mdma_pmemcpy(param._output, param._input,
-						param._length);
+			ret = pinstance->_devop->hw_memcpy(
+				param._output, param._input,
+				param._length);
 			ZMQ_IOCTL_LEAVE(param, ret);
 		}
 		break;
@@ -2733,7 +2749,7 @@ static void zmq_diagnose_session_control(zmq_instance_t * pins)
 	};
 	void* handles[_countof(types)][ZMQ_MSG_SESSION_NUMBER];
 	void* handle;
-	printk("[ZMQDIAG]:SESSION TEST\n");
+	printk(KERN_ERR "[ZMQDIAG]:SESSION TEST\n");
 	sessionmax = ZMQ_MSG_SESSION_NUMBER;
 	typemax = _countof(types);
 	redo = 1;
@@ -2749,7 +2765,7 @@ static void zmq_diagnose_session_control(zmq_instance_t * pins)
 				if (handle != NULL) {
 					kzmq_dt(handle, true);
 					kzmq_info(handle, &info);
-					printk("\t\t session[%d][%d][%d] %p created\n",
+					printk(KERN_ERR "\t\t session[%d][%d][%d] %p created\n",
 						info._class_id,
 						info._module_id,
 						info._session, handle);
@@ -2757,8 +2773,7 @@ static void zmq_diagnose_session_control(zmq_instance_t * pins)
 				else break;
 				handles[tn][sn] = handle;
 			}
-			printk("\t\t type[0x%08x] support max %d sessions\n",
-				types[tn], sn);
+			printk(KERN_ERR "\t\t type[0x%08x] support max %d sessions\n", types[tn], sn);
 		}
 		for (tn = 0; tn < typemax; tn++) {
 			for (sn = 0; sn < sessionmax; sn++) {
@@ -2767,7 +2782,7 @@ static void zmq_diagnose_session_control(zmq_instance_t * pins)
 			}
 		}
 	}
-	printk("[ZMQDIAG]:SESSION TEST END\n");
+	printk(KERN_ERR "[ZMQDIAG]:SESSION TEST END\n");
 }
 
 enum {
