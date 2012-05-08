@@ -615,12 +615,17 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 	/* Select XO 32KHZ(USE_XO)
 	 * Force all CLK32K_1/2/3 buffers to use the XO 32KHZ */
 	pm80x_set_bits(chip->base_page, PM800_RTC_CONTROL, (1 << 7), (1 << 7));
-	/* Enable 32K out1 from XO: EXT_32K_IN */
-	pm80x_set_bits(chip->base_page, PM800_RTC_MISC2, 0x3, 0x2);
-	/* Enable 32K out2 from XO: 32K_CLK for WIFI,PM805 */
+	/*
+	 * Enable 32k out1, out2 and out3 from XO
+	 * CLK32K_1: EXT_32K_IN
+	 * CLK32K_2: 32K_CLK for WIFI and PM805 bofore B0rev2
+	 * CLK32K_3: 32K_CLK_GPS
+	 * 	     32K_CLK for WIFI and PM805 since B0rev2
+	 * Enable low jitter version for CLK32K_3 (0x21[5] = 0b1)
+	 */
+	pm80x_reg_write(chip->base_page, 0x21, 0x20);
 	pm80x_set_bits(chip->base_page, PM800_RTC_MISC2,
-					(0x3 << 2), (0x2 << 2));
-
+			0x3f, (0x2 << 4) | (0x2 << 2) | 0x2);
 	return 0;
 }
 
