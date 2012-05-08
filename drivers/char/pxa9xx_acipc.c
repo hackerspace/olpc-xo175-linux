@@ -1024,21 +1024,19 @@ int acipc_handle_DDR_req_relq(void)
 	ACIPC_IIR_READ(acipc->IIR_val);	/* read the IIR */
 
 	/*
-	 * If both events bit set, we don't know how many interrupts occured.
-	 * We will guess both events occured only once.
+	 * If both events bit set, the only case happen here is
+	 * ACIPC_DDR_RELQ_REQ and then ACIPC_DDR_READY_REQ, because
+	 * ACIPC_DDR_RELQ_REQ will be sent by Comm side only the ACK for
+	 * ACIPC_DDR_READY_REQ has been sent.
 	 */
 	if ((acipc->IIR_val & ACIPC_DDR_READY_REQ) &&
 			(acipc->IIR_val &ACIPC_DDR_RELQ_REQ)) {
-		printk(KERN_DEBUG "##############WARNING#################\n.");
-		printk(KERN_DEBUG "Both events, DDR req and relq, happen"
-			       "before handling.\n");
-	}
-
-	if (ACIPC_DDR_READY_REQ & acipc->IIR_val) {
-		pr_debug("ACIPC_DDR_READY_REQ happen.\n");
-		/* Clean the event(s) and call callback */
-		acipc_writel_withdummy(IPC_ICR, ACIPC_DDR_READY_REQ);
-		acipc_kernel_callback(ACIPC_DDR_READY_REQ);
+		if (acipc_lock.ddr208_cnt == 0) {
+			pr_err("Both DDR request and relinquish pending."
+				"And previous event is relinquish."
+				"This should not happen.\n");
+			BUG_ON(1);
+		}
 	}
 
 	if (ACIPC_DDR_RELQ_REQ & acipc->IIR_val) {
@@ -1046,6 +1044,13 @@ int acipc_handle_DDR_req_relq(void)
 		/* Clean the event(s) and call callback */
 		acipc_writel_withdummy(IPC_ICR, ACIPC_DDR_RELQ_REQ);
 		acipc_kernel_callback(ACIPC_DDR_RELQ_REQ);
+	}
+
+	if (ACIPC_DDR_READY_REQ & acipc->IIR_val) {
+		pr_debug("ACIPC_DDR_READY_REQ happen.\n");
+		/* Clean the event(s) and call callback */
+		acipc_writel_withdummy(IPC_ICR, ACIPC_DDR_READY_REQ);
+		acipc_kernel_callback(ACIPC_DDR_READY_REQ);
 	}
 
 	/*
