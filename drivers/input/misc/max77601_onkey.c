@@ -17,6 +17,7 @@
 #include <linux/interrupt.h>
 #include <linux/mfd/max77601.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
 
 struct max77601_onkey_info {
 	struct input_dev	*idev;
@@ -25,6 +26,48 @@ struct max77601_onkey_info {
 	struct max77601_chip *chip;
 	int irq;
 };
+
+static struct max77601_onkey_info *g_info;
+
+void max77601_system_restart(void)
+{
+	int ret = 0;
+	if (!g_info || !g_info->chip)
+		return;
+	pr_err("%s: rebooting...\n", __func__);
+	/* 1. Enable SW reset wake up */
+	ret = max77601_set_bits(g_info->chip, MAX77601_ONOFFCNFG2,
+				MAX77601_SFT_RST_WK, MAX77601_SFT_RST_WK);
+	if (ret)
+		goto out;
+	/* 2. Issue SW reset */
+	ret = max77601_set_bits(g_info->chip, MAX77601_ONOFFCNFG1,
+				MAX77601_SFT_RST, MAX77601_SFT_RST);
+out:
+	if (ret)
+		pr_err("%s: Failed to reboot!\n", __func__);
+	mdelay(500);
+}
+
+void max77601_system_poweroff(void)
+{
+	int ret;
+	if (!g_info || !g_info->chip)
+		return;
+	pr_err("%s: powering off...\n", __func__);
+	/* 1. Disable SW reset wake up */
+	ret = max77601_set_bits(g_info->chip, MAX77601_ONOFFCNFG2,
+				MAX77601_SFT_RST_WK, 0);
+	if (ret)
+		goto out;
+	/* 2. Issue Power down */
+	ret = max77601_set_bits(g_info->chip, MAX77601_ONOFFCNFG1,
+				MAX77601_SFT_RST, MAX77601_SFT_RST);
+out:
+	if (ret)
+		pr_err("%s: Failed to power off!\n", __func__);
+	mdelay(500);
+}
 
 /*
  * MAX77601 gives us an interrupt when ONKEY(EN0) is pressed or released.
@@ -121,6 +164,7 @@ static int __devinit max77601_onkey_probe(struct platform_device *pdev)
 	info->dev = &pdev->dev;
 	irq += chip->irq_base;
 	info->chip = chip;
+	g_info = info;
 
 	error = request_threaded_irq(irq, NULL, max77601_onkey_handler,
 				     IRQF_ONESHOT, "onkey", info);

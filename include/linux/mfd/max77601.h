@@ -326,4 +326,18 @@ extern int max77601_device_init(struct max77601_chip *chip,
 				struct max77601_platform_data *pdata);
 extern void max77601_device_exit(struct max77601_chip *chip);
 
+#ifdef CONFIG_INPUT_MAX77601_ONKEY
+extern void max77601_system_restart(void);
+extern void max77601_system_poweroff(void);
+#else
+void max77601_system_restart(void)
+{
+	pr_err("%s is not supported\n", __func__);
+}
+void max77601_system_poweroff(void)
+{
+	pr_err("%s is not supported\n", __func__);
+}
+#endif
+
 #endif				/* __LINUX_MAX77601_H__ */
