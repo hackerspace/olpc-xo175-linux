@@ -111,6 +111,7 @@ struct sdhci_pxa_platdata {
 	/*for sd8688-rfkill device*/
 	struct mmc_host **pmmc;
 #endif
+	int 	regs_extended;
 };
 
 struct sdhci_pxa {

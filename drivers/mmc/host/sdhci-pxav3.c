@@ -31,15 +31,22 @@
 #include "sdhci.h"
 #include "sdhci-pltfm.h"
 #include <plat/pm.h>
+#include <mach/cputype.h>
 
 #ifdef CONFIG_CPU_PXA978
 #include <mach/dvfm.h>
 #endif
 
 #define SD_CLOCK_BURST_SIZE_SETUP		0x10A
-#define SDCLK_SEL	0x100
+#define SDCLK_SEL		(1<<8)
 #define SDCLK_DELAY_SHIFT	9
 #define SDCLK_DELAY_MASK	0x1f
+
+#define SD_RX_CFG_REG		0x114
+#define RX_CFG_SDCLK_SEL		(1<<2)
+#define RX_CFG_SDCLK_SEL_MASK		(0x3<<2)
+#define RX_CFG_SDCLK_DELAY_SHIFT	8
+#define RX_CFG_SDCLK_DELAY_MASK		0x1ff
 
 #define SD_CFG_FIFO_PARAM       0x100
 #define SDCFG_GEN_PAD_CLK_ON	(1<<6)
@@ -63,14 +70,25 @@ static void pxav3_set_private_registers(struct sdhci_host *host, u8 mask)
 		 * tune timing of read data/command when crc error happen
 		 * no performance impact
 		 */
-		if (pdata && 0 != pdata->clk_delay_cycles) {
+		if (pdata && pdata->clk_delay_cycles) {
 			u16 tmp;
 
-			tmp = readw(host->ioaddr + SD_CLOCK_BURST_SIZE_SETUP);
-			tmp |= (pdata->clk_delay_cycles & SDCLK_DELAY_MASK)
-				<< SDCLK_DELAY_SHIFT;
-			tmp |= SDCLK_SEL;
-			writew(tmp, host->ioaddr + SD_CLOCK_BURST_SIZE_SETUP);
+			if (!pdata->regs_extended) {
+				tmp = readw(host->ioaddr + SD_CLOCK_BURST_SIZE_SETUP);
+				tmp &= ~(SDCLK_DELAY_MASK << SDCLK_DELAY_SHIFT);
+				tmp |= (pdata->clk_delay_cycles & SDCLK_DELAY_MASK)
+					<< SDCLK_DELAY_SHIFT;
+				tmp |= SDCLK_SEL;
+				writew(tmp, host->ioaddr + SD_CLOCK_BURST_SIZE_SETUP);
+			} else {
+				tmp = readw(host->ioaddr + SD_RX_CFG_REG);
+				tmp &= ~(RX_CFG_SDCLK_DELAY_MASK << RX_CFG_SDCLK_DELAY_SHIFT);
+				tmp |= (pdata->clk_delay_cycles & RX_CFG_SDCLK_DELAY_MASK)
+					<< RX_CFG_SDCLK_DELAY_SHIFT;
+				tmp &= ~(RX_CFG_SDCLK_SEL_MASK);
+				tmp |= RX_CFG_SDCLK_SEL;
+				writew(tmp, host->ioaddr + SD_RX_CFG_REG);
+			}
 		}
 	}
 }
