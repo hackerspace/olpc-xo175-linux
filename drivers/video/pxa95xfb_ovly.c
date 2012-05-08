@@ -271,8 +271,11 @@ static int pxa95xfb_ovly_suspend(struct platform_device *dev, pm_message_t state
 
 	/* disable fb hdmi when suspend */
 	if (fbi->id >= 2 && fbi->controller_on) {
-		conv_ref_clr(fbi);
-		converter_onoff(fbi, 0);
+		fbi->on = 0;
+		conv_ref_dec(fbi);
+		lcdc_set_lcd_controller(fbi);
+		if (conv_is_on(fbi))
+			converter_onoff(fbi, 0);
 		fbi->controller_on = 0;
 		fbi->user_addr = 0;
 		lcdc_set_fr_addr(fbi);

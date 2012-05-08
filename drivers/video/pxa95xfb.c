@@ -1971,10 +1971,7 @@ static void mixer_onoff(struct pxa95xfb_info *fbi, int on)
 		printk(KERN_ERR "mixer%d on but all layers are off\n", fbi->mixer_id);
 		return;
 	}
-	if (!on) {
-		x &= ~LCD_MIXERx_CTL0_ALL_OL_DISABLE;
-		x |= LCD_MIXERx_CTL0_ALL_OL_DISABLE;
-	}
+
 	x &= ~LCD_MIXERx_CTL0_MIX_EN;
 	if (on)
 		x |= LCD_MIXERx_CTL0_MIX_EN;
