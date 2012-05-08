@@ -463,6 +463,14 @@ static int ov5640_s_fmt(struct v4l2_subdev *sd,
 		return -EINVAL;
 	}
 
+#ifdef CONFIG_PXA95x
+	/*
+	 * for pxa97x, we need send global init settings
+	 * for all resolutions except 720p/1080p.
+	 */
+	pregs_default = init_global_tab;
+#endif
+
 	switch (mf->code) {
 	case V4L2_MBUS_FMT_UYVY8_2X8:
 	case V4L2_MBUS_FMT_VYUY8_2X8:
@@ -480,9 +488,6 @@ static int ov5640_s_fmt(struct v4l2_subdev *sd,
 			dev_info(&client->dev, "choose 480*320 setting!\n");
 			break;
 		case 640:
-#ifdef CONFIG_PXA95x
-			pregs_default = init_global_tab;
-#endif
 			pregs = yuv_VGA_tab;
 			dev_info(&client->dev, "choose vga setting!\n");
 			break;
@@ -491,10 +496,16 @@ static int ov5640_s_fmt(struct v4l2_subdev *sd,
 			dev_info(&client->dev, "choose d1 setting!\n");
 			break;
 		case 1280:
+#ifdef CONFIG_PXA95x
+			pregs_default = NULL;
+#endif
 			pregs = yuv_720P_tab;
 			dev_info(&client->dev, "choose 720P setting!\n");
 			break;
 		case 1920:
+#ifdef CONFIG_PXA95x
+			pregs_default = NULL;
+#endif
 			pregs = yuv_1080P_tab;
 			dev_info(&client->dev, "choose 1080P setting!\n");
 			break;
