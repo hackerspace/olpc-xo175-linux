@@ -285,6 +285,7 @@ struct sdhci_ops {
 	int	(*recovery)(struct sdhci_host *host);
 	void	(*platform_8_dummy_clock)(struct sdhci_host *host,
 				unsigned int clk_rate, int flag);
+	void 	(*clk_gate_ctl)(struct sdhci_host *host, unsigned int clk_gate);
 };
 
 #ifdef CONFIG_MMC_SDHCI_IO_ACCESSORS

@@ -1632,6 +1632,14 @@ static int sdhci_start_signal_voltage_switch(struct mmc_host *mmc,
 				clk = sdhci_readw(host, SDHCI_CLOCK_CONTROL);
 				clk |= SDHCI_CLOCK_CARD_EN;
 				sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
+				/* Disable clk gate feature to complete
+				 * voltage switch stage
+				 */
+				if ((mmc->caps &
+				     MMC_CAP_ENABLE_BUS_CLK_GATING) &&
+					(host->ops->clk_gate_ctl)) {
+					host->ops->clk_gate_ctl(host, 0);
+				}
 				usleep_range(1000, 1500);
 
 				/*
@@ -1641,8 +1649,14 @@ static int sdhci_start_signal_voltage_switch(struct mmc_host *mmc,
 				present_state = sdhci_readl(host,
 							SDHCI_PRESENT_STATE);
 				if ((present_state & SDHCI_DATA_LVL_MASK) ==
-				     SDHCI_DATA_LVL_MASK)
+				     SDHCI_DATA_LVL_MASK) {
+					if ((mmc->caps &
+					     MMC_CAP_ENABLE_BUS_CLK_GATING) &&
+						(host->ops->clk_gate_ctl)) {
+						host->ops->clk_gate_ctl(host, 1);
+					}
 					return 0;
+				}
 			}
 		}
 
@@ -1659,6 +1673,11 @@ static int sdhci_start_signal_voltage_switch(struct mmc_host *mmc,
 		usleep_range(1000, 1500);
 		pwr |= SDHCI_POWER_ON;
 		sdhci_writeb(host, pwr, SDHCI_POWER_CONTROL);
+
+		if ((mmc->caps & MMC_CAP_ENABLE_BUS_CLK_GATING) &&
+				(host->ops->clk_gate_ctl)) {
+			host->ops->clk_gate_ctl(host, 1);
+		}
 
 		printk(KERN_INFO DRIVER_NAME ": Switching to 1.8V signalling "
 			"voltage failed, retrying with S18R set to 0\n");

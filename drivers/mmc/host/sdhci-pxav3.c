@@ -357,6 +357,21 @@ static int sdhci_pxa_recovery(struct sdhci_host *host)
 	return ERR_CONTINUE;
 }
 
+static void pxav3_clk_gate_ctl(struct sdhci_host *host, unsigned int clk_gate)
+{
+	u16 ctrl_2;
+
+	if (clk_gate) {
+		ctrl_2 = readw(host->ioaddr + SDHCI_HOST_CONTROL2);
+		ctrl_2 |= SDHCI_CTRL_AINT;
+		writew(ctrl_2, host->ioaddr + SDHCI_HOST_CONTROL2);
+	} else {
+		ctrl_2 = readw(host->ioaddr + SDHCI_HOST_CONTROL2);
+		ctrl_2 &= ~SDHCI_CTRL_AINT;
+		writew(ctrl_2, host->ioaddr + SDHCI_HOST_CONTROL2);
+	}
+}
+
 static struct sdhci_ops pxav3_sdhci_ops = {
 	.platform_reset_exit = pxav3_set_private_registers,
 	.set_uhs_signaling = pxav3_set_uhs_signaling,
@@ -365,6 +380,7 @@ static struct sdhci_ops pxav3_sdhci_ops = {
 	.access_constrain = pxav3_access_constrain,
 	.safe_regulator_on = sdhci_pxa_safe_regulator_on,
 	.recovery = sdhci_pxa_recovery,
+	.clk_gate_ctl = pxav3_clk_gate_ctl,
 };
 
 static int ext_cd_init(void *data)
