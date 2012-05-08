@@ -144,6 +144,7 @@ static void clk_pxa95x_dsi_disable(struct clk *dsi_clk)
 
 	dsi_enable_status = 0;
 	clear_mipi_reference_control();
+	pr_info("dsi clock disable\n");
 
 	return;
 }
@@ -333,7 +334,7 @@ static const struct clkops clk_pxa95x_dsi_ops = {
 static int clk_pxa95x_ihdmi_enable(struct clk *hdmi_clk)
 {
 	set_mipi_reference_control();
-	dsi_enable_status = 1;
+	hdmi_enable_status = 1;
 	printk("hdmi: pll enable\n");
 	return 0;
 }
@@ -669,8 +670,8 @@ static int clk_csi_tx_esc_enable(struct clk *csi_clk)
 static void clk_csi_tx_esc_disable(struct clk *csi_clk)
 {
 	CKENC &= ~(1 << (CKEN_CSI_TX - 64));
-	clear_mipi_reference_control();
 	csi_enable_status = 0;
+	clear_mipi_reference_control();
 	pr_info("cam: csi clock disable\n");
 }
 
