@@ -1408,6 +1408,36 @@ static void converter_mode_set(struct pxa95xfb_conv_info *conv, struct fb_videom
 	conv->vsync_len = mode->vsync_len;
 }
 
+static void update_lcd_controller_clock(struct pxa95xfb_conv_info *conv, int on)
+{
+	unsigned int clock_rate;
+	struct pxa95xfb_conv_info *panel_conv = NULL;
+
+	if (!cpu_is_pxa978() || !pxa95xfbi[0])
+		return;
+	if (!on)
+		clock_rate = 104000000;
+	else if (conv->xres * conv->yres >= 720*1080)
+		clock_rate = 312000000;
+	else
+		clock_rate = 156000000;
+	printk(KERN_INFO "%s: for converter resolution %d %d, clock rate is set to %d\n",
+		__func__, conv->xres, conv->yres, clock_rate);
+	/* WORKAROUND here: find some safe way to update clock: disable panel converters???? */
+	panel_conv = &fb2conv(pxa95xfbi[0]);
+
+	if (!panel_conv || panel_conv->output != OUTPUT_PANEL || !panel_conv->on) {
+		printk(KERN_INFO "%s: directly update clock\n", __func__);
+		clk_set_rate(pxa95xfbi[0]->clk_lcd, clock_rate);
+	}
+
+	/*WR: disable converter of panel then do update*/
+	converter_onoff(pxa95xfbi[0], 0);
+	clk_set_rate(pxa95xfbi[0]->clk_lcd, clock_rate);
+	converter_onoff(pxa95xfbi[0], 1);
+}
+
+
 
 #ifdef CONFIG_MV_IHDMI
 extern int mv_ihdmiinit(void);
@@ -1425,6 +1455,10 @@ void converter_onoff(struct pxa95xfb_info *fbi, int on)
 			conv->power(1);
 
 		converter_mode_set(conv, &fbi->mode);
+
+		/* workaround to adjust lcd controller clock */
+		if (conv->output == OUTPUT_HDMI)
+			update_lcd_controller_clock(conv, 1);
 
 		if (CONVERTER_IS_DSI(conv->converter))
 			converter_set_dsi(conv);
@@ -1459,6 +1493,10 @@ void converter_onoff(struct pxa95xfb_info *fbi, int on)
 
 		if (conv->clk)
 			clk_disable(conv->clk);
+
+		/* workaround to adjust lcd controller clock */
+		if (conv->output == OUTPUT_HDMI)
+			update_lcd_controller_clock(conv, 0);
 
 		if(conv->power)
 			conv->power(0);
@@ -2845,6 +2883,7 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 	set_dvfm_constraint();
 
 	clk_enable(fbi->clk_lcd);
+	clk_set_rate(fbi->clk_lcd, 104000000);
 
 	/* Enable AXI32 before modifying the controller registers */
 	writel(LCD_CTL_AXI32_EN, fbi->reg_base + LCD_CTL);
