@@ -610,7 +610,8 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 		return -EINVAL;
 	}
 	/* Disable watch dog */
-	pm80x_set_bits(chip->base_page, PM800_WAKEUP2, (0xF << 4), 0);
+	if (chip->chip800_version == PM800_CHIP_B0)
+		pm80x_set_bits(chip->base_page, PM800_WAKEUP2, (0xF << 4), 0);
 	/* Select XO 32KHZ(USE_XO)
 	 * Force all CLK32K_1/2/3 buffers to use the XO 32KHZ */
 	pm80x_set_bits(chip->base_page, PM800_RTC_CONTROL, (1 << 7), (1 << 7));
