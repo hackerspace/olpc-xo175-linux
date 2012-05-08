@@ -9,7 +9,6 @@
  * published by the Free Software Foundation.
  */
 
-#include <linux/delay.h>
 #include <linux/string.h>
 #include "ov5642.h"
 
@@ -6128,9 +6127,6 @@ int get_bus_type()
 int set_stream(struct i2c_client *client, int enable)
 {
 	int ret = 0;
-	int st = 0;
-	struct ov5642 *ov5642 = container_of(i2c_get_clientdata(client),
-			    struct ov5642, subdev);
 	unsigned char val;
 	switch (bus_type_index) {
 	case 0:	/* bus name: pxa910-dvp */
@@ -6143,11 +6139,6 @@ int set_stream(struct i2c_client *client, int enable)
 			ret = ov5642_write(client, 0x4202, 0x0f);
 			if (ret < 0)
 				goto out;
-			if (ov5642->frame_rate)
-				st = 1000/ov5642->frame_rate + 1;
-			else
-				st = 150;
-			msleep(st);
 		}
 		break;
 	case 2:	/* bus name: pxa955-mipi */
