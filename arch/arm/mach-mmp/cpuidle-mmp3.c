@@ -78,7 +78,7 @@ static int mmp3_cpuidle_register_device(unsigned int cpu)
 	state = &device->states[0];
 	strcpy(state->name, "C1");
 	strcpy(state->desc, "C1: core internal clock gate");
-	state->exit_latency = 10; /* FIXME: what's the real latency? */
+	state->exit_latency = 1; /* FIXME: what's the real latency? */
 	state->target_residency = state->exit_latency * 2;
 	state->flags = CPUIDLE_FLAG_TIME_VALID;
 	state->enter = mmp3_enter_idle_c1;
@@ -87,7 +87,7 @@ static int mmp3_cpuidle_register_device(unsigned int cpu)
 	state = &device->states[1];
 	strcpy(state->name, "C2");
 	strcpy(state->desc, "C2: core state is retained");
-	state->exit_latency = 50; /* FIXME: what's the real latency? */
+	state->exit_latency = 20; /* FIXME: what's the real latency? */
 	state->target_residency = state->exit_latency * 2;
 	state->flags = CPUIDLE_FLAG_TIME_VALID;
 	/* FIXME: C2 doesn't work now, use c1 instead temporarily */
