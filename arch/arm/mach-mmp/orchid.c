@@ -642,6 +642,8 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 	/* Enable 32K out2 from XO: WLAN_32K_CLK */
 	pm80x_set_bits(chip->base_page, PM800_RTC_MISC2,
 					(0x3 << 2), (0x2 << 2));
+	/* Set 32K out3 low jitter mode */
+	pm80x_reg_write(chip->base_page, 0x21, 0x20);
 	/* Enable 32K out3 from XO, low-jitter: REF_32K_CLK */
 	pm80x_set_bits(chip->base_page, PM800_RTC_MISC2,
 					(0x3 << 4), (0x2 << 4));
