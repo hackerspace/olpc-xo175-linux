@@ -1347,59 +1347,42 @@ static int wm8994_ldo_enable(void)
 extern int __raw_i2c_bus_reset(u8 bus_num);
 extern int __raw_i2c_write_reg(u8 bus_num, u8 addr, u8 reg, u8 val);
 extern int __raw_i2c_read_reg(u8 bus_num, u8 addr, u8 reg, u8 *buf, int len);
-static void max77601_system_restart(void)
-{
-	u8 data;
-
-	__raw_i2c_read_reg(1, 0x1c, MAX77601_ONOFFCNFG2, &data, 1);
-	data |= MAX77601_SFT_RST_WK;
-	__raw_i2c_write_reg(1, 0x1c, MAX77601_ONOFFCNFG2, data);
-
-	__raw_i2c_read_reg(1, 0x1c, MAX77601_ONOFFCNFG1, &data, 1);
-	data |= MAX77601_SFT_RST;
-	__raw_i2c_write_reg(1, 0x1c, MAX77601_ONOFFCNFG1, data);
-
-	mdelay(10);
-}
-
-static void max77601_power_off(void)
-{
-	u8 data;
-
-	__raw_i2c_read_reg(1, 0x1c, MAX77601_ONOFFCNFG2, &data, 1);
-	data &= ~MAX77601_SFT_RST_WK;
-	__raw_i2c_write_reg(1, 0x1c, MAX77601_ONOFFCNFG2, data);
-
-	__raw_i2c_read_reg(1, 0x1c, MAX77601_ONOFFCNFG1, &data, 1);
-	data |= MAX77601_SFT_RST;
-	__raw_i2c_write_reg(1, 0x1c, MAX77601_ONOFFCNFG1, data);
-
-	mdelay(10);
-}
 
 static int mk2_board_reset(char mode, const char *cmd)
 {
-	u8 kdata;
+	u8 data;
+
 	/* Reset TWSI1 unit firstly */
 	__raw_i2c_bus_reset(1);
-	/* Tell KBC this is reboot not power off */
-	__raw_i2c_read_reg(1, 0x15, 0x26, &kdata, 1);
-	kdata |= 0x01;
-	__raw_i2c_write_reg(1, 0x15, 0x26, kdata);
-	max77601_system_restart();
+	/* 1. Enable SW reset wake up */
+	__raw_i2c_read_reg(1, 0x1c, MAX77601_ONOFFCNFG2, &data, 1);
+	data |= MAX77601_SFT_RST_WK;
+	__raw_i2c_write_reg(1, 0x1c, MAX77601_ONOFFCNFG2, data);
+	/* 2. Issue SW reset */
+	__raw_i2c_read_reg(1, 0x1c, MAX77601_ONOFFCNFG1, &data, 1);
+	data |= MAX77601_SFT_RST;
+	__raw_i2c_write_reg(1, 0x1c, MAX77601_ONOFFCNFG1, data);
+
+	mdelay(200);
 	return 1;
 }
 
 static void mk2_power_off(void)
 {
-	u8 kdata;
+	u8 data;
+
 	/* Reset TWSI1 unit firstly */
 	__raw_i2c_bus_reset(1);
-	/* Tell KBC this is power off */
-	__raw_i2c_read_reg(1, 0x15, 0x26, &kdata, 1);
-	kdata &= ~0x01;
-	__raw_i2c_write_reg(1, 0x15, 0x26, kdata);
-	max77601_power_off();
+	/* 1. Disable SW reset wake up */
+	__raw_i2c_read_reg(1, 0x1c, MAX77601_ONOFFCNFG2, &data, 1);
+	data &= ~MAX77601_SFT_RST_WK;
+	__raw_i2c_write_reg(1, 0x1c, MAX77601_ONOFFCNFG2, data);
+	/* 2. Issue Power down */
+	__raw_i2c_read_reg(1, 0x1c, MAX77601_ONOFFCNFG1, &data, 1);
+	data |= MAX77601_SFT_RST;
+	__raw_i2c_write_reg(1, 0x1c, MAX77601_ONOFFCNFG1, data);
+
+	mdelay(200);
 }
 
 static void __init mk2_init(void)
