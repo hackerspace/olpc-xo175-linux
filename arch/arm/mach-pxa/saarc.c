@@ -24,6 +24,7 @@
 #include <linux/mmc/host.h>
 #include <linux/mmc/card.h>
 #include <linux/i2c/adp8885.h>
+#include <linux/i2c/adp1650.h>
 #include <linux/proc_fs.h>
 #include <linux/notifier.h>
 #include <linux/reboot.h>
@@ -877,6 +878,33 @@ static struct adp8885_bl_platform_data adp8885_data = {
 };
 #endif
 
+#if defined(CONFIG_LED_FLASH_ADP1650)
+static int adp1650_torch_en_pin;
+
+int adp1650_torch_enable(bool enable)
+{
+	if (enable) {
+		gpio_direction_output(adp1650_torch_en_pin, 1);
+		gpio_set_value(adp1650_torch_en_pin, 1);
+	} else {
+		gpio_set_value(adp1650_torch_en_pin, 0);
+		gpio_direction_output(adp1650_torch_en_pin, 0);
+	}
+	return 0;
+}
+
+static struct adp1650_platform_data adp1650_data= {
+	.torch_is_on = 0,
+	.strobe_enable = 0,
+	.torch_enable = adp1650_torch_enable,
+};
+
+static struct platform_device adp1650_device = {
+	.name = "adp1650",
+	.id = -1,
+};
+#endif
+
 static struct i2c_board_info i2c2_info_DKB[] = {
 #if defined(CONFIG_SENSORS_ROHM_BH1772)
 	{
@@ -956,6 +984,13 @@ static struct i2c_board_info i2c3_info[] = {
 		I2C_BOARD_INFO("ctec_optic_tp", 0x33),
 		.irq	= gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO100)),
 	},
+#endif
+
+#if defined(CONFIG_LED_FLASH_ADP1650)
+	{
+		I2C_BOARD_INFO("adp1650", 0x30),
+		.platform_data = &adp1650_data,
+	}
 #endif
 };
 
@@ -2818,6 +2853,17 @@ static void __init init(void)
 #ifdef CONFIG_USB_EHCI_PXA_U2O
 	pxa978_device_u2oehci.dev.platform_data = (void *)&pxa978_usb_pdata;
 	platform_device_register(&pxa978_device_u2oehci);
+#endif
+
+#ifdef CONFIG_LED_FLASH_ADP1650
+	adp1650_torch_en_pin = mfp_to_gpio(MFP_PIN_GPIO19);
+
+	if (gpio_request(adp1650_torch_en_pin, "adp1650 torch")) {
+		printk(KERN_ERR "Request GPIO failed, gpio: %d\n", adp1650_torch_en_pin);
+		adp1650_torch_en_pin = 0;
+	}
+	else
+		platform_device_register(&adp1650_device);
 #endif
 
 #ifdef CONFIG_PROC_FS
