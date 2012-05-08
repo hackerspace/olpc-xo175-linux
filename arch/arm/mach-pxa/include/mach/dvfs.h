@@ -41,5 +41,6 @@ extern int dvfs_unregister_notifier(struct notifier_block *nb,
 				    unsigned int list);
 extern int set_dvfs_rate(struct dvfs *d, unsigned long rate);
 extern void pxa978_set_voltage_level(unsigned int level);
+extern struct sysdev_class cpu_sysdev_class;
 
 #endif

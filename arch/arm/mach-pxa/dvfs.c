@@ -12,7 +12,9 @@
 #include <linux/list.h>
 #include <linux/platform_device.h>
 #include <linux/i2c.h>
+#include <linux/sysdev.h>
 #include <linux/mfd/88pm80x.h>
+#include <mach/pxa3xx-regs.h>
 
 #include <plat/clock.h>
 #include <mach/dvfs.h>
@@ -21,6 +23,7 @@ static LIST_HEAD(dvfs_rail_list);
 static DEFINE_MUTEX(dvfs_lock);
 static ATOMIC_NOTIFIER_HEAD(dvfs_freq_notifier_list);
 static struct i2c_client *i2c;
+static int cur_volt3;
 
 static int dvfs_rail_update(struct dvfs_rail *rail);
 
@@ -40,11 +43,15 @@ static inline int volt_to_reg(int millivolts)
 	return (millivolts - 600) * 10 / 125;
 }
 
+static inline int reg_to_volt(int value)
+{
+	return  (value * 125 + 6000) / 10;
+}
+
 static int vcc_main_set_voltage(struct dvfs_rail *rail)
 {
 	unsigned int level = 0;
 	int volts, newvolts;
-	static int cur_volt3;
 	volts = rail->millivolts;
 	newvolts = rail->new_millivolts;
 	if (newvolts <= VOL_LEVL0)
@@ -250,10 +257,90 @@ int dvfs_unregister_notifier(struct notifier_block *nb, unsigned int list)
 }
 EXPORT_SYMBOL(dvfs_unregister_notifier);
 
+static inline ssize_t voltage_show(struct sys_device *sys_dev,
+				   struct sysdev_attribute *attr,
+				   char *buf)
+{
+	int level, volt, len = 0;
+
+	level = (AVLCR >> 1) & 0x3;
+	volt = reg_to_volt(pm80x_reg_read(i2c, 0x3c + level));
+	len += sprintf(buf, "Level %d (%d mV)\n", level, volt);
+
+	return len;
+}
+
+static inline ssize_t voltage_store(struct sys_device *sys_dev,
+				    struct sysdev_attribute *attr,
+				    const char *buf, size_t len)
+{
+	int new_vol;
+
+	sscanf(buf, "%u", &new_vol);
+	if ((new_vol > 4) || (new_vol < 0)) {
+		printk(KERN_ERR "Wrong voltage level! "
+		       "Must between 0 ~ 4\n(3 means level 3 low,"
+		       " 4 means level3 high)\n");
+		return len;
+	}
+
+	if ((new_vol == 3) && volt3_low && (cur_volt3 != volt3_low)) {
+		pm80x_reg_write(i2c, 0x3F, volt3_low);
+		cur_volt3 = volt3_low;
+	}
+
+	if (new_vol == 4) {
+		if (volt3_high && (cur_volt3 != volt3_high)) {
+			pm80x_reg_write(i2c, 0x3F, volt3_high);
+			cur_volt3 = volt3_high;
+		}
+		new_vol = 3;
+	}
+	pxa978_set_voltage_level(new_vol);
+	return len;
+}
+
+SYSDEV_ATTR(voltage, 0644, voltage_show, voltage_store);
+
+static struct attribute *dvfs_attr[] = {
+	&attr_voltage.attr,
+};
+
+static int dvfs_add(struct sys_device *sys_dev)
+{
+	int i, n;
+	int ret;
+
+	n = ARRAY_SIZE(dvfs_attr);
+	for (i = 0; i < n; i++) {
+		ret = sysfs_create_file(&(sys_dev->kobj), dvfs_attr[i]);
+		if (ret)
+			return -EIO;
+	}
+	return 0;
+}
+
+static int dvfs_rm(struct sys_device *sys_dev)
+{
+	int i, n;
+	n = ARRAY_SIZE(dvfs_attr);
+	for (i = 0; i < n; i++)
+		sysfs_remove_file(&(sys_dev->kobj), dvfs_attr[i]);
+	return 0;
+}
+
+static struct sysdev_driver dvfs_sysdev_driver = {
+	.add = dvfs_add,
+	.remove = dvfs_rm,
+};
+
 static int __devinit dvfs_probe(struct platform_device *pdev)
 {
+	int ret = 0;
 	struct pm80x_chip *chip = dev_get_drvdata(pdev->dev.parent);
 	i2c = chip->power_page;
+	ret = sysdev_driver_register(&cpu_sysdev_class, &dvfs_sysdev_driver);
+
 	return 0;
 }
 
