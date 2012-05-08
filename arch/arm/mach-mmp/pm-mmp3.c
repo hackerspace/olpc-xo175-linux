@@ -1979,6 +1979,14 @@ void mmp3_pm_enter_d2(void)
 	/* workaround: clear SL2 power bit */
 	__raw_writel(__raw_readl(0xfe282a48) & ~(1 << 15), 0xfe282a48);
 
+	/* disable global irq of ICU for MP1, MP2, MM*/
+	__raw_writel(0x1, MMP3_ICU_GBL_IRQ1_MSK);
+	__raw_writel(0x1, MMP3_ICU_GBL_IRQ2_MSK);
+	__raw_writel(0x1, MMP3_ICU_GBL_IRQ3_MSK);
+	__raw_writel(0x1, MMP3_ICU_GBL_IRQ4_MSK);
+	__raw_writel(0x1, MMP3_ICU_GBL_IRQ5_MSK);
+	__raw_writel(0x1, MMP3_ICU_GBL_IRQ6_MSK);
+
 	__raw_writel(apcr, MPMU_APCR);
 
 	/* resotre audio clocks otherwise will hang later */
