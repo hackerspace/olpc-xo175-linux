@@ -1568,26 +1568,22 @@ extern int __raw_i2c_bus_reset(u8 bus_num);
 extern int __raw_i2c_write_reg(u8 bus_num, u8 addr, u8 reg, u8 val);
 extern int __raw_i2c_read_reg(u8 bus_num, u8 addr, u8 reg, u8 *buf, int len);
 
-static void max77601_system_restart(void)
+static int abilene_board_reset(char mode, const char *cmd)
 {
 	u8 data;
 
+	/* Reset TWSI1 unit firstly */
+	__raw_i2c_bus_reset(1);
+	/* 1. Disable SW reset wake up */
 	__raw_i2c_read_reg(1, 0x1c, MAX77601_ONOFFCNFG2, &data, 1);
 	data |= MAX77601_SFT_RST_WK;
 	__raw_i2c_write_reg(1, 0x1c, MAX77601_ONOFFCNFG2, data);
-
+	/* 2. Issue Power down */
 	__raw_i2c_read_reg(1, 0x1c, MAX77601_ONOFFCNFG1, &data, 1);
 	data |= MAX77601_SFT_RST;
 	__raw_i2c_write_reg(1, 0x1c, MAX77601_ONOFFCNFG1, data);
 
-	mdelay(10);
-}
-
-static int abilene_board_reset(char mode, const char *cmd)
-{
-	/* Reset TWSI1 unit firstly */
-	__raw_i2c_bus_reset(1);
-	max77601_system_restart();
+	mdelay(200);
 	return 1;
 }
 
