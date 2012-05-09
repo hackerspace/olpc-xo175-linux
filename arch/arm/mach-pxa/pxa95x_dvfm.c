@@ -32,6 +32,7 @@
 #include <mach/pxa3xx-regs.h>
 #include <mach/hardware.h>
 #include <mach/dvfm.h>
+#include <mach/dvfs.h>
 #include <mach/pxa95x_pm.h>
 #include <mach/pxa95x_dvfm.h>
 #include <mach/debug_pm.h>
@@ -56,6 +57,8 @@
 #include "generic.h"
 
 #include <mach/pxa9xx_pm_logger.h>	/* for pm debug tracing */
+
+#define MHZ_TO_KHZ	1000
 
 extern int ForceOP, ForcedOPIndex, ForceC0, ForceVCTCXO_EN, EnableD2VoltageChange;
 static struct dvfm_md_opt *lowest_freq_op;
@@ -1353,7 +1356,7 @@ static char *get_op_name(void *driver_data, struct op_info *p)
 	return q->name;
 }
 
-static void pxa978_set_voltage_level(unsigned int level)
+void pxa978_set_voltage_level(unsigned int level)
 {
 	unsigned int avlcr = AVLCR;
 
@@ -1371,7 +1374,7 @@ static void pxa978_set_voltage_level(unsigned int level)
 	while ((avlcr & AVLCR_VC_GO_MASK))
 		avlcr = AVLCR;
 }
-
+EXPORT_SYMBOL(pxa978_set_voltage_level);
 
 static int update_voltage(void *driver_data, struct dvfm_md_opt *old,
 			  struct dvfm_md_opt *new)
@@ -1381,18 +1384,6 @@ static int update_voltage(void *driver_data, struct dvfm_md_opt *old,
 	   only if the PowerDisabled flag is set (using sys) */
 	if (DvfmDisabled)
 		return 0;
-
-	/* voltage de-coupeling only for Nevo */
-	if (cpu_is_pxa978()) {
-		if (old->vcc_core != new->vcc_core) {
-			/* if changing from voltage level 0,1 to 3 and vice versa
-			 * do voltage change to level 2 between */
-			if (((old->vcc_core <= VLT_LEVEL_1) && (new->vcc_core == VLT_LEVEL_3)) ||
-			   ((old->vcc_core == VLT_LEVEL_3) && (new->vcc_core <= VLT_LEVEL_1)))
-				pxa978_set_voltage_level(VLT_LEVEL_2);
-			pxa978_set_voltage_level(new->vcc_core);
-		}
-	}
 
 	if (!(info->flags & PXA95x_USE_POWER_I2C))
 		pxa95x_dvfm_set_core_voltage(new->vcc_core);
@@ -1665,8 +1656,8 @@ static inline void set_mm_pll_freq(void *driver_data,
 	uint32_t acsr0;
 	struct pxa95x_dvfm_info *info = driver_data;
 	uint32_t mm_pll_param, tmp, next_mm_pll_freq;
-	if (new->gcfs == 498 && new->vmfc == 600 ||
-	    new->vmfc == 498 && new->gcfs == 600) {
+	if ((new->gcfs == 498 && new->vmfc == 600) ||
+	    (new->vmfc == 498 && new->gcfs == 600)) {
 		printk(KERN_ERR "Wrong GC and VMETA frequency!\n");
 		BUG_ON(1);
 	}
@@ -2393,6 +2384,7 @@ static int set_freq(void *driver_data, struct dvfm_md_opt *old,
 	return 0;
 }
 
+extern struct dvfs core_dvfs;
 static int update_freq(void *driver_data, struct dvfm_freqs *freqs)
 {
 	struct pxa95x_dvfm_info *info = driver_data;
@@ -2403,6 +2395,7 @@ static int update_freq(void *driver_data, struct dvfm_freqs *freqs)
 	unsigned long flags;
 	int found = 0, new_op = cur_op;
 	static int found_pp_806;
+	struct dvfs_freqs dvfs_freqs;
 
 	/* we will disable power for mg1 and pv2. pm is enabled
 	 * only if the PowerDisabled flag is cleared (using sys)
@@ -2443,11 +2436,18 @@ static int update_freq(void *driver_data, struct dvfm_freqs *freqs)
 	if (found != 2)
 		return -EINVAL;
 
-	if (old.core < new.core)
+	dvfs_freqs.old = old.core * MHZ_TO_KHZ;
+	dvfs_freqs.new = new.core * MHZ_TO_KHZ;
+	dvfs_freqs.dvfs = &core_dvfs;
+
+	if (cpu_is_pxa978() && (old.core < new.core))
+		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
+	else if (!cpu_is_pxa978() && (old.core < new.core))
 		update_voltage(info, &old, &new);
 
 	local_fiq_disable();
 	local_irq_save(flags);
+
 	if (!cpu_is_pxa978() && (((new.xl == 38) && (old.xl < 31))
 				 || ((old.xl == 38) && (new.xl < 31)))) {
 		set_freq(info, &old, &pp806);
@@ -2460,7 +2460,9 @@ static int update_freq(void *driver_data, struct dvfm_freqs *freqs)
 	local_irq_restore(flags);
 	local_fiq_enable();
 
-	if (old.core > new.core)
+	if (cpu_is_pxa978() && (old.core > new.core))
+		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
+	else if (!cpu_is_pxa978() && (old.core > new.core))
 		update_voltage(info, &old, &new);
 
 	if (cur_profiler == MSPM_PROFILER)

@@ -190,10 +190,14 @@ static struct pm80x_headset_pdata pm80x_headset = {
 	.mic_set_power = mic_set_power,
 };
 
+static struct pm80x_dvc_pdata pm80x_dvc = {
+};
+
 static struct pm80x_platform_data pm800_info = {
 	.headset = &pm80x_headset,
 	.regulator	= regulator_data,
 	.rtc  = &pm80x_rtc,
+	.dvc = &pm80x_dvc,
 	.companion_addr		= 0x38,
 	.base_page_addr		= 0x30,
 	.power_page_addr	= 0x31,
