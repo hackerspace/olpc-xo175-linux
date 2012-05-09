@@ -825,6 +825,13 @@ config SOC_CAMERA_OV5642
 	help
 	  Support for the OmniVision OV5642 5M camera (soc-camera arch).
 
+config SOC_CAMERA_OV5642_ECS
+	tristate "ov5642 support based on ECS"
+	depends on ECS_DRIVER && SOC_CAMERA && I2C
+	default y
+	help
+	  Support for the OmniVision OV5642 5M camera (soc-camera arch).
+
 config SOC_CAMERA_OV5640
 	tristate "ov5640 support"
 	depends on SOC_CAMERA && I2C

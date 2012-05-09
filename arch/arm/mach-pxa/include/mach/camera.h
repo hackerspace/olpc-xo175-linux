@@ -53,6 +53,16 @@ struct mipi_phy {
 	u16 dt2;	/* Data type 2: For thumbnail or auxiliry data type */
 };
 
+struct csi_dphy_desc {
+	u32 clk_mul;
+	u32 clk_div;	/* clock_lane_freq = input_clock * clk_mul / clk_div */
+	u32 cl_prepare;
+	u32 cl_zero;
+	u32 hs_prepare;
+	u32 hs_zero;
+	u32 nr_lane;	/* When set to 0, S/W will try to figure out a value */
+};
+
 #ifdef CONFIG_SOC_CAMERA
 
 struct pxa95x_csi_dev {
