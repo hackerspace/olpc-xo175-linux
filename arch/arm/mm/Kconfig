@@ -848,6 +848,17 @@ config CACHE_PL310
 	  This option enables optimisations for the PL310 cache
 	  controller.
 
+config CACHE_TAUROS3_PREFETCH_OFFSET
+	int "Prefetch offset value (0-31)"
+	range 0 31
+	depends on CACHE_L2X0_PREFETCH && CACHE_PL310
+	default "0"
+	help
+	  This value will be set in the L2CC prefetch control register[4:0],
+	  which indicates that the (value+1)th cacheline will be prefetched.
+	  According to the SPEC the valid values can be 0-7, 15, 23 and 31,
+	  other values are not supported by PL310
+
 config CACHE_TAUROS2
 	bool "Enable the Tauros2 L2 cache controller"
 	depends on (ARCH_DOVE || ARCH_MMP || CPU_PJ4)

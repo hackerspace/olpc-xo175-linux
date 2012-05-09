@@ -358,6 +358,7 @@ void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
 	u32 aux;
 	u32 way_size = 0;
 	u32 debug_ctrl;
+	__u32 prefetch_ctrl = 0;
 	const char *type;
 
 #ifdef CONFIG_CPU_MMP3
@@ -402,7 +403,24 @@ void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
 
 #ifdef CONFIG_CACHE_L2X0_PREFETCH
 	/* Configure double line fill and prefetch */
-	writel_relaxed(0x70000000, l2x0_base + L2X0_PREFETCH_CTRL);
+
+	prefetch_ctrl = 0;
+	prefetch_ctrl |= (1u << 30); /* DLF (double linefill) enabled*/
+	prefetch_ctrl |= (1u << 29); /* instruction prefetch enabled */
+	prefetch_ctrl |= (1u << 28); /* data prefetch enabled */
+	prefetch_ctrl |= (0u << 27); /* DLF on WRAP read enabled*/
+	prefetch_ctrl |= (0u << 24); /* no discard prefetch reads*/
+	prefetch_ctrl |= (0u << 23); /* no 8x64-bit burst on read miss*/
+	prefetch_ctrl |= (0u << 21); /* use same AXI ID on exclusive seq */
+	if (CONFIG_CACHE_TAUROS3_PREFETCH_OFFSET <= 7)
+		prefetch_ctrl |= CONFIG_CACHE_TAUROS3_PREFETCH_OFFSET;
+	else if (CONFIG_CACHE_TAUROS3_PREFETCH_OFFSET <= 15)
+		prefetch_ctrl |= 15;
+	else if (CONFIG_CACHE_TAUROS3_PREFETCH_OFFSET <= 23)
+		prefetch_ctrl |= 23;
+	else
+		prefetch_ctrl |= 31;
+	writel_relaxed(prefetch_ctrl, l2x0_base + L2X0_PREFETCH_CTRL);
 #endif
 
 	debug_ctrl = readl_relaxed(l2x0_base + L2X0_DEBUG_CTRL);
@@ -471,6 +489,7 @@ void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
 	printk(KERN_INFO "%s cache controller enabled\n", type);
 	printk(KERN_INFO "l2x0: %d ways, CACHE_ID 0x%08x, AUX_CTRL 0x%08x, Cache size: %d B\n",
 			l2x0_ways, l2x0_cache_id, aux, l2x0_size);
+	printk(KERN_INFO "l2x0: PREFETCH_CTRL 0x%08x\n", prefetch_ctrl);
 	printk(KERN_INFO "l2x0: DEBUG_CTRL 0x%08x\n", debug_ctrl);
 #ifdef CONFIG_CPU_MMP3
 	printk(KERN_INFO "tauros3: SL2_AUX2 0x%08x\n", aux2);
