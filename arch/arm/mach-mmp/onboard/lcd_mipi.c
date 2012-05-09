@@ -353,9 +353,9 @@ static int tc358765_reset(struct pxa168fb_info *fbi)
 	}
 
 	gpio_direction_output(gpio, 0);
-	mdelay(100);
+	mdelay(10);
 	gpio_direction_output(gpio, 1);
-	mdelay(100);
+	mdelay(4);
 
 	gpio_free(gpio);
 	return 0;

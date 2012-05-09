@@ -266,7 +266,6 @@ void dsi_cclk_set(struct pxa168fb_info *fbi, int en)
 		writel(0x1, &dsi->phy_ctrl1);
 	else
 		writel(0x0, &dsi->phy_ctrl1);
-	mdelay(100);
 }
 
 void dsi_lanes_enable(struct pxa168fb_info *fbi, int en)
@@ -427,7 +426,7 @@ void dsi_set_controller(struct pxa168fb_info *fbi)
 
 	if (di->id & 2)
 		dsi_lcd = &dsi->lcd2;
-	pr_info("%s dsi %d lanes %d burst_mode %d bpp %d\n",
+	pr_debug("%s dsi %d lanes %d burst_mode %d bpp %d\n",
 		__func__, di->id, di->lanes, di->burst_mode, bpp);
 
 	h_total = var->xres + var->left_margin +
@@ -550,7 +549,6 @@ void dsi_set_controller(struct pxa168fb_info *fbi)
 	if (di->id & 2)
 		reg = reg << 1;
 	writel(reg, &dsi->ctrl0);
-	mdelay(100);
 
 	writel(((var->yres)<<16) | (v_total), &dsi_lcd->timing2);
 }
@@ -879,7 +877,7 @@ int pxa688_lvds_init(struct pxa168fb_info *fbi)
 
 	/* release LVDS PHY from reset */
 	lvds_set(0, LVDS_RST, 0);
-	mdelay(100);
+	mdelay(1);
 
 	/* disable LVDS channel 0-5 power-down */
 	lvds_set(0, LVDS_PD_CH_MASK, 0);
