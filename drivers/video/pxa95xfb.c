@@ -1374,10 +1374,10 @@ static void converter_set_hdmi(struct pxa95xfb_info *fbi)
 	writel(x, conv_base + HDMI_CONV_CTL);
 
 	/* Set clock dividers */
-	x = HDMI_CLK_DIV_PCLK_DIV(HDMI_PLL_DIV_VALUE)
-		|HDMI_CLK_DIV_CEC_REFCLK_DIV(HDMI_PLL_DIV_VALUE)
-		|HDMI_CLK_DIV_PR_CLK_DIV(HDMI_PLL_DIV_VALUE);
-	writel(x, conv_base + HDMI_CLK_DIV);
+	writel(0x5, conv_base + HDMI_CLK_DIV);
+	writel(0x5, conv_base + HDMI_PCLK_DIV);
+	writel(0x5, conv_base + HDMI_TCLK_DIV);
+	writel(0x5, conv_base + HDMI_PRCLK_DIV);
 
 #ifndef CONFIG_UIO_HDMI/* TODO: finally would be removed*/
 	if (hdmi_format == 5 || hdmi_format == 10 || hdmi_format == 11)

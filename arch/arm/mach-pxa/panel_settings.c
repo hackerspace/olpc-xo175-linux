@@ -801,7 +801,7 @@ struct fb_videomode video_modes_adv7533[] = {
 
 /* refer to EIA-CEA-861-D format list*/
 struct fb_videomode video_modes_ihdmi[16] = {
-	[0] = { /* 640x480p */
+	[0] = { /* format1: 640x480p */
 		.pixclock		= 25170,
 		.refresh		= 60,
 		.xres			= 640,
@@ -815,7 +815,7 @@ struct fb_videomode video_modes_ihdmi[16] = {
 		/*(FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT),*/
 		.sync			= 0,
 	},
-	[1] = { /* 720x480p */
+	[1] = { /* format2: 720x480p */
 		.pixclock		= 27000,
 		.refresh		= 60,
 		.xres			= 720,
@@ -829,7 +829,7 @@ struct fb_videomode video_modes_ihdmi[16] = {
 		/*(FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT),*/
 		.sync			= 0,
 	},
-	[2] = { /* 720x480p */
+	[2] = { /* format3: 720x480p */
 		.pixclock		= 27000,
 		.refresh		= 60,
 		.xres			= 720,
@@ -843,7 +843,7 @@ struct fb_videomode video_modes_ihdmi[16] = {
 		/*(FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT),*/
 		.sync			= 0,
 	},
-	[3] = { /* 1280x720p */
+	[3] = { /* format4: 1280x720p */
 		.pixclock		= 74170,
 		.refresh		= 60,
 		.xres			= 1280,
@@ -857,7 +857,7 @@ struct fb_videomode video_modes_ihdmi[16] = {
 		/*(FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT),*/
 		.sync			= 0,
 	},
-	[15] = { /* 1080p */
+	[15] = { /* format16: 1080p */
 		.pixclock		= 148350,
 		.refresh		= 60,
 		.xres			= 1920,

@@ -2055,7 +2055,7 @@ static struct pxa95xfb_mach_info ihdmi_base_info __initdata = {
         .panel_power                    = hdtx_power,
 #endif
         .invert_pixclock        = 1,
-        .init_mode = 16,
+        .init_mode = 15,
 };
 
 static struct pxa95xfb_mach_info ihdmi_ovly_info __initdata = {
@@ -2075,7 +2075,7 @@ static struct pxa95xfb_mach_info ihdmi_ovly_info __initdata = {
 	.panel_power			= hdtx_power,
 #endif
 	.invert_pixclock	= 1,
-	.init_mode = 16,
+	.init_mode = 15,
 };
 #endif
 
