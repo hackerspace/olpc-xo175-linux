@@ -86,6 +86,13 @@ static struct map_desc standard_io_desc[] __initdata = {
 		.length         = TZ_HV_PHYS_SIZE,
 		.type           = MT_MEMORY_NONCACHED,
 #endif
+#ifdef CONFIG_CPU_PXA988
+	}, {
+		.pfn		= __phys_to_pfn(SCU_PHYS_BASE),
+		.virtual	= SCU_VIRT_BASE,
+		.length		= SCU_PHYS_SIZE,
+		.type		= MT_DEVICE,
+#endif
 	},
 };
 

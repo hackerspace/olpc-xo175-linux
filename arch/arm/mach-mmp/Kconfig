@@ -139,6 +139,18 @@ config CPU_MMP3
 	 help
 	   Select code specific to MMP3.
 
+config CPU_PXA988
+	bool
+	select CPU_V7
+	select ARM_GIC
+	select ARM_THUMBEE
+	select SOC_LOCAL_TIMERS if !(LOCAL_TIMERS)
+	help
+	  Say 'Y' here if you want to support the Marvell pxa988-base
+	  platforms.
+	  The PXA988 is an SoC with dual-core Cotex-A9 and comunication
+	  processor, code name "Emei".
+
 config SOC_LOCAL_TIMERS
 	bool
 	help

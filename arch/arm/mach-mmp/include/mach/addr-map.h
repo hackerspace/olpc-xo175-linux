@@ -48,6 +48,19 @@
 #define TZ_HV_PHYS_SIZE		SZ_1M
 #endif
 
+#ifdef CONFIG_CPU_PXA988
+#define SCU_PHYS_BASE		0xd1dfe000
+#define SCU_VIRT_BASE		0xfe400000
+#define SCU_PHYS_SIZE		0x00100000
+#define GIC_DIST_VIRT_BASE	(SCU_VIRT_BASE + 0x1000)
+#define GIC_CPU_VIRT_BASE	(SCU_VIRT_BASE + 0x0100)
+#define TWD_VIRT_BASE		(SCU_VIRT_BASE + 0x0600)
+
+#define SL2C_PHYS_BASE		0xd1dfb000
+#define SL2C_VIRT_BASE		0xfe800000
+#define SL2C_PHYS_SIZE		SZ_8K
+#endif /*CONFIG_CPU_PXA988*/
+
 /* Static Memory Controller - Chip Select 0 and 1 */
 #define SMC_CS0_PHYS_BASE	0x80000000
 #define SMC_CS0_PHYS_SIZE	0x10000000

@@ -60,5 +60,16 @@ struct pxa_device_desc mmp3_device_##_name __initdata = {		\
 	.dma		= { _dma },					\
 }
 
+#define PXA988_DEVICE(_name, _drv, _id, _irq, _start, _size, _dma...)	\
+struct pxa_device_desc pxa988_device_##_name __initdata = {		\
+	.dev_name	= "pxa988-" #_name,				\
+	.drv_name	= _drv,						\
+	.id		= _id,						\
+	.irq		= IRQ_PXA988_##_irq,				\
+	.start		= _start,					\
+	.size		= _size,					\
+	.dma		= { _dma },					\
+}
+
 extern int pxa_register_device(struct pxa_device_desc *, void *, size_t);
 #endif /* __MACH_DEVICE_H */

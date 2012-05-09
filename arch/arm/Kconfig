@@ -545,7 +545,7 @@ config ARCH_ORION5X
 	  Orion-2 (5281), Orion-1-90 (6183).
 
 config ARCH_MMP
-	bool "Marvell PXA168/910/MMP2/MMP3"
+	bool "Marvell PXA168/910/988/MMP2/MMP3"
 	depends on MMU
 	select ARCH_REQUIRE_GPIOLIB
 	select CLKDEV_LOOKUP
@@ -558,7 +558,7 @@ config ARCH_MMP
 	select ARCH_HAS_DEVFREQ
 	select GENERIC_ALLOCATOR
 	help
-	  Support for Marvell's PXA168/PXA910(MMP), MMP2 and MMP3 processor line.
+	  Support for Marvell's PXA168/PXA910/PXA988(MMP), MMP2 and MMP3 processor line.
 
 config ARCH_KS8695
 	bool "Micrel/Kendin KS8695"
@@ -1419,7 +1419,7 @@ config SMP
 	depends on REALVIEW_EB_ARM11MP || REALVIEW_EB_A9MP || \
 		 MACH_REALVIEW_PB11MP || MACH_REALVIEW_PBX || ARCH_OMAP4 || \
 		 ARCH_EXYNOS4 || ARCH_TEGRA || ARCH_U8500 || ARCH_VEXPRESS_CA9X4 || \
-		 ARCH_MSM_SCORPIONMP || ARCH_SHMOBILE || CPU_MMP3
+		 ARCH_MSM_SCORPIONMP || ARCH_SHMOBILE || CPU_MMP3 || CPU_PXA988
 	select USE_GENERIC_SMP_HELPERS
 	select HAVE_ARM_SCU if !ARCH_MSM_SCORPIONMP
 	help

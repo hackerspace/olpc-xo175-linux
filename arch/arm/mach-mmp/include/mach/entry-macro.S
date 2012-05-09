@@ -7,7 +7,7 @@
  */
 
 #include <mach/regs-icu.h>
-#if !defined(CONFIG_CPU_MMP3)
+#if !defined(CONFIG_CPU_MMP3) && !defined(CONFIG_CPU_PXA988)
 	.macro	disable_fiq
 	.endm
 
