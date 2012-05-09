@@ -23,6 +23,11 @@
 #include <mach/mmp3_pm.h>
 #include <mach/smp.h>
 #include <plat/clock.h>
+#include <linux/pm_qos_params.h>
+
+static struct pm_qos_request_list cpufreq_qos_req_min;
+static int cpufreq_disable = 0;
+#define MHZ_TO_KHZ	1000
 
 /*
  * Frequency freq_table index must be sequential starting at 0
@@ -82,12 +87,9 @@ extern int hotplug_governor_cpufreq_action(unsigned long event, struct cpufreq_f
 static int mmp3_cpufreq_target(struct cpufreq_policy *policy,
 			       unsigned int target_freq, unsigned int relation)
 {
-	int index, pp_index, core, cpu;
-	struct cpufreq_freqs freqs[num_cpus];
+	int index, pp_index;
 	unsigned int highest_speed;
 	int ret = 0;
-
-	mutex_lock(&mmp3_cpu_lock);
 
 	if (cpufreq_frequency_table_target(policy, freq_table[policy->cpu],
 					   target_freq, relation, &index)) {
@@ -103,6 +105,25 @@ static int mmp3_cpufreq_target(struct cpufreq_policy *policy,
 		cpu_frequency_index_to_pp_index[policy->cpu][index];
 
 	pp_index = mmp3_cpu_highest_pp();
+
+	/* FIXME: always use MP1 core as the index to do FC */
+	highest_speed = mmp3_get_pp_freq(pp_index, MMP3_CLK_MP1);
+	pm_qos_update_request(&cpufreq_qos_req_min,  highest_speed / MHZ_TO_KHZ);
+
+out:
+	return ret;
+}
+
+static int freq_notify_and_change(unsigned int cpu_idx, unsigned int pp_index)
+{
+	int cpu, core;
+	struct cpufreq_freqs freqs[num_cpus];
+	unsigned int highest_speed;
+	int ret = 0;
+
+	if (cpufreq_disable)
+		return ret;
+
 	/* FIXME: always use MP1 core as the index to do FC */
 	highest_speed = mmp3_get_pp_freq(pp_index, MMP3_CLK_MP1);
 
@@ -119,8 +140,8 @@ static int mmp3_cpufreq_target(struct cpufreq_policy *policy,
 		freqs[cpu].new = mmp3_get_pp_freq(pp_index, core);
 	}
 
-	if (freqs[policy->cpu].old == freqs[policy->cpu].new)
-		goto out;
+	if (freqs[cpu_idx].old == freqs[cpu_idx].new)
+		return ret;
 
 #ifdef CONFIG_HOTPLUG_CPU
 	ret = hotplug_governor_cpufreq_action(CPUFREQ_PRECHANGE, freqs);
@@ -151,11 +172,67 @@ static int mmp3_cpufreq_target(struct cpufreq_policy *policy,
 #ifdef CONFIG_HOTPLUG_CPU
 	ret = hotplug_governor_cpufreq_action(CPUFREQ_POSTCHANGE, freqs);
 #endif
-
-out:
-	mutex_unlock(&mmp3_cpu_lock);
 	return ret;
 }
+
+static int cpufreq_min_notify(struct notifier_block *b,
+				unsigned long min_mhz, void *v)
+{
+	int i, min_khz;
+	mutex_lock(&mmp3_cpu_lock);
+
+	/* FIXME: always use MP1 core as the index to do FC */
+	min_khz = min_mhz * MHZ_TO_KHZ;
+	min_khz = min(min_khz, (int)mmp3_get_pp_freq(mmp3_get_pp_number() - 1, MMP3_CLK_MP1));
+
+	for (i = 0; i < mmp3_get_pp_number(); i++) {
+		if (mmp3_get_pp_freq(i, MMP3_CLK_MP1) >= min_khz) {
+			/* FIXME: always use 0 as cpu id */
+			freq_notify_and_change(0, i);
+			break;
+		}
+	}
+
+	mutex_unlock(&mmp3_cpu_lock);
+	return NOTIFY_OK;
+}
+
+static int cpufreq_disable_notify(struct notifier_block *b,
+				unsigned long disable, void *v)
+{
+	int i;
+	int target_freq_khz, max_freq_khz;
+
+	mutex_lock(&mmp3_cpu_lock);
+	cpufreq_disable = disable;
+
+	/* FIXME: always use MP1 core as the index to do FC */
+	if (!cpufreq_disable) {
+		target_freq_khz = pm_qos_request(PM_QOS_CPUFREQ_MIN) * MHZ_TO_KHZ;
+		max_freq_khz = mmp3_get_pp_freq(mmp3_get_pp_number() - 1, MMP3_CLK_MP1);
+		if (target_freq_khz <= 0)
+			target_freq_khz = max_freq_khz;
+		target_freq_khz = min(target_freq_khz, max_freq_khz);
+		for (i = 0; i < mmp3_get_pp_number(); i++) {
+			if (mmp3_get_pp_freq(i, MMP3_CLK_MP1) >= target_freq_khz) {
+				/* FIXME: always use 0 as cpu id */
+				freq_notify_and_change(0, i);
+				break;
+			}
+		}
+	}
+
+	mutex_unlock(&mmp3_cpu_lock);
+	return NOTIFY_OK;
+}
+
+static struct notifier_block cpufreq_min_notifier = {
+	.notifier_call = cpufreq_min_notify,
+};
+
+static struct notifier_block cpufreq_disable_notifier = {
+	.notifier_call = cpufreq_disable_notify,
+};
 
 static int mmp3_cpufreq_init(struct cpufreq_policy *policy)
 {
@@ -307,6 +384,12 @@ static int __init cpufreq_init(void)
 		freq_table[0][k].index = k;
 		freq_table[0][k].frequency = CPUFREQ_TABLE_END;
 	}
+
+	pm_qos_add_notifier(PM_QOS_CPUFREQ_MIN, &cpufreq_min_notifier);
+	pm_qos_add_notifier(PM_QOS_CPUFREQ_DISABLE, &cpufreq_disable_notifier);
+
+	pm_qos_add_request(&cpufreq_qos_req_min, PM_QOS_CPUFREQ_MIN,
+			PM_QOS_DEFAULT_VALUE);
 
 	return cpufreq_register_driver(&mmp3_cpufreq_driver);
 
