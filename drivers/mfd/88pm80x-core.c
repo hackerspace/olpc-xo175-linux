@@ -40,6 +40,21 @@ static struct mfd_cell rtc_devs[] = {
 	 },
 };
 
+static struct resource dvc_resources[] = {
+	{
+	 .name = "dvc",
+	},
+};
+
+static struct mfd_cell dvc_devs[] = {
+	{
+	 .name = "dvc",
+	 .num_resources = ARRAY_SIZE(dvc_resources),
+	 .resources = &dvc_resources[0],
+	 .id = -1,
+	},
+};
+
 static struct resource vbus_resources[] = {
 	{
 	 .name = "88pm80x-vbus",
@@ -1261,6 +1276,17 @@ static int __devinit device_800_init(struct pm80x_chip *chip,
 				"[%s]:Added mfd rtc_devs\n", __func__);
 	}
 
+	if (pdata && pdata->dvc) {
+		dvc_devs[0].platform_data = pdata->dvc;
+		dvc_devs[0].pdata_size = sizeof(struct pm80x_dvc_pdata);
+		ret = mfd_add_devices(chip->dev, 0, &dvc_devs[0],
+				      ARRAY_SIZE(dvc_devs), NULL,
+				      pm800_chip->irq_base);
+		if (ret < 0) {
+			dev_err(chip->dev, "Failed to add dvc subdev\n");
+			goto out_dev;
+		}
+	}
 	if (chip->chip800_version == PM800_CHIP_B0) {
 		ret = mfd_add_devices(chip->dev, 0, &pm80x_gpio_devs[0],
 					ARRAY_SIZE(pm80x_gpio_devs), NULL, pm800_chip->irq_base);
