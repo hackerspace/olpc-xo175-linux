@@ -103,6 +103,10 @@ config MACH_ORCHID
 	select HAVE_PWM
 	select ARM_GIC
 
+config MACH_EMEIDKB
+	bool "Marvell's Emei DKB Development Board"
+	select CPU_PXA988
+
 config PXA910_1G_DDR_WORKAROUND
 	bool "Marvell's PXA910 1G DDR Workaround"
 	depends on CPU_PXA910
