@@ -191,6 +191,7 @@ static unsigned long mmc1_pin_config[] __initdata = {
 	GPIO136_MMC1_CMD,
 	GPIO135_MMC1_CLK,
 	GPIO140_MMC1_CD | MFP_PULL_HIGH,
+	GPIO141_MMC1_WP | MFP_PULL_HIGH,
 };
 
 /* MMC2 is used for WIB card */
@@ -1271,12 +1272,16 @@ static void __init orchid_init_mmc(void)
         platform_device_register(&sdio_power_device);
 #endif
 #endif
+	if (cpu_is_mmp3_b0()) {
+		mmp3_sdh_platdata_mmc0.regs_extended = 1;
+		mmp3_sdh_platdata_mmc1.regs_extended = 1;
+		mmp3_sdh_platdata_mmc2.regs_extended = 1;
+	}
+
 	mfp_config(ARRAY_AND_SIZE(mmc3_pin_config));
 	mmp3_add_sdh(2, &mmp3_sdh_platdata_mmc2); /* eMMC */
 
 	mfp_config(ARRAY_AND_SIZE(mmc1_pin_config));
-	if (cpu_is_mmp3_b0())
-		mmp3_sdh_platdata_mmc0.quirks = SDHCI_QUIRK_INVERTED_WRITE_PROTECT;
 	mmp3_add_sdh(0, &mmp3_sdh_platdata_mmc0); /* SD/MMC */
 
 	/* SDIO for WIFI card */

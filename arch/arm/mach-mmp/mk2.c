@@ -831,6 +831,12 @@ static void __init mk2_init_mmc(void)
 	add_sd8x_rfkill_device(WIB_PDn, WIB_RESETn,\
 			&mmp3_sdh_platdata_mmc1.pmmc, mmp3_8787_set_power);
 #endif
+        if (cpu_is_mmp3_b0()) {
+                mmp3_sdh_platdata_mmc0.regs_extended = 1;
+                mmp3_sdh_platdata_mmc1.regs_extended = 1;
+                mmp3_sdh_platdata_mmc2.regs_extended = 1;
+        }
+
 	mfp_config(ARRAY_AND_SIZE(mmc3_pin_config));
 	/*
 	 * H/W reset function is temporarily disabled by default,
