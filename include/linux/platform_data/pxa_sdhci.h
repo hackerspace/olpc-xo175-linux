@@ -102,6 +102,8 @@ struct sdhci_pxa_platdata {
 			const int);
 	int	(*recovery)(struct sdhci_host *, struct sdhci_pxa_platdata *);
 	struct	pm_qos_request_list	qos_idle;
+
+	int	suspended;
 #ifdef CONFIG_WAKELOCK
 	struct wake_lock	idle_lock;
 #endif

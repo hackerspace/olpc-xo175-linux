@@ -402,14 +402,22 @@ static int sdhci_pxav3_suspend(struct platform_device *pdev, pm_message_t state)
 	struct sdhci_pxa *pxa = pltfm_host->priv;
 	int ret = 0;
 
-	if(pxa->pdata->flags & PXA_FLAG_KEEP_POWER_IN_SUSPEND)
-		return ret;
-
 	if (atomic_read(&host->mmc->suspended)) {
 		printk(KERN_WARNING"%s already suspended\n", mmc_hostname(host->mmc));
 		return ret;
 	}
 	atomic_inc(&host->mmc->suspended);
+	pdata->suspended = 1;
+
+	if(pxa->pdata->flags & PXA_FLAG_KEEP_POWER_IN_SUSPEND) {
+		if (host->mmc->card) {
+			mmc_claim_host(host->mmc);
+			mmc_send_status(host->mmc->card, NULL);
+			mmc_release_host(host->mmc);
+		}
+		return ret;
+	}
+
 
 	if (device_may_wakeup(&pdev->dev))
 		enable_irq_wake(host->irq);
@@ -441,7 +449,7 @@ static int sdhci_pxav3_resume(struct platform_device *pdev)
 	int ret = 0;
 
 	if(pxa->pdata->flags & PXA_FLAG_KEEP_POWER_IN_SUSPEND)
-		return ret;
+		goto exit_resume;
 
 	if (pdata->lp_switch)
 		pdata->lp_switch(0, (int)host->mmc->card);
@@ -450,8 +458,9 @@ static int sdhci_pxav3_resume(struct platform_device *pdev)
 
 	if (device_may_wakeup(&pdev->dev))
 		disable_irq_wake(host->irq);
-
+exit_resume:
 	atomic_dec(&host->mmc->suspended);
+	pdata->suspended = 0;
 
 	return ret;
 }
