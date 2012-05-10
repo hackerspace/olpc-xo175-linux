@@ -224,6 +224,7 @@ int dvfs_notifier_frequency(struct dvfs_freqs *freqs, unsigned int state)
 	}
 	return ret;
 }
+EXPORT_SYMBOL(dvfs_notifier_frequency);
 
 int dvfs_register_notifier(struct notifier_block *nb, unsigned int list)
 {
