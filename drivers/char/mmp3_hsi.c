@@ -1742,6 +1742,14 @@ int hsi_set_work_mode(enum hsi_work_mode_enum mode)
 		reg = HSI_READ32(HSI_CONFIG2);
 		reg = HSI_MODIFY32(reg, 15, 0, hsi_core->hsi_config->tx_rate_div);
 		HSI_WRITE32(HSI_CONFIG2, reg);
+		rx_cfg = &(hsi_core->hsi_config->rx_chnl_config[DATA_CH]);
+
+		/* disable IPC for ACK */
+		reg = HSI_READ32(HSI_CNTRL);
+		reg = HSI_MODIFY32(reg, 15, 12, 0x0);
+		reg = HSI_MODIFY32(reg, 8, 8, 0);
+		HSI_WRITE32(HSI_CNTRL, reg);
+		hsi_disable_ipc_cmd_rcv_int(DATA_CH, rx_cfg);
 		break;
 	case HSI_CPIMAGE_MODE:
 		hsi_core->hsi_config->ch_bits = HSI_IF_CHANNEL_BITS_2;
