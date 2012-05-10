@@ -336,7 +336,7 @@ void __init pxa95x_set_i2c_power_info(struct i2c_pxa_platform_data *info)
 #if defined(CONFIG_UIO_VMETA)
 static struct vmeta_plat_data vmeta_plat_data = {
 	.bus_irq_handler = pxa95x_vmeta_bus_irq_handler,
-	.axi_clk_available = 1,
+	.axi_clk_available = 0, /* clock tree will handle its on/off */
 	.power_down_ms = 10,
 };
 #endif /*(CONFIG_UIO_VMETA)*/
