@@ -4027,5 +4027,32 @@ static int disabe_high_pp_on_low_voltage_board(void)
 	return 0;
 }
 
+int pxa95x_check_constraint(void)
+{
+	struct op_info *p = NULL;
+	struct dvfm_md_opt *q = NULL;
+	int ret = 0;
+
+	read_lock(&pxa95x_dvfm_op_list.lock);
+
+	/* Set the lowest frequency that is higher than specifed one */
+	list_for_each_entry(p, &pxa95x_dvfm_op_list.list, list) {
+		q = (struct dvfm_md_opt *)p->op;
+		/* Lowpower mode */
+		if ((q->power_mode == POWER_MODE_D1)
+				|| (q->power_mode == POWER_MODE_D2)
+				|| (q->power_mode == POWER_MODE_CG)) {
+			if (p->device) {
+				ret = 1;
+				pr_info("op:%s is disabled by 0x%08x.\n", q->name, p->device);
+			}
+		}
+	}
+	pr_debug("Check constraint done.\n");
+	read_unlock(&pxa95x_dvfm_op_list.lock);
+
+	return ret;
+}
+
 module_init(pxa95x_freq_init);
 module_exit(pxa95x_freq_exit);

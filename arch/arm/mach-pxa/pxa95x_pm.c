@@ -1521,8 +1521,15 @@ static int pxa95x_pm_enter(suspend_state_t state)
 /*
  * Called after processes are frozen, but before we shut down devices.
  */
+extern int pxa95x_check_constraint(void);
 static int pxa95x_pm_prepare(void)
 {
+	/*
+	 * There should be no constraint now except ACIPC
+	 * Report a warning if there is
+	 */
+	if (pxa95x_check_constraint())
+		WARN_ON(1);
 	/* Request OP1 before entering suspend.
 	 * This is for Nevo C0 silicon issue which can't wakeup core
 	 * if core freq > 915MHz. Nevo-2067.
