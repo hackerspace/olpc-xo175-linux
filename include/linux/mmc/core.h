@@ -139,9 +139,7 @@ extern int mmc_wait_for_app_cmd(struct mmc_host *, struct mmc_card *,
 	struct mmc_command *, int);
 extern int mmc_switch(struct mmc_card *, u8, u8, u8, unsigned int);
 extern int mmc_recovery(struct mmc_host *host, struct mmc_request *mrq);
-#ifdef CONFIG_MMC_BLOCK_CMD13_AFTER_CMD18
 extern int mmc_send_status(struct mmc_card *, u32 *);
-#endif
 
 #define MMC_ERASE_ARG		0x00000000
 #define MMC_SECURE_ERASE_ARG	0x80000000
