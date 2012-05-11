@@ -50,6 +50,7 @@
 #include <mach/dma.h>
 #include <asm/mach/map.h>
 #include <mach/ca9_asm.h>
+#include <linux/wakelock.h>
 
 /* mtd.h declares another DEBUG macro definition */
 #undef DEBUG
@@ -85,6 +86,8 @@ static int temp_of_core;
 static int isram_size;
 unsigned int is_wkr_mg1_1274_value;
 EXPORT_SYMBOL(is_wkr_mg1_1274_value);	/*this is used in LPM entry and exit */
+
+static struct wake_lock system_wakeup;
 
 /* Counter Structure for Debugging ENTER/EXIT D2/CGM */
 extern pxa95x_DVFM_LPM_Global_Count DVFMLPMGlobalCount;
@@ -1561,6 +1564,18 @@ static int pxa95x_pm_valid(suspend_state_t state)
 	return ret;
 }
 
+static void pxa95x_pm_wake(void)
+{
+	/* Add 5s wakelock here to make sure the event wakeing
+	 * up system can be handled by userspace application.
+	 * This is not a good solution and tuning is pended.
+	 * TODO
+	 */
+	wake_lock_timeout(&system_wakeup, HZ * 5);
+
+	pr_debug("PM wake done.\n");
+}
+
 /*
  * Set to PM_DISK_FIRMWARE so we can quickly veto suspend-to-disk.
  */
@@ -1569,6 +1584,7 @@ static const struct platform_suspend_ops pxa95x_pm_ops = {
 	.prepare = pxa95x_pm_prepare,
 	.enter = pxa95x_pm_enter,
 	.finish = pxa95x_pm_finish,
+	.wake = pxa95x_pm_wake
 };
 
 #define pm_attr(_name, object)						\
@@ -1935,6 +1951,8 @@ static int __init pxa95x_pm_init(void)
 	int ret = 0;
 #ifdef CONFIG_IPM
 	unsigned int oscc, dmemvlr;
+
+	wake_lock_init(&system_wakeup, WAKE_LOCK_SUSPEND, "system_wakeup_detect");
 
 	suspend_set_ops(&pxa95x_pm_ops);
 
