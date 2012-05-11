@@ -508,13 +508,14 @@ static void pxa95x_handle_cdint(struct sdhci_host *host)
 	}
 }
 
-static struct sdhci_pxa_platdata mci0_platform_data = {
+struct sdhci_pxa_platdata mci0_platform_data = {
 	.flags	= PXA_FLAG_CARD_PERMANENT |
 				PXA_FLAG_SD_8_BIT_CAPABLE_SLOT |
 				PXA_FLAG_ACITVE_IN_SUSPEND |
 				PXA_FLAG_ENABLE_CLOCK_GATING |
 				PXA_FLAG_KEEP_POWER_IN_SUSPEND,
 };
+EXPORT_SYMBOL(mci0_platform_data);
 
 #define MAX_SD_PINS 6
 /*
@@ -678,7 +679,7 @@ static void pxa_mci1_signal_1v8(struct sdhci_host *host, int set)
 	return;
 }
 
-static struct sdhci_pxa_platdata mci1_platform_data = {
+struct sdhci_pxa_platdata mci1_platform_data = {
 	.flags = PXA_FLAG_ENABLE_CLOCK_GATING |
 			PXA_FLAG_ACITVE_IN_SUSPEND,
 	.ext_cd_gpio = mfp_to_gpio(MFP_PIN_GPIO123),
@@ -690,13 +691,15 @@ static struct sdhci_pxa_platdata mci1_platform_data = {
 	.safe_regulator_on = pxa_safe_sd_on,
 	.signal_1v8 = pxa_mci1_signal_1v8,
 };
+EXPORT_SYMBOL(mci1_platform_data);
 
-static struct sdhci_pxa_platdata mci2_platform_data = {
+struct sdhci_pxa_platdata mci2_platform_data = {
 	.flags  = PXA_FLAG_CARD_PERMANENT,
 	.pm_caps = MMC_PM_KEEP_POWER |
 				MMC_PM_IRQ_ALWAYS_ON,
 	.handle_cdint = pxa95x_handle_cdint,
 };
+EXPORT_SYMBOL(mci2_platform_data);
 
 static void __init init_mmc(void)
 {

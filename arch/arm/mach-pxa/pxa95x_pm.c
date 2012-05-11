@@ -107,6 +107,9 @@ extern int cur_op;
 		| VLSCR_VCT0_LVL0_REMAP_MASK | VLSCR_VCT0_LVL1_REMAP_MASK \
 		| VLSCR_VCT0_LVL2_REMAP_MASK | VLSCR_VCT0_LVL3_REMAP_MASK)
 
+void mmc_jira_2339_wr_before_lpm(void);
+void mmc_jira_2339_wr_after_lpm(void);
+
 /* masks of the reserved bits */
 unsigned int ckena_rsvd_bit_mask;
 unsigned int ckenb_rsvd_bit_mask;
@@ -278,6 +281,12 @@ int is_wkr_mg1_1677(void)
 
 /* workaround for bug JIRA NEVO-2368 */
 int is_wkr_nevo_2368(void)
+{
+	return cpu_is_pxa978();
+}
+
+/* workaround for bug JIRA NEVO-2339 */
+int is_wkr_nevo_2339(void)
 {
 	return cpu_is_pxa978();
 }
@@ -1077,6 +1086,212 @@ unsigned int get_c2_sram_base(void)
 {
 	return (unsigned int) (pxa95x_pm_regs.sram_map + 0x8000);
 }
+#if (!defined(CONFIG_MMC_BLOCK_CMD13_AFTER_CMD18))
+	#define CONFIG_MMC_BLOCK_CMD13_AFTER_CMD18
+#endif
+#ifdef CONFIG_MMC_BLOCK_CMD13_AFTER_CMD18
+
+/*
+ * For eMMC, use CMD5 to put it into LPM. However, we can do it in
+ * MMC driver's suspend callback. Otherwise, the eMMC chip will
+ * be deselect later by callback.
+ * */
+#define PREFER_CMD5 0
+
+u32 mmc_base[3] = {0,0,0};
+u32 mmc_last_cmd[3] = {0,0,0};
+static void mmc_wait_4_complete(u32 base)
+{
+	volatile u32 status;
+
+	while(1) {
+		status = readl(base+0x30);
+		if (status) {
+			if (status & 0x1) {
+				//printk("Got cmd13 interrupt \n");
+			} else {
+				printk(KERN_WARNING "Got unexpected error 0x%x \n", status);
+			}
+			writel(status, base+0x30);
+			break;
+		}
+		udelay(1);
+	}
+}
+
+#if PREFER_CMD5
+static void mmc_sleep(u32 base, int sleep)
+{
+	u32 arg = 1<<16;//rca = 1,
+
+	if (sleep == 1) {
+		/* de-select the card before sleep */
+		writel(0, base + 0x8);//set argument
+		writew(0x0, base + 0xc);//set transfer mode
+		writew((7<<8 | 0x10), base + 0xe);//cmd7, no-response
+		mmc_wait_4_complete(base);
+
+		/* sleep */
+		writel( (arg | (1<<15)), base + 0x8);//set argument
+		writew(0x0, base + 0xc);//set transfer mode
+		writew((5<<8 | 0x1b), base + 0xe);//cmd5, r1b
+		mmc_wait_4_complete(base);
+	//	printk("eMMC sleep\n");
+	} else {
+		/* awake */
+		writel( arg , base + 0x8);//set argument
+		writew(0x0, base + 0xc);//set transfer mode
+		writew((5<<8 | 0x1b), base + 0xe);//cmd8, r1b
+		mmc_wait_4_complete(base);
+
+		/* select the card*/
+		writel(arg, base + 0x8);//set argument
+		writew(0x0, base + 0xc);//set transfer mode
+		writew((7<<8 | 0x12), base + 0xe);//cmd7,r1, no-crc
+		mmc_wait_4_complete(base);
+	}
+
+	return;
+}
+#endif
+
+static void mmc_send_status_poll(u32 base)
+{
+	u8 flags = 0x1a;
+	u32 arg = 1<<16;
+	u8 op_code = 13;
+
+	writel(arg, base + 0x8);//set argument
+	writew(0x0, base + 0xc);//set transfer mode, no special
+	writew((op_code<<8 | flags), base + 0xe);//set cmd index and option
+
+	mmc_wait_4_complete(base);
+
+	return;
+}
+
+void mmc_clear_int_status(void)
+{
+	u32 status;
+	int i;
+
+	for (i=0; i<3; i++) {
+		status = readl(mmc_base[i]+0x30);
+		if (status) {
+			printk(KERN_WARNING "mmc[%d] clear status error %d \n", i, status);
+			writel(status, mmc_base[i]+0x30);
+		}
+	}
+	return;
+}
+
+/*
+ * return the restore CKEN_C value
+ * */
+static u32 mmc_clk_enable(void)
+{
+	volatile u32 mmc_cken;
+
+	mmc_cken = CKENC;
+	CKENC = 0xFFFFFFFF;
+	udelay(1);
+	return mmc_cken;
+}
+
+static void mmc_clk_disable(u32 c)
+{
+	CKENC = c;
+	udelay(1);
+}
+
+#include <linux/platform_data/pxa_sdhci.h>
+
+extern struct sdhci_pxa_platdata mci0_platform_data;
+extern struct sdhci_pxa_platdata mci1_platform_data;
+extern struct sdhci_pxa_platdata mci2_platform_data;
+
+static int mmc_wr_check(u32 base)
+{
+	u32 ier;
+
+	ier = readl(base + 0x38);//read interrupt signal/enable bits;
+	if ( !(ier & 0x1)) {
+		printk(KERN_WARNING "CMD END not enabled(0x%x) \n", ier);
+		printk("CKENC = 0x%x \n", CKENC);
+		return -1;
+	}
+
+	return 0;
+}
+
+void mmc_jira_2339_wr_before_lpm(void)
+{
+	int i;
+	u16 t;
+	volatile u32 cken_c;
+
+	if (mci0_platform_data.suspended)
+		return ;
+
+	cken_c = mmc_clk_enable();
+
+	for (i=0; i<3; i++) {
+		if (mmc_wr_check(mmc_base[i])) {
+			mmc_clk_disable(cken_c);
+			return ;
+		}
+		t = readw(mmc_base[i]+0xe);
+#if PREFER_CMD5
+		if (i==0)  {
+			mmc_sleep(mmc_base[i], 1);
+			continue;
+		}
+		if (t & (1<<5)) {
+			if (i==1) {
+				mmc_send_status_poll(mmc_base[i]);
+			} else if (i==2) {
+				//send cmd52 here
+			}
+#else
+		if (t & (1<<5)) {
+			if (i!=2) {
+				mmc_send_status_poll(mmc_base[i]);
+			} else {
+				//send cmd52 here
+			}
+
+#endif
+		}
+	}
+	mmc_clear_int_status();
+
+	mmc_clk_disable(cken_c);
+}
+
+void mmc_jira_2339_wr_after_lpm(void)
+{
+#if PREFER_CMD5
+	volatile u32 cken_c;
+#endif
+
+	if (mci2_platform_data.suspended)
+		return ;
+#if PREFER_CMD5
+	cken_c = mmc_clk_enable();
+
+	if (mmc_wr_check(mmc_base[0])) {
+		mmc_clk_disable(cken_c);
+		return;
+	}
+	mmc_sleep(mmc_base[0], 0);
+
+	mmc_clk_disable(cken_c);
+#endif
+}
+#else
+void mmc_jira_2339_wr_before_lpm(void) {};
+void mmc_jira_2339_wr_after_lpm(void) {};
+#endif
 
 void enter_lowpower_mode(int state)
 {
@@ -1176,6 +1391,8 @@ void enter_lowpower_mode(int state)
 					vlscr &= ~(VLSCR_SINGLE_RAIL_MASK);
 					vlscr |= (VLSCR_D1_VALUE);
 					VLSCR = vlscr;
+					if (is_wkr_nevo_2339())
+						mmc_jira_2339_wr_before_lpm();
 					pxa978_pm_enter(pollreg);
 				} else {
 					pxa95x_cpu_standby(sram + 0x8000,
@@ -1211,6 +1428,8 @@ void enter_lowpower_mode(int state)
 
 			lpm_exit_timestamp = start_tick;
 			wakeup_data = pm_postset_standby();
+			if (cpu_is_pxa978() && is_wkr_nevo_2339())
+				mmc_jira_2339_wr_after_lpm();
 
 			pm_logger_app_add_trace(1, PM_D1_EXIT, start_tick, wakeup_data);
 		} else {
@@ -1291,8 +1510,9 @@ void enter_lowpower_mode(int state)
 					vlscr &= ~(VLSCR_SINGLE_RAIL_MASK);
 					vlscr |= (VLSCR_D2_VALUE);
 					VLSCR = vlscr;
+					if ( is_wkr_nevo_2339())
+						mmc_jira_2339_wr_before_lpm();
 					pxa978_pm_enter(pollreg);
-
 				} else {
 					pxa95x_cpu_standby(sram + 0x8000,
 							sram + 0xa000 - 4,
@@ -1351,6 +1571,9 @@ void enter_lowpower_mode(int state)
 			last_d2exit_time = start_tick;
 			lpm_exit_timestamp = start_tick;
 			wakeup_data = pm_postset_standby();
+			if (cpu_is_pxa978() && is_wkr_nevo_2339())
+				mmc_jira_2339_wr_after_lpm();
+
 			pm_logger_app_add_trace(1, PM_D2_EXIT, start_tick, wakeup_data);
 		} else
 			pm_clear_wakeup_src(wakeup_src);
@@ -1953,6 +2176,12 @@ static int __init pxa95x_pm_init(void)
 	unsigned int oscc, dmemvlr;
 
 	wake_lock_init(&system_wakeup, WAKE_LOCK_SUSPEND, "system_wakeup_detect");
+
+#ifdef CONFIG_MMC_BLOCK_CMD13_AFTER_CMD18
+	mmc_base[0] = (u32) ioremap(0x55000000, 4096);
+	mmc_base[1] = (u32) ioremap(0x55100000, 4096);
+	mmc_base[2] = (u32) ioremap(0x55200000, 4096);
+#endif
 
 	suspend_set_ops(&pxa95x_pm_ops);
 
