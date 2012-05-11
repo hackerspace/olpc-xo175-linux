@@ -274,7 +274,7 @@ static int pxa95xfb_ovly_suspend(struct platform_device *dev, pm_message_t state
 		fbi->on = 0;
 		conv_ref_dec(fbi);
 		lcdc_set_lcd_controller(fbi);
-		if (conv_is_on(fbi))
+		if (!conv_is_on(fbi))
 			converter_onoff(fbi, 0);
 		fbi->controller_on = 0;
 		fbi->user_addr = 0;

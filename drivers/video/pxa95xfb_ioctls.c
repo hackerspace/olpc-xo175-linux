@@ -503,7 +503,7 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 			if (!fbi->on && fbi->controller_on) {
 				conv_ref_dec(fbi);
 				lcdc_set_lcd_controller(fbi);
-				if (conv_is_on(fbi))
+				if (!conv_is_on(fbi))
 					converter_onoff(fbi, 0);
 
 				fbi->controller_on = 0;
