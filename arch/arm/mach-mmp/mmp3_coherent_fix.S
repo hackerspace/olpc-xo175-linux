@@ -85,6 +85,16 @@
 #define APMU_PJ_IDLE_CFG1	0x0200
 #define APMU_PJ_IDLE_CFG2	0x0204
 
+#define DDR_FREQ_CHG_REQ2	(1 << 22)
+#define DDR_FREQ_CHG_REQ1	(1 << 25)
+#define AXI_FREQ_CHG_REQ	(1 << 26)
+#define PJ_FREQ_CHG_REQ		(1 << 24)
+
+#define DDR_FREQ_CHG_DONE2	(1 << 12)
+#define DDR_FREQ_CHG_DONE1	(1 << 4)
+#define AXI_FREQ_CHG_DONE	(1 << 5)
+#define PJ_FREQ_CHG_DONE	(1 << 3)
+
 /*
  * registers used in the workaround flow.
  */
@@ -280,10 +290,21 @@ ENTRY(mmp3_trigger_dfc_ll)
 	set_amp	r0
 	str	dfc, [pmu, #0x4]	@ set meltres cc register
 
+	mov	r1, #0x0
+	tst	dfc, #PJ_FREQ_CHG_REQ
+	orrne	r1, r1, #PJ_FREQ_CHG_DONE
+	tst	dfc, #AXI_FREQ_CHG_REQ
+	orrne	r1, r1, #AXI_FREQ_CHG_DONE
+	tst	dfc, #DDR_FREQ_CHG_REQ1
+	orrne	r1, r1, #DDR_FREQ_CHG_DONE1
+	tst	dfc, #DDR_FREQ_CHG_REQ2
+	orrne	r1, r1, #DDR_FREQ_CHG_DONE2
+
 check_dfc_finish:
 	ldr	r0, [pmu, #0xa0]
-	tst	r0, #0x8
-	beq	check_dfc_finish
+	and	r0, r0, r1
+	cmp	r0, r1
+	bne	check_dfc_finish
 
 	set_smp	r0
 	invalid_and_flush_l1_cache r0
