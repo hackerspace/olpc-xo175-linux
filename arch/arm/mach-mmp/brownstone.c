@@ -1168,11 +1168,13 @@ static int r800_set_power(int on)
 {
 	static struct regulator *v_ldo8;
 
-	v_ldo8 = regulator_get(NULL, "v_ldo8");
-	if (IS_ERR(v_ldo8)) {
-		v_ldo8 = NULL;
-		pr_err("%s: enable ldo8 for touch fail!\n", __func__);
-		return -EIO;
+	if (!v_ldo8) {
+		v_ldo8 = regulator_get(NULL, "v_ldo8");
+		if (IS_ERR(v_ldo8)) {
+			v_ldo8 = NULL;
+			pr_err("%s: enable ldo8 for touch fail!\n", __func__);
+			return -EIO;
+		}
 	}
 
 	if (on) {
@@ -1180,8 +1182,6 @@ static int r800_set_power(int on)
 		regulator_enable(v_ldo8);
 	} else {
 		regulator_disable(v_ldo8);
-		regulator_put(v_ldo8);
-		v_ldo8 = NULL;
 	}
 	msleep(100);
 
@@ -1194,10 +1194,12 @@ static int cm_set_power(int on)
 	static int enabled;
 	int changed = 0;
 
-	v_ldo8 = regulator_get(NULL, "v_ldo8");
-	if (IS_ERR(v_ldo8)) {
-		v_ldo8 = NULL;
-		return -EIO;
+	if (!v_ldo8) {
+		v_ldo8 = regulator_get(NULL, "v_ldo8");
+		if (IS_ERR(v_ldo8)) {
+			v_ldo8 = NULL;
+			return -EIO;
+		}
 	}
 
 	if (on && (!enabled)) {
@@ -1208,8 +1210,6 @@ static int cm_set_power(int on)
 	}
 	if ((!on) && enabled) {
 		regulator_disable(v_ldo8);
-		regulator_put(v_ldo8);
-		v_ldo8 = NULL;
 		enabled = 0;
 		changed = 1;
 	}
@@ -1222,10 +1222,12 @@ static int cywee_set_power(int on)
 {
 	static struct regulator *v_ldo8;
 
-	v_ldo8 = regulator_get(NULL, "v_ldo8");
-	if (IS_ERR(v_ldo8)) {
-		v_ldo8 = NULL;
-		return -EIO;
+	if (!v_ldo8) {
+		v_ldo8 = regulator_get(NULL, "v_ldo8");
+		if (IS_ERR(v_ldo8)) {
+			v_ldo8 = NULL;
+			return -EIO;
+		}
 	}
 
 	if(on) {
@@ -1233,8 +1235,6 @@ static int cywee_set_power(int on)
 		regulator_enable(v_ldo8);
 	} else {
 		regulator_disable(v_ldo8);
-		regulator_put(v_ldo8);
-		v_ldo8 = NULL;
 	}
 	msleep(100);
 	return 0;
