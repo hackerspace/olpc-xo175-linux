@@ -431,14 +431,14 @@ static DEVICE_ATTR(interval, S_IRUGO | S_IWUGO, als_interval_show,
 		   als_interval_set);
 static DEVICE_ATTR(data, S_IRUGO, als_data_show, NULL);
 static DEVICE_ATTR(wake, S_IRUGO | S_IWUGO, NULL, wake_set);
-static DEVICE_ATTR(status, S_IRUGO | S_IWUGO, status_show, NULL);
+static DEVICE_ATTR(status, S_IRUGO, status_show, NULL);
 
 static DEVICE_ATTR2(active, S_IRUGO | S_IWUGO, active_ps_show, active_ps_set);
 static DEVICE_ATTR2(interval, S_IRUGO | S_IWUGO, ps_interval_show,
 		    ps_interval_set);
 static DEVICE_ATTR2(data, S_IRUGO, ps_data_show, NULL);
 static DEVICE_ATTR2(wake, S_IRUGO | S_IWUGO, NULL, wake_set);
-static DEVICE_ATTR2(status, S_IRUGO | S_IWUGO, status_show, NULL);
+static DEVICE_ATTR2(status, S_IRUGO, status_show, NULL);
 
 static struct attribute *sysfs_als_attributes[] = {
 	&dev_attr_status.attr,
