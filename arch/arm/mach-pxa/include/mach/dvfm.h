@@ -31,7 +31,7 @@ extern unsigned int cur_profiler;
 #define CONSTRAINT_NAME_LEN		20
 
 #define DVFM_MAX_NAME			32
-#define DVFM_MAX_DEVICE			32
+#define DVFM_MAX_DEVICE			64
 
 #define DVFM_FREQUENCY_NOTIFIER		0
 #define	DVFM_LOWPOWER_NOTIFIER		1
@@ -63,7 +63,7 @@ struct op_info {
 	void *op;
 	struct list_head list;
 	unsigned int index;
-	unsigned int device;	/* store the device ID blocking OP */
+	unsigned long long device;	/* store the device ID blocking OP */
 };
 
 struct dvfm_freqs {
@@ -77,7 +77,7 @@ struct dvfm_freqs {
 struct info_head {
 	struct list_head list;
 	rwlock_t lock;
-	unsigned int device;	/* store the registerred device ID */
+	unsigned long long device;	/* store the registerred device ID */
 };
 
 struct head_notifier {
@@ -98,8 +98,7 @@ struct dvfm_lock {
  */
 struct dvfm_trace_info {
 	struct list_head list;
-	int index;		/* index is [0,31] */
-	unsigned int dev_id;	/* dev_id == 1 << index */
+	int index;		/* index is [0,63] */
 	char name[DVFM_MAX_NAME];
 };
 

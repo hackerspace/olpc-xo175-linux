@@ -203,7 +203,7 @@ static ssize_t trace_show(struct sys_device *sys_dev,
 	struct op_info *op_entry = NULL;
 	struct dvfm_trace_info *entry = NULL;
 	int len = 0, i;
-	unsigned int blocked_dev;
+	unsigned long long blocked_dev;
 	struct dvfm_md_opt *temp_op;
 	char op_name[OP_NAME_LEN];
 
@@ -812,7 +812,7 @@ static int add_device(const char *name)
 	struct dvfm_trace_info *entry = NULL, *new = NULL;
 	int min;
 	min = find_first_zero_bit(&dvfm_trace_list.device, DVFM_MAX_DEVICE);
-	if (min == (DVFM_MAX_DEVICE - 1)) {
+	if (min >= (DVFM_MAX_DEVICE - 1)) {
 		printk(KERN_ERR
 		       "%s request too many devices device num = %d\n",
 		       __func__, min);
@@ -887,7 +887,7 @@ EXPORT_SYMBOL(dvfm_query_device_list);
 
 /*
  * Device driver register itself to DVFM before any operation.
- * The number of registered device is limited in 32.
+ * The number of registered device is limited in 64.
  */
 int dvfm_register(const char *name, int *id)
 {

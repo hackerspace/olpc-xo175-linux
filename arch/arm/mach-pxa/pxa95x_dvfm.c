@@ -1,4 +1,5 @@
 /*
+/*
  * arch/arm/mach-pxa/pxa95x_dvfm.c
  *
  * PXA95x DVFM Driver
@@ -721,7 +722,8 @@ static int pxa95x_dvfm_set_core_voltage(unsigned int mV)
 /* #####################Debug Function######################## */
 static int dump_op(void *driver_data, struct op_info *p, char *buf)
 {
-	int len, count, x;
+	int len, count;
+	unsigned long long x;
 	struct dvfm_md_opt *md = (struct dvfm_md_opt *)p->op;
 
 	if (md == NULL)
@@ -3098,10 +3100,18 @@ int update_op_mips_ram(u32 old_pp, u32 new_pp)
 		}
 		MIPS_RAM_ADD_PP_CHANGE(data);
 		dvfm_get_opinfo(7, &p);
-		d2_constraints = p->device & 0x0000FFFF;
-		MIPS_RAM_ADD_TRACE(MIPSRAM_EVENT_RAW_DATA | d2_constraints);
-		d2_constraints = (p->device & 0xFFFF0000) >> 16;
-		MIPS_RAM_ADD_TRACE(MIPSRAM_EVENT_RAW_DATA | d2_constraints);
+
+		d2_constraints = (u32)(p->device);
+		MIPS_RAM_ADD_TRACE(MIPSRAM_EVENT_RAW_DATA |
+				   (d2_constraints & 0x0000FFFF));
+		MIPS_RAM_ADD_TRACE(MIPSRAM_EVENT_RAW_DATA |
+				   (d2_constraints >> 16));
+
+		d2_constraints = (u32)(p->device >> 32);
+		MIPS_RAM_ADD_TRACE(MIPSRAM_EVENT_RAW_DATA |
+				   (d2_constraints & 0x0000FFFF));
+		MIPS_RAM_ADD_TRACE(MIPSRAM_EVENT_RAW_DATA |
+				   (d2_constraints >> 16));
 	}
 	return 0;
 }
@@ -3249,7 +3259,7 @@ long dvfm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			memcpy(&new, (struct dvfm_md_opt *)p->op,
 			       sizeof(struct dvfm_md_opt));
 			printk(KERN_WARNING "PP index number %d is %s and it"
-			       "constrain status is %x\n",
+			       "constrain status is 0x%0llx\n",
 			       p->index, new.name, p->device);
 
 		}
