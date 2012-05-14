@@ -1429,6 +1429,20 @@ static void orchid_poweroff(void)
 	pm8xxx_system_poweroff();
 }
 
+/* NOTE: assume that the twsi1 clock was enabled in u-boot. */
+static int __get_pmic_id(void)
+{
+	int ret;
+	u8 buf;
+	ret = pm800_i2c_read_reg(0x30, PM800_CHIP_ID, &buf, 1);
+	if (ret) {
+		pr_err("%s: failed to get pmic id!\n", __func__);
+		return ret;
+	}
+	pr_info("Procida ID: 0x%x\n", buf);
+	return buf;
+}
+
 static void __init orchid_init(void)
 {
 	extern int (*board_reset)(char mode, const char *cmd);
@@ -1438,6 +1452,9 @@ static void __init orchid_init(void)
 
 	/* on-chip devices */
 	mmp3_add_uart(3);
+	/* Audio(PM805) page addr: B1=>0x39, C0=>0x38 */
+	if (__get_pmic_id() >= PM800_CHIP_C0)
+		pm80x_info.companion_addr = 0x38;
 	mmp3_add_twsi(1, NULL, ARRAY_AND_SIZE(orchid_twsi1_info));
 	mmp3_add_twsi(2, NULL, ARRAY_AND_SIZE(orchid_twsi2_info));
 	mmp3_add_twsi(4, NULL, ARRAY_AND_SIZE(orchid_twsi4_info));
