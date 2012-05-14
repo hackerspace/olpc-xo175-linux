@@ -50,7 +50,9 @@
 #include <linux/spi/cmmb.h>
 #include <linux/SSD2531_touch.h>
 #include <plat/usb.h>
-
+#ifdef CONFIG_CHARGER_ISL9226
+#include <linux/power/isl9226.h>
+#endif
 #include "devices.h"
 #include "generic.h"
 
@@ -319,7 +321,22 @@ static void regulator_init_pm800(void)
 
 	pm800_info.num_regulators = i;
 }
+#ifdef CONFIG_CHARGER_ISL9226
+static struct isl9226_charger_pdata isl9226_data = {
+	.default_input_current = 95,		/*charge current if USB enumeration fail: mA*/
+	.usb_input_current = 475,	/*USB charger current: mA*/
+	.ac_input_current = 950,	/*AC charger current: mA*/
+	.eoc_current = 100,		/*end of charge current: mA*/
+	.prechg_current = 130,	/*pre-charge current: mA */
+	.prechg_voltage = 3000,	/*pre-charge voltage: mV*/
+};
 
+
+struct platform_device isl9226_device = {
+	.name = "isl9226-charger",
+	.id	= -1,
+};
+#endif
 
 /* The following structure is for pn544 I2C device */
 #if defined(CONFIG_PN544_NFC)
@@ -409,6 +426,12 @@ static struct i2c_board_info i2c1_80x_info[] = {
 		.platform_data	= &pm800_info,
 		.irq		= IRQ_PMIC_INT,
 	},
+	#ifdef CONFIG_CHARGER_ISL9226
+	{
+		I2C_BOARD_INFO("isl9226", 0x59),
+		.platform_data = &isl9226_data,
+	},
+	#endif
 };
 
 static struct clk *clk_tout_s0;
@@ -2827,6 +2850,11 @@ static void __init init(void)
 			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
 			get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD)
 		nevo_dkb_init_spi();
+#endif
+
+#ifdef CONFIG_CHARGER_ISL9226
+	if (get_board_id() >= OBM_DKB_2_1_NEVO_C0_BOARD)
+		platform_device_register(&isl9226_device);
 #endif
 
 #ifdef CONFIG_USB_PXA_U2O
