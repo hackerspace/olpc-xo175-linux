@@ -43,6 +43,18 @@ static struct ov5640_win_size {
 #endif
 } ov5640_win_sizes[] = {
 #ifdef CONFIG_PXA95x
+	/* QCIF */
+	{
+		.width = 176,
+		.height = 144,
+		.phy_cfg_id = 0,
+	},
+	/* QVGA */
+	{
+		.width = 320,
+		.height = 240,
+		.phy_cfg_id = 0,
+	},
 	/* VGA */
 	{
 		.width = 640,
@@ -587,8 +599,6 @@ static int ov5640_enum_fsizes(struct v4l2_subdev *sd,
 	case V4L2_MBUS_FMT_UYVY8_2X8:
 	case V4L2_MBUS_FMT_VYUY8_2X8:
 		if (fsize->index >= ARRAY_SIZE(ov5640_win_sizes)) {
-			dev_warn(&client->dev,
-				"ov5640 unsupported size %d!\n", fsize->index);
 			return -EINVAL;
 		}
 		fsize->discrete.height = ov5640_win_sizes[fsize->index].height;
@@ -596,9 +606,6 @@ static int ov5640_enum_fsizes(struct v4l2_subdev *sd,
 		break;
 	case V4L2_MBUS_FMT_JPEG_1X8:
 		if (fsize->index >= ARRAY_SIZE(ov5640_win_sizes_jpeg)) {
-			dev_warn(&client->dev,
-				"ov5640 unsupported jpeg size %d!\n",
-				fsize->index);
 			return -EINVAL;
 		}
 		fsize->discrete.height =
