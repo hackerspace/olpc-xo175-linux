@@ -234,7 +234,6 @@ static void regulator_init_pm800(void)
 	int i = 0;
 
 	REG_SUPPLY_INIT(PM800_ID_LDO16, "v_cam", NULL);
-	REG_SUPPLY_INIT(PM800_ID_LDO8, "v_lcd_cywee_touch", NULL);
 	REG_SUPPLY_INIT(PM800_ID_LDO6, "v_ihdmi", NULL);
 	/*
 	for NFC integration - adding 3 regulators:
@@ -246,7 +245,6 @@ static void regulator_init_pm800(void)
 	*/
 
 	REG_INIT(i++, PM800_ID, LDO16, 1800000, 3300000, 0, 0);
-	REG_INIT(i++, PM800_ID, LDO8, 1800000, 3300000, 0, 0);
 	REG_INIT(i++, PM800_ID, LDO6, 1200000, 3300000, 0, 0);
 	switch (get_board_id()) {
 	case OBM_DKB_2_NEVO_C0_BOARD:
@@ -260,6 +258,7 @@ static void regulator_init_pm800(void)
 		REG_SUPPLY_INIT(PM800_ID_LDO9, "v_vibrator", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO12, "v_wifi_1v8", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO17, "v_wifi_3v3", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO8, "v_lcd_cywee_touch", NULL);
 
 		REG_INIT(i++, PM800_ID, LDO14, 1800000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO11, 2800000, 2800000, 0, 0);
@@ -269,6 +268,7 @@ static void regulator_init_pm800(void)
 		REG_INIT(i++, PM800_ID, LDO9, 2800000, 2800000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO12, 1800000, 1800000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO17, 3300000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO8, 1800000, 3300000, 0, 0);
 		break;
 	case OBM_DKB_2_1_NEVO_C0_BOARD:
 		REG_SUPPLY_INIT(PM800_ID_LDO18, "Vdd_IO", NULL);
@@ -281,6 +281,7 @@ static void regulator_init_pm800(void)
 		REG_SUPPLY_INIT(PM800_ID_LDO19, "v_gps", NULL);
 		/*DKB2.1 use a new gps module, need to contorl LDO11*/
 		REG_SUPPLY_INIT(PM800_ID_LDO11, "v_gps_3v3", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO8, "v_lcd_cywee_touch", NULL);
 
 		REG_INIT(i++, PM800_ID, LDO18, 1800000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO2, 1200000, 3300000, 0, 0);
@@ -291,6 +292,8 @@ static void regulator_init_pm800(void)
 		REG_INIT(i++, PM800_ID, LDO13, 2800000, 2800000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO19, 1200000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO11, 1200000, 3300000, 0, 0);
+		/* for LDO8 in DKB2.1, we put it always on to save power in suspend */
+		REG_INIT(i++, PM800_ID, LDO8, 1800000, 3300000, 1, 1);
 		break;
 	default:
 		REG_SUPPLY_INIT(PM800_ID_LDO14, "Vdd_IO", NULL);
@@ -300,6 +303,8 @@ static void regulator_init_pm800(void)
 		REG_SUPPLY_INIT(PM800_ID_LDO10, "v_vibrator", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO17, "VSim", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO18, "v_gps", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO8, "v_lcd_cywee_touch", NULL);
+
 		REG_INIT(i++, PM800_ID, LDO14, 1800000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO11, 2800000, 2800000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO13, 1800000, 3300000, 0, 0);
@@ -307,6 +312,7 @@ static void regulator_init_pm800(void)
 		REG_INIT(i++, PM800_ID, LDO9, 3300000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO10, 2800000, 2800000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO17, 1800000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO8, 1800000, 3300000, 0, 0);
 		break;
 	}
 	pr_info("%s: select saarC NEVO austica ldo map\n", __func__);
