@@ -13,9 +13,20 @@
 #include <linux/types.h>
 #include <linux/ioctl.h>
 #include<linux/interrupt.h>
+#ifdef CONFIG_CPU_MMP3
+#include <mach/mmp3-audio.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+#ifdef CONFIG_CPU_MMP2
+#define MMP_AUDIO_RAM_SIZE	(16*1024)
+#elif CONFIG_CPU_MMP3
+#define MMP_AUDIO_RAM_SIZE	(128*1024)
+#else
+#define MMP_AUDIO_RAM_SIZE      (0)
 #endif
 
 enum {
@@ -44,14 +55,13 @@ struct mmp_zsp_clkcfg {
 };
 struct mmp_zsp_platform_device {
 	struct mmp_zsp_clkcfg clkcfg;
+	unsigned long sram_size;
 	void (*domain_halt)(void);
 	void (*domain_on)(int spd, int src, int asclk);
 	void (*start_core)(void);
+	unsigned long (*hw_memcpy)
+		(unsigned long pdst, unsigned long psrc, unsigned int len);
 };
-
-#define APMU_AUDIO_CLK_RES_CTRL		APMU_REG(0x010c)
-#define ZSP_IPC_BASE			(0x1400)
-#define ZSP_TMR_BASE			(0x1500)
 
 #define mmp_zsp_set_bit_range(ref, val, msk, shft) \
 	(((ref) & (~((msk) << (shft)))) | (((val) & (msk)) << (shft)))
@@ -97,6 +107,7 @@ enum pzipc_return_code pzipc_set_interrupt(enum ipc_client_id client_id);
 void zsp_local_start(atomic_t *pcounter, int timeout_ms, int retry);
 void zsp_local_stop(atomic_t *pcounter);
 void* zsp_get_datawnd(void);
+struct mmp_zsp_platform_device *zsp_get_devop(void);
 int zsp_mmap_datawnd(struct vm_area_struct *vma);
 int zsp_set_clock_preference(u32 opmask, struct mmp_zsp_clkcfg * pcfg);
 
