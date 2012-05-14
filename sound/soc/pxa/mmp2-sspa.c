@@ -146,8 +146,14 @@ static void mmp2_sspa_tx_disable(struct ssp_device *sspa)
 	unsigned int sspa_sp;
 
 	sspa_sp = mmp2_sspa_read_reg(sspa, SSPA_TXSP);
+	sspa_sp |= SSPA_SP_WEN | SSPA_SP_FFLUSH | SSPA_SP_S_RST;
+	mmp2_sspa_write_reg(sspa, SSPA_TXSP, sspa_sp);
+
 	sspa_sp &= ~SSPA_SP_S_EN;
 	sspa_sp |= SSPA_SP_WEN;
+	mmp2_sspa_write_reg(sspa, SSPA_TXSP, sspa_sp);
+
+	sspa_sp &= ~(SSPA_SP_FFLUSH | SSPA_SP_S_RST);
 	mmp2_sspa_write_reg(sspa, SSPA_TXSP, sspa_sp);
 }
 
@@ -166,8 +172,14 @@ static void mmp2_sspa_rx_disable(struct ssp_device *sspa)
 	unsigned int sspa_sp;
 
 	sspa_sp = mmp2_sspa_read_reg(sspa, SSPA_RXSP);
+	sspa_sp |= SSPA_SP_WEN | SSPA_SP_FFLUSH | SSPA_SP_S_RST;
+	mmp2_sspa_write_reg(sspa, SSPA_RXSP, sspa_sp);
+
 	sspa_sp &= ~SSPA_SP_S_EN;
 	sspa_sp |= SSPA_SP_WEN;
+	mmp2_sspa_write_reg(sspa, SSPA_RXSP, sspa_sp);
+
+	sspa_sp &= ~(SSPA_SP_FFLUSH | SSPA_SP_S_RST);
 	mmp2_sspa_write_reg(sspa, SSPA_RXSP, sspa_sp);
 }
 
