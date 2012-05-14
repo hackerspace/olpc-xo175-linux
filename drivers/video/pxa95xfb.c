@@ -1429,9 +1429,11 @@ static void update_lcd_controller_clock(struct pxa95xfb_conv_info *conv, int on)
 	if (!panel_conv || panel_conv->output != OUTPUT_PANEL || !panel_conv->on) {
 		printk(KERN_INFO "%s: directly update clock\n", __func__);
 		clk_set_rate(pxa95xfbi[0]->clk_lcd, clock_rate);
+		return;
 	}
 
 	/*WR: disable converter of panel then do update*/
+	printk(KERN_INFO "%s: workaround: disable panel conveter and then update clock\n", __func__);
 	converter_onoff(pxa95xfbi[0], 0);
 	clk_set_rate(pxa95xfbi[0]->clk_lcd, clock_rate);
 	converter_onoff(pxa95xfbi[0], 1);
@@ -2030,7 +2032,7 @@ static void mixer_onoff(struct pxa95xfb_info *fbi, int on)
 static void set_mixer(struct pxa95xfb_info *fbi)
 {
 	u32 x;
-	u32 layer_onoff, mixer_stat, layer_pre, layer_new, mixer_update;
+	u32 mixer_stat, layer_stat, mixer_update;
 	struct fb_videomode * m = &fbi->mode;
 
 	u32 ctl0_off = LCD_MIXER0_CTL0 + fbi->mixer_id* 0x100;
@@ -2078,24 +2080,32 @@ static void set_mixer(struct pxa95xfb_info *fbi)
 	 * LCD_MIXERx_CTL0_DISP_UPDATE should be set as the last step */
 	x = readl(fbi->reg_base + ctl0_off);
 	mixer_stat = x & LCD_MIXERx_CTL0_MIX_EN;
-	layer_pre = x & LCD_MIXERx_CTL0_OLx_ID_MASK(fbi->zorder);
-	layer_new = (fbi->on)?
+	layer_stat = (x & LCD_MIXERx_CTL0_OLx_ID_MASK(fbi->zorder))
+		!= LCD_MIXERx_CTL0_OLx_ID_MASK(fbi->zorder);
+	x &= ~ LCD_MIXERx_CTL0_OLx_ID_MASK(fbi->zorder);
+	x |= (fbi->on)?
 		LCD_MIXERx_CTL0_OLx_ID(fbi->zorder, LCD_Controller_WGe0 + fbi->window):
 		LCD_MIXERx_CTL0_OLx_ID_MASK(fbi->zorder);
-	x &= ~ LCD_MIXERx_CTL0_OLx_ID_MASK(fbi->zorder);
-	x |= layer_new;
-	layer_onoff = layer_pre != layer_new;
 
-	if (layer_onoff &&
-		(x & LCD_MIXERx_CTL0_ALL_OL_MASK) == LCD_MIXERx_CTL0_ALL_OL_DISABLE)
-		printk(KERN_ERR "Warning! mixer%d: last layer shutoff\n", fbi->mixer_id);
-
-	mixer_update = (mixer_stat && (layer_onoff || fbi->on));
-	x |= mixer_update?LCD_MIXERx_CTL0_DISP_UPDATE:0;
-
-	if (mixer_update) {
-		b_mixer_update[fbi->mixer_id] = 1;
+	/* mixer would not update in follow cases:
+	* 1. mixer is off before, both turning on and update would not real update
+	* 2. mixer is turning off
+	* 3. layer is off and would not turned on
+	*/
+	if (!mixer_stat) {
+		printk(KERN_INFO "mixer%d: mixer is off, for both first layer on and reg setting, no update executed\n", fbi->mixer_id);
+		mixer_update = 0;
+	} else if ((x & LCD_MIXERx_CTL0_ALL_OL_MASK) == LCD_MIXERx_CTL0_ALL_OL_DISABLE) {
+		printk(KERN_INFO "mixer%d: last layer shutoff, no update executed, wait later mixer off\n", fbi->mixer_id);
+		mixer_update = 0;
+	} else if (!layer_stat && !fbi->on) {
+		printk(KERN_INFO "mixer%d: layer is kept off so no update is required\n", fbi->mixer_id);
+		mixer_update = 0;
+	} else {
 		printk(KERN_INFO "Mixer%d update\n", fbi->mixer_id);
+		mixer_update = 1;
+		x |= LCD_MIXERx_CTL0_DISP_UPDATE;
+		b_mixer_update[fbi->mixer_id] = 1;
 	}
 
 	writel(x, fbi->reg_base + ctl0_off);
@@ -2367,7 +2377,7 @@ u32 lcdc_get_fr_addr(struct pxa95xfb_info *fbi)
 	return (readl(fbi->reg_base + LCD_FR_ADDR0 + 0x40*fbi->window));
 }
 
-
+/* lcdc set lcd controller only do update, if mixer on/off happens, no update would be done here */
 void lcdc_set_lcd_controller(struct pxa95xfb_info *fbi)
 {
 	mutex_lock(&mutex_mixer_update[fbi->mixer_id]);
