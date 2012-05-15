@@ -241,6 +241,7 @@ int clk_set_rate(struct clk *c, unsigned long rate)
 {
 	int ret = 0;
 	unsigned long flags, new_rate, old_rate;
+	int sr_flag = 0;
 
 	clk_lock_save(c, flags);
 
@@ -277,9 +278,16 @@ int clk_set_rate(struct clk *c, unsigned long rate)
 	if (ret)
 		goto out;
 
+	if (c->ops->getrate)
+		new_rate = c->ops->getrate(c);
+	if (rate != new_rate) {
+		rate = new_rate;
+		sr_flag = 1;
+	}
+
 	c->rate = rate;
 
-	if (clk_is_dvfs(c) && c->refcnt > 0 && rate < old_rate) {
+	if (clk_is_dvfs(c) && c->refcnt > 0 && (rate < old_rate || sr_flag)) {
 		ret = dvfs_set_rate(c, rate);
 		if (ret)
 			goto out;
