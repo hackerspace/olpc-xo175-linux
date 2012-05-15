@@ -1885,6 +1885,8 @@ void mmp3_set_wakeup_src(void)
 	val |= (1 << 7);
 	/* enable rtc as wakeup input source */
 	val |= ((1 << 17) | (1 << 4));
+	/* enable gpio as wakeup input source */
+	val |= (1 << 2);
 	__raw_writel(val, MPMU_AWUCRM);
 }
 
@@ -1922,11 +1924,10 @@ static void d2(void)
 	__raw_writel(0xbe086000, MPMU_CPCR);
 
 	apcr = __raw_readl(MPMU_APCR);
-	/* PJ power control, wake up port 4 enabled*/
+	/* PJ power control, wake up port 2(gpio),4(rtc),7(pmic) enabled*/
 	__raw_writel(__raw_readl(MPMU_APCR) | (1 << 31) | (1 << 27) |
-			(1 << 26)  | (1 << 20) | (1 << 21) |
-			(1 << 22) | (1 << 23) | (1 << 19) |
-			(1 << 16) | (1 << 17) | (1 << 25),
+			(1 << 26) | (1 << 20) | (1 << 22) | (1 << 23) |
+			(1 << 19) | (1 << 16) | (1 << 17) | (1 << 25),
 			MPMU_APCR);
 }
 
@@ -1956,9 +1957,10 @@ void mmp3_pm_enter_d2(void)
 
 	printk("before suspend\n");
 
-	/* d2 workaround: enable RTC & PMIC ICU wake up */
+	/* d2 workaround: enable RTC & PMIC & GPIO ICU wake up */
 	__raw_writel(0x2f, ICU1_REG(0x10));
 	__raw_writel(0x2f, ICU1_REG(0x14));
+	__raw_writel(0x2f, ICU1_REG(0xc4));
 
 
 	flush_cache_all();
@@ -1971,6 +1973,7 @@ void mmp3_pm_enter_d2(void)
 
 	__raw_writel(0x0, ICU1_REG(0x10));
 	__raw_writel(0x0, ICU1_REG(0x14));
+	__raw_writel(0x0, ICU1_REG(0xc4));
 
 	printk("after resume\n");
 
