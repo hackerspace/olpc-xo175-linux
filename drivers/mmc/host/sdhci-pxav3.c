@@ -31,7 +31,6 @@
 #include "sdhci.h"
 #include "sdhci-pltfm.h"
 #include <plat/pm.h>
-#include <mach/cputype.h>
 
 #ifdef CONFIG_CPU_PXA978
 #include <mach/dvfm.h>
