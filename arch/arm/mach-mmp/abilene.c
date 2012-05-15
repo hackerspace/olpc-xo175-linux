@@ -980,14 +980,16 @@ static int abilene_max77601_setup(struct max77601_chip *chip)
 	data = 0x1;
 	max77601_write(chip, 0x3A, &data, 1);
 
-	/* Set vcc_core to 0.8V in sleep mode */
-	data = 0x10;
-	max77601_write(chip, 0x16, &data, 1);
-
-	/* DVS related part */
-	max77601_read(chip, MAX77601_AME_GPIO, &data, 1);
-	if ((data & MAX77601_AME5_MASK) == MAX77601_AME5_MASK)
-		printk(KERN_INFO "Max77601 SD0 is set to support DVS!\n");
+	/* Set GPIO5 as SD0 DVS(DVSSD0) input: PMIC_GPIO5(VCXO_EN) */
+	max77601_set_bits(chip, MAX77601_AME_GPIO,
+			MAX77601_AME5_MASK, MAX77601_AME5_MASK);
+	/* Set GPIO5 active low, VCXO_EN is low when suspend */
+	max77601_set_bits(chip, MAX77601_CNFG_GPIO5, MAX77601_GPIO_DIR, 0);
+	/* Set suspend voltage(DVSSD0) */
+	data = 0x10; /* 0.8V */
+	max77601_write(chip, MAX77601_VREG_DVSSD0, &data, 1);
+	/* Set VCC_CORE(SD0) work at forced PWM mode */
+	max77601_set_bits(chip, MAX77601_VREG_SD0_CFG, (1 << 2), (1 << 2));
 
 	/* Set GPIO4 to alternative mode to enable ext_32K_in */
 	max77601_set_bits(chip, MAX77601_AME_GPIO, \
