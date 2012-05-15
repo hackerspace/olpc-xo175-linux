@@ -1741,20 +1741,12 @@ void mmp3_pm_enter_idle(int cpu)
 	trace_idle_exit(__raw_readl(cic->wake_status));
 }
 
-extern spinlock_t dis_core0_c2;
-
 void mmp3_pm_enter_c2(int cpu)
 {
 	u32 state = MMP3_PM_C2_L1_PWD;
 	struct mmp3_cpu_idle_config *cic;
 	int core_id = mmp3_smpid();
 	u32 c1_cfg, c2_cfg;
-
-	if (core_id == 0 || core_id == 2) {
-		if (!spin_trylock(&dis_core0_c2))
-			return;
-		udelay(1);	/* safe for mp2 core into c2 */
-	}
 
 	trace_idle_entry(state);
 
@@ -1793,9 +1785,6 @@ void mmp3_pm_enter_c2(int cpu)
 	__raw_writel(0x1, MMP3_ICU_GBL_IRQ6_MSK);
 
 	trace_idle_exit(__raw_readl(cic->wake_status));
-
-	if (core_id == 0 || core_id == 2)
-		spin_unlock(&dis_core0_c2);
 }
 
 

@@ -40,10 +40,6 @@
 #include <asm/ptrace.h>
 #include <asm/localtimer.h>
 
-#ifdef CONFIG_CPU_MMP3
-DEFINE_SPINLOCK(dis_core0_c2);
-#endif
-
 /*
  * as from 2.5, kernels no longer have an init_tasks structure
  * so we need some other way of telling a new secondary core
@@ -237,10 +233,6 @@ void __cpu_die(unsigned int cpu)
 void __ref cpu_die(void)
 {
 	unsigned int cpu = smp_processor_id();
-
-#ifdef CONFIG_CPU_MMP3
-	spin_lock(&dis_core0_c2);
-#endif
 
 	idle_task_exit();
 

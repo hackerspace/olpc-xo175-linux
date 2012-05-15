@@ -18,15 +18,12 @@
 #include <mach/mmp3_pm.h>
 
 extern volatile int pen_release;
-extern spinlock_t dis_core0_c2;
 
 static DECLARE_COMPLETION(cpu_killed);
 
 static inline void platform_do_lowpower(unsigned int cpu)
 {
 	int hardid = smp_hardid[cpu];
-
-	spin_unlock(&dis_core0_c2);
 
 	/*
 	 * there is no power-control hardware on this platform, so all
