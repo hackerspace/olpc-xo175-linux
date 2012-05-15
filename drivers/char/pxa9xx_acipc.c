@@ -1057,8 +1057,8 @@ int acipc_handle_DDR_req_relq(void)
 	 * If other events happen than DDR req and relq, start resume.
 	 */
 	if (acipc->IIR_val & ~(ACIPC_DDR_READY_REQ | ACIPC_DDR_RELQ_REQ)) {
-		pr_debug("Other events happen: 0x%08x, ", acipc->IIR_val);
-		pr_debug("Exit suspend.\n");
+		pr_info("Other ACIPC events happen: 0x%08x, ", acipc->IIR_val);
+		pr_info("Exit suspend.\n");
 		ret = 1;
 	}
 

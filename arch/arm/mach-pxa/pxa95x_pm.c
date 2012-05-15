@@ -837,7 +837,7 @@ int pxa95x_pm_enter_sleep(struct pxa95x_pm_regs *pm_regs)
 
 		/* Exit suspend when wakeup by other source than ACIPC */
 		if (wakeup_data & ~(PXA95x_PM_WE_MSL0)) {
-			pr_debug("Exit suspend waked by: 0x%08x.\nUnmasked "
+			pr_info("Exit suspend waked by: 0x%08x.\nUnmasked "
 					"interrupt: 0x%08x, 0x%08x, 0x%08x.\n",
 					wakeup_data, icip & ICMR,
 					icip2 & ICMR2, icip3 & ICMR3);
@@ -845,7 +845,7 @@ int pxa95x_pm_enter_sleep(struct pxa95x_pm_regs *pm_regs)
 		}
 		/* Exit suspend when ACS_DDR_260_REQ pended */
 		if (icip2 & ACS_DDR_260_REQ) {
-			pr_debug("Exit suspend since hi-freq DDR request.\n");
+			pr_info("Exit suspend since hi-freq DDR request.\n");
 			break;
 		}
 
