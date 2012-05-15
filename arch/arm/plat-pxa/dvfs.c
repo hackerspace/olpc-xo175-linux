@@ -262,10 +262,12 @@ int __init enable_dvfs_on_clk(struct clk *c, struct dvfs *d)
 
 /*
  * Iterate through all the dvfs regulators, finding the regulator exported
- * by the regulator api for each one.  Must be called in late init, after
- * all the regulator api's regulators are initialized.
+ * by the regulator api for each one.
+ * Must be called after all the regulator api initialized (subsys_initcall).
+ * Must be called before all the cpufreq/devfreq framework initialized
+ * (module_initcall).
  */
-int __init dvfs_late_init(void)
+int __init dvfs_init(void)
 {
 	struct dvfs_rail *rail;
 
@@ -281,5 +283,5 @@ int __init dvfs_late_init(void)
 
 	return 0;
 }
-late_initcall(dvfs_late_init);
+fs_initcall(dvfs_init);
 
