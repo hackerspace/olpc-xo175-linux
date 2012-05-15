@@ -252,6 +252,15 @@ en_fw_done:
 	mov	pc, lr
 ENDPROC(req_peer_core_en_fw)
 
+ENTRY(mmp3_flush_l1_cache)
+	stmfd	sp!, {r0-r11, lr}
+
+	invalid_and_flush_l1_cache	r0
+
+	ldmfd	sp!, {r0-r11, lr}
+	mov	pc, lr
+ENDPROC(mmp3_flush_l1_cache)
+
 /*
  * mmp3_trigger_dfc_ll()
  *
