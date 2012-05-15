@@ -203,9 +203,9 @@ static unsigned long mmc2_pin_config[] __initdata = {
 	GPIO58_GPIO, /* WIFI_RST_N */
 	GPIO57_GPIO, /* WIFI_PD_N */
 
-	/* GPIO for wake (not used) */
+	/* GPIO for wake */
 	GPIO55_GPIO, /* WL_BT_WAKE */
-	GPIO56_GPIO, /* WLAN_WAKE */
+	GPIO56_GPIO | MFP_LPM_EDGE_FALL | MFP_PULL_HIGH, /* WLAN_WAKE (8787->soc) */
 };
 static unsigned long mmc3_pin_config[] __initdata = {
 	GPIO108_MMC3_DAT7,
@@ -821,10 +821,30 @@ static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc2 = {
 	.clk_delay_cycles	= 0xF,
 };
 
+#include <linux/wakelock.h>
+static struct wake_lock wlan_gpio_wakeup;
+
+static irqreturn_t wlan_wake_gpio_irq(int irq, void *data)
+{
+	/* reset mfp edge status to clear pending wake up source */
+	int gpio = irq_to_gpio(irq);
+	u32 mfp = mfp_read(gpio);
+	mfp_write(gpio, (1 << 6) | mfp);
+	mfp_write(gpio, mfp);
+
+	/* hold a 3s wakelock to handle the wakeup event */
+	wake_lock_timeout(&wlan_gpio_wakeup, HZ * 3);
+	printk(KERN_INFO "%s: set wakelock, timout after 3 seconds\n",
+			__func__);
+
+	return IRQ_HANDLED;
+}
+
 static void __init mk2_init_mmc(void)
 {
 	int v_sd_en = mfp_to_gpio(GPIO138_GPIO);
 	int emmc_reset_n = mfp_to_gpio(GPIO149_GPIO);
+	int wlan_wake = mfp_to_gpio(GPIO56_GPIO);
 #ifdef CONFIG_SD8XXX_RFKILL
 	int WIB_PDn = mfp_to_gpio(GPIO57_GPIO);
 	int WIB_RESETn = mfp_to_gpio(GPIO58_GPIO);
@@ -866,6 +886,19 @@ static void __init mk2_init_mmc(void)
 
 	/* SDIO for WIFI card */
 	mfp_config(ARRAY_AND_SIZE(mmc2_pin_config));
+	/*
+	 * The gpio wlan_wake will wake up soc from suspend.
+	 */
+	if (gpio_request(wlan_wake, "WLAN_WAKE"))
+		printk(KERN_ERR "Request GPIO failed, gpio: %d\n", wlan_wake);
+	else
+		gpio_direction_input(wlan_wake);
+	if (request_irq(gpio_to_irq(wlan_wake), wlan_wake_gpio_irq,
+				IRQF_NO_SUSPEND | IRQF_TRIGGER_FALLING,
+				"WLAN WAKEUP irq", NULL))
+		printk(KERN_ERR "Request wlan wake irq failed\n");
+	else
+		wake_lock_init(&wlan_gpio_wakeup, WAKE_LOCK_SUSPEND, "wifi_hs_wakeups");
 	mmp3_add_sdh(1, &mmp3_sdh_platdata_mmc1);
 }
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
