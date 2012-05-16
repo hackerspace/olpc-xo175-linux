@@ -22,6 +22,7 @@
 #include <linux/slab.h>
 #include <linux/clocksource.h>
 #include <linux/time.h>
+#include <linux/cpu.h>
 #include <plat/clock.h>
 #include <asm/mach/map.h>
 #include <asm/proc-fns.h>
@@ -39,6 +40,8 @@
 #include <mach/mmp3_pm.h>
 #include <mach/smp.h>
 #include <mach/mmp_cm.h>
+
+static DEFINE_SPINLOCK(dfcsch_lock);
 
 static inline int mmp3_smpid(void)
 {
@@ -111,6 +114,51 @@ void handle_coherency_maint_req(void *p)
 {
 	mmp3_coherent_handler((u32)sync_buf);
 }
+
+static atomic_t fc_is_pend = ATOMIC_INIT(0);
+
+static int __cpuinit mmp3_pm_cpu_callback(struct notifier_block *nfb,
+				     unsigned long action, void *hcpu)
+{
+	int err = 0;
+	unsigned long savedflags;
+
+	spin_lock_irqsave(&dfcsch_lock, savedflags);
+	switch (action) {
+	case CPU_UP_PREPARE:
+	case CPU_UP_PREPARE_FROZEN:
+		atomic_inc(&fc_is_pend);
+		break;
+	case CPU_ONLINE:
+	case CPU_ONLINE_FROZEN:
+		atomic_dec(&fc_is_pend);
+		break;
+	case CPU_UP_CANCELED:
+	case CPU_UP_CANCELED_FROZEN:
+		atomic_dec(&fc_is_pend);
+		break;
+#ifdef CONFIG_HOTPLUG_CPU
+	case CPU_DOWN_PREPARE:
+	case CPU_DOWN_PREPARE_FROZEN:
+		atomic_inc(&fc_is_pend);
+		break;
+	case CPU_DOWN_FAILED:
+	case CPU_DOWN_FAILED_FROZEN:
+		atomic_dec(&fc_is_pend);
+		break;
+	case CPU_DEAD:
+	case CPU_DEAD_FROZEN:
+		atomic_dec(&fc_is_pend);
+		break;
+#endif
+	}
+	spin_unlock_irqrestore(&dfcsch_lock, savedflags);
+	return notifier_from_errno(err);
+}
+
+static struct notifier_block __cpuinitdata mmp3_pm_cpu_notifier = {
+	&mmp3_pm_cpu_callback, NULL, 0
+};
 #endif
 
 #define pm_print(args...) printk(args)
@@ -1416,7 +1464,6 @@ struct dfc_schedule {
 
 static struct dfc_schedule *dfcsch;
 static int dfcsch_active;
-static DEFINE_SPINLOCK(dfcsch_lock);
 static void __maybe_unused trigger_scheduler(u32 flag)
 {
 	unsigned long savedflags;
@@ -1442,6 +1489,11 @@ static void mmp3_schedule_freqch_loose(struct mmp3_pmu *pmu,
 	unsigned long savedflags;
 	union trace_dfc_log logentry;
 	u32 change, time, same;
+
+	if (atomic_read(&fc_is_pend))
+		return;
+
+	udelay(2);	/* safe for mp2 core into c2 */
 
 	change = mmp3_prepare_freqch(pmu, pl, &logentry);
 	if (change == 0)
@@ -1747,6 +1799,12 @@ void mmp3_pm_enter_c2(int cpu)
 	struct mmp3_cpu_idle_config *cic;
 	int core_id = mmp3_smpid();
 	u32 c1_cfg, c2_cfg;
+
+	if (core_id == 0 || core_id == 2) {
+		if (atomic_read(&fc_is_pend))
+			return;
+		udelay(2);	/* safe for mp2 core into c2 */
+	}
 
 	trace_idle_entry(state);
 
@@ -2116,6 +2174,7 @@ static int __init mmp3_pm_init(void)
 	dfcsch = NULL;
 	dfcsch_active = 0;
 
+	register_cpu_notifier(&mmp3_pm_cpu_notifier);
 	return 0;
 }
 
