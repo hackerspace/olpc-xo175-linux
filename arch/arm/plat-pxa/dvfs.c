@@ -185,6 +185,9 @@ static int dvfs_rail_connect_to_regulator(struct dvfs_rail *rail)
 
 	rail->reg = reg;
 
+	if (regulator_is_enabled(reg))
+		rail->nominal_millivolts = regulator_get_voltage(reg) / 1000;
+
 	return 0;
 }
 
