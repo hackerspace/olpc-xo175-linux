@@ -51,6 +51,8 @@
 #include <asm/mach-types.h>
 #include <mach/sram.h>
 
+static DEFINE_SPINLOCK(ctrl_lock);
+
 static struct pxa168fb_vdma_info vdma0 = {
 	.ch = 0,
 	.path = 0,
@@ -71,7 +73,7 @@ static FBVideoMode pixfmt_to_vmode(int pix_fmt)
 {
 	switch(pix_fmt) {
 	case PIX_FMT_RGB565:
-	case V4L2_PIX_FMT_RGB565:
+	case V4L2_PIX_FMT_RGB565X:
 		return FB_VMODE_RGB565;
 	case PIX_FMT_BGR565:
 		return FB_VMODE_BGR565;
@@ -595,6 +597,7 @@ void pxa688_vdma_release(int path, int vid)
 int pxa688_vdma_en(struct pxa168fb_vdma_info *lcd_vdma, int enable, int vid)
 {
 	u32 reg;
+	unsigned long flags = 0;
 
 	if ((lcd_vdma->path == 1) && enable) {
 		reg = dma_ctrl_read(lcd_vdma->path, 1);
@@ -616,8 +619,8 @@ int pxa688_vdma_en(struct pxa168fb_vdma_info *lcd_vdma, int enable, int vid)
 		lcd_vdma->sram_vaddr = (u32)sram_alloc("mmp-videosram",
 			lcd_vdma->sram_size, (dma_addr_t *)&lcd_vdma->sram_paddr);
 		if (lcd_vdma->sram_paddr) {
-			lcd_vdma->enable = 1;
 			lcd_vdma->vid = vid;
+			lcd_vdma->enable = 1;
 		} else {
 			pr_warn("%s path %d vdma enable failed\n",
 				__func__, lcd_vdma->path);
@@ -626,8 +629,10 @@ int pxa688_vdma_en(struct pxa168fb_vdma_info *lcd_vdma, int enable, int vid)
 	} else {
 		if (!lcd_vdma->enable || (lcd_vdma->vid != vid))
 			return 0;
+		spin_lock_irqsave(&ctrl_lock, flags);
 		pxa688_vdma_release(lcd_vdma->path, lcd_vdma->vid);
 		lcd_vdma->enable = 0;
+		spin_unlock_irqrestore(&ctrl_lock, flags);
 		sram_free("mmp-videosram",
 			(dma_addr_t *)lcd_vdma->sram_vaddr, lcd_vdma->sram_size);
 		lcd_vdma->sram_paddr = 0;
