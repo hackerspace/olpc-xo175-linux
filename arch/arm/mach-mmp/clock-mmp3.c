@@ -946,7 +946,7 @@ static struct clk mmp3_clk_cpu = {
 #define GC_SET_BITS(set, clear)	{\
 	unsigned long tmp;\
 	tmp = __raw_readl(clk->clk_rst);\
-	tmp &= ~clear;\
+	tmp &= ~(clear);\
 	tmp |= set;\
 	__raw_writel(tmp, clk->clk_rst);\
 }
