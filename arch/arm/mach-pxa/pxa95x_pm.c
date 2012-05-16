@@ -788,6 +788,7 @@ int pxa95x_pm_enter_sleep(struct pxa95x_pm_regs *pm_regs)
 {
 	unsigned int wakeup_data, icip, icip2, icip3;
 	unsigned long flags;
+	int delta;
 
 	local_fiq_disable();
 	local_irq_save(flags);
@@ -801,7 +802,12 @@ int pxa95x_pm_enter_sleep(struct pxa95x_pm_regs *pm_regs)
 		/* check if any IRQ/FIQ pending */
 		if (!(icip || icip2 || icip3 || ICFP || ICFP2 || ICFP3)) {
 #if defined(CONFIG_PXA9XX_ACIPC)
-			if (0 == clear_DDR_avail_flag()) {
+			delta = dvfm_is_comm_wakep_near();
+			/*
+			 * checking if comm wakeup is around corner and
+			 * enter cg if so.
+			 */
+			if ((!delta) && (0 == clear_DDR_avail_flag())) {
 				CHECK_APPS_COMM_SYNC
 #endif
 				enter_d2();
