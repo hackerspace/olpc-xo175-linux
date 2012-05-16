@@ -265,6 +265,8 @@ failed:
 }
 
 #ifdef CONFIG_PM
+extern void unset_dvfm_constraint(void);
+
 static int pxa95xfb_ovly_suspend(struct platform_device *dev, pm_message_t state)
 {
 	struct pxa95xfb_info *fbi = platform_get_drvdata(dev);
@@ -279,6 +281,7 @@ static int pxa95xfb_ovly_suspend(struct platform_device *dev, pm_message_t state
 		fbi->controller_on = 0;
 		fbi->user_addr = 0;
 		lcdc_set_fr_addr(fbi);
+		unset_dvfm_constraint();
 	}
 
 	return 0;

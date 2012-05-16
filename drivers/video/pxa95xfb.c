@@ -264,7 +264,7 @@ static void set_dvfm_constraint(void)
 	dvfm_disable_op_name_no_change("CG", dvfm_dev_idx);
 }
 
-static void unset_dvfm_constraint(void)
+void unset_dvfm_constraint(void)
 {
 	/* Enable Lowpower mode */
 	dvfm_enable_op_name_no_change("D1", dvfm_dev_idx);
@@ -2581,12 +2581,12 @@ int pxa95xfb_set_par(struct fb_info *info)
 
 static void pxa95xfb_gfx_power(struct pxa95xfb_info *fbi, int on)
 {
+	int i, en = 0;
 	mutex_lock(&fbi->access_ok);
 	if(on == (!fbi->suspend)){
 		printk(KERN_INFO "LCD power already %s\n", on?"up":"down");
 	} else if(!on){
 		fbi->suspend = 1;
-
 		converter_onoff(fbi, 0);
 
 		/* removed due to SI issue.
@@ -2597,7 +2597,15 @@ static void pxa95xfb_gfx_power(struct pxa95xfb_info *fbi, int on)
 		*/
 		display_enabled = 0;
 
-		unset_dvfm_constraint();
+		/*if hdmi fbi2/3 has not turn off, should not release the power constrain*/
+		for (i = 2; i < PXA95xFB_FB_NUM; i ++) {
+			if (pxa95xfbi[i]->controller_on) {
+				en = 1;
+				break;
+			}
+		}
+		if (0 == en)
+			unset_dvfm_constraint();
 
 		printk(KERN_INFO "LCD power down\n");
 	}else{
