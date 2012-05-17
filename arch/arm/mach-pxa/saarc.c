@@ -783,6 +783,7 @@ static void __init init_mmc(void)
 		mci1_platform_data.ext_cd_gpio = mfp_to_gpio(MFP_PIN_GPIO128);
 	} else if (get_board_id() == OBM_SAAR_C3V5_NEVO_D0_V10_BOARD) {
 		gpio_rst = mfp_to_gpio(MFP_PIN_GPIO73);
+		mci1_platform_data.ext_cd_gpio = mfp_to_gpio(MFP_PIN_GPIO25);
 	} else
 		gpio_rst = mfp_to_gpio(MFP_PIN_GPIO99);
 
