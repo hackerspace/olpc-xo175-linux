@@ -1052,6 +1052,60 @@ static void register_i2c_board_info(void)
 	i2c_register_board_info(2, ARRAY_AND_SIZE(i2c3_info));
 }
 
+/* workaround for reset i2c bus by GPIO20 -SCL, GPIO21 -SDA,
+GPIO125 -SCL, GPIO126 -SDA */
+static void i2c_pxa_bus_reset(int i2c_adap_id)
+{
+	int scl_pin=0,sda_pin=0;
+	int i2c_scl_mfp,i2c_sda_mfp;
+	int ccnt;
+	if (i2c_adap_id == 1) {
+		scl_pin = mfp_to_gpio(MFP_PIN_GPIO125);
+		sda_pin = mfp_to_gpio(MFP_PIN_GPIO126);
+	}
+	else if (i2c_adap_id == 2) {
+		scl_pin = mfp_to_gpio(MFP_PIN_GPIO20);
+		sda_pin = mfp_to_gpio(MFP_PIN_GPIO21);
+	}
+	i2c_scl_mfp = pxa3xx_mfp_read(scl_pin);
+	i2c_sda_mfp = pxa3xx_mfp_read(sda_pin);
+	pxa3xx_mfp_write(scl_pin, i2c_scl_mfp & 0xfff8);
+	pxa3xx_mfp_write(sda_pin, i2c_sda_mfp & 0xfff8);
+
+	if (gpio_request(scl_pin, "SCL")) {
+		pr_err("Failed to request GPIO for SCL pin!\n");
+		goto out;
+	}
+	if (gpio_request(sda_pin, "SDA")) {
+		pr_err("Failed to request GPIO for SDA pin!\n");
+		goto out_sda;
+	}
+	pr_info("\t<<<i2c bus gpio reseting,i2c bus id is %d>>>\n",i2c_adap_id);
+
+	gpio_direction_input(sda_pin);
+	for (ccnt = 20; ccnt; ccnt--) {
+		gpio_direction_output(scl_pin, ccnt & 0x01);
+		udelay(4);
+	}
+	gpio_direction_output(scl_pin, 0);
+	udelay(4);
+	gpio_direction_output(sda_pin, 0);
+	udelay(4);
+	/* stop signal */
+	gpio_direction_output(scl_pin, 1);
+	udelay(4);
+	gpio_direction_output(sda_pin, 1);
+	udelay(4);
+
+	pxa3xx_mfp_write(scl_pin, i2c_scl_mfp);
+	pxa3xx_mfp_write(sda_pin, i2c_sda_mfp);
+	gpio_free(sda_pin);
+out_sda:
+	gpio_free(scl_pin);
+out:
+	return;
+}
+
 static struct i2c_pxa_platform_data i2c1_pdata = {
 	.use_pio        = 0,
 	.flags		= PXA_I2C_HIGH_MODE | PXA_I2C_FAST_MODE | PXA_I2C_USING_FIFO_PIO_MODE,
@@ -1061,11 +1115,13 @@ static struct i2c_pxa_platform_data i2c1_pdata = {
 static struct i2c_pxa_platform_data i2c2_pdata = {
 	.use_pio	= 0,
 	.flags		= PXA_I2C_FAST_MODE | PXA_I2C_USING_FIFO_PIO_MODE,
+	.i2c_bus_reset		= i2c_pxa_bus_reset,
 };
 
 static struct i2c_pxa_platform_data i2c3_pdata = {
 	.use_pio = 0,
 	.flags = PXA_I2C_FAST_MODE | PXA_I2C_USING_FIFO_PIO_MODE,
+	.i2c_bus_reset		= i2c_pxa_bus_reset,
 };
 
 static struct platform_device *devices[] __initdata = {

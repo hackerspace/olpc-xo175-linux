@@ -84,6 +84,7 @@ struct i2c_pxa_platform_data {
 	unsigned int		fast_mode :1;
 	int			flags;
 	u8			master_code;
+	void			(*i2c_bus_reset) (int i2c_adap_id);
 };
 
 

@@ -796,6 +796,8 @@ static irqreturn_t i2c_pxa_handler(int this_irq, void *dev_id);
 
 static void i2c_pxa_scream_blue_murder(struct pxa_i2c *i2c, const char *whyTxt)
 {
+	struct i2c_pxa_platform_data *plat =
+		(i2c->adap.dev.parent)->platform_data;
 	ERROR_CNTR++;
 
 	printk(KERN_ERR "i2c: Time[%u] %s \n", read_time(), whyTxt);
@@ -812,6 +814,15 @@ static void i2c_pxa_scream_blue_murder(struct pxa_i2c *i2c, const char *whyTxt)
 
 	if ((i2c->dbg_trace == 'e') || (i2c->dbg_trace == 'a'))
 		i2c->err_extend_trace = 1;	/* err / all */
+	if (strcmp(whyTxt, "ERROR: XFER timeout - started but never finished") == 0)
+	{
+		if (plat && plat->i2c_bus_reset) {
+			plat->i2c_bus_reset(i2c->adap.nr);
+		}
+		/* reset i2c contorler when it's fail */
+		i2c_pxa_reset(i2c);
+	}
+
 }
 
 static inline int i2c_pxa_is_slavemode(struct pxa_i2c *i2c)
@@ -1624,6 +1635,7 @@ static u32 i2c_pxa_irq_txempty_with_fifo(struct pxa_i2c *i2c, u32 isr)
 			{
 			/*again:*/
 				dbgCntr++;
+
 				if(!(i2c->msg->flags & I2C_M_RD) && (i2c->fifo_write_byte_num < I2C_PXA_FIFO_ENTRY_TX))
 				{
 					if(i2c->msg_ptr < i2c->msg->len)
@@ -2405,6 +2417,8 @@ static int i2c_pxa_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num
 {
 	#define NUM_XFER_RETRIES  2
 	struct pxa_i2c *i2c = adap->algo_data;
+	struct i2c_pxa_platform_data *plat =
+		(i2c->adap.dev.parent)->platform_data;
 	int ret, i;
 	int exh_retries = 0, xfer_retries = NUM_XFER_RETRIES;
 	unsigned int use_pio	= i2c->use_pio; /* keep original PIO/IRQ*/
@@ -2468,6 +2482,11 @@ do_xfer_retry:
 		} else{
 			printk(KERN_ERR "i2c: ERROR: Bus Busy exhausted retries on Entry=%d  (ISR_%04x IBMR_%02x)\n",
 			                            ENTRY_CNTR, readl(_ISR(i2c)), readl(_IBMR(i2c)) );
+
+			if (plat && plat->i2c_bus_reset) {
+				plat->i2c_bus_reset(i2c->adap.nr);
+				i2c_pxa_reset(i2c);
+			}
 			ret = -EREMOTEIO;
 			break;
 		}
