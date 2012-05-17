@@ -121,6 +121,7 @@ void __init pxa_add_pmem(void)
 {
 	__pxa_add_pmem("pmem", pmem_reserve_size, 0, 1, 1);
 	__pxa_add_pmem("pmem_adsp", 0, 0, 0, 0);
+	__pxa_add_pmem("pmem_wc", 0, 0, 0, 1);
 }
 
 #endif
