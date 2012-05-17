@@ -671,10 +671,6 @@ int pxa95x_vmeta_set_dvfm_constraint(struct vmeta_instance *vi, int idx)
 			dvfm_disable_op_name("624M", idx);
 			break;
 		}
-	} else {
-		dvfm_disable_op_name("624M", idx);
-		dvfm_disable_op_name("312M", idx);
-		dvfm_disable_op_name("156M", idx);
 	}
 
 	return 0;
@@ -710,11 +706,8 @@ int pxa95x_vmeta_unset_dvfm_constraint(struct vmeta_instance *vi, int idx)
 			dvfm_enable_op_name("416M", idx);
 			break;
 		}
-	} else {
-		dvfm_enable_op_name("156M", idx);
-		dvfm_enable_op_name("312M", idx);
-		dvfm_enable_op_name("624M", idx);
 	}
+
 	vi->vop_real = VMETA_OP_INVALID;
 
 	return 0;
