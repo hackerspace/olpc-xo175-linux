@@ -304,6 +304,8 @@ static int cwgd_set_delay(struct i2c_cwgd_sensor *sensor, int delay)
 	u64 delay_ns = delay * NSEC_PER_MSEC;
 	int err = 0;
 
+        mutex_lock(&sensor->lock);
+
 	if (atomic_read(&sensor->enabled)) {
 		if (sensor->use_interrupt)
 			disable_irq(sensor->client->irq);
@@ -357,6 +359,8 @@ static int cwgd_set_delay(struct i2c_cwgd_sensor *sensor, int delay)
 				      sensor->polling_delay, HRTIMER_MODE_REL);
 		}
 	}
+
+        mutex_unlock(&sensor->lock);
 
 	return 0;
 }
