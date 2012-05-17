@@ -827,11 +827,40 @@ static int ov5640_g_frame_interval(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int ov5640_power(struct v4l2_subdev *sd, int on)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct soc_camera_device *icd = client->dev.platform_data;
+	struct soc_camera_link *icl = to_soc_camera_link(icd);
+	unsigned char v;
+
+	/*
+	 * Pls note the following setting is only valid for
+	 * MIPI mode. DVP mode is not verified.
+	 */
+	if (on) {
+		if (icl->power)
+			icl->power(icd->pdev, POWER_RESTORE);
+		ov5640_read(client, (u16)0x300e, &v);
+		v  &= ~0x18;
+		ov5640_write(client, (u16)0x300e, v);
+	} else {
+		ov5640_read(client, (u16)0x300e, &v);
+		v  |= 0x18;
+		ov5640_write(client, (u16)0x300e, v);
+		if (icl->power)
+			icl->power(icd->pdev, POWER_SAVING);
+	}
+
+	return 0;
+}
+
 static struct v4l2_subdev_core_ops ov5640_subdev_core_ops = {
 	.g_ctrl	= ov5640_g_ctrl,
 	.s_ctrl	= ov5640_s_ctrl,
 	.g_chip_ident = ov5640_g_chip_ident,
 	.init = ov5640_init,
+	.s_power = ov5640_power,
 #ifdef CONFIG_VIDEO_ADV_DEBUG
 	.g_register = ov5640_g_register,
 	.s_register = ov5640_s_register,
