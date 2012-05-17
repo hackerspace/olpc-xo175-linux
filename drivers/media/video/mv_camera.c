@@ -142,7 +142,6 @@ struct mv_camera_dev {
 	struct vb2_alloc_ctx *vb_alloc_ctx;
 	int frame_rate;
 	struct pm_qos_request_list qos_idle;
-
 	bool sensor_attached;
 };
 
@@ -1300,9 +1299,102 @@ static int __devexit mv_camera_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int mv_camera_suspend(struct device *dev)
+{
+	struct soc_camera_host *ici = to_soc_camera_host(dev);
+	struct mv_camera_dev *pcdev = ici->priv;
+	struct soc_camera_device *icd = pcdev->icd;
+	struct mv_cam_pdata *mcam = pcdev->pdev->dev.platform_data;
+	struct v4l2_subdev *sd = NULL;
+	int ret = 0;
+
+	if (icd == NULL || icd->use_count == 0)
+		return 0;
+
+	dev_err(&icd->dev,
+		"Someone is stil using CCIC!\n");
+
+	mutex_lock(&pcdev->s_mutex);
+	if (pcdev->state == S_STREAMING)
+		ccic_stop_dma(pcdev);
+	mutex_unlock(&pcdev->s_mutex);
+
+	/*
+	 * FIXME:
+	 * Set sensor to hardware standby mode.The
+	 * implementation is only valid for one
+	 * sensor.For multi sensors. Need to power
+	 * saving every active sensor.
+	 */
+	sd = soc_camera_to_subdev(icd);
+	ret = v4l2_subdev_call(sd, core, s_power, 0);
+	if (ret < 0) {
+		dev_err(dev, "Failed to enter sensor hardware standby!\n");
+		return ret;
+	}
+
+	ccic_disable_clk(pcdev);
+	ccic_power_down(pcdev);
+#ifdef CONFIG_PM
+	mcam->controller_power(0);
+#endif
+
+	pm_qos_update_request(&pcdev->qos_idle, PM_QOS_DEFAULT_VALUE);
+	wake_unlock(&idle_lock);
+	unset_power_constraint(mcam->qos_req_min);
+
+	return ret;
+}
+
+static int mv_camera_resume(struct device *dev)
+{
+	struct soc_camera_host *ici = to_soc_camera_host(dev);
+	struct mv_camera_dev *pcdev = ici->priv;
+	struct soc_camera_device *icd = pcdev->icd;
+	struct mv_cam_pdata *mcam = pcdev->pdev->dev.platform_data;
+	struct v4l2_subdev *sd = NULL;
+	int ret = 0;
+
+	if (icd == NULL || icd->use_count == 0)
+		return 0;
+
+	set_power_constraint(mcam->qos_req_min);
+	wake_lock(&idle_lock);
+	pm_qos_update_request(&pcdev->qos_idle, PM_QOS_CONSTRAINT);
+
+#ifdef CONFIG_PM
+	mcam->controller_power(1);
+#endif
+	ccic_power_up(pcdev);
+	ccic_enable_clk(pcdev);
+
+	sd = soc_camera_to_subdev(icd);
+	ret = v4l2_subdev_call(sd, core, s_power, 1);
+	if (ret < 0) {
+		dev_err(dev, "Failed to exit sensor hardware standby!\n");
+		return ret;
+	}
+
+	mutex_lock(&pcdev->s_mutex);
+	if (pcdev->state == S_STREAMING) {
+		ccic_irq_enable(pcdev);
+		ccic_start(pcdev);
+	}
+	mutex_unlock(&pcdev->s_mutex);
+
+	return ret;
+}
+
+static struct dev_pm_ops mv_camera_pm = {
+	.suspend	= mv_camera_suspend,
+	.resume		= mv_camera_resume,
+};
+
+
 static struct platform_driver mv_camera_driver = {
 	.driver = {
 		.name = MV_CAM_DRV_NAME,
+		.pm = &mv_camera_pm,
 	},
 	.probe = mv_camera_probe,
 	.remove = __devexit_p(mv_camera_remove),
