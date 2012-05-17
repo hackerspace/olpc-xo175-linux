@@ -82,8 +82,6 @@ static unsigned long mmp3_cpu_highest_pp(void)
 	return index;
 }
 
-extern int hotplug_governor_cpufreq_action(unsigned long event, struct cpufreq_freqs *freqs);
-
 static int mmp3_cpufreq_target(struct cpufreq_policy *policy,
 			       unsigned int target_freq, unsigned int relation)
 {
@@ -116,8 +114,8 @@ out:
 
 static int freq_notify_and_change(unsigned int cpu_idx, unsigned int pp_index)
 {
-	int cpu, core;
-	struct cpufreq_freqs freqs[num_cpus];
+	int cpu;
+	struct cpufreq_freqs freqs;
 	unsigned int highest_speed;
 	int ret = 0;
 
@@ -127,38 +125,22 @@ static int freq_notify_and_change(unsigned int cpu_idx, unsigned int pp_index)
 	/* FIXME: always use MP1 core as the index to do FC */
 	highest_speed = mmp3_get_pp_freq(pp_index, MMP3_CLK_MP1);
 
-	for_each_online_cpu(cpu) {
-		freqs[cpu].cpu = cpu;
-#ifndef CONFIG_CORE_MORPHING
-		if (cpu == 0 && (mmp3_core_num == ONE_CORE_MM ||
-				mmp3_core_num == THREE_CORES))
-			core = MMP3_CLK_MM;
-		else
-#endif
-			core = MMP3_CLK_MP1;
-		freqs[cpu].old = mmp3_cpufreq_get(cpu);
-		freqs[cpu].new = mmp3_get_pp_freq(pp_index, core);
-	}
+	freqs.cpu = cpu_idx;
+	freqs.old = mmp3_cpufreq_get(cpu_idx);
+	freqs.new = mmp3_get_pp_freq(pp_index, MMP3_CLK_MP1);
 
-	if (freqs[cpu_idx].old == freqs[cpu_idx].new)
+	if (freqs.old == freqs.new)
 		return ret;
 
-#ifdef CONFIG_HOTPLUG_CPU
-	ret = hotplug_governor_cpufreq_action(CPUFREQ_PRECHANGE, freqs);
-#endif
 	for_each_online_cpu(cpu)
-		cpufreq_notify_transition(&freqs[cpu], CPUFREQ_PRECHANGE);
+		cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
 
 	clk_set_rate(cpu_clk, highest_speed);
 
-	for_each_online_cpu(cpu) {
-		freqs[cpu].new = mmp3_cpufreq_get(cpu);
-		cpufreq_notify_transition(&freqs[cpu], CPUFREQ_POSTCHANGE);
-	}
+	freqs.new = mmp3_cpufreq_get(cpu_idx);
+	for_each_online_cpu(cpu)
+		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
 
-#ifdef CONFIG_HOTPLUG_CPU
-	ret = hotplug_governor_cpufreq_action(CPUFREQ_POSTCHANGE, freqs);
-#endif
 	return ret;
 }
 
@@ -228,9 +210,6 @@ static int mmp3_cpufreq_init(struct cpufreq_policy *policy)
 	cpufreq_frequency_table_cpuinfo(policy, freq_table[policy->cpu]);
 	cpufreq_frequency_table_get_attr(freq_table[policy->cpu], policy->cpu);
 
-	if (policy->cpu != 0)
-		policy->min = 400000;
-
 	if (!cpu_clk) {
 		cpu_clk = clk_get(NULL, "cpu");
 		if (IS_ERR(cpu_clk))
@@ -238,7 +217,7 @@ static int mmp3_cpufreq_init(struct cpufreq_policy *policy)
 	}
 
 	/* 100us, MMP3 FC takes 50 ~ 70 us*/
-	policy->cpuinfo.transition_latency = 100000;
+	policy->cpuinfo.transition_latency = 100 * 1000;
 
 	policy->cur = mmp3_cpufreq_get(policy->cpu);
 	if (cpufreq_frequency_table_target(policy, freq_table[policy->cpu],
@@ -249,23 +228,30 @@ static int mmp3_cpufreq_init(struct cpufreq_policy *policy)
 	target_pp_index[policy->cpu] =
 		cpu_frequency_index_to_pp_index[policy->cpu][index];
 
+        if (!cpu_online(1)) {
+		cpumask_copy(policy->related_cpus, cpu_possible_mask);
+		cpumask_copy(policy->cpus, cpu_online_mask);
+	} else {
+		cpumask_setall(policy->cpus);
+	}
+
 	pr_info("CPUFREQ cpu %d support for mmp3 initialized, cur %d\n",
 		policy->cpu, policy->cur);
 	return 0;
 }
 
-static struct freq_attr *pxa_freq_attr[] = {
+static struct freq_attr *mmp3_cpufreq_attr[] = {
 	&cpufreq_freq_attr_scaling_available_freqs,
 	NULL,
 };
 
 static struct cpufreq_driver mmp3_cpufreq_driver = {
-	.verify = mmp3_cpufreq_verify,
-	.target = mmp3_cpufreq_target,
-	.get = mmp3_cpufreq_get,
-	.init = mmp3_cpufreq_init,
-	.name = "mmp3-cpufreq",
-	.attr = pxa_freq_attr,
+	.name	= "mmp3-cpufreq",
+	.verify	= mmp3_cpufreq_verify,
+	.target	= mmp3_cpufreq_target,
+	.get	= mmp3_cpufreq_get,
+	.init	= mmp3_cpufreq_init,
+	.attr	= mmp3_cpufreq_attr,
 };
 
 static int __init cpufreq_init(void)
