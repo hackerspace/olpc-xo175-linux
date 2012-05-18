@@ -693,8 +693,6 @@ static void enter_d2(void)
 	if (is_wkr_mg1_1468())
 		enable_axi_lpm_entry();
 
-	save_dma_registers();
-
 	/* PWRMODE = D2 */
 	PWRMODE = (PXA95x_PM_S0D2C2 | PXA95x_PM_I_Q_BIT);
 	do {
@@ -710,8 +708,6 @@ static void enter_d2(void)
 
 	if (is_wkr_mg1_1468())
 		enable_axi_lpm_exit();
-
-	restore_dma_registers();
 
 	clk_enable(clk_pout);
 
