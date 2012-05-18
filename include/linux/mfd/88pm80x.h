@@ -185,6 +185,9 @@ enum {
 #define PM800_HEADSET_CNTRL		(0x38)
 #define PM800_HEADSET_DET_EN		(1 << 7)
 #define PM800_HSDET_SLP			(1 << 1)
+#define PM800_MIC_CNTRL			(0x39)
+#define PM800_MICDET_EN			(1 << 0)
+
 /*PWM register*/
 #define PM800_PWM1		(0x40)
 #define PM800_PWM2		(0x41)
@@ -406,6 +409,7 @@ enum {
 #define PM800_GPADC_MISC_CONFIG2	(0x06)
 #define PM800_GPADC_MISC_GPFSM_EN	(1 << 0)
 #define PM800_GPADC_SLOW_MODE(x)	(x << 3)
+#define PM800_GPADC4_DIR			(1 << 6)
 
 #define PM800_GPADC_MEAS_OFF_TIME1	(0x07)
 #define PM800_GPADC_MEAS_OFF_TIME2	(0x08)
