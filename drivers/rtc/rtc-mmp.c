@@ -276,6 +276,7 @@ static int mmp_rtc_probe(struct platform_device *pdev)
 	struct rtc_device *rtc;
 	struct device *dev = &pdev->dev;
 	struct resource *res;
+	struct rtc_time tm;
 	struct clk *clk;
 
 	irq_1hz = platform_get_irq(pdev, 0);
@@ -343,6 +344,25 @@ static int mmp_rtc_probe(struct platform_device *pdev)
 	}
 
 	device_init_wakeup(&pdev->dev, 1);
+
+	ret = mmp_rtc_read_time(&pdev->dev, &tm);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "Failed to read initial time.\n");
+		goto err_nortc;
+	}
+	if ((tm.tm_year <= 70) || (tm.tm_year > 138)) {
+		tm.tm_year = 100;
+		tm.tm_mon = 0;
+		tm.tm_mday = 1;
+		tm.tm_hour = 0;
+		tm.tm_min = 0;
+		tm.tm_sec = 0;
+		ret = mmp_rtc_set_time(&pdev->dev, &tm);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "Failed to set initial time.\n");
+			goto err_nortc;
+		}
+	}
 
 	rtc = rtc_device_register(pdev->name, &pdev->dev, &mmp_rtc_ops,
 				THIS_MODULE);
