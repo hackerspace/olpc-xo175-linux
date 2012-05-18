@@ -2011,9 +2011,13 @@ static inline void pxa978_set_core_freq(struct pxa95x_dvfm_info *info,
 	frq_change_ctl = FRQ_CHANGE_CTL;
 	frq_change_ctl &= ~ACLK_RATIO_MASK;
 	/* Set aclk ratio */
-	if (new->core > 156)
+	if (cpu_is_pxa978_Dx()) {
+		if (new->core > 156 && new->core < 1196)
+			frq_change_ctl |= 0x1 << ACLK_RATIO_OFFSET;
+		else if (new->core >= 1196)
+			frq_change_ctl |= 0x2 << ACLK_RATIO_OFFSET;
+	} else if (new->core > 156)
 		frq_change_ctl |= 0x1 << ACLK_RATIO_OFFSET;
-
 	if (new->core < 624) {
 		/* From System/Core PLL frequency to System PLL frequency */
 		frq_change_ctl &= ~(SYS_FREQ_SEL_MASK | CLK_SRC_MASK |
