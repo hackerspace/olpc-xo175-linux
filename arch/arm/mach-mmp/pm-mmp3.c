@@ -1943,7 +1943,14 @@ static void d2(void)
 
 	/* walk around for B0: program dll table before entering D2 */
 	program_dll_table_b0((u32)mmp3_pmu_config.dmcu[0], 0);
-	program_dll_table_b0((u32)mmp3_pmu_config.dmcu[1], 0);
+
+	reg = __raw_readl(APMU_BUS);
+	if (reg & (1 << 1))
+		/* prgram dll table for MC2 only when it is released from reset */
+		program_dll_table_b0((u32)mmp3_pmu_config.dmcu[1], 0);
+	else
+		/* make the wake up state machine do not wait for ack from MC2 idle */
+		__raw_writel(__raw_readl(APMU_DEBUG2) | (1 << 1), APMU_DEBUG2);
 
 	ccic = __raw_readl(APMU_CCIC_RST);
 	gc = __raw_readl(APMU_GC);
