@@ -279,6 +279,12 @@ int is_wkr_mg1_1677(void)
 	return cpu_is_pxa955_E0();
 }
 
+/* workaround for bug JIRA NEVO-2363 */
+int is_wkr_nevo_2363(void)
+{
+	return cpu_is_pxa978();
+}
+
 /* workaround for bug JIRA NEVO-2368 */
 int is_wkr_nevo_2368(void)
 {
@@ -1356,7 +1362,7 @@ void enter_lowpower_mode(int state)
 			if (is_wkr_mg1_1468())
 				enable_axi_lpm_entry();
 
-			if (is_wkr_mg1_1677())
+			if (is_wkr_mg1_1677() || is_wkr_nevo_2363())
 				save_dma_registers();
 
 			if (likely(!ForceVCTCXO_EN)) {
@@ -1413,7 +1419,7 @@ void enter_lowpower_mode(int state)
 				clk_enable(clk_pout);
 			}
 
-			if (is_wkr_mg1_1677())
+			if (is_wkr_mg1_1677() || is_wkr_nevo_2363())
 				restore_dma_registers();
 
 			if (is_wkr_mg1_1468())
