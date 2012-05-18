@@ -863,6 +863,7 @@ void vmeta_power_switch(unsigned int enable)
 }
 #endif
 
+#ifdef CONFIG_MMP_ZSP
 static void mmp_zsp_domain_halt(void)
 {
 	/* reset audio accelerator processor and subsystem */
@@ -1063,7 +1064,12 @@ void mmp_zsp_platform_device_init(void)
 		printk("ZSP device does not exist\n");
 	}
 }
+#else
+void mmp_zsp_platform_device_init(void)
+{
+}
 
+#endif
 /* APB peripheral clocks */
 static APBC_CLK(uart1, MMP2_UART1, 1, 26000000);
 static APBC_CLK(uart2, MMP2_UART2, 1, 26000000);
