@@ -321,6 +321,35 @@ struct regval_list yuv_QCIF_tab[] = {
 	{OV5640_MIPI_END_ADDR, OV5640_MIPI_END_VAL}
 };
 
+/* This setting is verified only on pxa978. */
+struct regval_list yuv_QHVGA_tab[] = {
+	{0x3800, 0x0 },	/* sensor x start point (h) */
+	{0x3801, 0x0 },   /* sensor x start point (l) */
+	{0x3802, 0x0 },   /* sensor y start point (h) */
+	{0x3803, 0x4 },   /* sensor y start point (l) */
+	{0x380c, 0x7 },   /* sensor x output total size (h) */
+	{0x380d, 0x68},  /* sensor x output total size (l) */
+	{0x380e, 0x3 },   /* sensor y output total size (h) */
+	{0x380f, 0xD8},  /* sensor y output total size (l) */
+	{0x3808, 0x0 },   /* DVP x output size (h) */
+	{0x3809, 0xF0},  /* DVP x output size (l) */
+	{0x380A, 0x0 },   /* DVP y output size (h) */
+	{0x380B, 0xA0},  /* DVP y output size (l) */
+	{0x3804, 0xA },   /* DVP x input size (h) */
+	{0x3805, 0x3F},  /* DVP x input size (l) */
+	{0x3806, 0x7 },   /* DVP y input size (h) */
+	{0x3807, 0x9B},  /* DVP y input size (l) */
+	{0x3810, 0x0 },   /* H Offset */
+	{0x3811, 0x46},
+	{0x3812, 0x0 },   /* V Offset */
+	{0x3813, 0x6 },
+	{0x3814, 0x31},
+	{0x3815, 0x31},
+	{0x3035, 0x14},  /* MIPI_div */
+
+	{OV5640_MIPI_END_ADDR, OV5640_MIPI_END_VAL}
+};
+
 struct regval_list yuv_QVGA_tab[] = {
 	{0x3800, 0x0 },	 /* sensor x start point (h) */
 	{0x3801, 0x0 },  /* sensor x start point (l) */

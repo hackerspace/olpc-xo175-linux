@@ -49,6 +49,12 @@ static struct ov5640_win_size {
 		.height = 144,
 		.phy_cfg_id = 0,
 	},
+	/* QHVGA */
+	{
+		.width = 240,
+		.height = 160,
+		.phy_cfg_id = 0,
+	},
 	/* QVGA */
 	{
 		.width = 320,
@@ -490,6 +496,10 @@ static int ov5640_s_fmt(struct v4l2_subdev *sd,
 		case 176:
 			pregs = yuv_QCIF_tab;
 			dev_info(&client->dev, "choose qcif setting!\n");
+			break;
+		case 240:
+			pregs = yuv_QHVGA_tab;
+			dev_info(&client->dev, "choose qhvga setting!\n");
 			break;
 		case 320:
 			pregs = yuv_QVGA_tab;
