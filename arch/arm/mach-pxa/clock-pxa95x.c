@@ -823,22 +823,25 @@ static void mm_pll_setting(int flag, unsigned long rate, unsigned int value,
 		unsigned int mask)
 {
 	unsigned int tmp, gc_rate, vm_rate, ori_gc, ori_vmeta;
+	unsigned long flags;
 
 	gc_rate = clk_pxa95x_gc_getrate(&clk_pxa95x_gcu);
 	vm_rate = clk_pxa95x_vmeta_getrate(&clk_pxa95x_vmeta);
 
+	local_fiq_disable();
+	local_irq_save(flags);
 	if (rate < 498000000) {
 		write_accr0(value, mask);
 		if ((flag && (vm_rate < 498000000) && (gc_rate >= 498000000)) ||
 		   (!flag && (gc_rate < 498000000) && (vm_rate >= 498000000)))
 			mm_pll_enable(0);
-		return;
+		goto out;
 	} else if (vm_rate < 498000000 && gc_rate < 498000000)
 		mm_pll_enable(1);
 
 	if (get_mm_pll_freq() * 1000000 == rate) {
 		write_accr0(value, mask);
-		return;
+		goto out;
 	}
 	tmp = ACCR0;
 	ori_gc = ACCR0 & (ACCR0_GCFS_MASK | ACCR0_GCAXIFS_MASK);
@@ -864,6 +867,9 @@ static void mm_pll_setting(int flag, unsigned long rate, unsigned int value,
 	ACCR0 = tmp;
 	set_mmpll_freq(rate);
 	write_accr0(value, mask);
+out:
+	local_irq_restore(flags);
+	local_fiq_enable();
 }
 
 static int clk_pxa95x_gcu_setrate(struct clk *gc_clk, unsigned long rate)
@@ -1544,9 +1550,14 @@ static int __init pxa95x_clk_init(void)
 	/* Make sure rate is always same as real setting */
 	clk_pxa95x_gcu.rate = clk_get_rate(&clk_pxa95x_gcu);
 	clk_pxa95x_vmeta.rate = clk_get_rate(&clk_pxa95x_vmeta);
+
 	/* Initialize the clock of vMeta/GC to lowest */
 	clk_set_rate(&clk_pxa95x_vmeta, 0);
 	clk_set_rate(&clk_pxa95x_gcu, 0);
+
+	/* Don't use IRQ disable to protect the clock driver */
+	clk_set_cansleep(&clk_pxa95x_vmeta);
+	clk_set_cansleep(&clk_pxa95x_gcu);
 
 	return 0;
 }
