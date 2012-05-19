@@ -1020,7 +1020,7 @@ void gc_pwr(int enableDisable)
 		if (gcpwr & GCPWR_PWR_ST)
 			return;	/*Pwr is already on */
 		/*gc clock on*/
-		clk_enable(clk_gc);
+		CKENC |= gc_clk_on;
 		/*gc power on*/
 		GCPWR = GCPWR_SETALLWAYS | GCPWR_PWON;
 		/* poll for gc power mode status*/
@@ -1032,7 +1032,7 @@ void gc_pwr(int enableDisable)
 		gcpwr |= GCPWR_RST_N;
 		GCPWR = gcpwr;
 		/*gc clock off*/
-		clk_disable(clk_gc);
+		CKENC &= ~(gc_clk_on);
 	} else if (GC_PWR_DISABLE == enableDisable) {
 		if ((gcpwr & GCPWR_PWR_ST) != GCPWR_PWR_ST)
 			return;	/*Pwr is already off */
