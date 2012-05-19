@@ -17,8 +17,11 @@
 #include <mach/pxa3xx-regs.h>
 #include <mach/debug_pm.h>
 #include <mach/pxa95x_dvfm.h>
+#include <mach/dvfs.h>
 #include "dsi_hdmi_pll.h"
 #include "clock.h"
+
+#define HZ_TO_KHZ	1000
 
 static void common_clk_init(struct clk *c)
 {
@@ -1095,6 +1098,15 @@ static unsigned long clk_pxa95x_vmeta_getrate(struct clk *vmeta_clk)
 static int clk_pxa95x_vmeta_setrate(struct clk *vmeta_clk, unsigned long rate)
 {
 	unsigned int value, mask = 0x7 << 3;
+	extern struct dvfs vmeta_dvfs;
+	struct dvfs_freqs dvfs_freqs;
+
+	dvfs_freqs.old = clk_get_rate(vmeta_clk) / HZ_TO_KHZ;
+	dvfs_freqs.new = rate / HZ_TO_KHZ;
+	dvfs_freqs.dvfs = &vmeta_dvfs;
+	if (dvfs_freqs.old < dvfs_freqs.new)
+		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
+
 	switch (rate) {
 	case 156000000:
 		value = 0;
@@ -1116,11 +1128,16 @@ static int clk_pxa95x_vmeta_setrate(struct clk *vmeta_clk, unsigned long rate)
 		break;
 	default:
 		printk(KERN_ERR "VMeta don't suppport rate: %lu\n", rate);
+		WARN_ON(1);
 		return -1;
 	}
 #ifdef GCVMETA_WR
 	mm_pll_setting(0, rate, value << 3, mask);
 #endif
+
+	if (dvfs_freqs.old > dvfs_freqs.new)
+		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
+
 	return 0;
 }
 
