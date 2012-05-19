@@ -1160,7 +1160,6 @@ static int __init pxa95x_clk_init(void)
 	else
 		clock_lookup_init(pxa955_specific_clkregs,
 				  ARRAY_SIZE(pxa955_specific_clkregs));
-	register_syscore_ops(&pxa3xx_clock_syscore_ops);
 	return 0;
 }
 
