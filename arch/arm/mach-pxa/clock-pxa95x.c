@@ -1095,10 +1095,10 @@ static unsigned long clk_pxa95x_vmeta_getrate(struct clk *vmeta_clk)
 	return rate;
 }
 
+extern struct dvfs vmeta_dvfs;
 static int clk_pxa95x_vmeta_setrate(struct clk *vmeta_clk, unsigned long rate)
 {
 	unsigned int value, mask = 0x7 << 3;
-	extern struct dvfs vmeta_dvfs;
 	struct dvfs_freqs dvfs_freqs;
 
 	dvfs_freqs.old = clk_get_rate(vmeta_clk) / HZ_TO_KHZ;
@@ -1141,10 +1141,38 @@ static int clk_pxa95x_vmeta_setrate(struct clk *vmeta_clk, unsigned long rate)
 	return 0;
 }
 
+static int clk_pxa95x_vmeta_enable(struct clk *clk)
+{
+	struct dvfs_freqs dvfs_freqs;
+
+	dvfs_freqs.old = 0;
+	dvfs_freqs.new = clk_get_rate(clk) / HZ_TO_KHZ;
+	dvfs_freqs.dvfs = &vmeta_dvfs;
+
+	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
+	CKENB |= (1 << (clk->enable_val - 32));
+	gc_vmeta_stats_clk_event(VMETA_CLK_ON);
+
+	return 0;
+}
+
+static void clk_pxa95x_vmeta_disable(struct clk *clk)
+{
+	struct dvfs_freqs dvfs_freqs;
+
+	dvfs_freqs.old = clk_get_rate(clk) / HZ_TO_KHZ;
+	dvfs_freqs.new = 0;
+	dvfs_freqs.dvfs = &vmeta_dvfs;
+
+	gc_vmeta_stats_clk_event(VMETA_CLK_OFF);
+	CKENB &= ~(1 << (clk->enable_val - 32));
+	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
+}
+
 static const struct clkops clk_pxa95x_vmeta_ops = {
 	.init = common_clk_init,
-	.disable = clk_pxa3xx_cken_disable,
-	.enable = clk_pxa3xx_cken_enable,
+	.disable = clk_pxa95x_vmeta_disable,
+	.enable = clk_pxa95x_vmeta_enable,
 	.round_rate = clk_pxa95x_vmeta_round_rate,
 	.getrate = clk_pxa95x_vmeta_getrate,
 	.setrate = clk_pxa95x_vmeta_setrate,
