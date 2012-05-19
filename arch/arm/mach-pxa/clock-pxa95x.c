@@ -817,14 +817,16 @@ static unsigned long clk_pxa95x_gc_getrate(struct clk *gc_clk)
  * if GC or vMeta are at MMPLL and the other want to change
  * to MMPLL or change MMPLL's frequency.
  */
-static void mm_pll_setting(int flag, unsigned rate, unsigned int value, unsigned int mask)
+static struct clk clk_pxa95x_gcu, clk_pxa95x_vmeta;
+static unsigned long clk_pxa95x_vmeta_getrate(struct clk *vmeta_clk);
+static void mm_pll_setting(int flag, unsigned long rate, unsigned int value,
+		unsigned int mask)
 {
 	unsigned int tmp, gc_rate, vm_rate, ori_gc, ori_vmeta;
-	struct clk *gc_clk, *vmeta_clk;
-	gc_clk = clk_get(NULL, "GCCLK");
-	vmeta_clk = clk_get(NULL, "VMETA_CLK");
-	gc_rate = clk_get_rate(gc_clk);
-	vm_rate = clk_get_rate(vmeta_clk);
+
+	gc_rate = clk_pxa95x_gc_getrate(&clk_pxa95x_gcu);
+	vm_rate = clk_pxa95x_vmeta_getrate(&clk_pxa95x_vmeta);
+
 	if (rate < 498000000) {
 		write_accr0(value, mask);
 		if ((flag && (vm_rate < 498000000) && (gc_rate >= 498000000)) ||
@@ -847,7 +849,7 @@ static void mm_pll_setting(int flag, unsigned rate, unsigned int value, unsigned
 		if (!flag && (gc_rate != rate)) {
 			value |= ori_gc;
 			mask |= (ACCR0_GCFS_MASK | ACCR0_GCAXIFS_MASK);
-			gc_clk->rate = rate;
+			clk_pxa95x_gcu.rate = rate;
 		}
 	}
 	if (vm_rate >= 498000000) {
@@ -856,7 +858,7 @@ static void mm_pll_setting(int flag, unsigned rate, unsigned int value, unsigned
 		if (flag && (vm_rate != rate)) {
 			value |= ori_vmeta;
 			mask |= ACCR0_VMFC_MASK;
-			vmeta_clk->rate = rate;
+			clk_pxa95x_vmeta.rate = rate;
 		}
 	}
 	ACCR0 = tmp;
@@ -1100,7 +1102,7 @@ static int clk_pxa95x_vmeta_setrate(struct clk *vmeta_clk, unsigned long rate)
 	unsigned int value, mask = 0x7 << 3;
 	struct dvfs_freqs dvfs_freqs;
 
-	dvfs_freqs.old = clk_get_rate(vmeta_clk) / HZ_TO_KHZ;
+	dvfs_freqs.old = vmeta_clk->rate / HZ_TO_KHZ;
 	dvfs_freqs.new = rate / HZ_TO_KHZ;
 	dvfs_freqs.dvfs = &vmeta_dvfs;
 	if (dvfs_freqs.old < dvfs_freqs.new)
@@ -1145,7 +1147,7 @@ static int clk_pxa95x_vmeta_enable(struct clk *clk)
 	struct dvfs_freqs dvfs_freqs;
 
 	dvfs_freqs.old = 0;
-	dvfs_freqs.new = clk_get_rate(clk) / HZ_TO_KHZ;
+	dvfs_freqs.new = clk->rate / HZ_TO_KHZ;
 	dvfs_freqs.dvfs = &vmeta_dvfs;
 
 	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
@@ -1159,7 +1161,7 @@ static void clk_pxa95x_vmeta_disable(struct clk *clk)
 {
 	struct dvfs_freqs dvfs_freqs;
 
-	dvfs_freqs.old = clk_get_rate(clk) / HZ_TO_KHZ;
+	dvfs_freqs.old = clk->rate / HZ_TO_KHZ;
 	dvfs_freqs.new = 0;
 	dvfs_freqs.dvfs = &vmeta_dvfs;
 
@@ -1539,6 +1541,13 @@ static int __init pxa95x_clk_init(void)
 	else
 		clock_lookup_init(pxa955_specific_clkregs,
 				  ARRAY_SIZE(pxa955_specific_clkregs));
+	/* Make sure rate is always same as real setting */
+	clk_pxa95x_gcu.rate = clk_get_rate(&clk_pxa95x_gcu);
+	clk_pxa95x_vmeta.rate = clk_get_rate(&clk_pxa95x_vmeta);
+	/* Initialize the clock of vMeta/GC to lowest */
+	clk_set_rate(&clk_pxa95x_vmeta, 0);
+	clk_set_rate(&clk_pxa95x_gcu, 0);
+
 	return 0;
 }
 
