@@ -693,10 +693,10 @@ static inline unsigned int get_mm_pll_freq(void)
 static inline unsigned int mm_pll_freq2reg(unsigned int x)
 {
 	switch (x) {
-	case 498:
+	case 498000000:
 		/* VCODIV_SEL=5 KVCO=5 FBDIV=230(0xE6) REFDIV=3 */
 		return 5 << 20 | 5 << 16 | 0xE6 << 5 | 3 << 0;
-	case 600:
+	case 600000000:
 		/* VCODIV_SEL=5 KVCO=7 FBDIV=277(0x115) REFDIV=3 */
 		return 5 << 20 | 7 << 16 | 0x115 << 5 | 3 << 0;
 	default:
@@ -708,7 +708,7 @@ static inline unsigned int mm_pll_freq2reg(unsigned int x)
 static inline void set_mmpll_freq(unsigned int rate)
 {
 	uint32_t mm_pll_param;
-	if ((rate != 498) && (rate != 600))
+	if ((rate != 498000000) && (rate != 600000000))
 		return;
 	mm_pll_param = MM_PLL_PARAM;
 	mm_pll_param &= ~(MMPLL_VCODIV_SEL_MASK
@@ -734,7 +734,7 @@ static void clk_mmpll_disable(struct clk *clk)
 
 static unsigned long clk_mmpll_getrate(struct clk *mmpll)
 {
-	return get_mm_pll_freq();
+	return get_mm_pll_freq() * 1000000;
 }
 
 static int clk_mmpll_setrate(struct clk *mmpll, unsigned long rate)
@@ -790,24 +790,24 @@ static unsigned long clk_pxa95x_gc_getrate(struct clk *gc_clk)
 
 	switch (rate) {
 	case 0:
-		rate = 208;
+		rate = 208000000;
 		break;
 	case 1:
-		rate = 156;
+		rate = 156000000;
 		break;
 	case 2:
-		rate = 312;
+		rate = 312000000;
 		break;
 	case 3:
-		rate = 416;
+		rate = 416000000;
 		break;
 	case 5:
-		rate = get_mm_pll_freq();
+		rate = get_mm_pll_freq() * 1000000;
 		break;
 	default:
 		return -1;
 	}
-	return rate * 1000000;
+	return rate;
 }
 
 #define GCVMETA_WR
@@ -819,42 +819,41 @@ static unsigned long clk_pxa95x_gc_getrate(struct clk *gc_clk)
  */
 static void mm_pll_setting(int flag, unsigned rate, unsigned int value, unsigned int mask)
 {
-	unsigned int tmp, gcfs, vmfc, ori_gc, ori_vmeta;
+	unsigned int tmp, gc_rate, vm_rate, ori_gc, ori_vmeta;
 	struct clk *gc_clk, *vmeta_clk;
 	gc_clk = clk_get(NULL, "GCCLK");
 	vmeta_clk = clk_get(NULL, "VMETA_CLK");
-	gcfs = clk_get_rate(gc_clk) / 1000000;
-	vmfc = clk_get_rate(vmeta_clk) / 1000000;
-	rate = rate / 1000000;
-	if (rate < 498) {
+	gc_rate = clk_get_rate(gc_clk);
+	vm_rate = clk_get_rate(vmeta_clk);
+	if (rate < 498000000) {
 		write_accr0(value, mask);
-		if ((flag && (vmfc < 498) && (gcfs >= 498)) ||
-		   (!flag && (gcfs < 498) && (vmfc >= 498)))
+		if ((flag && (vm_rate < 498000000) && (gc_rate >= 498000000)) ||
+		   (!flag && (gc_rate < 498000000) && (vm_rate >= 498000000)))
 			mm_pll_enable(0);
 		return;
-	} else if (vmfc < 498 && gcfs < 498)
+	} else if (vm_rate < 498000000 && gc_rate < 498000000)
 		mm_pll_enable(1);
 
-	if (get_mm_pll_freq() == rate) {
+	if (get_mm_pll_freq() * 1000000 == rate) {
 		write_accr0(value, mask);
 		return;
 	}
 	tmp = ACCR0;
 	ori_gc = ACCR0 & (ACCR0_GCFS_MASK | ACCR0_GCAXIFS_MASK);
 	ori_vmeta = ACCR0 & ACCR0_VMFC_MASK;
-	if (gcfs >= 498) {
+	if (gc_rate >= 498000000) {
 		tmp &= ~(ACCR0_GCFS_MASK | ACCR0_GCAXIFS_MASK);
 		tmp |= (0x3 << ACCR0_GCFS_OFFSET | 0x3 << ACCR0_GCAXIFS_OFFSET);
-		if (!flag && (gcfs != rate)) {
+		if (!flag && (gc_rate != rate)) {
 			value |= ori_gc;
 			mask |= (ACCR0_GCFS_MASK | ACCR0_GCAXIFS_MASK);
 			gc_clk->rate = rate;
 		}
 	}
-	if (vmfc >= 498) {
+	if (vm_rate >= 498000000) {
 		tmp &= ~ACCR0_VMFC_MASK;
 		tmp |= 0x3 << ACCR0_VMFC_OFFSET;
-		if (flag && (vmfc != rate)) {
+		if (flag && (vm_rate != rate)) {
 			value |= ori_vmeta;
 			mask |= ACCR0_VMFC_MASK;
 			vmeta_clk->rate = rate;
