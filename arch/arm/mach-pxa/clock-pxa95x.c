@@ -1067,7 +1067,10 @@ static void cken_clear_always_set_always_setup(void)
 
 	/* setup clear always bits */
 	ckena_clear_always_bits_mask = 0x831730ee;
-	ckenb_clear_always_bits_mask = 0x00030e20;
+	if (cpu_is_pxa978())
+		ckenb_clear_always_bits_mask = 0x00030e24;
+	else
+		ckenb_clear_always_bits_mask = 0x00030e20;
 	ckenc_clear_always_bits_mask = 0x00303300;
 
 	CKENA &= ~ckena_clear_always_bits_mask;
