@@ -190,6 +190,9 @@ int set_dvfs_rate(struct dvfs *d, unsigned long rate)
 		d->millivolts = d->vol_freq_table[i].millivolts;
 	}
 
+	pr_debug("set voltage to %d from %s for rate %lu.\n",
+			d->millivolts, d->clk_name, rate);
+
 	ret = dvfs_rail_update(d->dvfs_rail);
 	if (ret)
 		pr_err("Failed to set voltage to %d mV\n", d->millivolts);

@@ -822,11 +822,15 @@ static unsigned long clk_pxa95x_vmeta_getrate(struct clk *vmeta_clk);
 static void mm_pll_setting(int flag, unsigned long rate, unsigned int value,
 		unsigned int mask)
 {
-	unsigned int tmp, gc_rate, vm_rate, ori_gc, ori_vmeta;
-	unsigned long flags;
+	unsigned int tmp, ori_gc, ori_vmeta;
+	unsigned long gc_rate, vm_rate, flags;
 
 	gc_rate = clk_pxa95x_gc_getrate(&clk_pxa95x_gcu);
 	vm_rate = clk_pxa95x_vmeta_getrate(&clk_pxa95x_vmeta);
+
+	pr_debug("mm_pll_setting: current gc is %lu, vmeta is %lu.\n"
+		       "Set to %lu by %s.\n", gc_rate, vm_rate, rate,
+		       flag ? "GC" : "vMeta");
 
 	local_fiq_disable();
 	local_irq_save(flags);
@@ -875,6 +879,9 @@ out:
 static int clk_pxa95x_gcu_setrate(struct clk *gc_clk, unsigned long rate)
 {
 	unsigned int value, mask = 0x3F << 6;
+
+	pr_debug("gc setrate from %lu to %lu.\n", gc_clk->rate, rate);
+
 	switch (rate) {
 	case 208000000:
 		value = 0;
@@ -1108,6 +1115,8 @@ static int clk_pxa95x_vmeta_setrate(struct clk *vmeta_clk, unsigned long rate)
 	unsigned int value, mask = 0x7 << 3;
 	struct dvfs_freqs dvfs_freqs;
 
+	pr_debug("vmeta setrate from %lu to %lu.\n", vmeta_clk->rate, rate);
+
 	dvfs_freqs.old = vmeta_clk->rate / HZ_TO_KHZ;
 	dvfs_freqs.new = rate / HZ_TO_KHZ;
 	dvfs_freqs.dvfs = &vmeta_dvfs;
@@ -1156,6 +1165,8 @@ static int clk_pxa95x_vmeta_enable(struct clk *clk)
 	dvfs_freqs.new = clk->rate / HZ_TO_KHZ;
 	dvfs_freqs.dvfs = &vmeta_dvfs;
 
+	pr_debug("vmeta enable from 0 to %lu.\n", clk->rate);
+
 	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
 	CKENB |= (1 << (clk->enable_val - 32));
 	gc_vmeta_stats_clk_event(VMETA_CLK_ON);
@@ -1170,6 +1181,8 @@ static void clk_pxa95x_vmeta_disable(struct clk *clk)
 	dvfs_freqs.old = clk->rate / HZ_TO_KHZ;
 	dvfs_freqs.new = 0;
 	dvfs_freqs.dvfs = &vmeta_dvfs;
+
+	pr_debug("vmeta disable from %lu to 0.\n", clk->rate);
 
 	gc_vmeta_stats_clk_event(VMETA_CLK_OFF);
 	CKENB &= ~(1 << (clk->enable_val - 32));
