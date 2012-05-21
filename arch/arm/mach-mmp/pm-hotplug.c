@@ -125,7 +125,7 @@ static void hotplug_timer(struct work_struct *work)
 	mutex_unlock(&hotplug_lock);
 }
 
-static int mmp3_pm_hotplug_notifier_event(struct notifier_block *this,
+static int mmp_pm_hotplug_notifier_event(struct notifier_block *this,
 					     unsigned long event, void *ptr)
 {
 	static unsigned user_lock_saved;
@@ -151,8 +151,8 @@ static int mmp3_pm_hotplug_notifier_event(struct notifier_block *this,
 	return NOTIFY_DONE;
 }
 
-static struct notifier_block mmp3_pm_hotplug_notifier = {
-	.notifier_call = mmp3_pm_hotplug_notifier_event,
+static struct notifier_block mmp_pm_hotplug_notifier = {
+	.notifier_call = mmp_pm_hotplug_notifier_event,
 };
 
 static int hotplug_reboot_notifier_call(struct notifier_block *this,
@@ -170,9 +170,9 @@ static struct notifier_block hotplug_reboot_notifier = {
 	.notifier_call = hotplug_reboot_notifier_call,
 };
 
-static int __init mmp3_pm_hotplug_init(void)
+static int __init mmp_pm_hotplug_init(void)
 {
-	printk(KERN_INFO "SMDKV310 PM-hotplug init function\n");
+	printk(KERN_INFO "mmp PM-hotplug init function\n");
 	hotplug_wq = create_singlethread_workqueue("dynamic hotplug");
 	if (!hotplug_wq) {
 		printk(KERN_ERR "Creation of hotplug work failed\n");
@@ -183,10 +183,10 @@ static int __init mmp3_pm_hotplug_init(void)
 
 	queue_delayed_work_on(0, hotplug_wq, &hotplug_work, 60 * HZ);
 
-	register_pm_notifier(&mmp3_pm_hotplug_notifier);
+	register_pm_notifier(&mmp_pm_hotplug_notifier);
 	register_reboot_notifier(&hotplug_reboot_notifier);
 
 	return 0;
 }
 
-late_initcall(mmp3_pm_hotplug_init);
+late_initcall(mmp_pm_hotplug_init);
