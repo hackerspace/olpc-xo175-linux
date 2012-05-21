@@ -285,7 +285,7 @@ static u8 dsi_wait_interrupt(struct pxa95xfb_conv_info * conv, u32 time_to_wait)
 	}
 	if (i > 50)
 		printk("%s: failed to receive DSI interrupt!!!\n", __func__);
-	mdelay(time_to_wait);
+	msleep(time_to_wait);
 	writel(x|LCD_DSI_DxINST0_SP_GEN_INT_STS,
 				conv_base + LCD_DSI_DxINST0_OFFSET);
 	return ret;
