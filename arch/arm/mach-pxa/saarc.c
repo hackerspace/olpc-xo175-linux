@@ -1475,15 +1475,15 @@ static int camera0_power(struct device *dev, int flag)
 			break;
 		case SENSOR_CLOSE:
 			gpio_direction_output(pwd_isp, 0);	/* disable */
-			mdelay(50);
+			msleep(50);
 			break;
 		case ISP_SENSOR_OPEN:
 			gpio_direction_output(pwd_main, 1);	/* enable */
-			mdelay(50);
+			msleep(50);
 			break;
 		case ISP_SENSOR_CLOSE:
 			gpio_direction_output(pwd_main, 0);	/* disable */
-			mdelay(50);
+			msleep(50);
 			break;
 		}
 		return 0;
