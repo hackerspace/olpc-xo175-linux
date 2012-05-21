@@ -471,7 +471,7 @@ static struct mmp3_percpu_config {
 	[0] = {
 		.cic = {
 			.idle_config_valid_mask = 0x000000e2,
-			.idle_config_keep_mask = 0x8deffc1d,
+			.idle_config_keep_mask = 0x0deffc1d,
 			.idle_config = MK_APMU_REG_VADDR(0x18),
 			.wake_status = WAKE_STAT,
 			.intr_status = INTR_STAT,
@@ -481,7 +481,7 @@ static struct mmp3_percpu_config {
 	[1] = {
 		.cic = {
 			.idle_config_valid_mask = 0x00000062,
-			.idle_config_keep_mask = 0x8deffc1d,
+			.idle_config_keep_mask = 0x0deffc1d,
 			.idle_config = MK_APMU_REG_VADDR(0x200),
 			.wake_status = WAKE_STAT,
 			.intr_status = INTR_STAT,
@@ -491,7 +491,7 @@ static struct mmp3_percpu_config {
 	[2] = {
 		.cic = {
 			.idle_config_valid_mask = 0x00000062,
-			.idle_config_keep_mask = 0x8deffc1d,
+			.idle_config_keep_mask = 0x0deffc1d,
 			.idle_config = MK_APMU_REG_VADDR(0x204),
 			.wake_status = WAKE_STAT,
 			.intr_status = INTR_STAT,
