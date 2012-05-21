@@ -1672,12 +1672,12 @@ static int __cpufreq_set_policy(struct cpufreq_policy *data,
 					data->governor = old_gov;
 					__cpufreq_governor(data,
 							   CPUFREQ_GOV_START);
-					kobject_uevent(&policy->kobj, KOBJ_ADD);
+					kobject_uevent(cpufreq_global_kobject, KOBJ_ADD);
 				}
 				ret = -EINVAL;
 				goto error_out;
 			}
-			kobject_uevent(&policy->kobj, KOBJ_ADD);
+			kobject_uevent(cpufreq_global_kobject, KOBJ_ADD);
 			/* might be a policy change, too, so fall through */
 		}
 		pr_debug("governor: change or update limits\n");
