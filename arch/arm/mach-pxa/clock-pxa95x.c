@@ -750,19 +750,37 @@ static const struct clkops clk_mmpll_ops = {
 	.setrate = clk_mmpll_setrate,
 };
 
+extern struct dvfs gc_dvfs;
 static int clk_gcu_enable(struct clk *clk)
 {
+	struct dvfs_freqs dvfs_freqs;
+
+	dvfs_freqs.old = 0;
+	dvfs_freqs.new = clk->rate / HZ_TO_KHZ;
+	dvfs_freqs.dvfs = &gc_dvfs;
+
+	pr_debug("GC enable from 0 to %lu.\n", clk->rate);
+
+	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
+	CKENC |= ((1 << (CKEN_GC_1X - 64)) | (1 << (CKEN_GC_2X - 64)));
 	gc_vmeta_stats_clk_event(GC_CLK_ON);
-	CKENC |= (1 << (CKEN_GC_1X - 64));
-	CKENC |= (1 << (CKEN_GC_2X - 64));
+
 	return 0;
 }
 
 static void clk_gcu_disable(struct clk *clk)
 {
-	CKENC &= ~(1 << (CKEN_GC_1X - 64));
-	CKENC &= ~(1 << (CKEN_GC_2X - 64));
+	struct dvfs_freqs dvfs_freqs;
+
+	dvfs_freqs.old = clk->rate / HZ_TO_KHZ;
+	dvfs_freqs.new = 0;
+	dvfs_freqs.dvfs = &gc_dvfs;
+
+	pr_debug("GC disable from %lu to 0.\n", clk->rate);
+
 	gc_vmeta_stats_clk_event(GC_CLK_OFF);
+	CKENC &= ~((1 << (CKEN_GC_1X - 64)) | (1 << (CKEN_GC_2X - 64)));
+	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
 }
 
 static long clk_pxa95x_gc_round_rate(struct clk *gc_clk, unsigned long rate)
@@ -879,8 +897,15 @@ out:
 static int clk_pxa95x_gcu_setrate(struct clk *gc_clk, unsigned long rate)
 {
 	unsigned int value, mask = 0x3F << 6;
+	struct dvfs_freqs dvfs_freqs;
 
 	pr_debug("gc setrate from %lu to %lu.\n", gc_clk->rate, rate);
+
+	dvfs_freqs.old = gc_clk->rate / HZ_TO_KHZ;
+	dvfs_freqs.new = rate / HZ_TO_KHZ;
+	dvfs_freqs.dvfs = &gc_dvfs;
+	if (dvfs_freqs.old < dvfs_freqs.new)
+		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
 
 	switch (rate) {
 	case 208000000:
@@ -906,6 +931,10 @@ static int clk_pxa95x_gcu_setrate(struct clk *gc_clk, unsigned long rate)
 #ifdef GCVMETA_WR
 	mm_pll_setting(1, rate, value << 6, mask);
 #endif
+
+	if (dvfs_freqs.old > dvfs_freqs.new)
+		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
+
 	return 0;
 }
 
