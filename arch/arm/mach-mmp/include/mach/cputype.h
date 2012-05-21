@@ -21,6 +21,7 @@
 
 extern unsigned int mmp_chip_id;
 extern unsigned int mmp_fuse_id;
+extern unsigned int mmp_1g_svc;
 
 #ifdef CONFIG_CPU_PXA168
 static inline int cpu_is_pxa168(void)
@@ -58,9 +59,8 @@ static inline int cpu_is_pxa920(void)
 {
 	if (cpu_is_pxa920_family() && ((mmp_fuse_id & 0x3000000)) == 0x3000000)
 		return 0;
-	if (cpu_is_pxa920_family() && ((mmp_fuse_id & 0x0000f000)) == 0x00003000)
-		return 0;
-	if (cpu_is_pxa920_family())
+	if (cpu_is_pxa920_family() && (mmp_1g_svc == 0x0) &&
+		((mmp_fuse_id & 0x0000f000) != 0x00003000))
 		return 1;
 	return 0;
 }
@@ -69,7 +69,8 @@ static inline int cpu_is_pxa921(void)
 {
 	if (cpu_is_pxa920_family() && ((mmp_fuse_id & 0x3000000) == 0x3000000))
 		return 0;
-	if (cpu_is_pxa920_family() && ((mmp_fuse_id & 0x0000f000) == 0x00003000))
+	if (cpu_is_pxa920_family() && ((mmp_1g_svc != 0x0) ||
+		((mmp_fuse_id & 0x0000f000) == 0x00003000)))
 		return 1;
 	return 0;
 }

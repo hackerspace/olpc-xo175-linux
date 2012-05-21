@@ -27,13 +27,17 @@
 #include "common.h"
 
 #define MMP_CHIPID	(AXI_VIRT_BASE + 0x82c00)
-#define MMP_FUSEID	(AXI_VIRT_BASE + 0x1498)
+#define MMP_FUSE_95_64	(AXI_VIRT_BASE + 0x1498)
+#define MMP_FUSE_127_96	(AXI_VIRT_BASE + 0x149c)
 
 unsigned int mmp_chip_id;
 EXPORT_SYMBOL(mmp_chip_id);
 
 unsigned int mmp_fuse_id;
 EXPORT_SYMBOL(mmp_fuse_id);
+
+unsigned int mmp_1g_svc;
+EXPORT_SYMBOL(mmp_1g_svc);
 
 int mmp2_platform_version;
 
@@ -91,5 +95,7 @@ void __init mmp_map_io(void)
 
 	/* this is early, initialize mmp_chip_id here */
 	mmp_chip_id = __raw_readl(MMP_CHIPID);
-	mmp_fuse_id = __raw_readl(MMP_FUSEID);
+	mmp_fuse_id = __raw_readl(MMP_FUSE_95_64);
+	mmp_1g_svc = ((__raw_readl(MMP_FUSE_127_96) & 0x00003FFF) << 6)
+			| ((__raw_readl(MMP_FUSE_95_64) & 0xFC000000) >> 26);
 }
