@@ -1354,6 +1354,11 @@ static struct clk clk_pxa95x_gcu = {
 	.enable_val = CKEN_GC_1X,
 };
 
+static struct clk clk_pxa978_gcu = {
+	.ops = &clk_gcu_ops,
+	.enable_val = CKEN_GC_1X,
+};
+
 static struct clk clk_pxa95x_csi_tx_esc = {
 	.dependence = common_depend_clk,
 	.dependence_count = ARRAY_SIZE(common_depend_clk),
@@ -1428,7 +1433,6 @@ static struct clk_lookup common_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_axi, NULL, "AXICLK"),
 	INIT_CLKREG(&clk_pxa95x_imu, NULL, "IMUCLK"),
 	INIT_CLKREG(&clk_pxa95x_u2o, NULL, "U2OCLK"),
-	INIT_CLKREG(&clk_pxa95x_gcu, NULL, "GCCLK"),
 	INIT_CLKREG(&clk_pxa95x_abu, NULL, "PXA95X_ABUCLK"),
 	INIT_CLKREG(&clk_pxa95x_smc, NULL, "SMCCLK"),
 	INIT_CLKREG(&clk_pxa3xx_nand, "pxa3xx-nand", NULL),
@@ -1445,6 +1449,7 @@ static struct clk_lookup pxa955_specific_clkregs[] = {
 	INIT_CLKREG(&clk_pxa955_sdh1, "sdhci-pxa.1", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_pxa955_sdh2, "sdhci-pxa.2", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_pxa955_sdh3, "sdhci-pxa.3", "PXA-SDHCLK"),
+	INIT_CLKREG(&clk_pxa95x_gcu, NULL, "GCCLK"),
 };
 
 static struct clk_lookup pxa978_specific_clkregs[] = {
@@ -1454,6 +1459,7 @@ static struct clk_lookup pxa978_specific_clkregs[] = {
 	INIT_CLKREG(&clk_pxa978_sdh2, "sdhci-pxa.2", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_pxa978_sdh3, "sdhci-pxa.3", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_pxa978_mmpll, NULL, "MM_PLL"),
+	INIT_CLKREG(&clk_pxa978_gcu, NULL, "GCCLK"),
 };
 
 static inline void clock_lookup_init(struct clk_lookup *clk_lookup, int count)
@@ -1583,24 +1589,23 @@ static int __init pxa95x_clk_init(void)
 		CKENC &= ~(1 << (CKEN_AXI_2X - 64));
 
 	clock_lookup_init(common_clkregs, ARRAY_SIZE(common_clkregs));
-	if (cpu_is_pxa978())
+	if (cpu_is_pxa978()) {
 		clock_lookup_init(pxa978_specific_clkregs,
-				  ARRAY_SIZE(pxa978_specific_clkregs));
-	else
+				ARRAY_SIZE(pxa978_specific_clkregs));
+		/* Make sure rate is always same as real setting */
+		clk_pxa978_gcu.rate = clk_get_rate(&clk_pxa978_gcu);
+		clk_pxa95x_vmeta.rate = clk_get_rate(&clk_pxa95x_vmeta);
+
+		/* Initialize the clock of vMeta/GC to lowest */
+		clk_set_rate(&clk_pxa95x_vmeta, 0);
+		clk_set_rate(&clk_pxa978_gcu, 0);
+
+		/* Don't use IRQ disable to protect the clock driver */
+		clk_set_cansleep(&clk_pxa95x_vmeta);
+		clk_set_cansleep(&clk_pxa978_gcu);
+	} else
 		clock_lookup_init(pxa955_specific_clkregs,
 				  ARRAY_SIZE(pxa955_specific_clkregs));
-	/* Make sure rate is always same as real setting */
-	clk_pxa95x_gcu.rate = clk_get_rate(&clk_pxa95x_gcu);
-	clk_pxa95x_vmeta.rate = clk_get_rate(&clk_pxa95x_vmeta);
-
-	/* Initialize the clock of vMeta/GC to lowest */
-	clk_set_rate(&clk_pxa95x_vmeta, 0);
-	clk_set_rate(&clk_pxa95x_gcu, 0);
-
-	/* Don't use IRQ disable to protect the clock driver */
-	clk_set_cansleep(&clk_pxa95x_vmeta);
-	clk_set_cansleep(&clk_pxa95x_gcu);
-
 	return 0;
 }
 
