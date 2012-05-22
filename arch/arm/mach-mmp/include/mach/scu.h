@@ -1,5 +1,5 @@
-#ifndef __ASMARM_ARCH_SCU_H
-#define __ASMARM_ARCH_SCU_H
+#ifndef __ASM_MACH_SCU_H
+#define __ASM_MACH_SCU_H
 
 /*
  * SCU registers
