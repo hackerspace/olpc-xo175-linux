@@ -61,14 +61,14 @@ static void __cpuinit write_pen_release(int val)
 	outer_clean_range(__pa(&pen_release), __pa(&pen_release + 1));
 }
 
-static void __iomem *scu_base_addr(void)
+void __iomem *pxa_scu_base_addr(void)
 {
 	return (void __iomem *)SCU_VIRT_BASE;
 }
 
 static inline unsigned int get_core_count(void)
 {
-	void __iomem *scu_base = scu_base_addr();
+	void __iomem *scu_base = pxa_scu_base_addr();
 	if (scu_base)
 		return scu_get_core_count(scu_base);
 	return 1;
@@ -178,7 +178,7 @@ void __init platform_smp_prepare_cpus(unsigned int max_cpus)
 	for (i = 0; i < max_cpus; i++)
 		set_cpu_present(i, true);
 
-	scu_enable(scu_base_addr());
+	scu_enable(pxa_scu_base_addr());
 	/*
 	 * Write the address of secondary startup into the system-wide flags
 	 * register. The BootMonitor waits for this register to become
