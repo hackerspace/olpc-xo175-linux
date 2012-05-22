@@ -267,7 +267,7 @@ int __init enable_dvfs_on_clk(struct clk *c, struct dvfs *d)
  * Must be called before all the cpufreq/devfreq framework initialized
  * (module_initcall).
  */
-int __init dvfs_init(void)
+int __init dvfs_late_init(void)
 {
 	struct dvfs_rail *rail;
 
@@ -283,5 +283,5 @@ int __init dvfs_init(void)
 
 	return 0;
 }
-fs_initcall(dvfs_init);
+fs_initcall(dvfs_late_init);
 
