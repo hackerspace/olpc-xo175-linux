@@ -44,7 +44,7 @@
 #include <linux/wakelock.h>
 #include <mach/sram.h>
 
-#define SRAM_OFFSET_FOR_DTCM 0x7000
+#define SRAM_OFFSET_FOR_DTCM 0x6400
 
 /* mmp PZIPC registers */
 #define IPC_ISRW	0x0008

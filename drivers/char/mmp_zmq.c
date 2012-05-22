@@ -61,6 +61,12 @@ int zmq_pool_init(int size)
 	int ret = 0;
 	void *ptr;
 	ptr =  kzalloc(size , GFP_KERNEL | GFP_ATOMIC);
+	if(!ptr) {
+		printk(KERN_ERR "%s, %s, failed to alloc mem.\n", __FILE__, __func__);
+		ret = -ENOMEM;
+		return ret;
+	}
+
 	g_zmq_packet_alc.zmq_pool = gen_pool_create(ilog2(MSG_POOL_GRANULARITY), -1);
 	if (!g_zmq_packet_alc.zmq_pool) {
 		ret = -ENOMEM;
@@ -75,13 +81,17 @@ int zmq_pool_init(int size)
 	}
 	g_zmq_packet_alc.zmq_pool_total_size = size;
 	g_zmq_packet_alc.zmq_pool_size = size;
+	g_zmq_packet_alc.ptr = ptr;
 	return 0;
 }
 
 void zmq_pool_uninit(void)
 {
 	gen_pool_destroy(g_zmq_packet_alc.zmq_pool);
-	kfree(g_zmq_packet_alc.ptr);
+	if(g_zmq_packet_alc.ptr) {
+		kfree(g_zmq_packet_alc.ptr);
+		g_zmq_packet_alc.ptr = NULL;
+	}
 	return;
 }
 
@@ -954,7 +964,7 @@ static int zmq_message_send(
 		}
 
 		/* no blocking for sending, delay some times */
-		mdelay(50);
+		udelay(50);
 		try_num--;
 	}
 
