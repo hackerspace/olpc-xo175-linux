@@ -92,7 +92,6 @@ static struct pm_qos_object network_lat_pm_qos = {
 	.type = PM_QOS_MIN
 };
 
-
 static BLOCKING_NOTIFIER_HEAD(network_throughput_notifier);
 static struct pm_qos_object network_throughput_pm_qos = {
 	.requests = PLIST_HEAD_INIT(network_throughput_pm_qos.requests),
@@ -103,6 +102,37 @@ static struct pm_qos_object network_throughput_pm_qos = {
 	.type = PM_QOS_MAX,
 };
 
+#ifdef CONFIG_HOTPLUG_CPU
+static BLOCKING_NOTIFIER_HEAD(min_online_cpus_notifier);
+static struct pm_qos_object min_online_cpus_pm_qos = {
+	.requests = PLIST_HEAD_INIT(min_online_cpus_pm_qos.requests),
+	.notifiers = &min_online_cpus_notifier,
+	.name = "min_online_cpus",
+	.target_value = PM_QOS_MIN_ONLINE_CPUS_DEFAULT_VALUE,
+	.default_value = PM_QOS_MIN_ONLINE_CPUS_DEFAULT_VALUE,
+	.type = PM_QOS_MAX,
+};
+
+static BLOCKING_NOTIFIER_HEAD(max_online_cpus_notifier);
+static struct pm_qos_object max_online_cpus_pm_qos = {
+	.requests = PLIST_HEAD_INIT(max_online_cpus_pm_qos.requests),
+	.notifiers = &max_online_cpus_notifier,
+	.name = "max_online_cpus",
+	.target_value = PM_QOS_MAX_ONLINE_CPUS_DEFAULT_VALUE,
+	.default_value = PM_QOS_MAX_ONLINE_CPUS_DEFAULT_VALUE,
+	.type = PM_QOS_MIN,
+};
+
+static BLOCKING_NOTIFIER_HEAD(disable_hotplug_notifier);
+static struct pm_qos_object disable_hotplug_pm_qos = {
+	.requests = PLIST_HEAD_INIT(disable_hotplug_pm_qos.requests),
+	.notifiers = &disable_hotplug_notifier,
+	.name = "disable_hotplug",
+	.target_value = 0,
+	.default_value = 0,
+	.type = PM_QOS_MAX,
+};
+#endif
 
 static BLOCKING_NOTIFIER_HEAD(cpu_freq_min_notifier);
 static struct pm_qos_object cpu_freq_min_pm_qos = {
@@ -132,7 +162,12 @@ static struct pm_qos_object *pm_qos_array[] = {
 	&network_lat_pm_qos,
 	&network_throughput_pm_qos,
 	&cpu_freq_min_pm_qos,
-	&cpu_freq_disable_pm_qos
+	&cpu_freq_disable_pm_qos,
+#ifdef CONFIG_HOTPLUG_CPU
+	&min_online_cpus_pm_qos,
+	&max_online_cpus_pm_qos,
+	&disable_hotplug_pm_qos
+#endif
 };
 
 static ssize_t pm_qos_power_write(struct file *filp, const char __user *buf,
@@ -506,6 +541,20 @@ static int __init pm_qos_power_init(void)
 	if (ret < 0)
 		printk(KERN_ERR
 			"pm_qos_param: cpu_freq_disable setup failed\n");
+#ifdef CONFIG_HOTPLUG_CPU
+	ret = register_pm_qos_misc(&min_online_cpus_pm_qos);
+	if (ret < 0)
+		printk(KERN_ERR
+			"pm_qos_param: min_online_cpus setup failed\n");
+	ret = register_pm_qos_misc(&max_online_cpus_pm_qos);
+	if (ret < 0)
+		printk(KERN_ERR
+			"pm_qos_param: max_online_cpus setup failed\n");
+	ret = register_pm_qos_misc(&disable_hotplug_pm_qos);
+	if (ret < 0)
+		printk(KERN_ERR
+			"pm_qos_param: disable_hotplug setup failed\n");
+#endif
 
 	return ret;
 }
