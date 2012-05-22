@@ -156,6 +156,39 @@ static struct pm_qos_object cpu_freq_disable_pm_qos = {
 };
 
 
+static BLOCKING_NOTIFIER_HEAD(cpuidle_keep_axi_notifier);
+static struct pm_qos_object cpuidle_keep_axi_qos = {
+	.requests = PLIST_HEAD_INIT(cpuidle_keep_axi_qos.requests),
+	.notifiers = &cpuidle_keep_axi_notifier,
+	.name = "cpuidle_keep_axi",
+	.default_value = 0,
+	.target_value = 0,
+	.type = PM_QOS_MAX,
+};
+
+
+static BLOCKING_NOTIFIER_HEAD(cpuidle_keep_ddr_notifier);
+static struct pm_qos_object cpuidle_keep_ddr_qos = {
+	.requests = PLIST_HEAD_INIT(cpuidle_keep_ddr_qos.requests),
+	.notifiers = &cpuidle_keep_ddr_notifier,
+	.name = "cpuidle_keep_ddr",
+	.default_value = 0,
+	.target_value = 0,
+	.type = PM_QOS_MAX,
+};
+
+
+static BLOCKING_NOTIFIER_HEAD(cpuidle_keep_vctcxo_notifier);
+static struct pm_qos_object cpuidle_keep_vctcxo_qos = {
+	.requests = PLIST_HEAD_INIT(cpuidle_keep_vctcxo_qos.requests),
+	.notifiers = &cpuidle_keep_vctcxo_notifier,
+	.name = "cpuidle_keep_vctcxo",
+	.default_value = 0,
+	.target_value = 0,
+	.type = PM_QOS_MAX,
+};
+
+
 static struct pm_qos_object *pm_qos_array[] = {
 	&null_pm_qos,
 	&cpu_dma_pm_qos,
@@ -166,8 +199,11 @@ static struct pm_qos_object *pm_qos_array[] = {
 #ifdef CONFIG_HOTPLUG_CPU
 	&min_online_cpus_pm_qos,
 	&max_online_cpus_pm_qos,
-	&disable_hotplug_pm_qos
+	&disable_hotplug_pm_qos,
 #endif
+	&cpuidle_keep_axi_qos,
+	&cpuidle_keep_ddr_qos,
+	&cpuidle_keep_vctcxo_qos
 };
 
 static ssize_t pm_qos_power_write(struct file *filp, const char __user *buf,
@@ -555,6 +591,18 @@ static int __init pm_qos_power_init(void)
 		printk(KERN_ERR
 			"pm_qos_param: disable_hotplug setup failed\n");
 #endif
+	ret = register_pm_qos_misc(&cpuidle_keep_axi_qos);
+	if (ret < 0)
+		printk(KERN_ERR
+			"pm_qos_param: cpuidle_keep_axi setup failed\n");
+	ret = register_pm_qos_misc(&cpuidle_keep_ddr_qos);
+	if (ret < 0)
+		printk(KERN_ERR
+			"pm_qos_param: cpuidle_keep_ddr setup failed\n");
+	ret = register_pm_qos_misc(&cpuidle_keep_vctcxo_qos);
+	if (ret < 0)
+		printk(KERN_ERR
+			"pm_qos_param: cpuidle_keep_vctcxo setup failed\n");
 
 	return ret;
 }

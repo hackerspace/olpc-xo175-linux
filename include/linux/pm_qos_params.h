@@ -20,6 +20,10 @@ enum {
 	PM_QOS_MAX_ONLINE_CPUS,
 	PM_QOS_DISABLE_HP,
 #endif
+	PM_QOS_CPUIDLE_KEEP_AXI,
+	PM_QOS_CPUIDLE_KEEP_DDR,
+	PM_QOS_CPUIDLE_KEEP_VCTCXO,
+
         /* insert new class ID */
 
         PM_QOS_NUM_CLASSES,
