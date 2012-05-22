@@ -174,6 +174,13 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 		lowmem_deathpending_timeout = jiffies + HZ;
 		force_sig(SIGKILL, selected);
 		rem -= selected_tasksize;
+
+		/* Raise the selected task to the lowest priority of realtime */
+		if (!rt_task(selected)) {
+			struct sched_param param;
+			param.sched_priority = 1;
+			sched_setscheduler_nocheck(selected, SCHED_FIFO, &param);
+		}
 	}
 	lowmem_print(4, "lowmem_shrink %lu, %x, return %d\n",
 		     sc->nr_to_scan, sc->gfp_mask, rem);
