@@ -18,19 +18,6 @@
 
 #include <linux/i2c/adp1650.h>
 
-#define DESIGN_INFO		0x00
-#define VREF_TIME		0x02
-#define CURRENT_SET		0x03
-#define OUTPUT_MODE		0x04
-#define FAULT_INFO		0x05
-#define INPUT_CONTROL		0x06
-#define ADD_MODE1		0x07
-#define ADD_MODE2		0x08
-#define BATTERY_LOW_MODE	0x09
-
-#define OUTPUT_EN		(1<<3)
-#define LED_FLASH_MODE		(3<<0)
-
 struct i2c_client *g_adp1650_i2c_client;
 
 static int adp1650_write(struct i2c_client *client, u8 reg, u8 val)
@@ -57,82 +44,116 @@ static int adp1650_read(struct i2c_client *client, int reg, uint8_t * val)
 	return 0;
 }
 
-static int adp1650_set_torch_mode(struct i2c_client *client, bool flag)
+static int adp1650_output_off(struct i2c_client *client)
 {
 	int ret;
 	uint8_t value = 0;
 	struct adp1650 *adp1650 = i2c_get_clientdata(client);
 	struct adp1650_platform_data *pdata = adp1650->pdata;
 
-	/* 1 for torch on, 0 for torch off */
-	if (flag) {
-		if (pdata->strobe_enable) {
-			printk(KERN_INFO "adp1650: not support torch if strobe enabled\n");
-			return 0;
-		}
-
-		/* read to clear fault register */
-		adp1650_read(client, FAULT_INFO, &value);
-
-		adp1650_read(client, VREF_TIME, &value);
-		value &= 0xCF;
-		value |= 0x10;
-		ret = adp1650_write(client, VREF_TIME, value);
-
-		adp1650_read(client, OUTPUT_MODE, &value);
-		value |= OUTPUT_EN;
-		value &= 0xFC;
-		ret = adp1650_write(client, OUTPUT_MODE, value);
-	} else {
-		adp1650_read(client, OUTPUT_MODE, &value);
-		value &= ~OUTPUT_EN;
-		ret = adp1650_write(client, OUTPUT_MODE, value);
-	}
+	adp1650_read(client, REG_OUTPUT_MODE, &value);
+	/* disable output and enable standby mode */
+	value &= ~OUTPUT_MODE_MASK;
+	ret = adp1650_write(client, REG_OUTPUT_MODE, value);
 
 	if (pdata->torch_enable)
-		pdata->torch_enable(flag);
+		pdata->torch_enable(0);
 
-	pdata->torch_is_on = flag;
+	pdata->torch_is_on = 0;
+	pdata->strobe_enable = 0;
 
 	return ret;
 }
 
-static int adp1650_set_flash_mode(struct i2c_client *client)
+static int adp1650_enable_torch_mode(struct i2c_client *client)
 {
 	int ret;
 	uint8_t value = 0;
+	struct adp1650 *adp1650 = i2c_get_clientdata(client);
+	struct adp1650_platform_data *pdata = adp1650->pdata;
+
+	if(pdata->strobe_enable) {
+		printk(KERN_ERR "adp1650: flash mode on, not support torch\n");
+		return -1;
+	}
 
 	/* read to clear fault register */
-	adp1650_read(client, FAULT_INFO, &value);
+	adp1650_read(client, REG_FAULT_INFO, &value);
 
-	adp1650_read(client, OUTPUT_MODE, &value);
-	value |= OUTPUT_EN;
-	value |= LED_FLASH_MODE;
-	ret = adp1650_write(client, OUTPUT_MODE, value);
+	adp1650_read(client, REG_VERF_TIMER, &value);
+	value &= ~GPIO1_CONFIG_MASK;
+	value |= GPIO1_CONFIG_TORCH;
+	ret = adp1650_write(client, REG_VERF_TIMER, value);
+
+	adp1650_read(client, REG_OUTPUT_MODE, &value);
+	value &= ~OUTPUT_MODE_MASK;
+	value |= OUTPUT_ENABLE;
+	ret = adp1650_write(client, REG_OUTPUT_MODE, value);
+
+	if (pdata->torch_enable)
+		pdata->torch_enable(1);
+
+	pdata->torch_is_on = 1;
 
 	return ret;
 }
 
-int adp1650_set_strobe_mode(bool flag)
+static int adp1650_enable_flash_mode(struct i2c_client *client)
 {
-	struct adp1650 *adp1650 = i2c_get_clientdata(g_adp1650_i2c_client);
+	int ret;
+	uint8_t value = 0;
+	struct adp1650 *adp1650 = i2c_get_clientdata(client);
 	struct adp1650_platform_data *pdata = adp1650->pdata;
 
-	/* strobe mode has high priority. If torch on, turn off it. */
-	if (pdata->torch_is_on) {
-		adp1650_set_torch_mode(adp1650->client, 0);
+	if(pdata->torch_is_on) {
+		if (pdata->torch_enable)
+			pdata->torch_enable(0);
+		pdata->torch_is_on = 0;
 	}
 
-	if (flag)
-		adp1650_set_flash_mode(adp1650->client);
+	/* read to clear fault register */
+	adp1650_read(client, REG_FAULT_INFO, &value);
 
-	pdata->strobe_enable = flag;
+	adp1650_read(client, REG_AD_MOD, &value);
+	value |= DYNAMIC_OVP_ON;
+	ret = adp1650_write(client, REG_AD_MOD, value);
 
-	printk(KERN_INFO "adp1650: set strobe mode, flag=%d\n", flag);
+	adp1650_read(client, REG_OUTPUT_MODE, &value);
+	value &= ~OUTPUT_MODE_MASK;
+	value |= OUTPUT_MODE_FLASH;
+	value |= OUTPUT_ENABLE;
 
-	return 0;
+	ret = adp1650_write(client, REG_OUTPUT_MODE, value);
+
+	pdata->strobe_enable = 1;
+
+	return ret;
 }
-EXPORT_SYMBOL(adp1650_set_strobe_mode);
+
+static int adp1650_set_output_mode(struct i2c_client *client, char mode)
+{
+	int ret;
+
+	switch(mode) {
+	case MODE_STANDBY:
+		printk(KERN_INFO "adp1650: output off\n");
+		ret = adp1650_output_off(client);
+		break;
+	case MODE_TORCH:
+		printk(KERN_INFO "adp1650: enable torch mode\n");
+		ret = adp1650_enable_torch_mode(client);
+		break;
+	case MODE_FLASH:
+		printk(KERN_INFO "adp1650: enable flash mode\n");
+		ret = adp1650_enable_flash_mode(client);
+		break;
+	default:
+		printk(KERN_ERR "adp1650: unknown request\n");
+		break;
+	}
+
+	return ret;
+}
 
 #ifdef	CONFIG_PROC_FS
 #define	ADP1650_PROC_FILE	"driver/adp1650"
@@ -148,31 +169,15 @@ static ssize_t adp1650_proc_write(struct file *filp,
 				  const char *buff, size_t len, loff_t *off)
 {
 	struct adp1650 *adp1650 = i2c_get_clientdata(g_adp1650_i2c_client);
-	char messages[256];
+	char messages[2];
 
-	if (len > 256)
-		len = 256;
+	if (len > 2)
+		len = 2;
 
 	if (copy_from_user(messages, buff, len))
 		return -EFAULT;
 
-	switch(messages[0]) {
-	case MODE_TORCH_OFF:
-		printk(KERN_INFO "adp1650: set torch off\n");
-		adp1650_set_torch_mode(adp1650->client, 0);
-		break;
-	case MODE_TORCH_ON:
-		printk(KERN_INFO "adp1650: set torch on\n");
-		adp1650_set_torch_mode(adp1650->client, 1);
-		break;
-	case MODE_SET_FLASH_MODE:
-		printk(KERN_INFO "adp1650: set flash mode\n");
-		adp1650_set_flash_mode(adp1650->client);
-		break;
-	default:
-		printk(KERN_ERR "adp1650: unknown request\n");
-		break;
-	}
+	adp1650_set_output_mode(adp1650->client, messages[0]);
 
 	return len;
 }
@@ -213,11 +218,11 @@ static int adp1650_detect(struct i2c_client *client)
 	unsigned char v = 0;
 	int ret = 0;
 
-	ret = adp1650_read(client, DESIGN_INFO, &v);
+	ret = adp1650_read(client, REG_DESIGN_INFO, &v);
 
 	if (ret < 0)
 		return ret;
-	if (v != 0x22)
+	if (v != DI_DEFAULT_VAL)
 		return -ENODEV;
 
 	printk(KERN_INFO "adp1650: chip detected\n");
