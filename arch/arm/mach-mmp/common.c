@@ -95,7 +95,9 @@ void __init mmp_map_io(void)
 
 	/* this is early, initialize mmp_chip_id here */
 	mmp_chip_id = __raw_readl(MMP_CHIPID);
+#ifdef CONFIG_CPU_PXA910
 	mmp_fuse_id = __raw_readl(MMP_FUSE_95_64);
 	mmp_1g_svc = ((__raw_readl(MMP_FUSE_127_96) & 0x00003FFF) << 6)
 			| ((__raw_readl(MMP_FUSE_95_64) & 0xFC000000) >> 26);
+#endif
 }
