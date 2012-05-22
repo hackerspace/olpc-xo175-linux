@@ -34,6 +34,7 @@ obj-$(CONFIG_CPU_PXA988)	+= pxa988_lowpower.o
 
 ifeq ($(CONFIG_CPU_IDLE),y)
 obj-$(CONFIG_CPU_MMP2)		+= cpuidle-mmp2.o
+obj-$(CONFIG_CPU_PXA988)	+= cpuidle-pxa988.o
 endif
 ifeq ($(CONFIG_CPU_FREQ),y)
 obj-$(CONFIG_CPU_MMP2)		+= cpufreq-mmp2.o fc_mmp2.o board_fc_ops.o mmp2_fc_entry.o brownstone_fc_ll.o brownstone_fc_ops.o
