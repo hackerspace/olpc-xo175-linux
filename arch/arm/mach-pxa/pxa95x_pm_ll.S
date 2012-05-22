@@ -559,13 +559,13 @@ pm_enter_standby_start:
 	mov r11, #0x2a00
 	cmp r7, r11
 	beq mmu_wa	@go to mmu_wa if it is pxa978
-	cmp r12, #0x1		@Test whether it is MG1-C0 or later
-	beq clear_cache
-	b verify_hcal_set
+
 clear_cache:
-	@Cache cleaning for MG1-B0 and older
+	@Cache cleaning for MG
 	mov r0, #0x0
-	mcr p15, 0, r0 ,c7, c10, 0 @Clean Data cache
+	mcr p15, 0, r0 ,c7, c10, 0 @Clean L1 Data cache
+	cmp r12, #0x1	@if(R12=is_wkr_mg1_1274_value != 1)
+	bne verify_hcal_set
 	mcr p15, 1, r0, c7, c11, 0 @L2 cache clean
 
 	@workaround set MDCNG[HWFREQ] and clearing
@@ -647,16 +647,15 @@ mmu_wa:
 	cmp r7, r11
 	beq 7f	@do not invalidate cache and re-init DDR if it is pxa978
 
-	cmp r12, #0x1	@Test whether it is MG1-C0 or later
-	beq invalidat_cache
-	b ddr_reinit
 invalidat_cache:
-	@Cache invalidate for MG1-BO and older
+	@Cache invalidate for MG
 	mov r0, #0x0
-	mcr p15, 0, r0, c7, c6, 0  @Invalidate Data cache
+	mcr p15, 0, r0, c7, c5, 0  @Invalidate L1 instruction
+	mcr p15, 0, r0, c8, c5, 0  @Invalidate TLB
+	mcr p15, 0, r0, c7, c6, 0  @Invalidate L1 Data cache
+	cmp r12, #0x1	@if(R12=is_wkr_mg1_1274_value != 1)
+	bne ddr_reinit
 	mcr p15, 1, r0, c7, c7, 0  @L2 Cache invalidate
-
-	b ddr_reinit
 
 ddr_reinit:
 	@ If PC is physical address (1:1 mapping), implement the workaround.
