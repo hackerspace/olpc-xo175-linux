@@ -426,6 +426,14 @@ static struct i2c_board_info i2c1_80x_info[] = {
 		.platform_data	= &pm800_info,
 		.irq		= IRQ_PMIC_INT,
 	},
+};
+
+static struct i2c_board_info i2c1_80x_info_DKB2_1[] = {
+	{
+		I2C_BOARD_INFO("88PM80x", 0x34),
+		.platform_data	= &pm800_info,
+		.irq		= IRQ_PMIC_INT,
+	},
 	#ifdef CONFIG_CHARGER_ISL9226
 	{
 		I2C_BOARD_INFO("isl9226", 0x59),
@@ -433,6 +441,7 @@ static struct i2c_board_info i2c1_80x_info[] = {
 	},
 	#endif
 };
+
 
 static struct clk *clk_tout_s0;
 
@@ -1038,12 +1047,15 @@ static void register_i2c_board_info(void)
 		break;
 	case OBM_DKB_2_NEVO_C0_BOARD:
 	case OBM_DKB_2_NEVO_C0_BOARD_533MHZ:
-	case OBM_DKB_2_1_NEVO_C0_BOARD:
 		pm800_info.vibrator = &vibrator_pdata;
 		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info));
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_DKB));
 		break;
-
+	case OBM_DKB_2_1_NEVO_C0_BOARD:
+		pm800_info.vibrator = &vibrator_pdata;
+		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info_DKB2_1));
+		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_DKB));
+		break;
 	default:
 		pr_err("%s: Unknown board type!\n", __func__);
 		BUG();
@@ -2906,11 +2918,6 @@ static void __init init(void)
 			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
 			get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD)
 		nevo_dkb_init_spi();
-#endif
-
-#ifdef CONFIG_CHARGER_ISL9226
-	if (get_board_id() >= OBM_DKB_2_1_NEVO_C0_BOARD)
-		platform_device_register(&isl9226_device);
 #endif
 
 #ifdef CONFIG_USB_PXA_U2O
