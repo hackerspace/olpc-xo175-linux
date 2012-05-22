@@ -2876,7 +2876,7 @@ int sdhci_add_host(struct sdhci_host *host)
 		goto untasklet;
 
 	host->vmmc = regulator_get(mmc_dev(mmc), "vmmc");
-	if (IS_ERR(host->vmmc)) {
+	if (IS_ERR_OR_NULL(host->vmmc)) {
 		printk(KERN_INFO "%s: no vmmc regulator found\n", mmc_hostname(mmc));
 		host->vmmc = NULL;
 	} else {
@@ -2889,7 +2889,7 @@ int sdhci_add_host(struct sdhci_host *host)
 	}
 
 	host->vsdio = regulator_get(mmc_dev(mmc), "vsdio");
-	if (IS_ERR(host->vsdio))
+	if (IS_ERR_OR_NULL(host->vsdio))
 		host->vsdio = NULL;
 	else
 		printk(KERN_INFO "%s: vsdio regulator found\n",
