@@ -1983,7 +1983,7 @@ int is_wkr_nevo_2059(void)
 int is_wkr_nevo_1744(void)
 {
 	/* Will be fixed in D0 stepping */
-	if (cpu_is_pxa978())
+	if (cpu_is_pxa978() && (!cpu_is_pxa978_Dx()))
 		return 1;
 	else
 		return 0;
