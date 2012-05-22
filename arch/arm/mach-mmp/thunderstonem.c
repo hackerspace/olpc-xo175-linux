@@ -189,6 +189,12 @@ static unsigned long thunderstonem_pin_config[] __initdata = {
 	GPIO101_GPIO, /* TS INT*/
 	GPIO85_GPIO, /* TS_IO_EN */
 
+	/* SSPA2 */
+	GPIO33_SSPA2_CLK,
+	GPIO34_SSPA2_FRM,
+	GPIO35_SSPA2_TXD,
+	GPIO36_SSPA2_RXD,
+
 	/* Battery */
 #ifdef CONFIG_BATTERY_BQ27X00_PLATFORM
 	GPIO171_GPIO,

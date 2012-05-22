@@ -160,6 +160,12 @@ static unsigned long yellowstone_pin_config[] __initdata = {
 	GPIO81_SSP_RXD,
 	GPIO101_GPIO, /* TS INT*/
 	GPIO85_GPIO, /* TS_IO_EN */
+
+	/* SSPA2 */
+	GPIO33_SSPA2_CLK,
+	GPIO34_SSPA2_FRM,
+	GPIO35_SSPA2_TXD,
+	GPIO36_SSPA2_RXD,
 };
 
 static unsigned long mmc1_pin_config[] __initdata = {
