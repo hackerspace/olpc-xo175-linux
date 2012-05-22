@@ -117,7 +117,7 @@ static void mipsram_alloc_buffer(void)
 static void mipsram_cycle_counter_init(void)
 {
 	/* TODO: need check when enabling MIPSRAM when PJ4 not configured*/
-#ifdef CONFIG_CPU_PJ4
+#ifdef CONFIG_CPU_V7
 	unsigned int PMNC_val;
 
 	/* read/modify/write for the PMNC register - start CP14
@@ -152,7 +152,7 @@ mipsram_init(void)
 must be called in the same sequence while interrupts are disabled. */
 void mipsram_reinit_counter()
 {
-#ifdef CONFIG_CPU_PJ4
+#ifdef CONFIG_CPU_V7
 	/* the counter is restarted and the last value read is
 	componsated in mips ram internal calculations */
 	unsigned int counter;
@@ -168,7 +168,7 @@ void mipsram_reinit_counter()
 
 void mipsram_disable_counter()
 {
-#ifdef CONFIG_CPU_PJ4
+#ifdef CONFIG_CPU_V7
 	/* we must stop the counter before entering LPM
 	and save the counter value */
 	unsigned int counter = 0;

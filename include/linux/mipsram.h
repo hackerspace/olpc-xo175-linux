@@ -60,8 +60,9 @@ void mipsram_disable_counter(void);
 /* This is the main TRACE add marco of MIPS_RAM
  * ASSUMPTION: This macro is called when interrupts are disabled
  * in _kernel mode_ (not supported in user-space) */
-#ifndef CONFIG_CPU_PJ4
-/* TODO: need enable CA9 operations*/
+#ifndef CONFIG_CPU_V7
+/* CA9, PJ4, and any other ARMV7 CPU has the same performance monitor
+implementation as defined in ARM V7 spec. Others: not supported */
 #define MIPS_RAM_ADD_TRACE(process_id) {\
 }
 #else
