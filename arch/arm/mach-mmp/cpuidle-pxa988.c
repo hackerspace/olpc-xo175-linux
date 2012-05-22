@@ -14,6 +14,7 @@
 #include <linux/init.h>
 #include <linux/cpu_pm.h>
 #include <linux/cpuidle.h>
+#include <linux/pm_qos_params.h>
 
 #include <asm/proc-fns.h>
 #include <mach/pxa988_lowpower.h>
@@ -32,6 +33,8 @@ static struct cpuidle_driver pxa988_idle_driver = {
 };
 
 static DEFINE_PER_CPU(struct cpuidle_device, pxa988_cpuidle_device);
+
+static DEFINE_MUTEX(cpuidle_mutex);
 
 static int pxa988_enter_lpm(struct cpuidle_device *dev,
 	struct cpuidle_state *state)
@@ -128,6 +131,94 @@ static int pxa988_cpuidle_register_device(unsigned int cpu)
 	return 0;
 }
 
+static int cpuidle_keep_axi_notify(struct notifier_block *b,
+			      unsigned long min, void *v)
+{
+	int keep_ddr;
+	int keep_vctcxo;
+
+	mutex_lock(&cpuidle_mutex);
+
+	keep_ddr = pm_qos_request(PM_QOS_CPUIDLE_KEEP_DDR);
+	keep_vctcxo = pm_qos_request(PM_QOS_CPUIDLE_KEEP_VCTCXO);
+
+	if (min) {
+		pxa988_lpm_data[PXA988_LPM_D1P].valid = 0;
+		pxa988_lpm_data[PXA988_LPM_D1].valid = 0;
+		pxa988_lpm_data[PXA988_LPM_D2].valid = 0;
+	} else {
+		pxa988_lpm_data[PXA988_LPM_D1P].valid = 1;
+		if (keep_ddr == 0)
+			pxa988_lpm_data[PXA988_LPM_D1].valid = 1;
+		if (keep_ddr == 0 && keep_vctcxo == 0)
+			pxa988_lpm_data[PXA988_LPM_D2].valid = 1;
+	}
+
+	mutex_unlock(&cpuidle_mutex);
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block cpuidle_keep_axi_notifier = {
+	.notifier_call = cpuidle_keep_axi_notify,
+};
+
+static int cpuidle_keep_ddr_notify(struct notifier_block *b,
+			      unsigned long min, void *v)
+{
+	int keep_axi;
+	int keep_vctcxo;
+
+	mutex_lock(&cpuidle_mutex);
+
+	keep_axi = pm_qos_request(PM_QOS_CPUIDLE_KEEP_AXI);
+	keep_vctcxo = pm_qos_request(PM_QOS_CPUIDLE_KEEP_VCTCXO);
+
+	if (min) {
+		pxa988_lpm_data[PXA988_LPM_D1].valid = 0;
+		pxa988_lpm_data[PXA988_LPM_D2].valid = 0;
+	} else {
+		if (keep_axi == 0)
+			pxa988_lpm_data[PXA988_LPM_D1].valid = 1;
+		if (keep_axi == 0 && keep_vctcxo == 0)
+			pxa988_lpm_data[PXA988_LPM_D2].valid = 1;
+	}
+
+	mutex_unlock(&cpuidle_mutex);
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block cpuidle_keep_ddr_notifier = {
+	.notifier_call = cpuidle_keep_ddr_notify,
+};
+
+static int cpuidle_keep_vctcxo_notify(struct notifier_block *b,
+			      unsigned long min, void *v)
+{
+	int keep_axi;
+	int keep_ddr;
+
+	mutex_lock(&cpuidle_mutex);
+
+	keep_axi = pm_qos_request(PM_QOS_CPUIDLE_KEEP_AXI);
+	keep_ddr = pm_qos_request(PM_QOS_CPUIDLE_KEEP_DDR);
+
+	if (min)
+		pxa988_lpm_data[PXA988_LPM_D2].valid = 0;
+	else
+		if (keep_axi == 0 && keep_ddr == 0)
+			pxa988_lpm_data[PXA988_LPM_D2].valid = 1;
+
+	mutex_unlock(&cpuidle_mutex);
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block cpuidle_keep_vctcxo_notifier = {
+	.notifier_call = cpuidle_keep_vctcxo_notify,
+};
+
 static int __init pxa988_cpuidle_init(void)
 {
 	int ret, cpu;
@@ -140,6 +231,13 @@ static int __init pxa988_cpuidle_init(void)
 		if (pxa988_cpuidle_register_device(cpu))
 			pr_err("CPU%u: error registering cpuidle\n", cpu);
 	}
+
+	pm_qos_add_notifier(PM_QOS_CPUIDLE_KEEP_AXI,
+			&cpuidle_keep_axi_notifier);
+	pm_qos_add_notifier(PM_QOS_CPUIDLE_KEEP_DDR,
+			&cpuidle_keep_ddr_notifier);
+	pm_qos_add_notifier(PM_QOS_CPUIDLE_KEEP_VCTCXO,
+			&cpuidle_keep_vctcxo_notifier);
 
 	return 0;
 }
