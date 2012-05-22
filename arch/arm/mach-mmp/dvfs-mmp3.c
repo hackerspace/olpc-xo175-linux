@@ -172,5 +172,5 @@ int __init mmp3_init_dvfs(void)
 
 	return 0;
 }
-module_init(mmp3_init_dvfs);
+subsys_initcall(mmp3_init_dvfs);
 
