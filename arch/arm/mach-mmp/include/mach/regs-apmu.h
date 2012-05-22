@@ -208,6 +208,14 @@
 #define APMU_PJ_C1_CC4			APMU_REG(0x024C)
 #define APMU_PJ_C2_CC4			APMU_REG(0x0250)
 
+/* PXA988 CA9 core idle configuration */
+#define PMU_CA9_CORE0_IDLE_CFG		APMU_REG(0x0124)
+#define PMU_CA9_CORE1_IDLE_CFG		APMU_REG(0x0128)
+
+/* PXA988 CA9 MP idle configuration */
+#define PMU_CA9MP_IDLE_CFG0		APMU_REG(0x0120)
+#define PMU_CA9MP_IDLE_CFG1		APMU_REG(0x00e4)
+
 #define APMU_AUDIO_PWR_UP		(3 << 9)
 #define APMU_AUDIO_PWR_DOWN		(0 << 9)
 #define APMU_AUDIO_ISO_DIS		(1 << 8)
