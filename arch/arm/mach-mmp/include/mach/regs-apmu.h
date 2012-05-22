@@ -29,7 +29,8 @@
 
 #define APMU_CCIC_GATE	APMU_REG(0x028)
 #define APMU_CCIC2_GATE APMU_REG(0x118)
-
+#define APMU_ISPDXO	APMU_REG(0x038)
+#define APMU_DSI	APMU_REG(0x044)
 #define APMU_IRE	APMU_REG(0x048)
 #define APMU_LCD	APMU_REG(0x04c)
 #define APMU_CCIC_RST	APMU_REG(0x050)
@@ -49,7 +50,7 @@
 #define APMU_SDH2	APMU_REG(0x0e8)
 #define APMU_SDH3	APMU_REG(0x0ec)
 #define APMU_SDH4	APMU_REG(0x15c)
-#elif defined(CONFIG_CPU_PXA910)
+#elif defined(CONFIG_CPU_PXA910) || defined(CONFIG_CPU_PXA988)
 #define APMU_SDH2	APMU_REG(0x0e0)
 #endif
 
@@ -85,6 +86,9 @@
 #define APMU_SLIM_CLK_RES_CTRL	APMU_REG(0x0104)
 #define APMU_FSIC3_CLK_RES_CTRL APMU_REG(0x0100)
 #define APMU_LCD2_CLK_RES_CTRL  APMU_REG(0x0110)
+
+/* coda7542 */
+#define APMU_VPU_CLK_RES_CTRL	APMU_REG(0x00a4)
 
 /* CNM clock and power on/off register*/
 #define APMU_DX8_CLK_RES_CTRL   APMU_REG(0x00a4)

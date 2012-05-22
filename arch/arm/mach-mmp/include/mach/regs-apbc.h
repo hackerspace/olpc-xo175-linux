@@ -157,6 +157,10 @@
 #define APBC_PXA988_I2CIO	APBC_REG(0x05c)
 #define APBC_PXA988_TWSI1	APBC_REG(0x060)
 
+#define APBC_PXA988_UART2	APBCP_REG(0x01c)
+#define APBC_PXA988_PWRTWSI	APBCP_REG(0x028)
+#define APBC_PXA988_RIPC	APBCP_REG(0x038)
+
 /* Common APB clock register bit definitions */
 #define APBC_APBCLK	(1 << 0)  /* APB Bus Clock Enable */
 #define APBC_FNCLK	(1 << 1)  /* Functional Clock Enable */
