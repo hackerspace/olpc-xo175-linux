@@ -317,8 +317,6 @@ void restore_dma_registers(void)
 			DTADR(i) = dtadr[i];
 			DSADR(i) = dsadr[i];
 			DCMD(i) = dcmd[i];
-		} else {
-			DDADR(i) = ddadr[i];
 		}
 	}
 }
