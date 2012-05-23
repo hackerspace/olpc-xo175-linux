@@ -417,9 +417,6 @@ int deviceInit(struct ssl_ts_priv *ssl_priv)
 	u8 data_buf[2];
 	struct i2c_client *client = ssl_priv->client;
 
-	if (touch_data->set_power)
-		touch_data->set_power(1);
-
 	gpio_set_value(TOUCH_RES_PIN, 0);
 	mdelay(10);
 	gpio_set_value(TOUCH_RES_PIN, 1);
@@ -492,7 +489,16 @@ static int ssd253x_Proc_Read(char *buffer, char **buffer_localation, off_t offse
 	buffer[2] = '\0';
 	return 2;
 }
-
+static void touch_power(int en)
+{
+	if (en) {
+			if (touch_data->set_power)
+				touch_data->set_power(1);
+	} else {
+			if (touch_data->set_power)
+				touch_data->set_power(0);
+	}
+}
 void deviceWakeUp(struct ssl_ts_priv *ssl_priv)
 {
 	deviceInit(ssl_priv);
@@ -508,8 +514,7 @@ void deviceSleep(struct ssl_ts_priv *ssl_priv)
 	mdelay(10);
 	gpio_set_value(TOUCH_RES_PIN, 1);
 
-	if (touch_data->set_power)
-		touch_data->set_power(0);
+	touch_power(0);
 }
 static int ssd253x_Proc_Write(struct file *filp, const char *buffer, unsigned long count, void *data)
 {
@@ -751,7 +756,10 @@ static void ssd253x_ts_work(struct work_struct *work)
 	static int wmode;
 	static int oldx[10], oldy[10];
 	int ret = 0;
-	int i, j, smode;
+	int i, smode;
+#if (defined(HAS_BUTTON) && defined(SIMULATED_BUTTON))
+	int j;
+#endif
 	u8 reg_buff[4] = { 0 };
 	u32 finger_flag = 0;
 	u32 old_flag = 0;
@@ -1103,8 +1111,11 @@ static int ssd253x_ts_probe(struct i2c_client *client, const struct i2c_device_i
 {
 	struct ssl_ts_priv *ssl_priv;
 	struct input_dev *ssl_input;
-	int error, i;
+	int error;
 	int *mfp_pins;
+#if (defined(HAS_BUTTON) && defined(SIMULATED_BUTTON))
+	int i;
+#endif
 
 	SSL_PRINT("Run into %s.\n", __func__);
 /****** only for qualcomm platform
@@ -1115,7 +1126,7 @@ static int ssd253x_ts_probe(struct i2c_client *client, const struct i2c_device_i
 	mfp_pins = touch_data->pin_data;
 	TOUCH_RES_PIN = mfp_pins[1];
 	TOUCH_INT_PIN = mfp_pins[0];
-
+	touch_power(1);
 	if (gpio_request(TOUCH_RES_PIN, "TOUCH_RES"))
 		return -ENODEV;
 
@@ -1257,6 +1268,8 @@ static int ssd253x_ts_probe(struct i2c_client *client, const struct i2c_device_i
 		TP_PROC_FILE->data = ssl_priv;
 		TP_PROC_FILE->size = 37;
 	}
+
+	touch_power(0);
 	return 0;
 err4:
 	free_irq(ssl_priv->irq, ssl_priv);
@@ -1284,6 +1297,7 @@ static void ssd253x_ts_late_resume(struct early_suspend *h)
 {
 	struct ssl_ts_priv *ssl_priv = container_of(h, struct ssl_ts_priv, early_suspend);
 	SSL_PRINT("Run into %s.\n", __func__);
+	touch_power(1);
 	deviceWakeUp(ssl_priv);
 }
 #else
@@ -1297,6 +1311,7 @@ static int ssd253x_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 static int ssd253x_ts_resume(struct i2c_client *client)
 {
 	SSL_PRINT("Run into %s.\n", __func__);
+	touch_power(1);
 	deviceWakeUp(ssl_priv);
 	return 0;
 }
@@ -1306,6 +1321,7 @@ static int ssd253x_ts_open(struct input_dev *dev)
 {
 	struct ssl_ts_priv *ssl_priv = input_get_drvdata(dev);
 	SSL_PRINT("Run into %s.\n", __func__);
+	touch_power(1);
 	StartWork(ssl_priv);
 	enable_irq(ssl_priv->irq);	/*enable irq for next interrupt*/
 	return 0;
