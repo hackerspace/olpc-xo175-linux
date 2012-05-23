@@ -48,7 +48,6 @@ static struct cpufreq_frequency_table **freq_table;
 static u32 num_cpus;
 static struct clk *cpu_clk;
 
-static int *target_pp_index;
 static int cpu_frequency_index_to_pp_index[MAX_CPU_NUM][MAX_PP_NUM];
 static DEFINE_MUTEX(mmp3_cpu_lock);
 
@@ -72,20 +71,10 @@ static unsigned int mmp3_cpufreq_get(unsigned int cpu)
 		return mmp3_getfreq(MMP3_CLK_MP1);
 }
 
-static unsigned long mmp3_cpu_highest_pp(void)
-{
-	int i, index = 0;
-
-	for_each_online_cpu(i)
-		index = max(index, target_pp_index[i]);
-
-	return index;
-}
-
 static int mmp3_cpufreq_target(struct cpufreq_policy *policy,
 			       unsigned int target_freq, unsigned int relation)
 {
-	int index, pp_index;
+	int index;
 	unsigned int highest_speed;
 	int ret = 0;
 
@@ -99,15 +88,9 @@ static int mmp3_cpufreq_target(struct cpufreq_policy *policy,
 	if (policy->cur == freq_table[policy->cpu][index].frequency)
 		goto out;
 
-	target_pp_index[policy->cpu] =
-		cpu_frequency_index_to_pp_index[policy->cpu][index];
-
-	pp_index = mmp3_cpu_highest_pp();
-
 	/* FIXME: always use MP1 core as the index to do FC */
-	highest_speed = mmp3_get_pp_freq(pp_index, MMP3_CLK_MP1);
-	pm_qos_update_request(&cpufreq_qos_req_min,  highest_speed / MHZ_TO_KHZ);
-
+	highest_speed = mmp3_get_pp_freq(index, MMP3_CLK_MP1);
+	pm_qos_update_request(&cpufreq_qos_req_min, highest_speed / MHZ_TO_KHZ);
 out:
 	return ret;
 }
@@ -225,8 +208,6 @@ static int mmp3_cpufreq_init(struct cpufreq_policy *policy)
 		pr_err("mmp3_cpufreq_init: invalid freq: %d\n", policy->cur);
 		return -EINVAL;
 	}
-	target_pp_index[policy->cpu] =
-		cpu_frequency_index_to_pp_index[policy->cpu][index];
 
         if (!cpu_online(1)) {
 		cpumask_copy(policy->related_cpus, cpu_possible_mask);
@@ -261,15 +242,12 @@ static int __init cpufreq_init(void)
 	freq_table_item_count = mmp3_get_pp_number();
 	/* FIXME: Here we assume all cores will be on before here! */
 	num_cpus = num_online_cpus();
-	target_pp_index = kzalloc(num_cpus * sizeof(int),
-					GFP_KERNEL);
-	if (!target_pp_index)
-		return -ENOMEM;
+
 	freq_table =
 		kzalloc(num_cpus * sizeof(struct cpufreq_frequency_table *),
 			GFP_KERNEL);
 	if (!freq_table)
-		goto cpufreq_exit1;
+		return -ENOMEM;
 
 	for (i = 0; i < num_cpus; i++) {
 		freq_table[i] =
@@ -277,7 +255,7 @@ static int __init cpufreq_init(void)
 				sizeof(struct cpufreq_frequency_table),
 				GFP_KERNEL);
 		if (!freq_table[i])
-			goto cpufreq_exit2;
+			goto _exit;
 	}
 
 	/*
@@ -366,14 +344,11 @@ static int __init cpufreq_init(void)
 
 	return cpufreq_register_driver(&mmp3_cpufreq_driver);
 
-cpufreq_exit2:
+_exit:
 	while (i > 0) {
 		kfree(freq_table[i]);
 		i--;
 	}
-
-cpufreq_exit1:
-	kfree(target_pp_index);
 
 	return -ENOMEM;
 }
