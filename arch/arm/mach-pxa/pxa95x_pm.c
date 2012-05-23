@@ -119,7 +119,7 @@ static void cken_rsvd_bit_mask_setup(void)
 	if (cpu_is_pxa978()) {
 		ckena_rsvd_bit_mask = 0x00000001;
 		ckenb_rsvd_bit_mask = 0x97FCF040;
-		ckenc_rsvd_bit_mask = 0x00000000;
+		ckenc_rsvd_bit_mask = 0x00C00000;
 	} else {
 		ckena_rsvd_bit_mask = 0x00080001;
 		ckenb_rsvd_bit_mask = 0x97FCF040;
