@@ -1159,14 +1159,6 @@ static void converter_set_parallel(struct pxa95xfb_info *fbi)
 		|LCD_CONVx_CTL_OP_FOR(conv->pix_fmt_out)
 		|LCD_CONVx_CTL_DISP_TYPE(conv->panel_type);
 	writel(x, fbi->reg_base + LCD_CONV0_CTL);
-
-	/* set clock */
-	set_clock_divider(fbi);
-
-	/* enable PCLK, PV2 B0 default is disabled */
-	x = readl(fbi->reg_base + LCD_CTL);
-	writel(x | LCD_CTL_LCD_PCLK_EN_BO, fbi->reg_base + LCD_CTL);
-	x = readl(fbi->reg_base + LCD_CTL);
 }
 
 static void converter_set_dsi(struct pxa95xfb_conv_info *conv)
@@ -1396,6 +1388,18 @@ static void hdmi_set_SSP_CLK(struct pxa95xfb_info *fbi, int on)
 		x &= ~LCD_CTL_CLK_SSP_EN;
 	writel(x, fbi->reg_base + LCD_CTL);
 }
+
+
+static void parallel_enable_pix_CLK(struct pxa95xfb_info *fbi, int on)
+{
+	u32 x = readl(fbi->reg_base + LCD_CTL);
+	if (on)
+		x |= LCD_CTL_LCD_PCLK_EN_BO;
+	else
+		x &= ~LCD_CTL_LCD_PCLK_EN_BO;
+	writel(x, fbi->reg_base + LCD_CTL);
+}
+
 static void converter_mode_set(struct pxa95xfb_conv_info *conv, struct fb_videomode *mode)
 {
 	conv->xres = mode->xres;
@@ -1464,9 +1468,12 @@ void converter_onoff(struct pxa95xfb_info *fbi, int on)
 
 		if (CONVERTER_IS_DSI(conv->converter))
 			converter_set_dsi(conv);
-		else if (LCD_M2PARALELL_CONVERTER == conv->converter)
+		else if (LCD_M2PARALELL_CONVERTER == conv->converter) {
 			converter_set_parallel(fbi);
-		else if (LCD_M2HDMI == conv->converter) {
+			/* set/enable pixel clock */
+			set_clock_divider(fbi);
+			parallel_enable_pix_CLK(fbi, 1);
+		} else if (LCD_M2HDMI == conv->converter) {
 			converter_set_hdmi(fbi);
 			hdmi_set_SSP_CLK(fbi, 1);
 #if defined(CONFIG_MV_IHDMI) && !defined(CONFIG_UIO_HDMI)
@@ -1490,8 +1497,10 @@ void converter_onoff(struct pxa95xfb_info *fbi, int on)
 
 		if (CONVERTER_IS_DSI(conv->converter))
 			converter_stop_dsi(conv);
-		if (LCD_M2HDMI == conv->converter)
+		else if (LCD_M2HDMI == conv->converter)
 			hdmi_set_SSP_CLK(fbi, 0);
+		else if (LCD_M2PARALELL_CONVERTER == conv->converter)
+			parallel_enable_pix_CLK(fbi, 0);
 
 		if (conv->clk)
 			clk_disable(conv->clk);
