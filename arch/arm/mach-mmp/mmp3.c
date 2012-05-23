@@ -337,7 +337,8 @@ static void mmp3_fabric_ddr_config(void)
 					/* 15, reserved*/
 	regval &= ~(0x1 << 14);		/*fabric2 aclk, LCD/FE/IRE/Fabric5*/
 					/* 13, reserved*/
-	regval &= ~(0x1 << 12);		/*fabric3 aclk3, ISP/CCIC/Fabric4*/
+	/* disable DCG on fabric 3, JIRA:MMP3-1586 */
+	regval |= (0x1 << 12);		/*fabric3 aclk3, ISP/CCIC/Fabric4*/
 					/* 11, reserved*/
 	regval &= ~(0x1 << 10);		/*fabric1 aclk2, PJ/SP/APB/AHB*/
 					/* 9, reserved*/
