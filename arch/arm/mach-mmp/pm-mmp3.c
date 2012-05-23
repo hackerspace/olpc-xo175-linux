@@ -592,7 +592,6 @@ static void mmp3_get_freq_plan(struct mmp3_pmu *pmu,
 	pl->core.at_d = MMP3_FREQ_AT_GET(val);
 	pl->core.pj_d = MMP3_FREQ_PJ_GET(val);
 	pl->dram.pre_d = MMP3_FREQ_DDR1_GET(val);
-	pl->dram.pre_d = MMP3_FREQ_DDR2_GET(val);
 	pl->axi.aclk1_d = MMP3_FREQ_AXI1_GET(val);
 	/* dm2_cc */
 	val = __raw_readl(pmu->dm2_cc);
