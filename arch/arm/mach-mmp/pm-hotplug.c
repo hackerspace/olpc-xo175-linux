@@ -99,7 +99,7 @@ static void hotplug_timer(struct work_struct *work)
 
 	cur_freq = cpufreq_get(0);
 
-	if (((avg_load < trans_load_l) || (cur_freq <= 400 * 1000)) &&
+	if (((avg_load < trans_load_l) && (cur_freq <= 400 * 1000)) &&
 	    (cpu_online(1) == 1)) {
 		printk("cpu1 turning off!\n");
 		cpu_down(1);
