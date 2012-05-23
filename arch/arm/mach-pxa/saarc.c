@@ -1078,6 +1078,10 @@ static void i2c_pxa_bus_reset(int i2c_adap_id)
 		scl_pin = mfp_to_gpio(MFP_PIN_GPIO20);
 		sda_pin = mfp_to_gpio(MFP_PIN_GPIO21);
 	}
+	else if (i2c_adap_id == 0) {
+		scl_pin = mfp_to_gpio(MFP_PIN_GPIO68);
+		sda_pin = mfp_to_gpio(MFP_PIN_GPIO69);
+	}
 	i2c_scl_mfp = pxa3xx_mfp_read(scl_pin);
 	i2c_sda_mfp = pxa3xx_mfp_read(sda_pin);
 	pxa3xx_mfp_write(scl_pin, i2c_scl_mfp & 0xfff8);
@@ -1121,6 +1125,7 @@ static struct i2c_pxa_platform_data i2c1_pdata = {
 	.use_pio        = 0,
 	.flags		= PXA_I2C_HIGH_MODE | PXA_I2C_FAST_MODE | PXA_I2C_USING_FIFO_PIO_MODE,
 	.master_code	= (0x08 | 0x06), /*8 -highest, 0xF -lowest arbitration*/
+	.i2c_bus_reset		= i2c_pxa_bus_reset,
 };
 
 static struct i2c_pxa_platform_data i2c2_pdata = {
