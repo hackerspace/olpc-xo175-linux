@@ -2009,7 +2009,7 @@ struct platform_device vnc_device = {
 static struct resource mv_ihdmi_resources[] = {
 	[0] = {
 		.start = 0x44108000,
-		.end   = 0x441083ff,
+		.end   = 0x441086ff,
 		.flags = IORESOURCE_MEM,
 	},
 };
