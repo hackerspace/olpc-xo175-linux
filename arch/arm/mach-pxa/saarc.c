@@ -939,11 +939,6 @@ static struct adp1650_platform_data adp1650_data= {
 	.strobe_enable = 0,
 	.torch_enable = adp1650_torch_enable,
 };
-
-static struct platform_device adp1650_device = {
-	.name = "adp1650",
-	.id = -1,
-};
 #endif
 
 static struct i2c_board_info i2c2_info_DKB[] = {
@@ -2942,8 +2937,6 @@ static void __init init(void)
 		printk(KERN_ERR "Request GPIO failed, gpio: %d\n", adp1650_torch_en_pin);
 		adp1650_torch_en_pin = 0;
 	}
-	else
-		platform_device_register(&adp1650_device);
 #endif
 
 #ifdef CONFIG_PROC_FS
