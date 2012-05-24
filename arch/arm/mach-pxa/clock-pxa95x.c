@@ -10,6 +10,7 @@
  *  it under the terms of the GNU General Public License version 2 as
  *  published by the Free Software Foundation.
  */
+#include <linux/module.h>
 #include <linux/io.h>
 #include <linux/delay.h>
 #include <linux/clk.h>
@@ -22,6 +23,27 @@
 #include "clock.h"
 
 #define HZ_TO_KHZ	1000
+
+struct clk_table {
+	unsigned long fclk;
+};
+
+#define GCU_CLK_NUM	4
+static struct clk_table pxa978_gcu_clk_table[] = {
+	{156000},
+	{312000},
+	{500000},
+	{600000},
+	{0},
+};
+
+static struct clk_table pxa978_dx_gcu_clk_table[] = {
+	{156000},
+	{312000},
+	{481000},
+	{600000},
+	{0},
+};
 
 static void common_clk_init(struct clk *c)
 {
@@ -893,6 +915,28 @@ out:
 	local_irq_restore(flags);
 	local_fiq_enable();
 }
+
+int get_gcu_freqs_table(int *gcu_freqs_table, int *item_counts,
+		int max_item_counts)
+{
+	int i;
+
+	if (max_item_counts < GCU_CLK_NUM) {
+		pr_err("Too many GC frequencies!\n");
+		return -1;
+	}
+
+	*item_counts = GCU_CLK_NUM;
+
+	for (i = 0; i < GCU_CLK_NUM; i++)
+		if (cpu_is_pxa978())
+			gcu_freqs_table[i] = pxa978_gcu_clk_table[i].fclk;
+		else
+			gcu_freqs_table[i] = pxa978_dx_gcu_clk_table[i].fclk;
+
+	return 0;
+}
+EXPORT_SYMBOL(get_gcu_freqs_table);
 
 static int clk_pxa95x_gcu_setrate(struct clk *gc_clk, unsigned long rate)
 {
