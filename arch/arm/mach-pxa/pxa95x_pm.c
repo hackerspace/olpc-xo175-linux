@@ -2287,9 +2287,13 @@ static int __init pxa95x_pm_init(void)
 
 	/* make sure that sram bank 0 is not off in D1
 	 * base on JIRA MG1-1021, it should be set to 0x01
+	 * For NEVO: set this bit to 0 to retain the state such
+	 * as L2$, or L2$ corruption when exit from D1
 	 */
-	AD1R = 0x01;
-
+	 if (cpu_is_pxa978())
+		AD1R = 0;
+	else
+		AD1R = 1;
 	/* setting bit 2 (SV_WK) to enable wakeup event detection in clock
 	 * gated mode entery sequecne */
 	AGENP |= 0x4;

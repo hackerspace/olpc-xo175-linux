@@ -61,9 +61,6 @@ static int pxa978_suspend_finish(unsigned long pwrmode)
 		 */
 		/*this will actually call clean_all() */
 		outer_clean_range(0, 0xFFFFFFFF);
-	} else if ((pwrmode & 0x07) == PXA95x_PM_S0D1C2) {
-		/*WR for NEVO-2344. l2$ content lost in D1*/
-		outer_disable();
 	}
 	pxa978_cpu_suspend(pwrmode);
 	return 0;
