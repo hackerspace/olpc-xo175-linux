@@ -68,6 +68,7 @@ struct mutex op_change_mutex;
 unsigned int D2voltageLevelValue = 0x0D;
 extern struct info_head dvfm_trace_list;
 static unsigned int ddr_pll_freq;
+unsigned long max_pp = 5, max_core, max_gc, max_vmeta;
 
 /* Counter Structure for Debugging ENTER/EXIT D2/CGM */
 pxa95x_DVFM_LPM_Global_Count DVFMLPMGlobalCount = { 0, 0, 0 };
@@ -2838,10 +2839,12 @@ static int pxa95x_core_freqs_table_get(void *driver_data,
 	list_for_each_entry(p, &pxa95x_dvfm_op_list.list, list) {
 		md = (struct dvfm_md_opt *)(p->op);
 		if (md->power_mode == POWER_MODE_D0) {
-			if (*num_pp == 0)
-				freq_table[(*num_pp)++] = md->core;
-			else if (md->core > freq_table[*num_pp - 1])
-				freq_table[(*num_pp)++] = md->core;
+			if (md->core <= max_core) {
+				if (*num_pp == 0)
+					freq_table[(*num_pp)++] = md->core;
+				else if (md->core > freq_table[*num_pp - 1])
+					freq_table[(*num_pp)++] = md->core;
+			}
 		}
 	}
 
@@ -3656,12 +3659,21 @@ static int uboot_setAlvl3Value(char *s)
 	return 1;
 }
 
+static int uboot_set_max_pp(char *s)
+{
+	if (strict_strtoul(s, 10, &max_pp))
+		pr_err("Wrong value assigned to MAX PP supported!\n");
+	printk(KERN_INFO "MAX PP supported is set to %lu\n", max_pp);
+	return 1;
+}
+
 /* both tavorcfg_nodvfm and androidboot.bsp=bsp will clear PowerDisabled */
 __setup("tavorcfg_nolpm=", uboot_disablePower);
 __setup("tavorcfg_nodvfm=", uboot_disableDvfm);
 __setup("tavorcfg_avcr=", uboot_setAvcr);
 __setup("AVCR=", uboot_defaultAvcr);
 __setup("DROV=", uboot_setAlvl3Value);
+__setup("max_pp=", uboot_set_max_pp);
 /* all power related uboot handling functions should be placed above this
  * comment in this section */
 static int __init pxa95x_freq_init(void)
@@ -3695,6 +3707,61 @@ static int __init pxa95x_freq_init(void)
 	entry = create_proc_entry("d2_led_toggle", 0444, NULL);
 	if (entry)
 		entry->read_proc = d2_led_toggle_proc;
+
+	/* Initialize the maximum frequencies  */
+	if (cpu_is_pxa978())
+	switch(max_pp) {
+		case 1:
+			max_core = 156;
+			max_gc = 156 * MHZ_TO_KHZ;
+			max_vmeta = 156 * MHZ_TO_KHZ;
+			break;
+		case 2:
+			max_core = 312;
+			max_gc = 156 * MHZ_TO_KHZ;
+			max_vmeta = 156 * MHZ_TO_KHZ;
+			break;
+		case 3:
+			max_core = 624;
+			max_gc = 312 * MHZ_TO_KHZ;
+			max_vmeta = 312 * MHZ_TO_KHZ;
+			break;
+		case 4:
+			max_core = 806;
+			if (cpu_is_pxa978_Dx()) {
+				max_gc = 481 * MHZ_TO_KHZ;
+				max_vmeta = 481 * MHZ_TO_KHZ;
+			} else {
+				max_gc = 500 * MHZ_TO_KHZ;
+				max_vmeta = 500 * MHZ_TO_KHZ;
+			}
+			break;
+		case 5:
+			max_core = 1014;
+			if (cpu_is_pxa978_Dx()) {
+				max_gc = 481 * MHZ_TO_KHZ;
+				max_vmeta = 481 * MHZ_TO_KHZ;
+			} else {
+				max_gc = 500 * MHZ_TO_KHZ;
+				max_vmeta = 500 * MHZ_TO_KHZ;
+			}
+			break;
+		case 6:
+			max_core = 1196;
+			max_gc = 600 * MHZ_TO_KHZ;
+			max_vmeta = 600 * MHZ_TO_KHZ;
+			break;
+		case 7:
+			max_core = 1404;
+			max_gc = 600 * MHZ_TO_KHZ;
+			max_vmeta = 600 * MHZ_TO_KHZ;
+			break;
+		case 8:
+			max_core = 1508;
+			max_gc = 600 * MHZ_TO_KHZ;
+			max_vmeta = 600 * MHZ_TO_KHZ;
+			break;
+	}
 
 out:
 	return ret;

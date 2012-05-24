@@ -24,6 +24,7 @@
 
 #define HZ_TO_KHZ	1000
 
+extern unsigned long max_gc, max_vmeta;
 struct clk_table {
 	unsigned long fclk;
 };
@@ -929,9 +930,9 @@ int get_gcu_freqs_table(int *gcu_freqs_table, int *item_counts,
 	*item_counts = GCU_CLK_NUM;
 
 	for (i = 0; i < GCU_CLK_NUM; i++)
-		if (cpu_is_pxa978())
+		if (cpu_is_pxa978() && pxa978_gcu_clk_table[i].fclk <= max_gc)
 			gcu_freqs_table[i] = pxa978_gcu_clk_table[i].fclk;
-		else
+		else if (pxa978_dx_gcu_clk_table[i].fclk <= max_gc)
 			gcu_freqs_table[i] = pxa978_dx_gcu_clk_table[i].fclk;
 
 	return 0;
