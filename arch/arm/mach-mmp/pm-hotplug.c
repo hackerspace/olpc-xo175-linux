@@ -1,4 +1,5 @@
-/* linux/arch/arm/mach-mmp/pm-hotplug.c
+/*
+ * linux/arch/arm/mach-mmp/pm-hotplug.c
  *
  * Based on S5PV310 - Dynamic CPU hotpluging
  *
@@ -25,6 +26,7 @@
 #include <linux/reboot.h>
 #include <linux/gpio.h>
 #include <linux/cpufreq.h>
+#include <linux/pm_qos_params.h>
 
 #define CPUMON 1
 
@@ -32,8 +34,13 @@
 #define TRANS_LOAD_L	20
 #define TRANS_LOAD_H	(TRANS_LOAD_L*3)
 
-#define HOTPLUG_UNLOCKED 0
-#define HOTPLUG_LOCKED 1
+enum HP_STATE {
+	HOTPLUG_PROFILING = 0,
+	HOTPLUG_UP,
+	HOTPLUG_DOWN,
+};
+
+static u32 hotplug_state = HOTPLUG_PROFILING;
 
 static struct workqueue_struct *hotplug_wq;
 
@@ -41,8 +48,8 @@ static struct delayed_work hotplug_work;
 
 static unsigned int hotpluging_rate = CHECK_DELAY;
 module_param_named(rate, hotpluging_rate, uint, 0644);
-static unsigned int user_lock;
-module_param_named(lock, user_lock, uint, 0644);
+static unsigned int hp_lock;
+module_param_named(lock, hp_lock, uint, 0644);
 static unsigned int trans_load_l = TRANS_LOAD_L;
 module_param_named(loadl, trans_load_l, uint, 0644);
 static unsigned int trans_load_h = TRANS_LOAD_H;
@@ -67,7 +74,21 @@ static void hotplug_timer(struct work_struct *work)
 
 	mutex_lock(&hotplug_lock);
 
-	if (user_lock == 1)
+	/* force hotplug core 2 */
+	if (hotplug_state == HOTPLUG_DOWN) {
+		if (cpu_online(1) == 1)
+			cpu_down(1);
+		goto unlock;
+	}
+
+	/* force plug in core 2 */
+	if (hotplug_state == HOTPLUG_UP) {
+		if (cpu_online(1) == 0)
+			cpu_up(1);
+		goto unlock;
+	}
+
+	if (hp_lock == 1)
 		goto no_hotplug;
 
 	for_each_online_cpu(i) {
@@ -101,50 +122,51 @@ static void hotplug_timer(struct work_struct *work)
 
 	if (((avg_load < trans_load_l) && (cur_freq <= 400 * 1000)) &&
 	    (cpu_online(1) == 1)) {
-		printk("cpu1 turning off!\n");
+		pr_info("cpu1 turning off!\n");
 		cpu_down(1);
 #if CPUMON
 		printk(KERN_ERR "CPUMON D %d\n", avg_load);
 #endif
-		printk("cpu1 off end!\n");
+		pr_info("cpu1 off end!\n");
 		hotpluging_rate = CHECK_DELAY;
 	} else if (((avg_load > trans_load_h) && (cur_freq >= 400 * 1000)) &&
 		   (cpu_online(1) == 0)) {
-		printk("cpu1 turning on!\n");
+		pr_info("cpu1 turning on!\n");
 		cpu_up(1);
 #if CPUMON
 		printk(KERN_ERR "CPUMON U %d\n", avg_load);
 #endif
-		printk("cpu1 on end!\n");
+		pr_info("cpu1 on end!\n");
 		hotpluging_rate = CHECK_DELAY * 4;
 	}
- no_hotplug:
 
+no_hotplug:
 	queue_delayed_work_on(0, hotplug_wq, &hotplug_work, hotpluging_rate);
 
+unlock:
 	mutex_unlock(&hotplug_lock);
 }
 
 static int mmp_pm_hotplug_notifier_event(struct notifier_block *this,
 					     unsigned long event, void *ptr)
 {
-	static unsigned user_lock_saved;
+	static unsigned hp_lock_saved;
 
 	switch (event) {
 	case PM_SUSPEND_PREPARE:
 		mutex_lock(&hotplug_lock);
-		user_lock_saved = user_lock;
-		user_lock = 1;
+		hp_lock_saved = hp_lock;
+		hp_lock = 1;
 		pr_info("%s: saving pm_hotplug lock %x\n",
-			__func__, user_lock_saved);
+			__func__, hp_lock_saved);
 		mutex_unlock(&hotplug_lock);
 		return NOTIFY_OK;
 	case PM_POST_RESTORE:
 	case PM_POST_SUSPEND:
 		mutex_lock(&hotplug_lock);
 		pr_info("%s: restoring pm_hotplug lock %x\n",
-			__func__, user_lock_saved);
-		user_lock = user_lock_saved;
+			__func__, hp_lock_saved);
+		hp_lock = hp_lock_saved;
 		mutex_unlock(&hotplug_lock);
 		return NOTIFY_OK;
 	}
@@ -160,7 +182,7 @@ static int hotplug_reboot_notifier_call(struct notifier_block *this,
 {
 	mutex_lock(&hotplug_lock);
 	pr_err("%s: disabling pm hotplug\n", __func__);
-	user_lock = 1;
+	hp_lock = 1;
 	mutex_unlock(&hotplug_lock);
 
 	return NOTIFY_DONE;
@@ -168,6 +190,147 @@ static int hotplug_reboot_notifier_call(struct notifier_block *this,
 
 static struct notifier_block hotplug_reboot_notifier = {
 	.notifier_call = hotplug_reboot_notifier_call,
+};
+
+static int disable_hotplug_notify(struct notifier_block *nb,
+				  unsigned long n, void *p)
+{
+	unsigned int disable;
+
+	disable = pm_qos_request(PM_QOS_DISABLE_HP);
+
+	mutex_lock(&hotplug_lock);
+	hp_lock = disable ? 1 : 0;
+	mutex_unlock(&hotplug_lock);
+	return NOTIFY_OK;
+}
+
+static struct notifier_block disable_hotplug_notifier = {
+	.notifier_call = disable_hotplug_notify,
+};
+
+static int hotplug_constraint_notify(struct notifier_block *nb,
+				  unsigned long n, void *p)
+{
+	unsigned int min_cpus, max_cpus;
+
+	min_cpus = pm_qos_request(PM_QOS_MIN_ONLINE_CPUS);
+	max_cpus = pm_qos_request(PM_QOS_MAX_ONLINE_CPUS);
+	if (min_cpus < max_cpus)
+		hotplug_state = HOTPLUG_PROFILING;
+	else if ((min_cpus == max_cpus) && (max_cpus == 1))
+		hotplug_state = HOTPLUG_DOWN;
+	else if ((min_cpus == max_cpus) && (min_cpus == 2))
+		hotplug_state = HOTPLUG_UP;
+	else
+		BUG();
+
+	if (num_online_cpus() != n) {
+		flush_delayed_work(&hotplug_work);
+		queue_delayed_work_on(0, hotplug_wq, &hotplug_work, CHECK_DELAY);
+	}
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block hotplug_constraint_notifier = {
+	.notifier_call = hotplug_constraint_notify,
+};
+
+static struct kobject hotplug_kobj;
+struct pm_qos_request_list min_cpu_req;
+struct pm_qos_request_list max_cpu_req;
+
+static u32 parse_arg(const char *buf, size_t count)
+{
+	char *token, *s;
+	char str[128];
+
+	memcpy(str, buf, count);
+	s = str;
+	token = strsep(&s, " \t\n");
+	return simple_strtol(token, NULL, 0);
+}
+
+static int lock_get(struct device *dev, struct device_attribute *attr,
+			char *buf)
+{
+	return sprintf(buf, "%s\n", hp_lock ? "locked" : "unlocked");
+}
+
+static int lock_set(struct device *dev, struct device_attribute *attr,
+			const char *buf, size_t count)
+{
+	u32 val;
+
+	val = parse_arg(buf, count);
+
+	mutex_lock(&hotplug_lock);
+	hp_lock = val ? 1 : 0;
+	mutex_unlock(&hotplug_lock);
+	return count;
+}
+static DEVICE_ATTR(lock, S_IRUGO | S_IWUSR, lock_get, lock_set);
+
+static int min_cpus_get(struct device *dev, struct device_attribute *attr,
+			char *buf)
+{
+	return sprintf(buf, "%d\n", pm_qos_request(PM_QOS_MIN_ONLINE_CPUS));
+}
+
+static int min_cpus_set(struct device *dev, struct device_attribute *attr,
+			const char *buf, size_t count)
+{
+	u32 max_cpus, val;
+
+	val = parse_arg(buf, count);
+	max_cpus = pm_qos_request(PM_QOS_MAX_ONLINE_CPUS);
+	max_cpus = min(max_cpus, (u32)NR_CPUS);
+	if (val < 1 || val > max_cpus) {
+		printk(KERN_INFO "out of scope, will be 1 ~ %d\n", max_cpus);
+		return -EINVAL;
+	}
+
+	pm_qos_update_request(&min_cpu_req, (s32)val);
+	return count;
+}
+static DEVICE_ATTR(min_cpus, S_IRUGO | S_IWUSR, min_cpus_get, min_cpus_set);
+
+static int max_cpus_get(struct device *dev, struct device_attribute *attr,
+			char *buf)
+{
+	return sprintf(buf, "%d\n", pm_qos_request(PM_QOS_MAX_ONLINE_CPUS));
+}
+
+static int max_cpus_set(struct device *dev, struct device_attribute *attr,
+			const char *buf, size_t count)
+{
+	u32 min_cpus, val;
+
+	val = parse_arg(buf, count);
+	min_cpus = pm_qos_request(PM_QOS_MIN_ONLINE_CPUS);
+	if (val < min_cpus || val > NR_CPUS) {
+		printk(KERN_INFO "out of scope, will be %d ~ %d\n",
+			min_cpus, NR_CPUS);
+		return -EINVAL;
+	}
+
+	pm_qos_update_request(&max_cpu_req, (s32)val);
+	return count;
+}
+
+static DEVICE_ATTR(max_cpus, S_IRUGO | S_IWUSR, max_cpus_get, max_cpus_set);
+
+static struct attribute *hotplug_attributes[] = {
+	&dev_attr_lock.attr,
+	&dev_attr_min_cpus.attr,
+	&dev_attr_max_cpus.attr,
+	NULL,
+};
+
+static struct kobj_type hotplug_dir_ktype = {
+	.sysfs_ops	= &kobj_sysfs_ops,
+	.default_attrs	= hotplug_attributes,
 };
 
 static int __init mmp_pm_hotplug_init(void)
@@ -185,6 +348,30 @@ static int __init mmp_pm_hotplug_init(void)
 
 	register_pm_notifier(&mmp_pm_hotplug_notifier);
 	register_reboot_notifier(&hotplug_reboot_notifier);
+
+	pm_qos_add_request(&min_cpu_req, PM_QOS_MIN_ONLINE_CPUS,
+			   PM_QOS_DEFAULT_VALUE);
+	pm_qos_add_request(&max_cpu_req, PM_QOS_MAX_ONLINE_CPUS,
+			   NR_CPUS);
+
+	if (pm_qos_add_notifier(PM_QOS_MIN_ONLINE_CPUS,
+				&hotplug_constraint_notifier))
+		pr_err("%s: Failed to register min cpus PM QoS notifier\n",
+			__func__);
+
+	if (pm_qos_add_notifier(PM_QOS_MAX_ONLINE_CPUS,
+				&hotplug_constraint_notifier))
+		pr_err("%s: Failed to register max cpus PM QoS notifier\n",
+			__func__);
+
+	if (pm_qos_add_notifier(PM_QOS_DISABLE_HP,
+				&disable_hotplug_notifier))
+		pr_err("%s: Failed to register disable hp PM QoS notifier\n",
+			__func__);
+
+	if (kobject_init_and_add(&hotplug_kobj, &hotplug_dir_ktype,
+				&cpu_sysdev_class.kset.kobj, "mmp_hotplug"))
+		pr_err("%s: Failed to add kobject for hotplug\n", __func__);
 
 	return 0;
 }
