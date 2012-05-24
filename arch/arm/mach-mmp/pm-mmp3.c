@@ -101,6 +101,20 @@ extern int mmp3_trigger_dfc_ll(u32 dfc_val, u32 buf_base);
 extern int mmp3_coherent_handler(u32 buf_base);
 extern int mmp3_enter_c2(u32 buf_base);
 
+static inline u32 cyc2us(u32 cycle)
+{
+	return (cycle >> 2) + (cycle >> 5) + (cycle >> 6)
+		+ (cycle >> 7) + (cycle >> 9) + (cycle >> 10);
+}
+
+static inline u32 read_timestamp(void)
+{
+	unsigned long r1, r2;
+	__asm__ __volatile__ ("mrrc p15, 0, %0, %1, c14"
+		: "=r" (r1), "=r" (r2) : : "cc");
+	return r1;
+}
+
 static void set_sync_buf(u32 offset, u32 val)
 {
 	u32 *data;
@@ -515,6 +529,7 @@ static void mmp3_freq_plan_print(struct mmp3_pmu *pmu,
 	struct mmp3_freq_plan *pl, char * tag, u32 tmr)
 {
 	int proid = mmp3_smpid();
+	tmr = cyc2us(tmr);
 	if (pl->core.op == MMP3_FREQ_OP_SHOW) {
 		pm_print("%s<PM:%d>:CPU@[%12s]|"
 				"MM: %7d|MP1:%7d|MP2:%7d|FAB:%7d|"
@@ -1179,20 +1194,6 @@ static void mmp3_udpate_ddr_parameter_table(struct mmp3_pmu *pmu,
 	}
 }
 
-static inline u32 cyc2us(u32 cycle)
-{
-	return (cycle >> 2) + (cycle >> 5) + (cycle >> 6)
-		+ (cycle >> 7) + (cycle >> 9) + (cycle >> 10);
-}
-
-static inline u32 read_timestamp(void)
-{
-	unsigned long r1, r2;
-	__asm__ __volatile__ ("mrrc p15, 0, %0, %1, c14"
-		: "=r" (r1), "=r" (r2) : : "cc");
-	return r1;
-}
-
 static u32 mmp3_prepare_freqch(struct mmp3_pmu *pmu,
 	struct mmp3_freq_plan *pl, union trace_dfc_log *logentry)
 {
@@ -1319,7 +1320,7 @@ static void mmp3_dfc_trigger(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
 {
 	u32 samex, timex;
 	u32 dfc_val;
-	int ret;
+	int ret = 0;
 
 	if (change == 0)
 		return;
@@ -1335,7 +1336,10 @@ static void mmp3_dfc_trigger(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
 	dfc_val = MMP3_PROTECT_CC(dfc_val); /* set reserved */
 	dfc_val = dfc_val | change | (MMP3_FREQCH_VOLTING);
 
-	ret = mmp3_trigger_dfc_ll(dfc_val, (u32)sync_buf);
+	if (change & (MMP3_FREQCH_CORE | MMP3_FREQCH_DRAM))
+		ret = mmp3_trigger_dfc_ll(dfc_val, (u32)sync_buf);
+	else
+		__raw_writel(dfc_val, pmu->cc);
 
 	/* clear dfc irq status */
 	__raw_writel(0x1fff, APMU_REG(0xa0));
