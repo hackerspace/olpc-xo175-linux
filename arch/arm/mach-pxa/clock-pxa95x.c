@@ -330,6 +330,15 @@ static const struct clkops clk_pxa95x_dsi_ops = {
 	.setrate = clk_pxa95x_dsi_setrate,
 };
 
+static void clk_pxa95x_ihdmi_init(struct clk *c)
+{
+	struct HDMIRegisters *p_Regs = get_ihdmi_pll();
+
+	/* Power down hdmi reference current, it is useless */
+	p_Regs->HDMI_PHY_CTL1 |= HDMI_PHY_CTL1_REG_PD_IREF(1);
+
+	common_clk_init(c);
+}
 /* TODO: hdmi cken? */
 static int clk_pxa95x_ihdmi_enable(struct clk *hdmi_clk)
 {
@@ -468,7 +477,7 @@ static int clk_pxa95x_ihdmi_setrate(struct clk *clk, unsigned long rate)
 }
 
 static const struct clkops clk_pxa95x_ihdmi_ops = {
-	.init = common_clk_init,
+	.init = clk_pxa95x_ihdmi_init,
 	.enable = clk_pxa95x_ihdmi_enable,
 	.disable = clk_pxa95x_ihdmi_disable,
 	.setrate = clk_pxa95x_ihdmi_setrate,
