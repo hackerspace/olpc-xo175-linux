@@ -409,7 +409,6 @@ static int __init pxa95x_init(void)
 			return -ENOMEM;
 		/* Args 1,2: don't change AUX_CTRL */
 		l2x0_init(l2x0_base, 0x30000000, ~0);
-		l2x0_init(l2x0_base, 0, ~0);
 		l2x0_save_regs_phys_addr(&pl310_saved_regs_phys_addr,
 				l2x0_saved_regs_phys_addr);
 	}
