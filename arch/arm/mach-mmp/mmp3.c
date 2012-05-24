@@ -899,13 +899,13 @@ int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
 
 		if (vop >= VMETA_OP_VGA && vop <= VMETA_OP_VGA_MAX) {
 			printk(KERN_DEBUG "VGA!!!\n");
-			pm_qos_update_request(&vi->qos_cpufreq_min, 400);
+			pm_qos_update_request(&vi->qos_cpufreq_min, 200);
 		} else if (vop >= VMETA_OP_720P && vop <= VMETA_OP_720P_MAX) {
 			printk(KERN_DEBUG "720P!!!\n");
-			pm_qos_update_request(&vi->qos_cpufreq_min, 400);
+			pm_qos_update_request(&vi->qos_cpufreq_min, 200);
 		} else { /* 1080p and default ops */
 			printk(KERN_DEBUG "1080P!!!\n");
-			pm_qos_update_request(&vi->qos_cpufreq_min, 800);
+			pm_qos_update_request(&vi->qos_cpufreq_min, 400);
 		}
 		vi->vop_real = vop;
 		printk(KERN_DEBUG "set dvfm vop_real=%d\n", vi->vop_real);
