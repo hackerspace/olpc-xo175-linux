@@ -354,7 +354,7 @@ static int ov5642_load_fw(struct v4l2_subdev *sd)
 	int ret = 0;
 
 	/* Power on: load firmware */
-	cfg.prop_val = OV5642_PROP_FW;
+	cfg.prop_id = OV5642_PROP_FW;
 	switch (ov5642->profile) {
 	case PXA95X_SAARB:
 	case PXA968_SAARB:
