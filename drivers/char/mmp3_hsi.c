@@ -676,7 +676,7 @@ error:
 	return ret;
 }
 
-static int mmp3_hsi_enable_hw(void)
+int mmp3_hsi_enable_hw(void)
 {
 	HSI_WRITE32(HSI_ENABLE0, 0x1);
 	HSI_WRITE32(HSI_ENABLE1, 0x1);
@@ -685,6 +685,18 @@ static int mmp3_hsi_enable_hw(void)
 
 	return 0;
 }
+EXPORT_SYMBOL(mmp3_hsi_enable_hw);
+
+int mmp3_hsi_disable_hw(void)
+{
+	HSI_WRITE32(HSI_ENABLE0, 0x0);
+	HSI_WRITE32(HSI_ENABLE1, 0x0);
+	HSI_WRITE32(HSI_ENABLE2, 0x0);
+	HSI_WRITE32(HSI_ENABLE3, 0x0);
+
+	return 0;
+}
+EXPORT_SYMBOL(mmp3_hsi_disable_hw);
 
 static int mmp3_hsi_init_database(void)
 {

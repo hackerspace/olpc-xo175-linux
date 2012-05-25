@@ -489,6 +489,8 @@ int hsi_receive_dma_chain(int channel, u32 **data,
 
 int hsi_reset_tx(void);
 int hsi_reset_rx(void);
+int mmp3_hsi_enable_hw(void);
+int mmp3_hsi_disable_hw(void);
 
 bool hsi_disable_tx_fifo_int(int channel, struct strt_hsi_tx_ch_cfg *tx_cfg);
 bool hsi_disable_tx_fifo_req(int channel, struct strt_hsi_tx_ch_cfg *tx_cfg);
