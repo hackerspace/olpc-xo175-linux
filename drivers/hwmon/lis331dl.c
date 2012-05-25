@@ -875,6 +875,17 @@ static int lis331dlh_resume(struct i2c_client *client)
 
 	return 0;
 }
+void lis331dlh_shutdown(struct i2c_client *client)
+{
+	struct lis331dlh_data *lis331dlh = i2c_get_clientdata(client);
+	mutex_lock(&lis331dlh->enable_mutex);
+	if (lis331dlh_get_enable(&client->dev)) {
+		cancel_delayed_work_sync(&lis331dlh->work);
+                printk(KERN_INFO "lis331dlh_shutdown is called...\n" );
+	}
+
+	mutex_unlock(&lis331dlh->enable_mutex);
+}
 
 static const struct i2c_device_id lis331dlh_id[] = {
 	{LIS331DL_NAME, 0},
@@ -894,6 +905,7 @@ static struct i2c_driver lis331dlh_driver = {
 	.remove = lis331dlh_remove,
 	.suspend = lis331dlh_suspend,
 	.resume = lis331dlh_resume,
+	.shutdown = lis331dlh_shutdown,
 	.id_table = lis331dlh_id,
 };
 
