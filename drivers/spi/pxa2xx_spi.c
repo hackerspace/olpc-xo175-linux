@@ -506,8 +506,10 @@ static void giveback(struct driver_data *drv_data)
 {
 	struct spi_transfer* last_transfer;
 	unsigned long flags;
+	struct ssp_device *ssp;
 	struct spi_message *msg;
 
+	ssp = drv_data->ssp;
 	spin_lock_irqsave(&drv_data->lock, flags);
 	msg = drv_data->cur_msg;
 	drv_data->cur_msg = NULL;
@@ -566,6 +568,8 @@ static void giveback(struct driver_data *drv_data)
 	drv_data->cur_chip = NULL;
 
 	unset_dvfm_constraint(drv_data);
+
+	clk_disable(ssp->clk);
 }
 
 static int wait_ssp_rx_stall(void const __iomem *ioaddr)
@@ -1137,7 +1141,7 @@ static void pump_transfers(unsigned long data)
 			| SSCR0_SSE
 			| (bits > 16 ? SSCR0_EDSS : 0);
 	}
-
+	clk_enable(ssp->clk);
 	message->state = RUNNING_STATE;
 
 	/* Try to map dma buffer and do a dma transfer if successful, but
@@ -1738,6 +1742,9 @@ static int __devinit pxa2xx_spi_probe(struct platform_device *pdev)
 		goto out_error_queue_alloc;
 	}
 
+	/*close the clk to save power will open when needed*/
+	clk_disable(ssp->clk);
+
 	return status;
 
 out_error_queue_alloc:
@@ -1834,6 +1841,7 @@ static int pxa2xx_spi_suspend(struct device *dev)
 	status = stop_queue(drv_data);
 	if (status != 0)
 		return status;
+	clk_enable(ssp->clk);/*enable clk to write register*/
 	write_SSCR0(0, drv_data->ioaddr);
 	clk_disable(ssp->clk);
 
@@ -1843,7 +1851,6 @@ static int pxa2xx_spi_suspend(struct device *dev)
 static int pxa2xx_spi_resume(struct device *dev)
 {
 	struct driver_data *drv_data = dev_get_drvdata(dev);
-	struct ssp_device *ssp = drv_data->ssp;
 	int status = 0;
 
 	if (drv_data->rx_channel != -1)
@@ -1852,9 +1859,6 @@ static int pxa2xx_spi_resume(struct device *dev)
 	if (drv_data->tx_channel != -1)
 		DRCMR(drv_data->ssp->drcmr_tx) =
 			DRCMR_MAPVLD | drv_data->tx_channel;
-
-	/* Enable the SSP clock */
-	clk_enable(ssp->clk);
 
 	/* Start the queue running */
 	status = start_queue(drv_data);
