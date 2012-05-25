@@ -239,7 +239,7 @@ static const int yuv_output_sequence[][3] = {
 
 static int dvfm_dev_idx;
 
-static unsigned int vid_mem_limit = 64;	/* Video memory limit, in Mb */
+static unsigned int vid_mem_limit = 128;	/* Video memory limit, in Mb */
 static unsigned int skip_frame;
 
 typedef enum {
