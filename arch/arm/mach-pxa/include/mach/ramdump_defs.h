@@ -104,7 +104,8 @@ struct ramfile_desc {
 	unsigned next; /* next object (pa) or NULL */
 	unsigned payload_size; /* bytes, excluding this header */
 	unsigned flags;
-	unsigned reserved[5];
+	unsigned vaddr; /* virtual start address for discontinous case */
+	unsigned reserved[4];
 };
 
 /* RDC: the location is fixed at RDC_ADDRESS. Size is 1KB. */
@@ -123,6 +124,7 @@ struct rdc_area {
 		unsigned mipsram_pa; /* physical addr of mipsram buffer */
 		unsigned mipsram_size; /* size of mipsram buffer */
 		unsigned ddr_bank0_size; /* for future use in RDP */
+		unsigned pgd; /* init_mm.pgd  pa: translate vmalloc addresses */
 	} header;
 	unsigned char reserved[0x400-sizeof(struct rdc_header)]; /*upto 1KB*/
 };

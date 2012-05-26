@@ -577,6 +577,9 @@ static void ramdump_fill_rdc(void)
 	rdc_va->header.mipsram_pa = mipsram_desc.buffer_phys_ptr;
 	rdc_va->header.mipsram_size = MIPS_RAM_BUFFER_SZ_BYTES;
 #endif
+	/* init_mm.pgd, so rdp can translate vmalloc addresses */
+	rdc_va->header.pgd = __virt_to_phys((unsigned)(pgd_offset_k(0)));
+
 }
 
 /************************************************************************/
@@ -584,25 +587,27 @@ static void ramdump_fill_rdc(void)
 /************************************************************************/
 int ramdump_attach_ramfile(struct ramfile_desc *desc)
 {
-	unsigned pa = rdc_va->header.ramfile_addr;
-	struct ramfile_desc *va;
-	unsigned *link = &rdc_va->header.ramfile_addr;
-	/* Caller may supply buffers allocated with vmalloc,
-	   so VA should be used */
-	unsigned use_phy = desc->flags & RAMFILE_PHYCONT;
-	if (pa) {
-		/* Search through the linked list */
-		va = (struct ramfile_desc *)(use_phy ? __phys_to_virt(pa) : pa);
-		while (va->next)
-			va = (struct ramfile_desc *)(use_phy ?
-					__phys_to_virt(va->next) : va->next);
-		link = &va->next;
-	}
+	/* Legacy: ramfiles linked list are physical:
+	both head=rdc_va->header.ramfile_addr, and all next's.
+	Kernel cannot always translate physical addresses,
+	e.g. with vmalloc or himem. Just keep the virtual address
+	of the last item next pointer. No need to walk the list then.*/
+	static unsigned *link;
 
-	/* Link in the new desc */
-	*link = use_phy ? __virt_to_phys((unsigned)desc) : (unsigned)desc;
+	if (!link)
+		link = &rdc_va->header.ramfile_addr;
+	/* Link in the new desc: by physical address */
+	if (desc->flags & RAMFILE_PHYCONT)
+		*link = __virt_to_phys((unsigned)desc);
+	else
+		*link = vmalloc_to_pfn(desc)<<PAGE_SHIFT;
+
+	/* keep virtual addr for discontinous pages (vmalloc) */
+	desc->vaddr = (unsigned)desc;
 	/* Make sure the new desc is properly ending the list */
 	desc->next = 0;
+	/* Finally: advance the last element pointer */
+	link = &desc->next;
 	return 0;
 }
 EXPORT_SYMBOL(ramdump_attach_ramfile);
