@@ -307,6 +307,9 @@ static void regulator_init_pm800(void)
 		REG_SUPPLY_INIT(PM800_ID_LDO17, "VSim", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO19, "v_gps", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO2, "mic_bias", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO8, "v_lcd_cywee_touch", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO14, "v_touch", NULL);
+
 		REG_INIT(i++, PM800_ID, LDO18, 1700000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO11, 1200000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO13, 1200000, 3300000, 0, 0);
@@ -315,6 +318,9 @@ static void regulator_init_pm800(void)
 		REG_INIT(i++, PM800_ID, LDO17, 1200000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO19, 1700000, 1800000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO2, 1700000, 2800000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO8, 1800000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO14, 1200000, 3300000, 0, 0);
+
 		break;
 	default:
 		REG_SUPPLY_INIT(PM800_ID_LDO14, "Vdd_IO", NULL);
@@ -822,18 +828,21 @@ static struct pm80x_vibrator_pdata vibrator_pdata = {
 static int touch_set_power(int on)
 {
 	struct regulator *v_ldo;
-	v_ldo = regulator_get(NULL, "v_lcd_cywee_touch");
+
+	if (get_board_id() == OBM_SAAR_C3V5_NEVO_D0_V10_BOARD)
+		v_ldo = regulator_get(NULL, "v_touch");
+	else
+		v_ldo = regulator_get(NULL, "v_lcd_cywee_touch");
 
 	if (IS_ERR(v_ldo)) {
 		v_ldo = NULL;
 		return -EIO;
 	}
 
-	if (on) {
+	if (on)
 		regulator_enable(v_ldo);
-	} else {
+	else
 		regulator_disable(v_ldo);
-	}
 	regulator_put(v_ldo);
 	v_ldo = NULL;
 	return 0;
@@ -2346,15 +2355,16 @@ static void panel_power(int on)
 		if (IS_ERR(vlcd)) {
 			printk(KERN_ERR "lcd: fail to get ldo handle!\n");
 			vlcd = NULL;
-			return;
 		}
 	}
 	if (on) {
-		regulator_enable(vlcd);
+		if (vlcd)
+			regulator_enable(vlcd);
 		panel_power_trulywvga(1, on);
 	} else {
 		panel_power_trulywvga(1, on);
-		regulator_disable(vlcd);
+		if (vlcd)
+			regulator_disable(vlcd);
 	}
 }
 
