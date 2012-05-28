@@ -14,11 +14,11 @@
 	__CPUINIT
 
 /*
- * Realview specific entry point for secondary CPUs.  This provides
+ * PXA specific entry point for secondary CPUs.  This provides
  * a "holding pen" into which all secondary cores are held until we're
  * ready for them to initialise.
  */
-ENTRY(mmp3_secondary_startup)
+ENTRY(pxa_secondary_startup)
 	mrc	p15, 0, r0, c0, c0, 5
 	and	r0, r0, #15
 	adr	r4, 1f
@@ -34,7 +34,7 @@ pen:	ldr	r7, [r6]
 	 * should now contain the SVC stack for this core
 	 */
 	b	secondary_startup
-ENDPROC(mmp3_secondary_startup)
+ENDPROC(pxa_secondary_startup)
 
 	.align	2
 1:	.long	.

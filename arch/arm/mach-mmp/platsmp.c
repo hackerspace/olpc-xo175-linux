@@ -34,7 +34,7 @@
 #define SW_BRANCH_VIRT_ADDR	(DDR_RES_VIRT_BASE + SZ_1K - 4)
 #endif
 
-extern void mmp3_secondary_startup(void);
+extern void pxa_secondary_startup(void);
 
 /*
  * control for which core is the next to come out of the secondary
@@ -168,7 +168,7 @@ void __init platform_smp_prepare_cpus(unsigned int max_cpus)
 	 * register. The BootMonitor waits for this register to become
 	 * non-zero.
 	 */
-	__raw_writel(BSYM(virt_to_phys(mmp3_secondary_startup)),
+	__raw_writel(BSYM(virt_to_phys(pxa_secondary_startup)),
 			(void __iomem *)SW_BRANCH_VIRT_ADDR);
 
 }
