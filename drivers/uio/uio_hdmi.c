@@ -68,6 +68,10 @@ static void set_power_constraint(struct hdmi_instance *hi, int min)
 	pm_qos_update_request(&hi->qos_cpufreq_disable, 1);
 #endif
 
+#ifdef CONFIG_CPU_MMP3
+	pm_qos_update_request(&hi->qos_cpufreq_min, min);
+#endif
+
 #ifdef CONFIG_CPU_PXA978
 	printk("hdmi: set_power_constraint\n");
 	/* Disable Lowpower mode */
@@ -85,6 +89,10 @@ static void unset_power_constraint(struct hdmi_instance *hi)
 	pm_qos_update_request(&hi->qos_idle, PM_QOS_DEFAULT_VALUE);
 	pm_qos_update_request(&hi->qos_cpufreq_min, PM_QOS_DEFAULT_VALUE);
 	pm_qos_update_request(&hi->qos_cpufreq_disable, PM_QOS_DEFAULT_VALUE);
+#endif
+
+#ifdef CONFIG_CPU_MMP3
+	pm_qos_update_request(&hi->qos_cpufreq_min, PM_QOS_DEFAULT_VALUE);
 #endif
 
 #ifdef CONFIG_CPU_PXA978
