@@ -3736,8 +3736,8 @@ static int __init pxa95x_freq_init(void)
 				max_gc = 481 * MHZ_TO_KHZ;
 				max_vmeta = 481 * MHZ_TO_KHZ;
 			} else {
-				max_gc = 500 * MHZ_TO_KHZ;
-				max_vmeta = 500 * MHZ_TO_KHZ;
+				max_gc = 498 * MHZ_TO_KHZ;
+				max_vmeta = 498 * MHZ_TO_KHZ;
 			}
 			break;
 		case 5:
@@ -3746,8 +3746,8 @@ static int __init pxa95x_freq_init(void)
 				max_gc = 481 * MHZ_TO_KHZ;
 				max_vmeta = 481 * MHZ_TO_KHZ;
 			} else {
-				max_gc = 500 * MHZ_TO_KHZ;
-				max_vmeta = 500 * MHZ_TO_KHZ;
+				max_gc = 498 * MHZ_TO_KHZ;
+				max_vmeta = 498 * MHZ_TO_KHZ;
 			}
 			break;
 		case 6:

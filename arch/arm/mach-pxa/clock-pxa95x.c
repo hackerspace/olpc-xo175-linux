@@ -33,7 +33,7 @@ struct clk_table {
 static struct clk_table pxa978_gcu_clk_table[] = {
 	{156000},
 	{312000},
-	{500000},
+	{498000},
 	{600000},
 	{0},
 };
