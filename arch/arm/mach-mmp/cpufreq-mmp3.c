@@ -95,22 +95,34 @@ out:
 	return ret;
 }
 
+static unsigned int axi_freq[] = {
+	100000,		/* core 100Mhz, axi 100Mhz */
+	200000,		/* core 200Mhz, axi 200Mhz */
+	266000,		/* core 400Mhz, axi 266Mhz */
+	266000,		/* core 800Mhz, axi 266Mhz */
+	266000,		/* core 1Ghz,   axi 266Mhz */
+	266000,		/* core 1.2Ghz, axi 266Mhz */
+};
+
 static int freq_notify_and_change(unsigned int cpu_idx, unsigned int pp_index)
 {
 	int cpu;
 	struct cpufreq_freqs freqs;
-	unsigned int highest_speed;
+	unsigned int cfreq, afreq;
 	int ret = 0;
+
+	BUG_ON(ARRAY_SIZE(axi_freq) <= pp_index);
 
 	if (cpufreq_disable)
 		return ret;
 
 	/* FIXME: always use MP1 core as the index to do FC */
-	highest_speed = mmp3_get_pp_freq(pp_index, MMP3_CLK_MP1);
+	cfreq = mmp3_get_pp_freq(pp_index, MMP3_CLK_MP1);
+	afreq = axi_freq[pp_index];
 
 	freqs.cpu = cpu_idx;
 	freqs.old = mmp3_cpufreq_get(cpu_idx);
-	freqs.new = mmp3_get_pp_freq(pp_index, MMP3_CLK_MP1);
+	freqs.new = cfreq;
 
 	if (freqs.old == freqs.new)
 		return ret;
@@ -118,7 +130,8 @@ static int freq_notify_and_change(unsigned int cpu_idx, unsigned int pp_index)
 	for_each_online_cpu(cpu)
 		cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
 
-	clk_set_rate(cpu_clk, highest_speed);
+	clk_set_rate(cpu_clk, cfreq);
+	mmp3_setfreq(MMP3_CLK_AXI_1, afreq);
 
 	freqs.new = mmp3_cpufreq_get(cpu_idx);
 	for_each_online_cpu(cpu)
