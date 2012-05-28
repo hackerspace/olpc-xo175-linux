@@ -29,6 +29,7 @@
 #include <mach/regs-apmu.h>
 #include <mach/regs-mpmu.h>
 #include <mach/regs-pmu.h>
+#include <mach/regs-ciu.h>
 #include <mach/cputype.h>
 #include <mach/irqs.h>
 #include <mach/gpio.h>
@@ -316,6 +317,63 @@ static void mmp3_init_l2x0(void)
 static void mmp3_init_l2x0(void) {}
 #endif
 
+#define DMCU_REG(mcu, x) (DMCU_VIRT_BASE + ((mcu) * 0x10000) + (x))
+#define DMCU0_PORT_PRIORITY_VA DMCU_REG(0, 0x140)
+#define DMCU1_PORT_PRIORITY_VA DMCU_REG(1, 0x140)
+/* raise display related DDR ports to critical with low latency requirement*/
+#define DEFAULT_DDR_PORT_PRI (0xff003030)
+
+static void mmp3_fabric_ddr_config(void)
+{
+	u32  regval;
+
+	/* fabric dynamic clock gating */
+	regval = __raw_readl(CIU_FABRIC_CKGT_CTRL0);
+	regval &= ~(0xFE00AAAA);	/* clear reserved bits */
+					/* [31:25] reserved*/
+	regval &= ~(0x1 << 24);		/*Fab11 aclk, VMETA AXI*/
+	regval &= ~(0x1 << 23);		/*Fab9 aclk, MDMA/VDMA*/
+	regval &= ~(0x7f << 16);	/*MC1x2 fabrics*/
+					/* 15, reserved*/
+	regval &= ~(0x1 << 14);		/*fabric2 aclk, LCD/FE/IRE/Fabric5*/
+					/* 13, reserved*/
+	regval &= ~(0x1 << 12);		/*fabric3 aclk3, ISP/CCIC/Fabric4*/
+					/* 11, reserved*/
+	regval &= ~(0x1 << 10);		/*fabric1 aclk2, PJ/SP/APB/AHB*/
+					/* 9, reserved*/
+	regval &= ~(0x1 << 8);		/*fabric4 aclk, USB/SD/NFC/SMC*/
+					/* 7, reserved*/
+	regval &= ~(0x1 << 6);		/*fabric4 aclk2, USB/SD/NFC/SMC*/
+					/* 5, reserved*/
+	regval &= ~(0x1 << 4);		/*fabric10 aclk, USB/SD/NFC/SMC*/
+					/* 3, reserved*/
+	regval &= ~(0x1 << 2);		/*fabric10 aclk2, USB/SD/NFC/SMC*/
+					/* 1, reserved*/
+	regval &= ~(0x1 << 0);		/*fabric5 aclk5, HSI/SPMI/SLIMBUS0*/
+	__raw_writel(regval, CIU_FABRIC_CKGT_CTRL0);
+
+	regval = __raw_readl(CIU_FABRIC_CKGT_CTRL1);
+	regval &= ~(0xFFFFFFFC);	/* clear reserved bits */
+					/* [31:2] reserved*/
+	regval &= ~(0x1 << 1);		/*audio fabric*/
+	regval &= ~(0x1 << 0);		/*DDR P5*/
+	__raw_writel(regval, CIU_FABRIC_CKGT_CTRL1);
+
+	regval = __raw_readl(CIU_FABRIC_CKGT_CTRL2);
+	regval &= ~(0xFFFFFFFE);	/* clear reserved bits */
+					/* [31:1] reserved*/
+	regval &= ~(0x1 << 0);		/*GC Fabric*/
+	__raw_writel(regval, CIU_FABRIC_CKGT_CTRL2);
+
+	dsb();
+	pr_info("%s: 0x%08x, 0x%08x, 0x%08x\n", __func__
+		, __raw_readl(CIU_FABRIC_CKGT_CTRL0)
+		, __raw_readl(CIU_FABRIC_CKGT_CTRL1)
+		, __raw_readl(CIU_FABRIC_CKGT_CTRL2)
+		);
+
+}
+
 static void __init mmp3_timer_init(void)
 {
 	uint32_t clk_rst;
@@ -398,6 +456,8 @@ static int __init mmp3_init(void)
 	pj4b_wcb_config(2, OMITFLD, OMITFLD);
 
 	mmp3_init_l2x0();
+
+	mmp3_fabric_ddr_config();
 
 	mfp_init_base(MFPR_VIRT_BASE);
 	mfp_init_addr(mmp3_addr_map);

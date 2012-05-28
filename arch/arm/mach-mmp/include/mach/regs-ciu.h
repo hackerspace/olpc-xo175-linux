@@ -33,5 +33,26 @@
 #define CIU_MCB_SRAM_SPD	CIU_REG(0x0044)
 #define CIU_AXI_SRAM_SPD	CIU_REG(0x0048)
 #define CIU_DDR_ILV_CTRL	CIU_REG(0x00a0)
+#define CIU_FABRIC_CKGT_CTRL0	CIU_REG(0x0064)
+#define CIU_FABRIC_CKGT_CTRL1	CIU_REG(0x0068)
+#define CIU_FABRIC_CKGT_CTRL2	CIU_REG(0x00dc)
+
+static __maybe_unused int ciu_ddr_ilv_on(void)
+{
+	return ((__raw_readl(CIU_DDR_ILV_CTRL) & 0x7f) != 0);
+}
+
+static __maybe_unused u32 ciu_ddr_ilv_size(void)
+{
+	u32 regval;
+	regval = __raw_readl(CIU_DDR_ILV_CTRL) & 0x7f;
+	/* there should be only 1 bit set */
+	BUG_ON(((regval - 1) & regval) != 0);
+	if ((regval & (~0x1f)) != 0)
+		return regval << 24;
+	else
+		return (regval * regval) << 12;
+}
+
 
 #endif /* __ASM_MACH_REGS_CIU_H */
