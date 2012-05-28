@@ -380,6 +380,35 @@ static void mmp3_fabric_ddr_config(void)
 		, __raw_readl(CIU_FABRIC_CKGT_CTRL2)
 		);
 
+	/* update priority*/
+	pr_info("%s: DDR interleave size %d KB\n", __func__
+		, ciu_ddr_ilv_size()/1024);
+	if (ciu_ddr_ilv_on()) {
+		__raw_writel(DEFAULT_DDR_PORT_PRI, DMCU0_PORT_PRIORITY_VA);
+		__raw_writel(DEFAULT_DDR_PORT_PRI, DMCU1_PORT_PRIORITY_VA);
+		pr_info("%s: DDR Port Priority %x, %x\n", __func__
+			, __raw_readl(DMCU0_PORT_PRIORITY_VA)
+			, __raw_readl(DMCU1_PORT_PRIORITY_VA)
+			);
+	} else {
+		__raw_writel(DEFAULT_DDR_PORT_PRI, DMCU0_PORT_PRIORITY_VA);
+		pr_info("%s: DDR Port Priority %x\n", __func__
+			, __raw_readl(DMCU0_PORT_PRIORITY_VA));
+
+		/* make sure 2nd MC is off */
+		regval = __raw_readl(APMU_BUS);
+		regval &= ~(1u << 1);
+		__raw_writel(regval, APMU_BUS);
+
+		/* force 2nd MC clock generating block to be clock gated*/
+		regval = __raw_readl(APMU_REG(0x40));
+		regval &= ~(3u << 18);
+		regval |= (1u << 18);
+		__raw_writel(regval, APMU_REG(0x40));
+	}
+
+	dsb();
+
 }
 
 static void __init mmp3_timer_init(void)
