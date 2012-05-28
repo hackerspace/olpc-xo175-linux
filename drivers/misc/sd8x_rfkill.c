@@ -24,6 +24,8 @@
 #include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <linux/mmc/host.h>
+#include <linux/mmc/sdhci.h>
+#include <linux/clk.h>
 #include <linux/sd8x_rfkill.h>
 #include <linux/platform_data/pxa_sdhci.h>
 #include <mach/gpio.h>
@@ -129,6 +131,7 @@ static int sd8x_set_block(void *data, bool blocked)
 	int on = 0;
 	struct sd8x_rfkill_data *sd8x_data = (struct sd8x_rfkill_data *)data;
 	struct sd8x_rfkill_platform_data *pdata = sd8x_data->pdata;
+	struct sdhci_host *host = mmc_priv(pdata->mmc);
 
 	if (!pdata->wlan_rfkill) {
 		if (sd8x_data->pdata->set_power)
@@ -147,7 +150,15 @@ static int sd8x_set_block(void *data, bool blocked)
 	else if (blocked && !pre_blocked)
 		on = 0;
 	else
-		goto out;
+		return 0;
+
+       /* for ON, enable mmc controller clock source 1st if it is gated
+		after controller probe ends; for OFF, no action here since the clock
+		should be already on */
+       if (on && host->clk) {
+               clk_enable(host->clk);
+               mdelay(1);
+       }
 
 	if (pdata->set_power)
 		pdata->set_power(on);
@@ -190,12 +201,19 @@ static int sd8x_set_block(void *data, bool blocked)
 		printk(KERN_DEBUG "rfkill is not linked with mmc_host\n");
 
 out:
-	if (!ret)
+	if (!ret) {
 		sd8x_data->blocked = blocked;
+
+		/* for OFF, disable the clock source here */
+		if(!on && host->clk)
+			clk_disable(host->clk);
+	}
 	else if (on) {
 		if (pdata->set_power)
 			pdata->set_power(0);
 		sd8x_power_on(pdata, 0);
+		if(host->clk)
+			clk_disable(host->clk);
 	}
 
 	return ret;
