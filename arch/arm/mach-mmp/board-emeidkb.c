@@ -27,6 +27,7 @@
 #include <mach/pxa988.h>
 #include <mach/irqs.h>
 #include <mach/regs-mpmu.h>
+#include <plat/pmem.h>
 
 #include "common.h"
 
@@ -39,6 +40,10 @@ static unsigned long emeidkb_pin_config[] __initdata = {
 static void __init emeidkb_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(emeidkb_pin_config));
+
+#ifdef CONFIG_ANDROID_PMEM
+	pxa_add_pmem();
+#endif
 }
 
 MACHINE_START(EMEIDKB, "PXA988-Based")
