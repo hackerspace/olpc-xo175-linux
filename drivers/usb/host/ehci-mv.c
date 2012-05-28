@@ -121,6 +121,7 @@ static int mv_ehci_reset(struct usb_hcd *hcd)
 		dev_err(dev, "ehci_reset failed %d\n", retval);
 		return retval;
 	}
+	ehci_port_power(ehci, 1);
 
 	return 0;
 }
@@ -150,6 +151,8 @@ static const struct hc_driver mv_ehci_hc_driver = {
 	.urb_enqueue		= ehci_urb_enqueue,
 	.urb_dequeue		= ehci_urb_dequeue,
 	.endpoint_disable	= ehci_endpoint_disable,
+	.endpoint_reset		= ehci_endpoint_reset,
+	.clear_tt_buffer_complete = ehci_clear_tt_buffer_complete,
 
 	/*
 	 * scheduling support
