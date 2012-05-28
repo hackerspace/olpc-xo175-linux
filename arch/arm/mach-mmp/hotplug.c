@@ -16,11 +16,11 @@
 #include <asm/cacheflush.h>
 #include <mach/mmp3_pm.h>
 
-extern volatile int pen_release;
+extern volatile int __cpuinitdata pen_release;
 
 static DECLARE_COMPLETION(cpu_killed);
 
-static inline void platform_do_lowpower(unsigned int cpu)
+static inline void __cpuinit platform_do_lowpower(unsigned int cpu)
 {
 	/*
 	 * there is no power-control hardware on this platform, so all
@@ -64,7 +64,7 @@ int platform_cpu_kill(unsigned int cpu)
  *
  * Called with IRQs disabled
  */
-void platform_cpu_die(unsigned int cpu)
+void __cpuinit platform_cpu_die(unsigned int cpu)
 {
 #ifdef DEBUG
 	unsigned int this_cpu = hard_smp_processor_id();
