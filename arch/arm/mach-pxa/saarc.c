@@ -768,7 +768,8 @@ struct sdhci_pxa_platdata mci1_platform_data = {
 EXPORT_SYMBOL(mci1_platform_data);
 
 struct sdhci_pxa_platdata mci2_platform_data = {
-	.flags  = PXA_FLAG_CARD_PERMANENT,
+	.flags  = PXA_FLAG_CARD_PERMANENT |
+			PXA_FLAG_SDIO_CTRLCLKSRC_GATE,
 	.pm_caps = MMC_PM_KEEP_POWER |
 				MMC_PM_IRQ_ALWAYS_ON,
 	.handle_cdint = pxa95x_handle_cdint,
