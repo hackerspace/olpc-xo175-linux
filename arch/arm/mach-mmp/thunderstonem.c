@@ -1466,6 +1466,10 @@ static void __init thunderstonem_init(void)
 	mmp_init_devfreq_vmeta();
 #endif
 
+#ifdef CONFIG_MMP_ZSP
+	mmp_zsp_platform_device_init();
+#endif
+
 #ifdef CONFIG_MMC_SDHCI_PXAV3
 	thunderstonem_init_mmc();
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
