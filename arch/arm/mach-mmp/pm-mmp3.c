@@ -392,37 +392,37 @@ static struct mmp3_freq_plan mmp3_pps[] = {
 #if MMP3_TEST_PP
 	{
 		.core = {{MMP3_FREQ_OP_GET, 4, 0, 0, 0, 0, 0, 0, 0},},
-		.axi  = {{MMP3_FREQ_OP_GET, 0, 7, 7},},
+		.axi  = {{MMP3_FREQ_OP_GET, 0, 7, 7},},	/* 50/50 */
 	},
 	{
 		.core = {{MMP3_FREQ_OP_GET, 0, 7, 0, 0, 0, 0, 7, 7},},
-		.axi  = {{MMP3_FREQ_OP_GET, 0, 3, 3},},
+		.axi  = {{MMP3_FREQ_OP_GET, 0, 5, 5},},	/* 66/66 */
 	},
 #endif
 	{
 		.core = {{MMP3_FREQ_OP_GET, 0, 3, 0, 0, 0, 0, 3, 3},},
-		.axi  = {{MMP3_FREQ_OP_GET, 0, 3, 3},},
+		.axi  = {{MMP3_FREQ_OP_GET, 0, 3, 3},},	/* 100/100 */
 	},
 	{
 		.core = {{MMP3_FREQ_OP_GET, 0, 1, 0, 0, 0, 0, 1, 1},},
-		.axi  = {{MMP3_FREQ_OP_GET, 0, 1, 3},},
+		.axi  = {{MMP3_FREQ_OP_GET, 0, 1, 3},},	/* 200/100 */
 	},
 	{
 		.core = {{MMP3_FREQ_OP_GET, 1, 1, 0, 0, 0, 0, 1, 1},},
-		.axi  = {{MMP3_FREQ_OP_GET, 0, 0, 1},},
+		.axi  = {{MMP3_FREQ_OP_GET, 1, 2, 3},},	/* 266/200 */
 	},
 	{
 		.core = {{MMP3_FREQ_OP_GET, 1, 0, 0, 0, 1, 1, 1, 1},},
-		.axi  = {{MMP3_FREQ_OP_GET, 1, 1, 2},},
+		.axi  = {{MMP3_FREQ_OP_GET, 3, 2, 4},},	/* 354/213 */
 	},
 	{
 		.core = {{MMP3_FREQ_OP_GET, 3, 0, 0, 0, 1, 1, 2, 2},},
-		.axi  = {{MMP3_FREQ_OP_GET, 1, 1, 2},},
+		.axi  = {{MMP3_FREQ_OP_GET, 1, 1, 3},},	/* 400/200 */
 	},
 #if MMP3_TEST_PP
 	{
 		.core = {{MMP3_FREQ_OP_GET, 2, 0, 0, 0, 1, 1, 2, 2},},
-		.axi  = {{MMP3_FREQ_OP_GET, 1, 1, 2},},
+		.axi  = {{MMP3_FREQ_OP_GET, 1, 1, 3},},	/* 400/200 */
 	},
 #endif
 };
@@ -2185,6 +2185,8 @@ static int __init mmp3_pm_init(void)
 	dfcsch_active = 0;
 
 	register_cpu_notifier(&mmp3_pm_cpu_notifier);
+
+	mmp3_setfreq(MMP3_CLK_AXI_1, 250000); /* lower default fabric speed*/
 	return 0;
 }
 
