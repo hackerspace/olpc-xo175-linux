@@ -70,6 +70,9 @@ obj-$(CONFIG_MACH_ORCHID)	+= orchid.o
 obj-$(CONFIG_MACH_EMEIDKB)	+= board-emeidkb.o
 obj-$(CONFIG_CPU_FREQ_MMP3)	+= cpufreq-mmp3.o
 obj-$(CONFIG_CPU_FREQ_PXA910)	+= cpufreq-pxa910.o acpuclock-pxa910.o acpuclock-pxa910_ll.o
+ifeq ($(CONFIG_CPU_FREQ),y)
+obj-$(CONFIG_CPU_PXA988)	+= acpuclock-pxa988.o cpufreq-pxa988.o
+endif
 ifeq ($(CONFIG_SUSPEND),y)
 obj-$(CONFIG_CPU_PXA910)	+= pxa910_pm.o
 obj-$(CONFIG_CPU_PXA988)	+= pm-pxa988.o
