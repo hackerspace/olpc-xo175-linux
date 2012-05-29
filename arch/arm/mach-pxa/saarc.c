@@ -352,6 +352,7 @@ static int pn65n_request_resources(struct i2c_client *client)
 
 	if (ret)
 		return  -ENODEV;
+
 	gpio_direction_input(MFP_PIN_GPIO130);
 
 	return 0;
@@ -371,6 +372,7 @@ static int pn65n_test(void)
 static void nfc_poweron(int mode)
 {
 	int nfc_en;
+	mfp_cfg_t nfc_en_mfp;
 
 	nfc_en = mfp_to_gpio(MFP_PIN_GPIO127);
 
@@ -378,6 +380,10 @@ static void nfc_poweron(int mode)
 		printk(KERN_ERR "nfc: fail to request gpio en!\n");
 		gpio_free(nfc_en);
 	}
+
+	nfc_en_mfp = (mfp_read(MFP_PIN_GPIO127) & (~MFPR_LPM_MASK))
+		| MFPR_LPM_DRIVE_HIGH;
+	mfp_write(MFP_PIN_GPIO127, nfc_en_mfp);
 
 	gpio_direction_output(nfc_en, 1);
 	msleep(20);
@@ -388,6 +394,7 @@ static void nfc_poweron(int mode)
 static void nfc_poweroff(void)
 {
 	int nfc_en;
+	mfp_cfg_t nfc_en_mfp;
 
 	nfc_en = mfp_to_gpio(MFP_PIN_GPIO127);
 
@@ -395,6 +402,10 @@ static void nfc_poweroff(void)
 		printk(KERN_ERR "nfc: fail to request gpio en!\n");
 		gpio_free(nfc_en);
 	}
+
+	nfc_en_mfp = (mfp_read(MFP_PIN_GPIO127) & (~MFPR_LPM_MASK))
+		| MFPR_LPM_DRIVE_LOW;
+	mfp_write(MFP_PIN_GPIO127, nfc_en_mfp);
 
 	gpio_direction_output(nfc_en, 0);
 	msleep(20);
@@ -412,13 +423,6 @@ static struct pn544_nfc_platform_data pn544_data = {
 };
 
 #endif
-
-static void __init init_nfc(void)
-{
-	mfp_cfg_t config = MFP_PIN_GPIO130;
-	mfp_config(&config, 1);/*for nfc irq gpio irq*/
-
-}
 
 static struct i2c_board_info i2c1_80x_info[] = {
 	{
@@ -2882,10 +2886,6 @@ static void __init init(void)
 
 #if defined(CONFIG_FB_PXA95x)
 	init_lcd();
-#endif
-
-#if defined(CONFIG_PN544_NFC)
-	init_nfc();
 #endif
 
 #if defined(CONFIG_MMC_SDHCI_PXAV2_TAVOR) || defined(CONFIG_MMC_SDHCI_PXAV3)
