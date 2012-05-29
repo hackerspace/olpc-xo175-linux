@@ -61,6 +61,9 @@
 #include <linux/rtc-pxa.h>
 #endif
 
+#ifdef CONFIG_BATTERY_MAX17043
+#include <linux/max17043_battery.h>
+#endif
 
 #define NEVOSAARC_NR_IRQS	(IRQ_BOARD_START + 40)
 
@@ -975,6 +978,19 @@ static struct adp1650_platform_data adp1650_data= {
 };
 #endif
 
+#ifdef CONFIG_BATTERY_MAX17043
+static struct max17043_battery_pdata max17043_data = {
+	.gpio_en = 1,
+	.gpio = mfp_to_gpio(MFP_PIN_GPIO12),
+	.interval = 60,		/*second*/
+};
+
+struct platform_device max17043_device = {
+	.name = "max17043-battery",
+	.id = -1,
+};
+#endif
+
 static struct i2c_board_info i2c2_info_DKB[] = {
 #if defined(CONFIG_SENSORS_ROHM_BH1772)
 	{
@@ -993,6 +1009,36 @@ static struct i2c_board_info i2c2_info_DKB[] = {
 	{
 		I2C_BOARD_INFO("adp8885", 0x3A), /* 0x74 */
 		.platform_data = (void *)&adp8885_data,
+	},
+#endif
+
+};
+
+static struct i2c_board_info i2c2_info_DKB_2_1[] = {
+#if defined(CONFIG_SENSORS_ROHM_BH1772)
+	{
+		I2C_BOARD_INFO("rohm_ls", 0x38),
+		.irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO87)),
+	},
+#endif
+
+#if defined(CONFIG_TOUCHSCREEN_SSD2531)
+	{
+		I2C_BOARD_INFO("ssd2531_ts", 0x5c),
+		.platform_data = (void *)&touch_platform_data,
+	},
+#endif
+#if defined(CONFIG_BACKLIGHT_ADP8885)
+	{
+		I2C_BOARD_INFO("adp8885", 0x3A), /* 0x74 */
+		.platform_data = (void *)&adp8885_data,
+	},
+#endif
+
+#ifdef CONFIG_BATTERY_MAX17043
+	{
+		I2C_BOARD_INFO("max17043", 0x36),
+		.platform_data = (void *)&max17043_data,
 	},
 #endif
 };
@@ -1084,7 +1130,7 @@ static void register_i2c_board_info(void)
 	case OBM_DKB_2_1_NEVO_C0_BOARD:
 		pm800_info.vibrator = &vibrator_pdata;
 		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info_DKB2_1));
-		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_DKB));
+		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_DKB_2_1));
 		break;
 	default:
 		pr_err("%s: Unknown board type-0x%lx!\n",
