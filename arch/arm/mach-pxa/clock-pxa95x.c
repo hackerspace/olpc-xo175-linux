@@ -101,6 +101,7 @@ const struct clkops clk_pxa95x_tout_s0_ops = {
 };
 
 #define MIPI_BANDGAP_CONTROL	(1 << 10)
+#define USB_BANDGAP_CONTROL	(1 << 11)
 static volatile u32 *gen_reg4;
 #define GEN_REG4 0x42404078
 u32 get_mipi_reference_control(void)
@@ -650,6 +651,10 @@ static int clk_pxa9xx_u2o_enable(struct clk *clk)
 {
 	local_irq_disable();
 
+	if (!gen_reg4)
+		gen_reg4 = ioremap_nocache(GEN_REG4, 0x4);
+	*gen_reg4 |= USB_BANDGAP_CONTROL;
+
 	CKENC |= (1 << (CKEN_USB_PRL - 64)) | (1 << (CKEN_USB_BUS - 64));
 	/* ACCR1 */
 	ACCR1 |= ACCR1_PU_OTG | ACCR1_PU_PLL | ACCR1_PU;
@@ -665,6 +670,10 @@ static void clk_pxa9xx_u2o_disable(struct clk *clk)
 	CKENC &= ~((1 << (CKEN_USB_PRL - 64)) | (1 << (CKEN_USB_BUS - 64)));
 	/* ACCR1 */
 	ACCR1 &= ~(ACCR1_PU_OTG | ACCR1_PU_PLL | ACCR1_PU);
+
+	if (!gen_reg4)
+		gen_reg4 = ioremap_nocache(GEN_REG4, 0x4);
+	*gen_reg4 &= ~USB_BANDGAP_CONTROL;
 
 	local_irq_enable();
 }
