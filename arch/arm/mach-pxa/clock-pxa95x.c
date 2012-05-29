@@ -725,6 +725,9 @@ static inline unsigned int get_mm_pll_freq(void)
 static inline unsigned int mm_pll_freq2reg(unsigned int x)
 {
 	switch (x) {
+	case 481000000:
+		/* VCODIV_SEL=5 KVCO=5 FBDIV=222(0xDE) REFDIV=3*/
+		return 5 << 20 | 5 << 16 | 0xDE << 5 | 3 << 0;
 	case 498000000:
 		/* VCODIV_SEL=5 KVCO=5 FBDIV=230(0xE6) REFDIV=3 */
 		return 5 << 20 | 5 << 16 | 0xE6 << 5 | 3 << 0;
@@ -737,10 +740,10 @@ static inline unsigned int mm_pll_freq2reg(unsigned int x)
 	}
 }
 
-static inline void set_mmpll_freq(unsigned int rate)
+static inline void set_mmpll_freq(unsigned long rate)
 {
 	uint32_t mm_pll_param;
-	if ((rate != 498000000) && (rate != 600000000))
+	if ((rate != 481000000) && (rate != 498000000) && (rate != 600000000))
 		return;
 	mm_pll_param = MM_PLL_PARAM;
 	mm_pll_param &= ~(MMPLL_VCODIV_SEL_MASK
@@ -825,7 +828,9 @@ static long clk_pxa95x_gc_round_rate(struct clk *gc_clk, unsigned long rate)
 		rate = 312000000;
 	else if (rate <= 416000000)
 		rate = 416000000;
-	else if (rate <= 498000000)
+	else if ((rate <= 481000000) && cpu_is_pxa978_Dx())
+		rate = 481000000;
+	else if ((rate <= 498000000) && (!cpu_is_pxa978_Dx()))
 		rate = 498000000;
 	else
 		rate = 600000000;
@@ -884,13 +889,13 @@ static void mm_pll_setting(int flag, unsigned long rate, unsigned int value,
 
 	local_fiq_disable();
 	local_irq_save(flags);
-	if (rate < 498000000) {
+	if (rate < 481000000) {
 		write_accr0(value, mask);
-		if ((flag && (vm_rate < 498000000) && (gc_rate >= 498000000)) ||
-		   (!flag && (gc_rate < 498000000) && (vm_rate >= 498000000)))
+		if ((flag && (vm_rate < 481000000) && (gc_rate >= 481000000)) ||
+		   (!flag && (gc_rate < 481000000) && (vm_rate >= 481000000)))
 			mm_pll_enable(0);
 		goto out;
-	} else if (vm_rate < 498000000 && gc_rate < 498000000)
+	} else if (vm_rate < 481000000 && gc_rate < 481000000)
 		mm_pll_enable(1);
 
 	if (get_mm_pll_freq() * 1000000 == rate) {
@@ -900,7 +905,7 @@ static void mm_pll_setting(int flag, unsigned long rate, unsigned int value,
 	tmp = ACCR0;
 	ori_gc = ACCR0 & (ACCR0_GCFS_MASK | ACCR0_GCAXIFS_MASK);
 	ori_vmeta = ACCR0 & ACCR0_VMFC_MASK;
-	if (gc_rate >= 498000000) {
+	if (gc_rate >= 481000000) {
 		tmp &= ~(ACCR0_GCFS_MASK | ACCR0_GCAXIFS_MASK);
 		tmp |= (0x3 << ACCR0_GCFS_OFFSET | 0x3 << ACCR0_GCAXIFS_OFFSET);
 		if (!flag && (gc_rate != rate)) {
@@ -909,7 +914,7 @@ static void mm_pll_setting(int flag, unsigned long rate, unsigned int value,
 			clk_pxa95x_gcu.rate = rate;
 		}
 	}
-	if (vm_rate >= 498000000) {
+	if (vm_rate >= 481000000) {
 		tmp &= ~ACCR0_VMFC_MASK;
 		tmp |= 0x3 << ACCR0_VMFC_OFFSET;
 		if (flag && (vm_rate != rate)) {
@@ -974,6 +979,7 @@ static int clk_pxa95x_gcu_setrate(struct clk *gc_clk, unsigned long rate)
 	case 416000000:
 		value = (0x3 << 3) | 0x3;
 		break;
+	case 481000000:
 	case 498000000:
 	case 600000000:
 		value = (0x5 << 3) | 0x5;
@@ -1159,7 +1165,9 @@ static long clk_pxa95x_vmeta_round_rate(struct clk *vmeta_clk,
 		rate = 312000000;
 	else if (rate <= 416000000)
 		rate = 416000000;
-	else if (rate <= 498000000)
+	else if ((rate <= 481000000) && cpu_is_pxa978_Dx())
+		rate = 481000000;
+	else if ((rate <= 498000000) && (!cpu_is_pxa978_Dx()))
 		rate = 498000000;
 	else
 		rate = 600000000;
@@ -1219,9 +1227,8 @@ static int clk_pxa95x_vmeta_setrate(struct clk *vmeta_clk, unsigned long rate)
 	case 416000000:
 		value = 3;
 		break;
+	case 481000000:
 	case 498000000:
-		value = 5;
-		break;
 	case 600000000:
 		value = 5;
 		break;
