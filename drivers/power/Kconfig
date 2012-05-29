@@ -172,6 +172,11 @@ config BATTERY_MAX17042
 	  to operate with a single lithium cell. MAX8997 and MAX8966 are
 	  multi-function devices that include fuel gauages that are compatible
 	  with MAX17042.
+config BATTERY_MAX17043
+	tristate "Maxim MAX17043 Fuel Gauge"
+	depends on I2C
+	help
+	MAX17043 is fuel-gauge systems for lithium-ion (Li+) batteries
 
 config BATTERY_Z2
 	tristate "Z2 battery driver"
