@@ -54,6 +54,9 @@ static u32 d1_exits_on_timer;
 static u32 d2_exits_on_timer;
 static u32 cgm_exits_on_timer;
 
+static u32 lpm_abt_apps;
+static u32 lpm_abt_comm;
+
 /* this is how the pm logger looks like:
 sync(24)+event num(8) - time stamp - arguments ...
 sync(24)+event num(8) - time stamp - arguments ... */
@@ -78,12 +81,11 @@ static unsigned int is_pm_parser_end_of_buffer(int entry)
 /*
 * counts specific events
 */
-static void pm_parser_count_timer_wakeups(u32 event, int args_num, int entry)
+static void pm_parser_count_specific_events(u32 event, int args_num, int entry)
 {
 	/* lpm exits */
 	if (((event == PM_D1_EXIT) || (event == PM_D2_EXIT) ||
 	    (event == PM_CGM_EXIT)) && (args_num > 0)) {
-
 		u32 wakeup_src = pm_logger.buffer[entry];
 		entry = (entry+1) & (pm_logger.buffSize-1);
 
@@ -96,7 +98,10 @@ static void pm_parser_count_timer_wakeups(u32 event, int args_num, int entry)
 			else if (event == PM_CGM_EXIT)
 				cgm_exits_on_timer++;
 		}
-	}
+	} else if (event == PM_LPM_ABT_APPS)
+		lpm_abt_apps++;
+	else if (event == PM_LPM_ABT_COMM)
+		lpm_abt_comm++;
 }
 
 /*
@@ -284,6 +289,7 @@ void pm_parser_display_log(int subsystem)
 	unsigned int val;
 
 	d1_exits_on_timer = d2_exits_on_timer = cgm_exits_on_timer = 0;
+	lpm_abt_apps = lpm_abt_comm = 0;
 
 	pr_info("\n*****START PM LOGGER TRACE*****\n");
 
@@ -337,8 +343,8 @@ void pm_parser_display_log(int subsystem)
 		args_num = get_pm_parser_args_num(entry);
 		entry = (entry+1) & (pm_logger.buffSize-1);
 
-		/* count timer wakeup events */
-		pm_parser_count_timer_wakeups(event, args_num, entry);
+		/* count specific events */
+		pm_parser_count_specific_events(event, args_num, entry);
 
 		/* print event */
 		i = 0;
@@ -400,4 +406,6 @@ void pm_parser_display_log(int subsystem)
 		pm_logger.buffSize * sizeof(unsigned int));
 	pr_info("\nLPM wakeup from timer:  CGM- %u , D1- %u , D2- %u.\n",
 		cgm_exits_on_timer, d1_exits_on_timer, d2_exits_on_timer);
+	pr_info("\nLPM aborted:  APPS- %u , COMM- %u.\n",
+		lpm_abt_apps, lpm_abt_comm);
 }

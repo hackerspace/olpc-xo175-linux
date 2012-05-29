@@ -57,8 +57,10 @@ struct pm_logger_descriptor {
 #define PM_WAKEUP_GPIO 19
 #define PM_SUSPEND_ENTER 20
 #define PM_SUSPEND_EXIT 21
+#define PM_LPM_ABT_APPS 22
+#define PM_LPM_ABT_COMM 23
 
-#define PM_EVENTS_NUM 22
+#define PM_EVENTS_NUM 24
 
 /* start/stop */
 #define PM_LOGGER_STOP 0

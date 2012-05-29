@@ -42,6 +42,7 @@
 #ifdef CONFIG_PXA95x_DVFM
 #include <mach/dvfm.h>
 #endif
+#include <mach/pxa9xx_pm_logger.h> /* for pm debug tracing */
 
 #define MAX_OSCR0		0xFFFFFFFF
 
@@ -185,8 +186,8 @@ static void pxa95x_cpu_idle(void)
 	mspm_add_event(op, CPU_STATE_IDLE);
 }
 
-static int lpidle_is_valid(int enable, unsigned int msec,
-			   struct dvfm_freqs *freqs, int lp_idle)
+static int lpidle_is_valid(int enable, struct dvfm_freqs *freqs,
+			   int lp_idle)
 {
 	struct op_info *info = NULL;
 	struct dvfm_md_opt *op;
@@ -199,9 +200,6 @@ static int lpidle_is_valid(int enable, unsigned int msec,
 		return 0;
 
 	if (enable & lp_idle) {
-		/* Check dynamic tick flag && idle interval */
-		if (msec < LOWPOWER_IDLE_INTERVAL)
-			return 0;
 		/* Check whether the specified low power mode is valid */
 		ret = dvfm_get_op(&info);
 		if (info == NULL)
@@ -338,13 +336,21 @@ void mspm_do_idle(void)
 	msec = pxa_ticks_to_msec(ticks);
 	record_idle_stats(msec);
 
-	if (lpidle_is_valid(enable_deepidle, msec, &freqs, IDLE_D2)) {
+	/* Check idle interval */
+	if (msec < LOWPOWER_IDLE_INTERVAL) {
+		pm_logger_app_add_trace(1, PM_LPM_ABT_APPS, OSCR4, msec);
+		pxa95x_cpu_idle();
+		goto out;
+	}
+
+	if (lpidle_is_valid(enable_deepidle, &freqs, IDLE_D2)) {
 		delta = dvfm_is_comm_wakep_near();
 		/* checking if comm wakeup is to close and forbid D2
 		 * if so.
 		 */
 		if (delta) {
 			/* going to c1 instead... */
+			pm_logger_app_add_trace(0, PM_LPM_ABT_COMM, OSCR4);
 			pxa95x_cpu_idle();
 			goto out;
 		} else {
@@ -358,13 +364,15 @@ void mspm_do_idle(void)
 				goto out;
 		}
 	}
-	if (lpidle_is_valid(enable_deepidle, msec, &freqs, IDLE_D1)) {
+
+	if (lpidle_is_valid(enable_deepidle, &freqs, IDLE_D1)) {
 		delta = dvfm_is_comm_wakep_near();
 		/* checking whether comm wakeup is too close
 		 * and forbid D1 if so.
 		 */
 		if (delta) {
 			/* going to c1 instead... */
+			pm_logger_app_add_trace(0, PM_LPM_ABT_COMM, OSCR4);
 			pxa95x_cpu_idle();
 			goto out;
 		} else {
@@ -379,7 +387,7 @@ void mspm_do_idle(void)
 		}
 	}
 
-	if (lpidle_is_valid(enable_deepidle, msec, &freqs, IDLE_CG)) {
+	if (lpidle_is_valid(enable_deepidle, &freqs, IDLE_CG)) {
 		ret = dvfm_set_op(&freqs, freqs.new, RELATION_STICK);
 		if (ret == 0)
 			goto out;
