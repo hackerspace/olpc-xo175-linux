@@ -27,16 +27,17 @@
 #include <linux/proc_fs.h>
 #include <plat/pm.h>
 #include <plat/usb.h>
+#include <linux/interrupt.h>
+#include <linux/gpio.h>
+
 struct isl9226_device_info {
 	struct device *dev;
 	struct i2c_client *client;
 	struct power_supply ac;
 	struct power_supply usb;
 	struct notifier_block chg_notif;
-	struct delayed_work chg_update_work;
 	int ac_chg_online;
 	int usb_chg_online;
-	int is_charging;
 	unsigned char chg_cur_in;
 	unsigned char chg_cur_out;
 	unsigned char prechg_cur;
@@ -50,7 +51,7 @@ static const unsigned int input_current_table[] = {
 	95, 475, 855, 950, 1425, 2900, 2900, 2900,
 };
 static const unsigned int eoc_current_table[] = {
-	70, 100, 130,
+	50, 75, 100,
 };
 static const unsigned int prechg_current_table[] = {
 	130, 150, 180,
@@ -58,7 +59,8 @@ static const unsigned int prechg_current_table[] = {
 static const unsigned int prechg_voltage_table[] = {
 	3000, 2900, 2800, 2700,
 };
-static char *isl9226_supply_to[] = { "battery",
+static char *isl9226_supply_to[] = {
+	"max17043-battery",
 };
 
 static enum power_supply_property isl9226_ac_props[] = {
@@ -177,11 +179,29 @@ static int isl9226_set_bits(struct i2c_client *client, unsigned char reg,
 	return ret;
 }
 
-static int is_battery_on()
+static int isl9226_has_supplicant(struct isl9226_device_info *info)
 {
+	struct power_supply *psy;
+	union power_supply_propval val;
+	int i, ret = 0;
 
-	/*currently return 1 */
-	return 1;
+	for (i = 0; i < info->ac.num_supplicants; i++) {
+		psy = power_supply_get_by_name(info->ac.supplied_to[i]);
+		if (!psy || !psy->get_property)
+			continue;
+		ret = psy->get_property(psy, POWER_SUPPLY_PROP_PRESENT, &val);
+		if (ret == 0 && val.intval == 1)
+			return 1;
+	}
+	for (i = 0; i < info->usb.num_supplicants; i++) {
+		psy = power_supply_get_by_name(info->usb.supplied_to[i]);
+		if (!psy || !psy->get_property)
+			continue;
+		ret = psy->get_property(psy, POWER_SUPPLY_PROP_PRESENT, &val);
+		if (ret == 0 && val.intval == 1)
+			return 1;
+	}
+	return 0;
 }
 
 /*to save power isl9226 will power off after USB/AC
@@ -190,7 +210,7 @@ static int is_battery_on()
 static int isl9226_start_charging(struct isl9226_device_info *info)
 {
 	unsigned char value;
-	if (!is_battery_on())
+	if (!isl9226_has_supplicant(info))
 		return 0;
 	value =
 	    ((info->eoc_cur & 0x3) << 6) | ((info->prechg_cur & 0x03) << 4) |
@@ -202,18 +222,17 @@ static int isl9226_start_charging(struct isl9226_device_info *info)
 	/*set input current */
 	isl9226_write_reg(info->client, CCTRL2, info->chg_cur_in & 0x07);
 
-	/*set precharge voltage */
-	isl9226_write_reg(info->client, VCTRL1, (info->prechg_vol & 0x03) << 6);
-	isl9226_write_reg(info->client, VCTRL2, 0x2F);
+	/*set precharge voltage, charge voltage 4.2v */
+	isl9226_write_reg(info->client, VCTRL1, ((info->prechg_vol & 0x03) << 6) | 0x13);
 
 	/*enable charge, auto-recharge, auto-stop */
-	isl9226_write_reg(info->client, OPMOD, 0x2F);
+	isl9226_write_reg(info->client, OPMOD, 0x27);
 	return 0;
 }
 
 static void isl9226_stop_charging(struct isl9226_device_info *info)
 {
-	if (info->is_charging)
+	if (info->usb_chg_online || info->ac_chg_online)
 		isl9226_write_reg(info->client, OPMOD, 0);
 }
 
@@ -234,29 +253,30 @@ static int isl9226_chg_notifier_callback(struct notifier_block *nb,
 		break;
 	case VBUS_CHARGER:
 		info->chg_cur_in = info->usb_chg_cur;
-
 		/*set output current higher than input */
-		info->chg_cur_out = 3;
+		if (info->usb_chg_cur <= 500)
+			info->chg_cur_out = 0;
+		else
+			info->chg_cur_out = 3;
 		info->usb_chg_online = 1;
 		break;
 	case AC_CHARGER_STANDARD:
 	case AC_CHARGER_OTHER:
 		info->chg_cur_in = info->ac_chg_cur;
-
 		/*set output current higher than input */
-		info->chg_cur_out = 6;
+		if (info->ac_chg_cur <= 1000)
+			info->chg_cur_out = 4;
+		else
+			info->chg_cur_out = 6;
 		info->ac_chg_online = 1;
 		break;
 	default:
 		break;
 	}
 	if (info->usb_chg_online || info->ac_chg_online) {
-		info->is_charging = 1;
 		isl9226_start_charging(info);
 	} else {
-
 		/*cable plug out, isl9226 power down, i2c read write error */
-		info->is_charging = 0;
 		isl9226_stop_charging(info);
 	}
 	power_supply_changed(&info->ac);
@@ -322,20 +342,21 @@ static int isl9226_charger_probe(struct i2c_client *client,
 	info->ac_chg_cur = isl9226_get_input_current(pdata->ac_input_current);
 	info->default_chg_cur =
 	    isl9226_get_input_current(pdata->default_input_current);
-	info->ac.name = "ac";
+	info->ac.name = "isl9226-ac";
 	info->ac.type = POWER_SUPPLY_TYPE_MAINS;
 	info->ac.supplied_to = isl9226_supply_to;
 	info->ac.num_supplicants = ARRAY_SIZE(isl9226_supply_to);
 	info->ac.get_property = isl9226_ac_get_property;
 	info->ac.properties = isl9226_ac_props;
 	info->ac.num_properties = ARRAY_SIZE(isl9226_ac_props);
+
 	ret = power_supply_register(info->dev, &info->ac);
 	if (ret) {
 		dev_err(&client->dev,
 			"AC power supply resisteration failed! \n");
 		goto out;
 	}
-	info->usb.name = "usb";
+	info->usb.name = "isl9226-usb";
 	info->usb.type = POWER_SUPPLY_TYPE_USB;
 	info->usb.supplied_to = isl9226_supply_to;
 	info->usb.num_supplicants = ARRAY_SIZE(isl9226_supply_to);
@@ -349,9 +370,7 @@ static int isl9226_charger_probe(struct i2c_client *client,
 		goto out;
 	}
 
-	/* Register charger event notifier */
 	info->chg_notif.notifier_call = isl9226_chg_notifier_callback;
-
 #ifdef CONFIG_USB_GADGET_PXA_U2O
 	ret = mv_udc_register_client(&info->chg_notif);
 	if (ret < 0) {
@@ -359,6 +378,7 @@ static int isl9226_charger_probe(struct i2c_client *client,
 		goto out;
 	}
 #endif
+
 	dev_info(&client->dev, "isl9226 probe finished\n");
 	return 0;
 out:
