@@ -2049,36 +2049,58 @@ static int pxa955_cam_s_crop(struct soc_camera_device *icd,
 	struct pxa_buf_node *buf_node;
 	int ret;
 
+	if (pcdev->streamon) {
 #ifdef _CONTROLLER_DEADLOOP_RESET_
-	/* Announce reset timer is being killed */
-	pcdev->killing_reset_timer = 1;
-	del_timer(&pcdev->reset_timer);
+		/* Announce reset timer is being killed */
+		pcdev->killing_reset_timer = 1;
+		del_timer(&pcdev->reset_timer);
 #endif
-	spin_lock(&pcdev->spin_lock);
-	sci_irq_disable(pcdev, IRQ_EOFX|IRQ_OFO);
-	sci_disable(pcdev);
-	spin_unlock(&pcdev->spin_lock);
+		ret = v4l2_subdev_call(sd, video, s_stream, 0);
+		if (ret < 0) {
+			printk(KERN_ERR "cam: failed to stream off for zoom\n");
+			return -EAGAIN;
+		}
+
+		spin_lock(&pcdev->spin_lock);
+		sci_irq_disable(pcdev, IRQ_EOFX|IRQ_OFO);
+		sci_disable(pcdev);
+		spin_unlock(&pcdev->spin_lock);
+	}
 
 	ret = v4l2_subdev_call(sd, video, s_crop, crop);
-
-	list_for_each_entry(buf_node, &pcdev->dma_buf_list, vb.queue) {
-		/* Mark all buf on dma chain to be new */
-		if (buf_node->vb.state == VIDEOBUF_QUEUED) {
-			buf_node->vb.state = VIDEOBUF_ACTIVE;
-		}
+	if (ret < 0) {
+		printk(KERN_ERR "cam: failed to set sensor zoom\n");
+		return -EAGAIN;
 	}
-	dma_chain_init(pcdev);
 
-	spin_lock(&pcdev->spin_lock);
-	sci_irq_enable(pcdev, IRQ_EOFX|IRQ_OFO);
-	sci_enable(pcdev);
-	spin_unlock(&pcdev->spin_lock);
+	if (pcdev->streamon) {
 
+		/* for all queued buffer, refresh them to let dma run over them
+		 * after zoom */
+		list_for_each_entry(buf_node, &pcdev->dma_buf_list, vb.queue) {
+			/* Mark all buf on dma chain to be new */
+			if (buf_node->vb.state == VIDEOBUF_QUEUED) {
+				buf_node->vb.state = VIDEOBUF_ACTIVE;
+			}
+		}
+		dma_chain_init(pcdev);
+
+		spin_lock(&pcdev->spin_lock);
+		sci_irq_enable(pcdev, IRQ_EOFX|IRQ_OFO);
+		sci_enable(pcdev);
+		spin_unlock(&pcdev->spin_lock);
+
+		ret = v4l2_subdev_call(sd, video, s_stream, 1);
+		if (ret < 0) {
+			printk(KERN_ERR "cam: failed to stream on for zoom\n");
+			return -EAGAIN;
+		}
 #ifdef _CONTROLLER_DEADLOOP_RESET_
-	/* Declear timer can be resumed, so after skipping 3 frames,
-	 * on frame irq, timer will be started again */
-	pcdev->killing_reset_timer = 0;
+		/* Declear timer can be resumed, so after skipping 3 frames,
+		 * on frame irq, timer will be started again */
+		pcdev->killing_reset_timer = 0;
 #endif
+	}
 	return ret;
 }
 
