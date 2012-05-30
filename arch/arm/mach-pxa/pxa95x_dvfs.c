@@ -69,6 +69,7 @@ struct dvfs core_dvfs = {
 	.vol_freq_table = core_vol_table,
 	.num_freqs = ARRAY_SIZE(core_vol_table),
 	.dvfs_rail = &pxa95x_dvfs_rail_vcc_main,
+	.millivolts = VOL_LEVL2,
 };
 EXPORT_SYMBOL(core_dvfs);
 
@@ -84,7 +85,7 @@ struct dvfs display_dvfs = {
 	.vol_freq_table = display_vol_table,
 	.num_freqs = ARRAY_SIZE(display_vol_table),
 	.dvfs_rail = &pxa95x_dvfs_rail_vcc_main,
-	.millivolts = VOL_LEVL0,
+	.millivolts = VOL_LEVL2,
 };
 EXPORT_SYMBOL(display_dvfs);
 
@@ -102,7 +103,7 @@ struct dvfs gc_dvfs = {
 	.vol_freq_table = gc_vol_table,
 	.num_freqs = ARRAY_SIZE(gc_vol_table),
 	.dvfs_rail = &pxa95x_dvfs_rail_vcc_main,
-	.millivolts = VOL_LEVL0,
+	.millivolts = VOL_LEVL2,
 };
 EXPORT_SYMBOL(gc_dvfs);
 
@@ -120,7 +121,7 @@ struct dvfs vmeta_dvfs = {
 	.vol_freq_table = vmeta_vol_table,
 	.num_freqs = ARRAY_SIZE(vmeta_vol_table),
 	.dvfs_rail = &pxa95x_dvfs_rail_vcc_main,
-	.millivolts = VOL_LEVL0,
+	.millivolts = VOL_LEVL2,
 };
 EXPORT_SYMBOL(vmeta_dvfs);
 

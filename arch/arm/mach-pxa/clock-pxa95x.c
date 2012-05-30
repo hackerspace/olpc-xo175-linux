@@ -511,16 +511,38 @@ static const struct clkops clk_pxa95x_ihdmi_ops = {
 	.setrate = clk_pxa95x_ihdmi_setrate,
 };
 
+extern struct dvfs display_dvfs;
+
 static int clk_pxa95x_lcd_enable(struct clk *lcd_clk)
 {
+	struct dvfs_freqs dvfs_freqs;
+
+	dvfs_freqs.old = 0;
+	dvfs_freqs.new = lcd_clk->rate / HZ_TO_KHZ;
+	dvfs_freqs.dvfs = &display_dvfs;
+
+	pr_debug("Display enable from 0 to %lu.\n", lcd_clk->rate);
+
+	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
+
 	CKENC |= (1 << (CKEN_DISPLAY - 64)) | (1 << (CKEN_PIXEL - 64));
 	return 0;
 }
 
-static void clk_pxa95x_lcd_disable(struct clk *dsi_clk)
+static void clk_pxa95x_lcd_disable(struct clk *lcd_clk)
 {
+	struct dvfs_freqs dvfs_freqs;
+
+	dvfs_freqs.old = lcd_clk->rate / HZ_TO_KHZ;
+	dvfs_freqs.new = 0;
+	dvfs_freqs.dvfs = &display_dvfs;
+
+	pr_debug("Display disable from %lu to 0.\n", lcd_clk->rate);
+
 	CKENC &= ~((1 << (CKEN_DISPLAY - 64))
 		   | (1 << (CKEN_PIXEL - 64)));
+
+	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
 }
 
 static long clk_pxa95x_lcd_round_rate(struct clk *lcd_clk, unsigned long rate)
@@ -571,6 +593,13 @@ unsigned long clk_pxa95x_lcd_getrate(struct clk *lcd_clk)
 static int clk_pxa95x_lcd_setrate(struct clk *lcd_clk, unsigned long rate)
 {
 	unsigned int value, mask = 0x7;
+	struct dvfs_freqs dvfs_freqs;
+	dvfs_freqs.old = lcd_clk->rate / HZ_TO_KHZ;
+	dvfs_freqs.new = rate / HZ_TO_KHZ;
+	dvfs_freqs.dvfs = &display_dvfs;
+	if (dvfs_freqs.old < dvfs_freqs.new)
+		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
+
 	switch (rate) {
 	case 104000000:
 		value = 0;
@@ -592,6 +621,10 @@ static int clk_pxa95x_lcd_setrate(struct clk *lcd_clk, unsigned long rate)
 		return -1;
 	}
 	write_accr0(value, mask);
+
+	if (dvfs_freqs.old > dvfs_freqs.new)
+		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
+
 	return 0;
 }
 
@@ -1656,6 +1689,7 @@ int pxa95x_clk_init(void)
 		/* Make sure rate is always same as real setting */
 		clk_pxa978_gcu.rate = clk_get_rate(&clk_pxa978_gcu);
 		clk_pxa95x_vmeta.rate = clk_get_rate(&clk_pxa95x_vmeta);
+		clk_pxa95x_lcd.rate = clk_get_rate(&clk_pxa95x_lcd);
 
 		/* Initialize the clock of vMeta/GC to lowest */
 		clk_set_rate(&clk_pxa95x_vmeta, 0);
