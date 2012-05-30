@@ -95,6 +95,89 @@ static struct mfp_addr_map pxa988_addr_map[] __initdata = {
 	MFP_ADDR_END,
 };
 
+/* GC power control */
+#define GC_CLK_EN	\
+	((0x1 << 3) | (0x1 << 4) | (0x1 << 5))
+
+#define GC_ACLK_RST	(0x1 << 0)
+#define GC_FCLK_RST	(0x1 << 1)
+#define GC_HCLK_RST	(0x1 << 2)
+#define GC_CLK_RST	\
+	(GC_ACLK_RST | GC_FCLK_RST | GC_HCLK_RST)
+
+#define GC_ISOB		(0x1 << 8)
+#define GC_PWRON1	(0x1 << 9)
+#define GC_PWRON2	(0x1 << 10)
+
+#define GC_FCLK_SEL_MASK	(0x3 << 6)
+#define GC_ACLK_SEL_MASK	(0x3 << 20)
+#define GC_FCLK_DIV_MASK	(0x7 << 12)
+#define GC_ACLK_DIV_MASK	(0x7 << 17)
+#define GC_FCLK_REQ		(0x1 << 15)
+#define GC_ACLK_REQ		(0x1 << 16)
+
+#define GC_CLK_SEL_WIDTH	(2)
+#define GC_CLK_DIV_WIDTH	(3)
+#define GC_FCLK_SEL_SHIFT	(6)
+#define GC_ACLK_SEL_SHIFT	(20)
+#define GC_FCLK_DIV_SHIFT	(12)
+#define GC_ACLK_DIV_SHIFT	(17)
+
+#define GC_REG_WRITE(val)	{	\
+	__raw_writel(val, APMU_GC);	\
+}
+
+void gc_pwr(int power_on)
+{
+	unsigned int val = __raw_readl(APMU_GC);
+
+	if (power_on) {
+		/* enable bus and function clock  */
+		val |= GC_CLK_EN;
+		GC_REG_WRITE(val);
+
+		/* enable power_on1, wait at least 200us */
+		val |= GC_PWRON1;
+		GC_REG_WRITE(val);
+		udelay(200);
+
+		/* enable power_on2 */
+		val |= GC_PWRON2;
+		GC_REG_WRITE(val);
+
+		/* fRst release */
+		val |= GC_FCLK_RST;
+		GC_REG_WRITE(val);
+		udelay(100);
+
+		/* aRst hRst release at least 48 cycles later than fRst */
+		val |= (GC_ACLK_RST | GC_HCLK_RST);
+		GC_REG_WRITE(val);
+
+		/* disable isolation */
+		val |= GC_ISOB;
+		GC_REG_WRITE(val);
+	} else {
+		/* enable isolation */
+		val &= ~GC_ISOB;
+		GC_REG_WRITE(val);
+
+		/* disable power_on2 */
+		val &= ~GC_PWRON2;
+		GC_REG_WRITE(val);
+
+		/* disable power_on1 */
+		val &= ~GC_PWRON1;
+		GC_REG_WRITE(val);
+
+		/* fRst aRst hRst */
+		val &= ~(GC_CLK_RST | GC_CLK_EN);
+		GC_REG_WRITE(val);
+		udelay(100);
+	}
+}
+EXPORT_SYMBOL(gc_pwr);
+
 #ifdef CONFIG_SMP
 u32 pm_reserve_pa;
 #define PM_RESERVE_SIZE	(1024 * 1024)
