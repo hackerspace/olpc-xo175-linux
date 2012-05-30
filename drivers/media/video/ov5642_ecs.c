@@ -260,8 +260,6 @@ static int ov5642_s_crop(struct v4l2_subdev *sd, struct v4l2_crop *crop)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 
-	/* Turn off sensor output first */
-	ov5642_s_stream(sd, 0);
 	ov5642_write(client, SCAN_ARR_X_OFF_H, (crop->c.left>>8) & 0xff);
 	ov5642_write(client, SCAN_ARR_X_OFF_L, crop->c.left & 0xff);
 	ov5642_write(client, SCAN_ARR_Y_OFF_H, (crop->c.top>>8) & 0xff);
@@ -275,7 +273,6 @@ static int ov5642_s_crop(struct v4l2_subdev *sd, struct v4l2_crop *crop)
 		crop->c.left, crop->c.top, crop->c.width, crop->c.height);
 	/* Delay 2~3 frames before sensor output get stable */
 	msleep(70);
-	ov5642_s_stream(sd, 1);
 	return 0;
 }
 
