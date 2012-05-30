@@ -51,6 +51,7 @@ static struct clk *cpu_clk;
 
 static int cpu_frequency_index_to_pp_index[MAX_CPU_NUM][MAX_PP_NUM];
 static DEFINE_MUTEX(mmp3_cpu_lock);
+static int freq_notify_and_change(unsigned int cpu_idx, unsigned int pp_index);
 
 static int mmp3_cpufreq_verify(struct cpufreq_policy *policy)
 {
@@ -81,7 +82,7 @@ static int mmp3_cpufreq_target(struct cpufreq_policy *policy,
 			       unsigned int target_freq, unsigned int relation)
 {
 	int index;
-	unsigned int highest_speed;
+	unsigned int highest_speed, qos_freq_khz;
 	int ret = 0;
 
 	if (cpufreq_frequency_table_target(policy, freq_table[policy->cpu],
@@ -96,7 +97,15 @@ static int mmp3_cpufreq_target(struct cpufreq_policy *policy,
 
 	/* FIXME: always use MP1 core as the index to do FC */
 	highest_speed = mmp3_get_pp_freq(index, MMP3_CLK_MP1);
-	pm_qos_update_request(&cpufreq_qos_req_min, highest_speed / MHZ_TO_KHZ);
+
+	/* QOS ignore setting the same param val twice.
+	 * On a failed DFC trigger, it is no use to set min_val after.
+	 */
+	/* pm_qos_update_request(&cpufreq_qos_req_min, highest_speed / MHZ_TO_KHZ); */
+
+	qos_freq_khz = pm_qos_request(PM_QOS_CPUFREQ_MIN) * MHZ_TO_KHZ;
+	if (highest_speed > qos_freq_khz)
+		freq_notify_and_change(0, index);
 out:
 	return ret;
 }
