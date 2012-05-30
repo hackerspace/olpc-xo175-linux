@@ -313,13 +313,15 @@ static const struct attribute_group ft5306_attr_group = {
 
 static int ft5306_touch_open(struct input_dev *idev)
 {
-	touch->data->power(1);
+	if (touch->data->power)
+		touch->data->power(1);
 	return 0;
 }
 
 static void ft5306_touch_close(struct input_dev *idev)
 {
-	touch->data->power(0);
+	if (touch->data->power)
+		touch->data->power(0);
 	return;
 }
 
@@ -344,12 +346,14 @@ sleep_retry:
 	} else {
 		dev_dbg(&touch->i2c->dev, "ft5306_touch enter sleep mode.\n");
 	}
-	touch->data->power(0);
+	if (touch->data->power)
+		touch->data->power(0);
 }
 
 static void ft5306_touch_normal_late_resume(struct early_suspend *h)
 {
-	touch->data->power(1);
+	if (touch->data->power)
+		touch->data->power(1);
 	msleep(10);
 	if (touch->data->reset)
 		touch->data->reset();
@@ -384,7 +388,8 @@ ft5306_touch_probe(struct i2c_client *client,
 	touch->i2c = client;
 	touch->irq = client->irq;
 	touch->pen_status = FT5306_PEN_UP;
-	touch->data->power(1);
+	if (touch->data->power)
+		touch->data->power(1);
 
 	if (touch->data->reset)
 		touch->data->reset();
