@@ -92,7 +92,7 @@ static u32 pll_clk_calculate(u32 refdiv, u32 fbdiv, u32 postdiv)
 		input_clk = VCXO;
 		break;
 	default:
-		pr_warn("The PLL REFDIV should be 0x03\n");
+		pr_debug("The PLL REFDIV should be 0x03\n");
 		return 0;
 	}
 
@@ -398,6 +398,44 @@ static u32 get_audio_pll(void)
 
 	return vco / divider;
 }
+
+int mmp3_get_core_clk(int cpu)
+{
+	u32 tmp;
+	u32 mp1_clk, mp2_clk;
+	u32 pll1, pll2, pll1_p;
+	u32 apmu_dm_cc_pj, apmu_dm2_cc_pj;
+	u32 pll_sel_status;
+
+	pll1 = pll1_get_clk();
+	pll2 = pll2_get_clk();
+	pll1_p = pll1_p_get_clk();
+	apmu_dm_cc_pj = readl(APMU_DM_CC_PJ);
+	apmu_dm2_cc_pj = readl(APMU_DM2_CC_PJ);
+	pll_sel_status = readl(APMU_PLL_SEL_STATUS);
+
+	if (cpu == MMP3_CLK_MP1) {
+		/* mp1 */
+		tmp = (pll_sel_status >> 3) & 0x7;
+		mp1_clk = clk_selection(tmp, pll1, pll2, pll1_p);
+		tmp = apmu_dm_cc_pj & 0x7;
+		mp1_clk /= tmp + 1;
+		tmp = (apmu_dm2_cc_pj >> 9) & 0xf;
+		mp1_clk /= tmp + 1;
+		return mp1_clk;
+	} else if (cpu == MMP3_CLK_MP2) {
+		/* mp2 */
+		tmp = (pll_sel_status >> 3) & 0x7;
+		mp2_clk = clk_selection(tmp, pll1, pll2, pll1_p);
+		tmp = apmu_dm_cc_pj & 0x7;
+		mp2_clk /= tmp + 1;
+		tmp = (apmu_dm2_cc_pj >> 13) & 0xf;
+		mp2_clk /= tmp + 1;
+		return mp2_clk;
+	}
+	return -1;
+}
+EXPORT_SYMBOL(mmp3_get_core_clk);
 
 static ssize_t mmp3_sysset_read(struct device *dev, struct device_attribute *attr,
 		char *buf)

@@ -28,6 +28,7 @@
 static struct pm_qos_request_list cpufreq_qos_req_min;
 static int cpufreq_disable = 0;
 #define MHZ_TO_KHZ	1000
+#define KHZ_TO_HZ	1000
 
 /*
  * Frequency freq_table index must be sequential starting at 0
@@ -60,15 +61,20 @@ static int mmp3_cpufreq_verify(struct cpufreq_policy *policy)
 
 static unsigned int mmp3_cpufreq_get(unsigned int cpu)
 {
+	int clk_raw_khz, clk_pp_khz;
+	int delta, i;
+
 	if (cpu >= num_cpus)
 		return -EINVAL;
-#ifndef CONFIG_CORE_MORPHING
-	if (cpu == 0 && (mmp3_core_num == ONE_CORE_MM ||
-			 mmp3_core_num == THREE_CORES))
-		return mmp3_getfreq(MMP3_CLK_MM);
-	else
-#endif
-		return mmp3_getfreq(MMP3_CLK_MP1);
+	clk_raw_khz = mmp3_get_core_clk(MMP3_CLK_MP1) / KHZ_TO_HZ;
+	for (i = 0; i < mmp3_get_pp_number(); i++) {
+		clk_pp_khz = mmp3_get_pp_freq(i, cpu);
+		delta = clk_pp_khz / 10;
+		if (clk_raw_khz > (clk_pp_khz - delta) &&
+			clk_raw_khz < (clk_pp_khz + delta))
+			break;
+	}
+	return clk_pp_khz;
 }
 
 static int mmp3_cpufreq_target(struct cpufreq_policy *policy,
