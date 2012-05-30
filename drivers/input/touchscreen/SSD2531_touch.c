@@ -110,7 +110,7 @@ typedef struct {
 #define LCD_RANGE_X 480
 #define LCD_RANGE_Y 800
 Reg_Item ssd2531_Init[] = {
-	{CMD_1B, 0x23, 0x00},
+	{CMD_ONLY, 0x23, 0x00},
 	{CMD_DELAY, 10},
 	{CMD_1B, 0x2B, 0x02},
 	{CMD_DELAY, 10},
@@ -297,6 +297,7 @@ struct ssl_ts_priv {
 	u8	binitialrun;
 	u8	bcalibrating;
 	u8	rawout;
+	u8      inited;
 };
 
 /****** for qualcomm platform only  *****************************
@@ -393,7 +394,7 @@ static int ssd253x_read_id(struct i2c_client *client)
 	if (ic_id == 0x2533)
 		return ic_id;
 	buf[0] = 0x0;
-	ssd253x_write_cmd(client, 0x23, buf, 1);
+	ssd253x_write_cmd(client, 0x23, buf, 0);
 	mdelay(10);
 	buf[0] = 0x02;
 	ssd253x_write_cmd(client, 0x2b, buf, 1);
@@ -461,6 +462,7 @@ int deviceInit(struct ssl_ts_priv *ssl_priv)
 		}
 		pReg++;
 	}
+	ssl_priv->inited = 1;
 	return 0;
 }
 
@@ -513,6 +515,8 @@ void deviceSleep(struct ssl_ts_priv *ssl_priv)
 	gpio_set_value(TOUCH_RES_PIN, 0);
 	mdelay(10);
 	gpio_set_value(TOUCH_RES_PIN, 1);
+
+	ssl_priv->inited = 0;
 
 	touch_power(0);
 }
@@ -1322,6 +1326,9 @@ static int ssd253x_ts_open(struct input_dev *dev)
 	struct ssl_ts_priv *ssl_priv = input_get_drvdata(dev);
 	SSL_PRINT("Run into %s.\n", __func__);
 	touch_power(1);
+
+	if (ssl_priv->inited == 0)
+		deviceInit(ssl_priv);
 	StartWork(ssl_priv);
 	enable_irq(ssl_priv->irq);	/*enable irq for next interrupt*/
 	return 0;
