@@ -396,6 +396,9 @@ enum {
 	MFP_PIN_TWSI4_SDA,
 	MFP_PIN_CLK_REQ,
 
+	/* additional pins on PXA988 */
+	MFP_PIN_ANT_SW4,
+
 	MFP_PIN_MAX,
 };
 
