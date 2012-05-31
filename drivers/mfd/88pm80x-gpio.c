@@ -14,6 +14,8 @@ struct pm80x_gpio_info {
 	struct pm80x_chip	*chip;
 	struct device 		*dev;
 	struct i2c_client		*i2c;
+	struct delayed_work	interrupt_work;
+	int				interval;
 	int 				irq_gpio00;
 	int 				irq_gpio01;
 	int 				irq_gpio02;
@@ -31,14 +33,12 @@ extern void pm80x_headphone_handler(int status);
 static void pm80x_headphone_handler(int status) {}
 #endif
 
-
-static irqreturn_t pm80x_gpio04_handler(int irq, void *data)
+static void pm80x_gpio04_work(struct work_struct *work)
 {
-	struct pm80x_gpio_info *info = data;
-	int value = 0;
-	int mask;
-	mdelay(50);
-
+	struct pm80x_gpio_info *info =
+	    container_of(work, struct pm80x_gpio_info,
+			 interrupt_work.work);
+	int value = 0, mask = 0;
 	mask = info->headset_gpio_val;
 	value = pm80x_reg_read(info->i2c, info->headset_gpio);
 
@@ -46,6 +46,13 @@ static irqreturn_t pm80x_gpio04_handler(int irq, void *data)
 		pm80x_headphone_handler(value & mask);
 	else
 		pm80x_headphone_handler(~value & mask);
+}
+
+static irqreturn_t pm80x_gpio04_handler(int irq, void *data)
+{
+	struct pm80x_gpio_info *info = data;
+	cancel_delayed_work_sync(&info->interrupt_work);
+	schedule_delayed_work(&info->interrupt_work, info->interval);
 	return IRQ_HANDLED;
 }
 static int pm80x_gpio_probe(struct platform_device *pdev)
@@ -92,6 +99,8 @@ static int pm80x_gpio_probe(struct platform_device *pdev)
 			info->irq_gpio04, ret);
 	}
 	platform_set_drvdata(pdev, info);
+	info->interval = HZ/8;
+	INIT_DELAYED_WORK(&info->interrupt_work, pm80x_gpio04_work);
 	/*set gpio04 as input mode. */
 	pm80x_set_bits(info->i2c, PM800_INT_ENA_4,
 			pm80x_pdata->headset->gpio_enable_irq,
@@ -100,14 +109,14 @@ static int pm80x_gpio_probe(struct platform_device *pdev)
 	val &= pm80x_pdata->headset->gpio_set_mask;
 	val |= pm80x_pdata->headset->gpio_set_val;
 	pm80x_reg_write(info->i2c, pm80x_pdata->headset->gpio_ctl , val);
-	pm80x_gpio04_handler(0, info);
+	schedule_delayed_work(&info->interrupt_work, info->interval);
 	return 0;
 }
 
 static int pm80x_gpio_remove(struct platform_device *pdev)
 {
 	struct pm80x_gpio_info *info = platform_get_drvdata(pdev);
-
+	cancel_delayed_work_sync(&info->interrupt_work);
 	free_irq(info->irq_gpio04, info);
 	kfree(info);
 	return 0;
