@@ -19,6 +19,8 @@
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/backlight.h>
+#include <linux/i2c.h>
+#include <linux/i2c/pxa-i2c.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -311,6 +313,31 @@ static struct platform_device emei_dkb_lcd_backlight_devices = {
 	},
 };
 
+static struct i2c_board_info emeidkb_i2c_info[] = {
+
+};
+
+static struct i2c_board_info emeidkb_pwr_i2c_info[] = {
+	{
+		.type		= "88PM80x",
+		.addr		= 0x34,
+		.platform_data	= NULL,
+		.irq		= IRQ_PXA988_PMIC,
+	},
+
+#if defined(CONFIG_CHARGER_ISL9226)
+	{
+		.type		= "isl9226",
+		.addr		= 0x59,
+	},
+#endif
+
+};
+
+static struct i2c_board_info emeidkb_i2c2_info[] = {
+
+};
+
 static void __init emeidkb_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(emeidkb_pin_config));
@@ -322,6 +349,11 @@ static void __init emeidkb_init(void)
 	pxa_add_pmem();
 #endif
 	pxa988_add_keypad(&emei_dkb_keypad_info);
+
+	/* FIXME: add i2c_pxa_platform_data */
+	pxa988_add_twsi(0, NULL, ARRAY_AND_SIZE(emeidkb_i2c_info));
+	pxa988_add_twsi(1, NULL, ARRAY_AND_SIZE(emeidkb_pwr_i2c_info));
+	pxa988_add_twsi(2, NULL, ARRAY_AND_SIZE(emeidkb_i2c2_info));
 }
 
 MACHINE_START(EMEIDKB, "PXA988-Based")
