@@ -182,6 +182,7 @@ typedef enum {
 #define LCD_GWIN_INT_STS        0x010c
 #define LCD_GMIX_INT_STS        0x0110
 #define LCD_WIN0_INT_STS        0x061c
+#define LCD_WIN4_INT_STS        0x07dc
 #define LCD_MIXER0_INT_STS      0x0840
 #define LCD_MIXER1_INT_STS      0x0940
 
@@ -419,6 +420,7 @@ typedef enum {
 /*LCD DSI Dx register offsets*/
 #define LCD_DSI_DxSCR0_OFFSET		0x0000
 #define LCD_DSI_DxCONV_GEN_NULL_BLANK_OFFSET	0x0034
+#define LCD_DSI_DxCONV_DSI_RD0_OFFSET		0x003c
 #define LCD_DSI_DxCONV_DSI_RD1_OFFSET		0x003c
 #define LCD_DSI_DxCONV_FIFO_THRESH_OFFSET	0x0040
 #define LCD_DSI_DxCONV_FIFO_THRESH_INT_OFFSET	0x0044
@@ -1003,4 +1005,7 @@ int pxa95xfb_setcolreg(unsigned int regno, unsigned int red, unsigned int green,
 		unsigned int blue, unsigned int trans, struct fb_info *info);
 int pxa95xfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info);
 int pxa95xfb_set_par(struct fb_info *info);
+
+extern int mvdisp_debug_init(struct device *dev);
+
 #endif /* __ASM_ARCH_REGS_LCD_PXA95x_H */

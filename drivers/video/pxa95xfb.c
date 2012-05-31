@@ -24,153 +24,6 @@
 
 #include "pxa95xfb.h"
 
-#include <linux/fs.h>
-#include <linux/uaccess.h>
-
-typedef struct tagBITMAPINFOHEADER{
-	unsigned int    biSize;
-	int             biWidth;
-	int             biHeight;
-	short           biPlanes;
-	short           biBitCount;
-	unsigned int    biCompression;
-	unsigned int    biSizeImage;
-	int             biXPelsPerMeter;
-	int             biYPelsPerMeter;
-	unsigned int    biClrUsed;
-	unsigned int    biClrImportant;
-} __attribute((packed)) BITMAPINFOHEADER;
-
-typedef struct tagBITMAPFILEHEADER {
-	short           bfType;
-	unsigned int    bfSize;
-	short           bfReserved1;
-	short           bfReserved2;
-	unsigned int    bfOffBits;
-} __attribute((packed)) BITMAPFILEHEADER;
-
-void dump_buffer(struct pxa95xfb_info *fbi, int yoffset)
-{
-	static int c;
-	char name[128];
-	struct file *f;
-	mm_segment_t old_fs;
-	int ret;
-	BITMAPFILEHEADER    bmFileHeader;
-	BITMAPINFOHEADER    bmInfoHeader;
-	unsigned char *pbits;
-	int w = fbi->mode.xres, h = fbi->mode.yres;
-	int size = fbi->mode.xres * fbi->mode.yres * 3;
-	unsigned char *pSrc, *pDst, *pSrcLine, *pDstLine;
-	int i, j;
-
-	if (fbi->user_addr) {
-		int vmode = fbi->surface.videoMode;
-		w = fbi->surface.viewPortInfo.srcWidth;
-		h = fbi->surface.viewPortInfo.srcHeight;
-		if (vmode != FB_VMODE_RGB565 && vmode != FB_VMODE_RGBA888
-				&& vmode != FB_VMODE_RGB888UNPACK) {
-			pr_err("format not support for dump buffer!!!");
-			return;
-		}
-		pSrcLine = (unsigned char *)ioremap(fbi->user_addr, w*h*pix_fmt_to_bpp(fbi->pix_fmt));
-	} else {
-		w = fbi->mode.xres;
-		h = fbi->mode.yres;
-		pSrcLine = (unsigned char *)(fbi->fb_start + yoffset * pix_fmt_to_bpp(fbi->pix_fmt) * w);
-	}
-
-	size = w * h * 3;
-
-	memset(&bmFileHeader, 0, sizeof(BITMAPFILEHEADER));
-	bmFileHeader.bfType        = 0x4D42;
-	bmFileHeader.bfSize        = sizeof(BITMAPFILEHEADER);
-	bmFileHeader.bfReserved1   = 0;
-	bmFileHeader.bfReserved2   = 0;
-	bmFileHeader.bfOffBits     = sizeof(BITMAPFILEHEADER) + sizeof(
-	BITMAPINFOHEADER);
-
-	memset(&bmInfoHeader, 0, sizeof(BITMAPINFOHEADER));
-	bmInfoHeader.biSize        = sizeof(BITMAPINFOHEADER);
-	bmInfoHeader.biWidth       = w;
-	bmInfoHeader.biHeight      = h;
-	bmInfoHeader.biPlanes      = 1;
-	bmInfoHeader.biBitCount    = 24;
-	bmInfoHeader.biCompression = 0;/*BI_RGB;*/
-
-	pbits = vmalloc(size);
-	if (!pbits)
-	{
-		vfree(pbits);
-		return ;
-	}
-
-	pDstLine = pbits + (h-1) * w * 3;
-
-	switch (fbi->pix_fmt)
-	{
-	case PIX_FMTIN_RGB_16:
-		for(i = 0; i < h; i++) {
-			pSrc = pSrcLine;
-			pDst = pDstLine;
-			for(j = 0; j < w; j++) {
-				unsigned short rgb = *(unsigned short*)pSrc;
-				pDst[0] = ((rgb & 0x001f) << 3);
-				pDst[1] =  ((rgb & 0x07e0) >> 3);
-				pDst[2] = ((rgb & 0xf800) >> 8);
-				pSrc += 2;
-				pDst += 3;
-			}
-			pSrcLine += 2*w;
-			pDstLine -= 3*w;
-		}
-		break;
-	case PIX_FMTIN_RGB_24:
-	case PIX_FMTIN_RGB_32:
-		for(i = 0; i < h; i++) {
-			pSrc = pSrcLine;
-			pDst = pDstLine;
-			for(j = 0; j < w; j++) {
-				pDst[0] = pSrc[0];
-				pDst[1] = pSrc[1];
-				pDst[2] = pSrc[2];
-				pSrc += 4;
-				pDst += 3;
-			}
-			pSrcLine += 4*w;
-			pDstLine -= 3*w;
-		}
-		break;
-	default:
-		pr_err("format not supported\n");
-		break;
-	}
-
-	sprintf(name, "/data/fb%d.%04d.bmp", fbi->id, c);
-	c++;
-	printk("creat %s\n", name);
-	f = filp_open(name, O_RDWR | O_CREAT | O_LARGEFILE, 0);
-	if (IS_ERR(f)) {
-		pr_err("dump fail: fail to open\n");
-		vfree(pbits);
-		return;
-	}
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-	ret = f->f_op->write(f, (const char *)&bmFileHeader, sizeof(BITMAPFILEHEADER), &f->f_pos);
-	ret = f->f_op->write(f, (const char *)&bmInfoHeader, sizeof(BITMAPINFOHEADER), &f->f_pos);
-	ret = f->f_op->write(f, pbits, size, &f->f_pos);
-
-	set_fs(old_fs);
-	if (ret < 0) {
-		pr_err("dump fail: fail to write\n");
-		vfree(pbits);
-		return;
-	}
-	filp_close(f, NULL);
-	vfree(pbits);
-}
-
 struct pxa95xfb_info * pxa95xfbi[PXA95xFB_FB_NUM];
 struct pxa95xfb_conv_info pxa95xfb_conv[4] = {
 	[0] = {
@@ -1607,132 +1460,6 @@ void converter_init(struct pxa95xfb_info *fbi)
 	}
 }
 
-static void inline dump_regs_base(struct pxa95xfb_info *fbi)
-{
-	printk("LCD_CTL = %x\n", readl(fbi->reg_base + LCD_CTL));
-	printk("LCD_CTL_STS = %x\n", readl(fbi->reg_base + LCD_CTL_STS));
-	printk("LCD_NXT_DESC_ADDR0 = %x\n", readl(fbi->reg_base + LCD_NXT_DESC_ADDR0));
-	printk("LCD_FETCH_CTL0 = %x\n", readl(fbi->reg_base + LCD_FETCH_CTL0));
-	printk("LCD_WIN0_CTL = %x\n", readl(fbi->reg_base + LCD_WIN0_CTL));
-	printk("LCD_CH0_ALPHA = %x\n", readl(fbi->reg_base + LCD_CH0_ALPHA));
-	printk("LCD_FR_ADDR0 = %x\n", readl(fbi->reg_base + LCD_FR_ADDR0));
-	printk("LCD_CH0_CMD = %x\n", readl(fbi->reg_base + 0x0214));
-	printk("LCD_MIXER0_CTL0 = %x\n", readl(fbi->reg_base + LCD_MIXER0_CTL0));
-	printk("LCD_MIXER0_STS = %x\n", readl(fbi->reg_base + LCD_MIXER0_STS));
-	printk("LCD_MIXER0_CTL1 = %x\n", readl(fbi->reg_base + LCD_MIXER0_CTL1));
-	printk("LCD_MIXER0_CTL2 = %x\n", readl(fbi->reg_base + LCD_MIXER0_CTL2));
-	printk("LCD_MIXER0_OL1_CFG0 = %x\n", readl(fbi->reg_base + LCD_MIXER0_OL1_CFG0));
-	printk("LCD_MIXER0_OL1_CFG1 = %x\n", readl(fbi->reg_base + LCD_MIXER0_OL1_CFG1));
-	printk("DSI DxSCR0 = 0x%x\n", readl(fbi->reg_base + 0x2000));
-	printk("DSI DxSCR1 = 0x%x\n", readl(fbi->reg_base + 0x2100));
-	printk("DSI DxSSR  = 0x%x\n", readl(fbi->reg_base + 0x2104));
-	printk("LCD_MIXER1_CTL0 = %x\n", readl(fbi->reg_base + LCD_MIXER1_CTL0));
-	printk("LCD_MIXER1_STS = %x\n", readl(fbi->reg_base + LCD_MIXER1_STS));
-	printk("LCD_MIXER1_CTL1 = %x\n", readl(fbi->reg_base + LCD_MIXER1_CTL1));
-	printk("LCD_MIXER1_CTL2 = %x\n", readl(fbi->reg_base + LCD_MIXER1_CTL2));
-	printk("LCD_MIXER1_OL1_CFG0 = %x\n", readl(fbi->reg_base + LCD_MIXER1_OL1_CFG0));
-	printk("LCD_MIXER1_OL1_CFG1 = %x\n", readl(fbi->reg_base + LCD_MIXER1_OL1_CFG1));
-	printk("DSI D1SCR0 = 0x%x\n", readl(fbi->reg_base + 0x3000));
-	printk("DSI D1SCR1 = 0x%x\n", readl(fbi->reg_base + 0x3100));
-	printk("DSI D1SSR  = 0x%x\n", readl(fbi->reg_base + 0x3104));
-}
-
-static void inline dump_regs_ovly(struct pxa95xfb_info *fbi)
-{
-	if (fbi->pix_fmt == 7 || fbi->pix_fmt < 3) {
-		printk("LCD_NXT_DESC_ADDR4 = %x\n", readl(fbi->reg_base + LCD_NXT_DESC_ADDR4));
-		printk("LCD_FETCH_CTL4 = %x\n", readl(fbi->reg_base + LCD_FETCH_CTL4));
-		printk("LCD_WIN4_CTL = %x\n", readl(fbi->reg_base + LCD_WIN4_CTL));
-		printk("LCD_WINx_CFG = %x\n", readl(fbi->reg_base + LCD_WIN4_CFG));
-		printk("LCD_CH4_ALPHA = %x\n", readl(fbi->reg_base + LCD_CH4_ALPHA));
-	} else{
-		printk("LCD_NXT_DESC_ADDR4 = %x\n", readl(fbi->reg_base + LCD_NXT_DESC_ADDR4));
-		printk("LCD_NXT_DESC_ADDR5 = %x\n", readl(fbi->reg_base + LCD_NXT_DESC_ADDR5));
-		printk("LCD_NXT_DESC_ADDR6 = %x\n", readl(fbi->reg_base + LCD_NXT_DESC_ADDR6));
-		printk("LCD_FETCH_CTL4 = %x\n", readl(fbi->reg_base + LCD_FETCH_CTL4));
-		printk("LCD_FETCH_CTL5 = %x\n", readl(fbi->reg_base + LCD_FETCH_CTL5));
-		printk("LCD_FETCH_CTL6 = %x\n", readl(fbi->reg_base + LCD_FETCH_CTL6));
-		printk("LCD_WIN0_CTL = %x\n", readl(fbi->reg_base + LCD_WIN0_CTL));
-		printk("LCD_WIN0_CFG = %x\n", readl(fbi->reg_base + LCD_WIN0_CFG));
-		printk("LCD_WIN1_CTL = %x\n", readl(fbi->reg_base + LCD_WIN1_CTL));
-		printk("LCD_WIN1_CFG = %x\n", readl(fbi->reg_base + LCD_WIN1_CFG));
-		printk("LCD_WIN2_CTL = %x\n", readl(fbi->reg_base + LCD_WIN2_CTL));
-		printk("LCD_WIN2_CFG = %x\n", readl(fbi->reg_base + LCD_WIN2_CFG));
-		printk("LCD_WIN3_CTL = %x\n", readl(fbi->reg_base + LCD_WIN3_CTL));
-		printk("LCD_WIN3_CFG = %x\n", readl(fbi->reg_base + LCD_WIN3_CFG));
-		printk("LCD_WIN4_CTL = %x\n", readl(fbi->reg_base + LCD_WIN4_CTL));
-		printk("LCD_WIN4_CFG = %x\n", readl(fbi->reg_base + LCD_WIN4_CFG));
-		printk("LCD_CH0_ALPHA = %x\n", readl(fbi->reg_base + LCD_CH0_ALPHA));
-		printk("LCD_CH4_ALPHA = %x\n", readl(fbi->reg_base + LCD_CH4_ALPHA));
-	}
-	printk("LCD_CTL = %x\n", readl(fbi->reg_base + LCD_CTL));
-	printk("LCD_CTL_STS = %x\n", readl(fbi->reg_base + LCD_CTL_STS));
-	printk("LCD_MIXER1_BP_CFG0 = %x\n", readl(fbi->reg_base + LCD_MIXER1_BP_CFG0));
-	printk("LCD_MIXER1_BP_CFG1 = %x\n", readl(fbi->reg_base + LCD_MIXER1_BP_CFG1));
-	printk("LCD_MIXER1_OL1_CFG0 = %x\n", readl(fbi->reg_base + LCD_MIXER1_OL1_CFG0));
-	printk("LCD_MIXER1_OL1_CFG1 = %x\n", readl(fbi->reg_base + LCD_MIXER1_OL1_CFG1));
-	printk("LCD_MIXER1_CTL0 = %x\n", readl(fbi->reg_base + LCD_MIXER1_CTL0));
-	printk("LCD_MIXER1_CTL1 = %x\n", readl(fbi->reg_base + LCD_MIXER1_CTL1));
-	printk("DSI D1SCR0 = 0x%x\n", readl(fbi->reg_base + 0x3000));
-	printk("DSI D1SCR1 = 0x%x\n", readl(fbi->reg_base + 0x3100));
-	printk("DSI D1SSR  = 0x%x\n", readl(fbi->reg_base + 0x3104));
-
-}
-
-static void inline dump_regs_dsi(struct pxa95xfb_info *fbi)
-{
-	/*TBD - pass converter as an argumnet for dynamic choice*/
-	void *conv_base =
-		CONVERTER_BASE_ADDRESS(fbi->reg_base, LCD_M2DSI1);
-
-	printk(KERN_INFO "LCD_DSI_D0SCR0 = %x\n",
-	readl(conv_base + LCD_DSI_DxSCR0_OFFSET));
-	printk(KERN_INFO "LCD_DSI_D0SCR1 = %x\n",
-	readl(conv_base + LCD_DSI_DxSCR1_OFFSET));
-	printk(KERN_INFO "LCD_DSI_D0SSR = %x\n",
-	readl(conv_base + LCD_DSI_DxSSR_OFFSET));
-
-	printk(KERN_INFO "LCD_DSI_DxCONV_FIFO_THRESH = %x\n",
-	readl(conv_base + LCD_DSI_DxCONV_FIFO_THRESH_OFFSET));
-	printk(KERN_INFO "LCD_DSI_DxCONV_FIFO_THRESH_INT = %x\n",
-	readl(conv_base + 0x44));
-
-	printk(KERN_INFO "LCD_DSI_D0TRIG = %x\n",
-	readl(conv_base + LCD_DSI_DxTRIG_OFFSET));
-	printk(KERN_INFO "LCD_DSI_D0INEN = %x\n",
-	readl(conv_base + LCD_DSI_DxINEN_OFFSET));
-	printk(KERN_INFO "LCD_DSI_D0INST1 = %x\n",
-	readl(conv_base + LCD_DSI_DxINST1_OFFSET));
-	printk(KERN_INFO "LCD_DSI_D0TEINTCNT = %x\n",
-	readl(conv_base + LCD_DSI_DxTEINTCNT_OFFSET));
-	printk(KERN_INFO "LCD_DSI_D0_G_CTL = %x\n",
-	readl(conv_base + LCD_DSI_Dx_G_CTL_OFFSET));
-	printk(KERN_INFO "LCD_DSI_D0_G_DAT_RED = %x\n",
-	readl(conv_base + LCD_DSI_Dx_G_DAT_RED_OFFSET));
-	printk(KERN_INFO "LCD_DSI_D0_G_DAT_GREEN = %x\n",
-	readl(conv_base + LCD_DSI_Dx_G_DAT_GREEN_OFFSET));
-	printk(KERN_INFO "LCD_DSI_D0_G_DAT_BLUE = %x\n",
-	readl(conv_base + LCD_DSI_Dx_G_DAT_BLUE_OFFSET));
-	printk(KERN_INFO "LCD_DSI_D0PRSR = %x\n",
-	readl(conv_base + LCD_DSI_DxPRSR_OFFSET));
-	printk(KERN_INFO "LCD_DSI_D0INST0 = %x\n",
-	readl(conv_base + LCD_DSI_DxINST0_OFFSET));
-	printk(KERN_INFO "LCD_DSI_D0ADAT = %x\n",
-	readl(conv_base + LCD_DSI_DxADAT_OFFSET));
-	printk(KERN_INFO "LCD_DSI_D0CFIF = %x\n",
-	readl(conv_base + LCD_DSI_DxCFIF_OFFSET));
-	printk(KERN_INFO "LCD_DSI_D0TIM0 = %x\n",
-	readl(conv_base + LCD_DSI_DxTIM0_OFFSET));
-	printk(KERN_INFO "LCD_DSI_D0TIM1 = %x\n",
-	readl(conv_base + LCD_DSI_DxTIM1_OFFSET));
-	printk(KERN_INFO "LCD_DSI_D0PHY_TIM0 = %x\n",
-	readl(conv_base + LCD_DSI_DxPHY_TIM0_OFFSET));
-	printk(KERN_INFO "LCD_DSI_D0PHY_TIM1 = %x\n",
-	readl(conv_base + LCD_DSI_DxPHY_TIM1_OFFSET));
-	printk(KERN_INFO "LCD_DSI_D0PHY_TIM2 = %x\n",
-	readl(conv_base + LCD_DSI_DxPHY_TIM2_OFFSET));
-}
-
 static void controller_enable_disable(struct pxa95xfb_info *fbi, int onoff)
 {
 	int ctrl, stat, retry=50;
@@ -2200,26 +1927,6 @@ static ssize_t vsync_store(
 
 static DEVICE_ATTR(vsync, S_IRUGO | S_IWUSR, vsync_show, vsync_store);
 
-int dump;
-static ssize_t dump_show(struct device *dev, struct device_attribute *attr,
-		char *buf)
-{
-	return sprintf(buf, "dump: %d\n", dump);
-}
-
-static ssize_t dump_store(
-		struct device *dev, struct device_attribute *attr,
-		const char *buf, size_t size)
-{
-
-	sscanf(buf, "%d", &dump);
-
-	return size;
-}
-
-static DEVICE_ATTR(dump, S_IRUGO | S_IWUSR, dump_show, dump_store);
-
-
 /*
  * The hardware clock divider has an integer and a fractional
  * stage:
@@ -2525,9 +2232,6 @@ int pxa95xfb_pan_display(struct fb_var_screeninfo *var,
 		struct fb_info *info)
 {
 	struct pxa95xfb_info *fbi = (struct pxa95xfb_info *)info->par;
-
-	if (dump)
-		dump_buffer(fbi, var->yoffset);
 
 	fbi->pixel_offset = var->yoffset * var->xres_virtual + var->xoffset;
 	lcdc_set_fr_addr(fbi);
@@ -2976,11 +2680,7 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 		goto failed_free_cmap;
 	}
 
-	ret = device_create_file(&pdev->dev, &dev_attr_dump);
-	if (ret < 0) {
-		printk(KERN_INFO "%s, device attr create fail: %d\n", __func__, ret);
-		goto failed_free_cmap;
-	}
+	mvdisp_debug_init(&pdev->dev);
 
 #ifdef CONFIG_EARLYSUSPEND
 	register_early_suspend(&pxa95xfb_gfx_earlysuspend);

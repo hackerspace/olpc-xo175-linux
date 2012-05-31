@@ -246,6 +246,9 @@ static int __devinit pxa95xfb_vid_probe(struct platform_device *pdev)
 	printk(KERN_INFO "pxa95xfb_ovly: frame buffer device %s was loaded"
 			" to /dev/fb%d <%s>.\n", conv->output?"HDMI":"PANEL", info->node, info->fix.id);
 
+
+	mvdisp_debug_init(&pdev->dev);
+
 	return 0;
 
 failed_free_cmap:
