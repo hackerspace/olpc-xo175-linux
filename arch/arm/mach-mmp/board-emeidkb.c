@@ -28,6 +28,7 @@
 #include <mach/irqs.h>
 #include <mach/regs-mpmu.h>
 #include <plat/pmem.h>
+#include <plat/pxa27x_keypad.h>
 
 #include "common.h"
 
@@ -220,6 +221,32 @@ static unsigned long emeidkb_pin_config[] __initdata = {
 	GPIO_VCM_PWDN,
 };
 
+static unsigned int emei_dkb_matrix_key_map[] = {
+	KEY(0, 0, KEY_BACKSPACE),
+	KEY(0, 1, KEY_END),
+	KEY(0, 2, KEY_CAMERA), /* 1st camera */
+
+	KEY(1, 0, KEY_OK),
+	KEY(1, 1, KEY_HOME),
+	KEY(1, 2, KEY_CAMERA), /* 2nd camera */
+
+	KEY(2, 0, KEY_LEFT),
+	KEY(2, 1, KEY_RIGHT),
+	KEY(2, 2, KEY_UNKNOWN), /* unused key */
+
+	KEY(3, 0, KEY_UP),
+	KEY(3, 1, KEY_DOWN),
+	KEY(3, 2, KEY_UNKNOWN), /* unused key */
+};
+
+static struct pxa27x_keypad_platform_data emei_dkb_keypad_info __initdata = {
+	.matrix_key_rows	= 4,
+	.matrix_key_cols	= 3,
+	.matrix_key_map		= emei_dkb_matrix_key_map,
+	.matrix_key_map_size	= ARRAY_SIZE(emei_dkb_matrix_key_map),
+	.debounce_interval	= 30,
+};
+
 static void __init emeidkb_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(emeidkb_pin_config));
@@ -227,6 +254,7 @@ static void __init emeidkb_init(void)
 #ifdef CONFIG_ANDROID_PMEM
 	pxa_add_pmem();
 #endif
+	pxa988_add_keypad(&emei_dkb_keypad_info);
 }
 
 MACHINE_START(EMEIDKB, "PXA988-Based")
