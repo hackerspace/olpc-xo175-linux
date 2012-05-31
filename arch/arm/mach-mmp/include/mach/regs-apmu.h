@@ -126,6 +126,7 @@
 #define APMU_PXA168_SD1_WAKE_CLR	(1 << 0)
 
 #define APMU_PXA910_KP_WAKE_CLR		(1 << 3)
+#define APMU_PXA988_KP_WAKE_CLR		(1 << 3)
 
 #define APMU_GC_156M		0x0
 #define APMU_GC_312M		0x40

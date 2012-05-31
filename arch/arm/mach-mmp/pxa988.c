@@ -144,6 +144,15 @@ struct sys_timer pxa988_timer = {
 	.init   = pxa988_timer_init,
 };
 
+void pxa988_clear_keypad_wakeup(void)
+{
+	uint32_t val;
+	uint32_t mask = APMU_PXA988_KP_WAKE_CLR;
+
+	/* wake event clear is needed in order to clear keypad interrupt */
+	val = __raw_readl(APMU_WAKE_CLR);
+	__raw_writel(val | mask, APMU_WAKE_CLR);
+}
 
 static int __init pxa988_init(void)
 {
@@ -161,7 +170,7 @@ postcore_initcall(pxa988_init);
 PXA988_DEVICE(uart1, "pxa2xx-uart", 0, UART1_CP, 0xd4036000, 0x30, 4, 5);
 PXA988_DEVICE(uart2, "pxa2xx-uart", 1, UART2, 0xd4017000, 0x30, 21, 22);
 PXA988_DEVICE(uart3, "pxa2xx-uart", 2, UART3, 0xd4018000, 0x30, 23, 24);
-
+PXA988_DEVICE(keypad, "pxa27x-keypad", -1, KEYPAD, 0xd4012000, 0x4c);
 
 /* TODO Fake implementation for bring up */
 void handle_coherency_maint_req(void *p) {};

@@ -11,10 +11,14 @@ extern void __init pxa988_reserve(void);
 #include <mach/devices.h>
 #include <mach/cputype.h>
 #include <mach/regs-apbc.h>
+#include <plat/pxa27x_keypad.h>
 
 extern struct pxa_device_desc pxa988_device_uart1;
 extern struct pxa_device_desc pxa988_device_uart2;
 extern struct pxa_device_desc pxa988_device_uart3;
+extern struct pxa_device_desc pxa988_device_keypad;
+
+extern void pxa988_clear_keypad_wakeup(void);
 
 static inline int pxa988_add_uart(int id)
 {
@@ -35,6 +39,12 @@ static inline int pxa988_add_uart(int id)
 	}
 
 	return pxa_register_device(d, NULL, 0);
+}
+
+static inline int pxa988_add_keypad(struct pxa27x_keypad_platform_data *data)
+{
+	data->clear_wakeup_event = pxa988_clear_keypad_wakeup;
+	return pxa_register_device(&pxa988_device_keypad, data, sizeof(*data));
 }
 
 #endif /* __ASM_CPU_PXA988_H */
