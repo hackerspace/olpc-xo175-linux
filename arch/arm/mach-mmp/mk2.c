@@ -167,8 +167,9 @@ static unsigned long mk2_pin_config[] __initdata = {
 	GPIO85_GPIO, /* TS_IO_EN */
 
 	/* touch for mk2*/
-	GPIO153_GPIO,
+	GPIO153_TOUCH_3V3,
 	GPIO101_GPIO,
+	GPIO91_TOUCH_SLP,
 
 	/* HDMI */
 	GPIO54_HDMI_CEC,
@@ -1110,7 +1111,7 @@ static void exc7200_config(void)
 	pr_info("%s()\n", __func__);
 
 	/* DIGITIZER_3V3_EN - GPIO153_GPIO153 */
-	gpio = mfp_to_gpio(GPIO153_GPIO);
+	gpio = mfp_to_gpio(GPIO153_TOUCH_3V3);
 	ret = gpio_request(gpio, "digitizer_3v3");
 	if(ret < 0){
 		printk(KERN_ERR "%s: Fail to digitizer_3v3 (gpio %d) for \
