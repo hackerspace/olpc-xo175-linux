@@ -61,8 +61,10 @@
 #define MHZ_TO_KHZ	1000
 
 extern int ForceOP, ForcedOPIndex, ForceC0, ForceVCTCXO_EN, EnableD2VoltageChange;
+#ifdef CONFIG_PXA95x_SUSPEND
 static struct dvfm_md_opt *lowest_freq_op;
 static int lowest_freq_index;
+#endif
 struct mutex op_change_mutex;
 /* setting the default voltage level to 1.05V */
 unsigned int D2voltageLevelValue = 0x0D;
@@ -2367,9 +2369,13 @@ static int pxa95x_set_op(void *driver_data, struct dvfm_freqs *freqs,
 {
 	struct pxa95x_dvfm_info *info = driver_data;
 	struct dvfm_md_opt *md = NULL, *old_md = NULL;
+	struct dvfm_freqs temp_freqs;
 	struct op_info *p = NULL;
 	int ret = 1;
 	unsigned int ckena = 0;
+#ifndef CONFIG_PXA95x_SUSPEND
+	struct op_info *temp_op_info = NULL;
+#endif
 
 	if (dvfm_find_op(new, &p))
 		return ret;
@@ -2407,21 +2413,18 @@ static int pxa95x_set_op(void *driver_data, struct dvfm_freqs *freqs,
 		md = (struct dvfm_md_opt *)(freqs->new_info.op);
 		old_md = (struct dvfm_md_opt *)(freqs->old_info.op);
 
-		/* System should enter D2 from the lowest op.
-		 * For Nevo, enter D1 also from the lowest op
-		 * This is a temperary solution. When tuning power,
-		 * maybe it is better to enter D1 from PP2. TODO */
-		if (((md->power_mode == POWER_MODE_D2) ||
-			(md->power_mode == POWER_MODE_D1 && cpu_is_pxa978())) &&
-		    old_md->power_mode == POWER_MODE_D0 &&
-		    old_md->core > lowest_freq_op->core) {
-			struct dvfm_freqs temp_freqs;
+#ifdef CONFIG_PXA95x_SUSPEND
+		/* System enter D2/D1 from lowest op when using fake suspend */
+		if ((md->power_mode == POWER_MODE_D2 ||
+				md->power_mode == POWER_MODE_D1) &&
+				(old_md->power_mode == POWER_MODE_D0) &&
+				(old_md->core > lowest_freq_op->core)) {
 			struct op_info *lowest_op_info;
 			if (!dvfm_find_op(lowest_freq_index, &lowest_op_info)) {
 				memcpy(&(temp_freqs.new_info),
-				       lowest_op_info, sizeof(struct op_info));
+						lowest_op_info, sizeof(struct op_info));
 				memcpy(&(temp_freqs.old_info),
-				       &(freqs->old_info),
+						&(freqs->old_info),
 				       sizeof(struct op_info));
 				temp_freqs.new = lowest_freq_index;
 				temp_freqs.old = freqs->old;
@@ -2443,6 +2446,39 @@ static int pxa95x_set_op(void *driver_data, struct dvfm_freqs *freqs,
 				}
 			}
 		}
+#else
+		/* Nevo-2067: enter D1/D2 from lower than 915MHz on C0*/
+		if ((!cpu_is_pxa978_Dx()) &&
+				((old_md->power_mode == POWER_MODE_D0) &&
+				 (md->power_mode == POWER_MODE_D1 ||
+				 md->power_mode == POWER_MODE_D2)) &&
+				(old_md->core > 624)) {
+			pr_debug("Enter D2/D1 from 624MHz temporarily.\n");
+			if (!dvfm_find_op(2, &temp_op_info)) {
+				memcpy(&(temp_freqs.new_info),
+				       temp_op_info, sizeof(struct op_info));
+				memcpy(&(temp_freqs.old_info),
+				       &(freqs->old_info),
+				       sizeof(struct op_info));
+				temp_freqs.new = 2;
+				temp_freqs.old = freqs->old;
+
+				/* Enter 624MHz OP */
+				update_freq(info, &temp_freqs);
+
+				/* Prepare the restore data */
+				memcpy(&(temp_freqs.old_info), &(temp_freqs.new_info),
+				       sizeof(struct op_info));
+				memcpy(&(temp_freqs.new_info), &(freqs->old_info),
+				       sizeof(struct op_info));
+				temp_freqs.old = temp_freqs.new;
+				temp_freqs.new = freqs->old;
+			} else {
+				pr_err("Can't fine OP 2.\n");
+				BUG_ON(1);
+			}
+		}
+#endif
 
 		md = (struct dvfm_md_opt *)p->op;
 		if (!cpu_is_pxa978()) {
@@ -2469,6 +2505,13 @@ static int pxa95x_set_op(void *driver_data, struct dvfm_freqs *freqs,
 	}
 	if (!cpu_is_pxa978())
 		CKENA = ckena;
+#ifndef CONFIG_PXA95x_SUSPEND
+	/* Restore previous op for Nevo-2067 */
+	if (temp_op_info) {
+		update_freq(info, &temp_freqs);
+		pr_debug("Restore OP%d after exiting D2/D1.\n", temp_freqs.new);
+	}
+#endif
 	if (md->power_mode == POWER_MODE_D0) {
 		mutex_unlock(&op_change_mutex);
 	}
@@ -2550,7 +2593,9 @@ static int op_init(void *driver_data, struct info_head *op_table)
 	struct op_info *p = NULL, *q = NULL;
 	struct dvfm_md_opt *md = NULL, *smd = NULL;
 	struct proc_op_array *proc = NULL;
+#ifdef CONFIG_PXA95x_SUSPEND
 	unsigned int lowest_freq;
+#endif
 	if (cpu_is_pxa978_Dx()) {
 		pxa978_op_array[2].dmcfs = 416;
 		pxa978_op_array_high_mips[2].dmcfs = 416;
@@ -2598,6 +2643,7 @@ static int op_init(void *driver_data, struct info_head *op_table)
 		list_add_tail(&(p->list), &(op_table->list));
 	}
 
+#ifdef CONFIG_PXA95x_SUSPEND
 	lowest_freq = (unsigned int)-1;
 	list_for_each_entry(p, &op_table->list, list) {
 		md = (struct dvfm_md_opt *)p->op;
@@ -2607,6 +2653,7 @@ static int op_init(void *driver_data, struct info_head *op_table)
 			lowest_freq = md->core;
 		}
 	}
+#endif
 
 	md = kzalloc(sizeof(struct dvfm_md_opt), GFP_KERNEL);
 	p = kzalloc(sizeof(struct op_info), GFP_KERNEL);
