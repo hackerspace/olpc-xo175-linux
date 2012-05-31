@@ -2529,6 +2529,35 @@ static int pxa95x_set_op(void *driver_data, struct dvfm_freqs *freqs,
 				BUG_ON(1);
 			}
 		}
+		if ((cpu_is_pxa978_Dx()) &&
+				((old_md->power_mode == POWER_MODE_D0) &&
+				 (md->power_mode == POWER_MODE_CG)) &&
+				(old_md->core != 156)) {
+			pr_debug("Enter CGM from 156MHz for power saving.\n");
+			if (!dvfm_find_op(0, &temp_op_info)) {
+				memcpy(&(temp_freqs.new_info),
+				       temp_op_info, sizeof(struct op_info));
+				memcpy(&(temp_freqs.old_info),
+				       &(freqs->old_info),
+				       sizeof(struct op_info));
+				temp_freqs.new = 0;
+				temp_freqs.old = freqs->old;
+
+				/* Enter 156MHz OP */
+				update_freq(info, &temp_freqs);
+
+				/* Prepare the restore data */
+				memcpy(&(temp_freqs.old_info), &(temp_freqs.new_info),
+				       sizeof(struct op_info));
+				memcpy(&(temp_freqs.new_info), &(freqs->old_info),
+				       sizeof(struct op_info));
+				temp_freqs.old = temp_freqs.new;
+				temp_freqs.new = freqs->old;
+			} else {
+				pr_err("Can't fine OP 1.\n");
+				BUG_ON(1);
+			}
+		}
 #endif
 
 		md = (struct dvfm_md_opt *)p->op;
@@ -2560,7 +2589,7 @@ static int pxa95x_set_op(void *driver_data, struct dvfm_freqs *freqs,
 	/* Restore previous op for Nevo-2067 */
 	if (temp_op_info) {
 		update_freq(info, &temp_freqs);
-		pr_debug("Restore OP%d after exiting D2/D1.\n", temp_freqs.new);
+		pr_debug("Restore OP%d after exiting LPM.\n", temp_freqs.new);
 	}
 #endif
 	if (md->power_mode == POWER_MODE_D0) {
