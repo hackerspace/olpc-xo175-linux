@@ -15,6 +15,7 @@
 #include <linux/delay.h>
 #include <linux/clk.h>
 #include <plat/clock.h>
+#include <plat/devfreq.h>
 #include <mach/pxa3xx-regs.h>
 #include <mach/debug_pm.h>
 #include <mach/pxa95x_dvfm.h>
@@ -26,27 +27,27 @@
 #define MHZ_TO_HZ	1000000
 
 extern unsigned long max_pp, max_gc, max_vmeta, max_core;
-struct clk_table {
-	unsigned long fclk;
+
+static struct devfreq_frequency_table pxa978_gcvmeta_clk_table[] = {
+	INIT_FREQ_TABLE(1, 156000000),
+	INIT_FREQ_TABLE(2, 208000000),
+	INIT_FREQ_TABLE(3, 312000000),
+	INIT_FREQ_TABLE(4, 416000000),
+	INIT_FREQ_TABLE(5, 498000000),
+	INIT_FREQ_TABLE(6, 600000000),
+	INIT_FREQ_TABLE(7, DEVFREQ_TABLE_END),
 };
 
-static struct clk_table pxa978_gcu_clk_table[] = {
-	{156000000},
-	{208000000},
-	{312000000},
-	{416000000},
-	{498000000},
-	{600000000},
+static struct devfreq_frequency_table pxa978_dx_gcvmeta_clk_table[] = {
+	INIT_FREQ_TABLE(1, 156000000),
+	INIT_FREQ_TABLE(2, 208000000),
+	INIT_FREQ_TABLE(3, 312000000),
+	INIT_FREQ_TABLE(4, 416000000),
+	INIT_FREQ_TABLE(5, 481000000),
+	INIT_FREQ_TABLE(6, 600000000),
+	INIT_FREQ_TABLE(7, DEVFREQ_TABLE_END),
 };
 
-static struct clk_table pxa978_dx_gcu_clk_table[] = {
-	{156000000},
-	{208000000},
-	{312000000},
-	{416000000},
-	{481000000},
-	{600000000},
-};
 /*TODO: "10" will be defined as a MACRO in future*/
 static unsigned long gc_cur_freqs_table[10];
 static unsigned int gc_freq_counts;
@@ -1024,25 +1025,36 @@ int get_gcu_freqs_table(unsigned long *gcu_freqs_table, unsigned int *item_count
 	int i;
 
 	if (!cpu_is_pxa978_Dx()) {
-		if (max_item_counts < ARRAY_SIZE(pxa978_gcu_clk_table)) {
+		if (max_item_counts < ARRAY_SIZE(pxa978_gcvmeta_clk_table)) {
 			pr_err("Too many GC frequencies!\n");
 			return -1;
 		}
-		for (i = 0; (i < ARRAY_SIZE(pxa978_gcu_clk_table)) && (pxa978_gcu_clk_table[i].fclk <= max_gc); i++)
-			gcu_freqs_table[i] = pxa978_gcu_clk_table[i].fclk;
+		for (i = 0; (pxa978_gcvmeta_clk_table[i].frequency != DEVFREQ_TABLE_END) && (pxa978_gcvmeta_clk_table[i].frequency <= max_gc); i++)
+			gcu_freqs_table[i] = pxa978_gcvmeta_clk_table[i].frequency;
 	} else {
-		if (max_item_counts < ARRAY_SIZE(pxa978_dx_gcu_clk_table)) {
+		if (max_item_counts < ARRAY_SIZE(pxa978_dx_gcvmeta_clk_table)) {
 			pr_err("Too many GC frequencies!\n");
 			return -1;
 		}
-		for (i = 0; (i < ARRAY_SIZE(pxa978_dx_gcu_clk_table)) && (pxa978_dx_gcu_clk_table[i].fclk <= max_gc); i++)
-			gcu_freqs_table[i] = pxa978_dx_gcu_clk_table[i].fclk;
+		for (i = 0; (pxa978_dx_gcvmeta_clk_table[i].frequency != DEVFREQ_TABLE_END) && (pxa978_dx_gcvmeta_clk_table[i].frequency <= max_gc); i++)
+			gcu_freqs_table[i] = pxa978_dx_gcvmeta_clk_table[i].frequency;
 	}
 	*item_counts = i;
 
 	return 0;
 }
 EXPORT_SYMBOL(get_gcu_freqs_table);
+
+int set_vmeta_freqs_table(struct devfreq *devfreq)
+{
+	if (cpu_is_pxa978_Dx())
+		devfreq_set_freq_table(devfreq, pxa978_dx_gcvmeta_clk_table);
+	else
+		devfreq_set_freq_table(devfreq, pxa978_gcvmeta_clk_table);
+	if (max_vmeta)
+		devfreq->max_freq = max_vmeta;
+	return 0;
+}
 
 static int clk_pxa95x_gcu_setrate(struct clk *gc_clk, unsigned long rate)
 {

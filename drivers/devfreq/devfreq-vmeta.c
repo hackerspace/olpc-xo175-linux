@@ -13,8 +13,7 @@
 #include <linux/slab.h>
 #include <linux/devfreq.h>
 #include <linux/clk.h>
-
-#define CLK_NAME "VMETA_CLK"
+#include <plat/devfreq.h>
 
 #ifdef CONFIG_DEVFREQ_DEFAULT_GOV_PERFORMANCE
 #define DEVFREQ_DEFAULT_GOVERNOR	(&devfreq_performance)
@@ -51,18 +50,24 @@ static struct devfreq_dev_profile vMeta_devfreq_profile = {
 
 static int vMeta_devfreq_probe(struct platform_device *pdev)
 {
-	struct device *dev;
-	struct vMeta_devfreq_data *data;
+	struct vMeta_devfreq_data *data = NULL;
+	struct devfreq_platform_data *pdata;
 	int err = 0;
+	struct device *dev = &pdev->dev;
+	pdata = (struct devfreq_platform_data *)dev->platform_data;
+	if (!pdata) {
+		dev_err(dev, "No platform data!\n");
+		goto out;
+	}
 
-	dev = &pdev->dev;
 	data = kzalloc(sizeof(struct vMeta_devfreq_data), GFP_KERNEL);
+
 	if (data == NULL) {
 		dev_err(dev, "Cannot allocate memory for vMeta devfreq!\n");
 		return -ENOMEM;
 	}
 	platform_set_drvdata(pdev, data);
-	data->vclk = clk_get(NULL, CLK_NAME);
+	data->vclk = clk_get(NULL, pdata->clk_name);
 	if (IS_ERR(data->vclk)) {
 		err = PTR_ERR(data->vclk);
 		goto out;
@@ -75,6 +80,10 @@ static int vMeta_devfreq_probe(struct platform_device *pdev)
 		err = PTR_ERR(data->devfreq);
 		goto out;
 	}
+	if (pdata->setup_freq_table)
+		pdata->setup_freq_table(data->devfreq);
+	else if (pdata->freq_table)
+		devfreq_set_freq_table(data->devfreq, pdata->freq_table);
 
 	return 0;
 out:

@@ -46,6 +46,7 @@
 #include <mach/audio.h>
 #include <mach/usb-regs.h>
 #include <plat/pxa27x_keypad.h>
+#include <plat/devfreq.h>
 #include <linux/spi/pxa2xx_spi.h>
 #include <linux/spi/cmmb.h>
 #include <linux/SSD2531_touch.h>
@@ -479,6 +480,11 @@ static struct i2c_board_info i2c1_80x_info_DKB2_1[] = {
 	#endif
 };
 
+extern int set_vmeta_freqs_table(struct devfreq *devfreq);
+static struct devfreq_platform_data devfreq_vmeta_pdata = {
+	.clk_name = "VMETA_CLK",
+	.setup_freq_table = set_vmeta_freqs_table,
+};
 
 static struct clk *clk_tout_s0;
 
@@ -3108,6 +3114,7 @@ static void __init init(void)
 				 sizeof(i2c2_pdata));
 	platform_device_add_data(&pxa95x_device_i2c3, &i2c3_pdata,
 				 sizeof(i2c3_pdata));
+	pxa95x_device_vMeta_devfreq.dev.platform_data = (void *)(&devfreq_vmeta_pdata);
 
 	platform_add_devices(ARRAY_AND_SIZE(devices));
 	register_i2c_board_info();
