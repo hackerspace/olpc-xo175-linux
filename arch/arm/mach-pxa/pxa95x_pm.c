@@ -680,7 +680,8 @@ static void enter_d2(void)
 	pr_debug("enter D2.\n");
 	AD2D0SR = 0xFFFFFFFF;
 	AD2D0ER = 0;
-	AD2D0ER = PXA95x_PM_WE_RTC		/* RTC */
+	AD2D0ER = PXA95x_PM_WE_MMC3	/* MMC3 Data1 */
+		|PXA95x_PM_WE_RTC		/* RTC */
 		| PXA95x_PM_WE_MSL0		/* ACS-IPC */
 		| PXA95x_PM_WE_GENERIC(3);	/* On-key */
 	pm_preset_standby();
@@ -719,7 +720,8 @@ static void enter_cg(void)
 	pr_debug("enter CG.\n");
 	ACGD0SR = 0xFFFFFFFF;
 	ACGD0ER = 0;
-	ACGD0ER = PXA95x_PM_WE_RTC		/* RTC */
+	ACGD0ER = PXA95x_PM_WE_MMC3	/* MMC3 Data1 */
+		|PXA95x_PM_WE_RTC		/* RTC */
 		| PXA95x_PM_WE_MSL0		/* ACS-IPC */
 		| PXA95x_PM_WE_INTC		/* IRQ or FIQ */
 #if 0
