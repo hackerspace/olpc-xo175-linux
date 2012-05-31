@@ -104,7 +104,7 @@ static int mmp3_cpufreq_target(struct cpufreq_policy *policy,
 	/* pm_qos_update_request(&cpufreq_qos_req_min, highest_speed / MHZ_TO_KHZ); */
 
 	qos_freq_khz = pm_qos_request(PM_QOS_CPUFREQ_MIN) * MHZ_TO_KHZ;
-	if ((highest_speed > qos_freq_khz) && !cpufreq_disable)
+	if ((highest_speed >= qos_freq_khz) && !cpufreq_disable)
 		freq_notify_and_change(0, index);
 out:
 	return ret;
