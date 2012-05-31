@@ -94,11 +94,25 @@ static struct mfp_addr_map pxa988_addr_map[] __initdata = {
 	MFP_ADDR_END,
 };
 
+#ifdef CONFIG_SMP
+u32 pm_reserve_pa;
+#define PM_RESERVE_SIZE	(1024 * 1024)
+#endif
+
 void __init pxa988_reserve(void)
 {
 #ifdef CONFIG_ANDROID_PMEM
 	/*reserve memory for pmem*/
 	pxa_reserve_pmem_memblock();
+#endif
+#ifdef CONFIG_SMP
+	pm_reserve_pa = memblock_alloc(PM_RESERVE_SIZE, PAGE_SIZE);
+	if (!pm_reserve_pa) {
+		pr_err("%s: failed to reserve memory for PM\n", __func__);
+		BUG();
+	}
+	BUG_ON(memblock_free(pm_reserve_pa, PM_RESERVE_SIZE));
+	BUG_ON(0 != memblock_remove(pm_reserve_pa, PM_RESERVE_SIZE));
 #endif
 }
 
