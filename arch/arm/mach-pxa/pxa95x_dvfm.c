@@ -2551,6 +2551,10 @@ static int op_init(void *driver_data, struct info_head *op_table)
 	struct dvfm_md_opt *md = NULL, *smd = NULL;
 	struct proc_op_array *proc = NULL;
 	unsigned int lowest_freq;
+	if (cpu_is_pxa978_Dx()) {
+		pxa978_op_array[2].dmcfs = 416;
+		pxa978_op_array_high_mips[2].dmcfs = 416;
+	}
 
 	write_lock_irqsave(&op_table->lock, flags);
 	for (i = 0; i < ARRAY_SIZE(proc_op_arrays); i++) {
@@ -2560,7 +2564,8 @@ static int op_init(void *driver_data, struct info_head *op_table)
 			    0x2a00 == proc_op_arrays[i + 1].chip_id &&
 			   (get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ ||
 			    get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
-			    get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD))
+			    get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD ||
+			    cpu_is_pxa978_Dx()))
 				proc = &proc_op_arrays[i + 1];
 			break;
 		}
