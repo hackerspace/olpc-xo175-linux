@@ -935,19 +935,24 @@ static int pxa910_gs_write(struct tty_struct *tty, const unsigned char *buf,
 	pr_debug("pxa910_gs_write: ttyGS%d (%p) writing %d bytes\n",
 		  port->port_num, tty, count);
 
+	if (port == NULL) {
+		printk(KERN_ERR "pxa910_gs_write: port is NULL!\n");
+		return -EPERM;
+	}
+
 	spin_lock_irqsave(&port->port_lock, flags);
 	if (count)
 		count = pxa910_gs_buf_put(&port->port_write_buf, buf, count);
-	if (!count) {
-		spin_unlock_irqrestore(&port->port_lock, flags);
-		return -EAGAIN;
-	}
 
 	/* treat count == 0 as flush_chars() */
 	if (port->port_usb)
 		status = pxa910_gs_start_tx(port);
 	spin_unlock_irqrestore(&port->port_lock, flags);
 
+	if (!count) {
+		pr_debug("%s: buffer full!\n", __func__);
+		return -EAGAIN;
+	}
 	return count;
 }
 
