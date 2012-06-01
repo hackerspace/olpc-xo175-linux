@@ -91,6 +91,8 @@ struct sdhci_host {
 	unsigned int quirks2;	/* One more quirk */
 /* Controller has to use workaround to add 8 dummy clock after every cmd */
 #define SDHCI_QUIRK2_MISSING_DUMMY_CLK			(1<<0)
+/* Some SDHCI v3 controller doesn't suppport current limit error*/
+#define SDHCI_QUIRK2_NO_CURRENT_LIMIT			(2<<0)
 
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */
