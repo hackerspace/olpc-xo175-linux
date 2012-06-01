@@ -579,6 +579,8 @@ static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 			host->mmc->pm_caps |= pdata->pm_caps;
 	}
 
+	host->quirks2 |= SDHCI_QUIRK2_NO_CURRENT_LIMIT;
+
 #ifdef CONFIG_CPU_PXA978
 	ret = dvfm_register((char *)mmc_hostname(host->mmc), &pltfm_host->dvfm_dev_idx);
 	if(ret) {
