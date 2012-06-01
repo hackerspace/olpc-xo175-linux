@@ -7,6 +7,7 @@
 #include <mach/mfp-mmp2.h>
 #include <mach/mmp2.h>
 #include <mach/mmp3.h>
+#include <mach/pxa988.h>
 #include <mach/tc35876x.h>
 #include <mach/pxa168fb.h>
 #include <mach/mmp2_plat_ver.h>
@@ -70,6 +71,22 @@ static struct fb_videomode video_modes_mk2[] = {
 		.vsync_len = 2,
 		.upper_margin = 18,
 		.lower_margin = 18,
+		.sync = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
+		},
+};
+
+static struct fb_videomode video_modes_emeidkb[] = {
+	[0] = {
+		 /* panel refresh rate should <= 55(Hz) */
+		.refresh = 55,
+		.xres = 540,
+		.yres = 960,
+		.hsync_len = 2,
+		.left_margin = 50,
+		.right_margin = 70,
+		.vsync_len = 2,
+		.upper_margin = 8,
+		.lower_margin = 8,
 		.sync = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
 		},
 };
@@ -260,6 +277,79 @@ regu_lcd_avdd:
 	return -EIO;
 }
 
+static int emeidkb_lcd_power(struct pxa168fb_info *fbi,
+			     unsigned int spi_gpio_cs,
+			     unsigned int spi_gpio_reset, int on)
+{
+	static struct regulator *lcd_iovdd, *lcd_avdd;
+	int lcd_rst_n;
+
+	/* FIXME:lcd reset,use GPIO_1 as lcd reset */
+	lcd_rst_n = 1;
+	if (gpio_request(lcd_rst_n, "lcd reset gpio")) {
+		pr_err("gpio %d request failed\n", lcd_rst_n);
+		return -EIO;
+	}
+
+	/* FIXME:LCD_IOVDD, 1.8v */
+	if (!lcd_iovdd) {
+		lcd_iovdd = regulator_get(NULL, "v_ldo15");
+		if (IS_ERR(lcd_iovdd)) {
+			pr_err("%s regulator get error!\n", __func__);
+			lcd_iovdd = NULL;
+			goto regu_lcd_iovdd;
+		}
+	}
+
+	/* FIXME:LCD_AVDD 3.1v */
+	if (!lcd_avdd) {
+		lcd_avdd = regulator_get(NULL, "v_ldo8");
+		if (IS_ERR(lcd_avdd)) {
+			pr_err("%s regulator get error!\n", __func__);
+			lcd_avdd = NULL;
+			goto regu_lcd_avdd;
+		}
+	}
+
+	if (on) {
+		regulator_set_voltage(lcd_iovdd, 1800000, 1800000);
+		regulator_enable(lcd_iovdd);
+
+		regulator_set_voltage(lcd_avdd, 3100000, 3100000);
+		regulator_enable(lcd_avdd);
+
+		mdelay(50);
+		/* release panel from reset */
+		gpio_direction_output(lcd_rst_n, 1);
+		udelay(20);
+		gpio_direction_output(lcd_rst_n, 0);
+		udelay(50);
+		gpio_direction_output(lcd_rst_n, 1);
+	} else {
+		/* disable LCD_AVDD 3.1v */
+		regulator_disable(lcd_avdd);
+
+		/* disable LCD_IOVDD 1.8v */
+		regulator_disable(lcd_iovdd);
+
+		/* set panel reset */
+		gpio_direction_output(lcd_rst_n, 0);
+	}
+
+	gpio_free(lcd_rst_n);
+	pr_debug("%s on %d\n", __func__, on);
+
+	return 0;
+
+regu_lcd_avdd:
+	regulator_put(lcd_iovdd);
+
+regu_lcd_iovdd:
+	gpio_free(lcd_rst_n);
+
+	return -EIO;
+}
+
 static struct lvds_info lvdsinfo = {
 	.src	= LVDS_SRC_PN,
 	.fmt	= LVDS_FMT_18BIT,
@@ -326,6 +416,17 @@ static struct dsi_info dsiinfo = {
 
 static struct dsi_info orchid_dsiinfo = {
 	.id = 2,
+	.lanes = 2,
+	.bpp = 24,
+	.rgb_mode = DSI_LCD_INPUT_DATA_RGB_MODE_888,
+	.burst_mode = DSI_BURST_MODE_BURST,
+	.hbp_en = 1,
+	.hfp_en = 1,
+};
+
+/* emeidkb: only DSI1 and use lane0,lane1 */
+static struct dsi_info emeidkb_dsiinfo = {
+	.id = 1,
 	.lanes = 2,
 	.bpp = 24,
 	.rgb_mode = DSI_LCD_INPUT_DATA_RGB_MODE_888,
@@ -1227,6 +1328,63 @@ void __init mk2_add_lcd_mipi(void)
 	mmp3_add_v4l2_ovly(ovly);
 #else
 	mmp3_add_fb_ovly(ovly);
+#endif
+}
+#endif
+
+#ifdef CONFIG_MACH_EMEIDKB
+void __init emeidkb_add_lcd_mipi(void)
+{
+	unsigned char __iomem *dmc_membase;
+	unsigned int CSn_NO_COL;
+	struct dsi_info *dsi;
+
+	struct pxa168fb_mach_info *fb = &mipi_lcd_info, *ovly =
+	    &mipi_lcd_ovly_info;
+
+	fb->num_modes = ARRAY_SIZE(video_modes_emeidkb);
+	fb->modes = video_modes_emeidkb;
+	fb->max_fb_size = video_modes_emeidkb[0].xres *
+		video_modes_emeidkb[0].xres * 8 + 4096;
+	ovly->num_modes = fb->num_modes;
+	ovly->modes = fb->modes;
+	ovly->max_fb_size = fb->max_fb_size;
+
+	fb->phy_type = DSI;
+	fb->xcvr_reset = NULL;
+	fb->phy_info = (void *)&emeidkb_dsiinfo;
+	fb->dsi_panel_config = panel_init_config;
+	fb->pxa168fb_lcd_power = emeidkb_lcd_power;
+	dsi = (struct dsi_info *)fb->phy_info;
+	dsi->master_mode = 1;
+	dsi->hfp_en = 0;
+
+	/*
+	 * Re-calculate lcd clk source and divider
+	 * according to dsi lanes and output format.
+	 */
+	calculate_lcd_sclk(fb);
+
+	dmc_membase = ioremap(DDR_MEM_CTRL_BASE, 0x30);
+	CSn_NO_COL = __raw_readl(dmc_membase + SDRAM_CONFIG_TYPE1_CS0) >> 4;
+	CSn_NO_COL &= 0xF;
+	if (CSn_NO_COL <= 0x2) {
+		/*
+		 *If DDR page size < 4KB,
+		 *select no crossing 1KB boundary check
+		 */
+		fb->io_pad_ctrl |= CFG_BOUNDARY_1KB;
+		ovly->io_pad_ctrl |= CFG_BOUNDARY_1KB;
+	}
+	iounmap(dmc_membase);
+
+	/* add frame buffer drivers */
+	pxa988_add_fb(fb);
+	/* add overlay driver */
+#ifdef CONFIG_PXA168_V4L2_OVERLAY
+	pxa988_add_v4l2_ovly(ovly);
+#else
+	pxa988_add_fb_ovly(ovly);
 #endif
 }
 #endif
