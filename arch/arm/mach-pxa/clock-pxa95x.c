@@ -1594,7 +1594,7 @@ static void cken_clear_always_set_always_setup(void)
 	}
 }
 
-static int __init pxa95x_clk_init(void)
+int pxa95x_clk_init(void)
 {
 	cken_clear_always_set_always_setup();
 
@@ -1669,5 +1669,3 @@ static int __init pxa95x_clk_init(void)
 				  ARRAY_SIZE(pxa955_specific_clkregs));
 	return 0;
 }
-
-core_initcall(pxa95x_clk_init);

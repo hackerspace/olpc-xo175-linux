@@ -131,7 +131,7 @@ static struct dvfs *dvfs_init[] = {
 	&vmeta_dvfs,
 };
 
-int __init pxa95x_init_dvfs(void)
+int pxa95x_init_dvfs(void)
 {
 	int i;
 	dvfs_init_rails(pxa95x_dvfs_rails, ARRAY_SIZE(pxa95x_dvfs_rails));
@@ -144,8 +144,6 @@ int __init pxa95x_init_dvfs(void)
 
 	return 0;
 }
-
-module_init(pxa95x_init_dvfs);
 
 MODULE_LICENSE("GPL");
 MODULE_ALIAS(DRIVER_NAME);
