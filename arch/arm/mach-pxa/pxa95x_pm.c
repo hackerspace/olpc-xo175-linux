@@ -1394,6 +1394,7 @@ void enter_lowpower_mode(int state)
 					if (is_wkr_nevo_2339())
 						mmc_jira_2339_wr_before_lpm();
 					pxa978_pm_enter(pollreg);
+					start_tick = OSCR4;
 				} else {
 					pxa95x_cpu_standby(sram + 0x8000,
 							sram + 0xa000 - 4,
@@ -1513,6 +1514,7 @@ void enter_lowpower_mode(int state)
 					if ( is_wkr_nevo_2339())
 						mmc_jira_2339_wr_before_lpm();
 					pxa978_pm_enter(pollreg);
+					start_tick = OSCR4;
 				} else {
 					pxa95x_cpu_standby(sram + 0x8000,
 							sram + 0xa000 - 4,
