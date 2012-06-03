@@ -13,4 +13,6 @@ extern unsigned int pxa988_get_vpu_op_rate(unsigned int index);
 extern unsigned int pxa988_get_ddr_op_num(void);
 extern unsigned int pxa988_get_ddr_op_rate(unsigned int index);
 
+extern unsigned int pxa988_get_vl_num(void);
+extern unsigned int pxa988_get_vl(unsigned int vl);
 #endif /* __MACH_CLK_PXA988_H */

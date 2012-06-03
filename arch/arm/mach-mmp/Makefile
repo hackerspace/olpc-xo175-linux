@@ -10,7 +10,8 @@ obj-$(CONFIG_CPU_PXA168)	+= pxa168.o irq-pxa168.o
 obj-$(CONFIG_CPU_PXA910)	+= pxa910.o irq-pxa168.o sram.o pxa910-squ.o \
 clock.o
 obj-$(CONFIG_CPU_PXA988)	+= pxa988.o sram.o pxa910-squ.o reset-pxa988.o pxa988_lowpower.o \
-clock-pxa988.o wakeupgen.o acpuclock-pxa988.o gpio-edge.o head_v7.o
+clock-pxa988.o wakeupgen.o acpuclock-pxa988.o gpio-edge.o head_v7.o \
+dvfs-pxa988.o
 obj-$(CONFIG_CPU_MMP2)		+= mmp2.o irq-mmp2.o clock.o mmp_dma.o \
 sram.o mmp2_sspa.o mmp2_fuse.o clock-audio.o
 obj-$(CONFIG_CPU_MMP3)		+= mmp3.o irq-mmp3.o mmp_dma.o mmp2_sspa.o \
