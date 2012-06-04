@@ -31,7 +31,7 @@ static inline void __cpuinit platform_do_lowpower(unsigned int cpu)
 		/*
 		 * here's the WFI
 		 */
-		mmp3_pm_enter_c2(cpu);
+		mmp3_pm_enter_c2(cpu, 1);
 
 		if (pen_release == cpu) {
 			/*

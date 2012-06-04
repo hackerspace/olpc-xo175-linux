@@ -129,44 +129,59 @@ void handle_coherency_maint_req(void *p)
 	mmp3_coherent_handler((u32)sync_buf);
 }
 
-static atomic_t fc_is_pend = ATOMIC_INIT(0);
+static void do_nothing(void *unused)
+{
+	int cpu = smp_processor_id();
+	printk(KERN_INFO "%s: cpu %d\n", __func__, cpu);
+}
+
+static atomic_t glb_hp_lock = ATOMIC_INIT(0);
 
 static int __cpuinit mmp3_pm_cpu_callback(struct notifier_block *nfb,
 				     unsigned long action, void *hcpu)
 {
 	int err = 0;
-	unsigned long savedflags;
 
-	spin_lock_irqsave(&dfcsch_lock, savedflags);
+	spin_lock(&dfcsch_lock);
 	switch (action) {
 	case CPU_UP_PREPARE:
 	case CPU_UP_PREPARE_FROZEN:
-		atomic_inc(&fc_is_pend);
+		atomic_inc(&glb_hp_lock);
+		smp_mb();
 		break;
 	case CPU_ONLINE:
 	case CPU_ONLINE_FROZEN:
-		atomic_dec(&fc_is_pend);
+		while(!(readl(APMU_CORE_STATUS) & 0x200))
+			nop();
+		atomic_dec(&glb_hp_lock);
+		smp_mb();
 		break;
 	case CPU_UP_CANCELED:
 	case CPU_UP_CANCELED_FROZEN:
-		atomic_dec(&fc_is_pend);
+		atomic_dec(&glb_hp_lock);
 		break;
 #ifdef CONFIG_HOTPLUG_CPU
 	case CPU_DOWN_PREPARE:
 	case CPU_DOWN_PREPARE_FROZEN:
-		atomic_inc(&fc_is_pend);
+		atomic_inc(&glb_hp_lock);
+		smp_mb();
+		/* kick all the CPUs so that they exit out of pm_idle */
+		smp_call_function(do_nothing, NULL, 1);
 		break;
 	case CPU_DOWN_FAILED:
 	case CPU_DOWN_FAILED_FROZEN:
-		atomic_dec(&fc_is_pend);
+		atomic_dec(&glb_hp_lock);
 		break;
 	case CPU_DEAD:
 	case CPU_DEAD_FROZEN:
-		atomic_dec(&fc_is_pend);
+		while(readl(APMU_CORE_STATUS) & 0x200)
+			nop();
+		atomic_dec(&glb_hp_lock);
+		smp_mb();
 		break;
 #endif
 	}
-	spin_unlock_irqrestore(&dfcsch_lock, savedflags);
+	spin_unlock(&dfcsch_lock);
 	return notifier_from_errno(err);
 }
 
@@ -1516,20 +1531,23 @@ static void mmp3_schedule_freqch_loose(struct mmp3_pmu *pmu,
 	union trace_dfc_log logentry;
 	u32 change, time, same;
 
-	if (atomic_read(&fc_is_pend))
-		return;
+	spin_lock_irqsave(&dfcsch_lock, savedflags);
 
-	udelay(2);	/* safe for mp2 core into c2 */
+	if (atomic_read(&glb_hp_lock)) {
+		spin_unlock_irqrestore(&dfcsch_lock, savedflags);
+		return;
+	}
 
 	change = mmp3_prepare_freqch(pmu, pl, &logentry);
-	if (change == 0)
+	if (change == 0) {
+		spin_unlock_irqrestore(&dfcsch_lock, savedflags);
 		return;
+	}
 
 	time = 0;
 	same = 0;
 	__raw_writel(1, pmu->swstat);
 
-	spin_lock_irqsave(&dfcsch_lock, savedflags);
 	if (dfcsch_active && (pl->dram.op == MMP3_FREQ_OP_UPDATE)) {
 		struct dfc_schedule sch;
 		int ret;
@@ -1819,18 +1837,15 @@ void mmp3_pm_enter_idle(int cpu)
 	trace_idle_exit(__raw_readl(cic->wake_status));
 }
 
-void mmp3_pm_enter_c2(int cpu)
+void mmp3_pm_enter_c2(int cpu, int hpg)
 {
 	u32 state = MMP3_PM_C2_L1_PWD;
 	struct mmp3_cpu_idle_config *cic;
 	int core_id = mmp3_smpid();
 	u32 c1_cfg, c2_cfg;
 
-	if (core_id == 0 || core_id == 2) {
-		if (atomic_read(&fc_is_pend))
-			return;
-		udelay(2);	/* safe for mp2 core into c2 */
-	}
+	if (atomic_read(&glb_hp_lock) && !hpg)
+		return;
 
 	trace_idle_entry(state);
 

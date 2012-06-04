@@ -67,7 +67,7 @@ unsigned long mmp3_getfreq(int clkid);
 int mmp3_get_pp_number(void);
 unsigned long mmp3_get_pp_freq(int ppidx, int clkid);
 void mmp3_pm_enter_idle(int cpu);
-void mmp3_pm_enter_c2(int cpu);
+void mmp3_pm_enter_c2(int cpu, int hpg);
 void mmp3_pm_enter_d2(void);
 void mmp3_set_vcc_main_reg_id(const char *name);
 int mmp3_get_core_clk(int cpu);

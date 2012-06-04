@@ -54,7 +54,7 @@ static int mmp3_enter_idle_c2(struct cpuidle_device *dev,
 	local_fiq_disable();
 	getnstimeofday(&ts_preidle);
 
-	mmp3_pm_enter_c2(dev->cpu);
+	mmp3_pm_enter_c2(dev->cpu, 0);
 
 	getnstimeofday(&ts_postidle);
 	idletime_us = (ts_postidle.tv_sec - ts_preidle.tv_sec) *
