@@ -39,6 +39,10 @@
 /* disable card scanning in probe procedure,
 	eg, for 8787 wifi/bt/fm sdio card */
 #define PXA_FLAG_DISABLE_PROBE_CDSCAN (1 << 7)
+/* the high-level controller clock source dynamic gating(eg, used for 8787):
+       clock source will be on/off when controller probe starts/ends,
+       8787 powering on, and powering off */
+#define PXA_FLAG_SDIO_CTRLCLKSRC_GATE (1 << 8)
 
 /*
  * struct pxa_sdhci_platdata() - Platform device data for PXA SDHCI

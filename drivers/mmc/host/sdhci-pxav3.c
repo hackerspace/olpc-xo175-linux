@@ -564,7 +564,8 @@ static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 			host->mmc->caps |= MMC_CAP_ENABLE_BUS_CLK_GATING;
 		}
 
-		if (pdata->flags & PXA_FLAG_DISABLE_PROBE_CDSCAN)
+		if (pdata->flags & (PXA_FLAG_DISABLE_PROBE_CDSCAN |
+						PXA_FLAG_SDIO_CTRLCLKSRC_GATE))
 			host->mmc->caps2 |= MMC_CAP2_DISABLE_PROBE_CDSCAN;
 
 		if (pdata->handle_cdint)
@@ -614,6 +615,11 @@ static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 #ifdef CONFIG_SD8XXX_RFKILL
 	if (pxa->pdata->pmmc)
 		*pxa->pdata->pmmc = host->mmc;
+
+	if (pdata && pdata->flags & PXA_FLAG_SDIO_CTRLCLKSRC_GATE) {
+		host->clk = clk; /* hook the clock for rfkill use */
+		clk_disable(clk);
+	}
 #endif
 
 	return 0;

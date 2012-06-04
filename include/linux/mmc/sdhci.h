@@ -101,6 +101,10 @@ struct sdhci_host {
 	struct regulator *vsdio;	/* sdio Power regulator */
 	unsigned char power_mode_old;	/* power supply mode */
 
+#ifdef CONFIG_SD8XXX_RFKILL
+	struct clk *clk;	/* controller clock source for rfkill use*/
+#endif
+
 	/* Internal data */
 	struct mmc_host *mmc;	/* MMC structure */
 	u64 dma_mask;		/* custom DMA mask */
