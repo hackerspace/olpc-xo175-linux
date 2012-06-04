@@ -1320,14 +1320,11 @@ static void mmp3_dfc_trigger(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
 {
 	u32 samex, timex;
 	u32 dfc_val;
-	int ret = 0;
+	int done = 0, wait = 0, ret = 0;
+	int try;
 
 	if (change == 0)
 		return;
-
-	/* unmask and clear all dfc irqs */
-	writel(0x1fff, APMU_REG(0x98));
-	writel(0x1fff, APMU_REG(0xa0));
 
 	timex = read_timestamp();
 
@@ -1336,15 +1333,41 @@ static void mmp3_dfc_trigger(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
 	dfc_val = MMP3_PROTECT_CC(dfc_val); /* set reserved */
 	dfc_val = dfc_val | change | (MMP3_FREQCH_VOLTING);
 
+#define DDR_FREQ_CHG_DONE2	(1 << 12)
+#define DDR_FREQ_CHG_DONE1	(1 << 4)
+#define AXI_FREQ_CHG_DONE	(1 << 5)
+#define PJ_FREQ_CHG_DONE	(1 << 3)
+
+	if (change & MMP3_FREQCH_CORE)
+		wait |= PJ_FREQ_CHG_DONE;
+	if (change & MMP3_FREQCH_AXI)
+		wait |= AXI_FREQ_CHG_DONE;
+	if (change & MMP3_FREQCH_DRAM_CH1)
+		wait |= DDR_FREQ_CHG_DONE1;
+	if (change & MMP3_FREQCH_DRAM_CH2)
+		wait |= DDR_FREQ_CHG_DONE2;
+
+	writel(wait, APMU_IMR);		/* unmask according irqs */
+	writel(0x0, APMU_ISR);		/* clear status */
+
 	if (change & (MMP3_FREQCH_CORE | MMP3_FREQCH_DRAM))
 		ret = mmp3_trigger_dfc_ll(dfc_val, (u32)sync_buf);
-	else
+	else {
 		__raw_writel(dfc_val, pmu->cc);
 
+		for (try = 0; try < 1000; try++) {
+			done = readl(APMU_ISR);
+			done &= wait;
+			if (done == wait)
+				break;
+		}
+
+		if (try >= 1000)
+			printk(KERN_ERR "%s: done %x wait %x\n", __func__, done, wait);
+	}
+
 	/* clear dfc irq status */
-	__raw_writel(0x1fff, APMU_REG(0xa0));
-	__raw_writel(0x0, APMU_REG(0xa0));
-	__raw_writel(0x0, APMU_REG(0x98));
+	writel(0x1fff, APMU_ISR);
 
 	timex = read_timestamp() - timex;
 
@@ -2125,6 +2148,10 @@ static int __init mmp3_pm_init(void)
 	 */
 	__raw_writel(0x00000001, APMU_DEBUG);
 	__raw_writel(0x0, APMU_DEBUG2);
+
+	/* unmask and clear all dfc irqs */
+	writel(0x0, APMU_IRWC);
+	writel(0x0, APMU_IMR);
 
 	pm_idle = mmp3_do_idle;
 

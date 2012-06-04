@@ -71,6 +71,7 @@
 #define APMU_LCD_CLK_RES_CTRL   APMU_REG(0x004c)
 #define APMU_DEBUG              APMU_REG(0x0088)
 #define APMU_IMR                APMU_REG(0x0098)
+#define APMU_IRWC		APMU_REG(0x009c)
 #define APMU_ISR                APMU_REG(0x00a0)
 #define APMU_DX8_CLK_RES_CTRL   APMU_REG(0x00a4)
 #define APMU_MC_HW_SLP_TYPE     APMU_REG(0x00b0)
