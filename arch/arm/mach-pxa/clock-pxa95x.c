@@ -973,14 +973,14 @@ int get_gcu_freqs_table(int *gcu_freqs_table, int *item_counts,
 		pr_err("Too many GC frequencies!\n");
 		return -1;
 	}
-
-	*item_counts = GCU_CLK_NUM;
-
-	for (i = 0; i < GCU_CLK_NUM; i++)
-		if (cpu_is_pxa978() && pxa978_gcu_clk_table[i].fclk <= max_gc)
+	if (!cpu_is_pxa978_Dx())
+		for (i = 0; (i < GCU_CLK_NUM) && (pxa978_gcu_clk_table[i].fclk <= max_gc); i++)
 			gcu_freqs_table[i] = pxa978_gcu_clk_table[i].fclk;
-		else if (pxa978_dx_gcu_clk_table[i].fclk <= max_gc)
+	else
+		for (i = 0; (i < GCU_CLK_NUM) && (pxa978_dx_gcu_clk_table[i].fclk <= max_gc); i++)
 			gcu_freqs_table[i] = pxa978_dx_gcu_clk_table[i].fclk;
+
+	*item_counts = i;
 
 	return 0;
 }
