@@ -1,5 +1,5 @@
 /*
- *  linux/arch/arm/mach-realview/hotplug.c
+ *  linux/arch/arm/mach-mmp/hotplug-mmp3.c
  *
  *  Copyright (C) 2002 ARM Ltd.
  *  All Rights Reserved
