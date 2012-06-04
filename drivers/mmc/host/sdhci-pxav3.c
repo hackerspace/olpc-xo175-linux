@@ -564,6 +564,9 @@ static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 			host->mmc->caps |= MMC_CAP_ENABLE_BUS_CLK_GATING;
 		}
 
+		if (pdata->flags & PXA_FLAG_DISABLE_PROBE_CDSCAN)
+			host->mmc->caps2 |= MMC_CAP2_DISABLE_PROBE_CDSCAN;
+
 		if (pdata->handle_cdint)
 			pxav3_sdhci_ops.handle_cdint = pdata->handle_cdint;
 

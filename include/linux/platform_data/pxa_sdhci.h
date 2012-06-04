@@ -36,6 +36,9 @@
 #define PXA_FLAG_WAKEUP_HOST (1<<5)
 /* controller always active during suspend */
 #define PXA_FLAG_KEEP_POWER_IN_SUSPEND (1<<6)
+/* disable card scanning in probe procedure,
+	eg, for 8787 wifi/bt/fm sdio card */
+#define PXA_FLAG_DISABLE_PROBE_CDSCAN (1 << 7)
 
 /*
  * struct pxa_sdhci_platdata() - Platform device data for PXA SDHCI
