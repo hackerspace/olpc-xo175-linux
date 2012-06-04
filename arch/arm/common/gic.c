@@ -50,6 +50,7 @@ struct irq_chip gic_arch_extn = {
 	.irq_retrigger	= NULL,
 	.irq_set_type	= NULL,
 	.irq_set_wake	= NULL,
+	.irq_set_affinity = NULL,
 };
 
 #ifndef MAX_GIC_NR
@@ -184,6 +185,10 @@ static int gic_set_affinity(struct irq_data *d, const struct cpumask *mask_val,
 	bit = 1 << (cpu + shift);
 
 	raw_spin_lock(&irq_controller_lock);
+
+	if (gic_arch_extn.irq_set_affinity)
+		gic_arch_extn.irq_set_affinity(d, mask_val, false);
+
 	d->node = cpu;
 	val = readl_relaxed(reg) & ~mask;
 	writel_relaxed(val | bit, reg);
