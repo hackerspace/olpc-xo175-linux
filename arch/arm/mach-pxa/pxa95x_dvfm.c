@@ -143,6 +143,8 @@ extern void set_idle_op(int, int);
 static unsigned long alvl3HighVoltage, alvl3LowVoltage;
 static int dvfm_dev_id;
 
+static struct clk *clk_syspll416;
+
 /* define the operating point of S0D0 mode */
 static struct dvfm_md_opt pxa955_op_array[] = {
 	/* 156MHz -- single PLL mode */
@@ -1564,6 +1566,7 @@ static inline void set_ddr_pll_freq(void *driver_data,
 		if (oldfreq) {
 			/*Already on DDR PLL, need to switch to 416Mhz
 			  before change DDR PLL */
+			clk_enable(clk_syspll416);
 			data = 0x3 << 11;
 			mask = ACCR_DMCFS_MASK_978;
 			accr &= ~mask;
@@ -1581,6 +1584,8 @@ static inline void set_ddr_pll_freq(void *driver_data,
 		while (!(OSCC & OSCC_DPLS))
 			;
 		ddr_pll_freq = newfreq;
+		if (oldfreq)
+			clk_disable(clk_syspll416);
 	}
 }
 
@@ -1651,6 +1656,8 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 	} else if (old->dmcfs != new->dmcfs) {
 			data |= (fv_info.dmcfs << ACCR_DMCFS_OFFSET_978);
 			mask |= ACCR_DMCFS_MASK_978;
+			if ((416 != old->dmcfs) && (416 == new->dmcfs))
+				clk_enable(clk_syspll416);
 			set_ddr_pll_freq(driver_data, old, new, accr);
 			choose_regtable(fv_info.dmcfs);
 	}
@@ -1674,6 +1681,8 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 				(u32) sram_map + 0xa000 - 4, accr,
 				data, mask, (u32) info->clkmgr_base,
 				(u32) info->dmc_base);
+		if ((416 == old->dmcfs) && (416 != new->dmcfs))
+			clk_disable(clk_syspll416);
 	} else {
 		__raw_writel(accr, info->clkmgr_base + ACCR_OFF);
 		__raw_writel(accr1, info->clkmgr_base + ACCR1_OFF);
@@ -2020,6 +2029,10 @@ static inline void pxa978_set_core_freq(struct pxa95x_dvfm_info *info,
 			frq_change_ctl |= 0x2 << ACLK_RATIO_OFFSET;
 	} else if (new->core > 156)
 		frq_change_ctl |= 0x1 << ACLK_RATIO_OFFSET;
+
+	if (cpu_is_pxa978() && (old->core != 416) && (new->core == 416))
+		clk_enable(clk_syspll416);
+
 	if (new->core < 624) {
 		/* From System/Core PLL frequency to System PLL frequency */
 		frq_change_ctl &= ~(SYS_FREQ_SEL_MASK | CLK_SRC_MASK |
@@ -2098,6 +2111,9 @@ static inline void pxa978_set_core_freq(struct pxa95x_dvfm_info *info,
 				;
 		}
 	}
+
+	if (cpu_is_pxa978() && (old->core == 416) && (new->core != 416))
+		clk_disable(clk_syspll416);
 }
 
 static int set_freq(void *driver_data, struct dvfm_md_opt *old,
@@ -2672,6 +2688,11 @@ static int op_init(void *driver_data, struct info_head *op_table)
 				break;
 			}
 		}
+		/* Turn off System PLL 416Mhz branch if no client uses it*/
+		if ((md->core != 416) && (md->dmcfs != 416) &&
+		   (md->display != 416) && (md->gcfs != 416) &&
+		   (md->gcaxifs != 416) && (md->vmfc != 416))
+			SYS_PLL_416M_CTRL = 0;
 	}
 	if (!cpu_is_pxa978())
 		md->core = 13 * md->xl * md->xn;
@@ -3560,6 +3581,12 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 	pxa95x_poweri2c_init(info);
 	if (cpu_is_pxa978()) {
 		ddr_pll_freq = get_ddr_pll_freq();
+		clk_syspll416 = clk_get(NULL, "SYS_PLL_416");
+		if (IS_ERR(clk_syspll416)) {
+			printk(KERN_ERR "Get System pll 416Mhz clock failed!\n");
+			rc = PTR_ERR(clk_syspll416);
+			goto err;
+		}
 	}
 	op_init(info, &pxa95x_dvfm_op_list);
 

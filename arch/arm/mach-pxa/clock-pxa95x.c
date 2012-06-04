@@ -512,7 +512,7 @@ static const struct clkops clk_pxa95x_ihdmi_ops = {
 };
 
 extern struct dvfs display_dvfs;
-
+static struct clk clk_pxa978_syspll_416;
 static int clk_pxa95x_lcd_enable(struct clk *lcd_clk)
 {
 	struct dvfs_freqs dvfs_freqs;
@@ -524,6 +524,9 @@ static int clk_pxa95x_lcd_enable(struct clk *lcd_clk)
 	pr_debug("Display enable from 0 to %lu.\n", lcd_clk->rate);
 
 	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
+
+	if (lcd_clk->rate == 416000000)
+		clk_enable(&clk_pxa978_syspll_416);
 
 	CKENC |= (1 << (CKEN_DISPLAY - 64)) | (1 << (CKEN_PIXEL - 64));
 	return 0;
@@ -541,6 +544,9 @@ static void clk_pxa95x_lcd_disable(struct clk *lcd_clk)
 
 	CKENC &= ~((1 << (CKEN_DISPLAY - 64))
 		   | (1 << (CKEN_PIXEL - 64)));
+
+	if (lcd_clk->rate == 416000000)
+		clk_disable(&clk_pxa978_syspll_416);
 
 	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
 }
@@ -620,7 +626,14 @@ static int clk_pxa95x_lcd_setrate(struct clk *lcd_clk, unsigned long rate)
 		printk(KERN_ERR "LCD don't suppport rate: %lu\n", rate);
 		return -1;
 	}
+
+	if ((lcd_clk->rate != 416000000) && (rate == 416000000) && (lcd_clk->refcnt > 0))
+		clk_enable(&clk_pxa978_syspll_416);
+
 	write_accr0(value, mask);
+
+	if ((lcd_clk->rate == 416000000) && (rate != 416000000) && (lcd_clk->refcnt > 0))
+		clk_disable(&clk_pxa978_syspll_416);
 
 	if (dvfs_freqs.old > dvfs_freqs.new)
 		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
@@ -818,6 +831,22 @@ static const struct clkops clk_mmpll_ops = {
 	.setrate = clk_mmpll_setrate,
 };
 
+static int clk_pxa978_syspll_416_enable(struct clk *clk)
+{
+	SYS_PLL_416M_CTRL = CLK_EN;
+	return 0;
+}
+
+static void clk_pxa978_syspll_416_disable(struct clk *clk)
+{
+	SYS_PLL_416M_CTRL = 0;
+}
+
+static const struct clkops clk_pxa978_syspll416_ops = {
+	.enable = clk_pxa978_syspll_416_enable,
+	.disable = clk_pxa978_syspll_416_disable,
+};
+
 extern struct dvfs gc_dvfs;
 static int clk_gcu_enable(struct clk *clk)
 {
@@ -830,6 +859,8 @@ static int clk_gcu_enable(struct clk *clk)
 	pr_debug("GC enable from 0 to %lu.\n", clk->rate);
 
 	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
+	if (clk->rate == 416000000)
+		clk_enable(&clk_pxa978_syspll_416);
 	CKENC |= ((1 << (CKEN_GC_1X - 64)) | (1 << (CKEN_GC_2X - 64)));
 	gc_vmeta_stats_clk_event(GC_CLK_ON);
 
@@ -848,6 +879,9 @@ static void clk_gcu_disable(struct clk *clk)
 
 	gc_vmeta_stats_clk_event(GC_CLK_OFF);
 	CKENC &= ~((1 << (CKEN_GC_1X - 64)) | (1 << (CKEN_GC_2X - 64)));
+	if (clk->rate == 416000000)
+		clk_disable(&clk_pxa978_syspll_416);
+
 	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
 }
 
@@ -912,10 +946,10 @@ static void mm_pll_setting(int flag, unsigned long rate, unsigned int value,
 {
 	unsigned int tmp, ori_gc, ori_vmeta;
 	unsigned long gc_rate, vm_rate, flags;
-
+	unsigned int syspll_416_on = 0;
 	gc_rate = clk_pxa95x_gc_getrate(&clk_pxa95x_gcu);
 	vm_rate = clk_pxa95x_vmeta_getrate(&clk_pxa95x_vmeta);
-
+	syspll_416_on = ((gc_rate == 416000000) || (vm_rate == 416000000));
 	pr_debug("mm_pll_setting: current gc is %lu, vmeta is %lu.\n"
 		       "Set to %lu by %s.\n", gc_rate, vm_rate, rate,
 		       flag ? "GC" : "vMeta");
@@ -939,6 +973,7 @@ static void mm_pll_setting(int flag, unsigned long rate, unsigned int value,
 	ori_gc = ACCR0 & (ACCR0_GCFS_MASK | ACCR0_GCAXIFS_MASK);
 	ori_vmeta = ACCR0 & ACCR0_VMFC_MASK;
 	if (gc_rate >= 481000000) {
+		/* Switch to 416Mhz */
 		tmp &= ~(ACCR0_GCFS_MASK | ACCR0_GCAXIFS_MASK);
 		tmp |= (0x3 << ACCR0_GCFS_OFFSET | 0x3 << ACCR0_GCAXIFS_OFFSET);
 		if (!flag && (gc_rate != rate)) {
@@ -948,6 +983,7 @@ static void mm_pll_setting(int flag, unsigned long rate, unsigned int value,
 		}
 	}
 	if (vm_rate >= 481000000) {
+		/* Switch to 416Mhz */
 		tmp &= ~ACCR0_VMFC_MASK;
 		tmp |= 0x3 << ACCR0_VMFC_OFFSET;
 		if (flag && (vm_rate != rate)) {
@@ -956,9 +992,16 @@ static void mm_pll_setting(int flag, unsigned long rate, unsigned int value,
 			clk_pxa95x_vmeta.rate = rate;
 		}
 	}
+	if (syspll_416_on == 0)
+		clk_enable(&clk_pxa978_syspll_416);
+
 	ACCR0 = tmp;
 	set_mmpll_freq(rate);
 	write_accr0(value, mask);
+
+	if (syspll_416_on == 0)
+		clk_disable(&clk_pxa978_syspll_416);
+
 out:
 	local_irq_restore(flags);
 	local_fiq_enable();
@@ -1021,9 +1064,14 @@ static int clk_pxa95x_gcu_setrate(struct clk *gc_clk, unsigned long rate)
 		printk(KERN_ERR "GC doesn't suppport rate: %lu\n", rate);
 		return -1;
 	}
+
+	if ((gc_clk->rate != 416000000) && (rate == 416000000) && (gc_clk->refcnt > 0))
+		clk_enable(&clk_pxa978_syspll_416);
 #ifdef GCVMETA_WR
 	mm_pll_setting(1, rate, value << 6, mask);
 #endif
+	if ((gc_clk->rate == 416000000) && (rate != 416000000) && (gc_clk->refcnt > 0))
+		clk_disable(&clk_pxa978_syspll_416);
 
 	if (dvfs_freqs.old > dvfs_freqs.new)
 		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
@@ -1270,9 +1318,15 @@ static int clk_pxa95x_vmeta_setrate(struct clk *vmeta_clk, unsigned long rate)
 		WARN_ON(1);
 		return -1;
 	}
+
+	if ((vmeta_clk->rate != 416000000) && (rate == 416000000) && (vmeta_clk->refcnt > 0))
+		clk_enable(&clk_pxa978_syspll_416);
+
 #ifdef GCVMETA_WR
 	mm_pll_setting(0, rate, value << 3, mask);
 #endif
+	if ((vmeta_clk->rate == 416000000) && (rate != 416000000) && (vmeta_clk->refcnt > 0))
+		clk_disable(&clk_pxa978_syspll_416);
 
 	if (dvfs_freqs.old > dvfs_freqs.new)
 		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
@@ -1291,6 +1345,9 @@ static int clk_pxa95x_vmeta_enable(struct clk *clk)
 	pr_debug("vmeta enable from 0 to %lu.\n", clk->rate);
 
 	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
+	if (clk->rate == 416000000)
+		clk_enable(&clk_pxa978_syspll_416);
+
 	CKENB |= (1 << (clk->enable_val - 32));
 	gc_vmeta_stats_clk_event(VMETA_CLK_ON);
 
@@ -1309,6 +1366,9 @@ static void clk_pxa95x_vmeta_disable(struct clk *clk)
 
 	gc_vmeta_stats_clk_event(VMETA_CLK_OFF);
 	CKENB &= ~(1 << (clk->enable_val - 32));
+	if (clk->rate == 416000000)
+		clk_disable(&clk_pxa978_syspll_416);
+
 	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
 }
 
@@ -1497,6 +1557,9 @@ static struct clk clk_pxa978_mmpll = {
 	.ops = &clk_mmpll_ops,
 };
 
+static struct clk clk_pxa978_syspll_416 = {
+	.ops = &clk_pxa978_syspll416_ops,
+};
 static struct clk_lookup common_clkregs[] = {
 
 	INIT_CLKREG(&clk_pxa95x_pout, NULL, "CLK_POUT"),
@@ -1553,6 +1616,7 @@ static struct clk_lookup pxa978_specific_clkregs[] = {
 	INIT_CLKREG(&clk_pxa978_sdh2, "sdhci-pxa.2", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_pxa978_sdh3, "sdhci-pxa.3", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_pxa978_mmpll, NULL, "MM_PLL"),
+	INIT_CLKREG(&clk_pxa978_syspll_416, NULL, "SYS_PLL_416"),
 	INIT_CLKREG(&clk_pxa978_gcu, NULL, "GCCLK"),
 };
 
