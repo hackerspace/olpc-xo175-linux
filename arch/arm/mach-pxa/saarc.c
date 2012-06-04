@@ -278,6 +278,7 @@ static void regulator_init_pm800(void)
 	case OBM_DKB_2_1_NEVO_C0_BOARD:
 		REG_SUPPLY_INIT(PM800_ID_LDO18, "Vdd_IO", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO2, "mic_bias", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO15, "Vdd_CMMB18", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO17, "v_cam_af_vcc", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO9, "v_wifi_3v3", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO10, "v_vibrator", NULL);
@@ -290,6 +291,7 @@ static void regulator_init_pm800(void)
 
 		REG_INIT(i++, PM800_ID, LDO18, 1800000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO2, 1200000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO15, 1800000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO17, 1200000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO9, 3300000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO10, 2800000, 2800000, 0, 0);
@@ -2169,40 +2171,68 @@ static int cmmb_regulator(bool en)
 	struct regulator *v_ldo1v2, *v_ldo1v8;
 	int regulator_enabled_1v2, regulator_enabled_1v8;
 
-	v_ldo1v2 = regulator_get(NULL, "Vdd_CMMB12");
+	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD) {
 
-	if (IS_ERR(v_ldo1v2)) {
-		printk(KERN_ERR "cmmb: fail to get ldo1v2 handle!\n");
-		return -EINVAL;
-	}
+		v_ldo1v2 = regulator_get(NULL, "Vdd_CMMB12");
 
-	v_ldo1v8 = regulator_get(NULL, "Vdd_IO");
-
-	if (IS_ERR(v_ldo1v8)) {
-		printk(KERN_ERR "cmmb: fail to get ldo1v8 handle!\n");
-		regulator_put(v_ldo1v2);
-		return -EINVAL;
-	}
-
-	if (en) {
-		regulator_set_voltage(v_ldo1v2, 1200000, 1200000);
-		regulator_set_voltage(v_ldo1v8, 1800000, 1800000);
-		regulator_enable(v_ldo1v2);
-		regulator_enable(v_ldo1v8);
-		printk(KERN_INFO "cmmb: turn on ldo1v2 and ldo1v8 to high.\n");
-	} else {
-		regulator_enabled_1v2 = regulator_is_enabled(v_ldo1v2);
-		regulator_enabled_1v8 = regulator_is_enabled(v_ldo1v8);
-
-		if ((regulator_enabled_1v2) && (regulator_enabled_1v8)) {
-			printk(KERN_INFO "cmmb: turn off LDO\n");
-			regulator_disable(v_ldo1v2);
-			regulator_disable(v_ldo1v8);
+		if (IS_ERR(v_ldo1v2)) {
+			printk(KERN_ERR "cmmb: fail to get ldo1v2 handle!\n");
+			return -EINVAL;
 		}
-	}
 
-	regulator_put(v_ldo1v2);
-	regulator_put(v_ldo1v8);
+		v_ldo1v8 = regulator_get(NULL, "Vdd_IO");
+
+		if (IS_ERR(v_ldo1v8)) {
+			printk(KERN_ERR "cmmb: fail to get ldo1v8 handle!\n");
+			regulator_put(v_ldo1v2);
+			return -EINVAL;
+		}
+
+		if (en) {
+			regulator_set_voltage(v_ldo1v2, 1200000, 1200000);
+			regulator_set_voltage(v_ldo1v8, 1800000, 1800000);
+			regulator_enable(v_ldo1v2);
+			regulator_enable(v_ldo1v8);
+			printk(KERN_INFO "cmmb: turn on ldo1v2 and ldo1v8 to high.\n");
+		} else {
+			regulator_enabled_1v2 = regulator_is_enabled(v_ldo1v2);
+			regulator_enabled_1v8 = regulator_is_enabled(v_ldo1v8);
+
+			if ((regulator_enabled_1v2) &&
+				(regulator_enabled_1v8)) {
+				printk(KERN_INFO "cmmb: turn off LDO\n");
+				regulator_disable(v_ldo1v2);
+				regulator_disable(v_ldo1v8);
+			}
+		}
+
+		regulator_put(v_ldo1v2);
+		regulator_put(v_ldo1v8);
+
+	} else if (get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD) {
+
+		v_ldo1v8 = regulator_get(NULL, "Vdd_CMMB18");
+
+		if (IS_ERR(v_ldo1v8)) {
+			printk(KERN_ERR "cmmb: fail to get ldo1v8 handle!\n");
+			regulator_put(v_ldo1v8);
+			return -EINVAL;
+		}
+
+		if (en) {
+			regulator_set_voltage(v_ldo1v8, 1800000, 1800000);
+			regulator_enable(v_ldo1v8);
+			printk(KERN_INFO "cmmb: turn on CMMB power.\n");
+		} else {
+			regulator_enabled_1v8 = regulator_is_enabled(v_ldo1v8);
+
+			if (regulator_enabled_1v8) {
+				printk(KERN_INFO "cmmb: turn off LDO\n");
+				regulator_disable(v_ldo1v8);
+			}
+		}
+		regulator_put(v_ldo1v8);
+	}
 	return 0;
 }
 
