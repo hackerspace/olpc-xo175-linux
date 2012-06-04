@@ -216,6 +216,8 @@ struct mmc_host {
 /* controller should NOT gate bus clock for some device at any time, e.g. SDIO card */
 #define MMC_CAP_ENABLE_BUS_CLK_GATING	(1 << 31)
 
+	unsigned long caps2;	/* one more host capabilities */
+
 	mmc_pm_flag_t		pm_caps;	/* supported pm features */
 
 #ifdef CONFIG_MMC_CLKGATE
