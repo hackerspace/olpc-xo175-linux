@@ -571,30 +571,32 @@ static int pxa_9xx_gc_vmeta_stats_read(struct file *file,
 	test_total_time = gc_vmeta_stats.test_end_time -
 	    gc_vmeta_stats.test_start_time;
 
-	sum += snprintf(buf + sum, sizeof(buf) - sum - 1,
-			"Total test time    = %d seconds\n",
-			test_total_time / 32768);
+	if (test_total_time) {
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1,
+				"Total test time    = %d seconds\n",
+				test_total_time / 32768);
 
-	if (gc_vmeta_stats.gc_total_time == test_total_time ||
-	    gc_vmeta_stats.gc_total_time == 0)
-		sum += snprintf(buf + sum, sizeof(buf) - sum - 1,
-				"GC    active time  = No activity\n");
-	else
-		sum += snprintf(buf + sum, sizeof(buf) - sum - 1,
-				"GC    active time  = %d%%\n",
-				(gc_vmeta_stats.gc_total_time * 100) /
-				(test_total_time));
+		if (gc_vmeta_stats.gc_total_time == 0)
+			sum += snprintf(buf + sum, sizeof(buf) - sum - 1,
+					"GC    active time  = No activity\n");
+		else
+			sum += snprintf(buf + sum, sizeof(buf) - sum - 1,
+					"GC    active time  = %d%%\n",
+					(gc_vmeta_stats.gc_total_time * 100) /
+					(test_total_time));
 
-	if (gc_vmeta_stats.vmeta_total_time == test_total_time ||
-	    gc_vmeta_stats.vmeta_total_time == 0)
-		sum += snprintf(buf + sum, sizeof(buf) - sum - 1,
-				"VMETA active time  = No activity\n");
-	else
-		sum += snprintf(buf + sum, sizeof(buf) - sum - 1,
-				"VMETA active time  = %d%%\n",
-				(gc_vmeta_stats.vmeta_total_time * 100) /
-				(test_total_time));
+		if (gc_vmeta_stats.vmeta_total_time == 0)
+			sum += snprintf(buf + sum, sizeof(buf) - sum - 1,
+					"VMETA active time  = No activity\n");
+		else
+			sum += snprintf(buf + sum, sizeof(buf) - sum - 1,
+					"VMETA active time  = %d%%\n",
+					(gc_vmeta_stats.vmeta_total_time * 100) /
+					(test_total_time));
 
+	} else
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1,
+				"Please start the GC & VMETA stats first\n");
 	return simple_read_from_buffer(userbuf, count, ppos, buf, sum);
 
 }
@@ -625,8 +627,6 @@ static int pxa_9xx_gc_vmeta_stats_write(struct file *file,
 		gc_vmeta_stats.test_start_time = timeStamp;
 		gc_vmeta_stats.gc_start_time = timeStamp;
 		gc_vmeta_stats.vmeta_start_time = timeStamp;
-		gc_vmeta_stats.gc_is_on = UNKNOWN;
-		gc_vmeta_stats.vmeta_is_on = UNKNOWN;
 		gc_vmeta_stats.gc_total_time = 0;
 		gc_vmeta_stats.vmeta_total_time = 0;
 
@@ -668,9 +668,7 @@ static int pxa_9xx_gc_vmeta_stats_write(struct file *file,
 
 void gc_vmeta_stats_clk_event(enum stats_clk_event event)
 {
-	if (gc_vmeta_stats.enable == 1) {
-
-		switch (event) {
+	switch (event) {
 
 		case GC_CLK_ON:
 			/* if GC clock was not already on,
@@ -688,8 +686,8 @@ void gc_vmeta_stats_clk_event(enum stats_clk_event event)
 				gc_vmeta_stats.gc_is_on = OFF;
 				gc_vmeta_stats.gc_stop_time = OSCR4;
 				gc_vmeta_stats.gc_total_time +=
-				    gc_vmeta_stats.gc_stop_time -
-				    gc_vmeta_stats.gc_start_time;
+					gc_vmeta_stats.gc_stop_time -
+					gc_vmeta_stats.gc_start_time;
 			}
 			break;
 
@@ -709,11 +707,10 @@ void gc_vmeta_stats_clk_event(enum stats_clk_event event)
 				gc_vmeta_stats.vmeta_is_on = OFF;
 				gc_vmeta_stats.vmeta_stop_time = OSCR4;
 				gc_vmeta_stats.vmeta_total_time +=
-				    gc_vmeta_stats.vmeta_stop_time -
-				    gc_vmeta_stats.vmeta_start_time;
+					gc_vmeta_stats.vmeta_stop_time -
+					gc_vmeta_stats.vmeta_start_time;
 			}
 			break;
-		}
 	}
 }
 
