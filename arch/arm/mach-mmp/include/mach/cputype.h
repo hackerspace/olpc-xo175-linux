@@ -126,4 +126,14 @@ static inline int cpu_is_mmp3_b0(void)
 #define cpu_is_mmp3(id)	(0)
 #endif
 
+#ifdef CONFIG_CPU_PXA988
+static inline int cpu_is_pxa988(void)
+{
+	return (((read_cpuid_id() >> 4) & 0xfff) == 0xc09) &&
+		(((mmp_chip_id & 0xffff) == 0xc928));
+}
+#else
+#define cpu_is_pxa988()	(0)
+#endif
+
 #endif /* __ASM_MACH_CPUTYPE_H */
