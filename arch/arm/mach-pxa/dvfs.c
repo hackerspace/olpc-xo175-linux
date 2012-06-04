@@ -31,7 +31,29 @@ static int dvfs_rail_update(struct dvfs_rail *rail);
  * when OBM passes these two values, it
  * will be fixed.
  */
-static unsigned int volt3_low, volt3_high;
+static unsigned long volt3_low, volt3_high;
+static int buck1_voltage_get(char *s)
+{
+	char **str;
+	if (!s)
+		return 1;
+	str = &s;
+	volt3_low = simple_strtoul(s, str, 16);
+
+	printk(KERN_INFO "Buck1 level3's low voltage "
+	       "is set to 0x%lx\n", volt3_low);
+
+	if (**str == ',')
+		(*str)++;
+
+	volt3_high = simple_strtoul(*str, str, 16);
+
+	printk(KERN_INFO "Buck1 level3's high voltage "
+	       "is set to 0x%lx\n", volt3_high);
+	return 1;
+}
+
+__setup("MFVP=", buck1_voltage_get);
 
 static inline int dvfs_solve_relationship(struct dvfs_relationship *rel)
 {
