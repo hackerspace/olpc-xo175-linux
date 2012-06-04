@@ -218,6 +218,10 @@ struct mmc_host {
 
 	unsigned long caps2;	/* one more host capabilities */
 
+/* controller could disable card scanning in probe procedure for
+       some cases, eg, for 8787 sdio card in phone system */
+#define MMC_CAP2_DISABLE_PROBE_CDSCAN    (1 << 0)
+
 	mmc_pm_flag_t		pm_caps;	/* supported pm features */
 
 #ifdef CONFIG_MMC_CLKGATE

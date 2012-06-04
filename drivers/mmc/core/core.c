@@ -1750,7 +1750,9 @@ void mmc_rescan(struct work_struct *work)
 void mmc_start_host(struct mmc_host *host)
 {
 	mmc_power_off(host);
-	mmc_detect_change(host, 0);
+
+	if (!(host->caps2 & MMC_CAP2_DISABLE_PROBE_CDSCAN))
+		mmc_detect_change(host, 0);
 }
 
 void mmc_stop_host(struct mmc_host *host)
