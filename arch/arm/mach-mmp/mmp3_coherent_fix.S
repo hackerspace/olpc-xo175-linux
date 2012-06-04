@@ -289,7 +289,7 @@ ENTRY(mmp3_trigger_dfc_ll)
 	set_hs_val r0, r1
 
 	disable_fw r0
-	invalid_and_flush_l1_cache r0	@ flush L1 cache
+	@invalid_and_flush_l1_cache r0	@ flush L1 cache
 
 	mov	r0, #0x0		@ clear coherent state
 	set_coht_val r0, r1
@@ -316,7 +316,7 @@ check_dfc_finish:
 	bne	check_dfc_finish
 
 	set_smp	r0
-	invalid_and_flush_l1_cache r0
+	@invalid_and_flush_l1_cache r0
 
 	mov	r0, #0x1		@ set coherent state
 	set_coht_val r0, r1
@@ -437,7 +437,7 @@ acquire_lock:
 	bl	req_peer_core_dis_fw
 
 	set_smp	r0
-	invalid_and_flush_l1_cache r0
+	@invalid_and_flush_l1_cache r0
 
 	mov	r0, #0x1		@ set coherent state
 	set_coht_val r0, r1
