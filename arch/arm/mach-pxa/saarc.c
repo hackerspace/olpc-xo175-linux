@@ -297,6 +297,25 @@ static void regulator_init_pm800(void)
 		/* for LDO8 in DKB2.1, we put it always on to save power in suspend */
 		REG_INIT(i++, PM800_ID, LDO8, 1800000, 3300000, 1, 1);
 		break;
+	case OBM_SAAR_C3V5_NEVO_D0_V10_BOARD:
+		/* all values defined according to 88PM812 System Document */
+		REG_SUPPLY_INIT(PM800_ID_LDO18, "Vdd_IO", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO11, "v_cywee", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO13, "vmmc", "sdhci-pxa.1");
+		REG_SUPPLY_INIT(PM800_ID_LDO9, "v_wifi_3v3", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO10, "v_vibrator", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO17, "VSim", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO19, "v_gps", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO2, "mic_bias", NULL);
+		REG_INIT(i++, PM800_ID, LDO18, 1700000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO11, 1200000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO13, 1200000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO9, 1200000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO10, 1200000, 2800000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO17, 1200000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO19, 1700000, 1800000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO2, 1700000, 2800000, 0, 0);
+		break;
 	default:
 		REG_SUPPLY_INIT(PM800_ID_LDO14, "Vdd_IO", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO11, "v_cywee", NULL);
@@ -310,10 +329,10 @@ static void regulator_init_pm800(void)
 		REG_INIT(i++, PM800_ID, LDO14, 1800000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO11, 2800000, 2800000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO13, 1800000, 3300000, 0, 0);
-		REG_INIT(i++, PM800_ID, LDO18, 1200000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO9, 3300000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO10, 2800000, 2800000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO17, 1800000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO18, 1200000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO8, 1800000, 3300000, 0, 0);
 		break;
 	}
@@ -753,6 +772,8 @@ static void __init init_mmc(void)
 			get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD) {
 		gpio_rst = mfp_to_gpio(MFP_PIN_GPIO97);
 		mci1_platform_data.ext_cd_gpio = mfp_to_gpio(MFP_PIN_GPIO128);
+	} else if (get_board_id() == OBM_SAAR_C3V5_NEVO_D0_V10_BOARD) {
+		gpio_rst = mfp_to_gpio(MFP_PIN_GPIO73);
 	} else
 		gpio_rst = mfp_to_gpio(MFP_PIN_GPIO99);
 
@@ -1041,6 +1062,7 @@ static void register_i2c_board_info(void)
 	case OBM_EVB_NEVO_1_2_BOARD:
 	case OBM_SAAR_C3_NEVO_C0_V10_BOARD:
 	case OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ:
+	case OBM_SAAR_C3V5_NEVO_D0_V10_BOARD:
 		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info));
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_C25));
 		break;
@@ -1056,7 +1078,8 @@ static void register_i2c_board_info(void)
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_DKB));
 		break;
 	default:
-		pr_err("%s: Unknown board type!\n", __func__);
+		pr_err("%s: Unknown board type-0x%lx!\n",
+		       __func__, get_board_id());
 		BUG();
 	}
 
@@ -2828,19 +2851,25 @@ static void __init init(void)
 	if (OBM_SAAR_C25_NEVO_B0_V10_BOARD == get_board_id())
 		adp8885_data.num_chs = 1;
 	else if (OBM_EVB_NEVO_1_2_BOARD == get_board_id() ||
-			OBM_SAAR_C3_NEVO_C0_V10_BOARD == get_board_id() ||
-			OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ == get_board_id() ||
-			OBM_DKB_2_NEVO_C0_BOARD == get_board_id() ||
-			OBM_DKB_2_NEVO_C0_BOARD_533MHZ == get_board_id() ||
-			OBM_DKB_2_1_NEVO_C0_BOARD == get_board_id()) {
+		OBM_SAAR_C3_NEVO_C0_V10_BOARD == get_board_id() ||
+		OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ == get_board_id() ||
+		OBM_SAAR_C3V5_NEVO_D0_V10_BOARD == get_board_id() ||
+		OBM_DKB_2_NEVO_C0_BOARD == get_board_id() ||
+		OBM_DKB_2_NEVO_C0_BOARD_533MHZ == get_board_id() ||
+		OBM_DKB_2_1_NEVO_C0_BOARD == get_board_id()) {
 		adp8885_data.chip_enable = adp8885_bl_enable;
 		adp8885_data.num_chs = 2;
+	} else {
+		pr_err("%s: Unknown board type-0x%lx!\n",
+		       __func__, get_board_id());
+		BUG();
 	}
 #endif
 
 	/* adjust acc sensor axes */
-	if (get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD
-	   || get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ) {
+	if (get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD ||
+	    get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ ||
+	    get_board_id() == OBM_SAAR_C3V5_NEVO_D0_V10_BOARD) {
 		cwmi_acc_data.axes[0] = -1;
 		cwmi_acc_data.axes[4] = 1;
 		cwmi_acc_data.axes[8] = -1;
@@ -2850,10 +2879,9 @@ static void __init init(void)
 		cwgd_plat_data.axes[0] = -1;
 		cwgd_plat_data.axes[4] = 1;
 		cwgd_plat_data.axes[8] = -1;
-	}
-	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
-			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
-			get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD) {
+	} else if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
+		get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
+		get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD) {
 		i2c3_info[0].irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO10));
 		cwmi_acc_data.axes[1] = -1;
 		cwmi_acc_data.axes[3] = 1;
@@ -2864,6 +2892,10 @@ static void __init init(void)
 		cwgd_plat_data.axes[1] = 1;
 		cwgd_plat_data.axes[3] = -1;
 		cwgd_plat_data.axes[8] = 1;
+	} else {
+		pr_err("%s: Unknown board type-0x%lx!\n",
+		       __func__, get_board_id());
+		BUG();
 	}
 
 	set_abu_init_func(abu_mfp_init);
