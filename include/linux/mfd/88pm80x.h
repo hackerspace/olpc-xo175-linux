@@ -284,16 +284,17 @@ enum {
 #define PM800_SLEEP_BUCK5	(0x34)
 #define PM800_BUCK4_AUDIO	(0x39)
 /* BUCK1 with DVC[0..3] */
-#define PM800_BUCK1			(0x3C)
+#define PM800_BUCK1		(0x3C)
 #define PM800_BUCK1_1		(0x3D)
 #define PM800_BUCK1_2		(0x3E)
 #define PM800_BUCK1_3		(0x3F)
-#define PM800_BUCK2			(0x40)
-#define PM800_BUCK3			(0x41)
+#define PM800_BUCK2		(0x40)
+#define PM800_BUCK3		(0x41)
 #define PM800_BUCK3_DOUBLE	(1 << 6)
-#define PM800_BUCK4			(0x42)
+
 /* BUCK4 with DVC[0..3] */
-#define PM800_BUCK4_1			(0x43)
+#define PM800_BUCK4		(0x42)
+#define PM800_BUCK4_1		(0x43)
 #define PM800_BUCK4_2		(0x44)
 #define PM800_BUCK4_3		(0x45)
 #define PM800_BUCK5		(0x46)
@@ -385,6 +386,11 @@ enum {
 #define PM800_LDO_GROUP8	(0x6F)
 #define PM800_LDO_GROUP9	(0x70)
 #define PM800_LDO_GROUP10	(0x71)
+
+#define PM800_BUCK1_MISC1	(0x78)
+#define PM800_BUCK3_MISC1	(0x7E)
+#define PM800_BUCK4_MISC1	(0x81)
+#define PM800_BUCK5_MISC1	(0x84)
 
 #define PM800_LDO_MISC1		(0x90)
 #define PM800_LDO_MISC2		(0x91)
@@ -617,6 +623,7 @@ struct pm80x_chip {
 	struct i2c_client *power_page;	/* chip client for power page */
 	struct i2c_client *gpadc_page;	/* chip client for gpadc page */
 	struct i2c_client *test_page;	/* chip client for test page */
+	struct pm80x_dvc_pdata *dvc;
 
 	struct workqueue_struct *pm800_wqueue;
 	struct workqueue_struct *pm805_wqueue;
@@ -674,6 +681,10 @@ struct pm80x_vibrator_pdata {
 };
 
 struct pm80x_dvc_pdata {
+	int dvc1;
+	int dvc2;
+	unsigned int *vol_val;
+	int size;
 };
 
 struct pm80x_platform_data {

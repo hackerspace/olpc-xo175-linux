@@ -12,17 +12,28 @@
 #include <linux/init.h>
 #include <linux/err.h>
 #include <linux/i2c.h>
+#include <linux/gpio.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
 #include <linux/mfd/core.h>
 #include <linux/mfd/88pm80x.h>
+#include <linux/delay.h>
+
+/*
+ * Convert voltage value to reg value for BUCK1
+ */
+#define BUCK1_VOL2REG(vol)						\
+	(((vol) > 1587500)						\
+	 ? ((((vol)-1600000)/50000) + 0x50)		\
+	 : (((vol)-600000)/12500))
 
 struct pm800_regulator_info {
 	struct regulator_desc	desc;
 	struct pm80x_chip	*chip;
 	struct regulator_dev	*regulator;
 	struct i2c_client	*i2c;
+	struct pm80x_dvc_pdata  *dvc;
 
 	unsigned int	*vol_table;
 	unsigned int	*vol_suspend;
@@ -34,6 +45,9 @@ struct pm800_regulator_info {
 	int	update_bit;
 	int	enable_reg;
 	int	enable_bit;
+	spinlock_t	gpio_lock;
+	int	dvc_val;
+	int	buck1_set_index;
 };
 
 static const unsigned int BUCK1_table[] = {
@@ -234,6 +248,26 @@ static const unsigned int LDO19_table[] = {
 	1700000, 1800000, 1900000, 2500000, 2800000, 2900000, 3100000, 3300000,
 };
 
+static const unsigned int BUCK1_DVC_SET[] = {
+	195, 390, 780, 1560, 3120, 6250, 12500, 25000,
+};
+
+/*
+ * Caculate how long dvc voltage change need
+ */
+static inline int buck1_delay(int index, unsigned vol1, unsigned vol2)
+{
+	int res;
+	if ((vol2 > 1600000) && (vol1 > 1600000))
+		res = ((vol2-vol1)/BUCK1_DVC_SET[index]/4);
+	else if ((vol2 > 1600000) && (vol1 <= 1600000))
+		res = (vol2-1600000)/BUCK1_DVC_SET[index]/4 + \
+		      (1600000-vol1)/BUCK1_DVC_SET[index];
+	else
+		res = (vol2-vol1)/BUCK1_DVC_SET[index];
+	return res;
+}
+
 static int pm800_list_voltage(struct regulator_dev *rdev, unsigned index)
 {
 	struct pm800_regulator_info *info = rdev_get_drvdata(rdev);
@@ -255,7 +289,7 @@ static int choose_voltage(struct regulator_dev *rdev, int min_uV, int max_uV)
 			if (!info->vol_table[i])
 				break;
 			if ((min_uV <= info->vol_table[i])
-				&& (max_uV >= info->vol_table[i])) {
+			    && (max_uV >= info->vol_table[i])) {
 				ret = i;
 				break;
 			}
@@ -269,16 +303,84 @@ static int choose_voltage(struct regulator_dev *rdev, int min_uV, int max_uV)
 }
 
 static int pm800_set_voltage(struct regulator_dev *rdev,
-			      int min_uV, int max_uV, unsigned *selector)
+			     int min_uV, int max_uV, unsigned *selector)
 {
 	struct pm800_regulator_info *info = rdev_get_drvdata(rdev);
 	uint8_t val, mask;
-	int ret;
+	int ret, i, cur_dvc1, cur_dvc2, cur_vol, exp_vol, vol1, vol2;
+	unsigned long flags;
 
 	if (min_uV > max_uV) {
 		dev_err(info->chip->dev,
 			"invalid voltage range (%d, %d) uV\n", min_uV, max_uV);
 		return -EINVAL;
+	}
+	if ((info->dvc != NULL) && (info->desc.id == PM800_ID_BUCK1)) {
+		cur_vol = info->dvc->vol_val[info->dvc_val];
+		exp_vol = min_uV;
+		vol1 = (cur_vol > exp_vol) ? exp_vol : cur_vol;
+		vol2 = (cur_vol > exp_vol) ? cur_vol : exp_vol;
+		for (i = 0; i < 4; i++) {
+			/* Get current dvc pin value */
+			if (exp_vol == info->dvc->vol_val[i]) {
+				spin_lock_irqsave(&info->gpio_lock, flags);
+				/* 10 -> 01 case */
+				if ((info->dvc_val == 0x2) && (i == 0x1)) {
+					gpio_set_value(info->dvc->dvc1,
+							      1);
+					gpio_set_value(info->dvc->dvc2,
+							      0);
+				}
+				/* 01 -> 10 case */
+				if ((info->dvc_val == 0x1) && (i == 0x2)) {
+					gpio_set_value(info->dvc->dvc2,
+							      1);
+					gpio_set_value(info->dvc->dvc1,
+							      0);
+				} else {
+					/* Get the unchanged value */
+					gpio_set_value(info->dvc->dvc2,
+							      i >> 1);
+					gpio_set_value(info->dvc->dvc1,
+							      i % 2);
+				}
+				spin_unlock_irqrestore(&info->gpio_lock, flags);
+				/* gpio sync: 4 periods of 3Mhz */
+				udelay(buck1_delay(info->buck1_set_index,
+						   vol1, vol2) + 2);
+				dev_dbg(info->chip->dev, "dvc pins: %d\n",
+					info->dvc_val);
+				break;
+			}
+		}
+		if (i != 4) {	/* Have found in the table */
+			dev_dbg(info->chip->dev, "new vol: %d i: %d\n",
+				exp_vol, i);
+			cur_dvc1 = !!gpio_get_value(info->dvc->dvc1);
+			cur_dvc2 = !!gpio_get_value(info->dvc->dvc2);
+			/* Cache dvc value */
+			info->dvc_val = (cur_dvc2 << 1) | cur_dvc1;
+			return 0;
+		}
+		/* Not found in the table */
+		info->dvc_val = 0;
+		cur_vol = info->dvc->vol_val[0];
+		info->dvc->vol_val[0] = exp_vol;
+		pm80x_set_bits(info->i2c, PM800_BUCK1, 0x7f,
+			       BUCK1_VOL2REG(exp_vol));
+
+		spin_lock_irqsave(&info->gpio_lock, flags);
+		gpio_set_value(info->dvc->dvc2, 0);
+		gpio_set_value(info->dvc->dvc1, 0);
+		spin_unlock_irqrestore(&info->gpio_lock, flags);
+
+		/* exp_vol is sure to smaller than cur_vol */
+		/* gpio sync: 4 periods of 3Mhz */
+		udelay(buck1_delay(info->buck1_set_index,
+				   exp_vol, cur_vol) + 2);
+		dev_dbg(info->chip->dev, "new vol: %d\n", exp_vol);
+
+		return 0;
 	}
 
 	ret = choose_voltage(rdev, min_uV, max_uV);
@@ -287,6 +389,20 @@ static int pm800_set_voltage(struct regulator_dev *rdev,
 	*selector = ret;
 	val = (uint8_t)(ret << info->vol_shift);
 	mask = ((1 << info->vol_nbits) - 1)  << info->vol_shift;
+	if (info->dvc != NULL) {
+		/* BUCK4 and LDO1 */
+		if (info->desc.id == PM800_ID_BUCK4) {
+			pm80x_set_bits(info->i2c, info->vol_reg + 1, mask, val);
+			pm80x_set_bits(info->i2c, info->vol_reg + 2, mask, val);
+			pm80x_set_bits(info->i2c, info->vol_reg + 3, mask, val);
+		}
+
+		if (info->desc.id == PM800_ID_LDO1) {
+			pm80x_set_bits(info->i2c, info->vol_reg + 1,
+				       0xff, (val<<4) | val); /* Reg: 0x09 */
+			pm80x_set_bits(info->i2c, info->vol_reg + 2, mask, val);
+		}
+	}
 
 	return pm80x_set_bits(info->i2c, info->vol_reg, mask, val);
 }
@@ -295,11 +411,19 @@ static int pm800_get_voltage(struct regulator_dev *rdev)
 {
 	struct pm800_regulator_info *info = rdev_get_drvdata(rdev);
 	uint8_t val, mask;
-	int ret;
+	int ret, dvc1, dvc2, dvc;
 
 	ret = pm80x_reg_read(info->i2c, info->vol_reg);
 	if (ret < 0)
 		return ret;
+	if ((info->dvc != NULL) && (info->desc.id == PM800_ID_BUCK1)) {
+		dvc1 = !!gpio_get_value(info->dvc->dvc1);
+		dvc2 = !!gpio_get_value(info->dvc->dvc2);
+		dvc = (dvc2 << 1) | dvc1;
+		ret = pm80x_reg_read(info->i2c, (info->vol_reg + dvc));
+		if (ret < 0)
+			return ret;
+	}
 
 	mask = ((1 << info->vol_nbits) - 1)  << info->vol_shift;
 	val = ((unsigned char)ret & mask) >> info->vol_shift;
@@ -312,8 +436,8 @@ static int pm800_enable(struct regulator_dev *rdev)
 	struct pm800_regulator_info *info = rdev_get_drvdata(rdev);
 
 	return pm80x_set_bits(info->i2c, info->enable_reg,
-			       1 << info->enable_bit,
-			       1 << info->enable_bit);
+			      1 << info->enable_bit,
+			      1 << info->enable_bit);
 }
 
 static int pm800_disable(struct regulator_dev *rdev)
@@ -321,7 +445,7 @@ static int pm800_disable(struct regulator_dev *rdev)
 	struct pm800_regulator_info *info = rdev_get_drvdata(rdev);
 
 	return pm80x_set_bits(info->i2c, info->enable_reg,
-			       1 << info->enable_bit, 0);
+			      1 << info->enable_bit, 0);
 }
 
 static int pm800_is_enabled(struct regulator_dev *rdev)
@@ -344,14 +468,14 @@ static struct regulator_ops pm800_regulator_ops = {
 	.is_enabled	= pm800_is_enabled,
 };
 /*
-vreg - the buck regs string.
-nbits - the number of bits that used to set the buck voltage.
-ureg - the string for the register that is control by PI2c for sleep,
-		for exmp:GO_REGISTER[0x20] in PM8607)
-ubit - enable bit for the buck similar to ebit.
-ereg -  the string for the enable register.
-ebit - the bit number in the enable register.
-*/
+ * vreg - the buck regs string.
+ * nbits - the number of bits that used to set the buck voltage.
+ * ureg - the string for the register that is control by PI2c for sleep,
+ * for exmp:GO_REGISTER[0x20] in PM8607)
+ * ubit - enable bit for the buck similar to ebit.
+ * ereg -  the string for the enable register.
+ * ebit - the bit number in the enable register.
+ */
 #define PM800_DVC(vreg, nbits, ureg, ubit, ereg, ebit)			\
 {									\
 	.desc	= {							\
@@ -372,13 +496,13 @@ ebit - the bit number in the enable register.
 	.vol_suspend	= (unsigned int *)&vreg##_table,	\
 }
 /*
-_id - the LDO number.
-vreg - the LDO regs string
-shift - the number of bits we need to shift left for setting LDO voltage.
-nbits - the number of bits that used to set the LDO voltage.
-ereg -  the string for the enable register.
-ebit - the bit number in the enable register.
-*/
+ * _id - the LDO number.
+ * vreg - the LDO regs string
+ * shift - the number of bits we need to shift left for setting LDO voltage.
+ * nbits - the number of bits that used to set the LDO voltage.
+ * ereg -  the string for the enable register.
+ * ebit - the bit number in the enable register.
+ */
 #define PM800_LDO(_id, vreg, shift, nbits, ereg, ebit)			\
 {									\
 	.desc	= {							\
@@ -431,8 +555,11 @@ static int __devinit pm800_regulator_probe(struct platform_device *pdev)
 	struct pm80x_chip *chip = dev_get_drvdata(pdev->dev.parent);
 	struct pm800_regulator_info *info = NULL;
 	struct regulator_init_data *pdata = pdev->dev.platform_data;
+	struct pm80x_platform_data *ppdata = (pdev->dev.parent)->platform_data;
 	struct resource *res;
-	int i;
+	int i, dvc1, dvc2, vol;
+	unsigned int max1 = 0, max2 = 0, max3 = 0;
+	unsigned long flags;
 
 	res = platform_get_resource(pdev, IORESOURCE_IO, 0);
 	if (res == NULL) {
@@ -453,6 +580,8 @@ static int __devinit pm800_regulator_probe(struct platform_device *pdev)
 
 	info->i2c = chip->power_page;
 	info->chip = chip;
+	info->dvc = ppdata->dvc;
+	spin_lock_init(&info->gpio_lock);
 
 	info->regulator = regulator_register(&info->desc, &pdev->dev,
 					     pdata, info);
@@ -461,14 +590,90 @@ static int __devinit pm800_regulator_probe(struct platform_device *pdev)
 			info->desc.name);
 		return PTR_ERR(info->regulator);
 	}
+	/* dvc may not be used on other PMIC */
+	if ((info->dvc != NULL) && (info->desc.id == PM800_ID_BUCK1)) {
+		info->buck1_set_index =
+			(pm80x_reg_read(info->i2c, PM800_BUCK1_MISC1) \
+			 >> 3) & 0x07;
+		/* DVC gpio configuration */
+		if (gpio_request(info->dvc->dvc1, "DVC1")) {
+			dev_err(info->chip->dev, "Failed to request GPIO for DVC1!\n");
+			goto out1;
+		}
+		if (gpio_request(info->dvc->dvc2, "DVC2")) {
+			dev_err(info->chip->dev, "Failed to request GPIO for DVC2!\n");
+			goto out2;
+		}
+		/* Read the original voltage value set by U-boot */
+		dvc1 = !!gpio_get_value(info->dvc->dvc1);
+		dvc2 = !!gpio_get_value(info->dvc->dvc2);
+		info->dvc_val = (dvc2 << 1) | dvc1;
+		vol = pm80x_reg_read(info->i2c,
+				     PM800_BUCK1 + (info->dvc_val));
+		if (vol < 0) {
+			dev_err(info->chip->dev, "Read reg error when init dvc\n");
+			return -EINVAL;
+		}
+		/* Set the uboot voltage to reg of dvc */
+		for (i = 0; i < 4; i++) {
+			if (i != info->dvc_val)
+				pm80x_set_bits(info->i2c, PM800_BUCK1 + i,
+					       0x7f, vol);
+		}
+
+		spin_lock_irqsave(&info->gpio_lock, flags);
+		gpio_direction_output(info->dvc->dvc2, 0);
+		gpio_direction_output(info->dvc->dvc1, 0);
+		spin_unlock_irqrestore(&info->gpio_lock, flags);
+		/* Cache the dvc pin value */
+		info->dvc_val = 0;
+
+		/* Sort the voltage */
+		for (i = 0; i < info->dvc->size; i++) {
+			if (max1 < info->dvc->vol_val[i])
+				max1 = info->dvc->vol_val[i];
+		}
+		for (i = 0; i < info->dvc->size; i++) {
+			if ((max2 < info->dvc->vol_val[i]) &&
+			    (info->dvc->vol_val[i] != max1))
+				max2 = info->dvc->vol_val[i];
+		}
+		for (i = 0; i < info->dvc->size; i++) {
+			if ((max3 < info->dvc->vol_val[i]) &&
+			    (info->dvc->vol_val[i] != max1) &&
+			    (info->dvc->vol_val[i] != max2))
+				max3 = info->dvc->vol_val[i];
+		}
+		info->dvc->vol_val[3] = max1;
+		info->dvc->vol_val[2] = max2;
+		info->dvc->vol_val[1] = max3;
+		info->dvc->vol_val[0] = BUCK1_table[vol];
+		/* Set value to the related regs */
+		for (i = 1; i < 4; i++) {
+			vol = info->dvc->vol_val[i];
+			pm80x_set_bits(info->i2c, PM800_BUCK1 + i,
+				       0x7f, BUCK1_VOL2REG(vol));
+
+		}
+	}
 
 	platform_set_drvdata(pdev, info);
 	return 0;
+out2:
+	gpio_free(info->dvc->dvc1);
+out1:
+	regulator_unregister(info->regulator);
+	return -EINVAL;
+
 }
 
 static int __devexit pm800_regulator_remove(struct platform_device *pdev)
 {
 	struct pm800_regulator_info *info = platform_get_drvdata(pdev);
+	if (info->dvc) {
+		gpio_free(info->dvc->dvc1);
+		gpio_free(info->dvc->dvc2);
+	}
 
 	platform_set_drvdata(pdev, NULL);
 	regulator_unregister(info->regulator);
