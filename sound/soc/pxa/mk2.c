@@ -249,78 +249,34 @@ static const struct snd_kcontrol_new mmp3asoc_wm8994_controls[] = {
 #ifdef CONFIG_SWITCH_WM8994_HEADSET
 static struct snd_soc_codec *mmp3asoc_wm8994_codec;
 
-int wm8994_headset_detect(void)
+/* Return 1: has MIC; 0: no MIC */
+static int wm8994_get_mic_state(void)
 {
-	struct snd_soc_codec *codec;
-	int status1, status2, reg;
-	int ret = 0;
-	static int headset_last_status;
+	struct snd_soc_codec *codec = mmp3asoc_wm8994_codec;
+	int mic_state, reg, reg2;
 
-	codec = mmp3asoc_wm8994_codec;
-	if (codec == NULL)
+	if (!codec)
 		return 0;
-
-	/* disable interrupt, mask interrupt mask */
-	snd_soc_write(codec, WM8994_INTERRUPT_CONTROL, 0x1);
-	/* mask MICBIAS interrupt */
-	snd_soc_write(codec, WM8994_INTERRUPT_STATUS_2_MASK,
-			 0xffff);
-
-	/* CHECK_HEAD_PLUGIN: when headset plugin, it would trigger a
-	 * transition state(state = 2) before it can finally get the
-	 * correct state(state = 1). to avoid bad event report, we
-	 * would double check the state when getting a state =2 and
-	 * the last status is no headset/headphone plugin. */
-CHECK_HEADSET_PLUGIN:
-	status1 = snd_soc_read(codec, WM8994_INTERRUPT_STATUS_1);
-	status2 = snd_soc_read(codec, WM8994_INTERRUPT_STATUS_2);
-
-	reg = snd_soc_read(codec, WM8994_INTERRUPT_RAW_STATUS_2);
-
-	switch (reg & (WM8994_MIC2_SHRT_STS | WM8994_MIC2_DET_STS)) {
-	case WM8994_MIC2_DET_STS:
-		ret = 1;
-		break;
-	case (WM8994_MIC2_SHRT_STS | WM8994_MIC2_DET_STS):
-		ret = 2;
-		break;
-	default:
-		ret = 0;
-		break;
+	reg = snd_soc_read(codec, WM8994_POWER_MANAGEMENT_1);
+	reg2 = snd_soc_read(codec, WM8994_AIF1_CLOCKING_1);
+	if (!(reg & WM8994_MICB2_ENA) || !(reg2 & WM8994_AIF1CLK_ENA)) {
+		/* Enable AIF1CLK and MICBIAS2 for MIC detection */
+		snd_soc_update_bits(codec, WM8994_AIF1_CLOCKING_1,
+				WM8994_AIF1CLK_ENA_MASK, WM8994_AIF1CLK_ENA);
+		snd_soc_update_bits(codec, WM8994_POWER_MANAGEMENT_1,
+				WM8994_MICB2_ENA_MASK, WM8994_MICB2_ENA);
+		msleep(50);
 	}
-
-	if (ret == 2 && headset_last_status == 0) {
-		msleep(200);
-		headset_last_status = 1;
-		goto CHECK_HEADSET_PLUGIN;
-	} else if (ret > 0)
-		headset_last_status = 1;
+	/* Get MICBIAS2 short circuit status */
+	reg = snd_soc_read(codec, WM8994_INTERRUPT_RAW_STATUS_2);
+	if (reg & WM8994_MIC2_SHRT_STS)
+		mic_state = 0;	/* Shorted, no MIC */
 	else
-		headset_last_status = 0;
+		mic_state = 1;	/* Has Mic */
 
-	/* clear all irqs */
-	snd_soc_write(codec, WM8994_INTERRUPT_RAW_STATUS_2, 0);
-	snd_soc_write(codec, WM8994_INTERRUPT_STATUS_1, status1);
-	snd_soc_write(codec, WM8994_INTERRUPT_STATUS_2, status2);
-
-	/* enable interrupt, unmask interrupt mask */
-	snd_soc_write(codec, WM8994_INTERRUPT_CONTROL, 0x0);
-	/* unmask MICBIAS interrupt */
-	snd_soc_write(codec, WM8994_INTERRUPT_STATUS_2_MASK,
-			 0xffe7);
-
-	/* reset clocking to make sure trigger irq */
-	snd_soc_update_bits(codec, WM8994_CLOCKING_2,
-			WM8994_DBCLK_DIV_MASK |
-			WM8994_TOCLK_DIV_MASK,
-			(2 << WM8994_DBCLK_DIV_SHIFT) |
-			(4 << WM8994_TOCLK_DIV_SHIFT));
-
-	snd_soc_update_bits(codec, WM8994_CLOCKING_1,
-			WM8994_TOCLK_ENA_MASK,
-			WM8994_TOCLK_ENA);
-	return ret;
+	return mic_state;
 }
+
 #endif
 
 static int codec_hdmi_init(struct snd_soc_pcm_runtime *rtd)
@@ -491,66 +447,40 @@ static int codec_wm8994_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_sync(dapm);
 	mutex_unlock(&codec->mutex);
 
-	/* Here is workround for MK2 headset MIC detect,
-	used to fix mk2 headset MIC always attend problem */
-	snd_soc_write(codec, WM8994_MICBIAS, 0x0047);
+	/* Set MICBIAS1/2 as 0.65*AVDD1 */
+	snd_soc_update_bits(codec, WM8994_MICBIAS,
+				WM8994_MICB1_LVL_MASK |
+				WM8994_MICB2_LVL_MASK,
+				WM8994_MICB1_LVL |
+				WM8994_MICB2_LVL);
 
 #ifdef CONFIG_SWITCH_WM8994_HEADSET
 	mmp3asoc_wm8994_codec = codec;
-	headset_detect_func = wm8994_headset_detect;
-
-	snd_soc_update_bits(codec, WM8994_CLOCKING_2,
-			    WM8994_DBCLK_DIV_MASK |
-			    WM8994_TOCLK_DIV_MASK,
-			    (2 << WM8994_DBCLK_DIV_SHIFT) |
-			    (4 << WM8994_TOCLK_DIV_SHIFT));
+	get_mic_state = wm8994_get_mic_state;
 
 	snd_soc_update_bits(codec, WM8994_CLOCKING_1,
 			    WM8994_TOCLK_ENA_MASK,
 			    WM8994_TOCLK_ENA);
-
-	snd_soc_update_bits(codec, WM8994_IRQ_DEBOUNCE,
-			    WM8994_MIC2_DET_DB_MASK |
-			    WM8994_MIC2_SHRT_DB_MASK,
-			    WM8994_MIC2_DET_DB |
-			    WM8994_MIC2_SHRT_DB);
-
-	/* 3. GPIO setup */
-	/* 3.1 setup the GPIOn as IRQ output */
-	snd_soc_write(codec, WM8994_GPIO_1, 0x0003);
-
-	snd_soc_update_bits(codec, WM8994_MICBIAS,
-			    WM8994_MICD_ENA_MASK |
-			    WM8994_MICD_SCTHR_MASK,
-			    WM8994_MICD_ENA |
-			    (1 << WM8994_MICD_SCTHR_SHIFT));
-
-	/* turn on micbias 1/2 always */
+	/* Turn on micbias 1/2 always */
 	snd_soc_update_bits(codec, WM8994_POWER_MANAGEMENT_1,
 			    WM8994_MICB1_ENA_MASK |
 			    WM8994_MICB2_ENA_MASK,
 			    WM8994_MICB1_ENA |
 			    WM8994_MICB2_ENA);
-
-	/* unmask mic2 shrt and det int */
-	snd_soc_update_bits(codec, WM8994_INTERRUPT_STATUS_2_MASK,
-			    WM8994_IM_MIC2_SHRT_EINT_MASK |
-			    WM8994_IM_MIC2_DET_EINT_MASK, 0);
-
-	/* unmask int */
-	snd_soc_update_bits(codec, WM8994_INTERRUPT_CONTROL,
-			    WM8994_IM_IRQ_MASK, 0);
-
+	/* Enable MICBIAS current detection */
+	snd_soc_update_bits(codec, WM8994_MICBIAS,
+			    WM8994_MICD_ENA_MASK |
+			    WM8994_MICD_SCTHR_MASK,
+			    WM8994_MICD_ENA |
+			    (1 << WM8994_MICD_SCTHR_SHIFT));
+	/* Enbale MIC2 detect debounce */
+	snd_soc_update_bits(codec, WM8994_IRQ_DEBOUNCE,
+			    WM8994_MIC2_DET_DB_MASK |
+			    WM8994_MIC2_SHRT_DB_MASK,
+			    WM8994_MIC2_DET_DB |
+			    WM8994_MIC2_SHRT_DB);
 #endif
 
-#if 0
-	/* need to enable Reg(0x302) bit 13, bit 12 for wm8994 master */
-	snd_soc_update_bits(codec, WM8994_AIF1_MASTER_SLAVE,
-			    WM8994_AIF1_CLK_FRC_MASK |
-			    WM8994_AIF1_LRCLK_FRC_MASK,
-			    WM8994_AIF1_CLK_FRC |
-			    WM8994_AIF1_LRCLK_FRC);
-#endif
 	return 0;
 }
 
@@ -706,7 +636,7 @@ static int mmp3asoc_wm8994_hw_params(struct snd_pcm_substream *substream,
 		__raw_writel(0xd0040040, MPMU_ISCCRX1);
 		break;
 	case 44100:
-		__raw_writel(0xd0040044, MPMU_ISCCRX1);
+		__raw_writel(0xd0040047, MPMU_ISCCRX1);
 		break;
 	case 32000:
 		__raw_writel(0xd00800c0, MPMU_ISCCRX1);
