@@ -1381,6 +1381,24 @@ static const struct clkops clk_pxa95x_vmeta_ops = {
 	.setrate = clk_pxa95x_vmeta_setrate,
 };
 
+static int clk_pxa978_peri_pll_enable(struct clk *clk)
+{
+	PERI_PLL_CTRL |= PERIPLL_PWRON;
+	while (!(PERI_PLL_CTRL & PERIPLL_PWR_ST))
+		;
+	return 0;
+}
+
+static void clk_pxa978_peri_pll_disable(struct clk *clk)
+{
+	PERI_PLL_CTRL &= ~PERIPLL_PWRON;
+}
+
+static const struct clkops clk_pxa978_peri_pll_ops = {
+	.enable = clk_pxa978_peri_pll_enable,
+	.disable = clk_pxa978_peri_pll_disable,
+};
+
 static DEFINE_CK(pxa95x_dsi0, DSI_TX1, &clk_pxa95x_dsi_ops);
 static DEFINE_CK(pxa95x_dsi1, DSI_TX2, &clk_pxa95x_dsi_ops);
 static DEFINE_CK(pxa95x_ihdmi, DISPLAY, &clk_pxa95x_ihdmi_ops);
@@ -1462,8 +1480,13 @@ static struct clk clk_mmc_bus = {
 	.enable_val = CKEN_MMC_BUS,
 };
 
+static struct clk clk_pxa978_peri_pll = {
+	.ops = &clk_pxa978_peri_pll_ops,
+};
+
 static struct clk *mmc_depend_clk[] = {
 	&clk_mmc_bus,
+	&clk_pxa978_peri_pll,
 };
 
 static struct clk clk_pxa978_sdh0 = {
@@ -1617,6 +1640,7 @@ static struct clk_lookup pxa978_specific_clkregs[] = {
 	INIT_CLKREG(&clk_pxa978_sdh3, "sdhci-pxa.3", "PXA-SDHCLK"),
 	INIT_CLKREG(&clk_pxa978_mmpll, NULL, "MM_PLL"),
 	INIT_CLKREG(&clk_pxa978_syspll_416, NULL, "SYS_PLL_416"),
+	INIT_CLKREG(&clk_pxa978_peri_pll, NULL, "PERI_PLL"),
 	INIT_CLKREG(&clk_pxa978_gcu, NULL, "GCCLK"),
 };
 
