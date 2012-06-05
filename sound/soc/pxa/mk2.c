@@ -33,7 +33,7 @@
 
 #include <asm/mach-types.h>
 #include <linux/io.h>
-#include <linux/switch.h>
+#include <linux/switch_headset.h>
 
 #include <linux/uaccess.h>
 #include <plat/ssp.h>

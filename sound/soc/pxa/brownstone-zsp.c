@@ -29,7 +29,7 @@
 #include <linux/suspend.h>
 #include <linux/delay.h>
 #include <linux/i2c.h>
-#include <linux/switch.h>
+#include <linux/switch_headset.h>
 #include <linux/mfd/wm8994/registers.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
