@@ -29,7 +29,7 @@
 #include <linux/mfd/88pm80x.h>
 #include <linux/mfd/wm8994/pdata.h>
 #include <linux/regulator/fixed.h>
-#include <linux/switch.h>
+#include <linux/switch_headset.h>
 #if defined(CONFIG_SENSORS_LSM303DLHC_ACC) || \
 	defined(CONFIG_SENSORS_LSM303DLHC_MAG)
 #include <linux/i2c/lsm303dlhc.h>
@@ -1518,45 +1518,18 @@ static void abilene_fixed_regulator(void)
 	platform_add_devices(fixed_rdev, ARRAY_SIZE(fixed_rdev));
 }
 
-#if defined(CONFIG_SWITCH_HEADSET_HOST_GPIO)
-static struct gpio_switch_platform_data headset_switch_device_data = {
+static struct switch_headset_pdata headset_pdata = {
 	.name = "h2w",
 	.gpio = mfp_to_gpio(GPIO23_GPIO),
-	.name_on = NULL,
-	.name_off = NULL,
-	.state_on = NULL,
-	.state_off = NULL,
 };
 
 static struct platform_device headset_switch_device = {
-	.name            = "headset",
-	.id              = 0,
-	.dev             = {
-		.platform_data = &headset_switch_device_data,
+	.name = "headset",
+	.id = 0,
+	.dev = {
+		.platform_data = &headset_pdata,
 	},
 };
-
-static int wm8994_gpio_irq(void)
-{
-	int gpio = mfp_to_gpio(GPIO23_GPIO);
-
-	if (gpio_request(gpio, "wm8994 irq")) {
-		printk(KERN_INFO "gpio %d request failed\n", gpio);
-		return -1;
-	}
-
-	gpio_direction_input(gpio);
-	mdelay(1);
-	gpio_free(gpio);
-	return 0;
-}
-
-static void __init abilene_init_headset(void)
-{
-	wm8994_gpio_irq();
-	platform_device_register(&headset_switch_device);
-}
-#endif
 
 #ifdef CONFIG_UIO_HDMI
 static struct uio_hdmi_platform_data mmp3_hdmi_info __initdata = {
@@ -1802,9 +1775,7 @@ static void __init abilene_init(void)
 	mmp3_add_sspa(2);
 	mmp3_add_audiosram(&mmp3_audiosram_info);
 
-#if defined(CONFIG_SWITCH_HEADSET_HOST_GPIO)
-	abilene_init_headset();
-#endif
+	platform_device_register(&headset_switch_device);
 
 #ifdef CONFIG_USB_PXA_U2O
 	/* Place VBUS_EN low by default */

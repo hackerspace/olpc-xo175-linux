@@ -23,7 +23,7 @@
 #include <linux/pwm_backlight.h>
 #include <linux/fb.h>
 #include <linux/delay.h>
-#include <linux/switch.h>
+#include <linux/switch_headset.h>
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <mach/addr-map.h>
@@ -1484,45 +1484,18 @@ static void __init mmp2_init_spi(void)
 static inline void mmp2_init_spi(void) {}
 #endif
 
-#if defined(CONFIG_SWITCH_HEADSET_HOST_GPIO)
-static struct gpio_switch_platform_data headset_switch_device_data = {
+static struct switch_headset_pdata headset_pdata = {
 	.name = "h2w",
 	.gpio = mfp_to_gpio(GPIO23_GPIO),
-	.name_on = NULL,
-	.name_off = NULL,
-	.state_on = NULL,
-	.state_off = NULL,
 };
 
 static struct platform_device headset_switch_device = {
-	.name            = "headset",
-	.id              = 0,
-	.dev             = {
-		.platform_data = &headset_switch_device_data,
+	.name = "headset",
+	.id = 0,
+	.dev = {
+		.platform_data = &headset_pdata,
 	},
 };
-
-static int wm8994_gpio_irq(void)
-{
-	int gpio = mfp_to_gpio(GPIO23_GPIO);
-
-	if (gpio_request(gpio, "wm8994 irq")) {
-		printk(KERN_INFO "gpio %d request failed\n", gpio);
-		return -1;
-	}
-
-	gpio_direction_input(gpio);
-	mdelay(1);
-	gpio_free(gpio);
-	return 0;
-}
-
-static void __init brownstone_init_headset(void)
-{
-	wm8994_gpio_irq();
-	platform_device_register(&headset_switch_device);
-}
-#endif
 
 #ifdef CONFIG_UIO_HDMI
 static struct uio_hdmi_platform_data mmp2_hdmi_info __initdata = {
@@ -1796,9 +1769,8 @@ static void __init brownstone_init(void)
 	mmp2_add_hdmi(&mmp2_hdmi_info);
 #endif
 
-#ifdef CONFIG_SWITCH_HEADSET_HOST_GPIO
-	brownstone_init_headset();
-#endif
+	platform_device_register(&headset_switch_device);
+
 	brownstone_init_cam();
 #ifdef CONFIG_ANDROID_PMEM
 	pxa_add_pmem();
