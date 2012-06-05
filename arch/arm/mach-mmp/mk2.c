@@ -1251,6 +1251,19 @@ static struct regulator_init_data wm8994_ldo2_data = {
 };
 
 static struct wm8994_pdata mk2_wm8994_pdata = {
+	/* GPIO1: Codec IRQ */
+	.gpio_defaults[0] = 0x0003,
+	/* AIF2 */
+	.gpio_defaults[2] = 0x8100,
+	.gpio_defaults[3] = 0x8100,
+	.gpio_defaults[4] = 0x8100,
+	.gpio_defaults[5] = 0x8100,
+	.gpio_defaults[6] = 0x0100,
+	/* AIF3 */
+	.gpio_defaults[7] = 0x8100,
+	.gpio_defaults[8] = 0x0100,
+	.gpio_defaults[9] = 0x8100,
+	.gpio_defaults[10] = 0x8100,
 	.ldo[0]	= {
 		/* FIXME: keep LDO output always on */
 		/* .enable = mfp_to_gpio(GPIO06_WM8994_LDOEN), */
