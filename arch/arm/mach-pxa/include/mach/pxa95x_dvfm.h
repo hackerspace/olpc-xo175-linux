@@ -160,15 +160,16 @@ struct pxa95x_freq_mach_info {
 };
 
 #define PXA95x_USE_POWER_I2C  (1UL << 0)
+
+#ifdef __KERNEL__
 extern void set_pxa95x_freq_info(struct pxa95x_freq_mach_info *info);
 /* extern void set_pxa95x_freq_parent(struct device *parent_dev); */
 
 extern int md2fvinfo(struct pxa95x_fv_info *fv_info, struct dvfm_md_opt *orig);
-
 extern int ForceC0;
-
 extern pxa95x_DVFM_LPM_Global_Count DVFMLPMGlobalCount;
 extern void write_accr_in_sram(u32, u32, u32, u32, u32, u32, u32);
 extern void write_accr0(unsigned int value, unsigned int mask);
+#endif /*__KERNEL__*/
 
 #endif
