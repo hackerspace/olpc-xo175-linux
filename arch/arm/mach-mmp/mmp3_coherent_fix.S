@@ -202,6 +202,19 @@ pmu	.req	r11		@ APMU register address
 	strexeq	\rtry, \temp2, [\temp1]
 	.endm
 
+	@ exclusive lock
+	.macro  coht_lock, temp1, temp2, temp3
+	mov	\temp1, #SEM4_OFFSET
+	add	\temp1, \temp1, ncb
+	mov	\temp3, #1
+1:
+	ldrex	\temp2, [\temp1]
+	cmp	\temp2, #0			@ unlocked
+	strexeq	\temp2, \temp3, [\temp1]
+	cmpeq   \temp2, #0
+	bne     1b
+	.endm
+
 	@ exclusive unlock
 	.macro  coht_unlock, temp1, temp2, temp3
 	mov	\temp1, #SEM4_OFFSET
@@ -280,10 +293,8 @@ ENTRY(mmp3_trigger_dfc_ll)
 	get_cid cid			@ read core id
 	ldr	pmu, [ncb, #APMU_BASE_ADDR_OFFSET] @ ampu addr
 
-	mov	try, #0x0
-	coht_trylock r0, r1, try
-	cmp	try, #0x0
-	bne	dfc_finish
+	coht_lock r0, r1, r2
+	cpsid	i
 
 	mov	r0, #0x1		@ set handshake flag
 	set_hs_val r0, r1
@@ -326,10 +337,9 @@ check_dfc_finish:
 
 	bl	req_peer_core_en_fw
 
+	cpsie	i
 	coht_unlock r0, r1, r2
-
-dfc_finish:
-	mov	r0, try			@ set return value
+	mov	r0, #0x0		@ set return value
 
 	ldmfd	sp!, {r4-r5, r7, r9-r11, lr}
 	mov	pc, lr

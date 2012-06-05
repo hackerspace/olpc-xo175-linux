@@ -1343,6 +1343,8 @@ static void mmp3_dfc_trigger(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
 
 	timex = read_timestamp();
 
+	BUG_ON(irqs_disabled());
+
 	/* compose trigger val */
 	dfc_val = __raw_readl(pmu->cc);
 	dfc_val = MMP3_PROTECT_CC(dfc_val); /* set reserved */
@@ -1368,6 +1370,7 @@ static void mmp3_dfc_trigger(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
 	if (change & (MMP3_FREQCH_CORE | MMP3_FREQCH_DRAM))
 		ret = mmp3_trigger_dfc_ll(dfc_val, (u32)sync_buf);
 	else {
+		local_irq_disable();
 		__raw_writel(dfc_val, pmu->cc);
 
 		for (try = 0; try < 1000; try++) {
@@ -1379,6 +1382,7 @@ static void mmp3_dfc_trigger(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
 
 		if (try >= 1000)
 			printk(KERN_ERR "%s: done %x wait %x\n", __func__, done, wait);
+		local_irq_enable();
 	}
 
 	/* clear dfc irq status */
@@ -1527,20 +1531,19 @@ static void __maybe_unused trigger_scheduler(u32 flag)
 static void mmp3_schedule_freqch_loose(struct mmp3_pmu *pmu,
 			struct mmp3_freq_plan *pl)
 {
-	unsigned long savedflags;
 	union trace_dfc_log logentry;
 	u32 change, time, same;
 
-	spin_lock_irqsave(&dfcsch_lock, savedflags);
+	spin_lock(&dfcsch_lock);
 
 	if (atomic_read(&glb_hp_lock)) {
-		spin_unlock_irqrestore(&dfcsch_lock, savedflags);
+		spin_unlock(&dfcsch_lock);
 		return;
 	}
 
 	change = mmp3_prepare_freqch(pmu, pl, &logentry);
 	if (change == 0) {
-		spin_unlock_irqrestore(&dfcsch_lock, savedflags);
+		spin_unlock(&dfcsch_lock);
 		return;
 	}
 
@@ -1560,7 +1563,7 @@ static void mmp3_schedule_freqch_loose(struct mmp3_pmu *pmu,
 		sch.same = 0;
 		init_completion(&sch.comp);
 		dfcsch = &sch;
-		spin_unlock_irqrestore(&dfcsch_lock, savedflags);
+		spin_unlock(&dfcsch_lock);
 		ret = wait_for_completion_timeout(&sch.comp,
 						msecs_to_jiffies(500));
 		time = sch.time;
@@ -1569,18 +1572,18 @@ static void mmp3_schedule_freqch_loose(struct mmp3_pmu *pmu,
 			/* timeout, which indicates that the trigger
 			 * is not triggering any more
 			 */
-			spin_lock_irqsave(&dfcsch_lock, savedflags);
+			spin_lock(&dfcsch_lock);
 			if (dfcsch != NULL) {
 				dfcsch_active = 0;
 				dfcsch = NULL;
 				mmp3_dfc_trigger(pmu, pl, &logentry,
 							change, &time, &same);
 			}
-			spin_unlock_irqrestore(&dfcsch_lock, savedflags);
+			spin_unlock(&dfcsch_lock);
 		}
 	} else {
 		mmp3_dfc_trigger(pmu, pl, &logentry, change, &time, &same);
-		spin_unlock_irqrestore(&dfcsch_lock, savedflags);
+		spin_unlock(&dfcsch_lock);
 	}
 
 	mmp3_dfc_postchange(pmu, pl, &logentry, time, same);
