@@ -428,6 +428,30 @@ static const struct ov9740_reg ov9740_regs_cif[] = {
 	{ OV9740_ISP_CTRL03,		0xff },
 };
 
+static const struct ov9740_reg ov9740_regs_hqvga[] = {
+	{ OV9740_X_ADDR_START_HI,	0x00 },
+	{ OV9740_X_ADDR_START_LO,	0xa0 },
+	{ OV9740_Y_ADDR_START_HI,	0x00 },
+	{ OV9740_Y_ADDR_START_LO,	0x00 },
+	{ OV9740_X_ADDR_END_HI,		0x04 },
+	{ OV9740_X_ADDR_END_LO,		0x63 },
+	{ OV9740_Y_ADDR_END_HI,		0x02 },
+	{ OV9740_Y_ADDR_END_LO,		0xd3 },
+	{ OV9740_X_OUTPUT_SIZE_HI,	0x00 },
+	{ OV9740_X_OUTPUT_SIZE_LO,	0xF0 },
+	{ OV9740_Y_OUTPUT_SIZE_HI,	0x00 },
+	{ OV9740_Y_OUTPUT_SIZE_LO,	0xA0 },
+	{ OV9740_ISP_CTRL1E,		0x03 },
+	{ OV9740_ISP_CTRL1F,		0xc0 },
+	{ OV9740_ISP_CTRL20,		0x02 },
+	{ OV9740_ISP_CTRL21,		0xd0 },
+	{ OV9740_VFIFO_READ_START_HI,	0x01 },
+	{ OV9740_VFIFO_READ_START_LO,	0x40 },
+	{ OV9740_ISP_CTRL00,		0xff },
+	{ OV9740_ISP_CTRL01,		0xff },
+	{ OV9740_ISP_CTRL03,		0xff },
+};
+
 static const struct ov9740_reg ov9740_regs_qvga[] = {
 	{ OV9740_X_ADDR_START_HI,	0x00 },
 	{ OV9740_X_ADDR_START_LO,	0xa0 },
@@ -566,6 +590,7 @@ static struct mipi_phy ov9740_phy_cfgs[] = {
 /* supported resolutions */
 enum {
 	OV9740_QCIF,
+	OV9740_HQVGA,
 	OV9740_QVGA,
 	OV9740_CIF,
 	OV9740_640P,
@@ -587,6 +612,13 @@ static struct ov9740_resolution ov9740_resolutions[] = {
 		.height	= 144,
 		.setting = ov9740_regs_qcif,
 		.len = ARRAY_SIZE(ov9740_regs_qcif),
+		.phy_cfg_id = 0,
+	},
+	[OV9740_HQVGA] = {
+		.width	= 240,
+		.height	= 160,
+		.setting = ov9740_regs_hqvga,
+		.len = ARRAY_SIZE(ov9740_regs_hqvga),
 		.phy_cfg_id = 0,
 	},
 	[OV9740_QVGA] = {
@@ -945,7 +977,6 @@ static int ov9740_s_fmt(struct v4l2_subdev *sd,
 	enum v4l2_mbus_pixelcode code = mf->code;
 	struct ov9740_priv *priv = to_ov9740(sd);
 	int ret;
-	u8 val;
 
 	switch (code) {
 	case V4L2_MBUS_FMT_UYVY8_2X8:
