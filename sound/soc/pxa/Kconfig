@@ -239,6 +239,28 @@ config SND_PXA910_SOC_TTC_DKB
 
 endmenu
 
+menu "SoC Audio for the Marvell PXA988"
+config SND_PXA988_SOC
+	tristate "SoC Audio for the Marvell PXA988 chip"
+	depends on ARCH_MMP && SND
+	select SND_PCM
+	help
+	  Say Y or M if you want to add support for codecs attached to
+	  the PXA3xx AC97, I2S or SSP interface.
+	  You will also need to select the audio interfaces to
+	  support below.
+
+config SND_SOC_EMEI_DKB
+	bool "SoC Audio support for EMEI DKB"
+	depends on SND_PXA988_SOC && MACH_EMEIDKB && MFD_88PM80X
+	select PXA_SSP
+	select SND_PXA_SOC_SSP
+	select SND_SOC_88PM805
+	help
+	  Say Y if you want to add support for SoC audio on EMEI DKB
+
+endmenu
+
 choice
 	prompt "Soc Audio for Marvell MMP"
 	depends on ARCH_MMP && SND
