@@ -35,7 +35,6 @@ config SWITCH_HEADSET_HOST_GPIO
 config SWITCH_WM8994_HEADSET
 	tristate "Headset Swith support"
 	depends on GENERIC_GPIO
-	depends on SWITCH_HEADSET_HOST_GPIO
 	  help
 	  Say Y here to enable wm8994 headset switch support.
 
