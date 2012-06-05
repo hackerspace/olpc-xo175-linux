@@ -169,6 +169,16 @@ void pxa988_clear_keypad_wakeup(void)
 	__raw_writel(val | mask, APMU_WAKE_CLR);
 }
 
+struct platform_device pxa988_device_asoc_ssp1 = {
+	.name		= "pxa-ssp-dai",
+	.id		= 1,
+};
+
+struct platform_device pxa988_device_asoc_squ = {
+	.name		= "pxa910-squ-audio",
+	.id		= -1,
+};
+
 static int __init pxa988_init(void)
 {
 	pxa988_l2_cache_init();
@@ -178,6 +188,9 @@ static int __init pxa988_init(void)
 
 	/* would remove such pxa910 interface when kernel upgrade */
 	pxa910_init_squ(2);
+	/* add ssp and squ device for hifi audio */
+	platform_device_register(&pxa988_device_asoc_ssp1);
+	platform_device_register(&pxa988_device_asoc_squ);
 
 	return 0;
 }
