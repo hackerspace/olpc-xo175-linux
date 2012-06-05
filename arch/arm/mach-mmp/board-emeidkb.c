@@ -21,6 +21,8 @@
 #include <linux/backlight.h>
 #include <linux/i2c.h>
 #include <linux/i2c/pxa-i2c.h>
+#include <linux/mfd/88pm80x.h>
+#include <linux/regulator/machine.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -30,12 +32,14 @@
 #include <mach/pxa988.h>
 #include <mach/irqs.h>
 #include <mach/regs-mpmu.h>
+#include <mach/regs-rtc.h>
 #include <plat/pmem.h>
 #include <plat/pxa27x_keypad.h>
 
 #include "common.h"
 
 #define EMEI_NR_IRQS		(IRQ_BOARD_START + 24)
+#define PM8XXX_REGULATOR_MAX PM800_ID_RG_MAX
 
 static unsigned long emeidkb_pin_config[] __initdata = {
 	GPIO000_KP_MKIN0,	/* KP_MKIN[0] */
@@ -313,6 +317,211 @@ static struct platform_device emei_dkb_lcd_backlight_devices = {
 	},
 };
 
+static struct regulator_consumer_supply regulator_supply[PM8XXX_REGULATOR_MAX];
+static struct regulator_init_data regulator_data[PM8XXX_REGULATOR_MAX];
+
+static int PM800_ID_regulator_index[] = {
+	PM800_ID_BUCK1,
+	PM800_ID_BUCK2,
+	PM800_ID_BUCK3,
+	PM800_ID_BUCK4,
+	PM800_ID_BUCK5,
+	PM800_ID_LDO1,
+	PM800_ID_LDO2,
+	PM800_ID_LDO3,
+	PM800_ID_LDO4,
+	PM800_ID_LDO5,
+	PM800_ID_LDO6,
+	PM800_ID_LDO7,
+	PM800_ID_LDO8,
+	PM800_ID_LDO9,
+	PM800_ID_LDO10,
+	PM800_ID_LDO11,
+	PM800_ID_LDO12,
+	PM800_ID_LDO13,
+	PM800_ID_LDO14,
+	PM800_ID_LDO15,
+	PM800_ID_LDO16,
+	PM800_ID_LDO17,
+	PM800_ID_LDO18,
+	PM800_ID_LDO19,
+};
+
+#define REG_SUPPLY_INIT(_id, _name, _dev_name)		\
+{							\
+	int _i = _id;				\
+	regulator_supply[_i].supply		= _name;		\
+	regulator_supply[_i].dev_name	= _dev_name;	\
+}
+
+/* notes: apply_uV which means proper voltage value (latest set value or min)
+* would be applied first time when enabled. So it would be set 1 if min voltage
+* == max voltage*/
+#define REG_INIT(_id, _chip, _name, _min, _max, _always, _boot)	\
+{									\
+	int _i = _id;				\
+	regulator_data[_i].constraints.name	= __stringify(_name);	\
+	regulator_data[_i].constraints.min_uV	= _min;	\
+	regulator_data[_i].constraints.max_uV	= _max;	\
+	regulator_data[_i].constraints.always_on	= _always;	\
+	regulator_data[_i].constraints.boot_on	= _boot;	\
+	regulator_data[_i].constraints.valid_ops_mask	=	\
+		REGULATOR_CHANGE_VOLTAGE | REGULATOR_CHANGE_STATUS;	\
+	regulator_data[_i].num_consumer_supplies	= 1;	\
+	regulator_data[_i].consumer_supplies	=	\
+		&regulator_supply[_chip##_##_name];	\
+	regulator_data[_i].driver_data	=	\
+		&_chip##_regulator_index[_chip##_##_name];	\
+	regulator_data[_i].constraints.apply_uV = (_min == _max);	\
+}
+
+static struct pm80x_headset_pdata pm80x_headset = {
+	/*FIXME: need to be added */
+};
+
+#ifdef CONFIG_RTC_DRV_MMP
+static int sync_time_to_soc(unsigned int ticks)
+{
+	RCNR = ticks;
+	return 0;
+}
+#endif
+
+static struct pm80x_rtc_pdata pm80x_rtc = {
+	/* FIXME: NOT verified */
+	.vrtc           = 1,
+#ifdef CONFIG_RTC_DRV_MMP
+	.sync		= sync_time_to_soc,
+#endif
+
+};
+
+static struct pm80x_dvc_pdata pm80x_dvc = {
+	/*FIXME: need to be added */
+};
+
+static int pm800_plat_config(struct pm80x_chip *chip,
+				struct pm80x_platform_data *pdata)
+{
+	if (!chip || !pdata || chip->id != CHIP_PM800 || !chip->base_page) {
+		pr_err("%s:chip or pdata is not availiable!\n", __func__);
+		return -EINVAL;
+	}
+	/* Initializain actions to enable 88pm805 */
+	/* Clear WDT */
+	/* TODO: 0x1d cannot found on 88pm812 datasheet, wdt disabled needed */
+	pm80x_reg_write(chip->base_page, 0x1D, 0x00);
+	/* resetoutn */
+	/* TODO: RESET_OUT_DELAY depends on the PLATFORM_MODE */
+	pm80x_reg_write(chip->base_page, 0xE1, 0xB0);
+	/* Enable 32Khz-out-1, 2, 3 */
+	pm80x_reg_write(chip->base_page, 0xE2, 0x2a);
+	/* Set XO CAP to 22pF to avoid speaker noise */
+	pm80x_reg_write(chip->base_page, 0xE8, 0x70);
+
+	/* TODO: power on the component related DVC1,2 */
+
+	return 0;
+}
+
+static struct pm80x_platform_data pm800_info = {
+	.headset                = &pm80x_headset,
+	.regulator		= regulator_data,
+	.rtc			= &pm80x_rtc,
+	.dvc			= &pm80x_dvc,
+	.companion_addr		= 0x38,		/* AUDIO */
+	.base_page_addr		= 0x30,
+	.power_page_addr	= 0x31,
+	.gpadc_page_addr	= 0x32,
+	/* .test_page_addr	= 0x37, */
+	.irq_mode		= 0,
+	.irq_base		= IRQ_BOARD_START,
+	/*PM805 has it's own interrupt line (GPIO124)*/
+	.irq_companion		= gpio_to_irq(124),
+	/* FIXME: need to be update */
+	.i2c_port		= PI2C_PORT,
+	.pm800_plat_config	= pm800_plat_config,
+};
+
+static void regulator_init_pm800(void)
+{
+	int i = 0;
+	REG_SUPPLY_INIT(PM800_ID_BUCK1, "vcc_main", NULL);
+	REG_INIT(i++, PM800_ID, BUCK1, 600000, 3950000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_BUCK2, "v_buck2", NULL);
+	REG_INIT(i++, PM800_ID, BUCK2, 600000, 3950000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_BUCK3, "v_buck3", NULL);
+	REG_INIT(i++, PM800_ID, BUCK3, 600000, 3950000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_BUCK4, "v_rf_vdd", NULL);
+	REG_INIT(i++, PM800_ID, BUCK4, 600000, 3950000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_BUCK5, "v_rf_pa", NULL);
+	REG_INIT(i++, PM800_ID, BUCK5, 600000, 3950000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_LDO1, "v_gps_1v1", NULL);
+	REG_INIT(i++, PM800_ID, LDO1, 600000, 1500000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_LDO2, "v_micbias", NULL);
+	REG_INIT(i++, PM800_ID, LDO2, 1700000, 2800000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_LDO3, "v_ramp", NULL);
+	REG_INIT(i++, PM800_ID, LDO3, 1200000, 3300000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_LDO4, "v_usim1", NULL);
+	REG_INIT(i++, PM800_ID, LDO4, 1200000, 3300000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_LDO5, "v_ldo5", NULL);
+	REG_INIT(i++, PM800_ID, LDO5, 1200000, 3300000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_LDO6, "v_wib_3v3", NULL);
+	REG_INIT(i++, PM800_ID, LDO6, 1200000, 3300000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_LDO7, "v_vctcxo", NULL);
+	REG_INIT(i++, PM800_ID, LDO7, 1200000, 3300000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_LDO8, "v_ldo8", NULL);
+	REG_INIT(i++, PM800_ID, LDO8, 1200000, 3300000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_LDO9, "v_wib_1v8", NULL);
+	REG_INIT(i++, PM800_ID, LDO9, 1200000, 3300000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_LDO10, "v_usim2", NULL);
+	REG_INIT(i++, PM800_ID, LDO10, 1200000, 3300000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_LDO11, "v_sensor", NULL);
+	REG_INIT(i++, PM800_ID, LDO11, 1200000, 3300000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_LDO12, "v_io_mmc1", NULL);
+	REG_INIT(i++, PM800_ID, LDO12, 1200000, 3300000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_LDO13, "v_sd", NULL);
+	REG_INIT(i++, PM800_ID, LDO13, 1200000, 3300000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_LDO14, "v_emmc", "sdhci-pxa.1");
+	REG_INIT(i++, PM800_ID, LDO14, 1200000, 3300000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_LDO15, "v_ldo15", NULL);
+	REG_INIT(i++, PM800_ID, LDO15, 1200000, 3300000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_LDO16, "v_cam_avdd", NULL);
+	REG_INIT(i++, PM800_ID, LDO16, 1200000, 3300000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_LDO17, "v_cam_af", NULL);
+	REG_INIT(i++, PM800_ID, LDO17, 1200000, 3300000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_LDO18, "v_ldo18", NULL);
+	REG_INIT(i++, PM800_ID, LDO18, 1700000, 3300000, 0, 0);
+
+	REG_SUPPLY_INIT(PM800_ID_LDO19, "v_gps_3v", NULL);
+	REG_INIT(i++, PM800_ID, LDO19, 1700000, 3300000, 0, 0);
+
+	pr_info("%s: select emeidkb ldo map\n", __func__);
+	pm800_info.num_regulators = i;
+}
+
 static struct i2c_board_info emeidkb_i2c_info[] = {
 
 };
@@ -321,7 +530,7 @@ static struct i2c_board_info emeidkb_pwr_i2c_info[] = {
 	{
 		.type		= "88PM80x",
 		.addr		= 0x34,
-		.platform_data	= NULL,
+		.platform_data	= &pm800_info,
 		.irq		= IRQ_PXA988_PMIC,
 	},
 
@@ -349,6 +558,7 @@ static void __init emeidkb_init(void)
 	pxa_add_pmem();
 #endif
 	pxa988_add_keypad(&emei_dkb_keypad_info);
+	regulator_init_pm800();
 
 	/* FIXME: add i2c_pxa_platform_data */
 	pxa988_add_twsi(0, NULL, ARRAY_AND_SIZE(emeidkb_i2c_info));
