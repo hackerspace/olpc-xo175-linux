@@ -13,6 +13,7 @@ extern void __init pxa988_reserve(void);
 #include <mach/devices.h>
 #include <mach/cputype.h>
 #include <mach/regs-apbc.h>
+#include <mach/sram.h>
 #include <plat/pxa27x_keypad.h>
 
 extern struct pxa_device_desc pxa988_device_uart1;
@@ -22,6 +23,8 @@ extern struct pxa_device_desc pxa988_device_keypad;
 extern struct pxa_device_desc pxa988_device_twsi0;
 extern struct pxa_device_desc pxa988_device_twsi1;
 extern struct pxa_device_desc pxa988_device_twsi2;
+extern struct pxa_device_desc pxa988_device_asram;
+extern struct pxa_device_desc pxa988_device_vsram;
 
 extern void pxa988_clear_keypad_wakeup(void);
 
@@ -77,6 +80,16 @@ static inline int pxa988_add_twsi(int id, struct i2c_pxa_platform_data *data,
 		return ret;
 
 	return pxa_register_device(d, data, sizeof(*data));
+}
+
+static inline int pxa988_add_asram(struct sram_bank *data)
+{
+	return pxa_register_device(&pxa988_device_asram, data, sizeof(*data));
+}
+
+static inline int pxa988_add_vsram(struct sram_bank *data)
+{
+	return pxa_register_device(&pxa988_device_vsram, data, sizeof(*data));
 }
 
 #endif /* __ASM_CPU_PXA988_H */

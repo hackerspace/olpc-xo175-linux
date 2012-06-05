@@ -188,6 +188,8 @@ PXA988_DEVICE(keypad, "pxa27x-keypad", -1, KEYPAD, 0xd4012000, 0x4c);
 PXA988_DEVICE(twsi0, "pxa910-i2c", 0, I2C_AP,   0xd4011000, 0x40);
 PXA988_DEVICE(twsi1, "pxa910-i2c", 1, I2C_INT,  0xd4037000, 0x40);
 PXA988_DEVICE(twsi2, "pxa910-i2c", 2, I2C_CP,   0xd4010800, 0x40);
+PXA988_DEVICE(asram, "mmp-sram", 0, NONE, SRAM_AUDIO_BASE, SRAM_AUDIO_SIZE);
+PXA988_DEVICE(vsram, "mmp-sram", 1, NONE, SRAM_VIDEO_BASE, SRAM_VIDEO_SIZE);
 
 /* TODO Fake implementation for bring up */
 void handle_coherency_maint_req(void *p) {};
