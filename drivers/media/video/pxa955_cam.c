@@ -7,7 +7,8 @@
 * Based on linux/drivers/media/video/pxa_camera.c
 *
 * Copyright (C) 2010, Marvell International Ltd.
-*              Qing Xu <qingx@marvell.com>
+*		Qing Xu <qingx@marvell.com>
+*		Jiaquan Su <jqsu@marvell.com>
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -37,7 +38,7 @@
 
 #include <media/v4l2-common.h>
 #include <media/v4l2-dev.h>
-#include <media/videobuf-dma-contig.h>
+#include <media/videobuf2-dma-contig.h>
 #include <media/soc_camera.h>
 #include <media/soc_mediabus.h>
 #include <media/v4l2-chip-ident.h>
@@ -239,7 +240,6 @@ static const int yuv_output_sequence[][3] = {
 
 static int dvfm_dev_idx;
 
-static unsigned int vid_mem_limit = 128;	/* Video memory limit, in Mb */
 static unsigned int skip_frame;
 
 typedef enum {
@@ -248,6 +248,13 @@ typedef enum {
 	CAM_PCLK_208,
 	CAM_PCLK_78,
 } CAM_PCLK_t;
+
+enum cam_state {
+	CAM_STATE_UNKNOW	= 0,
+	CAM_STATE_INIT,
+	CAM_STATE_FORMATED,
+	CAM_STATE_STREAMING,
+};
 
 /* descriptor needed for the camera controller DMA engine */
 struct pxa_cam_dma {
@@ -259,9 +266,9 @@ struct pxa_cam_dma {
 
 struct pxa_buf_node {
 	/* common v4l buffer stuff -- must be first */
-	struct videobuf_buffer vb;
+	struct vb2_buffer vb2;
+	struct list_head hook;	/* hook is mounted on dma_chain */
 	enum v4l2_mbus_pixelcode	code;
-	struct page *page;
 	struct pxa_cam_dma dma_desc[CHANNEL_NUM];
 };
 
@@ -270,29 +277,36 @@ struct pxa955_cam_dev {
 	struct soc_camera_device *icd;
 	struct list_head dev_list;	/* link to other devices */
 
-	struct clk *sci1_clk;
-	struct clk *sci2_clk;
-	struct pxa95x_csi_dev *csidev;
-
+	/* SCI H/W facility */
 	unsigned int		irq;
 	void __iomem		*regs;
-	wait_queue_head_t iowait;	/* waiting on frame data */
-	bool streamon;
-	bool streamoff;
+	struct clk *sci1_clk;
+	struct clk *sci2_clk;
 
 	struct resource		*res;
 	unsigned long		platform_flags;
+	enum cam_state		state;
 
-	/* DMA buffers */
-	struct list_head dma_buf_list;	/*dma buffer list, the list member is buf_node*/
-	unsigned int dma_buf_size;		/* allocated size */
+	/* Associated CSI */
+	struct pxa95x_csi_dev *csidev;
+
+	/* DMA related */
+	/* the chain for buffers that is actually been looped on by HW DMA */
+	struct list_head dma_chain;
+	unsigned int dma_bufs;
+	/* the chain for buffers that will be added to DMA chain at next IRQ */
+	struct list_head new_chain;
+	unsigned int new_bufs;
+	/* the spin lock to protect dma_chain and new_chain*/
+	spinlock_t spin_lock;
+
 	unsigned int channels;
 	unsigned int channel_size[CHANNEL_NUM];
 	unsigned int sci_pixfmt;
 
-	/* streaming buffers */
-	spinlock_t spin_lock;  /* Access to device */
-	struct videobuf_queue *videoq;
+	/* vb2 facility */
+	struct vb2_queue *vq;
+	struct vb2_alloc_ctx *alloc_ctx;
 
 #ifdef _CONTROLLER_DEADLOOP_RESET_
 	/* A timer to detect controller error, on which controller will be reset */
@@ -302,15 +316,6 @@ struct pxa955_cam_dev {
 	 * it is being killed, don't modify it. otherwise, it'll restart again*/
 	int killing_reset_timer;
 #endif
-};
-
-/* refer to videobuf-dma-contig.c*/
-struct videobuf_dma_contig_memory {
-	u32 magic;
-	void *vaddr;
-	dma_addr_t dma_handle;
-	unsigned long size;
-	int is_userptr;
 };
 
 #define MAGIC_DC_MEM 0x0733ac61
@@ -635,19 +640,16 @@ static void __attribute__((unused)) dma_dump_desc(struct pxa955_cam_dev *pcdev)
 {
 	struct pxa_buf_node *buf_node;
 	int i, k;
-#if 1
-	char VB_STATE[VIDEOBUF_IDLE+1][16] = {
-		[VIDEOBUF_NEEDS_INIT]	= "NEEDS_INIT",
-		[VIDEOBUF_PREPARED]	= "PREPARED",
-		[VIDEOBUF_QUEUED]	= "QUEUED",
-		[VIDEOBUF_ACTIVE]	= "ACTIVE",
-		[VIDEOBUF_DONE]		= "DONE",
-		[VIDEOBUF_ERROR]	= "ERROR",
-		[VIDEOBUF_IDLE]		= "IDLE",
+	char VB_STATE[VB2_BUF_STATE_ERROR+1][16] = {
+		[VB2_BUF_STATE_DEQUEUED]	= "VB2_OUT",
+		[VB2_BUF_STATE_QUEUED]		= "VB2_VBQ",
+		[VB2_BUF_STATE_ACTIVE]		= "VB2_ACT",
+		[VB2_BUF_STATE_DONE]		= "VB2_DONE",
+		[VB2_BUF_STATE_ERROR]		= "VB2_ERROR",
 	};
 
-	printk(KERN_ERR "********** cam: brief sg list dump **********\n");
-	list_for_each_entry(buf_node, &pcdev->dma_buf_list, vb.queue) {
+	printk(KERN_ERR "********** cam: brief dma list dump **********\n");
+	list_for_each_entry(buf_node, &pcdev->dma_chain, hook) {
 		printk(KERN_ERR "buf:%08X, sg|%08X->DDADR|%08X, "\
 				"DTADR[%08X-%08X] <%s>",\
 			(__u32)buf_node, (__u32)buf_node->dma_desc[0].sg_dma,\
@@ -655,7 +657,24 @@ static void __attribute__((unused)) dma_dump_desc(struct pxa955_cam_dev *pcdev)
 			(__u32)buf_node->dma_desc[0].sg_cpu[0].dtadr,\
 			(__u32)buf_node->dma_desc[0].sg_cpu[0].dtadr + \
 			buf_node->dma_desc[0].sg_cpu[0].dcmd,\
-			VB_STATE[buf_node->vb.state]);
+			VB_STATE[buf_node->vb2.state]);
+		i = sci_reg_read(pcdev, REG_SCITADDR0);
+		k = buf_node->dma_desc[0].sg_cpu[0].dtadr;
+		if ((i >= k) && (i < k+pcdev->channel_size[0]))
+			printk(" *\n");
+		else
+			printk("\n");
+	}
+	printk(KERN_ERR "********** cam: brief new list dump **********\n");
+	list_for_each_entry(buf_node, &pcdev->new_chain, hook) {
+		printk(KERN_ERR "buf:%08X, sg|%08X->DDADR|%08X, "\
+				"DTADR[%08X-%08X] <%s>",\
+			(__u32)buf_node, (__u32)buf_node->dma_desc[0].sg_dma,\
+			(__u32)buf_node->dma_desc[0].sg_cpu[0].ddadr,
+			(__u32)buf_node->dma_desc[0].sg_cpu[0].dtadr,\
+			(__u32)buf_node->dma_desc[0].sg_cpu[0].dtadr + \
+			buf_node->dma_desc[0].sg_cpu[0].dcmd,\
+			VB_STATE[buf_node->vb2.state]);
 		i = sci_reg_read(pcdev, REG_SCITADDR0);
 		k = buf_node->dma_desc[0].sg_cpu[0].dtadr;
 		if ((i>=k) && (i<k+pcdev->channel_size[0]))
@@ -664,43 +683,6 @@ static void __attribute__((unused)) dma_dump_desc(struct pxa955_cam_dev *pcdev)
 			printk("\n");
 	}
 	printk(KERN_ERR "*********************************************\n\n");
-
-#else
-	printk(KERN_ERR "cam: dump_dma_desc ************+\n");
-	printk(KERN_ERR "dma_buf_list head 0x%x\n", \
-		(unsigned int)&pcdev->dma_buf_list);
-	list_for_each_entry(buf_node, &pcdev->dma_buf_list, vb.queue) {
-		printk(KERN_ERR "cam: buf_node 0x%08X\n", \
-				(unsigned int)buf_node);
-
-		for (i = 0; i < pcdev->channels; i++) {
-			printk(KERN_ERR "|   <channel%d: %d bytes>\n"\
-					"|   |   %d desctr (%dbytes)\n"\
-					"|   |   VA:0x%08X PA:0x%08X\n",\
-					i, pcdev->channel_size[i],\
-					buf_node->dma_desc[i].sglen,\
-					buf_node->dma_desc[i].sg_size,\
-					(__u32)buf_node->dma_desc[i].sg_cpu,\
-					buf_node->dma_desc[i].sg_dma);
-			for (k = 0; k < buf_node->dma_desc[i].sglen; k++) {
-				printk(KERN_ERR \
-					"|   |             *\n"
-					"|   |   --------------------\n"\
-					"|   |    DDADR | 0x%08X\n"\
-					"|   |    DSADR | 0x%08X\n"\
-					"|   |    DTADR | 0x%08X\n"\
-					"|   |    DCMD  | 0x%08X\n"\
-					"|   |   --------------------\n"\
-					"|   |             *\n",\
-					buf_node->dma_desc[i].sg_cpu[k].ddadr,\
-					buf_node->dma_desc[i].sg_cpu[k].dsadr,\
-					buf_node->dma_desc[i].sg_cpu[k].dtadr,\
-					buf_node->dma_desc[i].sg_cpu[k].dcmd);
-			}
-		}
-	}
-	printk(KERN_ERR "cam: dump_dma_desc ************-\n\n");
-#endif
 }
 
 static void __attribute__((unused)) dma_dump_buf_list(struct pxa955_cam_dev *pcdev)
@@ -708,46 +690,13 @@ static void __attribute__((unused)) dma_dump_buf_list(struct pxa955_cam_dev *pcd
 	struct pxa_buf_node *buf_node;
 	dma_addr_t dma_handles;
 
-	printk(KERN_ERR "cam: dump_dma_buf_list ************+\n");
-	list_for_each_entry(buf_node, &pcdev->dma_buf_list, vb.queue) {
-		dma_handles = videobuf_to_dma_contig(&buf_node->vb);
+	printk(KERN_ERR "cam: dump_dma_chain ************+\n");
+	list_for_each_entry(buf_node, &pcdev->dma_chain, hook) {
+		dma_handles = vb2_dma_contig_plane_paddr(&buf_node->vb2, 0);
 		printk(KERN_ERR "cam: buf_node 0x%08X, pa 0x%08X\n",
 			(unsigned int)buf_node, dma_handles);
 	}
-	printk(KERN_ERR "cam: dump_dma_buf_list ************-\n\n");
-}
-
-/* only handle in irq context*/
-static void dma_fetch_frame(struct pxa955_cam_dev *pcdev)
-{
-	struct pxa_buf_node *buf_node = NULL;
-	int node_num = 0;
-	dma_addr_t dma_handles;
-
-	list_for_each_entry(buf_node, &pcdev->dma_buf_list, vb.queue) {
-		if (buf_node->vb.state == VIDEOBUF_QUEUED)
-			node_num++;
-	}
-	if (node_num > 1) {
-		/*
-		* get the first node of dma_list, it must have been filled by dma, and
-		* remove it from dma-buf-list.
-		*/
-		buf_node = list_entry(pcdev->dma_buf_list.next,
-			struct pxa_buf_node, vb.queue);
-		dma_handles = videobuf_to_dma_contig(&buf_node->vb);
-		dma_unmap_page(pcdev->soc_host.v4l2_dev.dev,
-				dma_handles,
-				pcdev->channel_size[0],
-				DMA_FROM_DEVICE);
-		buf_node->vb.state = VIDEOBUF_DONE;
-		wake_up(&buf_node->vb.done);
-		list_del_init(&buf_node->vb.queue);
-	} else {
-		/*if there is only one left in dma_list, drop it!*/
-		printk(KERN_DEBUG "cam: drop a frame!\n");
-	}
-
+	printk(KERN_ERR "cam: dump_dma_chain ************-\n\n");
 }
 
 static void dma_append_desc(struct pxa955_cam_dev *pcdev,
@@ -766,64 +715,103 @@ static void dma_append_desc(struct pxa955_cam_dev *pcdev,
 		next_dma->sg_dma, pre_dma->sg_dma);
 }
 
-static void dma_attach_bufs(struct pxa955_cam_dev *pcdev)
+/* only handle in irq context*/
+static void dma_fetch_frame(struct pxa955_cam_dev *pcdev)
 {
 	struct pxa_buf_node *buf_node = NULL;
-	struct pxa_buf_node *tail_node = NULL;
-	unsigned int regval;
-	bool dma_branched = false;
+	dma_addr_t dma_handles;
 
-	list_for_each_entry(buf_node, &pcdev->dma_buf_list, vb.queue) {
+	spin_lock(&pcdev->spin_lock);
 
-		if (buf_node->vb.state == VIDEOBUF_QUEUED)
-			continue;
-
+	if (pcdev->dma_bufs > 1) {
 		/*
-		* we got a new en-queue buf which is not in HW dma chain, append it to
-		* the tail of HW dma chain, and loop the tail to itself.
+		* get the first node of dma_list, it must have been filled by dma, and
+		* remove it from dma-buf-list.
 		*/
-		if (buf_node->vb.state == VIDEOBUF_ACTIVE) {
-			tail_node = list_entry(buf_node->vb.queue.prev,
-						struct pxa_buf_node, vb.queue);
-			/*
-			* NOTE!!! only one desc for one frame buffer, if not in this way,
-			* need change here, as phy addr might not located between the
-			* begin and end, phy addr might not continuous between different
-			* desc of one frame buffer.
-			*/
-			regval = sci_reg_read(pcdev, REG_SCITADDR0);
-			if (((regval >= videobuf_to_dma_contig(&tail_node->vb))
-			&& (regval < (videobuf_to_dma_contig(&tail_node->vb)
-			+ pcdev->channel_size[0])))
-			&& (dma_branched == false)) {
-				/*
-				* if we find DMA is looping in the last buf, and there is new
-				* coming buf, (DMA target address shows that DMA is working in
-				* the tail buffer) we SHOULD set DMA branch reg, force DMA move
-				* to the new buf descriptor in the next frame, so we can pick up
-				* this buf when next irq comes.
-				*/
-				dma_branched = true;
-				sci_reg_write(pcdev, REG_SCIDBR0, \
-				(buf_node->dma_desc[0].sg_dma | SCIDBR_EN));
-				if (pcdev->channels == 3) {
-					sci_reg_write(pcdev, REG_SCIDBR1, \
-				(buf_node->dma_desc[1].sg_dma | SCIDBR_EN));
-					sci_reg_write(pcdev, REG_SCIDBR2, \
-				(buf_node->dma_desc[2].sg_dma | SCIDBR_EN));
-				}
-			} else {
-				/*
-				* if it is not the last buf which DMA looping in, just append
-				* desc to the tail of the DMA chain.
-				*/
-				dma_append_desc(pcdev, tail_node, buf_node);
-			}
-			dma_append_desc(pcdev, buf_node, buf_node);
-			buf_node->vb.state = VIDEOBUF_QUEUED;
-		}
+		buf_node = list_entry(pcdev->dma_chain.next,
+						struct pxa_buf_node, hook);
+		/* detach from HW list */
+		dma_append_desc(pcdev, buf_node, buf_node);
+		pcdev->dma_bufs--;
+		list_del_init(&buf_node->hook);
+		spin_unlock(&pcdev->spin_lock);
+		dma_handles = vb2_dma_contig_plane_paddr(&buf_node->vb2, 0);
+		dma_unmap_page(pcdev->soc_host.v4l2_dev.dev,
+				dma_handles,
+				vb2_get_plane_payload(&buf_node->vb2, 0),
+				DMA_FROM_DEVICE);
+		vb2_buffer_done(&buf_node->vb2, VB2_BUF_STATE_DONE);
+	} else {
+		spin_unlock(&pcdev->spin_lock);
+		/*if there is only one left in dma_list, drop it!*/
+		printk(KERN_DEBUG "cam: drop a frame!\n");
+	}
+}
+
+/* move all entry on list B to the tail of list A */
+static inline void list_merge(struct list_head *a, struct list_head *b)
+{
+	if (!a || !b || list_empty(b))
+		return;
+	a->prev->next = b->next;
+	b->next->prev = a->prev;
+	b->prev->next = a;
+	a->prev = b->prev;
+	INIT_LIST_HEAD(b);
+}
+
+static void dma_attach_bufs(struct pxa955_cam_dev *pcdev)
+{
+	struct pxa_buf_node *dma_tail, *buf_node;
+	unsigned int regval;
+
+	spin_lock(&pcdev->spin_lock);
+
+	buf_node = list_entry(pcdev->new_chain.next, struct pxa_buf_node, hook);
+	dma_tail = list_entry(pcdev->dma_chain.prev,
+						struct pxa_buf_node, hook);
+	if (list_empty(&pcdev->new_chain)) {
+		/* If no new buffer to add, right time to get out */
+		spin_unlock(&pcdev->spin_lock);
+		return;
 	}
 
+	list_merge(&pcdev->dma_chain, &pcdev->new_chain);
+	pcdev->dma_bufs += pcdev->new_bufs;
+	pcdev->new_bufs = 0;
+	dma_append_desc(pcdev, dma_tail, buf_node);
+	spin_unlock(&pcdev->spin_lock);
+
+	/* DDADR is prefetched upon loading the containing descriptor, so the
+	 * new buffer will not be run over until another IRQ triggers loading
+	 * the DDADR again. So if expect the new buffer be DMAed on ASAP, DMA
+	 * branch is necessary */
+	/*
+	* NOTE!!! only one desc for one frame buffer, if not in this way,
+	* need change here, as phy addr might not located between the
+	* begin and end, phy addr might not continuous between different
+	* desc of one frame buffer.
+	*/
+	regval = sci_reg_read(pcdev, REG_SCITADDR0);
+	if (((regval >= vb2_dma_contig_plane_paddr(&dma_tail->vb2, 0))
+		&& (regval < (vb2_dma_contig_plane_paddr(&dma_tail->vb2, 0)
+		+ pcdev->channel_size[0])))) {
+		/*
+		* if we find DMA is looping in the last buf, and there is new
+		* coming buf, (DMA target address shows that DMA is working in
+		* the tail buffer) we SHOULD set DMA branch reg, force DMA move
+		* to the new buf descriptor in the next frame, so we can pick up
+		* this buf when next irq comes.
+		*/
+		sci_reg_write(pcdev, REG_SCIDBR0, \
+				(buf_node->dma_desc[0].sg_dma | SCIDBR_EN));
+		if (pcdev->channels == 3) {
+			sci_reg_write(pcdev, REG_SCIDBR1, \
+				(buf_node->dma_desc[1].sg_dma | SCIDBR_EN));
+			sci_reg_write(pcdev, REG_SCIDBR2, \
+				(buf_node->dma_desc[2].sg_dma | SCIDBR_EN));
+		}
+	}
 }
 
 static int dma_alloc_desc(struct pxa_buf_node *buf_node,
@@ -835,14 +823,14 @@ static int dma_alloc_desc(struct pxa_buf_node *buf_node,
 	unsigned long dma_desc_phy_tmp;
 	unsigned long srcphyaddr, dstphyaddr;
 	struct pxa_cam_dma *desc;
-	struct videobuf_buffer *vb = &buf_node->vb;
 	struct device *dev = pcdev->soc_host.v4l2_dev.dev;
 	srcphyaddr = 0;	/* TBD */
 
-	dstphyaddr = videobuf_to_dma_contig(vb);
+	dstphyaddr = vb2_dma_contig_plane_paddr(&buf_node->vb2, 0);
 
 	for (i = 0; i < pcdev->channels; i++) {
-		printk(KERN_DEBUG "cam: index %d, channels %d\n", vb->i, i);
+		printk(KERN_DEBUG "cam: index %d, channels %d\n", \
+					buf_node->vb2.v4l2_buf.index, i);
 		desc = &buf_node->dma_desc[yuv_output_sequence[pcdev->sci_pixfmt][i]];
 		len = pcdev->channel_size[yuv_output_sequence[pcdev->sci_pixfmt][i]];
 
@@ -921,93 +909,45 @@ static void dma_free_desc(struct pxa_buf_node *buf_node,
 static void dma_free_bufs(struct pxa_buf_node *buf,
 				struct pxa955_cam_dev *pcdev)
 {
-	struct videobuf_buffer *vb = &buf->vb;
-	struct videobuf_dma_contig_memory *mem = vb->priv;
-
-	/*
-	* TODO:
-	* This waits until this buffer is out of danger, i.e., until it is no
-	* longer in STATE_QUEUED or STATE_ACTIVE
-	*/
-	/*videobuf_waiton(vb, 0, 0);*/
-
 	dma_free_desc(buf, pcdev);
-
-	/*
-	* TODO: as user will call stream-off when he hasn't en-queue all
-	* request-buffers, if directlty call videobuf_dma_contig_free here,
-	* it will release non-initizlized buffers, it causes kernel panic. So,
-	* we implement our own free operation as follow to avoid kernel panic.
-	* (refer to videobuf-dma-contig.c)
-	*/
-	/*videobuf_dma_contig_free(vq, &buf->vb);*/
-
-	/*
-	* mmapped memory can't be freed here, otherwise mmapped region
-	* would be released, while still needed. In this case, the memory
-	* release should happen inside videobuf_vm_close().
-	* So, it should free memory only if the memory were allocated for
-	* read() operation.
-	*/
-	if (vb->memory != V4L2_MEMORY_USERPTR)
-		return;
-
-	if (!mem)
-		return;
-
-	MAGIC_CHECK(mem->magic, MAGIC_DC_MEM);
-
-	/* handle user space pointer case */
-	if (vb->baddr) {
-		/*videobuf_dma_contig_user_put(mem);*/
-		mem->is_userptr = 0;
-		mem->dma_handle = 0;
-		mem->size = 0;
-	}
-
-	buf->vb.state = VIDEOBUF_NEEDS_INIT;
 }
 
-static void dma_chain_init(struct pxa955_cam_dev *pcdev)
+static int dma_chain_init(struct pxa955_cam_dev *pcdev)
 {
-	int i = 0;
-	struct pxa_cam_dma *dma_cur = NULL, *dma_pre = NULL;
-	struct pxa_buf_node *buf_cur = NULL, *buf_pre = NULL;
-	struct pxa_buf_node *buf_node;
+	int i, ret = 0;
+	struct pxa_cam_dma *desc;
+	struct pxa_buf_node *buf_node, *dma_tail = NULL;
 
-	/*chain the buffers in the dma_buf_list list*/
-	list_for_each_entry(buf_node, &pcdev->dma_buf_list, vb.queue) {
-		if (buf_node->vb.state == VIDEOBUF_ACTIVE) {
-			buf_cur = buf_node;
-
-			/*head of the dma_buf_list, this is the first dma desc*/
-			if (buf_node->vb.queue.prev == &pcdev->dma_buf_list) {
-				for (i = 0; i < pcdev->channels; i++) {
-					dma_cur = &buf_cur->dma_desc[i];
-					if (buf_pre)
-						dma_pre = &buf_pre->dma_desc[i];
-					sci_reg_write(pcdev, REG_SCIDADDR0 + \
-						i*0x10, dma_cur->sg_dma);
-				}
-				if (skip_frame) {
-					buf_cur->vb.state = VIDEOBUF_QUEUED;
-					dma_append_desc(pcdev, buf_cur, buf_cur);
-					break;
-				}
-			} else {
-				/* link to prev descriptor */
-				dma_append_desc(pcdev, buf_pre, buf_cur);
-			}
-
-			/* find the tail, loop back to the tail itself */
-			if (&pcdev->dma_buf_list == buf_node->vb.queue.next) {
-				dma_append_desc(pcdev, buf_cur, buf_cur);
-			}
-			buf_pre = buf_cur;
-			buf_node->vb.state = VIDEOBUF_QUEUED;
-		}
+	spin_lock(&pcdev->spin_lock);
+	if (!list_empty(&pcdev->dma_chain))
+		dma_tail = list_entry(pcdev->dma_chain.prev,
+						struct pxa_buf_node, hook);
+	/* If at least one buffer to add */
+	if (!list_empty(&pcdev->new_chain)) {
+		buf_node = list_entry(pcdev->new_chain.next,
+						struct pxa_buf_node, hook);
+		if (dma_tail != NULL)
+			dma_append_desc(pcdev, dma_tail, buf_node);
+		list_merge(&pcdev->dma_chain, &pcdev->new_chain);
+		pcdev->dma_bufs += pcdev->new_bufs;
+		pcdev->new_bufs = 0;
 	}
-
+	/* If no buffer on DMA chain at all */
+	if (unlikely(pcdev->dma_bufs == 0)) {
+		printk(KERN_ERR "cam: dma chain is empty\n");
+		ret = -EPERM;
+		WARN_ON(1);
+		goto unlock;
+	}
+	/* re-program DADDR with DMA chain head desc addr */
+	buf_node = list_entry(pcdev->dma_chain.next, struct pxa_buf_node, hook);
+	for (i = 0; i < pcdev->channels; i++) {
+		desc = &(buf_node->dma_desc[i]);
+		sci_reg_write(pcdev, REG_SCIDADDR0 + i*0x10, desc->sg_dma);
+	}
+unlock:
+	spin_unlock(&pcdev->spin_lock);
+	return ret;
 }
 
 static int sci_cken(struct pxa955_cam_dev *pcdev, int flag)
@@ -1219,250 +1159,214 @@ unsigned long va_to_pa(unsigned long user_addr, unsigned int size)
 	return paddr;
 }
 
-static int pxa955_videobuf_setup(struct videobuf_queue *vq, unsigned int *count,
-			      unsigned int *size)
+static int pxa97x_vb2_setup(struct vb2_queue *vq, unsigned int *count,
+			   unsigned int *num_planes, unsigned long sizes[],
+			   void *alloc_ctxs[])
 {
-	struct soc_camera_device *icd = vq->priv_data;
+	struct soc_camera_device *icd = container_of(vq,
+					struct soc_camera_device, vb2_vidq);
+	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
+	struct pxa955_cam_dev *pcdev = ici->priv;
 	int bytes_per_line = soc_mbus_bytes_per_line(icd->user_width,
-						icd->current_fmt->host_fmt);
+		icd->current_fmt->host_fmt);
+
+	int minbufs = 2;
+	if (*count < minbufs)
+		*count = minbufs;
 
 	if (bytes_per_line < 0)
 		return bytes_per_line;
 
-	if (icd->current_fmt->host_fmt->fourcc != V4L2_PIX_FMT_JPEG) {
-		dev_dbg(icd->dev.parent, "count=%d, size=%d\n", *count, *size);
+	*num_planes = 1;
+	sizes[0] = ALIGN(bytes_per_line * icd->user_height, ALIGN_SIZE);
+	alloc_ctxs[0] = pcdev->alloc_ctx;
 
-		*size = ALIGN(bytes_per_line * icd->user_height, ALIGN_SIZE);
-		if (0 == *count)
-			*count = 32;
-		if (*size * *count > vid_mem_limit * 1024 * 1024)
-			*count = (vid_mem_limit * 1024 * 1024) / *size;
-	} else {
-		*size = ALIGN(icd->user_width * icd->user_height
-				/JPEG_COMPRESS_RATIO_HIGH, ALIGN_SIZE);
-		if (0 == *count)
-			*count = 32;
-		if (*size * *count > vid_mem_limit * 1024 * 1024)
-			*count = (vid_mem_limit * 1024 * 1024) / *size;
+	if (!list_empty(&pcdev->dma_chain)) {
+		printk(KERN_ERR "cam: dma list is not empty, forgot to clean it?\n");
+		return -EPERM;
 	}
+	pcdev->dma_bufs = 0;
+	INIT_LIST_HEAD(&pcdev->new_chain);
+	pcdev->new_bufs = 0;
+	pcdev->vq = vq;
 	return 0;
 }
 
-static int pxa955_videobuf_prepare(struct videobuf_queue *vq,
-		struct videobuf_buffer *vb, enum v4l2_field field)
+static int pxa97x_vb2_prepare(struct vb2_buffer *vb)
 {
-	struct soc_camera_device *icd = vq->priv_data;
+	struct soc_camera_device *icd = container_of(vb->vb2_queue,
+					struct soc_camera_device, vb2_vidq);
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct pxa955_cam_dev *pcdev = ici->priv;
-	struct pxa_buf_node *buf =
-		container_of(vb, struct pxa_buf_node, vb);
+	struct pxa_buf_node *buf = container_of(vb, struct pxa_buf_node, vb2);
+	unsigned long size;
+	dma_addr_t paddr;
 	struct pxa_cam_dma *desc;
-	unsigned int paddr;
-	int ret;
-	size_t new_size;
-	int bytes_per_line = soc_mbus_bytes_per_line(icd->user_width,
-						icd->current_fmt->host_fmt);
+	int ret = 0;
 
-	if (bytes_per_line < 0)
-		return bytes_per_line;
-	new_size = bytes_per_line * icd->user_height;
-	if (icd->current_fmt->host_fmt->fourcc == V4L2_PIX_FMT_JPEG) {
-		new_size = icd->user_width*icd->user_height/JPEG_COMPRESS_RATIO_HIGH;;
+	size = vb2_plane_size(vb, 0);
+	/* FIXME:	if YUV, must assert(W*H*bpp(plane)<=size)
+	 *		if JPEG, assert size is not too small*/
+	vb2_set_plane_payload(vb, 0, size);
+
+	paddr = vb2_dma_contig_plane_paddr(vb, 0);
+	if (paddr == (dma_addr_t)NULL)
+		return -EPERM;
+
+	if (unlikely(!IS_ALIGNED(size, ALIGN_MASK))) {
+		printk(KERN_ERR "cam: buffer size 0x%08X is not 32 aligned\n",
+				paddr);
+		vb->state = VB2_BUF_STATE_ERROR;
+		return -EPERM;
+	}
+	if (unlikely(!IS_ALIGNED((int)paddr, ALIGN_MASK))) {
+		printk(KERN_ERR "cam: buffer addr 0x%08X is not 32 aligned\n",
+				paddr);
+		vb->state = VB2_BUF_STATE_ERROR;
+		return -EPERM;
 	}
 
-	if (buf->code	!= icd->current_fmt->code ||
-	    vb->width	!= icd->user_width ||
-	    vb->height	!= icd->user_height ||
-	    vb->field	!= field) {
-		buf->code	= icd->current_fmt->code;
-		vb->width	= icd->user_width;
-		vb->height	= icd->user_height;
-		vb->field	= field;
-		if (vb->state != VIDEOBUF_NEEDS_INIT) {
-			dma_free_bufs(buf, pcdev);
-		}
+	desc = &buf->dma_desc[0];
+	if (desc->sg_cpu == NULL) {
+		ret = dma_alloc_desc(buf, pcdev);
+		if (ret < 0)
+			goto exit;
 	}
-
-	if (vb->baddr && (vb->bsize < new_size)) {
-		/* User provided buffer, but it is too small */
-		printk(KERN_ERR "cam: buf in use %d is smaller than " \
-			"required size %d!\n", vb->bsize, new_size);
-		return -ENOMEM;
-	}
-
-	if (vb->state == VIDEOBUF_NEEDS_INIT) {
-
-		if (vb->memory == V4L2_MEMORY_USERPTR) {
-	/* Acoording to H/W spec, DMA buffer and DMA descriptors alignment
-	 * require is only 16-byte, but don't want the buffers been DMAed on
-	 * shares 32-byte cache with other thread, otherwise there will be
-	 * a lot of problem realted to cache invalidate / writeback so
-	 * we need to make sure:
-	 * 1> the start address of the buffer is aligned to cache size
-	 * 2> the size of the buffer is aligned to cache size
-	 */
-			if (vb->bsize & ALIGN_MASK) {
-				printk(KERN_ERR "cam: buffer size 0x%08x "\
-					"is not aligned\n",
-					(__u32)vb->bsize);
-				vb->state = VIDEOBUF_ERROR;
-				return -EINVAL;
-			}
-			/* Get PA, and at same time check
-			 * if PA pages are contiguous */
-			paddr = va_to_pa(vb->baddr, vb->bsize);
-			if (!paddr || (paddr & ALIGN_MASK) != 0) {
-				printk(KERN_ERR "cam: buffer address 0x%08x "\
-					"is not 32 aligned\n",
-					(__u32)vb->baddr);
-				vb->state = VIDEOBUF_ERROR;
-				return -EPERM;
-			}
-			/* get page info for dma invalid cache operation*/
-			buf->page = va_to_page(vb->baddr);
-			if (!buf->page) {
-				printk(KERN_ERR "cam: fail to get page info\n");
-				vb->state = VIDEOBUF_ERROR;
-				return -EFAULT;
-			}
-		}
-		/*
-		* The total size of video-buffers that will be allocated / mapped.
-		* size that we calculated in videobuf_setup gets assigned to
-		* vb->bsize, and now we use the same calculation to get vb->size.
-		*/
-		vb->size = new_size;
-
-		/* This actually (allocates and) maps buffers */
-		ret = videobuf_iolock(vq, vb, NULL);
-
-		desc = &buf->dma_desc[0];
-		if (desc->sg_cpu == NULL) {
-			dma_alloc_desc(buf, pcdev);
-		}
-
-		vb->state = VIDEOBUF_PREPARED;
-	}
-	return 0;
+	INIT_LIST_HEAD(&buf->hook);
+	dma_append_desc(pcdev, buf, buf);
+exit:
+	return ret;
 }
 
-static void pxa955_videobuf_queue(struct videobuf_queue *vq,
-			       struct videobuf_buffer *vb)
+static void pxa97x_vb2_queue(struct vb2_buffer *vb)
 {
-	struct soc_camera_device *icd = vq->priv_data;
+	struct soc_camera_device *icd = container_of(vb->vb2_queue,
+					struct soc_camera_device, vb2_vidq);
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct pxa955_cam_dev *pcdev = ici->priv;
-	struct pxa_buf_node *buf =
-		container_of(vb, struct pxa_buf_node, vb);
+	struct pxa_buf_node *buf = container_of(vb, struct pxa_buf_node, vb2);
+	struct pxa_buf_node *tail;
+	unsigned long flag;
 
-	dev_dbg(icd->dev.parent, "%s (vb=0x%p) 0x%08lx %d\n",
-		__func__, vb, vb->baddr, vb->bsize);
+	/* Between two IRQ, more than one buffer may be pushed into driver,
+	 * they are added to the new buffer list temporarily, and append to
+	 * HW DMA list together when IRQ comes. Thus, qbuf thread will touch
+	 * new_chain, DMA thread will touch both new_chain and dma_chain*/
 
-	list_add_tail(&vb->queue, &pcdev->dma_buf_list);
-	vb->state = VIDEOBUF_ACTIVE;
-
-	if (vq->streaming == 1) {
-
-		/* at first time, streamon set to true, means stream-on*/
-		if (!pcdev->streamon) {
-
-			if (list_empty(&pcdev->dma_buf_list)) {
-				printk(KERN_ERR "cam: internal buffers are not ready!\n");
-				return;
-			}
-			pcdev->streamon = true;
-			pcdev->streamoff = false;
-
-			dma_chain_init(pcdev);
-
-			sci_irq_enable(pcdev, IRQ_EOFX|IRQ_OFO);
-			csi_dphy(pcdev->csidev);
-			/* configure enable which camera interface controller*/
-			sci_enable(pcdev);
-			csi_enable(pcdev->csidev, icd->iface);
-
-#ifdef _CONTROLLER_DEADLOOP_RESET_
-			mod_timer(&pcdev->reset_timer, \
-					jiffies + MIPI_RESET_TIMEOUT);
-			pcdev->killing_reset_timer = 0;
-#endif
-		}
+	/* About to touch new buffer list, must prevent IRQ from touching it */
+	spin_lock_irqsave(&pcdev->spin_lock, flag);
+	if (pcdev->new_bufs) {
+		tail = list_entry(pcdev->new_chain.prev, \
+					struct pxa_buf_node, hook);
+		dma_append_desc(pcdev, tail, buf);
 	}
-	/* Streamon or not, invalidate the buffer before add to DMA chain */
+	list_add_tail(&buf->hook, &pcdev->new_chain);
+	pcdev->new_bufs++;
+	spin_unlock_irqrestore(&pcdev->spin_lock, flag);
+
+	/* Invalidate the buffer before add to DMA chain */
 	dma_map_page(pcdev->soc_host.v4l2_dev.dev,
-			buf->page,	/* or: va_to_page(vb->baddr) */
+			va_to_page(vb->v4l2_planes[0].m.userptr),
 			0,
-			vb->bsize,
+			vb2_get_plane_payload(vb, 0),
 			DMA_FROM_DEVICE);
 }
 
-static void pxa955_videobuf_release(struct videobuf_queue *vq,
-				 struct videobuf_buffer *vb)
+static void pxa97x_vb2_cleanup(struct vb2_buffer *vb)
 {
-	struct soc_camera_device *icd = vq->priv_data;
+	struct pxa_buf_node *buf = container_of(vb, struct pxa_buf_node, vb2);
+	struct soc_camera_device *icd = vb2_get_drv_priv(vb->vb2_queue);
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct pxa955_cam_dev *pcdev = ici->priv;
-	struct pxa_buf_node *buf = container_of(vb, struct pxa_buf_node, vb);
 
-#ifdef DEBUG
-	struct device *dev = icd->dev.parent;
-	dev_err(dev, "%s (vb=0x%p) 0x%08lx %d\n", __func__,
-		vb, vb->baddr, vb->bsize);
-
-	switch (vb->state) {
-	case VIDEOBUF_ACTIVE:
-		dev_dbg(dev, "%s (active)\n", __func__);
-		break;
-	case VIDEOBUF_QUEUED:
-		dev_dbg(dev, "%s (queued)\n", __func__);
-		break;
-	case VIDEOBUF_PREPARED:
-		dev_dbg(dev, "%s (prepared)\n", __func__);
-		break;
-	default:
-		dev_dbg(dev, "%s (unknown)\n", __func__);
-		break;
-	}
-#endif
-
-	if ((vb->state == VIDEOBUF_ACTIVE
-		|| vb->state == VIDEOBUF_QUEUED) &&
-	    !list_empty(&vb->queue)) {
-		vb->state = VIDEOBUF_ERROR;
-
-		list_del_init(&vb->queue);
-	}
-
-	if (vq->streaming == 0) {
-		if (!pcdev->streamoff) {
-			INIT_LIST_HEAD(&pcdev->dma_buf_list);
-			pcdev->streamon = false;
-			pcdev->streamoff = true;
-
-			csi_disable(pcdev->csidev);
-			sci_irq_disable(pcdev, IRQ_EOFX|IRQ_OFO);
-			sci_disable(pcdev);
-
-#ifdef _CONTROLLER_DEADLOOP_RESET_
-			/* Announce reset timer is being killed */
-			pcdev->killing_reset_timer = 1;
-			del_timer(&pcdev->reset_timer);
-#endif
-		}
-	} else {
-		printk(KERN_ERR "cam: releasing vb in stream on state, "\
-				"something is wrong!");
-	}
+	/* By this time, reqbufs(0) is called, vb won't live for long*/
+	INIT_LIST_HEAD(&pcdev->dma_chain);
+	INIT_LIST_HEAD(&pcdev->new_chain);
+	pcdev->dma_bufs = pcdev->new_bufs = 0;
 
 	dma_free_bufs(buf, pcdev);
 }
 
-static struct videobuf_queue_ops pxa955_videobuf_ops = {
-	.buf_setup      = pxa955_videobuf_setup,
-	.buf_prepare    = pxa955_videobuf_prepare,
-	.buf_queue      = pxa955_videobuf_queue,
-	.buf_release    = pxa955_videobuf_release,
+static int pxa97x_vb2_streamon(struct vb2_queue *q, unsigned int count)
+{
+	struct soc_camera_device *icd = vb2_get_drv_priv(q);
+	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
+	struct pxa955_cam_dev *pcdev = ici->priv;
+	int ret = 0;
+
+	if (unlikely(count == 0)) {
+		printk(KERN_ERR "cam: can't streamon without vb in driver\n");
+		return -EPERM;
+	}
+	BUG_ON(count != pcdev->new_bufs + pcdev->dma_bufs);
+
+	/* suppose IRQ is not enabled at this time, so actually it's safe to
+	 * touch dma_chain without holding the lock */
+	ret = dma_chain_init(pcdev);
+	if (unlikely(ret < 0))
+		return ret;
+
+	sci_irq_enable(pcdev, IRQ_EOFX|IRQ_OFO);
+	csi_dphy(pcdev->csidev);
+	/* configure enable which camera interface controller*/
+	sci_enable(pcdev);
+	csi_enable(pcdev->csidev, icd->iface);
+	pcdev->state = CAM_STATE_STREAMING;
+
+#ifdef _CONTROLLER_DEADLOOP_RESET_
+	mod_timer(&pcdev->reset_timer, jiffies + MIPI_RESET_TIMEOUT);
+	pcdev->killing_reset_timer = 0;
+#endif
+	return ret;
+}
+
+static int pxa97x_vb2_streamoff(struct vb2_queue *q)
+{
+	struct soc_camera_device *icd = vb2_get_drv_priv(q);
+	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
+	struct pxa955_cam_dev *pcdev = ici->priv;
+
+	csi_disable(pcdev->csidev);
+	sci_irq_disable(pcdev, IRQ_EOFX|IRQ_OFO);
+	sci_disable(pcdev);
+
+#ifdef _CONTROLLER_DEADLOOP_RESET_
+	/* Announce reset timer is being killed */
+	pcdev->killing_reset_timer = 1;
+	del_timer(&pcdev->reset_timer);
+#endif
+	pcdev->state = CAM_STATE_FORMATED;
+	return 0;
+}
+
+static struct vb2_ops pxa97x_vb2_ops = {
+	.queue_setup		= pxa97x_vb2_setup,
+	.buf_prepare		= pxa97x_vb2_prepare,
+	.buf_queue		= pxa97x_vb2_queue,
+	.buf_cleanup		= pxa97x_vb2_cleanup,
+	.start_streaming	= pxa97x_vb2_streamon,
+	.stop_streaming		= pxa97x_vb2_streamoff,
+	.wait_prepare		= soc_camera_unlock,
+	.wait_finish		= soc_camera_lock,
 };
+
+static int pxa97x_cam_init_videobuf2(struct vb2_queue *q,
+				   struct soc_camera_device *icd)
+{
+	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
+	struct pxa955_cam_dev *pcdev = ici->priv;
+
+	q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	q->io_modes = VB2_USERPTR;
+	q->drv_priv = icd;
+	q->ops = &pxa97x_vb2_ops;
+	q->mem_ops = &vb2_dma_contig_memops;
+	/* vb2_buffer is enclosed inside pxa_buf_node */
+	q->buf_struct_size = sizeof(struct pxa_buf_node);
+	pcdev->alloc_ctx = vb2_dma_contig_init_ctx(ici->v4l2_dev.dev);
+
+	return vb2_queue_init(q);
+}
 
 static irqreturn_t csi_irq(int irq, void *data);
 
@@ -1563,7 +1467,7 @@ static void pxa955_cam_remove_device(struct soc_camera_device *icd)
 {
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct pxa955_cam_dev *pcdev = ici->priv;
-	struct videobuf_queue *vq = pcdev->videoq;
+	struct vb2_queue *vq = pcdev->vq;
 	struct soc_camera_link *icl = to_soc_camera_link(icd);
 	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
 	struct v4l2_mbus_framefmt mf;
@@ -1577,41 +1481,18 @@ static void pxa955_cam_remove_device(struct soc_camera_device *icd)
 		del_timer(&pcdev->reset_timer);
 #endif
 
+	/* actually, following code should never be taken, coz vb2 did it before
+	 * ici::remove is called */
 	if ((vq) && (vq->streaming != 0)) {
 		struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
 		printk(KERN_WARNING "cam: closeing device without " \
 				"stream off\n");
-		videobuf_streamoff(vq);
+		vb2_streamoff(vq, vq->type);
 		v4l2_subdev_call(sd, video, s_stream, 0);
-		csi_disable(pcdev->csidev);
-		sci_irq_disable(pcdev, IRQ_EOFX|IRQ_OFO);
-		sci_disable(pcdev);
 	}
 
 	sci_cken(pcdev, 0);
 	csi_cken(pcdev->csidev, 0);
-
-	if (pcdev->videoq) {
-		/*
-		* FIXME: it seems that no one calls videobuf_mmap_free in
-		* soc-camera, so let's free the buffer node ourselves in
-		* buf_release, to avoid memory leak. (pls refer to videobuf-core.c)
-		* For mmap method, the buf node will be release
-		* in videobuf_vm_close when application call munmap.
-		*/
-		for (i = 0; i < VIDEO_MAX_FRAME; i++)
-			if (vq->bufs[i] && vq->bufs[i]->map)
-				dev_err(icd->dev.parent, "can not free the mapped buffer\n");
-
-		for (i = 0; i < VIDEO_MAX_FRAME; i++) {
-			if (NULL == vq->bufs[i])
-				continue;
-
-			dev_info(icd->dev.parent, "release buffer node of %d\n", i);
-			kfree(vq->bufs[i]);
-			vq->bufs[i] = NULL;
-		}
-	}
 
 	if (!v4l2_subdev_call(sd, video, g_mbus_fmt, &mf)) {
 		for (i = 0; i < icd->num_user_formats; i++) {
@@ -1856,63 +1737,16 @@ static int pxa955_cam_set_fmt(struct soc_camera_device *icd,
 	/* V4L2_CID_PRIVATE_GET_MIPI_PHY interface, will use default value */
 	ret = 0;
 
+	pcdev->state = CAM_STATE_FORMATED;
 	v4l2_subdev_call(sd, sensor, g_skip_top_lines, &skip_frame);
 
 	return ret;
 }
 
-static void pxa955_cam_init_videobuf(struct videobuf_queue *q,
-			      struct soc_camera_device *icd)
-{
-	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
-	struct pxa955_cam_dev *pcdev = ici->priv;
-
-	pcdev->videoq = q;
-	/*
-	* We must pass NULL as dev pointer, then all pci_* dma operations
-	* transform to normal dma_* ones.
-	*/
-	videobuf_queue_dma_contig_init(q, &pxa955_videobuf_ops, icd->dev.parent,
-				&pcdev->spin_lock,
-				V4L2_BUF_TYPE_VIDEO_CAPTURE,
-				V4L2_FIELD_NONE,
-				sizeof(struct pxa_buf_node), icd, NULL);
-}
-
-static int pxa955_cam_reqbufs(struct soc_camera_device *icd,
-			      struct v4l2_requestbuffers *p)
-{
-	int i;
-
-	if (p->count == 0) {
-		printk(KERN_INFO "cam: reqbuf(0) releases buffer\n");
-		return 0;
-	}
-
-	if (p->count < MIN_DMA_BUFS) {
-		printk(KERN_ERR "cam: need %d buffers " \
-				"at least!\n", MIN_DMA_BUFS);
-		return -EINVAL;
-	}
-
-	/*
-	*This is for locking debugging only. I removed spinlocks and now I
-	* check whether .prepare is ever called on a linked buffer, or whether
-	* a dma IRQ can occur for an in-work or unlinked buffer. Until now
-	* it hadn't triggered
-	*/
-	for (i = 0; i < p->count; i++) {
-		struct pxa_buf_node *buf = container_of(icd->vb_vidq.bufs[i],
-						      struct pxa_buf_node, vb);
-		INIT_LIST_HEAD(&buf->vb.queue);
-	}
-	return 0;
-}
-
 static unsigned int pxa955_cam_poll(struct file *file, poll_table *pt)
 {
 	struct soc_camera_device *icd = file->private_data;
-	return videobuf_poll_stream(file, &icd->vb_vidq, pt);
+	return vb2_poll(&icd->vb2_vidq, file, pt);
 }
 
 static int pxa955_cam_querycap(struct soc_camera_host *ici,
@@ -2046,10 +1880,9 @@ static int pxa955_cam_s_crop(struct soc_camera_device *icd,
 	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct pxa955_cam_dev *pcdev = ici->priv;
-	struct pxa_buf_node *buf_node;
 	int ret;
 
-	if (pcdev->streamon) {
+	if (pcdev->state == CAM_STATE_STREAMING) {
 #ifdef _CONTROLLER_DEADLOOP_RESET_
 		/* Announce reset timer is being killed */
 		pcdev->killing_reset_timer = 1;
@@ -2065,6 +1898,7 @@ static int pxa955_cam_s_crop(struct soc_camera_device *icd,
 		sci_irq_disable(pcdev, IRQ_EOFX|IRQ_OFO);
 		sci_disable(pcdev);
 		spin_unlock(&pcdev->spin_lock);
+		pcdev->state = CAM_STATE_FORMATED;
 	}
 
 	ret = v4l2_subdev_call(sd, video, s_crop, crop);
@@ -2073,18 +1907,9 @@ static int pxa955_cam_s_crop(struct soc_camera_device *icd,
 		return -EAGAIN;
 	}
 
-	if (pcdev->streamon) {
-
-		/* for all queued buffer, refresh them to let dma run over them
-		 * after zoom */
-		list_for_each_entry(buf_node, &pcdev->dma_buf_list, vb.queue) {
-			/* Mark all buf on dma chain to be new */
-			if (buf_node->vb.state == VIDEOBUF_QUEUED) {
-				buf_node->vb.state = VIDEOBUF_ACTIVE;
-			}
-		}
+	if (pcdev->state == CAM_STATE_STREAMING) {
 		dma_chain_init(pcdev);
-
+		pcdev->state = CAM_STATE_STREAMING;
 		spin_lock(&pcdev->spin_lock);
 		sci_irq_enable(pcdev, IRQ_EOFX|IRQ_OFO);
 		sci_enable(pcdev);
@@ -2112,8 +1937,7 @@ static struct soc_camera_host_ops pxa955_soc_cam_host_ops = {
 	.put_formats	= pxa955_cam_put_formats,
 	.set_fmt	= pxa955_cam_set_fmt,
 	.try_fmt	= pxa955_cam_try_fmt,
-	.init_videobuf	= pxa955_cam_init_videobuf,
-	.reqbufs	= pxa955_cam_reqbufs,
+	.init_videobuf2	= pxa97x_cam_init_videobuf2,
 	.poll		= pxa955_cam_poll,
 	.querycap	= pxa955_cam_querycap,
 	.set_bus_param	= pxa955_cam_set_bus_param,
@@ -2141,23 +1965,17 @@ static irqreturn_t cam_irq(int irq, void *data)
 {
 	struct pxa955_cam_dev *pcdev = data;
 	unsigned int irqs = 0;
-	struct pxa_buf_node *buf_node;
 
 	spin_lock(&pcdev->spin_lock);
 	irqs = sci_reg_read(pcdev, REG_SCISR);
 	sci_reg_write(pcdev, REG_SCISR, irqs);		/*clear irqs here*/
 	if (irqs & IRQ_OFO) {
-
 		printk(KERN_ERR "cam: ccic over flow error!\n");
 		csi_disable(pcdev->csidev);
 		sci_disable(pcdev);
-		list_for_each_entry(buf_node, &pcdev->dma_buf_list, vb.queue) {
-			/* Mark all buf on dma chain to be new */
-			if (buf_node->vb.state == VIDEOBUF_QUEUED) {
-				buf_node->vb.state = VIDEOBUF_ACTIVE;
-			}
-		}
+
 		dma_chain_init(pcdev);
+
 		sci_enable(pcdev);
 		csi_enable(pcdev->csidev, pcdev->icd->iface);
 		spin_unlock(&pcdev->spin_lock);
@@ -2285,9 +2103,10 @@ static int pxa955_camera_probe(struct platform_device *pdev)
 	memset(pcdev, 0, sizeof(struct pxa955_cam_dev));
 
 	spin_lock_init(&pcdev->spin_lock);
-	init_waitqueue_head(&pcdev->iowait);
 	INIT_LIST_HEAD(&pcdev->dev_list);
-	INIT_LIST_HEAD(&pcdev->dma_buf_list);
+	INIT_LIST_HEAD(&pcdev->dma_chain);
+	INIT_LIST_HEAD(&pcdev->new_chain);
+	pcdev->dma_bufs = pcdev->new_bufs = 0;
 
 
 	/* init camera controller resource*/
@@ -2348,6 +2167,7 @@ static int pxa955_camera_probe(struct platform_device *pdev)
 	if (err)
 		goto exit_free_irq;
 
+	pcdev->state = CAM_STATE_INIT;
 	return 0;
 
 exit_free_irq:

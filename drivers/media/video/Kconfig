@@ -968,6 +968,7 @@ config VIDEO_PXA955
 	tristate "Marvell PXA955 Camera Driver (soc-camera+subdev)"
 	depends on VIDEO_DEV && PXA95x && SOC_CAMERA
 	select VIDEOBUF_DMA_CONTIG
+	select VIDEOBUF2_DMA_CONTIG
 	default y
 	---help---
 	  This is a v4l2 driver for the Marvell PXA955 Quick Capture
