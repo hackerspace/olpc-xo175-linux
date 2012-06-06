@@ -40,6 +40,8 @@
 #include <plat/pxa27x_keypad.h>
 #include <plat/usb.h>
 #include <linux/mfd/88pm80x.h>
+#include <linux/cwmi.h>
+#include <linux/cwgd.h>
 
 #include "onboard.h"
 #include "common.h"
@@ -176,8 +178,7 @@ static unsigned long emeidkb_pin_config[] __initdata = {
 	GPIO090_CMMB_CLK,	/* CMMB_26MHz */
 
 #define GPIO091_GPIO_GYRO_INT		GPIO091_GPIO_91
-#define GPIO092_GPIO_COMPASS_INT	GPIO092_GPIO_92
-#define GPIO093_GPIO_G_INT		GPIO093_GPIO_93
+#define GPIO092_GPIO_G_INT		GPIO092_GPIO_92
 #define GPIO094_GPIO_NFC_IRQ		GPIO094_GPIO_94
 #define GPIO095_GPIO_MOTION_INT		GPIO095_GPIO_95
 #define GPIO096_GPIO_GPS_ON_OFF		GPIO096_GPIO_96
@@ -185,8 +186,7 @@ static unsigned long emeidkb_pin_config[] __initdata = {
 #define GPIO098_GPIO_PRESURE_DRDY	GPIO098_GPIO_98
 #define GPIO124_GPIO_CODEC_INT		GPIO124_GPIO_124
 	GPIO091_GPIO_GYRO_INT,
-	GPIO092_GPIO_COMPASS_INT,
-	GPIO093_GPIO_G_INT,
+	GPIO092_GPIO_G_INT,
 	GPIO094_GPIO_NFC_IRQ,
 	GPIO095_GPIO_MOTION_INT,
 	GPIO096_GPIO_GPS_ON_OFF,
@@ -528,6 +528,59 @@ static void regulator_init_pm800(void)
 	pm800_info.num_regulators = i;
 }
 
+#if defined(CONFIG_SENSORS_CWMI) || defined(CONFIG_SENSORS_CWGD)
+static int cywee_set_power(int on)
+{
+	static struct regulator *v_sensor;
+
+	if (!v_sensor) {
+		v_sensor = regulator_get(NULL, "v_sensor");
+		if (IS_ERR(v_sensor)) {
+			v_sensor = NULL;
+			return -EIO;
+		}
+	}
+
+	if (on) {
+		regulator_set_voltage(v_sensor, 2800000, 2800000);
+		regulator_enable(v_sensor);
+	} else {
+		regulator_disable(v_sensor);
+	}
+	msleep(100);
+	return 0;
+}
+#endif
+
+#if defined(CONFIG_SENSORS_CWMI)
+static struct cwmi_platform_data cwmi_acc_data = {
+	.set_power = cywee_set_power,
+	/*TODO: check sensor layout after board arrive*/
+	.axes = {
+		1, 0, 0,
+		0, 1, 0,
+		0, 0, 1},
+};
+
+static struct cwmi_platform_data cwmi_mag_data = {
+	.set_power = cywee_set_power,
+	.axes = {
+		1, 0, 0,
+		0, 1, 0,
+		0, 0, 1},
+};
+#endif
+
+#if defined(CONFIG_SENSORS_CWGD)
+static struct cwgd_platform_data cwgd_plat_data = {
+	.set_power = cywee_set_power,
+	.axes = {
+		1, 0, 0,
+		0, 1, 0,
+		0, 0, 1},
+};
+#endif
+
 static struct i2c_board_info emeidkb_i2c_info[] = {
 
 };
@@ -558,7 +611,27 @@ static struct i2c_board_info emeidkb_pwr_i2c_info[] = {
 };
 
 static struct i2c_board_info emeidkb_i2c2_info[] = {
-
+#if defined(CONFIG_SENSORS_CWMI)
+	{
+		.type       = "cwmi_acc",
+		.addr       = 0x19,
+		.irq = gpio_to_irq(mfp_to_gpio(GPIO092_GPIO_G_INT)),
+		.platform_data  = &cwmi_acc_data,
+	},
+	{
+		.type       = "cwmi_mag",
+		.addr       = 0x1e,
+		.platform_data  = &cwmi_mag_data,
+	},
+#endif
+#if defined(CONFIG_SENSORS_CWGD)
+	{
+		.type       = "cwgd",
+		.addr       = 0x69,
+		.irq = gpio_to_irq(mfp_to_gpio(GPIO091_GPIO_GYRO_INT)),
+		.platform_data  = &cwgd_plat_data,
+	},
+#endif
 };
 
 static struct sram_bank pxa988_asram_info = {
