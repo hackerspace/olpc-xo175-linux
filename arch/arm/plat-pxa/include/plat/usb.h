@@ -29,6 +29,7 @@ enum usb_port_speed {
 
 
 enum {
+	MV_USB_MODE_DEVICE = 0,
 	MV_USB_MODE_OTG,
 	MV_USB_MODE_HOST,
 };

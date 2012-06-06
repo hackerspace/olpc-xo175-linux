@@ -34,6 +34,8 @@ extern struct pxa_device_desc pxa988_device_fb_ovly;
 
 extern void pxa988_clear_keypad_wakeup(void);
 
+extern struct platform_device pxa988_device_udc;
+
 static inline int pxa988_add_uart(int id)
 {
 	struct pxa_device_desc *d = NULL;

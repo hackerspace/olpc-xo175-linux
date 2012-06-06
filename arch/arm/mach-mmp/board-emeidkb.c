@@ -37,6 +37,8 @@
 #include <mach/regs-rtc.h>
 #include <plat/pmem.h>
 #include <plat/pxa27x_keypad.h>
+#include <plat/usb.h>
+#include <linux/mfd/88pm80x.h>
 
 #include "onboard.h"
 #include "common.h"
@@ -563,6 +565,26 @@ static struct sram_bank pxa988_asram_info = {
 	.step = AUDIO_SRAM_GRANULARITY,
 };
 
+#ifdef CONFIG_USB_PXA_U2O
+static char *pxa988_usb_clock_name[] = {
+	[0] = "UDCCLK",
+};
+
+static struct mv_usb_addon_irq emeidkb_usb_vbus = {
+	.irq	= IRQ_BOARD_START + PM800_IRQ_CHG,
+	.poll	= pm80x_read_vbus_val,
+};
+
+static struct mv_usb_platform_data emeidkb_usb_pdata = {
+	.clknum		= 1,
+	.clkname	= pxa988_usb_clock_name,
+	.vbus		= &emeidkb_usb_vbus,
+	.mode		= MV_USB_MODE_DEVICE,
+	.phy_init	= pxa_usb_phy_init,
+	.phy_deinit	= pxa_usb_phy_deinit,
+};
+#endif /* CONFIG_USB_PXA_U2O */
+
 static void __init emeidkb_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(emeidkb_pin_config));
@@ -590,6 +612,10 @@ static void __init emeidkb_init(void)
 	emeidkb_add_lcd_mipi();
 #endif
 
+#ifdef CONFIG_USB_PXA_U2O
+	pxa988_device_udc.dev.platform_data = &emeidkb_usb_pdata;
+	platform_device_register(&pxa988_device_udc);
+#endif
 }
 
 #if defined(CONFIG_TOUCHSCREEN_FT5306)
