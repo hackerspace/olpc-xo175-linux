@@ -943,7 +943,7 @@ static unsigned long clk_pxa95x_gc_getrate(struct clk *gc_clk)
  * if GC or vMeta are at MMPLL and the other want to change
  * to MMPLL or change MMPLL's frequency.
  */
-static struct clk clk_pxa95x_gcu, clk_pxa95x_vmeta;
+static struct clk clk_pxa978_gcu, clk_pxa95x_vmeta;
 static unsigned long clk_pxa95x_vmeta_getrate(struct clk *vmeta_clk);
 static void mm_pll_setting(int flag, unsigned long rate, unsigned int value,
 		unsigned int mask)
@@ -951,13 +951,15 @@ static void mm_pll_setting(int flag, unsigned long rate, unsigned int value,
 	unsigned int tmp, ori_gc, ori_vmeta;
 	unsigned long gc_rate, vm_rate, flags;
 	unsigned int syspll_416_on = 0;
-	gc_rate = clk_pxa95x_gc_getrate(&clk_pxa95x_gcu);
+	gc_rate = clk_pxa95x_gc_getrate(&clk_pxa978_gcu);
 	vm_rate = clk_pxa95x_vmeta_getrate(&clk_pxa95x_vmeta);
 	syspll_416_on = ((gc_rate == 416000000) || (vm_rate == 416000000));
 	pr_debug("mm_pll_setting: current gc is %lu, vmeta is %lu.\n"
 		       "Set to %lu by %s.\n", gc_rate, vm_rate, rate,
 		       flag ? "GC" : "vMeta");
 
+	if ((flag && gc_rate == rate) || (!flag && vm_rate == rate))
+		return;
 	local_fiq_disable();
 	local_irq_save(flags);
 	if (rate < 481000000) {
@@ -983,7 +985,7 @@ static void mm_pll_setting(int flag, unsigned long rate, unsigned int value,
 		if (!flag && (gc_rate != rate)) {
 			value |= ori_gc;
 			mask |= (ACCR0_GCFS_MASK | ACCR0_GCAXIFS_MASK);
-			clk_pxa95x_gcu.rate = rate;
+			clk_pxa978_gcu.rate = rate;
 		}
 	}
 	if (vm_rate >= 481000000) {
