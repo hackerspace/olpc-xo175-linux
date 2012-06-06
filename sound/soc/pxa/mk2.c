@@ -582,6 +582,9 @@ static int mmp3asoc_wm8994_startup(struct snd_pcm_substream *substream)
 	cpu_dai->driver->playback.rates = MMP3ASOC_SAMPLE_RATES;
 	cpu_dai->driver->capture.rates = MMP3ASOC_SAMPLE_RATES;
 
+	cpu_dai->driver->playback.channels_min = 2;
+	cpu_dai->driver->capture.channels_min = 2;
+
 	/* turn on micbias 1/2 always */
 	snd_soc_update_bits(codec, WM8994_POWER_MANAGEMENT_1,
 			    WM8994_MICB1_ENA_MASK |
