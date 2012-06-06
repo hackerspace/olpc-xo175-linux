@@ -1,8 +1,8 @@
 #include <asm/hardware/cache-l2x0.h>
 #define PXA978_L2CACHE_BASE		0x58120000
 #define OSCR_PHY_ADDR			0x40A00010
-#define OSCR_VIRTUAL_ADDR		0xF2A00010
 #define POWER_MODE_BASE		0x40F40080
+#define CHIP_ID_PXA				0x4600FF80
 	.global dump_cop_regs
 dump_cop_regs:
 	stmfd	sp!, {r4-r12,lr}
@@ -92,39 +92,59 @@ pxa978_cpu_suspend:
 	.extern pl310_suspend
 	bl pl310_suspend
 
+	@read NEVO chip id
+	.extern pxa_chip_id
+	ldr	r1, =pxa_chip_id
+	ldr	r2, [r1]
+	mov	r2, r2, lsl #16
+	mov	r2, r2, lsr #20
+	mov	r1, #0x2A0
+	orr	r1, #6
+	cmp	r1, r2
+	bne	c2_entry
+
 	@disable L1$, for NEVO C0
 	mrc p15,0,r1,c1,c0,0
 	bic r1, r1, #0x1000
 	bic r1, r1, #0x0004
 	mcr p15,0,r1,c1,c0,0
 
-/*C2 entry*/
+c2_entry:
 	dsb
 	wfi
-/*in case a wakeup is pending, CPU will fall through without being reset!*/
- .align 5
-	mov	r0, r5 	@ setup the saved register base and restore as usual
-	ldr	r1, =OSCR_VIRTUAL_ADDR
-	b set_l2_redundency
+
+/*when irq pending CPU will fall through without being reset!
+*currently NEVO haven't use these mode*/
+.align 5
+	b cpu_resume
 /*return here from reset chunk*/
 pxa978_c2_restore:
 	ldr	r6, =PXA978_L2CACHE_BASE
 	ldr 	r1, =OSCR_PHY_ADDR
 	ldr	r2, =POWER_MODE_BASE
+	ldr	r3, =CHIP_ID_PXA
 	ldr	r7, [r2]
 	and	r7, r7, #0x40
-set_l2_redundency:
+
+	@check chip id
+	ldr	r8, [r3]
+	mov	r8, r8, lsl #16
+	mov	r8, r8, lsr #20
+	mov	r9, #0x2A0
+	orr	r9, #6
+	cmp	r9, r8
+	bne	set_l2_redundancy_end
+	@ set l2 redundancy for C0 chip
+set_l2_redundancy:
 	mov	r2, #0xC3		@60usec
-@	mov r2, #0x140
-@	orr r2, #0x5		@100usec
-@	mov r2, #0x790
-@	orr r2, #0xE 		@600usec
 	ldr r3, [r1]
 loop:
 	ldr r4, [r1]
 	sub r4, r4, r3
 	cmp r4, r2
 	ble loop
+
+set_l2_redundancy_end:
 	cmp 	r7, #0
 	beq	restore_pl310
 pl310_inv_all:
@@ -150,8 +170,10 @@ restore_pl310:
 	ldr 	r2, [r0]
 	str	r2, [r6, #L2X0_CTRL]
 
+	cmp	r8, r9
+	bne	cpu_resume
+
 	@invalidate L1 I cache, for nevo c0
-	@TODO: to distingush c0 and d0
 	mov	r2, #0
 	mcr	p15, 0, r2, c7, c1, 0
 
