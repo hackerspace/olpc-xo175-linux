@@ -252,6 +252,125 @@ void pxa988_clear_keypad_wakeup(void)
 	__raw_writel(val | mask, APMU_WAKE_CLR);
 }
 
+#ifdef CONFIG_USB_PXA_U2O
+static DEFINE_SPINLOCK(phy_lock);
+static int phy_init_cnt;
+
+static int usb_phy_init_internal(unsigned int base)
+{
+	struct pxa988_usb_phy *phy = (struct pxa988_usb_phy *)base;
+	int i;
+	u32 phy_old, phy_power;
+
+	pr_debug("init usb phy.\n");
+
+	/*
+	 * power up PHY by PIN.
+	 * From the datasheet, it can be controlled by current regiter,
+	 * but not pin.
+	 * Will remove it after debug.
+	 */
+	phy_old = (u32)ioremap_nocache(0xD4207100, 0x10);
+	phy_power = phy_old + 0x4;
+	writel(0x10901003, phy_power);
+
+	/* enable usb device PHY */
+	writew(PLLVDD18(0x1) | REFDIV(0xe) | FBDIV(0x1f0),
+		&phy->utmi_pll_reg0);
+	writew(PU_PLL | PLL_LOCK_BYPASS | ICP(0x3) | KVCO(0x3) | PLLCAL12(0x3),
+		&phy->utmi_pll_reg1);
+	writew(IMPCAL_VTH(0x2) | EXT_HS_RCAL(0x8) | EXT_FS_RCAL(0x8),
+		&phy->utmi_tx_reg0);
+	writew(TXVDD15(0x1) | TXVDD12(0x3) | LOWVDD_EN |
+		AMP(0x4) | CK60_PHSEL(0x4),
+		&phy->utmi_tx_reg1);
+	writew(DRV_SLEWRATE(0x3) | IMP_CAL_DLY(0x2) |
+		FSDRV_EN(0xf) | HSDEV_EN(0xf),
+		&phy->utmi_tx_reg2);
+	writew(PHASE_FREEZE_DLY | ACQ_LENGTH(0x2) | SQ_LENGTH(0x2) |
+		DISCON_THRESH(0x2) | SQ_THRESH(0xa) | INTPI(0x1),
+		&phy->utmi_rx_reg0);
+	writew(EARLY_VOS_ON_EN | RXDATA_BLOCK_EN | EDGE_DET_EN |
+		RXDATA_BLOCK_LENGTH(0x2) | EDGE_DET_SEL(0x1) |
+		S2TO3_DLY_SEL(0x2),
+		&phy->utmi_rx_reg1);
+	writew(USQ_FILTER | SQ_BUFFER_EN | RXVDD18(0x1) | RXVDD12(0x1),
+		&phy->utmi_rx_reg2);
+	writew(BG_VSEL(0x1) | TOPVDD18(0x1),
+		&phy->utmi_ana_reg0);
+	writew(PU_ANA | SEL_LPFR | V2I(0x6) | R_ROTATE_SEL,
+		&phy->utmi_ana_reg1);
+	writew(FS_EOP_MODE | FORCE_END_EN | SYNCDET_WINDOW_EN |
+		CLK_SUSPEND_EN | FIFO_FILL_NUM(0x6),
+		&phy->utmi_dig_reg0);
+	writew(FS_RX_ERROR_MODE2 | FS_RX_ERROR_MODE1 |
+		FS_RX_ERROR_MODE | ARC_DPDM_MODE,
+		&phy->utmi_dig_reg1);
+	writew(0x0, &phy->utmi_charger_reg0);
+
+	for (i = 0; i < 0x80; i = i + 4)
+		pr_debug("[0x%x] = 0x%x\n", base + i,
+			readw(base + i));
+
+	iounmap((void __iomem *)phy_old);
+	return 0;
+}
+
+static int usb_phy_deinit_internal(unsigned int base)
+{
+	u32 phy_old, phy_power;
+	struct pxa988_usb_phy *phy = (struct pxa988_usb_phy *)base;
+	u16 val;
+
+	pr_debug("Deinit usb phy.\n");
+
+	/* power down PHY PLL */
+	val = readw(&phy->utmi_pll_reg1);
+	val &= ~PU_PLL;
+	writew(val, &phy->utmi_pll_reg1);
+
+	/* power down PHY Analog part */
+	val = readw(&phy->utmi_ana_reg1);
+	val &= ~PU_ANA;
+	writew(val, &phy->utmi_ana_reg1);
+
+	/* power down PHY by PIN.
+	 * From the datasheet, it can be controlled by current regiter,
+	 * but not pin.
+	 * Will remove it after debug.
+	 */
+	phy_old = (u32)ioremap_nocache(0xD4207100, 0x10);
+	phy_power = phy_old + 0x4;
+	writel(0x10901000, phy_power);
+
+	iounmap((void __iomem *)phy_old);
+	return 0;
+}
+
+int pxa_usb_phy_init(unsigned int base)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&phy_lock, flags);
+	if (phy_init_cnt++ == 0)
+		usb_phy_init_internal(base);
+	spin_unlock_irqrestore(&phy_lock, flags);
+	return 0;
+}
+
+void pxa_usb_phy_deinit(unsigned int base)
+{
+	unsigned long flags;
+
+	WARN_ON(phy_init_cnt == 0);
+
+	spin_lock_irqsave(&phy_lock, flags);
+	if (--phy_init_cnt == 0)
+		usb_phy_deinit_internal(base);
+	spin_unlock_irqrestore(&phy_lock, flags);
+}
+#endif /* CONFIG_USB_PXA_U2O */
+
 struct platform_device pxa988_device_asoc_ssp1 = {
 	.name		= "pxa-ssp-dai",
 	.id		= 1,
@@ -261,6 +380,41 @@ struct platform_device pxa988_device_asoc_squ = {
 	.name		= "pxa910-squ-audio",
 	.id		= -1,
 };
+
+#ifdef CONFIG_USB_PXA_U2O
+struct resource pxa988_udc_resources[] = {
+	/* regbase */
+	[0] = {
+		.start	= PXA988_UDC_REGBASE + PXA988_UDC_CAPREGS_RANGE,
+		.end	= PXA988_UDC_REGBASE + PXA988_UDC_REG_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "capregs",
+	},
+	/* phybase */
+	[1] = {
+		.start	= PXA988_UDC_PHYBASE,
+		.end	= PXA988_UDC_PHYBASE + PXA988_UDC_PHY_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "phyregs",
+	},
+	[2] = {
+		.start	= IRQ_PXA988_USB1,
+		.end	= IRQ_PXA988_USB1,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device pxa988_device_udc = {
+	.name		= "pxa-u2o",
+	.id		= -1,
+	.resource	= pxa988_udc_resources,
+	.num_resources	= ARRAY_SIZE(pxa988_udc_resources),
+	.dev		=  {
+		.dma_mask	= &usb_dma_mask,
+		.coherent_dma_mask = 0xffffffff,
+	}
+};
+#endif /* CONFIG_USB_PXA_U2O */
 
 static int __init pxa988_init(void)
 {
