@@ -1329,6 +1329,7 @@ void __init mk2_add_lcd_mipi(void)
 #else
 	mmp3_add_fb_ovly(ovly);
 #endif
+	vsmooth_init(1, 2);
 }
 #endif
 
