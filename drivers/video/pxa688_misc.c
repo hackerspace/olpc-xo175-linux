@@ -389,6 +389,12 @@ static void pxa688_colorkey_set(int id, int vid, int en)
 static int pxa688fb_clone_clk(int src, int dst)
 {
 	u32 mask = ~0;
+	/* video clk shift of register LCD_PN2_TCLK_DIV,
+	 * the shift is different according to MMP2/MMP3 spec,
+	 * default setting is specific for MMP2.
+	*/
+	u32 pn2_vid_shift = 30;
+	u32 pn2_gfx_shift = 2;
 
 	if (src == 1 || dst == 1)
 		/* TV path TCLK_DIV definitions different vs SCLK_DIV */
@@ -397,8 +403,11 @@ static int pxa688fb_clone_clk(int src, int dst)
 	if (dst == 2 && src <= 1) {
 		/* pn2 TCLK_DIV */
 		mask = src ? 2 : 1;
-		lcd_clk_set(dst, clk_tclk, (mask << 30) | (mask << 2) | (mask),
-				(mask << 30) | (mask << 2) | (mask));
+#ifdef CONFIG_CPU_MMP3
+		pn2_vid_shift = 29;
+#endif
+		lcd_clk_set(dst, clk_tclk, (mask << pn2_vid_shift) | (mask << pn2_gfx_shift) | (mask),
+				(mask << pn2_vid_shift) | (mask << pn2_gfx_shift) | (mask));
 	} else
 		lcd_clk_set(dst, clk_sclk, lcd_clk_get(src, clk_sclk) & mask,
 			lcd_clk_get(src, clk_sclk) & mask);
