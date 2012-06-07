@@ -30,22 +30,26 @@ struct clk_table {
 	unsigned long fclk;
 };
 
-#define GCU_CLK_NUM	4
 static struct clk_table pxa978_gcu_clk_table[] = {
-	{156000},
-	{312000},
-	{498000},
-	{600000},
-	{0},
+	{156000000},
+	{208000000},
+	{312000000},
+	{416000000},
+	{498000000},
+	{600000000},
 };
 
 static struct clk_table pxa978_dx_gcu_clk_table[] = {
-	{156000},
-	{312000},
-	{481000},
-	{600000},
-	{0},
+	{156000000},
+	{208000000},
+	{312000000},
+	{416000000},
+	{481000000},
+	{600000000},
 };
+/*TODO: "10" will be defined as a MACRO in future*/
+static unsigned long gc_cur_freqs_table[10];
+static unsigned int gc_freq_counts;
 
 static void common_clk_init(struct clk *c)
 {
@@ -888,20 +892,19 @@ static void clk_gcu_disable(struct clk *clk)
 
 static long clk_pxa95x_gc_round_rate(struct clk *gc_clk, unsigned long rate)
 {
-	if (rate <= 156000000 && (!cpu_is_pxa978_Dx()))
-		rate = 156000000;
-	else if (rate <= 208000000 && (!cpu_is_pxa978_Dx()))
-		rate = 208000000;
-	else if (rate <= 312000000)
-		rate = 312000000;
-	else if (rate <= 416000000)
-		rate = 416000000;
-	else if ((rate <= 481000000) && cpu_is_pxa978_Dx())
-		rate = 481000000;
-	else if ((rate <= 498000000) && (!cpu_is_pxa978_Dx()))
-		rate = 498000000;
-	else
-		rate = 600000000;
+	int i;
+
+	for (i = 0; i < gc_freq_counts; i++) {
+		if (rate <= gc_cur_freqs_table[i]) {
+			if ((gc_cur_freqs_table[i] == 156000000 || gc_cur_freqs_table[i] == 208000000)
+					&& cpu_is_pxa978_Dx())
+				continue;
+			rate = gc_cur_freqs_table[i];
+			break;
+		}
+		if (i == gc_freq_counts - 1)
+			rate = gc_cur_freqs_table[gc_freq_counts - 1];
+	}
 
 	return rate;
 }
@@ -1008,22 +1011,26 @@ out:
 	local_fiq_enable();
 }
 
-int get_gcu_freqs_table(int *gcu_freqs_table, int *item_counts,
-		int max_item_counts)
+int get_gcu_freqs_table(unsigned long *gcu_freqs_table, unsigned int *item_counts,
+		unsigned int max_item_counts)
 {
 	int i;
 
-	if (max_item_counts < GCU_CLK_NUM) {
-		pr_err("Too many GC frequencies!\n");
-		return -1;
-	}
-	if (!cpu_is_pxa978_Dx())
-		for (i = 0; (i < GCU_CLK_NUM) && (pxa978_gcu_clk_table[i].fclk <= max_gc); i++)
+	if (!cpu_is_pxa978_Dx()) {
+		if (max_item_counts < ARRAY_SIZE(pxa978_gcu_clk_table)) {
+			pr_err("Too many GC frequencies!\n");
+			return -1;
+		}
+		for (i = 0; (i < ARRAY_SIZE(pxa978_gcu_clk_table)) && (pxa978_gcu_clk_table[i].fclk <= max_gc); i++)
 			gcu_freqs_table[i] = pxa978_gcu_clk_table[i].fclk;
-	else
-		for (i = 0; (i < GCU_CLK_NUM) && (pxa978_dx_gcu_clk_table[i].fclk <= max_gc); i++)
+	} else {
+		if (max_item_counts < ARRAY_SIZE(pxa978_dx_gcu_clk_table)) {
+			pr_err("Too many GC frequencies!\n");
+			return -1;
+		}
+		for (i = 0; (i < ARRAY_SIZE(pxa978_dx_gcu_clk_table)) && (pxa978_dx_gcu_clk_table[i].fclk <= max_gc); i++)
 			gcu_freqs_table[i] = pxa978_dx_gcu_clk_table[i].fclk;
-
+	}
 	*item_counts = i;
 
 	return 0;
@@ -1827,6 +1834,8 @@ int pxa95x_clk_init(void)
 			break;
 		}
 
+		if (!gc_freq_counts)
+			get_gcu_freqs_table(gc_cur_freqs_table, &gc_freq_counts, ARRAY_SIZE(gc_cur_freqs_table));
 		clock_lookup_init(pxa978_specific_clkregs,
 				ARRAY_SIZE(pxa978_specific_clkregs));
 		/* Make sure rate is always same as real setting */
