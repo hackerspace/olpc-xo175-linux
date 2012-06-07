@@ -791,7 +791,7 @@ static char *fan540x_supplied_to[] = {
 };
 
 static struct fan540x_charger_pdata fan5405_pdata = {
-	.monitor_interval = 20,	/* seconds */
+	.monitor_interval = 10,	/* seconds */
 	.gpio_dis = mfp_to_gpio(GPIO44_GPIO),
 	.supplied_to = fan540x_supplied_to,
 	.num_supplicants = ARRAY_SIZE(fan540x_supplied_to),
