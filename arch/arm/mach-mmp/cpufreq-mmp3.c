@@ -27,6 +27,7 @@
 
 static struct pm_qos_request_list cpufreq_qos_req_min;
 static int cpufreq_disable = 0;
+static int prof_freq_sav_khz = 0;
 #define MHZ_TO_KHZ	1000
 #define KHZ_TO_HZ	1000
 
@@ -62,7 +63,8 @@ static int mmp3_cpufreq_verify(struct cpufreq_policy *policy)
 
 static unsigned int mmp3_cpufreq_get(unsigned int cpu)
 {
-	int clk_raw_khz, clk_pp_khz;
+	int clk_pp_khz = 0;
+	int clk_raw_khz;
 	int delta, i;
 
 	if (cpu >= num_cpus)
@@ -81,10 +83,14 @@ static unsigned int mmp3_cpufreq_get(unsigned int cpu)
 static int mmp3_cpufreq_target(struct cpufreq_policy *policy,
 			       unsigned int target_freq, unsigned int relation)
 {
-	int index;
-	unsigned int highest_speed, qos_freq_khz;
+	int index, i;
+	int prof_freq_khz, qos_freq_khz, freq_khz;
 	int ret = 0;
 
+	mutex_lock(&mmp3_cpu_lock);
+
+	if (cpufreq_disable)
+		goto out;
 	if (cpufreq_frequency_table_target(policy, freq_table[policy->cpu],
 					   target_freq, relation, &index)) {
 		pr_err("cpufreq: invalid target_freq: %d\n", target_freq);
@@ -96,17 +102,19 @@ static int mmp3_cpufreq_target(struct cpufreq_policy *policy,
 		goto out;
 
 	/* FIXME: always use MP1 core as the index to do FC */
-	highest_speed = mmp3_get_pp_freq(index, MMP3_CLK_MP1);
-
-	/* QOS ignore setting the same param val twice.
-	 * On a failed DFC trigger, it is no use to set min_val after.
-	 */
-	/* pm_qos_update_request(&cpufreq_qos_req_min, highest_speed / MHZ_TO_KHZ); */
-
+	prof_freq_khz = mmp3_get_pp_freq(index, MMP3_CLK_MP1);
 	qos_freq_khz = pm_qos_request(PM_QOS_CPUFREQ_MIN) * MHZ_TO_KHZ;
-	if ((highest_speed >= qos_freq_khz) && !cpufreq_disable)
-		freq_notify_and_change(0, index);
+	qos_freq_khz = min(qos_freq_khz, (int)mmp3_get_pp_freq(mmp3_get_pp_number() - 1, MMP3_CLK_MP1));
+	freq_khz = max(prof_freq_khz, qos_freq_khz);
+	prof_freq_sav_khz = prof_freq_khz;
+
+	for (i = 0; i < mmp3_get_pp_number(); i++)
+		if (mmp3_get_pp_freq(i, MMP3_CLK_MP1) >= freq_khz) {
+			freq_notify_and_change(0, i);
+			break;
+		}
 out:
+	mutex_unlock(&mmp3_cpu_lock);
 	return ret;
 }
 
@@ -127,9 +135,6 @@ static int freq_notify_and_change(unsigned int cpu_idx, unsigned int pp_index)
 	int ret = 0;
 
 	BUG_ON(ARRAY_SIZE(axi_freq) <= pp_index);
-
-	if (cpufreq_disable)
-		return ret;
 
 	/* FIXME: always use MP1 core as the index to do FC */
 	cfreq = mmp3_get_pp_freq(pp_index, MMP3_CLK_MP1);
@@ -158,16 +163,16 @@ static int freq_notify_and_change(unsigned int cpu_idx, unsigned int pp_index)
 static int cpufreq_min_notify(struct notifier_block *b,
 				unsigned long min_mhz, void *v)
 {
-	int i, min_khz;
+	int i, min_khz, freq_khz;
 	mutex_lock(&mmp3_cpu_lock);
 
 	/* FIXME: always use MP1 core as the index to do FC */
 	min_khz = min_mhz * MHZ_TO_KHZ;
 	min_khz = min(min_khz, (int)mmp3_get_pp_freq(mmp3_get_pp_number() - 1, MMP3_CLK_MP1));
 
+	freq_khz = max(min_khz, prof_freq_sav_khz);
 	for (i = 0; i < mmp3_get_pp_number(); i++) {
-		if (mmp3_get_pp_freq(i, MMP3_CLK_MP1) >= min_khz) {
-			/* FIXME: always use 0 as cpu id */
+		if (mmp3_get_pp_freq(i, MMP3_CLK_MP1) >= freq_khz) {
 			freq_notify_and_change(0, i);
 			break;
 		}
@@ -181,21 +186,19 @@ static int cpufreq_disable_notify(struct notifier_block *b,
 				unsigned long disable, void *v)
 {
 	int i;
-	int target_freq_khz, max_freq_khz;
+	int qos_freq_khz, freq_khz;
 
 	mutex_lock(&mmp3_cpu_lock);
 	cpufreq_disable = disable;
 
 	/* FIXME: always use MP1 core as the index to do FC */
 	if (!cpufreq_disable) {
-		target_freq_khz = pm_qos_request(PM_QOS_CPUFREQ_MIN) * MHZ_TO_KHZ;
-		max_freq_khz = mmp3_get_pp_freq(mmp3_get_pp_number() - 1, MMP3_CLK_MP1);
-		if (target_freq_khz <= 0)
-			target_freq_khz = max_freq_khz;
-		target_freq_khz = min(target_freq_khz, max_freq_khz);
+		qos_freq_khz = pm_qos_request(PM_QOS_CPUFREQ_MIN) * MHZ_TO_KHZ;
+		qos_freq_khz = min(qos_freq_khz, (int)mmp3_get_pp_freq(mmp3_get_pp_number() - 1, MMP3_CLK_MP1));
+
+		freq_khz = max(qos_freq_khz, prof_freq_sav_khz);
 		for (i = 0; i < mmp3_get_pp_number(); i++) {
-			if (mmp3_get_pp_freq(i, MMP3_CLK_MP1) >= target_freq_khz) {
-				/* FIXME: always use 0 as cpu id */
+			if (mmp3_get_pp_freq(i, MMP3_CLK_MP1) >= freq_khz) {
 				freq_notify_and_change(0, i);
 				break;
 			}
