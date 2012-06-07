@@ -321,6 +321,7 @@ static void regulator_init_pm800(void)
 		/* all values defined according to 88PM812 System Document */
 		REG_SUPPLY_INIT(PM800_ID_LDO18, "Vdd_IO", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO11, "v_cywee", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO12, "vmmc_io", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO13, "vmmc", "sdhci-pxa.1");
 		REG_SUPPLY_INIT(PM800_ID_LDO9, "v_wifi_3v3", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO10, "v_vibrator", NULL);
@@ -332,7 +333,8 @@ static void regulator_init_pm800(void)
 
 		REG_INIT(i++, PM800_ID, LDO18, 1700000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO11, 1200000, 3300000, 0, 0);
-		REG_INIT(i++, PM800_ID, LDO13, 1200000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO12, 1800000, 2800000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO13, 2800000, 2800000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO9, 1200000, 3300000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO10, 1200000, 2800000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO17, 1200000, 3300000, 0, 0);
