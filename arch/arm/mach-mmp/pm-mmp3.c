@@ -2034,6 +2034,7 @@ void mmp3_pm_enter_d2(void)
 	struct mmp3_cpu_idle_config *cic;
 	int core_id = mmp3_smpid();
 	u32 the_value;
+	register u32 reg;
 
 	cic = &(mmp3_percpu[core_id].cic);
 
@@ -2067,6 +2068,19 @@ void mmp3_pm_enter_d2(void)
 	outer_flush_all();
 	dsb();
 
+	/* set FW = 0 */
+	__asm__ volatile ("mrc p15, 0, %0, c1, c0, 1" : "=r" (reg));
+	reg &= ~(1 << 0);
+	__asm__ volatile ("mcr p15, 0, %0, c1, c0, 1" : : "r" (reg));
+	isb();
+	dsb();
+	/* set SMPnAMP = 0 */
+	__asm__ volatile ("mrc p15, 0, %0, c1, c0, 1" : "=r" (reg));
+	reg &= ~(1 << 6);
+	__asm__ volatile ("mcr p15, 0, %0, c1, c0, 1" : : "r" (reg));
+	isb();
+	dsb();
+
 	__asm__ __volatile__ ("wfi");
 
 	__raw_writel(0x0, ICU1_REG(0x10));
@@ -2074,6 +2088,13 @@ void mmp3_pm_enter_d2(void)
 	__raw_writel(0x0, ICU1_REG(0xc4));
 
 	printk("after resume\n");
+
+	/* set FW = 1 */
+	__asm__ volatile ("mrc p15, 0, %0, c1, c0, 1" : "=r" (reg));
+	reg |= ((1 << 0) | (1 << 6));
+	__asm__ volatile ("mcr p15, 0, %0, c1, c0, 1" : : "r" (reg));
+	isb();
+	dsb();
 
 	/* d2 workaround: no need to shut pclk off anymore */
 	/* __raw_writel(__raw_readl(APMU_CC2_PJ) & ~(1u << 31), APMU_CC2_PJ); */
