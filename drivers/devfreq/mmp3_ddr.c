@@ -85,7 +85,7 @@ static int change_ddr_freq(unsigned int freq)
 	return 0;
 }
 
-static int ddr_target(struct device *dev, unsigned long *freq)
+static int ddr_target(struct device *dev, unsigned long *freq, u32 flags)
 {
 	int i;
 
