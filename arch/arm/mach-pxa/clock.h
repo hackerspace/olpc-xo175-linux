@@ -1,5 +1,6 @@
 #include <linux/clkdev.h>
 #include <linux/syscore_ops.h>
+#define GC_VM_OP_NUM_MAX	10
 
 #define INIT_CLKREG(_clk,_devname,_conname)		\
 	{						\

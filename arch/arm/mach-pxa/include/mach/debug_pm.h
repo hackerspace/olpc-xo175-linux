@@ -35,6 +35,8 @@ enum stats_clk_event {
 #include <linux/debugfs.h>
 #include <linux/uaccess.h>
 #include <linux/seq_file.h>
+#include <mach/pxa95x_dvfm.h>
+#include "../../clock.h"
 
 /* for pm logger dump*/
 struct pm_logger_header {
@@ -49,6 +51,29 @@ struct pm_logger_buffer_descriptor {
 	unsigned int len;
 	struct pm_logger_header header;
 };
+struct gc_vmeta_op_cycle_type {
+	unsigned long op_idx;
+	unsigned int runtime;
+	unsigned int idletime;
+	unsigned int count;
+};
+
+struct gc_vmeta_ticks {
+	unsigned long gc_cur_freq;
+	unsigned long vm_cur_freq;
+	unsigned int gc_prev_timestamp;
+	unsigned int vm_prev_timestamp;
+	unsigned int gc_state;
+	unsigned int vmeta_state;
+	unsigned int gc_stats_start;
+	unsigned int gc_stats_stop;
+	unsigned int vm_stats_start;
+	unsigned int vm_stats_stop;
+	struct gc_vmeta_op_cycle_type GC_op_ticks_array[GC_VM_OP_NUM_MAX];
+	struct gc_vmeta_op_cycle_type VM_op_ticks_array[GC_VM_OP_NUM_MAX];
+	struct mutex gc_stats_table_lock;
+};
+extern unsigned int read_curtime(void);
 
 extern struct proc_op_array *proc_op;
 

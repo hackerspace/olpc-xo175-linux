@@ -48,9 +48,8 @@ static struct devfreq_frequency_table pxa978_dx_gcvmeta_clk_table[] = {
 	INIT_FREQ_TABLE(7, DEVFREQ_TABLE_END),
 };
 
-/*TODO: "10" will be defined as a MACRO in future*/
-static unsigned long gc_cur_freqs_table[10];
-static unsigned int gc_freq_counts;
+unsigned long gc_cur_freqs_table[GC_VM_OP_NUM_MAX];
+unsigned int gc_freq_counts;
 
 static void common_clk_init(struct clk *c)
 {
@@ -855,6 +854,10 @@ static const struct clkops clk_pxa978_syspll416_ops = {
 
 extern struct dvfs gc_dvfs;
 extern unsigned int galcore_dvfm_dev_idx;
+/*These function and Variables are used for GC&VMETA stats in debugfs*/
+static void gcu_vmeta_stats(struct clk *clk, unsigned long rate);
+extern struct gc_vmeta_ticks gc_vmeta_ticks_info;
+
 static int clk_gcu_enable(struct clk *clk)
 {
 	struct dvfs_freqs dvfs_freqs;
@@ -872,6 +875,9 @@ static int clk_gcu_enable(struct clk *clk)
 		clk_enable(&clk_pxa978_syspll_416);
 	CKENC |= ((1 << (CKEN_GC_1X - 64)) | (1 << (CKEN_GC_2X - 64)));
 	gc_vmeta_stats_clk_event(GC_CLK_ON);
+	gc_vmeta_ticks_info.gc_state = GC_CLK_ON;
+	if (gc_vmeta_ticks_info.gc_stats_start)
+		gcu_vmeta_stats(clk, clk->rate);
 
 	return 0;
 }
@@ -894,6 +900,9 @@ static void clk_gcu_disable(struct clk *clk)
 		dvfm_enable_op_name_no_change("CG", galcore_dvfm_dev_idx);
 
 	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
+	gc_vmeta_ticks_info.gc_state = GC_CLK_OFF;
+	if (gc_vmeta_ticks_info.gc_stats_start)
+		gcu_vmeta_stats(clk, clk->rate);
 }
 
 static long clk_pxa95x_gc_round_rate(struct clk *gc_clk, unsigned long rate)
@@ -1019,6 +1028,90 @@ out:
 	local_fiq_enable();
 }
 
+#define GC_FC 1
+#define VMETA_FC 0
+void update_GC_VMETA_op_cycle(int gvsel, unsigned long new_rate, unsigned int runtime,
+		unsigned int idletime)
+{
+	int op_idx;
+
+	if (gvsel == GC_FC) {
+		if (!gc_vmeta_ticks_info.gc_cur_freq)
+			gc_vmeta_ticks_info.gc_cur_freq = new_rate;
+		for (op_idx = 0; op_idx < gc_freq_counts; op_idx++)
+			if (gc_vmeta_ticks_info.gc_cur_freq == gc_cur_freqs_table[op_idx])
+				break;
+		gc_vmeta_ticks_info.GC_op_ticks_array[op_idx].runtime += runtime;
+		gc_vmeta_ticks_info.GC_op_ticks_array[op_idx].idletime += idletime;
+		if (gc_vmeta_ticks_info.gc_cur_freq != new_rate) {
+			gc_vmeta_ticks_info.GC_op_ticks_array[op_idx].count++;
+			gc_vmeta_ticks_info.gc_cur_freq = new_rate;
+		}
+	} else {
+		if (!gc_vmeta_ticks_info.vm_cur_freq)
+			gc_vmeta_ticks_info.vm_cur_freq = new_rate;
+		for (op_idx = 0; op_idx < gc_freq_counts; op_idx++)
+			if (gc_vmeta_ticks_info.vm_cur_freq == gc_cur_freqs_table[op_idx])
+				break;
+		gc_vmeta_ticks_info.VM_op_ticks_array[op_idx].runtime += runtime;
+		gc_vmeta_ticks_info.VM_op_ticks_array[op_idx].idletime += idletime;
+		if (gc_vmeta_ticks_info.vm_cur_freq != new_rate) {
+			gc_vmeta_ticks_info.VM_op_ticks_array[op_idx].count++;
+			gc_vmeta_ticks_info.vm_cur_freq = new_rate;
+		}
+	}
+}
+
+static void gcu_vmeta_stats(struct clk *clk, unsigned long rate)
+{
+	if (!strcmp(clk->name, "GCCLK")) {
+		unsigned int timestamp, time;
+
+		timestamp = read_curtime();
+		time = (timestamp >= gc_vmeta_ticks_info.gc_prev_timestamp) ? timestamp - gc_vmeta_ticks_info.gc_prev_timestamp
+			: 0xFFFFFFFF - gc_vmeta_ticks_info.gc_prev_timestamp + timestamp;
+
+		gc_vmeta_ticks_info.gc_prev_timestamp = timestamp;
+
+		if (gc_vmeta_ticks_info.gc_state == GC_CLK_ON)
+			update_GC_VMETA_op_cycle(GC_FC, rate, time, 0);
+		else
+			update_GC_VMETA_op_cycle(GC_FC, rate, 0, time);
+
+		if (rate >= 481000000) {
+			if (gc_vmeta_ticks_info.vm_stats_start && (gc_vmeta_ticks_info.vm_cur_freq >= 481000000)) {
+				gc_vmeta_ticks_info.vm_prev_timestamp = timestamp;
+				if (gc_vmeta_ticks_info.vmeta_state == VMETA_CLK_ON)
+					update_GC_VMETA_op_cycle(VMETA_FC, rate, time, 0);
+				else
+					update_GC_VMETA_op_cycle(VMETA_FC, rate, 0, time);
+			}
+		}
+	} else if (!strcmp(clk->name, "VMETA_CLK")) {
+		unsigned int timestamp, time;
+
+		timestamp = read_curtime();
+		time = (timestamp >= gc_vmeta_ticks_info.vm_prev_timestamp) ? timestamp - gc_vmeta_ticks_info.vm_prev_timestamp
+			: 0xFFFFFFFF - gc_vmeta_ticks_info.vm_prev_timestamp + timestamp;
+
+		gc_vmeta_ticks_info.vm_prev_timestamp = timestamp;
+
+		if (gc_vmeta_ticks_info.vmeta_state == VMETA_CLK_ON)
+			update_GC_VMETA_op_cycle(VMETA_FC, rate, time, 0);
+		else
+			update_GC_VMETA_op_cycle(VMETA_FC, rate, 0, time);
+		if (rate >= 481000000) {
+			if (gc_vmeta_ticks_info.gc_stats_start && (gc_vmeta_ticks_info.gc_cur_freq >= 481000000)) {
+				gc_vmeta_ticks_info.gc_prev_timestamp = timestamp;
+				if (gc_vmeta_ticks_info.gc_state == GC_CLK_ON)
+					update_GC_VMETA_op_cycle(GC_FC, rate, time, 0);
+				else
+					update_GC_VMETA_op_cycle(GC_FC, rate, 0, time);
+			}
+		}
+	}
+}
+
 int get_gcu_freqs_table(unsigned long *gcu_freqs_table, unsigned int *item_counts,
 		unsigned int max_item_counts)
 {
@@ -1121,6 +1214,10 @@ static int clk_pxa95x_gcu_setrate(struct clk *gc_clk, unsigned long rate)
 #endif
 	if ((gc_clk->rate == 416000000) && (rate != 416000000) && (gc_clk->refcnt > 0))
 		clk_disable(&clk_pxa978_syspll_416);
+	if (gc_vmeta_ticks_info.gc_stats_start)
+		gcu_vmeta_stats(gc_clk, rate);
+	else
+		gc_vmeta_ticks_info.gc_cur_freq = rate;
 
 	if (dvfs_freqs.old > dvfs_freqs.new)
 		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
@@ -1376,6 +1473,10 @@ static int clk_pxa95x_vmeta_setrate(struct clk *vmeta_clk, unsigned long rate)
 #endif
 	if ((vmeta_clk->rate == 416000000) && (rate != 416000000) && (vmeta_clk->refcnt > 0))
 		clk_disable(&clk_pxa978_syspll_416);
+	if (gc_vmeta_ticks_info.vm_stats_start)
+		gcu_vmeta_stats(vmeta_clk, rate);
+	else
+		gc_vmeta_ticks_info.vm_cur_freq = rate;
 
 	if (dvfs_freqs.old > dvfs_freqs.new)
 		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
@@ -1399,6 +1500,9 @@ static int clk_pxa95x_vmeta_enable(struct clk *clk)
 
 	CKENB |= (1 << (clk->enable_val - 32));
 	gc_vmeta_stats_clk_event(VMETA_CLK_ON);
+	gc_vmeta_ticks_info.vmeta_state = VMETA_CLK_ON;
+	if (gc_vmeta_ticks_info.vm_stats_start)
+		gcu_vmeta_stats(clk, clk->rate);
 
 	return 0;
 }
@@ -1419,6 +1523,9 @@ static void clk_pxa95x_vmeta_disable(struct clk *clk)
 		clk_disable(&clk_pxa978_syspll_416);
 
 	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
+	gc_vmeta_ticks_info.vmeta_state = VMETA_CLK_OFF;
+	if (gc_vmeta_ticks_info.vm_stats_start)
+		gcu_vmeta_stats(clk, clk->rate);
 }
 
 static const struct clkops clk_pxa95x_vmeta_ops = {

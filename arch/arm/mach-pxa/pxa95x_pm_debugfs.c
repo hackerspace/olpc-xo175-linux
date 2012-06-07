@@ -63,6 +63,23 @@ static int PXA9xx_DVFM_profilerRecommendation_write(struct file *file,
 static int pxa_9xx_power_MeasureCoreFreq_open(struct inode *inode,
 					      struct file *file);
 
+static int pxa_9xx_gc_ticks_write(struct file *file,
+					const char __user *ubuf,
+					size_t count, loff_t *ppos);
+
+static int pxa_9xx_gc_ticks_read(struct file *file,
+				 char __user *userbuf,
+				 size_t count, loff_t *ppos);
+
+static int pxa_9xx_vm_ticks_write(struct file *file,
+				  const char __user *ubuf,
+				  size_t count, loff_t *ppos);
+
+static int pxa_9xx_vm_ticks_read(struct file *file,
+				 char __user *userbuf,
+				 size_t count, loff_t *ppos);
+
+
 static int pxa_9xx_gc_vmeta_stats_write(struct file *file,
 					const char __user *ubuf,
 					size_t count, loff_t *ppos);
@@ -113,7 +130,9 @@ const char pxa9xx_force_lpm_names__[][LPM_NAMES_LEN] = {
 
 static struct dentry *dbgfs_root, *pmLogger_file, *forceVCTCXO_EN_file,
 			*ForceLPM_file, *MeasureCoreFreq_file,
-			*profilerRecommendation_file, *GcVmetaStats_file,
+			*profilerRecommendation_file, *GcTicks_file,
+			*VmTicks_file,
+			*GcVmetaStats_file,
 			*PI2C_file,
 			*ForceC0_file,
 			*pmLoggerBuffer_file;
@@ -151,6 +170,18 @@ static const struct file_operations PXA9xx_file_op_ForceLPM = {
 	.owner = THIS_MODULE,
 	.read = PXA9xx_DVFM_ForceLPM_seq_read,
 	.write = PXA9xx_DVFM_ForceLPM_seq_write,
+};
+
+static const struct file_operations PXA9xx_file_op_gc_ticks = {
+	.owner = THIS_MODULE,
+	.read = pxa_9xx_gc_ticks_read,
+	.write = pxa_9xx_gc_ticks_write,
+};
+
+static const struct file_operations PXA9xx_file_op_vm_ticks = {
+	.owner = THIS_MODULE,
+	.read = pxa_9xx_vm_ticks_read,
+	.write = pxa_9xx_vm_ticks_write,
 };
 
 static const struct file_operations PXA9xx_file_op_gc_vmeta_stats = {
@@ -663,6 +694,217 @@ static int pxa_9xx_gc_vmeta_stats_write(struct file *file,
 		printk(KERN_INFO "cat GcVmetaStats       -  Display results\n");
 	}
 
+	return count;
+}
+
+/*These function and Variables are used for GC&VMETA stats*/
+#define GC_FC	1
+#define VMETA_FC	0
+extern int get_gcu_freqs_table(unsigned long *gcu_freqs_table, int *item_counts, int max_item_counts);
+extern void update_GC_VMETA_op_cycle(int gvsel, unsigned long new_rate, unsigned int runtime,
+				     unsigned int idletime);
+
+struct gc_vmeta_ticks gc_vmeta_ticks_info;
+
+extern unsigned int gc_freq_counts;
+extern unsigned long gc_cur_freqs_table[GC_VM_OP_NUM_MAX];
+
+unsigned int read_curtime(void)
+{
+	return OSCR4;
+}
+
+static int pxa_9xx_gc_ticks_read(struct file *file,
+				       char __user *userbuf,
+				       size_t count, loff_t *ppos)
+{
+	char buf[1000] = { 0 };
+	unsigned int sum = 0, timestamp, time;
+
+	int i;
+
+	if (gc_vmeta_ticks_info.gc_stats_start || gc_vmeta_ticks_info.gc_stats_stop) {
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "GCU ticks stats\n");
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "OP#   |   OP name   | run ticks | idle ticks | run second | idle second | count\n");
+
+		timestamp = read_curtime();
+		time = (timestamp >= gc_vmeta_ticks_info.gc_prev_timestamp) ? timestamp - gc_vmeta_ticks_info.gc_prev_timestamp
+			: 0xFFFFFFFF - gc_vmeta_ticks_info.gc_prev_timestamp + timestamp;
+
+		gc_vmeta_ticks_info.gc_prev_timestamp = timestamp;
+
+		if (!gc_vmeta_ticks_info.gc_stats_stop) {
+			if (gc_vmeta_ticks_info.gc_state == GC_CLK_ON)
+				update_GC_VMETA_op_cycle(GC_FC, gc_vmeta_ticks_info.gc_cur_freq, time, 0);
+			else
+				update_GC_VMETA_op_cycle(GC_FC, gc_vmeta_ticks_info.gc_cur_freq, 0, time);
+		}
+		for (i = 0; i < gc_freq_counts; i++) {
+			sum += snprintf(buf + sum, sizeof(buf) - sum - 1,
+			"OP %2d | %9luHz |  %8u | %10u | %10u |  %10u | %4u |\n",
+			i, gc_vmeta_ticks_info.GC_op_ticks_array[i].op_idx,
+			gc_vmeta_ticks_info.GC_op_ticks_array[i].runtime,
+			gc_vmeta_ticks_info.GC_op_ticks_array[i].idletime,
+			dvfm_driver->ticks_to_sec(gc_vmeta_ticks_info.GC_op_ticks_array[i].runtime),
+			dvfm_driver->ticks_to_sec(gc_vmeta_ticks_info.GC_op_ticks_array[i].idletime),
+			gc_vmeta_ticks_info.GC_op_ticks_array[i].count);
+		}
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "\n");
+	} else {
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "Please start the GC Ticks stats first\n");
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "Help information :\n");
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "    Suppose you mount the debugfs to the /sys/kernel/debug/:\n");
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "1. Way to start :\n");
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "    echo 1 > /sys/kernel/debug/PM/gcTicks:\n");
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "2. Way to check the result:\n");
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "    cat /sys/kernel/debug/PM/gcTicks:\n");
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "3. Way to stop the stats:\n");
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "    echo 0 > /sys/kernel/debug/PM/gcTicks:\n");
+	}
+
+	return simple_read_from_buffer(userbuf, count, ppos, buf, sum);
+}
+
+static int pxa_9xx_gc_ticks_write(struct file *file,
+					const char __user *ubuf,
+					size_t count, loff_t *ppos)
+{
+	unsigned int value;
+	char buf[USER_BUF_SIZE] = { 0 };
+	int pos = 0;
+	int min_size, i;
+
+	min_size = min_t(char, sizeof(buf) - 1, count);
+
+	if (copy_from_user(buf, ubuf, min_size))
+		return -EFAULT;
+
+	pos += sscanf(buf, "%d", &value);
+
+	if (1 ==  value) {
+		memset(gc_vmeta_ticks_info.GC_op_ticks_array, 0, sizeof(struct gc_vmeta_op_cycle_type) * GC_VM_OP_NUM_MAX);
+		if (!gc_freq_counts)
+			get_gcu_freqs_table(gc_cur_freqs_table, &gc_freq_counts, ARRAY_SIZE(gc_cur_freqs_table));
+
+		for (i = 0; i < gc_freq_counts; i++)
+			gc_vmeta_ticks_info.GC_op_ticks_array[i].op_idx = gc_cur_freqs_table[i];
+
+		gc_vmeta_ticks_info.gc_prev_timestamp = read_curtime();
+		gc_vmeta_ticks_info.gc_stats_start = 1;
+		gc_vmeta_ticks_info.gc_stats_stop = 0;
+	} else {
+		unsigned int timestamp, time;
+		timestamp = read_curtime();
+		time = (timestamp >= gc_vmeta_ticks_info.gc_prev_timestamp) ? timestamp - gc_vmeta_ticks_info.gc_prev_timestamp
+			: 0xFFFFFFFF - gc_vmeta_ticks_info.gc_prev_timestamp + timestamp;
+
+		gc_vmeta_ticks_info.gc_prev_timestamp = timestamp;
+
+		gc_vmeta_ticks_info.gc_stats_start = 0;
+		gc_vmeta_ticks_info.gc_stats_stop = 1;
+		if (!gc_vmeta_ticks_info.gc_stats_stop) {
+			if (gc_vmeta_ticks_info.gc_state == GC_CLK_ON)
+				update_GC_VMETA_op_cycle(GC_FC, gc_vmeta_ticks_info.gc_cur_freq, time, 0);
+			else
+				update_GC_VMETA_op_cycle(GC_FC, gc_vmeta_ticks_info.gc_cur_freq, 0, time);
+		}
+
+		update_GC_VMETA_op_cycle(GC_FC, gc_vmeta_ticks_info.gc_cur_freq, time, 0);
+	}
+	return count;
+}
+
+static int pxa_9xx_vm_ticks_read(struct file *file,
+				       char __user *userbuf,
+				       size_t count, loff_t *ppos)
+{
+	char buf[1000] = { 0 };
+	unsigned int sum = 0, timestamp, time;
+
+	int i;
+
+	if (gc_vmeta_ticks_info.vm_stats_start || gc_vmeta_ticks_info.vm_stats_stop) {
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "Vmeta ticks stats\n");
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "OP#   |   OP name   | run ticks | idle ticks | run second | idle second | count\n");
+
+		timestamp = read_curtime();
+		time = (timestamp >= gc_vmeta_ticks_info.vm_prev_timestamp) ? (timestamp - gc_vmeta_ticks_info.vm_prev_timestamp)
+			: (0xFFFFFFFF - gc_vmeta_ticks_info.vm_prev_timestamp + timestamp);
+
+		gc_vmeta_ticks_info.vm_prev_timestamp = timestamp;
+
+		if (!gc_vmeta_ticks_info.vm_stats_stop) {
+			if (gc_vmeta_ticks_info.vmeta_state == VMETA_CLK_ON)
+				update_GC_VMETA_op_cycle(VMETA_FC, gc_vmeta_ticks_info.vm_cur_freq, time, 0);
+			else
+				update_GC_VMETA_op_cycle(VMETA_FC, gc_vmeta_ticks_info.vm_cur_freq, 0, time);
+		}
+
+		for (i = 0; i < gc_freq_counts; i++) {
+			sum += snprintf(buf + sum, sizeof(buf) - sum - 1,
+			"OP %2d | %9luHz |  %8u | %10u | %10u |  %10u | %4u |\n",
+			i, gc_vmeta_ticks_info.VM_op_ticks_array[i].op_idx,
+			gc_vmeta_ticks_info.VM_op_ticks_array[i].runtime,
+			gc_vmeta_ticks_info.VM_op_ticks_array[i].idletime,
+			dvfm_driver->ticks_to_sec(gc_vmeta_ticks_info.VM_op_ticks_array[i].runtime),
+			dvfm_driver->ticks_to_sec(gc_vmeta_ticks_info.VM_op_ticks_array[i].idletime),
+			gc_vmeta_ticks_info.VM_op_ticks_array[i].count);
+		}
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "\n");
+	} else {
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "Please start the VMETA ticks stats first\n");
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "Help information :\n");
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "    Suppose you mount the debugfs to the /sys/kernel/debug/:\n");
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "1. Way to start :\n");
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "    echo 1 > /sys/kernel/debug/PM/VmetaTicks:\n");
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "2. Way to check the result:\n");
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "    cat /sys/kernel/debug/PM/VmetaTicks:\n");
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "3. Way to stop the stats:\n");
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "    echo 0 > /sys/kernel/debug/PM/VmetaTicks:\n");
+	}
+
+	return simple_read_from_buffer(userbuf, count, ppos, buf, sum);
+}
+
+static int pxa_9xx_vm_ticks_write(struct file *file,
+					const char __user *ubuf,
+					size_t count, loff_t *ppos)
+{
+	unsigned int value;
+	char buf[USER_BUF_SIZE] = { 0 };
+	int pos = 0;
+	int min_size, i;
+
+	min_size = min_t(char, sizeof(buf) - 1, count);
+
+	if (copy_from_user(buf, ubuf, min_size))
+		return -EFAULT;
+
+	pos += sscanf(buf, "%d", &value);
+
+	if (1 ==  value) {
+		memset(gc_vmeta_ticks_info.VM_op_ticks_array, 0, sizeof(struct gc_vmeta_op_cycle_type) * GC_VM_OP_NUM_MAX);
+		if (!gc_freq_counts)
+			get_gcu_freqs_table(gc_cur_freqs_table, &gc_freq_counts, ARRAY_SIZE(gc_cur_freqs_table));
+
+		for (i = 0; i < gc_freq_counts; i++)
+			gc_vmeta_ticks_info.VM_op_ticks_array[i].op_idx = gc_cur_freqs_table[i];
+
+		gc_vmeta_ticks_info.vm_prev_timestamp = read_curtime();
+		gc_vmeta_ticks_info.vm_stats_start = 1;
+		gc_vmeta_ticks_info.vm_stats_stop = 0;
+	} else {
+		unsigned int timestamp, time;
+		timestamp = read_curtime();
+		time = (timestamp >= gc_vmeta_ticks_info.vm_prev_timestamp) ? timestamp - gc_vmeta_ticks_info.vm_prev_timestamp
+			: 0xFFFFFFFF - gc_vmeta_ticks_info.vm_prev_timestamp + timestamp;
+
+		gc_vmeta_ticks_info.vm_prev_timestamp = timestamp;
+
+		gc_vmeta_ticks_info.vm_stats_start = 0;
+		gc_vmeta_ticks_info.vm_stats_stop = 1;
+		update_GC_VMETA_op_cycle(VMETA_FC, gc_vmeta_ticks_info.vm_cur_freq, time, 0);
+	}
 	return count;
 }
 
@@ -1378,6 +1620,18 @@ void pxa_9xx_power_init_debugfs(void)
 					&PXA9xx_file_op_profilerRecommendation);
 
 		if (!profilerRecommendation_file)
+			errRet = -EINVAL;
+
+		GcTicks_file = debugfs_create_file("gcTicks", 0600,
+						   dbgfs_root, NULL,
+						   &PXA9xx_file_op_gc_ticks);
+		if (!GcTicks_file)
+			errRet = -EINVAL;
+
+		VmTicks_file = debugfs_create_file("VmetaTicks", 0600,
+						   dbgfs_root, NULL,
+						   &PXA9xx_file_op_vm_ticks);
+		if (!VmTicks_file)
 			errRet = -EINVAL;
 
 		GcVmetaStats_file = debugfs_create_file("GcVmetaStats", 0600,
