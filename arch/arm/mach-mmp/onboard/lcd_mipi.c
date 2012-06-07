@@ -1132,7 +1132,7 @@ void __init abilene_add_lcd_mipi(void)
 	fb->num_modes = ARRAY_SIZE(video_modes_abilene);
 	fb->modes = video_modes_abilene;
 	fb->max_fb_size = video_modes_abilene[0].xres *
-		video_modes_abilene[0].xres * 8 + 4096;
+		video_modes_abilene[0].yres * 8 + 4096;
 	ovly->num_modes = fb->num_modes;
 	ovly->modes = fb->modes;
 	ovly->max_fb_size = fb->max_fb_size;
@@ -1201,7 +1201,7 @@ void __init yellowstone_add_lcd_mipi(void)
 	fb->num_modes = ARRAY_SIZE(video_modes_yellowstone);
 	fb->modes = video_modes_yellowstone;
 	fb->max_fb_size = video_modes_yellowstone[0].xres *
-		video_modes_yellowstone[0].xres * 8 + 4096;
+		video_modes_yellowstone[0].yres * 8 + 4096;
 	ovly->num_modes = fb->num_modes;
 	ovly->modes = fb->modes;
 	ovly->max_fb_size = fb->max_fb_size;
@@ -1267,7 +1267,7 @@ void __init orchid_add_lcd_mipi(void)
 	fb->num_modes = ARRAY_SIZE(video_modes_orchid);
 	fb->modes = video_modes_orchid;
 	fb->max_fb_size = video_modes_orchid[0].xres *
-		video_modes_orchid[0].xres * 8 + 4096;
+		video_modes_orchid[0].yres * 8 + 4096;
 	ovly->num_modes = fb->num_modes;
 	ovly->modes = fb->modes;
 	ovly->max_fb_size = fb->max_fb_size;
@@ -1327,7 +1327,7 @@ void __init mk2_add_lcd_mipi(void)
 	fb->num_modes = ARRAY_SIZE(video_modes_mk2);
 	fb->modes = video_modes_mk2;
 	fb->max_fb_size = video_modes_mk2[0].xres *
-		video_modes_mk2[0].xres * 8 + 4096;
+		video_modes_mk2[0].yres * 8 + 4096;
 	ovly->num_modes = fb->num_modes;
 	ovly->modes = fb->modes;
 	ovly->max_fb_size = fb->max_fb_size;
