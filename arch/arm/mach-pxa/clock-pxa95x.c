@@ -853,9 +853,9 @@ static void clk_gcu_disable(struct clk *clk)
 
 static long clk_pxa95x_gc_round_rate(struct clk *gc_clk, unsigned long rate)
 {
-	if (rate <= 156000000)
+	if (rate <= 156000000 && (!cpu_is_pxa978_Dx()))
 		rate = 156000000;
-	else if (rate <= 208000000)
+	else if (rate <= 208000000 && (!cpu_is_pxa978_Dx()))
 		rate = 208000000;
 	else if (rate <= 312000000)
 		rate = 312000000;
