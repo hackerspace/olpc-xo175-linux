@@ -806,11 +806,11 @@ static int mv_camera_add_device(struct soc_camera_device *icd)
 	ccic_power_up(pcdev);
 	ret = v4l2_subdev_call(sd, core, init, 0);
 	/* When v4l2_subdev_call return -ENOIOCTLCMD, means No ioctl command */
-	if ((ret < 0) && (ret != -ENOIOCTLCMD))
-		dev_info(icd->dev.parent, "cam: Failed to initialize subdev: "\
-					"%d\n", ret);
+	if ((ret < 0) && (ret != -ENOIOCTLCMD) && (ret != -ENODEV))
+		dev_info(icd->dev.parent,
+			"camera: Failed to initialize subdev: %d\n", ret);
 
-	return 0;
+	return ret;
 }
 
 static void mv_camera_remove_device(struct soc_camera_device *icd)
@@ -822,6 +822,7 @@ static void mv_camera_remove_device(struct soc_camera_device *icd)
 	BUG_ON(icd != pcdev->icd);
 
 	vb2_dma_contig_cleanup_ctx(pcdev->vb_alloc_ctx);
+	pcdev->vb_alloc_ctx = NULL;
 	dev_err(&pcdev->pdev->dev, "Release, %d frames, %d"
 			"singles, %d delivered\n", frames, singles, delivered);
 	ccic_config_phy(pcdev, 0);
