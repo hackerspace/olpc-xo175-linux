@@ -32,7 +32,7 @@ struct vMeta_devfreq_data {
 	struct clk *vclk;
 };
 
-static int vmeta_target(struct device *dev, unsigned long *freq)
+static int vmeta_target(struct device *dev, unsigned long *freq, u32 flags)
 {
 	struct platform_device *pdev = container_of(dev, struct platform_device,
 						    dev);
