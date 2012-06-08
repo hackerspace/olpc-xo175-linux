@@ -48,8 +48,37 @@
 /*|Used by CP side|DMA desc, playback buffer, capture buffer|freq buffer|*/
 /*-----------------------------------------------------------------------*/
 
-/*0xd1000000 to 0xd100a000 is used by CP, AP can use 0xd100a000 to 0xd101f000*/
+/* PXA988 only has 52K squ sram for audio */
+#if defined(CONFIG_CPU_PXA988)
+static const struct snd_pcm_hardware pxa910_squ_capture = {
+	.info = SNDRV_PCM_INFO_MMAP |
+	    SNDRV_PCM_INFO_MMAP_VALID |
+	    SNDRV_PCM_INFO_INTERLEAVED |
+	    SNDRV_PCM_INFO_PAUSE | SNDRV_PCM_INFO_RESUME,
+	.formats = SNDRV_PCM_FMTBIT_S16_LE,
+	.period_bytes_min = 64,
+	.period_bytes_max = 4 * 1024,
+	.periods_min = 1,
+	.periods_max = PAGE_SIZE / sizeof(struct pxa910_squ_desc),
+	.buffer_bytes_max = 20 * 1024,	/*should be 4k alignment! */
+	.fifo_size = 32,
+};
 
+static const struct snd_pcm_hardware pxa910_squ_playback = {
+	.info = SNDRV_PCM_INFO_MMAP |
+	    SNDRV_PCM_INFO_MMAP_VALID |
+	    SNDRV_PCM_INFO_INTERLEAVED |
+	    SNDRV_PCM_INFO_PAUSE | SNDRV_PCM_INFO_RESUME,
+	.formats = SNDRV_PCM_FMTBIT_S16_LE,
+	.period_bytes_min = 64,
+	.period_bytes_max = 8 * 1024,
+	.periods_min = 1,
+	.periods_max = PAGE_SIZE / sizeof(struct pxa910_squ_desc),
+	.buffer_bytes_max = 28 * 1024,	/*should be 4k alignment! */
+	.fifo_size = 32,
+};
+#else
+/*0xd1000000 to 0xd100a000 is used by CP, AP can use 0xd100a000 to 0xd101f000*/
 static const struct snd_pcm_hardware pxa910_squ_capture = {
 	.info = SNDRV_PCM_INFO_MMAP |
 	    SNDRV_PCM_INFO_MMAP_VALID |
@@ -77,6 +106,7 @@ static const struct snd_pcm_hardware pxa910_squ_playback = {
 	.buffer_bytes_max = 56 * 1024,	/*should be 4k alignment! */
 	.fifo_size = 32,
 };
+#endif
 
 struct pxa910_dma_params {
 	char *name;		/* stream identifier */
@@ -351,9 +381,15 @@ static int pxa910_squ_pcm_open(struct snd_pcm_substream *substream)
 	}
 
 	prtd->dma_ch = -1;
+	/* on PXA988, the total descriptor size is 4K, and only
+	 * allocate 2k for each stream */
+#if defined(CONFIG_CPU_PXA988)
+	prtd->squ_desc_array = sram_alloc("audio sram", (PAGE_SIZE >> 1),
+				     (dma_addr_t *) &prtd->squ_desc_array_phys);
+#else
 	prtd->squ_desc_array = sram_alloc("audio sram", PAGE_SIZE,
 				     (dma_addr_t *) &prtd->squ_desc_array_phys);
-
+#endif
 	if (!prtd->squ_desc_array) {
 		ret = -ENOMEM;
 		goto err1;
