@@ -639,6 +639,11 @@ enum {
 	PM80X_IDPIN_USE_GPADC3,
 };
 
+enum {
+	PM80X_GPIO3_HS_DET_NORMAL = 0,
+	PM80X_GPIO3_HS_DET_INVERT,
+};
+
 struct pm80x_vbus_pdata {
 	int             supply;
 	int             idpin;
@@ -689,6 +694,7 @@ struct pm80x_platform_data {
 	int batt_det;		/* enable/disable */
 	int num_regulators;
 	int headset_flag;
+	int headset_detection_invert;
 	int (*pm800_plat_config)(struct pm80x_chip *chip,
 				struct pm80x_platform_data *pdata);
 	int (*pm805_plat_config)(struct pm80x_chip *chip,
