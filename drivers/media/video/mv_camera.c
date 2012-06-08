@@ -712,7 +712,9 @@ static int mv_camera_init_videobuf(struct vb2_queue *q,
 	q->mem_ops = &vb2_dma_contig_memops;
 	q->buf_struct_size = sizeof(struct mv_buffer);
 
-	pcdev->vb_alloc_ctx = vb2_dma_contig_init_ctx(ici->v4l2_dev.dev);
+	pcdev->vb_alloc_ctx = (struct vb2_alloc_ctx *)vb2_dma_contig_init_ctx(ici->v4l2_dev.dev);
+	if (IS_ERR_OR_NULL(pcdev->vb_alloc_ctx))
+		return -ENOMEM;
 
 	return vb2_queue_init(q);
 }
