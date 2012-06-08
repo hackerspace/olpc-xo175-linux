@@ -24,6 +24,9 @@ extern struct pxa_device_desc pxa988_device_keypad;
 extern struct pxa_device_desc pxa988_device_twsi0;
 extern struct pxa_device_desc pxa988_device_twsi1;
 extern struct pxa_device_desc pxa988_device_twsi2;
+extern struct pxa_device_desc pxa988_device_ssp0;
+extern struct pxa_device_desc pxa988_device_ssp1;
+extern struct pxa_device_desc pxa988_device_ssp2;
 extern struct pxa_device_desc pxa988_device_asram;
 extern struct pxa_device_desc pxa988_device_vsram;
 extern struct pxa_device_desc pxa988_device_fb;
@@ -83,6 +86,27 @@ static inline int pxa988_add_twsi(int id, struct i2c_pxa_platform_data *data,
 		return ret;
 
 	return pxa_register_device(d, data, sizeof(*data));
+}
+
+static inline int pxa988_add_ssp(int id)
+{
+	struct pxa_device_desc *d = NULL;
+
+	switch (id) {
+	case 0:
+		d = &pxa988_device_ssp0;
+		break;
+	case 1:
+		d = &pxa988_device_ssp1;
+		break;
+	case 2:
+		d = &pxa988_device_ssp2;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return pxa_register_device(d, NULL, 0);
 }
 
 static inline int pxa988_add_asram(struct sram_bank *data)
