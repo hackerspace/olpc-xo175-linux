@@ -17,6 +17,7 @@ sram.o delay-mmp3.o clock-mmp3.o dvfs-mmp3.o pm-hotplug.o mmp3_coherent_fix.o
 obj-$(CONFIG_SMP)		+= platsmp.o headsmp.o
 ifeq ($(CONFIG_HOTPLUG_CPU),y)
 obj-$(CONFIG_CPU_MMP3)		+= mmp3_hotplug.o
+obj-$(CONFIG_CPU_PXA988)	+= pxa988_hotplug.o
 endif
 ifeq ($(CONFIG_SOC_LOCAL_TIMERS),y)
 obj-$(CONFIG_CPU_PXA988)	+= stime.o
