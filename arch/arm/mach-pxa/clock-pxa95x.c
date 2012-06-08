@@ -23,8 +23,9 @@
 #include "clock.h"
 
 #define HZ_TO_KHZ	1000
+#define MHZ_TO_HZ	1000000
 
-extern unsigned long max_gc, max_vmeta;
+extern unsigned long max_pp, max_gc, max_vmeta, max_core;
 struct clk_table {
 	unsigned long fclk;
 };
@@ -1772,6 +1773,60 @@ int pxa95x_clk_init(void)
 
 	clock_lookup_init(common_clkregs, ARRAY_SIZE(common_clkregs));
 	if (cpu_is_pxa978()) {
+		/* Initialize the maximum frequencies  */
+		switch (max_pp) {
+		case 1:
+			max_core = 156;
+			max_gc = 156 * MHZ_TO_HZ;
+			max_vmeta = 156 * MHZ_TO_HZ;
+			break;
+		case 2:
+			max_core = 312;
+			max_gc = 156 * MHZ_TO_HZ;
+			max_vmeta = 156 * MHZ_TO_HZ;
+			break;
+		case 3:
+			max_core = 624;
+			max_gc = 312 * MHZ_TO_HZ;
+			max_vmeta = 312 * MHZ_TO_HZ;
+			break;
+		case 4:
+			max_core = 806;
+			if (cpu_is_pxa978_Dx()) {
+				max_gc = 481 * MHZ_TO_HZ;
+				max_vmeta = 481 * MHZ_TO_HZ;
+			} else {
+				max_gc = 498 * MHZ_TO_HZ;
+				max_vmeta = 498 * MHZ_TO_HZ;
+			}
+			break;
+		case 5:
+			max_core = 1014;
+			if (cpu_is_pxa978_Dx()) {
+				max_gc = 481 * MHZ_TO_HZ;
+				max_vmeta = 481 * MHZ_TO_HZ;
+			} else {
+				max_gc = 498 * MHZ_TO_HZ;
+				max_vmeta = 498 * MHZ_TO_HZ;
+			}
+			break;
+		case 6:
+			max_core = 1196;
+			max_gc = 600 * MHZ_TO_HZ;
+			max_vmeta = 600 * MHZ_TO_HZ;
+			break;
+		case 7:
+			max_core = 1404;
+			max_gc = 600 * MHZ_TO_HZ;
+			max_vmeta = 600 * MHZ_TO_HZ;
+			break;
+		case 8:
+			max_core = 1508;
+			max_gc = 600 * MHZ_TO_HZ;
+			max_vmeta = 600 * MHZ_TO_HZ;
+			break;
+		}
+
 		clock_lookup_init(pxa978_specific_clkregs,
 				ARRAY_SIZE(pxa978_specific_clkregs));
 		/* Make sure rate is always same as real setting */

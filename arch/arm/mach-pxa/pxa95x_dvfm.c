@@ -3791,61 +3791,6 @@ static int __init pxa95x_freq_init(void)
 	if (entry)
 		entry->read_proc = d2_led_toggle_proc;
 
-	/* Initialize the maximum frequencies  */
-	if (cpu_is_pxa978())
-	switch(max_pp) {
-		case 1:
-			max_core = 156;
-			max_gc = 156 * MHZ_TO_KHZ;
-			max_vmeta = 156 * MHZ_TO_KHZ;
-			break;
-		case 2:
-			max_core = 312;
-			max_gc = 156 * MHZ_TO_KHZ;
-			max_vmeta = 156 * MHZ_TO_KHZ;
-			break;
-		case 3:
-			max_core = 624;
-			max_gc = 312 * MHZ_TO_KHZ;
-			max_vmeta = 312 * MHZ_TO_KHZ;
-			break;
-		case 4:
-			max_core = 806;
-			if (cpu_is_pxa978_Dx()) {
-				max_gc = 481 * MHZ_TO_KHZ;
-				max_vmeta = 481 * MHZ_TO_KHZ;
-			} else {
-				max_gc = 498 * MHZ_TO_KHZ;
-				max_vmeta = 498 * MHZ_TO_KHZ;
-			}
-			break;
-		case 5:
-			max_core = 1014;
-			if (cpu_is_pxa978_Dx()) {
-				max_gc = 481 * MHZ_TO_KHZ;
-				max_vmeta = 481 * MHZ_TO_KHZ;
-			} else {
-				max_gc = 498 * MHZ_TO_KHZ;
-				max_vmeta = 498 * MHZ_TO_KHZ;
-			}
-			break;
-		case 6:
-			max_core = 1196;
-			max_gc = 600 * MHZ_TO_KHZ;
-			max_vmeta = 600 * MHZ_TO_KHZ;
-			break;
-		case 7:
-			max_core = 1404;
-			max_gc = 600 * MHZ_TO_KHZ;
-			max_vmeta = 600 * MHZ_TO_KHZ;
-			break;
-		case 8:
-			max_core = 1508;
-			max_gc = 600 * MHZ_TO_KHZ;
-			max_vmeta = 600 * MHZ_TO_KHZ;
-			break;
-	}
-
 out:
 	return ret;
 }
