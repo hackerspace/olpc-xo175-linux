@@ -35,6 +35,7 @@
 #include <mach/devices.h>
 #include <mach/pxa988.h>
 #include <mach/regs-timers.h>
+#include <mach/pxa910-squ.h>
 
 #include <plat/mfp.h>
 #include <plat/pmem.h>
@@ -174,6 +175,9 @@ static int __init pxa988_init(void)
 
 	mfp_init_base(MFPR_VIRT_BASE);
 	mfp_init_addr(pxa988_addr_map);
+
+	/* would remove such pxa910 interface when kernel upgrade */
+	pxa910_init_squ(2);
 
 	return 0;
 }
