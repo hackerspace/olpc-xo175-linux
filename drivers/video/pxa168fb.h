@@ -897,9 +897,18 @@ struct lcd_regs {
 #define PN2_LCD_GRA_CUTVLN			(0x02ec)
 #define LCD_PN2_SQULN2_CTRL			(0x02F0)
 #define ALL_LAYER_ALPHA_SEL			(0x02F4)
+
+/* pxa988 has different MASTER_CTRL from MMP3/MMP2 */
+#ifdef CONFIG_CPU_PXA988
+#define TIMING_MASTER_CONTROL			(0x01F4)
+#define MASTER_ENH(id)				(1 << ((id) + 5))
+#define MASTER_ENV(id)				(1 << ((id) + 6))
+#else
 #define TIMING_MASTER_CONTROL			(0x02F8)
 #define MASTER_ENH(id)				(1 << (id))
 #define MASTER_ENV(id)				(1 << ((id) + 4))
+#endif
+
 #define DSI_START_SEL_SHIFT(id)		(((id) << 1) + 8)
 #define timing_master_config(path, dsi_id, lcd_id) \
 	(MASTER_ENH(path) | MASTER_ENV(path) | \
