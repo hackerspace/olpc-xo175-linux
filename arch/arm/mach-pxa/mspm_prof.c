@@ -736,6 +736,9 @@ int __init mspm_prof_init(void)
 
 	mspm_op_num = mspm_init_mips();
 
+	if (cur_profiler == CPUFREQ_PROFILER)
+		mspm_watchdog = 0;
+
 	dvfm_register_notifier(&notifier_freq_block, DVFM_FREQUENCY_NOTIFIER);
 	dvfm_register("MSPM PROF", &dvfm_dev_idx);
 
