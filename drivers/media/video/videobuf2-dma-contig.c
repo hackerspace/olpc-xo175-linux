@@ -183,6 +183,7 @@ EXPORT_SYMBOL_GPL(vb2_dma_contig_init_ctx);
 void vb2_dma_contig_cleanup_ctx(void *alloc_ctx)
 {
 	kfree(alloc_ctx);
+	alloc_ctx = NULL;
 }
 EXPORT_SYMBOL_GPL(vb2_dma_contig_cleanup_ctx);
 
