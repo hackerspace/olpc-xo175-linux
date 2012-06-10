@@ -460,6 +460,11 @@ int devfreq_remove_device(struct devfreq *devfreq)
 	return 0;
 }
 
+void devfreq_set_freq_table(struct devfreq *devfreq, struct devfreq_frequency_table *table)
+{
+	devfreq->freq_table = table;
+}
+
 static ssize_t show_governor(struct device *dev,
 			     struct device_attribute *attr, char *buf)
 {
@@ -470,6 +475,22 @@ static ssize_t show_freq(struct device *dev,
 			 struct device_attribute *attr, char *buf)
 {
 	return sprintf(buf, "%lu\n", to_devfreq(dev)->previous_freq);
+}
+
+static ssize_t show_avail_freq(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	int len = 0, i;
+	struct devfreq *devfreq = to_devfreq(dev);
+	if (devfreq->freq_table) {
+		for (i = 0; devfreq->freq_table[i].frequency != DEVFREQ_TABLE_END; i++)
+			len += sprintf(buf + len, "%lu ",
+				       devfreq->freq_table[i].frequency);
+		len += sprintf(buf + len, "\n");
+	}
+	if (len == 0)
+		len += sprintf(buf + len, "No frequency table is provided\n");
+	return len;
 }
 
 static ssize_t show_polling_interval(struct device *dev,
@@ -595,6 +616,7 @@ static struct device_attribute devfreq_attrs[] = {
 	       store_polling_interval),
 	__ATTR(min_freq, S_IRUGO | S_IWUSR, show_min_freq, store_min_freq),
 	__ATTR(max_freq, S_IRUGO | S_IWUSR, show_max_freq, store_max_freq),
+	__ATTR(available_freqs, S_IRUGO, show_avail_freq, NULL),
 	{ },
 };
 

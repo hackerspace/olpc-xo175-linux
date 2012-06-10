@@ -52,6 +52,14 @@ struct devfreq_dev_status {
  */
 #define DEVFREQ_FLAG_LEAST_UPPER_BOUND		0x1
 
+#define DEVFREQ_ENTRY_INVALID (~0)
+#define DEVFREQ_TABLE_END     (~1)
+
+struct devfreq_frequency_table {
+	unsigned int index;
+	unsigned long frequency;
+};
+
 /**
  * struct devfreq_dev_profile - Devfreq's user device profile
  * @initial_freq	The operating frequency when devfreq_add_device() is
@@ -157,6 +165,7 @@ struct devfreq {
 	unsigned long polling_jiffies;
 	unsigned long previous_freq;
 	unsigned int next_polling;
+	struct devfreq_frequency_table *freq_table;
 
 	void *data; /* private data for governors */
 
@@ -180,6 +189,8 @@ extern int devfreq_register_opp_notifier(struct device *dev,
 					 struct devfreq *devfreq);
 extern int devfreq_unregister_opp_notifier(struct device *dev,
 					   struct devfreq *devfreq);
+extern void devfreq_set_freq_table(struct devfreq *devfreq,
+				   struct devfreq_frequency_table *table);
 
 #ifdef CONFIG_DEVFREQ_GOV_POWERSAVE
 extern const struct devfreq_governor devfreq_powersave;
