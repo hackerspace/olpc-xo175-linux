@@ -672,6 +672,10 @@ static void __init emeidkb_init(void)
 	pxa988_add_keypad(&emei_dkb_keypad_info);
 	regulator_init_pm800();
 
+	/* For AP debug */
+	pxa988_add_uart(2);
+	/* For GPS */
+	pxa988_add_uart(3);
 	/* FIXME: add i2c_pxa_platform_data */
 	pxa988_add_twsi(0, NULL, ARRAY_AND_SIZE(emeidkb_i2c_info));
 	pxa988_add_twsi(1, NULL, ARRAY_AND_SIZE(emeidkb_pwr_i2c_info));
