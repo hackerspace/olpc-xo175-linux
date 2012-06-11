@@ -1367,7 +1367,8 @@ static void mmp3_dfc_trigger(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
 	writel(wait, APMU_IMR);		/* unmask according irqs */
 	writel(0x0, APMU_ISR);		/* clear status */
 
-	if (change & (MMP3_FREQCH_CORE | MMP3_FREQCH_DRAM)) {
+	/* if (change & (MMP3_FREQCH_CORE | MMP3_FREQCH_DRAM)) { */
+	if(1){
 		if (cpu_is_mmp3_b0p())
 			ret = mmp3_trigger_dfc_ll_b0p(dfc_val, (u32)sync_buf);
 		else
