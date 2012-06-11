@@ -151,7 +151,12 @@ struct lcd_regs {
 #define LCD_TCLK_DIV					(0x009C)
 
 /* dither configure */
+#ifdef CONFIG_CPU_PXA988
+#define LCD_DITHER_CTRL				(0x01EC)
+#else
 #define LCD_DITHER_CTRL				(0x00A0)
+#endif
+
 #define DITHER_TBL_INDEX_SEL(s)		((s) << 16)
 #define DITHER_MODE2(m)				((m) << 12)
 #define DITHER_MODE2_SHIFT			(12)
@@ -165,6 +170,15 @@ struct lcd_regs {
 #define DITHER_EN1					(1)
 
 /* dither table data was fixed by video bpp of input and output*/
+#ifdef CONFIG_CPU_PXA988
+#define DITHER_TB_4X4_INDEX0		(0x6e4ca280)
+#define DITHER_TB_4X4_INDEX1		(0x5d7f91b3)
+#define DITHER_TB_4X8_INDEX0		(0xb391a280)
+#define DITHER_TB_4X8_INDEX1		(0x7f5d6e4c)
+#define DITHER_TB_4X8_INDEX2		(0x80a291b3)
+#define DITHER_TB_4X8_INDEX3		(0x4c6e5d7f)
+#define LCD_DITHER_TBL_DATA		(0x01F0)
+#else
 #define DITHER_TB_4X4_INDEX0		(0x3b19f7d5)
 #define DITHER_TB_4X4_INDEX1		(0x082ac4e6)
 #define DITHER_TB_4X8_INDEX0		(0xf7d508e6)
@@ -172,6 +186,7 @@ struct lcd_regs {
 #define DITHER_TB_4X8_INDEX2		(0xc4e6d5f7)
 #define DITHER_TB_4X8_INDEX3		(0x082a193b)
 #define LCD_DITHER_TBL_DATA		(0x00A4)
+#endif
 
 /* Video Frame 0&1 start address registers */
 #define	LCD_SPU_DMA_START_ADDR_Y0	0x00C0
