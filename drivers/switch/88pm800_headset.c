@@ -48,7 +48,6 @@ struct pm800_headset_info {
 	struct work_struct work_headset, work_hook;
 	struct headset_switch_data *psw_data_headset;
 	void		(*mic_set_power)(int on);
-	int headset_detection_invert;
 };
 struct headset_switch_data {
 	struct switch_dev sdev;
@@ -103,15 +102,10 @@ static void pm800_hook_switch_work(struct work_struct *work)
 	}
 	value = pm80x_reg_read(info->i2c, PM800_GPIO_2_3_CNTRL);
 	value &= PM800_GPIO3_VAL;
-
-	if (info->headset_detection_invert == PM80X_GPIO3_HS_DET_INVERT)
-		value = !value;
-
 	if (!value) {
 		pr_info("fake hook interupt\n");
 		return;
 	}
-
 	voltage = gpadc4_measure_voltage(info);
 	if (voltage < PM800_HOOK_PRESS_TH) {
 		if (hs_detect.hookswitch_status == PM8XXX_HOOKSWITCH_RELEASED) {
@@ -161,9 +155,6 @@ static void pm800_headset_switch_work(struct work_struct *work)
 	}
 	value = pm80x_reg_read(info->i2c, PM800_GPIO_2_3_CNTRL);
 	value &= PM800_GPIO3_VAL;
-	if (info->headset_detection_invert == PM80X_GPIO3_HS_DET_INVERT)
-		value = !value;
-
 	if (value) {
 		switch_data->state = PM8XXX_HEADSET_ADD;
 		/* for telephony */
@@ -323,7 +314,6 @@ static int pm800_headset_switch_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	info->chip = chip;
 	info->mic_set_power = pm80x_pdata->headset->mic_set_power;
-	info->headset_detection_invert = pm80x_pdata->headset_detection_invert;
 	info->i2c = chip->base_page;
 	info->i2c_gpadc = chip->gpadc_page;
 	info->dev = &pdev->dev;
