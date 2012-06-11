@@ -36,6 +36,7 @@
 #include <plat/pmem.h>
 #include <plat/pxa27x_keypad.h>
 
+#include "onboard.h"
 #include "common.h"
 
 #define EMEI_NR_IRQS		(IRQ_BOARD_START + 24)
@@ -564,6 +565,11 @@ static void __init emeidkb_init(void)
 	pxa988_add_twsi(0, NULL, ARRAY_AND_SIZE(emeidkb_i2c_info));
 	pxa988_add_twsi(1, NULL, ARRAY_AND_SIZE(emeidkb_pwr_i2c_info));
 	pxa988_add_twsi(2, NULL, ARRAY_AND_SIZE(emeidkb_i2c2_info));
+
+#ifdef CONFIG_FB_PXA168
+	emeidkb_add_lcd_mipi();
+#endif
+
 }
 
 MACHINE_START(EMEIDKB, "PXA988-Based")
