@@ -23,6 +23,7 @@
 #include <linux/i2c/pxa-i2c.h>
 #include <linux/mfd/88pm80x.h>
 #include <linux/regulator/machine.h>
+#include <linux/i2c/ft5306_touch.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -542,6 +543,14 @@ static struct i2c_board_info emeidkb_pwr_i2c_info[] = {
 		.addr		= 0x59,
 	},
 #endif
+#if defined(CONFIG_TOUCHSCREEN_FT5306)
+	{
+		.type = "ft5306_touch",
+		.addr = 0x38,
+		.irq  = gpio_to_irq(mfp_to_gpio(GPIO17_GPIO_17)),
+		.platform_data	= &ft5306_touch_data,
+	},
+#endif
 
 };
 
@@ -582,6 +591,86 @@ static void __init emeidkb_init(void)
 #endif
 
 }
+
+#if defined(CONFIG_TOUCHSCREEN_FT5306)
+static int ft5306_touch_io_power_onoff(int on)
+{
+	static struct regulator *v_ldo8;
+
+	if (!v_ldo8) {
+		v_ldo8 = regulator_get(NULL, "v_ldo8");
+		if (IS_ERR(v_ldo8)) {
+			v_ldo8 = NULL;
+			pr_err("%s: enable v_ldo8 for touch fail!\n", __func__);
+			return -EIO;
+		}
+	}
+
+	if (on) {
+		regulator_set_voltage(v_ldo8, 3100000, 3100000);
+		regulator_enable(v_ldo8);
+	} else
+		regulator_disable(v_ldo8);
+
+	msleep(100);
+	return 0;
+}
+
+static void ft5306_touch_reset(void)
+{
+	unsigned int touch_reset;
+
+	touch_reset = mfp_to_gpio(MFP_PIN_GPIO16);
+
+	if (gpio_request(touch_reset, "ft5306_reset")) {
+		pr_err("Failed to request GPIO for ft5306_reset pin!\n");
+		goto out;
+	}
+
+	gpio_direction_output(touch_reset, 1);
+	msleep(5);
+	gpio_direction_output(touch_reset, 0);
+	msleep(5);
+	gpio_direction_output(touch_reset, 1);
+	msleep(300);
+	printk(KERN_INFO "ft5306_touch reset done.\n");
+	gpio_free(touch_reset);
+out:
+	return;
+}
+
+static u32 ft5306_virtual_key_code[4] = {
+	KEY_MENU,
+	KEY_HOME,
+	KEY_SEARCH,
+	KEY_BACK,
+};
+
+static u32 ft5306_get_virtual_key(u16 x_pos, u16 y_pos, u16 x_max, u16 y_max)
+{
+	int unit = (x_max / 13);
+
+	if ((unit < x_pos) && (x_pos < 3 * unit))
+		return ft5306_virtual_key_code[0];
+	else if ((4 * unit < x_pos) && (x_pos < 6 * unit))
+		return ft5306_virtual_key_code[1];
+	else if ((7 * unit < x_pos) && (x_pos < 9 * unit))
+		return ft5306_virtual_key_code[2];
+	else if ((10 * unit < x_pos) && (x_pos < 13 * unit))
+		return ft5306_virtual_key_code[3];
+	else
+		return KEY_RESERVED;
+}
+
+static struct ft5306_touch_platform_data ft5306_touch_data = {
+	.power = ft5306_touch_io_power_onoff,
+	.reset = ft5306_touch_reset,
+	.keypad = ft5306_get_virtual_key, /* get virtual key code */
+	.abs_x_max = 540,
+	.abs_y_max = 960,
+	.virtual_key = 1,	/* enable virtual key for android */
+};
+#endif
 
 MACHINE_START(EMEIDKB, "PXA988-Based")
 	.map_io		= mmp_map_io,
