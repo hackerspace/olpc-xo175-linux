@@ -1584,8 +1584,6 @@ static inline void set_ddr_pll_freq(void *driver_data,
 		while (!(OSCC & OSCC_DPLS))
 			;
 		ddr_pll_freq = newfreq;
-		if (oldfreq)
-			clk_disable(clk_syspll416);
 	}
 }
 
@@ -1602,6 +1600,7 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 	uint32_t accr, acsr, accr1 = 0, accr_reserved_mask = 0,
 		 mask = 0, mask2 = 0;
 	unsigned int data = 0, data2 = 0;
+	unsigned int temp_ddrpll_freq = ddr_pll_freq;
 	freq2reg(&fv_info, new);
 	if (!cpu_is_pxa978()) {
 		/* moving from High DDR to other High DDR frequency */
@@ -1682,6 +1681,12 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 				data, mask, (u32) info->clkmgr_base,
 				(u32) info->dmc_base);
 		if ((416 == old->dmcfs) && (416 != new->dmcfs))
+			clk_disable(clk_syspll416);
+		/*
+		 * DDR PLL frequency change will lead DDR to 416Mhz
+		 * Need to turn it off after the change.
+		 */
+		if (temp_ddrpll_freq != ddr_pll_freq)
 			clk_disable(clk_syspll416);
 	} else {
 		__raw_writel(accr, info->clkmgr_base + ACCR_OFF);

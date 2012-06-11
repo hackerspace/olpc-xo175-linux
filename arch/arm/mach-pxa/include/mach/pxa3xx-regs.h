@@ -129,7 +129,7 @@
 #define MM_PLL_CTRL	__REG(0x40F400BC)	/* Multi-media PLL Control Register */
 #define MM_PLL_PARAM	__REG(0x40F400C0)	/* Multi-media PLL Parameters Register */
 #define AVLCR		__REG(0x40F400A8)	/* Application Subsystem Voltage Level Change Register */
-#define SYS_PLL_416M_CTRL	__REG(0x40F400D4)	/* System PLL 416MHz Branch Apps Control Register */
+#define SYS_PLL_416M_CTRL	__REG(0x40F400D8)	/* System PLL 416MHz Branch Apps Control Register */
 
 #define VMPWR_PWON		(1 << 0)
 #define VMPWR_PWR_ST		(1 << 2)
