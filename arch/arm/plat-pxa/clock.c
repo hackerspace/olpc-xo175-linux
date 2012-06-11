@@ -274,6 +274,7 @@ int clk_set_rate(struct clk *c, unsigned long rate)
 			goto out;
 	}
 
+	new_rate = rate;
 	ret = c->ops->setrate(c, rate);
 	if (ret)
 		goto out;
