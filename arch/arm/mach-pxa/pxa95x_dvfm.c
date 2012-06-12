@@ -1547,12 +1547,18 @@ static unsigned int get_ddr_pll_freq_from_dmcfs(unsigned int dmcfs)
 	return freq;
 }
 
-static inline void set_ddr_pll_freq(void *driver_data,
+/*
+ *Return value indicates whether switches to DDR 416Mhz
+ * 1 means yes, 0 means no
+ */
+
+static inline int set_ddr_pll_freq(void *driver_data,
 				    struct dvfm_md_opt *old,
 				    struct dvfm_md_opt *new,
 				    uint32_t accr)
 {
 	uint32_t ddrpll, oldfreq, newfreq, data, mask;
+	int ret = 0;
 	struct pxa95x_dvfm_info *info = driver_data;
 	oldfreq = get_ddr_pll_freq_from_dmcfs(old->dmcfs);
 	newfreq = get_ddr_pll_freq_from_dmcfs(new->dmcfs);
@@ -1576,6 +1582,7 @@ static inline void set_ddr_pll_freq(void *driver_data,
 			(u32) sram_map + 0xa000 - 4, accr,
 			data, mask, (u32) info->clkmgr_base,
 			(u32) info->dmc_base);
+			ret = 1;
 		}
 		DDRPLLR = ddrpll;
 		do {
@@ -1585,6 +1592,7 @@ static inline void set_ddr_pll_freq(void *driver_data,
 			;
 		ddr_pll_freq = newfreq;
 	}
+	return ret;
 }
 
 /* TODO: sugguest to differentiate the operating point definition from
@@ -1597,10 +1605,11 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 {
 	struct pxa95x_dvfm_info *info = driver_data;
 	struct pxa95x_fv_info fv_info;
+	int ddr416;
 	uint32_t accr, acsr, accr1 = 0, accr_reserved_mask = 0,
 		 mask = 0, mask2 = 0;
 	unsigned int data = 0, data2 = 0;
-	unsigned int temp_ddrpll_freq = ddr_pll_freq;
+
 	freq2reg(&fv_info, new);
 	if (!cpu_is_pxa978()) {
 		/* moving from High DDR to other High DDR frequency */
@@ -1657,7 +1666,7 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 			mask |= ACCR_DMCFS_MASK_978;
 			if ((416 != old->dmcfs) && (416 == new->dmcfs))
 				clk_enable(clk_syspll416);
-			set_ddr_pll_freq(driver_data, old, new, accr);
+			ddr416 = set_ddr_pll_freq(driver_data, old, new, accr);
 			choose_regtable(fv_info.dmcfs);
 	}
 	if (old->hss != new->hss) {
@@ -1683,10 +1692,10 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 		if ((416 == old->dmcfs) && (416 != new->dmcfs))
 			clk_disable(clk_syspll416);
 		/*
-		 * DDR PLL frequency change will lead DDR to 416Mhz
+		 * DDR PLL frequency change may lead DDR to 416Mhz
 		 * Need to turn it off after the change.
 		 */
-		if (temp_ddrpll_freq != ddr_pll_freq)
+		if (ddr416)
 			clk_disable(clk_syspll416);
 	} else {
 		__raw_writel(accr, info->clkmgr_base + ACCR_OFF);
