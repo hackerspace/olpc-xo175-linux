@@ -1501,4 +1501,30 @@ config SENSORS_APDS990X_MRVL
        help
        This driver provides support the APDS990x deivce
 
+config SENSORS_BMA250
+	tristate "BMA250 Acceleration Sensor Driver"
+	depends on I2C
+	help
+	  If you say yes here you get support for the BMA250 Acceleration Sensor
+
+	  This driver provides support the
+	  BMA250 Acceleration Sensor
+	  Driver implemented by Bosch-Sensortec.
+
+config SENSORS_BMM050
+	tristate "BMM050 Magnetic Sensor Driver"
+	depends on I2C
+	help
+	  If you say yes here you get support for the BMM050 Magnetic Sensor
+
+	  This driver provides support the
+	  BMM050 Magnetic Sensor
+	  Driver implemented by Bosch-Sensortec.
+
+config SENSORS_BMM050_MPU3050
+	tristate "MPU3050 Driver co-work with BMM050"
+	depends on I2C
+	help
+	  MPU3050 gyro driver implemented by Bosch-Sensortec.
+
 endif # HWMON

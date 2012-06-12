@@ -143,5 +143,10 @@ obj-$(CONFIG_SENSORS_UCD9000)	+= ucd9000.o
 obj-$(CONFIG_SENSORS_UCD9200)	+= ucd9200.o
 obj-$(CONFIG_SENSORS_ROHM_BH1772)      += rohm_bh1772_driver.o rohm_als_ps_driver.o
 
+EXTRA_CFLAGS += -DBMM_SMBUS
+obj-$(CONFIG_SENSORS_BMA250)    += bma250_driver.o
+obj-$(CONFIG_SENSORS_BMM050)   += bmm050_driver.o bmm050.o
+obj-$(CONFIG_SENSORS_BMM050_MPU3050)   += itg3200.o
+
 ccflags-$(CONFIG_HWMON_DEBUG_CHIP) := -DDEBUG
 
