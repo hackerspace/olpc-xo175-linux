@@ -639,6 +639,12 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 	}
 
 	if (!oldcard) {
+#ifdef CONFIG_EMMC_BUSWIDTH_SET_EARLIER
+		err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
+				EXT_CSD_BUS_WIDTH, EXT_CSD_BUS_WIDTH_1, 0);
+		if(err)
+			printk(KERN_WARNING "mmc_switch workaround failed\n");
+#endif
 		/*
 		 * Fetch and process extended CSD.
 		 */

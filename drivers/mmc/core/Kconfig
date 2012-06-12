@@ -53,3 +53,15 @@ config MMC_PARANOID_SD_INIT
 	  about re-trying SD init requests. This can be a useful
 	  work-around for buggy controllers and hardware. Enable
 	  if you are experiencing issues with SD detection.
+
+config EMMC_BUSWIDTH_SET_EARLIER
+	bool "Enable specific eMMC workaround initialization (EXPERIMENTAL)"
+	depends on EXPERIMENTAL
+	help
+	  If you say Y here, the eMMC will call switch cmd to set
+	  bus width to 1bit, and this cmd is sent earlier than
+	  sent ext_csd cmd. this way avoid some specific eMMC
+	  initialization fail, such as Samsung eMMC, just for
+	  workaround on Ariel. what's more, it will not affect that
+	  normally send switch cmd to set bus width again after
+	  sending ext_csd cmd.
