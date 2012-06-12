@@ -475,7 +475,7 @@ static int mv_ehci_resume(struct platform_device *pdev)
 		retval = ehci_mv->pdata->set_vbus(1);
 		if (retval) {
 			dev_err(&pdev->dev, "Failed set vbus: %d\n", retval);
-			goto  err_ehci_disable;
+			goto out;
 		}
 	}
 
@@ -510,7 +510,7 @@ static int mv_ehci_resume(struct platform_device *pdev)
 			break;
 		default:
 			dev_err(&pdev->dev, "No such type speed support.");
-			goto err_ehci_disable;
+			goto out;
 		}
 
 		ehci_writel(ehci, val, &hc_reg->port_status[0]);
@@ -527,14 +527,14 @@ static int mv_ehci_resume(struct platform_device *pdev)
 	if (handshake(ehci, &hc_reg->port_status[0],
 			PORT_CONNECT, PORT_CONNECT, 5000)) {
 		pr_err("%s:waiting for PORT_CONNECT timeout!\n", __func__);
-		goto err_ehci_disable;
+		goto out;
 	}
 
 	/* Wait for PORT_PE assert */
 	if (handshake(ehci, &hc_reg->port_status[0],
 			PORT_PE, PORT_PE, 5000)) {
 		pr_err("%s:waiting for PORT_PE timeout!\n", __func__);
-		goto err_ehci_disable;
+		goto out;
 	}
 
 	/* Port change detect */
@@ -552,16 +552,12 @@ static int mv_ehci_resume(struct platform_device *pdev)
 				PORT_SUSPEND, PORT_SUSPEND, 5000)) {
 			pr_err("%s:waiting for PORT_SUSPEND timeout!\n",
 					__func__);
-			goto err_ehci_disable;
+			goto out;
 		}
 	}
 
+out:
 	return 0;
-
-err_ehci_disable:
-	mv_ehci_disable(ehci_mv);
-
-	return retval;
 }
 #endif
 
