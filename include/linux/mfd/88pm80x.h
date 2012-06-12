@@ -85,6 +85,7 @@ enum {
 
 #define PM800_STATUS_2			(0x02)
 #define PM800_RTC_ALARM_STS2	(1 << 0)
+#define PM800_GPADC1_MEAS_EN	(1 << 3)
 
 #define PM800_INT_STATUS1		(0x05)
 #define PM800_ONKEY_INT_STS1		(1 << 0)
@@ -112,6 +113,8 @@ enum {
 #define PM800_GPIO2_INT_STS4		(1 << 2)
 #define PM800_GPIO3_INT_STS4		(1 << 3)
 #define PM800_GPIO4_INT_STS4		(1 << 4)
+#define PM800_GPADC_BD_EN		(1 << 5)
+#define PM800_GPADC_BD_GP1_EN		(1 << 6)
 
 #define PM800_INT_ENA_1		(0x09)
 #define PM800_ONKEY_INT_ENA1		(1 << 0)
@@ -140,6 +143,8 @@ enum {
 #define PM800_GPIO2_INT_ENA4		(1 << 2)
 #define PM800_GPIO3_INT_ENA4		(1 << 3)
 #define PM800_GPIO4_INT_ENA4		(1 << 4)
+
+#define PM800_GPADC_ODD_6UA			(1 << 4)
 
 /*number of INT_ENA & INT_STATUS regs*/
 #define PM800_INT_REG_NUM			(4)
