@@ -629,6 +629,7 @@ typedef enum
 #define HDMI_MIXER_G_DAT_GREEN		0x001c
 #define HDMI_MIXER_G_DAT_BLUE		0x0020
 #define HDMI_CONV_INT_STS		0x0028
+#define HDMI_CONV_FIFO			0x0040
 #define HDMI_CLK_DIV			0x0044
 #define HDMI_PCLK_DIV			0x005c
 #define HDMI_TCLK_DIV			0x0060

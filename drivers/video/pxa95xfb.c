@@ -1221,12 +1221,19 @@ static void converter_set_hdmi(struct pxa95xfb_info *fbi)
 		|HDMI_CONVx_CTL_DISP_TYPE(conv->panel_type);
 	writel(x, conv_base + HDMI_CONV_CTL);
 
-	/* Set clock dividers */
-	writel(0x5, conv_base + HDMI_CLK_DIV);
-	writel(0x5, conv_base + HDMI_PCLK_DIV);
-	writel(0x5, conv_base + HDMI_TCLK_DIV);
-	writel(0x5, conv_base + HDMI_PRCLK_DIV);
-
+	if (cpu_is_pxa978_Dx()) {
+		/* Set clock dividers */
+		writel(0x20085, conv_base + HDMI_CLK_DIV);
+		writel(0x20085, conv_base + HDMI_PCLK_DIV);
+		writel(0x20085, conv_base + HDMI_TCLK_DIV);
+		writel(0x20085, conv_base + HDMI_PRCLK_DIV);
+		writel(0x7ff00000, conv_base + HDMI_CONV_FIFO);/* fifo set to max 2047*/
+	} else {
+		writel(0x5, conv_base + HDMI_CLK_DIV);
+		writel(0x5, conv_base + HDMI_PCLK_DIV);
+		writel(0x5, conv_base + HDMI_TCLK_DIV);
+		writel(0x5, conv_base + HDMI_PRCLK_DIV);
+	}
 #ifndef CONFIG_UIO_HDMI/* TODO: finally would be removed*/
 	if (hdmi_format == 5 || hdmi_format == 10 || hdmi_format == 11)
 		interlacer_enable(1);
