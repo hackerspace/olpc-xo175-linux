@@ -666,17 +666,17 @@ static u32 mmp3_compare_freq_plan(struct mmp3_freq_plan *p1,
 {
 	u32 mark = 0;
 	if ((EXTRACTDIV(p1->core.val) != EXTRACTDIV(p2->core.val))) {
-		pr_err("<PM> CORE not same: 0x%08x != 0x%08x\n",
+		printk(KERN_WARNING "<PM> CORE not same: 0x%08x != 0x%08x\n",
 			p1->core.val, p2->core.val);
 		mark |= TRACE_DFC_MARKER_CORE;
 	}
 	if ((EXTRACTDIV(p1->dram.val) != EXTRACTDIV(p2->dram.val))) {
-		pr_err("<PM> DRAM not same: 0x%08x != 0x%08x\n",
+		printk(KERN_WARNING "<PM> DRAM not same: 0x%08x != 0x%08x\n",
 			p1->dram.val, p2->dram.val);
 		mark |= TRACE_DFC_MARKER_DRAM;
 	}
 	if ((EXTRACTDIV(p1->axi.val) != EXTRACTDIV(p2->axi.val))) {
-		pr_err("<PM> AXI not same: 0x%08x != 0x%08x\n",
+		printk(KERN_WARNING "<PM> AXI not same: 0x%08x != 0x%08x\n",
 			p1->axi.val, p2->axi.val);
 		mark |= TRACE_DFC_MARKER_AXI;
 	}
@@ -1453,7 +1453,14 @@ static void mmp3_dfc_postchange(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
 
 	if (same != 0) {
 		/* usually should not be here, log a message here */
-		pr_err("<PM> DFC result is not the requested one\n");
+		printk(KERN_WARNING "<PM> DFC result is not the requested one\n");
+		printk(KERN_WARNING "<PM> CORE STATUS%08x\n", readl(APMU_CORE_STATUS));
+		printk(KERN_WARNING "<PM> CC %08x CC2 %08x CC3 %08x BUS %08x\n",
+			readl(APMU_CC_PJ),  readl(APMU_CC2_PJ),
+			readl(APMU_CC3_PJ), readl(APMU_BUS));
+		printk(KERN_WARNING "<PM> DM_CC %08x DM_CC2 %08x FCCR %08x\n",
+			readl(APMU_DM_CC_PJ), readl(APMU_DM2_CC_PJ), readl(MPMU_FCCR));
+
 		mmp3_freq_plan_print_info(pmu, &pmu->pl_curr, time);
 	} else {
 		mmp3_freq_plan_print_dbg(pmu, &pmu->pl_curr, time);
