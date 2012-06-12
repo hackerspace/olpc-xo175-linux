@@ -217,6 +217,10 @@ static int __devinit pxa95xfb_vid_probe(struct platform_device *pdev)
 		conv->panel_type = mi->panel_type;
 		conv->power = mi->panel_power;
 		conv->reset = mi->reset;
+		conv->dsi_init_cmds = mi->dsi_init_cmds;
+		conv->dsi_sleep_cmds = mi->dsi_sleep_cmds;
+		conv->conf_dsi_video_mode = mi->dsi_mode;
+		conv->dsi_lanes = mi->dsi_lane_nr;
 
 		converter_init(fbi);
 	}

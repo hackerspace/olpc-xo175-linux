@@ -393,7 +393,7 @@ static u32 dsi_send_cmd_array(struct pxa95xfb_conv_info * conv, u8* cmd_array)
 	return 1;
 }
 
-static void __attribute__ ((unused)) dsi_frame_update_dcs(struct pxa95xfb_conv_info * conv)
+static void dsi_frame_update_dcs(struct pxa95xfb_conv_info *conv)
 {
 	u16 vlines;
 	u16 x ;
@@ -845,7 +845,10 @@ static void dsi_send_frame(struct pxa95xfb_conv_info * conv)
 			msleep(1);
 			x = readl(conv->conv_base + LCD_DSI_DxSSR_OFFSET);
 		}
-		dsi_frame_update_packet(conv);
+		if (conv->conf_dsi_video_mode == DSI_MODE_COMMAND_DCS)
+			dsi_frame_update_dcs(conv);
+		if (conv->conf_dsi_video_mode == DSI_MODE_COMMAND_PACKET)
+			dsi_frame_update_packet(conv);
 	}
 }
 
@@ -1092,7 +1095,7 @@ static void converter_stop_dsi(struct pxa95xfb_conv_info *conv)
 {
 	u32 x;
 	/*for video mode, we need to disable FIFO*/
-	if (conv->conf_dsi_video_mode) {
+	if (DSI_IS_VIDEO_MODE(conv->conf_dsi_video_mode)) {
 		x = readl(conv->conv_base + LCD_DSI_DxSCR0_OFFSET);
 		writel(x | LCD_DSI_DxSCR0_SP_BREAK_INT_EN | LCD_DSI_DxSCR0_BREAK,
 			conv->conv_base + LCD_DSI_DxSCR0_OFFSET);
@@ -1141,9 +1144,9 @@ static void converter_start_dsi(struct pxa95xfb_conv_info *conv)
 	/*Set power mode*/
 	dsi_set_power_mode(conv, LCD_Controller_DSI_RIHS);
 
-	if (conv->conf_dsi_video_mode == DSI_VIDEO_MODE)
+	if (conv->conf_dsi_video_mode == DSI_MODE_VIDEO_BURST)
 		dsi_init_video_burst(conv);
-	else if (conv->conf_dsi_video_mode == DSI_VIDEO_MODE_NON_BURST)
+	else if (conv->conf_dsi_video_mode == DSI_MODE_VIDEO_NON_BURST)
 		dsi_init_video_non_burst(conv);
 	else
 		loop_kthread_resume(&conv->thread);
@@ -1437,13 +1440,15 @@ void converter_init(struct pxa95xfb_info *fbi)
 	/* TODO : hard code here: if DSI + HDMI, it's adv chip*/
 	if(CONVERTER_IS_DSI(conv->converter) && conv->output == OUTPUT_PANEL) {
 		conv->dsi_clock_val = 156;
-		conv->conf_dsi_video_mode = DSI_COMMAND_MODE;
-		conv->dsi_init_cmds = &init_board[0][0];
-		conv->dsi_sleep_cmds = &enter_sleep[0][0];
-		conv->dsi_lanes = LCD_Controller_DSI_2LANE;
+		if (!conv->dsi_init_cmds)
+			conv->dsi_init_cmds = &init_board[0][0];
+		if (!conv->dsi_sleep_cmds)
+			conv->dsi_sleep_cmds = &enter_sleep[0][0];
+		if (!conv->dsi_lanes)
+			conv->dsi_lanes = LCD_Controller_DSI_2LANE;
 	} else if(CONVERTER_IS_DSI(conv->converter) && conv->output == OUTPUT_HDMI){
 		conv->dsi_clock_val = (((27000000) * 8)/1000000)+1;
-		conv->conf_dsi_video_mode = DSI_VIDEO_MODE_NON_BURST;
+		conv->conf_dsi_video_mode = DSI_MODE_VIDEO_NON_BURST;
 		conv->dsi_lanes = LCD_Controller_DSI_3LANE;
 	}
 
@@ -1452,7 +1457,7 @@ void converter_init(struct pxa95xfb_info *fbi)
 		printk(KERN_INFO "unable to request IRQ\n");
 	}
 
-	if (CONVERTER_IS_DSI(conv->converter) && !conv->conf_dsi_video_mode){
+	if (CONVERTER_IS_DSI(conv->converter) && DSI_IS_COMMAND_MODE(conv->conf_dsi_video_mode)) {
 		ret = loop_kthread_init(&conv->thread, "lcd_refresh_thread", (void *)conv, (void *)dsi_send_frame,28 * HZ / 1000);
 		if(!ret ){
 			printk(KERN_INFO "pxa95xfb: DSI update thread init failed\n");
@@ -2651,6 +2656,10 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 		conv->panel_type = mi->panel_type;
 		conv->power = mi->panel_power;
 		conv->reset = mi->reset;
+		conv->dsi_init_cmds = mi->dsi_init_cmds;
+		conv->dsi_sleep_cmds = mi->dsi_sleep_cmds;
+		conv->conf_dsi_video_mode = mi->dsi_mode;
+		conv->dsi_lanes = mi->dsi_lane_nr;
 
 		converter_init(fbi);
 	}

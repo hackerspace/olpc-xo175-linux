@@ -576,10 +576,6 @@ typedef struct DisplayControllerFrameDescriptor {
 /* ---------------------------------------------- */
 /*              DSI Definition                  */
 /* ---------------------------------------------- */
-#define DSI_COMMAND_MODE 0
-#define DSI_VIDEO_MODE 1
-#define DSI_VIDEO_MODE_NON_BURST 2
-
 #define DSI_DISABLE 0
 #define DSI_ENABLE 1
 
@@ -591,90 +587,11 @@ typedef struct DisplayControllerFrameDescriptor {
 
 typedef enum
 {
-	LCD_Controller_DSI_1LANE=0,
-	LCD_Controller_DSI_2LANE,
-	LCD_Controller_DSI_3LANE,
-	LCD_Controller_DSI_4LANE,
-}LCD_Controller_DSI_DATA_LANES;
-
-typedef enum
-{
 	LCD_Controller_DSI_RIHS=1,
 	LCD_Controller_DSI_ULPS=2,
 	LCD_Controller_DSI_LPDT=4,
 	LCD_Controller_DSI_BTA=8,
 }LCD_Controller_DSI_POWER_MODE;
-
-typedef enum
-{
-	LCD_Controller_READ_STATUS=0,
-	LCD_Controller_AUTO_STATUS_CHECK,
-	LCD_Controller_WAIT_FOR_BUSY,
-	LCD_Controller_READ_FRAME_BUFFER,
-	LCD_Controller_LOAD_MATCH_REGISTER,
-	LCD_Controller_COMMAND_WRITE,
-	LCD_Controller_DATA_WRITE,
-	LCD_Controller_LINE_DATA_WRITE,
-	LCD_Controller_WAIT_FOR_VSYNC,
-	LCD_Controller_SET_DLY_MULT,
-	LCD_Controller_NO_OPERATION,
-	LCD_Controller_INTERRUPT_THE_PROCESSOR,
-	LCD_Controller_SET_GPIO,
-	LCD_Controller_EXECUTE_LOOP_BUFFER=0x10,
-	LCD_Controller_FLUSH_LOOP_BUFFER,
-	LCD_Controller_START_LABEL,
-	LCD_Controller_GOTO_START,
-	LCD_Controller_COMMAND_WRITE_HOLD=0x15,
-	LCD_Controller_DISABLE_OUTPUT=0x1D,
-}LCD_Controller_DSI_COMMAND;
-
-typedef enum
-{
-	LCD_Controller_VSYNC_START=0x1,
-	LCD_Controller_DCS_SHORT_WRITE_NO_PARAMETER=0x05,
-	LCD_Controller_DCS_READ_NO_PARAMETER=0x06,
-	LCD_Controller_END_OF_TRANSMITION=0x08,
-	LCD_Controller_NULL_PACKET=0x09,
-	LCD_Controller_RGB_565_PACKET=0x0E,
-	LCD_Controller_VSYNC_END=0x11,
-	LCD_Controller_DCS_SHORT_WRITE_WITH_PARAMETER=0x15,
-	LCD_Controller_BLANKING_PACKET=0x19,
-	LCD_Controller_RGB_666_PACKET=0x1E,
-	LCD_Controller_HSYNC_START=0x21,
-	LCD_Controller_GENERIC_SHORT_WRITE_TWO_PARAMETERS=0x23,
-	LCD_Controller_GENERIC_LONG_WRITE=0x29,
-	LCD_Controller_RGB_666_LOOSELY_PACKET=0x2E,
-	LCD_Controller_HSYNC_END=0x31,
-	LCD_Controller_TURN_ON_PERIPHERAL=0x32,
-	LCD_Controller_SET_MAXIMUM_RETURN_PACKET_SIZE=0x37,
-	LCD_Controller_DCS_LONG_WRITE=0x39,
-	LCD_Controller_RGB_888_PACKET=0x3E,
-	LCD_Controller_LONG_PACKET_TBD=0x69,
-}LCD_Controller_DSI_DATA;
-
-typedef enum
-{
-	LCD_Controller_DCS_NOP=0x0,
-	LCD_Controller_DCS_SOFT_RESET=0x01,
-	LCD_Controller_DCS_GET_DIAGNOSTIC_RESULT=0x0F,
-	LCD_Controller_DCS_ENTER_SLEEP_MODE=0x10,
-	LCD_Controller_DCS_EXIT_SLEEP_MODE=0x11,
-	LCD_Controller_DCS_SET_DISPLAY_OFF=0x28,
-	LCD_Controller_DCS_SET_DISPLAY_ON=0x29,
-	LCD_Controller_DCS_SET_COLUMN_ADDRESS=0x2A,
-	LCD_Controller_DCS_SET_PAGE_ADDRESS=0x2B,
-	LCD_Controller_DCS_WRITE_MEMORY_START=0x2C,
-	LCD_Controller_DCS_SET_TEAR_ON=0x35,
-	LCD_Controller_DCS_GET_PIXEL_FORMAT=0x3A,
-	LCD_Controller_DCS_WRITE_MEMORY_CONTINUE=0x3C,
-	LCD_Controller_DCS_SET_THSSI_ON=0x81,
-	LCD_Controller_DCS_DISPLAY_BUFFER_IO_CONTROL=0x82,
-	LCD_Controller_DCS_SET_OUTPUT_VERTICAL_TIMINGS=0x8b,
-	LCD_Controller_DCS_SET_OUTPUT_HORIZONTAL_TIMINGS=0x92,
-	LCD_Controller_DCS_ENABLE_SET_SPECIAL_COMMAND=0x9D,
-	LCD_Controller_DCS_SET_OUTPUT_PIXEL_CLOCK_FREQUENCY=0x9E,
-	LCD_Controller_DCS_WRITE_EDISCO_REGISTER=0xFD,
-}LCD_Controller_DCS_COMMANDS;
 
 typedef enum
 {
@@ -692,8 +609,6 @@ typedef enum
 
 #define DSI_BTA_TRIG   (0x1u<<30)
 #define DSI_BTA_ACK    (0x1u<<31)
-
-#define BOARD_INIT_MAX_DATA_BYTES   35
 
 #define CONVERTER_IS_DSI(x) ((x == LCD_M2DSI0) || (x == LCD_M2DSI1))
 #define CONVERTER_BASE_ADDRESS(b, c) (b+ 0x1000*c)
