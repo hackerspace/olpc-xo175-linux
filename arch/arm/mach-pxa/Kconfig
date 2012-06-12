@@ -62,6 +62,13 @@ config MACH_NEVOSAARC
 	select HAVE_PWM
 	select USB_ARCH_HAS_EHCI
 
+config MACH_NEVOARIEL
+	bool "PXA978 Handheld Platform (aka ariel)"
+	select CPU_PXA978
+	select HAVE_PWM
+	select USB_ARCH_HAS_EHCI
+
+
 comment "Third Party Dev Platforms (sorted by vendor name)"
 
 config ARCH_PXA_IDP

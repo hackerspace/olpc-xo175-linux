@@ -49,6 +49,7 @@ obj-$(CONFIG_MACH_TAVOREVB3)	+= tavorevb3.o
 obj-$(CONFIG_MACH_SAAR)		+= saar.o
 obj-$(CONFIG_MACH_SAARB)	+= saarb.o
 obj-$(CONFIG_MACH_NEVOSAARC)	+= saarc.o
+obj-$(CONFIG_MACH_NEVOARIEL)	+= board-ariel.o
 
 # 3rd Party Dev Platforms
 obj-$(CONFIG_ARCH_PXA_IDP)	+= idp.o
