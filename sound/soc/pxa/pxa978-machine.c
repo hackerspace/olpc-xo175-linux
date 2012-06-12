@@ -328,9 +328,6 @@ static int __init saarc_init(void)
 {
 	int ret = 0;
 
-	if (!machine_is_saarc())
-		return -ENODEV;
-
 	saarc_snd_device = platform_device_alloc("soc-audio", 0);
 	if (!saarc_snd_device)
 		return -ENOMEM;
