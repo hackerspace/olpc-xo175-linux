@@ -849,64 +849,6 @@ struct platform_device pxa168_device_u2ootg = {
 #endif
 #endif
 
-#ifdef CONFIG_VIDEO_MVISP
-
-static u64 mmp_dxo_dma_mask = DMA_BIT_MASK(32);
-
-static struct resource mmp_dxoisp_resources[] = {
-	[0] = {
-		.start = 0xD4215000,
-		.end   = 0xD4215D0B,
-		.flags = IORESOURCE_MEM,
-	},
-	[1] = {
-		.start = 0xF0200000,
-		.end   = 0xF023FFFF,
-		.flags = IORESOURCE_MEM,
-	},
-	[2] = {
-		.start = IRQ_MMP3_ISP_DMA,
-		.end   = IRQ_MMP3_ISP_DMA,
-		.flags = IORESOURCE_IRQ,
-	},
-	[3] = {
-		.start = IRQ_MMP3_DXO_ISP,
-		.end   = IRQ_MMP3_DXO_ISP,
-		.flags = IORESOURCE_IRQ,
-	},
-	[4] = {
-		.start = IRQ_MMP3_CCIC1,
-		.end   = IRQ_MMP3_CCIC1,
-		.flags = IORESOURCE_IRQ,
-	},
-};
-
-struct platform_device mmp_device_dxoisp = {
-	.name           = "mvisp",
-	.id             = 0,
-	.dev            = {
-		.dma_mask = &mmp_dxo_dma_mask,
-		.coherent_dma_mask = DMA_BIT_MASK(32),
-	},
-	.resource       = mmp_dxoisp_resources,
-	.num_resources  = ARRAY_SIZE(mmp_dxoisp_resources),
-};
-
-void __init mmp_register_dxoisp(struct mvisp_platform_data *data)
-{
-	int ret;
-
-	data->mvisp_reset = mvisp_reset_hw;
-	data->mvisp_power_control = isppwr_power_control;
-
-	mmp_device_dxoisp.dev.platform_data = data;
-
-	ret = platform_device_register(&mmp_device_dxoisp);
-	if (ret)
-		dev_err(&(mmp_device_dxoisp.dev),
-			"unable to register dxo device: %d\n", ret);
-}
-#endif
 #ifdef CONFIG_MMP3_HSI
 int hsi_config_int(void *param)
 {

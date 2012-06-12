@@ -47,12 +47,15 @@ struct mvisp_platform_data {
 	struct mvisp_v4l2_subdevs_group *subdev_group;
 	bool ccic_dummy_ena;
 	bool ispdma_dummy_ena;
+	unsigned int isp_clknum;
+	unsigned int ccic_clknum;
+	char **clkname;
 	int (*mvisp_reset)(void *param);
-	int (*mvisp_power_control)(int);
+	int (*isp_pwr_ctrl)(int);
 };
 
-void __init mmp_register_dxoisp(struct mvisp_platform_data *pdata);
-int mvisp_reset_hw(void *param);
+void __init mmp3_register_dxoisp(struct mvisp_platform_data *pdata);
+int mmp3_isp_reset_hw(void *param);
 int isppwr_power_control(int on);
 
 #endif

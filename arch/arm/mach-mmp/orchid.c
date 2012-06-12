@@ -303,15 +303,25 @@ static struct mvisp_v4l2_subdevs_group dxoisp_subdevs_group[] = {
 };
 #endif
 
-static struct mvisp_platform_data mmp_dxoisp_plat_data = {
-	.subdev_group = dxoisp_subdevs_group,
-	.ccic_dummy_ena = false,
+static char *mmp3_isp_ccic_clk_name[] = {
+	[0] = "ISP-CLK",
+	[1] = "CCIC-CLK",
+};
+
+static struct mvisp_platform_data mmp3_dxoisp_pdata = {
+	.isp_clknum       = 1,
+	.ccic_clknum      = 1,
+	.clkname          = mmp3_isp_ccic_clk_name,
+	.mvisp_reset      = mmp3_isp_reset_hw,
+	.isp_pwr_ctrl     = isppwr_power_control,
+	.subdev_group     = dxoisp_subdevs_group,
+	.ccic_dummy_ena   = false,
 	.ispdma_dummy_ena = false,
 };
 
-static void __init mmp_init_dxoisp(void)
+static void __init mmp3_init_dxoisp(void)
 {
-	mmp_register_dxoisp(&mmp_dxoisp_plat_data);
+	mmp3_register_dxoisp(&mmp3_dxoisp_pdata);
 }
 #endif
 
@@ -1546,7 +1556,7 @@ static void __init orchid_init(void)
 #endif
 
 #ifdef CONFIG_VIDEO_MVISP
-	mmp_init_dxoisp();
+	mmp3_init_dxoisp();
 #endif
 
 #ifdef CONFIG_USB_PXA_U2O

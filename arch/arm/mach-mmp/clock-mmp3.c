@@ -1913,7 +1913,7 @@ static struct clk mmp3_clk_hsi = {
 #define DXOISP_PLL1		1
 #define DXOISP_PLL2		2
 
-int mvisp_reset_hw(void *param)
+int mmp3_isp_reset_hw(void *param)
 {
 	int reg;
 
@@ -2310,7 +2310,6 @@ static void ccic_clk_init(struct clk *clk)
 {
 	const struct clk_mux_sel *sel;
 	u32 val = 0;
-	int reg = 0;
 
 	/* by default select pll1/2 as clock source and divider 1 */
 	clk->mul = 1;

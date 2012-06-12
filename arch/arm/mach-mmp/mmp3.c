@@ -44,6 +44,7 @@
 #include <mach/regs-sspa.h>
 #include <linux/memblock.h>
 #include <linux/regdump_ops.h>
+#include <mach/isp_dev.h>
 
 #include <linux/platform_device.h>
 
@@ -1358,6 +1359,60 @@ void mmp_zsp_platform_device_init(void)
 	PMUA_ISP_PWR_CTRL.So if one of any sensor is poweron,
 	we all can't poweroff ISP.
 */
+#ifdef CONFIG_VIDEO_MVISP
+static u64 mmp3_dxo_dma_mask = DMA_BIT_MASK(32);
+
+static struct resource mmp3_dxoisp_resources[] = {
+	[0] = {
+		.start = 0xD4215000,
+		.end   = 0xD4215D0B,
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = 0xF0200000,
+		.end   = 0xF023FFFF,
+		.flags = IORESOURCE_MEM,
+	},
+	[2] = {
+		.start = IRQ_MMP3_ISP_DMA,
+		.end   = IRQ_MMP3_ISP_DMA,
+		.flags = IORESOURCE_IRQ,
+	},
+	[3] = {
+		.start = IRQ_MMP3_DXO_ISP,
+		.end   = IRQ_MMP3_DXO_ISP,
+		.flags = IORESOURCE_IRQ,
+	},
+	[4] = {
+		.start = IRQ_MMP3_CCIC1,
+		.end   = IRQ_MMP3_CCIC1,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mmp3_device_dxoisp = {
+	.name           = "mmp3-mvisp",
+	.id             = 0,
+	.dev            = {
+		.dma_mask = &mmp3_dxo_dma_mask,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	},
+	.resource       = mmp3_dxoisp_resources,
+	.num_resources  = ARRAY_SIZE(mmp3_dxoisp_resources),
+};
+
+void __init mmp3_register_dxoisp(struct mvisp_platform_data *pdata)
+{
+	int ret;
+
+	mmp3_device_dxoisp.dev.platform_data = pdata;
+
+	ret = platform_device_register(&mmp3_device_dxoisp);
+	if (ret)
+		dev_err(&(mmp3_device_dxoisp.dev),
+			"unable to register dxo device: %d\n", ret);
+}
+#endif
 
 static atomic_t isppwr_count;
 int isppwr_power_control(int on)
