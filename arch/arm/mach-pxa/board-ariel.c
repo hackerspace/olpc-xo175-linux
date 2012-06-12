@@ -220,16 +220,7 @@ extern struct pxa95x_freq_mach_info freq_mach_info;
 
 static void headsetflag_init_pm800(void)
 {
-	switch (get_board_id()) {
-	case OBM_DKB_2_NEVO_C0_BOARD:
-	case OBM_DKB_2_NEVO_C0_BOARD_533MHZ:
-		BUG();	/* we should be same as DKB 2.1 */
-		pm800_info.headset_flag = 1;
-		break;
-	default:
-		pm800_info.headset_flag = 0;
-		break;
-	}
+	pm800_info.headset_flag = 1;
 }
 
 static void regulator_init_pm800(void)
