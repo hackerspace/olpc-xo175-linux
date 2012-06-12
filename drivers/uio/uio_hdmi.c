@@ -39,6 +39,8 @@ static bool timer_inited = 0;
 static int suspend_flag;
 #ifdef CONFIG_CPU_PXA978
 static int dvfm_dev_idx;
+static unsigned int *arb_f_mc, *arb_n_mc;
+static unsigned int val_f_mc, val_n_mc;
 #endif
 
 struct hdmi_instance {
@@ -372,6 +374,8 @@ static void hdmi_switch_work(struct work_struct *work)
 				unset_power_constraint(hi);
 #else
 			unset_power_constraint(hi);
+			*arb_f_mc = val_f_mc;
+			*arb_n_mc = val_n_mc;
 #endif
 			/*if hdmi_state change, report hpd*/
 			uio_event_notify(&hi->uio_info);
@@ -387,6 +391,11 @@ static void hdmi_switch_work(struct work_struct *work)
 			if (early_suspend_flag == 0)
 				set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
 #else
+			/* raise priority of display controller mc arbiter*/
+			val_f_mc = *arb_f_mc;
+			val_n_mc = *arb_n_mc;
+			*arb_f_mc = 0x010f0101;
+			*arb_n_mc = 0x010f0101;
 			set_power_constraint(hi, -1);
 			clk_enable(hi->clk);
 #endif
@@ -532,6 +541,9 @@ static int hdmi_probe(struct platform_device *pdev)
 
 #ifdef CONFIG_CPU_PXA978
 	dvfm_register("uio-hdmi", &dvfm_dev_idx);
+	/* mc arbiter*/
+	arb_f_mc = ioremap_nocache(0x7ff007b0, 4);
+	arb_n_mc = ioremap_nocache(0x7ff00280, 4);
 #endif
 
 #if defined(CONFIG_CPU_PXA978) || defined(CONFIG_CPU_MMP3)

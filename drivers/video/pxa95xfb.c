@@ -1285,7 +1285,7 @@ static void update_lcd_controller_clock(struct pxa95xfb_conv_info *conv, int on)
 	if (!on)
 		clock_rate = 104000000;
 	else if (conv->xres * conv->yres >= 720*1080)
-		clock_rate = 312000000;
+		clock_rate = 416000000;
 	else
 		clock_rate = 156000000;
 	printk(KERN_INFO "%s: for converter resolution %d %d, clock rate is set to %d\n",
