@@ -464,8 +464,8 @@ ft5306_touch_probe(struct i2c_client *client,
 		touch->virtual_key->open = ft5306_touch_open;
 		touch->virtual_key->close = ft5306_touch_close;
 
-		set_bit(EV_KEY, touch->virtual_key->evbit);
-		bitmap_fill(touch->virtual_key->keybit, KEY_MAX);
+		if (touch->data->set_virtual_key)
+			touch->data->set_virtual_key(touch->virtual_key);
 
 		ret = input_register_device(touch->virtual_key);
 		if (ret) {

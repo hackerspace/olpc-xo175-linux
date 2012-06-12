@@ -24,6 +24,7 @@ struct ft5306_touch_platform_data {
 	int abs_y_max;
 	int abs_flag;
 	int virtual_key;
+	int (*set_virtual_key)(struct input_dev *);
 };
 
 #endif
