@@ -2399,6 +2399,10 @@ static irqreturn_t pxa95xfb_gfx_handle_irq_ctl(int irq, void *dev_id)
 	u32	 g, x;
 	int i;
 
+	g = readl(fbi->reg_base + LCD_CONV2_INT_STS);
+	if (g & 0x1)
+		printk(KERN_ALERT "HDMI converter underrun observed!!!\n");
+	writel(g, fbi->reg_base + LCD_CONV2_INT_STS);
 
 	g = readl(fbi->reg_base + LCD_CTL_INT_STS);
 	/*do nothing with LCD EN/DIS/Q_DIS: we don't enable these intr*/
@@ -2555,6 +2559,7 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 		mutex_init(&mutex_mixer_update[i]);
 		init_waitqueue_head(&wq_mixer_update[i]);
 	}
+
 	/* Map registers.*/
 	fbi->reg_base = ioremap_nocache(res->start, res->end - res->start);
 	if (fbi->reg_base == NULL) {

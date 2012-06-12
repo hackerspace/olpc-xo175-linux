@@ -168,6 +168,7 @@ typedef enum {
 #define LCD_CONV0_CTL    	0x1000
 #define LCD_CONV0_INT_STS	0x1028
 #define LCD_CONV1_INT_STS       0x2028
+#define LCD_CONV2_INT_STS       0x4028
 
 #define LCD_MIXER0_TIM0		0x1004
 #define LCD_MIXER0_TIM1  	0x1008
