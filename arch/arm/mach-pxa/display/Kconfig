@@ -1,0 +1,6 @@
+config LCD_BYD_9009AD
+	bool "BYD 9009AD LCD Display Support"
+	depends on FB || FB_PXA95x
+	help
+	  The BYD 9909AD LCD Display Support which specifies the lcd module's
+	  display mode, initializing sequence on Marvell PXA978 platform.

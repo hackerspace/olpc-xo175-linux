@@ -16,6 +16,7 @@ else
 obj-$(CONFIG_PM)		+= pm.o sleep.o standby.o
 endif
 obj-$(CONFIG_FB_PXA95x)		+= panel_settings.o
+obj-$(CONFIG_FB_PXA95x)		+= display/
 
 ifeq ($(CONFIG_CPU_FREQ),y)
 obj-$(CONFIG_PXA25x)		+= cpufreq-pxa2xx.o

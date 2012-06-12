@@ -728,4 +728,6 @@ config PXA_RAMDUMP
 	depends on PXA95x
 	bool "RAMDUMP debug capability"
 
+source "arch/arm/mach-pxa/display/Kconfig"
+
 endif
