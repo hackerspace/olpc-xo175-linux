@@ -35,6 +35,8 @@ struct keyreset_state {
 	int restart_disabled;
 	int need_panic;
 	int (*reset_fn)(void);
+	int (*dump_fn)(int);
+	int dump_pressed;
 };
 
 int restart_requested;
@@ -100,6 +102,16 @@ static void keyreset_event(struct input_handle *handle, unsigned int type,
 			schedule_work(&restart_work);
 			restart_requested = 1;
 		}
+	}
+
+	if (state->key_down == state->key_down_target) {
+		state->dump_pressed = 1;
+		if (state->dump_fn)
+			restart_requested = state->dump_fn(1);
+	} else if (state->dump_pressed == 1) {
+		state->dump_pressed = 0;
+		if (state->dump_fn)
+			restart_requested = state->dump_fn(0);
 	}
 done:
 	spin_unlock_irqrestore(&state->lock, flags);
@@ -204,6 +216,9 @@ static int keyreset_probe(struct platform_device *pdev)
 		state->need_panic = 1;
 	else
 		state->need_panic = 0;
+
+	if (pdata->dump_fn)
+		state->dump_fn = pdata->dump_fn;
 
 	state->input_handler.event = keyreset_event;
 	state->input_handler.connect = keyreset_connect;
