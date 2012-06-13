@@ -32,6 +32,7 @@
 #include <mach/pxa988.h>
 #include <mach/irqs.h>
 #include <mach/regs-mpmu.h>
+#include <mach/sram.h>
 #include <mach/regs-rtc.h>
 #include <plat/pmem.h>
 #include <plat/pxa27x_keypad.h>
@@ -548,6 +549,11 @@ static struct i2c_board_info emeidkb_i2c2_info[] = {
 
 };
 
+static struct sram_bank pxa988_asram_info = {
+	.pool_name = "audio sram",
+	.step = AUDIO_SRAM_GRANULARITY,
+};
+
 static void __init emeidkb_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(emeidkb_pin_config));
@@ -565,6 +571,11 @@ static void __init emeidkb_init(void)
 	pxa988_add_twsi(0, NULL, ARRAY_AND_SIZE(emeidkb_i2c_info));
 	pxa988_add_twsi(1, NULL, ARRAY_AND_SIZE(emeidkb_pwr_i2c_info));
 	pxa988_add_twsi(2, NULL, ARRAY_AND_SIZE(emeidkb_i2c2_info));
+
+	/* add ssp1 for hifi audio */
+	pxa988_add_ssp(1);
+	/* add audio sram */
+	pxa988_add_asram(&pxa988_asram_info);
 
 #ifdef CONFIG_FB_PXA168
 	emeidkb_add_lcd_mipi();
