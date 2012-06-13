@@ -1139,6 +1139,17 @@ static u32 ft5306_get_virtual_key(u16 x_pos, u16 y_pos, u16 x_max, u16 y_max)
 		return KEY_RESERVED;
 }
 
+static int ft5306_set_virtual_key(struct input_dev *idev)
+{
+	__set_bit(EV_KEY, idev->evbit);
+	__set_bit(KEY_MENU, idev->keybit);
+	__set_bit(KEY_HOME, idev->keybit);
+	__set_bit(KEY_SEARCH, idev->keybit);
+	__set_bit(KEY_BACK, idev->keybit);
+
+	return 0;
+}
+
 static struct ft5306_touch_platform_data ft5306_touch_data = {
 	.power = ft5306_touch_io_power_onoff,
 	.reset = ft5306_touch_reset,
@@ -1147,6 +1158,7 @@ static struct ft5306_touch_platform_data ft5306_touch_data = {
 	.abs_y_max = 960,
 	.abs_flag = 2,	/* convert the frame of axes 180 degree by clockwise */
 	.virtual_key = 1,	/* enable virtual key for android */
+	.set_virtual_key = ft5306_set_virtual_key,
 };
 #endif
 
