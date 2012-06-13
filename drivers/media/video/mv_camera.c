@@ -806,11 +806,13 @@ static int mv_camera_add_device(struct soc_camera_device *icd)
 	ccic_power_up(pcdev);
 	ret = v4l2_subdev_call(sd, core, init, 0);
 	/* When v4l2_subdev_call return -ENOIOCTLCMD, means No ioctl command */
-	if ((ret < 0) && (ret != -ENOIOCTLCMD) && (ret != -ENODEV))
+	if ((ret < 0) && (ret != -ENOIOCTLCMD) && (ret != -ENODEV)) {
 		dev_info(icd->dev.parent,
 			"camera: Failed to initialize subdev: %d\n", ret);
+		return ret;
+	}
 
-	return ret;
+	return 0;
 }
 
 static void mv_camera_remove_device(struct soc_camera_device *icd)
