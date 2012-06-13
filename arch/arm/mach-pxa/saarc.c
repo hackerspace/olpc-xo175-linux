@@ -2573,12 +2573,29 @@ static int init_wakeup(pm_wakeup_src_t *src)
 #endif
 	src->bits.ext0 = 1;
 	src->bits.uart1 = 1;
-	src->bits.mkey = 1;
 	src->bits.eth = 1;
 	src->bits.tsi = 1;
 	src->bits.cmwdt = 1;
 	src->bits.mmc1_cd = 1;
 	src->bits.mmc3_dat1 = 1;
+
+	/* disable kepad wakeup on saarc board */
+	switch (get_board_id()) {
+	case OBM_DKB_2_NEVO_C0_BOARD:
+	case OBM_DKB_2_NEVO_C0_BOARD_533MHZ:
+	case OBM_DKB_2_1_NEVO_C0_BOARD:
+		src->bits.mkey = 1;
+		break;
+	case OBM_SAAR_C3_NEVO_C0_V10_BOARD:
+	case OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ:
+	case OBM_EVB_NEVO_1_2_BOARD:
+		src->bits.mkey = 0;
+		break;
+	default:
+		pr_err("Bad board ID in %s\n", __func__);
+		BUG();
+	}
+
 	return 0;
 }
 
