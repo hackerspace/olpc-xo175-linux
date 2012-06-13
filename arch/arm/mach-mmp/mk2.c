@@ -202,8 +202,8 @@ static unsigned long mmc2_pin_config[] __initdata = {
 	GPIO42_MMC2_CLK,
 
 	/* GPIO used for power */
-	GPIO58_GPIO, /* WIFI_RST_N */
-	GPIO57_GPIO, /* WIFI_PD_N */
+	GPIO58_GPIO | MFP_LPM_DRIVE_HIGH, /* WIFI_RST_N */
+	GPIO57_GPIO | MFP_LPM_DRIVE_LOW, /* WIFI_PD_N */
 
 	/* GPIO for wake */
 	GPIO55_GPIO, /* WL_BT_WAKE */
@@ -221,7 +221,7 @@ static unsigned long mmc3_pin_config[] __initdata = {
 	GPIO145_MMC3_CMD,
 	GPIO146_MMC3_CLK,
 	/* MMC3_nRST */
-	GPIO149_GPIO | MFP_PULL_HIGH,
+	GPIO149_GPIO | MFP_LPM_DRIVE_HIGH,
 };
 
 static struct sram_bank mmp3_audiosram_info = {
@@ -765,6 +765,16 @@ static struct platform_device mk2_lcd_backlight_devices = {
 
 #ifdef CONFIG_MMC_SDHCI_PXAV3
 #ifdef CONFIG_SD8XXX_RFKILL
+/*
+ * during wifi enabled, power should always on and 8787 should always
+ * released from reset. 8787 handle power management by itself.
+*/
+static unsigned long wifi_pin_config_on[] = {
+	GPIO57_GPIO | MFP_LPM_DRIVE_HIGH,
+};
+static unsigned long wifi_pin_config_off[] = {
+	GPIO57_GPIO | MFP_LPM_DRIVE_LOW,
+};
 static void mmp3_8787_set_power(unsigned int on)
 {
 	/*
@@ -789,8 +799,10 @@ static void mmp3_8787_set_power(unsigned int on)
 		regulator_set_voltage(wifi_1v8, 1800000, 1800000);
 		regulator_enable(wifi_1v8);
 		f_enabled = 1;
+		mfp_config(ARRAY_AND_SIZE(wifi_pin_config_on));
 	}
 	if (f_enabled && (!on)) {
+		mfp_config(ARRAY_AND_SIZE(wifi_pin_config_off));
 		regulator_disable(wifi_1v8);
 		f_enabled = 0;
 	}
