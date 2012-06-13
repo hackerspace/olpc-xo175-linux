@@ -203,8 +203,8 @@ static int is_charger_online(struct max17043_device_info *info)
 }
 
 static char *max17043_supply_to[] = {
-	"isl9226-ac",
-	"isl9226-usb",
+	"ac",
+	"usb",
 };
 
 static void max17043_battery_update_status(struct max17043_device_info *info)
@@ -322,7 +322,7 @@ static int max17043_battery_get_property(struct power_supply *psy,
 static int max17043_powersupply_init(struct max17043_device_info *info)
 {
 	int ret = 0;
-	info->battery.name = "max17043-battery";
+	info->battery.name = "battery";
 	info->battery.type = POWER_SUPPLY_TYPE_BATTERY;
 	info->battery.properties = max17043_bat_props;
 	info->battery.num_properties = ARRAY_SIZE(max17043_bat_props);

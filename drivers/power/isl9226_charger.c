@@ -60,7 +60,7 @@ static const unsigned int prechg_voltage_table[] = {
 	3000, 2900, 2800, 2700,
 };
 static char *isl9226_supply_to[] = {
-	"max17043-battery",
+	"battery",
 };
 
 static enum power_supply_property isl9226_ac_props[] = {
@@ -342,7 +342,7 @@ static int isl9226_charger_probe(struct i2c_client *client,
 	info->ac_chg_cur = isl9226_get_input_current(pdata->ac_input_current);
 	info->default_chg_cur =
 	    isl9226_get_input_current(pdata->default_input_current);
-	info->ac.name = "isl9226-ac";
+	info->ac.name = "ac";
 	info->ac.type = POWER_SUPPLY_TYPE_MAINS;
 	info->ac.supplied_to = isl9226_supply_to;
 	info->ac.num_supplicants = ARRAY_SIZE(isl9226_supply_to);
@@ -356,7 +356,7 @@ static int isl9226_charger_probe(struct i2c_client *client,
 			"AC power supply resisteration failed! \n");
 		goto out;
 	}
-	info->usb.name = "isl9226-usb";
+	info->usb.name = "usb";
 	info->usb.type = POWER_SUPPLY_TYPE_USB;
 	info->usb.supplied_to = isl9226_supply_to;
 	info->usb.num_supplicants = ARRAY_SIZE(isl9226_supply_to);
