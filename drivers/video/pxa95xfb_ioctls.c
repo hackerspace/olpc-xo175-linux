@@ -26,7 +26,6 @@
 
 static int convert_pix_fmt(u32 vmode)
 {
-	printk(KERN_INFO "vmode=%d\n", vmode);
 	switch (vmode) {
 		case FB_VMODE_YUV422PACKED:
 			return PIX_FMTIN_YUV422IL;
@@ -44,6 +43,7 @@ static int convert_pix_fmt(u32 vmode)
 		case FB_VMODE_RGB888UNPACK:
 			return PIX_FMTIN_RGB_24;
 		default:
+			printk(KERN_INFO "unsupported format!\n");
 			return -1;
 	}
 }
@@ -66,7 +66,7 @@ static void adjust_offset_for_resize(struct _sViewPortInfo *info, struct _sViewP
 	info->zoomYSize = (info->zoomYSize / hstep) * hstep;
 }
 
-static int check_surface(struct pxa95xfb_info *fbi,
+static int surface_is_changed(struct pxa95xfb_info *fbi,
 		FBVideoMode new_mode,
 		struct _sViewPortInfo *new_info,
 		struct _sViewPortOffset *new_offset)
@@ -89,6 +89,18 @@ static int check_surface(struct pxa95xfb_info *fbi,
 			 fbi->surface.viewPortOffset.yOffset != new_offset->yOffset));
 }
 
+static int surface_is_valid(struct pxa95xfb_info *fbi,
+		FBVideoMode new_mode,
+		struct _sViewPortInfo *new_info,
+		struct _sViewPortOffset *new_offset)
+{
+	return (new_mode >= 0 && convert_pix_fmt(new_mode) >= 0)
+		|| (new_info &&
+		(new_info->srcWidth || new_info->srcHeight ||
+		new_info->zoomXSize || new_info->zoomYSize));
+}
+
+
 static void set_surface(struct pxa95xfb_info *fbi,
 		FBVideoMode new_mode,
 		struct _sViewPortInfo *new_info,
@@ -102,6 +114,7 @@ static void set_surface(struct pxa95xfb_info *fbi,
 
 	/* check mode */
 	if (new_mode >= 0) {
+		printk(KERN_INFO "vmode=%d\n", new_mode);
 		fbi->surface.videoMode = new_mode;
 		fbi->pix_fmt = convert_pix_fmt(new_mode);
 		lcdc_set_pix_fmt(var, fbi->pix_fmt);
@@ -124,7 +137,6 @@ static void set_surface(struct pxa95xfb_info *fbi,
 		printk(KERN_INFO "Ovly update offset [%d %d]\n",
 			new_offset->xOffset, new_offset->yOffset);
 	}
-
 }
 
 static inline void buf_print(struct pxa95xfb_info *fbi)
@@ -362,6 +374,14 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 			return -EFAULT;
 		}
 
+		if (!surface_is_valid(fbi, surface.videoMode,
+					&surface.viewPortInfo,
+					&surface.viewPortOffset)) {
+			printk(KERN_INFO "surface is not valid in fb%d\n", fbi->id);
+			mutex_unlock(&fbi->access_ok);
+			return -EINVAL;
+		}
+
 		start_addr = (struct buf_addr *)(surface.videoBufferAddr.startAddr);
 
 		if (fbi->on && !fbi->controller_on) {
@@ -399,7 +419,7 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 		}
 
 		/* user pointer way */
-		if (check_surface(fbi, surface.videoMode,
+		if (surface_is_changed(fbi, surface.videoMode,
 					&surface.viewPortInfo,
 					&surface.viewPortOffset)) {
 			/* in this case, surface mode changed, need sync */
