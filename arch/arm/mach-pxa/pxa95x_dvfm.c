@@ -2425,14 +2425,21 @@ static int pxa95x_set_op(void *driver_data, struct dvfm_freqs *freqs,
 		return ret;
 
 	md = (struct dvfm_md_opt *)(p->op);
-	/* only lock when do frequency change.
-	 * if it is enter lowpower mode, now irq should have been disabled.
+	/*
+	 * Use mutex when do frequency change with Normal PPs
+	 * Programmer shouldn't disable irq in this condition.
+	 * If the PP is lowpower mode PP,irq should have been
+	 * disabled already. Programmer shouldn't enable irqs
+	 * before calling this function.
 	 */
 	if (md->power_mode == POWER_MODE_D0) {
 		BUG_ON(irqs_disabled());
 		mutex_lock(&op_change_mutex);
 	} else {
-		BUG_ON(!irqs_disabled());
+		 if (!irqs_disabled()) {
+			pr_warning("This is not a op to set, it is a low power mode.\n");
+			return -ENOENT;
+		}
 	}
 
 	freqs->old = cur_op;
