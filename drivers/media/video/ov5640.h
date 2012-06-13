@@ -11,9 +11,6 @@
 #define		REG_PIDH	0x300a
 #define		REG_PIDL	0x300b
 
-/* V4L2 driver specific controls */
-#define V4L2_CID_PRIVATE_FIRMWARE_DOWNLOAD	(V4L2_CID_PRIVATE_BASE + 0)
-
 struct ov5640 {
 	struct v4l2_subdev subdev;
 	int model;	/* V4L2_IDENT_OV5642* codes from v4l2-chip-ident.h */

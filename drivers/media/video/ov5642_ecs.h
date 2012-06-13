@@ -52,9 +52,6 @@ enum _ov5642_profile {
 	PROFILE_END,
 };
 
-/* V4L2 driver specific controls */
-#define V4L2_CID_PRIVATE_FIRMWARE_DOWNLOAD	(V4L2_CID_PRIVATE_BASE + 0)
-
 struct regval_list {
 	u16 reg_num;
 	unsigned char value;

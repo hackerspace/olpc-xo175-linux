@@ -1,6 +1,8 @@
 #ifndef __ASM_ARCH_CAMERA_H__
 #define __ASM_ARCH_CAMERA_H__
 
+#include <media/mrvl-camera.h>
+
 struct mv_cam_pdata {
 #ifdef CONFIG_CPU_MMP3
 	struct clk	*clk;
@@ -42,19 +44,7 @@ struct mipi_phy {
 	u16 dt1;	/* Data type 1: For video or main data type */
 	u16 dt2;	/* Data type 2: For thumbnail or auxiliry data type */
 };
-#define V4L2_CID_PRIVATE_GET_MIPI_PHY	(V4L2_CID_PRIVATE_BASE + 1)
 void mv_set_sensor_attached(bool sensor_attached);
 int isppwr_power_control(int on);
-
-struct csi_dphy_desc {
-	u32 clk_mul;
-	u32 clk_div;	/* clock_lane_freq = input_clock * clk_mul / clk_div */
-	u32 cl_prepare;
-	u32 cl_zero;
-	u32 hs_prepare;
-	u32 hs_zero;
-	u32 nr_lane;	/* When set to 0, S/W will try to figure out a value */
-};
-
 #endif
 

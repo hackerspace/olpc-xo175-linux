@@ -29,9 +29,6 @@ enum ov5642_register {
 #define OV5642_END_VAL		0xFF
 #define END_SYMBOL		{OV5642_END_ADDR, OV5642_END_VAL}
 
-/* V4L2 driver specific controls */
-#define V4L2_CID_PRIVATE_FIRMWARE_DOWNLOAD	(V4L2_CID_PRIVATE_BASE + 0)
-
 struct regval_list {
 	u16 reg_num;
 	unsigned char value;
