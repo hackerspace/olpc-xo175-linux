@@ -1304,6 +1304,8 @@ static u32 mmp3_prepare_freqch(struct mmp3_pmu *pmu,
 			pl->dram.val = curpl.dram.val;
 	}
 
+	mmp3_freq_plan_print_dbg(pmu, &pmu->pl_curr, 0);
+
 	if (change != 0) {
 		/* change required */
 		mmp3_update_freq_plan(pmu, pl);
