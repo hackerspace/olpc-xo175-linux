@@ -1217,9 +1217,11 @@ static void mmc_clk_disable(u32 c)
 
 #include <linux/platform_data/pxa_sdhci.h>
 
+#ifdef CONFIG_CPU_PXA978
 extern struct sdhci_pxa_platdata mci0_platform_data;
 extern struct sdhci_pxa_platdata mci1_platform_data;
 extern struct sdhci_pxa_platdata mci2_platform_data;
+#endif
 
 static int mmc_wr_check(u32 base)
 {
@@ -1241,8 +1243,10 @@ void mmc_jira_2339_wr_before_lpm(void)
 	u16 t;
 	volatile u32 cken_c;
 
+#ifdef CONFIG_CPU_PXA978
 	if (mci0_platform_data.suspended)
 		return ;
+#endif
 
 	cken_c = mmc_clk_enable();
 
@@ -1285,8 +1289,10 @@ void mmc_jira_2339_wr_after_lpm(void)
 	volatile u32 cken_c;
 #endif
 
+#ifdef CONFIG_CPU_PXA978
 	if (mci2_platform_data.suspended)
 		return ;
+#endif
 #if PREFER_CMD5
 	cken_c = mmc_clk_enable();
 
