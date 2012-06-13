@@ -40,7 +40,8 @@ static int vmeta_target(struct device *dev, unsigned long *freq, u32 flags)
 	int ret = 0;
 
 	ret = clk_set_rate(data->vclk, *freq);
-
+	if (!ret)
+		*freq = clk_get_rate(data->vclk);
 	return ret;
 }
 
