@@ -3640,9 +3640,6 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 		rc |= dvfm_disable_op_name_no_change("CUSTOM OP", user_index);
 		rc |= dvfm_disable_op_name_no_change("208M_HF", user_index);
 		rc |= dvfm_disable_op_name_no_change("416M_VGA", user_index);
-		rc |= dvfm_disable_op_name_no_change("1196M", user_index);
-		rc |= dvfm_disable_op_name_no_change("1404M", user_index);
-		rc |= dvfm_disable_op_name_no_change("1508M", user_index);
 		if (rc)
 			printk(KERN_ERR "Error disable op\n");
 
