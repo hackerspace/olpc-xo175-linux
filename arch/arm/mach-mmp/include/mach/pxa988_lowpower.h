@@ -61,6 +61,37 @@
 #define PMUM_MSASLPEN		(1 << 14)
 #define PMUM_STBYEN		(1 << 13)
 
+#define PMUM_GSM_WAKEUPWMX	(1 << 29)
+#define PMUM_WCDMA_WAKEUPX	(1 << 28)
+#define PMUM_GSM_WAKEUPWM	(1 << 27)
+#define PMUM_WCDMA_WAKEUPWM	(1 << 26)
+#define PMUM_AP_ASYNC_INT	(1 << 25)
+#define PMUM_AP_FULL_IDLE	(1 << 24)
+#define PMUM_SQU		(1 << 23)
+#define PMUM_SDH		(1 << 22)
+#define PMUM_KEYPRESS		(1 << 21)
+#define PMUM_TRACKBALL		(1 << 20)
+#define PMUM_NEWROTARY		(1 << 19)
+#define PMUM_WDT		(1 << 18)
+#define PMUM_RTC_ALARM		(1 << 17)
+#define PMUM_CP_TIMER_3		(1 << 16)
+#define PMUM_CP_TIMER_2		(1 << 15)
+#define PMUM_CP_TIMER_1		(1 << 14)
+#define PMUM_AP2_TIMER_3	(1 << 13)
+#define PMUM_AP2_TIMER_2	(1 << 12)
+#define PMUM_AP2_TIMER_1	(1 << 11)
+#define PMUM_AP1_TIMER_3	(1 << 10)
+#define PMUM_AP1_TIMER_2	(1 << 9)
+#define PMUM_AP1_TIMER_1	(1 << 8)
+#define PMUM_WAKEUP7		(1 << 7)
+#define PMUM_WAKEUP6		(1 << 6)
+#define PMUM_WAKEUP5		(1 << 5)
+#define PMUM_WAKEUP4		(1 << 4)
+#define PMUM_WAKEUP3		(1 << 3)
+#define PMUM_WAKEUP2		(1 << 2)
+#define PMUM_WAKEUP1		(1 << 1)
+#define PMUM_WAKEUP0		(1 << 0)
+
 #ifndef __ASSEMBLER__
 
 enum pxa988_lowpower_state {
@@ -110,6 +141,14 @@ extern void pl310_suspend(void);
 
 extern void pmu_register_lock(void);
 extern void pmu_register_unlock(void);
+
+struct pxa988_peripheral_config_ops {
+	int (*pin_lpm_config)(void);
+	int (*pin_lpm_restore)(void);
+};
+
+extern int pxa988_power_config_register
+	(struct pxa988_peripheral_config_ops *ops);
 
 #endif
 

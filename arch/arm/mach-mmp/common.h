@@ -18,6 +18,7 @@ extern void __init stimer_device_init(unsigned int base);
 
 extern int pxa910_set_wake(struct irq_data *data, unsigned int on);
 extern int mmp3_set_wake(struct irq_data *data, unsigned int on);
+extern int pxa988_set_wake(struct irq_data *data, unsigned int on);
 
 extern void __init icu_init_irq(void);
 extern void __init mmp_map_io(void);

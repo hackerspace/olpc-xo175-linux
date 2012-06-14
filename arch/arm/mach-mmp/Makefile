@@ -72,4 +72,5 @@ obj-$(CONFIG_CPU_FREQ_MMP3)	+= cpufreq-mmp3.o
 obj-$(CONFIG_CPU_FREQ_PXA910)	+= cpufreq-pxa910.o acpuclock-pxa910.o acpuclock-pxa910_ll.o
 ifeq ($(CONFIG_SUSPEND),y)
 obj-$(CONFIG_CPU_PXA910)	+= pxa910_pm.o
+obj-$(CONFIG_CPU_PXA988)	+= pm-pxa988.o
 endif
