@@ -547,7 +547,7 @@ static void set_temp_threshold(struct pm860x_battery_info *info,
 
 static int measure_temp(struct pm860x_battery_info *info, int *data)
 {
-	int ret, temp;
+	int ret, temp = 0;
 
 	if (!data)
 		return -EINVAL;
@@ -715,7 +715,7 @@ EXPORT_SYMBOL(pm860x_calc_resistor);
 
 static int query_health(struct pm860x_battery_info *info)
 {
-	int ret, mv, border, state;
+	int ret, mv, border, state = POWER_SUPPLY_HEALTH_UNKNOWN;
 
 	ret = measure_12bit_voltage(info, PM8607_GPADC1_MEAS1, &mv);
 	if (ret)
