@@ -196,6 +196,23 @@ static int max17043_get_battery_temp(struct max17043_device_info *info)
 	return temp;
 }
 
+static int get_charger_status(struct max17043_device_info *info)
+{
+	struct power_supply *psy;
+	union power_supply_propval val;
+	int i, ret = 0;
+
+	for (i = 0; i < info->battery.num_supplicants; i++) {
+		psy = power_supply_get_by_name(info->battery.supplied_to[i]);
+		if (!psy || !psy->get_property)
+			continue;
+		ret = psy->get_property(psy, POWER_SUPPLY_PROP_STATUS, &val);
+		if (ret == 0)
+			return val.intval;
+	}
+	return 0;
+}
+
 static int is_charger_online(struct max17043_device_info *info)
 {
 	struct power_supply *psy;
@@ -244,7 +261,7 @@ static void max17043_battery_update_status(struct max17043_device_info *info)
 	info->capacity = cap;
 
 	if (is_charger_online(info))
-		info->status = POWER_SUPPLY_STATUS_CHARGING;
+		info->status = get_charger_status(info);
 	else
 		info->status = POWER_SUPPLY_STATUS_DISCHARGING;
 	if (info->capacity >= 100)
