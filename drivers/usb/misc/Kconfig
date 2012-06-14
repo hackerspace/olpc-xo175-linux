@@ -246,7 +246,7 @@ config USB_YUREX
 
 config USB_VBUS_88PM860X
 	tristate "Marvell USB 88PM860x VBus"
-	depends on MFD_88PM860X && USB
+	depends on MFD_88PM860X
 	help
 	  Say Y here if you have a 88PM860x PMIC to detect USB VBus event.
 	  If unsure, say N.
@@ -256,7 +256,7 @@ config USB_VBUS_88PM860X
 
 config USB_VBUS_88PM80X
         tristate "Marvell USB 88PM80x VBus"
-        depends on MFD_88PM80X && USB
+        depends on MFD_88PM80X
         help
           Say Y here if you have a 88PM860x PMIC to detect USB VBus event.
           If unsure, say N.
