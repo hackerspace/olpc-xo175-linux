@@ -146,7 +146,8 @@ static int pm80x_rtc_read_time(struct device *dev, struct rtc_time *tm)
 	struct pm80x_rtc_info *info = dev_get_drvdata(dev);
 	unsigned char buf[4];
 	unsigned long ticks, base, data;
-	pm80x_bulk_read(info->i2c, PM800_RTC_EXPIRE2_1, 4, buf);
+
+	pm80x_bulk_read(info->i2c, PM800_USER_DATA3, 4, buf);
 	base = (buf[3] << 24) | (buf[2] << 16) | (buf[1] << 8) | buf[0];
 	dev_dbg(info->dev, "%x-%x-%x-%x\n", buf[0], buf[1], buf[2], buf[3]);
 
@@ -183,7 +184,7 @@ static int pm80x_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	buf[1] = (base >> 8) & 0xFF;
 	buf[2] = (base >> 16) & 0xFF;
 	buf[3] = (base >> 24) & 0xFF;
-	pm80x_bulk_write(info->i2c, PM800_RTC_EXPIRE2_1, 4, buf);
+	pm80x_bulk_write(info->i2c, PM800_USER_DATA3, 4, buf);
 
 	if (info->sync)
 		info->sync(ticks);
@@ -202,7 +203,8 @@ static int pm80x_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 	unsigned char buf[4];
 	unsigned long ticks, base, data;
 	int ret;
-	pm80x_bulk_read(info->i2c, PM800_RTC_EXPIRE2_1, 4, buf);
+
+	pm80x_bulk_read(info->i2c, PM800_USER_DATA3, 4, buf);
 	base = (buf[3] << 24) | (buf[2] << 16) | (buf[1] << 8) | buf[0];
 	dev_dbg(info->dev, "%x-%x-%x-%x\n", buf[0], buf[1], buf[2], buf[3]);
 
@@ -229,7 +231,7 @@ static int pm80x_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 
 	pm80x_set_bits(info->i2c, PM800_RTC_CONTROL, PM800_ALARM1_EN, 0);
 
-	pm80x_bulk_read(info->i2c, PM800_RTC_EXPIRE2_1, 4, buf);
+	pm80x_bulk_read(info->i2c, PM800_USER_DATA3, 4, buf);
 	base = (buf[3] << 24) | (buf[2] << 16) | (buf[1] << 8) | buf[0];
 	dev_dbg(info->dev, "%x-%x-%x-%x\n", buf[0], buf[1], buf[2], buf[3]);
 
