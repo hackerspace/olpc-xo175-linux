@@ -216,6 +216,9 @@
 #define PMU_CA9MP_IDLE_CFG0		APMU_REG(0x0120)
 #define PMU_CA9MP_IDLE_CFG1		APMU_REG(0x00e4)
 
+/* PXA988 AP Clock Control Register2 */
+#define PMU_CC2_AP			APMU_REG(0x0100)
+
 #define APMU_AUDIO_PWR_UP		(3 << 9)
 #define APMU_AUDIO_PWR_DOWN		(0 << 9)
 #define APMU_AUDIO_ISO_DIS		(1 << 8)

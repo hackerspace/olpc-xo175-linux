@@ -37,6 +37,9 @@
 #define CIU_FABRIC_CKGT_CTRL1	CIU_REG(0x0068)
 #define CIU_FABRIC_CKGT_CTRL2	CIU_REG(0x00dc)
 
+/* This is used by pxa988 for warm reset */
+#define CIU_WARM_RESET_VECTOR   CIU_REG(0x00d8)
+
 static __maybe_unused int ciu_ddr_ilv_on(void)
 {
 	return ((__raw_readl(CIU_DDR_ILV_CTRL) & 0x7f) != 0);
