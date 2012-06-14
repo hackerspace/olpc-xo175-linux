@@ -2770,6 +2770,27 @@ static struct pxa95x_peripheral_wakeup_ops wakeup_ops = {
 };
 #endif
 
+static void pull_up_dcdc(void)
+{
+	int dcdc_pin;
+	int err;
+
+	dcdc_pin = mfp_to_gpio(MFP_PIN_RF_MFP14);
+	err = gpio_request(dcdc_pin, "DCDC_Pin");
+	if (err) {
+		gpio_free(dcdc_pin);
+		printk(KERN_ERR "Request GPIO failed, gpio: %d return :%d\n",
+			dcdc_pin, err);
+		return;
+	}
+	gpio_direction_output(dcdc_pin, 1);
+
+	gpio_free(dcdc_pin);
+	pr_info("pull up DCDC. \n");
+
+	return;
+}
+
 #ifdef CONFIG_PROC_FS
 static void sparrow_rf_reset(void)
 {
@@ -3077,6 +3098,10 @@ static void __init init(void)
 	create_pcm_mfp_proc_file();
 #endif
 	init_rfreset_gpio();
+	if ((get_board_id() == OBM_DKB_2_NEVO_C0_BOARD)
+		|| (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ)
+		|| (get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD))
+		pull_up_dcdc();
 }
 
 MACHINE_START(NEVOSAARC, "PXA978")
