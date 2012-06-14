@@ -1369,9 +1369,11 @@ static void mmp3_dfc_trigger(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
 
 	/* if (change & (MMP3_FREQCH_CORE | MMP3_FREQCH_DRAM)) { */
 	if(1){
+#if 0
 		if (cpu_is_mmp3_b0p())
 			ret = mmp3_trigger_dfc_ll_b0p(dfc_val, (u32)sync_buf);
 		else
+#endif
 			ret = mmp3_trigger_dfc_ll(dfc_val, (u32)sync_buf);
 	} else {
 		local_irq_disable();
