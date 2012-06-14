@@ -811,6 +811,7 @@ static void mmp3_8787_set_power(unsigned int on)
 
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc0 = {
 	.clk_delay_cycles	= 0x1F,
+	.flags			= PXA_FLAG_ENABLE_CLOCK_GATING,
 	/*
 	 * All of sd power is supplied by PMIC_V3_2V8,
 	 * which is shared by many devices like emmc.
@@ -826,12 +827,15 @@ static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc0 = {
 };
 
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc1 = {
-	.flags          = PXA_FLAG_CARD_PERMANENT,
-	.pm_caps	= MMC_PM_KEEP_POWER | MMC_PM_IRQ_ALWAYS_ON,
+	.flags          = PXA_FLAG_CARD_PERMANENT |
+				PXA_FLAG_WAKEUP_HOST,
+	.pm_caps	= MMC_PM_KEEP_POWER,
 };
 
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc2 = {
-	.flags		= PXA_FLAG_SD_8_BIT_CAPABLE_SLOT,
+	.flags		= PXA_FLAG_SD_8_BIT_CAPABLE_SLOT |
+				PXA_FLAG_CARD_PERMANENT |
+				PXA_FLAG_ENABLE_CLOCK_GATING,
 	.clk_delay_cycles	= 0xF,
 };
 
