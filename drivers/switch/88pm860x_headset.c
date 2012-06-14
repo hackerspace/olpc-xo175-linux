@@ -319,6 +319,7 @@ static int headset_switch_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, info);
+	device_init_wakeup(&pdev->dev, 1);
 
 	/* set hook detection debounce time to 24ms, it's the best setting we experienced */
 	pm860x_set_bits(info->i2c, PM8607_HEADSET_DECTION,
@@ -418,11 +419,16 @@ static int headset_switch_suspend(struct platform_device *pdev,
 	struct pm860x_headset_info *info = platform_get_drvdata(pdev);
 	struct headset_switch_data *switch_data = info->psw_data_headset;
 
-	/*  enable HOOK detection when headset is connected, thus hook press
-	 *  can wake up core from suspend mode */
-	if (switch_data->state == PM8XXX_HEADSET_ADD) {
-		pm860x_set_bits(info->i2c, PM8607_MIC_DECTION,
-				PM8607_MIC_DET_EN_MIC_DET, 1);
+	/*
+	 * keep headseat and hook irq enabled, thus plug in/out headset and
+	 * press/release hook button can wake up core from suspend mode and
+	 * their interrupts will not be miss
+	*/
+	if (device_may_wakeup(&pdev->dev)) {
+		enable_irq_wake(info->chip->core_irq);
+		enable_irq_wake(info->irq_headset);
+		if (switch_data->state == PM8XXX_HEADSET_ADD)
+			enable_irq_wake(info->irq_hook);
 	}
 
 	return 0;
@@ -433,10 +439,11 @@ static int headset_switch_resume(struct platform_device *pdev)
 	struct pm860x_headset_info *info = platform_get_drvdata(pdev);
 	struct headset_switch_data *switch_data = info->psw_data_headset;
 
-	/* enable MIC/HOOK detection when headset is connected. */
-	if (switch_data->state == PM8XXX_HEADSET_ADD) {
-		pm860x_set_bits(info->i2c, PM8607_MIC_DECTION,
-				PM8607_MIC_DET_EN_MIC_DET, 1);
+	if (device_may_wakeup(&pdev->dev)) {
+		disable_irq_wake(info->chip->core_irq);
+		disable_irq_wake(info->irq_headset);
+		if (switch_data->state == PM8XXX_HEADSET_ADD)
+			disable_irq_wake(info->irq_hook);
 	}
 
 	return 0;
