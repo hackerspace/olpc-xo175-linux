@@ -144,7 +144,6 @@ struct sensor_platform_data {
 	int bridge;	/* Does this sensor needs or can act as a MIPI bridge
 			 * if needs MIPI bridge, bridge = -x, x points to host
 			 * if can be a bridge, bridge = x, x points to slave */
-	int torch;	/* strobe light */
 	int af_cap;	/* Auto focus capability */
 	int pin_pwdn;	/* GPIO pin for power down */
 	int pin_aux;	/* Auxiliary power down pin */
@@ -154,6 +153,7 @@ struct sensor_platform_data {
 	char *board_name;	/* Board name */
 	struct sensor_power_pin *power_on_seq;
 	struct sensor_power_pin *power_off_seq;
+	int (*v4l2_flash_if)(void *ctrl, bool op);
 };
 
 #endif /* CONFIG_SOC_CAMERA */

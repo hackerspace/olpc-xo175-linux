@@ -998,6 +998,8 @@ static struct adp1650_platform_data adp1650_data= {
 	.strobe_enable = 0,
 	.torch_enable = adp1650_torch_enable,
 };
+
+extern int adp1650_v4l2_flash_if(void *ctrl, bool op);
 #endif
 
 #ifdef CONFIG_BATTERY_MAX17043
@@ -1839,6 +1841,9 @@ static struct sensor_platform_data camera_sensor[] = {
 		.board_name	= "tavor",
 		.power_on_seq	= ov564x_power_on_seq,
 		.power_off_seq	= ov564x_power_off_seq,
+#ifdef CONFIG_LED_FLASH_ADP1650
+		.v4l2_flash_if	= adp1650_v4l2_flash_if,
+#endif
 	},
 };
 
