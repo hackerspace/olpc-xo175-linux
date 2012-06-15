@@ -2655,6 +2655,7 @@ static int op_init(void *driver_data, struct info_head *op_table)
 			   (get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ ||
 			    get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
 			    get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD ||
+			    get_board_id() == OBM_DKB_3_NEVO_D0_BOARD ||
 			    cpu_is_pxa978_Dx()))
 				proc = &proc_op_arrays[i + 1];
 			break;
