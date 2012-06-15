@@ -281,15 +281,15 @@ static ssize_t dvfm_c2_allow_store(struct sys_device *sys_dev,
 	sscanf(buf, "%u", &c2_allow_internal);
 	/* PowerVal controls LPM entry and DvfmVal controls DVFM */
 	c2_allow = c2_allow_internal;
-	printk("\n [%s] c2_allow = %d", __func__, c2_allow);
+	pr_info("\n [%s] c2_allow = %d", __func__, c2_allow);
 	return len;
 }
 
 static ssize_t dvfm_c2_allow_show(struct sys_device *sys_dev,
 			  struct sysdev_attribute *attr, char *buf)
 {
-	unsigned int len;
-	printk("\n [%s] c2_allow = %d", __func__, c2_allow);
+	unsigned int len = 0;
+	len += sprintf(buf + len, "\n [%s] c2_allow = %d", __func__, c2_allow);
 	return len;
 }
 SYSDEV_ATTR(c2_allow, 0644, dvfm_c2_allow_show, dvfm_c2_allow_store);
@@ -349,11 +349,12 @@ char cop_names[][20] = {
 static ssize_t dvfm_read_cop_show(struct sys_device *sys_dev,
 			  struct sysdev_attribute *attr, char *buf)
 {
-	unsigned int len, i;
+	unsigned int len = 0, i;
 	unsigned int *p_cop_dump = (unsigned int *)&cop_dump;
 	dump_cop_regs(p_cop_dump);
 	for (i = 0; i < ALL_COOP; i++) {
-		printk("\n [%s] = 0x%x", cop_names[i], *(p_cop_dump+i));
+		len += sprintf(buf + len, "\n [%s] = 0x%x", cop_names[i],
+				*(p_cop_dump+i));
 	}
 	return len;
 }

@@ -1,5 +1,4 @@
 /*
-/*
  * arch/arm/mach-pxa/pxa95x_dvfm.c
  *
  * PXA95x DVFM Driver
@@ -3911,7 +3910,7 @@ int pxa95x_check_constraint(void)
 				|| (q->power_mode == POWER_MODE_CG)) {
 			if (p->device) {
 				ret = 1;
-				pr_info("op:%s is disabled by 0x%08x.\n", q->name, p->device);
+				pr_info("op:%s is disabled by 0x%llx.\n", q->name, p->device);
 			}
 		}
 	}
