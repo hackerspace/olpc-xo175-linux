@@ -853,6 +853,7 @@ static const struct clkops clk_pxa978_syspll416_ops = {
 };
 
 extern struct dvfs gc_dvfs;
+extern unsigned int galcore_dvfm_dev_idx;
 static int clk_gcu_enable(struct clk *clk)
 {
 	struct dvfs_freqs dvfs_freqs;
@@ -864,6 +865,8 @@ static int clk_gcu_enable(struct clk *clk)
 	pr_debug("GC enable from 0 to %lu.\n", clk->rate);
 
 	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
+	if (cpu_is_pxa978_Dx())
+		dvfm_disable_op_name_no_change("CG", galcore_dvfm_dev_idx);
 	if (clk->rate == 416000000)
 		clk_enable(&clk_pxa978_syspll_416);
 	CKENC |= ((1 << (CKEN_GC_1X - 64)) | (1 << (CKEN_GC_2X - 64)));
@@ -886,6 +889,8 @@ static void clk_gcu_disable(struct clk *clk)
 	CKENC &= ~((1 << (CKEN_GC_1X - 64)) | (1 << (CKEN_GC_2X - 64)));
 	if (clk->rate == 416000000)
 		clk_disable(&clk_pxa978_syspll_416);
+	if (cpu_is_pxa978_Dx())
+		dvfm_enable_op_name_no_change("CG", galcore_dvfm_dev_idx);
 
 	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
 }
