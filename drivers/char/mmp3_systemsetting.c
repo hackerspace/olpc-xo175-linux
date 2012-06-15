@@ -484,6 +484,7 @@ static ssize_t mmp3_sysset_read(struct device *dev, struct device_attribute *att
 	int inter;
 
 	char *core_status[3] = {0};
+	char ddr2_str[8];
 
 	pll1 = pll1_get_clk();
 	pll2 = pll2_get_clk();
@@ -808,16 +809,21 @@ static ssize_t mmp3_sysset_read(struct device *dev, struct device_attribute *att
 	tmp = ( dsp_audio_aux >> 1) & 0x7;
 	zsp_clk /= tmp;
 
+	if (inter == 7)
+		strcpy(ddr2_str, "reset");
+	else
+		sprintf(ddr2_str, "%d", ddr2_clk);
+
 	len = sprintf(buf, "\nPLL1[%d], PLL2[%d], PLL3[%d], PLL1_P[%d], "
 			"PLL2_P[%d]\n\nMP1[%d-%s], MP2[%d-%s], MM[%d-%s]\n\nDDR1[%d], "
-			"DDR2[%d]\n\nAXI1[%d], AXI2[%d]\n\nGC2000[%d], "
+			"DDR2[%s]\n\nAXI1[%d], AXI2[%d]\n\nGC2000[%d], "
 			"GC300[%d], GC_BUS[%d]\n\nVMETA[%d], VMETA_BUS[%d]\n\n"
 			"ISP[%d]\n\nSDH1[%d], SDH2[%d], SDH3[%d], SDH4[%d], "
 			"SDH5[%d]\n\nCCIC[%d], CCIC2[%d]\n\nDDR_INTERLEAVE[%s]\n\n"
 			"AUDIO_PLL[%d], ZSP[%d]\n\n",
 			pll1, pll2, pll3, pll1_p, pll2_p, mp1_clk,
 			core_status[0], mp2_clk, core_status[1], mm_clk,
-			core_status[2], ddr1_clk, ddr2_clk, axi1_clk, axi2_clk,
+			core_status[2], ddr1_clk, ddr2_str, axi1_clk, axi2_clk,
 			gc2000_clk, gc300_clk, gc_bus, vmeta_clk, vmeta_bus_clk,
 			isp_clk, sdh_clk[0], sdh_clk[1], sdh_clk[2], sdh_clk[3],
 			sdh_clk[4], ccic_clk, ccic2_clk, ddr_inter[inter],
