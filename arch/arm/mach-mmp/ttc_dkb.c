@@ -339,7 +339,9 @@ static unsigned long lcd_tpo_pin_config[] __initdata = {
 	GPIO101_LCD_DD15,
 	GPIO102_LCD_DD16,
 	GPIO103_LCD_DD17,
+};
 
+static unsigned long lcd_tpo_spi_pin_config[] __initdata = {
 	GPIO104_LCD_SPIDOUT,
 	GPIO105_LCD_SPIDIN,
 	GPIO106_LCD_RESET,
@@ -2673,8 +2675,11 @@ static void __init ttc_dkb_init(void)
 	} else if (SHARP_WVGA_PANEL == is_wvga_lcd()) {
 		dkb_add_lcd_sharp();
 		pr_info("LCD: sharp WVGA panel selected.\n");
-	} else
+	} else{
+		mfp_config(ARRAY_AND_SIZE(lcd_tpo_spi_pin_config));
 		dkb_add_lcd_tpo();
+	}
+
 #endif
 
 #if defined(CONFIG_PROC_FS)
