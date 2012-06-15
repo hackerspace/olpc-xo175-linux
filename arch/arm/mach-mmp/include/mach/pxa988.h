@@ -15,6 +15,7 @@ extern void __init pxa988_reserve(void);
 #include <mach/regs-apbc.h>
 #include <mach/sram.h>
 #include <plat/pxa27x_keypad.h>
+#include <linux/platform_data/pxa_sdhci.h>
 #include <mach/pxa168fb.h>
 
 extern struct pxa_device_desc pxa988_device_uart1;
@@ -24,6 +25,9 @@ extern struct pxa_device_desc pxa988_device_keypad;
 extern struct pxa_device_desc pxa988_device_twsi0;
 extern struct pxa_device_desc pxa988_device_twsi1;
 extern struct pxa_device_desc pxa988_device_twsi2;
+extern struct pxa_device_desc pxa988_device_sdh1;
+extern struct pxa_device_desc pxa988_device_sdh2;
+extern struct pxa_device_desc pxa988_device_sdh3;
 extern struct pxa_device_desc pxa988_device_ssp0;
 extern struct pxa_device_desc pxa988_device_ssp1;
 extern struct pxa_device_desc pxa988_device_ssp2;
@@ -88,6 +92,27 @@ static inline int pxa988_add_twsi(int id, struct i2c_pxa_platform_data *data,
 	ret = i2c_register_board_info(id, info, size);
 	if (ret)
 		return ret;
+
+	return pxa_register_device(d, data, sizeof(*data));
+}
+
+static inline int pxa988_add_sdh(int id, struct sdhci_pxa_platdata *data)
+{
+	struct pxa_device_desc *d = NULL;
+
+	switch (id) {
+	case 1:
+		d = &pxa988_device_sdh1;
+		break;
+	case 2:
+		d = &pxa988_device_sdh2;
+		break;
+	case 3:
+		d = &pxa988_device_sdh3;
+		break;
+	default:
+		return -EINVAL;
+	}
 
 	return pxa_register_device(d, data, sizeof(*data));
 }
