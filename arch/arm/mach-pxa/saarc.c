@@ -485,7 +485,7 @@ static struct clk *clk_tout_s0;
 /* specific 8787 power on/off setting for SAARC/DKB Nevo */
 static void wifi_set_power(unsigned int on)
 {
-	unsigned long wlan_pd_mfp = 0;
+	unsigned long wlan_pd_mfp = 0, wlan_en_mfp = 0;
 	int gpio_power_down = mfp_to_gpio(MFP_PIN_GPIO70);
 	int gpio_wifi_en = -1;
 	struct regulator *wifi_1v8 = NULL;
@@ -528,6 +528,13 @@ static void wifi_set_power(unsigned int on)
 		if (gpio_wifi_en >= 0) {
 			gpio_request(gpio_wifi_en, "WIB_EN");
 			gpio_direction_output(gpio_wifi_en, 1);
+
+			/* set WIB_EN pin to output high in low power mode to
+			ensure 8787 is not power off in low power mode */
+			wlan_en_mfp = pxa3xx_mfp_read(gpio_wifi_en);
+			wlan_en_mfp &= ~0x80;
+			wlan_en_mfp |= 0x100;
+			pxa3xx_mfp_write(gpio_wifi_en, wlan_en_mfp & 0xffff);
 		}
 
 		/* set wlan_pd pin to output high in low power
@@ -550,6 +557,12 @@ static void wifi_set_power(unsigned int on)
 			regulator_disable(wifi_1v8);
 
 		if (gpio_wifi_en >= 0) {
+			/* set WIB_EN pin to be output low in low power
+				mode to save power in low power mode */
+			wlan_en_mfp = pxa3xx_mfp_read(gpio_wifi_en);
+			wlan_en_mfp &= ~0x100;
+			pxa3xx_mfp_write(gpio_wifi_en, wlan_en_mfp & 0xffff);
+
 			gpio_direction_output(gpio_wifi_en, 0);
 			gpio_free(gpio_wifi_en);
 		}
