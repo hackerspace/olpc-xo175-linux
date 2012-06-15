@@ -1,6 +1,8 @@
 #ifndef __LINUX_I2C_FT5306_TOUCH_H
 #define __LINUX_I2C_FT5306_TOUCH_H
 
+#include <linux/input.h>
+
 /*
  * power func:	power on / off touch
  * reset func:	reset touch
