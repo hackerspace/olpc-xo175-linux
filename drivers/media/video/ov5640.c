@@ -319,6 +319,30 @@ static int ov5640_get_mipi_phy(struct i2c_client *client, __s32 *value)
 }
 #endif
 
+#ifdef CONFIG_PXA95x
+static int ov5640_control_flash(struct v4l2_subdev *sd, struct v4l2_control *ctrl, bool op)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct soc_camera_device *icd = client->dev.platform_data;
+	struct soc_camera_link *icl;
+	int ret = 0;
+
+	icl = to_soc_camera_link(icd);
+	if (!icl) {
+		dev_err(&client->dev, "ov5640 driver needs platform data\n");
+		return -EINVAL;
+	}
+
+	if (icl->priv && icl->flags & 0x80000000) {
+		struct sensor_platform_data *sensor = icl->priv;
+		if (sensor->v4l2_flash_if)
+			ret = sensor->v4l2_flash_if((void *)ctrl, op);
+	}
+
+	return ret;
+}
+#endif
+
 static int ov5640_g_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
@@ -328,6 +352,10 @@ static int ov5640_g_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 #ifdef CONFIG_PXA95x
 	case V4L2_CID_PRIVATE_GET_MIPI_PHY:
 		ret = ov5640_get_mipi_phy(client, &ctrl->value);
+		break;
+	case V4L2_CID_FLASH_FAULT:
+	case V4L2_CID_FLASH_STROBE_STATUS:
+		ret = ov5640_control_flash(sd, ctrl, 0);
 		break;
 #endif
 	default:
@@ -642,6 +670,11 @@ static const struct v4l2_queryctrl ov5640_controls[] = {
 		.type = V4L2_CTRL_TYPE_CTRL_CLASS,
 		.name = "get mipi timing"
 	},
+	{
+		.id = V4L2_CID_FLASH_LED_MODE,
+		.type = V4L2_CTRL_TYPE_CTRL_CLASS,
+		.name = "set LED flash mode"
+	},
 #endif
 };
 
@@ -682,6 +715,17 @@ static int ov5640_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 	case V4L2_CID_PRIVATE_FIRMWARE_DOWNLOAD:
 		ret = ov5640_firmware_download(client);
 		break;
+#ifdef CONFIG_PXA95x
+	case V4L2_CID_FLASH_LED_MODE:
+	case V4L2_CID_FLASH_STROBE_SOURCE:
+	case V4L2_CID_FLASH_STROBE:
+	case V4L2_CID_FLASH_STROBE_STOP:
+	case V4L2_CID_FLASH_TIMEOUT:
+	case V4L2_CID_FLASH_INTENSITY:
+	case V4L2_CID_FLASH_TORCH_INTENSITY:
+		ret = ov5640_control_flash(sd, ctrl, 1);
+		break;
+#endif
 	default:
 		ret = -EINVAL;
 	}
