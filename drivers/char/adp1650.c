@@ -13,6 +13,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/proc_fs.h>
+#include <linux/videodev2.h>
 #include <linux/i2c.h>
 #include <asm/uaccess.h>
 
@@ -74,7 +75,7 @@ static int adp1650_enable_torch_mode(struct i2c_client *client)
 
 	if(pdata->strobe_enable) {
 		printk(KERN_ERR "adp1650: flash mode on, not support torch\n");
-		return -1;
+		return -EBUSY;
 	}
 
 	/* read to clear fault register */
@@ -154,6 +155,57 @@ static int adp1650_set_output_mode(struct i2c_client *client, char mode)
 
 	return ret;
 }
+
+/*
+ * adp1650_v4l2_flash_if - callback for v4l2 set/get ctrl from sensor driver
+ * @vid_ctrl: v4l2 control structure
+ * @op: 0 for get, 1 for set
+ *
+ * Return 0 on success, or a negative error code
+ */
+int adp1650_v4l2_flash_if(void *vid_ctrl, bool op)
+{
+	struct v4l2_control *ctrl = (struct v4l2_control *)vid_ctrl;;
+
+	if (!ctrl)
+		return -EPERM;
+
+	if (op) {
+		switch (ctrl->id) {
+		case V4L2_CID_FLASH_LED_MODE:
+			switch (ctrl->value) {
+			case V4L2_FLASH_LED_MODE_NONE:
+				return adp1650_output_off(g_adp1650_i2c_client);
+			case V4L2_FLASH_LED_MODE_FLASH:
+				return adp1650_enable_flash_mode(g_adp1650_i2c_client);
+			case V4L2_FLASH_LED_MODE_TORCH:
+				return adp1650_enable_torch_mode(g_adp1650_i2c_client);
+			default:
+				return -EPERM;
+			}
+		/* ctrl below not support now */
+		case V4L2_CID_FLASH_STROBE_SOURCE:
+		case V4L2_CID_FLASH_STROBE:
+		case V4L2_CID_FLASH_STROBE_STOP:
+		case V4L2_CID_FLASH_TIMEOUT:
+		case V4L2_CID_FLASH_INTENSITY:
+		case V4L2_CID_FLASH_TORCH_INTENSITY:
+		default:
+			return -EINVAL;
+		}
+	} else {
+		switch (ctrl->id) {
+		/* ctrl below not support now */
+		case V4L2_CID_FLASH_FAULT:
+		case V4L2_CID_FLASH_STROBE_STATUS:
+		default:
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(adp1650_v4l2_flash_if);
 
 #ifdef	CONFIG_PROC_FS
 #define	ADP1650_PROC_FILE	"driver/adp1650"
