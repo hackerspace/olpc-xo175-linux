@@ -473,6 +473,7 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 		if (copy_to_user(argp, &fbi->ckey_alpha,
 					sizeof(struct _sColorKeyNAlpha)))
 			return -EFAULT;
+		break;
 	case FB_IOCTL_SET_COLORKEYnALPHA:
 	{
 		struct _sColorKeyNAlpha *ckey_alpha;
