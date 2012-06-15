@@ -315,7 +315,6 @@ static void audio_subsystem_poweron(void)
 	__raw_modify(APMU_ISLD_DSPA_CTRL, 0, (1u << 4));
 	__raw_modify(APMU_ISLD_DSPA_CTRL, (1u << 4), 0);
 	/* audio DSA */
-	__raw_modify(APMU_AUDIO_DSA, 0xf, 0xa);
 	__raw_modify(APMU_AUDIO_DSA, 0xf, 0xf);
 	/* SSPA1 BIT/SYSCLK */
 	__raw_writel(0xd3ee2276, MPMU_ISCCRX0);
