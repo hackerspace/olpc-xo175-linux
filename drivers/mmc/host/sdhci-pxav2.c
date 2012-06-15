@@ -242,6 +242,14 @@ static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
 		if (pdata->pm_caps)
 			host->mmc->pm_caps |= pdata->pm_caps;
 
+		/* Workaround that 8 dummy is only issued during suspend
+		 * Then some eMMC chip could enter auto power saving mode
+		 *  further more, the SD/MMC performace does not impact by
+		 * 8 dummy clock
+		 */
+		if (host->quirks2 & SDHCI_QUIRK2_DUMMY_CLK_ONLY_SUSPEND)
+			host->quirks2 &= ~SDHCI_QUIRK2_MISSING_DUMMY_CLK;
+
 	#ifdef CONFIG_WAKELOCK
 		wake_lock_init(&pdata->idle_lock, WAKE_LOCK_IDLE,
 			(const char *)mmc_hostname(host->mmc));
@@ -316,7 +324,15 @@ static int sdhci_pxav2_suspend(struct platform_device *pdev, pm_message_t state)
 	if (device_may_wakeup(&pdev->dev))
 		enable_irq_wake(host->irq);
 
+	/* Workaround that 8 dummy is only issued during suspend */
+	if (host->quirks2 & SDHCI_QUIRK2_DUMMY_CLK_ONLY_SUSPEND)
+		host->quirks2 |= SDHCI_QUIRK2_MISSING_DUMMY_CLK;
+
 	ret = sdhci_suspend_host(host, state);
+
+	if (host->quirks2 & SDHCI_QUIRK2_DUMMY_CLK_ONLY_SUSPEND)
+		host->quirks2 &= ~SDHCI_QUIRK2_MISSING_DUMMY_CLK;
+
 	if (ret) {
 		atomic_dec(&host->mmc->suspended);
 		return ret;

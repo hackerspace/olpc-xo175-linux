@@ -93,6 +93,8 @@ struct sdhci_host {
 #define SDHCI_QUIRK2_MISSING_DUMMY_CLK			(1<<0)
 /* Some SDHCI v3 controller doesn't suppport current limit error*/
 #define SDHCI_QUIRK2_NO_CURRENT_LIMIT			(2<<0)
+/* Controller only make sure 8 dummy clock druing system suspend */
+#define SDHCI_QUIRK2_DUMMY_CLK_ONLY_SUSPEND		(1<<2)
 
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */
