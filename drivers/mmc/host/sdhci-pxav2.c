@@ -149,18 +149,23 @@ static void pxav2_access_constrain(struct sdhci_host *host, unsigned int ac)
 static void pxav2_8_dummy_clock(struct sdhci_host *host,
 					unsigned int clk_rate, int flag)
 {
-	struct sdhci_pxa *pxa = sdhci_priv(host);
-	struct sdhci_pxa_platdata *pdata = pxa->pdata;
-
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_pxa *pxa;
+	struct sdhci_pxa_platdata *pdata;
 	unsigned long tick_ns;
 
+	pxa = pltfm_host->priv;
+	if (!pxa)
+		return;
+
+	pdata = pxa->pdata;
 	if (!pdata)
 		return;
 
-	BUG_ON(clk_rate == 0);
+	if (clk_rate == 0)
+		return;
 
 	tick_ns = DIV_ROUND_UP(1000000000, clk_rate);
-
 	if (pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING) {
 		if (flag)
 			pxav2_hw_clock_gating(host, 0);
