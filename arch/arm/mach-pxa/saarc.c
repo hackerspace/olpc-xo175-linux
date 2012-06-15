@@ -1065,6 +1065,29 @@ static struct i2c_board_info i2c2_info_DKB_2_1[] = {
 #endif
 };
 
+static struct i2c_board_info i2c2_info_DKB_3[] = {
+#if defined(CONFIG_SENSORS_ROHM_BH1772)
+	{
+		I2C_BOARD_INFO("rohm_ls", 0x38),
+		.irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO87)),
+	},
+#endif
+
+#if defined(CONFIG_TOUCHSCREEN_SSD2531)
+	{
+		I2C_BOARD_INFO("ssd2531_ts", 0x5c),
+		.platform_data = (void *)&touch_platform_data,
+	},
+#endif
+
+#ifdef CONFIG_BATTERY_MAX17043
+	{
+		I2C_BOARD_INFO("max17043", 0x36),
+		.platform_data = (void *)&max17043_data,
+	},
+#endif
+};
+
 static struct i2c_board_info i2c2_info_C25[] = {
 #if defined(CONFIG_SENSORS_APDS990X_MRVL)
 	{
@@ -1150,10 +1173,14 @@ static void register_i2c_board_info(void)
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_DKB));
 		break;
 	case OBM_DKB_2_1_NEVO_C0_BOARD:
-	case OBM_DKB_3_NEVO_D0_BOARD:
 		pm800_info.vibrator = &vibrator_pdata;
 		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info_DKB2_1));
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_DKB_2_1));
+		break;
+	case OBM_DKB_3_NEVO_D0_BOARD:
+		pm800_info.vibrator = &vibrator_pdata;
+		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info_DKB2_1));
+		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_DKB_3));
 		break;
 	default:
 		pr_err("%s: Unknown board type-0x%lx!\n",
@@ -2964,6 +2991,16 @@ static void create_pcm_mfp_proc_file(void)
 
 #endif
 
+#if defined(CONFIG_BACKLIGHT_KTD253) || defined(CONFIG_BACKLIGHT_KTD253_MODULE)
+static unsigned int ktd253_ctrl_pin = MFP_PIN_GPIO12;
+static struct platform_device ktd253_device  = {
+	.name	= "ktd253_bl",
+	.dev	= {
+		.platform_data = &ktd253_ctrl_pin,
+	}
+};
+#endif
+
 static int reboot_notifier_func(struct notifier_block *this,
 		unsigned long code, void *cmd)
 {
@@ -3008,10 +3045,6 @@ static void __init init(void)
 		OBM_DKB_2_1_NEVO_C0_BOARD == get_board_id()) {
 		adp8885_data.chip_enable = adp8885_bl_enable;
 		adp8885_data.num_chs = 2;
-	} else {
-		pr_err("%s: Unknown board type-0x%lx!\n",
-		       __func__, get_board_id());
-		BUG();
 	}
 #endif
 
@@ -3117,6 +3150,11 @@ static void __init init(void)
 #ifdef CONFIG_USB_EHCI_PXA_U2O
 	pxa978_device_u2oehci.dev.platform_data = (void *)&pxa978_usb_pdata;
 	platform_device_register(&pxa978_device_u2oehci);
+#endif
+
+#ifdef CONFIG_BACKLIGHT_KTD253
+	if (get_board_id() == OBM_DKB_3_NEVO_D0_BOARD)
+		platform_device_register(&ktd253_device);
 #endif
 
 #ifdef CONFIG_LED_FLASH_ADP1650
