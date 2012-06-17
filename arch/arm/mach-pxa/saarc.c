@@ -2634,6 +2634,7 @@ static int init_wakeup(pm_wakeup_src_t *src)
 	case OBM_DKB_3_NEVO_D0_BOARD:
 		src->bits.mkey = 1;
 		break;
+	case OBM_SAAR_C3V5_NEVO_D0_V10_BOARD:
 	case OBM_SAAR_C3_NEVO_C0_V10_BOARD:
 	case OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ:
 	case OBM_EVB_NEVO_1_2_BOARD:
