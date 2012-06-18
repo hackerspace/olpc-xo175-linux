@@ -43,9 +43,7 @@
 #define MIPS_RAM_ADD_PM_TRACE(a) {}
 #endif
 #include <asm/mach-types.h>
-#ifdef CONFIG_CPU_PXA910
-#include <mach/cputype.h>
-#endif
+
 #if defined(CONFIG_PXA95x) || defined(CONFIG_PXA93x)
 #include <mach/regs-ost.h>
 #include <mach/hardware.h>
@@ -75,7 +73,7 @@ struct pxa9xx_acipc {
 
 static struct pxa9xx_acipc *acipc;
 
-#ifndef CONFIG_CPU_PXA910
+#if defined(CONFIG_PXA95x) || defined(CONFIG_PXA93x)
 #define ACIPC_DDR_NOT_AVAIL		0
 #define ACIPC_DDR_AVAIL			1
 
@@ -98,33 +96,39 @@ u32 set_DDR_avail_flag(void);
 #define acipc_readl(off)	__raw_readl(acipc->mmio_base + (off))
 #define acipc_writel(off, v)	__raw_writel((v), acipc->mmio_base + (off))
 
-#if defined(CONFIG_CPU_PXA978) || defined(CONFIG_CPU_PXA910)
+#if defined(CONFIG_CPU_PXA978)
 static const enum acipc_events acipc_priority_table_dkb[ACIPC_NUMBER_OF_EVENTS] = {
-#ifdef CONFIG_CPU_PXA978
 	ACIPC_DDR_READY_REQ,
 	ACIPC_DDR_RELQ_REQ,
-#endif
 	ACIPC_RINGBUF_TX_STOP,
 	ACIPC_RINGBUF_TX_RESUME,
 	ACIPC_PORT_FLOWCONTROL,
 	ACIPC_SPARE,
 	ACIPC_SPARE,
 	ACIPC_SPARE,
-#ifdef CONFIG_CPU_PXA910
+	ACIPC_SHM_PACKET_NOTIFY,
+	ACIPC_SHM_PEER_SYNC
+};
+#endif
+
+#if defined(CONFIG_CPU_PXA910) || defined(CONFIG_CPU_PXA988)
+static const enum acipc_events
+acipc_priority_table_dkb[ACIPC_NUMBER_OF_EVENTS] = {
+	ACIPC_RINGBUF_TX_STOP,
+	ACIPC_RINGBUF_TX_RESUME,
+	ACIPC_PORT_FLOWCONTROL,
+	ACIPC_SPARE,
+	ACIPC_SPARE,
+	ACIPC_SPARE,
 	ACIPC_SPARE,
 	ACIPC_SPARE,
 	ACIPC_SHM_PACKET_NOTIFY,
 	ACIPC_IPM
-#endif
-#ifdef CONFIG_CPU_PXA978
-	ACIPC_SHM_PACKET_NOTIFY,
-	ACIPC_SHM_PEER_SYNC
-#endif
 };
 #endif
 
 /*PXA910 specific define*/
-#ifdef CONFIG_CPU_PXA910
+#if defined(CONFIG_CPU_PXA910) || defined(CONFIG_CPU_PXA988)
 #define acipc_writel_withdummy(off, v)	acipc_writel((off), (v))
 
 #endif
@@ -240,7 +244,7 @@ static void acipc_int_disable(enum acipc_events event)
 	}
 }
 
-#if !defined(CONFIG_CPU_PXA910)
+#if defined(CONFIG_PXA95x) || defined(CONFIG_PXA93x)
 static void acipc_change_driver_state(int is_DDR_ready)
 {
 	IPC_ENTER();
@@ -591,7 +595,7 @@ static void set_constraint(void)
 {
 }
 
-#if !defined(CONFIG_CPU_PXA910)
+#if defined(CONFIG_PXA95x) || defined(CONFIG_PXA93x)
 static u32 acipc_kernel_callback(u32 events_status)
 {
 	IPC_ENTER();
@@ -624,7 +628,7 @@ static u32 acipc_kernel_callback(u32 events_status)
 #endif /*CONFIG_CPU_PXA910*/
 #endif /*CONFIG_PXA95X_DVFM */
 
-#ifdef CONFIG_CPU_PXA910
+#if defined(CONFIG_CPU_PXA910) || defined(CONFIG_CPU_PXA988)
 static void register_pm_events(void)
 {
 	return;
@@ -749,15 +753,16 @@ static int __devinit pxa9xx_acipc_probe(struct platform_device *pdev)
 		ret = -ENXIO;
 		goto failed_freemem;
 	}
-#ifdef CONFIG_CPU_PXA910
+#if defined(CONFIG_CPU_PXA910) || defined(CONFIG_CPU_PXA988)
 	set_constraint();
 #endif
 	/*init driver database */
 	for (i = 0; i < ACIPC_NUMBER_OF_EVENTS; i++) {
-#ifdef CONFIG_CPU_PXA910
+#if defined(CONFIG_CPU_PXA910) || defined(CONFIG_CPU_PXA988)
 		acipc->acipc_db.event_db[i].IIR_bit = acipc_priority_table_dkb[i];
 		acipc->acipc_db.event_db[i].mask = acipc_priority_table_dkb[i];
 #endif
+
 #if defined(CONFIG_PXA95x) || defined(CONFIG_PXA93x)
 #if defined(CONFIG_CPU_PXA978)
 		if (is_nevo_td) {
@@ -871,7 +876,7 @@ static void __exit pxa9xx_acipc_exit(void)
 #endif
 }
 
-#ifndef CONFIG_CPU_PXA910
+#if defined(CONFIG_PXA95x) || defined(CONFIG_PXA93x)
 int set_acipc_cp_enable(unsigned int pm_cp)
 {
 	internal_acipc_pm_cp = pm_cp;

@@ -26,7 +26,7 @@
 
 #define MAX_ACIPC_REACT_TIME 32500 /* 10msec in 3.25MHz clocl cycles*/
 
-#if defined(CONFIG_CPU_PXA910)
+#if defined(CONFIG_CPU_PXA910) || defined(CONFIG_CPU_PXA988)
 #define ACIPC_INT1_EVENTS (ACIPC_SHM_PACKET_NOTIFY)
 #define ACIPC_INT2_EVENTS (ACIPC_IPM)
 #endif
@@ -73,8 +73,8 @@ enum acipc_events {
 	ACIPC_DDR_READY_REQ = 0x00000200,
 	ACIPC_DDR_READY_ACK = 0x00000200,
 
-#ifdef CONFIG_CPU_PXA910
-	/*pxa910 specific */
+#if defined(CONFIG_CPU_PXA910) || defined(CONFIG_CPU_PXA988)
+	/*pxa910&pxa988 specific */
 	ACIPC_SPARE = 0x00000000,
 	ACIPC_RINGBUF_TX_STOP = 0x00000001,
 	ACIPC_RINGBUF_TX_RESUME = 0x00000002,
@@ -152,7 +152,8 @@ struct acipc_ioctl_arg {
 };
 
 /*declared the export APIs for TD telephony*/
-#if defined(CONFIG_CPU_PXA910) || defined(CONFIG_CPU_PXA978)
+#if defined(CONFIG_CPU_PXA910) || defined(CONFIG_CPU_PXA978) || \
+	defined(CONFIG_CPU_PXA988)
 extern enum acipc_return_code ACIPCEventBind(u32 user_event,
 					     acipc_rec_event_callback cb,
 					     enum acipc_callback_mode cb_mode,
