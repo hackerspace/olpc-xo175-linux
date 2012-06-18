@@ -51,15 +51,29 @@ enum adp1650_reg_def {
 	REG_BATTERY_LOW	= 0x09,
 };
 
-enum adp1650_mode {
-	MODE_STANDBY = '0',
-	MODE_TORCH,
-	MODE_FLASH,
+enum adp1650_cmd {
+	CMD_MODE_STANDBY = '0',
+	CMD_MODE_TORCH,
+	CMD_MODE_FLASH,
+	CMD_SENSOR_CONTROL,
+	CMD_BUTTON_CONTROL,
+	CMD_QUERY,
 };
 
+/* default_control decide which way of control has high priority.
+sensor control:
+means the operations performed by v4l2 interface from a camera sensor request.
+LED flash chip can work under both torch and flash modes.
+from button:
+means the operations performed by "echo x > adp1650", triggered by sw/hw button.
+only torch mode is meaningful if LED flash chip drives the LED as a torch.
+
+by default the sensor control has high priority.
+user can echo 6 > adp1650 to reverse the priority.
+*/
 struct adp1650_platform_data {
-	u8 torch_is_on;
-	u8 strobe_enable;
+	u8 default_control;
+	u8 current_control;
 	int(*torch_enable)(bool);
 };
 

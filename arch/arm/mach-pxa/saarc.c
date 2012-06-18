@@ -994,8 +994,8 @@ int adp1650_torch_enable(bool enable)
 }
 
 static struct adp1650_platform_data adp1650_data= {
-	.torch_is_on = 0,
-	.strobe_enable = 0,
+	.default_control = CMD_SENSOR_CONTROL,
+	.current_control = 0,
 	.torch_enable = adp1650_torch_enable,
 };
 

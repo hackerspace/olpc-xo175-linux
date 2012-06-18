@@ -60,9 +60,6 @@ static int adp1650_output_off(struct i2c_client *client)
 	if (pdata->torch_enable)
 		pdata->torch_enable(0);
 
-	pdata->torch_is_on = 0;
-	pdata->strobe_enable = 0;
-
 	return ret;
 }
 
@@ -72,11 +69,6 @@ static int adp1650_enable_torch_mode(struct i2c_client *client)
 	uint8_t value = 0;
 	struct adp1650 *adp1650 = i2c_get_clientdata(client);
 	struct adp1650_platform_data *pdata = adp1650->pdata;
-
-	if(pdata->strobe_enable) {
-		printk(KERN_ERR "adp1650: flash mode on, not support torch\n");
-		return -EBUSY;
-	}
 
 	/* read to clear fault register */
 	adp1650_read(client, REG_FAULT_INFO, &value);
@@ -94,8 +86,6 @@ static int adp1650_enable_torch_mode(struct i2c_client *client)
 	if (pdata->torch_enable)
 		pdata->torch_enable(1);
 
-	pdata->torch_is_on = 1;
-
 	return ret;
 }
 
@@ -103,14 +93,6 @@ static int adp1650_enable_flash_mode(struct i2c_client *client)
 {
 	int ret;
 	uint8_t value = 0;
-	struct adp1650 *adp1650 = i2c_get_clientdata(client);
-	struct adp1650_platform_data *pdata = adp1650->pdata;
-
-	if(pdata->torch_is_on) {
-		if (pdata->torch_enable)
-			pdata->torch_enable(0);
-		pdata->torch_is_on = 0;
-	}
 
 	/* read to clear fault register */
 	adp1650_read(client, REG_FAULT_INFO, &value);
@@ -126,30 +108,37 @@ static int adp1650_enable_flash_mode(struct i2c_client *client)
 
 	ret = adp1650_write(client, REG_OUTPUT_MODE, value);
 
-	pdata->strobe_enable = 1;
-
 	return ret;
 }
 
+/* this function is called from none-v4l2 interface */
 static int adp1650_set_output_mode(struct i2c_client *client, char mode)
 {
-	int ret;
+	int ret = 0;
+	struct adp1650_platform_data *pdata = client->dev.platform_data;
 
 	switch(mode) {
-	case MODE_STANDBY:
+	case CMD_MODE_STANDBY:
 		printk(KERN_INFO "adp1650: output off\n");
 		ret = adp1650_output_off(client);
+		/* nothing controls flash currently */
+		pdata->current_control = 0;
 		break;
-	case MODE_TORCH:
+	case CMD_MODE_TORCH:
 		printk(KERN_INFO "adp1650: enable torch mode\n");
 		ret = adp1650_enable_torch_mode(client);
+		if (ret >=0 )
+			pdata->current_control = CMD_BUTTON_CONTROL;
 		break;
-	case MODE_FLASH:
+	case CMD_MODE_FLASH:
 		printk(KERN_INFO "adp1650: enable flash mode\n");
 		ret = adp1650_enable_flash_mode(client);
+		if (ret >=0 )
+			pdata->current_control = CMD_BUTTON_CONTROL;
 		break;
 	default:
 		printk(KERN_ERR "adp1650: unknown request\n");
+		ret = -EPERM;
 		break;
 	}
 
@@ -165,6 +154,9 @@ static int adp1650_set_output_mode(struct i2c_client *client, char mode)
  */
 int adp1650_v4l2_flash_if(void *vid_ctrl, bool op)
 {
+	int ret;
+	struct adp1650 *adp1650 = i2c_get_clientdata(g_adp1650_i2c_client);
+	struct adp1650_platform_data *pdata = g_adp1650_i2c_client->dev.platform_data;
 	struct v4l2_control *ctrl = (struct v4l2_control *)vid_ctrl;;
 
 	if (!ctrl)
@@ -173,13 +165,35 @@ int adp1650_v4l2_flash_if(void *vid_ctrl, bool op)
 	if (op) {
 		switch (ctrl->id) {
 		case V4L2_CID_FLASH_LED_MODE:
+			if (pdata->default_control == CMD_BUTTON_CONTROL
+				&& pdata->current_control == CMD_BUTTON_CONTROL) {
+				return -EBUSY;
+			}
 			switch (ctrl->value) {
 			case V4L2_FLASH_LED_MODE_NONE:
-				return adp1650_output_off(g_adp1650_i2c_client);
+				printk(KERN_INFO "adp1650-v4l2: output off\n");
+				mutex_lock(&adp1650->lock);
+				ret = adp1650_output_off(g_adp1650_i2c_client);
+				/* nothing controls flash currently */
+				pdata->current_control = 0;
+				mutex_unlock(&adp1650->lock);
+				return ret;
 			case V4L2_FLASH_LED_MODE_FLASH:
-				return adp1650_enable_flash_mode(g_adp1650_i2c_client);
+				printk(KERN_INFO "adp1650-v4l2: enable torch mode\n");
+				mutex_lock(&adp1650->lock);
+				ret = adp1650_enable_flash_mode(g_adp1650_i2c_client);
+				if (ret >=0 )
+					pdata->current_control = CMD_SENSOR_CONTROL;
+				mutex_unlock(&adp1650->lock);
+				return ret;
 			case V4L2_FLASH_LED_MODE_TORCH:
-				return adp1650_enable_torch_mode(g_adp1650_i2c_client);
+				printk(KERN_INFO "adp1650-v4l2: enable flash mode\n");
+				mutex_lock(&adp1650->lock);
+				ret = adp1650_enable_torch_mode(g_adp1650_i2c_client);
+				if (ret >=0 )
+					pdata->current_control = CMD_SENSOR_CONTROL;
+				mutex_unlock(&adp1650->lock);
+				return ret;
 			default:
 				return -EPERM;
 			}
@@ -220,7 +234,9 @@ static ssize_t adp1650_proc_read(struct file *filp,
 static ssize_t adp1650_proc_write(struct file *filp,
 				  const char *buff, size_t len, loff_t *off)
 {
+	int ret = 0;
 	struct adp1650 *adp1650 = i2c_get_clientdata(g_adp1650_i2c_client);
+	struct adp1650_platform_data *pdata = g_adp1650_i2c_client->dev.platform_data;
 	char messages[2];
 
 	if (len > 2)
@@ -229,7 +245,39 @@ static ssize_t adp1650_proc_write(struct file *filp,
 	if (copy_from_user(messages, buff, len))
 		return -EFAULT;
 
-	adp1650_set_output_mode(adp1650->client, messages[0]);
+	switch (messages[0]) {
+		case CMD_MODE_STANDBY:
+		case CMD_MODE_TORCH:
+		/* case CMD_MODE_FLASH: */
+			if (pdata->default_control == CMD_SENSOR_CONTROL
+				&& pdata->current_control == CMD_SENSOR_CONTROL) {
+				return -EBUSY;
+			}
+			mutex_lock(&adp1650->lock);
+			ret = adp1650_set_output_mode(adp1650->client, messages[0]);
+			mutex_unlock(&adp1650->lock);
+			if (ret < 0)
+				return ret;
+			break;
+		case CMD_SENSOR_CONTROL:
+		case CMD_BUTTON_CONTROL:
+			mutex_lock(&adp1650->lock);
+			pdata->default_control = messages[0];
+			mutex_unlock(&adp1650->lock);
+			break;
+		case CMD_QUERY:
+			printk(KERN_INFO "turn off LED      : echo 0 > adp1650\n");
+			printk(KERN_INFO "torch mode on     : echo 1 > adp1650\n");
+			printk(KERN_INFO "flash mode on(N/A): echo 2 > adp1650\n");
+			printk(KERN_INFO "set sensor control: echo 3 > adp1650\n");
+			printk(KERN_INFO "set button control: echo 4 > adp1650\n");
+			printk(KERN_INFO "cmd query         : echo 5 > adp1650\n");
+			printk(KERN_INFO "default control   : 0x%2x\n", pdata->default_control);
+			printk(KERN_INFO "current control   : 0x%2x\n", pdata->current_control);
+			break;
+		default:
+			return -EPERM;
+	}
 
 	return len;
 }
@@ -303,6 +351,7 @@ static int __devinit adp1650_probe(struct i2c_client *client,
 
 	adp1650->client = client;
 	adp1650->pdata = pdata;
+	mutex_init(&adp1650->lock);
 
 	i2c_set_clientdata(client, adp1650);
 
