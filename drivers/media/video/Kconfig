@@ -839,6 +839,13 @@ config SOC_CAMERA_OV5640
 	help
 	  This driver supports OmniVision OV5640 5M camera, uses subdev arch.
 
+config SOC_CAMERA_OV2659
+	tristate "ov2659 support"
+	depends on SOC_CAMERA && I2C
+	default n
+	help
+	  This driver supports OmniVision OV2659 2M camera, uses subdev arch.
+
 config SOC_CAMERA_OV7690
 	tristate "ov7690 support"
 	depends on SOC_CAMERA_OV5642 && I2C
