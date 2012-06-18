@@ -25,9 +25,9 @@ void pxa_cpu_reset(u32 cpu)
 
 	tmp = readl(PMU_CC2_AP);
 	if (cpu)
-		tmp |= CPU1_CORE_RST | CPU1_DBG_RST | CPU1_WDOG_RST;
+		tmp &= ~(CPU1_CORE_RST | CPU1_DBG_RST | CPU1_WDOG_RST);
 	else
-		tmp |= CPU0_CORE_RST | CPU0_DBG_RST | CPU0_WDOG_RST;
+		tmp &= ~(CPU0_CORE_RST | CPU0_DBG_RST | CPU0_WDOG_RST);
 	writel(tmp, PMU_CC2_AP);
 	wmb();
 }
