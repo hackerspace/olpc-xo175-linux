@@ -2841,7 +2841,12 @@ static void pull_up_dcdc(void)
 	int dcdc_pin;
 	int err;
 
-	dcdc_pin = mfp_to_gpio(MFP_PIN_RF_MFP14);
+	/* DCDC pin change on DKB3.0, pull it up */
+	if (get_board_id() == OBM_DKB_3_NEVO_D0_BOARD)
+		dcdc_pin = mfp_to_gpio(MFP_PIN_RF_MFP2);
+	else
+		dcdc_pin = mfp_to_gpio(MFP_PIN_RF_MFP14);
+
 	err = gpio_request(dcdc_pin, "DCDC_Pin");
 	if (err) {
 		gpio_free(dcdc_pin);
