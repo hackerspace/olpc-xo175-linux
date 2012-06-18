@@ -47,7 +47,7 @@ extern struct pxa_device_desc pxa910_device_camera;
 
 extern struct platform_device pxa910_device_rtc;
 extern struct platform_device pxa910_device_1wire;
-extern struct platform_device pxa910_device_acipc;
+extern struct platform_device pxa9xx_device_acipc;
 
 extern struct platform_device pxa168_device_u2o;
 extern struct platform_device pxa168_device_u2ootg;
@@ -200,9 +200,9 @@ static inline int pxa910_add_cnm(void)
 static inline void pxa910_add_acipc(void)
 {
 	int ret;
-	ret = platform_device_register(&pxa910_device_acipc);
+	ret = platform_device_register(&pxa9xx_device_acipc);
 	if (ret)
-		dev_err(&pxa910_device_acipc.dev,
+		dev_err(&pxa9xx_device_acipc.dev,
 			"unable to register device: %d\n", ret);
 }
 

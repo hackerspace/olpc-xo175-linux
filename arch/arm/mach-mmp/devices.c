@@ -83,8 +83,8 @@ int __init pxa_register_device(struct pxa_device_desc *desc,
 }
 
 #if defined(CONFIG_PXA9XX_ACIPC)
-/* PXA910 AC-IPC */
-static struct resource pxa910_resource_acipc[] = {
+#if defined(CONFIG_CPU_PXA910)
+static struct resource pxa9xx_resource_acipc[] = {
 	[0] = {
 		.start  = 0xD401D000,
 		.end    = 0xD401D0ff,
@@ -109,12 +109,15 @@ static struct resource pxa910_resource_acipc[] = {
 		.name   = "IPC_AP_SET_MSG",
 	},
 };
+#else
+static struct resource pxa9xx_resource_acipc[] = {};
+#endif
 
-struct platform_device pxa910_device_acipc = {
+struct platform_device pxa9xx_device_acipc = {
 	.name           = "pxa9xx-acipc",
 	.id             = -1,
-	.resource       = pxa910_resource_acipc,
-	.num_resources  = ARRAY_SIZE(pxa910_resource_acipc),
+	.resource       = pxa9xx_resource_acipc,
+	.num_resources  = ARRAY_SIZE(pxa9xx_resource_acipc),
 };
 #endif
 
