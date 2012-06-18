@@ -236,7 +236,7 @@ static unsigned long emeidkb_pin_config[] __initdata = {
 
 static unsigned int emei_dkb_matrix_key_map[] = {
 	KEY(0, 0, KEY_BACKSPACE),
-	KEY(0, 1, KEY_END),
+	KEY(0, 1, KEY_MENU),
 	KEY(0, 2, KEY_CAMERA), /* 1st camera */
 
 	KEY(1, 0, KEY_OK),
