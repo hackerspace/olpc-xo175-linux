@@ -242,15 +242,15 @@ enum {
 /* FCCR 29-31 */
 #define MMP3_FREQ_PSRC_SET(old, fld) MOD_FIELD(old, fld, 29, 3)
 /* FCCR 29-31 */
-#define MMP3_FREQ_PSRC_GET(val) GET_FIELD(val, 29, 3)
+#define MMP3_FREQ_PSRC_GET(val) GET_FIELD(val, 3, 3)
 /* FCCR 23-25 */
 #define MMP3_FREQ_DSRC_SET(old, fld) MOD_FIELD(old, fld, 23, 3)
 /* FCCR 23-25 */
-#define MMP3_FREQ_DSRC_GET(val) GET_FIELD(val, 23, 3)
+#define MMP3_FREQ_DSRC_GET(val) GET_FIELD(val, 6, 3)
 /* BUS_CLKRST 6-8 */
 #define MMP3_FREQ_ASRC_SET(old, fld) MOD_FIELD(old, fld, 6, 3)
 /* BUS_CLKRST 6-8*/
-#define MMP3_FREQ_ASRC_GET(val) GET_FIELD(val, 6, 3)
+#define MMP3_FREQ_ASRC_GET(val) GET_FIELD(val, 9, 3)
 /* BUS_CLKRST 9-11 */
 #define MMP3_FREQ_DSRC2_SET(old, fld) MOD_FIELD(old, fld, 9, 3)
 /* BUS_CLKRST 9-11*/
@@ -362,6 +362,7 @@ struct mmp3_pmu {
 	u32 *bus;
 	u32 *dm_cc;
 	u32 *dm2_cc;
+	u32 *pll_sel_status;
 	u32 *mc_interleave;
 	u32 *mc_slp_req;
 	u32 *mc_par_ctrl;
@@ -473,6 +474,7 @@ static struct mmp3_pmu mmp3_pmu_config = {
 	.dbc = (u32 *)APMU_REG(0x260),
 	.dm_cc = (u32 *)APMU_REG(0xc),
 	.dm2_cc = (u32 *)APMU_REG(0x158),
+	.pll_sel_status = (u32 *)APMU_REG(0xc4),
 	.mc_interleave = (u32 *)CIU_REG(0xa0),
 	.mc_slp_req = (u32 *)APMU_REG(0xb4),
 	.mc_par_ctrl = (u32 *)APMU_REG(0x11c),
@@ -628,12 +630,10 @@ static void mmp3_get_freq_plan(struct mmp3_pmu *pmu,
 				struct mmp3_freq_plan *pl, bool crs)
 {
 	u32 val;
-	/* fccr */
-	val = __raw_readl(pmu->fccr);
+	/* pll_sel_status */
+	val = __raw_readl(pmu->pll_sel_status);
 	pl->core.psrc = MMP3_FREQ_PSRC_GET(val);
 	pl->dram.dsrc = MMP3_FREQ_DSRC_GET(val);
-	/* bus clkrst */
-	val = __raw_readl(pmu->bus);
 	pl->axi.asrc = MMP3_FREQ_ASRC_GET(val);
 	/* dm_cc */
 	val = __raw_readl(pmu->dm_cc);
