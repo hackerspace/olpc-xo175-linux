@@ -27,6 +27,7 @@
 #include <mach/regs-mpmu.h>
 #include <mach/regs-icu.h>
 #include <mach/scu.h>
+#include <mach/reset-pxa988.h>
 #include "common.h"
 
 /*
@@ -501,6 +502,9 @@ static int __init pxa988_lowpower_init(void)
 	/* Set SCU control register standby enable bit */
 	__raw_writel(__raw_readl(scu_addr + SCU_CTRL) | (1 << 5),
 			scu_addr + SCU_CTRL);
+#else
+	/* In SMP scenario, it will be called in platsmp.c */
+	pxa_cpu_reset_handler_init();
 #endif
 	return 0;
 }

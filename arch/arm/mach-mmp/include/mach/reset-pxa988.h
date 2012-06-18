@@ -31,6 +31,12 @@ extern void pxa988_cpu_reset_handler(void);
 extern void pxa_cpu_reset(u32 cpu);
 #endif
 
+#ifdef CONFIG_PM
+extern u32 l2x0_regs_phys;
+extern u32 l2x0_saved_regs_phys_addr;
+extern void pxa988_cpu_resume_handler(void);
+#endif
+
 extern void __init pxa_cpu_reset_handler_init(void);
 
 #endif /* __RESET_PXA988_H__ */

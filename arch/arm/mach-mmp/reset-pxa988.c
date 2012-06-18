@@ -56,7 +56,9 @@ void __init pxa_cpu_reset_handler_init(void)
 	/* For smp, we use pxa_cpu_reset_handler as the reset handler */
 	writel(virt_to_phys(pxa988_cpu_reset_handler),
 		CIU_REG(CIU_WARM_RESET_VECTOR));
-#else
-	/* For amp, we will use pxa988_cpu_resume as the reset handler */
+#elif defined(CONFIG_PM)
+	/* For amp, we will use pxa988_cpu_resume as the C2 exit handler */
+	writel(virt_to_phys(pxa988_cpu_resume_handler),
+		CIU_REG(CIU_WARM_RESET_VECTOR));
 #endif
 }

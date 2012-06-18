@@ -22,6 +22,7 @@
 #include <asm/mach/time.h>
 #include <asm/hardware/gic.h>
 #include <asm/hardware/cache-l2x0.h>
+#include <asm/cacheflush.h>
 
 #include <mach/addr-map.h>
 #include <mach/regs-apbc.h>
@@ -263,6 +264,18 @@ void __init pxa988_init_irq(void)
 }
 
 #ifdef CONFIG_CACHE_L2X0
+
+#ifdef CONFIG_PM
+static inline void l2x0_save_phys_reg_addr(u32 *addr_ptr, u32 addr)
+{
+	BUG_ON(!addr_ptr);
+	*addr_ptr = addr;
+	flush_cache_all();
+	outer_clean_range(virt_to_phys(addr_ptr),
+		virt_to_phys(addr_ptr) + sizeof(*addr_ptr));
+}
+#endif
+
 static void pxa988_l2_cache_init(void)
 {
 	void __iomem *l2x0_base;
@@ -271,6 +284,11 @@ static void pxa988_l2_cache_init(void)
 	BUG_ON(!l2x0_base);
 
 	l2x0_init(l2x0_base, 0x30860000, 0xC200FFFF);
+#ifdef CONFIG_PM
+	l2x0_saved_regs.phy_base = SL2C_PHYS_BASE;
+	l2x0_save_phys_reg_addr(&l2x0_regs_phys,
+				l2x0_saved_regs_phys_addr);
+#endif
 }
 #else
 #define pxa988_l2_cache_init()

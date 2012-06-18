@@ -168,6 +168,9 @@ ENTRY(pxa988_cpu_reset_handler)
 	bne     pxa988_hotplug_handler	@ jump to pxa988_hotplug_handler
 #endif
 
+#ifdef CONFIG_PM
+	b	pxa988_cpu_resume_handler
+#endif
 ENDPROC(pxa988_cpu_reset_handler)
 
 sw_reset_flag:

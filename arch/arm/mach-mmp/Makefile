@@ -37,6 +37,7 @@ ifeq ($(CONFIG_PM),y)
 obj-$(CONFIG_CPU_MMP3)		+= pm-mmp3.o
 obj-$(CONFIG_CPU_MMP3)		+= suspend.o
 obj-$(CONFIG_CPU_MMP2)		+= pm-mmp2.o pm-mmp2-ll.o
+obj-$(CONFIG_CPU_PXA988)	+= sleep-pxa988.o
 
 ifeq ($(CONFIG_CPU_IDLE),y)
 obj-$(CONFIG_CPU_MMP2)		+= cpuidle-mmp2.o
