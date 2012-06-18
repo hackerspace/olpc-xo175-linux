@@ -37,6 +37,7 @@
 #include <mach/regs-timers.h>
 #include <mach/pxa910-squ.h>
 #include <mach/soc_coda7542.h>
+#include <mach/reset-pxa988.h>
 
 #include <plat/mfp.h>
 #include <plat/pmem.h>
@@ -231,7 +232,6 @@ void coda7542_power_switch(int on)
 }
 
 #ifdef CONFIG_SMP
-u32 pm_reserve_pa;
 #define PM_RESERVE_SIZE	(1024 * 1024)
 #endif
 

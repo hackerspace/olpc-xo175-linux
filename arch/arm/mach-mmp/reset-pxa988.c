@@ -11,25 +11,40 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/smp.h>
+
 #include <asm/io.h>
+#include <asm/hardware/gic.h>
+
 #include <mach/regs-ciu.h>
 #include <mach/regs-apmu.h>
 #include <mach/reset-pxa988.h>
 
 #ifdef CONFIG_SMP
+/*
+ * This function is called from boot_secondary to bootup the secondary cpu.
+ * It maybe called when system bootup or add a plugged cpu into system.
+ */
 void pxa_cpu_reset(u32 cpu)
 {
+	static bool bootup = true;
 	u32 tmp;
 
-	pxa988_set_sreset_flag(cpu);
+	if (bootup) {
+		/* When system bootup, we need to release core from reset */
+		pxa988_set_sreset_flag(cpu);
 
-	tmp = readl(PMU_CC2_AP);
-	if (cpu)
-		tmp &= ~(CPU1_CORE_RST | CPU1_DBG_RST | CPU1_WDOG_RST);
-	else
-		tmp &= ~(CPU0_CORE_RST | CPU0_DBG_RST | CPU0_WDOG_RST);
-	writel(tmp, PMU_CC2_AP);
-	wmb();
+		tmp = readl(PMU_CC2_AP);
+		if (cpu)
+			tmp &= ~(CPU1_CORE_RST | CPU1_DBG_RST | CPU1_WDOG_RST);
+		else
+			tmp &= ~(CPU0_CORE_RST | CPU0_DBG_RST | CPU0_WDOG_RST);
+		writel(tmp, PMU_CC2_AP);
+		wmb();
+
+		bootup = false;
+	} else
+		gic_raise_softirq(cpumask_of(cpu), 1);
 }
 #endif
 

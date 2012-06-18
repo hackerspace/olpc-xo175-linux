@@ -17,6 +17,10 @@
  */
 #include <linux/linkage.h>
 #include <linux/init.h>
+#include <mach/addr-map.h>
+#include <mach/regs-apmu.h>
+#include <mach/regs-icu.h>
+#include <mach/pxa988_lowpower.h>
 
 	__CPUINIT
 
@@ -82,7 +86,63 @@ pxa988_sreset_handler:
 
 	adr     r2, secondary_cpu_handler
 	ldr     r3, [r2]
-	mov     pc, r3			@ jump to pxa_secondary_startup
+	mov     pc, r3			@ jump to pxa988_secondary_startup
+
+
+#ifdef CONFIG_HOTPLUG_CPU
+
+#define SCU_CPU_POWER_STATUS	(SCU_PHYS_BASE + 0x08)
+
+#define GIC_GLABAL_MASK	(PMUA_GIC_IRQ_GLOBAL_MASK | PMUA_GIC_FIQ_GLOBAL_MASK)
+#define ICU_GLABAL_MASK	(ICU_MASK_FIQ | ICU_MASK_IRQ)
+#define CORE_IDLE_MASK	(PMUA_CORE_IDLE | PMUA_CORE_POWER_DOWN | \
+			PMUA_CORE_L1_SRAM_POWER_DOWN)
+#define MP_IDLE_MASK	(PMUA_MP_IDLE | PMUA_MP_POWER_DOWN |	\
+			PMUA_MP_L2_SRAM_POWER_DOWN |		\
+			PMUA_MP_SCU_SRAM_POWER_DOWN)
+
+/*
+ * r0, keep to CPUID
+ */
+pxa988_hotplug_handler:
+	/* scu_power_mode(scu_base_addr, SCU_PM_NORMAL) */
+	ldr     r1, =SCU_CPU_POWER_STATUS
+	ldrb    r2, [r1, r0]
+	bic     r2, r2, #0x3
+	strb    r2, [r1, r0]
+
+	/* Unmask GIC interrtup */
+	ldr     r1, =PMU_CA9_CORE0_IDLE_CFG
+	ldr     r2, [r1, r0, lsl #2]
+	bic	r2, r2, #GIC_GLABAL_MASK
+	str	r2, [r1, r0, lsl #2]
+
+	/* Mask ICU global interrupt */
+	cmp	r0, #0
+	ldreq	r1, =PXA988_ICU_A9C0_GBL_INT_MSK
+	ldrne	r1, =PXA988_ICU_A9C1_GBL_INT_MSK
+	ldr     r2, [r1]
+	bic	r2, r2, #ICU_GLABAL_MASK
+	str 	r2, [r1]
+
+	/* reset the core idle config register */
+	ldr     r1, =PMU_CA9_CORE0_IDLE_CFG
+	ldr     r2, [r1, r0, lsl #2]
+	bic	r2, #CORE_IDLE_MASK
+	str	r2, [r1, r0, lsl #2]
+
+	/* reset the MP idle config register */
+	cmp     r0, #0
+	ldreq   r1, =PMU_CA9MP_IDLE_CFG0
+	ldrne   r1, =PMU_CA9MP_IDLE_CFG1
+	ldr     r2, [r1]
+	bic	r2, r2, #MP_IDLE_MASK
+	str     r2, [r1]
+
+	/* jump to secondary cpu startup routine */
+	ldr     r1, secondary_cpu_handler
+	mov	pc, r1
+#endif
 
 /*
  * ROM code jumps to this function while waking up from CPU
@@ -97,8 +157,17 @@ ENTRY(pxa988_cpu_reset_handler)
 	ldr     r2, [r1, r0, lsl #2]    @ fetch sw reset flag
 	cmp     r2, #0x1                @ sw reset ?
 	beq     pxa988_sreset_handler	@ Yes, jump to sw_reset_handler
-					@ No, jump to pxa_cpu_resume
-					@ by another patch
+
+#ifdef CONFIG_HOTPLUG_CPU
+	/* check if back from cpu hotplug */
+	ldr     r2, pm_reserve_pa
+	ldr     r3, [r2, r0, lsl #2]
+	tst     r3, #HOTPLUG_MASK
+	movne   r3, #0
+	strne   r3, [r2, r0, lsl #2]    @ clear all flags
+	bne     pxa988_hotplug_handler	@ jump to pxa988_hotplug_handler
+#endif
+
 ENDPROC(pxa988_cpu_reset_handler)
 
 sw_reset_flag:
@@ -108,4 +177,8 @@ sw_reset_flag:
 
 	.globl secondary_cpu_handler
 secondary_cpu_handler:
+	.long   0
+
+	.globl pm_reserve_pa
+pm_reserve_pa:
 	.long   0
