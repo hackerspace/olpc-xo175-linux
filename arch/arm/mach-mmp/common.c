@@ -93,6 +93,13 @@ static struct map_desc standard_io_desc[] __initdata = {
 		.length		= SCU_PHYS_SIZE,
 		.type		= MT_DEVICE,
 #endif
+#if defined(CONFIG_CPU_PXA910) && defined(CONFIG_ANDROID_RAM_CONSOLE)
+	}, {
+		.pfn		= __phys_to_pfn(RAMCONS_PHYS_ADDR),
+		.virtual	= RAMCONS_VIRT_ADDR,
+		.length		= RAMCONS_PHYS_SIZE,
+		.type		= MT_DEVICE,
+#endif
 	},
 };
 
