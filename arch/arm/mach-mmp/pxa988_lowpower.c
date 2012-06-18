@@ -270,6 +270,7 @@ struct pxa988_lowpower_data pxa988_lpm_data[] = {
 	},
 };
 
+#ifdef CONFIG_PM
 static void pxa988_enter_c1(u32 cpu)
 {
 	pxa988_lowpower_config(cpu,
@@ -278,38 +279,6 @@ static void pxa988_enter_c1(u32 cpu)
 	pxa988_lowpower_config(cpu,
 			pxa988_lpm_data[PXA988_LPM_C1].power_state, 0);
 }
-
-#ifdef CONFIG_HOTPLUG_CPU
-/*
- * Allows POWER_MODE_UDR with L2 shutdown for CPU hotplug.
- * Actually the hogpluged CPU will enter C2 but it will allow
- * POWER_MODE_UDR with L2 shutdown since the hotpluged CPU
- * should never blocks other CPUs enter the deepest LPM.
- */
-void pxa988_hotplug_enter(u32 cpu, u32 power_mode)
-{
-	pxa988_lowpower_config(cpu,
-			pxa988_lpm_data[PXA988_LPM_C2].power_state, 1);
-
-	/* Mask GIC global interrupt */
-	pxa988_gic_global_mask(cpu, 1);
-	/* Mask ICU global interrupt */
-	pxa988_icu_global_mask(cpu, 1);
-
-	/*
-	 * For CPU hotplug, we don't need cpu_suspend help functions
-	 * but still need to mask LPM bits as the deepest LPM.
-	 * We are assuming the hotplug CPU will NEVER be the last CPU
-	 * enter C2 since in platform_cpu_kill we ensure that.
-	 */
-	set_bit(LPM4HOTPLUG, (void *)&enter_lpm_p[cpu]);
-	if (pxa988_lpm_data[power_mode].l2_shutdown)
-		set_bit(L2_SHUTDOWN, (void *)&enter_lpm_p[cpu]);
-	enter_lpm_p[cpu] |= (1 << (power_mode + 1)) - 1;
-
-	pxa988_finish_suspend(pxa988_lpm_data[power_mode].power_state);
-}
-#endif
 
 static void pxa988_pre_enter_lpm(u32 cpu, u32 power_mode)
 {
@@ -336,26 +305,6 @@ static void pxa988_post_enter_lpm(u32 cpu, u32 power_mode)
 	pxa988_lowpower_config(cpu,
 			pxa988_lpm_data[power_mode].power_state, 0);
 }
-
-#ifdef CONFIG_SUSPEND
-void pxa988_pm_suspend(u32 cpu, u32 power_mode)
-{
-	pxa988_pre_enter_lpm(cpu, power_mode);
-
-	if (pxa988_lpm_data[power_mode].l2_shutdown) {
-#ifdef CONFIG_CACHE_L2X0
-		pl310_suspend();
-#endif
-		outer_disable();
-	}
-
-	cpu_suspend(pxa988_lpm_data[power_mode].power_state,
-			pxa988_finish_suspend);
-
-	pxa988_post_enter_lpm(cpu, power_mode);
-}
-#endif
-
 /*
  * pxa988_enter_lowpower - the entry function of pxa988 low power mode
  *
@@ -472,6 +421,58 @@ int pxa988_enter_lowpower(u32 cpu, u32 power_mode)
 
 	return 0;
 }
+#endif /* CONFIG_PM */
+
+#ifdef CONFIG_HOTPLUG_CPU
+/*
+ * Allows POWER_MODE_UDR with L2 shutdown for CPU hotplug.
+ * Actually the hogpluged CPU will enter C2 but it will allow
+ * POWER_MODE_UDR with L2 shutdown since the hotpluged CPU
+ * should never blocks other CPUs enter the deepest LPM.
+ */
+void pxa988_hotplug_enter(u32 cpu, u32 power_mode)
+{
+	pxa988_lowpower_config(cpu,
+			pxa988_lpm_data[PXA988_LPM_C2].power_state, 1);
+
+	/* Mask GIC global interrupt */
+	pxa988_gic_global_mask(cpu, 1);
+	/* Mask ICU global interrupt */
+	pxa988_icu_global_mask(cpu, 1);
+
+	/*
+	 * For CPU hotplug, we don't need cpu_suspend help functions
+	 * but still need to mask LPM bits as the deepest LPM.
+	 * We are assuming the hotplug CPU will NEVER be the last CPU
+	 * enter C2 since in platform_cpu_kill we ensure that.
+	 */
+	set_bit(LPM4HOTPLUG, (void *)&enter_lpm_p[cpu]);
+	if (pxa988_lpm_data[power_mode].l2_shutdown)
+		set_bit(L2_SHUTDOWN, (void *)&enter_lpm_p[cpu]);
+	enter_lpm_p[cpu] |= (1 << (power_mode + 1)) - 1;
+
+	pxa988_finish_suspend(pxa988_lpm_data[power_mode].power_state);
+}
+#endif
+
+#ifdef CONFIG_SUSPEND
+void pxa988_pm_suspend(u32 cpu, u32 power_mode)
+{
+	pxa988_pre_enter_lpm(cpu, power_mode);
+
+	if (pxa988_lpm_data[power_mode].l2_shutdown) {
+#ifdef CONFIG_CACHE_L2X0
+		pl310_suspend();
+#endif
+		outer_disable();
+	}
+
+	cpu_suspend(pxa988_lpm_data[power_mode].power_state,
+			pxa988_finish_suspend);
+
+	pxa988_post_enter_lpm(cpu, power_mode);
+}
+#endif
 
 static int __init pxa988_lowpower_init(void)
 {

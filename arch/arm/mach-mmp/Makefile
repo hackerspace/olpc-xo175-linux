@@ -9,7 +9,7 @@ obj-$(CONFIG_FB_PXA168)		+= onboard/
 obj-$(CONFIG_CPU_PXA168)	+= pxa168.o irq-pxa168.o
 obj-$(CONFIG_CPU_PXA910)	+= pxa910.o irq-pxa168.o sram.o pxa910-squ.o \
 clock.o
-obj-$(CONFIG_CPU_PXA988)	+= pxa988.o irq-pxa988.o sram.o pxa910-squ.o reset-pxa988.o
+obj-$(CONFIG_CPU_PXA988)	+= pxa988.o irq-pxa988.o sram.o pxa910-squ.o reset-pxa988.o pxa988_lowpower.o
 obj-$(CONFIG_CPU_MMP2)		+= mmp2.o irq-mmp2.o clock.o mmp_dma.o \
 sram.o mmp2_sspa.o mmp2_fuse.o clock-audio.o
 obj-$(CONFIG_CPU_MMP3)		+= mmp3.o irq-mmp3.o mmp_dma.o mmp2_sspa.o \
@@ -36,7 +36,6 @@ ifeq ($(CONFIG_PM),y)
 obj-$(CONFIG_CPU_MMP3)		+= pm-mmp3.o
 obj-$(CONFIG_CPU_MMP3)		+= suspend.o
 obj-$(CONFIG_CPU_MMP2)		+= pm-mmp2.o pm-mmp2-ll.o
-obj-$(CONFIG_CPU_PXA988)	+= pxa988_lowpower.o
 
 ifeq ($(CONFIG_CPU_IDLE),y)
 obj-$(CONFIG_CPU_MMP2)		+= cpuidle-mmp2.o
