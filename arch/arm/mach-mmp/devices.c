@@ -110,6 +110,33 @@ static struct resource pxa9xx_resource_acipc[] = {
 		.name   = "IPC_AP_SET_MSG",
 	},
 };
+
+#elif defined(CONFIG_CPU_PXA988)
+static struct resource pxa9xx_resource_acipc[] = {
+	[0] = {
+		.start  = 0xD401D000,
+		.end    = 0xD401D0ff,
+		.flags  = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start  = IRQ_PXA988_IPC_AP0,
+		.end    = IRQ_PXA988_IPC_AP0,
+		.flags  = IORESOURCE_IRQ,
+		.name   = "IPC_AP_DATAACK",
+	},
+	[2] = {
+		.start  = IRQ_PXA988_IPC_AP1,
+		.end    = IRQ_PXA988_IPC_AP1,
+		.flags  = IORESOURCE_IRQ,
+		.name   = "IPC_AP_SET_CMD",
+	},
+	[3] = {
+		.start  = IRQ_PXA988_IPC_AP2,
+		.end    = IRQ_PXA988_IPC_AP2,
+		.flags  = IORESOURCE_IRQ,
+		.name   = "IPC_AP_SET_MSG",
+	},
+};
 #else
 static struct resource pxa9xx_resource_acipc[] = {};
 #endif

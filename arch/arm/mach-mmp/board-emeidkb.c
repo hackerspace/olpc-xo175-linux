@@ -616,6 +616,11 @@ static void __init emeidkb_init(void)
 	pxa988_device_udc.dev.platform_data = &emeidkb_usb_pdata;
 	platform_device_register(&pxa988_device_udc);
 #endif
+
+#ifdef CONFIG_PXA9XX_ACIPC
+	platform_device_register(&pxa9xx_device_acipc);
+#endif
+
 }
 
 #if defined(CONFIG_TOUCHSCREEN_FT5306)
