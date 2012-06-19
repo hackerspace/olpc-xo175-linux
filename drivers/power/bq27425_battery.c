@@ -29,9 +29,12 @@
 #include <linux/idr.h>
 #include <linux/i2c.h>
 #include <linux/slab.h>
+#include <linux/firmware.h>
 #include <linux/mfd/88pm80x.h>
 #include <asm/unaligned.h>
 #include <plat/pm.h>
+
+#define BQ27425_FIRMWARE_ENABLE
 
 #define BQ27425_REG_CTRL		0x00
 /* CTRL set bit */
@@ -79,9 +82,6 @@
 #define DETECT_CHARGING_TIME	(10)
 
 struct bq27425_device_info;
-struct bq27425_access_methods {
-	int (*read)(struct bq27425_device_info *di, u8 reg, bool single);
-};
 
 struct bq27425_reg_cache {
 	short           cntl;
@@ -107,7 +107,10 @@ struct bq27425_reg_cache {
 struct bq27425_device_info {
 	struct device *dev;
 	struct i2c_client *client;
-
+#ifdef BQ27425_FIRMWARE_ENABLE
+	struct i2c_client *update;
+	int               update_addr;
+#endif
 	int id;
 	int irq;
 
@@ -116,11 +119,8 @@ struct bq27425_device_info {
 
 	struct delayed_work work;
 	struct delayed_work test_work;
-	struct timer_list timer;
 
 	struct power_supply bat;
-
-	struct bq27425_access_methods bus;
 
 	struct mutex lock;
 };
@@ -136,7 +136,6 @@ static enum power_supply_property bq27425_battery_props[] = {
 	POWER_SUPPLY_PROP_TECHNOLOGY,
 };
 
-static struct bq27425_device_info *g_di;
 static char *usb_supplied[] = {
 	"usb",
 };
@@ -413,6 +412,26 @@ static void bq27425_get_status(struct bq27425_device_info *di)
 	int ret = 0;
 	u16 data;
 
+	ret = bq27425_get_flags(di, &data);
+	if (ret < 0) {
+		printk(KERN_ERR "get flags failed!\n");
+		/* if i2c error, set fake value */
+		di->cache.health = POWER_SUPPLY_HEALTH_GOOD;
+		di->cache.present = 0;
+		di->cache.status = POWER_SUPPLY_STATUS_DISCHARGING;
+		di->cache.volt = 4000;
+		return;
+	} else {
+		di->cache.flags = data;
+		if ((FLAGS_UT & di->cache.flags) ||
+				(FLAGS_OT & di->cache.flags))
+			di->cache.health = POWER_SUPPLY_HEALTH_OVERHEAT;
+		else
+			di->cache.health = POWER_SUPPLY_HEALTH_GOOD;
+		di->cache.status = bq27425_battery_status(di);
+		di->cache.present = (di->cache.flags & FLAGS_BAT_DET) ? 1 : 0;
+	}
+
 	ret = bq27425_get_cntl(di, &data);
 	if (ret < 0)
 		printk(KERN_ERR "get cntl failed!\n");
@@ -482,18 +501,6 @@ static void bq27425_get_status(struct bq27425_device_info *di)
 	if (ret < 0)
 		printk(KERN_ERR "get soh failed!\n");
 	di->cache.soh = data;
-
-	ret = bq27425_get_flags(di, &data);
-	if (ret < 0)
-		printk(KERN_ERR "get flags failed!\n");
-	di->cache.flags = data;
-	if ((FLAGS_UT & di->cache.flags) ||
-			(FLAGS_OT & di->cache.flags))
-		di->cache.health = POWER_SUPPLY_HEALTH_OVERHEAT;
-	else
-		di->cache.health = POWER_SUPPLY_HEALTH_GOOD;
-	di->cache.status = bq27425_battery_status(di);
-	di->cache.present = (di->cache.flags & FLAGS_BAT_DET) ? 1 : 0;
 }
 
 static void bq27425_update(struct bq27425_device_info *di)
@@ -543,10 +550,10 @@ static void bq27425_battery_poll(struct work_struct *work)
 
 	bq27425_update(di);
 
-	printk(KERN_INFO "%s capacity: %d, voltag: %d, current: %d,"
-			 "status: %d, present: %d\n", __func__,
-			 di->cache.soc, di->cache.volt,
-			 di->cache.ai, di->cache.status, di->cache.present);
+	printk(KERN_INFO "%s capacity: %d, voltag: %d, current: %d,\
+			status: %d, present: %d\n", __func__,
+			di->cache.soc, di->cache.volt,
+			di->cache.ai, di->cache.status, di->cache.present);
 
 	online = is_charger_usb_online();
 
@@ -729,9 +736,367 @@ static void bq27425_powersupply_unregister(struct bq27425_device_info *di)
 	mutex_destroy(&di->lock);
 }
 
+static irqreturn_t bq27425_irq_handler(int irq, void *data)
+{
+	struct bq27425_device_info *di = data;
+	schedule_delayed_work(&di->work, 0);
+	return IRQ_HANDLED;
+}
+
 static DEFINE_MUTEX(battery_mutex);
 
+#ifdef BQ27425_FIRMWARE_ENABLE
 
+#define BATTERY_FIRMWARE_PATH  "battery/firmware.img"
+
+/*command type*/
+enum bq27425_flag_type {
+	I2C_WRITE = 0,
+	I2C_READ,
+	I2C_COMPARE,
+	I2C_WAIT,
+};
+
+struct bq27425_updata_data {
+	enum bq27425_flag_type  flag;
+	int                     i2c_addr;
+	int                     reg;
+	unsigned char           data[50];
+	int                     data_num;
+	int                     wait_time;
+	int                     read_num;
+};
+
+static inline int bq27425_update_read(struct i2c_client *i2c,
+		int reg, int bytes, void *dest)
+{
+	int ret;
+
+	if (bytes > 1)
+		ret = i2c_smbus_read_i2c_block_data(i2c, reg, bytes, dest);
+	else {
+		ret = i2c_smbus_read_byte_data(i2c, reg);
+		if (ret < 0)
+			return ret;
+		*(unsigned char *)dest = (unsigned char)ret;
+	}
+	return ret;
+}
+
+static inline int bq27425_update_write(struct i2c_client *i2c,
+		int reg, int bytes, void *src)
+{
+	unsigned char buf[bytes + 1];
+	int ret;
+
+	buf[0] = (unsigned char)reg;
+	memcpy(&buf[1], src, bytes);
+
+	ret = i2c_master_send(i2c, buf, bytes + 1);
+	if (ret < 0)
+		return ret;
+	return 0;
+}
+
+/* execute the command that got from firmware*/
+static int exec_cmd(struct bq27425_device_info *di,
+		struct bq27425_updata_data *data_s)
+{
+	struct i2c_client *client = di->client;
+	struct i2c_client *update_client;
+	int i;
+	unsigned char  temp[10];
+
+	if (data_s->i2c_addr != client->addr) {
+		if (di->update_addr != data_s->i2c_addr) {
+			di->update_addr = data_s->i2c_addr;
+			di->update = i2c_new_dummy(client->adapter,
+					di->update_addr);
+			i2c_set_clientdata(di->update, di);
+		}
+		update_client = di->update;
+	} else
+		update_client = client;
+
+	if (data_s->flag == I2C_WRITE) {
+		printk(KERN_INFO "write reg: 0x%x, num: %d, ",
+				data_s->reg, data_s->data_num);
+		for (i = 0; i < data_s->data_num; i++)
+			printk(KERN_INFO
+					"data[%d] = 0x%x, ",
+					i, data_s->data[i]);
+		printk("\n");
+		bq27425_update_write(update_client, data_s->reg,
+				data_s->data_num, data_s->data);
+	}
+
+	if (data_s->flag == I2C_READ) {
+		printk(KERN_INFO "Read reg: 0x%x, read count: %d\n",
+				data_s->reg, data_s->read_num);
+		bq27425_update_read(update_client, data_s->reg,
+				data_s->read_num, data_s->data);
+	}
+
+	if (data_s->flag == I2C_COMPARE) {
+		printk(KERN_INFO "compare reg: 0x%x, ", data_s->reg);
+		for (i = 0; i < data_s->data_num; i++)
+			printk(KERN_INFO
+					"data[%d] = 0x%x, ",
+					i, data_s->data[i]);
+		printk(KERN_INFO "\n");
+
+		bq27425_update_read(update_client, data_s->reg,
+				data_s->data_num, temp);
+		for (i = 0; i < data_s->data_num; i++) {
+			if (data_s->data[i] != temp[i])
+				printk(KERN_INFO
+						"0x%x not equal 0x%x\n",
+						temp[i], data_s->data[i]);
+		}
+	}
+
+	if (data_s->flag == I2C_WAIT) {
+		printk(KERN_INFO "wait time: %d\n", data_s->wait_time);
+		msleep(data_s->wait_time);
+	}
+
+	return 0;
+}
+
+static void *get_new_start(char *cmd, int split)
+{
+	while (1) {
+		if (*cmd == split && *(cmd+1) != split)
+			break;
+		cmd++;
+	}
+	return cmd+1;
+}
+
+static int is_alpha(char c)
+{
+	if (('a' <= c && 'z' >= c) ||
+			('A' <= c && 'Z' >= c) ||
+			('0' <= c && '9' >= c))
+		return 1;
+	else
+		return 0;
+}
+
+/*firmware data
+W: AA 00 14 04
+W: AA 00 72 36
+W: AA 00 FF FF
+W: AA 00 FF FF
+X: 1000
+W: AA 00 00 0F
+X: 1000
+W: 16 00 1F 00 00 00 D2 FF
+W: 16 64 F0 01
+X: 1
+C: 16 66 00
+
+Write command:
+"W:" instructs the I2C master to write one or more bytes to a given I2C
+address and given register address. The I2C address format used
+throughout this document is based on an 8-bit representation of the
+address. The format of this sequence is:
+"W: I2CAddr RegAddr Byte0 Byte1 Byte2...".
+For example, the following:
+W: AA 55 AB CD EF 00
+
+Read command:
+"R:" instructs the I2C master to read a given number of bytes from a
+given I2C address and given register address.
+The format of this sequence is:
+"R: I2CAddr RegAddr NumBytes"
+For example, the following:
+R: AA 55 100
+
+Read and Compare Command
+"C:" The data presented with this command matches the data read exactly,
+or the operation ceases with an error indication to the user.
+The format of this sequence is:
+"C: i2cAddr RegAddr Byte0 Byte1 Byte2".
+An example of this command is as follows:
+C: AA 55 AB CD EF 00
+
+Wait command
+"X:" The wait command indicates that the host waits a minimum of the
+given number of milliseconds before continuing to the next row of
+the flash stream.
+For example, the following:
+X: 200
+*/
+/*parse one command and fill the command struct*/
+static void parse_one_cmd(char *cmd,
+		struct bq27425_updata_data *data_s)
+{
+	char temp[50];
+	char *p_cmd, *p;
+
+	p_cmd = cmd;
+
+	if ('W' == *p_cmd || 'w' == *p_cmd)
+		data_s->flag = I2C_WRITE;
+	if ('R' == *p_cmd || 'r' == *p_cmd)
+		data_s->flag = I2C_READ;
+	if ('C' == *p_cmd || 'c' == *p_cmd)
+		data_s->flag = I2C_COMPARE;
+	if ('X' == *p_cmd || 'x' == *p_cmd)
+		data_s->flag = I2C_WAIT;
+
+	p_cmd = get_new_start(p_cmd, 0x20);
+
+	if (data_s->flag == I2C_WRITE || data_s->flag == I2C_READ
+			|| data_s->flag == I2C_COMPARE) {
+		for (p = temp;;) {
+			if (*p_cmd == 0x20 || *p_cmd == 0x0d)
+				break;
+			*p++ = *p_cmd++;
+		}
+		*p = 0;
+		data_s->i2c_addr = simple_strtol(temp, NULL, 16)/2;
+
+		p_cmd = get_new_start(p_cmd, 0x20);
+
+		for (p = temp;;) {
+			if (*p_cmd == 0x20 || *p_cmd == 0x0d)
+				break;
+			*p++ = *p_cmd++;
+		}
+		*p = 0;
+		data_s->reg = simple_strtol(temp, NULL, 16);
+
+		p_cmd = get_new_start(p_cmd, 0x20);
+
+		for (p = temp, data_s->data_num = 0;; p_cmd++) {
+			if (*p_cmd == 0 || *p_cmd == 0x0d) {
+				*p = 0;
+				data_s->data[data_s->data_num++] =
+					simple_strtol(temp, NULL, 16);
+				p = temp;
+				break;
+			}
+			if (*p_cmd == 0x20) {
+				*p = 0;
+				data_s->data[data_s->data_num++] =
+					simple_strtol(temp, NULL, 16);
+				p = temp;
+				continue;
+			}
+			*p++ = *p_cmd;
+		}
+		*p = 0;
+
+		if (data_s->flag == I2C_READ)
+			data_s->read_num = (int)simple_strtol(temp, NULL, 16);
+	}
+
+	if (data_s->flag == I2C_WAIT) {
+		for (p = temp;;) {
+			if (*p_cmd == 0x20 || *p_cmd == 0x0d)
+				break;
+			*p++ = *p_cmd++;
+		}
+		*p = 0;
+		data_s->wait_time = (int)simple_strtol(temp, NULL, 10);
+	}
+}
+
+/*Get one line from firmware data*/
+static char *get_one_cmd(char *dest, char *src)
+{
+	char *p_src, *p_dest;
+
+	p_src = src;
+	p_dest = dest;
+
+	for (;; p_src++) {
+		if (*p_src == 0 || *p_src == 0x0d)
+			break;
+		*p_dest++ = *p_src;
+	}
+
+	while (1) {
+		if (is_alpha(*p_src))
+			break;
+		if (0 == *p_src) {
+			printk(KERN_INFO "End of the file !\n");
+			break;
+		}
+		p_src++;
+	}
+	return p_src;
+}
+
+static int update_firmware(struct bq27425_device_info *di,
+		void *data)
+{
+	char    one_cmd[50];
+	char          *p;
+	struct bq27425_updata_data cmd;
+
+	p = data;
+	while (*p) {
+		memset(one_cmd, 0, 50);
+		p = get_one_cmd(one_cmd, p);
+		parse_one_cmd(one_cmd, &cmd);
+		exec_cmd( di, &cmd);
+	}
+	return 0;
+}
+
+static ssize_t firmware_show_attrs(struct device *dev,
+		struct device_attribute *attr,
+		char *buf)
+{
+	return 0;
+}
+
+/*interface for userspace to update firmware*/
+static ssize_t firmware_update_attrs(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	struct bq27425_device_info *di = dev_get_drvdata(dev);
+	const struct firmware *fw;
+	int retval;
+	void *firmware_data;
+	size_t firmware_size;
+	char   cmd[10];
+
+	sscanf(buf, "%s", cmd);
+
+	if (memcmp(cmd, "update", strlen(cmd))) {
+		printk(KERN_ERR "Error command!\n");
+		return count;
+	}
+
+	retval = request_firmware(&fw, BATTERY_FIRMWARE_PATH, di->dev);
+	if (retval) {
+		printk(KERN_ERR
+				"firmware_sample_driver: Firmware not available\n");
+		return count;
+	}
+
+	firmware_size = fw->size;
+	firmware_data = kmalloc(firmware_size + 1, GFP_KERNEL);
+	memset(firmware_data, 0, firmware_size + 1);
+	memcpy(firmware_data, fw->data, firmware_size);
+
+	release_firmware(fw);
+
+	update_firmware(di, firmware_data);
+	kfree(firmware_data);
+
+	return count;
+}
+
+
+static DEVICE_ATTR(update, S_IRUSR|S_IWUSR, firmware_show_attrs,\
+		firmware_update_attrs);
+#endif
 
 static void bq27425_test_work(struct work_struct *work)
 {
@@ -755,12 +1120,15 @@ static ssize_t capacity_show_attrs(struct device *dev,
 		struct device_attribute *attr,
 		char *buf)
 {
+	struct bq27425_device_info *di = dev_get_drvdata(dev);
 
-	cancel_delayed_work_sync(&g_di->work);
+	disable_irq(di->irq);
 
-	INIT_DELAYED_WORK(&g_di->test_work, bq27425_test_work);
-	set_timer_slack(&g_di->test_work.timer, HZ*1);
-	schedule_delayed_work(&g_di->test_work, HZ*4);
+	cancel_delayed_work_sync(&di->work);
+
+	INIT_DELAYED_WORK(&di->test_work, bq27425_test_work);
+	set_timer_slack(&di->test_work.timer, HZ*1);
+	schedule_delayed_work(&di->test_work, HZ*4);
 
 	return 0;
 }
@@ -770,35 +1138,34 @@ static ssize_t capacity_change_attrs(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf, size_t count)
 {
-	cancel_delayed_work_sync(&g_di->test_work);
+	struct bq27425_device_info *di = dev_get_drvdata(dev);
+
+	cancel_delayed_work_sync(&di->test_work);
+
+	enable_irq(di->irq);
 
 	if (poll_interval > 0) {
 		/* The timer does not have to be accurate. */
-		set_timer_slack(&g_di->work.timer, poll_interval * HZ / 4);
-		schedule_delayed_work(&g_di->work, poll_interval * HZ);
+		set_timer_slack(&di->work.timer, poll_interval * HZ / 4);
+		schedule_delayed_work(&di->work, poll_interval * HZ);
 	}
 	return count;
 }
-
 
 static DEVICE_ATTR(test_capacity, S_IRUSR|S_IWUSR, \
 		capacity_show_attrs, capacity_change_attrs);
 
 static struct attribute *battery_attributes[] = {
 	&dev_attr_test_capacity.attr,
+#ifdef BQ27425_FIRMWARE_ENABLE
+	&dev_attr_update.attr,
+#endif
 	NULL,
 };
-
 
 static struct attribute_group battery_attr_group = {
 	.attrs = battery_attributes,
 };
-
-static irqreturn_t bq27425_irq_handler(int irq, void *data)
-{
-	schedule_delayed_work(&g_di->work, 0);
-	return IRQ_HANDLED;
-}
 
 static int bq27425_battery_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)
@@ -833,7 +1200,7 @@ static int bq27425_battery_probe(struct i2c_client *client,
 		goto batt_irq_faild;
 
 	ret = sysfs_create_group(&di->dev->kobj, &battery_attr_group);
-	g_di = di;
+	dev_set_drvdata(di->dev, di);
 
 	return 0;
 batt_irq_faild:
