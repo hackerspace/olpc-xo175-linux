@@ -2389,7 +2389,7 @@ int sdhci_suspend_host(struct sdhci_host *host, pm_message_t state)
 		free_irq(host->irq, host);
 	}
 
-	if (host->vmmc)
+	if (host->vmmc && regulator_is_enabled(host->vmmc))
 		ret = regulator_disable(host->vmmc);
 
 	mmc_release_host(host->mmc);
