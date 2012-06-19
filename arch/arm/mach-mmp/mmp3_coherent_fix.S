@@ -525,8 +525,8 @@ run_into_c2:
 
 	ldr	r0, [ncb, #WAKE_STATUS_ADDR_OFFSET]
 	ldr	r1, [r0]
-	mov	r2, #0x8
-	lsl	r2, r2, #28
+	mov	r2, #0x1
+	lsl	r2, r2, #31
 	bic	r1, r1, r2		@ clear bit 31
 	mov	r2, #0x38
 	lsl	r2, r2, #8
@@ -535,9 +535,7 @@ run_into_c2:
 	beq	run_into_c2		@ no irq, so run into c2 again
 
 acquire_lock:
-	coht_trylock r0, r1, try
-	cmp	try, #0x0
-	bne	run_into_c2
+	coht_lock r0, r1, r2
 
 	mov	r0, #0x1		@ set handshake flag
 	set_hs_val r0, r1
