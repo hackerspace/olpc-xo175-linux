@@ -36,6 +36,7 @@
 #include <mach/pxa988.h>
 #include <mach/regs-timers.h>
 #include <mach/pxa910-squ.h>
+#include <mach/soc_coda7542.h>
 
 #include <plat/mfp.h>
 #include <plat/pmem.h>
@@ -177,6 +178,57 @@ void gc_pwr(int power_on)
 	}
 }
 EXPORT_SYMBOL(gc_pwr);
+
+#define VPU_HW_MODE	(0x1 << 19)
+#define VPU_AUTO_PWR_ON	(0x1 << 2)
+#define VPU_PWR_STAT	(0x1 << 2)
+
+void coda7542_power_switch(int on)
+{
+	unsigned int val;
+	int timeout = 5000;
+
+	/* HW mode power on */
+	if (on) {
+		/* set VPU HW on/off mode  */
+		val = __raw_readl(APMU_VPU_CLK_RES_CTRL);
+		val |= VPU_HW_MODE;
+		__raw_writel(val, APMU_VPU_CLK_RES_CTRL);
+		/* on1, on2, off timer */
+		__raw_writel(0x20001fff, APMU_PWR_BLK_TMR_REG);
+
+		/* VPU auto power on */
+		val = __raw_readl(APMU_PWR_CTRL_REG);
+		val |= VPU_AUTO_PWR_ON;
+		__raw_writel(val, APMU_PWR_CTRL_REG);
+
+		/* polling VPU_PWR_STAT bit */
+		while (!(__raw_readl(APMU_PWR_STATUS_REG) & VPU_PWR_STAT)) {
+			udelay(500);
+			timeout -= 500;
+			if (timeout < 0) {
+				pr_err("%s: VPU power on timeout\n", __func__);
+				return;
+			}
+		}
+	/* HW mode power off */
+	} else {
+		/* VPU auto power off */
+		val = __raw_readl(APMU_PWR_CTRL_REG);
+		val &= ~VPU_AUTO_PWR_ON;
+		__raw_writel(val, APMU_PWR_CTRL_REG);
+
+		/* polling VPU_PWR_STAT bit */
+		while ((__raw_readl(APMU_PWR_STATUS_REG) & VPU_PWR_STAT)) {
+			udelay(500);
+			timeout -= 500;
+			if (timeout < 0) {
+				pr_err("%s: VPU power off timeout\n", __func__);
+				return;
+			}
+		}
+	}
+}
 
 #ifdef CONFIG_SMP
 u32 pm_reserve_pa;

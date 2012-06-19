@@ -16,6 +16,7 @@
 #include <mach/cputype.h>
 #include <mach/regs-usb.h>
 #include <mach/soc_vmeta.h>
+#include <mach/soc_coda7542.h>
 #include <mach/regs-pmu.h>
 #include <mach/isp_dev.h>
 #include <mach/hsi_dev.h>
@@ -988,5 +989,42 @@ void __init mmp_register_vmeta(struct platform_device *dev, void *data)
 void __init mmp_set_vmeta_info(void* info)
 {
 	mmp_register_vmeta(&mmp_device_vmeta, info);
+}
+#endif
+
+#ifdef CONFIG_UIO_CODA7542
+static u64 pxa_coda7542_dam_mask = DMA_BIT_MASK(32);
+static struct resource pxa_coda7542_resources[] = {
+	[0] = {
+		.start = 0xD420D000,
+		.end   = 0xD420E000,
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = IRQ_PXA988_CODA7542,
+		.end   = IRQ_PXA988_CODA7542,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device pxa_device_coda7542 = {
+	.name		= UIO_CODA7542_NAME,
+	.id		= 0,
+	.dev		= {
+		.dma_mask = &pxa_coda7542_dam_mask,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	},
+	.resource	= pxa_coda7542_resources,
+	.num_resources	= ARRAY_SIZE(pxa_coda7542_resources),
+};
+
+void __init pxa_register_coda7542(void)
+{
+	int ret;
+
+	ret = platform_device_register(&pxa_device_coda7542);
+	if (ret)
+		dev_err(&(pxa_device_coda7542.dev),
+			"unable to register coda7542 device: %d\n", ret);
 }
 #endif
