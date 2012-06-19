@@ -21,6 +21,8 @@
 #define TBAT_25D			240
 #define TBAT_NEG_20D		1000
 #define LOW_BAT			0x11	/* 15%*/
+#define MAX17043_DEFAULT_DCAP	(1500)	/* Design Capacity: mAh */
+#define uAh_to_uWh(val)	(val * 37 / 10)	/* Nominal voltage: 3.7v */
 
 struct max17043_device_info {
 	struct device *dev;
@@ -31,6 +33,10 @@ struct max17043_device_info {
 	int present;
 	int status;
 	int capacity;
+	int charge_full;	/* charge: µAh */
+	int charge_now;
+	int energy_full;	/* energy: µWh */
+	int energy_now;
 	int temp;
 	int voltage;
 	int healthy;
@@ -38,6 +44,7 @@ struct max17043_device_info {
 	int tech;
 	bool alert_gpio_en;
 	int alert_gpio;
+	int bat_design_cap;
 };
 static int max17043_read_reg(struct i2c_client *client, u8 reg, u16 * data)
 {
@@ -110,6 +117,10 @@ static enum power_supply_property max17043_bat_props[] = {
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 	POWER_SUPPLY_PROP_CAPACITY,
 	POWER_SUPPLY_PROP_TEMP,
+	POWER_SUPPLY_PROP_CHARGE_FULL,
+	POWER_SUPPLY_PROP_CHARGE_NOW,
+	POWER_SUPPLY_PROP_ENERGY_FULL,
+	POWER_SUPPLY_PROP_ENERGY_NOW,
 	POWER_SUPPLY_PROP_HEALTH,
 	POWER_SUPPLY_PROP_TECHNOLOGY,
 };
@@ -240,6 +251,12 @@ static void max17043_battery_update_status(struct max17043_device_info *info)
 		info->status = POWER_SUPPLY_STATUS_FULL;
 
 	info->voltage = max17043_get_voltage(info);
+	/*charge: uAh*/
+	info->charge_full = info->bat_design_cap * 1000;
+	info->charge_now = info->bat_design_cap * info->capacity * 10;
+	/*Energy: uWh*/
+	info->energy_full = uAh_to_uWh(info->charge_full);
+	info->energy_now = uAh_to_uWh(info->charge_now);
 }
 
 static irqreturn_t max17043_alert_irq_handler(int irq, void *data)
@@ -295,6 +312,18 @@ static int max17043_battery_get_property(struct power_supply *psy,
 			val->intval = info->capacity;
 		else
 			val->intval = 80;
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_FULL:
+		val->intval = info->charge_full;
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_NOW:
+		val->intval = info->charge_now;
+		break;
+	case POWER_SUPPLY_PROP_ENERGY_FULL:
+		val->intval = info->energy_full;
+		break;
+	case POWER_SUPPLY_PROP_ENERGY_NOW:
+		val->intval = info->energy_now;
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
 		if (info->present && is_charger_online(info))
@@ -357,6 +386,10 @@ static int __devinit max17043_battery_probe(struct i2c_client *client,
 	info->dev = &client->dev;
 	info->alert_gpio_en = pdata->gpio_en;
 	info->alert_gpio = pdata->gpio;
+	if (pdata->bat_design_cap)
+		info->bat_design_cap = pdata->bat_design_cap;
+	else
+		info->bat_design_cap = MAX17043_DEFAULT_DCAP;
 	i2c_set_clientdata(client, info);
 
 	max17043_read_reg(info->client, MAX17043_VERSION, &version);

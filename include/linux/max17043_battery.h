@@ -11,4 +11,5 @@ struct max17043_battery_pdata {
 	bool gpio_en;
 	int gpio;
 	int interval;
+	int bat_design_cap;
 };
