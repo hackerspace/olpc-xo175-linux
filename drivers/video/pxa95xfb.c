@@ -1324,7 +1324,6 @@ void converter_onoff(struct pxa95xfb_info *fbi, int on)
 			conv->reset();
 		if(conv->power)
 			conv->power(1);
-
 		converter_mode_set(conv, &fbi->mode);
 
 		/* workaround to adjust lcd controller clock */
@@ -1356,7 +1355,6 @@ void converter_onoff(struct pxa95xfb_info *fbi, int on)
 		printk(KERN_INFO "converter %s is On\n", conv->name);
 	}else{
 		conv->on = on;
-
 		/* disable mixer to do real conv disable! */
 		mixer_onoff(fbi, 0);
 
@@ -1751,14 +1749,20 @@ static void mixer_onoff(struct pxa95xfb_info *fbi, int on)
 
 	mutex_lock(&mutex_mixer_update[fbi->mixer_id]);
 	x = readl(fbi->reg_base + ctl0_off);
+	/* not root cause issue: sometime mixer value are all 0!!!*/
+	WARN_ON(x == 0);
+	if (x == 0)
+		x = readl(fbi->reg_base + ctl0_off);
 
 	/* check */
 	if ((!!(x & LCD_MIXERx_CTL0_MIX_EN)) == on) {
 		printk(KERN_INFO "mixer%d status %x already %d\n", fbi->mixer_id, x, on);
+		mutex_unlock(&mutex_mixer_update[fbi->mixer_id]);
 		return;
 	}
 	if (on && ((x & LCD_MIXERx_CTL0_ALL_OL_MASK) == LCD_MIXERx_CTL0_ALL_OL_DISABLE)) {
 		printk(KERN_ERR "mixer%d on but all layers are off\n", fbi->mixer_id);
+		mutex_unlock(&mutex_mixer_update[fbi->mixer_id]);
 		return;
 	}
 
@@ -2111,7 +2115,6 @@ u32 lcdc_get_fr_addr(struct pxa95xfb_info *fbi)
 void lcdc_set_lcd_controller(struct pxa95xfb_info *fbi)
 {
 	mutex_lock(&mutex_mixer_update[fbi->mixer_id]);
-
 	/* set fetch registers */
 	set_fetch(fbi);
 
@@ -2122,7 +2125,6 @@ void lcdc_set_lcd_controller(struct pxa95xfb_info *fbi)
 
 	/* set mixer registers */
 	set_mixer(fbi);
-
 	mutex_unlock(&mutex_mixer_update[fbi->mixer_id]);
 }
 
