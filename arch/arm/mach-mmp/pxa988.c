@@ -257,9 +257,9 @@ void __init pxa988_init_irq(void)
 	void __iomem *dist_base = (void __iomem *)GIC_DIST_VIRT_BASE;
 	void __iomem *cpu_base = (void __iomem *)GIC_CPU_VIRT_BASE;
 
-	gic_init(0, 29, dist_base, cpu_base);
+	mmp_wakeupgen_init();
 
-	pxa988_init_gic();
+	gic_init(0, 29, dist_base, cpu_base);
 }
 
 #ifdef CONFIG_CACHE_L2X0
