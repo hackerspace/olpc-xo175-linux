@@ -24,42 +24,24 @@
 
 /* the following defines are for debug */
 #define DVFM_FORCE_PP 1
+
 #define DVFM_FORCE_D2_WAKEUP_SELECT 4
 #define DVFM_FORCE_D2 5
 #define UNDO_FORCE_PP  6
 #define FORCE_C0  7
 #define VCTCXO_FORCE_ON 8
-#define ENABLE_D2_VOLTAGE_CHANGE 9
-#define POWER_DISABLE 13
 
+#define GET_CURRENT_PP 11
+
+#define POWER_DISABLE 13
 #define GET_SUSPEND_STATE 14
 #define FORCE_SUSPEND_STATE 15
 
-#define GET_CURRENT_PP 11
-#define TOGGLE_GPIO    12
-#define RESET_COMM    20
-
-#define DEBUG_REMOVE_PP1_REQ 21
-#define DEBUG_REMOVE_PP2_REQ 22
-#define DEBUG_REMOVE_PP3_REQ 23
-
-#define RUN_AUTO_TEST_SEQ 47
-
-#define DEBUG_DRIVER_UNREGISTER 50
-#define DEBUG_DRIVER_REGISTER 51
-
-#define DEBUG_DRIVER_DISABLE_PP 52
-#define DEBUG_DRIVER_ENABLE_PP 53
-
-#define SET_CPU_LOAD 60
-
-#define GET_REG_VALUE 70
-#define SET_REG_VALUE 71
+#define RESET_COMM 20
 
 #define DEVICE_DRIVER_DISABLE_PP 80
 #define DEVICE_DRIVER_ENABLE_PP 81
 
-#define STRESS_TEST 90
 
 /* Used for testing LPM - "Start" will zero the counters. */
 #define DEBUG_MSPM_START_LPM_DEBUG_COUNT 100

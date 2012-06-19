@@ -3117,106 +3117,66 @@ int update_op_mips_ram(u32 old_pp, u32 new_pp)
 }
 
 #endif
-int dvfm_toggle_gpio(int OnOff)
-{
-	if (OnOff) {
-		/* set gpio high */
-		__raw_writel(0x20000000, (void *)&(__REG(0x40e0001c)));
-	} else {
-		/* setting gpio low */
-		__raw_writel(0x20000000, (void *)&(__REG(0x40e00028)));
-	}
-	return 0;
-}
 
 typedef struct {
 	unsigned long data_arg1;
 	unsigned long data_arg2;
 } data_struct;
-static struct timer_list cpu_load_simulate_timer;
-unsigned int load_cycle_time;
-unsigned int first_call = 1;
 
-static void cpu_simulate_load_cbk(unsigned long data)
-{
-	unsigned int timestamp1, timestamp2;
-	unsigned int load_time = data;
-
-	mod_timer(&cpu_load_simulate_timer, jiffies + load_cycle_time);
-	timestamp1 = __raw_readl((void *)&(__REG(0x40A00040)));
-	timestamp2 = timestamp1;
-
-	while ((timestamp2 - timestamp1) < load_time)
-		timestamp2 = __raw_readl((void *)&(__REG(0x40A00040)));
-
-}
-
-int power_debug_dev_idx;
-int gpio_state;
 long dvfm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	unsigned long val;
-	int disable_idx = -1, rc;
+	int disable_idx = -1, rc, err = 0;
 	struct op_info *p = NULL;
 	struct dvfm_trace_info *ptr = NULL;
-
 	struct dvfm_md_opt new;
-
 	data_struct reg_data;
 
 	switch (cmd) {
-		int err;
 	case DVFM_FORCE_PP:
-		err = copy_from_user(&reg_data, (data_struct *) arg,
-				     sizeof(data_struct));
+		if (copy_from_user(&reg_data, (data_struct *) arg,
+				     sizeof(data_struct)))
+			goto dvfm_ioctl_error;
 		if (reg_data.data_arg1 == UNDO_FORCE_PP) {
 			ForceOP = 0;
-			printk(KERN_WARNING "PP is unforced\n");
+			pr_info("PP is unforced\n");
 		} else {
 			ForceOP = 1;
 			ForcedOPIndex = reg_data.data_arg1;
-			printk(KERN_WARNING "PP is forced to %ld\n",
+			pr_info("PP is forced to %ld\n",
 			       reg_data.data_arg1);
 
 		}
 		break;
 
 	case FORCE_C0:
-		err = copy_from_user(&reg_data, (data_struct *) arg,
-				     sizeof(data_struct));
+		if (copy_from_user(&reg_data, (data_struct *) arg,
+				     sizeof(data_struct)))
+			goto dvfm_ioctl_error;
 		if (reg_data.data_arg1 == 0) {
 			ForceC0 = 0;
-			printk(KERN_WARNING "ForceC0 is unforced\n");
+			pr_info("ForceC0 is unforced\n");
 		} else {
 			ForceC0 = 1;
-			printk(KERN_WARNING "ForceC0 is forced\n");
+			pr_info("ForceC0 is forced\n");
 		}
 		break;
 
 	case VCTCXO_FORCE_ON:
-		err = copy_from_user(&reg_data, (data_struct *) arg,
-				     sizeof(data_struct));
-		if (reg_data.data_arg1)
+		if (copy_from_user(&reg_data, (data_struct *) arg,
+				     sizeof(data_struct)))
+			goto dvfm_ioctl_error;
+		if (reg_data.data_arg1 == 1) {
 			ForceVCTCXO_EN = 1;
-		else
-			ForceVCTCXO_EN = 0;
-		break;
-
-	case ENABLE_D2_VOLTAGE_CHANGE:
-		err = copy_from_user(&reg_data, (data_struct *) arg,
-				     sizeof(data_struct));
-		if (reg_data.data_arg1) {
-			EnableD2VoltageChange = 1;
-			D2voltageLevelValue = reg_data.data_arg1;
-
+			pr_info("ForceVCTCXO_EN is forced\n");
 		} else {
-			EnableD2VoltageChange = 0;
+			ForceVCTCXO_EN = 0;
+			pr_info("ForceVCTCXO_EN is unforced\n");
 		}
-
 		break;
 
 	case DVFM_FORCE_D2:
-		printk(KERN_WARNING "********!!Seting endless D2!!********\n");
+		pr_info("********!!Seting endless D2!!********\n");
 		ForceLPM = PXA9xx_Force_D2;
 		LastForceLPM = PXA9xx_Force_None;
 		ForceLPMWakeup = 0;
@@ -3225,71 +3185,45 @@ long dvfm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case DVFM_FORCE_D2_WAKEUP_SELECT:
 		reg_data.data_arg1 = 0;
 		reg_data.data_arg2 = 0;
-		err = copy_from_user(&reg_data, (data_struct *) arg,
-				     sizeof(data_struct));
-		if (!err) {
-			ForceLPM = PXA9xx_Force_D2;
-			LastForceLPM = PXA9xx_Force_None;
-			ForceLPMWakeup = (unsigned int)reg_data.data_arg1;
+		if (copy_from_user(&reg_data, (data_struct *) arg,
+				     sizeof(data_struct)))
+			goto dvfm_ioctl_error;
+		ForceLPM = PXA9xx_Force_D2;
+		LastForceLPM = PXA9xx_Force_None;
+		ForceLPMWakeup = (unsigned int)reg_data.data_arg1;
 #ifdef CONFIG_DEBUG_FS
-			printk(KERN_WARNING "Next LPM is %s,\t next LPM source"
-			       "wakeups is 0x%x\n",
-			       pxa9xx_force_lpm_names__[(unsigned long)
-							ForceLPM],
-			       ForceLPMWakeup);
+		pr_info("Next LPM is %s,\t next LPM source"
+		       "wakeups is 0x%x\n",
+		       pxa9xx_force_lpm_names__[(unsigned long)
+		       ForceLPM],
+		       ForceLPMWakeup);
 #endif
-		} else
-			printk(KERN_WARNING "Wrong paremter size\n");
 		break;
 
 	case GET_CURRENT_PP:
-		printk(KERN_WARNING "current PP is %d\n", cur_op);
+		pr_info("current PP is %d\n", cur_op);
 		val = __raw_readl((void *)&ACSR);
-		printk(KERN_WARNING "ACSR value is 0x%x\n", (unsigned int)val);
+		pr_info("ACSR value is 0x%x\n", (unsigned int)val);
 		val = __raw_readl((void *)&(__REG(0x4134000C)));
-		printk(KERN_WARNING "D0CKEN_A value is 0x%x\n",
+		pr_info("D0CKEN_A value is 0x%x\n",
 		       (unsigned int)val);
 		val = __raw_readl((void *)&(__REG(0x41340010)));
-		printk(KERN_WARNING "D0CKEN_B value is 0x%x\n",
+		pr_info("D0CKEN_B value is 0x%x\n",
 		       (unsigned int)val);
 		val = __raw_readl((void *)&(__REG(0x41340024)));
-		printk(KERN_WARNING "D0CKEN_C value is 0x%x\n",
+		pr_info("D0CKEN_C value is 0x%x\n",
 		       (unsigned int)val);
 		list_for_each_entry(p, &pxa95x_dvfm_op_list.list, list) {
 			memcpy(&new, (struct dvfm_md_opt *)p->op,
 			       sizeof(struct dvfm_md_opt));
-			printk(KERN_WARNING "PP index number %d is %s and it"
+			pr_info("PP index number %d is %s and it"
 			       "constrain status is 0x%0llx\n",
 			       p->index, new.name, p->device);
 
 		}
 		list_for_each_entry(ptr, &dvfm_trace_list.list, list) {
-			printk(KERN_WARNING "device index %d is %s\n",
+			pr_info("device index %d is %s\n",
 			       ptr->index, ptr->name);
-		}
-
-		break;
-	case TOGGLE_GPIO:
-		/* setting MFPR configuration to alternate function 0 */
-		val = __raw_readl((void *)&(__REG(0x40e102b0)));
-		val &= 0xfffffff8;
-		__raw_writel(val, (void *)&(__REG(0x40e102b0)));
-
-		/* setting GSDR3 to configure gpio 61 as output */
-		val = __raw_readl((void *)&(__REG(0x40e0010C)));
-		__raw_writel(0x20000000, (void *)&(__REG(0x40e00404)));
-		val = __raw_readl((void *)&(__REG(0x40e0010C)));
-		printk(KERN_WARNING "MFPR value is 0x%x\n", (unsigned int)val);
-
-		/* setting GPSR3,GPCR3 to set the data of the pin to 1<->0 */
-		if (gpio_state) {
-			/* set gpio high */
-			dvfm_toggle_gpio(1);
-			gpio_state = 0;
-		} else {
-			/* set gpio low */
-			dvfm_toggle_gpio(0);
-			gpio_state = 1;
 		}
 		break;
 
@@ -3300,25 +3234,28 @@ long dvfm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		__raw_writel(val, (void *)&(__REG(0x40f5001c)));
 		rc = dvfm_find_index("ACIPC", &disable_idx);
 		if (rc != 0) {
-			printk(KERN_ERR "%s (%d) failed get ACIPC index from"
+			pr_err("%s (%d) failed get ACIPC index from"
 			       "table rc = %d\n", __func__, __LINE__, rc);
 			BUG_ON(1);
+			err = -EFAULT;
 			break;
 		}
 		dvfm_enable_op_name_no_change("D2", disable_idx);
 		rc = dvfm_find_index("SHMEM", &disable_idx);
 		if (rc != 0) {
-			printk(KERN_ERR "%s (%d) failed get SHMEM index from"
+			pr_err("%s (%d) failed get SHMEM index from"
 			       "table rc = %d\n", __func__, __LINE__, rc);
 			BUG_ON(1);
+			err = -EFAULT;
 			break;
 		}
 		dvfm_enable_op_name_no_change("D2", disable_idx);
 		break;
 
 	case POWER_DISABLE:
-		err = copy_from_user(&reg_data, (data_struct *) arg,
-				     sizeof(data_struct));
+		if (copy_from_user(&reg_data, (data_struct *) arg,
+				     sizeof(data_struct)))
+			goto dvfm_ioctl_error;
 		if (reg_data.data_arg1 == 1)
 			PowerDisabled = 1;
 		else
@@ -3329,139 +3266,73 @@ long dvfm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			DvfmDisabled = 0;
 		break;
 
-	case DEBUG_DRIVER_REGISTER:
-		dvfm_register("POWER_DEBUG", &power_debug_dev_idx);
-		break;
-	case DEBUG_DRIVER_UNREGISTER:
-		dvfm_unregister("POWER_DEBUG", &power_debug_dev_idx);
-		break;
-
-	case DEBUG_REMOVE_PP1_REQ:
-		dvfm_enable_op(1, power_debug_dev_idx);
-		break;
-
-	case DEBUG_REMOVE_PP3_REQ:
-		dvfm_enable_op(2, power_debug_dev_idx);
-		dvfm_enable_op(1, power_debug_dev_idx);
-		dvfm_enable_op(0, power_debug_dev_idx);
-		break;
-	case DEBUG_REMOVE_PP2_REQ:
-		dvfm_enable_op(1, power_debug_dev_idx);
-		dvfm_enable_op(0, power_debug_dev_idx);
-		break;
-	case STRESS_TEST:
-		err = copy_from_user(&reg_data, (data_struct *) arg,
-				     sizeof(data_struct));
-		dvfm_disable_op(reg_data.data_arg1, power_debug_dev_idx);
-		dvfm_enable_op(reg_data.data_arg1, power_debug_dev_idx);
-		break;
-
-	case DEBUG_DRIVER_DISABLE_PP:
-		err = copy_from_user(&reg_data, (data_struct *) arg,
-				     sizeof(data_struct));
-		dvfm_disable_op(reg_data.data_arg1, power_debug_dev_idx);
-		break;
-
-	case DEBUG_DRIVER_ENABLE_PP:
-		err = copy_from_user(&reg_data, (data_struct *) arg,
-				     sizeof(data_struct));
-		dvfm_enable_op(reg_data.data_arg1, power_debug_dev_idx);
-		break;
-
 	case DEVICE_DRIVER_DISABLE_PP:
-		err = copy_from_user(&reg_data, (data_struct *) arg,
-				     sizeof(data_struct));
+		if (copy_from_user(&reg_data, (data_struct *) arg,
+				     sizeof(data_struct)))
+			goto dvfm_ioctl_error;
 		dvfm_disable_op(reg_data.data_arg1, reg_data.data_arg2);
 		break;
 
 	case DEVICE_DRIVER_ENABLE_PP:
-		err = copy_from_user(&reg_data, (data_struct *) arg,
-				     sizeof(data_struct));
+		if (copy_from_user(&reg_data, (data_struct *) arg,
+				     sizeof(data_struct)))
+			goto dvfm_ioctl_error;
 		dvfm_enable_op(reg_data.data_arg1, reg_data.data_arg2);
 		break;
 
-	case GET_REG_VALUE:
-		err = copy_from_user(&reg_data, (data_struct *) arg,
-				     sizeof(data_struct));
-		reg_data.data_arg2 = __raw_readl((void *)
-						 &(__REG(reg_data.data_arg1)));
-		err =
-		    copy_to_user((data_struct *) arg, &reg_data,
-				 sizeof(data_struct));
-		break;
-	case SET_REG_VALUE:
-		err = copy_from_user(&reg_data, (data_struct *) arg,
-				     sizeof(data_struct));
-		__raw_writel(reg_data.data_arg2,
-			     (void *)&(__REG(reg_data.data_arg1)));
-		err = copy_to_user((data_struct *) arg, &reg_data,
-				   sizeof(data_struct));
-		break;
-	case SET_CPU_LOAD:
-		err = copy_from_user(&reg_data, (data_struct *) arg,
-				     sizeof(data_struct));
-		if (!first_call)
-			del_timer_sync(&cpu_load_simulate_timer);
-		first_call = 0;
-		init_timer(&cpu_load_simulate_timer);
-		cpu_load_simulate_timer.function = cpu_simulate_load_cbk;
-		/* calculating the load time in 32Khz clocks. */
-		cpu_load_simulate_timer.data = (reg_data.data_arg1 *
-						reg_data.data_arg2) / 100;
-		/* turning 32Khz ticks into jiffies */
-		load_cycle_time =
-		    pxa95x_ticks_to_msec(msecs_to_jiffies(reg_data.data_arg2));
-		printk(KERN_WARNING "setting cpu simulation. percentege is %ld,"
-		       "cycle time is %d\n", cpu_load_simulate_timer.data,
-		       load_cycle_time);
-		mod_timer(&cpu_load_simulate_timer, jiffies + load_cycle_time);
-		break;
-
-		/* Zero all the counters for debugging LPM Task. Set the offset
-		 * to the latest value */
 	case DEBUG_MSPM_START_LPM_DEBUG_COUNT:
 		memcpy(&DVFMLPMGlobalCountOffset, &DVFMLPMGlobalCount,
 		       sizeof(DVFMLPMGlobalCountOffset));
-		printk("DVFM Counters Reset: D2=%lu CGM=%lu\n",
+		pr_info("DVFM Counters Reset: D2=%lu CGM=%lu\n",
 		       DVFMLPMGlobalCountOffset.D2_Enter_Exit_count,
 		       DVFMLPMGlobalCountOffset.CGM_Enter_Exit_count);
 		break;
-		/*Print the Counters */
+
 	case DEBUG_MSPM_GET_LPM_DEBUG_COUNT:
-		printk("DVFM Counters: D2=%lu CGM=%lu D0C1_Enter_count=%lu\n",
+		pr_info("DVFM Counters: D2=%lu CGM=%lu D0C1_Enter_count=%lu\n",
 		       DVFMLPMGlobalCount.D2_Enter_Exit_count -
 		       DVFMLPMGlobalCountOffset.D2_Enter_Exit_count,
 		       DVFMLPMGlobalCount.CGM_Enter_Exit_count -
 		       DVFMLPMGlobalCountOffset.CGM_Enter_Exit_count,
 		       DVFMLPMGlobalCount.D0C1_Enter_count);
 		break;
+
 	case FORCE_LPM:
-		err = copy_from_user(&reg_data, (data_struct *) arg,
-				     sizeof(data_struct));
-		if (!err) {
-			if (reg_data.data_arg1 <
-			    ((unsigned long)PXA9xx_Force_count)) {
-				ForceLPM = (enum pxa9xx_force_lpm)
-				    reg_data.data_arg1;
-				LastForceLPM = PXA9xx_Force_None;
-				ForceLPMWakeup = reg_data.data_arg2;
+		if (copy_from_user(&reg_data, (data_struct *) arg,
+				     sizeof(data_struct)))
+			goto dvfm_ioctl_error;
+		if (reg_data.data_arg1 < ((unsigned long)PXA9xx_Force_count)) {
+			ForceLPM = (enum pxa9xx_force_lpm)reg_data.data_arg1;
+			LastForceLPM = PXA9xx_Force_None;
+			ForceLPMWakeup = reg_data.data_arg2;
 #ifdef CONFIG_DEBUG_FS
-				printk(KERN_WARNING "Next LPM is %s,\t next LPM"
-				       "source wakeups is 0x%x\n",
-				       pxa9xx_force_lpm_names__[(unsigned int)
-								ForceLPM],
-				       ForceLPMWakeup);
+			pr_info("Next LPM is %s,\t next LPM"
+				"source wakeups is 0x%x\n",
+				pxa9xx_force_lpm_names__[(unsigned int)
+				ForceLPM],
+				ForceLPMWakeup);
 #endif
-			} else {
-				printk(KERN_ERR "[0x%x,0x%x]Unrecognize LPM\n",
-				       (unsigned int)reg_data.data_arg1,
-				       (unsigned int)reg_data.data_arg2);
-			}
-		} else
-			printk(KERN_ERR "Wrong paremeter size\n");
+		} else {
+			pr_err("[0x%x,0x%x]Unrecognize LPM\n",
+			       (unsigned int)reg_data.data_arg1,
+			       (unsigned int)reg_data.data_arg2);
+			err = -EINVAL;
+		}
 		break;
+
+	default:
+		err = -EINVAL;
+		pr_err("%s:%s wrong cmd=%d\n", __FILE__, __func__, cmd);
+		BUG_ON(1);
 	}
-	return 0;
+
+	return err;
+
+dvfm_ioctl_error:
+	err = -EFAULT;
+	pr_err("%s:%s copy_from_user() failed, cmd=%d\n",
+	       __FILE__, __func__, cmd);
+	return err;
 }
 
 static const struct file_operations dvfm_fops = {
