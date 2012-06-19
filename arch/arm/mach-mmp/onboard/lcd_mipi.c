@@ -12,6 +12,7 @@
 #include <mach/pxa168fb.h>
 #include <mach/mmp2_plat_ver.h>
 
+#ifdef CONFIG_MACH_ABILENE
 static struct fb_videomode video_modes_abilene[] = {
 	[0] = {
 		/* panel refresh rate should <= 55(Hz) */
@@ -27,7 +28,9 @@ static struct fb_videomode video_modes_abilene[] = {
 		.sync = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
 		},
 };
+#endif
 
+#ifdef CONFIG_MACH_YELLOWSTONE
 static struct fb_videomode video_modes_yellowstone[] = {
 	[0] = {
 		 /* panel refresh rate should <= 55(Hz) */
@@ -43,7 +46,9 @@ static struct fb_videomode video_modes_yellowstone[] = {
 		.sync = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
 		},
 };
+#endif
 
+#ifdef CONFIG_MACH_ORCHID
 static struct fb_videomode video_modes_orchid[] = {
 	[0] = {
 		 /* panel refresh rate should <= 55(Hz) */
@@ -59,7 +64,9 @@ static struct fb_videomode video_modes_orchid[] = {
 		.sync = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
 		},
 };
+#endif
 
+#ifdef CONFIG_MACH_MK2
 static struct fb_videomode video_modes_mk2[] = {
 	[0] = {
 		.refresh = 60,
@@ -74,11 +81,13 @@ static struct fb_videomode video_modes_mk2[] = {
 		.sync = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
 		},
 };
+#endif
 
+#ifdef CONFIG_MACH_EMEIDKB
 static struct fb_videomode video_modes_emeidkb[] = {
 	[0] = {
 		 /* panel refresh rate should <= 55(Hz) */
-		.refresh = 55,
+		.refresh = 50,
 		.xres = 540,
 		.yres = 960,
 		.hsync_len = 2,
@@ -90,7 +99,9 @@ static struct fb_videomode video_modes_emeidkb[] = {
 		.sync = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
 		},
 };
+#endif
 
+#ifdef CONFIG_MACH_ABILENE
 static int abilene_lvds_power(struct pxa168fb_info *fbi,
 				unsigned int spi_gpio_cs,
 				unsigned int spi_gpio_reset, int on)
@@ -147,7 +158,9 @@ static int abilene_lvds_power(struct pxa168fb_info *fbi,
 	pr_debug("%s on %d\n", __func__, on);
 	return 0;
 }
+#endif
 
+#ifdef CONFIG_MACH_YELLOWSTONE
 static int yellowstone_lvds_power(struct pxa168fb_info *fbi,
 			     unsigned int spi_gpio_cs,
 			     unsigned int spi_gpio_reset, int on)
@@ -204,7 +217,9 @@ static int yellowstone_lvds_power(struct pxa168fb_info *fbi,
 	pr_debug("%s on %d\n", __func__, on);
 	return 0;
 }
+#endif
 
+#ifdef CONFIG_MACH_ORCHID
 static int orchid_lcd_power(struct pxa168fb_info *fbi,
 			     unsigned int spi_gpio_cs,
 			     unsigned int spi_gpio_reset, int on)
@@ -276,7 +291,9 @@ regu_lcd_avdd:
 
 	return -EIO;
 }
+#endif
 
+#ifdef CONFIG_MACH_EMEIDKB
 static int emeidkb_lcd_power(struct pxa168fb_info *fbi,
 			     unsigned int spi_gpio_cs,
 			     unsigned int spi_gpio_reset, int on)
@@ -349,7 +366,10 @@ regu_lcd_iovdd:
 
 	return -EIO;
 }
+#endif
 
+#if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_YELLOWSTONE) \
+	|| defined(CONFIG_MACH_MK2)
 static struct lvds_info lvdsinfo = {
 	.src	= LVDS_SRC_PN,
 	.fmt	= LVDS_FMT_18BIT,
@@ -368,7 +388,11 @@ static void lvds_hook(struct pxa168fb_mach_info *mi)
 	else if (machine_is_abilene())
 		mi->pxa168fb_lcd_power = abilene_lvds_power;
 }
+#endif
 
+#if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_YELLOWSTONE) \
+	|| defined(CONFIG_MACH_MK2) || defined(CONFIG_MACH_ORCHID) \
+	|| defined(CONFIG_MACH_EMEIDKB)
 static void dither_config(struct pxa168fb_mach_info *mi)
 {
 	struct lvds_info *lvds;
@@ -398,6 +422,7 @@ static void dither_config(struct pxa168fb_mach_info *mi)
 			mi->dither_mode = DITHER_MODE_RGB444;
 	}
 }
+#endif
 
 /*
  * dsi bpp : rgb_mode
@@ -414,6 +439,7 @@ static struct dsi_info dsiinfo = {
 	.hfp_en = 1,
 };
 
+#ifdef CONFIG_MACH_ORCHID
 static struct dsi_info orchid_dsiinfo = {
 	.id = 2,
 	.lanes = 2,
@@ -423,7 +449,9 @@ static struct dsi_info orchid_dsiinfo = {
 	.hbp_en = 1,
 	.hfp_en = 1,
 };
+#endif
 
+#ifdef CONFIG_MACH_EMEIDKB
 /* emeidkb: only DSI1 and use lane0,lane1 */
 static struct dsi_info emeidkb_dsiinfo = {
 	.id = 1,
@@ -434,7 +462,9 @@ static struct dsi_info emeidkb_dsiinfo = {
 	.hbp_en = 1,
 	.hfp_en = 1,
 };
+#endif
 
+#ifdef CONFIG_TC35876X
 static int tc358765_reset(struct pxa168fb_info *fbi)
 {
 	int gpio;
@@ -526,7 +556,6 @@ static void tc358765_dump(void)
 static int dsi_set_tc358765(struct pxa168fb_info *fbi)
 {
 	int status;
-#ifdef CONFIG_TC35876X
 	struct fb_var_screeninfo *var = &(fbi->fb_info->var);
 	struct dsi_info *di = &dsiinfo;
 	u16 chip_id = 0;
@@ -591,10 +620,11 @@ static int dsi_set_tc358765(struct pxa168fb_info *fbi)
 
 	/* dump register value */
 	tc358765_dump();
-#endif
 	return 0;
 }
+#endif
 
+#if defined(CONFIG_MACH_ORCHID) || defined(CONFIG_MACH_EMEIDKB)
 static void panel_init_config(struct pxa168fb_info *fbi)
 {
 	enum dsi_packet_di data_type;
@@ -610,7 +640,9 @@ static void panel_init_config(struct pxa168fb_info *fbi)
 	dcs = DSI_DCS_DISPLAY_ON;
 	dsi_send_cmd(fbi, data_type, dcs, 0);
 }
+#endif
 
+#ifdef CONFIG_MACH_BROWNSTONE
 static int lcd_twsi5_set(int en)
 {
 	int gpio;
@@ -646,7 +678,9 @@ static int lcd_twsi5_set(int en)
 	}
 	return 0;
 }
+#endif
 
+#if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_YELLOWSTONE)
 static int backlight_pwm_set(int en)
 {
 	int gpio;
@@ -743,7 +777,9 @@ static int abilene_lcd_power(struct pxa168fb_info *fbi,
 	printk(KERN_DEBUG "%s on %d\n", __func__, on);
 	return 0;
 }
+#endif
 
+#ifdef CONFIG_MACH_MK2
 static int  mk2_lcd_power_en(int on)
 {
 	int vlcd_3v3_en;
@@ -847,6 +883,7 @@ gpio_req_bl_en:
 	gpio_free(mipi_rst);
 	return -EIO;
 }
+#endif
 
 static int dsi_init(struct pxa168fb_info *fbi)
 {
@@ -897,6 +934,9 @@ static int dsi_init(struct pxa168fb_info *fbi)
 	return 0;
 }
 
+#if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_YELLOWSTONE) \
+	|| defined(CONFIG_MACH_MK2) || defined(CONFIG_MACH_ORCHID) \
+	|| defined(CONFIG_MACH_EMEIDKB)
 static struct pxa168fb_mach_info mipi_lcd_info = {
 	.id = "GFX Layer",
 	.num_modes = 0,
@@ -924,10 +964,11 @@ static struct pxa168fb_mach_info mipi_lcd_info = {
 	.max_fb_size = 0,
 	.phy_type = DSI2DPI,
 	.phy_init = dsi_init,
+#ifdef CONFIG_TC35876X
 	.dsi2dpi_set = dsi_set_tc358765,
 	.xcvr_reset = tc358765_reset,
+#endif
 	.phy_info = &dsiinfo,
-	.pxa168fb_lcd_power = &abilene_lcd_power,
 	.sclk_src = 520000000,
 };
 
@@ -1056,7 +1097,11 @@ static void calculate_lcd_sclk(struct pxa168fb_mach_info *mi)
 	else
 		return;
 }
+#endif
 
+#if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_YELLOWSTONE) \
+	|| defined(CONFIG_MACH_MK2) || defined(CONFIG_MACH_ORCHID) \
+	|| defined(CONFIG_MACH_BROWNSTONE)
 static void vsmooth_init(int vsmooth_ch, int filter_ch)
 {
 #ifdef CONFIG_PXA688_MISC
@@ -1069,6 +1114,7 @@ static void vsmooth_init(int vsmooth_ch, int filter_ch)
 	fb_vsmooth = vsmooth_ch; fb_filter = filter_ch;
 #endif
 }
+#endif
 
 #define DDR_MEM_CTRL_BASE 0xD0000000
 #define SDRAM_CONFIG_TYPE1_CS0 0x20	/* MMP3 */
@@ -1090,6 +1136,7 @@ void __init abilene_add_lcd_mipi(void)
 	ovly->num_modes = fb->num_modes;
 	ovly->modes = fb->modes;
 	ovly->max_fb_size = fb->max_fb_size;
+	fb->pxa168fb_lcd_power = &abilene_lcd_power;
 
 	/* FIXME: select DSI2LVDS by default on abilene. */
 	lvds_en = 0;
@@ -1158,6 +1205,7 @@ void __init yellowstone_add_lcd_mipi(void)
 	ovly->num_modes = fb->num_modes;
 	ovly->modes = fb->modes;
 	ovly->max_fb_size = fb->max_fb_size;
+	fb->pxa168fb_lcd_power = &abilene_lcd_power;
 
 	if (cpu_is_mmp3_b0()) {
 		lvds_hook(fb);
@@ -1360,6 +1408,7 @@ void __init emeidkb_add_lcd_mipi(void)
 	dsi->master_mode = 1;
 	dsi->hfp_en = 0;
 
+	dither_config(fb);
 	/*
 	 * Re-calculate lcd clk source and divider
 	 * according to dsi lanes and output format.
