@@ -51,6 +51,15 @@ config TOUCHSCREEN_FT5306
 	help
 	  Say Y here if enable support for the FT5306 touchscreen controller.
 
+config TOUCHSCREEN_FT5X06
+	tristate "FT5x06 Touchscreen interface support"
+	depends on I2C
+	help
+	  Say Y here if enable support for the FT5x06 touchscreen controller.
+
+	  This driver support 5 points multi-touch and follow the android
+	  convention to support virtual keys.
+
 config TOUCHSCREEN_ELAN
 	bool "ELAN Touchscreen interface support"
 	depends on I2C
