@@ -25,7 +25,7 @@
 #include <linux/proc_fs.h>
 #include <linux/notifier.h>
 #include <linux/reboot.h>
-#include <linux/i2c/ft5306_touch.h>
+#include <linux/i2c/ft5x06_touch.h>
 #include <linux/power_supply.h>
 
 #include <asm/mach-types.h>
@@ -618,21 +618,21 @@ static struct pm80x_vibrator_pdata vibrator_pdata = {
 	.vibrator_power = vibrator_set_power,
 };
 
-#if defined(CONFIG_TOUCHSCREEN_FT5306)
-static int ft5306_touch_io_power_onoff(int on)
+#if defined(CONFIG_TOUCHSCREEN_FT5X06)
+static int ft5x06_touch_io_power_onoff(int on)
 {
 	/* touch power is LDO8, it's shared by LCD and Sensors, it is on */
 	return 0;
 }
 
-static void ft5306_touch_reset(void)
+static void ft5x06_touch_reset(void)
 {
 	unsigned int touch_reset;
 
 	touch_reset = mfp_to_gpio(MFP_PIN_GPIO127);
 
-	if (gpio_request(touch_reset, "ft5306_reset")) {
-		pr_err("Failed to request GPIO for ft5306_reset pin!\n");
+	if (gpio_request(touch_reset, "ft5x06_reset")) {
+		pr_err("Failed to request GPIO for ft5x06_reset pin!\n");
 		goto out;
 	}
 
@@ -642,55 +642,70 @@ static void ft5306_touch_reset(void)
 	msleep(5);
 	gpio_direction_output(touch_reset, 1);
 	msleep(300);
-	printk(KERN_INFO "ft5306_touch reset done.\n");
+	printk(KERN_INFO "ft5x06_touch reset done.\n");
 	gpio_free(touch_reset);
 out:
 	return;
 }
 
-static u32 ft5306_virtual_key_code[4] = {
-	KEY_MENU,
-	KEY_HOMEPAGE,
-	KEY_BACK,
-	KEY_SEARCH,
-};
-
-static u32 ft5306_get_virtual_key(u16 x_pos, u16 y_pos, u16 x_max, u16 y_max)
+#define VIRT_KEYS(x...)  __stringify(x)
+static ssize_t virtual_keys_show(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buf)
 {
-	int unit = (x_max / 13);
-
-	if ((unit < x_pos) && (x_pos < 3 * unit))
-		return ft5306_virtual_key_code[0];
-	else if ((4 * unit < x_pos) && (x_pos < 6 * unit))
-		return ft5306_virtual_key_code[1];
-	else if ((7 * unit < x_pos) && (x_pos < 9 * unit))
-		return ft5306_virtual_key_code[2];
-	else if ((10 * unit < x_pos) && (x_pos < 13 * unit))
-		return ft5306_virtual_key_code[3];
-	else
-		return KEY_RESERVED;
+	return sprintf(buf,
+		VIRT_KEYS(EV_KEY) ":" VIRT_KEYS(KEY_MENU)
+		":60:850:120:100" ":"
+		VIRT_KEYS(EV_KEY) ":" VIRT_KEYS(KEY_HOMEPAGE)
+		":180:850:120:100" ":"
+		VIRT_KEYS(EV_KEY) ":" VIRT_KEYS(KEY_BACK)
+		":300:850:120:100" ":"
+		VIRT_KEYS(EV_KEY) ":" VIRT_KEYS(KEY_SEARCH)
+		":420:850:120:100\n");
 }
 
-static int ft5306_set_virtual_key(struct input_dev *idev)
+static struct kobj_attribute virtual_keys_attr = {
+	.attr = {
+		.name = "virtualkeys.ft5x06-ts",
+		.mode = S_IRUGO,
+	},
+	.show = &virtual_keys_show,
+};
+
+static struct attribute *props_attrs[] = {
+	&virtual_keys_attr.attr,
+	NULL
+};
+
+static struct attribute_group props_attr_group = {
+	.attrs = props_attrs,
+};
+
+static int ft5x06_set_virtual_key(struct input_dev *input_dev)
 {
-	__set_bit(EV_KEY, idev->evbit);
-	__set_bit(KEY_MENU, idev->keybit);
-	__set_bit(KEY_HOMEPAGE, idev->keybit);
-	__set_bit(KEY_BACK, idev->keybit);
-	__set_bit(KEY_SEARCH, idev->keybit);
+	struct kobject *props_kobj;
+	int ret = 0;
+
+	__set_bit(EV_KEY, input_dev->evbit);
+	__set_bit(KEY_MENU, input_dev->keybit);
+	__set_bit(KEY_HOMEPAGE, input_dev->keybit);
+	__set_bit(KEY_BACK, input_dev->keybit);
+	__set_bit(KEY_SEARCH, input_dev->keybit);
+
+	props_kobj = kobject_create_and_add("board_properties", NULL);
+	if (props_kobj)
+		ret = sysfs_create_group(props_kobj, &props_attr_group);
+	if (!props_kobj || ret)
+		printk(KERN_ERR "failed to create board_properties\n");
 
 	return 0;
 }
 
-static struct ft5306_touch_platform_data ft5306_touch_data = {
-	.power = ft5306_touch_io_power_onoff,
-	.reset = ft5306_touch_reset,
-	.keypad = ft5306_get_virtual_key, /* get virtual key code */
+static struct ft5x06_touch_platform_data ft5x06_touch_data = {
+	.power = ft5x06_touch_io_power_onoff,
+	.reset = ft5x06_touch_reset,
 	.abs_x_max = 480,
 	.abs_y_max = 800,
-	.abs_flag = 0,
-	.virtual_key = 1,	/* enable virtual key for android */
-	.set_virtual_key = ft5306_set_virtual_key,
+	.set_virtual_key = ft5x06_set_virtual_key,
 };
 #endif
 
@@ -725,11 +740,11 @@ static struct i2c_board_info i2c2_info_DKB[] = {
 		.irq           = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO110)),
 	},
 #endif
-#if defined(CONFIG_TOUCHSCREEN_FT5306)
+#if defined(CONFIG_TOUCHSCREEN_FT5X06)
 	{
-		I2C_BOARD_INFO("ft5306_touch", 0x3D),
+		I2C_BOARD_INFO("ft5x06_touch", 0x3D),
 		.irq           = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO130)),
-		.platform_data = &ft5306_touch_data,
+		.platform_data = &ft5x06_touch_data,
 	},
 #endif
 #if defined(CONFIG_LEDS_LM3530)
@@ -821,7 +836,7 @@ static struct i2c_pxa_platform_data i2c1_pdata = {
 
 static struct i2c_pxa_platform_data i2c2_pdata = {
 	.use_pio	= 0,
-	.flags		= PXA_I2C_FAST_MODE | PXA_I2C_USING_FIFO_PIO_MODE,
+	.flags		= PXA_I2C_STANDARD_MODE | PXA_I2C_USING_FIFO_PIO_MODE,
 };
 
 static struct i2c_pxa_platform_data i2c3_pdata = {
