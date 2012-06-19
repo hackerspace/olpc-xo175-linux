@@ -142,4 +142,14 @@ config UIO_PRUSS
 	  To compile this driver as a module, choose M here: the module
 	  will be called uio_pruss.
 
+config UIO_CODA7542
+	tristate "CODA7542 UIO device driver"
+	depends on UIO
+	default n
+	help
+	  Userspace IO interface to the Chip&Media multi-format video
+	  decoder engine.
+
+	  If you compile this as a module, it will be called uio_coda7542.
+
 endif
