@@ -42,6 +42,39 @@ extern void pxa988_clear_keypad_wakeup(void);
 
 extern struct platform_device pxa988_device_udc;
 
+#define IOPWRDOM_VIRT_BASE	(APB_VIRT_BASE + 0x1e800)
+#define AIB_MMC1_IO_REG		0x1c
+#define MMC1_PAD_1V8		(0x1 << 2)
+#define MMC1_PAD_2V5		(0x2 << 2)
+#define MMC1_PAD_3V3		(0x0 << 2)
+#define MMC1_PAD_MASK		(0x3 << 2)
+#define PAD_POWERDOWNn		(1 << 0)
+static inline void pxa988_aib_mmc1_iodomain(int vol)
+{
+	u32 tmp;
+
+	writel(AKEY_ASFAR, APBC_PXA988_ASFAR);
+	writel(AKEY_ASSAR, APBC_PXA988_ASSAR);
+	tmp = readl(IOPWRDOM_VIRT_BASE + AIB_MMC1_IO_REG);
+
+	/* 0= power down, only set power down when vol = 0 */
+	tmp |= PAD_POWERDOWNn;
+
+	tmp &= ~MMC1_PAD_MASK;
+	if (vol >= 2800000)
+		tmp |= MMC1_PAD_3V3;
+	else if (vol >= 2300000)
+		tmp |= MMC1_PAD_2V5;
+	else if (vol >= 1200000)
+		tmp |= MMC1_PAD_1V8;
+	else if (vol == 0)
+		tmp &= ~PAD_POWERDOWNn;
+
+	writel(AKEY_ASFAR, APBC_PXA988_ASFAR);
+	writel(AKEY_ASSAR, APBC_PXA988_ASSAR);
+	writel(tmp, IOPWRDOM_VIRT_BASE + AIB_MMC1_IO_REG);
+}
+
 static inline int pxa988_add_uart(int id)
 {
 	struct pxa_device_desc *d = NULL;
