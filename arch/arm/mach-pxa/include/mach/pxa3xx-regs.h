@@ -126,8 +126,10 @@
 #define AD3R		__REG(0x40f40030)	/* Application Subsystem D3 Configuration */
 #define AD2R		__REG(0x40f40034)	/* Application Subsystem D2 Configuration */
 #define AD1R		__REG(0x40f40038)	/* Application Subsystem D1 Configuration */
-#define ACGD0ER		__REG(0x40F40040)	/* Application Subsystem CG to D0 state Wakeup Status Register */
+#define ACGD0ER		__REG(0x40F40040)	/* Application Subsystem CG to D0 state Wakeup Enable Register */
 #define ACGD0SR		__REG(0x40F40044)	/* Application Subsystem CG to D0 state Wakeup Status Register */
+#define ACGD0ER2	__REG(0x40F40048)	/* Application Subsystem CG to D0 state Wakeup Enable Register 2 */
+#define ACGD0SR2	__REG(0x40F4004C)	/* Application Subsystem CG to D0 state Wakeup Status Register 2 */
 #define PWRMODE		__REG(0x40F40080)	/* Application Subsystem Power Mode Register */
 #define CPUPWR		__REG(0x40F40084)	/* Application Subsystem CPU Power Mode Register */
 #define VMPWR		__REG(0x40F40090)	/* Application Subsystem VMeta Power Mode Register */

@@ -121,9 +121,14 @@ unsigned int ckenb_rsvd_bit_mask;
 unsigned int ckenc_rsvd_bit_mask;
 static void cken_rsvd_bit_mask_setup(void)
 {
-	if (cpu_is_pxa978()) {
+	if (cpu_is_pxa978_Dx()) {
 		ckena_rsvd_bit_mask = 0x00000001;
 		ckenb_rsvd_bit_mask = 0x97FCF040;
+		ckenc_rsvd_bit_mask = 0x00000000;
+	} else if (cpu_is_pxa978()) {
+		ckena_rsvd_bit_mask = 0x00000001;
+		ckenb_rsvd_bit_mask = 0x97FCF040;
+		/* WR: temperarily not clock off LCD clocks */
 		ckenc_rsvd_bit_mask = 0x00C00000;
 	} else {
 		ckena_rsvd_bit_mask = 0x00080001;
@@ -431,6 +436,8 @@ static void pm_clear_wakeup_src(pm_wakeup_src_t src)
 		wakeup_ops->eth(src, 0);
 	if (wakeup_ops->tsi)
 		wakeup_ops->tsi(src, 0);
+	if (wakeup_ops->display)
+		wakeup_ops->display(src, 0);
 }
 
 static void pm_select_wakeup_src(enum pxa95x_pm_mode lp_mode,
@@ -454,6 +461,8 @@ static void pm_select_wakeup_src(enum pxa95x_pm_mode lp_mode,
 		reg_src |= wakeup_ops->eth(src, 1);
 	if (wakeup_ops->tsi)
 		reg_src |= wakeup_ops->tsi(src, 1);
+	if (wakeup_ops->display)
+		reg_src |= wakeup_ops->display(src, 1);
 	if (src.bits.rtc) {
 		reg_src |= PXA95x_PM_WE_RTC;
 	}
@@ -515,6 +524,10 @@ static void pm_select_wakeup_src(enum pxa95x_pm_mode lp_mode,
 		ACGD0SR = 0xFFFFFFFF;
 		/* add the interrupt and dmemc wakeup event */
 		ACGD0ER = reg_src | PXA95x_PM_WE_INTC | PXA95x_PM_WE_DMC;
+		if (cpu_is_pxa978_Dx()) {
+			ACGD0SR2 = 0xFFFFFFFF;
+			ACGD0ER2 = (PXA95x_PM_WE_DIS) | (PXA95x_PM_WE_PAR);
+		}
 	}
 }
 
@@ -560,6 +573,21 @@ static unsigned int pm_query_wakeup_src(void)
 			}
 			break;
 		}
+	} else if (cpu_is_pxa978_Dx() && (ASCR & 0x10)) {
+		unsigned int temp;
+		temp = ASCR & 0x10;
+		ASCR = temp;
+		/* check clock gate mode wakeup source of Nevo D0*/
+		temp = ACGD0SR2;
+		ACGD0SR2 = temp;
+		if (temp) {
+			waked.bits.display = 1;
+			pr_debug("Wakeup from CGM by display 0x%08x.\n", temp);
+		}
+		data = ACGD0SR;
+		ACGD0SR = data;
+		if (wakeup_ops->query)
+			wakeup_ops->query(data, &waked);
 	} else if (ARSR & 0x04) {
 		/* check S3 wakeup source */
 		data = ARSR & 0x04;
@@ -630,6 +658,8 @@ static void __attribute__ ((unused)) dump_wakeup_src(pm_wakeup_src_t *src)
 		printk(KERN_DEBUG "eth, ");
 	if (src->bits.cmwdt)
 		printk(KERN_DEBUG "comm watchdog, ");
+	if (src->bits.display)
+		printk(KERN_DEBUG "display, ");
 }
 
 void get_wakeup_source(pm_wakeup_src_t *src)
@@ -1319,6 +1349,7 @@ void enter_lowpower_mode(int state)
 	unsigned int accr, acsr;
 	unsigned int power_state;
 	unsigned int wakeup_data, cpupwr;
+	unsigned int tmp_ckenc;
 	static unsigned int last_d2exit_time;
 	unsigned long flags;
 
@@ -1657,7 +1688,14 @@ void enter_lowpower_mode(int state)
 			reg = CKENA;
 			CKENB = ckenb_rsvd_bit_mask | (1 << 29);
 			reg = CKENB;
-			CKENC = ckenc_rsvd_bit_mask;
+
+			tmp_ckenc = ckenc_rsvd_bit_mask;
+			/* Base on the LCD/DSI curret clock status to decide
+			 * entering D0CG or D0CG-LCD
+			 */
+			if (cpu_is_pxa978_Dx())
+				tmp_ckenc |= (cken[2] & 0xc0c00000);
+			CKENC = tmp_ckenc;
 			reg = CKENC;
 
 			/*
@@ -1666,7 +1704,7 @@ void enter_lowpower_mode(int state)
 			 */
 			while ((CKENA != (ckena_rsvd_bit_mask | (1 << 8))) ||
 					(CKENB != (ckenb_rsvd_bit_mask | (1 << 29))) ||
-					(CKENC != ckenc_rsvd_bit_mask)) {
+					(CKENC != tmp_ckenc)) {
 			};
 			/* Turn off PX1 bus clock */
 			CKENB &= ~(1 << 29);

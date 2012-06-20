@@ -173,10 +173,11 @@
 
 /* Bits definition for Power Control Register */
 #define ASCR_RDH	(1 << 31)
+#define ASCR_CGS	(1 << 4)
 #define ASCR_D1S	(1 << 2)
 #define ASCR_D2S	(1 << 1)
 #define ASCR_D3S	(1 << 0)
-#define ASCR_MASK	(ASCR_D1S | ASCR_D2S | ASCR_D3S)
+#define ASCR_MASK	(ASCR_CGS | ASCR_D1S | ASCR_D2S | ASCR_D3S)
 #define PSR_MASK	0x07
 #define PCFR_L1DIS	(1 << 13)
 #define PCFR_L0EN	(1 << 12)
@@ -323,6 +324,9 @@
 #define PXA95x_PM_WE_TSI	(0x1UL << 29)
 #define PXA95x_PM_WE_OST	(0x1UL << 30)
 #define PXA95x_PM_WE_RTC	(0x1UL << 31)
+#define PXA95x_PM_WE_DIS	(0x1UL << 0)
+#define PXA95x_PM_WE_PAR	(0x1UL << 1)
+#define PXA95x_PM_WE_DSI	(0x1UL << 2)
 
 #define PWSR_EDR0		(0x1 << 0)
 #define PWSR_EDR1		(0x1 << 1)
@@ -407,6 +411,7 @@ typedef struct {
 		unsigned rtc:1;
 		unsigned eth:1;
 		unsigned cmwdt:1;
+		unsigned display:1;
 	} bits;
 } pm_wakeup_src_t;
 
@@ -569,6 +574,7 @@ struct pxa95x_peripheral_wakeup_ops {
 	int (*eth) (pm_wakeup_src_t src, int enable);
 	int (*tsi) (pm_wakeup_src_t src, int enable);
 	int (*cmwdt) (pm_wakeup_src_t src, int enable);
+	int (*display) (pm_wakeup_src_t src, int enable);
 };
 extern unsigned int *remap_c2_reg;
 extern unsigned int  *pl310_membase;
