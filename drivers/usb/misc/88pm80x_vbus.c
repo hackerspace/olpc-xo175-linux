@@ -32,6 +32,8 @@ struct pm80x_vbus_info {
 	int			irq;
 };
 
+static int vbus_supply = PM8XXX_GPIO_SUPPLY_NO_USE;
+
 int pm80x_read_vbus_val(void)
 {
 	int ret;
@@ -91,16 +93,52 @@ EXPORT_SYMBOL(pm80x_init_id);
 
 int pm80x_set_vbus(unsigned int vbus)
 {
-	unsigned int data = 0, mask;
+	unsigned int data = 0, mask, reg = 0;
 
-	mask = 	PM800_GPIO3_GPIO_MODE(0x01) | PM800_GPIO3_VAL;
+	switch (vbus_supply) {
+
+	case PM8XXX_GPIO_SUPPLY_NO_USE:
+		/* OTG5V not supported - Do nothing */
+		return 0;
+
+	case PM8XXX_GPIO0_SUPPLY_VBUS:
+		/* OTG5V Enable/Disable is connected to GPIO_0 */
+		mask = PM800_GPIO0_GPIO_MODE(0x01) | PM800_GPIO0_VAL;
+		reg = (PM80X_BASE_PAGE << 8) | PM800_GPIO_0_1_CNTRL;
+		break;
+
+	case PM8XXX_GPIO1_SUPPLY_VBUS:
+		/* OTG5V Enable/Disable is connected to GPIO_1 */
+		mask = PM800_GPIO1_GPIO_MODE(0x01) | PM800_GPIO1_VAL;
+		reg = (PM80X_BASE_PAGE << 8) | PM800_GPIO_0_1_CNTRL;
+		break;
+
+	case PM8XXX_GPIO2_SUPPLY_VBUS:
+		/* OTG5V Enable/Disable is connected to GPIO_2 */
+		mask = PM800_GPIO2_GPIO_MODE(0x01) | PM800_GPIO2_VAL;
+		reg = (PM80X_BASE_PAGE << 8) | PM800_GPIO_2_3_CNTRL;
+		break;
+
+	case PM8XXX_GPIO3_SUPPLY_VBUS:
+		/* OTG5V Enable/Disable is connected to GPIO_3 */
+		mask = PM800_GPIO3_GPIO_MODE(0x01) | PM800_GPIO3_VAL;
+		reg = (PM80X_BASE_PAGE << 8) | PM800_GPIO_2_3_CNTRL;
+		break;
+
+	case PM8XXX_GPIO4_SUPPLY_VBUS:
+		/* OTG5V Enable/Disable is connected to GPIO_4 */
+		mask = PM800_GPIO4_GPIO_MODE(0x01) | PM800_GPIO4_VAL;
+		reg = (PM80X_BASE_PAGE << 8) | PM800_GPIO_4_CNTRL;
+		break;
+
+	default:
+		BUG_ON(1);
+	}
 
 	if (vbus == VBUS_HIGH)
 		data = mask;
 
-	pm80x_codec_reg_set_bits(
-		(PM80X_BASE_PAGE << 8) | PM800_GPIO_2_3_CNTRL,
-		mask, data);
+	pm80x_codec_reg_set_bits(reg, mask, data);
 
 	mdelay(20);
 
@@ -116,14 +154,25 @@ EXPORT_SYMBOL(pm80x_set_vbus);
 static int __devinit pm80x_vbus_probe(struct platform_device *pdev)
 {
 	struct pm80x_chip *chip = dev_get_drvdata(pdev->dev.parent);
+	struct pm80x_platform_data *pm80x_pdata;
 	struct pm80x_vbus_info *vbus;
 	int ret;
+
+	if (pdev->dev.parent->platform_data) {
+		pm80x_pdata = pdev->dev.parent->platform_data;
+	} else {
+		pr_debug("Invalid pm80x platform data!\n");
+		return -EINVAL;
+	}
 
 	vbus = kzalloc(sizeof(struct pm80x_vbus_info), GFP_KERNEL);
 	if (!vbus)
 		return -ENOMEM;
 
 	vbus->chip = chip;
+
+	if (pm80x_pdata->vbus && pm80x_pdata->vbus->supply)
+		vbus_supply = pm80x_pdata->vbus->supply;
 
 	vbus->irq = platform_get_irq(pdev, 0);
 	if (vbus->irq < 0) {
