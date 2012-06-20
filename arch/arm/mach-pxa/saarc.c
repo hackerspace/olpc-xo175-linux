@@ -2644,6 +2644,8 @@ static int init_wakeup(pm_wakeup_src_t *src)
 		pr_err("Bad board ID in %s\n", __func__);
 		BUG();
 	}
+	if (cpu_is_pxa978_Dx())
+		src->bits.display = 1;
 
 	return 0;
 }
@@ -2823,6 +2825,11 @@ static int comm_wdt_wakeup(pm_wakeup_src_t src, int enable)
 	return ret;
 }
 
+static int display_wakeup(pm_wakeup_src_t src, int enable)
+{
+	return 0;
+}
+
 static struct pxa95x_peripheral_wakeup_ops wakeup_ops = {
 	.init   = init_wakeup,
 	.query  = query_wakeup,
@@ -2833,6 +2840,7 @@ static struct pxa95x_peripheral_wakeup_ops wakeup_ops = {
 	.uart   = uart_wakeup,
 	.tsi    = tsi_wakeup,
 	.cmwdt  = comm_wdt_wakeup,
+	.display  = display_wakeup,
 };
 #endif
 
