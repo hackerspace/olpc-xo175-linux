@@ -7,6 +7,9 @@ extern struct sys_timer pxa988_timer;
 extern void __init pxa988_init_gic(void);
 extern void __init pxa988_init_irq(void);
 extern void __init pxa988_reserve(void);
+extern void pxa988_ripc_lock(void);
+extern void pxa988_ripc_unlock(void);
+extern int pxa988_ripc_trylock(void);
 
 #include <linux/i2c.h>
 #include <linux/i2c/pxa-i2c.h>
