@@ -2170,7 +2170,7 @@ static void detect_core_temp(unsigned long data)
 	}
 }
 
-static irqreturn_t core_overhearting_irq(int irq, void *data)
+static irqreturn_t core_overheating_irq(int irq, void *data)
 {
 	struct timer_list *timer = &temp_detecting_timer;
 	unsigned int pmcr = PMCR;
@@ -2209,14 +2209,6 @@ static void overheating_init(void)
 	struct timer_list *timer = &temp_detecting_timer;
 	int retval;
 	unsigned int pmcr;
-	/* irq setup after old hardware state is cleaned up */
-	retval = request_irq(IRQ_SGP, core_overhearting_irq,
-			     IRQF_DISABLED, "Overheating", NULL);
-	if (retval != 0) {
-		printk(KERN_ERR "%s: can't get irq %i, err %d\n",
-		       "Overheating", IRQ_SGP, retval);
-		return;
-	}
 
 	if (!cpu_is_pxa978()) {
 		OVH = (OVH_OTIS_DEFAULT) << OVH_OTIF_OFF;
@@ -2239,6 +2231,21 @@ static void overheating_init(void)
 	init_timer(timer);
 	timer->function = detect_core_temp;
 	INIT_WORK(&overheating_work, overheating_work_handler);
+
+	/*
+	 * request irq must be called after timer and work were
+	 * created to prevent panic when irq happens befor timer and
+	 * work exists
+	 */
+	retval = request_irq(IRQ_SGP, core_overheating_irq,
+			     IRQF_DISABLED, "Overheating", NULL);
+	if (retval != 0) {
+		printk(KERN_ERR "%s: can't get irq %i, err %d\n",
+		       "Overheating", IRQ_SGP, retval);
+		del_timer(timer);
+		/*TODO: do we need to cleanup overheating_work?*/
+		return;
+	}
 }
 
 static unsigned char __iomem *bpb_membase;
