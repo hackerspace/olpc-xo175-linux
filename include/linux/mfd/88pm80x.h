@@ -282,6 +282,7 @@ enum {
 #define PM800_SLEEP_BUCK3	(0x32)
 #define PM800_SLEEP_BUCK4	(0x33)
 #define PM800_SLEEP_BUCK5	(0x34)
+#define PM800_BUCK4_AUDIO	(0x39)
 /* BUCK1 with DVC[0..3] */
 #define PM800_BUCK1			(0x3C)
 #define PM800_BUCK1_1		(0x3D)
@@ -291,11 +292,11 @@ enum {
 #define PM800_BUCK3			(0x41)
 #define PM800_BUCK3_DOUBLE	(1 << 6)
 #define PM800_BUCK4			(0x42)
-/* BUCK5 with DVC[0..3] */
-#define PM800_BUCK5			(0x43)
-#define PM800_BUCK5_1		(0x44)
-#define PM800_BUCK5_2		(0x45)
-#define PM800_BUCK5_3		(0x46)
+/* BUCK4 with DVC[0..3] */
+#define PM800_BUCK4_1			(0x43)
+#define PM800_BUCK4_2		(0x44)
+#define PM800_BUCK4_3		(0x45)
+#define PM800_BUCK5		(0x46)
 
 #define PM800_BUCK_ENA		(0x50)
 #define PM800_LDO_ENA1_1	(0x51)
