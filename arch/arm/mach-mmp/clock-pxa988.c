@@ -2229,6 +2229,9 @@ static struct clk pxa988_list_clks[] = {
 			0x19b, 156000000, NULL, &nand_clk_ops),
 };
 
+#define CIU_BASE (AXI_VIRT_BASE + 0x82c00)
+#define MC_CONF	(CIU_BASE + 0x40)
+
 static void __init clk_misc_init(void)
 {
 	/* pll2 default rate is different when using LPDDR400 and LPDDR533 */
@@ -2248,6 +2251,9 @@ static void __init clk_misc_init(void)
 	/* components' clock should always keep enabled */
 	__raw_writel(0x3, APBC_PXA988_IPC);	/* ACIPC */
 	__raw_writel(0x0, APBC_PXA988_RIPC);	/* RIPC */
+
+	/* disable SOC and MC4 dynamic clk gating on Z0 */
+	__raw_writel(0x00080008, MC_CONF);
 
 }
 
