@@ -424,19 +424,25 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 		pr_err("%s:chip or pdata is not availiable!\n", __func__);
 		return -EINVAL;
 	}
-	/* Initializain actions to enable 88pm805 */
-	/* Clear WDT */
-	/* TODO: 0x1d cannot found on 88pm812 datasheet, wdt disabled needed */
-	pm80x_reg_write(chip->base_page, 0x1D, 0x00);
-	/* resetoutn */
-	/* TODO: RESET_OUT_DELAY depends on the PLATFORM_MODE */
-	pm80x_reg_write(chip->base_page, 0xE1, 0xB0);
-	/* Enable 32Khz-out-1, 2, 3 */
-	pm80x_reg_write(chip->base_page, 0xE2, 0x2a);
-	/* Set XO CAP to 22pF to avoid speaker noise */
-	pm80x_reg_write(chip->base_page, 0xE8, 0x70);
-
-	/* TODO: power on the component related DVC1,2 */
+	/* RESET_OUTn, RTC_RESET_MODE =0 */
+	pm80x_reg_write(chip->base_page, PM800_RTC_MISC1, 0xb0);
+	/* Enable 32Khz-out-3 low jitter XO_LJ = 1 */
+	pm80x_reg_write(chip->base_page, PM800_LOW_POWER2, 0x20);
+	/*
+	 * Enable 32Khz-out-from XO 1, 3
+	 * GPS is not enabled
+	 */
+	pm80x_reg_write(chip->base_page, PM800_RTC_MISC2, 0x22);
+	/* Set XO CAP to 22pF to avoid speaker noise, XO_CAP_SEL = 7 */
+	pm80x_reg_write(chip->base_page, PM800_USER_DATA1, 0x70);
+	/* Enable voltage change in pmic, POWER_HOLD = 1 */
+	pm80x_reg_write(chip->base_page, PM800_WAKEUP1, 0x80);
+	/* BUCK enable 0x50, BUCK1, 2, 3, 4 */
+	pm80x_reg_write(chip->power_page, PM800_BUCK_ENA, 0x0f);
+	/* LDO enable 0x51, 0x52, 0x53, LDO1, 3, 5, 7 */
+	pm80x_reg_write(chip->power_page, PM800_LDO_ENA1_1, 0x54);
+	pm80x_reg_write(chip->power_page, PM800_LDO_ENA1_2, 0x20); /* LDO 14 */
+	pm80x_reg_write(chip->power_page, PM800_LDO_ENA1_3, 0x02); /* LDO 18 */
 
 	return 0;
 }
