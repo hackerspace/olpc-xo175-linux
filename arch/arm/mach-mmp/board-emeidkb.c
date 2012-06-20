@@ -35,6 +35,7 @@
 #include <mach/regs-mpmu.h>
 #include <mach/sram.h>
 #include <mach/regs-rtc.h>
+#include <mach/soc_coda7542.h>
 #include <plat/pmem.h>
 #include <plat/pxa27x_keypad.h>
 #include <plat/usb.h>
@@ -610,6 +611,10 @@ static void __init emeidkb_init(void)
 
 #ifdef CONFIG_FB_PXA168
 	emeidkb_add_lcd_mipi();
+#endif
+
+#ifdef CONFIG_UIO_CODA7542
+	pxa_register_coda7542();
 #endif
 
 #ifdef CONFIG_USB_PXA_U2O
