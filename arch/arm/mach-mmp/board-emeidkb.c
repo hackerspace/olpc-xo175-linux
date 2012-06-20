@@ -766,6 +766,12 @@ static struct i2c_board_info emeidkb_i2c2_info[] = {
 #endif
 };
 
+static struct i2c_pxa_platform_data emeidkb_pwr_i2c_pdata = {
+	.hardware_lock		= pxa988_ripc_lock,
+	.hardware_unlock	= pxa988_ripc_unlock,
+	.hardware_trylock	= pxa988_ripc_trylock,
+};
+
 static struct sram_bank pxa988_asram_info = {
 	.pool_name = "audio sram",
 	.step = AUDIO_SRAM_GRANULARITY,
@@ -1003,7 +1009,8 @@ static void __init emeidkb_init(void)
 	pxa988_add_uart(3);
 	/* FIXME: add i2c_pxa_platform_data */
 	pxa988_add_twsi(0, NULL, ARRAY_AND_SIZE(emeidkb_i2c_info));
-	pxa988_add_twsi(1, NULL, ARRAY_AND_SIZE(emeidkb_pwr_i2c_info));
+	pxa988_add_twsi(1, &emeidkb_pwr_i2c_pdata,
+			ARRAY_AND_SIZE(emeidkb_pwr_i2c_info));
 	pxa988_add_twsi(2, NULL, ARRAY_AND_SIZE(emeidkb_i2c2_info));
 
 	/* add ssp1 for hifi audio */
