@@ -114,7 +114,8 @@ static void set_dvfm_constraint(void)
 	/* Disable Lowpower mode */
 	dvfm_disable_op_name_no_change("D1", dvfm_dev_idx);
 	dvfm_disable_op_name_no_change("D2", dvfm_dev_idx);
-	dvfm_disable_op_name_no_change("CG", dvfm_dev_idx);
+	if (!cpu_is_pxa978_Dx())
+		dvfm_disable_op_name_no_change("CG", dvfm_dev_idx);
 }
 
 void unset_dvfm_constraint(void)
@@ -122,7 +123,8 @@ void unset_dvfm_constraint(void)
 	/* Enable Lowpower mode */
 	dvfm_enable_op_name_no_change("D1", dvfm_dev_idx);
 	dvfm_enable_op_name_no_change("D2", dvfm_dev_idx);
-	dvfm_enable_op_name_no_change("CG", dvfm_dev_idx);
+	if (!cpu_is_pxa978_Dx())
+		dvfm_enable_op_name_no_change("CG", dvfm_dev_idx);
 }
 
 static void dsi_set_time(struct pxa95xfb_conv_info *conv, int freq)
