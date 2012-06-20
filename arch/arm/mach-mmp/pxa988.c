@@ -468,12 +468,29 @@ struct platform_device pxa988_device_udc = {
 };
 #endif /* CONFIG_USB_PXA_U2O */
 
+#define APMASK(i)	(GPIO_REGS_VIRT + BANK_OFF(i) + 0x09c)
+static void __init pxa988_init_gpio(void)
+{
+	int i;
+
+	/* enable GPIO clock */
+	__raw_writel(APBC_APBCLK | APBC_FNCLK, APBC_PXA988_GPIO);
+
+	/* unmask GPIO edge detection for all 4 banks -- APMASKx */
+	for (i = 0; i < 4; i++)
+		__raw_writel(0xffffffff, APMASK(i));
+
+	pxa_init_gpio(IRQ_PXA988_GPIO_AP, 0, 127, NULL);
+}
+
 static int __init pxa988_init(void)
 {
 	pxa988_l2_cache_init();
 
 	mfp_init_base(MFPR_VIRT_BASE);
 	mfp_init_addr(pxa988_addr_map);
+
+	pxa988_init_gpio();
 
 	/* would remove such pxa910 interface when kernel upgrade */
 	pxa910_init_squ(2);
