@@ -33,6 +33,7 @@
 #include <mach/regs-mpmu.h>
 #include <mach/regs-ciu.h>
 #include <mach/regs-icu.h>
+#include <mach/regs-mcu.h>
 #include <mach/system.h>
 #ifdef CONFIG_TRACEPOINTS
 #define CREATE_TRACE_POINTS
@@ -792,41 +793,6 @@ static void mmp3_update_freq_plan(struct mmp3_pmu *pmu,
 	val = MMP3_FREQ_DSRC_SET(val, pl->dram.dsrc);
 	__raw_writel(val, pmu->fccr);
 }
-
-#define FIXADDR(base, offset) ((u32 *)(((u32)base)+offset))
-#define DMCU_HWTCTRL(base) FIXADDR(base, 0x1c0)
-#define DMCU_HWTDAT0(base) FIXADDR(base, 0x1c8)
-#define DMCU_HWTDAT1(base) FIXADDR(base, 0x1cc)
-#define DMCU_MAP_CS0 0x10
-#define DMCU_MAP_CS1 0x14
-#define DMCU_MAP_VALID (1u << 0)
-#define DMCU_CMD_CSSEL_CS0 (1u << 24)
-#define DMCU_CMD_CSSEL_CS1 (1u << 25)
-#define DMCU_SDRAM_TIMING1 0x80
-#define DMCU_SDRAM_TIMING2 0x84
-#define DMCU_SDRAM_TIMING3 0x88
-#define DMCU_SDRAM_TIMING4 0x8c
-#define DMCU_SDRAM_TIMING5 0x90
-#define DMCU_SDRAM_TIMING6 0x94
-#define DMCU_SDRAM_TIMING7 0x98
-#define DMCU_SDRAM_CTRL1 0x50
-#define DMCU_SDRAM_CTRL4 0x58
-#define DMCU_SDRAM_CTRL14 0x68
-#define DMCU_PHY_CTRL3 0x220
-#define DMCU_PHY_CTRL14 0x24c
-#define DMCU_PHY_DQ_BYTE_SEL 0x300
-#define DMCU_PHY_DLL_CTRL_BYTE1 0x304
-#define DMCU_PHY_DLL_WL_SEL 0x380
-#define DMCU_PHY_DLL_WL_CTRL0 0x384
-#define DMCU_USER_COMMAND0 0x160
-#define DMCU_USER_COMMAND1 0x164
-#define DMCU_HWTPAUSE 0x00010000
-#define DMCU_HWTEND 0x00020000
-#define DMCU_HWTWRITE 0x80000000
-#define DMCU_SDRAM_TYPE_MASK (7u << 2)
-#define DMCU_SDRAM_TYPE_DDR3 (2u << 2)
-#define DMCU_SDRAM_TYPE_LPDDR2 (5u << 2)
-
 
 struct ddrdfc_param {
 	u32 oldkhz;
