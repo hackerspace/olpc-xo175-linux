@@ -204,9 +204,11 @@ static int pxa688fb_map_layers(int src, int dst, int vid, int en)
 {
 	struct pxa168fb_info *fbi = gfx_info.fbi[0];
 	u32 map = (u32)fbi->reg_base + LCD_IO_OVERL_MAP_CTRL;
-	u32 val = readl(map), shift, vdma;
+	u32 val = readl(map), shift;
+#ifdef CONFIG_PXA688_VDMA
 	struct pxa168fb_vdma_info *lcd_vdma = 0;
-
+	u32 vdma;
+#endif
 	/* map src path dma to dst */
 	switch (dst) {
 	case 0:
@@ -459,11 +461,11 @@ static void pxa688fb_clone_intf_ctrl(int src, int dst)
 
 static void pxa688fb_clone_vdma(int src, int dst, int vid)
 {
+#ifdef CONFIG_PXA688_VDMA
 	struct pxa168fb_info *fbi = gfx_info.fbi[0];
 	u32 base = (u32)fbi->reg_base, mask, vdma;
 	struct pxa168fb_vdma_info *lcd_vdma = 0;
 
-#ifdef CONFIG_PXA688_VDMA
 	mask = readl(base + LCD_PN2_SQULN2_CTRL);
 	vdma = readl(base + squln_ctrl(src));
 	lcd_vdma = request_vdma(src, vid);
