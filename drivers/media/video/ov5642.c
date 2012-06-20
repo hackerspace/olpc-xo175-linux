@@ -737,9 +737,44 @@ static int ov5642_g_frame_interval(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int ov5642_power(struct v4l2_subdev *sd, int on)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct soc_camera_device *icd = client->dev.platform_data;
+	struct soc_camera_link *icl = to_soc_camera_link(icd);
+	int mipi_set, lane_set, lane_num;
+
+	if (on) {
+		if (icl->power)
+			icl->power(icd->pdev, POWER_RESTORE);
+		if (!ov5642_get_platform_mipi_config(&mipi_set, &lane_set, &lane_num)) {
+			if (mipi_set == 1)
+				ov5642_write(client, (u16)0x300e, 0x0c);
+			else {
+				ov5642_write(client, (u16)0x3017, 0xff);
+				ov5642_write(client, (u16)0x3018, 0xff);
+			}
+		}
+	} else {
+		if (!ov5642_get_platform_mipi_config(&mipi_set, &lane_set, &lane_num)) {
+			if (mipi_set == 1)
+				ov5642_write(client, (u16)0x300e, 0x18);
+			else {
+				ov5642_write(client, (u16)0x3017, 0xff);
+				ov5642_write(client, (u16)0x3018, 0xff);
+			}
+		}
+		if (icl->power)
+			icl->power(icd->pdev, POWER_SAVING);
+	}
+
+	return 0;
+}
+
 static struct v4l2_subdev_core_ops ov5642_subdev_core_ops = {
 	.g_chip_ident	= ov5642_g_chip_ident,
 	.init		= ov5642_init,
+	.s_power	= ov5642_power,
 	.s_ctrl		= ov5642_s_ctrl,
 #ifdef CONFIG_VIDEO_ADV_DEBUG
 	.g_register	= ov5642_g_register,
