@@ -28,9 +28,11 @@
 #include <mach/regs-mpmu.h>
 #include <mach/regs-apmu.h>
 #include <mach/regs-ciu.h>
+#include <mach/regs-mcu.h>
 #include <mach/clock-pxa988.h>
 #include <mach/pxa988_lowpower.h>
 #include <plat/debugfs.h>
+#include <mach/pxa988_ddr.h>
 
 /* core,ddr,axi clk src sel set register desciption */
 union pmum_fccr {
@@ -242,6 +244,18 @@ struct platform_opt {
 	unsigned int ddr_axi_opt_size;
 };
 
+/* DDR fc table: 0 - non flag; 1 - pause flag; 2 - end flag */
+enum ddr_fc_table_flag {
+	DDR_FC_TABLE_NONE = 0,
+	DDR_FC_TABLE_PAUSE = 1,
+	DDR_FC_TABLE_END = 2,
+};
+
+struct ddr_fc_table_cmd {
+	unsigned int reg;
+	unsigned int val;
+	enum ddr_fc_table_flag flag;
+};
 
 /* mutex lock protecting frequency change */
 static DEFINE_MUTEX(core_freqs_mutex);
@@ -262,6 +276,318 @@ static bool cp_reset_block_ddr_fc;
 
 static void get_cur_cpu_op(struct pxa988_cpu_opt *cop);
 static void get_cur_ddr_axi_op(struct pxa988_ddr_axi_opt *cop);
+
+/*
+ * PHY setting need to be tuned on real silicon by SV/DE.
+ * Currently, we use the default values provided by DE.
+ * table_idx is set to 0xf as default, which means invalid table index
+ * It will be set to the correct value in pxa988_ddr_fc_table()
+ */
+static struct platform_ddr_setting lpddr2_setting[] = {
+	{
+		.ddr_freq = 156,
+		.cas_latency = 0x1,	/* RL3/WL1 */
+		.table_idx = 0xf,
+		.timing = {
+			.entry[0] = {DMCU_SDRAM_TIMING1, 0x488a0065},
+			.entry[1] = {DMCU_SDRAM_TIMING2, 0x42330155},
+			.entry[2] = {DMCU_SDRAM_TIMING3, 0x20161612},
+			.entry[3] = {DMCU_SDRAM_TIMING4, 0x3022643d},
+			.entry[4] = {DMCU_SDRAM_TIMING5, 0x04070082},
+			.entry[5] = {DMCU_SDRAM_TIMING6, 0x00f0e49c},
+			.entry[6] = {DMCU_SDRAM_TIMING7, 0x00005201},
+			.entry[7] = {DMCU_SDRAM_TIMING8, 0x00000000},
+		},
+		.phy = {
+			.entry[0] = {DMCU_PHY_CTRL3, 0x00004444},
+			.entry[1] = {DMCU_PHY_CTRL7, 0x27700779},
+			.entry[2] = {DMCU_PHY_CTRL8, 0x0ff00770},
+			.entry[3] = {DMCU_PHY_CTRL9, 0x00000077},
+		},
+
+	},
+	{
+		.ddr_freq = 208,
+		.cas_latency = 0x2,	/* RL4/WL2 */
+		.table_idx = 0xf,
+		.timing = {
+			.entry[0] = {DMCU_SDRAM_TIMING1, 0x488e0065},
+			.entry[1] = {DMCU_SDRAM_TIMING2, 0x534401c5},
+			.entry[2] = {DMCU_SDRAM_TIMING3, 0x201e1e12},
+			.entry[3] = {DMCU_SDRAM_TIMING4, 0x30228452},
+			.entry[4] = {DMCU_SDRAM_TIMING5, 0x058900b2},
+			.entry[5] = {DMCU_SDRAM_TIMING6, 0x01312cd0},
+			.entry[6] = {DMCU_SDRAM_TIMING7, 0x00005201},
+			.entry[7] = {DMCU_SDRAM_TIMING8, 0x00000000},
+		},
+		.phy = {
+			.entry[0] = {DMCU_PHY_CTRL3, 0x00004444},
+			.entry[1] = {DMCU_PHY_CTRL7, 0x27700779},
+			.entry[2] = {DMCU_PHY_CTRL8, 0x0ff00770},
+			.entry[3] = {DMCU_PHY_CTRL9, 0x00000077},
+		},
+
+	},
+	{
+		.ddr_freq = 312,
+		.cas_latency = 0x3,	/* RL5/WL2 */
+		.table_idx = 0xf,
+		.timing = {
+			.entry[0] = {DMCU_SDRAM_TIMING1, 0x4cd40065},
+			.entry[1] = {DMCU_SDRAM_TIMING2, 0x74650295},
+			.entry[2] = {DMCU_SDRAM_TIMING3, 0x202c2c1b},
+			.entry[3] = {DMCU_SDRAM_TIMING4, 0x3022c47a},
+			.entry[4] = {DMCU_SDRAM_TIMING5, 0x080e0102},
+			.entry[5] = {DMCU_SDRAM_TIMING6, 0x01d1c539},
+			.entry[6] = {DMCU_SDRAM_TIMING7, 0x00005201},
+			.entry[7] = {DMCU_SDRAM_TIMING8, 0x00000000},
+		},
+		.phy = {
+			.entry[0] = {DMCU_PHY_CTRL3, 0x00004444},
+			.entry[1] = {DMCU_PHY_CTRL7, 0x27700779},
+			.entry[2] = {DMCU_PHY_CTRL8, 0x0ff00770},
+			.entry[3] = {DMCU_PHY_CTRL9, 0x00000077},
+		},
+
+	},
+	{
+		.ddr_freq = 400,
+		.cas_latency = 0x4,	/* RL6/WL3 */
+		.table_idx = 0xf,
+		.timing = {
+			.entry[0] = {DMCU_SDRAM_TIMING1, 0x4cda0065},
+			.entry[1] = {DMCU_SDRAM_TIMING2, 0x94860345},
+			.entry[2] = {DMCU_SDRAM_TIMING3, 0x2038381b},
+			.entry[3] = {DMCU_SDRAM_TIMING4, 0x3022fc9d},
+			.entry[4] = {DMCU_SDRAM_TIMING5, 0x0a110142},
+			.entry[5] = {DMCU_SDRAM_TIMING6, 0x0242418f},
+			.entry[6] = {DMCU_SDRAM_TIMING7, 0x00005201},
+			.entry[7] = {DMCU_SDRAM_TIMING8, 0x00000000},
+		},
+		.phy = {
+			.entry[0] = {DMCU_PHY_CTRL3, 0x00004444},
+			.entry[1] = {DMCU_PHY_CTRL7, 0x27700779},
+			.entry[2] = {DMCU_PHY_CTRL8, 0x0ff00770},
+			.entry[3] = {DMCU_PHY_CTRL9, 0x00000077},
+		},
+
+	},
+	{
+		.ddr_freq = 533,
+		.cas_latency = 0x6,	/* RL8/WL4 */
+		.table_idx = 0xf,
+		.timing = {
+			.entry[0] = {DMCU_SDRAM_TIMING1, 0x51220065},
+			.entry[1] = {DMCU_SDRAM_TIMING2, 0xc6a80465},
+			.entry[2] = {DMCU_SDRAM_TIMING3, 0x204b4b24},
+			.entry[3] = {DMCU_SDRAM_TIMING4, 0x301350d1},
+			.entry[4] = {DMCU_SDRAM_TIMING5, 0x0d9701b2},
+			.entry[5] = {DMCU_SDRAM_TIMING6, 0x03030215},
+			.entry[6] = {DMCU_SDRAM_TIMING7, 0x00005201},
+			.entry[7] = {DMCU_SDRAM_TIMING8, 0x00000000},
+		},
+		.phy = {
+			.entry[0] = {DMCU_PHY_CTRL3, 0x00004444},
+			.entry[1] = {DMCU_PHY_CTRL7, 0x27700779},
+			.entry[2] = {DMCU_PHY_CTRL8, 0x0ff00770},
+			.entry[3] = {DMCU_PHY_CTRL9, 0x00000077},
+		},
+	},
+
+};
+
+static inline void insert_entry_ex(struct ddr_fc_table_cmd *cmd,
+		unsigned int table, unsigned int entry)
+{
+	unsigned int regval;
+
+	if (cmd == NULL) {
+		pr_err("<PM> DDR fc table entry setup error!\n");
+		return;
+	}
+
+	regval = cmd->reg;
+
+	__raw_writel(cmd->val, DMCU_REG(DMCU_HWTDAT0));
+
+	if (cmd->flag == DDR_FC_TABLE_PAUSE)
+		regval |= DMCU_HWTPAUSE;
+	else if (cmd->flag == DDR_FC_TABLE_END)
+		regval |= DMCU_HWTEND;
+	__raw_writel(regval, DMCU_REG(DMCU_HWTDAT1));
+
+	regval = (((table << 5) + entry) & 0x7f) | DMCU_HWTWRITE;
+	__raw_writel(regval, DMCU_REG(DMCU_HWTCTRL));
+}
+
+#define INSERT_ENTRY(regid, value, table)			\
+	do {							\
+		cmd.reg = DMCU_REG(regid);			\
+		cmd.val = value;				\
+		cmd.flag = DDR_FC_TABLE_NONE;			\
+		insert_entry_ex(&cmd, table, entry);		\
+		entry++;					\
+	} while (0)
+
+#define PAUSE_ENTRY(regid, value, table)			\
+	do {							\
+		cmd.reg = DMCU_REG(regid);			\
+		cmd.val = value;				\
+		cmd.flag = DDR_FC_TABLE_PAUSE;			\
+		insert_entry_ex(&cmd, table, entry);		\
+		entry++;					\
+	} while (0)
+
+#define LAST_ENTRY(regid, value, table)				\
+	do {							\
+		cmd.reg = DMCU_REG(regid);			\
+		cmd.val = value;				\
+		cmd.flag = DDR_FC_TABLE_END;			\
+		insert_entry_ex(&cmd, table, entry);		\
+		entry++;					\
+	} while (0)
+
+/* Table 0 is used for PHY DLL reset/update when DDR resume from shutdown */
+static void pxa988_ddr_lpm_table(void)
+{
+	struct ddr_fc_table_cmd cmd;
+	unsigned int entry = 0;
+
+	/* reset master DLL */
+	INSERT_ENTRY(DMCU_PHY_CTRL14, 0x20000000, 0);
+	/* udpate master DLL */
+	INSERT_ENTRY(DMCU_PHY_CTRL14, 0x40000000, 0);
+	/* synchronize 2x clock */
+	LAST_ENTRY(DMCU_PHY_CTRL14, 0x80000000, 0);
+}
+
+#define DDR_FC_PHY_TUNING 1
+static void pxa988_ddr_fc_table_lpddr2(struct platform_ddr_setting *setting)
+{
+	struct ddr_timing *timing = &setting->timing;
+	struct ddr_phy *phy = &setting->phy;
+	struct ddr_fc_table_cmd cmd;
+	unsigned int entry = 0, regval = 0, map = 0, table = 0;
+
+	table = setting->table_idx;
+
+	if (__raw_readl(DMCU_REG(DMCU_MAP_CS0)) & DMCU_MAP_VALID)
+		map |= DMCU_CMD_CSSEL_CS0;
+	if (__raw_readl(DMCU_REG(DMCU_MAP_CS1)) & DMCU_MAP_VALID)
+		map |= DMCU_CMD_CSSEL_CS1;
+
+	/*
+	 * We use PAUSE, so for each frequency point, 2 tables are required.
+	 * For the 1st table, update DDR timing parameters and reset DLL.
+	 * And in the 2nd table, update DDR mode registers.
+	 */
+
+	/* 1. update all timing parameters */
+
+	/* a) update CAS */
+	regval = __raw_readl(DMCU_REG(DMCU_SDRAM_CTRL4))
+		& (~DMCU_SDRAM_CTRL4_CL_MASK);
+	regval |= setting->cas_latency << DMCU_SDRAM_CTRL4_CL_SHIFT;
+	INSERT_ENTRY(DMCU_SDRAM_CTRL4, regval, table); /* CAS latency */
+
+	/* b) update all timing registers, and then PAUSE */
+	/*
+	 * accoring to DE, we only need to update timing register 1~3, 5, 6
+	 * since timing register 4, 7, 8 are same for all frequency
+	 */
+	INSERT_ENTRY(timing->entry[0].reg, timing->entry[0].val, table);
+	INSERT_ENTRY(timing->entry[1].reg, timing->entry[1].val, table);
+	INSERT_ENTRY(timing->entry[2].reg, timing->entry[2].val, table);
+	INSERT_ENTRY(timing->entry[4].reg, timing->entry[4].val, table);
+
+#ifndef DDR_FC_PHY_TUNING
+	PAUSE_ENTRY(timing->entry[5].reg, timing->entry[5].val, table);
+#else
+	INSERT_ENTRY(timing->entry[5].reg, timing->entry[5].val, table);
+
+	/* 2. update PHY registers */
+
+	/*
+	 * TODO:
+	 * PHY setting update may not mandatory, it depends on real silicon
+	 * if possible, we will remove this part later
+	 */
+	INSERT_ENTRY(phy->entry[0].reg, phy->entry[0].val, table);
+	INSERT_ENTRY(phy->entry[1].reg, phy->entry[1].val, table);
+	INSERT_ENTRY(phy->entry[2].reg, phy->entry[2].val, table);
+	PAUSE_ENTRY(phy->entry[3].reg, phy->entry[3].val, table);
+#endif
+
+	/* 3. reset DLL */
+	/* reset master DLL */
+	INSERT_ENTRY(DMCU_PHY_CTRL14, 0x20000000, table);
+	/* update master DLL */
+	INSERT_ENTRY(DMCU_PHY_CTRL14, 0x40000000, table);
+	/* synchronize 2x clock */
+	INSERT_ENTRY(DMCU_PHY_CTRL14, 0x80000000, table);
+	/* halt scheduler */
+	LAST_ENTRY(DMCU_SDRAM_CTRL14, 0x2, table);
+
+	/* 4. update DDR mode registers, programmed in 2nd table */
+	INSERT_ENTRY(DMCU_USER_COMMAND1, (map | 0x20001), (table + 1));
+	INSERT_ENTRY(DMCU_USER_COMMAND1, (map | 0x20002), (table + 1));
+	/* resume scheduler */
+	LAST_ENTRY(DMCU_SDRAM_CTRL14, 0, (table + 1));
+}
+
+/* FIXME: DDR3 is not supported on emei, so currently this function is empty */
+static void __maybe_unused pxa988_ddr_fc_table_ddr3(
+		struct platform_ddr_setting *setting, unsigned int table)
+{
+}
+
+/* Current design only support 3 DDR ops at max */
+#define MAX_DDR_OP_NUM	3
+static void pxa988_ddr_fc_table(unsigned int *ddr_freq,
+				unsigned int ddr_freq_count)
+{
+	unsigned int type;
+	int i, j;
+
+	if (ddr_freq_count > MAX_DDR_OP_NUM)
+		pr_warn("<PM> Cannot support more than 3 DDR ops!\n");
+
+	type = __raw_readl(DMCU_REG(DMCU_SDRAM_CTRL4)) & DMCU_SDRAM_TYPE_MASK;
+	switch (type) {
+	case DMCU_SDRAM_TYPE_DDR3:
+		/* FIXME: DDR3 is not supported now */
+		break;
+	case DMCU_SDRAM_TYPE_LPDDR2:
+		for (i = 0; i < ddr_freq_count; i++) {
+			for (j = 0; j < ARRAY_SIZE(lpddr2_setting); j++) {
+				if (lpddr2_setting[j].ddr_freq == ddr_freq[i]) {
+					/* init the table_idx first */
+					lpddr2_setting[j].table_idx = i * 2 + 1;
+					pxa988_ddr_fc_table_lpddr2(
+							&lpddr2_setting[j]);
+					break;
+				}
+
+				/*
+				 * If DDR freq is not in lpddr2_setting,
+				 * we should stop here, or it will using
+				 * incorrect setting for DDR freq-change,
+				 * which may cause system unstable, so BUG_ON.
+				 */
+				if (j == ARRAY_SIZE(lpddr2_setting)) {
+					pr_err("<PM> DDR freq %d is not supported!\n"
+						"Continue may cause system untable!",
+						ddr_freq[i]);
+					BUG();
+				}
+			}
+		}
+		break;
+	default:
+		pr_err("<PM> unsupported DDR type\n");
+		break;
+	}
+}
 
 /*
  * For 988:
@@ -441,6 +767,50 @@ static void __init __init_platform_opt(void)
 	}
 	BUG_ON(i == ARRAY_SIZE(platform_op_arrays));
 	cur_platform_opt = proc;
+}
+
+static void __init __init_ddr_table(void)
+{
+	unsigned int ddr_freq[MAX_DDR_OP_NUM], ddr_freq_count = 0;
+	int i;
+
+	if (cur_platform_opt == NULL) {
+		pr_err("<PM> cur_platform_opt is NULL!"
+			"It must be init before DDR table update!\n");
+		return;
+	}
+
+	/*
+	 * Pick the dclk info from cur_platform_opt,
+	 * in order to update DDR FC table
+	 */
+	for (i = 0; i < MAX_DDR_OP_NUM; i++)
+		ddr_freq[i] = 0;
+
+	/*
+	 * Available DDR freq are stored in cur_platform_opt->ddr_axi_opt
+	 * They are sorted ascending and will never have repeated value
+	 */
+	for (i = 0; i < cur_platform_opt->ddr_axi_opt_size; i++) {
+		if (i == MAX_DDR_OP_NUM) {
+			/*
+			 * If more than 3 DDR ops are found,
+			 * only store the first 3 ones.
+			 */
+			pr_warn("<PM> too many DDR ops!\n");
+			goto ddr_table_update;
+
+		}
+		ddr_freq[i] = cur_platform_opt->ddr_axi_opt[i].dclk;
+		ddr_freq_count++;
+	}
+
+ddr_table_update:
+	/* update the DDR table for exit of DDR shutdown */
+	pxa988_ddr_lpm_table();
+
+	/* update the DDR table for FC */
+	pxa988_ddr_fc_table(ddr_freq, ddr_freq_count);
 }
 
 static void __init __init_cpu_opt(void)
@@ -1523,6 +1893,8 @@ static int __init pxa988_freq_init(void)
 	int ret = 0;
 
 	__init_platform_opt();
+
+	__init_ddr_table();
 
 	__init_fc_setting();
 
