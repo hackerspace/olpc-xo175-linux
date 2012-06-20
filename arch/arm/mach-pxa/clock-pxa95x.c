@@ -16,6 +16,7 @@
 #include <linux/clk.h>
 #include <plat/clock.h>
 #include <plat/devfreq.h>
+#include <plat/reg_rw.h>
 #include <mach/pxa3xx-regs.h>
 #include <mach/debug_pm.h>
 #include <mach/pxa95x_dvfm.h>
@@ -138,6 +139,61 @@ void clear_mipi_reference_control(void)
 		pr_info("clear mipi band gap reference control bit\n");
 	}
 }
+
+/* GEN_REG3 system clock request line */
+enum sys_clk_req_line {
+	SYS_CLK_REQ_LINE_0_SHIFT = 14,
+		GPS_ECLK_26M_REQ_LINE_SHIFT = SYS_CLK_REQ_LINE_0_SHIFT,
+	SYS_CLK_REQ_LINE_1_SHIFT = 12,
+		/* not used currently */
+	SYS_CLK_REQ_LINE_2_SHIFT = 10,
+		/* not used currently */
+	SYS_CLK_REQ_LINE_3_SHIFT = 8,
+		/* not used currently */
+};
+
+/* request line active config, by default: low for request active */
+enum sys_clk_req_line_active {
+	SYS_CLK_REQ_LINE_ACTIVE_HIGH = 0,
+	SYS_CLK_REQ_LINE_ACTIVE_LOW,
+	SYS_CLK_REQ_LINE_ACTIVE_DEFAULT = SYS_CLK_REQ_LINE_ACTIVE_LOW,
+};
+
+/* request line enable or disable */
+enum sys_clk_req_line_control {
+	SYS_CLK_REQ_LINE_DISABLE = 0,
+	SYS_CLK_REQ_LINE_ENABLE,
+};
+
+#define SYS_CLK_ON ((SYS_CLK_REQ_LINE_ACTIVE_DEFAULT << 1) | SYS_CLK_REQ_LINE_ENABLE)
+#define SYS_CLK_OFF ((SYS_CLK_REQ_LINE_ACTIVE_DEFAULT << 1) | SYS_CLK_REQ_LINE_DISABLE)
+#define SYS_CLK_REQ_LINE_MASK (3)
+
+static int clk_pxa95x_gps_eclk_26m_enable(struct clk *clk)
+{
+	if(pxa_reg_write(GEN_REG3,
+		SYS_CLK_ON << GPS_ECLK_26M_REQ_LINE_SHIFT,
+		SYS_CLK_REQ_LINE_MASK << GPS_ECLK_26M_REQ_LINE_SHIFT) < 0)
+		return -EINVAL;
+
+	pr_info("enable GPS ECLK 26M clock\n");
+	return 0;
+}
+
+static void clk_pxa95x_gps_eclk_26m_disable(struct clk *clk)
+{
+	if(pxa_reg_write(GEN_REG3,
+		SYS_CLK_OFF << GPS_ECLK_26M_REQ_LINE_SHIFT,
+		SYS_CLK_REQ_LINE_MASK << GPS_ECLK_26M_REQ_LINE_SHIFT) < 0)
+		return;
+
+	pr_info("disable GPS ECLK 26M clock\n");
+}
+
+static const struct clkops clk_pxa95x_gps_eclk_26m_ops = {
+	.enable = clk_pxa95x_gps_eclk_26m_enable,
+	.disable = clk_pxa95x_gps_eclk_26m_disable,
+};
 
 static int clk_pxa95x_dsi_enable(struct clk *dsi_clk)
 {
@@ -1739,6 +1795,11 @@ static struct clk clk_pxa978_mmpll = {
 static struct clk clk_pxa978_syspll_416 = {
 	.ops = &clk_pxa978_syspll416_ops,
 };
+
+static struct clk clk_pxa95x_gps_eclk_26m = {
+	.ops = &clk_pxa95x_gps_eclk_26m_ops,
+};
+
 static struct clk_lookup common_clkregs[] = {
 
 	INIT_CLKREG(&clk_pxa95x_pout, NULL, "CLK_POUT"),
@@ -1778,6 +1839,7 @@ static struct clk_lookup common_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_sci2, NULL, "SCI2CLK"),
 	INIT_CLKREG(&clk_pxa95x_csi_tx_esc, NULL, "CSI_TX_ESC"),
 	INIT_CLKREG(&clk_pxa95x_tpm, NULL, "TPM"),
+	INIT_CLKREG(&clk_pxa95x_gps_eclk_26m, NULL, "GPS_ECLK_26M"),
 };
 
 static struct clk_lookup pxa955_specific_clkregs[] = {

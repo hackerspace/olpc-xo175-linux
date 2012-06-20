@@ -36,6 +36,8 @@
 #include <mach/soc_vmeta.h>
 #include <mach/usb-regs.h>
 #include <mach/pxa95x_dvfm.h>
+#include <mach/pxa3xx-regs.h>
+#include <plat/reg_rw.h>
 
 #include <linux/uio_vmeta.h>
 
@@ -403,9 +405,21 @@ static inline void l2x0_save_regs_phys_addr(u32 *addr_ptr, u32 addr)
 extern int dvfs_init(void);
 extern int pxa95x_init_dvfs(void);
 extern int pxa95x_clk_init(void);
+
+#define GEN_REG3_INIT_VAL	(0)
+
 static int __init pxa95x_init(void)
 {
 	int ret = 0;
+	/* GEN_REG3 has some bits write_only and we should use the
+	 * interfaces defined in reg_rw.c to manage read/write access.
+	 * Here make GEN_REG3 be manageable and set its initial value.
+	 * NOTE: when OBM or uboot touch this register, we should change
+	 * the initial value accordingly.
+	 */
+	pxa_reg_add(GEN_REG3, GEN_REG3_WO_MASK);
+	pxa_reg_write(GEN_REG3, GEN_REG3_INIT_VAL, 0xFFFFFFFF);
+
 	/* dvfm device */
 #ifdef CONFIG_PXA95x_DVFM
 	dvfs_init();

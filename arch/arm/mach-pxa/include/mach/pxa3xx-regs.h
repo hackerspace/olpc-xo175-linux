@@ -429,4 +429,10 @@
  */
 #define DDR_SC_CTRL2	__REG(0x40A000E4)	/* DDR Sequence Control 2 Register */
 
+/*
+ * General registers
+ */
+#define GEN_REG3		(0x42404008)
+#define GEN_REG3_WO_MASK	(0xBFF00)
+
 #endif /* __ASM_ARCH_PXA3XX_REGS_H */

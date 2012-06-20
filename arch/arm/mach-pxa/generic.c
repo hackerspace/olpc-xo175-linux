@@ -37,6 +37,7 @@
 
 #include <plat/pxa3xx_onenand.h>
 #include <plat/pxa3xx_nand.h>
+#include <plat/reg_rw.h>
 #include <linux/delay.h>
 #include <plat/mfp.h>
 #include "generic.h"
@@ -304,8 +305,6 @@ void pxa9xx_platform_rfic_reset(unsigned short in_len,  void *in_buf,
 EXPORT_SYMBOL(pxa9xx_platform_rfic_reset);
 #ifdef CONFIG_PROC_FS
 
-#define GEN_REG3		__REG(0x42404008)
-
 static struct regulator *g_gps_regulator;
 static int g_gps_reset, g_gps_on;
 static int g_is_gps_on;
@@ -469,7 +468,7 @@ static void gps_on_off(int flag)
 
 static void gps_eclk(int flag)
 {
-	unsigned long reg_image;
+	static struct clk *gps_eclk_26m;
 	unsigned long cpsr;
 
 	if ((flag != 0) && (flag != 1)) {
@@ -477,23 +476,21 @@ static void gps_eclk(int flag)
 		return;
 	}
 
+	if (!gps_eclk_26m) {
+		gps_eclk_26m = clk_get(NULL, "GPS_ECLK_26M");
+		if (IS_ERR(gps_eclk_26m)) {
+			pr_err("gps_eclk: unable to get GPS ECLK 26M");
+			return;
+		}
+	}
+
 	/* lock interrupts */
 	local_irq_save(cpsr);
 
-	/* read GEN_REG3 register */
-	reg_image = GEN_REG3;
-
-	/* ignore (clear) all bits, accept bits 0 & 1 () */
-	reg_image &= 0x00000003;
-
-	/* modify the value of CKRSW1 bit */
-	if (flag)
-		reg_image |= (1 << 16); /* set bit 16 (CKRSW1) */
+	if (flag == 1)
+		clk_enable(gps_eclk_26m);
 	else
-		reg_image &= ~(1 << 16); /* clear bit 16 (CKRSW1) */
-
-	/* write GEN_REG3 register */
-	GEN_REG3 = reg_image;
+		clk_disable(gps_eclk_26m);
 
 	/* unlock interrupts */
 	local_irq_restore(cpsr);
