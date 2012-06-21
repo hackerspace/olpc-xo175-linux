@@ -532,8 +532,7 @@ static int __devinit device_irq_init(struct pm860x_chip *chip,
 	for (i = 0; i < ARRAY_SIZE(pm860x_irqs); i++) {
 		__irq = i + chip->irq_base;
 		irq_set_chip_data(__irq, chip);
-		irq_set_chip_and_handler(__irq, &pm860x_irq_chip,
-					 handle_edge_irq);
+		irq_set_chip(__irq, &pm860x_irq_chip);
 		irq_set_nested_thread(__irq, 1);
 #ifdef CONFIG_ARM
 		set_irq_flags(__irq, IRQF_VALID);

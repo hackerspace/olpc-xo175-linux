@@ -755,8 +755,7 @@ static void genirq_init_800(struct pm80x_chip *chip, int irq_base)
 	for (i = 0; i < ARRAY_SIZE(pm800_irqs); i++) {
 		__irq = i + irq_base;
 		irq_set_chip_data(__irq, chip);
-		irq_set_chip_and_handler(__irq, &pm800_irq_chip,
-						handle_edge_irq);
+		irq_set_chip(__irq, &pm800_irq_chip);
 		irq_set_nested_thread(__irq, 1);
 #ifdef CONFIG_ARM
 		set_irq_flags(__irq, IRQF_VALID);
@@ -774,7 +773,7 @@ static void genirq_exit_800(int irq_base)
 #ifdef CONFIG_ARM
 		set_irq_flags(__irq, 0);
 #endif
-		irq_set_chip_and_handler(__irq, NULL, NULL);
+		irq_set_chip(__irq, NULL);
 		irq_set_chip_data(__irq, NULL);
 	}
 }
@@ -879,8 +878,7 @@ static void genirq_init_805(struct pm80x_chip *chip, int irq_base)
 	for (i = 0; i < ARRAY_SIZE(pm805_irqs); i++) {
 		__irq = i + irq_base;
 		irq_set_chip_data(__irq, chip);
-		irq_set_chip_and_handler(__irq, &pm805_irq_chip,
-					 handle_edge_irq);
+		irq_set_chip(__irq, &pm805_irq_chip);
 		irq_set_nested_thread(__irq, 1);
 #ifdef CONFIG_ARM
 		set_irq_flags(__irq, IRQF_VALID);
@@ -898,7 +896,7 @@ static void genirq_exit_805(int irq_base)
 #ifdef CONFIG_ARM
 		set_irq_flags(__irq, 0);
 #endif
-		irq_set_chip_and_handler(__irq, NULL, NULL);
+		irq_set_chip(__irq, NULL);
 		irq_set_chip_data(__irq, NULL);
 	}
 }
