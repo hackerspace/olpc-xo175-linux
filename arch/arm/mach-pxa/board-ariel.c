@@ -615,6 +615,7 @@ static void vibrator_set_power(int on)
 }
 
 static struct pm80x_vibrator_pdata vibrator_pdata = {
+	.min_timeout = 100,
 	.vibrator_power = vibrator_set_power,
 };
 
