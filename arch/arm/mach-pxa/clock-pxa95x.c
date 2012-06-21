@@ -23,7 +23,7 @@
 #include "dsi_hdmi_pll.h"
 #include "clock.h"
 
-#define HZ_TO_KHZ	1000
+#define KHZ_TO_HZ	1000
 #define MHZ_TO_HZ	1000000
 
 extern unsigned long max_pp, max_gc, max_vmeta, max_core;
@@ -524,7 +524,7 @@ static int clk_pxa95x_lcd_enable(struct clk *lcd_clk)
 	struct dvfs_freqs dvfs_freqs;
 
 	dvfs_freqs.old = 0;
-	dvfs_freqs.new = lcd_clk->rate / HZ_TO_KHZ;
+	dvfs_freqs.new = lcd_clk->rate / KHZ_TO_HZ;
 	dvfs_freqs.dvfs = &display_dvfs;
 
 	pr_debug("Display enable from 0 to %lu.\n", lcd_clk->rate);
@@ -542,7 +542,7 @@ static void clk_pxa95x_lcd_disable(struct clk *lcd_clk)
 {
 	struct dvfs_freqs dvfs_freqs;
 
-	dvfs_freqs.old = lcd_clk->rate / HZ_TO_KHZ;
+	dvfs_freqs.old = lcd_clk->rate / KHZ_TO_HZ;
 	dvfs_freqs.new = 0;
 	dvfs_freqs.dvfs = &display_dvfs;
 
@@ -606,8 +606,8 @@ static int clk_pxa95x_lcd_setrate(struct clk *lcd_clk, unsigned long rate)
 {
 	unsigned int value, mask = 0x7;
 	struct dvfs_freqs dvfs_freqs;
-	dvfs_freqs.old = lcd_clk->rate / HZ_TO_KHZ;
-	dvfs_freqs.new = rate / HZ_TO_KHZ;
+	dvfs_freqs.old = lcd_clk->rate / KHZ_TO_HZ;
+	dvfs_freqs.new = rate / KHZ_TO_HZ;
 	dvfs_freqs.dvfs = &display_dvfs;
 	if (dvfs_freqs.old < dvfs_freqs.new)
 		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
@@ -860,7 +860,7 @@ static int clk_gcu_enable(struct clk *clk)
 	struct dvfs_freqs dvfs_freqs;
 
 	dvfs_freqs.old = 0;
-	dvfs_freqs.new = clk->rate / HZ_TO_KHZ;
+	dvfs_freqs.new = clk->rate / KHZ_TO_HZ;
 	dvfs_freqs.dvfs = &gc_dvfs;
 
 	pr_debug("GC enable from 0 to %lu.\n", clk->rate);
@@ -880,7 +880,7 @@ static void clk_gcu_disable(struct clk *clk)
 {
 	struct dvfs_freqs dvfs_freqs;
 
-	dvfs_freqs.old = clk->rate / HZ_TO_KHZ;
+	dvfs_freqs.old = clk->rate / KHZ_TO_HZ;
 	dvfs_freqs.new = 0;
 	dvfs_freqs.dvfs = &gc_dvfs;
 
@@ -1045,14 +1045,36 @@ int get_gcu_freqs_table(unsigned long *gcu_freqs_table, unsigned int *item_count
 }
 EXPORT_SYMBOL(get_gcu_freqs_table);
 
+/* Frequency is in unit of Khz*/
+static struct devfreq_frequency_table pxa978_vmeta_clk_table[] = {
+	INIT_FREQ_TABLE(1, 156000),
+	INIT_FREQ_TABLE(2, 208000),
+	INIT_FREQ_TABLE(3, 312000),
+	INIT_FREQ_TABLE(4, 416000),
+	INIT_FREQ_TABLE(5, 498000),
+	INIT_FREQ_TABLE(6, 600000),
+	INIT_FREQ_TABLE(7, DEVFREQ_TABLE_END),
+};
+
+static struct devfreq_frequency_table pxa978_dx_vmeta_clk_table[] = {
+	INIT_FREQ_TABLE(1, 156000),
+	INIT_FREQ_TABLE(2, 208000),
+	INIT_FREQ_TABLE(3, 312000),
+	INIT_FREQ_TABLE(4, 416000),
+	INIT_FREQ_TABLE(5, 481000),
+	INIT_FREQ_TABLE(6, 600000),
+	INIT_FREQ_TABLE(7, DEVFREQ_TABLE_END),
+};
+
 int set_vmeta_freqs_table(struct devfreq *devfreq)
 {
 	if (cpu_is_pxa978_Dx())
-		devfreq_set_freq_table(devfreq, pxa978_dx_gcvmeta_clk_table);
+		devfreq_set_freq_table(devfreq, pxa978_dx_vmeta_clk_table);
 	else
-		devfreq_set_freq_table(devfreq, pxa978_gcvmeta_clk_table);
+		devfreq_set_freq_table(devfreq, pxa978_vmeta_clk_table);
+
 	if (max_vmeta)
-		devfreq->max_freq = max_vmeta;
+		devfreq->max_freq = max_vmeta / KHZ_TO_HZ;
 	return 0;
 }
 
@@ -1063,8 +1085,8 @@ static int clk_pxa95x_gcu_setrate(struct clk *gc_clk, unsigned long rate)
 
 	pr_debug("gc setrate from %lu to %lu.\n", gc_clk->rate, rate);
 
-	dvfs_freqs.old = gc_clk->rate / HZ_TO_KHZ;
-	dvfs_freqs.new = rate / HZ_TO_KHZ;
+	dvfs_freqs.old = gc_clk->rate / KHZ_TO_HZ;
+	dvfs_freqs.new = rate / KHZ_TO_HZ;
 	dvfs_freqs.dvfs = &gc_dvfs;
 	if (dvfs_freqs.old < dvfs_freqs.new)
 		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
@@ -1316,8 +1338,8 @@ static int clk_pxa95x_vmeta_setrate(struct clk *vmeta_clk, unsigned long rate)
 
 	pr_debug("vmeta setrate from %lu to %lu.\n", vmeta_clk->rate, rate);
 
-	dvfs_freqs.old = vmeta_clk->rate / HZ_TO_KHZ;
-	dvfs_freqs.new = rate / HZ_TO_KHZ;
+	dvfs_freqs.old = vmeta_clk->rate / KHZ_TO_HZ;
+	dvfs_freqs.new = rate / KHZ_TO_HZ;
 	dvfs_freqs.dvfs = &vmeta_dvfs;
 	if (dvfs_freqs.old < dvfs_freqs.new)
 		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
@@ -1366,7 +1388,7 @@ static int clk_pxa95x_vmeta_enable(struct clk *clk)
 	struct dvfs_freqs dvfs_freqs;
 
 	dvfs_freqs.old = 0;
-	dvfs_freqs.new = clk->rate / HZ_TO_KHZ;
+	dvfs_freqs.new = clk->rate / KHZ_TO_HZ;
 	dvfs_freqs.dvfs = &vmeta_dvfs;
 
 	pr_debug("vmeta enable from 0 to %lu.\n", clk->rate);
@@ -1385,7 +1407,7 @@ static void clk_pxa95x_vmeta_disable(struct clk *clk)
 {
 	struct dvfs_freqs dvfs_freqs;
 
-	dvfs_freqs.old = clk->rate / HZ_TO_KHZ;
+	dvfs_freqs.old = clk->rate / KHZ_TO_HZ;
 	dvfs_freqs.new = 0;
 	dvfs_freqs.dvfs = &vmeta_dvfs;
 

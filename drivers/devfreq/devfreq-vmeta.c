@@ -25,6 +25,7 @@
 #define DEVFREQ_DEFAULT_GOVERNOR	(&devfreq_simple_ondemand)
 #endif
 
+#define KHZ_TO_HZ	1000
 
 struct vMeta_devfreq_data {
 	struct devfreq *devfreq;
@@ -38,9 +39,9 @@ static int vmeta_target(struct device *dev, unsigned long *freq, u32 flags)
 	struct vMeta_devfreq_data *data = platform_get_drvdata(pdev);
 	int ret = 0;
 
-	ret = clk_set_rate(data->vclk, *freq);
+	ret = clk_set_rate(data->vclk, *freq * KHZ_TO_HZ);
 	if (!ret)
-		*freq = clk_get_rate(data->vclk);
+		*freq = clk_get_rate(data->vclk) / KHZ_TO_HZ;
 	return ret;
 }
 
@@ -72,7 +73,8 @@ static int vMeta_devfreq_probe(struct platform_device *pdev)
 		err = PTR_ERR(data->vclk);
 		goto out;
 	}
-	vMeta_devfreq_profile.initial_freq = clk_get_rate(data->vclk);
+	vMeta_devfreq_profile.initial_freq =
+			clk_get_rate(data->vclk) / KHZ_TO_HZ;
 
 	data->devfreq = devfreq_add_device(dev, &vMeta_devfreq_profile,
 					   DEVFREQ_DEFAULT_GOVERNOR, NULL);
