@@ -47,6 +47,8 @@
 #include <linux/cwmi.h>
 #include <linux/cwgd.h>
 
+#include <media/soc_camera.h>
+
 #include "onboard.h"
 #include "common.h"
 
@@ -585,6 +587,77 @@ static struct cwgd_platform_data cwgd_plat_data = {
 };
 #endif
 
+static struct i2c_board_info dkb_i2c_camera[] = {
+#if defined(CONFIG_SOC_CAMERA_OV2659)
+	{
+		I2C_BOARD_INFO("ov2659", 0x30),
+	},
+#endif
+};
+
+#if defined(CONFIG_SOC_CAMERA_OV2659)
+static int camera_sensor_power(struct device *dev, int on)
+{
+	unsigned int cam_pwr;
+	unsigned int cam_reset;
+
+	cam_pwr = mfp_to_gpio(GPIO082_GPIO_CAM_PD_SUB);
+	cam_reset = mfp_to_gpio(GPIO083_GPIO_CAM_RST_SUB);
+
+	if (cam_pwr) {
+		if (gpio_request(cam_pwr, "CAM_PWR")) {
+			printk(KERN_ERR "Request GPIO failed,"
+					"gpio: %d\n", cam_pwr);
+			return -EIO;
+		}
+	}
+	if (gpio_request(cam_reset, "CAM_RESET")) {
+		printk(KERN_ERR "Request GPIO failed,"
+			"gpio: %d\n", cam_reset);
+		return -EIO;
+	}
+
+	if (on) {
+		gpio_direction_output(cam_pwr, 0);
+		mdelay(1);
+		gpio_direction_output(cam_reset, 0);
+		mdelay(1);
+		gpio_direction_output(cam_reset, 1);
+		mdelay(1);
+	} else {
+		gpio_direction_output(cam_reset, 0);
+		mdelay(1);
+		gpio_direction_output(cam_reset, 1);
+		gpio_direction_output(cam_pwr, 1);
+	}
+	gpio_free(cam_pwr);
+	gpio_free(cam_reset);
+	return 0;
+}
+
+static struct soc_camera_link iclink_ov2659_dvp = {
+	.bus_id         = 0,            /* Must match with the camera ID */
+	.power          = camera_sensor_power,
+	.board_info     = &dkb_i2c_camera[0],
+	.i2c_adapter_id = 0,
+	.module_name    = "ov2659",
+};
+
+static struct platform_device dkb_ov2659_dvp = {
+	.name   = "soc-camera-pdrv",
+	.id     = 0,
+	.dev    = {
+		.platform_data = &iclink_ov2659_dvp,
+	},
+};
+#endif
+
+static struct platform_device *dkb_platform_devices[] = {
+#if defined(CONFIG_SOC_CAMERA_OV2659)
+	&dkb_ov2659_dvp,
+#endif
+};
+
 static struct i2c_board_info emeidkb_i2c_info[] = {
 
 };
@@ -957,6 +1030,8 @@ static void __init emeidkb_init(void)
 	platform_device_register(&pxa9xx_device_acipc);
 #endif
 
+	/* off-chip devices */
+	platform_add_devices(ARRAY_AND_SIZE(dkb_platform_devices));
 }
 
 MACHINE_START(EMEIDKB, "PXA988-Based")
