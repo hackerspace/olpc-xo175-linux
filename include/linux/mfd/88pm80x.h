@@ -668,6 +668,7 @@ struct pm80x_headset_pdata {
 };
 
 struct pm80x_vibrator_pdata {
+	int		min_timeout;
 	void		(*vibrator_power)(int on);
 };
 

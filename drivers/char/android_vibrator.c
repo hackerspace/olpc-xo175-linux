@@ -20,6 +20,7 @@ struct vibrator_info {
 	struct work_struct vibrator_off_work;
 	struct mutex vib_mutex;
 	int enable;
+	int min_timeout;
 };
 
 #define VIBRA_OFF_VALUE	0
@@ -93,6 +94,9 @@ static void vibrator_enable_set_timeout(struct timed_output_dev *sdev,
 	info = container_of(sdev, struct vibrator_info, vibrator_timed_dev);
 	pr_debug("Vibrator: Set duration: %dms\n", timeout);
 
+	if (info->min_timeout)
+		timeout = (timeout < info->min_timeout) ? info->min_timeout : timeout;
+
 	if (!mod_timer(&info->vibrate_timer, jiffies + msecs_to_jiffies(timeout)))
 		pm8xxx_control_vibrator(info, VIBRA_ON_VALUE);
 	return;
@@ -145,6 +149,8 @@ static int vibrator_probe(struct platform_device *pdev)
 		pdata = pdev->dev.platform_data;
 		if (pdata)
 			info->power = pdata->vibrator_power;
+		if (pdata->min_timeout)
+			info->min_timeout = pdata->min_timeout;
 	}
 
 	platform_set_drvdata(pdev, info);
