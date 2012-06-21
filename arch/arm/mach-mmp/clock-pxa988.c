@@ -1791,7 +1791,7 @@ static struct clk pxa988_ccic_func_clk = {
 	},
 	.clk_rst = (void __iomem *)APMU_CCIC_RST,
 	.inputs = periph_mux_sel,
-	.ops = &lcd_ci_isp_axi_clk_ops,
+	.ops = &ccic_func_clk_ops,
 	.reg_data = {
 		     { {APMU_CCIC_RST, 16, 0x3}, {APMU_CCIC_RST, 16, 0x3} },
 		     { {APMU_CCIC_RST, 18, 0x7}, {APMU_CCIC_RST, 18, 0x7} } }
