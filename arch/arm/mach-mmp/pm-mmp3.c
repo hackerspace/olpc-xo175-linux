@@ -2086,11 +2086,6 @@ void mmp3_pm_enter_d2(void)
 	__raw_writel(gc, APMU_GC);
 	__raw_writel(vmeta, APMU_VMETA);
 
-	/* re-enable AT clock */
-	the_value = readl(cic->idle_config);
-	the_value |= (1 << 31);
-	writel(the_value, cic->idle_config);
-
 	mmp3_mod_idle_config(cic, MMP3_PM_C1_INCG);
 }
 
