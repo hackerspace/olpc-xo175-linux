@@ -96,7 +96,7 @@ static struct mspm_op_stats first_stats, cur_stats;
 static int mspm_op_num;
 
 static struct delayed_work idle_prof_work, idle_watchdog_work;
-struct mutex timer_mutex;
+DEFINE_SPINLOCK(timer_lock);
 
 static int mspm_prof_enabled;
 static int window_jif, watchdog_jif;
@@ -226,10 +226,13 @@ int mspm_add_event(int op, int cpu_idle)
 
 	if (mspm_prof_enabled) {
 		if (is_idle_wd_valid()) {
+			spin_lock(&timer_lock);
 			if (timer_pending(&idle_watchdog_work.timer))
 				mod_timer(&idle_watchdog_work.timer, jiffies + watchdog_jif);
 			else
 				schedule_delayed_work_on(0, &idle_watchdog_work, watchdog_jif);
+			spin_unlock(&timer_lock);
+
 		}
 		time = read_time();
 		/* sum the current sample window */
@@ -293,6 +296,7 @@ static int mspm_start_prof(struct ipm_profiler_arg *arg)
 	cur_stats.timestamp = read_time();
 	cur_stats.jiffies = jiffies;
 	mspm_do_new_sample();
+
 	if (timer_pending(&idle_prof_work.timer))
 		mod_timer(&idle_prof_work.timer, jiffies + window_jif);
 	else
@@ -300,13 +304,16 @@ static int mspm_start_prof(struct ipm_profiler_arg *arg)
 	mspm_prof_enabled = 1;
 	/* start idle watchdog */
 	if (is_idle_wd_valid()) {
+		spin_lock(&timer_lock);
 		if (timer_pending(&idle_watchdog_work.timer))
 			mod_timer(&idle_watchdog_work.timer,
 					jiffies + watchdog_jif);
 		else
 			schedule_delayed_work_on(0, &idle_watchdog_work,
 					watchdog_jif);
+		spin_unlock(&timer_lock);
 	}
+
 	return 0;
 }
 
@@ -336,24 +343,23 @@ static void down_freq_worker(struct work_struct *work)
  */
 static void idle_prof_handler(struct work_struct *work)
 {
-	mutex_lock(&timer_mutex);
 	mspm_calc_mips(first_stats.timestamp);
 
 	/* start next sample window */
 	mspm_do_new_sample();
 	schedule_delayed_work_on(0, &idle_prof_work, window_jif);
 	if (is_idle_wd_valid()) {
+		spin_lock(&timer_lock);
 		if (timer_pending(&idle_watchdog_work.timer))
 			mod_timer(&idle_watchdog_work.timer, jiffies + watchdog_jif);
 		else
 			schedule_delayed_work_on(0, &idle_watchdog_work, watchdog_jif);
+		spin_unlock(&timer_lock);
 	}
-	mutex_unlock(&timer_mutex);
 }
 
 static void idle_watchdog_handler(struct work_struct *work)
 {
-	mutex_lock(&timer_mutex);
 	if (mspm_prof_enabled) {
 #ifdef CONFIG_PXA95x_DVFM
 		struct op_info *info = NULL;
@@ -365,9 +371,7 @@ static void idle_watchdog_handler(struct work_struct *work)
 		/* Now CPU usage is 100% in current operating point */
 		mspm_request_tune(mips);
 #endif
-		/* mod_timer(&idle_watchdog, jiffies + watchdog_jif); */
 	}
-	mutex_unlock(&timer_mutex);
 }
 
 extern void tick_nohz_update_jiffies(void);
@@ -429,6 +433,7 @@ static int mspm_prof_notifier_freq(struct notifier_block *nb,
 			 */
 			mod_timer(&idle_prof_work.timer, jiffies + window_jif);
 			if (is_idle_wd_valid()) {
+				spin_lock(&timer_lock);
 				if (watchdog_timer_pending) {
 					mod_timer(&idle_watchdog_work.timer,
 							jiffies + watchdog_jif);
@@ -437,6 +442,7 @@ static int mspm_prof_notifier_freq(struct notifier_block *nb,
 					schedule_delayed_work_on(0,
 							&idle_watchdog_work,
 							watchdog_jif);
+				spin_unlock(&timer_lock);
 			}
 			first_stats.jiffies = jiffies;
 			first_stats.timestamp = read_time();
@@ -626,10 +632,12 @@ static ssize_t watchdog_store(struct kobject *kobj,
 {
 	sscanf(buf, "%u", &mspm_watchdog);
 	if (mspm_watchdog) {
+		spin_lock(&timer_lock);
 		if (timer_pending(&idle_watchdog_work.timer))
 			mod_timer(&idle_watchdog_work.timer, jiffies + watchdog_jif);
 		else
 			schedule_delayed_work_on(0, &idle_watchdog_work, watchdog_jif);
+		spin_unlock(&timer_lock);
 	} else
 		cancel_delayed_work_sync(&idle_watchdog_work);
 	return len;
@@ -729,7 +737,6 @@ int __init mspm_prof_init(void)
 	 * If system is idle, the timer could be deferred.
 	 */
 	INIT_DELAYED_WORK_DEFERRABLE(&idle_prof_work, idle_prof_handler);
-	mutex_init(&timer_mutex);
 
 	/* It's used to monitor IDLE event */
 	INIT_DELAYED_WORK_DEFERRABLE(&idle_watchdog_work, idle_watchdog_handler);
