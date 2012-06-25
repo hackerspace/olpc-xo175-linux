@@ -6,3 +6,9 @@ config ECS_DRIVER
 	  Essential Camera Sensor(AKA: ECS) is a abstract description of
 	  camera sensors. Can be used to creat a specific camera sensor
 	  driver, like ov5640 driver.
+
+config ECS_DRIVER_SUBDEV
+	tristate
+	select ECS_DRIVER
+	default n
+        tristate
