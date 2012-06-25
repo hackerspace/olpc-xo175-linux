@@ -216,8 +216,6 @@ static void pxa_gpio_demux_handler(unsigned int irq, struct irq_desc *desc)
 			gpio_base = c->chip.base;
 
 			gedr = __raw_readl(c->regbase + GEDR_OFFSET);
-			gedr = gedr & c->irq_mask;
-			__raw_writel(gedr, c->regbase + GEDR_OFFSET);
 
 			n = find_first_bit(&gedr, BITS_PER_LONG);
 			while (n < BITS_PER_LONG) {
