@@ -82,7 +82,6 @@ obj-$(CONFIG_SOC_CAMERA_ICPHD)		+= icp-hd.o
 obj-$(CONFIG_SOC_CAMERA_OV2640)		+= ov2640.o
 obj-$(CONFIG_SOC_CAMERA_OV2659)		+= ov2659.o
 obj-$(CONFIG_SOC_CAMERA_OV5642)		+= ov5642.o ov5642_cfg.o
-obj-$(CONFIG_SOC_CAMERA_OV5642_ECS)	+= ov5642_ecs.o
 obj-$(CONFIG_SOC_CAMERA_OV5640)		+= ov5640.o
 obj-$(CONFIG_SOC_CAMERA_OV6650)		+= ov6650.o
 obj-$(CONFIG_SOC_CAMERA_OV7692)		+= ov7692.o
@@ -164,7 +163,7 @@ obj-$(CONFIG_VIDEO_CX23885) += cx23885/
 obj-$(CONFIG_VIDEO_AK881X)		+= ak881x.o
 
 obj-$(CONFIG_VIDEO_OMAP2)		+= omap2cam.o
-obj-$(CONFIG_ECS_DRIVER)		+= ecs.o
+obj-$(CONFIG_ECS_DRIVER)		+= ecs/
 obj-$(CONFIG_SOC_CAMERA)		+= soc_camera.o soc_mediabus.o
 obj-$(CONFIG_SOC_CAMERA_PLATFORM)	+= soc_camera_platform.o
 # soc-camera host drivers have to be linked after camera drivers

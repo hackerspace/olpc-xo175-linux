@@ -799,13 +799,7 @@ config VIDEO_MVISP_OV8825
 	help
 	 Support for the OmniVision OV8825 camera.
 
-config ECS_DRIVER
-	tristate "Essential Camera Sensor framework"
-	depends on VIDEO_V4L2 && SOC_CAMERA
-	help
-	  Essential Camera Sensor(AKA: ECS) is a abstract description of
-	  camera sensors. Can be used to creat a specific camera sensor
-	  driver, like ov5640 driver.
+source "drivers/media/video/ecs/Kconfig"
 
 config SOC_CAMERA
 	tristate "SoC camera support"
@@ -834,13 +828,6 @@ config SOC_CAMERA_M6MO
 config SOC_CAMERA_OV5642
 	tristate "ov5642 support"
 	depends on SOC_CAMERA && I2C
-	default y
-	help
-	  Support for the OmniVision OV5642 5M camera (soc-camera arch).
-
-config SOC_CAMERA_OV5642_ECS
-	tristate "ov5642 support based on ECS"
-	depends on ECS_DRIVER && SOC_CAMERA && I2C
 	default y
 	help
 	  Support for the OmniVision OV5642 5M camera (soc-camera arch).

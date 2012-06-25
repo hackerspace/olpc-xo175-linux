@@ -1,5 +1,5 @@
-#ifndef _ECS_H_
-#define _ECS_H_
+#ifndef _ECS_CORE_H_
+#define _ECS_CORE_H_
 
 /* Essential Camera Sensor: Header file */
 /* Essential Camera Sensor driver (A.K.A. ECS_driver or x_driver) is a abstract
@@ -21,7 +21,7 @@ struct ecs_setting {
 	/* As for property, each setting is refered to by a id number */
 	int	id;
 	/* Sensor config table */
-	void	*cfg_tab;
+	const void	*cfg_tab;
 	/* Config table size, in bytes */
 	int	cfg_sz;
 	/* A pointer to save the feed back information location. The information
@@ -46,7 +46,7 @@ struct ecs_property {
 	int	value_type;
 	/* Following handler will download register values into sensor,
 	 * and return the number of downloaded values */
-	int (*cfg_handler)(void *hw_ctx, void *table, int size);
+	int (*cfg_handler)(void *hw_ctx, const void *table, int size);
 	int (*value_equal)(void *a, void *b);
 };
 
@@ -92,26 +92,7 @@ struct ecs_sensor {
 	void	*hw_ctx;
 	/* Following handler will download register values into sensor,
 	 * and return the number of downloaded values */
-	int	(*cfg_handler)(void *hw_ctx, void *list, int size);
-
-	/* Interface */
-	int	swif_type;
-	void	*swif;	/* pointer to controller programming interface*/
-};
-
-/* Data structures to support ECS interface to sensor driver */
-struct ecs_if_subdev {
-	int	*state_list;
-	int	state_cnt;
-	struct v4l2_mbus_framefmt	*state_map;
-	int	*enum_map;
-	int	fmt_id;
-	int	res_id;
-	int	str_id;
-	void	(*get_fmt_code)(const struct ecs_sensor *snsr, \
-				int fmt_value, struct v4l2_mbus_framefmt *mf);
-	void	(*get_res_desc)(const struct ecs_sensor *snsr, \
-				int res_value, struct v4l2_mbus_framefmt *mf);
+	int	(*cfg_handler)(void *hw_ctx, const void *list, int size);
 };
 
 /* recommended content of format setting info*/
@@ -131,32 +112,17 @@ struct ecs_default_res_info {
 };
 
 int ecs_sensor_reset(struct ecs_sensor *snsr);
-int ecs_sensor_plat(struct ecs_sensor *snsr, char *name, int speculate, \
-			void *hw_ctx, int (*cfg_handler)(void *, void *, int), \
-			int swif_type, void *swif);
+int ecs_sensor_merge(struct ecs_sensor *orig, const struct ecs_sensor *plat);
+int ecs_sensor_init(struct ecs_sensor *snsr);
 int ecs_setting_override(struct ecs_sensor *snsr, int prop, int stn, \
 				void *cfg_tab, int cfg_sz);
 int ecs_property_override(struct ecs_sensor *snsr, int prop_id, \
 			struct ecs_setting *stn_tab, \
-			int (*cfg_handler)(void *, void *, int));
+			int (*cfg_handler)(void *, const void *, int));
 int ecs_get_info(struct ecs_sensor *snsr, int prop_id, void **feedback);
 
-int ecs_subdev_set_stream(struct ecs_sensor *snsr, int enable);
-int ecs_subdev_set_fmt(struct ecs_sensor *snsr, struct v4l2_mbus_framefmt *mf);
-int ecs_subdev_get_fmt(struct ecs_sensor *snsr, struct v4l2_mbus_framefmt *mf);
-int ecs_subdev_try_fmt(struct ecs_sensor *snsr, struct v4l2_mbus_framefmt *mf);
-int ecs_subdev_enum_fmt(struct ecs_sensor *snsr, int idx, \
-						enum v4l2_mbus_pixelcode *code);
-int ecs_subdev_enum_fsize(struct ecs_sensor *snsr, \
-						struct v4l2_frmsizeenum *fsize);
-
-void ecs_subdev_default_get_fmt_code(const struct ecs_sensor *snsr, \
-				int fmt_value, struct v4l2_mbus_framefmt *mf);
-void ecs_subdev_default_get_res_desc(const struct ecs_sensor *snsr, \
-				int res_value, struct v4l2_mbus_framefmt *mf);
-
-int ecs_orig_set_state(struct ecs_sensor *snsr, int state);
-int ecs_orig_set_list(struct ecs_sensor *snsr, \
+int ecs_set_state(struct ecs_sensor *snsr, int state);
+int ecs_set_list(struct ecs_sensor *snsr, \
 					struct ecs_state_cfg *list, int len);
 
 #define __DECLARE_SETTING(SENSOR, sensor, PROP, prop, VAL, val) \
@@ -186,7 +152,49 @@ int ecs_orig_set_list(struct ecs_sensor *snsr, \
 		.cfg_num	= ARRAY_SIZE(sensor##_state_##val) ,\
 	}
 
+#define __DECLARE_PROPERTY(SENSOR, sensor, PPT, ppt, NAME, REGH, REGL, SPEC) \
+	[SENSOR##_##PROP##_##PPT] = { \
+		.name		= #NAME, \
+		.id		= SENSOR##_PROP_##PPT, \
+		.stn_tab	= sensor##_##ppt##_stn_table, \
+		.stn_num	= SENSOR##_##PPT##_##END, \
+		.reg_low	= REGL, \
+		.reg_high	= REGH, \
+		.speculate	= SPEC, \
+		.value_now	= UNSET, \
+		.cfg_handler	= NULL, \
+	}
+
+#define __DEVLARE_VIRTUAL_PROPERTY(SENSOR, PPT, NAME, SPEC) \
+	[SENSOR##_##PROP##_##PPT] = { \
+		.name		= #NAME, \
+		.id		= SENSOR##_PROP_##PPT, \
+		.stn_tab	= NULL, \
+		.stn_num	= SENSOR##_##PPT##_##END, \
+		.speculate	= SPEC, \
+		.value_now	= UNSET, \
+		.cfg_handler	= NULL, \
+	}
+
 #define ECS_DEFAULT_SNSR_CFG_HANDLER	(&ecs_reg_array_dump)
 #define ECS_DEFAULT_CTLR_CFG_HANDLER	NULL
+
+/* trace_level: */
+/* 0 - only actual errors */
+/* 1 - ecs internal error included */
+/* 2 - all ecs log */
+/* 3 - all ecs log and sensor behavior, performance impactable */
+extern int ecs_trace;
+#define x_printk(level, printk_level, fmt, arg...) \
+	do { \
+		if (ecs_trace >= level) \
+			printk(printk_level fmt, ##arg); \
+	} while (0)
+#define x_inf(level, fmt, arg...) \
+	x_printk(level, KERN_NOTICE, "x: " fmt "\n", ##arg)
+#define x_log(level, fmt, arg...) \
+	x_printk(level, KERN_DEBUG, "x: " fmt "\n", ##arg)
+#define xinf(level, fmt, arg...) x_printk(level, KERN_NOTICE, fmt, ##arg)
+#define xlog(level, fmt, arg...) x_printk(level, KERN_DEBUG, fmt, ##arg)
 
 #endif
