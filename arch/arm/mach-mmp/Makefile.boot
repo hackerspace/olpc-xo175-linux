@@ -1,9 +1,15 @@
+
 ifeq ($(CONFIG_CRASH_DUMP),y)
-	zreladdr-y	:= 0x06008000
+	__ADDRBASE := 0x06000000
 else
 ifeq ($(CONFIG_TZ_HYPERVISOR),y)
-	zreladdr-y	:= 0x00208000
+	__ADDRBASE := 0x00200000
 else
-	zreladdr-y	:= 0x00008000
+	__ADDRBASE := 0x00000000
 endif
 endif
+
+__ZRELADDR := $(shell /bin/bash -c 'printf "0x%08x" \
+	$$[$(TEXT_OFFSET) + $(__ADDRBASE)]')
+
+zreladdr-y := $(__ZRELADDR)
