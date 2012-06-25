@@ -562,6 +562,65 @@ static int isl9226_usb_get_property(struct power_supply *psy,
 	return 0;
 }
 
+static ssize_t show_charging_attrs(struct device *dev,
+		struct device_attribute *attr,
+		char *buf)
+{
+	struct isl9226_device_info *info = dev_get_drvdata(dev);
+	char charging[] = "Charging";
+	char discharging[] = "Discharging";
+	char *status;
+
+	if (info->ischarging)
+		status = charging;
+	else
+		status = discharging;
+
+	return sprintf(buf, "%s\n", status);
+}
+
+static ssize_t set_charging_attrs(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	struct isl9226_device_info *info = dev_get_drvdata(dev);
+	char cmd[10];
+
+	sscanf(buf, "%s", cmd);
+
+	if (!memcmp(cmd, "charging", strlen(cmd))) {
+		cancel_delayed_work(&info->chg_update_work);
+		isl9226_start_charging(info);
+		printk(KERN_INFO "Start charging\n");
+	}
+
+	if (!memcmp(cmd, "discharging", strlen(cmd))) {
+		cancel_delayed_work(&info->chg_update_work);
+		isl9226_stop_charging(info);
+		printk(KERN_INFO "Stop charging\n");
+	}
+
+	if (!memcmp(cmd, "exit", strlen(cmd))) {
+		schedule_delayed_work(&info->chg_update_work, 0);
+		printk(KERN_INFO "Exit charging test\n");
+	}
+
+	return count;
+}
+
+
+static DEVICE_ATTR(set_charging, S_IRUSR|S_IWUSR, show_charging_attrs,
+		set_charging_attrs);
+
+static struct attribute *battery_attributes[] = {
+	&dev_attr_set_charging.attr,
+	NULL,
+};
+
+static struct attribute_group battery_attr_group = {
+	.attrs = battery_attributes,
+};
+
 static int isl9226_charger_probe(struct i2c_client *client,
 				 const struct i2c_device_id *id)
 {
@@ -636,6 +695,9 @@ static int isl9226_charger_probe(struct i2c_client *client,
 		goto out;
 	}
 #endif
+
+	ret = sysfs_create_group(&info->dev->kobj, &battery_attr_group);
+	dev_set_drvdata(info->dev, info);
 
 	dev_info(&client->dev, "isl9226 probe finished\n");
 	return 0;
