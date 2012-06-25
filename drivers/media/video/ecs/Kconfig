@@ -1,5 +1,5 @@
 config ECS_DRIVER
-	tristate "Essential Camera Sensor driver framework"
+	bool
 	depends on VIDEO_V4L2 && SOC_CAMERA
 	default n
 	help
@@ -8,7 +8,16 @@ config ECS_DRIVER
 	  driver, like ov5640 driver.
 
 config ECS_DRIVER_SUBDEV
-	tristate
+	bool "Essential Camera Sensor V4L2-subdev interface"
 	select ECS_DRIVER
 	default n
-        tristate
+	help
+	  V4L2 subdev helper functions to implement subdev-like sensor
+	  driver
+
+config SOC_CAMERA_OV5640_ECS
+	tristate "ov5640 support based on ECS"
+	depends on ECS_DRIVER_SUBDEV && !SOC_CAMERA_OV5640
+	default n
+	help
+	  Support for the OmniVision OV5640 5M camera sensor.
