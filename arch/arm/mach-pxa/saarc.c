@@ -2028,7 +2028,7 @@ static void __init init_cam(void)
 	case OBM_DKB_2_1_NEVO_C0_BOARD:
 	case OBM_DKB_3_NEVO_D0_BOARD:
 
-#if defined(CONFIG_SOC_CAMERA_OV9740)
+#if defined(CONFIG_SOC_CAMERA_OV9740) || defined(CONFIG_SOC_CAMERA_OV9740_ECS)
 		printk(KERN_NOTICE "cam: dkb: support ov9740\n");
 		platform_device_register(&camera[ID_OV9740]);
 #endif
@@ -2036,21 +2036,21 @@ static void __init init_cam(void)
 		printk(KERN_NOTICE "cam: dkb: support icp-hd\n");
 		platform_device_register(&camera[ID_ICPHD]);
 #endif
-#if defined(CONFIG_SOC_CAMERA_OV640)
+#if defined(CONFIG_SOC_CAMERA_OV640) || defined(CONFIG_SOC_CAMERA_OV640_ECS)
 		printk(KERN_NOTICE "cam: dkb: support ov640\n");
 		platform_device_register(&camera[ID_OV640]);
 #endif
-#if defined(CONFIG_SOC_CAMERA_OV5640)
+#if defined(CONFIG_SOC_CAMERA_OV5640) || defined(CONFIG_SOC_CAMERA_OV5640_ECS)
 		printk(KERN_NOTICE "cam: dkb: support ov5640\n");
 		platform_device_register(&camera[ID_OV5640]);
 #endif
-#if defined(CONFIG_SOC_CAMERA_OV5642)
+#if defined(CONFIG_SOC_CAMERA_OV5642) || defined(CONFIG_SOC_CAMERA_OV5642_ECS)
 		printk(KERN_NOTICE "cam: dkb: support ov5642\n");
 		platform_device_register(&camera[ID_OV5642]);
 #endif
 		break;
 	default: /* For SaarC 2.5 and 3*/
-#if defined(CONFIG_SOC_CAMERA_OV9740)
+#if defined(CONFIG_SOC_CAMERA_OV9740) || defined(CONFIG_SOC_CAMERA_OV9740_ECS)
 		printk(KERN_NOTICE "cam: saarc: support ov9740\n");
 		platform_device_register(&camera[ID_OV9740]);
 #endif
@@ -2058,11 +2058,11 @@ static void __init init_cam(void)
 		printk(KERN_NOTICE "cam: saarc: support icp-hd\n");
 		platform_device_register(&camera[ID_ICPHD]);
 #endif
-#if defined(CONFIG_SOC_CAMERA_OV5642)
+#if defined(CONFIG_SOC_CAMERA_OV5642) || defined(CONFIG_SOC_CAMERA_OV5642_ECS)
 		printk(KERN_NOTICE "cam: saarc: support ov5642\n");
 		platform_device_register(&camera[ID_OV5642]);
 #endif
-#if defined(CONFIG_SOC_CAMERA_OV5640)
+#if defined(CONFIG_SOC_CAMERA_OV5640) || defined(CONFIG_SOC_CAMERA_OV5640_ECS)
 		printk(KERN_NOTICE "cam: saarc: support ov5640\n");
 		platform_device_register(&camera[ID_OV5640]);
 #endif
