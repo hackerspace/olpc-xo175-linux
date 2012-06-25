@@ -22,6 +22,13 @@ config SOC_CAMERA_OV5640_ECS
 	help
 	  Support for the OmniVision OV5640 5M camera sensor.
 
+config SOC_CAMERA_OV5642_ECS
+	tristate "ov5642 support based on ECS"
+	depends on ECS_DRIVER_SUBDEV && !SOC_CAMERA_OV5642
+	default n
+	help
+	  Support for the OmniVision OV5642 5M camera sensor.
+
 config SOC_CAMERA_OV9740_ECS
 	tristate "ov9740 support based on ECS"
 	depends on ECS_DRIVER_SUBDEV && !SOC_CAMERA_OV9740
