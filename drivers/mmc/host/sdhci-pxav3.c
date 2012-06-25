@@ -599,6 +599,7 @@ static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 #endif
 	host->ops = &pxav3_sdhci_ops;
 
+	pxa->pdata = pdata;
 	ret = sdhci_add_host(host);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to add host\n");
@@ -621,7 +622,6 @@ static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 	if (pdata && pdata->ext_cd_gpio)
 		ext_cd_init(pdev);
 
-	pxa->pdata = pdata;
 #ifdef CONFIG_SD8XXX_RFKILL
 	if (pxa->pdata->pmmc)
 		*pxa->pdata->pmmc = host->mmc;
