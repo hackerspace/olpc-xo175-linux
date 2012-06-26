@@ -1478,6 +1478,16 @@ static __u8 sub_sensor_mapping[] = {
 };
 
 struct layout_mapping *g_board;
+static struct clk *cam_mclk_26m;
+
+static int cam_set_mclk(int on)
+{
+	if (on == 1)
+		clk_enable(cam_mclk_26m);
+	else
+		clk_disable(cam_mclk_26m);
+	return 0;
+}
 
 static int cam_sensor_power(struct device *dev, int flag)
 {
@@ -1500,6 +1510,10 @@ static int cam_sensor_power(struct device *dev, int flag)
 		pos_map = sub_sensor_mapping;
 	else
 		pos_map = main_sensor_mapping;
+
+	if(cpu_is_pxa978_Dx())
+		cam_set_mclk(flag);
+
 next:
 	if (seq->id >= CAMP_END)
 		return 0;
@@ -1866,6 +1880,12 @@ static void __init init_cam(void)
 	platform_device_register(&pxa95x_device_cam0);
 	platform_device_register(&pxa95x_device_cam1);
 #endif
+
+	cam_mclk_26m = clk_get(NULL, "CAM_MCLK_26M");
+	if (IS_ERR(cam_mclk_26m)) {
+		pr_err("init_cam: unable to get camera MCLK 26M");
+		return;
+	}
 }
 
 static inline int pxa978_add_spi(int id, struct pxa2xx_spi_master *pdata)
