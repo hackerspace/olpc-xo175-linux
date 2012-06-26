@@ -45,13 +45,19 @@
 #include <linux/slab.h>
 #include <linux/dma-mapping.h>
 #include <linux/wakelock.h>
-#include <mach/dma.h>
-#include <plat/pm.h>
 
+#include <plat/pm.h>
+#ifdef CONFIG_PM
+#include <plat/pxa_uart.h>
+#endif
+
+#include <mach/dma.h>
 #ifdef CONFIG_PXA95x
 #include <mach/dvfm.h>
 #include <mach/pxa95x_dvfm.h>
 #endif
+
+
 
 #define	DMA_BLOCK	UART_XMIT_SIZE
 
@@ -1314,6 +1320,11 @@ static struct uart_driver serial_pxa_reg = {
 static int serial_pxa_suspend(struct device *dev)
 {
         struct uart_pxa_port *sport = dev_get_drvdata(dev);
+	struct pxa_uart_mach_info *info = dev->platform_data;
+
+	/* prevent console freezing in suspend */
+	if (info && info->stay_awake_in_suspend)
+		return 0;
 
 	if (sport && (sport->ier & UART_IER_DMAE)) {
 		int length = 0, sent = 0;
@@ -1350,6 +1361,11 @@ static int serial_pxa_suspend(struct device *dev)
 static int serial_pxa_resume(struct device *dev)
 {
         struct uart_pxa_port *sport = dev_get_drvdata(dev);
+	struct pxa_uart_mach_info *info = dev->platform_data;
+
+	/* prevent console freezing in suspend */
+	if (info && info->stay_awake_in_suspend)
+		return 0;
 
         if (sport)
                 uart_resume_port(&serial_pxa_reg, &sport->port);
