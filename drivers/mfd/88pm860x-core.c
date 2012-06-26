@@ -457,17 +457,9 @@ static int __devinit device_gpadc_init(struct pm860x_chip *chip,
 
 	/* set for Temprature mesurmants*/
 	data = 0 ;
-
-	if (pdata && (pdata->batt_det == 0)) {
-		data = (PM8607_GPADC_GP_BIAS_EN0		|
-					PM8607_GPADC_GP_BIAS_EN1	|
-					PM8607_GPADC_GP_BIAS_EN2	|
-					PM8607_GPADC_GP_BIAS_EN3);
-	} else {
-		data = (PM8607_GPADC_GP_BIAS_EN0		|
-					PM8607_GPADC_GP_BIAS_EN2	|
-					PM8607_GPADC_GP_BIAS_EN3);
-	}
+	data = (PM8607_GPADC_GP_BIAS_EN0		|
+			PM8607_GPADC_GP_BIAS_EN2	|
+			PM8607_GPADC_GP_BIAS_EN3);
 	pm860x_reg_write(i2c, PM8607_GPADC_MISC2, data);
 	pr_info( \
 	"device_gpadc_init:initialize GPADC!!!\n");
