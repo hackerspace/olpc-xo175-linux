@@ -145,7 +145,7 @@ enum sys_clk_req_line {
 	SYS_CLK_REQ_LINE_0_SHIFT = 14,
 		GPS_ECLK_26M_REQ_LINE_SHIFT = SYS_CLK_REQ_LINE_0_SHIFT,
 	SYS_CLK_REQ_LINE_1_SHIFT = 12,
-		/* not used currently */
+		CAM_MCLK_26M_REQ_LINE_SHIFT = SYS_CLK_REQ_LINE_1_SHIFT,
 	SYS_CLK_REQ_LINE_2_SHIFT = 10,
 		/* not used currently */
 	SYS_CLK_REQ_LINE_3_SHIFT = 8,
@@ -168,6 +168,32 @@ enum sys_clk_req_line_control {
 #define SYS_CLK_ON ((SYS_CLK_REQ_LINE_ACTIVE_DEFAULT << 1) | SYS_CLK_REQ_LINE_ENABLE)
 #define SYS_CLK_OFF ((SYS_CLK_REQ_LINE_ACTIVE_DEFAULT << 1) | SYS_CLK_REQ_LINE_DISABLE)
 #define SYS_CLK_REQ_LINE_MASK (3)
+
+static int clk_pxa95x_cam_mclk_26m_enable(struct clk *clk)
+{
+	if(pxa_reg_write(GEN_REG3,
+		SYS_CLK_ON << CAM_MCLK_26M_REQ_LINE_SHIFT,
+		SYS_CLK_REQ_LINE_MASK << CAM_MCLK_26M_REQ_LINE_SHIFT) < 0)
+		return -EINVAL;
+
+	pr_info("enable camera MCLK 26M clock\n");
+	return 0;
+}
+
+static void clk_pxa95x_cam_mclk_26m_disable(struct clk *clk)
+{
+	if(pxa_reg_write(GEN_REG3,
+		SYS_CLK_OFF << CAM_MCLK_26M_REQ_LINE_SHIFT,
+		SYS_CLK_REQ_LINE_MASK << CAM_MCLK_26M_REQ_LINE_SHIFT) < 0)
+		return;
+
+	pr_info("disable camera MCLK 26M clock\n");
+}
+
+static const struct clkops clk_pxa95x_cam_mclk_26m_ops = {
+	.enable = clk_pxa95x_cam_mclk_26m_enable,
+	.disable = clk_pxa95x_cam_mclk_26m_disable,
+};
 
 static int clk_pxa95x_gps_eclk_26m_enable(struct clk *clk)
 {
@@ -1796,6 +1822,10 @@ static struct clk clk_pxa978_syspll_416 = {
 	.ops = &clk_pxa978_syspll416_ops,
 };
 
+static struct clk clk_pxa95x_cam_mclk_26m = {
+	.ops = &clk_pxa95x_cam_mclk_26m_ops,
+};
+
 static struct clk clk_pxa95x_gps_eclk_26m = {
 	.ops = &clk_pxa95x_gps_eclk_26m_ops,
 };
@@ -1839,6 +1869,7 @@ static struct clk_lookup common_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_sci2, NULL, "SCI2CLK"),
 	INIT_CLKREG(&clk_pxa95x_csi_tx_esc, NULL, "CSI_TX_ESC"),
 	INIT_CLKREG(&clk_pxa95x_tpm, NULL, "TPM"),
+	INIT_CLKREG(&clk_pxa95x_cam_mclk_26m, NULL, "CAM_MCLK_26M"),
 	INIT_CLKREG(&clk_pxa95x_gps_eclk_26m, NULL, "GPS_ECLK_26M"),
 };
 
