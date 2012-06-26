@@ -238,6 +238,13 @@ void coda7542_power_switch(int on)
 
 void __init pxa988_reserve(void)
 {
+	/*
+	 * reserve the first 1MB physical ddr memory for obm. when use EMMD
+	 * (Enhanced Marvell Memory Dump), kernel should not make use of this
+	 * memory, since it'll be corrupted by next reboot by obm.
+	 */
+	BUG_ON(memblock_reserve(PLAT_PHYS_OFFSET, 0x100000));
+
 #ifdef CONFIG_ANDROID_PMEM
 	/*reserve memory for pmem*/
 	pxa_reserve_pmem_memblock();
