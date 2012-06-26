@@ -7,7 +7,7 @@ struct mv_cam_pdata {
 #ifdef CONFIG_CPU_MMP3
 	struct clk	*clk;
 #else
-	struct clk	*clk[3];
+	struct clk	*clk[4];
 #endif
 	char		*name;
 	int		clk_enabled;
