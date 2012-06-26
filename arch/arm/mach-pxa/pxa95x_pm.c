@@ -52,6 +52,7 @@
 #include <mach/ca9_asm.h>
 #include <linux/wakelock.h>
 #include "generic.h"
+#include <plat/reg_rw.h>
 
 /* mtd.h declares another DEBUG macro definition */
 #undef DEBUG
@@ -2367,15 +2368,12 @@ static int __init pxa95x_pm_init(void)
 		DMEMVLR = dmemvlr;
 	}
 
-	{
-		static u32 *base;
-#define GEN_REG3	0x42404008	/* general Register 3 */
-#define GEN_REG3_SPLGEN	   (1 << 19)
-		base = ioremap_nocache(GEN_REG3, 4);
-		/* system pll auto gating set */
-		*base |= GEN_REG3_SPLGEN;
-		iounmap(base);
-	}
+	/* system pll auto gating set */
+	/* use pxa_reg_r/w to access GEN_REG3 since the control bit is write_only */
+	if(pxa_reg_write(GEN_REG3,
+		GEN_REG3_SPLGEN, GEN_REG3_SPLGEN_MASK) < 0)
+		return -1;
+
 
 	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
 			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
