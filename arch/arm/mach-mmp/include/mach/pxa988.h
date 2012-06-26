@@ -20,6 +20,7 @@ extern int pxa988_ripc_trylock(void);
 #include <plat/pxa27x_keypad.h>
 #include <linux/platform_data/pxa_sdhci.h>
 #include <mach/pxa168fb.h>
+#include <mach/camera.h>
 
 extern struct pxa_device_desc pxa988_device_uart0;
 extern struct pxa_device_desc pxa988_device_uart1;
@@ -38,6 +39,7 @@ extern struct pxa_device_desc pxa988_device_asram;
 extern struct pxa_device_desc pxa988_device_vsram;
 extern struct pxa_device_desc pxa988_device_fb;
 extern struct pxa_device_desc pxa988_device_fb_ovly;
+extern struct pxa_device_desc pxa988_device_camera;
 
 extern struct platform_device pxa9xx_device_acipc;
 
@@ -192,6 +194,11 @@ static inline int pxa988_add_fb(struct pxa168fb_mach_info *mi)
 static inline int pxa988_add_fb_ovly(struct pxa168fb_mach_info *mi)
 {
 	return pxa_register_device(&pxa988_device_fb_ovly, mi, sizeof(*mi));
+}
+
+static inline int pxa988_add_cam(struct mv_cam_pdata *cam)
+{
+	return pxa_register_device(&pxa988_device_camera, cam, sizeof(*cam));
 }
 
 #endif /* __ASM_CPU_PXA988_H */
