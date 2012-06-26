@@ -775,16 +775,38 @@ void pxa95x_cpmem_reserve(void)
 				(unsigned)_cp_area_addr[seg]);
 		}
 	}
+}
 
-#ifdef CONFIG_ANDROID_PMEM
-	/* reserve pmem */
-	pxa_reserve_pmem_memblock();
-#endif
+static void pxa95x_ram_console_mem_reserve(void)
+{
+	unsigned int pa, ret;
+
+	pa = __virt_to_phys(CONFIG_ANDROID_RAM_CONSOLE_EARLY_ADDR);
+
+	if (!pa || CONFIG_ANDROID_RAM_CONSOLE_EARLY_SIZE == 0)
+		return;
+
+	ret = memblock_reserve(pa, CONFIG_ANDROID_RAM_CONSOLE_EARLY_SIZE);
+	if (ret)
+		pr_err("Failed to reserve ram console memory, ret 0x%x\n", ret);
+	else
+		pr_info("Reserve 0x%x at 0x%x (va 0x%x) for ram console\n",
+				CONFIG_ANDROID_RAM_CONSOLE_EARLY_SIZE, pa,
+				CONFIG_ANDROID_RAM_CONSOLE_EARLY_ADDR);
 }
 
 void pxa95x_mem_reserve(void)
 {
 	pxa95x_cpmem_reserve();
+
+#ifdef CONFIG_ANDROID_RAM_CONSOLE_EARLY_INIT
+	pxa95x_ram_console_mem_reserve();
+#endif
+
+#ifdef CONFIG_ANDROID_PMEM
+	/* reserve pmem */
+	pxa_reserve_pmem_memblock();
+#endif
 }
 
 void pxa_boot_flash_init(int sync_mode)
