@@ -716,6 +716,11 @@ unsigned int read_curtime(void)
 	return OSCR4;
 }
 
+static unsigned int ticks_to_sec(unsigned int ticks)
+{
+	return ticks >> 15;
+}
+
 static int pxa_9xx_gc_ticks_read(struct file *file,
 				       char __user *userbuf,
 				       size_t count, loff_t *ppos)
@@ -757,8 +762,8 @@ static int pxa_9xx_gc_ticks_read(struct file *file,
 			i, gc_vmeta_ticks_info.GC_op_ticks_array[i].op_idx,
 			gc_vmeta_ticks_info.GC_op_ticks_array[i].runtime,
 			gc_vmeta_ticks_info.GC_op_ticks_array[i].idletime,
-			dvfm_driver->ticks_to_sec(gc_vmeta_ticks_info.GC_op_ticks_array[i].runtime),
-			dvfm_driver->ticks_to_sec(gc_vmeta_ticks_info.GC_op_ticks_array[i].idletime),
+			ticks_to_sec(gc_vmeta_ticks_info.GC_op_ticks_array[i].runtime),
+			ticks_to_sec(gc_vmeta_ticks_info.GC_op_ticks_array[i].idletime),
 			gc_vmeta_ticks_info.GC_op_ticks_array[i].count);
 		}
 		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "\n");
@@ -903,8 +908,8 @@ static int pxa_9xx_vm_ticks_read(struct file *file,
 			i, gc_vmeta_ticks_info.VM_op_ticks_array[i].op_idx,
 			gc_vmeta_ticks_info.VM_op_ticks_array[i].runtime,
 			gc_vmeta_ticks_info.VM_op_ticks_array[i].idletime,
-			dvfm_driver->ticks_to_sec(gc_vmeta_ticks_info.VM_op_ticks_array[i].runtime),
-			dvfm_driver->ticks_to_sec(gc_vmeta_ticks_info.VM_op_ticks_array[i].idletime),
+			ticks_to_sec(gc_vmeta_ticks_info.VM_op_ticks_array[i].runtime),
+			ticks_to_sec(gc_vmeta_ticks_info.VM_op_ticks_array[i].idletime),
 			gc_vmeta_ticks_info.VM_op_ticks_array[i].count);
 		}
 		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "\n");
