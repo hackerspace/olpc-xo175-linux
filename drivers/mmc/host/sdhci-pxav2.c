@@ -319,7 +319,6 @@ static int sdhci_pxav2_suspend(struct platform_device *pdev, pm_message_t state)
 		printk(KERN_WARNING"%s already suspended\n", mmc_hostname(host->mmc));
 		return ret;
 	}
-	atomic_inc(&host->mmc->suspended);
 
 	if (device_may_wakeup(&pdev->dev))
 		enable_irq_wake(host->irq);
@@ -333,20 +332,19 @@ static int sdhci_pxav2_suspend(struct platform_device *pdev, pm_message_t state)
 	if (host->quirks2 & SDHCI_QUIRK2_DUMMY_CLK_ONLY_SUSPEND)
 		host->quirks2 &= ~SDHCI_QUIRK2_MISSING_DUMMY_CLK;
 
-	if (ret) {
-		atomic_dec(&host->mmc->suspended);
+	if (ret)
 		return ret;
-	}
 
 	if (pdata->lp_switch) {
 		ret = pdata->lp_switch(1, (int)host->mmc->card);
 		if (ret) {
-			atomic_dec(&host->mmc->suspended);
 			sdhci_resume_host(host);
 			dev_err(&pdev->dev, "fail to switch gpio, resume..\n");
+			return ret;
 		}
 	}
 
+	atomic_inc(&host->mmc->suspended);
 	return ret;
 }
 
@@ -359,12 +357,14 @@ static int sdhci_pxav2_resume(struct platform_device *pdev)
 	if (pdata->lp_switch)
 		pdata->lp_switch(0, (int)host->mmc->card);
 
+	if (atomic_read(&host->mmc->suspended))
+		atomic_dec(&host->mmc->suspended);
+
 	ret = sdhci_resume_host(host);
 
 	if (device_may_wakeup(&pdev->dev))
 		disable_irq_wake(host->irq);
 
-	atomic_dec(&host->mmc->suspended);
 	return ret;
 }
 #endif	/* CONFIG_PM */
