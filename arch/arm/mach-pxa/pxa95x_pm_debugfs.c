@@ -705,6 +705,8 @@ extern void update_GC_VMETA_op_cycle(int gvsel, unsigned long new_rate, unsigned
 				     unsigned int idletime);
 
 struct gc_vmeta_ticks gc_vmeta_ticks_info;
+u64 gc_total_ticks;
+u64 vm_total_ticks;
 
 extern unsigned int gc_freq_counts;
 extern unsigned long gc_cur_freqs_table[GC_VM_OP_NUM_MAX];
@@ -720,6 +722,7 @@ static int pxa_9xx_gc_ticks_read(struct file *file,
 {
 	char buf[1000] = { 0 };
 	unsigned int sum = 0, timestamp, time;
+	unsigned int result, fraction, shift;
 
 	int i;
 
@@ -734,10 +737,19 @@ static int pxa_9xx_gc_ticks_read(struct file *file,
 		gc_vmeta_ticks_info.gc_prev_timestamp = timestamp;
 
 		if (!gc_vmeta_ticks_info.gc_stats_stop) {
+			gc_total_ticks = 0;
 			if (gc_vmeta_ticks_info.gc_state == GC_CLK_ON)
 				update_GC_VMETA_op_cycle(GC_FC, gc_vmeta_ticks_info.gc_cur_freq, time, 0);
 			else
 				update_GC_VMETA_op_cycle(GC_FC, gc_vmeta_ticks_info.gc_cur_freq, 0, time);
+
+			for (i = 0; i < gc_freq_counts; i++) {
+				gc_total_ticks += (u64)gc_vmeta_ticks_info.GC_op_ticks_array[i].runtime
+					+ (u64)gc_vmeta_ticks_info.GC_op_ticks_array[i].idletime;
+			}
+			if (gc_total_ticks == 0) {
+				sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "No OP change, no duty cycle info\n");
+			}
 		}
 		for (i = 0; i < gc_freq_counts; i++) {
 			sum += snprintf(buf + sum, sizeof(buf) - sum - 1,
@@ -750,6 +762,41 @@ static int pxa_9xx_gc_ticks_read(struct file *file,
 			gc_vmeta_ticks_info.GC_op_ticks_array[i].count);
 		}
 		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "\n");
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "GC Duty cycle of operating point list:\n");
+		if (gc_total_ticks) {
+			result = gc_total_ticks >> 32;
+			if (result) {
+				shift = fls(result);
+				gc_total_ticks >>= shift;
+			} else
+				shift = 0;
+			for (i = 0; i < gc_freq_counts; i++) {
+				sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "OP %2d [%10lu]Hz  ", i, gc_vmeta_ticks_info.GC_op_ticks_array[i].op_idx);
+
+				/* The following algorithm prints a float number
+				   with an accuracy of 2 digits after the dot */
+				result = (unsigned int)div_u64_rem((((u64)gc_vmeta_ticks_info.GC_op_ticks_array[i].
+								runtime) * 100) >> shift,
+								(unsigned int)gc_total_ticks,
+								&fraction);
+				fraction = fraction * 100 / (unsigned int)gc_total_ticks;
+				sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "run:%2u.", result);
+				if (fraction < 10)
+					sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "0");
+				sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "%u%%   ", fraction);
+
+				result = (unsigned int)div_u64_rem((((u64)gc_vmeta_ticks_info.GC_op_ticks_array[i].
+								idletime) * 100)
+						>> shift,
+						(unsigned int)gc_total_ticks,
+						&fraction);
+				fraction = fraction * 100 / (unsigned int)gc_total_ticks;
+				sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "idle:%2u.", result);
+				if (fraction < 10)
+					sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "0");
+				sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "%u%%\n", fraction);
+			}
+		}
 	} else {
 		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "Please start the GC Ticks stats first\n");
 		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "Help information :\n");
@@ -792,6 +839,7 @@ static int pxa_9xx_gc_ticks_write(struct file *file,
 		gc_vmeta_ticks_info.gc_prev_timestamp = read_curtime();
 		gc_vmeta_ticks_info.gc_stats_start = 1;
 		gc_vmeta_ticks_info.gc_stats_stop = 0;
+		gc_total_ticks = 0;
 	} else {
 		unsigned int timestamp, time;
 		timestamp = read_curtime();
@@ -820,6 +868,7 @@ static int pxa_9xx_vm_ticks_read(struct file *file,
 {
 	char buf[1000] = { 0 };
 	unsigned int sum = 0, timestamp, time;
+	unsigned int result, fraction, shift;
 
 	int i;
 
@@ -834,10 +883,18 @@ static int pxa_9xx_vm_ticks_read(struct file *file,
 		gc_vmeta_ticks_info.vm_prev_timestamp = timestamp;
 
 		if (!gc_vmeta_ticks_info.vm_stats_stop) {
+			vm_total_ticks = 0;
 			if (gc_vmeta_ticks_info.vmeta_state == VMETA_CLK_ON)
 				update_GC_VMETA_op_cycle(VMETA_FC, gc_vmeta_ticks_info.vm_cur_freq, time, 0);
 			else
 				update_GC_VMETA_op_cycle(VMETA_FC, gc_vmeta_ticks_info.vm_cur_freq, 0, time);
+			for (i = 0; i < gc_freq_counts; i++) {
+				vm_total_ticks += (u64)gc_vmeta_ticks_info.VM_op_ticks_array[i].runtime
+					+ (u64)gc_vmeta_ticks_info.VM_op_ticks_array[i].idletime;
+			}
+			if (vm_total_ticks == 0) {
+				sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "No OP change, no duty cycle info\n");
+			}
 		}
 
 		for (i = 0; i < gc_freq_counts; i++) {
@@ -851,6 +908,40 @@ static int pxa_9xx_vm_ticks_read(struct file *file,
 			gc_vmeta_ticks_info.VM_op_ticks_array[i].count);
 		}
 		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "\n");
+		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "VMeta Duty cycle of operating point list:\n");
+		if (vm_total_ticks) {
+			result = vm_total_ticks >> 32;
+			if (result) {
+				shift = fls(result);
+				vm_total_ticks >>= shift;
+			} else
+				shift = 0;
+			for (i = 0; i < gc_freq_counts; i++) {
+				sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "OP %2d [%10lu]Hz  ", i, gc_vmeta_ticks_info.VM_op_ticks_array[i].op_idx);
+
+				/* The following algorithm prints a float number
+				   with an accuracy of 2 digits after the dot */
+				result = (unsigned int)div_u64_rem((((u64)gc_vmeta_ticks_info.VM_op_ticks_array[i].
+								runtime) * 100) >> shift,
+								(unsigned int)vm_total_ticks,
+								&fraction);
+				fraction = fraction * 100 / (unsigned int)vm_total_ticks;
+				sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "run:%2u.", result);
+				if (fraction < 10)
+					sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "0");
+				sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "%u%%   ", fraction);
+
+				result = (unsigned int)div_u64_rem((((u64)gc_vmeta_ticks_info.VM_op_ticks_array[i].
+								idletime) * 100) >> shift,
+								(unsigned int)vm_total_ticks,
+								&fraction);
+				fraction = fraction * 100 / (unsigned int)vm_total_ticks;
+				sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "idle:%2u.", result);
+				if (fraction < 10)
+					sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "0");
+				sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "%u%%\n", fraction);
+			}
+		}
 	} else {
 		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "Please start the VMETA ticks stats first\n");
 		sum += snprintf(buf + sum, sizeof(buf) - sum - 1, "Help information :\n");
@@ -893,6 +984,7 @@ static int pxa_9xx_vm_ticks_write(struct file *file,
 		gc_vmeta_ticks_info.vm_prev_timestamp = read_curtime();
 		gc_vmeta_ticks_info.vm_stats_start = 1;
 		gc_vmeta_ticks_info.vm_stats_stop = 0;
+		vm_total_ticks = 0;
 	} else {
 		unsigned int timestamp, time;
 		timestamp = read_curtime();
