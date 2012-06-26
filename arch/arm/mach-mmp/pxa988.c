@@ -238,6 +238,26 @@ void coda7542_power_switch(int on)
 #define PM_RESERVE_SIZE	(1024 * 1024)
 #endif
 
+#ifdef CONFIG_ANDROID_RAM_CONSOLE_EARLY_INIT
+static void pxa988_ram_console_mem_reserve(void)
+{
+	unsigned int pa, ret;
+
+	pa = __virt_to_phys(CONFIG_ANDROID_RAM_CONSOLE_EARLY_ADDR);
+
+	if (!pa || CONFIG_ANDROID_RAM_CONSOLE_EARLY_SIZE == 0)
+		return;
+
+	ret = memblock_reserve(pa, CONFIG_ANDROID_RAM_CONSOLE_EARLY_SIZE);
+	if (ret)
+		pr_err("Failed to reserve ram console memory, ret 0x%x\n", ret);
+	else
+		pr_info("Reserve 0x%x at 0x%x (va 0x%x) for ram console\n",
+				CONFIG_ANDROID_RAM_CONSOLE_EARLY_SIZE, pa,
+				CONFIG_ANDROID_RAM_CONSOLE_EARLY_ADDR);
+}
+#endif
+
 void __init pxa988_reserve(void)
 {
 	/*
@@ -259,6 +279,10 @@ void __init pxa988_reserve(void)
 	}
 	BUG_ON(memblock_free(pm_reserve_pa, PM_RESERVE_SIZE));
 	BUG_ON(0 != memblock_remove(pm_reserve_pa, PM_RESERVE_SIZE));
+#endif
+
+#ifdef CONFIG_ANDROID_RAM_CONSOLE_EARLY_INIT
+	pxa988_ram_console_mem_reserve();
 #endif
 }
 
