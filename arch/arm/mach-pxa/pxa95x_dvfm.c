@@ -70,7 +70,7 @@ struct mutex op_change_mutex;
 unsigned int D2voltageLevelValue = 0x0D;
 extern struct info_head dvfm_trace_list;
 static unsigned int ddr_pll_freq;
-unsigned long max_pp = 5, max_core, max_gc, max_vmeta;
+unsigned long max_pp = 5, max_core, max_gc, min_gc, max_vmeta;
 
 /* Counter Structure for Debugging ENTER/EXIT D2/CGM */
 pxa95x_DVFM_LPM_Global_Count DVFMLPMGlobalCount = { 0, 0, 0 };
@@ -2904,6 +2904,28 @@ static unsigned int pxa95x_read_time(void)
 	return OSCR4;
 }
 
+static int pxa95x_axi_freq_calc(int op_point)
+{
+	struct dvfm_md_opt *md = NULL;
+	struct op_info *p = NULL;
+	int freq = 0;
+
+	if (!dvfm_find_op(op_point, &p)) {
+		md = (struct dvfm_md_opt *)p->op;
+		freq = md->axifs;
+	} else {
+		/* unknown */
+		freq = -1;
+	}
+
+	return freq;
+}
+
+static int pxa95x_axi_current_freq_get(void)
+{
+	return pxa95x_axi_freq_calc(cur_op);
+}
+
 static int pxa95x_core_freq_calc(int op_point)
 {
 	struct dvfm_md_opt *md = NULL;
@@ -3047,6 +3069,7 @@ static struct dvfm_driver pxa95x_driver = {
 	.ticks_to_sec = pxa95x_ticks_to_sec,
 	.read_time = pxa95x_read_time,
 	.current_core_freq_get = pxa95x_core_current_freq_get,
+	.current_axi_freq_get = pxa95x_axi_current_freq_get,
 	.core_freqs_table_get = pxa95x_core_freqs_table_get
 };
 

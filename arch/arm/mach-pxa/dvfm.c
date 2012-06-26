@@ -974,6 +974,22 @@ out:
 }
 EXPORT_SYMBOL(dvfm_unregister);
 
+
+/*
+ * Get current operating frequency of AXI bus
+ */
+int dvfm_current_axi_freq_get(void)
+{
+	if (dvfm_driver && dvfm_driver->current_axi_freq_get != NULL) {
+		return dvfm_driver->current_axi_freq_get();
+	} else {
+		/* not supported */
+		return -1;
+	}
+}
+EXPORT_SYMBOL(dvfm_current_axi_freq_get);
+
+
 /*
  * Get current operating frequency of the core
  */

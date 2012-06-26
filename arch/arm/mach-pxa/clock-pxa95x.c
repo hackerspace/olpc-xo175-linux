@@ -26,8 +26,6 @@
 #define KHZ_TO_HZ	1000
 #define MHZ_TO_HZ	1000000
 
-extern unsigned long max_pp, max_gc, max_vmeta, max_core;
-
 static struct devfreq_frequency_table pxa978_gcvmeta_clk_table[] = {
 	INIT_FREQ_TABLE(1, 156000000),
 	INIT_FREQ_TABLE(2, 208000000),
@@ -907,13 +905,15 @@ static void clk_gcu_disable(struct clk *clk)
 
 static long clk_pxa95x_gc_round_rate(struct clk *gc_clk, unsigned long rate)
 {
-	int i;
-
+	int i, temp;
+	if (cpu_is_pxa978_Dx()) {
+		temp = dvfm_current_axi_freq_get();
+		min_gc = temp > 0 ? (temp * 2 * MHZ_TO_HZ) : 0;
+	}
 	for (i = 0; i < gc_freq_counts; i++) {
+		if (cpu_is_pxa978_Dx() && (gc_cur_freqs_table[i] < min_gc))
+			continue;
 		if (rate <= gc_cur_freqs_table[i]) {
-			if ((gc_cur_freqs_table[i] == 156000000 || gc_cur_freqs_table[i] == 208000000)
-					&& cpu_is_pxa978_Dx())
-				continue;
 			rate = gc_cur_freqs_table[i];
 			break;
 		}
@@ -1982,6 +1982,8 @@ int pxa95x_clk_init(void)
 			break;
 		}
 
+		min_gc = 0;
+
 		if (!gc_freq_counts)
 			get_gcu_freqs_table(gc_cur_freqs_table, &gc_freq_counts, ARRAY_SIZE(gc_cur_freqs_table));
 		clock_lookup_init(pxa978_specific_clkregs,
@@ -1993,7 +1995,10 @@ int pxa95x_clk_init(void)
 
 		/* Initialize the clock of vMeta/GC to lowest */
 		clk_set_rate(&clk_pxa95x_vmeta, 0);
-		clk_set_rate(&clk_pxa978_gcu, 0);
+		if (cpu_is_pxa978_Dx())
+			clk_set_rate(&clk_pxa978_gcu, 312000000);
+		else
+			clk_set_rate(&clk_pxa978_gcu, 0);
 
 		/* Don't use IRQ disable to protect the clock driver */
 		clk_set_cansleep(&clk_pxa95x_vmeta);
