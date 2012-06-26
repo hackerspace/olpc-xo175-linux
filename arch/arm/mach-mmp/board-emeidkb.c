@@ -652,6 +652,108 @@ static struct platform_device dkb_ov2659_dvp = {
 };
 #endif
 
+static int pxa988_cam_clk_init(struct device *dev, int init)
+{
+	struct mv_cam_pdata *data = dev->platform_data;
+	if ((!data->clk_enabled) && init) {
+		data->clk[0] = clk_get(dev, "CCICFUNCLK");
+		if (IS_ERR(data->clk[0])) {
+			dev_err(dev, "Could not get function clk\n");
+			goto out_clk0;
+		}
+		data->clk[1] = clk_get(dev, "CCICAXICLK");
+		if (IS_ERR(data->clk[1])) {
+			dev_err(dev, "Could not get AXI clk\n");
+			goto out_clk1;
+		}
+		data->clk[2] = clk_get(dev, "LCDCIHCLK");
+		if (IS_ERR(data->clk[2])) {
+			dev_err(dev, "Could not get lcd/ccic AHB clk\n");
+			goto out_clk2;
+		}
+		if (data->bus_type == SOCAM_MIPI) {
+			data->clk[3] = clk_get(dev, "CCICPHYCLK");
+			if (IS_ERR(data->clk[3])) {
+				dev_err(dev, "Could not get PHY clk\n");
+				goto out_clk3;
+			}
+		}
+		data->clk_enabled = 1;
+
+		return 0;
+	}
+
+	if (!init && data->clk_enabled) {
+		clk_put(data->clk[0]);
+		clk_put(data->clk[1]);
+		clk_put(data->clk[2]);
+		if (data->bus_type == SOCAM_MIPI)
+			clk_put(data->clk[3]);
+		data->clk_enabled = 0;
+		return 0;
+	}
+	return -EFAULT;
+
+out_clk0:
+		return PTR_ERR(data->clk[0]);
+out_clk1:
+		clk_put(data->clk[0]);
+		return PTR_ERR(data->clk[1]);
+out_clk2:
+		clk_put(data->clk[0]);
+		clk_put(data->clk[1]);
+		return PTR_ERR(data->clk[2]);
+out_clk3:
+		clk_put(data->clk[0]);
+		clk_put(data->clk[1]);
+		clk_put(data->clk[2]);
+		return PTR_ERR(data->clk[3]);
+}
+
+static void pxa988_cam_set_clk(struct device *dev, int on)
+{
+	struct mv_cam_pdata *data = dev->platform_data;
+
+	if (data->clk_enabled) {
+		if (on == 1) {
+			clk_enable(data->clk[0]);
+			if (data->bus_type == SOCAM_MIPI)
+				clk_enable(data->clk[3]);
+			clk_enable(data->clk[1]);
+			clk_enable(data->clk[2]);
+		} else {
+			clk_disable(data->clk[0]);
+			if (data->bus_type == SOCAM_MIPI)
+				clk_disable(data->clk[3]);
+			clk_disable(data->clk[1]);
+			clk_disable(data->clk[2]);
+		}
+	}
+}
+
+struct mv_cam_pdata mv_cam_data;
+/* TODO reserve src parameter temporary */
+static int pxa988_cam_get_mclk_src(int src)
+{
+	int rate = 0;
+	if (mv_cam_data.clk_enabled)
+		rate = clk_get_rate(mv_cam_data.clk[0]);
+	return rate;
+}
+
+struct mv_cam_pdata mv_cam_data = {
+	.name = "EMEI",
+	.clk_enabled = 0,
+	.qos_req_min = 624,
+	.dma_burst = 64,
+	.mipi_enabled = 0,
+	.mclk_min = 24,
+	.mclk_src = 3,
+	.init_clk = pxa988_cam_clk_init,
+	.enable_clk = pxa988_cam_set_clk,
+	.get_mclk_src = pxa988_cam_get_mclk_src,
+};
+
 static struct platform_device *dkb_platform_devices[] = {
 #if defined(CONFIG_SOC_CAMERA_OV2659)
 	&dkb_ov2659_dvp,
@@ -1039,6 +1141,10 @@ static void __init emeidkb_init(void)
 
 	/* off-chip devices */
 	platform_add_devices(ARRAY_AND_SIZE(dkb_platform_devices));
+
+#if defined(CONFIG_VIDEO_MV)
+	pxa988_add_cam(&mv_cam_data);
+#endif
 }
 
 MACHINE_START(EMEIDKB, "PXA988-Based")
