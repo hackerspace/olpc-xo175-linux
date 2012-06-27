@@ -356,7 +356,7 @@ static int clk_pll2_vco_enable(struct clk *clk)
 
 	spin_unlock_irqrestore(&pll2_lock, flags);
 
-	udelay(500);
+	udelay(100);
 	pr_debug("%s SWCR[%x] PLLCR[%x]\n", __func__, \
 		__raw_readl(APB_SPARE_PLL2CR), pll2cr.v);
 	return 0;
@@ -680,7 +680,7 @@ static int clk_pll3_vco_enable(struct clk *clk)
 	__raw_writel(pll3cr.v, MPMU_PLL3CR);
 	spin_unlock_irqrestore(&pll2_lock, flags);
 
-	udelay(500);
+	udelay(100);
 	pr_debug("%s SWCR3[%x] PLL3CR[%x]\n", __func__, \
 		__raw_readl(APB_SPARE_PLL3CR), pll3cr.v);
 	return 0;
