@@ -52,7 +52,7 @@
 #include "onboard.h"
 #include "common.h"
 
-#define EMEI_NR_IRQS		(IRQ_BOARD_START + 24)
+#define EMEI_NR_IRQS		(IRQ_BOARD_START + 40)
 #define PM8XXX_REGULATOR_MAX PM800_ID_RG_MAX
 
 static unsigned long emeidkb_pin_config[] __initdata = {
