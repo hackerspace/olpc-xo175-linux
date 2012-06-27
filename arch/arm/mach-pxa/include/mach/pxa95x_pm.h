@@ -564,7 +564,8 @@ struct pxa95x_pm_regs {
 extern pm_wakeup_src_t wakeup_src;
 
 struct pxa95x_peripheral_wakeup_ops {
-	int (*init) (pm_wakeup_src_t *src);
+	int (*init_idle_wakeup) (pm_wakeup_src_t *src);
+	int (*init_suspend_wakeup) (pm_wakeup_src_t *src);
 	int (*query) (unsigned int reg, pm_wakeup_src_t *src);
 	int (*ext) (pm_wakeup_src_t src, int enable);
 	int (*key) (pm_wakeup_src_t src, int enable);
@@ -578,6 +579,7 @@ struct pxa95x_peripheral_wakeup_ops {
 };
 extern unsigned int *remap_c2_reg;
 extern unsigned int  *pl310_membase;
+extern pm_wakeup_src_t suspend_wakeup_src;
 
 #define GC_PWR_ENABLE		(1)
 #define GC_PWR_DISABLE		(0)

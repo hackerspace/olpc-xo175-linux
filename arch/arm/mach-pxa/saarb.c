@@ -747,7 +747,7 @@ static void __init init_lcd(void)
 #endif
 
 #ifdef CONFIG_PM
-static int init_wakeup(pm_wakeup_src_t *src)
+static int init_idle_wakeup(pm_wakeup_src_t *src)
 {
 	memset(src, 0, sizeof(pm_wakeup_src_t));
 	src->bits.rtc = 1;
@@ -909,7 +909,7 @@ static int comm_wdt_wakeup(pm_wakeup_src_t src, int enable)
 }
 
 static struct pxa95x_peripheral_wakeup_ops wakeup_ops = {
-	.init   = init_wakeup,
+	.init_idle_wakeup   = init_idle_wakeup,
 	.query  = query_wakeup,
 	.ext    = ext_wakeup,
 	.key    = key_wakeup,

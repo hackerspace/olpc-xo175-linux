@@ -287,6 +287,18 @@ static struct irq_chip pxa_ext_wakeup_chip = {
 	.irq_set_type       = pxa_set_ext_wakeup_type,
 };
 
+static void pxa95x_irq_wakeup_src_update(int irq, unsigned int on)
+{
+	switch (irq) {
+	case IRQ_KEYPAD:
+		suspend_wakeup_src.bits.mkey = on;
+		break;
+	/*TODO: Add other devices if needed*/
+	default:
+		break;
+	}
+}
+
 int pxa95x_set_wake(struct irq_data *data, unsigned int on)
 {
 	int irq = data->irq;
@@ -304,6 +316,7 @@ int pxa95x_set_wake(struct irq_data *data, unsigned int on)
 		if (desc->action)
 			desc->action->flags &= ~IRQF_NO_SUSPEND;
 	}
+	pxa95x_irq_wakeup_src_update(irq, on);
 
 	return 0;
 }

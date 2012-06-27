@@ -171,7 +171,9 @@ enum pxa95x_pm_mode {
 
 extern struct kobject *power_kobj;
 
-pm_wakeup_src_t wakeup_src;	/* interface to set up wakeup_src */
+pm_wakeup_src_t wakeup_src;		/* wakeup_src, used in idle D2/CGM */
+pm_wakeup_src_t suspend_wakeup_src;	/* wakeup_src, used in suspend D2/CGM */
+
 EXPORT_SYMBOL(wakeup_src);
 
 static pm_wakeup_src_t waked;	/* It records the latest wakeup source */
@@ -417,52 +419,29 @@ static void pxa95x_clear_pm_status(int sys_level)
 	ARSR = tmp;
 }
 
-/*
- * Clear the wakeup source event.
- */
-static void pm_clear_wakeup_src(pm_wakeup_src_t src)
+static unsigned int pm_do_wakeup_ops(pm_wakeup_src_t src, int on)
 {
-	if (wakeup_ops->ext)
-		wakeup_ops->ext(src, 0);
-	if (wakeup_ops->key)
-		wakeup_ops->key(src, 0);
-	if (wakeup_ops->mmc1)
-		wakeup_ops->mmc1(src, 0);
-	if (wakeup_ops->mmc3)
-		wakeup_ops->mmc3(src, 0);
-	if (wakeup_ops->uart)
-		wakeup_ops->uart(src, 0);
-	if (wakeup_ops->eth)
-		wakeup_ops->eth(src, 0);
-	if (wakeup_ops->tsi)
-		wakeup_ops->tsi(src, 0);
-	if (wakeup_ops->display)
-		wakeup_ops->display(src, 0);
-}
-
-static void pm_select_wakeup_src(enum pxa95x_pm_mode lp_mode,
-				 pm_wakeup_src_t src)
-{
-	unsigned int tmp, reg_src = 0;
+	unsigned int reg_src = 0;
 
 	if (!wakeup_ops)
 		printk(KERN_ERR "ERROR: wakeup_ops is still NULL!\n");
 	if (wakeup_ops->ext)
-		reg_src |= wakeup_ops->ext(src, 1);
+		reg_src |= wakeup_ops->ext(src, on);
 	if (wakeup_ops->key)
-		reg_src |= wakeup_ops->key(src, 1);
+		reg_src |= wakeup_ops->key(src, on);
 	if (wakeup_ops->mmc1)
-		reg_src |= wakeup_ops->mmc1(src, 1);
+		reg_src |= wakeup_ops->mmc1(src, on);
 	if (wakeup_ops->mmc3)
-		reg_src |= wakeup_ops->mmc3(src, 1);
+		reg_src |= wakeup_ops->mmc3(src, on);
 	if (wakeup_ops->uart)
-		reg_src |= wakeup_ops->uart(src, 1);
+		reg_src |= wakeup_ops->uart(src, on);
 	if (wakeup_ops->eth)
-		reg_src |= wakeup_ops->eth(src, 1);
+		reg_src |= wakeup_ops->eth(src, on);
 	if (wakeup_ops->tsi)
-		reg_src |= wakeup_ops->tsi(src, 1);
+		reg_src |= wakeup_ops->tsi(src, on);
 	if (wakeup_ops->display)
-		reg_src |= wakeup_ops->display(src, 1);
+		reg_src |= wakeup_ops->display(src, on);
+
 	if (src.bits.rtc) {
 		reg_src |= PXA95x_PM_WE_RTC;
 	}
@@ -471,6 +450,24 @@ static void pm_select_wakeup_src(enum pxa95x_pm_mode lp_mode,
 	}
 	if (src.bits.msl)
 		reg_src |= PXA95x_PM_WE_MSL0;
+
+	return reg_src;
+}
+
+/*
+ * Clear the wakeup source event.
+ */
+static void pm_clear_wakeup_src(pm_wakeup_src_t src)
+{
+	pm_do_wakeup_ops(src, 0);
+}
+
+static void pm_select_wakeup_src(enum pxa95x_pm_mode lp_mode,
+				 pm_wakeup_src_t src)
+{
+	unsigned int tmp, reg_src = 0;
+
+	reg_src = pm_do_wakeup_ops(src, 1);
 
 	/* set wakeup register */
 	if (lp_mode == PXA95x_PM_SLEEP) {
@@ -674,11 +671,14 @@ int pxa95x_wakeup_register(struct pxa95x_peripheral_wakeup_ops *ops)
 	wakeup_ops = ops;
 
 	/* set default wakeup source */
-	if (wakeup_ops->init)
-		wakeup_ops->init(&wakeup_src);
+	if (wakeup_ops->init_idle_wakeup)
+		wakeup_ops->init_idle_wakeup(&wakeup_src);
+	if (wakeup_ops->init_suspend_wakeup)
+		wakeup_ops->init_suspend_wakeup(&suspend_wakeup_src);
 
 	/* clear the related wakeup source */
 	pm_clear_wakeup_src(wakeup_src);
+	pm_clear_wakeup_src(suspend_wakeup_src);
 
 	return 0;
 }
@@ -706,14 +706,12 @@ static void pm_preset_standby(void)
 #ifdef CONFIG_CPU_PXA978
 static void enter_d2(void)
 {
-	unsigned int pollreg, vlscr = VLSCR;
+	unsigned int pollreg, vlscr = VLSCR, reg_src;
 	pr_debug("enter D2.\n");
+	reg_src = pm_do_wakeup_ops(suspend_wakeup_src, 1);
 	AD2D0SR = 0xFFFFFFFF;
 	AD2D0ER = 0;
-	AD2D0ER = PXA95x_PM_WE_MMC3	/* MMC3 Data1 */
-		|PXA95x_PM_WE_RTC		/* RTC */
-		| PXA95x_PM_WE_MSL0		/* ACS-IPC */
-		| PXA95x_PM_WE_GENERIC(3);	/* On-key */
+	AD2D0ER = reg_src;
 	pm_preset_standby();
 
 	clk_disable(clk_pout);
@@ -738,26 +736,20 @@ static void enter_d2(void)
 		enable_axi_lpm_exit();
 
 	clk_enable(clk_pout);
-
+	pm_do_wakeup_ops(suspend_wakeup_src, 0);
 	pr_debug("exit D2.\n");
 }
 
 static void enter_cg(void)
 {
-	unsigned int pollreg, reg;
+	unsigned int pollreg, reg, reg_src;
 	unsigned int cken[3] = {0, 0, 0 };
 
 	pr_debug("enter CG.\n");
+	reg_src = pm_do_wakeup_ops(suspend_wakeup_src, 1);
 	ACGD0SR = 0xFFFFFFFF;
 	ACGD0ER = 0;
-	ACGD0ER = PXA95x_PM_WE_MMC3	/* MMC3 Data1 */
-		|PXA95x_PM_WE_RTC		/* RTC */
-		| PXA95x_PM_WE_MSL0		/* ACS-IPC */
-		| PXA95x_PM_WE_INTC		/* IRQ or FIQ */
-#if 0
-		| PXA95x_PM_WE_DMC		/* DMC interrupt */
-#endif
-		| PXA95x_PM_WE_GENERIC(3);	/* On-key */
+	ACGD0ER = reg_src | PXA95x_PM_WE_INTC;	/* IRQ or FIQ */
 
 	PWRMODE = (PXA978_PM_S0D0CG | PXA95x_PM_I_Q_BIT);
 	do {
@@ -803,6 +795,7 @@ static void enter_cg(void)
 	reg = CKENB;
 	CKENC = cken[2];
 	reg = CKENC;
+	pm_do_wakeup_ops(suspend_wakeup_src, 0);
 	pr_debug("exit CG.\n");
 }
 #endif /*ifdef CONFIG_CPU_PXA978*/
@@ -822,8 +815,6 @@ int pxa95x_pm_enter_sleep(struct pxa95x_pm_regs *pm_regs)
 
 	while (1) {
 		wakeup_data = 0;
-		/* Configure edge detection */
-		pm_select_wakeup_src(PXA95x_PM_SLEEP, wakeup_src);
 		pr_debug("start loop.\n");
 		icip = ICIP, icip2 = ICIP2, icip3 = ICIP3;
 		/* check if any IRQ/FIQ pending */
@@ -865,9 +856,6 @@ int pxa95x_pm_enter_sleep(struct pxa95x_pm_regs *pm_regs)
 				break;
 			}
 		}
-		/* Clear edge detection */
-		pm_clear_wakeup_src(wakeup_src);
-
 		/* Exit suspend when wakeup by other source than ACIPC */
 		if (wakeup_data & ~(PXA95x_PM_WE_MSL0)) {
 			pr_info("Exit suspend waked by: 0x%08x.\nUnmasked "

@@ -2623,7 +2623,7 @@ static void ssp3_mfp_init(bool bssp)
 }
 
 #ifdef CONFIG_PM
-static int init_wakeup(pm_wakeup_src_t *src)
+static int init_idle_wakeup(pm_wakeup_src_t *src)
 {
 	memset(src, 0, sizeof(pm_wakeup_src_t));
 	src->bits.rtc = 1;
@@ -2659,6 +2659,17 @@ static int init_wakeup(pm_wakeup_src_t *src)
 	}
 	if (cpu_is_pxa978_Dx())
 		src->bits.display = 1;
+
+	return 0;
+}
+
+static int init_suspend_wakeup(pm_wakeup_src_t *src)
+{
+	memset(src, 0, sizeof(pm_wakeup_src_t));
+	src->bits.mmc3_dat1 = 1;	/* MMC3 Data1 */
+	src->bits.rtc = 1;		/* RTC */
+	src->bits.msl = 1;		/* ACS-IPC */
+	src->bits.tsi = 1;		/* On-key */
 
 	return 0;
 }
@@ -2844,7 +2855,8 @@ static int display_wakeup(pm_wakeup_src_t src, int enable)
 }
 
 static struct pxa95x_peripheral_wakeup_ops wakeup_ops = {
-	.init   = init_wakeup,
+	.init_idle_wakeup   = init_idle_wakeup,
+	.init_suspend_wakeup = init_suspend_wakeup,
 	.query  = query_wakeup,
 	.ext    = ext_wakeup,
 	.key    = key_wakeup,
