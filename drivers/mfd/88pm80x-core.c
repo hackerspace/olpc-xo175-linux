@@ -656,6 +656,8 @@ static void pm805_irq_sync_unlock(struct irq_data *data)
 		if (mask[i] != cached[i]) {
 			cached[i] = mask[i];
 			pm80x_reg_write(i2c, PM805_INT_MASK1 + i, mask[i]);
+			/* 32K register, need to add delay */
+			msleep(1);
 		}
 	}
 
@@ -958,6 +960,8 @@ static int __devinit device_irq_init_805(struct pm80x_chip *chip,
 		memset(status_buf, 0xFF, PM805_INT_REG_NUM);
 		ret = pm80x_bulk_write(i2c, PM805_INT_STATUS1,
 					PM805_INT_REG_NUM, status_buf);
+		/* Need to use delay between accesses to 32K-registers */
+		msleep(1);
 	} else {
 		/* clear interrupt status by read */
 		ret = pm80x_bulk_read(i2c, PM805_INT_STATUS1,
