@@ -803,9 +803,11 @@ static void __init init_mmc(void)
 	gpio_pd = mfp_to_gpio(MFP_PIN_GPIO70);
 	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
 			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
-			get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD ||
-			get_board_id() == OBM_DKB_3_NEVO_D0_BOARD) {
+			get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD) {
 		gpio_rst = mfp_to_gpio(MFP_PIN_GPIO97);
+		mci1_platform_data.ext_cd_gpio = mfp_to_gpio(MFP_PIN_GPIO128);
+	} else if (get_board_id() == OBM_DKB_3_NEVO_D0_BOARD) {
+		gpio_rst = mfp_to_gpio(MFP_PIN_GPIO183);
 		mci1_platform_data.ext_cd_gpio = mfp_to_gpio(MFP_PIN_GPIO128);
 	} else if (get_board_id() == OBM_SAAR_C3V5_NEVO_D0_V10_BOARD) {
 		gpio_rst = mfp_to_gpio(MFP_PIN_GPIO73);
