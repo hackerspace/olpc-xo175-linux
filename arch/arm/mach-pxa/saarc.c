@@ -202,6 +202,20 @@ static struct pm80x_headset_pdata pm80x_headset = {
 static struct pm80x_dvc_pdata pm80x_dvc = {
 };
 
+static struct pm80x_vbus_pdata pm80x_vbus_saarc3 = {
+	.supply		= PM8XXX_GPIO3_SUPPLY_VBUS,
+	.idpin		= PM8XXX_IDPIN_USE_GPADC2,
+	.reg_base	= PXA935_U2O_REGBASE,
+	.reg_end	= PXA935_U2O_REGBASE + USB_REG_RANGE,
+};
+
+static struct pm80x_vbus_pdata pm80x_vbus_saarc3v5 = {
+	.supply		= PM8XXX_GPIO0_SUPPLY_VBUS,
+	.idpin		= PM8XXX_IDPIN_USE_GPADC2,
+	.reg_base	= PXA935_U2O_REGBASE,
+	.reg_end	= PXA935_U2O_REGBASE + USB_REG_RANGE,
+};
+
 static struct pm80x_platform_data pm800_info = {
 	.headset = &pm80x_headset,
 	.regulator	= regulator_data,
@@ -1196,7 +1210,12 @@ static void register_i2c_board_info(void)
 	case OBM_EVB_NEVO_1_2_BOARD:
 	case OBM_SAAR_C3_NEVO_C0_V10_BOARD:
 	case OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ:
+		pm800_info.vbus = &pm80x_vbus_saarc3;
+		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info));
+		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_C25));
+		break;
 	case OBM_SAAR_C3V5_NEVO_D0_V10_BOARD:
+		pm800_info.vbus = &pm80x_vbus_saarc3v5;
 		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info));
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_C25));
 		break;
