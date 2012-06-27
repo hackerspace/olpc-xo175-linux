@@ -1459,10 +1459,10 @@ static int query_wakeup(unsigned int reg, pm_wakeup_src_t *src)
 	if (reg & PXA95x_PM_WE_GENERIC(13)) {
 		if (pxa95x_query_gwsr(97))
 			src->bits.eth = 1;
-		if (pxa95x_query_gwsr(53))
+		/*if (pxa95x_query_gwsr(53))
 			src->bits.uart1 = 1;
 		if (pxa95x_query_gwsr(123))
-			src->bits.mmc1_cd = 1;
+			src->bits.mmc1_cd = 1;*/
 	}
 	if (is_wkr_nevo_2243()) {
 		/* Clear unexpected irq. */
@@ -1521,13 +1521,13 @@ static int key_wakeup(pm_wakeup_src_t src, int enable)
 static int mmc1_wakeup(pm_wakeup_src_t src, int enable)
 {
 	unsigned int ret = 0;
-	if (enable) {
-		if (src.bits.mmc1_cd) {		/* 123 should be wrong! */
+	/*if (enable) {
+		if (src.bits.mmc1_cd) {
 			lpm_mfpr_edge_config(MFP_PIN_GPIO123, MFP_LPM_EDGE_BOTH);
 			ret |= PXA95x_PM_WE_GENERIC(13);
 		}
 	} else
-		lpm_mfpr_edge_config(MFP_PIN_GPIO123, MFP_LPM_EDGE_NONE);
+		lpm_mfpr_edge_config(MFP_PIN_GPIO123, MFP_LPM_EDGE_NONE);*/
 	return ret;
 }
 
