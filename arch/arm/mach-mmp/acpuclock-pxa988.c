@@ -29,6 +29,7 @@
 #include <mach/regs-apmu.h>
 #include <mach/regs-ciu.h>
 #include <mach/clock-pxa988.h>
+#include <mach/pxa988_lowpower.h>
 #include <plat/debugfs.h>
 
 /* core,ddr,axi clk src sel set register desciption */
@@ -819,12 +820,14 @@ static void set_ddr_tbl_index(unsigned int index)
 {
 	unsigned int regval;
 
+	pmu_register_lock();
 	index = (index > 0x7) ? 0x7 : index;
 	regval = __raw_readl(APMU_MC_HW_SLP_TYPE);
 	regval &= ~(0x1 << 6);		/* enable tbl based FC */
 	regval &= ~(0x7 << 3);		/* clear ddr tbl index */
 	regval |= (index << 3);
 	__raw_writel(regval, APMU_MC_HW_SLP_TYPE);
+	pmu_register_unlock();
 }
 
 static void core_fc_seq(struct pxa988_cpu_opt *cop,
