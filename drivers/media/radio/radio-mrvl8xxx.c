@@ -254,6 +254,9 @@ cmd_start:
 		ret = 0;
 
 cmd_end:
+	/* without "cmd_done=NULL",timeout may cause kernel panic */
+	dev->cmd_done = NULL;
+
 	mutex_unlock(&dev->lock);
 	return ret;
 }
