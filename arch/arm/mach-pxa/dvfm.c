@@ -346,6 +346,7 @@ char cop_names[][20] = {
 {"Main TLB Attribute"},
 };
 
+#ifdef CONFIG_CPU_PXA978
 static ssize_t dvfm_read_cop_show(struct sys_device *sys_dev,
 			  struct sysdev_attribute *attr, char *buf)
 {
@@ -359,6 +360,7 @@ static ssize_t dvfm_read_cop_show(struct sys_device *sys_dev,
 	return len;
 }
 SYSDEV_ATTR(read_cop_show, 0644, dvfm_read_cop_show, NULL);
+#endif
 
 static struct attribute *dvfm_attr[] = {
 	&attr_op.attr,
@@ -368,7 +370,9 @@ static struct attribute *dvfm_attr[] = {
 	&attr_enable_op_by_driver.attr,
 	&attr_control.attr,
 	&attr_c2_allow.attr,
+#ifdef CONFIG_CPU_PXA978
 	&attr_read_cop_show.attr,
+#endif
 };
 
 int dvfm_op_count(void)

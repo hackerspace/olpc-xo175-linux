@@ -226,12 +226,12 @@ struct devfreq_simple_ondemand_data {
 static struct devfreq *devfreq_add_device(struct device *dev,
 					  struct devfreq_dev_profile *profile,
 					  struct devfreq_governor *governor,
-					  void *data);
+					  void *data)
 {
 	return NULL;
 }
 
-static int devfreq_remove_device(struct devfreq *devfreq);
+static int devfreq_remove_device(struct devfreq *devfreq)
 {
 	return 0;
 }
@@ -253,6 +253,12 @@ static int devfreq_unregister_opp_notifier(struct device *dev,
 {
 	return -EINVAL;
 }
+static void devfreq_set_freq_table(struct devfreq *devfreq,
+				   struct devfreq_frequency_table *table)
+{
+	return;
+}
+
 
 #define devfreq_powersave	NULL
 #define devfreq_performance	NULL

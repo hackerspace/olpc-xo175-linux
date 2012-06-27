@@ -703,7 +703,7 @@ static void pm_preset_standby(void)
 {
 	pxa95x_clear_pm_status(0);
 }
-
+#ifdef CONFIG_CPU_PXA978
 static void enter_d2(void)
 {
 	unsigned int pollreg, vlscr = VLSCR;
@@ -805,10 +805,12 @@ static void enter_cg(void)
 	reg = CKENC;
 	pr_debug("exit CG.\n");
 }
+#endif /*ifdef CONFIG_CPU_PXA978*/
 
 #define ACS_DDR_REQ (1 << 19)
 #define ACS_DDR_260_REQ (1 << 8)
 #define ACS_RELQ_OTHERS (1 << 5)
+#ifdef CONFIG_CPU_PXA978
 int pxa95x_pm_enter_sleep(struct pxa95x_pm_regs *pm_regs)
 {
 	unsigned int wakeup_data, icip, icip2, icip3;
@@ -895,6 +897,13 @@ int pxa95x_pm_enter_sleep(struct pxa95x_pm_regs *pm_regs)
 	local_fiq_enable();
 	return 0;
 }
+#else
+int pxa95x_pm_enter_sleep(struct pxa95x_pm_regs *pm_regs)
+{
+	printk(KERN_WARNING "%s is not implemented !\n", __func__);
+	return 0;
+}
+#endif /*ifdef CONFIG_CPU_PXA978*/
 
 #ifdef CONFIG_IPM
 static void pxa95x_pm_poweroff(void)
