@@ -1671,13 +1671,8 @@ static void set_fetch(struct pxa95xfb_info *fbi)
 		if(fbi->eof_intr_en && channel == start_channel)
 			x |= LCD_FETCH_CTLx_END_FR_INT_EN;
 		if (cpu_is_pxa978()) {
-			if (fbi->converter == LCD_M2HDMI) {
-				x |= LCD_FETCH_CTLx_MAX_OUTSTANDING_REQ(0x7)
-					| LCD_FETCH_CTLx_ARLEN(0xf);
-			} else {
-				x |= LCD_FETCH_CTLx_MAX_OUTSTANDING_REQ(3)
-					| LCD_FETCH_CTLx_ARLEN(3);
-			}
+			x |= LCD_FETCH_CTLx_MAX_OUTSTANDING_REQ(0x7)
+				| LCD_FETCH_CTLx_ARLEN(0xf);
 		}
 		writel(x, fbi->reg_base + LCD_FETCH_CTL0 + channel * 0x40);
 	}
