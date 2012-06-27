@@ -150,7 +150,6 @@ struct pxa27x_keypad {
 	struct notifier_block notifier_freq_block;
 	struct work_struct keypad_lpm_work;
 	struct workqueue_struct *keypad_lpm_wq;
-	int in_suspend;
 #endif
 
 };
@@ -225,7 +224,6 @@ static void pxa27x_keypad_scan_matrix(struct pxa27x_keypad *keypad)
 	int row, col, num_keys_pressed = 0;
 	uint32_t new_state[MAX_MATRIX_KEY_COLS];
 	uint32_t kpas = keypad_readl(KPAS);
-	int vol = 0;
 
 	num_keys_pressed = KPAS_MUKP(kpas);
 
@@ -280,23 +278,11 @@ scan:
 				continue;
 
 			code = MATRIX_SCAN_CODE(row, col, MATRIX_ROW_SHIFT);
-#ifdef CONFIG_PXA95x
-		if (!keypad->in_suspend || (keypad->in_suspend &&
-		   (keypad->keycodes[code] == KEY_VOLUMEUP ||
-		    keypad->keycodes[code] == KEY_VOLUMEDOWN))) {
-			vol = 1;
-#endif
 			input_event(input_dev, EV_MSC, MSC_SCAN, code);
 			input_report_key(input_dev, keypad->keycodes[code],
 					 new_state[col] & (1 << row));
-#ifdef CONFIG_PXA95x
-		}
-#endif
 		}
 	}
-#ifdef CONFIG_PXA95x
-	if (vol)
-#endif
 	input_sync(input_dev);
 	memcpy(keypad->matrix_key_state, new_state, sizeof(new_state));
 }
@@ -573,9 +559,7 @@ static int pxa27x_keypad_suspend(struct device *dev)
 	else {
 		clk_disable(keypad->clk);
 	}
-#ifdef CONFIG_PXA95x
-	keypad->in_suspend = 1;
-#endif
+
 	return 0;
 }
 
@@ -584,9 +568,7 @@ static int pxa27x_keypad_resume(struct device *dev)
 	struct platform_device *pdev = to_platform_device(dev);
 	struct pxa27x_keypad *keypad = platform_get_drvdata(pdev);
 	struct input_dev *input_dev = keypad->input_dev;
-#ifdef CONFIG_PXA95x
-	keypad->in_suspend = 0;
-#endif
+
 	if (device_may_wakeup(&pdev->dev))
 		disable_irq_wake(keypad->irq);
 	else {
@@ -638,30 +620,6 @@ static int pxa27x_keypad_write_proc(struct file *file,
 	return count;
 }
 
-static int pxa27x_keypad_wake_write_proc(struct file *file,
-					 const char __user *buffer,
-					 unsigned long count, void *data)
-{
-	struct input_dev *dev = data;
-	char input[INPUT_LEN];
-	int key;
-	int i;
-
-	if (count >= INPUT_LEN)
-		return -EINVAL;
-	if (copy_from_user(input, buffer, count))
-		return -EFAULT;
-	i = sscanf(input, "%d", &key);
-	if (key) {
-		printk(KERN_INFO "\nSet Keypad as wakeup source\n");
-		device_init_wakeup(dev->dev.parent, 1);
-	} else {
-		printk(KERN_INFO "Do not set keypad as wakeup source\n");
-		device_init_wakeup(dev->dev.parent, 0);
-	}
-	return count;
-}
-
 static int pxa27x_keypad_read_proc(char *page, char **start, off_t off,
 				   int count, int *eof, void *data)
 {
@@ -679,8 +637,6 @@ static void pxa27x_keypad_create_proc_file(void *data)
 {
 	struct proc_dir_entry *proc_file =
 	    create_proc_entry("driver/pxa27x-keypad", 0644, NULL);
-	struct proc_dir_entry *wake_proc_file =
-	    create_proc_entry("driver/keypad_wake", 0200, NULL);
 
 	if (proc_file) {
 		proc_file->write_proc = pxa27x_keypad_write_proc;
@@ -689,19 +645,12 @@ static void pxa27x_keypad_create_proc_file(void *data)
 	} else {
 		printk(KERN_INFO "proc file create failed!\n");
 	}
-
-	if (wake_proc_file) {
-		wake_proc_file->write_proc = pxa27x_keypad_wake_write_proc;
-		wake_proc_file->data = data;
-	} else
-		printk(KERN_INFO "proc file create failed!\n");
 }
 
 extern struct proc_dir_entry proc_root;
 static void pxa27x_keypad_remove_proc_file(void)
 {
 	remove_proc_entry("driver/pxa27x-keypad", &proc_root);
-	remove_proc_entry("driver/keypad_wake", &proc_root);
 }
 #endif
 
