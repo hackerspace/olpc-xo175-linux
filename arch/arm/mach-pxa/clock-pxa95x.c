@@ -875,9 +875,9 @@ static int clk_gcu_enable(struct clk *clk)
 		clk_enable(&clk_pxa978_syspll_416);
 	CKENC |= ((1 << (CKEN_GC_1X - 64)) | (1 << (CKEN_GC_2X - 64)));
 	gc_vmeta_stats_clk_event(GC_CLK_ON);
-	gc_vmeta_ticks_info.gc_state = GC_CLK_ON;
 	if (gc_vmeta_ticks_info.gc_stats_start)
 		gcu_vmeta_stats(clk, clk->rate);
+	gc_vmeta_ticks_info.gc_state = GC_CLK_ON;
 
 	return 0;
 }
@@ -900,9 +900,9 @@ static void clk_gcu_disable(struct clk *clk)
 		dvfm_enable_op_name_no_change("CG", galcore_dvfm_dev_idx);
 
 	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
-	gc_vmeta_ticks_info.gc_state = GC_CLK_OFF;
 	if (gc_vmeta_ticks_info.gc_stats_start)
 		gcu_vmeta_stats(clk, clk->rate);
+	gc_vmeta_ticks_info.gc_state = GC_CLK_OFF;
 }
 
 static long clk_pxa95x_gc_round_rate(struct clk *gc_clk, unsigned long rate)
@@ -1500,9 +1500,9 @@ static int clk_pxa95x_vmeta_enable(struct clk *clk)
 
 	CKENB |= (1 << (clk->enable_val - 32));
 	gc_vmeta_stats_clk_event(VMETA_CLK_ON);
-	gc_vmeta_ticks_info.vmeta_state = VMETA_CLK_ON;
 	if (gc_vmeta_ticks_info.vm_stats_start)
 		gcu_vmeta_stats(clk, clk->rate);
+	gc_vmeta_ticks_info.vmeta_state = VMETA_CLK_ON;
 
 	return 0;
 }
@@ -1523,9 +1523,9 @@ static void clk_pxa95x_vmeta_disable(struct clk *clk)
 		clk_disable(&clk_pxa978_syspll_416);
 
 	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
-	gc_vmeta_ticks_info.vmeta_state = VMETA_CLK_OFF;
 	if (gc_vmeta_ticks_info.vm_stats_start)
 		gcu_vmeta_stats(clk, clk->rate);
+	gc_vmeta_ticks_info.vmeta_state = VMETA_CLK_OFF;
 }
 
 static const struct clkops clk_pxa95x_vmeta_ops = {
