@@ -1319,6 +1319,16 @@ config SENSORS_CM3623
 	  This driver provides support for CM3623, which include light
 	  sensor and proximity sensor.
 
+config SENSORS_ISL29043
+	tristate "ISL29043 light and proximity sensor"
+	depends on I2C && INPUT
+	help
+	  If you say yes here you get support for the hardware
+	  monitoring functionality of the Intersil sensor chip.
+
+	  This driver provides support for ISL29043, which include light
+	  sensor and proximity sensor.
+
 config SENSORS_CM3213
 	tristate "CM3213 light sensor"
 	depends on I2C && INPUT
