@@ -1341,9 +1341,19 @@ struct dsi_regs {
 #define	DSI_PHY_TIME_3_CFG_CSR_TIME_REQRDY_MASK		(0xff)
 #define	DSI_PHY_TIME_3_CFG_CSR_TIME_REQRDY_SHIFT	0
 
-/* DSI timings */
+/*
+ * DSI timings
+ * PXA988 has diffrent ESC CLK with MMP2/MMP3
+ * it will be used in dsi_set_dphy() in pxa688_phy.c
+ * as low power mode clock.
+ */
+#ifdef CONFIG_CPU_PXA988
+#define DSI_ESC_CLK				52  /* Unit: Mhz */
+#define DSI_ESC_CLK_T				19  /* Unit: ns */
+#else
 #define DSI_ESC_CLK				66  /* Unit: Mhz */
 #define DSI_ESC_CLK_T				15  /* Unit: ns */
+#endif
 
 /* LVDS */
 /* LVDS_PHY_CTRL */
