@@ -12,7 +12,6 @@
 #include <linux/interrupt.h>
 #include <linux/i2c.h>
 #include <linux/i2c/pxa95x-i2c.h>
-#include <linux/mfd/88pm860x.h>
 #include <linux/mfd/88pm80x.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
@@ -43,6 +42,7 @@
 #include <mach/usb-regs.h>
 #include <plat/pxa27x_keypad.h>
 #include <linux/keyreset.h>
+#include <plat/devfreq.h>
 #include <linux/spi/pxa2xx_spi.h>
 #include <linux/spi/cmmb.h>
 
@@ -76,8 +76,8 @@ static void init_rfreset_gpio(void)
 {
 }
 
-/* TODO: check the regulator data carefully */
 #define PM8XXX_REGULATOR_MAX PM800_ID_RG_MAX
+
 static struct regulator_consumer_supply regulator_supply[PM8XXX_REGULATOR_MAX];
 static struct regulator_init_data regulator_data[PM8XXX_REGULATOR_MAX];
 
@@ -116,7 +116,10 @@ static int PM800_ID_regulator_index[] = {
 	regulator_supply[_i].dev_name	= _dev_name;	\
 }
 
-#define REG_INIT(_id, _chip, _name, _min, _max, _always, _boot, _apply_uV)	\
+/* notes: apply_uV which means proper voltage value (latest set value or min)
+* would be applied first time when enabled. So it would be set 1 if min voltage
+* == max voltage*/
+#define REG_INIT(_id, _chip, _name, _min, _max, _always, _boot)	\
 {									\
 	int _i = _id;				\
 	regulator_data[_i].constraints.name	=	__stringify(_name);	\
@@ -131,7 +134,7 @@ static int PM800_ID_regulator_index[] = {
 		&regulator_supply[_chip##_##_name];	\
 	regulator_data[_i].driver_data	=	\
 		&_chip##_regulator_index[_chip##_##_name];	\
-	regulator_data[_i].constraints.apply_uV = _apply_uV;	\
+	regulator_data[_i].constraints.apply_uV = (_min == _max);	\
 }
 
 static struct pm80x_rtc_pdata pm80x_rtc = {
@@ -163,7 +166,7 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 	/* Enable 32Khz-out-3  low jitter */
 	pm80x_reg_write(chip->base_page, 0x21, 0x20);
 	/* Enable 32Khz-out-3 */
-	pm80x_reg_write(chip->base_page, 0xE2, 0x2A);
+	pm80x_reg_write(chip->base_page, 0xE2, 0x22);
 	/* Set XO CAP to 22pF to avoid speaker noise */
 	if (get_pmic_id() >= PM800_CHIP_C0)
 		pm80x_reg_write(chip->base_page, 0xE8, 0x70);
@@ -171,7 +174,7 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 	return 0;
 }
 
-static void mic_set_power(int on)
+static void mic_set_power(unsigned int on)
 {
 	struct regulator	*v_ldo = regulator_get(NULL, "mic_bias");
 	if (IS_ERR(v_ldo)) {
@@ -198,10 +201,14 @@ static struct pm80x_headset_pdata pm80x_headset = {
 	.mic_set_power = mic_set_power,
 };
 
+static struct pm80x_dvc_pdata pm80x_dvc = {
+};
+
 static struct pm80x_platform_data pm800_info = {
 	.headset = &pm80x_headset,
 	.regulator	= regulator_data,
 	.rtc  = &pm80x_rtc,
+	.dvc = &pm80x_dvc,
 	.companion_addr		= 0x38,
 	.base_page_addr		= 0x30,
 	.power_page_addr	= 0x31,
@@ -230,25 +237,13 @@ static void regulator_init_pm800(void)
 	REG_SUPPLY_INIT(PM800_ID_LDO16, "v_cam", NULL);
 	REG_SUPPLY_INIT(PM800_ID_LDO8, "v_lcd", NULL);
 	REG_SUPPLY_INIT(PM800_ID_LDO6, "v_ihdmi", NULL);
-#if 0
-	/*
-	for NFC integration - adding 3 regulators:
-	 * Vdd_IO
-	 * VBat
-	 * VSim
-	 since they are needed by NFC driver. to prevent harm to the system
-	 i'm setting them to "unused" LDOs
-	*/
-	REG_SUPPLY_INIT(PM800_ID_LDO15, "VBat", NULL);
-#endif
-	REG_INIT(i++, PM800_ID, LDO16, 1800000, 3300000, 0, 0, 0);
-	REG_INIT(i++, PM800_ID, LDO8, 1800000, 3300000, 1, 1, 0);
-	REG_INIT(i++, PM800_ID, LDO6, 1200000, 3300000, 0, 0, 0);
-#if 0
-	REG_INIT(i++, PM800_ID, LDO15, 1800000, 3300000, 0, 0, 0);
-#endif
+
+	REG_INIT(i++, PM800_ID, LDO16, 1800000, 3300000, 0, 0);
+	REG_INIT(i++, PM800_ID, LDO8, 1800000, 3300000, 1, 1);
+	REG_INIT(i++, PM800_ID, LDO6, 1200000, 3300000, 0, 0);
 	switch (get_board_id()) {
 	case OBM_TK_ARIEL_P10:
+	case OBM_TK_ARIEL_P11:
 		/* Turn on LDO12 and 17 before wifi regulator support added */
 		/*OBM haven't support DKB 2.1 version yet,  so currently we
 		* distinguish it by Procida version
@@ -259,24 +254,18 @@ static void regulator_init_pm800(void)
 			REG_SUPPLY_INIT(PM800_ID_LDO17, "v_cam_af_vcc", NULL);
 			REG_SUPPLY_INIT(PM800_ID_LDO9, "v_wifi_3v3", NULL);
 			REG_SUPPLY_INIT(PM800_ID_LDO10, "v_vibrator", NULL);
-			REG_SUPPLY_INIT(PM800_ID_LDO12, "vmmc", "sdhci-pxa.1");
-			REG_SUPPLY_INIT(PM800_ID_LDO13, "vmmc_io", NULL);
+			REG_SUPPLY_INIT(PM800_ID_LDO12, "vmmc_io", NULL);
+			REG_SUPPLY_INIT(PM800_ID_LDO13, "vmmc", "sdhci-pxa.1");
 			REG_SUPPLY_INIT(PM800_ID_LDO19, "v_gps", NULL);
-#if 0
-			/*DKB2.1 use a new gps module, need to contorl LDO11*/
-			REG_SUPPLY_INIT(PM800_ID_LDO11, "v_gps_3v3", NULL);
-#endif
-			REG_INIT(i++, PM800_ID, LDO18, 1800000, 3300000, 0, 0, 0);
-			REG_INIT(i++, PM800_ID, LDO2, 1200000, 3300000, 0, 0, 0);
-			REG_INIT(i++, PM800_ID, LDO17, 1200000, 3300000, 0, 0, 0);
-			REG_INIT(i++, PM800_ID, LDO9, 3300000, 3300000, 0, 0, 1);
-			REG_INIT(i++, PM800_ID, LDO10, 2800000, 2800000, 0, 0, 1);
-			REG_INIT(i++, PM800_ID, LDO12, 2800000, 2800000, 0, 0, 1);
-			REG_INIT(i++, PM800_ID, LDO13, 1800000, 2800000, 0, 0, 0);
-			REG_INIT(i++, PM800_ID, LDO19, 1800000, 1800000, 0, 0, 1);
-#if 0
-			REG_INIT(i++, PM800_ID, LDO11, 1200000, 3300000, 0, 0, 0);
-#endif
+
+			REG_INIT(i++, PM800_ID, LDO18, 1800000, 3300000, 0, 0);
+			REG_INIT(i++, PM800_ID, LDO2, 1200000, 3300000, 0, 0);
+			REG_INIT(i++, PM800_ID, LDO17, 1200000, 3300000, 0, 0);
+			REG_INIT(i++, PM800_ID, LDO9, 3300000, 3300000, 0, 0);
+			REG_INIT(i++, PM800_ID, LDO10, 2800000, 2800000, 0, 0);
+			REG_INIT(i++, PM800_ID, LDO12, 1800000, 2800000, 0, 0);
+			REG_INIT(i++, PM800_ID, LDO13, 2800000, 2800000, 1, 1);
+			REG_INIT(i++, PM800_ID, LDO19, 1800000, 1800000, 1, 1);
 		} else {
 			BUG();
 		}
@@ -320,10 +309,15 @@ static struct i2c_board_info i2c1_80x_info[] = {
 #endif
 };
 
+extern int set_vmeta_freqs_table(struct devfreq *devfreq);
+static struct devfreq_platform_data devfreq_vmeta_pdata = {
+	.clk_name = "VMETA_CLK",
+	.setup_freq_table = set_vmeta_freqs_table,
+};
+
 static struct clk *clk_tout_s0;
 
-
-/* specific 8787 power on/off setting for SAARB */
+/* specific 8787 power on/off setting for SAARC */
 static void wifi_set_power(unsigned int on)
 {
 	unsigned long wlan_pd_mfp = 0;
@@ -332,22 +326,17 @@ static void wifi_set_power(unsigned int on)
 	/* the 1v8 is supplied by vbuk2 on ariel */
 	struct regulator *v_ldo_3v3 = NULL;
 
-	if (get_board_id() == OBM_TK_ARIEL_P10) {
-		v_ldo_3v3 = regulator_get(NULL, "v_wifi_3v3");
-		if (IS_ERR(v_ldo_3v3)) {
-			v_ldo_3v3 = NULL;
-			return;
-		}
-	} else
-		BUG();
+	v_ldo_3v3 = regulator_get(NULL, "v_wifi_3v3");
+	if (IS_ERR(v_ldo_3v3)) {
+		v_ldo_3v3 = NULL;
+		return;
+	}
 
 	wlan_pd_mfp = mfp_read(gpio_power_down);
 
 	if (on) {
-		if (get_board_id() == OBM_TK_ARIEL_P10)
-			regulator_enable(v_ldo_3v3);
-		else
-			BUG();
+		regulator_enable(v_ldo_3v3);
+
 		/* set wlan_pd pin to output high in low power
 			mode to ensure 8787 is not power off in low power mode*/
 		wlan_pd_mfp |= 0x100;
@@ -363,15 +352,9 @@ static void wifi_set_power(unsigned int on)
 
 		/* disable 32KHz TOUT */
 		clk_disable(clk_tout_s0);
-		if (get_board_id() == OBM_TK_ARIEL_P10)
-			regulator_disable(v_ldo_3v3);
-		else
-			BUG();
+		regulator_disable(v_ldo_3v3);
 	}
-	if (get_board_id() == OBM_TK_ARIEL_P10)
-		regulator_put(v_ldo_3v3);
-	else
-		BUG();
+	regulator_put(v_ldo_3v3);
 }
 
 #if defined(CONFIG_MMC_SDHCI_PXAV2_TAVOR) || defined(CONFIG_MMC_SDHCI_PXAV3)
@@ -569,7 +552,7 @@ static void pxa_mci1_signal_1v8(struct sdhci_host *host, int set)
 struct sdhci_pxa_platdata mci1_platform_data = {
 	.flags = PXA_FLAG_ENABLE_CLOCK_GATING |
 			PXA_FLAG_ACITVE_IN_SUSPEND,
-	.ext_cd_gpio = mfp_to_gpio(MFP_PIN_GPIO123),	/* should be checked */
+	.ext_cd_gpio = 0,
 	.ext_cd_gpio_invert = 1,
 	.mfp_start = 116,
 	.mfp_num = 6,
@@ -581,7 +564,8 @@ struct sdhci_pxa_platdata mci1_platform_data = {
 EXPORT_SYMBOL(mci1_platform_data);
 
 struct sdhci_pxa_platdata mci2_platform_data = {
-	.flags  = PXA_FLAG_CARD_PERMANENT,
+	.flags  = PXA_FLAG_CARD_PERMANENT |
+			PXA_FLAG_SDIO_CTRLCLKSRC_GATE,
 	.pm_caps = MMC_PM_KEEP_POWER |
 				MMC_PM_IRQ_ALWAYS_ON,
 	.handle_cdint = pxa95x_handle_cdint,
@@ -593,12 +577,7 @@ static void __init init_mmc(void)
 	int gpio_rst, gpio_pd;
 
 	gpio_pd = mfp_to_gpio(MFP_PIN_GPIO70);
-	if (get_board_id() == OBM_TK_ARIEL_P10) {
-		gpio_rst = mfp_to_gpio(MFP_PIN_GPIO97);
-		mci1_platform_data.ext_cd_gpio = 0;
-	} else {
-		BUG();
-	}
+	gpio_rst = mfp_to_gpio(MFP_PIN_GPIO97);
 
 	if (cpu_is_pxa978())
 		mci1_platform_data.quirks = SDHCI_QUIRK_INVERTED_WRITE_PROTECT;
@@ -758,7 +737,7 @@ static void __init lm3530_enable(void)
 }
 #endif
 
-static struct i2c_board_info i2c2_info_DKB[] = {
+static struct i2c_board_info i2c2_info[] = {
 #ifdef CONFIG_BATTERY_BQ27425
 	{
 		I2C_BOARD_INFO("bq27425", 0x55),
@@ -838,9 +817,10 @@ static void register_i2c_board_info(void)
 
 	switch (get_board_id()) {
 	case OBM_TK_ARIEL_P10:
+	case OBM_TK_ARIEL_P11:
 		pm800_info.vibrator = &vibrator_pdata;
 		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info));
-		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_DKB));
+		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info));
 		break;
 	default:
 		pr_err("%s: Unknown board type!\n", __func__);
@@ -850,23 +830,87 @@ static void register_i2c_board_info(void)
 	i2c_register_board_info(2, ARRAY_AND_SIZE(i2c3_info));
 }
 
+/* workaround for reset i2c bus by GPIO20 -SCL, GPIO21 -SDA,
+GPIO125 -SCL, GPIO126 -SDA */
+static void i2c_pxa_bus_reset(int i2c_adap_id)
+{
+	int scl_pin=0,sda_pin=0;
+	int i2c_scl_mfp,i2c_sda_mfp;
+	int ccnt;
+	if (i2c_adap_id == 1) {
+		scl_pin = mfp_to_gpio(MFP_PIN_GPIO125);
+		sda_pin = mfp_to_gpio(MFP_PIN_GPIO126);
+	}
+	else if (i2c_adap_id == 2) {
+		scl_pin = mfp_to_gpio(MFP_PIN_GPIO20);
+		sda_pin = mfp_to_gpio(MFP_PIN_GPIO21);
+	}
+	else if (i2c_adap_id == 0) {
+		scl_pin = mfp_to_gpio(MFP_PIN_GPIO68);
+		sda_pin = mfp_to_gpio(MFP_PIN_GPIO69);
+	}
+	i2c_scl_mfp = mfp_read(scl_pin);
+	i2c_sda_mfp = mfp_read(sda_pin);
+	mfp_write(scl_pin, i2c_scl_mfp & 0xfff8);
+	mfp_write(sda_pin, i2c_sda_mfp & 0xfff8);
+
+	if (gpio_request(scl_pin, "SCL")) {
+		pr_err("Failed to request GPIO for SCL pin!\n");
+		goto out;
+	}
+	if (gpio_request(sda_pin, "SDA")) {
+		pr_err("Failed to request GPIO for SDA pin!\n");
+		goto out_sda;
+	}
+	pr_info("\t<<<i2c bus gpio reseting,i2c bus id is %d>>>\n",i2c_adap_id);
+
+	gpio_direction_input(sda_pin);
+	for (ccnt = 20; ccnt; ccnt--) {
+		gpio_direction_output(scl_pin, ccnt & 0x01);
+		udelay(4);
+	}
+	gpio_direction_output(scl_pin, 0);
+	udelay(4);
+	gpio_direction_output(sda_pin, 0);
+	udelay(4);
+	/* stop signal */
+	gpio_direction_output(scl_pin, 1);
+	udelay(4);
+	gpio_direction_output(sda_pin, 1);
+	udelay(4);
+
+	mfp_write(scl_pin, i2c_scl_mfp);
+	mfp_write(sda_pin, i2c_sda_mfp);
+	gpio_free(sda_pin);
+out_sda:
+	gpio_free(scl_pin);
+out:
+	return;
+}
+
 static struct i2c_pxa_platform_data i2c1_pdata = {
 	.use_pio        = 0,
 	/*
-	 * charger ic do not support high mode
+	 * charger ic do not support high mode on Ariel
 	 */
 	.flags		= PXA_I2C_FAST_MODE | PXA_I2C_USING_FIFO_PIO_MODE,
 	.master_code	= (0x08 | 0x06), /*8 -highest, 0xF -lowest arbitration*/
+	.i2c_bus_reset		= i2c_pxa_bus_reset,
 };
 
 static struct i2c_pxa_platform_data i2c2_pdata = {
 	.use_pio	= 0,
+	/*
+	 * FT5x06 does not support FAST mode on Ariel
+	 */
 	.flags		= PXA_I2C_STANDARD_MODE | PXA_I2C_USING_FIFO_PIO_MODE,
+	.i2c_bus_reset		= i2c_pxa_bus_reset,
 };
 
 static struct i2c_pxa_platform_data i2c3_pdata = {
 	.use_pio = 0,
 	.flags = PXA_I2C_FAST_MODE | PXA_I2C_USING_FIFO_PIO_MODE,
+	.i2c_bus_reset		= i2c_pxa_bus_reset,
 };
 
 static struct platform_device *devices[] __initdata = {
@@ -876,8 +920,6 @@ static struct platform_device *devices[] __initdata = {
 };
 
 #if defined(CONFIG_USB_PXA_U2O) || defined(CONFIG_USB_EHCI_PXA_U2O)
-#define STATUS2_VBUS        (1 << 4)
-
 static char *pxa9xx_usb_clock_name[] = {
 	[0] = "AXICLK",
 	[1] = "IMUCLK",
@@ -894,20 +936,21 @@ static struct mv_usb_addon_irq pm80x_vbus = {
 	.poll	= pm80x_read_vbus_val,
 };
 
-static struct mv_usb_platform_data pxa9xx_usb_pdata = {
+static struct mv_usb_platform_data pxa978_usb_pdata = {
 	.clknum		= 3,
 	.clkname	= pxa9xx_usb_clock_name,
 	.vbus		= NULL,
 	.mode		= MV_USB_MODE_OTG,
 	.otg_force_a_bus_req = 1,
-	.phy_init	= pxa9xx_usb_phy_init,
+	.phy_init	= pxa978_usb_phy_init,
+	.phy_deinit	= pxa978_usb_phy_deinit,
 	.set_vbus	= NULL,
 	.otg_force_a_bus_req = 1,
 };
 #endif
 
 #if defined(CONFIG_KEYBOARD_PXA27x) || defined(CONFIG_KEYBOARD_PXA27x_MODULE)
-static unsigned int matrix_key_map_dkb2[] = {
+static unsigned int matrix_key_maps[] = {
 	/* KEY(row, col, key_code) */
 	KEY(0, 0, KEY_BACK),
 	KEY(0, 1, KEY_END),
@@ -923,11 +966,11 @@ static unsigned int matrix_key_map_dkb2[] = {
 	KEY(3, 2, KEY_DOWN),/*not exists*/
 };
 
-static struct pxa27x_keypad_platform_data keypad_info_dkb2 = {
+static struct pxa27x_keypad_platform_data keypad_info = {
 	.matrix_key_rows = 4,
 	.matrix_key_cols = 3,
-	.matrix_key_map = matrix_key_map_dkb2,
-	.matrix_key_map_size = ARRAY_SIZE(matrix_key_map_dkb2),
+	.matrix_key_map = matrix_key_maps,
+	.matrix_key_map_size = ARRAY_SIZE(matrix_key_maps),
 	.debounce_interval = 30,
 	.active_low = 1,
 };
@@ -1003,6 +1046,7 @@ static inline int pxa978_add_spi(int id, struct pxa2xx_spi_master *pdata)
 }
 
 #if (defined CONFIG_CMMB)
+
 static struct pxa2xx_spi_master pxa_ssp_master_info = {
 	.num_chipselect = 1,
 	.enable_dma = 1,
@@ -1186,7 +1230,7 @@ static struct spi_board_info spi_board_info[] __initdata = {
 	},
 };
 
-static void __init nevo_dkb_init_spi(void)
+static void __init nevo_init_spi(void)
 {
 	int err;
 	int cmmb_int, cmmb_cs;
@@ -1222,13 +1266,18 @@ static void __init nevo_dkb_init_spi(void)
 #if defined(CONFIG_FB_PXA95x)
 
 #if defined(CONFIG_MV_IHDMI)
+#ifndef CONFIG_UIO_HDMI
 static int mv_ihdmi_format = 4;
-
+#endif
+static int hdtx_en;
 static int hdtx_power(int en)
 {
 	struct regulator *v_ldo;
 	int pin1 = mfp_to_gpio(MFP_PIN_GPIO73);
-
+	if (hdtx_en == en) {
+		printk("hdmi: already turn %s\n", en?"on":"off");
+		return 0;
+	}
 	v_ldo = regulator_get(NULL, "v_ihdmi");
 	if (IS_ERR(v_ldo)) {
 		printk(KERN_ERR "hdmi: fail to get ldo handle!\n");
@@ -1254,11 +1303,12 @@ static int hdtx_power(int en)
 	gpio_direction_output(pin1, en);
 	msleep(10);
 
-/*	gpio_free(pin1); */
+	gpio_free(pin1);
 	printk(KERN_INFO "hdmi: turn %s charge pump 5V\n",
 		en ? "ON" : "OFF");
 
 	regulator_put(v_ldo);
+	hdtx_en = en;
 	return 0;
 }
 
@@ -1282,7 +1332,8 @@ static void __init init_hdmi(void)
 
 static struct pxa95xfb_mach_info ihdmi_base_info __initdata = {
 	.id                     = "HDMI-Base",
-	.num_modes              = 1,
+	.modes                  = video_modes_ihdmi,
+	.num_modes              = ARRAY_SIZE(video_modes_ihdmi),
 	.pix_fmt_in             = PIX_FMTIN_RGB_16,
 	.pix_fmt_out            = PIX_FMTOUT_24_RGB888,
 	.panel_type             = LCD_Controller_TV_HDMI,
@@ -1296,11 +1347,13 @@ static struct pxa95xfb_mach_info ihdmi_base_info __initdata = {
 	.panel_power            = hdtx_power,
 #endif
 	.invert_pixclock        = 1,
+	.init_mode              = 15,
 };
 
 static struct pxa95xfb_mach_info ihdmi_ovly_info __initdata = {
 	.id                     = "HDMI-Ovly",
-	.num_modes              = 1,
+	.modes 	                = video_modes_ihdmi,
+	.num_modes              = ARRAY_SIZE(video_modes_ihdmi),
 	.pix_fmt_in             = PIX_FMTIN_RGB_16,
 	.pix_fmt_out            = PIX_FMTOUT_24_RGB888,
 	.panel_type             = LCD_Controller_TV_HDMI,
@@ -1314,6 +1367,7 @@ static struct pxa95xfb_mach_info ihdmi_ovly_info __initdata = {
 	.panel_power			= hdtx_power,
 #endif
 	.invert_pixclock	= 1,
+	.init_mode 		= 15,
 };
 #endif
 
@@ -1328,9 +1382,7 @@ static void __init init_lcd(void)
 #else
 	pxa_register_device(&pxa978_device_ihdmi, &mv_ihdmi_format);
 #endif
-	ihdmi_base_info.modes = &video_modes_ihdmi[mv_ihdmi_format-1];
 	set_pxa95x_fb_ovly_info(&ihdmi_base_info, 1);
-	ihdmi_ovly_info.modes = &video_modes_ihdmi[mv_ihdmi_format-1];
 	set_pxa95x_fb_ovly_info(&ihdmi_ovly_info, 2);
 #endif
 }
@@ -1346,58 +1398,34 @@ static mfp_cfg_t pxa95x_hsl_mfp_cfg[] = {
 	MFP121_HSL_DATA4
 };
 
-static mfp_cfg_t pxa95x_abu_mfp_cfg[] = {
-	/* ABU of MG1 */
-	GPIO63_ABU_RXD,
-	GPIO64_ABU_TXD,
-	/*
-	 * no use for ABU/SSI, and configure GPIO65
-	 * to AF0 to save power when using ABU (~0.5mA)
-	 */
-	GPIO65_GPIO,
-	GPIO66_ABU_FRM,
-	GPIO67_ABU_CLK,
-};
-
-static mfp_cfg_t pxa95x_bssp2_mfp_cfg[] = {
-	/* BSSP2 of MG1 */
-	GPIO63_SSP2_RXD,
-	GPIO64_SSP2_TXD,
-	GPIO65_SSP2_SYSCLK,
-	GPIO66_SSP2_FRM,
-	GPIO67_SSP2_CLK,
-};
-
-static mfp_cfg_t bssp3_mfp_cfg[] = {
-	/* BSSP3 of MG1*/
-	GPIO58_BSSP3_CLK,
-	GPIO59_BSSP3_FRM,
-	GPIO60_BSSP3_TXD,
-	GPIO61_BSSP3_RXD,
-};
-
-static mfp_cfg_t gssp1_mfp_cfg[] = {
-	/* BSSP3 of MG1*/
-	GPIO58_GSSP1_CLK,
-	GPIO59_GSSP1_FRM,
-	GPIO60_GSSP1_TXD,
-	GPIO61_GSSP1_RXD,
-};
-
 static void abu_mfp_init(bool abu)
 {
-	if (abu)
-		mfp_config(ARRAY_AND_SIZE(pxa95x_abu_mfp_cfg));
-	else
-		mfp_config(ARRAY_AND_SIZE(pxa95x_bssp2_mfp_cfg));
+	int i;
+	unsigned long mfpr, af;
+
+	af = abu ? 2 : 1;
+
+	for (i = 63; i < 68; i++) {
+		mfpr = mfp_read(i);
+		mfpr &= ~MFPR_AF_MASK;
+		mfpr |= MFPR_AF_SEL(af);
+		mfp_write(i, mfpr);
+	}
 }
 
 static void ssp3_mfp_init(bool bssp)
 {
-	if (bssp)
-		mfp_config(ARRAY_AND_SIZE(bssp3_mfp_cfg));
-	else
-		mfp_config(ARRAY_AND_SIZE(gssp1_mfp_cfg));
+	int i;
+	unsigned long mfpr, af;
+
+	af = bssp ? 1 : 2;
+
+	for (i = 58; i < 62; i++) {
+		mfpr = mfp_read(i);
+		mfpr &= ~MFPR_AF_MASK;
+		mfpr |= MFPR_AF_SEL(af);
+		mfp_write(i, mfpr);
+	}
 }
 
 #ifdef CONFIG_PM
@@ -1417,6 +1445,10 @@ static int init_idle_wakeup(pm_wakeup_src_t *src)
 	src->bits.cmwdt = 1;
 	src->bits.mmc1_cd = 1;
 	src->bits.mmc3_dat1 = 1;
+
+	if (cpu_is_pxa978_Dx())
+		src->bits.display = 1;
+
 	return 0;
 }
 
@@ -1512,7 +1544,7 @@ static int key_wakeup(pm_wakeup_src_t src, int enable)
 {
 	unsigned int ret = 0;
 	unsigned int i = 0;
-	unsigned int key_matrix = 4;	/* should be updated with TK */
+	unsigned int key_matrix = 4;
 	/*GPIO0, GPIO2, GPIO4, GPIO6,*/
 	if (enable) {
 		if (src.bits.mkey) {
@@ -1605,6 +1637,11 @@ static int comm_wdt_wakeup(pm_wakeup_src_t src, int enable)
 	return ret;
 }
 
+static int display_wakeup(pm_wakeup_src_t src, int enable)
+{
+	return 0;
+}
+
 static struct pxa95x_peripheral_wakeup_ops wakeup_ops = {
 	.init_idle_wakeup   = init_idle_wakeup,
 	.init_suspend_wakeup   = init_suspend_wakeup,
@@ -1616,8 +1653,30 @@ static struct pxa95x_peripheral_wakeup_ops wakeup_ops = {
 	.uart   = uart_wakeup,
 	.tsi    = tsi_wakeup,
 	.cmwdt  = comm_wdt_wakeup,
+	.display  = display_wakeup,
 };
 #endif
+
+static void pull_up_dcdc(void)
+{
+	int dcdc_pin;
+	int err;
+
+	dcdc_pin = mfp_to_gpio(MFP_PIN_RF_MFP14);
+	err = gpio_request(dcdc_pin, "DCDC_Pin");
+	if (err) {
+		gpio_free(dcdc_pin);
+		printk(KERN_ERR "Request GPIO failed, gpio: %d return :%d\n",
+			dcdc_pin, err);
+		return;
+	}
+	gpio_direction_output(dcdc_pin, 1);
+
+	gpio_free(dcdc_pin);
+	pr_info("pull up DCDC. \n");
+
+	return;
+}
 
 #ifdef CONFIG_PROC_FS
 static void sparrow_rf_reset(void)
@@ -1784,9 +1843,9 @@ static void __init init(void)
 	pr_info( \
 		"[%s][%s]regulator_init_pm800 maxNum[%d] init\n",
 		__FILE__, __func__, PM8XXX_REGULATOR_MAX);
-	pxa9xx_usb_pdata.vbus = &pm80x_vbus;
-	pxa9xx_usb_pdata.id = &pm80x_id;
-	pxa9xx_usb_pdata.set_vbus = pm80x_set_vbus;
+	pxa978_usb_pdata.vbus = &pm80x_vbus;
+	pxa978_usb_pdata.id = &pm80x_id;
+	pxa978_usb_pdata.set_vbus = pm80x_set_vbus;
 
 	register_reboot_notifier(&reboot_notifier);
 
@@ -1801,11 +1860,14 @@ static void __init init(void)
 	platform_device_add_data(&pxa95x_device_i2c3, &i2c3_pdata,
 				 sizeof(i2c3_pdata));
 
+	pxa95x_device_vMeta_devfreq.dev.platform_data =
+				(void *)(&devfreq_vmeta_pdata);
+
 	platform_add_devices(ARRAY_AND_SIZE(devices));
 	register_i2c_board_info();
 
 #if defined(CONFIG_KEYBOARD_PXA27x) || defined(CONFIG_KEYBOARD_PXA27x_MODULE)
-	pxa_set_keypad_info(&keypad_info_dkb2);
+	pxa_set_keypad_info(&keypad_info);
 	platform_device_register(&reset_keys_device);
 #endif
 
@@ -1839,22 +1901,22 @@ static void __init init(void)
 
 #if (defined CONFIG_CMMB)
 	/*spi device*/
-	nevo_dkb_init_spi();
+	nevo_init_spi();
 #endif
 
 #ifdef CONFIG_USB_PXA_U2O
-	pxa9xx_device_u2o.dev.platform_data = (void *)&pxa9xx_usb_pdata;
-	platform_device_register(&pxa9xx_device_u2o);
+	pxa978_device_u2o.dev.platform_data = (void *)&pxa978_usb_pdata;
+	platform_device_register(&pxa978_device_u2o);
 #endif
 
 #ifdef CONFIG_USB_PXA_U2O_OTG
-	pxa9xx_device_u2ootg.dev.platform_data = (void *)&pxa9xx_usb_pdata;
-	platform_device_register(&pxa9xx_device_u2ootg);
+	pxa978_device_u2ootg.dev.platform_data = (void *)&pxa978_usb_pdata;
+	platform_device_register(&pxa978_device_u2ootg);
 #endif
 
 #ifdef CONFIG_USB_EHCI_PXA_U2O
-	pxa9xx_device_u2oehci.dev.platform_data = (void *)&pxa9xx_usb_pdata;
-	platform_device_register(&pxa9xx_device_u2oehci);
+	pxa978_device_u2oehci.dev.platform_data = (void *)&pxa978_usb_pdata;
+	platform_device_register(&pxa978_device_u2oehci);
 #endif
 
 #ifdef CONFIG_PROC_FS
@@ -1864,6 +1926,8 @@ static void __init init(void)
 	create_pcm_mfp_proc_file();
 #endif
 	init_rfreset_gpio();
+
+	pull_up_dcdc();
 }
 
 MACHINE_START(NEVOARIEL, "PXA978")

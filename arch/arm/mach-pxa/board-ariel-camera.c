@@ -268,6 +268,7 @@ static void __init init_cam(void)
 	/* PWD pin GPIO initialize */
 	switch (get_board_id()) {
 	case OBM_TK_ARIEL_P10:
+	case OBM_TK_ARIEL_P11:
 		g_board = cam_layout_ariel;
 		break;
 	default: /* For SaarC 2.5 and 3*/
@@ -278,6 +279,7 @@ static void __init init_cam(void)
 #if defined(CONFIG_VIDEO_PXA955)
 	switch (get_board_id()) {
 	case OBM_TK_ARIEL_P10:
+	case OBM_TK_ARIEL_P11:
 		printk(KERN_NOTICE "cam: saarc: Probing camera on Ariel\n");
 #if defined(CONFIG_SOC_CAMERA_OV5640)
 		platform_device_register(&camera[ID_OV5640]);

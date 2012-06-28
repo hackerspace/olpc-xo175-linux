@@ -576,7 +576,8 @@
 
 /* board type defination, we reuse the defination in generic.h */
 enum {
-	OBM_TK_ARIEL_P10 = 102,		/* we reuse DKB2.1's board type id */
+	OBM_TK_ARIEL_P10 = 102,		/* reuse DKB2.1's id */
+	OBM_TK_ARIEL_P11 = 103,		/* reuse DKB3.0's id for Nevo D0 */
 	MAX_BOARD_TYPE_ID
 };
 
