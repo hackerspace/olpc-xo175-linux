@@ -782,6 +782,26 @@ static void __init pxa910_reserve_cnm_memblock(void)
 }
 #endif
 
+#ifdef CONFIG_ANDROID_RAM_CONSOLE_EARLY_INIT
+static void pxa910_ram_console_mem_reserve(void)
+{
+	unsigned int pa, ret;
+
+	pa = __virt_to_phys(CONFIG_ANDROID_RAM_CONSOLE_EARLY_ADDR);
+
+	if (!pa || CONFIG_ANDROID_RAM_CONSOLE_EARLY_SIZE == 0)
+		return;
+
+	ret = memblock_reserve(pa, CONFIG_ANDROID_RAM_CONSOLE_EARLY_SIZE);
+	if (ret)
+		pr_err("Failed to reserve ram console memory, ret 0x%x\n", ret);
+	else
+		pr_info("Reserve 0x%x at 0x%x (va 0x%x) for ram console\n",
+				CONFIG_ANDROID_RAM_CONSOLE_EARLY_SIZE, pa,
+				CONFIG_ANDROID_RAM_CONSOLE_EARLY_ADDR);
+}
+#endif
+
 void __init pxa910_reserve(void)
 {
 	/* Reserve memory for CP */
@@ -795,6 +815,10 @@ void __init pxa910_reserve(void)
 #ifdef CONFIG_ANDROID_PMEM
 	/* Reserve memory for pmem */
 	pxa_reserve_pmem_memblock();
+#endif
+
+#ifdef CONFIG_ANDROID_RAM_CONSOLE_EARLY_INIT
+	pxa910_ram_console_mem_reserve();
 #endif
 }
 
