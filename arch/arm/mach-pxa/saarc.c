@@ -2153,9 +2153,6 @@ static void __init nevo_dkb_init_spi(void)
 #if defined(CONFIG_FB_PXA95x)
 
 #if defined(CONFIG_MV_IHDMI)
-#ifndef CONFIG_UIO_HDMI
-static int mv_ihdmi_format = 4;
-#endif
 static int hdtx_en;
 static int hdtx_power(int en)
 {
@@ -2229,9 +2226,6 @@ static struct pxa95xfb_mach_info ihdmi_base_info __initdata = {
         .converter              = LCD_M2HDMI,
         .output                 = OUTPUT_HDMI,
         .active                 = 1,
-#ifndef CONFIG_UIO_HDMI
-        .panel_power                    = hdtx_power,
-#endif
         .invert_pixclock        = 1,
         .init_mode = 15,
 };
@@ -2249,9 +2243,6 @@ static struct pxa95xfb_mach_info ihdmi_ovly_info __initdata = {
 	.converter		= LCD_M2HDMI,
 	.output			= OUTPUT_HDMI,
 	.active			= 1,
-#ifndef CONFIG_UIO_HDMI
-	.panel_power			= hdtx_power,
-#endif
 	.invert_pixclock	= 1,
 	.init_mode = 15,
 };
@@ -2338,13 +2329,14 @@ static struct pxa95xfb_mach_info lcd_ovly_info /*__initdata*/ = {
 
 static void __init init_lcd(void)
 {
+	int ihdmi_format =4;
 	set_pxa95x_fb_info(&lcd_info);
 	set_pxa95x_fb_ovly_info(&lcd_ovly_info, 0);
 #if defined(CONFIG_MV_IHDMI)
 #ifdef CONFIG_UIO_HDMI
 	init_hdmi();
 #else
-	pxa_register_device(&pxa978_device_ihdmi, &mv_ihdmi_format);
+	pxa_register_device(&pxa978_device_ihdmi, &ihdmi_format);
 #endif
 	set_pxa95x_fb_ovly_info(&ihdmi_base_info, 1);
 	set_pxa95x_fb_ovly_info(&ihdmi_ovly_info, 2);

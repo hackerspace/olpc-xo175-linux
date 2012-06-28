@@ -1154,22 +1154,6 @@ static void converter_start_dsi(struct pxa95xfb_conv_info *conv)
 		loop_kthread_resume(&conv->thread);
 }
 
-
-#ifndef CONFIG_UIO_HDMI
-static void interlacer_enable(int enable)
-{
-	static u8 *enable_interlacer;
-	if (!enable_interlacer)
-		enable_interlacer =
-			(u8 *)ioremap_nocache(0x4410C000, sizeof(u32));
-
-	if (enable)
-		*enable_interlacer |= 0x1;
-	else
-		*enable_interlacer &= 0xFE;
-}
-#endif
-
 static void converter_set_hdmi(struct pxa95xfb_info *fbi)
 {
 	struct pxa95xfb_conv_info *conv = &pxa95xfb_conv[fbi->converter - 1];
@@ -1177,18 +1161,6 @@ static void converter_set_hdmi(struct pxa95xfb_info *fbi)
 
 	void *conv_base = conv->conv_base;
 	u32 x, hdmi_format = 4;
-
-#ifndef CONFIG_UIO_HDMI
-	/*Init HDMI Phy*/
-	u32 hdmi_freq = ((74170000 * HDMI_PLL_DIV_VALUE)/1000000) + 1;
-	/* Set HDMI clock */
-	clk_enable(conv->clk);
-	if (clk_set_rate(conv->clk, hdmi_freq * 1000000)) {
-		printk(KERN_ERR "HDMI PLL set failed!\n\r");
-		return;
-	}
-#endif
-	msleep(10);
 
 	/*Set Gamma correction*/
 	converter_set_gamma(conv);
@@ -1236,12 +1208,6 @@ static void converter_set_hdmi(struct pxa95xfb_info *fbi)
 		writel(0x5, conv_base + HDMI_TCLK_DIV);
 		writel(0x5, conv_base + HDMI_PRCLK_DIV);
 	}
-#ifndef CONFIG_UIO_HDMI/* TODO: finally would be removed*/
-	if (hdmi_format == 5 || hdmi_format == 10 || hdmi_format == 11)
-		interlacer_enable(1);
-	else
-		interlacer_enable(0);
-#endif
 }
 
 static void hdmi_set_SSP_CLK(struct pxa95xfb_info *fbi, int on)
@@ -1308,11 +1274,6 @@ static void update_lcd_controller_clock(struct pxa95xfb_conv_info *conv, int on)
 	converter_onoff(pxa95xfbi[0], 1);
 }
 
-
-
-#ifdef CONFIG_MV_IHDMI
-extern int mv_ihdmiinit(void);
-#endif
 static void mixer_onoff(struct pxa95xfb_info *fbi, int on);
 void converter_onoff(struct pxa95xfb_info *fbi, int on)
 {
@@ -1340,9 +1301,6 @@ void converter_onoff(struct pxa95xfb_info *fbi, int on)
 		} else if (LCD_M2HDMI == conv->converter) {
 			converter_set_hdmi(fbi);
 			hdmi_set_SSP_CLK(fbi, 1);
-#if defined(CONFIG_MV_IHDMI) && !defined(CONFIG_UIO_HDMI)
-			mv_ihdmiinit();
-#endif
 		}
 
 		/* enable mixer to do real conv enable! */
@@ -1437,10 +1395,7 @@ void converter_init(struct pxa95xfb_info *fbi)
 		conv->clk = clk_get(NULL, "PXA95x_DSI0CLK");
 	else if (conv->converter == LCD_M2DSI1)
 		conv->clk = clk_get(NULL, "PXA95x_DSI1CLK");
-#ifndef CONFIG_UIO_HDMI
-	else if (conv->converter == LCD_M2HDMI)
-		conv->clk = clk_get(NULL, "HDMICLK");
-#endif
+
 	if (IS_ERR(conv->clk))
 		pr_err("unable to get converter DSI0 CLK\n");
 
@@ -2323,7 +2278,7 @@ static void pxa95xfb_gfx_power(struct pxa95xfb_info *fbi, int on)
 
 		/*if hdmi fbi2/3 has not turn off, should not release the power constrain*/
 		for (i = 2; i < PXA95xFB_FB_NUM; i ++) {
-			if (pxa95xfbi[i]->controller_on) {
+			if (pxa95xfbi[i] && pxa95xfbi[i]->controller_on) {
 				en = 1;
 				break;
 			}
