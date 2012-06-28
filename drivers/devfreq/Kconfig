@@ -71,9 +71,9 @@ config DEVFREQ_GOV_USERSPACE
 comment "DEVFREQ Drivers"
 
 config DDR_DEVFREQ
-	bool "MMP3 DDR devfreq driver"
+	bool "DDR devfreq driver support"
 	help
-	  This adds the devfreq driver for MMP3.
+	  This adds the ddr devfreq driver support.
 
 config VMETA_DEVFREQ
 	bool "vMeta devfreq driver"

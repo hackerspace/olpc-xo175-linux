@@ -25,6 +25,10 @@ struct devfreq_platform_data {
 	const char *clk_name;
 	struct devfreq_frequency_table *freq_table;
 	int (*setup_freq_table) (struct devfreq *devfreq);
+#ifdef CONFIG_DDR_DEVFREQ
+	unsigned int interleave_is_on;
+	unsigned int hw_base[2];
+#endif
 };
 
 #endif
