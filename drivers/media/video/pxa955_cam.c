@@ -237,10 +237,6 @@ static const int yuv_output_sequence[][3] = {
 
 #define JPEG_COMPRESS_RATIO_HIGH 20
 #define CHANNEL_NUM	3	/*YUV*/
-#define MAX_DMA_BUFS	4
-#define MIN_DMA_BUFS	2
-#define MAX_DMA_SIZE	(1280 * 720 * 2)
-#define JPEG_BUF_SIZE	(1024 * 1024)
 
 #define ALIGN_SIZE	(cache_line_size())
 #define ALIGN_MASK	(ALIGN_SIZE - 1)
@@ -309,9 +305,12 @@ struct pxa955_cam_dev {
 	/* the spin lock to protect dma_chain and new_chain*/
 	spinlock_t spin_lock;
 
+	/* format and dma layout */
 	unsigned int channels;
 	unsigned int channel_size[CHANNEL_NUM];
-	unsigned int sci_pixfmt;
+	unsigned long channel_addr[CHANNEL_NUM];
+	unsigned int fmt_idx;
+	struct v4l2_pix_format_mplane mp;	/* internal format cache */
 
 	/* vb2 facility */
 	struct vb2_queue *vq;
@@ -329,12 +328,108 @@ struct pxa955_cam_dev {
 #endif
 };
 
-#define MAGIC_DC_MEM 0x0733ac61
-#define MAGIC_CHECK(is, should)					    \
-	if (unlikely((is) != (should)))	{				    \
-		pr_err("magic mismatch: %x expected %x\n", (is), (should)); \
-		BUG();							    \
-	}
+struct pxa97x_plane {
+	u8 ch_id;
+	u8 bpp_h;
+	u8 bpp_v;
+};
+
+struct pxa97x_cam_format {
+	struct soc_mbus_pixelfmt hfmt;
+	enum v4l2_mbus_pixelcode code;	/* sensor format */
+	u32 reg;
+	u8 planes;
+	struct pxa97x_plane plane[CHANNEL_NUM];
+};
+
+static struct pxa97x_cam_format pxa97x_cam_fmts[] = {
+	{
+		.hfmt	= { /* Doesn't matter, will be overwritten anyway*/
+			.fourcc			= V4L2_PIX_FMT_UYVY,
+			.name			= "UYVY",
+			.bits_per_sample	= 8,
+			.packing		= SOC_MBUS_PACKING_2X8_PADHI,
+			.order			= SOC_MBUS_ORDER_LE,
+		},
+		.code	= V4L2_MBUS_FMT_UYVY8_2X8,
+		.reg	= SCICR1_FMT_IN(FMT_YUV422) | \
+					SCICR1_FMT_OUT(FMT_YUV422PACKET),
+		.planes	= 1,
+		.plane = {
+			{0, 16, 8},
+		},
+	},
+	{
+		.hfmt	= {
+			.fourcc			= V4L2_PIX_FMT_YUV422P,
+			.name			= "422P",
+			.bits_per_sample	= 16,
+			.packing		= SOC_MBUS_PACKING_2X8_PADHI,
+			.order			= SOC_MBUS_ORDER_LE,
+		},
+		.code	= V4L2_MBUS_FMT_UYVY8_2X8,
+		.reg	= SCICR1_FMT_IN(FMT_YUV422) | \
+				SCICR1_FMT_OUT(FMT_YUV422),
+		.planes	= 3,
+		.plane = {
+			{0, 8, 8},	/* Y */
+			{1, 4, 8},	/* U */
+			{2, 4, 8},	/* V */
+		},
+	},
+	{
+		.hfmt	= {
+			.fourcc			= V4L2_PIX_FMT_YUV420,
+			.name			= "YU12",
+			.bits_per_sample	= 12,
+			.packing		= SOC_MBUS_PACKING_1_5X8,
+			.order			= SOC_MBUS_ORDER_LE,
+		},
+		.code	= V4L2_MBUS_FMT_UYVY8_2X8,
+		.reg	= SCICR1_FMT_IN(FMT_YUV422) | \
+				SCICR1_FMT_OUT(FMT_YUV420),
+		.planes	= 3,
+		.plane = {
+			{0, 8, 8},	/* Y */
+			{1, 4, 4},	/* U */
+			{2, 4, 4},	/* V */
+		},
+	},
+	{
+		.hfmt	= {
+			.fourcc			= V4L2_PIX_FMT_YVU420,
+			.name			= "YV12",
+			.bits_per_sample	= 12,
+			.packing		= SOC_MBUS_PACKING_1_5X8,
+			.order			= SOC_MBUS_ORDER_LE,
+		},
+		.code	= V4L2_MBUS_FMT_UYVY8_2X8,
+		.reg	= SCICR1_FMT_IN(FMT_YUV422) | \
+				SCICR1_FMT_OUT(FMT_YUV420),
+		.planes	= 3,
+		.plane = {
+			{0, 8, 8},	/* Y */
+			{2, 4, 4},	/* V */
+			{1, 4, 4},	/* U */
+		},
+	},
+	{
+		.code = V4L2_MBUS_FMT_JPEG_1X8,
+		.hfmt	= { /* Doesn't matter, will be overwritten anyway*/
+			.fourcc                 = V4L2_PIX_FMT_JPEG,
+			.name                   = "JPEG",
+			.bits_per_sample        = 8,
+			.packing                = SOC_MBUS_PACKING_VARIABLE,
+			.order                  = SOC_MBUS_ORDER_LE,
+		},
+		.reg	= SCICR1_FMT_IN(FMT_JPEG) | \
+				SCICR1_FMT_OUT(FMT_JPEG),
+		.planes	= 1,
+		.plane = {
+			{0, 16, 8},
+		},
+	},
+};
 
 #define pixfmtstr(x) (x) & 0xff, ((x) >> 8) & 0xff, ((x) >> 16) & 0xff, \
 	((x) >> 24) & 0xff
@@ -851,16 +946,16 @@ static int dma_alloc_desc(struct pxa_buf_node *buf_node,
 	unsigned long srcphyaddr, dstphyaddr;
 	struct pxa_cam_dma *desc;
 	struct device *dev = pcdev->soc_host.v4l2_dev.dev;
-	srcphyaddr = 0;	/* TBD */
 
+	srcphyaddr = 0;	/* TBD */
 	dstphyaddr = vb2_dma_contig_plane_paddr(&buf_node->vb2, 0);
 
 	for (i = 0; i < pcdev->channels; i++) {
 		printk(KERN_DEBUG "cam: index %d, channels %d\n", \
 					buf_node->vb2.v4l2_buf.index, i);
-		desc = &buf_node->dma_desc[yuv_output_sequence[pcdev->sci_pixfmt][i]];
-		len = pcdev->channel_size[yuv_output_sequence[pcdev->sci_pixfmt][i]];
-
+		desc = &buf_node->dma_desc[i];
+		len = pcdev->channel_size[i];
+		dstphyaddr = pcdev->channel_addr[i];
 		desc->sglen = (len + SINGLE_DESC_TRANS_MAX - 1) / \
 				SINGLE_DESC_TRANS_MAX;
 		desc->sg_size = (desc->sglen) * sizeof(struct pxa_dma_desc);
@@ -988,74 +1083,6 @@ static int sci_cken(struct pxa955_cam_dev *pcdev, int flag)
 	};
 
 	return 0;
-}
-
-static void sci_s_fmt(struct pxa955_cam_dev *pcdev,
-				struct v4l2_pix_format *fmt)
-{
-	unsigned int size = fmt->width*fmt->height;
-
-	pcdev->sci_pixfmt = SCI_PIXFMT_DEFAULT;
-
-	switch (fmt->pixelformat) {
-
-	case V4L2_PIX_FMT_RGB565:
-		pcdev->channels = 1;
-		pcdev->channel_size[0] = size*2;
-		sci_reg_write(pcdev, REG_SCICR1, SCICR1_FMT_IN(FMT_RGB565) | \
-						SCICR1_FMT_OUT(FMT_RGB565));
-	    break;
-
-	case V4L2_PIX_FMT_JPEG:
-		pcdev->channels = 1;
-		/*
-		* From the specification, the DMA transfer size in SCI DMA
-		* command reg should not exceed 16MB.
-		* Actually the size of compressed JPEG picture is variable.
-		* And the DMA transfer size should be set as below:
-		* width*height/JPEG_COMPRESS_RATIO_HIGH <= size <= 16MB
-		* So we set it to width*height*2 since assume the JPEG size
-		* for a resolution should be smaller than RGB/YUV size.
-		*/
-		pcdev->channel_size[0] = size*2;
-		sci_reg_write(pcdev, REG_SCICR1, SCICR1_FMT_IN(FMT_JPEG) | \
-						SCICR1_FMT_OUT(FMT_JPEG));
-	    break;
-
-	case V4L2_PIX_FMT_YUV422P:
-		pcdev->channels = 3;
-		pcdev->channel_size[0] = size;
-		pcdev->channel_size[1] = pcdev->channel_size[2] = size/2;
-		sci_reg_write(pcdev, REG_SCICR1, SCICR1_FMT_IN(FMT_YUV422) | \
-						SCICR1_FMT_OUT(FMT_YUV422));
-		break;
-
-	case V4L2_PIX_FMT_YVYU:
-	case V4L2_PIX_FMT_YUYV:
-	case V4L2_PIX_FMT_UYVY:
-	case V4L2_PIX_FMT_VYUY:
-		pcdev->channels = 1;
-		pcdev->channel_size[0] = size*2;
-		sci_reg_write(pcdev, REG_SCICR1, SCICR1_FMT_IN(FMT_YUV422) | \
-					SCICR1_FMT_OUT(FMT_YUV422PACKET));
-		break;
-
-	case V4L2_PIX_FMT_YVU420:
-		pcdev->sci_pixfmt = SCI_PIXFMT_YVU;
-	case V4L2_PIX_FMT_YUV420:
-		/* only accept YUV422 as input */
-		pcdev->channels = 3;
-		pcdev->channel_size[0] = size;
-		pcdev->channel_size[1] = pcdev->channel_size[2] = size/4;
-		sci_reg_write(pcdev, REG_SCICR1, SCICR1_FMT_IN(FMT_YUV422) | \
-						SCICR1_FMT_OUT(FMT_YUV420));
-		break;
-
-	default:
-		printk(KERN_ERR "cam: error can not support fmt!\n");
-		break;
-	}
-
 }
 
 static void sci_irq_enable(struct pxa955_cam_dev *pcdev, unsigned int val)
@@ -1285,7 +1312,8 @@ static int pxa97x_vb2_setup(struct vb2_queue *vq, unsigned int *count,
 					struct soc_camera_device, vb2_vidq);
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct pxa955_cam_dev *pcdev = ici->priv;
-	int bytes_per_line = soc_mbus_bytes_per_line(icd->user_width,
+	struct v4l2_pix_format_mplane *mp = &pcdev->mp;
+	int i, bytes_per_line = soc_mbus_bytes_per_line(icd->user_width,
 		icd->current_fmt->host_fmt);
 
 	int minbufs = 2;
@@ -1295,9 +1323,11 @@ static int pxa97x_vb2_setup(struct vb2_queue *vq, unsigned int *count,
 	if (bytes_per_line < 0)
 		return bytes_per_line;
 
-	*num_planes = 1;
-	sizes[0] = ALIGN(bytes_per_line * icd->user_height, ALIGN_SIZE);
-	alloc_ctxs[0] = pcdev->alloc_ctx;
+	*num_planes = mp->num_planes;
+	for (i = 0; i < mp->num_planes; i++) {
+		sizes[i] = ALIGN(mp->plane_fmt[i].sizeimage, ALIGN_SIZE);
+		alloc_ctxs[i] = pcdev->alloc_ctx;
+	}
 
 	if (!list_empty(&pcdev->dma_chain)) {
 		printk(KERN_ERR "cam: dma list is not empty, forgot to clean it?\n");
@@ -1317,43 +1347,71 @@ static int pxa97x_vb2_prepare(struct vb2_buffer *vb)
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct pxa955_cam_dev *pcdev = ici->priv;
 	struct pxa_buf_node *buf = container_of(vb, struct pxa_buf_node, vb2);
-	unsigned long size;
-	dma_addr_t paddr;
+	struct v4l2_pix_format_mplane *mp = &pcdev->mp;
+	struct pxa97x_cam_format *fmt;
 	struct pxa_cam_dma *desc;
-	int ret = 0;
+	int i, ret = 0;
 
-	size = vb2_plane_size(vb, 0);
-	/* FIXME:	if YUV, must assert(W*H*bpp(plane)<=size)
-	 *		if JPEG, assert size is not too small*/
-	vb2_set_plane_payload(vb, 0, size);
+	if (vb->num_planes < mp->num_planes)
+		return -EINVAL;
+	pcdev->channels = vb->num_planes = mp->num_planes;
+	fmt = pxa97x_cam_fmts + pcdev->fmt_idx;
+	for (i = 0; i < vb->num_planes; i++) {
+		int ch_id = fmt->plane[i].ch_id;
+		/* driver calculated plane size */
+		int c_size = mp->plane_fmt[i].sizeimage;
+		/* actual size of plane */
+		int p_size = vb2_plane_size(vb, i);
+		int c_addr = vb2_dma_contig_plane_paddr(vb, i);
 
-	paddr = vb2_dma_contig_plane_paddr(vb, 0);
-	if (paddr == (dma_addr_t)NULL)
-		return -EPERM;
-
-	if (unlikely(!IS_ALIGNED(size, ALIGN_MASK))) {
-		printk(KERN_ERR "cam: buffer size 0x%08X is not 32 aligned\n",
-				paddr);
-		vb->state = VB2_BUF_STATE_ERROR;
-		return -EPERM;
+		if (c_addr == (dma_addr_t)NULL)
+			goto err;
+		if (unlikely(!IS_ALIGNED((int)c_addr, ALIGN_MASK))) {
+			printk(KERN_ERR "cam: buffer addr 0x%08X " \
+				"is not 32 aligned\n", c_addr);
+			goto err;
+		}
+		if (fmt->code == V4L2_MBUS_FMT_JPEG_1X8) {
+			if (p_size < c_size / JPEG_COMPRESS_RATIO_HIGH) {
+				printk(KERN_ERR "cam: size of plane#%d is too "\
+				"small: %d, even for JPEG\n", i, p_size);
+			}
+		} else {
+			if (p_size < c_size) {
+				printk(KERN_ERR "cam: size of plane#%d is too "\
+				"small: %d < %d\n", i, p_size, c_size);
+				goto err;
+			}
+		}
+		if (unlikely(!IS_ALIGNED(c_size, ALIGN_MASK))) {
+			printk(KERN_ERR "cam: buffer size 0x%08X is " \
+				"not 32 aligned\n", c_size);
+			goto err;
+		}
+		/* FIXME:	if YUV, must assert(W*H*bpp(plane)<=size)
+		 *		if JPEG, assert size is not too small*/
+		/* set byteused as driver calculated plane size */
+		vb2_set_plane_payload(vb, i, c_size);
+		pcdev->channel_addr[ch_id] = c_addr;
+		pcdev->channel_size[ch_id] = c_size;
 	}
-	if (unlikely(!IS_ALIGNED((int)paddr, ALIGN_MASK))) {
-		printk(KERN_ERR "cam: buffer addr 0x%08X is not 32 aligned\n",
-				paddr);
-		vb->state = VB2_BUF_STATE_ERROR;
-		return -EPERM;
+	for (; i < CHANNEL_NUM; i++) {
+		pcdev->channel_addr[i] = 0;
+		pcdev->channel_size[i] = 0;
 	}
 
 	desc = &buf->dma_desc[0];
 	if (desc->sg_cpu == NULL) {
 		ret = dma_alloc_desc(buf, pcdev);
 		if (ret < 0)
-			goto exit;
+			goto err;
 	}
 	INIT_LIST_HEAD(&buf->hook);
 	dma_append_desc(pcdev, buf, buf);
-exit:
-	return ret;
+	return 0;
+err:
+	vb->state = VB2_BUF_STATE_ERROR;
+	return -EPERM;
 }
 
 static void pxa97x_vb2_queue(struct vb2_buffer *vb)
@@ -1420,6 +1478,10 @@ static int pxa97x_vb2_streamon(struct vb2_queue *q, unsigned int count)
 	}
 	BUG_ON(count != pcdev->new_bufs + pcdev->dma_bufs);
 
+	printk(KERN_INFO "cam: buffer layout[%d, %d, %d]\n",\
+		pcdev->channel_size[0], pcdev->channel_size[1], \
+		pcdev->channel_size[2]);
+
 	/* suppose IRQ is not enabled at this time, so actually it's safe to
 	 * touch dma_chain without holding the lock */
 	ret = dma_chain_init(pcdev);
@@ -1477,7 +1539,8 @@ static struct vb2_ops pxa97x_vb2_ops = {
 static int pxa97x_cam_init_videobuf2(struct vb2_queue *q,
 				   struct soc_camera_device *icd)
 {
-	q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	/* prefered type is m-plane, but can be config later by VIDIOC_S_FMT */
+	q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 	q->io_modes = VB2_USERPTR;
 	q->drv_priv = icd;
 	q->ops = &pxa97x_vb2_ops;
@@ -1662,28 +1725,6 @@ static void pxa955_cam_remove_device(struct soc_camera_device *icd)
 			icl->module_name, i, icd->iface);
 }
 
-static const struct soc_mbus_pixelfmt pxa955_camera_formats[] = {
-	{
-		.fourcc			= V4L2_PIX_FMT_YUV422P,
-		.name			= "YUV422P",
-		.bits_per_sample	= 8,
-		.packing		= SOC_MBUS_PACKING_2X8_PADLO,
-		.order			= SOC_MBUS_ORDER_LE,
-	}, {
-		.fourcc			= V4L2_PIX_FMT_YUV420,
-		.name			= "YUV420P",
-		.bits_per_sample	= 12,
-		.packing		= SOC_MBUS_PACKING_1_5X8,
-		.order			= SOC_MBUS_ORDER_LE,
-	}, {
-		.fourcc			= V4L2_PIX_FMT_YVU420,
-		.name			= "YVU420P",
-		.bits_per_sample	= 12,
-		.packing		= SOC_MBUS_PACKING_1_5X8,
-		.order			= SOC_MBUS_ORDER_LE,
-	},
-};
-
 /* pxa955_cam_get_formats provide all fmts that camera controller support*/
 static int pxa955_cam_get_formats(struct soc_camera_device *icd,
 				  unsigned int idx,
@@ -1706,42 +1747,23 @@ static int pxa955_cam_get_formats(struct soc_camera_device *icd,
 		return 0;
 	}
 
-	switch (code) {
-	/* refer to mbus_fmt struct*/
-	case V4L2_MBUS_FMT_UYVY8_2X8:
-		formats = ARRAY_SIZE(pxa955_camera_formats);
-
-		if (xlate) {
-			for (i = 0; i < ARRAY_SIZE(pxa955_camera_formats); i++) {
-				xlate->host_fmt = &pxa955_camera_formats[i];
+	for (i = 0; i < ARRAY_SIZE(pxa97x_cam_fmts); i++) {
+		if (code == pxa97x_cam_fmts[i].code) {
+			if (xlate) {
+				xlate->host_fmt = &pxa97x_cam_fmts[i].hfmt;
 				xlate->code	= code;
 				xlate++;
 				dev_err(dev, "Providing format %s\n",
-					pxa955_camera_formats[i].name);
+					pxa97x_cam_fmts[i].hfmt.name);
 			}
-			dev_err(dev, "Providing format %s\n", fmt->name);
+			formats++;
 		}
-		break;
+	}
 
-	case V4L2_MBUS_FMT_VYUY8_2X8:
-	case V4L2_MBUS_FMT_RGB565_2X8_LE:
-	case V4L2_MBUS_FMT_RGB565_2X8_BE:
-	case V4L2_MBUS_FMT_JPEG_1X8:
-		if (xlate)
-			dev_err(dev, "Providing format %s\n", fmt->name);
-		break;
-	default:
+	if (formats == 0) {
 		/* camera controller can not support this format, which might supported by the sensor*/
 		dev_err(dev, "Not support fmt %s\n", fmt->name);
 		return 0;
-	}
-
-	/* Generic pass-through */
-	formats++;
-	if (xlate) {
-		xlate->host_fmt	= fmt;
-		xlate->code	= code;
-		xlate++;
 	}
 
 	return formats;
@@ -1758,49 +1780,44 @@ static int pxa955_cam_try_fmt(struct soc_camera_device *icd,
 {
 	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
 	const struct soc_camera_format_xlate *xlate;
-	struct v4l2_pix_format *pix = &f->fmt.pix;
+	struct v4l2_pix_format_mplane *mp = &f->fmt.pix_mp;
 	struct v4l2_mbus_framefmt mf;
-	__u32 pixfmt = pix->pixelformat;
+	__u32 pixfmt;
 	int ret;
 
+	switch (f->type) {
+	case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
+		mf.width	= mp->width;
+		mf.height	= mp->height;
+		pixfmt		= mp->pixelformat;
+		mf.field	= V4L2_FIELD_NONE;
+		mf.colorspace	= mp->colorspace;
+		break;
+	default:
+		return -EINVAL;
+	}
 	xlate = soc_camera_xlate_by_fourcc(icd, pixfmt);
 	if (!xlate) {
 		dev_warn(icd->dev.parent, "Format %c%c%c%c not found\n", \
 				pixfmtstr(pixfmt));
 		return -EINVAL;
 	}
-
-	pix->bytesperline = soc_mbus_bytes_per_line(pix->width,
-							xlate->host_fmt);
-	if (pix->bytesperline < 0)
-		return pix->bytesperline;
-	pix->sizeimage = pix->height * pix->bytesperline;
-
-	/* limit to sensor capabilities */
-	mf.width	= pix->width;
-	mf.height	= pix->height;
-	mf.field	= pix->field;
-	mf.colorspace	= pix->colorspace;
 	mf.code		= xlate->code;
 
+	/* limit to sensor capabilities */
 	ret = v4l2_subdev_call(sd, video, try_mbus_fmt, &mf);
 	if (ret < 0)
 		return ret;
 
-	pix->width	= mf.width;
-	pix->height = mf.height;
-	pix->colorspace = mf.colorspace;
-
-	switch (mf.field) {
-	case V4L2_FIELD_ANY:
-	case V4L2_FIELD_NONE:
-		pix->field	= V4L2_FIELD_NONE;
-		break;
-	default:
-		dev_err(icd->dev.parent, "Field type %d unsupported.\n",
-			mf.field);
-		return -EINVAL;
-	}
+	/* video queue be setup as the requested format */
+	icd->vb2_vidq.type = f->type;
+	/* Format accepted by sensor, copy to v4l2_format in m-plane */
+	f->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+	mp->width	= mf.width;
+	mp->height	= mf.height;
+	mp->pixelformat	= pixfmt;
+	mp->field	= mf.field;
+	mp->colorspace	= mf.colorspace;
 
 	return ret;
 }
@@ -1813,25 +1830,27 @@ static int pxa955_cam_set_fmt(struct soc_camera_device *icd,
 	struct device *dev = icd->dev.parent;
 	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
 	const struct soc_camera_format_xlate *xlate = NULL;
-	struct v4l2_pix_format *pix = &f->fmt.pix;
-	__u32 pixfmt = pix->pixelformat;
+	struct v4l2_pix_format_mplane *pix_mp = &f->fmt.pix_mp;
+	struct v4l2_pix_format_mplane *mp = &pcdev->mp;
+	__u32 pixfmt = pix_mp->pixelformat;
 	struct v4l2_mbus_framefmt mf;
 	struct v4l2_control ctrl;
-	int ret;
+	struct pxa97x_cam_format *fmt;
+	int i, idx, ret;
 
+	/* translate mp to sensor format, and apply to sensor */
 	xlate = soc_camera_xlate_by_fourcc(icd, pixfmt);
 	if (!xlate) {
 		dev_warn(dev, "Format %x not found\n", pixfmt);
 		return -EINVAL;
 	}
 	printk(KERN_NOTICE "cam: set fmt as %c%c%c%c, %ux%u\n", \
-		pixfmtstr(f->fmt.pix.pixelformat), \
-		f->fmt.pix.width, f->fmt.pix.height);
+		pixfmtstr(pixfmt), pix_mp->width, pix_mp->height);
 
-	mf.width	= pix->width;
-	mf.height	= pix->height;
-	mf.field	= pix->field;
-	mf.colorspace	= pix->colorspace;
+	mf.width	= pix_mp->width;
+	mf.height	= pix_mp->height;
+	mf.field	= pix_mp->field;
+	mf.colorspace	= pix_mp->colorspace;
 	mf.code		= xlate->code;
 
 	ret = v4l2_subdev_call(sd, video, s_mbus_fmt, &mf);
@@ -1839,16 +1858,49 @@ static int pxa955_cam_set_fmt(struct soc_camera_device *icd,
 	if (mf.code != xlate->code)
 		return -EINVAL;
 
+	/* mp accepted, start copying mp to local */
+	pixfmt = xlate->host_fmt->fourcc;
+	switch (pixfmt) {
+	case V4L2_PIX_FMT_UYVY:
+	case V4L2_PIX_FMT_YUV422P:
+	case V4L2_PIX_FMT_YUV420:
+	case V4L2_PIX_FMT_YVU420:
+	case V4L2_PIX_FMT_JPEG:
+		for (idx = 0; idx < ARRAY_SIZE(pxa97x_cam_fmts); idx++)
+			if (pxa97x_cam_fmts[idx].hfmt.fourcc == pixfmt)
+				break;
+		break;
+	default:
+		return -EINVAL;
+	}
+	fmt = pxa97x_cam_fmts + idx;
+
+	mp->width	= mf.width;
+	mp->height	= mf.height;
+	mp->pixelformat	= pixfmt;
+	mp->field	= mf.field;
+	mp->colorspace	= mf.colorspace;
+	/* setup planes */
+	mp->num_planes	= fmt->planes;
+	for (i = 0; i < fmt->planes; i++) {
+		int bpl = mf.width * fmt->plane[i].bpp_h / 8; /*BytePerLine*/
+		int lpp = mf.height * fmt->plane[i].bpp_v / 8; /*LinePerPlane*/
+		/* User may request a larger bpl than width, to pad empty bytes
+		 * to meet the need for encoder, in that case, use the larger */
+		if (mp->plane_fmt[i].bytesperline < bpl)
+			mp->plane_fmt[i].bytesperline = bpl;
+		mp->plane_fmt[i].sizeimage = bpl * lpp;
+	}
+	pcdev->fmt_idx = idx;
+
+	/* copy back to user */
+	memcpy(pix_mp, mp, sizeof(struct v4l2_pix_format_mplane));
+
 	icd->sense = NULL;
-	pix->width		= mf.width;
-	pix->height		= mf.height;
-	pix->field		= mf.field;
-	pix->colorspace		= mf.colorspace;
 	icd->current_fmt	= xlate;
 
 	sci_disable(pcdev);
-	sci_s_fmt(pcdev, pix);
-
+	sci_reg_write(pcdev, REG_SCICR1, fmt->reg);
 	/* Get phy timing parameter from sensor, if sensor donn't support */
 	/* this behavior, will use default value */
 	pcdev->csidev->phy_cfg = NULL;
@@ -1859,14 +1911,9 @@ static int pxa955_cam_set_fmt(struct soc_camera_device *icd,
 		pcdev->csidev->phy_cfg = &default_phy_val;
 	} else
 		pcdev->csidev->phy_cfg = (struct mipi_phy *)ctrl.value;
-	/* Ignore return value from sensor, it's OK for sensor don't support */
-	/* V4L2_CID_PRIVATE_GET_MIPI_PHY interface, will use default value */
-	ret = 0;
 
 	pcdev->state = CAM_STATE_FORMATED;
-	v4l2_subdev_call(sd, sensor, g_skip_top_lines, &skip_frame);
-
-	return ret;
+	return 0;
 }
 
 static unsigned int pxa955_cam_poll(struct file *file, poll_table *pt)
@@ -1884,7 +1931,7 @@ static int pxa955_cam_querycap(struct soc_camera_host *ici,
 	struct i2c_board_info *pci2c = icl->board_info;
 
 	cap->version = PXA955_CAM_VERSION_CODE;
-	cap->capabilities = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING;
+	cap->capabilities = V4L2_CAP_VIDEO_CAPTURE_MPLANE | V4L2_CAP_STREAMING;
 	strcpy(cap->card, PXA955_CAM_DRV_NAME);
 	strcpy(cap->driver, pci2c->type);
 	return 0;
@@ -1939,7 +1986,7 @@ static int pxa955_cam_get_param(struct soc_camera_device *icd,
 	struct v4l2_captureparm *cp = &parm->parm.capture;
 	int ret;
 
-	if (parm->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+	if (parm->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
 		return -EINVAL;
 
 	pdata = icl->priv;
