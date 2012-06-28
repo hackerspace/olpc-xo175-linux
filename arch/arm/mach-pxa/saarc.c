@@ -1021,14 +1021,29 @@ extern int adp1650_v4l2_flash_if(void *ctrl, bool op);
 #ifdef CONFIG_BATTERY_MAX17043
 static struct max17043_battery_pdata max17043_data = {
 	.gpio_en = 1,
-	.gpio = mfp_to_gpio(MFP_PIN_GPIO12),
 	.interval = 60,		/*second*/
+	.bat_design_cap = 1500,		/*mAh*/
 };
 
 struct platform_device max17043_device = {
 	.name = "max17043-battery",
 	.id = -1,
 };
+
+static void low_battery_alert(void)
+{
+	switch (get_board_id()) {
+	case OBM_DKB_2_1_NEVO_C0_BOARD:
+		max17043_data.gpio = mfp_to_gpio(MFP_PIN_GPIO12);
+		break;
+	case OBM_DKB_3_NEVO_D0_BOARD:
+		max17043_data.gpio = mfp_to_gpio(MFP_PIN_GPIO72);
+		break;
+	default:
+		max17043_data.gpio = mfp_to_gpio(MFP_PIN_GPIO72);
+		break;
+	}
+}
 #endif
 
 static struct i2c_board_info i2c2_info_DKB[] = {
@@ -2781,7 +2796,10 @@ static void __init init(void)
 		register_reboot_notifier(&reboot_notifier);
 		headsetflag_init_pm800();
 	}
-
+#ifdef CONFIG_BATTERY_MAX17043
+	if (get_board_id() >= OBM_DKB_2_1_NEVO_C0_BOARD)
+		low_battery_alert();
+#endif
 #if defined(CONFIG_BACKLIGHT_ADP8885)
 	if (OBM_SAAR_C25_NEVO_B0_V10_BOARD == get_board_id())
 		adp8885_data.num_chs = 1;
