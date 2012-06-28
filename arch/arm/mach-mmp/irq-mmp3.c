@@ -29,30 +29,38 @@ struct icu_mux_irq_chip_data {
 	unsigned int	base;
 };
 
+static DEFINE_SPINLOCK(irq_lock);
+
 static void icu_mux_mask_irq(struct irq_data *d)
 {
 	struct icu_mux_irq_chip_data *chip_data = irq_data_get_irq_chip_data(d);
 	u32 r;
+	unsigned long flags;
 
 	if (!chip_data) {
 		printk(KERN_ERR "Can not find chip data for mux irq %d\n", d->irq);
 		return;
 	}
+	spin_lock_irqsave(&irq_lock, flags);
 	r = __raw_readl(chip_data->mask) | (1 << (d->irq - chip_data->base));
 	__raw_writel(r, chip_data->mask);
+	spin_unlock_irqrestore(&irq_lock, flags);
 }
 
 static void icu_mux_unmask_irq(struct irq_data *d)
 {
 	struct icu_mux_irq_chip_data *chip_data = irq_data_get_irq_chip_data(d);
 	u32 r;
+	unsigned long flags;
 
 	if (!chip_data) {
 		printk(KERN_ERR "Can not find chip data for mux irq %d\n", d->irq);
 		return;
 	}
+	spin_lock_irqsave(&irq_lock, flags);
 	r = __raw_readl(chip_data->mask) & ~(1 << (d->irq - chip_data->base));
 	__raw_writel(r, chip_data->mask);
+	spin_unlock_irqrestore(&irq_lock, flags);
 }
 
 #define DEFINE_ICU_MUX_IRQ(_name_, irq_base, prefix)			\
