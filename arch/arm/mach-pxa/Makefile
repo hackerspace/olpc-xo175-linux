@@ -7,7 +7,7 @@ obj-y				+= devices.o generic.o irq.o \
 				   time.o reset.o rtc_calibrate.o
 obj-$(CONFIG_DVFM)		+= dvfm.o
 ifeq ($(CONFIG_PXA95x), y)
-obj-$(CONFIG_PXA95x_DVFM)	+= pxa95x_dvfm.o pxa95x_dvfm_ll.o
+obj-$(CONFIG_PXA95x_DVFM)	+= pxa95x_dvfm.o pxa95x_dvfm_ll.o dvfs.o pxa95x_dvfs.o
 obj-$(CONFIG_PXA95x_DVFM_STATS)	+= dvfm_stats.o
 obj-$(CONFIG_PXA95x_DVFM_DEBUG)	+= pxa95x_pm_debugfs.o pxa9xx_pm_logger.o pxa9xx_pm_parser.o
 ifeq ($(CONFIG_CPU_PXA978), y)
@@ -35,7 +35,7 @@ endif
 obj-$(CONFIG_PXA25x)		+= mfp-pxa2xx.o clock-pxa2xx.o pxa2xx.o pxa25x.o
 obj-$(CONFIG_PXA27x)		+= mfp-pxa2xx.o clock-pxa2xx.o pxa2xx.o pxa27x.o
 obj-$(CONFIG_PXA3xx)		+= mfp-pxa3xx.o clock-pxa3xx.o pxa3xx.o smemc.o pxa3xx-ulpi.o
-obj-$(CONFIG_PXA95x)		+= clock-pxa3xx.o clock-pxa95x.o pxa95x.o smemc.o entry-pxa95x-intc.o ddr.o dvfs.o pxa95x_dvfs.o
+obj-$(CONFIG_PXA95x)		+= clock-pxa3xx.o clock-pxa95x.o pxa95x.o smemc.o entry-pxa95x-intc.o ddr.o
 obj-$(CONFIG_CPU_PXA300)	+= pxa300.o
 obj-$(CONFIG_CPU_PXA320)	+= pxa320.o
 obj-$(CONFIG_CPU_PXA930)	+= pxa930.o

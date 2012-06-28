@@ -27,10 +27,6 @@ static int cur_volt3;
 
 static int dvfs_rail_update(struct dvfs_rail *rail);
 
-/* Fix Me: current default value is 0
- * when OBM passes these two values, it
- * will be fixed.
- */
 static unsigned long volt3_low, volt3_high;
 static int buck1_voltage_get(char *s)
 {
@@ -378,7 +374,7 @@ static struct platform_driver dvfs_driver = {
 	.probe = dvfs_probe,
 };
 
-int __init dvfs_init(void)
+int dvfs_init(void)
 {
 	struct dvfs_rail *rail;
 
@@ -392,5 +388,3 @@ int __init dvfs_init(void)
 
 	return 0;
 }
-
-late_initcall(dvfs_init);

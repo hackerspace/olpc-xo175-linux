@@ -387,17 +387,19 @@ static inline void l2x0_save_regs_phys_addr(u32 *addr_ptr, u32 addr)
 			virt_to_phys(addr_ptr) + sizeof(*addr_ptr));
 }
 #endif
+extern int dvfs_init(void);
 extern int pxa95x_init_dvfs(void);
 extern int pxa95x_clk_init(void);
 static int __init pxa95x_init(void)
 {
 	int ret = 0;
-
-	pxa95x_init_dvfs();
-	pxa95x_clk_init();
 	/* dvfm device */
 #ifdef CONFIG_PXA95x_DVFM
+	dvfs_init();
+	pxa95x_init_dvfs();
+	pxa95x_clk_init();
 	set_pxa95x_freq_info(&freq_mach_info);
+
 #endif
 
 #ifdef CONFIG_CACHE_TAUROS2
