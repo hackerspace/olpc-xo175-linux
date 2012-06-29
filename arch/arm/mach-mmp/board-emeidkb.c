@@ -130,19 +130,19 @@ static unsigned long emeidkb_pin_config[] __initdata = {
 	GPIO043_GPIO_DVC1,
 	GPIO044_GPIO_DVC2,
 
-	GPIO045_UART3_RXD,	/* GPS_UART_RXD */
-	GPIO046_UART3_TXD,	/* GPS_UART_TXD */
+	GPIO045_UART2_RXD,	/* GPS_UART_RXD */
+	GPIO046_UART2_TXD,	/* GPS_UART_TXD */
 
-	GPIO047_UART2_RXD,	/* AP_RXD */
-	GPIO048_UART2_TXD,	/* AP_TXD */
+	GPIO047_UART1_RXD,	/* AP_RXD */
+	GPIO048_UART1_TXD,	/* AP_TXD */
 
 #define GPIO049_GPIO_BARA_INT2	GPIO049_GPIO_49
 #define GPIO050_GPIO_BARA_INT1	GPIO050_GPIO_50
 	GPIO049_GPIO_BARA_INT2,
 	GPIO050_GPIO_BARA_INT1,
 
-	GPIO051_UART1_RXD,	/* CP_RXD */
-	GPIO052_UART1_TXD,	/* CP_TXD */
+	GPIO051_UART0_RXD,	/* CP_RXD */
+	GPIO052_UART0_TXD,	/* CP_TXD */
 
 	GPIO053_CI2C_SCL,	/* CI2C_SCL */
 	GPIO054_CI2C_SDA,	/* CI2C_SDA */
@@ -1004,9 +1004,9 @@ static void __init emeidkb_init(void)
 	regulator_init_pm800();
 
 	/* For AP debug */
-	pxa988_add_uart(2);
+	pxa988_add_uart(1);
 	/* For GPS */
-	pxa988_add_uart(3);
+	pxa988_add_uart(2);
 	/* FIXME: add i2c_pxa_platform_data */
 	pxa988_add_twsi(0, NULL, ARRAY_AND_SIZE(emeidkb_i2c_info));
 	pxa988_add_twsi(1, &emeidkb_pwr_i2c_pdata,

@@ -546,9 +546,9 @@ static int __init pxa988_init(void)
 postcore_initcall(pxa988_init);
 
 /* on-chip devices */
-PXA988_DEVICE(uart1, "pxa2xx-uart", 0, UART1_CP, 0xd4036000, 0x30, 4, 5);
-PXA988_DEVICE(uart2, "pxa2xx-uart", 1, UART2, 0xd4017000, 0x30, 21, 22);
-PXA988_DEVICE(uart3, "pxa2xx-uart", 2, UART3, 0xd4018000, 0x30, 23, 24);
+PXA988_DEVICE(uart0, "pxa2xx-uart", 0, UART0, 0xd4036000, 0x30, 4, 5);
+PXA988_DEVICE(uart1, "pxa2xx-uart", 1, UART1, 0xd4017000, 0x30, 21, 22);
+PXA988_DEVICE(uart2, "pxa2xx-uart", 2, UART2, 0xd4018000, 0x30, 23, 24);
 PXA988_DEVICE(keypad, "pxa27x-keypad", -1, KEYPAD, 0xd4012000, 0x4c);
 PXA988_DEVICE(twsi0, "pxa910-i2c", 0, I2C_AP,   0xd4011000, 0x40);
 PXA988_DEVICE(twsi1, "pxa910-i2c", 1, I2C_INT,  0xd4037000, 0x40);

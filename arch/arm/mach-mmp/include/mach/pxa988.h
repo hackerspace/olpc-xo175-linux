@@ -21,9 +21,9 @@ extern int pxa988_ripc_trylock(void);
 #include <linux/platform_data/pxa_sdhci.h>
 #include <mach/pxa168fb.h>
 
+extern struct pxa_device_desc pxa988_device_uart0;
 extern struct pxa_device_desc pxa988_device_uart1;
 extern struct pxa_device_desc pxa988_device_uart2;
-extern struct pxa_device_desc pxa988_device_uart3;
 extern struct pxa_device_desc pxa988_device_keypad;
 extern struct pxa_device_desc pxa988_device_twsi0;
 extern struct pxa_device_desc pxa988_device_twsi1;
@@ -83,14 +83,14 @@ static inline int pxa988_add_uart(int id)
 	struct pxa_device_desc *d = NULL;
 
 	switch (id) {
+	case 0:
+		d = &pxa988_device_uart0;
+		break;
 	case 1:
 		d = &pxa988_device_uart1;
 		break;
 	case 2:
 		d = &pxa988_device_uart2;
-		break;
-	case 3:
-		d = &pxa988_device_uart3;
 		break;
 	default:
 		return -EINVAL;
