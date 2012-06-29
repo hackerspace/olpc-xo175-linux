@@ -35,6 +35,7 @@
 #include <mach/dma.h>
 #include <mach/camera.h>
 #include <mach/pxa3xx-regs.h>
+#include <mach/regs-ost.h>
 
 #include <media/v4l2-common.h>
 #include <media/v4l2-dev.h>
@@ -1990,6 +1991,25 @@ static irqreturn_t cam_irq(int irq, void *data)
 		csi_enable(pcdev->csidev, pcdev->icd->iface);
 		spin_unlock(&pcdev->spin_lock);
 		return IRQ_HANDLED;
+	}
+
+	if (irqs & IRQ_SOFX) {
+		struct pxa_buf_node *buf_node;
+		u64 now = OSCR4;
+
+		/*
+		 * get the first node of dma_list
+		 * and fill the timestamp field of v4l2_buffer.
+		 */
+		buf_node = list_entry(pcdev->dma_chain.next,
+						struct pxa_buf_node, hook);
+		/*
+		 * OSCR timer resolution is 1/32768 second.
+		 * convert the OSCR counts to seconds and useconds.
+		 */
+		buf_node->vb2.v4l2_buf.timestamp.tv_sec = now >> 15;
+		buf_node->vb2.v4l2_buf.timestamp.tv_usec =
+			((now & 0x7FFF) * 1000000) >> 15;
 	}
 
 	if (irqs & IRQ_EOFX) {
