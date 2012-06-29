@@ -2184,11 +2184,11 @@ static struct clk *pxa988_clks_peri[] = {
 static struct clk pxa988_list_clks[] = {
 	/* APBC: _name, _dev, _con, _reg, _fnclksel, _rate, _parent*/
 	APBC_CLK("uart0", "pxa2xx-uart.0", NULL,
-		APBC_PXA988_UART0, 1, 14745600, NULL),
+		APBC_PXA988_UART0, 1, 14745600, NULL),/* CP uart */
 	APBC_CLK("uart1", "pxa2xx-uart.1", NULL,
-		APBC_PXA988_UART1, 1, 14745600, NULL),
+		APBC_PXA988_UART1, 1, 14745600, NULL),	/* AP uart0*/
 	APBC_CLK("uart2", "pxa2xx-uart.2", NULL,
-		APBC_PXA988_UART2, 1, 14745600, NULL),
+		APBC_PXA988_UART2, 1, 14745600, NULL),	/* AP uart1*/
 	APBC_CLK("twsi0", "pxa910-i2c.0", NULL,
 		APBC_PXA988_TWSI0, 0, 33000000, NULL),	/* ci2c */
 	APBC_CLK("twsi1", "pxa910-i2c.1", NULL,
