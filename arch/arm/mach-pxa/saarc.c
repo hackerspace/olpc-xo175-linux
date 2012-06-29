@@ -1373,6 +1373,8 @@ static struct pxa27x_keypad_platform_data keypad_info_dkb2 = {
 
 #endif /* CONFIG_KEYBOARD_PXA27x || CONFIG_KEYBOARD_PXA27x_MODULE */
 
+#if defined(CONFIG_VIDEO_PXA955)
+
 static struct sensor_power_pin ov640_power_on_seq[] = {
 	{CAMP_AVDD,	LEVEL_POS,	0},
 	{CAMP_AFVCC,	LEVEL_POS,	5},
@@ -1516,7 +1518,7 @@ next:
 	switch (pin->type) {
 	case PIN_TYPE_GPIO:
 		pin->handle.gpio = mfp_to_gpio(pin->layout.gpio);
-		if (!gpio_request(pin->handle.gpio, pin->name)) {
+		if (gpio_request(pin->handle.gpio, pin->name)) {
 			printk(KERN_ERR "cam: power: failed to request %s" \
 				" at %d\n", pin->name, pin->layout.gpio);
 			/* Erase this pin */
@@ -1583,130 +1585,29 @@ get_level:
 	goto next;
 }
 
-/* Camera LDO */
-static struct regulator *vcamera;
-static struct regulator *vafvcc;
-/* Camera sensor PowerDowN pins */
-static int pwd_main, pwd_sub, pwd_isp;
-
-#if defined(CONFIG_VIDEO_PXA955)
-static int camera0_power(struct device *dev, int flag)
-{
-	switch (get_board_id()) {
-	case OBM_SAAR_C2_NEVO_A0_V10_BOARD:
-		/* Initialize AF_VCC */
-		if (vcamera == NULL) {
-			vcamera = regulator_get(NULL, "v_cam");
-			if (IS_ERR(vcamera)) {
-				return -ENODEV;
-			}
-		}
-
-		/* Driver SWPD pin for main cam */
-		if (flag) {
-			gpio_direction_output(pwd_main, 0);	/* enable */
-			msleep(1);
-			regulator_enable(vcamera);
-		} else {
-			regulator_disable(vcamera);
-			gpio_direction_output(pwd_main, 1);	/* disable */
-		}
-		return 0;
-	/* Default for SAAR-C 2.5 and 3, carries M6MO+OV8820 and OV9740 */
-	default:
-		switch (flag) {
-		case SENSOR_OPEN:
-			gpio_direction_output(pwd_isp, 1);	/* enable */
-			/* Wait 100ms here to let ISP boot up and working */
-			msleep(100);
-			break;
-		case SENSOR_CLOSE:
-			gpio_direction_output(pwd_isp, 0);	/* disable */
-			msleep(50);
-			break;
-		case ISP_SENSOR_OPEN:
-			gpio_direction_output(pwd_main, 1);	/* enable */
-			msleep(50);
-			break;
-		case ISP_SENSOR_CLOSE:
-			gpio_direction_output(pwd_main, 0);	/* disable */
-			msleep(50);
-			break;
-		}
-		return 0;
-	}
-	return 0;
-}
-
-static int camera1_power(struct device *dev, int flag)
-{
-	switch (get_board_id()) {
-	case OBM_SAAR_C2_NEVO_A0_V10_BOARD:
-		/* Initialize AF_VCC */
-		if (vcamera == NULL) {
-			vcamera = regulator_get(NULL, "v_cam");
-			if (IS_ERR(vcamera)) {
-				return -ENODEV;
-			}
-		}
-		/* Driver SWPD pin for sub cam */
-		if (flag) {
-			gpio_direction_output(pwd_sub, 0);
-			msleep(2);
-			regulator_enable(vcamera);
-		} else {
-			regulator_disable(vcamera);
-			gpio_direction_output(pwd_sub, 1);
-		}
-		return 0;
-	/* Default for SAAR-C 2.5 and 3, carries M6MO+OV8820 and OV9740 */
-	default:
-		if (flag) {
-			gpio_direction_output(pwd_sub, 0);
-			msleep(1);
-		} else {
-			gpio_direction_output(pwd_sub, 1);
-		}
-		return 0;
-	}
-	return 0;
-}
-
-static int icphd_power(struct device *dev, int flag)
-{
-	if (flag) {
-		gpio_direction_output(pwd_main,	0);	/* Clear STANDBY */
-		gpio_direction_output(pwd_isp, 1);
-		msleep(100);
-	} else {
-		gpio_direction_output(pwd_isp, 0);
-		gpio_direction_output(pwd_main,	1);	/* Clear STANDBY */
-		msleep(10);
-	}
-	return 0;
-}
+enum {
+	ID_OV5640,
+	ID_OV9740,
+	ID_OV5642,
+	ID_ICPHD,
+	ID_OV640,
+};
 
 static struct i2c_board_info camera_i2c[] = {
-	{
-		I2C_BOARD_INFO("m6mo", 0x1F),
+	[ID_OV5640] = {
+		I2C_BOARD_INFO("ov5640", 0x3c),
 	},
-	{
+	[ID_OV9740] = {
 		I2C_BOARD_INFO("ov9740", 0x10),
 	},
-	{
+	[ID_OV5642] = {
 		I2C_BOARD_INFO("ov5642", 0x3c),
 	},
-	{
-		I2C_BOARD_INFO("ov7692", 0x3c),
-	},
-	{
+	[ID_ICPHD] = {
 		I2C_BOARD_INFO("icp-hd", 0x3D),
 	},
-	{
+	[ID_OV640] = {
 		I2C_BOARD_INFO("ov640", 0x24),
-	},
-	{
-		I2C_BOARD_INFO("ov5640", 0x3c),
 	},
 };
 
@@ -1723,48 +1624,7 @@ static struct pxa95x_csi_dev csidev[] = {
 	},
 };
 
-enum {
-	ID_M6MO_SAARC	= 0,
-	ID_M6MO_DKB,
-	ID_OV9740,
-	ID_OV5642,
-	ID_OV7692,
-	ID_ICPHD,
-	ID_OV640,
-	ID_OV5640,
-};
-
 static struct sensor_platform_data camera_sensor[] = {
-	[ID_M6MO_SAARC] = {/* M6MO on SaarC 3*/
-		.mount_pos	= SENSOR_USED \
-					| SENSOR_POS_BACK | SENSOR_RES_HIGH,
-		/* Configure this domain according to hardware connection */
-		/* both of the 2 MIPI lanes are connected to pxa97x on EVB */
-		.interface	= SOCAM_MIPI_1LANE | SOCAM_MIPI_2LANE,
-		.csi_ctlr	= &csidev[0],	/* connected to CSI0 */
-		.pin_pwdn	= MFP_PIN_GPIO24,	/* M6MO PWD pin */
-		.pin_aux	= MFP_PIN_GPIO18,	/* OV8820 PWD pin */
-		.pin_irq	= MFP_PIN_GPIO102,	/* M6MO irq pin */
-		.af_cap		= 1,
-		.mclk_mhz	= 26,
-		.vendor_info	= "SUNNY",
-		.board_name	= "SaarC 3",
-	},
-	[ID_M6MO_DKB] = {/* M6MO on DKB 2*/
-		.mount_pos	= SENSOR_USED \
-					| SENSOR_POS_BACK | SENSOR_RES_HIGH,
-		/* Configure this domain according to hardware connection */
-		/* both of the 2 MIPI lanes are connected to pxa97x on EVB */
-		.interface	= SOCAM_MIPI_1LANE | SOCAM_MIPI_2LANE,
-		.csi_ctlr	= &csidev[0],	/* connected to CSI0 */
-		.pin_pwdn	= MFP_PIN_GPIO24,	/* M6MO PWD pin */
-		.pin_aux	= MFP_PIN_GPIO25,	/* OV8820 PWD pin */
-		.pin_irq	= MFP_PIN_GPIO18,	/* M6MO irq pin */
-		.af_cap		= 1,
-		.mclk_mhz	= 26,
-		.vendor_info	= "SUNNY",
-		.board_name	= "DKB 2",
-	},
 	[ID_OV9740] = {/* OV9740 on SaarC3 and DKB2*/
 		.mount_pos	= SENSOR_USED \
 					| SENSOR_POS_FRONT | SENSOR_RES_LOW,
@@ -1794,19 +1654,6 @@ static struct sensor_platform_data camera_sensor[] = {
 		.board_name	= "tavor",
 		.power_on_seq	= ov564x_power_on_seq,
 		.power_off_seq	= ov564x_power_off_seq,
-	},
-	[ID_OV7692] = {/* OV7692 */
-		.mount_pos	= SENSOR_USED \
-					| SENSOR_POS_FRONT | SENSOR_RES_LOW,
-		/* Configure this domain according to hardware connection */
-		/* both of the 2 MIPI lanes are connected to pxa97x on EVB */
-		.interface	= SOCAM_MIPI_1LANE,
-		.csi_ctlr	= &csidev[1],	/* connected to CSI1*/
-		.pin_pwdn	= MFP_PIN_GPIO26,
-		.af_cap		= 0,
-		.mclk_mhz	= 26,
-		.vendor_info	= "N/A",
-		.board_name	= "SaarC 2",
 	},
 	[ID_ICPHD] = {/* Aptina on DKB 2*/
 		.mount_pos	= SENSOR_USED \
@@ -1856,31 +1703,20 @@ static struct sensor_platform_data camera_sensor[] = {
 };
 
 static struct soc_camera_link iclink[] = {
-	[ID_M6MO_SAARC] = {
+	[ID_OV5640] = {
 		.bus_id			= 0, /* Must match with the camera ID */
-		.board_info		= &camera_i2c[0],
+		.board_info		= &camera_i2c[ID_OV5640],
 		.i2c_adapter_id		= 1,
-		.power = camera0_power,
-		.module_name		= "m6mo",
+		.power			= cam_sensor_power,
+		.module_name		= "ov5640",
 		/* When flags[31] is set, priv domain is pointing to a */
 		/* sensor_platform_data to pass sensor parameters */
 		.flags			= 0x80000000,
-		.priv			= &camera_sensor[ID_M6MO_SAARC],
-	},
-	[ID_M6MO_DKB] = {
-		.bus_id			= 0, /* Must match with the camera ID */
-		.board_info		= &camera_i2c[0],
-		.i2c_adapter_id		= 1,
-		.power = camera0_power,
-		.module_name		= "m6mo",
-		/* When flags[31] is set, priv domain is pointing to a */
-		/* sensor_platform_data to pass sensor parameters */
-		.flags			= 0x80000000,
-		.priv			= &camera_sensor[ID_M6MO_DKB],
+		.priv			= &camera_sensor[ID_OV5640],
 	},
 	[ID_OV9740] = {
 		.bus_id			= 1, /* Must match with the camera ID */
-		.board_info		= &camera_i2c[1],
+		.board_info		= &camera_i2c[ID_OV9740],
 		.i2c_adapter_id		= 1,
 		.power			= cam_sensor_power,
 		.module_name		= "ov9740",
@@ -1891,7 +1727,7 @@ static struct soc_camera_link iclink[] = {
 	},
 	[ID_OV5642] = {
 		.bus_id			= 0, /* Must match with the camera ID */
-		.board_info		= &camera_i2c[2],
+		.board_info		= &camera_i2c[ID_OV5642],
 		.i2c_adapter_id		= 1,
 		.power			= cam_sensor_power,
 		.module_name		= "ov5642",
@@ -1900,20 +1736,9 @@ static struct soc_camera_link iclink[] = {
 		.flags			= 0x80000000,
 		.priv			= &camera_sensor[ID_OV5642],
 	},
-	[ID_OV7692] = {
-		.bus_id			= 0, /* Must match with the camera ID */
-		.board_info		= &camera_i2c[3],
-		.i2c_adapter_id		= 1,
-		.power = camera1_power,
-		.module_name		= "ov7692",
-		/* When flags[31] is set, priv domain is pointing to a */
-		/* sensor_platform_data to pass sensor parameters */
-		.flags			= 0x80000000,
-		.priv			= &camera_sensor[ID_OV7692],
-	},
 	[ID_ICPHD] = {
 		.bus_id			= 0, /* Must match with the camera ID */
-		.board_info		= &camera_i2c[4],
+		.board_info		= &camera_i2c[ID_ICPHD],
 		.i2c_adapter_id		= 1,
 		.power			= cam_sensor_power,
 		.module_name		= "icp-hd",
@@ -1924,7 +1749,7 @@ static struct soc_camera_link iclink[] = {
 	},
 	[ID_OV640] = {
 		.bus_id			= 0, /* Must match with the camera ID */
-		.board_info		= &camera_i2c[5],
+		.board_info		= &camera_i2c[ID_OV640],
 		.i2c_adapter_id		= 1,
 		.power			= cam_sensor_power,
 		.module_name		= "ov640",
@@ -1933,32 +1758,14 @@ static struct soc_camera_link iclink[] = {
 		.flags			= 0x80000000,
 		.priv			= &camera_sensor[ID_OV640],
 	},
-	[ID_OV5640] = {
-		.bus_id			= 0, /* Must match with the camera ID */
-		.board_info		= &camera_i2c[6],
-		.i2c_adapter_id		= 1,
-		.power			= cam_sensor_power,
-		.module_name		= "ov5640",
-		/* When flags[31] is set, priv domain is pointing to a */
-		/* sensor_platform_data to pass sensor parameters */
-		.flags			= 0x80000000,
-		.priv			= &camera_sensor[ID_OV5640],
-	},
 };
 
 static struct platform_device __attribute__((unused)) camera[] = {
-	[ID_M6MO_SAARC] = {
+	[ID_OV5640] = {
 		.name	= "soc-camera-pdrv",
 		.id	= 0,
 		.dev	= {
-			.platform_data = &iclink[ID_M6MO_SAARC],
-		},
-	},
-	[ID_M6MO_DKB] = {
-		.name	= "soc-camera-pdrv",
-		.id	= 0,
-		.dev	= {
-			.platform_data = &iclink[ID_M6MO_DKB],
+			.platform_data = &iclink[ID_OV5640],
 		},
 	},
 	[ID_OV9740] = {
@@ -1970,37 +1777,23 @@ static struct platform_device __attribute__((unused)) camera[] = {
 	},
 	[ID_OV5642] = {
 		.name	= "soc-camera-pdrv",
-		.id	= 5,
+		.id	= 2,
 		.dev	= {
 			.platform_data = &iclink[ID_OV5642],
 		},
 	},
-	[ID_OV7692] = {
-		.name	= "soc-camera-pdrv",
-		.id	= 1,
-		.dev	= {
-			.platform_data = &iclink[ID_OV7692],
-		},
-	},
 	[ID_ICPHD] = {
 		.name	= "soc-camera-pdrv",
-		.id	= 2,
+		.id	= 3,
 		.dev	= {
 			.platform_data = &iclink[ID_ICPHD],
 		},
 	},
 	[ID_OV640] = {
 		.name	= "soc-camera-pdrv",
-		.id	= 3,
-		.dev	= {
-			.platform_data = &iclink[ID_OV640],
-		},
-	},
-	[ID_OV5640] = {
-		.name	= "soc-camera-pdrv",
 		.id	= 4,
 		.dev	= {
-			.platform_data = &iclink[ID_OV5640],
+			.platform_data = &iclink[ID_OV640],
 		},
 	},
 };
@@ -2008,107 +1801,64 @@ static struct platform_device __attribute__((unused)) camera[] = {
 
 static void __init init_cam(void)
 {
+#if defined(CONFIG_VIDEO_PXA955)
 	/* PWD pin GPIO initialize */
 	switch (get_board_id()) {
-	case OBM_SAAR_C2_NEVO_A0_V10_BOARD:
-		pwd_main = mfp_to_gpio(MFP_PIN_GPIO25);
-		pwd_sub = mfp_to_gpio(MFP_PIN_GPIO26);
-		pwd_isp	= 0;
-		break;
 	case OBM_DKB_2_NEVO_C0_BOARD:
 	case OBM_DKB_2_NEVO_C0_BOARD_533MHZ:
+		printk(KERN_NOTICE "cam: Probing camera on DKB 2\n");
+		g_board = cam_layout_dkb20;
+		break;
 	case OBM_DKB_2_1_NEVO_C0_BOARD:
 	case OBM_DKB_3_NEVO_D0_BOARD:
-		pwd_main = mfp_to_gpio(MFP_PIN_GPIO25);
-		pwd_sub = mfp_to_gpio(MFP_PIN_GPIO26);
-		pwd_isp	= mfp_to_gpio(MFP_PIN_GPIO24);
-		if (get_pmic_id() == PM800_CHIP_C0)
-			g_board = cam_layout_dkb21;
-		else
-			g_board = cam_layout_dkb20;
+		printk(KERN_NOTICE "cam: Probing camera on DKB 3\n");
+		g_board = cam_layout_dkb21;
 		break;
 	default: /* For SaarC 2.5 and 3*/
-		pwd_main = mfp_to_gpio(MFP_PIN_GPIO18);
-		pwd_sub = mfp_to_gpio(MFP_PIN_GPIO26);
-		pwd_isp	= mfp_to_gpio(MFP_PIN_GPIO24);
+		printk(KERN_NOTICE "cam: Probing camera on SaarC 3\n");
 		g_board = cam_layout_saarc3;
 		break;
 	}
 
-	if (pwd_isp && gpio_request(pwd_isp, "CAM_ISP_RESET")) {
-		printk(KERN_ERR "Request GPIO failed,"
-			"gpio: %d\n", pwd_isp);
-		pwd_isp = 0;
-		return;
-	}
 
-	/* Camera hold these GPIO forever, should not be accquired by others */
-	if (pwd_main && gpio_request(pwd_main, "CAM_HI_SENSOR_PWD")) {
-		printk(KERN_ERR "Request GPIO failed,"
-				"gpio: %d\n", pwd_main);
-		pwd_main = 0;
-		return;
-	}
-	if (pwd_sub && gpio_request(pwd_sub, "CAM_LOW_SENSOR_PWD")) {
-		printk(KERN_ERR "Request GPIO failed,"
-				"gpio: %d\n", pwd_sub);
-		pwd_sub = 0;
-		return;
-	}
-
-#if defined(CONFIG_VIDEO_PXA955)
 	switch (get_board_id()) {
-	case OBM_SAAR_C2_NEVO_A0_V10_BOARD:
-		printk(KERN_NOTICE "cam: saarc: Probing camera on SaarC 2\n");
-#if defined(CONFIG_SOC_CAMERA_OV5642)
-		platform_device_register(&camera[ID_OV5642]);
-#endif
-#if defined(CONFIG_SOC_CAMERA_OV7692)
-		platform_device_register(&camera[ID_OV7692]);
-#endif
-		break;
 	case OBM_DKB_2_NEVO_C0_BOARD:
 	case OBM_DKB_2_NEVO_C0_BOARD_533MHZ:
 	case OBM_DKB_2_1_NEVO_C0_BOARD:
 	case OBM_DKB_3_NEVO_D0_BOARD:
-		printk(KERN_NOTICE "cam: saarc: Probing camera on DKB 2\n");
-#if defined(CONFIG_SOC_CAMERA_M6MO)
-		platform_device_register(&camera[ID_M6MO_DKB]);
-#endif
+
 #if defined(CONFIG_SOC_CAMERA_OV9740)
+		printk(KERN_NOTICE "cam: dkb: support ov9740\n");
 		platform_device_register(&camera[ID_OV9740]);
 #endif
 #if defined(CONFIG_SOC_CAMERA_ICPHD)
+		printk(KERN_NOTICE "cam: dkb: support icp-hd\n");
 		platform_device_register(&camera[ID_ICPHD]);
 #endif
 #if defined(CONFIG_SOC_CAMERA_OV640)
+		printk(KERN_NOTICE "cam: dkb: support ov640\n");
 		platform_device_register(&camera[ID_OV640]);
 #endif
 #if defined(CONFIG_SOC_CAMERA_OV5640)
+		printk(KERN_NOTICE "cam: dkb: support ov5640\n");
 		platform_device_register(&camera[ID_OV5640]);
 #endif
 #if defined(CONFIG_SOC_CAMERA_OV5642)
+		printk(KERN_NOTICE "cam: dkb: support ov5642\n");
 		platform_device_register(&camera[ID_OV5642]);
 #endif
 		break;
 	default: /* For SaarC 2.5 and 3*/
-		printk(KERN_NOTICE "cam: saarc: Probing camera on SaarC 3\n");
-#if defined(CONFIG_SOC_CAMERA_M6MO)
-		platform_device_register(&camera[ID_M6MO_SAARC]);
-#endif
 #if defined(CONFIG_SOC_CAMERA_OV9740)
+		printk(KERN_NOTICE "cam: saarc: support ov9740\n");
 		platform_device_register(&camera[ID_OV9740]);
 #endif
 #if defined(CONFIG_SOC_CAMERA_ICPHD)
+		printk(KERN_NOTICE "cam: saarc: support icp-hd\n");
 		platform_device_register(&camera[ID_ICPHD]);
 #endif
-#if defined(CONFIG_SOC_CAMERA_OV640)
-		platform_device_register(&camera[ID_OV640]);
-#endif
-#if defined(CONFIG_SOC_CAMERA_OV5640)
-		platform_device_register(&camera[ID_OV5640]);
-#endif
 #if defined(CONFIG_SOC_CAMERA_OV5642)
+		printk(KERN_NOTICE "cam: saarc: support ov5642\n");
 		platform_device_register(&camera[ID_OV5642]);
 #endif
 		break;
