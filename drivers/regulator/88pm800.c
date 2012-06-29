@@ -20,6 +20,11 @@
 #include <linux/mfd/88pm80x.h>
 #include <linux/delay.h>
 
+#ifdef CONFIG_DEBUG_FS
+#include <linux/debugfs.h>
+#include <plat/debugfs.h>	/* for "pxa" directory */
+#endif
+
 /*
  * Convert voltage value to reg value for BUCK1
  */
@@ -48,6 +53,9 @@ struct pm800_regulator_info {
 	spinlock_t	gpio_lock;
 	int	dvc_val;
 	int	buck1_set_index;
+#ifdef CONFIG_DEBUG_FS
+	struct dentry *debugfs;
+#endif
 };
 
 static const unsigned int BUCK1_table[] = {
@@ -267,6 +275,115 @@ static inline int buck1_delay(int index, unsigned vol1, unsigned vol2)
 		res = (vol2-vol1)/BUCK1_DVC_SET[index];
 	return res;
 }
+
+#ifdef CONFIG_DEBUG_FS
+static int buck1_dvc_open(struct inode *inode, struct file *file)
+{
+	file->private_data = inode->i_private;
+	return 0;
+}
+
+static ssize_t buck1_dvc_read(struct file *file, char __user *user_buf,
+			    size_t count, loff_t *ppos)
+{
+	struct pm800_regulator_info *info;
+	int ret;
+	char str[16];
+	u8 reg_val;
+
+	info = file->private_data;
+
+	if ((info->dvc != NULL)
+	    && (info->dvc->gpio_dvc != 0)) {
+		gpio_set_value(info->dvc->dvc1, 0);
+		gpio_set_value(info->dvc->dvc2, 0);
+	}
+	reg_val = info->dvc->vol_val[0];
+
+	ret = snprintf(str, sizeof(str) - 1, "%d\n",
+		       BUCK1_table[reg_val]);
+
+	return simple_read_from_buffer(user_buf, count, ppos, str, ret);
+}
+
+#define MAX	1300000
+#define MIN	1100000
+static ssize_t buck1_dvc_write(struct file *file, const char __user *user_buf,
+			    size_t count, loff_t *ppos)
+{
+	struct pm800_regulator_info *info;
+	unsigned int exp_vol;
+	int ret;
+	info = file->private_data;
+
+	ret = kstrtou32_from_user(user_buf, count, 10, &exp_vol);
+	if (ret < 0)
+		return ret;
+	/*
+	 * check the input whether it's out of range when
+	 * DVC function is enabled;
+	 * no need to check when DVC is disabled
+	 */
+	if ((info->dvc != NULL)
+	    && (info->dvc->gpio_dvc != 0)) {
+		if ((exp_vol > MAX) || (exp_vol < MIN)) {
+			pr_err("input out of range!\n");
+			return -1;
+		}
+
+		gpio_set_value(info->dvc->dvc1, 0);
+		gpio_set_value(info->dvc->dvc2, 0);
+		/*
+		 * there is a corner case here:
+		 * after using this debugfs to set voltage,
+		 * then vol_val[0] may be bigger than the other
+		 * values, calling set_voltage may has a
+		 * middle status
+		 */
+		info->dvc->vol_val[0] = exp_vol;
+	}
+	/*
+	 * when DVC function is disabled,
+	 * the dvc is [00], set by u-boot
+	 */
+	ret = pm80x_reg_write(info->i2c, PM800_BUCK1, BUCK1_VOL2REG(exp_vol));
+	if (ret < 0)
+		return ret;
+
+	return count;
+}
+
+static const struct file_operations buck1_dvc_ops = {
+	.owner		= THIS_MODULE,
+	.open		= buck1_dvc_open,
+	.read		= buck1_dvc_read,
+	.write		= buck1_dvc_write,
+};
+
+static inline int pm800_buck1_debugfs_init(struct pm800_regulator_info *info)
+{
+	struct dentry *dump_vol;
+	if (pxa == NULL) {
+		pr_err("debugfs parent dir doesn't exist!\n");
+		return -ENOENT;
+	}
+
+	dump_vol = debugfs_create_file("vcc_main", S_IRUGO | S_IFREG,
+			    pxa, (void *)info, &buck1_dvc_ops);
+	if (dump_vol == NULL) {
+		debugfs_remove(dump_vol);
+		pr_err("create vcc_main debugfs error!\n");
+		return -ENOENT;
+	}
+	return 0;
+}
+
+static void pm800_buck1_debugfs_remove(struct pm800_regulator_info *info)
+{
+	if (info->debugfs)
+		debugfs_remove_recursive(info->debugfs);
+}
+#endif
 
 static int pm800_list_voltage(struct regulator_dev *rdev, unsigned index)
 {
@@ -674,6 +791,11 @@ static int __devinit pm800_regulator_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, info);
+
+#ifdef CONFIG_DEBUG_FS
+	if (info->desc.id == PM800_ID_BUCK1)
+		pm800_buck1_debugfs_init(info);
+#endif
 	return 0;
 out2:
 	gpio_free(info->dvc->dvc1);
@@ -692,6 +814,10 @@ static int __devexit pm800_regulator_remove(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, NULL);
+#ifdef CONFIG_DEBUG_FS
+	if (info->debugfs)
+		pm800_buck1_debugfs_remove(info);
+#endif
 	regulator_unregister(info->regulator);
 	return 0;
 }
