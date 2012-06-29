@@ -28,6 +28,9 @@
 #include <linux/sd8x_rfkill.h>
 #include <linux/regulator/machine.h>
 #include <linux/i2c/ft5306_touch.h>
+#include <linux/mfd/88pm80x.h>
+#include <linux/cwmi.h>
+#include <linux/cwgd.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -40,12 +43,10 @@
 #include <mach/sram.h>
 #include <mach/regs-rtc.h>
 #include <mach/soc_coda7542.h>
+#include <mach/regs-apmu.h>
 #include <plat/pmem.h>
 #include <plat/pxa27x_keypad.h>
 #include <plat/usb.h>
-#include <linux/mfd/88pm80x.h>
-#include <linux/cwmi.h>
-#include <linux/cwgd.h>
 
 #include <media/soc_camera.h>
 
@@ -1092,6 +1093,15 @@ static void __init emeidkb_init_mmc(void)
 }
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
 
+static void __init emeidkb_init_smc(void)
+{
+	/*
+	 * emeidkb doesn't use SMC,
+	 * just turn off SMC clock to save power.
+	 */
+	__raw_writel(0x3, APMU_SMC_CLK_RES_CTRL);
+}
+
 static void __init emeidkb_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(emeidkb_pin_config));
@@ -1125,6 +1135,8 @@ static void __init emeidkb_init(void)
 #endif
 
 	emeidkb_init_mmc();
+
+	emeidkb_init_smc();
 
 #ifdef CONFIG_UIO_CODA7542
 	pxa_register_coda7542();
