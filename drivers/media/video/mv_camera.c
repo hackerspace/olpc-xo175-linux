@@ -617,7 +617,7 @@ static int mv_videobuf_init(struct vb2_buffer *vb)
 	return 0;
 }
 
-static int mv_start_streaming(struct vb2_queue *vq)
+static int mv_start_streaming(struct vb2_queue *vq, unsigned int count)
 {
 	struct soc_camera_device *icd = container_of(vq,
 		struct soc_camera_device, vb2_vidq);
