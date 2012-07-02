@@ -155,6 +155,7 @@ MODULE_SUPPORTED_DEVICE("Video");
 #define	IRQ_EOF		0x00000002
 #define	IRQ_DIS		0x00000004
 #define	IRQ_OFO		0x00000008
+#define	IRQ_SINT	0x00000100
 #define	IRQ_DBS		0x00000200
 #define	IRQ_SOFX	0x00000400
 #define	IRQ_SOF		0x00000800
@@ -1973,7 +1974,16 @@ static irqreturn_t cam_irq(int irq, void *data)
 		printk(KERN_ERR "cam: ccic over flow error!\n");
 		csi_disable(pcdev->csidev);
 		sci_disable(pcdev);
-
+		/* After disable SCI, must clean SCISR again, because it's
+		 * possible that more OFO comes between 1st OFO and disable
+		 * SCI DMA */
+		irqs = sci_reg_read(pcdev, REG_SCISR);
+		sci_reg_write(pcdev, REG_SCISR, irqs);
+		if (irqs & IRQ_OFO)
+			printk(KERN_ERR "cam: ccic over flow error! (2nd)\n");
+		/* The only possible sub-sequence irq at this time is OFO */
+		if (irqs & IRQ_SINT)
+			printk(KERN_ERR "cam: ccic over flow error! (pend)\n");
 		dma_chain_init(pcdev);
 
 		sci_enable(pcdev);
