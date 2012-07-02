@@ -796,10 +796,6 @@ void __init pxa910_reserve(void)
 	/* Reserve memory for pmem */
 	pxa_reserve_pmem_memblock();
 #endif
-#ifdef CONFIG_ANDROID_RAM_CONSOLE
-	/* Reserve memory for ram_console */
-	memblock_remove(RAMCONS_PHYS_ADDR, RAMCONS_PHYS_SIZE);
-#endif
 }
 
 /* The following code is used to enable DMA_ZONE on DKB for 1GB DDR*/

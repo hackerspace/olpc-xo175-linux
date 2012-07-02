@@ -89,10 +89,4 @@
 #define SRAM_POWER_SIZE		0x1000
 #endif
 
-#if defined(CONFIG_CPU_PXA910) && defined(CONFIG_ANDROID_RAM_CONSOLE)
-#define RAMCONS_PHYS_ADDR	0x8200000
-#define RAMCONS_VIRT_ADDR	0xfe520000
-#define RAMCONS_PHYS_SIZE	0x100000
-#endif
-
 #endif /* __ASM_MACH_ADDR_MAP_H */
