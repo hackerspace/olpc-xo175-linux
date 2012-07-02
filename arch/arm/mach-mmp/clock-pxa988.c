@@ -2185,10 +2185,12 @@ static struct clk *pxa988_clks_peri[] = {
 	&pxa988_clk_sdh2,
 	&pxa988_clk_gc,
 	&pxa988_clk_vpu,
+	&lcd_ci_isp_axi_clk,
 	&pxa988_lcd_ci_hclk,
 	&pxa988_ccic_axi_clk,
 	&pxa988_ccic_phy_clk,
 	&pxa988_ccic_func_clk,
+	&lcd_dsi_phy_clk,
 	&pxa988_lcd_clk,
 	&pxa988_isp_dxo_clk,
 };
