@@ -121,6 +121,7 @@
 #define	  C1_DMAB_MASK	  0x06000000
 #define   C1_TWOBUFS	  0x08000000	/* Use only two DMA buffers */
 #define   C1_PWRDWN	  0x10000000	/* Power down */
+#define   C1_HSYNCCNT_RESERVED	  0x3c	/* Reserved and should not be changed */
 
 #define REG_LNNUM	0x60	/* lines num DMA filled */
 #define REG_CLKCTRL	0x88	/* Clock control */

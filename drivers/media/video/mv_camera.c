@@ -211,12 +211,11 @@ static void ccic_config_phy(struct mv_camera_dev *pcdev, int enable)
 static void ccic_enable_clk(struct mv_camera_dev *pcdev)
 {
 	struct mv_cam_pdata *mcam = pcdev->pdev->dev.platform_data;
-	int div, ctrl1;
+	int div, ctrl1 = 0;
 
 	mcam->enable_clk(&pcdev->pdev->dev, 1);
 	div = mcam->get_mclk_src(mcam->mclk_src) / mcam->mclk_min;
 	ccic_reg_write(pcdev, REG_CLKCTRL, (mcam->mclk_src << 29) | div);
-	ctrl1 = 0x800003c;
 	switch (mcam->dma_burst) {
 	case 128:
 		ctrl1 |= 1 << 25;
@@ -225,7 +224,7 @@ static void ccic_enable_clk(struct mv_camera_dev *pcdev)
 		ctrl1 |= 2 << 25;
 		break;
 	}
-	ccic_reg_write(pcdev, REG_CTRL1, ctrl1);
+	ccic_reg_write(pcdev, REG_CTRL1, C1_HSYNCCNT_RESERVED | ctrl1);
 	if (mcam->bus_type != SOCAM_MIPI)
 		ccic_reg_write(pcdev, REG_CTRL3, 0x00004);
 }
@@ -235,7 +234,8 @@ static void ccic_disable_clk(struct mv_camera_dev *pcdev)
 	struct mv_cam_pdata *mcam = pcdev->pdev->dev.platform_data;
 
 	ccic_reg_write(pcdev, REG_CLKCTRL, 0x0);
-	ccic_reg_write(pcdev, REG_CTRL1, 0x0);
+	/* bit[5:1] Reserved and should not be changed */
+	ccic_reg_clear_bit(pcdev, REG_CTRL1, ~C1_HSYNCCNT_RESERVED);
 	mcam->enable_clk(&pcdev->pdev->dev, 0);
 }
 
@@ -244,7 +244,6 @@ static int ccic_config_image(struct mv_camera_dev *pcdev)
 	int ret = 0;
 	u32 imgsz_h;
 	u32 imgsz_w;
-	unsigned int temp;
 	struct v4l2_pix_format *fmt = &pcdev->pix_format;
 	u32 widthy = 0, widthuv = 0;
 	struct device *dev = &pcdev->pdev->dev;
@@ -342,11 +341,9 @@ static int ccic_config_image(struct mv_camera_dev *pcdev)
 	/*
 	 * This field controls the generation of EOF(DVP only)
 	 */
-	if (mcam->bus_type != SOCAM_MIPI) {
-		temp = ccic_reg_read(pcdev, REG_CTRL0);
-		temp |=  CO_EOF_VSYNC | C0_VEDGE_CTRL;
-		ccic_reg_write(pcdev, REG_CTRL0, temp);
-	}
+	if (mcam->bus_type != SOCAM_MIPI)
+		ccic_reg_set_bit(pcdev, REG_CTRL0,
+				CO_EOF_VSYNC | C0_VEDGE_CTRL);
 
 	return ret;
 }
@@ -464,7 +461,7 @@ static void mv_dma_setup(struct mv_camera_dev *pcdev)
 	pcdev->nbufs = 2;
 	mv_set_contig_buffer(pcdev, 0);
 	mv_set_contig_buffer(pcdev, 1);
-	ccic_reg_write(pcdev, REG_CTRL1, C1_TWOBUFS);
+	ccic_reg_set_bit(pcdev, REG_CTRL1, C1_TWOBUFS);
 }
 
 void ccic_ctlr_reset(struct mv_camera_dev *pcdev)
