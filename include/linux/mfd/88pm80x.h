@@ -485,6 +485,10 @@ enum {
 
 #define PM800_GPADC4_AVG1		0xA8
 #define PM800_GPADC4_AVG2		0xA9
+#define PM800_GPADC4_MIN1		0x88
+#define PM800_GPADC4_MIN2		0x89
+#define PM800_GPADC4_MAX1		0x98
+#define PM800_GPADC4_MAX2		0x99
 /*********************************/
 /*page 7 TEST PAGE: slave adder 0x07*/
 /********************************/
