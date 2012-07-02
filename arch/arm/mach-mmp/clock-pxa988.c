@@ -1797,22 +1797,35 @@ static struct clk pxa988_ccic_func_clk = {
 		     { {APMU_CCIC_RST, 18, 0x7}, {APMU_CCIC_RST, 18, 0x7} } }
 };
 
-#define DIS_PHY_CLK_EN	((1 << 2) | (1 << 5))
-#define DIS_PHY_CLK_RST	((1 << 3) | (1 << 4))
+#define DSI_PHYSLOW_PRER	(0x1A << 6)
+#define DSI_ESC_SEL		(0x0)
+#define DSI_PHYESC_SELDIV	\
+	(DSI_PHYSLOW_PRER | DSI_ESC_SEL)
+#define DSI_PHYESC_SELDIV_MSK	((0x1f << 6) | 0x3)
+#define DSI_PHY_CLK_EN	((1 << 2) | (1 << 5))
+#define DSI_PHY_CLK_RST	((1 << 3) | (1 << 4))
+
+static void dsi_phy_clk_init(struct clk *clk)
+{
+	/* default sel 52M, div 0x1A */
+	CLK_SET_BITS(DSI_PHYESC_SELDIV,
+		DSI_PHYESC_SELDIV_MSK);
+}
 
 static int dsi_phy_clk_enable(struct clk *clk)
 {
-	CLK_SET_BITS(DIS_PHY_CLK_EN, 0);
-	CLK_SET_BITS(DIS_PHY_CLK_RST, 0);
+	CLK_SET_BITS(DSI_PHY_CLK_EN, 0);
+	CLK_SET_BITS(DSI_PHY_CLK_RST, 0);
 	return 0;
 }
 
 static void dsi_phy_clk_disable(struct clk *clk)
 {
-	CLK_SET_BITS(0, DIS_PHY_CLK_EN);
+	CLK_SET_BITS(0, DSI_PHY_CLK_EN);
 }
 
 struct clkops dsi_phy_clk_ops = {
+	.init = dsi_phy_clk_init,
 	.enable = dsi_phy_clk_enable,
 	.disable = dsi_phy_clk_disable,
 };
