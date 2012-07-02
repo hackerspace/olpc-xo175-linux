@@ -54,6 +54,11 @@
 #define APMU_SDH2	APMU_REG(0x0e0)
 #endif
 
+/* pxa988 MCK4 AHB clock */
+#if defined(CONFIG_CPU_PXA988)
+#define APMU_MCK4_CTL	APMU_REG(0x0e8)
+#endif
+
 #define APMU_CCIC_DBG	APMU_REG(0x088)
 #define APMU_CCIC2_DBG	APMU_REG(0x088)
 #define APMU_SRAM_PWR_DWN	APMU_REG(0x08c)

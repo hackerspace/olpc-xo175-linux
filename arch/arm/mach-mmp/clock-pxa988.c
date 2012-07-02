@@ -2266,6 +2266,7 @@ static void __init clk_misc_init(void)
 	/* components' clock should always keep enabled */
 	__raw_writel(0x3, APBC_PXA988_IPC);	/* ACIPC */
 	__raw_writel(0x0, APBC_PXA988_RIPC);	/* RIPC */
+	__raw_writel(0x3, APMU_MCK4_CTL);	/* MCK4 AHB */
 
 	/* disable SOC and MC4 dynamic clk gating on Z0 */
 	__raw_writel(0x00080008, MC_CONF);
