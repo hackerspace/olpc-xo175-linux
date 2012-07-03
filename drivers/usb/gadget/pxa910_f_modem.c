@@ -874,7 +874,6 @@ int gs_marvell_modem_send(const unsigned char *buf, \
 
 			spin_unlock_irqrestore(&port->port_lock, flags);
 
-			msleep(5);
 			log_count++;
 
 			/* from enter sleep to wake up,
@@ -889,7 +888,7 @@ int gs_marvell_modem_send(const unsigned char *buf, \
 						&port->port_write_buf);
 
 				printk(KERN_INFO "%s: cannot send the"
-						"packet over 10s! (%d)\n",
+						"packet over 100 retries! (%d)\n",
 						 __func__, buf_avail);
 				log_count = 0;
 			}
