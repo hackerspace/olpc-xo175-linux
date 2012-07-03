@@ -23,6 +23,8 @@
 #include <mach/dvfs.h>
 #include "dsi_hdmi_pll.h"
 #include "clock.h"
+#include <mach/pxa9xx_pm_logger.h>	/* for pm debug tracing */
+#include <mach/regs-ost.h>
 
 #define KHZ_TO_HZ	1000
 #define MHZ_TO_HZ	1000000
@@ -723,6 +725,9 @@ static int clk_pxa95x_lcd_setrate(struct clk *lcd_clk, unsigned long rate)
 	if (dvfs_freqs.old > dvfs_freqs.new)
 		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
 
+	pm_logger_app_add_trace(2, PM_DISPLAY_FREQ_CHANGE, OSCR4,
+				dvfs_freqs.old, dvfs_freqs.new);
+
 	return 0;
 }
 
@@ -1307,6 +1312,9 @@ static int clk_pxa95x_gcu_setrate(struct clk *gc_clk, unsigned long rate)
 	if (dvfs_freqs.old > dvfs_freqs.new)
 		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
 
+	pm_logger_app_add_trace(2, PM_GC_FREQ_CHANGE, OSCR4,
+				dvfs_freqs.old, dvfs_freqs.new);
+
 	return 0;
 }
 
@@ -1570,6 +1578,9 @@ static int clk_pxa95x_vmeta_setrate(struct clk *vmeta_clk, unsigned long rate)
 
 	if (dvfs_freqs.old > dvfs_freqs.new)
 		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
+
+	pm_logger_app_add_trace(2, PM_VM_FREQ_CHANGE, OSCR4,
+				dvfs_freqs.old, dvfs_freqs.new);
 
 	return 0;
 }

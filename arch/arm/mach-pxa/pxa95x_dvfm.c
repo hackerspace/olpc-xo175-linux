@@ -669,12 +669,12 @@ static int ispt_block_dvfm(int enable, int dev_id)
 
 void write_accr0(unsigned int value, unsigned int mask)
 {
-	unsigned int accr0, acsr0;
+	unsigned int accr0, acsr0, accr0_old;
 	unsigned long flags;
 	local_fiq_disable();
 	local_irq_save(flags);
 
-	accr0 = ACCR0;
+	accr0_old = accr0 = ACCR0;
 	accr0 &= ~mask;
 	accr0 |= value;
 	ACCR0 = accr0;
@@ -684,6 +684,8 @@ void write_accr0(unsigned int value, unsigned int mask)
 
 	local_irq_restore(flags);
 	local_fiq_enable();
+
+	pm_logger_app_add_trace(2, PM_WRITE_ACCR0, OSCR4, accr0_old, accr0);
 }
 
 static struct regulator *v_buck1;

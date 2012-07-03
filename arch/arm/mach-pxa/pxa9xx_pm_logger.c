@@ -75,7 +75,12 @@ u8 *pm_logger_app_db[][MAX_DATA_NUM] = {
 	{"SUSPEND ENTER"},
 	{"SUSPEND EXIT"},
 	{"LPM ABORTED APPS", "MSEC"},
-	{"LPM ABORTED COMM"}
+	{"LPM ABORTED COMM"},
+	{"WRITE ACCR0", "OLD", "NEW"},
+	{"GC FREQ CHANGE", "OLD", "NEW"},
+	{"VMETA FREQ CHANGE", "OLD", "NEW"},
+	{"DISPLAY FREQ CHANGE", "OLD", "NEW"},
+	{"VCC MAIN SET VOL", "VOLTS", "NEW VOLTS"}
 };
 
 /* var to avoid a print because of previous print */

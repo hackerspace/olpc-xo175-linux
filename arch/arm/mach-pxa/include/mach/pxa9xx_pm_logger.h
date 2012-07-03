@@ -59,8 +59,13 @@ struct pm_logger_descriptor {
 #define PM_SUSPEND_EXIT 21
 #define PM_LPM_ABT_APPS 22
 #define PM_LPM_ABT_COMM 23
+#define PM_WRITE_ACCR0 24
+#define PM_GC_FREQ_CHANGE 25
+#define PM_VM_FREQ_CHANGE 26
+#define PM_DISPLAY_FREQ_CHANGE 27
+#define PM_VCC_MAIN_SET_VOL 28
 
-#define PM_EVENTS_NUM 24
+#define PM_EVENTS_NUM 29
 
 /* start/stop */
 #define PM_LOGGER_STOP 0

@@ -18,6 +18,8 @@
 
 #include <plat/clock.h>
 #include <mach/dvfs.h>
+#include <mach/pxa9xx_pm_logger.h>	/* for pm debug tracing */
+#include <mach/regs-ost.h>
 
 static LIST_HEAD(dvfs_rail_list);
 static DEFINE_MUTEX(dvfs_lock);
@@ -110,6 +112,10 @@ static int vcc_main_set_voltage(struct dvfs_rail *rail)
 		pxa978_set_voltage_level(2);
 	}
 	pxa978_set_voltage_level(level);
+
+	pm_logger_app_add_trace(2, PM_VCC_MAIN_SET_VOL, OSCR4,
+				volts, newvolts);
+
 	return 0;
 }
 
