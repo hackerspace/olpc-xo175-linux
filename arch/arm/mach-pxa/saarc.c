@@ -809,6 +809,7 @@ static void pxa_mci1_signal_1v8(struct sdhci_host *host, int set)
 	return;
 }
 
+static unsigned int mci1_ext_cd_mfp = MFP_PIN_GPIO123;
 struct sdhci_pxa_platdata mci1_platform_data = {
 	.flags = PXA_FLAG_ENABLE_CLOCK_GATING |
 			PXA_FLAG_ACITVE_IN_SUSPEND,
@@ -842,12 +843,15 @@ static void __init init_mmc(void)
 			get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD) {
 		gpio_rst = mfp_to_gpio(MFP_PIN_GPIO97);
 		mci1_platform_data.ext_cd_gpio = mfp_to_gpio(MFP_PIN_GPIO128);
+		mci1_ext_cd_mfp = MFP_PIN_GPIO128;
 	} else if (get_board_id() == OBM_DKB_3_NEVO_D0_BOARD) {
 		gpio_rst = mfp_to_gpio(MFP_PIN_GPIO183);
 		mci1_platform_data.ext_cd_gpio = mfp_to_gpio(MFP_PIN_GPIO128);
+		mci1_ext_cd_mfp = MFP_PIN_GPIO128;
 	} else if (get_board_id() == OBM_SAAR_C3V5_NEVO_D0_V10_BOARD) {
 		gpio_rst = mfp_to_gpio(MFP_PIN_GPIO73);
 		mci1_platform_data.ext_cd_gpio = mfp_to_gpio(MFP_PIN_GPIO25);
+		mci1_ext_cd_mfp = MFP_PIN_GPIO25;
 	} else
 		gpio_rst = mfp_to_gpio(MFP_PIN_GPIO99);
 
@@ -2444,6 +2448,7 @@ static int init_suspend_wakeup(pm_wakeup_src_t *src)
 	src->bits.rtc = 1;		/* RTC */
 	src->bits.msl = 1;		/* ACS-IPC */
 	src->bits.tsi = 1;		/* On-key */
+	src->bits.mmc1_cd = 1;		/* MMC1 CD */
 
 	return 0;
 }
@@ -2487,7 +2492,7 @@ static int query_wakeup(unsigned int reg, pm_wakeup_src_t *src)
 			src->bits.eth = 1;
 		if (pxa95x_query_gwsr(53))
 			src->bits.uart1 = 1;
-		if (pxa95x_query_gwsr(123))
+		if (pxa95x_query_gwsr(mci1_ext_cd_mfp))
 			src->bits.mmc1_cd = 1;
 	}
 	if (is_wkr_nevo_2243()) {
@@ -2552,11 +2557,12 @@ static int mmc1_wakeup(pm_wakeup_src_t src, int enable)
 	unsigned int ret = 0;
 	if (enable) {
 		if (src.bits.mmc1_cd) {
-			lpm_mfpr_edge_config(MFP_PIN_GPIO123, MFP_LPM_EDGE_BOTH);
+			lpm_mfpr_edge_config(mci1_ext_cd_mfp,
+					MFP_LPM_EDGE_BOTH);
 			ret |= PXA95x_PM_WE_GENERIC(13);
 		}
 	} else
-		lpm_mfpr_edge_config(MFP_PIN_GPIO123, MFP_LPM_EDGE_NONE);
+		lpm_mfpr_edge_config(mci1_ext_cd_mfp, MFP_LPM_EDGE_NONE);
 	return ret;
 }
 
