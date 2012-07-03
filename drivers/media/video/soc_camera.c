@@ -181,19 +181,56 @@ static int soc_camera_try_fmt(struct soc_camera_device *icd,
 	return 0;
 }
 
+static int soc_camera_try_fmt_mp(struct soc_camera_device *icd,
+			      struct v4l2_format *f)
+{
+	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
+	struct v4l2_pix_format_mplane *pix = &f->fmt.pix_mp;
+	int ret, i;
+
+	dev_dbg(&icd->dev, "TRY_FMT(%c%c%c%c, %ux%u)\n",
+		pixfmtstr(pix->pixelformat), pix->width, pix->height);
+
+	for (i = 0; i < pix->num_planes; i++)
+		/* It's possible that BPL is filled to specify linepadding info
+		 * so don't clear here */
+		pix->plane_fmt[i].sizeimage = 0;
+
+	ret = ici->ops->try_fmt(icd, f);
+	if (ret < 0)
+		return ret;
+
+	/* Don't try to cover up format domains here, because in m-plane case
+	 * soc_mbus_bytes_per_line will return the bpl value for the image,
+	 * not per plane. Needs to implement after SOCAM fully adapt to mplane*/
+	return 0;
+}
+
 static int soc_camera_try_fmt_vid_cap(struct file *file, void *priv,
 				      struct v4l2_format *f)
 {
 	struct soc_camera_device *icd = file->private_data;
+	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
+	enum v4l2_buf_type type;
 
 	WARN_ON(priv != file->private_data);
 
-	/* Only single-plane capture is supported so far */
-	if (f->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+	if (ici->ops->init_videobuf)
+		type = icd->vb_vidq.type;
+	else
+		type = icd->vb2_vidq.type;
+	if (f->type != type)
 		return -EINVAL;
 
 	/* limit format to hardware capabilities */
-	return soc_camera_try_fmt(icd, f);
+	switch (type) {
+	case V4L2_BUF_TYPE_VIDEO_CAPTURE:
+		return soc_camera_try_fmt(icd, f);
+	case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
+		return soc_camera_try_fmt_mp(icd, f);
+	default:
+		return -EINVAL;
+	}
 }
 
 static int soc_camera_enum_input(struct file *file, void *priv,
@@ -452,6 +489,58 @@ static int soc_camera_set_fmt(struct soc_camera_device *icd,
 	return 0;
 }
 
+/* Called with .vb_lock held, or from the first open(2), see comment there */
+static int soc_camera_set_fmt_mp(struct soc_camera_device *icd,
+			      struct v4l2_format *f)
+{
+	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
+	struct v4l2_pix_format_mplane *pix = &f->fmt.pix_mp;
+	int ret, i;
+
+	dev_dbg(&icd->dev, "S_FMT(%c%c%c%c, %ux%u)\n",
+		pixfmtstr(pix->pixelformat), pix->width, pix->height);
+
+	/* We always call try_fmt() before set_fmt() or set_crop() */
+	ret = soc_camera_try_fmt(icd, f);
+	if (ret < 0)
+		return ret;
+
+	ret = ici->ops->set_fmt(icd, f);
+	if (ret < 0) {
+		return ret;
+	} else if (!icd->current_fmt ||
+		   icd->current_fmt->host_fmt->fourcc != pix->pixelformat) {
+		dev_err(&icd->dev,
+			"Host driver hasn't set up current format correctly!\n");
+		return -EINVAL;
+	}
+
+	icd->user_width		= pix->width;
+	icd->user_height	= pix->height;
+	icd->colorspace		= pix->colorspace;
+	icd->field		= pix->field;
+	icd->bytesperline	= 0;
+	icd->sizeimage		= 0;
+	for (i = 0; i < pix->num_planes; i++) {
+		if (pix->plane_fmt[i].bytesperline > icd->bytesperline)
+			icd->bytesperline = pix->plane_fmt[i].bytesperline;
+		icd->sizeimage += pix->plane_fmt[i].sizeimage;
+	}
+	if (ici->ops->init_videobuf)
+		icd->vb_vidq.field = pix->field;
+
+	dev_dbg(&icd->dev, "set width: %d height: %d\n",
+		icd->user_width, icd->user_height);
+
+	/* set physical bus parameters */
+	ret = ici->ops->set_bus_param(icd, pix->pixelformat);
+	if (ret < 0)
+		return ret;
+
+	icd->state = SOCAM_STATE_FORMATED;
+	return 0;
+}
+
 static int soc_camera_open(struct file *file)
 {
 	struct video_device *vdev = video_devdata(file);
@@ -638,11 +727,17 @@ static int soc_camera_s_fmt_vid_cap(struct file *file, void *priv,
 				    struct v4l2_format *f)
 {
 	struct soc_camera_device *icd = file->private_data;
-	int ret;
+	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
+	enum v4l2_buf_type type;
+	int ret = 0;
 
 	WARN_ON(priv != file->private_data);
 
-	if (f->type != V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+	if (ici->ops->init_videobuf)
+		type = icd->vb_vidq.type;
+	else
+		type = icd->vb2_vidq.type;
+	if (f->type != type) {
 		dev_warn(&icd->dev, "Wrong buf-type %d\n", f->type);
 		return -EINVAL;
 	}
@@ -655,7 +750,16 @@ static int soc_camera_s_fmt_vid_cap(struct file *file, void *priv,
 		return -EBUSY;
 	}
 
-	ret = soc_camera_set_fmt(icd, f);
+	switch (type) {
+	case V4L2_BUF_TYPE_VIDEO_CAPTURE:
+		ret = soc_camera_set_fmt(icd, f);
+		break;
+	case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
+		ret = soc_camera_set_fmt_mp(icd, f);
+		break;
+	default:
+		return -EINVAL;
+	}
 
 	if (!ret && !icd->streamer)
 		icd->streamer = file;
@@ -686,11 +790,17 @@ static int soc_camera_g_fmt_vid_cap(struct file *file, void *priv,
 				    struct v4l2_format *f)
 {
 	struct soc_camera_device *icd = file->private_data;
+	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct v4l2_pix_format *pix = &f->fmt.pix;
+	enum v4l2_buf_type type;
 
 	WARN_ON(priv != file->private_data);
 
-	if (f->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+	if (ici->ops->init_videobuf)
+		type = icd->vb_vidq.type;
+	else
+		type = icd->vb2_vidq.type;
+	if (f->type != type)
 		return -EINVAL;
 
 	pix->width		= icd->user_width;
@@ -700,6 +810,43 @@ static int soc_camera_g_fmt_vid_cap(struct file *file, void *priv,
 	pix->field		= icd->field;
 	pix->pixelformat	= icd->current_fmt->host_fmt->fourcc;
 	pix->colorspace		= icd->colorspace;
+	dev_dbg(&icd->dev, "current_fmt->fourcc: 0x%08x\n",
+		icd->current_fmt->host_fmt->fourcc);
+	return 0;
+}
+
+static int soc_camera_g_fmt_vid_cap_mp(struct file *file, void *priv,
+				    struct v4l2_format *f)
+{
+	struct soc_camera_device *icd = file->private_data;
+	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
+	struct v4l2_pix_format_mplane *pix = &f->fmt.pix_mp;
+	struct vb2_buffer *vb2 = icd->vb2_vidq.bufs[0];
+	enum v4l2_buf_type type;
+	int i;
+
+	WARN_ON(priv != file->private_data);
+
+	if (ici->ops->init_videobuf)
+		type = icd->vb_vidq.type;
+	else
+		type = icd->vb2_vidq.type;
+	if (f->type != type)
+		return -EINVAL;
+
+	pix->width		= icd->user_width;
+	pix->height		= icd->user_height;
+	pix->field		= icd->field;
+	pix->pixelformat	= icd->current_fmt->host_fmt->fourcc;
+	pix->colorspace		= icd->colorspace;
+	if (!ici->ops->init_videobuf2)
+		/* Well, if no vb2 is used, mplane info is not available */
+		return -EACCES;
+	for (i = 0; i < vb2->num_planes; i++) {
+		pix->plane_fmt[i].sizeimage = vb2_get_plane_payload(vb2, i);
+		pix->plane_fmt[i].bytesperline = vb2_get_plane_payload(vb2, i) /
+							icd->user_height;
+	}
 	dev_dbg(&icd->dev, "current_fmt->fourcc: 0x%08x\n",
 		icd->current_fmt->host_fmt->fourcc);
 	return 0;
@@ -723,11 +870,16 @@ static int soc_camera_streamon(struct file *file, void *priv,
 	struct soc_camera_device *icd = file->private_data;
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
+	enum v4l2_buf_type type;
 	int ret;
 
 	WARN_ON(priv != file->private_data);
+	if (ici->ops->init_videobuf)
+		type = icd->vb_vidq.type;
+	else
+		type = icd->vb2_vidq.type;
 
-	if (i != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+	if (i != type)
 		return -EINVAL;
 
 	if (icd->streamer != file)
@@ -778,10 +930,15 @@ static int soc_camera_streamoff(struct file *file, void *priv,
 	struct soc_camera_device *icd = file->private_data;
 	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
+	enum v4l2_buf_type type;
 
 	WARN_ON(priv != file->private_data);
 
-	if (i != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+	if (ici->ops->init_videobuf)
+		type = icd->vb_vidq.type;
+	else
+		type = icd->vb2_vidq.type;
+	if (i != type)
 		return -EINVAL;
 
 	if (icd->streamer != file)
@@ -905,9 +1062,14 @@ static int soc_camera_s_crop(struct file *file, void *fh,
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct v4l2_rect *rect = &a->c;
 	struct v4l2_crop current_crop;
+	enum v4l2_buf_type type;
 	int ret;
 
-	if (a->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+	if (ici->ops->init_videobuf)
+		type = icd->vb_vidq.type;
+	else
+		type = icd->vb2_vidq.type;
+	if (a->type != type)
 		return -EINVAL;
 
 	dev_dbg(&icd->dev, "S_CROP(%ux%u@%u:%u)\n",
@@ -1497,6 +1659,10 @@ static const struct v4l2_ioctl_ops soc_camera_ioctl_ops = {
 	.vidioc_g_parm		 = soc_camera_g_parm,
 	.vidioc_s_parm		 = soc_camera_s_parm,
 	.vidioc_g_chip_ident     = soc_camera_g_chip_ident,
+	.vidioc_g_fmt_vid_cap_mplane    = soc_camera_g_fmt_vid_cap_mp,
+	.vidioc_enum_fmt_vid_cap_mplane = soc_camera_enum_fmt_vid_cap,
+	.vidioc_s_fmt_vid_cap_mplane    = soc_camera_s_fmt_vid_cap,
+	.vidioc_try_fmt_vid_cap_mplane  = soc_camera_try_fmt_vid_cap,
 #ifdef CONFIG_VIDEO_ADV_DEBUG
 	.vidioc_g_register	 = soc_camera_g_register,
 	.vidioc_s_register	 = soc_camera_s_register,
