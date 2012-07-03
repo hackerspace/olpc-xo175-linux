@@ -933,7 +933,6 @@ static const struct clkops clk_pxa978_syspll416_ops = {
 };
 
 extern struct dvfs gc_dvfs;
-extern unsigned int galcore_dvfm_dev_idx;
 /*These function and Variables are used for GC&VMETA stats in debugfs*/
 static void gcu_vmeta_stats(struct clk *clk, unsigned long rate);
 extern struct gc_vmeta_ticks gc_vmeta_ticks_info;
@@ -949,8 +948,10 @@ static int clk_gcu_enable(struct clk *clk)
 	pr_debug("GC enable from 0 to %lu.\n", clk->rate);
 
 	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
+
 	if (cpu_is_pxa978_Dx())
-		dvfm_disable_op_name_no_change("CG", galcore_dvfm_dev_idx);
+		GC_switch_cg_constraint(GET_CG_CONSTRAINT);
+
 	if (clk->rate == 416000000)
 		clk_enable(&clk_pxa978_syspll_416);
 	else if (clk->rate >= 481000000)
@@ -982,7 +983,7 @@ static void clk_gcu_disable(struct clk *clk)
 		clk_disable(&clk_pxa978_mmpll);
 
 	if (cpu_is_pxa978_Dx())
-		dvfm_enable_op_name_no_change("CG", galcore_dvfm_dev_idx);
+		GC_switch_cg_constraint(RELEASE_CG_CONSTRAINT);
 
 	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
 	if (gc_vmeta_ticks_info.gc_stats_start)

@@ -42,6 +42,9 @@
 #define DEVICE_DRIVER_DISABLE_PP 80
 #define DEVICE_DRIVER_ENABLE_PP 81
 
+#define RELEASE_CG_CONSTRAINT false
+#define GET_CG_CONSTRAINT true
+extern void GC_switch_cg_constraint(int enable);
 
 /* Used for testing LPM - "Start" will zero the counters. */
 #define DEBUG_MSPM_START_LPM_DEBUG_COUNT 100

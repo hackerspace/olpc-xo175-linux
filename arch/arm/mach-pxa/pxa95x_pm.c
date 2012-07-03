@@ -1053,7 +1053,14 @@ static struct dvfm_lock dvfm_lock = {
 	.dev_idx = -1,
 	.count = 0,
 };
-unsigned int galcore_dvfm_dev_idx;
+
+void GC_switch_cg_constraint(int enable)
+{
+	if (enable == GET_CG_CONSTRAINT)
+		dvfm_disable_op_name_no_change("CG", dvfm_lock.dev_idx);
+	else
+		dvfm_enable_op_name_no_change("CG", dvfm_lock.dev_idx);
+}
 
 void gc_pwr(int enableDisable)
 {
@@ -1064,7 +1071,7 @@ void gc_pwr(int enableDisable)
 		dvfm_disable_op_name_no_change("D2", dvfm_lock.dev_idx);
 		dvfm_disable_op_name_no_change("D1", dvfm_lock.dev_idx);
 		if (!cpu_is_pxa978_Dx())
-			dvfm_disable_op_name_no_change("CG", dvfm_lock.dev_idx);
+			GC_switch_cg_constraint(GET_CG_CONSTRAINT);
 
 		if (gcpwr & GCPWR_PWR_ST)
 			return;	/*Pwr is already on */
@@ -1098,7 +1105,7 @@ void gc_pwr(int enableDisable)
 		dvfm_enable_op_name_no_change("D2", dvfm_lock.dev_idx);
 		dvfm_enable_op_name_no_change("D1", dvfm_lock.dev_idx);
 		if (!cpu_is_pxa978_Dx())
-			dvfm_enable_op_name_no_change("CG", dvfm_lock.dev_idx);
+			GC_switch_cg_constraint(RELEASE_CG_CONSTRAINT);
 	}
 }
 EXPORT_SYMBOL(gc_pwr);
@@ -2338,8 +2345,6 @@ static int __init pxa95x_pm_init(void)
 	ret = dvfm_register("Galcore", &dvfm_lock.dev_idx);
 	if (ret)
 		printk(KERN_ERR "GC dvfm register fail(%d)\n", ret);
-
-	galcore_dvfm_dev_idx = dvfm_lock.dev_idx;
 
 	/* if nowhere use tout_s0, it would be disable */
 	clk_enable(clk_tout_s0);
