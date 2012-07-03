@@ -303,7 +303,7 @@ static inline ssize_t voltage_show(struct sys_device *sys_dev,
 {
 	int level, volt, len = 0;
 
-	level = (AVLCR >> 1) & 0x3;
+	level = (AVLSR >> 1) & 0x3;
 	volt = reg_to_volt(pm80x_reg_read(i2c, 0x3c + level));
 	len += sprintf(buf, "Level %d (%d mV)\n", level, volt);
 
