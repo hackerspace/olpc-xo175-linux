@@ -3635,8 +3635,6 @@ static int d2_led_toggle_proc(char *page, char **start, off_t off,
 }
 
 /* the next functions are handling uboot parmetres */
-static int temp_PowerDisabled;
-static int temp_DvfmDisabled;
 static int uboot_disablePower(char *s)
 {
 	unsigned long data;
@@ -3646,9 +3644,9 @@ static int uboot_disablePower(char *s)
 
 	/* on seeing "tavorcfg_nolpm", disable power */
 	if (data == 0)
-		temp_PowerDisabled = 0;
+		PowerDisabled = 0;
 	else
-		temp_PowerDisabled = 1;
+		PowerDisabled = 1;
 	return 1;
 }
 
@@ -3659,9 +3657,9 @@ static int uboot_disableDvfm(char *s)
 		pr_err("Wrong value assigned to disable DVFM!\n");
 	/* on seeing "tavorcfg_nodvfm", disable dvfm */
 	if (data == 0)
-		temp_DvfmDisabled = 0;
+		DvfmDisabled = 0;
 	else
-		temp_DvfmDisabled = 1;
+		DvfmDisabled = 1;
 	return 1;
 }
 
@@ -3731,11 +3729,6 @@ static int __init pxa95x_freq_init(void)
 	struct proc_dir_entry *entry;
 
 	mutex_init(&op_change_mutex);
-	/* power is detemined by uboot */
-	/* Set before registration below otherwise pxa95x_freq_probe attempts
-	   to set op and call DVFM code */
-	PowerDisabled = temp_PowerDisabled;
-	DvfmDisabled = temp_DvfmDisabled;
 	printk(KERN_DEBUG "Initial power state: PowerDisabled = %d, DvfmDisabled = %d\n",
 	       PowerDisabled, DvfmDisabled);
 	ret = misc_register(&dvfm_misc_device);
