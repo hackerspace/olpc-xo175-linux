@@ -23,11 +23,12 @@
 #include <mach/hardware.h>
 #include <mach/soc_coda7542.h>
 
-#define VDEC_WORKING_BUFFER_SIZE	SZ_2M
+#define VDEC_WORKING_BUFFER_SIZE	SZ_1M
 #define UIO_CODA7542_VERSION		"build-001"
 
-#define MAX_NUM_VPUSLOT	16
-#define MAX_NUM_FILEHANDLE 16
+/* HW capability is 16, only use 10 instance to reduce memory requirements. */
+#define MAX_NUM_VPUSLOT	10
+#define MAX_NUM_FILEHANDLE 10
 
 #define BIT_INT_CLEAR		(0xC)
 #define BIT_BUSY_FLAG		(0x160)
