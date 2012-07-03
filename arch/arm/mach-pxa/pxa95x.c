@@ -967,15 +967,30 @@ int vmeta_freq_change(struct vmeta_instance *vi, int step)
 		ret = pxa95x_vmeta_decrease_core_freq(vi, 0 - step);
 	return ret;
 }
+
+void switch_vmeta_cg_constraint(int enable)
+{
+	if (enable == GET_CG_CONSTRAINT)
+		dvfm_disable_op_name_no_change("CG", dvfm_lock.dev_idx);
+	else
+		dvfm_enable_op_name_no_change("CG", dvfm_lock.dev_idx);
+}
+
 void vmeta_power_switch(unsigned int enable)
 {
 	if (VMETA_PWR_ENABLE == enable) {
-		dvfm_disable_lowpower(dvfm_lock.dev_idx);
+		dvfm_disable_op_name_no_change("D2", dvfm_lock.dev_idx);
+		dvfm_disable_op_name_no_change("D1", dvfm_lock.dev_idx);
+		if (!cpu_is_pxa978_Dx())
+			switch_vmeta_cg_constraint(GET_CG_CONSTRAINT);
 		vmeta_pwr(VMETA_PWR_ENABLE);
 	} else if (VMETA_PWR_DISABLE == enable) {
 		vmeta_pwr(VMETA_PWR_DISABLE);
 		pxa95x_vmeta_clean_dvfm_constraint(NULL, dvfm_lock.dev_idx);
 		printk(KERN_INFO "vmeta op clean up\n");
-		dvfm_enable_lowpower(dvfm_lock.dev_idx);
+		dvfm_enable_op_name_no_change("D2", dvfm_lock.dev_idx);
+		dvfm_enable_op_name_no_change("D1", dvfm_lock.dev_idx);
+		if (!cpu_is_pxa978_Dx())
+			switch_vmeta_cg_constraint(RELEASE_CG_CONSTRAINT);
 	}
 }

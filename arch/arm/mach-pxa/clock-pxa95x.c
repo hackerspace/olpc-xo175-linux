@@ -1578,6 +1578,9 @@ static int clk_pxa95x_vmeta_enable(struct clk *clk)
 {
 	struct dvfs_freqs dvfs_freqs;
 
+	if (cpu_is_pxa978_Dx())
+		switch_vmeta_cg_constraint(GET_CG_CONSTRAINT);
+
 	dvfs_freqs.old = 0;
 	dvfs_freqs.new = clk->rate / KHZ_TO_HZ;
 	dvfs_freqs.dvfs = &vmeta_dvfs;
@@ -1620,6 +1623,9 @@ static void clk_pxa95x_vmeta_disable(struct clk *clk)
 	if (gc_vmeta_ticks_info.vm_stats_start)
 		gcu_vmeta_stats(clk, clk->rate);
 	gc_vmeta_ticks_info.vmeta_state = VMETA_CLK_OFF;
+
+	if (cpu_is_pxa978_Dx())
+		switch_vmeta_cg_constraint(RELEASE_CG_CONSTRAINT);
 }
 
 static const struct clkops clk_pxa95x_vmeta_ops = {
