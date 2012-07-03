@@ -134,6 +134,7 @@ static struct pm_qos_object disable_hotplug_pm_qos = {
 };
 #endif
 
+
 static BLOCKING_NOTIFIER_HEAD(cpu_freq_min_notifier);
 static struct pm_qos_object cpu_freq_min_pm_qos = {
 	.requests = PLIST_HEAD_INIT(cpu_freq_min_pm_qos.requests),
@@ -188,6 +189,17 @@ static struct pm_qos_object cpuidle_keep_vctcxo_qos = {
 	.type = PM_QOS_MAX,
 };
 
+#ifdef CONFIG_DDR_DEVFREQ
+static BLOCKING_NOTIFIER_HEAD(ddr_devfreq_min_notifier);
+static struct pm_qos_object ddr_devfreq_min_pm_qos = {
+	.requests = PLIST_HEAD_INIT(ddr_devfreq_min_pm_qos.requests),
+	.notifiers = &ddr_devfreq_min_notifier,
+	.name = "ddr_devfreq_min",
+	.target_value = 0,
+	.default_value = 0,
+	.type = PM_QOS_MAX,
+};
+#endif
 
 static struct pm_qos_object *pm_qos_array[] = {
 	&null_pm_qos,
@@ -203,7 +215,10 @@ static struct pm_qos_object *pm_qos_array[] = {
 #endif
 	&cpuidle_keep_axi_qos,
 	&cpuidle_keep_ddr_qos,
-	&cpuidle_keep_vctcxo_qos
+	&cpuidle_keep_vctcxo_qos,
+#ifdef CONFIG_DDR_DEVFREQ
+	&ddr_devfreq_min_pm_qos,
+#endif
 };
 
 static ssize_t pm_qos_power_write(struct file *filp, const char __user *buf,
@@ -603,6 +618,11 @@ static int __init pm_qos_power_init(void)
 	if (ret < 0)
 		printk(KERN_ERR
 			"pm_qos_param: cpuidle_keep_vctcxo setup failed\n");
+#ifdef CONFIG_DDR_DEVFREQ
+	ret = register_pm_qos_misc(&ddr_devfreq_min_pm_qos);
+	if (ret < 0)
+		pr_err("pm_qos_param: min_ddr_devfreq setup failed");
+#endif
 
 	return ret;
 }

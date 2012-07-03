@@ -23,7 +23,9 @@ enum {
 	PM_QOS_CPUIDLE_KEEP_AXI,
 	PM_QOS_CPUIDLE_KEEP_DDR,
 	PM_QOS_CPUIDLE_KEEP_VCTCXO,
-
+#ifdef CONFIG_DDR_DEVFREQ
+	PM_QOS_DDR_DEVFREQ_MIN,
+#endif
         /* insert new class ID */
 
         PM_QOS_NUM_CLASSES,
