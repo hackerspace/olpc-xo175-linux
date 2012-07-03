@@ -687,9 +687,15 @@ static int clk_pxa95x_lcd_setrate(struct clk *lcd_clk, unsigned long rate)
 {
 	unsigned int value, mask = 0x7;
 	struct dvfs_freqs dvfs_freqs;
+
+	/* if dvfm is disabled, do not change lcd rate */
+	if (DvfmDisabled)
+		return 0;
+
 	dvfs_freqs.old = lcd_clk->rate / KHZ_TO_HZ;
 	dvfs_freqs.new = rate / KHZ_TO_HZ;
 	dvfs_freqs.dvfs = &display_dvfs;
+
 	if (dvfs_freqs.old < dvfs_freqs.new)
 		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
 
@@ -1260,6 +1266,10 @@ static int clk_pxa95x_gcu_setrate(struct clk *gc_clk, unsigned long rate)
 	unsigned int value, mask = 0x3F << 6;
 	struct dvfs_freqs dvfs_freqs;
 
+	/* if dvfm is disabled, do not change gc rate */
+	if (DvfmDisabled)
+		return 0;
+
 	pr_debug("gc setrate from %lu to %lu.\n", gc_clk->rate, rate);
 
 	dvfs_freqs.old = gc_clk->rate / KHZ_TO_HZ;
@@ -1525,6 +1535,10 @@ static int clk_pxa95x_vmeta_setrate(struct clk *vmeta_clk, unsigned long rate)
 {
 	unsigned int value, mask = 0x7 << 3;
 	struct dvfs_freqs dvfs_freqs;
+
+	/* if dvfm is disabled, do not change vmeta rate */
+	if (DvfmDisabled)
+		return 0;
 
 	pr_debug("vmeta setrate from %lu to %lu.\n", vmeta_clk->rate, rate);
 
