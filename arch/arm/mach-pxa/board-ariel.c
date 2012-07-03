@@ -26,6 +26,7 @@
 #include <linux/reboot.h>
 #include <linux/i2c/ft5x06_touch.h>
 #include <linux/power_supply.h>
+#include <linux/leds.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -620,6 +621,27 @@ static void vibrator_set_power(int on)
 static struct pm80x_vibrator_pdata vibrator_pdata = {
 	.min_timeout = 100,
 	.vibrator_power = vibrator_set_power,
+};
+
+static struct gpio_led ariel_gpio_leds[] = {
+	{
+		.name = "button-backlight",
+		.gpio = mfp_to_gpio(MFP_PIN_GPIO62),
+		.active_low = 1,
+	},
+};
+
+static struct gpio_led_platform_data ariel_gpio_led_data = {
+	.leds	 = ariel_gpio_leds,
+	.num_leds = ARRAY_SIZE(ariel_gpio_leds),
+};
+
+static struct platform_device ariel_leds_gpio = {
+	.name = "leds-gpio",
+	.id = -1,
+	.dev = {
+		.platform_data = &ariel_gpio_led_data,
+	},
 };
 
 #if defined(CONFIG_TOUCHSCREEN_FT5X06)
@@ -1870,6 +1892,8 @@ static void __init init(void)
 	pxa_set_keypad_info(&keypad_info);
 	platform_device_register(&reset_keys_device);
 #endif
+
+	platform_device_register(&ariel_leds_gpio);
 
 	init_cam();
 
