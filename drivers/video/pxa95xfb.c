@@ -2229,9 +2229,8 @@ int var_update(struct fb_info *info)
 		fb_videomode_to_var(var, m);
 	}
 	memcpy(&fbi->mode, m, sizeof(struct fb_videomode));
-	if ((fbi->id == 2) || (fbi->id == 0)) {
-		memcpy(&pxa95xfbi[fbi->id + 1]->mode, m, sizeof(struct fb_videomode));
-	}
+	/* update videomode of fb in same path */
+	memcpy(&(fb_in_same_path(fbi)->mode), m, sizeof(struct fb_videomode));
 	/* fix to 2* yres */
 	var->yres_virtual = var->yres * 2;
 	info->fix.visual = (pix_fmt == PIX_FMT_PSEUDOCOLOR)?
@@ -2505,8 +2504,7 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 
 	fbi->vsync_en = 0;
 	fbi->eof_intr_en = 1;
-	fbi->eof_handler = lcdc_vid_buf_endframe;
-
+	spin_lock_init(&fbi->buf_lock);
 	mutex_init(&fbi->access_ok);
 	init_waitqueue_head(&g_vsync_wq);
 	for (i = 0; i < MIXER_NUM; i++) {

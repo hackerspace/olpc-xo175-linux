@@ -265,19 +265,120 @@ void lcdc_vid_buf_endframe(void * p)
 void lcdc_vid_clean(struct pxa95xfb_info *fbi)
 {
 	struct fb_var_screeninfo *var = &fbi->fb_info->var;
-	unsigned long x;
+	unsigned long flags;
 
 	fbi->user_addr = 0;
 	fbi->surface.videoMode = -1;
 	fbi->surface.viewPortInfo.srcWidth = var->xres;
 	fbi->surface.viewPortInfo.yPitch = var->xres * pix_fmt_to_bpp(fbi->pix_fmt);
 	fbi->surface.viewPortInfo.srcHeight = var->yres;
-	local_irq_save(x);
+	spin_lock_irqsave(&fbi->buf_lock, flags);
 	/* clear buffer list. */
 	buf_clear(fbi->buf_freelist);
 	buf_clear(fbi->buf_waitlist);
 	memset(&fbi->buf_current, 0, sizeof(struct buf_addr));
-	local_irq_restore(x);
+	spin_unlock_irqrestore(&fbi->buf_lock, flags);
+}
+
+static void do_flip_baselay(struct pxa95xfb_info *fbi, struct _sOvlySurface *surface)
+{
+	struct buf_addr *start_addr = (struct buf_addr *)(surface->videoBufferAddr.startAddr);
+
+	/* if controller is not switched on/really turn on, return */
+	if (!fbi->on && !fbi->controller_on )
+		return;
+
+	fbi->user_addr = start_addr->y;
+	lcdc_set_fr_addr(fbi);
+
+	if (fbi->on && !fbi->controller_on) {
+		printk(KERN_INFO "really turn on fb%d\n", fbi->id);
+		set_surface(fbi, surface->videoMode,
+					&surface->viewPortInfo,
+					&surface->viewPortOffset);
+		lcdc_set_lcd_controller(fbi);
+		if (!conv_is_on(fbi))
+			converter_onoff(fbi, 1);
+		conv_ref_inc(fbi);
+		fbi->controller_on = 1;
+		return;
+	}
+
+	if (surface_is_changed(fbi, surface->videoMode,
+				&surface->viewPortInfo,
+				&surface->viewPortOffset)) {
+		/* in this case, surface mode changed, need sync */
+		set_surface(fbi, surface->videoMode,
+				&surface->viewPortInfo,
+				&surface->viewPortOffset);
+		lcdc_set_lcd_controller(fbi);
+	}
+	return;
+}
+
+static void do_flip_overlay(struct pxa95xfb_info *fbi, struct _sOvlySurface *surface)
+{
+	unsigned long flags;
+	struct buf_addr *start_addr = (struct buf_addr *)(surface->videoBufferAddr.startAddr);
+
+	if (fbi->on && !fbi->controller_on) {
+		printk(KERN_INFO "really turn on fb%d\n", fbi->id);
+		set_surface(fbi, surface->videoMode,
+					&surface->viewPortInfo,
+					&surface->viewPortOffset);
+		WARN_ON(fbi->buf_waitlist[0].y);
+		spin_lock_irqsave(&fbi->buf_lock, flags);
+		/*if !waitlist[0] enqueue buf to waitlist*/
+		/*printk(KERN_INFO "%s: flip %x on\n",
+		__func__, (u32)start_addr);*/
+		fbi->user_addr = start_addr->y;
+		lcdc_set_fr_addr(fbi);
+		buf_enqueue(fbi->buf_waitlist, start_addr);
+		buf_fake_endframe(fbi);
+		spin_unlock_irqrestore(&fbi->buf_lock, flags);
+
+		lcdc_set_lcd_controller(fbi);
+		if (!conv_is_on(fbi))
+			converter_onoff(fbi, 1);
+
+		conv_ref_inc(fbi);
+		fbi->controller_on = 1;
+		return;
+	}
+
+	/* Fix the first green frames when camera preview */
+	if( !fbi->controller_on ) {
+		buf_enqueue(fbi->buf_freelist, start_addr);
+		return;
+	}
+
+	if (surface_is_changed(fbi, surface->videoMode,
+				&surface->viewPortInfo,
+				&surface->viewPortOffset)) {
+		/* in this case, surface mode changed, need sync */
+		set_surface(fbi, surface->videoMode,
+				&surface->viewPortInfo,
+				&surface->viewPortOffset);
+		spin_lock_irqsave(&fbi->buf_lock, flags);
+		fbi->user_addr = start_addr->y;
+		lcdc_set_fr_addr(fbi);
+		buf_enqueue(fbi->buf_waitlist, start_addr);
+		buf_fake_endframe(fbi);
+		spin_unlock_irqrestore(&fbi->buf_lock, flags);
+		lcdc_set_lcd_controller(fbi);
+	} else {
+		spin_lock_irqsave(&fbi->buf_lock, flags);
+		/*if !waitlist[0] enqueue buf to waitlist*/
+		if (!fbi->buf_waitlist[0].y) {
+			/*printk(KERN_INFO "%s: flip %x on\n",
+			__func__, start_addr->y);*/
+			fbi->user_addr = start_addr->y;
+			lcdc_set_fr_addr(fbi);
+		}
+		buf_enqueue(fbi->buf_waitlist, start_addr);
+		spin_unlock_irqrestore(&fbi->buf_lock, flags);
+	}
+	return;
 }
 
 int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
@@ -287,9 +388,7 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 	struct pxa95xfb_info *fbi = (struct pxa95xfb_info *)fi->par;
 	static struct _sOvlySurface gOvlySurface;
 	int on;
-	unsigned long x;
-	/* for switch gra/vid lay only*/
-	int layer_id;
+	unsigned long flags;
 
 	switch (cmd) {
 	case FB_IOCTL_WAIT_VSYNC_ON:
@@ -364,7 +463,6 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 	case FB_IOCTL_FLIP_VID_BUFFER:
 	{
 		struct _sOvlySurface surface;
-		struct buf_addr *start_addr;
 
 		mutex_lock(&fbi->access_ok);
 		/* Get user-mode data. */
@@ -382,75 +480,24 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 			return -EINVAL;
 		}
 
-		start_addr = (struct buf_addr *)(surface.videoBufferAddr.startAddr);
-
-		if (fbi->on && !fbi->controller_on) {
-			printk(KERN_INFO "really turn on fb%d\n", fbi->id);
-			set_surface(fbi, surface.videoMode,
-						&surface.viewPortInfo,
-						&surface.viewPortOffset);
-			WARN_ON(fbi->buf_waitlist[0].y);
-			local_irq_save(x);
-			/*if !waitlist[0] enqueue buf to waitlist*/
-			/*printk(KERN_INFO "%s: flip %x on\n",
-			__func__, (u32)start_addr);*/
-			fbi->user_addr = start_addr->y;
-			lcdc_set_fr_addr(fbi);
-			buf_enqueue(fbi->buf_waitlist, start_addr);
-			buf_fake_endframe(fbi);
-			local_irq_restore(x);
-
-			lcdc_set_lcd_controller(fbi);
-			if (!conv_is_on(fbi))
-				converter_onoff(fbi, 1);
-
-			conv_ref_inc(fbi);
-			fbi->controller_on = 1;
-			mutex_unlock(&fbi->access_ok);
-			return 0;
-		}
-
-
-		/* Fix the first green frames when camera preview */
-		if( !fbi->controller_on ) {
-			buf_enqueue(fbi->buf_freelist, start_addr);
-			mutex_unlock(&fbi->access_ok);
-			return 0;
-		}
-
-		/* user pointer way */
-		if (surface_is_changed(fbi, surface.videoMode,
-					&surface.viewPortInfo,
-					&surface.viewPortOffset)) {
-			/* in this case, surface mode changed, need sync */
-			set_surface(fbi, surface.videoMode,
-					&surface.viewPortInfo,
-					&surface.viewPortOffset);
-			local_irq_save(x);
-			fbi->user_addr = start_addr->y;
-			lcdc_set_fr_addr(fbi);
-			buf_enqueue(fbi->buf_waitlist, start_addr);
-			buf_fake_endframe(fbi);
-			local_irq_restore(x);
-			lcdc_set_lcd_controller(fbi);
-		} else {
-			local_irq_save(x);
-			/*if !waitlist[0] enqueue buf to waitlist*/
-			if (!fbi->buf_waitlist[0].y) {
-				/*printk(KERN_INFO "%s: flip %x on\n",
-				__func__, start_addr->y);*/
-				fbi->user_addr = start_addr->y;
-				lcdc_set_fr_addr(fbi);
-			}
-			buf_enqueue(fbi->buf_waitlist, start_addr);
-			local_irq_restore(x);
-		}
+		if (fb_is_baselay(fbi))
+			do_flip_baselay(fbi, &surface);
+		else
+			do_flip_overlay(fbi, &surface);
 
 		mutex_unlock(&fbi->access_ok);
 		return 0;
 	}
 	case FB_IOCTL_GET_FREELIST:
-		local_irq_save(x);
+		if (fb_is_baselay(fbi)) {
+			if (copy_to_user(argp, fbi->buf_freelist,
+				MAX_QUEUE_NUM * sizeof(struct buf_addr)))
+				return -EFAULT;
+			return 0;
+		}
+
+		spin_lock_irqsave(&fbi->buf_lock, flags);
+
 		/* safe check: when lcd is suspend,
 		 * move all buffers as "switched"*/
 		if (!fbi->on)
@@ -458,11 +505,11 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 
 		if (copy_to_user(argp, fbi->buf_freelist,
 				MAX_QUEUE_NUM * sizeof(struct buf_addr))) {
-			local_irq_restore(x);
+			spin_unlock_irqrestore(&fbi->buf_lock, flags);
 			return -EFAULT;
 		}
 		buf_clear(fbi->buf_freelist);
-		local_irq_restore(x);
+		spin_unlock_irqrestore(&fbi->buf_lock, flags);
 		return 0;
 	case FB_IOCTL_GET_BUFF_ADDR:
 		return copy_to_user(argp, &fbi->surface.videoBufferAddr,
@@ -482,8 +529,10 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 			return -EFAULT;
 		ckey_alpha = &fbi->ckey_alpha;
 
-		layer_id = (fbi->id & (~1)) + (ckey_alpha->alphapath == FB_VID_PATH_ALPHA);
-		fbi = pxa95xfbi[layer_id];
+		if (ckey_alpha->alphapath == FB_VID_PATH_ALPHA)
+			fbi = overlay_in_same_path(fbi);
+		else
+			fbi = baselay_in_same_path(fbi);
 
 		if (ckey_alpha->mode == FB_ENABLE_RGB_COLORKEY_MODE) {
 			fbi->alphacolor = (ckey_alpha->Y_ColorAlpha << 16) |
@@ -509,8 +558,10 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 		/* fbi->id: 0,1 -> 1, 2,3 -> 3*/
 	case FB_IOCTL_SWITCH_GRA_OVLY:
 		/* fbi->id: 0,1 -> 0, 2,3 -> 2*/
-		layer_id = (fbi->id & (~1)) + (cmd == FB_IOCTL_SWITCH_VID_OVLY);
-		fbi = pxa95xfbi[layer_id];
+		if (cmd == FB_IOCTL_SWITCH_VID_OVLY)
+			fbi = overlay_in_same_path(fbi);
+		else
+			fbi = baselay_in_same_path(fbi);
 
 		mutex_lock(&fbi->access_ok);
 		if (copy_from_user(&on, argp, sizeof(int))) {
@@ -529,8 +580,8 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 
 				fbi->controller_on = 0;
 				/* tricky workaround for id = 2/3 which shares same channel */
-				if (fbi->id == 2 || fbi->id == 3)
-					pxa95xfbi[5 - fbi->id]->controller_on = 0;
+				if (fb_is_tv(fbi))
+					fb_in_same_path(fbi)->controller_on = 0;
 				fbi->user_addr = 0;
 				lcdc_set_fr_addr(fbi);
 			}

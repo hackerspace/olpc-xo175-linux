@@ -826,6 +826,7 @@ struct pxa95xfb_info {
 	u32 pixel_offset;
 
 	/*overlay related*/
+	spinlock_t		buf_lock;
 	struct buf_addr buf_freelist[MAX_QUEUE_NUM];
 	struct buf_addr buf_waitlist[MAX_QUEUE_NUM];
 	struct buf_addr buf_current;
@@ -924,5 +925,45 @@ int pxa95xfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info);
 int pxa95xfb_set_par(struct fb_info *info);
 
 extern int mvdisp_debug_init(struct device *dev);
+
+static inline int fb_is_valid(struct pxa95xfb_info *fbi)
+{
+	return (fbi->id >= 0 && fbi->id <= 4);
+}
+static inline int fb_is_baselay(struct pxa95xfb_info *fbi)
+{
+	return (fbi->id == 0 || fbi->id == 2);
+}
+static inline int fb_is_tv(struct pxa95xfb_info *fbi)
+{
+	return (fbi->id == 2 || fbi->id == 3);
+}
+static inline struct pxa95xfb_info *fb_in_same_path(struct pxa95xfb_info *fbi)
+{
+	WARN_ON(!fb_is_valid(fbi));
+
+	if (fb_is_baselay(fbi))
+		return pxa95xfbi[fbi->id + 1];
+	else
+		return pxa95xfbi[fbi->id - 1];
+}
+static inline struct pxa95xfb_info *baselay_in_same_path(struct pxa95xfb_info *fbi)
+{
+	WARN_ON(!fb_is_valid(fbi));
+
+	if (fb_is_baselay(fbi))
+		return fbi;
+	else
+		return pxa95xfbi[fbi->id - 1];
+}
+static inline struct pxa95xfb_info *overlay_in_same_path(struct pxa95xfb_info *fbi)
+{
+	WARN_ON(!fb_is_valid(fbi));
+
+	if (fb_is_baselay(fbi))
+		return pxa95xfbi[fbi->id + 1];
+	else
+		return fbi;
+}
 
 #endif /* __ASM_ARCH_REGS_LCD_PXA95x_H */

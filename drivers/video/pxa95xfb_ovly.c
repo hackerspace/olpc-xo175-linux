@@ -134,8 +134,9 @@ static int __devinit pxa95xfb_vid_probe(struct platform_device *pdev)
 
 	fbi->vsync_en = 0;
 	fbi->eof_intr_en = 1;
-	fbi->eof_handler = lcdc_vid_buf_endframe;
-
+	if (!fb_is_baselay(fbi))
+		fbi->eof_handler = lcdc_vid_buf_endframe;
+	spin_lock_init(&fbi->buf_lock);
 	mutex_init(&fbi->access_ok);
 
 	/* Map LCD controller registers.*/
@@ -279,7 +280,7 @@ static int pxa95xfb_ovly_suspend(struct platform_device *dev, pm_message_t state
 	struct pxa95xfb_info *fbi = platform_get_drvdata(dev);
 
 	/* disable fb hdmi when suspend */
-	if (fbi->id >= 2 && fbi->controller_on) {
+	if (fb_is_tv(fbi) && fbi->controller_on) {
 		fbi->on = 0;
 		conv_ref_dec(fbi);
 		lcdc_set_lcd_controller(fbi);
