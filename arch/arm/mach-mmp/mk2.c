@@ -628,69 +628,7 @@ static struct lsm303dlhc_mag_platform_data lsm303dlhc_mag_data = {
 };
 #endif
 
-static int cm3623_set_power(int on)
-{
-	static struct regulator *pmic_2p8v_sens;
-	static int enabled;
-	int changed = 0;
-
-	if (on && (!enabled)) {
-		pmic_2p8v_sens = regulator_get(NULL, "PMIC_V3_2V8"); /*Fix Me: conflict with schematics*/
-		if (IS_ERR(pmic_2p8v_sens)) {
-			pmic_2p8v_sens = NULL;
-			return -EIO;
-		} else {
-			regulator_set_voltage(pmic_2p8v_sens, 2800000, 2800000);
-			regulator_enable(pmic_2p8v_sens);
-			enabled = 1;
-			changed = 1;
-		}
-	}
-	if ((!on) && enabled) {
-		regulator_disable(pmic_2p8v_sens);
-		regulator_put(pmic_2p8v_sens);
-		pmic_2p8v_sens = NULL;
-		enabled = 0;
-		changed = 1;
-	}
-	if (changed)
-		msleep(100);
-
-	return 0;
-}
-
-static struct axis_sensor_platform_data cm3623_platform_data = {
-	.set_power	= cm3623_set_power,
-};
-
 static struct i2c_board_info mk2_twsi4_info[] = {
-#if defined(CONFIG_SENSORS_CM3623)
-	{
-		.type		= "cm3623_ps",
-		.addr		= (0xB0>>1),
-		.platform_data	= &cm3623_platform_data,
-	},
-	{
-		.type		= "cm3623_als_msb",
-		.addr		= (0x20>>1),
-		.platform_data	= &cm3623_platform_data,
-	},
-	{
-		.type		= "cm3623_als_lsb",
-		.addr		= (0x22>>1),
-		.platform_data	= &cm3623_platform_data,
-	},
-	{
-		.type		= "cm3623_int",
-		.addr		= (0x18>>1),
-		.platform_data	= &cm3623_platform_data,
-	},
-	{
-		.type		= "cm3623_ps_threshold",
-		.addr		= (0xB2>>1),
-		.platform_data  = &cm3623_platform_data,
-	},
-#endif
 #if defined(CONFIG_SENSORS_LSM303DLHC_ACC)
 	{
 		.type           = LSM303DLHC_ACC_DEV_NAME,
