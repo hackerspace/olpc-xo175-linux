@@ -735,7 +735,7 @@ void pxa_u3d_phy_disable(void)
 }
 #endif
 
-#ifdef CONFIG_USB_SUPPORT
+#if (defined(CONFIG_USB_SUPPORT) && !defined(CONFIG_CPU_PXA988))
 static u64 usb_dma_mask = ~(u32)0;
 
 #ifdef CONFIG_USB_PXA_U2O

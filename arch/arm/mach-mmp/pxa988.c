@@ -39,6 +39,7 @@
 #include <mach/pxa910-squ.h>
 #include <mach/soc_coda7542.h>
 #include <mach/reset-pxa988.h>
+#include <mach/regs-usb.h>
 
 #include <plat/mfp.h>
 #include <plat/pmem.h>
@@ -500,6 +501,8 @@ struct platform_device pxa988_device_asoc_squ = {
 };
 
 #ifdef CONFIG_USB_PXA_U2O
+static u64 usb_dma_mask = ~(u32)0;
+
 struct resource pxa988_udc_resources[] = {
 	/* regbase */
 	[0] = {
