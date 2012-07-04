@@ -815,14 +815,10 @@ static struct pca963x_platform_data pca963x_pdata = {
 	.num_leds = 4,
 	.leds = {
 		[0] = {
-			.name = "blue",
-			.state = PCA963X_LED_PWM_GRPPWM,
-		},
-		[1] = {
 			.name = "green",
 			.state = PCA963X_LED_PWM_GRPPWM,
 		},
-		[2] = {
+		[1] = {
 			.name = "red",
 			.state = PCA963X_LED_PWM_GRPPWM,
 		},
