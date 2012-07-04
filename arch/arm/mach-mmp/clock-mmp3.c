@@ -27,6 +27,7 @@
 #include <mach/regs-mpmu.h>
 #include <mach/cputype.h>
 #include <plat/clock.h>
+#include <plat/devfreq.h>
 #include "common.h"
 
 #define CORE_NUM			3
@@ -902,6 +903,15 @@ static struct clk mmp3_clk_cpu = {
 	.dynamic_change = 1,
 };
 
+static struct devfreq_frequency_table mmp3_gc_clk_table[] = {
+	INIT_FREQ_TABLE(1, 100000000),
+	INIT_FREQ_TABLE(2, 200000000),
+	INIT_FREQ_TABLE(3, 355000000),
+	INIT_FREQ_TABLE(4, 400000000),
+	INIT_FREQ_TABLE(5, 533000000),
+	INIT_FREQ_TABLE(6, DEVFREQ_TABLE_END),
+};
+
 #define GC2D_CLK_DIV(n)		((n & 0xF) << 28)
 #define GC2D_CLK_DIV_MSK	GC2D_CLK_DIV(0xF)
 #define GC2D_CLK_SRC_SEL(n)	((n & 3) << 12)
@@ -1055,6 +1065,23 @@ static int gc_clk_setrate(struct clk *clk, unsigned long rate)
 
 	return 0;
 }
+
+int get_gcu_freqs_table(unsigned long *gcu_freqs_table, unsigned int *item_counts,
+		unsigned int max_item_counts)
+{
+	int i;
+
+	if (max_item_counts < ARRAY_SIZE(mmp3_gc_clk_table)) {
+		pr_err("Too many GC frequencies!\n");
+		return -1;
+	}
+	for (i = 0; (mmp3_gc_clk_table[i].frequency != DEVFREQ_TABLE_END); i++)
+		gcu_freqs_table[i] = mmp3_gc_clk_table[i].frequency;
+	*item_counts = i;
+
+	return 0;
+}
+EXPORT_SYMBOL(get_gcu_freqs_table);
 
 struct clkops gc_clk_ops = {
 	.init		= gc_clk_init,
