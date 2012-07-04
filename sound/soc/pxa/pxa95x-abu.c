@@ -83,13 +83,15 @@ static irqreturn_t pxa95x_abu_irq(int irq, void *dev_id)
 static void pxa95x_abu_set_dvfm_constraint(int abu_dev_idx)
 {
 	dvfm_disable_op_name_no_change("D2", abu_dev_idx);
-	dvfm_disable_op_name_no_change("CG", abu_dev_idx);
+	if (!cpu_is_pxa978_Dx())
+		dvfm_disable_op_name_no_change("CG", abu_dev_idx);
 	pr_debug("[ABU] pxa95x_abu_set_dvfm_constraint disable D2/CG\n");
 }
 
 static void pxa95x_abu_unset_dvfm_constraint(int abu_dev_idx)
 {
-	dvfm_enable_op_name_no_change("CG", abu_dev_idx);
+	if (!cpu_is_pxa978_Dx())
+		dvfm_enable_op_name_no_change("CG", abu_dev_idx);
 	dvfm_enable_op_name_no_change("D2", abu_dev_idx);
 	pr_debug("[ABU] pxa95x_abu_unset_dvfm_constraint enable D2/CG\n");
 }
