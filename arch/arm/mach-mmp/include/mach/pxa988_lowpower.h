@@ -100,8 +100,9 @@ enum pxa988_lowpower_state {
 	POWER_MODE_CORE_EXTIDLE, /* used for C1 */
 	POWER_MODE_CORE_POWERDOWN, /* used for C2 */
 	POWER_MODE_APPS_IDLE, /* used for D1P */
-	POWER_MODE_APPS_SLEEP, /* used for D1 */
-	POWER_MODE_SYS_SLEEP, /* used for non-udr D2 */
+	POWER_MODE_APPS_SLEEP, /* not used now */
+	POWER_MODE_SYS_SLEEP, /* used for non-udr chip sleep, D1 */
+	POWER_MODE_UDR_VCTCXO, /* used for udr with vctcxo, D2 */
 	POWER_MODE_UDR, /* used for udr D2, suspend */
 };
 

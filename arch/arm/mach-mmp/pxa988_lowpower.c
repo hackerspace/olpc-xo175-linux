@@ -52,10 +52,9 @@
  * 1. PXA988_LPM_C1: POWER_MODE_CORE_EXTIDLE
  * 2. PXA988_LPM_C2: POWER_MODE_CORE_POWERDOWN with L1 shutdown, L2 retentive
  * 3. PXA988_LPM_D1P: POWER_MODE_APPS_IDLE with L2 retentive
- * 4. PXA988_LPM_D1: POWER_MODE_APPS_SLEEP with L2 retentive
- * 5. PXA988_LPM_D2: POWER_MODE_SYS_SLEEP with L2 retentive
+ * 4. PXA988_LPM_D1: POWER_MODE_SYS_SLEEP with L2 retentive
+ * 5. PXA988_LPM_D2: POWER_MODE_UDR_VCTCXO with L2 retentive
  * 6. PXA988_LPM_D2_UDR: POWER_MODE_UDR with L2 shutdown
- * 7. PXA988_LPM_D2_UDR_HOTPLUG: POWER_MODE_UDR with L2 shutdown
  */
 
 
@@ -133,11 +132,13 @@ static void pxa988_lowpower_config(u32 cpu,
 		case POWER_MODE_UDR:
 			mp_idle_cfg |= PMUA_MP_L2_SRAM_POWER_DOWN;
 			mp_idle_cfg |= PMUA_MP_SCU_SRAM_POWER_DOWN;
+			apcr |= PMUM_VCTCXOSD;
+			/* fall through */
+		case POWER_MODE_UDR_VCTCXO:
 			apcr |= PMUM_STBYEN;
 			/* fall through */
 		case POWER_MODE_SYS_SLEEP:
 			apcr |= PMUM_APBSD;
-			apcr |= PMUM_VCTCXOSD;
 			/* fall through */
 		case POWER_MODE_APPS_SLEEP:
 			apcr |= PMUM_SLPEN;
@@ -249,7 +250,7 @@ struct pxa988_lowpower_data pxa988_lpm_data[] = {
 		.valid = 1,
 	},
 	[PXA988_LPM_D1] = {
-		.power_state = POWER_MODE_APPS_SLEEP,
+		.power_state = POWER_MODE_SYS_SLEEP,
 		.l2_shutdown = 0,
 		.valid = 1,
 	},
