@@ -51,6 +51,7 @@
 #include <asm/mach/map.h>
 #include <mach/ca9_asm.h>
 #include <linux/wakelock.h>
+#include "generic.h"
 
 /* mtd.h declares another DEBUG macro definition */
 #undef DEBUG
@@ -2375,8 +2376,20 @@ static int __init pxa95x_pm_init(void)
 		*base |= GEN_REG3_SPLGEN;
 		iounmap(base);
 	}
-	/* set VCTSTB as 0x11 ~ 0.5ms */
-	OSCC = (oscc & ~(0xFF << 24)) | (0x11 << 24);
+
+	if (get_board_id() == OBM_DKB_2_NEVO_C0_BOARD ||
+			get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
+			get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD ||
+			get_board_id() == OBM_DKB_3_NEVO_D0_BOARD)
+		/*
+		 * set VCTSTB as 0x48 ~2ms for DKB.
+		 * This need to be tuned later. TODO
+		 */
+		OSCC = (oscc & ~(0xFF << 24)) | (0x48 << 24);
+	else
+		/* set VCTSTB as 0x11 ~0.5ms for SaarC */
+		OSCC = (oscc & ~(0xFF << 24)) | (0x11 << 24);
+
 	/* Enable CLK_POUT */
 	clk_enable(clk_pout);
 #endif
