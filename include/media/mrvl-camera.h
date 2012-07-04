@@ -26,7 +26,16 @@ struct csi_dphy_desc {
 	u32 nr_lane;	/* When set to 0, S/W will try to figure out a value */
 };
 
-
+/*
+ *Add macro definiton for sensor power.
+ *Plese note the POWER_OFF and POWER_ON
+ *value is fixed since in soc_camera.c
+ *the value is directly used.
+ */
+#define POWER_OFF		0
+#define POWER_ON		1
+#define POWER_SAVING		2
+#define POWER_RESTORE		3
 
 /* V4L2 related */
 #define V4L2_CID_PRIVATE_FIRMWARE_DOWNLOAD	(V4L2_CID_PRIVATE_BASE + 0)
