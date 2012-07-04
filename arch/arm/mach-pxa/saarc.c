@@ -2824,12 +2824,17 @@ static int reboot_notifier_func(struct notifier_block *this,
 		unsigned long code, void *cmd)
 {
 	int reg = (PM80X_BASE_PAGE << 8) | 0xef;
-
+	unsigned char value;
 	if (cmd && (0 == strcmp(cmd, "recovery"))) {
 		printk("Enter recovery mode\n");
 		pm80x_codec_reg_write(reg, 0x1);
 	} else
 		pm80x_codec_reg_write(reg, 0x0);
+
+	/* the second bit is for charger server */
+	value = pm80x_codec_reg_read(reg);
+	value |= 0x02;
+	pm80x_codec_reg_write(reg, value);
 
 	return 0;
 }
