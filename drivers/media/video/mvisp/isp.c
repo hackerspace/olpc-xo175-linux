@@ -36,6 +36,7 @@
 #include <linux/slab.h>
 #include <linux/sched.h>
 #include <linux/vmalloc.h>
+#include <linux/pm_qos_params.h>
 
 #include <media/v4l2-common.h>
 #include <media/v4l2-device.h>
@@ -52,6 +53,22 @@ static char *isp_clocks[] = {
 	"ISP-CLK",
 	"CCIC-CLK",
 };
+
+#define MVISP_PM_QOS_CPUFREQ_MIN		(400)
+
+static struct pm_qos_request_list mvisp_pm_qos_cpufreq_min;
+static void mvisp_set_pm_qos(int min)
+{
+	if (!min)
+		return;
+
+	pm_qos_update_request(&mvisp_pm_qos_cpufreq_min, min);
+}
+
+static void mvisp_unset_pm_qos(void)
+{
+	pm_qos_update_request(&mvisp_pm_qos_cpufreq_min, PM_QOS_DEFAULT_VALUE);
+}
 
 /*
  * mvisp_enable_interrupts - Enable ISP interrupts.
@@ -518,6 +535,8 @@ struct mvisp_device *mvisp_get(struct mvisp_device *isp)
 		goto out;
 	}
 
+	mvisp_set_pm_qos(MVISP_PM_QOS_CPUFREQ_MIN);
+
 	/* We don't want to restore context before saving it! */
 	if (isp->has_context == true)
 		mvisp_restore_context(isp, NULL);
@@ -544,6 +563,7 @@ void mvisp_put(struct mvisp_device *isp)
 	if (--isp->ref_count == 0) {
 		mvisp_disable_interrupts(isp);
 		mvisp_save_context(isp, NULL);
+		mvisp_unset_pm_qos();
 		mvisp_disable_clocks(isp);
 		if( isp->mvisp_power_control != NULL)
 			isp->mvisp_power_control(0);
@@ -1146,6 +1166,8 @@ static struct platform_driver mvisp_driver = {
  */
 static int __init mvisp_init(void)
 {
+	pm_qos_add_request(&mvisp_pm_qos_cpufreq_min,
+			PM_QOS_CPUFREQ_MIN, PM_QOS_DEFAULT_VALUE);
 	return platform_driver_register(&mvisp_driver);
 }
 
@@ -1155,6 +1177,7 @@ static int __init mvisp_init(void)
 static void __exit mvisp_cleanup(void)
 {
 	platform_driver_unregister(&mvisp_driver);
+	pm_qos_remove_request(&mvisp_pm_qos_cpufreq_min);
 }
 
 module_init(mvisp_init);
