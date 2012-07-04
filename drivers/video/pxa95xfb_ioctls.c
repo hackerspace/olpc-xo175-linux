@@ -61,6 +61,8 @@ static void adjust_offset_for_resize(struct _sViewPortInfo *info, struct _sViewP
 
 	wstep = (info->zoomXSize > info->srcWidth) ? (info->srcWidth /8) : (info->srcWidth /32);
 	hstep = (info->zoomYSize > info->srcHeight) ? (info->srcHeight /8) : (info->srcHeight /32);
+	if(wstep == 0) wstep =1;
+	if(hstep == 0) hstep =1;
 
 	offset->xOffset += (info->zoomXSize % wstep) / 2;
 	offset->yOffset += (info->zoomYSize % hstep) / 2;
