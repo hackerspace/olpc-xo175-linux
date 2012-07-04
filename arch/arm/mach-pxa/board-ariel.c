@@ -167,7 +167,7 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 	/* Enable 32Khz-out-3  low jitter */
 	pm80x_reg_write(chip->base_page, 0x21, 0x20);
 	/* Enable 32Khz-out-3 */
-	pm80x_reg_write(chip->base_page, 0xE2, 0x22);
+	pm80x_reg_write(chip->base_page, 0xE2, 0x2A);
 	/* Set XO CAP to 22pF to avoid speaker noise */
 	if (get_pmic_id() >= PM800_CHIP_C0)
 		pm80x_reg_write(chip->base_page, 0xE8, 0x70);
