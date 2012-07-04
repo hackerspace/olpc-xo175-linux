@@ -25,7 +25,6 @@
 #include <mach/hardware.h>
 #include <mach/pxa95x_dvfm.h>
 
-#define OP_NUM			20
 #define JIFFIES_VALVE		2
 
 #define EVENT_PAGE_NUM		32
@@ -170,6 +169,105 @@ static ssize_t duty_cycle_show(struct sys_device *sys_dev,
 
 SYSDEV_ATTR(duty_cycle, 0444, duty_cycle_show, NULL);
 
+/* Display DDR duty cycles on all operating points */
+static ssize_t ddr_duty_cycle_show(struct sys_device *sys_dev,
+			  struct sysdev_attribute *attr, char *buf)
+{
+	int len, i, j, k;
+	unsigned int dmcfs;
+	struct dvfm_md_opt *temp_op;
+	struct op_info *op_entry = NULL;
+	char op_name[OP_NAME_LEN];
+	u32 glob_ratio, idle_ratio, busy_ratio, data_ratio, axi_ratio;
+	u32 tmp_totalticks, tmp_idleticks, tmp_busynodata, tmp_readwrite;
+	u64 glob_ticks;
+
+	dmcfs = 0;
+
+	glob_ticks = 0;
+
+	len = sprintf(buf, "\nDuty cycle of DDR operating point list:\n\n");
+
+	len += sprintf(buf + len, "OP# | OP name |dmcfs|glob_ratio|"
+			"idle_ratio|busy_ratio|data_ratio|axi_ratio\n");
+
+	len += sprintf(buf + len, "---------------------------------"
+			"-------------------------------------------\n");
+
+	update_ddr_performance_data(cur_op);
+
+	spin_lock_irqsave(&ddr_performance_data_lock, cpu_flag);
+
+	for (i = 0; i < (event_num / 2); i++)
+		glob_ticks += ddr_ticks_array[i].reg[0];
+
+	k = 0;
+	while ((glob_ticks >> k) > 0x7FFF)
+		k++;
+
+	for (i = 0; i < (event_num / 2); i++) {
+		read_lock(&dvfm_op_list->lock);
+		/* op list shouldn't be empty because op_nums is valid */
+		list_for_each_entry(op_entry, &dvfm_op_list->list, list) {
+			if (op_entry->index == i) {
+				temp_op = (struct dvfm_md_opt *)(op_entry->op);
+				strcpy(op_name, temp_op->name);
+				dmcfs = temp_op->dmcfs;
+			}
+		}
+		read_unlock(&dvfm_op_list->lock);
+
+		if ((u32)(glob_ticks>>k) != 0)
+			glob_ratio = (u32)(ddr_ticks_array[i].reg[0]>>k)
+					* 100000 / (u32)(glob_ticks>>k) + 5;
+		else
+			glob_ratio = 0;
+
+		j = 0;
+		while ((ddr_ticks_array[i].reg[0] >> j) > 0x7FFF)
+			j++;
+
+		tmp_totalticks = ddr_ticks_array[i].reg[0] >> j;
+		tmp_idleticks = ddr_ticks_array[i].reg[1] >> j;
+		tmp_busynodata = ddr_ticks_array[i].reg[2] >> j;
+		tmp_readwrite = ddr_ticks_array[i].reg[3] >> j;
+
+
+		if (tmp_totalticks != 0) {
+			idle_ratio = tmp_idleticks*100000 / tmp_totalticks + 5;
+
+			busy_ratio = (tmp_totalticks - tmp_idleticks) * 100000
+					/ tmp_totalticks + 5;
+
+			data_ratio = (tmp_totalticks - tmp_idleticks
+			- tmp_busynodata) * 100000 / tmp_totalticks + 5;
+
+			axi_ratio = tmp_readwrite*100000 / tmp_totalticks + 5;
+		} else {
+			idle_ratio = 0;
+			busy_ratio = 0;
+			data_ratio = 0;
+			axi_ratio  = 0;
+		}
+
+		len += sprintf(buf + len, "OP%2d|%9s|%5u|%6u.%02u%%|"
+			"%6u.%02u%%|%6u.%02u%%|%6u.%02u%%|%6u.%02u%%\n",
+			       i, op_name, dmcfs,
+				glob_ratio/1000, (glob_ratio%1000)/10,
+				idle_ratio/1000, (idle_ratio%1000)/10,
+				busy_ratio/1000, (busy_ratio%1000)/10,
+				data_ratio/1000, (data_ratio%1000)/10,
+				axi_ratio/1000, (axi_ratio%1000)/10);
+	}
+	spin_unlock_irqrestore(&ddr_performance_data_lock, cpu_flag);
+
+	len += sprintf(buf + len, "\n");
+
+	return len;
+}
+
+SYSDEV_ATTR(ddr_duty_cycle, 0444, ddr_duty_cycle_show, NULL);
+
 /* Display costed time on all operating points */
 static ssize_t ticks_show(struct sys_device *sys_dev,
 			  struct sysdev_attribute *attr, char *buf)
@@ -211,6 +309,57 @@ static ssize_t ticks_show(struct sys_device *sys_dev,
 }
 
 SYSDEV_ATTR(ticks, 0444, ticks_show, NULL);
+
+/* Display DDR ticks on all operating points */
+static ssize_t ddr_ticks_show(struct sys_device *sys_dev,
+			  struct sysdev_attribute *attr, char *buf)
+{
+	int len, i;
+	unsigned int dmcfs;
+	struct dvfm_md_opt *temp_op;
+	struct op_info *op_entry = NULL;
+	char op_name[OP_NAME_LEN];
+	dmcfs = 0;
+
+	len = sprintf(buf, "\nTicks of DDR operating point list:\n\n");
+
+	len += sprintf(buf + len, "OP# | OP name |dmcfs|  total_ticks   |   "
+			"idle_ticks   |   data_ticks   |  axi_readwrite\n");
+
+	len += sprintf(buf + len, "-----------------------------------------"
+			"-------------------------------------------------\n");
+
+	update_ddr_performance_data(cur_op);
+
+	spin_lock_irqsave(&ddr_performance_data_lock, cpu_flag);
+	for (i = 0; i < (event_num / 2); i++) {
+		read_lock(&dvfm_op_list->lock);
+		/* op list shouldn't be empty because op_nums is valid */
+		list_for_each_entry(op_entry, &dvfm_op_list->list, list) {
+			if (op_entry->index == i) {
+				temp_op = (struct dvfm_md_opt *)(op_entry->op);
+				strcpy(op_name, temp_op->name);
+				dmcfs = temp_op->dmcfs;
+			}
+		}
+		read_unlock(&dvfm_op_list->lock);
+
+		len += sprintf(buf + len,
+			"OP%2d|%9s|%5u|%16llu|%16llu|%16llu|%16llu\n",
+			i, op_name, dmcfs, ddr_ticks_array[i].reg[0],
+			ddr_ticks_array[i].reg[1],
+			ddr_ticks_array[i].reg[0]
+			- ddr_ticks_array[i].reg[1]
+			- ddr_ticks_array[i].reg[2],
+			ddr_ticks_array[i].reg[3]);
+	}
+	spin_unlock_irqrestore(&ddr_performance_data_lock, cpu_flag);
+
+	len += sprintf(buf + len, "\n");
+
+	return len;
+}
+SYSDEV_ATTR(ddr_ticks, 0444, ddr_ticks_show, NULL);
 
 /* Display costed time on switching operating point */
 static ssize_t switch_time_show(struct sys_device *sys_dev,
@@ -287,10 +436,37 @@ static ssize_t stats_store(struct sys_device *sys_dev,
 
 SYSDEV_ATTR(stats, 0200, NULL, stats_store);
 
+/* Re-collect ddr static information */
+static ssize_t ddr_stats_store(struct sys_device *sys_dev,
+			   struct sysdev_attribute *attr, const char *buf,
+			   size_t len)
+{
+	unsigned int cap_flag;
+
+	sscanf(buf, "%u", &cap_flag);
+	if (cap_flag == 1) {
+		is_ddr_statics_enabled = 1;
+
+		memset(ddr_ticks_array, 0,
+			sizeof(struct ddr_cycle_type) * OP_NUM);
+
+		init_ddr_performance_counter();
+	} else if (cap_flag == 0) {
+		is_ddr_statics_enabled = 0;
+		stop_ddr_performance_counter();
+	}
+	return len;
+}
+
+SYSDEV_ATTR(ddr_stats, 0200, NULL, ddr_stats_store);
+
 static struct attribute *dvfm_stats_attr[] = {
+	&attr_ddr_duty_cycle.attr,
 	&attr_duty_cycle.attr,
+	&attr_ddr_ticks.attr,
 	&attr_ticks.attr,
 	&attr_switch_time.attr,
+	&attr_ddr_stats.attr,
 	&attr_stats.attr,
 };
 

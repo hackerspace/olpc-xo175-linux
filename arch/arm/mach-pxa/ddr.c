@@ -31,6 +31,11 @@
 
 static unsigned int dmc_base;
 static unsigned int is_pxa930;
+static unsigned int ddr_performance_counter_old[4];
+struct ddr_cycle_type ddr_ticks_array[OP_NUM];
+spinlock_t ddr_performance_data_lock;
+unsigned long cpu_flag;
+unsigned int is_ddr_statics_enabled;
 
 static irqreturn_t ddr_calibration_handler(int irq, void *dev_id)
 {
@@ -149,6 +154,162 @@ static irqreturn_t ddr_calibration_handler(int irq, void *dev_id)
 
 }
 
+extern unsigned int cur_op;
+/* Dynamic Memory Controller IRQ handler */
+static irqreturn_t ddr_MC_irq_handler(int irq, void *dev_id)
+{
+	if (cpu_is_pxa978() || cpu_is_pxa978_Dx()) {
+
+		/* update data and clean irq flags automaticly */
+		update_ddr_performance_data(cur_op);
+
+	} else
+		printk(KERN_ERR "pxa978: unknow ddr controller interrupt!\n");
+
+	return IRQ_HANDLED;
+}
+
+void init_ddr_performance_counter(void)
+{
+	unsigned int i;
+
+	if (!is_ddr_statics_enabled)
+		return;
+
+	if (!dmc_base)
+		dmc_base = (unsigned int) ioremap(0x7ff00000, 0x1000);
+
+	/* reference: Nevo_C0_IAS_Vol2 chapter 14.5.20 Performance Counters */
+	/* disable interrupt and counter */
+	__raw_writel((0xf << 12) | (0xf << 4),
+				dmc_base + PERF_CTRL_0_OFF);
+
+	/* div clock by 1 & Stop on any counter overflow
+	 * & enable counter begin couting */
+	__raw_writel((0x0 << 16) | (0 << 4),
+				dmc_base + PERF_CTRL_1_OFF);
+
+	/* counter0: 0x0 = Clock (divided by pc_clk_div) */
+	__raw_writel((0x1 << 31) | (0x0 << 4) | (0x0 << 0),
+				dmc_base + PERF_SELECT_OFF);
+	__raw_writel(0x0, dmc_base + PERF_COUNTER_OFF);
+
+	/* counter1: 0x1 = MC idle cycles (MC pipeline empty) */
+	__raw_writel((0x1 << 31) | (0x1 << 4) | (0x1 << 0),
+				dmc_base + PERF_SELECT_OFF);
+	__raw_writel(0x0, dmc_base + PERF_COUNTER_OFF);
+
+	/* counter2: 0x4 = MC busy cycles with no data bus utilization */
+	__raw_writel((0x1 << 31) | (0x4 << 4) | (0x2 << 0),
+				dmc_base + PERF_SELECT_OFF);
+	__raw_writel(0x0, dmc_base + PERF_COUNTER_OFF);
+
+	/* counter3: 0x18 = All AXI Read/Write data request */
+	__raw_writel((0x1 << 31) | (0x18 << 4) | (0x3 << 0),
+				dmc_base + PERF_SELECT_OFF);
+	__raw_writel(0x0, dmc_base + PERF_COUNTER_OFF);
+
+	spin_lock_irqsave(&ddr_performance_data_lock, cpu_flag);
+	for (i = 0; i < 4; i++)
+		ddr_performance_counter_old[i] = 0;
+	spin_unlock_irqrestore(&ddr_performance_data_lock, cpu_flag);
+
+	/* clear performance counter IRQ flag */
+	__raw_writel((0xf << 16), dmc_base + PERF_STATUS_OFF);
+
+	/* enable counter 0/1/2/3, enable counter0/1/2/3 interrupt */
+	__raw_writel((0xf << 0) | (0xf << 8), dmc_base + PERF_CTRL_0_OFF);
+}
+
+void stop_ddr_performance_counter(void)
+{
+	unsigned int i;
+
+	if (!dmc_base)
+		dmc_base = (unsigned int) ioremap(0x7ff00000, 0x1000);
+
+	/* reference: Nevo_C0_IAS_Vol2 chapter 14.5.20 Performance Counters */
+	/* disable interrupt and counter */
+	__raw_writel((0xf << 12) | (0xf << 4),
+				dmc_base + PERF_CTRL_0_OFF);
+
+	/* div clock by 1 & Stop on any counter overflow
+	 * & enable counter begin couting */
+	__raw_writel((0x0 << 16) | (0 << 4),
+				dmc_base + PERF_CTRL_1_OFF);
+
+	/* counter0: 0x0 = Clock (divided by pc_clk_div) */
+	__raw_writel((0x1 << 31) | (0x0 << 4) | (0x0 << 0),
+				dmc_base + PERF_SELECT_OFF);
+	__raw_writel(0x0, dmc_base + PERF_COUNTER_OFF);
+
+	/* counter1: 0x1 = MC idle cycles (MC pipeline empty) */
+	__raw_writel((0x1 << 31) | (0x1 << 4) | (0x1 << 0),
+				dmc_base + PERF_SELECT_OFF);
+	__raw_writel(0x0, dmc_base + PERF_COUNTER_OFF);
+
+	/* counter2: 0x4 = MC busy cycles with no data bus utilization */
+	__raw_writel((0x1 << 31) | (0x4 << 4) | (0x2 << 0),
+				dmc_base + PERF_SELECT_OFF);
+	__raw_writel(0x0, dmc_base + PERF_COUNTER_OFF);
+
+	/* counter3: 0x18 = All AXI Read/Write data request */
+	__raw_writel((0x1 << 31) | (0x18 << 4) | (0x3 << 0),
+				dmc_base + PERF_SELECT_OFF);
+	__raw_writel(0x0, dmc_base + PERF_COUNTER_OFF);
+
+	spin_lock_irqsave(&ddr_performance_data_lock, cpu_flag);
+	for (i = 0; i < 4; i++)
+		ddr_performance_counter_old[i] = 0;
+	spin_unlock_irqrestore(&ddr_performance_data_lock, cpu_flag);
+
+	/* clear performance counter IRQ flag */
+	__raw_writel((0xf << 16), dmc_base + PERF_STATUS_OFF);
+}
+
+
+void update_ddr_performance_data(int op_idx)
+{
+	unsigned int reg[4], i, overflow_flag;
+
+	if (!is_ddr_statics_enabled)
+		return;
+
+	if (!dmc_base)
+		dmc_base = (unsigned int) ioremap(0x7ff00000, 0x1000);
+
+	/* stop counters, to keep data synchronized */
+	__raw_writel((0xf << 4), dmc_base + PERF_CTRL_0_OFF);
+
+	overflow_flag = __raw_readl(dmc_base + PERF_STATUS_OFF);
+	overflow_flag = (overflow_flag >> 16) & 0xf;
+
+	spin_lock_irqsave(&ddr_performance_data_lock, cpu_flag);
+	for (i = 0; i < 4; i++) {
+		__raw_writel((i << 0), dmc_base + PERF_SELECT_OFF);
+		reg[i] = __raw_readl(dmc_base + PERF_COUNTER_OFF);
+
+		if (overflow_flag & (1 << i))
+			ddr_ticks_array[cur_op].reg[i] += (u64)0x100000000
+				+ reg[i] - ddr_performance_counter_old[i];
+		else
+			ddr_ticks_array[cur_op].reg[i] += reg[i]
+				- ddr_performance_counter_old[i];
+
+		ddr_performance_counter_old[i] = reg[i];
+	}
+	spin_unlock_irqrestore(&ddr_performance_data_lock, cpu_flag);
+
+	/* if there is overflow, clean interrupt flags and re-init counters */
+	if (overflow_flag) {
+		__raw_writel((0xf << 16), dmc_base + PERF_STATUS_OFF);
+		init_ddr_performance_counter();
+	}
+
+	/* enable counter 0/1/2/3, enable counter0/1/2/3 interrupt */
+	__raw_writel((0xf << 0) | (0xf << 8), dmc_base + PERF_CTRL_0_OFF);
+}
+
 static int __init ddr_init(void)
 {
 	unsigned int dmcier, dmcisr, temp;
@@ -157,6 +318,20 @@ static int __init ddr_init(void)
 		is_pxa930 = 0;
 	else if (cpu_is_pxa930())
 		is_pxa930 = 1;
+	else if (cpu_is_pxa978() || cpu_is_pxa978_Dx()) {
+		spin_lock_init(&ddr_performance_data_lock);
+		if (!dmc_base)
+			dmc_base = (unsigned int) ioremap(0x7ff00000, 0x1000);
+
+		temp = request_irq(IRQ_DMEMC, ddr_MC_irq_handler,
+					IRQF_DISABLED, "pxa9xx-dmemc", NULL);
+		if (temp) {
+			printk(KERN_ERR "can't assign IRQ_DMEMC!\n");
+			return -EAGAIN;
+		}
+		printk(KERN_INFO"pxa978 ddr_init OK\n");
+		return 0;
+	}
 	else {
 		pr_err("DDR calibration is only for pxa93x, pxa955 and pxa968\n");
 		return 0;

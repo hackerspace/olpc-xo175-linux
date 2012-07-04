@@ -83,6 +83,12 @@
 #define PAD_SMEM_OFF		0x0128
 #define PAD_SCLK_OFF		0x012C
 
+#define PERF_CTRL_0_OFF		0x0F00
+#define PERF_CTRL_1_OFF		0x0F10
+#define PERF_STATUS_OFF		0x0F20
+#define PERF_SELECT_OFF		0x0F40
+#define PERF_COUNTER_OFF	0x0F50
+
 /* static memory controller registers */
 #define MSC0_OFF		0x0008
 #define MSC1_OFF		0x000C
@@ -577,6 +583,7 @@ struct pxa95x_peripheral_wakeup_ops {
 	int (*cmwdt) (pm_wakeup_src_t src, int enable);
 	int (*display) (pm_wakeup_src_t src, int enable);
 };
+
 extern unsigned int *remap_c2_reg;
 extern unsigned int  *pl310_membase;
 extern pm_wakeup_src_t suspend_wakeup_src;
@@ -595,6 +602,29 @@ extern int pxa95x_query_gwsr(int);
 extern u32 get_mipi_reference_control(void);
 extern unsigned int get_c2_sram_base(void);
 extern void pxa978_pm_enter(unsigned long save_mode);
+
+
+#define OP_NUM			20
+
+/*
+ *  reg[0] ddr_totalticks
+ *  reg[1] ddr_idleticks
+ *  reg[2] u64 ddr_busynodata
+ *  reg[3] u64 axi_readwrite
+ */
+struct ddr_cycle_type {
+	u64 reg[4];
+};
+
+extern struct ddr_cycle_type ddr_ticks_array[OP_NUM];
+extern unsigned int is_ddr_statics_enabled;
+extern spinlock_t ddr_performance_data_lock;
+extern unsigned long cpu_flag;
+
+extern void init_ddr_performance_counter(void);
+extern void stop_ddr_performance_counter(void);
+extern void update_ddr_performance_data(int op_idx);
+
 #endif
 #endif
 #endif

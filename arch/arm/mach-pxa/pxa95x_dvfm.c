@@ -3044,8 +3044,11 @@ static int pxa95x_stats_notifier_freq(struct notifier_block *nb,
 		switch (val) {
 		case DVFM_FREQ_PRECHANGE:
 			calc_switchtime_start(freqs->old, freqs->new, ticks);
+			update_ddr_performance_data(freqs->old);
+			stop_ddr_performance_counter();
 			break;
 		case DVFM_FREQ_POSTCHANGE:
+			init_ddr_performance_counter();
 			/* Calculate the costed time on switching frequency */
 			calc_switchtime_end(freqs->old, freqs->new, ticks);
 			dvfm_add_timeslot(freqs->old, CPU_STATE_RUN);
