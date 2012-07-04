@@ -1322,6 +1322,47 @@ static int cam_ldo12_1p2v_enable(int on)
 	return 0;
 }
 
+static int camera_subsensor_power(struct device *dev, int on)
+{
+	unsigned int cam_reset;
+	unsigned int cam_afen;
+
+	cam_reset = GPIO_EXT0(14);
+	cam_afen = mfp_to_gpio(GPIO49_GPIO49);
+
+	if (gpio_request(cam_reset, "CAM_RESET")) {
+		printk(KERN_ERR "Request GPIO failed,"
+			"gpio: %d\n", cam_reset);
+		return -EIO;
+	}
+	if (gpio_request(cam_afen, "CAM_RESET")) {
+		printk(KERN_ERR "Request GPIO failed,"
+			"gpio: %d\n", cam_afen);
+		return -EIO;
+	}
+
+	if(on) {
+		gpio_direction_output(cam_afen, 1);
+		mdelay(1);
+		gpio_direction_output(cam_reset, 0);
+		mdelay(1);
+		gpio_direction_output(cam_reset, 1);
+		mdelay(1);
+	} else {
+		gpio_direction_output(cam_reset, 0);
+		mdelay(1);
+		gpio_direction_output(cam_reset, 1);
+		mdelay(1);
+		gpio_direction_output(cam_afen, 0);
+		mdelay(1);
+	}
+
+	gpio_free(cam_reset);
+	gpio_free(cam_afen);
+
+	return 0;
+}
+
 static int camera_sensor_power(struct device *dev, int on)
 {
 	unsigned int cam_pwr;
@@ -1441,6 +1482,14 @@ static struct i2c_board_info dkb_i2c_camera[] = {
 #endif
 };
 
+static struct i2c_board_info dkb_i2c_subcamera[] = {
+#if defined(CONFIG_SOC_CAMERA_OV7670)
+	{
+		I2C_BOARD_INFO("ov7670", 0x21),
+	},
+#endif
+};
+
 #if defined(CONFIG_SOC_CAMERA_OV5642)
 static struct soc_camera_link iclink_ov5642_dvp = {
 	.bus_id         = 0,            /* Must match with the camera ID */
@@ -1473,6 +1522,24 @@ static struct platform_device dkb_ov5640_mipi = {
 	.id     = 0,
 	.dev    = {
 		.platform_data = &iclink_ov5640_mipi,
+	},
+};
+#endif
+
+#if defined(CONFIG_SOC_CAMERA_OV7670)
+static struct soc_camera_link iclink_ov7670_dvp = {
+	.bus_id         = 0,            /* Must match with the camera ID */
+	.power          = camera_subsensor_power,
+	.board_info     = &dkb_i2c_subcamera[0],
+	.i2c_adapter_id = 0,
+	.module_name    = "ov7670",
+};
+
+static struct platform_device dkb_ov7670_dvp = {
+	.name   = "soc-camera-pdrv",
+	.id     = 0,
+	.dev    = {
+		.platform_data = &iclink_ov7670_dvp,
 	},
 };
 #endif
@@ -1628,6 +1695,9 @@ static struct platform_device *ttc_dkb_devices[] = {
 	&dkb_ov5642_dvp,
 #elif defined(CONFIG_SOC_CAMERA_OV5640)
 	&dkb_ov5640_mipi,
+#endif
+#if defined(CONFIG_SOC_CAMERA_OV7670)
+	&dkb_ov7670_dvp,
 #endif
 };
 
@@ -2637,6 +2707,10 @@ static void __init ttc_dkb_init(void)
 		((struct soc_camera_link *)(dkb_ov5640_mipi.dev.platform_data))
 			->i2c_adapter_id = 1;
 #endif
+#if defined(CONFIG_SOC_CAMERA_OV7670)
+		((struct soc_camera_link *)(dkb_ov7670_dvp.dev.platform_data))
+			->i2c_adapter_id = 1;
+#endif
 	} else if (cpu_is_pxa910h()) {
 		pxa910_add_twsi(0, &dkb_i2c_pdata, ARRAY_AND_SIZE(ttc_dkb_pxa910h_i2c_info));
 		pxa910_add_twsi(1, &ttc_dkb_pwr_i2c_pdata,
@@ -2647,6 +2721,10 @@ static void __init ttc_dkb_init(void)
 			->i2c_adapter_id = 1;
 #elif defined(CONFIG_SOC_CAMERA_OV5640)
 		((struct soc_camera_link *)(dkb_ov5640_mipi.dev.platform_data))
+			->i2c_adapter_id = 1;
+#endif
+#if defined(CONFIG_SOC_CAMERA_OV7670)
+		((struct soc_camera_link *)(dkb_ov7670_dvp.dev.platform_data))
 			->i2c_adapter_id = 1;
 #endif
 	} else {
