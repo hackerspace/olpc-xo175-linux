@@ -519,11 +519,14 @@ static void pm_select_wakeup_src(enum pxa95x_pm_mode lp_mode,
 	}
 	if (lp_mode == PXA95x_PM_CG) {
 		ACGD0SR = 0xFFFFFFFF;
-		/* add the interrupt and dmemc wakeup event */
-		ACGD0ER = reg_src | PXA95x_PM_WE_INTC | PXA95x_PM_WE_DMC;
 		if (cpu_is_pxa978_Dx()) {
+			ACGD0ER = reg_src | PXA95x_PM_WE_INTC |
+				PXA95x_PM_WE_DMC | PXA95x_PM_WE_MLCD;
 			ACGD0SR2 = 0xFFFFFFFF;
 			ACGD0ER2 = (PXA95x_PM_WE_DIS) | (PXA95x_PM_WE_PAR);
+		} else {
+			/* add the interrupt and dmemc wakeup event */
+			ACGD0ER = reg_src | PXA95x_PM_WE_INTC | PXA95x_PM_WE_DMC;
 		}
 	}
 }
@@ -1112,6 +1115,7 @@ static unsigned int pm_postset_clockgate(void)
 	pxa95x_clear_pm_status(0);
 	pm_clear_wakeup_src(wakeup_src);
 
+
 	return wakeup_data;
 }
 
@@ -1362,7 +1366,7 @@ void enter_lowpower_mode(int state)
 	unsigned int accr, acsr;
 	unsigned int power_state;
 	unsigned int wakeup_data, cpupwr;
-	unsigned int tmp_ckenc;
+	unsigned int tmp_ckena, tmp_ckenb, tmp_ckenc;
 	static unsigned int last_d2exit_time;
 	unsigned long flags;
 
@@ -1697,17 +1701,21 @@ void enter_lowpower_mode(int state)
 			 * Turn off all clocks except PX1 bus clock,
 			 * DMEMC clock and reserved bits
 			 */
-			CKENA = ckena_rsvd_bit_mask | (1 << 8);
-			reg = CKENA;
-			CKENB = ckenb_rsvd_bit_mask | (1 << 29);
-			reg = CKENB;
-
+			tmp_ckena = ckena_rsvd_bit_mask | (1 << 8);
+			tmp_ckenb = ckenb_rsvd_bit_mask | (1 << 29);
 			tmp_ckenc = ckenc_rsvd_bit_mask;
 			/* Base on the LCD/DSI curret clock status to decide
 			 * entering D0CG or D0CG-LCD
 			 */
-			if (cpu_is_pxa978_Dx())
+			if (cpu_is_pxa978_Dx()) {
+				tmp_ckena |= (cken[0] & 0x20000000);
+				tmp_ckenb |= (cken[1] & 0x08000000);
 				tmp_ckenc |= (cken[2] & 0xc0c00000);
+			}
+			CKENA = tmp_ckena;
+			reg = CKENA;
+			CKENB = tmp_ckenb;
+			reg = CKENB;
 			CKENC = tmp_ckenc;
 			reg = CKENC;
 
@@ -1715,13 +1723,11 @@ void enter_lowpower_mode(int state)
 			 * making sure that registers are written with the correct value
 			 * before moving on
 			 */
-			while ((CKENA != (ckena_rsvd_bit_mask | (1 << 8))) ||
-					(CKENB != (ckenb_rsvd_bit_mask | (1 << 29))) ||
+			while ((CKENA != tmp_ckena) || (CKENB != tmp_ckenb) ||
 					(CKENC != tmp_ckenc)) {
 			};
 			/* Turn off PX1 bus clock */
 			CKENB &= ~(1 << 29);
-
 			if (is_wkr_mg1_1274())
 				pxa95x_pm_clear_Dcache_L2Cache();
 			/* enter clock gated mode by entering core idle */
