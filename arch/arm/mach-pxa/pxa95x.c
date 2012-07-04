@@ -439,6 +439,10 @@ static int __init pxa95x_init(void)
 		void *l2x0_base = ioremap_nocache(0x58120000, 0x1000);
 		if (!l2x0_base)
 			return -ENOMEM;
+
+		/* Enable power features in contrller */
+		writel_relaxed(0x3, l2x0_base + L2X0_POWER_CTRL);
+
 		/* Args 1,2: don't change AUX_CTRL */
 		l2x0_init(l2x0_base, 0x30000000, ~0);
 		l2x0_save_regs_phys_addr(&pl310_saved_regs_phys_addr,
