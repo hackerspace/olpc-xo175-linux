@@ -32,6 +32,8 @@
 #include <asm/mach/arch.h>
 
 #include <mach/hardware.h>
+#include <mach/mfp.h>
+#include <mach/mfp-pxa930.h>
 #include <mach/gpio.h>
 #include <mach/pxa95xfb.h>
 #include <mach/pxa95x_dvfm.h>
@@ -318,30 +320,44 @@ static struct devfreq_platform_data devfreq_vmeta_pdata = {
 
 static struct clk *clk_tout_s0;
 
-/* specific 8787 power on/off setting for SAARC */
+/* specific 8787 power on/off setting for Ariel */
 static void wifi_set_power(unsigned int on)
 {
-	unsigned long wlan_pd_mfp = 0;
+	unsigned long wlan_pd_mfp = 0, wlan_en_mfp = 0;
 	int gpio_power_down = mfp_to_gpio(MFP_PIN_GPIO70);
-	/* 8787_LDO_EN(WIB_EN) is useless on ariel */
-	/* the 1v8 is supplied by vbuk2 on ariel */
-	struct regulator *v_ldo_3v3 = NULL;
+	int gpio_wifi_en = -1;
+	struct regulator *wifi_3v3 = NULL;
 
-	v_ldo_3v3 = regulator_get(NULL, "v_wifi_3v3");
-	if (IS_ERR(v_ldo_3v3)) {
-		v_ldo_3v3 = NULL;
+	wifi_3v3 = regulator_get(NULL, "v_wifi_3v3");
+	if (IS_ERR(wifi_3v3)) {
+		wifi_3v3 = NULL;
+		printk("get wifi_3v3 regulator error\n");
 		return;
 	}
 
-	wlan_pd_mfp = mfp_read(gpio_power_down);
+	gpio_wifi_en = mfp_to_gpio(MFP_PIN_GPIO102);
+
+	wlan_pd_mfp = pxa3xx_mfp_read(gpio_power_down);
 
 	if (on) {
-		regulator_enable(v_ldo_3v3);
+		regulator_enable(wifi_3v3);
+
+		if (gpio_wifi_en >= 0) {
+			gpio_request(gpio_wifi_en, "WIB_EN");
+			gpio_direction_output(gpio_wifi_en, 1);
+
+			/* set WIB_EN pin to output high in low power mode to
+			ensure 8787 is not power off in low power mode */
+			wlan_en_mfp = pxa3xx_mfp_read(gpio_wifi_en);
+			wlan_en_mfp &= ~0x80;
+			wlan_en_mfp |= 0x100;
+			pxa3xx_mfp_write(gpio_wifi_en, wlan_en_mfp & 0xffff);
+		}
 
 		/* set wlan_pd pin to output high in low power
 			mode to ensure 8787 is not power off in low power mode*/
 		wlan_pd_mfp |= 0x100;
-		mfp_write(gpio_power_down, wlan_pd_mfp & 0xffff);
+		pxa3xx_mfp_write(gpio_power_down, wlan_pd_mfp & 0xffff);
 
 		/* enable 32KHz TOUT */
 		clk_enable(clk_tout_s0);
@@ -349,13 +365,26 @@ static void wifi_set_power(unsigned int on)
 		/*set wlan_pd pin to output low in low power
 			mode to save power in low power mode */
 		wlan_pd_mfp &= ~0x100;
-		mfp_write(gpio_power_down, wlan_pd_mfp & 0xffff);
+		pxa3xx_mfp_write(gpio_power_down, wlan_pd_mfp & 0xffff);
 
 		/* disable 32KHz TOUT */
 		clk_disable(clk_tout_s0);
-		regulator_disable(v_ldo_3v3);
+
+		if (gpio_wifi_en >= 0) {
+			/* set WIB_EN pin to be output low in low power
+				mode to save power in low power mode */
+			wlan_en_mfp = pxa3xx_mfp_read(gpio_wifi_en);
+			wlan_en_mfp &= ~0x100;
+			pxa3xx_mfp_write(gpio_wifi_en, wlan_en_mfp & 0xffff);
+
+			gpio_direction_output(gpio_wifi_en, 0);
+			gpio_free(gpio_wifi_en);
+		}
+
+		regulator_disable(wifi_3v3);
 	}
-	regulator_put(v_ldo_3v3);
+
+	regulator_put(wifi_3v3);
 }
 
 #if defined(CONFIG_MMC_SDHCI_PXAV2_TAVOR) || defined(CONFIG_MMC_SDHCI_PXAV3)
