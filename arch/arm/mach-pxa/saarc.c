@@ -1914,6 +1914,10 @@ static void __init init_cam(void)
 		printk(KERN_NOTICE "cam: saarc: support ov5642\n");
 		platform_device_register(&camera[ID_OV5642]);
 #endif
+#if defined(CONFIG_SOC_CAMERA_OV5640)
+		printk(KERN_NOTICE "cam: saarc: support ov5640\n");
+		platform_device_register(&camera[ID_OV5640]);
+#endif
 		break;
 	}
 	platform_device_register(&pxa95x_device_cam0);
