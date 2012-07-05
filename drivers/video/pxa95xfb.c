@@ -1013,9 +1013,10 @@ static void converter_set_parallel(struct pxa95xfb_info *fbi)
 
 	/* set converter registers */
 	x = LCD_CONVx_CTL_TV_FOR
-		|LCD_CONVx_CTL_DISP_EOF_INT_EN
 		|LCD_CONVx_CTL_OP_FOR(conv->pix_fmt_out)
 		|LCD_CONVx_CTL_DISP_TYPE(conv->panel_type);
+	if (!cpu_is_pxa978())
+		x |= LCD_CONVx_CTL_DISP_EOF_INT_EN;
 	writel(x, fbi->reg_base + LCD_CONV0_CTL);
 }
 
@@ -1074,13 +1075,13 @@ static void converter_set_dsi(struct pxa95xfb_conv_info *conv)
 		   |DxCONV_GEN_NULL_BLANK_GEN_PXL_FORMAT3(format),
 		conv_base + LCD_DSI_DxCONV_GEN_NULL_BLANK_OFFSET);
 
-	writel(
-		LCD_DSI_DxSCR0_PRIM_VC
+	x = LCD_DSI_DxSCR0_PRIM_VC
 		|LCD_DSI_DxSCR0_FLOW_DIS
 		|LCD_DSI_DxSCR0_CONV_EN
-		|LCD_DSI_DxSCR0_DISP_URUN_INT_EN
-		|LCD_DSI_DxSCR0_DISP_EOF_INT_EN
-		,conv_base + LCD_DSI_DxSCR0_OFFSET);
+		|LCD_DSI_DxSCR0_DISP_URUN_INT_EN;
+	if (!cpu_is_pxa978())
+		x |= LCD_CONVx_CTL_DISP_EOF_INT_EN;
+	writel(x, conv_base + LCD_DSI_DxSCR0_OFFSET);
 
 	/*Send DSI commands and enable dsi*/
 	/*Set default values - Low Power and 2 lanes*/
@@ -1339,6 +1340,49 @@ void converter_onoff(struct pxa95xfb_info *fbi, int on)
 	}
 }
 
+/* use dynamic converter unmask/mask eof to reduce converter interrupts:
+ * converter mask eof will be always called when intr
+ * converter unmask eof will be always called when wait_vsync
+ */
+static void converter_mask_eof(struct pxa95xfb_conv_info *conv)
+{
+	u32 x;
+	/* for MG platform, a SI workaround is required to do freq change in converter eof
+	 * so converter irq could not be masked in MG
+	 * for HDMI converter, as no converter irq exported and fetch irq is used, so not do that
+	 */
+	if (!cpu_is_pxa978() || conv->converter == LCD_M2HDMI)
+		return;
+
+	conv->irq_pending = (conv->irq_pending > 0) ? (conv->irq_pending - 1) : 0;
+
+	if (conv->irq_pending == 0) {
+		x = readl(conv->conv_base + LCD_DSI_DxSCR0_OFFSET);
+		x &= ~LCD_CONVx_CTL_DISP_EOF_INT_EN;
+		writel(x, conv->conv_base + LCD_DSI_DxSCR0_OFFSET);
+	}
+	printk(KERN_DEBUG "%s: mask eof: pending irq %d\n",
+		conv->name, conv->irq_pending);
+}
+
+static void converter_unmask_eof(struct pxa95xfb_conv_info *conv)
+{
+	u32 x;
+	if (!cpu_is_pxa978() || conv->converter == LCD_M2HDMI)
+		return;
+
+	/* although there's possibility be inserted by mask_eof, spin_lock is not added here:
+	 * irq_pending = 2 so eof mask would less possible to be happened
+	 */
+	conv->irq_pending = 2;
+	x = readl(conv->conv_base + LCD_DSI_DxSCR0_OFFSET);
+	x |= LCD_CONVx_CTL_DISP_EOF_INT_EN;
+	writel(x, conv->conv_base + LCD_DSI_DxSCR0_OFFSET);
+	printk(KERN_DEBUG "%s: unmask eof: pending irq %d\n",
+		conv->name, conv->irq_pending);
+}
+
+
 #ifdef CONFIG_PXA95x_DVFM
 extern void update_hss(void); /* FIXME: workaround for hss change issue*/
 #else
@@ -1366,6 +1410,7 @@ static irqreturn_t converter_handle_irq(int irq, void *dev_id)
 			atomic_set(&conv->w_intr, 1);
 			wake_up(&g_vsync_wq);
 		}
+		converter_mask_eof(conv);
 
 		/*printk(KERN_ALERT "%s: DSI Converter eof observed!\n", __func__);*/
 	}
@@ -2094,19 +2139,27 @@ void lcdc_wait_for_vsync(u32 conv_id1, u32 conv_id2)
 
 	if (conv_id2 && conv_id2 <= LCD_M2HDMI) {
 		atomic_set(&pxa95xfb_conv[conv_id2 - 1].w_intr, 0);
+		converter_unmask_eof(&pxa95xfb_conv[conv_id1 - 1]);
+		converter_unmask_eof(&pxa95xfb_conv[conv_id2 - 1]);
 		ret = wait_event_interruptible_timeout(g_vsync_wq,
 			atomic_read(&pxa95xfb_conv[conv_id1 - 1].w_intr) && atomic_read(&pxa95xfb_conv[conv_id2 - 1].w_intr),
 			60 * HZ / 1000);
+		if(!ret)
+			printk(KERN_DEBUG "warning %s: waiting vsync failed: conv_id: %s: %d %s: %d\n",
+				__func__, pxa95xfb_conv[conv_id1 - 1].name,
+				atomic_read(&pxa95xfb_conv[conv_id1 - 1].w_intr),
+				pxa95xfb_conv[conv_id2 - 1].name,
+				atomic_read(&pxa95xfb_conv[conv_id2 - 1].w_intr));
 	} else {
+		converter_unmask_eof(&pxa95xfb_conv[conv_id1 - 1]);
 		ret = wait_event_interruptible_timeout(g_vsync_wq,
 			atomic_read(&pxa95xfb_conv[conv_id1 - 1].w_intr),
 			60 * HZ / 1000);
+		if(!ret)
+			printk(KERN_DEBUG "warning %s: waiting vsync failed: conv_id: %s: %d\n",
+				__func__, pxa95xfb_conv[conv_id1 - 1].name,
+				atomic_read(&pxa95xfb_conv[conv_id1 - 1].w_intr));
 	}
-	/*
-	if(!ret)
-		printk(KERN_ERR "warning %s: waiting vsync failed: conv_id: %d: %d %d: %d\n",
-			__func__, conv_id1, atomic_read(&pxa95xfb_conv[conv_id1 - 1].w_intr),
-			conv_id2, atomic_read(&pxa95xfb_conv[conv_id2 - 1].w_intr));*/
 
 	return;
 }

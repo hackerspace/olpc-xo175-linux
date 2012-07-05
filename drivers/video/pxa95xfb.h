@@ -762,6 +762,7 @@ struct pxa95xfb_conv_info {
 	struct loop_kthread thread;
 
 	atomic_t	w_intr;
+	int	irq_pending;
 };
 
 struct buf_addr {
