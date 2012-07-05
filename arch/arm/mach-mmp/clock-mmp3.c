@@ -2204,15 +2204,10 @@ static struct clk mmp3_clk_dxoccic = {
 
 #ifdef CONFIG_UIO_VMETA
 
-#define VMETA_PLL1		0
-#define VMETA_PLL2		1
-#define VMETA_PLL1_OUTP		2
-#define VMETA_PLL2_OUTP		3
-
 static void vmeta_clk_init(struct clk *clk)
 {
 	clk->rate = clk_get_rate(&mmp3_clk_pll1_clkoutp) / 2;
-	clk->enable_val = VMETA_PLL1_OUTP;
+	clk->enable_val = PLL1D2; /* for ACLK setting */
 	clk->div = 2;
 	clk->mul = 1;
 	clk_reparent(clk, &mmp3_clk_pll1_clkoutp);
@@ -2221,16 +2216,26 @@ static void vmeta_clk_init(struct clk *clk)
 static int vmeta_clk_enable(struct clk *clk)
 {
 	int reg;
+	int i;
 
-	clk_reparent(clk, clk->inputs[clk->enable_val].input);
+	i = 0;
+	while ((clk->inputs[i].input != clk->parent) && clk->inputs[i].input)
+		i++;
+
+	if (clk->inputs[i].input == 0) {
+		pr_err("%s: unexpected vMeta clock source\n", __func__);
+		return -1;
+	}
 
 	reg = readl(clk->clk_rst);
+	/* vMeta clock setting */
 	reg &= ~APMU_VMETA_CLK_SEL_MASK;
 	reg &= ~APMU_VMETA_CLK_DIV_MASK;
-	reg |= (clk->inputs[clk->enable_val].value) << APMU_VMETA_CLK_SEL_SHIFT;
+	reg |= (clk->inputs[i].value) << APMU_VMETA_CLK_SEL_SHIFT;
 	reg |= (clk->div) << APMU_VMETA_CLK_DIV_SHIFT;
-	reg &= ~(3u << 11); /* vmeta BUS PLL1/2*/
-	reg |= (2u << 11);
+	/* vMeta bus clock setting */
+	reg &= ~APMU_VMETA_ACLK_MASK;
+	reg |= (clk->enable_val) << APMU_VMETA_ACLK_SEL_SHIFT;
 	writel(reg, clk->clk_rst);
 
 	reg = readl(clk->clk_rst);
@@ -2271,31 +2276,31 @@ static int vmeta_clk_setrate(struct clk *clk, unsigned long rate)
 {
 	clk->mul = 1;
 	if (rate == clk_get_rate(&mmp3_clk_pll1)/4) {
-		clk->enable_val = VMETA_PLL1;
+		clk->enable_val = PLL1D4;
 		clk->div = 4;
 		clk_reparent(clk, &mmp3_clk_pll1);
 	} else if (rate == clk_get_rate(&mmp3_clk_pll1_clkoutp)/4) {
-		clk->enable_val = VMETA_PLL1_OUTP;
+		clk->enable_val = PLL1D4;
 		clk->div = 4;
 		clk_reparent(clk, &mmp3_clk_pll1_clkoutp);
 	} else if (rate == clk_get_rate(&mmp3_clk_pll1)/2) {
-		clk->enable_val = VMETA_PLL1;
+		clk->enable_val = PLL1D2;
 		clk->div = 2;
 		clk_reparent(clk, &mmp3_clk_pll1);
 	} else if (rate == clk_get_rate(&mmp3_clk_pll2_clkoutp)/2) {
-		clk->enable_val = VMETA_PLL2_OUTP;
+		clk->enable_val = PLL1D2;
 		clk->div = 2;
 		clk_reparent(clk, &mmp3_clk_pll2_clkoutp);
 	} else if (rate == clk_get_rate(&mmp3_clk_pll1_clkoutp)/2) {
-		clk->enable_val = VMETA_PLL1_OUTP;
+		clk->enable_val = PLL1D2;
 		clk->div = 2;
 		clk_reparent(clk, &mmp3_clk_pll1_clkoutp);
 	} else if (rate == clk_get_rate(&mmp3_clk_pll2)/2) {
-		clk->enable_val = VMETA_PLL2;
+		clk->enable_val = PLL1D2;
 		clk->div = 2;
 		clk_reparent(clk, &mmp3_clk_pll2);
 	} else if (rate == clk_get_rate(&mmp3_clk_pll1)) {
-		clk->enable_val = VMETA_PLL1;
+		clk->enable_val = PLL1D2;
 		clk->div = 1;
 		clk_reparent(clk, &mmp3_clk_pll1);
 	} else {

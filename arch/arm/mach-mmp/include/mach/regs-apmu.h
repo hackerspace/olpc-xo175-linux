@@ -157,6 +157,8 @@
 #define APMU_VMETA_CLK_DIV_SHIFT		16
 #define APMU_VMETA_CLK_PLL2			(0x1 << 6)
 #define APMU_VMETA_CLK_SEL_SHIFT		6
+#define APMU_VMETA_ACLK_MASK			(0x3 << 11)
+#define APMU_VMETA_ACLK_SEL_SHIFT		11
 /* VMeta Technology Power Up */
 #define APMU_VMETA_PWRUP_ON			(3 << 9)
 #define APMU_VMETA_PWRUP_SLOW_RAMP		(1 << 9)
