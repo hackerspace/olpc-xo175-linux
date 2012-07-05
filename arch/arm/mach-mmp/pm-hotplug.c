@@ -47,13 +47,10 @@ static struct workqueue_struct *hotplug_wq;
 static struct delayed_work hotplug_work;
 
 static unsigned int hotpluging_rate = CHECK_DELAY;
-module_param_named(rate, hotpluging_rate, uint, 0644);
 static unsigned int hp_lock;
-module_param_named(lock, hp_lock, uint, 0644);
 static unsigned int trans_load_l = TRANS_LOAD_L;
-module_param_named(loadl, trans_load_l, uint, 0644);
 static unsigned int trans_load_h = TRANS_LOAD_H;
-module_param_named(loadh, trans_load_h, uint, 0644);
+static unsigned int bound_freq = 400 * 1000;
 
 struct cpu_time_info {
 	cputime64_t prev_cpu_idle;
@@ -89,7 +86,7 @@ static void hotplug_timer(struct work_struct *work)
 	}
 
 	if (hp_lock == 1)
-		goto no_hotplug;
+		goto unlock;
 
 	for_each_online_cpu(i) {
 		struct cpu_time_info *tmp_info;
@@ -120,23 +117,23 @@ static void hotplug_timer(struct work_struct *work)
 
 	cur_freq = cpufreq_get(0);
 
-	if (((avg_load < trans_load_l) && (cur_freq <= 400 * 1000)) &&
+	if (((avg_load < trans_load_l) && (cur_freq <= bound_freq)) &&
 	    (cpu_online(1) == 1)) {
-		pr_info("cpu1 turning off!\n");
+		printk(KERN_INFO "cpu1 turning off!\n");
 		cpu_down(1);
 #if CPUMON
-		printk(KERN_ERR "CPUMON D %d\n", avg_load);
+		printk(KERN_INFO "CPUMON D %d\n", avg_load);
 #endif
 		pr_info("cpu1 off end!\n");
 		hotpluging_rate = CHECK_DELAY;
-	} else if (((avg_load > trans_load_h) && (cur_freq >= 400 * 1000)) &&
+	} else if (((avg_load > trans_load_h) && (cur_freq >= bound_freq)) &&
 		   (cpu_online(1) == 0)) {
 		pr_info("cpu1 turning on!\n");
 		cpu_up(1);
 #if CPUMON
-		printk(KERN_ERR "CPUMON U %d\n", avg_load);
+		printk(KERN_INFO "CPUMON U %d\n", avg_load);
 #endif
-		pr_info("cpu1 on end!\n");
+		printk(KERN_INFO "cpu1 on end!\n");
 		hotpluging_rate = CHECK_DELAY * 4;
 	}
 
@@ -252,22 +249,83 @@ static u32 parse_arg(const char *buf, size_t count)
 	return simple_strtol(token, NULL, 0);
 }
 
+static int loadh_get(struct device *dev, struct device_attribute *attr,
+			char *buf)
+{
+	return sprintf(buf, "%d\n", trans_load_h);
+}
+static int loadh_set(struct device *dev, struct device_attribute *attr,
+			const char *buf, size_t count)
+{
+	int loadh_tmp;
+	if (!sscanf(buf, "%d", &loadh_tmp))
+		return -EINVAL;
+	trans_load_h = loadh_tmp;
+	return count;
+
+}
+static DEVICE_ATTR(loadh, S_IRUGO | S_IWUSR, loadh_get, loadh_set);
+
+static int loadl_get(struct device *dev, struct device_attribute *attr,
+			char *buf)
+{
+	return sprintf(buf, "%d\n", trans_load_l);
+}
+static int loadl_set(struct device *dev, struct device_attribute *attr,
+			const char *buf, size_t count)
+{
+	int loadl_tmp;
+	if (!sscanf(buf, "%d", &loadl_tmp))
+		return -EINVAL;
+	trans_load_l = loadl_tmp;
+	return count;
+}
+static DEVICE_ATTR(loadl, S_IRUGO | S_IWUSR, loadl_get, loadl_set);
+
+static int bound_freq_get(struct device *dev, struct device_attribute *attr,
+			char *buf)
+{
+	return sprintf(buf, "%d\n", bound_freq);
+}
+static int bound_freq_set(struct device *dev, struct device_attribute *attr,
+			const char *buf, size_t count)
+{
+	int freq_tmp;
+	if (!sscanf(buf, "%d", &freq_tmp))
+		return -EINVAL;
+	bound_freq = freq_tmp;
+	return count;
+}
+static DEVICE_ATTR(bound_freq, S_IRUGO | S_IWUSR, bound_freq_get,
+		bound_freq_set);
+
+
 static int lock_get(struct device *dev, struct device_attribute *attr,
 			char *buf)
 {
-	return sprintf(buf, "%s\n", hp_lock ? "locked" : "unlocked");
+	return sprintf(buf, "%d\n", hp_lock);
 }
 
 static int lock_set(struct device *dev, struct device_attribute *attr,
 			const char *buf, size_t count)
 {
 	u32 val;
+	int restart_hp = 0;
 
 	val = parse_arg(buf, count);
 
 	mutex_lock(&hotplug_lock);
+	/* we want to re-enable governor */
+	if ((1 == hp_lock) && (0 == val))
+		restart_hp = 1;
 	hp_lock = val ? 1 : 0;
 	mutex_unlock(&hotplug_lock);
+
+	if (restart_hp) {
+		flush_delayed_work(&hotplug_work);
+		queue_delayed_work_on(0, hotplug_wq, &hotplug_work,
+				CHECK_DELAY);
+	}
 	return count;
 }
 static DEVICE_ATTR(lock, S_IRUGO | S_IWUSR, lock_get, lock_set);
@@ -325,6 +383,9 @@ static struct attribute *hotplug_attributes[] = {
 	&dev_attr_lock.attr,
 	&dev_attr_min_cpus.attr,
 	&dev_attr_max_cpus.attr,
+	&dev_attr_loadh.attr,
+	&dev_attr_loadl.attr,
+	&dev_attr_bound_freq.attr,
 	NULL,
 };
 
@@ -370,7 +431,7 @@ static int __init mmp_pm_hotplug_init(void)
 			__func__);
 
 	if (kobject_init_and_add(&hotplug_kobj, &hotplug_dir_ktype,
-				&cpu_sysdev_class.kset.kobj, "mmp_hotplug"))
+				&cpu_sysdev_class.kset.kobj, "hotplug"))
 		pr_err("%s: Failed to add kobject for hotplug\n", __func__);
 
 	return 0;
