@@ -37,6 +37,7 @@
 #include <linux/wakelock.h>
 
 #include <plat/usb.h>
+#include <plat/pm.h>
 
 #include "mv_udc.h"
 #if (defined CONFIG_ARCH_PXA && defined CONFIG_DVFM)
@@ -71,7 +72,11 @@ static DECLARE_COMPLETION(release_done);
 /* controller device global variable */
 static struct mv_udc	*the_controller;
 
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
 static struct wake_lock idle_lock;
+#elif defined(CONFIG_CPU_PXA988)
+static struct pm_qos_request_list qos_idle;
+#endif
 static struct wake_lock suspend_lock;
 
 static void nuke(struct mv_ep *ep, int status);
@@ -1254,8 +1259,12 @@ static int mv_udc_vbus_session(struct usb_gadget *gadget, int is_active)
 		udc->charger_type = NULL_CHARGER;
 		schedule_delayed_work(&udc->charger_work, 0);
 
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
 		if (wake_lock_active(&idle_lock))
 			wake_unlock(&idle_lock);
+#elif defined(CONFIG_CPU_PXA988)
+		pm_qos_update_request(&qos_idle, PM_QOS_DEFAULT_VALUE);
+#endif
 		/* leave some delay for charger driver to do something */
 		wake_lock_timeout(&suspend_lock, HZ);
 	}
@@ -1906,7 +1915,12 @@ static void handle_setup_packet(struct mv_udc *udc, u8 ep_num,
 
 		if (is_set_configuration(setup)) {
 			if (udc->charger_type == DEFAULT_CHARGER) {
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
 				wake_lock(&idle_lock);
+#elif defined(CONFIG_CPU_PXA988)
+				pm_qos_update_request(&qos_idle,
+						PM_QOS_CONSTRAINT);
+#endif
 				udc->charger_type = VBUS_CHARGER;
 				schedule_delayed_work(&udc->charger_work, 0);
 			}
@@ -2422,7 +2436,11 @@ static __devexit int mv_udc_remove(struct platform_device *dev)
 		destroy_workqueue(udc->qwork);
 	}
 
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
 	wake_lock_destroy(&idle_lock);
+#elif defined(CONFIG_CPU_PXA988)
+	pm_qos_remove_request(&qos_idle);
+#endif
 	wake_lock_destroy(&suspend_lock);
 
 	/* free memory allocated in probe */
@@ -2642,7 +2660,12 @@ static int __devinit mv_udc_probe(struct platform_device *dev)
 
 	eps_init(udc);
 
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
 	wake_lock_init(&idle_lock, WAKE_LOCK_IDLE, "mv_udc_idle");
+#elif defined(CONFIG_CPU_PXA988)
+	pm_qos_add_request(&qos_idle, PM_QOS_CPUIDLE_KEEP_AXI,
+			PM_QOS_DEFAULT_VALUE);
+#endif
 	wake_lock_init(&suspend_lock, WAKE_LOCK_SUSPEND, "mv_udc_suspend");
 
 	/* used to tell user space when usb cable plug in and out */
@@ -2711,7 +2734,11 @@ err_destroy_waklock:
 		destroy_workqueue(udc->qwork);
 	}
 err_create_qwork:
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
 	wake_lock_destroy(&idle_lock);
+#elif defined(CONFIG_CPU_PXA988)
+	pm_qos_remove_request(&qos_idle);
+#endif
 	wake_lock_destroy(&suspend_lock);
 	device_unregister(&udc->gadget.dev);
 err_register_gadget_device:
