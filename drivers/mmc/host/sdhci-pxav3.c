@@ -238,17 +238,6 @@ static void pxav3_access_constrain(struct sdhci_host *host, unsigned int ac)
 	if (!pdata)
 		return;
 
-#ifdef CONFIG_WAKELOCK
-	if (ac)
-		wake_lock(&pdata->idle_lock);
-	else
-		wake_unlock(&pdata->idle_lock);
-#endif
-	if (ac)
-		pm_qos_update_request(&pdata->qos_idle, PM_QOS_CONSTRAINT);
-	else
-		pm_qos_update_request(&pdata->qos_idle, PM_QOS_DEFAULT_VALUE);
-
 #ifdef CONFIG_CPU_PXA978
 	if (ac && !pxa->clk_enable) {
 		if (pltfm_host->dvfm_dev_idx)
@@ -259,6 +248,11 @@ static void pxav3_access_constrain(struct sdhci_host *host, unsigned int ac)
 			dvfm_enable_lowpower(pltfm_host->dvfm_dev_idx);
 		pxa->clk_enable = 0;
 	}
+#else
+	if (ac)
+		pm_qos_update_request(&pdata->qos_idle, PM_QOS_CONSTRAINT);
+	else
+		pm_qos_update_request(&pdata->qos_idle, PM_QOS_DEFAULT_VALUE);
 #endif
 }
 
@@ -516,6 +510,12 @@ static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 	struct sdhci_pxa *pxa = NULL;
 	int ret;
 	struct clk *clk;
+#if !defined(CONFIG_CPU_PXA978)
+	int pm_qos_class = PM_QOS_CPU_DMA_LATENCY;
+#ifdef CONFIG_CPU_PXA988
+	pm_qos_class = PM_QOS_CPUIDLE_KEEP_AXI;
+#endif
+#endif
 
 	pxa = kzalloc(sizeof(struct sdhci_pxa), GFP_KERNEL);
 	if (!pxa)
@@ -542,12 +542,10 @@ static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 		| SDHCI_QUIRK_NO_ENDATTR_IN_NOPDESC;
 
 	if (pdata) {
-		pm_qos_add_request(&pdata->qos_idle, PM_QOS_CPU_DMA_LATENCY,
+#if !defined(CONFIG_CPU_PXA978)
+		pm_qos_add_request(&pdata->qos_idle, pm_qos_class,
 			PM_QOS_DEFAULT_VALUE);
-	#ifdef CONFIG_WAKELOCK
-		wake_lock_init(&pdata->idle_lock, WAKE_LOCK_IDLE,
-			(const char *)mmc_hostname(host->mmc));
-	#endif
+#endif
 
 		if (pdata->flags & PXA_FLAG_CARD_PERMANENT) {
 			/* on-chip device */
@@ -638,9 +636,8 @@ err_add_host:
 	clk_disable(clk);
 	clk_put(clk);
 err_clk_get:
+#if !defined(CONFIG_CPU_PXA978)
 	pm_qos_remove_request(&pdata->qos_idle);
-#ifdef CONFIG_WAKELOCK
-	wake_lock_destroy(&pdata->idle_lock);
 #endif
 	sdhci_pltfm_free(pdev);
 	kfree(pxa);
@@ -654,10 +651,8 @@ static int __devexit sdhci_pxav3_remove(struct platform_device *pdev)
 	struct sdhci_pxa *pxa = pltfm_host->priv;
 
 	sdhci_remove_host(host, 1);
-
+#if !defined(CONFIG_CPU_PXA978)
 	pm_qos_remove_request(&pxa->pdata->qos_idle);
-#ifdef CONFIG_WAKELOCK
-	wake_lock_destroy(&pxa->pdata->idle_lock);
 #endif
 
 	clk_disable(pltfm_host->clk);
