@@ -807,8 +807,6 @@ struct pxa95xfb_info {
 	unsigned                enabled:1;
 	unsigned                edid_en:1;
 
-	/*note: eof_intr_en should be 1 when enable vsync_en / eof_handler*/
-	int 			eof_intr_en;
 	int				vsync_en;
 	void (*eof_handler)(void *fbi);
 

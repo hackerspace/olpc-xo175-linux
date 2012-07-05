@@ -1623,8 +1623,10 @@ static void set_fetch(struct pxa95xfb_info *fbi)
 		x = readl(fbi->reg_base + LCD_FETCH_CTL0 + fbi->window * 0x40);
 		x &= ~(LCD_FETCH_CTLx_SRC_FOR(0x7));
 		x |= LCD_FETCH_CTLx_CHAN_EN|LCD_FETCH_CTLx_SRC_FOR(fbi->pix_fmt) |LCD_FETCH_CTLx_BUS_ERR_INT_EN;
-		if(fbi->eof_intr_en && channel == start_channel)
+		if(fbi->eof_handler && channel == start_channel)
 			x |= LCD_FETCH_CTLx_END_FR_INT_EN;
+		else
+			x &= ~LCD_FETCH_CTLx_END_FR_INT_EN;
 		if (cpu_is_pxa978()) {
 			x |= LCD_FETCH_CTLx_MAX_OUTSTANDING_REQ(0x7)
 				| LCD_FETCH_CTLx_ARLEN(0xf);
@@ -2377,18 +2379,15 @@ static irqreturn_t pxa95xfb_gfx_handle_irq_ctl(int irq, void *dev_id)
 		writel(x, fbi->reg_base + LCD_FETCH_INT_STS0);
 
 		for(i = 0; i < PXA95xFB_FB_NUM; i++){
-			if(pxa95xfbi[i] && pxa95xfbi[i]->on && pxa95xfbi[i]->eof_intr_en){
-				if(x & LCD_FETCH_INT_STS0_END_FRx(pxa95xfbi[i]->window) ){
-					/*printk(KERN_INFO "%s: fetch %d EOF intr: fr= %x\n",__func__, pxa95xfbi[i]->window, lcdc_get_fr_addr(pxa95xfbi[i]));*/
-					if(pxa95xfbi[i]->eof_handler){
-						pxa95xfbi[i]->eof_handler(pxa95xfbi[i]);
-					}
-				}
+			if(pxa95xfbi[i] && pxa95xfbi[i]->on &&
+				(x & LCD_FETCH_INT_STS0_END_FRx(pxa95xfbi[i]->window))) {
+				/*printk(KERN_INFO "%s: fetch %d EOF intr: fr= %x\n",__func__, pxa95xfbi[i]->window, lcdc_get_fr_addr(pxa95xfbi[i]));*/
+				if (pxa95xfbi[i]->eof_handler)
+					pxa95xfbi[i]->eof_handler(pxa95xfbi[i]);
 			}
 		}
 
 		/* FIXME: for HDMI, as converter irq is lost, what we could do is using FETCH EOF of HDMI(fbi2/3) */
-
 		if (!atomic_read(&pxa95xfb_conv[LCD_M2HDMI - 1].w_intr)) {
 			int ihdmi_fetchid = get_valid_fetchid_for_ihdmi();
 			if (ihdmi_fetchid > 0 &&  (x & LCD_FETCH_INT_STS0_END_FRx(ihdmi_fetchid))) {
@@ -2503,7 +2502,6 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 	fbi->controller_on = 1;
 
 	fbi->vsync_en = 0;
-	fbi->eof_intr_en = 1;
 	spin_lock_init(&fbi->buf_lock);
 	mutex_init(&fbi->access_ok);
 	init_waitqueue_head(&g_vsync_wq);

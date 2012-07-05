@@ -133,9 +133,15 @@ static int __devinit pxa95xfb_vid_probe(struct platform_device *pdev)
 	fbi->converter = mi->converter;
 
 	fbi->vsync_en = 0;
-	fbi->eof_intr_en = 1;
 	if (!fb_is_baselay(fbi))
 		fbi->eof_handler = lcdc_vid_buf_endframe;
+	/* FIXME: for HDMI, as converter irq is lost, what we could do is using FETCH EOF of HDMI
+	 * so we keep HDMI fetch irq always on
+	 * as waitqueue is empty for HDMI baselay, the eof_handler actually do nothing
+	 */
+	if (fbi->converter == LCD_M2HDMI)
+		fbi->eof_handler = lcdc_vid_buf_endframe;
+
 	spin_lock_init(&fbi->buf_lock);
 	mutex_init(&fbi->access_ok);
 
