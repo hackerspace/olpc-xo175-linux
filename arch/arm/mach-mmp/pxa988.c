@@ -259,6 +259,18 @@ static void pxa988_ram_console_mem_reserve(void)
 }
 #endif
 
+static void __init pxa988_reserve_cpmem(void)
+{
+	u32 cp_area_addr = 0x07000000;
+	u32 cp_area_size = 0x01000000;
+
+	/* Reserve 16MB memory for CP */
+	BUG_ON(memblock_reserve(cp_area_addr, cp_area_size) != 0);
+	memblock_free(cp_area_addr, cp_area_size);
+	memblock_remove(cp_area_addr, cp_area_size);
+	pr_info("Reserved CP memory: 0x%x@0x%x\n", cp_area_size, cp_area_addr);
+}
+
 void __init pxa988_reserve(void)
 {
 	/*
@@ -267,6 +279,8 @@ void __init pxa988_reserve(void)
 	 * memory, since it'll be corrupted by next reboot by obm.
 	 */
 	BUG_ON(memblock_reserve(PLAT_PHYS_OFFSET, 0x100000));
+
+	pxa988_reserve_cpmem();
 
 #ifdef CONFIG_ANDROID_PMEM
 	/*reserve memory for pmem*/
