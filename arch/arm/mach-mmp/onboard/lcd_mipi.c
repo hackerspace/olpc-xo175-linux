@@ -1414,6 +1414,13 @@ void __init emeidkb_add_lcd_mipi(void)
 	 * according to dsi lanes and output format.
 	 */
 	calculate_lcd_sclk(fb);
+	/*
+	 * FIXME:EMEI dkb use display clk1 as clk source,
+	 * which is from PLL1 416MHZ. PLL3 1GHZ will be used
+	 * for cpu core,and can't be DSI clock source specially.
+	 */
+	fb->sclk_div &= 0x0fffffff;
+	fb->sclk_div |= 0x40000000;
 
 	dmc_membase = ioremap(DDR_MEM_CTRL_BASE, 0x30);
 	CSn_NO_COL = __raw_readl(dmc_membase + SDRAM_CONFIG_TYPE1_CS0) >> 4;
