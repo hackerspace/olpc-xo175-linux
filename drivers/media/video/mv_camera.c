@@ -58,11 +58,16 @@
 #include "mv_camera.h"
 #include <plat/pm.h>
 
+#ifdef CONFIG_CPU_PXA910
+#ifdef CONFIG_WAKELOCK
 static struct wake_lock idle_lock;
+#endif
 static struct pm_qos_request_list mv_camera_qos_req_min;
 static struct pm_qos_request_list mv_camera_qos_disable_cpufreq;
+#endif
 static struct mv_camera_dev *g_mv_cam_dev;
 
+#ifdef CONFIG_CPU_PXA910
 static void set_power_constraint(int min)
 {
 	if (!min)
@@ -79,6 +84,7 @@ static void unset_power_constraint(int min)
 	pm_qos_update_request(&mv_camera_qos_disable_cpufreq,
 			PM_QOS_DEFAULT_VALUE);
 }
+#endif
 
 #define MV_CAM_DRV_NAME "mv-camera"
 
@@ -792,9 +798,14 @@ static int mv_camera_add_device(struct soc_camera_device *icd)
 #ifdef CONFIG_PM
 	mcam->controller_power(1);
 #endif
+#ifdef CONFIG_CPU_PXA910
 	set_power_constraint(mcam->qos_req_min);
-	pm_qos_update_request(&pcdev->qos_idle, PM_QOS_CONSTRAINT);
+#ifdef CONFIG_WAKELOCK
 	wake_lock(&idle_lock);
+#endif
+#else
+	pm_qos_update_request(&pcdev->qos_idle, PM_QOS_CONSTRAINT);
+#endif
 	pcdev->icd = icd;
 	pcdev->state = S_IDLE;
 	ccic_power_up(pcdev);
@@ -827,9 +838,14 @@ static void mv_camera_remove_device(struct soc_camera_device *icd)
 	ccic_disable_clk(pcdev);
 	ccic_power_down(pcdev);
 	pcdev->icd = NULL;
-	pm_qos_update_request(&pcdev->qos_idle, PM_QOS_DEFAULT_VALUE);
+#ifdef CONFIG_CPU_PXA910
+#ifdef CONFIG_WAKELOCK
 	wake_unlock(&idle_lock);
+#endif
 	unset_power_constraint(mcam->qos_req_min);
+#else
+	pm_qos_update_request(&pcdev->qos_idle, PM_QOS_DEFAULT_VALUE);
+#endif
 #ifdef CONFIG_PM
 	mcam->controller_power(0);
 #endif
@@ -1161,6 +1177,12 @@ static int __devinit mv_camera_probe(struct platform_device *pdev)
 	void __iomem *base;
 	int irq;
 	int err = 0;
+#ifndef CONFIG_CPU_PXA910
+	int pm_qos_class = PM_QOS_CPU_DMA_LATENCY;
+#ifdef CONFIG_CPU_PXA988
+	pm_qos_class = PM_QOS_CPUIDLE_KEEP_DDR;
+#endif
+#endif
 
 	mcam = pdev->dev.platform_data;
 	if (!mcam || !mcam->init_clk || !mcam->enable_clk
@@ -1190,8 +1212,10 @@ static int __devinit mv_camera_probe(struct platform_device *pdev)
 
 	spin_lock_init(&pcdev->list_lock);
 	mutex_init(&pcdev->s_mutex);
-	pm_qos_add_request(&pcdev->qos_idle, PM_QOS_CPU_DMA_LATENCY,
+#ifndef CONFIG_CPU_PXA910
+	pm_qos_add_request(&pcdev->qos_idle, pm_qos_class,
 			PM_QOS_DEFAULT_VALUE);
+#endif
 	/*
 	 * Request the regions.
 	 */
@@ -1281,7 +1305,9 @@ static int __devexit mv_camera_remove(struct platform_device *pdev)
 	mcam->init_clk(&pdev->dev, 0);
 	ccic_power_down(pcdev);
 	free_irq(pcdev->irq, pcdev);
+#ifndef CONFIG_CPU_PXA910
 	pm_qos_remove_request(&pcdev->qos_idle);
+#endif
 
 	soc_camera_host_unregister(soc_host);
 
@@ -1337,9 +1363,14 @@ static int mv_camera_suspend(struct device *dev)
 	mcam->controller_power(0);
 #endif
 
-	pm_qos_update_request(&pcdev->qos_idle, PM_QOS_DEFAULT_VALUE);
+#ifdef CONFIG_CPU_PXA910
+#ifdef CONFIG_WAKELOCK
 	wake_unlock(&idle_lock);
+#endif
 	unset_power_constraint(mcam->qos_req_min);
+#else
+	pm_qos_update_request(&pcdev->qos_idle, PM_QOS_DEFAULT_VALUE);
+#endif
 
 	return ret;
 }
@@ -1356,9 +1387,14 @@ static int mv_camera_resume(struct device *dev)
 	if (icd == NULL || icd->use_count == 0)
 		return 0;
 
+#ifdef CONFIG_CPU_PXA910
 	set_power_constraint(mcam->qos_req_min);
+#ifdef CONFIG_WAKELOCK
 	wake_lock(&idle_lock);
+#endif
+#else
 	pm_qos_update_request(&pcdev->qos_idle, PM_QOS_CONSTRAINT);
+#endif
 
 #ifdef CONFIG_PM
 	mcam->controller_power(1);
@@ -1400,18 +1436,28 @@ static struct platform_driver mv_camera_driver = {
 
 static int __init mv_camera_init(void)
 {
+#ifdef CONFIG_CPU_PXA910
+#ifdef CONFIG_WAKELOCK
 	wake_lock_init(&idle_lock, WAKE_LOCK_IDLE, "mv_camera_idle");
+#endif
 	pm_qos_add_request(&mv_camera_qos_req_min, PM_QOS_CPUFREQ_MIN,
 			PM_QOS_DEFAULT_VALUE);
 	pm_qos_add_request(&mv_camera_qos_disable_cpufreq,
 			PM_QOS_CPUFREQ_DISABLE, PM_QOS_DEFAULT_VALUE);
+#endif
 	return platform_driver_register(&mv_camera_driver);
 }
 
 static void __exit mv_camera_exit(void)
 {
 	platform_driver_unregister(&mv_camera_driver);
+#ifdef CONFIG_CPU_PXA910
+#ifdef CONFIG_WAKELOCK
 	wake_lock_destroy(&idle_lock);
+#endif
+	pm_qos_remove_request(&mv_camera_qos_req_min);
+	pm_qos_remove_request(&mv_camera_qos_disable_cpufreq);
+#endif
 }
 
 module_init(mv_camera_init);
