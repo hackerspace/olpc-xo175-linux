@@ -375,10 +375,6 @@ static void ccic_stop(struct mv_camera_dev *pcdev)
 static void ccic_init(struct mv_camera_dev *pcdev)
 {
 	/*
-	 * Make sure it's not powered down.
-	 */
-	ccic_reg_clear_bit(pcdev, REG_CTRL1, C1_PWRDWN);
-	/*
 	 * Turn off the enable bit.  It sure should be off anyway,
 	 * but it's good to be sure.
 	 */
@@ -797,9 +793,9 @@ static int mv_camera_add_device(struct soc_camera_device *icd)
 	wake_lock(&idle_lock);
 	pcdev->icd = icd;
 	pcdev->state = S_IDLE;
+	ccic_power_up(pcdev);
 	ccic_enable_clk(pcdev);
 	ccic_init(pcdev);
-	ccic_power_up(pcdev);
 	ret = v4l2_subdev_call(sd, core, init, 0);
 	/* When v4l2_subdev_call return -ENOIOCTLCMD, means No ioctl command */
 	if ((ret < 0) && (ret != -ENOIOCTLCMD) && (ret != -ENODEV)) {
@@ -825,6 +821,7 @@ static void mv_camera_remove_device(struct soc_camera_device *icd)
 			"singles, %d delivered\n", frames, singles, delivered);
 	ccic_config_phy(pcdev, 0);
 	ccic_disable_clk(pcdev);
+	ccic_power_down(pcdev);
 	pcdev->icd = NULL;
 	pm_qos_update_request(&pcdev->qos_idle, PM_QOS_DEFAULT_VALUE);
 	wake_unlock(&idle_lock);
