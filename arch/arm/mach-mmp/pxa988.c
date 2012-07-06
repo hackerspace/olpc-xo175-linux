@@ -656,6 +656,7 @@ PXA988_DEVICE(vsram, "mmp-sram", 1, NONE, SRAM_VIDEO_BASE, SRAM_VIDEO_SIZE);
 PXA988_DEVICE(fb, "pxa168-fb", 0, LCD, 0xd420b000, 0x1ec);
 PXA988_DEVICE(fb_ovly, "pxa168fb_ovly", 0, LCD, 0xd420b000, 0x1ec);
 PXA988_DEVICE(camera, "mv-camera", 0, CI, 0xd420a000, 0xfff);
+PXA988_DEVICE(thermal, "thermal", -1, DRO_SENSOR, 0xd4013200, 0x34);
 
 static struct resource pxa988_resource_rtc[] = {
 	{ 0xd4010000, 0xd40100ff, NULL, IORESOURCE_MEM, },

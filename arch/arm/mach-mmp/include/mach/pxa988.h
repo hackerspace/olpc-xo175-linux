@@ -42,6 +42,7 @@ extern struct pxa_device_desc pxa988_device_fb;
 extern struct pxa_device_desc pxa988_device_fb_ovly;
 extern struct pxa_device_desc pxa988_device_camera;
 extern struct platform_device pxa988_device_rtc;
+extern struct pxa_device_desc pxa988_device_thermal;
 
 extern struct platform_device pxa9xx_device_acipc;
 
@@ -216,6 +217,11 @@ static inline int pxa988_add_fb_ovly(struct pxa168fb_mach_info *mi)
 static inline int pxa988_add_cam(struct mv_cam_pdata *cam)
 {
 	return pxa_register_device(&pxa988_device_camera, cam, sizeof(*cam));
+}
+
+static inline int pxa988_add_thermal(void)
+{
+	return pxa_register_device(&pxa988_device_thermal, NULL, 0);
 }
 
 #endif /* __ASM_CPU_PXA988_H */

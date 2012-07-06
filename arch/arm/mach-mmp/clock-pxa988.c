@@ -2266,6 +2266,8 @@ static struct clk pxa988_list_clks[] = {
 		APBC_PXA988_RTC, 0, 32000, &rtc_pe),
 	APBC_CLK("1wire", NULL, "PXA-W1",
 		APBC_PXA988_ONEWIRE, 0, 26000000, NULL),
+	APBC_CLK("thermal", NULL, "THERMALCLK",
+		APBC_PXA988_DROTS, 0, 13000000, NULL),
 
 	/* APBC_OPS: _name, _dev, _con, _reg, _fnclksel, _rate, _parent*/
 	APBC_CLK_OPS("pwm0", "pxa910-pwm.0", NULL,
