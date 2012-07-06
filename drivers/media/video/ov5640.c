@@ -71,7 +71,7 @@ static struct ov5640_win_size {
 	{
 		.width = 1280,
 		.height = 720,
-		.phy_cfg_id = 1,
+		.phy_cfg_id = 3,
 	},
 	/* 1080 */
 	{
@@ -172,6 +172,14 @@ static struct mipi_phy ov5640_timings[] = {
 		.hs_rx_to	= 0xFFFF,
 		.lane		= 2,
 	},
+	{/* This phy configuration is workable on 100~330Mhz clock */
+		.cl_termen	= 0x00,
+		.cl_settle	= 0x0C,
+		.hs_termen	= 0x07,
+		.hs_settle	= 0x0D,
+		.hs_rx_to	= 0xFFFF,
+		.lane		= 2,
+	}
 };
 #endif
 
