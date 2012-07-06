@@ -1,6 +1,8 @@
 #ifndef _MARVELL_CAMERA_H_
 #define _MARVELL_CAMERA_H_
 
+#include <linux/delay.h>
+
 /* Sensor installation related */
 enum {
 	SENSOR_USED		= (1 << 31),
@@ -40,5 +42,26 @@ struct csi_dphy_desc {
 /* V4L2 related */
 #define V4L2_CID_PRIVATE_FIRMWARE_DOWNLOAD	(V4L2_CID_PRIVATE_BASE + 0)
 #define V4L2_CID_PRIVATE_GET_MIPI_PHY		(V4L2_CID_PRIVATE_BASE + 1)
+
+/* Misc */
+/* sleep function for sensor power sequence, only provide 100us precision */
+/* According to Documentation/timers/timers-howto.txt, we should choose *sleep
+ * family function according to the time:
+ * >= 20ms	msleep
+ * >= 10us	usleep
+ * <10us	udelay
+ * for camera power usecase, we mostly need 1~2ms for power on/off sequence and
+ * 100~500us for software reset, no precision control below 10us is used,
+ * so sleep_range is good enough for us */
+#define usleep(x) \
+do { \
+	unsigned int left = (x); \
+	if (left >= 20000) { \
+		msleep(left-20000); \
+		left -= 20000; \
+	} \
+	if (left >= 100) \
+		usleep_range(left, left+100); \
+} while (0)
 
 #endif
