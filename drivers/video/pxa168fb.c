@@ -828,20 +828,26 @@ static int pxa168fb_blank(int blank, struct fb_info *info)
 			/* de-activate the device */
 			pxa168fb_active(fbi, 0);
 
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
+			wake_unlock(&fbi->idle_lock);
+#else
 			/* allow system enter low power modes */
 			pm_qos_update_request(&fbi->qos_idle_fb,
 						PM_QOS_DEFAULT_VALUE);
-			wake_unlock(&fbi->idle_lock);
+#endif
 			break;
 
 	case FB_BLANK_UNBLANK:
 			/* activate the device */
 			pxa168fb_active(fbi, 1);
 
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
+			wake_lock(&fbi->idle_lock);
+#else
 			/* avoid system enter low power modes */
 			pm_qos_update_request(&fbi->qos_idle_fb,
 						PM_QOS_CONSTRAINT);
-			wake_lock(&fbi->idle_lock);
+#endif
 			break;
 	default:
 			break;
@@ -1502,8 +1508,11 @@ static void pxa168fb_early_suspend(struct early_suspend *h)
 						 early_suspend);
 
 	_pxa168fb_suspend(fbi);
-	pm_qos_update_request(&fbi->qos_idle_fb, PM_QOS_DEFAULT_VALUE);
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
 	wake_unlock(&fbi->idle_lock);
+#else
+	pm_qos_update_request(&fbi->qos_idle_fb, PM_QOS_DEFAULT_VALUE);
+#endif
 
 	return;
 }
@@ -1512,8 +1521,11 @@ static void pxa168fb_late_resume(struct early_suspend *h)
 	struct pxa168fb_info *fbi = container_of(h, struct pxa168fb_info,
 						 early_suspend);
 
-	pm_qos_update_request(&fbi->qos_idle_fb, PM_QOS_CONSTRAINT);
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
 	wake_lock(&fbi->idle_lock);
+#else
+	pm_qos_update_request(&fbi->qos_idle_fb, PM_QOS_CONSTRAINT);
+#endif
 	_pxa168fb_resume(fbi);
 
 	return;
@@ -1527,8 +1539,11 @@ static int pxa168fb_suspend(struct platform_device *pdev, pm_message_t mesg)
 
 	_pxa168fb_suspend(fbi);
 	pdev->dev.power.power_state = mesg;
-	pm_qos_update_request(&fbi->qos_idle_fb, PM_QOS_DEFAULT_VALUE);
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
 	wake_unlock(&fbi->idle_lock);
+#else
+	pm_qos_update_request(&fbi->qos_idle_fb, PM_QOS_DEFAULT_VALUE);
+#endif
 
 	return 0;
 }
@@ -1537,8 +1552,11 @@ static int pxa168fb_resume(struct platform_device *pdev)
 {
 	struct pxa168fb_info *fbi = platform_get_drvdata(pdev);
 
-	pm_qos_update_request(&fbi->qos_idle_fb, PM_QOS_CONSTRAINT);
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
 	wake_lock(&fbi->idle_lock);
+#else
+	pm_qos_update_request(&fbi->qos_idle_fb, PM_QOS_CONSTRAINT);
+#endif
 	_pxa168fb_resume(fbi);
 
 	return 0;
@@ -1682,6 +1700,12 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	int irq, irq_mask, irq_enable_value, ret = 0;
 	struct dsi_info *di = NULL;
 	struct pxa168fb_vdma_info *lcd_vdma = 0;
+#if !defined(CONFIG_WAKELOCK) || !defined(CONFIG_CPU_PXA910)
+	int pm_qos_class = PM_QOS_CPU_DMA_LATENCY;
+#ifdef CONFIG_CPU_PXA988
+	pm_qos_class = PM_QOS_CPUIDLE_KEEP_DDR;
+#endif
+#endif
 
 	mi = pdev->dev.platform_data;
 	if (mi == NULL) {
@@ -1840,13 +1864,16 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	info->screen_base = fbi->fb_start;
 	info->screen_size = fbi->fb_size;
 
-	/* init qos with constraint */
-	pm_qos_add_request(&fbi->qos_idle_fb, PM_QOS_CPU_DMA_LATENCY,
-			PM_QOS_CONSTRAINT);
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
 	/* init wake lock */
 	wake_lock_init(&fbi->idle_lock, WAKE_LOCK_IDLE, dev_name(fbi->dev));
 	/* avoid system enter low power modes */
 	wake_lock(&fbi->idle_lock);
+#else
+	/* init qos with constraint */
+	pm_qos_add_request(&fbi->qos_idle_fb, pm_qos_class,
+			PM_QOS_CONSTRAINT);
+#endif
 
 	/* Set video mode according to platform data */
 	set_mode(fbi, &info->var, mi->modes, mi->pix_fmt, 1);
@@ -2003,8 +2030,11 @@ failed_free_irq:
 failed_free_cmap:
 	fb_dealloc_cmap(&info->cmap);
 failed_free_clk:
-	pm_qos_remove_request(&fbi->qos_idle_fb);
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
 	wake_lock_destroy(&fbi->idle_lock);
+#else
+	pm_qos_remove_request(&fbi->qos_idle_fb);
+#endif
 	clk_disable(fbi->clk);
 	dma_free_writecombine(fbi->dev, PAGE_ALIGN(info->fix.smem_len),
 				info->screen_base, info->fix.smem_start);
@@ -2051,8 +2081,11 @@ static int __devexit pxa168fb_remove(struct platform_device *pdev)
 	irq = platform_get_irq(pdev, 0);
 	free_irq(irq, fbi);
 
-	pm_qos_remove_request(&fbi->qos_idle_fb);
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
 	wake_lock_destroy(&fbi->idle_lock);
+#else
+	pm_qos_remove_request(&fbi->qos_idle_fb);
+#endif
 	dma_free_writecombine(fbi->dev, PAGE_ALIGN(info->fix.smem_len),
 				info->screen_base, info->fix.smem_start);
 
