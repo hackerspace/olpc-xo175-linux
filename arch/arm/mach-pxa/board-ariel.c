@@ -772,6 +772,7 @@ static struct lm3530_platform_data lm3530_pdata = {
 	.brt_ramp_fall = LM3530_RAMP_TIME_1ms,
 	.brt_ramp_rise = LM3530_RAMP_TIME_1ms,
 	.brt_val = 0,
+	.regulator_id = "v_lcd",
 };
 
 static void __init lm3530_enable(void)
