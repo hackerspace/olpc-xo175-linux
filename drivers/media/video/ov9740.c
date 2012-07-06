@@ -753,6 +753,8 @@ static int ov9740_reg_write(struct i2c_client *client, u16 reg, u8 val)
 		dev_err(&client->dev, "Failed writing register 0x%04x!\n", reg);
 		return ret;
 	}
+	if ((reg == OV9740_SOFTWARE_RESET) && (val == 1))
+		usleep(500);
 
 	return 0;
 }
@@ -830,8 +832,12 @@ static int ov9740_s_stream(struct v4l2_subdev *sd, int enable)
 
 	} else {
 		dev_dbg(&client->dev, "Disabling Streaming\n");
-		/* Setting Streaming to Standby */
-		ret = ov9740_reg_write(client, OV9740_MODE_SELECT, 0x00);
+		/* Software Reset */
+		ret = ov9740_reg_write(client, OV9740_SOFTWARE_RESET, 0x01);
+		if (!ret)
+			/* Setting Streaming to Standby */
+			ret = ov9740_reg_write(client, OV9740_MODE_SELECT,
+					       0x00);
 	}
 
 	return ret;
