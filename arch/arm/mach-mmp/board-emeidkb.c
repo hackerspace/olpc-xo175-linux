@@ -1369,6 +1369,8 @@ static void __init emeidkb_init(void)
 	/* backlight */
 	platform_device_register(&emei_dkb_lcd_backlight_devices);
 
+	pxa988_add_thermal();
+
 #ifdef CONFIG_ANDROID_PMEM
 	pxa_add_pmem();
 #endif
