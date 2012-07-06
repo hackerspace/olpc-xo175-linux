@@ -680,7 +680,7 @@ static int pxa_check_sd_short_circuit(struct sdhci_host *host, const int mfp_sta
 
 	regulator_enabled = regulator_is_enabled(host->vmmc);
 	if (regulator_enabled)
-		regulator_disable(host->vmmc);
+		regulator_force_disable(host->vmmc);
 
 	for(i=0; i<mfp_num;i++) {
 		mfp_bak[i] = mfp_read(mfp_start+i);
