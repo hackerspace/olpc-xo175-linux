@@ -29,6 +29,7 @@
 #include <linux/notifier.h>
 #include <linux/reboot.h>
 #include <linux/nfc/pn544.h>
+#include <linux/input/crucial_tec_otp.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -936,6 +937,15 @@ static struct ssd2531_platform_data touch_platform_data = {
 	.pin_data = ssd2531_ts_pins,
 };
 
+#if defined(CONFIG_C_TEC_OPTIC_TP)
+static struct ctec_optic_tp_platform_data ctec_optic_tp_pins = {
+	.pd_gpio        = MFP_PIN_GPIO109,
+	.rst_gpio       = MFP_PIN_GPIO110,
+	.irq_gpio       = MFP_PIN_GPIO100,
+	.ok_btn_gpio    = MFP_PIN_GPIO12,
+};
+#endif
+
 #if defined(CONFIG_BACKLIGHT_ADP8885)
 static struct adp8885_bl_channel_data adp8885_ch[] = {
 	{	/* Display backlight */
@@ -1153,6 +1163,7 @@ static struct i2c_board_info i2c3_info[] = {
 #if defined(CONFIG_C_TEC_OPTIC_TP)
 	{
 		I2C_BOARD_INFO("ctec_optic_tp", 0x33),
+		.platform_data = &ctec_optic_tp_pins,
 		.irq	= gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO100)),
 	},
 #endif
@@ -1462,6 +1473,17 @@ static struct layout_mapping cam_layout_saarc3[] = {
 			{.gpio = MFP_PIN_GPIO24}, LEVEL_HIGH, LEVEL_LOW},
 	[CAMP_PWD_SUB]	= {"SUB_PWDN",	PIN_TYPE_GPIO, \
 			{.gpio = MFP_PIN_GPIO26}, LEVEL_HIGH, LEVEL_LOW},
+};
+
+static struct layout_mapping cam_layout_evb[] = {
+    [CAMP_AFVCC]    = {"AFVCC_3V3", PIN_TYPE_LDO, \
+            {.ldo = "v_cam"}, LEVEL_HIGH, LEVEL_LOW, 3300000},
+    [CAMP_PWD_MAIN] = {"MAIN_PWDN", PIN_TYPE_GPIO, \
+            {.gpio = MFP_PIN_GPIO25}, LEVEL_HIGH, LEVEL_LOW},
+    [CAMP_RST_MAIN] = {"MAIN_RST",  PIN_TYPE_GPIO, \
+            {.gpio = MFP_PIN_GPIO18}, LEVEL_HIGH, LEVEL_LOW},
+    [CAMP_PWD_SUB]  = {"SUB_PWDN",  PIN_TYPE_GPIO, \
+            {.gpio = MFP_PIN_GPIO26}, LEVEL_HIGH, LEVEL_LOW},
 };
 
 static __u8 main_sensor_mapping[] = {
@@ -1827,6 +1849,10 @@ static void __init init_cam(void)
 	case OBM_DKB_3_NEVO_D0_BOARD:
 		printk(KERN_NOTICE "cam: Probing camera on DKB 3\n");
 		g_board = cam_layout_dkb21;
+		break;
+	case OBM_EVB_NEVO_1_2_BOARD:
+		printk(KERN_NOTICE "cam: Probing camera on Leshem\n");
+		g_board = cam_layout_evb;
 		break;
 	default: /* For SaarC 2.5 and 3*/
 		printk(KERN_NOTICE "cam: Probing camera on SaarC 3\n");
@@ -2852,7 +2878,8 @@ static void __init init(void)
 	/* adjust acc sensor axes */
 	if (get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD ||
 	    get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ ||
-	    get_board_id() == OBM_SAAR_C3V5_NEVO_D0_V10_BOARD) {
+	    get_board_id() == OBM_SAAR_C3V5_NEVO_D0_V10_BOARD ||
+	    get_board_id() == OBM_EVB_NEVO_1_2_BOARD) {
 		cwmi_acc_data.axes[0] = -1;
 		cwmi_acc_data.axes[4] = 1;
 		cwmi_acc_data.axes[8] = -1;
