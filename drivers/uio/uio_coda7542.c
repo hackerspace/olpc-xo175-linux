@@ -373,7 +373,7 @@ static int coda7542_ioctl(struct uio_info *info, unsigned int cmd,
 
 static int coda7542_probe(struct platform_device *pdev)
 {
-	struct resource *res;
+	struct resource *res, *sram_res;
 	struct uio_coda7542_dev *cdev;
 	int i, irq_func, ret = 0;
 	dma_addr_t mem_dma_addr;
@@ -384,6 +384,10 @@ static int coda7542_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "no memory resources given\n");
 		return -ENODEV;
 	}
+
+	sram_res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (!sram_res)
+		dev_info(&pdev->dev, "no sram resources given\n");
 
 	irq_func = platform_get_irq(pdev, 0);
 	if (irq_func < 0) {
@@ -442,6 +446,15 @@ static int coda7542_probe(struct platform_device *pdev)
 			(unsigned int)cdev->uio_info.mem[1].addr,
 			cdev->uio_info.mem[1].size);
 
+	if (sram_res) {
+		cdev->uio_info.mem[2].addr = sram_res->start;
+		cdev->uio_info.mem[2].memtype = UIO_MEM_PHYS;
+		cdev->uio_info.mem[2].size = sram_res->end -
+					     sram_res->start + 1;
+		dev_info(&pdev->dev, "[2] addr[0x%08x] size[%ld]\n",
+				(unsigned int)cdev->uio_info.mem[2].addr,
+				cdev->uio_info.mem[2].size);
+	}
 
 	cdev->uio_info.irq_flags = IRQF_DISABLED;
 	cdev->uio_info.irq = irq_func;
