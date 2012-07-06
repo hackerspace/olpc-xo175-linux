@@ -102,6 +102,8 @@ struct lm3530_platform_data {
 	u8 als2_resistor_sel;
 
 	u8 brt_val;
+
+	char *regulator_id;
 };
 
 #endif	/* _LINUX_LED_LM3530_H__ */

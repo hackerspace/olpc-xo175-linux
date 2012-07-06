@@ -306,6 +306,7 @@ static int __devinit lm3530_probe(struct i2c_client *client,
 {
 	struct lm3530_platform_data *pdata = client->dev.platform_data;
 	struct lm3530_data *drvdata;
+	char *regulator_id;
 	int err = 0;
 
 	if (pdata == NULL) {
@@ -343,7 +344,8 @@ static int __devinit lm3530_probe(struct i2c_client *client,
 
 	i2c_set_clientdata(client, drvdata);
 
-	drvdata->regulator = regulator_get(&client->dev, "vin");
+	regulator_id = pdata->regulator_id ? pdata->regulator_id : "vin";
+	drvdata->regulator = regulator_get(&client->dev, regulator_id);
 	if (IS_ERR(drvdata->regulator)) {
 		dev_err(&client->dev, "regulator get failed\n");
 		err = PTR_ERR(drvdata->regulator);
