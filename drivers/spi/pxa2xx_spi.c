@@ -37,8 +37,10 @@
 
 #ifdef CONFIG_PXA95x
 #include <mach/dvfm.h>
-#else
+#elif defined(CONFIG_CPU_PXA910)
 #include <linux/wakelock.h>
+#elif defined(CONFIG_CPU_PXA988)
+#include <plat/pm.h>
 #endif
 
 MODULE_AUTHOR("Stephen Street");
@@ -156,8 +158,10 @@ struct driver_data {
 	void (*cs_control)(u32 command);
 #ifdef CONFIG_PXA95x
 	int dvfm_dev_idx;
-#else
+#elif defined(CONFIG_CPU_PXA910) && defined(CONFIG_WAKELOCK)
 	struct wake_lock idle_lock;
+#elif defined(CONFIG_CPU_PXA988)
+	struct pm_qos_request_list qos_idle;
 #endif
 	int constraint_is_set;
 };
@@ -194,8 +198,11 @@ static void set_dvfm_constraint(struct driver_data *drv_data)
 #ifdef CONFIG_PXA95x
 		/* Disable Low power mode */
 		dvfm_disable_lowpower(drv_data->dvfm_dev_idx);
-#else
+#elif defined(CONFIG_CPU_PXA910) && defined(CONFIG_WAKELOCK)
 		wake_lock(&(drv_data->idle_lock));
+#elif defined(CONFIG_CPU_PXA988)
+		pm_qos_update_request(&drv_data->qos_idle,
+				PM_QOS_CONSTRAINT);
 #endif
 	}
 }
@@ -207,8 +214,11 @@ static void unset_dvfm_constraint(struct driver_data *drv_data)
 #ifdef CONFIG_PXA95x
 		/* Enable Low power mode*/
 		dvfm_enable_lowpower(drv_data->dvfm_dev_idx);
-#else
+#elif defined(CONFIG_CPU_PXA910) && defined(CONFIG_WAKELOCK)
 		wake_unlock(&(drv_data->idle_lock));
+#elif defined(CONFIG_CPU_PXA988)
+		pm_qos_update_request(&drv_data->qos_idle,
+				PM_QOS_DEFAULT_VALUE);
 #endif
 	}
 }
@@ -219,9 +229,12 @@ static void init_dvfm_constraint(struct driver_data *drv_data)
 #ifdef CONFIG_PXA95x
 	dvfm_register(dev_name(&(drv_data->pdev->dev)),
 		&(drv_data->dvfm_dev_idx));
-#else
+#elif defined(CONFIG_CPU_PXA910) && defined(CONFIG_WAKELOCK)
 	wake_lock_init(&(drv_data->idle_lock), WAKE_LOCK_IDLE,
 		dev_name(&(drv_data->pdev->dev)));
+#elif defined(CONFIG_CPU_PXA988)
+	pm_qos_add_request(&drv_data->qos_idle, PM_QOS_CPUIDLE_KEEP_AXI,
+			PM_QOS_DEFAULT_VALUE);
 #endif
 }
 
@@ -229,8 +242,10 @@ static void deinit_dvfm_constraint(struct driver_data *drv_data)
 {
 #ifdef CONFIG_PXA95x
 	dvfm_unregister("SPI", &(drv_data->dvfm_dev_idx));
-#else
+#elif defined(CONFIG_CPU_PXA910) && defined(CONFIG_WAKELOCK)
 	wake_lock_destroy(&(drv_data->idle_lock));
+#elif defined(CONFIG_CPU_PXA988)
+	pm_qos_remove_request(&drv_data->qos_idle);
 #endif
 }
 
