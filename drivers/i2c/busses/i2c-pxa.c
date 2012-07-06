@@ -180,8 +180,11 @@ struct pxa_i2c {
 	unsigned int		fast_mode :1;
 	unsigned int		ilcr;
 	unsigned int		iwcr;
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
 	struct wake_lock	idle_lock;
+#else
 	struct pm_qos_request_list qos_idle;
+#endif
 };
 
 #define _IBMR(i2c)	((i2c)->reg_ibmr)
@@ -750,8 +753,11 @@ static int i2c_pxa_do_pio_xfer(struct pxa_i2c *i2c,
 	i2c->msg_ptr = 0;
 	i2c->irqlogidx = 0;
 
-	pm_qos_update_request(&i2c->qos_idle, PM_QOS_CONSTRAINT);
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
 	wake_lock(&i2c->idle_lock);
+#else
+	pm_qos_update_request(&i2c->qos_idle, PM_QOS_CONSTRAINT);
+#endif
 
 	i2c_pxa_start_message(i2c);
 
@@ -762,8 +768,11 @@ static int i2c_pxa_do_pio_xfer(struct pxa_i2c *i2c,
 
 	i2c_pxa_stop_message(i2c);
 
-	pm_qos_update_request(&i2c->qos_idle, PM_QOS_DEFAULT_VALUE);
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
 	wake_unlock(&i2c->idle_lock);
+#else
+	pm_qos_update_request(&i2c->qos_idle, PM_QOS_DEFAULT_VALUE);
+#endif
 
 	/*
 	 * We place the return code in i2c->msg_idx.
@@ -814,7 +823,11 @@ static int i2c_pxa_do_xfer(struct pxa_i2c *i2c, struct i2c_msg *msg, int num)
 	i2c->msg_ptr = 0;
 	i2c->irqlogidx = 0;
 
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
 	wake_lock(&i2c->idle_lock);
+#else
+	pm_qos_update_request(&i2c->qos_idle, PM_QOS_CONSTRAINT);
+#endif
 
 	i2c_pxa_start_message(i2c);
 
@@ -826,7 +839,11 @@ static int i2c_pxa_do_xfer(struct pxa_i2c *i2c, struct i2c_msg *msg, int num)
 	timeout = wait_event_timeout(i2c->wait, i2c->msg_num == 0, HZ * 1);
 	i2c_pxa_stop_message(i2c);
 
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
 	wake_unlock(&i2c->idle_lock);
+#else
+	pm_qos_update_request(&i2c->qos_idle, PM_QOS_DEFAULT_VALUE);
+#endif
 
 	/*
 	 * We place the return code in i2c->msg_idx.
@@ -1120,6 +1137,12 @@ static int i2c_pxa_probe(struct platform_device *dev)
 	enum pxa_i2c_types i2c_type = id->driver_data;
 	int ret;
 	int irq;
+#if !defined(CONFIG_WAKELOCK) || !defined(CONFIG_CPU_PXA910)
+	int pm_qos_class = PM_QOS_CPU_DMA_LATENCY;
+#ifdef CONFIG_CPU_PXA988
+	pm_qos_class = PM_QOS_CPUIDLE_KEEP_DDR;
+#endif
+#endif
 
 	res = platform_get_resource(dev, IORESOURCE_MEM, 0);
 	irq = platform_get_irq(dev, 0);
@@ -1138,10 +1161,13 @@ static int i2c_pxa_probe(struct platform_device *dev)
 	i2c->adap.owner   = THIS_MODULE;
 	i2c->adap.retries = 3;
 
-	pm_qos_add_request(&i2c->qos_idle, PM_QOS_CPU_DMA_LATENCY,
-			PM_QOS_DEFAULT_VALUE);
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
 	wake_lock_init(&i2c->idle_lock, WAKE_LOCK_IDLE,
 			(const char *)i2c->adap.name);
+#else
+	pm_qos_add_request(&i2c->qos_idle, pm_qos_class,
+			PM_QOS_DEFAULT_VALUE);
+#endif
 
 	spin_lock_init(&i2c->lock);
 	init_waitqueue_head(&i2c->wait);
@@ -1257,8 +1283,11 @@ eclk:
 	kfree(i2c);
 emalloc:
 	release_mem_region(res->start, resource_size(res));
-	pm_qos_remove_request(&i2c->qos_idle);
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
 	wake_lock_destroy(&i2c->idle_lock);
+#else
+	pm_qos_remove_request(&i2c->qos_idle);
+#endif
 return ret;
 }
 
@@ -1268,8 +1297,11 @@ static int __exit i2c_pxa_remove(struct platform_device *dev)
 
 	platform_set_drvdata(dev, NULL);
 
-	pm_qos_remove_request(&i2c->qos_idle);
+#if defined(CONFIG_WAKELOCK) && defined(CONFIG_CPU_PXA910)
 	wake_lock_destroy(&i2c->idle_lock);
+#else
+	pm_qos_remove_request(&i2c->qos_idle);
+#endif
 
 	i2c_del_adapter(&i2c->adap);
 	if (!i2c->use_pio)
