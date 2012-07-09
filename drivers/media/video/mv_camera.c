@@ -749,6 +749,7 @@ static inline void ccic_frame_complete(struct mv_camera_dev *pcdev, int frame)
 static irqreturn_t mv_camera_irq(int irq, void *data)
 {
 	struct mv_camera_dev *pcdev = data;
+	struct vb2_buffer *vbuf;
 	u32 irqs;
 	u32 frame;
 
@@ -760,8 +761,11 @@ static irqreturn_t mv_camera_irq(int irq, void *data)
 	ccic_reg_write(pcdev, REG_IRQSTAT, irqs);
 
 	for (frame = 0; frame < pcdev->nbufs; frame++)
-		if (irqs & (IRQ_SOF0 << frame))
+		if (irqs & (IRQ_SOF0 << frame)) {
 			set_bit(CF_SOF+frame, &pcdev->flags);
+			vbuf = &(pcdev->vb_bufs[frame]->vb_buf);
+			do_gettimeofday(&vbuf->v4l2_buf.timestamp);
+		}
 
 	for (frame = 0; frame < pcdev->nbufs; frame++)
 		if (irqs & (IRQ_EOF0 << frame) && test_bit(CF_SOF+frame, &pcdev->flags)) {
