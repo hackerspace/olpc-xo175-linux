@@ -133,10 +133,13 @@ static struct mfp_addr_map pxa988_addr_map[] __initdata = {
 	__raw_writel(val, APMU_GC);	\
 }
 
+static DEFINE_SPINLOCK(gc_pwr_lock);
+
 void gc_pwr(int power_on)
 {
 	unsigned int val = __raw_readl(APMU_GC);
 
+	spin_lock(&gc_pwr_lock);
 	if (power_on) {
 		/* enable bus and function clock  */
 		val |= GC_CLK_EN;
@@ -181,6 +184,7 @@ void gc_pwr(int power_on)
 		GC_REG_WRITE(val);
 		udelay(100);
 	}
+	spin_unlock(&gc_pwr_lock);
 }
 EXPORT_SYMBOL(gc_pwr);
 
