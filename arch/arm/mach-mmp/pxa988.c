@@ -43,6 +43,7 @@
 
 #include <plat/mfp.h>
 #include <plat/pmem.h>
+#include <plat/pm.h>
 
 #include "common.h"
 
@@ -134,13 +135,26 @@ static struct mfp_addr_map pxa988_addr_map[] __initdata = {
 }
 
 static DEFINE_SPINLOCK(gc_pwr_lock);
+/* used for GC LPM constraint */
+static struct pm_qos_request_list gc_lpm_cons;
+static bool gc_qos_list_inited;
 
 void gc_pwr(int power_on)
 {
 	unsigned int val = __raw_readl(APMU_GC);
 
 	spin_lock(&gc_pwr_lock);
+	/* initialize the qos list at the first time */
+	if (unlikely(!gc_qos_list_inited)) {
+		pm_qos_add_request(&gc_lpm_cons,
+			PM_QOS_CPUIDLE_KEEP_DDR, PM_QOS_DEFAULT_VALUE);
+		gc_qos_list_inited = true;
+	}
+
 	if (power_on) {
+		/* block LPM deeper than D1 */
+		pm_qos_update_request(&gc_lpm_cons, PM_QOS_CONSTRAINT);
+
 		/* enable bus and function clock  */
 		val |= GC_CLK_EN;
 		GC_REG_WRITE(val);
@@ -183,6 +197,9 @@ void gc_pwr(int power_on)
 		val &= ~(GC_CLK_RST | GC_CLK_EN);
 		GC_REG_WRITE(val);
 		udelay(100);
+
+		/* release D1 LPM constraint */
+		pm_qos_update_request(&gc_lpm_cons, PM_QOS_DEFAULT_VALUE);
 	}
 	spin_unlock(&gc_pwr_lock);
 }
