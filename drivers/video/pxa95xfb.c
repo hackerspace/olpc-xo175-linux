@@ -2634,14 +2634,7 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 	set_dvfm_constraint();
 
 	clk_enable(fbi->clk_lcd);
-	/* FIXME: it's a quick workaround for MIPI case of areil board need further investigation */
-	if (fbi->converter == LCD_M2PARALELL_CONVERTER) {
-		clk_set_rate(fbi->clk_lcd, 104000000);
-		printk(KERN_INFO "set lcd clock as 104M\n");
-	} else {
-		clk_set_rate(fbi->clk_lcd, 156000000);
-		printk(KERN_INFO "set lcd clock as 156M\n");
-	}
+	clk_set_rate(fbi->clk_lcd, 104000000);
 
 	/* Enable AXI32 before modifying the controller registers */
 	writel(LCD_CTL_AXI32_EN, fbi->reg_base + LCD_CTL);
