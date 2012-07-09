@@ -46,6 +46,7 @@
 #include <mach/sram.h>
 #include <mach/regs-rtc.h>
 #include <mach/soc_coda7542.h>
+#include <mach/axis_sensor.h>
 #include <mach/regs-apmu.h>
 #include <plat/pmem.h>
 #include <plat/pxa27x_keypad.h>
@@ -89,7 +90,7 @@ static unsigned long emeidkb_pin_config[] __initdata = {
 	GPIO011_GPIO_WIB_RESETn,
 	GPIO012_GPIO_TORCH_EN,
 	GPIO013_GPIO_FLASH_EN,
-	GPIO014_GPIO_PROX_IRQ,
+	GPIO014_GPIO_PROX_IRQ | MFP_PULL_HIGH,
 	GPIO015_GPIO_NFC_EN,
 	GPIO016_GPIO_TP_RESET,
 	GPIO017_GPIO_TP_INT,
@@ -538,8 +539,9 @@ static void regulator_init_pm800(void)
 	pm800_info.num_regulators = i;
 }
 
-#if defined(CONFIG_SENSORS_CWMI) || defined(CONFIG_SENSORS_CWGD)
-static int cywee_set_power(int on)
+#if defined(CONFIG_SENSORS_CWMI) || defined(CONFIG_SENSORS_CWGD) \
+	|| defined(CONFIG_SENSORS_ISL29043)
+static int sensor_set_power(int on)
 {
 	static struct regulator *v_sensor;
 
@@ -564,7 +566,7 @@ static int cywee_set_power(int on)
 
 #if defined(CONFIG_SENSORS_CWMI)
 static struct cwmi_platform_data cwmi_acc_data = {
-	.set_power = cywee_set_power,
+	.set_power = sensor_set_power,
 	/*TODO: check sensor layout after board arrive*/
 	.axes = {
 		1, 0, 0,
@@ -573,7 +575,7 @@ static struct cwmi_platform_data cwmi_acc_data = {
 };
 
 static struct cwmi_platform_data cwmi_mag_data = {
-	.set_power = cywee_set_power,
+	.set_power = sensor_set_power,
 	.axes = {
 		1, 0, 0,
 		0, 1, 0,
@@ -583,11 +585,17 @@ static struct cwmi_platform_data cwmi_mag_data = {
 
 #if defined(CONFIG_SENSORS_CWGD)
 static struct cwgd_platform_data cwgd_plat_data = {
-	.set_power = cywee_set_power,
+	.set_power = sensor_set_power,
 	.axes = {
 		1, 0, 0,
 		0, 1, 0,
 		0, 0, 1},
+};
+#endif
+
+#if defined(CONFIG_SENSORS_ISL29043)
+static struct axis_sensor_platform_data isl29043_plat_data = {
+	.set_power = sensor_set_power,
 };
 #endif
 
@@ -868,6 +876,14 @@ static struct i2c_board_info emeidkb_i2c2_info[] = {
 		.addr       = 0x69,
 		.irq = gpio_to_irq(mfp_to_gpio(GPIO091_GPIO_GYRO_INT)),
 		.platform_data  = &cwgd_plat_data,
+	},
+#endif
+#if defined(CONFIG_SENSORS_ISL29043)
+	{
+		.type		= "isl29043",
+		.addr		= 0x44,
+		.irq = gpio_to_irq(mfp_to_gpio(GPIO014_GPIO_PROX_IRQ)),
+		.platform_data	= &isl29043_plat_data,
 	},
 #endif
 };
