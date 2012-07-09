@@ -216,6 +216,7 @@ struct pxa95xfb_mach_info {
 	 */
 	u8 *dsi_init_cmds;
 	u8 *dsi_sleep_cmds;
+	u32 dsi_clock_val;
 	LCD_Controller_DSI_Mode dsi_mode;
 	LCD_Controller_DSI_DATA_LANES dsi_lane_nr;
 };

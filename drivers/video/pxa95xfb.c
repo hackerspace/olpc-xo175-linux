@@ -582,7 +582,7 @@ static void dsi_init_video_non_burst(struct pxa95xfb_conv_info * conv)
 {
 	u16 vlines;
 	u8 hsync_blank = conv->hsync_len;
-	int active_hsw_compensation = 3,active_blw_compensation = 5, active_elw_compensation = 4, blank_pixel_compensation = 8;
+	int active_hsw_compensation = 4,active_blw_compensation = 4, active_elw_compensation = 4, blank_pixel_compensation = 8;
 	u32 blank_per_line_no_hsw = conv->left_margin + conv->xres + conv->right_margin - blank_pixel_compensation;
 
 	conv->dsi_cmd_index=0;
@@ -1136,7 +1136,6 @@ static void converter_start_dsi(struct pxa95xfb_conv_info *conv)
 {
 	/*End of inialization - init board*/
 	printk("%s: Init_board\n", __func__);
-
 	/*Handle board - only support this currently */
 	if (conv->dsi_init_cmds && !dsi_send_cmd_array(conv, conv->dsi_init_cmds)){
 		printk("%s: dsi_init_board failed!!\n", __func__);
@@ -1401,7 +1400,8 @@ void converter_init(struct pxa95xfb_info *fbi)
 
 	/* TODO : hard code here: if DSI + HDMI, it's adv chip*/
 	if(CONVERTER_IS_DSI(conv->converter) && conv->output == OUTPUT_PANEL) {
-		conv->dsi_clock_val = 156;
+		if (!conv->dsi_clock_val)
+			conv->dsi_clock_val = 156;
 		if (!conv->dsi_init_cmds)
 			conv->dsi_init_cmds = &init_board[0][0];
 		if (!conv->dsi_sleep_cmds)
@@ -2630,6 +2630,7 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 		conv->power = mi->panel_power;
 		conv->reset = mi->reset;
 		conv->dsi_init_cmds = mi->dsi_init_cmds;
+		conv->dsi_clock_val = mi->dsi_clock_val;
 		conv->dsi_sleep_cmds = mi->dsi_sleep_cmds;
 		conv->conf_dsi_video_mode = mi->dsi_mode;
 		conv->dsi_lanes = mi->dsi_lane_nr;
