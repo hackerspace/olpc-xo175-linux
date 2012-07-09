@@ -70,7 +70,7 @@ struct mutex op_change_mutex;
 unsigned int D2voltageLevelValue = 0x0D;
 extern struct info_head dvfm_trace_list;
 static unsigned int ddr_pll_freq;
-unsigned long max_pp = 5, max_core, max_gc, min_gc, max_vmeta;
+unsigned long max_pp = 7, max_core, max_gc, min_gc, max_vmeta;
 
 /* Counter Structure for Debugging ENTER/EXIT D2/CGM */
 pxa95x_DVFM_LPM_Global_Count DVFMLPMGlobalCount = { 0, 0, 0 };
