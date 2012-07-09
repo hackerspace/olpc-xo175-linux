@@ -4,3 +4,19 @@ config LCD_BYD_9009AD
 	help
 	  The BYD 9909AD LCD Display Support which specifies the lcd module's
 	  display mode, initializing sequence on Marvell PXA978 platform.
+
+config LCD_TRULY_TFT480800
+	bool "TRULY TFT48080031E LCD Display Support"
+	default y
+	depends on FB || FB_PXA95x
+	help
+	  TTRULY TFT480800-31-E LCD Display Support which specifies the lcd module's
+	  display mode, initializing sequence on Marvell PXA978 platform.
+
+config LCD_SHARP_LS043
+	bool "SHARP LS043 LCD Display Support"
+	default n
+	depends on FB || FB_PXA95x
+	help
+	  TSHARP LS043 LCD Display Support which specifies the lcd module's
+	  display mode, initializing sequence on Marvell PXA978 platform.

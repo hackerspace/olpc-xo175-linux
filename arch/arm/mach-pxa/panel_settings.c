@@ -735,22 +735,6 @@ struct fb_videomode video_modes_tc3587[] = {
 	},
 };
 
-struct fb_videomode video_modes_trulywvga[] = {
-	[0] = {
-		.pixclock = 41701,
-		.refresh = 60,
-		.xres = 480,
-		.yres = 800,
-		.hsync_len = 19,
-		.left_margin = 40,
-		.right_margin = 59,
-		.vsync_len = 9,
-		.upper_margin = 4,
-		.lower_margin = 9,
-		.sync = 0,
-	},
-};
-
 struct fb_videomode video_modes_truly1p3624[] = {
 	[0] = {
 		.pixclock = 41028,
