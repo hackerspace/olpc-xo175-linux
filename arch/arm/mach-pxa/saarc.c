@@ -57,7 +57,7 @@
 #endif
 #include "devices.h"
 #include "generic.h"
-
+#include <mach/display.h>
 #include "panel_settings.h"
 #ifdef CONFIG_RTC_DRV_PXA
 #include <linux/rtc-pxa.h>
@@ -239,7 +239,6 @@ static void headsetflag_init_pm800(void)
 static void regulator_init_pm800(void)
 {
 	int i = 0;
-
 	REG_SUPPLY_INIT(PM800_ID_LDO16, "v_cam", NULL);
 	REG_SUPPLY_INIT(PM800_ID_LDO6, "v_ihdmi", NULL);
 	/*
@@ -250,7 +249,6 @@ static void regulator_init_pm800(void)
 	 since they are needed by NFC driver. to prevent harm to the system
 	 i'm setting them to "unused" LDOs
 	*/
-
 	REG_INIT(i++, PM800_ID, LDO16, 1800000, 3300000, 0, 0);
 	REG_INIT(i++, PM800_ID, LDO6, 1200000, 3300000, 0, 0);
 	switch (get_board_id()) {
@@ -289,7 +287,7 @@ static void regulator_init_pm800(void)
 		REG_SUPPLY_INIT(PM800_ID_LDO13, "vmmc", "sdhci-pxa.1");
 		REG_SUPPLY_INIT(PM800_ID_LDO19, "v_gps", NULL);
 		/*DKB2.1 use a new gps module, need to contorl LDO11*/
-		REG_SUPPLY_INIT(PM800_ID_LDO11, "v_gps_3v3", NULL);
+		REG_SUPPLY_INIT(PM800_ID_LDO11, "v_ls043", NULL);
 		REG_SUPPLY_INIT(PM800_ID_LDO8, "v_lcd_cywee_touch", NULL);
 
 		REG_INIT(i++, PM800_ID, LDO18, 1800000, 3300000, 0, 0);
@@ -301,7 +299,7 @@ static void regulator_init_pm800(void)
 		REG_INIT(i++, PM800_ID, LDO12, 1800000, 2800000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO13, 2800000, 2800000, 0, 0);
 		REG_INIT(i++, PM800_ID, LDO19, 1200000, 3300000, 0, 0);
-		REG_INIT(i++, PM800_ID, LDO11, 1200000, 3300000, 0, 0);
+		REG_INIT(i++, PM800_ID, LDO11, 3100000, 3100000, 1, 1);
 		/* for LDO8 in DKB2.1, we put it always on to save power in suspend */
 		REG_INIT(i++, PM800_ID, LDO8, 1800000, 3300000, 1, 1);
 		break;
@@ -2274,90 +2272,14 @@ static struct pxa95xfb_mach_info ihdmi_ovly_info __initdata = {
 };
 #endif
 
-static void panel_power(int on)
-{
-	static struct regulator *vlcd;
-	if (!vlcd) {
-		vlcd = regulator_get(NULL, "v_lcd_cywee_touch");
-		if (IS_ERR(vlcd)) {
-			printk(KERN_ERR "lcd: fail to get ldo handle!\n");
-			vlcd = NULL;
-		}
-	}
-	if (on) {
-		if (vlcd)
-			regulator_enable(vlcd);
-		panel_power_trulywvga(1, on);
-	} else {
-		panel_power_trulywvga(1, on);
-		if (vlcd)
-			regulator_disable(vlcd);
-	}
-}
-
-static void panel_reset(void)
-{
-	int reset_pin;
-	int err;
-
-	reset_pin = mfp_to_gpio(MFP_PIN_GPIO23);
-	err = gpio_request(reset_pin, "DSI Reset");
-	if (err) {
-		gpio_free(reset_pin);
-		printk(KERN_ERR "Request GPIO failed, gpio: %d return :%d\n",
-		       reset_pin, err);
-		return;
-	}
-	gpio_direction_output(reset_pin, 1);
-	msleep(1);
-	gpio_direction_output(reset_pin, 0);
-	msleep(1);
-	gpio_direction_output(reset_pin, 1);
-	msleep(10);
-	gpio_free(reset_pin);
-}
-
-static struct pxa95xfb_mach_info lcd_info /*__initdata*/ = {
-	.id = "Base",
-	.modes = video_modes_trulywvga,
-	.num_modes = ARRAY_SIZE(video_modes_trulywvga),
-	.pix_fmt_in = PIX_FMTIN_RGB_16,
-	.pix_fmt_out = PIX_FMTOUT_24_RGB888,
-	.panel_type = LCD_Controller_Active,
-	.window = 0,
-	.mixer_id = 0,
-	.zorder = 1,
-	.converter = LCD_M2PARALELL_CONVERTER,
-	.output = OUTPUT_PANEL,
-	.active = 1,
-	.panel_power = panel_power,
-	.invert_pixclock = 1,
-	.reset = panel_reset,
-};
-
-static struct pxa95xfb_mach_info lcd_ovly_info /*__initdata*/ = {
-	.id = "Ovly",
-	.modes = video_modes_trulywvga,
-	.num_modes = ARRAY_SIZE(video_modes_trulywvga),
-	.pix_fmt_in = PIX_FMTIN_RGB_16,
-	.pix_fmt_out = PIX_FMTOUT_24_RGB888,
-	.panel_type = LCD_Controller_Active,
-	.window = 4,
-	.mixer_id = 0,
-	.zorder = 0,
-	.converter = LCD_M2PARALELL_CONVERTER,
-	.output = OUTPUT_PANEL,
-	.active = 1,
-	.panel_power = panel_power,
-	.invert_pixclock = 1,
-	.reset = panel_reset,
-};
-
 static void __init init_lcd(void)
 {
 	int ihdmi_format =4;
-	set_pxa95x_fb_info(&lcd_info);
-	set_pxa95x_fb_ovly_info(&lcd_ovly_info, 0);
+#if defined(CONFIG_LCD_TRULY_TFT480800)
+	pxa95x_add_lcd_truly();
+#elif defined(CONFIG_LCD_SHARP_LS043)
+	pxa95x_add_lcd_sharp();
+#endif
 #if defined(CONFIG_MV_IHDMI)
 #ifdef CONFIG_UIO_HDMI
 	init_hdmi();
