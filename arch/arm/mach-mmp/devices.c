@@ -21,6 +21,7 @@
 #include <mach/isp_dev.h>
 #include <mach/hsi_dev.h>
 #include <mach/regs-icu.h>
+#include <mach/addr-map.h>
 
 
 int __init pxa_register_device(struct pxa_device_desc *desc,
@@ -1028,6 +1029,11 @@ static struct resource pxa_coda7542_resources[] = {
 		.flags = IORESOURCE_MEM,
 	},
 	[1] = {
+		.start = SRAM_VIDEO_BASE,
+		.end   = SRAM_VIDEO_BASE + SRAM_VIDEO_SIZE - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	[2] = {
 		.start = IRQ_PXA988_CODA7542,
 		.end   = IRQ_PXA988_CODA7542,
 		.flags = IORESOURCE_IRQ,
