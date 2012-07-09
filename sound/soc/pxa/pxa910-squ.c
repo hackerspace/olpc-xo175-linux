@@ -38,6 +38,7 @@
 #include <mach/sram.h>
 #include <mach/pxa910-squ.h>
 #include <mach/cputype.h>
+#include <plat/pm.h>
 
 /*			         SRAM usage				     */
 /*-----------------------------------------------------------------------*/
@@ -50,6 +51,7 @@
 
 /* PXA988 only has 52K squ sram for audio */
 #if defined(CONFIG_CPU_PXA988)
+static struct pm_qos_request_list qos_idle;
 static const struct snd_pcm_hardware pxa910_squ_capture = {
 	.info = SNDRV_PCM_INFO_MMAP |
 	    SNDRV_PCM_INFO_MMAP_VALID |
@@ -296,6 +298,9 @@ static int pxa910_squ_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
+#ifdef CONFIG_CPU_PXA988
+		pm_qos_update_request(&qos_idle, PM_QOS_CONSTRAINT);
+#endif
 		SDNDPR(prtd->dma_ch) = prtd->squ_desc_array_phys;
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
 			SDSAR(prtd->dma_ch) = substream->runtime->dma_addr;
@@ -307,13 +312,22 @@ static int pxa910_squ_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+#ifdef CONFIG_CPU_PXA988
+		pm_qos_update_request(&qos_idle, PM_QOS_DEFAULT_VALUE);
+#endif
 		SDCR(prtd->dma_ch) &= ~SDCR_CHANEN;
 		break;
 
 	case SNDRV_PCM_TRIGGER_RESUME:
+#ifdef CONFIG_CPU_PXA988
+		pm_qos_update_request(&qos_idle, PM_QOS_CONSTRAINT);
+#endif
 		SDCR(prtd->dma_ch) |= SDCR_CHANEN;
 		break;
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+#ifdef CONFIG_CPU_PXA988
+		pm_qos_update_request(&qos_idle, PM_QOS_CONSTRAINT);
+#endif
 		SDNDPR(prtd->dma_ch) = prtd->squ_desc_array_phys;
 		SDCR(prtd->dma_ch) |= SDCR_CHANEN;
 		break;
@@ -519,11 +533,18 @@ EXPORT_SYMBOL_GPL(pxa910_squ_soc_platform);
 
 static int __devinit pxa910_squ_probe(struct platform_device *pdev)
 {
+#ifdef CONFIG_CPU_PXA988
+	pm_qos_add_request(&qos_idle, PM_QOS_CPUIDLE_KEEP_VCTCXO,
+			PM_QOS_DEFAULT_VALUE);
+#endif
 	return snd_soc_register_platform(&pdev->dev, &pxa910_squ_soc_platform);
 }
 
 static int __devexit pxa910_squ_remove(struct platform_device *pdev)
 {
+#ifdef CONFIG_CPU_PXA988
+	pm_qos_remove_request(&qos_idle);
+#endif
 	snd_soc_unregister_platform(&pdev->dev);
 	return 0;
 }
