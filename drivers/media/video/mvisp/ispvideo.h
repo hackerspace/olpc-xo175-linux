@@ -39,7 +39,7 @@
 #define ISP_VIDEO_DRIVER_NAME		"mvsocisp"
 #define ISP_VIDEO_DRIVER_VERSION	KERNEL_VERSION(0, 0, 1)
 
-#define ISP_VIDEO_MAX_BUFFERS			16
+#define ISP_VIDEO_MAX_BUFFERS		32
 #define MIN_DRV_BUF			1
 
 enum isp_video_pipe_far_end {

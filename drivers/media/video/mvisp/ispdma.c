@@ -516,9 +516,7 @@ static int ispdma_set_fb_reg(struct mvisp_device *isp,
 	mvisp_reg_writel(isp, regval,
 		ISP_IOMEM_ISPDMA, ISPDMA_FBTX0_RAMCTRL + regoffset);
 
-	regval = mvisp_reg_readl(isp,
-		ISP_IOMEM_ISPDMA, ISPDMA_FBTX0_DSTSZ + regoffset);
-	regval |= (ISPDMA_FBTXN_DSTSZ_MASK & cfg_fb->size[index]);
+	regval = ISPDMA_FBTXN_DSTSZ_MASK & cfg_fb->size[index];
 	mvisp_reg_writel(isp, regval,
 		ISP_IOMEM_ISPDMA, ISPDMA_FBTX0_DSTSZ + regoffset);
 
@@ -1109,8 +1107,8 @@ static int load_dummy_buffer(struct isp_ispdma_device *ispdma,
 				"isp display dma schduled stop [no dummy buffer]\n");
 		} else {
 			ispdma_set_disp_outaddr(ispdma, NULL, isp->dummy_paddr);
+			start_dma |= ISP_DISPLAY_CAN_START;
 		}
-		start_dma |= ISP_DISPLAY_CAN_START;
 		break;
 	case ISPDMA_PORT_CODEC:
 		if (isp->dummy_paddr == 0) {
@@ -1120,8 +1118,8 @@ static int load_dummy_buffer(struct isp_ispdma_device *ispdma,
 		} else {
 			ispdma_set_codec_outaddr(ispdma,
 				NULL, isp->dummy_paddr);
+			start_dma |= ISP_CODEC_CAN_START;
 		}
-		start_dma |= ISP_CODEC_CAN_START;
 		break;
 	case ISPDMA_PORT_INPUT:
 		ispdma->sched_stop_input = true;
