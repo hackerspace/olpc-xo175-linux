@@ -157,6 +157,7 @@ struct isp_ispdma_device {
 	spinlock_t						dma_irq_lock;
 	struct mutex					ispdma_mutex;
 
+	int					stream_refcnt;
 	struct completion	ipc_event;
 
 	unsigned int		ipc_event_cnt;

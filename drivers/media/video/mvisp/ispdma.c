@@ -2015,6 +2015,86 @@ static int ispdma_get_dma_timeinfo(struct isp_ispdma_device *ispdma,
 	return 0;
 }
 
+static int ispdma_set_stream(struct v4l2_subdev *sd
+			, int enable)
+{
+	struct isp_ispdma_device *ispdma
+				= v4l2_get_subdevdata(sd);
+	struct mvisp_device *isp
+				= to_mvisp_device(ispdma);
+	u32 regval;
+	unsigned long dma_working_flag;
+
+	mutex_lock(&ispdma->ispdma_mutex);
+
+	switch (enable) {
+	case ISP_PIPELINE_STREAM_CONTINUOUS:
+		if (ispdma->stream_refcnt++ == 0) {
+			if ((ispdma->input == ISPDMA_INPUT_CCIC_1)
+				&& (isp->sensor_connected == true)) {
+				regval = mvisp_reg_readl(isp, ISP_IOMEM_ISPDMA,
+					ISPDMA_MAINCTRL);
+				regval |= 1 << 24;
+				mvisp_reg_writel(isp, regval, ISP_IOMEM_ISPDMA,
+					ISPDMA_MAINCTRL);
+
+				ispdma->state = enable;
+			}
+		}
+		break;
+	case ISP_PIPELINE_STREAM_STOPPED:
+		if (--ispdma->stream_refcnt == 0) {
+			dma_working_flag = get_dma_working_flag(ispdma);
+
+			if (ispdma->disp_out == ISPDMA_OUTPUT_MEMORY) {
+				if (dma_working_flag & DMA_DISP_WORKING)
+					ispdma_stop_dma(ispdma, ISPDMA_PORT_DISPLAY);
+			}
+
+			if (ispdma->codec_out == ISPDMA_OUTPUT_MEMORY) {
+				if (dma_working_flag & DMA_CODEC_WORKING)
+					ispdma_stop_dma(ispdma, ISPDMA_PORT_CODEC);
+			}
+
+			if (ispdma->input == ISPDMA_INPUT_MEMORY) {
+				if (dma_working_flag & DMA_INPUT_WORKING)
+					ispdma_stop_dma(ispdma, ISPDMA_PORT_INPUT);
+			} else if ((ispdma->input == ISPDMA_INPUT_CCIC_1)
+				&& (isp->sensor_connected == true)) {
+				regval = mvisp_reg_readl(isp, ISP_IOMEM_ISPDMA,
+					ISPDMA_MAINCTRL);
+				regval &= ~(1 << 24);
+				mvisp_reg_writel(isp, regval, ISP_IOMEM_ISPDMA,
+					ISPDMA_MAINCTRL);
+			}
+
+			ispdma->state = enable;
+			ispdma_reset_counter(ispdma);
+		} else if (ispdma->stream_refcnt < 0)
+			ispdma->stream_refcnt = 0;
+		break;
+	default:
+		break;
+	}
+
+	mutex_unlock(&ispdma->ispdma_mutex);
+	return 0;
+}
+
+static int ispdma_io_set_stream(struct v4l2_subdev *sd
+			, int *enable)
+{
+	enum isp_pipeline_stream_state state;
+
+	if ((NULL == sd) || (NULL == enable) || (*enable < 0))
+		return -EINVAL;
+
+	state = *enable ? ISP_PIPELINE_STREAM_CONTINUOUS :\
+			ISP_PIPELINE_STREAM_STOPPED;
+
+	return ispdma_set_stream(sd, state);
+}
+
 static long ispdma_ioctl(struct v4l2_subdev *sd
 			, unsigned int cmd, void *arg)
 {
@@ -2068,72 +2148,15 @@ static long ispdma_ioctl(struct v4l2_subdev *sd
 		ret = ispdma_get_dma_timeinfo(ispdma,
 				(struct v4l2_ispdma_dma_timeinfo *) arg);
 		break;
+	case VIDIOC_PRIVATE_ISPDMA_SET_STREAM:
+		ret = ispdma_io_set_stream(sd, (int *) arg);
+		break;
 	default:
 		ret = -ENOIOCTLCMD;
 		break;
 	}
 
 	return ret;
-}
-
-static int ispdma_set_stream(struct v4l2_subdev *sd
-			, int enable)
-{
-	struct isp_ispdma_device *ispdma
-				= v4l2_get_subdevdata(sd);
-	struct mvisp_device *isp
-				= to_mvisp_device(ispdma);
-	u32 regval;
-	unsigned long dma_working_flag;
-
-	mutex_lock(&ispdma->ispdma_mutex);
-
-	ispdma->state = enable;
-	switch (enable) {
-	case ISP_PIPELINE_STREAM_CONTINUOUS:
-		if ((ispdma->input == ISPDMA_INPUT_CCIC_1)
-			&& (isp->sensor_connected == true)) {
-			regval = mvisp_reg_readl(isp, ISP_IOMEM_ISPDMA,
-				ISPDMA_MAINCTRL);
-			regval |= 1 << 24;
-			mvisp_reg_writel(isp, regval, ISP_IOMEM_ISPDMA,
-				ISPDMA_MAINCTRL);
-		}
-		break;
-	case ISP_PIPELINE_STREAM_STOPPED:
-		dma_working_flag = get_dma_working_flag(ispdma);
-
-		if (ispdma->disp_out == ISPDMA_OUTPUT_MEMORY) {
-			if (dma_working_flag & DMA_DISP_WORKING)
-				ispdma_stop_dma(ispdma, ISPDMA_PORT_DISPLAY);
-		}
-
-		if (ispdma->codec_out == ISPDMA_OUTPUT_MEMORY) {
-			if (dma_working_flag & DMA_CODEC_WORKING)
-				ispdma_stop_dma(ispdma, ISPDMA_PORT_CODEC);
-		}
-
-		if (ispdma->input == ISPDMA_INPUT_MEMORY) {
-			if (dma_working_flag & DMA_INPUT_WORKING)
-				ispdma_stop_dma(ispdma, ISPDMA_PORT_INPUT);
-		} else if ((ispdma->input == ISPDMA_INPUT_CCIC_1)
-			&& (isp->sensor_connected == true)) {
-			regval = mvisp_reg_readl(isp, ISP_IOMEM_ISPDMA,
-				ISPDMA_MAINCTRL);
-			regval &= ~(1 << 24);
-			mvisp_reg_writel(isp, regval, ISP_IOMEM_ISPDMA,
-				ISPDMA_MAINCTRL);
-		}
-
-		ispdma_reset_counter(ispdma);
-
-		break;
-	default:
-		break;
-	}
-
-	mutex_unlock(&ispdma->ispdma_mutex);
-	return 0;
 }
 
 static struct v4l2_mbus_framefmt *
@@ -2567,6 +2590,14 @@ static int ispdma_close(struct v4l2_subdev *sd,
 	mvisp_reg_writel(isp, regval,
 			ISP_IOMEM_ISPDMA, ISPDMA_DMA_ENA);
 
+	mutex_lock(&ispdma->ispdma_mutex);
+	if (ispdma->state != ISP_PIPELINE_STREAM_STOPPED) {
+		ispdma->stream_refcnt = 1;
+		mutex_unlock(&ispdma->ispdma_mutex);
+		ispdma_set_stream(sd, 0);
+	} else
+		mutex_unlock(&ispdma->ispdma_mutex);
+
 	mvisp_put(isp);
 
 	return 0;
@@ -2689,6 +2720,7 @@ static int ispdma_init_entities(struct isp_ispdma_device *ispdma)
 	ispdma->disp_out = ISPDMA_OUTPUT_NONE;
 	ispdma->codec_out = ISPDMA_OUTPUT_NONE;
 	ispdma->state = ISP_PIPELINE_STREAM_STOPPED;
+	ispdma->stream_refcnt = 0;
 
 	v4l2_subdev_init(sd, &ispdma_v4l2_ops);
 	sd->internal_ops = &ispdma_v4l2_internal_ops;

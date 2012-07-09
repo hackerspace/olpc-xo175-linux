@@ -1368,8 +1368,10 @@ int mvisp_video_init(struct isp_video *video, const char *name)
 	video->video.lock = &video->video_lock;
 
 	video->pipe.input = NULL;
-	for (cnt = 0; cnt < FAR_END_MAX_NUM; cnt++)
+	for (cnt = 0; cnt < FAR_END_MAX_NUM; cnt++) {
 		video->pipe.output[cnt] = NULL;
+		video->pipe.video_state[cnt] = ISP_PIPELINE_STREAM_STOPPED;
+	}
 
 	video_set_drvdata(&video->video, video);
 

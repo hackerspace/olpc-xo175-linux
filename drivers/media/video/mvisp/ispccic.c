@@ -731,12 +731,6 @@ error:
 	return ret;
 }
 
-static int ccic_open(struct v4l2_subdev *sd,
-				struct v4l2_subdev_fh *fh)
-{
-	return ccic_init_formats(sd, fh);
-}
-
 static int ccic_set_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct isp_ccic_device *ccic = v4l2_get_subdevdata(sd);
@@ -747,40 +741,61 @@ static int ccic_set_stream(struct v4l2_subdev *sd, int enable)
 
 	switch (enable) {
 	case ISP_PIPELINE_STREAM_CONTINUOUS:
-		ccic_configure_mipi(ccic);
-		regval = (0x3 << 29) | (400 / 26);
-		mvisp_reg_writel(isp, regval,
-			CCIC_ISP_IOMEM_1, CCIC_CLOCK_CTRL);
-		regval = (1 << 25) | 0x800003C;
-		mvisp_reg_writel(isp, regval,
-			CCIC_ISP_IOMEM_1, CCIC_CTRL_1);
+		if (ccic->stream_refcnt++ == 0) {
+			ccic_configure_mipi(ccic);
+			regval = (0x3 << 29) | (400 / 26);
+			mvisp_reg_writel(isp, regval,
+				CCIC_ISP_IOMEM_1, CCIC_CLOCK_CTRL);
+			regval = (1 << 25) | 0x800003C;
+			mvisp_reg_writel(isp, regval,
+				CCIC_ISP_IOMEM_1, CCIC_CTRL_1);
+
+			ccic->state = enable;
+		}
 		break;
 	case ISP_PIPELINE_STREAM_STOPPED:
-		regval = mvisp_reg_readl(isp,
-			CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
-		regval &= ~0x1;
-		mvisp_reg_writel(isp, regval,
-			CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
-		mvisp_reg_writel(isp, 0x0,
-			CCIC_ISP_IOMEM_1, CCIC_IRQ_MASK);
-		mvisp_reg_writel(isp, 0xFFFFFFFF,
-			CCIC_ISP_IOMEM_1, CCIC_IRQ_STATUS);
-		ccic_clear_mipi(ccic);
-		regval = 0;
-		mvisp_reg_writel(isp, regval,
-			CCIC_ISP_IOMEM_1, CCIC_CLOCK_CTRL);
-		regval = 0x800003C;
-		mvisp_reg_writel(isp, regval,
-			CCIC_ISP_IOMEM_1, CCIC_CTRL_1);
+		if (--ccic->stream_refcnt == 0) {
+			regval = mvisp_reg_readl(isp,
+				CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
+			regval &= ~0x1;
+			mvisp_reg_writel(isp, regval,
+				CCIC_ISP_IOMEM_1, CCIC_CTRL_0);
+			mvisp_reg_writel(isp, 0x0,
+				CCIC_ISP_IOMEM_1, CCIC_IRQ_MASK);
+			mvisp_reg_writel(isp, 0xFFFFFFFF,
+				CCIC_ISP_IOMEM_1, CCIC_IRQ_STATUS);
+			ccic_clear_mipi(ccic);
+			regval = 0;
+			mvisp_reg_writel(isp, regval,
+				CCIC_ISP_IOMEM_1, CCIC_CLOCK_CTRL);
+			regval = 0x800003C;
+			mvisp_reg_writel(isp, regval,
+				CCIC_ISP_IOMEM_1, CCIC_CTRL_1);
+
+			ccic->state = enable;
+		} else if (ccic->stream_refcnt < 0)
+			ccic->stream_refcnt = 0;
 		break;
 	default:
 		break;
 	}
 
-	ccic->state = enable;
 	mutex_unlock(&ccic->ccic_mutex);
 
 	return 0;
+}
+
+static int ccic_io_set_stream(struct v4l2_subdev *sd, int * enable)
+{
+	enum isp_pipeline_stream_state state;
+
+	if ((NULL == sd) || (NULL == enable) || (*enable < 0))
+		return -EINVAL;
+
+	state = *enable ? ISP_PIPELINE_STREAM_CONTINUOUS :\
+			ISP_PIPELINE_STREAM_STOPPED;
+
+	return ccic_set_stream(sd, state);
 }
 
 static int ccic_io_config_mipi(struct isp_ccic_device *ccic,
@@ -813,6 +828,9 @@ static long ccic_ioctl(struct v4l2_subdev *sd
 		ret = ccic_dump_registers
 			(ccic, (struct v4l2_ccic_dump_registers *)arg);
 		break;
+	case VIDIOC_PRIVATE_CCIC_SET_STREAM:
+		ret = ccic_io_set_stream(sd, (int *)arg);
+		break;
 	default:
 		ret = -ENOIOCTLCMD;
 		break;
@@ -821,7 +839,30 @@ static long ccic_ioctl(struct v4l2_subdev *sd
 	return ret;
 }
 
+static int ccic_open(struct v4l2_subdev *sd,
+				struct v4l2_subdev_fh *fh)
+{
+	return ccic_init_formats(sd, fh);
+}
 
+static int ccic_close(struct v4l2_subdev *sd,
+				struct v4l2_subdev_fh *fh)
+{
+	struct isp_ccic_device *ccic = v4l2_get_subdevdata(sd);
+
+	if (NULL == ccic)
+		return -EINVAL;
+
+	mutex_lock(&ccic->ccic_mutex);
+	if (ccic->state != ISP_PIPELINE_STREAM_STOPPED) {
+		ccic->stream_refcnt = 1;
+		mutex_unlock(&ccic->ccic_mutex);
+		ccic_set_stream(sd, 0);
+	} else
+		mutex_unlock(&ccic->ccic_mutex);
+
+	return 0;
+}
 
 /* subdev core ooperations */
 static const struct v4l2_subdev_core_ops ccic_core_ops = {
@@ -851,6 +892,7 @@ static const struct v4l2_subdev_ops ccic_ops = {
 /* subdev internal operations */
 static const struct v4l2_subdev_internal_ops ccic_internal_ops = {
 	.open = ccic_open,
+	.close = ccic_close,
 };
 
 /* -----------------------------------------------------------------------------
@@ -919,6 +961,7 @@ static int ccic_init_entities(struct isp_ccic_device *ccic,
 	ccic->sensor_type = SENSOR_INVALID;
 	ccic->state = ISP_PIPELINE_STREAM_STOPPED;
 	ccic->dma_state = CCIC_DMA_IDLE;
+	ccic->stream_refcnt = 0;
 	spin_lock_init(&ccic->mipi_flag_lock);
 	spin_lock_init(&ccic->irq_lock);
 	ccic->ccic_id = ccic_id;

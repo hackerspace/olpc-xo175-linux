@@ -241,6 +241,10 @@ static int mvisp_pipeline_enable(struct isp_pipeline *pipe,
 		if (pipe->output[cnt] == NULL)
 			continue;
 
+		if (pipe->video_state[cnt] == mode)
+			continue;
+		pipe->video_state[cnt] = mode;
+
 		entity = &pipe->output[cnt]->video.entity;
 		while (1) {
 			pad = &entity->pads[0];
@@ -265,7 +269,8 @@ static int mvisp_pipeline_enable(struct isp_pipeline *pipe,
 	return ret;
 }
 
-static int mvisp_pipeline_disable(struct isp_pipeline *pipe)
+static int mvisp_pipeline_disable(struct isp_pipeline *pipe,
+			       enum isp_pipeline_stream_state mode)
 {
 	struct media_entity *entity;
 	struct media_pad *pad;
@@ -276,6 +281,10 @@ static int mvisp_pipeline_disable(struct isp_pipeline *pipe)
 	for (cnt = 0; cnt < FAR_END_MAX_NUM; cnt++) {
 		if (pipe->output[cnt] == NULL)
 			continue;
+
+		if (pipe->video_state[cnt] == mode)
+			continue;
+		pipe->video_state[cnt] = mode;
 
 		entity = &pipe->output[cnt]->video.entity;
 		while (1) {
@@ -294,10 +303,9 @@ static int mvisp_pipeline_disable(struct isp_pipeline *pipe)
 
 			if (failure == 0)
 				failure = v4l2_subdev_call(subdev, video,
-					s_stream, ISP_PIPELINE_STREAM_STOPPED);
+						s_stream, mode);
 			else
-				v4l2_subdev_call(subdev, video,
-					s_stream, ISP_PIPELINE_STREAM_STOPPED);
+				v4l2_subdev_call(subdev, video, s_stream, mode);
 		}
 	}
 
@@ -310,7 +318,7 @@ int mvisp_pipeline_set_stream(struct isp_pipeline *pipe,
 	int ret;
 
 	if (state == ISP_PIPELINE_STREAM_STOPPED)
-		ret = mvisp_pipeline_disable(pipe);
+		ret = mvisp_pipeline_disable(pipe, state);
 	else
 		ret = mvisp_pipeline_enable(pipe, state);
 

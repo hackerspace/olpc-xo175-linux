@@ -238,4 +238,8 @@ struct v4l2_ispdma_dma_timeinfo {
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 13, struct v4l2_ispdma_dump_registers)
 #define VIDIOC_PRIVATE_ISPDMA_GET_DMA_TIMEINFO \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 14, struct v4l2_ispdma_dma_timeinfo)
+#define VIDIOC_PRIVATE_CCIC_SET_STREAM \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 15, int)
+#define VIDIOC_PRIVATE_ISPDMA_SET_STREAM \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 16, int)
 #endif	/* ISP_USER_H */

@@ -116,6 +116,7 @@ struct isp_pipeline {
 	atomic_t				frame_number;
 	struct v4l2_fract		max_timeperframe;
 	enum isp_pipeline_stream_state	stream_state;
+	enum isp_pipeline_stream_state	video_state[FAR_END_MAX_NUM];
 };
 
 #define to_isp_pipeline(__e) \
