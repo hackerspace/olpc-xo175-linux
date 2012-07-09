@@ -19,6 +19,7 @@ extern int pxa988_ripc_trylock(void);
 #include <mach/sram.h>
 #include <plat/pxa27x_keypad.h>
 #include <linux/platform_data/pxa_sdhci.h>
+#include <linux/spi/pxa2xx_spi.h>
 #include <mach/pxa168fb.h>
 #include <mach/camera.h>
 
@@ -174,6 +175,21 @@ static inline int pxa988_add_ssp(int id)
 	}
 
 	return pxa_register_device(d, NULL, 0);
+}
+
+static inline int pxa988_add_spi(int id, struct pxa2xx_spi_master *pdata)
+{
+	struct platform_device *pd;
+
+	pd = platform_device_alloc("pxa2xx-spi", id);
+	if (pd == NULL) {
+		pr_err("pxa2xx-spi: failed to allocate device (id=%d)\n", id);
+		return -ENOMEM;
+	}
+
+	platform_device_add_data(pd, pdata, sizeof(*pdata));
+
+	return platform_device_add(pd);
 }
 
 static inline int pxa988_add_asram(struct sram_bank *data)
