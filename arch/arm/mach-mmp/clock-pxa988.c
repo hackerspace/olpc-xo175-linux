@@ -25,6 +25,7 @@
 #include <mach/regs-mpmu.h>
 #include <mach/cputype.h>
 #include <mach/clock-pxa988.h>
+#include <plat/pm.h>
 
 /*
   * README:
@@ -1402,8 +1403,13 @@ static struct periph_clk_tbl vpu_clk_tbl[] = {
 #endif
 };
 
+/* used for vpu pm constraints */
+static struct pm_qos_request_list vpu_qos_idle;
+
 static void vpu_clk_init(struct clk *clk)
 {
+	pm_qos_add_request(&vpu_qos_idle, PM_QOS_CPUIDLE_KEEP_AXI,
+			PM_QOS_DEFAULT_VALUE);
 	clk->dynamic_change = 1;
 	__clk_fill_periph_tbl(clk, vpu_clk_tbl, ARRAY_SIZE(vpu_clk_tbl));
 
@@ -1422,6 +1428,7 @@ static int vpu_clk_enable(struct clk *clk)
 	unsigned int reg_cfg, en_cfg;
 	unsigned int i;
 
+	pm_qos_update_request(&vpu_qos_idle, PM_QOS_CONSTRAINT);
 	i = 0;
 	while ((clk->inputs[i].input) && (clk->inputs[i].input != clk->parent))
 		i++;
@@ -1439,6 +1446,7 @@ static int vpu_clk_enable(struct clk *clk)
 static void vpu_clk_disable(struct clk *clk)
 {
 	CLK_SET_BITS(0, VPU_CLK_EN);
+	pm_qos_update_request(&vpu_qos_idle, PM_QOS_DEFAULT_VALUE);
 }
 
 static long vpu_clk_round_rate(struct clk *clk, unsigned long rate)
