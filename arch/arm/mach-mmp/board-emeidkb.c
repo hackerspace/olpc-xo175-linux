@@ -31,6 +31,9 @@
 #include <linux/mfd/88pm80x.h>
 #include <linux/cwmi.h>
 #include <linux/cwgd.h>
+#include <linux/spi/spi.h>
+#include <linux/spi/pxa2xx_spi.h>
+#include <linux/spi/cmmb.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -1093,6 +1096,197 @@ static void __init emeidkb_init_mmc(void)
 }
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
 
+#if (defined CONFIG_CMMB)
+
+#define CMMB_SPI_CLK		GPIO033_SPI_DCLK
+#define CMMB_SPI_CSn		GPIO034_SPI_CS0
+#define CMMB_SPI_DIN		GPIO035_SPI_DIN
+#define CMMB_SPI_DOUT		GPIO036_SPI_DOUT
+#define CMMB_POWER_EN		GPIO018_GPIO_18
+#define CMMB_POWER_RESETn	GPIO019_GPIO_19
+#define CMMB_IRQ_GPIO		GPIO013_GPIO_13
+#define CMMB_EXT_CLK_EN	GPIO090_CMMB_CLK
+
+static unsigned long cmmb_pin_config[] = {
+	CMMB_SPI_CLK,
+	CMMB_SPI_CSn,
+	CMMB_SPI_DIN,
+	CMMB_SPI_DOUT,
+};
+
+static struct pxa2xx_spi_master pxa_ssp_master_info = {
+	.num_chipselect = 1,
+	.enable_dma = 1,
+};
+
+/*
+ * FIXME:Need to fine tune the delay time for the below 3 functions
+ * Maybe we can short the time
+ */
+static int cmmb_power_reset(void)
+{
+	int cmmb_rst;
+
+	cmmb_rst = mfp_to_gpio(CMMB_POWER_RESETn);
+
+	if (gpio_request(cmmb_rst, "cmmb rst")) {
+		pr_warning("failed to request GPIO for CMMB RST\n");
+		return -EIO;
+	}
+
+	gpio_direction_output(cmmb_rst, 0);
+	msleep(100);
+
+	/* get cmmb go out of reset state */
+	gpio_direction_output(cmmb_rst, 1);
+	gpio_free(cmmb_rst);
+
+	return 0;
+}
+
+static int cmmb_power_on(void)
+{
+	int cmmb_en;
+
+	cmmb_en = mfp_to_gpio(CMMB_POWER_EN);
+	if (gpio_request(cmmb_en, "cmmb power")) {
+		pr_warning("[ERROR] failed to request GPIO for CMMB POWER\n");
+		return -EIO;
+	}
+
+	gpio_direction_output(cmmb_en, 0);
+	msleep(100);
+
+	gpio_direction_output(cmmb_en, 1);
+	gpio_free(cmmb_en);
+
+	msleep(100);
+
+	cmmb_power_reset();
+
+	return 0;
+}
+
+static int cmmb_power_off(void)
+{
+	int cmmb_en;
+
+	cmmb_en = mfp_to_gpio(CMMB_POWER_EN);
+
+	if (gpio_request(cmmb_en, "cmmb power")) {
+		pr_warning("failed to request GPIO for CMMB POWER\n");
+		return -EIO;
+	}
+
+	gpio_direction_output(cmmb_en, 0);
+	gpio_free(cmmb_en);
+	msleep(100);
+
+	return 0;
+}
+
+/*
+ * Add two functions: cmmb_cs_assert and cmmb_cs_deassert.
+ * Provide the capbility that
+ * cmmb driver can handle the SPI_CS by itself.
+ */
+static int cmmb_cs_assert(void)
+{
+	int cs;
+	cs = mfp_to_gpio(CMMB_SPI_CSn);
+	gpio_direction_output(cs, 0);
+	return 0;
+}
+
+static int cmmb_cs_deassert(void)
+{
+	int cs;
+	cs = mfp_to_gpio(CMMB_SPI_CSn);
+	gpio_direction_output(cs, 1);
+	return 0;
+}
+
+static struct cmmb_platform_data cmmb_info = {
+	.power_on = cmmb_power_on,
+	.power_off = cmmb_power_off,
+	.power_reset = cmmb_power_reset,
+	.cs_assert = cmmb_cs_assert,
+	.cs_deassert = cmmb_cs_deassert,
+
+	.gpio_power = mfp_to_gpio(CMMB_POWER_EN),
+	.gpio_reset = mfp_to_gpio(CMMB_POWER_RESETn),
+	.gpio_cs = mfp_to_gpio(CMMB_SPI_CSn),
+	.gpio_defined = 1,
+};
+
+static void cmmb_dummy_cs(u32 cmd)
+{
+/*
+ * Because in CMMB read/write,the max data size is more than 8kB
+ * 8k = max data length per dma transfer for pxaxxx
+ * But till now,The spi_read/write driver doesn't support muti DMA cycles
+ *
+ * Here the spi_read/write will not affect the SPI_CS,but provides
+ * cs_assert and cs_deassert in the struct cmmb_platform_data
+ *
+ * And cmmb driver can/should control SPI_CS by itself
+ */
+}
+
+static struct pxa2xx_spi_chip cmmb_spi_chip = {
+	.rx_threshold   = 1,
+	.tx_threshold   = 1,
+	.cs_control     = cmmb_dummy_cs,
+};
+
+/* bus_num must match id in pxa2xx_set_spi_info() call */
+static struct spi_board_info spi_board_info[] __initdata = {
+	{
+		.modalias		= "cmmb_if",
+		.platform_data	= &cmmb_info,
+		.controller_data	= &cmmb_spi_chip,
+		.irq		= gpio_to_irq(mfp_to_gpio(CMMB_IRQ_GPIO)),
+		.max_speed_hz	= 8000000,
+		.bus_num		= 1,
+		.chip_select	= 0,
+		.mode			= SPI_MODE_0,
+	},
+};
+
+static void __init emeidkb_init_spi(void)
+{
+	int err;
+	int cmmb_int, cmmb_cs;
+
+	mfp_config(ARRAY_AND_SIZE(cmmb_pin_config));
+	cmmb_cs = mfp_to_gpio(CMMB_SPI_CSn);
+	err = gpio_request(cmmb_cs, "cmmb cs");
+	if (err) {
+		pr_warning("[ERROR] failed to request GPIO for CMMB CS\n");
+		return;
+	}
+	gpio_direction_output(cmmb_cs, 1);
+
+	cmmb_int = mfp_to_gpio(CMMB_IRQ_GPIO);
+
+	err = gpio_request(cmmb_int, "cmmb irq");
+	if (err) {
+		pr_warning("[ERROR] failed to request GPIO for CMMB IRQ\n");
+		return;
+	}
+	gpio_direction_input(cmmb_int);
+	gpio_free(cmmb_int);
+
+	pxa988_add_ssp(0);
+	pxa988_add_spi(1, &pxa_ssp_master_info);
+	if (spi_register_board_info(spi_board_info,
+			ARRAY_SIZE(spi_board_info))) {
+		pr_warning("[ERROR] failed to register spi device.\n");
+		return;
+	}
+}
+#endif /* defined CONFIG_CMMB */
+
 static void __init emeidkb_init_smc(void)
 {
 	/*
@@ -1156,6 +1350,10 @@ static void __init emeidkb_init(void)
 
 #if defined(CONFIG_VIDEO_MV)
 	pxa988_add_cam(&mv_cam_data);
+#endif
+
+#if (defined CONFIG_CMMB)
+	emeidkb_init_spi();
 #endif
 }
 
