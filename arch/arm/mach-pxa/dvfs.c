@@ -66,6 +66,11 @@ static inline int reg_to_volt(int value)
 	return  (value * 125 + 6000) / 10;
 }
 
+int is_wkr_1_2G_vmin()
+{
+	return 1;
+}
+
 static int vcc_main_set_voltage(struct dvfs_rail *rail)
 {
 	unsigned int level = 0;
@@ -79,9 +84,16 @@ static int vcc_main_set_voltage(struct dvfs_rail *rail)
 	else if (newvolts <= VOL_LEVL2)
 		level = 2;
 	else if (newvolts <= VOL_LEVL3_0) {
-		if (volt3_low && (cur_volt3 != volt3_low)) {
-			pm80x_reg_write(i2c, 0x3F, volt3_low);
-			cur_volt3 = volt3_low;
+		if (is_wkr_1_2G_vmin()) {
+			if (volt3_high && (cur_volt3 != volt3_high)) {
+				pm80x_reg_write(i2c, 0x3F, volt3_high);
+				cur_volt3 = volt3_high;
+			}
+		} else {
+			if (volt3_low && (cur_volt3 != volt3_low)) {
+				pm80x_reg_write(i2c, 0x3F, volt3_low);
+				cur_volt3 = volt3_low;
+			}
 		}
 		level = 3;
 	} else if (newvolts <= VOL_LEVL3_1) {
