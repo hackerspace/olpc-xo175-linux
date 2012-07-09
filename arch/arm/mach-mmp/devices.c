@@ -1024,7 +1024,7 @@ static u64 pxa_coda7542_dam_mask = DMA_BIT_MASK(32);
 static struct resource pxa_coda7542_resources[] = {
 	[0] = {
 		.start = 0xD420D000,
-		.end   = 0xD420E000,
+		.end   = 0xD420DFFF,
 		.flags = IORESOURCE_MEM,
 	},
 	[1] = {
