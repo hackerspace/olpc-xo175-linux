@@ -779,12 +779,26 @@ config VIDEO_MVISP
 	 Driver for an Marvell ISP 3 camera controller.
 	 Including the ISP IPC,ISP DMA and CCIC control.
 
-config VIDEO_MVISP_OV8820
-	tristate "ov8820 support"
+config VIDEO_MVISP_OV882X
+	tristate "ov882x base support"
 	depends on VIDEO_MVISP && I2C
 	default y
 	help
-	 Support for the OmniVision OV8820 camera (media-controller arch).
+	 Support for the OmniVision OV882x camera base.
+
+config VIDEO_MVISP_OV8820
+	tristate "sensor ov8820"
+	select VIDEO_MVISP_OV882X
+	default y
+	help
+	 Support for the OmniVision OV8820 camera.
+
+config VIDEO_MVISP_OV8825
+	tristate "sensor ov8825"
+	select VIDEO_MVISP_OV882X
+	default y
+	help
+	 Support for the OmniVision OV8825 camera.
 
 config ECS_DRIVER
 	tristate "Essential Camera Sensor framework"

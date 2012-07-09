@@ -77,7 +77,7 @@ enum ccic_mipi_state {
 
 enum mv_isp_sensor_type {
 	SENSOR_INVALID = 0,
-	SENSOR_OV8820,
+	SENSOR_OV882X,
 	SENSOR_OV5642,
 };
 

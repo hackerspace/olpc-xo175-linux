@@ -707,9 +707,7 @@ static int mvisp_register_ispdev(struct mvisp_device *isp)
 		dev_err(isp->dev, "%s: V4L2 device registration failed (%d)\n",
 			__func__, ret);
 
-		v4l2_device_unregister(&isp->v4l2_dev);
 		media_device_unregister(&isp->media_dev);
-
 	}
 
 	return ret;
@@ -786,8 +784,8 @@ static int mvisp_detect_sensor(struct mvisp_device *isp)
 		sensor->host_priv = subdev_group;
 
 		/* For unsupported sensor, ignore it*/
-		if (strcmp(sensor->entity.name, "ov8820 2-0036") == 0) {
-			isp->sensor_type = SENSOR_OV8820;
+		if (strncmp(sensor->entity.name, "ov882",5) == 0) {
+			isp->sensor_type = SENSOR_OV882X;
 			isp->sensor = sensor;
 			ret = 0;
 			break;

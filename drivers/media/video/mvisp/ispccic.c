@@ -231,7 +231,7 @@ static int ccic_configure_mipi(struct isp_ccic_device *ccic)
 				CCIC_ISP_IOMEM_1, CCIC_CSI2_DPHY6);
 			valid_sensor = true;
 			break;
-		case SENSOR_OV8820:
+		case SENSOR_OV882X:
 			mvisp_reg_writel(isp, 0x0A06,
 				CCIC_ISP_IOMEM_1, CCIC_CSI2_DPHY3);
 			if (lanes == 4)

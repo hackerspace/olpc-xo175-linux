@@ -1,4 +1,4 @@
-/* OmniVision OV8820 Sensor Driver
+/* OmniVision OV882x Sensor Driver
  *
  * Copyright (C) 2009-2010 Marvell International Ltd.
  *
@@ -17,48 +17,48 @@
 #include <asm/div64.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-chip-ident.h>
-#include <media/ov8820.h>
+#include <media/ov882x.h>
 #include <mach/camera.h>
 
-MODULE_DESCRIPTION("ov8820 sensor driver");
+MODULE_DESCRIPTION("ov882x sensor driver");
 MODULE_AUTHOR("Henry Zhao <xzhao10@marvell.com>");
 MODULE_LICENSE("GPL");
 
 #define MAX_DETECT_NUM			3
-#define MAX_OV8820_PADS_NUM		1
+#define MAX_OV882X_PADS_NUM		1
 
-#define OV8820_PAD_SOURCE		0
+#define OV882X_PAD_SOURCE		0
 #define SENSOR_OPEN 1
 #define SENSOR_CLOSE 0
 
-static const struct ov8820_datafmt ov8820_colour_fmts[] = {
+static const struct ov882x_datafmt ov882x_colour_fmts[] = {
 	{V4L2_MBUS_FMT_SBGGR10_1X10, V4L2_COLORSPACE_SRGB},
 };
 
-enum ov8820_output_type {
-	OV8820_OUTPUT_NONE = 0x0,
-	OV8820_OUTPUT_CCIC = 0x1,
+enum ov882x_output_type {
+	OV882X_OUTPUT_NONE = 0x0,
+	OV882X_OUTPUT_CCIC = 0x1,
 };
 
-struct ov8820_core {
+struct ov882x_core {
 	struct v4l2_subdev			sd;
 	struct sensor_platform_data	*plat_data;
-	struct media_pad pads[MAX_OV8820_PADS_NUM];
-	struct v4l2_mbus_framefmt formats[MAX_OV8820_PADS_NUM];
+	struct media_pad pads[MAX_OV882X_PADS_NUM];
+	struct v4l2_mbus_framefmt formats[MAX_OV882X_PADS_NUM];
 	u32 width;
 	u32 height;
-	enum ov8820_output_type	output;
+	enum ov882x_output_type	output;
 	struct mutex			sensor_mutex;
 };
 
-enum ov8820_register_access_e {
-	OV8820_REG_INVALID = 0,
-	OV8820_REG_READ,
-	OV8820_REG_WRITE,
+enum ov882x_register_access_e {
+	OV882X_REG_INVALID = 0,
+	OV882X_REG_READ,
+	OV882X_REG_WRITE,
 };
 
 /* supported controls */
-static struct v4l2_queryctrl ov8820_qctrl[] = {
+static struct v4l2_queryctrl ov882x_qctrl[] = {
 	{
 		.id = V4L2_CID_GAIN,
 		.type = V4L2_CTRL_TYPE_INTEGER,
@@ -110,12 +110,12 @@ static struct v4l2_queryctrl ov8820_qctrl[] = {
 
 
 
-static inline struct ov8820_core *to_ov8820_core(struct v4l2_subdev *sd)
+static inline struct ov882x_core *to_ov882x_core(struct v4l2_subdev *sd)
 {
-	return container_of(sd, struct ov8820_core, sd);
+	return container_of(sd, struct ov882x_core, sd);
 }
 
-static int ov8820_read(struct v4l2_subdev *sd, u16 reg, unsigned char *value)
+static int ov882x_read(struct v4l2_subdev *sd, u16 reg, unsigned char *value)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	int ret = 0;
@@ -134,7 +134,7 @@ static int ov8820_read(struct v4l2_subdev *sd, u16 reg, unsigned char *value)
 	return 0;
 }
 
-static int ov8820_write(struct v4l2_subdev *sd, u16 reg, unsigned char value)
+static int ov882x_write(struct v4l2_subdev *sd, u16 reg, unsigned char value)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	int ret = 0;
@@ -152,55 +152,61 @@ static int ov8820_write(struct v4l2_subdev *sd, u16 reg, unsigned char value)
 	return 0;
 }
 
-static int ov8820_detect(struct v4l2_subdev *sd)
+static int ov882x_detect(struct v4l2_subdev *sd,struct i2c_client *client)
 {
 	unsigned char v = 0;
 	int ret = 0;
 
-	ret = ov8820_read(sd, REG_PIDH, &v);
+	ret = ov882x_read(sd, REG_PIDH, &v);
 	if (ret < 0) {
-		printk(KERN_NOTICE "cam: ov8820: Sensor not mounted / I2C address error\n");
+		printk(KERN_NOTICE "cam: ov882x: Sensor not mounted / I2C address error\n");
 		return -ENXIO;
 	}
-	if (v != 0x88) {
-		printk(KERN_ERR "cam: ov8820: Not a OV8820 sensor: ID_HIGH = 0x%X\n"
+	if (v != REG_PIDH_VALUE) {
+		printk(KERN_ERR "cam: ov882x: Not a OV882x sensor: ID_HIGH = 0x%X\n"
 			, (unsigned char)v);
 		return -ENODEV;
 	}
-	ret = ov8820_read(sd, REG_PIDM, &v);
+
+	ret = ov882x_read(sd, REG_PIDM, &v);
 	if (ret < 0) {
-		printk(KERN_NOTICE "cam: ov8820: Sensor not mounted / I2C address error\n");
+		printk(KERN_NOTICE "cam: ov882x: Sensor not mounted / I2C address error\n");
 		return -ENXIO;
 	}
-	if (v != 0x20) {
-		printk(KERN_ERR "cam: ov8820: Not a OV8820 sensor: ID_LOW = 0x%X\n"
+	if (v != REG_PIDM_VALUE_8820 && v!= REG_PIDM_VALUE_8825) {
+		printk(KERN_ERR "cam: ov882x: Not a OV882x sensor: ID_LOW = 0x%X\n"
 			, (unsigned char)v);
 		return -ENODEV;
-	} else
-		printk(KERN_ERR "cam: ov8820: sensor detected!\n");
+	} else {
+		snprintf(sd->name, sizeof(sd->name), "%s %d-%04x",
+			client->name, i2c_adapter_id(client->adapter),
+			client->addr);
+
+		printk(KERN_ERR "cam: %s: sensor detected!\n",client->name);
+	}
 
 	return 0;
 }
 
-static int ov8820_reset(struct v4l2_subdev *sd, u32 val)
+static int ov882x_reset(struct v4l2_subdev *sd, u32 val)
 {
 	int ret = 0;
-	struct ov8820_core *core = to_ov8820_core(sd);
+	struct ov882x_core *core = to_ov882x_core(sd);
 
 	mutex_lock(&core->sensor_mutex);
 
-	ret = ov8820_write(sd, REG_RESET, RESET_ACT);
-	printk(KERN_NOTICE "cam: ov8820: Reset sensor\n");
+	ret = ov882x_write(sd, REG_RESET, RESET_ACT);
+	printk(KERN_NOTICE "cam: ov882x: Reset sensor\n");
 	msleep(20);
-	ret |= ov8820_write(sd, REG_RESET, RESET_DIS);
+	ret |= ov882x_write(sd, REG_RESET, RESET_DIS);
 
 	mutex_unlock(&core->sensor_mutex);
 	return (ret < 0);
 };
 
-static int ov8820_g_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
+static int ov882x_g_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 {
-	struct ov8820_core *core = to_ov8820_core(sd);
+	struct ov882x_core *core = to_ov882x_core(sd);
 	int ret = 0;
 
 	mutex_lock(&core->sensor_mutex);
@@ -224,16 +230,16 @@ static int ov8820_g_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 	return ret;
 }
 
-static int ov8820_queryctrl(struct v4l2_subdev *sd, struct v4l2_queryctrl *qc)
+static int ov882x_queryctrl(struct v4l2_subdev *sd, struct v4l2_queryctrl *qc)
 {
 	int i, ret = -EINVAL;
-	struct ov8820_core *core = to_ov8820_core(sd);
+	struct ov882x_core *core = to_ov882x_core(sd);
 
 	mutex_lock(&core->sensor_mutex);
 
-	for (i = 0; i < ARRAY_SIZE(ov8820_qctrl); i++)
-		if (qc->id && qc->id == ov8820_qctrl[i].id) {
-			memcpy(qc, &(ov8820_qctrl[i]),
+	for (i = 0; i < ARRAY_SIZE(ov882x_qctrl); i++)
+		if (qc->id && qc->id == ov882x_qctrl[i].id) {
+			memcpy(qc, &(ov882x_qctrl[i]),
 			       sizeof(*qc));
 			ret = 0;
 			break;
@@ -244,21 +250,21 @@ static int ov8820_queryctrl(struct v4l2_subdev *sd, struct v4l2_queryctrl *qc)
 }
 
 
-static int ov8820_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
+static int ov882x_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 {
-	struct ov8820_core *core = to_ov8820_core(sd);
+	struct ov882x_core *core = to_ov882x_core(sd);
 	u8 i, n;
 	int ret = 0;
 
 	mutex_lock(&core->sensor_mutex);
 
-	n = ARRAY_SIZE(ov8820_qctrl);
+	n = ARRAY_SIZE(ov882x_qctrl);
 
 	for (i = 0; i < n; i++) {
-		if (ctrl->id != ov8820_qctrl[i].id)
+		if (ctrl->id != ov882x_qctrl[i].id)
 			continue;
-		if (ctrl->value < ov8820_qctrl[i].minimum ||
-		    ctrl->value > ov8820_qctrl[i].maximum) {
+		if (ctrl->value < ov882x_qctrl[i].minimum ||
+		    ctrl->value > ov882x_qctrl[i].maximum) {
 			ret = -ERANGE;
 			goto error;
 		}
@@ -286,7 +292,7 @@ error:
 	return ret;
 }
 
-static int ov8820_try_format(struct v4l2_subdev *sd,
+static int ov882x_try_format(struct v4l2_subdev *sd,
 		struct v4l2_mbus_framefmt *fmt)
 {
 	int ret = 0;
@@ -298,7 +304,7 @@ static int ov8820_try_format(struct v4l2_subdev *sd,
 		fmt->colorspace = V4L2_COLORSPACE_SRGB;
 		break;
 	default:
-		printk(KERN_ERR "ov8820 doesn't support code 0x%08X\n"
+		printk(KERN_ERR "ov882x doesn't support code 0x%08X\n"
 			, fmt->code);
 		ret = -EINVAL;
 		break;
@@ -307,11 +313,11 @@ static int ov8820_try_format(struct v4l2_subdev *sd,
 	return ret;
 }
 
-static int ov8820_enum_mbus_code(struct v4l2_subdev *sd,
+static int ov882x_enum_mbus_code(struct v4l2_subdev *sd,
 				struct v4l2_subdev_fh *fh,
 				struct v4l2_subdev_mbus_code_enum *code)
 {
-	struct ov8820_core *core = to_ov8820_core(sd);
+	struct ov882x_core *core = to_ov882x_core(sd);
 	int ret = 0;
 
 	mutex_lock(&core->sensor_mutex);
@@ -321,12 +327,12 @@ static int ov8820_enum_mbus_code(struct v4l2_subdev *sd,
 		goto error;
 	}
 
-	if (code->index >= ARRAY_SIZE(ov8820_colour_fmts)) {
+	if (code->index >= ARRAY_SIZE(ov882x_colour_fmts)) {
 		ret = -EINVAL;
 		goto error;
 	}
 
-	code->code = ov8820_colour_fmts[code->index].code;
+	code->code = ov882x_colour_fmts[code->index].code;
 
 error:
 	mutex_unlock(&core->sensor_mutex);
@@ -334,12 +340,12 @@ error:
 	return ret;
 }
 
-static int ov8820_enum_frame_size(struct v4l2_subdev *sd,
+static int ov882x_enum_frame_size(struct v4l2_subdev *sd,
 				struct v4l2_subdev_fh *fh,
 				struct v4l2_subdev_frame_size_enum *fse)
 {
 	struct v4l2_mbus_framefmt format;
-	struct ov8820_core *core = to_ov8820_core(sd);
+	struct ov882x_core *core = to_ov882x_core(sd);
 	int ret = 0;
 
 	mutex_lock(&core->sensor_mutex);
@@ -352,7 +358,7 @@ static int ov8820_enum_frame_size(struct v4l2_subdev *sd,
 	format.code = fse->code;
 	format.width = 1;
 	format.height = 1;
-	ov8820_try_format(sd, &format);
+	ov882x_try_format(sd, &format);
 
 	fse->min_width = format.width;
 	fse->min_height = format.height;
@@ -366,7 +372,7 @@ static int ov8820_enum_frame_size(struct v4l2_subdev *sd,
 	format.width = -1;
 	format.height = -1;
 
-	ov8820_try_format(sd, &format);
+	ov882x_try_format(sd, &format);
 	fse->max_width = format.width;
 	fse->max_height = format.height;
 
@@ -375,26 +381,26 @@ error:
 	return ret;
 }
 
-static int ov8820_s_stream(struct v4l2_subdev *sd, int enable)
+static int ov882x_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	int ret = 0;
-	struct ov8820_core *core = to_ov8820_core(sd);
+	struct ov882x_core *core = to_ov882x_core(sd);
 
 	mutex_lock(&core->sensor_mutex);
 #if 0
 	if (!enable)
-		ret = ov8820_write(sd, 0x0100, 0x00);
+		ret = ov882x_write(sd, 0x0100, 0x00);
 #endif
-	dev_warn(sd->v4l2_dev->dev, "ov8820_s_stream %d\n", enable);
+	dev_warn(sd->v4l2_dev->dev, "ov882x_s_stream %d\n", enable);
 	mutex_unlock(&core->sensor_mutex);
 
 	return ret;
 }
 
-static int ov8820_g_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *parms)
+static int ov882x_g_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *parms)
 {
 	struct v4l2_captureparm *cp = &parms->parm.capture;
-	struct ov8820_core *core = to_ov8820_core(sd);
+	struct ov882x_core *core = to_ov882x_core(sd);
 	int ret = 0;
 
 	mutex_lock(&core->sensor_mutex);
@@ -413,10 +419,10 @@ error:
 	return ret;
 }
 
-static int ov8820_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *parms)
+static int ov882x_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *parms)
 {
 	struct v4l2_captureparm *cp = &parms->parm.capture;
-	struct ov8820_core *core = to_ov8820_core(sd);
+	struct ov882x_core *core = to_ov882x_core(sd);
 	int ret = 0;
 
 	mutex_lock(&core->sensor_mutex);
@@ -436,8 +442,8 @@ error:
 	return ret;
 }
 
-static struct v4l2_mbus_framefmt *__ov8820_get_format(
-			struct ov8820_core *core, struct v4l2_subdev_fh *fh,
+static struct v4l2_mbus_framefmt *__ov882x_get_format(
+			struct ov882x_core *core, struct v4l2_subdev_fh *fh,
 			unsigned int pad, enum v4l2_subdev_format_whence which)
 {
 	if (which == V4L2_SUBDEV_FORMAT_TRY)
@@ -446,16 +452,16 @@ static struct v4l2_mbus_framefmt *__ov8820_get_format(
 		return &core->formats[pad];
 }
 
-static int ov8820_set_format(struct v4l2_subdev *sd,
+static int ov882x_set_format(struct v4l2_subdev *sd,
 				struct v4l2_subdev_fh *fh,
 				struct v4l2_subdev_format *fmt)
 {
-	struct ov8820_core *core = to_ov8820_core(sd);
+	struct ov882x_core *core = to_ov882x_core(sd);
 	struct v4l2_mbus_framefmt *format;
 	int ret = 0;
 
 	mutex_lock(&core->sensor_mutex);
-	format = __ov8820_get_format(core, fh, fmt->pad, fmt->which);
+	format = __ov882x_get_format(core, fh, fmt->pad, fmt->which);
 	if (format == NULL) {
 		ret = -EINVAL;
 		goto error;
@@ -467,7 +473,7 @@ static int ov8820_set_format(struct v4l2_subdev *sd,
 	}
 
 
-	ret = ov8820_try_format(sd, &fmt->format);
+	ret = ov882x_try_format(sd, &fmt->format);
 	if (ret < 0)
 		goto error;
 
@@ -484,17 +490,17 @@ error:
 	return ret;
 }
 
-static int ov8820_get_format(struct v4l2_subdev *sd,
+static int ov882x_get_format(struct v4l2_subdev *sd,
 				struct v4l2_subdev_fh *fh,
 				struct v4l2_subdev_format *fmt)
 {
-	struct ov8820_core *core = to_ov8820_core(sd);
+	struct ov882x_core *core = to_ov882x_core(sd);
 	struct v4l2_mbus_framefmt *format;
 	int ret = 0;
 
 	mutex_lock(&core->sensor_mutex);
 
-	format = __ov8820_get_format(core, fh, fmt->pad, fmt->which);
+	format = __ov882x_get_format(core, fh, fmt->pad, fmt->which);
 	if (format == NULL) {
 		ret = -EINVAL;
 		goto error;
@@ -508,47 +514,47 @@ error:
 	return ret;
 }
 
-static int ov8820_g_chip_ident(struct v4l2_subdev *sd,
+static int ov882x_g_chip_ident(struct v4l2_subdev *sd,
 				struct v4l2_dbg_chip_ident *chip)
 {
 	u16 version = 0;
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
-	struct ov8820_core *core = to_ov8820_core(sd);
+	struct ov882x_core *core = to_ov882x_core(sd);
 	int ret;
 
 	mutex_lock(&core->sensor_mutex);
 
 	ret = v4l2_chip_ident_i2c_client(client, chip,
-			V4L2_IDENT_OV8820, version);
+			V4L2_IDENT_OV882X, version);
 
 	mutex_unlock(&core->sensor_mutex);
 
 	return ret;
 }
 
-static long ov8820_get_driver_name(struct v4l2_subdev *sd,
+static long ov882x_get_driver_name(struct v4l2_subdev *sd,
 		struct v4l2_sensor_get_driver_name *drv_name)
 {
 	if (!drv_name)
 		return -EINVAL;
 
-	strcpy(drv_name->driver, "ov8820");
+	strcpy(drv_name->driver, "ov882x");
 	return 0;
 }
 
-static long ov8820_register_access(struct v4l2_subdev *sd,
+static long ov882x_register_access(struct v4l2_subdev *sd,
 			struct v4l2_sensor_register_access *param,
-			enum ov8820_register_access_e access_type)
+			enum ov882x_register_access_e access_type)
 {
 	int ret = -EINVAL;
 
 	switch (access_type) {
-	case OV8820_REG_READ:
-		ret = ov8820_read(sd, param->reg,
+	case OV882X_REG_READ:
+		ret = ov882x_read(sd, param->reg,
 			(unsigned char *)&param->value);
 		break;
-	case OV8820_REG_WRITE:
-		ret = ov8820_write(sd, param->reg,
+	case OV882X_REG_WRITE:
+		ret = ov882x_write(sd, param->reg,
 			(unsigned char) param->value);
 		break;
 	default:
@@ -558,26 +564,26 @@ static long ov8820_register_access(struct v4l2_subdev *sd,
 	return ret;
 }
 
-static long ov8820_subdev_ioctl(struct v4l2_subdev *sd,
+static long ov882x_subdev_ioctl(struct v4l2_subdev *sd,
 			unsigned int cmd, void *arg)
 {
 	int ret = -EINVAL;
-	struct ov8820_core *core = to_ov8820_core(sd);
+	struct ov882x_core *core = to_ov882x_core(sd);
 
 	mutex_lock(&core->sensor_mutex);
 	switch (cmd) {
 	case VIDIOC_PRIVATE_SENSER_REGISTER_GET:
-		ret = ov8820_register_access(sd,
+		ret = ov882x_register_access(sd,
 			(struct v4l2_sensor_register_access *)arg,
-			OV8820_REG_READ);
+			OV882X_REG_READ);
 		break;
 	case VIDIOC_PRIVATE_SENSER_REGISTER_SET:
-		ret = ov8820_register_access(sd,
+		ret = ov882x_register_access(sd,
 			(struct v4l2_sensor_register_access *)arg,
-			OV8820_REG_WRITE);
+			OV882X_REG_WRITE);
 		break;
 	case VIDIOC_PRIVATE_SENSER_GET_DRIVER_NAME:
-		ret = ov8820_get_driver_name(sd,
+		ret = ov882x_get_driver_name(sd,
 			(struct v4l2_sensor_get_driver_name *)arg);
 		break;
 	default:
@@ -589,12 +595,12 @@ static long ov8820_subdev_ioctl(struct v4l2_subdev *sd,
 	return ret;
 }
 
-static int ov8820_subdev_close(struct v4l2_subdev *sd,
+static int ov882x_subdev_close(struct v4l2_subdev *sd,
 		struct v4l2_subdev_fh *fh)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct sensor_platform_data *pdata = client->dev.platform_data;
-	struct ov8820_core *core = to_ov8820_core(sd);
+	struct ov882x_core *core = to_ov882x_core(sd);
 
 	mutex_lock(&core->sensor_mutex);
 
@@ -607,12 +613,12 @@ static int ov8820_subdev_close(struct v4l2_subdev *sd,
 	return 0;
 }
 
-static int ov8820_subdev_open(struct v4l2_subdev *sd,
+static int ov882x_subdev_open(struct v4l2_subdev *sd,
 				struct v4l2_subdev_fh *fh)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct sensor_platform_data *pdata = client->dev.platform_data;
-	struct ov8820_core *core = to_ov8820_core(sd);
+	struct ov882x_core *core = to_ov882x_core(sd);
 
 	mutex_lock(&core->sensor_mutex);
 
@@ -625,22 +631,22 @@ static int ov8820_subdev_open(struct v4l2_subdev *sd,
 	return 0;
 }
 
-static int ov8820_link_setup(struct media_entity *entity,
+static int ov882x_link_setup(struct media_entity *entity,
 			   const struct media_pad *local,
 			   const struct media_pad *remote, u32 flags)
 {
 	struct v4l2_subdev *sd = media_entity_to_v4l2_subdev(entity);
-	struct ov8820_core *core = to_ov8820_core(sd);
+	struct ov882x_core *core = to_ov882x_core(sd);
 	int ret = 0;
 
 	mutex_lock(&core->sensor_mutex);
 
 	switch (local->index | media_entity_type(remote->entity)) {
-	case OV8820_PAD_SOURCE | MEDIA_ENT_T_V4L2_SUBDEV:
+	case OV882X_PAD_SOURCE | MEDIA_ENT_T_V4L2_SUBDEV:
 		if (flags & MEDIA_LNK_FL_ENABLED)
-			core->output |= OV8820_OUTPUT_CCIC;
+			core->output |= OV882X_OUTPUT_CCIC;
 		else
-			core->output &= ~OV8820_OUTPUT_CCIC;
+			core->output &= ~OV882X_OUTPUT_CCIC;
 		break;
 	default:
 		/* Link from camera to CCIC is fixed... */
@@ -653,43 +659,43 @@ static int ov8820_link_setup(struct media_entity *entity,
 	return ret;
 }
 
-static const struct v4l2_subdev_pad_ops ov8820_pad_ops = {
-	.enum_mbus_code = ov8820_enum_mbus_code,
-	.enum_frame_size = ov8820_enum_frame_size,
-	.get_fmt = ov8820_get_format,
-	.set_fmt = ov8820_set_format,
+static const struct v4l2_subdev_pad_ops ov882x_pad_ops = {
+	.enum_mbus_code = ov882x_enum_mbus_code,
+	.enum_frame_size = ov882x_enum_frame_size,
+	.get_fmt = ov882x_get_format,
+	.set_fmt = ov882x_set_format,
 };
 
-static const struct v4l2_subdev_core_ops ov8820_core_ops = {
-	.ioctl = ov8820_subdev_ioctl,
-	.queryctrl = ov8820_queryctrl,
-	.g_ctrl = ov8820_g_ctrl,
-	.s_ctrl = ov8820_s_ctrl,
-	.reset = ov8820_reset,
-	.g_chip_ident = ov8820_g_chip_ident,
+static const struct v4l2_subdev_core_ops ov882x_core_ops = {
+	.ioctl = ov882x_subdev_ioctl,
+	.queryctrl = ov882x_queryctrl,
+	.g_ctrl = ov882x_g_ctrl,
+	.s_ctrl = ov882x_s_ctrl,
+	.reset = ov882x_reset,
+	.g_chip_ident = ov882x_g_chip_ident,
 };
 
-static const struct v4l2_subdev_video_ops ov8820_video_ops = {
-	.g_parm = ov8820_g_parm,
-	.s_parm = ov8820_s_parm,
-	.s_stream = ov8820_s_stream,
+static const struct v4l2_subdev_video_ops ov882x_video_ops = {
+	.g_parm = ov882x_g_parm,
+	.s_parm = ov882x_s_parm,
+	.s_stream = ov882x_s_stream,
 };
 
-static const struct v4l2_subdev_ops ov8820_ops = {
-	.core  = &ov8820_core_ops,
-	.video = &ov8820_video_ops,
-	.pad = &ov8820_pad_ops,
+static const struct v4l2_subdev_ops ov882x_ops = {
+	.core  = &ov882x_core_ops,
+	.video = &ov882x_video_ops,
+	.pad = &ov882x_pad_ops,
 };
 
 /* subdev internal operations */
-static const struct v4l2_subdev_internal_ops ov8820_v4l2_internal_ops = {
-	.open = ov8820_subdev_open,
-	.close = ov8820_subdev_close,
+static const struct v4l2_subdev_internal_ops ov882x_v4l2_internal_ops = {
+	.open = ov882x_subdev_open,
+	.close = ov882x_subdev_close,
 };
 
 /* media operations */
-static const struct media_entity_operations ov8820_media_ops = {
-	.link_setup = ov8820_link_setup,
+static const struct media_entity_operations ov882x_media_ops = {
+	.link_setup = ov882x_link_setup,
 };
 
 
@@ -697,11 +703,11 @@ static const struct media_entity_operations ov8820_media_ops = {
 			I2C Client & Driver
  ****************************************************************************/
 
-static int ov8820_probe(struct i2c_client *client,
+static int ov882x_probe(struct i2c_client *client,
 			 const struct i2c_device_id *id)
 {
 	int i, ret;
-	struct ov8820_core *core;
+	struct ov882x_core *core;
 	struct v4l2_subdev *sd;
 	struct sensor_platform_data *pdata = client->dev.platform_data;
 
@@ -716,7 +722,7 @@ static int ov8820_probe(struct i2c_client *client,
 	     I2C_FUNC_SMBUS_READ_BYTE | I2C_FUNC_SMBUS_WRITE_BYTE_DATA))
 		return -EIO;
 
-	core = kzalloc(sizeof(struct ov8820_core), GFP_KERNEL);
+	core = kzalloc(sizeof(struct ov882x_core), GFP_KERNEL);
 	if (!core)
 		return -ENOMEM;
 
@@ -728,20 +734,20 @@ static int ov8820_probe(struct i2c_client *client,
 	}
 
 	sd = &core->sd;
-	v4l2_i2c_subdev_init(sd, client, &ov8820_ops);
-	sd->internal_ops = &ov8820_v4l2_internal_ops;
+	v4l2_i2c_subdev_init(sd, client, &ov882x_ops);
+	sd->internal_ops = &ov882x_v4l2_internal_ops;
 	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	pads = core->pads;
 
 	me = &sd->entity;
-	pads[OV8820_PAD_SOURCE].flags = MEDIA_PAD_FL_SOURCE;
-	me->ops = &ov8820_media_ops;
-	ret = media_entity_init(me, MAX_OV8820_PADS_NUM, pads, 0);
+	pads[OV882X_PAD_SOURCE].flags = MEDIA_PAD_FL_SOURCE;
+	me->ops = &ov882x_media_ops;
+	ret = media_entity_init(me, MAX_OV882X_PADS_NUM, pads, 0);
 	if (ret < 0)
 		return ret;
-	/* Check if the sensor is really a OV8820 */
+	/* Check if the sensor is really a OV882x */
 	for (i = MAX_DETECT_NUM; i > 0; --i) {
-		ret = ov8820_detect(sd);
+		ret = ov882x_detect(sd,client);
 		if (!ret)
 			break;
 
@@ -751,7 +757,7 @@ static int ov8820_probe(struct i2c_client *client,
 			return ret;
 		} else {
 			printk(KERN_ERR \
-				"camera: OV8820 sensor detect failure, will retry %d times!\n"
+				"camera: OV882x sensor detect failure, will retry %d times!\n"
 				, i);
 		}
 	}
@@ -764,7 +770,7 @@ static int ov8820_probe(struct i2c_client *client,
 	return 0;
 }
 
-static int ov8820_remove(struct i2c_client *client)
+static int ov882x_remove(struct i2c_client *client)
 {
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
 	struct sensor_platform_data *pdata = client->dev.platform_data;
@@ -773,38 +779,40 @@ static int ov8820_remove(struct i2c_client *client)
 		if (pdata->power_on)
 			pdata->power_on(SENSOR_CLOSE, pdata->id);
 
+	media_entity_cleanup(&sd->entity);
 	v4l2_device_unregister_subdev(sd);
-	kfree(to_ov8820_core(sd));
+	kfree(to_ov882x_core(sd));
 	return 0;
 }
 
 /* ----------------------------------------------------------------------- */
 
-static const struct i2c_device_id ov8820_id[] = {
+static const struct i2c_device_id ov882x_id[] = {
 	{ "ov8820", 0 },
+	{ "ov8825", 0 },
 	{ }
 };
-MODULE_DEVICE_TABLE(i2c, ov8820_id);
+MODULE_DEVICE_TABLE(i2c, ov882x_id);
 
-static struct i2c_driver ov8820_driver = {
+static struct i2c_driver ov882x_driver = {
 	.driver = {
 		.owner	= THIS_MODULE,
-		.name	= "ov8820",
+		.name	= "ov882x",
 	},
-	.probe		= ov8820_probe,
-	.remove		= ov8820_remove,
-	.id_table	= ov8820_id,
+	.probe		= ov882x_probe,
+	.remove		= ov882x_remove,
+	.id_table	= ov882x_id,
 };
 
-static __init int init_ov8820(void)
+static __init int init_ov882x(void)
 {
-	return i2c_add_driver(&ov8820_driver);
+	return i2c_add_driver(&ov882x_driver);
 }
 
-static __exit void exit_ov8820(void)
+static __exit void exit_ov882x(void)
 {
-	i2c_del_driver(&ov8820_driver);
+	i2c_del_driver(&ov882x_driver);
 }
 
-module_init(init_ov8820);
-module_exit(exit_ov8820);
+module_init(init_ov882x);
+module_exit(exit_ov882x);
