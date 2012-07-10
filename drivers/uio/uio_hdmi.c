@@ -76,12 +76,12 @@ static void set_power_constraint(struct hdmi_instance *hi, int min)
 
 #ifdef CONFIG_CPU_PXA978
 	printk("hdmi: set_power_constraint\n");
-	/* Disable Lowpower mode */
 	dvfm_disable_op_name("156M", dvfm_dev_idx);
-	dvfm_disable_op_name("156M_HF", dvfm_dev_idx);
 	dvfm_disable_op_name("312M", dvfm_dev_idx);
-	dvfm_disable_op_name("416M", dvfm_dev_idx);
 	dvfm_disable_op_name("624M", dvfm_dev_idx);
+	/* Disable Lowpower mode */
+	dvfm_disable_op_name("D2", dvfm_dev_idx);
+	dvfm_disable_op_name("CG", dvfm_dev_idx);
 #endif
 }
 
@@ -99,12 +99,12 @@ static void unset_power_constraint(struct hdmi_instance *hi)
 
 #ifdef CONFIG_CPU_PXA978
 	printk("hdmi: unset_power_constraint\n");
-	/* Enable Lowpower mode */
 	dvfm_enable_op_name("156M", dvfm_dev_idx);
-	dvfm_enable_op_name("156M_HF", dvfm_dev_idx);
 	dvfm_enable_op_name("312M", dvfm_dev_idx);
-	dvfm_enable_op_name("416M", dvfm_dev_idx);
 	dvfm_enable_op_name("624M", dvfm_dev_idx);
+	/* Enable Lowpower mode */
+	dvfm_enable_op_name("D2", dvfm_dev_idx);
+	dvfm_enable_op_name("CG", dvfm_dev_idx);
 #endif
 }
 
@@ -273,12 +273,12 @@ static int hdmi_suspend(struct platform_device *pdev, pm_message_t mesg)
 	struct hdmi_instance *hi = platform_get_drvdata(pdev);
 	suspend_flag = 1;
 	if (atomic_read(&hdmi_state) == 1) {
-#ifdef CONFIG_CPU_PXA978
-		unset_power_constraint(hi);
-#endif
 		clk_disable(hi->clk);
 		if (hi->hdmi_power)
 			hi->hdmi_power(0);
+#ifdef CONFIG_CPU_PXA978
+			unset_power_constraint(hi);
+#endif
 		printk("uio_hdmi: suspend done!\n");
 	}
 #ifdef CONFIG_CPU_PXA978
