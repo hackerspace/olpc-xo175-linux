@@ -49,11 +49,6 @@
 #define MVISP_DUMMY_BUF_SIZE	(1920*1080*2)
 #define ISP_STOP_TIMEOUT	msecs_to_jiffies(1000)
 
-static char *isp_clocks[] = {
-	"ISP-CLK",
-	"CCIC-CLK",
-};
-
 #define MVISP_PM_QOS_CPUFREQ_MIN		(400)
 
 static struct pm_qos_request_list mvisp_pm_qos_cpufreq_min;
@@ -443,75 +438,104 @@ mvisp_restore_context(struct mvisp_device *isp,
 
 static int mvisp_enable_clocks(struct mvisp_device *isp)
 {
-	int r;
+	int clk_i;
+	int ret = 0;
 
-	r = clk_enable(isp->clock[ISP_CLK_DXO_ISP]);
-	if (r) {
-		dev_err(isp->dev, "clk_enable isp failed\n");
-		goto out_clk_enable_isp;
-	}
-
-	if (isp->clock[ISP_CLK_DXO_CCIC] != NULL) {
-		r = clk_enable(isp->clock[ISP_CLK_DXO_CCIC]);
-		if (r) {
-			dev_err(isp->dev, "clk_enable ccic failed\n");
-			goto out_clk_enable_ccic;
+	for (clk_i = 0; clk_i < isp->isp_clknum +
+			isp->ccic_clknum; clk_i++) {
+		if (isp->clock[clk_i] != NULL) {
+			ret = clk_enable(isp->clock[clk_i]);
+			if (ret) {
+				dev_err(isp->dev, "clk_enable failed\n");
+				goto out_clk_enable;
+			}
 		}
 	}
 
 	return 0;
 
-out_clk_enable_ccic:
-	clk_disable(isp->clock[ISP_CLK_DXO_ISP]);
-out_clk_enable_isp:
-	return r;
+out_clk_enable:
+	for (--clk_i; clk_i >= 0; clk_i--) {
+		if (isp->clock[clk_i] != NULL)
+			clk_disable(isp->clock[clk_i]);
+	}
+
+	return ret;
 }
 
 static void mvisp_disable_clocks(struct mvisp_device *isp)
 {
-	clk_disable(isp->clock[ISP_CLK_DXO_ISP]);
-	if (isp->clock[ISP_CLK_DXO_CCIC] != NULL)
-		clk_disable(isp->clock[ISP_CLK_DXO_CCIC]);
+	int clk_i;
+
+	for (clk_i = 0; clk_i < isp->isp_clknum +
+			isp->ccic_clknum; clk_i++) {
+		if (isp->clock[clk_i] != NULL)
+			clk_disable(isp->clock[clk_i]);
+	}
 }
 
 static void mvisp_put_clocks(struct mvisp_device *isp)
 {
-	unsigned int i;
+	int clk_i;
 
-	for (i = 0; i < ARRAY_SIZE(isp_clocks); ++i) {
-		if (isp->clock[i] != NULL) {
-			clk_put(isp->clock[i]);
-			isp->clock[i] = NULL;
+	for (clk_i = 0; clk_i < isp->isp_clknum +
+			isp->ccic_clknum; clk_i++) {
+		if (isp->clock[clk_i] != NULL) {
+			clk_put(isp->clock[clk_i]);
+			isp->clock[clk_i] = NULL;
 		}
 	}
 }
 
-static int mvisp_get_clocks(struct mvisp_device *isp)
+static int mvisp_get_clocks(struct mvisp_device *isp,
+		struct mvisp_platform_data *pdata)
 {
 	struct clk *clk;
+	int clk_i;
+	int ret = 0;
+	unsigned int isp_clknum = isp->isp_clknum;
+	unsigned int ccic_clknum = isp->ccic_clknum;
 
-	clk = clk_get(isp->dev, isp_clocks[ISP_CLK_DXO_ISP]);
-	if (IS_ERR(clk)) {
-		dev_err(isp->dev, "clk_get %s failed\n",
-			isp_clocks[ISP_CLK_DXO_ISP]);
-		return PTR_ERR(clk);
-	}
-	isp->clock[ISP_CLK_DXO_ISP] = clk;
 
-	if (isp->sensor_connected == true) {
-		clk = clk_get(isp->dev, isp_clocks[ISP_CLK_DXO_CCIC]);
+	for (clk_i = 0; clk_i < isp_clknum + ccic_clknum; clk_i++)
+		isp->clock[clk_i] = NULL;
+
+	for (clk_i = 0; clk_i < isp_clknum; clk_i++) {
+		clk = clk_get(isp->dev, pdata->clkname[clk_i]);
 		if (IS_ERR(clk)) {
 			dev_err(isp->dev, "clk_get %s failed\n",
-				isp_clocks[ISP_CLK_DXO_CCIC]);
-			clk_put(isp->clock[ISP_CLK_DXO_ISP]);
-			isp->clock[ISP_CLK_DXO_ISP] = NULL;
-			return PTR_ERR(clk);
+					pdata->clkname[clk_i]);
+			ret = PTR_ERR(clk);
+			goto out_get_isp_clk;
 		}
-		isp->clock[ISP_CLK_DXO_CCIC] = clk;
-	} else
-		isp->clock[ISP_CLK_DXO_CCIC] = NULL;
+		isp->clock[clk_i] = clk;
+	}
+
+	if (isp->sensor_connected == true) {
+		for (clk_i = 0; clk_i < ccic_clknum; clk_i++) {
+			clk = clk_get(isp->dev,
+					pdata->clkname[isp_clknum + clk_i]);
+			if (IS_ERR(clk)) {
+				dev_err(isp->dev, "clk_get %s failed\n",
+					pdata->clkname[isp_clknum + clk_i]);
+				ret = PTR_ERR(clk);
+				goto out_get_ccic_clk;
+			}
+			isp->clock[isp_clknum + clk_i] = clk;
+		}
+	}
 
 	return 0;
+
+out_get_ccic_clk:
+	clk_i += isp_clknum;
+out_get_isp_clk:
+	for (--clk_i; clk_i >= 0; clk_i--) {
+		clk_put(isp->clock[clk_i]);
+		isp->clock[clk_i] = NULL;
+	}
+
+	return ret;
 }
 
 struct mvisp_device *mvisp_get(struct mvisp_device *isp)
@@ -525,14 +549,14 @@ struct mvisp_device *mvisp_get(struct mvisp_device *isp)
 	if (isp->ref_count > 0)
 		goto out;
 
-	if( isp->mvisp_power_control == NULL || isp->mvisp_power_control(1) < 0){
+	if (isp->isp_pwr_ctrl == NULL || isp->isp_pwr_ctrl(1) < 0) {
 		__isp = NULL;
 		goto out;
 	}
 
 	if (mvisp_enable_clocks(isp) < 0) {
 		__isp = NULL;
-		goto out;
+		goto out_power_off;
 	}
 
 	mvisp_set_pm_qos(MVISP_PM_QOS_CPUFREQ_MIN);
@@ -544,6 +568,10 @@ struct mvisp_device *mvisp_get(struct mvisp_device *isp)
 		isp->has_context = true;
 
 	mvisp_enable_interrupts(isp);
+
+out_power_off:
+	if (__isp == NULL && isp->isp_pwr_ctrl != NULL)
+		isp->isp_pwr_ctrl(0);
 
 out:
 	if (__isp != NULL)
@@ -565,8 +593,8 @@ void mvisp_put(struct mvisp_device *isp)
 		mvisp_save_context(isp, NULL);
 		mvisp_unset_pm_qos();
 		mvisp_disable_clocks(isp);
-		if( isp->mvisp_power_control != NULL)
-			isp->mvisp_power_control(0);
+		if (isp->isp_pwr_ctrl != NULL)
+			isp->isp_pwr_ctrl(0);
 
 	}
 	mutex_unlock(&isp->mvisp_mutex);
@@ -992,6 +1020,7 @@ static int mvisp_prepare_dummy(struct mvisp_device *isp)
 static int mvisp_probe(struct platform_device *pdev)
 {
 	struct mvisp_platform_data *pdata = pdev->dev.platform_data;
+	struct platform_device_id *pid = platform_get_device_id(pdev);
 	struct mvisp_device *isp;
 	int ret;
 	int i;
@@ -999,7 +1028,8 @@ static int mvisp_probe(struct platform_device *pdev)
 	if (pdata == NULL)
 		return -EINVAL;
 
-	isp = kzalloc(sizeof(*isp), GFP_KERNEL);
+	isp = kzalloc(sizeof(*isp) + sizeof(struct clk *) *
+			(pdata->isp_clknum + pdata->ccic_clknum), GFP_KERNEL);
 	if (!isp) {
 		dev_err(&pdev->dev, "could not allocate memory\n");
 		return -ENOMEM;
@@ -1013,7 +1043,10 @@ static int mvisp_probe(struct platform_device *pdev)
 	isp->has_context = false;
 	isp->ccic_dummy_ena = pdata->ccic_dummy_ena;
 	isp->ispdma_dummy_ena = pdata->ispdma_dummy_ena;
-	isp->mvisp_power_control = pdata->mvisp_power_control;
+	isp->isp_pwr_ctrl = pdata->isp_pwr_ctrl;
+	isp->isp_clknum = pdata->isp_clknum;
+	isp->ccic_clknum = pdata->ccic_clknum;
+	isp->cpu_type = pid->driver_data;
 
 	platform_set_drvdata(pdev, isp);
 
@@ -1032,7 +1065,7 @@ static int mvisp_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto error;
 
-	ret = mvisp_get_clocks(isp);
+	ret = mvisp_get_clocks(isp, pdata);
 	if (ret < 0)
 		goto error;
 
@@ -1150,6 +1183,12 @@ static const struct dev_pm_ops mvisp_pm_ops = {
 	.complete = mvisp_pm_complete,
 };
 
+static const struct platform_device_id mvisp_id_table[] = {
+	{"mmp3-mvisp",   MV_MMP3},
+	{"pxa988-mvisp", MV_PXA988},
+	{ },
+};
+MODULE_DEVICE_TABLE(platform, i2c_pxa_id_table);
 
 static struct platform_driver mvisp_driver = {
 	.probe = mvisp_probe,
@@ -1159,6 +1198,7 @@ static struct platform_driver mvisp_driver = {
 		.name = "mvisp",
 		.pm	= &mvisp_pm_ops,
 	},
+	.id_table = mvisp_id_table,
 };
 
 /*

@@ -47,12 +47,6 @@
 #define v4l2_dev_to_mvisp_device(dev) \
 	container_of(dev, struct mvisp_device, v4l2_dev)
 
-enum mvisp_clock_type {
-	ISP_CLK_DXO_ISP = 0,
-	ISP_CLK_DXO_CCIC,
-	ISP_CLK_DXO_MAX,
-};
-
 struct pad_formats {
 	enum v4l2_mbus_pixelcode mbusfmt;
 	enum v4l2_colorspace colorspace;
@@ -66,6 +60,11 @@ enum mvisp_mem_resources {
 	ISP_IOMEM_LAST,
 };
 
+enum mvisp_cpu_type {
+	MV_MMP3 = 0,
+	MV_PXA988,
+};
+
 struct mvisp_device {
 	struct v4l2_device	v4l2_dev;
 	struct media_device	media_dev;
@@ -73,6 +72,7 @@ struct mvisp_device {
 
 	/* platform HW resources */
 	struct mvisp_platform_data *pdata;
+	enum mvisp_cpu_type     cpu_type;
 
 	/* flags */
 	bool	has_context;
@@ -86,9 +86,6 @@ struct mvisp_device {
 	void __iomem *mmio_base[ISP_IOMEM_LAST];
 	unsigned long mmio_base_phys[ISP_IOMEM_LAST];
 	resource_size_t mmio_size[ISP_IOMEM_LAST];
-	struct clk		*clock[ISP_CLK_DXO_MAX];
-
-	int (*mvisp_power_control)(int);
 
 	/* dummy buffer for all isp */
 	bool			ccic_dummy_ena;
@@ -110,6 +107,11 @@ struct mvisp_device {
 	struct v4l2_subdev			*sensor;
 	bool sensor_connected;
 	enum mv_isp_sensor_type sensor_type;
+
+	int (*isp_pwr_ctrl)(int);
+	unsigned int isp_clknum;
+	unsigned int ccic_clknum;
+	struct clk   *clock[0];
 };
 
 
