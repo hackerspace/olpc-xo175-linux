@@ -361,7 +361,11 @@ static void pxa988_l2_cache_init(void)
 	/* L2X0 Power Control  */
 	writel_relaxed(0x3, l2x0_base + L2X0_POWER_CTRL);
 
-	l2x0_init(l2x0_base, 0x30860000, 0xC200FFFF);
+	/*
+	 * use the default value here
+	 * for prefetch feature, it can be handled by prefetch register.
+	 */
+	l2x0_init(l2x0_base, 0, ~0);
 #ifdef CONFIG_PM
 	l2x0_saved_regs.phy_base = SL2C_PHYS_BASE;
 	l2x0_save_phys_reg_addr(&l2x0_regs_phys,
