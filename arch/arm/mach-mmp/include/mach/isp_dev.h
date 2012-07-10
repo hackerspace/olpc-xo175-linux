@@ -54,8 +54,16 @@ struct mvisp_platform_data {
 	int (*isp_pwr_ctrl)(int);
 };
 
+#ifdef CONFIG_CPU_MMP3
 void __init mmp3_register_dxoisp(struct mvisp_platform_data *pdata);
 int mmp3_isp_reset_hw(void *param);
 int isppwr_power_control(int on);
+#endif
+
+#ifdef CONFIG_CPU_PXA988
+void __init pxa988_register_dxoisp(struct mvisp_platform_data *pdata);
+int pxa988_isp_reset_hw(void *param);
+int pxa988_isp_power_control(int on);
+#endif
 
 #endif

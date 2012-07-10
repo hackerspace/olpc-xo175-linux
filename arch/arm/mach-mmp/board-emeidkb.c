@@ -58,6 +58,7 @@
 #include <plat/usb.h>
 
 #include <media/soc_camera.h>
+#include <mach/isp_dev.h>
 
 #include "onboard.h"
 #include "common.h"
@@ -800,6 +801,149 @@ static struct platform_device *dkb_platform_devices[] = {
 	&pxa988_device_rtc,
 };
 
+
+#ifdef CONFIG_VIDEO_MVISP_OV8825
+static int ov8825_sensor_power_on(int on, int flag)
+{
+	static struct regulator *af_vcc;
+	static struct regulator *avdd;
+	int rst  = mfp_to_gpio(GPIO081_GPIO_CAM_RST_MAIN);
+	int pwdn = mfp_to_gpio(GPIO080_GPIO_CAM_PD_MAIN);
+	int ret = 0;
+
+	if (gpio_request(pwdn, "CAM_ENABLE_LOW")) {
+		ret = -EIO;
+		goto out;
+	}
+
+	if (gpio_request(rst, "CAM_RESET_LOW")) {
+		ret = -EIO;
+		goto out_rst;
+	}
+
+	if (!af_vcc) {
+		af_vcc = regulator_get(NULL, "v_cam_af");
+		if (IS_ERR(af_vcc)) {
+			ret = -EIO;
+			goto out_af_vcc;
+		}
+	}
+
+	if (!avdd) {
+		avdd = regulator_get(NULL, "v_cam_avdd");
+		if (IS_ERR(avdd)) {
+			ret =  -EIO;
+			goto out_avdd;
+		}
+	}
+
+	/* Enable voltage for camera sensor OV8825 */
+	if (on) {
+		regulator_set_voltage(af_vcc, 2800000, 2800000);
+		regulator_enable(af_vcc);
+		regulator_set_voltage(avdd, 2800000, 2800000);
+		regulator_enable(avdd);
+		mdelay(5);
+		/* enable the sensor now*/
+		gpio_direction_output(pwdn, 1);
+		mdelay(1);
+		gpio_direction_output(rst, 1);
+		mdelay(20);
+	} else {
+		gpio_direction_output(rst, 0);
+
+		regulator_disable(avdd);
+		regulator_disable(af_vcc);
+
+		gpio_direction_output(pwdn, 0);
+	}
+
+	gpio_free(rst);
+	gpio_free(pwdn);
+	return 0;
+
+out_avdd:
+	avdd = NULL;
+	regulator_put(af_vcc);
+out_af_vcc:
+	af_vcc = NULL;
+	gpio_free(rst);
+out_rst:
+	gpio_free(pwdn);
+out:
+	return ret;
+}
+
+static struct sensor_platform_data ov8825_platdata = {
+	.id = 0,
+	.power_on = ov8825_sensor_power_on,
+	.platform_set = NULL,
+};
+
+static struct i2c_board_info ov8825_info = {
+	.type = "ov8825",
+	.addr = 0x36,
+	.platform_data = &ov8825_platdata,
+};
+
+static struct mvisp_subdev_i2c_board_info ov8825_isp_info[] = {
+	[0] = {
+		.board_info = &ov8825_info,
+		.i2c_adapter_id = 0,
+	},
+	[1] = {
+		.board_info = NULL,
+		.i2c_adapter_id = 0,
+	},
+};
+
+static struct mvisp_v4l2_subdevs_group dxoisp_subdevs_group[] = {
+	[0] = {
+		.i2c_board_info = ov8825_isp_info,
+		.if_type = ISP_INTERFACE_CCIC_1,
+	},
+	[1] = {
+		.i2c_board_info = NULL,
+		.if_type = 0,
+	},
+};
+#endif
+
+
+#ifdef CONFIG_VIDEO_MVISP
+#ifndef CONFIG_VIDEO_MVISP_OV8825
+static struct mvisp_v4l2_subdevs_group dxoisp_subdevs_group[] = {
+	[0] = {
+		.i2c_board_info = NULL,
+		.if_type = 0,
+	},
+};
+#endif
+
+static char *pxa988_isp_ccic_clk_name[] = {
+	[0] = "ISP-CLK",
+	[1] = "CCICPHYCLK",
+	[2] = "CCICFUNCLK",
+};
+
+static struct mvisp_platform_data pxa988_dxoisp_pdata = {
+	.isp_clknum       = 1,
+	.ccic_clknum      = 2,
+	.clkname          = pxa988_isp_ccic_clk_name,
+	.mvisp_reset      = pxa988_isp_reset_hw,
+	.isp_pwr_ctrl     = pxa988_isp_power_control,
+	.subdev_group     = dxoisp_subdevs_group,
+	.ccic_dummy_ena   = false,
+	.ispdma_dummy_ena = false,
+};
+
+static void __init pxa988_init_dxoisp(void)
+{
+	pxa988_register_dxoisp(&pxa988_dxoisp_pdata);
+}
+#endif
+
+
 static struct i2c_board_info emeidkb_i2c_info[] = {
 
 };
@@ -1460,8 +1604,12 @@ static void __init emeidkb_init(void)
 	/* off-chip devices */
 	platform_add_devices(ARRAY_AND_SIZE(dkb_platform_devices));
 
-#if defined(CONFIG_VIDEO_MV)
+#if defined(CONFIG_VIDEO_MV_)
 	pxa988_add_cam(&mv_cam_data);
+#endif
+
+#ifdef CONFIG_VIDEO_MV
+	pxa988_init_dxoisp();
 #endif
 
 #if (defined CONFIG_CMMB)
