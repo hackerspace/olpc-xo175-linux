@@ -482,7 +482,7 @@ static int __init pxa988_lowpower_init(void)
 	int i;
 	void __iomem *scu_addr;
 	num_cpus = num_online_cpus();
-	coherent_buf = __arm_ioremap(pm_reserve_pa, PAGE_SIZE, MT_UNCACHED);
+	coherent_buf = __arm_ioremap(pm_reserve_pa, PAGE_SIZE, MT_MEMORY_SO);
 	if (coherent_buf == NULL)
 		panic("%s: failed to remap memory for pm\n", __func__);
 	memset(coherent_buf, 0x0, PAGE_SIZE);
