@@ -881,12 +881,13 @@ static inline unsigned int mm_pll_freq2reg(unsigned int x)
 		return 0;
 	}
 }
-
+static struct clk clk_pxa978_mmpll;
 static inline void set_mmpll_freq(unsigned long rate)
 {
 	uint32_t mm_pll_param;
 	if ((rate != 481000000) && (rate != 498000000) && (rate != 600000000))
 		return;
+	clk_enable(&clk_pxa978_mmpll);
 	mm_pll_param = MM_PLL_PARAM;
 	mm_pll_param &= ~(MMPLL_VCODIV_SEL_MASK
 			  | MMPLL_KVCO_MASK
@@ -896,6 +897,7 @@ static inline void set_mmpll_freq(unsigned long rate)
 	MM_PLL_PARAM = mm_pll_param;
 	while (!(MM_PLL_CTRL & MMPLL_PWR_ST))
 		;
+	clk_disable(&clk_pxa978_mmpll);
 }
 
 static int clk_mmpll_enable(struct clk *clk)
@@ -947,7 +949,7 @@ extern struct dvfs gc_dvfs;
 /*These function and Variables are used for GC&VMETA stats in debugfs*/
 static void gcu_vmeta_stats(struct clk *clk, unsigned long rate);
 extern struct gc_vmeta_ticks gc_vmeta_ticks_info;
-static struct clk clk_pxa978_mmpll;
+
 static int clk_gcu_enable(struct clk *clk)
 {
 	struct dvfs_freqs dvfs_freqs;
