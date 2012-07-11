@@ -660,8 +660,8 @@ static struct pxa95xfb_mach_info lcd_ovly_info __initdata = {
 
 static struct pxa95xfb_mach_info lcd_info_wvga /*__initdata*/ = {
 	.id = "Base",
-	.modes = video_modes_trulywvga,
-	.num_modes = ARRAY_SIZE(video_modes_trulywvga),
+	.modes = video_modes_truly480800,
+	.num_modes = ARRAY_SIZE(video_modes_truly480800),
 	.pix_fmt_in = PIX_FMTIN_RGB_16,
 	.pix_fmt_out = PIX_FMTOUT_24_RGB888,
 	.panel_type = LCD_Controller_Active,
@@ -678,8 +678,8 @@ static struct pxa95xfb_mach_info lcd_info_wvga /*__initdata*/ = {
 
 static struct pxa95xfb_mach_info lcd_ovly_info_wvga /*__initdata*/ = {
 	.id = "Ovly",
-	.modes = video_modes_trulywvga,
-	.num_modes = ARRAY_SIZE(video_modes_trulywvga),
+	.modes = video_modes_truly480800,
+	.num_modes = ARRAY_SIZE(video_modes_truly480800),
 	.pix_fmt_in = PIX_FMTIN_RGB_16,
 	.pix_fmt_out = PIX_FMTOUT_24_RGB888,
 	.panel_type = LCD_Controller_Active,
