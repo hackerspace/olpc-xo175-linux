@@ -253,7 +253,8 @@ typedef enum {
 
 enum cam_state {
 	CAM_STATE_UNKNOW	= 0,
-	CAM_STATE_INIT,
+	CAM_STATE_CLOSE,
+	CAM_STATE_OPEN,
 	CAM_STATE_FORMATED,
 	CAM_STATE_STREAMING,
 };
@@ -1101,6 +1102,78 @@ void sci_init(struct pxa955_cam_dev *pcdev)
 	sci_reg_write(pcdev, REG_SCIMASK, ~0);
 }
 
+/* The function will disable some PP to guarantee camera CSI/DMA works fine,
+ * and ONLY guarantee SCI/DMA is good, if display/encode needs more constrain
+ * it's not camera driver's concern */
+void cam_set_constrain(struct pxa955_cam_dev *cam, int dev_idx)
+{
+	switch (cam->state) {
+	case CAM_STATE_CLOSE:
+		/* video device closed, allow all ops */
+		dvfm_enable_op_name("D2", dev_idx);
+		dvfm_enable_op_name("D1", dev_idx);
+		dvfm_enable_op_name("CG", dev_idx);
+		dvfm_enable_op_name("156M", dev_idx);
+		dvfm_enable_op_name("312M", dev_idx);
+		dvfm_enable_op_name("624M", dev_idx);
+		dvfm_enable_op_name("806M", dev_idx);
+		dvfm_enable_op_name("1014M", dev_idx);
+		break;
+
+	case CAM_STATE_OPEN:
+	case CAM_STATE_FORMATED:
+		/* video device opened, but not stream-on */
+		dvfm_disable_op_name("CG", dev_idx);
+		dvfm_disable_op_name("D1", dev_idx);
+		dvfm_disable_op_name("D2", dev_idx);
+		dvfm_enable_op_name("156M", dev_idx);
+		dvfm_enable_op_name("312M", dev_idx);
+		dvfm_enable_op_name("624M", dev_idx);
+		dvfm_enable_op_name("806M", dev_idx);
+		dvfm_enable_op_name("1014M", dev_idx);
+		break;
+
+	case CAM_STATE_STREAMING:
+		switch (cam->icd->user_width) {
+		case 176:	/* QCIF */
+		case 352:	/* CIF */
+		case 320:	/* QVGA */
+		case 640:	/* VGA */
+		case 800:	/* WVGA */
+			/* No constrain needed for cam driver */
+
+			/* FIXME: hack for CH, the constrain should be moved to
+			 * cpufreq-d later */
+			dvfm_disable_op_name("312M", dev_idx);
+			dvfm_disable_op_name("156M", dev_idx);
+			break;
+		case 1280:
+			/* FIXME: hack for CH, the constrain should be moved to
+			 * cpufreq-d later */
+			dvfm_disable_op_name("312M", dev_idx);
+
+			/* 720P used at least 182MHz MIPI clock
+			 * test shows 312M PP is OK with it */
+			dvfm_disable_op_name("156M", dev_idx);
+			break;
+		case 1920:
+			/* FIXME: hack for CH, the constrain should be moved to
+			 * cpufreq-d later */
+			dvfm_disable_op_name("624M", dev_idx);
+
+			/* 1080p used at least 300M MIPI clock, so 806Mhz is
+			 * the minimum according to PP table. But actually
+			 * 624Mhz also seems OK at 364M MIPI clock */
+			dvfm_disable_op_name("312M", dev_idx);
+			dvfm_disable_op_name("156M", dev_idx);
+			break;
+		};
+		break;
+	default:
+		BUG_ON(1);
+	};
+}
+
 static unsigned long uva_to_pa(unsigned long addr, struct page **page)
 {
 	unsigned long ret = 0UL;
@@ -1308,12 +1381,14 @@ static int pxa97x_vb2_streamon(struct vb2_queue *q, unsigned int count)
 	if (unlikely(ret < 0))
 		return ret;
 
+	pcdev->state = CAM_STATE_STREAMING;
+	cam_set_constrain(pcdev, dvfm_dev_idx);
+
 	sci_irq_enable(pcdev, IRQ_EOFX|IRQ_OFO);
 	csi_dphy(pcdev->csidev);
 	/* configure enable which camera interface controller*/
 	sci_enable(pcdev);
 	csi_enable(pcdev->csidev, icd->iface);
-	pcdev->state = CAM_STATE_STREAMING;
 
 #ifdef _CONTROLLER_DEADLOOP_RESET_
 	mod_timer(&pcdev->reset_timer, jiffies + MIPI_RESET_TIMEOUT);
@@ -1338,6 +1413,7 @@ static int pxa97x_vb2_streamoff(struct vb2_queue *q)
 	del_timer(&pcdev->reset_timer);
 #endif
 	pcdev->state = CAM_STATE_FORMATED;
+	cam_set_constrain(pcdev, dvfm_dev_idx);
 	return 0;
 }
 
@@ -1386,15 +1462,16 @@ static int pxa955_cam_add_device(struct soc_camera_device *icd)
 
 	pcdev->icd = icd;
 
-	/* Disable 624M PP for NEVO and 1Ghz for MGx */
-	if (cpu_is_pxa978())
-		dvfm_disable_op_name("624M", dvfm_dev_idx);
-	else
-		dvfm_disable_op_name("988M", dvfm_dev_idx);
-
-	/* Disable OPs lower than 624 */
-	dvfm_disable(dvfm_dev_idx);
-
+	pcdev->state = CAM_STATE_OPEN;
+	if (cpu_is_pxa978_Dx())
+		cam_set_constrain(pcdev, dvfm_dev_idx);
+	else {	/* Disable 624M PP for NEVO and 1Ghz for MGx */
+		if (cpu_is_pxa978())
+			dvfm_disable_op_name("624M", dvfm_dev_idx);
+		else
+			dvfm_disable_op_name("988M", dvfm_dev_idx);
+		/* Disable OPs lower than 624 */
+		dvfm_disable(dvfm_dev_idx);
 #ifdef _ARB_CHANGE_
 		*pri_axi = 1;
 		*pri_gcu = 2;
@@ -1404,6 +1481,7 @@ static int pxa955_cam_add_device(struct soc_camera_device *icd)
 			"CI1 = 0x%X, CI2 = 0x%X\n", \
 			*pri_axi, *pri_gcu, *pri_ci1, *pri_ci2);
 #endif
+	}
 
 	/* Start initialize of CSI to which sensor is attached */
 	/* Assume SCI can be connected to only one CSI at the same time*/
@@ -1508,6 +1586,10 @@ static void pxa955_cam_remove_device(struct soc_camera_device *icd)
 		}
 	}
 
+	pcdev->state = CAM_STATE_CLOSE;
+	if (cpu_is_pxa978_Dx())
+		cam_set_constrain(pcdev, dvfm_dev_idx);
+	else {
 #ifdef _ARB_CHANGE_
 		*pri_axi = 0;
 		*pri_gcu = 0;
@@ -1515,15 +1597,12 @@ static void pxa955_cam_remove_device(struct soc_camera_device *icd)
 		*pri_ci2 = 0;
 		printk(KERN_NOTICE "CI AXI Fabric RR Arbitration recovered\n");
 #endif
-
-	/* Recover disabled OPs */
-	dvfm_enable(dvfm_dev_idx);
-
-	if (cpu_is_pxa978())
-		dvfm_enable_op_name("624M", dvfm_dev_idx);
-	else
-		dvfm_enable_op_name("988M", dvfm_dev_idx);
-
+		dvfm_enable(dvfm_dev_idx);
+		if (cpu_is_pxa978())
+			dvfm_enable_op_name("624M", dvfm_dev_idx);
+		else
+			dvfm_enable_op_name("988M", dvfm_dev_idx);
+	}
 	pcdev->icd = NULL;
 
 	/* Remove info for connected CSI */
@@ -2197,7 +2276,8 @@ static int pxa955_camera_probe(struct platform_device *pdev)
 	if (err)
 		goto exit_free_irq;
 
-	pcdev->state = CAM_STATE_INIT;
+	/* video dev initialized, but not opened */
+	pcdev->state = CAM_STATE_CLOSE;
 	return 0;
 
 exit_free_irq:
