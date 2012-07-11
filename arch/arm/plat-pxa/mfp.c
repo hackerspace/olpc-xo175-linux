@@ -45,7 +45,7 @@ static struct mfp_pin mfp_table[MFP_PIN_MAX];
 
 /* mapping of MFP_LPM_* definitions to MFPR_LPM_* register bits */
 static const unsigned long mfpr_lpm[] = {
-	MFPR_LPM_FLOAT,
+	MFPR_LPM_NONE,
 	MFPR_LPM_DRIVE_LOW,
 	MFPR_LPM_DRIVE_HIGH,
 	MFPR_LPM_PULL_LOW,

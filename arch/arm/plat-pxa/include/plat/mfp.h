@@ -547,7 +547,11 @@ struct mfp_addr_map {
 #define MFPR_PULLUP_EN		(0x1 << 14)
 #define MFPR_PULLDOWN_EN	(0x1 << 13)
 #define MFPR_PULL_MASK		(0x7 << 13)
+#ifndef CONFIG_CPU_PXA988
 #define MFPR_SLEEP_SEL		(0x1 << 9)
+#else
+#define MFPR_SLEEP_SEL		((0x1 << 9) | (0x1 << 3))
+#endif
 #define MFPR_SLEEP_OE_N		(0x1 << 7)
 #define MFPR_EDGE_CLEAR		(0x1 << 6)
 #define MFPR_EDGE_FALL_EN	(0x1 << 5)
@@ -578,12 +582,31 @@ struct mfp_addr_map {
  * Pull lo (0)      1          X(0)        0           1	  0
  * Z (float)        1          X(0)        0           0	  0
  */
+#ifndef CONFIG_CPU_PXA988
+#define MFPR_LPM_NONE		(MFPR_SLEEP_OE_N)
 #define MFPR_LPM_DRIVE_LOW	(MFPR_SLEEP_DATA(0) | MFPR_PULLDOWN_EN)
 #define MFPR_LPM_DRIVE_HIGH	(MFPR_SLEEP_DATA(1) | MFPR_PULLUP_EN)
 #define MFPR_LPM_PULL_LOW	(MFPR_LPM_DRIVE_LOW  | MFPR_SLEEP_OE_N)
 #define MFPR_LPM_PULL_HIGH	(MFPR_LPM_DRIVE_HIGH | MFPR_SLEEP_OE_N)
 #define MFPR_LPM_FLOAT		(MFPR_SLEEP_OE_N)
 #define MFPR_LPM_MASK		(0xe080)
+#else /* CONFIG_CPU_PXA988 */
+/*
+ * Output value sleep_oe_n sleep_data sleep_sel
+ *               (bit 7)    (bit 8)   (bit 9/3)
+ * None            X(0)       X(0)      00
+ * Drive 0         0          0         11
+ * Drive 1         0          1         11
+ * Z (float)       1          X(0)      11
+ */
+#define MFPR_LPM_NONE		0
+#define MFPR_LPM_DRIVE_LOW	(MFPR_SLEEP_SEL | MFPR_SLEEP_DATA(0))
+#define MFPR_LPM_DRIVE_HIGH	(MFPR_SLEEP_SEL | MFPR_SLEEP_DATA(1))
+#define MFPR_LPM_PULL_LOW	0 /* Not supported */
+#define MFPR_LPM_PULL_HIGH	0 /* Not supported */
+#define MFPR_LPM_FLOAT		(MFPR_SLEEP_SEL | MFPR_SLEEP_OE_N)
+#define MFPR_LPM_MASK		(0x0388)
+#endif /* CONFIG_CPU_PXA988 */
 
 /*
  * The pullup and pulldown state of the MFP pin at run mode is by default
