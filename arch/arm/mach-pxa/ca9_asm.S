@@ -3,63 +3,6 @@
 #define OSCR_PHY_ADDR			0x40A00010
 #define POWER_MODE_BASE		0x40F40080
 #define CHIP_ID_PXA				0x4600FF80
-	.global dump_cop_regs
-dump_cop_regs:
-	stmfd	sp!, {r4-r12,lr}
-	mrc	p15,0,r1,c0,c0,0	@ MIDR
-	mrc	p15,2,r2,c0,c0,0	@ CSSELR
-	mrc	p15,0,r3,c1,c0,0	@ SCTLR
-	mrc	p15,0,r4,c1,c0,1	@ ACTLR
-	mrc	p15,0,r5,c1,c0,2	@ CPACR
-	mrc	p15,0,r6,c1,c1,0	@ SCRd
-	mrc	p15,0,r7,c1,c1,1	@ SDERc
-	mrc	p15,0,r8,c1,c1,2	@ NSACR
-	mrc	p15,0,r9,c1,c1,3	@ VCRc
-	mrc	p15,0,r10,c2,c0,0	@ TTBR0
-	mrc	p15,0,r11,c2,c0,1	@ TTBR1
-	mrc	p15,0,r12,c2,c0,2	@ TTBCR
-	stm	r0!, {r1-r12}
-
-	mrc	p15,0,r1,c3,c0,0	@ DACR
-	mrc	p15,0,r2,c5,c0,0	@ DFSR
-	mrc	p15,0,r3,c5,c0,1	@ IFSR
-	mrc	p15,0,r4,c6,c0,0	@ DFAR
-	mrc	p15,0,r5,c6,c0,2	@ IFAR
-	mrc	p15,0,r6,c7,c4,0	@ PAR
-	mrc	p15,0,r7,c9,c12,0	@ PMCR
-	mrc	p15,0,r8,c9,c12,1	@ PMCNTENSET
-	mrc	p15,0,r9,c9,c12,2	@ PMCNTENCLR
-	mrc	p15,0,r10,c9,c12,3	@ PMOVSR
-	mrc	p15,0,r11,c9,c12,5	@ PMSELR
-	stm	r0!, {r1-r11}
-
-	mrc	p15,0,r1,c9,c13,0	@ PMCCNTR
-	mrc	p15,0,r2,c9,c13,1	@ PMXEVTYPER
-	mrc	p15,0,r3,c9,c13,2	@ PMXEVCNTR
-	mrc	p15,0,r4,c9,c14,0	@ PMUSERENR
-	mrc	p15,0,r5,c9,c14,1	@ PMINTENSET
-	mrc	p15,0,r6,c9,c14,2	@ PMINTENCLR
-	mrc	p15,0,r7,c10,c0,0	@ TLB Lockdown Register
-	mrc	p15,0,r8,c10,c2,0	@ PRRR
-	mrc	p15,0,r9,c10,c2,1	@ NRRR
-	mrc	p15,0,r10,c11,c1,0	@ PLEUAR
-	mrc	p15,0,r11,c11,c1,1	@ PLEPCR
-	mrc	p15,0,r12,c12,c0,0	@ VBAR
-	stm	r0!, {r1-r12}
-
-	mrc	p15,0,r1,c12,c0,1	@ MVBAR
-	mrc	p15,0,r2,c12,c1,1	@ Virtualization Interrupt Register
-	mrc	p15,0,r3,c13,c0,0	@ FCSEIDR
-	mrc	p15,0,r4,c13,c0,1	@ CONTEXTIDR
-	mrc	p15,0,r5,c13,c0,2	@ TPIDRURW
-	mrc	p15,0,r6,c13,c0,4	@ TPIDRPRW
-	mrc	p15,0,r7,c15,c0,0	@ Power Control Register
-	mrc	p15,5,r8,c15,c5,2	@ Main TLB VA register
-	mrc	p15,5,r9,c15,c6,2	@ Main TLB PA register
-	mrc	p15,5,r10,c15,c7,2	@ Main TLB Attribute
-	stm	r0!, {r1-r10}
-
-	ldmfd	sp!,{r4-r12,pc}
 
 	.global pxa978_enter_c1
 pxa978_enter_c1:

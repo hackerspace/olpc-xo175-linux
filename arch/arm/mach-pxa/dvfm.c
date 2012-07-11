@@ -271,74 +271,6 @@ static ssize_t dvfm_control(struct sys_device *sys_dev,
 
 SYSDEV_ATTR(control, 0644, NULL, dvfm_control);
 
-extern void dump_cop_regs(unsigned int *);
-#define ALL_COOP (45)
-unsigned int cop_dump[ALL_COOP];
-
-char cop_names[][20] = {
-{"MIDR"},
-{"CSSELR"},
-{"SCTLR"},
-{"ACTLR"},
-{"CPACR"},
-{"SCRd"},
-{"SDERc"},
-{"NSACR"},
-{"VCRc"},
-{"TTBR0"},
-{"TTBR1"},
-{"TTBCR"},
-{"DACR"},
-{"DFSR"},
-{"IFSR"},
-{"DFAR"},
-{"IFAR"},
-{"PAR"},
-{"PMCR"},
-{"PMCNTENSET"},
-{"PMCNTENCLR"},
-{"PMOVSR"},
-{"PMSELR"},
-{"PMCCNTR"},
-{"PMXEVTYPER"},
-{"PMXEVCNTR"},
-{"PMUSERENR"},
-{"PMINTENSET"},
-{"PMINTENCLR"},
-{"TLB Lockdown"},
-{"PRRR"},
-{"NRRR"},
-{"PLEUAR"},
-{"PLEPCR"},
-{"VBAR"},
-{"MVBAR"},
-{"Virtualization"},
-{"FCSEIDR"},
-{"CONTEXTIDR"},
-{"TPIDRURW"},
-{"TPIDRPRW"},
-{"Power Control"},
-{"Main TLB VA"},
-{"Main TLB PA"},
-{"Main TLB Attribute"},
-};
-
-#ifdef CONFIG_CPU_PXA978
-static ssize_t dvfm_read_cop_show(struct sys_device *sys_dev,
-			  struct sysdev_attribute *attr, char *buf)
-{
-	unsigned int len = 0, i;
-	unsigned int *p_cop_dump = (unsigned int *)&cop_dump;
-	dump_cop_regs(p_cop_dump);
-	for (i = 0; i < ALL_COOP; i++) {
-		len += sprintf(buf + len, "\n [%s] = 0x%x", cop_names[i],
-				*(p_cop_dump+i));
-	}
-	return len;
-}
-SYSDEV_ATTR(read_cop_show, 0644, dvfm_read_cop_show, NULL);
-#endif
-
 static struct attribute *dvfm_attr[] = {
 	&attr_op.attr,
 	&attr_ops.attr,
@@ -346,9 +278,6 @@ static struct attribute *dvfm_attr[] = {
 	&attr_trace.attr,
 	&attr_enable_op_by_driver.attr,
 	&attr_control.attr,
-#ifdef CONFIG_CPU_PXA978
-	&attr_read_cop_show.attr,
-#endif
 };
 
 int dvfm_op_count(void)
