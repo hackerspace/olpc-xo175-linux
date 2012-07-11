@@ -27,7 +27,9 @@
 #include <asm/io.h>
 #include <mach/pxa3xx-regs.h>
 #include <linux/delay.h>
+#ifdef CONFIG_CPU_PXA978
 #include <asm/hardware/cache-l2x0.h>
+#endif
 
 /* Part of the code based on the below ARM code and modified */
 /*
@@ -62,6 +64,9 @@ static int pxa978_suspend_finish(unsigned long pwrmode)
 		/*this will actually call clean_all() */
 		outer_clean_range(0, 0xFFFFFFFF);
 	}
+#ifdef CONFIG_CPU_PXA978
+	pl310_suspend();
+#endif
 	pxa978_cpu_suspend(pwrmode);
 	return 0;
 }

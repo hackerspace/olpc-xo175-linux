@@ -89,9 +89,6 @@ pxa978_save_reset_handler:
 
 	.global pxa978_cpu_suspend
 pxa978_cpu_suspend:
-	.extern pl310_suspend
-	bl pl310_suspend
-
 	@read NEVO chip id
 	.extern pxa_chip_id
 	ldr	r1, =pxa_chip_id
