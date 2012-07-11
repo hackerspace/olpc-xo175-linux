@@ -39,12 +39,11 @@
 #include "isp.h"
 #include "ispvideo.h"
 
-
 static struct isp_format_convert_info formats[] = {
-	{ V4L2_MBUS_FMT_SBGGR10_1X10, V4L2_PIX_FMT_SBGGR10, 10},
-	{ V4L2_MBUS_FMT_UYVY8_1X16, V4L2_PIX_FMT_UYVY, 16},
-	{ V4L2_MBUS_FMT_Y12_1X12, V4L2_PIX_FMT_YVU420, 12},
-	{ V4L2_MBUS_FMT_SBGGR8_1X8, V4L2_PIX_FMT_SBGGR8, 8},
+	{ V4L2_MBUS_FMT_SBGGR10_1X10, V4L2_PIX_FMT_SBGGR10, 10, 1},
+	{ V4L2_MBUS_FMT_UYVY8_1X16, V4L2_PIX_FMT_UYVY, 16, 1},
+	{ V4L2_MBUS_FMT_Y12_1X12, V4L2_PIX_FMT_YUV420M, 12, 3},
+	{ V4L2_MBUS_FMT_SBGGR8_1X8, V4L2_PIX_FMT_SBGGR8, 8, 1},
 };
 
 void set_vd_dmaqueue_flg(struct isp_video *video,
@@ -66,69 +65,90 @@ enum isp_video_dmaqueue_flags
 	return dma_flags;
 }
 
-
-const struct isp_format_convert_info *
-mvisp_video_format_info(enum v4l2_mbus_pixelcode code)
+static int isp_video_calc_mplane_sizeimage(
+		struct v4l2_pix_format_mplane *pix_mp, int idx)
 {
-	unsigned int i;
+	unsigned int width = pix_mp->width;
+	unsigned int height = pix_mp->height;
+	unsigned int pitch;
+	int ret = 0;
 
-	for (i = 0; i < ARRAY_SIZE(formats); ++i) {
-		if (formats[i].code == code)
-			return &formats[i];
+	switch (pix_mp->pixelformat) {
+	case V4L2_PIX_FMT_UYVY:
+	case V4L2_PIX_FMT_SBGGR10:
+	case V4L2_PIX_FMT_SBGGR8:
+		pitch = formats[idx].bpp * width;
+		pix_mp->plane_fmt[0].bytesperline = pitch;
+		pix_mp->plane_fmt[0].sizeimage = pitch * height;
+		break;
+	case V4L2_PIX_FMT_YUV420M:
+		pitch = width;
+		pix_mp->plane_fmt[0].bytesperline = pitch;
+		pix_mp->plane_fmt[0].sizeimage = pitch * height;
+
+		pitch = width >> 1;
+		pix_mp->plane_fmt[1].bytesperline = pitch;
+		pix_mp->plane_fmt[1].sizeimage =  pitch * height / 2;
+
+		pix_mp->plane_fmt[2].bytesperline = pitch;
+		pix_mp->plane_fmt[2].sizeimage = pitch * height / 2;
+		break;
+	default:
+		ret = -EINVAL;
+		break;
 	}
 
-	return NULL;
+	return ret;
 }
 
 static int isp_video_mbus_to_pix(const struct isp_video *video,
 					  const struct v4l2_mbus_framefmt *mbus,
-					  struct v4l2_pix_format *pix)
+					  struct v4l2_pix_format_mplane *pix_mp)
 {
 	unsigned int i;
 
-	memset(pix, 0, sizeof(*pix));
-	pix->width = mbus->width;
-	pix->height = mbus->height;
+	memset(pix_mp, 0, sizeof(*pix_mp));
 
 	for (i = 0; i < ARRAY_SIZE(formats); ++i) {
-		if (formats[i].code == mbus->code) {
-			pix->pixelformat = formats[i].pixelformat;
-			pix->bytesperline = (formats[i].bpp * mbus->width) >> 3;
+		if (formats[i].code == mbus->code)
 			break;
-		}
 	}
-
-	if (WARN_ON(i == ARRAY_SIZE(formats)))
+	if (WARN_ON(i >= ARRAY_SIZE(formats)))
 		return -EINVAL;
 
-	pix->sizeimage = pix->bytesperline * pix->height;
-	pix->colorspace = mbus->colorspace;
-	pix->field = mbus->field;
+	pix_mp->width = mbus->width;
+	pix_mp->height = mbus->height;
+	pix_mp->pixelformat = formats[i].pixelformat;
+	pix_mp->colorspace = mbus->colorspace;
+	pix_mp->field = mbus->field;
+	pix_mp->num_planes = formats[i].num_planes;
 
-	return 0;
+	return isp_video_calc_mplane_sizeimage(pix_mp, i);
 }
 
-static int isp_video_pix_to_mbus(const struct v4l2_pix_format *pix,
+static int isp_video_pix_to_mbus(struct v4l2_pix_format_mplane *pix_mp,
 				  struct v4l2_mbus_framefmt *mbus)
 {
 	unsigned int i;
 
 	memset(mbus, 0, sizeof(*mbus));
-	mbus->width = pix->width;
-	mbus->height = pix->height;
 
 	for (i = 0; i < ARRAY_SIZE(formats); ++i) {
-		if (formats[i].pixelformat == pix->pixelformat) {
-			mbus->code = formats[i].code;
+		if (formats[i].pixelformat == pix_mp->pixelformat)
 			break;
-		}
 	}
 
-	if (WARN_ON(i == ARRAY_SIZE(formats)))
+	if (WARN_ON(i >= ARRAY_SIZE(formats)))
 		return -EINVAL;
 
-	mbus->colorspace = pix->colorspace;
-	mbus->field = pix->field;
+	if (formats[i].num_planes != pix_mp->num_planes)
+		return -EINVAL;
+
+	mbus->code = formats[i].code;
+	mbus->width = pix_mp->width;
+	mbus->height = pix_mp->height;
+	mbus->colorspace = pix_mp->colorspace;
+	mbus->field = pix_mp->field;
 
 	return 0;
 }
@@ -290,13 +310,14 @@ isp_video_get_subdev_format(struct isp_video *video, struct v4l2_format *format)
 		return ret;
 
 	format->type = video->type;
-	return isp_video_mbus_to_pix(video, &fmt.format, &format->fmt.pix);
+	return isp_video_mbus_to_pix(video, &fmt.format, &format->fmt.pix_mp);
 }
 
 static int
 isp_video_check_format(struct isp_video *video, struct isp_video_fh *vfh)
 {
 	struct v4l2_format format;
+	struct v4l2_pix_format_mplane *pix_mp;
 	int ret;
 
 	memcpy(&format, &vfh->format, sizeof(format));
@@ -304,11 +325,12 @@ isp_video_check_format(struct isp_video *video, struct isp_video_fh *vfh)
 	if (ret < 0)
 		return ret;
 
-	if (vfh->format.fmt.pix.pixelformat != format.fmt.pix.pixelformat ||
-	    vfh->format.fmt.pix.height != format.fmt.pix.height ||
-	    vfh->format.fmt.pix.width != format.fmt.pix.width ||
-	    vfh->format.fmt.pix.bytesperline != format.fmt.pix.bytesperline ||
-	    vfh->format.fmt.pix.sizeimage != format.fmt.pix.sizeimage)
+	pix_mp = &vfh->format.fmt.pix_mp;
+
+	if (pix_mp->pixelformat != format.fmt.pix_mp.pixelformat ||
+		pix_mp->num_planes != format.fmt.pix_mp.num_planes ||
+		pix_mp->height != format.fmt.pix_mp.height ||
+		pix_mp->width != format.fmt.pix_mp.width)
 		return -EINVAL;
 
 	return 0;
@@ -318,8 +340,11 @@ static int isp_video_vb2_buf_init(struct vb2_buffer *vb)
 {
 	struct isp_video_buffer *buf =
 		container_of(vb, struct isp_video_buffer, vb2_buf);
+	int i;
 
-	buf->paddr = 0;
+	for (i = 0; i < ISP_BUF_MAX_PADDR; i++)
+		buf->paddr[i] = 0;
+
 	buf->state = ISP_BUF_STATE_IDLE;
 
 	return 0;
@@ -332,16 +357,22 @@ static int isp_video_vb2_queue_setup(struct vb2_queue *vq,
 {
 	struct isp_video_fh *isp_video_vfh =
 		vb2_queue_to_isp_video_fh(vq);
+	struct v4l2_pix_format_mplane *pix_mp =
+		&isp_video_vfh->format.fmt.pix_mp;
 	struct isp_video *isp_video = isp_video_vfh->video;
+	int i;
 
-	*num_buffers = min_t(unsigned int, *num_buffers, ISP_VIDEO_MAX_BUFFERS);
+	*num_buffers = min_t(unsigned int,
+			*num_buffers, ISP_VIDEO_MAX_BUFFERS);
 
-	*num_planes = 1;
-	sizes[0] = isp_video_vfh->format.fmt.pix.sizeimage;
-	if (sizes[0] == 0)
-		return 0;
+	*num_planes = pix_mp->num_planes;
+	for (i = 0; i < *num_planes; i++) {
+		sizes[i] = pix_mp->plane_fmt[i].sizeimage;
+		if (sizes[i] <= 0)
+			return -EINVAL;
 
-	alloc_ctxs[0] = isp_video->vb_alloc_ctx;
+		alloc_ctxs[i] = isp_video->vb_alloc_ctx;
+	}
 
 	return 0;
 }
@@ -354,14 +385,17 @@ static void isp_video_vb2_buf_cleanup(struct vb2_buffer *vb)
 static int isp_video_vb2_buf_prepare(struct vb2_buffer *vb)
 {
 	unsigned long size;
+	int i;
 
-	size = vb2_plane_size(vb, 0);
-	vb2_set_plane_payload(vb, 0, size);
+	for (i = 0; i < vb->num_planes; i++) {
+		size = vb2_plane_size(vb, i);
+		vb2_set_plane_payload(vb, i, size);
+	}
 
 	return 0;
 }
 
-static void isp_video_vb2_buffer_queue(struct vb2_buffer *vb)
+static void isp_video_vb2_buf_queue(struct vb2_buffer *vb)
 {
 	struct isp_video_buffer *buf =
 		container_of(vb, struct isp_video_buffer, vb2_buf);
@@ -370,16 +404,18 @@ static void isp_video_vb2_buffer_queue(struct vb2_buffer *vb)
 	struct isp_video *video = isp_video_vfh->video;
 	struct isp_pipeline *pipe = to_isp_pipeline(&video->video.entity);
 	enum isp_pipeline_state state;
-	unsigned int empty;
 	dma_addr_t dma_handle;
+	unsigned num;
+	int i;
 
-	dma_handle = vb2_dma_contig_plane_paddr(&buf->vb2_buf, 0);
-	BUG_ON(!dma_handle);
+	num = min_t(unsigned int, buf->vb2_buf.num_planes, ISP_BUF_MAX_PADDR);
+	for (i = 0; i < num; i++) {
+		dma_handle = vb2_dma_contig_plane_paddr(&buf->vb2_buf, i);
+		BUG_ON(!dma_handle);
+		buf->paddr[i] = dma_handle;
+	}
 
-	buf->paddr = dma_handle;
-
-	empty = list_empty(&video->dmabusyqueue);
-	if (video->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+	if (isp_buf_type_is_capture_mp(video->type)) {
 		switch (video->video_type) {
 		case ISP_VIDEO_DISPLAY:
 			state = ISP_PIPELINE_DISPLAY_QUEUED;
@@ -442,7 +478,7 @@ void isp_video_vb2_unlock(struct vb2_queue *vq)
 static struct vb2_ops isp_video_vb2_ops = {
 	.queue_setup = isp_video_vb2_queue_setup,
 	.buf_prepare = isp_video_vb2_buf_prepare,
-	.buf_queue = isp_video_vb2_buffer_queue,
+	.buf_queue = isp_video_vb2_buf_queue,
 	.buf_cleanup = isp_video_vb2_buf_cleanup,
 	.buf_init = isp_video_vb2_buf_init,
 	.start_streaming = isp_video_vb2_start_streaming,
@@ -482,7 +518,7 @@ struct isp_video_buffer *mvisp_video_get_next_work_buf(
 		return NULL;
 	}
 
-	if (video->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+	if (isp_buf_type_is_capture_mp(video->type)) {
 		switch (video->video_type) {
 		case ISP_VIDEO_DISPLAY:
 			state = ISP_PIPELINE_DISPLAY_QUEUED;
@@ -610,7 +646,7 @@ struct isp_video_buffer *mvisp_video_buffer_next(struct isp_video *video,
 	}
 
 	if (buf == NULL) {
-		if (video->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+		if (isp_buf_type_is_capture_mp(video->type)) {
 			switch (video->video_type) {
 			case ISP_VIDEO_DISPLAY:
 				state = ISP_PIPELINE_DISPLAY_QUEUED;
@@ -656,10 +692,12 @@ isp_video_querycap(struct file *file, void *fh, struct v4l2_capability *cap)
 	strlcpy(cap->bus_info, "media", sizeof(cap->bus_info));
 	cap->version = ISP_VIDEO_DRIVER_VERSION;
 
-	if (video->type == V4L2_BUF_TYPE_VIDEO_CAPTURE)
-		cap->capabilities = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING;
-	else
-		cap->capabilities = V4L2_CAP_VIDEO_OUTPUT | V4L2_CAP_STREAMING;
+	if (isp_buf_type_is_capture_mp(video->type))
+		cap->capabilities = V4L2_CAP_VIDEO_CAPTURE_MPLANE |
+			V4L2_CAP_STREAMING;
+	else if (isp_buf_type_is_output_mp(video->type))
+		cap->capabilities = V4L2_CAP_VIDEO_OUTPUT_MPLANE |
+			V4L2_CAP_STREAMING;
 
 	return 0;
 }
@@ -688,7 +726,7 @@ isp_video_set_format(struct file *file, void *fh, struct v4l2_format *format)
 	struct v4l2_subdev_format subdev_fmt;
 	struct v4l2_subdev *subdev;
 	u32 pad;
-	int ret;
+	int ret = 0;
 
 	if (format->type != video->type)
 		return -EINVAL;
@@ -700,17 +738,27 @@ isp_video_set_format(struct file *file, void *fh, struct v4l2_format *format)
 	mutex_lock(&video->fmt_lock);
 	subdev_fmt.pad = pad;
 	subdev_fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
-	isp_video_pix_to_mbus(&format->fmt.pix, &subdev_fmt.format);
+
+	ret = isp_video_pix_to_mbus(&format->fmt.pix_mp, &subdev_fmt.format);
+	if (ret)
+		goto out;
+
 	ret = v4l2_subdev_call(subdev, pad, set_fmt, NULL, &subdev_fmt);
 	if (ret) {
-		mutex_unlock(&video->fmt_lock);
-		return ret == -ENOIOCTLCMD ? -EINVAL : ret;
+		ret = (ret == -ENOIOCTLCMD) ? -EINVAL : ret;
+		goto out;
 	}
-	isp_video_mbus_to_pix(video, &subdev_fmt.format, &format->fmt.pix);
+
+	ret = isp_video_mbus_to_pix(video,
+			&subdev_fmt.format, &format->fmt.pix_mp);
+	if (ret)
+		goto out;
+
 	vfh->format = *format;
 
+out:
 	mutex_unlock(&video->fmt_lock);
-	return 0;
+	return ret;
 }
 
 static int
@@ -731,19 +779,23 @@ isp_video_try_format(struct file *file, void *fh, struct v4l2_format *format)
 
 	mutex_lock(&video->fmt_lock);
 
-	isp_video_pix_to_mbus(&format->fmt.pix, &subdev_fmt.format);
+	ret = isp_video_pix_to_mbus(&format->fmt.pix_mp, &subdev_fmt.format);
+	if (ret)
+		goto out;
 
 	subdev_fmt.pad = pad;
 	subdev_fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
 	ret = v4l2_subdev_call(subdev, pad, get_fmt, NULL, &subdev_fmt);
 	if (ret) {
-		mutex_unlock(&video->fmt_lock);
-		return ret == -ENOIOCTLCMD ? -EINVAL : ret;
+		ret = (ret == -ENOIOCTLCMD) ? -EINVAL : ret;
+		goto out;
 	}
-	isp_video_mbus_to_pix(video, &subdev_fmt.format, &format->fmt.pix);
+	ret = isp_video_mbus_to_pix(video,
+			&subdev_fmt.format, &format->fmt.pix_mp);
 
+out:
 	mutex_unlock(&video->fmt_lock);
-	return 0;
+	return ret;
 }
 
 static int
@@ -827,12 +879,10 @@ isp_video_get_param(struct file *file, void *fh, struct v4l2_streamparm *a)
 	struct isp_video_fh *vfh = to_isp_video_fh(fh);
 	struct isp_video *video = video_drvdata(file);
 
-	if (video->type != V4L2_BUF_TYPE_VIDEO_OUTPUT ||
-	    video->type != a->type)
+	if (!isp_buf_type_is_output_mp(video->type) || video->type != a->type)
 		return -EINVAL;
 
 	memset(a, 0, sizeof(*a));
-	a->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
 	a->parm.output.capability = V4L2_CAP_TIMEPERFRAME;
 	a->parm.output.timeperframe = vfh->timeperframe;
 
@@ -845,8 +895,7 @@ isp_video_set_param(struct file *file, void *fh, struct v4l2_streamparm *a)
 	struct isp_video_fh *vfh = to_isp_video_fh(fh);
 	struct isp_video *video = video_drvdata(file);
 
-	if (video->type != V4L2_BUF_TYPE_VIDEO_OUTPUT ||
-	    video->type != a->type)
+	if (!isp_buf_type_is_output_mp(video->type) || video->type != a->type)
 		return -EINVAL;
 
 	if (a->parm.output.timeperframe.denominator == 0)
@@ -947,7 +996,7 @@ isp_video_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 
 	far_end_num = isp_video_far_end(far_end, video);
 
-	if (video->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+	if (isp_buf_type_is_capture_mp(video->type)) {
 		switch (video->video_type) {
 		case ISP_VIDEO_DISPLAY:
 			state = ISP_PIPELINE_DISPLAY_STREAM;
@@ -973,7 +1022,7 @@ isp_video_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 				pipe->input = far_end[FAR_END_ISP_INPUT];
 		}
 
-	} else if (video->type == V4L2_BUF_TYPE_VIDEO_OUTPUT) {
+	} else if (isp_buf_type_is_output_mp(video->type)) {
 		if (far_end_num == 0) {
 			ret = -EPIPE;
 			goto error;
@@ -1024,7 +1073,7 @@ isp_video_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 	 * This is a soft limit that can be overridden if the hardware doesn't
 	 * support the request limit.
 	 */
-	if (video->type == V4L2_BUF_TYPE_VIDEO_OUTPUT)
+	if (isp_buf_type_is_output_mp(video->type))
 		pipe->max_timeperframe = vfh->timeperframe;
 
 	spin_lock_irqsave(&video->irq_lock, flags);
@@ -1092,7 +1141,7 @@ isp_video_streamoff(struct file *file, void *fh, enum v4l2_buf_type type)
 	}
 
 	/* Update the pipeline state. */
-	if (video->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+	if (isp_buf_type_is_capture_mp(video->type)) {
 		switch (video->video_type) {
 		case ISP_VIDEO_DISPLAY:
 			state = ISP_PIPELINE_DISPLAY_QUEUED
@@ -1174,12 +1223,12 @@ isp_video_s_input(struct file *file, void *fh, unsigned int input)
 
 static const struct v4l2_ioctl_ops isp_video_ioctl_ops = {
 	.vidioc_querycap		= isp_video_querycap,
-	.vidioc_g_fmt_vid_cap		= isp_video_get_format,
-	.vidioc_s_fmt_vid_cap		= isp_video_set_format,
-	.vidioc_try_fmt_vid_cap		= isp_video_try_format,
-	.vidioc_g_fmt_vid_out		= isp_video_get_format,
-	.vidioc_s_fmt_vid_out		= isp_video_set_format,
-	.vidioc_try_fmt_vid_out		= isp_video_try_format,
+	.vidioc_g_fmt_vid_cap_mplane		= isp_video_get_format,
+	.vidioc_s_fmt_vid_cap_mplane		= isp_video_set_format,
+	.vidioc_try_fmt_vid_cap_mplane		= isp_video_try_format,
+	.vidioc_g_fmt_vid_out_mplane		= isp_video_get_format,
+	.vidioc_s_fmt_vid_out_mplane		= isp_video_set_format,
+	.vidioc_try_fmt_vid_out_mplane		= isp_video_try_format,
 	.vidioc_cropcap			= isp_video_cropcap,
 	.vidioc_g_crop			= isp_video_get_crop,
 	.vidioc_s_crop			= isp_video_set_crop,
@@ -1321,11 +1370,11 @@ int mvisp_video_init(struct isp_video *video, const char *name)
 	int ret = 0, cnt;
 
 	switch (video->type) {
-	case V4L2_BUF_TYPE_VIDEO_CAPTURE:
+	case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
 		direction = "output";
 		video->pad.flags = MEDIA_PAD_FL_SINK;
 		break;
-	case V4L2_BUF_TYPE_VIDEO_OUTPUT:
+	case V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE:
 		direction = "input";
 		video->pad.flags = MEDIA_PAD_FL_SOURCE;
 		break;

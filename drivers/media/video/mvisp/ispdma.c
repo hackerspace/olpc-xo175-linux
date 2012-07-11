@@ -606,9 +606,9 @@ static void ispdma_set_inaddr(struct isp_ispdma_device *ispdma,
 		struct isp_video_buffer *buffer)
 {
 	struct mvisp_device *isp = to_mvisp_device(ispdma);
-	unsigned int bytesperpixel, width, height, size;
+	unsigned int bitsperpixel, width, height, size;
 
-	if ((buffer == NULL) || (buffer->paddr == 0))
+	if ((buffer == NULL) || (buffer->paddr[ISP_BUF_PADDR] == 0))
 		return;
 
 	width = ispdma->formats[ISPDMA_PAD_SINK].width;
@@ -616,24 +616,24 @@ static void ispdma_set_inaddr(struct isp_ispdma_device *ispdma,
 
 	switch (ispdma->formats[ISPDMA_PAD_SINK].code) {
 	case V4L2_MBUS_FMT_SBGGR8_1X8:
-		bytesperpixel = 8;
+		bitsperpixel = 8;
 		break;
 	case V4L2_MBUS_FMT_UYVY8_1X16:
-		bytesperpixel = 16;
+		bitsperpixel = 16;
 		break;
 	case V4L2_MBUS_FMT_Y12_1X12:
-		bytesperpixel = 12;
+		bitsperpixel = 12;
 		break;
 	case V4L2_MBUS_FMT_SBGGR10_1X10:
-		bytesperpixel = 10;
+		bitsperpixel = 10;
 		break;
 	default:
-		bytesperpixel = 0;
+		bitsperpixel = 0;
 		break;
 	}
 
-	size = (bytesperpixel * width * height) >> 3;
-	mvisp_reg_writel(isp, buffer->paddr,
+	size = (bitsperpixel * width * height) >> 3;
+	mvisp_reg_writel(isp, buffer->paddr[ISP_BUF_PADDR],
 		ISP_IOMEM_ISPDMA, ISPDMA_INPSDMA_SRCADDR);
 	mvisp_reg_writel(isp, size,
 		ISP_IOMEM_ISPDMA, ISPDMA_INPSDMA_SRCSZ);
@@ -652,11 +652,11 @@ static void ispdma_set_disp_outaddr(struct isp_ispdma_device *ispdma,
 		struct isp_video_buffer *buffer, dma_addr_t	paddr)
 {
 	struct mvisp_device *isp = to_mvisp_device(ispdma);
-	unsigned int bytesperpixel, width, height, size;
+	unsigned int bitsperpixel, width, height, size;
 	dma_addr_t	internal_paddr;
 
 	if (buffer != NULL)
-		internal_paddr = buffer->paddr;
+		internal_paddr = buffer->paddr[ISP_BUF_PADDR];
 	else if (paddr != 0)
 		internal_paddr = paddr;
 	else
@@ -667,25 +667,48 @@ static void ispdma_set_disp_outaddr(struct isp_ispdma_device *ispdma,
 
 	switch (ispdma->formats[ISPDMA_PAD_DISP_SRC].code) {
 	case V4L2_MBUS_FMT_SBGGR8_1X8:
-		bytesperpixel = 8;
+		bitsperpixel = 8;
 		break;
 	case V4L2_MBUS_FMT_UYVY8_1X16:
-		bytesperpixel = 16;
+		bitsperpixel = 16;
 		break;
 	case V4L2_MBUS_FMT_Y12_1X12:
-		bytesperpixel = 12;
+		/*Y component bitsperpixel*/
+		bitsperpixel = 8;
 		break;
 	default:
-		bytesperpixel = 0;
+		bitsperpixel = 0;
 		break;
 	}
 
-	size = (bytesperpixel * width * height) >> 3;
-	mvisp_reg_writel(isp, size ,
+	size = (bitsperpixel * width * height) >> 3;
+	mvisp_reg_writel(isp, size,
 		ISP_IOMEM_ISPDMA, ISPDMA_DISP_DSTSZ);
 	mvisp_reg_writel(isp, internal_paddr,
 		ISP_IOMEM_ISPDMA, ISPDMA_DISP_DSTADDR);
 
+	if (isp->cpu_type == MV_PXA988) {
+		switch (ispdma->formats[ISPDMA_PAD_DISP_SRC].code) {
+		case V4L2_MBUS_FMT_Y12_1X12:
+			if (!buffer)
+				return;
+
+			internal_paddr = buffer->paddr[ISP_BUF_PADDR_U];
+			mvisp_reg_writel(isp, size/4,
+				ISP_IOMEM_ISPDMA, ISPDMA_DISP_DSTSZ_U);
+			mvisp_reg_writel(isp, internal_paddr,
+				ISP_IOMEM_ISPDMA, ISPDMA_DISP_DSTADDR_U);
+
+			internal_paddr = buffer->paddr[ISP_BUF_PADDR_V];
+			mvisp_reg_writel(isp, size/4,
+				ISP_IOMEM_ISPDMA, ISPDMA_DISP_DSTSZ_V);
+			mvisp_reg_writel(isp, internal_paddr,
+				ISP_IOMEM_ISPDMA, ISPDMA_DISP_DSTADDR_V);
+			break;
+		default:
+			break;
+		}
+	}
 	if (buffer != NULL) {
 		ispdma->regcache[ISPDMA_PAD_DISP_SRC][ISPDMA_DST_REG]
 			= buffer;
@@ -706,11 +729,11 @@ static void ispdma_set_codec_outaddr(struct isp_ispdma_device *ispdma,
 		struct isp_video_buffer *buffer, dma_addr_t	paddr)
 {
 	struct mvisp_device *isp = to_mvisp_device(ispdma);
-	unsigned int bytesperpixel, width, height, size;
+	unsigned int bitsperpixel, width, height, size;
 	dma_addr_t	internal_paddr;
 
 	if (buffer != NULL)
-		internal_paddr = buffer->paddr;
+		internal_paddr = buffer->paddr[ISP_BUF_PADDR];
 	else if (paddr != 0)
 		internal_paddr = paddr;
 	else
@@ -721,25 +744,48 @@ static void ispdma_set_codec_outaddr(struct isp_ispdma_device *ispdma,
 
 	switch (ispdma->formats[ISPDMA_PAD_CODE_SRC].code) {
 	case V4L2_MBUS_FMT_SBGGR8_1X8:
-		bytesperpixel = 8;
+		bitsperpixel = 8;
 		break;
 	case V4L2_MBUS_FMT_UYVY8_1X16:
-		bytesperpixel = 16;
+		bitsperpixel = 16;
 		break;
 	case V4L2_MBUS_FMT_Y12_1X12:
-		bytesperpixel = 12;
+		/*Y component bitsperpixel*/
+		bitsperpixel = 8;
 		break;
 	default:
-		bytesperpixel = 0;
+		bitsperpixel = 0;
 		break;
 	}
 
-	size = (bytesperpixel * width * height) >> 3;
+	size = (bitsperpixel * width * height) >> 3;
 	mvisp_reg_writel(isp, size,
 		ISP_IOMEM_ISPDMA, ISPDMA_CODEC_DSTSZ);
 	mvisp_reg_writel(isp, internal_paddr,
 		ISP_IOMEM_ISPDMA, ISPDMA_CODEC_DSTADDR);
 
+	if (isp->cpu_type == MV_PXA988) {
+		switch (ispdma->formats[ISPDMA_PAD_CODE_SRC].code) {
+		case V4L2_MBUS_FMT_Y12_1X12:
+			if (!buffer)
+				return;
+
+			internal_paddr = buffer->paddr[ISP_BUF_PADDR_U];
+			mvisp_reg_writel(isp, size/4,
+				ISP_IOMEM_ISPDMA, ISPDMA_CODEC_DSTSZ_U);
+			mvisp_reg_writel(isp, internal_paddr,
+				ISP_IOMEM_ISPDMA, ISPDMA_CODEC_DSTADDR_U);
+
+			internal_paddr = buffer->paddr[ISP_BUF_PADDR_V];
+			mvisp_reg_writel(isp, size/4,
+				ISP_IOMEM_ISPDMA, ISPDMA_CODEC_DSTSZ_V);
+			mvisp_reg_writel(isp, internal_paddr,
+				ISP_IOMEM_ISPDMA, ISPDMA_CODEC_DSTADDR_V);
+			break;
+		default:
+				break;
+		}
+	}
 	if (buffer != NULL) {
 		ispdma->regcache[ISPDMA_PAD_CODE_SRC][ISPDMA_DST_REG]
 			= buffer;
@@ -1443,7 +1489,7 @@ static int ispdma_reload_disp_buffer(struct isp_ispdma_device *ispdma)
 	if (buffer == NULL)
 		return -EINVAL;
 
-	if (buffer->vb2_buf.v4l2_buf.type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+	if (isp_buf_type_is_capture_mp(buffer->vb2_buf.v4l2_buf.type)) {
 		spin_lock_irqsave(&ispdma->vd_disp_out.irq_lock, video_flags);
 		ispdma_set_disp_outaddr(ispdma, buffer, 0);
 		set_vd_dmaqueue_flg(&ispdma->vd_disp_out,
@@ -1464,7 +1510,7 @@ static int ispdma_reload_codec_buffer(struct isp_ispdma_device *ispdma)
 	if (buffer == NULL)
 		return -EINVAL;
 
-	if (buffer->vb2_buf.v4l2_buf.type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+	if (isp_buf_type_is_capture_mp(buffer->vb2_buf.v4l2_buf.type)) {
 		spin_lock_irqsave(&ispdma->vd_codec_out.irq_lock, video_flags);
 		ispdma_set_codec_outaddr(ispdma, buffer, 0);
 		set_vd_dmaqueue_flg(&ispdma->vd_codec_out,
@@ -1485,7 +1531,7 @@ static int ispdma_reload_input_buffer(struct isp_ispdma_device *ispdma)
 	if (buffer == NULL)
 		return -EINVAL;
 
-	if (buffer->vb2_buf.v4l2_buf.type == V4L2_BUF_TYPE_VIDEO_OUTPUT) {
+	if (isp_buf_type_is_output_mp(buffer->vb2_buf.v4l2_buf.type)) {
 		spin_lock_irqsave(&ispdma->vd_in.irq_lock, video_flags);
 		ispdma_set_inaddr(ispdma, buffer);
 		set_vd_dmaqueue_flg(&ispdma->vd_in,
@@ -2183,19 +2229,22 @@ static const struct pad_formats ispdma_input_fmts[] = {
 static const struct pad_formats ispdma_disp_out_fmts[] = {
 	{V4L2_MBUS_FMT_SBGGR8_1X8, V4L2_COLORSPACE_SRGB},
 	{V4L2_MBUS_FMT_UYVY8_1X16, V4L2_COLORSPACE_JPEG},
+	{V4L2_MBUS_FMT_Y12_1X12, V4L2_COLORSPACE_JPEG},
 };
 
 static const struct pad_formats ispdma_codec_out_fmts[] = {
 	{V4L2_MBUS_FMT_SBGGR8_1X8, V4L2_COLORSPACE_SRGB},
 	{V4L2_MBUS_FMT_UYVY8_1X16, V4L2_COLORSPACE_JPEG},
+	{V4L2_MBUS_FMT_Y12_1X12, V4L2_COLORSPACE_JPEG},
 };
 
-static void ispdma_try_format(
+static int ispdma_try_format(
 				struct isp_ispdma_device *ispdma,
 				struct v4l2_subdev_fh *fh, unsigned int pad,
 				struct v4l2_mbus_framefmt *fmt,
 				enum v4l2_subdev_format_whence which)
 {
+	int ret = 0;
 	int i;
 
 	switch (pad) {
@@ -2217,7 +2266,7 @@ static void ispdma_try_format(
 		}
 
 		if (i >= ARRAY_SIZE(ispdma_input_fmts))
-			fmt->code = V4L2_MBUS_FMT_SBGGR10_1X10;
+			ret = -EINVAL;
 
 		break;
 	case ISPDMA_PAD_DISP_SRC:
@@ -2237,7 +2286,7 @@ static void ispdma_try_format(
 		}
 
 		if (i >= ARRAY_SIZE(ispdma_disp_out_fmts))
-			fmt->code = V4L2_MBUS_FMT_UYVY8_1X16;
+			ret = -EINVAL;
 
 		break;
 	case ISPDMA_PAD_CODE_SRC:
@@ -2257,16 +2306,17 @@ static void ispdma_try_format(
 		}
 
 		if (i >= ARRAY_SIZE(ispdma_codec_out_fmts))
-			fmt->code = V4L2_MBUS_FMT_UYVY8_1X16;
+			ret = -EINVAL;
 
 		break;
 	default:
+		ret = -EINVAL;
 		break;
 	}
 
 	fmt->field = V4L2_FIELD_NONE;
 
-	return;
+	return ret;
 }
 
 static int ispdma_enum_mbus_code(struct v4l2_subdev *sd,
@@ -2319,6 +2369,7 @@ static int ispdma_enum_frame_size(struct v4l2_subdev *sd,
 	struct isp_ispdma_device *ispdma
 			= v4l2_get_subdevdata(sd);
 	struct v4l2_mbus_framefmt format;
+	int ret = 0;
 
 	if (fse->index != 0)
 		return -EINVAL;
@@ -2326,8 +2377,10 @@ static int ispdma_enum_frame_size(struct v4l2_subdev *sd,
 	format.code = fse->code;
 	format.width = 1;
 	format.height = 1;
-	ispdma_try_format(ispdma, fh,
+	ret = ispdma_try_format(ispdma, fh,
 		fse->pad, &format, V4L2_SUBDEV_FORMAT_TRY);
+	if (ret)
+		return ret;
 	fse->min_width = format.width;
 	fse->min_height = format.height;
 	if (format.code != fse->code)
@@ -2336,8 +2389,10 @@ static int ispdma_enum_frame_size(struct v4l2_subdev *sd,
 	format.code = fse->code;
 	format.width = -1;
 	format.height = -1;
-	ispdma_try_format(ispdma, fh,
+	ret = ispdma_try_format(ispdma, fh,
 		fse->pad, &format, V4L2_SUBDEV_FORMAT_TRY);
+	if (ret)
+		return ret;
 	fse->max_width = format.width;
 	fse->max_height = format.height;
 	if (format.code != fse->code)
@@ -2374,6 +2429,7 @@ static int ispdma_config_format(
 	struct v4l2_mbus_framefmt *format = &ispdma->formats[pad];
 	struct mvisp_device *isp = to_mvisp_device(ispdma);
 	unsigned long width, height, pitch, in_bpp;
+	int cfg_out_fmt;
 	u32 regval;
 	int ret = 0;
 
@@ -2384,22 +2440,28 @@ static int ispdma_config_format(
 	case V4L2_MBUS_FMT_SBGGR8_1X8:
 		in_bpp = 0;
 		pitch = width;
+		cfg_out_fmt = 0;
 		break;
 	case V4L2_MBUS_FMT_UYVY8_1X16:
 		in_bpp = 0;
 		pitch = width * 2;
+		cfg_out_fmt = 0;
 		break;
 	case V4L2_MBUS_FMT_SBGGR10_1X10:
 		in_bpp = 1;
 		pitch = width * 10 / 8;
+		cfg_out_fmt = 0;
 		break;
 	case V4L2_MBUS_FMT_Y12_1X12:
 		in_bpp = 2;
-		pitch = width * 16 / 12;
+		/*Y pitch for YUV420M*/
+		pitch = width;
+		cfg_out_fmt = 1;
 		break;
 	default:
 		in_bpp = 0;
 		pitch  = 0;
+		cfg_out_fmt = 0;
 		ret = -EINVAL;
 		break;
 	}
@@ -2426,12 +2488,28 @@ static int ispdma_config_format(
 		mvisp_reg_writel(isp, regval,
 				ISP_IOMEM_ISPDMA, ISPDMA_CODEC_PITCH);
 
+		if (isp->cpu_type == MV_PXA988) {
+			/*set output format*/
+			regval = mvisp_reg_readl(isp,
+					ISP_IOMEM_ISPDMA, ISPDMA_CODEC_CTRL_1);
+			regval |= cfg_out_fmt << 4;
+			mvisp_reg_writel(isp, regval,
+					ISP_IOMEM_ISPDMA, ISPDMA_CODEC_CTRL_1);
+		}
 		break;
 	case ISPDMA_PAD_DISP_SRC:
 		regval = pitch & ISPDMA_MAX_DISP_PITCH;
 		mvisp_reg_writel(isp, regval,
 				ISP_IOMEM_ISPDMA, ISPDMA_DISP_PITCH);
 
+		if (isp->cpu_type == MV_PXA988) {
+			/*set output format*/
+			regval = mvisp_reg_readl(isp,
+					ISP_IOMEM_ISPDMA, ISPDMA_DISP_CTRL_1);
+			regval |= cfg_out_fmt << 4;
+			mvisp_reg_writel(isp, regval,
+					ISP_IOMEM_ISPDMA, ISPDMA_DISP_CTRL_1);
+		}
 		break;
 	default:
 		ret = -EINVAL;
@@ -2459,8 +2537,13 @@ static int ispdma_set_format(
 		return -EINVAL;
 	}
 
-	ispdma_try_format(ispdma, fh, fmt->pad,
+	ret = ispdma_try_format(ispdma, fh, fmt->pad,
 				&fmt->format, fmt->which);
+	if (ret) {
+		mutex_unlock(&ispdma->ispdma_mutex);
+		return -EINVAL;
+	}
+
 	*format = fmt->format;
 
 	if (fmt->which != V4L2_SUBDEV_FORMAT_TRY)
@@ -2755,13 +2838,13 @@ static int ispdma_init_entities(struct isp_ispdma_device *ispdma)
 
 	ispdma_init_formats(sd, NULL);
 
-	ispdma->vd_in.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+	ispdma->vd_in.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
 	ispdma->vd_in.ops = &ispdma_video_ops;
 	ispdma->vd_in.isp = to_mvisp_device(ispdma);
-	ispdma->vd_disp_out.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	ispdma->vd_disp_out.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 	ispdma->vd_disp_out.ops = &ispdma_video_ops;
 	ispdma->vd_disp_out.isp = to_mvisp_device(ispdma);
-	ispdma->vd_codec_out.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	ispdma->vd_codec_out.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 	ispdma->vd_codec_out.ops = &ispdma_video_ops;
 	ispdma->vd_codec_out.isp = to_mvisp_device(ispdma);
 

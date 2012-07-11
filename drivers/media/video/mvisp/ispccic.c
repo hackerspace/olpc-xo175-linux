@@ -352,9 +352,9 @@ static int ccic_load_buffer(struct isp_ccic_device *ccic, int ch)
 	if (buffer == NULL)
 		return -EINVAL;
 
-	if (buffer->vb2_buf.v4l2_buf.type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+	if (isp_buf_type_is_capture_mp(buffer->vb2_buf.v4l2_buf.type)) {
 		spin_lock_irqsave(&ccic->video_out.irq_lock, video_flags);
-		ccic_set_dma_addr(ccic, buffer->paddr, ch);
+		ccic_set_dma_addr(ccic, buffer->paddr[ISP_BUF_PADDR], ch);
 		spin_unlock_irqrestore(&ccic->video_out.irq_lock, video_flags);
 	}
 
@@ -1003,7 +1003,7 @@ static int ccic_init_entities(struct isp_ccic_device *ccic,
 	ccic_init_formats(sd, NULL);
 
 	/* Video device node */
-	ccic->video_out.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	ccic->video_out.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 	ccic->video_out.ops = &ccic_ispvideo_ops;
 	ccic->video_out.isp = ccic->isp;
 
@@ -1103,7 +1103,8 @@ static void ccic_isr_buffer(struct isp_ccic_device *ccic,
 	buffer = mvisp_video_buffer_next(&ccic->video_out, 0);
 	if (buffer != NULL) {
 		buffer->state = ISP_BUF_STATE_ACTIVE;
-		ccic_set_dma_addr(ccic, buffer->paddr, irqeof);
+		ccic_set_dma_addr(ccic,
+			buffer->paddr[ISP_BUF_PADDR], irqeof);
 	} else {
 		if (isp->dummy_paddr != 0)
 			ccic_set_dma_addr(ccic, isp->dummy_paddr, irqeof);
@@ -1134,7 +1135,7 @@ void ccic_isr_dummy_buffer(struct isp_ccic_device *ccic,
 	list_add_tail(&buffer->dmalist, &video->dmabusyqueue);
 	video->dmabusycnt++;
 	buffer->state = ISP_BUF_STATE_ACTIVE;
-	ccic_set_dma_addr(ccic, buffer->paddr, irqeof);
+	ccic_set_dma_addr(ccic, buffer->paddr[ISP_BUF_PADDR], irqeof);
 	spin_unlock_irqrestore(&video->irq_lock, flags);
 
 	return;

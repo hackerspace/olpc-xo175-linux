@@ -50,6 +50,13 @@ enum isp_video_pipe_far_end {
 	FAR_END_MAX_NUM,
 };
 
+enum isp_buf_paddr {
+	ISP_BUF_PADDR = 0,
+	ISP_BUF_PADDR_U,
+	ISP_BUF_PADDR_V,
+	ISP_BUF_MAX_PADDR,
+};
+
 struct mvisp_device;
 struct isp_video;
 struct v4l2_mbus_framefmt;
@@ -62,6 +69,7 @@ struct v4l2_pix_format;
 
 #define ISP_VIDEO_NR_BASE		5
 
+#define ISP_VIDEO_MAX_PLANES	3
 
 enum isp_video_type {
 	ISP_VIDEO_UNKNOWN = 0,
@@ -75,6 +83,7 @@ struct isp_format_convert_info {
 	enum v4l2_mbus_pixelcode code;
 	u32 pixelformat;
 	unsigned int bpp;
+	unsigned int num_planes;
 };
 
 enum isp_pipeline_stream_state {
@@ -174,9 +183,15 @@ struct isp_video {
 	struct mutex			video_lock;
 };
 
+#define isp_buf_type_is_capture_mp(type)	\
+	 ((type) == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+
+#define isp_buf_type_is_output_mp(type)	\
+	 ((type) == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+
 struct isp_video_buffer {
 	struct vb2_buffer	vb2_buf;
-	dma_addr_t			paddr;
+	dma_addr_t		paddr[ISP_BUF_MAX_PADDR];
 	struct list_head	dmalist;
 
 	enum isp_video_buffer_state state;
@@ -214,9 +229,6 @@ struct isp_video_buffer
 
 void mvisp_video_resume(struct isp_video *video, int continuous);
 struct media_pad *mvisp_video_remote_pad(struct isp_video *video);
-
-const struct isp_format_convert_info *
-mvisp_video_format_info(enum v4l2_mbus_pixelcode code);
 
 enum isp_pipeline_start_condition isp_pipeline_ready(struct isp_pipeline *pipe);
 
