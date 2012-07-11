@@ -18,16 +18,13 @@ pxa978_save_reset_handler:
 
 	@ copy reset handler to SRAM
 	adr	r3, reset_chunk
-	ldrd	r0, [r3]
-	strd	r0, [r2]
+	ldr	r0, [r3]
+	str	r0, [r2]
 
 	adr	r0, pxa978_c2_restore
 	bl	VirtualToPhysical 	@ modified r0,r1
-	str	r0, [r2, #0x08]
+	str	r0, [r2, #0x04]
 
-	add	r0, r2, #0x10
-	bl	VirtualToPhysical 	@ modified r0,r1
-	str	r0, [r2, #0x0c]
 	ldmfd	sp!,{r4-r12,pc}
 
 	.global pxa978_cpu_suspend
@@ -113,11 +110,8 @@ restore_pl310:
 
 /*reset handler for C2 exit */
 reset_chunk:
-	ldr	r0, c2_data
 	ldr	pc, c2_restore
 c2_restore:
-	.long	0
-c2_data:
 	.long	0
 
 	.global pl310_saved_regs_phys_addr
