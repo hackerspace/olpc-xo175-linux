@@ -216,6 +216,27 @@ static struct pm80x_vbus_pdata pm80x_vbus_saarc3v5 = {
 	.reg_end	= PXA935_U2O_REGBASE + USB_REG_RANGE,
 };
 
+static struct pm80x_vbus_pdata pm80x_vbus_dkb2 = {
+	.supply		= PM8XXX_GPIO3_SUPPLY_VBUS,
+	.idpin		= PM8XXX_IDPIN_USE_GPADC2,
+	.reg_base	= PXA935_U2O_REGBASE,
+	.reg_end	= PXA935_U2O_REGBASE + USB_REG_RANGE,
+};
+
+static struct pm80x_vbus_pdata pm80x_vbus_dkb2v1 = {
+	.supply		= PM8XXX_GPIO1_SUPPLY_VBUS,
+	.idpin		= PM8XXX_IDPIN_USE_GPADC2,
+	.reg_base	= PXA935_U2O_REGBASE,
+	.reg_end	= PXA935_U2O_REGBASE + USB_REG_RANGE,
+};
+
+static struct pm80x_vbus_pdata pm80x_vbus_dkb3 = {
+	.supply		= PM8XXX_GPIO1_SUPPLY_VBUS,
+	.idpin		= PM8XXX_IDPIN_USE_GPADC2,
+	.reg_base	= PXA935_U2O_REGBASE,
+	.reg_end	= PXA935_U2O_REGBASE + USB_REG_RANGE,
+};
+
 static struct pm80x_platform_data pm800_info = {
 	.headset = &pm80x_headset,
 	.regulator	= regulator_data,
@@ -1223,16 +1244,19 @@ static void register_i2c_board_info(void)
 		break;
 	case OBM_DKB_2_NEVO_C0_BOARD:
 	case OBM_DKB_2_NEVO_C0_BOARD_533MHZ:
+		pm800_info.vbus = &pm80x_vbus_dkb2;
 		pm800_info.vibrator = &vibrator_pdata;
 		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info));
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_DKB));
 		break;
 	case OBM_DKB_2_1_NEVO_C0_BOARD:
+		pm800_info.vbus = &pm80x_vbus_dkb2v1;
 		pm800_info.vibrator = &vibrator_pdata;
 		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info_DKB2_1));
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_DKB_2_1));
 		break;
 	case OBM_DKB_3_NEVO_D0_BOARD:
+		pm800_info.vbus = &pm80x_vbus_dkb3;
 		pm800_info.vibrator = &vibrator_pdata;
 		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info_DKB2_1));
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_DKB_3));
