@@ -89,15 +89,7 @@ pxa978_save_reset_handler:
 
 	.global pxa978_cpu_suspend
 pxa978_cpu_suspend:
-	@read NEVO chip id
-	.extern pxa_chip_id
-	ldr	r1, =pxa_chip_id
-	ldr	r2, [r1]
-	mov	r2, r2, lsl #16
-	mov	r2, r2, lsr #20
-	mov	r1, #0x2A0
-	orr	r1, #6
-	cmp	r1, r2
+	cmp	r0, #0
 	bne	c2_entry
 
 	@disable L1$, for NEVO C0

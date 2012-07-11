@@ -1,3 +1,5 @@
+#define DISABLE_L1_CACHE		0
+#define NO_DISABLE_L1_CACHE		1
 unsigned VirtualToPhysical(unsigned);
 /*-----------------------------------------------------------------*/
 #define PMU_DATA_SIZE               128
@@ -13,6 +15,6 @@ sramaddr[13..0]=0 is enforced.
 These registers are saved in SRAM at the given address,
 right after the reset vector code. Aproximae size: 0xc0 bytes.
 */
-void pxa978_cpu_suspend(unsigned int pwrmode);
+void pxa978_cpu_suspend(unsigned int chip);
 void pxa978_save_reset_handler(unsigned int sramaddr);
 void c2_address_remap(void);

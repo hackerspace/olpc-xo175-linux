@@ -67,7 +67,11 @@ static int pxa978_suspend_finish(unsigned long pwrmode)
 #ifdef CONFIG_CPU_PXA978
 	pl310_suspend();
 #endif
-	pxa978_cpu_suspend(pwrmode);
+	/*disable L1$ for c0 chip*/
+	if (cpu_is_pxa978_Dx())
+		pxa978_cpu_suspend(NO_DISABLE_L1_CACHE);
+	else
+		pxa978_cpu_suspend(DISABLE_L1_CACHE);
 	return 0;
 }
 
