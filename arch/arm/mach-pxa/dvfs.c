@@ -14,9 +14,9 @@
 #include <linux/i2c.h>
 #include <linux/sysdev.h>
 #include <linux/mfd/88pm80x.h>
-#include <mach/pxa3xx-regs.h>
-
+#include <asm/delay.h>
 #include <plat/clock.h>
+#include <mach/pxa3xx-regs.h>
 #include <mach/dvfs.h>
 #include <mach/pxa9xx_pm_logger.h>	/* for pm debug tracing */
 #include <mach/regs-ost.h>
@@ -26,6 +26,7 @@ static DEFINE_MUTEX(dvfs_lock);
 static ATOMIC_NOTIFIER_HEAD(dvfs_freq_notifier_list);
 static struct i2c_client *i2c;
 static int cur_volt3;
+static unsigned int last_level;
 
 static int dvfs_rail_update(struct dvfs_rail *rail);
 
@@ -88,19 +89,19 @@ static int vcc_main_set_voltage(struct dvfs_rail *rail)
 	else if (newvolts <= VOL_LEVL3_0) {
 		if (is_wkr_1_2G_vmin()) {
 			if (volt3_high && (cur_volt3 != volt3_high)) {
-				pm80x_reg_write(i2c, 0x3F, volt3_high);
+				pm80x_reg_write(i2c, PM800_BUCK1_3, volt3_high);
 				cur_volt3 = volt3_high;
 			}
 		} else {
 			if (volt3_low && (cur_volt3 != volt3_low)) {
-				pm80x_reg_write(i2c, 0x3F, volt3_low);
+				pm80x_reg_write(i2c, PM800_BUCK1_3, volt3_low);
 				cur_volt3 = volt3_low;
 			}
 		}
 		level = 3;
 	} else if (newvolts <= VOL_LEVL3_1) {
 		if (volt3_high && (cur_volt3 != volt3_high)) {
-			pm80x_reg_write(i2c, 0x3F, volt3_high);
+			pm80x_reg_write(i2c, PM800_BUCK1_3, volt3_high);
 			cur_volt3 = volt3_high;
 		}
 		level = 3;
@@ -111,8 +112,18 @@ static int vcc_main_set_voltage(struct dvfs_rail *rail)
 	    ((volts >= VOL_LEVL3_0) && (level <= 1))) {
 		pxa978_set_voltage_level(2);
 	}
-	pxa978_set_voltage_level(level);
+	/*
+	 * 1.2G/1.4G switch will change level 3's voltage
+	 * but the level is not changed, we have to delay
+	 * a while to make sure voltage value stable.
+	 * In pmic spec, voltage change speed is 12.5mV/us
+	 */
+	if (!is_wkr_1_2G_vmin())
+		if (level == 3 && last_level == 3)
+			udelay(3);
 
+	pxa978_set_voltage_level(level);
+	last_level = level;
 	pm_logger_app_add_trace(2, PM_VCC_MAIN_SET_VOL, OSCR4,
 				volts, newvolts);
 
@@ -304,7 +315,7 @@ static inline ssize_t voltage_show(struct sys_device *sys_dev,
 	int level, volt, len = 0;
 
 	level = (AVLSR >> 1) & 0x3;
-	volt = reg_to_volt(pm80x_reg_read(i2c, 0x3c + level));
+	volt = reg_to_volt(pm80x_reg_read(i2c, PM800_BUCK1 + level));
 	len += sprintf(buf, "Level %d (%d mV)\n", level, volt);
 
 	return len;
@@ -325,13 +336,13 @@ static inline ssize_t voltage_store(struct sys_device *sys_dev,
 	}
 
 	if ((new_vol == 3) && volt3_low && (cur_volt3 != volt3_low)) {
-		pm80x_reg_write(i2c, 0x3F, volt3_low);
+		pm80x_reg_write(i2c, PM800_BUCK1_3, volt3_low);
 		cur_volt3 = volt3_low;
 	}
 
 	if (new_vol == 4) {
 		if (volt3_high && (cur_volt3 != volt3_high)) {
-			pm80x_reg_write(i2c, 0x3F, volt3_high);
+			pm80x_reg_write(i2c, PM800_BUCK1_3, volt3_high);
 			cur_volt3 = volt3_high;
 		}
 		new_vol = 3;
@@ -400,6 +411,8 @@ int dvfs_init(void)
 
 	list_for_each_entry(rail, &dvfs_rail_list, node)
 	    dvfs_rail_update(rail);
+
+	last_level = (AVLSR >> 1) & 0x3;
 
 	mutex_unlock(&dvfs_lock);
 	return platform_driver_register(&dvfs_driver);
