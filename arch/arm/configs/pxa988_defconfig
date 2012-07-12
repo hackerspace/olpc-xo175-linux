@@ -1127,7 +1127,8 @@ CONFIG_SERIAL_CORE_CONSOLE=y
 CONFIG_VIBRATOR_88PM8XXX=y
 CONFIG_PXA9XX_ACIPC=y
 # CONFIG_LED_FLASH_ADP1650 is not set
-# CONFIG_MXDCMMB is not set
+CONFIG_MXDCMMB=m
+# CONFIG_MXDCMMB_DEBUG is not set
 CONFIG_I2C=y
 CONFIG_I2C_BOARDINFO=y
 CONFIG_I2C_COMPAT=y
@@ -1431,13 +1432,27 @@ CONFIG_MEDIA_SUPPORT=y
 # CONFIG_MEDIA_CONTROLLER is not set
 CONFIG_VIDEO_DEV=y
 CONFIG_VIDEO_V4L2_COMMON=y
-# CONFIG_DVB_CORE is not set
+CONFIG_DVB_CORE=y
 CONFIG_VIDEO_MEDIA=y
 
 #
 # Multimedia drivers
 #
-# CONFIG_RC_CORE is not set
+CONFIG_RC_CORE=y
+CONFIG_LIRC=y
+CONFIG_RC_MAP=y
+CONFIG_IR_NEC_DECODER=y
+CONFIG_IR_RC5_DECODER=y
+CONFIG_IR_RC6_DECODER=y
+CONFIG_IR_JVC_DECODER=y
+CONFIG_IR_SONY_DECODER=y
+CONFIG_IR_RC5_SZ_DECODER=y
+CONFIG_IR_LIRC_CODEC=y
+# CONFIG_IR_IMON is not set
+# CONFIG_IR_MCEUSB is not set
+# CONFIG_IR_REDRAT3 is not set
+# CONFIG_IR_STREAMZAP is not set
+# CONFIG_RC_LOOPBACK is not set
 # CONFIG_MEDIA_ATTACH is not set
 CONFIG_MEDIA_TUNER=y
 CONFIG_MEDIA_TUNER_CUSTOMISE=y
@@ -1474,6 +1489,7 @@ CONFIG_VIDEO_CAPTURE_DRIVERS=y
 # CONFIG_VIDEO_ADV_DEBUG is not set
 # CONFIG_VIDEO_FIXED_MINOR_RANGES is not set
 # CONFIG_VIDEO_HELPER_CHIPS_AUTO is not set
+CONFIG_VIDEO_IR_I2C=y
 
 #
 # Encoders, decoders, sensors and other helper chips
@@ -1582,10 +1598,69 @@ CONFIG_SOC_CAMERA_OV2659=y
 CONFIG_VIDEO_MV=y
 # CONFIG_VIDEO_SH_MOBILE_CSI2 is not set
 # CONFIG_VIDEO_SH_MOBILE_CEU is not set
-# CONFIG_CMMB is not set
+CONFIG_CMMB=y
+CONFIG_CMMB_IF228=m
 # CONFIG_V4L_MEM2MEM_DRIVERS is not set
 # CONFIG_VIDEO_DISPLAY_DRIVERS is not set
 # CONFIG_RADIO_ADAPTERS is not set
+CONFIG_DVB_MAX_ADAPTERS=8
+# CONFIG_DVB_DYNAMIC_MINORS is not set
+CONFIG_DVB_CAPTURE_DRIVERS=y
+# CONFIG_TTPCI_EEPROM is not set
+CONFIG_SMS_SIANO_MDTV=m
+
+#
+# Siano module components
+#
+# CONFIG_SMS_DVB3_SUBSYS is not set
+# CONFIG_SMS_DVB5_S2API_SUBSYS is not set
+CONFIG_SMS_HOSTLIB_SUBSYS=y
+# CONFIG_SMS_NET_SUBSYS is not set
+# CONFIG_SMS_SDIO_DRV is not set
+CONFIG_SMS_SPI_PXA310_DRV=y
+# CONFIG_DVB_B2C2_FLEXCOP is not set
+
+#
+# Supported DVB Frontends
+#
+# CONFIG_DVB_FE_CUSTOMISE is not set
+
+#
+# Multistandard (satellite) frontends
+#
+
+#
+# DVB-S (satellite) frontends
+#
+
+#
+# DVB-T (terrestrial) frontends
+#
+
+#
+# DVB-C (cable) frontends
+#
+
+#
+# ATSC (North American/Korean Terrestrial/Cable DTV) frontends
+#
+
+#
+# ISDB-T (terrestrial) frontends
+#
+
+#
+# Digital terrestrial only tuners/PLL
+#
+
+#
+# SEC control devices for DVB-S
+#
+
+#
+# Tools to develop new frontends
+#
+# CONFIG_DVB_DUMMY_FE is not set
 
 #
 # Graphics support
@@ -1913,6 +1988,7 @@ CONFIG_ANDROID_LOW_MEMORY_KILLER=y
 # CONFIG_XVMALLOC is not set
 # CONFIG_ZRAM is not set
 # CONFIG_FB_SM7XX is not set
+# CONFIG_LIRC_STAGING is not set
 CONFIG_MACH_NO_WESTBRIDGE=y
 # CONFIG_ATH6K_LEGACY is not set
 # CONFIG_FT1000 is not set
