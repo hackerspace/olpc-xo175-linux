@@ -53,6 +53,11 @@
 #include <linux/wakelock.h>
 #include "generic.h"
 #include <plat/reg_rw.h>
+#include <linux/cpu_pm.h>
+#include <asm/suspend.h>
+#ifdef CONFIG_CPU_PXA978
+#include <asm/hardware/cache-l2x0.h>
+#endif
 
 /* mtd.h declares another DEBUG macro definition */
 #undef DEBUG
@@ -708,6 +713,56 @@ static void pm_preset_standby(void)
 {
 	pxa95x_clear_pm_status(0);
 }
+
+static int pxa978_suspend_finish(unsigned long pwrmode)
+{
+	if (pwrmode & PWRMODE_L2_DIS_IN_C2) {
+		/* In L2$ non-retentive mode, two option:
+		 *1. clean all before c2, inv all after c2
+		 *2. flush all before c2
+		 *but we mush use the first one. for after power on, L2 is
+		 *in an unpredicatable state of all data, tag, status bit
+		 */
+		/*this will actually call clean_all() */
+		outer_clean_range(0, 0xFFFFFFFF);
+	}
+#ifdef CONFIG_CPU_PXA978
+	pl310_suspend();
+#endif
+	/*disable L1$ for c0 chip*/
+	if (cpu_is_pxa978_Dx())
+		pxa978_cpu_suspend(NO_DISABLE_L1_CACHE);
+	else
+		pxa978_cpu_suspend(DISABLE_L1_CACHE);
+	return 0;
+}
+
+void c2_address_unremap(void)
+{
+	__raw_writel(0, remap_c2_reg);
+}
+
+void c2_address_remap(void)
+{
+	u32 c2_sram_addr_phys = VirtualToPhysical(get_c2_sram_base());
+	__raw_writel(((c2_sram_addr_phys >> 13) | 1) & 0x1FFF, remap_c2_reg);
+}
+
+void pxa978_pm_enter(unsigned long pwrmode)
+{
+	unsigned int debug_context[DEBUG_DATA_SIZE / sizeof(unsigned int)];
+	unsigned int pmu_context[PMU_DATA_SIZE / sizeof(unsigned int)];
+
+	save_pxa978_debug((unsigned int *)&debug_context);
+	save_performance_monitors((unsigned int *)&pmu_context);
+	cpu_pm_enter();
+	cpu_suspend(pwrmode, pxa978_suspend_finish);
+
+	cpu_pm_exit();
+	restore_performance_monitors((unsigned int *)&pmu_context);
+	restore_pxa978_debug((unsigned int *)&debug_context);
+}
+
 #ifdef CONFIG_CPU_PXA978
 static void enter_d2(void)
 {

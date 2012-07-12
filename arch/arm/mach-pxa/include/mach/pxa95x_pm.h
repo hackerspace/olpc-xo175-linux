@@ -608,7 +608,7 @@ extern unsigned int pm_core_pwdn(unsigned int powerState);
 extern unsigned int pm_enter_cgm_deepidle(unsigned int);
 extern int pxa95x_query_gwsr(int);
 extern u32 get_mipi_reference_control(void);
-extern unsigned int get_c2_sram_base(void);
+unsigned int get_c2_sram_base(void);
 extern void pxa978_pm_enter(unsigned long save_mode);
 
 
