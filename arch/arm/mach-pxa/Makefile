@@ -10,11 +10,7 @@ ifeq ($(CONFIG_PXA95x), y)
 obj-$(CONFIG_PXA95x_DVFM)	+= pxa95x_dvfm.o pxa95x_dvfm_ll.o dvfs.o pxa95x_dvfs.o
 obj-$(CONFIG_PXA95x_DVFM_STATS)	+= dvfm_stats.o
 obj-$(CONFIG_PXA95x_DVFM_DEBUG)	+= pxa95x_pm_debugfs.o pxa9xx_pm_logger.o pxa9xx_pm_parser.o
-ifeq ($(CONFIG_CPU_PXA978), y)
-obj-$(CONFIG_PM)		+= pxa95x_pm.o pxa95x_pm_ll.o ca9_asm.o
-else
 obj-$(CONFIG_PM)		+= pxa95x_pm.o pxa95x_pm_ll.o
-endif
 obj-$(CONFIG_IPM)		+= mspm_idle.o mspm_prof.o
 else
 obj-$(CONFIG_PM)		+= pm.o sleep.o standby.o
