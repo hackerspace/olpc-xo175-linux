@@ -38,7 +38,7 @@
 #include <mach/pxa95x_dvfm.h>
 #include <mach/pxa3xx-regs.h>
 #include <plat/reg_rw.h>
-
+#include <plat/pxa_uart.h>
 #include <linux/uio_vmeta.h>
 
 #include <plat/pmem.h>
@@ -408,6 +408,10 @@ extern int pxa95x_clk_init(void);
 
 #define GEN_REG3_INIT_VAL	(0)
 
+static struct pxa_uart_mach_info ffuart_info = {
+	.stay_awake_in_suspend = 0,
+};
+
 static int __init pxa95x_init(void)
 {
 	int ret = 0;
@@ -470,7 +474,15 @@ static int __init pxa95x_init(void)
 
 	ret = platform_add_devices(devices, ARRAY_SIZE(devices));
 
-	pxa_set_ffuart_info(NULL);
+#ifdef CONFIG_PM
+	/* prevent console freezing in suspend for saarc */
+	if (get_board_id() == OBM_SAAR_C3V5_NEVO_D0_V10_BOARD ||
+		get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD ||
+		get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ ||
+		get_board_id() == OBM_EVB_NEVO_1_2_BOARD)
+			ffuart_info.stay_awake_in_suspend = 1;
+#endif
+	pxa_set_ffuart_info(&ffuart_info);
 	pxa_set_stuart_info(NULL);
 
 #ifdef CONFIG_ANDROID_PMEM
