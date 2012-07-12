@@ -49,7 +49,6 @@
 #include <mach/pxa9xx_pm_logger.h>	/* for pm debug tracing */
 #include <mach/dma.h>
 #include <asm/mach/map.h>
-#include <mach/ca9_asm.h>
 #include <linux/wakelock.h>
 #include "generic.h"
 #include <plat/reg_rw.h>

@@ -608,10 +608,20 @@ extern unsigned int pm_core_pwdn(unsigned int powerState);
 extern unsigned int pm_enter_cgm_deepidle(unsigned int);
 extern int pxa95x_query_gwsr(int);
 extern u32 get_mipi_reference_control(void);
-unsigned int get_c2_sram_base(void);
+
+#define DISABLE_L1_CACHE			0
+#define NO_DISABLE_L1_CACHE			1
+#define PMU_DATA_SIZE				128
+#define DEBUG_DATA_SIZE 			  	128
+unsigned int  get_c2_sram_base(void);
 extern void pxa978_pm_enter(unsigned long save_mode);
-
-
+extern void save_performance_monitors(unsigned int *pointer);
+extern void restore_performance_monitors(unsigned int *pointer);
+extern void save_pxa978_debug(unsigned int *pointer);
+extern void restore_pxa978_debug(unsigned int *pointer);
+extern void pxa978_cpu_suspend(unsigned chip_flag);
+extern void pxa978_save_reset_handler(unsigned int sramaddr);
+extern unsigned int VirtualToPhysical(unsigned);
 #define OP_NUM			20
 
 /*
