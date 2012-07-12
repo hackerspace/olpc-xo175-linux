@@ -32,6 +32,7 @@
 #include <linux/proc_fs.h>
 #include <linux/uaccess.h>
 #include <linux/miscdevice.h>
+#include <linux/input.h>
 
 struct pm860x_headset_info {
 	struct pm860x_chip *chip;
@@ -42,7 +43,8 @@ struct pm860x_headset_info {
 	int headset_flag;
 	struct work_struct work_headset, work_hook;
 	struct delayed_work delayed_work;
-	struct headset_switch_data *psw_data_headset, *psw_data_hook;
+	struct headset_switch_data *psw_data_headset;
+	struct input_dev *idev;
 };
 
 struct headset_switch_data {
@@ -75,7 +77,7 @@ static irqreturn_t pm860x_headset_handler(int irq, void *data)
 		}
 	} else if (irq == info->irq_hook) {
 		/* hook interrupt */
-		if (info->psw_data_hook != NULL) {
+		if (info->idev != NULL) {
 			queue_work(info->chip->monitor_wqueue,
 				   &info->work_hook);
 		}
@@ -175,16 +177,11 @@ static void hook_switch_work(struct work_struct *work)
 {
 	struct pm860x_headset_info *info =
 	    container_of(work, struct pm860x_headset_info, work_hook);
-	struct headset_switch_data *switch_data;
 	unsigned char value;
+	int state;
 
-	if (info == NULL) {
-		pr_debug("Invalid headset info!\n");
-		return;
-	}
-	switch_data = info->psw_data_hook;
-	if (switch_data == NULL) {
-		pr_debug("Invalid hook switch data!\n");
+	if (info == NULL || info->idev == NULL) {
+		pr_debug("Invalid hook info!\n");
 		return;
 	}
 
@@ -200,20 +197,21 @@ static void hook_switch_work(struct work_struct *work)
 
 	/* hook pressed */
 	if (value) {
-		switch_data->state = PM8XXX_HOOKSWITCH_PRESSED;
+		state = PM8XXX_HOOKSWITCH_PRESSED;
 		/*for telephony */
 		kobject_uevent(&hsdetect_dev->kobj, KOBJ_ONLINE);
 		hs_detect.hookswitch_status = PM8XXX_HOOKSWITCH_PRESSED;
 	} else {
 		/* hook released */
-		switch_data->state = PM8XXX_HOOKSWITCH_RELEASED;
+		state = PM8XXX_HOOKSWITCH_RELEASED;
 		/*for telephony */
 		kobject_uevent(&hsdetect_dev->kobj, KOBJ_OFFLINE);
 		hs_detect.hookswitch_status = PM8XXX_HOOKSWITCH_RELEASED;
 	}
 
-	pr_info("hook state switch to %d\n", switch_data->state);
-	switch_set_state(&switch_data->sdev, switch_data->state);
+	input_report_key(info->idev, KEY_MEDIA, state);
+	input_sync(info->idev);
+	pr_debug("hook state switch to %d\n", state);
 }
 
 static ssize_t switch_headset_print_state(struct switch_dev *sdev, char *buf)
@@ -241,7 +239,7 @@ static int headset_switch_probe(struct platform_device *pdev)
 	    &headset_plarform_data->headset_data[0];
 	struct gpio_switch_platform_data *pdata_hook =
 	    &headset_plarform_data->headset_data[1];
-	struct headset_switch_data *switch_data_headset, *switch_data_hook;
+	struct headset_switch_data *switch_data_headset;
 	int irq_headset, irq_hook, ret = 0;
 
 	if (pdata_headset == NULL || pdata_hook == NULL) {
@@ -272,12 +270,11 @@ static int headset_switch_probe(struct platform_device *pdev)
 
 	switch_data_headset =
 	    kzalloc(sizeof(struct headset_switch_data), GFP_KERNEL);
-	if (!switch_data_headset)
-		return -ENOMEM;
-	switch_data_hook =
-	    kzalloc(sizeof(struct headset_switch_data), GFP_KERNEL);
-	if (!switch_data_hook)
-		return -ENOMEM;
+	if (!switch_data_headset) {
+		dev_err(&pdev->dev, "Failed to allocate headset data\n");
+		ret = -ENOMEM;
+		goto headset_allocate_fail;
+	}
 
 	switch_data_headset->sdev.name = pdata_headset->name;
 	switch_data_headset->name_on = pdata_headset->name_on;
@@ -287,18 +284,20 @@ static int headset_switch_probe(struct platform_device *pdev)
 	switch_data_headset->sdev.print_state = switch_headset_print_state;
 	info->psw_data_headset = switch_data_headset;
 
-	switch_data_hook->sdev.name = pdata_hook->name;
-	switch_data_hook->name_on = pdata_hook->name_on;
-	switch_data_hook->name_off = pdata_hook->name_off;
-	switch_data_hook->state_on = pdata_hook->state_on;
-	switch_data_hook->state_off = pdata_hook->state_off;
-	switch_data_hook->sdev.print_state = switch_headset_print_state;
-	info->psw_data_hook = switch_data_hook;
+	info->idev = input_allocate_device();
+	if (!info->idev) {
+		dev_err(&pdev->dev, "Failed to allocate input dev\n");
+		ret = -ENOMEM;
+		goto input_allocate_fail;
+	}
+	info->idev->name = "88pm860x_hook";
+	info->idev->phys = "88pm860x_hook/input0";
+	info->idev->id.bustype = BUS_I2C;
+	info->idev->dev.parent = &pdev->dev;
+	info->idev->evbit[0] = BIT_MASK(EV_KEY);
+	info->idev->keybit[BIT_WORD(KEY_MEDIA)] = BIT_MASK(KEY_MEDIA);
 
 	ret = switch_dev_register(&switch_data_headset->sdev);
-	if (ret < 0)
-		goto err_switch_dev_register;
-	ret = switch_dev_register(&switch_data_hook->sdev);
 	if (ret < 0)
 		goto err_switch_dev_register;
 
@@ -317,6 +316,10 @@ static int headset_switch_probe(struct platform_device *pdev)
 			info->irq_hook, ret);
 		goto out_irq_hook;
 	}
+
+	ret = input_register_device(info->idev);
+	if (ret < 0)
+		goto err_input_dev_register;
 
 	platform_set_drvdata(pdev, info);
 	device_init_wakeup(&pdev->dev, 1);
@@ -375,13 +378,17 @@ static int headset_switch_probe(struct platform_device *pdev)
 
 	return 0;
 
-err_switch_dev_register:
-	kfree(switch_data_headset);
-	kfree(switch_data_hook);
-
+err_input_dev_register:
+	free_irq(info->irq_hook, info);
 out_irq_hook:
 	free_irq(info->irq_headset, info);
 out_irq_headset:
+	switch_dev_unregister(&switch_data_headset->sdev);
+err_switch_dev_register:
+	input_free_device(info->idev);
+input_allocate_fail:
+	kfree(switch_data_headset);
+headset_allocate_fail:
 	kfree(info);
 	return ret;
 }
@@ -391,7 +398,6 @@ static int __devexit headset_switch_remove(struct platform_device *pdev)
 	struct pm860x_headset_info *info = platform_get_drvdata(pdev);
 	struct headset_switch_data *switch_data_headset =
 	    info->psw_data_headset;
-	struct headset_switch_data *switch_data_hook = info->psw_data_hook;
 
 	/* disable headset detection */
 	pm860x_set_bits(info->i2c, PM8607_HEADSET_DECTION,
@@ -403,10 +409,9 @@ static int __devexit headset_switch_remove(struct platform_device *pdev)
 	free_irq(info->irq_hook, info);
 	free_irq(info->irq_headset, info);
 
-	switch_dev_unregister(&switch_data_hook->sdev);
+	input_unregister_device(info->idev);
 	switch_dev_unregister(&switch_data_headset->sdev);
 
-	kfree(switch_data_hook);
 	kfree(switch_data_headset);
 	kfree(info);
 
