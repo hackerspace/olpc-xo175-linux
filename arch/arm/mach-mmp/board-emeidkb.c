@@ -49,6 +49,7 @@
 #include <mach/axis_sensor.h>
 #include <mach/regs-apmu.h>
 #include <mach/clock-pxa988.h>
+#include <mach/regs-ciu.h>
 
 #ifdef CONFIG_PM_DEVFREQ
 #include <plat/devfreq.h>
@@ -1501,6 +1502,45 @@ static void __init emeidkb_init_spi(void)
 }
 #endif /* defined CONFIG_CMMB */
 
+#ifdef CONFIG_DDR_DEVFREQ
+static struct devfreq_frequency_table *ddr_freq_table;
+
+static struct devfreq_platform_data devfreq_ddr_pdata = {
+	.clk_name = "ddr",
+	.interleave_is_on = 0,	/* only one mc */
+};
+
+static struct platform_device pxa988_device_ddrdevfreq = {
+	.name = "devfreq-ddr",
+	.id = -1,
+};
+
+static void __init pxa988_init_device_ddrdevfreq(void)
+{
+	u32 i = 0;
+	u32 ddr_freq_num = pxa988_get_ddr_op_num();
+
+	ddr_freq_table = kmalloc(sizeof(struct devfreq_frequency_table) * \
+					(ddr_freq_num + 1), GFP_KERNEL);
+	if (!ddr_freq_table)
+		return;
+
+	for (i = 0; i < ddr_freq_num; i++) {
+		ddr_freq_table[i].index = i;
+		ddr_freq_table[i].frequency = pxa988_get_ddr_op_rate(i);
+	}
+	ddr_freq_table[i].index = i;
+	ddr_freq_table[i].frequency = DEVFREQ_TABLE_END;
+
+	devfreq_ddr_pdata.freq_table = ddr_freq_table;
+	devfreq_ddr_pdata.hw_base[0] =  DMCU_VIRT_BASE;
+	devfreq_ddr_pdata.hw_base[1] =  DMCU_VIRT_BASE;
+
+	pxa988_device_ddrdevfreq.dev.platform_data = (void *)&devfreq_ddr_pdata;
+	platform_device_register(&pxa988_device_ddrdevfreq);
+}
+#endif
+
 static void __init emeidkb_init_smc(void)
 {
 	/*
@@ -1614,6 +1654,10 @@ static void __init emeidkb_init(void)
 
 #if (defined CONFIG_CMMB)
 	emeidkb_init_spi();
+#endif
+
+#ifdef CONFIG_DDR_DEVFREQ
+	pxa988_init_device_ddrdevfreq();
 #endif
 }
 
