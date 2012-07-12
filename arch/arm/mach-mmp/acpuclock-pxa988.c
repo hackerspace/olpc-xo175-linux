@@ -1718,6 +1718,26 @@ void release_fc_mutex(void)
 }
 EXPORT_SYMBOL(release_fc_mutex);
 
+/* Interface used to get ddr op num */
+unsigned int pxa988_get_ddr_op_num(void)
+{
+	return cur_platform_opt->ddr_axi_opt_size;
+}
+
+/* Interface used to get ddr avaliable rate, unit khz */
+unsigned int pxa988_get_ddr_op_rate(unsigned int index)
+{
+	struct pxa988_ddr_axi_opt *ddr_opt;
+
+	if (index >= cur_platform_opt->ddr_axi_opt_size) {
+		pr_err("%s index out of range!\n", __func__);
+		return -EINVAL;
+	}
+
+	ddr_opt = cur_platform_opt->ddr_axi_opt;
+	return ddr_opt[index].dclk * MHZ_TO_KHZ;
+}
+
 #ifdef CONFIG_CPU_FREQ_TABLE
 static struct cpufreq_frequency_table *cpufreq_tbl;
 
