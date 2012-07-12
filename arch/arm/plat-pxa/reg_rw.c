@@ -151,6 +151,8 @@ static void __exit reg_pxa_exit(void)
 module_init(reg_pxa_init);
 module_exit(reg_pxa_exit);
 
+EXPORT_SYMBOL(pxa_reg_write);
+EXPORT_SYMBOL(pxa_reg_read);
 MODULE_DESCRIPTION("Library for write-only registers access");
 MODULE_AUTHOR("Raymond Wu <xywu@marvell.com>");
 MODULE_LICENSE("GPL v2");
