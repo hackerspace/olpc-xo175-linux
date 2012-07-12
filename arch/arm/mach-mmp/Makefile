@@ -10,7 +10,7 @@ obj-$(CONFIG_CPU_PXA168)	+= pxa168.o irq-pxa168.o
 obj-$(CONFIG_CPU_PXA910)	+= pxa910.o irq-pxa168.o sram.o pxa910-squ.o \
 clock.o
 obj-$(CONFIG_CPU_PXA988)	+= pxa988.o sram.o pxa910-squ.o reset-pxa988.o pxa988_lowpower.o \
-clock-pxa988.o wakeupgen.o
+clock-pxa988.o wakeupgen.o acpuclock-pxa988.o
 obj-$(CONFIG_CPU_MMP2)		+= mmp2.o irq-mmp2.o clock.o mmp_dma.o \
 sram.o mmp2_sspa.o mmp2_fuse.o clock-audio.o
 obj-$(CONFIG_CPU_MMP3)		+= mmp3.o irq-mmp3.o mmp_dma.o mmp2_sspa.o \
@@ -71,7 +71,7 @@ obj-$(CONFIG_MACH_EMEIDKB)	+= board-emeidkb.o
 obj-$(CONFIG_CPU_FREQ_MMP3)	+= cpufreq-mmp3.o
 obj-$(CONFIG_CPU_FREQ_PXA910)	+= cpufreq-pxa910.o acpuclock-pxa910.o acpuclock-pxa910_ll.o
 ifeq ($(CONFIG_CPU_FREQ),y)
-obj-$(CONFIG_CPU_PXA988)	+= acpuclock-pxa988.o cpufreq-pxa988.o
+obj-$(CONFIG_CPU_PXA988)	+= cpufreq-pxa988.o
 endif
 ifeq ($(CONFIG_SUSPEND),y)
 obj-$(CONFIG_CPU_PXA910)	+= pxa910_pm.o
