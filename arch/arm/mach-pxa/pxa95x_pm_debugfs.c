@@ -90,6 +90,10 @@ static int pxa_9xx_gc_vmeta_stats_read(struct file *file,
 				       char __user *userbuf,
 				       size_t count, loff_t *ppos);
 
+static ssize_t PXA9xx_temperature_Status_Read(struct file *file,
+					      char __user *userbuf,
+					      size_t count, loff_t *ppos);
+
 static ssize_t PXA9xx_DRO_Status_Read(struct file *file,
 				      char __user *userbuf,
 				      size_t count, loff_t *ppos);
@@ -137,7 +141,7 @@ const char pxa9xx_force_lpm_names__[][LPM_NAMES_LEN] = {
 static struct dentry *dbgfs_root, *pmLogger_file, *DRO_Status, *forceVCTCXO_EN_file,
 			*ForceLPM_file, *MeasureCoreFreq_file,
 			*profilerRecommendation_file, *GcTicks_file,
-			*VmTicks_file,
+			*VmTicks_file, *Temperatuer_Status,
 			*GcVmetaStats_file,
 			*PI2C_file,
 			*ForceC0_file,
@@ -152,6 +156,11 @@ static const struct file_operations PXA9xx_file_op_pmLogger = {
 	.owner = THIS_MODULE,
 	.read = PXA9xx_pm_logger_read,
 	.write = PXA9xx_pm_logger_write,
+};
+
+static const struct file_operations PXA9xx_file_temperature_Status = {
+	.owner = THIS_MODULE,
+	.read = PXA9xx_temperature_Status_Read,
 };
 
 static const struct file_operations PXA9xx_file_DRO_Status = {
@@ -453,6 +462,40 @@ unsigned int temperature_cal(unsigned int *temper)
 	*temper = result;
 
 	return fraction;
+}
+
+static ssize_t PXA9xx_temperature_Status_Read(struct file *file,
+				      char __user *userbuf,
+				      size_t count, loff_t *ppos)
+{
+	unsigned int mpmu_temper_data = 0, apmu_temper_data = 0;
+	int ret = 0, sum = 0;
+	char buf[100] = { 0 };
+
+	mpmu_temper_data = OVH;
+
+	if (mpmu_temper_data & 0x1) {
+		unsigned int fraction = 0;
+		mpmu_temper_data = PSR;
+		mpmu_temper_data = (mpmu_temper_data >> 12) & 0x1FF;
+		fraction = temperature_cal(&mpmu_temper_data);
+		ret = snprintf(buf + sum, sizeof(buf) / sizeof(char) - 1,
+				"The MPMU temperature is %u.%u degree\n", mpmu_temper_data, fraction);
+		sum += ret;
+	}
+
+	apmu_temper_data = TMP_CTRL;
+
+	if (apmu_temper_data & 0x1) {
+		unsigned int fraction = 0;
+		apmu_temper_data = (apmu_temper_data >> 2) & 0x1FF;
+		fraction = temperature_cal(&apmu_temper_data);
+		ret = snprintf(buf + sum, sizeof(buf) / sizeof(char) - 1,
+				"The APMU temperature is %u.%u degree\n", apmu_temper_data, fraction);
+		sum += ret;
+	}
+
+	return simple_read_from_buffer(userbuf, count, ppos, buf, sum);
 }
 
 static ssize_t PXA9xx_DRO_Status_Read(struct file *file,
@@ -2232,6 +2275,12 @@ void pxa_9xx_power_init_debugfs(void)
 						    dbgfs_root, NULL,
 						    &PXA9xx_file_op_pmLogger);
 		if (!pmLogger_file)
+			errRet = -EINVAL;
+
+		Temperatuer_Status = debugfs_create_file("temperature_status", 0400,
+						 dbgfs_root, NULL,
+						 &PXA9xx_file_temperature_Status);
+		if (!Temperatuer_Status)
 			errRet = -EINVAL;
 
 		DRO_Status = debugfs_create_file("DRO_Status", 0400,
