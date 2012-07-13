@@ -115,9 +115,9 @@
 #define REG_CTRL1	0x40	/* Control 1 */
 #define   C1_444ALPHA	  0x00f00000	/* Alpha field in RGB444 */
 #define   C1_ALPHA_SHFT	  20
-#define   C1_DMAB32	  0x00000000	/* 32-byte DMA burst */
-#define   C1_DMAB16	  0x02000000	/* 16-byte DMA burst */
-#define	  C1_DMAB64	  0x04000000	/* 64-byte DMA burst */
+#define   C1_DMAB64	  0x00000000	/* 64-byte DMA burst */
+#define   C1_DMAB128	  0x02000000	/* 128-byte DMA burst */
+#define   C1_DMAB256	  0x04000000	/* 256-byte DMA burst */
 #define	  C1_DMAB_MASK	  0x06000000
 #define   C1_TWOBUFS	  0x08000000	/* Use only two DMA buffers */
 #define   C1_PWRDWN	  0x10000000	/* Power down */

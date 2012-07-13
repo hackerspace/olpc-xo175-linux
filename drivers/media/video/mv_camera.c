@@ -221,15 +221,15 @@ static void ccic_enable_clk(struct mv_camera_dev *pcdev)
 	ccic_reg_write(pcdev, REG_CLKCTRL, (mcam->mclk_src << 29) | div);
 	switch (mcam->dma_burst) {
 	case 128:
-		ctrl1 |= 1 << 25;
+		ctrl1 |= C1_DMAB128;
 		break;
 	case 256:
-		ctrl1 |= 2 << 25;
+		ctrl1 |= C1_DMAB256;
 		break;
 	}
 	ccic_reg_write(pcdev, REG_CTRL1, C1_HSYNCCNT_RESERVED | ctrl1);
 	if (mcam->bus_type != SOCAM_MIPI)
-		ccic_reg_write(pcdev, REG_CTRL3, 0x00004);
+		ccic_reg_write(pcdev, REG_CTRL3, 0x4);
 }
 
 static void ccic_disable_clk(struct mv_camera_dev *pcdev)
