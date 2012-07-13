@@ -19,6 +19,7 @@
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/slab.h>
+#include <linux/pm_qos_params.h>
 #include <plat/devfreq.h>
 
 #define DDR_FREQ_MAX 8
@@ -514,6 +515,12 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 
 	ddr_devfreq_profile.initial_freq =
 		clk_get_rate(data->ddr_clk) / KHZ_TO_HZ;
+	/* Initilize the devfreq Qos if platform has registered the Qos req */
+	if (pdata->qos_list) {
+		ddr_devfreq_profile.qos_type = PM_QOS_DDR_DEVFREQ_MIN;
+		ddr_devfreq_profile.qos_list = pdata->qos_list;
+	}
+
 	data->pdev_ddr = devfreq_add_device(&pdev->dev,
 				       &ddr_devfreq_profile,
 				       default_gov, &ddr_ondemand_data);
