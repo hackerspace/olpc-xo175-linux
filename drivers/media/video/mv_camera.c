@@ -22,7 +22,6 @@
  */
 
 #include <linux/clk.h>
-#include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/dma-mapping.h>
 #include <linux/errno.h>
@@ -32,11 +31,9 @@
 #include <linux/io.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
-#include <asm/highmem.h>
 #include <linux/module.h>
 #include <linux/version.h>
 #include <linux/platform_device.h>
-#include <linux/slab.h>
 #include <linux/time.h>
 #include <linux/videodev2.h>
 #include <linux/wakelock.h>
@@ -423,25 +420,18 @@ static void mv_set_contig_buffer(struct mv_camera_dev *pcdev, int frame)
 	 */
 	if (list_empty(&pcdev->buffers)) {
 		buf = pcdev->vb_bufs[frame ^ 0x1];
-		pcdev->vb_bufs[frame] = buf;
-		ccic_reg_write(pcdev, frame == 0 ?
-				REG_Y0BAR : REG_Y1BAR, buf->yuv_p.y);
-		if (fmt->pixelformat == V4L2_PIX_FMT_YUV422P ||
-				fmt->pixelformat == V4L2_PIX_FMT_YUV420 ||fmt->pixelformat == V4L2_PIX_FMT_YVU420) {
-			ccic_reg_write(pcdev, frame == 0 ?
-					REG_U0BAR : REG_U1BAR, buf->yuv_p.u);
-			ccic_reg_write(pcdev, frame == 0 ?
-					REG_V0BAR : REG_V1BAR, buf->yuv_p.v);
-		}
 		set_bit(CF_SINGLE_BUFFER, &pcdev->flags);
 		singles++;
-		goto out_unlock;
+	} else {
+		/*
+		 * OK, we have a buffer we can use.
+		 */
+		buf = list_first_entry(&pcdev->buffers, struct mv_buffer, queue);
+		list_del_init(&buf->queue);
+		clear_bit(CF_SINGLE_BUFFER, &pcdev->flags);
 	}
-	/*
-	 * OK, we have a buffer we can use.
-	 */
-	buf = list_first_entry(&pcdev->buffers, struct mv_buffer, queue);
-	list_del_init(&buf->queue);
+
+	pcdev->vb_bufs[frame] = buf;
 	ccic_reg_write(pcdev, frame == 0 ?
 			REG_Y0BAR : REG_Y1BAR, buf->yuv_p.y);
 	if (fmt->pixelformat == V4L2_PIX_FMT_YUV422P ||
@@ -451,11 +441,7 @@ static void mv_set_contig_buffer(struct mv_camera_dev *pcdev, int frame)
 		ccic_reg_write(pcdev, frame == 0 ?
 				REG_V0BAR : REG_V1BAR, buf->yuv_p.v);
 	}
-	pcdev->vb_bufs[frame] = buf;
-	clear_bit(CF_SINGLE_BUFFER, &pcdev->flags);
-out_unlock:
 	spin_unlock_irqrestore(&pcdev->list_lock, flags);
-	return;
 }
 
 static void mv_dma_setup(struct mv_camera_dev *pcdev)
@@ -577,7 +563,7 @@ static void mv_videobuf_queue(struct vb2_buffer *vb)
 		buf->yuv_p.y = dma_handle;
 		buf->yuv_p.v = buf->yuv_p.y + base_size;
 		buf->yuv_p.u = buf->yuv_p.v + base_size / 4;
-	}else {
+	} else {
 		buf->yuv_p.y = dma_handle;
 	}
 
