@@ -354,7 +354,7 @@ static int ccic_config_image(struct mv_camera_dev *pcdev)
 	 */
 	if (mcam->bus_type != SOCAM_MIPI)
 		ccic_reg_set_bit(pcdev, REG_CTRL0,
-				CO_EOF_VSYNC | C0_VEDGE_CTRL);
+				C0_EOF_VSYNC | C0_VEDGE_CTRL);
 
 	return ret;
 }
@@ -363,14 +363,17 @@ static void ccic_irq_enable(struct mv_camera_dev *pcdev)
 {
 	ccic_reg_write(pcdev, REG_IRQSTAT, FRAMEIRQS_EOF);
 	ccic_reg_write(pcdev, REG_IRQSTAT, FRAMEIRQS_SOF);
+	ccic_reg_write(pcdev, REG_IRQSTAT, IRQ_OVERFLOW);
 	ccic_reg_set_bit(pcdev, REG_IRQMASK, FRAMEIRQS_EOF);
 	ccic_reg_set_bit(pcdev, REG_IRQMASK, FRAMEIRQS_SOF);
+	ccic_reg_set_bit(pcdev, REG_IRQMASK, IRQ_OVERFLOW);
 }
 
 static void ccic_irq_disable(struct mv_camera_dev *pcdev)
 {
 	ccic_reg_clear_bit(pcdev, REG_IRQMASK, FRAMEIRQS_EOF);
 	ccic_reg_clear_bit(pcdev, REG_IRQMASK, FRAMEIRQS_SOF);
+	ccic_reg_clear_bit(pcdev, REG_IRQMASK, IRQ_OVERFLOW);
 }
 
 static void ccic_start(struct mv_camera_dev *pcdev)
@@ -789,6 +792,8 @@ static irqreturn_t mv_camera_irq(int irq, void *data)
 	u32 frame;
 
 	irqs = ccic_reg_read(pcdev, REG_IRQSTAT);
+	if (!(irqs & ALLIRQS))
+		return IRQ_NONE;
 
 	if (irqs & IRQ_OVERFLOW)
 		printk("irq overflow!\n");

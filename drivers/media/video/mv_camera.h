@@ -47,13 +47,10 @@
 #define   IRQ_SOF1	  0x00000010	/* Start of frame 1 */
 #define   IRQ_SOF2	  0x00000020	/* Start of frame 2 */
 #define   IRQ_OVERFLOW	  0x00000040	/* FIFO overflow */
-#define   IRQ_TWSIW       0x00000100    /* TWSI (smbus) write */
-#define   IRQ_TWSIR       0x00000200    /* TWSI read */
-#define   IRQ_TWSIE       0x00000400    /* TWSI error */
-#define   TWSIIRQS (IRQ_TWSIW|IRQ_TWSIR|IRQ_TWSIE)
-#define   FRAMEIRQS_EOF (IRQ_EOF0|IRQ_EOF1|IRQ_EOF2 | IRQ_OVERFLOW)
+#define   FRAMEIRQS_EOF (IRQ_EOF0|IRQ_EOF1|IRQ_EOF2)
 #define   FRAMEIRQS_SOF (IRQ_SOF0|IRQ_SOF1|IRQ_SOF2)
-#define   ALLIRQS (TWSIIRQS|FRAMEIRQS|IRQ_OVERFLOW)
+#define   FRAMEIRQS	(FRAMEIRQS_EOF | FRAMEIRQS_SOF)
+#define   ALLIRQS	(FRAMEIRQS | IRQ_OVERFLOW)
 #define REG_IRQMASK	0x2c	/* IRQ mask - same bits as IRQSTAT */
 #define REG_IRQSTAT	0x30	/* IRQ status / clear */
 
@@ -65,7 +62,7 @@
 
 #define REG_CTRL0	0x3c	/* Control 0 */
 #define   C0_ENABLE	  0x00000001	/* Makes the whole thing go */
-#define   CO_EOF_VSYNC	  (1<<22)	/*generate eof by VSYNC */
+#define   C0_EOF_VSYNC	  (1<<22)	/*generate eof by VSYNC */
 #define   C0_VEDGE_CTRL	  (1 << 23)
 /* Mask for all the format bits */
 #define   C0_DF_MASK	  0x00fffffc    /* Bits 2-23 */
@@ -108,7 +105,7 @@
 #define   C0_DOWNSCALE	  0x08000000	/* Enable downscaler */
 #define	  C0_SIFM_MASK	  0xc0000000	/* SIF mode bits */
 #define   C0_SIF_HVSYNC	  0x00000000	/* Use H/VSYNC */
-#define   CO_SOF_NOSYNC	  0x40000000	/* Use inband active signaling */
+#define   C0_SOF_NOSYNC	  0x40000000	/* Use inband active signaling */
 
 
 #define REG_CTRL3	0x1EC
