@@ -194,13 +194,17 @@ MODULE_SUPPORTED_DEVICE("Video");
 
 /* Define following macro to change arbitration register
  * for high camera priority on CI AXI arbitration */
-/*#define _ARB_CHANGE_*/
+#define _ARB_CHANGE_
 #ifdef _ARB_CHANGE_
 #define ARB_CNTRL_AXI   0x55D10000
 #define ARB_CNTRL_CI1   0x55D10020
 #define ARB_CNTRL_CI2   0x55D10040
 #define ARB_CNTRL_GCU   0x55D10060
+#define MC_WRR_NORMAL	0x7FF00280
+#define MC_WRR_FAST	0x7FF007B0
+#define MC_ARB_SCHEME	0x7FF00780
 static unsigned int *pri_axi, *pri_ci1, *pri_ci2, *pri_gcu;
+static unsigned int *wrr_nor, *wrr_fst, *arb_sch;
 #endif
 
 enum {
@@ -1131,6 +1135,12 @@ void cam_set_constrain(struct pxa955_cam_dev *cam, int dev_idx)
 		dvfm_enable_op_name("624M", dev_idx);
 		dvfm_enable_op_name("806M", dev_idx);
 		dvfm_enable_op_name("1014M", dev_idx);
+#ifdef _ARB_CHANGE_
+			*arb_sch |= 0x100;	/* set XPAGE_EN */
+			*wrr_nor = 0x01010101;
+			*wrr_fst = 0x01010101;
+			printk(KERN_INFO "cam: MC_WRR recovered\n");
+#endif
 		break;
 
 	case CAM_STATE_STREAMING:
@@ -1155,6 +1165,14 @@ void cam_set_constrain(struct pxa955_cam_dev *cam, int dev_idx)
 			/* 720P used at least 182MHz MIPI clock
 			 * test shows 312M PP is OK with it */
 			dvfm_disable_op_name("156M", dev_idx);
+#ifdef _ARB_CHANGE_
+			/* W/R for pxa978 D0 silicon issue */
+			*arb_sch &= 0xFFFFFEFF;	/* clear XPAGE_EN */
+			*wrr_nor = 0x020F0504;	/* CP:APP:GC:CORE */
+			*wrr_fst = 0x020F0504;	/* CP:APP:GC:CORE */
+			printk(KERN_INFO "cam: MC_WRR changed to %08X\n", \
+				*wrr_nor);
+#endif
 			break;
 		case 1920:
 			/* FIXME: hack for CH, the constrain should be moved to
@@ -1166,6 +1184,14 @@ void cam_set_constrain(struct pxa955_cam_dev *cam, int dev_idx)
 			 * 624Mhz also seems OK at 364M MIPI clock */
 			dvfm_disable_op_name("312M", dev_idx);
 			dvfm_disable_op_name("156M", dev_idx);
+#ifdef _ARB_CHANGE_
+			/* W/R for pxa978 D0 silicon issue */
+			*arb_sch &= 0xFFFFFEFF;	/* clear XPAGE_EN */
+			*wrr_nor = 0x020F0504;	/* CP:APP:GC:CORE */
+			*wrr_fst = 0x020F0504;	/* CP:APP:GC:CORE */
+			printk(KERN_INFO "cam: MC_WRR changed to %08X\n", \
+				*wrr_nor);
+#endif
 			break;
 		};
 		break;
@@ -2264,6 +2290,9 @@ static int pxa955_camera_probe(struct platform_device *pdev)
 	pri_ci1 = ioremap_nocache(ARB_CNTRL_CI1, 0x20);
 	pri_ci2 = ioremap_nocache(ARB_CNTRL_CI2, 0x20);
 	pri_gcu = ioremap_nocache(ARB_CNTRL_GCU, 0x20);
+	wrr_nor = ioremap_nocache(MC_WRR_NORMAL, 0x20);
+	wrr_fst = ioremap_nocache(MC_WRR_FAST, 0x20);
+	arb_sch = ioremap_nocache(MC_ARB_SCHEME, 0x20);
 #endif
 
 	pcdev->soc_host.drv_name	= PXA955_CAM_DRV_NAME;
