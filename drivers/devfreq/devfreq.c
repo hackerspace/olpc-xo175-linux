@@ -25,6 +25,7 @@
 #include <linux/list.h>
 #include <linux/printk.h>
 #include <linux/hrtimer.h>
+#include <linux/pm_qos_params.h>
 #include "governor.h"
 
 struct class *devfreq_class;
@@ -99,10 +100,16 @@ int update_devfreq(struct devfreq *devfreq)
 	 * Adjust the freuqency with user freq and QoS.
 	 *
 	 * List from the highest proiority
+	 * Qos_freq
 	 * max_freq (probably called by thermal when it's too hot)
 	 * min_freq
 	 */
 
+	if (devfreq->qos_min_freq && freq < devfreq->qos_min_freq) {
+		freq = devfreq->qos_min_freq;
+		flags |= DEVFREQ_FLAG_LEAST_UPPER_BOUND; /* Use LUB */
+		goto update;
+	}
 	if (devfreq->min_freq && freq < devfreq->min_freq) {
 		freq = devfreq->min_freq;
 		flags &= ~DEVFREQ_FLAG_LEAST_UPPER_BOUND; /* Use GLB */
@@ -112,6 +119,7 @@ int update_devfreq(struct devfreq *devfreq)
 		flags |= DEVFREQ_FLAG_LEAST_UPPER_BOUND; /* Use LUB */
 	}
 
+update:
 	err = devfreq->profile->target(devfreq->dev.parent, &freq, flags);
 	if (err)
 		return err;
@@ -141,6 +149,51 @@ static int devfreq_notifier_call(struct notifier_block *nb, unsigned long type,
 
 	return ret;
 }
+
+/**
+ * devfreq_qos_notifier_call() - It is called when kernel driver
+ * has constraints
+ */
+static int devfreq_qos_notifier_call(struct notifier_block *nb,
+				     unsigned long value, void *devp)
+{
+	struct devfreq *devfreq = container_of(nb, struct devfreq, qos_nb);
+	int ret;
+	int i;
+	s32 default_value = PM_QOS_DEFAULT_VALUE;
+	struct devfreq_pm_qos_table *qos_list = devfreq->profile->qos_list;
+	bool qos_use_max = devfreq->qos_use_max;
+
+	if (!qos_list)
+		return NOTIFY_DONE;
+
+	mutex_lock(&devfreq->lock);
+
+	if (value == default_value) {
+		devfreq->qos_min_freq = 0;
+		goto update;
+	}
+
+	for (i = 0; qos_list[i].freq; i++) {
+		/* QoS Met */
+		if ((qos_use_max && qos_list[i].qos_value >= value) ||
+		    (!qos_use_max && qos_list[i].qos_value <= value)) {
+			devfreq->qos_min_freq = qos_list[i].freq;
+			goto update;
+		}
+	}
+
+	/* Use the highest QoS freq */
+	if (i > 0)
+		devfreq->qos_min_freq = qos_list[i - 1].freq;
+
+update:
+	ret = update_devfreq(devfreq);
+	mutex_unlock(&devfreq->lock);
+
+	return ret;
+}
+
 
 /**
  * _remove_devfreq() - Remove devfreq from the device.
@@ -350,7 +403,7 @@ struct devfreq *devfreq_add_device(struct device *dev,
 				   void *data)
 {
 	struct devfreq *devfreq;
-	int err = 0;
+	int err = 0, i;
 
 	if (!dev || !profile || !governor) {
 		dev_err(dev, "%s: Invalid parameters.\n", __func__);
@@ -389,12 +442,82 @@ struct devfreq *devfreq_add_device(struct device *dev,
 	devfreq->next_polling = devfreq->polling_jiffies
 			      = msecs_to_jiffies(devfreq->profile->polling_ms);
 	devfreq->nb.notifier_call = devfreq_notifier_call;
+	devfreq->qos_nb.notifier_call = devfreq_qos_notifier_call;
+
+	/* Check the sanity of qos_list/qos_type */
+	if (profile->qos_type || profile->qos_list) {
+		switch (profile->qos_type) {
+		/*
+		 * add supported devfreq Qos type here, now only
+		 * PM_QOS_DDR_DEVFREQ_MIN type is supported
+		 */
+#ifdef CONFIG_DDR_DEVFREQ
+		case PM_QOS_DDR_DEVFREQ_MIN:
+			devfreq->qos_use_max = true;
+			break;
+#endif
+		default:
+			WARN(true, "Unknown PM-QoS Class (%d).\n",\
+				profile->qos_type);
+			err = -EINVAL;
+			goto err_dev;
+		}
+
+		if (WARN(!profile->qos_type || !profile->qos_list,
+			"QoS requirement partially omitted for %s.\n",
+			dev_name(dev))) {
+			err = -EINVAL;
+			goto err_dev;
+		}
+
+		if (WARN(!profile->qos_list[0].freq,
+			"The first QoS requirement is the end of list for %s.\n",
+			dev_name(dev))) {
+			err = -EINVAL;
+			goto err_dev;
+		}
+
+		for (i = 1; profile->qos_list[i].freq; i++) {
+			if (WARN(profile->qos_list[i].freq <=
+				profile->qos_list[i - 1].freq,
+				"%s's qos_list[].freq not sorted in the "
+				"ascending order. ([%d]=%lu, [%d]=%lu)\n",
+				dev_name(dev), i - 1,
+				profile->qos_list[i - 1].freq, i,
+				profile->qos_list[i].freq)) {
+				err = -EINVAL;
+				goto err_dev;
+			}
+
+			/*
+			 * If QoS type is throughput(PM_QOS_MAX), qos_value
+			 * should be sorted in the ascending order.
+			 * If QoS type is latency(PM_QOS_MIN), qos_value
+			 * should be sorted in the descending order.
+			 */
+			if (WARN((devfreq->qos_use_max &&
+				profile->qos_list[i - 1].qos_value >
+				profile->qos_list[i].qos_value) ||
+				(!devfreq->qos_use_max &&
+				 profile->qos_list[i - 1].qos_value <
+				 profile->qos_list[i].qos_value),
+				"%s's qos_list[].qos_value is not sorted "
+				"according to its QoS class. max type ascending"
+				"min type descending\n",
+				dev_name(dev))) {
+				err = -EINVAL;
+				goto err_dev;
+			}
+		}
+
+		pm_qos_add_notifier(profile->qos_type, &devfreq->qos_nb);
+	}
 
 	dev_set_name(&devfreq->dev, dev_name(dev));
 	err = device_register(&devfreq->dev);
 	if (err) {
 		put_device(&devfreq->dev);
-		goto err_dev;
+		goto err_qos_add;
 	}
 
 	if (governor->init)
@@ -422,6 +545,9 @@ out:
 
 err_init:
 	device_unregister(&devfreq->dev);
+err_qos_add:
+	if (profile->qos_type || profile->qos_list)
+		pm_qos_remove_notifier(profile->qos_type, &devfreq->qos_nb);
 err_dev:
 	mutex_unlock(&devfreq->lock);
 	kfree(devfreq);
@@ -452,6 +578,11 @@ int devfreq_remove_device(struct devfreq *devfreq)
 	}
 
 	mutex_lock(&devfreq->lock);
+
+	if (devfreq->profile->qos_type)
+		pm_qos_remove_notifier(devfreq->profile->qos_type,
+				  &devfreq->qos_nb);
+
 	_remove_devfreq(devfreq, false); /* it unlocks devfreq->lock */
 
 	if (central_polling)
@@ -608,6 +739,13 @@ static ssize_t show_max_freq(struct device *dev, struct device_attribute *attr,
 	return sprintf(buf, "%lu\n", to_devfreq(dev)->max_freq);
 }
 
+static ssize_t show_qos_min_freq(struct device *dev,
+				 struct device_attribute *attr,
+				 char *buf)
+{
+	return sprintf(buf, "%lu\n", to_devfreq(dev)->qos_min_freq);
+}
+
 static struct device_attribute devfreq_attrs[] = {
 	__ATTR(governor, S_IRUGO, show_governor, NULL),
 	__ATTR(cur_freq, S_IRUGO, show_freq, NULL),
@@ -617,6 +755,7 @@ static struct device_attribute devfreq_attrs[] = {
 	__ATTR(min_freq, S_IRUGO | S_IWUSR, show_min_freq, store_min_freq),
 	__ATTR(max_freq, S_IRUGO | S_IWUSR, show_max_freq, store_max_freq),
 	__ATTR(available_freqs, S_IRUGO, show_avail_freq, NULL),
+	__ATTR(qos_min_freq, S_IRUGO, show_qos_min_freq, NULL),
 	{ },
 };
 
