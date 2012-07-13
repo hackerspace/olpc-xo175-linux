@@ -1517,7 +1517,7 @@ u32 *sd_normal_int_err_status2;
 #include <mach/regs-intc.h>
 static int is_wkr_nevo_2243(void)
 {
-	return cpu_is_pxa978();
+	return cpu_is_pxa978() && !cpu_is_pxa978_Dx();
 }
 
 static int query_wakeup(unsigned int reg, pm_wakeup_src_t *src)

@@ -302,7 +302,7 @@ int is_wkr_nevo_2368(void)
 /* workaround for bug JIRA NEVO-2339 */
 int is_wkr_nevo_2339(void)
 {
-	return cpu_is_pxa978();
+	return (cpu_is_pxa978() && !cpu_is_pxa978_Dx());
 }
 
 static u32 ddadr[32], dtadr[32], dsadr[32], dcmd[32];
