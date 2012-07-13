@@ -290,7 +290,7 @@ void update_ddr_performance_data(int op_idx)
 		reg[i] = __raw_readl(dmc_base + PERF_COUNTER_OFF);
 
 		if (overflow_flag & (1 << i))
-			ddr_ticks_array[cur_op].reg[i] += (u64)0x100000000
+			ddr_ticks_array[cur_op].reg[i] += 0x100000000LLU
 				+ reg[i] - ddr_performance_counter_old[i];
 		else
 			ddr_ticks_array[cur_op].reg[i] += reg[i]
