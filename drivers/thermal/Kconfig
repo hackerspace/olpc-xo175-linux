@@ -28,3 +28,9 @@ config MMP3_THERMAL
 	depends on THERMAL && CPU_MMP3
 	help
 	  Adds thermal management for MMP3.
+
+config PXA988_THERMAL
+	bool "PXA988 Thermal interface support"
+	depends on THERMAL && CPU_PXA988
+	help
+	  Add thermal management for pxa988.
