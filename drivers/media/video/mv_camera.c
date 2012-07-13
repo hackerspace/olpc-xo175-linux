@@ -88,9 +88,14 @@ static void unset_power_constraint(int min)
 #define pixfmtstr(x) (x) & 0xff, ((x) >> 8) & 0xff, ((x) >> 16) & 0xff, \
 	((x) >> 24) & 0xff
 
+/*
+ * CCIC can support at most 3 frame buffers
+ * 2	- Use Two Buffers mode
+ * 3	- Use Three Buffers mode
+ */
 #define MAX_DMA_BUFS 2
 
-#define CF_SINGLE_BUFFER 5	/* Running with a single buffer */
+#define CF_SINGLE_BUF 0	/* Running with a single buffer */
 #define CF_SOF 6
 
 /*
@@ -99,6 +104,9 @@ static void unset_power_constraint(int min)
 static int frames;
 static int singles;
 static int delivered;
+#if MAX_DMA_BUFS == 3
+static int tribufs;	/* Only tribufs == 2 can enter single buffer mode */
+#endif
 
 struct yuv_pointer_t {
 	dma_addr_t y;
@@ -408,48 +416,84 @@ static void ccic_power_down(struct mv_camera_dev *pcdev)
 * Fetch buffer from list, if single mode, we reserve the last buffer
 * until new buffer is got, or fetch directly
 */
-static void mv_set_contig_buffer(struct mv_camera_dev *pcdev, int frame)
+static void mv_set_contig_buffer(struct mv_camera_dev *pcdev, unsigned int frame)
 {
 	struct mv_buffer *buf;
 	struct v4l2_pix_format *fmt = &pcdev->pix_format;
 	unsigned long flags = 0;
 
 	spin_lock_irqsave(&pcdev->list_lock, flags);
-	/*
-	 * If there are no available buffers, go into single mode
-	 */
 	if (list_empty(&pcdev->buffers)) {
+		/*
+		 * If there are no available buffers
+		 * go into single buffer mode
+		 */
+#if MAX_DMA_BUFS == 2
+		/*
+		 * CCIC use Two Buffers mode
+		 * will use another remaining frame buffer
+		 * frame 0 -> buf 1
+		 * frame 1 -> buf 0
+		 */
 		buf = pcdev->vb_bufs[frame ^ 0x1];
-		set_bit(CF_SINGLE_BUFFER, &pcdev->flags);
+		set_bit(CF_SINGLE_BUF, &pcdev->flags);
 		singles++;
+#elif MAX_DMA_BUFS == 3
+		/*
+		 * CCIC use Three Buffers mode
+		 * will use the 2rd remaining frame buffer
+		 * frame 0 -> buf 2
+		 * frame 1 -> buf 0
+		 * frame 2 -> buf 1
+		 */
+		buf = pcdev->vb_bufs[(frame + 2) % 3];
+		if (tribufs == 0)
+			tribufs++;
+		else {
+			set_bit(CF_SINGLE_BUF, &pcdev->flags);
+			singles++;
+			if (tribufs < 2)
+				tribufs++;
+		}
+#endif
 	} else {
 		/*
 		 * OK, we have a buffer we can use.
 		 */
 		buf = list_first_entry(&pcdev->buffers, struct mv_buffer, queue);
 		list_del_init(&buf->queue);
-		clear_bit(CF_SINGLE_BUFFER, &pcdev->flags);
+		clear_bit(CF_SINGLE_BUF, &pcdev->flags);
+#if MAX_DMA_BUFS == 3
+		if (tribufs != 0)
+			tribufs--;
+#endif
 	}
 
 	pcdev->vb_bufs[frame] = buf;
-	ccic_reg_write(pcdev, frame == 0 ?
-			REG_Y0BAR : REG_Y1BAR, buf->yuv_p.y);
-	if (fmt->pixelformat == V4L2_PIX_FMT_YUV422P ||
-			fmt->pixelformat == V4L2_PIX_FMT_YUV420 || fmt->pixelformat == V4L2_PIX_FMT_YVU420) {
-		ccic_reg_write(pcdev, frame == 0 ?
-				REG_U0BAR : REG_U1BAR, buf->yuv_p.u);
-		ccic_reg_write(pcdev, frame == 0 ?
-				REG_V0BAR : REG_V1BAR, buf->yuv_p.v);
+	ccic_reg_write(pcdev, REG_Y0BAR + (frame << 2), buf->yuv_p.y);
+	if (fmt->pixelformat == V4L2_PIX_FMT_YUV422P
+			|| fmt->pixelformat == V4L2_PIX_FMT_YUV420
+			|| fmt->pixelformat == V4L2_PIX_FMT_YVU420) {
+		ccic_reg_write(pcdev, REG_U0BAR + (frame << 2), buf->yuv_p.u);
+		ccic_reg_write(pcdev, REG_V0BAR + (frame << 2), buf->yuv_p.v);
 	}
 	spin_unlock_irqrestore(&pcdev->list_lock, flags);
 }
 
 static void mv_dma_setup(struct mv_camera_dev *pcdev)
 {
-	pcdev->nbufs = 2;
-	mv_set_contig_buffer(pcdev, 0);
-	mv_set_contig_buffer(pcdev, 1);
+	unsigned int frame;
+
+	pcdev->nbufs = MAX_DMA_BUFS;
+	for (frame = 0; frame < pcdev->nbufs; frame++)
+		mv_set_contig_buffer(pcdev, frame);
+
+#if MAX_DMA_BUFS == 2
+	/*
+	 * CCIC use Two Buffers mode
+	 */
 	ccic_reg_set_bit(pcdev, REG_CTRL1, C1_TWOBUFS);
+#endif
 }
 
 void ccic_ctlr_reset(struct mv_camera_dev *pcdev)
@@ -608,7 +652,8 @@ static int mv_start_streaming(struct vb2_queue *vq, unsigned int count)
 	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
 	struct mv_camera_dev *pcdev = ici->priv;
 	unsigned long flags = 0;
-	int ret, frame;
+	unsigned int frame;
+	int ret = 0;
 
 	mutex_lock(&pcdev->s_mutex);
 	if (pcdev->state != S_IDLE) {
@@ -631,6 +676,11 @@ static int mv_start_streaming(struct vb2_queue *vq, unsigned int count)
 		goto out_unlock;
 	}
 	spin_unlock_irqrestore(&pcdev->list_lock, flags);
+
+#if MAX_DMA_BUFS == 3
+	tribufs = 0;
+#endif
+
 	ret = mv_read_setup(pcdev);
 out_unlock:
 	for (frame = 0; frame < pcdev->nbufs; frame++)
@@ -700,7 +750,7 @@ static int mv_camera_init_videobuf(struct vb2_queue *q,
  * Hand a completed buffer back to user space.
  */
 static void mv_buffer_done(struct mv_camera_dev *pcdev,
-		int frame, struct vb2_buffer *vbuf)
+		unsigned int frame, struct vb2_buffer *vbuf)
 {
 	vbuf->v4l2_buf.bytesused = pcdev->pix_format.sizeimage;
 	vb2_set_plane_payload(vbuf, 0, pcdev->pix_format.sizeimage);
@@ -710,7 +760,7 @@ static void mv_buffer_done(struct mv_camera_dev *pcdev,
 /*
  * Interrupt handler stuff
  */
-static inline void ccic_frame_complete(struct mv_camera_dev *pcdev, int frame)
+static inline void ccic_frame_complete(struct mv_camera_dev *pcdev, unsigned int frame)
 {
 	struct mv_buffer *buf;
 	unsigned long flags = 0;
@@ -723,7 +773,7 @@ static inline void ccic_frame_complete(struct mv_camera_dev *pcdev, int frame)
 		return;
 	spin_lock_irqsave(&pcdev->list_lock, flags);
 	buf = pcdev->vb_bufs[frame];
-	if (!test_bit(CF_SINGLE_BUFFER, &pcdev->flags)) {
+	if (!test_bit(CF_SINGLE_BUF, &pcdev->flags)) {
 		delivered++;
 		mv_buffer_done(pcdev, frame, &buf->vb_buf);
 	}
