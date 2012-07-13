@@ -237,40 +237,6 @@ static int pxa95x_abu_startup(struct snd_pcm_substream *substream,
 
 	if ((!cpu_dai->active) && (!p_abu_runtime_ctx->abu_ref_cnt)) {
 
-		/* enable abu function & SSI function clock
-		   before any ABU/SSI operation */
-		pxa95x_abu_ssi_clock_enable(p_abu_runtime_ctx);
-
-		/* ABU init, do a software reset */
-		abu_reg_soft_reset(ssp->mmio_base);
-
-		/* Configures ABU transfer mode to auto DMA mode (by default) */
-		abu_reg_set_interrupt_dma_mode(ssp->mmio_base,
-					       ABU_AUTO_DMA_MODE);
-
-		/* ABU buffer size setting */
-		abu_reg_set_buffer_size(ssp->mmio_base, ABU_BUFFER_SIZE);
-		pr_debug("[ABU]  ABU buffer size = 0x%x bytes.\n",
-			 ABU_BUFFER_SIZE);
-
-		/* enable playback timeout interrupt,
-		   error interrupt for error detecting handling.
-		   turn on the codec data mask in case of error. */
-		abu_reg_set_error_interrupt(ssp->mmio_base, true);
-		abu_reg_set_timeout_interrupt(ssp->mmio_base, true);
-		abu_reg_set_playback_timeout(ssp->mmio_base, 0x0F);
-		abu_reg_set_codec_mask(ssp->mmio_base, true);
-
-		/* init SSP register of ABU */
-		abu_reg_init_ssp(ssp->mmio_base);
-
-		/* register dump */
-		pxa95x_abu_reg_dump(ssp->mmio_base);
-
-		/* disable ABU/SSI clock
-		   when no ABU/SSI operation any more */
-		pxa95x_abu_ssi_clock_disable(p_abu_runtime_ctx);
-
 		p_abu_runtime_ctx->abu_status = ABU_IDLE_STATUTS;
 
 		pr_info("[ABU] pxa95x_abu_startup: Init ABU/SSI success\n");
@@ -300,24 +266,6 @@ static void pxa95x_abu_shutdown(struct snd_pcm_substream *substream,
 	ssp = p_abu_runtime_ctx->ssp;
 
 	if ((!cpu_dai->active) && (1 == p_abu_runtime_ctx->abu_ref_cnt)) {
-
-		/* enable abu function & SSI function clock
-		   before any ABU/SSI operation */
-		pxa95x_abu_ssi_clock_enable(p_abu_runtime_ctx);
-
-		/* a workaround for fixing the issue of "sometimes, no audio
-		   when restart playback after stop".
-		   By reseting back to playback/record mode, the next time
-		   soft reset of ABU will reset both ABUCPR and ABUSPR to 0x0,
-		   or ABUSPR=0x80000 if ABU is playback mode */
-		abu_reg_set_playback_mode(ssp->mmio_base, false);
-
-		/* register dump */
-		pxa95x_abu_reg_dump(ssp->mmio_base);
-
-		/* disable ABU/SSI clock
-		   when no ABU/SSI operation any more */
-		pxa95x_abu_ssi_clock_disable(p_abu_runtime_ctx);
 
 		p_abu_runtime_ctx->abu_status = ABU_IDLE_STATUTS;
 		pr_info("[ABU] pxa95x_abu_shutdown: De-Init ABU/SSI now.\n");
@@ -556,6 +504,32 @@ static int pxa95x_abu_trigger(struct snd_pcm_substream *substream, int cmd,
 						       abu_ssp_dvfm_idx);
 			pxa95x_abu_ssi_clock_enable(p_abu_runtime_ctx);
 
+			/* ABU init, do a software reset */
+			abu_reg_soft_reset(ssp->mmio_base);
+
+			/* Configures ABU transfer mode to auto DMA mode (by default) */
+			abu_reg_set_interrupt_dma_mode(ssp->mmio_base,
+					       ABU_AUTO_DMA_MODE);
+
+			/* ABU buffer size setting */
+			abu_reg_set_buffer_size(ssp->mmio_base, ABU_BUFFER_SIZE);
+			pr_debug("[ABU]  ABU buffer size = 0x%x bytes.\n",
+				 ABU_BUFFER_SIZE);
+
+			/* enable playback timeout interrupt,
+			   error interrupt for error detecting handling.
+			   turn on the codec data mask in case of error. */
+			abu_reg_set_error_interrupt(ssp->mmio_base, true);
+			abu_reg_set_timeout_interrupt(ssp->mmio_base, true);
+			abu_reg_set_playback_timeout(ssp->mmio_base, 0x0F);
+			abu_reg_set_codec_mask(ssp->mmio_base, true);
+
+			/* init SSP register of ABU */
+			abu_reg_init_ssp(ssp->mmio_base);
+
+			/* register dump */
+			pxa95x_abu_reg_dump(ssp->mmio_base);
+
 			/* configure ABU parameter */
 			period_bytes =
 			    p_abu_dma_dev->stream_hw_params[substream->stream].
@@ -614,6 +588,12 @@ static int pxa95x_abu_trigger(struct snd_pcm_substream *substream, int cmd,
 
 		switch (p_abu_runtime_ctx->abu_status) {
 		case ABU_IDLE_STATUTS:
+			/* a workaround for fixing the issue of "sometimes, no audio
+			   when restart playback after stop".
+			   By reseting back to playback/record mode, the next time
+			   soft reset of ABU will reset both ABUCPR and ABUSPR to 0x0,
+			   or ABUSPR=0x80000 if ABU is playback mode */
+			abu_reg_set_playback_mode(ssp->mmio_base, false);
 
 			/* disable SSP port now */
 			abu_reg_enable_disable_ssp(ssp->mmio_base, false);
