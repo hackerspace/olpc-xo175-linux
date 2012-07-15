@@ -484,17 +484,18 @@ struct work_struct acipc_ddr_hi_freq_acquire, acipc_ddr_hi_freq_release;
 static void acipc_ddr_hi_freq_acquire_handler(struct work_struct *work)
 {
 	unsigned long flags;
-	if (cpu_is_pxa95x()) {
-		dvfm_enable_op_name("156M_HF", \
-		acipc_lock.dev_idx);
-		/* 208MHz and 208+HF should be
-		reconsidered by System eng */
-		/*dvfm_enable_op_name("208M_HF",\
-			acipc_lock.dev_idx);*/
-		/*dvfm_disable_op_name("208M",	\
-		acipc_lock.dev_idx);*/
-	}
-	dvfm_disable_op_name("156M", acipc_lock.dev_idx);
+
+	if (cpu_is_pxa955() || cpu_is_pxa968()) {
+		dvfm_enable_op_name("156M_HF", acipc_lock.dev_idx);
+		dvfm_disable_op_name("156M", acipc_lock.dev_idx);
+	} else if (cpu_is_pxa978()) {
+		/* allowing 728M and up for DDR = 800MTPS */
+		dvfm_disable_op_name("416M", acipc_lock.dev_idx);
+		dvfm_disable_op_name("312M", acipc_lock.dev_idx);
+		dvfm_disable_op_name("156M", acipc_lock.dev_idx);
+	} else
+		BUG_ON(1);
+
 	/* MIPSRAM and ACIPC event should be atomic*/
 	local_irq_save(flags);
 	acipc_event_set(ACIPC_DDR_260_READY_ACK);
@@ -510,17 +511,16 @@ static void acipc_ddr_hi_freq_acquire_handler(struct work_struct *work)
 
 static void acipc_ddr_hi_freq_release_handler(struct work_struct *work)
 {
-	dvfm_enable_op_name("156M", acipc_lock.dev_idx);
-	if (cpu_is_pxa95x()) {
-		/* 208MHz and 208+HF should be
-		reconsidered by System eng */
-		/*dvfm_enable_op_name("208M", \
-		acipc_lock.dev_idx);
-		dvfm_disable_op_name("208M_HF",	\
-		acipc_lock.dev_idx);*/
-		dvfm_disable_op_name("156M_HF", \
-		acipc_lock.dev_idx);
-	}
+	if (cpu_is_pxa955() || cpu_is_pxa968()) {
+		dvfm_enable_op_name("156M", acipc_lock.dev_idx);
+		dvfm_disable_op_name("156M_HF", acipc_lock.dev_idx);
+	} else if (cpu_is_pxa978()) {
+		dvfm_enable_op_name("156M", acipc_lock.dev_idx);
+		dvfm_enable_op_name("312M", acipc_lock.dev_idx);
+		dvfm_enable_op_name("416M", acipc_lock.dev_idx);
+	} else
+		BUG_ON(1);
+
 	MIPS_RAM_ADD_PM_TRACE(ACIPC_HF_DDR_REL_HANDHELD_MIPS_RAM);
 }
 
