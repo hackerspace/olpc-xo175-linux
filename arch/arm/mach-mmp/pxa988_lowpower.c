@@ -206,6 +206,43 @@ static void pxa988_lowpower_config(u32 cpu,
 	pmu_register_unlock();
 }
 
+#define DISABLE_ALL_WAKEUP_PORTS		\
+	(PMUM_SLPWP0 | PMUM_SLPWP1 | PMUM_SLPWP2 | PMUM_SLPWP3 |	\
+	 PMUM_SLPWP4 | PMUM_SLPWP5 | PMUM_SLPWP6 | PMUM_SLPWP7)
+/* Here we don't enable CP wakeup sources since CP will enable them */
+#define ENABLE_ALL_AP_WAKEUP_SOURCES	\
+	(PMUM_AP_ASYNC_INT | PMUM_AP_FULL_IDLE | PMUM_SQU | PMUM_SDH |	\
+	 PMUM_KEYPRESS | PMUM_WDT | PMUM_RTC_ALARM | PMUM_AP1_TIMER_1 |	\
+	 PMUM_AP1_TIMER_2 | PMUM_AP1_TIMER_3 | PMUM_WAKEUP7 |		\
+	 PMUM_WAKEUP6 | PMUM_WAKEUP5 | PMUM_WAKEUP4 | PMUM_WAKEUP3 |	\
+	 PMUM_WAKEUP2)
+static u32 s_apcr, s_awucrm;
+/*
+ * Enable all wakeup sources and ports. To enalbe wakeup
+ * ports, it needs both AP side to configure MPMU_APCR
+ * and CP side to configure MPMU_CPCR to really enable
+ * it. To enable wakeup sources, either AP side to set
+ * MPMU_AWUCRM or CP side to set MPMU_CWRCRM can really
+ * enable it.
+ */
+static void enable_all_ap_wakeup_sources(void)
+{
+	pmu_register_lock();
+	s_awucrm = __raw_readl(MPMU_AWUCRM);
+	s_apcr = __raw_readl(MPMU_APCR);
+	__raw_writel(ENABLE_ALL_AP_WAKEUP_SOURCES, MPMU_AWUCRM);
+	__raw_writel(s_apcr & ~DISABLE_ALL_WAKEUP_PORTS, MPMU_APCR);
+	pmu_register_unlock();
+}
+
+static void restore_wakeup_sources(void)
+{
+	pmu_register_lock();
+	__raw_writel(s_awucrm, MPMU_AWUCRM);
+	__raw_writel(s_apcr, MPMU_APCR);
+	pmu_register_unlock();
+}
+
 static void pxa988_gic_global_mask(u32 cpu, u32 mask)
 {
 	u32 core_idle_cfg;
@@ -260,7 +297,7 @@ struct pxa988_lowpower_data pxa988_lpm_data[] = {
 		.valid = 1,
 	},
 	[PXA988_LPM_D2] = {
-		.power_state = POWER_MODE_SYS_SLEEP,
+		.power_state = POWER_MODE_UDR_VCTCXO,
 		.l2_shutdown = 0,
 		.valid = 1,
 	},
@@ -382,8 +419,14 @@ int pxa988_enter_lowpower(u32 cpu, u32 power_mode)
 	}
 
 	arch_spin_unlock(&(&lpm_lock_p->rlock)->raw_lock);
+
+	/* For D1 or deeper LPM, we need to enable wakeup sources */
+	if (lpm_index >= PXA988_LPM_D1)
+		enable_all_ap_wakeup_sources();
 	cpu_suspend(pxa988_lpm_data[lpm_index].power_state,
 			pxa988_finish_suspend);
+	if (lpm_index >= PXA988_LPM_D1)
+		restore_wakeup_sources();
 #else
 	if (pxa988_lpm_data[power_mode].l2_shutdown) {
 #ifdef CONFIG_CACHE_L2X0
@@ -396,8 +439,14 @@ int pxa988_enter_lowpower(u32 cpu, u32 power_mode)
 
 	pxa988_lowpower_config(cpu,
 			pxa988_lpm_data[power_mode].power_state, 1);
+
+	/* For D1 or deeper LPM, we need to enable wakeup sources */
+	if (power_mode >= PXA988_LPM_D1)
+		enable_all_ap_wakeup_sources();
 	cpu_suspend(pxa988_lpm_data[power_mode].power_state,
 			pxa988_finish_suspend);
+	if (power_mode >= PXA988_LPM_D1)
+		restore_wakeup_sources();
 #endif /* CONFIG_SMP */
 
 #ifdef CONFIG_SMP
