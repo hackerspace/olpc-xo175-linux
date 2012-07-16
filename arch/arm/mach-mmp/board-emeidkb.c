@@ -930,32 +930,74 @@ static struct mv_usb_platform_data emeidkb_usb_pdata = {
 #define MFP_WIB_RESETn		GPIO011_GPIO_11
 #define POWER_OFF_SD_SIGNAL_IN_SUSPEND 0
 
+static void emeidkb_set_emmc_vdd(int on)
+{
+	static struct regulator *vccq;
+	static struct regulator *vcc;
+	static int enabled_card;
+
+	/* LDO14 = 2.8V/300mA On by default, eMMC_VCC */
+	if (!vcc) {
+		vcc = regulator_get(NULL, "v_emmc");
+		if (IS_ERR(vcc)) {
+			vcc = NULL;
+			printk(KERN_ERR "get v_emmc failed %s %d\n",
+				__func__, __LINE__);
+			return;
+		}
+	}
+
+	/* VBUCK2 = 1.8V/1200mA On by default, eMMC_CORE */
+	if (!vccq) {
+		vccq = regulator_get(NULL, "v_buck2");
+		if (IS_ERR(vccq)) {
+			vccq = NULL;
+			printk(KERN_ERR "get v_buck2 failed %s %d\n",
+				__func__, __LINE__);
+			return;
+		}
+	}
+
+	if (on && !enabled_card) {
+		regulator_set_voltage(vcc, 2800000, 2800000);
+		regulator_enable(vcc);
+		regulator_enable(vccq);
+		enabled_card = 1;
+	}
+	if (!on && enabled_card) {
+		regulator_disable(vcc);
+		regulator_disable(vccq);
+		enabled_card = 0;
+	}
+}
+
 static void emeidkb_set_sdcard_signal_level(int vol)
 {
-	struct regulator *vcc_signal = NULL;
+	static struct regulator *vcc_signal;
 	static int enabled_signal;
 
 	/* LDO12 = 2.8V/300mA Off by default */
-	vcc_signal = regulator_get(NULL, "v_io_mmc1");
-	if (IS_ERR(vcc_signal)) {
-		printk(KERN_ERR"get v_io_mmc1 failed %s %d\n",
-			__func__, __LINE__);
-		return;
-	} else {
-		if (vol) {
-			regulator_set_voltage(vcc_signal, vol, vol);
-			if (!enabled_signal) {
-				regulator_enable(vcc_signal);
-				enabled_signal = 1;
-			}
-		} else {
-			if (enabled_signal) {
-				regulator_disable(vcc_signal);
-				enabled_signal = 0;
-			}
+	if (!vcc_signal) {
+		vcc_signal = regulator_get(NULL, "v_io_mmc1");
+		if (IS_ERR(vcc_signal)) {
+			vcc_signal = NULL;
+			printk(KERN_ERR "get v_io_mmc1 failed %s %d\n",
+				__func__, __LINE__);
+			return;
 		}
+	}
 
-		regulator_put(vcc_signal);
+	if (vol) {
+		regulator_set_voltage(vcc_signal, vol, vol);
+		if (!enabled_signal) {
+			regulator_enable(vcc_signal);
+			enabled_signal = 1;
+		}
+	} else {
+		if (enabled_signal) {
+			regulator_disable(vcc_signal);
+			enabled_signal = 0;
+		}
 	}
 }
 
@@ -978,26 +1020,27 @@ static void emeidkb_sdcard_signal_1v8(int set)
 
 static void emeidkb_set_sdcard_vdd(int on)
 {
-	struct regulator *vdd_card = NULL;
+	static struct regulator *vdd_card;
 	static int enabled_card;
 
 	/* LDO13 = 2.8V/300mA Off by default */
-	vdd_card = regulator_get(NULL, "v_sd");
-	if (IS_ERR(vdd_card)) {
-		printk(KERN_ERR"get v_sd failed %s %d\n",
-			__func__, __LINE__);
-	} else {
-		if (on && !enabled_card) {
-			regulator_set_voltage(vdd_card, 2800000, 2800000);
-			regulator_enable(vdd_card);
-			enabled_card = 1;
+	if (!vdd_card) {
+		vdd_card = regulator_get(NULL, "v_sd");
+		if (IS_ERR(vdd_card)) {
+			vdd_card = NULL;
+			printk(KERN_ERR "get v_sd failed %s %d\n",
+				__func__, __LINE__);
+			return;
 		}
-		if (!on && enabled_card) {
-			regulator_disable(vdd_card);
-			enabled_card = 0;
-		}
+	}
 
-		regulator_put(vdd_card);
+	if (on && !enabled_card) {
+		regulator_set_voltage(vdd_card, 2800000, 2800000);
+		regulator_enable(vdd_card);
+		enabled_card = 1;
+	} else if (!on && enabled_card) {
+		regulator_disable(vdd_card);
+		enabled_card = 0;
 	}
 }
 
@@ -1033,24 +1076,29 @@ static int mmc1_lp_switch(unsigned int low_power, int with_card)
 #ifdef CONFIG_SD8XXX_RFKILL
 static void emeidkb_8787_set_power(unsigned int on)
 {
-	struct regulator *wib_1v8 = NULL;
-	struct regulator *wib_3v3 = NULL;
+	static struct regulator *wib_1v8;
+	static struct regulator *wib_3v3;
 	static int enabled;
 
 	/* LDO9 = 1.8V/300mA Off by default; LDO6 = 2.8V/300mA Off by default */
-	wib_1v8 = regulator_get(NULL, "v_wib_1v8");
-	if (IS_ERR(wib_1v8)) {
-		printk(KERN_ERR"get v_wib_1v8 failed %s %d\n",
-			__func__, __LINE__);
-		return;
+	if (!wib_1v8) {
+		wib_1v8 = regulator_get(NULL, "v_wib_1v8");
+		if (IS_ERR(wib_1v8)) {
+			wib_1v8 = NULL;
+			printk(KERN_ERR "get v_wib_1v8 failed %s %d\n",
+				__func__, __LINE__);
+			return;
+		}
 	}
 
-	wib_3v3 = regulator_get(NULL, "v_wib_3v3");
-	if (IS_ERR(wib_3v3)) {
-		regulator_put(wib_1v8);
-		printk(KERN_ERR"get v_wib_3v3 failed %s %d\n",
-			__func__, __LINE__);
-		return;
+	if (!wib_3v3) {
+		wib_3v3 = regulator_get(NULL, "v_wib_3v3");
+		if (IS_ERR(wib_3v3)) {
+			wib_3v3 = NULL;
+			printk(KERN_ERR "get v_wib_3v3 failed %s %d\n",
+				__func__, __LINE__);
+			return;
+		}
 	}
 
 	if (on && !enabled) {
@@ -1063,9 +1111,7 @@ static void emeidkb_8787_set_power(unsigned int on)
 
 	if (!on && enabled) {
 		regulator_disable(wib_1v8);
-		regulator_put(wib_1v8);
 		regulator_disable(wib_3v3);
-		regulator_put(wib_3v3);
 		enabled = 0;
 	}
 }
@@ -1103,9 +1149,11 @@ static void __init emeidkb_init_mmc(void)
 #endif
 
 	/* HW MMC3(sdh3) used for eMMC, and register first */
+	emeidkb_set_emmc_vdd(1);
 	pxa988_add_sdh(3, &pxa988_sdh_platdata_mmc3);
 
 	/* HW MMC1(sdh1) used for SD/MMC card */
+	emeidkb_set_sdcard_vdd(1);
 	pxa988_add_sdh(1, &pxa988_sdh_platdata_mmc1);
 
 	/* HW MMC2(sdh2) used for SDIO(WIFI/BT/FM module), and register last */
