@@ -854,6 +854,7 @@ static int inline pix_fmt_to_bpp(int pix_fmt)
 	case PIX_FMTIN_RGB_24_PACK:
 		return 3;
 	case PIX_FMTIN_YUV420:
+	case PIX_FMTIN_YVU420:
 	case PIX_FMTIN_YUV422:
 	case PIX_FMTIN_YUV444:
 		return 1;
@@ -864,6 +865,16 @@ static int inline pix_fmt_to_bpp(int pix_fmt)
 	default:
 		return 0;
 	}
+}
+
+static inline int format_is_yuv(int fmt)
+{
+	return (fmt >= PIX_FMTIN_YUV420);
+}
+
+static inline int format_is_yuv_planar(int fmt)
+{
+	return (format_is_yuv(fmt) && (fmt != PIX_FMTIN_YUV422IL));
 }
 
 

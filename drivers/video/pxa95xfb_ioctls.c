@@ -33,6 +33,8 @@ static int convert_pix_fmt(u32 vmode)
 			return PIX_FMTIN_YUV422;
 		case FB_VMODE_YUV420PLANAR:
 			return PIX_FMTIN_YUV420;
+		case FB_VMODE_YUV420PLANAR_SWAPUV:
+			return PIX_FMTIN_YVU420;
 			/* TODO - add U/V and R/B SWAP format and YUV444 */
 		case FB_VMODE_RGB565:
 			return PIX_FMTIN_RGB_16;

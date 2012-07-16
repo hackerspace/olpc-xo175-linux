@@ -1565,10 +1565,10 @@ static int determine_best_pix_fmt(struct fb_var_screeninfo *var)
 	 */
 	if (var->bits_per_pixel == 12 && var->red.length == 8 &&
 			var->green.length == 2 && var->blue.length == 2) {
-		if (var->red.offset >= var->blue.offset)
+		if (var->green.offset >= var->blue.offset)
 			return PIX_FMTIN_YUV420;
 		else
-			printk("%s: YVU420PLANAR format is not supported!\n", __func__);
+			return PIX_FMTIN_YVU420;
 	}
 
 	/*
@@ -1650,7 +1650,7 @@ static void set_fetch(struct pxa95xfb_info *fbi)
 	int start_channel, end_channel, channel;
 	/* for normal format, set channel = window, for YUV, set 4,5,6 channels*/
 	start_channel = fbi->window;
-	end_channel = (fbi->pix_fmt >= PIX_FMTIN_YUV420 && fbi->pix_fmt <= PIX_FMTIN_YUV444 && start_channel == 4)?
+	end_channel = (format_is_yuv_planar(fbi->pix_fmt) && start_channel == 4)?
 		6 : start_channel;
 
 	for(channel = start_channel; channel <= end_channel; channel ++){
@@ -1667,7 +1667,11 @@ static void set_fetch(struct pxa95xfb_info *fbi)
 		/* set format */
 		x = readl(fbi->reg_base + LCD_FETCH_CTL0 + fbi->window * 0x40);
 		x &= ~(LCD_FETCH_CTLx_SRC_FOR(0x7));
-		x |= LCD_FETCH_CTLx_CHAN_EN|LCD_FETCH_CTLx_SRC_FOR(fbi->pix_fmt) |LCD_FETCH_CTLx_BUS_ERR_INT_EN;
+		if (fbi->pix_fmt == PIX_FMTIN_YVU420)
+			x |= LCD_FETCH_CTLx_SRC_FOR(PIX_FMTIN_YUV420);
+		else
+			x |= LCD_FETCH_CTLx_SRC_FOR(fbi->pix_fmt);
+		x |= LCD_FETCH_CTLx_CHAN_EN | LCD_FETCH_CTLx_BUS_ERR_INT_EN;
 		if(fbi->eof_handler && channel == start_channel)
 			x |= LCD_FETCH_CTLx_END_FR_INT_EN;
 		else
@@ -2031,6 +2035,13 @@ void lcdc_set_pix_fmt(struct fb_var_screeninfo *var, int pix_fmt)
 			var->blue.offset = 0;   var->blue.length = 2;
 			var->transp.offset = 0;  var->transp.length = 0;
 			break;
+		case PIX_FMTIN_YVU420:
+			var->bits_per_pixel = 12;
+			var->red.offset = 4;	 var->red.length = 8;
+			var->green.offset = 0;	 var->green.length = 2;
+			var->blue.offset = 2;	var->blue.length = 2;
+			var->transp.offset = 0;  var->transp.length = 0;
+			break;
 		case PIX_FMTIN_YUV422:
 			var->bits_per_pixel = 16;
 			var->red.offset = 8;	 var->red.length = 8;
@@ -2068,7 +2079,7 @@ u32 lcdc_set_fr_addr(struct pxa95xfb_info *fbi)
 	u32 addr = fbi->user_addr ? fbi->user_addr: fbi->fb_start_dma;
 	u32 pixel_offset = fbi->user_addr ? 0 : fbi->pixel_offset;
 
-	if(fbi->pix_fmt >= PIX_FMTIN_YUV420 && fbi->pix_fmt <= PIX_FMTIN_YUV444){
+	if (format_is_yuv_planar(fbi->pix_fmt)) {
 		/* set three channels: 456 for plannar YUV channels: assert fbi->window = 4*/
 		/* y size is for YUV plannar only: when yres_virtual  > yres, still use yres to make sure YUV is continous*/
 		u32 y_size = fbi->user_addr? (fbi->surface.viewPortInfo.yPitch
@@ -2080,6 +2091,13 @@ u32 lcdc_set_fr_addr(struct pxa95xfb_info *fbi)
 			dmadesc_cpu = (DisplayControllerFrameDescriptor *)((u32)fbi->fb_start - 16*6);
 			dmadesc_cpu->LCD_FR_ADDRx = addr + y_size + pixel_offset /4;
 			dmadesc_cpu = (DisplayControllerFrameDescriptor *)((u32)fbi->fb_start - 16*7);
+			dmadesc_cpu->LCD_FR_ADDRx = addr + y_size * 5/4 + pixel_offset /4 ;
+		}
+		/* for YVU420, format is same but UV channel swapped */
+		if (fbi->pix_fmt == PIX_FMTIN_YVU420){
+			dmadesc_cpu = (DisplayControllerFrameDescriptor *)((u32)fbi->fb_start - 16*7);
+			dmadesc_cpu->LCD_FR_ADDRx = addr + y_size + pixel_offset /4;
+			dmadesc_cpu = (DisplayControllerFrameDescriptor *)((u32)fbi->fb_start - 16*6);
 			dmadesc_cpu->LCD_FR_ADDRx = addr + y_size * 5/4 + pixel_offset /4 ;
 		}
 		if (fbi->pix_fmt == PIX_FMTIN_YUV422){

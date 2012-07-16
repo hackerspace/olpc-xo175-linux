@@ -138,6 +138,7 @@ static void dump_yuv(char *name, unsigned char *src, int fmt, int w, int h)
 	switch (fmt)
 	{
 	case PIX_FMTIN_YUV420:
+	case PIX_FMTIN_YVU420:
 	case PIX_FMTIN_YUV422:
 	case PIX_FMTIN_YUV422IL:
 		size = w*h*2;
@@ -164,11 +165,6 @@ static void dump_yuv(char *name, unsigned char *src, int fmt, int w, int h)
 	if (ret < 0)
 		pr_err("dump fail: fail to write\n");
 	filp_close(f, NULL);
-}
-
-static int format_is_yuv(int fmt)
-{
-	return (fmt >= PIX_FMTIN_YUV420);
 }
 
 void dump_buffer(struct pxa95xfb_info *fbi, int yoffset)
@@ -435,6 +431,9 @@ static void dump_fb_info(struct pxa95xfb_info *fbi)
 		break;
 	case PIX_FMTIN_YUV420:
 		printk("\tbuffer format YUV420p\n");
+		break;
+	case PIX_FMTIN_YVU420:
+		printk("\tbuffer format YVU420\n");
 		break;
 	case PIX_FMTIN_YUV422:
 		printk("\tbuffer format YUV422p\n");
