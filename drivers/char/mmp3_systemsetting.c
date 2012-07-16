@@ -619,7 +619,7 @@ static ssize_t mmp3_sysset_read(struct device *dev, struct device_attribute *att
 		else
 			gc300_clk = 0;
 
-		tmp = (apmu_gc >> 4) & 0x2;
+		tmp = (apmu_gc >> 4) & 0x3;
 		switch (tmp) {
 		case 0:
 			gc_bus = pll1 / 4;
