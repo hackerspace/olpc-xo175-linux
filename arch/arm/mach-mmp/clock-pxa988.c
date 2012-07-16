@@ -113,6 +113,7 @@ static DEFINE_SPINLOCK(pll2_lock);
 static DEFINE_SPINLOCK(pll3_lock);
 
 #define MHZ	(1000000)
+#define MHZ_TO_KHZ	(1000)
 static unsigned long pll2_vco_default;
 static unsigned long pll2_default;
 static unsigned long pll2p_default;
@@ -1405,6 +1406,22 @@ static struct periph_clk_tbl vpu_clk_tbl[] = {
 	{.fclk = 416000000, .aclk = 312000000, .fparent = &pll1_416},
 #endif
 };
+
+unsigned int pxa988_get_vpu_op_num(void)
+{
+	return ARRAY_SIZE(vpu_clk_tbl);
+}
+
+/* unit Khz */
+unsigned int pxa988_get_vpu_op_rate(unsigned int index)
+{
+	if (index >= ARRAY_SIZE(vpu_clk_tbl)) {
+		pr_err("%s index out of range!\n", __func__);
+		return -EINVAL;
+	}
+
+	return vpu_clk_tbl[index].fclk / MHZ_TO_KHZ;
+}
 
 /* used for vpu pm constraints */
 static struct pm_qos_request_list vpu_qos_idle;
