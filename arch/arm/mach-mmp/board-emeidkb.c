@@ -48,6 +48,11 @@
 #include <mach/soc_coda7542.h>
 #include <mach/axis_sensor.h>
 #include <mach/regs-apmu.h>
+#include <mach/clock-pxa988.h>
+
+#ifdef CONFIG_PM_DEVFREQ
+#include <plat/devfreq.h>
+#endif
 #include <plat/pmem.h>
 #include <plat/pxa27x_keypad.h>
 #include <plat/usb.h>
@@ -1361,6 +1366,42 @@ static void __init emeidkb_init_smc(void)
 	__raw_writel(0x3, APMU_SMC_CLK_RES_CTRL);
 }
 
+#ifdef CONFIG_VMETA_DEVFREQ
+static struct devfreq_frequency_table *vpu_freq_table;
+
+static struct devfreq_platform_data devfreq_vpu_pdata = {
+	.clk_name = "VPUCLK",
+};
+
+static struct platform_device pxa988_device_vpudevfreq = {
+	.name = "devfreq-vMeta",
+	.id = -1,
+};
+
+static void __init pxa988_init_device_vpudevfreq(void)
+{
+	u32 i = 0;
+	u32 vpu_freq_num = pxa988_get_vpu_op_num();
+
+	vpu_freq_table = kmalloc(sizeof(struct devfreq_frequency_table) * \
+					(vpu_freq_num + 1), GFP_KERNEL);
+	if (!vpu_freq_table)
+		return;
+
+	for (i = 0; i < vpu_freq_num; i++) {
+		vpu_freq_table[i].index = i;
+		vpu_freq_table[i].frequency = pxa988_get_vpu_op_rate(i);
+	}
+	vpu_freq_table[i].index = i;
+	vpu_freq_table[i].frequency = DEVFREQ_TABLE_END;
+
+	devfreq_vpu_pdata.freq_table = vpu_freq_table;
+
+	pxa988_device_vpudevfreq.dev.platform_data = (void *)&devfreq_vpu_pdata;
+	platform_device_register(&pxa988_device_vpudevfreq);
+}
+#endif
+
 static void __init emeidkb_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(emeidkb_pin_config));
@@ -1401,6 +1442,10 @@ static void __init emeidkb_init(void)
 
 #ifdef CONFIG_UIO_CODA7542
 	pxa_register_coda7542();
+#endif
+
+#ifdef CONFIG_VMETA_DEVFREQ
+	pxa988_init_device_vpudevfreq();
 #endif
 
 #ifdef CONFIG_USB_PXA_U2O
