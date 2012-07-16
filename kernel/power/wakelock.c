@@ -55,7 +55,9 @@ static struct wake_lock suspend_backoff_lock;
 #define SUSPEND_BACKOFF_THRESHOLD	10
 #define SUSPEND_BACKOFF_INTERVAL	10000
 
+#ifndef CONFIG_PXA95x_SUSPEND
 static unsigned suspend_short_count;
+#endif
 
 #ifdef CONFIG_WAKELOCK_STAT
 static struct wake_lock deleted_wake_locks;
@@ -292,6 +294,7 @@ long has_wake_lock(int type)
 	return ret;
 }
 
+#ifndef CONFIG_PXA95x_SUSPEND
 static void suspend_backoff(void)
 {
 	pr_info("suspend: too many immediate wakeups, back off\n");
@@ -299,7 +302,6 @@ static void suspend_backoff(void)
 			  msecs_to_jiffies(SUSPEND_BACKOFF_INTERVAL));
 }
 
-#ifndef CONFIG_PXA95x_SUSPEND
 static void suspend(struct work_struct *work)
 {
 	int ret;
