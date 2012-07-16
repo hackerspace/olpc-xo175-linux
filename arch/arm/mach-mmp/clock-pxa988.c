@@ -1528,6 +1528,7 @@ static struct clk pxa988_clk_vpu = {
 };
 
 #define LCD_CI_ISP_ACLK_REQ		(1 << 22)
+#define LCD_CI_ISP_ACLK_EN		(1 << 3)
 #define LCD_CI_ISP_ACLK_RST		(1 << 16)
 
 /*
@@ -1549,7 +1550,7 @@ static int lcd_ci_isp_axi_clk_enable(struct clk *clk)
 	unsigned long flags;
 
 	spin_lock_irqsave(&lcd_ci_share_lock, flags);
-	CLK_SET_BITS(LCD_CI_ISP_ACLK_RST, 0);
+	CLK_SET_BITS(LCD_CI_ISP_ACLK_RST | LCD_CI_ISP_ACLK_EN, 0);
 	CLK_SET_BITS(LCD_CI_ISP_ACLK_REQ, 0);
 	spin_unlock_irqrestore(&lcd_ci_share_lock, flags);
 	return 0;
@@ -1560,7 +1561,7 @@ static void lcd_ci_isp_axi_clk_disable(struct clk *clk)
 	unsigned long flags;
 
 	spin_lock_irqsave(&lcd_ci_share_lock, flags);
-	CLK_SET_BITS(0, LCD_CI_ISP_ACLK_RST);
+	CLK_SET_BITS(0, LCD_CI_ISP_ACLK_EN);
 	spin_unlock_irqrestore(&lcd_ci_share_lock, flags);
 }
 
@@ -1847,7 +1848,7 @@ static struct clk lcd_dsi_phy_clk = {
 	.ops = &dsi_phy_clk_ops,
 };
 
-#define LCD_CLK_EN		((1 << 4) | (1 << 3))
+#define LCD_CLK_EN		(1 << 4)
 #define LCD_CLK_RST		(1 << 1)
 #define LCD_DEF_FCLK_SEL	(1 << 6)
 #define LCD_FCLK_SEL_MASK	(1 << 6)
