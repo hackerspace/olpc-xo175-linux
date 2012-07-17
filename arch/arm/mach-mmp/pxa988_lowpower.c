@@ -132,7 +132,6 @@ static void pxa988_lowpower_config(u32 cpu,
 		switch (power_state) {
 		case POWER_MODE_UDR:
 			mp_idle_cfg |= PMUA_MP_L2_SRAM_POWER_DOWN;
-			mp_idle_cfg |= PMUA_MP_SCU_SRAM_POWER_DOWN;
 			apcr |= PMUM_VCTCXOSD;
 			/* fall through */
 		case POWER_MODE_UDR_VCTCXO:
@@ -161,6 +160,7 @@ static void pxa988_lowpower_config(u32 cpu,
 		case POWER_MODE_CORE_POWERDOWN:
 			core_idle_cfg |= PMUA_CORE_POWER_DOWN;
 			core_idle_cfg |= PMUA_CORE_L1_SRAM_POWER_DOWN;
+			mp_idle_cfg |= PMUA_MP_SCU_SRAM_POWER_DOWN;
 			mp_idle_cfg |= PMUA_MP_POWER_DOWN;
 			/* fall through */
 		case POWER_MODE_CORE_EXTIDLE:
