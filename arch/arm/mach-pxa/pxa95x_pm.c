@@ -1244,6 +1244,12 @@ void mmc_clear_int_status(void)
 
 	for (i=0; i<3; i++) {
 		status = readl(mmc_base[i]+0x30);
+
+		/* for the 3rd controller of SDIO, there could be asynchronous
+			CARD INT, and just ignore this since it is reasonable */
+		if (i == 2)
+			status &= ~0x100;
+
 		if (status) {
 			printk(KERN_WARNING "mmc[%d] clear status error %d \n", i, status);
 			writel(status, mmc_base[i]+0x30);
