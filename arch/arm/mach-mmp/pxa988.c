@@ -40,6 +40,7 @@
 #include <mach/soc_coda7542.h>
 #include <mach/reset-pxa988.h>
 #include <mach/regs-usb.h>
+#include <mach/gpio-edge.h>
 
 #include <plat/mfp.h>
 #include <plat/pmem.h>
@@ -49,6 +50,7 @@
 
 #define MFPR_VIRT_BASE	(APB_VIRT_BASE + 0x1e000)
 #define RIPC0_VIRT_BASE	(APB_VIRT_BASE + 0x3D000)
+#define GPIOE_VIRT_BASE	(APB_VIRT_BASE + 0x19800)
 #define RIPC0_STATUS	(RIPC0_VIRT_BASE + 0x00)
 
 static struct mfp_addr_map pxa988_addr_map[] __initdata = {
@@ -610,6 +612,8 @@ static int __init pxa988_init(void)
 	mfp_init_addr(pxa988_addr_map);
 
 	pxa988_init_gpio();
+
+	mmp_gpio_edge_init(GPIOE_VIRT_BASE, 128);
 
 	/* would remove such pxa910 interface when kernel upgrade */
 	pxa910_init_squ(2);

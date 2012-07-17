@@ -28,6 +28,7 @@
 #include <mach/regs-icu.h>
 #include <mach/scu.h>
 #include <mach/reset-pxa988.h>
+#include <mach/gpio-edge.h>
 #include "common.h"
 
 /*
@@ -139,6 +140,8 @@ static void pxa988_lowpower_config(u32 cpu,
 			/* fall through */
 		case POWER_MODE_SYS_SLEEP:
 			apcr |= PMUM_APBSD;
+			/* enable gpio edge for the modes need wakeup source */
+			mmp_gpio_edge_enable();
 			/* fall through */
 		case POWER_MODE_APPS_SLEEP:
 			apcr |= PMUM_SLPEN;
@@ -183,6 +186,8 @@ static void pxa988_lowpower_config(u32 cpu,
 		apcr &= ~(PMUM_DDRCORSD | PMUM_APBSD | PMUM_AXISD |
 			PMUM_VCTCXOSD | PMUM_STBYEN | PMUM_SLPEN);
 		mc_slp_type &= ~0x7;
+		/* disable the gpio edge for cpu active states */
+		mmp_gpio_edge_disable();
 	}
 
 	/* set DSPSD, DTCMSD, BBSD, MSASLPEN */
