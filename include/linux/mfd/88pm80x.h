@@ -685,6 +685,7 @@ struct pm80x_dvc_pdata {
 	int dvc2;
 	unsigned int *vol_val;
 	int size;
+	int gpio_dvc;	/* 0 when gpios are not used for dvc */
 };
 
 struct pm80x_platform_data {

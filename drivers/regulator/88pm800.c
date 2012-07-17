@@ -315,7 +315,9 @@ static int pm800_set_voltage(struct regulator_dev *rdev,
 			"invalid voltage range (%d, %d) uV\n", min_uV, max_uV);
 		return -EINVAL;
 	}
-	if ((info->dvc != NULL) && (info->desc.id == PM800_ID_BUCK1)) {
+	if ((info->dvc != NULL)
+	    && (info->dvc->gpio_dvc != 0)
+	    && (info->desc.id == PM800_ID_BUCK1)) {
 		cur_vol = info->dvc->vol_val[info->dvc_val];
 		exp_vol = min_uV;
 		vol1 = (cur_vol > exp_vol) ? exp_vol : cur_vol;
@@ -389,7 +391,8 @@ static int pm800_set_voltage(struct regulator_dev *rdev,
 	*selector = ret;
 	val = (uint8_t)(ret << info->vol_shift);
 	mask = ((1 << info->vol_nbits) - 1)  << info->vol_shift;
-	if (info->dvc != NULL) {
+	if ((info->dvc != NULL)
+	    && (info->dvc->gpio_dvc != 0)) {
 		/* BUCK4 and LDO1 */
 		if (info->desc.id == PM800_ID_BUCK4) {
 			pm80x_set_bits(info->i2c, info->vol_reg + 1, mask, val);
@@ -416,7 +419,9 @@ static int pm800_get_voltage(struct regulator_dev *rdev)
 	ret = pm80x_reg_read(info->i2c, info->vol_reg);
 	if (ret < 0)
 		return ret;
-	if ((info->dvc != NULL) && (info->desc.id == PM800_ID_BUCK1)) {
+	if ((info->dvc != NULL)
+	    && (info->dvc->gpio_dvc != 0)
+	    && (info->desc.id == PM800_ID_BUCK1)) {
 		dvc1 = !!gpio_get_value(info->dvc->dvc1);
 		dvc2 = !!gpio_get_value(info->dvc->dvc2);
 		dvc = (dvc2 << 1) | dvc1;
@@ -591,7 +596,9 @@ static int __devinit pm800_regulator_probe(struct platform_device *pdev)
 		return PTR_ERR(info->regulator);
 	}
 	/* dvc may not be used on other PMIC */
-	if ((info->dvc != NULL) && (info->desc.id == PM800_ID_BUCK1)) {
+	if ((info->dvc != NULL)
+	    && (info->dvc->gpio_dvc != 0)
+	    && (info->desc.id == PM800_ID_BUCK1)) {
 		info->buck1_set_index =
 			(pm80x_reg_read(info->i2c, PM800_BUCK1_MISC1) \
 			 >> 3) & 0x07;
