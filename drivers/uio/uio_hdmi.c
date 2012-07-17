@@ -32,9 +32,9 @@
 #endif
 
 static atomic_t hdmi_state = ATOMIC_INIT(0);
-static int late_disable_flag;
 enum connect_lock con_lock;
 static bool timer_inited = 0;
+static int late_disable_flag;
 static int early_suspend_flag;
 #if defined(CONFIG_CPU_PXA978)
 static int suspend_flag;
@@ -43,6 +43,16 @@ static int dvfm_dev_idx;
 static unsigned int *arb_f_mc, *arb_n_mc;
 static unsigned int val_f_mc, val_n_mc;
 #endif
+
+enum connect_status {
+	CABLE_CONNECT = 0,
+	CABLE_DISCNCT = 1,
+};
+
+enum hdmi_status {
+	HDMI_OFF = 0,
+	HDMI_ON = 1,
+};
 
 struct hdmi_instance {
 	struct clk *clk;
@@ -151,59 +161,57 @@ int hdmi_release(struct uio_info *info, struct inode *indoe, void *file_priv)
 static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 		void *file_priv)
 {
-	unsigned offset, tmp;
+	unsigned offset, val;
 	void *argp = (void *)arg;
 	struct hdmi_instance *hi =
 		container_of(info, struct hdmi_instance, uio_info);
-	int hpd = -1, status;
-	int hdmi_freq = 0;
+	int hpd = CABLE_DISCNCT;
 
 	switch (cmd) {
 	case SSPA1_GET_VALUE:
 		if (copy_from_user(&offset, argp, sizeof(offset)))
 			return -EFAULT;
-		tmp = readl(hi->sspa1_reg_base + offset);
-		if (copy_to_user(argp, &tmp, sizeof(tmp)))
+		val = readl(hi->sspa1_reg_base + offset);
+		if (copy_to_user(argp, &val, sizeof(val)))
 			return -EFAULT;
 		break;
 	case HPD_PIN_READ:
 		/* when resume, force disconnect/connect HDMI */
 #if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 		if (con_lock == FIRST_ACCESS_LOCK) {
-			hpd = -1;
+			hpd = CABLE_DISCNCT;
 			con_lock = SECOND_ACCESS_LOCK;
 		} else if (con_lock == SECOND_ACCESS_LOCK) {
-			hpd = 0;
+			hpd = CABLE_CONNECT;
 			con_lock = UNLOCK;
 		}
 #elif defined(CONFIG_CPU_PXA978)
 		if (con_lock == FIRST_ACCESS_LOCK) {
-			hpd = 1;
+			hpd = CABLE_DISCNCT;
 			con_lock = UNLOCK;
 		}
 #endif
 		else {
-			status = gpio_get_value(hi->gpio);
-			/* hdmi stack recognize 0 as connected, 1 as disconnected*/
-			if (status == hi->hpd_in)
-				hpd = 0;
-			else
-				hpd = 1;
-			/*if disconnected HDMI , late_disable_flag is
-			 * 1, 300 ms is the time wait for HDMI is
-			 * disabled, then disp1_axi_bus can be disabled.
-			 * disp1_axi_bus clear will cause HDMI clock
-			 * disbaled and any operation not takes effects*/
-			if (late_disable_flag && hpd)
-				schedule_delayed_work(&hi->delay_disable,
-					msecs_to_jiffies(300));
+			if (atomic_read(&hdmi_state) == HDMI_ON)
+				hpd = CABLE_CONNECT;
+			else {
+				hpd = CABLE_DISCNCT;
+				/*if disconnected HDMI,
+				 * 300 ms is the time wait for HDMI is
+				 * disabled, then disp1_axi_bus can be disabled.
+				 * disp1_axi_bus clear will cause HDMI clock
+				 * disbaled and any operation not takes effects*/
+				if (late_disable_flag)
+					schedule_delayed_work(&hi->delay_disable,
+						msecs_to_jiffies(300));
+			}
 		}
 		if (copy_to_user(argp, &hpd, sizeof(int))) {
 			pr_err("copy_to_user error !~!\n");
 			return -EFAULT;
 		}
 		printk("uio_hdmi: report cable %s to hdmi-service\n",
-			(hpd==0)?"pulg in":"pull out");
+			(hpd==CABLE_CONNECT)?"pulg in":"pull out");
 		break;
 	case EDID_NUM:
 		if (copy_to_user(argp, &hi->edid_bus_num,
@@ -219,13 +227,15 @@ static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 	case HDMI_PLL_DISABLE:
 		clk_disable(hi->clk);
 		break;
-	case HDMI_PLL_SETRATE:
-		if (copy_from_user(&hdmi_freq, argp, sizeof(hdmi_freq)))
-			return -EFAULT;
-		printk("uio_hdmi: set TMDS clk freq = %dMhz\n", hdmi_freq/5);
-		if (clk_set_rate(hi->clk, hdmi_freq * 1000000)) {
-			pr_err(KERN_ERR "uio_hdmi: HDMI PLL set failed!\n");
-			return -EFAULT;
+	case HDMI_PLL_SETRATE: {
+			int hdmi_freq = 0;
+			if (copy_from_user(&hdmi_freq, argp, sizeof(hdmi_freq)))
+				return -EFAULT;
+			printk("uio_hdmi: set TMDS clk freq = %dMhz\n", hdmi_freq/5);
+			if (clk_set_rate(hi->clk, hdmi_freq * 1000000)) {
+				pr_err(KERN_ERR "uio_hdmi: HDMI PLL set failed!\n");
+				return -EFAULT;
+			}
 		}
 		break;
 #endif
@@ -294,12 +304,12 @@ static int hdmi_suspend_nevo(struct platform_device *pdev, pm_message_t mesg)
 {
 	struct hdmi_instance *hi = platform_get_drvdata(pdev);
 	suspend_flag = 1;
-	if (atomic_read(&hdmi_state) == 1) {
+	if (atomic_read(&hdmi_state) == HDMI_ON) {
 		clk_disable(hi->clk);
 		if (hi->hdmi_power)
 			hi->hdmi_power(0);
 		arbiter_clr();
-		atomic_set(&hdmi_state, 0);
+		atomic_set(&hdmi_state, HDMI_OFF);
 		unset_power_constraint(hi);
 	}
 	/* always turn off 5v power*/
@@ -322,7 +332,7 @@ static void hdmi_early_suspend_mmp(struct early_suspend *h)
 {
 	struct hdmi_instance *hi =
 		container_of(h, struct hdmi_instance, early_suspend);
-	if (atomic_read(&hdmi_state) == 1)
+	if (atomic_read(&hdmi_state) == HDMI_ON)
 		unset_power_constraint(hi);
 	early_suspend_flag = 1;
 	return;
@@ -331,7 +341,7 @@ static void hdmi_late_resume_mmp(struct early_suspend *h)
 {
 	struct hdmi_instance *hi =
 		container_of(h, struct hdmi_instance, early_suspend);
-	if (atomic_read(&hdmi_state) == 1)
+	if (atomic_read(&hdmi_state) == HDMI_ON)
 		set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
 	early_suspend_flag = 0;
 	return;
@@ -340,7 +350,7 @@ static void hdmi_late_resume_mmp(struct early_suspend *h)
 static int hdmi_suspend_mmp(struct platform_device *pdev, pm_message_t mesg)
 {
 	struct hdmi_instance *hi = platform_get_drvdata(pdev);
-	if (atomic_read(&hdmi_state) == 1) {
+	if (atomic_read(&hdmi_state) == HDMI_ON) {
 		clk_disable(hi->clk);
 		if (hi->hdmi_power)
 			hi->hdmi_power(0);
@@ -360,7 +370,7 @@ static int hdmi_resume_mmp(struct platform_device *pdev)
 #endif
 	if (gpio_get_value(hi->gpio) == hi->hpd_in) {
 		/*if connected, reset HDMI*/
-		atomic_set(&hdmi_state, 1);
+		atomic_set(&hdmi_state, HDMI_ON);
 		clk_enable(hi->clk);
 #if defined(CONFIG_CPU_MMP2)
 		if (hi->hdmi_power)
@@ -373,9 +383,8 @@ static int hdmi_resume_mmp(struct platform_device *pdev)
 		 * missed, so delayed_work*/
 		schedule_delayed_work(&hi->delay_resumed,
 			msecs_to_jiffies(1500));
-	} else if (atomic_read(&hdmi_state) == 1) {
-		atomic_set(&hdmi_state, 0);
-		late_disable_flag = 1; /*wait for hdmi disbaled*/
+	} else if (atomic_read(&hdmi_state) == HDMI_ON) {
+		atomic_set(&hdmi_state, HDMI_OFF);
 		if (cpu_is_mmp2() && hi->hdmi_power)
 			hi->hdmi_power(0);
 		if (early_suspend_flag == 0)
@@ -400,17 +409,23 @@ static void delayed_disable(struct work_struct *work)
 	struct hdmi_instance *hi = container_of((struct delayed_work *)work,
 			struct hdmi_instance, delay_disable);
 	if (late_disable_flag) {
+		if (atomic_read(&hdmi_state) == HDMI_OFF) {
 #if defined(CONFIG_CPU_PXA978)
-		if (hdmi_conv_on) {
-			WARN_ON(1);
-			return;
-		}
-		clk_disable(hi->clk);
+			if (hdmi_conv_on) {
+				printk(KERN_ERR "uio_hdmi: ERROR!!! hdmi clk should be off but lcd is still on ?!!\n");
+				WARN_ON(1);
+				return;
+			}
+			clk_disable(hi->clk);
 #endif
 #if defined(CONFIG_CPU_MMP2)
-		clk_disable(hi->clk);
+			clk_disable(hi->clk);
 #endif
-		late_disable_flag = 0;
+			late_disable_flag = 0;
+		} else {
+			printk(KERN_ERR "uio_hdmi: ERROR!!! hdmi is disconnect but clk is still on ?!!\n");
+			WARN_ON(1);
+		}
 	}
 }
 
@@ -420,8 +435,8 @@ static void hdmi_switch_work(struct work_struct *work)
 		container_of(work, struct hdmi_instance, work);
 	int state = gpio_get_value(hi->gpio);
 	if(state != hi->hpd_in) {
-		if (atomic_cmpxchg(&hdmi_state, 1, 0) == 1) {
-			late_disable_flag = 1; /*wait for hdmi disbaled*/
+		if (atomic_cmpxchg(&hdmi_state, HDMI_ON, HDMI_OFF) == HDMI_ON) {
+			late_disable_flag = 1;
 #if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 			if (cpu_is_mmp2() && hi->hdmi_power)
 				hi->hdmi_power(0);
@@ -435,7 +450,7 @@ static void hdmi_switch_work(struct work_struct *work)
 			uio_event_notify(&hi->uio_info);
 		}
 	} else {
-		if (atomic_cmpxchg(&hdmi_state, 0, 1) == 0) {
+		if (atomic_cmpxchg(&hdmi_state, HDMI_OFF, HDMI_ON) == HDMI_OFF) {
 #if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 			if (cpu_is_mmp2()) {
 				if (hi->hdmi_power)
@@ -489,7 +504,7 @@ static irqreturn_t hpd_handler(int irq, struct uio_info *dev_info)
 	*cable in -> lcd on, but if lcd on is not completed,
 	*and cable out at this momoent, lcd mixer failed happend if hdmi clk disable
 	*/
-	if (1 == atomic_read(&hdmi_state)
+	if (HDMI_ON == atomic_read(&hdmi_state)
 		&& (hi->hpd_in != gpio_get_value(hi->gpio))) {
 		if (0 == hdmi_conv_on) {
 			printk("uio_hdmi: delay 5s to handle cable pull out, as lcd is not turn on completed at last time cable in!!!\n");
@@ -623,7 +638,7 @@ static int hdmi_probe(struct platform_device *pdev)
 		__func__, (ret == hi->hpd_in)?"plug in":"pull out");
 
 	if (ret == hi->hpd_in) {
-		atomic_set(&hdmi_state, 1);
+		atomic_set(&hdmi_state, HDMI_ON);
 		set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
 #if defined(CONFIG_CPU_MMP2)
 		if (hi->hdmi_power)
@@ -632,6 +647,7 @@ static int hdmi_probe(struct platform_device *pdev)
 #endif
 
 #if defined(CONFIG_CPU_PXA978)
+		arbiter_set();
 		clk_enable(hi->clk);
 #endif
 	}
@@ -675,7 +691,7 @@ out_free:
 	if (hi->hdmi_power)
 		hi->hdmi_power(0);
 #elif defined(CONFIG_CPU_MMP2)
-	if (atomic_read(&hdmi_state) && (hi->hdmi_power))
+	if (atomic_read(&hdmi_state) == HDMI_ON && (hi->hdmi_power))
 		hi->hdmi_power(0);
 #endif
 	kfree(hi);
