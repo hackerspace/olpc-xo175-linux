@@ -77,10 +77,11 @@ static void set_power_constraint(struct hdmi_instance *hi, int min)
 
 #ifdef CONFIG_CPU_PXA978
 	printk("hdmi: set_power_constraint\n");
-	dvfm_disable_op_name("156M", dvfm_dev_idx);
-	dvfm_disable_op_name("312M", dvfm_dev_idx);
 	dvfm_disable_op_name("624M", dvfm_dev_idx);
+	dvfm_disable_op_name("312M", dvfm_dev_idx);
+	dvfm_disable_op_name("156M", dvfm_dev_idx);
 	/* Disable Lowpower mode */
+	dvfm_disable_op_name("D1", dvfm_dev_idx);
 	dvfm_disable_op_name("D2", dvfm_dev_idx);
 	dvfm_disable_op_name("CG", dvfm_dev_idx);
 #endif
@@ -104,6 +105,7 @@ static void unset_power_constraint(struct hdmi_instance *hi)
 	dvfm_enable_op_name("312M", dvfm_dev_idx);
 	dvfm_enable_op_name("624M", dvfm_dev_idx);
 	/* Enable Lowpower mode */
+	dvfm_enable_op_name("D1", dvfm_dev_idx);
 	dvfm_enable_op_name("D2", dvfm_dev_idx);
 	dvfm_enable_op_name("CG", dvfm_dev_idx);
 #endif
@@ -240,14 +242,50 @@ static int hdmi_remove(struct platform_device *pdev)
 }
 
 #if defined(CONFIG_CPU_PXA978)
+static void arbiter_init(void)
+{
+	arb_f_mc = ioremap_nocache(0x7ff007b0, 4);
+	arb_n_mc = ioremap_nocache(0x7ff00280, 4);
+	val_f_mc = *arb_f_mc;
+	val_n_mc = *arb_n_mc;
+}
+
+static void arbiter_set(void)
+{
+	/* raise priority of display controller mc arbiter*/
+	val_f_mc = *arb_f_mc;
+	val_n_mc = *arb_n_mc;
+	*arb_f_mc = 0x010f0101;
+	*arb_n_mc = 0x010f0101;
+}
+
+static void arbiter_clr(void)
+{
+	*arb_f_mc = val_f_mc;
+	*arb_n_mc = val_n_mc;
+}
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void hdmi_early_suspend_nevo(struct early_suspend *h)
 {
 	return;
 }
+
 static void hdmi_late_resume_nevo(struct early_suspend *h)
 {
-	suspend_flag = 0;
+	struct hdmi_instance *hi =
+		container_of(h, struct hdmi_instance, early_suspend);
+	if (suspend_flag == 1) {
+		/* always turn on 5v power*/
+		if (hi->hdmi_power)
+			hi->hdmi_power(1);
+
+		con_lock = FIRST_ACCESS_LOCK;
+		/* send disconnect event to upper layer */
+		uio_event_notify(&hi->uio_info);
+		mod_timer(&hi->jitter_timer, jiffies + HZ/4);
+		suspend_flag = 0;
+	}
+	printk("uio_hdmi: hdmi late resume done!\n");
 	return;
 }
 #endif
@@ -260,39 +298,21 @@ static int hdmi_suspend_nevo(struct platform_device *pdev, pm_message_t mesg)
 		clk_disable(hi->clk);
 		if (hi->hdmi_power)
 			hi->hdmi_power(0);
+		arbiter_clr();
+		atomic_set(&hdmi_state, 0);
 		unset_power_constraint(hi);
 	}
 	/* always turn off 5v power*/
 	if (hi->hdmi_power)
 		hi->hdmi_power(0);
 	pdev->dev.power.power_state = mesg;
+	del_timer(&hi->jitter_timer);
 	printk("uio_hdmi: suspend done!\n");
 	return 0;
 }
 
 static int hdmi_resume_nevo(struct platform_device *pdev)
 {
-	struct hdmi_instance *hi = platform_get_drvdata(pdev);
-	/* always turn on 5v power*/
-	if (hi->hdmi_power)
-		hi->hdmi_power(1);
-	if (gpio_get_value(hi->gpio) == hi->hpd_in) {
-		set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
-		/*if connected, reset HDMI*/
-		atomic_set(&hdmi_state, 1);
-		clk_enable(hi->clk);
-		con_lock = FIRST_ACCESS_LOCK;
-		/* send disconnect event to upper layer */
-		uio_event_notify(&hi->uio_info);
-		atomic_set(&hdmi_state, 0);
-		mod_timer(&hi->jitter_timer, jiffies + HZ);
-	} else if (atomic_read(&hdmi_state) == 1) {
-		atomic_set(&hdmi_state, 0);
-		late_disable_flag = 1; /*wait for hdmi disbaled*/
-		unset_power_constraint(hi);
-		uio_event_notify(&hi->uio_info);
-	}
-	printk("uio_hdmi: resume done!\n");
 	return 0;
 }
 
@@ -380,7 +400,14 @@ static void delayed_disable(struct work_struct *work)
 	struct hdmi_instance *hi = container_of((struct delayed_work *)work,
 			struct hdmi_instance, delay_disable);
 	if (late_disable_flag) {
-#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_PXA978)
+#if defined(CONFIG_CPU_PXA978)
+		if (hdmi_conv_on) {
+			WARN_ON(1);
+			return;
+		}
+		clk_disable(hi->clk);
+#endif
+#if defined(CONFIG_CPU_MMP2)
 		clk_disable(hi->clk);
 #endif
 		late_disable_flag = 0;
@@ -401,9 +428,8 @@ static void hdmi_switch_work(struct work_struct *work)
 			if (early_suspend_flag == 0)
 				unset_power_constraint(hi);
 #elif defined(CONFIG_CPU_PXA978)
+			arbiter_clr();
 			unset_power_constraint(hi);
-			*arb_f_mc = val_f_mc;
-			*arb_n_mc = val_n_mc;
 #endif
 			/*if hdmi_state change, report hpd*/
 			uio_event_notify(&hi->uio_info);
@@ -419,13 +445,9 @@ static void hdmi_switch_work(struct work_struct *work)
 			if (early_suspend_flag == 0)
 				set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
 #elif defined(CONFIG_CPU_PXA978)
-			/* raise priority of display controller mc arbiter*/
-			val_f_mc = *arb_f_mc;
-			val_n_mc = *arb_n_mc;
-			*arb_f_mc = 0x010f0101;
-			*arb_n_mc = 0x010f0101;
 			set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
 			clk_enable(hi->clk);
+			arbiter_set();
 #endif
 			/*if hdmi_state change, report hpd*/
 			uio_event_notify(&hi->uio_info);
@@ -582,17 +604,18 @@ static int hdmi_probe(struct platform_device *pdev)
 
 #if defined(CONFIG_CPU_PXA978)
 	dvfm_register("uio-hdmi", &dvfm_dev_idx);
-	/* mc arbiter*/
-	arb_f_mc = ioremap_nocache(0x7ff007b0, 4);
-	arb_n_mc = ioremap_nocache(0x7ff00280, 4);
+	arbiter_init();
+	/* nevo need 5v to detect hpd*/
 	if (hi->hdmi_power)
-		hi->hdmi_power(1); /* nevo need 5v to detect hpd*/
+		hi->hdmi_power(1);
 #endif
 
 #if	defined(CONFIG_CPU_MMP3)
+	/* mmp3 need 5v to detect hpd*/
 	if (hi->hdmi_power)
-		hi->hdmi_power(1); /* mmp3 need 5v to detect hpd*/
-	clk_enable(hi->clk); /* mmp3 always enable clk*/
+		hi->hdmi_power(1);
+	/* mmp3 always enable clk*/
+	clk_enable(hi->clk);
 #endif
 	/* Check HDMI cable when boot up */
 	ret = gpio_get_value(hi->gpio);
