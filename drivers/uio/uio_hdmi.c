@@ -1,5 +1,5 @@
 /*
- * Marvell HDMI UIO driver
+ * Marvell HDMI UIO driver, support hdmi@ MMP2/MMP3/NEVO
  *
  * Yifan Zhang <zhangyf@marvell.com>
  *
@@ -19,25 +19,25 @@
 #include <linux/clk.h>
 #include <linux/uaccess.h>
 #include <linux/slab.h>
-#include <linux/pm_qos_params.h>
-#include <mach/uio_hdmi.h>
 #include <linux/earlysuspend.h>
+#include <linux/pm_qos_params.h>
+#include <plat/pm.h>
+#include <mach/uio_hdmi.h>
 #if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 #include <mach/addr-map.h>
 #include <mach/cputype.h>
 #endif
-#ifdef CONFIG_CPU_PXA978
+#if defined(CONFIG_CPU_PXA978)
 #include <mach/dvfm.h>
 #endif
-#include <plat/pm.h>
 
 static atomic_t hdmi_state = ATOMIC_INIT(0);
-static int early_suspend_flag;
 static int late_disable_flag;
 enum connect_lock con_lock;
 static bool timer_inited = 0;
+static int early_suspend_flag;
+#if defined(CONFIG_CPU_PXA978)
 static int suspend_flag;
-#ifdef CONFIG_CPU_PXA978
 extern int hdmi_conv_on;
 static int dvfm_dev_idx;
 static unsigned int *arb_f_mc, *arb_n_mc;
@@ -122,6 +122,18 @@ static void hdmi_direct_write(unsigned addr, unsigned data)
 
 	__raw_writel(data, hdmi_addr + addr);
 }
+
+void hdmi_3d_sync_view(void)
+{
+	u32 reg;
+
+	reg = hdmi_direct_read(0x30);
+	reg &= ~ ((1 << 1) | (1 << 2) | (1 << 3));
+	reg |= 1 << 2;
+	hdmi_direct_write(0x30, 0);
+	hdmi_direct_write(0x30, reg);
+}
+EXPORT_SYMBOL(hdmi_3d_sync_view);
 #endif
 
 int hdmi_open(struct uio_info *info, struct inode *inode, void *file_priv)
@@ -142,9 +154,8 @@ static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 	struct hdmi_instance *hi =
 		container_of(info, struct hdmi_instance, uio_info);
 	int hpd = -1, status;
-#ifdef CONFIG_CPU_PXA978
 	int hdmi_freq = 0;
-#endif
+
 	switch (cmd) {
 	case SSPA1_GET_VALUE:
 		if (copy_from_user(&offset, argp, sizeof(offset)))
@@ -163,7 +174,7 @@ static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 			hpd = 0;
 			con_lock = UNLOCK;
 		}
-#else
+#elif defined(CONFIG_CPU_PXA978)
 		if (con_lock == FIRST_ACCESS_LOCK) {
 			hpd = 1;
 			con_lock = UNLOCK;
@@ -185,9 +196,6 @@ static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 				schedule_delayed_work(&hi->delay_disable,
 					msecs_to_jiffies(300));
 		}
-
-		pr_debug("early_suspend_flag %d Kernel space: hpd is %d\n",
-			early_suspend_flag, hpd);
 		if (copy_to_user(argp, &hpd, sizeof(int))) {
 			pr_err("copy_to_user error !~!\n");
 			return -EFAULT;
@@ -230,46 +238,21 @@ static int hdmi_remove(struct platform_device *pdev)
 {
 	return 0;
 }
-#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
-void hdmi_3d_sync_view(void)
-{
-	u32 reg;
 
-	reg = hdmi_direct_read(0x30);
-	reg &= ~ ((1 << 1) | (1 << 2) | (1 << 3));
-	reg |= 1 << 2;
-	hdmi_direct_write(0x30, 0);
-	hdmi_direct_write(0x30, reg);
-}
-EXPORT_SYMBOL(hdmi_3d_sync_view);
-#endif
-
+#if defined(CONFIG_CPU_PXA978)
 #ifdef CONFIG_HAS_EARLYSUSPEND
-static void hdmi_early_suspend(struct early_suspend *h)
+static void hdmi_early_suspend_nevo(struct early_suspend *h)
 {
-#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
-	struct hdmi_instance *hi =
-		container_of(h, struct hdmi_instance, early_suspend);
-	if (atomic_read(&hdmi_state) == 1)
-		unset_power_constraint(hi);
-#endif
-	early_suspend_flag = 1;
 	return;
 }
-static void hdmi_late_resume(struct early_suspend *h)
+static void hdmi_late_resume_nevo(struct early_suspend *h)
 {
-#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
-	struct hdmi_instance *hi =
-		container_of(h, struct hdmi_instance, early_suspend);
-	if (atomic_read(&hdmi_state) == 1)
-		set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
-#endif
-	early_suspend_flag = 0;
 	suspend_flag = 0;
 	return;
 }
 #endif
-static int hdmi_suspend(struct platform_device *pdev, pm_message_t mesg)
+
+static int hdmi_suspend_nevo(struct platform_device *pdev, pm_message_t mesg)
 {
 	struct hdmi_instance *hi = platform_get_drvdata(pdev);
 	suspend_flag = 1;
@@ -277,79 +260,110 @@ static int hdmi_suspend(struct platform_device *pdev, pm_message_t mesg)
 		clk_disable(hi->clk);
 		if (hi->hdmi_power)
 			hi->hdmi_power(0);
-#ifdef CONFIG_CPU_PXA978
-			unset_power_constraint(hi);
-#endif
-		printk("uio_hdmi: suspend done!\n");
+		unset_power_constraint(hi);
 	}
-#ifdef CONFIG_CPU_PXA978
 	/* always turn off 5v power*/
 	if (hi->hdmi_power)
 		hi->hdmi_power(0);
-#endif
 	pdev->dev.power.power_state = mesg;
+	printk("uio_hdmi: suspend done!\n");
 	return 0;
 }
 
-static int hdmi_resume(struct platform_device *pdev)
+static int hdmi_resume_nevo(struct platform_device *pdev)
 {
 	struct hdmi_instance *hi = platform_get_drvdata(pdev);
-#if defined(CONFIG_CPU_PXA978) || defined(CONFIG_CPU_MMP3)
 	/* always turn on 5v power*/
 	if (hi->hdmi_power)
 		hi->hdmi_power(1);
-#endif
 	if (gpio_get_value(hi->gpio) == hi->hpd_in) {
-#ifdef CONFIG_CPU_PXA978
-		set_power_constraint(hi, -1);
-#endif
+		set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
 		/*if connected, reset HDMI*/
 		atomic_set(&hdmi_state, 1);
 		clk_enable(hi->clk);
-#ifdef CONFIG_CPU_MMP2
-		if (hi->hdmi_power)
-			hi->hdmi_power(1);
-#endif
 		con_lock = FIRST_ACCESS_LOCK;
 		/* send disconnect event to upper layer */
 		uio_event_notify(&hi->uio_info);
-#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
-		/*if uio_event_notify both directly, 1 event will be
-		 * missed, so delayed_work*/
-		schedule_delayed_work(&hi->delay_resumed,
-			msecs_to_jiffies(1500));
-#else
 		atomic_set(&hdmi_state, 0);
 		mod_timer(&hi->jitter_timer, jiffies + HZ);
-#endif
 	} else if (atomic_read(&hdmi_state) == 1) {
 		atomic_set(&hdmi_state, 0);
 		late_disable_flag = 1; /*wait for hdmi disbaled*/
-#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
-		if (cpu_is_mmp2() && hi->hdmi_power)
-			hi->hdmi_power(0);
-		if (early_suspend_flag == 0)
-			unset_power_constraint(hi);
-#else
 		unset_power_constraint(hi);
-#endif
 		uio_event_notify(&hi->uio_info);
 	}
 	printk("uio_hdmi: resume done!\n");
 	return 0;
 }
 
-static void delayed_disable(struct work_struct *work)
+#elif defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void hdmi_early_suspend_mmp(struct early_suspend *h)
 {
-	struct hdmi_instance *hi = container_of((struct delayed_work *)work,
-			struct hdmi_instance, delay_disable);
-	if (late_disable_flag) {
-#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
-		if (cpu_is_mmp2())
+	struct hdmi_instance *hi =
+		container_of(h, struct hdmi_instance, early_suspend);
+	if (atomic_read(&hdmi_state) == 1)
+		unset_power_constraint(hi);
+	early_suspend_flag = 1;
+	return;
+}
+static void hdmi_late_resume_mmp(struct early_suspend *h)
+{
+	struct hdmi_instance *hi =
+		container_of(h, struct hdmi_instance, early_suspend);
+	if (atomic_read(&hdmi_state) == 1)
+		set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
+	early_suspend_flag = 0;
+	return;
+}
 #endif
+static int hdmi_suspend_mmp(struct platform_device *pdev, pm_message_t mesg)
+{
+	struct hdmi_instance *hi = platform_get_drvdata(pdev);
+	if (atomic_read(&hdmi_state) == 1) {
 		clk_disable(hi->clk);
-		late_disable_flag = 0;
+		if (hi->hdmi_power)
+			hi->hdmi_power(0);
 	}
+	pdev->dev.power.power_state = mesg;
+	printk("uio_hdmi: suspend done!\n");
+	return 0;
+}
+
+static int hdmi_resume_mmp(struct platform_device *pdev)
+{
+	struct hdmi_instance *hi = platform_get_drvdata(pdev);
+#if defined(CONFIG_CPU_MMP3)
+	/* always turn on 5v power*/
+	if (hi->hdmi_power)
+		hi->hdmi_power(1);
+#endif
+	if (gpio_get_value(hi->gpio) == hi->hpd_in) {
+		/*if connected, reset HDMI*/
+		atomic_set(&hdmi_state, 1);
+		clk_enable(hi->clk);
+#if defined(CONFIG_CPU_MMP2)
+		if (hi->hdmi_power)
+			hi->hdmi_power(1);
+#endif
+		con_lock = FIRST_ACCESS_LOCK;
+		/* send disconnect event to upper layer */
+		uio_event_notify(&hi->uio_info);
+		/*if uio_event_notify both directly, 1 event will be
+		 * missed, so delayed_work*/
+		schedule_delayed_work(&hi->delay_resumed,
+			msecs_to_jiffies(1500));
+	} else if (atomic_read(&hdmi_state) == 1) {
+		atomic_set(&hdmi_state, 0);
+		late_disable_flag = 1; /*wait for hdmi disbaled*/
+		if (cpu_is_mmp2() && hi->hdmi_power)
+			hi->hdmi_power(0);
+		if (early_suspend_flag == 0)
+			unset_power_constraint(hi);
+		uio_event_notify(&hi->uio_info);
+	}
+	printk("uio_hdmi: resume done!\n");
+	return 0;
 }
 
 static void delayed_resume(struct work_struct *work)
@@ -358,6 +372,19 @@ static void delayed_resume(struct work_struct *work)
 			struct hdmi_instance, delay_resumed);
 	/* send connect event to upper layer */
 	uio_event_notify(&hi->uio_info);
+}
+#endif
+
+static void delayed_disable(struct work_struct *work)
+{
+	struct hdmi_instance *hi = container_of((struct delayed_work *)work,
+			struct hdmi_instance, delay_disable);
+	if (late_disable_flag) {
+#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_PXA978)
+		clk_disable(hi->clk);
+#endif
+		late_disable_flag = 0;
+	}
 }
 
 static void hdmi_switch_work(struct work_struct *work)
@@ -373,7 +400,7 @@ static void hdmi_switch_work(struct work_struct *work)
 				hi->hdmi_power(0);
 			if (early_suspend_flag == 0)
 				unset_power_constraint(hi);
-#else
+#elif defined(CONFIG_CPU_PXA978)
 			unset_power_constraint(hi);
 			*arb_f_mc = val_f_mc;
 			*arb_n_mc = val_n_mc;
@@ -391,13 +418,13 @@ static void hdmi_switch_work(struct work_struct *work)
 			}
 			if (early_suspend_flag == 0)
 				set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
-#else
+#elif defined(CONFIG_CPU_PXA978)
 			/* raise priority of display controller mc arbiter*/
 			val_f_mc = *arb_f_mc;
 			val_n_mc = *arb_n_mc;
 			*arb_f_mc = 0x010f0101;
 			*arb_n_mc = 0x010f0101;
-			set_power_constraint(hi, -1);
+			set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
 			clk_enable(hi->clk);
 #endif
 			/*if hdmi_state change, report hpd*/
@@ -495,13 +522,14 @@ static int hdmi_probe(struct platform_device *pdev)
 			goto out_free;
 		}
 	}
+#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 	pm_qos_add_request(&hi->qos_cpufreq_min, PM_QOS_CPUFREQ_MIN,
 			PM_QOS_DEFAULT_VALUE);
 	pm_qos_add_request(&hi->qos_cpufreq_disable, PM_QOS_CPUFREQ_DISABLE,
 			PM_QOS_DEFAULT_VALUE);
 	pm_qos_add_request(&hi->qos_idle, PM_QOS_CPU_DMA_LATENCY,
 			PM_QOS_DEFAULT_VALUE);
-
+#endif
 	platform_set_drvdata(pdev, hi);
 
 	hi->uio_info.name = "uio-hdmi";
@@ -552,36 +580,38 @@ static int hdmi_probe(struct platform_device *pdev)
 	if (pdata->hdmi_v5p_power)
 		hi->hdmi_power = pdata->hdmi_v5p_power;
 
-#ifdef CONFIG_CPU_PXA978
+#if defined(CONFIG_CPU_PXA978)
 	dvfm_register("uio-hdmi", &dvfm_dev_idx);
 	/* mc arbiter*/
 	arb_f_mc = ioremap_nocache(0x7ff007b0, 4);
 	arb_n_mc = ioremap_nocache(0x7ff00280, 4);
-#endif
-
-#if defined(CONFIG_CPU_PXA978) || defined(CONFIG_CPU_MMP3)
 	if (hi->hdmi_power)
-		hi->hdmi_power(1); /* mmp3 and nevo need 5v to detect hpd*/
+		hi->hdmi_power(1); /* nevo need 5v to detect hpd*/
 #endif
 
+#if	defined(CONFIG_CPU_MMP3)
+	if (hi->hdmi_power)
+		hi->hdmi_power(1); /* mmp3 need 5v to detect hpd*/
+	clk_enable(hi->clk); /* mmp3 always enable clk*/
+#endif
 	/* Check HDMI cable when boot up */
 	ret = gpio_get_value(hi->gpio);
 	printk(KERN_INFO"%s hpd %s\n",
 		__func__, (ret == hi->hpd_in)?"plug in":"pull out");
-#ifdef CONFIG_CPU_PXA978 /* nevo*/
-	if (ret == hi->hpd_in)
-		atomic_set(&hdmi_state, 1);
-#else /* mmp2 & mmp3*/
+
 	if (ret == hi->hpd_in) {
 		atomic_set(&hdmi_state, 1);
 		set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
-		if (cpu_is_mmp2() && hi->hdmi_power)
+#if defined(CONFIG_CPU_MMP2)
+		if (hi->hdmi_power)
 			hi->hdmi_power(1);
 		clk_enable(hi->clk);
-	} else if (cpu_is_mmp3()) {
-		clk_enable(hi->clk);
-	}
 #endif
+
+#if defined(CONFIG_CPU_PXA978)
+		clk_enable(hi->clk);
+#endif
+	}
 
 	ret = uio_register_device(&pdev->dev, &hi->uio_info);
 	if (ret) {
@@ -596,14 +626,20 @@ static int hdmi_probe(struct platform_device *pdev)
 
 	/* silicon issue on MMP: delayed 300ms to disable clk when cable pull out*/
 	INIT_DELAYED_WORK(&hi->delay_disable, delayed_disable);
-
+#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 	/* during resume: simulate cable pull out->wait 1.5s->plug in*/
 	INIT_DELAYED_WORK(&hi->delay_resumed, delayed_resume);
+#endif
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
+#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
+	hi->early_suspend.suspend = hdmi_early_suspend_mmp;
+	hi->early_suspend.resume = hdmi_late_resume_mmp;
+#elif defined(CONFIG_CPU_PXA978)
+	hi->early_suspend.suspend = hdmi_early_suspend_nevo;
+	hi->early_suspend.resume = hdmi_late_resume_nevo;
+#endif
 	hi->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
-	hi->early_suspend.suspend = hdmi_early_suspend;
-	hi->early_suspend.resume = hdmi_late_resume;
 	register_early_suspend(&hi->early_suspend);
 #endif
 	platform_set_drvdata(pdev, hi);
@@ -615,12 +651,11 @@ out_free:
 #if defined(CONFIG_CPU_PXA978) || defined(CONFIG_CPU_MMP3)
 	if (hi->hdmi_power)
 		hi->hdmi_power(0);
-#else
+#elif defined(CONFIG_CPU_MMP2)
 	if (atomic_read(&hdmi_state) && (hi->hdmi_power))
 		hi->hdmi_power(0);
 #endif
 	kfree(hi);
-
 	return ret;
 }
 
@@ -632,8 +667,13 @@ static struct platform_driver hdmi_driver = {
 		.owner	= THIS_MODULE,
 	},
 #ifdef CONFIG_PM
-	.suspend = hdmi_suspend,
-	.resume  = hdmi_resume,
+#if defined(CONFIG_CPU_PXA978)
+	.suspend = hdmi_suspend_nevo,
+	.resume  = hdmi_resume_nevo,
+#elif defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
+	.suspend = hdmi_suspend_mmp,
+	.resume  = hdmi_resume_mmp,
+#endif
 #endif
 };
 
