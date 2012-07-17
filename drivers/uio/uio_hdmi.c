@@ -38,6 +38,7 @@ enum connect_lock con_lock;
 static bool timer_inited = 0;
 static int suspend_flag;
 #ifdef CONFIG_CPU_PXA978
+extern int hdmi_conv_on;
 static int dvfm_dev_idx;
 static unsigned int *arb_f_mc, *arb_n_mc;
 static unsigned int val_f_mc, val_n_mc;
@@ -432,9 +433,21 @@ static irqreturn_t hpd_handler(int irq, struct uio_info *dev_info)
 		return IRQ_NONE;
 	}
 #endif
-
 	if (timer_inited)
 		mod_timer(&hi->jitter_timer, jiffies + HZ);
+#ifdef CONFIG_CPU_PXA978
+	/*
+	*cable in -> lcd on, but if lcd on is not completed,
+	*and cable out at this momoent, lcd mixer failed happend if hdmi clk disable
+	*/
+	if (1 == atomic_read(&hdmi_state)
+		&& (hi->hpd_in != gpio_get_value(hi->gpio))) {
+		if (0 == hdmi_conv_on) {
+			printk("uio_hdmi: delay 5s to handle cable pull out, as lcd is not turn on completed at last time cable in!!!\n");
+			mod_timer(&hi->jitter_timer, jiffies + 5*HZ);
+		}
+	}
+#endif
 	/*printk("uio_hdmi: irq HDMI cable is %s\n",
 		(hi->hpd_in == gpio_get_value(hi->gpio))?"plug in":"pull out");*/
 	/*Don't report hpd in top half, wait for jitter is gone.*/

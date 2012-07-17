@@ -284,6 +284,7 @@ void lcdc_vid_clean(struct pxa95xfb_info *fbi)
 	spin_unlock_irqrestore(&fbi->buf_lock, flags);
 }
 
+int hdmi_conv_on = 0;
 static void do_flip_baselay(struct pxa95xfb_info *fbi, struct _sOvlySurface *surface)
 {
 	struct buf_addr *start_addr = (struct buf_addr *)(surface->videoBufferAddr.startAddr);
@@ -305,6 +306,8 @@ static void do_flip_baselay(struct pxa95xfb_info *fbi, struct _sOvlySurface *sur
 			converter_onoff(fbi, 1);
 		conv_ref_inc(fbi);
 		fbi->controller_on = 1;
+		if (fb_is_tv(fbi))
+			hdmi_conv_on = 1;
 		return;
 	}
 
@@ -347,6 +350,8 @@ static void do_flip_overlay(struct pxa95xfb_info *fbi, struct _sOvlySurface *sur
 
 		conv_ref_inc(fbi);
 		fbi->controller_on = 1;
+		if (fb_is_tv(fbi))
+			hdmi_conv_on = 1;
 		return;
 	}
 
@@ -573,6 +578,10 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 			return -EFAULT;
 		}
 		if (on != fbi->on) {
+			if (fb_is_tv(fbi)) {
+				if (0 == on)
+					hdmi_conv_on = 0;
+			}
 			fbi->on = on;
 			printk(KERN_INFO "PXA95xfb%d: switch: %s\n",
 				fbi->id, fbi->on ? "on" : "off");
