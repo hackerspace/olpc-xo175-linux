@@ -161,13 +161,24 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 		pm80x_reg_write(chip->base_page, 0x0E, 0x00);
 	/* Enable 32Khz-out-1 and resetoutn */
 	pm80x_reg_write(chip->base_page, 0xE1, 0xB0);
-	/* Enable 32Khz-out-3  low jitter */
-	pm80x_reg_write(chip->base_page, 0x21, 0x20);
+	/* Set internal digital sleep voltage to 0.9V */
+	pm80x_reg_write(chip->base_page, 0x20, 0xf0);
+	/* Enable 32Khz-out-3  low jitter and DVC for internal digital circuitry */
+	pm80x_reg_write(chip->base_page, 0x21, 0x60);
+	/* Enable LDO and BUCK clock gating in low power mode */
+	pm80x_reg_write(chip->base_page, 0x22, 0x80);
+	/* Enable reference group sleep mode */
+	pm80x_reg_write(chip->base_page, 0x23, 0x80);
 	/* Enable 32Khz-out-3 */
 	pm80x_reg_write(chip->base_page, 0xE2, 0x22);
 	/* Set XO CAP to 22pF to avoid speaker noise */
 	if (get_pmic_id() >= PM800_CHIP_C0)
 		pm80x_reg_write(chip->base_page, 0xE8, 0x70);
+
+	/* Enable GPADC sleep mode */
+	pm80x_reg_write(chip->gpadc_page, 0x06, 0x71);
+	/* Enlarge GPADC off slots */
+	pm80x_reg_write(chip->gpadc_page, 0x08, 0x0f);
 
 	return 0;
 }
