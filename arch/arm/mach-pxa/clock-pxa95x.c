@@ -901,7 +901,7 @@ static inline void set_mmpll_freq(unsigned long rate)
 static int clk_mmpll_enable(struct clk *clk)
 {
 	mm_pll_enable(1);
-	return 0;
+	return 1;
 }
 
 static void clk_mmpll_disable(struct clk *clk)
@@ -947,7 +947,7 @@ extern struct dvfs gc_dvfs;
 /*These function and Variables are used for GC&VMETA stats in debugfs*/
 static void gcu_vmeta_stats(struct clk *clk, unsigned long rate);
 extern struct gc_vmeta_ticks gc_vmeta_ticks_info;
-static struct clk clk_pxa978_mmpll;
+
 static int clk_gcu_enable(struct clk *clk)
 {
 	struct dvfs_freqs dvfs_freqs;
@@ -965,8 +965,6 @@ static int clk_gcu_enable(struct clk *clk)
 
 	if (clk->rate == 416000000)
 		clk_enable(&clk_pxa978_syspll_416);
-	else if (clk->rate >= 481000000)
-		clk_enable(&clk_pxa978_mmpll);
 	CKENC |= ((1 << (CKEN_GC_1X - 64)) | (1 << (CKEN_GC_2X - 64)));
 	gc_vmeta_stats_clk_event(GC_CLK_ON);
 	if (gc_vmeta_ticks_info.gc_stats_start)
@@ -990,9 +988,6 @@ static void clk_gcu_disable(struct clk *clk)
 	CKENC &= ~((1 << (CKEN_GC_1X - 64)) | (1 << (CKEN_GC_2X - 64)));
 	if (clk->rate == 416000000)
 		clk_disable(&clk_pxa978_syspll_416);
-	else if (clk->rate >= 481000000)
-		clk_disable(&clk_pxa978_mmpll);
-
 	if (cpu_is_pxa978_Dx())
 		GC_switch_cg_constraint(RELEASE_CG_CONSTRAINT);
 
@@ -1076,7 +1071,16 @@ static void mm_pll_setting(int flag, unsigned long rate, unsigned int value,
 		return;
 	local_fiq_disable();
 	local_irq_save(flags);
-	if ((rate < 481000000) || (get_mm_pll_freq() * 1000000 == rate)) {
+	if (rate < 481000000) {
+		write_accr0(value, mask);
+		if ((flag && (vm_rate < 481000000) && (gc_rate >= 481000000)) ||
+		   (!flag && (gc_rate < 481000000) && (vm_rate >= 481000000)))
+			mm_pll_enable(0);
+		goto out;
+	} else if (vm_rate < 481000000 && gc_rate < 481000000)
+		mm_pll_enable(1);
+
+	if (get_mm_pll_freq() * 1000000 == rate) {
 		write_accr0(value, mask);
 		goto out;
 	}
@@ -1303,17 +1307,11 @@ static int clk_pxa95x_gcu_setrate(struct clk *gc_clk, unsigned long rate)
 
 	if ((gc_clk->rate != 416000000) && (rate == 416000000) && (gc_clk->refcnt > 0))
 		clk_enable(&clk_pxa978_syspll_416);
-	if ((gc_clk->rate < 481000000) && (rate >= 481000000) && (gc_clk->refcnt > 0))
-		clk_enable(&clk_pxa978_mmpll);
-
 #ifdef GCVMETA_WR
 	mm_pll_setting(1, rate, value << 6, mask);
 #endif
 	if ((gc_clk->rate == 416000000) && (rate != 416000000) && (gc_clk->refcnt > 0))
 		clk_disable(&clk_pxa978_syspll_416);
-	if ((gc_clk->rate >= 481000000) && (rate < 481000000) && (gc_clk->refcnt > 0))
-		clk_disable(&clk_pxa978_mmpll);
-
 	if (gc_vmeta_ticks_info.gc_stats_start)
 		gcu_vmeta_stats(gc_clk, rate);
 	else
@@ -1574,17 +1572,12 @@ static int clk_pxa95x_vmeta_setrate(struct clk *vmeta_clk, unsigned long rate)
 
 	if ((vmeta_clk->rate != 416000000) && (rate == 416000000) && (vmeta_clk->refcnt > 0))
 		clk_enable(&clk_pxa978_syspll_416);
-	if ((vmeta_clk->rate < 481000000) && (rate >= 481000000) && (vmeta_clk->refcnt > 0))
-		clk_enable(&clk_pxa978_mmpll);
 
 #ifdef GCVMETA_WR
 	mm_pll_setting(0, rate, value << 3, mask);
 #endif
 	if ((vmeta_clk->rate == 416000000) && (rate != 416000000) && (vmeta_clk->refcnt > 0))
 		clk_disable(&clk_pxa978_syspll_416);
-	if (vmeta_clk->rate >= 481000000 && (rate < 481000000) && (vmeta_clk->refcnt > 0))
-		clk_disable(&clk_pxa978_mmpll);
-
 	if (gc_vmeta_ticks_info.vm_stats_start)
 		gcu_vmeta_stats(vmeta_clk, rate);
 	else
@@ -1615,8 +1608,6 @@ static int clk_pxa95x_vmeta_enable(struct clk *clk)
 	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
 	if (clk->rate == 416000000)
 		clk_enable(&clk_pxa978_syspll_416);
-	else if (clk->rate >= 481000000)
-		clk_enable(&clk_pxa978_mmpll);
 
 	CKENB |= (1 << (clk->enable_val - 32));
 	gc_vmeta_stats_clk_event(VMETA_CLK_ON);
@@ -1641,8 +1632,6 @@ static void clk_pxa95x_vmeta_disable(struct clk *clk)
 	CKENB &= ~(1 << (clk->enable_val - 32));
 	if (clk->rate == 416000000)
 		clk_disable(&clk_pxa978_syspll_416);
-	else if (clk->rate >= 481000000)
-		clk_disable(&clk_pxa978_mmpll);
 
 	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
 	if (gc_vmeta_ticks_info.vm_stats_start)
