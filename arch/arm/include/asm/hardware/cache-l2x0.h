@@ -138,6 +138,7 @@ struct l2x0_regs {
 };
 
 extern struct l2x0_regs l2x0_saved_regs;
+extern void pl310_suspend(void);
 
 #endif /* __ASSEMBLY__ */
 
