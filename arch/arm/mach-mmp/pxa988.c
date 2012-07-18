@@ -399,8 +399,9 @@ static void __init pxa988_timer_init(void)
 {
 	uint32_t clk_rst;
 
+	/* Select the configurable timer clock source to be 6.5MHz */
 	__raw_writel(APBC_APBCLK | APBC_RST, APBC_PXA988_TIMERS);
-	clk_rst = APBC_APBCLK | APBC_FNCLK | APBC_FNCLKSEL(1);
+	clk_rst = APBC_APBCLK | APBC_FNCLK | APBC_FNCLKSEL(2);
 	__raw_writel(clk_rst, APBC_PXA988_TIMERS);
 
 	stimer_source_select(2, TIMER_RATE_32K);
