@@ -2311,10 +2311,20 @@ static int vmeta_clk_setrate(struct clk *clk, unsigned long rate)
 	return 0;
 }
 
+static long vmeta_clk_getrate(struct clk *clk)
+{
+	if (clk->parent && clk->div)
+		return clk_get_rate(clk->parent)/clk->div;
+	else
+		pr_err("%s, get vMeta clock fail\n", __func__);
+	return -EINVAL;
+}
+
 struct clkops vmeta_clk_ops = {
 	.init		= vmeta_clk_init,
 	.enable		= vmeta_clk_enable,
 	.disable	= vmeta_clk_disable,
+	.getrate	= vmeta_clk_getrate,
 	.setrate	= vmeta_clk_setrate,
 	.round_rate	= vmeta_clk_round_rate,
 };
