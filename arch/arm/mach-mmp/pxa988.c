@@ -657,6 +657,19 @@ PXA988_DEVICE(fb, "pxa168-fb", 0, LCD, 0xd420b000, 0x1ec);
 PXA988_DEVICE(fb_ovly, "pxa168fb_ovly", 0, LCD, 0xd420b000, 0x1ec);
 PXA988_DEVICE(camera, "mv-camera", 0, CI, 0xd420a000, 0xfff);
 
+static struct resource pxa988_resource_rtc[] = {
+	{ 0xd4010000, 0xd40100ff, NULL, IORESOURCE_MEM, },
+	{ IRQ_PXA988_RTC, IRQ_PXA988_RTC, NULL, IORESOURCE_IRQ, },
+	{ IRQ_PXA988_RTC_ALARM, IRQ_PXA988_RTC_ALARM, NULL, IORESOURCE_IRQ, },
+};
+
+struct platform_device pxa988_device_rtc = {
+	.name		= "mmp-rtc",
+	.id		= -1,
+	.resource	= pxa988_resource_rtc,
+	.num_resources	= ARRAY_SIZE(pxa988_resource_rtc),
+};
+
 /* TODO Fake implementation for bring up */
 void handle_coherency_maint_req(void *p) {};
 

@@ -41,6 +41,7 @@ extern struct pxa_device_desc pxa988_device_vsram;
 extern struct pxa_device_desc pxa988_device_fb;
 extern struct pxa_device_desc pxa988_device_fb_ovly;
 extern struct pxa_device_desc pxa988_device_camera;
+extern struct platform_device pxa988_device_rtc;
 
 extern struct platform_device pxa9xx_device_acipc;
 
