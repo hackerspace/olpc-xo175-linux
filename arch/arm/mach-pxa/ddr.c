@@ -158,13 +158,33 @@ extern unsigned int cur_op;
 /* Dynamic Memory Controller IRQ handler */
 static irqreturn_t ddr_MC_irq_handler(int irq, void *dev_id)
 {
-	if (cpu_is_pxa978() || cpu_is_pxa978_Dx()) {
+	if (cpu_is_pxa978()) {
+		if ((__raw_readl(dmc_base + PERF_STATUS_OFF) >> 16) & 0xf) {
+			/* update data and clean irq flags automaticly */
+			update_ddr_performance_data(cur_op);
+		} else {
+			printk(KERN_ERR "%s: unhandled DDR controller IRQ!\n",
+				__func__);
+			printk(KERN_ERR "DDR_ERR_STATUS=%08x"
+				" DDR_ERR_ID_OFF=%08x DDR_ERR_ADDR=%08x\n",
+				__raw_readl(dmc_base + DDR_ERR_STATUS_OFF),
+				__raw_readl(dmc_base + DDR_ERR_ID_OFF),
+				__raw_readl(dmc_base + DDR_ERR_ADDR_OFF));
 
-		/* update data and clean irq flags automaticly */
-		update_ddr_performance_data(cur_op);
+			/* clear the Error to prevent endless interrupt */
+			__raw_writel(
+				__raw_readl(dmc_base + DDR_ERR_STATUS_OFF),
+				dmc_base + DDR_ERR_STATUS_OFF);
+			__raw_writel(__raw_readl(dmc_base + DDR_ERR_ID_OFF),
+				dmc_base + DDR_ERR_ID_OFF);
+			WARN_ON(1);
+		}
 
-	} else
-		printk(KERN_ERR "pxa978: unknow ddr controller interrupt!\n");
+	} else {
+		printk(KERN_ERR "%s: unknow ddr controller interrupt!\n",
+			__func__);
+		BUG_ON(1);
+	}
 
 	return IRQ_HANDLED;
 }
@@ -318,7 +338,7 @@ static int __init ddr_init(void)
 		is_pxa930 = 0;
 	else if (cpu_is_pxa930())
 		is_pxa930 = 1;
-	else if (cpu_is_pxa978() || cpu_is_pxa978_Dx()) {
+	else if (cpu_is_pxa978()) {
 		spin_lock_init(&ddr_performance_data_lock);
 		if (!dmc_base)
 			dmc_base = (unsigned int) ioremap(0x7ff00000, 0x1000);
