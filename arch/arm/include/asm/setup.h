@@ -143,6 +143,14 @@ struct tag_memclk {
 	__u32 fmemclk;
 };
 
+#ifdef CONFIG_CPU_MMP3
+#define ATAG_PROFILE    0x41000403
+struct tag_mv_profile {
+	u32	soc_prof;
+	u32	soc_stepping;
+};
+#endif
+
 #ifdef CONFIG_CPU_MMP2
 #define ATAG_PROFILE    0x41000404
 struct tag_profile {
@@ -178,6 +186,9 @@ struct tag {
 		struct tag_memclk	memclk;
 #ifdef CONFIG_CPU_MMP2
 		struct tag_profile	profile;
+#endif
+#ifdef CONFIG_CPU_MMP3
+		struct tag_mv_profile	mv_prof;
 #endif
 	} u;
 };

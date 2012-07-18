@@ -23,6 +23,7 @@
 #include <asm/mach/time.h>
 #include <asm/hardware/gic.h>
 #include <asm/hardware/cache-l2x0.h>
+#include <asm/setup.h>
 
 #include <mach/addr-map.h>
 #include <mach/regs-apbc.h>
@@ -52,6 +53,11 @@
 #include <plat/pmem.h>
 
 #include "common.h"
+
+unsigned int mmp_soc_stepping;
+EXPORT_SYMBOL(mmp_soc_stepping);
+unsigned int mmp_soc_profile;
+EXPORT_SYMBOL(mmp_soc_profile);
 
 #define MFPR_VIRT_BASE	(APB_VIRT_BASE + 0x1e000)
 
@@ -1669,3 +1675,13 @@ static int __init panic_notifier(void)
 
 core_initcall(panic_notifier);
 #endif
+
+static int __init parse_tag_profile(const struct tag *tag)
+{
+	mmp_soc_stepping = tag->u.mv_prof.soc_stepping;
+	mmp_soc_profile = tag->u.mv_prof.soc_prof;
+	if (mmp_soc_profile > 9 || mmp_soc_profile < 0)
+		mmp_soc_profile = 0;
+	return 0;
+}
+__tagtable(ATAG_PROFILE, parse_tag_profile);
