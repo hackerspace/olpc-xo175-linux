@@ -431,10 +431,6 @@ enum {
 #define PM800_GPADC_MEAS_OFF_TIME2_1	(0x07)
 #define PM800_GPADC_MEAS_OFF_TIME2_2	(0x08)
 
-#define PM800_GPADC_PREBIAS1			(0x0F)
-#define PM800_GPADC0_GP_PREBIAS_TIME(x)	(x << 0)
-#define PM800_GPADC_PREBIAS2			(0x10)
-
 #define PM800_GP_BIAS_ENA1				(0x14)
 #define PM800_GPADC_GP_BIAS_EN0			(1 << 0)
 #define PM800_GPADC_GP_BIAS_EN1			(1 << 1)
