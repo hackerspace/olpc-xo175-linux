@@ -1995,6 +1995,10 @@ static void d2(void)
 			MPMU_APCR);
 }
 
+extern void l2x0_flush_all(void);
+extern void l2x0_disable(void);
+extern void l2x0_enable(void);
+extern void l2x0_inv_all(void);
 void mmp3_pm_enter_d2(void)
 {
 	struct mmp3_cpu_idle_config *cic;
@@ -2015,10 +2019,10 @@ void mmp3_pm_enter_d2(void)
 
 	mmp3_set_wakeup_src();
 
-	/* workaround: keep SL2 power on */
-	__raw_writel(__raw_readl(0xfe282a48) | (1 << 15), 0xfe282a48);
-	/* d2 workaround: pclk off */
-	/* __raw_writel(__raw_readl(APMU_CC2_PJ) | (1u << 31), APMU_CC2_PJ); */
+	/* workaround: keep SL2 power off */
+	__raw_writel(__raw_readl(0xfe282a48) & ~(1 << 15), 0xfe282a48);
+	__raw_writel(__raw_readl(0xfe282a4c) & ~(1 << 15), 0xfe282a4c);
+	__raw_writel(__raw_readl(0xfe282a50) & ~(1 << 15), 0xfe282a50);
 
 	printk("before suspend\n");
 
@@ -2034,38 +2038,23 @@ void mmp3_pm_enter_d2(void)
 	outer_flush_all();
 	dsb();
 
-	/* set FW = 0 */
-	__asm__ volatile ("mrc p15, 0, %0, c1, c0, 1" : "=r" (reg));
-	reg &= ~(1 << 0);
-	__asm__ volatile ("mcr p15, 0, %0, c1, c0, 1" : : "r" (reg));
-	isb();
+	/* L2 cache operation before D2 */
+	l2x0_flush_all();
 	dsb();
-	/* set SMPnAMP = 0 */
-	__asm__ volatile ("mrc p15, 0, %0, c1, c0, 1" : "=r" (reg));
-	reg &= ~(1 << 6);
-	__asm__ volatile ("mcr p15, 0, %0, c1, c0, 1" : : "r" (reg));
-	isb();
-	dsb();
+	l2x0_disable();
 
 	__asm__ __volatile__ ("wfi");
+
+	/* L2 cache operation after D2 */
+	l2x0_inv_all();
+	dsb();
+	l2x0_enable();
 
 	__raw_writel(0x0, ICU1_REG(0x10));
 	__raw_writel(0x0, ICU1_REG(0x14));
 	__raw_writel(0x0, ICU1_REG(0xc4));
 
 	printk("after resume\n");
-
-	/* set FW = 1 */
-	__asm__ volatile ("mrc p15, 0, %0, c1, c0, 1" : "=r" (reg));
-	reg |= ((1 << 0) | (1 << 6));
-	__asm__ volatile ("mcr p15, 0, %0, c1, c0, 1" : : "r" (reg));
-	isb();
-	dsb();
-
-	/* d2 workaround: no need to shut pclk off anymore */
-	/* __raw_writel(__raw_readl(APMU_CC2_PJ) & ~(1u << 31), APMU_CC2_PJ); */
-	/* workaround: clear SL2 power bit */
-	__raw_writel(__raw_readl(0xfe282a48) & ~(1 << 15), 0xfe282a48);
 
 	/* disable global irq of ICU for MP1, MP2, MM*/
 	__raw_writel(0x1, MMP3_ICU_GBL_IRQ1_MSK);

@@ -168,7 +168,7 @@ static void __l2x0_flush_all(void)
 	debug_writel(0x00);
 }
 
-static void l2x0_flush_all(void)
+void l2x0_flush_all(void)
 {
 	unsigned long flags;
 
@@ -206,7 +206,7 @@ static void l2x0_clean_all(void)
 	raw_spin_unlock_irqrestore(&l2x0_lock, flags);
 }
 
-static void l2x0_inv_all(void)
+void l2x0_inv_all(void)
 {
 	unsigned long flags;
 
@@ -321,13 +321,24 @@ static void l2x0_flush_range(unsigned long start, unsigned long end)
 	raw_spin_unlock_irqrestore(&l2x0_lock, flags);
 }
 
-static void l2x0_disable(void)
+void l2x0_disable(void)
 {
 	unsigned long flags;
 
 	raw_spin_lock_irqsave(&l2x0_lock, flags);
 	__l2x0_flush_all();
 	writel_relaxed(0, l2x0_base + L2X0_CTRL);
+	dsb();
+	raw_spin_unlock_irqrestore(&l2x0_lock, flags);
+}
+
+void l2x0_enable(void)
+{
+	unsigned long flags;
+
+	raw_spin_lock_irqsave(&l2x0_lock, flags);
+	__l2x0_flush_all();
+	writel_relaxed(1, l2x0_base + L2X0_CTRL);
 	dsb();
 	raw_spin_unlock_irqrestore(&l2x0_lock, flags);
 }
