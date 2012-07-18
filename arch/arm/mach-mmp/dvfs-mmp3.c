@@ -13,6 +13,7 @@
 
 #include <plat/clock.h>
 #include <plat/dvfs.h>
+#include <mach/cputype.h>
 
 /*
  * VCC_MAIN
@@ -35,17 +36,24 @@ static enum {
 #define MMP3_VM_VOL_NUM (MMP3_VM_COL_VOL_NUM - 1)
 
 /* mV */
-#define VCC_MAIN_STEP		50
-#define VCC_MAIN_DEFAULT	1200	/* FIXME: update me if ntim is updated */
-#define VCC_MAIN_MAX		1300
+#define VCC_MAIN_STEP		25
+#define VCC_MAIN_DEFAULT	1200
+#define VCC_MAIN_MAX		1325
 #define VCC_MAIN_MIN		1150
-static const int vcc_main_vol_table[] = {
-	[V0] = 1150,
-	[V1] = 1150,
-	[V2] = 1150,
-	[V3] = 1200,
-	[V4] = 1250,
-	[V5] = 1300,
+/* default */
+static const int vcc_main_vol_table_def[] = { [V0] = 1150, [V1] = 1150, [V2] = 1150, [V3] = 1200, [V4] = 1250, [V5] = 1300, };
+/* B0P */
+static const int vcc_main_vol_table_b0p[][MMP3_VM_COL_VOL_NUM] = {
+	[0] = { [V0] = 1150, [V1] = 1150, [V2] = 1250, [V3] = 1250, [V4] = 1325, [V5] = 1325, },
+	[1] = { [V0] = 1150, [V1] = 1150, [V2] = 1250, [V3] = 1250, [V4] = 1325, [V5] = 1325, },
+	[2] = { [V0] = 1150, [V1] = 1150, [V2] = 1250, [V3] = 1250, [V4] = 1325, [V5] = 1325, },
+	[3] = { [V0] = 1150, [V1] = 1150, [V2] = 1250, [V3] = 1250, [V4] = 1325, [V5] = 1325, },
+	[4] = { [V0] = 1150, [V1] = 1150, [V2] = 1250, [V3] = 1250, [V4] = 1300, [V5] = 1325, },
+	[5] = { [V0] = 1150, [V1] = 1150, [V2] = 1250, [V3] = 1250, [V4] = 1275, [V5] = 1300, },
+	[6] = { [V0] = 1150, [V1] = 1150, [V2] = 1250, [V3] = 1250, [V4] = 1250, [V5] = 1275, },
+	[7] = { [V0] = 1150, [V1] = 1150, [V2] = 1250, [V3] = 1250, [V4] = 1250, [V5] = 1250, },
+	[8] = { [V0] = 1150, [V1] = 1150, [V2] = 1250, [V3] = 1250, [V4] = 1250, [V5] = 1250, },
+	[9] = { [V0] = 1150, [V1] = 1150, [V2] = 1250, [V3] = 1250, [V4] = 1250, [V5] = 1250, },
 };
 
 static const char *vcc_main_clk_name[] = {
@@ -83,7 +91,7 @@ static struct dvfs_rail mmp3_dvfs_rail_vcc_main = {
 	.step = VCC_MAIN_STEP,
 };
 
-static struct dvfs *vcc_main_dvfs_init(int factor)
+static struct dvfs *vcc_main_dvfs_init(int factor, const int (*vcc_main_vol_table)[])
 {
 	struct dvfs *vm_dvfs = 0;
 	struct vol_table *vt = 0;
@@ -103,7 +111,7 @@ static struct dvfs *vcc_main_dvfs_init(int factor)
 
 	for (i = V0; i < MMP3_VM_COL_VOL_NUM; i++) {
 		vt[i - V0].freq = vcc_main_threshold[factor][i];
-		vt[i - V0].millivolts = vcc_main_vol_table[i];
+		vt[i - V0].millivolts = (*vcc_main_vol_table)[i];
 	}
 	vm_dvfs->vol_freq_table = vt;
 	vm_dvfs->clk_name = vcc_main_clk_name[factor];
@@ -144,13 +152,19 @@ int __init mmp3_init_dvfs(void)
 	struct dvfs *d;
 	struct clk *c;
 	int ret;
+	const int (*vcc_main_vol_table)[];
+
+	if (cpu_is_mmp3_b0p())
+		vcc_main_vol_table = &vcc_main_vol_table_b0p[mmp_soc_profile];
+	else
+		vcc_main_vol_table = &vcc_main_vol_table_def;
 
 	dvfs_init_rails(mmp3_dvfs_rails, ARRAY_SIZE(mmp3_dvfs_rails));
 	dvfs_add_relationships(mmp3_dvfs_relationships,
 			ARRAY_SIZE(mmp3_dvfs_relationships));
 
 	for (i = 0; i < MMP3_VM_ROW_FACTOR_NUM; i++) {
-		d = vcc_main_dvfs_init(i);
+		d = vcc_main_dvfs_init(i, vcc_main_vol_table);
 		if (!d)
 			continue;
 		c = get_clock_by_name(d->clk_name);
