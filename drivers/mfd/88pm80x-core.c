@@ -784,7 +784,7 @@ static int __devinit device_irq_init_800(struct pm80x_chip *chip,
 	struct pm80x_subchip *pm800_chip = chip->pm800_chip;
 	struct i2c_client *i2c_base = chip->base_page;
 	unsigned char status_buf[PM800_INT_REG_NUM];
-	unsigned long flags = IRQF_TRIGGER_FALLING | IRQF_ONESHOT | IRQF_SHARED;
+	unsigned long flags = IRQF_ONESHOT | IRQF_SHARED;
 	struct irq_desc *desc;
 	int data, mask, ret = -EINVAL;
 	int irq, irq_base;
