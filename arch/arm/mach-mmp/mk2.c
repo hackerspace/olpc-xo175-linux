@@ -1374,13 +1374,72 @@ static int wm8994_ldo_enable(void)
 extern int __raw_i2c_bus_reset(u8 bus_num);
 extern int __raw_i2c_write_reg(u8 bus_num, u8 addr, u8 reg, u8 val);
 extern int __raw_i2c_read_reg(u8 bus_num, u8 addr, u8 reg, u8 *buf, int len);
+#define MAX77601_RTC_RETRY_LIMIT 10
+static int max77601_rtc_raw_write(int reg, u8 data)
+{
+	int retry = 0;
+	u8 tmp;
+
+	__raw_i2c_write_reg(1, 0x48, reg, data);
+
+	__raw_i2c_write_reg(1, 0x48, MAX77601_RTCUPDATE0, MAX77601_UDF);
+	while (retry++ < MAX77601_RTC_RETRY_LIMIT) {
+		mdelay(50);
+		__raw_i2c_read_reg(1, 0x48, MAX77601_RTCUPDATE1, &tmp, 1);
+		if (tmp & MAX77601_UDF)
+			break;
+	}
+	if (retry >= MAX77601_RTC_RETRY_LIMIT)
+		return -1;
+	else
+		return 0;
+}
+
+static int max77601_rtc_raw_read(int reg, u8 *buf)
+{
+	int retry = 0;
+	u8 tmp;
+
+	__raw_i2c_write_reg(1, 0x48, MAX77601_RTCUPDATE0, MAX77601_RBUDR);
+	while (retry++ < MAX77601_RTC_RETRY_LIMIT) {
+		mdelay(50);
+		__raw_i2c_read_reg(1, 0x48, MAX77601_RTCUPDATE1, &tmp, 1);
+		if (tmp & MAX77601_RBUDF)
+			break;
+	}
+	if (retry >= MAX77601_RTC_RETRY_LIMIT)
+		return -1;
+	__raw_i2c_read_reg(1, 0x48, reg, buf, 1);
+	return 0;
+}
 
 static int mk2_board_reset(char mode, const char *cmd)
 {
 	u8 data;
+	int i;
 
 	/* Reset TWSI1 unit firstly */
 	__raw_i2c_bus_reset(1);
+
+	/* set recovery bit */
+	if (cmd && !strcmp(cmd, "recovery")) {
+		/* try 40 times to set recovery flag in case of failure */
+		for (i = 0; i < 40; i++) {
+			if (max77601_rtc_raw_write(MAX77601_RTCSECA2, 0x01)) {
+				pr_err("Recovery flag write failed!\n");
+				continue;
+			}
+			if (max77601_rtc_raw_read(MAX77601_RTCSECA2, &data)) {
+				pr_err("Recovery flag read failed!\n");
+				continue;
+			}
+			if (data == 0x01)
+				break;
+		}
+		if (i == 40)
+			pr_err("Recovery flag set failed!\n");
+	}
+
 	/* 1. Enable SW reset wake up */
 	__raw_i2c_read_reg(1, 0x1c, MAX77601_ONOFFCNFG2, &data, 1);
 	data |= MAX77601_SFT_RST_WK;
@@ -1418,6 +1477,12 @@ static void __init mk2_init(void)
 	board_reset = mk2_board_reset;
 	pm_power_off = mk2_power_off;
 	mfp_config(ARRAY_AND_SIZE(mk2_pin_config));
+
+	/* Reset TWSI1 unit firstly */
+	__raw_i2c_bus_reset(1);
+	/* clear recovery bit */
+	if (max77601_rtc_raw_write(MAX77601_RTCSECA2, 0x00))
+		pr_err("Recovery flag clear failed!\n");
 
 	/* on-chip devices */
 	mmp3_add_uart(3);
