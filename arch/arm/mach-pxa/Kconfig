@@ -735,6 +735,13 @@ config PXA_RAMDUMP
 	depends on PXA95x
 	bool "RAMDUMP debug capability"
 
+config DUMP_PXA978_REGS
+	bool
+	default y
+	depends on CPU_PXA978
+	help
+	 Dump soc registers, stack, and possible functions in the stack
+
 source "arch/arm/mach-pxa/display/Kconfig"
 
 endif

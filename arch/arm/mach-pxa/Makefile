@@ -123,4 +123,7 @@ obj-$(CONFIG_LEDS)		+= $(led-y)
 
 obj-$(CONFIG_PXA_RAMDUMP)	+= ramdump.o
 
+# Dump soc registers, stack, and possible functions in the stack
+obj-$(CONFIG_DUMP_PXA978_REGS)	+= dump_regs.o
+
 obj-$(CONFIG_TOSA_BT)		+= tosa-bt.o
