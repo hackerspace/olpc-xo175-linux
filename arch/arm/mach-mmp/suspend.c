@@ -10,6 +10,7 @@
 #include <linux/cpuidle.h>
 #include <linux/irq.h>
 #include <linux/interrupt.h>
+#include <linux/pm_qos_params.h>
 
 #include <asm/proc-fns.h>
 #include <mach/hardware.h>
@@ -20,6 +21,7 @@
 #include <mach/system.h>
 
 static unsigned long pm_state;
+static struct pm_qos_request_list cpu_max_num_req;
 
 int mmp3_set_wake(struct irq_data *data, unsigned int on)
 {
@@ -64,6 +66,7 @@ static int mmp3_pm_enter(suspend_state_t state)
  */
 static int mmp3_pm_prepare(void)
 {
+	pm_qos_update_request(&cpu_max_num_req, 1);
 	return 0;
 }
 
@@ -72,6 +75,7 @@ static int mmp3_pm_prepare(void)
  */
 static void mmp3_pm_finish(void)
 {
+	pm_qos_update_request(&cpu_max_num_req, PM_QOS_DEFAULT_VALUE);
 	pm_state = PM_SUSPEND_ON;
 }
 
@@ -108,7 +112,7 @@ static struct platform_suspend_ops mmp3_pm_ops = {
 static int __init mmp3_suspend_init(void)
 {
 	suspend_set_ops(&mmp3_pm_ops);
-
+	pm_qos_add_request(&cpu_max_num_req, PM_QOS_MAX_ONLINE_CPUS, PM_QOS_DEFAULT_VALUE);
 	return 0;
 }
 
