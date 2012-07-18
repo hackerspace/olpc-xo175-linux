@@ -1381,43 +1381,62 @@ static int camera_sensor_power(struct device *dev, int on)
 		return -EIO;
 	}
 
-	if (on) {
-		if (cam_en)
-			gpio_direction_output(cam_en,1);
-		mdelay(1);
-		if (cam_en2)
-			gpio_direction_output(cam_en2,1);
-		mdelay(1);
-		gpio_direction_output(cam_afen, 1);
-		mdelay(1);
-		if (cam_pwr)
-			gpio_direction_output(cam_pwr, 0);
-		mdelay(1);
-		gpio_direction_output(cam_reset, 0);
-		mdelay(1);
-		gpio_direction_output(cam_reset, 1);
-		mdelay(1);
-		/* set MIPI_AVDD1P2V for MIPI IO */
-		cam_ldo12_1p2v_enable(1);
-		mdelay(1);
-	} else {
-		gpio_direction_output(cam_reset, 0);
-		mdelay(1);
-		gpio_direction_output(cam_reset, 1);
-		if (cam_pwr)
+	switch (on) {
+		/* power off sensor */
+		case POWER_OFF:
+			gpio_direction_output(cam_reset, 0);
+			mdelay(1);
+			gpio_direction_output(cam_reset, 1);
+			if (cam_pwr)
+				gpio_direction_output(cam_pwr, 1);
+			gpio_direction_output(cam_afen, 0);
+			mdelay(1);
+			if (cam_en2) {
+				gpio_direction_output(cam_en2,0);
+				mdelay(1);
+			}
+			if (cam_en) {
+				gpio_direction_output(cam_en,0);
+				mdelay(1);
+			}
+			cam_ldo12_1p2v_enable(0);
+			break;
+		/* power on sensor */
+		case POWER_ON:
+			if (cam_en)
+				gpio_direction_output(cam_en,1);
+			mdelay(1);
+			if (cam_en2)
+				gpio_direction_output(cam_en2,1);
+			mdelay(1);
+			gpio_direction_output(cam_afen, 1);
+			mdelay(1);
+			if (cam_pwr)
+				gpio_direction_output(cam_pwr, 0);
+			mdelay(1);
+			gpio_direction_output(cam_reset, 0);
+			mdelay(1);
+			gpio_direction_output(cam_reset, 1);
+			mdelay(1);
+			/* set MIPI_AVDD1P2V for MIPI IO */
+			cam_ldo12_1p2v_enable(1);
+			mdelay(1);
+			break;
+		/* enter hardware standby mode, currently used in suspend */
+		case POWER_SAVING:
 			gpio_direction_output(cam_pwr, 1);
-		gpio_direction_output(cam_afen, 0);
-		mdelay(1);
-		if (cam_en2) {
-			gpio_direction_output(cam_en2,0);
 			mdelay(1);
-		}
-		if (cam_en) {
-			gpio_direction_output(cam_en,0);
+			break;
+		/* exit hardware standby mode, currently used in resume */
+		case POWER_RESTORE:
+			gpio_direction_output(cam_pwr, 0);
 			mdelay(1);
-		}
-		cam_ldo12_1p2v_enable(0);
+			break;
+		default:
+			dev_err(dev, "Unknown ccic power operation!\n");
+			return -EINVAL;
 	}
+
 	if (cam_pwr)
 		gpio_free(cam_pwr);
 	gpio_free(cam_reset);
