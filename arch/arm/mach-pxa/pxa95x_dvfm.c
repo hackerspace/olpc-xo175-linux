@@ -2175,7 +2175,7 @@ static int set_freq(void *driver_data, struct dvfm_md_opt *old,
 	return 0;
 }
 
-extern struct dvfs core_dvfs;
+extern struct dvfs core_dvfs, ddr_mem_dvfs;
 static int update_freq(void *driver_data, struct dvfm_freqs *freqs)
 {
 	struct pxa95x_dvfm_info *info = driver_data;
@@ -2186,7 +2186,7 @@ static int update_freq(void *driver_data, struct dvfm_freqs *freqs)
 	unsigned long flags;
 	int found = 0, new_op = cur_op;
 	static int found_pp_806;
-	struct dvfs_freqs dvfs_freqs;
+	struct dvfs_freqs core_dvfs_freqs, ddr_mem_dvfs_freqs;
 
 	/* we will disable power for mg1 and pv2. pm is enabled
 	 * only if the PowerDisabled flag is cleared (using sys)
@@ -2227,13 +2227,20 @@ static int update_freq(void *driver_data, struct dvfm_freqs *freqs)
 	if (found != 2)
 		return -EINVAL;
 
-	dvfs_freqs.old = old.core * MHZ_TO_KHZ;
-	dvfs_freqs.new = new.core * MHZ_TO_KHZ;
-	dvfs_freqs.dvfs = &core_dvfs;
+	core_dvfs_freqs.old = old.core * MHZ_TO_KHZ;
+	core_dvfs_freqs.new = new.core * MHZ_TO_KHZ;
+	core_dvfs_freqs.dvfs = &core_dvfs;
+	ddr_mem_dvfs_freqs.old = old.dmcfs / 2 * MHZ_TO_KHZ;
+	ddr_mem_dvfs_freqs.new = new.dmcfs / 2 * MHZ_TO_KHZ;
+	ddr_mem_dvfs_freqs.dvfs = &ddr_mem_dvfs;
 
-	if (cpu_is_pxa978() && (old.core < new.core))
-		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
-	else if (!cpu_is_pxa978() && (old.core < new.core))
+
+	if (cpu_is_pxa978()) {
+		if (old.core < new.core)
+			dvfs_notifier_frequency(&core_dvfs_freqs, DVFS_FREQ_PRECHANGE);
+		if (old.dmcfs < new.dmcfs)
+			dvfs_notifier_frequency(&ddr_mem_dvfs_freqs, DVFS_FREQ_PRECHANGE);
+	} else if (!cpu_is_pxa978() && (old.core < new.core))
 		update_voltage(info, &old, &new);
 
 	local_fiq_disable();
@@ -2251,9 +2258,12 @@ static int update_freq(void *driver_data, struct dvfm_freqs *freqs)
 	local_irq_restore(flags);
 	local_fiq_enable();
 
-	if (cpu_is_pxa978() && (old.core > new.core))
-		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
-	else if (!cpu_is_pxa978() && (old.core > new.core))
+	if (cpu_is_pxa978()) {
+		if (old.core > new.core)
+			dvfs_notifier_frequency(&core_dvfs_freqs, DVFS_FREQ_POSTCHANGE);
+		if (old.dmcfs > new.dmcfs)
+			dvfs_notifier_frequency(&ddr_mem_dvfs_freqs, DVFS_FREQ_POSTCHANGE);
+	} else if (!cpu_is_pxa978() && (old.core > new.core))
 		update_voltage(info, &old, &new);
 
 	if (cur_profiler == MSPM_PROFILER)

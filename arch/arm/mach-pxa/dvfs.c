@@ -25,7 +25,7 @@ static LIST_HEAD(dvfs_rail_list);
 static DEFINE_MUTEX(dvfs_lock);
 static ATOMIC_NOTIFIER_HEAD(dvfs_freq_notifier_list);
 static struct i2c_client *i2c;
-static int cur_volt3;
+static int cur_volt3, cur_mem_volt;
 static unsigned int last_level;
 
 static int dvfs_rail_update(struct dvfs_rail *rail);
@@ -69,7 +69,7 @@ static inline int reg_to_volt(int value)
 	return  (value * 125 + 6000) / 10;
 }
 
-int is_wkr_1_2G_vmin()
+int is_wkr_1_2G_vmin(void)
 {
 	return 1;
 }
@@ -130,6 +130,29 @@ static int vcc_main_set_voltage(struct dvfs_rail *rail)
 	return 0;
 }
 
+static int vcc_io_mem_set_voltage(struct dvfs_rail *rail)
+{
+	int newvolts = rail->new_millivolts;
+	if (is_wkr_ddr533()) {
+		if (newvolts <= VOL_MEM_LOW)
+			newvolts = VOL_MEM_LOW;
+		else if (newvolts <= VOL_MEM_HIGH)
+			newvolts = VOL_MEM_HIGH;
+		else
+			printk(KERN_ERR "Invalid voltage for VCC_IO_MEM !\n");
+		if (cur_mem_volt != newvolts) {
+			pm80x_reg_write(i2c, PM800_BUCK3, newvolts);
+			/*
+			 * 12.5mV/us ramp rate, there are 4 steps
+			 * between 1.25v and 1.2v(each step is 12.5mV)
+			*/
+			udelay(4);
+		}
+		cur_mem_volt = newvolts;
+	}
+	return 0;
+}
+
 /*
  * Sets the voltage on a dvfs rail to a specific value, and updates any
  * rails that depend on this rail.
@@ -160,6 +183,8 @@ static int dvfs_rail_set_voltage(struct dvfs_rail *rail, int millivolts)
 	 */
 	if (!strcmp(rail->reg_id, "vcc_main"))
 		ret = vcc_main_set_voltage(rail);
+	else if (!strcmp(rail->reg_id, "vcc_io_mem"))
+		ret = vcc_io_mem_set_voltage(rail);
 
 	rail->millivolts = rail->new_millivolts;
 
@@ -316,7 +341,9 @@ static inline ssize_t voltage_show(struct sys_device *sys_dev,
 
 	level = (AVLSR >> 1) & 0x3;
 	volt = reg_to_volt(pm80x_reg_read(i2c, PM800_BUCK1 + level));
-	len += sprintf(buf, "Level %d (%d mV)\n", level, volt);
+	len += sprintf(buf + len, "VCC_MAIN:\tLevel %d (%d mV)\n", level, volt);
+	volt = reg_to_volt(pm80x_reg_read(i2c, PM800_BUCK3));
+	len += sprintf(buf + len, "VCC_IO_MEM:\t%d mV\n", volt);
 
 	return len;
 }

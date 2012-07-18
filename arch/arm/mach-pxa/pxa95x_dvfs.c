@@ -46,11 +46,19 @@ static struct dvfs_rail pxa95x_dvfs_rail_vcc_main = {
 	.nominal_millivolts = VOL_LEVL2,
 };
 
+static struct dvfs_rail pxa95x_dvfs_rail_vcc_io_mem = {
+	.reg_id = "vcc_io_mem",
+	.max_millivolts = VOL_MEM_HIGH,
+	.min_millivolts = VOL_MEM_LOW,
+	.nominal_millivolts = VOL_MEM_LOW,
+};
+
 static struct dvfs_relationship pxa95x_dvfs_relationships[] = {
 };
 
 static struct dvfs_rail *pxa95x_dvfs_rails[] = {
 	&pxa95x_dvfs_rail_vcc_main,
+	&pxa95x_dvfs_rail_vcc_io_mem,
 };
 
 static struct vol_table core_vol_table[] = {
@@ -127,11 +135,34 @@ struct dvfs vmeta_dvfs = {
 };
 EXPORT_SYMBOL(vmeta_dvfs);
 
-static struct dvfs *dvfs_init[] = {
+static struct vol_table ddr_vol_table[] = {
+	INIT_VOL_TABLE(104 * MHZ_TO_KHZ, VOL_MEM_LOW),
+	INIT_VOL_TABLE(156 * MHZ_TO_KHZ, VOL_MEM_LOW),
+	INIT_VOL_TABLE(199 * MHZ_TO_KHZ, VOL_MEM_LOW),
+	INIT_VOL_TABLE(208 * MHZ_TO_KHZ, VOL_MEM_LOW),
+	INIT_VOL_TABLE(225 * MHZ_TO_KHZ, VOL_MEM_LOW),
+	INIT_VOL_TABLE(400 * MHZ_TO_KHZ, VOL_MEM_LOW),
+	INIT_VOL_TABLE(450 * MHZ_TO_KHZ, VOL_MEM_LOW),
+	INIT_VOL_TABLE(533 * MHZ_TO_KHZ, VOL_MEM_HIGH),
+};
+
+struct dvfs ddr_mem_dvfs = {
+	.vol_freq_table = ddr_vol_table,
+	.num_freqs = ARRAY_SIZE(ddr_vol_table),
+	.dvfs_rail = &pxa95x_dvfs_rail_vcc_io_mem,
+	.millivolts = VOL_MEM_LOW,
+};
+EXPORT_SYMBOL(ddr_mem_dvfs);
+
+static struct dvfs *vcc_main_dvfs_init[] = {
 	&core_dvfs,
 	&display_dvfs,
 	&gc_dvfs,
 	&vmeta_dvfs,
+};
+
+static struct dvfs *vcc_io_mem_dvfs_init[] = {
+	&ddr_mem_dvfs,
 };
 
 int pxa95x_init_dvfs(void)
@@ -140,9 +171,13 @@ int pxa95x_init_dvfs(void)
 	dvfs_init_rails(pxa95x_dvfs_rails, ARRAY_SIZE(pxa95x_dvfs_rails));
 	dvfs_add_relationships(pxa95x_dvfs_relationships,
 			       ARRAY_SIZE(pxa95x_dvfs_relationships));
-	for (i = 0; i < ARRAY_SIZE(dvfs_init); i++)
-		list_add_tail(&dvfs_init[i]->dvfs_node,
+	for (i = 0; i < ARRAY_SIZE(vcc_main_dvfs_init); i++)
+		list_add_tail(&vcc_main_dvfs_init[i]->dvfs_node,
 			      &pxa95x_dvfs_rail_vcc_main.dvfs);
+	for (i = 0; i < ARRAY_SIZE(vcc_io_mem_dvfs_init); i++)
+		list_add_tail(&vcc_io_mem_dvfs_init[i]->dvfs_node,
+			      &pxa95x_dvfs_rail_vcc_io_mem.dvfs);
+
 	dvfs_register_notifier(&notifier_freq_block, DVFS_FREQUENCY_NOTIFIER);
 
 	return 0;

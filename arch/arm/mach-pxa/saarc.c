@@ -2853,6 +2853,12 @@ static struct notifier_block reboot_notifier = {
 	.notifier_call = reboot_notifier_func,
 };
 
+int is_wkr_ddr533(void)
+{
+	/* Only for SaarC boards*/
+	return (get_board_id() < OBM_DKB_2_NEVO_C0_BOARD);
+}
+
 static void __init init(void)
 {
 	if (get_pmic_id() >= PM800_CHIP_A0) {
