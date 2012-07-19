@@ -734,10 +734,10 @@ static void pxa988_cam_set_clk(struct device *dev, int on)
 
 	if (data->clk_enabled) {
 		if (on == 1) {
+			clk_enable(data->clk[1]);
 			clk_enable(data->clk[0]);
 			if (data->bus_type == SOCAM_MIPI)
 				clk_enable(data->clk[3]);
-			clk_enable(data->clk[1]);
 			clk_enable(data->clk[2]);
 		} else {
 			clk_disable(data->clk[0]);
