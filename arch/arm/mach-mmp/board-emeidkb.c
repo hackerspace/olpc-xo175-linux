@@ -757,7 +757,7 @@ static int pxa988_cam_get_mclk_src(struct device *dev)
 	struct mv_cam_pdata *data = dev->platform_data;
 
 	if (data->clk_enabled)
-		rate = clk_get_rate(data->clk[0]);
+		rate = clk_get_rate(data->clk[0]) / 1000000;
 
 	return rate;
 }
