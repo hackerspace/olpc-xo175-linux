@@ -782,21 +782,20 @@ config VIDEO_MVISP
 config VIDEO_MVISP_OV882X
 	tristate "ov882x base support"
 	depends on VIDEO_MVISP && I2C
-	default y
 	help
 	 Support for the OmniVision OV882x camera base.
 
 config VIDEO_MVISP_OV8820
 	tristate "sensor ov8820"
+	depends on VIDEO_MVISP && I2C
 	select VIDEO_MVISP_OV882X
-	default y
 	help
 	 Support for the OmniVision OV8820 camera.
 
 config VIDEO_MVISP_OV8825
 	tristate "sensor ov8825"
+	depends on VIDEO_MVISP && I2C
 	select VIDEO_MVISP_OV882X
-	default y
 	help
 	 Support for the OmniVision OV8825 camera.
 
