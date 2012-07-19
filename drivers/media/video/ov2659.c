@@ -150,7 +150,7 @@ static int ov2659_detect(struct i2c_client *client)
 	ret = ov2659_read(client, REG_PIDL, &v);
 	if (ret < 0)
 		return ret;
-	if (v != 0x59)
+	if (v != 0x56)
 		return -ENODEV;
 	dev_err(&client->dev, "ov2659 detected 0x%x\n", v);
 	return 0;
