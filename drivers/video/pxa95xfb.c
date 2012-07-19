@@ -1243,36 +1243,36 @@ static void converter_mode_set(struct pxa95xfb_conv_info *conv, struct fb_videom
 	conv->vsync_len = mode->vsync_len;
 }
 
-static void update_lcd_controller_clock(struct pxa95xfb_conv_info *conv, int on)
+void update_lcd_controller_clock(int on)
 {
+	static int enabled;
 	unsigned int clock_rate;
 	struct pxa95xfb_conv_info *panel_conv = NULL;
-
+	if (enabled == on)
+		return;
 	if (!cpu_is_pxa978() || !pxa95xfbi[0])
 		return;
-	if (!on)
-		clock_rate = 104000000;
-	else if (conv->xres * conv->yres >= 720*1080)
+	if (on)
 		clock_rate = 416000000;
 	else
-		clock_rate = 156000000;
-	printk(KERN_INFO "%s: for converter resolution %d %d, clock rate is set to %d\n",
-		__func__, conv->xres, conv->yres, clock_rate);
+		clock_rate = 104000000;
 	/* WORKAROUND here: find some safe way to update clock: disable panel converters???? */
 	panel_conv = &fb2conv(pxa95xfbi[0]);
+	enabled = on;
 
 	if (!panel_conv || panel_conv->output != OUTPUT_PANEL || !panel_conv->on) {
-		printk(KERN_INFO "%s: directly update clock\n", __func__);
+		printk(KERN_INFO "directly update clock to %d\n", clock_rate);
 		clk_set_rate(pxa95xfbi[0]->clk_lcd, clock_rate);
 		return;
 	}
-
 	/*WR: disable converter of panel then do update*/
-	printk(KERN_INFO "%s: workaround: disable panel conveter and then update clock\n", __func__);
 	converter_onoff(pxa95xfbi[0], 0);
 	clk_set_rate(pxa95xfbi[0]->clk_lcd, clock_rate);
 	converter_onoff(pxa95xfbi[0], 1);
+	printk(KERN_INFO "update lcd clock to %d\n", clock_rate);
 }
+
+EXPORT_SYMBOL(update_lcd_controller_clock);
 
 static void mixer_onoff(struct pxa95xfb_info *fbi, int on);
 void converter_onoff(struct pxa95xfb_info *fbi, int on)
@@ -1286,11 +1286,6 @@ void converter_onoff(struct pxa95xfb_info *fbi, int on)
 		if(conv->power)
 			conv->power(1);
 		converter_mode_set(conv, &fbi->mode);
-
-		/* workaround to adjust lcd controller clock */
-		if (conv->output == OUTPUT_HDMI)
-			update_lcd_controller_clock(conv, 1);
-
 		if (CONVERTER_IS_DSI(conv->converter))
 			converter_set_dsi(conv);
 		else if (LCD_M2PARALELL_CONVERTER == conv->converter) {
@@ -1325,11 +1320,6 @@ void converter_onoff(struct pxa95xfb_info *fbi, int on)
 
 		if (conv->clk)
 			clk_disable(conv->clk);
-
-		/* workaround to adjust lcd controller clock */
-		if (conv->output == OUTPUT_HDMI)
-			update_lcd_controller_clock(conv, 0);
-
 		if(conv->power)
 			conv->power(0);
 

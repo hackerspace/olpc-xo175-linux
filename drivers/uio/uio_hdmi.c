@@ -42,6 +42,7 @@ extern int hdmi_conv_on;
 static int dvfm_dev_idx;
 static unsigned int *arb_f_mc, *arb_n_mc;
 static unsigned int val_f_mc, val_n_mc;
+extern void update_lcd_controller_clock(int on);
 #endif
 
 enum connect_status {
@@ -311,6 +312,7 @@ static int hdmi_suspend_nevo(struct platform_device *pdev, pm_message_t mesg)
 		arbiter_clr();
 		atomic_set(&hdmi_state, HDMI_OFF);
 		unset_power_constraint(hi);
+		update_lcd_controller_clock(0);
 	}
 	/* always turn off 5v power*/
 	if (hi->hdmi_power)
@@ -417,6 +419,7 @@ static void delayed_disable(struct work_struct *work)
 				return;
 			}
 			clk_disable(hi->clk);
+			update_lcd_controller_clock(0);
 #endif
 #if defined(CONFIG_CPU_MMP2)
 			clk_disable(hi->clk);
@@ -463,6 +466,7 @@ static void hdmi_switch_work(struct work_struct *work)
 			set_power_constraint(hi, HDMI_FREQ_CONSTRAINT);
 			clk_enable(hi->clk);
 			arbiter_set();
+			update_lcd_controller_clock(1);
 #endif
 			/*if hdmi_state change, report hpd*/
 			uio_event_notify(&hi->uio_info);
@@ -649,6 +653,7 @@ static int hdmi_probe(struct platform_device *pdev)
 #if defined(CONFIG_CPU_PXA978)
 		arbiter_set();
 		clk_enable(hi->clk);
+		update_lcd_controller_clock(1);
 #endif
 	}
 
