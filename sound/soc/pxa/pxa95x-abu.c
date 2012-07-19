@@ -588,12 +588,6 @@ static int pxa95x_abu_trigger(struct snd_pcm_substream *substream, int cmd,
 
 		switch (p_abu_runtime_ctx->abu_status) {
 		case ABU_IDLE_STATUTS:
-			/* a workaround for fixing the issue of "sometimes, no audio
-			   when restart playback after stop".
-			   By reseting back to playback/record mode, the next time
-			   soft reset of ABU will reset both ABUCPR and ABUSPR to 0x0,
-			   or ABUSPR=0x80000 if ABU is playback mode */
-			abu_reg_set_playback_mode(ssp->mmio_base, false);
 
 			/* disable SSP port now */
 			abu_reg_enable_disable_ssp(ssp->mmio_base, false);
