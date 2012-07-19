@@ -1427,7 +1427,7 @@ static void __init emeidkb_init(void)
 #endif
 }
 
-MACHINE_START(EMEIDKB, "PXA988-Based")
+MACHINE_START(EMEIDKB, "PXA988")
 	.map_io		= mmp_map_io,
 	.nr_irqs	= EMEI_NR_IRQS,
 	.init_irq	= pxa988_init_irq,
