@@ -36,7 +36,8 @@ static inline int icu_get_raw_irq(struct irq_data *d)
 	/*
 	 * the icu connects the sys_int_ap interrupt source to the SPI interface
 	 * of the GIC. since the GIC SPI interrupts start from 32, here minus 32
-	 * from the GIC irq number to get the raw icu based irq.
+	 * from the GIC spi irq number to get the raw icu based irq.
+	 * For PPI and SGI, just skip it.
 	 */
 	return d->irq - 32;
 }
@@ -47,6 +48,9 @@ static void icu_mask_irq(struct irq_data *d)
 	int irq;
 
 	irq = icu_get_raw_irq(d);
+	if (irq < 0)
+		return;
+
 	reg = ICU_INT_CONF(irq);
 	val = __raw_readl(reg);
 	val &= ~0xF;
@@ -59,6 +63,8 @@ static void icu_unmask_irq(struct irq_data *d)
 	int irq;
 
 	irq = icu_get_raw_irq(d);
+	if (irq < 0)
+		return;
 	reg = ICU_INT_CONF(irq);
 	val = __raw_readl(reg);
 	val &= ~0xF;
@@ -74,6 +80,9 @@ static int icu_set_affinity(struct irq_data *d,
 	int irq;
 
 	irq = icu_get_raw_irq(d);
+	if (irq < 0)
+		return 0;
+
 	cpu = cpumask_first(mask_val);
 	reg = ICU_INT_CONF(irq);
 	val = __raw_readl(reg);
