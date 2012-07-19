@@ -618,6 +618,16 @@ static int camera_sensor_power(struct device *dev, int on)
 {
 	unsigned int cam_pwr;
 	unsigned int cam_reset;
+	static struct regulator *v_sensor;
+
+	if (!v_sensor) {
+		v_sensor = regulator_get(NULL, "v_cam_avdd");
+		if (IS_ERR(v_sensor)) {
+			v_sensor = NULL;
+			pr_err(KERN_ERR "Enable v_ldo16 failed!\n");
+			return -EIO;
+		}
+	}
 
 	cam_pwr = mfp_to_gpio(GPIO082_GPIO_CAM_PD_SUB);
 	cam_reset = mfp_to_gpio(GPIO083_GPIO_CAM_RST_SUB);
@@ -636,6 +646,9 @@ static int camera_sensor_power(struct device *dev, int on)
 	}
 
 	if (on) {
+		regulator_set_voltage(v_sensor, 2800000, 2800000);
+		regulator_enable(v_sensor);
+		msleep(20);
 		gpio_direction_output(cam_pwr, 0);
 		mdelay(1);
 		gpio_direction_output(cam_reset, 0);
@@ -647,6 +660,7 @@ static int camera_sensor_power(struct device *dev, int on)
 		mdelay(1);
 		gpio_direction_output(cam_reset, 1);
 		gpio_direction_output(cam_pwr, 1);
+		regulator_disable(v_sensor);
 	}
 	gpio_free(cam_pwr);
 	gpio_free(cam_reset);
