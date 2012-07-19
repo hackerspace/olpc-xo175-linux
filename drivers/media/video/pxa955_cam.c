@@ -1125,6 +1125,8 @@ void cam_set_constrain(struct pxa955_cam_dev *cam, int dev_idx)
 		break;
 
 	case CAM_STATE_OPEN:
+		wrr_nor_sv = *wrr_nor;	/* backup original value */
+		wrr_fst_sv = *wrr_fst;
 	case CAM_STATE_FORMATED:
 		/* video device opened, but not stream-on */
 		dvfm_disable_op_name("CG", dev_idx);
