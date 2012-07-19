@@ -124,8 +124,8 @@ static unsigned int pll_post_div_tbl[] = {
 #define CLK_SET_BITS(set, clear)	{	\
 	unsigned long tmp;			\
 	tmp = __raw_readl(clk->clk_rst);	\
-	tmp &= ~clear;				\
-	tmp |= set;				\
+	tmp &= ~(clear);			\
+	tmp |= (set);				\
 	__raw_writel(tmp, clk->clk_rst);	\
 }						\
 
@@ -1224,13 +1224,13 @@ static int __clk_periph_set_rate(struct clk *clk, unsigned long rate)
 
 
 /*
-  * 1. sort ascending
-  * 2. Please don't select aclk from pll2 but fclk from pll1,
-  * as aclk is not exposed as a clock node. Pll2 may be
-  * shutdown if no clock node is using it.
-  * TODO: GC 624M is unsafe PP in Z0, enable it after SV
-  * confirm it is safe to be used.
-  */
+ * 1. sort ascending
+ * 2. Please don't select aclk from pll2 but fclk from pll1,
+ * as aclk is not exposed as a clock node. Pll2 may be
+ * shutdown if no clock node is using it.
+ * TODO: GC 624M is unsafe PP in Z0, enable it after SV
+ * confirm it is safe to be used.
+ */
 static struct periph_clk_tbl gc_clk_tbl[] = {
 	{.fclk = 156000000, .aclk = 156000000, .fparent = &pll1_624},
 	{.fclk = 312000000, .aclk = 208000000, .fparent = &pll1_624},
@@ -1266,17 +1266,19 @@ static int gc_clk_enable(struct clk *clk)
 	BUG_ON(!clk->inputs[i].input);
 
 	en_cfg = (GC_ACLK_EN | GC_FCLK_EN | GC_HCLK_EN);
-	rate_cfg = GC_FCLK_RATE(clk->inputs[i].value, clk->div);
+	rate_cfg = GC_FCLK_RATE(clk->inputs[i].value, (clk->div - 1));
 	rate_cfg |= clk->enable_val;
 	rate_cfg |= (GC_FCLK_REQ | GC_ACLK_REQ);
 	CLK_SET_BITS(en_cfg, 0);
 	CLK_SET_BITS(rate_cfg, GC_CLK_RATE_MSK);
+	pr_debug("%s GC_CLK %x\n", __func__, __raw_readl(clk->clk_rst));
 	return 0;
 }
 
 static void gc_clk_disable(struct clk *clk)
 {
 	CLK_SET_BITS(0, GC_ACLK_EN | GC_FCLK_EN | GC_HCLK_EN);
+	pr_debug("%s GC_CLK : %x\n", __func__, __raw_readl(clk->clk_rst));
 }
 
 static long gc_clk_round_rate(struct clk *clk, unsigned long rate)
@@ -1310,9 +1312,9 @@ static int gc_clk_setrate(struct clk *clk, unsigned long rate)
 	rate_cfg =
 		GC_FCLK_RATE(gc_clk_tbl[i].fsrc_val, gc_clk_tbl[i].fdiv_val);
 	/*
-	  * FIXME: Aclk and fclk is changed together, need
-	  * confirm whether aclk will change or not
-	  */
+	 * FIXME: Aclk and fclk is changed together, need
+	 * confirm whether aclk will change or not
+	 */
 	rate_cfg |= clk->enable_val;
 	/* Do NOT trigger fc_request if clock is not enabled */
 	if (clk->refcnt)
@@ -1323,6 +1325,7 @@ static int gc_clk_setrate(struct clk *clk, unsigned long rate)
 		clk_disable(clk->parent);
 	clk_reparent(clk, new_parent);
 
+	pr_debug("%s GC_CLK %x\n", __func__, __raw_readl(clk->clk_rst));
 	pr_debug("%s rate %lu->%lu\n", __func__, clk->rate, rate);
 	return 0;
 }
@@ -1386,14 +1389,14 @@ static struct clk pxa988_clk_gc = {
 
 
 /*
-  * 1. sort ascending
-  * 2. Please do NOT select aclk from pll2 but fclk is from pll1,
-  * as aclk is not exposed as a clock node. Pll2 may be shutdown
-  * if no clock node is using it.
-  * TODO: VPU 416M is unsafe PP in Z0, enable it after SV
-  * confirm it is safe to be used according to performance
-  * requirement
-  */
+ * 1. sort ascending
+ * 2. Please do NOT select aclk from pll2 but fclk is from pll1,
+ * as aclk is not exposed as a clock node. Pll2 may be shutdown
+ * if no clock node is using it.
+ * TODO: VPU 416M is unsafe PP in Z0, enable it after SV
+ * confirm it is safe to be used according to performance
+ * requirement
+ */
 static struct periph_clk_tbl vpu_clk_tbl[] = {
 	{.fclk = 156000000, .aclk = 156000000, .fparent = &pll1_624},
 	{.fclk = 208000000, .aclk = 208000000, .fparent = &pll1_416},
@@ -1435,11 +1438,12 @@ static int vpu_clk_enable(struct clk *clk)
 	BUG_ON(!clk->inputs[i].input);
 
 	en_cfg = VPU_CLK_EN;
-	reg_cfg = VPU_FCLK_RATE(clk->inputs[i].value, clk->div);
+	reg_cfg = VPU_FCLK_RATE(clk->inputs[i].value, (clk->div - 1));
 	reg_cfg |= clk->enable_val;
 	reg_cfg |= (VPU_FCLK_REQ | VPU_ACLK_REQ);
 	CLK_SET_BITS(en_cfg, 0);
 	CLK_SET_BITS(reg_cfg, VPU_CLK_RATE_MSK);
+	pr_debug("%s VPU_CLK %x\n", __func__, __raw_readl(clk->clk_rst));
 	return 0;
 }
 
@@ -1447,6 +1451,7 @@ static void vpu_clk_disable(struct clk *clk)
 {
 	CLK_SET_BITS(0, VPU_CLK_EN);
 	pm_qos_update_request(&vpu_qos_idle, PM_QOS_DEFAULT_VALUE);
+	pr_debug("%s VPU_CLK %x\n", __func__, __raw_readl(clk->clk_rst));
 }
 
 static long vpu_clk_round_rate(struct clk *clk, unsigned long rate)
@@ -1480,9 +1485,9 @@ static int vpu_clk_setrate(struct clk *clk, unsigned long rate)
 	rate_cfg =
 		VPU_FCLK_RATE(vpu_clk_tbl[i].fsrc_val, vpu_clk_tbl[i].fdiv_val);
 	/*
-	  * FIXME: Aclk and fclk is changed together, need
-	  * confirm whether aclk will change or not
-	  */
+	 * FIXME: Aclk and fclk is changed together, need
+	 * confirm whether aclk will change or not
+	 */
 	rate_cfg |= clk->enable_val;
 	/* Do NOT trigger fc_request if clock is not enabled */
 	if (clk->refcnt)
@@ -1493,6 +1498,7 @@ static int vpu_clk_setrate(struct clk *clk, unsigned long rate)
 		clk_disable(clk->parent);
 	clk_reparent(clk, new_parent);
 
+	pr_debug("%s VPU_CLK : %x\n", __func__,  __raw_readl(clk->clk_rst));
 	pr_debug("%s rate %lu->%lu\n", __func__, clk->rate, rate);
 	return 0;
 }
