@@ -220,7 +220,7 @@ static void ccic_enable_clk(struct mv_camera_dev *pcdev)
 	int div, ctrl1 = 0;
 
 	mcam->enable_clk(&pcdev->pdev->dev, 1);
-	div = mcam->get_mclk_src(mcam->mclk_src) / mcam->mclk_min;
+	div = mcam->get_mclk_src(&pcdev->pdev->dev) / mcam->mclk_min;
 	ccic_reg_write(pcdev, REG_CLKCTRL, (mcam->mclk_src << 29) | div);
 	switch (mcam->dma_burst) {
 	case 128:

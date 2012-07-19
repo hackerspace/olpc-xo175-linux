@@ -673,6 +673,7 @@ static struct platform_device dkb_ov2659_dvp = {
 static int pxa988_cam_clk_init(struct device *dev, int init)
 {
 	struct mv_cam_pdata *data = dev->platform_data;
+
 	if ((!data->clk_enabled) && init) {
 		data->clk[0] = clk_get(dev, "CCICFUNCLK");
 		if (IS_ERR(data->clk[0])) {
@@ -697,7 +698,6 @@ static int pxa988_cam_clk_init(struct device *dev, int init)
 			}
 		}
 		data->clk_enabled = 1;
-
 		return 0;
 	}
 
@@ -751,11 +751,14 @@ static void pxa988_cam_set_clk(struct device *dev, int on)
 
 struct mv_cam_pdata mv_cam_data;
 /* TODO reserve src parameter temporary */
-static int pxa988_cam_get_mclk_src(int src)
+static int pxa988_cam_get_mclk_src(struct device *dev)
 {
 	int rate = 0;
-	if (mv_cam_data.clk_enabled)
-		rate = clk_get_rate(mv_cam_data.clk[0]);
+	struct mv_cam_pdata *data = dev->platform_data;
+
+	if (data->clk_enabled)
+		rate = clk_get_rate(data->clk[0]);
+
 	return rate;
 }
 

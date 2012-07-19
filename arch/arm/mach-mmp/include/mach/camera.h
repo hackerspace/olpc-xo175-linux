@@ -22,7 +22,7 @@ struct mv_cam_pdata {
 	void		(*controller_power)(int on);
 	int		(*init_clk)(struct device *dev, int init);
 	void		(*enable_clk)(struct device *dev, int on);
-	int		(*get_mclk_src)(int src);
+	int		(*get_mclk_src)(struct device *dev);
 };
 struct clk;
 struct sensor_platform_data {
