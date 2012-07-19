@@ -1151,17 +1151,8 @@ void cam_set_constrain(struct pxa955_cam_dev *cam, int dev_idx)
 		case 640:	/* VGA */
 		case 800:	/* WVGA */
 			/* No constrain needed for cam driver */
-
-			/* FIXME: hack for CH, the constrain should be moved to
-			 * cpufreq-d later */
-			dvfm_disable_op_name("312M", dev_idx);
-			dvfm_disable_op_name("156M", dev_idx);
 			break;
 		case 1280:
-			/* FIXME: hack for CH, the constrain should be moved to
-			 * cpufreq-d later */
-			dvfm_disable_op_name("312M", dev_idx);
-
 			/* 720P used at least 182MHz MIPI clock
 			 * test shows 312M PP is OK with it */
 			dvfm_disable_op_name("156M", dev_idx);
@@ -1175,10 +1166,6 @@ void cam_set_constrain(struct pxa955_cam_dev *cam, int dev_idx)
 #endif
 			break;
 		case 1920:
-			/* FIXME: hack for CH, the constrain should be moved to
-			 * cpufreq-d later */
-			dvfm_disable_op_name("624M", dev_idx);
-
 			/* 1080p used at least 300M MIPI clock, so 806Mhz is
 			 * the minimum according to PP table. But actually
 			 * 624Mhz also seems OK at 364M MIPI clock */
