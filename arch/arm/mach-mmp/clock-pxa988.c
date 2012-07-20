@@ -1734,6 +1734,7 @@ static struct clk pxa988_ccic_axi_clk = {
 #define CCIC_PHYCLK_SELDIV_MSK	((1 << 7) | (0x1f << 10))
 #define CCIC_PHY_EN	((1 << 5)|(1 << 8)|(1 << 9))
 #define CCIC_PHY_DIS	((1 << 5)|(1 << 9))
+#define CSI_DPHY_RST	(1 << 2)
 
 static void ccic_phy_clk_init(struct clk *clk)
 {
@@ -1744,6 +1745,7 @@ static void ccic_phy_clk_init(struct clk *clk)
 
 static int ccic_phy_clk_enable(struct clk *clk)
 {
+	__ccic_clk_common_enable(clk, CSI_DPHY_RST);
 	__ccic_clk_common_enable(clk, CCIC_PHY_EN);
 	__raw_writel(0x06000000 | __raw_readl(APMU_CCIC_DBG),
 			APMU_CCIC_DBG);
@@ -1755,6 +1757,7 @@ static void ccic_phy_clk_disable(struct clk *clk)
 	__ccic_clk_common_disable(clk, CCIC_PHY_DIS);
 	__raw_writel((~0x06000000) & __raw_readl(APMU_CCIC_DBG),
 		APMU_CCIC_DBG);
+	__ccic_clk_common_disable(clk, CSI_DPHY_RST);
 }
 
 struct clkops ccic_phy_clk_ops = {
