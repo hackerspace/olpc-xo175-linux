@@ -416,7 +416,7 @@ static inline void insert_entry_ex(struct ddr_fc_table_cmd *cmd,
 		regval |= DMCU_HWTEND;
 	__raw_writel(regval, DMCU_REG(DMCU_HWTDAT1));
 
-	regval = (((table << 5) + entry) & 0x7f) | DMCU_HWTWRITE;
+	regval = (((table << 5) | entry) & 0xff);
 	__raw_writel(regval, DMCU_REG(DMCU_HWTCTRL));
 }
 
@@ -529,6 +529,7 @@ static void pxa988_ddr_fc_table_lpddr2(struct platform_ddr_setting *setting)
 	LAST_ENTRY(DMCU_SDRAM_CTRL14, 0x2, table);
 
 	/* 4. update DDR mode registers, programmed in 2nd table */
+	entry = 0;
 	INSERT_ENTRY(DMCU_USER_COMMAND1, (map | 0x20001), (table + 1));
 	INSERT_ENTRY(DMCU_USER_COMMAND1, (map | 0x20002), (table + 1));
 	/* resume scheduler */
