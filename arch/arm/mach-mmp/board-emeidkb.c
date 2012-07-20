@@ -1309,12 +1309,89 @@ static struct i2c_board_info emeidkb_i2c1_info[] = {
 #endif
 };
 
+/*
+ * workaround for reset i2c bus
+ * i2c0: GPIO53 -> SCL, GPIO54 -> SDA,
+ * i2c1: GPIO87 -> SCL, GPIO88 -> SDA,
+ */
+static void i2c_pxa_bus_reset(int i2c_adap_id)
+{
+	unsigned long mfp_pin[2];
+	int ccnt;
+	unsigned long scl, sda;
+
+	unsigned long i2c0_mfps[] = {
+		GPIO053_GPIO_53,		/* SCL */
+		GPIO054_GPIO_54,		/* SDA */
+	};
+
+	unsigned long i2c1_mfps[] = {
+		GPIO087_GPIO_87,		/* SCL */
+		GPIO088_GPIO_88,		/* SDA */
+	};
+	if (i2c_adap_id == 0) {
+		scl = MFP_PIN_GPIO53;
+		sda = MFP_PIN_GPIO54;
+	}
+	if (i2c_adap_id == 1) {
+		scl = MFP_PIN_GPIO87;
+		sda = MFP_PIN_GPIO88;
+	} else {
+		pr_err("i2c bus num error!\n");
+		return;
+	}
+	if (gpio_request(scl, "SCL")) {
+		pr_err("Failed to request GPIO for SCL pin!\n");
+		goto out0;
+	}
+	if (gpio_request(sda, "SDA")) {
+		pr_err("Failed to request GPIO for SDA pin!\n");
+		goto out_sda0;
+	}
+	/* set mfp pins to gpios */
+	mfp_pin[0] = mfp_read(scl);
+	mfp_pin[1] = mfp_read(sda);
+	if (i2c_adap_id == 0)
+		mfp_config(ARRAY_AND_SIZE(i2c0_mfps));
+	if (i2c_adap_id == 1)
+		mfp_config(ARRAY_AND_SIZE(i2c1_mfps));
+
+	gpio_direction_input(sda);
+	for (ccnt = 20; ccnt; ccnt--) {
+		gpio_direction_output(scl, ccnt & 0x01);
+		udelay(4);
+	}
+	gpio_direction_output(scl, 0);
+	udelay(4);
+	gpio_direction_output(sda, 0);
+	udelay(4);
+	/* stop signal */
+	gpio_direction_output(scl, 1);
+	udelay(4);
+	gpio_direction_output(sda, 1);
+	udelay(4);
+	if (i2c_adap_id == 0) {
+		mfp_write(MFP_PIN_GPIO53, mfp_pin[0]);
+		mfp_write(MFP_PIN_GPIO54, mfp_pin[1]);
+	}
+	if (i2c_adap_id == 1) {
+		mfp_write(MFP_PIN_GPIO87, mfp_pin[0]);
+		mfp_write(MFP_PIN_GPIO88, mfp_pin[1]);
+	}
+	gpio_free(sda);
+out_sda0:
+	gpio_free(scl);
+out0:
+	return;
+}
+
 static struct i2c_pxa_platform_data emeidkb_ci2c_pdata = {
 	.fast_mode		 = 1,
 	/* ilcr:fs mode b17~9=0x23,about 390K, standard mode b8~0=0x9f,97K */
 	.ilcr		= 0x082C469F,
 	/* iwcr:b5~0=b01010 recommended value according to spec*/
 	.iwcr		= 0x0000142A,
+	.i2c_bus_reset		= i2c_pxa_bus_reset,
 };
 
 static struct i2c_pxa_platform_data emeidkb_ci2c2_pdata = {
@@ -1323,6 +1400,7 @@ static struct i2c_pxa_platform_data emeidkb_ci2c2_pdata = {
 	.ilcr		= 0x082C469F,
 	/* iwcr:b5~0=b01010 recommended value according to spec*/
 	.iwcr		= 0x0000142A,
+	.i2c_bus_reset		= i2c_pxa_bus_reset,
 };
 
 static struct i2c_pxa_platform_data emeidkb_pwr_i2c_pdata = {
