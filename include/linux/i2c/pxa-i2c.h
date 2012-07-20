@@ -72,7 +72,11 @@ struct i2c_pxa_platform_data {
 	void			(*hardware_lock)(void);
 	void			(*hardware_unlock)(void);
 	int			(*hardware_trylock)(void);
-	void			(*i2c_bus_reset) (void);
+#ifdef CONFIG_CPU_PXA988
+	void			(*i2c_bus_reset)(int i2c_bus_num);
+#else
+	void			(*i2c_bus_reset)(void);
+#endif
 };
 
 extern void pxa_set_i2c_info(struct i2c_pxa_platform_data *info);

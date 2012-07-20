@@ -299,7 +299,11 @@ static void i2c_pxa_scream_blue_murder(struct pxa_i2c *i2c, const char *why)
 	printk("\n");
 	if (strcmp(why, "exhausted retries") != 0) {
 		if (plat && plat->i2c_bus_reset)
+		#ifdef CONFIG_CPU_PXA988
+			plat->i2c_bus_reset(i2c->adap.nr);
+		#else
 			plat->i2c_bus_reset();
+		#endif
 		/* reset i2c contorler when it's fail */
 		i2c_pxa_reset(i2c);
 	}
