@@ -28,6 +28,7 @@
 #include <linux/device.h>
 #include <linux/kthread.h>
 #include <linux/cpufreq.h>
+#include <linux/suspend.h>
 #include <asm/irq.h>
 #include <asm/io.h>
 #include <mach/mmp3_pm.h>
@@ -228,6 +229,25 @@ static struct attribute_group cm_attribute_group = {
 	.attrs = cm_attributes,
 };
 
+static int cm_notifier_event(struct notifier_block *this,
+			     unsigned long event, void *ptr)
+{
+	switch (event) {
+	case PM_SUSPEND_PREPARE:
+		cm_vote_mp1();
+		break;
+	case PM_POST_RESTORE:
+	case PM_POST_SUSPEND:
+		cm_cancel_vote_mp1();
+		break;
+	}
+	return NOTIFY_OK;
+}
+
+static struct notifier_block cm_notifier = {
+	.notifier_call = cm_notifier_event,
+};
+
 int __init cm_init(void)
 {
 	int ret = 0;
@@ -259,6 +279,8 @@ int __init cm_init(void)
 		goto sysfs_fail;
 	}
 
+	register_pm_notifier(&cm_notifier);
+
 	printk(KERN_INFO "core morph has initialized succesfully.\n");
 	return 0;
 
@@ -275,6 +297,7 @@ alloc_cdev_fail:
 void __exit cm_exit(void)
 {
 	/* unregister module */
+	unregister_pm_notifier(&cm_notifier);
 	sysfs_remove_group(&cm_dev->kobj, &cm_attribute_group);
 	device_destroy(cm_class, cm_dev_no);
 	class_destroy(cm_class);
