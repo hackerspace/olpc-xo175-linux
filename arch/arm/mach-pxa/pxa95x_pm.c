@@ -105,10 +105,10 @@ extern int EnableD2VoltageChange;
 extern unsigned int D2voltageLevelValue;
 extern int cur_op;
 
-#define VLSCR_D2_VALUE (VLSCR_LVL2_SINGLE_RAIL | VLSCR_LVL3_SINGLE_RAIL \
+#define VLSCR_PHY 0x40f5005c
+#define VLSCR_INIT_VALUE (VLSCR_LVL2_SINGLE_RAIL | VLSCR_LVL3_SINGLE_RAIL \
 		| VLSCR_LPM_SINGLE_RAIL)
-#define VLSCR_D1_VALUE (VLSCR_LVL2_SINGLE_RAIL | VLSCR_LVL3_SINGLE_RAIL)
-#define VLSCR_SINGLE_RAIL_MASK (VLSCR_LPM_SINGLE_RAIL \
+#define VLSCR_INIT_MASK (VLSCR_LPM_SINGLE_RAIL \
 		| VLSCR_LVL1_SINGLE_RAIL | VLSCR_LVL2_SINGLE_RAIL \
 		| VLSCR_LVL3_SINGLE_RAIL | VLSCR_LVL0_SINGLE_RAIL \
 		| VLSCR_VCT0_LVL0_REMAP_MASK | VLSCR_VCT0_LVL1_REMAP_MASK \
@@ -713,7 +713,7 @@ static void pm_preset_standby(void)
 #ifdef CONFIG_CPU_PXA978
 static void enter_d2(void)
 {
-	unsigned int pollreg, vlscr = VLSCR, reg_src;
+	unsigned int pollreg, reg_src;
 	pr_debug("enter D2.\n");
 	reg_src = pm_do_wakeup_ops(suspend_wakeup_src, 1);
 	AD2D0SR = 0xFFFFFFFF;
@@ -731,11 +731,6 @@ static void enter_d2(void)
 	do {
 		pollreg = PWRMODE;
 	} while (pollreg != (PXA95x_PM_S0D2C2 | PXA95x_PM_I_Q_BIT));
-
-	/* D2 is using single rail mode */
-	vlscr &= ~(VLSCR_SINGLE_RAIL_MASK);
-	vlscr |= (VLSCR_D2_VALUE);
-	VLSCR = vlscr;
 
 	pxa978_pm_enter(pollreg);
 
@@ -1469,14 +1464,13 @@ void enter_lowpower_mode(int state)
 				sram = (unsigned int)pxa95x_pm_regs.sram_map;
 				if (cpu_is_pxa978()) {
 					/* D1 is using dual rail mode */
-					unsigned int vlscr = VLSCR;
-					vlscr &= ~(VLSCR_SINGLE_RAIL_MASK);
-					vlscr |= (VLSCR_D1_VALUE);
-					VLSCR = vlscr;
+					pxa_reg_write(VLSCR_PHY, ~VLSCR_LPM_SINGLE_RAIL, VLSCR_LPM_SINGLE_RAIL);
 					if (is_wkr_nevo_2339())
 						mmc_jira_2339_wr_before_lpm();
 					pxa978_pm_enter(pollreg);
 					start_tick = OSCR4;
+					/* Restore single rail mode */
+					pxa_reg_write(VLSCR_PHY, VLSCR_LPM_SINGLE_RAIL, VLSCR_LPM_SINGLE_RAIL);
 				} else {
 					pxa95x_cpu_standby(sram + 0x8000,
 							sram + 0xa000 - 4,
@@ -1588,11 +1582,6 @@ void enter_lowpower_mode(int state)
 
 				sram = (unsigned int)pxa95x_pm_regs.sram_map;
 				if (cpu_is_pxa978()) { /*Nevo C0*/
-					/* D2 is using single rail mode */
-					unsigned int vlscr = VLSCR;
-					vlscr &= ~(VLSCR_SINGLE_RAIL_MASK);
-					vlscr |= (VLSCR_D2_VALUE);
-					VLSCR = vlscr;
 					if ( is_wkr_nevo_2339())
 						mmc_jira_2339_wr_before_lpm();
 					pxa978_pm_enter(pollreg);
@@ -2351,6 +2340,10 @@ static int __init pxa95x_pm_init(void)
 	else
 #endif
 		pm_power_off = pxa95x_pm_poweroff;
+
+	/* Initialize VLSCR */
+	pxa_reg_add(VLSCR_PHY, VLSCR_INIT_MASK);
+	pxa_reg_write(VLSCR_PHY, VLSCR_INIT_VALUE, VLSCR_INIT_MASK);
 
 	clk_tout_s0 = clk_get(NULL, "CLK_TOUT_S0");
 	if (IS_ERR(clk_tout_s0)) {
