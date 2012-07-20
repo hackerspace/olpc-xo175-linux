@@ -152,11 +152,12 @@ struct pxa988_usb_phy {
 #define HS_HDL_SYNC		(0x1 << 1)
 #define FS_HDL_OPMD		(0x1 << 0)
 	u16 pad13;
+	u32 rsvd4;		/* 0x48 */
 	u16 utmi_test_reg0;	/* 0x4c */
 	u16 pad14;
 	u16 utmi_test_reg1;	/* 0x50 */
 	u16 pad15;
-	u32 rsvd4;		/* 0x54 */
+	u32 rsvd5;		/* 0x54 */
 	u16 utmi_charger_reg0;	/* 0x58 */
 #define ENABLE_SWITCH		(0x1 << 3)
 #define PU_CHRG_DTC		(0x1 << 2)

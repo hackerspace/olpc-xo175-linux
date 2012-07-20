@@ -447,7 +447,7 @@ static int usb_phy_init_internal(unsigned int base)
 	writel(0x10901003, phy_power);
 
 	/* enable usb device PHY */
-	writew(PLLVDD18(0x1) | REFDIV(0xe) | FBDIV(0x1f0),
+	writew(PLLVDD18(0x1) | REFDIV(0xd) | FBDIV(0xf0),
 		&phy->utmi_pll_reg0);
 	writew(PU_PLL | PLL_LOCK_BYPASS | ICP(0x3) | KVCO(0x3) | PLLCAL12(0x3),
 		&phy->utmi_pll_reg1);
