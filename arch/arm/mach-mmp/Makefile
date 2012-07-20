@@ -67,6 +67,7 @@ obj-$(CONFIG_MACH_ABILENE)	+= abilene.o
 obj-$(CONFIG_MACH_MK2)		+= mk2.o
 obj-$(CONFIG_MACH_YELLOWSTONE)	+= yellowstone.o
 obj-$(CONFIG_MACH_ORCHID)	+= orchid.o
+obj-$(CONFIG_MACH_THUNDERSTONEM)+= thunderstonem.o
 obj-$(CONFIG_MACH_EMEIDKB)	+= board-emeidkb.o
 obj-$(CONFIG_CPU_FREQ_MMP3)	+= cpufreq-mmp3.o
 obj-$(CONFIG_CPU_FREQ_PXA910)	+= cpufreq-pxa910.o acpuclock-pxa910.o acpuclock-pxa910_ll.o

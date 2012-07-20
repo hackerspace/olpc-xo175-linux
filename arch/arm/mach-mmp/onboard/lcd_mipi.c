@@ -53,6 +53,23 @@ static struct fb_videomode video_modes_yellowstone[] = {
 };
 #endif
 
+#ifdef CONFIG_MACH_THUNDERSTONEM
+static struct fb_videomode video_modes_thunderstonem[] = {
+	[0] = {
+		.refresh = 60,
+		.xres = 1024,
+		.yres = 768,
+		.hsync_len = 2,
+		.left_margin = 122,
+		.right_margin = 122,
+		.vsync_len = 8,
+		.upper_margin = 16,
+		.lower_margin = 16,
+		.sync = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
+		},
+};
+#endif
+
 #ifdef CONFIG_MACH_ORCHID
 static struct fb_videomode video_modes_orchid[] = {
 	[0] = {
@@ -242,6 +259,107 @@ static int yellowstone_lvds_power(struct pxa168fb_info *fbi,
 }
 #endif
 
+#ifdef CONFIG_MACH_THUNDERSTONEM
+static int thunderstonem_lvds_power(struct pxa168fb_info *fbi,
+				unsigned int spi_gpio_cs,
+				unsigned int spi_gpio_reset, int on)
+{
+	static struct regulator *v_lcd, *v_1p8_ana;
+	int lcd_rst_n, lcd_en, lcd_stby;
+
+	/*
+	 * FIXME: It is board related, baceuse zx will be replaced soon,
+	 * it is temproary distinguished by cpu
+	 */
+	lcd_rst_n = mfp_to_gpio(GPIO128_LCD_RST);
+	if (gpio_request(lcd_rst_n, "lcd reset gpio")) {
+		pr_err("gpio %d request failed\n", lcd_rst_n);
+		return -EIO;
+	}
+
+	lcd_en = mfp_to_gpio(GPIO84_GPIO);
+	if (gpio_request(lcd_en, "lcd en gpio")) {
+		pr_err("gpio %d request failed\n", lcd_en);
+		goto gpio_free_rst;
+	}
+
+	lcd_stby = mfp_to_gpio(GPIO19_GPIO);
+	if (gpio_request(lcd_stby, "lcd stby gpio")) {
+		pr_err("gpio %d request failed\n", lcd_stby);
+		goto gpio_free_en;
+	}
+
+	/* V_1P8_ANA, AVDD_LVDS, 1.8v */
+	if (!v_1p8_ana) {
+		v_1p8_ana = regulator_get(NULL, "AVDD_LVDS");
+		if (IS_ERR(v_1p8_ana)) {
+			pr_err("%s regulator get error!\n", __func__);
+			v_1p8_ana = NULL;
+			goto gpio_free_stby;
+		}
+	}
+	/* V_LCD 3.3v */
+	if (!v_lcd) {
+		v_lcd = regulator_get(NULL, "V_LCD");
+		if (IS_ERR(v_lcd)) {
+			pr_err("%s regulator get error!\n", __func__);
+			v_lcd = NULL;
+			goto gpio_free_avdd;
+		}
+	}
+
+	if (on) {
+		/* panel stanby mode exit */
+		gpio_direction_output(lcd_stby, 1);
+
+		regulator_set_voltage(v_1p8_ana, 1800000, 1800000);
+		regulator_enable(v_1p8_ana);
+
+		regulator_set_voltage(v_lcd, 3300000, 3300000);
+		regulator_enable(v_lcd);
+
+		/* panel enable */
+		gpio_direction_output(lcd_en, 1);
+		/* release panel from reset */
+		gpio_direction_output(lcd_rst_n, 1);
+	} else {
+		/* panel stanby mode enter */
+		gpio_direction_output(lcd_stby, 0);
+		/* panel disable */
+		gpio_direction_output(lcd_en, 0);
+		/* set panel reset */
+		gpio_direction_output(lcd_rst_n, 0);
+
+		/* disable v_ldo10 3.3v */
+		regulator_disable(v_lcd);
+
+		/* disable v_ldo19 1.8v */
+		regulator_disable(v_1p8_ana);
+
+	}
+
+	gpio_free(lcd_rst_n);
+	gpio_free(lcd_en);
+	gpio_free(lcd_stby);
+
+	pr_debug("%s on %d\n", __func__, on);
+	return 0;
+
+gpio_free_avdd:
+	regulator_put(v_1p8_ana);
+
+gpio_free_stby:
+	gpio_free(lcd_stby);
+
+gpio_free_en:
+	gpio_free(lcd_en);
+
+gpio_free_rst:
+	gpio_free(lcd_rst_n);
+	return -EIO;
+}
+#endif
+
 #ifdef CONFIG_MACH_ORCHID
 static int orchid_lcd_power(struct pxa168fb_info *fbi,
 			     unsigned int spi_gpio_cs,
@@ -398,6 +516,13 @@ static struct lvds_info lvdsinfo = {
 	.fmt	= LVDS_FMT_18BIT,
 };
 
+#if defined(CONFIG_MACH_THUNDERSTONEM)
+static struct lvds_info lvdsinfo_thunderstonem = {
+    .src    = LVDS_SRC_PN,
+    .fmt    = LVDS_FMT_24BIT,
+};
+#endif
+
 static void lvds_hook(struct pxa168fb_mach_info *mi)
 {
 	mi->phy_type = LVDS;
@@ -406,10 +531,18 @@ static void lvds_hook(struct pxa168fb_mach_info *mi)
 
 	mi->modes->refresh = 60;
 
-	if (machine_is_yellowstone())
+	if (machine_is_yellowstone()) {
+		mi->phy_info = (void *)&lvdsinfo;
 		mi->pxa168fb_lcd_power = yellowstone_lvds_power;
-	else if (machine_is_abilene())
+	} else if (machine_is_abilene()) {
+		mi->phy_info = (void *)&lvdsinfo;
 		mi->pxa168fb_lcd_power = abilene_lvds_power;
+	} else if (machine_is_thunderstonem()) {
+#if defined(CONFIG_MACH_THUNDERSTONEM)
+		mi->pxa168fb_lcd_power = thunderstonem_lvds_power;
+		mi->phy_info = (void *)&lvdsinfo_thunderstonem;
+#endif
+	}
 }
 #endif
 
@@ -497,7 +630,7 @@ static int tc358765_reset(struct pxa168fb_info *fbi)
 #endif
 
 #if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_YELLOWSTONE) \
-	|| defined(CONFIG_MACH_MK2)
+	|| defined(CONFIG_MACH_MK2) || defined(CONFIG_MACH_THUNDERSTONEM)
 	gpio = mfp_to_gpio(GPIO128_LCD_RST);
 #endif
 
@@ -959,7 +1092,7 @@ static int dsi_init(struct pxa168fb_info *fbi)
 
 #if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_YELLOWSTONE) \
 	|| defined(CONFIG_MACH_MK2) || defined(CONFIG_MACH_ORCHID) \
-	|| defined(CONFIG_MACH_EMEIDKB)
+	|| defined(CONFIG_MACH_EMEIDKB) || defined(CONFIG_MACH_THUNDERSTONEM)
 static struct pxa168fb_mach_info mipi_lcd_info = {
 	.id = "GFX Layer",
 	.num_modes = 0,
@@ -1126,7 +1259,7 @@ static void calculate_lcd_sclk(struct pxa168fb_mach_info *mi)
 
 #if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_YELLOWSTONE) \
 	|| defined(CONFIG_MACH_MK2) || defined(CONFIG_MACH_ORCHID) \
-	|| defined(CONFIG_MACH_BROWNSTONE)
+	|| defined(CONFIG_MACH_BROWNSTONE) || defined(CONFIG_MACH_THUNDERSTONEM)
 static void vsmooth_init(int vsmooth_ch, int filter_ch)
 {
 #ifdef CONFIG_PXA688_MISC
@@ -1248,6 +1381,55 @@ void __init yellowstone_add_lcd_mipi(void)
 			video_modes_yellowstone[0].right_margin =
 			(dsi->lanes == 4) ? 206 : 116;
 	}
+
+	/* Re-calculate lcd clk source and divider
+	 * according to dsi lanes and output format.
+	 */
+	calculate_lcd_sclk(fb);
+
+	dmc_membase = ioremap(DDR_MEM_CTRL_BASE, 0x30);
+	CSn_NO_COL = __raw_readl(dmc_membase + SDRAM_CONFIG_TYPE1_CS0) >> 4;
+	CSn_NO_COL &= 0xF;
+	if (CSn_NO_COL <= 0x2) {
+		/*
+		 *If DDR page size < 4KB,
+		 *select no crossing 1KB boundary check
+		 */
+		fb->io_pad_ctrl |= CFG_BOUNDARY_1KB;
+		ovly->io_pad_ctrl |= CFG_BOUNDARY_1KB;
+	}
+	iounmap(dmc_membase);
+
+	/* add frame buffer drivers */
+	mmp3_add_fb(fb);
+	/* add overlay driver */
+#ifdef CONFIG_PXA168_V4L2_OVERLAY
+	mmp3_add_v4l2_ovly(ovly);
+#else
+	mmp3_add_fb_ovly(ovly);
+#endif
+	vsmooth_init(1, 2);
+}
+#endif
+
+#ifdef CONFIG_MACH_THUNDERSTONEM
+void __init thunderstonem_add_lcd_mipi(void)
+{
+	unsigned char __iomem *dmc_membase;
+	unsigned int CSn_NO_COL;
+
+	struct pxa168fb_mach_info *fb = &mipi_lcd_info, *ovly =
+	    &mipi_lcd_ovly_info;
+
+	fb->num_modes = ARRAY_SIZE(video_modes_thunderstonem);
+	fb->modes = video_modes_thunderstonem;
+	fb->max_fb_size = video_modes_thunderstonem[0].xres *
+		video_modes_thunderstonem[0].yres * 8 + 4096;
+	ovly->num_modes = fb->num_modes;
+	ovly->modes = fb->modes;
+	ovly->max_fb_size = fb->max_fb_size;
+
+	lvds_hook(fb);
 
 	/* Re-calculate lcd clk source and divider
 	 * according to dsi lanes and output format.

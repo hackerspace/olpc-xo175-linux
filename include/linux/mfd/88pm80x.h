@@ -158,6 +158,8 @@ enum {
 #define PM800_WAKEUP2_INT_MASK		(1 << 2)
 
 #define PM800_POWER_UP_LOG	(0x10)
+#define PM800_WATCHDOG_CTRL	(0x1D)
+#define  PM800_WATCHDOG_WD_OFF	(1<<0)
 
 /*test page*/
 #define PM800_TEST_PAGE_ENTRY	(0x1F)
@@ -304,6 +306,7 @@ enum {
 #define PM800_LDO_ENA1_2	(0x52)
 #define PM800_LDO_ENA1_3	(0x53)
 
+#define PM800_BUCK_ENA2		(0x55)
 #define PM800_LDO_ENA2_1	(0x56)
 #define PM800_LDO_ENA2_2	(0x57)
 #define PM800_LDO_ENA2_3	(0x58)

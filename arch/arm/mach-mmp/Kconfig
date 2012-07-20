@@ -103,6 +103,12 @@ config MACH_ORCHID
 	select HAVE_PWM
 	select ARM_GIC
 
+config MACH_THUNDERSTONEM
+    bool "Marvell's MMP3 ThunderstoneM Development Board"
+	select CPU_MMP3
+	select HAVE_PWM
+	select ARM_GIC
+
 config MACH_EMEIDKB
 	bool "Marvell's Emei DKB Development Board"
 	select CPU_PXA988

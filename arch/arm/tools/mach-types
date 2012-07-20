@@ -1115,6 +1115,7 @@ atdgp318		MACH_ATDGP318		ATDGP318		3494
 yellowstone		MACH_YELLOWSTONE	YELLOWSTONE		3495
 mk2			MACH_MK2                MK2                     3497
 orchid			MACH_ORCHID		ORCHID			3498
+thunderstonem		MACH_THUNDERSTONEM	THUNDERSTONEM		4233
 # add MG/Nevo related machine types: keep the value to align with old version
 saarb			MACH_SAARB		SAARB			2139
 saarc			MACH_NEVOSAARC		NEVOSAARC		2980
