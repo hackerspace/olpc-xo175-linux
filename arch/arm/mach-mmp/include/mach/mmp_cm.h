@@ -21,6 +21,16 @@
 #define MMP_CM_REG_DIS_MP1_MP2	(PGU_VIRT_BASE + 0xc84)
 #define MMP_CM_REG		MMP_CM_REG_DIS_MP1_MP2
 
+#ifdef CONFIG_CORE_MORPHING
 extern int cm_get_active_core_id(void);
+extern int cm_vote_mp1(void);
+extern int cm_cancel_vote_mp1(void);
+extern void cm_enable(void);
+#else
+#define cm_get_active_core_id()	(0)
+#define cm_vote_mp1()		do { } while (0)
+#define cm_cancel_vote_mp1()	do { } while (0)
+#define cm_enable()		do { } while (0)
+#endif
 
 #endif /* MMP_CM_H */
