@@ -186,10 +186,10 @@ static int vmeta_clk_switch(struct vmeta_instance *vi, unsigned long clk_flag)
 		vop = ret;
 		vmeta_print(KERN_INFO "[vmeta] set vop as %d\n", vop);
 	} else if (flags == 2) {
-		vop = VMETA_OP_VGA;
+		vop = VMETA_OP_1080P_MAX;
 		vmeta_print(KERN_INFO "[vmeta] set vop as %d\n", vop);
 	} else if (flags == 3) {
-		vop = VMETA_OP_720P_MAX;
+		vop = VMETA_OP_VGA;
 		vmeta_print(KERN_INFO "[vmeta] set vop as %d\n", vop);
 	}
 
