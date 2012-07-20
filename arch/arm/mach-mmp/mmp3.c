@@ -1195,29 +1195,8 @@ static void mmp_zsp_domain_on(int spd, int src, int asclk)
 
 static void mmp_zsp_domain_halt(void)
 {
-	u32 value;
 	if (aud_pwr_status.zsp_cnt > 0) {
 		aud_pwr_status.zsp_cnt--;
-		if (aud_pwr_status.zsp_cnt == 0) {
-			/* reset audio peripheral */
-			__raw_modify(ZSP_AUD_DSA_CORE_CLK_RES, 0x0, 0x4);
-			udelay(100);
-			/* switch to  pll1*/
-			__raw_modify(ZSP_AUD_DSA_CORE_CLK_RES, 0x30, 0x0);
-			/* set divider 2*/
-			__raw_modify(ZSP_AUD_CORE_FREQ_CHG, 0xE, 0x4);
-			/* enable divider*/
-			__raw_modify(ZSP_AUD_DSA_CORE_CLK_RES, 0x0, 0x8);
-			/* enabled core clock and release reset*/
-			__raw_modify(ZSP_AUD_DSA_CORE_CLK_RES, 0x4, 0x0);
-			udelay(10);
-			__raw_modify(ZSP_AUD_CORE_FREQ_CHG, 0x0, 0x1);
-			udelay(10);
-			do {
-				value = readl(ZSP_AUD_CORE_FREQ_CHG);
-				udelay(10);
-			} while ((value & 0x1) != 0);
-		}
 	}
 
 	if (aud_pwr_status.aud_dev_cnt > 0)
@@ -1225,12 +1204,7 @@ static void mmp_zsp_domain_halt(void)
 
 	if (aud_pwr_status.aud_pll_cnt > 0) {
 		aud_pwr_status.aud_pll_cnt--;
-		if (aud_pwr_status.aud_pll_cnt == 0) {
-			__raw_modify(SSPA_AUD_PLL_CTRL1, 0x800, 0x0);
-			__raw_modify(SSPA_AUD_PLL_CTRL0, 0x1, 0x0);
-		}
 	}
-
 	if (aud_pwr_status.main_pwr_cnt > 0) {
 		aud_pwr_status.main_pwr_cnt--;
 		if (aud_pwr_status.main_pwr_cnt == 0) {
