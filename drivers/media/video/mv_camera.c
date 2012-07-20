@@ -796,7 +796,8 @@ static int mv_camera_add_device(struct soc_camera_device *icd)
 	frames = singles = delivered = 0;
 
 #ifdef CONFIG_PM
-	mcam->controller_power(1);
+	if (mcam->controller_power)
+		mcam->controller_power(1);
 #endif
 #ifdef CONFIG_CPU_PXA910
 	set_power_constraint(mcam->qos_req_min);
@@ -847,7 +848,8 @@ static void mv_camera_remove_device(struct soc_camera_device *icd)
 	pm_qos_update_request(&pcdev->qos_idle, PM_QOS_DEFAULT_VALUE);
 #endif
 #ifdef CONFIG_PM
-	mcam->controller_power(0);
+	if (mcam->controller_power)
+		mcam->controller_power(0);
 #endif
 }
 
@@ -1244,7 +1246,8 @@ static int __devinit mv_camera_probe(struct platform_device *pdev)
 
 	ccic_enable_clk(pcdev);
 #if defined(CONFIG_PM)
-	mcam->controller_power(0);
+	if (mcam->controller_power)
+		mcam->controller_power(0);
 #endif
 	pcdev->soc_host.drv_name = MV_CAM_DRV_NAME;
 	pcdev->soc_host.ops = &mv_soc_camera_host_ops;
@@ -1360,7 +1363,8 @@ static int mv_camera_suspend(struct device *dev)
 	ccic_disable_clk(pcdev);
 	ccic_power_down(pcdev);
 #ifdef CONFIG_PM
-	mcam->controller_power(0);
+	if (mcam->controller_power)
+		mcam->controller_power(0);
 #endif
 
 #ifdef CONFIG_CPU_PXA910
@@ -1397,7 +1401,8 @@ static int mv_camera_resume(struct device *dev)
 #endif
 
 #ifdef CONFIG_PM
-	mcam->controller_power(1);
+	if (mcam->controller_power)
+		mcam->controller_power(1);
 #endif
 	ccic_power_up(pcdev);
 	ccic_enable_clk(pcdev);
