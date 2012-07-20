@@ -200,12 +200,7 @@ static int ov2659_s_register(struct v4l2_subdev *sd,
 
 static int set_stream(struct i2c_client *client, int enable)
 {
-	int ret = 0;
-	/* No need to compress data*/
-	if (!enable)
-		ret = ov2659_write(client, 0x3002, 0x00);
-
-	return ret;
+	return 0;
 }
 
 static int ov2659_s_stream(struct v4l2_subdev *sd, int enable)
