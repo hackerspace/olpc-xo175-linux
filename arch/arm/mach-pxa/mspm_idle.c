@@ -23,7 +23,6 @@
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 #include <linux/spinlock.h>
-
 #include <mach/hardware.h>
 #include <asm/proc-fns.h>
 #include <asm/mach/time.h>
@@ -121,6 +120,8 @@ static unsigned int pm_enter_deepidle(unsigned int x)
 }
 #endif
 extern unsigned int c2_allow;
+extern unsigned int c1_allow;
+
 static void pxa95x_cpu_idle(void)
 {
 	unsigned int c1_enter_time, c1_exit_time, pollreg;
@@ -154,14 +155,16 @@ static void pxa95x_cpu_idle(void)
 				pollreg = PWRMODE;
 			} while (pollreg !=
 					(PXA978_PM_S0D0CG | PXA95x_PM_I_Q_BIT));
+
 			pxa978_pm_enter(pollreg);
-		} else {
+		} else if (c1_allow) {
 			PWRMODE = (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT);
 			do {
 				pollreg = PWRMODE;
 			} while (pollreg != (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT));
 			cpu_do_idle();
-		}
+		} else
+			cpu_do_idle();
 	} else if (cpu_is_pxa955() && !(is_wkr_mg1_1274())) {
 		PWRMODE = (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT);
 		do {

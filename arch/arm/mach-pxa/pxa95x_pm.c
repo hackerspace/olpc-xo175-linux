@@ -215,6 +215,8 @@ static int __attribute__ ((unused)) ispt_power_state_exit_lpm(void)
 #ifdef CONFIG_IPM
 int enable_deepidle;		/* IDLE_D0 -- 0 */
 int save_deepidle;
+unsigned int c2_allow = 1;
+unsigned int c1_allow = 1;
 
 void (*event_notify) (int, int, void *, unsigned int);
 EXPORT_SYMBOL(event_notify);
@@ -1963,6 +1965,10 @@ static ssize_t deepidle_show(struct kobject *kobj,
 		len += sprintf(buf + len, "D2IDLE, ");
 	if (enable_deepidle & IDLE_CG)
 		len += sprintf(buf + len, "CGIDLE, ");
+	if (c2_allow)
+		len += sprintf(buf + len, "C2IDLE, ");
+	if (c1_allow)
+		len += sprintf(buf + len, "C1IDLE, ");
 	len += sprintf(buf + len, "D0IDLE\n");
 	len += sprintf(buf + len, "Command: echo [set|unset] [d1|d2|cg] "
 		       "> deepidle\n");
@@ -1992,6 +1998,10 @@ static ssize_t deepidle_store(struct kobject *kobj,
 			enable_deepidle |= IDLE_D2;
 		else if (strcmp(token[1], "cg") == 0)
 			enable_deepidle |= IDLE_CG;
+		else if (strcmp(token[1], "c1") == 0)
+			c1_allow = 1;
+		else if (strcmp(token[1], "c2") == 0)
+			c2_allow = 1;
 		else
 			error = -EINVAL;
 	} else if (strcmp(token[0], "unset") == 0) {
@@ -2001,11 +2011,18 @@ static ssize_t deepidle_store(struct kobject *kobj,
 			enable_deepidle &= ~IDLE_D2;
 		else if (strcmp(token[1], "cg") == 0)
 			enable_deepidle &= ~IDLE_CG;
+		else if (strcmp(token[1], "c1") == 0)
+			c1_allow = 0;
+		else if (strcmp(token[1], "c2") == 0)
+			c2_allow = 0;
 		else
 			error = -EINVAL;
 	} else {
-		if (strcmp(token[0], "0") == 0)
+		if (strcmp(token[0], "0") == 0) {
 			enable_deepidle = IDLE_D0;
+			c1_allow = 0;
+			c2_allow = 0;
+		}
 		else
 			error = -EINVAL;
 	}

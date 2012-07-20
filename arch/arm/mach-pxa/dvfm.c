@@ -271,29 +271,6 @@ static ssize_t dvfm_control(struct sys_device *sys_dev,
 
 SYSDEV_ATTR(control, 0644, NULL, dvfm_control);
 
-unsigned int c2_allow = 1;
-
-static ssize_t dvfm_c2_allow_store(struct sys_device *sys_dev,
-			    struct sysdev_attribute *attr, const char *buf,
-			    size_t len)
-{
-	unsigned int c2_allow_internal;
-	sscanf(buf, "%u", &c2_allow_internal);
-	/* PowerVal controls LPM entry and DvfmVal controls DVFM */
-	c2_allow = c2_allow_internal;
-	pr_info("\n [%s] c2_allow = %d", __func__, c2_allow);
-	return len;
-}
-
-static ssize_t dvfm_c2_allow_show(struct sys_device *sys_dev,
-			  struct sysdev_attribute *attr, char *buf)
-{
-	unsigned int len = 0;
-	len += sprintf(buf + len, "\n [%s] c2_allow = %d", __func__, c2_allow);
-	return len;
-}
-SYSDEV_ATTR(c2_allow, 0644, dvfm_c2_allow_show, dvfm_c2_allow_store);
-
 extern void dump_cop_regs(unsigned int *);
 #define ALL_COOP (45)
 unsigned int cop_dump[ALL_COOP];
@@ -369,7 +346,6 @@ static struct attribute *dvfm_attr[] = {
 	&attr_trace.attr,
 	&attr_enable_op_by_driver.attr,
 	&attr_control.attr,
-	&attr_c2_allow.attr,
 #ifdef CONFIG_CPU_PXA978
 	&attr_read_cop_show.attr,
 #endif
