@@ -281,6 +281,24 @@ void pxa95x_ssp_mfp_init(bool bssp)
 		panic("pxa95x_abu_mfp_init called with NULL pointer!\n");
 }
 
+int is_wkr_ddr533(void)
+{
+	int ret = 0;
+	int id = get_board_id();
+
+	/* Only for SaarC boards*/
+	switch (id) {
+	case OBM_SAAR_C3_NEVO_C0_V10_BOARD:
+	case OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ:
+	case OBM_SAAR_C3V5_NEVO_D0_V10_BOARD:
+		ret = 1;
+		break;
+	default:
+		ret = 0;
+		break;
+	}
+	return ret;
+}
 
 static unsigned int rfic_reset_gpio_pin = EINVAL;
 
