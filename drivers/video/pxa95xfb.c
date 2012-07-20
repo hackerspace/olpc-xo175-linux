@@ -1014,9 +1014,8 @@ static void converter_set_parallel(struct pxa95xfb_info *fbi)
 	/* set converter registers */
 	x = LCD_CONVx_CTL_TV_FOR
 		|LCD_CONVx_CTL_OP_FOR(conv->pix_fmt_out)
-		|LCD_CONVx_CTL_DISP_TYPE(conv->panel_type);
-	if (!cpu_is_pxa978())
-		x |= LCD_CONVx_CTL_DISP_EOF_INT_EN;
+		|LCD_CONVx_CTL_DISP_TYPE(conv->panel_type)
+		|LCD_CONVx_CTL_DISP_EOF_INT_EN;
 	writel(x, fbi->reg_base + LCD_CONV0_CTL);
 }
 
@@ -1078,9 +1077,8 @@ static void converter_set_dsi(struct pxa95xfb_conv_info *conv)
 	x = LCD_DSI_DxSCR0_PRIM_VC
 		|LCD_DSI_DxSCR0_FLOW_DIS
 		|LCD_DSI_DxSCR0_CONV_EN
-		|LCD_DSI_DxSCR0_DISP_URUN_INT_EN;
-	if (!cpu_is_pxa978())
-		x |= LCD_CONVx_CTL_DISP_EOF_INT_EN;
+		|LCD_DSI_DxSCR0_DISP_URUN_INT_EN
+		|LCD_CONVx_CTL_DISP_EOF_INT_EN;
 	writel(x, conv_base + LCD_DSI_DxSCR0_OFFSET);
 
 	/*Send DSI commands and enable dsi*/
@@ -1362,12 +1360,20 @@ static void converter_unmask_eof(struct pxa95xfb_conv_info *conv)
 		return;
 
 	/* although there's possibility be inserted by mask_eof, spin_lock is not added here:
-	 * irq_pending = 2 so eof mask would less possible to be happened
+	 * 1: set irq_pending before do real unmask to avoid case:
+	 * irq_pending is set to non-zero but irq is masked,
+	 * so it would never be unmasked again
+	 * 2: set irq_pending to 2 so that for 60fps cases, irq would not be really masked/unmasked
 	 */
-	conv->irq_pending = 2;
-	x = readl(conv->conv_base + LCD_DSI_DxSCR0_OFFSET);
-	x |= LCD_CONVx_CTL_DISP_EOF_INT_EN;
-	writel(x, conv->conv_base + LCD_DSI_DxSCR0_OFFSET);
+	if (!conv->irq_pending) {
+		conv->irq_pending = 2;
+		x = readl(conv->conv_base + LCD_DSI_DxINST0_OFFSET);
+		writel(x, conv->conv_base + LCD_DSI_DxINST0_OFFSET);
+		x = readl(conv->conv_base + LCD_DSI_DxSCR0_OFFSET);
+		x |= LCD_CONVx_CTL_DISP_EOF_INT_EN;
+		writel(x, conv->conv_base + LCD_DSI_DxSCR0_OFFSET);
+	} else
+		conv->irq_pending = 2;
 	printk(KERN_DEBUG "%s: unmask eof: pending irq %d\n",
 		conv->name, conv->irq_pending);
 }
