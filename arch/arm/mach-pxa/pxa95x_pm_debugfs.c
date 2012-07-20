@@ -135,7 +135,10 @@ const char pxa9xx_force_lpm_names__[][LPM_NAMES_LEN] = {
 	"PXA9xx_Force_None",
 	"PXA9xx_Force_D2",
 	"PXA9xx_Force_D1",
-	"PXA9xx_Force_CGM"
+	"PXA9xx_Force_CGM",
+	"PXA9xx_Force_C2",
+	"PXA9xx_Force_C1",
+	"PXA9xx_Force_ONLY_IDLE"
 };
 
 static struct dentry *dbgfs_root, *pmLogger_file, *DRO_Status, *forceVCTCXO_EN_file,
@@ -1060,7 +1063,7 @@ static ssize_t PXA9xx_DVFM_ForceLPM_seq_read(struct file *file,
 					     size_t count, loff_t *ppos)
 {
 	/* Consider buff size when modifiy this function */
-	char buf[512] = { 0 };
+	char buf[800] = { 0 };
 	int ret, sum;
 	int nameIndex = 0;
 
@@ -1083,6 +1086,16 @@ static ssize_t PXA9xx_DVFM_ForceLPM_seq_read(struct file *file,
 	sum += ret;
 	ret = snprintf(buf + sum, sizeof(buf) - 1,
 		       "    type [LPM to Force] [0x peripherals for wakeup], <r>\n");
+	if (-1 == ret)
+		return ret;
+	sum += ret;
+	ret = snprintf(buf + sum, sizeof(buf) - 1,
+		       "If for C1 and C2 Mode\n");
+	if (-1 == ret)
+		return ret;
+	sum += ret;
+	ret = snprintf(buf + sum, sizeof(buf) - 1,
+		       "    type [LPM to Force] <r>\n");
 	if (-1 == ret)
 		return ret;
 	sum += ret;
@@ -1129,7 +1142,7 @@ static ssize_t PXA9xx_DVFM_ForceLPM_seq_read(struct file *file,
 			ret = snprintf(buf + sum, sizeof(buf) - 1,
 					"ForceLPMWakeup_CGM_D0 for ACGD0ER2 = 0x%x\n", ForceLPMWakeup_CGM_D0);
 		}
-		else
+		else if ((PXA9xx_Force_D1 == ForceLPM) || (PXA9xx_Force_D2 == ForceLPM))
 			ret = snprintf(buf + sum, sizeof(buf) - 1,
 					"ForceLPMWakeup = 0x%x\n", ForceLPMWakeup);
 	} else
@@ -1158,11 +1171,13 @@ static int PXA9xx_DVFM_ForceLPM_seq_write(struct file *file,
 
 	pos += sscanf(buf, "%d", &ForceLPM_tmp);
 
-	if (ForceLPM_tmp == 3)
-		pos += sscanf(buf + pos, "%x, %x, %c", &ForceLPMWakeups_tmp, &ForceLPMWakeups_tmp_CGM_D0, &ch);
-	else
-		pos += sscanf(buf + pos, "%x, %c", &ForceLPMWakeups_tmp, &ch);
-
+	if (ForceLPM_tmp < 4) {
+		if (ForceLPM_tmp == 3)
+			pos += sscanf(buf + pos, "%x, %x, %c", &ForceLPMWakeups_tmp, &ForceLPMWakeups_tmp_CGM_D0, &ch);
+		else
+			pos += sscanf(buf + pos, "%x, %c", &ForceLPMWakeups_tmp, &ch);
+	} else
+			pos = sscanf(buf, "%d %c", &ForceLPM_tmp, &ch);
 	if (ch == 'r')
 		RepeatMode = 1;
 	else

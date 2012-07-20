@@ -21,6 +21,9 @@ enum pxa9xx_force_lpm {
 	PXA9xx_Force_D2,
 	PXA9xx_Force_D1,
 	PXA9xx_Force_CGM,
+	PXA9xx_Force_C2,
+	PXA9xx_Force_C1,
+	PXA9xx_Force_CORE_ONLY_IDLE,
 	PXA9xx_Force_count
 };
 
@@ -85,7 +88,7 @@ extern struct proc_op_array *proc_op;
 #define DEV_TABLE_HEADER_MAGIC		0x44565442
 
 #ifdef CONFIG_DEBUG_FS
-#define LPM_NAMES_LEN 20
+#define LPM_NAMES_LEN 30
 extern const char pxa9xx_force_lpm_names__[][LPM_NAMES_LEN];
 #endif
 extern enum pxa9xx_force_lpm ForceLPM;

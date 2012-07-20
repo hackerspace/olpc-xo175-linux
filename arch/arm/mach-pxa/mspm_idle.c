@@ -23,6 +23,7 @@
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 #include <linux/spinlock.h>
+#include <linux/io.h>
 #include <mach/hardware.h>
 #include <asm/proc-fns.h>
 #include <asm/mach/time.h>
@@ -42,6 +43,7 @@
 #include <mach/dvfm.h>
 #endif
 #include <mach/pxa9xx_pm_logger.h> /* for pm debug tracing */
+#include <mach/debug_pm.h>
 
 #define MAX_OSCR0		0xFFFFFFFF
 
@@ -122,11 +124,48 @@ static unsigned int pm_enter_deepidle(unsigned int x)
 extern unsigned int c2_allow;
 extern unsigned int c1_allow;
 
+static inline unsigned int irq_base(int i)
+{
+	static unsigned int phys_base[] = {
+		0x40d00000,
+		0x40d0009c,
+		0x40d00130,
+	};
+	return phys_base[i];
+}
+
+static void int_mask_no_uart(unsigned long *saved_icmr)
+{
+	int i;
+	for (i = 0; i < 3; i++) {
+		unsigned int addr_tmp = irq_base(i);
+		void __iomem *base = ioremap(addr_tmp, 4);
+		saved_icmr[i] = __raw_readl(base + (0x004));
+		if (i == 0)
+			__raw_writel(0x00700000, base + (0x004));
+		else
+			__raw_writel(0, base + (0x004));
+		iounmap(base);
+	}
+}
+
+static void int_mask_restore(unsigned long *saved_icmr)
+{
+	int i;
+	for (i = 0; i < 3; i++) {
+		unsigned int addr_tmp = irq_base(i);
+		void __iomem *base = ioremap(addr_tmp, 4);
+		__raw_writel(saved_icmr[i], base + (0x004));
+		iounmap(base);
+	}
+}
+
 static void pxa95x_cpu_idle(void)
 {
 	unsigned int c1_enter_time, c1_exit_time, pollreg;
 	struct op_info *info = NULL;
 	int op;
+	unsigned long saved_icmr[4];
 	DVFMLPMGlobalCount.D0C1_Enter_count++;
 	op = dvfm_get_op(&info);
 
@@ -155,16 +194,45 @@ static void pxa95x_cpu_idle(void)
 				pollreg = PWRMODE;
 			} while (pollreg !=
 					(PXA978_PM_S0D0CG | PXA95x_PM_I_Q_BIT));
+			if (ForceLPM == PXA9xx_Force_C2) {
+				LastForceLPM = PXA9xx_Force_C2;
+				int_mask_no_uart(saved_icmr);
+			}
 
 			pxa978_pm_enter(pollreg);
+
+			if (ForceLPM == PXA9xx_Force_C2)
+				int_mask_restore(saved_icmr);
 		} else if (c1_allow) {
 			PWRMODE = (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT);
 			do {
 				pollreg = PWRMODE;
 			} while (pollreg != (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT));
+
+			if (ForceLPM == PXA9xx_Force_C1) {
+				LastForceLPM = PXA9xx_Force_C1;
+				int_mask_no_uart(saved_icmr);
+			}
+
 			cpu_do_idle();
-		} else
+
+			if (ForceLPM == PXA9xx_Force_C1)
+				int_mask_restore(saved_icmr);
+		} else {
+			if (ForceLPM == PXA9xx_Force_CORE_ONLY_IDLE) {
+				LastForceLPM = PXA9xx_Force_CORE_ONLY_IDLE;
+				int_mask_no_uart(saved_icmr);
+			}
+
 			cpu_do_idle();
+
+			if (ForceLPM == PXA9xx_Force_CORE_ONLY_IDLE)
+				int_mask_restore(saved_icmr);
+		}
+		if (!RepeatMode) {
+			if (ForceLPM && LastForceLPM == ForceLPM)
+				LastForceLPM = ForceLPM = PXA9xx_Force_None;
+		}
 	} else if (cpu_is_pxa955() && !(is_wkr_mg1_1274())) {
 		PWRMODE = (PXA95x_PM_S0D0C1 | PXA95x_PM_I_Q_BIT);
 		do {
