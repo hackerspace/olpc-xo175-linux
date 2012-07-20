@@ -31,6 +31,7 @@ struct max77601_vreg {
 	u32 min_uV;
 	u32 max_uV;
 	u32 step_uV;
+	u32 max_uA;
 	u8 volt_shadow;
 	u8 cfg_shadow;
 	u8 power_mode;
@@ -46,6 +47,7 @@ static int max77601_regulator_is_enabled(struct regulator_dev *dev);
 static int max77601_regulator_set_mode(struct regulator_dev *dev,
 					unsigned int power_mode);
 static unsigned int max77601_regulator_get_mode(struct regulator_dev *dev);
+static int max77601_get_current_limit(struct regulator_dev *rdev);
 
 static struct regulator_ops max77601_ldo_ops = {
 	.set_voltage =  max77601_regulator_set_voltage,
@@ -55,6 +57,7 @@ static struct regulator_ops max77601_ldo_ops = {
 	.is_enabled = max77601_regulator_is_enabled,
 	.set_mode = max77601_regulator_set_mode,
 	.get_mode = max77601_regulator_get_mode,
+	.get_current_limit = max77601_get_current_limit,
 };
 
 #define VREG_DESC(_id, _name, _ops)		\
@@ -86,12 +89,13 @@ static struct regulator_desc max77601_regulator_desc[MAX77601_VREG_MAX] = {
 	VREG_DESC(MAX77601_ID_L8, "max77601_ldo8", &max77601_ldo_ops),
 };
 
-#define VREG(_id, _volt_reg, _cfg_reg, _type, _min, _max, _step) \
+#define VREG(_id, _volt_reg, _cfg_reg, _type, _vmin, _vmax, _step, _amax) \
     [_id]  = {			\
 		.id = _id,			\
-		.min_uV = _min,		\
-		.max_uV = _max,		\
+		.min_uV = _vmin,		\
+		.max_uV = _vmax,		\
 		.step_uV = _step,	\
+		.max_uA = _amax,	\
 		.volt_reg = _volt_reg,		\
 		.cfg_reg = _cfg_reg,		\
 		.power_mode = MAX77601_MODE_NORMAL,	\
@@ -100,38 +104,38 @@ static struct regulator_desc max77601_regulator_desc[MAX77601_VREG_MAX] = {
 
 static struct max77601_vreg max77601_regulators[MAX77601_VREG_MAX] = {
 	VREG(MAX77601_ID_SD0, MAX77601_VREG_SD0, MAX77601_VREG_SD0_CFG,
-		MAX77601_VREG_TYPE_SD, 600000, 3387500, 12500),
+		MAX77601_VREG_TYPE_SD, 600000, 3387500, 12500, 6000000),
 	VREG(MAX77601_ID_DVSSD0, MAX77601_VREG_DVSSD0, MAX77601_VREG_DVSSD0_CFG,
-		MAX77601_VREG_TYPE_SD, 600000, 3387500, 12500),
+		MAX77601_VREG_TYPE_SD, 600000, 3387500, 12500, 6000000),
 	VREG(MAX77601_ID_SD1, MAX77601_VREG_SD1, MAX77601_VREG_SD1_CFG,
-		MAX77601_VREG_TYPE_SD, 800000, 1587500, 12500),
+		MAX77601_VREG_TYPE_SD, 800000, 1587500, 12500, 3000000),
 	VREG(MAX77601_ID_DVSSD1, MAX77601_VREG_DVSSD1, MAX77601_VREG_DVSSD1_CFG,
-		MAX77601_VREG_TYPE_SD, 800000, 1587500, 12500),
+		MAX77601_VREG_TYPE_SD, 800000, 1587500, 12500, 3000000),
 	VREG(MAX77601_ID_SD2, MAX77601_VREG_SD2, MAX77601_VREG_SD2_CFG,
-	    MAX77601_VREG_TYPE_SD, 600000, 3387500, 12500),
+	    MAX77601_VREG_TYPE_SD, 600000, 3387500, 12500, 2000000),
 	VREG(MAX77601_ID_SD3, MAX77601_VREG_SD3, MAX77601_VREG_SD3_CFG,
-		MAX77601_VREG_TYPE_SD, 600000, 3387500, 12500),
+		MAX77601_VREG_TYPE_SD, 600000, 3387500, 12500, 2000000),
 	VREG(MAX77601_ID_SD4, MAX77601_VREG_SD4, MAX77601_VREG_SD4_CFG,
-		MAX77601_VREG_TYPE_SD, 600000, 3387500, 12500),
+		MAX77601_VREG_TYPE_SD, 600000, 3387500, 12500, 3000000),
 
 	VREG(MAX77601_ID_L0, MAX77601_VREG_LDO0, MAX77601_VREG_LDO0_CFG2,
-		MAX77601_VREG_TYPE_LDO, 800000, 2350000, 25000),
+		MAX77601_VREG_TYPE_LDO, 800000, 2350000, 25000, 150000),
 	VREG(MAX77601_ID_L1, MAX77601_VREG_LDO1, MAX77601_VREG_LDO1_CFG2,
-		MAX77601_VREG_TYPE_LDO, 800000, 2350000, 25000),
+		MAX77601_VREG_TYPE_LDO, 800000, 2350000, 25000, 150000),
 	VREG(MAX77601_ID_L2, MAX77601_VREG_LDO2, MAX77601_VREG_LDO2_CFG2,
-		MAX77601_VREG_TYPE_LDO, 800000, 3950000, 50000),
+		MAX77601_VREG_TYPE_LDO, 800000, 3950000, 50000, 150000),
 	VREG(MAX77601_ID_L3, MAX77601_VREG_LDO3, MAX77601_VREG_LDO3_CFG2,
-		MAX77601_VREG_TYPE_LDO, 800000, 3950000, 50000),
+		MAX77601_VREG_TYPE_LDO, 800000, 3950000, 50000, 300000),
 	VREG(MAX77601_ID_L4, MAX77601_VREG_LDO4, MAX77601_VREG_LDO4_CFG2,
-		MAX77601_VREG_TYPE_LDO, 800000, 1587500, 12500),
+		MAX77601_VREG_TYPE_LDO, 800000, 1587500, 12500, 150000),
 	VREG(MAX77601_ID_L5, MAX77601_VREG_LDO5, MAX77601_VREG_LDO5_CFG2,
-		MAX77601_VREG_TYPE_LDO, 800000, 3950000, 50000),
+		MAX77601_VREG_TYPE_LDO, 800000, 3950000, 50000, 150000),
 	VREG(MAX77601_ID_L6, MAX77601_VREG_LDO6, MAX77601_VREG_LDO6_CFG2,
-		MAX77601_VREG_TYPE_LDO, 800000, 3950000, 50000),
+		MAX77601_VREG_TYPE_LDO, 800000, 3950000, 50000, 150000),
 	VREG(MAX77601_ID_L7, MAX77601_VREG_LDO7, MAX77601_VREG_LDO7_CFG2,
-		MAX77601_VREG_TYPE_LDO, 800000, 3950000, 50000),
+		MAX77601_VREG_TYPE_LDO, 800000, 3950000, 50000, 450000),
 	VREG(MAX77601_ID_L8, MAX77601_VREG_LDO8, MAX77601_VREG_LDO8_CFG2,
-		MAX77601_VREG_TYPE_LDO, 800000, 3950000, 50000),
+		MAX77601_VREG_TYPE_LDO, 800000, 3950000, 50000, 300000),
 };
 
 static int max77601_vreg_write(struct max77601_chip *chip, u16 addr, u8 val,
@@ -142,6 +146,13 @@ static int max77601_vreg_write(struct max77601_chip *chip, u16 addr, u8 val,
 	if (!ret)
 		*bak = reg;
 	return ret;
+}
+
+static int max77601_get_current_limit(struct regulator_dev *rdev)
+{
+	struct max77601_vreg *vreg = rdev_get_drvdata(rdev);
+
+	return vreg->max_uA;
 }
 
 static int max77601_regulator_set_voltage(struct regulator_dev *rdev,
