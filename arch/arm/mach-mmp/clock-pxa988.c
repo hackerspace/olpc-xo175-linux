@@ -1428,6 +1428,8 @@ static struct pm_qos_request_list vpu_qos_idle;
 
 static void vpu_clk_init(struct clk *clk)
 {
+	unsigned int reg_cfg;
+
 	pm_qos_add_request(&vpu_qos_idle, PM_QOS_CPUIDLE_KEEP_AXI,
 			PM_QOS_DEFAULT_VALUE);
 	clk->dynamic_change = 1;
@@ -1441,6 +1443,10 @@ static void vpu_clk_init(struct clk *clk)
 	/* default VPU aclk = 312M sel = pll1_624, div = 2 */
 	/* enable_val used to hack VPU aclk value */
 	clk->enable_val = VPU_ACLK_RATE(CLK_PLL1_624, 1);
+
+	reg_cfg = VPU_FCLK_RATE(CLK_PLL1_624, 1);
+	reg_cfg |= clk->enable_val;
+	CLK_SET_BITS(reg_cfg, VPU_CLK_RATE_MSK);
 }
 
 static int vpu_clk_enable(struct clk *clk)
