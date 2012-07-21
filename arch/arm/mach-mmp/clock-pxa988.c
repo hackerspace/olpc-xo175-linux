@@ -28,12 +28,12 @@
 #include <plat/pm.h>
 
 /*
-  * README:
-  * 1. For clk which has fc_request bit, two step operation
-  * is safer to enable clock with taget frequency
-  * 1) set enable&rst bit
-  * 2) set mux, div and fc to do FC, get target rate.
-  */
+ * README:
+ * 1. For clk which has fc_request bit, two step operation
+ * is safer to enable clock with taget frequency
+ * 1) set enable&rst bit
+ * 2) set mux, div and fc to do FC, get target rate.
+ */
 
 struct periph_clk_tbl {
 	unsigned long fclk;
@@ -90,17 +90,22 @@ union apb_spare_pllswcr {
 };
 
 /*
-  * peripheral clock source:
-  * 0x0 = PLL1 416 MHz
-  * 0x1 = PLL1 624 MHz
-  * 0x2 = PLL2_CLKOUT
-  * 0x3 = PLL2_CLKOUTP
-  */
+ * peripheral clock source:
+ * 0x0 = PLL1 416 MHz
+ * 0x1 = PLL1 624 MHz
+ * 0x2 = PLL2_CLKOUT
+ * 0x3 = PLL2_CLKOUTP
+ */
 enum periph_clk_src {
 	CLK_PLL1_416 = 0x0,
 	CLK_PLL1_624 = 0x1,
 	CLK_PLL2 = 0x2,
 	CLK_PLL2P = 0x3,
+};
+
+struct pll_post_div {
+	unsigned int div;	/* PLL divider value */
+	unsigned int divselval;	/* PLL corresonding reg setting */
 };
 
 #define APB_SPARE_PLL2CR	(APB_VIRT_BASE + 0x90104)
@@ -117,9 +122,19 @@ static DEFINE_SPINLOCK(pll3_lock);
 static unsigned long pll2_vco_default;
 static unsigned long pll2_default;
 static unsigned long pll2p_default;
+static unsigned long pll3_vco_default;
+static unsigned long pll3_default;
+static unsigned long pll3p_default;
 
-static unsigned int pll_post_div_tbl[] = {
-	1, 2, 3, 4, 6, 8,
+/* PLL post divider table */
+static struct pll_post_div pll_post_div_tbl[] = {
+	/* divider, reg vaule */
+	{1, 0},
+	{2, 2},
+	{3, 4},
+	{4, 5},
+	{6, 7},
+	{8, 8},
 };
 
 #define CLK_SET_BITS(set, clear)	{	\
@@ -246,6 +261,19 @@ struct clkops apmu_clk_ops = {
 	.setrate = apmu_clk_setrate,
 };
 
+/* convert post div reg setting to divider val */
+static unsigned int __pll_divsel2div(unsigned int divselval)
+{
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(pll_post_div_tbl); i++) {
+		if (divselval == pll_post_div_tbl[i].divselval)
+			return pll_post_div_tbl[i].div;
+	}
+	BUG_ON(i == ARRAY_SIZE(pll_post_div_tbl));
+	return 0;
+}
+
 /* PLL range 1.2G~2.5G, vco_vrng = kvco */
 static void __clk_pll_rate2rng(unsigned long rate,
 	unsigned int *kvco, unsigned int *vco_rng)
@@ -281,13 +309,59 @@ static unsigned int __clk_pll_calc_div(unsigned long rate,
 	parent_rate /= MHZ;
 
 	for (i = 0; i < ARRAY_SIZE(pll_post_div_tbl); i++) {
-		if (rate == (parent_rate / pll_post_div_tbl[i])) {
-			*div = pll_post_div_tbl[i];
-			return i;
+		if (rate == (parent_rate / pll_post_div_tbl[i].div)) {
+			*div = pll_post_div_tbl[i].div;
+			return pll_post_div_tbl[i].divselval;
 		}
 	}
 	BUG_ON(i == ARRAY_SIZE(pll_post_div_tbl));
 	return 0;
+}
+
+static unsigned int __pll2_is_enabled(void)
+{
+	union pmum_pll2cr pll2cr;
+	pll2cr.v = __raw_readl(MPMU_PLL2CR);
+
+	/* ctrl = 0(hw enable) or ctrl = 1&&en = 1(sw enable) */
+	/* ctrl = 1&&en = 0(sw disable) */
+	if (pll2cr.b.ctrl && (!pll2cr.b.en))
+		return 0;
+	else
+		return 1;
+}
+
+/* frequency unit Mhz, return pll2 vco freq */
+static unsigned int __get_pll2_freq(unsigned int *pll2_freq,
+			unsigned int *pll2p_freq)
+{
+	union pmum_pll2cr pll2cr;
+	union apb_spare_pllswcr pll2_sw_ctl;
+	unsigned int pll2_vco, pll2_div, pll2p_div, pll2refd;
+
+	/* return 0 if pll2 is disabled(ctrl = 1, en = 0) */
+	if (!__pll2_is_enabled()) {
+		pr_info("%s PLL2 is not enabled!\n", __func__);
+		*pll2_freq = 0;
+		*pll2p_freq = 0;
+		return 0;
+	}
+
+	pll2cr.v = __raw_readl(MPMU_PLL2CR);
+	pll2refd = pll2cr.b.pll2refd;
+	BUG_ON(pll2refd == 1);
+
+	if (pll2refd == 0)
+		pll2refd = 1;
+	pll2_vco = 26 * pll2cr.b.pll2fbd / pll2refd;
+
+	pll2_sw_ctl.v = __raw_readl(APB_SPARE_PLL2CR);
+	pll2_div = __pll_divsel2div(pll2_sw_ctl.b.divselse);
+	pll2p_div = __pll_divsel2div(pll2_sw_ctl.b.divseldiff);
+	*pll2_freq = pll2_vco / pll2_div;
+	*pll2p_freq = pll2_vco / pll2p_div;
+
+	return pll2_vco;
 }
 
 /*
@@ -297,45 +371,16 @@ static unsigned int __clk_pll_calc_div(unsigned long rate,
  */
 static void clk_pll2_vco_init(struct clk *clk)
 {
-	unsigned int kvco, vcovnrg;
-	union pmum_pll2cr pll2cr;
-	union apb_spare_pllswcr pll2_sw_ctrl;
+	unsigned int pll2, pll2p, pll2vco;
 
 	BUG_ON(!pll2_vco_default);
-	/* do nothing if pll2 is already enabled */
-	pll2cr.v = __raw_readl(MPMU_PLL2CR);
-	if (!pll2cr.b.ctrl) {
-		clk->rate = clk_get_rate(clk);
-		pr_info("PLL2_VCO is already enabled @ %lu\n",
-			clk->rate);
-		BUG_ON(clk->rate != pll2_vco_default);
+	clk->rate = pll2_vco_default;
+	if (__pll2_is_enabled()) {
+		pll2vco = __get_pll2_freq(&pll2, &pll2p);
+		pr_info("PLL2_VCO is already enabled @ %u\n",
+			pll2vco * MHZ);
 		return;
 	}
-
-	clk->rate = pll2_vco_default;
-	__clk_pll_rate2rng(clk->rate/MHZ, &kvco, &vcovnrg);
-
-	/* The default configuration of pll2 */
-	pll2_sw_ctrl.v = __raw_readl(APB_SPARE_PLL2CR);
-	pll2_sw_ctrl.b.vddm = 1;
-	pll2_sw_ctrl.b.vddl = 9;
-	pll2_sw_ctrl.b.vreg_ivreg = 2;
-	pll2_sw_ctrl.b.icp = 4;
-	pll2_sw_ctrl.b.ctune = 1;
-	pll2_sw_ctrl.b.bypassen = 0;
-	pll2_sw_ctrl.b.gatectl = 0;
-	pll2_sw_ctrl.b.lineupen = 0;
-	pll2_sw_ctrl.b.kvco = kvco;
-	pll2_sw_ctrl.b.vcovnrg = vcovnrg;
-	pll2_sw_ctrl.b.diffclken = 1;
-	__raw_writel(pll2_sw_ctrl.v, APB_SPARE_PLL2CR);
-
-	/* Refclk/Refdiv = pll2freq/Fbdiv, Refclk = 26M */
-	pll2cr.v = __raw_readl(MPMU_PLL2CR);
-	pll2cr.b.pll2refd = 3;
-	pll2cr.b.pll2fbd = (clk->rate/MHZ) * pll2cr.b.pll2refd / 26;
-	__raw_writel(pll2cr.v, MPMU_PLL2CR);
-
 	pr_info("PLL2 VCO default rate %lu\n", clk->rate);
 }
 
@@ -344,12 +389,12 @@ static int clk_pll2_vco_enable(struct clk *clk)
 	union pmum_pll2cr pll2cr;
 	unsigned long flags;
 
-	pll2cr.v = __raw_readl(MPMU_PLL2CR);
-	if (!pll2cr.b.ctrl)
+	if (__pll2_is_enabled())
 		return 0;
 
 	spin_lock_irqsave(&pll2_lock, flags);
 
+	pll2cr.v = __raw_readl(MPMU_PLL2CR);
 	/* we must lock refd/fbd first before enabling PLL2 */
 	pll2cr.b.ctrl = 1;
 	__raw_writel(pll2cr.v, MPMU_PLL2CR);
@@ -359,7 +404,7 @@ static int clk_pll2_vco_enable(struct clk *clk)
 	spin_unlock_irqrestore(&pll2_lock, flags);
 
 	udelay(100);
-	pr_debug("%s SWCR[%x] PLLCR[%x]\n", __func__, \
+	pr_info("%s SWCR[%x] PLLCR[%x]\n", __func__, \
 		__raw_readl(APB_SPARE_PLL2CR), pll2cr.v);
 	return 0;
 }
@@ -377,21 +422,22 @@ static void clk_pll2_vco_disable(struct clk *clk)
 }
 
 /*
-  * pll2 rate change requires sequence:
-  * clock off -> change rate setting -> clock on
-  * This function doesn't really change rate, but cache the config
-  */
+ * pll2 rate change requires sequence:
+ * clock off -> change rate setting -> clock on
+ * This function doesn't really change rate, but cache the config
+ */
 static int clk_pll2_vco_setrate(struct clk *clk, unsigned long rate)
 {
 	unsigned int kvco, vcovnrg;
 	union pmum_pll2cr pll2cr;
 	union apb_spare_pllswcr pll2_sw_ctrl;
-	unsigned long flags;
+	unsigned long flags, cur_rate;
 
-	/* do nothing if pll2 is already enabled or no rate change */
-	pll2cr.v = __raw_readl(MPMU_PLL2CR);
-	if (!pll2cr.b.ctrl || rate == clk->rate)
+	if (__pll2_is_enabled()) {
+		pr_info("%s pll2 vco is enabled, tgt rate %lu\n",\
+			__func__, rate);
 		return -EPERM;
+	}
 
 	rate = rate / MHZ;
 	if (rate > 2500 || rate < 1200)	{
@@ -403,9 +449,19 @@ static int clk_pll2_vco_setrate(struct clk *clk, unsigned long rate)
 		clk->rate/MHZ, rate);
 
 	spin_lock_irqsave(&pll2_lock, flags);
-
 	__clk_pll_rate2rng(rate, &kvco, &vcovnrg);
+
+	/* The default configuration of pll2 */
 	pll2_sw_ctrl.v = __raw_readl(APB_SPARE_PLL2CR);
+	pll2_sw_ctrl.b.vddm = 1;
+	pll2_sw_ctrl.b.vddl = 9;
+	pll2_sw_ctrl.b.vreg_ivreg = 2;
+	pll2_sw_ctrl.b.icp = 4;
+	pll2_sw_ctrl.b.ctune = 1;
+	pll2_sw_ctrl.b.bypassen = 0;
+	pll2_sw_ctrl.b.gatectl = 0;
+	pll2_sw_ctrl.b.lineupen = 0;
+	pll2_sw_ctrl.b.diffclken = 1;
 	pll2_sw_ctrl.b.kvco = kvco;
 	pll2_sw_ctrl.b.vcovnrg = vcovnrg;
 	__raw_writel(pll2_sw_ctrl.v, APB_SPARE_PLL2CR);
@@ -414,31 +470,22 @@ static int clk_pll2_vco_setrate(struct clk *clk, unsigned long rate)
 	pll2cr.v = __raw_readl(MPMU_PLL2CR);
 	pll2cr.b.pll2refd = 3;
 	pll2cr.b.pll2fbd = rate * pll2cr.b.pll2refd / 26;
+	pll2cr.b.ctrl = 1;
+	pll2cr.b.en = 0;
 	__raw_writel(pll2cr.v, MPMU_PLL2CR);
 
-	clk->rate = 26 * pll2cr.b.pll2fbd / pll2cr.b.pll2refd;
-	if (clk->rate != rate)
-		pr_warning("Set PLL2 rate to %luMHZ\n", clk->rate);
-	clk->rate *= MHZ;
-
+	clk->rate = rate * MHZ;
 	spin_unlock_irqrestore(&pll2_lock, flags);
+
+	cur_rate = 26 * pll2cr.b.pll2fbd / pll2cr.b.pll2refd;
+	if (cur_rate != rate)
+		pr_warning("Real PLL2 rate %luMHZ\n", cur_rate);
 	return 0;
 }
 
 static unsigned long clk_pll2_vco_getrate(struct clk *clk)
 {
-	union pmum_pll2cr pll2cr;
-	unsigned long rate = 0, pll2refd;
-
-	pll2cr.v = __raw_readl(MPMU_PLL2CR);
-	pll2refd = pll2cr.b.pll2refd;
-	BUG_ON(pll2refd == 1);
-
-	if (pll2refd == 0)
-		pll2refd = 1;
-	rate = 26 * pll2cr.b.pll2fbd / pll2refd;
-	rate *= MHZ;
-	return rate;
+	return clk->rate;
 }
 
 static struct clkops clk_pll2_vco_ops = {
@@ -467,43 +514,26 @@ static void clk_pll_dummy_disable(struct clk *clk)
 
 static void clk_pll2_init(struct clk *clk)
 {
-	union pmum_pll2cr pll2cr;
-	union apb_spare_pllswcr pll2_sw_ctrl;
-	unsigned int div_val;
+	unsigned int pll2, pll2p;
 
 	BUG_ON(!pll2_default);
-	/* do nothing if pll2 is already enabled */
-	pll2cr.v = __raw_readl(MPMU_PLL2CR);
-	if (!pll2cr.b.ctrl) {
-		clk->rate = clk_get_rate(clk);
-		pr_info("PLL2 is already enabled @ %lu\n", clk->rate);
-		BUG_ON(clk->rate != pll2_default);
+	clk->rate = pll2_default;
+	if (__pll2_is_enabled()) {
+		__get_pll2_freq(&pll2, &pll2p);
+		pr_info("PLL2 is already enabled @ %u\n",
+			pll2 * MHZ);
 		return;
 	}
-
-	clk->rate = pll2_default;
-	clk->mul = 1;
-	div_val = __clk_pll_calc_div(clk->rate,
-		clk->parent->rate, &clk->div);
-
-	pll2_sw_ctrl.v = __raw_readl(APB_SPARE_PLL2CR);
-	pll2_sw_ctrl.b.divselse = div_val;
-	__raw_writel(pll2_sw_ctrl.v, APB_SPARE_PLL2CR);
-
-	pr_info("PLL2 default rate %lu\n",
-		clk->parent->rate * clk->mul / clk->div);
+	pr_info("PLL2 default rate %lu\n", clk->rate);
 }
 
 static int clk_pll2_setrate(struct clk *clk, unsigned long rate)
 {
 	unsigned int div_val;
-	union pmum_pll2cr pll2cr;
 	union apb_spare_pllswcr pll2_sw_ctrl;
 	unsigned long flags;
 
-	/* do nothing if pll2 is already enabled */
-	pll2cr.v = __raw_readl(MPMU_PLL2CR);
-	if (!pll2cr.b.ctrl || rate == clk->rate)
+	if (__pll2_is_enabled())
 		return -EPERM;
 
 	pr_debug("PLL2 rate %lu -> %lu\n", clk->rate, rate);
@@ -520,14 +550,7 @@ static int clk_pll2_setrate(struct clk *clk, unsigned long rate)
 
 static unsigned long clk_pll2_getrate(struct clk *clk)
 {
-	unsigned int parent_rate = 0, rate;
-	union apb_spare_pllswcr pll2_sw_ctl;
-
-	parent_rate = clk_get_rate(clk_get_parent(clk));
-	pll2_sw_ctl.v = __raw_readl(APB_SPARE_PLL2CR);
-	BUG_ON(pll2_sw_ctl.b.divselse >= ARRAY_SIZE(pll_post_div_tbl));
-	rate = parent_rate / pll_post_div_tbl[pll2_sw_ctl.b.divselse];
-	return rate;
+	return clk->rate;
 }
 
 static struct clkops clk_pll2_ops = {
@@ -546,43 +569,26 @@ static struct clk pll2 = {
 
 static void clk_pll2p_init(struct clk *clk)
 {
-	union pmum_pll2cr pll2cr;
-	union apb_spare_pllswcr pll2_sw_ctrl;
-	unsigned int div_val;
+	unsigned int pll2, pll2p;
 
 	BUG_ON(!pll2p_default);
-	/* do nothing if pll2 is already enabled */
-	pll2cr.v = __raw_readl(MPMU_PLL2CR);
-	if (!pll2cr.b.ctrl) {
-		clk->rate = clk_get_rate(clk);
-		pr_info("PLL2P is already enabled @ %lu\n", clk->rate);
-		BUG_ON(clk->rate != pll2p_default);
+	clk->rate = pll2p_default;
+	if (__pll2_is_enabled()) {
+		__get_pll2_freq(&pll2, &pll2p);
+		pr_info("PLL2P is already enabled @ %u\n",
+			pll2p * MHZ);
 		return;
 	}
-
-	clk->rate = pll2p_default;
-	clk->mul = 1;
-	div_val = __clk_pll_calc_div(clk->rate,
-		clk->parent->rate, &clk->div);
-
-	pll2_sw_ctrl.v = __raw_readl(APB_SPARE_PLL2CR);
-	pll2_sw_ctrl.b.divseldiff = div_val;
-	__raw_writel(pll2_sw_ctrl.v, APB_SPARE_PLL2CR);
-
-	pr_info("PLL2P default rate %lu\n",
-		clk->parent->rate * clk->mul / clk->div);
+	pr_info("PLL2P default rate %lu\n", clk->rate);
 }
 
 static int clk_pll2p_setrate(struct clk *clk, unsigned long rate)
 {
 	unsigned int div_val;
-	union pmum_pll2cr pll2cr;
 	union apb_spare_pllswcr pll2_sw_ctrl;
 	unsigned long flags;
 
-	/* do nothing if pll2 is already enabled */
-	pll2cr.v = __raw_readl(MPMU_PLL2CR);
-	if (!pll2cr.b.ctrl || rate == clk->rate)
+	if (__pll2_is_enabled())
 		return -EPERM;
 
 	pr_debug("PLL2P rate %lu -> %lu\n", clk->rate, rate);
@@ -599,14 +605,7 @@ static int clk_pll2p_setrate(struct clk *clk, unsigned long rate)
 
 static unsigned long clk_pll2p_getrate(struct clk *clk)
 {
-	unsigned int parent_rate = 0, rate;
-	union apb_spare_pllswcr pll2_sw_ctl;
-
-	parent_rate = clk_get_rate(clk_get_parent(clk));
-	pll2_sw_ctl.v = __raw_readl(APB_SPARE_PLL2CR);
-	BUG_ON(pll2_sw_ctl.b.divseldiff >= ARRAY_SIZE(pll_post_div_tbl));
-	rate = parent_rate / pll_post_div_tbl[pll2_sw_ctl.b.divseldiff];
-	return rate;
+	return clk->rate;
 }
 
 static struct clkops clk_pll2p_ops = {
@@ -623,45 +622,66 @@ static struct clk pll2p = {
 	.ops = &clk_pll2p_ops,
 };
 
+static unsigned int __pll3_is_enabled(void)
+{
+	union pmum_pll3cr pll3cr;
+	pll3cr.v = __raw_readl(MPMU_PLL3CR);
+
+	/*
+	 * PLL3CR[19:18] = 0x1, 0x2, 0x3 means PLL3 is enabled.
+	 * PLL3CR[19:18] = 0x0 means PLL3 is disabled
+	 */
+	if ((!pll3cr.b.pll3_pu) && (!pll3cr.b.pclk_1248_sel))
+		return 0;
+	else
+		return 1;
+}
+
+/* frequency unit Mhz, return pll3 vco freq */
+static unsigned int __get_pll3_freq(unsigned int *pll3_freq,
+	unsigned int *pll3p_freq)
+{
+	union pmum_pll3cr pll3cr;
+	union apb_spare_pllswcr pll3_sw_ctl;
+	unsigned int pll3_vco, pll3_div, pll3p_div, pll3refd;
+
+	/* return 0 if pll3 is disabled */
+	if (!__pll3_is_enabled()) {
+		pr_info("%s PLL3 is not enabled!\n", __func__);
+		*pll3_freq = 0;
+		*pll3p_freq = 0;
+		return 0;
+	}
+
+	pll3cr.v = __raw_readl(MPMU_PLL3CR);
+	pll3refd = pll3cr.b.pll3refd;
+	BUG_ON(pll3refd == 1);
+	if (pll3refd == 0)
+		pll3refd = 1;
+	pll3_vco = 26 * pll3cr.b.pll3fbd / pll3refd;
+
+	pll3_sw_ctl.v = __raw_readl(APB_SPARE_PLL3CR);
+	pll3_div = __pll_divsel2div(pll3_sw_ctl.b.divselse);
+	pll3p_div = __pll_divsel2div(pll3_sw_ctl.b.divseldiff);
+	*pll3_freq = pll3_vco / pll3_div;
+	*pll3p_freq = pll3_vco / pll3p_div;
+
+	return pll3_vco;
+}
+
 /* FIXME: default pll3_vco 2000M, pll3 500M(dsi), pll3p 1000M(cpu) */
 static void clk_pll3_vco_init(struct clk *clk)
 {
-	unsigned int kvco, vcovnrg;
-	union pmum_pll3cr pll3cr;
-	union apb_spare_pllswcr pll3_sw_ctrl;
-	unsigned long pll3_vco_default = 2000 * MHZ;
+	unsigned int pll3, pll3p, pll3vco;
 
-	pll3cr.v = __raw_readl(MPMU_PLL3CR);
-	if (pll3cr.b.pll3_pu) {
-		clk->rate = clk_get_rate(clk);
-		pr_info("PLL3_VCO is already enabled @ %lu\n",
-			clk->rate);
-		BUG_ON(clk->rate != pll3_vco_default);
+	BUG_ON(!pll3_vco_default);
+	clk->rate = pll3_vco_default;
+	if (__pll3_is_enabled()) {
+		pll3vco = __get_pll2_freq(&pll3, &pll3p);
+		pr_info("PLL3_VCO is already enabled @ %u\n",
+			pll3vco * MHZ);
 		return;
 	}
-
-	clk->rate = pll3_vco_default;
-	__clk_pll_rate2rng(clk->rate/MHZ, &kvco, &vcovnrg);
-
-	pll3_sw_ctrl.v = __raw_readl(APB_SPARE_PLL3CR);
-	pll3_sw_ctrl.b.vddm = 1;
-	pll3_sw_ctrl.b.vddl = 9;
-	pll3_sw_ctrl.b.vreg_ivreg = 2;
-	pll3_sw_ctrl.b.icp = 4;
-	pll3_sw_ctrl.b.ctune = 1;
-	pll3_sw_ctrl.b.bypassen = 0;
-	pll3_sw_ctrl.b.gatectl = 0;
-	pll3_sw_ctrl.b.lineupen = 0;
-	pll3_sw_ctrl.b.kvco = kvco;
-	pll3_sw_ctrl.b.vcovnrg = vcovnrg;
-	pll3_sw_ctrl.b.diffclken = 1;
-	__raw_writel(pll3_sw_ctrl.v, APB_SPARE_PLL3CR);
-
-	pll3cr.v = __raw_readl(MPMU_PLL3CR);
-	pll3cr.b.pll3refd = 3;
-	pll3cr.b.pll3fbd = (clk->rate/MHZ) * pll3cr.b.pll3refd / 26;
-	__raw_writel(pll3cr.v, MPMU_PLL3CR);
-
 	pr_info("PLL3 VCO default rate %lu\n", clk->rate);
 }
 
@@ -672,18 +692,18 @@ static int clk_pll3_vco_enable(struct clk *clk)
 	union pmum_pll3cr pll3cr;
 	unsigned long flags;
 
-	pll3cr.v = __raw_readl(MPMU_PLL3CR);
-	if (pll3cr.b.pll3_pu)
+	if (__pll3_is_enabled())
 		return 0;
 
 	spin_lock_irqsave(&pll3_lock, flags);
+	pll3cr.v = __raw_readl(MPMU_PLL3CR);
 	pll3cr.b.pclk_1248_sel = 1;
 	pll3cr.b.pll3_pu = 1;
 	__raw_writel(pll3cr.v, MPMU_PLL3CR);
-	spin_unlock_irqrestore(&pll2_lock, flags);
+	spin_unlock_irqrestore(&pll3_lock, flags);
 
 	udelay(100);
-	pr_debug("%s SWCR3[%x] PLL3CR[%x]\n", __func__, \
+	pr_info("%s SWCR3[%x] PLL3CR[%x]\n", __func__, \
 		__raw_readl(APB_SPARE_PLL3CR), pll3cr.v);
 	return 0;
 }
@@ -700,26 +720,74 @@ static void clk_pll3_vco_disable(struct clk *clk)
 	__raw_writel(pll3cr.v, MPMU_PLL3CR);
 }
 
+static int clk_pll3_vco_setrate(struct clk *clk, unsigned long rate)
+{
+	unsigned int kvco, vcovnrg;
+	union pmum_pll3cr pll3cr;
+	union apb_spare_pllswcr pll3_sw_ctrl;
+	unsigned long flags, cur_rate;
+
+	/* do nothing if pll3 is already enabled or no rate change */
+	if (__pll3_is_enabled()) {
+		pr_info("%s pll3 vco is enabled, tgt rate %lu\n",\
+			__func__, rate);
+		return -EPERM;
+	}
+
+	rate = rate / MHZ;
+	if (rate > 2500 || rate < 1200)	{
+		pr_err("%lu rate out of range!\n", rate);
+		return -EINVAL;
+	}
+
+	pr_debug("PLL3_VCO rate %lu -> %lu\n",
+		clk->rate/MHZ, rate);
+
+	spin_lock_irqsave(&pll3_lock, flags);
+	__clk_pll_rate2rng(rate, &kvco, &vcovnrg);
+
+	/* The default configuration of pll3 */
+	pll3_sw_ctrl.v = __raw_readl(APB_SPARE_PLL3CR);
+	pll3_sw_ctrl.b.vddm = 1;
+	pll3_sw_ctrl.b.vddl = 9;
+	pll3_sw_ctrl.b.vreg_ivreg = 2;
+	pll3_sw_ctrl.b.icp = 4;
+	pll3_sw_ctrl.b.ctune = 1;
+	pll3_sw_ctrl.b.bypassen = 0;
+	pll3_sw_ctrl.b.gatectl = 0;
+	pll3_sw_ctrl.b.lineupen = 0;
+	pll3_sw_ctrl.b.kvco = kvco;
+	pll3_sw_ctrl.b.vcovnrg = vcovnrg;
+	pll3_sw_ctrl.b.diffclken = 1;
+	__raw_writel(pll3_sw_ctrl.v, APB_SPARE_PLL3CR);
+
+	/* Refclk/Refdiv = pll2freq/Fbdiv Refclk = 26M */
+	pll3cr.v = __raw_readl(MPMU_PLL3CR);
+	pll3cr.b.pll3refd = 3;
+	pll3cr.b.pll3fbd = rate * pll3cr.b.pll3refd / 26;
+	pll3cr.b.pclk_1248_sel = 0;
+	pll3cr.b.pll3_pu = 0;
+	__raw_writel(pll3cr.v, MPMU_PLL3CR);
+
+	clk->rate = rate * MHZ;
+	spin_unlock_irqrestore(&pll3_lock, flags);
+
+	cur_rate = 26 * pll3cr.b.pll3fbd / pll3cr.b.pll3refd;
+	if (cur_rate != rate)
+		pr_warning("Real PLL3 rate %luMHZ\n", cur_rate);
+	return 0;
+}
+
 static unsigned long clk_pll3_vco_getrate(struct clk *clk)
 {
-	union pmum_pll3cr pll3cr;
-	unsigned long rate = 0, pll3refd;
-
-	pll3cr.v = __raw_readl(MPMU_PLL3CR);
-	pll3refd = pll3cr.b.pll3refd;
-	BUG_ON(pll3refd == 1);
-
-	if (pll3refd == 0)
-		pll3refd = 1;
-	rate = 26 * pll3cr.b.pll3fbd / pll3refd;
-	rate *= MHZ;
-	return rate;
+	return clk->rate;
 }
 
 static struct clkops clk_pll3_vco_ops = {
 	.init = clk_pll3_vco_init,
 	.enable = clk_pll3_vco_enable,
 	.disable = clk_pll3_vco_disable,
+	.setrate = clk_pll3_vco_setrate,
 	.getrate = clk_pll3_vco_getrate,
 };
 
@@ -731,49 +799,50 @@ static struct clk pll3_vco = {
 
 static void clk_pll3_init(struct clk *clk)
 {
-	union pmum_pll3cr pll3cr;
-	union apb_spare_pllswcr pll3_sw_ctrl;
-	unsigned int div_val;
-	unsigned long pll3_default = 500 * MHZ;
+	unsigned int pll3, pll3p;
 
-	pll3cr.v = __raw_readl(MPMU_PLL3CR);
-	if (pll3cr.b.pll3_pu) {
-		clk->rate = clk_get_rate(clk);
-		pr_info("PLL3 is already enabled @ %lu\n",
-			clk->rate);
-		BUG_ON(clk->rate != pll3_default);
+	BUG_ON(!pll3_default);
+	clk->rate = pll3_default;
+	if (__pll3_is_enabled()) {
+		__get_pll3_freq(&pll3, &pll3p);
+		pr_info("PLL3 is already enabled @ %u\n",
+			pll3 * MHZ);
 		return;
 	}
+	pr_info("PLL3 default rate %lu\n", clk->rate);
+}
 
-	clk->rate = pll3_default;
-	clk->mul = 1;
-	div_val = __clk_pll_calc_div(clk->rate,
-		clk->parent->rate, &clk->div);
+static int clk_pll3_setrate(struct clk *clk, unsigned long rate)
+{
+	union apb_spare_pllswcr pll3_sw_ctrl;
+	unsigned int div_val;
+	unsigned long flags;
 
+	if (__pll3_is_enabled())
+		return -EPERM;
+
+	pr_debug("PLL3 rate %lu -> %lu\n", clk->rate, rate);
+
+	spin_lock_irqsave(&pll3_lock, flags);
+	div_val = __clk_pll_calc_div(rate, clk->parent->rate, &clk->div);
 	pll3_sw_ctrl.v = __raw_readl(APB_SPARE_PLL3CR);
 	pll3_sw_ctrl.b.divselse = div_val;
 	__raw_writel(pll3_sw_ctrl.v, APB_SPARE_PLL3CR);
-
-	pr_info("PLL3 default rate %lu\n",
-		clk->parent->rate * clk->mul / clk->div);
+	clk->rate = rate;
+	spin_unlock_irqrestore(&pll3_lock, flags);
+	return 0;
 }
 
 static unsigned long clk_pll3_getrate(struct clk *clk)
 {
-	unsigned int parent_rate = 0, rate;
-	union apb_spare_pllswcr pll3_sw_ctl;
-
-	parent_rate = clk_get_rate(clk_get_parent(clk));
-	pll3_sw_ctl.v = __raw_readl(APB_SPARE_PLL3CR);
-	BUG_ON(pll3_sw_ctl.b.divselse >= ARRAY_SIZE(pll_post_div_tbl));
-	rate = parent_rate / pll_post_div_tbl[pll3_sw_ctl.b.divselse];
-	return rate;
+	return clk->rate;
 }
 
 static struct clkops clk_pll3_ops = {
 	.init = clk_pll3_init,
 	.enable = clk_pll_dummy_enable,
 	.disable = clk_pll_dummy_disable,
+	.setrate = clk_pll3_setrate,
 	.getrate = clk_pll3_getrate,
 };
 
@@ -785,49 +854,50 @@ static struct clk pll3 = {
 
 static void clk_pll3p_init(struct clk *clk)
 {
-	union pmum_pll3cr pll3cr;
-	union apb_spare_pllswcr pll3_sw_ctrl;
-	unsigned int div_val;
-	unsigned long pll3p_default = 1000 * MHZ;
+	unsigned int pll3, pll3p;
 
-	pll3cr.v = __raw_readl(MPMU_PLL3CR);
-	if (pll3cr.b.pll3_pu) {
-		clk->rate = clk_get_rate(clk);
-		pr_info("PLL3P is already enabled @ %lu\n",
-			clk->rate);
-		BUG_ON(clk->rate != pll3p_default);
+	BUG_ON(!pll3p_default);
+	clk->rate = pll3p_default;
+	if (__pll3_is_enabled()) {
+		__get_pll3_freq(&pll3, &pll3p);
+		pr_info("PLL3P is already enabled @ %u\n",
+			pll3p * MHZ);
 		return;
 	}
+	pr_info("PLL3P default rate %lu\n", clk->rate);
+}
 
-	clk->rate = pll3p_default;
-	clk->mul = 1;
-	div_val = __clk_pll_calc_div(clk->rate,
-		clk->parent->rate, &clk->div);
+static int clk_pll3p_setrate(struct clk *clk, unsigned long rate)
+{
+	unsigned int div_val;
+	union apb_spare_pllswcr pll3_sw_ctrl;
+	unsigned long flags;
 
+	if (__pll3_is_enabled())
+		return -EPERM;
+
+	pr_debug("PLL3P rate %lu -> %lu\n", clk->rate, rate);
+
+	spin_lock_irqsave(&pll3_lock, flags);
+	div_val = __clk_pll_calc_div(rate, clk->parent->rate, &clk->div);
 	pll3_sw_ctrl.v = __raw_readl(APB_SPARE_PLL3CR);
 	pll3_sw_ctrl.b.divseldiff = div_val;
 	__raw_writel(pll3_sw_ctrl.v, APB_SPARE_PLL3CR);
-
-	pr_info("PLL3P default rate %lu\n",
-		clk->parent->rate * clk->mul / clk->div);
+	clk->rate = rate;
+	spin_unlock_irqrestore(&pll3_lock, flags);
+	return 0;
 }
 
 static unsigned long clk_pll3p_getrate(struct clk *clk)
 {
-	unsigned int parent_rate = 0, rate;
-	union apb_spare_pllswcr pll3_sw_ctl;
-
-	parent_rate = clk_get_rate(clk_get_parent(clk));
-	pll3_sw_ctl.v = __raw_readl(APB_SPARE_PLL3CR);
-	BUG_ON(pll3_sw_ctl.b.divseldiff >= ARRAY_SIZE(pll_post_div_tbl));
-	rate = parent_rate / pll_post_div_tbl[pll3_sw_ctl.b.divseldiff];
-	return rate;
+	return clk->rate;
 }
 
 static struct clkops clk_pll3p_ops = {
 	.init = clk_pll3p_init,
 	.enable = clk_pll_dummy_enable,
 	.disable = clk_pll_dummy_disable,
+	.setrate = clk_pll3p_setrate,
 	.getrate = clk_pll3p_getrate,
 };
 
@@ -1014,10 +1084,10 @@ static long __clk_round_rate_bytbl(struct clk *clk, unsigned long rate,
 }
 
 /*
-  * This help function can get the rate close to the required rate,
-  * we'd better not use it for clock which need to dynamic change
-  * as efficiency consideration.
-  */
+ * This help function can get the rate close to the required rate,
+ * we'd better not use it for clock which need to dynamic change
+ * as efficiency consideration.
+ */
 static long __clk_sel_mux_div(struct clk *clk, unsigned long rate,
 	unsigned int *mux, unsigned int *div, struct clk **best_parent)
 {
@@ -1089,11 +1159,11 @@ static long __clk_set_mux_div(struct clk *clk, struct clk *best_parent,
 	divval = divval << clk->reg_data[DIV][CONTROL].reg_shift;
 
 	/*
-	  * mux and div are from the same reg, if clk is enabled,
-	  * set mux, div and trigger(clk->enable_val) at the same time
-	  * if clock is not enabled, set mux, div here, set fc_request when
-	  * enable it.
-	  */
+	 * mux and div are from the same reg, if clk is enabled,
+	 * set mux, div and trigger(clk->enable_val) at the same time
+	 * if clock is not enabled, set mux, div here, set fc_request when
+	 * enable it.
+	 */
 	regval = __raw_readl(clk->reg_data[SOURCE][CONTROL].reg);
 	regval &= ~(muxmask | divmask);
 	regval |= (muxval | divval);
@@ -1561,14 +1631,14 @@ static struct clk pxa988_clk_vpu = {
 #define LCD_CI_ISP_ACLK_RST		(1 << 16)
 
 /*
-  * 1. This AXI clock is shared by LCD/CI/ISP
-  * 2. Separate bit in LCD/CI/ISP_CLK_RES_REG is used
-  * to enable its own bus clock
-  * 3. This clock should NOT be dynamic changed
-  * 4. Register setting is defined in LCD_CLK_RES_REG
-  * 5. The safe maximum rate is 266M per DE's suggestion on Z0
-  * 6. Use 208M for Z0 bringup at first
-  */
+ * 1. This AXI clock is shared by LCD/CI/ISP
+ * 2. Separate bit in LCD/CI/ISP_CLK_RES_REG is used
+ * to enable its own bus clock
+ * 3. This clock should NOT be dynamic changed
+ * 4. Register setting is defined in LCD_CLK_RES_REG
+ * 5. The safe maximum rate is 266M per DE's suggestion on Z0
+ * 6. Use 208M for Z0 bringup at first
+ */
 static void lcd_ci_isp_axi_clk_init(struct clk *clk)
 {
 	__clk_periph_init(clk, &pll1_416, 2, 0);
@@ -2295,7 +2365,20 @@ static struct clk pxa988_list_clks[] = {
 
 static void __init clk_misc_init(void)
 {
-	/* pll2 default rate is different when using LPDDR400 and LPDDR533 */
+
+	/*
+	 * pll2 default rate is different when using LPDDR400 and LPDDR533
+	 * For LPDDR400,
+	 * pll2 800M for DDR and CPU
+	 * pll2p 533M for other peripherals
+	 * For LPDDR533
+	 * pll2 1066M for DDR and CPU
+	 * pll2p 533M for other peripherals
+	 * pll2/pll2p = pll2_vco/div (div = 1,2,3,4,6,8)
+	 *
+	 * pll3 VCO 2000M, pll3 500M for DSI, pll3p 1000M for CPU
+	 * pll3/pll3p = pll3_vco/div (div = 1,2,3,4,6,8)
+	 */
 	if (1) {
 		pll2_vco_default = 1600 * MHZ;
 		pll2_default = 800 * MHZ;
@@ -2305,6 +2388,10 @@ static void __init clk_misc_init(void)
 		pll2_default = 1066 * MHZ;
 		pll2p_default = 533 * MHZ;
 	}
+
+	pll3_vco_default = 2000 * MHZ;
+	pll3_default = 500 * MHZ;
+	pll3p_default = 1000 * MHZ;
 
 	/* select i2s clock from VCTCXO , LP audio playback support */
 	__raw_writel(__raw_readl(MPMU_FCCR) | (1 << 28), MPMU_FCCR);
@@ -2317,6 +2404,28 @@ static void __init clk_misc_init(void)
 	/* disable SOC and MC4 dynamic clk gating on Z0 */
 	__raw_writel(0x00080008, MC_CONF);
 
+}
+
+/*
+ * init pll default output that used for pxa988
+ * MUST call this function after pll2 and pll3 clock node is inited
+ */
+static void __init clk_pll_init(void)
+{
+	clk_set_rate(&pll2_vco, pll2_vco_default);
+	clk_set_rate(&pll2, pll2_default);
+	clk_set_rate(&pll2p, pll2p_default);
+
+	clk_set_rate(&pll3_vco, pll3_vco_default);
+	clk_set_rate(&pll3, pll3_default);
+	clk_set_rate(&pll3p, pll3p_default);
+
+	pr_info("PLL2 SWCR[%x] PLLCR[%x]\n",\
+		__raw_readl(APB_SPARE_PLL2CR),
+		__raw_readl(MPMU_PLL2CR));
+	pr_info("PLL3 SWCR[%x] PLLCR[%x]\n",
+		__raw_readl(APB_SPARE_PLL3CR),
+		__raw_readl(MPMU_PLL3CR));
 }
 
 void pxa988_init_one_clock(struct clk *c)
@@ -2343,6 +2452,7 @@ static int __init pxa988_clk_init(void)
 	for (i = 0; i < ARRAY_SIZE(pxa988_list_clks); i++)
 		pxa988_init_one_clock(&pxa988_list_clks[i]);
 
+	clk_pll_init();
 	return 0;
 }
 core_initcall(pxa988_clk_init);
