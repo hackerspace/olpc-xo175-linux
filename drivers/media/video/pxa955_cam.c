@@ -1136,24 +1136,22 @@ void cam_set_constrain(struct pxa955_cam_dev *cam, int dev_idx)
 		dvfm_enable_op_name("CG", dev_idx);
 		dvfm_enable_op_name("156M", dev_idx);
 		dvfm_enable_op_name("312M", dev_idx);
+		dvfm_enable_op_name("416M", dev_idx);
 		dvfm_enable_op_name("624M", dev_idx);
-		dvfm_enable_op_name("806M", dev_idx);
-		dvfm_enable_op_name("1014M", dev_idx);
 		break;
 
 	case CAM_STATE_OPEN:
 		wrr_nor_sv = *wrr_nor;	/* backup original value */
 		wrr_fst_sv = *wrr_fst;
 	case CAM_STATE_FORMATED:
-		/* video device opened, but not stream-on */
+		/* video device opened, but not stream-on, only disable LPM */
 		dvfm_disable_op_name("CG", dev_idx);
 		dvfm_disable_op_name("D1", dev_idx);
 		dvfm_disable_op_name("D2", dev_idx);
 		dvfm_enable_op_name("156M", dev_idx);
 		dvfm_enable_op_name("312M", dev_idx);
+		dvfm_enable_op_name("416M", dev_idx);
 		dvfm_enable_op_name("624M", dev_idx);
-		dvfm_enable_op_name("806M", dev_idx);
-		dvfm_enable_op_name("1014M", dev_idx);
 #ifdef _ARB_CHANGE_
 			*arb_sch |= 0x100;	/* set XPAGE_EN */
 			*wrr_nor = wrr_nor_sv;
@@ -1169,11 +1167,18 @@ void cam_set_constrain(struct pxa955_cam_dev *cam, int dev_idx)
 		case 320:	/* QVGA */
 		case 640:	/* VGA */
 		case 800:	/* WVGA */
-			/* No constrain needed for cam driver */
+			/* once start streamming, must make sure all OPs with
+			 * different AXI bus frequency is disabled, otherwise
+			 * CSI/SCI won't work properlly when AXI F/C */
+			dvfm_disable_op_name("624M", dev_idx);
+			dvfm_disable_op_name("416M", dev_idx);
+			dvfm_disable_op_name("312M", dev_idx);
+			dvfm_disable_op_name("156M", dev_idx);
 			break;
 		case 1280:
-			/* 720P used at least 182MHz MIPI clock
-			 * test shows 312M PP is OK with it */
+			dvfm_disable_op_name("624M", dev_idx);
+			dvfm_disable_op_name("416M", dev_idx);
+			dvfm_disable_op_name("312M", dev_idx);
 			dvfm_disable_op_name("156M", dev_idx);
 #ifdef _ARB_CHANGE_
 			/* W/R for pxa978 D0 silicon issue */
@@ -1186,10 +1191,9 @@ void cam_set_constrain(struct pxa955_cam_dev *cam, int dev_idx)
 				*wrr_nor);
 #endif
 			break;
-		case 1920:
-			/* 1080p used at least 300M MIPI clock, so 806Mhz is
-			 * the minimum according to PP table. But actually
-			 * 624Mhz also seems OK at 364M MIPI clock */
+		default:	/* for 1080p and higher */
+			dvfm_disable_op_name("624M", dev_idx);
+			dvfm_disable_op_name("416M", dev_idx);
 			dvfm_disable_op_name("312M", dev_idx);
 			dvfm_disable_op_name("156M", dev_idx);
 #ifdef _ARB_CHANGE_
