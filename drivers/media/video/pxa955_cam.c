@@ -293,6 +293,7 @@ struct pxa955_cam_dev {
 	struct resource		*res;
 	unsigned long		platform_flags;
 	enum cam_state		state;
+	int			frmcnt;
 
 	/* Associated CSI */
 	struct pxa95x_csi_dev *csidev;
@@ -731,6 +732,7 @@ static void dma_fetch_frame(struct pxa955_cam_dev *pcdev)
 	spin_lock(&pcdev->spin_lock);
 
 	if (pcdev->dma_bufs > 1) {
+		u64 now = OSCR4;
 		/*
 		* get the first node of dma_list, it must have been filled by dma, and
 		* remove it from dma-buf-list.
@@ -747,6 +749,21 @@ static void dma_fetch_frame(struct pxa955_cam_dev *pcdev)
 				dma_handles,
 				vb2_get_plane_payload(&buf_node->vb2, 0),
 				DMA_FROM_DEVICE);
+
+		if (buf_node->vb2.v4l2_buf.sequence == 0)
+			printk(KERN_ERR "cam: \tbuf(%2d) not touched by SOF, " \
+			"OLD_TS = %ld.%06ld\n", buf_node->vb2.v4l2_buf.index, \
+			buf_node->vb2.v4l2_buf.timestamp.tv_sec, \
+			buf_node->vb2.v4l2_buf.timestamp.tv_usec);
+
+		/*
+		 * OSCR timer resolution is 1/32768 second.
+		 * convert the OSCR counts to seconds and useconds.
+		 */
+		buf_node->vb2.v4l2_buf.timestamp.tv_sec = now >> 15;
+		buf_node->vb2.v4l2_buf.timestamp.tv_usec =
+			((now & 0x7FFF) * 1000000) >> 15;
+
 		vb2_buffer_done(&buf_node->vb2, VB2_BUF_STATE_DONE);
 	} else {
 		spin_unlock(&pcdev->spin_lock);
@@ -1342,6 +1359,8 @@ static void pxa97x_vb2_queue(struct vb2_buffer *vb)
 	struct pxa_buf_node *tail;
 	unsigned long flag;
 
+	vb->v4l2_buf.sequence = 0;
+
 	/* Between two IRQ, more than one buffer may be pushed into driver,
 	 * they are added to the new buffer list temporarily, and append to
 	 * HW DMA list together when IRQ comes. Thus, qbuf thread will touch
@@ -1401,6 +1420,7 @@ static int pxa97x_vb2_streamon(struct vb2_queue *q, unsigned int count)
 		return ret;
 
 	pcdev->state = CAM_STATE_STREAMING;
+	pcdev->frmcnt = 0;
 	cam_set_constrain(pcdev, dvfm_dev_idx);
 
 	sci_irq_enable(pcdev, IRQ_EOFX|IRQ_OFO);
@@ -2093,21 +2113,15 @@ static irqreturn_t cam_irq(int irq, void *data)
 
 	if (irqs & IRQ_SOFX) {
 		struct pxa_buf_node *buf_node;
-		u64 now = OSCR4;
-
 		/*
 		 * get the first node of dma_list
 		 * and fill the timestamp field of v4l2_buffer.
 		 */
 		buf_node = list_entry(pcdev->dma_chain.next,
 						struct pxa_buf_node, hook);
-		/*
-		 * OSCR timer resolution is 1/32768 second.
-		 * convert the OSCR counts to seconds and useconds.
-		 */
-		buf_node->vb2.v4l2_buf.timestamp.tv_sec = now >> 15;
-		buf_node->vb2.v4l2_buf.timestamp.tv_usec =
-			((now & 0x7FFF) * 1000000) >> 15;
+		if (++pcdev->frmcnt < 0)
+			pcdev->frmcnt = 1;
+		buf_node->vb2.v4l2_buf.sequence = pcdev->frmcnt;
 	}
 
 	if (irqs & IRQ_EOFX) {
