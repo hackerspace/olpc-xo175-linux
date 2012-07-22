@@ -376,10 +376,11 @@ static int pm800_set_voltage(struct regulator_dev *rdev,
 		gpio_set_value(info->dvc->dvc1, 0);
 		spin_unlock_irqrestore(&info->gpio_lock, flags);
 
-		/* exp_vol is sure to smaller than cur_vol */
+		vol1 = (cur_vol > exp_vol) ? exp_vol : cur_vol;
+		vol2 = (cur_vol > exp_vol) ? cur_vol : exp_vol;
 		/* gpio sync: 4 periods of 3Mhz */
 		udelay(buck1_delay(info->buck1_set_index,
-				   exp_vol, cur_vol) + 2);
+				   vol1, vol2) + 2);
 		dev_dbg(info->chip->dev, "new vol: %d\n", exp_vol);
 
 		return 0;
