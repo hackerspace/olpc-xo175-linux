@@ -284,10 +284,10 @@ static void pxa988_ram_console_mem_reserve(void)
 
 static void __init pxa988_reserve_cpmem(void)
 {
-	u32 cp_area_addr = 0x07000000;
-	u32 cp_area_size = 0x01000000;
+	u32 cp_area_addr = 0x06000000;
+	u32 cp_area_size = 0x02000000;
 
-	/* Reserve 16MB memory for CP */
+	/* Reserve 32MB memory for CP */
 	BUG_ON(memblock_reserve(cp_area_addr, cp_area_size) != 0);
 	memblock_free(cp_area_addr, cp_area_size);
 	memblock_remove(cp_area_addr, cp_area_size);
