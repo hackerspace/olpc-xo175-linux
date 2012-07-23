@@ -318,7 +318,7 @@ struct regval_list yuv_UXGA_tab[] = {
 	{0x3005, 0x24},
 	{0x3004, 0x10},
 
-	{0x3503, 0x03},
+	{0x3503, 0x00},
 
 	{OV2659_END_ADDR, OV2659_END_VAL}
 };
