@@ -142,12 +142,18 @@ void clear_mipi_reference_control(void)
 	}
 }
 
+/*
+ * If use CKRQxP/CKREQxE to control CLK26MOUTDMD/CLK13MOUTDMD, the
+ * MFP for hardware request signal must be configured as AF sysclk_req.
+ * If control the clock via software(bit 16 of GEN_REG3), hardware
+ * request signal is not necessary.
+ */
 /* GEN_REG3 system clock request line */
 enum sys_clk_req_line {
 	SYS_CLK_REQ_LINE_0_SHIFT = 14,
 		/* not used currently */
 	SYS_CLK_REQ_LINE_1_SHIFT = 12,
-		CAM_MCLK_26M_REQ_LINE_SHIFT = SYS_CLK_REQ_LINE_1_SHIFT,
+		/* not used currently */
 	SYS_CLK_REQ_LINE_2_SHIFT = 10,
 		/* not used currently */
 	SYS_CLK_REQ_LINE_3_SHIFT = 8,
@@ -171,30 +177,32 @@ enum sys_clk_req_line_control {
 #define SYS_CLK_OFF ((SYS_CLK_REQ_LINE_ACTIVE_DEFAULT << 1) | SYS_CLK_REQ_LINE_DISABLE)
 #define SYS_CLK_REQ_LINE_MASK (3)
 
-static int clk_pxa95x_cam_mclk_26m_enable(struct clk *clk)
+static int clk_pxa95x_26MOUTDMD_enable(struct clk *clk)
 {
+	/* GEN_REG3_CKRSW1 is used to control CLK26MOUTDMD */
 	if(pxa_reg_write(GEN_REG3,
-		SYS_CLK_ON << CAM_MCLK_26M_REQ_LINE_SHIFT,
-		SYS_CLK_REQ_LINE_MASK << CAM_MCLK_26M_REQ_LINE_SHIFT) < 0)
+		GEN_REG3_CKRSW1,
+		GEN_REG3_CKRSW1_MASK) < 0)
 		return -EINVAL;
 
-	pr_info("enable camera MCLK 26M clock\n");
+	pr_info("enable CLK26MOUTDMD\n");
 	return 0;
 }
 
-static void clk_pxa95x_cam_mclk_26m_disable(struct clk *clk)
+static void clk_pxa95x_26MOUTDMD_disable(struct clk *clk)
 {
+	/* GEN_REG3_CKRSW1 is used to control CLK26MOUTDMD */
 	if(pxa_reg_write(GEN_REG3,
-		SYS_CLK_OFF << CAM_MCLK_26M_REQ_LINE_SHIFT,
-		SYS_CLK_REQ_LINE_MASK << CAM_MCLK_26M_REQ_LINE_SHIFT) < 0)
+		0,
+		GEN_REG3_CKRSW1_MASK) < 0)
 		return;
 
-	pr_info("disable camera MCLK 26M clock\n");
+	pr_info("disable CLK26MOUTDMD\n");
 }
 
-static const struct clkops clk_pxa95x_cam_mclk_26m_ops = {
-	.enable = clk_pxa95x_cam_mclk_26m_enable,
-	.disable = clk_pxa95x_cam_mclk_26m_disable,
+static const struct clkops clk_pxa95x_26MOUTDMD_ops = {
+	.enable = clk_pxa95x_26MOUTDMD_enable,
+	.disable = clk_pxa95x_26MOUTDMD_disable,
 };
 
 static int clk_pxa95x_26MOUT_enable(struct clk *clk)
@@ -1856,8 +1864,8 @@ static struct clk clk_pxa978_syspll_416 = {
 	.ops = &clk_pxa978_syspll416_ops,
 };
 
-static struct clk clk_pxa95x_cam_mclk_26m = {
-	.ops = &clk_pxa95x_cam_mclk_26m_ops,
+static struct clk clk_pxa95x_26MOUTDMD = {
+	.ops = &clk_pxa95x_26MOUTDMD_ops,
 };
 
 static struct clk clk_pxa95x_26MOUT = {
@@ -1903,7 +1911,6 @@ static struct clk_lookup common_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_sci2, NULL, "SCI2CLK"),
 	INIT_CLKREG(&clk_pxa95x_csi_tx_esc, NULL, "CSI_TX_ESC"),
 	INIT_CLKREG(&clk_pxa95x_tpm, NULL, "TPM"),
-	INIT_CLKREG(&clk_pxa95x_cam_mclk_26m, NULL, "CAM_MCLK_26M"),
 };
 
 static struct clk_lookup pxa955_specific_clkregs[] = {
@@ -1925,6 +1932,7 @@ static struct clk_lookup pxa978_specific_clkregs[] = {
 	INIT_CLKREG(&clk_pxa978_peri_pll, NULL, "PERI_PLL"),
 	INIT_CLKREG(&clk_pxa978_gcu, NULL, "GCCLK"),
 	INIT_CLKREG(&clk_pxa95x_26MOUT, NULL, "CLK26MOUT"),
+	INIT_CLKREG(&clk_pxa95x_26MOUTDMD, NULL, "CLK26MOUTDMD"),
 };
 
 static inline void clock_lookup_init(struct clk_lookup *clk_lookup, int count)

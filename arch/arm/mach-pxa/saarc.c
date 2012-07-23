@@ -2072,7 +2072,7 @@ static void __init init_cam(void)
 	platform_device_register(&pxa95x_device_cam1);
 #endif
 
-	cam_mclk_26m = clk_get(NULL, "CAM_MCLK_26M");
+	cam_mclk_26m = clk_get(NULL, "CLK26MOUTDMD");
 	if (IS_ERR(cam_mclk_26m)) {
 		pr_err("init_cam: unable to get camera MCLK 26M");
 		return;
