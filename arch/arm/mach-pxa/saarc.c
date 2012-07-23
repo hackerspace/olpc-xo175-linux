@@ -1493,12 +1493,12 @@ static unsigned int matrix_key_map[] = {
 	KEY(0, 1, KEY_SEND),
 	KEY(0, 2, KEY_CAMERA),
 	KEY(1, 0, KEY_WWW),
-	KEY(1, 1, KEY_BACK),
+	KEY(1, 1, KEY_MENU),
 	KEY(1, 2, KEY_CAMERA),
 	KEY(2, 0, KEY_END),
 	KEY(2, 1, KEY_VOLUMEUP),
 	KEY(2, 2, KEY_VOLUMEUP),/*not exist*/
-	KEY(3, 0, KEY_MENU),
+	KEY(3, 0, KEY_BACK),
 	KEY(3, 1, KEY_VOLUMEDOWN),
 	KEY(3, 2, KEY_VOLUMEDOWN),/*not exists*/
 };
