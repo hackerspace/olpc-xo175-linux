@@ -90,7 +90,7 @@ extern const char pxa9xx_force_lpm_names__[][LPM_NAMES_LEN];
 #endif
 extern enum pxa9xx_force_lpm ForceLPM;
 extern enum pxa9xx_force_lpm LastForceLPM;
-extern unsigned int ForceLPMWakeup;
+extern unsigned int ForceLPMWakeup, ForceLPMWakeup_CGM_D0;
 extern int RepeatMode;
 extern int ForceVCTCXO_EN;
 extern int ForceC0;

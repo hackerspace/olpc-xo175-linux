@@ -1679,6 +1679,8 @@ void enter_lowpower_mode(int state)
 			if (PXA9xx_Force_CGM == ForceLPM) {
 				LastForceLPM = PXA9xx_Force_CGM;
 				ACGD0ER = ForceLPMWakeup;
+				if (cpu_is_pxa978_Dx())
+					ACGD0ER2 = ForceLPMWakeup_CGM_D0;
 			}
 			end_tick = OSCR4;
 

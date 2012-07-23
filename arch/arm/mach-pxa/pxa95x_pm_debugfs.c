@@ -32,7 +32,7 @@
 
 enum pxa9xx_force_lpm ForceLPM = PXA9xx_Force_None;
 enum pxa9xx_force_lpm LastForceLPM = PXA9xx_Force_None;
-unsigned int ForceLPMWakeup;
+unsigned int ForceLPMWakeup, ForceLPMWakeup_CGM_D0;
 int RepeatMode;
 int ForceOP, ForcedOPIndex, ForceC0, ForceVCTCXO_EN, EnableD2VoltageChange = 1;
 
@@ -148,6 +148,7 @@ static struct dentry *dbgfs_root, *pmLogger_file, *DRO_Status, *forceVCTCXO_EN_f
 			*pmLoggerBuffer_file;
 
 uint32_t ForceLPMWakeups_tmp;
+uint32_t ForceLPMWakeups_tmp_CGM_D0;
 uint32_t ForceLPM_tmp;
 uint32_t profilerRecommendationPP = 6;
 uint32_t profilerRecommendationEnable;
@@ -1066,10 +1067,25 @@ static ssize_t PXA9xx_DVFM_ForceLPM_seq_read(struct file *file,
 	/* Safe version of sprintf of that doesn't suffer from buffer
 	 * overruns */
 	ret = snprintf(buf, sizeof(buf) - 1,
-		       "type [LPM to Force],[0x peripherals for wakeup] <r>\n\n");
+		       "If for D0CGM or D0CG_LCD Mode\n");
 	if (-1 == ret)
 		return ret;
 	sum = ret;
+	ret = snprintf(buf + sum, sizeof(buf) - 1,
+		       "    type [LPM to Force] [0x peripherals for ACGD0ER], [0x peripherals for ACGD0ER2], <r>\n");
+	if (-1 == ret)
+		return ret;
+	sum += ret;
+	ret = snprintf(buf + sum, sizeof(buf) - 1,
+		       "If for D1 and D2 Mode\n");
+	if (-1 == ret)
+		return ret;
+	sum += ret;
+	ret = snprintf(buf + sum, sizeof(buf) - 1,
+		       "    type [LPM to Force] [0x peripherals for wakeup], <r>\n");
+	if (-1 == ret)
+		return ret;
+	sum += ret;
 
 	for (; nameIndex < PXA9xx_Force_count; nameIndex++) {
 		ret = snprintf(buf + sum, sizeof(buf) - 1,
@@ -1087,7 +1103,8 @@ static ssize_t PXA9xx_DVFM_ForceLPM_seq_read(struct file *file,
 		return ret;
 	sum += ret;
 
-	if (ForceLPM == 1) {
+	if (ForceLPM) {
+		int lpm_index = (int)ForceLPM;
 		if (RepeatMode == 1)
 			ret = snprintf(buf + sum, sizeof(buf) - 1,
 				       "Repeat mode\n");
@@ -1098,7 +1115,23 @@ static ssize_t PXA9xx_DVFM_ForceLPM_seq_read(struct file *file,
 			return ret;
 		sum += ret;
 		ret = snprintf(buf + sum, sizeof(buf) - 1,
-			       "ForceLPMWakeup = 0x%x\n\n", ForceLPMWakeup);
+			       "\nCurrent Endless LPM is %s\n\n", pxa9xx_force_lpm_names__[lpm_index]);
+
+		if (-1 == ret)
+			return ret;
+		sum += ret;
+		if (ForceLPM == PXA9xx_Force_CGM) {
+			ret = snprintf(buf + sum, sizeof(buf) - 1,
+					"ForceLPMWakeup for ACGD0ER = 0x%x\n", ForceLPMWakeup);
+			if (-1 == ret)
+				return ret;
+			sum += ret;
+			ret = snprintf(buf + sum, sizeof(buf) - 1,
+					"ForceLPMWakeup_CGM_D0 for ACGD0ER2 = 0x%x\n", ForceLPMWakeup_CGM_D0);
+		}
+		else
+			ret = snprintf(buf + sum, sizeof(buf) - 1,
+					"ForceLPMWakeup = 0x%x\n", ForceLPMWakeup);
 	} else
 		ret = snprintf(buf + sum, sizeof(buf) - 1, "Not active\n\n");
 
@@ -1123,8 +1156,12 @@ static int PXA9xx_DVFM_ForceLPM_seq_write(struct file *file,
 	if (copy_from_user(buf, ubuf, min_size))
 		return -EFAULT;
 
-	pos += sscanf(buf, "%d, %x %c",
-		      &ForceLPM_tmp, &ForceLPMWakeups_tmp, &ch);
+	pos += sscanf(buf, "%d", &ForceLPM_tmp);
+
+	if (ForceLPM_tmp == 3)
+		pos += sscanf(buf + pos, "%x, %x, %c", &ForceLPMWakeups_tmp, &ForceLPMWakeups_tmp_CGM_D0, &ch);
+	else
+		pos += sscanf(buf + pos, "%x, %c", &ForceLPMWakeups_tmp, &ch);
 
 	if (ch == 'r')
 		RepeatMode = 1;
@@ -1135,6 +1172,7 @@ static int PXA9xx_DVFM_ForceLPM_seq_write(struct file *file,
 		ForceLPM = (enum pxa9xx_force_lpm)ForceLPM_tmp;
 		LastForceLPM = PXA9xx_Force_None;
 		ForceLPMWakeup = ForceLPMWakeups_tmp;
+		ForceLPMWakeup_CGM_D0 = ForceLPMWakeups_tmp_CGM_D0;
 	} else
 		printk(KERN_WARNING "\n%d is not a valid state\n",
 		       ForceLPM_tmp);
