@@ -145,7 +145,7 @@ void clear_mipi_reference_control(void)
 /* GEN_REG3 system clock request line */
 enum sys_clk_req_line {
 	SYS_CLK_REQ_LINE_0_SHIFT = 14,
-		GPS_ECLK_26M_REQ_LINE_SHIFT = SYS_CLK_REQ_LINE_0_SHIFT,
+		/* not used currently */
 	SYS_CLK_REQ_LINE_1_SHIFT = 12,
 		CAM_MCLK_26M_REQ_LINE_SHIFT = SYS_CLK_REQ_LINE_1_SHIFT,
 	SYS_CLK_REQ_LINE_2_SHIFT = 10,
@@ -197,30 +197,32 @@ static const struct clkops clk_pxa95x_cam_mclk_26m_ops = {
 	.disable = clk_pxa95x_cam_mclk_26m_disable,
 };
 
-static int clk_pxa95x_gps_eclk_26m_enable(struct clk *clk)
+static int clk_pxa95x_26MOUT_enable(struct clk *clk)
 {
+	/* GEN_REG3_CKRSW2 is used to control CLK26MOUT */
 	if(pxa_reg_write(GEN_REG3,
-		SYS_CLK_ON << GPS_ECLK_26M_REQ_LINE_SHIFT,
-		SYS_CLK_REQ_LINE_MASK << GPS_ECLK_26M_REQ_LINE_SHIFT) < 0)
+		GEN_REG3_CKRSW2,
+		GEN_REG3_CKRSW2_MASK) < 0)
 		return -EINVAL;
 
-	pr_info("enable GPS ECLK 26M clock\n");
+	pr_info("enable CLK26MOUT\n");
 	return 0;
 }
 
-static void clk_pxa95x_gps_eclk_26m_disable(struct clk *clk)
+static void clk_pxa95x_26MOUT_disable(struct clk *clk)
 {
+	/* GEN_REG3_CKRSW2 is used to control CLK26MOUT */
 	if(pxa_reg_write(GEN_REG3,
-		SYS_CLK_OFF << GPS_ECLK_26M_REQ_LINE_SHIFT,
-		SYS_CLK_REQ_LINE_MASK << GPS_ECLK_26M_REQ_LINE_SHIFT) < 0)
+		0,
+		GEN_REG3_CKRSW2_MASK) < 0)
 		return;
 
-	pr_info("disable GPS ECLK 26M clock\n");
+	pr_info("disable CLK26MOUT\n");
 }
 
-static const struct clkops clk_pxa95x_gps_eclk_26m_ops = {
-	.enable = clk_pxa95x_gps_eclk_26m_enable,
-	.disable = clk_pxa95x_gps_eclk_26m_disable,
+static const struct clkops clk_pxa95x_26MOUT_ops = {
+	.enable = clk_pxa95x_26MOUT_enable,
+	.disable = clk_pxa95x_26MOUT_disable,
 };
 
 static int clk_pxa95x_dsi_enable(struct clk *dsi_clk)
@@ -1858,8 +1860,8 @@ static struct clk clk_pxa95x_cam_mclk_26m = {
 	.ops = &clk_pxa95x_cam_mclk_26m_ops,
 };
 
-static struct clk clk_pxa95x_gps_eclk_26m = {
-	.ops = &clk_pxa95x_gps_eclk_26m_ops,
+static struct clk clk_pxa95x_26MOUT = {
+	.ops = &clk_pxa95x_26MOUT_ops,
 };
 
 static struct clk_lookup common_clkregs[] = {
@@ -1902,7 +1904,6 @@ static struct clk_lookup common_clkregs[] = {
 	INIT_CLKREG(&clk_pxa95x_csi_tx_esc, NULL, "CSI_TX_ESC"),
 	INIT_CLKREG(&clk_pxa95x_tpm, NULL, "TPM"),
 	INIT_CLKREG(&clk_pxa95x_cam_mclk_26m, NULL, "CAM_MCLK_26M"),
-	INIT_CLKREG(&clk_pxa95x_gps_eclk_26m, NULL, "GPS_ECLK_26M"),
 };
 
 static struct clk_lookup pxa955_specific_clkregs[] = {
@@ -1923,6 +1924,7 @@ static struct clk_lookup pxa978_specific_clkregs[] = {
 	INIT_CLKREG(&clk_pxa978_syspll_416, NULL, "SYS_PLL_416"),
 	INIT_CLKREG(&clk_pxa978_peri_pll, NULL, "PERI_PLL"),
 	INIT_CLKREG(&clk_pxa978_gcu, NULL, "GCCLK"),
+	INIT_CLKREG(&clk_pxa95x_26MOUT, NULL, "CLK26MOUT"),
 };
 
 static inline void clock_lookup_init(struct clk_lookup *clk_lookup, int count)

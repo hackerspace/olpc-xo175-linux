@@ -503,7 +503,7 @@ static void gps_eclk(int flag)
 	}
 
 	if (!gps_eclk_26m) {
-		gps_eclk_26m = clk_get(NULL, "GPS_ECLK_26M");
+		gps_eclk_26m = clk_get(NULL, "CLK26MOUT");
 		if (IS_ERR(gps_eclk_26m)) {
 			pr_err("gps_eclk: unable to get GPS ECLK 26M");
 			return;

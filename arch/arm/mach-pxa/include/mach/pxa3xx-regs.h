@@ -436,6 +436,8 @@
  */
 #define GEN_REG3		(0x42404008)
 #define GEN_REG3_WO_MASK	(0xBFF00)
+#define GEN_REG3_CKRSW2		(1 << 17)
+#define GEN_REG3_CKRSW2_MASK	(1 << 17)
 #define GEN_REG3_SPLGEN		(1 << 19)
 #define GEN_REG3_SPLGEN_MASK	(1 << 19)
 
