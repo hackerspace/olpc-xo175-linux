@@ -128,8 +128,13 @@ int __init pxa910_init_squ(int num_ch)
 		return -ENOMEM;
 
 	ret =
-	    request_irq(IRQ_PXA168_HIFI_DMA, squ_irq_handler, IRQF_DISABLED,
+#ifdef CONFIG_CPU_PXA988
+	    request_irq(IRQ_PXA988_HIFI_DMA, squ_irq_handler, IRQF_DISABLED,
 			"SQU", NULL);
+#else
+	    request_irq(IRQ_PXA910_HIFI_DMA, squ_irq_handler, IRQF_DISABLED,
+			"SQU", NULL);
+#endif
 	if (ret) {
 		pr_debug("Wow!  Can't register IRQ for SQU\n");
 		kfree(squ_channels);
