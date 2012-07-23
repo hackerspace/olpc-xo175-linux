@@ -352,7 +352,14 @@ static void hdmi_late_resume_mmp(struct early_suspend *h)
 static int hdmi_suspend_mmp(struct platform_device *pdev, pm_message_t mesg)
 {
 	struct hdmi_instance *hi = platform_get_drvdata(pdev);
-	if (atomic_read(&hdmi_state) == HDMI_ON) {
+
+	/* MMP3 */
+	if (cpu_is_mmp3()) {
+		clk_disable(hi->clk);
+		if (hi->hdmi_power)
+			hi->hdmi_power(0);
+	/* MMP2 */
+	} else if (atomic_read(&hdmi_state) == HDMI_ON) {
 		clk_disable(hi->clk);
 		if (hi->hdmi_power)
 			hi->hdmi_power(0);
@@ -365,16 +372,18 @@ static int hdmi_suspend_mmp(struct platform_device *pdev, pm_message_t mesg)
 static int hdmi_resume_mmp(struct platform_device *pdev)
 {
 	struct hdmi_instance *hi = platform_get_drvdata(pdev);
+
 #if defined(CONFIG_CPU_MMP3)
-	/* always turn on 5v power*/
+	/* always turn on 5v power and clock*/
 	if (hi->hdmi_power)
 		hi->hdmi_power(1);
+	clk_enable(hi->clk);
 #endif
 	if (gpio_get_value(hi->gpio) == hi->hpd_in) {
 		/*if connected, reset HDMI*/
 		atomic_set(&hdmi_state, HDMI_ON);
-		clk_enable(hi->clk);
 #if defined(CONFIG_CPU_MMP2)
+		clk_enable(hi->clk);
 		if (hi->hdmi_power)
 			hi->hdmi_power(1);
 #endif
@@ -393,7 +402,7 @@ static int hdmi_resume_mmp(struct platform_device *pdev)
 			unset_power_constraint(hi);
 		uio_event_notify(&hi->uio_info);
 	}
-	printk("uio_hdmi: resume done!\n");
+
 	return 0;
 }
 
