@@ -146,6 +146,18 @@ static ssize_t cp15_read(struct file *filp, char __user *buffer,
 	len += snprintf(p + len, buf_len - len,
 			"Secure Configuration: 0x%08x\n", value);
 
+	asm volatile("mrc p15, 0, %0, c1, c1, 1" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Secure Debug Enable: 0x%08x\n", value);
+
+	asm volatile("mrc p15, 0, %0, c1, c1, 2" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Non-Secure Access Control: 0x%08x\n", value);
+
+	asm volatile("mrc p15, 0, %0, c1, c1, 3" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Virtualization Control: 0x%08x\n", value);
+
 	/* c2 registers */
 	asm volatile("mrc p15, 0, %0, c2, c0, 0" : "=r"(value));
 	len += snprintf(p + len, buf_len - len,
@@ -182,7 +194,61 @@ static ssize_t cp15_read(struct file *filp, char __user *buffer,
 	len += snprintf(p + len, buf_len - len,
 			"Instruction Fault Address: 0x%08x\n", value);
 
+	/* c7 register */
+	asm volatile("mrc p15, 0, %0, c7, c4, 0" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Physical Address: 0x%08x\n", value);
+
+	/* c9 register */
+	asm volatile("mrc p15, 0, %0, c9, c12, 0" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Performance Monitor Control(PMCR): 0x%08x\n", value);
+
+	asm volatile("mrc p15, 0, %0, c9, c12, 1" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Count Enable Set(PMCNTENSET): 0x%08x\n", value);
+
+	asm volatile("mrc p15, 0, %0, c9, c12, 2" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Count Enable Clear(PMCNTENCLR): 0x%08x\n", value);
+
+	asm volatile("mrc p15, 0, %0, c9, c12, 3" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Overflow Flag Status(PMOVSR): 0x%08x\n", value);
+
+	asm volatile("mrc p15, 0, %0, c9, c12, 5" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Event Counter Selection(PMSELR): 0x%08x\n", value);
+
+	asm volatile("mrc p15, 0, %0, c9, c13, 0" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Cycle Count(PMCCNTR): 0x%08x\n", value);
+
+	asm volatile("mrc p15, 0, %0, c9, c13, 1" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Event Type Select(PMXEVTYPER): 0x%08x\n", value);
+
+	asm volatile("mrc p15, 0, %0, c9, c13, 2" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Event Count(PMXEVCNTR): 0x%08x\n", value);
+
+	asm volatile("mrc p15, 0, %0, c9, c14, 0" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"User Enable(PMUSERENR): 0x%08x\n", value);
+
+	asm volatile("mrc p15, 0, %0, c9, c14, 1" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Interrupt Enable Set(PMINTENSET): 0x%08x\n", value);
+
+	asm volatile("mrc p15, 0, %0, c9, c14, 2" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Interrupt Enable Clear(PMINTENCLR): 0x%08x\n", value);
+
 	/* c10 registers */
+	asm volatile("mrc p15, 0, %0, c10, c0, 0" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"TLB Lockdown: 0x%08x\n", value);
+
 	asm volatile("mrc p15, 0, %0, c10, c2, 0" : "=r"(value));
 	len += snprintf(p + len, buf_len - len,
 			"Memory Attribute PRRR: 0x%08x\n", value);
@@ -191,10 +257,65 @@ static ssize_t cp15_read(struct file *filp, char __user *buffer,
 	len += snprintf(p + len, buf_len - len,
 			"Memory Attribute NMRR: 0x%08x\n", value);
 
+	/* c11 register */
+	asm volatile("mrc p15, 0, %0, c11, c1, 0" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Preload Engine User Accessibility: 0x%08x\n", value);
+
+	asm volatile("mrc p15, 0, %0, c11, c1, 1" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Preload Engine Parameters Control: 0x%08x\n", value);
+
+	/* c12 register */
+	asm volatile("mrc p15, 0, %0, c12, c0, 0" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Vector Base Address: 0x%08x\n", value);
+
+	asm volatile("mrc p15, 0, %0, c12, c0, 1" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Monitor Vector Base Address: 0x%08x\n", value);
+
+	asm volatile("mrc p15, 0, %0, c12, c1, 0" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Interrupt Status: 0x%08x\n", value);
+
+	/* c13 register */
+	asm volatile("mrc p15, 0, %0, c13, c0, 0" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"FCSE Process ID: 0x%08x\n", value);
+
+	asm volatile("mrc p15, 0, %0, c13, c0, 1" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Context ID: 0x%08x\n", value);
+
+	asm volatile("mrc p15, 0, %0, c13, c0, 2" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"User Thread ID: 0x%08x\n", value);
+
+	asm volatile("mrc p15, 0, %0, c13, c0, 4" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Privileged Only Thread ID: 0x%08x\n", value);
+
 	/* c15 registers */
+	asm volatile("mrc p15, 0, %0, c15, c0, 0" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Power Control: 0x%08x\n", value);
+
 	asm volatile("mrc p15, 0, %0, c15, c1, 0" : "=r"(value));
 	len += snprintf(p + len, buf_len - len, "NEON is: %s\n",
 			(value & (1 << 0)) ?  "Busy" : "Idle");
+
+	asm volatile("mrc p15, 0, %0, c15, c5, 2" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Main TLB VA: 0x%08x\n", value);
+
+	asm volatile("mrc p15, 0, %0, c15, c6, 2" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Main TLB PA: 0x%08x\n", value);
+
+	asm volatile("mrc p15, 0, %0, c15, c7, 2" : "=r"(value));
+	len += snprintf(p + len, buf_len - len,
+			"Main TLB Attribute: 0x%08x\n", value);
 
 	if (len == buf_len)
 		pr_warn("The buffer for dumpping cp15 is full now!\n");
