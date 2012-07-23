@@ -53,6 +53,8 @@ struct stimer_counter_device st_cntdev_table[NUM_EVTDEV_MAX] = {
 
 static DEFINE_CLOCK_DATA(cd);
 
+static DEFINE_SPINLOCK(stime_lock);
+
 /* the virtual base address of the timer module */
 static u32 st_base_virt;
 /* the clock rate select for the clock source */
@@ -196,8 +198,10 @@ void stimer_switch_hspeed(int n)
 static
 int stimer_set_next_event(unsigned long delta, struct clock_event_device *c)
 {
+	unsigned long flags;
 	int n = stimer_get_index(c);
 
+	spin_lock_irqsave(&stime_lock, flags);
 	/* stop the timer counter first and then do the config */
 	stimer_reg_clear_bits(BIT(n), TMR_CER);
 
@@ -219,12 +223,14 @@ int stimer_set_next_event(unsigned long delta, struct clock_event_device *c)
 	/* kick the counter running */
 	stimer_reg_set_bits(BIT(n), TMR_CER);
 
+	spin_unlock_irqrestore(&stime_lock, flags);
 	return 0;
 }
 
 static
 void stimer_set_mode(enum clock_event_mode mode, struct clock_event_device *c)
 {
+	unsigned long flags;
 	int n = stimer_get_index(c);
 
 	switch (mode) {
@@ -240,7 +246,9 @@ void stimer_set_mode(enum clock_event_mode mode, struct clock_event_device *c)
 
 	case CLOCK_EVT_MODE_UNUSED:
 		/* disable the counting */
+		spin_lock_irqsave(&stime_lock, flags);
 		stimer_reg_clear_bits(BIT(n), TMR_CER);
+		spin_unlock_irqrestore(&stime_lock, flags);
 	}
 }
 
