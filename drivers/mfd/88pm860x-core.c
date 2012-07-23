@@ -1033,7 +1033,7 @@ int __devinit pm860x_device_init(struct pm860x_chip *chip,
 			device_led_init(chip, pdata);
 			device_vbus_init(chip, pdata);
 			device_vibrator_init(chip, pdata);
-			device_8606_oscillator_vsys_init(chip->client);
+			device_8606_oscillator_vsys_init(chip->companion);
 			break;
 		case CHIP_PM8606:
 			device_8607_init(chip, chip->companion, pdata);
