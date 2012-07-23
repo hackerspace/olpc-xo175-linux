@@ -79,7 +79,7 @@ static unsigned long emeidkb_pin_config[] __initdata = {
 #define GPIO014_GPIO_PROX_IRQ		GPIO014_GPIO_14
 #define GPIO015_GPIO_NFC_EN		GPIO015_GPIO_15
 #define GPIO016_GPIO_TP_RESET		GPIO016_GPIO_16
-#define GPIO017_GPIO_TP_INT		GPIO017_GPIO_17
+#define GPIO017_GPIO_TP_INT		(GPIO017_GPIO_17 | MFP_PULL_LOW)
 #define GPIO018_GPIO_CMMB_EN		GPIO018_GPIO_18
 #define GPIO019_GPIO_CMMB_RESET		GPIO019_GPIO_19
 #define GPIO020_GPIO_CMMB_IRQ		GPIO020_GPIO_20
@@ -251,7 +251,7 @@ static unsigned int emei_dkb_matrix_key_map[] = {
 	KEY(0, 2, KEY_CAMERA), /* 1st camera */
 
 	KEY(1, 0, KEY_OK),
-	KEY(1, 1, KEY_HOME),
+	KEY(1, 1, KEY_HOMEPAGE),
 	KEY(1, 2, KEY_CAMERA), /* 2nd camera */
 
 	KEY(2, 0, KEY_LEFT),
@@ -828,7 +828,7 @@ static void ft5306_touch_reset(void)
 {
 	unsigned int touch_reset;
 
-	touch_reset = mfp_to_gpio(MFP_PIN_GPIO16);
+	touch_reset = mfp_to_gpio(GPIO016_GPIO_TP_RESET);
 
 	if (gpio_request(touch_reset, "ft5306_reset")) {
 		pr_err("Failed to request GPIO for ft5306_reset pin!\n");
@@ -847,11 +847,49 @@ out:
 	return;
 }
 
+static u32 ft5306_virtual_key_code[4] = {
+	KEY_MENU,
+	KEY_HOMEPAGE,
+	KEY_SEARCH,
+	KEY_BACK,
+};
+
+static u32 ft5306_get_virtual_key(u16 x_pos, u16 y_pos, u16 x_max, u16 y_max)
+{
+	int unit = (x_max / 13);
+
+	if ((unit < x_pos) && (x_pos < 3 * unit))
+		return ft5306_virtual_key_code[0];
+	else if ((4 * unit < x_pos) && (x_pos < 6 * unit))
+		return ft5306_virtual_key_code[1];
+	else if ((7 * unit < x_pos) && (x_pos < 9 * unit))
+		return ft5306_virtual_key_code[2];
+	else if ((10 * unit < x_pos) && (x_pos < 13 * unit))
+		return ft5306_virtual_key_code[3];
+	else
+		return KEY_RESERVED;
+}
+
+static int ft5306_set_virtual_key(struct input_dev *idev)
+{
+	__set_bit(EV_KEY, idev->evbit);
+	__set_bit(KEY_MENU, idev->keybit);
+	__set_bit(KEY_HOMEPAGE, idev->keybit);
+	__set_bit(KEY_SEARCH, idev->keybit);
+	__set_bit(KEY_BACK, idev->keybit);
+
+	return 0;
+}
+
 static struct ft5306_touch_platform_data ft5306_touch_data = {
 	.power = ft5306_touch_io_power_onoff,
 	.reset = ft5306_touch_reset,
+	.keypad = ft5306_get_virtual_key, /* get virtual key code */
 	.abs_x_max = 540,
 	.abs_y_max = 960,
+	.abs_flag = 0,
+	.virtual_key = 1,	/* enable virtual key for android */
+	.set_virtual_key = ft5306_set_virtual_key,
 };
 #endif
 
@@ -872,8 +910,8 @@ static struct i2c_board_info emeidkb_pwr_i2c_info[] = {
 #if defined(CONFIG_TOUCHSCREEN_FT5306)
 	{
 		.type = "ft5306_touch",
-		.addr = 0x38,
-		.irq  = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO17)),
+		.addr = 0x39,
+		.irq  = gpio_to_irq(mfp_to_gpio(GPIO017_GPIO_TP_INT)),
 		.platform_data	= &ft5306_touch_data,
 	},
 #endif
