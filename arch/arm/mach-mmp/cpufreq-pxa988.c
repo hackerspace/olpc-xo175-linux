@@ -71,7 +71,14 @@ static int pxa988_update_cpu_speed(unsigned long rate)
 
 	if (freqs.old == freqs.new)
 		return ret;
-
+#ifdef CONFIG_DDR_DEVFREQ
+	/*
+	 * If DDR devfreq is enabled, CPUfreq will NOT trigger memory bus
+	 * frequency change. Memory bus frequency will change according to
+	 * ddr devfreq profiler. If we have to request bus rate here, qos
+	 * can be used to support it
+	 */
+#else
 	/*
 	 * Vote on memory bus frequency based on cpu frequency
 	 * This sets the minimum frequency, display or avp may request higher
@@ -85,7 +92,7 @@ static int pxa988_update_cpu_speed(unsigned long rate)
 		clk_set_rate(ddr_clk, 208000000);
 	else
 		clk_set_rate(ddr_clk, 156000000);
-
+#endif
 	get_online_cpus();
 
 	for_each_online_cpu(freqs.cpu)
