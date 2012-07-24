@@ -214,8 +214,9 @@ static void pxa95x_pcm_abu_dma_irq(int dma_ch, void *p_abu_rtx)
 				}
 			}
 
+
 			/* check if there was RASINTR happened */
-			if (dcsr & DCSR_RASINTR) {
+			if ((dcsr & DCSR_RASINTR) && (p_abu_dma_dev->b_stream_active[i])) {
 
 				pr_debug("[ABU] DMA (%d) RASINTR happened\n",
 					 dma_ch);

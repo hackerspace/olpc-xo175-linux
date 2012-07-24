@@ -504,6 +504,7 @@ static int pxa95x_abu_trigger(struct snd_pcm_substream *substream, int cmd,
 						       abu_ssp_dvfm_idx);
 			pxa95x_abu_ssi_clock_enable(p_abu_runtime_ctx);
 
+			mdelay(1);
 			/* ABU init, do a software reset */
 			abu_reg_soft_reset(ssp->mmio_base);
 
