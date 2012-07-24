@@ -1154,7 +1154,7 @@ static struct i2c_board_info i2c2_info_DKB_3[] = {
 #if defined(CONFIG_SENSORS_ROHM_BH1772)
 	{
 		I2C_BOARD_INFO("rohm_ls", 0x38),
-		.irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO87)),
+		.irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO129)),
 	},
 #endif
 
