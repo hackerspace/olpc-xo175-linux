@@ -499,7 +499,6 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 	},
 };
 
-
 static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
 	/* 156MHz -- single PLL mode */
 	{
@@ -1987,23 +1986,35 @@ static inline unsigned int syspll_freq2reg(unsigned int x)
 static inline unsigned int corepll_freq2reg(unsigned int x)
 {
 	switch (x) {
+	case 312:
+		/* FBDIV=144, KVCO=1  VCODIV=4(VCODIV_SEL=5) PPDIV=1 */
+		return 0x90 << 5 | 1 << 21 | 5 << 17 | 0 << 25;
+	case 416:
+		/* FBDIV=192, KVCO=3  VCODIV=4(VCODIV_SEL=5) PPDIV=1 */
+		return 0xc0 << 5 | 3 << 21 | 5 << 17 | 0 << 25;
 	case 624:
-		/* FBDIV=144, KVCO=1  VCODIV=2 PPDIV=1 */
+		/* FBDIV=144, KVCO=1  VCODIV=2(VCODIV_SEL=2) PPDIV=1 */
 		return 0x90 << 5 | 1 << 21 | 2 << 17 | 0 << 25;
+	case 728:
+		/* FBDIV=168, KVCO=2 VCODIV=2(VCODIV_SEL=2) PPDIV=1 */
+		return 0xa8 << 5 | 2 << 21 | 2 << 17 | 0 << 25;
 	case 806:
-		/* FBDIV=186, KVCO=3 VCODIV=2 PPDIV=1 */
+		/* FBDIV=186, KVCO=3 VCODIV=2(VCODIV_SEL=2) PPDIV=1 */
 		return 0xba << 5 | 3 << 21 | 2 << 17 | 0 << 25;
 	case 1014:
-		/* FBDIV=234, KVCO=5 VCODIV=2 PPDIV=1 */
+		/* FBDIV=234, KVCO=5 VCODIV=2(VCODIV_SEL=2) PPDIV=1 */
 		return 0xea << 5 | 5 << 21 | 2 << 17 | 0 << 25;
 	case 1196:
-		/* FBDIV=276, KVCO=7 VCODIV=2 PPDIV=1 */
+		/* FBDIV=276, KVCO=7 VCODIV=2(VCODIV_SEL=2) PPDIV=1 */
 		return 0x114 << 5 | 7 << 21 | 2 << 17 | 0 << 25;
 	case 1404:
-		/* FBDIV=162, KVCO=2 VCODIV=1 PPDIV=1 */
+		/* FBDIV=162, KVCO=2 VCODIV=1(VCODIV_SEL=0) PPDIV=1 */
 		return 0xa2 << 5 | 2 << 21 | 0 << 17 | 0 << 25;
+	case 1490:
+		/* FBDIV=172, KVCO=2 VCODIV=1(VCODIV_SEL=0) PPDIV=1 */
+		return 0xac << 5 | 2 << 21 | 0 << 17 | 0 << 25;
 	case 1508:
-		/* FBDIV=174, KVCO=2 VCODIV=1 PPDIV=1 */
+		/* FBDIV=174, KVCO=2 VCODIV=1(VCODIV_SEL=0) PPDIV=1 */
 		return 0xae << 5 | 2 << 21 | 0 << 17 | 0 << 25;
 	default:
 		pr_err("The core frequency %uMHz is not supported.\n", x);
@@ -2060,10 +2071,11 @@ static inline void pxa978_set_core_freq(struct pxa95x_dvfm_info *info,
 	} else if (new->core > 156)
 		frq_change_ctl |= 0x1 << ACLK_RATIO_OFFSET;
 
-	if (cpu_is_pxa978() && (old->core != 416) && (new->core == 416))
+	if ((!cpu_is_pxa978_Dx()) && (old->core != 416) && (new->core == 416))
 		clk_enable(clk_syspll416);
 
-	if (new->core < 624) {
+	if (((cpu_is_pxa978_Dx()) && (new->core < 312)) ||
+			((!cpu_is_pxa978_Dx()) && (new->core < 624))) {
 		/* From System/Core PLL frequency to System PLL frequency */
 		frq_change_ctl &= ~(SYS_FREQ_SEL_MASK | CLK_SRC_MASK |
 				AC_GO_MASK);
@@ -2075,7 +2087,8 @@ static inline void pxa978_set_core_freq(struct pxa95x_dvfm_info *info,
 			     | PPDIV_MASK | VCODIV_SEL_MASK);
 		corepllr |= corepll_freq2reg(new->core) | PLL_EN_MASK;
 		/* From System PLL, manual change Core PLL */
-		if (old->core < 624) {
+		if (((cpu_is_pxa978_Dx()) && (old->core < 312)) ||
+				((!cpu_is_pxa978_Dx()) && (old->core < 624))) {
 			corepllr |= MC_GO_MASK;
 			/* Make sure previous manual change has completed */
 			while (COREPLLR & MC_GO_MASK)
@@ -2126,10 +2139,12 @@ static inline void pxa978_set_core_freq(struct pxa95x_dvfm_info *info,
 		set_data_latency((unsigned int)sram_map + 0xb000,
 				(unsigned int)l2_base_addr, 0x232);
 	if (!is_wkr_nevo_1744()) {
-		/* From Core PLL frequency to System PLL */
-		if (old->core >= 624 && new->core < 624) {
-			/* Should we turn off Core PLL here? TODO */
-			/* Make sure it is using System PLL  */
+		/*
+		 * From Core PLL frequency to System PLL
+		 * Only D0 can turn Core PLL off. So no need to check stepping here
+		 */
+		if ((old->core >= 312) && (new->core < 312)) {
+			/* Make sure it is using System PLL */
 			while (FRQ_CHANGE_ST & CLK_SRC_MASK)
 				;
 			corepllr = COREPLLR;
@@ -2142,7 +2157,7 @@ static inline void pxa978_set_core_freq(struct pxa95x_dvfm_info *info,
 		}
 	}
 
-	if (cpu_is_pxa978() && (old->core == 416) && (new->core != 416))
+	if ((!cpu_is_pxa978_Dx()) && (old->core == 416) && (new->core != 416))
 		clk_disable(clk_syspll416);
 }
 
