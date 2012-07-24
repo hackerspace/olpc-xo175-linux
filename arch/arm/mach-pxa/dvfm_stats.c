@@ -179,6 +179,7 @@ static ssize_t ddr_duty_cycle_show(struct sys_device *sys_dev,
 	struct op_info *op_entry = NULL;
 	char op_name[OP_NAME_LEN];
 	u32 glob_ratio, idle_ratio, busy_ratio, data_ratio, axi_ratio;
+	u32 util_ratio;
 	u32 tmp_totalticks, tmp_idleticks, tmp_busynodata, tmp_readwrite;
 	u64 glob_ticks;
 
@@ -188,11 +189,11 @@ static ssize_t ddr_duty_cycle_show(struct sys_device *sys_dev,
 
 	len = sprintf(buf, "\nDuty cycle of DDR operating point list:\n\n");
 
-	len += sprintf(buf + len, "OP# | OP name |dmcfs|glob_ratio|"
-			"idle_ratio|busy_ratio|data_ratio|axi_ratio\n");
+	len += sprintf(buf + len, "OP# | OP name |dmcfs|glob_ratio|idle_ratio"
+			"|busy_ratio|data_ratio|util_ratio|axi_ratio\n");
 
-	len += sprintf(buf + len, "---------------------------------"
-			"-------------------------------------------\n");
+	len += sprintf(buf + len, "----------------------------------------"
+			"----------------------------------------------\n");
 
 	update_ddr_performance_data(cur_op);
 
@@ -243,20 +244,26 @@ static ssize_t ddr_duty_cycle_show(struct sys_device *sys_dev,
 			- tmp_busynodata) * 100000 / tmp_totalticks + 5;
 
 			axi_ratio = tmp_readwrite*100000 / tmp_totalticks + 5;
+
+			util_ratio = (tmp_totalticks - tmp_idleticks
+				- tmp_busynodata) * 100000
+				/ (tmp_totalticks - tmp_idleticks) + 5;
 		} else {
 			idle_ratio = 0;
 			busy_ratio = 0;
 			data_ratio = 0;
+			util_ratio = 0;
 			axi_ratio  = 0;
 		}
 
-		len += sprintf(buf + len, "OP%2d|%9s|%5u|%6u.%02u%%|"
-			"%6u.%02u%%|%6u.%02u%%|%6u.%02u%%|%6u.%02u%%\n",
+		len += sprintf(buf + len, "OP%2d|%9s|%5u|%6u.%02u%%|%6u.%02u%%"
+			"|%6u.%02u%%|%6u.%02u%%|%6u.%02u%%|%6u.%02u%%\n",
 			       i, op_name, dmcfs,
 				glob_ratio/1000, (glob_ratio%1000)/10,
 				idle_ratio/1000, (idle_ratio%1000)/10,
 				busy_ratio/1000, (busy_ratio%1000)/10,
 				data_ratio/1000, (data_ratio%1000)/10,
+				util_ratio/1000, (util_ratio%1000)/10,
 				axi_ratio/1000, (axi_ratio%1000)/10);
 	}
 	spin_unlock_irqrestore(&ddr_performance_data_lock, cpu_flag);
