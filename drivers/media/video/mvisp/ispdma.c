@@ -367,11 +367,13 @@ static inline u32 read_timestamp(void)
 static int ispdma_getdelta(struct v4l2_ispdma_timeinfo *param, bool delta)
 {
 	unsigned long cur_us = 0;
+	struct timeval tv;
 
 	if (NULL == param)
 		return -EINVAL;
 
-	cur_us = cyc2us(read_timestamp());
+	do_gettimeofday(&tv);
+	cur_us = tv.tv_sec * 1000000 + tv.tv_usec;
 
 	if (delta)
 		param->delta = cur_us - param->timestamp;
@@ -2037,9 +2039,8 @@ static int ispdma_set_stream(struct v4l2_subdev *sd
 				regval |= 1 << 24;
 				mvisp_reg_writel(isp, regval, ISP_IOMEM_ISPDMA,
 					ISPDMA_MAINCTRL);
-
-				ispdma->state = enable;
 			}
+				ispdma->state = enable;
 		}
 		break;
 	case ISP_PIPELINE_STREAM_STOPPED:

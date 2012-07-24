@@ -113,5 +113,6 @@ int pxa_ccic_register_entities(struct isp_ccic_device *ccic,
 				    struct v4l2_device *vdev);
 void pxa_ccic_dma_isr_handler(struct isp_ccic_device *ccic,
 					unsigned long irq_status);
+void pxa_ccic_ctrl_pixclk(struct mvisp_device *isp, int on);
 
 #endif	/* ISP_CCIC_H */

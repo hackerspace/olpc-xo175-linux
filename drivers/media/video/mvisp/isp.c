@@ -452,6 +452,7 @@ static int mvisp_enable_clocks(struct mvisp_device *isp)
 		}
 	}
 
+	pxa_ccic_ctrl_pixclk(isp, 1);
 	return 0;
 
 out_clk_enable:
@@ -466,6 +467,8 @@ out_clk_enable:
 static void mvisp_disable_clocks(struct mvisp_device *isp)
 {
 	int clk_i;
+
+	pxa_ccic_ctrl_pixclk(isp, 0);
 
 	for (clk_i = 0; clk_i < isp->isp_clknum +
 			isp->ccic_clknum; clk_i++) {
@@ -500,42 +503,41 @@ static int mvisp_get_clocks(struct mvisp_device *isp,
 	for (clk_i = 0; clk_i < isp_clknum + ccic_clknum; clk_i++)
 		isp->clock[clk_i] = NULL;
 
-	for (clk_i = 0; clk_i < isp_clknum; clk_i++) {
+	for (clk_i = 0; clk_i < isp_clknum + ccic_clknum; clk_i++) {
 		clk = clk_get(isp->dev, pdata->clkname[clk_i]);
 		if (IS_ERR(clk)) {
 			dev_err(isp->dev, "clk_get %s failed\n",
 					pdata->clkname[clk_i]);
 			ret = PTR_ERR(clk);
-			goto out_get_isp_clk;
+			goto out_get_clk;
 		}
 		isp->clock[clk_i] = clk;
 	}
 
-	if (isp->sensor_connected == true) {
-		for (clk_i = 0; clk_i < ccic_clknum; clk_i++) {
-			clk = clk_get(isp->dev,
-					pdata->clkname[isp_clknum + clk_i]);
-			if (IS_ERR(clk)) {
-				dev_err(isp->dev, "clk_get %s failed\n",
-					pdata->clkname[isp_clknum + clk_i]);
-				ret = PTR_ERR(clk);
-				goto out_get_ccic_clk;
-			}
-			isp->clock[isp_clknum + clk_i] = clk;
-		}
-	}
-
 	return 0;
 
-out_get_ccic_clk:
-	clk_i += isp_clknum;
-out_get_isp_clk:
+out_get_clk:
 	for (--clk_i; clk_i >= 0; clk_i--) {
 		clk_put(isp->clock[clk_i]);
 		isp->clock[clk_i] = NULL;
 	}
 
 	return ret;
+}
+
+
+static void mvisp_put_sensor_resource(struct mvisp_device *isp)
+{
+	int i;
+
+	isp->mmio_base[CCIC_ISP_IOMEM_1] = NULL;
+
+	for (i = 0; i < isp->ccic_clknum; i++) {
+		if (isp->clock[isp->isp_clknum + i] != NULL) {
+			clk_put(isp->clock[isp->isp_clknum + i]);
+			isp->clock[isp->isp_clknum + i] = NULL;
+		}
+	}
 }
 
 struct mvisp_device *mvisp_get(struct mvisp_device *isp)
@@ -840,6 +842,7 @@ static int mvisp_detect_sensor(struct mvisp_device *isp)
 		}
 	}
 
+
 	return ret;
 }
 
@@ -986,11 +989,8 @@ static int mvisp_map_mem_resource(struct platform_device *pdev,
 	isp->mmio_base_phys[CCIC_ISP_IOMEM_1] = 0;
 	isp->mmio_size[CCIC_ISP_IOMEM_1] = 0;
 	/* map the region */
-	if (isp->sensor_connected == true)
-		isp->mmio_base[CCIC_ISP_IOMEM_1] =
-			(void __iomem *)CCIC1_VIRT_BASE;
-	else
-		isp->mmio_base[CCIC_ISP_IOMEM_1] = NULL;
+	isp->mmio_base[CCIC_ISP_IOMEM_1] =
+		(void __iomem *)CCIC1_VIRT_BASE;
 
 	return 0;
 }
@@ -1054,12 +1054,6 @@ static int mvisp_probe(struct platform_device *pdev)
 	if (ret < 0)
 		return ret;
 
-	ret = mvisp_detect_sensor(isp);
-	if (ret < 0)
-		isp->sensor_connected = false;
-	else
-		isp->sensor_connected = true;
-
 	/* Clocks */
 	ret = mvisp_map_mem_resource(pdev, isp);
 	if (ret < 0)
@@ -1071,6 +1065,12 @@ static int mvisp_probe(struct platform_device *pdev)
 
 	if (mvisp_get(isp) == NULL)
 		goto error;
+
+	ret = mvisp_detect_sensor(isp);
+	if (ret < 0)
+		isp->sensor_connected = false;
+	else
+		isp->sensor_connected = true;
 
 	ret = mvisp_reset(isp);
 	if (ret < 0)
@@ -1141,6 +1141,9 @@ static int mvisp_probe(struct platform_device *pdev)
 
 	mvisp_power_settings(isp, 1);
 	mvisp_put(isp);
+
+	if (isp->sensor_connected == false)
+		mvisp_put_sensor_resource(isp);
 
 	return 0;
 

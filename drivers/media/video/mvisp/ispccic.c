@@ -243,9 +243,14 @@ static int ccic_configure_mipi(struct isp_ccic_device *ccic)
 			else
 				mvisp_reg_writel(isp, 0x33,
 				  CCIC_ISP_IOMEM_1, CCIC_CSI2_DPHY5);
-			mvisp_reg_writel(isp, 0x1A03,
-				CCIC_ISP_IOMEM_1, CCIC_CSI2_DPHY6);
+			if (isp->cpu_type == MV_MMP3)
+				mvisp_reg_writel(isp, 0x1A03,
+					CCIC_ISP_IOMEM_1, CCIC_CSI2_DPHY6);
+			else
+				mvisp_reg_writel(isp, 0xA00,
+					CCIC_ISP_IOMEM_1, CCIC_CSI2_DPHY6);
 			valid_sensor = true;
+
 			break;
 		default:
 			break;
@@ -731,6 +736,29 @@ error:
 	return ret;
 }
 
+void pxa_ccic_ctrl_pixclk(struct mvisp_device *isp, int on)
+{
+	u32 regval;
+
+	if (on) {
+		if (isp->cpu_type == MV_MMP3)
+			regval = (0x3 << 29) | (400 / 26);
+		else
+			regval = (0x3 << 29) | (312 / 24);
+		mvisp_reg_writel(isp, regval,
+			CCIC_ISP_IOMEM_1, CCIC_CLOCK_CTRL);
+		regval = (1 << 25) | 0x800003C;
+		mvisp_reg_writel(isp, regval,
+			CCIC_ISP_IOMEM_1, CCIC_CTRL_1);
+	} else {
+		regval = 0;
+		mvisp_reg_writel(isp, regval,
+			CCIC_ISP_IOMEM_1, CCIC_CLOCK_CTRL);
+		regval = 0x800003C;
+		mvisp_reg_writel(isp, regval,
+			CCIC_ISP_IOMEM_1, CCIC_CTRL_1);
+	}
+}
 static int ccic_set_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct isp_ccic_device *ccic = v4l2_get_subdevdata(sd);
@@ -743,12 +771,6 @@ static int ccic_set_stream(struct v4l2_subdev *sd, int enable)
 	case ISP_PIPELINE_STREAM_CONTINUOUS:
 		if (ccic->stream_refcnt++ == 0) {
 			ccic_configure_mipi(ccic);
-			regval = (0x3 << 29) | (400 / 26);
-			mvisp_reg_writel(isp, regval,
-				CCIC_ISP_IOMEM_1, CCIC_CLOCK_CTRL);
-			regval = (1 << 25) | 0x800003C;
-			mvisp_reg_writel(isp, regval,
-				CCIC_ISP_IOMEM_1, CCIC_CTRL_1);
 
 			ccic->state = enable;
 		}
@@ -765,12 +787,6 @@ static int ccic_set_stream(struct v4l2_subdev *sd, int enable)
 			mvisp_reg_writel(isp, 0xFFFFFFFF,
 				CCIC_ISP_IOMEM_1, CCIC_IRQ_STATUS);
 			ccic_clear_mipi(ccic);
-			regval = 0;
-			mvisp_reg_writel(isp, regval,
-				CCIC_ISP_IOMEM_1, CCIC_CLOCK_CTRL);
-			regval = 0x800003C;
-			mvisp_reg_writel(isp, regval,
-				CCIC_ISP_IOMEM_1, CCIC_CTRL_1);
 
 			ccic->state = enable;
 		} else if (ccic->stream_refcnt < 0)
