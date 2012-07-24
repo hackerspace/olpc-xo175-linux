@@ -1933,7 +1933,7 @@ static void program_dll_table_b0(unsigned int dmcu, unsigned int tabidx)
 	__raw_writel(mc_parctr, APMU_MC_PAR_CTRL);
 }
 
-static u32 ccic, gc, vmeta, audio_clk, audio_dsa, isld, apcr;
+static u32 ccic, gc, vmeta, audio_clk, apcr;
 void mmp3_set_wakeup_src(void)
 {
 	int val = 0;
@@ -1972,11 +1972,7 @@ static void d2(void)
 
 	/* Disable power to Audio island */
 	audio_clk = __raw_readl(APMU_AUDIO_CLK_RES_CTRL);
-	audio_dsa = __raw_readl(APMU_AUDIO_DSA);
-	isld = __raw_readl(APMU_ISLD_DSPA_CTRL);
 	__raw_writel(0x00, APMU_AUDIO_CLK_RES_CTRL);
-	__raw_writel(0x00, APMU_AUDIO_DSA);
-	__raw_writel(0x00, APMU_ISLD_DSPA_CTRL);
 
 	reg = __raw_readl(APMU_AUDIO_SRAM_PWR);
 	reg |= (0x3 << 6);
@@ -2004,7 +2000,7 @@ void mmp3_pm_enter_d2(void)
 	struct mmp3_cpu_idle_config *cic;
 	int core_id = mmp3_smpid();
 	u32 the_value;
-	register u32 reg;
+	/*register u32 reg;*/
 
 	cic = &(mmp3_percpu[core_id].cic);
 
@@ -2068,8 +2064,6 @@ void mmp3_pm_enter_d2(void)
 
 	/* resotre audio clocks otherwise will hang later */
 	__raw_writel(audio_clk, APMU_AUDIO_CLK_RES_CTRL);
-	__raw_writel(audio_dsa, APMU_AUDIO_DSA);
-	__raw_writel(isld, APMU_ISLD_DSPA_CTRL);
 
 	__raw_writel(ccic, APMU_CCIC_RST);
 	__raw_writel(gc, APMU_GC);
