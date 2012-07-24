@@ -13,8 +13,8 @@
 #include <linux/mfd/88pm80x.h>
 #endif
 
-#define VOL_HIGH_THL	2500
-#define VOL_LOW_THL	1500
+#define VOL_HIGH_THL	4000
+#define CHARGER_VOL	4800
 
 #define TBAT_100D			8
 #define TBAT_50D			30
@@ -104,7 +104,7 @@ static int max17043_get_voltage(struct max17043_device_info *info)
 	return val;
 }
 
-static int max17043_quick_start(struct max17043_device_info *info)
+static __attribute__((unused)) int max17043_quick_start(struct max17043_device_info *info)
 {
 	int ret = 0;
 	ret = max17043_write_reg(info->client, MAX17043_MODE, 0x4000);
@@ -126,7 +126,7 @@ static enum power_supply_property max17043_bat_props[] = {
 };
 
 #ifdef CONFIG_MFD_88PM80X
-static int is_battery_removed(void)
+static __attribute__((unused)) int is_battery_removed(void)
 {
 	int data;
 	data = pm80x_codec_reg_read((PM80X_BASE_PAGE << 8) | PM800_RTC_MISC5);
@@ -176,13 +176,12 @@ static int max17043_get_battery_temp(struct max17043_device_info *info)
 	int gpadc_voltage, bat_voltage, resistor;
 	int temp;
 	gpadc_voltage = max17043_get_GPADC_voltage();
-	bat_voltage = max17043_get_voltage(info);
+	bat_voltage = CHARGER_VOL;
 	if (bat_voltage <= gpadc_voltage)
 		return 0;
 	if (gpadc_voltage == 0)
 		return 0;
 	resistor = (100 * gpadc_voltage) / (bat_voltage - gpadc_voltage);
-
 	if (resistor < TBAT_100D)
 		temp = 100;
 	else if (resistor < TBAT_50D)
@@ -243,17 +242,6 @@ static void max17043_battery_update_status(struct max17043_device_info *info)
 	info->temp = max17043_get_battery_temp(info);
 
 	cap = max17043_get_capacity(info);
-	if (!is_charger_online(info)) {
-		if (cap > info->capacity) {
-			cap = info->capacity;
-			max17043_quick_start(info);
-			msleep(2000);
-			cap = max17043_get_capacity(info);
-			pr_info("old cap = %d, new cap = %d\n", info->capacity,
-				cap);
-		}
-	}
-
 	if (cap > 100)
 		cap = 100;
 	else if (cap < 0)
