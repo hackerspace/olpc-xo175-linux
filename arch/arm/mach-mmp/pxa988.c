@@ -18,6 +18,7 @@
 #include <linux/notifier.h>
 #include <linux/memblock.h>
 #include <linux/platform_device.h>
+#include <linux/dma-mapping.h>
 
 #include <asm/mach/time.h>
 #include <asm/hardware/gic.h>
@@ -39,6 +40,7 @@
 #include <mach/pxa910-squ.h>
 #include <mach/soc_coda7542.h>
 #include <mach/reset-pxa988.h>
+#include <mach/isp_dev.h>
 #include <mach/regs-usb.h>
 #include <mach/gpio-edge.h>
 
@@ -674,3 +676,132 @@ struct platform_device pxa988_device_rtc = {
 /* TODO Fake implementation for bring up */
 void handle_coherency_maint_req(void *p) {};
 
+#ifdef CONFIG_VIDEO_MVISP
+static u64 pxa988_dxo_dma_mask = DMA_BIT_MASK(32);
+
+static struct resource pxa988_dxoisp_resources[] = {
+	[0] = {
+		.start = 0xD420F000,
+		.end   = 0xD420FFFF,
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = 0xD4240000,
+		.end   = 0xD427FFFF,
+		.flags = IORESOURCE_MEM,
+	},
+	[2] = {
+		.start = IRQ_PXA988_ISP_DMA,
+		.end   = IRQ_PXA988_ISP_DMA,
+		.flags = IORESOURCE_IRQ,
+	},
+	[3] = {
+		.start = IRQ_PXA988_DXO,
+		.end   = IRQ_PXA988_DXO,
+		.flags = IORESOURCE_IRQ,
+	},
+	[4] = {
+		.start = IRQ_PXA988_CI,
+		.end   = IRQ_PXA988_CI,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device pxa988_device_dxoisp = {
+	.name           = "pxa988-mvisp",
+	.id             = 0,
+	.dev            = {
+		.dma_mask = &pxa988_dxo_dma_mask,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	},
+	.resource       = pxa988_dxoisp_resources,
+	.num_resources  = ARRAY_SIZE(pxa988_dxoisp_resources),
+};
+
+void pxa988_register_dxoisp(struct mvisp_platform_data *data)
+{
+	int ret;
+
+	pxa988_device_dxoisp.dev.platform_data = data;
+
+	ret = platform_device_register(&pxa988_device_dxoisp);
+	if (ret)
+		dev_err(&(pxa988_device_dxoisp.dev),
+			"unable to register dxo device: %d\n", ret);
+}
+
+
+
+#define ISP_HW_MODE         (0x1 << 15)
+#define ISP_AUTO_PWR_ON     (0x1 << 4)
+#define ISP_PWR_STAT        (0x1 << 4)
+
+
+int pxa988_isp_power_control(int on)
+{
+	int val;
+	int timeout = 5000;
+
+	/* HW mode power on/off*/
+	if (on) {
+		/*set isp HW mode*/
+		val = __raw_readl(APMU_ISPDXO);
+		val |= ISP_HW_MODE;
+		__raw_writel(val, APMU_ISPDXO);
+
+		/* on1, on2, off timer */
+		__raw_writel(0x20001fff, APMU_PWR_BLK_TMR_REG);
+
+		/* isp auto power on */
+		val = __raw_readl(APMU_PWR_CTRL_REG);
+		val |= ISP_AUTO_PWR_ON;
+		__raw_writel(val, APMU_PWR_CTRL_REG);
+
+		/* polling ISP_PWR_STAT bit */
+		while (!(__raw_readl(APMU_PWR_STATUS_REG) & ISP_PWR_STAT)) {
+			udelay(500);
+			timeout -= 500;
+			if (timeout < 0) {
+				pr_err("%s: isp power on timeout\n", __func__);
+				return -ENODEV;
+			}
+		}
+
+	} else {
+		/* isp auto power off */
+		val = __raw_readl(APMU_PWR_CTRL_REG);
+		val &= ~ISP_AUTO_PWR_ON;
+		__raw_writel(val, APMU_PWR_CTRL_REG);
+
+		/* polling ISP_PWR_STAT bit */
+		while ((__raw_readl(APMU_PWR_STATUS_REG) & ISP_PWR_STAT)) {
+			udelay(500);
+			timeout -= 500;
+			if (timeout < 0) {
+				pr_err("%s: ISP power off timeout\n", __func__);
+				return -ENODEV;
+			}
+		}
+
+	}
+
+	return 0;
+}
+
+int pxa988_isp_reset_hw(void *param)
+{
+	int ret = 0;
+
+	ret = pxa988_isp_power_control(0);
+	if (ret)
+		return ret;
+
+	mdelay(10);
+
+	ret = pxa988_isp_power_control(1);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+#endif
