@@ -48,6 +48,8 @@ typedef struct _kernel_share {
 #define VMETA_CMD_PRIV_LOCK		_IO(IOP_MAGIC, 7)
 #define VMETA_CMD_PRIV_UNLOCK		_IO(IOP_MAGIC, 8)
 #define VMETA_CMD_REG_UNREG		_IO(IOP_MAGIC, 9)
+#define VMETA_CMD_SET_VLDFLG		_IO(IOP_MAGIC, 10)
+#define VMETA_CMD_GET_VLDFLG		_IO(IOP_MAGIC, 11)
 
 /*
 This API is exposed in kernel space to inform other componets, like GC
