@@ -79,6 +79,8 @@ static struct pm_qos_request_list qos_idle;
 #endif
 static struct wake_lock suspend_lock;
 
+static int mv_udc_enable(struct mv_udc *udc);
+static void mv_udc_disable(struct mv_udc *udc);
 static void nuke(struct mv_ep *ep, int status);
 static void stop_activity(struct mv_udc *udc, struct usb_gadget_driver *driver);
 static void call_charger_notifier(struct mv_udc *udc);
@@ -601,6 +603,7 @@ static int  mv_ep_disable(struct usb_ep *_ep)
 	struct mv_ep *ep;
 	struct mv_dqh *dqh;
 	u32 bit_pos, epctrlx, direction;
+	u32 active;
 	unsigned long flags;
 
 	ep = container_of(_ep, struct mv_ep, ep);
@@ -609,11 +612,12 @@ static int  mv_ep_disable(struct usb_ep *_ep)
 
 	udc = ep->udc;
 
-	if (!udc->active)
-		return 0;
-
 	/* Get the endpoint queue head address */
 	dqh = ep->dqh;
+
+	active = udc->active;
+	if (!active)
+		mv_udc_enable(udc);
 
 	spin_lock_irqsave(&udc->lock, flags);
 
@@ -638,6 +642,8 @@ static int  mv_ep_disable(struct usb_ep *_ep)
 
 	spin_unlock_irqrestore(&udc->lock, flags);
 
+	if (!active)
+		mv_udc_disable(udc);
 	return 0;
 }
 
