@@ -371,7 +371,7 @@ static struct dvfm_md_opt pxa955_op_array[] = {
 
 };
 
-static struct dvfm_md_opt pxa978_op_array[] = {
+static struct dvfm_md_opt pxa978_op_array_Cx[] = {
 	/* 156MHz -- single PLL mode */
 	{
 		.vcc_core = VLT_LEVEL_0,
@@ -499,7 +499,7 @@ static struct dvfm_md_opt pxa978_op_array[] = {
 	},
 };
 
-static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
+static struct dvfm_md_opt pxa978_op_array_high_mips_Cx[] = {
 	/* 156MHz -- single PLL mode */
 	{
 		.vcc_core = VLT_LEVEL_0,
@@ -628,11 +628,244 @@ static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
 	},
 };
 
+static struct dvfm_md_opt pxa978_op_array[] = {
+	/* 156MHz -- single PLL mode */
+	{
+		.vcc_core = VLT_LEVEL_0,
+		.core = 156,
+		.sflfs = 156,	/* IMC */
+		.hss = 104,	/* System Bus, and Display is the same */
+		.axifs = 78,
+		.dmcfs = 208,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 1546480 * 100 / HZ,
+		.name = "156M",
+	},
+	/* 312MHz -- two PLL mode */
+	{
+		.vcc_core = VLT_LEVEL_0,
+		.core = 312,
+		.sflfs = 156,
+		.hss = 104,
+		.axifs = 78,
+		.dmcfs = 312,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 3092960 * 100 / HZ,
+		.name = "312M",
+	},
+	/* 416MHz */
+	{
+		.vcc_core = VLT_LEVEL_1,
+		.core = 416,
+		.sflfs = 208,
+		.hss = 156,
+		.axifs = 104,
+		.dmcfs = 416,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 4123948 * 100 / HZ,
+		.name = "416M",
+	},
+	/* 728MHz */
+	{
+		.vcc_core = VLT_LEVEL_2,
+		.core = 728,
+		.sflfs = 312,
+		.hss = 208,
+		.axifs = 156,
+		.dmcfs = 797,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 7036264 * 100 / HZ,
+		.name = "728M",
+	},
+	/* 1196MHz */
+	{
+		.vcc_core = VLT_LEVEL_3,
+		.core = 1196,
+		.sflfs = 312,
+		.hss = 208,
+		.axifs = 156,
+		.dmcfs = 797,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 11856350 * 100 / HZ,
+		.name = "1196M",
+	},
+	/* 1404MHz */
+	{
+		.vcc_core = VLT_LEVEL_3,
+		.core = 1404,
+		.sflfs = 312,
+		.hss = 208,
+		.axifs = 156,
+		.dmcfs = 797,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 13918324 * 100 / HZ,
+		.name = "1404M",
+	},
+	/* 1490MHz */
+	{
+		.vcc_core = VLT_LEVEL_3,
+		.core = 1490,
+		.sflfs = 312,
+		.hss = 208,
+		.axifs = 156,
+		.dmcfs = 797,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 14780784 * 100 / HZ,
+		.name = "1490M",
+	},
+	/* D1 mode */
+	{
+		.vcc_core = 1250,
+		.power_mode = POWER_MODE_D1,
+		.flag = OP_FLAG_FACTORY,
+		.name = "D1",
+	},
+	/* D2 mode */
+	{
+		.vcc_core = 1250,
+		.power_mode = POWER_MODE_D2,
+		.flag = OP_FLAG_FACTORY,
+		.name = "D2",
+	},
+	/* CG (clock gated) mode */
+	{
+		.vcc_core = 1250,
+		.power_mode = POWER_MODE_CG,
+		.flag = OP_FLAG_FACTORY,
+		.name = "CG",
+	},
+};
+
+static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
+	/* 156MHz -- single PLL mode */
+	{
+		.vcc_core = VLT_LEVEL_0,
+		.core = 156,
+		.sflfs = 156,	/* IMC */
+		.hss = 104,	/* System Bus, and Display is the same */
+		.axifs = 78,
+		.dmcfs = 208,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 1546480 * 100 / HZ,
+		.name = "156M",
+	},
+	/* 312MHz -- two PLL mode */
+	{
+		.vcc_core = VLT_LEVEL_0,
+		.core = 312,
+		.sflfs = 156,
+		.hss = 104,
+		.axifs = 78,
+		.dmcfs = 312,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 3092960 * 100 / HZ,
+		.name = "312M",
+	},
+	/* 416MHz */
+	{
+		.vcc_core = VLT_LEVEL_1,
+		.core = 416,
+		.sflfs = 208,
+		.hss = 156,
+		.axifs = 104,
+		.dmcfs = 416,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 4123948 * 100 / HZ,
+		.name = "416M",
+	},
+	/* 728MHz */
+	{
+		.vcc_core = VLT_LEVEL_2,
+		.core = 728,
+		.sflfs = 312,
+		.hss = 208,
+		.axifs = 156,
+		.dmcfs = 797,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 7036264 * 100 / HZ,
+		.name = "728M",
+	},
+	/* 1196MHz */
+	{
+		.vcc_core = VLT_LEVEL_3,
+		.core = 1196,
+		.sflfs = 312,
+		.hss = 208,
+		.axifs = 156,
+		.dmcfs = 944,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 11856350 * 100 / HZ,
+		.name = "1196M",
+	},
+	/* 1404MHz */
+	{
+		.vcc_core = VLT_LEVEL_3,
+		.core = 1404,
+		.sflfs = 312,
+		.hss = 208,
+		.axifs = 156,
+		.dmcfs = 1066,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 13918324 * 100 / HZ,
+		.name = "1404M",
+	},
+	/* 1490MHz */
+	{
+		.vcc_core = VLT_LEVEL_3,
+		.core = 1490,
+		.sflfs = 312,
+		.hss = 208,
+		.axifs = 156,
+		.dmcfs = 1066,
+		.power_mode = POWER_MODE_D0,
+		.flag = OP_FLAG_FACTORY,
+		.lpj = 14780784 * 100 / HZ,
+		.name = "1490M",
+	},
+
+	/* D1 mode */
+	{
+		.vcc_core = 1250,
+		.power_mode = POWER_MODE_D1,
+		.flag = OP_FLAG_FACTORY,
+		.name = "D1",
+	},
+	/* D2 mode */
+	{
+		.vcc_core = 1250,
+		.power_mode = POWER_MODE_D2,
+		.flag = OP_FLAG_FACTORY,
+		.name = "D2",
+	},
+	/* CG (clock gated) mode */
+	{
+		.vcc_core = 1250,
+		.power_mode = POWER_MODE_CG,
+		.flag = OP_FLAG_FACTORY,
+		.name = "CG",
+	},
+};
+
 struct proc_op_array *proc_op;
 
 static struct proc_op_array proc_op_arrays[] = {
 	{0x2600, "pxa955", ARRAY_AND_SIZE(pxa955_op_array)},
 	{0x2800, "pxa968", ARRAY_AND_SIZE(pxa955_op_array)},
+	{0x2a00, "pxa978_Cx", ARRAY_AND_SIZE(pxa978_op_array_Cx)},
+	{0x2a00, "pxa978_Cx", ARRAY_AND_SIZE(pxa978_op_array_high_mips_Cx)},
 	{0x2a00, "pxa978", ARRAY_AND_SIZE(pxa978_op_array)},
 	{0x2a00, "pxa978", ARRAY_AND_SIZE(pxa978_op_array_high_mips)},
 };
@@ -2711,25 +2944,21 @@ static int op_init(void *driver_data, struct info_head *op_table)
 #ifdef CONFIG_PXA95x_SUSPEND
 	unsigned int lowest_freq;
 #endif
-	if (cpu_is_pxa978_Dx()) {
-		pxa978_op_array[2].dmcfs = 416;
-		pxa978_op_array_high_mips[2].dmcfs = 416;
-	}
-
 	write_lock_irqsave(&op_table->lock, flags);
 	for (i = 0; i < ARRAY_SIZE(proc_op_arrays); i++) {
 		if (proc_op_arrays[i].chip_id == info->chip_id) {
 			proc = &proc_op_arrays[i];
-			if (0x2a00 == proc_op_arrays[i].chip_id &&
-			    0x2a00 == proc_op_arrays[i + 1].chip_id &&
-			   (get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ ||
-			    get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
-			    get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD ||
-			    get_board_id() == OBM_DKB_3_NEVO_D0_BOARD ||
-			    cpu_is_pxa978_Dx()))
-				proc = &proc_op_arrays[i + 1];
 			break;
 		}
+	}
+	if (0x2a00 == proc_op_arrays[i].chip_id) {
+		/* All Nevo Dx will use 533MHz DDR chip */
+		if (cpu_is_pxa978_Dx())
+			proc = &proc_op_arrays[i + 3];
+		else if (get_board_id() == OBM_SAAR_C3_NEVO_C0_V10_BOARD_533MHZ ||
+				get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
+				get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD)
+			proc = &proc_op_arrays[i + 1];
 	}
 	if (proc == NULL) {
 		printk(KERN_ERR
