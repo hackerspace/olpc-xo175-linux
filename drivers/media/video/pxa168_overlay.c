@@ -1566,7 +1566,6 @@ static int vidioc_dqbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 }
 
 extern void wait_for_vsync(struct pxa168fb_info *fbi, unsigned char param);
-extern void hdmi_3d_sync_view(void);
 static int vidioc_streamon(struct file *file, void *fh, enum v4l2_buf_type i)
 {
 	struct pxa168_overlay *ovly = fh;
@@ -1619,12 +1618,6 @@ static int vidioc_streamon(struct file *file, void *fh, enum v4l2_buf_type i)
 		printk(KERN_ERR VOUT_NAME "failed to change mode\n");
 
 	ovly->streaming = 1;
-	if (ovly->hdmi3d && (1 == ovly->id)) {
-		spin_unlock_irqrestore(vbq_lock, flags);
-		wait_for_vsync(registered_fb[1]->par, SYNC_SELF);
-		hdmi_3d_sync_view();
-		spin_lock_irqsave(vbq_lock, flags);
-	}
 	dma_ctrl_set(ovly->id, 0, CFG_DMA_ENA_MASK, CFG_DMA_ENA_MASK);
 	pxa688fb_vsmooth_set(ovly->id, 1, vid_vsmooth);
 out:

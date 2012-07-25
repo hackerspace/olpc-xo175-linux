@@ -136,15 +136,10 @@ static void hdmi_direct_write(unsigned addr, unsigned data)
 	__raw_writel(data, hdmi_addr + addr);
 }
 
-void hdmi_3d_sync_view(void)
+void hdmi_3d_sync_view(int right)
 {
-	u32 reg;
-
-	reg = hdmi_direct_read(0x30);
-	reg &= ~ ((1 << 1) | (1 << 2) | (1 << 3));
-	reg |= 1 << 2;
-	hdmi_direct_write(0x30, 0);
-	hdmi_direct_write(0x30, reg);
+	u32 v = right ? 0x7 : 0xf;
+	hdmi_direct_write(0x30, v);
 }
 EXPORT_SYMBOL(hdmi_3d_sync_view);
 #endif

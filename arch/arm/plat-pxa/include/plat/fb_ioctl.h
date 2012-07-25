@@ -93,6 +93,9 @@
 /* VDMA enable/disable */
 #define FB_IOCTL_VDMA_SET			_IO(FB_IOC_MAGIC, 25)
 
+/* enable/disable 3D mode. Hardcode ioctl id for hdmi stack include issue */
+#define FB_IOCTL_ENABLE_3D                 0xffee
+
 /* Global alpha blend controls - Maintaining compatibility with existing
    user programs. */
 #define FB_IOCTL_PUT_VIDEO_ALPHABLEND            0xeb
