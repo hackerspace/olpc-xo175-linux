@@ -702,12 +702,14 @@ static int clk_pxa95x_lcd_setrate(struct clk *lcd_clk, unsigned long rate)
 	if (DvfmDisabled)
 		return 0;
 
-	dvfs_freqs.old = lcd_clk->rate / KHZ_TO_HZ;
-	dvfs_freqs.new = rate / KHZ_TO_HZ;
-	dvfs_freqs.dvfs = &display_dvfs;
+	if (lcd_clk->refcnt > 0) {
+		dvfs_freqs.old = lcd_clk->rate / KHZ_TO_HZ;
+		dvfs_freqs.new = rate / KHZ_TO_HZ;
+		dvfs_freqs.dvfs = &display_dvfs;
 
-	if (dvfs_freqs.old < dvfs_freqs.new)
-		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
+		if (dvfs_freqs.old < dvfs_freqs.new)
+			dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
+	}
 
 	switch (rate) {
 	case 104000000:
@@ -738,7 +740,7 @@ static int clk_pxa95x_lcd_setrate(struct clk *lcd_clk, unsigned long rate)
 	if ((lcd_clk->rate == 416000000) && (rate != 416000000) && (lcd_clk->refcnt > 0))
 		clk_disable(&clk_pxa978_syspll_416);
 
-	if (dvfs_freqs.old > dvfs_freqs.new)
+	if (lcd_clk->refcnt > 0 && dvfs_freqs.old > dvfs_freqs.new)
 		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
 
 	pm_logger_app_add_trace(2, PM_DISPLAY_FREQ_CHANGE, OSCR4,
@@ -1286,11 +1288,13 @@ static int clk_pxa95x_gcu_setrate(struct clk *gc_clk, unsigned long rate)
 
 	pr_debug("gc setrate from %lu to %lu.\n", gc_clk->rate, rate);
 
-	dvfs_freqs.old = gc_clk->rate / KHZ_TO_HZ;
-	dvfs_freqs.new = rate / KHZ_TO_HZ;
-	dvfs_freqs.dvfs = &gc_dvfs;
-	if (dvfs_freqs.old < dvfs_freqs.new)
-		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
+	if (gc_clk->refcnt > 0) {
+		dvfs_freqs.old = gc_clk->rate / KHZ_TO_HZ;
+		dvfs_freqs.new = rate / KHZ_TO_HZ;
+		dvfs_freqs.dvfs = &gc_dvfs;
+		if (dvfs_freqs.old < dvfs_freqs.new)
+			dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
+	}
 
 	switch (rate) {
 	case 208000000:
@@ -1327,7 +1331,7 @@ static int clk_pxa95x_gcu_setrate(struct clk *gc_clk, unsigned long rate)
 	else
 		gc_vmeta_ticks_info.gc_cur_freq = rate;
 
-	if (dvfs_freqs.old > dvfs_freqs.new)
+	if (gc_clk->refcnt > 0 && dvfs_freqs.old > dvfs_freqs.new)
 		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
 
 	pm_logger_app_add_trace(2, PM_GC_FREQ_CHANGE, OSCR4,
@@ -1550,11 +1554,13 @@ static int clk_pxa95x_vmeta_setrate(struct clk *vmeta_clk, unsigned long rate)
 
 	pr_debug("vmeta setrate from %lu to %lu.\n", vmeta_clk->rate, rate);
 
-	dvfs_freqs.old = vmeta_clk->rate / KHZ_TO_HZ;
-	dvfs_freqs.new = rate / KHZ_TO_HZ;
-	dvfs_freqs.dvfs = &vmeta_dvfs;
-	if (dvfs_freqs.old < dvfs_freqs.new)
-		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
+	if (vmeta_clk->refcnt > 0) {
+		dvfs_freqs.old = vmeta_clk->rate / KHZ_TO_HZ;
+		dvfs_freqs.new = rate / KHZ_TO_HZ;
+		dvfs_freqs.dvfs = &vmeta_dvfs;
+		if (dvfs_freqs.old < dvfs_freqs.new)
+			dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
+	}
 
 	switch (rate) {
 	case 156000000:
@@ -1593,7 +1599,7 @@ static int clk_pxa95x_vmeta_setrate(struct clk *vmeta_clk, unsigned long rate)
 	else
 		gc_vmeta_ticks_info.vm_cur_freq = rate;
 
-	if (dvfs_freqs.old > dvfs_freqs.new)
+	if (vmeta_clk->refcnt > 0 && dvfs_freqs.old > dvfs_freqs.new)
 		dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
 
 	pm_logger_app_add_trace(2, PM_VM_FREQ_CHANGE, OSCR4,
