@@ -1352,6 +1352,19 @@ static int mv_udc_pullup(struct usb_gadget *gadget, int is_on)
 	return retval;
 }
 
+static int mv_set_selfpowered(struct usb_gadget *gadget, int is_on)
+{
+	struct mv_udc *udc;
+	unsigned long flags;
+
+	udc = container_of(gadget, struct mv_udc, gadget);
+
+	spin_lock_irqsave(&udc->lock, flags);
+	udc->selfpowered = (is_on != 0);
+	spin_unlock_irqrestore(&udc->lock, flags);
+	return 0;
+}
+
 /* device controller usb_gadget_ops structure */
 static const struct usb_gadget_ops mv_ops = {
 
@@ -1369,6 +1382,8 @@ static const struct usb_gadget_ops mv_ops = {
 
 	/* D+ pullup, software-controlled connect/disconnect to USB host */
 	.pullup		= mv_udc_pullup,
+
+	.set_selfpowered = mv_set_selfpowered,
 };
 
 static int eps_init(struct mv_udc *udc)
@@ -1478,6 +1493,7 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 	udc->usb_state = USB_STATE_ATTACHED;
 	udc->ep0_state = WAIT_FOR_SETUP;
 	udc->ep0_dir = EP_DIR_OUT;
+	udc->selfpowered = 0;
 
 	spin_unlock_irqrestore(&udc->lock, flags);
 
@@ -1687,7 +1703,7 @@ static void ch9getstatus(struct mv_udc *udc, u8 ep_num,
 		return;
 
 	if ((setup->bRequestType & USB_RECIP_MASK) == USB_RECIP_DEVICE) {
-		status = 1 << USB_DEVICE_SELF_POWERED;
+		status = udc->selfpowered << USB_DEVICE_SELF_POWERED;
 		status |= udc->remote_wakeup << USB_DEVICE_REMOTE_WAKEUP;
 	} else if ((setup->bRequestType & USB_RECIP_MASK)
 			== USB_RECIP_INTERFACE) {
