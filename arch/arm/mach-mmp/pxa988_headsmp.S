@@ -53,19 +53,6 @@ ENDPROC(pxa988_secondary_startup)
 	.long	pen_release
 
 
-        .text
-/*
- * set the software reset flag
- * r0 = cpu id
- */
-ENTRY(pxa988_set_sreset_flag)
-	ldr     r1, =sw_reset_flag
-	mov     r2, #0x1
-	str     r2, [r1, r0, lsl #2]    @ set the sw reset flag
-
-	mov     pc, lr                  @ return
-ENDPROC(pxa988_set_sreset_flag)
-
 /*
  * Note: The following code is located into the .data section. This is to
  *       allow sw_reset_flag and cpu_plugin_handler to be accessed with a
@@ -94,6 +81,15 @@ pxa988_sreset_handler:
 
 #define SCU_CPU_POWER_STATUS	(SCU_PHYS_BASE + 0x08)
 
+#define PMU_PHYS_BASE		(AXI_PHYS_BASE + 0x82800)
+#define PMU_CORE0_IDLE_CFG_PHYS	(PMU_PHYS_BASE + 0x0124)
+#define PMU_MP_IDLE_CFG0_PHYS	(PMU_PHYS_BASE + 0x0120)
+#define PMU_MP_IDLE_CFG1_PHYS	(PMU_PHYS_BASE + 0x00e4)
+
+#define ICU_PHYS_BASE		(AXI_PHYS_BASE + 0x82000)
+#define ICU_C0_GBL_INT_MSK_PHYS	(ICU_PHYS_BASE + 0x114)
+#define ICU_C1_GBL_INT_MSK_PHYS	(ICU_PHYS_BASE + 0x144)
+
 #define GIC_GLABAL_MASK	(PMUA_GIC_IRQ_GLOBAL_MASK | PMUA_GIC_FIQ_GLOBAL_MASK)
 #define ICU_GLABAL_MASK	(ICU_MASK_FIQ | ICU_MASK_IRQ)
 #define CORE_IDLE_MASK	(PMUA_CORE_IDLE | PMUA_CORE_POWER_DOWN | \
@@ -113,29 +109,29 @@ pxa988_hotplug_handler:
 	strb    r2, [r1, r0]
 
 	/* Unmask GIC interrtup */
-	ldr     r1, =PMU_CA9_CORE0_IDLE_CFG
+	ldr     r1, =PMU_CORE0_IDLE_CFG_PHYS
 	ldr     r2, [r1, r0, lsl #2]
 	bic	r2, r2, #GIC_GLABAL_MASK
 	str	r2, [r1, r0, lsl #2]
 
 	/* Mask ICU global interrupt */
 	cmp	r0, #0
-	ldreq	r1, =PXA988_ICU_A9C0_GBL_INT_MSK
-	ldrne	r1, =PXA988_ICU_A9C1_GBL_INT_MSK
+	ldreq	r1, =ICU_C0_GBL_INT_MSK_PHYS
+	ldrne	r1, =ICU_C1_GBL_INT_MSK_PHYS
 	ldr     r2, [r1]
-	bic	r2, r2, #ICU_GLABAL_MASK
+	orr	r2, r2, #ICU_GLABAL_MASK
 	str 	r2, [r1]
 
 	/* reset the core idle config register */
-	ldr     r1, =PMU_CA9_CORE0_IDLE_CFG
+	ldr     r1, =PMU_CORE0_IDLE_CFG_PHYS
 	ldr     r2, [r1, r0, lsl #2]
 	bic	r2, #CORE_IDLE_MASK
 	str	r2, [r1, r0, lsl #2]
 
 	/* reset the MP idle config register */
 	cmp     r0, #0
-	ldreq   r1, =PMU_CA9MP_IDLE_CFG0
-	ldrne   r1, =PMU_CA9MP_IDLE_CFG1
+	ldreq   r1, =PMU_MP_IDLE_CFG0_PHYS
+	ldrne   r1, =PMU_MP_IDLE_CFG1_PHYS
 	ldr     r2, [r1]
 	bic	r2, r2, #MP_IDLE_MASK
 	str     r2, [r1]
@@ -174,6 +170,7 @@ ENTRY(pxa988_cpu_reset_handler)
 #endif
 ENDPROC(pxa988_cpu_reset_handler)
 
+	.global sw_reset_flag
 sw_reset_flag:
 	.rept   CONFIG_NR_CPUS
 	.long   0			@ preserve sw reset flag

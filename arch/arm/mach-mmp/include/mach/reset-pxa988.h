@@ -22,10 +22,10 @@
 #define CPU1_WDOG_RST	(1 << 23)
 
 #ifdef CONFIG_SMP
+extern u32 sw_reset_flag[CONFIG_NR_CPUS];
 extern u32 pm_reserve_pa;
 extern u32 secondary_cpu_handler;
 extern void pxa988_secondary_startup(void);
-extern void pxa988_set_sreset_flag(u32 cpu);
 extern void pxa988_cpu_reset_handler(void);
 
 extern void pxa_cpu_reset(u32 cpu);
