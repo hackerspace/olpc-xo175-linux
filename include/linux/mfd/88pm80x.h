@@ -741,6 +741,11 @@ struct pm80x_headset_pdata {
 	int		gpio_set_val;
 	int		gpio_val_bit;
 	void		(*mic_set_power)(int on);
+	int		hook_press_th;
+	int		vol_up_press_th;
+	int		vol_down_press_th;
+	int		mic_det_th;
+	int		press_release_th;
 };
 
 struct pm80x_vibrator_pdata {

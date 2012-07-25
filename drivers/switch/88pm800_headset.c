@@ -55,6 +55,11 @@ struct pm800_headset_info {
 	void		(*mic_set_power)(int on);
 	int headset_flag;
 	int hook_vol_status;
+	int hook_press_th;
+	int vol_up_press_th;
+	int vol_down_press_th;
+	int mic_det_th;
+	int press_release_th;
 };
 struct headset_switch_data {
 	struct switch_dev sdev;
@@ -123,14 +128,14 @@ static void gpadc4_set_threshold(struct pm800_headset_info *info, int min,
 static int pm800_handle_voltage(struct pm800_headset_info *info, int voltage)
 {
 	int state;
-	if (voltage < PM800_PRESS_RELEASE_TH) {
+	if (voltage < info->press_release_th) {
 		/* press event */
 		if (info->hook_vol_status <= HOOK_VOL_ALL_RELEASED) {
-			if (voltage < PM800_HOOK_PRESS_TH)
+			if (voltage < info->hook_press_th)
 				info->hook_vol_status = HOOK_PRESSED;
-			else if (voltage < PM800_VOL_UP_PRESS_TH)
+			else if (voltage < info->vol_up_press_th)
 				info->hook_vol_status = VOL_UP_PRESSED;
-			else if (voltage < PM800_VOL_DOWN_PRESS_TH)
+			else if (voltage < info->vol_down_press_th)
 				info->hook_vol_status = VOL_DOWN_PRESSED;
 			else
 				return -EINVAL;
@@ -152,7 +157,7 @@ static int pm800_handle_voltage(struct pm800_headset_info *info, int voltage)
 				break;
 			}
 			input_sync(info->idev);
-			gpadc4_set_threshold(info, 0, PM800_PRESS_RELEASE_TH);
+			gpadc4_set_threshold(info, 0, info->press_release_th);
 		} else
 			return -EINVAL;
 	} else {
@@ -179,7 +184,7 @@ static int pm800_handle_voltage(struct pm800_headset_info *info, int voltage)
 				break;
 			}
 			input_sync(info->idev);
-			gpadc4_set_threshold(info, PM800_PRESS_RELEASE_TH, 0);
+			gpadc4_set_threshold(info, info->press_release_th, 0);
 		} else
 			return -EINVAL;
 	}
@@ -246,7 +251,7 @@ static void pm800_headset_switch_work(struct work_struct *work)
 					PM800_MICDET_EN, PM800_MICDET_EN);
 		msleep(200);
 		voltage = gpadc4_measure_voltage(info, VOLTAGE_AVG);
-		if (voltage < PM800_MIC_DET_TH) {
+		if (voltage < info->mic_det_th) {
 			switch_data->state = PM8XXX_HEADPHONE_ADD;
 			hs_detect.hsmic_status = PM8XXX_HS_MIC_REMOVE;
 			if (info->mic_set_power)
@@ -254,7 +259,7 @@ static void pm800_headset_switch_work(struct work_struct *work)
 			/* disable MIC detection and measurement */
 			pm80x_set_bits(info->i2c, PM800_MIC_CNTRL, PM800_MICDET_EN, 0);
 		} else {
-			gpadc4_set_threshold(info, PM800_PRESS_RELEASE_TH, 0);
+			gpadc4_set_threshold(info, info->press_release_th, 0);
 			/*enable GPADC4 interrupt */
 			pm80x_set_bits(info->i2c, PM800_INT_ENA_3,
 				       PM800_GPADC4_INT_ENA3,
@@ -416,6 +421,32 @@ static int pm800_headset_switch_probe(struct platform_device *pdev)
 	info->idev->keybit[BIT_WORD(KEY_VOLUMEUP)] =
 					BIT_MASK(KEY_VOLUMEUP) | BIT_MASK(KEY_VOLUMEDOWN);
 	info->hook_vol_status = HOOK_VOL_ALL_RELEASED;
+
+	if (pm80x_pdata->headset->hook_press_th)
+		info->hook_press_th = pm80x_pdata->headset->hook_press_th;
+	else
+		info->hook_press_th = PM800_HOOK_PRESS_TH;
+
+	if (pm80x_pdata->headset->vol_up_press_th)
+		info->vol_up_press_th = pm80x_pdata->headset->vol_up_press_th;
+	else
+		info->vol_up_press_th = PM800_VOL_UP_PRESS_TH;
+
+	if (pm80x_pdata->headset->vol_down_press_th)
+		info->vol_down_press_th =
+			pm80x_pdata->headset->vol_down_press_th;
+	else
+		info->vol_down_press_th = PM800_VOL_DOWN_PRESS_TH;
+
+	if (pm80x_pdata->headset->mic_det_th)
+		info->mic_det_th = pm80x_pdata->headset->mic_det_th;
+	else
+		info->mic_det_th = PM800_MIC_DET_TH;
+
+	if (pm80x_pdata->headset->press_release_th)
+		info->press_release_th = pm80x_pdata->headset->press_release_th;
+	else
+		info->press_release_th = PM800_PRESS_RELEASE_TH;
 
 	switch_data_headset =
 	    kzalloc(sizeof(struct headset_switch_data), GFP_KERNEL);
