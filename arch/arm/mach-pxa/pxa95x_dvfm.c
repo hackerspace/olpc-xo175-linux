@@ -843,10 +843,12 @@ static int freq2reg(struct pxa95x_fv_info *fv_info, struct dvfm_md_opt *orig)
 			else if (orig->dmcfs == 416)
 				fv_info->dmcfs = 3;
 			else if (orig->dmcfs == 398 ||
-				 orig->dmcfs == 450 ||
-				 orig->dmcfs == 533)
+				orig->dmcfs == 450 ||
+				orig->dmcfs == 472 ||
+				orig->dmcfs == 533)
 				fv_info->dmcfs = 4;
 			else if (orig->dmcfs == 797 ||
+				orig->dmcfs == 944 ||
 				orig->dmcfs == 901 ||
 				orig->dmcfs == 1066)
 				fv_info->dmcfs = 6;
@@ -1496,6 +1498,9 @@ static inline unsigned int ddr_pll_freq2reg(unsigned int x)
 	case 901:
 		/* KVCO=4 VCODIV_SEL=2 FBDIV=208(0xD0) REFDIV=3*/
 		return 4 << 21 | 2 << 17 | 0xD0 << 5 | 3 << 0;
+	case 944:
+		/* KVCO=4 VCODIV_SEL=2 FBDIV=218(0xDA) REFDIV=3*/
+		return 4 << 21 | 2 << 17 | 0xD0 << 5 | 3 << 0;
 	case 1066:
 		/* KVCO=6 VCODIV_SEL=2 FBDIV=246(0xF6) REFDIV=3*/
 		return 6 << 21 | 2 << 17 | 0xF6 << 5 | 3 << 0;
@@ -1539,9 +1544,12 @@ static unsigned int get_ddr_pll_freq_from_dmcfs(unsigned int dmcfs)
 		freq = 797;
 	else if (dmcfs == 450)
 		freq = 901;
+	else if (dmcfs == 472)
+		freq = 944;
 	else if (dmcfs == 533)
 		freq = 1066;
-	else if (dmcfs == 797 || dmcfs == 901 || dmcfs == 1066)
+	else if ((dmcfs == 797) || (dmcfs == 944) ||
+			(dmcfs == 901) || (dmcfs == 1066))
 		freq = dmcfs;
 	else
 		freq = 0;
