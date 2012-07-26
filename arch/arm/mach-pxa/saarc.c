@@ -1195,7 +1195,7 @@ static struct i2c_board_info i2c2_info_C25[] = {
 #endif
 };
 
-static struct i2c_board_info i2c3_info[] = {
+static struct i2c_board_info i2c3_info_C25[] = {
 #if defined(CONFIG_SENSORS_CWMI)
 	{
 		I2C_BOARD_INFO("cwmi_acc", 0x19),
@@ -1241,6 +1241,90 @@ static struct i2c_board_info i2c3_info[] = {
 #endif
 };
 
+static struct i2c_board_info i2c3_info_C35[] = {
+#if defined(CONFIG_SENSORS_CWMI)
+	{
+		I2C_BOARD_INFO("cwmi_acc", 0x19),
+		.irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO11)),
+		.platform_data = &cwmi_acc_data,
+	},
+
+	{
+		I2C_BOARD_INFO("cwmi_mag", 0x1e),
+		.irq = 0,/*gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO10)),*/
+		.platform_data = &cwmi_mag_data,
+	},
+#endif
+#if defined(CONFIG_SENSORS_CWGD)
+	{
+		I2C_BOARD_INFO("cwgd", 0x69),
+		.irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO9)),
+		.platform_data = &cwgd_plat_data,
+	 },
+#endif
+
+#if defined(CONFIG_PN544_NFC)
+	{
+		I2C_BOARD_INFO("pn544", 0x28),
+		.irq            = gpio_to_irq(MFP_PIN_GPIO130),
+		.platform_data  = &pn544_data,
+	},
+#endif
+
+#if defined(CONFIG_C_TEC_OPTIC_TP)
+	{
+		I2C_BOARD_INFO("ctec_optic_tp", 0x33),
+		.platform_data = &ctec_optic_tp_pins,
+		.irq	= gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO56)),
+	},
+#endif
+
+#if defined(CONFIG_LED_FLASH_ADP1650)
+	{
+		I2C_BOARD_INFO("adp1650", 0x30),
+		.platform_data = &adp1650_data,
+	}
+#endif
+};
+
+static struct i2c_board_info i2c3_info_DKB[] = {
+#if defined(CONFIG_SENSORS_CWMI)
+	{
+		I2C_BOARD_INFO("cwmi_acc", 0x19),
+		.irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO10)),
+		.platform_data = &cwmi_acc_data,
+	},
+
+	{
+		I2C_BOARD_INFO("cwmi_mag", 0x1e),
+		.irq = 0,/*gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO10)),*/
+		.platform_data = &cwmi_mag_data,
+	},
+#endif
+#if defined(CONFIG_SENSORS_CWGD)
+	{
+		I2C_BOARD_INFO("cwgd", 0x69),
+		.irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO9)),
+		.platform_data = &cwgd_plat_data,
+	 },
+#endif
+
+#if defined(CONFIG_PN544_NFC)
+	{
+		I2C_BOARD_INFO("pn544", 0x28),
+		.irq            = gpio_to_irq(MFP_PIN_GPIO130),
+		.platform_data  = &pn544_data,
+	},
+#endif
+
+#if defined(CONFIG_LED_FLASH_ADP1650)
+	{
+		I2C_BOARD_INFO("adp1650", 0x30),
+		.platform_data = &adp1650_data,
+	}
+#endif
+};
+
 static void register_i2c_board_info(void)
 {
 
@@ -1251,11 +1335,13 @@ static void register_i2c_board_info(void)
 		pm800_info.vbus = &pm80x_vbus_saarc3;
 		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info));
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_C25));
+		i2c_register_board_info(2, ARRAY_AND_SIZE(i2c3_info_C25));
 		break;
 	case OBM_SAAR_C3V5_NEVO_D0_V10_BOARD:
 		pm800_info.vbus = &pm80x_vbus_saarc3v5;
 		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info));
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_C25));
+		i2c_register_board_info(2, ARRAY_AND_SIZE(i2c3_info_C35));
 		break;
 	case OBM_DKB_2_NEVO_C0_BOARD:
 	case OBM_DKB_2_NEVO_C0_BOARD_533MHZ:
@@ -1263,18 +1349,21 @@ static void register_i2c_board_info(void)
 		pm800_info.vibrator = &vibrator_pdata;
 		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info));
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_DKB));
+		i2c_register_board_info(2, ARRAY_AND_SIZE(i2c3_info_DKB));
 		break;
 	case OBM_DKB_2_1_NEVO_C0_BOARD:
 		pm800_info.vbus = &pm80x_vbus_dkb2v1;
 		pm800_info.vibrator = &vibrator_pdata;
 		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info_DKB2_1));
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_DKB_2_1));
+		i2c_register_board_info(2, ARRAY_AND_SIZE(i2c3_info_DKB));
 		break;
 	case OBM_DKB_3_NEVO_D0_BOARD:
 		pm800_info.vbus = &pm80x_vbus_dkb3;
 		pm800_info.vibrator = &vibrator_pdata;
 		i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_80x_info_DKB2_1));
 		i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info_DKB_3));
+		i2c_register_board_info(2, ARRAY_AND_SIZE(i2c3_info_DKB));
 		break;
 	default:
 		pr_err("%s: Unknown board type-0x%lx!\n",
@@ -1282,7 +1371,6 @@ static void register_i2c_board_info(void)
 		BUG();
 	}
 
-	i2c_register_board_info(2, ARRAY_AND_SIZE(i2c3_info));
 }
 
 /* workaround for reset i2c bus by GPIO20 -SCL, GPIO21 -SDA,
@@ -2904,7 +2992,6 @@ static void __init init(void)
 		get_board_id() == OBM_DKB_2_NEVO_C0_BOARD_533MHZ ||
 		get_board_id() == OBM_DKB_2_1_NEVO_C0_BOARD ||
 		get_board_id() == OBM_DKB_3_NEVO_D0_BOARD) {
-		i2c3_info[0].irq = gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO10));
 		cwmi_acc_data.axes[1] = -1;
 		cwmi_acc_data.axes[3] = 1;
 		cwmi_acc_data.axes[8] = 1;
