@@ -132,8 +132,8 @@ l2on:
 	bic     r2, r2, #0x3
 	strb    r2, [r1, r0]
 #endif
-
-	b cpu_resume
+	bl	v7_invalidate_l1
+	b 	cpu_resume
 
 	.globl l2x0_regs_phys
 l2x0_regs_phys:
