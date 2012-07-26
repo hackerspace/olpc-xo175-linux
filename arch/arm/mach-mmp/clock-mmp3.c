@@ -2208,6 +2208,23 @@ static struct clk mmp3_clk_dxoccic = {
 };
 #endif
 
+/* Frequency is in unit of Khz*/
+static struct devfreq_frequency_table mmp3_vmeta_clk_table[] = {
+	INIT_FREQ_TABLE(1, 200000),
+	INIT_FREQ_TABLE(2, 266666),
+	INIT_FREQ_TABLE(3, 400000),
+	INIT_FREQ_TABLE(4, 533333),
+	INIT_FREQ_TABLE(5, DEVFREQ_TABLE_END),
+};
+
+int set_vmeta_freqs_table(struct devfreq *devfreq)
+{
+	devfreq_set_freq_table(devfreq, mmp3_vmeta_clk_table);
+	devfreq->max_freq = 533333;	/* max is 533MHz */
+
+	return 0;
+}
+
 #ifdef CONFIG_UIO_VMETA
 
 static void vmeta_clk_init(struct clk *clk)
@@ -2317,7 +2334,7 @@ static int vmeta_clk_setrate(struct clk *clk, unsigned long rate)
 	return 0;
 }
 
-static long vmeta_clk_getrate(struct clk *clk)
+static unsigned long vmeta_clk_getrate(struct clk *clk)
 {
 	if (clk->parent && clk->div)
 		return clk_get_rate(clk->parent)/clk->div;
