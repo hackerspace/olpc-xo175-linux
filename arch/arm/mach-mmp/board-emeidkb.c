@@ -793,6 +793,7 @@ static struct platform_device *dkb_platform_devices[] = {
 #if defined(CONFIG_SOC_CAMERA_OV2659)
 	&dkb_ov2659_dvp,
 #endif
+	&pxa988_device_rtc,
 };
 
 static struct i2c_board_info emeidkb_i2c_info[] = {
