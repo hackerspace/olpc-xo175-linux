@@ -539,7 +539,8 @@ static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 	clk_enable(clk);
 
 	host->quirks = SDHCI_QUIRK_BROKEN_TIMEOUT_VAL
-		| SDHCI_QUIRK_NO_ENDATTR_IN_NOPDESC;
+		| SDHCI_QUIRK_NO_ENDATTR_IN_NOPDESC
+		| SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN;
 
 	if (pdata) {
 #if !defined(CONFIG_CPU_PXA978)
