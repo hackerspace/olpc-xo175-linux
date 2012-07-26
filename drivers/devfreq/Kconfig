@@ -83,12 +83,12 @@ config VMETA_DEVFREQ
 if VMETA_DEVFREQ
 choice
 	bool "vMeta devfreq default governor"
-	default DEVFREQ_DEFAULT_GOV_USERSPACE if PXA95x
+	default VMETA_DEVFREQ_DEFAULT_GOV_USERSPACE
 	help
 	  this selects the default governor of vMeta
 	  devfreq driver
 
-config DEVFREQ_DEFAULT_GOV_PERFORMANCE
+config VMETA_DEVFREQ_DEFAULT_GOV_PERFORMANCE
 	bool "performance"
 	select DEVFREQ_GOV_PERFORMANCE
 	help
@@ -96,7 +96,7 @@ config DEVFREQ_DEFAULT_GOV_PERFORMANCE
 	  the frequency statically to the highest frequency supported by
 	  the vMeta.
 
-config DEVFREQ_DEFAULT_GOV_POWERSAVE
+config VMETA_DEVFREQ_DEFAULT_GOV_POWERSAVE
 	bool "powersave"
 	select DEVFREQ_GOV_POWERSAVE
 	help
@@ -104,7 +104,7 @@ config DEVFREQ_DEFAULT_GOV_POWERSAVE
 	  the frequency statically to the lowest frequency supported by
 	  the vMeta.
 
-config DEVFREQ_DEFAULT_GOV_USERSPACE
+config VMETA_DEVFREQ_DEFAULT_GOV_USERSPACE
 	bool "userspace"
 	select DEVFREQ_GOV_USERSPACE
 	help
@@ -113,7 +113,7 @@ config DEVFREQ_DEFAULT_GOV_USERSPACE
 	  program shall be able to set the vMeta dynamically without having
 	  to enable the userspace governor manually.
 
-config DEVFREQ_DEFAULT_GOV_SIMPLE_ONDEMAND
+config VMETA_DEVFREQ_DEFAULT_GOV_SIMPLE_ONDEMAND
 	bool "simple ondemand"
 	select DEVFREQ_GOV_SIMPLE_ONDEMAND
 	select DEVFREQ_GOV_PERFORMANCE
