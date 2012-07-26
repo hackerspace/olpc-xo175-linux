@@ -584,6 +584,8 @@ static int __devinit sdhci_pxav3_probe(struct platform_device *pdev)
 			host->mmc->caps |= pdata->host_caps;
 		if (pdata->pm_caps)
 			host->mmc->pm_caps |= pdata->pm_caps;
+		if (pdata->clk_err_per_allow)
+			host->clk_err_per_allow = pdata->clk_err_per_allow;
 	}
 
 	host->quirks2 |= SDHCI_QUIRK2_NO_CURRENT_LIMIT;

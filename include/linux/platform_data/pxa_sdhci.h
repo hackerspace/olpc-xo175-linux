@@ -71,6 +71,7 @@ struct sdhci_pxa_platdata {
 	unsigned int	flags;
 	unsigned int	clk_delay_cycles;
 	unsigned int	clk_delay_sel;
+	unsigned int	clk_err_per_allow;
 	bool		clk_delay_enable;
 	unsigned int	ext_cd_gpio;
 	bool		ext_cd_gpio_invert;
