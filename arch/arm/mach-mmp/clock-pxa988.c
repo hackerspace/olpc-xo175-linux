@@ -2236,6 +2236,9 @@ static struct clk *pxa988_clks_peri[] = {
 	&pxa988_isp_dxo_clk,
 };
 
+/* This clock is used to enable RTC module register r/w */
+DEFINE_GATE_CLK(rtc_pe, APBC_PXA988_RTC, (1 << 7), NULL, "rtc_pe");
+
 /* APB and some simple APMU clock */
 static struct clk pxa988_list_clks[] = {
 	/* APBC: _name, _dev, _con, _reg, _fnclksel, _rate, _parent*/
@@ -2260,7 +2263,7 @@ static struct clk pxa988_list_clks[] = {
 	APBC_CLK("keypad", "pxa27x-keypad", NULL,
 		APBC_PXA988_KPC, 0, 32000, NULL),
 	APBC_CLK("rtc", NULL, "MMP-RTC",
-		APBC_PXA988_RTC, 0, 32000, NULL),
+		APBC_PXA988_RTC, 0, 32000, &rtc_pe),
 	APBC_CLK("1wire", NULL, "PXA-W1",
 		APBC_PXA988_ONEWIRE, 0, 26000000, NULL),
 
