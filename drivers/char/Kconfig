@@ -718,6 +718,12 @@ config LED_FLASH_ADP1650
 	help
 	  Please say Y here if want to control LED/flash by adp1650
 
+config LED_FLASH_BD7704
+	tristate "LED flash controller bd7704 support"
+	default n
+	help
+	  Please say Y here if want to control LED/flash by bd7704
+
 source "drivers/char/maxscend/Kconfig"
 
 endmenu
