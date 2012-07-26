@@ -11,6 +11,7 @@
 #include <mach/tc35876x.h>
 #include <mach/pxa168fb.h>
 #include <mach/mmp2_plat_ver.h>
+#include <mach/regs-mcu.h>
 
 #ifdef CONFIG_MACH_ABILENE
 static struct fb_videomode video_modes_abilene[] = {
@@ -1384,7 +1385,6 @@ void __init mk2_add_lcd_mipi(void)
 #ifdef CONFIG_MACH_EMEIDKB
 void __init emeidkb_add_lcd_mipi(void)
 {
-	unsigned char __iomem *dmc_membase;
 	unsigned int CSn_NO_COL;
 	struct dsi_info *dsi;
 
@@ -1422,8 +1422,7 @@ void __init emeidkb_add_lcd_mipi(void)
 	fb->sclk_div &= 0x0fffffff;
 	fb->sclk_div |= 0x40000000;
 
-	dmc_membase = ioremap(DDR_MEM_CTRL_BASE, 0x30);
-	CSn_NO_COL = __raw_readl(dmc_membase + SDRAM_CONFIG_TYPE1_CS0) >> 4;
+	CSn_NO_COL = __raw_readl(DMCU_VIRT_BASE + DMCU_SDRAM_CFG0_TYPE1) >> 4;
 	CSn_NO_COL &= 0xF;
 	if (CSn_NO_COL <= 0x2) {
 		/*
@@ -1433,7 +1432,6 @@ void __init emeidkb_add_lcd_mipi(void)
 		fb->io_pad_ctrl |= CFG_BOUNDARY_1KB;
 		ovly->io_pad_ctrl |= CFG_BOUNDARY_1KB;
 	}
-	iounmap(dmc_membase);
 
 	/* add frame buffer drivers */
 	pxa988_add_fb(fb);
