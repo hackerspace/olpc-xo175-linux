@@ -49,6 +49,7 @@
 #include <mach/hsi_dev.h>
 #include <plat/pmem.h>
 #include <plat/usb.h>
+#include <plat/devfreq.h>
 #include <mach/sram.h>
 #include <mach/axis_sensor.h>
 #include <mach/uio_hdmi.h>
@@ -244,6 +245,19 @@ static struct vmeta_plat_data mmp_vmeta_plat_data = {
 static void __init mmp_init_vmeta(void)
 {
 	mmp_set_vmeta_info(&mmp_vmeta_plat_data);
+}
+#endif
+
+#ifdef CONFIG_VMETA_DEVFREQ
+extern int set_vmeta_freqs_table(struct devfreq *devfreq);
+static struct devfreq_platform_data devfreq_vmeta_pdata = {
+	.clk_name = "VMETA_CLK",
+	.setup_freq_table = set_vmeta_freqs_table,
+};
+
+static void __init mmp_init_devfreq_vmeta(void)
+{
+	mmp_set_devfreq_vmeta_info(&devfreq_vmeta_pdata);
 }
 #endif
 
@@ -1572,6 +1586,9 @@ static void __init mk2_init(void)
 	mmp_init_vmeta();
 #endif
 
+#ifdef CONFIG_VMETA_DEVFREQ
+	mmp_init_devfreq_vmeta();
+#endif
 #ifdef CONFIG_MMC_SDHCI_PXAV3
 	mk2_init_mmc();
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
