@@ -19,7 +19,9 @@
 #include <linux/linkage.h>
 #include <asm/assembler.h>
 #include <asm/asm-offsets.h>
+#include <asm/memory.h>
 #include <asm/hardware/cache-l2x0.h>
+#include <mach/memory.h>
 #include <mach/addr-map.h>
 #include <mach/pxa988_lowpower.h>
 
@@ -70,7 +72,12 @@ ENTRY(pxa988_cpu_resume_handler)
 	mrc 	p15, 0, r0, c0, c0, 5
 	and     r0, r0, #15		@ fetch CPUID
 
+	/* Get the physical address of pm_reserve_pa */
 	ldr	r2, =pm_reserve_pa
+	sub	r2, r2, #PAGE_OFFSET
+	add	r2, r2, #PLAT_PHYS_OFFSET
+
+	/* Load the reserved memory address */
 	ldr	r1, [r2]
 
 	/* spin lock */
@@ -133,7 +140,7 @@ l2on:
 	strb    r2, [r1, r0]
 #endif
 	bl	v7_invalidate_l1
-	b 	cpu_resume
+	b	cpu_resume
 
 	.globl l2x0_regs_phys
 l2x0_regs_phys:
