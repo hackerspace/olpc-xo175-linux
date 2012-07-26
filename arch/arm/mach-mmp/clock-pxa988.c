@@ -1839,7 +1839,7 @@ static struct clk pxa988_ccic_func_clk = {
 };
 
 #define DSI_PHYSLOW_PRER	(0x1A << 6)
-#define DSI_ESC_SEL		(0x0)
+#define DSI_ESC_SEL		(0x3)
 #define DSI_PHYESC_SELDIV	\
 	(DSI_PHYSLOW_PRER | DSI_ESC_SEL)
 #define DSI_PHYESC_SELDIV_MSK	((0x1f << 6) | 0x3)
@@ -1848,7 +1848,7 @@ static struct clk pxa988_ccic_func_clk = {
 
 static void dsi_phy_clk_init(struct clk *clk)
 {
-	/* default sel 52M, div 0x1A */
+	/* default sel 78M, div 0x1A */
 	CLK_SET_BITS(DSI_PHYESC_SELDIV,
 		DSI_PHYESC_SELDIV_MSK);
 }
@@ -1881,7 +1881,7 @@ static struct clk lcd_dsi_phy_clk = {
 };
 
 #define LCD_CLK_EN		(1 << 4)
-#define LCD_CLK_RST		(1 << 1)
+#define LCD_CLK_RST		(1 << 1 | 1 << 0)
 #define LCD_DEF_FCLK_SEL	(1 << 6)
 #define LCD_FCLK_SEL_MASK	(1 << 6)
 
@@ -1940,7 +1940,7 @@ static int lcd_func_clk_setrate(struct clk *clk, unsigned long rate)
 
 static unsigned long lcd_func_clk_getrate(struct clk *clk)
 {
-	return clk->rate;
+	return clk_get_rate(clk->parent);
 }
 
 static struct clk *lcd_depend_clk[] = {
