@@ -786,4 +786,18 @@ config TOUCHSCREEN_TPS6507X
 	  To compile this driver as a module, choose M here: the
 	  module will be called tps6507x_ts.
 
+config TOUCHSCREEN_SIS9200
+	tristate "SiS 9200 family I2C touchscreen driver"
+	depends on I2C
+	default n
+	help
+	  This enables support for SiS 9200 family over I2C based touchscreens.
+
+config FW_SUPPORT_POWERMODE
+	bool "SiS FW support power mode"
+	depends on TOUCHSCREEN_SIS_I2C
+	default n
+	help
+	  This enables support power mode provided by SiS firmwave
+
 endif

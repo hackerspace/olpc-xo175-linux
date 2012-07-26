@@ -68,3 +68,4 @@ obj-$(CONFIG_TOUCHSCREEN_TPS6507X)	+= tps6507x-ts.o
 obj-$(CONFIG_TOUCHSCREEN_TPK_R800)	+= tpk_r800.o ts_linear.o
 obj-$(CONFIG_TOUCHSCREEN_SSD2531)		+= SSD2531_touch.o
 obj-$(CONFIG_TOUCHSCREEN_VNC)			+= vnc_touch.o
+obj-$(CONFIG_TOUCHSCREEN_SIS9200)	+= sis_i2c.o
