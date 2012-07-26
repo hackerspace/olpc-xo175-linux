@@ -862,7 +862,7 @@ static struct i2c_board_info emeidkb_pwr_i2c_info[] = {
 
 };
 
-static struct i2c_board_info emeidkb_i2c2_info[] = {
+static struct i2c_board_info emeidkb_i2c1_info[] = {
 #if defined(CONFIG_SENSORS_CWMI)
 	{
 		.type       = "cwmi_acc",
@@ -1385,9 +1385,9 @@ static void __init emeidkb_init(void)
 	pxa988_add_uart(2);
 	/* FIXME: add i2c_pxa_platform_data */
 	pxa988_add_twsi(0, NULL, ARRAY_AND_SIZE(emeidkb_i2c_info));
-	pxa988_add_twsi(1, &emeidkb_pwr_i2c_pdata,
+	pxa988_add_twsi(1, NULL, ARRAY_AND_SIZE(emeidkb_i2c1_info));
+	pxa988_add_twsi(2, &emeidkb_pwr_i2c_pdata,
 			ARRAY_AND_SIZE(emeidkb_pwr_i2c_info));
-	pxa988_add_twsi(2, NULL, ARRAY_AND_SIZE(emeidkb_i2c2_info));
 
 	/* add ssp1 for hifi audio */
 	pxa988_add_ssp(1);
