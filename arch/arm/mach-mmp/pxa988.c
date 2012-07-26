@@ -590,6 +590,13 @@ struct platform_device pxa988_device_udc = {
 };
 #endif /* CONFIG_USB_PXA_U2O */
 
+#if defined(CONFIG_TOUCHSCREEN_VNC)
+struct platform_device pxa988_device_vnc_touch = {
+	.name   = "vnc-ts",
+	.id     = -1,
+};
+#endif /* CONFIG_TOUCHSCREEN_VNC */
+
 #define APMASK(i)	(GPIO_REGS_VIRT + BANK_OFF(i) + 0x09c)
 static void __init pxa988_init_gpio(void)
 {
@@ -621,6 +628,9 @@ static int __init pxa988_init(void)
 	/* add ssp and squ device for hifi audio */
 	platform_device_register(&pxa988_device_asoc_ssp1);
 	platform_device_register(&pxa988_device_asoc_squ);
+#if defined(CONFIG_TOUCHSCREEN_VNC)
+	platform_device_register(&pxa988_device_vnc_touch);
+#endif /* CONFIG_TOUCHSCREEN_VNC */
 
 	return 0;
 }
