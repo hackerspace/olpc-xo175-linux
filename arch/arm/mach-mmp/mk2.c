@@ -673,27 +673,59 @@ static int mk2_max77601_setup(struct max77601_chip *chip)
 	return 0;
 };
 
-static struct regulator_consumer_supply regulator_supplies[] = {
-	/* Step-down regulators: SD[0..3] */
-	[MAX77601_ID_SD0]	 = REGULATOR_SUPPLY("VCC_CORE", NULL),
-	[MAX77601_ID_DVSSD0] = REGULATOR_SUPPLY("VCC_CORE_DVS", NULL),
-	[MAX77601_ID_SD1]	 = REGULATOR_SUPPLY("PMIC_V1", NULL),
-	[MAX77601_ID_DVSSD1] = REGULATOR_SUPPLY("PMIC_V1_DVS", NULL),
-	[MAX77601_ID_SD2]	 = REGULATOR_SUPPLY("PMIC_V2_1V8", NULL),
-	[MAX77601_ID_SD3]	 = REGULATOR_SUPPLY("PMIC_V3_2V8", NULL),
-	/* Linear regulators: L[0..8] */
-	[MAX77601_ID_L0] = REGULATOR_SUPPLY("PMIC_LDO0", NULL),
-	[MAX77601_ID_L1] = REGULATOR_SUPPLY("PMIC_LDO1", NULL),
-	[MAX77601_ID_L2] = REGULATOR_SUPPLY("PMIC_LDO2", NULL),
-	[MAX77601_ID_L3] = REGULATOR_SUPPLY("PMIC_LDO3", NULL),
-	[MAX77601_ID_L4] = REGULATOR_SUPPLY("PMIC_LDO4", NULL),
-	[MAX77601_ID_L5] = REGULATOR_SUPPLY("PMIC_LDO5", NULL),
-	[MAX77601_ID_L6] = REGULATOR_SUPPLY("PMIC_LDO6", NULL),
-	[MAX77601_ID_L7] = REGULATOR_SUPPLY("PMIC_LDO7", NULL),
-	[MAX77601_ID_L8] = REGULATOR_SUPPLY("PMIC_LDO8", NULL),
+/* Step-down regulators: SD[0..3] */
+static struct regulator_consumer_supply regulator_supplies_sd0[] = {
+	REGULATOR_SUPPLY("VCC_CORE", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_dvssd0[] = {
+	REGULATOR_SUPPLY("VCC_CORE_DVS", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_sd1[] = {
+	REGULATOR_SUPPLY("PMIC_V1", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_dvssd1[] = {
+	REGULATOR_SUPPLY("PMIC_V1_DVS", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_sd2[] = {
+	REGULATOR_SUPPLY("PMIC_V2_1V8", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_sd3[] = {
+	/* sd/emmc/camera/sensor power */
+	REGULATOR_SUPPLY("vmmc", "sdhci-pxa.0"),
+	REGULATOR_SUPPLY("vmmc", "sdhci-pxa.2"),
+	REGULATOR_SUPPLY("PMIC_V3_2V8", NULL),
 };
 
-#define REG_INIT(_name, _min, _max, _always, _boot) \
+/* Linear regulators: L[0..8] */
+static struct regulator_consumer_supply regulator_supplies_ldo0[] = {
+	REGULATOR_SUPPLY("PMIC_LDO0", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_ldo1[] = {
+	REGULATOR_SUPPLY("PMIC_LDO1", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_ldo2[] = {
+	REGULATOR_SUPPLY("PMIC_LDO2", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_ldo3[] = {
+	REGULATOR_SUPPLY("PMIC_LDO3", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_ldo4[] = {
+	REGULATOR_SUPPLY("PMIC_LDO4", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_ldo5[] = {
+	REGULATOR_SUPPLY("PMIC_LDO5", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_ldo6[] = {
+	REGULATOR_SUPPLY("PMIC_LDO6", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_ldo7[] = {
+	REGULATOR_SUPPLY("PMIC_LDO7", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_ldo8[] = {
+	REGULATOR_SUPPLY("PMIC_LDO8", NULL),
+};
+
+#define REG_INIT(_name, _min, _max, _always, _boot, _suspend) \
 {								\
 	.constraints = {					\
 		.name		= __stringify(_name),		\
@@ -701,31 +733,34 @@ static struct regulator_consumer_supply regulator_supplies[] = {
 		.max_uV		= _max,				\
 		.always_on	= _always,			\
 		.boot_on	= _boot,			\
+		.state_mem	= {				\
+			.disabled = _suspend,			\
+		},						\
 		.valid_ops_mask	= REGULATOR_CHANGE_VOLTAGE	\
 				| REGULATOR_CHANGE_STATUS,	\
 	},							\
-	.num_consumer_supplies	= 1,				\
-	.consumer_supplies	= &regulator_supplies[MAX77601_ID_##_name], \
+	.num_consumer_supplies	= ARRAY_SIZE(regulator_supplies_##_name),				\
+	.consumer_supplies	= regulator_supplies_##_name, \
 }
 
 static struct regulator_init_data max77601_regulator_data[] = {
 	/* Step-down regulators: SD[0..3] */
-	[MAX77601_ID_SD0]	 = REG_INIT(SD0,	600000, 3387500, 1, 1),
-	[MAX77601_ID_DVSSD0] = REG_INIT(DVSSD0,	600000, 3387500, 1, 1),
-	[MAX77601_ID_SD1]	 = REG_INIT(SD1,	800000, 1587500, 1, 1),
-	[MAX77601_ID_DVSSD1] = REG_INIT(DVSSD1, 800000, 1587500, 1, 1),
-	[MAX77601_ID_SD2]	 = REG_INIT(SD2,	600000, 3387500, 1, 1),
-	[MAX77601_ID_SD3]	 = REG_INIT(SD3,	600000, 3387500, 1, 1),
+	[MAX77601_ID_SD0]	= REG_INIT(sd0, 600000, 3387500, 1, 1, 0),
+	[MAX77601_ID_DVSSD0] 	= REG_INIT(dvssd0, 600000, 3387500, 1, 1, 0),
+	[MAX77601_ID_SD1]	= REG_INIT(sd1, 800000, 1587500, 1, 1, 0),
+	[MAX77601_ID_DVSSD1] 	= REG_INIT(dvssd1, 800000, 1587500, 1, 1, 0),
+	[MAX77601_ID_SD2]	= REG_INIT(sd2, 600000, 3387500, 1, 1, 0),
+	[MAX77601_ID_SD3]	= REG_INIT(sd3, 600000, 3387500, 1, 1, 0),
 	/* Linear regulators: L[0..8] */
-	[MAX77601_ID_L0] = REG_INIT(L0, 800000, 2350000, 0, 1),
-	[MAX77601_ID_L1] = REG_INIT(L1, 800000, 2350000, 0, 1),
-	[MAX77601_ID_L2] = REG_INIT(L2, 800000, 3950000, 1, 1),
-	[MAX77601_ID_L3] = REG_INIT(L3, 800000, 3950000, 0, 0),
-	[MAX77601_ID_L4] = REG_INIT(L4, 800000, 1587500, 0, 0),
-	[MAX77601_ID_L5] = REG_INIT(L5, 800000, 3950000, 1, 1),
-	[MAX77601_ID_L6] = REG_INIT(L6, 800000, 3950000, 1, 1),
-	[MAX77601_ID_L7] = REG_INIT(L7, 800000, 3950000, 0, 0),
-	[MAX77601_ID_L8] = REG_INIT(L8, 800000, 3950000, 0, 0),
+	[MAX77601_ID_L0] = REG_INIT(ldo0, 800000, 2350000, 0, 1, 0),
+	[MAX77601_ID_L1] = REG_INIT(ldo1, 800000, 2350000, 0, 1, 0),
+	[MAX77601_ID_L2] = REG_INIT(ldo2, 800000, 3950000, 1, 1, 0),
+	[MAX77601_ID_L3] = REG_INIT(ldo3, 800000, 3950000, 0, 0, 0),
+	[MAX77601_ID_L4] = REG_INIT(ldo4, 800000, 1587500, 0, 0, 0),
+	[MAX77601_ID_L5] = REG_INIT(ldo5, 800000, 3950000, 1, 1, 1),
+	[MAX77601_ID_L6] = REG_INIT(ldo6, 800000, 3950000, 1, 1, 0),
+	[MAX77601_ID_L7] = REG_INIT(ldo7, 800000, 3950000, 0, 0, 0),
+	[MAX77601_ID_L8] = REG_INIT(ldo8, 800000, 3950000, 0, 0, 0),
 };
 
 static struct max77601_platform_data mk2_max77601_pdata = {
