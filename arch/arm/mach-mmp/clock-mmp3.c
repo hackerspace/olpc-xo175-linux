@@ -1584,28 +1584,30 @@ static void sdhc_clk_init(struct clk *clk)
 	u32 val = 0;
 
 	clk->mul = 1;
-	clk->div = 1;
+	clk->div = 2;
 
 	clk_reparent(clk, &mmp3_clk_pll1_d_4);
 
-	val &= ~(clk->reg_data[DIV][CONTROL].reg_mask
-		 << clk->reg_data[DIV][CONTROL].reg_shift);
-	val |= clk->div
-	    << clk->reg_data[DIV][CONTROL].reg_shift;
+	if (!strcmp(clk->name, "sdh0")) {
+		val &= ~(clk->reg_data[DIV][CONTROL].reg_mask
+				<< clk->reg_data[DIV][CONTROL].reg_shift);
+		val |= clk->div
+			<< clk->reg_data[DIV][CONTROL].reg_shift;
 
-	for (sel = clk->inputs; sel->input != 0; sel++) {
-		if (sel->input == &mmp3_clk_pll1_d_4)
-			break;
-	}
-	if (sel->input == 0) {
-		pr_err("sdh: no matched input for this parent!\n");
-		BUG();
-	}
+		for (sel = clk->inputs; sel->input != 0; sel++) {
+			if (sel->input == &mmp3_clk_pll1_d_4)
+				break;
+		}
+		if (sel->input == 0) {
+			pr_err("sdh: no matched input for this parent!\n");
+			BUG();
+		}
 
-	val &= ~(clk->reg_data[SOURCE][CONTROL].reg_mask
-		<< clk->reg_data[SOURCE][CONTROL].reg_shift);
-	val |= sel->value
-		<< clk->reg_data[SOURCE][CONTROL].reg_shift;
+		val &= ~(clk->reg_data[SOURCE][CONTROL].reg_mask
+				<< clk->reg_data[SOURCE][CONTROL].reg_shift);
+		val |= sel->value
+			<< clk->reg_data[SOURCE][CONTROL].reg_shift;
+	}
 
 	clk->enable_val = val;
 }
@@ -1615,14 +1617,14 @@ static int sdhc_clk_enable(struct clk *clk)
 	u32 val;
 
 	val = clk->enable_val | 0x1b;
-	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+	__raw_writel(val, clk->clk_rst);
 
 	return 0;
 }
 
 static void sdhc_clk_disable(struct clk *clk)
 {
-	__raw_writel(0, clk->reg_data[SOURCE][CONTROL].reg);
+	__raw_writel(0, clk->clk_rst);
 }
 
 static long sdhc_clk_round_rate(struct clk *clk, unsigned long rate)
@@ -1669,6 +1671,9 @@ static int sdhc_clk_setrate(struct clk *clk, unsigned long rate)
 	unsigned long parent_rate;
 	const struct clk_mux_sel *sel;
 	u32 val = 0;
+
+	if (strcmp(clk->name, "sdh0"))
+		return -ENOSYS;
 
 	if (rate <= clk_get_rate(&mmp3_clk_pll1_d_4)) {
 		parent_rate = clk_get_rate(&mmp3_clk_pll1_d_4);
@@ -1752,12 +1757,19 @@ static int sdhc_clk_setrate(struct clk *clk, unsigned long rate)
 	return 0;
 }
 
-struct clkops sdhc_clk_ops = {
+struct clkops sdhc0_clk_ops = {
 	.init = sdhc_clk_init,
 	.enable = sdhc_clk_enable,
 	.disable = sdhc_clk_disable,
 	.round_rate = sdhc_clk_round_rate,
 	.setrate = sdhc_clk_setrate,
+};
+
+struct clkops sdhc1_4_clk_ops = {
+	.init = sdhc_clk_init,
+	.enable = sdhc_clk_enable,
+	.disable = sdhc_clk_disable,
+	.round_rate = sdhc_clk_round_rate,
 };
 
 static struct clk_mux_sel sdhc_clk_mux[] = {
@@ -1767,19 +1779,25 @@ static struct clk_mux_sel sdhc_clk_mux[] = {
 	{0, 0},
 };
 
+/*
+ * all sdhx share the same clock which will be enabled when any of sdhx clock
+ * enable is set. but the clock source select and devider ratio is controlled
+ * by sdh0.
+*/
 static struct clk mmp3_clk_sdh0 = {
 	.name = "sdh0",
 	.lookup = {
 		.dev_id = "sdhci-pxa.0",
 		.con_id = "PXA-SDHCLK",
 	},
-	.ops = &sdhc_clk_ops,
+	.ops = &sdhc0_clk_ops,
 	.inputs = sdhc_clk_mux,
 	.reg_data = {
 		     { {APMU_SDH0, 8, 0x3},
 			{APMU_SDH0, 8, 0x3} },
 		     {{APMU_SDH0, 10, 0xf},
 			{APMU_SDH0, 10, 0xf} } },
+	.clk_rst = (void __iomem *)APMU_SDH0,
 };
 
 static struct clk mmp3_clk_sdh1 = {
@@ -1788,13 +1806,9 @@ static struct clk mmp3_clk_sdh1 = {
 		.dev_id = "sdhci-pxa.1",
 		.con_id = "PXA-SDHCLK",
 	},
-	.ops = &sdhc_clk_ops,
+	.ops = &sdhc1_4_clk_ops,
 	.inputs = sdhc_clk_mux,
-	.reg_data = {
-		     { {APMU_SDH1, 8, 0x3},
-			{APMU_SDH1, 8, 0x3} },
-		     {{APMU_SDH1, 10, 0xf},
-			{APMU_SDH1, 10, 0xf} } },
+	.clk_rst = (void __iomem *)APMU_SDH1,
 };
 
 static struct clk mmp3_clk_sdh2 = {
@@ -1803,13 +1817,9 @@ static struct clk mmp3_clk_sdh2 = {
 		.dev_id = "sdhci-pxa.2",
 		.con_id = "PXA-SDHCLK",
 	},
-	.ops = &sdhc_clk_ops,
+	.ops = &sdhc1_4_clk_ops,
 	.inputs = sdhc_clk_mux,
-	.reg_data = {
-		     { {APMU_SDH2, 8, 0x3},
-			{APMU_SDH2, 8, 0x3} },
-		     {{APMU_SDH2, 10, 0xf},
-			{APMU_SDH2, 10, 0xf} } },
+	.clk_rst = (void __iomem *)APMU_SDH2,
 };
 
 static struct clk mmp3_clk_sdh3 = {
@@ -1818,13 +1828,9 @@ static struct clk mmp3_clk_sdh3 = {
 		.dev_id = "sdhci-pxa.3",
 		.con_id = "PXA-SDHCLK",
 	},
-	.ops = &sdhc_clk_ops,
+	.ops = &sdhc1_4_clk_ops,
 	.inputs = sdhc_clk_mux,
-	.reg_data = {
-		     { {APMU_SDH3, 8, 0x3},
-			{APMU_SDH3, 8, 0x3} },
-		     {{APMU_SDH3, 10, 0xf},
-			{APMU_SDH3, 10, 0xf} } },
+	.clk_rst = (void __iomem *)APMU_SDH3,
 };
 
 #ifdef CONFIG_MMP3_HSI
