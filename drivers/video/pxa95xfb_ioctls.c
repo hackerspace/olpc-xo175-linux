@@ -98,10 +98,31 @@ static int surface_is_valid(struct pxa95xfb_info *fbi,
 		struct _sViewPortInfo *new_info,
 		struct _sViewPortOffset *new_offset)
 {
-	return (new_mode >= 0 && convert_pix_fmt(new_mode) >= 0)
-		|| (new_info &&
-		(new_info->srcWidth || new_info->srcHeight ||
-		new_info->zoomXSize || new_info->zoomYSize));
+	if (new_mode >= 0 && convert_pix_fmt(new_mode) < 0) {
+		pr_info("color format %x invalid\n", new_mode);
+		return 0;
+	}
+
+	if (new_info) {
+		if (new_info->srcWidth < 6 || new_info->srcHeight < 2 ||
+			new_info->zoomXSize <= 0 || new_info->zoomYSize <= 0) {
+			pr_info("surf [%d %d] - [%d %d], invalid\n",
+				new_info->srcWidth, new_info->srcHeight,
+				new_info->zoomXSize, new_info->zoomYSize);
+			return 0;
+		}
+		if (new_info->srcWidth * 4 < new_info->zoomXSize
+			|| new_info->srcHeight * 4 < new_info->zoomYSize
+			|| new_info->srcWidth > new_info->zoomXSize * 4
+			|| new_info->srcHeight > new_info->zoomYSize * 4) {
+			pr_info("surf [%d %d] - [%d %d], out of 4* scale ratio\n",
+				new_info->srcWidth, new_info->srcHeight,
+				new_info->zoomXSize, new_info->zoomYSize);
+			return 0;
+		}
+	}
+
+	return 1;
 }
 
 
