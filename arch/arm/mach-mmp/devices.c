@@ -1003,3 +1003,27 @@ void __init pxa_register_coda7542(void)
 			"unable to register coda7542 device: %d\n", ret);
 }
 #endif
+
+#ifdef CONFIG_VMETA_DEVFREQ
+struct platform_device mmp_device_vMeta_devfreq = {
+	.name = "devfreq-vMeta",
+	.id = -1,
+};
+
+void __init mmp_register_devfreq_vmeta(struct platform_device *dev, void *data)
+{
+	int ret;
+
+	dev->dev.platform_data = data;
+
+	ret = platform_device_register(dev);
+	if (ret)
+		dev_err(&dev->dev, "unable to register vMeta-devfreq device: %d\n", ret);
+}
+
+void __init mmp_set_devfreq_vmeta_info(void* info)
+{
+	mmp_register_devfreq_vmeta(&mmp_device_vMeta_devfreq, info);
+}
+
+#endif

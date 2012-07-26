@@ -43,4 +43,5 @@ struct vmeta_plat_data {
 
 irqreturn_t mmp_vmeta_bus_irq_handler(int irq, void *dev_id);
 void __init mmp_set_vmeta_info(void *info);
+void __init mmp_set_devfreq_vmeta_info(void *info);
 #endif
