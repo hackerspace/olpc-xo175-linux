@@ -31,8 +31,8 @@
 #include <mach/regs-mcu.h>
 #include <mach/clock-pxa988.h>
 #include <mach/pxa988_lowpower.h>
-#include <plat/debugfs.h>
 #include <mach/pxa988_ddr.h>
+#include <plat/debugfs.h>
 
 /* core,ddr,axi clk src sel set register desciption */
 union pmum_fccr {
@@ -276,6 +276,7 @@ static bool cp_reset_block_ddr_fc;
 
 static void get_cur_cpu_op(struct pxa988_cpu_opt *cop);
 static void get_cur_ddr_axi_op(struct pxa988_ddr_axi_opt *cop);
+
 
 /*
  * PHY setting need to be tuned on real silicon by SV/DE.
@@ -643,8 +644,8 @@ static struct pxa988_cpu_opt pxa988_op_array[] = {
 		.periphclk = 100,
 		.ap_clk_sel = AP_CLK_SRC_PLL2,
 	},
-	/* clock higher than 800M is unsafe on Z0, disable it  at first */
 #if 0
+	/* clock higher than 800M is unsafe on Z0, disable it  at first */
 	{
 		.pclk = 1000,
 		.l2clk = 500,
@@ -665,8 +666,14 @@ static struct pxa988_cpu_opt pxa988_op_array[] = {
 };
 
 /*
- * 1) Please don't select ddr from pll1 but axi from pll2
- * 2) FIXME: high ddr request means high axi is NOT
+ * 1) On Emei Z0, only support three ddr rates, be careful
+ * when changing the PP table. The table should only have
+ * three PPs and the PPs are ordered ascending.
+ * 2) Table base DDR FC is implemented. The corresponding
+ * ddr_tbl_index should be 1,3,5. If the PP tbl size is larger
+ * than 3, it will only fill the first three rates' timing to tbl 1,3,5
+ * 3) Make sure the ddr and axi rate's src sel is correct
+ * 4) FIXME: high ddr request means high axi is NOT
  * very reasonable
  */
 static struct pxa988_ddr_axi_opt lpddr400_axi_oparray[] = {
@@ -696,9 +703,9 @@ static struct pxa988_ddr_axi_opt lpddr400_axi_oparray[] = {
 	{
 		.dclk = 400,
 		.ddr_tbl_index = 5,
-		.aclk = 200,
+		.aclk = 208,
 		.ddr_clk_sel = DDR_AXI_CLK_SRC_PLL2,
-		.axi_clk_sel = DDR_AXI_CLK_SRC_PLL2,
+		.axi_clk_sel = DDR_AXI_CLK_SRC_PLL1_416,
 	},
 #endif
 };
@@ -1105,17 +1112,21 @@ static void get_cur_ddr_axi_op(struct pxa988_ddr_axi_opt *cop)
 		cop->ddr_clk_src = clk_get_rate(cop->ddr_parent) / MHZ;
 	else {
 		parent = ddr_axi_sel2parent(pllsel.b.ddrclksel);
+		cop->ddr_parent = parent;
 		cop->ddr_clk_src = clk_get_rate(parent) / MHZ;
-		pr_err("%s ddr clk tsrc:%d csel:%d\n", __func__,
-			cop->ddr_clk_src, pllsel.b.ddrclksel);
+		pr_err("%s ddr clk tsrc:%d csel:%d parent:%s\n",
+			__func__, cop->ddr_clk_src,
+			pllsel.b.ddrclksel, cop->ddr_parent->name);
 	}
 	if (likely(pllsel.b.axiclksel == cop->axi_clk_sel))
 		cop->axi_clk_src = clk_get_rate(cop->axi_parent) / MHZ;
 	else {
 		parent = ddr_axi_sel2parent(pllsel.b.axiclksel);
+		cop->axi_parent = parent;
 		cop->axi_clk_src = clk_get_rate(parent) / MHZ;
-		pr_err("%s axi clk tsrc:%d csel:%d\n", __func__,
-			cop->axi_clk_src, pllsel.b.axiclksel);
+		pr_err("%s axi clk tsrc:%d csel:%d parent:%s\n",
+			__func__, cop->axi_clk_src,
+			pllsel.b.axiclksel, cop->axi_parent->name);
 	}
 	cop->dclk = cop->ddr_clk_src / (dm_cc_ap.b.ddr_clk_div + 1) / 2;
 	cop->aclk = cop->axi_clk_src / (dm_cc_ap.b.bus_clk_div + 1);
@@ -1152,6 +1163,8 @@ static void pll1_pll3_switch(enum ap_clk_sel sel)
 static void set_ap_clk_sel(struct pxa988_cpu_opt *top)
 {
 	union pmum_fccr fccr;
+
+	pll1_pll3_switch(top->ap_clk_sel);
 
 	fccr.v = __raw_readl(MPMU_FCCR);
 	fccr.b.mohclksel =
@@ -1250,6 +1263,7 @@ static void core_fc_seq(struct pxa988_cpu_opt *cop,
 static int set_core_freq(struct pxa988_cpu_opt *old, struct pxa988_cpu_opt *new)
 {
 	struct pxa988_cpu_opt cop;
+	struct clk *old_parent;
 	int ret = 0;
 
 	pr_info("CORE set_freq start: old %u, new %u\n",
@@ -1277,6 +1291,7 @@ static int set_core_freq(struct pxa988_cpu_opt *old, struct pxa988_cpu_opt *new)
 		dump_stack();
 	}
 
+	old_parent = cop.parent;
 	clk_enable(new->parent);
 	core_fc_seq(&cop, new);
 
@@ -1297,11 +1312,12 @@ static int set_core_freq(struct pxa988_cpu_opt *old, struct pxa988_cpu_opt *new)
 			new->pclk, new->l2clk, new->pdclk, new->baclk,
 			new->periphclk);
 		ret = -EAGAIN;
-		clk_disable(new->parent);
+		if (cop.ap_clk_src != new->ap_clk_src)
+			clk_disable(new->parent);
 		goto out;
 	}
 
-	clk_disable(old->parent);
+	clk_disable(old_parent);
 out:
 	put_fc_lock();
 	pr_info("CORE set_freq end: old %u, new %u\n",
@@ -1498,6 +1514,7 @@ static int set_ddr_axi_freq(struct pxa988_ddr_axi_opt *old,
 	struct pxa988_ddr_axi_opt *new)
 {
 	struct pxa988_ddr_axi_opt cop;
+	struct clk *ddr_old_parent, *axi_old_parent;
 	int ret = 0, errflag = 0;
 
 	pr_info("DDR set_freq start: old %u, new %u\n",
@@ -1520,6 +1537,8 @@ static int set_ddr_axi_freq(struct pxa988_ddr_axi_opt *old,
 		dump_stack();
 	}
 
+	ddr_old_parent = cop.ddr_parent;
+	axi_old_parent = cop.axi_parent;
 	clk_enable(new->ddr_parent);
 	clk_enable(new->axi_parent);
 	ddr_axi_fc_seq(&cop, new);
@@ -1547,8 +1566,8 @@ static int set_ddr_axi_freq(struct pxa988_ddr_axi_opt *old,
 		goto out;
 	}
 
-	clk_disable(old->ddr_parent);
-	clk_disable(old->axi_parent);
+	clk_disable(ddr_old_parent);
+	clk_disable(axi_old_parent);
 out:
 	put_fc_lock();
 	pr_info("DDR set_freq end: old %u, new %u\n",
@@ -1561,6 +1580,7 @@ static void pxa988_ddraxi_init(struct clk *clk)
 	struct pxa988_ddr_axi_opt cur_op;
 	struct pxa988_ddr_axi_opt *ddr_axi_opt;
 	unsigned int op_index;
+	unsigned long axi_rate;
 
 	BUG_ON(!cur_platform_opt);
 	__init_ddr_axi_opt();
@@ -1576,8 +1596,10 @@ static void pxa988_ddraxi_init(struct clk *clk)
 	clk->rate = ddr_axi_opt[op_index].dclk;
 	clk->parent = ddr_axi_opt[op_index].ddr_parent;
 	clk->dynamic_change = 1;
+	axi_rate = ddr_axi_opt[op_index].aclk;
 
 	pr_info(" DDR boot up @%lu\n", clk->rate);
+	pr_info(" AXI boot up @%lu\n", axi_rate);
 }
 
 static long pxa988_ddraxi_round_rate(struct clk *clk, unsigned long rate)
