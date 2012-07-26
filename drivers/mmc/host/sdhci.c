@@ -1096,6 +1096,22 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 	if (clock == 0)
 		goto out;
 
+	/*
+	 * As the clock div's limitation, the clock output may have some gap
+	 * as expecting.
+	 * Example: if a 50Mhz CLK is wanted by dividing form 208Mhz clock
+	 * For SPEC_300, the best result is 34.6MHz or 52MHz.
+	 *
+	 * If the percentage error is not allowed, we have to choose 34.6MHz,
+	 * but the performace will be impacted a lot
+	 * but if we allow 4% overspeed, we can set it to 52Mhz
+	 *
+	 * clk_err_per_allow is 0 by default, but it can be passed externally
+	 * So we can balance the performce and robust in some way
+	 */
+	if (host->clk_err_per_allow && (host->max_clk % clock))
+		clock += (clock * host->clk_err_per_allow)/100;
+
 	if (host->version >= SDHCI_SPEC_300) {
 		/*
 		 * Check if the Host Controller supports Programmable Clock
