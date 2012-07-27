@@ -36,6 +36,7 @@ struct ddr_cycle_type ddr_ticks_array[OP_NUM];
 spinlock_t ddr_performance_data_lock;
 unsigned long cpu_flag;
 unsigned int is_ddr_statics_enabled;
+static unsigned long delta_time[4];
 
 static irqreturn_t ddr_calibration_handler(int irq, void *dev_id)
 {
@@ -193,9 +194,6 @@ void init_ddr_performance_counter(void)
 {
 	unsigned int i;
 
-	if (!is_ddr_statics_enabled)
-		return;
-
 	if (!dmc_base)
 		dmc_base = (unsigned int) ioremap(0x7ff00000, 0x1000);
 
@@ -287,13 +285,16 @@ void stop_ddr_performance_counter(void)
 	__raw_writel((0xf << 16), dmc_base + PERF_STATUS_OFF);
 }
 
+void get_ddr_count(unsigned long *total, unsigned long *busy)
+{
+	update_ddr_performance_data(0);
+	*total = delta_time[0];
+	*busy = delta_time[0] - delta_time[1];
+}
 
 void update_ddr_performance_data(int op_idx)
 {
 	unsigned int reg[4], i, overflow_flag;
-
-	if (!is_ddr_statics_enabled)
-		return;
 
 	if (!dmc_base)
 		dmc_base = (unsigned int) ioremap(0x7ff00000, 0x1000);
@@ -308,16 +309,17 @@ void update_ddr_performance_data(int op_idx)
 	for (i = 0; i < 4; i++) {
 		__raw_writel((i << 0), dmc_base + PERF_SELECT_OFF);
 		reg[i] = __raw_readl(dmc_base + PERF_COUNTER_OFF);
-
 		if (overflow_flag & (1 << i))
-			ddr_ticks_array[cur_op].reg[i] += 0x100000000LLU
+			delta_time[i] = 0x100000000LLU
 				+ reg[i] - ddr_performance_counter_old[i];
 		else
-			ddr_ticks_array[cur_op].reg[i] += reg[i]
-				- ddr_performance_counter_old[i];
+			delta_time[i] = reg[i] - ddr_performance_counter_old[i];
+
+		ddr_ticks_array[cur_op].reg[i] += delta_time[i];
 
 		ddr_performance_counter_old[i] = reg[i];
 	}
+
 	spin_unlock_irqrestore(&ddr_performance_data_lock, cpu_flag);
 
 	/* if there is overflow, clean interrupt flags and re-init counters */
