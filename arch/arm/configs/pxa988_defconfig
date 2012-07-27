@@ -410,7 +410,7 @@ CONFIG_ALIGNMENT_TRAP=y
 # CONFIG_USE_OF is not set
 CONFIG_ZBOOT_ROM_TEXT=0
 CONFIG_ZBOOT_ROM_BSS=0
-CONFIG_CMDLINE="initrd=0x01100000,1m rw androidboot.console=ttyS1 console=ttyS1,115200 panic_debug reserve_pmem=64m@0x09000000 emmc_boot fb_share"
+CONFIG_CMDLINE="initrd=0x01100000,1m rw androidboot.console=ttyS1 console=ttyS1,115200 panic_debug reserve_pmem=160m@0x09000000 emmc_boot fb_share"
 CONFIG_CMDLINE_FROM_BOOTLOADER=y
 # CONFIG_CMDLINE_EXTEND is not set
 # CONFIG_CMDLINE_FORCE is not set
