@@ -17,6 +17,7 @@
 #include <mach/addr-map.h>
 #include <mach/cputype.h>
 #include <mach/irqs.h>
+#include <mach/regs-ciu.h>
 
 #define CORESIGHT_VIRT_BASE	(APB_VIRT_BASE + 0x100000)
 #define CTI_CORE0_VIRT_BASE	(CORESIGHT_VIRT_BASE + 0x18000)
@@ -41,6 +42,7 @@
 #define CTI_EN_OUT5		0xB4
 #define CTI_EN_OUT6		0xB8
 #define CTI_EN_OUT7		0xBC
+#define CTI_LOCK		0xFB0
 
 
 /* NOTE: Order fixed as mp1/mp2/mm core id = 0, 1, 2 */
@@ -90,6 +92,23 @@ static void __init pxa988_cti_init(void)
 {
 	u32 tmp;
 
+	/* enable access CTI registers for core0 */
+	tmp = __raw_readl(CIU_CA9_CPU_CORE0_CONF);
+	tmp |= 0x100000;
+	__raw_writel(tmp, CIU_CA9_CPU_CORE0_CONF);
+
+	/* enable access CTI registers for core1 */
+	tmp = __raw_readl(CIU_CA9_CPU_CORE1_CONF);
+	tmp |= 0x100000;
+	__raw_writel(tmp, CIU_CA9_CPU_CORE1_CONF);
+
+	/* enable the write access to CTI0 & CTI1 */
+	__raw_writel(0xC5ACCE55, CTI_CORE0_VIRT_BASE + CTI_LOCK);
+	__raw_writel(0xC5ACCE55, CTI_CORE1_VIRT_BASE + CTI_LOCK);
+
+	/* enable the write access to SOC CTI */
+	__raw_writel(0xC5ACCE55, CTI_SOC_VIRT_BASE + CTI_LOCK);
+
 	/* enable CTI for core0 & core1*/
 	__raw_writel(0x1, CTI_CORE0_VIRT_BASE + CTI_CTRL);
 	__raw_writel(0x1, CTI_CORE1_VIRT_BASE + CTI_CTRL);
@@ -98,32 +117,39 @@ static void __init pxa988_cti_init(void)
 	__raw_writel(0x1, CTI_SOC_VIRT_BASE + CTI_CTRL);
 
 	/*
-	 * enable core0 CTI triger in 1 from PMU0 irq to CTM channel 3
-	 * and enable the CTM channel 3 route to core0 CTI trigger out 6
+	 * enable core0 CTI triger in1 from PMU0 irq to CTM channel 0
+	 * and enable the CTM channel 0 route to core0 CTI trigger out 6
 	 */
 	tmp = __raw_readl(CTI_CORE0_VIRT_BASE + CTI_EN_IN1);
 	tmp &= ~CTI_EN_MASK;
-	tmp |= 0x8;
+	tmp |= 0x1;
 	__raw_writel(tmp, CTI_CORE0_VIRT_BASE + CTI_EN_IN1);
 
 	tmp = __raw_readl(CTI_CORE0_VIRT_BASE + CTI_EN_OUT6);
 	tmp &= ~CTI_EN_MASK;
-	tmp |= 0x8;
+	tmp |= 0x1;
 	__raw_writel(tmp, CTI_CORE0_VIRT_BASE + CTI_EN_OUT6);
 
 	/*
-	 * enable core1 CTI triger in 1 from PMU1 irq to CTM channel 0
-	 * and enable the CTM channel 0 route to core1 CTI trigger out 6
+	 * enable core1 CTI triger in1 from PMU1 irq to CTM channel 1
+	 * and enable the CTM channel 1 route to core1 CTI trigger out 6
 	 */
 	tmp = __raw_readl(CTI_CORE1_VIRT_BASE + CTI_EN_IN1);
 	tmp &= ~CTI_EN_MASK;
-	tmp |= 0x1;
+	tmp |= 0x2;
 	__raw_writel(tmp, CTI_CORE1_VIRT_BASE + CTI_EN_IN1);
 
 	tmp = __raw_readl(CTI_CORE1_VIRT_BASE + CTI_EN_OUT6);
 	tmp &= ~CTI_EN_MASK;
-	tmp |= 0x1;
+	tmp |= 0x2;
 	__raw_writel(tmp, CTI_CORE1_VIRT_BASE + CTI_EN_OUT6);
+
+	/* disable the write access to SOC CTI */
+	__raw_writel(0x55AA55AA, CTI_SOC_VIRT_BASE + CTI_LOCK);
+
+	/* disable the write access to CTI0 & CTI1 */
+	__raw_writel(0x55AA55AA, CTI_CORE0_VIRT_BASE + CTI_LOCK);
+	__raw_writel(0x55AA55AA, CTI_CORE1_VIRT_BASE + CTI_LOCK);
 }
 
 static int __init pxa_pmu_init(void)

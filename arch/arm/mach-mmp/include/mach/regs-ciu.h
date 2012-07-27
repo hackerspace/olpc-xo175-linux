@@ -37,6 +37,10 @@
 #define CIU_FABRIC_CKGT_CTRL1	CIU_REG(0x0068)
 #define CIU_FABRIC_CKGT_CTRL2	CIU_REG(0x00dc)
 
+/* This is used by pxa988 for PMU interrupt */
+#define CIU_CA9_CPU_CORE0_CONF CIU_REG(0x00d0)
+#define CIU_CA9_CPU_CORE1_CONF CIU_REG(0x00e0)
+
 /* This is used by pxa988 for warm reset */
 #define CIU_WARM_RESET_VECTOR   CIU_REG(0x00d8)
 
