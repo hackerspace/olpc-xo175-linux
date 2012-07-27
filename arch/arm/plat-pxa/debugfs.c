@@ -266,6 +266,10 @@ static ssize_t gic_read(struct file *filp, char __user *buffer,
 		if (gic_irqs > 1020)
 			gic_irqs = 1020;
 
+		value = readl_relaxed(dist_base + GIC_DIST_CTRL);
+		len += snprintf(p + len, buf_len - len,
+				"Dist Control Register: 0x%08x\n", value);
+
 		for (i = 32; i < gic_irqs; i += 4) {
 			value = readl_relaxed(dist_base + GIC_DIST_TARGET
 					+ i * 4 / 4);
@@ -278,6 +282,13 @@ static ssize_t gic_read(struct file *filp, char __user *buffer,
 					+ i * 4 / 32);
 			len += snprintf(p + len, buf_len - len,
 				"Enable setting[%d]: 0x%08x\n", i / 32, value);
+		}
+
+		for (i = 32; i < gic_irqs; i += 32) {
+			value = readl_relaxed(dist_base + GIC_DIST_PENDING_SET
+					+ i * 4 / 32);
+			len += snprintf(p + len, buf_len - len,
+				"Pending status[%d]: 0x%08x\n", i / 32, value);
 		}
 
 		for (i = 32; i < gic_irqs; i += 32) {
