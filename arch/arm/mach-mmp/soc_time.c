@@ -55,6 +55,7 @@ static inline cycle_t timer_read(int counter);
 static unsigned long tcr2ns_scale;
 static unsigned long us2cyc_scale;
 static DEFINE_CLOCK_DATA(cd);
+static DEFINE_SPINLOCK(timer_lock);
 
 static int irq_timer0, irq_timer1;
 
@@ -74,13 +75,13 @@ static void __init set_tcr2ns_scale(unsigned long tcr_rate)
 
 unsigned long long sched_clock(void)
 {
-	u32 cyc = timer_read(1);
+	u32 cyc = timer_read(2);
 	return cyc_to_sched_clock(&cd, cyc, (u32)~0);
 }
 
 static void notrace mmp_update_sched_clock(void)
 {
-	u32 cyc = timer_read(1);
+	u32 cyc = timer_read(2);
 	update_sched_clock(&cd, cyc, (u32)~0);
 }
 
@@ -101,8 +102,11 @@ unsigned long us2cyc(unsigned long usecs)
 static int timer_set_next_event(unsigned long delta,
 				struct clock_event_device *dev)
 {
+	unsigned long flags;
 	unsigned long next;
 	int timer;
+
+	spin_lock_irqsave(&timer_lock, flags);
 
 	if (delta < MIN_DELTA)
 		delta = MIN_DELTA;
@@ -113,19 +117,23 @@ static int timer_set_next_event(unsigned long delta,
 		timer = 1;
 	else
 		timer = 2;
-	/* clear pending interrupt status and enable */
-	__raw_writel(0x01, TIMERS_VIRT_BASE + TMR_ICR(timer));
-	__raw_writel(0x01, TIMERS_VIRT_BASE + TMR_IER(timer));
 
 	next = timer_read(timer) + delta;
 	__raw_writel(next, TIMERS_VIRT_BASE + TMR_TN_MM(timer, 0));
 
+	/* clear pending interrupt status and enable */
+	__raw_writel(0x01, TIMERS_VIRT_BASE + TMR_ICR(timer));
+	__raw_writel(0x01, TIMERS_VIRT_BASE + TMR_IER(timer));
+
+	spin_unlock_irqrestore(&timer_lock, flags);
 	return 0;
 }
 
 static void timer_set_mode(enum clock_event_mode mode,
 			   struct clock_event_device *dev)
 {
+	unsigned long flags;
+	unsigned long cer;
 	int irq = dev->irq;
 	int timer;
 
@@ -136,21 +144,31 @@ static void timer_set_mode(enum clock_event_mode mode,
 	else
 		timer = 2;
 
+	spin_lock_irqsave(&timer_lock, flags);
+
 	switch (mode) {
 	case CLOCK_EVT_MODE_ONESHOT:
-	case CLOCK_EVT_MODE_SHUTDOWN:
+		cer = __raw_readl(TIMERS_VIRT_BASE + TMR_CER);
+		__raw_writel(cer | (0x1 << timer), TIMERS_VIRT_BASE + TMR_CER);
+
 		/* disable the matching interrupt */
 		__raw_writel(0x00, TIMERS_VIRT_BASE + TMR_IER(timer));
 		break;
+	case CLOCK_EVT_MODE_SHUTDOWN:
+	case CLOCK_EVT_MODE_UNUSED:
+		cer = __raw_readl(TIMERS_VIRT_BASE + TMR_CER);
+		__raw_writel(cer & ~(0x1 << timer), TIMERS_VIRT_BASE + TMR_CER);
+		break;
 	case CLOCK_EVT_MODE_RESUME:
+		cer = __raw_readl(TIMERS_VIRT_BASE + TMR_CER);
+		__raw_writel(cer | (0x1 << timer), TIMERS_VIRT_BASE + TMR_CER);
+		break;
 	case CLOCK_EVT_MODE_PERIODIC:
 		break;
-	case CLOCK_EVT_MODE_UNUSED:
-	{
-		unsigned long cer = __raw_readl(TIMERS_VIRT_BASE + TMR_CER);
-		__raw_writel(cer & ~(1 << timer), TIMERS_VIRT_BASE + TMR_CER);
 	}
-	}
+
+	spin_unlock_irqrestore(&timer_lock, flags);
+	return;
 }
 
 static struct clock_event_device ckevt0 = {
@@ -180,10 +198,12 @@ static irqreturn_t timer_interrupt(int irq, void *dev_id)
 		timer = 1;
 	else
 		timer = 2;
+
 	/* disable and clear pending interrupt status */
 	__raw_writel(0x0, TIMERS_VIRT_BASE + TMR_IER(timer));
 	__raw_writel(0x1, TIMERS_VIRT_BASE + TMR_ICR(timer));
 	c->event_handler(c);
+
 	return IRQ_HANDLED;
 }
 
@@ -199,11 +219,6 @@ static struct irqaction timer1_irq = {
 	.handler	= timer_interrupt,
 };
 
-/*
- * FIXME: the timer needs some delay to stablize the counter capture
- */
-static uint32_t timer_hw_inited;
-
 cycle_t timer_read(int counter)
 {
 	volatile int delay __maybe_unused = 2;
@@ -212,9 +227,6 @@ cycle_t timer_read(int counter)
 #ifdef CONFIG_PXA_32KTIMER
 	volatile uint32_t val2 = 0;
 #endif
-
-	if (timer_hw_inited == 0)
-		return 0;
 
 	local_irq_save(flags);
 
@@ -238,7 +250,7 @@ cycle_t timer_read(int counter)
 
 cycle_t read_timer(struct clocksource *cs)
 {
-	return timer_read(1);
+	return timer_read(2);
 }
 
 cycle_t read_fast_timer(void)
@@ -246,9 +258,6 @@ cycle_t read_fast_timer(void)
 	volatile int delay __maybe_unused = 2;
 	unsigned long flags;
 	volatile uint32_t val = 0;
-
-	if (timer_hw_inited == 0)
-		return 0;
 
 	local_irq_save(flags);
 
@@ -308,8 +317,7 @@ static void __init timer_config(void)
 	__raw_writel(0x0, TIMERS_VIRT_BASE + TMR_IER(2));  /* disable int */
 
 	/* enable Timer 0 & 1 & 2*/
-	__raw_writel(cer | 0x07, TIMERS_VIRT_BASE + TMR_CER);
-	timer_hw_inited = 1;
+	__raw_writel(cer | 0x7, TIMERS_VIRT_BASE + TMR_CER);
 }
 
 static void generic_timer_access(void)
@@ -357,15 +365,12 @@ void __init timer_init(int irq0, int irq1, int irq2)
 #endif
 
 	generic_timer_config();
-	set_us2cyc_scale(CLOCK_TICK_RATE / 2);
-	ckevt0.irq = irq_timer0 = irq0;
-	ckevt1.irq = irq_timer1 = irq1;
-
-	timer1_irq.dev_id = &ckevt1;
-	setup_irq(irq1, &timer1_irq);
-	irq_set_affinity(irq1, cpumask_of(0));
+	set_us2cyc_scale(CLOCK_TICK_RATE / 2);	/* use generic timer */
 
 	clocksource_register(&cksrc);
+
+	ckevt0.irq = irq_timer0 = irq0;
+	ckevt1.irq = irq_timer1 = irq1;
 
 	ckevt0.max_delta_ns = clockevent_delta2ns(MAX_DELTA, &ckevt0);
 	ckevt0.min_delta_ns = clockevent_delta2ns(MIN_DELTA, &ckevt0);
@@ -376,30 +381,24 @@ void __init timer_init(int irq0, int irq1, int irq2)
 	ckevt1.cpumask = cpumask_of(0);
 
 	clockevents_register_device(&ckevt1);
+	timer1_irq.dev_id = &ckevt1;
+	setup_irq(irq1, &timer1_irq);
+	irq_set_affinity(irq1, cpumask_of(0));
+	return;
 }
 
 int local_timer_setup(struct clock_event_device *evt)
 {
-	unsigned long cer = __raw_readl(TIMERS_VIRT_BASE + TMR_CER);
-	int timer, cpu;
+	unsigned int cpu = smp_processor_id();
 
-	/* Use existing clock_event for cpu 0 */
-	cpu = smp_processor_id();
-
-	if (cpu == 0)
-		return 0;
-	else if (cpu == 1) {
-		timer = 0;
+	if (cpu == 1) {
 		memcpy(evt, &ckevt0, sizeof(struct clock_event_device));
-		if (timer0_irq.dev_id == NULL) {
-			timer0_irq.dev_id = evt;
-			setup_irq(evt->irq, &timer0_irq);
-		}
+
+		clockevents_register_device(evt);
+		timer0_irq.dev_id = evt;
+		irq_set_affinity(evt->irq, cpumask_of(cpu));
+		setup_irq(evt->irq, &timer0_irq);
 	}
 
-	irq_set_affinity(evt->irq, cpumask_of(cpu));
-	__raw_writel(cer | (1 << timer), TIMERS_VIRT_BASE + TMR_CER);
-
-	clockevents_register_device(evt);
 	return 0;
 }
