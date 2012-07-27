@@ -2649,10 +2649,16 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 
 	clk_enable(fbi->clk_lcd);
 	clk_set_rate(fbi->clk_lcd, 104000000);
-
-	/* Enable AXI32 before modifying the controller registers */
-	writel(LCD_CTL_AXI32_EN, fbi->reg_base + LCD_CTL);
-	controller_enable_disable(fbi, LCD_Controller_Enable);
+	if (readl(fbi->reg_base + LCD_CTL) & LCD_CTL_AXI32_EN) {
+		/* lcd is already enable in uboot*/
+		display_enabled = 1;
+		fb2conv(fbi).on = 1;
+		dev_info(&pdev->dev, "already on before probe, only update\n");
+	} else {
+		/* Enable AXI32 before modifying the controller registers */
+		writel(LCD_CTL_AXI32_EN, fbi->reg_base + LCD_CTL);
+		controller_enable_disable(fbi, LCD_Controller_Enable);
+	}
 
 	/* set scale registers for fb1*/
 	set_scale(fbi);
