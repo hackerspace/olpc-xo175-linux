@@ -2043,10 +2043,7 @@ int pxa95x_clk_init(void)
 		   | (1 << (CKEN_GC_1X - 64))
 		   | (1 << (CKEN_GC_2X - 64))
 		   | (1 << (CKEN_DSI_TX1 - 64))
-		   | (1 << (CKEN_DSI_TX2 - 64))
-		   | (1 << (CKEN_DISPLAY - 64))
-		   | (1 << (CKEN_PIXEL - 64))
-		   | (1 << (CKEN_AXI - 64)));
+		   | (1 << (CKEN_DSI_TX2 - 64)));
 
 	if (!is_wkr_dma_clock())
 		CKENC &= ~(1 << (CKEN_AXI_2X - 64));
