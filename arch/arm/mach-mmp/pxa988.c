@@ -49,9 +49,9 @@
 #include "common.h"
 
 #define MFPR_VIRT_BASE	(APB_VIRT_BASE + 0x1e000)
-#define RIPC0_VIRT_BASE	(APB_VIRT_BASE + 0x3D000)
+#define RIPC3_VIRT_BASE	(APB_VIRT_BASE + 0x3D000)
 #define GPIOE_VIRT_BASE	(APB_VIRT_BASE + 0x19800)
-#define RIPC0_STATUS	(RIPC0_VIRT_BASE + 0x00)
+#define RIPC3_STATUS	(RIPC3_VIRT_BASE + 0x300)
 
 static struct mfp_addr_map pxa988_addr_map[] __initdata = {
 
@@ -336,18 +336,18 @@ void __init pxa988_init_irq(void)
 
 void pxa988_ripc_lock(void)
 {
-	while (__raw_readl(RIPC0_STATUS))
+	while (__raw_readl(RIPC3_STATUS))
 		cpu_relax();
 }
 
 int pxa988_ripc_trylock(void)
 {
-	return !__raw_readl(RIPC0_STATUS);
+	return !__raw_readl(RIPC3_STATUS);
 }
 
 void pxa988_ripc_unlock(void)
 {
-	__raw_writel(1, RIPC0_STATUS);
+	__raw_writel(1, RIPC3_STATUS);
 }
 #ifdef CONFIG_CACHE_L2X0
 
