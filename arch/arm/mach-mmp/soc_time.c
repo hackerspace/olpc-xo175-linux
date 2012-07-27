@@ -104,7 +104,8 @@ static int timer_set_next_event(unsigned long delta,
 {
 	unsigned long flags;
 	unsigned long next;
-	int timer;
+	uint32_t cer, reg;
+	unsigned int timer, i;
 
 	spin_lock_irqsave(&timer_lock, flags);
 
@@ -118,12 +119,37 @@ static int timer_set_next_event(unsigned long delta,
 	else
 		timer = 2;
 
-	next = timer_read(timer) + delta;
-	__raw_writel(next, TIMERS_VIRT_BASE + TMR_TN_MM(timer, 0));
+	cer = __raw_readl(TIMERS_VIRT_BASE + TMR_CER);
 
-	/* clear pending interrupt status and enable */
-	__raw_writel(0x01, TIMERS_VIRT_BASE + TMR_ICR(timer));
-	__raw_writel(0x01, TIMERS_VIRT_BASE + TMR_IER(timer));
+	/* set preloader reg value */
+	__raw_writel(0, TIMERS_VIRT_BASE + TMR_PLVR(timer));
+	/* disable clk counter */
+	__raw_writel(cer & ~(1<<timer), TIMERS_VIRT_BASE + TMR_CER);
+	/* clear pending interrupt status */
+	__raw_writel(0x0, TIMERS_VIRT_BASE + TMR_IER(timer));
+	__raw_writel(0x1, TIMERS_VIRT_BASE + TMR_ICR(timer));
+	reg = __raw_readl(TIMERS_VIRT_BASE + TMR_CCR);
+	reg = reg & 0x6f;
+	reg = reg & ~(0x3 << (timer << 1));
+	__raw_writel(reg, TIMERS_VIRT_BASE + TMR_CCR);
+
+	/*
+	 * If camera source is 13M, then 2 cycle is 155ns. For
+	 * 806M cpu, a nop operation takes 4/806 * 10 ^ 9 = 5ns.
+	 * So the circulate count is 155/5 = 31. Use 100 for safe.
+	 * */
+	for (i = 0; i < 100; i++)
+		__asm__ __volatile__("nop");
+	/* set delta value */
+	__raw_writel(delta - 2, TIMERS_VIRT_BASE + TMR_TN_MM(timer,0));
+
+	reg = __raw_readl(TIMERS_VIRT_BASE + TMR_CCR);
+	reg = reg & 0x6f;
+	reg |= (0x1 << (timer << 1));
+	__raw_writel(reg, TIMERS_VIRT_BASE + TMR_CCR);
+	/* enable interrupt, timer counter */
+	__raw_writel(0x1, TIMERS_VIRT_BASE + TMR_IER(timer));
+	__raw_writel(cer | (1<<timer), TIMERS_VIRT_BASE + TMR_CER);
 
 	spin_unlock_irqrestore(&timer_lock, flags);
 	return 0;
