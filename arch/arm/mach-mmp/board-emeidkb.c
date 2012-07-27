@@ -517,13 +517,13 @@ static void regulator_init_pm800(void)
 	REG_SUPPLY_INIT(PM800_ID_LDO11, "v_sensor", NULL);
 	REG_INIT(i++, PM800_ID, LDO11, 1200000, 3300000, 0, 0);
 
-	REG_SUPPLY_INIT(PM800_ID_LDO12, "v_io_mmc1", NULL);
+	REG_SUPPLY_INIT(PM800_ID_LDO12, "vmmc_io", "sdhci-pxa.0");
 	REG_INIT(i++, PM800_ID, LDO12, 1200000, 3300000, 0, 0);
 
-	REG_SUPPLY_INIT(PM800_ID_LDO13, "v_sd", NULL);
+	REG_SUPPLY_INIT(PM800_ID_LDO13, "vmmc", "sdhci-pxa.0");
 	REG_INIT(i++, PM800_ID, LDO13, 1200000, 3300000, 0, 0);
 
-	REG_SUPPLY_INIT(PM800_ID_LDO14, "v_emmc", "sdhci-pxa.1");
+	REG_SUPPLY_INIT(PM800_ID_LDO14, "vmmc", "sdhci-pxa.2");
 	REG_INIT(i++, PM800_ID, LDO14, 1200000, 3300000, 0, 0);
 
 	REG_SUPPLY_INIT(PM800_ID_LDO15, "v_ldo15", NULL);
@@ -947,65 +947,36 @@ static struct mv_usb_platform_data emeidkb_usb_pdata = {
 #define MFP_WIB_RESETn		GPIO011_GPIO_11
 #define POWER_OFF_SD_SIGNAL_IN_SUSPEND 0
 
-static void emeidkb_set_emmc_vdd(int on)
-{
-	static struct regulator *vccq;
-	static struct regulator *vcc;
-	static int enabled_card;
-
-	/* LDO14 = 2.8V/300mA On by default, eMMC_VCC */
-	if (!vcc) {
-		vcc = regulator_get(NULL, "v_emmc");
-		if (IS_ERR(vcc)) {
-			vcc = NULL;
-			printk(KERN_ERR "get v_emmc failed %s %d\n",
-				__func__, __LINE__);
-			return;
-		}
-	}
-
-	/* VBUCK2 = 1.8V/1200mA On by default, eMMC_CORE */
-	if (!vccq) {
-		vccq = regulator_get(NULL, "v_buck2");
-		if (IS_ERR(vccq)) {
-			vccq = NULL;
-			printk(KERN_ERR "get v_buck2 failed %s %d\n",
-				__func__, __LINE__);
-			return;
-		}
-	}
-
-	if (on && !enabled_card) {
-		regulator_set_voltage(vcc, 2800000, 2800000);
-		regulator_enable(vcc);
-		regulator_enable(vccq);
-		enabled_card = 1;
-	}
-	if (!on && enabled_card) {
-		regulator_disable(vcc);
-		regulator_disable(vccq);
-		enabled_card = 0;
-	}
-}
-
 static void emeidkb_set_sdcard_signal_level(int vol)
 {
 	static struct regulator *vcc_signal;
+	static int signal_vol;
 	static int enabled_signal;
+	struct device *dev_host;
 
-	/* LDO12 = 2.8V/300mA Off by default */
 	if (!vcc_signal) {
-		vcc_signal = regulator_get(NULL, "v_io_mmc1");
+		dev_host = bus_find_device_by_name(&platform_bus_type,
+					NULL, "sdhci-pxa.0");
+		if (dev_host == NULL) {
+			printk(KERN_ERR "sdhci-pxa host failed %s %d\n",
+				__func__, __LINE__);
+			return;
+		}
+
+		/* LDO12 = 2.8V/300mA Off by default */
+		vcc_signal = regulator_get(dev_host, "vmmc_io");
 		if (IS_ERR(vcc_signal)) {
 			vcc_signal = NULL;
-			printk(KERN_ERR "get v_io_mmc1 failed %s %d\n",
+			printk(KERN_ERR "get vmmc_io failed %s %d\n",
 				__func__, __LINE__);
 			return;
 		}
 	}
 
 	if (vol) {
-		regulator_set_voltage(vcc_signal, vol, vol);
+		if (signal_vol != vol)
+			regulator_set_voltage(vcc_signal, vol, vol);
+
 		if (!enabled_signal) {
 			regulator_enable(vcc_signal);
 			enabled_signal = 1;
@@ -1016,6 +987,8 @@ static void emeidkb_set_sdcard_signal_level(int vol)
 			enabled_signal = 0;
 		}
 	}
+
+	signal_vol = vol;
 }
 
 static void emeidkb_sdcard_signal_1v8(int set)
@@ -1025,40 +998,7 @@ static void emeidkb_sdcard_signal_1v8(int set)
 	vol = set ? 1800000 : 3000000;
 	emeidkb_set_sdcard_signal_level(vol);
 
-	/*
-	 * support high speed sd card,but this function has
-	 * not be verified on real silicon yet
-	 * Fixme:Need to put attention to this feature
-	 */
-#if 1
 	pxa988_aib_mmc1_iodomain(vol);
-#endif
-}
-
-static void emeidkb_set_sdcard_vdd(int on)
-{
-	static struct regulator *vdd_card;
-	static int enabled_card;
-
-	/* LDO13 = 2.8V/300mA Off by default */
-	if (!vdd_card) {
-		vdd_card = regulator_get(NULL, "v_sd");
-		if (IS_ERR(vdd_card)) {
-			vdd_card = NULL;
-			printk(KERN_ERR "get v_sd failed %s %d\n",
-				__func__, __LINE__);
-			return;
-		}
-	}
-
-	if (on && !enabled_card) {
-		regulator_set_voltage(vdd_card, 2800000, 2800000);
-		regulator_enable(vdd_card);
-		enabled_card = 1;
-	} else if (!on && enabled_card) {
-		regulator_disable(vdd_card);
-		enabled_card = 0;
-	}
 }
 
 static int mmc1_lp_switch(unsigned int low_power, int with_card)
@@ -1080,8 +1020,6 @@ static int mmc1_lp_switch(unsigned int low_power, int with_card)
 		mfp_config(&mfp_cfg_mmc0_clk, 1);
 
 	power_on = !low_power;
-
-	emeidkb_set_sdcard_vdd(power_on);
 
 #if POWER_OFF_SD_SIGNAL_IN_SUSPEND
 	emeidkb_set_sdcard_signal_level(power_on ? 2800000 : 0);
@@ -1144,9 +1082,8 @@ static struct sdhci_pxa_platdata pxa988_sdh_platdata_mmc1 = {
 
 /* For emeiDKB, MMC2(SDH2) used for WIB card */
 static struct sdhci_pxa_platdata pxa988_sdh_platdata_mmc2 = {
-	.flags          = PXA_FLAG_CARD_PERMANENT,
+	.flags          = PXA_FLAG_CARD_PERMANENT | PXA_FLAG_WAKEUP_HOST,
 	.pm_caps	= MMC_PM_KEEP_POWER | MMC_PM_IRQ_ALWAYS_ON,
-	.host_caps	= MMC_CAP_POWER_OFF_CARD,
 };
 
 /* For emeiDKB, MMC3(SDH3) used for eMMC */
@@ -1161,16 +1098,19 @@ static void __init emeidkb_init_mmc(void)
 	int WIB_PDn = mfp_to_gpio(MFP_WIB_PDn);
 	int WIB_RESETn = mfp_to_gpio(MFP_WIB_RESETn);
 	add_sd8x_rfkill_device(WIB_PDn, WIB_RESETn,
-			&pxa988_sdh_platdata_mmc1.pmmc,
+			&pxa988_sdh_platdata_mmc2.pmmc,
 			emeidkb_8787_set_power);
 #endif
 
+	/*
+	 * Note!!
+	 *  The regulator can't be used here, as this is called in arch_init
+	 */
+
 	/* HW MMC3(sdh3) used for eMMC, and register first */
-	emeidkb_set_emmc_vdd(1);
 	pxa988_add_sdh(3, &pxa988_sdh_platdata_mmc3);
 
 	/* HW MMC1(sdh1) used for SD/MMC card */
-	emeidkb_set_sdcard_vdd(1);
 	pxa988_add_sdh(1, &pxa988_sdh_platdata_mmc1);
 
 	/* HW MMC2(sdh2) used for SDIO(WIFI/BT/FM module), and register last */
