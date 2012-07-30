@@ -573,7 +573,6 @@ static int sensor_set_power(int on)
 #if defined(CONFIG_SENSORS_CWMI)
 static struct cwmi_platform_data cwmi_acc_data = {
 	.set_power = sensor_set_power,
-	/*TODO: check sensor layout after board arrive*/
 	.axes = {
 		1, 0, 0,
 		0, 1, 0,
@@ -593,8 +592,8 @@ static struct cwmi_platform_data cwmi_mag_data = {
 static struct cwgd_platform_data cwgd_plat_data = {
 	.set_power = sensor_set_power,
 	.axes = {
-		1, 0, 0,
 		0, 1, 0,
+		-1, 0, 0,
 		0, 0, 1},
 };
 #endif
