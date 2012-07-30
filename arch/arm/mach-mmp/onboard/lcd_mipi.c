@@ -13,6 +13,10 @@
 #include <mach/mmp2_plat_ver.h>
 #include <mach/regs-mcu.h>
 
+#ifdef CONFIG_MACH_EMEIDKB
+#define CONFIG_VNC
+#endif
+
 #ifdef CONFIG_MACH_ABILENE
 static struct fb_videomode video_modes_abilene[] = {
 	[0] = {
@@ -85,6 +89,23 @@ static struct fb_videomode video_modes_mk2[] = {
 #endif
 
 #ifdef CONFIG_MACH_EMEIDKB
+#ifdef CONFIG_VNC
+static struct fb_videomode video_modes_emeidkb[] = {
+	/* lpj032l001b HVGA mode info */
+	[0] = {
+		.refresh        = 60,
+		.xres           = 320,
+		.yres           = 480,
+		.hsync_len      = 10,
+		.left_margin    = 15,
+		.right_margin   = 10,
+		.vsync_len      = 2,
+		.upper_margin   = 4,
+		.lower_margin   = 2,
+		.sync		= 0,
+	},
+};
+#else
 static struct fb_videomode video_modes_emeidkb[] = {
 	[0] = {
 		 /* panel refresh rate should <= 55(Hz) */
@@ -100,6 +121,7 @@ static struct fb_videomode video_modes_emeidkb[] = {
 		.sync = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
 		},
 };
+#endif
 #endif
 
 #ifdef CONFIG_MACH_ABILENE
@@ -994,6 +1016,7 @@ static struct pxa168fb_mach_info mipi_lcd_ovly_info = {
 	.sram_size = 30 * 1024,
 };
 
+#ifndef CONFIG_VNC
 #define     DSI1_BITCLK(div)			((div)<<8)
 #define     DSI1_BITCLK_DIV_MASK		0x00000F00
 #define     CLK_INT_DIV(div)			(div)
@@ -1098,6 +1121,7 @@ static void calculate_lcd_sclk(struct pxa168fb_mach_info *mi)
 	else
 		return;
 }
+#endif
 #endif
 
 #if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_YELLOWSTONE) \
@@ -1404,6 +1428,7 @@ void __init emeidkb_add_lcd_mipi(void)
 	fb->phy_info = (void *)&emeidkb_dsiinfo;
 	fb->dsi_panel_config = panel_init_config;
 	fb->pxa168fb_lcd_power = emeidkb_lcd_power;
+
 	dsi = (struct dsi_info *)fb->phy_info;
 	dsi->master_mode = 1;
 	dsi->hfp_en = 0;
@@ -1413,7 +1438,12 @@ void __init emeidkb_add_lcd_mipi(void)
 	 * Re-calculate lcd clk source and divider
 	 * according to dsi lanes and output format.
 	 */
+#ifndef CONFIG_VNC
 	calculate_lcd_sclk(fb);
+#else
+	fb->sclk_div = 0xE0001429;
+#endif
+
 	/*
 	 * FIXME:EMEI dkb use display clk1 as clk source,
 	 * which is from PLL1 416MHZ. PLL3 1GHZ will be used
