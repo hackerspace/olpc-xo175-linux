@@ -422,7 +422,11 @@ static int pxa910_squ_pcm_close(struct snd_pcm_substream *substream)
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct pxa910_runtime_data *prtd = runtime->private_data;
 
+#if defined(CONFIG_CPU_PXA988)
+	sram_free("audio sram", (void *)prtd->squ_desc_array, (PAGE_SIZE >> 1));
+#else
 	sram_free("audio sram", (void *)prtd->squ_desc_array, PAGE_SIZE);
+#endif
 
 	kfree(prtd);
 	return 0;
