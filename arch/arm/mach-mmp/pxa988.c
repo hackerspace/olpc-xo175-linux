@@ -338,8 +338,15 @@ void __init pxa988_init_irq(void)
 
 void pxa988_ripc_lock(void)
 {
-	while (__raw_readl(RIPC3_STATUS))
+	int cnt = 0;
+
+	while (__raw_readl(RIPC3_STATUS)) {
 		cpu_relax();
+		udelay(50);
+		cnt++;
+		if (cnt >= 10000)
+			printk(KERN_WARNING "AP: ripc can not be locked!\n");
+	}
 }
 
 int pxa988_ripc_trylock(void)
