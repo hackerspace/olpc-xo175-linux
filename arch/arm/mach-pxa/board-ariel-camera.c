@@ -202,6 +202,9 @@ static struct sensor_platform_data camera_sensor[] = {
 		.board_name	= "tavor",
 		.power_on_seq	= ov564x_power_on_seq,
 		.power_off_seq	= ov564x_power_off_seq,
+#if defined(CONFIG_LED_FLASH_BD7704)
+		.v4l2_flash_if	= bd7704_v4l2_flash_if,
+#endif
 	},
 	[ID_OV7692] = {/* OV7692 */
 		.mount_pos	= SENSOR_USED \

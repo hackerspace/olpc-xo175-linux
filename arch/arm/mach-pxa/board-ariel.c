@@ -25,6 +25,7 @@
 #include <linux/notifier.h>
 #include <linux/reboot.h>
 #include <linux/i2c/ft5x06_touch.h>
+#include <linux/bd7704.h>
 #include <linux/power_supply.h>
 #include <linux/leds.h>
 
@@ -672,6 +673,35 @@ static struct platform_device ariel_leds_gpio = {
 		.platform_data = &ariel_gpio_led_data,
 	},
 };
+
+#if defined(CONFIG_LED_FLASH_BD7704)
+static int bd7704_upic_ctl_pin;
+
+int bd7704_upic_control(bool level)
+{
+	if (level) {
+		gpio_direction_output(bd7704_upic_ctl_pin, 1);
+		gpio_set_value(bd7704_upic_ctl_pin, 1);
+	} else {
+		gpio_direction_output(bd7704_upic_ctl_pin, 1);
+		gpio_set_value(bd7704_upic_ctl_pin, 0);
+	}
+	return 0;
+}
+
+static struct bd7704_platform_data bd7704_data= {
+	.default_control = BD7704_CMD_SENSOR_CONTROL,
+	.current_control = 0,
+	.upic_control = bd7704_upic_control,
+};
+
+struct platform_device bd7704_device_ledflash = {
+	.name = "bd7704-ledflash",
+	.id = -1,
+};
+
+extern int bd7704_v4l2_flash_if(void *ctrl, bool op);
+#endif
 
 #if defined(CONFIG_TOUCHSCREEN_FT5X06)
 static int ft5x06_touch_io_power_onoff(int on)
@@ -1967,6 +1997,18 @@ static void __init init(void)
 #ifdef CONFIG_USB_EHCI_PXA_U2O
 	pxa978_device_u2oehci.dev.platform_data = (void *)&pxa978_usb_pdata;
 	platform_device_register(&pxa978_device_u2oehci);
+#endif
+
+#ifdef CONFIG_LED_FLASH_BD7704
+	bd7704_upic_ctl_pin = mfp_to_gpio(MFP_PIN_GPIO19);
+
+	if (gpio_request(bd7704_upic_ctl_pin, "bd7704 upic control")) {
+		printk(KERN_ERR "Request GPIO failed, gpio: %d\n", bd7704_upic_ctl_pin);
+		bd7704_upic_ctl_pin = 0;
+	}
+
+	bd7704_device_ledflash.dev.platform_data = (void *)&bd7704_data;
+	platform_device_register(&bd7704_device_ledflash);
 #endif
 
 #ifdef CONFIG_PROC_FS
