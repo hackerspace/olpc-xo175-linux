@@ -1661,6 +1661,38 @@ static const struct clkops clk_pxa95x_vmeta_ops = {
 	.setrate = clk_pxa95x_vmeta_setrate,
 };
 
+static unsigned long clk_pxa978_peri_pll_getrate(struct clk *peri_pll_clk)
+{
+	unsigned long rate;
+	unsigned int fbdiv, refdiv, vcodiv_sel;
+	u32 peri_pll_param;
+
+	peri_pll_param = PERI_PLL_PARAM;
+
+	fbdiv = (peri_pll_param >> 5) & 0x1ff;
+	refdiv = peri_pll_param & 0x1f;
+
+	switch ((peri_pll_param >> 20) & 0xf) {
+	case 2:
+		vcodiv_sel = 2;
+		break;
+	case 4:
+		vcodiv_sel = 3;
+		break;
+	case 8:
+		vcodiv_sel = 8;
+		break;
+	default:
+		printk(KERN_ERR "VCODIV_SEL = 0x1 is not a recommended value\n");
+		return -EINVAL;
+		break;
+	}
+
+	rate = (26 * fbdiv / refdiv) / vcodiv_sel;
+	rate *= MHZ_TO_HZ;
+
+	return rate;
+}
 static int clk_pxa978_peri_pll_enable(struct clk *clk)
 {
 	PERI_PLL_CTRL |= PERIPLL_PWRON;
@@ -1677,6 +1709,7 @@ static void clk_pxa978_peri_pll_disable(struct clk *clk)
 static const struct clkops clk_pxa978_peri_pll_ops = {
 	.enable = clk_pxa978_peri_pll_enable,
 	.disable = clk_pxa978_peri_pll_disable,
+	.getrate = clk_pxa978_peri_pll_getrate,
 };
 
 static DEFINE_CK(pxa95x_dsi0, DSI_TX1, &clk_pxa95x_dsi_ops);
@@ -1766,10 +1799,10 @@ static struct clk clk_pxa978_peri_pll = {
 
 static struct clk *mmc_depend_clk[] = {
 	&clk_mmc_bus,
-	&clk_pxa978_peri_pll,
 };
 
 static struct clk clk_pxa978_sdh0 = {
+	.parent = &clk_pxa978_peri_pll,
 	.dependence = mmc_depend_clk,
 	.dependence_count = ARRAY_SIZE(mmc_depend_clk),
 	.ops = &clk_pxa3xx_cken_ops,
@@ -1777,6 +1810,7 @@ static struct clk clk_pxa978_sdh0 = {
 };
 
 static struct clk clk_pxa978_sdh1 = {
+	.parent = &clk_pxa978_peri_pll,
 	.dependence = mmc_depend_clk,
 	.dependence_count = ARRAY_SIZE(mmc_depend_clk),
 	.ops = &clk_pxa3xx_cken_ops,
@@ -1784,6 +1818,7 @@ static struct clk clk_pxa978_sdh1 = {
 };
 
 static struct clk clk_pxa978_sdh2 = {
+	.parent = &clk_pxa978_peri_pll,
 	.dependence = mmc_depend_clk,
 	.dependence_count = ARRAY_SIZE(mmc_depend_clk),
 	.ops = &clk_pxa3xx_cken_ops,
@@ -1791,6 +1826,7 @@ static struct clk clk_pxa978_sdh2 = {
 };
 
 static struct clk clk_pxa978_sdh3 = {
+	.parent = &clk_pxa978_peri_pll,
 	.dependence = mmc_depend_clk,
 	.dependence_count = ARRAY_SIZE(mmc_depend_clk),
 	.ops = &clk_pxa3xx_cken_ops,
