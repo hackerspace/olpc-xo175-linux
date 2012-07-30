@@ -91,25 +91,43 @@ void pmu_register_unlock()
 	spin_unlock_irqrestore(&pmu_lock, flags);
 }
 
+static inline void core_exit_coherency(void)
+{
+	unsigned int v;
+	asm volatile(
+			/* CA9 leave coherency, clear ACTLR.smp&ACTLR.FW*/
+			"       mrc     p15, 0, %0, c1, c0, 1\n"
+			"       bic     %0, %0, #0x41\n"
+			"       mcr     p15, 0, %0, c1, c0, 1\n"
+			: "=&r" (v) : : "cc");
+}
+
 static int pxa988_finish_suspend(unsigned long power_state)
 {
-	if (power_state > POWER_MODE_CORE_EXTIDLE) {
 #ifdef CONFIG_SMP
-		void __iomem *scu_addr;
-		scu_addr = pxa_scu_base_addr();
-		/*
-		 * Set SCU CPU power status register to power off.
-		 * This must be done after cache is flushed.
-		 * Remember to set it back to normal mode in reset
-		 * chunk before cache is re-enabled.
-		 */
-		scu_power_mode(scu_addr, SCU_PM_POWEROFF);
+	void __iomem *scu_addr;
 #endif
+	if (power_state < POWER_MODE_CORE_POWERDOWN)
+		panic("should not call cpu_suspend with power_state %d\n",
+				(int)power_state);
+
 #ifdef CONFIG_CACHE_L2X0
-		/* pl310_suspend includes flush_cache_all */
-		pl310_suspend();
+	/* pl310_suspend includes flush_cache_all */
+	pl310_suspend();
 #endif
-	}
+
+#ifdef CONFIG_SMP
+	core_exit_coherency();
+	scu_addr = pxa_scu_base_addr();
+	flush_cache_all();
+	/*
+	 * Set SCU CPU power status register to power off.
+	 * This must be done after cache is flushed.
+	 * Remember to set it back to normal mode in reset
+	 * chunk before cache is re-enabled.
+	 */
+	scu_power_mode(scu_addr, SCU_PM_POWEROFF);
+#endif
 	cpu_do_idle();
 
 	panic("Core didn't get powered down! Should never reach here.\n");
@@ -368,7 +386,9 @@ int pxa988_enter_lowpower(u32 cpu, u32 power_mode)
 	int mp_shutdown = 1;
 	int mp_restore = 1;
 	int l2_shutdown = 1;
-	int lpm_index = 0;
+	/* The default power_mode should be C2 */
+	int lpm_index = 1;
+
 #endif
 
 	if (power_mode == PXA988_LPM_C1) {
