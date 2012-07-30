@@ -369,6 +369,16 @@ static void __init pxa988_reserve_cpmem(void)
 	pr_info("Reserved CP memory: 0x%x@0x%x\n", cp_area_size, cp_area_addr);
 }
 
+static void __init pxa988_reserve_obmmem(void)
+{
+	/* Reserve 16MB memory for CP */
+	BUG_ON(memblock_reserve(PLAT_PHYS_OFFSET, 0x100000) != 0);
+	memblock_free(PLAT_PHYS_OFFSET, 0x100000);
+	memblock_remove(PLAT_PHYS_OFFSET, 0x100000);
+	pr_info("Reserved OBM memory: 0x%x@0x%lx\n",
+		0x100000, PLAT_PHYS_OFFSET);
+}
+
 void __init pxa988_reserve(void)
 {
 	/*
@@ -376,7 +386,7 @@ void __init pxa988_reserve(void)
 	 * (Enhanced Marvell Memory Dump), kernel should not make use of this
 	 * memory, since it'll be corrupted by next reboot by obm.
 	 */
-	BUG_ON(memblock_reserve(PLAT_PHYS_OFFSET, 0x100000));
+	pxa988_reserve_obmmem();
 
 	pxa988_reserve_cpmem();
 
