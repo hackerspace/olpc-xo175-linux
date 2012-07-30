@@ -1572,9 +1572,10 @@ static int pxa955_cam_add_device(struct soc_camera_device *icd)
 		dev_info(icd->dev.parent, "cam: Failed to initialize subdev: "\
 					"%d\n", ret);
 
+	ret = (pcdev->icd->vdev) ? pcdev->icd->vdev->num+'0' : '?';
 	printk(KERN_INFO "cam: path ready %s => CSI#%d => SCI#%d => " \
-			"/dev/video%d\n", icl->module_name, pcdev->csidev->id, \
-			icd->iface, pcdev->soc_host.nr);
+			"/dev/video%c\n", icl->module_name, pcdev->csidev->id, \
+			icd->iface, ret);
 	return 0;
 
 exit_csi_irq:
