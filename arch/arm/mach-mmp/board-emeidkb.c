@@ -429,10 +429,10 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 	/* Enable 32Khz-out-3 low jitter XO_LJ = 1 */
 	pm80x_reg_write(chip->base_page, PM800_LOW_POWER2, 0x20);
 	/*
-	 * Enable 32Khz-out-from XO 1, 3
-	 * GPS is not enabled
+	 * Enable 32Khz-out-from XO 1, 2, 3
+	 * all enabled
 	 */
-	pm80x_reg_write(chip->base_page, PM800_RTC_MISC2, 0x22);
+	pm80x_reg_write(chip->base_page, PM800_RTC_MISC2, 0x2a);
 	/* Set XO CAP to 22pF to avoid speaker noise, XO_CAP_SEL = 7 */
 	pm80x_reg_write(chip->base_page, PM800_USER_DATA1, 0x70);
 	/* Enable voltage change in pmic, POWER_HOLD = 1 */
