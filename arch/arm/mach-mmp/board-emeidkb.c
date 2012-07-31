@@ -399,8 +399,25 @@ static int PM800_ID_regulator_index[] = {
 	regulator_data[_i].constraints.apply_uV = (_min == _max);	\
 }
 
+static void mic_set_power(int on)
+{
+	struct regulator *v_ldo = regulator_get(NULL, "v_micbias");
+	if (IS_ERR(v_ldo)) {
+		v_ldo = NULL;
+		pr_err("Get regulator error\n");
+		return;
+	}
+	if (on)
+		regulator_enable(v_ldo);
+	else
+		regulator_disable(v_ldo);
+
+	regulator_put(v_ldo);
+	v_ldo = NULL;
+}
+
 static struct pm80x_headset_pdata pm80x_headset = {
-	/*FIXME: need to be added */
+	.mic_set_power = mic_set_power,
 };
 
 #ifdef CONFIG_RTC_DRV_MMP
@@ -456,6 +473,7 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 
 static struct pm80x_platform_data pm800_info = {
 	.headset                = &pm80x_headset,
+	.headset_flag		= 1,
 	.regulator		= regulator_data,
 	.rtc			= &pm80x_rtc,
 	.dvc			= &pm80x_dvc,
