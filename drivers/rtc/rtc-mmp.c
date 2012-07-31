@@ -345,11 +345,23 @@ static int mmp_rtc_probe(struct platform_device *pdev)
 
 	device_init_wakeup(&pdev->dev, 1);
 
+	rtc = rtc_device_register(pdev->name, &pdev->dev, &mmp_rtc_ops,
+				THIS_MODULE);
+
+	if (IS_ERR(rtc)) {
+		dev_err(&pdev->dev, "cannot attach rtc\n");
+		ret = PTR_ERR(rtc);
+		goto err_nortc;
+	}
+
+	clk_enable(clk);
+
 	ret = mmp_rtc_read_time(&pdev->dev, &tm);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "Failed to read initial time.\n");
 		goto err_nortc;
 	}
+
 	if ((tm.tm_year <= 70) || (tm.tm_year > 138)) {
 		tm.tm_year = 100;
 		tm.tm_mon = 0;
@@ -363,17 +375,6 @@ static int mmp_rtc_probe(struct platform_device *pdev)
 			goto err_nortc;
 		}
 	}
-
-	rtc = rtc_device_register(pdev->name, &pdev->dev, &mmp_rtc_ops,
-				THIS_MODULE);
-
-	if (IS_ERR(rtc)) {
-		dev_err(&pdev->dev, "cannot attach rtc\n");
-		ret = PTR_ERR(rtc);
-		goto err_nortc;
-	}
-
-	clk_enable(clk);
 
 	platform_set_drvdata(pdev, rtc);
 
