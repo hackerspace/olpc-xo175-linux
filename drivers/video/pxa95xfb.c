@@ -2269,6 +2269,10 @@ int pxa95xfb_pan_display(struct fb_var_screeninfo *var,
 	struct pxa95xfb_info *fbi = (struct pxa95xfb_info *)info->par;
 
 	fbi->pixel_offset = var->yoffset * var->xres_virtual + var->xoffset;
+
+	if (fbi->dump)
+		dump_buffer(fbi, var->yoffset);
+
 	lcdc_set_fr_addr(fbi);
 	if (fbi->vsync_en)
 		lcdc_wait_for_vsync(fbi->converter, 0);

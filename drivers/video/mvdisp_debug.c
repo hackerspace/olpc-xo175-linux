@@ -370,7 +370,7 @@ static void dump_regs(struct pxa95xfb_info *fbi)
 	case LCD_M2HDMI:
 		printk("dump regs...using internal HDMI interface\n");
 		dump_regs_controller(fbi);
-		dump_regs_dsi(fbi);
+		dump_regs_ihdmi(fbi);
 	default:
 		printk("dump regs...converter disabled stop dump\n");
 		break;
@@ -456,6 +456,8 @@ static void dump_helper(void)
 	printk("\tdump = 0 would dump infos\n");
 	printk("\tdump = 1 would dump registers\n");
 	printk("\tdump = 2 would dump buffer instantly\n");
+	printk("\tdump = 3 would start dump when each frame passed down\n");
+	printk("\tdump = 4 would stop continous dump\n");
 }
 
 /* dump support:
@@ -463,6 +465,8 @@ static void dump_helper(void)
  * 0. dump fb info:
  * 1. reg dump
  * 2. dump buffer instantly, support both yuv/rgb and user pointer/fb buffer
+ * 3 .start dump when each frame passed down
+ * 4. stop continous dump
  */
 static ssize_t dump_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
@@ -489,6 +493,12 @@ static ssize_t dump_store(
 	case 2:
 		dump_buffer(fbi, 0);
 		break;
+	case 3:
+		fbi->dump = 1;
+		break;
+	case 4:
+		fbi->dump = 0;
+		break;
 	default:
 		printk("dump command %d is not recoginzed\n", dump);
 		dump_helper();
@@ -502,5 +512,5 @@ static DEVICE_ATTR(dump, S_IRUGO | S_IWUSR, dump_show, dump_store);
 
 int mvdisp_debug_init(struct device *dev)
 {
-	device_create_file(dev, &dev_attr_dump);
+	return device_create_file(dev, &dev_attr_dump);
 }

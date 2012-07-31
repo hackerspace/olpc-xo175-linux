@@ -510,6 +510,9 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 			return -EINVAL;
 		}
 
+		if (fbi->dump)
+			dump_buffer(fbi, 0);
+
 		if (fb_is_baselay(fbi))
 			do_flip_baselay(fbi, &surface);
 		else

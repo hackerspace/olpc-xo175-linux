@@ -834,6 +834,9 @@ struct pxa95xfb_info {
 	struct _sColorKeyNAlpha ckey_alpha;
 	LCD_ALPHAMODE alphamode;
 	u32 alphacolor;
+
+	/* debug info */
+	int dump;
 };
 
 
@@ -935,6 +938,7 @@ int pxa95xfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info);
 int pxa95xfb_set_par(struct fb_info *info);
 
 extern int mvdisp_debug_init(struct device *dev);
+extern void dump_buffer(struct pxa95xfb_info *fbi, int yoffset);
 
 static inline int fb_is_valid(struct pxa95xfb_info *fbi)
 {
