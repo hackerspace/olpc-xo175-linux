@@ -96,7 +96,7 @@ static void unset_power_constraint(int min)
 #define MAX_DMA_BUFS 2
 
 #define CF_SINGLE_BUF 0	/* Running with a single buffer */
-#define CF_SOF 6
+#define CF_FRAME_SOF0 1
 
 /*
  * Basic frame stats
@@ -680,14 +680,19 @@ static int mv_start_streaming(struct vb2_queue *vq, unsigned int count)
 	}
 	spin_unlock_irqrestore(&pcdev->list_lock, flags);
 
+	/*
+	 * Ensure clear the obsolete frame flags
+	 * before every really start streaming
+	 */
+	for (frame = 0; frame < pcdev->nbufs; frame++)
+		clear_bit(CF_FRAME_SOF0 + frame, &pcdev->flags);
+
 #if MAX_DMA_BUFS == 3
 	tribufs = 0;
 #endif
 
 	ret = mv_read_setup(pcdev);
 out_unlock:
-	for (frame = 0; frame < pcdev->nbufs; frame++)
-		clear_bit(CF_SOF+frame, &pcdev->flags);
 	mutex_unlock(&pcdev->s_mutex);
 	return ret;
 }
@@ -800,17 +805,25 @@ static irqreturn_t mv_camera_irq(int irq, void *data)
 
 	ccic_reg_write(pcdev, REG_IRQSTAT, irqs);
 
+	/*
+	 * Use the first loop handle the EOFx irq is more safety
+	 * in potential EOFx and SOFx irqs co-exist case
+	 * we may receive the EOFx of the last time and SOFx of this time
+	 * during switch formats or resolutions
+	 * if we can ensure this case never occur,
+	 * then we can merge these 2 loops into 1 loop
+	 */
 	for (frame = 0; frame < pcdev->nbufs; frame++)
-		if (irqs & (IRQ_SOF0 << frame)) {
-			set_bit(CF_SOF+frame, &pcdev->flags);
-			vbuf = &(pcdev->vb_bufs[frame]->vb_buf);
-			do_gettimeofday(&vbuf->v4l2_buf.timestamp);
+		if (irqs & (IRQ_EOF0 << frame) && test_bit(CF_FRAME_SOF0 + frame, &pcdev->flags)) {
+			ccic_frame_complete(pcdev, frame);
+			clear_bit(CF_FRAME_SOF0 + frame, &pcdev->flags);
 		}
 
 	for (frame = 0; frame < pcdev->nbufs; frame++)
-		if (irqs & (IRQ_EOF0 << frame) && test_bit(CF_SOF+frame, &pcdev->flags)) {
-			ccic_frame_complete(pcdev, frame);
-			clear_bit(CF_SOF+frame, &pcdev->flags);
+		if (irqs & (IRQ_SOF0 << frame)) {
+			set_bit(CF_FRAME_SOF0 + frame, &pcdev->flags);
+			vbuf = &(pcdev->vb_bufs[frame]->vb_buf);
+			do_gettimeofday(&vbuf->v4l2_buf.timestamp);
 		}
 
 	return IRQ_HANDLED;
