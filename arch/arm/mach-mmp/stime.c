@@ -305,7 +305,7 @@ void __init stimer_controller_init(void)
 	st_src_initialized = 1;
 }
 
-int __init stimer_event_setup(struct clock_event_device *evt)
+int __cpuinit stimer_event_setup(struct clock_event_device *evt)
 {
 	struct clock_event_device *evtd;
 	struct irqaction *irqa;
