@@ -686,19 +686,12 @@ static struct vb2_ops mv_videobuf_ops = {
 static int mv_camera_init_videobuf(struct vb2_queue *q,
 				   struct soc_camera_device *icd)
 {
-	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
-	struct mv_camera_dev *pcdev = ici->priv;
-
 	q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	q->io_modes = VB2_USERPTR | VB2_MMAP;
 	q->drv_priv = icd;
 	q->ops = &mv_videobuf_ops;
 	q->mem_ops = &vb2_dma_contig_memops;
 	q->buf_struct_size = sizeof(struct mv_buffer);
-
-	pcdev->vb_alloc_ctx = (struct vb2_alloc_ctx *)vb2_dma_contig_init_ctx(ici->v4l2_dev.dev);
-	if (IS_ERR_OR_NULL(pcdev->vb_alloc_ctx))
-		return -ENOMEM;
 
 	return vb2_queue_init(q);
 }
@@ -817,8 +810,6 @@ static void mv_camera_remove_device(struct soc_camera_device *icd)
 
 	BUG_ON(icd != pcdev->icd);
 
-	vb2_dma_contig_cleanup_ctx(pcdev->vb_alloc_ctx);
-	pcdev->vb_alloc_ctx = NULL;
 	dev_err(&pcdev->pdev->dev, "Release, %d frames, %d"
 			"singles, %d delivered\n", frames, singles, delivered);
 	ccic_config_phy(pcdev, 0);
@@ -1240,9 +1231,16 @@ static int __devinit mv_camera_probe(struct platform_device *pdev)
 	pcdev->soc_host.priv = pcdev;
 	pcdev->soc_host.v4l2_dev.dev = &pdev->dev;
 	pcdev->soc_host.nr = pdev->id;
+	pcdev->vb_alloc_ctx = (struct vb2_alloc_ctx *)
+				vb2_dma_contig_init_ctx(&pdev->dev);
+	if (IS_ERR(pcdev->vb_alloc_ctx)) {
+		err = PTR_ERR(pcdev->vb_alloc_ctx);
+		goto exit_free_irq;
+	}
+
 	err = soc_camera_host_register(&pcdev->soc_host);
 	if (err)
-		goto exit_free_irq;
+		goto exit_free_ctx;
 
 	if (pcdev->sensor_attached == false) {
 		err = -ENODEV;
@@ -1260,6 +1258,8 @@ static int __devinit mv_camera_probe(struct platform_device *pdev)
 
 exit_unregister_soc_camera_host:
 	soc_camera_host_unregister(&pcdev->soc_host);
+exit_free_ctx:
+	vb2_dma_contig_cleanup_ctx(pcdev->vb_alloc_ctx);
 exit_free_irq:
 	free_irq(pcdev->irq, pcdev);
 #ifdef CONFIG_CPU_MMP2
@@ -1299,6 +1299,8 @@ static int __devexit mv_camera_remove(struct platform_device *pdev)
 #endif
 
 	soc_camera_host_unregister(soc_host);
+	vb2_dma_contig_cleanup_ctx(pcdev->vb_alloc_ctx);
+	pcdev->vb_alloc_ctx = NULL;
 
 	iounmap(pcdev->base);
 
