@@ -23,6 +23,7 @@
 #if defined(CONFIG_PXA95x_DVFM)
 #include <mach/dvfm.h>
 #include <mach/pxa95x_dvfm.h>
+#include <mach/dvfs.h>
 #endif
 
 #include "generic.h"
@@ -366,8 +367,10 @@ static struct notifier_block notifier_trans_block = {
 	.notifier_call = cpufreq_stat_notifier_trans
 };
 
+extern struct dvfs core_dvfs;
 static int pxa95x_cpufreq_init(struct cpufreq_policy *policy)
 {
+	struct dvfs_freqs core_dvfs_freqs;
 	int current_freq_khz;
 	int ret = 0;
 
@@ -379,9 +382,11 @@ static int pxa95x_cpufreq_init(struct cpufreq_policy *policy)
 	if (ret)
 		pr_err("failed to get cpu frequency table");
 
-	/* set to 0 to indicate that no user configured */
-	/* cpufreq until now */
 	current_freq_khz = dvfm_current_core_freq_get() * MHZ_TO_KHZ;
+	core_dvfs_freqs.old = 0;
+	core_dvfs_freqs.new = current_freq_khz;
+	core_dvfs_freqs.dvfs = &core_dvfs;
+	dvfs_notifier_frequency(&core_dvfs_freqs, DVFS_FREQ_PRECHANGE);
 
 	/* Set to 100us latency.
 	 * This will cause the sampling_rate to 100ms.
