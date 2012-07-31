@@ -390,15 +390,15 @@ static ssize_t PXA9xx_pm_logger_write(struct file *file,
 	return count;
 }
 
-static inline void __iomem *irq_base(int i)
+static inline unsigned int irq_base(int i)
 {
-	static unsigned long phys_base[] = {
+	static unsigned int phys_base[] = {
 		0x40d00000,
 		0x40d0009c,
 		0x40d00130,
 	};
 
-	return (void __iomem *)io_p2v(phys_base[i]);
+	return phys_base[i];
 }
 
 unsigned int comm_restore[64];
@@ -553,9 +553,13 @@ static ssize_t PXA9xx_DRO_Status_Read(struct file *file,
 	unsigned int wVproDROs[2] = { 0, 0 };	/* VPRO LVT and VPRO NVT */
 
 	for (irq_count = 0; irq_count < 3; irq_count++) {
-		void __iomem *base = irq_base(irq_count);
+		unsigned int add_tmp = 0;
+		void __iomem *base;
+		add_tmp = irq_base(irq_count);
+		base = ioremap(add_tmp, 0x4);
 		saved_icmr[irq_count] = __raw_readl(base + (0x004));
 		__raw_writel(0x00000000, base + (0x004));
+		iounmap(base);
 	}
 
 	DRO_base = ioremap(0x42440154, 0xC);
@@ -1003,8 +1007,12 @@ static ssize_t PXA9xx_DRO_Status_Read(struct file *file,
 	iounmap(MPMU_CSER_ADDR);
 
 	for (irq_count = 0; irq_count < 3; irq_count++) {
-		void __iomem *base = irq_base(irq_count);
+		unsigned int add_tmp = 0;
+		void __iomem *base;
+		add_tmp = irq_base(irq_count);
+		base = ioremap(add_tmp, 0x4);
 		__raw_writel(saved_icmr[irq_count], base + (0x004));
+		iounmap(base);
 	}
 	return simple_read_from_buffer(userbuf, count, ppos, buf, sum);
 }
