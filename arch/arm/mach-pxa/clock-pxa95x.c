@@ -2125,6 +2125,7 @@ int pxa95x_clk_init(void)
 		/* Don't use IRQ disable to protect the clock driver */
 		clk_set_cansleep(&clk_pxa95x_vmeta);
 		clk_set_cansleep(&clk_pxa978_gcu);
+		clk_set_cansleep(&clk_pxa95x_lcd);
 	} else
 		clock_lookup_init(pxa955_specific_clkregs,
 				  ARRAY_SIZE(pxa955_specific_clkregs));
