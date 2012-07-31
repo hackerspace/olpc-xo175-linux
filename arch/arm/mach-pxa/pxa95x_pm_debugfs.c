@@ -405,32 +405,44 @@ unsigned int comm_restore[64];
 
 void readcomm(void)
 {
-	unsigned int *wArmResAddr;
+	unsigned int wArmResADDR;
 	int i = 0;
+	unsigned int *wArmResAddr;
 
-	wArmResAddr = (unsigned int *)0xC0000000;
+	wArmResADDR = 0x80000000;
+	wArmResAddr = ioremap(wArmResADDR, 0x80);
 
 	for (i = 0; i < 64; i++)
-		comm_restore[i] = readl(wArmResAddr + i);
+		comm_restore[i] = readl(wArmResAddr++);
+
+	iounmap(wArmResAddr);
 }
 
 void restorcomm(void)
 {
-	unsigned int *wArmResAddr;
+	unsigned int wArmResADDR;
 	int i = 0;
+	unsigned int *wArmResAddr;
 
-	wArmResAddr = (unsigned int *)0xC0000000;
+	wArmResADDR = 0x80000000;
+	wArmResAddr = ioremap(wArmResADDR, 0x80);
 
 	for (i = 0; i < 64; i++)
-		writel(comm_restore[i], wArmResAddr + i);
+		writel(comm_restore[i], wArmResAddr++);
+
+	iounmap(wArmResAddr);
 }
 
 /*	This function is for CP "nop loop" code	*/
 void commCodeCopy(void)
 {
-	unsigned int *wMsaResAddr, *wArmResAddr;
-	wArmResAddr = (unsigned int *)0xC0000000;
-	wMsaResAddr = (unsigned int *)0xC0000020;
+	unsigned int wMsaResADDR, wArmResADDR;
+	unsigned int *wArmResAddr, *wMsaResAddr;
+
+	wArmResADDR = 0x80000000;
+	wArmResAddr = (unsigned int *)ioremap(wArmResADDR, 0x20);
+	wMsaResADDR = 0x80000020;
+	wMsaResAddr = (unsigned int *)ioremap(wMsaResADDR, 0x60);
 
 	writel(0xE3A00701, wArmResAddr++);	/*	ARM INSTRUCTION -- mov r0, #0x00040000	*/
 	writel(0xEE010F10, wArmResAddr++);	/*	ARM INSTRUCTION -- mcr 15, 0, r0, cr1, cr0, {0} ;enable ITCM	*/
@@ -448,6 +460,9 @@ void commCodeCopy(void)
 	writel(0xE1089308, wMsaResAddr++);	/*	[P1] = R0;Perform write to top of ISRAM (0xCFF0_0000)	*/
 	writel(0xE1480000, wMsaResAddr++);	/*	P0.l = 0x0000	*/
 	writel(0x0050CFF0, wMsaResAddr++);	/*	P0.h = 0xCFF0;P0 now contains 0xCFF0_0000	*/
+
+	iounmap(wArmResAddr);
+	iounmap(wMsaResAddr);
 }
 
 /*The function will calculate float like data, then output to the kernel serial port */
