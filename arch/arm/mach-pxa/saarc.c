@@ -2548,7 +2548,7 @@ static int init_suspend_wakeup(pm_wakeup_src_t *src)
 	src->bits.msl = 1;		/* ACS-IPC */
 	src->bits.tsi = 1;		/* On-key */
 	src->bits.mmc1_cd = 1;		/* MMC1 CD */
-
+	src->bits.uart1 = 1;		/* UART */
 	return 0;
 }
 
