@@ -44,7 +44,6 @@
 
 /*In case we need to export some infomation for other components like GC*/
 static struct vmeta_instance *vmeta_inst;
-static s32 vld_status = 0;
 
 static void vmeta_lock_init(struct vmeta_instance *vi)
 {
@@ -229,7 +228,6 @@ static int vmeta_power_off(struct vmeta_instance *vi)
 
 	vmeta_power_switch(VMETA_PWR_DISABLE);
 	vi->power_status = 0;
-	vld_status = 0;
 	vi->vop_real = VMETA_OP_INVALID;
 	mutex_unlock(&vi->mutex);
 	return 0;
@@ -495,13 +493,6 @@ static int vmeta_ioctl(struct uio_info *info, unsigned int cmd,
 	case VMETA_CMD_REG_UNREG:
 		ret =
 		    vmeta_reg_unreg((struct uio_listener *)file_priv, (int)arg);
-		break;
-	case VMETA_CMD_SET_VLDFLG:
-		vld_status = arg;
-		ret = vld_status;
-		break;
-	case VMETA_CMD_GET_VLDFLG:
-		ret = vld_status;
 	default:
 		break;
 	}
