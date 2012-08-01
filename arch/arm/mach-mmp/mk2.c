@@ -1538,6 +1538,163 @@ static void mk2_power_off(void)
 	mdelay(200);
 }
 
+
+#define DMCU_SDRAM_TIMING1 0x80
+#define DMCU_SDRAM_TIMING2 0x84
+#define DMCU_SDRAM_TIMING3 0x88
+#define DMCU_SDRAM_TIMING4 0x8c
+#define DMCU_SDRAM_TIMING5 0x90
+#define DMCU_SDRAM_TIMING6 0x94
+#define DMCU_SDRAM_TIMING7 0x98
+#define DMCU_SDRAM_TIMING8 0x9c
+#define DMCU_PHY_CTRL3 0x220
+#define DMCU_PHY_DQ_BYTE_SEL 0x300
+#define DMCU_PHY_DLL_CTRL_BYTE1 0x304
+#define DMCU_PHY_DLL_WL_SEL 0x380
+#define DMCU_PHY_DLL_WL_CTRL0 0x384
+#define ALLBITS (0xFFFFFFFF)
+
+static struct dmc_regtable_entry edb8132b3ma_2x133mhz[] = {
+	{DMCU_SDRAM_TIMING1, ALLBITS, 0x48890065},
+	{DMCU_SDRAM_TIMING2, ALLBITS, 0x32330125},
+	{DMCU_SDRAM_TIMING3, ALLBITS, 0x20131312},
+	{DMCU_SDRAM_TIMING4, ALLBITS, 0x30125434},
+	{DMCU_SDRAM_TIMING5, ALLBITS, 0x0A060081},
+	{DMCU_SDRAM_TIMING6, ALLBITS, 0x04040200},
+	{DMCU_SDRAM_TIMING7, ALLBITS, 0x00005201},
+	{DMCU_SDRAM_TIMING8, ALLBITS, 0x00000022},
+};
+
+
+static struct dmc_regtable_entry edb8132b3ma_2x177mhz[] = {
+	{DMCU_SDRAM_TIMING1, ALLBITS, 0x488C0065},
+	{DMCU_SDRAM_TIMING2, ALLBITS, 0x42430185},
+	{DMCU_SDRAM_TIMING3, ALLBITS, 0x20191912},
+	{DMCU_SDRAM_TIMING4, ALLBITS, 0x30127046},
+	{DMCU_SDRAM_TIMING5, ALLBITS, 0x0A080091},
+	{DMCU_SDRAM_TIMING6, ALLBITS, 0x04040200},
+	{DMCU_SDRAM_TIMING7, ALLBITS, 0x00005201},
+	{DMCU_SDRAM_TIMING8, ALLBITS, 0x0000002E},
+};
+
+
+static struct dmc_regtable_entry edb8132b3ma_2x200mhz[] = {
+	{DMCU_SDRAM_TIMING1, ALLBITS, 0x488D0065},
+	{DMCU_SDRAM_TIMING2, ALLBITS, 0x524301A5},
+	{DMCU_SDRAM_TIMING3, ALLBITS, 0x201C1C12},
+	{DMCU_SDRAM_TIMING4, ALLBITS, 0x3012804F},
+	{DMCU_SDRAM_TIMING5, ALLBITS, 0x0A0900A1},
+	{DMCU_SDRAM_TIMING6, ALLBITS, 0x04040200},
+	{DMCU_SDRAM_TIMING7, ALLBITS, 0x00005201},
+	{DMCU_SDRAM_TIMING8, ALLBITS, 0x00000033},
+};
+
+static struct dmc_regtable_entry edb8132b3ma_2x266mhz[] = {
+	{DMCU_SDRAM_TIMING1, ALLBITS, 0x48910065},
+	{DMCU_SDRAM_TIMING2, ALLBITS, 0x63540235},
+	{DMCU_SDRAM_TIMING3, ALLBITS, 0x20262612},
+	{DMCU_SDRAM_TIMING4, ALLBITS, 0x3012A868},
+	{DMCU_SDRAM_TIMING5, ALLBITS, 0x0A0C00E1},
+	{DMCU_SDRAM_TIMING6, ALLBITS, 0x04040200},
+	{DMCU_SDRAM_TIMING7, ALLBITS, 0x00005201},
+	{DMCU_SDRAM_TIMING8, ALLBITS, 0x00000044},
+};
+
+
+
+static struct dmc_regtable_entry edb8132b3ma_2x400mhz[] = {
+	{DMCU_SDRAM_TIMING1, ALLBITS, 0x4CDA0065},
+	{DMCU_SDRAM_TIMING2, ALLBITS, 0x94860345},
+	{DMCU_SDRAM_TIMING3, ALLBITS, 0x2038381B},
+	{DMCU_SDRAM_TIMING4, ALLBITS, 0x3012FC9D},
+	{DMCU_SDRAM_TIMING5, ALLBITS, 0x0A110141},
+	{DMCU_SDRAM_TIMING6, ALLBITS, 0x04040200},
+	{DMCU_SDRAM_TIMING7, ALLBITS, 0x00005201},
+	{DMCU_SDRAM_TIMING8, ALLBITS, 0x00000066},
+};
+
+/*
+ * drc is a mux of ddr source clk.
+ * 0x0 = PLL1 div by 2
+ * 0x1 = PLL1
+ * 0x2 = PLL2
+  *0x3 = PLL1 CLKOUTP
+ */
+
+static struct dmc_timing_entry edb8132b3ma_table[] = {
+	{
+		.dsrc = 3,
+		.mode4x = 0,
+		.pre_d = 3,
+		.cas = 0x0008800,
+		.table = {
+			DEF_DMC_TAB_ENTRY(DMCRT_TM, edb8132b3ma_2x133mhz),
+		},
+	},
+
+	{
+		.dsrc = 3,
+		.mode4x = 0,
+		.pre_d = 2,
+		.cas = 0x0008800,
+		.table = {
+			DEF_DMC_TAB_ENTRY(DMCRT_TM, edb8132b3ma_2x177mhz),
+		},
+	},
+
+	{
+		.dsrc = 0,
+		.mode4x = 0,
+		.pre_d = 0,
+		.cas = 0x0008800,
+		.table = {
+			DEF_DMC_TAB_ENTRY(DMCRT_TM, edb8132b3ma_2x200mhz),
+		},
+	},
+
+	{
+		.dsrc = 3,
+		.mode4x = 0,
+		.pre_d = 1,
+		.cas = 0x0008800,
+		.table = {
+			DEF_DMC_TAB_ENTRY(DMCRT_TM, edb8132b3ma_2x266mhz),
+		},
+	},
+
+	{
+		.dsrc = 1,
+		.mode4x = 0,
+		.pre_d = 0,
+		.cas = 0x0008800,
+		.table = {
+			DEF_DMC_TAB_ENTRY(DMCRT_TM, edb8132b3ma_2x400mhz),
+		},
+	},
+
+/* FIXME remove 533Mhz since it hangs. */
+/*
+	{
+		.dsrc = 3,
+		.mode4x = 0,
+		.pre_d = 0,
+		.cas = 0x0008800,
+		.table = {
+			DEF_DMC_TAB_ENTRY(DMCRT_TM, edb8132b3ma_2x533mhz),
+		},
+	},
+*/
+};
+
+
+
+static void mk2_update_ddr_info(void)
+{
+	mmp3_pm_update_dram_timing_table(ARRAY_SIZE(edb8132b3ma_table),
+						edb8132b3ma_table);
+}
+
+
 static void __init mk2_init(void)
 {
 	extern int (*board_reset)(char mode, const char *cmd);
@@ -1550,6 +1707,9 @@ static void __init mk2_init(void)
 	/* clear recovery bit */
 	if (max77601_rtc_raw_write(MAX77601_RTCSECA2, 0x00))
 		pr_err("Recovery flag clear failed!\n");
+
+	/* update ddr freq table & timing */
+	mk2_update_ddr_info();
 
 	/* on-chip devices */
 	mmp3_add_uart(3);
