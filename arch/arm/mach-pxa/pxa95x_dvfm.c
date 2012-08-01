@@ -1733,7 +1733,7 @@ static inline unsigned int ddr_pll_freq2reg(unsigned int x)
 		return 4 << 21 | 2 << 17 | 0xD0 << 5 | 3 << 0;
 	case 944:
 		/* KVCO=4 VCODIV_SEL=2 FBDIV=218(0xDA) REFDIV=3*/
-		return 4 << 21 | 2 << 17 | 0xD0 << 5 | 3 << 0;
+		return 4 << 21 | 2 << 17 | 0xDA << 5 | 3 << 0;
 	case 1066:
 		/* KVCO=6 VCODIV_SEL=2 FBDIV=246(0xF6) REFDIV=3*/
 		return 6 << 21 | 2 << 17 | 0xF6 << 5 | 3 << 0;
