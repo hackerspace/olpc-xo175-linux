@@ -414,9 +414,11 @@ static void pxa2128_cam_set_clk(struct device *dev, int on)
 		clk_disable(data->clk);
 }
 
-static int get_mclk_src(int src)
+static int get_mclk_src(struct device *dev)
 {
-	switch (src) {
+	struct mv_cam_pdata *data = dev->platform_data;
+
+	switch (data->mclk_src) {
 	case 3:
 		return 400;
 	case 2:
