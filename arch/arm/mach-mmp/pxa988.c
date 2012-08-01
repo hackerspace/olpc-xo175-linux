@@ -617,6 +617,7 @@ static int __init pxa988_init(void)
 
 	mfp_init_base(MFPR_VIRT_BASE);
 	mfp_init_addr(pxa988_addr_map);
+	pxa_init_dma(IRQ_PXA988_DMA_INT0, 32);
 
 	pxa988_init_gpio();
 
