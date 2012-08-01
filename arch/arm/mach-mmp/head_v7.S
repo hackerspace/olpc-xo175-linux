@@ -18,6 +18,7 @@
 
 #include <linux/linkage.h>
 #include <asm/assembler.h>
+#include <asm/hardware/cache-l2x0.h>
 
 
 /*
@@ -66,3 +67,36 @@ ENTRY(v7_invalidate_l1)
         isb
         mov     pc, lr
 ENDPROC(v7_invalidate_l1)
+
+#ifdef CONFIG_CACHE_L2X0
+/*
+ * Clean and invalidate the L2 cache and then disable it.
+ * Common cache-l2x0.c functions can't be used here since it
+ * uses spinlocks. We are out of coherency here with data cache
+ * disabled. The spinlock implementation uses exclusive load/store
+ * instruction which can fail without data cache being enabled.
+ * Because of this, CPU can lead to deadlock.
+ * We need to call this function with MMU on since l2x0_base is
+ * virtual adress.
+ */
+ENTRY(pl310_disable)
+	ldr	r2, =l2x0_base
+	ldr	r2, [r2]
+	/* Clean & invalidate */
+	ldr	r0, =0xffff
+	str	r0, [r2, #L2X0_CLEAN_INV_WAY]
+wait:
+	ldr	r0, [r2, #L2X0_CLEAN_INV_WAY]
+	ldr	r1, =0xffff
+	ands	r0, r0, r1
+	bne	wait
+	/* Sync */
+	mov	r0, #0x0
+	str	r0, [r2, #L2X0_CACHE_SYNC]
+	/* Disable L2 */
+	mov	r0, #0
+	str	r0, [r2, #L2X0_CTRL]
+	dsb
+	mov	pc, lr
+ENDPROC(pl310_disable)
+#endif

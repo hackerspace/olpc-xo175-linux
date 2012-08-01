@@ -66,6 +66,12 @@ static u32 *enter_lpm_p;
 static spinlock_t *lpm_lock_p;
 #endif
 
+enum {
+	CPU_SUSPEND_FROM_IDLE,
+	CPU_SUSPEND_FROM_HOTPLUG,
+	CPU_SUSPEND_FROM_SUSPEND,
+};
+
 static DEFINE_SPINLOCK(pmu_lock);
 static unsigned long flags;
 
@@ -95,43 +101,61 @@ static inline void core_exit_coherency(void)
 {
 	unsigned int v;
 	asm volatile(
-			/* CA9 leave coherency, clear ACTLR.smp&ACTLR.FW*/
-			"       mrc     p15, 0, %0, c1, c0, 1\n"
-			"       bic     %0, %0, #0x41\n"
-			"       mcr     p15, 0, %0, c1, c0, 1\n"
-			: "=&r" (v) : : "cc");
+	"       mrc     p15, 0, %0, c1, c0, 1\n"
+	"       bic     %0, %0, #(1 << 6)\n"
+	"       mcr     p15, 0, %0, c1, c0, 1\n"
+	: "=&r" (v) : : "cc");
+	isb();
 }
 
-static int pxa988_finish_suspend(unsigned long power_state)
+static inline void disable_l1_dcache(void)
 {
+	unsigned int v;
+	asm volatile(
+	"       mrc     p15, 0, %0, c1, c0, 0\n"
+	"       bic     %0, %0, %1\n"
+	"       mcr     p15, 0, %0, c1, c0, 0\n"
+	: "=&r" (v) : "Ir" (CR_C) : "cc");
+	isb();
+}
+
+static int pxa988_finish_suspend(unsigned long param)
+{
+	 /* clean & invalidate dcache cache, it contains dsb & isb */
+	flush_cache_all();
+
+	/*
+	 * Clear the SCTLR.C bit to prevent further data cache
+	 * allocation. Clearing SCTLR.C would make all the data accesses
+	 * strongly ordered and would not hit the cache.
+	 */
+	disable_l1_dcache();
 #ifdef CONFIG_SMP
-	void __iomem *scu_addr;
+	/* Clear ACTLR.SMP bit */
+	core_exit_coherency();
+
+	/*
+	 * Switch the CPU from Symmetric Multiprocessing (SMP) mode
+	 * to AsymmetricMultiprocessing (AMP) mode by programming
+	 * the SCU power status to DORMANT or OFF mode.
+	 * This enables the CPU to be taken out of coherency by
+	 * preventing the CPU from receiving cache, TLB, or BTB
+	 * maintenance operations broadcast by other CPUs in the cluster.
+	 * NOTE:
+	 * This must be done after cache is flushed.
+	 */
+	scu_power_mode(pxa_scu_base_addr(), SCU_PM_POWEROFF);
 #endif
-	if (power_state < POWER_MODE_CORE_POWERDOWN)
-		panic("should not call cpu_suspend with power_state %d\n",
-				(int)power_state);
 
 #ifdef CONFIG_CACHE_L2X0
-	/* pl310_suspend includes flush_cache_all */
-	pl310_suspend();
+	/* For suspend case we power down L2 sram so need to flush L2 here */
+	if (unlikely(param == CPU_SUSPEND_FROM_SUSPEND))
+		pl310_disable();
 #endif
 
-#ifdef CONFIG_SMP
-	core_exit_coherency();
-	scu_addr = pxa_scu_base_addr();
-	flush_cache_all();
-	/*
-	 * Set SCU CPU power status register to power off.
-	 * This must be done after cache is flushed.
-	 * Remember to set it back to normal mode in reset
-	 * chunk before cache is re-enabled.
-	 */
-	scu_power_mode(scu_addr, SCU_PM_POWEROFF);
-#endif
 	cpu_do_idle();
 
 	panic("Core didn't get powered down! Should never reach here.\n");
-
 	return 0;
 }
 
@@ -296,38 +320,31 @@ static void pxa988_icu_global_mask(u32 cpu, u32 mask)
 struct pxa988_lowpower_data pxa988_lpm_data[] = {
 	[PXA988_LPM_C1] = {
 		.power_state = POWER_MODE_CORE_EXTIDLE,
-		.l2_shutdown = 0,
 		.valid = 1,
 	},
 	[PXA988_LPM_C2] = {
 		.power_state = POWER_MODE_CORE_POWERDOWN,
-		.l2_shutdown = 0,
 		.valid = 1,
 	},
 	[PXA988_LPM_D1P] = {
 		.power_state = POWER_MODE_APPS_IDLE,
-		.l2_shutdown = 0,
 		.valid = 1,
 	},
 	[PXA988_LPM_D1] = {
 		.power_state = POWER_MODE_SYS_SLEEP,
-		.l2_shutdown = 0,
 		.valid = 1,
 	},
 	[PXA988_LPM_D2] = {
 		.power_state = POWER_MODE_UDR_VCTCXO,
-		.l2_shutdown = 0,
 		.valid = 1,
 	},
 	[PXA988_LPM_D2_UDR] = {
 		.power_state = POWER_MODE_UDR,
-		.l2_shutdown = 1,
 		.valid = 1,
 	},
 	/* must always be the last one! */
 	[PXA988_MAX_LPM_INDEX] = {
 		.power_state = -1,
-		.l2_shutdown = 0,
 		.valid = 0,
 	},
 };
@@ -367,6 +384,7 @@ static void pxa988_post_enter_lpm(u32 cpu, u32 power_mode)
 	pxa988_lowpower_config(cpu,
 			pxa988_lpm_data[power_mode].power_state, 0);
 }
+
 /*
  * pxa988_enter_lowpower - the entry function of pxa988 low power mode
  *
@@ -385,7 +403,6 @@ int pxa988_enter_lowpower(u32 cpu, u32 power_mode)
 	int cpus_enter_lpm = 0xffffffff;
 	int mp_shutdown = 1;
 	int mp_restore = 1;
-	int l2_shutdown = 1;
 	/* The default power_mode should be C2 */
 	int lpm_index = 1;
 
@@ -407,23 +424,15 @@ int pxa988_enter_lowpower(u32 cpu, u32 power_mode)
 
 	/* mask the LPM states we can enter */
 	enter_lpm_p[cpu] |= (1 << (power_mode + 1)) - 1;
-	if (pxa988_lpm_data[power_mode].l2_shutdown)
-		set_bit(L2_SHUTDOWN, (void *)&enter_lpm_p[cpu]);
 	for (i = 0; i < num_cpus; i++)
 		cpus_enter_lpm &= enter_lpm_p[i];
 	mp_shutdown = test_bit(PXA988_LPM_C2, (void *)&cpus_enter_lpm);
+
 	if (mp_shutdown) {
-		l2_shutdown = test_bit(L2_SHUTDOWN,
-					(void *)&cpus_enter_lpm);
-		if (l2_shutdown) {
 #ifdef CONFIG_CACHE_L2X0
-			pl310_suspend();
+		pl310_suspend();
 #endif
-			outer_disable();
-		}
-
 		cpu_cluster_pm_enter();
-
 		/*
 		 * Here we assume when one LPM state is disabled,
 		 * all shallower states are disabled
@@ -437,24 +446,18 @@ int pxa988_enter_lowpower(u32 cpu, u32 power_mode)
 			pxa988_lowpower_config(cpu,
 				pxa988_lpm_data[lpm_index].power_state, 1);
 	}
-
 	arch_spin_unlock(&(&lpm_lock_p->rlock)->raw_lock);
 
 	/* For D1 or deeper LPM, we need to enable wakeup sources */
 	if (lpm_index >= PXA988_LPM_D1)
 		enable_all_ap_wakeup_sources();
-	cpu_suspend(pxa988_lpm_data[lpm_index].power_state,
-			pxa988_finish_suspend);
+	cpu_suspend(CPU_SUSPEND_FROM_IDLE, pxa988_finish_suspend);
 	if (lpm_index >= PXA988_LPM_D1)
 		restore_wakeup_sources();
 #else
-	if (pxa988_lpm_data[power_mode].l2_shutdown) {
 #ifdef CONFIG_CACHE_L2X0
-		pl310_suspend();
+	pl310_suspend();
 #endif
-		outer_disable();
-	}
-
 	cpu_cluster_pm_enter();
 
 	pxa988_lowpower_config(cpu,
@@ -463,8 +466,7 @@ int pxa988_enter_lowpower(u32 cpu, u32 power_mode)
 	/* For D1 or deeper LPM, we need to enable wakeup sources */
 	if (power_mode >= PXA988_LPM_D1)
 		enable_all_ap_wakeup_sources();
-	cpu_suspend(pxa988_lpm_data[power_mode].power_state,
-			pxa988_finish_suspend);
+	cpu_suspend(CPU_SUSPEND_FROM_IDLE, pxa988_finish_suspend);
 	if (power_mode >= PXA988_LPM_D1)
 		restore_wakeup_sources();
 #endif /* CONFIG_SMP */
@@ -473,10 +475,7 @@ int pxa988_enter_lowpower(u32 cpu, u32 power_mode)
 	/* here we exit from LPM */
 	arch_spin_lock(&(&lpm_lock_p->rlock)->raw_lock);
 
-	/*
-	 * clear all the software flag of LPM
-	 * L2_shutdown flag is cleared by reset chunk
-	 */
+	/* clear all the software flag of LPM */
 	enter_lpm_p[cpu] &= ~((1 << (power_mode + 1)) - 1);
 	cpus_enter_lpm = 0xffffffff;
 	for (i = 0; i < num_cpus; i++)
@@ -501,20 +500,17 @@ int pxa988_enter_lowpower(u32 cpu, u32 power_mode)
 
 #ifdef CONFIG_HOTPLUG_CPU
 /*
- * Allows POWER_MODE_UDR with L2 shutdown for CPU hotplug.
- * Actually the hogpluged CPU will enter C2 but it will allow
- * POWER_MODE_UDR with L2 shutdown since the hotpluged CPU
- * should never blocks other CPUs enter the deepest LPM.
+ * Allows POWER_MODE_UDR for CPU hotplug.
+ * Actually the hotpluged CPU will enter C2 but it will allow
+ * POWER_MODE_UDR since the hotpluged CPU should never blocks
+ * other CPUs enter the deepest LPM.
  */
 void pxa988_hotplug_enter(u32 cpu, u32 power_mode)
 {
-	pxa988_lowpower_config(cpu,
-			pxa988_lpm_data[PXA988_LPM_C2].power_state, 1);
+	u32 mp_idle_cfg;
 
-	/* Mask GIC global interrupt */
-	pxa988_gic_global_mask(cpu, 1);
-	/* Mask ICU global interrupt */
-	pxa988_icu_global_mask(cpu, 1);
+	pxa988_pre_enter_lpm(cpu,
+			pxa988_lpm_data[PXA988_LPM_C2].power_state);
 
 	/*
 	 * For CPU hotplug, we don't need cpu_suspend help functions
@@ -523,29 +519,34 @@ void pxa988_hotplug_enter(u32 cpu, u32 power_mode)
 	 * enter C2 since in platform_cpu_kill we ensure that.
 	 */
 	set_bit(LPM4HOTPLUG, (void *)&enter_lpm_p[cpu]);
-	if (pxa988_lpm_data[power_mode].l2_shutdown)
-		set_bit(L2_SHUTDOWN, (void *)&enter_lpm_p[cpu]);
+
+	/* The hotpluged CPU always allow SCU/L2 SRAM power down */
+	mp_idle_cfg = __raw_readl(APMU_MP_IDLE_CFG[cpu]);
+	mp_idle_cfg |= PMUA_MP_L2_SRAM_POWER_DOWN;
+	mp_idle_cfg |= PMUA_MP_SCU_SRAM_POWER_DOWN;
+	__raw_writel(mp_idle_cfg, APMU_MP_IDLE_CFG[cpu]);
+
 	enter_lpm_p[cpu] |= (1 << (power_mode + 1)) - 1;
 
-	pxa988_finish_suspend(pxa988_lpm_data[power_mode].power_state);
+	pxa988_finish_suspend(CPU_SUSPEND_FROM_HOTPLUG);
 }
 #endif
 
 #ifdef CONFIG_SUSPEND
 void pxa988_pm_suspend(u32 cpu, u32 power_mode)
 {
-	pxa988_pre_enter_lpm(cpu, power_mode);
+	/* Reset handler checks the flag to decide if needs to invalidate L2 */
+	l2_shutdown = 1;
+	smp_wmb();
+	__cpuc_flush_dcache_area((void *)&l2_shutdown, sizeof(l2_shutdown));
+	outer_clean_range(__pa(&l2_shutdown), __pa(&l2_shutdown + 1));
 
-	if (pxa988_lpm_data[power_mode].l2_shutdown) {
 #ifdef CONFIG_CACHE_L2X0
-		pl310_suspend();
+	pl310_suspend();
 #endif
-		outer_disable();
-	}
 
-	cpu_suspend(pxa988_lpm_data[power_mode].power_state,
-			pxa988_finish_suspend);
-
+	pxa988_pre_enter_lpm(cpu, power_mode);
+	cpu_suspend(CPU_SUSPEND_FROM_SUSPEND, pxa988_finish_suspend);
 	pxa988_post_enter_lpm(cpu, power_mode);
 }
 #endif
@@ -553,7 +554,6 @@ void pxa988_pm_suspend(u32 cpu, u32 power_mode)
 static int __init pxa988_lowpower_init(void)
 {
 #ifdef CONFIG_SMP
-	int i;
 	void __iomem *scu_addr;
 	num_cpus = num_online_cpus();
 	coherent_buf = __arm_ioremap(pm_reserve_pa, PAGE_SIZE, MT_MEMORY_SO);
@@ -562,9 +562,6 @@ static int __init pxa988_lowpower_init(void)
 	memset(coherent_buf, 0x0, PAGE_SIZE);
 
 	enter_lpm_p = (u32 *)coherent_buf;
-	for (i = 0; i < num_cpus; i++)
-		enter_lpm_p[i] = 0;
-
 	lpm_lock_p = (spinlock_t *)(&enter_lpm_p[num_cpus]);
 	spin_lock_init(lpm_lock_p);
 

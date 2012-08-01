@@ -16,9 +16,10 @@
 
 #define LPM_NUM				16
 #define L2_MASK				(1 << LPM_NUM)
-#define HOTPLUG_MASK			(L2_MASK << 1)
+#define HOTPLUG_MASK			(1 << LPM_NUM)
 #define MAX_CPU_NUM			0x2
-#define OFFSET_SPINLOCK			(MAX_CPU_NUM << 2)
+#define OFFSET_L2_SHUTDOWN		(MAX_CPU_NUM << 2)
+#define OFFSET_SPINLOCK			(OFFSET_L2_SHUTDOWN + 4)
 
 #define	LPM_C1				0
 #define	LPM_C2				1
@@ -121,13 +122,11 @@ enum pxa988_lowpower_mode {
 	PXA988_LPM_D2_UDR = LPM_D2_UDR,
 	/* Maximum LPM index, must be the last one! */
 	PXA988_MAX_LPM_INDEX = 15,
-	L2_SHUTDOWN,
 	LPM4HOTPLUG,
 };
 
 struct pxa988_lowpower_data {
 	u32 power_state;	/* SoC specific LPM states */
-	u32 l2_shutdown;	/* Whether L2 is shutdown in this LPM */
 	/* Whether this LPM is valid according to the constraints */
 	u32 valid;
 };
@@ -151,6 +150,9 @@ struct pxa988_peripheral_config_ops {
 extern int pxa988_power_config_register
 	(struct pxa988_peripheral_config_ops *ops);
 
+extern void pl310_disable(void);
+
+extern int l2_shutdown;
 #endif
 
 #endif
