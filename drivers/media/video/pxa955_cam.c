@@ -1477,9 +1477,6 @@ static struct vb2_ops pxa97x_vb2_ops = {
 static int pxa97x_cam_init_videobuf2(struct vb2_queue *q,
 				   struct soc_camera_device *icd)
 {
-	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
-	struct pxa955_cam_dev *pcdev = ici->priv;
-
 	q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	q->io_modes = VB2_USERPTR;
 	q->drv_priv = icd;
@@ -1487,7 +1484,6 @@ static int pxa97x_cam_init_videobuf2(struct vb2_queue *q,
 	q->mem_ops = &vb2_dma_contig_memops;
 	/* vb2_buffer is enclosed inside pxa_buf_node */
 	q->buf_struct_size = sizeof(struct pxa_buf_node);
-	pcdev->alloc_ctx = vb2_dma_contig_init_ctx(ici->v4l2_dev.dev);
 
 	return vb2_queue_init(q);
 }
@@ -2319,14 +2315,22 @@ static int pxa955_camera_probe(struct platform_device *pdev)
 	pcdev->soc_host.v4l2_dev.dev	= &pdev->dev;
 	pcdev->soc_host.nr		= pdev->id;
 
+	pcdev->alloc_ctx = vb2_dma_contig_init_ctx(&pdev->dev);
+	if (IS_ERR(pcdev->alloc_ctx)) {
+		err = PTR_ERR(pcdev->alloc_ctx);
+		goto exit_free_irq;
+	}
+
 	err = soc_camera_host_register(&pcdev->soc_host);
 	if (err)
-		goto exit_free_irq;
+		goto exit_free_vb2ctx;
 
 	/* video dev initialized, but not opened */
 	pcdev->state = CAM_STATE_CLOSE;
 	return 0;
 
+exit_free_vb2ctx:
+	vb2_dma_contig_cleanup_ctx(pcdev->alloc_ctx);
 exit_free_irq:
 	free_irq(pcdev->irq, pcdev);
 exit_iounmap:
@@ -2357,6 +2361,12 @@ static int pxa955_camera_remove(struct platform_device *pdev)
 	sci_irq_disable(pcdev, IRQ_EOFX|IRQ_OFO);
 	free_irq(pcdev->irq, pcdev);
 	iounmap(common_base);
+
+	vb2_dma_contig_cleanup_ctx(pcdev->alloc_ctx);
+
+	kfree(pcdev);
+	pcdev = NULL;
+
 	return 0;
 }
 
