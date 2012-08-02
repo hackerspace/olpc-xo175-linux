@@ -47,6 +47,7 @@
 
 #define PROX_EN			(0x1 << 7)
 #define ALS_EN			(0x1 << 2)
+#define ALS_RANGE_H		(0x1 << 1)
 #define PROX_SLP_100		(0x3 << 4)
 #define PROX_SLP_200		(0x2 << 4)
 #define PROX_SLP_400		(0x1 << 4)
@@ -65,8 +66,8 @@ struct isl29043_dev {
 	struct input_dev *input_dev_ps;
 	struct input_dev *input_dev_als;
 	struct mutex active_lock;
-	unsigned char als_user_count;
-	unsigned char ps_user_count;
+	int als_user_count;
+	int ps_user_count;
 	unsigned char ps_data;
 	unsigned int als_data;
 	unsigned int als_interval;
@@ -107,6 +108,20 @@ static int active_ps_set(struct device *dev, struct device_attribute *attr,
 		    (!atomic_read(&suspend_flag))) {
 			if (isl29043_dev.pdata && isl29043_dev.pdata->set_power)
 				isl29043_dev.pdata->set_power(1);
+			/* set PROX_LT */
+			ret = i2c_smbus_write_byte_data(isl29043_dev.client,
+							PROX_LT, 10);
+			if (ret < 0) {
+				dev_err(dev, "set PROX_LT error\n");
+				goto out;
+			}
+			/* set PROX_HT */
+			ret = i2c_smbus_write_byte_data(isl29043_dev.client,
+							PROX_HT, 50);
+			if (ret < 0) {
+				dev_err(dev, "set PROX_LT error\n");
+				goto out;
+			}
 			enable_irq(isl29043_dev.client->irq);
 			val = i2c_smbus_read_byte_data(isl29043_dev.client,
 						       CFG_REG);
@@ -114,7 +129,7 @@ static int active_ps_set(struct device *dev, struct device_attribute *attr,
 				dev_err(dev, "read data error when enable\n");
 				goto out;
 			}
-			val |= PROX_EN;
+			val |= PROX_EN | PROX_SLP_100;
 			ret = i2c_smbus_write_byte_data(isl29043_dev.client,
 							CFG_REG, val);
 			if (ret < 0) {
@@ -168,13 +183,36 @@ static int active_als_set(struct device *dev, struct device_attribute *attr,
 		    (!atomic_read(&suspend_flag))) {
 			if (isl29043_dev.pdata && isl29043_dev.pdata->set_power)
 				isl29043_dev.pdata->set_power(1);
+			/*
+			 * set ALSIR low threshold to 0x0, set high threshold
+			 * to 0xFFF, so ALS will not trigger interrupt.
+			 */
+			ret = i2c_smbus_write_byte_data(isl29043_dev.client,
+							ALSIR_TH1, 0x0);
+			if (ret < 0) {
+				dev_err(dev, "set ALSIR_TH1 error\n");
+				goto out;
+			}
+			ret = i2c_smbus_write_byte_data(isl29043_dev.client,
+							ALSIR_TH2, 0xF0);
+			if (ret < 0) {
+				dev_err(dev, "set ALSIR_TH2 error\n");
+				goto out;
+			}
+			ret = i2c_smbus_write_byte_data(isl29043_dev.client,
+							ALSIR_TH3, 0xFF);
+			if (ret < 0) {
+				dev_err(dev, "set ALSIR_TH2 error\n");
+				goto out;
+			}
+
 			val = i2c_smbus_read_byte_data(isl29043_dev.client,
 						       CFG_REG);
 			if (val < 0) {
 				dev_err(dev, "read data error when enable\n");
 				goto out;
 			}
-			val |= ALS_EN;
+			val |= ALS_EN | ALS_RANGE_H;
 			ret = i2c_smbus_write_byte_data(isl29043_dev.client,
 							CFG_REG, val);
 			if (ret < 0) {
@@ -426,7 +464,7 @@ static void check_far_work(struct work_struct *work)
 
 		pr_debug("%s: near to far detect, ps_data = %d\n",
 			 __func__, isl29043_dev.ps_data);
-		cancel_delayed_work_sync(&ps_far_work);
+		cancel_delayed_work(&ps_far_work);
 	} else {
 		schedule_delayed_work(&ps_far_work,
 				      msecs_to_jiffies
@@ -475,39 +513,6 @@ static void isl29043_report_als_value(struct work_struct *work)
 	input_sync(isl29043_dev.input_dev_als);
 	schedule_delayed_work(&als_input_work,
 			      msecs_to_jiffies(isl29043_dev.als_interval));
-}
-
-static int isl29043_dev_init(void)
-{
-	int ret;
-	/* set configuration reg */
-	ret = i2c_smbus_write_byte_data(isl29043_dev.client, CFG_REG, 0x32);
-	if (ret < 0)
-		return ret;
-	/* set interrupt control reg */
-	ret = i2c_smbus_write_byte_data(isl29043_dev.client, INT_REG, 0x44);
-	if (ret < 0)
-		return ret;
-	/* set PROX_LT */
-	ret = i2c_smbus_write_byte_data(isl29043_dev.client, PROX_LT, 20);
-	if (ret < 0)
-		return ret;
-	/* set PROX_HT */
-	ret = i2c_smbus_write_byte_data(isl29043_dev.client, PROX_HT, 200);
-	if (ret < 0)
-		return ret;
-	/* set ALSIR low threshold to 0x0, set high threshold to 0xFFF */
-	ret = i2c_smbus_write_byte_data(isl29043_dev.client, ALSIR_TH1, 0x0);
-	if (ret < 0)
-		return ret;
-	ret = i2c_smbus_write_byte_data(isl29043_dev.client, ALSIR_TH2, 0xF0);
-	if (ret < 0)
-		return ret;
-	ret = i2c_smbus_write_byte_data(isl29043_dev.client, ALSIR_TH3, 0xFF);
-	if (ret < 0)
-		return ret;
-
-	return ret;
 }
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -580,11 +585,6 @@ static int isl29043_probe(struct i2c_client *client,
 	if (isl29043_dev.pdata && isl29043_dev.pdata->set_power)
 		isl29043_dev.pdata->set_power(1);
 
-	ret = isl29043_dev_init();
-	if (ret < 0) {
-		dev_err(&client->dev, "isl29043 init failed\n");
-		goto err_init;
-	}
 	INIT_WORK(&ps_near_work, ps_near_work_handler);
 	INIT_DELAYED_WORK(&ps_far_work, check_far_work);
 	INIT_DELAYED_WORK(&als_input_work, isl29043_report_als_value);
@@ -691,7 +691,6 @@ err_alloc_als:
 	input_free_device(isl29043_dev.input_dev_ps);
 	isl29043_dev.input_dev_ps = NULL;
 err_alloc_ps:
-err_init:
 	return ret;
 }
 
