@@ -447,7 +447,8 @@ static void isp_video_vb2_buf_queue(struct vb2_buffer *vb)
 	return;
 }
 
-static int isp_video_vb2_start_streaming(struct vb2_queue *vq)
+static int isp_video_vb2_start_streaming(struct vb2_queue *vq,
+		unsigned int count)
 {
 	return 0;
 }

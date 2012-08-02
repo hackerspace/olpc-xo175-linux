@@ -162,7 +162,8 @@ inline unsigned long get_dma_working_flag(struct isp_ispdma_device *ispdma)
 	return dma_working_flag;
 }
 
-static void ispdma_reg_dump(struct isp_ispdma_device *ispdma)
+static void __maybe_unused ispdma_reg_dump(
+			struct isp_ispdma_device *ispdma)
 {
 	struct mvisp_device *isp = to_mvisp_device(ispdma);
 	int cnt;

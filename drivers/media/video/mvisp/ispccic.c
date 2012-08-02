@@ -42,7 +42,7 @@ static const struct pad_formats ccic_output_fmts[] = {
 	{V4L2_MBUS_FMT_SBGGR10_1X10, V4L2_COLORSPACE_SRGB},
 };
 
-static void ccic_dump_regs(struct mvisp_device *isp)
+static void __maybe_unused ccic_dump_regs(struct mvisp_device *isp)
 {
 	unsigned long regval;
 

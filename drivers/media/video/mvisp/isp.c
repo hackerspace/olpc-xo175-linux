@@ -1020,7 +1020,7 @@ static int mvisp_prepare_dummy(struct mvisp_device *isp)
 static int mvisp_probe(struct platform_device *pdev)
 {
 	struct mvisp_platform_data *pdata = pdev->dev.platform_data;
-	struct platform_device_id *pid = platform_get_device_id(pdev);
+	const struct platform_device_id *pid = platform_get_device_id(pdev);
 	struct mvisp_device *isp;
 	int ret;
 	int i;
