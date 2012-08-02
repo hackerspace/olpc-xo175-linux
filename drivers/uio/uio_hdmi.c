@@ -199,7 +199,7 @@ static int hdmi_ioctl(struct uio_info *info, unsigned cmd, unsigned long arg,
 				 * disbaled and any operation not takes effects*/
 				if (late_disable_flag)
 					schedule_delayed_work(&hi->delay_disable,
-						msecs_to_jiffies(300));
+						msecs_to_jiffies(200));
 			}
 		}
 		if (copy_to_user(argp, &hpd, sizeof(int))) {
@@ -415,24 +415,23 @@ static void delayed_disable(struct work_struct *work)
 	struct hdmi_instance *hi = container_of((struct delayed_work *)work,
 			struct hdmi_instance, delay_disable);
 	if (late_disable_flag) {
-		if (atomic_read(&hdmi_state) == HDMI_OFF) {
 #if defined(CONFIG_CPU_PXA978)
+		if (atomic_read(&hdmi_state) == HDMI_OFF) {
 			if (hdmi_conv_on) {
 				printk(KERN_ERR "uio_hdmi: ERROR!!! hdmi clk should be off but lcd is still on ?!!\n");
 				WARN_ON(1);
 				return;
 			}
-			clk_disable(hi->clk);
 			update_lcd_controller_clock(0);
-#endif
-#if defined(CONFIG_CPU_MMP2)
-			clk_disable(hi->clk);
-#endif
-			late_disable_flag = 0;
 		} else {
-			printk(KERN_ERR "uio_hdmi: ERROR!!! hdmi is disconnect but clk is still on ?!!\n");
-			WARN_ON(1);
+			printk(KERN_WARNING "uio_hdmi: WARN!!! hdmi is connected but ask for clk off ?!!\n");
 		}
+#endif
+
+#if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_PXA978)
+		clk_disable(hi->clk);
+#endif
+		late_disable_flag = 0;
 	}
 }
 
