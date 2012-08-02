@@ -15,7 +15,6 @@
 #define __MMP_MACH_PXA988_LOWPOWER_H__
 
 #define LPM_NUM				16
-#define L2_MASK				(1 << LPM_NUM)
 #define HOTPLUG_MASK			(1 << LPM_NUM)
 #define MAX_CPU_NUM			0x2
 #define OFFSET_L2_SHUTDOWN		(MAX_CPU_NUM << 2)

@@ -29,7 +29,7 @@
  * The following Macros should be defined in mach/pxa988_lowpower.h
  *
  * #define LPM_NUM
- * #define L2_MASK
+ * #define OFFSET_L2_SHUTDOWN
  * #define OFFSET_SPINLOCK
  *
  * The topology of the reserved data is as following.
@@ -48,7 +48,9 @@
  * +---------------------------------------------------------------------+
  */
 
+#define SCU_CTRL		(SCU_PHYS_BASE + 0x00)
 #define SCU_CPU_POWER_STATUS    (SCU_PHYS_BASE + 0x08)
+#define SCU_INVALIDATE          (SCU_PHYS_BASE + 0x0c)
 /* We won't clear C1 and C2 flag in reset code */
 #define LPM_CLEAN_MASK		(1 << LPM_C2 | 1 << LPM_C1)
 
@@ -67,6 +69,7 @@
  * r1, the base physical address of pm reserved space
  */
 ENTRY(pxa988_cpu_resume_handler)
+	bl	v7_invalidate_l1	@ invalidate L1 first when back
 #ifdef CONFIG_SMP
 	/* fetch the CPU ID */
 	mrc 	p15, 0, r0, c0, c0, 5
@@ -92,13 +95,29 @@ ENTRY(pxa988_cpu_resume_handler)
 	bne     1b
 	dmb
 
+	ldr	r2, =SCU_CTRL
+	ldr	r3, [r2]
+	tst	r3, #1
+	/* enable SCU */
+	orreq	r3, r3, #1
+	streq	r3, [r2]
+	/* Invalidate both CPUs' SCU tag RAMs */
+	moveq	r4, #0xff
+	ldreq	r5, =SCU_INVALIDATE
+	streq	r4, [r5]
+
+	/* scu_power_mode(scu_base_addr, SCU_PM_NORMAL) */
+	ldr     r2, =SCU_CPU_POWER_STATUS
+	ldrb    r3, [r2, r0]
+	bic     r3, r3, #0x3
+	strb    r3, [r2, r0]
+
 	/* Clear cpu flags */
 	ldr     r2, [r1, r0, lsl #2]
 	mov	r3, #1
 	mov     r3, r3, lsl #LPM_NUM	@ 1 << LPM_NUM
 	sub	r3, r3, #1
 	bic	r3, #LPM_CLEAN_MASK	@ don't clear C1 and C2 flag
-	orr	r3, r3, #L2_MASK	@ clear L2_MASK too
 	bic	r2, r2, r3
 	str     r2, [r1, r0, lsl #2]
 #endif
@@ -111,6 +130,25 @@ ENTRY(pxa988_cpu_resume_handler)
 	ldr	r4, [r3, #L2X0_CTRL]
 	tst	r4, #0x1
 	bne	l2on
+
+	/* check whether the L2 Array has been powered down */
+	adr	r4, l2_shutdown
+	ldr	r5, [r4]
+	cmp     r5, #0		@ no, restore registers is enough
+	beq     pl310_restore
+	mov	r5, #0
+	str	r5, [r4]	@ clear it if setted
+pl310_inv_all:
+	mov     r4, #0xff00
+	orr	r4, #0xff
+	str     r4, [r3, #L2X0_INV_WAY]
+inv_wait:
+	ldr     r5, [r3,#L2X0_INV_WAY]
+	and     r5, r5, r4
+	cmp     r5, #0
+	bne     inv_wait
+	str     r5, [r3, #L2X0_CACHE_SYNC]
+pl310_restore:
 	ldmia   r2!, {r4-r7}
 	str     r5, [r3, #L2X0_AUX_CTRL]
 	str     r6, [r3, #L2X0_TAG_LATENCY_CTRL]
@@ -123,6 +161,11 @@ ENTRY(pxa988_cpu_resume_handler)
 	mov	r4, #1
 	str	r4, [r3, #L2X0_CTRL]
 l2on:
+#else
+	/* workaroud: M2 depends on L2 dynamic clock gating enabled */
+	ldr	r2, =SL2C_PHYS_BASE
+	mov	r3, #0x3
+	str	r3, [r2.#L2X0_POWER_CTRL]
 #endif
 
 #ifdef CONFIG_SMP
@@ -132,15 +175,12 @@ l2on:
 	str     r2, [r1, #OFFSET_SPINLOCK]
 	dsb
 	sev
-
-	/* scu_power_mode(scu_base_addr, SCU_PM_NORMAL) */
-	ldr     r1, =SCU_CPU_POWER_STATUS
-	ldrb    r2, [r1, r0]
-	bic     r2, r2, #0x3
-	strb    r2, [r1, r0]
 #endif
-	bl	v7_invalidate_l1
 	b	cpu_resume
+
+	.globl l2_shutdown
+l2_shutdown:
+	.long   0
 
 	.globl l2x0_regs_phys
 l2x0_regs_phys:
