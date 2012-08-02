@@ -94,11 +94,23 @@ enum ipi_msg_type {
 #define SGIR_ADDR_OFFSET	0x208
 #define APMU_BASE_ADDR_OFFSET	0x20c
 
+#define CC_OFFSET		0x300
+#define CC_ADDR_OFFSET		0x304
+#define CC2_OFFSET		0x308
+#define CC2_ADDR_OFFSET		0x30c
+#define CC3_OFFSET		0x310
+#define CC3_ADDR_OFFSET		0x314
+#define BUS_OFFSET		0x318
+#define BUS_ADDR_OFFSET		0x31c
+#define FCCR_OFFSET		0x320
+#define FCCR_ADDR_OFFSET	0x324
+
 static u32 num_cpus;
 static char *sync_buf;
 static volatile int *coherent_state;
 
 extern int mmp3_trigger_dfc_ll(u32 dfc_val, u32 buf_base);
+extern int mmp3_trigger_dfc_ll_b0p(u32 dfc_val, u32 buf_base);
 extern int mmp3_coherent_handler(u32 buf_base);
 extern int mmp3_enter_c2(u32 buf_base);
 
@@ -123,6 +135,11 @@ static void set_sync_buf(u32 offset, u32 val)
 	data = (u32 *)(sync_buf + offset);
 	*data = val;
 	return;
+}
+
+static u32 get_sync_buf(u32 offset)
+{
+	return *(u32 *)(sync_buf + offset);
 }
 
 void handle_coherency_maint_req(void *p)
@@ -753,6 +770,7 @@ static void mmp3_update_freq_plan(struct mmp3_pmu *pmu,
 				struct mmp3_freq_plan *pl)
 {
 	u32 val;
+
 	/* cc */
 	val = __raw_readl(pmu->cc);
 	val = MMP3_PROTECT_CC(val);	/*
@@ -765,7 +783,10 @@ static void mmp3_update_freq_plan(struct mmp3_pmu *pmu,
 	val = MMP3_FREQ_PH_SET(val, pl->core.ph_d);
 	val = MMP3_FREQ_DDR1_SET(val, pl->dram.pre_d);
 	val = MMP3_FREQ_AXI1_SET(val, pl->axi.aclk1_d);
-	__raw_writel(val, pmu->cc);
+
+	set_sync_buf(CC_OFFSET, (u32)val);
+	set_sync_buf(CC_ADDR_OFFSET, (u32)pmu->cc);
+
 	/* cc2 */
 	val = __raw_readl(pmu->cc2);
 	val = MMP3_PROTECT_CC2(val); /* clear SB0 bits */
@@ -774,24 +795,35 @@ static void mmp3_update_freq_plan(struct mmp3_pmu *pmu,
 	val = MMP3_FREQ_MP1_SET(val, pl->core.mp1_d);
 	val = MMP3_FREQ_MP2_SET(val, pl->core.mp2_d);
 	val = MMP3_FREQ_AXI2_SET(val, pl->axi.aclk2_d);
-	__raw_writel(val, pmu->cc2);
+
+	set_sync_buf(CC2_OFFSET, (u32)val);
+	set_sync_buf(CC2_ADDR_OFFSET, (u32)pmu->cc2);
+
 	/* cc3 */
 	val = __raw_readl(pmu->cc3);
 	val = MMP3_PROTECT_CC3(val); /* clear SB0 bits */
 	val = MMP3_FREQ_DDR2_SET(val, pl->dram.pre_d);
-	__raw_writel(val, pmu->cc3);
+
+	set_sync_buf(CC3_OFFSET, (u32)val);
+	set_sync_buf(CC3_ADDR_OFFSET, (u32)pmu->cc3);
+
 	/* bus clkrst*/
 	val = __raw_readl(pmu->bus);
 	val = MMP3_PROTECT_BUSCLKRST(val); /* clear SB0 bits */
 	val = MMP3_FREQ_ASRC_SET(val, pl->axi.asrc);
 	val = MMP3_FREQ_DSRC2_SET(val, pl->dram.dsrc); /* always same as ch1 */
-	__raw_writel(val, pmu->bus);
+
+	set_sync_buf(BUS_OFFSET, (u32)val);
+	set_sync_buf(BUS_ADDR_OFFSET, (u32)pmu->bus);
+
 	/* fccr */
 	val = __raw_readl(pmu->fccr);
 	val = MMP3_PROTECT_FCCR(val); /* clear SB0 bits */
 	val = MMP3_FREQ_PSRC_SET(val, pl->core.psrc);
 	val = MMP3_FREQ_DSRC_SET(val, pl->dram.dsrc);
-	__raw_writel(val, pmu->fccr);
+
+	set_sync_buf(FCCR_OFFSET, (u32)val);
+	set_sync_buf(FCCR_ADDR_OFFSET, (u32)pmu->fccr);
 }
 
 struct ddrdfc_param {
@@ -1312,7 +1344,7 @@ static void mmp3_dfc_trigger(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
 	BUG_ON(irqs_disabled());
 
 	/* compose trigger val */
-	dfc_val = __raw_readl(pmu->cc);
+	dfc_val = get_sync_buf(CC_OFFSET);
 	dfc_val = MMP3_PROTECT_CC(dfc_val); /* set reserved */
 	dfc_val = dfc_val | change | (MMP3_FREQCH_VOLTING);
 
@@ -1333,11 +1365,19 @@ static void mmp3_dfc_trigger(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
 	writel(wait, APMU_IMR);		/* unmask according irqs */
 	writel(0x0, APMU_ISR);		/* clear status */
 
-	if (change & (MMP3_FREQCH_CORE | MMP3_FREQCH_DRAM))
-		ret = mmp3_trigger_dfc_ll(dfc_val, (u32)sync_buf);
-	else {
+	if (change & (MMP3_FREQCH_CORE | MMP3_FREQCH_DRAM)) {
+		if (cpu_is_mmp3_b0p())
+			ret = mmp3_trigger_dfc_ll_b0p(dfc_val, (u32)sync_buf);
+		else
+			ret = mmp3_trigger_dfc_ll(dfc_val, (u32)sync_buf);
+	} else {
 		local_irq_disable();
-		__raw_writel(dfc_val, pmu->cc);
+		writel(get_sync_buf(CC_OFFSET), pmu->cc);
+		writel(get_sync_buf(CC2_OFFSET), pmu->cc2);
+		writel(get_sync_buf(CC3_OFFSET), pmu->cc3);
+		writel(get_sync_buf(BUS_OFFSET), pmu->bus);
+		writel(get_sync_buf(FCCR_OFFSET), pmu->fccr);
+		writel(dfc_val, pmu->cc);
 
 		for (try = 0; try < 1000; try++) {
 			done = readl(APMU_ISR);

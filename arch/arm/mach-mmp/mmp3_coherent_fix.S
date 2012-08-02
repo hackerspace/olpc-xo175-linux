@@ -85,6 +85,17 @@
 #define APMU_PJ_IDLE_CFG1	0x0200
 #define APMU_PJ_IDLE_CFG2	0x0204
 
+#define CC_OFFSET		0x300
+#define CC_ADDR_OFFSET		0x304
+#define CC2_OFFSET		0x308
+#define CC2_ADDR_OFFSET		0x30c
+#define CC3_OFFSET		0x310
+#define CC3_ADDR_OFFSET		0x314
+#define BUS_OFFSET		0x318
+#define BUS_ADDR_OFFSET		0x31c
+#define FCCR_OFFSET		0x320
+#define FCCR_ADDR_OFFSET	0x324
+
 #define DDR_FREQ_CHG_REQ2	(1 << 22)
 #define DDR_FREQ_CHG_REQ1	(1 << 25)
 #define AXI_FREQ_CHG_REQ	(1 << 26)
@@ -275,6 +286,73 @@ ENTRY(mmp3_flush_l1_cache)
 ENDPROC(mmp3_flush_l1_cache)
 
 /*
+ * mmp3_trigger_dfc_ll_b0p()
+ *
+ * low level function for triggerring DFC; should forbid any snooping
+ * operation during DFC, so need set the core to AMP mode and do not
+ * access any data which stored in cache.
+ *
+ * r0 = dfc value
+ * r1 = noncache buffer base address
+ *
+ */
+ENTRY(mmp3_trigger_dfc_ll_b0p)
+	stmfd	sp!, {r4-r5, r7, r9-r11, lr}
+
+	mov	dfc, r0			@ save dfc value
+	mov	ncb, r1			@ save base addr
+	get_cid cid			@ read core id
+	ldr	pmu, [ncb, #APMU_BASE_ADDR_OFFSET] @ ampu addr
+
+	coht_lock r0, r1, r2
+	cpsid	i
+
+	ldr	r0, [ncb, #CC_OFFSET]
+	ldr	r1, [ncb, #CC_ADDR_OFFSET]
+	str	r0, [r1]
+
+	ldr	r0, [ncb, #CC2_OFFSET]
+	ldr	r1, [ncb, #CC2_ADDR_OFFSET]
+	str	r0, [r1]
+
+	ldr	r0, [ncb, #CC3_OFFSET]
+	ldr	r1, [ncb, #CC3_ADDR_OFFSET]
+	str	r0, [r1]
+
+	ldr	r0, [ncb, #BUS_OFFSET]
+	ldr	r1, [ncb, #BUS_ADDR_OFFSET]
+	str	r0, [r1]
+
+	ldr	r0, [ncb, #FCCR_OFFSET]
+	ldr	r1, [ncb, #FCCR_ADDR_OFFSET]
+	str	r0, [r1]
+
+	mov	r1, #0x0
+	tst	dfc, #PJ_FREQ_CHG_REQ
+	orrne	r1, r1, #PJ_FREQ_CHG_DONE
+	tst	dfc, #AXI_FREQ_CHG_REQ
+	orrne	r1, r1, #AXI_FREQ_CHG_DONE
+	tst	dfc, #DDR_FREQ_CHG_REQ1
+	orrne	r1, r1, #DDR_FREQ_CHG_DONE1
+	tst	dfc, #DDR_FREQ_CHG_REQ2
+	orrne	r1, r1, #DDR_FREQ_CHG_DONE2
+
+	str	dfc, [pmu, #0x4]	@ set meltres cc register
+check_dfc_finish_b0p:
+	ldr	r0, [pmu, #0xa0]
+	and	r0, r0, r1
+	cmp	r0, r1
+	bne	check_dfc_finish_b0p
+
+	cpsie	i
+	coht_unlock r0, r1, r2
+
+	mov	r0, #0x0		@ set return value
+	ldmfd	sp!, {r4-r5, r7, r9-r11, lr}
+	mov	pc, lr
+ENDPROC(mmp3_trigger_dfc_ll_b0p)
+
+/*
  * mmp3_trigger_dfc_ll()
  *
  * low level function for triggerring DFC; should forbid any snooping
@@ -296,6 +374,26 @@ ENTRY(mmp3_trigger_dfc_ll)
 	coht_lock r0, r1, r2
 	cpsid	i
 
+	ldr	r0, [ncb, #CC_OFFSET]
+	ldr	r1, [ncb, #CC_ADDR_OFFSET]
+	str	r0, [r1]
+
+	ldr	r0, [ncb, #CC2_OFFSET]
+	ldr	r1, [ncb, #CC2_ADDR_OFFSET]
+	str	r0, [r1]
+
+	ldr	r0, [ncb, #CC3_OFFSET]
+	ldr	r1, [ncb, #CC3_ADDR_OFFSET]
+	str	r0, [r1]
+
+	ldr	r0, [ncb, #BUS_OFFSET]
+	ldr	r1, [ncb, #BUS_ADDR_OFFSET]
+	str	r0, [r1]
+
+	ldr	r0, [ncb, #FCCR_OFFSET]
+	ldr	r1, [ncb, #FCCR_ADDR_OFFSET]
+	str	r0, [r1]
+
 	mov	r0, #0x1		@ set handshake flag
 	set_hs_val r0, r1
 
@@ -308,7 +406,6 @@ ENTRY(mmp3_trigger_dfc_ll)
 	bl	req_peer_core_dis_fw
 
 	set_amp	r0
-	str	dfc, [pmu, #0x4]	@ set meltres cc register
 
 	mov	r1, #0x0
 	tst	dfc, #PJ_FREQ_CHG_REQ
@@ -320,6 +417,7 @@ ENTRY(mmp3_trigger_dfc_ll)
 	tst	dfc, #DDR_FREQ_CHG_REQ2
 	orrne	r1, r1, #DDR_FREQ_CHG_DONE2
 
+	str	dfc, [pmu, #0x4]	@ set meltres cc register
 check_dfc_finish:
 	ldr	r0, [pmu, #0xa0]
 	and	r0, r0, r1
