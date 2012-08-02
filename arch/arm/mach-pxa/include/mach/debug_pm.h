@@ -72,6 +72,8 @@ struct gc_vmeta_ticks {
 	unsigned int gc_stats_stop;
 	unsigned int vm_stats_start;
 	unsigned int vm_stats_stop;
+	u64 gc_total_ticks;
+	u64 vm_total_ticks;
 	struct gc_vmeta_op_cycle_type GC_op_ticks_array[GC_VM_OP_NUM_MAX];
 	struct gc_vmeta_op_cycle_type VM_op_ticks_array[GC_VM_OP_NUM_MAX];
 	struct mutex gc_stats_table_lock;
