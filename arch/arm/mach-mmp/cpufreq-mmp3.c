@@ -20,6 +20,7 @@
 #include <linux/clk.h>
 #include <linux/err.h>
 #include <linux/slab.h>
+#include <linux/reboot.h>
 #include <mach/mmp3_pm.h>
 #include <mach/smp.h>
 #include <plat/clock.h>
@@ -209,12 +210,27 @@ static int cpufreq_disable_notify(struct notifier_block *b,
 	return NOTIFY_OK;
 }
 
+static int cpufreq_reboot_notifier_call(struct notifier_block *this,
+                                       unsigned long code, void *_cmd)
+{
+       mutex_lock(&mmp3_cpu_lock);
+       pr_err("%s: disabling cpufreq\n", __func__);
+       cpufreq_disable = 1;
+       mutex_unlock(&mmp3_cpu_lock);
+
+       return NOTIFY_DONE;
+}
+
 static struct notifier_block cpufreq_min_notifier = {
 	.notifier_call = cpufreq_min_notify,
 };
 
 static struct notifier_block cpufreq_disable_notifier = {
 	.notifier_call = cpufreq_disable_notify,
+};
+
+static struct notifier_block cpufreq_reboot_notifier = {
+       .notifier_call = cpufreq_reboot_notifier_call,
 };
 
 static int mmp3_cpufreq_init(struct cpufreq_policy *policy)
@@ -373,6 +389,8 @@ static int __init cpufreq_init(void)
 	pm_qos_add_request(&cpufreq_qos_req_min, PM_QOS_CPUFREQ_MIN,
 			PM_QOS_DEFAULT_VALUE);
 
+	register_reboot_notifier(&cpufreq_reboot_notifier);
+
 	return cpufreq_register_driver(&mmp3_cpufreq_driver);
 
 _exit:
@@ -390,6 +408,8 @@ static void __exit cpufreq_exit(void)
 {
 	int i;
 	int num = num_possible_cpus();
+
+	unregister_reboot_notifier(&cpufreq_reboot_notifier);
 
 	for (i = 0; i < num; i++) {
 		if (!IS_ERR(freq_table[i]))
