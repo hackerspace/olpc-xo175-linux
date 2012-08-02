@@ -107,7 +107,7 @@ static int vcc_main_set_voltage(struct dvfs_rail *rail)
 	 * In pmic spec, voltage change speed is 12.5mV/us
 	 */
 	if (level == 3 && last_level == 3)
-		udelay(3);
+		udelay(volt3_high - volt3_low);
 
 	pxa978_set_voltage_level(level);
 	last_level = level;
