@@ -164,6 +164,7 @@ static int __cpuinit mmp3_pm_cpu_callback(struct notifier_block *nfb,
 	switch (action) {
 	case CPU_UP_PREPARE:
 	case CPU_UP_PREPARE_FROZEN:
+		cm_vote_mp1();
 		atomic_inc(&glb_hp_lock);
 		smp_mb();
 		break;
@@ -177,6 +178,7 @@ static int __cpuinit mmp3_pm_cpu_callback(struct notifier_block *nfb,
 	case CPU_UP_CANCELED:
 	case CPU_UP_CANCELED_FROZEN:
 		atomic_dec(&glb_hp_lock);
+		cm_cancel_vote_mp1();
 		break;
 #ifdef CONFIG_HOTPLUG_CPU
 	case CPU_DOWN_PREPARE:
@@ -196,6 +198,7 @@ static int __cpuinit mmp3_pm_cpu_callback(struct notifier_block *nfb,
 			nop();
 		atomic_dec(&glb_hp_lock);
 		smp_mb();
+		cm_cancel_vote_mp1();
 		break;
 #endif
 	}
@@ -1337,6 +1340,10 @@ static void mmp3_dfc_trigger(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
 	u32 dfc_val;
 	int done = 0, wait = 0, ret = 0;
 	int try;
+	int old, new;
+
+	old = pmu->pl_curr.khz[MMP3_CLK_MP1];
+	new = pl->khz[MMP3_CLK_MP1];
 
 	if (change == 0)
 		return;
@@ -1363,6 +1370,11 @@ static void mmp3_dfc_trigger(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
 		wait |= DDR_FREQ_CHG_DONE1;
 	if (change & MMP3_FREQCH_DRAM_CH2)
 		wait |= DDR_FREQ_CHG_DONE2;
+
+	if (change & MMP3_FREQCH_CORE) {
+		if ((old < new) && (new > 400000) && (old <= 400000))
+			cm_vote_mp1();
+	}
 
 	writel(wait, APMU_IMR);		/* unmask according irqs */
 	writel(0x0, APMU_ISR);		/* clear status */
@@ -1404,6 +1416,11 @@ static void mmp3_dfc_trigger(struct mmp3_pmu *pmu, struct mmp3_freq_plan *pl,
 	if (ret) {
 		printk(KERN_WARNING "%s: failed acquire lock\n", __func__);
 		return;
+	}
+
+	if (change & MMP3_FREQCH_CORE) {
+		if ((old > new) && (new <= 400000) && (old > 400000))
+			cm_cancel_vote_mp1();
 	}
 
 	/* now read back current frequency settings, for query*/

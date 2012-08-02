@@ -23,6 +23,7 @@
 #include <linux/reboot.h>
 #include <mach/mmp3_pm.h>
 #include <mach/smp.h>
+#include <mach/mmp_cm.h>
 #include <plat/clock.h>
 #include <linux/pm_qos_params.h>
 
@@ -286,6 +287,9 @@ static int __init cpufreq_init(void)
 {
 	int freq_table_item_count, i, j, k, core, freq;
 
+	/* add constraint for core morphing */
+	cm_vote_mp1();
+
 	freq_table_item_count = mmp3_get_pp_number();
 	/* FIXME: Here we assume all cores will be on before here! */
 	num_cpus = num_online_cpus();
@@ -356,19 +360,10 @@ static int __init cpufreq_init(void)
 #ifdef CONFIG_SMP
 		pr_err("only one core detected in cpufreq driver!\n");
 #endif
-#ifndef CONFIG_CORE_MORPHING
-		/* check if it's mm core */
-		if (hard_smp_processor_id() == 2) {
-			mmp3_core_num = ONE_CORE_MM;
-			core = MMP3_CLK_MM;
-		} else {
-			mmp3_core_num = ONE_CORE_MP1;
-			core = MMP3_CLK_MP1;
-		}
-#else
+
+		/* use mp1 core's value to register into cpufreq */
 		mmp3_core_num = ONE_CORE_MP1;
 		core = MMP3_CLK_MP1;
-#endif
 		for (j = 0, k = 0; j < freq_table_item_count; j++) {
 			freq = mmp3_get_pp_freq(j, core);
 			if (k > 0 &&
@@ -390,7 +385,6 @@ static int __init cpufreq_init(void)
 			PM_QOS_DEFAULT_VALUE);
 
 	register_reboot_notifier(&cpufreq_reboot_notifier);
-
 	return cpufreq_register_driver(&mmp3_cpufreq_driver);
 
 _exit:

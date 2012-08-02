@@ -28,6 +28,10 @@
 #include <linux/cpufreq.h>
 #include <linux/pm_qos_params.h>
 
+#ifdef CONFIG_CORE_MORPHING
+#include <mach/mmp_cm.h>
+#endif
+
 #define CPUMON 1
 
 #define CHECK_DELAY	(.5*HZ)
@@ -396,6 +400,17 @@ static struct kobj_type hotplug_dir_ktype = {
 
 static int __init mmp_pm_hotplug_init(void)
 {
+#ifdef CONFIG_CORE_MORPHING
+	/*
+	 * add constraint for core morphing, also enable core
+	 * morphing so that if hp and dfc release the constraint,
+	 * then the core morphing module can automatically
+	 * swap to mm core.
+	 */
+	cm_vote_mp1();
+	cm_enable();
+#endif
+
 	printk(KERN_INFO "mmp PM-hotplug init function\n");
 	hotplug_wq = create_singlethread_workqueue("dynamic hotplug");
 	if (!hotplug_wq) {
