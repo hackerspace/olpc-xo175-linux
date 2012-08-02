@@ -2102,6 +2102,8 @@ int pxa95x_clk_init(void)
 
 	clock_lookup_init(common_clkregs, ARRAY_SIZE(common_clkregs));
 	if (cpu_is_pxa978()) {
+		if (cpu_is_pxa978_Dx() && (max_pp > 6))
+			max_pp = 6;
 		/* Initialize the maximum frequencies  */
 		switch (max_pp) {
 		case 1:
