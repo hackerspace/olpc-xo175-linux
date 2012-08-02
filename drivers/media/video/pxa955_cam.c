@@ -45,6 +45,7 @@
 #include <media/v4l2-chip-ident.h>
 
 #include <linux/v4l2-mediabus.h>
+#include <linux/wakelock.h>
 #include <mach/dvfm.h>
 
 MODULE_AUTHOR("Qing Xu <qingx@marvell.com>");
@@ -315,6 +316,8 @@ struct pxa955_cam_dev {
 	/* vb2 facility */
 	struct vb2_queue *vq;
 	struct vb2_alloc_ctx *alloc_ctx;
+
+	struct wake_lock	wake_lock;
 
 #ifdef _CONTROLLER_DEADLOOP_RESET_
 	/* A timer to detect controller error, on which controller will be reset */
@@ -1525,6 +1528,7 @@ static int pxa955_cam_add_device(struct soc_camera_device *icd)
 			*pri_axi, *pri_gcu, *pri_ci1, *pri_ci2);
 #endif
 	}
+	wake_lock(&pcdev->wake_lock);
 
 	/* Start initialize of CSI to which sensor is attached */
 	/* Assume SCI can be connected to only one CSI at the same time*/
@@ -1629,6 +1633,7 @@ static void pxa955_cam_remove_device(struct soc_camera_device *icd)
 		}
 	}
 
+	wake_unlock(&pcdev->wake_lock);
 	pcdev->state = CAM_STATE_CLOSE;
 	if (cpu_is_pxa978_Dx())
 		cam_set_constrain(pcdev, dvfm_dev_idx);
@@ -2290,6 +2295,8 @@ static int pxa955_camera_probe(struct platform_device *pdev)
 		goto exit_free_irq;
 	}
 
+	wake_lock_init(&pcdev->wake_lock, WAKE_LOCK_SUSPEND,
+		kasprintf(GFP_KERNEL, "%s", PXA955_CAM_DRV_NAME));
 #ifdef _CONTROLLER_DEADLOOP_RESET_
 	init_timer(&pcdev->reset_timer);
 	pcdev->reset_timer.function = ccic_timeout_handler;
@@ -2357,9 +2364,8 @@ static struct platform_driver pxa955_camera_driver = {
 	.driver = {
 		.name = PXA955_CAM_DRV_NAME
 	},
-	.probe	= pxa955_camera_probe,
-	.remove	= pxa955_camera_remove,
-
+	.probe		= pxa955_camera_probe,
+	.remove		= pxa955_camera_remove,
 };
 
 static int __devinit pxa955_camera_init(void)
