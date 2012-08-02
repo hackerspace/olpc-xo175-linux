@@ -95,7 +95,9 @@ static int f1_count;
 static int vf0_count;
 static int vf1_count;
 static struct timer_list vsync_timer;
+#ifdef CONFIG_CPU_MMP3
 static int enable_3d_flg = 0;
+#endif
 
 static void vsync_check_timer(unsigned long data)
 {
@@ -881,21 +883,25 @@ static int pxa168fb_pan_display(struct fb_var_screeninfo *var,
 	return 0;
 }
 
+#ifdef CONFIG_CPU_MMP3
 extern void hdmi_3d_sync_view(int right);
+#endif
 static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 {
 	struct pxa168fb_info *fbi = (struct pxa168fb_info *)dev_id;
 	u32 isr_en = readl(fbi->reg_base + SPU_IRQ_ISR) &
 		readl(fbi->reg_base + SPU_IRQ_ENA);
 	u32 id, dispd, err, sts;
-	u32 val;
 
+#ifdef CONFIG_CPU_MMP3
+	u32 val;
 	if ((isr_en & TVSYNC_IRQ_MASK) && enable_3d_flg) {
 		/* hiden register bit22 is frame cnt for all video timing,
 		 * it is counting increasingly even no DMA is on */
 		val = readl(fbi->reg_base + LCD_FRAME_CNT);
 		hdmi_3d_sync_view(val & (1 << 22));
 	}
+#endif
 
 	if (ITC_INTERVAL) {
 		gettime(t1, ct1, 0);
@@ -1078,6 +1084,7 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 	case FB_IOCTL_CLEAR_FRAMEBUFFER:
 		pxa168fb_clear_framebuffer(info);
 		break;
+#ifdef CONFIG_CPU_MMP3
 	case FB_IOCTL_ENABLE_3D:
 		enable_3d_flg = arg;
 		if (arg)
@@ -1085,6 +1092,7 @@ static int pxa168_graphic_ioctl(struct fb_info *info, unsigned int cmd,
 		else /* disable tv vsync interrupts */
 			irq_mask_set(1, vsync_imask(1), 0);
 		break;
+#endif
 	case FB_IOCTL_WAIT_VSYNC:
 		param = (arg & 0x3);
 		wait_for_vsync(fbi, param);
