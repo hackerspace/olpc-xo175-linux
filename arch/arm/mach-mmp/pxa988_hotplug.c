@@ -21,25 +21,6 @@
 #include <mach/regs-apmu.h>
 #include <mach/pxa988_lowpower.h>
 
-static inline void core_exit_coherency(void)
-{
-	unsigned int v;
-	flush_cache_all();
-	dsb();
-	asm volatile(
-			/* CA9 leave coherency, clear ACTLR.smp&ACTLR.FW*/
-			"       mrc     p15, 0, %0, c1, c0, 1\n"
-			"       bic     %0, %0, #0x41\n"
-			"       mcr     p15, 0, %0, c1, c0, 1\n"
-			/* disable data and unified cache*/
-			"       mrc     p15, 0, %0, c1, c0, 0\n"
-			"       bic     %0, %0, %1\n"
-			"       mcr     p15, 0, %0, c1, c0, 0\n"
-			: "=&r" (v)
-			: "Ir" (CR_C)
-			: "cc");
-}
-
 
 static int pxa988_powergate_is_powered(u32 cpu)
 {
@@ -70,7 +51,6 @@ int platform_cpu_kill(unsigned int cpu)
 void platform_cpu_die(unsigned int cpu)
 {
 	/* we're ready for shutdown now, so do it */
-	core_exit_coherency();
 	pxa988_hotplug_enter(cpu, PXA988_LPM_D2_UDR);
 	/* Never get here, Reset from pxa988_secondary_startup */
 	panic("core reset should never get here");
