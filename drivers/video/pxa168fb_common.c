@@ -1022,6 +1022,10 @@ void set_dma_active(struct pxa168fb_info *fbi)
 		active = check_modex_active(fbi);
 
 	value = active ? enable : 0;
+#ifdef CONFIG_PXA988_LCD_PARALLEL
+	if (fbi->id && !fbi->vid)
+		value = 0;
+#endif
 	/* if video layer is full screen without alpha blending
 	 * then turn off graphics dma to save bandwidth */
 	if (fbi->vid && active) {
@@ -1046,6 +1050,12 @@ void set_dma_active(struct pxa168fb_info *fbi)
 
 	dma_ctrl_set(fbi->id, 0, flag, value);
 
+#ifdef CONFIG_PXA988_LCD_PARALLEL
+	if (fbi->id) {
+		dma_ctrl_set(fbi->id, 1, 0x40, 0x40);
+		dma_ctrl_set(fbi->id, 1, 0x40, 0);
+	}
+#endif
 	pr_debug("%s fbi %d: vid %d mask %x vaule %x fbi->active %d\
 		 new_addr %lu\n", __func__, fbi->id, fbi->vid, flag,
 		 value, fbi->active, (unsigned long)new_addr->startAddr[0]);

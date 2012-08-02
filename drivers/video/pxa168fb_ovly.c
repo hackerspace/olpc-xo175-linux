@@ -559,7 +559,10 @@ static int pxa168fb_ovly_ioctl(struct fb_info *fi, unsigned int cmd,
 			!fbi->buf_current)
 			/* switch on, but no buf flipped, return error */
 			; /* ret = -EAGAIN; */
-
+#ifdef CONFIG_PXA988_LCD_PARALLEL
+		else
+			dma_ctrl_set(fbi->id, 0, mask, val);
+#endif
 		printk(KERN_DEBUG "SWITCH_VID_OVLY fbi %d dma_on %d,"
 			" val %d, waitlist empty %d buf_current %p, ret %d\n",
 			fbi->id, fbi->dma_on, val,

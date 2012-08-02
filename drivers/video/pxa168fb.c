@@ -1362,15 +1362,30 @@ static void pxa168fb_set_default(struct pxa168fb_info *fbi,
 		struct pxa168fb_mach_info *mi)
 {
 	struct lcd_regs *regs = get_regs(fbi->id);
+#ifdef CONFIG_PXA988_LCD_PARALLEL
+	u32 dma_ctrl1 = 0x20328081, flag, tmp;
+#else
 	u32 dma_ctrl1 = 0x2032ff81, flag, tmp;
-
+#endif
 	/*
 	 * LCD Global control(LCD_TOP_CTRL) should be configed before
 	 * any other LCD registers read/write, or there maybe issues.
 	 */
 	tmp = readl(fbi->reg_base + LCD_TOP_CTRL);
 	tmp |= 0xfff0;		/* FIXME */
+#ifdef CONFIG_PXA988_LCD_PARALLEL
+	tmp |= 0x1 << 22;	/*TV DMA object go to panel */
+#endif
 	writel(tmp, fbi->reg_base + LCD_TOP_CTRL);
+
+#ifdef CONFIG_PXA988_LCD_PARALLEL
+	tmp = readl(fbi->reg_base + LCD_AFA_ALL2ONE);
+	tmp &= 0xfffffff0;
+
+	/* PN video DMA as first layer, TV video DMA as second layer */
+	tmp |= 0x8;
+	writel(tmp, fbi->reg_base + LCD_AFA_ALL2ONE);
+#endif
 
 	/* Configure default register values */
 	writel(mi->io_pad_ctrl, fbi->reg_base + SPU_IOPAD_CONTROL);
@@ -1773,8 +1788,14 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	/* Initialize private data */
 	fbi = info->par;
 	fbi->id = pdev->id;
-	fbi->vid = 0;
-
+#ifdef CONFIG_PXA988_LCD_PARALLEL
+	if (!fbi->id)
+		fbi->vid = 1;
+	else
+		fbi->vid = 0;
+#else
+		fbi->vid = 0;
+#endif
 	if (!fbi->id) {
 		memset(&gfx_info, 0, sizeof(gfx_info));
 		fbi->dma_on = 1;
