@@ -69,11 +69,6 @@ static inline int reg_to_volt(int value)
 	return  (value * 125 + 6000) / 10;
 }
 
-int is_wkr_1_2G_vmin(void)
-{
-	return 1;
-}
-
 static int vcc_main_set_voltage(struct dvfs_rail *rail)
 {
 	unsigned int level = 0;
@@ -87,16 +82,9 @@ static int vcc_main_set_voltage(struct dvfs_rail *rail)
 	else if (newvolts <= VOL_LEVL2)
 		level = 2;
 	else if (newvolts <= VOL_LEVL3_0) {
-		if (is_wkr_1_2G_vmin()) {
-			if (volt3_high && (cur_volt3 != volt3_high)) {
-				pm80x_reg_write(i2c, PM800_BUCK1_3, volt3_high);
-				cur_volt3 = volt3_high;
-			}
-		} else {
-			if (volt3_low && (cur_volt3 != volt3_low)) {
-				pm80x_reg_write(i2c, PM800_BUCK1_3, volt3_low);
-				cur_volt3 = volt3_low;
-			}
+		if (volt3_low && (cur_volt3 != volt3_low)) {
+			pm80x_reg_write(i2c, PM800_BUCK1_3, volt3_low);
+			cur_volt3 = volt3_low;
 		}
 		level = 3;
 	} else if (newvolts <= VOL_LEVL3_1) {
@@ -118,9 +106,8 @@ static int vcc_main_set_voltage(struct dvfs_rail *rail)
 	 * a while to make sure voltage value stable.
 	 * In pmic spec, voltage change speed is 12.5mV/us
 	 */
-	if (!is_wkr_1_2G_vmin())
-		if (level == 3 && last_level == 3)
-			udelay(3);
+	if (level == 3 && last_level == 3)
+		udelay(3);
 
 	pxa978_set_voltage_level(level);
 	last_level = level;
