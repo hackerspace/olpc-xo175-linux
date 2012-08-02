@@ -1644,11 +1644,11 @@ static void __init emeidkb_init(void)
 	/* off-chip devices */
 	platform_add_devices(ARRAY_AND_SIZE(dkb_platform_devices));
 
-#if defined(CONFIG_VIDEO_MV_)
+#if defined(CONFIG_VIDEO_MV)
 	pxa988_add_cam(&mv_cam_data);
 #endif
 
-#ifdef CONFIG_VIDEO_MV
+#ifdef CONFIG_VIDEO_MVISP
 	pxa988_init_dxoisp();
 #endif
 
