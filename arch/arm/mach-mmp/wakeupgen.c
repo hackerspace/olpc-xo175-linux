@@ -20,6 +20,7 @@
 #include <asm/hardware/gic.h>
 #include <mach/cputype.h>
 #include <mach/regs-icu.h>
+#include <mach/regs-apbc.h>
 
 #define ICU_INT_CONF_CPU1	(1 << 7)
 #define ICU_INT_CONF_CPU0	(1 << 6)
@@ -110,6 +111,21 @@ void __init mmp_wakeupgen_init(void)
 	 */
 	for (irq = 0; irq < 64; irq++)
 		__raw_writel(ICU_IRQ_CPU0_MASKED, ICU_INT_CONF(irq));
+
+#ifdef CONFIG_CPU_PXA988
+	/*
+	 * WORKAROUND: "Trigger IPC interrupt to wake cores when sending IPI"
+	 * Enable the IPC AP3 in ICU to let the IPC interrupt be able to
+	 * wake up two AP cores.
+	 */
+	__raw_writel(APBC_APBCLK | APBC_RST, APBC_PXA988_IPC);
+	__raw_writel(APBC_APBCLK | APBC_FNCLK, APBC_PXA988_IPC);
+
+	#define ICU_IRQ_CPU_ALL_ENABLE	(ICU_INT_CONF_IRQ_FIQ |\
+		ICU_INT_CONF_CPU0 | ICU_INT_CONF_CPU1 | ICU_INT_CONF_PRIO(2))
+	irq = IRQ_PXA988_IPC_AP3 - IRQ_PXA988_START;
+	__raw_writel(ICU_IRQ_CPU_ALL_ENABLE, ICU_INT_CONF(irq));
+#endif
 
 	gic_arch_extn.irq_mask = icu_mask_irq;
 	gic_arch_extn.irq_unmask = icu_unmask_irq;

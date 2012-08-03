@@ -29,6 +29,8 @@ extern void pxa988_secondary_startup(void);
 extern void pxa988_cpu_reset_handler(void);
 
 extern void pxa_cpu_reset(u32 cpu);
+extern void pxa988_gic_raise_softirq(const struct cpumask *mask,
+	unsigned int irq);
 #endif
 
 #ifdef CONFIG_PM

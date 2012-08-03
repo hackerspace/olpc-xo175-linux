@@ -51,7 +51,7 @@ void pxa_cpu_reset(u32 cpu)
 		writel(tmp, PMU_CC2_AP);
 		smp_wmb();
 	} else
-		gic_raise_softirq(cpumask_of(cpu), 1);
+		pxa988_gic_raise_softirq(cpumask_of(cpu), 1);
 }
 #endif
 

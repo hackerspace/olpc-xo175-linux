@@ -124,6 +124,20 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 	return pen_release != -1 ? -ENOSYS : 0;
 }
 
+#ifdef CONFIG_CPU_PXA988
+#define IPCC_VIRT_BASE	(APB_VIRT_BASE + 0x1D800)
+void pxa988_gic_raise_softirq(const struct cpumask *mask, unsigned int irq)
+{
+	/*
+	 * WORKAROUND: "Trigger IPC interrupt to wake cores when sending IPI"
+	 * Trigger IPC GP_INT to generate IRQ19 as wake up source inside the
+	 * ICU to wake up the cores when sending IPI.
+	 */
+	gic_raise_softirq(mask, irq);
+	__raw_writel(0x400, IPCC_VIRT_BASE + 0x8); /* IPC_ISRW */
+}
+#endif
+
 /*
  * Initialise the CPU possible map early - this describes the CPUs
  * which may be present or become present in the system.
@@ -135,7 +149,11 @@ void __init smp_init_cpus(void)
 	for (i = 0; i < ncores; i++)
 		set_cpu_possible(i, true);
 
+#ifdef CONFIG_CPU_PXA988
+	set_smp_cross_call(pxa988_gic_raise_softirq);
+#else
 	set_smp_cross_call(gic_raise_softirq);
+#endif
 }
 
 void __init platform_smp_prepare_cpus(unsigned int max_cpus)

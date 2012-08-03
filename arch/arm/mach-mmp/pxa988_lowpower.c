@@ -66,6 +66,9 @@ static u32 *enter_lpm_p;
 static spinlock_t *lpm_lock_p;
 #endif
 
+/* WORKAROUND: "Trigger IPC interrupt to wake cores when sending IPI" */
+#define IPCA_VIRT_BASE  (APB_VIRT_BASE + 0x1D000)
+
 enum {
 	CPU_SUSPEND_FROM_IDLE,
 	CPU_SUSPEND_FROM_HOTPLUG,
@@ -352,6 +355,12 @@ struct pxa988_lowpower_data pxa988_lpm_data[] = {
 #ifdef CONFIG_PM
 static void pxa988_enter_c1(u32 cpu)
 {
+	/*
+	 * Clear IPC GP_INT interrupt status in the ICU to de-assert
+	 * the wake up signal before enter lpm.
+	 */
+	__raw_writel(0x400, IPCA_VIRT_BASE + 0xC);
+
 	pxa988_lowpower_config(cpu,
 			pxa988_lpm_data[PXA988_LPM_C1].power_state, 1);
 	cpu_do_idle();
@@ -368,6 +377,12 @@ static void pxa988_pre_enter_lpm(u32 cpu, u32 power_mode)
 	pxa988_gic_global_mask(cpu, 1);
 	/* Mask ICU global interrupt */
 	pxa988_icu_global_mask(cpu, 1);
+
+	/*
+	 * Clear the IPC GP_INT interrupt status in the ICU to de-assert
+	 * the wake up signal before enter lpm.
+	 */
+	__raw_writel(0x400, IPCA_VIRT_BASE + 0xC);
 }
 
 static void pxa988_post_enter_lpm(u32 cpu, u32 power_mode)
