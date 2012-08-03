@@ -3265,6 +3265,7 @@ static int __init mmp3_clk_init(void)
 	for (i = 0; i < ARRAY_SIZE(mmp3_list_clks); i++)
 		mmp3_init_one_clock(&mmp3_list_clks[i]);
 
+	clk_set_cansleep(&mmp3_clk_ddr);
 	return 0;
 }
 
