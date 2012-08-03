@@ -2048,6 +2048,97 @@ static void cken_clear_always_set_always_setup(void)
 	}
 }
 
+static void setup_max_pp()
+{
+	/* Initialize the maximum frequencies  */
+	if (cpu_is_pxa978_Dx()) {
+		if (max_pp > 6)
+			max_pp = 6;
+
+		switch (max_pp) {
+		case 1:
+			max_core = 156;
+			max_gc = 156 * MHZ_TO_HZ;
+			max_vmeta = 156 * MHZ_TO_HZ;
+			break;
+		case 2:
+			max_core = 312;
+			max_gc = 156 * MHZ_TO_HZ;
+			max_vmeta = 156 * MHZ_TO_HZ;
+			break;
+		case 3:
+			max_core = 416;
+			max_gc = 312 * MHZ_TO_HZ;
+			max_vmeta = 312 * MHZ_TO_HZ;
+			break;
+		case 4:
+			max_core = 728;
+			max_gc = 481 * MHZ_TO_HZ;
+			max_vmeta = 481 * MHZ_TO_HZ;
+			break;
+		case 5:
+			max_core = 1196;
+			max_gc = 600 * MHZ_TO_HZ;
+			max_vmeta = 600 * MHZ_TO_HZ;
+			break;
+		case 6:
+			max_core = 1404;
+			max_gc = 600 * MHZ_TO_HZ;
+			max_vmeta = 600 * MHZ_TO_HZ;
+			break;
+		default:
+			printk(KERN_ERR "Not supported max pp!\n");
+			break;
+		}
+		min_gc = 0;
+	} else {
+		if (max_pp > 7)
+			max_pp = 7;
+		switch (max_pp) {
+		case 1:
+			max_core = 156;
+			max_gc = 156 * MHZ_TO_HZ;
+			max_vmeta = 156 * MHZ_TO_HZ;
+			break;
+		case 2:
+			max_core = 312;
+			max_gc = 156 * MHZ_TO_HZ;
+			max_vmeta = 156 * MHZ_TO_HZ;
+			break;
+		case 3:
+			max_core = 624;
+			max_gc = 312 * MHZ_TO_HZ;
+			max_vmeta = 312 * MHZ_TO_HZ;
+			break;
+		case 4:
+			max_core = 806;
+			max_gc = 498 * MHZ_TO_HZ;
+			max_vmeta = 498 * MHZ_TO_HZ;
+			break;
+		case 5:
+			max_core = 1014;
+			max_gc = 498 * MHZ_TO_HZ;
+			max_vmeta = 498 * MHZ_TO_HZ;
+			break;
+		case 6:
+			max_core = 1196;
+			max_gc = 600 * MHZ_TO_HZ;
+			max_vmeta = 600 * MHZ_TO_HZ;
+			break;
+		case 7:
+			max_core = 1404;
+			max_gc = 600 * MHZ_TO_HZ;
+			max_vmeta = 600 * MHZ_TO_HZ;
+			break;
+		default:
+			printk(KERN_ERR "Not supported max pp!\n");
+			break;
+		}
+		min_gc = 0;
+	}
+}
+
+
 int pxa95x_clk_init(void)
 {
 	cken_clear_always_set_always_setup();
@@ -2102,64 +2193,7 @@ int pxa95x_clk_init(void)
 
 	clock_lookup_init(common_clkregs, ARRAY_SIZE(common_clkregs));
 	if (cpu_is_pxa978()) {
-		if (cpu_is_pxa978_Dx() && (max_pp > 6))
-			max_pp = 6;
-		/* Initialize the maximum frequencies  */
-		switch (max_pp) {
-		case 1:
-			max_core = 156;
-			max_gc = 156 * MHZ_TO_HZ;
-			max_vmeta = 156 * MHZ_TO_HZ;
-			break;
-		case 2:
-			max_core = 312;
-			max_gc = 156 * MHZ_TO_HZ;
-			max_vmeta = 156 * MHZ_TO_HZ;
-			break;
-		case 3:
-			max_core = 624;
-			max_gc = 312 * MHZ_TO_HZ;
-			max_vmeta = 312 * MHZ_TO_HZ;
-			break;
-		case 4:
-			max_core = 806;
-			if (cpu_is_pxa978_Dx()) {
-				max_gc = 481 * MHZ_TO_HZ;
-				max_vmeta = 481 * MHZ_TO_HZ;
-			} else {
-				max_gc = 498 * MHZ_TO_HZ;
-				max_vmeta = 498 * MHZ_TO_HZ;
-			}
-			break;
-		case 5:
-			max_core = 1014;
-			if (cpu_is_pxa978_Dx()) {
-				max_gc = 481 * MHZ_TO_HZ;
-				max_vmeta = 481 * MHZ_TO_HZ;
-			} else {
-				max_gc = 498 * MHZ_TO_HZ;
-				max_vmeta = 498 * MHZ_TO_HZ;
-			}
-			break;
-		case 6:
-			max_core = 1196;
-			max_gc = 600 * MHZ_TO_HZ;
-			max_vmeta = 600 * MHZ_TO_HZ;
-			break;
-		case 7:
-			max_core = 1404;
-			max_gc = 600 * MHZ_TO_HZ;
-			max_vmeta = 600 * MHZ_TO_HZ;
-			break;
-		case 8:
-			max_core = 1508;
-			max_gc = 600 * MHZ_TO_HZ;
-			max_vmeta = 600 * MHZ_TO_HZ;
-			break;
-		}
-
-		min_gc = 0;
-
+		setup_max_pp();
 		if (!gc_freq_counts)
 			get_gcu_freqs_table(gc_cur_freqs_table, &gc_freq_counts, ARRAY_SIZE(gc_cur_freqs_table));
 		clock_lookup_init(pxa978_specific_clkregs,
