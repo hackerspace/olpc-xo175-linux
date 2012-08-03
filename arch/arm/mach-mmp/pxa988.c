@@ -378,13 +378,9 @@ static void pxa988_l2_cache_init(void)
 	l2x0_base = ioremap(SL2C_PHYS_BASE, SZ_4K);
 	BUG_ON(!l2x0_base);
 
-	/*
-	 * TAG, Data Latency Control
-	 * The default value for pxa988 is all 8 cycles which should be safe.
-	 * But we may need to change it after do some test on real silicon.
-	 * writel_relaxed(0x010, l2x0_base + L2X0_TAG_LATENCY_CTRL);
-	 * writel_relaxed(0x010, l2x0_base + L2X0_DATA_LATENCY_CTRL);
-	 */
+	/* TAG, Data Latency Control */
+	writel_relaxed(0x010, l2x0_base + L2X0_TAG_LATENCY_CTRL);
+	writel_relaxed(0x010, l2x0_base + L2X0_DATA_LATENCY_CTRL);
 
 	/* L2X0 Power Control  */
 	writel_relaxed(0x3, l2x0_base + L2X0_POWER_CTRL);
