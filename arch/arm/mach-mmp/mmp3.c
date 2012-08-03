@@ -1180,7 +1180,7 @@ static void mmp_zsp_domain_on(int spd, int src, int asclk)
 	/* set SSPA to fast audio PLL with M/N divider */
 	__raw_modify(ZSP_AUD_SSP_CLK_RES, 0x0, 0x30000);
 	__raw_modify(ZSP_AUD_SLIM_CLK_RES, 0xFFFFFFFF, 0x00100100);
-	__raw_modify(ZSP_AUD_SLIM_CLK_RES_2, 0x3FFFFFFF, 0xC0010002);
+	__raw_modify(ZSP_AUD_SLIM_CLK_RES_2, 0x3FFFFFFF, 0xC0040008);
 	__raw_modify(ZSP_AUD_SLIM_CLK_RES, 0x0, 0xE);
 
 	/* config ZSP core peripherals */
