@@ -11,7 +11,10 @@
 
 #include <linux/module.h>
 #include <linux/clk.h>
+#include <linux/debugfs.h>
+#include <linux/uaccess.h>
 #include <plat/clock.h>
+#include <plat/debugfs.h>
 #include <plat/dvfs.h>
 
 
@@ -188,3 +191,99 @@ static int __init pxa988_init_dvfs(void)
 	return 0;
 }
 subsys_initcall(pxa988_init_dvfs);
+
+#ifdef CONFIG_DEBUG_FS
+static void attach_clk_auto_dvfs(const char *name, unsigned int endis)
+{
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(vm_rail_comp_tbl); i++) {
+		if ((vm_rail_comp_tbl[i].auto_dvfs) && \
+			(!strcmp(vm_rail_comp_tbl[i].clk_name, name)))
+			break;
+	}
+	if (i >= ARRAY_SIZE(vm_rail_comp_tbl)) {
+		pr_err("clk %s doesn't support dvfs\n", name);
+		return;
+	}
+
+	if (!endis)
+		vm_rail_comp_tbl[i].clk_node->dvfs = NULL;
+	else
+		vm_rail_comp_tbl[i].clk_node->dvfs =
+			vm_rail_comp_tbl[i].dvfs;
+	pr_info("%s clk %s auto dvfs!\n",
+		endis ? "Enable" : "Disable", name);
+}
+
+static ssize_t dc_clk_dvfs_write(struct file *filp,
+	const char __user *buffer, size_t count, loff_t *ppos)
+{
+	char buf[32] = {0};
+	char name[10] = {0};
+	unsigned int enable_dvfs = 0;
+
+	if (copy_from_user(buf, buffer, count))
+		return -EFAULT;
+
+	if (0x2 != sscanf(buf, "%s %u", name, &enable_dvfs)) {
+		pr_info("[cmd guide]echo clkname(cpu/ddr/GCCLK/VPUCLK) "
+			"enable(0/1) > file node\n");
+		return count;
+	}
+	attach_clk_auto_dvfs(name, enable_dvfs);
+	return count;
+}
+
+static ssize_t dc_clk_dvfs_read(struct file *filp,
+	char __user *buffer, size_t count, loff_t *ppos)
+{
+	char buf[156];
+	int len = 0;
+	size_t size = sizeof(buf) - 1;
+	struct clk *clk_node;
+	unsigned int i;
+	const char *clk_name;
+
+	len = snprintf(buf, size, "| name\t| auto_dvfs |\n");
+	for (i = 0; i < ARRAY_SIZE(vm_rail_comp_tbl); i++) {
+		if (vm_rail_comp_tbl[i].auto_dvfs) {
+			clk_name = vm_rail_comp_tbl[i].clk_name;
+			clk_node = vm_rail_comp_tbl[i].clk_node;
+			len += snprintf(buf + len, size - len,
+				"| %s\t| %d |\n", clk_name,
+				clk_is_dvfs(clk_node));
+		}
+	}
+	return simple_read_from_buffer(buffer, count, ppos, buf, len);
+}
+
+/*
+ * Disable clk auto dvfs function, only avaiable when
+ * has no corresponding clk FC
+ */
+const struct file_operations dc_clk_dvfs_fops = {
+	.write = dc_clk_dvfs_write,
+	.read = dc_clk_dvfs_read,
+};
+
+static int __init pxa988_dvfs_create_debug_node(void)
+{
+	struct dentry *dvfs_node;
+	struct dentry *dc_dvfs;
+
+	dvfs_node = debugfs_create_dir("dvfs", pxa);
+	if (!dvfs_node)
+		return -ENOENT;
+
+	dc_dvfs = debugfs_create_file("dc_clk_dvfs", 0666,
+		dvfs_node, NULL, &dc_clk_dvfs_fops);
+	if (!dc_dvfs)
+		goto err_dc_dvfs;
+
+err_dc_dvfs:
+	debugfs_remove(dvfs_node);
+	return -ENOENT;
+}
+late_initcall(pxa988_dvfs_create_debug_node);
+#endif
