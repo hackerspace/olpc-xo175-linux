@@ -749,7 +749,7 @@ static void ssd253x_finger_up(struct input_dev *input, int id)
 
 #define X_COOR (reg_buff[0] + (((u16)reg_buff[2] & 0xF0) << 4))
 #define Y_COOR (reg_buff[1] + (((u16)reg_buff[2] & 0x0F) << 8))
-#define PRESS_PRESSURE (1+(reg_buff[3] >> 4) & 0x0F)
+#define PRESS_PRESSURE (1 + ((reg_buff[3] >> 4) & 0x0F))
 #define PRESS_SPEED  (reg_buff[3]&0x0F)
 #define SPEED_EST_TH	3
 #define SPEED_EST_RATE	3
