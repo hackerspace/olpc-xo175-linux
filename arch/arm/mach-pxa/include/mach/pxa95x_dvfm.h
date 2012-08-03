@@ -54,6 +54,10 @@ extern void switch_vmeta_cg_constraint(int enable);
 #define DEBUG_DRIVER_REMOVE_REQ_OFFSET 20
 
 #define FORCE_LPM 110
+
+#define DDR_ENTRY_SIZE 8	/*One entry includes two 32-bit data*/
+#define DDR_FROFILE_MAX_NUM 10
+#define DDR_ENTRY_MAX_NUM 32
 /* This structure is used to count the number of times we enter/exit
  * D2/CGM/DOCS
  */

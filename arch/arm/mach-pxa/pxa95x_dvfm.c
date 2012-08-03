@@ -145,6 +145,74 @@ static int dvfm_dev_id;
 
 static struct clk *clk_syspll416;
 
+struct reg_table_profile {
+	unsigned int freq;
+	u32 offset[32];
+	u32 data[32];
+};
+
+struct reg_table_profile reg_table_profiles[DDR_FROFILE_MAX_NUM];
+unsigned int used_pro_count = 0;
+unsigned int entry_count[DDR_FROFILE_MAX_NUM];
+unsigned long ddr_prof_data_base_init = 0;
+void ddr_reg_table_init(unsigned int ddr_prof_data_base)
+{
+	void __iomem *ddr_prof_data_base_Addr;
+
+	pr_debug("%s, DDR_Reg Base: 0x%X\n", __func__, ddr_prof_data_base);
+
+	ddr_prof_data_base_Addr = ioremap(ddr_prof_data_base, sizeof(reg_table_profiles));
+
+	if (ddr_prof_data_base) {
+		u32 base = 0;
+
+		memset(entry_count, 0, sizeof(entry_count));
+		memset(reg_table_profiles, 0, sizeof(reg_table_profiles));
+
+		for (used_pro_count = 0; used_pro_count < DDR_FROFILE_MAX_NUM; used_pro_count++) {
+			reg_table_profiles[used_pro_count].freq = readl(ddr_prof_data_base_Addr + base);
+			base += sizeof(reg_table_profiles[used_pro_count].freq);
+
+			if (!reg_table_profiles[used_pro_count].freq)
+				break;
+			pr_debug("Freq: %d MHz\n", reg_table_profiles[used_pro_count].freq);
+			pr_debug("Profile: %d\n", used_pro_count);
+
+			while (1) {
+				u32 data, offset;
+
+				offset = readl(ddr_prof_data_base_Addr + base);
+				base += (DDR_ENTRY_SIZE / 2);
+				reg_table_profiles[used_pro_count].offset[entry_count[used_pro_count]] = offset;
+
+				data = readl(ddr_prof_data_base_Addr + base);
+				base += (DDR_ENTRY_SIZE / 2);
+				reg_table_profiles[used_pro_count].data[entry_count[used_pro_count]] = data;
+
+				pr_debug("OFFSET: 0x%X,  Data: 0x%X\n", offset, data);
+
+				entry_count[used_pro_count]++;
+				if ((!offset && !data) || (!(entry_count[used_pro_count] < DDR_ENTRY_MAX_NUM)))
+					break;
+			}
+			if (entry_count[used_pro_count] < DDR_ENTRY_MAX_NUM)
+				base += ((DDR_ENTRY_MAX_NUM - entry_count[used_pro_count]) * DDR_ENTRY_SIZE);
+		}
+		pr_info("%d Profiles are initated\n", used_pro_count);
+	} else
+		pr_err("DDR base Address is not valid");
+	iounmap(ddr_prof_data_base_Addr);
+}
+
+static int reg_base_init(char *buf)
+{
+	int res = 0;
+	res = strict_strtoul(buf, 16, &ddr_prof_data_base_init);
+	return res;
+}
+
+__setup("MCPD=", reg_base_init);
+
 /* define the operating point of S0D0 mode */
 static struct dvfm_md_opt pxa955_op_array[] = {
 	/* 156MHz -- single PLL mode */
@@ -3862,6 +3930,7 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 		       "pxa9xx_freq_probe:Unable to find 'User' driver\n");
 		BUG_ON(1);
 	}
+	ddr_reg_table_init(ddr_prof_data_base_init);
 	return rc;
 err:
 	printk(KERN_ERR "pxa95x_dvfm init failed\n");
