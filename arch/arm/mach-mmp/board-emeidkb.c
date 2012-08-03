@@ -34,6 +34,7 @@
 #include <linux/spi/spi.h>
 #include <linux/spi/pxa2xx_spi.h>
 #include <linux/spi/cmmb.h>
+#include <linux/mfd/88pm80x.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -1604,9 +1605,19 @@ static void __init pxa988_init_device_vpudevfreq(void)
 }
 #endif
 
+#define PM800_SW_PDOWN			(1 << 5)
+static void emei_dkb_poweroff(void)
+{
+	printk(KERN_INFO"turning off power....\n");
+	pm80x_codec_reg_set_bits((PM80X_BASE_PAGE << 8) | PM800_WAKEUP1,
+				 PM800_SW_PDOWN, PM800_SW_PDOWN);
+}
+
 static void __init emeidkb_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(emeidkb_pin_config));
+
+	pm_power_off = emei_dkb_poweroff;
 
 	/* backlight */
 	platform_device_register(&emei_dkb_lcd_backlight_devices);
