@@ -2217,6 +2217,25 @@ struct clkops pwm_clk_ops = {
 	.disable = pwm_clk_disable,
 };
 
+#define USB_AXICLK_EN	(1 << 3)
+#define USB_AXI_RST		(1 << 0)
+static int udc_clk_enable(struct clk *clk)
+{
+	__raw_writel((USB_AXICLK_EN | USB_AXI_RST),\
+				clk->clk_rst);
+	return 0;
+}
+
+static void udc_clk_disable(struct clk *clk)
+{
+	__raw_writel(USB_AXI_RST, clk->clk_rst);
+}
+
+struct clkops udc_clk_ops = {
+	.enable = udc_clk_enable,
+	.disable = udc_clk_disable,
+};
+
 #define APBC_CLK(_name, _dev, _con, _reg, _fnclksel, _rate, _parent)\
 {							\
 	.name = _name,					\
@@ -2350,8 +2369,8 @@ static struct clk pxa988_list_clks[] = {
 		APBC_PXA988_PWM3, 0, 13000000, NULL, &pwm_clk_ops),
 
 	/* APMU: _name, _dev, _con, _reg, _eval, _rate, _parent */
-	APMU_CLK("udc", NULL, "UDCCLK", APMU_USB,
-			0x9, 480000000, NULL),
+	APBC_CLK_OPS("udc", NULL, "UDCCLK", APMU_USB,
+			0x9, 480000000, NULL, &udc_clk_ops),
 	APMU_CLK("ire", "pxa910-ire.0", NULL, APMU_IRE,
 			0x9, 480000000, NULL),
 
