@@ -1361,16 +1361,12 @@ static struct clk gc_aclk = {
  * 2. Please don't select aclk from pll2 but fclk from pll1,
  * as aclk is not exposed as a clock node. Pll2 may be
  * shutdown if no clock node is using it.
- * TODO: GC 624M is unsafe PP in Z0, enable it after SV
- * confirm it is safe to be used.
  */
 static struct periph_clk_tbl gc_clk_tbl[] = {
 	{.fclk = 156000000, .aclk = 156000000, .fparent = &pll1_624},
 	{.fclk = 312000000, .aclk = 208000000, .fparent = &pll1_624},
 	{.fclk = 416000000, .aclk = 312000000, .fparent = &pll1_416},
-#if 0
-	{.fclk = 624000000, .aclk = 312000000, .fparent = &pll1_624},
-#endif
+	{.fclk = 624000000, .aclk = 400000000, .fparent = &pll1_624},
 };
 
 /* interface used by GC driver to get avaliable GC frequencies, unit HZ */
