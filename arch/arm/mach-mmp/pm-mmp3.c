@@ -41,8 +41,10 @@
 #include <mach/mmp3_pm.h>
 #include <mach/smp.h>
 #include <mach/mmp_cm.h>
+#include <linux/fb.h>
 
 static DEFINE_SPINLOCK(dfcsch_lock);
+atomic_t mmp3_fb_is_suspended = ATOMIC_INIT(0);
 
 static inline int mmp3_smpid(void)
 {
@@ -628,6 +630,26 @@ static void mmp3_clear_PJ_RD_STATUS(struct mmp3_pmu *pmu)
 	val = val & (~(1u << 31));
 	__raw_writel(val, pmu->cc);
 }
+
+static int mmp3_fb_notifier_callback(struct notifier_block *self,
+		unsigned long event, void *data)
+{
+	struct fb_event *evdata = data;
+
+	if ((event == FB_EVENT_SUSPEND) || ((event == FB_EVENT_BLANK) &&
+			(*(int *)evdata->data != FB_BLANK_UNBLANK)))
+		atomic_set(&mmp3_fb_is_suspended, 1);
+	else if ((event == FB_EVENT_RESUME) || ((event == FB_EVENT_BLANK) &&
+			(*(int *)evdata->data == FB_BLANK_UNBLANK)))
+		atomic_set(&mmp3_fb_is_suspended, 0);
+
+	return 0;
+}
+
+static struct notifier_block mmp3_fb_notif = {
+	.notifier_call = mmp3_fb_notifier_callback,
+};
+
 
 static void mmp3_get_freq_plan(struct mmp3_pmu *pmu,
 				struct mmp3_freq_plan *pl, bool crs)
@@ -2266,6 +2288,10 @@ static int __init mmp3_pm_init(void)
 	register_cpu_notifier(&mmp3_pm_cpu_notifier);
 
 	mmp3_setfreq(MMP3_CLK_AXI_1, 250000); /* lower default fabric speed*/
+
+	/* register fb notifier */
+	fb_register_client(&mmp3_fb_notif);
+
 	return 0;
 }
 

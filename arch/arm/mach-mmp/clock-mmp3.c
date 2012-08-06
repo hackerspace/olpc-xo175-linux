@@ -905,6 +905,25 @@ static struct clk mmp3_clk_cpu = {
 
 extern struct devfreq_frequency_table *mmp3_ddr_freq_table;
 
+static unsigned int target_freq = 800000;
+static unsigned int cur_freq = 800000;
+static atomic_t dfc_trigger = ATOMIC_INIT(0);
+DECLARE_COMPLETION(vsync_complete);
+extern atomic_t mmp3_fb_is_suspended;
+
+int wakeup_ddr_fc_seq(void)
+{
+	if (atomic_read(&dfc_trigger)) {
+		if (cur_freq != target_freq) {
+			mmp3_setfreq(MMP3_CLK_DDR_1, target_freq);
+			cur_freq = mmp3_getfreq(MMP3_CLK_DDR_1);
+		}
+		complete(&vsync_complete);
+	}
+
+	return 0;
+}
+
 static int clk_ddr_setrate(struct clk *clk, unsigned long val)
 {
 	int i;
@@ -915,7 +934,12 @@ static int clk_ddr_setrate(struct clk *clk, unsigned long val)
 		i++)
 		if (mmp3_ddr_freq_table[i].frequency >= val) break;
 
-	mmp3_setfreq(MMP3_CLK_DDR_1, mmp3_ddr_freq_table[i].frequency);
+	target_freq = mmp3_ddr_freq_table[i].frequency;
+	atomic_set(&dfc_trigger, 1);
+	if (atomic_read(&mmp3_fb_is_suspended))
+		wakeup_ddr_fc_seq();
+	wait_for_completion_timeout(&vsync_complete, msecs_to_jiffies(50));
+	atomic_set(&dfc_trigger, 0);
 
 	return 0;
 }

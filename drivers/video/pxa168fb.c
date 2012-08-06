@@ -83,6 +83,7 @@
 } while (0)
 static int ct1, ct2, irqtm_check;
 static struct timeval t0, t1[ITC_MAX_NUM], t2[ITC_MAX_NUM];
+static atomic_t framedone = ATOMIC_INIT(0);
 
 /* interrupt number collection to get real frame rate */
 #define VSYNC_CHECK_TIME	(10 * HZ)
@@ -884,6 +885,30 @@ static int pxa168fb_pan_display(struct fb_var_screeninfo *var,
 }
 
 #ifdef CONFIG_CPU_MMP3
+static irqreturn_t pxa168fb_threaded_handle_irq(int irq, void *dev_id)
+{
+	if (atomic_read(&framedone)) {
+		wakeup_ddr_fc_seq();
+		atomic_set(&framedone, 0);
+	}
+
+	return IRQ_HANDLED;
+}
+
+static u32 irq_mask_get(int id)
+{
+	struct pxa168fb_info *fbi = gfx_info.fbi[0];
+
+	return readl(fbi->reg_base + SPU_IRQ_ENA);
+}
+
+static u32 irq_status_get(int id)
+{
+	struct pxa168fb_info *fbi = gfx_info.fbi[0];
+
+	return readl(fbi->reg_base + SPU_IRQ_ISR);
+}
+
 extern void hdmi_3d_sync_view(int right);
 #endif
 static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
@@ -930,7 +955,14 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 							gettime(t1, ct1, 1);
 						dispd_count++;
 					}
-
+#if defined(CONFIG_CPU_MMP3)
+					if ((id == 0) &&
+					    !((isr_en |
+					    (irq_status_get(id) &
+					    irq_mask_get(id))) &
+					    vsync_imask(0)))
+						atomic_set(&framedone, 1);
+#endif
 #if defined(CONFIG_CPU_MMP2) && defined(CONFIG_CPU_FREQ) && defined(CONFIG_PM)
 					wakeup_freq_seq();
 #endif
@@ -1009,7 +1041,11 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 			(path_imasks(0) | path_imasks(1) | err_imasks)) &&
 			!(irqtm_check && vsync_check));
 
+#if defined(CONFIG_CPU_MMP3)
+	return IRQ_WAKE_THREAD;
+#else
 	return IRQ_HANDLED;
+#endif
 }
 
 #ifdef CONFIG_DYNAMIC_PRINTK_DEBUG
@@ -1962,9 +1998,14 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	if (!fbi->id) {
 		/* Clear the irq status before kernel startup */
 		irq_status_clear(fbi->id, 0xFFFFFFFF);
-
+#if defined(CONFIG_CPU_MMP3)
+		ret = request_threaded_irq(irq, pxa168fb_handle_irq,
+					   pxa168fb_threaded_handle_irq,
+					   IRQF_DISABLED, mi->id, fbi);
+#else
 		ret = request_irq(irq, pxa168fb_handle_irq, IRQF_DISABLED,
 					 mi->id, fbi);
+#endif
 		if (ret < 0) {
 			dev_err(&pdev->dev, "unable to request IRQ\n");
 			ret = -ENXIO;
@@ -1977,6 +2018,8 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	irq_mask = path_imasks(fbi->id) | err_imask(fbi->id);
 	irq_enable_value = display_done_imask(fbi->id) | err_imask(fbi->id);
 	irq_mask_set(fbi->id, irq_mask, irq_enable_value);
+	/* enable vsync interrupt */
+	irq_mask_set(fbi->id, vsync_imask(fbi->id), vsync_imask(fbi->id));
 	fbi->wait_vsync = 1;
 
 	/* enable power supply */
@@ -2055,6 +2098,7 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 			return ret;
 		}
 	}
+
 
 #ifdef CONFIG_ANDROID
 	if (fbi->fb_start && (!fbi->id || !fb_share)) {

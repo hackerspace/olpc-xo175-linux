@@ -73,4 +73,5 @@ extern void pxa168fb_set_regs(struct pxa168fb_info *fbi,
 		 struct regshadow *shadowreg);
 extern irqreturn_t pxa168_fb_isr(int id);
 extern irqreturn_t pxa168_v4l2_isr(int id);
+extern int wakeup_ddr_fc_seq(void);
 #endif
