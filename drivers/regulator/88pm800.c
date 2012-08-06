@@ -347,9 +347,13 @@ static int pm800_set_voltage(struct regulator_dev *rdev,
 							      i % 2);
 				}
 				spin_unlock_irqrestore(&info->gpio_lock, flags);
-				/* gpio sync: 4 periods of 3Mhz */
+				/*
+				 * gpio sync: 4 periods of 3Mhz,
+				 * 8us: test by oscilloscope
+				 * +4us redundancy
+				 */
 				udelay(buck1_delay(info->buck1_set_index,
-						   vol1, vol2) + 2);
+						   vol1, vol2) + 12);
 				dev_dbg(info->chip->dev, "dvc pins: %d\n",
 					info->dvc_val);
 				break;
@@ -378,9 +382,13 @@ static int pm800_set_voltage(struct regulator_dev *rdev,
 
 		vol1 = (cur_vol > exp_vol) ? exp_vol : cur_vol;
 		vol2 = (cur_vol > exp_vol) ? cur_vol : exp_vol;
-		/* gpio sync: 4 periods of 3Mhz */
+		/*
+		 * gpio sync: 4 periods of 3Mhz,
+		 * 8us: test by oscilloscope
+		 * +4us redundancy
+		 */
 		udelay(buck1_delay(info->buck1_set_index,
-				   vol1, vol2) + 2);
+				   vol1, vol2) + 12);
 		dev_dbg(info->chip->dev, "new vol: %d\n", exp_vol);
 
 		return 0;
