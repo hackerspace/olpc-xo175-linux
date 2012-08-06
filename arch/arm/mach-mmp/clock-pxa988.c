@@ -1464,17 +1464,12 @@ static struct clk pxa988_clk_gc = {
  * 2. Please do NOT select aclk from pll2 but fclk is from pll1,
  * as aclk is not exposed as a clock node. Pll2 may be shutdown
  * if no clock node is using it.
- * TODO: VPU 416M is unsafe PP in Z0, enable it after SV
- * confirm it is safe to be used according to performance
- * requirement
  */
 static struct periph_clk_tbl vpu_clk_tbl[] = {
 	{.fclk = 156000000, .aclk = 156000000, .fparent = &pll1_624},
 	{.fclk = 208000000, .aclk = 208000000, .fparent = &pll1_416},
 	{.fclk = 312000000, .aclk = 312000000, .fparent = &pll1_624},
-#if 0
-	{.fclk = 416000000, .aclk = 312000000, .fparent = &pll1_416},
-#endif
+	{.fclk = 416000000, .aclk = 416000000, .fparent = &pll1_416},
 };
 
 unsigned int pxa988_get_vpu_op_num(void)
