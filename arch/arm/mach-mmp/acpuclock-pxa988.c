@@ -645,7 +645,10 @@ static struct pxa988_cpu_opt pxa988_op_array[] = {
 		.ap_clk_sel = AP_CLK_SRC_PLL2,
 	},
 #if 0
-	/* clock higher than 800M is unsafe on Z0, disable it  at first */
+	/*
+	 * pll3 has duty cycle issue on Z1 if its rate is higher than 800M,
+	 * disable 1G PP at first on Z1
+	 */
 	{
 		.pclk = 1000,
 		.l2clk = 500,
@@ -654,6 +657,7 @@ static struct pxa988_cpu_opt pxa988_op_array[] = {
 		.periphclk = 125,
 		.ap_clk_sel = AP_CLK_SRC_PLL3P,
 	},
+#endif
 	{
 		.pclk = 1248,
 		.l2clk = 624,
@@ -662,7 +666,6 @@ static struct pxa988_cpu_opt pxa988_op_array[] = {
 		.periphclk = 156,
 		.ap_clk_sel = AP_CLK_SRC_PLL1_1248,
 	},
-#endif
 };
 
 /*
