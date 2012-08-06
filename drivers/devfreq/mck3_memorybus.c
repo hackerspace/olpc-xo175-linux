@@ -50,6 +50,34 @@ static int ddr_target(struct device *dev, unsigned long *freq, u32 flags)
 	return ret;
 }
 
+static ssize_t ddr_freq_show(struct device *dev, struct device_attribute *attr,
+			       char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device,
+						    dev);
+	struct ddr_devfreq_data *data = platform_get_drvdata(pdev);
+	return sprintf(buf, "%lu\n", clk_get_rate(data->ddr_clk) /KHZ_TO_HZ);
+}
+
+
+static ssize_t ddr_freq_store(struct device *dev, struct device_attribute *attr,
+			     const char *buf, size_t count)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device,
+						    dev);
+	struct ddr_devfreq_data *data = platform_get_drvdata(pdev);
+	unsigned long freq;
+
+	if (0x1 != sscanf(buf, "%lu", &freq)) {
+		dev_err(dev, "Wrong ddr frequency setting!\n");
+		return -E2BIG;
+	}
+	clk_set_rate(data->ddr_clk, freq * KHZ_TO_HZ);
+	return count;
+}
+
+static DEVICE_ATTR(ddr_freq, S_IRUGO | S_IWUGO, ddr_freq_show, ddr_freq_store);
+
 static struct devfreq_dev_profile ddr_devfreq_profile = {
 	.polling_ms = 100,
 	.target = ddr_target,
@@ -97,6 +125,12 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 			i++;
 		data->devfreq->max_freq = pdata->freq_table[i - 1].frequency;
 	}
+	err = device_create_file(&pdev->dev, &dev_attr_ddr_freq);
+	if (err) {
+		dev_err(dev, "Device attr ddr_freq create failed: %d\n", err);
+		goto out;
+	}
+
 	init_ddr_performance_counter();
 	return 0;
 out:
