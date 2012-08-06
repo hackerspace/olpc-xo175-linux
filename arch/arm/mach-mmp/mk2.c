@@ -235,6 +235,40 @@ static struct sram_bank mmp3_videosram_info = {
 	.step = VIDEO_SRAM_GRANULARITY,
 };
 
+#if defined(CONFIG_DDR_DEVFREQ)
+struct devfreq_frequency_table *mmp3_ddr_freq_table;
+
+static struct devfreq_platform_data lpddr2_info = {
+	.clk_name = "ddr",
+	.interleave_is_on = 0,
+};
+
+
+static void ddr_devfreq_init(void)
+{
+	u32 i = 0;
+	u32 ddr_freq_num = mmp3_get_pp_number();
+
+	mmp3_ddr_freq_table = kmalloc(sizeof(struct devfreq_frequency_table) * \
+					(ddr_freq_num + 1), GFP_KERNEL);
+
+	if (!mmp3_ddr_freq_table)
+		return;
+
+	for (i = 0; i < ddr_freq_num; i++) {
+		mmp3_ddr_freq_table[i].index = i;
+		mmp3_ddr_freq_table[i].frequency = mmp3_get_pp_freq(i, MMP3_CLK_DDR_1);
+	}
+	mmp3_ddr_freq_table[i].index = i;
+	mmp3_ddr_freq_table[i].frequency = DEVFREQ_TABLE_END;
+
+
+	lpddr2_info.freq_table = mmp3_ddr_freq_table;
+	lpddr2_info.hw_base[0] = DMCU_VIRT_BASE;
+	lpddr2_info.hw_base[1] = DMCU_VIRT_BASE + 0x10000;
+}
+#endif
+
 #ifdef CONFIG_UIO_VMETA
 static struct vmeta_plat_data mmp_vmeta_plat_data = {
 	.bus_irq_handler = NULL,
@@ -1727,11 +1761,13 @@ static void __init mk2_init(void)
 	mk2_add_lcd_mipi();
 	mmp3_add_tv_out();
 #endif
-
 #ifdef CONFIG_UIO_HDMI
 	mmp3_add_hdmi(&mmp3_hdmi_info);
 #endif
-	mmp3_add_ddr_devfreq();
+#if defined(CONFIG_DDR_DEVFREQ)
+	ddr_devfreq_init();
+	mmp3_add_ddr_devfreq(&lpddr2_info);
+#endif
 
 	/* backlight */
 	mmp3_add_pwm(3);

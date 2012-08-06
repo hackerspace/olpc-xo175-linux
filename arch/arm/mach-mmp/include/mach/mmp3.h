@@ -16,6 +16,7 @@ extern void __init mmp3_reserve(void);
 #include <mach/regs-apbc.h>
 #include <mach/pxa168fb.h>
 #include <mach/uio_hdmi.h>
+#include <plat/devfreq.h>
 #include <plat/pxa27x_keypad.h>
 #include <plat/pxa3xx_nand.h>
 #include <linux/platform_data/pxa_sdhci.h>
@@ -196,9 +197,9 @@ static inline int mmp3_add_cam(int id, struct mv_cam_pdata *cam)
 	return pxa_register_device(d, cam, sizeof(*cam));
 }
 
-static inline int mmp3_add_ddr_devfreq(void)
+static inline int mmp3_add_ddr_devfreq(struct devfreq_platform_data *data)
 {
-	return pxa_register_device(&mmp3_device_ddr_devfreq, NULL, 0);
+	return pxa_register_device(&mmp3_device_ddr_devfreq, data, sizeof(*data));
 }
 
 static inline int mmp3_add_nand(struct pxa3xx_nand_platform_data *info)

@@ -903,6 +903,39 @@ static struct clk mmp3_clk_cpu = {
 	.dynamic_change = 1,
 };
 
+extern struct devfreq_frequency_table *mmp3_ddr_freq_table;
+
+static int clk_ddr_setrate(struct clk *clk, unsigned long val)
+{
+	int i;
+
+	val /= 1000;
+
+	for (i = 0; mmp3_ddr_freq_table[i+1].frequency != DEVFREQ_TABLE_END;
+		i++)
+		if (mmp3_ddr_freq_table[i].frequency >= val) break;
+
+	mmp3_setfreq(MMP3_CLK_DDR_1, mmp3_ddr_freq_table[i].frequency);
+
+	return 0;
+}
+
+static unsigned long clk_ddr_getrate(struct clk *clk)
+{
+	return mmp3_getfreq(MMP3_CLK_DDR_1) * 1000;
+}
+
+static struct clkops clk_ddr_ops = {
+	.setrate = clk_ddr_setrate,
+	.getrate = clk_ddr_getrate,
+};
+
+static struct clk mmp3_clk_ddr = {
+	.name = "ddr",
+	.ops = &clk_ddr_ops,
+	.dynamic_change = 1,
+};
+
 static struct devfreq_frequency_table mmp3_gc_clk_table[] = {
 	INIT_FREQ_TABLE(1, 100000000),
 	INIT_FREQ_TABLE(2, 200000000),
@@ -2660,6 +2693,7 @@ static struct clk *mmp3_clks_ptr[] = {
 	&mmp3_clk_ddr_root,
 	&mmp3_clk_ddr1,
 	&mmp3_clk_ddr2,
+	&mmp3_clk_ddr,
 	&mmp3_clk_axi_root,
 	&mmp3_clk_axi1,
 	&mmp3_clk_axi2,
