@@ -44,7 +44,6 @@ struct mipi_phy {
 	u16 dt1;	/* Data type 1: For video or main data type */
 	u16 dt2;	/* Data type 2: For thumbnail or auxiliry data type */
 };
-void mv_set_sensor_attached(bool sensor_attached);
 int isppwr_power_control(int on);
 #endif
 
