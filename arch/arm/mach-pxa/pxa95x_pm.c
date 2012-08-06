@@ -94,8 +94,6 @@ static int isram_size;
 unsigned int is_wkr_mg1_1274_value;
 EXPORT_SYMBOL(is_wkr_mg1_1274_value);	/*this is used in LPM entry and exit */
 
-static struct wake_lock system_wakeup;
-
 /* Counter Structure for Debugging ENTER/EXIT D2/CGM */
 extern pxa95x_DVFM_LPM_Global_Count DVFMLPMGlobalCount;
 extern int d2_led_toggle_flag;
@@ -1869,13 +1867,6 @@ static int pxa95x_pm_valid(suspend_state_t state)
 
 static void pxa95x_pm_wake(void)
 {
-	/* Add 5s wakelock here to make sure the event wakeing
-	 * up system can be handled by userspace application.
-	 * This is not a good solution and tuning is pended.
-	 * TODO
-	 */
-	wake_lock_timeout(&system_wakeup, HZ * 5);
-
 	pr_debug("PM wake done.\n");
 }
 
@@ -2312,8 +2303,6 @@ static int __init pxa95x_pm_init(void)
 	int ret = 0;
 #ifdef CONFIG_IPM
 	unsigned int oscc, dmemvlr;
-
-	wake_lock_init(&system_wakeup, WAKE_LOCK_SUSPEND, "system_wakeup_detect");
 
 #ifdef CONFIG_MMC_BLOCK_CMD13_AFTER_CMD18
 	mmc_base[0] = (u32) ioremap(0x55000000, 4096);
