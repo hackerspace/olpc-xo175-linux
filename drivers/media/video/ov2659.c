@@ -442,10 +442,6 @@ static int ov2659_video_probe(struct soc_camera_device *icd,
 		goto out;
 	dev_err(&client->dev, "OmniVision ov2659 sensor detected\n");
 
-#ifdef CONFIG_VIDEO_MV
-	mv_set_sensor_attached(true);
-#endif
-
 	ov2659->model = V4L2_IDENT_OV2659;
 
 out:
