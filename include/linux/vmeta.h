@@ -34,6 +34,7 @@ struct vmeta_instance {
 	struct delayed_work unset_op_work;
 	struct mutex op_mutex;
 	struct pm_qos_request_list qos_cpufreq_min;
+	struct pm_qos_request_list qos_ddrfreq_min;
 	struct pm_qos_request_list qos_idle;
 };
 

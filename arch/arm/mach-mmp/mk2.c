@@ -237,6 +237,17 @@ static struct sram_bank mmp3_videosram_info = {
 
 #if defined(CONFIG_DDR_DEVFREQ)
 struct devfreq_frequency_table *mmp3_ddr_freq_table;
+struct devfreq_pm_qos_table ddr_freq_qos_table[] = {
+	{
+		.freq = 355555,
+		.qos_value = DDR_CONSTRAINT_LVL0,
+	},
+	{
+		.freq = 533333,
+		.qos_value = DDR_CONSTRAINT_LVL1,
+	},
+	{0, 0},
+};
 
 static struct devfreq_platform_data lpddr2_info = {
 	.clk_name = "ddr",
@@ -266,6 +277,8 @@ static void ddr_devfreq_init(void)
 	lpddr2_info.freq_table = mmp3_ddr_freq_table;
 	lpddr2_info.hw_base[0] = DMCU_VIRT_BASE;
 	lpddr2_info.hw_base[1] = DMCU_VIRT_BASE + 0x10000;
+	lpddr2_info.qos_list = ddr_freq_qos_table;
+
 }
 #endif
 
