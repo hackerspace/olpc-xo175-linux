@@ -28,6 +28,7 @@
 #include <mach/cputype.h>
 #include <plat/clock.h>
 #include <plat/devfreq.h>
+#include <linux/reboot.h>
 #include "common.h"
 
 #define CORE_NUM			3
@@ -907,7 +908,9 @@ extern struct devfreq_frequency_table *mmp3_ddr_freq_table;
 
 static unsigned int target_freq = 800000;
 static unsigned int cur_freq = 800000;
+static atomic_t ddr_dfc_disabled = ATOMIC_INIT(0);
 static atomic_t dfc_trigger = ATOMIC_INIT(0);
+static struct mutex disable_ddr_lock;
 DECLARE_COMPLETION(vsync_complete);
 extern atomic_t mmp3_fb_is_suspended;
 
@@ -915,13 +918,25 @@ int wakeup_ddr_fc_seq(void)
 {
 	if (atomic_read(&dfc_trigger)) {
 		if (cur_freq != target_freq) {
-			mmp3_setfreq(MMP3_CLK_DDR_1, target_freq);
+			if (!atomic_read(&ddr_dfc_disabled))
+				mmp3_setfreq(MMP3_CLK_DDR_1, target_freq);
 			cur_freq = mmp3_getfreq(MMP3_CLK_DDR_1);
 		}
 		complete(&vsync_complete);
 	}
 
 	return 0;
+}
+
+void disable_ddr_devfreq(int disable)
+{
+	mutex_lock(&disable_ddr_lock);
+	if (disable == 1)
+		atomic_add(1, &ddr_dfc_disabled);
+	/* disable must be called first */
+	else if (readl(&ddr_dfc_disabled) > 0)
+		atomic_sub(1, &ddr_dfc_disabled);
+	mutex_unlock(&disable_ddr_lock);
 }
 
 static int clk_ddr_setrate(struct clk *clk, unsigned long val)
@@ -967,6 +982,19 @@ static struct devfreq_frequency_table mmp3_gc_clk_table[] = {
 	INIT_FREQ_TABLE(4, 400000000),
 	INIT_FREQ_TABLE(5, 533000000),
 	INIT_FREQ_TABLE(6, DEVFREQ_TABLE_END),
+};
+
+static int devfreq_reboot_notifier_call(struct notifier_block *this,
+                                       unsigned long code, void *_cmd)
+{
+       disable_ddr_devfreq(1);
+
+       return NOTIFY_DONE;
+}
+
+
+static struct notifier_block devfreq_reboot_notifier = {
+       .notifier_call = devfreq_reboot_notifier_call,
 };
 
 #define GC2D_CLK_DIV(n)		((n & 0xF) << 28)
@@ -3289,7 +3317,9 @@ static int __init mmp3_clk_init(void)
 	for (i = 0; i < ARRAY_SIZE(mmp3_list_clks); i++)
 		mmp3_init_one_clock(&mmp3_list_clks[i]);
 
+	register_reboot_notifier(&devfreq_reboot_notifier);
 	clk_set_cansleep(&mmp3_clk_ddr);
+	mutex_init(&disable_ddr_lock);
 	return 0;
 }
 
