@@ -583,12 +583,4 @@ err_cp15:
 	return -ENOENT;
 }
 
-static void __exit pxa_debugfs_exit(void)
-{
-	debugfs_remove_recursive(pxa);
-	return;
-}
-
-module_init(pxa_debugfs_init);
-module_exit(pxa_debugfs_exit);
-MODULE_LICENSE("GPL");
+postcore_initcall(pxa_debugfs_init);
