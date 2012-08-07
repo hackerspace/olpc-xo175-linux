@@ -854,8 +854,8 @@ static int mv_camera_add_device(struct soc_camera_device *icd)
 #endif
 	pcdev->icd = icd;
 	pcdev->state = S_IDLE;
-	ccic_power_up(pcdev);
 	ccic_enable_clk(pcdev);
+	ccic_power_up(pcdev);
 	ccic_init(pcdev);
 	ret = v4l2_subdev_call(sd, core, init, 0);
 	/* When v4l2_subdev_call return -ENOIOCTLCMD, means No ioctl command */
@@ -879,8 +879,8 @@ static void mv_camera_remove_device(struct soc_camera_device *icd)
 	dev_err(&pcdev->pdev->dev, "Release, %d frames, %d"
 			"singles, %d delivered\n", frames, singles, delivered);
 	ccic_config_phy(pcdev, 0);
-	ccic_disable_clk(pcdev);
 	ccic_power_down(pcdev);
+	ccic_disable_clk(pcdev);
 	pcdev->icd = NULL;
 #ifdef CONFIG_CPU_PXA910
 #ifdef CONFIG_WAKELOCK
@@ -1318,7 +1318,6 @@ exit_free_irq:
 	   so there can't disable ccic1 and ccic2 clk */
 	if (!board_is_mmp2_brownstone_rev5()) {
 #endif
-	ccic_power_down(pcdev);
 	ccic_disable_clk(pcdev);
 #ifdef CONFIG_CPU_MMP2
 	}
@@ -1343,7 +1342,6 @@ static int __devexit mv_camera_remove(struct platform_device *pdev)
 	struct resource *res;
 
 	mcam->init_clk(&pdev->dev, 0);
-	ccic_power_down(pcdev);
 	free_irq(pcdev->irq, pcdev);
 #ifndef CONFIG_CPU_PXA910
 	pm_qos_remove_request(&pcdev->qos_idle);
