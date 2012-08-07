@@ -43,6 +43,7 @@
 #include <mach/isp_dev.h>
 #include <mach/regs-usb.h>
 #include <mach/gpio-edge.h>
+#include <mach/mfp-pxa988.h>	/* for 988 mfp fix */
 
 #include <plat/mfp.h>
 #include <plat/pmem.h>
@@ -54,6 +55,14 @@
 #define RIPC3_VIRT_BASE	(APB_VIRT_BASE + 0x3D000)
 #define GPIOE_VIRT_BASE	(APB_VIRT_BASE + 0x19800)
 #define RIPC3_STATUS	(RIPC3_VIRT_BASE + 0x300)
+
+static unsigned long pxa988_pin_fix[] __initdata = {
+	/*
+	 * fix SM_nCS1 as "GPIO_104" with
+	 * disabling the GPIO function of GPIO_104
+	 */
+	GPIO104_FIX_NONE,
+};
 
 static struct mfp_addr_map pxa988_addr_map[] __initdata = {
 
@@ -683,6 +692,9 @@ static int __init pxa988_init(void)
 
 	mfp_init_base(MFPR_VIRT_BASE);
 	mfp_init_addr(pxa988_addr_map);
+
+	mfp_config(ARRAY_AND_SIZE(pxa988_pin_fix));
+
 	pxa_init_dma(IRQ_PXA988_DMA_INT0, 32);
 
 	pxa988_init_gpio();
