@@ -88,6 +88,12 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 	unsigned long timeout;
 
 	/*
+	 * Avoid timer calibration on slave cpus. Use the value calibrated
+	 * on master cpu. Referenced from tegra3
+	 */
+	preset_lpj = loops_per_jiffy;
+
+	/*
 	 * set synchronisation state between this boot processor
 	 * and the secondary one
 	 */
