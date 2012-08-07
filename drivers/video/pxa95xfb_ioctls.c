@@ -416,7 +416,6 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 {
 	void __user *argp = (void __user *)arg;
 	struct pxa95xfb_info *fbi = (struct pxa95xfb_info *)fi->par;
-	static struct _sOvlySurface gOvlySurface;
 	int on;
 	unsigned long flags;
 
@@ -438,57 +437,6 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 			lcdc_wait_for_vsync(pxa95xfbi[2]->converter, 0);
 		else if (arg == 3)
 			lcdc_wait_for_vsync(pxa95xfbi[0]->converter, pxa95xfbi[2]->converter);
-		break;
-	case FB_IOCTL_GET_VIEWPORT_INFO:
-		return copy_to_user(argp, &gOvlySurface.viewPortInfo,
-				sizeof(struct _sViewPortInfo)) ? -EFAULT : 0;
-	case FB_IOCTL_SET_VIEWPORT_INFO:
-		mutex_lock(&fbi->access_ok);
-		if (copy_from_user(&gOvlySurface.viewPortInfo, argp,
-				sizeof(gOvlySurface.viewPortInfo))) {
-			mutex_unlock(&fbi->access_ok);
-			return -EFAULT;
-		}
-
-		mutex_unlock(&fbi->access_ok);
-		break;
-	case FB_IOCTL_SET_VIDEO_MODE:
-		/*Get data from user space.
-		 *return error for not supported format
-		 */
-		if (copy_from_user(&gOvlySurface.videoMode,
-				argp, sizeof(gOvlySurface.videoMode))
-			|| convert_pix_fmt(gOvlySurface.videoMode) < 0)
-			return -EFAULT;
-		break;
-	case FB_IOCTL_GET_VIDEO_MODE:
-		return copy_to_user(argp, &gOvlySurface.videoMode,
-				sizeof(u32)) ? -EFAULT : 0;
-	case FB_IOCTL_SET_VID_OFFSET:
-		mutex_lock(&fbi->access_ok);
-		if (copy_from_user(&gOvlySurface.viewPortOffset,
-			argp,
-			sizeof(gOvlySurface.viewPortOffset))) {
-			mutex_unlock(&fbi->access_ok);
-			return -EFAULT;
-		}
-		mutex_unlock(&fbi->access_ok);
-		break;
-	case FB_IOCTL_GET_VID_OFFSET:
-		return copy_to_user(argp,
-			&gOvlySurface.viewPortOffset,
-			sizeof(struct _sViewPortOffset)) ? -EFAULT : 0;
-	case FB_IOCTL_GET_SURFACE:
-		return copy_to_user(argp, &gOvlySurface,
-				sizeof(struct _sOvlySurface)) ? -EFAULT : 0;
-	case FB_IOCTL_SET_SURFACE:
-		mutex_lock(&fbi->access_ok);
-		if (copy_from_user(&gOvlySurface, argp,
-					sizeof(struct _sOvlySurface))) {
-			mutex_unlock(&fbi->access_ok);
-			return -EFAULT;
-		}
-		mutex_unlock(&fbi->access_ok);
 		break;
 	case FB_IOCTL_FLIP_VID_BUFFER:
 	{
@@ -626,6 +574,7 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 		mutex_unlock(&fbi->access_ok);
 		break;
 	default:
+		dev_info(fbi->dev, "ioctl: command %x un-supported\n", cmd);
 		break;
 	}
 
