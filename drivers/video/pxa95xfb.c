@@ -1077,8 +1077,9 @@ static void converter_set_dsi(struct pxa95xfb_conv_info *conv)
 	x = LCD_DSI_DxSCR0_PRIM_VC
 		|LCD_DSI_DxSCR0_FLOW_DIS
 		|LCD_DSI_DxSCR0_CONV_EN
-		|LCD_DSI_DxSCR0_DISP_URUN_INT_EN
 		|LCD_CONVx_CTL_DISP_EOF_INT_EN;
+	if (!cpu_is_pxa978_Dx())
+		x |= LCD_DSI_DxSCR0_DISP_URUN_INT_EN;
 	writel(x, conv_base + LCD_DSI_DxSCR0_OFFSET);
 
 	/*Send DSI commands and enable dsi*/
