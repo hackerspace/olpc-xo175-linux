@@ -3006,7 +3006,10 @@ static void __init init(void)
 		       __func__, get_board_id());
 		BUG();
 	}
-
+	if (get_board_id() == OBM_SAAR_C3V5_NEVO_D0_V10_BOARD) {
+		pr_info("change otp IRQ number for saarc 3.5\n");
+		ctec_optic_tp_pins.irq_gpio = MFP_PIN_GPIO56;
+	}
 	set_abu_init_func(abu_mfp_init);
 
 	platform_device_add_data(&pxa95x_device_i2c1, &i2c1_pdata,
