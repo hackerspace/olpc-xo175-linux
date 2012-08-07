@@ -1675,6 +1675,18 @@ static struct dmc_timing_entry edb8132b3ma_table[] = {
 */
 };
 
+static void set_ddr_dll(u32 val)
+{
+	u32 tmp;
+
+	if (val <= 0xf) {
+		tmp = readl(lpddr2_info.hw_base[0] + 0x248);
+		writel((tmp & ~(0xf << 28)) | (val << 28), \
+			lpddr2_info.hw_base[0] + 0x248);
+	} else {
+		pr_err("dll timer should be lower than 0xf\n");
+	}
+}
 
 
 static void mk2_update_ddr_info(void)
@@ -1719,10 +1731,14 @@ static void __init mk2_init(void)
 #ifdef CONFIG_UIO_HDMI
 	mmp3_add_hdmi(&mmp3_hdmi_info);
 #endif
+
 #if defined(CONFIG_DDR_DEVFREQ)
 	ddr_devfreq_init();
 	mmp3_add_ddr_devfreq(&lpddr2_info);
 #endif
+
+	/* Change DLL reset timer to 256 cycles */
+	set_ddr_dll(2);
 
 	/* backlight */
 	mmp3_add_pwm(3);
