@@ -296,14 +296,14 @@ static struct platform_ddr_setting lpddr2_setting[] = {
 			.entry[3] = {DMCU_SDRAM_TIMING4, 0x3022643d},
 			.entry[4] = {DMCU_SDRAM_TIMING5, 0x04070082},
 			.entry[5] = {DMCU_SDRAM_TIMING6, 0x00f0e49c},
-			.entry[6] = {DMCU_SDRAM_TIMING7, 0x00005201},
+			.entry[6] = {DMCU_SDRAM_TIMING7, 0x00008801},
 			.entry[7] = {DMCU_SDRAM_TIMING8, 0x00000000},
 		},
 		.phy = {
 			.entry[0] = {DMCU_PHY_CTRL3, 0x00004444},
-			.entry[1] = {DMCU_PHY_CTRL7, 0x27700779},
-			.entry[2] = {DMCU_PHY_CTRL8, 0x0ff00770},
-			.entry[3] = {DMCU_PHY_CTRL9, 0x00000077},
+			.entry[1] = {DMCU_PHY_CTRL7, 0x13300aa9},
+			.entry[2] = {DMCU_PHY_CTRL8, 0x03300aa0},
+			.entry[3] = {DMCU_PHY_CTRL9, 0x000000aa},
 		},
 
 	},
@@ -318,14 +318,14 @@ static struct platform_ddr_setting lpddr2_setting[] = {
 			.entry[3] = {DMCU_SDRAM_TIMING4, 0x30228452},
 			.entry[4] = {DMCU_SDRAM_TIMING5, 0x058900b2},
 			.entry[5] = {DMCU_SDRAM_TIMING6, 0x01312cd0},
-			.entry[6] = {DMCU_SDRAM_TIMING7, 0x00005201},
+			.entry[6] = {DMCU_SDRAM_TIMING7, 0x00008801},
 			.entry[7] = {DMCU_SDRAM_TIMING8, 0x00000000},
 		},
 		.phy = {
 			.entry[0] = {DMCU_PHY_CTRL3, 0x00004444},
-			.entry[1] = {DMCU_PHY_CTRL7, 0x27700779},
-			.entry[2] = {DMCU_PHY_CTRL8, 0x0ff00770},
-			.entry[3] = {DMCU_PHY_CTRL9, 0x00000077},
+			.entry[1] = {DMCU_PHY_CTRL7, 0x13300aa9},
+			.entry[2] = {DMCU_PHY_CTRL8, 0x03300aa0},
+			.entry[3] = {DMCU_PHY_CTRL9, 0x000000aa},
 		},
 
 	},
@@ -340,14 +340,14 @@ static struct platform_ddr_setting lpddr2_setting[] = {
 			.entry[3] = {DMCU_SDRAM_TIMING4, 0x3022c47a},
 			.entry[4] = {DMCU_SDRAM_TIMING5, 0x080e0102},
 			.entry[5] = {DMCU_SDRAM_TIMING6, 0x01d1c539},
-			.entry[6] = {DMCU_SDRAM_TIMING7, 0x00005201},
+			.entry[6] = {DMCU_SDRAM_TIMING7, 0x00008801},
 			.entry[7] = {DMCU_SDRAM_TIMING8, 0x00000000},
 		},
 		.phy = {
 			.entry[0] = {DMCU_PHY_CTRL3, 0x00004444},
-			.entry[1] = {DMCU_PHY_CTRL7, 0x27700779},
-			.entry[2] = {DMCU_PHY_CTRL8, 0x0ff00770},
-			.entry[3] = {DMCU_PHY_CTRL9, 0x00000077},
+			.entry[1] = {DMCU_PHY_CTRL7, 0x13300aa9},
+			.entry[2] = {DMCU_PHY_CTRL8, 0x03300aa0},
+			.entry[3] = {DMCU_PHY_CTRL9, 0x000000aa},
 		},
 
 	},
@@ -359,17 +359,17 @@ static struct platform_ddr_setting lpddr2_setting[] = {
 			.entry[0] = {DMCU_SDRAM_TIMING1, 0x4cda0065},
 			.entry[1] = {DMCU_SDRAM_TIMING2, 0x94860345},
 			.entry[2] = {DMCU_SDRAM_TIMING3, 0x2038381b},
-			.entry[3] = {DMCU_SDRAM_TIMING4, 0x3022fc9d},
-			.entry[4] = {DMCU_SDRAM_TIMING5, 0x0a110142},
+			.entry[3] = {DMCU_SDRAM_TIMING4, 0x3022f89b},
+			.entry[4] = {DMCU_SDRAM_TIMING5, 0x0a110144},
 			.entry[5] = {DMCU_SDRAM_TIMING6, 0x0242418f},
-			.entry[6] = {DMCU_SDRAM_TIMING7, 0x00005201},
+			.entry[6] = {DMCU_SDRAM_TIMING7, 0x00008801},
 			.entry[7] = {DMCU_SDRAM_TIMING8, 0x00000000},
 		},
 		.phy = {
 			.entry[0] = {DMCU_PHY_CTRL3, 0x00004444},
-			.entry[1] = {DMCU_PHY_CTRL7, 0x27700779},
-			.entry[2] = {DMCU_PHY_CTRL8, 0x0ff00770},
-			.entry[3] = {DMCU_PHY_CTRL9, 0x00000077},
+			.entry[1] = {DMCU_PHY_CTRL7, 0x13300aa9},
+			.entry[2] = {DMCU_PHY_CTRL8, 0x03300aa0},
+			.entry[3] = {DMCU_PHY_CTRL9, 0x000000aa},
 		},
 
 	},
@@ -382,16 +382,16 @@ static struct platform_ddr_setting lpddr2_setting[] = {
 			.entry[1] = {DMCU_SDRAM_TIMING2, 0xc6a80465},
 			.entry[2] = {DMCU_SDRAM_TIMING3, 0x204b4b24},
 			.entry[3] = {DMCU_SDRAM_TIMING4, 0x301350d1},
-			.entry[4] = {DMCU_SDRAM_TIMING5, 0x0d9701b2},
+			.entry[4] = {DMCU_SDRAM_TIMING5, 0x0d9701b4},
 			.entry[5] = {DMCU_SDRAM_TIMING6, 0x03030215},
-			.entry[6] = {DMCU_SDRAM_TIMING7, 0x00005201},
+			.entry[6] = {DMCU_SDRAM_TIMING7, 0x00008801},
 			.entry[7] = {DMCU_SDRAM_TIMING8, 0x00000000},
 		},
 		.phy = {
 			.entry[0] = {DMCU_PHY_CTRL3, 0x00004444},
-			.entry[1] = {DMCU_PHY_CTRL7, 0x27700779},
-			.entry[2] = {DMCU_PHY_CTRL8, 0x0ff00770},
-			.entry[3] = {DMCU_PHY_CTRL9, 0x00000077},
+			.entry[1] = {DMCU_PHY_CTRL7, 0x13300aa9},
+			.entry[2] = {DMCU_PHY_CTRL8, 0x03300aa0},
+			.entry[3] = {DMCU_PHY_CTRL9, 0x000000aa},
 		},
 	},
 
@@ -462,11 +462,13 @@ static void pxa988_ddr_lpm_table(void)
 	LAST_ENTRY(DMCU_PHY_CTRL14, 0x80000000, 0);
 }
 
-#define DDR_FC_PHY_TUNING 1
+/* #define DDR_FC_PHY_TUNING 1 */
 static void pxa988_ddr_fc_table_lpddr2(struct platform_ddr_setting *setting)
 {
 	struct ddr_timing *timing = &setting->timing;
+#ifdef DDR_FC_PHY_TUNING
 	struct ddr_phy *phy = &setting->phy;
+#endif
 	struct ddr_fc_table_cmd cmd;
 	unsigned int entry = 0, regval = 0, map = 0, table = 0;
 
@@ -688,6 +690,7 @@ static struct pxa988_ddr_axi_opt lpddr400_axi_oparray[] = {
 		.ddr_clk_sel = DDR_AXI_CLK_SRC_PLL1_624,
 		.axi_clk_sel = DDR_AXI_CLK_SRC_PLL1_624,
 	},
+#if 0
 	{
 		.dclk = 208,
 		.ddr_tbl_index = 3,
@@ -695,20 +698,25 @@ static struct pxa988_ddr_axi_opt lpddr400_axi_oparray[] = {
 		.ddr_clk_sel = DDR_AXI_CLK_SRC_PLL1_416,
 		.axi_clk_sel = DDR_AXI_CLK_SRC_PLL1_624,
 	},
+#endif
 	{
 		.dclk = 312,
-		.ddr_tbl_index = 5,
-		.aclk = 208,
+		.ddr_tbl_index = 3,
+		.aclk = 156,
 		.ddr_clk_sel = DDR_AXI_CLK_SRC_PLL1_624,
-		.axi_clk_sel = DDR_AXI_CLK_SRC_PLL1_416,
+		.axi_clk_sel = DDR_AXI_CLK_SRC_PLL1_624,
 	},
-	/* clock higher than 312M is unsafe on Z0, disable it at first */
-#if 0
+	/*
+	 * Enable 400Mhz as it is stable after updating the DDR timing.
+	 * Also follow DE's suggestion to use PLL2OUTP as DDR 400MHz
+	 * clock source.
+	 */
+#if 1
 	{
 		.dclk = 400,
 		.ddr_tbl_index = 5,
 		.aclk = 208,
-		.ddr_clk_sel = DDR_AXI_CLK_SRC_PLL2,
+		.ddr_clk_sel = DDR_AXI_CLK_SRC_PLL2P,
 		.axi_clk_sel = DDR_AXI_CLK_SRC_PLL1_416,
 	},
 #endif

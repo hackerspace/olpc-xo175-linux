@@ -2385,8 +2385,8 @@ static void __init clk_misc_init(void)
 	/*
 	 * pll2 default rate is different when using LPDDR400 and LPDDR533
 	 * For LPDDR400,
-	 * pll2 800M for DDR and CPU
-	 * pll2p 533M for other peripherals
+	 * pll2 800M for CPU
+	 * pll2p 800M for DDR
 	 * For LPDDR533
 	 * pll2 1066M for DDR and CPU
 	 * pll2p 533M for other peripherals
@@ -2398,7 +2398,7 @@ static void __init clk_misc_init(void)
 	if (1) {
 		pll2_vco_default = 1600 * MHZ;
 		pll2_default = 800 * MHZ;
-		pll2p_default = 533 * MHZ;
+		pll2p_default = 800 * MHZ;
 	} else {
 		pll2_vco_default = 2132 * MHZ;
 		pll2_default = 1066 * MHZ;
