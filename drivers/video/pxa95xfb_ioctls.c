@@ -50,118 +50,101 @@ static int convert_pix_fmt(u32 vmode)
 	}
 }
 
-/* pxa95x lcd controller could only resize in step. Adjust offset in such case to keep picture in center */
-static void adjust_offset_for_resize(struct _sViewPortInfo *info, struct _sViewPortOffset *offset)
+static int surface_scaled(struct _sOvlySurface *surface)
 {
-	int wstep, hstep;
+	struct _sViewPortInfo *info = &surface->viewPortInfo;
 
-	if ((info->zoomXSize == info->srcWidth && info->zoomYSize == info->srcHeight)
-		|| !info->zoomXSize || !info->zoomYSize)
-		return;
-
-	wstep = (info->zoomXSize > info->srcWidth) ? (info->srcWidth /8) : (info->srcWidth /32);
-	hstep = (info->zoomYSize > info->srcHeight) ? (info->srcHeight /8) : (info->srcHeight /32);
-	if(wstep == 0) wstep =1;
-	if(hstep == 0) hstep =1;
-
-	offset->xOffset += (info->zoomXSize % wstep) / 2;
-	offset->yOffset += (info->zoomYSize % hstep) / 2;
-	info->zoomXSize = (info->zoomXSize / wstep) * wstep;
-	info->zoomYSize = (info->zoomYSize / hstep) * hstep;
+	return (info->srcWidth != info->zoomXSize ||
+		info->srcHeight != info->zoomYSize);
 }
 
-static int surface_is_changed(struct pxa95xfb_info *fbi,
-		FBVideoMode new_mode,
-		struct _sViewPortInfo *new_info,
-		struct _sViewPortOffset *new_offset)
+static void surface_print(struct _sOvlySurface *surface)
 {
-	if (new_info && new_offset)
-		adjust_offset_for_resize(new_info, new_offset);
-
-	/* check mode
-	 * check view port settings.
-	 * not check ycpitch as it's 0 sometimes from overlay-hal
-	 * Check offset */
-	return (new_mode >= 0 && fbi->surface.videoMode != new_mode)
-			|| (new_info &&
-			(fbi->surface.viewPortInfo.srcWidth != new_info->srcWidth ||
-			 fbi->surface.viewPortInfo.srcHeight != new_info->srcHeight ||
-			 fbi->surface.viewPortInfo.zoomXSize != new_info->zoomXSize ||
-			 fbi->surface.viewPortInfo.zoomYSize != new_info->zoomYSize))
-			|| (new_offset &&
-			(fbi->surface.viewPortOffset.xOffset != new_offset->xOffset ||
-			 fbi->surface.viewPortOffset.yOffset != new_offset->yOffset));
+	pr_info("surface: [%d %d] - [%d %d], ycpitch %d\n",
+		surface->viewPortInfo.srcWidth,
+		surface->viewPortInfo.srcHeight,
+		surface->viewPortInfo.zoomXSize,
+		surface->viewPortInfo.zoomYSize,
+		surface->viewPortInfo.yPitch);
+	pr_info("surface offset [%d %d]\n",
+		surface->viewPortOffset.xOffset,
+		surface->viewPortOffset.yOffset);
+	pr_info("surface videomode: %x\n",
+		surface->videoMode);
+	pr_info("surface addr: %x %x %x\n",
+		(int)surface->videoBufferAddr.startAddr[0],
+		(int)surface->videoBufferAddr.startAddr[1],
+		(int)surface->videoBufferAddr.startAddr[2]);
 }
 
-static int surface_is_valid(struct pxa95xfb_info *fbi,
-		FBVideoMode new_mode,
-		struct _sViewPortInfo *new_info,
-		struct _sViewPortOffset *new_offset)
+static int surface_valid(struct pxa95xfb_info *fbi, struct _sOvlySurface *surface)
 {
-	if (new_mode >= 0 && convert_pix_fmt(new_mode) < 0) {
-		pr_info("color format %x invalid\n", new_mode);
+	if (convert_pix_fmt(surface->videoMode) < 0
+		|| surface->viewPortInfo.srcWidth < 6
+		|| surface->viewPortInfo.srcHeight < 2
+		|| surface->viewPortInfo.zoomXSize <= 0
+		|| surface->viewPortInfo.zoomYSize <= 0
+		|| (fbi->window != 4 && surface_scaled(surface))
+		|| surface->viewPortInfo.srcWidth * 4 < surface->viewPortInfo.zoomXSize
+		|| surface->viewPortInfo.srcHeight * 4 < surface->viewPortInfo.zoomYSize
+		|| surface->viewPortInfo.srcWidth > surface->viewPortInfo.zoomXSize * 4
+		|| surface->viewPortInfo.srcHeight > surface->viewPortInfo.zoomYSize * 4) {
+		pr_info("surface is not valid in fb%d\n", fbi->id);
+		surface_print(surface);
 		return 0;
-	}
-
-	if (new_info) {
-		if (new_info->srcWidth < 6 || new_info->srcHeight < 2 ||
-			new_info->zoomXSize <= 0 || new_info->zoomYSize <= 0) {
-			pr_info("surf [%d %d] - [%d %d], invalid\n",
-				new_info->srcWidth, new_info->srcHeight,
-				new_info->zoomXSize, new_info->zoomYSize);
-			return 0;
-		}
-		if (new_info->srcWidth * 4 < new_info->zoomXSize
-			|| new_info->srcHeight * 4 < new_info->zoomYSize
-			|| new_info->srcWidth > new_info->zoomXSize * 4
-			|| new_info->srcHeight > new_info->zoomYSize * 4) {
-			pr_info("surf [%d %d] - [%d %d], out of 4* scale ratio\n",
-				new_info->srcWidth, new_info->srcHeight,
-				new_info->zoomXSize, new_info->zoomYSize);
-			return 0;
-		}
 	}
 
 	return 1;
 }
 
+/* pxa95x lcd controller could only resize in step. Adjust offset in such case to keep picture in center */
+static void surface_adjust(struct _sOvlySurface *surface)
+{
+	struct _sViewPortInfo *info = &surface->viewPortInfo;
+	int wstep, hstep, wsrc;
+	int bpp = pix_fmt_to_bpp(convert_pix_fmt(surface->videoMode));
 
-static void set_surface(struct pxa95xfb_info *fbi,
-		FBVideoMode new_mode,
-		struct _sViewPortInfo *new_info,
-		struct _sViewPortOffset *new_offset)
+	/* fill ypitch if not set */
+	if (!info->yPitch)
+		info->yPitch = info->srcWidth * bpp;
+
+	/* adjust offset with step */
+	if (!surface_scaled(surface))
+		return;
+
+	wsrc = info->yPitch / bpp;
+	wstep = (info->zoomXSize > wsrc) ? (wsrc /8) : (wsrc /32);
+	hstep = (info->zoomYSize > info->srcHeight) ? (info->srcHeight /8) : (info->srcHeight /32);
+	if (!wstep) wstep = 1;
+	if (!hstep) hstep = 1;
+
+	surface->viewPortOffset.xOffset += (info->zoomXSize % wstep) / 2;
+	surface->viewPortOffset.yOffset += (info->zoomYSize % hstep) / 2;
+	info->zoomXSize = (info->zoomXSize / wstep) * wstep;
+	info->zoomYSize = (info->zoomYSize / hstep) * hstep;
+}
+
+#define SURFACE_CONF_SIZE (sizeof(FBVideoMode)\
+		+ sizeof(struct _sViewPortInfo)\
+		+ sizeof(struct _sViewPortOffset))
+
+static int surface_changed(struct pxa95xfb_info *fbi,
+		struct _sOvlySurface *surface)
+{
+	return (memcmp(&fbi->surface, surface, SURFACE_CONF_SIZE));
+}
+
+static void surface_apply(struct pxa95xfb_info *fbi,
+		struct _sOvlySurface *surface)
 {
 	struct fb_var_screeninfo *var = &fbi->fb_info->var;
 
-	if (new_info && new_offset)
-		adjust_offset_for_resize(new_info, new_offset);
+	surface_print(surface);
+	memcpy(&fbi->surface, surface, SURFACE_CONF_SIZE);
 
-
-	/* check mode */
-	if (new_mode >= 0) {
-		printk(KERN_INFO "vmode=%d\n", new_mode);
-		fbi->surface.videoMode = new_mode;
-		fbi->pix_fmt = convert_pix_fmt(new_mode);
-		lcdc_set_pix_fmt(var, fbi->pix_fmt);
-	}
-
-	/* check view port settings.*/
-	if (new_info) {
-		memcpy(&fbi->surface.viewPortInfo, new_info, sizeof(struct _sViewPortInfo));
-		if (!new_info->yPitch)
-			fbi->surface.viewPortInfo.yPitch = new_info->srcWidth*pix_fmt_to_bpp(fbi->pix_fmt);
-		printk(KERN_INFO "Ovly update: [%d %d] - [%d %d], ycpitch %d\n",
-			new_info->srcWidth, new_info->srcHeight,
-			new_info->zoomXSize, new_info->zoomYSize,
-			fbi->surface.viewPortInfo.yPitch);
-	}
-
-	/* Check offset */
-	if (new_offset) {
-		memcpy(&fbi->surface.viewPortOffset, new_offset, sizeof(struct _sViewPortOffset));
-		printk(KERN_INFO "Ovly update offset [%d %d]\n",
-			new_offset->xOffset, new_offset->yOffset);
-	}
+	/* set color format */
+	fbi->pix_fmt = convert_pix_fmt(fbi->surface.videoMode);
+	lcdc_set_pix_fmt(var, fbi->pix_fmt);
 }
 
 static inline void buf_print(struct pxa95xfb_info *fbi)
@@ -319,9 +302,7 @@ static void do_flip_baselay(struct pxa95xfb_info *fbi, struct _sOvlySurface *sur
 
 	if (fbi->on && !fbi->controller_on) {
 		printk(KERN_INFO "really turn on fb%d\n", fbi->id);
-		set_surface(fbi, surface->videoMode,
-					&surface->viewPortInfo,
-					&surface->viewPortOffset);
+		surface_apply(fbi, surface);
 		lcdc_set_lcd_controller(fbi);
 		if (!conv_is_on(fbi))
 			converter_onoff(fbi, 1);
@@ -332,13 +313,9 @@ static void do_flip_baselay(struct pxa95xfb_info *fbi, struct _sOvlySurface *sur
 		return;
 	}
 
-	if (surface_is_changed(fbi, surface->videoMode,
-				&surface->viewPortInfo,
-				&surface->viewPortOffset)) {
+	if (surface_changed(fbi, surface)) {
 		/* in this case, surface mode changed, need sync */
-		set_surface(fbi, surface->videoMode,
-				&surface->viewPortInfo,
-				&surface->viewPortOffset);
+		surface_apply(fbi, surface);
 		lcdc_set_lcd_controller(fbi);
 	}
 	return;
@@ -351,9 +328,7 @@ static void do_flip_overlay(struct pxa95xfb_info *fbi, struct _sOvlySurface *sur
 
 	if (fbi->on && !fbi->controller_on) {
 		printk(KERN_INFO "really turn on fb%d\n", fbi->id);
-		set_surface(fbi, surface->videoMode,
-					&surface->viewPortInfo,
-					&surface->viewPortOffset);
+		surface_changed(fbi, surface);
 		WARN_ON(fbi->buf_waitlist[0].y);
 		spin_lock_irqsave(&fbi->buf_lock, flags);
 		/*if !waitlist[0] enqueue buf to waitlist*/
@@ -382,13 +357,9 @@ static void do_flip_overlay(struct pxa95xfb_info *fbi, struct _sOvlySurface *sur
 		return;
 	}
 
-	if (surface_is_changed(fbi, surface->videoMode,
-				&surface->viewPortInfo,
-				&surface->viewPortOffset)) {
+	if (surface_changed(fbi, surface)) {
 		/* in this case, surface mode changed, need sync */
-		set_surface(fbi, surface->videoMode,
-				&surface->viewPortInfo,
-				&surface->viewPortOffset);
+		surface_apply(fbi, surface);
 		spin_lock_irqsave(&fbi->buf_lock, flags);
 		fbi->user_addr = start_addr->y;
 		lcdc_set_fr_addr(fbi);
@@ -450,13 +421,12 @@ int pxa95xfb_ioctl(struct fb_info *fi, unsigned int cmd,
 			return -EFAULT;
 		}
 
-		if (!surface_is_valid(fbi, surface.videoMode,
-					&surface.viewPortInfo,
-					&surface.viewPortOffset)) {
-			printk(KERN_INFO "surface is not valid in fb%d\n", fbi->id);
+		if (!surface_valid(fbi, &surface)) {
 			mutex_unlock(&fbi->access_ok);
 			return -EINVAL;
 		}
+
+		surface_adjust(&surface);
 
 		if (fbi->dump)
 			dump_buffer(fbi, 0);
