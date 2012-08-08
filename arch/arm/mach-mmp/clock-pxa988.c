@@ -1311,6 +1311,31 @@ static struct periph_clk_tbl gc_clk_tbl[] = {
 #endif
 };
 
+/* interface used by GC driver to get avaliable GC frequencies, unit HZ */
+int get_gcu_freqs_table(unsigned long *gcu_freqs_table,
+	unsigned int *item_counts, unsigned int max_item_counts)
+{
+	unsigned int index;
+	*item_counts = 0;
+
+	if (!gcu_freqs_table) {
+		pr_err("%s NULL ptr!\n", __func__);
+		return -EINVAL;
+	}
+
+	if (max_item_counts < ARRAY_SIZE(gc_clk_tbl)) {
+		pr_err("%s Too many GC frequencies %u!\n", __func__,
+			max_item_counts);
+		return -EINVAL;
+	}
+
+	for (index = 0; index < ARRAY_SIZE(gc_clk_tbl); index++)
+		gcu_freqs_table[index] = gc_clk_tbl[index].fclk;
+	*item_counts = index;
+	return 0;
+}
+EXPORT_SYMBOL(get_gcu_freqs_table);
+
 static void gc_clk_init(struct clk *clk)
 {
 	clk->dynamic_change = 1;
