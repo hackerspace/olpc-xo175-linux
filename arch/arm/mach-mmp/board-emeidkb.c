@@ -1281,7 +1281,28 @@ static struct i2c_board_info emeidkb_i2c1_info[] = {
 #endif
 };
 
+static struct i2c_pxa_platform_data emeidkb_ci2c_pdata = {
+	.fast_mode		 = 1,
+	/* ilcr:fs mode b17~9=0x23,about 390K, standard mode b8~0=0x9f,97K */
+	.ilcr		= 0x082C469F,
+	/* iwcr:b5~0=b01010 recommended value according to spec*/
+	.iwcr		= 0x0000142A,
+};
+
+static struct i2c_pxa_platform_data emeidkb_ci2c2_pdata = {
+	.fast_mode		 = 1,
+	/* ilcr:fs mode b17~9=0x23,about 390K, standard mode b8~0=0x9f,97K */
+	.ilcr		= 0x082C469F,
+	/* iwcr:b5~0=b01010 recommended value according to spec*/
+	.iwcr		= 0x0000142A,
+};
+
 static struct i2c_pxa_platform_data emeidkb_pwr_i2c_pdata = {
+	.fast_mode		 = 1,
+	/* ilcr:fs mode b17~9=0x23,about 390K, standard mode b8~0=0x9f,97K */
+	.ilcr		= 0x082C469F,
+	/* iwcr:b5~0=b01010 recommended value according to spec*/
+	.iwcr		= 0x0000142A,
 	.hardware_lock		= pxa988_ripc_lock,
 	.hardware_unlock	= pxa988_ripc_unlock,
 	.hardware_trylock	= pxa988_ripc_trylock,
@@ -1971,10 +1992,11 @@ static void __init emeidkb_init(void)
 	pxa988_add_uart(1);
 	/* For GPS */
 	pxa988_add_uart(2);
-	/* FIXME: add i2c_pxa_platform_data */
-	pxa988_add_twsi(0, NULL, ARRAY_AND_SIZE(emeidkb_i2c_info));
+	pxa988_add_twsi(0, &emeidkb_ci2c_pdata,
+			ARRAY_AND_SIZE(emeidkb_i2c_info));
 	if (!is_HVGA_lcd)
-		pxa988_add_twsi(1, NULL, ARRAY_AND_SIZE(emeidkb_i2c1_info));
+		pxa988_add_twsi(1, &emeidkb_ci2c2_pdata,
+				ARRAY_AND_SIZE(emeidkb_i2c1_info));
 	pxa988_add_twsi(2, &emeidkb_pwr_i2c_pdata,
 			ARRAY_AND_SIZE(emeidkb_pwr_i2c_info));
 
