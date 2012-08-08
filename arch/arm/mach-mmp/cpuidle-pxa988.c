@@ -69,57 +69,46 @@ static int pxa988_cpuidle_register_device(unsigned int cpu)
 	device->cpu = cpu;
 
 	state = &device->states[0];
-	strcpy(state->name, "C1");
-	strcpy(state->desc, "C1: Core external clock gated");
-	state->exit_latency = 5; /* FIXME: what's the real latency? */
-	state->target_residency = state->exit_latency * 2;
-	state->flags = CPUIDLE_FLAG_TIME_VALID;
-	state->enter = pxa988_enter_lpm;
-	cpuidle_set_statedata(&device->states[0],
-			&pxa988_idle_mode[0]);
-	device->state_count++;
-
-	state = &device->states[1];
 	strcpy(state->name, "C2");
 	strcpy(state->desc, "C2: Core power down");
 	state->exit_latency = 50; /* FIXME: what's the real latency? */
 	state->target_residency = state->exit_latency * 2;
 	state->flags = CPUIDLE_FLAG_TIME_VALID;
 	state->enter = pxa988_enter_lpm;
-	cpuidle_set_statedata(&device->states[1],
+	cpuidle_set_statedata(&device->states[0],
 			&pxa988_idle_mode[1]);
 	device->state_count++;
 
-	state = &device->states[2];
+	state = &device->states[1];
 	strcpy(state->name, "D1P");
 	strcpy(state->desc, "D1P: AP subsystem idle");
 	state->exit_latency = 60; /* FIXME: what's the real latency? */
 	state->target_residency = state->exit_latency * 2;
 	state->flags = CPUIDLE_FLAG_TIME_VALID;
 	state->enter = pxa988_enter_lpm;
-	cpuidle_set_statedata(&device->states[2],
+	cpuidle_set_statedata(&device->states[1],
 			&pxa988_idle_mode[2]);
 	device->state_count++;
 
-	state = &device->states[3];
+	state = &device->states[2];
 	strcpy(state->name, "D1");
 	strcpy(state->desc, "D1: AP sybsystem sleep");
 	state->exit_latency = 70; /* FIXME: what's the real latency? */
 	state->target_residency = state->exit_latency * 2;
 	state->flags = CPUIDLE_FLAG_TIME_VALID;
 	state->enter = pxa988_enter_lpm;
-	cpuidle_set_statedata(&device->states[3],
+	cpuidle_set_statedata(&device->states[2],
 			&pxa988_idle_mode[3]);
 	device->state_count++;
 
-	state = &device->states[4];
+	state = &device->states[3];
 	strcpy(state->name, "D2");
 	strcpy(state->desc, "D2: Full chip sleep");
 	state->exit_latency = 100; /* FIXME: what's the real latency? */
 	state->target_residency = state->exit_latency * 2;
 	state->flags = CPUIDLE_FLAG_TIME_VALID;
 	state->enter = pxa988_enter_lpm;
-	cpuidle_set_statedata(&device->states[4],
+	cpuidle_set_statedata(&device->states[3],
 			&pxa988_idle_mode[4]);
 	device->state_count++;
 
