@@ -40,6 +40,8 @@ extern struct pxa_device_desc pxa988_device_asram;
 extern struct pxa_device_desc pxa988_device_vsram;
 extern struct pxa_device_desc pxa988_device_fb;
 extern struct pxa_device_desc pxa988_device_fb_ovly;
+extern struct pxa_device_desc pxa988_device_fb_tv;
+extern struct pxa_device_desc pxa988_device_fb_tv_ovly;
 extern struct pxa_device_desc pxa988_device_camera;
 extern struct platform_device pxa988_device_rtc;
 extern struct pxa_device_desc pxa988_device_thermal;
@@ -212,6 +214,16 @@ static inline int pxa988_add_fb(struct pxa168fb_mach_info *mi)
 static inline int pxa988_add_fb_ovly(struct pxa168fb_mach_info *mi)
 {
 	return pxa_register_device(&pxa988_device_fb_ovly, mi, sizeof(*mi));
+}
+
+static inline int pxa988_add_fb_tv(struct pxa168fb_mach_info *mi)
+{
+	return pxa_register_device(&pxa988_device_fb_tv, mi, sizeof(*mi));
+}
+
+static inline int pxa988_add_fb_tv_ovly(struct pxa168fb_mach_info *mi)
+{
+	return pxa_register_device(&pxa988_device_fb_tv_ovly, mi, sizeof(*mi));
 }
 
 static inline int pxa988_add_cam(struct mv_cam_pdata *cam)

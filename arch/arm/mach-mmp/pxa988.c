@@ -658,6 +658,8 @@ PXA988_DEVICE(asram, "mmp-sram", 0, NONE, SRAM_AUDIO_BASE, SRAM_AUDIO_SIZE);
 PXA988_DEVICE(vsram, "mmp-sram", 1, NONE, SRAM_VIDEO_BASE, SRAM_VIDEO_SIZE);
 PXA988_DEVICE(fb, "pxa168-fb", 0, LCD, 0xd420b000, 0x1fc);
 PXA988_DEVICE(fb_ovly, "pxa168fb_ovly", 0, LCD, 0xd420b000, 0x1fc);
+PXA988_DEVICE(fb_tv, "pxa168-fb", 1, LCD, 0xd420b000, 0x1fc);
+PXA988_DEVICE(fb_tv_ovly, "pxa168fb_ovly", 1, LCD, 0xd420b000, 0x1fc);
 PXA988_DEVICE(camera, "mv-camera", 0, CI, 0xd420a000, 0xfff);
 PXA988_DEVICE(thermal, "thermal", -1, DRO_SENSOR, 0xd4013200, 0x34);
 
