@@ -37,8 +37,9 @@
 
 struct periph_clk_tbl {
 	unsigned long fclk;
-	unsigned long aclk;  /* we haven't expose aclk as a separate clk node */
+	unsigned long aclk;
 	struct clk	*fparent;
+	struct clk	*aparent;
 	unsigned long fsrc_val;
 	unsigned long fdiv_val;
 	unsigned long asrc_val;
@@ -1054,6 +1055,7 @@ static void __clk_fill_periph_tbl(struct clk *clk,
 		for (sel = clk->inputs; sel->input != NULL; sel++) {
 			prate = clk_get_rate(sel->input);
 			if ((prate % clk_tbl[i].aclk == 0) && prate) {
+				clk_tbl[i].aparent = sel->input;
 				clk_tbl[i].asrc_val = sel->value;
 				clk_tbl[i].adiv_val =
 					prate/clk_tbl[i].aclk - 1;
@@ -1064,6 +1066,10 @@ static void __clk_fill_periph_tbl(struct clk *clk,
 				break;
 			}
 		}
+		if (!sel->input)
+			pr_info("Unsupported aclk rate %lu!\n",
+				clk_tbl[i].aclk);
+		BUG_ON(!clk_tbl[i].aparent);
 	}
 }
 
@@ -1289,10 +1295,66 @@ static int __clk_periph_set_rate(struct clk *clk, unsigned long rate)
 #define GC_ACLK_RATE(asrc, adiv)	\
 	(GC_ACLK_SEL(asrc) | GC_ACLK_DIV(adiv))
 
-#define GC_CLK_RATE_MSK					\
-	(GC_FCLK_SEL_MASK | GC_FCLK_DIV_MASK		\
-	| GC_ACLK_SEL_MASK | GC_ACLK_DIV_MASK)		\
+#define GC_FCLK_RATE_MSK				\
+	(GC_FCLK_SEL_MASK | GC_FCLK_DIV_MASK)		\
 
+#define GC_ACLK_RATE_MSK				\
+	(GC_ACLK_SEL_MASK | GC_ACLK_DIV_MASK)		\
+
+static void gc_aclk_init(struct clk *clk)
+{
+	/* default GC aclk = 312M sel = pll1_624, div = 2 */
+	__clk_periph_init(clk, &pll1_624, 2, 1);
+}
+
+static int gc_aclk_enable(struct clk *clk)
+{
+	CLK_SET_BITS(GC_ACLK_EN, 0);
+	CLK_SET_BITS(GC_ACLK_REQ, 0);
+	return 0;
+}
+
+static void gc_aclk_disable(struct clk *clk)
+{
+	CLK_SET_BITS(0, GC_ACLK_EN);
+	return;
+}
+
+static int gc_aclk_setrate(struct clk *clk, unsigned long rate)
+{
+	return 0;
+}
+
+static unsigned long gc_aclk_getrate(struct clk *clk)
+{
+	return __clk_periph_get_rate(clk);
+}
+
+struct clkops gc_aclk_ops = {
+	.init		= gc_aclk_init,
+	.enable		= gc_aclk_enable,
+	.disable	= gc_aclk_disable,
+	.setrate	= gc_aclk_setrate,
+	.getrate	= gc_aclk_getrate,
+};
+
+/*
+ * GC aclk node is internal clk node, and
+ * can only be used by GC fclk
+ */
+static struct clk gc_aclk = {
+	.name = "gc_aclk",
+	.lookup = {
+		.con_id = "GC_ACLK",
+	},
+	.clk_rst = (void __iomem *)APMU_GC,
+	.enable_val = GC_ACLK_REQ,
+	.inputs = periph_mux_sel,
+	.ops = &gc_aclk_ops,
+	.reg_data = {
+		     { {APMU_GC, 20, 0x3}, {APMU_GC, 20, 0x3} },
+		     { {APMU_GC, 17, 0x7}, {APMU_GC, 17, 0x7} } }
+};
 
 /*
  * 1. sort ascending
@@ -1342,38 +1404,22 @@ static void gc_clk_init(struct clk *clk)
 	__clk_fill_periph_tbl(clk, gc_clk_tbl, ARRAY_SIZE(gc_clk_tbl));
 
 	/* default GC fclk2x = 416M sel = pll1_416, div = 1 */
-	clk_reparent(clk, &pll1_416);
-	clk->mul = 1;
-	clk->div = 1;
-	clk->rate = clk_get_rate(clk_get_parent(clk)) * clk->mul / clk->div;
-	/* default GC aclk = 312M sel = pll1_624, div = 2 */
-	/* enable_val used to hack GC aclk value */
-	clk->enable_val = GC_ACLK_RATE(CLK_PLL1_624, 1);
+	__clk_periph_init(clk, &pll1_416, 1, 1);
 }
 
 static int gc_clk_enable(struct clk *clk)
 {
-	unsigned int rate_cfg, en_cfg;
-	unsigned int i;
-
-	i = 0;
-	while ((clk->inputs[i].input) && (clk->inputs[i].input != clk->parent))
-		i++;
-	BUG_ON(!clk->inputs[i].input);
-
-	en_cfg = (GC_ACLK_EN | GC_FCLK_EN | GC_HCLK_EN);
-	rate_cfg = GC_FCLK_RATE(clk->inputs[i].value, (clk->div - 1));
-	rate_cfg |= clk->enable_val;
-	rate_cfg |= (GC_FCLK_REQ | GC_ACLK_REQ);
-	CLK_SET_BITS(en_cfg, 0);
-	CLK_SET_BITS(rate_cfg, GC_CLK_RATE_MSK);
+	CLK_SET_BITS((GC_FCLK_EN | GC_HCLK_EN), 0);
+	CLK_SET_BITS(GC_FCLK_REQ, 0);
+	clk_enable(&gc_aclk);
 	pr_debug("%s GC_CLK %x\n", __func__, __raw_readl(clk->clk_rst));
 	return 0;
 }
 
 static void gc_clk_disable(struct clk *clk)
 {
-	CLK_SET_BITS(0, GC_ACLK_EN | GC_FCLK_EN | GC_HCLK_EN);
+	CLK_SET_BITS(0, (GC_FCLK_EN | GC_HCLK_EN));
+	clk_disable(&gc_aclk);
 	pr_debug("%s GC_CLK : %x\n", __func__, __raw_readl(clk->clk_rst));
 }
 
@@ -1385,11 +1431,12 @@ static long gc_clk_round_rate(struct clk *clk, unsigned long rate)
 
 static int gc_clk_setrate(struct clk *clk, unsigned long rate)
 {
-	unsigned long rate_cfg;
+	unsigned long old_rate;
 	unsigned int i;
-	struct clk *new_parent;
+	struct clk *new_fparent, *new_aparent;
 
-	if (rate == clk->rate)
+	old_rate = clk->rate;
+	if (rate == old_rate)
 		return 0;
 
 	i = 0;
@@ -1397,32 +1444,18 @@ static int gc_clk_setrate(struct clk *clk, unsigned long rate)
 		i++;
 	BUG_ON(i == ARRAY_SIZE(gc_clk_tbl));
 
-	new_parent = gc_clk_tbl[i].fparent;
-	if (clk->refcnt)
-		clk_enable(new_parent);
+	/* set GC function clk rate */
+	new_fparent = gc_clk_tbl[i].fparent;
+	__clk_set_mux_div(clk, new_fparent,
+		gc_clk_tbl[i].fsrc_val, (gc_clk_tbl[i].fdiv_val + 1));
 
-	clk->mul = 1;
-	clk->div = gc_clk_tbl[i].fdiv_val + 1;
-	clk->enable_val =
-		GC_ACLK_RATE(gc_clk_tbl[i].asrc_val, gc_clk_tbl[i].adiv_val);
-	rate_cfg =
-		GC_FCLK_RATE(gc_clk_tbl[i].fsrc_val, gc_clk_tbl[i].fdiv_val);
-	/*
-	 * FIXME: Aclk and fclk is changed together, need
-	 * confirm whether aclk will change or not
-	 */
-	rate_cfg |= clk->enable_val;
-	/* Do NOT trigger fc_request if clock is not enabled */
-	if (clk->refcnt)
-		rate_cfg |= (GC_FCLK_REQ | GC_ACLK_REQ);
-	CLK_SET_BITS(rate_cfg, GC_CLK_RATE_MSK);
-
-	if (clk->refcnt && clk->parent)
-		clk_disable(clk->parent);
-	clk_reparent(clk, new_parent);
+	/* set GC bus clk rate */
+	new_aparent = gc_clk_tbl[i].aparent;
+	__clk_set_mux_div(&gc_aclk, new_aparent,
+		gc_clk_tbl[i].asrc_val, (gc_clk_tbl[i].adiv_val + 1));
 
 	pr_debug("%s GC_CLK %x\n", __func__, __raw_readl(clk->clk_rst));
-	pr_debug("%s rate %lu->%lu\n", __func__, clk->rate, rate);
+	pr_debug("%s rate %lu->%lu\n", __func__, old_rate, rate);
 	return 0;
 }
 
@@ -1447,6 +1480,7 @@ static struct clk pxa988_clk_gc = {
 		.con_id = "GCCLK",
 	},
 	.clk_rst = (void __iomem *)APMU_GC,
+	.enable_val = GC_FCLK_REQ,
 	.inputs = periph_mux_sel,
 	.ops = &gc_clk_ops,
 	.reg_data = {
@@ -2333,6 +2367,7 @@ static struct clk *pxa988_clks_peri[] = {
 	&pxa988_clk_sdh0,
 	&pxa988_clk_sdh1,
 	&pxa988_clk_sdh2,
+	&gc_aclk,	/* internal clk node */
 	&pxa988_clk_gc,
 	&pxa988_clk_vpu,
 	&lcd_ci_isp_axi_clk,
