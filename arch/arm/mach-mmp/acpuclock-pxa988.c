@@ -1358,6 +1358,12 @@ static void pxa988_cpu_init(struct clk *clk)
 	clk->parent = op_array[op_index].parent;
 	clk->dynamic_change = 1;
 
+	/*
+	 * hard code loops_per_jiffy to highest according to highest
+	 * core frequency 1248M
+	 */
+	loops_per_jiffy = 9707520;
+
 	pr_info(" CPU boot up @%lu\n", clk->rate);
 }
 
