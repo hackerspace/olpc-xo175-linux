@@ -210,7 +210,6 @@ static int ddr_devfreq_probe(struct platform_device *pdev)
 		goto out;
 	}
 
-	init_ddr_performance_counter();
 	return 0;
 out:
 	kfree(data);
