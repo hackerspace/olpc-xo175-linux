@@ -181,9 +181,6 @@ static int pxa988_cpufreq_init(struct cpufreq_policy *policy)
 		return PTR_ERR(ddr_clk);
 	}
 
-	clk_enable(ddr_clk);
-	clk_enable(cpu_clk);
-
 	freq_table = cpufreq_frequency_get_table(smp_processor_id());
 	BUG_ON(!freq_table);
 	cpufreq_frequency_table_cpuinfo(policy, freq_table);
@@ -205,7 +202,6 @@ static int pxa988_cpufreq_init(struct cpufreq_policy *policy)
 static int pxa988_cpufreq_exit(struct cpufreq_policy *policy)
 {
 	cpufreq_frequency_table_cpuinfo(policy, freq_table);
-	clk_disable(ddr_clk);
 	clk_put(ddr_clk);
 	clk_put(cpu_clk);
 	return 0;

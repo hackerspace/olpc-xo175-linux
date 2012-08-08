@@ -1442,8 +1442,20 @@ static unsigned long pxa988_cpu_getrate(struct clk *clk)
 	return 0;
 }
 
+/* do nothing only used to adjust proper clk->refcnt */
+static int clk_dummy_enable(struct clk *clk)
+{
+	return 0;
+}
+
+static void clk_dummy_disable(struct clk *clk)
+{
+}
+
 struct clkops cpu_clk_ops = {
 	.init = pxa988_cpu_init,
+	.enable = clk_dummy_enable,
+	.disable = clk_dummy_disable,
 	.round_rate = pxa988_cpu_round_rate,
 	.setrate = pxa988_cpu_setrate,
 	.getrate = pxa988_cpu_getrate,
@@ -1669,6 +1681,8 @@ static unsigned long pxa988_ddraxi_getrate(struct clk *clk)
 
 struct clkops ddr_clk_ops = {
 	.init = pxa988_ddraxi_init,
+	.enable = clk_dummy_enable,
+	.disable = clk_dummy_disable,
 	.round_rate = pxa988_ddraxi_round_rate,
 	.setrate = pxa988_ddraxi_setrate,
 	.getrate = pxa988_ddraxi_getrate,
@@ -1943,6 +1957,8 @@ static int __init pxa988_freq_init(void)
 
 	pxa988_init_one_clock(&pxa988_cpu_clk);
 	pxa988_init_one_clock(&pxa988_ddr_clk);
+	clk_enable(&pxa988_cpu_clk);
+	clk_enable(&pxa988_ddr_clk);
 
 	__init_cpufreq_table();
 
