@@ -2373,6 +2373,8 @@ static struct clk pxa988_list_clks[] = {
 			0x9, 480000000, NULL, &udc_clk_ops),
 	APMU_CLK("ire", "pxa910-ire.0", NULL, APMU_IRE,
 			0x9, 480000000, NULL),
+	APMU_CLK("aes", NULL, "AESCLK", APMU_GEU,
+			0x9, 480000000, NULL),
 
 	/* APMU: _name, _dev, _con, _reg, _eval, _rate, _parent , ops */
 	APMU_CLK_OPS("nand", "pxa3xx-nand", NULL, APMU_NAND,
