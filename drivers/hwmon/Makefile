@@ -132,6 +132,7 @@ obj-$(CONFIG_SENSORS_LSM303DLHC_ACC)	+=lsm303dlhc_acc.o
 obj-$(CONFIG_SENSORS_LSM303DLHC_MAG)	+=lsm303dlhc_mag.o
 obj-$(CONFIG_SENSORS_L3G4200D_GYR)	+=l3g4200d_gyr.o
 obj-$(CONFIG_SENSORS_ISL29043)	+= isl29043.o
+obj-$(CONFIG_SENSORS_LPS331AP)	+= lps331ap.o
 
 # PMBus drivers
 obj-$(CONFIG_PMBUS)		+= pmbus_core.o
