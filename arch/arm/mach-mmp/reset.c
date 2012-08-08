@@ -20,7 +20,7 @@
 
 /* Raw i2c operations __ONLY__ can be used for reboot routine */
 #if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)	\
-		|| defined(CONFIG_CPU_PXA910)
+		|| defined(CONFIG_CPU_PXA910) || defined(CONFIG_CPU_PXA988)
 
 #if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 #define MAX_BUS_NUM	6
@@ -62,6 +62,25 @@ static const u32 i2c_reg_icr[MAX_BUS_NUM] = {
 };
 static const u32 i2c_reg_isr[MAX_BUS_NUM] = {
 	APB_VIRT_BASE + 0x11000 + 0x18,
+	APB_VIRT_BASE + 0x37000 + 0x18,
+};
+#endif
+
+#if defined(CONFIG_CPU_PXA988)
+#define MAX_BUS_NUM	3
+static const u32 i2c_reg_idbr[MAX_BUS_NUM] = {
+	APB_VIRT_BASE + 0x11000 + 0x08,
+	APB_VIRT_BASE + 0x10800 + 0x08,
+	APB_VIRT_BASE + 0x37000 + 0x08,
+};
+static const u32 i2c_reg_icr[MAX_BUS_NUM] = {
+	APB_VIRT_BASE + 0x11000 + 0x10,
+	APB_VIRT_BASE + 0x10800 + 0x10,
+	APB_VIRT_BASE + 0x37000 + 0x10,
+};
+static const u32 i2c_reg_isr[MAX_BUS_NUM] = {
+	APB_VIRT_BASE + 0x11000 + 0x18,
+	APB_VIRT_BASE + 0x10800 + 0x18,
 	APB_VIRT_BASE + 0x37000 + 0x18,
 };
 #endif

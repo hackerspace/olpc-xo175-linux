@@ -27,6 +27,7 @@
 #include <linux/platform_data/pxa_sdhci.h>
 #include <linux/sd8x_rfkill.h>
 #include <linux/regulator/machine.h>
+#include <linux/i2c/elan_touch.h>
 #include <linux/i2c/ft5306_touch.h>
 #include <linux/mfd/88pm80x.h>
 #include <linux/cwmi.h>
@@ -55,6 +56,7 @@
 #include <mach/regs-apmu.h>
 #include <mach/clock-pxa988.h>
 #include <mach/regs-ciu.h>
+#include <mach/system.h>
 
 #ifdef CONFIG_PM_DEVFREQ
 #include <plat/devfreq.h>
@@ -257,6 +259,34 @@ static unsigned long emeidkb_pin_config[] __initdata = {
 	GPIO_VCM_PWDN,
 };
 
+static unsigned long emeidkb_lcd_pin_config[] __initdata = {
+	GPIO045_GPIO_45,
+
+	GPIO081_LCD,
+	GPIO082_LCD,
+	GPIO083_LCD,
+	GPIO084_LCD,
+	GPIO085_LCD,
+	GPIO086_LCD,
+	GPIO087_LCD,
+	GPIO088_LCD,
+	GPIO089_LCD,
+	GPIO090_LCD,
+	GPIO091_LCD,
+	GPIO092_LCD,
+	GPIO093_LCD,
+	GPIO094_LCD,
+	GPIO095_LCD,
+	GPIO096_LCD,
+/* camera power control pin */
+#define GPIO018_GPIO_CAM_RST_MAIN	GPIO018_GPIO_18
+#define GPIO019_GPIO_CAM_PD_SUB		GPIO019_GPIO_19
+#define GPIO020_GPIO_CAM_RST_SUB	GPIO020_GPIO_20
+	GPIO018_GPIO_18,
+	GPIO019_GPIO_19,
+	GPIO020_GPIO_20,
+};
+
 static unsigned int emei_dkb_matrix_key_map[] = {
 	KEY(0, 0, KEY_BACKSPACE),
 	KEY(0, 1, KEY_MENU),
@@ -282,6 +312,36 @@ static struct pxa27x_keypad_platform_data emei_dkb_keypad_info __initdata = {
 	.matrix_key_map_size	= ARRAY_SIZE(emei_dkb_matrix_key_map),
 	.debounce_interval	= 30,
 };
+
+static int emei_i2c_read_reg(u8 addr, u8 reg, u8 *buf, int len)
+{
+	return __raw_i2c_read_reg(3, addr, reg, buf, len);
+}
+/*
+ * for HVGA panel:
+ */
+static int is_HVGA_lcd;
+#if defined(CONFIG_TOUCHSCREEN_ELAN)
+static int touch_io_power_onoff(int on);
+#endif
+static void ft5306_touch_reset(void);
+static void lcd_HVGA_setup(void)
+{
+	u8 buf[4] = {0,};
+
+	ft5306_touch_reset();
+#if defined(CONFIG_TOUCHSCREEN_ELAN)
+	touch_io_power_onoff(1);
+#endif
+	/* Reset TWSI3 pwr_i2c unit firstly */
+	__raw_i2c_bus_reset(3);
+	emei_i2c_read_reg(0x8, 0x00, buf, 4);
+
+	if (buf[0] == 0x55)
+		is_HVGA_lcd = 1;
+	printk(KERN_INFO "emei dkb touch : 0x%x, HVGA_lcd: %d\n",
+			buf[0], is_HVGA_lcd);
+}
 
 static void emei_dkb_set_bl(int intensity)
 {
@@ -658,8 +718,13 @@ static int camera_sensor_power(struct device *dev, int on)
 		}
 	}
 
-	cam_pwr = mfp_to_gpio(GPIO082_GPIO_CAM_PD_SUB);
-	cam_reset = mfp_to_gpio(GPIO083_GPIO_CAM_RST_SUB);
+	if (is_HVGA_lcd) {
+		cam_pwr = mfp_to_gpio(GPIO019_GPIO_CAM_PD_SUB);
+		cam_reset = mfp_to_gpio(GPIO020_GPIO_CAM_RST_SUB);
+	} else {
+		cam_pwr = mfp_to_gpio(GPIO082_GPIO_CAM_PD_SUB);
+		cam_reset = mfp_to_gpio(GPIO083_GPIO_CAM_RST_SUB);
+	}
 
 	if (cam_pwr) {
 		if (gpio_request(cam_pwr, "CAM_PWR")) {
@@ -831,9 +896,13 @@ static int ov8825_sensor_power_on(int on, int flag)
 {
 	static struct regulator *af_vcc;
 	static struct regulator *avdd;
-	int rst  = mfp_to_gpio(GPIO081_GPIO_CAM_RST_MAIN);
+	int rst;
 	int pwdn = mfp_to_gpio(GPIO080_GPIO_CAM_PD_MAIN);
 	int ret = 0;
+	if (is_HVGA_lcd)
+		rst = mfp_to_gpio(GPIO018_GPIO_CAM_RST_MAIN);
+	else
+		rst = mfp_to_gpio(GPIO081_GPIO_CAM_RST_MAIN);
 
 	if (gpio_request(pwdn, "CAM_ENABLE_LOW")) {
 		ret = -EIO;
@@ -972,6 +1041,32 @@ static struct i2c_board_info emeidkb_i2c_info[] = {
 
 };
 
+#if defined(CONFIG_TOUCHSCREEN_ELAN)
+static int touch_io_power_onoff(int on)
+{
+	unsigned int tp_logic_en;
+	tp_logic_en = mfp_to_gpio(MFP_PIN_GPIO45);
+
+	if (gpio_request(tp_logic_en, "TP_LOGIC_EN")) {
+		printk(KERN_ERR "Request GPIO tp_logic_en failed,"
+			"gpio: %d\n", tp_logic_en);
+		return -EIO;
+	}
+
+	if (on)
+		gpio_direction_output(tp_logic_en, 1);
+	else
+		gpio_direction_output(tp_logic_en, 0);
+
+	gpio_free(tp_logic_en);
+	return 0;
+}
+
+static struct elan_touch_platform_data elan_touch_data = {
+	.power = touch_io_power_onoff,
+};
+#endif
+
 #if defined(CONFIG_TOUCHSCREEN_FT5306)
 static int ft5306_touch_io_power_onoff(int on)
 {
@@ -1077,6 +1172,14 @@ static struct i2c_board_info emeidkb_pwr_i2c_info[] = {
 	{
 		.type		= "isl9226",
 		.addr		= 0x59,
+	},
+#endif
+#if defined(CONFIG_TOUCHSCREEN_ELAN)
+	{
+		.type		= "elan_touch",
+		.addr		= 0x8,
+		.irq  = gpio_to_irq(17),
+		.platform_data	= &elan_touch_data,
 	},
 #endif
 #if defined(CONFIG_TOUCHSCREEN_FT5306)
@@ -1792,6 +1895,10 @@ static void __init emeidkb_init(void)
 
 	pm_power_off = emei_dkb_poweroff;
 
+	lcd_HVGA_setup();
+	if (is_HVGA_lcd)
+		mfp_config(ARRAY_AND_SIZE(emeidkb_lcd_pin_config));
+
 	/* backlight */
 	platform_device_register(&emei_dkb_lcd_backlight_devices);
 
@@ -1809,7 +1916,8 @@ static void __init emeidkb_init(void)
 	pxa988_add_uart(2);
 	/* FIXME: add i2c_pxa_platform_data */
 	pxa988_add_twsi(0, NULL, ARRAY_AND_SIZE(emeidkb_i2c_info));
-	pxa988_add_twsi(1, NULL, ARRAY_AND_SIZE(emeidkb_i2c1_info));
+	if (!is_HVGA_lcd)
+		pxa988_add_twsi(1, NULL, ARRAY_AND_SIZE(emeidkb_i2c1_info));
 	pxa988_add_twsi(2, &emeidkb_pwr_i2c_pdata,
 			ARRAY_AND_SIZE(emeidkb_pwr_i2c_info));
 
@@ -1819,14 +1927,20 @@ static void __init emeidkb_init(void)
 	pxa988_add_asram(&pxa988_asram_info);
 
 #ifdef CONFIG_FB_PXA168
-	emeidkb_add_lcd_mipi();
+	if (is_HVGA_lcd) {
+		emeidkb_add_lcd_pl();
+		emeidkb_add_tv_out();
+		printk(KERN_INFO "LCD: Parallel tpo panel selected.\n");
+	} else {
+		emeidkb_add_lcd_mipi();
+		printk(KERN_INFO "LCD: qHD panel selected.\n");
+	}
 #endif
 
 #ifdef CONFIG_PROC_FS
 	/* create proc for sirf GPS control */
 	create_sirf_proc_file();
 #endif
-
 	emeidkb_init_mmc();
 
 	emeidkb_init_smc();
@@ -1860,7 +1974,8 @@ static void __init emeidkb_init(void)
 #endif
 
 #if (defined CONFIG_CMMB)
-	emeidkb_init_spi();
+	if (!is_HVGA_lcd)
+		emeidkb_init_spi();
 #endif
 
 #ifdef CONFIG_DDR_DEVFREQ
