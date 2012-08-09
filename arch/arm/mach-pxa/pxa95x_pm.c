@@ -800,6 +800,7 @@ static void enter_cg(void)
 }
 #endif /*ifdef CONFIG_CPU_PXA978*/
 
+extern int pxa95x_check_constraint(void);
 #define ACS_DDR_REQ (1 << 19)
 #define ACS_DDR_260_REQ (1 << 8)
 #define ACS_RELQ_OTHERS (1 << 5)
@@ -812,7 +813,13 @@ int pxa95x_pm_enter_sleep(struct pxa95x_pm_regs *pm_regs)
 
 	local_fiq_disable();
 	local_irq_save(flags);
-
+	/* Check constriants */
+	if (pxa95x_check_constraint()) {
+		pr_info("LPM constrain prevent system enter suspend\n");
+		local_irq_restore(flags);
+		local_fiq_enable();
+		return -EBUSY;
+	}
 	while (1) {
 		wakeup_data = 0;
 		pr_debug("start loop.\n");
@@ -1829,11 +1836,8 @@ static int pxa95x_pm_enter(suspend_state_t state)
 /*
  * Called after processes are frozen, but before we shut down devices.
  */
-extern int pxa95x_check_constraint(void);
 static int pxa95x_pm_prepare(void)
 {
-	/* Check constriants */
-	pxa95x_check_constraint();
 	/* Request OP1 before entering suspend.
 	 * This is for Nevo C0 silicon issue which can't wakeup core
 	 * if core freq > 915MHz. Nevo-2067.

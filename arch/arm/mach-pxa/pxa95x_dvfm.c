@@ -4088,20 +4088,23 @@ int pxa95x_check_constraint(void)
 {
 	struct op_info *p = NULL;
 	struct dvfm_md_opt *q = NULL;
-	int ret = 0;
-
+	int ret = 0, rc = 0, acipc_id = 0;
+	rc = dvfm_find_index("ACIPC", &acipc_id);
 	read_lock(&pxa95x_dvfm_op_list.lock);
 
-	/* Set the lowest frequency that is higher than specifed one */
 	list_for_each_entry(p, &pxa95x_dvfm_op_list.list, list) {
 		q = (struct dvfm_md_opt *)p->op;
-		/* Lowpower mode */
 		if ((q->power_mode == POWER_MODE_D1)
 				|| (q->power_mode == POWER_MODE_D2)
 				|| (q->power_mode == POWER_MODE_CG)) {
 			if (p->device) {
 				ret = 1;
-				pr_info("op:%s is disabled by 0x%llx.\n", q->name, p->device);
+				if (!rc && test_bit(acipc_id, (void *)&p->device)) {
+					/* enter suspend event ACIPC hold the constrain*/
+					ret = 0;
+				}
+				if (ret)
+					pr_info("op:%s is disabled by 0x%llx.\n", q->name, p->device);
 			}
 		}
 	}
