@@ -2406,7 +2406,7 @@ static struct clk pxa988_list_clks[] = {
 
 static void __init clk_misc_init(void)
 {
-
+	unsigned int dcg_regval = 0;
 	/*
 	 * pll2 default rate is different when using LPDDR400 and LPDDR533
 	 * For LPDDR400,
@@ -2442,9 +2442,13 @@ static void __init clk_misc_init(void)
 	__raw_writel(0x0, APBC_PXA988_RIPC);	/* RIPC */
 	__raw_writel(0x3, APMU_MCK4_CTL);	/* MCK4 AHB */
 
-	/* disable SOC and MC4 dynamic clk gating on Z0 */
-	__raw_writel(0x00080008, MC_CONF);
-
+	/* enable MC4 and AXI fabric dynamic clk gating on Z1 */
+	dcg_regval = (0 << 19) | /* MCK4 */
+		(1 << 9) | (1 << 16) | (1 << 18) | /* Seagull */
+		(1 << 12) | (1 << 27) |  /* Fabric #2 */
+		(1 << 15) | (1 << 20) | (1 << 21) | /* VPU*/
+		(1 << 17) | (1 << 26); /* Fabric#1 CA9 */
+	__raw_writel(dcg_regval, MC_CONF);
 }
 
 /*
