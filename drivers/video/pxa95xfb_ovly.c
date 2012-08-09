@@ -42,6 +42,17 @@ static int pxa95xfb_vid_release(struct fb_info *fi, int user)
 	/* Turn off compatibility mode */
 	var->nonstd &= ~0xff000000;
 	fbi->open_count --;
+	if ((fbi->on) && (fbi->open_count == 0)) {
+		fbi->on = 0;
+		if (!fbi->on && fbi->controller_on) {
+			conv_ref_dec(fbi);
+			lcdc_set_lcd_controller(fbi);
+			if (!conv_is_on(fbi))
+				converter_onoff(fbi, 0);
+			fbi->controller_on = 0;
+			printk(KERN_INFO "clean fb%d done.\n", fbi->id);
+		}
+	}
 	return 0;
 }
 
