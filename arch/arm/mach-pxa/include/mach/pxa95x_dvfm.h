@@ -58,6 +58,8 @@ extern void switch_vmeta_cg_constraint(int enable);
 #define DDR_ENTRY_SIZE 8	/*One entry includes two 32-bit data*/
 #define DDR_FROFILE_MAX_NUM 10
 #define DDR_ENTRY_MAX_NUM 32
+#define DYNAMIC_TABLE_INDEX 2
+#define REG_TABLE_MAX 4
 /* This structure is used to count the number of times we enter/exit
  * D2/CGM/DOCS
  */

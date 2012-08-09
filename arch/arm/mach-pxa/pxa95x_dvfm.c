@@ -155,26 +155,37 @@ struct reg_table_profile reg_table_profiles[DDR_FROFILE_MAX_NUM];
 unsigned int used_pro_count = 0;
 unsigned int entry_count[DDR_FROFILE_MAX_NUM];
 unsigned long ddr_prof_data_base_init = 0;
+u16 ddr_reg_inited = 0;
 void ddr_reg_table_init(unsigned int ddr_prof_data_base)
 {
 	void __iomem *ddr_prof_data_base_Addr;
 
 	pr_debug("%s, DDR_Reg Base: 0x%X\n", __func__, ddr_prof_data_base);
 
-	ddr_prof_data_base_Addr = ioremap(ddr_prof_data_base, sizeof(reg_table_profiles));
-
 	if (ddr_prof_data_base) {
 		u32 base = 0;
+		ddr_prof_data_base_Addr =
+			ioremap(ddr_prof_data_base, sizeof(reg_table_profiles));
 
 		memset(entry_count, 0, sizeof(entry_count));
 		memset(reg_table_profiles, 0, sizeof(reg_table_profiles));
 
-		for (used_pro_count = 0; used_pro_count < DDR_FROFILE_MAX_NUM; used_pro_count++) {
-			reg_table_profiles[used_pro_count].freq = readl(ddr_prof_data_base_Addr + base);
+		for (used_pro_count = 0; used_pro_count < DDR_FROFILE_MAX_NUM;
+			used_pro_count++) {
+			reg_table_profiles[used_pro_count].freq =
+				readl(ddr_prof_data_base_Addr + base);
 			base += sizeof(reg_table_profiles[used_pro_count].freq);
 
 			if (!reg_table_profiles[used_pro_count].freq)
 				break;
+
+			/*Workaround for : OBM freq is not aligned to kernel's*/
+			if (reg_table_profiles[used_pro_count].freq == 475)
+				reg_table_profiles[used_pro_count].freq = 472;
+			if (reg_table_profiles[used_pro_count].freq == 400)
+				reg_table_profiles[used_pro_count].freq = 398;
+			/*Workaround end*/
+
 			pr_debug("Freq: %d MHz\n", reg_table_profiles[used_pro_count].freq);
 			pr_debug("Profile: %d\n", used_pro_count);
 
@@ -192,16 +203,19 @@ void ddr_reg_table_init(unsigned int ddr_prof_data_base)
 				pr_debug("OFFSET: 0x%X,  Data: 0x%X\n", offset, data);
 
 				entry_count[used_pro_count]++;
-				if ((!offset && !data) || (!(entry_count[used_pro_count] < DDR_ENTRY_MAX_NUM)))
+				if ((!offset && !data) ||
+					(!(entry_count[used_pro_count] < DDR_ENTRY_MAX_NUM)))
 					break;
 			}
 			if (entry_count[used_pro_count] < DDR_ENTRY_MAX_NUM)
-				base += ((DDR_ENTRY_MAX_NUM - entry_count[used_pro_count]) * DDR_ENTRY_SIZE);
+				base += ((DDR_ENTRY_MAX_NUM - entry_count[used_pro_count])
+					* DDR_ENTRY_SIZE);
 		}
+		ddr_reg_inited = 1;
 		pr_info("%d Profiles are initated\n", used_pro_count);
+		iounmap(ddr_prof_data_base_Addr);
 	} else
 		pr_err("DDR base Address is not valid");
-	iounmap(ddr_prof_data_base_Addr);
 }
 
 static int reg_base_init(char *buf)
@@ -1811,29 +1825,155 @@ static inline unsigned int ddr_pll_freq2reg(unsigned int x)
 	}
 }
 
-static inline void choose_regtable(unsigned int new_dmcfs)
+static inline void choose_regtable(unsigned int table_index, u16 tab_inited)
 {
-	switch (new_dmcfs) {
-	case 7:
-	case 6:
-	case 5:
-		DDR_FC_REG_TBL = 3;
+	if (tab_inited) {
+		if ((table_index < REG_TABLE_MAX)) {
+			pr_debug("%d Regtable is selected\n", table_index);
+			DDR_FC_REG_TBL = table_index;
+		}
+		else {
+			pr_err("%d Regtable is not existed\n", table_index);
+			BUG_ON(1);
+		}
+	} else {
+		pr_debug("old mechanism to choose DDR Regtable, index is %d\n", table_index);
+		switch (table_index) {
+			case 7:
+			case 6:
+			case 5:
+				DDR_FC_REG_TBL = 3;
+				break;
+			case 4:
+				DDR_FC_REG_TBL = 2;
+				break;
+			case 3:
+			case 2:
+			case 1:
+				DDR_FC_REG_TBL = 1;
+				break;
+			case 0:
+				DDR_FC_REG_TBL = 0;
+				break;
+			default:
+				BUG_ON(1);
+				break;
+		}
+	}
+}
+
+void regtable_init(void)
+{
+	/*This function is used init Reg table 0,1, and 3, Reg table 2 can be used dynamicly*/
+	void __iomem *dmc_base;
+	u16 tab_cnt, en_count, sel_tab_cnt = 0;
+
+	dmc_base = ioremap(0x7ff00000, 0x1000);
+
+	for (tab_cnt = 0; tab_cnt < used_pro_count; tab_cnt++) {
+		if ((reg_table_profiles[tab_cnt].freq == 104)
+		|| (reg_table_profiles[tab_cnt].freq == 208)
+		|| (reg_table_profiles[tab_cnt].freq == 533)) {
+			if (reg_table_profiles[tab_cnt].freq == 104)
+				sel_tab_cnt = 0;
+			else if (reg_table_profiles[tab_cnt].freq == 208)
+				sel_tab_cnt = 1;
+			else if (reg_table_profiles[tab_cnt].freq == 533)
+				sel_tab_cnt = 3;
+
+			pr_debug("Table : %d\n", sel_tab_cnt);
+			pr_debug("Freq: %dMHz\n", reg_table_profiles[tab_cnt].freq);
+			pr_debug("Profile : %d\n", tab_cnt);
+			for (en_count = 0; en_count <= entry_count[tab_cnt]; en_count++) {
+				unsigned int tmp_data_1, tmp_table_ctrl;
+
+				tmp_table_ctrl = (sel_tab_cnt << 5) | en_count | (1 << 31);
+
+				if (!reg_table_profiles[tab_cnt].offset[en_count] &&
+					!reg_table_profiles[tab_cnt].data[en_count])
+					tmp_data_1 = 0 | (1 << 17);
+				else
+					tmp_data_1 = (reg_table_profiles[tab_cnt].offset[en_count] & 0xFFF);
+
+				writel(reg_table_profiles[tab_cnt].data[en_count], dmc_base +
+						REG_TABLE_DATA_0);
+				writel(tmp_data_1, dmc_base + REG_TABLE_DATA_1);
+
+				writel(tmp_table_ctrl, dmc_base + REG_TABLE_CONTROL_0);
+			}
+		}
+	}
+	iounmap(dmc_base);
+}
+
+int regtable_program(unsigned int ddr_new_freq)
+{
+	u16 tab_cnt, en_count;
+	void __iomem *dmc_base;
+	static unsigned int pre_freq;
+	unsigned int dclk = ddr_new_freq >> 1;
+	int ret = 4;
+	/*Workaround for SaarC: OBM freq is not aligned to kernel's*/
+	if (dclk == 450) {
+		pr_err("SaarC Freq workaround, Configure 450MHz with 472MHz setting\n");
+		dclk = 472;
+	}
+	if (dclk == 225) {
+		pr_err("SaarC Freq workaround, Configure 225MHz with 208MHz setting\n");
+		dclk = 208;
+	}
+	/*Workaround end*/
+	pr_debug("dclk is %d\n", dclk);
+	switch (dclk) {
+	case 104:
+		ret = 0;
 		break;
-	case 4:
-		DDR_FC_REG_TBL = 2;
+	case 208:
+		ret = 1;
 		break;
-	case 3:
-	case 2:
-	case 1:
-		DDR_FC_REG_TBL = 1;
-		break;
-	case 0:
-		DDR_FC_REG_TBL = 0;
+	case 533:
+		ret = 3;
 		break;
 	default:
-		BUG_ON(1);
+		if (pre_freq != dclk)
+			 pre_freq = dclk;
+		else {
+			pr_debug("Reg table 2 has been configured\n");
+			ret = 2;
+			break;
+		}
+		dmc_base = ioremap(0x7ff00000, 0x1000);
+		for (tab_cnt = 0; tab_cnt < DDR_FROFILE_MAX_NUM; tab_cnt++) {
+			pr_debug("Searching... Current Profile's Freq : %d\n",
+				reg_table_profiles[tab_cnt].freq);
+			if (reg_table_profiles[tab_cnt].freq == dclk) {
+				for (en_count = 0; en_count <= entry_count[tab_cnt]; en_count ++) {
+					unsigned int tmp_data_1, tmp_table_ctrl;
+
+					tmp_table_ctrl = (DYNAMIC_TABLE_INDEX << 5) |
+								en_count |
+								(1 << 31);
+
+					if (!reg_table_profiles[tab_cnt].offset[en_count] &&
+						!reg_table_profiles[tab_cnt].data[en_count])
+						tmp_data_1 = 0 | (1 << 17);
+					else
+						tmp_data_1 = (reg_table_profiles[tab_cnt].offset[en_count] & 0xFFF);
+
+					writel(reg_table_profiles[tab_cnt].data[en_count],
+						dmc_base + REG_TABLE_DATA_0);
+					writel(tmp_data_1, dmc_base + REG_TABLE_DATA_1);
+
+					writel(tmp_table_ctrl, dmc_base + REG_TABLE_CONTROL_0);
+				}
+				ret = DYNAMIC_TABLE_INDEX;
+				break;
+			}
+		}
+		iounmap(dmc_base);
 		break;
 	}
+	return ret;
 }
 
 static u32 sram_size, sram_map;
@@ -1888,7 +2028,11 @@ static inline int set_ddr_pll_freq(void *driver_data,
 			mask = ACCR_DMCFS_MASK_978;
 			accr &= ~mask;
 			accr |= data;
-			choose_regtable(3);
+			pr_debug("Switch to 208MHz\n");
+			if (ddr_reg_inited)
+				choose_regtable(1, ddr_reg_inited);
+			else
+				choose_regtable(3, ddr_reg_inited);
 			write_accr_in_sram((u32) sram_map + 0x9000,
 			(u32) sram_map + 0xa000 - 4, accr,
 			data, mask, (u32) info->clkmgr_base,
@@ -1978,7 +2122,14 @@ static int update_bus_freq(void *driver_data, struct dvfm_md_opt *old,
 			if ((416 != old->dmcfs) && (416 == new->dmcfs))
 				clk_enable(clk_syspll416);
 			ddr416 = set_ddr_pll_freq(driver_data, old, new, accr);
-			choose_regtable(fv_info.dmcfs);
+			pr_debug("new->dmcfs is : %dMHz\n", new->dmcfs);
+			if (ddr_reg_inited) {
+				int table_index;
+				table_index = regtable_program(new->dmcfs);
+				choose_regtable(table_index, ddr_reg_inited);
+			} else
+				choose_regtable(fv_info.dmcfs, ddr_reg_inited);
+
 	}
 	if (old->hss != new->hss) {
 		is_hss_change_over = 0;
@@ -3930,7 +4081,11 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 		       "pxa9xx_freq_probe:Unable to find 'User' driver\n");
 		BUG_ON(1);
 	}
+
 	ddr_reg_table_init(ddr_prof_data_base_init);
+	if (ddr_reg_inited)
+		regtable_init();
+
 	return rc;
 err:
 	printk(KERN_ERR "pxa95x_dvfm init failed\n");
