@@ -48,7 +48,6 @@ struct pxa988_thermal_device {
 	struct thermal_zone_device *therm_cpu;
 	struct clk *therm_clk;
 	struct thermal_cooling_device *cool_dev_active[TRIP_POINTS_ACTIVE_NUM];
-	struct delayed_work init_delay_work;
 	int irq;
 };
 
@@ -311,45 +310,10 @@ static irqreturn_t pxa988_thermal_irq(int irq, void *devid)
 	return IRQ_HANDLED;
 }
 
-static void pxa988_init_delay_work(struct work_struct *work)
-{
-	unsigned long ts_ctrl;
-	/*
-	 * We start first measure due to
-	 * thermal_zone_device_register will get_temp
-	 */
-#ifndef DEBUG_TEMPERATURE
-	ts_ctrl = __raw_readl(THERMAL_TS_CTRL);
-	ts_ctrl |= TS_CTRL_TSEN_CHOP_EN;
-	/* we only care greater than 80 */
-	ts_ctrl &= ~TS_CTRL_TSEN_LOW_RANGE;
-	__raw_writel(ts_ctrl, THERMAL_TS_CTRL);
-
-	ts_ctrl = __raw_readl(THERMAL_TS_CTRL);
-	ts_ctrl |= TS_CTRL_RST_N_TSEN;
-	__raw_writel(ts_ctrl, THERMAL_TS_CTRL);
-
-	/* start first measure */
-	ts_ctrl = __raw_readl(THERMAL_TS_CTRL);
-	ts_ctrl |= TS_CTRL_TSEN_TEMP_ON;
-	__raw_writel(ts_ctrl, THERMAL_TS_CTRL);
-#endif
-	pxa988_thermal_dev.therm_cpu = thermal_zone_device_register(
-			"pxa988-thermal", TRIP_POINTS_NUM,
-			NULL, &cpu_thermal_ops, 1, 1, 2000, 2000);
-	if (IS_ERR(pxa988_thermal_dev.therm_cpu)) {
-		pr_err("Failed to register thermal zone device\n");
-		return;
-	}
-#ifdef DEBUG_TEMPERATURE
-	sysfs_create_group(&((pxa988_thermal_dev.therm_cpu->device).kobj),
-			&thermal_attr_grp);
-#endif
-}
-
 static int pxa988_thermal_probe(struct platform_device *pdev)
 {
 	int ret, irq, i;
+	unsigned long ts_ctrl;
 
 	irq = platform_get_irq(pdev, 0);
 	if (irq < 0) {
@@ -385,15 +349,37 @@ static int pxa988_thermal_probe(struct platform_device *pdev)
 	}
 	clk_enable(pxa988_thermal_dev.therm_clk);
 
-	INIT_DELAYED_WORK(&(pxa988_thermal_dev.init_delay_work),
-			pxa988_init_delay_work);
 	/*
-	 * we must make sure thermal start check after Android
-	 * thermal monitor service has start up, or else the UEVENT
-	 * kernel sent will be lost
+	 * We start first measure due to
+	 * thermal_zone_device_register will get_temp
 	 */
-	schedule_delayed_work(&(pxa988_thermal_dev.init_delay_work),
-			round_jiffies(msecs_to_jiffies(60000)));
+#ifndef DEBUG_TEMPERATURE
+	ts_ctrl = __raw_readl(THERMAL_TS_CTRL);
+	ts_ctrl |= TS_CTRL_TSEN_CHOP_EN;
+	/* we only care greater than 80 */
+	ts_ctrl &= ~TS_CTRL_TSEN_LOW_RANGE;
+	__raw_writel(ts_ctrl, THERMAL_TS_CTRL);
+
+	ts_ctrl = __raw_readl(THERMAL_TS_CTRL);
+	ts_ctrl |= TS_CTRL_RST_N_TSEN;
+	__raw_writel(ts_ctrl, THERMAL_TS_CTRL);
+
+	/* start first measure */
+	ts_ctrl = __raw_readl(THERMAL_TS_CTRL);
+	ts_ctrl |= TS_CTRL_TSEN_TEMP_ON;
+	__raw_writel(ts_ctrl, THERMAL_TS_CTRL);
+#endif
+	pxa988_thermal_dev.therm_cpu = thermal_zone_device_register(
+			"pxa988-thermal", TRIP_POINTS_NUM,
+			NULL, &cpu_thermal_ops, 1, 1, 2000, 2000);
+	if (IS_ERR(pxa988_thermal_dev.therm_cpu)) {
+		pr_err("Failed to register thermal zone device\n");
+		return;
+	}
+#ifdef DEBUG_TEMPERATURE
+	sysfs_create_group(&((pxa988_thermal_dev.therm_cpu->device).kobj),
+			&thermal_attr_grp);
+#endif
 
 	return 0;
 failed_unregister_cooldev:
