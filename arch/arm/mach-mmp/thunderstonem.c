@@ -374,35 +374,80 @@ static struct pxa27x_keypad_platform_data mmp3_keypad_info = {
 #endif
 
 /* PMIC Regulator 88PM800 */
-/* Power Supply ECOs:
- * ECO#6: V_2P8(LDO14) is wired to LDO7, so LDO14 should keep off */
-static struct regulator_consumer_supply regulator_supplies[] = {
-	/* BUCK power supplies: BUCK[1..5] */
-	[PM800_ID_BUCK1] = REGULATOR_SUPPLY("V_PMIC_SD0", NULL),
-	[PM800_ID_BUCK2] = REGULATOR_SUPPLY("V_DDR3", NULL),
-	[PM800_ID_BUCK3] = REGULATOR_SUPPLY("V_SD3", NULL),
-	[PM800_ID_BUCK4] = REGULATOR_SUPPLY("V_1P8", NULL),
-	[PM800_ID_BUCK5] = REGULATOR_SUPPLY("V_SD5", NULL),
-	/* LDO power supplies: LDO[1..19] */
-	[PM800_ID_LDO1]  = REGULATOR_SUPPLY("V_LDO1", NULL),
-	[PM800_ID_LDO2]  = REGULATOR_SUPPLY("V_MIC_BIAS", NULL),
-	[PM800_ID_LDO3]  = REGULATOR_SUPPLY("V_1P2_MIPI", NULL),
-	[PM800_ID_LDO4]  = REGULATOR_SUPPLY("V_LDO4", NULL),
-	[PM800_ID_LDO5]  = REGULATOR_SUPPLY("V_3P3", NULL),
-	[PM800_ID_LDO6]  = REGULATOR_SUPPLY("V_PMIC", NULL),
-	[PM800_ID_LDO7]  = REGULATOR_SUPPLY("V_WIFI_3V3", NULL),
-	[PM800_ID_LDO8]  = REGULATOR_SUPPLY("V_1P2_HSIC", NULL),
-	[PM800_ID_LDO9]  = REGULATOR_SUPPLY("V_1P8_USBFE", NULL),
-	[PM800_ID_LDO10] = REGULATOR_SUPPLY("V_LCD", NULL),
-	[PM800_ID_LDO11] = REGULATOR_SUPPLY("V_1P2_CODEC", NULL),
-	[PM800_ID_LDO12] = REGULATOR_SUPPLY("V_LDO12", NULL),
-	[PM800_ID_LDO13] = REGULATOR_SUPPLY("vmmc", "sdhci-pxa.0"), /* V_SDMMC */
-	[PM800_ID_LDO14] = REGULATOR_SUPPLY("V_LDO14"/*V_2P8*/, NULL),
-	[PM800_ID_LDO15] = REGULATOR_SUPPLY("V_MOTOR", NULL),
-	[PM800_ID_LDO16] = REGULATOR_SUPPLY("VBAT_FEM", NULL),
-	[PM800_ID_LDO17] = REGULATOR_SUPPLY("V_BB", NULL),
-	[PM800_ID_LDO18] = REGULATOR_SUPPLY("AVDD_CAM_2P8V", NULL),
-	[PM800_ID_LDO19] = REGULATOR_SUPPLY("AVDD_LVDS", NULL),
+/* BUCK power supplies: BUCK[1..5] */
+static struct regulator_consumer_supply regulator_supplies_BUCK1[] = {
+	REGULATOR_SUPPLY("V_PMIC_BUCK1", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_BUCK2[] = {
+	REGULATOR_SUPPLY("V_DDR3", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_BUCK3[] = {
+	REGULATOR_SUPPLY("V_SD3", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_BUCK4[] = {
+	REGULATOR_SUPPLY("V_1P8", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_BUCK5[] = {
+	REGULATOR_SUPPLY("V_SD5", NULL),
+};
+/* LDO power supplies: LDO[1..19] */
+static struct regulator_consumer_supply regulator_supplies_LDO1[] = {
+	REGULATOR_SUPPLY("V_LDO1", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_LDO2[] = {
+	REGULATOR_SUPPLY("V_LDO2", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_LDO3[] = {
+	REGULATOR_SUPPLY("V_1P2_MIPI", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_LDO4[] = {
+	REGULATOR_SUPPLY("V_2P8", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_LDO5[] = {
+	REGULATOR_SUPPLY("V_3P3", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_LDO6[] = {
+	REGULATOR_SUPPLY("V_PMIC", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_LDO7[] = {
+	REGULATOR_SUPPLY("V_WIFI_3V3", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_LDO8[] = {
+	REGULATOR_SUPPLY("V_1P2_HSIC", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_LDO9[] = {
+	REGULATOR_SUPPLY("V_1P8_USBFE", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_LDO10[] = {
+	REGULATOR_SUPPLY("V_LCD", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_LDO11[] = {
+	REGULATOR_SUPPLY("V_1P2_CODEC", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_LDO12[] = {
+	REGULATOR_SUPPLY("V_LDO12", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_LDO13[] = {
+	REGULATOR_SUPPLY("vmmc", "sdhci-pxa.0"),
+	REGULATOR_SUPPLY("vmmc", "sdhci-pxa.2"),
+};
+static struct regulator_consumer_supply regulator_supplies_LDO14[] = {
+	REGULATOR_SUPPLY("V_MIC_BIAS", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_LDO15[] = {
+	REGULATOR_SUPPLY("V_MOTOR", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_LDO16[] = {
+	REGULATOR_SUPPLY("VBAT_FEM", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_LDO17[] = {
+	REGULATOR_SUPPLY("V_BB", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_LDO18[] = {
+	REGULATOR_SUPPLY("AVDD_CAM_2P8V", NULL),
+};
+static struct regulator_consumer_supply regulator_supplies_LDO19[] = {
+	REGULATOR_SUPPLY("AVDD_LVDS", NULL),
 };
 
 static int regulator_index[] = {
@@ -432,7 +477,7 @@ static int regulator_index[] = {
 	PM800_ID_LDO19,
 };
 
-#define REG_INIT(_name, _min, _max, _always, _boot)	\
+#define REG_INIT(_name, _min, _max, _always, _boot, _suspend) \
 {								\
 	.constraints = {					\
 		.name		= __stringify(_name),		\
@@ -440,40 +485,52 @@ static int regulator_index[] = {
 		.max_uV		= _max,				\
 		.always_on	= _always,			\
 		.boot_on	= _boot,			\
+		.state_mem	= {				\
+			.disabled = _suspend,			\
+		},						\
 		.valid_ops_mask	= REGULATOR_CHANGE_VOLTAGE	\
 				| REGULATOR_CHANGE_STATUS,	\
 	},							\
-	.num_consumer_supplies	= 1,				\
-	.consumer_supplies	= &regulator_supplies[PM800_ID_##_name], \
+	.num_consumer_supplies = ARRAY_SIZE(regulator_supplies_##_name), \
+	.consumer_supplies = regulator_supplies_##_name,	\
 	.driver_data = &regulator_index[PM800_ID_##_name],	\
 }
+
+/* Domain		Range(V)	Imax(mA)
+ * BUCK1:		0.6 - 1.8	3000
+ * BUCK[2..5]:	0.6 - 3.3	1200
+ * LDO1:		0.6 - 1.5	200
+ * LDO2:		1.7 - 2.8	10
+ * LDO[3..17]:	1.2 - 3.3	300
+ * LDO[18..19]:	1.7 - 3.3	200
+ * */
 static struct regulator_init_data pm800_regulator_data[] = {
 	/* BUCK power supplies: BUCK[1..5] */
-	[PM800_ID_BUCK1] = REG_INIT(BUCK1,  600000, 3950000, 1, 1),
-	[PM800_ID_BUCK2] = REG_INIT(BUCK2,  600000, 3950000, 1, 1),
-	[PM800_ID_BUCK3] = REG_INIT(BUCK3,  600000, 3950000, 1, 1),
-	[PM800_ID_BUCK4] = REG_INIT(BUCK4,  1800000, 1800000, 1, 1),
-	[PM800_ID_BUCK5] = REG_INIT(BUCK5,  600000, 3950000, 1, 1),
+	[PM800_ID_BUCK1] = REG_INIT(BUCK1, 600000, 1800000, 1, 1, 0),
+	[PM800_ID_BUCK2] = REG_INIT(BUCK2, 600000, 3300000, 1, 1, 0),
+	[PM800_ID_BUCK3] = REG_INIT(BUCK3, 600000, 3300000, 1, 1, 0),
+	[PM800_ID_BUCK4] = REG_INIT(BUCK4, 600000, 3300000, 1, 1, 0),
+	[PM800_ID_BUCK5] = REG_INIT(BUCK5, 600000, 3300000, 0, 0, 0),
 	/* LDO power supplies: LDO[1..19] */
-	[PM800_ID_LDO1]  = REG_INIT(LDO1,   600000, 1500000, 0, 0),
-	[PM800_ID_LDO2]  = REG_INIT(LDO2,   600000, 1500000, 0, 0),
-	[PM800_ID_LDO3]  = REG_INIT(LDO3,  1200000, 3300000, 1, 1),
-	[PM800_ID_LDO4]  = REG_INIT(LDO4,  1200000, 3300000, 1, 1),
-	[PM800_ID_LDO5]  = REG_INIT(LDO5,  1200000, 3300000, 1, 1),
-	[PM800_ID_LDO6]  = REG_INIT(LDO6,  1200000, 3300000, 1, 1),
-	[PM800_ID_LDO7]  = REG_INIT(LDO7,  1200000, 3300000, 1, 1),
-	[PM800_ID_LDO8]  = REG_INIT(LDO8,  1200000, 3300000, 1, 1),
-	[PM800_ID_LDO9]  = REG_INIT(LDO9,  1200000, 3300000, 1, 1),
-	[PM800_ID_LDO10] = REG_INIT(LDO10, 1200000, 3300000, 1, 1),
-	[PM800_ID_LDO11] = REG_INIT(LDO11, 1200000, 3300000, 1, 1),
-	[PM800_ID_LDO12] = REG_INIT(LDO12, 1200000, 3300000, 0, 0),
-	[PM800_ID_LDO13] = REG_INIT(LDO13, 1200000, 3300000, 1, 1),
-	[PM800_ID_LDO14] = REG_INIT(LDO14, 2800000, 2800000, 1, 1),
-	[PM800_ID_LDO15] = REG_INIT(LDO15, 1200000, 3300000, 1, 1),
-	[PM800_ID_LDO16] = REG_INIT(LDO16, 1200000, 3300000, 0, 0),
-	[PM800_ID_LDO17] = REG_INIT(LDO17, 1200000, 3300000, 0, 0),
-	[PM800_ID_LDO18] = REG_INIT(LDO18, 2800000, 2800000, 0, 0),
-	[PM800_ID_LDO19] = REG_INIT(LDO19, 1700000, 3300000, 1, 1),
+	[PM800_ID_LDO1]  = REG_INIT(LDO1,   600000, 1500000, 0, 0, 0),
+	[PM800_ID_LDO2]  = REG_INIT(LDO2,  1700000, 2800000, 0, 0, 0),
+	[PM800_ID_LDO3]  = REG_INIT(LDO3,  1200000, 3300000, 1, 1, 0),
+	[PM800_ID_LDO4]  = REG_INIT(LDO4,  1200000, 3300000, 1, 1, 0),
+	[PM800_ID_LDO5]  = REG_INIT(LDO5,  1200000, 3300000, 1, 1, 0),
+	[PM800_ID_LDO6]  = REG_INIT(LDO6,  1200000, 3300000, 1, 1, 0),
+	[PM800_ID_LDO7]  = REG_INIT(LDO7,  1200000, 3300000, 0, 0, 0),
+	[PM800_ID_LDO8]  = REG_INIT(LDO8,  1200000, 3300000, 0, 0, 0),
+	[PM800_ID_LDO9]  = REG_INIT(LDO9,  1200000, 3300000, 0, 0, 0),
+	[PM800_ID_LDO10] = REG_INIT(LDO10, 1200000, 3300000, 1, 1, 0),
+	[PM800_ID_LDO11] = REG_INIT(LDO11, 1200000, 3300000, 1, 1, 0),
+	[PM800_ID_LDO12] = REG_INIT(LDO12, 1200000, 3300000, 0, 0, 0),
+	[PM800_ID_LDO13] = REG_INIT(LDO13, 1200000, 3300000, 1, 1, 0),
+	[PM800_ID_LDO14] = REG_INIT(LDO14, 1200000, 3300000, 1, 1, 0),
+	[PM800_ID_LDO15] = REG_INIT(LDO15, 1200000, 3300000, 0, 0, 0),
+	[PM800_ID_LDO16] = REG_INIT(LDO16, 1200000, 3300000, 0, 0, 0),
+	[PM800_ID_LDO17] = REG_INIT(LDO17, 1200000, 3300000, 0, 0, 0),
+	[PM800_ID_LDO18] = REG_INIT(LDO18, 1700000, 3300000, 0, 0, 0),
+	[PM800_ID_LDO19] = REG_INIT(LDO19, 1700000, 3300000, 1, 1, 0),
 };
 
 static struct pm80x_rtc_pdata pm80x_rtc = {
@@ -484,8 +541,7 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 				struct pm80x_platform_data *pdata)
 {
 	if (!chip || !pdata ||
-		chip->id != CHIP_PM800 ||
-		!chip->base_page) {
+		chip->id != CHIP_PM800 || !chip->base_page) {
 		pr_err("%s:chip or pdata is not availiable!\n", __func__);
 		return -EINVAL;
 	}
@@ -493,42 +549,8 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 	/* Disable watch dog */
 	if (chip->chip800_version <= PM800_CHIP_B0)
 		pm80x_set_bits(chip->base_page, PM800_WAKEUP2, (0xF << 4), 0);
-	else {
-		unsigned int dvc1;
-		unsigned int dvc2;
 
-		dvc1 = mfp_to_gpio(MFP_PIN_GPIO8);
-		if (gpio_request(dvc1, "DVC1")) {
-			pr_err("Failed to request GPIO for DVC1!\n");
-			return -1;
-		}
-		gpio_direction_output(dvc1, 0);
-		gpio_free(dvc1);
-
-		dvc2 = mfp_to_gpio(MFP_PIN_GPIO9);
-		if (gpio_request(dvc2, "DVC2")) {
-			pr_err("Failed to request GPIO for DVC2!\n");
-			return -1;
-		}
-		gpio_direction_output(dvc2, 0);
-		gpio_free(dvc2);
-		mdelay(5);
-		pm80x_set_bits(chip->base_page, PM800_WATCHDOG_CTRL, (1<<0), 1);
-
-        /* FIXME
-         * BUCK5 no longer with DVC on C0
-         * Only configure BUCK5 to 3.3V
-         */
-        /*
-		pm80x_reg_write(chip->power_page, PM800_BUCK5_1, 0x75);
-		pm80x_reg_write(chip->power_page, PM800_BUCK5_2, 0x75);
-        */
-		pm80x_reg_write(chip->power_page, PM800_BUCK5, 0x75);
-		/* Use 22pf for internal capacitance b/w XTAL1 and XTAL2 for audio enable */
-		pm80x_reg_write(chip->base_page, 0xE8, 0x70);
-
-
-	}	/* Select XO 32KHZ(USE_XO)
+	/* Select XO 32KHZ(USE_XO)
 	 * Force all CLK32K_1/2/3 buffers to use the XO 32KHZ */
 	pm80x_set_bits(chip->base_page, PM800_RTC_CONTROL, (1 << 7), (1 << 7));
 	/* Enable 32K out1 from XO: EXT_32K_IN */
@@ -542,7 +564,6 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 	/* Modified for Audio codec 32K clk enable */
 	pm80x_set_bits(chip->base_page, PM800_RTC_MISC2,
 			0x3f, ((0x2 << 4) | (0x2 << 2) | 0x2));
-
 
 	return 0;
 }
@@ -636,7 +657,7 @@ static int motion_sensor_set_power(int on, const char *device_name)
 
 	if ((device_index >= 0) && (device_index <= 2)) {
 		if (on && (!is_enabled[device_index])) {
-			vdd[device_index] = regulator_get(NULL, "V_LDO4");
+			vdd[device_index] = regulator_get(NULL, "V_2P8");
 			if (IS_ERR(vdd[device_index])) {
 				vdd[device_index] = NULL;
 				return -ENODEV;
@@ -967,7 +988,7 @@ static void mmp3_8787_set_power(unsigned int on)
 	static int f_enabled = 0;
 	/* VBAT_FEM 3.3v */
 	if (on && (!f_enabled)) {
-		vbat_fem = regulator_get(NULL, "VBAT_FEM");
+		vbat_fem = regulator_get(NULL, "V_WIFI_3V3");
 		if (IS_ERR(vbat_fem)) {
 			vbat_fem = NULL;
 			pr_err("get VBAT_FEM failed %s.\n", __func__);
