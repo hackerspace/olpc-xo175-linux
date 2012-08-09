@@ -503,7 +503,9 @@ static struct pm80x_rtc_pdata pm80x_rtc = {
 };
 
 static struct pm80x_dvc_pdata pm80x_dvc = {
-	/*FIXME: need to be added */
+	.dvc1		= MFP_PIN_GPIO43,
+	.dvc2		= MFP_PIN_GPIO44,
+	.gpio_dvc	= 1,
 };
 
 static int pm800_plat_config(struct pm80x_chip *chip,
@@ -633,6 +635,33 @@ static void regulator_init_pm800(void)
 
 	pr_info("%s: select emeidkb ldo map\n", __func__);
 	pm800_info.num_regulators = i;
+}
+
+static void pm800_dvctable_init(void)
+{
+	unsigned int *vol_table;
+	/* dvc only support 4 lvl voltage*/
+	unsigned int vol_tbsize = 4;
+	unsigned int index, max_vl, lowest_rate;
+
+	vol_table = kmalloc(vol_tbsize * sizeof(unsigned int), GFP_KERNEL);
+	if (!vol_table) {
+		pr_err("%s failed to malloc vol table!\n", __func__);
+		return ;
+	}
+
+	max_vl = pxa988_get_vl_num();
+	max_vl = (max_vl > 4) ? 4 : max_vl;
+	for (index = 0; index < max_vl; index++)
+		vol_table[index] = pxa988_get_vl(index) * 1000;
+
+	lowest_rate = pxa988_get_vl(0);
+	while (index < 4)
+		vol_table[index++] = lowest_rate * 1000;
+
+	pm80x_dvc.vol_val = vol_table;
+	pm80x_dvc.size	= vol_tbsize;
+	return ;
 }
 
 #if defined(CONFIG_SENSORS_CWMI) || defined(CONFIG_SENSORS_CWGD) \
@@ -1909,6 +1938,7 @@ static void __init emeidkb_init(void)
 #endif
 	pxa988_add_keypad(&emei_dkb_keypad_info);
 	regulator_init_pm800();
+	pm800_dvctable_init();
 
 	/* For AP debug */
 	pxa988_add_uart(1);
