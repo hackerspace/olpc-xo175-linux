@@ -688,7 +688,7 @@ static int __init mmp3asoc_init(void)
 	int i, ret[2];
 
 	if (!machine_is_abilene() && !machine_is_yellowstone()
-		&& !machine_is_orchid()) {
+		&& !machine_is_orchid() && !machine_is_thunderstonem()) {
 		pr_err("%s: Unkonwn machine not supported!\n", __func__);
 		return -ENODEV;
 	}
