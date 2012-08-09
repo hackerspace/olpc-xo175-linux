@@ -1306,12 +1306,16 @@ static int thunderstonem_board_reset(char mode, const char *cmd)
 	u8 buf;
 	/* Reset TWSI1 unit firstly */
 	__raw_i2c_bus_reset(1);
-	/* 1.Enable FAULT_WU and FAULT_WU_EN */
+	/* 1.Enable FAULT_WU_EN */
 	pm800_i2c_read_reg(0x30, 0xE7, &buf, 1);
-	buf |= ((1 << 3) | (1 << 2));
+	buf |= (1 << 2);
 	pm800_i2c_write_reg(0x30, 0xE7, buf);
-	/* 2.Issue SW power down */
+	/* 2.Set FAULT_WU */
+	buf |= (1 << 3);
+	pm800_i2c_write_reg(0x30, 0xE7, buf);
+	/* 3.Issue SW power down */
 	pm800_i2c_write_reg(0x30, 0x0D, 0x20);
+	mdelay(50);
 	/* Rebooting... */
 	return 1;
 }
