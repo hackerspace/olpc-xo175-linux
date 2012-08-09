@@ -1100,74 +1100,6 @@ static struct mv_usb_platform_data mmp3_usb_pdata = {
 	.set_vbus	= pxa_usb_set_vbus,
 };
 #endif
-
-#ifdef CONFIG_USB_EHCI_PXA_U2H_HSIC
-static int mmp3_hsic1_reset(void)
-{
-	int reset;
-	reset = mfp_to_gpio(GPIO96_HSIC_RESET);
-
-	if (gpio_request(reset, "hsic reset")) {
-		pr_err("Failed to request hsic reset gpio\n");
-		return -EIO;
-	}
-
-	gpio_direction_output(reset, 0);
-	mdelay(100);
-	gpio_direction_output(reset, 1);
-	mdelay(50);
-
-	gpio_free(reset);
-	return 0;
-}
-
-static int mmp3_hsic1_set_vbus(unsigned int vbus)
-{
-	static struct regulator *v_1p2_hsic;
-
-	printk(KERN_INFO "%s: set %d\n", __func__, vbus);
-	if (vbus) {
-		if (!v_1p2_hsic) {
-			v_1p2_hsic = regulator_get(NULL, "V_1P2_HSIC");
-			if (IS_ERR(v_1p2_hsic)) {
-				printk(KERN_INFO "V_1P2_HSIC not found\n");
-				return -EIO;
-			}
-			regulator_set_voltage(v_1p2_hsic, 1200000, 1200000);
-			regulator_enable(v_1p2_hsic);
-			printk(KERN_INFO "%s: enable regulator\n", __func__);
-			udelay(2);
-		}
-
-		mmp3_hsic1_reset();
-	} else {
-		if (v_1p2_hsic) {
-			regulator_disable(v_1p2_hsic);
-			regulator_put(v_1p2_hsic);
-			v_1p2_hsic = NULL;
-		}
-	}
-
-	return 0;
-}
-
-static char *mmp3_hsic1_clock_name[] = {
-	[0] = "U2OCLK",
-	[1] = "HSIC1CLK",
-};
-
-static struct mv_usb_platform_data mmp3_hsic1_pdata = {
-	.clknum		= 2,
-	.clkname	= mmp3_hsic1_clock_name,
-	.vbus		= NULL,
-	.mode		= MV_USB_MODE_HOST,
-	.phy_init	= mmp3_hsic_phy_init,
-	.phy_deinit     = mmp3_hsic_phy_deinit,
-	.set_vbus	= mmp3_hsic1_set_vbus,
-	.private_init	= mmp3_hsic_private_init,
-};
-
-#endif
 #endif
 
 
@@ -1444,10 +1376,6 @@ static void __init thunderstonem_init(void)
 #endif
 #endif
 
-#ifdef CONFIG_USB_EHCI_PXA_U2H_HSIC
-	mmp3_hsic1_device.dev.platform_data = (void *)&mmp3_hsic1_pdata;
-	platform_device_register(&mmp3_hsic1_device);
-#endif
 	/* If we have a full configuration then disable any regulators
 	 * which are not in use or always_on. */
 	regulator_has_full_constraints();
