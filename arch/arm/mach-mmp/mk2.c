@@ -246,6 +246,10 @@ struct devfreq_pm_qos_table ddr_freq_qos_table[] = {
 		.freq = 533333,
 		.qos_value = DDR_CONSTRAINT_LVL1,
 	},
+	{
+		.freq = 800000,
+		.qos_value = DDR_CONSTRAINT_LVL2,
+	},
 	{0, 0},
 };
 

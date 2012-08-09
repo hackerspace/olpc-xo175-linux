@@ -23,6 +23,7 @@
 #include <linux/pm_qos_params.h>
 #include <plat/pm.h>
 #include <mach/uio_hdmi.h>
+#include <plat/devfreq.h>
 #if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)
 #include <mach/addr-map.h>
 #include <mach/cputype.h>
@@ -72,6 +73,7 @@ struct hdmi_instance {
 	struct pm_qos_request_list qos_cpufreq_min;
 	struct pm_qos_request_list qos_cpufreq_disable;
 	struct pm_qos_request_list qos_idle;
+	struct pm_qos_request_list qos_ddrfreq_min;
 };
 
 static void set_power_constraint(struct hdmi_instance *hi, int min)
@@ -84,6 +86,8 @@ static void set_power_constraint(struct hdmi_instance *hi, int min)
 
 #ifdef CONFIG_CPU_MMP3
 	pm_qos_update_request(&hi->qos_cpufreq_min, min);
+	/* set DDR frequency constraint @ 400M, ddr constraint need 2x value */
+	pm_qos_update_request(&hi->qos_ddrfreq_min, DDR_CONSTRAINT_LVL2);
 #endif
 
 #ifdef CONFIG_CPU_PXA978
@@ -108,6 +112,7 @@ static void unset_power_constraint(struct hdmi_instance *hi)
 
 #ifdef CONFIG_CPU_MMP3
 	pm_qos_update_request(&hi->qos_cpufreq_min, PM_QOS_DEFAULT_VALUE);
+	pm_qos_update_request(&hi->qos_ddrfreq_min, PM_QOS_DEFAULT_VALUE);
 #endif
 
 #ifdef CONFIG_CPU_PXA978
@@ -572,6 +577,8 @@ static int hdmi_probe(struct platform_device *pdev)
 	pm_qos_add_request(&hi->qos_cpufreq_disable, PM_QOS_CPUFREQ_DISABLE,
 			PM_QOS_DEFAULT_VALUE);
 	pm_qos_add_request(&hi->qos_idle, PM_QOS_CPU_DMA_LATENCY,
+			PM_QOS_DEFAULT_VALUE);
+	pm_qos_add_request(&hi->qos_ddrfreq_min, PM_QOS_DDR_DEVFREQ_MIN,
 			PM_QOS_DEFAULT_VALUE);
 #endif
 	platform_set_drvdata(pdev, hi);
