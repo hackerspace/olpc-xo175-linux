@@ -1490,7 +1490,8 @@ static int pxa97x_vb2_streamon(struct vb2_queue *q, unsigned int count)
 
 	pcdev->state = CAM_STATE_STREAMING;
 	pcdev->frmcnt = 0;
-	cam_set_constrain(pcdev, dvfm_dev_idx);
+	if (cpu_is_pxa978_Dx())
+		cam_set_constrain(pcdev, dvfm_dev_idx);
 
 	sci_irq_enable(pcdev, IRQ_EOFX|IRQ_OFO);
 	csi_dphy(pcdev->csidev);
@@ -1521,7 +1522,8 @@ static int pxa97x_vb2_streamoff(struct vb2_queue *q)
 	del_timer(&pcdev->reset_timer);
 #endif
 	pcdev->state = CAM_STATE_FORMATED;
-	cam_set_constrain(pcdev, dvfm_dev_idx);
+	if (cpu_is_pxa978_Dx())
+		cam_set_constrain(pcdev, dvfm_dev_idx);
 	return 0;
 }
 
