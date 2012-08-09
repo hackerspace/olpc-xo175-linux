@@ -192,6 +192,10 @@ static unsigned long thunderstonem_pin_config[] __initdata = {
 #ifdef CONFIG_INPUT_CAPELLA_CM3218
 	GPIO93_GPIO,
 #endif
+	/* 3V3_EN */
+	GPIO87_GPIO,
+	/* 5V_ON */
+	GPIO88_GPIO,
 
 };
 
@@ -621,6 +625,77 @@ static struct fan53555_platform_data fan53555_pdata = {
 	.sleep_vol = 1000000, /* uV */
 };
 
+/* V_5V */
+static struct regulator_consumer_supply v_5v_power_supplies[] = {
+	REGULATOR_SUPPLY("V_5V", NULL),
+};
+
+static struct regulator_init_data v_5v_fixed_power_init_data = {
+	.constraints = {
+		.boot_on = 1,
+		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
+	},
+	.num_consumer_supplies = ARRAY_SIZE(v_5v_power_supplies),
+	.consumer_supplies = v_5v_power_supplies,
+};
+
+static struct fixed_voltage_config v_5v_fixed_power_config = {
+	.supply_name = "5V_PWR",
+	.microvolts = 5000000,
+	.gpio = mfp_to_gpio(GPIO88_GPIO),
+	.enable_high = 1,
+	.startup_delay = 50,	/* in microseconds */
+	.init_data = &v_5v_fixed_power_init_data,
+};
+
+static struct platform_device v_5v_fixed_power = {
+	.name = "reg-fixed-voltage",
+	.id = 0,
+	.dev = {
+		.platform_data = &v_5v_fixed_power_config,
+	},
+};
+
+/* V_3V3 */
+static struct regulator_consumer_supply v_3v3_power_supplies[] = {
+	REGULATOR_SUPPLY("V_3V3", NULL),
+};
+
+static struct regulator_init_data v_3v3_fixed_power_init_data = {
+	.constraints = {
+		.boot_on = 1,
+		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
+	},
+	.num_consumer_supplies = ARRAY_SIZE(v_3v3_power_supplies),
+	.consumer_supplies = v_3v3_power_supplies,
+};
+
+static struct fixed_voltage_config v_3v3_fixed_power_config = {
+	.supply_name = "3V3_PWR",
+	.microvolts = 3300000,
+	.gpio = mfp_to_gpio(GPIO87_GPIO),
+	.enable_high = 1,
+	.startup_delay = 50,	/* in microseconds */
+	.init_data = &v_3v3_fixed_power_init_data,
+};
+
+static struct platform_device v_3v3_fixed_power = {
+	.name = "reg-fixed-voltage",
+	.id = 1,
+	.dev = {
+		.platform_data = &v_3v3_fixed_power_config,
+	},
+};
+
+static struct platform_device *fixed_rdevs[] __initdata = {
+	&v_5v_fixed_power,
+	&v_3v3_fixed_power,
+};
+
+static void thunderstonem_fixed_power_init(void)
+{
+	platform_add_devices(fixed_rdevs, ARRAY_SIZE(fixed_rdevs));
+}
 
 static struct i2c_board_info thunderstonem_twsi1_info[] = {
 	{
@@ -1358,6 +1433,7 @@ static void __init thunderstonem_init(void)
 	mmp3_init_dxoisp();
 #endif
 
+	thunderstonem_fixed_power_init();
 
 #ifdef CONFIG_USB_PXA_U2O
 	/* Place VBUS_EN low by default */
