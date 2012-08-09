@@ -56,6 +56,7 @@ struct pm800_regulator_info {
 #ifdef CONFIG_DEBUG_FS
 	struct dentry *debugfs;
 #endif
+	int max_uA;
 };
 
 static const unsigned int BUCK1_table[] = {
@@ -581,12 +582,19 @@ static int pm800_is_enabled(struct regulator_dev *rdev)
 	return !!((unsigned char)ret & (1 << info->enable_bit));
 }
 
+static int pm800_get_current_limit(struct regulator_dev *rdev)
+{
+	struct pm800_regulator_info *info = rdev_get_drvdata(rdev);
+	return info->max_uA;
+}
+
 static struct regulator_ops pm800_regulator_ops = {
 	.set_voltage	= pm800_set_voltage,
 	.get_voltage	= pm800_get_voltage,
 	.enable		= pm800_enable,
 	.disable	= pm800_disable,
 	.is_enabled	= pm800_is_enabled,
+	.get_current_limit = pm800_get_current_limit,
 };
 /*
  * vreg - the buck regs string.
@@ -597,7 +605,7 @@ static struct regulator_ops pm800_regulator_ops = {
  * ereg -  the string for the enable register.
  * ebit - the bit number in the enable register.
  */
-#define PM800_DVC(vreg, nbits, ureg, ubit, ereg, ebit)			\
+#define PM800_DVC(vreg, nbits, ureg, ubit, ereg, ebit, amax)	\
 {									\
 	.desc	= {							\
 		.name	= #vreg,					\
@@ -613,6 +621,7 @@ static struct regulator_ops pm800_regulator_ops = {
 	.update_bit	= (ubit),					\
 	.enable_reg	= PM800_##ereg,				\
 	.enable_bit	= (ebit),					\
+	.max_uA = (amax),						\
 	.vol_table	= (unsigned int *)&vreg##_table,		\
 	.vol_suspend	= (unsigned int *)&vreg##_table,	\
 }
@@ -624,7 +633,7 @@ static struct regulator_ops pm800_regulator_ops = {
  * ereg -  the string for the enable register.
  * ebit - the bit number in the enable register.
  */
-#define PM800_LDO(_id, vreg, shift, nbits, ereg, ebit)			\
+#define PM800_LDO(_id, vreg, shift, nbits, ereg, ebit, amax)	\
 {									\
 	.desc	= {							\
 		.name	= "LDO" #_id,					\
@@ -638,37 +647,38 @@ static struct regulator_ops pm800_regulator_ops = {
 	.vol_nbits	= (nbits),					\
 	.enable_reg	= PM800_##ereg,				\
 	.enable_bit	= (ebit),					\
+	.max_uA = (amax),						\
 	.vol_table	= (unsigned int *)&LDO##_id##_table,		\
 	.vol_suspend	= (unsigned int *)&LDO##_id##_table,	\
 }
 /*the GO register in the PM800_DVC table need to be consider
   it might be we need to remove this filed from the MACRO*/
 static struct pm800_regulator_info pm800_regulator_info[] = {
-	PM800_DVC(BUCK1, 7, BUCK_ENA, 0, BUCK_ENA, 0),
-	PM800_DVC(BUCK2, 7, BUCK_ENA, 1, BUCK_ENA, 1),
-	PM800_DVC(BUCK3, 7, BUCK_ENA, 2, BUCK_ENA, 2),
-	PM800_DVC(BUCK4, 7, BUCK_ENA, 3, BUCK_ENA, 3),
-	PM800_DVC(BUCK5, 7, BUCK_ENA, 4, BUCK_ENA, 4),
+	PM800_DVC(BUCK1, 7, BUCK_ENA, 0, BUCK_ENA, 0, 3000000),
+	PM800_DVC(BUCK2, 7, BUCK_ENA, 1, BUCK_ENA, 1, 1200000),
+	PM800_DVC(BUCK3, 7, BUCK_ENA, 2, BUCK_ENA, 2, 1200000),
+	PM800_DVC(BUCK4, 7, BUCK_ENA, 3, BUCK_ENA, 3, 1200000),
+	PM800_DVC(BUCK5, 7, BUCK_ENA, 4, BUCK_ENA, 4, 1200000),
 
-	PM800_LDO(1,	LDO1,	0, 4,	LDO_ENA1_1, 0),
-	PM800_LDO(2,	LDO2,	0, 3,	LDO_ENA1_1, 1),
-	PM800_LDO(3,	LDO3,	0, 4,	LDO_ENA1_1, 2),
-	PM800_LDO(4,	LDO4,	0, 4,	LDO_ENA1_1, 3),
-	PM800_LDO(5,	LDO5,	0, 4,	LDO_ENA1_1, 4),
-	PM800_LDO(6,	LDO6,	0, 4,	LDO_ENA1_1, 5),
-	PM800_LDO(7,	LDO7,	0, 4,	LDO_ENA1_1, 6),
-	PM800_LDO(8,	LDO8,	0, 4,	LDO_ENA1_1, 7),
-	PM800_LDO(9,	LDO9,	0, 4,	LDO_ENA1_2, 0),
-	PM800_LDO(10,	LDO10,	0, 4,	LDO_ENA1_2, 1),
-	PM800_LDO(11,	LDO11,	0, 4,	LDO_ENA1_2, 2),
-	PM800_LDO(12,	LDO12,	0, 4,	LDO_ENA1_2, 3),
-	PM800_LDO(13,	LDO13,	0, 4,	LDO_ENA1_2,	4),
-	PM800_LDO(14,	LDO14,	0, 4,	LDO_ENA1_2, 5),
-	PM800_LDO(15,	LDO15,	0, 4,	LDO_ENA1_2, 6),
-	PM800_LDO(16,	LDO16,	0, 4,	LDO_ENA1_2, 7),
-	PM800_LDO(17,	LDO17,	0, 4,	LDO_ENA1_3, 0),
-	PM800_LDO(18,	LDO18,	0, 3,	LDO_ENA1_3, 1),
-	PM800_LDO(19,	LDO19,	0, 3,	LDO_ENA1_3, 2),
+	PM800_LDO(1,	LDO1,	0, 4,	LDO_ENA1_1, 0, 200000),
+	PM800_LDO(2,	LDO2,	0, 3,	LDO_ENA1_1, 1, 10000),
+	PM800_LDO(3,	LDO3,	0, 4,	LDO_ENA1_1, 2, 300000),
+	PM800_LDO(4,	LDO4,	0, 4,	LDO_ENA1_1, 3, 300000),
+	PM800_LDO(5,	LDO5,	0, 4,	LDO_ENA1_1, 4, 300000),
+	PM800_LDO(6,	LDO6,	0, 4,	LDO_ENA1_1, 5, 300000),
+	PM800_LDO(7,	LDO7,	0, 4,	LDO_ENA1_1, 6, 300000),
+	PM800_LDO(8,	LDO8,	0, 4,	LDO_ENA1_1, 7, 300000),
+	PM800_LDO(9,	LDO9,	0, 4,	LDO_ENA1_2, 0, 300000),
+	PM800_LDO(10,	LDO10,	0, 4,	LDO_ENA1_2, 1, 300000),
+	PM800_LDO(11,	LDO11,	0, 4,	LDO_ENA1_2, 2, 300000),
+	PM800_LDO(12,	LDO12,	0, 4,	LDO_ENA1_2, 3, 300000),
+	PM800_LDO(13,	LDO13,	0, 4,	LDO_ENA1_2, 4, 300000),
+	PM800_LDO(14,	LDO14,	0, 4,	LDO_ENA1_2, 5, 300000),
+	PM800_LDO(15,	LDO15,	0, 4,	LDO_ENA1_2, 6, 300000),
+	PM800_LDO(16,	LDO16,	0, 4,	LDO_ENA1_2, 7, 300000),
+	PM800_LDO(17,	LDO17,	0, 4,	LDO_ENA1_3, 0, 300000),
+	PM800_LDO(18,	LDO18,	0, 3,	LDO_ENA1_3, 1, 200000),
+	PM800_LDO(19,	LDO19,	0, 3,	LDO_ENA1_3, 2, 200000),
 };
 
 static int __devinit pm800_regulator_probe(struct platform_device *pdev)
