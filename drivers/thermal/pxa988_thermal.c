@@ -46,6 +46,7 @@
 
 struct pxa988_thermal_device {
 	struct thermal_zone_device *therm_cpu;
+	int temp_cpu;
 	struct clk *therm_clk;
 	struct thermal_cooling_device *cool_dev_active[TRIP_POINTS_ACTIVE_NUM];
 	int irq;
@@ -90,6 +91,7 @@ static int cool_dev_set_current_state(struct thermal_cooling_device *cdev,
 		unsigned long state)
 {
 	int i;
+	char *temp_info[2]    = { "TEMP=100000", NULL };
 	static int drop_init_check;
 	struct cool_dev_priv *priv = (struct cool_dev_priv *)cdev->devdata;
 	if (state > COOLDEV_ACTIVE_MAX_STATE)
@@ -109,9 +111,13 @@ static int cool_dev_set_current_state(struct thermal_cooling_device *cdev,
 	priv->current_state = state;
 	/* notify user for trip point cross */
 	for (i = 0; i < TRIP_POINTS_ACTIVE_NUM; i++) {
-		if (cdev == pxa988_thermal_dev.cool_dev_active[i])
-			kobject_uevent(&((pxa988_thermal_dev.therm_cpu)->
-						device.kobj), KOBJ_CHANGE);
+		if (cdev == pxa988_thermal_dev.cool_dev_active[i]) {
+			sprintf(temp_info[0], "TEMP=%d",
+					pxa988_thermal_dev.temp_cpu);
+			kobject_uevent_env(&((pxa988_thermal_dev.therm_cpu)->
+				device.kobj), KOBJ_CHANGE, temp_info);
+
+		}
 	}
 out:
 	return 0;
@@ -219,6 +225,7 @@ static int cpu_sys_get_temp(struct thermal_zone_device *thermal,
 	ts_ctrl |= TS_CTRL_TSEN_TEMP_ON;
 	__raw_writel(ts_ctrl, THERMAL_TS_CTRL);
 #endif
+	pxa988_thermal_dev.temp_cpu = *temp;
 	return ret;
 }
 
