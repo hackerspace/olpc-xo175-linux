@@ -264,7 +264,7 @@ static int thunderstonem_lvds_power(struct pxa168fb_info *fbi,
 				unsigned int spi_gpio_cs,
 				unsigned int spi_gpio_reset, int on)
 {
-	static struct regulator *v_lcd, *v_1p8_ana;
+	static struct regulator *v_lcd, *v_1p8_ana, *v_3v3;
 	int lcd_rst_n, lcd_en, lcd_stby;
 
 	/*
@@ -307,10 +307,24 @@ static int thunderstonem_lvds_power(struct pxa168fb_info *fbi,
 			goto gpio_free_avdd;
 		}
 	}
+	/* V_3V3, the source of LCD_VDDIO */
+	if (!v_3v3) {
+		v_3v3 = regulator_get(NULL, "V_3V3");
+		if (IS_ERR(v_3v3)) {
+			pr_err("%s regulator get error!\n", __func__);
+			v_3v3 = NULL;
+			goto gpio_free_v_lcd;
+		}
+	}
+
 
 	if (on) {
 		/* panel stanby mode exit */
 		gpio_direction_output(lcd_stby, 1);
+
+		/* panel enable */
+		regulator_enable(v_3v3);
+		gpio_direction_output(lcd_en, 1);
 
 		regulator_set_voltage(v_1p8_ana, 1800000, 1800000);
 		regulator_enable(v_1p8_ana);
@@ -318,8 +332,6 @@ static int thunderstonem_lvds_power(struct pxa168fb_info *fbi,
 		regulator_set_voltage(v_lcd, 3300000, 3300000);
 		regulator_enable(v_lcd);
 
-		/* panel enable */
-		gpio_direction_output(lcd_en, 1);
 		/* release panel from reset */
 		gpio_direction_output(lcd_rst_n, 1);
 	} else {
@@ -330,12 +342,14 @@ static int thunderstonem_lvds_power(struct pxa168fb_info *fbi,
 		/* set panel reset */
 		gpio_direction_output(lcd_rst_n, 0);
 
+		/* disable v_3v3 */
+		regulator_disable(v_3v3);
+
 		/* disable v_ldo10 3.3v */
 		regulator_disable(v_lcd);
 
 		/* disable v_ldo19 1.8v */
 		regulator_disable(v_1p8_ana);
-
 	}
 
 	gpio_free(lcd_rst_n);
@@ -344,6 +358,9 @@ static int thunderstonem_lvds_power(struct pxa168fb_info *fbi,
 
 	pr_debug("%s on %d\n", __func__, on);
 	return 0;
+
+gpio_free_v_lcd:
+	regulator_put(v_lcd);
 
 gpio_free_avdd:
 	regulator_put(v_1p8_ana);
