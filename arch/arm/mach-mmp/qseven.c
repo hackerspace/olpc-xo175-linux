@@ -228,6 +228,59 @@ static struct pxa27x_keypad_platform_data mmp3_keypad_info = {
 	.active_low = 1,
 };
 
+#if defined(CONFIG_TOUCHSCREEN_TSC2007)
+static int tsc2007_init_gpio_irq(void)
+{
+	int gpio = mfp_to_gpio(TSI_INT_N);
+
+	if (gpio_request(gpio, "TSC2007 GPIO irq")) {
+			pr_err("gpio %d request failed\n", gpio);
+			return -1;
+	}
+	gpio_direction_input(gpio);
+	mdelay(100);
+	gpio_free(gpio);
+	return 0;
+}
+
+static int tsc_2007_pen_state(void)
+{
+	int temp = mfp_to_gpio(TSI_INT_N);
+	int value;
+	if (gpio_request(temp, "TSC2007 GPIO")) {
+			pr_err("gpio %d request failed\n", temp);
+			return -1;
+	}
+	gpio_direction_input(temp);
+	value = gpio_get_value(temp);
+	gpio_free(temp);
+	return !value;
+}
+
+struct tsc2007_platform_data tsc_2007_data = {
+	.model			= 2007,
+	.x_plate_ohms		= 180,
+	.init_platform_hw = NULL,
+	.get_pendown_state = tsc_2007_pen_state,
+	.clear_penirq = NULL,
+	.exit_platform_hw = NULL,
+	.poll_delay = 1,
+	.poll_period = 1,
+
+};
+#endif
+
+static struct i2c_board_info qseven_twsi4_info[] = {
+#if defined(CONFIG_TOUCHSCREEN_TSC2007)
+	{
+		.type		= "tsc2007",
+		.addr		= (0x90>>1),
+		.irq		= IRQ_GPIO(mfp_to_gpio(TSI_INT_N)),
+		.platform_data	= &tsc_2007_data,
+	},
+#endif
+};
+
 #ifdef CONFIG_REGULATOR_88PM867
 
 #define PMIC_POWER_MAX MAR88PM867_VREG_MAX
@@ -626,6 +679,12 @@ static void __init qseven_init(void)
 	qseven_power_supply_init();
 	mmp3_add_twsi(1, NULL, ARRAY_AND_SIZE(qseven_twsi1_mar88pm867_info));
 #endif
+
+#if defined(CONFIG_TOUCHSCREEN_TSC2007)
+	tsc2007_init_gpio_irq();
+#endif
+
+	mmp3_add_twsi(4, NULL, ARRAY_AND_SIZE(qseven_twsi4_info));
 
 	mmp3_add_keypad(&mmp3_keypad_info);
 
