@@ -29,29 +29,43 @@ static void bd7704_gen_pulse(unsigned int h_time, unsigned int l_time)
 {
 	struct bd7704_platform_data *pdata = g_bd7704->pdata;
 
-	/* generate a high-low pulse on upic control pin */
+	/* generate a low-high pulse on upic control pin */
 	if (pdata->upic_control) {
 		/* delay 80% of max. time after pull high/low */
-		pdata->upic_control(1);
-		udelay(h_time*4/5);
 		pdata->upic_control(0);
 		udelay(l_time*4/5);
+		pdata->upic_control(1);
+		udelay(h_time*4/5);
 	}
 }
 
 static void bd7704_control_start(void)
 {
-	/*
-	 * make register access available:
-	 * high for TMAX_ACCESS_READY then pull low
-	 */
-	bd7704_gen_pulse(TMAX_ACCESS_READY, TMAX_EN_TIME);
+	/* make register access available: high for TMAX_ACCESS_READY */
+	struct bd7704_platform_data *pdata = g_bd7704->pdata;
+
+	if (pdata->upic_control) {
+		pdata->upic_control(1);
+		udelay(TMAX_ACCESS_READY);
+	}
+}
+
+static void bd7704_control_end(void)
+{
+	/* pull low for long time enough to power off the chip  */
+	struct bd7704_platform_data *pdata = g_bd7704->pdata;
+
+	if (pdata->upic_control) {
+		pdata->upic_control(0);
+	}
 }
 
 static void bd7704_set_register(unsigned char address, unsigned char data)
 {
 	unsigned char i;
+	unsigned long flags;
 
+	local_irq_save(flags);
 	/* set register address */
 	/* NOT pull low for the last edge, but delay for register latch time */
 	for(i = 0; i < (address - 1); i ++)
@@ -63,18 +77,20 @@ static void bd7704_set_register(unsigned char address, unsigned char data)
 	for(i = 0; i < (data + 12 -1); i ++)
 		bd7704_gen_pulse(TMAX_EN_TIME, TMAX_EN_TIME);
 	bd7704_gen_pulse(TMAX_LATCH_TIME, TMAX_EN_TIME);
+
+	local_irq_restore(flags);
 }
 
 static int bd7704_output_off(void)
 {
-	bd7704_control_start();
-	bd7704_set_register(REG_MODE_SET, DATA_POWER_OFF);
+	bd7704_control_end();
 	return 0;
 }
 
 static int bd7704_enable_torch_mode(void)
 {
 	bd7704_control_start();
+	bd7704_set_register(REG_TORCH_RATIO, DATA_TORCH_CURRENT_FULL);
 	bd7704_set_register(REG_MODE_SET, DATA_TORCH_ON_BOTH);
 	return 0;
 }
@@ -154,10 +170,6 @@ int bd7704_v4l2_flash_if(void *vid_ctrl, bool op)
 				mutex_unlock(&g_bd7704->lock);
 				return ret;
 			case V4L2_FLASH_LED_MODE_FLASH:
-			case V4L2_FLASH_LED_MODE_TORCH:
-				/* for bd7704, torch mode is almost same as flash mode,
-				 * but the current cannot be high enough.
-				 * so use flash mode always */
 				printk(KERN_INFO "bd7704-v4l2: enable flash mode\n");
 				mutex_lock(&g_bd7704->lock);
 				ret = bd7704_enable_flash_mode();
@@ -165,7 +177,6 @@ int bd7704_v4l2_flash_if(void *vid_ctrl, bool op)
 					pdata->current_control = BD7704_CMD_SENSOR_CONTROL;
 				mutex_unlock(&g_bd7704->lock);
 				return ret;
-			/*
 			case V4L2_FLASH_LED_MODE_TORCH:
 				printk(KERN_INFO "bd7704-v4l2: enable torch mode\n");
 				mutex_lock(&g_bd7704->lock);
@@ -174,7 +185,6 @@ int bd7704_v4l2_flash_if(void *vid_ctrl, bool op)
 					pdata->current_control = BD7704_CMD_SENSOR_CONTROL;
 				mutex_unlock(&g_bd7704->lock);
 				return ret;
-			*/
 			default:
 				return -EPERM;
 			}
