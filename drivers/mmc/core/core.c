@@ -1057,6 +1057,12 @@ static void mmc_power_up(struct mmc_host *host)
 	 */
 	mmc_delay(10);
 
+	/*
+	 * Make sure signalling voltage is 3.3V and power up
+	 * Or the 74 dummy clock before first command may be lost
+	 */
+	mmc_set_signal_voltage(host, MMC_SIGNAL_VOLTAGE_330, false);
+
 	host->ios.clock = host->f_init;
 
 	host->ios.power_mode = MMC_POWER_ON;
