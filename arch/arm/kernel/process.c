@@ -138,6 +138,10 @@ void arm_machine_restart(char mode, const char *cmd)
 	local_irq_disable();
 	local_fiq_disable();
 
+	/* Disable the L2 if we're the last man standing. */
+	if (num_online_cpus() == 1)
+		outer_disable();
+
 	/*
 	 * Tell the mm system that we are going to reboot -
 	 * we may need it to insert some 1:1 mappings so that
