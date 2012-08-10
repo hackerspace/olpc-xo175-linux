@@ -1145,22 +1145,37 @@ static char *mmp3_usb_clock_name[] = {
 
 static int pxa_usb_set_vbus(unsigned int vbus)
 {
-	int gpio = mfp_to_gpio(GPIO82_VBUS_EN);
+	static struct regulator *v_5v;
+	int vbus_en = mfp_to_gpio(GPIO82_VBUS_EN);
+	static bool enabled;
+	bool on = !!vbus;
 
-	printk(KERN_INFO "%s: set %d\n", __func__, vbus);
+	pr_info("OTG vbus [%s]\n", on ? "on" : "off");
 
-	/* 5V power supply to external port */
-	if (gpio_request(gpio, "OTG VBUS Enable")) {
-		printk(KERN_INFO "gpio %d request failed\n", gpio);
+	if (!v_5v) {
+		v_5v = regulator_get(NULL, "V_5V");
+		if (IS_ERR(v_5v)) {
+			pr_err("%s: Failed to get V_5V\n", __func__);
+			v_5v = NULL;
+			return -1;
+		}
+	}
+	if (gpio_request(vbus_en, "OTG VBUS Enable")) {
+		pr_err("%s: Failed to request gpio#%d\n", __func__, vbus_en);
 		return -1;
 	}
-
-	if (vbus)
-		gpio_direction_output(gpio, 1);
-	else
-		gpio_direction_output(gpio, 0);
-
-	gpio_free(gpio);
+	/* Enable/disbale V_5V */
+	if (on != enabled) {
+		if (on)
+			regulator_enable(v_5v);
+		else
+			regulator_disable(v_5v);
+		enabled = on;
+	}
+	/* Enable/disable VBUS_EN */
+	gpio_direction_output(vbus_en, on);
+	gpio_free(vbus_en);
+	mdelay(10);
 
 	return 0;
 }
@@ -1171,8 +1186,9 @@ static struct mv_usb_platform_data mmp3_usb_pdata = {
 	.vbus		= NULL,
 	.mode		= MV_USB_MODE_OTG,
 	.phy_init	= pxa_usb_phy_init,
-	.phy_deinit     = pxa_usb_phy_deinit,
+	.phy_deinit	= pxa_usb_phy_deinit,
 	.set_vbus	= pxa_usb_set_vbus,
+	.otg_force_a_bus_req = 1,
 };
 #endif
 #endif
@@ -1436,8 +1452,6 @@ static void __init thunderstonem_init(void)
 	thunderstonem_fixed_power_init();
 
 #ifdef CONFIG_USB_PXA_U2O
-	/* Place VBUS_EN low by default */
-	pxa_usb_set_vbus(0);
 	mmp3_device_u2o.dev.platform_data = (void *)&mmp3_usb_pdata;
 	platform_device_register(&mmp3_device_u2o);
 #endif
