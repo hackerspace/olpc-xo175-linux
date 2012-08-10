@@ -13,10 +13,15 @@
 
 static struct fb_videomode tv_video_modes[] = {
 	[0] = {
+#ifdef CONFIG_MACH_QSEVEN
+		.pixclock     = 6734,
+		.refresh      = 60,
+#else
 		/*.pixclock     = 6734,*/
 		.pixclock = 13513,
 		/*.refresh      = 60,*/
 		.refresh = 24,
+#endif
 		.xres = 1920,
 		.yres = 1080,
 		.hsync_len = 44,
@@ -203,7 +208,11 @@ static struct pxa168fb_mach_info tv_out_info = {
 	.enable_lcd = 1,
 	.spi_gpio_cs = -1,
 	.spi_gpio_reset = -1,
+#ifdef CONFIG_MACH_QSEVEN
+	.mmap = 1,
+#else
 	.mmap = 0,
+#endif
 	.max_fb_size = TV_FB_XRES * TV_FB_YRES * 8 + 4096,
 	.phy_type = DPI,
 	.vdma_enable = 1,

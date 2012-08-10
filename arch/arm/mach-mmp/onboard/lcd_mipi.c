@@ -34,7 +34,7 @@ static int is_qhd_lcd(void)
 	return qhd_lcd;
 }
 
-#ifdef CONFIG_MACH_ABILENE
+#if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_QSEVEN)
 static struct fb_videomode video_modes_abilene[] = {
 	[0] = {
 		/* panel refresh rate should <= 55(Hz) */
@@ -155,7 +155,7 @@ static struct fb_videomode video_modes_emeidkb[] = {
 };
 #endif
 
-#ifdef CONFIG_MACH_ABILENE
+#if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_QSEVEN)
 static int abilene_lvds_power(struct pxa168fb_info *fbi,
 				unsigned int spi_gpio_cs,
 				unsigned int spi_gpio_reset, int on)
@@ -163,6 +163,9 @@ static int abilene_lvds_power(struct pxa168fb_info *fbi,
 	struct regulator *v_ldo10, *v_ldo19;
 	int lcd_rst_n;
 
+#ifdef CONFIG_MACH_QSEVEN
+	return 0;
+#endif
 	/*
 	 * FIXME: It is board related, baceuse zx will be replaced soon,
 	 * it is temproary distinguished by cpu
@@ -543,7 +546,7 @@ regu_lcd_iovdd:
 #endif
 
 #if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_YELLOWSTONE) \
-	|| defined(CONFIG_MACH_MK2)
+	|| defined(CONFIG_MACH_MK2) || defined(CONFIG_MACH_QSEVEN)
 static struct lvds_info lvdsinfo = {
 	.src	= LVDS_SRC_PN,
 	.fmt	= LVDS_FMT_18BIT,
@@ -581,7 +584,7 @@ static void lvds_hook(struct pxa168fb_mach_info *mi)
 
 #if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_YELLOWSTONE) \
 	|| defined(CONFIG_MACH_MK2) || defined(CONFIG_MACH_ORCHID) \
-	|| defined(CONFIG_MACH_EMEIDKB)
+	|| defined(CONFIG_MACH_EMEIDKB) || defined(CONFIG_MACH_QSEVEN)
 static void dither_config(struct pxa168fb_mach_info *mi)
 {
 	struct lvds_info *lvds;
@@ -869,7 +872,8 @@ static int lcd_twsi5_set(int en)
 }
 #endif
 
-#if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_YELLOWSTONE)
+#if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_YELLOWSTONE) \
+	|| defined(CONFIG_MACH_QSEVEN)
 static int backlight_pwm_set(int en)
 {
 	int gpio;
@@ -902,6 +906,9 @@ static int abilene_lcd_power(struct pxa168fb_info *fbi,
 	 * FIXME: It is board related, baceuse zx will be replaced soon,
 	 * it is temproary distinguished by cpu
 	 */
+#ifdef CONFIG_MACH_QSEVEN
+	return 0;
+#endif
 	lcd_rst_n = mfp_to_gpio(GPIO128_LCD_RST);
 
 	/* set LDOs 17 and 03 to 1.2V for MIPI Bridge */
@@ -1125,7 +1132,8 @@ static int dsi_init(struct pxa168fb_info *fbi)
 
 #if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_YELLOWSTONE) \
 	|| defined(CONFIG_MACH_MK2) || defined(CONFIG_MACH_ORCHID) \
-	|| defined(CONFIG_MACH_EMEIDKB) || defined(CONFIG_MACH_THUNDERSTONEM)
+	|| defined(CONFIG_MACH_EMEIDKB) || defined(CONFIG_MACH_THUNDERSTONEM) \
+	|| defined(CONFIG_MACH_QSEVEN)
 static struct pxa168fb_mach_info mipi_lcd_info = {
 	.id = "GFX Layer",
 	.num_modes = 0,
@@ -1290,7 +1298,8 @@ static void calculate_lcd_sclk(struct pxa168fb_mach_info *mi)
 
 #if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_YELLOWSTONE) \
 	|| defined(CONFIG_MACH_MK2) || defined(CONFIG_MACH_ORCHID) \
-	|| defined(CONFIG_MACH_BROWNSTONE) || defined(CONFIG_MACH_THUNDERSTONEM)
+	|| defined(CONFIG_MACH_BROWNSTONE) || defined(CONFIG_MACH_THUNDERSTONEM) \
+	|| defined(CONFIG_MACH_QSEVEN)
 static void vsmooth_init(int vsmooth_ch, int filter_ch)
 {
 #ifdef CONFIG_PXA688_MISC
@@ -1308,7 +1317,7 @@ static void vsmooth_init(int vsmooth_ch, int filter_ch)
 #define DDR_MEM_CTRL_BASE 0xD0000000
 #define SDRAM_CONFIG_TYPE1_CS0 0x20	/* MMP3 */
 
-#ifdef CONFIG_MACH_ABILENE
+#if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_QSEVEN)
 void __init abilene_add_lcd_mipi(void)
 {
 	unsigned char __iomem *dmc_membase;
@@ -1328,7 +1337,11 @@ void __init abilene_add_lcd_mipi(void)
 	fb->pxa168fb_lcd_power = &abilene_lcd_power;
 
 	/* FIXME: select DSI2LVDS by default on abilene. */
+#ifdef CONFIG_MACH_QSEVEN
+	lvds_en = 1;
+#else
 	lvds_en = 0;
+#endif
 	if (cpu_is_mmp3_b0()) {
 		if (lvds_en)
 			lvds_hook(fb);

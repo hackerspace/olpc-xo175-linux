@@ -631,6 +631,14 @@ static void __init qseven_init(void)
 
 	mmp3_add_videosram(&mmp3_videosram_info);
 
+#ifdef CONFIG_FB_PXA168
+	abilene_add_lcd_mipi(); /* will keep same name */
+	mmp3_add_tv_out();
+#endif
+
+#ifdef CONFIG_UIO_HDMI
+	mmp3_add_hdmi(&mmp3_hdmi_info);
+#endif
 	/* backlight */
 	mmp3_add_pwm(3);
 	platform_device_register(&qseven_lcd_backlight_devices);
