@@ -308,9 +308,11 @@ static int l3g4200d_update_odr(struct l3g4200d_data *gyro,
 	if (atomic_read(&gyro->enabled)) {
 		config[0] = CTRL_REG1;
 		err = l3g4200d_i2c_write(gyro, config, 1);
-		pr_info("%s, result err:%d\n", L3G4200D_GYR_DEV_NAME, err);
-		if (err < 0)
+		if (err < 0) {
+			pr_err("%s, result err:%d\n", L3G4200D_GYR_DEV_NAME,
+									 err);
 			return err;
+		}
 		gyro->resume_state[RES_CTRL_REG1] = config[1];
 	}
 
@@ -971,10 +973,8 @@ static int l3g4200d_probe(struct i2c_client *client,
 
 	mutex_unlock(&gyro->lock);
 
-#ifdef DEBUG
 	pr_info("%s probed: device created successfully\n",
 							L3G4200D_GYR_DEV_NAME);
-#endif
 
 	return 0;
 
