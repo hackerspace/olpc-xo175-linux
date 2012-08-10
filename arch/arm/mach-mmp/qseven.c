@@ -21,9 +21,13 @@
 #include <linux/delay.h>
 #include <linux/smc91x.h>
 
+#include <linux/regulator/88pm867.h>
 #include <linux/i2c/tsc2007.h>
 
 #include <linux/pwm_backlight.h>
+#include <linux/regulator/machine.h>
+#include <linux/regulator/driver.h>
+#include <linux/regulator/fixed.h>
 #include <linux/switch.h>
 #if defined(CONFIG_SENSORS_LSM303DLHC_ACC) || \
 	defined(CONFIG_SENSORS_LSM303DLHC_MAG)
@@ -223,6 +227,104 @@ static struct pxa27x_keypad_platform_data mmp3_keypad_info = {
 	.debounce_interval = 30,
 	.active_low = 1,
 };
+
+#ifdef CONFIG_REGULATOR_88PM867
+
+#define PMIC_POWER_MAX MAR88PM867_VREG_MAX
+static struct regulator_consumer_supply qseven_power_supply[PMIC_POWER_MAX];
+static struct regulator_init_data pmic_regulator_data[PMIC_POWER_MAX];
+
+#define REG_SUPPLY_INIT(_id, _name, _dev_name) \
+{						\
+	qseven_power_supply[_id].supply =  _name;  \
+	qseven_power_supply[_id].dev_name = _dev_name; \
+}
+
+#define PMIC_REG_INIT(_id, _name, _min, _max, _always, _boot, _supply, _num) \
+{		\
+	pmic_regulator_data[_id].constraints.name = __stringify(_name);        \
+	pmic_regulator_data[_id].constraints.min_uV = _min;    \
+	pmic_regulator_data[_id].constraints.max_uV     = _max;       \
+	pmic_regulator_data[_id].constraints.always_on = _always; \
+	pmic_regulator_data[_id].constraints.boot_on = _boot; \
+	pmic_regulator_data[_id].constraints.valid_ops_mask =  \
+			REGULATOR_CHANGE_VOLTAGE | REGULATOR_CHANGE_STATUS; \
+	pmic_regulator_data[_id].constraints.valid_modes_mask = \
+			REGULATOR_MODE_NORMAL; \
+	pmic_regulator_data[_id].consumer_supplies = _supply; \
+	pmic_regulator_data[_id].num_consumer_supplies = _num;	\
+}
+
+static void qseven_power_supply_init(void)
+{
+	REG_SUPPLY_INIT(MAR88PM867_ID_SD0, "vcc_main", NULL);
+	PMIC_REG_INIT(MAR88PM867_ID_SD0, SD0, 775000, 1400000, 1, 1,
+		&qseven_power_supply[MAR88PM867_ID_SD0], 1);
+}
+
+static struct mar88pm867_platform_data qseven_mar88pm867_pdata = {
+	.regulator = pmic_regulator_data,
+	.buck_id = MAR88PM867_ID_SD0,
+};
+
+static struct i2c_board_info qseven_twsi1_mar88pm867_info[] = {
+	{
+		.type		= "mar88pm867",
+		.addr		= (0x32>>1),
+		.platform_data	= &qseven_mar88pm867_pdata,
+	},
+};
+
+static struct regulator_consumer_supply qseven_fixed_regulator_supply[] = {
+	[0] = {
+		.supply = "v_1p8",
+		},
+};
+
+struct regulator_init_data qseven_fixed_regulator_init_data[] = {
+	[0] = {
+		.constraints = {
+				.name = "88pm867-v_1p8",
+				.always_on = 1,
+				.boot_on = 1,
+				},
+		.num_consumer_supplies = 1,
+		.consumer_supplies = &qseven_fixed_regulator_supply[0],
+		},
+};
+
+struct fixed_voltage_config qseven_fixed_pdata[] = {
+	[0] = {
+		.supply_name = "v_1p8",
+		.microvolts = 1800000,
+		.gpio = -EINVAL,
+		.enabled_at_boot = 1,
+		.init_data = &qseven_fixed_regulator_init_data[0],
+		},
+};
+
+static struct platform_device fixed_device[] = {
+	[0] = {
+		.name = "reg-fixed-voltage",
+		.id = 0,
+		.dev = {
+			.platform_data = &qseven_fixed_pdata[0],
+			},
+		.num_resources = 0,
+		},
+};
+
+static struct platform_device *fixed_rdev[] __initdata = {
+	&fixed_device[0],
+};
+
+static void qseven_regulators(void)
+{
+	platform_add_devices(fixed_rdev, ARRAY_SIZE(fixed_rdev));
+}
+
+#endif /*CONFIG_REGULATOR_88PM867*/
+
 
 static int qseven_pwm_init(struct device *dev)
 {
@@ -489,6 +591,11 @@ static void __init qseven_init(void)
 	/* on-chip devices */
 	mmp3_add_uart(3);
 
+#ifdef CONFIG_REGULATOR_88PM867
+	qseven_power_supply_init();
+	mmp3_add_twsi(1, NULL, ARRAY_AND_SIZE(qseven_twsi1_mar88pm867_info));
+#endif
+
 	mmp3_add_keypad(&mmp3_keypad_info);
 
 	mmp3_add_videosram(&mmp3_videosram_info);
@@ -527,6 +634,9 @@ static void __init qseven_init(void)
 #endif
 #endif
 
+#ifdef CONFIG_REGULATOR_88PM867
+	qseven_regulators();
+#endif
 	pxa_u3d_phy_disable();
 }
 
