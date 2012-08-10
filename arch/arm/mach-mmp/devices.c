@@ -672,6 +672,67 @@ void mmp3_hsic_phy_deinit(unsigned int base)
 #endif
 #endif
 
+#ifdef CONFIG_USB_EHCI_PXA_U2H_FSIC
+#ifdef CONFIG_CPU_MMP3
+
+#define PORTSC	0x184
+int mmp3_ulpi_init(unsigned int base)
+{
+	u32 val;
+	pr_info("fsic phy init for ulpi\n");
+	/* check SPH clock source, should be PMU 60MHz */
+	val = __raw_readl(base + 0x30);
+	pr_debug(" SPH clock src 0xf0003830: 0x%x\n",
+		__raw_readl(base + 0x30));
+	if ((val & 0x100) == 0)
+		pr_warning("SPH clock from external ULPI???\n");
+
+	/* select ULPI interface in USB FSIC */
+	pr_info(" select ULPI interface in USB FSIC\n");
+	val = __raw_readl(base + FSIC_MISC);
+	val |= 1<<27;
+	__raw_writel(val, base + FSIC_MISC);
+
+	/* select ULPI interface in SPH usb controller  */
+	pr_info(" select ULPI interface in SPH usb controller\n");
+	val = __raw_readl(MMP3_FSIC_REGBASE + PORTSC);
+	val &= ~(0x3<<30);
+	val |= 2<<30;
+	val &= 0xfdffffff;
+	__raw_writel(val, MMP3_FSIC_REGBASE + PORTSC);
+
+	/* switch back to ULPI clock (disable PMU 60MHz)
+	 * after writing to PORTSC */
+	val = __raw_readl(base + FSIC_CTRL);
+	val &= ~(1<<8);
+	__raw_writel(val, base + FSIC_CTRL);
+
+	pr_debug("%s FSIC_MISC 0x%x FSIC_CTRL 0x%x sph 0x%x portsc 0x%x\n",
+		__func__, __raw_readl(base + FSIC_MISC),
+		__raw_readl(base + FSIC_CTRL), __raw_readl(MMP3_FSIC_REGBASE + 0x100),
+		__raw_readl(MMP3_FSIC_REGBASE + PORTSC));
+
+	return 0;
+}
+
+int mmp3_fsic_phy_init(unsigned int base)
+{
+	pr_info("mmp3_fsic_phy_init !!!\n");
+
+	/* Enable PMU 60MHz clock to SPH controller */
+	__raw_writel(0x100, base + FSIC_CTRL);
+
+	pr_debug("%s select PMU 60MHz clock for FSIC/SPH3 FSIC_CTRL %x\n",
+		__func__, __raw_readl(base + FSIC_CTRL));
+
+	/*Select ULPI in SPH controller */
+	mmp3_ulpi_init(base);
+	return 0;
+}
+
+#endif
+#endif
+
 #endif
 
 #ifdef CONFIG_CPU_MMP3

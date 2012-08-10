@@ -442,6 +442,37 @@ static struct mv_usb_platform_data mmp3_usb_pdata = {
 };
 #endif /*CONFIG_USB_PXA_U20*/
 
+#ifdef CONFIG_USB_EHCI_PXA_U2H_FSIC /*Support for ulpi*/
+static int mmp3_fsic_ulpi_phy_reset(void)
+{
+	int usb_ulpi = mfp_to_gpio(ULPI_RST_N_GPIO_71);
+	if (gpio_request(usb_ulpi, "ulpi reset")) {
+		printk(KERN_INFO "gpio %d request failed\n", usb_ulpi);
+		return -1;
+	}
+
+	gpio_direction_output(usb_ulpi, 0);
+	mdelay(100);
+	gpio_direction_output(usb_ulpi, 1);
+	mdelay(50);
+	gpio_free(usb_ulpi);
+	return 0;
+}
+
+static char *mmp3_fsic_clock_name[] = {
+	[0] = "U2OCLK",
+	[1] = "FSICCLK",
+};
+
+static struct mv_usb_platform_data mmp3_fsic_pdata = {
+	.clknum		= 2,
+	.clkname	= mmp3_fsic_clock_name,
+	.vbus		= NULL,
+	.mode		= MV_USB_MODE_HOST,
+	.phy_init	= mmp3_fsic_phy_init,
+};
+
+#endif
 #endif
 
 #ifdef CONFIG_UIO_HDMI
@@ -632,6 +663,12 @@ static void __init qseven_init(void)
 	mmp3_device_u2ootg.dev.platform_data = (void *)&mmp3_usb_pdata;
 	platform_device_register(&mmp3_device_u2ootg);
 #endif
+#endif
+
+#ifdef CONFIG_USB_EHCI_PXA_U2H_FSIC
+	mmp3_fsic_ulpi_phy_reset();
+	mmp3_fsic_device.dev.platform_data = (void *)&mmp3_fsic_pdata;
+	platform_device_register(&mmp3_fsic_device);
 #endif
 
 #ifdef CONFIG_REGULATOR_88PM867

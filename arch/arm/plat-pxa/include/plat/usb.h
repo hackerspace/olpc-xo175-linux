@@ -86,4 +86,7 @@ extern int mmp3_hsic_private_init(struct mv_op_regs *opregs,
 					unsigned int phyregs);
 #endif
 
+#ifdef CONFIG_USB_EHCI_PXA_U2H_FSIC
+extern int mmp3_fsic_phy_init(unsigned int base);
+#endif
 #endif

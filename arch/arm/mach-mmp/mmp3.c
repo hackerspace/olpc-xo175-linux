@@ -830,6 +830,44 @@ int mmp3_hsic_private_init(struct mv_op_regs *opregs, unsigned int phyregs)
 
 #endif  /* CONFIG_USB_EHCI_PXA_U2H_HSIC */
 
+#ifdef CONFIG_USB_EHCI_PXA_U2H_FSIC
+static struct resource mmp3_fsic_resources[] = {
+	/* reg base */
+	[0] = {
+		.start	= MMP3_FSIC_REGBASE + U2x_CAPREGS_OFFSET,
+		.end	= MMP3_FSIC_REGBASE + USB_REG_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "capregs",
+	},
+	/* phybase */
+	[1] = {
+		.start	= MMP3_FSIC_PHYBASE,
+		.end	= MMP3_FSIC_PHYBASE + USB_PHY_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "phyregs",
+	},
+	[2] = {
+		.start	= IRQ_MMP3_USB_FS,
+		.end	= IRQ_MMP3_USB_FS,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mmp3_fsic_device = {
+	.name		= "mmp3-fsic",
+	.id		= -1,
+	.dev		= {
+		.dma_mask		= &usb_dma_mask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+	},
+
+	.num_resources	= ARRAY_SIZE(mmp3_fsic_resources),
+	.resource	= mmp3_fsic_resources,
+};
+
+
+#endif
+
 #endif  /* CONFIG_USB_EHCI_PXA */
 #endif  /* CONFIG_USB_SUPPORT */
 #ifdef CONFIG_UIO_VMETA

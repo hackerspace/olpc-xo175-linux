@@ -241,6 +241,14 @@ config USB_EHCI_PXA_U2H_HSIC
 	  single port host, and it can only be EHCI host. HSIC can only
 	  run in High Speed.
 
+config USB_EHCI_PXA_U2H_FSIC
+	bool "EHCI support for PXA USB SPH of FSIC"
+	depends on USB_EHCI_PXA
+	---help---
+	  Enables support for PXA USB SPH FSIC. SPH is a
+	  single port host, and it can only be EHCI host. FSIC can only
+	  run in full Speed.
+
 config USB_OXU210HP_HCD
 	tristate "OXU210HP HCD support"
 	depends on USB
