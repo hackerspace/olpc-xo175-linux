@@ -281,6 +281,13 @@ static struct i2c_board_info qseven_twsi4_info[] = {
 #endif
 };
 
+static struct i2c_board_info qseven_twsi3_info[] = {
+	{
+	 .type = "wm8731",
+	 .addr = 0x1a,
+	},
+};
+
 #ifdef CONFIG_REGULATOR_88PM867
 
 #define PMIC_POWER_MAX MAR88PM867_VREG_MAX
@@ -716,6 +723,12 @@ static void __init qseven_init(void)
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
 
 	platform_device_register(&mmp3_device_rtc);
+
+	/* audio sspa support */
+	mmp3_add_twsi(3, NULL, ARRAY_AND_SIZE(qseven_twsi3_info));
+	mmp3_add_sspa(1);
+	mmp3_add_sspa(2);
+	mmp3_add_audiosram(&mmp3_audiosram_info);
 
 #ifdef CONFIG_USB_PXA_U2O
 	mmp3_device_u2o.dev.platform_data = (void *)&mmp3_usb_pdata;

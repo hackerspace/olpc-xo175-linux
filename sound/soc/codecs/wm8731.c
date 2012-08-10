@@ -438,11 +438,12 @@ static int wm8731_set_bias_level(struct snd_soc_codec *codec,
 		break;
 	case SND_SOC_BIAS_STANDBY:
 		if (codec->dapm.bias_level == SND_SOC_BIAS_OFF) {
+#ifndef CONFIG_MACH_QSEVEN
 			ret = regulator_bulk_enable(ARRAY_SIZE(wm8731->supplies),
 						    wm8731->supplies);
 			if (ret != 0)
 				return ret;
-
+#endif
 			/* Sync reg_cache with the hardware */
 			for (i = 0; i < ARRAY_SIZE(wm8731_reg); i++) {
 				if (cache[i] == wm8731_reg[i])
@@ -461,8 +462,10 @@ static int wm8731_set_bias_level(struct snd_soc_codec *codec,
 		break;
 	case SND_SOC_BIAS_OFF:
 		snd_soc_write(codec, WM8731_PWR, 0xffff);
+#ifndef CONFIG_MACH_QSEVEN
 		regulator_bulk_disable(ARRAY_SIZE(wm8731->supplies),
 				       wm8731->supplies);
+#endif
 		codec->cache_sync = 1;
 		break;
 	}
@@ -529,7 +532,7 @@ static int wm8731_probe(struct snd_soc_codec *codec)
 		dev_err(codec->dev, "Failed to set cache I/O: %d\n", ret);
 		return ret;
 	}
-
+#ifndef CONFIG_MACH_QSEVEN
 	for (i = 0; i < ARRAY_SIZE(wm8731->supplies); i++)
 		wm8731->supplies[i].supply = wm8731_supply_names[i];
 
@@ -546,7 +549,7 @@ static int wm8731_probe(struct snd_soc_codec *codec)
 		dev_err(codec->dev, "Failed to enable supplies: %d\n", ret);
 		goto err_regulator_get;
 	}
-
+#endif
 	ret = wm8731_reset(codec);
 	if (ret < 0) {
 		dev_err(codec->dev, "Failed to issue reset: %d\n", ret);
@@ -561,22 +564,32 @@ static int wm8731_probe(struct snd_soc_codec *codec)
 	snd_soc_update_bits(codec, WM8731_LINVOL, 0x100, 0);
 	snd_soc_update_bits(codec, WM8731_RINVOL, 0x100, 0);
 
+#ifdef CONFIG_MACH_QSEVEN
+	/* Disable bypass and side tone path by default and enable DAC
+	snd_soc_update_bits(codec, WM8731_APANA, 0xff, 0x12);*/
+	snd_soc_update_bits(codec, WM8731_APANA, 0x8, 0);
+	u8 test = snd_soc_read(codec, WM8731_APANA);
+#else
 	/* Disable bypass path by default */
 	snd_soc_update_bits(codec, WM8731_APANA, 0x8, 0);
-
+#endif
 	snd_soc_add_controls(codec, wm8731_snd_controls,
 			     ARRAY_SIZE(wm8731_snd_controls));
 
 	/* Regulators will have been enabled by bias management */
+#ifndef CONFIG_MACH_QSEVEN
 	regulator_bulk_disable(ARRAY_SIZE(wm8731->supplies), wm8731->supplies);
-
+#endif
 	return 0;
 
 err_regulator_enable:
+#ifndef CONFIG_MACH_QSEVEN
 	regulator_bulk_disable(ARRAY_SIZE(wm8731->supplies), wm8731->supplies);
+#endif
 err_regulator_get:
+#ifndef CONFIG_MACH_QSEVEN
 	regulator_bulk_free(ARRAY_SIZE(wm8731->supplies), wm8731->supplies);
-
+#endif
 	return ret;
 }
 
@@ -586,10 +599,10 @@ static int wm8731_remove(struct snd_soc_codec *codec)
 	struct wm8731_priv *wm8731 = snd_soc_codec_get_drvdata(codec);
 
 	wm8731_set_bias_level(codec, SND_SOC_BIAS_OFF);
-
+#ifndef CONFIG_MACH_QSEVEN
 	regulator_bulk_disable(ARRAY_SIZE(wm8731->supplies), wm8731->supplies);
 	regulator_bulk_free(ARRAY_SIZE(wm8731->supplies), wm8731->supplies);
-
+#endif
 	return 0;
 }
 
