@@ -881,7 +881,7 @@ static struct i2c_board_info thunderstonem_twsi4_info[] = {
 #if defined(CONFIG_SENSORS_L3G4200D_GYR)
 	{
 		.type		= L3G4200D_GYR_DEV_NAME,
-		.addr		= (0xD2>>1),
+		.addr		= (0xD0>>1),
 		.platform_data	= &l3g4200d_gyr_data,
 	},
 #endif
