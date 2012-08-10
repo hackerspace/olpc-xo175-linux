@@ -64,6 +64,7 @@ obj-$(CONFIG_MACH_FLINT)	+= flint.o
 obj-$(CONFIG_MACH_MARVELL_JASPER) += jasper.o
 obj-$(CONFIG_MACH_TETON_BGA)	+= teton_bga.o
 obj-$(CONFIG_MACH_ABILENE)	+= abilene.o
+obj-$(CONFIG_MACH_QSEVEN)	+= qseven.o
 obj-$(CONFIG_MACH_MK2)		+= mk2.o
 obj-$(CONFIG_MACH_YELLOWSTONE)	+= yellowstone.o
 obj-$(CONFIG_MACH_ORCHID)	+= orchid.o

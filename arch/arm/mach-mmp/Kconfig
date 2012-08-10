@@ -84,6 +84,12 @@ config MACH_ABILENE
 	select HAVE_PWM
 	select ARM_GIC
 
+config MACH_QSEVEN
+	bool "Marvell's MMP3 QSEVEN Development Board"
+	select CPU_MMP3
+	select HAVE_PWM
+	select ARM_GIC
+
 config MACH_MK2
 	bool "Marvell's MMP3 MK2 Board"
 	select CPU_MMP3
