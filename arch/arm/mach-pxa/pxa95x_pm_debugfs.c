@@ -507,6 +507,9 @@ static ssize_t PXA9xx_DRO_Status_Read(struct file *file,
 				      size_t count, loff_t *ppos)
 {
 	unsigned int wTmp;
+
+	char buf[512] = { 0 };
+	int ret, sum = 0;
 	int i = 0, irq_count = 0;
 	unsigned int cser = 0;
 	int j, x, k;
@@ -540,7 +543,6 @@ static ssize_t PXA9xx_DRO_Status_Read(struct file *file,
 		__raw_writel(0x00000000, base + (0x004));
 	}
 
-	pr_info("%s", __func__);
 	DRO_base = ioremap(0x42440154, 0xC);
 	Vmeta_base = ioremap(0x40F40090, 0x4);
 	BPB_PRID = ioremap(0x4600FF80, 0x4);
@@ -574,7 +576,9 @@ static ssize_t PXA9xx_DRO_Status_Read(struct file *file,
 	}
 
 	level = (AVLSR >> 1) & 0x3;
-	pr_info("The current voltage level : Level %d\n", level);
+	ret = snprintf(buf + sum, sizeof(buf) - 1,
+		"The current voltage level : Level %d\n", level);
+	sum += ret;
 
 	/*put comm in reset and prepare branch self code*/
 	cser = readl(MPMU_CSER_ADDR);
@@ -925,36 +929,58 @@ static ssize_t PXA9xx_DRO_Status_Read(struct file *file,
 
 	fOFFICIAL_VALUE =
 	    (fTotalOfficialCnt / fOtherThanZeroCnt) / (unsigned int)fTmp;
-	pr_info("SVT + NVT For All chain is %dMHz\n", fOFFICIAL_VALUE);
+	ret = snprintf(buf + sum, sizeof(buf) - 1,
+		"SVT + NVT For All chain is %dMHz\n", fOFFICIAL_VALUE);
+	sum += ret;
 
-		pr_info("TOP+BR+GB LVT = %dMHz\n",
+	ret = snprintf(buf + sum, sizeof(buf) - 1,
+			"TOP+BR+GB LVT = %dMHz\n",
 			((wTotalOfficialCntBR_GB_TOP[0] / wBR_GB_TOP_DROs[0]) /
 			 fTmp));
-		pr_info("TOP+BR+GB SVT = %dMHz\n",
+	sum += ret;
+	ret = snprintf(buf + sum, sizeof(buf) - 1,
+			"TOP+BR+GB SVT = %dMHz\n",
 			((wTotalOfficialCntBR_GB_TOP[1] / wBR_GB_TOP_DROs[1]) /
 			 fTmp));
-		pr_info("TOP+BR+GB HVT = %dMHz\n",
+	sum += ret;
+	ret = snprintf(buf + sum, sizeof(buf) - 1,
+			"TOP+BR+GB HVT = %dMHz\n",
 			((wTotalOfficialCntBR_GB_TOP[2] / wBR_GB_TOP_DROs[2]) /
 			 fTmp));
-		pr_info("TOP+BR LVT [PS] = %dMHz\n",
+	sum += ret;
+	ret = snprintf(buf + sum, sizeof(buf) - 1,
+			"TOP+BR LVT [PS] = %dMHz\n",
 			((wTotalOfficialCntBR_TOP_PS[0] / wBR_TOP_PS_DROs[0]) /
 			 fTmp));
-		pr_info("TOP+BR SVT [PS] = %dMHz\n",
+	sum += ret;
+	ret = snprintf(buf + sum, sizeof(buf) - 1,
+			"TOP+BR SVT [PS] = %dMHz\n",
 			((wTotalOfficialCntBR_TOP_PS[1] / wBR_TOP_PS_DROs[1]) /
 			 fTmp));
-		pr_info("TOP+BR HVT [PS] = %dMHz\n",
+	sum += ret;
+	ret = snprintf(buf + sum, sizeof(buf) - 1,
+			"TOP+BR HVT [PS] = %dMHz\n",
 			((wTotalOfficialCntBR_TOP_PS[2] / wBR_TOP_PS_DROs[2]) /
 			 fTmp));
-		pr_info("CORTEX LVT = %dMHz\n",
+	sum += ret;
+	ret = snprintf(buf + sum, sizeof(buf) - 1,
+			"CORTEX LVT = %dMHz\n",
 			((wTotalOfficialCnt_CORTEX[0] / wCortexDROs[0]) /
 			 fTmp));
-		pr_info("CORTEX NVT = %dMHz\n",
+	sum += ret;
+	ret = snprintf(buf + sum, sizeof(buf) - 1,
+			"CORTEX NVT = %dMHz\n",
 			((wTotalOfficialCnt_CORTEX[1] / wCortexDROs[1]) /
 			 fTmp));
-		pr_info("VPRO LVT = %dMHz\n",
+	sum += ret;
+	ret = snprintf(buf + sum, sizeof(buf) - 1,
+			"VPRO LVT = %dMHz\n",
 			((wTotalOfficialCnt_VPRO[0] / wVproDROs[0]) / fTmp));
-		pr_info("VPRO NVT = %dMHz\n",
+	sum += ret;
+	ret = snprintf(buf + sum, sizeof(buf) - 1,
+			"VPRO NVT = %dMHz\n",
 			((wTotalOfficialCnt_VPRO[1] / wVproDROs[1]) / fTmp));
+	sum += ret;
 
 	iounmap(DRO_base);
 	iounmap(Vmeta_base);
@@ -965,7 +991,7 @@ static ssize_t PXA9xx_DRO_Status_Read(struct file *file,
 		void __iomem *base = irq_base(irq_count);
 		__raw_writel(saved_icmr[irq_count], base + (0x004));
 	}
-	return 0;
+	return simple_read_from_buffer(userbuf, count, ppos, buf, sum);
 }
 
 
