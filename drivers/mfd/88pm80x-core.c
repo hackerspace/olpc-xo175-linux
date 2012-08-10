@@ -21,6 +21,205 @@
 #include <linux/regulator/machine.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
+#include <linux/uaccess.h>
+#include <linux/proc_fs.h>
+
+#define PM80X_BASE_REG_NUM		0xef
+#define PM80X_POWER_REG_NUM		0x84
+#define PM80X_GPADC_REG_NUM		0xb3
+#define PM80X_AUDIO_REG_NUM		0x98
+
+#define	PM800_PROC_FILE		"driver/pm800_reg"
+#define	PM805_PROC_FILE		"driver/pm805_reg"
+
+static int reg_pm800 = 0xffff;
+static int reg_pm805 = 0xffff;
+static int pg_index;
+
+static ssize_t pm800_proc_read(char *buf, char **start, off_t off,
+		int count, int *eof, void *data)
+{
+	u8  reg_val = 0;
+	int len = 0;
+	struct pm80x_chip *chip = data;
+	int i;
+
+	if (reg_pm800 == 0xffff) {
+		pr_info("pm800: base page:\n");
+		for (i = 0; i < PM80X_BASE_REG_NUM; i++) {
+			reg_val = pm80x_reg_read(chip->base_page, i);
+			pr_info("[0x%02x]=0x%02x\n", i, reg_val);
+		}
+		pr_info("pm80x: power page:\n");
+		for (i = 0; i < PM80X_POWER_REG_NUM; i++) {
+			reg_val = pm80x_reg_read(chip->power_page, i);
+			pr_info("[0x%02x]=0x%02x\n", i, reg_val);
+		}
+		pr_info("pm80x: gpadc page:\n");
+		for (i = 0; i < PM80X_GPADC_REG_NUM; i++) {
+			reg_val = pm80x_reg_read(chip->gpadc_page, i);
+			pr_info("[0x%02x]=0x%02x\n", i, reg_val);
+		}
+
+		len = 0;
+	} else {
+
+		switch (pg_index) {
+		case 0:
+			reg_val = pm80x_reg_read(chip->base_page, reg_pm800);
+			break;
+		case 1:
+			reg_val = pm80x_reg_read(chip->power_page, reg_pm800);
+			break;
+		case 2:
+			reg_val = pm80x_reg_read(chip->gpadc_page, reg_pm800);
+			break;
+		default:
+			pr_err("pg_index error!\n");
+			return 0;
+		}
+
+		len = sprintf(buf, "reg_pm800=0x%x, pg_index=0x%x, val=0x%x\n",
+			      reg_pm800, pg_index, reg_val);
+	}
+	return len;
+}
+
+static ssize_t pm805_proc_read(char *buf, char **start, off_t off,
+		int count, int *eof, void *data)
+{
+	u8  reg_val = 0;
+	int len = 0;
+	struct pm80x_chip *chip = data;
+	int i;
+	if (reg_pm805 == 0xffff) {
+		pr_info("pm805: audio page:\n");
+		for (i = 0; i < PM80X_AUDIO_REG_NUM; i++) {
+			reg_val = pm80x_reg_read(chip->client, i);
+			pr_info("[0x%02x]=0x%02x\n", i, reg_val);
+		}
+		return 0;
+	} else
+		reg_val = pm80x_reg_read(chip->client, reg_pm805);
+
+	len = sprintf(buf, "reg_pm805=0x%x, val=0x%x\n",
+		      reg_pm805, reg_val);
+
+	return len;
+}
+
+static ssize_t pm800_proc_write(struct file *filp,
+				       const char *buff, size_t len,
+				       void *data)
+{
+	u8 reg_val;
+	char messages[20], index[20];
+	struct pm80x_chip *chip = data;
+	memset(messages, 0, 20);
+
+	if (copy_from_user(messages, buff, len))
+		return -EFAULT;
+
+	if ('-' == messages[0]) {
+		if ((strlen(messages) != 10) &&
+		    (strlen(messages) != 9)) {
+			pr_err("Right format: -0x[page_addr] 0x[reg_addr]\n");
+			return len;
+		}
+		/* set the register index */
+		memcpy(index, messages + 1, 3);
+		index[4] = '\0';
+		if (kstrtoint(index, 16, &pg_index) < 0)
+			return 0;
+		pr_info("pg_index = 0x%x\n", pg_index);
+
+		memcpy(index, messages + 5, 4);
+		index[4] = '\0';
+		if (kstrtoint(index, 16, &reg_pm800) < 0)
+			return 0;
+		pr_info("reg_pm800 = 0x%x\n", reg_pm800);
+	} else if ('+' == messages[0]) {
+		/* enable to get all the reg value */
+		messages[1] = '\0';
+		reg_pm800 = 0xffff;
+		pr_info("read all reg enabled!\n");
+	} else {
+		if ((reg_pm800 == 0xffff) ||
+		    ('0' != messages[0])) {
+			pr_err("Right format: -0x[page_addr] 0x[reg_addr]\n");
+			return len;
+		}
+		/* set the register value */
+		messages[4] = '\0';
+		if (kstrtou8(messages, 16, &reg_val) < 0)
+			return 0;
+
+		switch (pg_index) {
+		case 0:
+			pm80x_reg_write(chip->base_page, reg_pm800,
+					reg_val & 0xff);
+			break;
+		case 1:
+			pm80x_reg_write(chip->power_page, reg_pm800,
+					reg_val & 0xff);
+			break;
+		case 2:
+			pm80x_reg_write(chip->gpadc_page, reg_pm800,
+					reg_val & 0xff);
+			break;
+		default:
+			pr_err("pg_index error!\n");
+			break;
+
+		}
+	}
+
+	return len;
+}
+
+static ssize_t pm805_proc_write(struct file *filp,
+				       const char *buff, size_t len,
+				       void *data)
+{
+	u8 reg_val;
+	char messages[20], index[20];
+	struct pm80x_chip *chip = data;
+	memset(messages, 0, 20);
+
+	if (copy_from_user(messages, buff, len))
+		return -EFAULT;
+
+	if ('-' == messages[0]) {
+		if ((strlen(messages) != 5) &&
+		    (strlen(messages) != 6)) {
+			pr_err("Right format: -0x[page_addr] 0x[reg_addr]\n");
+			return len;
+		}
+		/* set the register index */
+		memcpy(index, messages + 1, 4);
+		index[4] = '\0';
+		if (kstrtoint(index, 16, &reg_pm805) < 0)
+			return 0;
+	} else if ('+' == messages[0]) {
+		/* enable to get all the reg value */
+		messages[1] = '\0';
+		reg_pm805 = 0xffff;
+		pr_info("read all reg enabled!\n");
+	} else {
+		if ((reg_pm805 == 0xffff) ||
+		    ('0' != messages[0])) {
+			pr_err("Right format: -0x[reg_addr] > pm805_reg\n");
+			return len;
+		}
+		messages[4] = '\0';
+		if (kstrtou8(messages, 16, &reg_val) < 0)
+			return 0;
+		pm80x_reg_write(chip->client, reg_pm805, reg_val & 0xff);
+
+	}
+
+	return len;
+}
 
 static struct resource rtc_resources[] = {
 	{
@@ -1066,6 +1265,20 @@ static int __devinit device_805_init(struct pm80x_chip *chip,
 		} else
 			dev_info(chip->dev, "[%s]:Added mfd headset_devs\n", __func__);
 	}
+
+	if (pm805_chip->proc_file == NULL) {
+		pm805_chip->proc_file =
+			create_proc_entry(PM805_PROC_FILE, 0644, NULL);
+		if (pm805_chip->proc_file) {
+			pm805_chip->proc_file->read_proc =
+				(read_proc_t *)pm805_proc_read;
+			pm805_chip->proc_file->write_proc =
+				(write_proc_t *)pm805_proc_write;
+			pm805_chip->proc_file->data = chip;
+		} else
+			pr_info("pm805 proc file create failed!\n");
+	}
+
 	if (pdata->pm805_plat_config)
 		pdata->pm805_plat_config(chip, pdata);
 
@@ -1299,6 +1512,19 @@ static int __devinit device_800_init(struct pm80x_chip *chip,
 			dev_info(chip->dev, "[%s]:Added mfd gpio_devs\n", __func__);
 	}
 
+	if (pm800_chip->proc_file == NULL) {
+		pm800_chip->proc_file =
+			create_proc_entry(PM800_PROC_FILE, 0644, NULL);
+		if (pm800_chip->proc_file) {
+			pm800_chip->proc_file->read_proc =
+				pm800_proc_read;
+			pm800_chip->proc_file->write_proc =
+				(write_proc_t  *)pm800_proc_write;
+			pm800_chip->proc_file->data = chip;
+		} else
+			pr_info("pm800 proc file create failed!\n");
+	}
+
 	if (pdata->pm800_plat_config)
 		pdata->pm800_plat_config(chip, pdata);
 
@@ -1318,7 +1544,6 @@ int __devinit pm80x_device_init(struct pm80x_chip *chip,
 				struct pm80x_platform_data *pdata)
 {
 	int ret = 0;
-
 	switch (chip->id) {
 	case CHIP_PM800:
 		/* set PM800 as main chip */
@@ -1360,6 +1585,7 @@ void __devexit pm80x_device_exit(struct pm80x_chip *chip)
 			flush_workqueue(chip->pm800_wqueue);
 			destroy_workqueue(chip->pm800_wqueue);
 		}
+		remove_proc_entry(PM800_PROC_FILE, NULL);
 		kfree(chip->pm800_chip);
 	}
 	if (chip->pm805_chip) {
@@ -1368,6 +1594,7 @@ void __devexit pm80x_device_exit(struct pm80x_chip *chip)
 			flush_workqueue(chip->pm805_wqueue);
 			destroy_workqueue(chip->pm805_wqueue);
 		}
+		remove_proc_entry(PM805_PROC_FILE, NULL);
 		kfree(chip->pm805_chip);
 	}
 	mfd_remove_devices(chip->dev);

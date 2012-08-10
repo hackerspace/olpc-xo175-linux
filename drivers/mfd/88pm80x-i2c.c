@@ -14,9 +14,7 @@
 #include <linux/i2c.h>
 #include <linux/mfd/88pm80x.h>
 #include <linux/slab.h>
-#include <linux/proc_fs.h>
 #include <linux/uaccess.h>
-#include <linux/proc_fs.h>
 
 /*
 #define CACHE_88PM80X_I2C
@@ -423,160 +421,6 @@ static void pm80x_pages_exit(struct pm80x_chip *chip)
 		i2c_unregister_device(chip->test_page);
 }
 
-#define PM80X_BASE_REG_NUM		0xef
-#define PM80X_POWER_REG_NUM		0x84
-#define PM80X_GPADC_REG_NUM		0xb3
-#define PM80X_AUDIO_REG_NUM		0x98
-#define	PM80X_PROC_FILE		"driver/pm80x_reg"
-static struct proc_dir_entry *pm80x_power_proc_file;
-static int reg_index = 0xffff;
-static int page_index;
-static struct pm80x_chip *proc_chip;
-
-static ssize_t pm80x_power_proc_read(char *buf, char **start, off_t off,
-		int count, int *eof, void *data)
-{
-	u8  reg_val = 0;
-	int len = 0;
-	struct pm80x_chip *chip = proc_chip;
-	int i;
-
-	if (reg_index == 0xffff) {
-		pr_info("pm80x: base page:\n");
-		for (i = 0; i < PM80X_BASE_REG_NUM; i++) {
-			reg_val = pm80x_reg_read(chip->base_page, i);
-			pr_info("[0x%02x]=0x%02x\n", i, reg_val);
-		}
-		pr_info("pm80x: power page:\n");
-		for (i = 0; i < PM80X_POWER_REG_NUM; i++) {
-			reg_val = pm80x_reg_read(chip->power_page, i);
-			pr_info("[0x%02x]=0x%02x\n", i, reg_val);
-		}
-		pr_info("pm80x: gpadc page:\n");
-		for (i = 0; i < PM80X_GPADC_REG_NUM; i++) {
-			reg_val = pm80x_reg_read(chip->gpadc_page, i);
-			pr_info("[0x%02x]=0x%02x\n", i, reg_val);
-		}
-		pr_info("pm80x: audio page:\n");
-		for (i = 0; i < PM80X_AUDIO_REG_NUM; i++) {
-			reg_val = pm80x_reg_read(chip->companion, i);
-			pr_info("[0x%02x]=0x%02x\n", i, reg_val);
-		}
-		return 0;
-	}
-
-	switch (page_index) {
-	case 0:
-		reg_val = pm80x_reg_read(chip->base_page, reg_index);
-		break;
-	case 1:
-		reg_val = pm80x_reg_read(chip->power_page, reg_index);
-		break;
-	case 2:
-		reg_val = pm80x_reg_read(chip->gpadc_page, reg_index);
-		break;
-	case 8:
-		reg_val = pm80x_reg_read(chip->companion, reg_index);
-		break;
-	default:
-		pr_err("page_index error!\n");
-		return 0;
-
-	}
-	len = sprintf(buf, "reg_index=0x%x, page_index=0x%x, val=0x%x\n",
-		      reg_index, page_index, reg_val);
-
-	return len;
-}
-
-static ssize_t pm80x_power_proc_write(struct file *filp,
-				       const char *buff, size_t len,
-				       loff_t *off)
-{
-	u8 reg_val;
-	char messages[20], index[20];
-	struct pm80x_chip *chip = proc_chip;
-	memset(messages, 0, 20);
-
-	if (copy_from_user(messages, buff, len))
-		return -EFAULT;
-
-	if ('-' == messages[0]) {
-		if (strlen(messages) != 11) {
-			pr_err("Right format: -0x[page_addr] 0x[reg_addr]\n");
-			return len;
-		}
-		/* set the register index */
-		memcpy(index, messages + 1, 4);
-		if (kstrtoint(index, 16, &page_index) < 0)
-			return 0;
-		pr_info("page_index = 0x%x\n", page_index);
-
-		memcpy(index, messages + 6, 4);
-		if (kstrtoint(index, 16, &reg_index) < 0)
-			return 0;
-		pr_info("reg_index = 0x%x\n", reg_index);
-	} else if ('+' == messages[0]) {
-		/* enable to get all the reg value */
-		messages[1] = '\0';
-		reg_index = 0xffff;
-		pr_info("read all reg enabled!\n");
-	} else {
-		if ((reg_index == 0xffff) ||
-		    ('0' != messages[0])) {
-			pr_err("Right format: -0x[page_addr] 0x[reg_addr]\n");
-			return len;
-		}
-		/* set the register value */
-		messages[4] = '\0';
-		if (kstrtou8(messages, 16, &reg_val) < 0)
-			return 0;
-
-		switch (page_index) {
-		case 0:
-			pm80x_reg_write(chip->base_page, reg_index,
-					reg_val & 0xff);
-			break;
-		case 1:
-			pm80x_reg_write(chip->power_page, reg_index,
-					reg_val & 0xff);
-			break;
-		case 2:
-			pm80x_reg_write(chip->gpadc_page, reg_index,
-					reg_val & 0xff);
-			break;
-		case 8:
-			pm80x_reg_write(chip->companion, reg_index,
-					reg_val & 0xff);
-			break;
-		default:
-			pr_err("page_index error!\n");
-			break;
-
-		}
-	}
-
-	return len;
-}
-
-static void create_pm80x_power_proc_file(void)
-{
-	pm80x_power_proc_file =
-	    create_proc_entry(PM80X_PROC_FILE, 0644, NULL);
-	if (pm80x_power_proc_file) {
-		pm80x_power_proc_file->read_proc =
-			pm80x_power_proc_read;
-		pm80x_power_proc_file->write_proc =
-			(write_proc_t  *)pm80x_power_proc_write;
-	} else
-		pr_info("proc file create failed!\n");
-}
-
-static void remove_pm80x_power_proc_file(void)
-{
-	remove_proc_entry(PM80X_PROC_FILE, NULL);
-}
-
 static int __devinit pm80x_probe(struct i2c_client *client,
 				 const struct i2c_device_id *id)
 {
@@ -620,8 +464,6 @@ static int __devinit pm80x_probe(struct i2c_client *client,
 
 	if (chip->id == CHIP_PM800)
 		g_pm80x_chip = chip;
-	proc_chip = chip;
-	create_pm80x_power_proc_file();
 
 	return 0;
 
@@ -639,7 +481,6 @@ static int __devexit pm80x_remove(struct i2c_client *client)
 
 	pm80x_device_exit(chip);
 	pm80x_pages_exit(chip);
-	remove_pm80x_power_proc_file();
 	kfree(chip);
 	return 0;
 }

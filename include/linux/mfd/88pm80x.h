@@ -14,6 +14,7 @@
 
 #include <linux/interrupt.h>
 #include <linux/mfd/88pm8xxx.h>
+#include <linux/proc_fs.h>
 
 enum {
 	PM800_ID_INVALID,
@@ -608,6 +609,7 @@ struct pm80x_subchip {
 	int irq;
 	int irq_base;
 	int irq_mode;
+	struct proc_dir_entry *proc_file;
 };
 
 struct pm80x_chip {
