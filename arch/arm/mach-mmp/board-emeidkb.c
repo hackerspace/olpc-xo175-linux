@@ -341,6 +341,12 @@ static int emei_i2c_read_reg(u8 addr, u8 reg, u8 *buf, int len)
 {
 	return __raw_i2c_read_reg(3, addr, reg, buf, len);
 }
+
+static int emei_i2c_write_reg(u8 addr, u8 reg, u8 val)
+{
+	return __raw_i2c_write_reg(3, addr, reg, val);
+}
+
 /*
  * for HVGA panel:
  */
@@ -1977,8 +1983,26 @@ static void emei_dkb_poweroff(void)
 				 PM800_SW_PDOWN, PM800_SW_PDOWN);
 }
 
+static int emei_board_reset(char mode, const char *cmd)
+{
+	u8 buf;
+
+	printk(KERN_INFO "emei board rebooting...\n");
+	/* Reset TWSI3 pwr_i2c unit firstly */
+	__raw_i2c_bus_reset(3);
+	/* 1.Enable FAULT_WU and FAULT_WU_EN */
+	emei_i2c_read_reg(0x30, 0xE7, &buf, 1);
+	buf |= ((1 << 3) | (1 << 2));
+	emei_i2c_write_reg(0x30, 0xE7, buf);
+	/* 2.Issue SW power down */
+	emei_i2c_write_reg(0x30, 0x0D, 0x20);
+	/* Rebooting... */
+	return 1;
+}
+
 static void __init emeidkb_init(void)
 {
+	board_reset = emei_board_reset;
 	mfp_config(ARRAY_AND_SIZE(emeidkb_pin_config));
 
 	pm_power_off = emei_dkb_poweroff;

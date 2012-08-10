@@ -17,9 +17,11 @@ static inline void arch_idle(void)
 }
 
 extern void (*arch_reset)(char, const char *);
+extern int (*board_reset)(char mode, const char *cmd);
 
 /* hacked i2c routine */
 extern int __raw_i2c_bus_reset(u8 bus_num);
+extern int __raw_i2c_write_reg(u8 bus_num, u8 addr, u8 reg, u8 val);
 extern int __raw_i2c_read_reg(u8 bus_num, u8 addr, u8 reg, u8 *buf, int len);
 
 #endif /* __ASM_MACH_SYSTEM_H */
