@@ -44,24 +44,21 @@ struct csi_dphy_desc {
 #define V4L2_CID_PRIVATE_GET_MIPI_PHY		(V4L2_CID_PRIVATE_BASE + 1)
 
 /* Misc */
-/* sleep function for sensor power sequence, only provide 100us precision */
+/* sleep function for sensor power sequence, only provide 1ms precision */
 /* According to Documentation/timers/timers-howto.txt, we should choose *sleep
  * family function according to the time:
  * >= 20ms	msleep
  * >= 10us	usleep
- * <10us	udelay
  * for camera power usecase, we mostly need 1~2ms for power on/off sequence and
- * 100~500us for software reset, no precision control below 10us is used,
+ * 100~500us for software reset, no precision control below 100us is used,
  * so sleep_range is good enough for us */
-#define usleep(x) \
+#define cam_msleep(x) \
 do { \
-	unsigned int left = (x); \
-	if (left >= 20000) { \
-		msleep(left-20000); \
-		left -= 20000; \
-	} \
-	if (left >= 100) \
-		usleep_range(left, left+100); \
+	unsigned int ms = (x); \
+	if (ms >= 20) \
+		msleep(ms); \
+	else \
+		usleep_range(ms*1000, ms*1000+100); \
 } while (0)
 
 #endif

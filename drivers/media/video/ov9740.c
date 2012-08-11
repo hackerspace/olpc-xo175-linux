@@ -754,7 +754,7 @@ static int ov9740_reg_write(struct i2c_client *client, u16 reg, u8 val)
 		return ret;
 	}
 	if ((reg == OV9740_SOFTWARE_RESET) && (val == 1))
-		usleep(500);
+		cam_msleep(1);
 
 	return 0;
 }
