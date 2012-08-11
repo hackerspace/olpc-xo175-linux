@@ -334,5 +334,13 @@ config REGULATOR_FAN53555
 	  input voltage supply of 2.5V to 5.5V. The output voltage is
 	  programmed through an I2C interface.
 
+config REGULATOR_88PM867
+	tristate "Marvell 88pg867 Regulator"
+	depends on I2C
+	help
+	  This driver supports Marvell 88pg867 Digitally Programmable
+	  TinyBuck Regulator. The output voltage is programmed through
+	  an I2C interface.
+
 endif
 
