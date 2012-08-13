@@ -165,6 +165,9 @@ static unsigned long thunderstonem_pin_config[] __initdata = {
 
 	/* HDMI */
 	GPIO54_HDMI_CEC,
+	GPIO59_HDMI_DET,
+	GPIO94_HDMI_LS_OE,
+	GPIO95_HDMI_CT_HPD,
 
 	/* SSP4 */
 	GPIO78_SSP_CLK,
@@ -1049,10 +1052,54 @@ static struct mv_usb_platform_data mmp3_usb_pdata = {
 
 
 #ifdef CONFIG_UIO_HDMI
+static int hdmi_power(int on)
+{
+	static struct regulator *v_5v;
+	int hdmi_ls_oe = mfp_to_gpio(GPIO94_HDMI_LS_OE);
+	int hdmi_ct_hpd = mfp_to_gpio(GPIO95_HDMI_CT_HPD);
+	int ret = 0;
+
+	if (!v_5v) {
+		v_5v = regulator_get(NULL, "V_5V");
+		if (IS_ERR(v_5v)) {
+			pr_err("%s: Failed to get V_5V\n", __func__);
+			v_5v = NULL;
+			return -1;
+		}
+	}
+	if (gpio_request(hdmi_ls_oe, "hdmi_ls_oe")) {
+		printk(KERN_ERR "Request GPIO failed, gpio: %d.\n", hdmi_ls_oe);
+		return -1;
+	}
+	if (gpio_request(hdmi_ct_hpd, "hdmi_ct_hpd")) {
+		printk(KERN_ERR "Request GPIO failed, gpio: %d.\n", hdmi_ct_hpd);
+		ret = -1;
+		goto out;
+	}
+	if (on) {
+		regulator_enable(v_5v);
+		gpio_direction_output(hdmi_ls_oe, 1);
+		gpio_direction_output(hdmi_ct_hpd, 1);
+	} else {
+		gpio_direction_output(hdmi_ct_hpd, 0);
+		gpio_direction_output(hdmi_ls_oe, 0);
+		regulator_disable(v_5v);
+	}
+
+	gpio_free(hdmi_ct_hpd);
+
+out:
+	gpio_free(hdmi_ls_oe);
+	return ret;
+}
+
 static struct uio_hdmi_platform_data mmp3_hdmi_info __initdata = {
 	.sspa_reg_base = 0xD42A0C00,
 	/* Fix me: gpio 59 lpm pull ? */
 	.gpio = mfp_to_gpio(GPIO59_HDMI_DET),
+	.edid_bus_num = 6,
+	.hdmi_v5p_power = &hdmi_power,
+	.hpd_val = 0x8000000,
 };
 #endif
 
