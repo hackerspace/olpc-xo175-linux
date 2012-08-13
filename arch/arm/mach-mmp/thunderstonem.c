@@ -76,7 +76,14 @@
 
 #define THUNDERSTONEM_NR_IRQS		(IRQ_BOARD_START + 64)
 
+static int thunderstonem_board_version;
+
 static unsigned long thunderstonem_pin_config[] __initdata = {
+	/*board version*/
+	GPIO16_BOARD_VERS0,
+	GPIO17_BOARD_VERS1,
+	GPIO18_BOARD_VERS2,
+
 	/* UART3 */
 	GPIO51_UART3_RXD,
 	GPIO52_UART3_TXD,
@@ -1196,12 +1203,69 @@ static struct platform_device gpio_keys = {
 	.id   = -1,
 };
 
+static int thunderstonem_get_board_version(void)
+{
+	int gpio_vers0 = mfp_to_gpio(GPIO16_BOARD_VERS0);
+	int gpio_vers1 = mfp_to_gpio(GPIO17_BOARD_VERS1);
+	int gpio_vers2 = mfp_to_gpio(GPIO18_BOARD_VERS2);
+
+	if (gpio_request(gpio_vers0, "vers0")) {
+		printk(KERN_INFO "gpio %d request failed\n", gpio_vers0);
+		return -1;
+	}
+
+	if (gpio_request(gpio_vers1, "vers1")) {
+		printk(KERN_INFO "gpio %d request failed\n", gpio_vers1);
+		gpio_free(gpio_vers0);
+		return -1;
+	}
+
+	if (gpio_request(gpio_vers2, "vers2")) {
+		printk(KERN_INFO "gpio %d request failed\n", gpio_vers2);
+		gpio_free(gpio_vers0);
+		gpio_free(gpio_vers1);
+		return -1;
+	}
+
+	gpio_direction_input(gpio_vers0);
+	gpio_direction_input(gpio_vers1);
+	gpio_direction_input(gpio_vers2);
+
+	thunderstonem_board_version = ((!!gpio_get_value(gpio_vers2))<<2) |
+		((!!gpio_get_value(gpio_vers1))<<1) |
+		((!!gpio_get_value(gpio_vers0))<<0);
+
+	thunderstonem_board_version = thunderstonem_board_version & 0x07;
+
+	gpio_free(gpio_vers0);
+	gpio_free(gpio_vers1);
+	gpio_free(gpio_vers2);
+
+	return 0;
+}
+
+#if 0
+static inline int board_is_mmp3_thunderstonem_SA(void){
+	return (machine_is_thunderstonem() && (0x5 == thunderstonem_board_version));
+}
+
+static inline int board_is_mmp3_thunderstonem_SB(void){
+	return (machine_is_thunderstonem() && (0x6 == thunderstonem_board_version));
+}
+
+static inline int board_is_mmp3_thunderstonem_SC(void){
+	return (machine_is_thunderstonem() && (0x7 == thunderstonem_board_version));
+}
+#endif
+
 static void __init thunderstonem_init(void)
 {
 	extern int (*board_reset)(char mode, const char *cmd);
 	board_reset = thunderstonem_board_reset;
 	pm_power_off = thunderstonem_poweroff;
 	mfp_config(ARRAY_AND_SIZE(thunderstonem_pin_config));
+
+	thunderstonem_get_board_version();
 
 	/* on-chip devices */
 	mmp3_add_uart(3);
