@@ -237,23 +237,6 @@ static unsigned long mmc3_pin_config[] __initdata = {
 	GPIO146_MMC3_CLK,
 };
 
-#ifdef CONFIG_KEYBOARD_PXA27x
-static struct pxa27x_keypad_platform_data mmp3_keypad_info = {
-	.direct_key_map = {
-		KEY_BACK,
-		KEY_MENU,
-		KEY_HOME,
-		KEY_SEARCH,
-		KEY_VOLUMEUP,
-		KEY_RESERVED,
-		KEY_VOLUMEDOWN,
-	},
-	.direct_key_num = 7,
-	.debounce_interval = 30,
-	.active_low = 1,
-};
-#endif
-
 /* PMIC Regulator 88PM800 */
 /* BUCK power supplies: BUCK[1..5] */
 static struct regulator_consumer_supply regulator_supplies_BUCK1[] = {
@@ -1102,91 +1085,6 @@ static void __init mmp_init_vmeta(void)
 }
 #endif
 
-#if (defined(CONFIG_SPI_PXA2XX) || defined(CONFIG_SPI_PXA2XX_MODULE)) \
-       && defined(CONFIG_NTRIG_SPI)
-static int ntrig_set_power(int on)
-{
-	struct regulator *v_3p3;
-	v_3p3 = regulator_get(NULL, "V_3P3");
-	if (IS_ERR(v_3p3)) {
-		v_3p3 = NULL;
-		pr_err("%s: enable V_3P3 for touch fail!\n", __func__);
-		return -EIO;
-	}
-	else {
-		if (on) {
-			regulator_set_voltage(v_3p3, 3300000, 3300000);
-			regulator_enable(v_3p3);
-		}
-		else {
-			regulator_disable(v_3p3);
-			v_3p3 = NULL;
-		}
-		msleep(100);
-		regulator_put(v_3p3);
-	}
-	return 1;
-}
-
-static struct pxa2xx_spi_master pxa_ssp_master_info = {
-	.num_chipselect = 1,
-	.enable_dma = 1,
-};
-
-static struct pxa2xx_spi_chip touch_spi_device = {
-	.tx_threshold = 1,
-	.rx_threshold = 1,
-};
-static struct ntrig_spi_platform_data ntrig_data = {
-	.oe_gpio = mfp_to_gpio(GPIO85_GPIO), /*magic number print from vendor's code*/
-	.oe_inverted = 1,/*magic number print from vendor's code*/
-	.pwr_gpio = -1,
-	.irq_flags = IRQF_DISABLED | IRQF_TRIGGER_RISING,
-	.set_power = ntrig_set_power,
-};
-
-static struct spi_board_info __initdata ntrig_spi_board_info[] = {
-	{
-		.modalias = "ntrig_spi",
-		.bus_num = 5,
-		.chip_select = 0,
-		.mode = SPI_MODE_0,
-		.max_speed_hz = 13000000,
-		.platform_data = &ntrig_data,
-		.irq = IRQ_GPIO(mfp_to_gpio(GPIO101_GPIO)),
-		.controller_data = &touch_spi_device,
-	},
-};
-
-static int ntrig_gpio_set(void)
-{
-	int gpio = mfp_to_gpio(GPIO101_GPIO);
-
-	if (gpio_request(gpio, "N-trig irq")) {
-			pr_err("gpio %d request failed\n", gpio);
-			return -1;
-	}
-	gpio_direction_input(gpio);
-	mdelay(1);
-	gpio_free(gpio);
-	return 0;
-}
-
-static void __init mmp3_init_spi(void)
-{
-
-	ntrig_gpio_set();
-	mmp3_add_ssp(4);
-	mmp3_add_spi(5, &pxa_ssp_master_info);
-
-	if ((spi_register_board_info(ntrig_spi_board_info, ARRAY_SIZE(ntrig_spi_board_info))) != 0)
-			pr_err("%s: spi_register_board_info returned error\n", __func__);
-}
-#else
-static inline void mmp3_init_spi(void) {
-}
-#endif
-
 /* Only for reboot routine */
 extern int __raw_i2c_bus_reset(u8 bus_num);
 extern int __raw_i2c_write_reg(u8 bus_num, u8 addr, u8 reg, u8 val);
@@ -1272,13 +1170,10 @@ static void __init thunderstonem_init(void)
 
 
 	mmp3_add_twsi(1, NULL, ARRAY_AND_SIZE(thunderstonem_twsi1_info));
+	mmp3_add_twsi(3, NULL, ARRAY_AND_SIZE(thunderstonem_twsi3_info));
 	mmp3_add_twsi(4, NULL, ARRAY_AND_SIZE(thunderstonem_twsi4_info));
 	mmp3_add_twsi(5, NULL, ARRAY_AND_SIZE(thunderstonem_twsi5_info));
 	mmp3_add_twsi(6, NULL, ARRAY_AND_SIZE(thunderstonem_twsi6_info));
-
-#ifdef CONFIG_KEYBOARD_PXA27x
-	mmp3_add_keypad(&mmp3_keypad_info);
-#endif
 
 	mmp3_add_videosram(&mmp3_videosram_info);
 #ifdef CONFIG_FB_PXA168
@@ -1307,15 +1202,12 @@ static void __init thunderstonem_init(void)
 #ifdef CONFIG_MMC_SDHCI_PXAV3
 	thunderstonem_init_mmc();
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
-	mmp3_init_spi();
 
 	platform_device_register(&mmp3_device_rtc);
 
 #if defined(CONFIG_TOUCHSCREEN_VNC)
 	platform_device_register(&mmp3_device_vnc_touch);
 #endif
-
-	mmp3_add_twsi(3, NULL, ARRAY_AND_SIZE(thunderstonem_twsi3_info));
 
 	/* audio sspa support */
 	mmp3_add_sspa(1);
