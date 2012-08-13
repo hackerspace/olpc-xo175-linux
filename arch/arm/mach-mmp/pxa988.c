@@ -106,7 +106,22 @@ static struct mfp_addr_map pxa988_addr_map[] __initdata = {
 	MFP_ADDR_END,
 };
 
+/* used to protect GC power sequence */
+static DEFINE_SPINLOCK(gc_pwr_lock);
+/*
+ * gc, vpu, isp will access the same regsiter to pwr on/off,
+ * add spinlock to protect the sequence
+ */
+static DEFINE_SPINLOCK(gc_vpu_isp_pwr_lock);
+
+/* used for GC LPM constraint */
+static struct pm_qos_request_list gc_lpm_cons;
+static bool gc_qos_list_inited;
+
 /* GC power control */
+#define GC_USE_HW_PWRCTRL	1
+#define GC_AUTO_PWR_ON		(0x1 << 0)
+
 #define GC_CLK_EN	\
 	((0x1 << 3) | (0x1 << 4) | (0x1 << 5))
 
@@ -119,6 +134,7 @@ static struct mfp_addr_map pxa988_addr_map[] __initdata = {
 #define GC_ISOB		(0x1 << 8)
 #define GC_PWRON1	(0x1 << 9)
 #define GC_PWRON2	(0x1 << 10)
+#define GC_HWMODE	(0x1 << 11)
 
 #define GC_FCLK_SEL_MASK	(0x3 << 6)
 #define GC_ACLK_SEL_MASK	(0x3 << 20)
@@ -138,14 +154,10 @@ static struct mfp_addr_map pxa988_addr_map[] __initdata = {
 	__raw_writel(val, APMU_GC);	\
 }
 
-static DEFINE_SPINLOCK(gc_pwr_lock);
-/* used for GC LPM constraint */
-static struct pm_qos_request_list gc_lpm_cons;
-static bool gc_qos_list_inited;
-
 void gc_pwr(int power_on)
 {
 	unsigned int val = __raw_readl(APMU_GC);
+	int timeout = 5000;
 
 	spin_lock(&gc_pwr_lock);
 	/* initialize the qos list at the first time */
@@ -159,6 +171,31 @@ void gc_pwr(int power_on)
 		/* block LPM deeper than D1 */
 		pm_qos_update_request(&gc_lpm_cons, PM_QOS_CONSTRAINT);
 
+#ifdef GC_USE_HW_PWRCTRL
+		/* enable hw mode */
+		val |= GC_HWMODE;
+		GC_REG_WRITE(val);
+
+		spin_lock(&gc_vpu_isp_pwr_lock);
+		/* set PWR_BLK_TMR_REG to recommend value */
+		__raw_writel(0x20001FFF, APMU_PWR_BLK_TMR_REG);
+
+		/* pwr on GC */
+		val = __raw_readl(APMU_PWR_CTRL_REG);
+		val |= GC_AUTO_PWR_ON;
+		__raw_writel(val, APMU_PWR_CTRL_REG);
+		spin_unlock(&gc_vpu_isp_pwr_lock);
+
+		/* polling pwr status */
+		while (!(__raw_readl(APMU_PWR_STATUS_REG) & GC_AUTO_PWR_ON)) {
+			udelay(200);
+			timeout -= 200;
+			if (timeout < 0) {
+				pr_err("%s: power on timeout\n", __func__);
+				return;
+			}
+		}
+#else
 		/* enable bus and function clock  */
 		val |= GC_CLK_EN;
 		GC_REG_WRITE(val);
@@ -184,7 +221,27 @@ void gc_pwr(int power_on)
 		/* disable isolation */
 		val |= GC_ISOB;
 		GC_REG_WRITE(val);
+#endif
 	} else {
+
+#ifdef GC_USE_HW_PWRCTRL
+		spin_lock(&gc_vpu_isp_pwr_lock);
+		/* pwr on GC */
+		val = __raw_readl(APMU_PWR_CTRL_REG);
+		val &= ~GC_AUTO_PWR_ON;
+		__raw_writel(val, APMU_PWR_CTRL_REG);
+		spin_unlock(&gc_vpu_isp_pwr_lock);
+
+		/* polling pwr status */
+		while ((__raw_readl(APMU_PWR_STATUS_REG) & GC_AUTO_PWR_ON)) {
+			udelay(200);
+			timeout -= 200;
+			if (timeout < 0) {
+				pr_err("%s: power off timeout\n", __func__);
+				return;
+			}
+		}
+#else
 		/* enable isolation */
 		val &= ~GC_ISOB;
 		GC_REG_WRITE(val);
@@ -202,6 +259,7 @@ void gc_pwr(int power_on)
 		GC_REG_WRITE(val);
 		udelay(100);
 
+#endif
 		/* release D1 LPM constraint */
 		pm_qos_update_request(&gc_lpm_cons, PM_QOS_DEFAULT_VALUE);
 	}
