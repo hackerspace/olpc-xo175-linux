@@ -139,7 +139,7 @@ static int __devinit max77601_onkey_probe(struct platform_device *pdev)
 	struct max77601_chip *chip;
 	struct max77601_onkey_info *info;
 	int irq, error;
-	u8 mask;
+	u8 status, mask = MAX77601_ONOFFIRQ_EN0_RM | MAX77601_ONOFFIRQ_EN0_FM;
 
 	if (!pdev)
 		return -EINVAL;
@@ -166,6 +166,11 @@ static int __devinit max77601_onkey_probe(struct platform_device *pdev)
 	info->chip = chip;
 	g_info = info;
 
+	/* Mask EN0 Rising , falling edge interrupt */
+	max77601_set_bits(chip, MAX77601_ONOFFIRQM_REG, mask, mask);
+	/* Clear pending interrupt */
+	max77601_read(chip, MAX77601_ONOFFIRQ_REG, &status, 1);
+	/* Request IRQ */
 	error = request_threaded_irq(irq, NULL, max77601_onkey_handler,
 				     IRQF_ONESHOT, "onkey", info);
 	if (error < 0) {
@@ -198,8 +203,7 @@ static int __devinit max77601_onkey_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, info);
 	device_init_wakeup(&pdev->dev, 1);
 
-	/* unmask EN0 Rising , falling edge interrupt */
-	mask = MAX77601_ONOFFIRQ_EN0_RM | MAX77601_ONOFFIRQ_EN0_FM;
+	/* Unmask EN0 Rising , falling edge interrupt */
 	max77601_set_bits(chip, MAX77601_ONOFFIRQM_REG, mask, 0x0);
 
 	return 0;
