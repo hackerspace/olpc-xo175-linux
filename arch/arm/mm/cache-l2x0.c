@@ -535,7 +535,8 @@ void pl310_suspend(void)
 {
 	pl310_save();
 
-	flush_cache_all();
+	__cpuc_flush_dcache_area((void *)&l2x0_saved_regs,
+				sizeof(l2x0_saved_regs));
 	outer_clean_range(l2x0_saved_regs_phys_addr,
 			  l2x0_saved_regs_phys_addr + sizeof(l2x0_saved_regs));
 }
