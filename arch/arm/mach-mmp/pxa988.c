@@ -282,6 +282,8 @@ void coda7542_power_switch(int on)
 		val = __raw_readl(APMU_VPU_CLK_RES_CTRL);
 		val |= VPU_HW_MODE;
 		__raw_writel(val, APMU_VPU_CLK_RES_CTRL);
+
+		spin_lock(&gc_vpu_isp_pwr_lock);
 		/* on1, on2, off timer */
 		__raw_writel(0x20001fff, APMU_PWR_BLK_TMR_REG);
 
@@ -289,6 +291,7 @@ void coda7542_power_switch(int on)
 		val = __raw_readl(APMU_PWR_CTRL_REG);
 		val |= VPU_AUTO_PWR_ON;
 		__raw_writel(val, APMU_PWR_CTRL_REG);
+		spin_unlock(&gc_vpu_isp_pwr_lock);
 
 		/* polling VPU_PWR_STAT bit */
 		while (!(__raw_readl(APMU_PWR_STATUS_REG) & VPU_PWR_STAT)) {
@@ -301,10 +304,12 @@ void coda7542_power_switch(int on)
 		}
 	/* HW mode power off */
 	} else {
+		spin_lock(&gc_vpu_isp_pwr_lock);
 		/* VPU auto power off */
 		val = __raw_readl(APMU_PWR_CTRL_REG);
 		val &= ~VPU_AUTO_PWR_ON;
 		__raw_writel(val, APMU_PWR_CTRL_REG);
+		spin_unlock(&gc_vpu_isp_pwr_lock);
 
 		/* polling VPU_PWR_STAT bit */
 		while ((__raw_readl(APMU_PWR_STATUS_REG) & VPU_PWR_STAT)) {
