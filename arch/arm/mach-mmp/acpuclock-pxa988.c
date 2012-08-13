@@ -409,21 +409,21 @@ static inline void insert_entry_ex(struct ddr_fc_table_cmd *cmd,
 
 	regval = cmd->reg;
 
-	__raw_writel(cmd->val, DMCU_REG(DMCU_HWTDAT0));
+	__raw_writel(cmd->val, DMCU_VIRT_REG(DMCU_HWTDAT0));
 
 	if (cmd->flag == DDR_FC_TABLE_PAUSE)
 		regval |= DMCU_HWTPAUSE;
 	else if (cmd->flag == DDR_FC_TABLE_END)
 		regval |= DMCU_HWTEND;
-	__raw_writel(regval, DMCU_REG(DMCU_HWTDAT1));
+	__raw_writel(regval, DMCU_VIRT_REG(DMCU_HWTDAT1));
 
 	regval = (((table << 5) | entry) & 0xff);
-	__raw_writel(regval, DMCU_REG(DMCU_HWTCTRL));
+	__raw_writel(regval, DMCU_VIRT_REG(DMCU_HWTCTRL));
 }
 
 #define INSERT_ENTRY(regid, value, table)			\
 	do {							\
-		cmd.reg = DMCU_REG(regid);			\
+		cmd.reg = DMCU_PHYS_REG(regid);			\
 		cmd.val = value;				\
 		cmd.flag = DDR_FC_TABLE_NONE;			\
 		insert_entry_ex(&cmd, table, entry);		\
@@ -432,7 +432,7 @@ static inline void insert_entry_ex(struct ddr_fc_table_cmd *cmd,
 
 #define PAUSE_ENTRY(regid, value, table)			\
 	do {							\
-		cmd.reg = DMCU_REG(regid);			\
+		cmd.reg = DMCU_PHYS_REG(regid);			\
 		cmd.val = value;				\
 		cmd.flag = DDR_FC_TABLE_PAUSE;			\
 		insert_entry_ex(&cmd, table, entry);		\
@@ -441,7 +441,7 @@ static inline void insert_entry_ex(struct ddr_fc_table_cmd *cmd,
 
 #define LAST_ENTRY(regid, value, table)				\
 	do {							\
-		cmd.reg = DMCU_REG(regid);			\
+		cmd.reg = DMCU_PHYS_REG(regid);			\
 		cmd.val = value;				\
 		cmd.flag = DDR_FC_TABLE_END;			\
 		insert_entry_ex(&cmd, table, entry);		\
@@ -472,9 +472,9 @@ static void pxa988_ddr_fc_table_lpddr2(struct platform_ddr_setting *setting)
 
 	table = setting->table_idx;
 
-	if (__raw_readl(DMCU_REG(DMCU_MAP_CS0)) & DMCU_MAP_VALID)
+	if (__raw_readl(DMCU_VIRT_REG(DMCU_MAP_CS0)) & DMCU_MAP_VALID)
 		map |= DMCU_CMD_CSSEL_CS0;
-	if (__raw_readl(DMCU_REG(DMCU_MAP_CS1)) & DMCU_MAP_VALID)
+	if (__raw_readl(DMCU_VIRT_REG(DMCU_MAP_CS1)) & DMCU_MAP_VALID)
 		map |= DMCU_CMD_CSSEL_CS1;
 
 	/*
@@ -486,7 +486,7 @@ static void pxa988_ddr_fc_table_lpddr2(struct platform_ddr_setting *setting)
 	/* 1. update all timing parameters */
 
 	/* a) update CAS */
-	regval = __raw_readl(DMCU_REG(DMCU_SDRAM_CTRL4))
+	regval = __raw_readl(DMCU_VIRT_REG(DMCU_SDRAM_CTRL4))
 		& (~DMCU_SDRAM_CTRL4_CL_MASK);
 	regval |= setting->cas_latency << DMCU_SDRAM_CTRL4_CL_SHIFT;
 	INSERT_ENTRY(DMCU_SDRAM_CTRL4, regval, table); /* CAS latency */
@@ -554,7 +554,8 @@ static void pxa988_ddr_fc_table(unsigned int *ddr_freq,
 	if (ddr_freq_count > MAX_DDR_OP_NUM)
 		pr_warn("<PM> Cannot support more than 3 DDR ops!\n");
 
-	type = __raw_readl(DMCU_REG(DMCU_SDRAM_CTRL4)) & DMCU_SDRAM_TYPE_MASK;
+	type = __raw_readl(DMCU_VIRT_REG(DMCU_SDRAM_CTRL4)) &
+					DMCU_SDRAM_TYPE_MASK;
 	switch (type) {
 	case DMCU_SDRAM_TYPE_DDR3:
 		/* FIXME: DDR3 is not supported now */

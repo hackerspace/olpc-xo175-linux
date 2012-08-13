@@ -19,7 +19,8 @@
 #define DMCU_HWTDAT0(base)		FIXADDR(base, 0x1c8)
 #define DMCU_HWTDAT1(base)		FIXADDR(base, 0x1cc)
 #else
-#define DMCU_REG(x)			(DMCU_VIRT_BASE + (x))
+#define DMCU_VIRT_REG(x)		(DMCU_VIRT_BASE + (x))
+#define DMCU_PHYS_REG(x)		(DMCU_PHYS_BASE + (x))
 #define DMCU_HWTCTRL			(0x1c0)
 #define DMCU_HWTDAT0			(0x1c8)
 #define DMCU_HWTDAT1			(0x1cc)
