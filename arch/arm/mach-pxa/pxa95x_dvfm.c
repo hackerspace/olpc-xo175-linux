@@ -137,7 +137,7 @@ int update_op_mips_ram(u32 old_pp, u32 new_pp);
 #endif
 static unsigned int pxa95x_ticks_to_msec(unsigned int ticks);
 extern int md2fvinfo(struct pxa95x_fv_info *, struct dvfm_md_opt *);
-extern void set_idle_op(int, int);
+extern void set_lowpower_op(int, int);
 
 /*1GHz support - voltage for 1GHz Frequency PP*/
 static unsigned long alvl3HighVoltage, alvl3LowVoltage;
@@ -708,6 +708,21 @@ static struct dvfm_md_opt pxa978_op_array_high_mips_Cx[] = {
 		.flag = OP_FLAG_FACTORY,
 		.name = "CG",
 	},
+	/* D2 mode in Suspend*/
+	{
+		.vcc_core = 1250,
+		.power_mode = POWER_MODE_D2_SUSPEND,
+		.flag = OP_FLAG_FACTORY,
+		.name = "SUSPEND_D2",
+	},
+
+	/* CG (clock gated) mode in Suspend*/
+	{
+		.vcc_core = 1250,
+		.power_mode = POWER_MODE_CG_SUSPEND,
+		.flag = OP_FLAG_FACTORY,
+		.name = "SUSPEND_CG",
+	},
 };
 
 static struct dvfm_md_opt pxa978_op_array[] = {
@@ -938,6 +953,21 @@ static struct dvfm_md_opt pxa978_op_array_high_mips[] = {
 		.power_mode = POWER_MODE_CG,
 		.flag = OP_FLAG_FACTORY,
 		.name = "CG",
+	},
+	/* D2 mode in Suspend*/
+	{
+		.vcc_core = 1250,
+		.power_mode = POWER_MODE_D2_SUSPEND,
+		.flag = OP_FLAG_FACTORY,
+		.name = "SUSPEND_D2",
+	},
+
+	/* CG (clock gated) mode in Suspend*/
+	{
+		.vcc_core = 1250,
+		.power_mode = POWER_MODE_CG_SUSPEND,
+		.flag = OP_FLAG_FACTORY,
+		.name = "SUSPEND_CG",
 	},
 };
 
@@ -3193,7 +3223,7 @@ static int op_init(void *driver_data, struct info_head *op_table)
 		/* Set index of operating point used in idle */
 		if (proc->op_array[i].power_mode != POWER_MODE_D0) {
 #ifdef CONFIG_IPM
-			set_idle_op(index, proc->op_array[i].power_mode);
+			set_lowpower_op(index, proc->op_array[i].power_mode);
 #endif
 		}
 
@@ -3540,7 +3570,9 @@ static int pxa95x_stats_notifier_freq(struct notifier_block *nb,
 		}
 	} else if (md->power_mode == POWER_MODE_D1 ||
 		   md->power_mode == POWER_MODE_D2 ||
-		   md->power_mode == POWER_MODE_CG) {
+		   md->power_mode == POWER_MODE_CG ||
+		   md->power_mode == POWER_MODE_D2_SUSPEND ||
+		   md->power_mode == POWER_MODE_CG_SUSPEND) {
 		switch (val) {
 		case DVFM_FREQ_PRECHANGE:
 			calc_switchtime_start(freqs->old, freqs->new, ticks);

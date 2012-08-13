@@ -864,11 +864,16 @@ extern int pxa95x_check_constraint(void);
 #define ACS_DDR_260_REQ (1 << 8)
 #define ACS_RELQ_OTHERS (1 << 5)
 #ifdef CONFIG_CPU_PXA978
+extern int get_lowpower_op(int mode);
 int pxa95x_pm_enter_sleep(struct pxa95x_pm_regs *pm_regs)
 {
 	unsigned int wakeup_data, icip, icip2, icip3;
 	unsigned long flags;
 	int delta;
+	struct op_info *d2_op_info = NULL;
+	struct op_info *cg_op_info = NULL;
+	struct op_info *temp_cur_op_info = NULL;
+	static struct dvfm_freqs d2_temp_freqs, cg_temp_freqs;
 
 	local_fiq_disable();
 	local_irq_save(flags);
@@ -894,11 +899,37 @@ int pxa95x_pm_enter_sleep(struct pxa95x_pm_regs *pm_regs)
 			if ((!delta) && (0 == clear_DDR_avail_flag())) {
 				CHECK_APPS_COMM_SYNC
 #endif
+				if (!d2_temp_freqs.new) {
+					d2_temp_freqs.new = get_lowpower_op(POWER_MODE_D2_SUSPEND);
+					dvfm_get_opinfo(d2_temp_freqs.new, &d2_op_info);
+					memcpy(&(d2_temp_freqs.new_info),
+							d2_op_info, sizeof(struct op_info));
+				}
+				d2_temp_freqs.old = dvfm_get_op(&temp_cur_op_info);
+				memcpy(&(d2_temp_freqs.old_info),
+						temp_cur_op_info, sizeof(struct op_info));
+				dvfm_notifier_frequency(&d2_temp_freqs, DVFM_FREQ_PRECHANGE);
+				pr_debug("enter D2 in Suspend\n");
 				enter_d2();
+				pr_debug("exit D2 in Suspend\n");
+				dvfm_notifier_frequency(&d2_temp_freqs, DVFM_FREQ_POSTCHANGE);
 #if defined(CONFIG_PXA9XX_ACIPC)
 				set_DDR_avail_flag();
 			} else {
+				if (!cg_temp_freqs.new) {
+					cg_temp_freqs.new = get_lowpower_op(POWER_MODE_CG_SUSPEND);
+					dvfm_get_opinfo(cg_temp_freqs.new, &cg_op_info);
+					memcpy(&(cg_temp_freqs.new_info),
+							cg_op_info, sizeof(struct op_info));
+				}
+				cg_temp_freqs.old = dvfm_get_op(&temp_cur_op_info);
+				memcpy(&(cg_temp_freqs.old_info),
+						temp_cur_op_info, sizeof(struct op_info));
+				dvfm_notifier_frequency(&cg_temp_freqs, DVFM_FREQ_PRECHANGE);
+				pr_debug("enter CGM in Suspend\n");
 				enter_cg();
+				pr_debug("exit CGM in Suspend\n");
+				dvfm_notifier_frequency(&cg_temp_freqs, DVFM_FREQ_POSTCHANGE);
 			}
 #endif
 			wakeup_data = pm_query_wakeup_src();

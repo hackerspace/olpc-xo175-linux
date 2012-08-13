@@ -89,7 +89,7 @@ static int idle_flaw;		/* silicon issue on IDLE */
 
 static void (*orig_idle) (void);
 static unsigned int cpuid;
-static int d1idx = -1, d2idx = -1, cgidx = -1;
+static int d1idx = -1, d2idx = -1, cgidx = -1, d2_suspend_idx = -1, cg_suspend_idx = -1;
 extern int enable_deepidle;
 #ifdef CONFIG_ISPT
 #define ispt_power_state_c1() ispt_power_msg(CT_P_PWR_STATE_ENTRY_C1);
@@ -572,19 +572,56 @@ static void query_idle_flaw(void)
 		idle_flaw = 1;	/* PXA310 A0/A1/A2 */
 }
 
-void set_idle_op(int idx, int mode)
+void set_lowpower_op(int idx, int mode)
 {
 	switch (mode) {
 	case POWER_MODE_D1:
 		d1idx = idx;
+		pr_info("d1idx : %d\n", d1idx);
 		break;
 	case POWER_MODE_D2:
 		d2idx = idx;
+		pr_info("d2idx : %d\n", d2idx);
 		break;
 	case POWER_MODE_CG:
 		cgidx = idx;
+		pr_info("cgidx : %d\n", cgidx);
+		break;
+	case POWER_MODE_D2_SUSPEND:
+		d2_suspend_idx = idx;
+		pr_info("d2_suspend_idx : %d\n", d2_suspend_idx);
+		break;
+	case POWER_MODE_CG_SUSPEND:
+		cg_suspend_idx = idx;
+		pr_info("cg_suspend_idx : %d\n", cg_suspend_idx);
 		break;
 	}
+}
+
+int get_lowpower_op(int mode)
+{
+	int ret = 0;
+	switch (mode) {
+	case POWER_MODE_D1:
+		ret = d1idx;
+		break;
+	case POWER_MODE_D2:
+		ret = d2idx;
+		break;
+	case POWER_MODE_CG:
+		ret = cgidx;
+		break;
+	case POWER_MODE_D2_SUSPEND:
+		ret = d2_suspend_idx;
+		break;
+	case POWER_MODE_CG_SUSPEND:
+		ret = cg_suspend_idx;
+		break;
+	}
+	if (ret)
+		return ret;
+	else
+		return -EINVAL;
 }
 
 static int __init mspm_init(void)

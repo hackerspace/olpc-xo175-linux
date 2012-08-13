@@ -286,7 +286,7 @@ static ssize_t ticks_show(struct sys_device *sys_dev,
 
 	len = sprintf(buf, "\nTicks of operating point list:\n\n");
 
-	len += sprintf(buf + len, "OP#   |  OP name  | run ticks |"
+	len += sprintf(buf + len, "OP#    |   OP name   | run ticks |"
 		       " idle ticks | run second | idle second |   count\n");
 
 	len += sprintf(buf + len, "-------------------------"
@@ -303,7 +303,7 @@ static ssize_t ticks_show(struct sys_device *sys_dev,
 		read_unlock(&dvfm_op_list->lock);
 
 		len += sprintf(buf + len,
-			       "OP %2d | %9s |  %8u | %10u | %10u |  %10u | %10u\n",
+			       "OP %3d | %11s |  %8u | %10u | %10u |  %10u | %10u\n",
 			       i, op_name, op_ticks_array[i].runtime,
 			       op_ticks_array[i].idletime,
 			       dvfm_driver->ticks_to_sec(op_ticks_array[i].
