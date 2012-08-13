@@ -30,6 +30,7 @@
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
 #include <linux/i2c.h>
+#include <linux/regulator/machine.h>
 
 #include <asm/mach-types.h>
 #include <linux/io.h>
@@ -61,6 +62,7 @@ static int mmp3asoc_headphone_func;
 static int mmp3asoc_hs_mic_func;
 static int mmp3asoc_spk_func;
 static int mmp3asoc_main_mic_func;
+static struct regulator *v_5v;
 
 static void mmp3asoc_ext_control(struct snd_soc_dapm_context *dapm, int func)
 {
@@ -376,6 +378,19 @@ static int codec_elba_init(struct snd_soc_pcm_runtime *rtd)
 	/* currently the audio pll of mmp3 a0 stepping is not working */
 	audio_subsystem_pll_config();
 
+	/* Open elba speaker power for ThunderstoneM,
+	   recently, other platform need not */
+	if (machine_is_thunderstonem()) {
+		v_5v = regulator_get(NULL, "V_5V");
+		if (IS_ERR(v_5v)) {
+			pr_err("%s fail to get regulator V_5V speaker\n",
+					__func__);
+			return -EINVAL;
+		}
+
+		regulator_enable(v_5v);
+	}
+
 #if 0
 	/* Add mmp3asoc specific controls */
 	err = snd_soc_add_controls(codec, mmp3asoc_elba_controls,
@@ -612,12 +627,20 @@ static int mmp3asoc_elba_hw_params(struct snd_pcm_substream *substream,
 #ifdef CONFIG_PM
 static int mmp3asoc_suspend_post(struct snd_soc_card *card)
 {
+	/* Control ThunderstoneM speaker power dynamicly */
+	if (machine_is_thunderstonem()) {
+		regulator_disable(v_5v);
+	}
 
 	return 0;
 }
 
 static int mmp3asoc_resume_pre(struct snd_soc_card *card)
 {
+	/* Control ThunderstoneM speaker power dynamicly */
+	if (machine_is_thunderstonem()) {
+		regulator_enable(v_5v);
+	}
 
 	return 0;
 }
