@@ -27,7 +27,7 @@
 #include <linux/regulator/fixed.h>
 #include <linux/regulator/fan53555.h>
 #include <linux/switch.h>
-#ifdef CONFIG_INPUT_CAPELLA_CM3218
+#ifdef CONFIG_SENSORS_CM3218
 #include <linux/cm3218.h>
 #endif
 #if defined (CONFIG_INPUT_KXT_9)
@@ -200,7 +200,7 @@ static unsigned long thunderstonem_pin_config[] __initdata = {
 	GPIO15_GPS_RST,
 #endif
 
-#ifdef CONFIG_INPUT_CAPELLA_CM3218
+#ifdef CONFIG_SENSORS_CM3218
 	GPIO93_GPIO,
 #endif
 	/* 3V3_EN */
@@ -878,7 +878,7 @@ static struct i2c_board_info thunderstonem_twsi5_info[] = {
 #endif
 };
 
-#ifdef CONFIG_INPUT_CAPELLA_CM3218
+#ifdef CONFIG_SENSORS_CM3218
 static int __capella_cm3218_power(int on, uint8_t val){
 		return 0;
 }
@@ -898,7 +898,7 @@ static struct cm3218_platform_data cm3218_pdata = {
 #endif
 
 static struct i2c_board_info thunderstonem_twsi6_info[] = {
-#ifdef CONFIG_INPUT_CAPELLA_CM3218
+#ifdef CONFIG_SENSORS_CM3218
 	        {
 			.type           = CM3218_I2C_NAME,
 			.addr           = CM3218_ALS_cmd,
