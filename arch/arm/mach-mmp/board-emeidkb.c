@@ -544,6 +544,16 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 	pm80x_reg_write(chip->base_page, PM800_USER_DATA1, 0x70);
 	/* Enable voltage change in pmic, POWER_HOLD = 1 */
 	pm80x_reg_write(chip->base_page, PM800_WAKEUP1, 0x80);
+
+	/* Set buck1 sleep mode as 0.8V */
+	pm80x_reg_write(chip->power_page, PM800_SLEEP_BUCK1, 0xf);
+	/* Enable buck sleep mode */
+	pm80x_reg_write(chip->power_page, PM800_BUCK_SLP1, 0xaa);
+	pm80x_reg_write(chip->power_page, PM800_BUCK_SLP2, 0x2);
+
+	/* Enable reference group sleep mode */
+	pm80x_reg_write(chip->base_page, PM800_LOW_POWER_CONFIG4, 0x80);
+
 	/* BUCK enable 0x50, BUCK1, 2, 3, 4 */
 	pm80x_reg_write(chip->power_page, PM800_BUCK_ENA, 0x0f);
 	/* LDO enable 0x51, 0x52, 0x53, LDO1, 3, 5, 7 */
