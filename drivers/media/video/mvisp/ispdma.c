@@ -531,7 +531,7 @@ static int ispdma_set_fb_reg(struct mvisp_device *isp,
 	mvisp_reg_writel(isp, regval,
 		ISP_IOMEM_ISPDMA, ISPDMA_FBTX0_TMR + regoffset);
 
-	regval = 0x1400 | ((cfg_fb->burst_write >> 3) & FBTX_DMABRSTSZ);
+	regval = 0x400 | ((cfg_fb->burst_write >> 3) & FBTX_DMABRSTSZ);
 	mvisp_reg_writel(isp, regval,
 		ISP_IOMEM_ISPDMA, ISPDMA_FBTX0_CTRL + regoffset);
 
