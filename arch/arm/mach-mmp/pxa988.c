@@ -815,6 +815,7 @@ int pxa988_isp_power_control(int on)
 		val |= ISP_HW_MODE;
 		__raw_writel(val, APMU_ISPDXO);
 
+		spin_lock(&gc_vpu_isp_pwr_lock);
 		/* on1, on2, off timer */
 		__raw_writel(0x20001fff, APMU_PWR_BLK_TMR_REG);
 
@@ -822,6 +823,7 @@ int pxa988_isp_power_control(int on)
 		val = __raw_readl(APMU_PWR_CTRL_REG);
 		val |= ISP_AUTO_PWR_ON;
 		__raw_writel(val, APMU_PWR_CTRL_REG);
+		spin_unlock(&gc_vpu_isp_pwr_lock);
 
 		/* polling ISP_PWR_STAT bit */
 		while (!(__raw_readl(APMU_PWR_STATUS_REG) & ISP_PWR_STAT)) {
@@ -834,10 +836,12 @@ int pxa988_isp_power_control(int on)
 		}
 
 	} else {
+		spin_lock(&gc_vpu_isp_pwr_lock);
 		/* isp auto power off */
 		val = __raw_readl(APMU_PWR_CTRL_REG);
 		val &= ~ISP_AUTO_PWR_ON;
 		__raw_writel(val, APMU_PWR_CTRL_REG);
+		spin_unlock(&gc_vpu_isp_pwr_lock);
 
 		/* polling ISP_PWR_STAT bit */
 		while ((__raw_readl(APMU_PWR_STATUS_REG) & ISP_PWR_STAT)) {
