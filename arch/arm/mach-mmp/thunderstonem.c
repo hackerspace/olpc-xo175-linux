@@ -908,12 +908,6 @@ static struct i2c_board_info thunderstonem_twsi3_info[] = {
 		.irq  = gpio_to_irq(mfp_to_gpio(GPIO23_GPIO)),
 		.platform_data = &pm805_info,
 	},
-	{
-		.type = "88PM80x",
-		.addr = 0x38,
-		.irq  = gpio_to_irq(mfp_to_gpio(GPIO23_GPIO)),
-		.platform_data = &pm805_info,
-	},
 };
 
 #ifdef CONFIG_SD8XXX_RFKILL
