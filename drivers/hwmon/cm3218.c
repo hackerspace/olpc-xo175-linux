@@ -343,6 +343,62 @@ static int set_lsensor_range(uint16_t low_thd, uint16_t high_thd)
 
 	return ret;
 }
+static void report_ls_value()
+{
+	uint16_t adc_value = 0;
+	int i, level = 0;
+	int ret;
+	struct cm3218_info *lpi = lp_info;
+
+		get_ls_adc_value(&adc_value, 0);
+		lpi->is_cmd |= CM3218_ALS_INT_EN;
+
+	if (lpi->ls_calibrate) {
+		for (i = 0; i < 10; i++) {
+				if (adc_value <= (*(lpi->cali_table + i))) {
+					level = i;
+					if (*(lpi->cali_table + i))
+						break;
+				}
+				if (i == 9) {	/*avoid  i = 10, because
+						'cali_table' of size is 10 */
+					level = i;
+					break;
+				}
+			}
+		} else {
+			for (i = 0; i < 10; i++) {
+				if (adc_value <= (*(lpi->adc_table + i))) {
+					level = i;
+					if (*(lpi->adc_table + i))
+						break;
+				}
+				if (i == 9) {	/*avoid  i = 10, because
+						'cali_table' of size is 10 */
+					level = i;
+					break;
+				}
+			}
+		}
+
+	ret = set_lsensor_range(((i == 0) || (adc_value == 0)) ? 0 :
+				*(lpi->cali_table + (i - 1)) + 1,
+				*(lpi->cali_table + i));
+
+	if ((i == 0) || (adc_value == 0))
+		D("[CM3628] %s: ADC=0x%03X, Level=%d, l_thd equal 0,"
+		" h_thd = 0x%x\n", __func__, adc_value, level,
+		*(lpi->cali_table + i));
+	else
+		D("[CM3628] %s: ADC=0x%03X, Level=%d, l_thd = 0x%x,"
+		" h_thd = 0x%x\n", __func__, adc_value, level,
+	(lpi->cali_table + (i - 1)) + 1,
+	*(lpi->cali_table + i));
+	lpi->current_level = level;
+	lpi->current_adc = adc_value;
+	input_report_abs(lpi->ls_input_dev, ABS_MISC, level);
+	input_sync(lpi->ls_input_dev);
+}
 
 static void sensor_irq_do_work(struct work_struct *work)
 {
@@ -1121,8 +1177,7 @@ static int control_and_report(struct cm3218_info *lpi, uint8_t mode,
 			      uint8_t cmd_enable)
 {
 	int ret = 0;
-	uint16_t adc_value = 0;
-	int level = 0, i, val;
+	int val;
 	int fail_counter = 0;
 	uint8_t add = 0;
 
@@ -1191,60 +1246,10 @@ static int control_and_report(struct cm3218_info *lpi, uint8_t mode,
 		msleep(100);
 	}
 
-	if (lpi->als_enable) {
-		get_ls_adc_value(&adc_value, 0);
-		lpi->is_cmd |= CM3218_ALS_INT_EN;
-	}
+	if (lpi->als_enable)
+		report_ls_value();
 
-	if (lpi->als_enable) {
-		if (lpi->ls_calibrate) {
-			for (i = 0; i < 10; i++) {
-				if (adc_value <= (*(lpi->cali_table + i))) {
-					level = i;
-					if (*(lpi->cali_table + i))
-						break;
-				}
-				if (i == 9) {	/*avoid  i = 10, because
-						'cali_table' of size is 10 */
-					level = i;
-					break;
-				}
-			}
-		} else {
-			for (i = 0; i < 10; i++) {
-				if (adc_value <= (*(lpi->adc_table + i))) {
-					level = i;
-					if (*(lpi->adc_table + i))
-						break;
-				}
-				if (i == 9) {	/*avoid  i = 10, because
-						'cali_table' of size is 10 */
-					level = i;
-					break;
-				}
-			}
-		}
-
-		ret = set_lsensor_range(((i == 0) || (adc_value == 0)) ? 0 :
-					*(lpi->cali_table + (i - 1)) + 1,
-					*(lpi->cali_table + i));
-
-		if ((i == 0) || (adc_value == 0))
-			D("[CM3628] %s: ADC=0x%03X, Level=%d, l_thd equal 0,"
-			" h_thd = 0x%x\n", __func__, adc_value, level,
-			*(lpi->cali_table + i));
-		else
-			D("[CM3628] %s: ADC=0x%03X, Level=%d, l_thd = 0x%x,"
-			" h_thd = 0x%x\n", __func__, adc_value, level,
-			(lpi->cali_table + (i - 1)) + 1,
-			*(lpi->cali_table + i));
-		lpi->current_level = level;
-		lpi->current_adc = adc_value;
-		input_report_abs(lpi->ls_input_dev, ABS_MISC, level);
-		input_sync(lpi->ls_input_dev);
-	}
-
-	ret = _cm3218_I2C_Write_Word(lpi->ALS_cmd_address, ALS_CMD,
+ret = _cm3218_I2C_Write_Word(lpi->ALS_cmd_address, ALS_CMD,
 					lpi->is_cmd);
 	if (ret == 0)
 		D("[CM3218] %s, re-enable INT OK\n", __func__);
