@@ -96,8 +96,8 @@
 
 enum pxa988_lowpower_state {
 	POWER_MODE_ACTIVE = 0, /* not used for PXA988 */
-	POWER_MODE_CORE_INTIDLE, /* not used for PXA988*/
-	POWER_MODE_CORE_EXTIDLE, /* used for C1 */
+	POWER_MODE_CORE_INTIDLE, /* used for C1 */
+	POWER_MODE_CORE_EXTIDLE, /* not used for PXA988*/
 	POWER_MODE_CORE_POWERDOWN, /* used for C2 */
 	POWER_MODE_APPS_IDLE, /* used for D1P */
 	POWER_MODE_APPS_SLEEP, /* not used now */
@@ -107,15 +107,15 @@ enum pxa988_lowpower_state {
 };
 
 enum pxa988_lowpower_mode {
-	/* POWER_MODE_CORE_EXTIDLE */
+	/* POWER_MODE_CORE_INTIDLE */
 	PXA988_LPM_C1 = LPM_C1,
 	/* POWER_MODE_CORE_POWERDOWN with L1 shutdown, L2 retentive */
 	PXA988_LPM_C2 = LPM_C2,
 	/* POWER_MODE_APPS_IDLE with L2 retentive */
 	PXA988_LPM_D1P = LPM_D1P,
-	/* POWER_MODE_APPS_SLEEP with L2 retentive */
-	PXA988_LPM_D1 = LPM_D1,
 	/* POWER_MODE_SYS_SLEEP with L2 retentive */
+	PXA988_LPM_D1 = LPM_D1,
+	/* POWER_MODE_UDR_VCTCXO with L2 retentive */
 	PXA988_LPM_D2 = LPM_D2,
 	/* POWER_MODE_UDR with L2 shutdown */
 	PXA988_LPM_D2_UDR = LPM_D2_UDR,

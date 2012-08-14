@@ -70,7 +70,7 @@ static int pxa988_cpuidle_register_device(unsigned int cpu)
 
 	state = &device->states[0];
 	strcpy(state->name, "C1");
-	strcpy(state->desc, "C1: Core external clock gated");
+	strcpy(state->desc, "C1: Core internal clock gated");
 	state->exit_latency = 5; /* FIXME: what's the real latency? */
 	state->target_residency = state->exit_latency * 2;
 	state->flags = CPUIDLE_FLAG_TIME_VALID;

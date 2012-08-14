@@ -50,7 +50,7 @@
  * There are totally seven low power modes defined for PXA988.
  * Please refer mach/pxa988_lowpower.h.
  *
- * 1. PXA988_LPM_C1: POWER_MODE_CORE_EXTIDLE
+ * 1. PXA988_LPM_C1: POWER_MODE_CORE_INTIDLE
  * 2. PXA988_LPM_C2: POWER_MODE_CORE_POWERDOWN with L1 shutdown, L2 retentive
  * 3. PXA988_LPM_D1P: POWER_MODE_APPS_IDLE with L2 retentive
  * 4. PXA988_LPM_D1: POWER_MODE_SYS_SLEEP with L2 retentive
@@ -322,7 +322,7 @@ static void pxa988_icu_global_mask(u32 cpu, u32 mask)
 /* These states are used as idle replacement as well as suspend/hotplug */
 struct pxa988_lowpower_data pxa988_lpm_data[] = {
 	[PXA988_LPM_C1] = {
-		.power_state = POWER_MODE_CORE_EXTIDLE,
+		.power_state = POWER_MODE_CORE_INTIDLE,
 		.valid = 1,
 	},
 	[PXA988_LPM_C2] = {
