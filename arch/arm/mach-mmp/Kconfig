@@ -154,7 +154,6 @@ config CPU_PXA988
 	select CPU_V7
 	select ARM_GIC
 	select ARM_THUMBEE
-	select SOC_LOCAL_TIMERS if !(LOCAL_TIMERS)
 	help
 	  Say 'Y' here if you want to support the Marvell pxa988-base
 	  platforms.

@@ -414,7 +414,16 @@ void __init stimer_device_init(u32 base)
 	stimer_event_setup(evtd);
 }
 
-int local_timer_setup(struct clock_event_device *evt)
+#ifdef CONFIG_LOCAL_TIMERS
+#include <asm/smp_twd.h>
+int __cpuinit local_timer_setup(struct clock_event_device *evt)
+{
+	evt->irq = IRQ_LOCALTIMER;
+	twd_timer_setup(evt);
+	return 0;
+}
+#else
+int __cpuinit local_timer_setup(struct clock_event_device *evt)
 {
 	/* Use existing clock_event for cpu 0 */
 	if (!smp_processor_id())
@@ -422,4 +431,4 @@ int local_timer_setup(struct clock_event_device *evt)
 
 	return stimer_event_setup(evt);
 }
-
+#endif

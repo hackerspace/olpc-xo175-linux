@@ -16,6 +16,7 @@
 #include <linux/slab.h>
 #include <linux/cpu_pm.h>
 #include <linux/spinlock.h>
+#include <linux/clockchips.h>
 #include <asm/mach/map.h>
 #include <asm/suspend.h>
 #include <asm/cacheflush.h>
@@ -472,6 +473,7 @@ int pxa988_enter_lowpower(u32 cpu, u32 power_mode)
 	/* The default power_mode should be C2 */
 	int lpm_index = PXA988_LPM_C2;
 
+	int cpu_id = cpu;
 #endif
 
 	if (power_mode == PXA988_LPM_C1) {
@@ -483,6 +485,10 @@ int pxa988_enter_lowpower(u32 cpu, u32 power_mode)
 	/* At least we can enter C2 here */
 	pxa988_pre_enter_lpm(cpu, PXA988_LPM_C2);
 
+#ifdef CONFIG_LOCAL_TIMERS
+	/* switch to broadcast timer before enter lpm */
+	clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_ENTER, &cpu_id);
+#endif
 	cpu_pm_enter();
 
 #ifdef CONFIG_SMP
@@ -554,6 +560,10 @@ int pxa988_enter_lowpower(u32 cpu, u32 power_mode)
 	cpu_cluster_pm_exit();
 #endif /* CONFIG_SMP */
 
+#ifdef CONFIG_LOCAL_TIMERS
+	/* switch back to normal timer after back from lpm */
+	clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_EXIT, &cpu_id);
+#endif
 	pxa988_post_enter_lpm(cpu, power_mode);
 
 	cpu_pm_exit();

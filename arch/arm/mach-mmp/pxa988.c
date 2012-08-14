@@ -24,6 +24,7 @@
 #include <asm/hardware/gic.h>
 #include <asm/hardware/cache-l2x0.h>
 #include <asm/cacheflush.h>
+#include <asm/smp_twd.h>
 
 #include <mach/addr-map.h>
 #include <mach/regs-apbc.h>
@@ -473,14 +474,18 @@ static void __init pxa988_timer_init(void)
 {
 	uint32_t clk_rst;
 
+#ifdef CONFIG_LOCAL_TIMERS
+	twd_base = (void __iomem *)TWD_VIRT_BASE;
+#endif
+
 	/* Select the configurable timer clock source to be 6.5MHz */
 	__raw_writel(APBC_APBCLK | APBC_RST, APBC_PXA988_TIMERS);
 	clk_rst = APBC_APBCLK | APBC_FNCLK | APBC_FNCLKSEL(2);
 	__raw_writel(clk_rst, APBC_PXA988_TIMERS);
 
 	stimer_source_select(2, TIMER_RATE_32K);
-	stimer_event_config(0, 0, IRQ_PXA988_AP_TIMER1, 6500000);
-	stimer_event_config(1, 1, IRQ_PXA988_AP_TIMER2_3, 6500000);
+	stimer_event_config(0, 0, IRQ_PXA988_AP_TIMER1, TIMER_RATE_32K);
+	stimer_event_config(1, 1, IRQ_PXA988_AP_TIMER2_3, TIMER_RATE_32K);
 	stimer_device_init(TIMERS1_VIRT_BASE);
 }
 

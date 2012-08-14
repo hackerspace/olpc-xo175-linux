@@ -11,7 +11,7 @@ obj-$(CONFIG_CPU_PXA910)	+= pxa910.o irq-pxa168.o sram.o pxa910-squ.o \
 clock.o
 obj-$(CONFIG_CPU_PXA988)	+= pxa988.o sram.o pxa910-squ.o reset-pxa988.o pxa988_lowpower.o \
 clock-pxa988.o wakeupgen.o acpuclock-pxa988.o gpio-edge.o head_v7.o \
-dvfs-pxa988.o
+dvfs-pxa988.o stime.o
 obj-$(CONFIG_CPU_MMP2)		+= mmp2.o irq-mmp2.o clock.o mmp_dma.o \
 sram.o mmp2_sspa.o mmp2_fuse.o clock-audio.o
 obj-$(CONFIG_CPU_MMP3)		+= mmp3.o irq-mmp3.o mmp_dma.o mmp2_sspa.o \
@@ -27,9 +27,8 @@ obj-$(CONFIG_CPU_MMP3)		+= mmp3_hotplug.o
 obj-$(CONFIG_CPU_PXA988)	+= pxa988_hotplug.o
 endif
 ifeq ($(CONFIG_SOC_LOCAL_TIMERS),y)
-obj-$(CONFIG_CPU_PXA988)	+= stime.o
 obj-$(CONFIG_CPU_MMP3)		+= soc_time.o
-else
+else ifeq ($(CONFIG_CPU_PXA988),n)
 obj-y				+= time.o
 obj-$(CONFIG_LOCAL_TIMERS)	+= localtimer.o
 endif
