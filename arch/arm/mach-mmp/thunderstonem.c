@@ -884,7 +884,7 @@ static int __capella_cm3218_power(int on, uint8_t val){
 }
 
 static struct cm3218_platform_data cm3218_pdata = {
-		.intr = GPIO93_GPIO,
+		.intr = mfp_to_gpio(GPIO93_GPIO),
 		.levels = {
 				0x0A, 0xA0, 0xE1, 0x140, 0x280,
 				0x500, 0xA28, 0x16A8, 0x1F40, 0x2800
