@@ -592,12 +592,13 @@ static ssize_t ls_adc_show(struct device *dev,
 			   struct device_attribute *attr, char *buf)
 {
 	int ret;
+	uint16_t adc_value;
 	struct cm3218_info *lpi = lp_info;
 
-	D("[LS][CM3218] %s: ADC = 0x%04X, Level = %d\n",
-	__func__, lpi->current_adc, lpi->current_level);
-	ret = sprintf(buf, "ADC[0x%04X] => level %d\n",
-		      lpi->current_adc, lpi->current_level);
+	get_ls_adc_value(&adc_value,0);
+	lpi->current_adc = adc_value;
+
+	ret = sprintf(buf, "raw adc = 0x%04X\n", lpi->current_adc);
 
 	return ret;
 }
