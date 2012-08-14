@@ -392,7 +392,7 @@ static void report_ls_value()
 	else
 		D("[CM3628] %s: ADC=0x%03X, Level=%d, l_thd = 0x%x,"
 		" h_thd = 0x%x\n", __func__, adc_value, level,
-	(lpi->cali_table + (i - 1)) + 1,
+	*(lpi->cali_table + (i - 1)) + 1,
 	*(lpi->cali_table + i));
 	lpi->current_level = level;
 	lpi->current_adc = adc_value;
@@ -985,7 +985,7 @@ static int cm3218_setup(struct cm3218_info *lpi)
 
 	ret = request_any_context_irq(lpi->irq,
 				      cm3218_irq_handler,
-				      IRQF_TRIGGER_LOW, "cm3218", lpi);
+				      IRQF_TRIGGER_FALLING, "cm3218", lpi);
 	if (ret < 0) {
 		pr_err("[LS][CM3218 error]%s: req_irq(%d) fail for i gpio %d"
 		" (%d)\n", __func__, lpi->irq, lpi->intr_pin, ret);
