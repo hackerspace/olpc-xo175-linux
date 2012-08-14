@@ -291,27 +291,26 @@ static void pxa988_lowpower_config(u32 cpu,
 	(PMUM_SLPWP0 | PMUM_SLPWP1 | PMUM_SLPWP2 | PMUM_SLPWP3 |	\
 	 PMUM_SLPWP4 | PMUM_SLPWP5 | PMUM_SLPWP6 | PMUM_SLPWP7)
 /* Here we don't enable CP wakeup sources since CP will enable them */
-#define ENABLE_ALL_AP_WAKEUP_SOURCES	\
+#define ENABLE_AP_WAKEUP_SOURCES	\
 	(PMUM_AP_ASYNC_INT | PMUM_AP_FULL_IDLE | PMUM_SQU_SDH1 | PMUM_SDH_23 |\
 	 PMUM_KEYPRESS | PMUM_WDT | PMUM_RTC_ALARM | PMUM_AP1_TIMER_1 |	\
-	 PMUM_AP1_TIMER_2 | PMUM_AP1_TIMER_3 | PMUM_WAKEUP7 |		\
-	 PMUM_WAKEUP6 | PMUM_WAKEUP5 | PMUM_WAKEUP4 | PMUM_WAKEUP3 |	\
-	 PMUM_WAKEUP2)
+	 PMUM_AP1_TIMER_2 | PMUM_WAKEUP7 | PMUM_WAKEUP6 | PMUM_WAKEUP5 |\
+	 PMUM_WAKEUP4 | PMUM_WAKEUP3 | PMUM_WAKEUP2)
 static u32 s_apcr, s_awucrm;
 /*
- * Enable all wakeup sources and ports. To enalbe wakeup
+ * Enable AP wakeup sources and ports. To enalbe wakeup
  * ports, it needs both AP side to configure MPMU_APCR
  * and CP side to configure MPMU_CPCR to really enable
  * it. To enable wakeup sources, either AP side to set
  * MPMU_AWUCRM or CP side to set MPMU_CWRCRM can really
  * enable it.
  */
-static void enable_all_ap_wakeup_sources(void)
+static void enable_ap_wakeup_sources(void)
 {
 	pmu_register_lock();
 	s_awucrm = __raw_readl(MPMU_AWUCRM);
 	s_apcr = __raw_readl(MPMU_APCR);
-	__raw_writel(s_awucrm | ENABLE_ALL_AP_WAKEUP_SOURCES, MPMU_AWUCRM);
+	__raw_writel(s_awucrm | ENABLE_AP_WAKEUP_SOURCES, MPMU_AWUCRM);
 	__raw_writel(s_apcr & ~DISABLE_ALL_WAKEUP_PORTS, MPMU_APCR);
 	pmu_register_unlock();
 }
@@ -501,7 +500,7 @@ int pxa988_enter_lowpower(u32 cpu, u32 power_mode)
 
 	/* For D1 or deeper LPM, we need to enable wakeup sources */
 	if (lpm_index >= PXA988_LPM_D1)
-		enable_all_ap_wakeup_sources();
+		enable_ap_wakeup_sources();
 	cpu_suspend(CPU_SUSPEND_FROM_IDLE, pxa988_finish_suspend);
 	if (lpm_index >= PXA988_LPM_D1)
 		restore_wakeup_sources();
@@ -516,7 +515,7 @@ int pxa988_enter_lowpower(u32 cpu, u32 power_mode)
 
 	/* For D1 or deeper LPM, we need to enable wakeup sources */
 	if (power_mode >= PXA988_LPM_D1)
-		enable_all_ap_wakeup_sources();
+		enable_ap_wakeup_sources();
 	cpu_suspend(CPU_SUSPEND_FROM_IDLE, pxa988_finish_suspend);
 	if (power_mode >= PXA988_LPM_D1)
 		restore_wakeup_sources();
