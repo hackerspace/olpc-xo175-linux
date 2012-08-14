@@ -2118,6 +2118,8 @@ void mmp3_pm_enter_d2(void)
 	__raw_writel(0x2f, ICU1_REG(0x14));
 	__raw_writel(0x2f, ICU1_REG(0xc4));
 
+	/* disable automatic pad calibration */
+	__raw_writel(__raw_readl(0xfe50023c) & ~(1 << 16), 0xfe50023c);
 
 	flush_cache_all();
 	dsb();
@@ -2136,6 +2138,9 @@ void mmp3_pm_enter_d2(void)
 	l2x0_inv_all();
 	dsb();
 	l2x0_enable();
+
+	/* enable automatic pad calibration */
+	__raw_writel(__raw_readl(0xfe50023c) | (1 << 16), 0xfe50023c);
 
 	__raw_writel(0x0, ICU1_REG(0x10));
 	__raw_writel(0x0, ICU1_REG(0x14));
