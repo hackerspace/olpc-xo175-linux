@@ -373,6 +373,7 @@ static int tick_broadcast_set_event(ktime_t expires, int force)
 {
 	struct clock_event_device *bc = tick_broadcast_device.evtdev;
 
+	irq_set_affinity(bc->irq, bc->cpumask);
 	return tick_dev_program_event(bc, expires, force);
 }
 
@@ -415,8 +416,10 @@ again:
 		td = &per_cpu(tick_cpu_device, cpu);
 		if (td->evtdev->next_event.tv64 <= now.tv64)
 			cpumask_set_cpu(cpu, to_cpumask(tmpmask));
-		else if (td->evtdev->next_event.tv64 < next_event.tv64)
+		else if (td->evtdev->next_event.tv64 < next_event.tv64) {
 			next_event.tv64 = td->evtdev->next_event.tv64;
+			dev->cpumask = cpumask_of(cpu);
+		}
 	}
 
 	/*
@@ -481,8 +484,10 @@ void tick_broadcast_oneshot_control(unsigned long reason)
 		if (!cpumask_test_cpu(cpu, tick_get_broadcast_oneshot_mask())) {
 			cpumask_set_cpu(cpu, tick_get_broadcast_oneshot_mask());
 			clockevents_set_mode(dev, CLOCK_EVT_MODE_SHUTDOWN);
-			if (dev->next_event.tv64 < bc->next_event.tv64)
+			if (dev->next_event.tv64 < bc->next_event.tv64) {
+				bc->cpumask = cpumask_of(cpu);
 				tick_broadcast_set_event(dev->next_event, 1);
+			}
 		}
 	} else {
 		if (cpumask_test_cpu(cpu, tick_get_broadcast_oneshot_mask())) {
