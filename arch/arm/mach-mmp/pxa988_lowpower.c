@@ -122,6 +122,28 @@ static inline void disable_l1_dcache(void)
 	isb();
 }
 
+static inline void core_enter_coherency(void)
+{
+	unsigned int v;
+	asm volatile(
+	"       mrc     p15, 0, %0, c1, c0, 1\n"
+	"       orr     %0, %0, #(1 << 6)\n"
+	"       mcr     p15, 0, %0, c1, c0, 1\n"
+	: "=&r" (v) : : "cc");
+	isb();
+}
+
+static inline void enable_l1_dcache(void)
+{
+	unsigned int v;
+	asm volatile(
+	"       mrc     p15, 0, %0, c1, c0, 0\n"
+	"       orr     %0, %0, %1\n"
+	"       mcr     p15, 0, %0, c1, c0, 0\n"
+	: "=&r" (v) : "Ir" (CR_C) : "cc");
+	isb();
+}
+
 static int pxa988_finish_suspend(unsigned long param)
 {
 	 /* clean & invalidate dcache cache, it contains dsb & isb */
@@ -158,6 +180,20 @@ static int pxa988_finish_suspend(unsigned long param)
 
 	cpu_do_idle();
 
+	/*
+	 * Ensure the CPU power state is set to NORMAL in
+	 * SCU power state so that CPU is back in coherency.
+	 * In non-coherent mode CPU can lock-up and lead to
+	 * system deadlock.
+	 */
+	scu_power_mode(pxa_scu_base_addr(), SCU_PM_NORMAL);
+	core_enter_coherency();
+	enable_l1_dcache();
+
+	/*
+	 * CPU is here when it fails to enter C2 core power down.
+	 * Here we simply throw a panic since suppose it shouldn't happen.
+	 */
 	panic("Core didn't get powered down! Should never reach here.\n");
 	return 0;
 }
