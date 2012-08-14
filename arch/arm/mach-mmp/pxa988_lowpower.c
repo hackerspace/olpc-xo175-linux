@@ -275,7 +275,7 @@ static void enable_all_ap_wakeup_sources(void)
 	pmu_register_lock();
 	s_awucrm = __raw_readl(MPMU_AWUCRM);
 	s_apcr = __raw_readl(MPMU_APCR);
-	__raw_writel(ENABLE_ALL_AP_WAKEUP_SOURCES, MPMU_AWUCRM);
+	__raw_writel(s_awucrm | ENABLE_ALL_AP_WAKEUP_SOURCES, MPMU_AWUCRM);
 	__raw_writel(s_apcr & ~DISABLE_ALL_WAKEUP_PORTS, MPMU_APCR);
 	pmu_register_unlock();
 }
