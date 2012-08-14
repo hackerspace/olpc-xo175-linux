@@ -165,7 +165,7 @@ l2on:
 	/* workaroud: M2 depends on L2 dynamic clock gating enabled */
 	ldr	r2, =SL2C_PHYS_BASE
 	mov	r3, #0x3
-	str	r3, [r2.#L2X0_POWER_CTRL]
+	str	r3, [r2, #L2X0_POWER_CTRL]
 #endif
 
 #ifdef CONFIG_SMP
