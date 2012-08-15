@@ -92,7 +92,8 @@ static void set_power_constraint(struct hdmi_instance *hi, int min)
 
 #ifdef CONFIG_CPU_PXA978
 	printk("hdmi: set_power_constraint\n");
-	dvfm_disable_op_name("624M", dvfm_dev_idx);
+	dvfm_disable_op_name("728M", dvfm_dev_idx);
+	dvfm_disable_op_name("416M", dvfm_dev_idx);
 	dvfm_disable_op_name("312M", dvfm_dev_idx);
 	dvfm_disable_op_name("156M", dvfm_dev_idx);
 	/* Disable Lowpower mode */
@@ -119,7 +120,8 @@ static void unset_power_constraint(struct hdmi_instance *hi)
 	printk("hdmi: unset_power_constraint\n");
 	dvfm_enable_op_name("156M", dvfm_dev_idx);
 	dvfm_enable_op_name("312M", dvfm_dev_idx);
-	dvfm_enable_op_name("624M", dvfm_dev_idx);
+	dvfm_enable_op_name("416M", dvfm_dev_idx);
+	dvfm_enable_op_name("728M", dvfm_dev_idx);
 	/* Enable Lowpower mode */
 	dvfm_enable_op_name("D1", dvfm_dev_idx);
 	dvfm_enable_op_name("D2", dvfm_dev_idx);
