@@ -527,11 +527,21 @@ static struct i2c_board_info i2c1_80x_info_DKB2_1[] = {
 	#endif
 };
 
+#ifdef CONFIG_VMETA_DEVFREQ
 extern int set_vmeta_freqs_table(struct devfreq *devfreq);
 static struct devfreq_platform_data devfreq_vmeta_pdata = {
 	.clk_name = "VMETA_CLK",
 	.setup_freq_table = set_vmeta_freqs_table,
 };
+#endif
+
+#ifdef CONFIG_DDR_DEVFREQ
+extern struct devfreq_frequency_table pxa978_ddr_clk_table[];
+static struct devfreq_platform_data devfreq_ddr_pdata = {
+	.clk_name = "DDR",
+	.freq_table = pxa978_ddr_clk_table,
+};
+#endif
 
 static struct clk *clk_tout_s0;
 
@@ -3018,8 +3028,13 @@ static void __init init(void)
 				 sizeof(i2c2_pdata));
 	platform_device_add_data(&pxa95x_device_i2c3, &i2c3_pdata,
 				 sizeof(i2c3_pdata));
+#ifdef CONFIG_VMETA_DEVFREQ
 	pxa95x_device_vMeta_devfreq.dev.platform_data = (void *)(&devfreq_vmeta_pdata);
+#endif
 
+#ifdef CONFIG_DDR_DEVFREQ
+	pxa95x_device_ddr_devfreq.dev.platform_data = (void *)(&devfreq_ddr_pdata);
+#endif
 	platform_add_devices(ARRAY_AND_SIZE(devices));
 	register_i2c_board_info();
 

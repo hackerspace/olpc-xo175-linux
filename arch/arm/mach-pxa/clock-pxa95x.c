@@ -117,6 +117,16 @@ static int reg_base_init(char *buf)
 
 __setup("MCPD=", reg_base_init);
 
+struct devfreq_frequency_table pxa978_ddr_clk_table[] = {
+	INIT_FREQ_TABLE(1, 208000),
+	INIT_FREQ_TABLE(2, 312000),
+	INIT_FREQ_TABLE(3, 416000),
+	INIT_FREQ_TABLE(3, 797000),
+	INIT_FREQ_TABLE(4, 944000),
+	INIT_FREQ_TABLE(5, 1066000),
+	INIT_FREQ_TABLE(6, DEVFREQ_TABLE_END),
+};
+
 static struct devfreq_frequency_table pxa978_gcvmeta_clk_table[] = {
 	INIT_FREQ_TABLE(1, 156000000),
 	INIT_FREQ_TABLE(2, 208000000),

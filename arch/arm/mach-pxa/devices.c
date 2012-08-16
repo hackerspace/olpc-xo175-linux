@@ -2047,6 +2047,13 @@ struct platform_device pxa95x_device_uio_si9226 = {
 };
 #endif
 
+#ifdef CONFIG_DDR_DEVFREQ
+struct platform_device pxa95x_device_ddr_devfreq = {
+	.name = "devfreq-ddr",
+	.id = -1,
+};
+#endif
+
 #ifdef CONFIG_VMETA_DEVFREQ
 struct platform_device pxa95x_device_vMeta_devfreq = {
 	.name = "devfreq-vMeta",
