@@ -48,8 +48,11 @@ enum {
 };
 
 enum {
-	PM805_CHIP_B0  = 0x03,
-	PM805_CHIP_C0  = 0x04,
+	PM805_CHIP_B0 = 0x03,
+	PM805_CHIP_C0 = 0x04,
+	PM805_CHIP_D0 = 0x05,
+	/* NOTE: Make sure to update this to the last stepping */
+	PM805_CHIP_END = PM805_CHIP_D0,
 };
 
 enum enum_result {

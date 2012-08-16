@@ -221,6 +221,9 @@ static ssize_t pm805_proc_write(struct file *filp,
 	return len;
 }
 
+static char *pm800_version[] = {"A0", "A1", "B0", "C0", "D0"};
+static char *pm805_version[] = {"B0", "C0", "D0"};
+
 static struct resource rtc_resources[] = {
 	{
 	 .name = "88pm80x-rtc",
@@ -1205,7 +1208,7 @@ static int __devinit device_805_init(struct pm80x_chip *chip,
 				     struct i2c_client *i2c,
 				     struct pm80x_platform_data *pdata)
 {
-	int ret = 0;
+	int ret = 0, chip_id;
 	struct pm80x_subchip *pm805_chip;
 
 	dev_info(chip->dev,
@@ -1230,7 +1233,19 @@ static int __devinit device_805_init(struct pm80x_chip *chip,
 		dev_err(chip->dev, "Failed to read CHIP ID: %d\n", ret);
 		goto out_chip_id;
 	}
-	chip->chip805_version = ret;
+
+	chip_id = ret & PM8XXX_VERSION_MASK;
+
+	if (chip_id >= PM805_CHIP_B0 &&
+		chip_id <= PM805_CHIP_END) {
+		chip->chip805_version = chip_id;
+		dev_info(chip->dev,
+			"88PM805 Chip ID:[0x%02x], [%s] version detected.\n",
+			chip_id, pm805_version[chip_id - PM805_CHIP_B0]);
+	} else {
+		dev_err(chip->dev, "88PM805: Unknow Chip ID[0x%x].\n", chip_id);
+		goto out_chip_id;
+	}
 
 	ret = device_irq_init_805(chip, pdata);
 	if (ret < 0) {
@@ -1352,7 +1367,7 @@ static int __devinit device_800_init(struct pm80x_chip *chip,
 {
 	struct i2c_client *i2c_base = chip->base_page;
 	struct pm80x_subchip *pm800_chip;
-	int ret, pmic_id;
+	int ret, chip_id;
 
 	if (!i2c_base) {
 		dev_err(chip->dev, "base_page is invalid\n");
@@ -1380,15 +1395,15 @@ static int __devinit device_800_init(struct pm80x_chip *chip,
 		goto out;
 	}
 
-	pmic_id = ret & PM8XXX_VERSION_MASK;
+	chip_id = ret & PM8XXX_VERSION_MASK;
 
-	if ((pmic_id >= PM800_CHIP_A0) && (pmic_id <= PM800_CHIP_END)) {
-		chip->chip800_version = ret;
+	if ((chip_id >= PM800_CHIP_A0) && (chip_id <= PM800_CHIP_END)) {
+		chip->chip800_version = chip_id;
 		dev_info(chip->dev,
-			 "88PM80x:Marvell 88PM800 (ID:0x%x) detected\n", ret);
+			 "88PM800 Chip ID:[0x%02x], [%s] version detected.\n",
+			 chip_id, pm800_version[chip_id - PM800_CHIP_A0]);
 	} else {
-		dev_err(chip->dev,
-			"Failed to detect Marvell 88PM800:ChipID[0x%x]\n", ret);
+		dev_err(chip->dev, "88PM800: Unknow Chip ID[0x%x].\n", chip_id);
 		goto out;
 	}
 
