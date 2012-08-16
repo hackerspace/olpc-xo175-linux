@@ -16,11 +16,11 @@
 #define DVFS_FREQ_PRECHANGE		0
 #define DVFS_FREQ_POSTCHANGE		1
 
-#define VOL_LEVL0	1
-#define VOL_LEVL1	2
-#define VOL_LEVL2	3
-#define VOL_LEVL3_0	4
-#define VOL_LEVL3_1	5
+#define VOL_LEVL0	0
+#define VOL_LEVL1	1
+#define VOL_LEVL2	2
+#define VOL_LEVL3_0	3
+#define VOL_LEVL3_1	4
 
 #define VOL_MEM_LOW	0x30
 #define VOL_MEM_HIGH	0x34

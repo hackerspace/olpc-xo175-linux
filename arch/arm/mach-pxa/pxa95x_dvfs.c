@@ -163,6 +163,12 @@ static struct dvfs *vcc_main_dvfs_init[] = {
 	&vmeta_dvfs,
 };
 
+void *get_dvfs_list(int *size)
+{
+	*size = ARRAY_SIZE(vcc_main_dvfs_init);
+	return vcc_main_dvfs_init;
+}
+
 static struct dvfs *vcc_io_mem_dvfs_init[] = {
 	&ddr_mem_dvfs,
 };

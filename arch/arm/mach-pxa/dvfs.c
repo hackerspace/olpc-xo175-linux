@@ -213,8 +213,7 @@ static int dvfs_rail_update(struct dvfs_rail *rail)
 	list_for_each_entry(d, &rail->dvfs, dvfs_node)
 	    millivolts = max(d->millivolts, millivolts);
 
-	if (millivolts != 0)
-		rail->new_millivolts = millivolts;
+	rail->new_millivolts = millivolts;
 
 	/* Check any rails that this rail depends on */
 	list_for_each_entry(rel, &rail->relationships_from, from_node)
@@ -320,15 +319,23 @@ int dvfs_unregister_notifier(struct notifier_block *nb, unsigned int list)
 }
 EXPORT_SYMBOL(dvfs_unregister_notifier);
 
+extern void *get_dvfs_list(int *size);
 static inline ssize_t voltage_show(struct sys_device *sys_dev,
 				   struct sysdev_attribute *attr,
 				   char *buf)
 {
-	int level, volt, len = 0;
-
+	int level, volt, len = 0, size, i;
+	struct dvfs **dvfs;
 	level = (AVLSR >> 1) & 0x3;
 	volt = reg_to_volt(pm80x_reg_read(i2c, PM800_BUCK1 + level));
 	len += sprintf(buf + len, "VCC_MAIN:\tLevel %d (%d mV)\n", level, volt);
+	dvfs = (struct dvfs **)get_dvfs_list(&size);
+	for (i = 0; i < size; i++)
+		len += sprintf(buf + len, "%s:(level %d)\t",
+			       dvfs[i]->clk_name, dvfs[i]->millivolts > 3
+			       ? 3 : dvfs[i]->millivolts);
+	len += sprintf(buf + len, "\n");
+
 	volt = reg_to_volt(pm80x_reg_read(i2c, PM800_BUCK3));
 	len += sprintf(buf + len, "VCC_IO_MEM:\t%d mV\n", volt);
 
