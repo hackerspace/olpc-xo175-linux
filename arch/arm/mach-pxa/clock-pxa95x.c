@@ -14,6 +14,7 @@
 #include <linux/io.h>
 #include <linux/delay.h>
 #include <linux/clk.h>
+#include <asm/mach/map.h>
 #include <plat/clock.h>
 #include <plat/devfreq.h>
 #include <plat/reg_rw.h>
@@ -28,6 +29,93 @@
 
 #define KHZ_TO_HZ	1000
 #define MHZ_TO_HZ	1000000
+
+static u32 sram_map, clkmgr_base, dmc_base;
+
+struct reg_table_profile reg_table_profiles[DDR_FROFILE_MAX_NUM];
+static unsigned int used_pro_count;
+static unsigned int entry_count[DDR_FROFILE_MAX_NUM];
+static unsigned long ddr_prof_data_base_init;
+static u16 ddr_reg_inited;
+
+static void ddr_reg_table_init(unsigned int ddr_prof_data_base)
+{
+	void __iomem *ddr_prof_data_base_Addr;
+
+	pr_debug("%s, DDR_Reg Base: 0x%X\n", __func__, ddr_prof_data_base);
+
+	if (ddr_prof_data_base) {
+		u32 base = 0;
+		ddr_prof_data_base_Addr =
+		    ioremap(ddr_prof_data_base, sizeof(reg_table_profiles));
+
+		memset(entry_count, 0, sizeof(entry_count));
+		memset(reg_table_profiles, 0, sizeof(reg_table_profiles));
+
+		for (used_pro_count = 0; used_pro_count < DDR_FROFILE_MAX_NUM;
+		     used_pro_count++) {
+			reg_table_profiles[used_pro_count].freq =
+			    readl(ddr_prof_data_base_Addr + base);
+			base += sizeof(reg_table_profiles[used_pro_count].freq);
+
+			if (!reg_table_profiles[used_pro_count].freq)
+				break;
+
+			/* Workaround: OBM freq is not aligned to kernel's */
+			if (reg_table_profiles[used_pro_count].freq == 475)
+				reg_table_profiles[used_pro_count].freq = 472;
+			if (reg_table_profiles[used_pro_count].freq == 400)
+				reg_table_profiles[used_pro_count].freq = 398;
+			/* Workaround end */
+
+			pr_debug("Freq: %d MHz\n",
+				 reg_table_profiles[used_pro_count].freq);
+			pr_debug("Profile: %d\n", used_pro_count);
+
+			while (1) {
+				u32 data, offset;
+
+				offset = readl(ddr_prof_data_base_Addr + base);
+				base += (DDR_ENTRY_SIZE / 2);
+				reg_table_profiles[used_pro_count].
+				    offset[entry_count[used_pro_count]] =
+				    offset;
+
+				data = readl(ddr_prof_data_base_Addr + base);
+				base += (DDR_ENTRY_SIZE / 2);
+				reg_table_profiles[used_pro_count].
+				    data[entry_count[used_pro_count]] = data;
+
+				pr_debug("OFFSET: 0x%X,  Data: 0x%X\n", offset,
+					 data);
+
+				entry_count[used_pro_count]++;
+				if ((!offset && !data) ||
+				    (!(entry_count[used_pro_count] <
+				       DDR_ENTRY_MAX_NUM)))
+					break;
+			}
+			if (entry_count[used_pro_count] < DDR_ENTRY_MAX_NUM)
+				base +=
+				    ((DDR_ENTRY_MAX_NUM -
+				      entry_count[used_pro_count])
+				     * DDR_ENTRY_SIZE);
+		}
+		ddr_reg_inited = 1;
+		pr_info("%d Profiles are initated\n", used_pro_count);
+		iounmap(ddr_prof_data_base_Addr);
+	} else
+		pr_err("DDR base Address is not valid");
+}
+
+static int reg_base_init(char *buf)
+{
+	int res = 0;
+	res = strict_strtoul(buf, 16, &ddr_prof_data_base_init);
+	return res;
+}
+
+__setup("MCPD=", reg_base_init);
 
 static struct devfreq_frequency_table pxa978_gcvmeta_clk_table[] = {
 	INIT_FREQ_TABLE(1, 156000000),
@@ -1761,6 +1849,476 @@ static const struct clkops clk_pxa978_peri_pll_ops = {
 	.getrate = clk_pxa978_peri_pll_getrate,
 };
 
+static int clk_ddr_pll_enable(struct clk *clk)
+{
+	OSCC &= ~OSCC_DPRM;
+	while (OSCC & OSCC_DPRM)
+		;
+	/* turn on DDR PLL by AGENP[DDRPLL_CTRL] and AGENP[DDRPLL_DATA] */
+	AGENP |= (AGENP_DDRPLL_CTRL | AGENP_DDRPLL_DATA);
+
+	/* wait until DDR PLL is ready for use as DMC clock source */
+	while (!(OSCC & OSCC_DPLS))
+		;
+	return 0;
+}
+
+static void clk_ddr_pll_disable(struct clk *clk)
+{
+	unsigned int agenp;
+	agenp = AGENP;
+	/* turn off DDR PLL, only set AGENP[DDRPLL_CTRL] */
+	agenp &= ~(AGENP_DDRPLL_CTRL | AGENP_DDRPLL_DATA);
+	agenp |= AGENP_DDRPLL_CTRL;
+	AGENP = agenp;
+	while (OSCC & OSCC_DPLS)
+		;
+	/*
+	 * mask enable/disable DDRPLL commands initiated
+	 * by AGENP[DDRPLL_CTRL]
+	 */
+	OSCC |= OSCC_DPRM;
+	while (!(OSCC & OSCC_DPRM))
+		;
+}
+
+static const struct clkops clk_ddr_pll_ops = {
+	.enable = clk_ddr_pll_enable,
+	.disable = clk_ddr_pll_disable,
+};
+
+static inline unsigned int get_ddr_pll_freq(void)
+{
+	unsigned int ddrpll, m, n, vcodiv_sel, vcodiv, freq;
+	ddrpll = DDRPLLR;
+	m = ddrpll & REFDIV_MASK;
+	n = (ddrpll & FBDIV_MASK) >> 5;
+	vcodiv_sel = (ddrpll & VCODIV_SEL_MASK) >> 17;
+	switch (vcodiv_sel) {
+	case 0:
+		vcodiv = 1;
+		break;
+	case 2:
+		vcodiv = 2;
+		break;
+	case 4:
+		vcodiv = 3;
+		break;
+	case 5:
+		vcodiv = 4;
+		break;
+	case 6:
+		vcodiv = 5;
+		break;
+	case 7:
+		vcodiv = 6;
+		break;
+	case 8:
+		vcodiv = 8;
+		break;
+	default:
+		pr_err("wrong ddr pll vcodiv!\n");
+		BUG_ON(1);
+		break;
+	}
+	freq = 26 * n / m / vcodiv;
+	return freq;
+}
+
+static inline void choose_regtable(unsigned int table_index, u16 tab_inited)
+{
+	if (tab_inited) {
+		if ((table_index < REG_TABLE_MAX)) {
+			pr_debug("%d Regtable is selected\n", table_index);
+			DDR_FC_REG_TBL = table_index;
+		} else {
+			pr_err("%d Regtable is not existed\n", table_index);
+			BUG_ON(1);
+		}
+	} else {
+		pr_debug("old mechanism to choose DDR Regtable, index is %d\n",
+			 table_index);
+		switch (table_index) {
+		case 7:
+		case 6:
+		case 5:
+			DDR_FC_REG_TBL = 3;
+			break;
+		case 4:
+			DDR_FC_REG_TBL = 2;
+			break;
+		case 3:
+		case 2:
+		case 1:
+			DDR_FC_REG_TBL = 1;
+			break;
+		case 0:
+			DDR_FC_REG_TBL = 0;
+			break;
+		default:
+			BUG_ON(1);
+			break;
+		}
+	}
+}
+
+static void regtable_init(void)
+{
+	/* This function is used init Reg table 0,1, and 3
+	 * Reg table 2 can be used dynamicly
+	 */
+	u16 tab_cnt, en_count, sel_tab_cnt = 0;
+
+	if (!dmc_base)
+		return;
+	for (tab_cnt = 0; tab_cnt < used_pro_count; tab_cnt++) {
+		if ((reg_table_profiles[tab_cnt].freq == 104)
+		    || (reg_table_profiles[tab_cnt].freq == 208)
+		    || (reg_table_profiles[tab_cnt].freq == 533)) {
+			if (reg_table_profiles[tab_cnt].freq == 104)
+				sel_tab_cnt = 0;
+			else if (reg_table_profiles[tab_cnt].freq == 208)
+				sel_tab_cnt = 1;
+			else if (reg_table_profiles[tab_cnt].freq == 533)
+				sel_tab_cnt = 3;
+
+			pr_debug("Table : %d\n", sel_tab_cnt);
+			pr_debug("Freq: %dMHz\n",
+				 reg_table_profiles[tab_cnt].freq);
+			pr_debug("Profile : %d\n", tab_cnt);
+			for (en_count = 0; en_count <= entry_count[tab_cnt];
+			     en_count++) {
+				unsigned int tmp_data_1, tmp_table_ctrl;
+
+				tmp_table_ctrl =
+				    (sel_tab_cnt << 5) | en_count | (1 << 31);
+
+				if (!reg_table_profiles[tab_cnt].
+				    offset[en_count]
+				    && !reg_table_profiles[tab_cnt].
+				    data[en_count])
+					tmp_data_1 = 0 | (1 << 17);
+				else
+					tmp_data_1 =
+					    (reg_table_profiles[tab_cnt].
+					     offset[en_count] & 0xFFF);
+
+				writel(reg_table_profiles[tab_cnt].
+				       data[en_count],
+				       dmc_base + REG_TABLE_DATA_0);
+				writel(tmp_data_1, dmc_base + REG_TABLE_DATA_1);
+
+				writel(tmp_table_ctrl,
+				       dmc_base + REG_TABLE_CONTROL_0);
+			}
+		}
+	}
+}
+
+static int regtable_program(unsigned int ddr_new_freq)
+{
+	u16 tab_cnt, en_count;
+	static unsigned int pre_freq;
+	unsigned int dclk = ddr_new_freq >> 1;
+	int ret = 4;
+	if (!dmc_base)
+		return 0;
+	/*Workaround for SaarC: OBM freq is not aligned to kernel's */
+	if (dclk == 450) {
+		pr_err
+		    ("SaarC Freq workaround, Configure 450MHz"
+		     "with 472MHz setting\n");
+		dclk = 472;
+	}
+	if (dclk == 225) {
+		pr_err
+		    ("SaarC Freq workaround, Configure 225MHz"
+		     "with 208MHz setting\n");
+		dclk = 208;
+	}
+	/*Workaround end */
+	pr_debug("dclk is %d\n", dclk);
+	switch (dclk) {
+	case 104:
+		ret = 0;
+		break;
+	case 208:
+		ret = 1;
+		break;
+	case 533:
+		ret = 3;
+		break;
+	default:
+		if (pre_freq != dclk)
+			pre_freq = dclk;
+		else {
+			pr_debug("Reg table 2 has been configured\n");
+			ret = 2;
+			break;
+		}
+		for (tab_cnt = 0; tab_cnt < DDR_FROFILE_MAX_NUM; tab_cnt++) {
+			pr_debug("Searching... Current Profile's Freq : %d\n",
+				 reg_table_profiles[tab_cnt].freq);
+			if (reg_table_profiles[tab_cnt].freq == dclk) {
+				for (en_count = 0;
+				     en_count <= entry_count[tab_cnt];
+				     en_count++) {
+					unsigned int tmp_data_1, tmp_table_ctrl;
+
+					tmp_table_ctrl =
+					    (DYNAMIC_TABLE_INDEX << 5) |
+					    en_count | (1 << 31);
+
+					if (!reg_table_profiles[tab_cnt].
+					    offset[en_count]
+					    && !reg_table_profiles[tab_cnt].
+					    data[en_count])
+						tmp_data_1 = 0 | (1 << 17);
+					else
+						tmp_data_1 =
+						    (reg_table_profiles
+						     [tab_cnt].
+						     offset[en_count] & 0xFFF);
+
+					writel(reg_table_profiles[tab_cnt].
+					       data[en_count],
+					       dmc_base + REG_TABLE_DATA_0);
+					writel(tmp_data_1,
+					       dmc_base + REG_TABLE_DATA_1);
+
+					writel(tmp_table_ctrl,
+					       dmc_base + REG_TABLE_CONTROL_0);
+				}
+				ret = DYNAMIC_TABLE_INDEX;
+				break;
+			}
+		}
+		break;
+	}
+	return ret;
+}
+
+static inline unsigned int ddr_pll_freq2reg(unsigned long x)
+{
+	switch (x) {
+	case 797000000:
+		/* KVCO=3 VCODIV_SEL=2 FBDIV=184(0xB8) REFDIV=3 */
+		return 3 << 21 | 2 << 17 | 0xB8 << 5 | 3 << 0;
+	case 901000000:
+		/* KVCO=4 VCODIV_SEL=2 FBDIV=208(0xD0) REFDIV=3 */
+		return 4 << 21 | 2 << 17 | 0xD0 << 5 | 3 << 0;
+	case 944000000:
+		/* KVCO=4 VCODIV_SEL=2 FBDIV=218(0xDA) REFDIV=3 */
+		return 4 << 21 | 2 << 17 | 0xDA << 5 | 3 << 0;
+	case 1066000000:
+		/* KVCO=6 VCODIV_SEL=2 FBDIV=246(0xF6) REFDIV=3 */
+		return 6 << 21 | 2 << 17 | 0xF6 << 5 | 3 << 0;
+	default:
+		pr_err("Unsupported DDR PLL frequency %ld!\n", x);
+		return 0;
+	}
+}
+
+static unsigned long get_ddr_pll_freq_from_dmcfs(unsigned long dmcfs)
+{
+	unsigned int freq;
+	if (dmcfs == 398000000)
+		freq = 797000000;
+	else if (dmcfs == 450000000)
+		freq = 901000000;
+	else if (dmcfs == 472000000)
+		freq = 944000000;
+	else if (dmcfs == 533000000)
+		freq = 1066000000;
+	else if ((dmcfs == 797000000) || (dmcfs == 901000000) ||
+		 (dmcfs == 944000000) || (dmcfs == 1066000000))
+		freq = dmcfs;
+	else
+		freq = 0;
+
+	return freq;
+}
+
+/*
+ *Return value indicates whether switches to DDR 416Mhz
+ * 1 means yes, 0 means no
+ */
+
+static inline int set_ddr_pll_freq(unsigned long old,
+				   unsigned long new, uint32_t accr)
+{
+	unsigned long ddrpll, oldfreq, newfreq, data, mask;
+	int ret = 0;
+	oldfreq = get_ddr_pll_freq_from_dmcfs(old);
+	newfreq = get_ddr_pll_freq_from_dmcfs(new);
+	if (newfreq && newfreq != (get_ddr_pll_freq() * 1000000)) {
+		ddrpll = DDRPLLR;
+		ddrpll &= ~(KVCO_MASK | VCODIV_SEL_MASK |
+			    FBDIV_MASK | REFDIV_MASK | DDRPLL_FC_MASK);
+		ddrpll |= ddr_pll_freq2reg(newfreq);
+		ddrpll |= 1 << DDRPLL_FC_OFFSET;
+
+		if (oldfreq) {
+			/*Already on DDR PLL, need to switch to 416Mhz
+			   before change DDR PLL */
+			clk_enable(&clk_pxa978_syspll_416);
+			data = 0x3 << 11;
+			mask = ACCR_DMCFS_MASK_978;
+			accr &= ~mask;
+			accr |= data;
+			pr_debug("Switch to 208MHz\n");
+			if (ddr_reg_inited)
+				choose_regtable(1, ddr_reg_inited);
+			else
+				choose_regtable(3, ddr_reg_inited);
+			write_accr_in_sram((u32) sram_map + 0x9000,
+					   (u32) sram_map + 0xa000 - 4, accr,
+					   data, mask, clkmgr_base, dmc_base);
+			ret = 1;
+		}
+		DDRPLLR = ddrpll;
+		do {
+			ddrpll = DDRPLLR;
+		} while ((ddrpll & DDRPLL_FC_MASK) >> DDRPLL_FC_OFFSET);
+		while (!(OSCC & OSCC_DPLS))
+			;
+	}
+	return ret;
+}
+
+unsigned long clk_ddr_getrate(struct clk *clk)
+{
+	unsigned long dmcfs = (ACSR >> ACCR_DMCFS_OFFSET_978) & 0x07;
+	switch (dmcfs) {
+	case 0:
+		dmcfs = 52000000;
+		break;
+	case 1:
+		dmcfs = 208000000;
+		break;
+	case 2:
+		dmcfs = 312000000;
+		break;
+	case 3:
+		dmcfs = 416000000;
+		break;
+	case 4:
+		dmcfs = (get_ddr_pll_freq() >> 1) * 1000000;
+		break;
+	case 5:
+		dmcfs = (get_core_pll() >> 1) * 1000000;
+		break;
+	case 6:
+		dmcfs = get_ddr_pll_freq() * 1000000;
+		break;
+	case 7:
+		dmcfs = get_core_pll() * 1000000;
+		break;
+	default:
+		return -1;
+	}
+	return dmcfs;
+}
+
+long clk_ddr_round_rate(struct clk *clk, unsigned long rate)
+{
+	if (rate <= 208000000)
+		rate = 208000000;
+	else if (rate <= 312000000)
+		rate = 312000000;
+	else if (rate <= 416000000)
+		rate = 416000000;
+	else if (rate <= 797000000)
+		rate = 797000000;
+	else if (rate <= 944000000)
+		rate = 944000000;
+	else
+		rate = 1066000000;
+	return rate;
+}
+
+static struct clk clk_pxa978_ddr_pll;
+int clk_ddr_setrate(struct clk *clk, unsigned long rate)
+{
+	unsigned long flags;
+	unsigned int value, accr, data, old, new;
+	int ddr416;
+	/* if dvfm is disabled, do not change DDR rate */
+	if (DvfmDisabled)
+		return 0;
+
+	local_fiq_disable();
+	local_irq_save(flags);
+
+	old = clk->rate;
+	new = rate;
+
+	if (rate == 52000000)
+		value = 0;
+	else if (rate == 208000000)
+		value = 1;
+	else if (rate == 312000000)
+		value = 2;
+	else if (rate == 416000000)
+		value = 3;
+	else if ((rate == 398000000) || (rate == 450000000) ||
+		 (rate == 472000000) || (rate == 533000000))
+		value = 4;
+	else if ((rate == 797000000) || (rate == 901000000) ||
+		 (rate == 944000000) || (rate == 1066000000))
+		value = 6;
+	else {
+		printk(KERN_ERR "DDR don't suppport rate: %lu\n", rate);
+		return -1;
+	}
+
+	if ((rate != 52000000) && (rate != 208000000)
+	    && (rate != 312000000) && (rate != 416000000)
+	    && clk_pxa978_ddr_pll.refcnt == 0)
+		clk_enable(&clk_pxa978_ddr_pll);
+
+	data = ACCR_DMCFS_978(value);
+	accr = ACCR;
+	accr &= ~ACCR_DMCFS_MASK_978;
+	accr |= data;
+
+	if ((416000000 != old) && (416000000 == new))
+		clk_enable(&clk_pxa978_syspll_416);
+	ddr416 = set_ddr_pll_freq(old, new, accr);
+
+	if (ddr_reg_inited) {
+		int table_index;
+		table_index = regtable_program(rate / MHZ_TO_HZ);
+		choose_regtable(table_index, ddr_reg_inited);
+	} else
+		choose_regtable(value, ddr_reg_inited);
+	write_accr_in_sram(sram_map + 0x9000, sram_map + 0xa000 - 4, accr,
+			   data, ACCR_DMCFS_MASK_978, clkmgr_base, dmc_base);
+
+	if ((416000000 == old) && (416000000 != new))
+		clk_disable(&clk_pxa978_syspll_416);
+	/*
+	 * DDR PLL frequency change may lead DDR to 416Mhz
+	 * Need to turn it off after the change.
+	 */
+	if (ddr416)
+		clk_disable(&clk_pxa978_syspll_416);
+	if ((rate == 52000000) || (rate == 208000000) ||
+	    (rate == 312000000) || (rate == 416000000))
+		clk_disable(&clk_pxa978_ddr_pll);
+
+	local_irq_restore(flags);
+	local_fiq_enable();
+	return 0;
+}
+
+static const struct clkops clk_ddr_ops = {
+	.init = common_clk_init,
+	.round_rate = clk_ddr_round_rate,
+	.getrate = clk_ddr_getrate,
+	.setrate = clk_ddr_setrate,
+};
+
 static DEFINE_CK(pxa95x_dsi0, DSI_TX1, &clk_pxa95x_dsi_ops);
 static DEFINE_CK(pxa95x_dsi1, DSI_TX2, &clk_pxa95x_dsi_ops);
 static DEFINE_CK(pxa95x_ihdmi, DISPLAY, &clk_pxa95x_ihdmi_ops);
@@ -1957,6 +2515,14 @@ static struct clk clk_pxa95x_26MOUT = {
 	.ops = &clk_pxa95x_26MOUT_ops,
 };
 
+static struct clk clk_pxa978_ddr_pll = {
+	.ops = &clk_ddr_pll_ops,
+};
+
+static struct clk clk_pxa978_ddr = {
+	.ops = &clk_ddr_ops,
+};
+
 static struct clk_lookup common_clkregs[] = {
 
 	INIT_CLKREG(&clk_pxa95x_pout, NULL, "CLK_POUT"),
@@ -2018,6 +2584,8 @@ static struct clk_lookup pxa978_specific_clkregs[] = {
 	INIT_CLKREG(&clk_pxa978_gcu, NULL, "GCCLK"),
 	INIT_CLKREG(&clk_pxa95x_26MOUT, NULL, "CLK26MOUT"),
 	INIT_CLKREG(&clk_pxa95x_26MOUTDMD, NULL, "CLK26MOUTDMD"),
+	INIT_CLKREG(&clk_pxa978_ddr_pll, NULL, "DDRPLL"),
+	INIT_CLKREG(&clk_pxa978_ddr, NULL, "DDR"),
 };
 
 static inline void clock_lookup_init(struct clk_lookup *clk_lookup, int count)
@@ -2091,7 +2659,7 @@ static void cken_clear_always_set_always_setup(void)
 	}
 }
 
-static void setup_max_pp()
+static void setup_max_pp(void)
 {
 	/* Initialize the maximum frequencies  */
 	if (cpu_is_pxa978_Dx()) {
@@ -2183,6 +2751,11 @@ static void setup_max_pp()
 
 int pxa95x_clk_init(void)
 {
+	clkmgr_base = (u32) ioremap(ACCU_PHY_BASE, 0x10000);
+	sram_map = (u32) __arm_ioremap(SRAM_PHY_BASE, 0x20000,
+				       MT_MEMORY_NONCACHED);
+	dmc_base = (u32) ioremap(DMC_PHY_BASE, 0x1000);
+
 	cken_clear_always_set_always_setup();
 
 	CKENA &= ~((1 << CKEN_BOOT) | (1 << CKEN_CIR)
@@ -2241,10 +2814,16 @@ int pxa95x_clk_init(void)
 					    ARRAY_SIZE(gc_cur_freqs_table));
 		clock_lookup_init(pxa978_specific_clkregs,
 				  ARRAY_SIZE(pxa978_specific_clkregs));
+
+		ddr_reg_table_init(ddr_prof_data_base_init);
+		if (ddr_reg_inited)
+			regtable_init();
+
 		/* Make sure rate is always same as real setting */
 		clk_pxa978_gcu.rate = clk_get_rate(&clk_pxa978_gcu);
 		clk_pxa95x_vmeta.rate = clk_get_rate(&clk_pxa95x_vmeta);
 		clk_pxa95x_lcd.rate = clk_get_rate(&clk_pxa95x_lcd);
+		clk_pxa978_ddr.rate = clk_get_rate(&clk_pxa978_ddr);
 
 		/* Initialize the clock of vMeta/GC to lowest */
 		clk_set_rate(&clk_pxa95x_vmeta, 0);
@@ -2257,6 +2836,7 @@ int pxa95x_clk_init(void)
 		clk_set_cansleep(&clk_pxa95x_vmeta);
 		clk_set_cansleep(&clk_pxa978_gcu);
 		clk_set_cansleep(&clk_pxa95x_lcd);
+		clk_set_cansleep(&clk_pxa978_ddr);
 	} else
 		clock_lookup_init(pxa955_specific_clkregs,
 				  ARRAY_SIZE(pxa955_specific_clkregs));

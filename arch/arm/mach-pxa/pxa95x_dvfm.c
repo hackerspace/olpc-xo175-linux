@@ -145,13 +145,7 @@ static int dvfm_dev_id;
 
 static struct clk *clk_syspll416;
 
-struct reg_table_profile {
-	unsigned int freq;
-	u32 offset[32];
-	u32 data[32];
-};
-
-struct reg_table_profile reg_table_profiles[DDR_FROFILE_MAX_NUM];
+static struct reg_table_profile reg_table_profiles[DDR_FROFILE_MAX_NUM];
 unsigned int used_pro_count = 0;
 unsigned int entry_count[DDR_FROFILE_MAX_NUM];
 unsigned long ddr_prof_data_base_init = 0;
@@ -1290,7 +1284,7 @@ static inline unsigned int get_ddr_pll_freq(void)
 	return freq;
 }
 
-static inline unsigned int get_core_pll(void)
+unsigned int get_core_pll(void)
 {
 	unsigned int corepllr, m, n, vcodiv, l, freq;
 
@@ -3998,7 +3992,6 @@ static void pxa95x_df_init(struct pxa95x_dvfm_info *info)
 }
 
 extern unsigned int pxa_chip_id;
-#define ISRAM_START 0x5c000000
 extern void pxa95x_init_sram(unsigned int, unsigned int);
 static int pxa95x_freq_probe(struct platform_device *pdev)
 {
@@ -4008,7 +4001,7 @@ static int pxa95x_freq_probe(struct platform_device *pdev)
 	int rc, user_index = -1;
 
 	sram_size = (128 * 1024);
-	sram_map = (u32) __arm_ioremap(ISRAM_START, sram_size, MT_MEMORY_NONCACHED);
+	sram_map = (u32) __arm_ioremap(SRAM_PHY_BASE, sram_size, MT_MEMORY_NONCACHED);
 
 	pxa95x_init_sram((unsigned int) sram_map + 0x9000,
 			(unsigned int) sram_map + 0xb000);

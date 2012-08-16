@@ -29,14 +29,22 @@
  */
 #define OSCC           __REG(0x41350000)  /* Oscillator Configuration Register */
 
-#define OSCC_VCTVSTB_OFFSET (20)
-#define OSCC_VCTVCEN	(1 << 23)
-#define OSCC_VCTVSTB	(1 << OSCC_VCTVSTB_OFFSET)
-#define OSCC_DPLS	(1 << 17)
-#define OSCC_PEN	(1 << 11)		/* 13MHz POUT */
-#define OSCC_TENS3	(1 << 10)
-#define OSCC_TENS2	(1 << 9)
-#define OSCC_TENS0	(1 << 8)
+#define OSCC_VCTVSTB_OFFSET 	(20)
+#define OSCC_VCTVCEN		(1 << 23)
+#define OSCC_VCTVSTB		(1 << OSCC_VCTVSTB_OFFSET)
+#define OSCC_DPRM		(1 << 18)		/* DDR PLL Request Mask */
+#define OSCC_DPLS		(1 << 17)
+#define OSCC_PEN		(1 << 11)		/* 13MHz POUT */
+#define OSCC_TENS3		(1 << 10)
+#define OSCC_TENS2		(1 << 9)
+#define OSCC_TENS0		(1 << 8)
+
+/*
+ * Application Subsystem General Purpose Register (AGENP)
+ */
+#define AGENP_DDRPLL_CTRL	(1 << 29)	/* DDR PLL control */
+#define AGENP_DDRPLL_DATA	(1 << 28)	/* DDR PLL status */
+
 
 /*
  * Main Clock Control Unit Registers
@@ -237,6 +245,7 @@
 /*
  * Application Subsystem Clock
  */
+#define ACCU_PHY_BASE	0x41340000		/* ACCU register base address */
 #define ACCR		__REG(0x41340000)	/* Application Subsystem Clock Configuration Register */
 #define ACSR		__REG(0x41340004)	/* Application Subsystem Clock Status Register */
 #define AICSR		__REG(0x41340008)	/* Application Subsystem Interrupt Control/Status Register */
@@ -442,6 +451,7 @@
 #define GEN_REG3_CKRSW2_MASK	(1 << 17)
 #define GEN_REG3_SPLGEN		(1 << 19)
 #define GEN_REG3_SPLGEN_MASK	(1 << 19)
-
+#define SRAM_PHY_BASE		0x5c000000
+#define DMC_PHY_BASE		0x7ff00000
 
 #endif /* __ASM_ARCH_PXA3XX_REGS_H */
