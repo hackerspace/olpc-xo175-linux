@@ -137,30 +137,54 @@ struct dvfs vmeta_dvfs = {
 };
 EXPORT_SYMBOL(vmeta_dvfs);
 
-static struct vol_table ddr_vol_table[] = {
+static struct vol_table ddr_mem_vol_table[] = {
 	INIT_VOL_TABLE(104 * MHZ_TO_KHZ, VOL_MEM_LOW),
 	INIT_VOL_TABLE(156 * MHZ_TO_KHZ, VOL_MEM_LOW),
 	INIT_VOL_TABLE(199 * MHZ_TO_KHZ, VOL_MEM_LOW),
 	INIT_VOL_TABLE(208 * MHZ_TO_KHZ, VOL_MEM_LOW),
 	INIT_VOL_TABLE(225 * MHZ_TO_KHZ, VOL_MEM_LOW),
+	INIT_VOL_TABLE(236 * MHZ_TO_KHZ, VOL_MEM_LOW),
 	INIT_VOL_TABLE(400 * MHZ_TO_KHZ, VOL_MEM_LOW),
 	INIT_VOL_TABLE(450 * MHZ_TO_KHZ, VOL_MEM_LOW),
+	INIT_VOL_TABLE(472 * MHZ_TO_KHZ, VOL_MEM_LOW),
 	INIT_VOL_TABLE(533 * MHZ_TO_KHZ, VOL_MEM_HIGH),
 };
 
 struct dvfs ddr_mem_dvfs = {
-	.vol_freq_table = ddr_vol_table,
-	.num_freqs = ARRAY_SIZE(ddr_vol_table),
+	.vol_freq_table = ddr_mem_vol_table,
+	.num_freqs = ARRAY_SIZE(ddr_mem_vol_table),
 	.dvfs_rail = &pxa95x_dvfs_rail_vcc_io_mem,
 	.millivolts = VOL_MEM_LOW,
 };
 EXPORT_SYMBOL(ddr_mem_dvfs);
+
+static struct vol_table ddr_main_vol_table[] = {
+	INIT_VOL_TABLE(104 * MHZ_TO_KHZ, VOL_LEVL0),
+	INIT_VOL_TABLE(156 * MHZ_TO_KHZ, VOL_LEVL0),
+	INIT_VOL_TABLE(199 * MHZ_TO_KHZ, VOL_LEVL1),
+	INIT_VOL_TABLE(208 * MHZ_TO_KHZ, VOL_LEVL1),
+	INIT_VOL_TABLE(225 * MHZ_TO_KHZ, VOL_LEVL1),
+	INIT_VOL_TABLE(236 * MHZ_TO_KHZ, VOL_LEVL1),
+	INIT_VOL_TABLE(400 * MHZ_TO_KHZ, VOL_LEVL2),
+	INIT_VOL_TABLE(450 * MHZ_TO_KHZ, VOL_LEVL2),
+	INIT_VOL_TABLE(472 * MHZ_TO_KHZ, VOL_LEVL2),
+	INIT_VOL_TABLE(533 * MHZ_TO_KHZ, VOL_LEVL3_0),
+};
+
+struct dvfs ddr_main_dvfs = {
+	.vol_freq_table = ddr_main_vol_table,
+	.num_freqs = ARRAY_SIZE(ddr_main_vol_table),
+	.dvfs_rail = &pxa95x_dvfs_rail_vcc_main,
+	.millivolts = VOL_LEVL2,
+};
+EXPORT_SYMBOL(ddr_main_dvfs);
 
 static struct dvfs *vcc_main_dvfs_init[] = {
 	&core_dvfs,
 	&display_dvfs,
 	&gc_dvfs,
 	&vmeta_dvfs,
+	&ddr_main_dvfs,
 };
 
 void *get_dvfs_list(int *size)

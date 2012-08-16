@@ -2238,14 +2238,27 @@ long clk_ddr_round_rate(struct clk *clk, unsigned long rate)
 }
 
 static struct clk clk_pxa978_ddr_pll;
+extern struct dvfs ddr_main_dvfs, ddr_mem_dvfs;
 int clk_ddr_setrate(struct clk *clk, unsigned long rate)
 {
 	unsigned long flags;
 	unsigned int value, accr, data, old, new;
 	int ddr416;
+	struct dvfs_freqs ddr_main_dvfs_freqs, ddr_mem_dvfs_freqs;
 	/* if dvfm is disabled, do not change DDR rate */
 	if (DvfmDisabled)
 		return 0;
+	pr_debug("ddr setrate from %lu to %lu.\n", clk->rate, rate);
+
+	ddr_main_dvfs_freqs.old = ((clk->rate / MHZ_TO_HZ) >> 1) * KHZ_TO_HZ;
+	ddr_main_dvfs_freqs.new = ((rate / MHZ_TO_HZ) >> 1) * KHZ_TO_HZ;
+	ddr_main_dvfs_freqs.dvfs = &ddr_main_dvfs;
+	dvfs_notifier_frequency(&ddr_main_dvfs_freqs, DVFS_FREQ_PRECHANGE);
+
+	ddr_mem_dvfs_freqs.old = ((clk->rate / MHZ_TO_HZ) >> 1) * KHZ_TO_HZ;
+	ddr_mem_dvfs_freqs.new = ((rate / MHZ_TO_HZ) >> 1) * KHZ_TO_HZ;
+	ddr_mem_dvfs_freqs.dvfs = &ddr_mem_dvfs;
+	dvfs_notifier_frequency(&ddr_mem_dvfs_freqs, DVFS_FREQ_PRECHANGE);
 
 	local_fiq_disable();
 	local_irq_save(flags);
@@ -2309,6 +2322,10 @@ int clk_ddr_setrate(struct clk *clk, unsigned long rate)
 
 	local_irq_restore(flags);
 	local_fiq_enable();
+
+	dvfs_notifier_frequency(&ddr_main_dvfs_freqs, DVFS_FREQ_POSTCHANGE);
+	dvfs_notifier_frequency(&ddr_mem_dvfs_freqs, DVFS_FREQ_POSTCHANGE);
+
 	return 0;
 }
 
