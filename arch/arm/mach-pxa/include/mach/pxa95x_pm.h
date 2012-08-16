@@ -624,6 +624,7 @@ extern void pxa978_cpu_suspend(unsigned chip_flag);
 extern void pxa978_save_reset_handler(unsigned int sramaddr);
 extern unsigned int VirtualToPhysical(unsigned);
 #define OP_NUM			20
+#define DDR_OP_NUM		10
 
 /*
  *  reg[0] ddr_totalticks
@@ -635,14 +636,13 @@ struct ddr_cycle_type {
 	u64 reg[4];
 };
 
-extern struct ddr_cycle_type ddr_ticks_array[OP_NUM];
-extern unsigned int is_ddr_statics_enabled;
+extern struct ddr_cycle_type ddr_ticks_array[DDR_OP_NUM];
 extern spinlock_t ddr_performance_data_lock;
 extern unsigned long cpu_flag;
 
 extern void init_ddr_performance_counter(void);
 extern void stop_ddr_performance_counter(void);
-extern void update_ddr_performance_data(int op_idx);
+extern void update_ddr_performance_data(void);
 
 #endif
 #endif

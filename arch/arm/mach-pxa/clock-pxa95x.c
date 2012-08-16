@@ -2247,6 +2247,31 @@ long clk_ddr_round_rate(struct clk *clk, unsigned long rate)
 	return rate;
 }
 
+int ddr_freq_to_table_idx(unsigned long ddr_freq)
+{
+	int i;
+	for (i = 0; pxa978_ddr_clk_table[i].frequency != DEVFREQ_TABLE_END;
+									i++)
+		if (pxa978_ddr_clk_table[i].frequency == ddr_freq / KHZ_TO_HZ)
+			return i;
+	return -1;
+}
+EXPORT_SYMBOL(ddr_freq_to_table_idx);
+
+unsigned long ddr_table_idx_to_freq(int idx)
+{
+	if ((idx >= 0) && (idx < ARRAY_SIZE(pxa978_ddr_clk_table)))
+		return pxa978_ddr_clk_table[idx].frequency;
+	return -1;
+}
+EXPORT_SYMBOL(ddr_table_idx_to_freq);
+
+int ddr_get_table_size(void)
+{
+	return ARRAY_SIZE(pxa978_ddr_clk_table) - 1;
+}
+EXPORT_SYMBOL(ddr_get_table_size);
+
 static struct clk clk_pxa978_ddr_pll;
 extern struct dvfs ddr_main_dvfs, ddr_mem_dvfs;
 int clk_ddr_setrate(struct clk *clk, unsigned long rate)
@@ -2269,6 +2294,9 @@ int clk_ddr_setrate(struct clk *clk, unsigned long rate)
 	ddr_mem_dvfs_freqs.new = ((rate / MHZ_TO_HZ) >> 1) * KHZ_TO_HZ;
 	ddr_mem_dvfs_freqs.dvfs = &ddr_mem_dvfs;
 	dvfs_notifier_frequency(&ddr_mem_dvfs_freqs, DVFS_FREQ_PRECHANGE);
+
+	update_ddr_performance_data();
+	stop_ddr_performance_counter();
 
 	local_fiq_disable();
 	local_irq_save(flags);
@@ -2335,6 +2363,7 @@ int clk_ddr_setrate(struct clk *clk, unsigned long rate)
 
 	dvfs_notifier_frequency(&ddr_main_dvfs_freqs, DVFS_FREQ_POSTCHANGE);
 	dvfs_notifier_frequency(&ddr_mem_dvfs_freqs, DVFS_FREQ_POSTCHANGE);
+	init_ddr_performance_counter();
 
 	return 0;
 }

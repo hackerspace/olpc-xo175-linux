@@ -18,6 +18,8 @@
 #include <mach/hardware.h>
 #include <mach/pxa95x_pm.h>
 #include <asm/io.h>
+#include <linux/clk.h>
+#include <plat/clock.h>
 
 #define RCI_BIT			0x80000000
 
@@ -27,16 +29,16 @@
 #define RCOMP_NCODE_MASK	0x003F8000	/* Rcomp NCODE */
 #define XCODE_MASK		0x0000000F	/* XCODE from DMCISR2 register */
 
-
-
 static unsigned int dmc_base;
 static unsigned int is_pxa930;
-static unsigned int ddr_performance_counter_old[4];
-struct ddr_cycle_type ddr_ticks_array[OP_NUM];
+static unsigned int ddr_perf_cnt_old[4];
+struct ddr_cycle_type ddr_ticks_array[DDR_OP_NUM];
 spinlock_t ddr_performance_data_lock;
 unsigned long cpu_flag;
-unsigned int is_ddr_statics_enabled;
-static unsigned long delta_time[4];
+static u64 delta_time[4];
+static struct clk *ddr_clk;
+
+extern int ddr_get_table_size(void);
 
 static irqreturn_t ddr_calibration_handler(int irq, void *dev_id)
 {
@@ -155,14 +157,13 @@ static irqreturn_t ddr_calibration_handler(int irq, void *dev_id)
 
 }
 
-extern unsigned int cur_op;
 /* Dynamic Memory Controller IRQ handler */
 static irqreturn_t ddr_MC_irq_handler(int irq, void *dev_id)
 {
 	if (cpu_is_pxa978()) {
 		if ((__raw_readl(dmc_base + PERF_STATUS_OFF) >> 16) & 0xf) {
 			/* update data and clean irq flags automaticly */
-			update_ddr_performance_data(cur_op);
+			update_ddr_performance_data();
 		} else {
 			printk(KERN_ERR "%s: unhandled DDR controller IRQ!\n",
 				__func__);
@@ -229,7 +230,7 @@ void init_ddr_performance_counter(void)
 
 	spin_lock_irqsave(&ddr_performance_data_lock, cpu_flag);
 	for (i = 0; i < 4; i++)
-		ddr_performance_counter_old[i] = 0;
+		ddr_perf_cnt_old[i] = 0;
 	spin_unlock_irqrestore(&ddr_performance_data_lock, cpu_flag);
 
 	/* clear performance counter IRQ flag */
@@ -278,7 +279,7 @@ void stop_ddr_performance_counter(void)
 
 	spin_lock_irqsave(&ddr_performance_data_lock, cpu_flag);
 	for (i = 0; i < 4; i++)
-		ddr_performance_counter_old[i] = 0;
+		ddr_perf_cnt_old[i] = 0;
 	spin_unlock_irqrestore(&ddr_performance_data_lock, cpu_flag);
 
 	/* clear performance counter IRQ flag */
@@ -287,14 +288,20 @@ void stop_ddr_performance_counter(void)
 
 void get_ddr_count(unsigned long *total, unsigned long *busy)
 {
-	update_ddr_performance_data(0);
-	*total = delta_time[0];
-	*busy = delta_time[0] - delta_time[1];
+	int i = 0;
+	update_ddr_performance_data();
+	while ((delta_time[0] >> i) > 0xFFFFFFLLU)
+		i++;
+	*total = (unsigned long)(delta_time[0] >> i);
+	*busy = (unsigned long)((delta_time[0] - delta_time[1]) >> i);
 }
 
-void update_ddr_performance_data(int op_idx)
+extern int ddr_freq_to_table_idx(unsigned long ddr_freq);
+
+void update_ddr_performance_data()
 {
 	unsigned int reg[4], i, overflow_flag;
+	int ddr_idx = -1;
 
 	if (!dmc_base)
 		dmc_base = (unsigned int) ioremap(0x7ff00000, 0x1000);
@@ -306,19 +313,28 @@ void update_ddr_performance_data(int op_idx)
 	overflow_flag = (overflow_flag >> 16) & 0xf;
 
 	spin_lock_irqsave(&ddr_performance_data_lock, cpu_flag);
-	for (i = 0; i < 4; i++) {
-		__raw_writel((i << 0), dmc_base + PERF_SELECT_OFF);
-		reg[i] = __raw_readl(dmc_base + PERF_COUNTER_OFF);
-		if (overflow_flag & (1 << i))
-			delta_time[i] = 0x100000000LLU
-				+ reg[i] - ddr_performance_counter_old[i];
-		else
-			delta_time[i] = reg[i] - ddr_performance_counter_old[i];
 
-		ddr_ticks_array[cur_op].reg[i] += delta_time[i];
+	if (ddr_clk)
+		ddr_idx = ddr_freq_to_table_idx(ddr_clk->rate);
+	else
+		printk(KERN_ERR "ddr_clk not inited!\n");
 
-		ddr_performance_counter_old[i] = reg[i];
-	}
+	if ((ddr_idx >= 0) && (ddr_idx < ddr_get_table_size())) {
+		for (i = 0; i < 4; i++) {
+			__raw_writel((i << 0), dmc_base + PERF_SELECT_OFF);
+			reg[i] = __raw_readl(dmc_base + PERF_COUNTER_OFF);
+
+			if (overflow_flag & (1 << i))
+				delta_time[i] = 0x100000000LLU
+					+ reg[i] - ddr_perf_cnt_old[i];
+			else
+				delta_time[i] = reg[i] - ddr_perf_cnt_old[i];
+
+			ddr_ticks_array[ddr_idx].reg[i] += delta_time[i];
+			ddr_perf_cnt_old[i] = reg[i];
+		}
+	} else
+		printk(KERN_ERR"%s: invalid ddr_idx!\n", __func__);
 
 	spin_unlock_irqrestore(&ddr_performance_data_lock, cpu_flag);
 
@@ -341,7 +357,9 @@ static int __init ddr_init(void)
 	else if (cpu_is_pxa930())
 		is_pxa930 = 1;
 	else if (cpu_is_pxa978()) {
+
 		spin_lock_init(&ddr_performance_data_lock);
+
 		if (!dmc_base)
 			dmc_base = (unsigned int) ioremap(0x7ff00000, 0x1000);
 
@@ -351,6 +369,17 @@ static int __init ddr_init(void)
 			printk(KERN_ERR "can't assign IRQ_DMEMC!\n");
 			return -EAGAIN;
 		}
+
+		ddr_clk = clk_get(NULL, "DDR");
+		if (ddr_clk == NULL) {
+			printk(KERN_ERR "can't get ddr clock!\n");
+			return -EAGAIN;
+		}
+
+		if (ARRAY_SIZE(ddr_ticks_array) < ddr_get_table_size())
+			printk(KERN_ERR "ddr_ticks_array is not big enough!\n");
+
+		init_ddr_performance_counter();
 		printk(KERN_INFO"pxa978 ddr_init OK\n");
 		return 0;
 	}
@@ -379,4 +408,4 @@ static int __init ddr_init(void)
 	return 0;
 }
 
-module_init(ddr_init);
+arch_initcall(ddr_init);
