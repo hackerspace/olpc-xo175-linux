@@ -151,13 +151,13 @@ void clear_mipi_reference_control(void)
 /* GEN_REG3 system clock request line */
 enum sys_clk_req_line {
 	SYS_CLK_REQ_LINE_0_SHIFT = 14,
-		/* not used currently */
+	/* not used currently */
 	SYS_CLK_REQ_LINE_1_SHIFT = 12,
-		/* not used currently */
+	/* not used currently */
 	SYS_CLK_REQ_LINE_2_SHIFT = 10,
-		/* not used currently */
+	/* not used currently */
 	SYS_CLK_REQ_LINE_3_SHIFT = 8,
-		/* not used currently */
+	/* not used currently */
 };
 
 /* request line active config, by default: low for request active */
@@ -180,9 +180,7 @@ enum sys_clk_req_line_control {
 static int clk_pxa95x_26MOUTDMD_enable(struct clk *clk)
 {
 	/* GEN_REG3_CKRSW1 is used to control CLK26MOUTDMD */
-	if(pxa_reg_write(GEN_REG3,
-		GEN_REG3_CKRSW1,
-		GEN_REG3_CKRSW1_MASK) < 0)
+	if (pxa_reg_write(GEN_REG3, GEN_REG3_CKRSW1, GEN_REG3_CKRSW1_MASK) < 0)
 		return -EINVAL;
 
 	pr_info("enable CLK26MOUTDMD\n");
@@ -192,9 +190,7 @@ static int clk_pxa95x_26MOUTDMD_enable(struct clk *clk)
 static void clk_pxa95x_26MOUTDMD_disable(struct clk *clk)
 {
 	/* GEN_REG3_CKRSW1 is used to control CLK26MOUTDMD */
-	if(pxa_reg_write(GEN_REG3,
-		0,
-		GEN_REG3_CKRSW1_MASK) < 0)
+	if (pxa_reg_write(GEN_REG3, 0, GEN_REG3_CKRSW1_MASK) < 0)
 		return;
 
 	pr_info("disable CLK26MOUTDMD\n");
@@ -208,9 +204,7 @@ static const struct clkops clk_pxa95x_26MOUTDMD_ops = {
 static int clk_pxa95x_26MOUT_enable(struct clk *clk)
 {
 	/* GEN_REG3_CKRSW2 is used to control CLK26MOUT */
-	if(pxa_reg_write(GEN_REG3,
-		GEN_REG3_CKRSW2,
-		GEN_REG3_CKRSW2_MASK) < 0)
+	if (pxa_reg_write(GEN_REG3, GEN_REG3_CKRSW2, GEN_REG3_CKRSW2_MASK) < 0)
 		return -EINVAL;
 
 	pr_info("enable CLK26MOUT\n");
@@ -220,9 +214,7 @@ static int clk_pxa95x_26MOUT_enable(struct clk *clk)
 static void clk_pxa95x_26MOUT_disable(struct clk *clk)
 {
 	/* GEN_REG3_CKRSW2 is used to control CLK26MOUT */
-	if(pxa_reg_write(GEN_REG3,
-		0,
-		GEN_REG3_CKRSW2_MASK) < 0)
+	if (pxa_reg_write(GEN_REG3, 0, GEN_REG3_CKRSW2_MASK) < 0)
 		return;
 
 	pr_info("disable CLK26MOUT\n");
@@ -464,6 +456,7 @@ static void clk_pxa95x_ihdmi_init(struct clk *c)
 
 	common_clk_init(c);
 }
+
 /* TODO: hdmi cken? */
 static int clk_pxa95x_ihdmi_enable(struct clk *hdmi_clk)
 {
@@ -708,7 +701,8 @@ static int clk_pxa95x_lcd_setrate(struct clk *lcd_clk, unsigned long rate)
 		dvfs_freqs.dvfs = &display_dvfs;
 
 		if (dvfs_freqs.old < dvfs_freqs.new)
-			dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
+			dvfs_notifier_frequency(&dvfs_freqs,
+						DVFS_FREQ_PRECHANGE);
 	}
 
 	switch (rate) {
@@ -732,12 +726,14 @@ static int clk_pxa95x_lcd_setrate(struct clk *lcd_clk, unsigned long rate)
 		return -1;
 	}
 
-	if ((lcd_clk->rate != 416000000) && (rate == 416000000) && (lcd_clk->refcnt > 0))
+	if ((lcd_clk->rate != 416000000) && (rate == 416000000)
+	    && (lcd_clk->refcnt > 0))
 		clk_enable(&clk_pxa978_syspll_416);
 
 	write_accr0(value, mask);
 
-	if ((lcd_clk->rate == 416000000) && (rate != 416000000) && (lcd_clk->refcnt > 0))
+	if ((lcd_clk->rate == 416000000) && (rate != 416000000)
+	    && (lcd_clk->refcnt > 0))
 		clk_disable(&clk_pxa978_syspll_416);
 
 	if (lcd_clk->refcnt > 0 && dvfs_freqs.old > dvfs_freqs.new)
@@ -880,7 +876,7 @@ static inline unsigned int mm_pll_freq2reg(unsigned int x)
 {
 	switch (x) {
 	case 481000000:
-		/* VCODIV_SEL=5 KVCO=5 FBDIV=222(0xDE) REFDIV=3*/
+		/* VCODIV_SEL=5 KVCO=5 FBDIV=222(0xDE) REFDIV=3 */
 		return 5 << 20 | 5 << 16 | 0xDE << 5 | 3 << 0;
 	case 498000000:
 		/* VCODIV_SEL=5 KVCO=5 FBDIV=230(0xE6) REFDIV=3 */
@@ -979,7 +975,8 @@ static int clk_gcu_enable(struct clk *clk)
 		clk_enable(&clk_pxa978_syspll_416);
 	CKENC |= ((1 << (CKEN_GC_1X - 64)) | (1 << (CKEN_GC_2X - 64)));
 	gc_vmeta_stats_clk_event(GC_CLK_ON);
-	if (gc_vmeta_ticks_info.gc_stats_start && !gc_vmeta_ticks_info.gc_stats_stop)
+	if (gc_vmeta_ticks_info.gc_stats_start
+	    && !gc_vmeta_ticks_info.gc_stats_stop)
 		gcu_vmeta_stats(clk, clk->rate);
 	gc_vmeta_ticks_info.gc_state = GC_CLK_ON;
 
@@ -1004,7 +1001,8 @@ static void clk_gcu_disable(struct clk *clk)
 		GC_switch_cg_constraint(RELEASE_CG_CONSTRAINT);
 
 	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
-	if (gc_vmeta_ticks_info.gc_stats_start && !gc_vmeta_ticks_info.gc_stats_stop)
+	if (gc_vmeta_ticks_info.gc_stats_start
+	    && !gc_vmeta_ticks_info.gc_stats_stop)
 		gcu_vmeta_stats(clk, clk->rate);
 	gc_vmeta_ticks_info.gc_state = GC_CLK_OFF;
 }
@@ -1067,7 +1065,7 @@ static unsigned long clk_pxa95x_gc_getrate(struct clk *gc_clk)
 static struct clk clk_pxa978_gcu, clk_pxa95x_vmeta;
 static unsigned long clk_pxa95x_vmeta_getrate(struct clk *vmeta_clk);
 static void mm_pll_setting(int flag, unsigned long rate, unsigned int value,
-		unsigned int mask)
+			   unsigned int mask)
 {
 	unsigned int tmp, ori_gc, ori_vmeta;
 	unsigned long gc_rate, vm_rate, flags;
@@ -1076,8 +1074,8 @@ static void mm_pll_setting(int flag, unsigned long rate, unsigned int value,
 	vm_rate = clk_pxa95x_vmeta_getrate(&clk_pxa95x_vmeta);
 	syspll_416_on = ((gc_rate == 416000000) || (vm_rate == 416000000));
 	pr_debug("mm_pll_setting: current gc is %lu, vmeta is %lu.\n"
-		       "Set to %lu by %s.\n", gc_rate, vm_rate, rate,
-		       flag ? "GC" : "vMeta");
+		 "Set to %lu by %s.\n", gc_rate, vm_rate, rate,
+		 flag ? "GC" : "vMeta");
 
 	if ((flag && gc_rate == rate) || (!flag && vm_rate == rate))
 		return;
@@ -1086,7 +1084,7 @@ static void mm_pll_setting(int flag, unsigned long rate, unsigned int value,
 	if (rate < 481000000) {
 		write_accr0(value, mask);
 		if ((flag && (vm_rate < 481000000) && (gc_rate >= 481000000)) ||
-		   (!flag && (gc_rate < 481000000) && (vm_rate >= 481000000)))
+		    (!flag && (gc_rate < 481000000) && (vm_rate >= 481000000)))
 			mm_pll_enable(0);
 		goto out;
 	} else if (vm_rate < 481000000 && gc_rate < 481000000)
@@ -1136,8 +1134,8 @@ out:
 
 #define GC_FC 1
 #define VMETA_FC 0
-void update_GC_VMETA_op_cycle(int gvsel, unsigned long new_rate, unsigned int runtime,
-		unsigned int idletime)
+void update_GC_VMETA_op_cycle(int gvsel, unsigned long new_rate,
+			      unsigned int runtime, unsigned int idletime)
 {
 	int op_idx;
 
@@ -1145,10 +1143,13 @@ void update_GC_VMETA_op_cycle(int gvsel, unsigned long new_rate, unsigned int ru
 		if (!gc_vmeta_ticks_info.gc_cur_freq)
 			gc_vmeta_ticks_info.gc_cur_freq = new_rate;
 		for (op_idx = 0; op_idx < gc_freq_counts; op_idx++)
-			if (gc_vmeta_ticks_info.gc_cur_freq == gc_cur_freqs_table[op_idx])
+			if (gc_vmeta_ticks_info.gc_cur_freq ==
+			    gc_cur_freqs_table[op_idx])
 				break;
-		gc_vmeta_ticks_info.GC_op_ticks_array[op_idx].runtime += runtime;
-		gc_vmeta_ticks_info.GC_op_ticks_array[op_idx].idletime += idletime;
+		gc_vmeta_ticks_info.GC_op_ticks_array[op_idx].runtime +=
+		    runtime;
+		gc_vmeta_ticks_info.GC_op_ticks_array[op_idx].idletime +=
+		    idletime;
 		if (gc_vmeta_ticks_info.gc_cur_freq != new_rate) {
 			gc_vmeta_ticks_info.GC_op_ticks_array[op_idx].count++;
 			gc_vmeta_ticks_info.gc_cur_freq = new_rate;
@@ -1158,10 +1159,13 @@ void update_GC_VMETA_op_cycle(int gvsel, unsigned long new_rate, unsigned int ru
 		if (!gc_vmeta_ticks_info.vm_cur_freq)
 			gc_vmeta_ticks_info.vm_cur_freq = new_rate;
 		for (op_idx = 0; op_idx < gc_freq_counts; op_idx++)
-			if (gc_vmeta_ticks_info.vm_cur_freq == gc_cur_freqs_table[op_idx])
+			if (gc_vmeta_ticks_info.vm_cur_freq ==
+			    gc_cur_freqs_table[op_idx])
 				break;
-		gc_vmeta_ticks_info.VM_op_ticks_array[op_idx].runtime += runtime;
-		gc_vmeta_ticks_info.VM_op_ticks_array[op_idx].idletime += idletime;
+		gc_vmeta_ticks_info.VM_op_ticks_array[op_idx].runtime +=
+		    runtime;
+		gc_vmeta_ticks_info.VM_op_ticks_array[op_idx].idletime +=
+		    idletime;
 		if (gc_vmeta_ticks_info.vm_cur_freq != new_rate) {
 			gc_vmeta_ticks_info.VM_op_ticks_array[op_idx].count++;
 			gc_vmeta_ticks_info.vm_cur_freq = new_rate;
@@ -1176,8 +1180,11 @@ static void gcu_vmeta_stats(struct clk *clk, unsigned long rate)
 		unsigned int timestamp, time;
 
 		timestamp = read_curtime();
-		time = (timestamp >= gc_vmeta_ticks_info.gc_prev_timestamp) ? timestamp - gc_vmeta_ticks_info.gc_prev_timestamp
-			: 0xFFFFFFFF - gc_vmeta_ticks_info.gc_prev_timestamp + timestamp;
+		time =
+		    (timestamp >=
+		     gc_vmeta_ticks_info.gc_prev_timestamp) ? timestamp -
+		    gc_vmeta_ticks_info.gc_prev_timestamp : 0xFFFFFFFF -
+		    gc_vmeta_ticks_info.gc_prev_timestamp + timestamp;
 
 		gc_vmeta_ticks_info.gc_prev_timestamp = timestamp;
 
@@ -1187,20 +1194,28 @@ static void gcu_vmeta_stats(struct clk *clk, unsigned long rate)
 			update_GC_VMETA_op_cycle(GC_FC, rate, 0, time);
 
 		if (rate >= 481000000) {
-			if (gc_vmeta_ticks_info.vm_stats_start && (gc_vmeta_ticks_info.vm_cur_freq >= 481000000)) {
-				gc_vmeta_ticks_info.vm_prev_timestamp = timestamp;
-				if (gc_vmeta_ticks_info.vmeta_state == VMETA_CLK_ON)
-					update_GC_VMETA_op_cycle(VMETA_FC, rate, time, 0);
+			if (gc_vmeta_ticks_info.vm_stats_start
+			    && (gc_vmeta_ticks_info.vm_cur_freq >= 481000000)) {
+				gc_vmeta_ticks_info.vm_prev_timestamp =
+				    timestamp;
+				if (gc_vmeta_ticks_info.vmeta_state ==
+				    VMETA_CLK_ON)
+					update_GC_VMETA_op_cycle(VMETA_FC, rate,
+								 time, 0);
 				else
-					update_GC_VMETA_op_cycle(VMETA_FC, rate, 0, time);
+					update_GC_VMETA_op_cycle(VMETA_FC, rate,
+								 0, time);
 			}
 		}
 	} else if (!strcmp(clk->name, "VMETA_CLK")) {
 		unsigned int timestamp, time;
 
 		timestamp = read_curtime();
-		time = (timestamp >= gc_vmeta_ticks_info.vm_prev_timestamp) ? timestamp - gc_vmeta_ticks_info.vm_prev_timestamp
-			: 0xFFFFFFFF - gc_vmeta_ticks_info.vm_prev_timestamp + timestamp;
+		time =
+		    (timestamp >=
+		     gc_vmeta_ticks_info.vm_prev_timestamp) ? timestamp -
+		    gc_vmeta_ticks_info.vm_prev_timestamp : 0xFFFFFFFF -
+		    gc_vmeta_ticks_info.vm_prev_timestamp + timestamp;
 
 		gc_vmeta_ticks_info.vm_prev_timestamp = timestamp;
 
@@ -1209,19 +1224,23 @@ static void gcu_vmeta_stats(struct clk *clk, unsigned long rate)
 		else
 			update_GC_VMETA_op_cycle(VMETA_FC, rate, 0, time);
 		if (rate >= 481000000) {
-			if (gc_vmeta_ticks_info.gc_stats_start && (gc_vmeta_ticks_info.gc_cur_freq >= 481000000)) {
-				gc_vmeta_ticks_info.gc_prev_timestamp = timestamp;
+			if (gc_vmeta_ticks_info.gc_stats_start
+			    && (gc_vmeta_ticks_info.gc_cur_freq >= 481000000)) {
+				gc_vmeta_ticks_info.gc_prev_timestamp =
+				    timestamp;
 				if (gc_vmeta_ticks_info.gc_state == GC_CLK_ON)
-					update_GC_VMETA_op_cycle(GC_FC, rate, time, 0);
+					update_GC_VMETA_op_cycle(GC_FC, rate,
+								 time, 0);
 				else
-					update_GC_VMETA_op_cycle(GC_FC, rate, 0, time);
+					update_GC_VMETA_op_cycle(GC_FC, rate, 0,
+								 time);
 			}
 		}
 	}
 }
 
-int get_gcu_freqs_table(unsigned long *gcu_freqs_table, unsigned int *item_counts,
-		unsigned int max_item_counts)
+int get_gcu_freqs_table(unsigned long *gcu_freqs_table,
+			unsigned int *item_counts, unsigned int max_item_counts)
 {
 	int i;
 
@@ -1230,20 +1249,30 @@ int get_gcu_freqs_table(unsigned long *gcu_freqs_table, unsigned int *item_count
 			pr_err("Too many GC frequencies!\n");
 			return -1;
 		}
-		for (i = 0; (pxa978_gcvmeta_clk_table[i].frequency != DEVFREQ_TABLE_END) && (pxa978_gcvmeta_clk_table[i].frequency <= max_gc); i++)
-			gcu_freqs_table[i] = pxa978_gcvmeta_clk_table[i].frequency;
+		for (i = 0;
+		     (pxa978_gcvmeta_clk_table[i].frequency !=
+		      DEVFREQ_TABLE_END)
+		     && (pxa978_gcvmeta_clk_table[i].frequency <= max_gc); i++)
+			gcu_freqs_table[i] =
+			    pxa978_gcvmeta_clk_table[i].frequency;
 	} else {
 		if (max_item_counts < ARRAY_SIZE(pxa978_dx_gcvmeta_clk_table)) {
 			pr_err("Too many GC frequencies!\n");
 			return -1;
 		}
-		for (i = 0; (pxa978_dx_gcvmeta_clk_table[i].frequency != DEVFREQ_TABLE_END) && (pxa978_dx_gcvmeta_clk_table[i].frequency <= max_gc); i++)
-			gcu_freqs_table[i] = pxa978_dx_gcvmeta_clk_table[i].frequency;
+		for (i = 0;
+		     (pxa978_dx_gcvmeta_clk_table[i].frequency !=
+		      DEVFREQ_TABLE_END)
+		     && (pxa978_dx_gcvmeta_clk_table[i].frequency <= max_gc);
+		     i++)
+			gcu_freqs_table[i] =
+			    pxa978_dx_gcvmeta_clk_table[i].frequency;
 	}
 	*item_counts = i;
 
 	return 0;
 }
+
 EXPORT_SYMBOL(get_gcu_freqs_table);
 
 /* Frequency is in unit of Khz*/
@@ -1295,7 +1324,8 @@ static int clk_pxa95x_gcu_setrate(struct clk *gc_clk, unsigned long rate)
 		dvfs_freqs.new = rate / KHZ_TO_HZ;
 		dvfs_freqs.dvfs = &gc_dvfs;
 		if (dvfs_freqs.old < dvfs_freqs.new)
-			dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
+			dvfs_notifier_frequency(&dvfs_freqs,
+						DVFS_FREQ_PRECHANGE);
 	}
 
 	switch (rate) {
@@ -1321,14 +1351,17 @@ static int clk_pxa95x_gcu_setrate(struct clk *gc_clk, unsigned long rate)
 		return -1;
 	}
 
-	if ((gc_clk->rate != 416000000) && (rate == 416000000) && (gc_clk->refcnt > 0))
+	if ((gc_clk->rate != 416000000) && (rate == 416000000)
+	    && (gc_clk->refcnt > 0))
 		clk_enable(&clk_pxa978_syspll_416);
 #ifdef GCVMETA_WR
 	mm_pll_setting(1, rate, value << 6, mask);
 #endif
-	if ((gc_clk->rate == 416000000) && (rate != 416000000) && (gc_clk->refcnt > 0))
+	if ((gc_clk->rate == 416000000) && (rate != 416000000)
+	    && (gc_clk->refcnt > 0))
 		clk_disable(&clk_pxa978_syspll_416);
-	if (gc_vmeta_ticks_info.gc_stats_start && !gc_vmeta_ticks_info.gc_stats_stop)
+	if (gc_vmeta_ticks_info.gc_stats_start
+	    && !gc_vmeta_ticks_info.gc_stats_stop)
 		gcu_vmeta_stats(gc_clk, rate);
 	else
 		gc_vmeta_ticks_info.gc_cur_freq = rate;
@@ -1561,7 +1594,8 @@ static int clk_pxa95x_vmeta_setrate(struct clk *vmeta_clk, unsigned long rate)
 		dvfs_freqs.new = rate / KHZ_TO_HZ;
 		dvfs_freqs.dvfs = &vmeta_dvfs;
 		if (dvfs_freqs.old < dvfs_freqs.new)
-			dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_PRECHANGE);
+			dvfs_notifier_frequency(&dvfs_freqs,
+						DVFS_FREQ_PRECHANGE);
 	}
 
 	switch (rate) {
@@ -1588,15 +1622,18 @@ static int clk_pxa95x_vmeta_setrate(struct clk *vmeta_clk, unsigned long rate)
 		return -1;
 	}
 
-	if ((vmeta_clk->rate != 416000000) && (rate == 416000000) && (vmeta_clk->refcnt > 0))
+	if ((vmeta_clk->rate != 416000000) && (rate == 416000000)
+	    && (vmeta_clk->refcnt > 0))
 		clk_enable(&clk_pxa978_syspll_416);
 
 #ifdef GCVMETA_WR
 	mm_pll_setting(0, rate, value << 3, mask);
 #endif
-	if ((vmeta_clk->rate == 416000000) && (rate != 416000000) && (vmeta_clk->refcnt > 0))
+	if ((vmeta_clk->rate == 416000000) && (rate != 416000000)
+	    && (vmeta_clk->refcnt > 0))
 		clk_disable(&clk_pxa978_syspll_416);
-	if (gc_vmeta_ticks_info.vm_stats_start && !gc_vmeta_ticks_info.vm_stats_stop)
+	if (gc_vmeta_ticks_info.vm_stats_start
+	    && !gc_vmeta_ticks_info.vm_stats_stop)
 		gcu_vmeta_stats(vmeta_clk, rate);
 	else
 		gc_vmeta_ticks_info.vm_cur_freq = rate;
@@ -1629,7 +1666,8 @@ static int clk_pxa95x_vmeta_enable(struct clk *clk)
 
 	CKENB |= (1 << (clk->enable_val - 32));
 	gc_vmeta_stats_clk_event(VMETA_CLK_ON);
-	if (gc_vmeta_ticks_info.vm_stats_start && !gc_vmeta_ticks_info.vm_stats_stop)
+	if (gc_vmeta_ticks_info.vm_stats_start
+	    && !gc_vmeta_ticks_info.vm_stats_stop)
 		gcu_vmeta_stats(clk, clk->rate);
 	gc_vmeta_ticks_info.vmeta_state = VMETA_CLK_ON;
 
@@ -1652,7 +1690,8 @@ static void clk_pxa95x_vmeta_disable(struct clk *clk)
 		clk_disable(&clk_pxa978_syspll_416);
 
 	dvfs_notifier_frequency(&dvfs_freqs, DVFS_FREQ_POSTCHANGE);
-	if (gc_vmeta_ticks_info.vm_stats_start && !gc_vmeta_ticks_info.vm_stats_stop)
+	if (gc_vmeta_ticks_info.vm_stats_start
+	    && !gc_vmeta_ticks_info.vm_stats_stop)
 		gcu_vmeta_stats(clk, clk->rate);
 	gc_vmeta_ticks_info.vmeta_state = VMETA_CLK_OFF;
 
@@ -1691,7 +1730,8 @@ static unsigned long clk_pxa978_peri_pll_getrate(struct clk *peri_pll_clk)
 		vcodiv_sel = 8;
 		break;
 	default:
-		printk(KERN_ERR "VCODIV_SEL = 0x1 is not a recommended value\n");
+		printk(KERN_ERR
+		       "VCODIV_SEL = 0x1 is not a recommended value\n");
 		return -EINVAL;
 		break;
 	}
@@ -1701,6 +1741,7 @@ static unsigned long clk_pxa978_peri_pll_getrate(struct clk *peri_pll_clk)
 
 	return rate;
 }
+
 static int clk_pxa978_peri_pll_enable(struct clk *clk)
 {
 	PERI_PLL_CTRL |= PERIPLL_PWRON;
@@ -2140,7 +2181,6 @@ static void setup_max_pp()
 	}
 }
 
-
 int pxa95x_clk_init(void)
 {
 	cken_clear_always_set_always_setup();
@@ -2197,9 +2237,10 @@ int pxa95x_clk_init(void)
 	if (cpu_is_pxa978()) {
 		setup_max_pp();
 		if (!gc_freq_counts)
-			get_gcu_freqs_table(gc_cur_freqs_table, &gc_freq_counts, ARRAY_SIZE(gc_cur_freqs_table));
+			get_gcu_freqs_table(gc_cur_freqs_table, &gc_freq_counts,
+					    ARRAY_SIZE(gc_cur_freqs_table));
 		clock_lookup_init(pxa978_specific_clkregs,
-				ARRAY_SIZE(pxa978_specific_clkregs));
+				  ARRAY_SIZE(pxa978_specific_clkregs));
 		/* Make sure rate is always same as real setting */
 		clk_pxa978_gcu.rate = clk_get_rate(&clk_pxa978_gcu);
 		clk_pxa95x_vmeta.rate = clk_get_rate(&clk_pxa95x_vmeta);
