@@ -230,8 +230,12 @@ static unsigned long mmc2_pin_config[] __initdata = {
 	GPIO42_MMC2_CLK,
 
 	/* GPIO used for power */
-	GPIO58_GPIO, /* WIFI_RST_N */
-	GPIO57_GPIO, /* WIFI_PD_N */
+	GPIO58_GPIO | MFP_LPM_DRIVE_HIGH, /* WIFI_RST_N */
+	GPIO57_GPIO | MFP_LPM_DRIVE_LOW, /* WIFI_PD_N */
+
+	/* GPIO for wake */
+	GPIO55_GPIO, /* WL_BT_WAKE */
+	GPIO56_GPIO | MFP_LPM_EDGE_FALL | MFP_PULL_HIGH, /* WLAN_WAKE (8787->soc) */
 };
 
 static unsigned long mmc3_pin_config[] __initdata = {
@@ -245,6 +249,8 @@ static unsigned long mmc3_pin_config[] __initdata = {
 	GPIO164_MMC3_DAT0 | MFP_PULL_HIGH,
 	GPIO145_MMC3_CMD | MFP_PULL_HIGH,
 	GPIO146_MMC3_CLK,
+	/* MMC3_nRST */
+	GPIO149_GPIO | MFP_LPM_DRIVE_HIGH,
 };
 
 /* PMIC Regulator 88PM800 */
@@ -275,9 +281,11 @@ static struct regulator_consumer_supply regulator_supplies_LDO3[] = {
 	REGULATOR_SUPPLY("V_1P2_MIPI", NULL),
 };
 static struct regulator_consumer_supply regulator_supplies_LDO4[] = {
+	REGULATOR_SUPPLY("vmmc", "sdhci-pxa.2"),
 	REGULATOR_SUPPLY("V_2P8", NULL),
 };
 static struct regulator_consumer_supply regulator_supplies_LDO5[] = {
+	REGULATOR_SUPPLY("vmmc", "sdhci-pxa.0"),
 	REGULATOR_SUPPLY("V_3P3", NULL),
 };
 static struct regulator_consumer_supply regulator_supplies_LDO6[] = {
@@ -302,8 +310,7 @@ static struct regulator_consumer_supply regulator_supplies_LDO12[] = {
 	REGULATOR_SUPPLY("V_LDO12", NULL),
 };
 static struct regulator_consumer_supply regulator_supplies_LDO13[] = {
-	REGULATOR_SUPPLY("vmmc", "sdhci-pxa.0"),
-	REGULATOR_SUPPLY("vmmc", "sdhci-pxa.2"),
+	REGULATOR_SUPPLY("V_LDO13", NULL),
 };
 static struct regulator_consumer_supply regulator_supplies_LDO14[] = {
 	REGULATOR_SUPPLY("V_MIC_BIAS", NULL),
@@ -920,73 +927,157 @@ static struct i2c_board_info thunderstonem_twsi3_info[] = {
 	},
 };
 
+#ifdef CONFIG_MMC_SDHCI_PXAV3
 #ifdef CONFIG_SD8XXX_RFKILL
+/*
+ * during wifi enabled, power should always on and 8787 should always
+ * released from reset. 8787 handle power management by itself.
+*/
+static unsigned long wifi_pin_config_on[] = {
+	GPIO57_GPIO | MFP_LPM_DRIVE_HIGH,
+};
+static unsigned long wifi_pin_config_off[] = {
+	GPIO57_GPIO | MFP_LPM_DRIVE_LOW,
+};
+
 static void mmp3_8787_set_power(unsigned int on)
 {
-	static struct regulator *vbat_fem;
+	/*
+	 * 1. WIFI_1V8 <-- V_1P8
+	 * 2. WIFI_3V3 <-- V_WIFI_3V3
+	 */
+
+	static struct regulator *wifi_3v3, *wifi_1v8;
 	static int f_enabled = 0;
-	/* VBAT_FEM 3.3v */
-	if (on && (!f_enabled)) {
-		vbat_fem = regulator_get(NULL, "V_WIFI_3V3");
-		if (IS_ERR(vbat_fem)) {
-			vbat_fem = NULL;
-			pr_err("get VBAT_FEM failed %s.\n", __func__);
-		} else {
-			regulator_set_voltage(vbat_fem, 3300000, 3300000);
-			regulator_enable(vbat_fem);
-			f_enabled = 1;
+
+	if (!wifi_1v8) {
+		wifi_1v8 = regulator_get(NULL, "V_1P8");
+		if (IS_ERR(wifi_1v8)) {
+			wifi_1v8 = NULL;
+			printk(KERN_ERR"get wifi_1v8 failed %s %d \n", __func__, __LINE__);
+			return;
+		}
+	}
+	if (!wifi_3v3) {
+		wifi_3v3 = regulator_get(NULL, "V_WIFI_3V3");
+		if (IS_ERR(wifi_3v3)) {
+			wifi_3v3 = NULL;
+			printk(KERN_ERR"get wifi_3v3 failed %s %d \n", __func__, __LINE__);
+			return;
 		}
 	}
 
+	if (on && (!f_enabled)) {
+		regulator_set_voltage(wifi_1v8, 1800000, 1800000);
+		regulator_enable(wifi_1v8);
+		regulator_set_voltage(wifi_3v3, 3300000, 3300000);
+		regulator_enable(wifi_3v3);
+		f_enabled = 1;
+		mfp_config(ARRAY_AND_SIZE(wifi_pin_config_on));
+	}
+
 	if (f_enabled && (!on)) {
-		if (vbat_fem) {
-			regulator_disable(vbat_fem);
-			regulator_put(vbat_fem);
-			vbat_fem = NULL;
-		}
+		mfp_config(ARRAY_AND_SIZE(wifi_pin_config_off));
+		regulator_disable(wifi_3v3);
+		regulator_disable(wifi_1v8);
 		f_enabled = 0;
 	}
 }
 #endif
 
-#ifdef CONFIG_MMC_SDHCI_PXAV3
+
 #include <linux/mmc/host.h>
-static void thunderstonem_dummy_1v8(int set)
+static void tsm_sd_signal_1v8(int set)
 {
-	return;
+	static struct regulator *v_sdmmc;
+	int vol;
+
+	v_sdmmc = regulator_get(NULL, "V_LDO13");
+	if (IS_ERR(v_sdmmc)) {
+		printk(KERN_ERR "Failed to get V_LDO13\n");
+		return;
+	}
+
+	vol = set ? 1800000 : 3000000;
+	regulator_set_voltage(v_sdmmc, vol, vol);
+	regulator_enable(v_sdmmc);
+
+	mmp3_io_domain_1v8(AIB_SDMMC_IO_REG, set);
+
+	msleep(10);
+	regulator_put(v_sdmmc);
 }
 
-#if 0
-static void thunderstonem_sd_signal_1v8(int set)
-{
-	mmp3_io_domain_1v8(AIB_SDMMC_IO_REG, set);
-	msleep(10);
-}
-#endif
 
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc0 = {
 	.clk_delay_cycles	= 0x1F,
+	.flags			= PXA_FLAG_ENABLE_CLOCK_GATING,
+	.host_caps_disable	= MMC_CAP_UHS_SDR104 | MMC_CAP_UHS_SDR50,
+	.signal_1v8		= tsm_sd_signal_1v8,
 };
 
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc1 = {
-	.flags	  = PXA_FLAG_CARD_PERMANENT,
+	.flags	  = PXA_FLAG_CARD_PERMANENT |
+			PXA_FLAG_WAKEUP_HOST,
+	.pm_caps  = MMC_PM_KEEP_POWER,
 };
 
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc2 = {
-	.flags		= PXA_FLAG_SD_8_BIT_CAPABLE_SLOT | PXA_FLAG_CARD_PERMANENT,
+	.flags		= PXA_FLAG_SD_8_BIT_CAPABLE_SLOT |
+				PXA_FLAG_CARD_PERMANENT |
+				PXA_FLAG_ENABLE_CLOCK_GATING,
 	.host_caps	= MMC_CAP_1_8V_DDR,
-	.signal_1v8	= thunderstonem_dummy_1v8,
 };
+
+#include <linux/wakelock.h>
+static struct wake_lock wlan_gpio_wakeup;
+
+static irqreturn_t wlan_wake_gpio_irq(int irq, void *data)
+{
+	/* reset mfp edge status to clear pending wake up source */
+	int gpio = irq_to_gpio(irq);
+	u32 mfp = mfp_read(gpio);
+	mfp_write(gpio, (1 << 6) | mfp);
+	mfp_write(gpio, mfp);
+
+	/* hold a 3s wakelock to handle the wakeup event */
+	wake_lock_timeout(&wlan_gpio_wakeup, HZ * 3);
+	printk(KERN_INFO "%s: set wakelock, timout after 3 seconds\n",
+			__func__);
+
+	return IRQ_HANDLED;
+}
+
 
 static void __init thunderstonem_init_mmc(void)
 {
+	int emmc_reset_n = mfp_to_gpio(GPIO149_GPIO);
+	int wlan_wake = mfp_to_gpio(GPIO56_GPIO);
+
 #ifdef CONFIG_SD8XXX_RFKILL
 	int WIB_PDn = mfp_to_gpio(GPIO57_GPIO);
 	int WIB_RESETn = mfp_to_gpio(GPIO58_GPIO);
 	add_sd8x_rfkill_device(WIB_PDn, WIB_RESETn,\
 			&mmp3_sdh_platdata_mmc1.pmmc, mmp3_8787_set_power);
 #endif
+        if (cpu_is_mmp3_b0()) {
+                mmp3_sdh_platdata_mmc0.regs_extended = 1;
+                mmp3_sdh_platdata_mmc1.regs_extended = 1;
+                mmp3_sdh_platdata_mmc2.regs_extended = 1;
+        }
+
 	mfp_config(ARRAY_AND_SIZE(mmc3_pin_config));
+	/*
+	 * H/W reset function is temporarily disabled by default,
+	 * which can be written once by extended CSD register. (JESD84-A441)
+	 * Release emmc from reset anyway here.
+	 */
+	if (gpio_request(emmc_reset_n, "EMMC_RESET_N")) {
+		printk(KERN_ERR "Request GPIO failed, gpio: %d\n", emmc_reset_n);
+	} else {
+		gpio_direction_output(emmc_reset_n, 1);
+		gpio_free(emmc_reset_n);
+	}
 	mmp3_add_sdh(2, &mmp3_sdh_platdata_mmc2); /* eMMC */
 
 	mfp_config(ARRAY_AND_SIZE(mmc1_pin_config));
@@ -994,6 +1085,19 @@ static void __init thunderstonem_init_mmc(void)
 
 	/* SDIO for WIFI card */
 	mfp_config(ARRAY_AND_SIZE(mmc2_pin_config));
+	/*
+	 * The gpio wlan_wake will wake up soc from suspend.
+	 */
+	if (gpio_request(wlan_wake, "WLAN_WAKE"))
+		printk(KERN_ERR "Request GPIO failed, gpio: %d\n", wlan_wake);
+	else
+		gpio_direction_input(wlan_wake);
+	if (request_irq(gpio_to_irq(wlan_wake), wlan_wake_gpio_irq,
+				IRQF_NO_SUSPEND | IRQF_TRIGGER_FALLING,
+				"WLAN WAKEUP irq", NULL))
+		printk(KERN_ERR "Request wlan wake irq failed\n");
+	else
+		wake_lock_init(&wlan_gpio_wakeup, WAKE_LOCK_SUSPEND, "wifi_hs_wakeups");
 	mmp3_add_sdh(1, &mmp3_sdh_platdata_mmc1);
 }
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
