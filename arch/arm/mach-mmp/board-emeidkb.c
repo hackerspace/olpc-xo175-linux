@@ -32,6 +32,7 @@
 #include <linux/mfd/88pm80x.h>
 #include <linux/cwmi.h>
 #include <linux/cwgd.h>
+#include <linux/lps331ap.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/pxa2xx_spi.h>
 #include <linux/spi/cmmb.h>
@@ -705,7 +706,7 @@ static void pm800_dvctable_init(void)
 }
 
 #if defined(CONFIG_SENSORS_CWMI) || defined(CONFIG_SENSORS_CWGD) \
-	|| defined(CONFIG_SENSORS_ISL29043)
+	|| defined(CONFIG_SENSORS_ISL29043) || defined(CONFIG_SENSORS_LPS331AP)
 static int sensor_set_power(int on)
 {
 	static struct regulator *v_sensor;
@@ -760,6 +761,13 @@ static struct cwgd_platform_data cwgd_plat_data = {
 #if defined(CONFIG_SENSORS_ISL29043)
 static struct axis_sensor_platform_data isl29043_plat_data = {
 	.set_power = sensor_set_power,
+};
+#endif
+
+#if defined(CONFIG_SENSORS_LPS331AP)
+struct lps331ap_prs_platform_data lps331ap_plat_data = {
+	.power_on = sensor_set_power,
+	.poll_interval = 1000,
 };
 #endif
 
@@ -1290,6 +1298,13 @@ static struct i2c_board_info emeidkb_i2c1_info[] = {
 		.addr		= 0x44,
 		.irq = gpio_to_irq(mfp_to_gpio(GPIO014_GPIO_PROX_IRQ)),
 		.platform_data	= &isl29043_plat_data,
+	},
+#endif
+#if defined(CONFIG_SENSORS_LPS331AP)
+	{
+		.type       = "lps331ap",
+		.addr       = 0x5c,
+		.platform_data  = &lps331ap_plat_data,
 	},
 #endif
 };
