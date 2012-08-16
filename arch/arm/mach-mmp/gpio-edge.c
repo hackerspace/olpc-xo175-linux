@@ -18,6 +18,11 @@
 #include <linux/io.h>
 #include <mach/regs-icu.h>
 #include <mach/gpio-edge.h>
+#include <mach/irqs.h>
+#include <mach/regs-mpmu.h>
+#if defined(CONFIG_CPU_PXA988)
+#include <mach/pxa988_lowpower.h>
+#endif
 #include <plat/mfp.h>
 
 /* The list head of the gpio edge wakeup sources */
@@ -39,7 +44,8 @@ static void gpio_edge_icu_enable(void)
 	 * It's SoC dependent, going to suppose different SoC.
 	 */
 #if defined(CONFIG_CPU_PXA988)
-	__raw_writel(((1 << 0) | (1 << 6)), ICU_INT_CONF(50));
+	__raw_writel(((1 << 0) | (1 << 6)), ICU_INT_CONF(IRQ_PXA988_GPIO_EDGE -
+				IRQ_PXA988_START));
 #endif
 }
 
@@ -47,7 +53,32 @@ static void gpio_edge_icu_disable(void)
 {
 	/* Disable IRQ_GPIO_EDGE interrupt in ICU. */
 #if defined(CONFIG_CPU_PXA988)
-	__raw_writel(0, ICU_INT_CONF(50));
+	__raw_writel(0, ICU_INT_CONF(IRQ_PXA988_GPIO_EDGE -
+				IRQ_PXA988_START));
+#endif
+}
+
+static void gpio_edge_wakeup_enable(void)
+{
+#if defined(CONFIG_CPU_PXA988)
+	uint32_t awucrm = 0, apcr = 0;
+	/* already get pmu_lock */
+	awucrm = __raw_readl(MPMU_AWUCRM);
+	apcr = __raw_readl(MPMU_APCR);
+	__raw_writel(awucrm | PMUM_WAKEUP2, MPMU_AWUCRM);
+	__raw_writel(apcr & ~PMUM_SLPWP2, MPMU_APCR);
+#endif
+}
+
+static void gpio_edge_wakeup_disable(void)
+{
+#if defined(CONFIG_CPU_PXA988)
+	uint32_t awucrm = 0, apcr = 0;
+	/* already get pmu_lock */
+	awucrm = __raw_readl(MPMU_AWUCRM);
+	apcr = __raw_readl(MPMU_APCR);
+	__raw_writel(awucrm & ~PMUM_WAKEUP2, MPMU_AWUCRM);
+	__raw_writel(apcr | PMUM_SLPWP2, MPMU_APCR);
 #endif
 }
 
@@ -125,6 +156,7 @@ void mmp_gpio_edge_enable(void)
 	}
 
 	gpio_edge_icu_enable();
+	gpio_edge_wakeup_enable();
 
 	gpio_edge_enabled = 1;
 	spin_unlock_irqrestore(&gpio_edge_lock, flags);
@@ -151,6 +183,7 @@ void mmp_gpio_edge_disable(void)
 		return;
 	}
 
+	gpio_edge_wakeup_disable();
 	gpio_edge_icu_disable();
 
 	for (i = 0; i < (gpio_edge_num / 32); i++)
