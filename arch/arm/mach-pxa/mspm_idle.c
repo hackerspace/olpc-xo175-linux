@@ -199,7 +199,7 @@ static void pxa95x_cpu_idle(void)
 				int_mask_no_uart(saved_icmr);
 			}
 
-			pxa978_pm_enter(pollreg);
+			pxa978_pm_enter(pollreg, NULL);
 
 			if (ForceLPM == PXA9xx_Force_C2)
 				int_mask_restore(saved_icmr);

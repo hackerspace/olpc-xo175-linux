@@ -56,17 +56,21 @@ c2_entry:
 	b	cpu_resume
 /*return here from reset chunk*/
 pxa978_c2_restore:
-	mov	r6, #0x58000000
-	orr	r6, r6, #0x120000				@L2 controller PHY address
-	mov	r1, #0x40000000
-	orr	r1, r1, #0xA00000
+	mov	r0, #0x40000000
+	orr	r1, r0, #0xA00000
+	orr	r2, r1, #0x40					@OSCR4 PHY address
+	ldr	r3, [r2]
+	str	r3, oscr4_phys_addr
+
 	orr	r1, r1, #0x10					@OSCR PHY address
-	mov	r2, #0x40000000
-	orr	r2, r2, #0xF40000
+
+	orr	r2, r0, #0xF40000
 	orr	r2, r2, #0x80					@power mode PHY address
 	mov	r3, #0x46000000
 	orr	r3, r3, #0xFF00
 	orr	r3, r3, #0x80					@chip id PHY address
+	mov	r6, #0x58000000
+	orr	r6, r6, #0x120000				@L2 controller PHY address
 
 	ldr	r7, [r2]
 	and	r7, r7, #0x40
@@ -132,6 +136,10 @@ c2_restore:
 	.global pl310_saved_regs_phys_addr
 pl310_saved_regs_phys_addr:
 	.long	0	@ preserve to store l2x0_saved_regs_phys_addr
+
+	.global oscr4_phys_addr
+oscr4_phys_addr:
+	.long 0
 
 	.global VirtualToPhysical
 VirtualToPhysical:

@@ -747,7 +747,7 @@ void c2_address_remap(void)
 	__raw_writel(((c2_sram_addr_phys >> 13) | 1) & 0x1FFF, remap_c2_reg);
 }
 
-void pxa978_pm_enter(unsigned long pwrmode)
+void pxa978_pm_enter(unsigned long pwrmode, unsigned int *ticks)
 {
 	unsigned int debug_context[DEBUG_DATA_SIZE / sizeof(unsigned int)];
 	unsigned int pmu_context[PMU_DATA_SIZE / sizeof(unsigned int)];
@@ -760,6 +760,11 @@ void pxa978_pm_enter(unsigned long pwrmode)
 	cpu_pm_exit();
 	restore_performance_monitors((unsigned int *)&pmu_context);
 	restore_pxa978_debug((unsigned int *)&debug_context);
+	if (ticks) {
+		outer_inv_range(virt_to_phys(&oscr4_phys_addr),
+					virt_to_phys(&oscr4_phys_addr) + sizeof(oscr4_phys_addr));
+		*ticks = oscr4_phys_addr;
+	}
 }
 
 #ifdef CONFIG_CPU_PXA978
@@ -784,7 +789,7 @@ static void enter_d2(void)
 		pollreg = PWRMODE;
 	} while (pollreg != (PXA95x_PM_S0D2C2 | PXA95x_PM_I_Q_BIT));
 
-	pxa978_pm_enter(pollreg);
+	pxa978_pm_enter(pollreg, NULL);
 
 	if (is_wkr_mg1_1468())
 		enable_axi_lpm_exit();
@@ -840,7 +845,7 @@ static void enter_cg(void)
 	/* Turn off PX1 bus clock */
 	CKENB &= ~(1 << 29);
 
-	pxa978_pm_enter(pollreg);
+	pxa978_pm_enter(pollreg, NULL);
 
 	/* restore clocks after exiting from clock gated mode */
 	CKENA = cken[0];
@@ -1526,7 +1531,7 @@ void enter_lowpower_mode(int state)
 					pxa_reg_write(VLSCR_PHY, ~VLSCR_LPM_SINGLE_RAIL, VLSCR_LPM_SINGLE_RAIL);
 					if (is_wkr_nevo_2339())
 						mmc_jira_2339_wr_before_lpm();
-					pxa978_pm_enter(pollreg);
+					pxa978_pm_enter(pollreg, NULL);
 					start_tick = OSCR4;
 					/* Restore single rail mode */
 					pxa_reg_write(VLSCR_PHY, VLSCR_LPM_SINGLE_RAIL, VLSCR_LPM_SINGLE_RAIL);
@@ -1643,7 +1648,7 @@ void enter_lowpower_mode(int state)
 				if (cpu_is_pxa978()) { /*Nevo C0*/
 					if ( is_wkr_nevo_2339())
 						mmc_jira_2339_wr_before_lpm();
-					pxa978_pm_enter(pollreg);
+					pxa978_pm_enter(pollreg, NULL);
 					start_tick = OSCR4;
 				} else {
 					pxa95x_cpu_standby(sram + 0x8000,
@@ -1806,7 +1811,7 @@ void enter_lowpower_mode(int state)
 			   */
 			sram = (unsigned int) pxa95x_pm_regs.sram_map;
 			if (cpu_is_pxa978()) {
-				pxa978_pm_enter(pollreg);
+				pxa978_pm_enter(pollreg, NULL);
 			} else {
 				if (cur_op < 2)
 					pm_enter_cgm_deepidle

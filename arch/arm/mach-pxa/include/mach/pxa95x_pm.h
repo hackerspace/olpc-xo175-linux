@@ -613,8 +613,9 @@ extern u32 get_mipi_reference_control(void);
 #define NO_DISABLE_L1_CACHE			1
 #define PMU_DATA_SIZE				128
 #define DEBUG_DATA_SIZE 			  	128
+extern unsigned int oscr4_phys_addr;
 unsigned int  get_c2_sram_base(void);
-extern void pxa978_pm_enter(unsigned long save_mode);
+extern void pxa978_pm_enter(unsigned long save_mode, unsigned int *ticks);
 extern void save_performance_monitors(unsigned int *pointer);
 extern void restore_performance_monitors(unsigned int *pointer);
 extern void save_pxa978_debug(unsigned int *pointer);
