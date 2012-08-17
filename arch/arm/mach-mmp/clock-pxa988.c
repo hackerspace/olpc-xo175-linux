@@ -20,12 +20,15 @@
 #include <linux/io.h>
 #include <linux/delay.h>
 #include <linux/err.h>
+#include <linux/debugfs.h>
+#include <linux/uaccess.h>
 #include <mach/regs-apbc.h>
 #include <mach/regs-apmu.h>
 #include <mach/regs-mpmu.h>
 #include <mach/cputype.h>
 #include <mach/clock-pxa988.h>
 #include <plat/pm.h>
+#include <plat/debugfs.h>
 
 /*
  * README:
@@ -126,6 +129,10 @@ static unsigned long pll2p_default;
 static unsigned long pll3_vco_default;
 static unsigned long pll3_default;
 static unsigned long pll3p_default;
+
+#ifdef CONFIG_DEBUG_FS
+static LIST_HEAD(clk_dcstat_list);
+#endif
 
 /* PLL post divider table */
 static struct pll_post_div pll_post_div_tbl[] = {
@@ -1396,11 +1403,21 @@ EXPORT_SYMBOL(get_gcu_freqs_table);
 
 static void gc_clk_init(struct clk *clk)
 {
+#ifdef CONFIG_DEBUG_FS
+	unsigned int i;
+	unsigned long op[ARRAY_SIZE(gc_clk_tbl)];
+#endif
 	clk->dynamic_change = 1;
 	__clk_fill_periph_tbl(clk, gc_clk_tbl, ARRAY_SIZE(gc_clk_tbl));
 
 	/* default GC fclk2x = 416M sel = pll1_416, div = 1 */
 	__clk_periph_init(clk, &pll1_416, 1, 1);
+
+#ifdef CONFIG_DEBUG_FS
+	for (i = 0; i < ARRAY_SIZE(gc_clk_tbl); i++)
+		op[i] = gc_clk_tbl[i].fclk;
+	pxa988_clk_register_dcstat(clk, op, ARRAY_SIZE(gc_clk_tbl));
+#endif
 }
 
 static int gc_clk_enable(struct clk *clk)
@@ -1409,6 +1426,9 @@ static int gc_clk_enable(struct clk *clk)
 	CLK_SET_BITS(GC_FCLK_REQ, 0);
 	clk_enable(&gc_aclk);
 	pr_debug("%s GC_CLK %x\n", __func__, __raw_readl(clk->clk_rst));
+#ifdef CONFIG_DEBUG_FS
+	pxa988_clk_dcstat_event(clk, CLK_STATE_ON, 0);
+#endif
 	return 0;
 }
 
@@ -1417,6 +1437,9 @@ static void gc_clk_disable(struct clk *clk)
 	CLK_SET_BITS(0, (GC_FCLK_EN | GC_HCLK_EN));
 	clk_disable(&gc_aclk);
 	pr_debug("%s GC_CLK : %x\n", __func__, __raw_readl(clk->clk_rst));
+#ifdef CONFIG_DEBUG_FS
+	pxa988_clk_dcstat_event(clk, CLK_STATE_OFF, 0);
+#endif
 }
 
 static long gc_clk_round_rate(struct clk *clk, unsigned long rate)
@@ -1452,6 +1475,10 @@ static int gc_clk_setrate(struct clk *clk, unsigned long rate)
 
 	pr_debug("%s GC_CLK %x\n", __func__, __raw_readl(clk->clk_rst));
 	pr_debug("%s rate %lu->%lu\n", __func__, old_rate, rate);
+
+#ifdef CONFIG_DEBUG_FS
+	pxa988_clk_dcstat_event(clk, CLK_RATE_CHANGE, i);
+#endif
 	return 0;
 }
 
@@ -1549,7 +1576,10 @@ static struct pm_qos_request_list vpu_qos_idle;
 static void vpu_clk_init(struct clk *clk)
 {
 	unsigned int reg_cfg;
-
+#ifdef CONFIG_DEBUG_FS
+	unsigned int i;
+	unsigned long op[ARRAY_SIZE(vpu_clk_tbl)];
+#endif
 	pm_qos_add_request(&vpu_qos_idle, PM_QOS_CPUIDLE_KEEP_AXI,
 			PM_QOS_DEFAULT_VALUE);
 	clk->dynamic_change = 1;
@@ -1567,6 +1597,12 @@ static void vpu_clk_init(struct clk *clk)
 	reg_cfg = VPU_FCLK_RATE(CLK_PLL1_624, 1);
 	reg_cfg |= clk->enable_val;
 	CLK_SET_BITS(reg_cfg, VPU_CLK_RATE_MSK);
+
+#ifdef CONFIG_DEBUG_FS
+	for (i = 0; i < ARRAY_SIZE(vpu_clk_tbl); i++)
+		op[i] = vpu_clk_tbl[i].fclk;
+	pxa988_clk_register_dcstat(clk, op, ARRAY_SIZE(vpu_clk_tbl));
+#endif
 }
 
 static int vpu_clk_enable(struct clk *clk)
@@ -1587,6 +1623,10 @@ static int vpu_clk_enable(struct clk *clk)
 	CLK_SET_BITS(en_cfg, 0);
 	CLK_SET_BITS(reg_cfg, VPU_CLK_RATE_MSK);
 	pr_debug("%s VPU_CLK %x\n", __func__, __raw_readl(clk->clk_rst));
+
+#ifdef CONFIG_DEBUG_FS
+	pxa988_clk_dcstat_event(clk, CLK_STATE_ON, 0);
+#endif
 	return 0;
 }
 
@@ -1595,6 +1635,10 @@ static void vpu_clk_disable(struct clk *clk)
 	CLK_SET_BITS(0, VPU_CLK_EN);
 	pm_qos_update_request(&vpu_qos_idle, PM_QOS_DEFAULT_VALUE);
 	pr_debug("%s VPU_CLK %x\n", __func__, __raw_readl(clk->clk_rst));
+
+#ifdef CONFIG_DEBUG_FS
+	pxa988_clk_dcstat_event(clk, CLK_STATE_OFF, 0);
+#endif
 }
 
 static long vpu_clk_round_rate(struct clk *clk, unsigned long rate)
@@ -1643,6 +1687,10 @@ static int vpu_clk_setrate(struct clk *clk, unsigned long rate)
 
 	pr_debug("%s VPU_CLK : %x\n", __func__,  __raw_readl(clk->clk_rst));
 	pr_debug("%s rate %lu->%lu\n", __func__, clk->rate, rate);
+
+#ifdef CONFIG_DEBUG_FS
+	pxa988_clk_dcstat_event(clk, CLK_RATE_CHANGE, i);
+#endif
 	return 0;
 }
 
@@ -2532,3 +2580,371 @@ static int __init pxa988_clk_init(void)
 	return 0;
 }
 core_initcall(pxa988_clk_init);
+
+#ifdef CONFIG_DEBUG_FS
+static void clk_dutycycle_stats(struct clk *clk,
+	enum clk_stat_msg msg,
+	struct clk_dc_stat_info *dc_stat_info,
+	unsigned int tgtstate)
+{
+	struct timespec cur_ts, prev_ts;
+	long time_ms;
+	struct op_dcstat_info *cur, *tgt;
+
+	/* do nothing if no stat operation is issued */
+	if (!dc_stat_info->stat_start)
+		return ;
+
+	cur = &dc_stat_info->ops_dcstat[dc_stat_info->curopindex];
+	getnstimeofday(&cur_ts);
+	prev_ts = cur->prev_ts;
+	time_ms = ts2ms(cur_ts, prev_ts);
+	switch (msg) {
+	case CLK_STAT_START:
+		/* duty cycle stat start */
+		cur->prev_ts = cur_ts;
+		break;
+	case CLK_STAT_STOP:
+		/* duty cycle stat stop */
+		if (clk->refcnt)
+			cur->busy_time += time_ms;
+		else
+			cur->idle_time += time_ms;
+		break;
+	case CLK_STATE_ON:
+		/* clk switch from off->on */
+		cur->prev_ts = cur_ts;
+		cur->idle_time += time_ms;
+		break;
+	case CLK_STATE_OFF:
+		/* clk switch from off->on */
+		cur->prev_ts = cur_ts;
+		cur->busy_time += time_ms;
+		break;
+	case CLK_RATE_CHANGE:
+		/* rate change from old->new */
+		cur->prev_ts = cur_ts;
+		if (clk->refcnt)
+			cur->busy_time += time_ms;
+		else
+			cur->idle_time += time_ms;
+		BUG_ON(tgtstate >= dc_stat_info->ops_stat_size);
+		tgt = &dc_stat_info->ops_dcstat[tgtstate];
+		tgt->prev_ts = cur_ts;
+		break;
+	default:
+		break;
+	}
+}
+
+int pxa988_clk_register_dcstat(struct clk *clk,
+	unsigned long *opt, unsigned int opt_size)
+{
+	struct clk_dcstat *cdcs;
+	struct clk_dc_stat_info *clk_dcstat;
+	unsigned int i, curpp_index = 0;
+
+	/* search the list of the registation for this clk */
+	list_for_each_entry(cdcs, &clk_dcstat_list, node)
+		if (cdcs->clk == clk)
+			break;
+
+	/* if clk wasn't in the list, allocate new dcstat info */
+	if (cdcs->clk != clk) {
+		cdcs = kzalloc(sizeof(struct clk_dcstat), GFP_KERNEL);
+		if (!cdcs)
+			goto out;
+
+		cdcs->clk = clk;
+		/* allocate and fill dc stat information */
+		clk_dcstat = &cdcs->clk_dcstat;
+		clk_dcstat->ops_dcstat = kzalloc(opt_size * \
+			sizeof(struct op_dcstat_info), GFP_KERNEL);
+		if (!clk_dcstat->ops_dcstat) {
+			pr_err("%s clk %s memory allocate failed!\n",
+				__func__, clk->name);
+			goto out1;
+		}
+		for (i = 0; i < opt_size; i++) {
+			clk_dcstat->ops_dcstat[i].ppindex = i;
+			clk_dcstat->ops_dcstat[i].pprate = opt[i];
+			if (clk->rate == opt[i])
+				curpp_index = i;
+		}
+		clk_dcstat->ops_stat_size = opt_size;
+		clk_dcstat->stat_start = false;
+		clk_dcstat->curopindex = curpp_index;
+
+		list_add(&cdcs->node, &clk_dcstat_list);
+	}
+
+	return 0;
+out1:
+	kfree(cdcs);
+out:
+	return -ENOMEM;
+}
+EXPORT_SYMBOL(pxa988_clk_register_dcstat);
+
+int pxa988_clk_dcstat_event(struct clk *clk,
+	enum clk_stat_msg msg, unsigned int tgtstate)
+{
+	struct clk_dcstat *cdcs;
+	struct clk_dc_stat_info *dcstat_info;
+	int ret = 0;
+
+	list_for_each_entry(cdcs, &clk_dcstat_list, node)
+		if (cdcs->clk == clk) {
+			dcstat_info = &cdcs->clk_dcstat;
+			clk_dutycycle_stats(clk, msg,
+				dcstat_info, tgtstate);
+			/*
+			 * always update curopindex, no matter stat
+			 * is started or not
+			 */
+			if (msg == CLK_RATE_CHANGE)
+				dcstat_info->curopindex = tgtstate;
+			break;
+		}
+	return ret;
+}
+EXPORT_SYMBOL(pxa988_clk_dcstat_event);
+
+int pxa988_show_dc_stat_info(struct clk *clk, char *buf, ssize_t size)
+{
+	int len = 0;
+	unsigned int i, dc_int, dc_fraction;
+	long total_time = 0, run_total = 0, idle_total = 0;
+	struct clk_dcstat *cdcs;
+	struct clk_dc_stat_info *dc_stat_info = NULL;
+
+	list_for_each_entry(cdcs, &clk_dcstat_list, node)
+		if (cdcs->clk == clk) {
+			dc_stat_info = &cdcs->clk_dcstat;
+			break;
+		}
+
+	if (!dc_stat_info) {
+		pr_err("clk %s NULL dc stat info\n", clk->name);
+		return -EINVAL;
+	}
+
+	if (dc_stat_info->stat_start) {
+		len += snprintf(buf + len, size - len,
+			"Please stop the %s duty cycle stats at first\n",
+			clk->name);
+		return len;
+	}
+
+	for (i = 0; i < dc_stat_info->ops_stat_size; i++) {
+		run_total += dc_stat_info->ops_dcstat[i].busy_time;
+		idle_total += dc_stat_info->ops_dcstat[i].idle_time;
+	}
+	total_time = run_total + idle_total;
+	if (!total_time) {
+		len += snprintf(buf + len, size - len,
+			"No stat information! ");
+		len += snprintf(buf + len, size - len,
+			"Help information :\n");
+		len += snprintf(buf + len, size - len,
+			"1. echo 1 to start duty cycle stat:\n");
+		len += snprintf(buf + len, size - len,
+			"2. echo 0 to stop duty cycle stat:\n");
+		len += snprintf(buf + len, size - len,
+			"3. cat to check duty cycle info from start to stop:\n\n");
+		return len;
+	}
+
+	len += snprintf(buf + len, size - len, "\n");
+	dc_int = total_time ?
+		calculate_dc(run_total, total_time, &dc_fraction) : 0;
+	dc_fraction = total_time ? dc_fraction : 0;
+	len += snprintf(buf + len, size - len,
+		"| CLK %s | %10s %lums| %10s %lums| %10s %2u.%2u%%|\n",
+		clk->name, "idle time", idle_total,
+		"total time",  total_time,
+		"duty cycle", dc_int, dc_fraction);
+	len += snprintf(buf + len, size - len,
+		"| %3s | %12s | %15s | %15s | %15s |\n", "OP#",
+		"rate(HZ)", "run time(ms)", "idle time(ms)", "rt ratio");
+	for (i = 0; i < dc_stat_info->ops_stat_size; i++) {
+		dc_int = total_time ?
+			calculate_dc(dc_stat_info->ops_dcstat[i].busy_time,
+			total_time, &dc_fraction) : 0;
+		dc_fraction = total_time ? dc_fraction : 0;
+		len += snprintf(buf + len, size - len,
+			"| %3u | %12lu | %15ld | %15ld | %12u.%2u%%|\n",
+			dc_stat_info->ops_dcstat[i].ppindex,
+			dc_stat_info->ops_dcstat[i].pprate,
+			dc_stat_info->ops_dcstat[i].busy_time,
+			dc_stat_info->ops_dcstat[i].idle_time,
+			dc_int, dc_fraction);
+	}
+	return len;
+}
+EXPORT_SYMBOL(pxa988_show_dc_stat_info);
+
+int pxa988_start_stop_dc_stat(struct clk *clk, unsigned int start)
+{
+	unsigned int i;
+	struct clk_dcstat *cdcs;
+	struct clk_dc_stat_info *dc_stat_info = NULL;
+
+	list_for_each_entry(cdcs, &clk_dcstat_list, node)
+		if (cdcs->clk == clk) {
+			dc_stat_info = &cdcs->clk_dcstat;
+			break;
+		}
+
+	if (!dc_stat_info) {
+		pr_err("clk %s NULL dc stat info\n", clk->name);
+		return -EINVAL;
+	}
+
+	start = !!start;
+	if (start == dc_stat_info->stat_start) {
+		pr_err("[WARNING]%s stat is already %s\n",
+			clk->name,
+			dc_stat_info->stat_start ?\
+			"started" : "stopped");
+		return -EINVAL;
+	}
+
+	/*
+	 * hold the same lock of clk_enable, disable, set_rate ops
+	 * here to avoid the status change when start/stop and lead
+	 * to incorrect stat info
+	 */
+	clk_get_lock(clk);
+	if (start) {
+		/* clear old stat information */
+		for (i = 0; i < dc_stat_info->ops_stat_size; i++) {
+			dc_stat_info->ops_dcstat[i].idle_time = 0;
+			dc_stat_info->ops_dcstat[i].busy_time = 0;
+		}
+		dc_stat_info->stat_start = true;
+		clk_dutycycle_stats(clk, CLK_STAT_START,
+			dc_stat_info, 0);
+	} else {
+		clk_dutycycle_stats(clk, CLK_STAT_STOP,
+			dc_stat_info, 0);
+		dc_stat_info->stat_start = false;
+	}
+	clk_release_lock(clk);
+	return 0;
+}
+EXPORT_SYMBOL(pxa988_start_stop_dc_stat);
+
+static ssize_t pxa988_gc_dc_read(struct file *filp,
+	char __user *buffer, size_t count, loff_t *ppos)
+{
+	char *p;
+	int len = 0;
+	size_t ret, size = PAGE_SIZE - 1;
+
+	p = (char *)__get_free_pages(GFP_NOIO, 0);
+	if (!p)
+		return -ENOMEM;
+
+	len = pxa988_show_dc_stat_info(&pxa988_clk_gc, p, size);
+	if (len == size)
+		pr_warn("%s The dump buf is not large enough!\n", __func__);
+
+	ret = simple_read_from_buffer(buffer, count, ppos, p, len);
+	free_pages((unsigned long)p, 0);
+	return ret;
+}
+
+static ssize_t pxa988_gc_dc_write(struct file *filp,
+		const char __user *buffer, size_t count, loff_t *ppos)
+{
+	unsigned int start;
+	char buf[10] = { 0 };
+	size_t ret = 0;
+
+	if (copy_from_user(buf, buffer, count))
+		return -EFAULT;
+
+	sscanf(buf, "%d", &start);
+	ret = pxa988_start_stop_dc_stat(&pxa988_clk_gc, start);
+	if (ret < 0)
+		return ret;
+	return count;
+}
+
+static const struct file_operations pxa988_gc_dc_ops = {
+	.owner = THIS_MODULE,
+	.read = pxa988_gc_dc_read,
+	.write = pxa988_gc_dc_write,
+};
+
+static ssize_t pxa988_vpu_dc_read(struct file *filp,
+	char __user *buffer, size_t count, loff_t *ppos)
+{
+	char *p;
+	int len = 0;
+	size_t ret, size = PAGE_SIZE - 1;
+
+	p = (char *)__get_free_pages(GFP_NOIO, 0);
+	if (!p)
+		return -ENOMEM;
+
+	len = pxa988_show_dc_stat_info(&pxa988_clk_vpu, p, size);
+	if (len == size)
+		pr_warn("%s The dump buf is not large enough!\n", __func__);
+
+	ret = simple_read_from_buffer(buffer, count, ppos, p, len);
+	free_pages((unsigned long)p, 0);
+	return ret;
+}
+
+static ssize_t pxa988_vpu_dc_write(struct file *filp,
+		const char __user *buffer, size_t count, loff_t *ppos)
+{
+	unsigned int start;
+	char buf[10] = { 0 };
+	size_t ret = 0;
+
+	if (copy_from_user(buf, buffer, count))
+		return -EFAULT;
+
+	sscanf(buf, "%d", &start);
+	ret = pxa988_start_stop_dc_stat(&pxa988_clk_vpu, start);
+	if (ret < 0)
+		return ret;
+	return count;
+}
+
+static const struct file_operations pxa988_vpu_dc_ops = {
+	.owner = THIS_MODULE,
+	.read = pxa988_vpu_dc_read,
+	.write = pxa988_vpu_dc_write,
+};
+
+struct dentry *stat;
+static int __init __init_dcstat_debugfs_node(void)
+{
+	struct dentry *gc_dc_stat, *vpu_dc_stat;
+
+	stat = debugfs_create_dir("stat", pxa);
+	if (!stat)
+		return -ENOENT;
+
+	gc_dc_stat = debugfs_create_file("gc_dc_stat", 0666,
+		stat, NULL, &pxa988_gc_dc_ops);
+	if (!gc_dc_stat)
+		return -ENOENT;
+
+	vpu_dc_stat = debugfs_create_file("vpu_dc_stat", 0666,
+		stat, NULL, &pxa988_vpu_dc_ops);
+	if (!vpu_dc_stat)
+		goto err_vpu_dc_stat;
+
+	return 0;
+
+err_vpu_dc_stat:
+	debugfs_remove(gc_dc_stat);
+	return -ENOENT;
+}
+late_initcall(__init_dcstat_debugfs_node);
+#endif
