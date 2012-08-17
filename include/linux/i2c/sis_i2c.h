@@ -21,27 +21,12 @@
 /* For debug usage */
 /*#define SIS_I2C_DEBUG*/
 
-/* For Aegis i2c data OLD format */
-/*#define OLD_FORMAT_AEGIS*/
-#ifndef OLD_FORMAT_AEGIS
 /*#define _CHECK_CRC*/
-#endif
 
 #define SIS_I2C_NAME	"sis_i2c_ts"
 #define SIS_SLAVE_ADDR	0x5c
 #define TIMER_NS    	10000000	/* 10ms */
 #define MAX_FINGERS	10
-
-/*
- * For SiS9200 i2c data format
- * Define if for SMBus Tx/Rx in X86.
- * Undef it for I2C Tx/Rx in Embedded System.
- */
-/*#define _SMBUS_INTERFACE*/
-
-/* For Android 4.0 */
-/* Only for Linux kernel 2.6.34 and later */
-#define _ANDROID_4
 
 /* Interrupt setting and modes */
 #define _I2C_INT_ENABLE
@@ -81,12 +66,6 @@
 /* Resolution mode */
 #define SIS_MAX_X		4095
 #define SIS_MAX_Y		4095
-
-/* Fixed point mode */
-/*#define X_SENSE_LINE		38*/
-/*#define Y_SENSE_LINE		22*/
-/*#define SIS_MAX_X           	(X_SENSE_LINE * 128)*/
-/*#define SIS_MAX_Y	        (Y_SENSE_LINE * 128)*/
 
 #define ONE_BYTE		1
 #define FIVE_BYTE		5
@@ -146,12 +125,9 @@
 #define MSK_MENU		4
 #define MSK_HOME		8
 
-/*#define L_COUNT_TOUCH 	61*/
-/*#define L_COUNT_OTHER 	(sis_cul_unit(buf[L_REPORT_ID])*5 + 1)*/
 #define L_BYTECOUNT		2
 #define L_REPORT_ID		0
 #define BIT_TOUCH(x)		(x & 0x1)
-/*#define BIT_BUTTON(x) 	((x >> 2) & 0x1)*/
 #define BIT_AREA(x)		((x >> 4) & 0x1)
 #define BIT_PRESSURE(x) 	((x >> 5) & 0x1)
 #define BIT_SCANTIME(x) 	((x >> 6) & 0x1)

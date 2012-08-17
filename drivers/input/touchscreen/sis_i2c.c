@@ -37,6 +37,7 @@
 #include <linux/init.h>
 #include <linux/fs.h>
 #include <linux/cdev.h>
+
 #define DEVICE_NAME "sis_aegis_touch_device"
 static int sis_char_devs_count = 1;	/* device count */
 static int sis_char_major;
@@ -138,87 +139,17 @@ static int sis_cul_unit(uint8_t report_id)
 	return ret;
 }
 
-#ifdef OLD_FORMAT_AEGIS
 static int sis_readpacket(struct i2c_client *client, uint8_t cmd, uint8_t* buf)
 {
 	uint8_t tmpbuf[MAX_BYTE] = {0};
 	int ret = -1;
 	int bytecount = 0;
 	int touchnum = 0;
-#ifdef SIS_I2C_DEBUG
-	uint8_t offset = 0;
-	bool ReadNext = false;
-	uint8_t ByteCount = 0;
-	uint8_t fingers = 0;
-
-#ifndef _SMBUS_INTERFACE
-	struct i2c_msg msg[2];
-	msg[0].addr = client->addr;
-	msg[0].flags = 0;
-	msg[0].len = 1;
-	msg[0].buf = (char *)(&cmd);
-	msg[0].addr = client->addr;
-	msg[0].flags = I2C_M_RD;
-	msg[0].len = MAX_BYTE;
-	msg[0].buf = tmpbuf;
-#endif
-	ret = i2c_transfer(client->adapter, msg, 1);
-#endif
-
-	/*
-	 * New i2c format
-	 * buf[0] = Low 8 bits of byte count value
-	 * buf[1] = High 8 bits of byte counte value
-	 * buf[2] = Report ID
-	 * buf[touch num * 6 + 2] = Touch informations;
-	 * 1 touch point has 6 bytes, it could be none if no touch
-	 * buf[touch num * 6 + 3] = Touch numbers
-	 * One touch point information include 6 bytes, the order is
-	 * 1. status = touch down or touch up
-	 * 2. id = finger id
-	 * 3. x axis low 8 bits
-	 * 4. x axis high 8 bits
-	 * 5. y axis low 8 bits
-	 * 6. y axis high 8 bits
-	 */
-	ret = sis_command_for_read(client, MAX_BYTE, tmpbuf);
-	if (ret < 0)
-		printk(KERN_ERR "sis_readpacket: i2c transfer error\n");
-
-	memcpy(&buf[0], &tmpbuf[0], 58);
-	bytecount = buf[BYTE_COUNT] & 0xff;
-	touchnum = buf[TOUCH_NUM] & 0xff;
-	if (bytecount == ((touchnum * 8) + 2)) {
-		if (touchnum > 7) {
-			ret = sis_command_for_read(client, MAX_BYTE, tmpbuf);
-			if (ret < 0) {
-				printk(KERN_ERR "sis_readpacket: i2c transfer error\n");
-				return ret;
-			}
-			memcpy(&buf[58], &tmpbuf[0], 64);
-			ret = touchnum;
-			return ret;
-		} else {
-			ret = touchnum;
-			return ret;
-		}
-	} else {
-		ret = -1;
-		return ret;
-	}
-}
-#else
-static int sis_readpacket(struct i2c_client *client, uint8_t cmd, uint8_t* buf)
-{
-	uint8_t tmpbuf[MAX_BYTE] = {0};
+	int L_COUNT_OTHER = 0;
 #ifdef _CHECK_CRC
 	uint16_t buf_crc = 0;
 	uint16_t package_crc = 0;
 #endif
-	int ret = -1;
-	int touchnum = 0;
-	int L_COUNT_OTHER = 0;
-	int bytecount = 0;
 
 	/*
 	 * New i2c format
@@ -303,19 +234,8 @@ static int sis_readpacket(struct i2c_client *client, uint8_t cmd, uint8_t* buf)
 	}
 	return touchnum;
 }
-#endif
 
 #ifdef _INT_MODE_1
-static int check_gpio_interrupt(void)
-{
-	int ret = 0;
-	/*
-	 * TODO: CHECK GPIO INTERRUPT STATUS BY YOUR PLATFORM SETTING.
-	 */
-	ret = gpio_get_value(GPIO_IRQ);
-	return ret;
-}
-
 static void ts_report_key(struct i2c_client *client, uint8_t keybit_state)
 {
 	int i = 0;
@@ -361,7 +281,7 @@ static void ts_report_key(struct i2c_client *client, uint8_t keybit_state)
 }
 #endif
 
-#if defined(OLD_FORMAT_AEGIS) || defined(SIS_I2C_DEBUG)
+#ifdef SIS_I2C_DEBUG
 static void sis_sticky(uint16_t *point_info, const unsigned int max, int *point_info_temp, int diff)
 {
 	/* get the MAX value or MIN value, report the value directly. */
@@ -377,7 +297,6 @@ static void sis_sticky(uint16_t *point_info, const unsigned int max, int *point_
 }
 #endif
 
-#ifdef OLD_FORMAT_AEGIS
 static void sis_ts_work_func(struct work_struct *work)
 {
 	struct sis_ts_data *ts = container_of(work, struct sis_ts_data, work);
@@ -385,172 +304,8 @@ static void sis_ts_work_func(struct work_struct *work)
 	uint8_t buf[PACKET_BUFFER_SIZE] = {0};
 	uint8_t i = 0, fingers = 0;
 	uint8_t px = 0, py = 0, pstatus = 0;
-#ifdef _ANDROID_4
-	bool all_touch_up = true;
-#endif
-
-	/* I2C or SMBUS block data read */
-	ret = sis_readpacket(ts->client, SIS_CMD_NORMAL, buf);
-	if (ret < 0) {
-		printk(KERN_ERR "get wrong fingers number or unknow bytecount\n");
-		goto err_free_allocate;
-	} else if (ret == 0) {
-		/* when no touch, clean information temp buffer */
-		for (i = 0; i < 10; i++) {
-			ts->area_tmp[i][0] = 0;
-			ts->pressure_tmp[i][0] = 0;
-		}
-
-		i = 0;
-		TPInfo->pt[i].bPressure = 0;
-		TPInfo->pt[i].bWidth = 0;
-#ifdef _ANDROID_4
-		input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, TPInfo->pt[i].bWidth);
-		input_report_abs(ts->input_dev, ABS_MT_PRESSURE, TPInfo->pt[i].bPressure);
-#else
-		input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, TPInfo->pt[i].bWidth);
-		input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, TPInfo->pt[i].bPressure);
-#endif
-		input_report_abs(ts->input_dev, ABS_MT_POSITION_X, TPInfo->pt[i].x);
-		input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, TPInfo->pt[i].y);
-		input_report_abs(ts->input_dev, ABS_MT_TRACKING_ID, TPInfo->pt[i].id);
-		printk(KERN_DEBUG "ID = %d, pressure = %d, width = %d",
-			TPInfo->pt[i].id, TPInfo->pt[i].bPressure, TPInfo->pt[i].bWidth);
-		input_mt_sync(ts->input_dev);
-		input_sync(ts->input_dev);
-		goto err_free_allocate;
-	}
-
-	sis_tpinfo_clear(TPInfo, MAX_FINGERS);
-
-	/* Parser and Get the sis9200 data */
-	fingers = (buf[TOUCH_NUM]);
-	TPInfo->fingers = fingers = (fingers > MAX_FINGERS ? 0 : fingers);
-#ifdef SIS_I2C_DEBUG
-	if ((buf[FORMAT_MODE] & MSK_BUTTON_POINT) == BUTTON_TOUCH_SERIAL) {
-		int temp_fingers = 0;
-		if (fingers > 1)
-			/* when fingers is >= 2, BS is placed at the same position */
-			temp_fingers = 2;
-		else
-			temp_fingers = fingers;
-
-		/* buf[BUTTON_STATE + temp_fingers * 5]: BS location */
-		ts_report_key(ts->client, buf[BUTTON_STATE + temp_fingers * 5]);
-	} else {
-		if (TPInfo->pre_keybit_state)
-			/* clear for polling */
-			ts_report_key(ts->client, 0x0);
-	}
-#endif
-
-	for (i = 0; i < fingers; i++) {
-		pstatus = 2 + (i * 8);	/* Calc point status */
-#ifdef SIS_I2C_DEBUG
-		if (((buf[FORMAT_MODE] & MSK_BUTTON_POINT) == BUTTON_TOUCH_SERIAL) && i > 1)
-			/* for button event and above 3 points */
-			pstatus += 1;
-#endif
-		px = pstatus + 2;	/* Calc point x_coord */
-		py = px + 2;		/* Calc point y_coord */
-
-		if ((buf[pstatus]) == TOUCHUP)
-			TPInfo->pt[i].bPressure = 0;
-		else if ((buf[pstatus]) == TOUCHDOWN)
-			TPInfo->pt[i].bPressure = (buf[pstatus + 7]);
-		else
-			goto err_free_allocate;
-
-		TPInfo->pt[i].bWidth = (buf[pstatus + 6]);
-		TPInfo->pt[i].id = (buf[pstatus + 1]);
-		TPInfo->pt[i].x = ((buf[px] & 0xff) | ((buf[px + 1] & 0xff) << 8));
-		TPInfo->pt[i].y = ((buf[py] & 0xff) | ((buf[py + 1] & 0xff) << 8));
-		printk(KERN_DEBUG "%s ** TSM debug (x,y)=(%d,%d)\n",
-			__func__, TPInfo->pt[i].x, TPInfo->pt[i].y);
-	}
-
-	for (i = 0; i < TPInfo->fingers; i++) {
-		ts->area_tmp[i][1] = TPInfo->pt[i].bWidth;
-		ts->pressure_tmp[i][1] = TPInfo->pt[i].bPressure;
-		/* process the touch area and pressure sticky */
-		sis_sticky(&TPInfo->pt[i].bWidth, AREA_LENGTH_LONGER, ts->area_tmp[i], 2);
-		sis_sticky(&TPInfo->pt[i].bPressure, PRESSURE_MAX, ts->pressure_tmp[i], 10);
-	}
-#ifdef SIS_I2C_DEBUG
-	for (i = 0; i < TPInfo->fingers; i++)
-		printk(KERN_DEBUG "x[%d] = %d, y[%d] = %d, pressure[%d] = %d\n",
-			i, TPInfo->pt[i].x, i, TPInfo->pt[i].y, i, TPInfo->pt[i].bPressure);
-#endif
-
-	/* Report co-ordinates to the multi-touch stack */
-#ifdef _ANDROID_4
-	for (i = 0; i < TPInfo->fingers; i++) {
-		if (TPInfo->pt[i].bPressure) {
-			input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, TPInfo->pt[i].bWidth);
-			input_report_abs(ts->input_dev, ABS_MT_PRESSURE, TPInfo->pt[i].bPressure);
-			input_report_abs(ts->input_dev, ABS_MT_POSITION_X, TPInfo->pt[i].x);
-			input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, TPInfo->pt[i].y);
-			input_report_abs(ts->input_dev, ABS_MT_TRACKING_ID, TPInfo->pt[i].id);
-			input_mt_sync(ts->input_dev);
-			all_touch_up = false;
-		}
-
-		if (i == (TPInfo->fingers - 1) && all_touch_up == true)
-			input_mt_sync(ts->input_dev);
-	}
-
-	if (TPInfo->fingers == 0)
-		input_mt_sync(ts->input_dev);
-#else
-	i = 0;
-	do {
-		input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, TPInfo->pt[i].bPressure);
-		input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, TPInfo->pt[i].bWidth);
-		input_report_abs(ts->input_dev, ABS_MT_POSITION_X, TPInfo->pt[i].x);
-		input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, TPInfo->pt[i].y);
-		input_report_abs(ts->input_dev, ABS_MT_TRACKING_ID, TPInfo->pt[i].id);
-		input_mt_sync(ts->input_dev);
-		i++;
-	} while (i < TPInfo->fingers);
-#endif
-	input_sync(ts->input_dev);
-err_free_allocate:
-	if (ts->use_irq) {
-#ifdef _INT_MODE_1	/* case 1 mode */
-		/*
-		 * TODO: After interrupt status low, read i2c bus data by polling, until interrupt status is high
-		 * interrupt pin is still LOW, read data until interrupt pin is released.
-		 */
-		ret = check_gpio_interrupt();
-		if (!ret)
-			hrtimer_start(&ts->timer, ktime_set(0, TIMER_NS), HRTIMER_MODE_REL);
-		else {
-			if (TPInfo->pre_keybit_state)
-				ts_report_key(ts->client, 0x0);	/* clear for interrupt */
-
-			if ((ts->desc->irq_data.state_use_accessors & IRQD_IRQ_DISABLED) == IRQ_STATUS_DISABLED)
-				enable_irq(ts->client->irq);
-		}
-#else	/* case 2 mode */
-		if ((ts->desc->irq_data.state_use_accessors & IRQD_IRQ_DISABLED) == IRQ_STATUS_DISABLED)
-			enable_irq(ts->client->irq);
-#endif
-	}
-
-	return;
-}
-#else
-static void sis_ts_work_func(struct work_struct *work)
-{
-	struct sis_ts_data *ts = container_of(work, struct sis_ts_data, work);
-	int ret = -1;
 	int point_unit;
-	uint8_t buf[PACKET_BUFFER_SIZE] = {0};
-	uint8_t i = 0, fingers = 0;
-	uint8_t px = 0, py = 0, pstatus = 0;
-#ifdef _ANDROID_4
 	bool all_touch_up = true;
-#endif
 
 	/* I2C or SMBUS block data read */
 	ret = sis_readpacket(ts->client, SIS_CMD_NORMAL, buf);
@@ -575,18 +330,13 @@ static void sis_ts_work_func(struct work_struct *work)
 		i = 0;
 		TPInfo->pt[i].bPressure = 0;
 		TPInfo->pt[i].bWidth = 0;
-#ifdef _ANDROID_4
 		input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, TPInfo->pt[i].bWidth);
 		input_report_abs(ts->input_dev, ABS_MT_PRESSURE, TPInfo->pt[i].bPressure);
-#else
-		input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, TPInfo->pt[i].bWidth);
-		input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, TPInfo->pt[i].bPressure);
-#endif
 		input_report_abs(ts->input_dev, ABS_MT_POSITION_X, TPInfo->pt[i].x);
 		input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, TPInfo->pt[i].y);
 		input_report_abs(ts->input_dev, ABS_MT_TRACKING_ID, TPInfo->pt[i].id);
-		/*printk(KERN_DEBUG "ID = %d, pressure = %d, width = %d",
-			TPInfo->pt[i].id, TPInfo->pt[i].bPressure, TPInfo->pt[i].bWidth);*/
+		printk(KERN_DEBUG "ID = %d, pressure = %d, width = %d",
+			TPInfo->pt[i].id, TPInfo->pt[i].bPressure, TPInfo->pt[i].bWidth);
 		input_mt_sync(ts->input_dev);
 		input_sync(ts->input_dev);
 		goto err_free_allocate;
@@ -597,12 +347,11 @@ static void sis_ts_work_func(struct work_struct *work)
 	/* Parser and Get the sis9200 data */
 	point_unit = sis_cul_unit(buf[L_REPORT_ID]);
 	fingers = ret;
-
 #ifdef SIS_I2C_DEBUG
 	if (buf[L_REPORT_ID] == 0x4) {
-		fingers = 0;
-		button_key = ((buf[BUTTON_STATE] & 0xff) | ((buf[BUTTON_STATE + 1] & 0xff) << 8));
-		ts_report_key(ts->client, button_key);
+			fingers = 0;
+			button_key = ((buf[BUTTON_STATE] & 0xff) | ((buf[BUTTON_STATE + 1] & 0xff) << 8));
+			ts_report_key(ts->client, button_key);
 	} else {
 		if (TPInfo->pre_keybit_state)
 			ts_report_key(ts->client, 0x0);	/* clear for polling */
@@ -649,27 +398,25 @@ static void sis_ts_work_func(struct work_struct *work)
 		} else
 			goto err_free_allocate;
 
+		TPInfo->pt[i].bWidth = (buf[pstatus + 6]);
 		TPInfo->pt[i].id = (buf[pstatus + 1]);
 		TPInfo->pt[i].x = ((buf[px] & 0xff) | ((buf[px + 1] & 0xff) << 8));
 		TPInfo->pt[i].y = ((buf[py] & 0xff) | ((buf[py + 1] & 0xff) << 8));
+		printk(KERN_DEBUG "%s ** TSM debug (x,y)=(%d,%d)\n", __func__,
+			TPInfo->pt[i].x, TPInfo->pt[i].y);
 	}
 
 #ifdef SIS_I2C_DEBUG
 	for (i = 0; i < TPInfo->fingers; i++) {
 		ts->area_tmp[i][1] = TPInfo->pt[i].bWidth;
 		ts->pressure_tmp[i][1] = TPInfo->pt[i].bPressure;
-
 		/* process the touch area and pressure sticky */
 		sis_sticky(&TPInfo->pt[i].bWidth, AREA_LENGTH_LONGER, ts->area_tmp[i], 2);
 		sis_sticky(&TPInfo->pt[i].bPressure, PRESSURE_MAX, ts->pressure_tmp[i], 10);
 	}
-
-	for (i = 0; i < TPInfo->fingers; i++)
-		printk(KERN_DEBUG "x[%d] = %d, y[%d] = %d, pstatus=%d, area = %d, pressure = %d\n",
-			i, TPInfo->pt[i].x, i, TPInfo->pt[i].y, buf[pstatus], TPInfo->pt[i].bWidth, TPInfo->pt[i].bPressure);
 #endif
 
-#ifdef _ANDROID_4
+	/* Report co-ordinates to the multi-touch stack */
 	for (i = 0; i < TPInfo->fingers; i++) {
 		if (TPInfo->pt[i].bPressure) {
 			input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, TPInfo->pt[i].bWidth);
@@ -687,18 +434,6 @@ static void sis_ts_work_func(struct work_struct *work)
 
 	if (TPInfo->fingers == 0)
 		input_mt_sync(ts->input_dev);
-#else
-	i = 0;
-	do {
-		input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, TPInfo->pt[i].bPressure);
-		input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, TPInfo->pt[i].bWidth);
-		input_report_abs(ts->input_dev, ABS_MT_POSITION_X, TPInfo->pt[i].x);
-		input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, TPInfo->pt[i].y);
-		input_report_abs(ts->input_dev, ABS_MT_TRACKING_ID, TPInfo->pt[i].id);
-		input_mt_sync(ts->input_dev);
-		i++;
-	} while (i < TPInfo->fingers);
-#endif
 	input_sync(ts->input_dev);
 err_free_allocate:
 	if (ts->use_irq) {
@@ -707,12 +442,13 @@ err_free_allocate:
 		 * TODO: After interrupt status low, read i2c bus data by polling, until interrupt status is high
 		 * interrupt pin is still LOW, read data until interrupt pin is released.
 		 */
-		ret = check_gpio_interrupt();
+		ret = gpio_get_value(GPIO_IRQ);		/* check gpio interrupt */
 		if (!ret)
 			hrtimer_start(&ts->timer, ktime_set(0, TIMER_NS), HRTIMER_MODE_REL);
 		else {
 			if (TPInfo->pre_keybit_state)
 				ts_report_key(ts->client, 0x0);	/* clear for interrupt */
+
 			if ((ts->desc->irq_data.state_use_accessors & IRQD_IRQ_DISABLED) == IRQ_STATUS_DISABLED)
 				enable_irq(ts->client->irq);
 		}
@@ -724,7 +460,6 @@ err_free_allocate:
 
 	return;
 }
-#endif
 
 static void sis_tpinfo_clear(struct sisTP_driver_data *TPInfo, int max)
 {
@@ -761,33 +496,6 @@ static irqreturn_t sis_ts_irq_handler(int irq, void *dev_id)
 
 	queue_work(sis_wq, &ts->work);
 	return IRQ_HANDLED;
-}
-
-static int initial_irq(void)
-{
-	int ret = 0;
-
-#ifdef _I2C_INT_ENABLE
-	/*
-	 * initialize gpio and interrupt pins
-	 * TODO
-	 */
-	/*ret = gpio_request(GPIO_IRQ, "GPIO_133");*/
-	if (ret < 0) {
-		/* Set Active Low.
-		 * Please reference the file include/linux/interrupt.h
-		 */
-		printk(KERN_ERR "sis_ts_probe: Failed to gpio_request\n");
-		printk(KERN_ERR "sis_ts_probe: Fail : gpio_request was called before this driver call\n");
-	}
-	/*
-	 * setting gpio direction here OR boardinfo file
-	 * TODO
-	 */
-#else
-	ret = -1;
-#endif
-	return ret;
 }
 
 #if defined(CONFIG_FW_SUPPORT_POWERMODE) || defined(_CHECK_CRC)
@@ -1157,6 +865,9 @@ static int sis_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	ts_bak = ts;
 
 	/* 1. Init Work queue and necessary buffers */
+	sis_wq = create_singlethread_workqueue("sis_wq");
+	if (!sis_wq)
+		return -ENOMEM;
 	INIT_WORK(&ts->work, sis_ts_work_func);
 	ts->client = client;
 	i2c_set_clientdata(client, ts);
@@ -1192,17 +903,10 @@ static int sis_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	set_bit(ABS_MT_POSITION_Y, ts->input_dev->absbit);
 	set_bit(ABS_MT_TRACKING_ID, ts->input_dev->absbit);
 
-#ifdef _ANDROID_4
 	set_bit(ABS_MT_PRESSURE, ts->input_dev->absbit);
 	set_bit(ABS_MT_TOUCH_MAJOR, ts->input_dev->absbit);
 	input_set_abs_params(ts->input_dev, ABS_MT_PRESSURE, 0, PRESSURE_MAX, 0, 0);
 	input_set_abs_params(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0, AREA_LENGTH_LONGER, 0, 0);
-#else
-	set_bit(ABS_MT_TOUCH_MAJOR, ts->input_dev->absbit);
-	set_bit(ABS_MT_WIDTH_MAJOR, ts->input_dev->absbit);
-	input_set_abs_params(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0, PRESSURE_MAX, 0, 0);
-	input_set_abs_params(ts->input_dev, ABS_MT_WIDTH_MAJOR, 0, AREA_LENGTH_LONGER, 0, 0);
-#endif
 
 	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_X, 0, SIS_MAX_X, 0, 0);
 	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_Y, 0, SIS_MAX_Y, 0, 0);
@@ -1222,10 +926,11 @@ static int sis_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	}
 
 	/* 4. irq or timer setup */
-	ret = initial_irq();
-	if (ret < 0) {
-		/* TODO */
-	} else {
+#ifdef _I2C_INT_ENABLE
+	ret = gpio_request(GPIO_IRQ, "GPIO_101");
+	if (ret < 0)
+		printk(KERN_ERR "sis_ts_probe: Failed to gpio_request\n");
+	else {
 		client->irq = gpio_to_irq(GPIO_IRQ);
 		ret = request_irq(client->irq, sis_ts_irq_handler, IRQF_TRIGGER_FALLING, client->name, ts);
 		if (ret == 0)
@@ -1233,6 +938,7 @@ static int sis_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 		else
 			dev_err(&client->dev, "request_irq failed\n");
 	}
+#endif
 
 	ts->desc = irq_to_desc(ts_bak->client->irq);
 
@@ -1280,6 +986,9 @@ static int sis_ts_remove(struct i2c_client *client)
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	unregister_early_suspend(&ts->early_suspend);
 #endif
+	if (sis_wq)
+		destroy_workqueue(sis_wq);
+
 	if (ts->use_irq)
 		free_irq(client->irq, ts);
 	else
@@ -1293,9 +1002,6 @@ static int sis_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 {
 	int ret = 0;
 	struct sis_ts_data *ts = i2c_get_clientdata(client);
-#ifdef _SMBUS_INTERFACE
-	uint8_t tmpbuf[MAX_BYTE] = {0};
-#endif
 
 #ifdef CONFIG_FW_SUPPORT_POWERMODE
 	int retry = 5;
@@ -1323,11 +1029,6 @@ static int sis_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 	}
 
 #ifdef CONFIG_FW_SUPPORT_POWERMODE
-#ifdef _SMBUS_INTERFACE
-	/* command, bytecount, power mode, CRC, CRC */
-	uint8_t cmd[5] = {SIS_CMD_POWERMODE, 0x03, WRITE_DEEPSLEEP_MODE, 0, 0};
-	write_crc(cmd, 2, 2);
-#else
 	sis_check_fw_mode(client, WRITE_DEEPSLEEP_MODE);	/* Change to Deepsleep Mode */
 	while (retry > 0 && status != DEEPSLEEP_MODE) {
 		/*msleep(50);*/
@@ -1343,7 +1044,6 @@ static int sis_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 			retry--;
 		}
 	}
-#endif
 #endif
 
 #ifdef SIS_I2C_DEBUG
@@ -1370,11 +1070,6 @@ static int sis_ts_resume(struct i2c_client *client)
 {
 	int ret = 0;
 	struct sis_ts_data *ts = i2c_get_clientdata(client);
-#ifdef _SMBUS_INTERFACE
-	uint8_t tmpbuf[MAX_BYTE] = {0};
-	uint8_t cmd[5] = {0};
-	uint16_t crc = 0;
-#endif
 
 #ifdef CONFIG_FW_SUPPORT_POWERMODE
 	int retry = 5;
@@ -1408,12 +1103,6 @@ static int sis_ts_resume(struct i2c_client *client)
 #ifdef CONFIG_FW_SUPPORT_POWERMODE
 	status = sis_check_fw_mode(client, READ_POWERMODE) & MSK_POWERMODE;
 	if (status != ACTIVE_MODE) {
-#ifdef _SMBUS_INTERFACE
-		/* command, bytecount, power mode, CRC, CRC */
-		uint8_t cmd[5] = {SIS_CMD_POWERMODE, 0x03, WRITE_ACTIVE_MODE, 0, 0}
-		write_crc(cmd, 2, 2);
-		ret = i2c_smbus_read_block_data(client, cmd, tmpbuf);
-#else
 		sis_check_fw_mode(client, WRITE_ACTIVE_MODE);	/* Change to Active Mode */
 
 		while (retry > 0 && status != ACTIVE_MODE) {
@@ -1430,7 +1119,6 @@ static int sis_ts_resume(struct i2c_client *client)
 				retry--;
 			}
 		}
-#endif
 		sis_fw_softreset(client);
 	} else
 		printk(KERN_ERR "sis_ts_resume: Active mode\n");
@@ -1487,11 +1175,6 @@ static struct i2c_driver sis_ts_driver = {
 
 static int __devinit sis_ts_init(void)
 {
-	sis_wq = create_singlethread_workqueue("sis_wq");
-
-	if (!sis_wq)
-		return -ENOMEM;
-
 	return i2c_add_driver(&sis_ts_driver);
 }
 
@@ -1502,8 +1185,6 @@ static void __exit sis_ts_exit(void)
 #endif
 
 	i2c_del_driver(&sis_ts_driver);
-	if (sis_wq)
-		destroy_workqueue(sis_wq);
 
 #ifdef _STD_RW_IO
 	dev = MKDEV(sis_char_major, 0);
