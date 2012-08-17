@@ -1407,8 +1407,11 @@ static irqreturn_t converter_handle_irq(int irq, void *dev_id)
 			atomic_set(&conv->w_intr, 1);
 			wake_up(&g_vsync_wq);
 		}
-		converter_mask_eof(conv);
 
+		if (OUTPUT_PANEL == conv->output && pxa95xfbi[0]->vsync_u_en)
+			schedule_work(&pxa95xfbi[0]->uevent_work);
+		else
+			converter_mask_eof(conv);
 		/*printk(KERN_ALERT "%s: DSI Converter eof observed!\n", __func__);*/
 	}
 	if (CONVERTER_IS_DSI(conv->converter)){
@@ -1922,12 +1925,37 @@ static void set_dither(struct pxa95xfb_info *fbi, int table_4x8, int enable, int
 	}
 }
 
+static void vsync_uevent_worker(struct work_struct *work)
+{
+	struct pxa95xfb_info *fbi = container_of((struct work_struct *)work,
+			struct pxa95xfb_info, uevent_work);
+	char str[64];
+	char *vsync_str[] = {str, NULL};
+	struct timespec vsync_time;
+	struct platform_device *pdev;
+	uint64_t nanoseconds;
+
+	if (!fbi) {
+		printk(KERN_ERR "failed to get fbi when report vsync uevent!!!\n");
+		return;
+	}
+
+	pdev = to_platform_device(fbi->dev);
+	ktime_get_ts(&vsync_time);
+
+	nanoseconds = ((uint64_t)vsync_time.tv_sec)*1000*1000*1000 + ((uint64_t)vsync_time.tv_nsec);
+	snprintf(str, 64, "DISP_VSYNC=%lld", (uint64_t)nanoseconds);
+	printk(KERN_DEBUG "%s\n", str);
+	kobject_uevent_env(&pdev->dev.kobj, KOBJ_CHANGE, vsync_str);
+}
+
 static ssize_t vsync_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
 	struct pxa95xfb_info *fbi = dev_get_drvdata(dev);
 
-	return sprintf(buf, "fbi %d wait vsync: %d\n", fbi->id, fbi->vsync_en);
+	return sprintf(buf, "fbi%d: wait vsync uevent %d\n",
+		fbi->id, fbi->vsync_u_en);
 }
 
 static ssize_t vsync_store(
@@ -1935,9 +1963,20 @@ static ssize_t vsync_store(
 		const char *buf, size_t size)
 {
 	struct pxa95xfb_info *fbi = dev_get_drvdata(dev);
+	int conv = pxa95xfbi[0]->converter;
+	int vsync;
+	sscanf(buf, "%d", &vsync);
+	if (vsync == pxa95xfbi[0]->vsync_u_en) {
+		printk(KERN_INFO "vsync is already %s\n", vsync?"on":"off");
+		return size;
+	}
 
-	sscanf(buf, "%d", &fbi->vsync_en);
+	/* only need to unmask, no need to mask when disable, as in irq it will mask when irq_pending=0*/
+	pxa95xfbi[0]->vsync_u_en = vsync;
+	if (vsync)
+		converter_unmask_eof(&pxa95xfb_conv[conv - 1]);
 
+	printk(KERN_INFO "fb%d vsync %s\n", fbi->id, fbi->vsync_u_en?"on":"off");
 	return size;
 }
 
@@ -2729,7 +2768,7 @@ static int __devinit pxa95xfb_gfx_probe(struct platform_device *pdev)
 		printk(KERN_INFO "%s, device attr create fail: %d\n", __func__, ret);
 		goto failed_free_cmap;
 	}
-
+	INIT_WORK(&fbi->uevent_work, vsync_uevent_worker);
 	mvdisp_debug_init(&pdev->dev);
 
 #ifdef CONFIG_EARLYSUSPEND

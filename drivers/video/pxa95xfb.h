@@ -808,7 +808,9 @@ struct pxa95xfb_info {
 	unsigned                enabled:1;
 	unsigned                edid_en:1;
 
-	int				vsync_en;
+	int	vsync_en;
+	int vsync_u_en;
+	struct work_struct uevent_work;
 	void (*eof_handler)(void *fbi);
 
 	int			window; /*each fb has one window*/
