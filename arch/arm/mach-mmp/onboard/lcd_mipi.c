@@ -568,11 +568,15 @@ static void lvds_hook(struct pxa168fb_mach_info *mi)
 	mi->modes->refresh = 60;
 
 	if (machine_is_yellowstone()) {
+#ifdef CONFIG_MACH_YELLOWSTONE
 		mi->phy_info = (void *)&lvdsinfo;
 		mi->pxa168fb_lcd_power = yellowstone_lvds_power;
+#endif
 	} else if (machine_is_abilene()) {
+#ifdef CONFIG_MACH_ABILENE
 		mi->phy_info = (void *)&lvdsinfo;
 		mi->pxa168fb_lcd_power = abilene_lvds_power;
+#endif
 	} else if (machine_is_thunderstonem()) {
 #if defined(CONFIG_MACH_THUNDERSTONEM)
 		mi->pxa168fb_lcd_power = thunderstonem_lvds_power;

@@ -8,4 +8,4 @@ obj-$(CONFIG_MACH_BROWNSTONE) += lcd_mipi.o
 obj-$(CONFIG_MACH_EMEIDKB) += lcd_tpo_emei.o
 obj-$(CONFIG_MACH_EMEIDKB) += lcd_mipi.o
 obj-$(CONFIG_MACH_THUNDERSTONEM) += lcd_mipi.o
-obj-$(CONFIG_MACH_MMP3_QSEVEN) += lcd_mipi.o
+obj-$(CONFIG_MACH_QSEVEN) += lcd_mipi.o
