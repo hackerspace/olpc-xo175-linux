@@ -726,7 +726,7 @@ static int __init mmp3asoc_init(void)
 {
 	int i, ret[2];
 
-	if (!machine_is_mmp3_qseven())
+	if (!machine_is_qseven())
 		return -ENODEV;
 
 	for (i = 0; i < 2; i++) {
