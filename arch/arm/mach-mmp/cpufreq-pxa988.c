@@ -23,6 +23,7 @@
 #include <linux/types.h>
 #include <linux/sched.h>
 #include <linux/cpufreq.h>
+#include <linux/cpumask.h>
 #include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/err.h>
@@ -32,6 +33,7 @@
 #include <linux/debugfs.h>
 #include <linux/cpu.h>
 
+#include <asm/cpu.h>
 #include <asm/system.h>
 
 #include <mach/hardware.h>
@@ -44,6 +46,15 @@ static struct clk *ddr_clk;
 static DEFINE_MUTEX(pxa988_cpu_lock);
 static bool is_suspended;
 static struct cpufreq_frequency_table *freq_table;
+
+#ifdef CONFIG_SMP
+struct lpj_info {
+	unsigned long	ref;
+	unsigned int	freq;
+};
+
+static DEFINE_PER_CPU(struct lpj_info, lpj_ref);
+#endif
 
 int pxa988_verify_speed(struct cpufreq_policy *policy)
 {
@@ -65,6 +76,7 @@ static int pxa988_update_cpu_speed(unsigned long rate)
 {
 	int ret = 0;
 	struct cpufreq_freqs freqs;
+	unsigned int i;
 
 	freqs.old = pxa988_getspeed(0);
 	freqs.new = rate;
@@ -109,6 +121,27 @@ static int pxa988_update_cpu_speed(unsigned long rate)
 			freqs.new);
 		freqs.new = freqs.old;
 	}
+
+#ifdef CONFIG_SMP
+	/*
+	 * Note that loops_per_jiffy is not updated on SMP systems in
+	 * cpufreq driver. So, update the per-CPU loops_per_jiffy value
+	 * on frequency transition. We need to update all dependent CPUs.
+	 * But we don't adjust the global one as it will always
+	 * kept as the value according to the highest core freq,
+	 * and used for udelay.
+	 */
+	for_each_online_cpu(i) {
+		struct lpj_info *lpj = &per_cpu(lpj_ref, i);
+		if (!lpj->freq) {
+			lpj->ref = per_cpu(cpu_data, i).loops_per_jiffy;
+			lpj->freq = freqs.old;
+		}
+
+		per_cpu(cpu_data, i).loops_per_jiffy =
+			cpufreq_scale(lpj->ref, lpj->freq, freqs.new);
+	}
+#endif
 
 	for_each_online_cpu(freqs.cpu)
 		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
