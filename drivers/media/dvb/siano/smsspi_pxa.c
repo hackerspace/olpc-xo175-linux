@@ -543,6 +543,7 @@ static int __devinit sms_probe(struct spi_device *spi)
 		goto out_mutex;
 	}
 
+	drv_info->smschip_status |= SMSCHAR_STATUS_NEED_REPOWER;
 	mutex_unlock(&drv_info->s_mutex);
 
 	cmmb_add_dev(drv_info);
