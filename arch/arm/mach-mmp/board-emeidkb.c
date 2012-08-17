@@ -657,7 +657,7 @@ static void regulator_init_pm800(void)
 	REG_INIT(i++, PM800_ID, LDO13, 1200000, 3300000, 0, 0);
 
 	REG_SUPPLY_INIT(PM800_ID_LDO14, "vmmc", "sdhci-pxa.2");
-	REG_INIT(i++, PM800_ID, LDO14, 1200000, 3300000, 0, 1);
+	REG_INIT(i++, PM800_ID, LDO14, 1200000, 3300000, 1, 1);
 
 	REG_SUPPLY_INIT(PM800_ID_LDO15, "v_ldo15", NULL);
 	REG_INIT(i++, PM800_ID, LDO15, 1200000, 3300000, 0, 0);
@@ -1507,7 +1507,8 @@ static struct sdhci_pxa_platdata pxa988_sdh_platdata_mmc2 = {
 
 /* For emeiDKB, MMC3(SDH3) used for eMMC */
 static struct sdhci_pxa_platdata pxa988_sdh_platdata_mmc3 = {
-	.flags		= PXA_FLAG_SD_8_BIT_CAPABLE_SLOT,
+	.flags		= PXA_FLAG_CARD_PERMANENT
+				| PXA_FLAG_SD_8_BIT_CAPABLE_SLOT,
 	.clk_delay_cycles	= 0xF,
 };
 
