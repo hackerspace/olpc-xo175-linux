@@ -381,7 +381,7 @@ static int pxa988_thermal_probe(struct platform_device *pdev)
 			NULL, &cpu_thermal_ops, 1, 1, 2000, 2000);
 	if (IS_ERR(pxa988_thermal_dev.therm_cpu)) {
 		pr_err("Failed to register thermal zone device\n");
-		return;
+		return -EINVAL;
 	}
 #ifdef DEBUG_TEMPERATURE
 	sysfs_create_group(&((pxa988_thermal_dev.therm_cpu->device).kobj),
