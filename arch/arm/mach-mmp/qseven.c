@@ -287,7 +287,15 @@ static struct i2c_board_info qseven_twsi3_info[] = {
 	 .addr = 0x1a,
 	},
 };
-
+/*FIXME*/
+static struct i2c_board_info qseven_twsi2_info[] = {
+	{
+	},
+};
+static struct i2c_board_info qseven_twsi6_info[] = {
+	{
+	},
+};
 #ifdef CONFIG_REGULATOR_88PM867
 
 #define PMIC_POWER_MAX MAR88PM867_VREG_MAX
@@ -681,7 +689,8 @@ static void __init qseven_init(void)
 
 	/* on-chip devices */
 	mmp3_add_uart(3);
-
+	mmp3_add_twsi(2, NULL, ARRAY_AND_SIZE(qseven_twsi2_info));
+	mmp3_add_twsi(6, NULL, ARRAY_AND_SIZE(qseven_twsi6_info));
 #ifdef CONFIG_REGULATOR_88PM867
 	qseven_power_supply_init();
 	mmp3_add_twsi(1, NULL, ARRAY_AND_SIZE(qseven_twsi1_mar88pm867_info));
