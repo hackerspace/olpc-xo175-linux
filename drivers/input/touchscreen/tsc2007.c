@@ -304,9 +304,9 @@ static int __devinit tsc2007_probe(struct i2c_client *client,
 		 "%s/input0", dev_name(&client->dev));
 
 	input_dev->name = "TSC2007 Touchscreen";
-	input_dev->phys = ts->phys;
-	input_dev->id.bustype = BUS_I2C;
-
+	input_dev->phys = "tsc2007/input0";
+	/*input_dev->id.bustype = BUS_I2C;*/
+	input_dev->dev.parent = &client->dev;
 	input_dev->evbit[0] = BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS);
 	input_dev->keybit[BIT_WORD(BTN_TOUCH)] = BIT_MASK(BTN_TOUCH);
 
@@ -318,7 +318,7 @@ static int __devinit tsc2007_probe(struct i2c_client *client,
 	if (pdata->init_platform_hw)
 		pdata->init_platform_hw();
 
-	err = request_irq(ts->irq, tsc2007_irq, 0,
+	err = request_irq(ts->irq, tsc2007_irq, IRQF_TRIGGER_FALLING,
 			client->dev.driver->name, ts);
 	if (err < 0) {
 		dev_err(&client->dev, "irq %d busy?\n", ts->irq);
