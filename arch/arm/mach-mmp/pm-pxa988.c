@@ -96,11 +96,11 @@ int pxa988_set_wake(struct irq_data *data, unsigned int on)
 		break;
 	/* wakeup line 6 */
 	case IRQ_PXA988_MMC:
-		awucrm = PMUM_WAKEUP6 | PMUM_SDH;
+		awucrm = PMUM_WAKEUP6 | PMUM_SDH_23 | PMUM_SQU_SDH1;
 		apcr |= PMUM_SLPWP6;
 		break;
 	case IRQ_PXA988_HIFI_DMA:
-		awucrm = PMUM_WAKEUP6 | PMUM_SQU;
+		awucrm = PMUM_WAKEUP6 | PMUM_SQU_SDH1;
 		apcr |= PMUM_SLPWP6;
 		break;
 	/* wakeup line 7 */
