@@ -17,8 +17,8 @@
 #define LPM_NUM				16
 #define HOTPLUG_MASK			(1 << LPM_NUM)
 #define MAX_CPU_NUM			0x2
-#define OFFSET_L2_SHUTDOWN		(MAX_CPU_NUM << 2)
-#define OFFSET_SPINLOCK			(OFFSET_L2_SHUTDOWN + 4)
+#define OFFSET_SCU_SHUTDOWN		(MAX_CPU_NUM << 2)
+#define OFFSET_SPINLOCK			(OFFSET_SCU_SHUTDOWN + 4)
 
 #define	LPM_C1				0
 #define	LPM_C2				1

@@ -29,7 +29,7 @@
  * The following Macros should be defined in mach/pxa988_lowpower.h
  *
  * #define LPM_NUM
- * #define OFFSET_L2_SHUTDOWN
+ * #define OFFSET_SCU_SHUTDOWN
  * #define OFFSET_SPINLOCK
  *
  * The topology of the reserved data is as following.
@@ -39,13 +39,15 @@
  * Note: We can support more than 2 cores here.
  * 	 current we define MAX_CPU_NUM as 2.
  *
- * +---------------------------------------------------------------------+
- * | ... | hotplug | l2_shutdow | LPM[MAX_NUM_LPM - 1] | LPM[1] | LPM[0] |
- * +---------------------------------------------------------------------+
- * | ... | hotplug | l2_shutdow | LPM[MAX_NUM_LPM - 1] | LPM[1] | LPM[0] |
- * +---------------------------------------------------------------------+
- * |     spin_lock                                                       |
- * +---------------------------------------------------------------------+
+ * +--------------------------------------------------------+
+ * | ... | hotplug | LPM[MAX_NUM_LPM - 1] | LPM[1] | LPM[0] |
+ * +--------------------------------------------------------+
+ * | ... | hotplug | LPM[MAX_NUM_LPM - 1] | LPM[1] | LPM[0] |
+ * +--------------------------------------------------------+
+ * |     scu power down flag                                |
+ * +--------------------------------------------------------+
+ * |     spin_lock                                          |
+ * +--------------------------------------------------------+
  */
 
 #define SCU_CTRL		(SCU_PHYS_BASE + 0x00)
@@ -98,14 +100,21 @@ ENTRY(pxa988_cpu_resume_handler)
 	ldr	r2, =SCU_CTRL
 	ldr	r3, [r2]
 	tst	r3, #1
-	/* enable SCU */
-	orreq	r3, r3, #1
-	streq	r3, [r2]
-	/* Invalidate both CPUs' SCU tag RAMs */
-	moveq	r4, #0xff
-	ldreq	r5, =SCU_INVALIDATE
-	streq	r4, [r5]
+	bne	set_scu_mode
 
+	/* enable SCU */
+	orr	r3, r3, #1
+	str	r3, [r2]
+	/* Invalidate both CPUs' SCU tag RAMs */
+	mov	r4, #0xff
+	ldr	r5, =SCU_INVALIDATE
+	str	r4, [r5]
+
+	/* set SCU_SHUTDOWN flag */
+	mov	r4, #0x1
+	str	r4, [r1, #OFFSET_SCU_SHUTDOWN]
+
+set_scu_mode:
 	/* scu_power_mode(scu_base_addr, SCU_PM_NORMAL) */
 	ldr     r2, =SCU_CPU_POWER_STATUS
 	ldrb    r3, [r2, r0]

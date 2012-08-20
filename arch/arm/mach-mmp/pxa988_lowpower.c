@@ -626,7 +626,7 @@ static int __init pxa988_lowpower_init(void)
 	memset(coherent_buf, 0x0, PAGE_SIZE);
 
 	enter_lpm_p = (u32 *)coherent_buf;
-	lpm_lock_p = (spinlock_t *)(&enter_lpm_p[num_cpus]);
+	lpm_lock_p = (spinlock_t *)(&coherent_buf[OFFSET_SPINLOCK]);
 	spin_lock_init(lpm_lock_p);
 
 	/*
