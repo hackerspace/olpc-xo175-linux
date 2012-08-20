@@ -111,7 +111,7 @@ static const enum acipc_events acipc_priority_table_dkb[ACIPC_NUMBER_OF_EVENTS] 
 };
 #endif
 
-#if defined(CONFIG_CPU_PXA910) || defined(CONFIG_CPU_PXA988)
+#if defined(CONFIG_CPU_PXA910)
 static const enum acipc_events
 acipc_priority_table_dkb[ACIPC_NUMBER_OF_EVENTS] = {
 	ACIPC_RINGBUF_TX_STOP,
@@ -121,6 +121,20 @@ acipc_priority_table_dkb[ACIPC_NUMBER_OF_EVENTS] = {
 	ACIPC_SPARE,
 	ACIPC_SPARE,
 	ACIPC_SPARE,
+	ACIPC_SPARE,
+	ACIPC_SHM_PACKET_NOTIFY,
+	ACIPC_IPM
+};
+#elif defined(CONFIG_CPU_PXA988)
+static const enum acipc_events
+acipc_priority_table_dkb[ACIPC_NUMBER_OF_EVENTS] = {
+	ACIPC_RINGBUF_TX_STOP,
+	ACIPC_RINGBUF_TX_RESUME,
+	ACIPC_PORT_FLOWCONTROL,
+	ACIPC_SPARE,
+	ACIPC_RINGBUF_PSD_TX_STOP,
+	ACIPC_RINGBUF_PSD_TX_RESUME,
+	ACIPC_SHM_PSD_PACKET_NOTIFY,
 	ACIPC_SPARE,
 	ACIPC_SHM_PACKET_NOTIFY,
 	ACIPC_IPM
