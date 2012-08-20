@@ -315,6 +315,8 @@ static int ft5306_touch_open(struct input_dev *idev)
 {
 	if (touch->data->power)
 		touch->data->power(1);
+	if (touch->data->reset)
+		touch->data->reset();
 	return 0;
 }
 
@@ -398,7 +400,7 @@ ft5306_touch_probe(struct i2c_client *client,
 	if (ret < 0) {
 		dev_dbg(&client->dev, "ft5306 detect fail!\n");
 		touch->i2c = NULL;
-		return -ENXIO;
+		goto out_pwr;
 	} else {
 		dev_dbg(&client->dev, "ft5306 detect ok.\n");
 	}
@@ -498,6 +500,9 @@ ft5306_touch_probe(struct i2c_client *client,
 	if (ret)
 		goto out_irg;
 
+	/* power off because usrland will open it if they use it later */
+	if (touch->data->power)
+		touch->data->power(0);
 	return 0;
 
 out_irg:
@@ -507,6 +512,9 @@ out_vrg:
 		input_free_device(touch->virtual_key);
 out_rg:
 	input_free_device(touch->idev);
+out_pwr:
+	if (touch->data->power)
+		touch->data->power(0);
 out:
 	kfree(touch);
 	return ret;
