@@ -468,7 +468,7 @@ int pxa988_enter_lowpower(u32 cpu, u32 power_mode)
 	int mp_shutdown = 1;
 	int mp_restore = 1;
 	/* The default power_mode should be C2 */
-	int lpm_index = 1;
+	int lpm_index = PXA988_LPM_C2;
 
 #endif
 
@@ -572,9 +572,10 @@ int pxa988_enter_lowpower(u32 cpu, u32 power_mode)
 void pxa988_hotplug_enter(u32 cpu, u32 power_mode)
 {
 	u32 mp_idle_cfg;
+	int i, mp_shutdown;
+	int cpus_enter_lpm = 0xffffffff;
 
-	pxa988_pre_enter_lpm(cpu,
-			pxa988_lpm_data[PXA988_LPM_C2].power_state);
+	pxa988_pre_enter_lpm(cpu, PXA988_LPM_C2);
 
 	/*
 	 * For CPU hotplug, we don't need cpu_suspend help functions
@@ -590,7 +591,18 @@ void pxa988_hotplug_enter(u32 cpu, u32 power_mode)
 	mp_idle_cfg |= PMUA_MP_SCU_SRAM_POWER_DOWN;
 	__raw_writel(mp_idle_cfg, APMU_MP_IDLE_CFG[cpu]);
 
+	arch_spin_lock(&(&lpm_lock_p->rlock)->raw_lock);
 	enter_lpm_p[cpu] |= (1 << (power_mode + 1)) - 1;
+	for (i = 0; i < num_cpus; i++)
+		cpus_enter_lpm &= enter_lpm_p[i];
+	mp_shutdown = test_bit(PXA988_LPM_C2, (void *)&cpus_enter_lpm);
+	if (mp_shutdown) {
+#ifdef CONFIG_CACHE_L2X0
+		pl310_suspend();
+#endif
+		cpu_cluster_pm_enter();
+	}
+	arch_spin_unlock(&(&lpm_lock_p->rlock)->raw_lock);
 
 	pxa988_finish_suspend(CPU_SUSPEND_FROM_HOTPLUG);
 }
