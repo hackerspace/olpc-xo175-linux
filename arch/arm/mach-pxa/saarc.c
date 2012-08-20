@@ -282,6 +282,26 @@ static void headsetflag_init_pm800(void)
 	}
 }
 
+static void headset_set_thresholds_pm800(void)
+{
+	switch (get_board_id()) {
+	case OBM_SAAR_C3V5_NEVO_D0_V10_BOARD:
+		pm80x_headset.hook_press_th = 60;
+		pm80x_headset.vol_up_press_th = 180;
+		pm80x_headset.vol_down_press_th = 400;
+		pm80x_headset.mic_det_th = 500;
+		pm80x_headset.press_release_th = 500;
+		break;
+	default:
+		pm80x_headset.hook_press_th = 20;
+		pm80x_headset.vol_up_press_th = 60;
+		pm80x_headset.vol_down_press_th = 110;
+		pm80x_headset.mic_det_th = 300;
+		pm80x_headset.press_release_th = 300;
+		break;
+	}
+}
+
 static void regulator_init_pm800(void)
 {
 	int i = 0;
@@ -2964,6 +2984,7 @@ static void __init init(void)
 
 		register_reboot_notifier(&reboot_notifier);
 		headsetflag_init_pm800();
+		headset_set_thresholds_pm800();
 	}
 #ifdef CONFIG_BATTERY_MAX17043
 	if (get_board_id() >= OBM_DKB_2_1_NEVO_C0_BOARD)
