@@ -21,6 +21,7 @@
 #include <asm/cacheflush.h>
 #include <asm/io.h>
 #include <asm/smp_scu.h>
+#include <asm/hardware/gic.h>
 #include <asm/hardware/cache-l2x0.h>
 #include <mach/pxa988_lowpower.h>
 #include <mach/regs-apmu.h>
@@ -146,6 +147,8 @@ static inline void enable_l1_dcache(void)
 
 static int pxa988_finish_suspend(unsigned long param)
 {
+	u32 icdispr;
+
 	 /* clean & invalidate dcache cache, it contains dsb & isb */
 	flush_cache_all();
 
@@ -178,8 +181,19 @@ static int pxa988_finish_suspend(unsigned long param)
 		pl310_disable();
 #endif
 
+	/*
+	 * FIXME: There is risk that Dragon will enter M2 even there is an
+	 * interrupt pending. SW need to check it before issue wfi,
+	 * if yes, just jump out.
+	 * It will be fixed in Z3 and further, we won't need it then.
+	 */
+	icdispr = readl_relaxed(GIC_DIST_VIRT_BASE + GIC_DIST_PENDING_SET);
+	if (icdispr)
+		goto back;
+
 	cpu_do_idle();
 
+back:
 	/*
 	 * Ensure the CPU power state is set to NORMAL in
 	 * SCU power state so that CPU is back in coherency.
@@ -190,11 +204,6 @@ static int pxa988_finish_suspend(unsigned long param)
 	core_enter_coherency();
 	enable_l1_dcache();
 
-	/*
-	 * CPU is here when it fails to enter C2 core power down.
-	 * Here we simply throw a panic since suppose it shouldn't happen.
-	 */
-	panic("Core didn't get powered down! Should never reach here.\n");
 	return 0;
 }
 
