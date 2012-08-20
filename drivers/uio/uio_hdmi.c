@@ -578,6 +578,9 @@ static int hdmi_probe(struct platform_device *pdev)
 			PM_QOS_DEFAULT_VALUE);
 	pm_qos_add_request(&hi->qos_idle, PM_QOS_CPU_DMA_LATENCY,
 			PM_QOS_DEFAULT_VALUE);
+#endif
+
+#if defined(CONFIG_CPU_MMP3)
 	pm_qos_add_request(&hi->qos_ddrfreq_min, PM_QOS_DDR_DEVFREQ_MIN,
 			PM_QOS_DEFAULT_VALUE);
 #endif
