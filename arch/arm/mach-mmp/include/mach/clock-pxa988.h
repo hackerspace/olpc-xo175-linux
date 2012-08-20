@@ -4,6 +4,7 @@
 #include <linux/clk.h>
 #include <plat/clock.h>
 #include <linux/time.h>
+#include <asm/cputime.h>
 
 extern void pxa988_init_one_clock(struct clk *c);
 
@@ -24,6 +25,9 @@ struct op_dcstat_info {
 	struct timespec prev_ts;
 	long idle_time;		/* ms */
 	long busy_time;		/* ms */
+	/* used for core stat */
+	cputime64_t prev_cpu_idle;
+	cputime64_t prev_cpu_wall;
 };
 
 struct clk_dc_stat_info {

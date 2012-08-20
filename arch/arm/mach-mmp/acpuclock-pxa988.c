@@ -23,6 +23,10 @@
 #include <linux/cpufreq.h>
 #include <linux/cpumask.h>
 #include <linux/pm_qos_params.h>
+#include <linux/uaccess.h>
+#include <linux/hrtimer.h>
+#include <linux/kernel_stat.h>
+#include <linux/tick.h>
 #include <asm/io.h>
 #include <mach/cputype.h>
 #include <mach/regs-mpmu.h>
@@ -33,6 +37,7 @@
 #include <mach/pxa988_lowpower.h>
 #include <mach/pxa988_ddr.h>
 #include <plat/debugfs.h>
+
 
 /* core,ddr,axi clk src sel set register desciption */
 union pmum_fccr {
@@ -151,7 +156,7 @@ union pmua_dm_cc2 {
 #define UNDEF_OP		-1
 #define MHZ			(1000 * 1000)
 #define MHZ_TO_KHZ		(1000)
-
+#define MAX_OP_NUM		8
 
 /*
  * AP clock source:
@@ -277,6 +282,11 @@ static bool cp_reset_block_ddr_fc;
 static void get_cur_cpu_op(struct pxa988_cpu_opt *cop);
 static void get_cur_ddr_axi_op(struct pxa988_ddr_axi_opt *cop);
 
+#ifdef CONFIG_DEBUG_FS
+static DEFINE_PER_CPU(struct clk_dc_stat_info, cpu_dc_stat);
+static void pxa988_cpu_dcstat_event(unsigned int cpu,
+	enum clk_stat_msg msg, unsigned int tgtop);
+#endif
 
 /*
  * PHY setting need to be tuned on real silicon by SV/DE.
@@ -1342,7 +1352,10 @@ static void pxa988_cpu_init(struct clk *clk)
 	unsigned int op_index;
 	struct pxa988_cpu_opt cur_op;
 	struct pxa988_cpu_opt *op_array;
-
+#ifdef CONFIG_DEBUG_FS
+	struct clk_dc_stat_info *cpu_dcstat;
+	unsigned int opt_size, i, cpu;
+#endif
 	BUG_ON(!cur_platform_opt);
 
 	__init_cpu_opt();
@@ -1365,6 +1378,28 @@ static void pxa988_cpu_init(struct clk *clk)
 	loops_per_jiffy = 9707520;
 
 	pr_info(" CPU boot up @%lu\n", clk->rate);
+
+#ifdef CONFIG_DEBUG_FS
+	opt_size = cur_platform_opt->cpu_opt_size;
+	for_each_possible_cpu(cpu) {
+		cpu_dcstat = &per_cpu(cpu_dc_stat, cpu);
+		cpu_dcstat->ops_dcstat = kzalloc(opt_size * \
+			sizeof(struct op_dcstat_info), GFP_KERNEL);
+		if (!cpu_dcstat->ops_dcstat) {
+			pr_err("%s clk %s memory allocate failed!\n",
+				__func__, clk->name);
+			return;
+		}
+		for (i = 0; i < opt_size; i++) {
+			cpu_dcstat->ops_dcstat[i].ppindex = i;
+			cpu_dcstat->ops_dcstat[i].pprate =
+				op_array[i].pclk * MHZ;
+		}
+		cpu_dcstat->ops_stat_size = opt_size;
+		cpu_dcstat->stat_start = false;
+		cpu_dcstat->curopindex = op_index;
+	}
+#endif
 }
 
 static long pxa988_cpu_round_rate(struct clk *clk, unsigned long rate)
@@ -1389,7 +1424,7 @@ static long pxa988_cpu_round_rate(struct clk *clk, unsigned long rate)
 static int pxa988_cpu_setrate(struct clk *clk, unsigned long rate)
 {
 	struct pxa988_cpu_opt *md_new, *md_old;
-	unsigned int index;
+	unsigned int index, cpu;
 	int ret = 0;
 	unsigned long flags;
 	struct pxa988_cpu_opt *op_array =
@@ -1445,6 +1480,11 @@ tmpout:
 
 	clk_reparent(clk, md_new->parent);
 	/*clk_disable(md_old->parent);*/
+#ifdef CONFIG_DEBUG_FS
+	for_each_online_cpu(cpu)
+		pxa988_cpu_dcstat_event(cpu, CLK_RATE_CHANGE,
+			index);
+#endif
 out:
 	mutex_unlock(&core_freqs_mutex);
 	return ret;
@@ -1611,7 +1651,10 @@ static void pxa988_ddraxi_init(struct clk *clk)
 	struct pxa988_ddr_axi_opt *ddr_axi_opt;
 	unsigned int op_index;
 	unsigned long axi_rate;
-
+#ifdef CONFIG_DEBUG_FS
+	unsigned int op_array_size, i;
+	unsigned long op[MAX_OP_NUM];
+#endif
 	BUG_ON(!cur_platform_opt);
 	__init_ddr_axi_opt();
 
@@ -1630,6 +1673,13 @@ static void pxa988_ddraxi_init(struct clk *clk)
 
 	pr_info(" DDR boot up @%lu\n", clk->rate);
 	pr_info(" AXI boot up @%lu\n", axi_rate);
+
+#ifdef CONFIG_DEBUG_FS
+	op_array_size = cur_platform_opt->ddr_axi_opt_size;
+	for (i = 0; i < op_array_size; i++)
+		op[i] = ddr_axi_opt[i].dclk * MHZ;
+	pxa988_clk_register_dcstat(clk, op, op_array_size);
+#endif
 }
 
 static long pxa988_ddraxi_round_rate(struct clk *clk, unsigned long rate)
@@ -1682,6 +1732,9 @@ static int pxa988_ddraxi_setrate(struct clk *clk, unsigned long rate)
 
 	clk_reparent(clk, md_new->ddr_parent);
 	/* clk_disable(md_old->ddr_parent); */
+#ifdef CONFIG_DEBUG_FS
+	pxa988_clk_dcstat_event(clk, CLK_RATE_CHANGE, index);
+#endif
 out:
 	mutex_unlock(&ddr_freqs_mutex);
 	return ret;
@@ -1915,11 +1968,286 @@ const struct file_operations cp_block_ddr_fc_fops = {
 	.read = cp_block_ddr_fc_show,
 };
 
+static inline cputime64_t get_cpu_idle_time_jiffy(unsigned int cpu,
+		cputime64_t *wall)
+{
+	cputime64_t idle_time;
+	cputime64_t cur_wall_time;
+	cputime64_t busy_time;
+
+	cur_wall_time = jiffies64_to_cputime64(get_jiffies_64());
+	busy_time = cputime64_add(kstat_cpu(cpu).cpustat.user,
+			kstat_cpu(cpu).cpustat.system);
+
+	busy_time = cputime64_add(busy_time, kstat_cpu(cpu).cpustat.irq);
+	busy_time = cputime64_add(busy_time, kstat_cpu(cpu).cpustat.softirq);
+	busy_time = cputime64_add(busy_time, kstat_cpu(cpu).cpustat.steal);
+	busy_time = cputime64_add(busy_time, kstat_cpu(cpu).cpustat.nice);
+
+	idle_time = cputime64_sub(cur_wall_time, busy_time);
+	if (wall)
+		*wall = (cputime64_t)jiffies_to_usecs(cur_wall_time);
+
+	return (cputime64_t)jiffies_to_usecs(idle_time);
+}
+
+static inline cputime64_t get_cpu_idle_time(unsigned int cpu,
+		cputime64_t *wall)
+{
+	cputime64_t idle_time = get_cpu_idle_time_us(cpu, wall);
+
+	if (idle_time == -1ULL)
+		return get_cpu_idle_time_jiffy(cpu, wall);
+
+	return idle_time;
+}
+
+static void pxa988_cpu_dcstat_event(unsigned int cpu,
+	enum clk_stat_msg msg, unsigned int tgtop)
+{
+	struct clk_dc_stat_info *dc_stat_info = NULL;
+	cputime64_t cur_wall, cur_idle;
+	cputime64_t prev_wall, prev_idle;
+	u32 idle_time_ms, total_time_ms;
+	struct op_dcstat_info *cur, *tgt;
+
+	dc_stat_info = &per_cpu(cpu_dc_stat, cpu);
+	cur = &dc_stat_info->ops_dcstat[dc_stat_info->curopindex];
+	if (msg == CLK_RATE_CHANGE) {
+		BUG_ON(tgtop >= dc_stat_info->ops_stat_size);
+		dc_stat_info->curopindex = tgtop;
+	}
+	/* do nothing if no stat operation is issued */
+	if (!dc_stat_info->stat_start)
+		return ;
+
+	cur_idle = get_cpu_idle_time(cpu, &cur_wall);
+	prev_wall = cur->prev_cpu_wall;
+	prev_idle = cur->prev_cpu_idle;
+	idle_time_ms = cputime64_sub(cur_idle, prev_idle);
+	total_time_ms = cputime64_sub(cur_wall, prev_wall);
+	idle_time_ms /= 1000;
+	total_time_ms /= 1000;
+
+	switch (msg) {
+	case CLK_STAT_START:
+		cur->prev_cpu_wall = cur_wall;
+		cur->prev_cpu_idle = cur_idle;
+		break;
+	case CLK_STAT_STOP:
+		cur->busy_time += (total_time_ms - idle_time_ms);
+		cur->idle_time += idle_time_ms;
+		break;
+	case CLK_RATE_CHANGE:
+		/* rate change from old->new */
+		cur->prev_cpu_idle = cur_idle;
+		cur->prev_cpu_wall = cur_wall;
+		cur->busy_time += (total_time_ms - idle_time_ms);
+		cur->idle_time += idle_time_ms;
+		tgt = &dc_stat_info->ops_dcstat[tgtop];
+		tgt->prev_cpu_idle = cur_idle;
+		tgt->prev_cpu_wall = cur_wall;
+		break;
+	default:
+		break;
+	}
+}
+
+static ssize_t pxa988_cpu_dc_read(struct file *filp,
+	char __user *buffer, size_t count, loff_t *ppos)
+{
+	char *buf;
+	int len = 0;
+	size_t ret, size = PAGE_SIZE - 1;
+	unsigned int cpu, i, dc_int = 0, dc_fra = 0;
+	struct clk_dc_stat_info *percpu_stat = NULL;
+	unsigned int total_time, run_total, idle_total, busy_time;
+	unsigned long av_mips;
+
+	buf = (char *)__get_free_pages(GFP_NOIO, 0);
+	if (!buf)
+		return -ENOMEM;
+
+	percpu_stat = &per_cpu(cpu_dc_stat, 0);
+	if (percpu_stat->stat_start) {
+		len += snprintf(buf + len, size - len,
+			"Please stop the cpu duty cycle stats at first\n");
+		goto out;
+	}
+
+	for_each_online_cpu(cpu) {
+		percpu_stat = &per_cpu(cpu_dc_stat, cpu);
+		av_mips = run_total = idle_total = 0;
+		for (i = 0; i < percpu_stat->ops_stat_size; i++) {
+			idle_total += percpu_stat->ops_dcstat[i].idle_time;
+			run_total += percpu_stat->ops_dcstat[i].busy_time;
+			av_mips += percpu_stat->ops_dcstat[i].pprate / MHZ *\
+				percpu_stat->ops_dcstat[i].busy_time;
+		}
+		total_time = idle_total + run_total;
+		av_mips = total_time ? av_mips/total_time * MHZ : 0;
+		dc_int = total_time ? \
+			calculate_dc(run_total, total_time, &dc_fra) : 0;
+		dc_fra = total_time ? dc_fra : 0;
+		len += snprintf(buf + len, size - len,
+			"\n| CPU %u | %10s %ums| %10s %ums| %10s %2u.%2u%%|"\
+			" %10s %luHZ |\n", cpu, "idle time", idle_total,
+			"total time",  total_time,
+			"duty cycle", dc_int, dc_fra,
+			"average mips", av_mips);
+		len += snprintf(buf + len, size - len,
+			"| %3s | %12s | %15s | %15s | %15s |\n",
+			"OP#", "rate(HZ)", "run time(ms)",
+			"idle time(ms)", "rt ratio");
+		for (i = 0; i < percpu_stat->ops_stat_size; i++) {
+			if (total_time) {
+				busy_time =
+					percpu_stat->ops_dcstat[i].busy_time;
+				dc_int = calculate_dc(busy_time, total_time,
+							&dc_fra);
+			}
+			len += snprintf(buf + len, size - len,
+				"| %3u | %12lu | %15ld | %15ld | %12u.%2u%%|\n",
+				percpu_stat->ops_dcstat[i].ppindex,
+				percpu_stat->ops_dcstat[i].pprate,
+				percpu_stat->ops_dcstat[i].busy_time,
+				percpu_stat->ops_dcstat[i].idle_time,
+				dc_int, dc_fra);
+		}
+
+	}
+out:
+	if (len == size)
+		pr_warn("%s The dump buf is not large enough!\n", __func__);
+
+	ret = simple_read_from_buffer(buffer, count, ppos, buf, len);
+	free_pages((unsigned long)buf, 0);
+	return ret;
+}
+
+static ssize_t pxa988_cpu_dc_write(struct file *filp,
+		const char __user *buffer, size_t count, loff_t *ppos)
+{
+	unsigned int start, cpu, i;
+	char buf[10] = { 0 };
+	struct clk_dc_stat_info *percpu_stat = NULL;
+
+	if (copy_from_user(buf, buffer, count))
+		return -EFAULT;
+
+	sscanf(buf, "%d", &start);
+	start = !!start;
+	percpu_stat = &per_cpu(cpu_dc_stat, 0);
+	if (start == percpu_stat->stat_start) {
+		pr_err("[WARNING]CPU stat is already %s\n",
+			percpu_stat->stat_start ?\
+			"started" : "stopped");
+		return -EINVAL;
+	}
+
+	/*
+	 * hold the same lock of clk_enable, disable, set_rate ops
+	 * here to avoid the status change when start/stop and lead
+	 * to incorrect stat info
+	 */
+	clk_get_lock(&pxa988_cpu_clk);
+	if (start) {
+		/* clear old stat information */
+		for_each_online_cpu(cpu) {
+			percpu_stat = &per_cpu(cpu_dc_stat, cpu);
+			for (i = 0; i < percpu_stat->ops_stat_size; i++) {
+				percpu_stat->ops_dcstat[i].idle_time = 0;
+				percpu_stat->ops_dcstat[i].busy_time = 0;
+			}
+			percpu_stat->stat_start = true;
+			pxa988_cpu_dcstat_event(cpu, CLK_STAT_START, 0);
+		}
+	} else {
+		for_each_online_cpu(cpu) {
+			percpu_stat = &per_cpu(cpu_dc_stat, cpu);
+			pxa988_cpu_dcstat_event(cpu, CLK_STAT_STOP, 0);
+			percpu_stat->stat_start = false;
+		}
+	}
+	clk_release_lock(&pxa988_cpu_clk);
+	return count;
+}
+
+static const struct file_operations pxa988_cpu_dc_ops = {
+	.owner = THIS_MODULE,
+	.read = pxa988_cpu_dc_read,
+	.write = pxa988_cpu_dc_write,
+};
+
+static ssize_t pxa988_ddr_dc_read(struct file *filp,
+	char __user *buffer, size_t count, loff_t *ppos)
+{
+	char *p;
+	int len = 0;
+	size_t ret, size = PAGE_SIZE - 1;
+
+	p = (char *)__get_free_pages(GFP_NOIO, 0);
+	if (!p)
+		return -ENOMEM;
+
+	len = pxa988_show_dc_stat_info(&pxa988_ddr_clk, p, size);
+	if (len == size)
+		pr_warn("%s The dump buf is not large enough!\n", __func__);
+
+	ret = simple_read_from_buffer(buffer, count, ppos, p, len);
+	free_pages((unsigned long)p, 0);
+	return ret;
+}
+
+static ssize_t pxa988_ddr_dc_write(struct file *filp,
+		const char __user *buffer, size_t count, loff_t *ppos)
+{
+	unsigned int start;
+	char buf[10] = { 0 };
+	size_t ret = 0;
+
+	if (copy_from_user(buf, buffer, count))
+		return -EFAULT;
+
+	sscanf(buf, "%d", &start);
+	ret = pxa988_start_stop_dc_stat(&pxa988_ddr_clk, start);
+	if (ret < 0)
+		return ret;
+	return count;
+}
+
+static const struct file_operations pxa988_ddr_dc_ops = {
+	.owner = THIS_MODULE,
+	.read = pxa988_ddr_dc_read,
+	.write = pxa988_ddr_dc_write,
+};
+
+static int __init __init_cpu_ddr_dcstat_node(void)
+{
+	struct dentry *cpu_dc_stat, *ddr_dc_stat;
+
+	cpu_dc_stat = debugfs_create_file("cpu_dc_stat", 0666,
+		stat, NULL, &pxa988_cpu_dc_ops);
+	if (!cpu_dc_stat)
+		return -ENOENT;
+
+	ddr_dc_stat = debugfs_create_file("ddr_dc_stat", 0666,
+		stat, NULL, &pxa988_ddr_dc_ops);
+	if (!ddr_dc_stat)
+		goto err_cpu_dc_stat;
+	return 0;
+
+err_cpu_dc_stat:
+	debugfs_remove(cpu_dc_stat);
+	return -ENOENT;
+}
+
 static int __init __init_create_fc_debugfs_node(void)
 {
 	struct dentry *fc;
 	struct dentry *dp_cur_cpu_op, *dp_cur_ddraxi_op, *dp_ops;
 	struct dentry *dp_cp_block_ddr_fc;
+	int ret = 0;
 
 	fc = debugfs_create_dir("fc", pxa);
 	if (!fc)
@@ -1945,7 +2273,8 @@ static int __init __init_create_fc_debugfs_node(void)
 	if (!dp_cp_block_ddr_fc)
 		goto err_dp_cp_block_ddr_fc;
 
-	return 0;
+	ret = __init_cpu_ddr_dcstat_node();
+	return ret;
 
 err_dp_cp_block_ddr_fc:
 	debugfs_remove(dp_ops);
@@ -1961,12 +2290,11 @@ err_cur_cpu_op:
 	fc = NULL;
 	return -ENOENT;
 }
+late_initcall(__init_create_fc_debugfs_node);
 #endif
 
 static int __init pxa988_freq_init(void)
 {
-	int ret = 0;
-
 	__init_platform_opt();
 
 	__init_ddr_table();
@@ -1980,9 +2308,6 @@ static int __init pxa988_freq_init(void)
 
 	__init_cpufreq_table();
 
-#ifdef CONFIG_DEBUG_FS
-	ret = __init_create_fc_debugfs_node();
-#endif
-	return ret;
+	return 0;
 }
 postcore_initcall_sync(pxa988_freq_init);
