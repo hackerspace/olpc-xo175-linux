@@ -201,13 +201,14 @@ static int pxa988_finish_suspend(unsigned long param)
 static void pxa988_lowpower_config(u32 cpu,
 			u32 power_state, u32 lowpower_enable)
 {
-	u32 core_idle_cfg, mp_idle_cfg, apcr, mc_slp_type;
+	u32 core_idle_cfg, mp_idle_cfg, apcr, mc_slp_type, apmu_debug;
 
 	pmu_register_lock();
 	core_idle_cfg = __raw_readl(APMU_CORE_IDLE_CFG[cpu]);
 	mp_idle_cfg = __raw_readl(APMU_MP_IDLE_CFG[cpu]);
 	apcr = __raw_readl(MPMU_APCR);
 	mc_slp_type = __raw_readl(APMU_MC_HW_SLP_TYPE);
+	apmu_debug = __raw_readl(APMU_DEBUG);
 
 	if (lowpower_enable) {
 		switch (power_state) {
@@ -231,9 +232,10 @@ static void pxa988_lowpower_config(u32 cpu,
 			 * FIXME: This is for PXA988 Z0, for A0 here we only
 			 * need to vote PMUM_AXISD.
 			 * Note that on Z0 we have to modify APMU_MC_HW_SLP_TYPE
-			 * to change ddr sleep type from self-refresh to active
-			 * power down. This makes ddr accessable in AP_IDLE.
-			 * This is supposed to be fixed on A0.
+			 * to change ddr sleep type from self-refresh to 0x4, a
+			 * reserved value. This makes ddr accessable in AP_IDLE.
+			 * Also we need to set APMU_DEBUG register to make it
+			 * enter AP_IDLE. This is supposed to be fixed on A0.
 			 */
 			apcr |= PMUM_AXISD;
 			apcr |= PMUM_DDRCORSD;
@@ -256,7 +258,8 @@ static void pxa988_lowpower_config(u32 cpu,
 
 		if (power_state == POWER_MODE_APPS_IDLE) {
 			mc_slp_type &= ~0x7;
-			mc_slp_type |= 0x1;
+			mc_slp_type |= 0x4;
+			apmu_debug |= (1 << 14) | (1 << 23);
 		}
 	} else {
 		core_idle_cfg &= ~(PMUA_CORE_IDLE | PMUA_CORE_POWER_DOWN |
@@ -267,6 +270,7 @@ static void pxa988_lowpower_config(u32 cpu,
 		apcr &= ~(PMUM_DDRCORSD | PMUM_APBSD | PMUM_AXISD |
 			PMUM_VCTCXOSD | PMUM_STBYEN | PMUM_SLPEN);
 		mc_slp_type &= ~0x7;
+		apmu_debug &= ~((1 << 14) | (1 << 23));
 		/* disable the gpio edge for cpu active states */
 		mmp_gpio_edge_disable();
 	}
@@ -284,6 +288,7 @@ static void pxa988_lowpower_config(u32 cpu,
 	__raw_writel(mp_idle_cfg, APMU_MP_IDLE_CFG[cpu]);
 	__raw_writel(apcr, MPMU_APCR);
 	__raw_writel(mc_slp_type, APMU_MC_HW_SLP_TYPE);
+	__raw_writel(apmu_debug, APMU_DEBUG);
 	pmu_register_unlock();
 }
 
