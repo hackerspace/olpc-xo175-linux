@@ -105,7 +105,6 @@ static int pxa988_update_cpu_speed(unsigned long rate)
 	else
 		clk_set_rate(ddr_clk, 156000000);
 #endif
-	get_online_cpus();
 
 	for_each_online_cpu(freqs.cpu)
 		cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
@@ -145,8 +144,6 @@ static int pxa988_update_cpu_speed(unsigned long rate)
 
 	for_each_online_cpu(freqs.cpu)
 		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
-
-	put_online_cpus();
 
 	return ret;
 }
