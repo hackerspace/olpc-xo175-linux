@@ -90,6 +90,7 @@ enum ipc_client_id{
 	IPC_TEST_ID			= 0x5,
 	IPC_IPM_ID			= 0x6,
 	IPC_SOFT_RESET_ID		= 0x7,
+	IPC_FREQ_DONE_ID	= 0x8,
 	IPC_MAX_NUM,
 };
 
@@ -111,6 +112,7 @@ struct mmp_zsp_platform_device *zsp_get_devop(void);
 int zsp_mmap_datawnd(struct vm_area_struct *vma);
 int zsp_set_clock_preference(u32 opmask, struct mmp_zsp_clkcfg * pcfg);
 
+int zsp_freq_test(int dumponly);
 #ifdef __cplusplus
 }
 #endif

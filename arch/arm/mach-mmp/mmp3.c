@@ -1097,7 +1097,7 @@ static void mmp_zsp_domain_on(int spd, int src, int asclk)
 		__raw_writel(value, APMU_ISLD_DSPA_CTRL);
 		udelay(10);
 		/* enable dummy clocks for SRAMs */
-		value = readl(APMU_ISLD_DSPA_CTRL);
+		value = __raw_readl(APMU_ISLD_DSPA_CTRL);
 		value |= (0x1 << 4);
 		__raw_writel(value, APMU_ISLD_DSPA_CTRL);
 		udelay(300);
@@ -1153,41 +1153,43 @@ static void mmp_zsp_domain_on(int spd, int src, int asclk)
 	}
 	aud_pwr_status.aud_pll_cnt++;
 
+	__raw_modify(ZSP_AUD_DSA_CORE_CLK_RES, 0x0, 0x4);
+	udelay(100);
+	/* switch to audio PLL, divide 1*/
+	__raw_modify(ZSP_AUD_DSA_CORE_CLK_RES, 0x0, 0x30);
+	__raw_modify(ZSP_AUD_CORE_FREQ_CHG, 0xE, 0x0);
+	/* enable divider*/
+	__raw_modify(ZSP_AUD_DSA_CORE_CLK_RES, 0x0, 0x8);
+	/* enabled core clock and release reset*/
+	__raw_modify(ZSP_AUD_DSA_CORE_CLK_RES, 0x4, 0x0);
+	udelay(10);
+	__raw_modify(ZSP_AUD_CORE_FREQ_CHG, 0x0, 0x1);
+	udelay(10);
+	do {
+		value = readl(ZSP_AUD_CORE_FREQ_CHG);
+		udelay(10);
+	} while ((value & 0x1) != 0);
+	__raw_modify(ZSP_AUD_DSA_CORE_CLK_RES, 0x0, 0x3);
+
 	/* timer clock, src Audio PLL, div 12 */
-	__raw_modify(ZSP_TIM_13M_CLK_RES, 0x0, 0x64);
+	__raw_modify(ZSP_AUD_TIM_13M_CLK_RES, 0x0, 0x64);
 	udelay(10);
 	/* enable and release reset*/
-	__raw_modify(ZSP_TIM_13M_CLK_RES, 0x0, 0x3);
+	__raw_modify(ZSP_AUD_TIM_13M_CLK_RES, 0x0, 0x3);
 
 	/* set SSPA to fast audio PLL with M/N divider */
-	__raw_modify(ZSP_SSP_CLK_RES, 0x0, 0x30000);
-	__raw_modify(ZSP_SLIM_CLK_RES, 0xFFFFFFFF, 0x00100100);
-	__raw_modify(ZSP_SLIM_CLK_RES_2, 0x3FFFFFFF, 0xC0010002);
-	__raw_modify(ZSP_SLIM_CLK_RES, 0x0, 0xE);
+	__raw_modify(ZSP_AUD_SSP_CLK_RES, 0x0, 0x30000);
+	__raw_modify(ZSP_AUD_SLIM_CLK_RES, 0xFFFFFFFF, 0x00100100);
+	__raw_modify(ZSP_AUD_SLIM_CLK_RES_2, 0x3FFFFFFF, 0xC0010002);
+	__raw_modify(ZSP_AUD_SLIM_CLK_RES, 0x0, 0xE);
 
 	/* config ZSP core peripherals */
-	__raw_modify(ZSP_CTRL_REG, 0xFFFFFFF, 0x141B05);
+	__raw_modify(ZSP_AUD_CTRL_REG, 0xFFFFFFF, 0x141B05);
 	udelay(100);
-	__raw_modify(ZSP_CTRL_REG, 0x0, 0x18);
+	__raw_modify(ZSP_AUD_CTRL_REG, 0x0, 0x18);
 	udelay(10);
 	aud_pwr_status.zsp_cnt++;
 
-	__raw_modify(ZSP_CORE_CLK_RES, 0x3, 0x4);
-	udelay(100);
-	/* switch to audio PLL, divide 1*/
-	__raw_modify(ZSP_CORE_CLK_RES, 0x0, 0x30);
-	__raw_modify(ZSP_CORE_FREQ_CHG, 0xE, 0x0);
-	/* enable divider*/
-	__raw_modify(ZSP_CORE_CLK_RES, 0x0, 0x8);
-	/* enabled core clock and release reset*/
-	__raw_modify(ZSP_CORE_CLK_RES, 0x4, 0x3);
-	udelay(10);
-	__raw_modify(ZSP_CORE_FREQ_CHG, 0x0, 0x1);
-	udelay(10);
-	do {
-		value = readl(ZSP_CORE_FREQ_CHG);
-		udelay(10);
-	} while ((value & 0x1) != 0);
 	return;
 }
 
@@ -1198,21 +1200,21 @@ static void mmp_zsp_domain_halt(void)
 		aud_pwr_status.zsp_cnt--;
 		if (aud_pwr_status.zsp_cnt == 0) {
 			/* reset audio peripheral */
-			__raw_modify(ZSP_CORE_CLK_RES, 0x3, 0x4);
+			__raw_modify(ZSP_AUD_DSA_CORE_CLK_RES, 0x0, 0x4);
 			udelay(100);
 			/* switch to  pll1*/
-			__raw_modify(ZSP_CORE_CLK_RES, 0x30, 0x0);
+			__raw_modify(ZSP_AUD_DSA_CORE_CLK_RES, 0x30, 0x0);
 			/* set divider 2*/
-			__raw_modify(ZSP_CORE_FREQ_CHG, 0xE, 0x4);
+			__raw_modify(ZSP_AUD_CORE_FREQ_CHG, 0xE, 0x4);
 			/* enable divider*/
-			__raw_modify(ZSP_CORE_CLK_RES, 0x0, 0x8);
+			__raw_modify(ZSP_AUD_DSA_CORE_CLK_RES, 0x0, 0x8);
 			/* enabled core clock and release reset*/
-			__raw_modify(ZSP_CORE_CLK_RES, 0x4, 0x3);
+			__raw_modify(ZSP_AUD_DSA_CORE_CLK_RES, 0x4, 0x0);
 			udelay(10);
-			__raw_modify(ZSP_CORE_FREQ_CHG, 0x0, 0x1);
+			__raw_modify(ZSP_AUD_CORE_FREQ_CHG, 0x0, 0x1);
 			udelay(10);
 			do {
-				value = readl(ZSP_CORE_FREQ_CHG);
+				value = readl(ZSP_AUD_CORE_FREQ_CHG);
 				udelay(10);
 			} while ((value & 0x1) != 0);
 		}
@@ -1258,18 +1260,18 @@ static void mmp_zsp_start_core(void)
 {
 	int value;
 
-	writel(0x0000, ZSP_CONFIG_SVTADDR);
+	writel(0x0000, ZSP_AUD_CTRL_REG_2);
 	udelay(5);
 
-	value = readl(ZSP_CTRL_REG);
+	value = readl(ZSP_AUD_CTRL_REG);
 	value &= ~0x2;
-	writel(value, ZSP_CTRL_REG);
+	writel(value, ZSP_AUD_CTRL_REG);
 	udelay(100);
 
 	/* release reset */
-	value = readl(ZSP_CTRL_REG);
+	value = readl(ZSP_AUD_CTRL_REG);
 	value |= 0x2;
-	writel(value, ZSP_CTRL_REG);
+	writel(value, ZSP_AUD_CTRL_REG);
 	udelay(10);
 
 }

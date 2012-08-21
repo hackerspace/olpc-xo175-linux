@@ -2972,7 +2972,17 @@ static void zmq_diagnose_clk(u32 flags)
 }
 static void zmq_diagnoze(zmq_instance_t * pins, char op)
 {
+	int cnt;
+	int ret;
+	u32 value;
 	switch (op) {
+	case 'q':
+		ret = 0;
+		for (cnt = 0; cnt < 100; cnt++) {
+			ret = zsp_freq_test(ret);
+			udelay(200);
+		}
+		break;
 	case 'a':
 		zmq_diagnose_session_control(pins);
 		break;

@@ -51,7 +51,6 @@
 #define IPC_ICR		0x000C
 #define IPC_IIR		0x0010
 
-
 #define pzipc_readl(pszp, off) \
 	__raw_readl(pzsp->_ipc_regs_base + (off))
 #define pzipc_writel(pzsp, off, v) \
@@ -95,6 +94,7 @@ typedef struct {
 	struct mutex			_floadlock;
 	volatile bool			_ready;
 	volatile bool			_zspup;
+	volatile bool			_zspfreqdone;
 	zsp_ipc_cft_t			_ipcmap[IPC_MAX_NUM];
 	void				*pbuffer;
 	void				*pbuffer_aligned;
@@ -105,7 +105,8 @@ typedef struct {
 
 static zsp_device_t gs_zsp = {
 	NULL, NULL, false, NULL, NULL, NULL,
-	0, 0, 0, 0, NULL, 0, 0, 0, NULL, 0, 0, -1, {0}, {{1},}, false, false,
+	0, 0, 0, 0, NULL, 0, 0, 0, NULL, 0, 0, -1, {0},
+	{{1},}, false, false, false,
 	{
 		/*client id */		/* interrupt bit*/	/* handler */
 		{IPC_HANDSHAKE_ID,		IPC_INTERRUPT_BIT_0_0,	NULL},
@@ -115,6 +116,8 @@ static zsp_device_t gs_zsp = {
 		{IPC_PORT_FLOWCONTROL_ID,	IPC_INTERRUPT_BIT_0_4,	NULL},
 		{IPC_TEST_ID,			IPC_INTERRUPT_BIT_0_5,	NULL},
 		{IPC_IPM_ID,			IPC_INTERRUPT_BIT_2_9,	NULL},
+		{IPC_SOFT_RESET_ID,		IPC_INTERRUPT_BIT_3_10,	NULL},
+		{IPC_FREQ_DONE_ID,		IPC_INTERRUPT_BIT_0_6,	NULL},
 		/* TBD */
 	},
 	NULL, NULL, 0, 0, false
@@ -182,6 +185,14 @@ static irqreturn_t zsp_ap_handshake_isr(int irq, void *dev_id)
 	zsp_device_t * pzsp = (zsp_device_t *)dev_id;
 
 	pzsp->_zspup = true;
+
+	return IRQ_HANDLED;
+}
+static irqreturn_t zsp_freq_done_isr(int irq, void *dev_id)
+{
+	zsp_device_t * pzsp = (zsp_device_t *)dev_id;
+
+	pzsp->_zspfreqdone = true;
 
 	return IRQ_HANDLED;
 }
@@ -380,6 +391,12 @@ static int zsp_doreset(struct platform_device *pdev, int timeout_ms) {
 	ret = pzipc_add_isr(IPC_HANDSHAKE_ID, zsp_ap_handshake_isr);
 	if (PZIPC_RC_OK != ret) {
 		printk(KERN_ERR "%s: cannot hand shake with ZSP\n", __func__);
+		return -EINVAL;
+	}
+
+	ret = pzipc_add_isr(IPC_FREQ_DONE_ID, zsp_freq_done_isr);
+	if (PZIPC_RC_OK != ret) {
+		printk(KERN_ERR "%s: cannot register freq_done\n", __func__);
 		return -EINVAL;
 	}
 
@@ -807,6 +824,111 @@ static void __exit zsp_exit(void)
 	platform_driver_unregister(&gs_zsp_driver);
 }
 
+
+#define __raw_modify(addr, toclear, toset)              \
+	do {                                            \
+		volatile unsigned int tval;             \
+		tval = __raw_readl(addr);               \
+		tval &= ~toclear;                       \
+		tval |= toset;                          \
+		__raw_writel(tval, (addr));             \
+		tval = __raw_readl(addr);               \
+		udelay(100);                            \
+	} while (0)
+
+void dump_aux_regs(void)
+{
+	u32 value;
+
+	value = readl(ZSP_AUD_CONFIG);
+	printk(KERN_ERR "ZSP_AUD_CONFIG: 0x%08X\n", value);
+
+	value = readl(ZSP_AUX_CORE_PRID);
+	printk(KERN_ERR "ZSP_AUX_CORE_PRID: 0x%08X\n", value);
+
+	value = readl(ZSP_AUX_CORE_INT_ST);
+	printk(KERN_ERR "ZSP_AUX_CORE_INT_ST: 0x%08X\n", value);
+
+	value = readl(ZSP_AUD_CORE_IPC);
+	printk(KERN_ERR "ZSP_AUD_CORE_IPC: 0x%08X\n", value);
+
+	value = readl(ZSP_APPS_CORE_IPC);
+	printk(KERN_ERR "ZSP_APPS_CORE_IPC: 0x%08X\n", value);
+
+	value = readl(ZSP_AUD_INT_MSK);
+	printk(KERN_ERR "ZSP_AUD_INT_MSK: 0x%08X\n", value);
+
+	value = readl(ZSP_AUD_CORE_FREQ_CHG);
+	printk(KERN_ERR "ZSP_AUD_CORE_FREQ_CHG: 0x%08X\n", value);
+
+	value = readl(ZSP_AUD_D1D0_WAKEUP_MSK);
+	printk(KERN_ERR "ZSP_AUD_D1D0_WAKEUP_MSK: 0x%08X\n", value);
+
+	value = readl(ZSP_AUD_D1D0G_WAKEUP_MSK);
+	printk(KERN_ERR "ZSP_AUD_D1D0G_WAKEUP_MSK: 0x%08X\n", value);
+
+	value = readl(ZSP_AUD_D0CG2D1_ENTRY_MSK);
+	printk(KERN_ERR "ZSP_AUD_D0CG2D1_ENTRY_MSK: 0x%08X\n", value);
+
+	value = readl(ZSP_AUD_DSA_CORE_CLK_RES);
+	printk(KERN_ERR "ZSP_AUD_DSA_CORE_CLK_RES: 0x%08X\n", value);
+
+	value = readl(ZSP_AUD_DSA_APB_CLK_RES);
+	printk(KERN_ERR "ZSP_AUD_DSA_APB_CLK_RES: 0x%08X\n", value);
+
+	value = readl(ZSP_AUD_SSP_CLK_RES);
+	printk(KERN_ERR "ZSP_AUD_SSP_CLK_RES: 0x%08X\n", value);
+
+	value = readl(ZSP_AUD_TIM_13M_CLK_RES);
+	printk(KERN_ERR "ZSP_AUD_TIM_13M_CLK_RES: 0x%08X\n", value);
+
+	value = readl(ZSP_AUD_TIM_32K_CLK_RES);
+	printk(KERN_ERR "ZSP_AUD_TIM_32K_CLK_RES: 0x%08X\n", value);
+
+	value = readl(ZSP_AUD_SLIM_CLK_RES);
+	printk(KERN_ERR "ZSP_AUD_SLIM_CLK_RES: 0x%08X\n", value);
+
+	value = readl(ZSP_XCORE_ADDR_TRANS);
+	printk(KERN_ERR "ZSP_XCORE_ADDR_TRANS: 0x%08X\n", value);
+
+	value = readl(ZSP_XCORE_ADDR_TRANS_CTRL);
+	printk(KERN_ERR "ZSP_XCORE_ADDR_TRANS_CTRL: 0x%08X\n", value);
+
+	value = readl(ZSP_AUD_SLIM_CLK_RES_2);
+	printk(KERN_ERR "ZSP_AUD_SLIM_CLK_RES_2: 0x%08X\n", value);
+
+	value = readl(ZSP_AUD_CTRL_REG);
+	printk(KERN_ERR "ZSP_AUD_CTRL_REG: 0x%08X\n", value);
+
+	value = readl(ZSP_AUD_CTRL_REG_2);
+	printk(KERN_ERR "ZSP_AUD_CTRL_REG_2: 0x%08X\n\n", value);
+
+	return;
+}
+
+int zsp_freq_test(int dumponly)
+{
+	u32 value, loop;
+	zsp_device_t *pzsp = &gs_zsp;
+
+	pzipc_set_interrupt(IPC_TEST_ID);
+
+	loop = 1000;
+	while (loop > 0) {
+		if (pzsp->_zspfreqdone) {
+			pzsp->_zspfreqdone = false;
+			value = __raw_readl(ZSP_AUD_DSA_CORE_CLK_RES);
+			break;
+		}
+		loop--;
+		udelay(100);
+	}
+	if (loop == 0)
+		return 1;
+
+	return 0;
+}
+EXPORT_SYMBOL(zsp_freq_test);
 
 module_init(zsp_init);
 module_exit(zsp_exit);
