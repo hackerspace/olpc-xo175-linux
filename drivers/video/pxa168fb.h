@@ -916,7 +916,7 @@ struct lcd_regs {
 /* pxa988 has different MASTER_CTRL from MMP3/MMP2 */
 #ifdef CONFIG_CPU_PXA988
 #define TIMING_MASTER_CONTROL			(0x01F4)
-#define MASTER_ENH(id)				(1 << ((id) + 5))
+#define MASTER_ENH(id)				(1 << ((id) + 4))
 #define MASTER_ENV(id)				(1 << ((id) + 6))
 #else
 #define TIMING_MASTER_CONTROL			(0x02F8)
