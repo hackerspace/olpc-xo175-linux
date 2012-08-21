@@ -199,6 +199,7 @@ int clk_enable(struct clk *c)
 	return 0;
 
 disable_depend:
+	dependence_count = c->dependence_count;
 	while (dependence_count != 0)
 		clk_disable(c->dependence[--dependence_count]);
 out:
