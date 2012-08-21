@@ -514,6 +514,11 @@ static void mic_set_power(int on)
 
 static struct pm80x_headset_pdata pm80x_headset = {
 	.mic_set_power = mic_set_power,
+	.hook_press_th = 60,
+	.vol_up_press_th = 250,
+	.vol_down_press_th = 500,
+	.mic_det_th = 600,
+	.press_release_th = 600,
 };
 
 #ifdef CONFIG_RTC_DRV_MMP
