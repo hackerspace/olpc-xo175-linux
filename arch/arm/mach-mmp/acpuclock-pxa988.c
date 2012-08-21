@@ -1278,7 +1278,7 @@ static int set_core_freq(struct pxa988_cpu_opt *old, struct pxa988_cpu_opt *new)
 	struct clk *old_parent;
 	int ret = 0;
 
-	pr_info("CORE set_freq start: old %u, new %u\n",
+	pr_debug("CORE set_freq start: old %u, new %u\n",
 		old->pclk, new->pclk);
 	get_fc_lock();
 
@@ -1332,7 +1332,7 @@ static int set_core_freq(struct pxa988_cpu_opt *old, struct pxa988_cpu_opt *new)
 	clk_disable(old_parent);
 out:
 	put_fc_lock();
-	pr_info("CORE set_freq end: old %u, new %u\n",
+	pr_debug("CORE set_freq end: old %u, new %u\n",
 		old->pclk, new->pclk);
 	return ret;
 }
@@ -1547,7 +1547,7 @@ static int set_ddr_axi_freq(struct pxa988_ddr_axi_opt *old,
 	struct clk *ddr_old_parent, *axi_old_parent;
 	int ret = 0, errflag = 0;
 
-	pr_info("DDR set_freq start: old %u, new %u\n",
+	pr_debug("DDR set_freq start: old %u, new %u\n",
 		old->dclk, new->dclk);
 	get_fc_lock();
 
@@ -1600,7 +1600,7 @@ static int set_ddr_axi_freq(struct pxa988_ddr_axi_opt *old,
 	clk_disable(axi_old_parent);
 out:
 	put_fc_lock();
-	pr_info("DDR set_freq end: old %u, new %u\n",
+	pr_debug("DDR set_freq end: old %u, new %u\n",
 		old->dclk, new->dclk);
 	return ret;
 }

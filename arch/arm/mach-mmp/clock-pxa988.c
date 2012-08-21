@@ -405,7 +405,7 @@ static int clk_pll2_vco_enable(struct clk *clk)
 	spin_unlock_irqrestore(&pll2_lock, flags);
 
 	udelay(100);
-	pr_info("%s SWCR[%x] PLLCR[%x]\n", __func__, \
+	pr_debug("%s SWCR[%x] PLLCR[%x]\n", __func__, \
 		__raw_readl(APB_SPARE_PLL2CR), pll2cr.v);
 	return 0;
 }
@@ -414,7 +414,7 @@ static void clk_pll2_vco_disable(struct clk *clk)
 {
 	union pmum_pll2cr pll2cr;
 
-	pr_info("Disable pll2 as it is not used!\n");
+	pr_debug("Disable pll2 as it is not used!\n");
 
 	pll2cr.v = __raw_readl(MPMU_PLL2CR);
 	pll2cr.b.ctrl = 1;	/* Let SW control PLL2 */
@@ -704,7 +704,7 @@ static int clk_pll3_vco_enable(struct clk *clk)
 	spin_unlock_irqrestore(&pll3_lock, flags);
 
 	udelay(100);
-	pr_info("%s SWCR3[%x] PLL3CR[%x]\n", __func__, \
+	pr_debug("%s SWCR3[%x] PLL3CR[%x]\n", __func__, \
 		__raw_readl(APB_SPARE_PLL3CR), pll3cr.v);
 	return 0;
 }
@@ -713,7 +713,7 @@ static void clk_pll3_vco_disable(struct clk *clk)
 {
 	union pmum_pll3cr pll3cr;
 
-	pr_info("Disable pll3 as it is not used!\n");
+	pr_debug("Disable pll3 as it is not used!\n");
 
 	pll3cr.v = __raw_readl(MPMU_PLL3CR);
 	pll3cr.b.pclk_1248_sel = 0;
