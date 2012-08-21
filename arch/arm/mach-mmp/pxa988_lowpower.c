@@ -40,13 +40,15 @@
  * Note: We can support more than 2 cores here.
  * current we define MAX_CPU_NUM as 2 for PXA988.
  *
- * +---------------------------------------------------------------------+
- * |CPU0:| hotplug | l2_shutdow | LPM[MAX_NUM_LPM - 1] | LPM[1] | LPM[0] |
- * +---------------------------------------------------------------------+
- * |CPU1:| hotplug | l2_shutdow | LPM[MAX_NUM_LPM - 1] | LPM[1] | LPM[0] |
- * +---------------------------------------------------------------------+
- * |     spin_lock                                                       |
- * +---------------------------------------------------------------------+
+ * +--------------------------------------------------------+
+ * | ... | hotplug | LPM[MAX_NUM_LPM - 1] | LPM[1] | LPM[0] |
+ * +--------------------------------------------------------+
+ * | ... | hotplug | LPM[MAX_NUM_LPM - 1] | LPM[1] | LPM[0] |
+ * +--------------------------------------------------------+
+ * |     scu power down flag                                |
+ * +--------------------------------------------------------+
+ * |     spin_lock                                          |
+ * +--------------------------------------------------------+
  *
  * There are totally seven low power modes defined for PXA988.
  * Please refer mach/pxa988_lowpower.h.
@@ -64,6 +66,7 @@
 static char *coherent_buf;
 static u32 num_cpus;
 static u32 *enter_lpm_p;
+static u32 *mp_restore;
 static spinlock_t *lpm_lock_p;
 #endif
 
@@ -466,7 +469,6 @@ int pxa988_enter_lowpower(u32 cpu, u32 power_mode)
 	int i;
 	int cpus_enter_lpm = 0xffffffff;
 	int mp_shutdown = 1;
-	int mp_restore = 1;
 	/* The default power_mode should be C2 */
 	int lpm_index = PXA988_LPM_C2;
 
@@ -541,13 +543,11 @@ int pxa988_enter_lowpower(u32 cpu, u32 power_mode)
 
 	/* clear all the software flag of LPM */
 	enter_lpm_p[cpu] &= ~((1 << (power_mode + 1)) - 1);
-	cpus_enter_lpm = 0xffffffff;
-	for (i = 0; i < num_cpus; i++)
-		if (i != cpu)
-			cpus_enter_lpm &= enter_lpm_p[i];
-	mp_restore = test_bit(PXA988_LPM_C2, (void *)&cpus_enter_lpm);
-	if (mp_restore)
+
+	if (*mp_restore) {
+		*mp_restore = 0;
 		cpu_cluster_pm_exit();
+	}
 
 	arch_spin_unlock(&(&lpm_lock_p->rlock)->raw_lock);
 #else
@@ -638,6 +638,7 @@ static int __init pxa988_lowpower_init(void)
 	memset(coherent_buf, 0x0, PAGE_SIZE);
 
 	enter_lpm_p = (u32 *)coherent_buf;
+	mp_restore = (u32 *)(&coherent_buf[OFFSET_SCU_SHUTDOWN]);
 	lpm_lock_p = (spinlock_t *)(&coherent_buf[OFFSET_SPINLOCK]);
 	spin_lock_init(lpm_lock_p);
 
