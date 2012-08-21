@@ -123,6 +123,7 @@ static unsigned long thunderstonem_pin_config[] __initdata = {
 #if defined(CONFIG_TOUCHSCREEN_SIS9200)
 	GPIO86_GPIO,
 	GPIO83_GPIO,
+	GPIO101_GPIO,
 #endif
 
 	/* SSPA1 (I2S) */
@@ -843,7 +844,7 @@ out:
 	return 0;
 }
 
-static struct sis_i2c_rmi_platform_data sis9200_touch_data = {
+static struct sis_i2c_platform_data sis9200_touch_data = {
 	.power = sis9200_touch_io_power_onoff,
 	/*
 	TODO Adding other initial value
@@ -862,13 +863,8 @@ static struct i2c_board_info thunderstonem_twsi5_info[] = {
 #if defined(CONFIG_TOUCHSCREEN_SIS9200)
 	{
 		.type = SIS_I2C_NAME,
-		.addr = SIS_SLAVE_ADDR,
-#if 0
-		/*
-		* Vendor specified irq in sis_i2c.h
-		*/
+		.addr = 0x5c,
 		.irq  = gpio_to_irq(mfp_to_gpio(GPIO101_GPIO)),
-#endif
 		.platform_data  = &sis9200_touch_data,
 	},
 #endif
