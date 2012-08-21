@@ -1628,6 +1628,10 @@ void __init emeidkb_add_lcd_mipi(void)
 	fb->dsi_panel_config = panel_init_config;
 	fb->pxa168fb_lcd_power = emeidkb_lcd_power;
 
+	/* For EMEIDKB, there is not vdma */
+	fb->vdma_enable = 0;
+	fb->sram_size = 0;
+
 	dsi = (struct dsi_info *)fb->phy_info;
 	dsi->master_mode = 1;
 	dsi->hfp_en = 0;
@@ -1640,7 +1644,12 @@ void __init emeidkb_add_lcd_mipi(void)
 #ifndef CONFIG_VNC
 	calculate_lcd_sclk(fb);
 #else
-	fb->sclk_div = 0xE0001429;
+	/* FIXME:rewrite sclk_src, otherwise VNC will
+	 * use 520000000 as sclk_src so that clock source
+	 * will be set 624M */
+	fb->sclk_src = 416000000;
+	/* FIXME: change pixel clk divider for HVGA for fps 60 */
+	fb->sclk_div = 0xE000141b;
 #endif
 
 	/*
