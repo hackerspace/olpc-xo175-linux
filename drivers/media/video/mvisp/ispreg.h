@@ -236,6 +236,8 @@ struct isp_reg_context {
 #define CCIC2_VIRT_BASE					(AXI_VIRT_BASE + 0xA800)
 #define CCIC2_REG(x)					(CCIC2_VIRT_BASE + (x))
 
+#define CCIC_CLKDIV					0x0000FFFF
+
 #define CCIC_Y0_BASE_ADDR				0x0000
 #define CCIC_Y1_BASE_ADDR				0x0004
 #define CCIC_Y2_BASE_ADDR				0x0008

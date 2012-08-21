@@ -29,6 +29,7 @@
 #include <linux/mutex.h>
 #include <linux/uaccess.h>
 #include <linux/sched.h>
+#include <linux/clk.h>
 
 
 #include "isp.h"
@@ -2143,6 +2144,19 @@ static int ispdma_io_set_stream(struct v4l2_subdev *sd
 	return ispdma_set_stream(sd, state);
 }
 
+static int ispdma_get_isp_func_clk(struct isp_ispdma_device *ispdma,
+		int *clk_rate)
+{
+	struct mvisp_device *isp = to_mvisp_device(ispdma);
+
+	if (!clk_rate || !isp || !isp->clock[0])
+		return -EINVAL;
+
+	*clk_rate = clk_get_rate(isp->clock[0]) / 1000000;
+
+	return 0;
+}
+
 static long ispdma_ioctl(struct v4l2_subdev *sd
 			, unsigned int cmd, void *arg)
 {
@@ -2198,6 +2212,9 @@ static long ispdma_ioctl(struct v4l2_subdev *sd
 		break;
 	case VIDIOC_PRIVATE_ISPDMA_SET_STREAM:
 		ret = ispdma_io_set_stream(sd, (int *) arg);
+		break;
+	case VIDIOC_PRIVATE_ISPDMA_GET_ISP_FUNC_CLK:
+		ret = ispdma_get_isp_func_clk(ispdma, (int *) arg);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;

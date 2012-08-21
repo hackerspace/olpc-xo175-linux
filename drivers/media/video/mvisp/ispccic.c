@@ -25,6 +25,7 @@
 #include <media/v4l2-common.h>
 #include <linux/v4l2-mediabus.h>
 #include <linux/mm.h>
+#include <linux/clk.h>
 
 #include "isp.h"
 #include "ispreg.h"
@@ -829,6 +830,36 @@ static int ccic_io_config_mipi(struct isp_ccic_device *ccic,
 	return 0;
 }
 
+static int ccic_get_sensor_mclk(struct isp_ccic_device *ccic,
+		int *mclk)
+{
+	struct mvisp_device *isp = ccic->isp;
+	struct clk *clk;
+	int clkdiv;
+
+	if (!mclk || !isp)
+		return -EINVAL;
+
+	clk = isp->clock[isp->isp_clknum + isp->ccic_clknum - 1];
+	if (!clk)
+		return -EINVAL;
+
+	clkdiv = mvisp_reg_readl(isp,
+			CCIC_ISP_IOMEM_1, CCIC_CLOCK_CTRL) & CCIC_CLKDIV;
+
+/*the mclk is 26M on mmp3, and can not change it through ccic*/
+	if (isp->cpu_type == MV_MMP3) {
+		*mclk = 26;
+	} else {
+		if (!clkdiv)
+			return -EINVAL;
+
+		*mclk = clk_get_rate(clk) / clkdiv / 1000000;
+	}
+
+	return 0;
+}
+
 static long ccic_ioctl(struct v4l2_subdev *sd
 			, unsigned int cmd, void *arg)
 {
@@ -846,6 +877,9 @@ static long ccic_ioctl(struct v4l2_subdev *sd
 		break;
 	case VIDIOC_PRIVATE_CCIC_SET_STREAM:
 		ret = ccic_io_set_stream(sd, (int *)arg);
+		break;
+	case VIDIOC_PRIVATE_CCIC_GET_SENSOR_MCLK:
+		ret = ccic_get_sensor_mclk(ccic, (int *)arg);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
