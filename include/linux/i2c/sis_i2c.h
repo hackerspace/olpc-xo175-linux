@@ -23,27 +23,14 @@
 
 /*#define _CHECK_CRC*/
 
-#define SIS_I2C_NAME	"sis_i2c_ts"
-#define SIS_SLAVE_ADDR	0x5c
-#define TIMER_NS    	10000000	/* 10ms */
-#define MAX_FINGERS	10
-
-/* Interrupt setting and modes */
-#define _I2C_INT_ENABLE
-#define GPIO_IRQ 		101
-
-/* IRQ STATUS */
-#define IRQ_STATUS_DISABLED	(1<<16)
-#define IRQ_STATUS_ENABLED	0x0
-
-/* For standard R/W IO*/
-#define _STD_RW_IO
-
 /*
  * Enable if use interrupt case 1 mode.
  * Disable if use interrupt case 2 mode.
  */
 /*#define _INT_MODE_1*/
+
+/* For standard R/W IO*/
+#define _STD_RW_IO
 
 /*
  * Enable if order cmd 0x0 after power on
@@ -51,7 +38,15 @@
  */
 /*#define _SKIP_FW_WAITING_TIME*/
 
-/* POWER MODE */
+#define SIS_I2C_NAME	"sis_i2c_ts"
+#define TIMER_NS    	10000000	/* 10ms */
+#define MAX_FINGERS	10
+
+/* IRQ STATUS */
+#define IRQ_STATUS_DISABLED	(1<<16)
+#define IRQ_STATUS_ENABLED	0x0
+
+/* Power mode */
 #ifdef CONFIG_FW_SUPPORT_POWERMODE
 #define MSK_POWERMODE		0x03
 #define DEEPSLEEP_MODE		0X00
@@ -86,7 +81,7 @@
 #define RES_FMT 		0x00
 #define FIX_FMT 		0x40
 
-/* for new i2c format */
+/* New i2c format */
 #define TOUCHDOWN		0x3
 #define TOUCHUP 		0x0
 #define BYTE_COUNT		0
@@ -95,12 +90,7 @@
 #define PRESSURE_MAX		255
 #define AREA_LENGTH_LONGER	31
 
-#ifdef _SMBUS_INTERFACE
-#define CMD_BASE		0
-#else
 #define CMD_BASE		1
-#endif
-
 #define FORMAT_MODE		1
 #define P1TSTATE		2
 #define PKTINFO 		(CMD_BASE + 1)
@@ -127,6 +117,7 @@
 
 #define L_BYTECOUNT		2
 #define L_REPORT_ID		0
+
 #define BIT_TOUCH(x)		(x & 0x1)
 #define BIT_AREA(x)		((x >> 4) & 0x1)
 #define BIT_PRESSURE(x) 	((x >> 5) & 0x1)
@@ -135,40 +126,7 @@
 #define TOUCH_POWER_PIN 	0
 #define TOUCH_RESET_PIN 	1
 
-#ifdef OLD_FORMAT_AEGIS
-#define BUTTON_KEY_COUNT	8
-#else
 #define BUTTON_KEY_COUNT	16
-#endif
-
-struct sis_i2c_rmi_platform_data {
-	/*
-	 * Use this entry for panels with
-	 * (major << 8 | minor) version or above.
-	 * If non-zero another array entry follows
-	 */
-	uint32_t version;
-	int (*power) (int on);		/* Only valid in first array entry */
-	uint32_t flags;
-	unsigned long irqflags;
-	uint32_t inactive_left;
-	uint32_t inactive_right;
-	uint32_t inactive_top;
-	uint32_t inactive_bottom;
-	uint32_t snap_left_on;
-	uint32_t snap_left_off;
-	uint32_t snap_right_on;
-	uint32_t snap_right_off;
-	uint32_t snap_top_on;
-	uint32_t snap_top_off;
-	uint32_t snap_bottom_on;
-	uint32_t snap_bottom_off;
-	uint32_t fuzz_x;
-	uint32_t fuzz_y;
-	int fuzz_p;
-	int fuzz_w;
-	int8_t sensitivity_adjust;
-};
 
 static const unsigned short crc16tab[256] = {
 	0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50a5, 0x60c6, 0x70e7,
@@ -205,42 +163,35 @@ static const unsigned short crc16tab[256] = {
 	0x6e17, 0x7e36, 0x4e55, 0x5e74, 0x2e93, 0x3eb2, 0x0ed1, 0x1ef0
 };
 
-struct Point {
-	int id;
-	unsigned short x, y;
-	uint16_t bPressure;
-	uint16_t bWidth;
-	bool touch, pre;
+struct sis_i2c_platform_data {
+	int (*power) (int on);
 };
 
-struct sisTP_driver_data {
-	int id, fingers;
-	bool valid;	/* BTN_TOUCH is on/off */
-	struct Point pt[MAX_FINGERS];
-	uint16_t CRC;
+struct point {
+	int id;
+	unsigned short x;
+	unsigned short y;
+	uint16_t bpressure;
+	uint16_t bwidth;
+};
+
+struct sistp_driver_data {
+	int fingers;
+	struct point pt[MAX_FINGERS];
 	uint8_t pre_keybit_state;
 };
 
 struct sis_ts_data {
-	uint16_t addr;
 	struct i2c_client *client;
 	struct input_dev *input_dev;
 	struct irq_desc *desc;
+	unsigned long irq;
 	int use_irq;
 	struct hrtimer timer;
 	struct work_struct work;
-	uint16_t max[2];
-	int snap_state[2][2];
-	int snap_down_on[2];
-	int snap_down_off[2];
-	int snap_up_on[2];
-	int snap_up_off[2];
-	int snap_down[2];
-	int snap_up[2];
-	uint32_t flags;
-	int (*power) (int on);
 	int area_tmp[10][2];
 	int pressure_tmp[10][2];
+	struct sis_i2c_platform_data *pdata;
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	struct early_suspend early_suspend;
 #endif

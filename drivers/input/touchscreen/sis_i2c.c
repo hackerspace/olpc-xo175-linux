@@ -17,21 +17,21 @@
 
 #include <linux/module.h>
 #include <linux/delay.h>
-#ifdef CONFIG_HAS_EARLYSUSPEND
-#include <linux/earlysuspend.h>
-#endif
 #include <linux/hrtimer.h>
 #include <linux/i2c.h>
 #include <linux/input.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/platform_device.h>
-#include <linux/i2c/sis_i2c.h>
 #include <linux/linkage.h>
 #include <linux/slab.h>
 #include <linux/gpio.h>
 #include <linux/uaccess.h>
 #include <linux/irq.h>
+#ifdef CONFIG_HAS_EARLYSUSPEND
+#include <linux/earlysuspend.h>
+#endif
+#include <linux/i2c/sis_i2c.h>
 
 #ifdef _STD_RW_IO
 #include <linux/init.h>
@@ -43,14 +43,12 @@ static int sis_char_devs_count = 1;	/* device count */
 static int sis_char_major;
 static struct cdev sis_char_cdev;
 static struct class *sis_char_class;
+struct sis_ts_data *ts_bak;
 #endif
 
-/* Addresses to scan */
-static const unsigned short normal_i2c[] = { SIS_SLAVE_ADDR, I2C_CLIENT_END };
 static struct workqueue_struct *sis_wq;
-struct sis_ts_data *ts_bak;
-struct sisTP_driver_data *TPInfo;
-static void sis_tpinfo_clear(struct sisTP_driver_data *TPInfo, int max);
+struct sistp_driver_data *tpinfo;
+static void sis_tpinfo_clear(struct sistp_driver_data *tpinfo, int max);
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void sis_ts_early_suspend(struct early_suspend *h);
@@ -249,7 +247,7 @@ static void ts_report_key(struct i2c_client *client, uint8_t keybit_state)
 		return;
 	}
 
-	diff_keybit_state = TPInfo->pre_keybit_state ^ keybit_state;
+	diff_keybit_state = tpinfo->pre_keybit_state ^ keybit_state;
 
 	if (diff_keybit_state) {
 		for (i = 0; i < BUTTON_KEY_COUNT; i++) {
@@ -276,7 +274,7 @@ static void ts_report_key(struct i2c_client *client, uint8_t keybit_state)
 				}
 			}
 		}
-		TPInfo->pre_keybit_state = keybit_state;
+		tpinfo->pre_keybit_state = keybit_state;
 	}
 }
 #endif
@@ -328,21 +326,21 @@ static void sis_ts_work_func(struct work_struct *work)
 		}
 
 		i = 0;
-		TPInfo->pt[i].bPressure = 0;
-		TPInfo->pt[i].bWidth = 0;
-		input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, TPInfo->pt[i].bWidth);
-		input_report_abs(ts->input_dev, ABS_MT_PRESSURE, TPInfo->pt[i].bPressure);
-		input_report_abs(ts->input_dev, ABS_MT_POSITION_X, TPInfo->pt[i].x);
-		input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, TPInfo->pt[i].y);
-		input_report_abs(ts->input_dev, ABS_MT_TRACKING_ID, TPInfo->pt[i].id);
+		tpinfo->pt[i].bpressure = 0;
+		tpinfo->pt[i].bwidth = 0;
+		input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, tpinfo->pt[i].bwidth);
+		input_report_abs(ts->input_dev, ABS_MT_PRESSURE, tpinfo->pt[i].bpressure);
+		input_report_abs(ts->input_dev, ABS_MT_POSITION_X, tpinfo->pt[i].x);
+		input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, tpinfo->pt[i].y);
+		input_report_abs(ts->input_dev, ABS_MT_TRACKING_ID, tpinfo->pt[i].id);
 		printk(KERN_DEBUG "ID = %d, pressure = %d, width = %d",
-			TPInfo->pt[i].id, TPInfo->pt[i].bPressure, TPInfo->pt[i].bWidth);
+			tpinfo->pt[i].id, tpinfo->pt[i].bpressure, tpinfo->pt[i].bwidth);
 		input_mt_sync(ts->input_dev);
 		input_sync(ts->input_dev);
 		goto err_free_allocate;
 	}
 
-	sis_tpinfo_clear(TPInfo, MAX_FINGERS);
+	sis_tpinfo_clear(tpinfo, MAX_FINGERS);
 
 	/* Parser and Get the sis9200 data */
 	point_unit = sis_cul_unit(buf[L_REPORT_ID]);
@@ -353,11 +351,11 @@ static void sis_ts_work_func(struct work_struct *work)
 			button_key = ((buf[BUTTON_STATE] & 0xff) | ((buf[BUTTON_STATE + 1] & 0xff) << 8));
 			ts_report_key(ts->client, button_key);
 	} else {
-		if (TPInfo->pre_keybit_state)
+		if (tpinfo->pre_keybit_state)
 			ts_report_key(ts->client, 0x0);	/* clear for polling */
 	}
 #endif
-	TPInfo->fingers = fingers = (fingers > MAX_FINGERS ? 0 : fingers);
+	tpinfo->fingers = fingers = (fingers > MAX_FINGERS ? 0 : fingers);
 
 	for (i = 0; i < fingers; i++) {
 		if ((buf[L_REPORT_ID] != 0x10) && (i >= 5)) {
@@ -370,69 +368,69 @@ static void sis_ts_work_func(struct work_struct *work)
 		py = px + 2;					/* Calc point y_coord */
 
 		if ((buf[pstatus]) == TOUCHUP) {
-			TPInfo->pt[i].bWidth = 0;
-			TPInfo->pt[i].bPressure = 0;
+			tpinfo->pt[i].bwidth = 0;
+			tpinfo->pt[i].bpressure = 0;
 		} else if ((buf[pstatus]) == TOUCHDOWN) {
 			if (buf[L_REPORT_ID] == 0x10) {
-				TPInfo->pt[i].bWidth = 1;
-				TPInfo->pt[i].bPressure = 1;
+				tpinfo->pt[i].bwidth = 1;
+				tpinfo->pt[i].bpressure = 1;
 			} else {
 				if (BIT_PRESSURE(buf[L_REPORT_ID])) {
 					if (BIT_AREA(buf[L_REPORT_ID])) {
-						TPInfo->pt[i].bWidth = ((buf[pstatus + 6] & 0xff) | ((buf[pstatus + 7] & 0xff) << 8));
-						TPInfo->pt[i].bPressure = (buf[pstatus + 8]);
+						tpinfo->pt[i].bwidth = ((buf[pstatus + 6] & 0xff) | ((buf[pstatus + 7] & 0xff) << 8));
+						tpinfo->pt[i].bpressure = (buf[pstatus + 8]);
 					} else {
-						TPInfo->pt[i].bWidth = 1;
-						TPInfo->pt[i].bPressure = (buf[pstatus + 8]);
+						tpinfo->pt[i].bwidth = 1;
+						tpinfo->pt[i].bpressure = (buf[pstatus + 8]);
 					}
 				} else {
 					if (BIT_AREA(buf[L_REPORT_ID])) {
-						TPInfo->pt[i].bWidth = ((buf[pstatus + 6] & 0xff) | ((buf[pstatus + 7] & 0xff) << 8));
-						TPInfo->pt[i].bPressure = 1;
+						tpinfo->pt[i].bwidth = ((buf[pstatus + 6] & 0xff) | ((buf[pstatus + 7] & 0xff) << 8));
+						tpinfo->pt[i].bpressure = 1;
 					} else {
-						TPInfo->pt[i].bWidth = 1;
-						TPInfo->pt[i].bPressure = 1;
+						tpinfo->pt[i].bwidth = 1;
+						tpinfo->pt[i].bpressure = 1;
 					}
 				}
 			}
 		} else
 			goto err_free_allocate;
 
-		TPInfo->pt[i].bWidth = (buf[pstatus + 6]);
-		TPInfo->pt[i].id = (buf[pstatus + 1]);
-		TPInfo->pt[i].x = ((buf[px] & 0xff) | ((buf[px + 1] & 0xff) << 8));
-		TPInfo->pt[i].y = ((buf[py] & 0xff) | ((buf[py + 1] & 0xff) << 8));
+		tpinfo->pt[i].bwidth = (buf[pstatus + 6]);
+		tpinfo->pt[i].id = (buf[pstatus + 1]);
+		tpinfo->pt[i].x = ((buf[px] & 0xff) | ((buf[px + 1] & 0xff) << 8));
+		tpinfo->pt[i].y = ((buf[py] & 0xff) | ((buf[py + 1] & 0xff) << 8));
 		printk(KERN_DEBUG "%s ** TSM debug (x,y)=(%d,%d)\n", __func__,
-			TPInfo->pt[i].x, TPInfo->pt[i].y);
+			tpinfo->pt[i].x, tpinfo->pt[i].y);
 	}
 
 #ifdef SIS_I2C_DEBUG
-	for (i = 0; i < TPInfo->fingers; i++) {
-		ts->area_tmp[i][1] = TPInfo->pt[i].bWidth;
-		ts->pressure_tmp[i][1] = TPInfo->pt[i].bPressure;
+	for (i = 0; i < tpinfo->fingers; i++) {
+		ts->area_tmp[i][1] = tpinfo->pt[i].bwidth;
+		ts->pressure_tmp[i][1] = tpinfo->pt[i].bpressure;
 		/* process the touch area and pressure sticky */
-		sis_sticky(&TPInfo->pt[i].bWidth, AREA_LENGTH_LONGER, ts->area_tmp[i], 2);
-		sis_sticky(&TPInfo->pt[i].bPressure, PRESSURE_MAX, ts->pressure_tmp[i], 10);
+		sis_sticky(&tpinfo->pt[i].bwidth, AREA_LENGTH_LONGER, ts->area_tmp[i], 2);
+		sis_sticky(&tpinfo->pt[i].bpressure, PRESSURE_MAX, ts->pressure_tmp[i], 10);
 	}
 #endif
 
 	/* Report co-ordinates to the multi-touch stack */
-	for (i = 0; i < TPInfo->fingers; i++) {
-		if (TPInfo->pt[i].bPressure) {
-			input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, TPInfo->pt[i].bWidth);
-			input_report_abs(ts->input_dev, ABS_MT_PRESSURE, TPInfo->pt[i].bPressure);
-			input_report_abs(ts->input_dev, ABS_MT_POSITION_X, TPInfo->pt[i].x);
-			input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, TPInfo->pt[i].y);
-			input_report_abs(ts->input_dev, ABS_MT_TRACKING_ID, TPInfo->pt[i].id);
+	for (i = 0; i < tpinfo->fingers; i++) {
+		if (tpinfo->pt[i].bpressure) {
+			input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, tpinfo->pt[i].bwidth);
+			input_report_abs(ts->input_dev, ABS_MT_PRESSURE, tpinfo->pt[i].bpressure);
+			input_report_abs(ts->input_dev, ABS_MT_POSITION_X, tpinfo->pt[i].x);
+			input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, tpinfo->pt[i].y);
+			input_report_abs(ts->input_dev, ABS_MT_TRACKING_ID, tpinfo->pt[i].id);
 			input_mt_sync(ts->input_dev);
 			all_touch_up = false;
 		}
 
-		if (i == (TPInfo->fingers - 1) && all_touch_up == true)
+		if (i == (tpinfo->fingers - 1) && all_touch_up == true)
 			input_mt_sync(ts->input_dev);
 	}
 
-	if (TPInfo->fingers == 0)
+	if (tpinfo->fingers == 0)
 		input_mt_sync(ts->input_dev);
 	input_sync(ts->input_dev);
 err_free_allocate:
@@ -446,35 +444,34 @@ err_free_allocate:
 		if (!ret)
 			hrtimer_start(&ts->timer, ktime_set(0, TIMER_NS), HRTIMER_MODE_REL);
 		else {
-			if (TPInfo->pre_keybit_state)
+			if (tpinfo->pre_keybit_state)
 				ts_report_key(ts->client, 0x0);	/* clear for interrupt */
 
 			if ((ts->desc->irq_data.state_use_accessors & IRQD_IRQ_DISABLED) == IRQ_STATUS_DISABLED)
-				enable_irq(ts->client->irq);
+				enable_irq(ts->irq);
 		}
 #else	/* case 2 mode */
 		if ((ts->desc->irq_data.state_use_accessors & IRQD_IRQ_DISABLED) == IRQ_STATUS_DISABLED)
-			enable_irq(ts->client->irq);
+			enable_irq(ts->irq);
 #endif
 	}
 
 	return;
 }
 
-static void sis_tpinfo_clear(struct sisTP_driver_data *TPInfo, int max)
+static void sis_tpinfo_clear(struct sistp_driver_data *tpinfo, int max)
 {
 	int i = 0;
+
 	for (i = 0; i < max; i++) {
-		TPInfo->pt[i].id = -1;
-		TPInfo->pt[i].touch = -1;
-		TPInfo->pt[i].x = 0;
-		TPInfo->pt[i].y = 0;
-		TPInfo->pt[i].bPressure = 0;
-		TPInfo->pt[i].bWidth = 0;
+		tpinfo->pt[i].id = -1;
+		tpinfo->pt[i].x = 0;
+		tpinfo->pt[i].y = 0;
+		tpinfo->pt[i].bpressure = 0;
+		tpinfo->pt[i].bwidth = 0;
 	}
-	TPInfo->CRC = 0x0;
-	TPInfo->id = 0x0;
-	TPInfo->fingers = 0;
+	tpinfo->fingers = 0;
+	tpinfo->pre_keybit_state = 0x0;
 }
 
 static enum hrtimer_restart sis_ts_timer_func(struct hrtimer *timer)
@@ -492,7 +489,7 @@ static irqreturn_t sis_ts_irq_handler(int irq, void *dev_id)
 	struct sis_ts_data *ts = dev_id;
 
 	if ((ts->desc->irq_data.state_use_accessors & IRQD_IRQ_DISABLED) == IRQ_STATUS_ENABLED)
-		disable_irq_nosync(ts->client->irq);
+		disable_irq_nosync(ts->irq);
 
 	queue_work(sis_wq, &ts->work);
 	return IRQ_HANDLED;
@@ -558,9 +555,10 @@ static bool sis_check_fw_ready(struct i2c_client *client)
 
 static uint8_t sis_check_fw_mode(struct i2c_client *client, uint8_t mode)
 {
-	int ret;
 	uint8_t tmpbuf[MAX_BYTE] = {0};
 	uint8_t cmd[5] = {SIS_CMD_POWERMODE, 0x03, mode, 0, 0}; /* command, bytecount, power mode, CRC, CRC */
+	int ret = 0;
+
 	write_crc(cmd, 2, 2);
 
 	ret = sis_sent_command_to_fw(client, FIVE_BYTE, cmd, MAX_BYTE, tmpbuf, __func__);
@@ -748,7 +746,7 @@ static int sis_cdev_open(struct inode *inode, struct file *filp)
 	msleep(200);
 	if (ts_bak->use_irq) {
 		if ((ts_bak->desc->irq_data.state_use_accessors & IRQD_IRQ_DISABLED) == IRQ_STATUS_ENABLED)
-			disable_irq(ts_bak->client->irq);
+			disable_irq(ts_bak->irq);
 		else
 			printk(KERN_DEBUG "sis_cdev_open: IRQ_STATUS: %x\n", (ts_bak->desc->irq_data.state_use_accessors & IRQD_IRQ_DISABLED));
 	}
@@ -770,7 +768,7 @@ static int sis_cdev_release(struct inode *inode, struct file *filp)
 
 	if (ts_bak->use_irq) {
 		if ((ts_bak->desc->irq_data.state_use_accessors & IRQD_IRQ_DISABLED) == IRQ_STATUS_DISABLED)
-			enable_irq(ts_bak->client->irq);
+			enable_irq(ts_bak->irq);
 	} else
 		hrtimer_start(&ts_bak->timer, ktime_set(1, 0), HRTIMER_MODE_REL);
 
@@ -844,14 +842,13 @@ err2:
 
 static int sis_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
-	int ret = 0;
 	struct sis_ts_data *ts = NULL;
-	struct sis_i2c_rmi_platform_data *pdata = NULL;
+	int ret = 0;
 
 	printk(KERN_DEBUG "sis_ts_probe\n");
 
-	TPInfo = kzalloc(sizeof(struct sisTP_driver_data), GFP_KERNEL);
-	if (TPInfo == NULL) {
+	tpinfo = kzalloc(sizeof(struct sistp_driver_data), GFP_KERNEL);
+	if (tpinfo == NULL) {
 		ret = -ENOMEM;
 		goto err_alloc_data_failed;
 	}
@@ -862,21 +859,22 @@ static int sis_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 		goto err_alloc_data_failed;
 	}
 
+#ifdef _STD_RW_IO
 	ts_bak = ts;
+#endif
 
 	/* 1. Init Work queue and necessary buffers */
 	sis_wq = create_singlethread_workqueue("sis_wq");
 	if (!sis_wq)
 		return -ENOMEM;
+
 	INIT_WORK(&ts->work, sis_ts_work_func);
 	ts->client = client;
 	i2c_set_clientdata(client, ts);
-	pdata = client->dev.platform_data;
+	ts->pdata = client->dev.platform_data;
 
-	if (pdata)
-		ts->power = pdata->power;
-	if (ts->power) {
-		ret = ts->power(1);
+	if (ts->pdata->power) {
+		ret = ts->pdata->power(1);
 		if (ret < 0) {
 			printk(KERN_ERR "sis_ts_probe power on failed\n");
 			goto err_power_failed;
@@ -926,21 +924,14 @@ static int sis_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	}
 
 	/* 4. irq or timer setup */
-#ifdef _I2C_INT_ENABLE
-	ret = gpio_request(GPIO_IRQ, "GPIO_101");
-	if (ret < 0)
-		printk(KERN_ERR "sis_ts_probe: Failed to gpio_request\n");
-	else {
-		client->irq = gpio_to_irq(GPIO_IRQ);
-		ret = request_irq(client->irq, sis_ts_irq_handler, IRQF_TRIGGER_FALLING, client->name, ts);
-		if (ret == 0)
-			ts->use_irq = 1;
-		else
-			dev_err(&client->dev, "request_irq failed\n");
-	}
-#endif
+	ts->irq = client->irq;
+	ret = request_irq(ts->irq, sis_ts_irq_handler, IRQF_TRIGGER_FALLING, client->name, ts);
+	if (ret == 0)
+		ts->use_irq = 1;
+	else
+		dev_err(&client->dev, "request_irq failed\n");
 
-	ts->desc = irq_to_desc(ts_bak->client->irq);
+	ts->desc = irq_to_desc(ts->irq);
 
 	hrtimer_init(&ts->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	ts->timer.function = sis_ts_timer_func;
@@ -982,6 +973,7 @@ err_alloc_data_failed:
 static int sis_ts_remove(struct i2c_client *client)
 {
 	struct sis_ts_data *ts = i2c_get_clientdata(client);
+	int ret = 0;
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	unregister_early_suspend(&ts->early_suspend);
@@ -990,42 +982,52 @@ static int sis_ts_remove(struct i2c_client *client)
 		destroy_workqueue(sis_wq);
 
 	if (ts->use_irq)
-		free_irq(client->irq, ts);
+		free_irq(ts->irq, ts);
 	else
 		hrtimer_cancel(&ts->timer);
+
 	input_unregister_device(ts->input_dev);
+
+	if (ts->pdata->power) {
+		ret = ts->pdata->power(0);
+		if (ret < 0)
+			printk(KERN_ERR "sis_ts_remove power off failed\n");
+	}
+
 	kfree(ts);
+
 	return 0;
 }
 
 static int sis_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 {
-	int ret = 0;
 	struct sis_ts_data *ts = i2c_get_clientdata(client);
+	int ret = 0;
 
 #ifdef CONFIG_FW_SUPPORT_POWERMODE
 	int retry = 5;
 	uint8_t status = -1;
 #endif
 
-	TPInfo->pre_keybit_state = 0x0;
+	tpinfo->pre_keybit_state = 0x0;
 
 	if (ts->use_irq) {
 		if ((ts->desc->irq_data.state_use_accessors & IRQD_IRQ_DISABLED) == IRQ_STATUS_ENABLED)
-			disable_irq(client->irq);
+			disable_irq(ts->irq);
 	} else
 		hrtimer_cancel(&ts->timer);
 #ifdef SIS_I2C_DEBUG
 	/* only cancel one work(sis_ts_work_func, but there maybe are others in workqueue. */
 	ret = cancel_work_sync(&ts->work);
 	flush_scheduled_work();		/* flush all of workqueue in kernel */
-#endif
+#else
 	flush_workqueue(sis_wq);	/* only flush sis_wq */
+#endif
 
 	/* if work was pending disable-count is now 2 */
 	if (ret && ts->use_irq) {
 		if ((ts->desc->irq_data.state_use_accessors & IRQD_IRQ_DISABLED) == IRQ_STATUS_DISABLED)
-			enable_irq(client->irq);
+			enable_irq(ts->irq);
 	}
 
 #ifdef CONFIG_FW_SUPPORT_POWERMODE
@@ -1057,8 +1059,8 @@ static int sis_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 	gpio_direction_output(TOUCH_POWER_PIN, 0);
 	printk(KERN_DEBUG "[MSI TOUCH] SiS Touch Power off\n");
 #endif
-	if (ts->power) {
-		ret = ts->power(0);
+	if (ts->pdata->power) {
+		ret = ts->pdata->power(0);
 		if (ret < 0)
 			printk(KERN_ERR "sis_ts_suspend power off failed\n");
 	}
@@ -1068,16 +1070,15 @@ static int sis_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 
 static int sis_ts_resume(struct i2c_client *client)
 {
-	int ret = 0;
 	struct sis_ts_data *ts = i2c_get_clientdata(client);
-
+	int ret = 0;
 #ifdef CONFIG_FW_SUPPORT_POWERMODE
 	int retry = 5;
 	uint8_t status = -1;
 #endif
 
-	if (ts->power) {
-		ret = ts->power(1);
+	if (ts->pdata->power) {
+		ret = ts->pdata->power(1);
 		if (ret < 0)
 			printk(KERN_ERR "sis_ts_resume power on failed\n");
 	}
@@ -1129,7 +1130,7 @@ static int sis_ts_resume(struct i2c_client *client)
 #endif
 	if (ts->use_irq) {
 		if ((ts->desc->irq_data.state_use_accessors & IRQD_IRQ_DISABLED) == IRQ_STATUS_DISABLED)
-			enable_irq(client->irq);
+			enable_irq(ts->irq);
 	} else
 		hrtimer_start(&ts->timer, ktime_set(1, 0), HRTIMER_MODE_REL);
 
@@ -1140,7 +1141,7 @@ static int sis_ts_resume(struct i2c_client *client)
 static void sis_ts_early_suspend(struct early_suspend *h)
 {
 	struct sis_ts_data *ts;
-	TPInfo->pre_keybit_state = 0x0;
+	tpinfo->pre_keybit_state = 0x0;
 	ts = container_of(h, struct sis_ts_data, early_suspend);
 	sis_ts_suspend(ts->client, PMSG_SUSPEND);
 }
