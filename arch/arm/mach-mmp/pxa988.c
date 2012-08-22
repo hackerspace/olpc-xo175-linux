@@ -818,11 +818,13 @@ void pxa988_register_dxoisp(struct mvisp_platform_data *data)
 #define ISP_HW_MODE         (0x1 << 15)
 #define ISP_AUTO_PWR_ON     (0x1 << 4)
 #define ISP_PWR_STAT        (0x1 << 4)
+#define ISP_CLK_RST         ((1 << 0) | (1 << 8) | (1 << 10))
+#define ISP_CLK_EN          ((1 << 1) | (1 << 9) | (1 << 11))
 
 
 int pxa988_isp_power_control(int on)
 {
-	int val;
+	unsigned int val;
 	int timeout = 5000;
 
 	/* HW mode power on/off*/
@@ -877,17 +879,27 @@ int pxa988_isp_power_control(int on)
 
 int pxa988_isp_reset_hw(void *param)
 {
-	int ret = 0;
+	unsigned int val;
 
-	ret = pxa988_isp_power_control(0);
-	if (ret)
-		return ret;
+	/*disable isp clock*/
+	val = __raw_readl(APMU_ISPDXO);
+	val &= ~ISP_CLK_EN;
+	__raw_writel(val, APMU_ISPDXO);
 
-	mdelay(10);
+	/*reset isp clock*/
+	val = __raw_readl(APMU_ISPDXO);
+	val &= ~ISP_CLK_RST;
+	__raw_writel(val, APMU_ISPDXO);
 
-	ret = pxa988_isp_power_control(1);
-	if (ret)
-		return ret;
+	/*de-reset isp clock*/
+	val = __raw_readl(APMU_ISPDXO);
+	val |= ISP_CLK_RST;
+	__raw_writel(val, APMU_ISPDXO);
+
+	/*enable isp clock*/
+	val = __raw_readl(APMU_ISPDXO);
+	val |= ISP_CLK_EN;
+	__raw_writel(val, APMU_ISPDXO);
 
 	return 0;
 }
