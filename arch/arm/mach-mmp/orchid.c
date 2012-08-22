@@ -704,7 +704,7 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 					PM800_GPADC_GP_BIAS_EN0,
 					PM800_GPADC_GP_BIAS_EN0);
 	/* Disable GPADC0 bias source */
-	pm80x_set_bits(chip->gpadc_page, PM800_GP_BIAS_OUT1,
+	pm80x_set_bits(chip->gpadc_page, PM800_GP_BIAS_ENA1,
 					PM800_BIAS_OUT_GP0, 0);
 
 	/* Enable GPADC1 for system current sense */
@@ -715,7 +715,7 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 					PM800_GPADC_GP_BIAS_EN1,
 					PM800_GPADC_GP_BIAS_EN1);
 	/* Disable GPADC1 bias source */
-	pm80x_set_bits(chip->gpadc_page, PM800_GP_BIAS_OUT1,
+	pm80x_set_bits(chip->gpadc_page, PM800_GP_BIAS_ENA1,
 					PM800_BIAS_OUT_GP1, 0);
 
 	return 0;
