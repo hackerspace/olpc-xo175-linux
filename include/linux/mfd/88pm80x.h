@@ -411,41 +411,63 @@ enum {
 /*********************************/
 /*page 2 GPADC: slave adder 0x02*/
 /********************************/
+/* GPADC Config Registers */
+/* GPADC Measurement Enable Register1 */
 #define PM800_GPADC_MEAS_EN1		(0x01)
-#define PM800_MEAS_EN1_VBAT         (1 << 2)
-#define PM800_GPADC_MEAS_EN2		(0x02)
-#define PM800_MEAS_EN2_RFTMP        (1 << 0)
-#define PM800_MEAS_GP0_EN			(1 << 2)
-#define PM800_MEAS_GP1_EN			(1 << 3)
-#define PM800_MEAS_GP2_EN			(1 << 4)
-#define PM800_MEAS_GP3_EN			(1 << 5)
-#define PM800_MEAS_GP4_EN			(1 << 6)
+#define PM800_MEAS_EN1_VBBAT		BIT(0)
+#define PM800_MEAS_EN1_VBAT         BIT(1)
+#define PM800_MEAS_EN1_SYS			BIT(2)
+#define PM800_MEAS_EN1_VCHG			BIT(3)
 
+/* GPADC Measurement Enable Register2 */
+#define PM800_GPADC_MEAS_EN2		(0x02)
+#define PM800_MEAS_EN2_RFTMP		BIT(0)
+#define PM800_MEAS_PMODE_EN			BIT(1)
+#define PM800_MEAS_GP0_EN			BIT(2)
+#define PM800_MEAS_GP1_EN			BIT(3)
+#define PM800_MEAS_GP2_EN			BIT(4)
+#define PM800_MEAS_GP3_EN			BIT(5)
+#define PM800_MEAS_GP4_EN			BIT(6)
+
+/* GPADC Misc Config Register1 */
 #define PM800_GPADC_MISC_CONFIG1	(0x05)
+#define PM800_GPADC4_DIR			BIT(6)
+/* GPADC Misc Config Register2 */
 #define PM800_GPADC_MISC_CONFIG2	(0x06)
-#define PM800_GPADC_MISC_GPFSM_EN	(1 << 0)
-#define PM800_GPADC_SLOW_MODE(x)	(x << 3)
-#define PM800_GPADC4_DIR			(1 << 6)
+#define PM800_GPADC_MISC_GPFSM_EN	BIT(0)
+#define PM800_GPADC_MISC_NON_STOP	BIT(1)
+#define PM800_GPADC_MISC_SW_TRIG	BIT(2)
+#define PM800_GPADC_MISC_MEAS_EN_SLP	BIT(4)
 
 #define PM800_GPADC_MEAS_OFF_TIME1	(0x07)
 #define PM800_GPADC_MEAS_OFF_TIME2	(0x08)
+#define PM800_GPADC_MISC_CONFIG3	(0x0A)
 
-#define PM800_GPADC_MISC_CONFIG3		(0x09)
-#define PM800_GPADC_MISC_CONFIG4		(0x0A)
-#define PM800_GPADC_MEAS_OFF_TIME2_1	(0x07)
-#define PM800_GPADC_MEAS_OFF_TIME2_2	(0x08)
+/* GPADC Bias Register */
+#define PM800_GPADC_BIAS_SET1		(0x0B)
+#define PM800_GPADC_BIAS_SET2		(0x0C)
+#define PM800_GPADC_BIAS_SET3		(0x0D)
+#define PM800_GPADC_BIAS_SET4		(0x0E)
 
-#define PM800_GP_BIAS_ENA1				(0x14)
-#define PM800_GPADC_GP_BIAS_EN0			(1 << 0)
-#define PM800_GPADC_GP_BIAS_EN1			(1 << 1)
-#define PM800_GPADC_GP_BIAS_EN2			(1 << 2)
-#define PM800_GPADC_GP_BIAS_EN3			(1 << 3)
+/* GPADC SW Calibration Register1 */
+#define PM800_GPADC_SW_CAL			(0x13)
 
-#define PM800_GP_BIAS_OUT1		(0x15)
-#define PM800_BIAS_OUT_GP0		(1 << 0)
-#define PM800_BIAS_OUT_GP1		(1 << 1)
-#define PM800_BIAS_OUT_GP2		(1 << 2)
-#define PM800_BIAS_OUT_GP3		(1 << 3)
+/* GP Bias Enable Register1 */
+#define PM800_GP_BIAS_ENA1			(0x14)
+#define PM800_GPADC_GP_BIAS_EN0		BIT(0)
+#define PM800_GPADC_GP_BIAS_EN1		BIT(1)
+#define PM800_GPADC_GP_BIAS_EN2		BIT(2)
+#define PM800_GPADC_GP_BIAS_EN3		BIT(3)
+#define PM800_BIAS_OUT_GP0			BIT(4)
+#define PM800_BIAS_OUT_GP1			BIT(5)
+#define PM800_BIAS_OUT_GP2			BIT(6)
+#define PM800_BIAS_OUT_GP3			BIT(7)
+
+/* GPADC Lower Threshold Registers */
+#define PM800_VBAT_LOW_TH		0x18
+#define PM800_VSYS_LOW_TH		0x19
+#define PM800_VCHG_LOW_TH		0x1A
+#define PM800_TINT_LOW_TH		0x1B
 
 #define PM800_GPADC0_LOW_TH		0x20
 #define PM800_GPADC1_LOW_TH		0x21
@@ -453,12 +475,19 @@ enum {
 #define PM800_GPADC3_LOW_TH		0x23
 #define PM800_GPADC4_LOW_TH		0x24
 
+/* GPADC Upper Threshold Registers */
+#define PM800_VBAT_UPP_TH		0x28
+#define PM800_VSYS_UPP_TH		0x29
+#define PM800_VCHG_UPP_TH		0x2A
+#define PM800_TINT_UPP_TH		0x2B
+
 #define PM800_GPADC0_UPP_TH		0x30
 #define PM800_GPADC1_UPP_TH		0x31
 #define PM800_GPADC2_UPP_TH		0x32
 #define PM800_GPADC3_UPP_TH		0x33
 #define PM800_GPADC4_UPP_TH		0x34
 
+/* GPADC Measurement Registers */
 #define PM800_VBBAT_MEAS1		0x40
 #define PM800_VBBAT_MEAS2		0x41
 #define PM800_VBAT_MEAS1		0x42
@@ -469,8 +498,8 @@ enum {
 #define PM800_VCHG_MEAS2		0x47
 #define PM800_TINT_MEAS1		0x50
 #define PM800_TINT_MEAS2		0x51
-#define PM800_PMOD_MEAS1		0x52
-#define PM800_PMOD_MEAS2		0x53
+#define PM800_VBAT2_MEAS1		0x52
+#define PM800_VBAT2_MEAS2		0x53
 
 #define PM800_GPADC0_MEAS1		0x54
 #define PM800_GPADC0_MEAS2		0x55
@@ -483,12 +512,46 @@ enum {
 #define PM800_GPADC4_MEAS1		0x5C
 #define PM800_GPADC4_MEAS2		0x5D
 
-#define PM800_GPADC4_AVG1		0xA8
-#define PM800_GPADC4_AVG2		0xA9
+/* GPADC Min Registers */
+#define PM800_VBAT_MIN1			0x80
+#define PM800_VBAT_MIN2			0x81
+#define PM800_VSYS_MIN1			0x82
+#define PM800_VSYS_MIN2			0x83
+#define PM800_VCHG_MIN1			0x84
+#define PM800_VCHG_MIN2			0x85
+#define PM800_GPADC3_MIN1		0x86
+#define PM800_GPADC3_MIN2		0x87
 #define PM800_GPADC4_MIN1		0x88
 #define PM800_GPADC4_MIN2		0x89
+#define PM800_TST_MIN1			0x8A
+#define PM800_TST_MIN2			0x8B
+
+/* GPADC Max Registers */
+#define PM800_VBAT_MAX1			0x90
+#define PM800_VBAT_MAX2			0x91
+#define PM800_VSYS_MAX1			0x92
+#define PM800_VSYS_MAX2			0x93
+#define PM800_VCHG_MAX1			0x94
+#define PM800_VCHG_MAX2			0x95
+#define PM800_GPADC3_MAX1		0x96
+#define PM800_GPADC3_MAX2		0x97
 #define PM800_GPADC4_MAX1		0x98
 #define PM800_GPADC4_MAX2		0x99
+#define PM800_TST_MAX1			0x9A
+#define PM800_TST_MAX2			0x9B
+
+/* GPADC Average Registers */
+#define PM800_VBAT_AVG1			0xA0
+#define PM800_VBAT_AVG2			0xA1
+#define PM800_VSYS_AVG1			0xA2
+#define PM800_VSYS_AVG2			0xA3
+#define PM800_VCHG_AVG1			0xA4
+#define PM800_VCHG_AVG2			0xA5
+#define PM800_GPADC3_AVG1		0xA6
+#define PM800_GPADC3_AVG2		0xA7
+#define PM800_GPADC4_AVG1		0xA8
+#define PM800_GPADC4_AVG2		0xA9
+
 /*********************************/
 /*page 7 TEST PAGE: slave adder 0x07*/
 /********************************/
