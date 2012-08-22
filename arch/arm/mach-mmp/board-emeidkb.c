@@ -1448,7 +1448,7 @@ static struct mv_usb_platform_data emeidkb_usb_pdata = {
 #ifdef CONFIG_MMC_SDHCI_PXAV3
 #define MFP_WIB_PDn		(GPIO007_GPIO_7 | MFP_PULL_FLOAT)
 #define MFP_WIB_RESETn		(GPIO011_GPIO_11 | MFP_PULL_FLOAT)
-#define POWER_OFF_SD_SIGNAL_IN_SUSPEND 0
+#define POWER_OFF_SD_SIGNAL_IN_SUSPEND 1
 
 static void emeidkb_set_sdcard_signal_level(int vol)
 {
