@@ -83,7 +83,9 @@
 } while (0)
 static int ct1, ct2, irqtm_check;
 static struct timeval t0, t1[ITC_MAX_NUM], t2[ITC_MAX_NUM];
+#ifdef CONFIG_CPU_MMP3
 static atomic_t framedone = ATOMIC_INIT(0);
+#endif
 
 /* interrupt number collection to get real frame rate */
 #define VSYNC_CHECK_TIME	(10 * HZ)
