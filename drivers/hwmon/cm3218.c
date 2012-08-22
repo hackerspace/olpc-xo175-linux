@@ -101,7 +101,7 @@ int32_t als_kadc;
 static int control_and_report(struct cm3218_info *lpi, uint8_t mode,
 			      uint8_t cmd_enable);
 
-static int I2C_RxData(uint16_t slaveAddr, uint8_t cmd, uint8_t *rxData,
+static int i2c_recv_data(uint16_t slaveAddr, uint8_t cmd, uint8_t *rxData,
 		      int length)
 {
 	uint8_t loop_i;
@@ -150,7 +150,7 @@ static int I2C_RxData(uint16_t slaveAddr, uint8_t cmd, uint8_t *rxData,
 	return 0;
 }
 
-static int I2C_RxData2(uint16_t slaveAddr, uint8_t *rxData, int length)
+static int i2c_recv_byte(uint16_t slaveAddr, uint8_t *rxData, int length)
 {
 	uint8_t loop_i;
 	int val;
@@ -189,7 +189,7 @@ static int I2C_RxData2(uint16_t slaveAddr, uint8_t *rxData, int length)
 	return 0;
 }
 
-static int I2C_TxData(uint16_t slaveAddr, uint8_t *txData, int length)
+static int i2c_transfer_data(uint16_t slaveAddr, uint8_t *txData, int length)
 {
 	uint8_t loop_i;
 	int val;
@@ -227,7 +227,7 @@ static int I2C_TxData(uint16_t slaveAddr, uint8_t *txData, int length)
 	return 0;
 }
 
-static int _cm3218_I2C_Read_Byte(uint16_t slaveAddr, uint8_t *pdata)
+static int cm3218_i2c_read_byte(uint16_t slaveAddr, uint8_t *pdata)
 {
 	uint8_t buffer = 0;
 	int ret = 0;
@@ -235,9 +235,9 @@ static int _cm3218_I2C_Read_Byte(uint16_t slaveAddr, uint8_t *pdata)
 	if (pdata == NULL)
 		return -EFAULT;
 
-	ret = I2C_RxData2(slaveAddr, &buffer, 1);
+	ret = i2c_recv_byte(slaveAddr, &buffer, 1);
 	if (ret < 0) {
-		pr_err("[PS_ERR][CM3218 error]%s: I2C_RxData fail,"
+		pr_err("[PS_ERR][CM3218 error]%s: i2c_receive_byte fail,"
 		" slave addr: 0x%x\n", __func__, slaveAddr);
 		return ret;
 	}
@@ -245,13 +245,13 @@ static int _cm3218_I2C_Read_Byte(uint16_t slaveAddr, uint8_t *pdata)
 	*pdata = buffer;
 #if 0
 	/* Debug use */
-	printk(KERN_DEBUG "[CM3218] %s: I2C_RxData[0x%x] = 0x%x\n",
+	printk(KERN_DEBUG "[CM3218] %s:i2c_receive_byte[0x%x] = 0x%x\n",
 	       __func__, slaveAddr, *pdata);
 #endif
 	return ret;
 }
 
-static int _cm3218_I2C_Read_Word(uint16_t slaveAddr, uint8_t cmd,
+static int cm3218_i2c_read_word(uint16_t slaveAddr, uint8_t cmd,
 				 uint16_t *pdata)
 {
 	uint8_t buffer[2];
@@ -260,24 +260,24 @@ static int _cm3218_I2C_Read_Word(uint16_t slaveAddr, uint8_t cmd,
 	if (pdata == NULL)
 		return -EFAULT;
 
-	ret = I2C_RxData(slaveAddr, cmd, buffer, 2);
+	ret = i2c_recv_data(slaveAddr, cmd, buffer, 2);
 	if (ret < 0) {
 		pr_err
-		    ("[PS_ERR][CM3218 error]%s: I2C_RxData fail [0x%x, 0x%x]\n",
-		     __func__, slaveAddr, cmd);
+		    ("[PS_ERR][CM3218 error]%s: i2c_recv_data fail"
+			"[0x%x, 0x%x]\n", __func__, slaveAddr, cmd);
 		return ret;
 	}
 
 	*pdata = (buffer[1] << 8) | buffer[0];
 #if 0
 	/* Debug use */
-	printk(KERN_DEBUG "[CM3218] %s: I2C_RxData[0x%x, 0x%x] = 0x%x\n",
+	printk(KERN_DEBUG "[CM3218] %s: i2c_recv_data[0x%x, 0x%x] = 0x%x\n",
 	       __func__, slaveAddr, cmd, *pdata);
 #endif
 	return ret;
 }
 
-static int _cm3218_I2C_Write_Word(uint16_t SlaveAddress, uint8_t cmd,
+static int cm3218_i2c_write_word(uint16_t SlaveAddress, uint8_t cmd,
 				  uint16_t data)
 {
 	char buffer[3];
@@ -285,16 +285,17 @@ static int _cm3218_I2C_Write_Word(uint16_t SlaveAddress, uint8_t cmd,
 #if 0
 	/* Debug use */
 	printk(KERN_DEBUG
-	       "[CM3218] %s: _cm3218_I2C_Write_Word[0x%x, 0x%x, 0x%x]\n",
+	       "[CM3218] %s: cm3218_i2c_write_word[0x%x, 0x%x, 0x%x]\n",
 	       __func__, SlaveAddress, cmd, data);
 #endif
 	buffer[0] = cmd;
 	buffer[1] = (uint8_t) (data & 0xff);
 	buffer[2] = (uint8_t) ((data & 0xff00) >> 8);
 
-	ret = I2C_TxData(SlaveAddress, buffer, 3);
+	ret = i2c_transfer_data(SlaveAddress, buffer, 3);
 	if (ret < 0) {
-		pr_err("[PS_ERR][CM3218 error]%s: I2C_TxData fail\n", __func__);
+		pr_err("[PS_ERR][CM3218 error]%s: i2c_transfer_data fail\n",
+		__func__);
 		return -EIO;
 	}
 
@@ -311,9 +312,9 @@ static int get_ls_adc_value(uint16_t *als_step, bool resume)
 		return -EFAULT;
 
 	/* Read ALS data: */
-	ret = _cm3218_I2C_Read_Word(lpi->ALS_cmd_address, ALS_READ, als_step);
+	ret = cm3218_i2c_read_word(lpi->ALS_cmd_address, ALS_READ, als_step);
 	if (ret < 0) {
-		pr_err("[LS][CM3218 error]%s: _cm3218_I2C_Read_Word fail\n",
+		pr_err("[LS][CM3218 error]%s: cm3218_i2c_read_word fail\n",
 		       __func__);
 		return -EIO;
 	}
@@ -338,8 +339,8 @@ static int set_lsensor_range(uint16_t low_thd, uint16_t high_thd)
 	int ret = 0;
 	struct cm3218_info *lpi = lp_info;
 
-	_cm3218_I2C_Write_Word(lpi->ALS_cmd_address, ALS_HW, high_thd);
-	_cm3218_I2C_Write_Word(lpi->ALS_cmd_address, ALS_LW, low_thd);
+	cm3218_i2c_write_word(lpi->ALS_cmd_address, ALS_HW, high_thd);
+	cm3218_i2c_write_word(lpi->ALS_cmd_address, ALS_LW, low_thd);
 
 	return ret;
 }
@@ -435,7 +436,7 @@ static void ls_initial_cmd(struct cm3218_info *lpi)
 {
 	/*must disable l-sensor interrupt befrore IST create disable ALS func */
 	lpi->is_cmd |= CM3218_ALS_SD;
-	_cm3218_I2C_Write_Word(lpi->ALS_cmd_address, ALS_CMD, lpi->is_cmd);
+	cm3218_i2c_write_word(lpi->ALS_cmd_address, ALS_CMD, lpi->is_cmd);
 }
 
 void lightsensor_set_kvalue(struct cm3218_info *lpi)
@@ -799,7 +800,7 @@ static ssize_t ls_conf_store(struct device *dev,
 
 	ALS_CONF = value;
 	printk(KERN_INFO "[LS]set ALS_CONF = %x\n", ALS_CONF);
-	_cm3218_I2C_Write_Word(lpi->ALS_cmd_address, ALS_CMD, ALS_CONF);
+	cm3218_i2c_write_word(lpi->ALS_cmd_address, ALS_CMD, ALS_CONF);
 	return count;
 }
 
@@ -921,7 +922,7 @@ check_interrupt_gpio:
 	}
 	lpi->is_cmd = lpi->is_cmd | CM3218_ALS_SD;
 	ret =
-	    _cm3218_I2C_Write_Word(lpi->ALS_cmd_address, ALS_CMD, lpi->is_cmd);
+	    cm3218_i2c_write_word(lpi->ALS_cmd_address, ALS_CMD, lpi->is_cmd);
 	if ((ret < 0) && (fail_counter < 10)) {
 		fail_counter++;
 		val = gpio_get_value(lpi->intr_pin);
@@ -930,7 +931,7 @@ check_interrupt_gpio:
 			" , inital fail_counter %d\n",
 			__func__, val, fail_counter);
 
-			ret = _cm3218_I2C_Read_Byte(lpi->check_interrupt_add,
+			ret = cm3218_i2c_read_byte(lpi->check_interrupt_add,
 						  &add);
 			D("[LS][CM3218] %s, check_interrupt_add value = 0x%x,"
 			" ret %d\n",  __func__, add, ret);
@@ -941,7 +942,7 @@ check_interrupt_gpio:
 			" ,inital fail_counter %d\n",
 			__func__, val, fail_counter);
 
-			ret = _cm3218_I2C_Read_Byte(lpi->check_interrupt_add,
+			ret = cm3218_i2c_read_byte(lpi->check_interrupt_add,
 						  &add);
 			D("[LS][CM3218] %s, check_interrupt_add value = 0x%x,"
 			" ret %d\n", __func__, add, ret);
@@ -1191,7 +1192,7 @@ static int control_and_report(struct cm3218_info *lpi, uint8_t mode,
 
 		val = gpio_get_value(lpi->intr_pin);
 		if (val == 0) {
-			ret = _cm3218_I2C_Read_Byte(lpi->check_interrupt_add,
+			ret = cm3218_i2c_read_byte(lpi->check_interrupt_add,
 						  &add);
 			D("[CM3218] %s, interrupt GPIO val = %d,"
 			" check_interrupt_add value = 0x%x, ret %d\n",
@@ -1200,7 +1201,7 @@ static int control_and_report(struct cm3218_info *lpi, uint8_t mode,
 		val = gpio_get_value(lpi->intr_pin);
 		if (val == 0) {
 			ret =
-			    _cm3218_I2C_Read_Byte(lpi->check_interrupt_add,
+			    cm3218_i2c_read_byte(lpi->check_interrupt_add,
 						  &add);
 			D("[CM3218] %s, interrupt GPIO val = %d,"
 			" check_interrupt_add value = 0x%x, ret %d\n",
@@ -1209,7 +1210,7 @@ static int control_and_report(struct cm3218_info *lpi, uint8_t mode,
 
 		lpi->is_cmd &= CM3218_ALS_INT_MASK;
 		ret =
-		    _cm3218_I2C_Write_Word(lpi->ALS_cmd_address, ALS_CMD,
+		    cm3218_i2c_write_word(lpi->ALS_cmd_address, ALS_CMD,
 					   lpi->is_cmd);
 		if (ret == 0) {
 			break;
@@ -1236,7 +1237,7 @@ static int control_and_report(struct cm3218_info *lpi, uint8_t mode,
 		else
 			lpi->is_cmd |= CM3218_ALS_SD;
 
-		_cm3218_I2C_Write_Word(lpi->ALS_cmd_address, ALS_CMD,
+		cm3218_i2c_write_word(lpi->ALS_cmd_address, ALS_CMD,
 				       lpi->is_cmd);
 		lpi->als_enable = cmd_enable;
 	}
@@ -1250,7 +1251,7 @@ static int control_and_report(struct cm3218_info *lpi, uint8_t mode,
 	if (lpi->als_enable)
 		report_ls_value();
 
-ret = _cm3218_I2C_Write_Word(lpi->ALS_cmd_address, ALS_CMD,
+ret = cm3218_i2c_write_word(lpi->ALS_cmd_address, ALS_CMD,
 					lpi->is_cmd);
 	if (ret == 0)
 		D("[CM3218] %s, re-enable INT OK\n", __func__);
