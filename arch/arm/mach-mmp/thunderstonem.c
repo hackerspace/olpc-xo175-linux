@@ -66,6 +66,7 @@
 #endif
 
 #include <plat/usb.h>
+#include <plat/devfreq.h>
 #include <media/soc_camera.h>
 #include <mach/sram.h>
 #include <plat/pmem.h>
@@ -1233,6 +1234,19 @@ static void __init mmp_init_vmeta(void)
 }
 #endif
 
+#ifdef CONFIG_VMETA_DEVFREQ
+extern int set_vmeta_freqs_table(struct devfreq *devfreq);
+static struct devfreq_platform_data devfreq_vmeta_pdata = {
+	.clk_name = "VMETA_CLK",
+	.setup_freq_table = set_vmeta_freqs_table,
+};
+
+static void __init mmp_init_devfreq_vmeta(void)
+{
+	mmp_set_devfreq_vmeta_info(&devfreq_vmeta_pdata);
+}
+#endif
+
 /* Only for reboot routine */
 extern int __raw_i2c_bus_reset(u8 bus_num);
 extern int __raw_i2c_write_reg(u8 bus_num, u8 addr, u8 reg, u8 val);
@@ -1404,6 +1418,11 @@ static void __init thunderstonem_init(void)
 #ifdef CONFIG_UIO_VMETA
 	mmp_init_vmeta();
 #endif
+
+#ifdef CONFIG_VMETA_DEVFREQ
+	mmp_init_devfreq_vmeta();
+#endif
+
 #ifdef CONFIG_MMC_SDHCI_PXAV3
 	thunderstonem_init_mmc();
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
