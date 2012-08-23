@@ -44,3 +44,4 @@ obj-$(CONFIG_CHARGER_GPIO)	+= gpio-charger.o
 obj-$(CONFIG_CHARGER_ISL9519)	+= isl9519_charger.o
 obj-$(CONFIG_CHARGER_FAN540X)	+= fan540x_charger.o
 obj-$(CONFIG_BATTERY_FAN4010)	+= fan4010_battery.o
+obj-$(CONFIG_CHARGER_SMB347)	+= smb347-charger.o
