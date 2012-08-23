@@ -40,6 +40,9 @@
 #if defined(CONFIG_SENSORS_L3G4200D_GYR)
 #include <linux/i2c/l3g4200d.h>
 #endif
+#if defined(CONFIG_CHARGER_SMB347)
+#include <linux/power/smb347-charger.h>
+#endif
 #include <linux/sd8x_rfkill.h>
 #include <linux/mmc/sdhci.h>
 
@@ -735,6 +738,32 @@ struct KXT_9_platform_data zoom2_KXT_9_data = {
 };
 #endif
 
+#if defined(CONFIG_CHARGER_SMB347)
+static struct smb347_charger_platform_data smb347_plat_data = {
+	.max_charge_current		= 2500000,
+	.max_charge_voltage		= 4200000,
+	.pre_charge_current		=  150000,
+	.termination_current		=  200000,
+	.pre_to_fast_voltage		= 3000000,
+	.mains_current_limit		= 1800000,
+	.usb_hc_current_limit		= 1800000,
+	.chip_temp_threshold		= 120,
+	.soft_cold_temp_limit		= 15,
+	.soft_hot_temp_limit		= 45,
+	.hard_cold_temp_limit		= 0,
+	.hard_hot_temp_limit		= 60,
+	.suspend_on_hard_temp_limit	= 1,
+	.soft_temp_limit_compensation	= SMB347_SOFT_TEMP_COMPENSATE_CURRENT,
+	.charge_current_compensation	= 700000,
+	.use_mains			= 0,
+	.use_usb			= 1,
+	.use_usb_otg			= 1,
+	.irq_gpio			= -1,
+	.enable_control			= SMB347_CHG_ENABLE_PIN_ACTIVE_LOW,
+	.workq_timeout			= 10000,
+};
+#endif
+
 static struct i2c_board_info thunderstonem_twsi4_info[] = {
 #if defined(CONFIG_INPUT_KXT_9)
 	{
@@ -762,6 +791,13 @@ static struct i2c_board_info thunderstonem_twsi4_info[] = {
 		.type		= L3G4200D_GYR_DEV_NAME,
 		.addr		= (0xD0>>1),
 		.platform_data	= &l3g4200d_gyr_data,
+	},
+#endif
+#if defined(CONFIG_CHARGER_SMB347)
+	{
+		.type		= "smb347",
+		.addr		= (0x0C>>1),
+		.platform_data	= &smb347_plat_data,
 	},
 #endif
 };
@@ -1429,10 +1465,6 @@ static void __init thunderstonem_init(void)
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
 
 	platform_device_register(&mmp3_device_rtc);
-
-#if defined(CONFIG_TOUCHSCREEN_VNC)
-	platform_device_register(&mmp3_device_vnc_touch);
-#endif
 
 	/* audio sspa support */
 	mmp3_add_sspa(1);
