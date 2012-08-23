@@ -506,6 +506,7 @@ static int __init mmp3_init(void)
 	mmp_init_dma(IRQ_MMP3_DMA_RIQ);
 
 	platform_device_register(&mmp3_device_asoc_sspa1);
+	platform_device_register(&mmp3_device_asoc_sspa2);
 	platform_device_register(&mmp3_device_asoc_platform);
 	platform_device_register(&mmp3_device_asoc_hdmi);
 
@@ -1277,7 +1278,7 @@ static struct mmp_zsp_platform_device mmp_zsp_op = {
 	.clkcfg = {
 		.spd	= MMP_ZSP_SPD_PERFORMACE,
 		.src	= MMP_ZSP_CORECLKSRC_AUDIOPLL,
-		.asclk	= MMP_ZSP_ASCLK_24576000,
+		.asclk	= MMP_ZSP_ASCLK_22579200,
 	},
 	.sram_size = MMP_AUDIO_RAM_SIZE,
 	.domain_halt	= mmp_zsp_domain_halt,

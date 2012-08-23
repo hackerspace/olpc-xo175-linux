@@ -275,12 +275,21 @@ config SND_MMP_LEGACY_SOC
 	  support below.
 
 config SND_MMP_ZSP_SOC
-	bool "Soc Audio With ZSP Mode"
+	bool "MMP2 Soc Audio With ZSP Mode"
 	depends on MMP_ZSP
 	select SND_PCM
 	help
 	  Say Y if you want to enable the audio ZSP mode.
 	  If ZSP mode is selected, ZSP will control the SSPA & ADMA
+
+config SND_MMP3_ZSP_SOC
+	bool "MMP3 Soc Audio With ZSP Mode"
+	depends on MMP_ZSP
+	select SND_PCM
+	help
+	  Say Y if you want to enable the audio ZSP mode.
+	  If ZSP mode is selected, ZSP will control the SSPA & ADMA
+
 endchoice
 
 menu "SoC Audio for the Marvell MMPx"
@@ -311,6 +320,17 @@ config SND_MMP_SOC_BROWNSTONE
 	help
 	  Say Y if you want to add support for SoC audio on the
 	  Marvell Brownstone reference platform.
+
+config SND_MMP3_ZSP_SOC_MMP3ASOC
+        bool "SoC Audio support for MMP3 aSoc"
+	depends on SND_MMP3_ZSP_SOC && (MACH_ABILENE || MACH_YELLOWSTONE)
+	select MFD_88PM80X
+	select SND_SOC_88PM805
+	select SND_SOC_HDMI
+	select REGULATOR_FIXED_VOLTAGE
+	help
+	  Say Y if you want to add support for SoC audio on MMP3
+
 
 config SND_MMP_SOC_MMP3ASOC
         bool "SoC Audio support for MMP3 aSoc"
