@@ -105,6 +105,7 @@ void pmu_register_unlock()
 	spin_unlock_irqrestore(&pmu_lock, flags);
 }
 
+#ifdef CONFIG_SMP
 static inline void core_exit_coherency(void)
 {
 	unsigned int v;
@@ -115,6 +116,7 @@ static inline void core_exit_coherency(void)
 	: "=&r" (v) : : "cc");
 	isb();
 }
+#endif
 
 static inline void disable_l1_dcache(void)
 {
@@ -127,6 +129,7 @@ static inline void disable_l1_dcache(void)
 	isb();
 }
 
+#ifdef CONFIG_SMP
 static inline void core_enter_coherency(void)
 {
 	unsigned int v;
@@ -137,6 +140,7 @@ static inline void core_enter_coherency(void)
 	: "=&r" (v) : : "cc");
 	isb();
 }
+#endif
 
 static inline void enable_l1_dcache(void)
 {
@@ -198,6 +202,8 @@ static int pxa988_finish_suspend(unsigned long param)
 	cpu_do_idle();
 
 back:
+
+#ifdef CONFIG_SMP
 	/*
 	 * Ensure the CPU power state is set to NORMAL in
 	 * SCU power state so that CPU is back in coherency.
@@ -206,6 +212,8 @@ back:
 	 */
 	scu_power_mode(pxa_scu_base_addr(), SCU_PM_NORMAL);
 	core_enter_coherency();
+#endif
+
 	enable_l1_dcache();
 
 	return 0;
