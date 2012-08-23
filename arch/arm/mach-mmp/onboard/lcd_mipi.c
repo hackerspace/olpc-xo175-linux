@@ -1617,7 +1617,7 @@ void __init emeidkb_add_lcd_mipi(void)
 	fb->num_modes = ARRAY_SIZE(video_modes_emeidkb);
 	fb->modes = video_modes_emeidkb;
 	fb->max_fb_size = video_modes_emeidkb[0].xres *
-		video_modes_emeidkb[0].xres * 8 + 4096;
+		video_modes_emeidkb[0].yres * 8 + 4096;
 	ovly->num_modes = fb->num_modes;
 	ovly->modes = fb->modes;
 	ovly->max_fb_size = fb->max_fb_size;
