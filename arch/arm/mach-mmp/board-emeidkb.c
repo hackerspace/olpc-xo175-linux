@@ -569,6 +569,12 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 	/* Enable reference group sleep mode */
 	pm80x_reg_write(chip->base_page, PM800_LOW_POWER_CONFIG4, 0x80);
 
+	/* Set the 4 regs of buck4 as 1.8v */
+	pm80x_reg_write(chip->power_page, PM800_BUCK4, 0x54);
+	pm80x_reg_write(chip->power_page, PM800_BUCK4_1, 0x54);
+	pm80x_reg_write(chip->power_page, PM800_BUCK4_2, 0x54);
+	pm80x_reg_write(chip->power_page, PM800_BUCK4_3, 0x54);
+
 	/* BUCK enable 0x50, BUCK1, 2, 3, 4 */
 	pm80x_reg_write(chip->power_page, PM800_BUCK_ENA, 0x0f);
 	/* LDO enable 0x51, 0x52, 0x53, LDO1, 3, 5, 7 */
