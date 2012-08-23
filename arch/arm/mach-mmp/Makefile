@@ -28,7 +28,7 @@ obj-$(CONFIG_CPU_PXA988)	+= pxa988_hotplug.o
 endif
 ifeq ($(CONFIG_SOC_LOCAL_TIMERS),y)
 obj-$(CONFIG_CPU_MMP3)		+= soc_time.o
-else ifeq ($(CONFIG_CPU_PXA988),n)
+else ifneq ($(CONFIG_CPU_PXA988),y)
 obj-y				+= time.o
 obj-$(CONFIG_LOCAL_TIMERS)	+= localtimer.o
 endif
