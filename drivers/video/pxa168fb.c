@@ -1401,7 +1401,7 @@ static void pxa168fb_set_default(struct pxa168fb_info *fbi,
 {
 	struct lcd_regs *regs = get_regs(fbi->id);
 #ifdef CONFIG_PXA988_LCD_PARALLEL
-	u32 dma_ctrl1 = 0x20328081, flag, tmp;
+	u32 dma_ctrl1 = 0x20320081, flag, tmp;
 #else
 	u32 dma_ctrl1 = 0x2032ff81, flag, tmp;
 #endif
