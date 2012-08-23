@@ -599,7 +599,7 @@ static ssize_t attr_adc_show(struct device *dev,
 	get_ls_adc_value(lpi, &adc_value, 0);
 	lpi->current_adc = adc_value;
 
-	ret = sprintf(buf, "raw adc = 0x%04X\n", lpi->current_adc);
+	ret = sprintf(buf, "%d\n", lpi->current_adc);
 
 	return ret;
 }
@@ -610,7 +610,7 @@ static ssize_t attr_enable_show(struct device *dev,
 	int ret = 0;
 	struct cm3218_info *lpi = dev_get_drvdata(dev);
 
-	ret = sprintf(buf, "Light sensor Auto Enable = %d\n", lpi->als_enable);
+	ret = sprintf(buf, "%d\n", lpi->als_enable);
 
 	return ret;
 }
@@ -652,7 +652,7 @@ static ssize_t attr_kadc_show(struct device *dev,
 	int ret;
 	struct cm3218_info *lpi = dev_get_drvdata(dev);
 
-	ret = sprintf(buf, "kadc = 0x%x", lpi->als_kadc);
+	ret = sprintf(buf, "%d\n", lpi->als_kadc);
 
 	return ret;
 }
@@ -693,7 +693,7 @@ static ssize_t attr_gadc_show(struct device *dev,
 	int ret;
 	struct cm3218_info *lpi = dev_get_drvdata(dev);
 
-	ret = sprintf(buf, "gadc = 0x%x\n", lpi->als_gadc);
+	ret = sprintf(buf, "%d\n", lpi->als_gadc);
 
 	return ret;
 }
@@ -737,12 +737,7 @@ static ssize_t attr_adc_table_show(struct device *dev,
 
 	for (i = 0; i < 10; i++) {
 		length += sprintf(buf + length,
-		"[CM3218]Get adc_table[%d] =  0x%x ; %d,"
-		" Get cali_table[%d] =  0x%x ; %d,\n",
-		i, *(lpi->adc_table + i),
-		*(lpi->adc_table + i),
-		i, *(lpi->cali_table + i),
-		*(lpi->cali_table + i));
+		"%d\n", *(lpi->adc_table + i));
 	}
 	return length;
 }
@@ -759,7 +754,7 @@ static ssize_t attr_adc_table_store(struct device *dev,
 	printk(KERN_INFO "[CM3218]%s\n", buf);
 	for (i = 0; i < 10; i++) {
 		token[i] = strsep((char **)&buf, " ");
-		tempdata[i] = simple_strtoul(token[i], NULL, 16);
+		tempdata[i] = simple_strtoul(token[i], NULL, 10);
 		if (tempdata[i] < 1 || tempdata[i] > 0xffff) {
 			printk(KERN_ERR
 			       "[CM3218 error] adc_table[%d] =  0x%x Err\n",
@@ -783,11 +778,25 @@ static ssize_t attr_adc_table_store(struct device *dev,
 	return count;
 }
 
+static ssize_t attr_cali_table_show(struct device *dev,
+				 struct device_attribute *attr, char *buf)
+{
+	unsigned length = 0;
+	int i;
+	struct cm3218_info *lpi = dev_get_drvdata(dev);
+
+	for (i = 0; i < 10; i++) {
+		length += sprintf(buf + length,
+		"%d\n", *(lpi->cali_table + i));
+	}
+	return length;
+}
+
 static uint8_t ALS_CONF = -1;
 static ssize_t attr_conf_show(struct device *dev,
 			    struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "ALS_CONF = %x\n", ALS_CONF);
+	return sprintf(buf, "%x\n", ALS_CONF);
 }
 
 static ssize_t attr_conf_store(struct device *dev,
@@ -807,7 +816,8 @@ static ssize_t attr_conf_store(struct device *dev,
 static ssize_t attr_fLevel_show(struct device *dev,
 			      struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "fLevel = %d\n", fLevel);
+	struct cm3218_info *lpi = dev_get_drvdata(dev);
+	return sprintf(buf, "%d\n", lpi->current_level);
 }
 
 static ssize_t attr_fLevel_store(struct device *dev,
@@ -829,34 +839,38 @@ static ssize_t attr_fLevel_store(struct device *dev,
 }
 
 static struct device_attribute dev_attr_light_enable =
-__ATTR(enable, S_IRUGO | S_IWUSR | S_IWGRP, attr_enable_show,
+__ATTR(enable, S_IRUGO | S_IWUGO, attr_enable_show,
 						attr_enable_store);
 
 static struct device_attribute dev_attr_light_kadc =
-__ATTR(kadc, S_IRUGO | S_IWUSR | S_IWGRP, attr_kadc_show, attr_kadc_store);
+__ATTR(kadc, S_IRUGO | S_IWUGO, attr_kadc_show, attr_kadc_store);
 
 static struct device_attribute dev_attr_light_gadc =
-__ATTR(gadc, S_IRUGO | S_IWUSR | S_IWGRP, attr_gadc_show, attr_gadc_store);
+__ATTR(gadc, S_IRUGO | S_IWUGO, attr_gadc_show, attr_gadc_store);
 
 static struct device_attribute dev_attr_light_adc_table =
-__ATTR(adc_table, S_IRUGO | S_IWUSR | S_IWGRP, attr_adc_table_show,
+__ATTR(adc_table, S_IRUGO | S_IWUGO, attr_adc_table_show,
 	attr_adc_table_store);
 
+static struct device_attribute dev_attr_light_cali_table =
+__ATTR(cali_table, S_IRUGO, attr_cali_table_show, NULL);
+
 static struct device_attribute dev_attr_light_conf =
-__ATTR(conf, S_IRUGO | S_IWUSR | S_IWGRP, attr_conf_show, attr_conf_store);
+__ATTR(conf, S_IRUGO | S_IWUGO, attr_conf_show, attr_conf_store);
 
 static struct device_attribute dev_attr_light_fLevel =
-__ATTR(fLevel, S_IRUGO | S_IWUSR | S_IWGRP, attr_fLevel_show,
+__ATTR(fLevel, S_IRUGO | S_IWUGO, attr_fLevel_show,
 						attr_fLevel_store);
 
 static struct device_attribute dev_attr_light_adc =
-__ATTR(adc, S_IRUGO | S_IWUSR | S_IWGRP, attr_adc_show, NULL);
+__ATTR(adc, S_IRUGO, attr_adc_show, NULL);
 
 static struct attribute *light_sysfs_attrs[] = {
 	&dev_attr_light_enable.attr,
 	&dev_attr_light_kadc.attr,
 	&dev_attr_light_gadc.attr,
 	&dev_attr_light_adc_table.attr,
+	&dev_attr_light_cali_table.attr,
 	&dev_attr_light_conf.attr,
 	&dev_attr_light_fLevel.attr,
 	&dev_attr_light_adc.attr,
