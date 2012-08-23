@@ -589,7 +589,7 @@ static struct miscdevice lightsensor_misc = {
 	.fops = &lightsensor_fops
 };
 
-static ssize_t ls_adc_show(struct device *dev,
+static ssize_t attr_adc_show(struct device *dev,
 			   struct device_attribute *attr, char *buf)
 {
 	int ret;
@@ -604,7 +604,7 @@ static ssize_t ls_adc_show(struct device *dev,
 	return ret;
 }
 
-static ssize_t ls_enable_show(struct device *dev,
+static ssize_t attr_enable_show(struct device *dev,
 			      struct device_attribute *attr, char *buf)
 {
 	int ret = 0;
@@ -615,7 +615,7 @@ static ssize_t ls_enable_show(struct device *dev,
 	return ret;
 }
 
-static ssize_t ls_enable_store(struct device *dev,
+static ssize_t attr_enable_store(struct device *dev,
 			       struct device_attribute *attr,
 			       const char *buf, size_t count)
 {
@@ -646,7 +646,7 @@ static ssize_t ls_enable_store(struct device *dev,
 	return count;
 }
 
-static ssize_t ls_kadc_show(struct device *dev,
+static ssize_t attr_kadc_show(struct device *dev,
 			    struct device_attribute *attr, char *buf)
 {
 	struct cm3218_info *lpi = lp_info;
@@ -657,7 +657,7 @@ static ssize_t ls_kadc_show(struct device *dev,
 	return ret;
 }
 
-static ssize_t ls_kadc_store(struct device *dev,
+static ssize_t attr_kadc_store(struct device *dev,
 			     struct device_attribute *attr,
 			     const char *buf, size_t count)
 {
@@ -688,7 +688,7 @@ static ssize_t ls_kadc_store(struct device *dev,
 	return count;
 }
 
-static ssize_t ls_gadc_show(struct device *dev,
+static ssize_t attr_gadc_show(struct device *dev,
 			    struct device_attribute *attr, char *buf)
 {
 	struct cm3218_info *lpi = lp_info;
@@ -699,7 +699,7 @@ static ssize_t ls_gadc_show(struct device *dev,
 	return ret;
 }
 
-static ssize_t ls_gadc_store(struct device *dev,
+static ssize_t attr_gadc_store(struct device *dev,
 			     struct device_attribute *attr,
 			     const char *buf, size_t count)
 {
@@ -729,7 +729,7 @@ static ssize_t ls_gadc_store(struct device *dev,
 	return count;
 }
 
-static ssize_t ls_adc_table_show(struct device *dev,
+static ssize_t attr_adc_table_show(struct device *dev,
 				 struct device_attribute *attr, char *buf)
 {
 	unsigned length = 0;
@@ -747,7 +747,7 @@ static ssize_t ls_adc_table_show(struct device *dev,
 	return length;
 }
 
-static ssize_t ls_adc_table_store(struct device *dev,
+static ssize_t attr_adc_table_store(struct device *dev,
 				  struct device_attribute *attr,
 				  const char *buf, size_t count)
 {
@@ -784,13 +784,13 @@ static ssize_t ls_adc_table_store(struct device *dev,
 }
 
 static uint8_t ALS_CONF = -1;
-static ssize_t ls_conf_show(struct device *dev,
+static ssize_t attr_conf_show(struct device *dev,
 			    struct device_attribute *attr, char *buf)
 {
 	return sprintf(buf, "ALS_CONF = %x\n", ALS_CONF);
 }
 
-static ssize_t ls_conf_store(struct device *dev,
+static ssize_t attr_conf_store(struct device *dev,
 			     struct device_attribute *attr,
 			     const char *buf, size_t count)
 {
@@ -804,13 +804,13 @@ static ssize_t ls_conf_store(struct device *dev,
 	return count;
 }
 
-static ssize_t ls_fLevel_show(struct device *dev,
+static ssize_t attr_fLevel_show(struct device *dev,
 			      struct device_attribute *attr, char *buf)
 {
 	return sprintf(buf, "fLevel = %d\n", fLevel);
 }
 
-static ssize_t ls_fLevel_store(struct device *dev,
+static ssize_t attr_fLevel_store(struct device *dev,
 			       struct device_attribute *attr,
 			       const char *buf, size_t count)
 {
@@ -829,26 +829,28 @@ static ssize_t ls_fLevel_store(struct device *dev,
 }
 
 static struct device_attribute dev_attr_light_enable =
-__ATTR(enable, S_IRUGO | S_IWUSR | S_IWGRP, ls_enable_show, ls_enable_store);
+__ATTR(enable, S_IRUGO | S_IWUSR | S_IWGRP, attr_enable_show,
+						attr_enable_store);
 
 static struct device_attribute dev_attr_light_kadc =
-__ATTR(kadc, S_IRUGO | S_IWUSR | S_IWGRP, ls_kadc_show, ls_kadc_store);
+__ATTR(kadc, S_IRUGO | S_IWUSR | S_IWGRP, attr_kadc_show, attr_kadc_store);
 
 static struct device_attribute dev_attr_light_gadc =
-__ATTR(gadc, S_IRUGO | S_IWUSR | S_IWGRP, ls_gadc_show, ls_gadc_store);
+__ATTR(gadc, S_IRUGO | S_IWUSR | S_IWGRP, attr_gadc_show, attr_gadc_store);
 
 static struct device_attribute dev_attr_light_adc_table =
-__ATTR(adc_table, S_IRUGO | S_IWUSR | S_IWGRP, ls_adc_table_show,
-	ls_adc_table_store);
+__ATTR(adc_table, S_IRUGO | S_IWUSR | S_IWGRP, attr_adc_table_show,
+	attr_adc_table_store);
 
 static struct device_attribute dev_attr_light_conf =
-__ATTR(conf, S_IRUGO | S_IWUSR | S_IWGRP, ls_conf_show, ls_conf_store);
+__ATTR(conf, S_IRUGO | S_IWUSR | S_IWGRP, attr_conf_show, attr_conf_store);
 
 static struct device_attribute dev_attr_light_fLevel =
-__ATTR(fLevel, S_IRUGO | S_IWUSR | S_IWGRP, ls_fLevel_show, ls_fLevel_store);
+__ATTR(fLevel, S_IRUGO | S_IWUSR | S_IWGRP, attr_fLevel_show,
+						attr_fLevel_store);
 
 static struct device_attribute dev_attr_light_adc =
-__ATTR(adc, S_IRUGO | S_IWUSR | S_IWGRP, ls_adc_show, NULL);
+__ATTR(adc, S_IRUGO | S_IWUSR | S_IWGRP, attr_adc_show, NULL);
 
 static struct attribute *light_sysfs_attrs[] = {
 	&dev_attr_light_enable.attr,
