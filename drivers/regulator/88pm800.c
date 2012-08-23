@@ -280,7 +280,7 @@ static ssize_t buck1_dvc_read(struct file *file, char __user *user_buf,
 	struct pm800_regulator_info *info;
 	int ret;
 	char str[16];
-	u8 reg_val;
+	unsigned int val;
 
 	info = file->private_data;
 
@@ -289,10 +289,9 @@ static ssize_t buck1_dvc_read(struct file *file, char __user *user_buf,
 		gpio_set_value(info->dvc->dvc1, 0);
 		gpio_set_value(info->dvc->dvc2, 0);
 	}
-	reg_val = info->dvc->vol_val[0];
+	val = info->dvc->vol_val[0];
 
-	ret = snprintf(str, sizeof(str) - 1, "%d\n",
-		       BUCK1_table[reg_val]);
+	ret = snprintf(str, sizeof(str) - 1, "%d\n", val);
 
 	return simple_read_from_buffer(user_buf, count, ppos, str, ret);
 }
