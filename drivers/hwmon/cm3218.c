@@ -132,7 +132,7 @@ static int i2c_recv_data(struct cm3218_info *lpi, uint8_t cmd, uint8_t *rxData,
 		val = gpio_get_value(lpi->intr_pin);
 		/*check intr GPIO when i2c error */
 		if (loop_i == 0 || loop_i == I2C_RETRY_COUNT - 1)
-			D("[PS][CM3218 error] %s, i2c err, slaveAddr 0x%x"
+			D("[CM3218 error] %s, i2c err, slaveAddr 0x%x"
 			" ISR gpio %d  = %d,record_init_fail %d\n",
 			__func__, slaveAddr, lpi->intr_pin, val,
 			record_init_fail);
@@ -140,7 +140,7 @@ static int i2c_recv_data(struct cm3218_info *lpi, uint8_t cmd, uint8_t *rxData,
 		msleep(10);
 	}
 	if (loop_i >= I2C_RETRY_COUNT) {
-		printk(KERN_ERR "[PS_ERR][CM3218 error] %s retry over %d\n",
+		printk(KERN_ERR "[CM3218 error] %s retry over %d\n",
 		       __func__, I2C_RETRY_COUNT);
 		return -EIO;
 	}
@@ -171,7 +171,7 @@ static int i2c_recv_byte(struct cm3218_info *lpi, uint8_t *rxData, int length)
 		val = gpio_get_value(lpi->intr_pin);
 		/*check intr GPIO when i2c error */
 		if (loop_i == 0 || loop_i == I2C_RETRY_COUNT - 1)
-			D("[PS][CM3218 error] %s, i2c err, slaveAddr 0x%x"
+			D("[CM3218 error] %s, i2c err, slaveAddr 0x%x"
 			" ISR gpio %d  = %d, record_init_fail %d\n",
 			__func__, slaveAddr, lpi->intr_pin, val,
 			record_init_fail);
@@ -179,7 +179,7 @@ static int i2c_recv_byte(struct cm3218_info *lpi, uint8_t *rxData, int length)
 		msleep(10);
 	}
 	if (loop_i >= I2C_RETRY_COUNT) {
-		printk(KERN_ERR "[PS_ERR][CM3218 error] %s retry over %d\n",
+		printk(KERN_ERR "[CM3218 error] %s retry over %d\n",
 		       __func__, I2C_RETRY_COUNT);
 		return -EIO;
 	}
@@ -210,7 +210,7 @@ static int i2c_transfer_data(struct cm3218_info *lpi, uint8_t *txData,
 		val = gpio_get_value(lpi->intr_pin);
 		/*check intr GPIO when i2c error */
 		if (loop_i == 0 || loop_i == I2C_RETRY_COUNT - 1)
-			D("[PS][CM3218 error] %s, i2c err, slaveAddr 0x%x,"
+			D("[CM3218 error] %s, i2c err, slaveAddr 0x%x,"
 			"value 0x%x,ISR gpio%d  = %d, record_init_fail %d\n",
 			__func__, slaveAddr, txData[0],
 			lpi->intr_pin, val, record_init_fail);
@@ -219,7 +219,7 @@ static int i2c_transfer_data(struct cm3218_info *lpi, uint8_t *txData,
 	}
 
 	if (loop_i >= I2C_RETRY_COUNT) {
-		printk(KERN_ERR "[PS_ERR][CM3218 error] %s retry over %d\n",
+		printk(KERN_ERR "[CM3218 error] %s retry over %d\n",
 		       __func__, I2C_RETRY_COUNT);
 		return -EIO;
 	}
@@ -237,7 +237,7 @@ static int cm3218_i2c_read_byte(struct cm3218_info *lpi, uint8_t *pdata)
 
 	ret = i2c_recv_byte(lpi, &buffer, 1);
 	if (ret < 0) {
-		pr_err("[PS_ERR][CM3218 error]%s: i2c_recv_byte fail,"
+		pr_err("[CM3218 error]%s: i2c_recv_byte fail,"
 		" slave addr: 0x%x\n", __func__, lpi->check_interrupt_add);
 		return ret;
 	}
@@ -263,7 +263,7 @@ static int cm3218_i2c_read_word(struct cm3218_info *lpi, uint8_t cmd,
 	ret = i2c_recv_data(lpi, cmd, buffer, 2);
 	if (ret < 0) {
 		pr_err
-		    ("[PS_ERR][CM3218 error]%s: i2c_recv_data fail"
+		    ("[CM3218 error]%s: i2c_recv_data fail"
 			"[0x%x, 0x%x]\n", __func__, lpi->ALS_cmd_address, cmd);
 		return ret;
 	}
@@ -294,7 +294,7 @@ static int cm3218_i2c_write_word(struct cm3218_info *lpi, uint8_t cmd,
 
 	ret = i2c_transfer_data(lpi, buffer, 3);
 	if (ret < 0) {
-		pr_err("[PS_ERR][CM3218 error]%s: i2c_transfer_data fail\n",
+		pr_err("[CM3218 error]%s: i2c_transfer_data fail\n",
 		__func__);
 		return -EIO;
 	}
@@ -314,7 +314,7 @@ static int get_ls_adc_value(struct cm3218_info *lpi, uint16_t *als_step,
 	/* Read ALS data: */
 	ret = cm3218_i2c_read_word(lpi, ALS_READ, als_step);
 	if (ret < 0) {
-		pr_err("[LS][CM3218 error]%s: cm3218_i2c_read_word fail\n",
+		pr_err("[CM3218 error]%s: cm3218_i2c_read_word fail\n",
 		       __func__);
 		return -EIO;
 	}
@@ -328,7 +328,7 @@ static int get_ls_adc_value(struct cm3218_info *lpi, uint16_t *als_step,
 			*als_step = tmpResult;
 	}
 
-	D("[LS][CM3218] %s: raw adc = 0x%X, ls_calibrate = %d\n",
+	D("[CM3218] %s: raw adc = 0x%X, ls_calibrate = %d\n",
 	  __func__, *als_step, lpi->ls_calibrate);
 
 	return ret;
@@ -417,7 +417,7 @@ static irqreturn_t cm3218_irq_handler(int irq, void *data)
 
 	disable_irq_nosync(lpi->irq);
 	if (enable_log)
-		D("[PS][CM3218] %s\n", __func__);
+		D("[CM3218] %s\n", __func__);
 
 	queue_work(lpi->lp_wq, &lpi->sensor_irq_work);
 
@@ -442,18 +442,18 @@ static void ls_initial_cmd(struct cm3218_info *lpi)
 void lightsensor_set_kvalue(struct cm3218_info *lpi)
 {
 	if (!lpi) {
-		pr_err("[LS][CM3218 error]%s: ls_info is empty\n", __func__);
+		pr_err("[CM3218 error]%s: ls_info is empty\n", __func__);
 		return;
 	}
 
-	D("[LS][CM3218] %s: ALS calibrated als_kadc=0x%x\n",
+	D("[CM3218] %s: ALS calibrated als_kadc=0x%x\n",
 	  __func__, als_kadc);
 
 	if (als_kadc >> 16 == ALS_CALIBRATED)
 		lpi->als_kadc = als_kadc & 0xFFFF;
 	else {
 		lpi->als_kadc = 0;
-		D("[LS][CM3218] %s: no ALS calibrated\n", __func__);
+		D("[CM3218] %s: no ALS calibrated\n", __func__);
 	}
 
 	if (lpi->als_kadc && lpi->golden_adc > 0) {
@@ -464,7 +464,7 @@ void lightsensor_set_kvalue(struct cm3218_info *lpi)
 		lpi->als_kadc = 1;
 		lpi->als_gadc = 1;
 	}
-	D("[LS][CM3218] %s: als_kadc=0x%x, als_gadc=0x%x\n",
+	D("[CM3218] %s: als_kadc=0x%x, als_gadc=0x%x\n",
 	  __func__, lpi->als_kadc, lpi->als_gadc);
 }
 
@@ -480,7 +480,7 @@ static int lightsensor_update_table(struct cm3218_info *lpi)
 		else
 			lpi->cali_table[i] = 0xFFFF;
 
-		D("[LS][CM3218] %s: Calibrated adc_table: data[%d], %x\n",
+		D("[CM3218] %s: Calibrated adc_table: data[%d], %x\n",
 		  __func__, i, lpi->cali_table[i]);
 	}
 
@@ -492,10 +492,10 @@ static int lightsensor_enable(struct cm3218_info *lpi)
 	int ret = -EIO;
 
 	mutex_lock(&als_enable_mutex);
-	D("[LS][CM3218] %s\n", __func__);
+	D("[CM3218] %s\n", __func__);
 
 	if (lpi->als_enable) {
-		D("[LS][CM3218] %s: already enabled\n", __func__);
+		D("[CM3218] %s: already enabled\n", __func__);
 		ret = 0;
 	} else
 		ret = control_and_report(lpi, CONTROL_ALS, 1);
@@ -508,10 +508,10 @@ static int lightsensor_disable(struct cm3218_info *lpi)
 {
 	int ret = -EIO;
 	mutex_lock(&als_disable_mutex);
-	D("[LS][CM3218] %s\n", __func__);
+	D("[CM3218] %s\n", __func__);
 
 	if (lpi->als_enable == 0) {
-		D("[LS][CM3218] %s: already disabled\n", __func__);
+		D("[CM3218] %s: already disabled\n", __func__);
 		ret = 0;
 	} else
 		ret = control_and_report(lpi, CONTROL_ALS, 0);
@@ -525,9 +525,9 @@ static int lightsensor_open(struct inode *inode, struct file *file)
 	struct cm3218_info *lpi = lp_info;
 	int rc = 0;
 
-	D("[LS][CM3218] %s\n", __func__);
+	D("[CM3218] %s\n", __func__);
 	if (lpi->lightsensor_opened) {
-		pr_err("[LS][CM3218 error]%s: already opened\n", __func__);
+		pr_err("[CM3218 error]%s: already opened\n", __func__);
 		rc = -EBUSY;
 	}
 	lpi->lightsensor_opened = 1;
@@ -538,7 +538,7 @@ static int lightsensor_release(struct inode *inode, struct file *file)
 {
 	struct cm3218_info *lpi = lp_info;
 
-	D("[LS][CM3218] %s\n", __func__);
+	D("[CM3218] %s\n", __func__);
 	lpi->lightsensor_opened = 0;
 	return 0;
 }
@@ -557,18 +557,18 @@ static long lightsensor_ioctl(struct file *file, unsigned int cmd,
 			rc = -EFAULT;
 			break;
 		}
-		D("[LS][CM3218] %s LIGHTSENSOR_IOCTL_ENABLE, value = %d\n",
+		D("[CM3218] %s LIGHTSENSOR_IOCTL_ENABLE, value = %d\n",
 		  __func__, val);
 		rc = val ? lightsensor_enable(lpi) : lightsensor_disable(lpi);
 		break;
 	case LIGHTSENSOR_IOCTL_GET_ENABLED:
 		val = lpi->als_enable;
-		D("[LS][CM3218] %s LIGHTSENSOR_IOCTL_GET_ENABLED, enabled %d\n",
+		D("[CM3218] %s LIGHTSENSOR_IOCTL_GET_ENABLED, enabled %d\n",
 		  __func__, val);
 		rc = put_user(val, (unsigned long __user *)arg);
 		break;
 	default:
-		pr_err("[LS][CM3218 error]%s: invalid cmd %d\n",
+		pr_err("[CM3218 error]%s: invalid cmd %d\n",
 		       __func__, _IOC_NR(cmd));
 		rc = -EINVAL;
 	}
@@ -634,13 +634,13 @@ static ssize_t attr_enable_store(struct device *dev,
 	else
 		ret = lightsensor_disable(lpi);
 
-	D("[LS][CM3218] %s: lpi->als_enable = %d,"
+	D("[CM3218] %s: lpi->als_enable = %d,"
 	" lpi->ls_calibrate = %d, ls_auto=%d\n",
 	__func__, lpi->als_enable, lpi->ls_calibrate,
 	ls_auto);
 
 	if (ret < 0)
-		pr_err("[LS][CM3218 error]%s: set auto light sensor fail\n",
+		pr_err("[CM3218 error]%s: set auto light sensor fail\n",
 		       __func__);
 
 	return count;
@@ -671,16 +671,15 @@ static ssize_t attr_kadc_store(struct device *dev,
 		lpi->als_kadc = kadc_temp;
 		if (lpi->als_gadc != 0) {
 			if (lightsensor_update_table(lpi) < 0)
-				printk(KERN_ERR
-				       "[LS][CM3218 error] %s: update ls table fail\n",
-				       __func__);
+				printk(KERN_ERR"[CM3218 error] %s:"
+				"update ls table fail\n", __func__);
 		} else {
 			printk(KERN_INFO
-			       "[LS]%s: als_gadc =0x%x wait to be set\n",
+			       "[CM3218]%s: als_gadc =0x%x wait to be set\n",
 			       __func__, lpi->als_gadc);
 		}
 	} else {
-		printk(KERN_INFO "[LS]%s: als_kadc can't be set to zero\n",
+		printk(KERN_INFO "[CM3218]%s: als_kadc can't be set to zero\n",
 		       __func__);
 	}
 
@@ -714,15 +713,15 @@ static ssize_t attr_gadc_store(struct device *dev,
 		if (lpi->als_kadc != 0) {
 			if (lightsensor_update_table(lpi) < 0)
 				printk(KERN_ERR
-				       "[LS][CM3218 error] %s: update ls table fail\n",
+				       "[CM3218 error] %s: update ls table fail\n",
 				       __func__);
 		} else {
 			printk(KERN_INFO
-			       "[LS]%s: als_kadc =0x%x wait to be set\n",
+			       "[CM3218]%s: als_kadc =0x%x wait to be set\n",
 			       __func__, lpi->als_kadc);
 		}
 	} else {
-		printk(KERN_INFO "[LS]%s: als_gadc can't be set to zero\n",
+		printk(KERN_INFO "[CM3218]%s: als_gadc can't be set to zero\n",
 		       __func__);
 	}
 	mutex_unlock(&als_get_adc_mutex);
@@ -757,13 +756,13 @@ static ssize_t attr_adc_table_store(struct device *dev,
 	int i;
 	struct cm3218_info *lpi = dev_get_drvdata(dev);
 
-	printk(KERN_INFO "[LS][CM3218]%s\n", buf);
+	printk(KERN_INFO "[CM3218]%s\n", buf);
 	for (i = 0; i < 10; i++) {
 		token[i] = strsep((char **)&buf, " ");
 		tempdata[i] = simple_strtoul(token[i], NULL, 16);
 		if (tempdata[i] < 1 || tempdata[i] > 0xffff) {
 			printk(KERN_ERR
-			       "[LS][CM3218 error] adc_table[%d] =  0x%x Err\n",
+			       "[CM3218 error] adc_table[%d] =  0x%x Err\n",
 			       i, tempdata[i]);
 			return count;
 		}
@@ -772,14 +771,14 @@ static ssize_t attr_adc_table_store(struct device *dev,
 	for (i = 0; i < 10; i++) {
 		lpi->adc_table[i] = tempdata[i];
 		printk(KERN_INFO
-		       "[LS][CM3218]Set lpi->adc_table[%d] =  0x%x\n",
+		       "[CM3218]Set lpi->adc_table[%d] =  0x%x\n",
 		       i, *(lpi->adc_table + i));
 	}
 	if (lightsensor_update_table(lpi) < 0)
-		printk(KERN_ERR "[LS][CM3218 error] %s: update ls table fail\n",
+		printk(KERN_ERR "[CM3218 error] %s: update ls table fail\n",
 		       __func__);
 	mutex_unlock(&als_get_adc_mutex);
-	D("[LS][CM3218] %s\n", __func__);
+	D("[CM3218] %s\n", __func__);
 
 	return count;
 }
@@ -800,7 +799,7 @@ static ssize_t attr_conf_store(struct device *dev,
 	sscanf(buf, "0x%x", &value);
 
 	ALS_CONF = value;
-	printk(KERN_INFO "[LS]set ALS_CONF = %x\n", ALS_CONF);
+	printk(KERN_INFO "[CM3218]set ALS_CONF = %x\n", ALS_CONF);
 	cm3218_i2c_write_word(lpi, ALS_CMD, ALS_CONF);
 	return count;
 }
@@ -822,7 +821,7 @@ static ssize_t attr_fLevel_store(struct device *dev,
 	fLevel = value;
 	input_report_abs(lpi->ls_input_dev, ABS_MISC, fLevel);
 	input_sync(lpi->ls_input_dev);
-	printk(KERN_INFO "[LS]set fLevel = %d\n", fLevel);
+	printk(KERN_INFO "[CM3218]set fLevel = %d\n", fLevel);
 
 	msleep(1000);
 	fLevel = -1;
@@ -874,7 +873,7 @@ static int lightsensor_setup(struct cm3218_info *lpi)
 
 	lpi->ls_input_dev = input_allocate_device();
 	if (!lpi->ls_input_dev) {
-		pr_err("[LS][CM3218 error]%s: could not allocate"
+		pr_err("[CM3218 error]%s: could not allocate"
 		" ls input device\n", __func__);
 		return -ENOMEM;
 	}
@@ -887,7 +886,7 @@ static int lightsensor_setup(struct cm3218_info *lpi)
 
 	ret = input_register_device(lpi->ls_input_dev);
 	if (ret < 0) {
-		pr_err("[LS][CM3218 error]%s: can not register"
+		pr_err("[CM3218 error]%s: can not register"
 		" ls input device\n", __func__);
 		goto err_free_ls_input_device;
 	}
@@ -895,7 +894,7 @@ static int lightsensor_setup(struct cm3218_info *lpi)
 	ret = misc_register(&lightsensor_misc);
 	if (ret < 0) {
 		pr_err
-		    ("[LS][CM3218 error]%s: can not register ls misc device\n",
+		    ("[CM3218 error]%s: can not register ls misc device\n",
 		     __func__);
 		goto err_unregister_ls_input_device;
 	}
@@ -915,11 +914,11 @@ static int initial_cm3218(struct cm3218_info *lpi)
 	uint8_t add = 0;
 
 	val = gpio_get_value(lpi->intr_pin);
-	D("[LS][CM3218] %s, INTERRUPT GPIO val = %d\n", __func__, val);
+	D("[CM3218] %s, INTERRUPT GPIO val = %d\n", __func__, val);
 
 check_interrupt_gpio:
 	if (fail_counter >= 10) {
-		D("[LS][CM3218] %s, initial fail_counter = %d\n", __func__,
+		D("[CM3218] %s, initial fail_counter = %d\n", __func__,
 		  fail_counter);
 		if (record_init_fail == 0)
 			record_init_fail = 1;
@@ -933,24 +932,24 @@ check_interrupt_gpio:
 		fail_counter++;
 		val = gpio_get_value(lpi->intr_pin);
 		if (val == 0) {
-			D("[LS][CM3218] %s, interrupt GPIO val = %d,"
+			D("[CM3218] %s, interrupt GPIO val = %d,"
 			" , inital fail_counter %d\n",
 			__func__, val, fail_counter);
 
 			ret = cm3218_i2c_read_byte(lpi, &add);
 
-			D("[LS][CM3218] %s, check_interrupt_add value = 0x%x,"
+			D("[CM3218] %s, check_interrupt_add value = 0x%x,"
 			" ret %d\n",  __func__, add, ret);
 		}
 		val = gpio_get_value(lpi->intr_pin);
 		if (val == 0) {
-			D("[LS][CM3218] %s, interrupt GPIO val = %d,"
+			D("[CM3218] %s, interrupt GPIO val = %d,"
 			" ,inital fail_counter %d\n",
 			__func__, val, fail_counter);
 
 			ret = cm3218_i2c_read_byte(lpi, &add);
 
-			D("[LS][CM3218] %s, check_interrupt_add value = 0x%x,"
+			D("[CM3218] %s, check_interrupt_add value = 0x%x,"
 			" ret %d\n", __func__, add, ret);
 		}
 		goto check_interrupt_gpio;
@@ -967,14 +966,14 @@ static int cm3218_setup(struct cm3218_info *lpi)
 	msleep(5);
 	ret = gpio_request(lpi->intr_pin, "gpio_cm3218_intr");
 	if (ret < 0) {
-		pr_err("[LS][CM3218 error]%s: gpio %d request failed (%d)\n",
+		pr_err("[CM3218 error]%s: gpio %d request failed (%d)\n",
 		       __func__, lpi->intr_pin, ret);
 		return ret;
 	}
 
 	ret = gpio_direction_input(lpi->intr_pin);
 	if (ret < 0) {
-		pr_err("[LS][CM3218 error]%s: fail to set gpio %d as input"
+		pr_err("[CM3218 error]%s: fail to set gpio %d as input"
 		" (%d)\n", __func__, lpi->intr_pin, ret);
 		goto fail_free_intr_pin;
 	}
@@ -982,7 +981,7 @@ static int cm3218_setup(struct cm3218_info *lpi)
 	ret = initial_cm3218(lpi);
 	if (ret < 0) {
 		pr_err
-		    ("[LS_ERR][CM3218 error]%s: fail to initial cm3218 (%d)\n",
+		    ("[CM3218 error]%s: fail to initial cm3218 (%d)\n",
 		     __func__, ret);
 		goto fail_free_intr_pin;
 	}
@@ -994,7 +993,7 @@ static int cm3218_setup(struct cm3218_info *lpi)
 				      cm3218_irq_handler,
 				      IRQF_TRIGGER_FALLING, "cm3218", lpi);
 	if (ret < 0) {
-		pr_err("[LS][CM3218 error]%s: req_irq(%d) fail for i gpio %d"
+		pr_err("[CM3218 error]%s: req_irq(%d) fail for i gpio %d"
 		" (%d)\n", __func__, lpi->irq, lpi->intr_pin, ret);
 		goto fail_free_intr_pin;
 	}
@@ -1010,7 +1009,7 @@ static void cm3218_early_suspend(struct early_suspend *h)
 {
 	struct cm3218_info *lpi = \
 		container_of(h, struct cm3218_info, early_suspend);
-	D("[LS][CM3218] %s\n", __func__);
+	D("[CM3218] %s\n", __func__);
 
 	if (lpi->als_enable)
 		lightsensor_disable(lpi);
@@ -1021,7 +1020,7 @@ static void cm3218_late_resume(struct early_suspend *h)
 	struct cm3218_info *lpi = \
 		container_of(h, struct cm3218_info, early_suspend);
 
-	D("[LS][CM3218] %s\n", __func__);
+	D("[CM3218] %s\n", __func__);
 
 	if (!lpi->als_enable)
 		lightsensor_enable(lpi);
@@ -1034,7 +1033,7 @@ static int cm3218_probe(struct i2c_client *client,
 	struct cm3218_info *lpi;
 	struct cm3218_platform_data *pdata;
 
-	D("[LS][CM3218] %s\n", __func__);
+	D("[CM3218] %s\n", __func__);
 
 	lpi = kzalloc(sizeof(struct cm3218_info), GFP_KERNEL);
 	if (!lpi)
@@ -1045,7 +1044,7 @@ static int cm3218_probe(struct i2c_client *client,
 	lpi->i2c_client = client;
 	pdata = client->dev.platform_data;
 	if (!pdata) {
-		pr_err("[LS][CM3218 error]%s: Assign platform_data error!!\n",
+		pr_err("[CM3218 error]%s: Assign platform_data error!!\n",
 		       __func__);
 		ret = -EBUSY;
 		goto err_platform_data_null;
@@ -1083,7 +1082,7 @@ static int cm3218_probe(struct i2c_client *client,
 
 	ret = lightsensor_setup(lpi);
 	if (ret < 0) {
-		pr_err("[LS][CM3218 error]%s: lightsensor_setup error!!\n",
+		pr_err("[CM3218 error]%s: lightsensor_setup error!!\n",
 		       __func__);
 		goto err_lightsensor_setup;
 	}
@@ -1102,16 +1101,14 @@ static int cm3218_probe(struct i2c_client *client,
 	lightsensor_set_kvalue(lpi);
 	ret = lightsensor_update_table(lpi);
 	if (ret < 0) {
-		pr_err("[LS][CM3218 error]%s: update ls table fail\n",
-		       __func__);
+		pr_err("[CM3218 error]%s: update ls table fail\n", __func__);
 		goto err_lightsensor_update_table;
 	}
 
 	INIT_WORK(&lpi->sensor_irq_work, sensor_irq_do_work);
 	lpi->lp_wq = create_singlethread_workqueue("cm3218_wq");
 	if (!lpi->lp_wq) {
-		pr_err("[PS][CM3218 error]%s: can't create workqueue\n",
-		       __func__);
+		pr_err("[CM3218 error]%s: can't create workqueue\n", __func__);
 		ret = -ENOMEM;
 		goto err_create_singlethread_workqueue;
 	}
@@ -1119,9 +1116,9 @@ static int cm3218_probe(struct i2c_client *client,
 
 	ret = cm3218_setup(lpi);
 	if (ret < 0) {
-		pr_err("[PS_ERR][CM3218 error]%s: cm3218_setup error!\n",
-		       __func__);
-		goto err_cm3218_setup;
+		pr_err("[CM3218 error]%s: cm3218_setup error!\n", __func__);
+
+	goto err_cm3218_setup;
 	}
 
 	lpi->cm3218_class = class_create(THIS_MODULE, "optical_sensors");
@@ -1143,7 +1140,7 @@ static int cm3218_probe(struct i2c_client *client,
 	ret = sysfs_create_group(&lpi->ls_input_dev->dev.kobj,
 				 &light_attribute_group);
 	if (ret) {
-		pr_err("[LS][CM3232 error]%s: could not create sysfs group\n",
+		pr_err("[CM3232 error]%s: could not create sysfs group\n",
 		       __func__);
 		goto err_sysfs_create_group_light;
 	}
@@ -1153,7 +1150,7 @@ static int cm3218_probe(struct i2c_client *client,
 	lpi->early_suspend.resume = cm3218_late_resume;
 	register_early_suspend(&lpi->early_suspend);
 
-	D("[PS][CM3218] %s: Probe success!\n", __func__);
+	D("[CM3218] %s: Probe success!\n", __func__);
 	lpi->als_enable = 0;
 
 	return ret;
