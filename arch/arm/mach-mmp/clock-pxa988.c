@@ -2007,7 +2007,7 @@ static struct clk pxa988_ccic_func_clk = {
 };
 
 #define DSI_PHYSLOW_PRER	(0x1A << 6)
-#define DSI_ESC_SEL		(0x3)
+#define DSI_ESC_SEL		(0x0)
 #define DSI_PHYESC_SELDIV	\
 	(DSI_PHYSLOW_PRER | DSI_ESC_SEL)
 #define DSI_PHYESC_SELDIV_MSK	((0x1f << 6) | 0x3)
