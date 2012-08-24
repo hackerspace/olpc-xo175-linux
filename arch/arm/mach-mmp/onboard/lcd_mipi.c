@@ -14,7 +14,7 @@
 #include <mach/regs-mcu.h>
 
 #ifdef CONFIG_MACH_EMEIDKB
-#define CONFIG_VNC
+/* #define CONFIG_VNC */
 #endif
 
 #ifdef CONFIG_MACH_ABILENE
@@ -1674,10 +1674,12 @@ void __init emeidkb_add_lcd_mipi(void)
 	/* add frame buffer drivers */
 	pxa988_add_fb(fb);
 	/* add overlay driver */
+#if 0
 #ifdef CONFIG_PXA168_V4L2_OVERLAY
 	pxa988_add_v4l2_ovly(ovly);
 #else
 	pxa988_add_fb_ovly(ovly);
+#endif
 #endif
 }
 #endif
