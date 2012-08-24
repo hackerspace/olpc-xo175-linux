@@ -70,6 +70,7 @@ struct mv_usb_platform_data {
 	unsigned int	otg_force_a_bus_req:1;
 
 	int     (*phy_init)(unsigned int regbase);
+	int     (*p_init)(unsigned int regbase);
 	void    (*phy_deinit)(unsigned int regbase);
 	int	(*set_vbus)(unsigned int vbus);
 	int	(*private_init)(struct mv_op_regs *opregs,
@@ -88,5 +89,6 @@ extern int mmp3_hsic_private_init(struct mv_op_regs *opregs,
 
 #ifdef CONFIG_USB_EHCI_PXA_U2H_FSIC
 extern int mmp3_fsic_phy_init(unsigned int base);
+extern int mmp3_fsic_p_init(unsigned int base);
 #endif
 #endif

@@ -76,7 +76,14 @@ static int mv_ehci_enable(struct ehci_hcd_mv *ehci_mv)
 			return retval;
 		}
 	}
-
+	if (ehci_mv->pdata->p_init) {
+		retval = ehci_mv->pdata->p_init(ehci_mv->cap_regs);
+		if (retval) {
+			pr_err("Host: Platform initialization error %d\n", retval);
+			ehci_clock_disable(ehci_mv);
+			return retval;
+		}
+	}
 	ehci_mv->active = 1;
 
 	return 0;

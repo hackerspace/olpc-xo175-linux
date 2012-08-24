@@ -538,6 +538,7 @@ static struct mv_usb_platform_data mmp3_fsic_pdata = {
 	.vbus		= NULL,
 	.mode		= MV_USB_MODE_HOST,
 	.phy_init	= mmp3_fsic_phy_init,
+	.p_init		= mmp3_fsic_p_init,
 };
 
 #endif
