@@ -112,17 +112,6 @@ static int pxa988_cpuidle_register_device(unsigned int cpu)
 			&pxa988_idle_mode[3]);
 	device->state_count++;
 
-	state = &device->states[4];
-	strcpy(state->name, "D2");
-	strcpy(state->desc, "D2: Full chip sleep");
-	state->exit_latency = 100; /* FIXME: what's the real latency? */
-	state->target_residency = state->exit_latency * 2;
-	state->flags = CPUIDLE_FLAG_TIME_VALID;
-	state->enter = pxa988_enter_lpm;
-	cpuidle_set_statedata(&device->states[4],
-			&pxa988_idle_mode[4]);
-	device->state_count++;
-
 	if (cpuidle_register_device(device)) {
 		pr_err("CPU%u: failed to register cpuidle device\n", cpu);
 		return -EIO;
