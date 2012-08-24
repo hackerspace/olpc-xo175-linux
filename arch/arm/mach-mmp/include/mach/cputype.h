@@ -142,8 +142,14 @@ static inline int cpu_is_pxa988(void)
 	return (((read_cpuid_id() >> 4) & 0xfff) == 0xc09) &&
 		(((mmp_chip_id & 0xffff) == 0xc928));
 }
+static inline int cpu_is_pxa986(void)
+{
+	return (((read_cpuid_id() >> 4) & 0xfff) == 0xc09) &&
+		(((mmp_chip_id & 0xffff) == 0xc926));
+}
 #else
 #define cpu_is_pxa988()	(0)
+#define cpu_is_pxa986()	(0)
 #endif
 
 #endif /* __ASM_MACH_CPUTYPE_H */
