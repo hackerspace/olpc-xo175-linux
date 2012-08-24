@@ -904,6 +904,7 @@ static struct clk mmp3_clk_cpu = {
 	.dynamic_change = 1,
 };
 
+#ifdef CONFIG_DDR_DEVFREQ
 extern struct devfreq_frequency_table *mmp3_ddr_freq_table;
 
 static unsigned int target_freq = 800000;
@@ -974,6 +975,7 @@ static struct clk mmp3_clk_ddr = {
 	.ops = &clk_ddr_ops,
 	.dynamic_change = 1,
 };
+#endif
 
 static struct devfreq_frequency_table mmp3_gc_clk_table[] = {
 	INIT_FREQ_TABLE(1, 100000000),
@@ -2745,7 +2747,9 @@ static struct clk *mmp3_clks_ptr[] = {
 	&mmp3_clk_ddr_root,
 	&mmp3_clk_ddr1,
 	&mmp3_clk_ddr2,
+#ifndef CONFIG_MACH_QSEVEN
 	&mmp3_clk_ddr,
+#endif
 	&mmp3_clk_axi_root,
 	&mmp3_clk_axi1,
 	&mmp3_clk_axi2,
@@ -3319,9 +3323,11 @@ static int __init mmp3_clk_init(void)
 	for (i = 0; i < ARRAY_SIZE(mmp3_list_clks); i++)
 		mmp3_init_one_clock(&mmp3_list_clks[i]);
 
+#ifndef CONFIG_MACH_QSEVEN
 	register_reboot_notifier(&devfreq_reboot_notifier);
 	clk_set_cansleep(&mmp3_clk_ddr);
 	mutex_init(&disable_ddr_lock);
+#endif
 	return 0;
 }
 

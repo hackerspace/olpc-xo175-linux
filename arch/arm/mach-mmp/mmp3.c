@@ -992,8 +992,10 @@ int vmeta_init_constraint(struct vmeta_instance *vi)
 	INIT_DELAYED_WORK(&vi->unset_op_work, mmp_vmeta_unset_op_constraint_work);
 	pm_qos_add_request(&vi->qos_cpufreq_min, PM_QOS_CPUFREQ_MIN,
 			PM_QOS_DEFAULT_VALUE);
+#ifndef CONFIG_MACH_QSEVEN
 	pm_qos_add_request(&vi->qos_ddrfreq_min, PM_QOS_DDR_DEVFREQ_MIN,
-            PM_QOS_DEFAULT_VALUE);
+		PM_QOS_DEFAULT_VALUE);
+#endif
 	return 0;
 }
 
@@ -1034,15 +1036,21 @@ int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
 		if (vop >= VMETA_OP_VGA && vop <= VMETA_OP_VGA_MAX) {
 			printk(KERN_DEBUG "VGA!!!\n");
 			pm_qos_update_request(&vi->qos_cpufreq_min, 200);
+#ifndef CONFIG_MACH_QSEVEN
 			pm_qos_update_request(&vi->qos_ddrfreq_min, DDR_CONSTRAINT_LVL0);
+#endif
 		} else if (vop >= VMETA_OP_720P && vop <= VMETA_OP_720P_MAX) {
 			printk(KERN_DEBUG "720P!!!\n");
 			pm_qos_update_request(&vi->qos_cpufreq_min, 200);
+#ifndef CONFIG_MACH_QSEVEN
 			pm_qos_update_request(&vi->qos_ddrfreq_min, DDR_CONSTRAINT_LVL0);
+#endif
 		} else { /* 1080p and default ops */
 			printk(KERN_DEBUG "1080P!!!\n");
 			pm_qos_update_request(&vi->qos_cpufreq_min, 400);
+#ifndef CONFIG_MACH_QSEVEN
 			pm_qos_update_request(&vi->qos_ddrfreq_min, DDR_CONSTRAINT_LVL1);
+#endif
 		}
 		vi->vop_real = vop;
 		printk(KERN_DEBUG "set dvfm vop_real=%d\n", vi->vop_real);
