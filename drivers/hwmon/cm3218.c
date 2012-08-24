@@ -387,14 +387,15 @@ static void report_ls_value(struct cm3218_info *lpi)
 				*(lpi->cali_table + i));
 
 	if ((i == 0) || (adc_value == 0))
-		D("[CM3628] %s: ADC=0x%03X, Level=%d, l_thd equal 0,"
-		" h_thd = 0x%x\n", __func__, adc_value, level,
+		D("[CM3218] %s: adc=%d, Level=%d, l_thd equal 0,"
+		"h_thd = %d\n", __func__, adc_value, level,
 		*(lpi->cali_table + i));
 	else
-		D("[CM3628] %s: ADC=0x%03X, Level=%d, l_thd = 0x%x,"
-		" h_thd = 0x%x\n", __func__, adc_value, level,
+		D("[CM3218] %s: adc=%d, Level=%d, l_thd = %d,"
+		"h_thd = %d\n", __func__, adc_value, level,
 	*(lpi->cali_table + (i - 1)) + 1,
 	*(lpi->cali_table + i));
+
 	lpi->current_level = level;
 	lpi->current_adc = adc_value;
 	input_report_abs(lpi->ls_input_dev, ABS_MISC, level);
