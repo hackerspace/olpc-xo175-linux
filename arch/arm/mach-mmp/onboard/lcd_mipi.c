@@ -514,6 +514,7 @@ static int emeidkb_lcd_power(struct pxa168fb_info *fbi,
 		gpio_direction_output(lcd_rst_n, 0);
 		udelay(50);
 		gpio_direction_output(lcd_rst_n, 1);
+		mdelay(100);
 	} else {
 		/* disable LCD_AVDD 3.1v */
 		regulator_disable(lcd_avdd);
