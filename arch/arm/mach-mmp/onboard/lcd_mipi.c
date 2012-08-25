@@ -13,9 +13,26 @@
 #include <mach/mmp2_plat_ver.h>
 #include <mach/regs-mcu.h>
 
-#ifdef CONFIG_MACH_EMEIDKB
-/* #define CONFIG_VNC */
-#endif
+/*
+ * FIXME:add qhd_lcd to indicate if use qhd or use HVGA_VNC
+ * It will be removed by Z3.
+ */
+#define QHD_PANEL 1
+static int qhd_lcd;
+static int __init qhd_lcd_setup(char *str)
+{
+	int n;
+	if (!get_option(&str, &n))
+		return 0;
+	qhd_lcd = n;
+	return 1;
+}
+__setup("qhd_lcd=", qhd_lcd_setup);
+
+static int is_qhd_lcd(void)
+{
+	return qhd_lcd;
+}
 
 #ifdef CONFIG_MACH_ABILENE
 static struct fb_videomode video_modes_abilene[] = {
@@ -106,8 +123,7 @@ static struct fb_videomode video_modes_mk2[] = {
 #endif
 
 #ifdef CONFIG_MACH_EMEIDKB
-#ifdef CONFIG_VNC
-static struct fb_videomode video_modes_emeidkb[] = {
+static struct fb_videomode video_modes_HVGA_VNC_emeidkb[] = {
 	/* lpj032l001b HVGA mode info */
 	[0] = {
 		.refresh        = 60,
@@ -122,7 +138,6 @@ static struct fb_videomode video_modes_emeidkb[] = {
 		.sync		= 0,
 	},
 };
-#else
 static struct fb_videomode video_modes_emeidkb[] = {
 	[0] = {
 		 /* panel refresh rate should <= 55(Hz) */
@@ -138,7 +153,6 @@ static struct fb_videomode video_modes_emeidkb[] = {
 		.sync = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
 		},
 };
-#endif
 #endif
 
 #ifdef CONFIG_MACH_ABILENE
@@ -1166,7 +1180,6 @@ static struct pxa168fb_mach_info mipi_lcd_ovly_info = {
 	.sram_size = 30 * 1024,
 };
 
-#ifndef CONFIG_VNC
 #define     DSI1_BITCLK(div)			((div)<<8)
 #define     DSI1_BITCLK_DIV_MASK		0x00000F00
 #define     CLK_INT_DIV(div)			(div)
@@ -1271,7 +1284,6 @@ static void calculate_lcd_sclk(struct pxa168fb_mach_info *mi)
 	else
 		return;
 }
-#endif
 #endif
 
 #if defined(CONFIG_MACH_ABILENE) || defined(CONFIG_MACH_YELLOWSTONE) \
@@ -1615,9 +1627,11 @@ void __init emeidkb_add_lcd_mipi(void)
 	    &mipi_lcd_ovly_info;
 
 	fb->num_modes = ARRAY_SIZE(video_modes_emeidkb);
-	fb->modes = video_modes_emeidkb;
-	fb->max_fb_size = video_modes_emeidkb[0].xres *
-		video_modes_emeidkb[0].yres * 8 + 4096;
+	if (QHD_PANEL == is_qhd_lcd())
+		fb->modes = video_modes_emeidkb;
+	else
+		fb->modes = video_modes_HVGA_VNC_emeidkb;
+	fb->max_fb_size = fb->modes->xres * fb->modes->yres * 8 + 4096;
 	ovly->num_modes = fb->num_modes;
 	ovly->modes = fb->modes;
 	ovly->max_fb_size = fb->max_fb_size;
@@ -1641,16 +1655,18 @@ void __init emeidkb_add_lcd_mipi(void)
 	 * Re-calculate lcd clk source and divider
 	 * according to dsi lanes and output format.
 	 */
-#ifndef CONFIG_VNC
-	calculate_lcd_sclk(fb);
-#else
-	/* FIXME:rewrite sclk_src, otherwise VNC will
+	if (QHD_PANEL == is_qhd_lcd())
+		calculate_lcd_sclk(fb);
+	else {
+	/*
+	 * FIXME:rewrite sclk_src, otherwise VNC will
 	 * use 520000000 as sclk_src so that clock source
-	 * will be set 624M */
+	 * will be set 624M
+	 * */
 	fb->sclk_src = 416000000;
 	/* FIXME: change pixel clk divider for HVGA for fps 60 */
 	fb->sclk_div = 0xE000141b;
-#endif
+	}
 
 	/*
 	 * FIXME:EMEI dkb use display clk1 as clk source,
