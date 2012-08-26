@@ -140,12 +140,14 @@ static inline int cpu_is_mmp3_b0p(void)
 static inline int cpu_is_pxa988(void)
 {
 	return (((read_cpuid_id() >> 4) & 0xfff) == 0xc09) &&
-		(((mmp_chip_id & 0xffff) == 0xc928));
+		(((mmp_chip_id & 0xffff) == 0xc988) ||
+		((mmp_chip_id & 0xffff) == 0xc928));
 }
 static inline int cpu_is_pxa986(void)
 {
 	return (((read_cpuid_id() >> 4) & 0xfff) == 0xc09) &&
-		(((mmp_chip_id & 0xffff) == 0xc926));
+		(((mmp_chip_id & 0xffff) == 0xc986) ||
+		((mmp_chip_id & 0xffff) == 0xc926));
 }
 #else
 #define cpu_is_pxa988()	(0)
