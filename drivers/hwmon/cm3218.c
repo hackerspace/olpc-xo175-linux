@@ -45,8 +45,6 @@
 #define CONTROL_ALS                   0x01
 
 static int record_init_fail = -1;
-static void sensor_irq_do_work(struct work_struct *work);
-
 struct cm3218_info {
 	struct class *cm3218_class;
 	struct device *ls_dev;
@@ -93,14 +91,7 @@ struct cm3218_info {
 };
 
 struct cm3218_info *lp_info;
-static int lightsensor_enable(struct cm3218_info *lpi);
-static int lightsensor_disable(struct cm3218_info *lpi);
-static int initial_cm3218(struct cm3218_info *lpi);
-
 int32_t als_kadc;
-
-static int control_and_report(struct cm3218_info *lpi, uint8_t mode,
-			      uint8_t cmd_enable);
 
 static int i2c_recv_data(struct cm3218_info *lpi, uint8_t cmd, uint8_t *rxData,
 		      int length)
@@ -401,6 +392,92 @@ static void report_ls_value(struct cm3218_info *lpi)
 	lpi->current_adc = adc_value;
 	input_report_abs(lpi->ls_input_dev, ABS_MISC, level);
 	input_sync(lpi->ls_input_dev);
+}
+
+static int control_and_report(struct cm3218_info *lpi, uint8_t mode,
+			      uint8_t cmd_enable)
+{
+	int ret = 0;
+	int val;
+	int fail_counter = 0;
+	uint8_t add = 0;
+
+	mutex_lock(&lpi->control_mutex);
+
+	while (1) {
+		val = gpio_get_value(lpi->intr_pin);
+		D("[CM3218] %s, interrupt GPIO val = %d, fail_counter %d\n",
+		  __func__, val, fail_counter);
+
+		val = gpio_get_value(lpi->intr_pin);
+		if (val == 0) {
+			ret = cm3218_i2c_read_byte(lpi, &add);
+
+			D("[CM3218] %s, interrupt GPIO val = %d,"
+			" check_interrupt_add value = 0x%x, ret %d\n",
+			__func__, val, add, ret);
+		}
+		val = gpio_get_value(lpi->intr_pin);
+		if (val == 0) {
+			ret =
+			    cm3218_i2c_read_byte(lpi, &add);
+
+			D("[CM3218] %s, interrupt GPIO val = %d,"
+			" check_interrupt_add value = 0x%x, ret %d\n",
+			__func__, val, add, ret);
+		}
+
+		lpi->is_cmd &= CM3218_ALS_INT_MASK;
+		ret =
+		    cm3218_i2c_write_word(lpi, ALS_CMD, lpi->is_cmd);
+		if (ret == 0) {
+			break;
+		} else {
+			fail_counter++;
+			val = gpio_get_value(lpi->intr_pin);
+			D("[CM3218] %s, interrupt GPIO val = %d,"
+			" ,inital fail_counter %d\n",
+			__func__, val, fail_counter);
+		}
+		if (fail_counter >= 10) {
+			D("[CM3218] %s, clear INT fail_counter = %d\n",
+			  __func__, fail_counter);
+			if (lpi->record_clear_int_fail == 0)
+				lpi->record_clear_int_fail = 1;
+			ret = -ENOMEM;
+			goto error_clear_interrupt;
+		}
+	}
+
+	if (mode == CONTROL_ALS) {
+		if (cmd_enable)
+			lpi->is_cmd &= CM3218_ALS_SD_MASK;
+		else
+			lpi->is_cmd |= CM3218_ALS_SD;
+
+		cm3218_i2c_write_word(lpi, ALS_CMD, lpi->is_cmd);
+
+		lpi->als_enable = cmd_enable;
+	}
+
+	if ((mode == CONTROL_ALS) && (cmd_enable == 1)) {
+		input_report_abs(lpi->ls_input_dev, ABS_MISC, -1);
+		input_sync(lpi->ls_input_dev);
+		msleep(100);
+	}
+
+	if (lpi->als_enable)
+		report_ls_value(lpi);
+
+	ret = cm3218_i2c_write_word(lpi, ALS_CMD, lpi->is_cmd);
+	if (ret == 0)
+		D("[CM3218] %s, re-enable INT OK\n", __func__);
+	else
+		D("[CM3218] %s, re-enable INT FAIL\n", __func__);
+
+error_clear_interrupt:
+	mutex_unlock(&lpi->control_mutex);
+	return ret;
 }
 
 static void sensor_irq_do_work(struct work_struct *work)
@@ -1189,92 +1266,6 @@ err_lightsensor_setup:
 	mutex_destroy(&lpi->als_get_adc_mutex);
 err_platform_data_null:
 	kfree(lpi);
-	return ret;
-}
-
-static int control_and_report(struct cm3218_info *lpi, uint8_t mode,
-			      uint8_t cmd_enable)
-{
-	int ret = 0;
-	int val;
-	int fail_counter = 0;
-	uint8_t add = 0;
-
-	mutex_lock(&lpi->control_mutex);
-
-	while (1) {
-		val = gpio_get_value(lpi->intr_pin);
-		D("[CM3218] %s, interrupt GPIO val = %d, fail_counter %d\n",
-		  __func__, val, fail_counter);
-
-		val = gpio_get_value(lpi->intr_pin);
-		if (val == 0) {
-			ret = cm3218_i2c_read_byte(lpi, &add);
-
-			D("[CM3218] %s, interrupt GPIO val = %d,"
-			" check_interrupt_add value = 0x%x, ret %d\n",
-			__func__, val, add, ret);
-		}
-		val = gpio_get_value(lpi->intr_pin);
-		if (val == 0) {
-			ret =
-			    cm3218_i2c_read_byte(lpi, &add);
-
-			D("[CM3218] %s, interrupt GPIO val = %d,"
-			" check_interrupt_add value = 0x%x, ret %d\n",
-			__func__, val, add, ret);
-		}
-
-		lpi->is_cmd &= CM3218_ALS_INT_MASK;
-		ret =
-		    cm3218_i2c_write_word(lpi, ALS_CMD, lpi->is_cmd);
-		if (ret == 0) {
-			break;
-		} else {
-			fail_counter++;
-			val = gpio_get_value(lpi->intr_pin);
-			D("[CM3218] %s, interrupt GPIO val = %d,"
-			" ,inital fail_counter %d\n",
-			__func__, val, fail_counter);
-		}
-		if (fail_counter >= 10) {
-			D("[CM3218] %s, clear INT fail_counter = %d\n",
-			  __func__, fail_counter);
-			if (lpi->record_clear_int_fail == 0)
-				lpi->record_clear_int_fail = 1;
-			ret = -ENOMEM;
-			goto error_clear_interrupt;
-		}
-	}
-
-	if (mode == CONTROL_ALS) {
-		if (cmd_enable)
-			lpi->is_cmd &= CM3218_ALS_SD_MASK;
-		else
-			lpi->is_cmd |= CM3218_ALS_SD;
-
-		cm3218_i2c_write_word(lpi, ALS_CMD, lpi->is_cmd);
-
-		lpi->als_enable = cmd_enable;
-	}
-
-	if ((mode == CONTROL_ALS) && (cmd_enable == 1)) {
-		input_report_abs(lpi->ls_input_dev, ABS_MISC, -1);
-		input_sync(lpi->ls_input_dev);
-		msleep(100);
-	}
-
-	if (lpi->als_enable)
-		report_ls_value(lpi);
-
-	ret = cm3218_i2c_write_word(lpi, ALS_CMD, lpi->is_cmd);
-	if (ret == 0)
-		D("[CM3218] %s, re-enable INT OK\n", __func__);
-	else
-		D("[CM3218] %s, re-enable INT FAIL\n", __func__);
-
-error_clear_interrupt:
-	mutex_unlock(&lpi->control_mutex);
 	return ret;
 }
 
