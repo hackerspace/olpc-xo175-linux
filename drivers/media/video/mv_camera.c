@@ -37,6 +37,7 @@
 #include <linux/time.h>
 #include <linux/videodev2.h>
 #include <linux/wakelock.h>
+#include <linux/slab.h>
 
 #include <media/soc_camera.h>
 #include <media/soc_mediabus.h>
