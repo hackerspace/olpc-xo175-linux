@@ -77,7 +77,7 @@ struct cm3218_info {
 
 	struct wake_lock ps_wake_lock;
 	int lightsensor_opened;
-	uint8_t ALS_cmd_address;
+	uint8_t als_cmd_address;
 	uint8_t check_interrupt_add;
 
 	int current_level;
@@ -98,7 +98,7 @@ static int i2c_recv_data(struct cm3218_info *lpi, uint8_t cmd, uint8_t *rxData,
 {
 	uint8_t loop_i;
 	int val;
-	uint16_t slaveAddr = lpi->ALS_cmd_address;
+	uint16_t slaveAddr = lpi->als_cmd_address;
 	uint8_t subaddr[1] = {cmd};
 
 	struct i2c_msg msg[] = {
@@ -184,7 +184,7 @@ static int i2c_transfer_data(struct cm3218_info *lpi, uint8_t *txData,
 {
 	uint8_t loop_i;
 	int val;
-	uint16_t slaveAddr = lpi->ALS_cmd_address;
+	uint16_t slaveAddr = lpi->als_cmd_address;
 
 	struct i2c_msg msg[] = {
 		{
@@ -255,7 +255,7 @@ static int cm3218_i2c_read_word(struct cm3218_info *lpi, uint8_t cmd,
 	ret = i2c_recv_data(lpi, cmd, buffer, 2);
 	if (ret < 0) {
 		pr_err("[CM3218 error]%s: i2c_recv_data fail"
-			"[0x%x, 0x%x]\n", __func__, lpi->ALS_cmd_address, cmd);
+			"[0x%x, 0x%x]\n", __func__, lpi->als_cmd_address, cmd);
 		return ret;
 	}
 
@@ -1141,7 +1141,7 @@ static int cm3218_probe(struct i2c_client *client,
 	lpi->adc_table = pdata->levels;
 	lpi->power = pdata->power;
 
-	lpi->ALS_cmd_address = pdata->ALS_slave_address;
+	lpi->als_cmd_address = pdata->ALS_slave_address;
 	lpi->check_interrupt_add = pdata->check_interrupt_add;
 
 	lpi->is_cmd = pdata->is_cmd;
