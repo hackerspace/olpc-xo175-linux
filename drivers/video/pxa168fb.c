@@ -978,6 +978,9 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 						gettime(t2, ct2, 1);
 				}
 			}
+			/* use panel path EOF to report vsync uevent */
+			if (fbi->vsync_u_en && (dispd & display_done_imask(0)))
+				schedule_work(&fbi->uevent_work);
 		}
 
 		/* LCD under run error detect */
@@ -1654,6 +1657,9 @@ static size_t vsync_help(char *buf)
 	mvdisp_dump(f, "\tcat vsync\n");
 	mvdisp_dump(f, " - enable[1]/disable[0] wait vsync @ pan_display\n");
 	mvdisp_dump(f, "\techo [en/dis:1/0] > vsync\n");
+	mvdisp_dump(f, " - enable[1]/disable[0] vsync uevent report\n");
+	mvdisp_dump(f, "\techo [en/dis:u1/u0] > vsync\n");
+
 
 	return s;
 }
@@ -1664,8 +1670,11 @@ static ssize_t vsync_show(struct device *dev, struct device_attribute *attr,
 	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
 	int s = 0;
 
-	s += sprintf(buf, "path %d wait vsync @ pan_display %s\n\n",
+	s += sprintf(buf, "path %d wait vsync @ pan_display %s\n",
 			 fbi->id, fbi->wait_vsync ? "enabled" : "disabled");
+	s += sprintf(buf + s, "%s vsync uevent report\n\n",
+			 fbi->vsync_u_en ? "enable" : "disable");
+
 	s += vsync_help(buf + s);
 
 	return s;
@@ -1676,13 +1685,45 @@ static ssize_t vsync_store(
 		const char *buf, size_t size)
 {
 	struct pxa168fb_info *fbi = dev_get_drvdata(dev);
+	char vol[30];
 
-	if (sscanf(buf, "%d", &fbi->wait_vsync) != 1)
+	if ('u' == buf[0]) {
+		memcpy(vol, (void *)((u32)buf + 1), size - 1);
+		if (sscanf(vol, "%d", &fbi->vsync_u_en) != 1)
+			pr_err("%s %d erro input of vsync uevent flag\n",\
+				__func__, __LINE__);
+	} else if (sscanf(buf, "%d", &fbi->wait_vsync) != 1)
 		pr_err("%s %d erro input of wait vsync flag\n",\
 			__func__, __LINE__);
 	return size;
 }
 static DEVICE_ATTR(vsync, S_IRUGO | S_IWUSR, vsync_show, vsync_store);
+
+static void vsync_uevent_worker(struct work_struct *work)
+{
+	struct pxa168fb_info *fbi = container_of(work, struct pxa168fb_info,
+						 uevent_work);
+	char str[64];
+	char *vsync_str[] = {str, NULL};
+	struct timespec vsync_time;
+	struct platform_device *pdev;
+	uint64_t nanoseconds;
+
+	if (!fbi) {
+		pr_err("failed to get fbi when report vsync uevent!\n");
+		return;
+	}
+
+	pdev = to_platform_device(fbi->dev);
+	ktime_get_ts(&vsync_time);
+
+	nanoseconds = ((uint64_t)vsync_time.tv_sec)*1000*1000*1000 +
+		((uint64_t)vsync_time.tv_nsec);
+	snprintf(str, 64, "DISP_VSYNC=%lld", (uint64_t)nanoseconds);
+	dev_dbg(fbi->dev, "%s\n", str);
+
+	kobject_uevent_env(&pdev->dev.kobj, KOBJ_CHANGE, vsync_str);
+}
 
 static ssize_t itc_help(char *buf)
 {
@@ -2102,6 +2143,7 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	}
 
 
+	INIT_WORK(&fbi->uevent_work, vsync_uevent_worker);
 #ifdef CONFIG_ANDROID
 	if (fbi->fb_start && (!fbi->id || !fb_share)) {
 		fb_prepare_logo(info, 0);

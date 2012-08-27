@@ -196,6 +196,8 @@ struct pxa168fb_info {
 	*/
 	int			mem_status;
 	unsigned                wait_vsync;
+	unsigned                vsync_u_en;
+	struct work_struct	uevent_work;
 
 	/* Compatibility mode global switch .....
 	 *
