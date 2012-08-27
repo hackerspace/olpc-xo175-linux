@@ -132,7 +132,7 @@ static int i2c_recv_data(struct cm3218_info *lpi, uint8_t cmd, uint8_t *rxData,
 		msleep(10);
 	}
 	if (loop_i >= I2C_RETRY_COUNT) {
-		printk(KERN_ERR "[CM3218 error] %s retry over %d\n",
+		pr_err("[CM3218 error] %s retry over %d\n",
 		       __func__, I2C_RETRY_COUNT);
 		return -EIO;
 	}
@@ -171,7 +171,7 @@ static int i2c_recv_byte(struct cm3218_info *lpi, uint8_t *rxData, int length)
 		msleep(10);
 	}
 	if (loop_i >= I2C_RETRY_COUNT) {
-		printk(KERN_ERR "[CM3218 error] %s retry over %d\n",
+		pr_err("[CM3218 error] %s retry over %d\n",
 		       __func__, I2C_RETRY_COUNT);
 		return -EIO;
 	}
@@ -211,7 +211,7 @@ static int i2c_transfer_data(struct cm3218_info *lpi, uint8_t *txData,
 	}
 
 	if (loop_i >= I2C_RETRY_COUNT) {
-		printk(KERN_ERR "[CM3218 error] %s retry over %d\n",
+		pr_err("[CM3218 error] %s retry over %d\n",
 		       __func__, I2C_RETRY_COUNT);
 		return -EIO;
 	}
@@ -746,7 +746,7 @@ static ssize_t attr_kadc_store(struct device *dev,
 		lpi->als_kadc = kadc_temp;
 		if (lpi->als_gadc != 0) {
 			if (lightsensor_update_table(lpi) < 0)
-				printk(KERN_ERR"[CM3218 error] %s:"
+				pr_err("[CM3218 error] %s:"
 				"update ls table fail\n", __func__);
 		} else {
 			printk(KERN_INFO
@@ -787,9 +787,8 @@ static ssize_t attr_gadc_store(struct device *dev,
 		lpi->als_gadc = gadc_temp;
 		if (lpi->als_kadc != 0) {
 			if (lightsensor_update_table(lpi) < 0)
-				printk(KERN_ERR
-				       "[CM3218 error] %s: update ls table fail\n",
-				       __func__);
+				pr_err("[CM3218 error] %s: update"
+				"ls table fail\n", __func__);
 		} else {
 			printk(KERN_INFO
 			       "[CM3218]%s: als_kadc =0x%x wait to be set\n",
@@ -831,8 +830,7 @@ static ssize_t attr_adc_table_store(struct device *dev,
 		token[i] = strsep((char **)&buf, " ");
 		tempdata[i] = simple_strtoul(token[i], NULL, 10);
 		if (tempdata[i] < 1 || tempdata[i] > 0xffff) {
-			printk(KERN_ERR
-			       "[CM3218 error] adc_table[%d] =  0x%x Err\n",
+			pr_err("[CM3218 error] adc_table[%d] =  0x%x Err\n",
 			       i, tempdata[i]);
 			return count;
 		}
@@ -845,8 +843,7 @@ static ssize_t attr_adc_table_store(struct device *dev,
 		       i, *(lpi->adc_table + i));
 	}
 	if (lightsensor_update_table(lpi) < 0)
-		printk(KERN_ERR "[CM3218 error] %s: update ls table fail\n",
-		       __func__);
+		pr_err("[CM3218 error] %s: update ls table fail\n", __func__);
 	mutex_unlock(&lpi->als_get_adc_mutex);
 	D("[CM3218] %s\n", __func__);
 
