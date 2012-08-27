@@ -124,7 +124,7 @@ static int i2c_recv_data(struct cm3218_info *lpi, uint8_t cmd, uint8_t *rxData,
 		val = gpio_get_value(lpi->intr_pin);
 		/*check intr GPIO when i2c error */
 		if (loop_i == 0 || loop_i == I2C_RETRY_COUNT - 1)
-			D("[CM3218 error] %s, i2c err, slaveAddr 0x%x"
+			pr_err("[CM3218 error] %s, i2c err, slaveAddr 0x%x"
 			" ISR gpio %d  = %d,lpi->record_init_fail %d\n",
 			__func__, slaveAddr, lpi->intr_pin, val,
 			lpi->record_init_fail);
@@ -202,7 +202,7 @@ static int i2c_transfer_data(struct cm3218_info *lpi, uint8_t *txData,
 		val = gpio_get_value(lpi->intr_pin);
 		/*check intr GPIO when i2c error */
 		if (loop_i == 0 || loop_i == I2C_RETRY_COUNT - 1)
-			D("[CM3218 error] %s, i2c err, slaveAddr 0x%x,"
+			pr_err("[CM3218 error] %s, i2c err, slaveAddr 0x%x,"
 			"value 0x%x,ISR gpio%d  = %d, lpi->record_init_fail %d\n",
 			__func__, slaveAddr, txData[0],
 			lpi->intr_pin, val, lpi->record_init_fail);
@@ -254,8 +254,7 @@ static int cm3218_i2c_read_word(struct cm3218_info *lpi, uint8_t cmd,
 
 	ret = i2c_recv_data(lpi, cmd, buffer, 2);
 	if (ret < 0) {
-		pr_err
-		    ("[CM3218 error]%s: i2c_recv_data fail"
+		pr_err("[CM3218 error]%s: i2c_recv_data fail"
 			"[0x%x, 0x%x]\n", __func__, lpi->ALS_cmd_address, cmd);
 		return ret;
 	}
@@ -320,7 +319,7 @@ static int get_ls_adc_value(struct cm3218_info *lpi, uint16_t *als_step,
 			*als_step = tmpResult;
 	}
 
-	D("[CM3218] %s: raw adc = 0x%X, ls_calibrate = %d\n",
+	D("[CM3218] %s: adc = %d, ls_calibrate = %d\n",
 	  __func__, *als_step, lpi->ls_calibrate);
 
 	return ret;
@@ -523,7 +522,7 @@ void lightsensor_set_kvalue(struct cm3218_info *lpi)
 		return;
 	}
 
-	D("[CM3218] %s: ALS calibrated als_kadc=0x%x\n",
+	D("[CM3218] %s: ALS calibrated als_kadc=%d\n",
 	  __func__, als_kadc);
 
 	if (als_kadc >> 16 == ALS_CALIBRATED)
@@ -541,7 +540,7 @@ void lightsensor_set_kvalue(struct cm3218_info *lpi)
 		lpi->als_kadc = 1;
 		lpi->als_gadc = 1;
 	}
-	D("[CM3218] %s: als_kadc=0x%x, als_gadc=0x%x\n",
+	D("[CM3218] %s: als_kadc=%d, als_gadc=%d\n",
 	  __func__, lpi->als_kadc, lpi->als_gadc);
 }
 
@@ -557,7 +556,7 @@ static int lightsensor_update_table(struct cm3218_info *lpi)
 		else
 			lpi->cali_table[i] = 0xFFFF;
 
-		D("[CM3218] %s: Calibrated adc_table: data[%d], %x\n",
+		D("[CM3218] %s: Calibrated adc_table: data[%d], %d\n",
 		  __func__, i, lpi->cali_table[i]);
 	}
 
@@ -749,7 +748,7 @@ static ssize_t attr_kadc_store(struct device *dev,
 				pr_err("[CM3218 error] %s:"
 				"update ls table fail\n", __func__);
 		} else {
-			pr_info("[CM3218]%s: als_gadc =0x%x wait to be set\n",
+			pr_info("[CM3218]%s: als_gadc = %d wait to be set\n",
 			       __func__, lpi->als_gadc);
 		}
 	} else {
@@ -789,7 +788,7 @@ static ssize_t attr_gadc_store(struct device *dev,
 				pr_err("[CM3218 error] %s: update"
 				"ls table fail\n", __func__);
 		} else {
-			pr_info("[CM3218]%s: als_kadc =0x%x wait to be set\n",
+			pr_info("[CM3218]%s: als_kadc =%d wait to be set\n",
 			       __func__, lpi->als_kadc);
 		}
 	} else {
@@ -828,7 +827,7 @@ static ssize_t attr_adc_table_store(struct device *dev,
 		token[i] = strsep((char **)&buf, " ");
 		tempdata[i] = simple_strtoul(token[i], NULL, 10);
 		if (tempdata[i] < 1 || tempdata[i] > 0xffff) {
-			pr_err("[CM3218 error] adc_table[%d] =  0x%x Err\n",
+			pr_err("[CM3218 error] adc_table[%d] =  %d Err\n",
 			       i, tempdata[i]);
 			return count;
 		}
@@ -836,7 +835,7 @@ static ssize_t attr_adc_table_store(struct device *dev,
 	mutex_lock(&lpi->als_get_adc_mutex);
 	for (i = 0; i < 10; i++) {
 		lpi->adc_table[i] = tempdata[i];
-		pr_info("[CM3218]Set lpi->adc_table[%d] =  0x%x\n",
+		pr_info("[CM3218]Set lpi->adc_table[%d] =  %d\n",
 		       i, *(lpi->adc_table + i));
 	}
 	if (lightsensor_update_table(lpi) < 0)
