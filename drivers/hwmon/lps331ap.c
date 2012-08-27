@@ -339,7 +339,6 @@ static void lps331ap_prs_device_power_off(struct lps331ap_prs_data *prs)
 static int lps331ap_prs_device_power_on(struct lps331ap_prs_data *prs)
 {
 	int ret = -1;
-
 	if (prs->pdata->power_on) {
 		ret = prs->pdata->power_on(1);
 		if (ret < 0) {
@@ -548,12 +547,10 @@ static ssize_t attr_set_enable(struct device *dev,
 			       const char *buf, size_t size)
 {
 	struct lps331ap_prs_data *prs = dev_get_drvdata(dev);
-	unsigned long val;
 
-	if (strict_strtoul(buf, 10, &val))
-		return -EINVAL;
+	int enable = strcmp(buf, "1\n") ? 0 : 1;
 
-	if (val)
+	if (enable)
 		lps331ap_prs_enable(prs);
 	else
 		lps331ap_prs_disable(prs);
@@ -828,6 +825,8 @@ static int lps331ap_prs_probe(struct i2c_client *client,
 			"device LPS331AP_PRS_DEV_NAME sysfs register failed\n");
 		goto err_input_cleanup;
 	}
+
+	lps331ap_prs_device_power_off(prs);
 	/* As default, do not report information */
 	atomic_set(&prs->enabled, 0);
 	mutex_unlock(&prs->lock);
