@@ -749,12 +749,11 @@ static ssize_t attr_kadc_store(struct device *dev,
 				pr_err("[CM3218 error] %s:"
 				"update ls table fail\n", __func__);
 		} else {
-			printk(KERN_INFO
-			       "[CM3218]%s: als_gadc =0x%x wait to be set\n",
+			pr_info("[CM3218]%s: als_gadc =0x%x wait to be set\n",
 			       __func__, lpi->als_gadc);
 		}
 	} else {
-		printk(KERN_INFO "[CM3218]%s: als_kadc can't be set to zero\n",
+		pr_info("[CM3218]%s: als_kadc can't be set to zero\n",
 		       __func__);
 	}
 
@@ -790,12 +789,11 @@ static ssize_t attr_gadc_store(struct device *dev,
 				pr_err("[CM3218 error] %s: update"
 				"ls table fail\n", __func__);
 		} else {
-			printk(KERN_INFO
-			       "[CM3218]%s: als_kadc =0x%x wait to be set\n",
+			pr_info("[CM3218]%s: als_kadc =0x%x wait to be set\n",
 			       __func__, lpi->als_kadc);
 		}
 	} else {
-		printk(KERN_INFO "[CM3218]%s: als_gadc can't be set to zero\n",
+		pr_info("[CM3218]%s: als_gadc can't be set to zero\n",
 		       __func__);
 	}
 	mutex_unlock(&lpi->als_get_adc_mutex);
@@ -825,7 +823,7 @@ static ssize_t attr_adc_table_store(struct device *dev,
 	int i;
 	struct cm3218_info *lpi = dev_get_drvdata(dev);
 
-	printk(KERN_INFO "[CM3218]%s\n", buf);
+	pr_info("[CM3218]%s\n", buf);
 	for (i = 0; i < 10; i++) {
 		token[i] = strsep((char **)&buf, " ");
 		tempdata[i] = simple_strtoul(token[i], NULL, 10);
@@ -838,8 +836,7 @@ static ssize_t attr_adc_table_store(struct device *dev,
 	mutex_lock(&lpi->als_get_adc_mutex);
 	for (i = 0; i < 10; i++) {
 		lpi->adc_table[i] = tempdata[i];
-		printk(KERN_INFO
-		       "[CM3218]Set lpi->adc_table[%d] =  0x%x\n",
+		pr_info("[CM3218]Set lpi->adc_table[%d] =  0x%x\n",
 		       i, *(lpi->adc_table + i));
 	}
 	if (lightsensor_update_table(lpi) < 0)
@@ -880,7 +877,7 @@ static ssize_t attr_conf_store(struct device *dev,
 	sscanf(buf, "0x%x", &value);
 
 	ALS_CONF = value;
-	printk(KERN_INFO "[CM3218]set ALS_CONF = %x\n", ALS_CONF);
+	pr_info("[CM3218]set ALS_CONF = %x\n", ALS_CONF);
 	cm3218_i2c_write_word(lpi, ALS_CMD, ALS_CONF);
 	return count;
 }
@@ -904,7 +901,7 @@ static ssize_t attr_fLevel_store(struct device *dev,
 	fLevel = value;
 	input_report_abs(lpi->ls_input_dev, ABS_MISC, fLevel);
 	input_sync(lpi->ls_input_dev);
-	printk(KERN_INFO "[CM3218]set fLevel = %d\n", fLevel);
+	pr_info("[CM3218]set fLevel = %d\n", fLevel);
 
 	msleep(1000);
 	fLevel = -1;
