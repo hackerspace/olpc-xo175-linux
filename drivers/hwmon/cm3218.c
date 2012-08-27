@@ -54,6 +54,8 @@ struct cm3218_info {
 	struct input_dev *ls_input_dev;
 
 	struct mutex control_mutex;
+	struct mutex als_enable_mutex;
+	struct mutex als_disable_mutex;
 
 	struct early_suspend early_suspend;
 	struct i2c_client *i2c_client;
@@ -92,7 +94,7 @@ struct cm3218_info {
 struct cm3218_info *lp_info;
 int enable_log = -1;
 int fLevel = -1;
-static struct mutex als_enable_mutex, als_disable_mutex, als_get_adc_mutex;
+static struct mutex als_get_adc_mutex;
 static int lightsensor_enable(struct cm3218_info *lpi);
 static int lightsensor_disable(struct cm3218_info *lpi);
 static int initial_cm3218(struct cm3218_info *lpi);
@@ -493,7 +495,7 @@ static int lightsensor_enable(struct cm3218_info *lpi)
 {
 	int ret = -EIO;
 
-	mutex_lock(&als_enable_mutex);
+	mutex_lock(&lpi->als_enable_mutex);
 	D("[CM3218] %s\n", __func__);
 
 	if (lpi->als_enable) {
@@ -501,15 +503,14 @@ static int lightsensor_enable(struct cm3218_info *lpi)
 		ret = 0;
 	} else
 		ret = control_and_report(lpi, CONTROL_ALS, 1);
-
-	mutex_unlock(&als_enable_mutex);
+	mutex_unlock(&lpi->als_enable_mutex);
 	return ret;
 }
 
 static int lightsensor_disable(struct cm3218_info *lpi)
 {
 	int ret = -EIO;
-	mutex_lock(&als_disable_mutex);
+	mutex_lock(&lpi->als_disable_mutex);
 	D("[CM3218] %s\n", __func__);
 
 	if (lpi->als_enable == 0) {
@@ -517,8 +518,7 @@ static int lightsensor_disable(struct cm3218_info *lpi)
 		ret = 0;
 	} else
 		ret = control_and_report(lpi, CONTROL_ALS, 0);
-
-	mutex_unlock(&als_disable_mutex);
+	mutex_unlock(&lpi->als_disable_mutex);
 	return ret;
 }
 
@@ -1092,8 +1092,8 @@ static int cm3218_probe(struct i2c_client *client,
 
 	mutex_init(&lpi->control_mutex);
 
-	mutex_init(&als_enable_mutex);
-	mutex_init(&als_disable_mutex);
+	mutex_init(&lpi->als_enable_mutex);
+	mutex_init(&lpi->als_disable_mutex);
 	mutex_init(&als_get_adc_mutex);
 
 	ret = lightsensor_setup(lpi);
@@ -1187,8 +1187,8 @@ err_lightsensor_update_table:
 	mutex_destroy(&lpi->control_mutex);
 	misc_deregister(&lightsensor_misc);
 err_lightsensor_setup:
-	mutex_destroy(&als_enable_mutex);
-	mutex_destroy(&als_disable_mutex);
+	mutex_destroy(&lpi->als_enable_mutex);
+	mutex_destroy(&lpi->als_disable_mutex);
 	mutex_destroy(&als_get_adc_mutex);
 err_platform_data_null:
 	kfree(lpi);
