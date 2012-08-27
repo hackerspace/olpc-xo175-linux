@@ -1188,6 +1188,7 @@ static int hdmi_power(int on)
 		regulator_enable(v_5v);
 		gpio_direction_output(hdmi_ls_oe, 1);
 		gpio_direction_output(hdmi_ct_hpd, 1);
+		mdelay(1);
 	} else {
 		gpio_direction_output(hdmi_ct_hpd, 0);
 		gpio_direction_output(hdmi_ls_oe, 0);
