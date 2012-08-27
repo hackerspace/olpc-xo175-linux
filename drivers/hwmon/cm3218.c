@@ -93,7 +93,6 @@ struct cm3218_info {
 };
 
 struct cm3218_info *lp_info;
-int enable_log = -1;
 int fLevel = -1;
 static int lightsensor_enable(struct cm3218_info *lpi);
 static int lightsensor_disable(struct cm3218_info *lpi);
@@ -420,8 +419,6 @@ static irqreturn_t cm3218_irq_handler(int irq, void *data)
 	struct cm3218_info *lpi = data;
 
 	disable_irq_nosync(lpi->irq);
-	if (enable_log)
-		D("[CM3218] %s\n", __func__);
 
 	queue_work(lpi->lp_wq, &lpi->sensor_irq_work);
 
