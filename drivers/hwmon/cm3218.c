@@ -860,11 +860,11 @@ static ssize_t attr_cali_table_show(struct device *dev,
 	return length;
 }
 
-static uint8_t ALS_CONF = -1;
+static uint8_t als_conf = -1;
 static ssize_t attr_conf_show(struct device *dev,
 			    struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%x\n", ALS_CONF);
+	return sprintf(buf, "%x\n", als_conf);
 }
 
 static ssize_t attr_conf_store(struct device *dev,
@@ -875,9 +875,9 @@ static ssize_t attr_conf_store(struct device *dev,
 	struct cm3218_info *lpi = dev_get_drvdata(dev);
 	sscanf(buf, "0x%x", &value);
 
-	ALS_CONF = value;
-	pr_info("[CM3218]set ALS_CONF = %x\n", ALS_CONF);
-	cm3218_i2c_write_word(lpi, ALS_CMD, ALS_CONF);
+	als_conf = value;
+	pr_info("[CM3218]set als_conf = %x\n", als_conf);
+	cm3218_i2c_write_word(lpi, ALS_CMD, als_conf);
 	return count;
 }
 
