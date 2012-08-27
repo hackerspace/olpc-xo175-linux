@@ -53,6 +53,8 @@ struct cm3218_info {
 
 	struct input_dev *ls_input_dev;
 
+	struct mutex control_mutex;
+
 	struct early_suspend early_suspend;
 	struct i2c_client *i2c_client;
 	struct workqueue_struct *lp_wq;
@@ -91,7 +93,6 @@ struct cm3218_info *lp_info;
 int enable_log = -1;
 int fLevel = -1;
 static struct mutex als_enable_mutex, als_disable_mutex, als_get_adc_mutex;
-static struct mutex CM3218_control_mutex;
 static int lightsensor_enable(struct cm3218_info *lpi);
 static int lightsensor_disable(struct cm3218_info *lpi);
 static int initial_cm3218(struct cm3218_info *lpi);
@@ -1089,7 +1090,7 @@ static int cm3218_probe(struct i2c_client *client,
 	}
 	lp_info = lpi;
 
-	mutex_init(&CM3218_control_mutex);
+	mutex_init(&lpi->control_mutex);
 
 	mutex_init(&als_enable_mutex);
 	mutex_init(&als_disable_mutex);
@@ -1183,7 +1184,7 @@ err_cm3218_setup:
 	input_free_device(lpi->ls_input_dev);
 err_create_singlethread_workqueue:
 err_lightsensor_update_table:
-	mutex_destroy(&CM3218_control_mutex);
+	mutex_destroy(&lpi->control_mutex);
 	misc_deregister(&lightsensor_misc);
 err_lightsensor_setup:
 	mutex_destroy(&als_enable_mutex);
@@ -1202,7 +1203,7 @@ static int control_and_report(struct cm3218_info *lpi, uint8_t mode,
 	int fail_counter = 0;
 	uint8_t add = 0;
 
-	mutex_lock(&CM3218_control_mutex);
+	mutex_lock(&lpi->control_mutex);
 
 	while (1) {
 		val = gpio_get_value(lpi->intr_pin);
@@ -1276,7 +1277,7 @@ static int control_and_report(struct cm3218_info *lpi, uint8_t mode,
 		D("[CM3218] %s, re-enable INT FAIL\n", __func__);
 
 error_clear_interrupt:
-	mutex_unlock(&CM3218_control_mutex);
+	mutex_unlock(&lpi->control_mutex);
 	return ret;
 }
 
