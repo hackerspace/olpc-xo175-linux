@@ -56,6 +56,7 @@ struct cm3218_info {
 	struct mutex control_mutex;
 	struct mutex als_enable_mutex;
 	struct mutex als_disable_mutex;
+	struct mutex als_get_adc_mutex;
 
 	struct early_suspend early_suspend;
 	struct i2c_client *i2c_client;
@@ -94,7 +95,6 @@ struct cm3218_info {
 struct cm3218_info *lp_info;
 int enable_log = -1;
 int fLevel = -1;
-static struct mutex als_get_adc_mutex;
 static int lightsensor_enable(struct cm3218_info *lpi);
 static int lightsensor_disable(struct cm3218_info *lpi);
 static int initial_cm3218(struct cm3218_info *lpi);
@@ -668,7 +668,7 @@ static ssize_t attr_kadc_store(struct device *dev,
 
 	sscanf(buf, "%d", &kadc_temp);
 
-	mutex_lock(&als_get_adc_mutex);
+	mutex_lock(&lpi->als_get_adc_mutex);
 	if (kadc_temp != 0) {
 		lpi->als_kadc = kadc_temp;
 		if (lpi->als_gadc != 0) {
@@ -685,7 +685,7 @@ static ssize_t attr_kadc_store(struct device *dev,
 		       __func__);
 	}
 
-	mutex_unlock(&als_get_adc_mutex);
+	mutex_unlock(&lpi->als_get_adc_mutex);
 	return count;
 }
 
@@ -709,7 +709,7 @@ static ssize_t attr_gadc_store(struct device *dev,
 
 	sscanf(buf, "%d", &gadc_temp);
 
-	mutex_lock(&als_get_adc_mutex);
+	mutex_lock(&lpi->als_get_adc_mutex);
 	if (gadc_temp != 0) {
 		lpi->als_gadc = gadc_temp;
 		if (lpi->als_kadc != 0) {
@@ -726,7 +726,7 @@ static ssize_t attr_gadc_store(struct device *dev,
 		printk(KERN_INFO "[CM3218]%s: als_gadc can't be set to zero\n",
 		       __func__);
 	}
-	mutex_unlock(&als_get_adc_mutex);
+	mutex_unlock(&lpi->als_get_adc_mutex);
 	return count;
 }
 
@@ -764,7 +764,7 @@ static ssize_t attr_adc_table_store(struct device *dev,
 			return count;
 		}
 	}
-	mutex_lock(&als_get_adc_mutex);
+	mutex_lock(&lpi->als_get_adc_mutex);
 	for (i = 0; i < 10; i++) {
 		lpi->adc_table[i] = tempdata[i];
 		printk(KERN_INFO
@@ -774,7 +774,7 @@ static ssize_t attr_adc_table_store(struct device *dev,
 	if (lightsensor_update_table(lpi) < 0)
 		printk(KERN_ERR "[CM3218 error] %s: update ls table fail\n",
 		       __func__);
-	mutex_unlock(&als_get_adc_mutex);
+	mutex_unlock(&lpi->als_get_adc_mutex);
 	D("[CM3218] %s\n", __func__);
 
 	return count;
@@ -1094,7 +1094,7 @@ static int cm3218_probe(struct i2c_client *client,
 
 	mutex_init(&lpi->als_enable_mutex);
 	mutex_init(&lpi->als_disable_mutex);
-	mutex_init(&als_get_adc_mutex);
+	mutex_init(&lpi->als_get_adc_mutex);
 
 	ret = lightsensor_setup(lpi);
 	if (ret < 0) {
@@ -1189,7 +1189,7 @@ err_lightsensor_update_table:
 err_lightsensor_setup:
 	mutex_destroy(&lpi->als_enable_mutex);
 	mutex_destroy(&lpi->als_disable_mutex);
-	mutex_destroy(&als_get_adc_mutex);
+	mutex_destroy(&lpi->als_get_adc_mutex);
 err_platform_data_null:
 	kfree(lpi);
 	return ret;
