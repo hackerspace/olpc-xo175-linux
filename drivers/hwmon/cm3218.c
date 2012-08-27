@@ -93,7 +93,6 @@ struct cm3218_info {
 };
 
 struct cm3218_info *lp_info;
-int fLevel = -1;
 static int lightsensor_enable(struct cm3218_info *lpi);
 static int lightsensor_disable(struct cm3218_info *lpi);
 static int initial_cm3218(struct cm3218_info *lpi);
@@ -824,6 +823,7 @@ static ssize_t attr_fLevel_store(struct device *dev,
 			       const char *buf, size_t count)
 {
 	int value = 0;
+	int fLevel = -1;
 	struct cm3218_info *lpi = dev_get_drvdata(dev);
 	sscanf(buf, "%d", &value);
 	(value >= 0) ? (value = min(value, 10)) : (value = max(value, -1));
