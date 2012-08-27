@@ -44,7 +44,6 @@
 #define CONTROL_INT_ISR_REPORT        0x00
 #define CONTROL_ALS                   0x01
 
-static int record_init_fail = -1;
 struct cm3218_info {
 	struct class *cm3218_class;
 	struct device *ls_dev;
@@ -63,6 +62,7 @@ struct cm3218_info {
 
 	int intr_pin;
 	int als_enable;
+	int record_init_fail;
 
 	uint16_t *adc_table;
 	uint16_t cali_table[10];
@@ -125,9 +125,9 @@ static int i2c_recv_data(struct cm3218_info *lpi, uint8_t cmd, uint8_t *rxData,
 		/*check intr GPIO when i2c error */
 		if (loop_i == 0 || loop_i == I2C_RETRY_COUNT - 1)
 			D("[CM3218 error] %s, i2c err, slaveAddr 0x%x"
-			" ISR gpio %d  = %d,record_init_fail %d\n",
+			" ISR gpio %d  = %d,lpi->record_init_fail %d\n",
 			__func__, slaveAddr, lpi->intr_pin, val,
-			record_init_fail);
+			lpi->record_init_fail);
 
 		msleep(10);
 	}
@@ -164,9 +164,9 @@ static int i2c_recv_byte(struct cm3218_info *lpi, uint8_t *rxData, int length)
 		/*check intr GPIO when i2c error */
 		if (loop_i == 0 || loop_i == I2C_RETRY_COUNT - 1)
 			D("[CM3218 error] %s, i2c err, slaveAddr 0x%x"
-			" ISR gpio %d  = %d, record_init_fail %d\n",
+			" ISR gpio %d  = %d, lpi->record_init_fail %d\n",
 			__func__, slaveAddr, lpi->intr_pin, val,
-			record_init_fail);
+			lpi->record_init_fail);
 
 		msleep(10);
 	}
@@ -203,9 +203,9 @@ static int i2c_transfer_data(struct cm3218_info *lpi, uint8_t *txData,
 		/*check intr GPIO when i2c error */
 		if (loop_i == 0 || loop_i == I2C_RETRY_COUNT - 1)
 			D("[CM3218 error] %s, i2c err, slaveAddr 0x%x,"
-			"value 0x%x,ISR gpio%d  = %d, record_init_fail %d\n",
+			"value 0x%x,ISR gpio%d  = %d, lpi->record_init_fail %d\n",
 			__func__, slaveAddr, txData[0],
-			lpi->intr_pin, val, record_init_fail);
+			lpi->intr_pin, val, lpi->record_init_fail);
 
 		msleep(10);
 	}
@@ -1010,8 +1010,8 @@ check_interrupt_gpio:
 	if (fail_counter >= 10) {
 		D("[CM3218] %s, initial fail_counter = %d\n", __func__,
 		  fail_counter);
-		if (record_init_fail == 0)
-			record_init_fail = 1;
+		if (lpi->record_init_fail == 0)
+			lpi->record_init_fail = 1;
 	/*If devices without cm3218 chip and did not probe driver */
 		return -ENOMEM;
 	}
@@ -1156,6 +1156,7 @@ static int cm3218_probe(struct i2c_client *client,
 	lpi->j_start = 0;
 	lpi->j_end = 0;
 	lpi->record_clear_int_fail = 0;
+	lpi->record_init_fail = 0;
 
 	if (pdata->is_cmd == 0) {
 		lpi->is_cmd =
