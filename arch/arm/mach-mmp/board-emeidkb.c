@@ -1338,8 +1338,7 @@ static void i2c_pxa_bus_reset(int i2c_adap_id)
 	if (i2c_adap_id == 0) {
 		scl = MFP_PIN_GPIO53;
 		sda = MFP_PIN_GPIO54;
-	}
-	if (i2c_adap_id == 1) {
+	} else if (i2c_adap_id == 1) {
 		scl = MFP_PIN_GPIO87;
 		sda = MFP_PIN_GPIO88;
 	} else {
