@@ -1141,7 +1141,7 @@ static int cm3218_probe(struct i2c_client *client,
 	lpi->adc_table = pdata->levels;
 	lpi->power = pdata->power;
 
-	lpi->als_cmd_address = pdata->ALS_slave_address;
+	lpi->als_cmd_address = pdata->als_slave_address;
 	lpi->check_interrupt_add = pdata->check_interrupt_add;
 
 	lpi->is_cmd = pdata->is_cmd;
