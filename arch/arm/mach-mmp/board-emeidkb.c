@@ -37,6 +37,7 @@
 #include <linux/spi/pxa2xx_spi.h>
 #include <linux/spi/cmmb.h>
 #include <linux/mfd/88pm80x.h>
+#include <linux/workqueue.h>
 
 #ifdef CONFIG_PROC_FS
 #include <linux/proc_fs.h>
@@ -58,6 +59,7 @@
 #include <mach/clock-pxa988.h>
 #include <mach/regs-ciu.h>
 #include <mach/system.h>
+#include <mach/gpio-edge.h>
 
 #ifdef CONFIG_PM_DEVFREQ
 #include <plat/devfreq.h>
@@ -1553,6 +1555,51 @@ static int mmc1_lp_switch(unsigned int low_power, int with_card)
 }
 #undef POWER_OFF_SD_SIGNAL_IN_SUSPEND
 
+static struct wake_lock wlan_dat1_wakeup;
+static struct workqueue_struct *wlan_wq;
+static struct work_struct wlan_wk;
+
+static void wlan_edge_wakeup(struct work_struct *work)
+{
+	unsigned int sec = 3;
+
+	/*
+	 * Why use a workqueue to call this function?
+	 *
+	 * As now dat1_edge_wakeup is called just after CPU exist LPM,
+	 * and if wake_lock_timeout is called before syscore_resume,
+	 * WARN_ON(timekeeping_suspended) will happen in
+	 * /kernel/time/timekeeping.c
+	 *
+	 * So we create a workqueue to fix this issue
+	 */
+	wake_lock_timeout(&wlan_dat1_wakeup, HZ * sec);
+}
+
+static void dat1_edge_wakeup(int irq)
+{
+	queue_work(wlan_wq, &wlan_wk);
+}
+
+static struct gpio_edge_desc gpio_edge_sdio_dat1 = {
+	.gpio = MFP_PIN_GPIO39,
+	.handler = dat1_edge_wakeup,
+};
+
+static void wlan_wakeup_init(void)
+{
+	 wlan_wq = create_singlethread_workqueue(
+				"wlan_wakeup_wq");
+	if (wlan_wq == NULL) {
+		printk(KERN_ERR "wlan_wakeup_init fail\n");
+		return;
+	}
+
+	 INIT_WORK(&wlan_wk, wlan_edge_wakeup);
+	 wake_lock_init(&wlan_dat1_wakeup, WAKE_LOCK_SUSPEND,
+		"wifi_hs_wakeups");
+}
+
 #ifdef CONFIG_SD8XXX_RFKILL
 static void emeidkb_8787_set_power(unsigned int on)
 {
@@ -1587,12 +1634,19 @@ static void emeidkb_8787_set_power(unsigned int on)
 		regulator_set_voltage(wib_3v3, 2800000, 2800000);
 		regulator_enable(wib_3v3);
 		enabled = 1;
+
+		/* Only when SD8787 are active (power on),
+		 * it is meanful to enable the edge wakeup
+		 */
+		mmp_gpio_edge_add(&gpio_edge_sdio_dat1);
 	}
 
 	if (!on && enabled) {
 		regulator_disable(wib_1v8);
 		regulator_disable(wib_3v3);
 		enabled = 0;
+
+		mmp_gpio_edge_del(&gpio_edge_sdio_dat1);
 	}
 }
 #endif
@@ -1609,7 +1663,7 @@ static struct sdhci_pxa_platdata pxa988_sdh_platdata_mmc1 = {
 /* For emeiDKB, MMC2(SDH2) used for WIB card */
 static struct sdhci_pxa_platdata pxa988_sdh_platdata_mmc2 = {
 	.flags          = PXA_FLAG_CARD_PERMANENT | PXA_FLAG_WAKEUP_HOST,
-	.pm_caps	= MMC_PM_KEEP_POWER | MMC_PM_IRQ_ALWAYS_ON,
+	.pm_caps	= MMC_PM_KEEP_POWER,
 };
 
 /* For emeiDKB, MMC3(SDH3) used for eMMC */
@@ -1643,6 +1697,7 @@ static void __init emeidkb_init_mmc(void)
 
 	/* HW MMC2(sdh2) used for SDIO(WIFI/BT/FM module), and register last */
 	pxa988_add_sdh(2, &pxa988_sdh_platdata_mmc2);
+	wlan_wakeup_init();
 }
 #else
 static void __init emeidkb_init_mmc(void)
