@@ -891,7 +891,7 @@ static struct cm3218_platform_data cm3218_pdata = {
 				0x500, 0xA28, 0x16A8, 0x1F40, 0x2800
 		},
 		.power = __capella_cm3218_power,
-		.ALS_slave_address = CM3218_ALS_cmd,
+		.als_slave_address = CM3218_ALS_cmd,
 		.check_interrupt_add = CM3218_check_INI,
 		.is_cmd = CM3218_ALS_SM_2 | CM3218_ALS_IT_250ms |
 			CM3218_ALS_PERS_1 | CM3218_ALS_RES_1,
