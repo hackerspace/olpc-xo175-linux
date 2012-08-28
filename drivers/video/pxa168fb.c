@@ -464,8 +464,11 @@ static void set_clock_divider(struct pxa168fb_info *fbi)
 				/* LCD_PN2_SCLK_DIV 0x1ec: (31:28) (7:0) for DSI2 */
 				lcd_clk_set(2, clk_sclk, 0xfffff0ff, val & (~0xf00));
 			}
-		} else if (mi->phy_type & LVDS)
+		} else if (mi->phy_type & LVDS) {
+			/* for lcd controller, select LVDS clk as clk source */
+			lcd_clk_set(fbi->id, clk_sclk, 0xffffffff, 0x1001);
 			lcd_clk_set(fbi->id, clk_lvds_wr, 0xffffffff, val);
+		}
 
 		if (!var->pixclock) {
 			divider_int = mi->sclk_div & CLK_INT_DIV_MASK;
