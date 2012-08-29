@@ -2154,6 +2154,9 @@ static void __init emeidkb_init(void)
 		printk(KERN_INFO "LCD: Parallel tpo panel selected.\n");
 	} else {
 		emeidkb_add_lcd_mipi();
+#ifdef CONFIG_PXA988_LCD_PARALLEL
+		emeidkb_add_lcd_mipi_tv();
+#endif
 		printk(KERN_INFO "LCD: qHD panel selected.\n");
 	}
 #endif

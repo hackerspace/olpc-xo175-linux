@@ -1700,6 +1700,63 @@ void __init emeidkb_add_lcd_mipi(void)
 #endif
 #endif
 }
+
+#ifdef CONFIG_PXA988_LCD_PARALLEL
+void __init emeidkb_add_lcd_mipi_tv(void)
+{
+	struct pxa168fb_mach_info *fb = &mipi_lcd_info, *ovly =
+	    &mipi_lcd_ovly_info;
+
+	fb->num_modes = ARRAY_SIZE(video_modes_emeidkb);
+	fb->modes = video_modes_emeidkb;
+	fb->max_fb_size = video_modes_emeidkb[0].xres *
+		video_modes_emeidkb[0].yres * 8 + 4096;
+	ovly->num_modes = fb->num_modes;
+	ovly->modes = fb->modes;
+	ovly->max_fb_size = fb->max_fb_size;
+
+	fb->mmap = 0;
+	fb->phy_init = NULL;
+	/* remove dsi part for tv path */
+	fb->phy_type = DSI;
+	fb->xcvr_reset = NULL;
+	fb->phy_info = (void *)&emeidkb_dsiinfo;
+	fb->dsi_panel_config = NULL;
+	fb->pxa168fb_lcd_power = NULL;
+
+	/* For EMEIDKB, there is not vdma */
+	fb->vdma_enable = 0;
+	fb->sram_size = 0;
+
+	dither_config(fb);
+	/*
+	 * Re-calculate lcd clk source and divider
+	 * according to dsi lanes and output format.
+	 */
+	if (QHD_PANEL == is_qhd_lcd()) {
+		calculate_lcd_sclk(fb);
+		fb->phy_info = NULL;
+		fb->phy_type = 0;
+	} else {
+		/* FIXME:rewrite sclk_src, otherwise VNC will
+		 * use 520000000 as sclk_src so that clock source
+		 * will be set 624M */
+		fb->sclk_src = 416000000;
+		/* FIXME: change pixel clk divider for HVGA for fps 60 */
+		fb->sclk_div = 0xE000141b;
+	}
+	/*
+	 * FIXME:EMEI dkb use display clk1 as clk source,
+	 * which is from PLL1 416MHZ. PLL3 1GHZ will be used
+	 * for cpu core,and can't be DSI clock source specially.
+	 */
+	fb->sclk_div &= 0x0fffffff;
+	fb->sclk_div |= 0x40000000;
+
+	pxa988_add_fb_tv(fb);
+	pxa988_add_fb_tv_ovly(ovly);
+}
+#endif /* ONFIG_PXA988_LCD_PARALLEL */
 #endif
 
 #ifdef CONFIG_MACH_BROWNSTONE
