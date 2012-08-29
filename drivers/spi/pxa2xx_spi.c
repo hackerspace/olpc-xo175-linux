@@ -304,6 +304,13 @@ static int pxa25x_ssp_comp(struct driver_data *drv_data)
 	return 0;
 }
 
+static int is_pxa988_ssp(struct driver_data *drv_data)
+{
+	if (drv_data->ssp_type == PXA988_SSP)
+		return 1;
+	return 0;
+}
+
 static int flush(struct driver_data *drv_data)
 {
 	unsigned long limit = loops_per_jiffy << 1;
@@ -1197,19 +1204,26 @@ static void pump_transfers(unsigned long data)
 		DCSR(drv_data->tx_channel) = RESET_DMA_CHANNEL;
 		DSADR(drv_data->tx_channel) = drv_data->tx_dma;
 		DTADR(drv_data->tx_channel) = drv_data->ssdr_physical;
-		if (drv_data->tx == drv_data->null_dma_buf)
-			/* No source address increment */
-			DCMD(drv_data->tx_channel) = DCMD_FLOWTRG
+		if (!is_pxa988_ssp(drv_data)) {
+			if (drv_data->tx == drv_data->null_dma_buf)
+				/* No source address increment */
+				DCMD(drv_data->tx_channel) = DCMD_FLOWTRG
 							| drv_data->dma_width
 							| dma_burst
 							| drv_data->len;
-		else
+			else
+				DCMD(drv_data->tx_channel) = DCMD_INCSRCADDR
+							| DCMD_FLOWTRG
+							| drv_data->dma_width
+							| dma_burst
+							| drv_data->len;
+		} else {
 			DCMD(drv_data->tx_channel) = DCMD_INCSRCADDR
 							| DCMD_FLOWTRG
 							| drv_data->dma_width
 							| dma_burst
 							| drv_data->len;
-
+		}
 		/* Enable dma end irqs on SSP to detect end of transfer */
 		if (drv_data->ssp_type == PXA25x_SSP)
 			DCMD(drv_data->tx_channel) |= DCMD_ENDIRQEN;
@@ -1637,8 +1651,14 @@ static int __devinit pxa2xx_spi_probe(struct platform_device *pdev)
 	/* the null DMA buf should malloc form DMA_ZONE
 	 * and align of DMA_ALIGNMENT
 	 */
-	drv_data->alloc_dma_buf =
-		kzalloc(DMA_ALIGNMENT+4, GFP_KERNEL | GFP_DMA);
+	if (!is_pxa988_ssp(drv_data)) {
+		drv_data->alloc_dma_buf =
+			kzalloc(DMA_ALIGNMENT+4, GFP_KERNEL | GFP_DMA);
+	} else {
+		drv_data->alloc_dma_buf =
+			kzalloc(DMA_ALIGNMENT+MAX_DMA_LEN,
+					GFP_KERNEL | GFP_DMA);
+	}
 	if (!drv_data->alloc_dma_buf) {
 		status = -ENOMEM;
 		goto out_error_dma_buf;
