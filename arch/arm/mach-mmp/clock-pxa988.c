@@ -2446,11 +2446,11 @@ static struct clk pxa988_list_clks[] = {
 		APBC_PXA988_PWRTWSI, 0, 33000000, NULL),/* pwr_i2c */
 	APBC_CLK("twsi2", "pxa910-i2c.2", NULL,
 		APBC_PXA988_TWSI1, 0, 33000000, NULL),	/* ci2c1 */
-	APBC_CLK("ssp0", "pxa910-ssp.0", NULL,
+	APBC_CLK("ssp0", "pxa988-ssp.0", NULL,
 		APBC_PXA988_SSP0, 4, 3250000, NULL),
-	APBC_CLK("ssp1", "pxa910-ssp.1", NULL,
+	APBC_CLK("ssp1", "pxa988-ssp.1", NULL,
 		APBC_PXA988_SSP1, 0, 26000000, NULL),
-	APBC_CLK("ssp2", "pxa910-ssp.2", NULL,
+	APBC_CLK("ssp2", "pxa988-ssp.2", NULL,
 		APBC_PXA988_SSP2, 2, 26000000, NULL),
 	APBC_CLK("keypad", "pxa27x-keypad", NULL,
 		APBC_PXA988_KPC, 0, 32000, NULL),
