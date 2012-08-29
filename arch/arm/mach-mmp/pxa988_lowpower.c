@@ -266,6 +266,16 @@ static void pxa988_lowpower_config(u32 cpu,
 			core_idle_cfg |= PMUA_CORE_L1_SRAM_POWER_DOWN;
 			mp_idle_cfg |= PMUA_MP_SCU_SRAM_POWER_DOWN;
 			mp_idle_cfg |= PMUA_MP_POWER_DOWN;
+			/*
+			 * FIXME: This is a temporary workaround for D1/D2 hang
+			 * issue. DE confirmed that D1/D2 may hang due to
+			 * missing mpsub_idle_clk_off_ack. DE is still checking
+			 * it but not root cause yet.
+			 * Mask MP clock off State check can be a SW workaround.
+			 * Will remove this workaround when the issue is fixed.
+			 * JIRA index: EMEI-145
+			 */
+			mp_idle_cfg |= PMUA_MP_MASK_CLK_OFF;
 			/* fall through */
 		case POWER_MODE_CORE_EXTIDLE:
 			core_idle_cfg |= PMUA_CORE_IDLE;
@@ -287,7 +297,8 @@ static void pxa988_lowpower_config(u32 cpu,
 				PMUA_CORE_L1_SRAM_POWER_DOWN);
 		mp_idle_cfg &= ~(PMUA_MP_IDLE | PMUA_MP_POWER_DOWN |
 				PMUA_MP_L2_SRAM_POWER_DOWN |
-				PMUA_MP_SCU_SRAM_POWER_DOWN);
+				PMUA_MP_SCU_SRAM_POWER_DOWN |
+				PMUA_MP_MASK_CLK_OFF);
 		apcr &= ~(PMUM_DDRCORSD | PMUM_APBSD | PMUM_AXISD |
 			PMUM_VCTCXOSD | PMUM_STBYEN | PMUM_SLPEN);
 		mc_slp_type &= ~0x7;

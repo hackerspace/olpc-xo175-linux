@@ -37,6 +37,7 @@
 #define PMUA_MP_POWER_DOWN		(1 << 1)
 #define PMUA_MP_L2_SRAM_POWER_DOWN	(1 << 2)
 #define PMUA_MP_SCU_SRAM_POWER_DOWN	(1 << 3)
+#define PMUA_MP_MASK_CLK_OFF		(1 << 11)
 
 #define ICU_MASK_FIQ			(1 << 0)
 #define ICU_MASK_IRQ			(1 << 1)
