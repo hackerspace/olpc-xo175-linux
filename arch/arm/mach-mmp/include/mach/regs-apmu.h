@@ -90,6 +90,7 @@
 
 #define APMU_CC2R               APMU_REG(0x0100)
 #define APMU_CC2SR              APMU_REG(0x0104)
+#define APMU_TRACE              APMU_REG(0x0108)
 
 #define APMU_SLIM_CLK_RES_CTRL	APMU_REG(0x0104)
 #define APMU_FSIC3_CLK_RES_CTRL APMU_REG(0x0100)

@@ -2391,6 +2391,8 @@ struct clkops udc_clk_ops = {
 }
 
 DEFINE_GATE_CLK(VCTCXO, MPMU_VRCR, 1, NULL, "VCTCXO");
+DEFINE_GATE_CLK(dbgclk, APMU_TRACE, (1 << 3), NULL, "DBGCLK");
+DEFINE_GATE_CLK(traceclk, APMU_TRACE, (1 << 4), NULL, "TRACECLK");
 
 /* all clk src on the board */
 static struct clk *pxa988_clks_src[] = {
@@ -2422,6 +2424,8 @@ static struct clk *pxa988_clks_peri[] = {
 	&lcd_dsi_phy_clk,
 	&pxa988_lcd_clk,
 	&pxa988_isp_dxo_clk,
+	&dbgclk,
+	&traceclk,
 };
 
 /* This clock is used to enable RTC module register r/w */
@@ -2530,6 +2534,22 @@ static void __init clk_misc_init(void)
 	__raw_writel(dcg_regval, MC_CONF);
 }
 
+static void __init clk_disable_unused_clock(void)
+{
+	struct clk *clk_unused;
+	/*
+	 * disable nand controller clock as it is not used
+	 * on 988
+	 */
+	clk_unused = clk_get_sys("pxa3xx-nand", NULL);
+	clk_disable(clk_unused);
+	/*
+	 * disable ase clock at init stage and security will
+	 * enable it prior to use it
+	 */
+	clk_unused = clk_get_sys(NULL, "AESCLK");
+	clk_disable(clk_unused);
+}
 /*
  * init pll default output that used for pxa988
  * MUST call this function after pll2 and pll3 clock node is inited
@@ -2577,6 +2597,7 @@ static int __init pxa988_clk_init(void)
 		pxa988_init_one_clock(&pxa988_list_clks[i]);
 
 	clk_pll_init();
+	clk_disable_unused_clock();
 	return 0;
 }
 core_initcall(pxa988_clk_init);
