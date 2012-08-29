@@ -163,6 +163,7 @@ enum pxa_ssp_type {
 	PXA168_SSP,
 	CE4100_SSP,
 	PXA910_SSP,
+	PXA988_SSP,
 	MMP_SSP,
 };
 
