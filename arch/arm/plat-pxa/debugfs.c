@@ -531,11 +531,87 @@ const struct file_operations dumpregs_l2_fops = {
 };
 #endif
 
+#ifdef CONFIG_HAVE_ARM_SCU
+
+#define SCU_CTRL		0x00
+#define SCU_CONFIG		0x04
+#define SCU_CPU_STATUS		0x08
+
+static int scu_offset = -1;
+
+static ssize_t scu_write(struct file *filp, const char __user *buffer,
+		size_t count, loff_t *ppos)
+{
+	char buf[32] = {0};
+	int offset;
+
+	/* copy user's input to kernel space */
+	if (copy_from_user(buf, buffer, count))
+		return -EFAULT;
+
+	sscanf(buf, "%x", &offset);
+	pr_info("Check SCU offset: 0x%x\n", offset);
+
+	if (offset < 0 || offset > 0x54)
+		pr_err("The offset is out of SCU register range.\n");
+	else if (offset % 4)
+		pr_err("offset should be aligned to 4 bytes.\n");
+	else
+		scu_offset = offset;
+
+	return count;
+}
+
+static ssize_t scu_read(struct file *filp, char __user *buffer,
+		size_t count, loff_t *ppos)
+{
+	char buf[256];
+	char *p = buf;
+	size_t ret, buf_len;
+	u32 value;
+	int len = 0;
+
+	buf_len = sizeof(buf) - 1;
+
+	if (scu_offset != -1) {
+		value = readl_relaxed(SCU_VIRT_BASE + scu_offset);
+		len += snprintf(p + len, buf_len - len,
+				"offset[0x%x]: 0x%08x\n", scu_offset, value);
+	} else {
+		value = readl_relaxed(SCU_VIRT_BASE + SCU_CTRL);
+		len += snprintf(p + len, buf_len - len,
+				"SCU Control: 0x%08x\n", value);
+
+		value = readl_relaxed(SCU_VIRT_BASE + SCU_CONFIG);
+		len += snprintf(p + len, buf_len - len,
+				"SCU Configuration: 0x%08x\n", value);
+
+		value = readl_relaxed(SCU_VIRT_BASE + SCU_CPU_STATUS);
+		len += snprintf(p + len, buf_len - len,
+				"SCU CPU Power Status: 0x%08x\n", value);
+	}
+
+	if (len == buf_len)
+		pr_warn("The buffer for dumpping SCU is full now!\n");
+
+	ret = simple_read_from_buffer(buffer, count, ppos, buf, len);
+	if (scu_offset != -1 && !ret)
+		scu_offset = -1;
+	return ret;
+}
+
+const struct file_operations dumpregs_scu_fops = {
+	.read = scu_read,
+	.write = scu_write,
+};
+#endif
+
 struct dentry *pxa;
 
 static int __init pxa_debugfs_init(void)
 {
 	struct dentry *dumpregs_cp15, *dumpregs_gic, *dumpregs_l2;
+	struct dentry *dumpregs_scu;
 
 	pxa = debugfs_create_dir("pxa", NULL);
 	if (!pxa)
@@ -560,11 +636,25 @@ static int __init pxa_debugfs_init(void)
 		goto err_l2;
 #endif
 
+#ifdef CONFIG_HAVE_ARM_SCU
+	dumpregs_scu = debugfs_create_file("scu", 0666,
+				pxa, NULL, &dumpregs_scu_fops);
+	if (!dumpregs_scu)
+		goto err_scu;
+#endif
+
 	return 0;
 
+#ifdef CONFIG_HAVE_ARM_SCU
+err_scu:
+#endif
+
 #ifdef CONFIG_CACHE_L2X0
+	debugfs_remove(dumpregs_l2);
+	dumpregs_l2 = NULL;
 err_l2:
 #endif
+
 #ifdef CONFIG_ARM_GIC
 	debugfs_remove(dumpregs_gic);
 	dumpregs_gic = NULL;
