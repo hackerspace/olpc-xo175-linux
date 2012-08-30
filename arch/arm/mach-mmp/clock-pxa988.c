@@ -2536,19 +2536,16 @@ static void __init clk_misc_init(void)
 
 static void __init clk_disable_unused_clock(void)
 {
-	struct clk *clk_unused;
 	/*
 	 * disable nand controller clock as it is not used
 	 * on 988
 	 */
-	clk_unused = clk_get_sys("pxa3xx-nand", NULL);
-	clk_disable(clk_unused);
+	__raw_writel(0, APMU_NAND);
 	/*
 	 * disable ase clock at init stage and security will
 	 * enable it prior to use it
 	 */
-	clk_unused = clk_get_sys(NULL, "AESCLK");
-	clk_disable(clk_unused);
+	__raw_writel(0, APMU_GEU);
 }
 /*
  * init pll default output that used for pxa988
