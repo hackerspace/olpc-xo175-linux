@@ -528,14 +528,14 @@ static int usb_phy_init_internal(unsigned int base)
 	/* enable usb device PHY */
 	writew(PLLVDD18(0x1) | REFDIV(0xd) | FBDIV(0xf0),
 		&phy->utmi_pll_reg0);
-	writew(PU_PLL | PLL_LOCK_BYPASS | ICP(0x3) | KVCO(0x3) | PLLCAL12(0x3),
+	writew(PU_PLL | PLL_LOCK_BYPASS | ICP(0x1) | KVCO(0x3) | PLLCAL12(0x3),
 		&phy->utmi_pll_reg1);
-	writew(IMPCAL_VTH(0x2) | EXT_HS_RCAL(0x8) | EXT_FS_RCAL(0x8),
+	writew(IMPCAL_VTH(0x1) | EXT_HS_RCAL(0x8) | EXT_FS_RCAL(0x8),
 		&phy->utmi_tx_reg0);
 	writew(TXVDD15(0x1) | TXVDD12(0x3) | LOWVDD_EN |
-		AMP(0x4) | CK60_PHSEL(0x4),
+		AMP(0x3) | CK60_PHSEL(0x4),
 		&phy->utmi_tx_reg1);
-	writew(DRV_SLEWRATE(0x3) | IMP_CAL_DLY(0x2) |
+	writew(DRV_SLEWRATE(0x2) | IMP_CAL_DLY(0x2) |
 		FSDRV_EN(0xf) | HSDEV_EN(0xf),
 		&phy->utmi_tx_reg2);
 	writew(PHASE_FREEZE_DLY | ACQ_LENGTH(0x2) | SQ_LENGTH(0x2) |
