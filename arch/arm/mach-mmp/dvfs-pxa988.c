@@ -38,6 +38,8 @@ enum {
 	VL_MAX,
 };
 
+#define KHZ_TO_HZ	1000
+
 struct dvfs_rail_component {
 	const char *clk_name;
 	bool auto_dvfs;
@@ -69,24 +71,24 @@ static struct dvfs_rail pxa988_dvfs_rail_vm = {
 	.step = 500,
 };
 
-#define CORE_DVFS(_clk_name, _auto, _millivolts, _freqs...)	\
+#define INIT_DVFS(_clk_name, _auto, _millivolts, _freqs...)	\
 	{							\
 		.clk_name	= _clk_name,			\
 		.auto_dvfs	= _auto,			\
 		.millivolts	= _millivolts,			\
-		.freqs_mult	= 1000,				\
+		.freqs_mult	= KHZ_TO_HZ,				\
 		.dvfs_rail	= &pxa988_dvfs_rail_vm,		\
 		.freqs		= {_freqs},			\
 	}
 
 static struct dvfs_rail_component vm_rail_comp_tbl[VM_RAIL_MAX] = {
-	CORE_DVFS("cpu", true, vm_millivolts,
+	INIT_DVFS("cpu", true, vm_millivolts,
 		624000, 800000, 1248000),
-	CORE_DVFS("ddr", true, vm_millivolts,
+	INIT_DVFS("ddr", true, vm_millivolts,
 		312000, 400000, 400000),
-	CORE_DVFS("GCCLK", true, vm_millivolts,
+	INIT_DVFS("GCCLK", true, vm_millivolts,
 		312000, 416000, 624000),
-	CORE_DVFS("VPUCLK", false, vm_millivolts,
+	INIT_DVFS("VPUCLK", false, vm_millivolts,
 		312000, 416000, 416000),
 };
 
@@ -160,10 +162,10 @@ static struct dvfs_rail *pxa988_dvfs_rails[] = {
 
 static int __init pxa988_init_dvfs(void)
 {
-	int i;
+	int i, ret, j;
 	struct dvfs *d;
 	struct clk *c;
-	int ret;
+	unsigned long rate;
 
 	dvfs_init_rails(pxa988_dvfs_rails, ARRAY_SIZE(pxa988_dvfs_rails));
 
@@ -185,6 +187,18 @@ static int __init pxa988_init_dvfs(void)
 					c->name);
 			kzfree(d->vol_freq_table);
 			kzfree(d);
+		}
+		/*
+		 * adjust the voltage request according to its current rate
+		 * for those clk is always on
+		 */
+		if (c->refcnt) {
+			rate = clk_get_rate(c);
+			j = 0;
+			while (j < d->num_freqs && \
+					rate > d->vol_freq_table[j].freq)
+				j++;
+			d->millivolts = d->vol_freq_table[j].millivolts;
 		}
 	}
 
