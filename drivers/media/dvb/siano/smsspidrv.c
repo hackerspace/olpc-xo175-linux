@@ -1,5 +1,3 @@
-/****************************************************************
-
 Siano Mobile Silicon, Inc.
 MDTV receiver kernel modules.
  Copyright (C) 2006-2010, Erez Cohen
@@ -40,6 +38,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "smsspicommon.h"
 #include "smsspiphy.h"
 
+#define USER_WORKQUEUE /*for dual-core*/
+
+#define ANDROID_2_6_25
+#ifdef ANDROID_2_6_25
+#include <linux/workqueue.h>
+#endif
 #define SMS_INTR_PIN			4	/*0 for nova sip, 26 for vega */
 #define TX_BUFFER_SIZE			0x200
 
@@ -65,6 +69,11 @@ struct _spi_device_st {
 	struct list_head txqueue;
 	char *txbuf;
 	dma_addr_t txbuf_phy_addr;
+
+#ifdef USER_WORKQUEUE
+	struct workqueue_struct *workqueue;
+	struct work_struct work;
+#endif
 };
 
 struct _smsspi_txmsg {
@@ -257,11 +266,14 @@ static void msg_found(void *context, void *buf, int offset, int len)
 void smsspi_int_handler(void *context)
 {
 	struct _spi_device_st *spi_device;
-
 	spi_device = (struct _spi_device_st *)context;
-	PDEBUG("interrupt\n");
-	PREPARE_WORK(&spi_work_queue, (void *)spi_worker_thread);
+
+#ifdef USER_WORKQUEUE
+	queue_work(spi_device->workqueue, &spi_device->work);
+#else
+	PREPARE_WORK(&spi_work_queue, (void *)spi_worker_thread);  /*for test*/
 	schedule_work(&spi_work_queue);
+#endif
 
 }
 
@@ -270,7 +282,11 @@ static int smsspi_queue_message_and_wait(struct _spi_device_st *spi_device,
 {
 	init_completion(&msg->completion);
 	list_add_tail(&msg->node, &spi_device->txqueue);
+#ifdef USER_WORKQUEUE
+	queue_work(spi_device->workqueue, &spi_device->work);
+#else
 	schedule_work(&spi_work_queue);
+#endif
 	wait_for_completion(&msg->completion);
 
 	return 0;
@@ -477,6 +493,15 @@ int smsspi_register(void)
 		goto phy_error;
 	}
 
+#ifdef USER_WORKQUEUE
+	spi_device->workqueue =
+		create_singlethread_workqueue("smsspi_interrupt");
+	if (!spi_device->workqueue)
+		goto phy_error;
+
+	INIT_WORK(&spi_device->work, spi_worker_thread);
+#endif
+
 	common_cb.allocate_rx_buf = allocate_rx_buf;
 	common_cb.free_rx_buf = free_rx_buf;
 	common_cb.msg_found_cb = msg_found;
@@ -571,6 +596,10 @@ void smsspi_unregister(void)
 	smscore_unregister_device(spi_device->coredev);
 
 	pxa_spi_unregister();
+
+#ifdef USER_WORKQUEUE
+	destroy_workqueue(spi_device->workqueue);
+#endif
 
 	dma_free_coherent(NULL, TX_BUFFER_SIZE, spi_device->txbuf,
 			  spi_device->txbuf_phy_addr);
