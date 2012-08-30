@@ -1584,6 +1584,7 @@ static void emeidkb_8787_set_power(unsigned int on)
 
 /* For emeiDKB, MMC1(SDH1) used for SD/MMC Card slot */
 static struct sdhci_pxa_platdata pxa988_sdh_platdata_mmc1 = {
+	.flags		= PXA_FLAG_ENABLE_CLOCK_GATING,
 	.clk_delay_cycles	= 0x1F,
 	.quirks			= SDHCI_QUIRK_INVERTED_WRITE_PROTECT,
 	.signal_1v8		= emeidkb_sdcard_signal_1v8,
@@ -1598,7 +1599,8 @@ static struct sdhci_pxa_platdata pxa988_sdh_platdata_mmc2 = {
 
 /* For emeiDKB, MMC3(SDH3) used for eMMC */
 static struct sdhci_pxa_platdata pxa988_sdh_platdata_mmc3 = {
-	.flags		= PXA_FLAG_CARD_PERMANENT
+	.flags		= PXA_FLAG_ENABLE_CLOCK_GATING
+				| PXA_FLAG_CARD_PERMANENT
 				| PXA_FLAG_SD_8_BIT_CAPABLE_SLOT,
 	.clk_delay_cycles	= 0xF,
 };
