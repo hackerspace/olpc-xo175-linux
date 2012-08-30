@@ -103,7 +103,7 @@ ENTRY(pxa988_cpu_resume_handler)
 	bne	set_scu_mode
 
 	/* enable SCU */
-	orr	r3, r3, #1
+	orr	r3, r3, #0x21
 	str	r3, [r2]
 	/* Invalidate both CPUs' SCU tag RAMs */
 	mov	r4, #0xff
