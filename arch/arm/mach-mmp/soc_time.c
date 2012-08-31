@@ -49,29 +49,13 @@
 #define MAX_DELTA		(0xfffffffe)
 #define MIN_DELTA		(32)
 
-#define TCR2NS_SCALE_FACTOR	10
 #define US2CYC_SCALE_FACTOR	10
 static inline cycle_t timer_read(int counter);
-static unsigned long tcr2ns_scale;
 static unsigned long us2cyc_scale;
 static DEFINE_CLOCK_DATA(cd);
 static DEFINE_SPINLOCK(timer_lock);
 
 static int irq_timer0, irq_timer1;
-
-static void __init set_tcr2ns_scale(unsigned long tcr_rate)
-{
-	unsigned long long v = 1000000000ULL << TCR2NS_SCALE_FACTOR;
-	do_div(v, tcr_rate);
-	tcr2ns_scale = v;
-	/*
-	 * We want an even value to automatically clear the top bit
-	 * returned by cnt32_to_63() without an additional run time
-	 * instruction. So if the LSB is 1 then round it up.
-	 */
-	if (tcr2ns_scale & 1)
-		tcr2ns_scale++;
-}
 
 unsigned long long sched_clock(void)
 {
@@ -103,7 +87,6 @@ static int timer_set_next_event(unsigned long delta,
 				struct clock_event_device *dev)
 {
 	unsigned long flags;
-	unsigned long next;
 	uint32_t cer, reg;
 	unsigned int timer, i;
 
@@ -279,26 +262,6 @@ cycle_t read_timer(struct clocksource *cs)
 	return timer_read(2);
 }
 
-cycle_t read_fast_timer(void)
-{
-	volatile int delay __maybe_unused = 2;
-	unsigned long flags;
-	volatile uint32_t val = 0;
-
-	local_irq_save(flags);
-
-	__raw_writel(1, TIMERS_VIRT_BASE + TMR_CVWR(2));
-
-	while (delay--) {
-		val = __raw_readl(TIMERS_VIRT_BASE + TMR_CVWR(2));
-	}
-	val = __raw_readl(TIMERS_VIRT_BASE + TMR_CVWR(2));
-
-	local_irq_restore(flags);
-
-	return val;
-}
-
 static struct clocksource cksrc = {
 	.name		= "soc_clock",
 	.rating		= 200,
@@ -342,8 +305,8 @@ static void __init timer_config(void)
 	__raw_writel(0x7, TIMERS_VIRT_BASE + TMR_ICR(2));  /* clear status */
 	__raw_writel(0x0, TIMERS_VIRT_BASE + TMR_IER(2));  /* disable int */
 
-	/* enable Timer 0 & 1 & 2*/
-	__raw_writel(cer | 0x7, TIMERS_VIRT_BASE + TMR_CER);
+	/* enable Timer 2 for clock source */
+	__raw_writel(cer | 0x4, TIMERS_VIRT_BASE + TMR_CER);
 }
 
 static void generic_timer_access(void)
@@ -378,13 +341,11 @@ void __init timer_init(int irq0, int irq1, int irq2)
 
 #ifdef CONFIG_PXA_32KTIMER
 	init_sched_clock(&cd, mmp_update_sched_clock, 32, 32768);
-	set_tcr2ns_scale(32768);
 	clocksource_calc_mult_shift(&cksrc, 32768, 4);
 	clockevents_calc_mult_shift(&ckevt0, 32768, 4);
 	clockevents_calc_mult_shift(&ckevt1, 32768, 4);
 #else
 	init_sched_clock(&cd, mmp_update_sched_clock, 32, CLOCK_TICK_RATE);
-	set_tcr2ns_scale(CLOCK_TICK_RATE);
 	clocksource_calc_mult_shift(&cksrc, CLOCK_TICK_RATE, 4);
 	clockevents_calc_mult_shift(&ckevt0, CLOCK_TICK_RATE, 4);
 	clockevents_calc_mult_shift(&ckevt1, CLOCK_TICK_RATE, 4);
