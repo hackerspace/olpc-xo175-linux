@@ -501,20 +501,21 @@ static int emeidkb_lcd_power(struct pxa168fb_info *fbi,
 	}
 
 	if (on) {
-		regulator_set_voltage(lcd_iovdd, 1800000, 1800000);
-		regulator_enable(lcd_iovdd);
-
 		regulator_set_voltage(lcd_avdd, 3100000, 3100000);
 		regulator_enable(lcd_avdd);
+		mdelay(5);
 
-		mdelay(50);
+		regulator_set_voltage(lcd_iovdd, 1800000, 1800000);
+		regulator_enable(lcd_iovdd);
+		mdelay(15);
+
 		/* release panel from reset */
 		gpio_direction_output(lcd_rst_n, 1);
 		udelay(20);
 		gpio_direction_output(lcd_rst_n, 0);
 		udelay(50);
 		gpio_direction_output(lcd_rst_n, 1);
-		mdelay(100);
+		mdelay(15);
 	} else {
 		/* disable LCD_AVDD 3.1v */
 		regulator_disable(lcd_avdd);
