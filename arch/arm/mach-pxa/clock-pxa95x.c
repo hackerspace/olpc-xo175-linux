@@ -1141,6 +1141,13 @@ static long clk_pxa95x_gc_round_rate(struct clk *gc_clk, unsigned long rate)
 		if (i == gc_freq_counts - 1)
 			rate = gc_cur_freqs_table[gc_freq_counts - 1];
 	}
+	/*
+	 * Temporarily set 416 as Maximum Gc frequency
+	 * as we don't need to Gc 481 or 600 in normal cases
+	 * (1080p video playback only requests Gc 321Mhz)
+	 */
+	if (rate >= 416000000)
+		rate = 416000000;
 
 	return rate;
 }
