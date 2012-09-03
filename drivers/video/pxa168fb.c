@@ -1044,8 +1044,8 @@ static irqreturn_t pxa168fb_handle_irq(int irq, void *dev_id)
 				vsync_count++;
 			}
 		}
-	} while (((isr_en = readl(gfx_info.fbi[0]->reg_base + SPU_IRQ_ISR)) &
-			readl(gfx_info.fbi[0]->reg_base + SPU_IRQ_ENA) &
+	} while (((isr_en = readl(gfx_info.fbi[0]->reg_base + SPU_IRQ_ISR) &
+			readl(gfx_info.fbi[0]->reg_base + SPU_IRQ_ENA)) &
 			(path_imasks(0) | path_imasks(1) | err_imasks)) &&
 			!(irqtm_check && vsync_check));
 
