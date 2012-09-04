@@ -44,6 +44,12 @@
 /* This is used by pxa988 for warm reset */
 #define CIU_WARM_RESET_VECTOR   CIU_REG(0x00d8)
 
+/* used for set xtc */
+#define CIU_GPU_XTC_REG		CIU_REG(0x00a4)
+#define CIU_VPU_XTC_REG		CIU_REG(0x00a8)
+#define CIU_CA9_CPU_CONF_SRAM0	CIU_REG(0Xc8)
+#define CIU_CA9_CPU_CONF_SRAM1	CIU_REG(0Xcc)
+
 static __maybe_unused int ciu_ddr_ilv_on(void)
 {
 	return ((__raw_readl(CIU_DDR_ILV_CTRL) & 0x7f) != 0);

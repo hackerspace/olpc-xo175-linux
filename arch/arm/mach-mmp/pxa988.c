@@ -42,6 +42,7 @@
 #include <mach/soc_coda7542.h>
 #include <mach/reset-pxa988.h>
 #include <mach/isp_dev.h>
+#include <mach/regs-ciu.h>
 #include <mach/regs-usb.h>
 #include <mach/gpio-edge.h>
 #include <mach/mfp-pxa988.h>	/* for 988 mfp fix */
@@ -701,6 +702,19 @@ static void __init pxa988_init_gpio(void)
 	pxa_init_gpio(IRQ_PXA988_GPIO_AP, 0, 127, NULL);
 }
 
+/*
+ * This function is used to adjust the xtc for sram.
+ * It is used to achieve better Vmin floor.
+ */
+static void pxa988_set_xtc(void)
+{
+	u32 tmp;
+
+	writel_relaxed(0x44444, CIU_GPU_XTC_REG);
+	tmp = readl_relaxed(CIU_VPU_XTC_REG) & (~0x300);
+	writel_relaxed(tmp, CIU_VPU_XTC_REG);
+}
+
 static int __init pxa988_init(void)
 {
 	pxa988_l2_cache_init();
@@ -725,6 +739,7 @@ static int __init pxa988_init(void)
 	platform_device_register(&pxa988_device_vnc_touch);
 #endif /* CONFIG_TOUCHSCREEN_VNC */
 
+	pxa988_set_xtc();
 	return 0;
 }
 
