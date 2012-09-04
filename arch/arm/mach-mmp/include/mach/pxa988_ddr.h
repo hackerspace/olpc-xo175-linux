@@ -29,7 +29,7 @@ struct ddr_phy {
 	 * If the value is same for different frequency,
 	 * we could remove this part then.
 	 */
-	struct ddr_setting_entry entry[4];
+	struct ddr_setting_entry entry[5];
 };
 
 struct platform_ddr_setting {

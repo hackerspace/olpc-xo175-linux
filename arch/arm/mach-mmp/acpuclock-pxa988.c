@@ -314,6 +314,7 @@ static struct platform_ddr_setting lpddr2_setting[] = {
 			.entry[1] = {DMCU_PHY_CTRL7, 0x13300aa9},
 			.entry[2] = {DMCU_PHY_CTRL8, 0x03300aa0},
 			.entry[3] = {DMCU_PHY_CTRL9, 0x000000aa},
+			.entry[4] = {DMCU_PHY_CTRL13, 0x40218000},
 		},
 
 	},
@@ -336,6 +337,7 @@ static struct platform_ddr_setting lpddr2_setting[] = {
 			.entry[1] = {DMCU_PHY_CTRL7, 0x13300aa9},
 			.entry[2] = {DMCU_PHY_CTRL8, 0x03300aa0},
 			.entry[3] = {DMCU_PHY_CTRL9, 0x000000aa},
+			.entry[4] = {DMCU_PHY_CTRL13, 0x50218000},
 		},
 
 	},
@@ -358,6 +360,7 @@ static struct platform_ddr_setting lpddr2_setting[] = {
 			.entry[1] = {DMCU_PHY_CTRL7, 0x13300aa9},
 			.entry[2] = {DMCU_PHY_CTRL8, 0x03300aa0},
 			.entry[3] = {DMCU_PHY_CTRL9, 0x000000aa},
+			.entry[4] = {DMCU_PHY_CTRL13, 0x70218000},
 		},
 
 	},
@@ -380,6 +383,7 @@ static struct platform_ddr_setting lpddr2_setting[] = {
 			.entry[1] = {DMCU_PHY_CTRL7, 0x13300aa9},
 			.entry[2] = {DMCU_PHY_CTRL8, 0x03300aa0},
 			.entry[3] = {DMCU_PHY_CTRL9, 0x000000aa},
+			.entry[4] = {DMCU_PHY_CTRL13, 0x80218000},
 		},
 
 	},
@@ -402,6 +406,7 @@ static struct platform_ddr_setting lpddr2_setting[] = {
 			.entry[1] = {DMCU_PHY_CTRL7, 0x13300aa9},
 			.entry[2] = {DMCU_PHY_CTRL8, 0x03300aa0},
 			.entry[3] = {DMCU_PHY_CTRL9, 0x000000aa},
+			.entry[4] = {DMCU_PHY_CTRL13, 0xf0218000},
 		},
 	},
 
@@ -472,7 +477,7 @@ static void pxa988_ddr_lpm_table(void)
 	LAST_ENTRY(DMCU_PHY_CTRL14, 0x80000000, 0);
 }
 
-/* #define DDR_FC_PHY_TUNING 1 */
+#define DDR_FC_PHY_TUNING 1
 static void pxa988_ddr_fc_table_lpddr2(struct platform_ddr_setting *setting)
 {
 	struct ddr_timing *timing = &setting->timing;
@@ -528,7 +533,8 @@ static void pxa988_ddr_fc_table_lpddr2(struct platform_ddr_setting *setting)
 	INSERT_ENTRY(phy->entry[0].reg, phy->entry[0].val, table);
 	INSERT_ENTRY(phy->entry[1].reg, phy->entry[1].val, table);
 	INSERT_ENTRY(phy->entry[2].reg, phy->entry[2].val, table);
-	PAUSE_ENTRY(phy->entry[3].reg, phy->entry[3].val, table);
+	INSERT_ENTRY(phy->entry[3].reg, phy->entry[3].val, table);
+	PAUSE_ENTRY(phy->entry[4].reg, phy->entry[4].val, table);
 #endif
 
 	/* 3. reset DLL */
