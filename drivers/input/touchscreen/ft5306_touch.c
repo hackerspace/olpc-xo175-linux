@@ -33,6 +33,7 @@ struct ft5306_touch {
 	struct work_struct work;
 	struct ft5306_touch_platform_data *data;
 	int pen_status;
+	int power_status;
 	int irq;
 };
 static struct ft5306_touch *touch;
@@ -108,6 +109,9 @@ static void ft5306_touch_work(struct work_struct *work)
 	u16 tem_y2 = 0;
 	u8 tmp = 0, ret = 0;
 	u32 key_scancode = 0;
+
+	if (touch->power_status == 0)
+		return;
 
 	ret = ft5306_touch_read(ft5306_buf, 31);
 
@@ -311,22 +315,6 @@ static const struct attribute_group ft5306_attr_group = {
 	.attrs = ft5306_attributes,
 };
 
-static int ft5306_touch_open(struct input_dev *idev)
-{
-	if (touch->data->power)
-		touch->data->power(1);
-	if (touch->data->reset)
-		touch->data->reset();
-	return 0;
-}
-
-static void ft5306_touch_close(struct input_dev *idev)
-{
-	if (touch->data->power)
-		touch->data->power(0);
-	return;
-}
-
 #ifdef CONFIG_EARLYSUSPEND
 static void ft5306_touch_sleep_early_suspend(struct early_suspend *h)
 {
@@ -348,14 +336,19 @@ sleep_retry:
 	} else {
 		dev_dbg(&touch->i2c->dev, "ft5306_touch enter sleep mode.\n");
 	}
-	if (touch->data->power)
+
+	if (touch->data->power && touch->power_status == 1) {
 		touch->data->power(0);
+		touch->power_status = 0;
+	}
 }
 
 static void ft5306_touch_normal_late_resume(struct early_suspend *h)
 {
-	if (touch->data->power)
+	if (touch->data->power && touch->power_status == 0) {
 		touch->data->power(1);
+		touch->power_status = 1;
+	}
 	msleep(10);
 	if (touch->data->reset)
 		touch->data->reset();
@@ -390,8 +383,10 @@ ft5306_touch_probe(struct i2c_client *client,
 	touch->i2c = client;
 	touch->irq = client->irq;
 	touch->pen_status = FT5306_PEN_UP;
-	if (touch->data->power)
+	if (touch->data->power && touch->power_status == 0) {
 		touch->data->power(1);
+		touch->power_status = 1;
+	}
 
 	if (touch->data->reset)
 		touch->data->reset();
@@ -416,8 +411,6 @@ ft5306_touch_probe(struct i2c_client *client,
 
 	touch->idev->name = "ft5306-ts";
 	touch->idev->phys = "ft5306-ts/input0";
-	touch->idev->open = ft5306_touch_open;
-	touch->idev->close = ft5306_touch_close;
 
 	__set_bit(EV_ABS, touch->idev->evbit);
 	__set_bit(ABS_X, touch->idev->absbit);
@@ -468,8 +461,6 @@ ft5306_touch_probe(struct i2c_client *client,
 		/* set the name to ft5306-keypad for the android level recognition */
 		touch->virtual_key->name = "ft5306-keypad";
 		touch->virtual_key->id.bustype = BUS_HOST;
-		touch->virtual_key->open = ft5306_touch_open;
-		touch->virtual_key->close = ft5306_touch_close;
 
 		if (touch->data->set_virtual_key)
 			touch->data->set_virtual_key(touch->virtual_key);
@@ -500,9 +491,6 @@ ft5306_touch_probe(struct i2c_client *client,
 	if (ret)
 		goto out_irg;
 
-	/* power off because usrland will open it if they use it later */
-	if (touch->data->power)
-		touch->data->power(0);
 	return 0;
 
 out_irg:
@@ -513,8 +501,10 @@ out_vrg:
 out_rg:
 	input_free_device(touch->idev);
 out_pwr:
-	if (touch->data->power)
+	if (touch->data->power && touch->power_status == 1) {
 		touch->data->power(0);
+		touch->power_status = 0;
+	}
 out:
 	kfree(touch);
 	return ret;
