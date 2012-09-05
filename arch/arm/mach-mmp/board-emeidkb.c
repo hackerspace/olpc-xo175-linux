@@ -284,6 +284,14 @@ static unsigned long emeidkb_pin_config[] __initdata = {
 	DF_RDY0_DF_RDY0 | MFP_LPM_FLOAT,
 };
 
+static unsigned long lcd_gpio45_tp_pin_config[] __initdata = {
+	GPIO045_GPIO_45,
+};
+
+static unsigned long lcd_gpio45_uart_pin_config[] __initdata = {
+	GPIO045_UART2_RXD,
+};
+
 static unsigned long emeidkb_lcd_pin_config[] __initdata = {
 	GPIO045_GPIO_45,
 
@@ -360,6 +368,7 @@ static void lcd_HVGA_setup(void)
 {
 	u8 buf[4] = {0,};
 
+	mfp_config(ARRAY_AND_SIZE(lcd_gpio45_tp_pin_config));
 	ft5306_touch_reset();
 #if defined(CONFIG_TOUCHSCREEN_ELAN)
 	touch_io_power_onoff(1);
@@ -370,6 +379,7 @@ static void lcd_HVGA_setup(void)
 
 	if (buf[0] == 0x55)
 		is_HVGA_lcd = 1;
+	mfp_config(ARRAY_AND_SIZE(lcd_gpio45_uart_pin_config));
 	printk(KERN_INFO "emei dkb touch : 0x%x, HVGA_lcd: %d\n",
 			buf[0], is_HVGA_lcd);
 }
