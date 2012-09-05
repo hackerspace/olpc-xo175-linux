@@ -17,6 +17,7 @@
 #define MPMU_REG(off)	(MPMU_VIRT_BASE + (off))
 
 #define MPMU_CPCR	MPMU_REG(0x0000)
+#define MPMU_CPSR	MPMU_REG(0x0004)
 #define MPMU_FCCR	MPMU_REG(0x0008)
 #define MPMU_POCR	MPMU_REG(0x000c)
 #define MPMU_POSR	MPMU_REG(0x0010)
