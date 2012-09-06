@@ -155,10 +155,11 @@ static int active_ps_set(struct device *dev, struct device_attribute *attr,
 				dev_err(dev, "write data error when disable\n");
 				goto out;
 			}
+			disable_irq(isl29043_dev.client->irq);
+			cancel_delayed_work(&ps_far_work);
 			dev_info(dev, "PS off\n");
 			if (isl29043_dev.pdata && isl29043_dev.pdata->set_power)
 				isl29043_dev.pdata->set_power(0);
-			disable_irq(isl29043_dev.client->irq);
 		}
 		isl29043_dev.ps_user_count--;
 		if (isl29043_dev.ps_user_count < 0)
