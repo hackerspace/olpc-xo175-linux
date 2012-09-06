@@ -559,7 +559,6 @@ static struct pm80x_dvc_pdata pm80x_dvc = {
 static int pm800_plat_config(struct pm80x_chip *chip,
 				struct pm80x_platform_data *pdata)
 {
-	u8 data;
 	if (!chip || !pdata || chip->id != CHIP_PM800 || !chip->base_page) {
 		pr_err("%s:chip or pdata is not availiable!\n", __func__);
 		return -EINVAL;
@@ -583,13 +582,6 @@ static int pm800_plat_config(struct pm80x_chip *chip,
 	/* Enable buck sleep mode */
 	pm80x_reg_write(chip->power_page, PM800_BUCK_SLP1, 0xaa);
 	pm80x_reg_write(chip->power_page, PM800_BUCK_SLP2, 0x2);
-	/*
-	 * Enable ldo sleep mode:
-	 * ldo18 closed
-	 */
-	data = pm80x_reg_read(chip->power_page, PM800_LDO_SLP5);
-	data &= (~PM800_LDO18_SLP5_MASK);
-	pm80x_reg_write(chip->power_page, PM800_LDO_SLP5, data);
 
 	/* Enable reference group sleep mode */
 	pm80x_reg_write(chip->base_page, PM800_LOW_POWER_CONFIG4, 0x80);
