@@ -68,7 +68,7 @@ static unsigned int pm805_read_reg_cache(struct snd_soc_codec *codec,
 		return cache[reg];
 
 	i2c = chip->pm805_chip->client;
-#ifdef CONFIG_CPU_PXA978
+#if defined(CONFIG_CPU_PXA978) || defined(CONFIG_CPU_PXA988)
 	if (chip->base_page && reg >= PM800_CLASS_D_INDEX) {
 		reg = reg - PM800_CLASS_D_INDEX + PM800_CLASS_D_REG_BASE;
 		i2c = chip->base_page;
@@ -94,7 +94,7 @@ static int pm805_write_reg_cache(struct snd_soc_codec *codec,
 		cache[reg] = (unsigned char)value;
 
 	i2c = chip->pm805_chip->client;
-#ifdef CONFIG_CPU_PXA978
+#if defined(CONFIG_CPU_PXA978) || defined(CONFIG_CPU_PXA988)
 	if (chip->base_page && reg >= PM800_CLASS_D_INDEX) {
 		reg = reg - PM800_CLASS_D_INDEX + PM800_CLASS_D_REG_BASE;
 		i2c = chip->base_page;
@@ -280,7 +280,7 @@ static const struct snd_kcontrol_new pm805_audio_controls[] = {
 	SOC_SINGLE("PM805_CODEC_FLL_SPREAD_SPECTRUM_2", PM805_CODEC_FLL_SPREAD_SPECTRUM_2, 0, 0xff, 0),
 	SOC_SINGLE("PM805_CODEC_FLL_SPREAD_SPECTRUM_3", PM805_CODEC_FLL_SPREAD_SPECTRUM_3, 0, 0xff, 0),
 	SOC_SINGLE("PM805_CODEC_FLL_STS", PM805_CODEC_FLL_STS, 0, 0xff, 0),
-#ifdef CONFIG_CPU_PXA978
+#if defined(CONFIG_CPU_PXA978) || defined(CONFIG_CPU_PXA988)
 	SOC_SINGLE("PM800_CLASS_D_1", PM800_CLASS_D_1, 0, 0xff, 0),
 	SOC_SINGLE("PM800_CLASS_D_2", PM800_CLASS_D_2, 0, 0xff, 0),
 	SOC_SINGLE("PM800_CLASS_D_3", PM800_CLASS_D_3, 0, 0xff, 0),
@@ -507,7 +507,7 @@ static int pm805_probe(struct snd_soc_codec *codec)
 			ret);
 		goto out;
 	}
-#ifdef CONFIG_CPU_PXA978
+#if defined(CONFIG_CPU_PXA978) || defined(CONFIG_CPU_PXA988)
 	if (chip->base_page) {
 		ret = pm80x_bulk_read(chip->base_page, PM800_CLASS_D_REG_BASE,
 				CODEC_TOTAL_REG_SIZE - PM805_CODEC_REG_SIZE,
