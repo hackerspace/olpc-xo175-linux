@@ -1671,6 +1671,17 @@ static void __init emeidkb_init_mmc(void)
 #ifdef CONFIG_SD8XXX_RFKILL
 	int WIB_PDn = mfp_to_gpio(MFP_WIB_PDn);
 	int WIB_RESETn = mfp_to_gpio(MFP_WIB_RESETn);
+
+	if (!gpio_request(WIB_PDn, "WIB_PDn")) {
+		gpio_direction_output(WIB_PDn, 0);
+		gpio_free(WIB_PDn);
+	}
+
+	if (!gpio_request(WIB_RESETn, "WIB_RSTn")) {
+		gpio_direction_output(WIB_RESETn, 0);
+		gpio_free(WIB_RESETn);
+	}
+
 	add_sd8x_rfkill_device(WIB_PDn, WIB_RESETn,
 			&pxa988_sdh_platdata_mmc2.pmmc,
 			emeidkb_8787_set_power);
