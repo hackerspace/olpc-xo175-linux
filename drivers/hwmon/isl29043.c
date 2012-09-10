@@ -285,6 +285,11 @@ static int interval_ps_set(struct device *dev, struct device_attribute *attr,
 			 __func__);
 		return 0;
 	}
+	if (isl29043_dev.ps_user_count == 0) {
+		dev_warn(dev, "%s: can't set interval when inactive\n",
+			 __func__);
+		return 0;
+	}
 	ret = strict_strtoul(buf, 10, &val);
 	if (ret < 0)
 		return ret;
@@ -319,6 +324,11 @@ static int interval_als_set(struct device *dev, struct device_attribute *attr,
 	}
 	if (i == NUMTRY) {
 		dev_warn(dev, "%s: can't set interval during suspend\n",
+			 __func__);
+		return 0;
+	}
+	if (isl29043_dev.als_user_count == 0) {
+		dev_warn(dev, "%s: can't set interval when inactive\n",
 			 __func__);
 		return 0;
 	}
