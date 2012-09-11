@@ -989,7 +989,9 @@ static struct devfreq_frequency_table mmp3_gc_clk_table[] = {
 static int devfreq_reboot_notifier_call(struct notifier_block *this,
                                        unsigned long code, void *_cmd)
 {
+#ifdef CONFIG_DDR_DEVFREQ
        disable_ddr_devfreq(1);
+#endif
 
        return NOTIFY_DONE;
 }
