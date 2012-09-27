@@ -982,17 +982,22 @@ static void mmp_vmeta_unset_op_constraint_work(struct work_struct *work)
 	struct vmeta_instance *vi = container_of(work, struct vmeta_instance, unset_op_work.work);
 
 	vi->vop_real = VMETA_OP_INVALID;
+//	pm_qos_update_request(&vi->qos_cpufreq_min, PM_QOS_DEFAULT_VALUE);
+#ifndef CONFIG_MACH_QSEVEN
 	pm_qos_update_request(&vi->qos_cpufreq_min, PM_QOS_DEFAULT_VALUE);
 	pm_qos_update_request(&vi->qos_ddrfreq_min, PM_QOS_DEFAULT_VALUE);
+#endif
 }
 
 int vmeta_init_constraint(struct vmeta_instance *vi)
 {
 	mutex_init(&vi->op_mutex);
 	INIT_DELAYED_WORK(&vi->unset_op_work, mmp_vmeta_unset_op_constraint_work);
+//	pm_qos_add_request(&vi->qos_cpufreq_min, PM_QOS_CPUFREQ_MIN,
+//			PM_QOS_DEFAULT_VALUE);
+#ifndef CONFIG_MACH_QSEVEN
 	pm_qos_add_request(&vi->qos_cpufreq_min, PM_QOS_CPUFREQ_MIN,
 			PM_QOS_DEFAULT_VALUE);
-#ifndef CONFIG_MACH_QSEVEN
 	pm_qos_add_request(&vi->qos_ddrfreq_min, PM_QOS_DDR_DEVFREQ_MIN,
 		PM_QOS_DEFAULT_VALUE);
 #endif
@@ -1002,8 +1007,11 @@ int vmeta_init_constraint(struct vmeta_instance *vi)
 int vmeta_clean_constraint(struct vmeta_instance *vi)
 {
 	cancel_delayed_work_sync(&vi->unset_op_work);
+//	pm_qos_remove_request(&vi->qos_cpufreq_min);
+#ifndef CONFIG_MACH_QSEVEN
 	pm_qos_remove_request(&vi->qos_cpufreq_min);
 	pm_qos_remove_request(&vi->qos_ddrfreq_min);
+#endif
 	printk(KERN_INFO "vmeta op clean up\n");
 
 	return 0;
@@ -1024,6 +1032,8 @@ int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
 	int vop = vi->vop;
 
 	mutex_lock(&vi->op_mutex);
+
+#if 0
 	if (on) {
 		cancel_delayed_work_sync(&vi->unset_op_work);
 		if (vop < VMETA_OP_MIN || vop > VMETA_OP_MAX) {
@@ -1059,6 +1069,8 @@ int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
 			vi->plat_data->power_down_ms = 100;
 		schedule_delayed_work(&vi->unset_op_work, msecs_to_jiffies(vi->plat_data->power_down_ms));
 	}
+
+#endif
 
 out:
 	mutex_unlock(&vi->op_mutex);
@@ -1394,6 +1406,7 @@ void mmp_zsp_platform_device_init(void)
 #define GC3D_AXI_RST_N		(1u << 0)
 
 #define GC2D3D_CLK_EN		(1u << 3)
+#define GC2D_CLK_EN		(1u << 20)
 #define GC2D3D_RST_N		(1u << 1)
 
 #define GC_PWRUP(n)		((n & 3) << 9)
@@ -1622,12 +1635,12 @@ int isppwr_power_control(int on)
 void gc_pwr(int power_on)
 {
 	unsigned long regval;
-
 	regval = __raw_readl(APMU_GC_CLK_RES_CTRL);
 	if (power_on) {
 		if (regval & (GC_PWRUP_MSK | GC_ISB))
 			return; /*Pwr is already on*/
 
+		pr_info("gc_pwr turning it on...\n");
 		/* 0, set to boot default value, source on PLL1*/
 		writel(GC_CLKRST_BOOT_DEFAULT, APMU_GC_CLK_RES_CTRL);
 
@@ -1665,7 +1678,7 @@ void gc_pwr(int power_on)
 
 		/* 6. enable GC clock */
 		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval |= GC2D3D_CLK_EN;
+		regval |= GC2D3D_CLK_EN | GC2D_CLK_EN;
 		writel(regval, APMU_GC_CLK_RES_CTRL);
 
 		/* 7. deassert resets*/
@@ -1680,7 +1693,8 @@ void gc_pwr(int power_on)
 
 		/* 8 gate clock */
 		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval &= ~(GC2D_AXICLK_EN | GC3D_AXICLK_EN | GC2D3D_CLK_EN);
+		regval &= ~(GC2D_AXICLK_EN | GC3D_AXICLK_EN | GC2D3D_CLK_EN
+				| GC2D_CLK_EN);
 		writel(regval, APMU_GC_CLK_RES_CTRL);
 
 	} else {
@@ -1699,7 +1713,7 @@ void gc_pwr(int power_on)
 
 		/* 3. make sure clock disabled*/
 		regval = readl(APMU_GC_CLK_RES_CTRL);
-		regval &= ~(GC2D_AXICLK_EN | GC3D_AXICLK_EN | GC2D3D_CLK_EN);
+		regval &= ~(GC2D_AXICLK_EN | GC3D_AXICLK_EN | GC2D3D_CLK_EN | GC2D_CLK_EN);
 		writel(regval, APMU_GC_CLK_RES_CTRL);
 
 		/* 4. turn off power */

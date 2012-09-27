@@ -1016,6 +1016,7 @@ static struct notifier_block devfreq_reboot_notifier = {
 #define GC3D_AXICLK_EN		(1u << 2)
 
 #define GC2D3D_CLK_EN		(1u << 3)
+#define GC2D_CLK_EN		(1u << 20)
 
 #define GC_PWRUP(n)		((n & 3) << 9)
 #define GC_PWRUP_MSK		GC_PWRUP(3)
@@ -1082,14 +1083,16 @@ static int gc_clk_enable(struct clk *clk)
 	gc_rate_cfg &= GC_CLK_RATE_MSK;
 
 	GC_SET_BITS(gc_rate_cfg, GC_CLK_RATE_MSK);
-	GC_SET_BITS(GC2D3D_CLK_EN | GC2D_AXICLK_EN | GC3D_AXICLK_EN, 0);
+	GC_SET_BITS(GC2D_CLK_EN | GC2D3D_CLK_EN | GC2D_AXICLK_EN\
+			| GC3D_AXICLK_EN, 0);
 
 	return 0;
 }
 
 static void gc_clk_disable(struct clk *clk)
 {
-	GC_SET_BITS(0, GC2D_AXICLK_EN | GC3D_AXICLK_EN | GC2D3D_CLK_EN);
+	GC_SET_BITS(0, GC2D_AXICLK_EN | GC3D_AXICLK_EN | GC2D3D_CLK_EN\
+			| GC2D_CLK_EN);
 }
 
 static long gc_clk_round_rate(struct clk *clk, unsigned long rate)
@@ -3153,6 +3156,31 @@ struct clkops hsic_clk_ops = {
 	.disable	= hsic_clk_disable,
 };
 
+/* usb: fsic clock */
+static int fsic_clk_enable(struct clk *clk)
+{
+	uint32_t clk_rst;
+
+	clk_rst  =  __raw_readl(clk->clk_rst);
+	clk_rst |= 0x1b;
+	__raw_writel(clk_rst, clk->clk_rst);
+
+	return 0;
+}
+
+static void fsic_clk_disable(struct clk *clk)
+{
+	uint32_t clk_rst;
+
+	clk_rst  =  __raw_readl(clk->clk_rst);
+	clk_rst &= ~0x18;
+	__raw_writel(clk_rst, clk->clk_rst);
+}
+
+struct clkops fsic_clk_ops = {
+	.enable		= fsic_clk_enable,
+	.disable	= fsic_clk_disable,
+};
 static int pwm_clk_enable(struct clk *clk)
 {
 	struct clk *clk_apb = NULL, *clk_share = NULL;
@@ -3302,8 +3330,8 @@ static struct clk mmp3_list_clks[] = {
 			0x1b, 480000000, NULL, &hsic_clk_ops),
 	APMU_CLK_OPS("hsic2", NULL, "HSIC2CLK", USBHSIC2,
 			0x1b, 480000000, NULL, &hsic_clk_ops),
-	APMU_CLK("fsic", NULL, "FSICCLK", USBFSIC,
-			0x1b, 480000000, NULL),
+	APMU_CLK_OPS("fsic", NULL, "FSICCLK", USBFSIC,
+			0x1b, 480000000, NULL, &fsic_clk_ops),
 };
 
 static void mmp3_init_one_clock(struct clk *c)
