@@ -982,7 +982,6 @@ static void mmp_vmeta_unset_op_constraint_work(struct work_struct *work)
 	struct vmeta_instance *vi = container_of(work, struct vmeta_instance, unset_op_work.work);
 
 	vi->vop_real = VMETA_OP_INVALID;
-//	pm_qos_update_request(&vi->qos_cpufreq_min, PM_QOS_DEFAULT_VALUE);
 #ifndef CONFIG_MACH_QSEVEN
 	pm_qos_update_request(&vi->qos_cpufreq_min, PM_QOS_DEFAULT_VALUE);
 	pm_qos_update_request(&vi->qos_ddrfreq_min, PM_QOS_DEFAULT_VALUE);
@@ -993,8 +992,6 @@ int vmeta_init_constraint(struct vmeta_instance *vi)
 {
 	mutex_init(&vi->op_mutex);
 	INIT_DELAYED_WORK(&vi->unset_op_work, mmp_vmeta_unset_op_constraint_work);
-//	pm_qos_add_request(&vi->qos_cpufreq_min, PM_QOS_CPUFREQ_MIN,
-//			PM_QOS_DEFAULT_VALUE);
 #ifndef CONFIG_MACH_QSEVEN
 	pm_qos_add_request(&vi->qos_cpufreq_min, PM_QOS_CPUFREQ_MIN,
 			PM_QOS_DEFAULT_VALUE);
@@ -1007,7 +1004,6 @@ int vmeta_init_constraint(struct vmeta_instance *vi)
 int vmeta_clean_constraint(struct vmeta_instance *vi)
 {
 	cancel_delayed_work_sync(&vi->unset_op_work);
-//	pm_qos_remove_request(&vi->qos_cpufreq_min);
 #ifndef CONFIG_MACH_QSEVEN
 	pm_qos_remove_request(&vi->qos_cpufreq_min);
 	pm_qos_remove_request(&vi->qos_ddrfreq_min);
