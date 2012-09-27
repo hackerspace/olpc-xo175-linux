@@ -210,7 +210,8 @@ static int usb_phy_init_internal(unsigned int base)
 
 	udelay(100);
 
-	if (cpu_is_mmp3_b0()) {
+	/*replaced with b1*/
+	if (cpu_is_mmp3_b1()) {
 		u2o_clear(base, USB2_PLL_REG0,
 			USB2_PLL_REFDIV_MASK_MMP3_B0
 			| USB2_PLL_FBDIV_MASK_MMP3_B0);
@@ -718,6 +719,10 @@ int mmp3_fsic_phy_init(unsigned int base)
 
 int mmp3_fsic_p_init(unsigned int base)
 {
+/*no need for below code but since it is implemented in the mmp2
+  we have included here for reference purpose only*/
+
+#if 1
 	u32 val;
 	pr_info(" select ULPI interface in SPH usb controller\n");
 	val = __raw_readl(base + PORTSC);
@@ -726,6 +731,7 @@ int mmp3_fsic_p_init(unsigned int base)
 	val &= 0xfdffffff;
 	__raw_writel(val, base + PORTSC);
 	return 0;
+#endif
 }
 
 #endif

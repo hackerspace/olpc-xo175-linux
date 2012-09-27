@@ -20,6 +20,7 @@
  */
 
 extern unsigned int mmp_chip_id;
+extern unsigned int mmp_chip_id_b1;
 extern unsigned int mmp_fuse_id;
 extern unsigned int mmp_soc_stepping;
 extern unsigned int mmp_soc_profile;
@@ -120,6 +121,14 @@ static inline int cpu_is_mmp3_a0(void)
 static inline int cpu_is_mmp3_b0(void)
 {
 	if (cpu_is_mmp3() && ((mmp_chip_id & 0x00ff0000) == 0x00b00000))
+		return 1;
+	else
+		return 0;
+}
+
+static inline int cpu_is_mmp3_b1(void)
+{
+	if (cpu_is_mmp3() && ((mmp_chip_id_b1 & 0x00ff0000) == 0x00b10000))
 		return 1;
 	else
 		return 0;

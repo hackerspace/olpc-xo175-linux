@@ -1346,12 +1346,20 @@ void __init abilene_add_lcd_mipi(void)
 #else
 	lvds_en = 0;
 #endif
+
+#ifndef CONFIG_MACH_QSEVEN
 	if (cpu_is_mmp3_b0()) {
 		if (lvds_en)
 			lvds_hook(fb);
 		dither_config(fb);
 	}
-
+#else
+	if (cpu_is_mmp3_b1()) {
+		if (lvds_en)
+			lvds_hook(fb);
+		dither_config(fb);
+	}
+#endif
 	if (fb->phy_type & (DSI | DSI2DPI)) {
 		dsi = (struct dsi_info *)fb->phy_info;
 		dsi->master_mode = 1;
