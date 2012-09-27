@@ -85,9 +85,9 @@ static void set_power_constraint(struct hdmi_instance *hi, int min)
 #endif
 
 #ifdef CONFIG_CPU_MMP3
-	pm_qos_update_request(&hi->qos_cpufreq_min, min);
 	/* set DDR frequency constraint @ 400M, ddr constraint need 2x value */
 #ifndef CONFIG_MACH_QSEVEN
+	pm_qos_update_request(&hi->qos_cpufreq_min, min);
 	pm_qos_update_request(&hi->qos_ddrfreq_min, DDR_CONSTRAINT_LVL2);
 #endif
 #endif
@@ -114,8 +114,10 @@ static void unset_power_constraint(struct hdmi_instance *hi)
 #endif
 
 #ifdef CONFIG_CPU_MMP3
+#ifndef CONFIG_MACH_QSEVEN
 	pm_qos_update_request(&hi->qos_cpufreq_min, PM_QOS_DEFAULT_VALUE);
 	pm_qos_update_request(&hi->qos_ddrfreq_min, PM_QOS_DEFAULT_VALUE);
+#endif
 #endif
 
 #ifdef CONFIG_CPU_PXA978

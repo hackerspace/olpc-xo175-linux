@@ -356,6 +356,7 @@ config SND_MMP_SOC_QSEVEN
         bool "SoC Audio support for MMP3 QSeven"
 	depends on SND_MMP_SOC && (MACH_QSEVEN) && SND_MMP_LEGACY_SOC
 	select SND_SOC_WM8731
+	select SND_SOC_HDMI
 	help
 	  Say Y if you want to add support for SoC audio on QSeven
 

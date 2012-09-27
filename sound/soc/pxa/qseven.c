@@ -501,7 +501,7 @@ static int mmp3asoc_hdmi_hw_params(struct snd_pcm_substream *substream,
 	sspa_div = freq_out;
 	do_div(sspa_div, sspa_mclk);
 
-#ifdef CONFIG_SND_WM8994_MASTER_MODE
+#ifdef CONFIG_SND_HDMI_MASTER_MODE
 	snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_I2S |
 			    SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBM_CFM);
 	snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_I2S |

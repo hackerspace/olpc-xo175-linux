@@ -24,13 +24,13 @@ static struct fb_videomode tv_video_modes[] = {
 #endif
 		.xres = 1920,
 		.yres = 1080,
-		.hsync_len = 44,
+		.hsync_len = 88,
 		/*.left_margin  = 88,*/
-		.left_margin = 238,
-		.right_margin = 148,
-		.vsync_len = 5,
-		.upper_margin = 4,
-		.lower_margin = 36,
+		.left_margin = 148,
+		.right_margin = 44,
+		.vsync_len = 4,
+		.upper_margin = 36,
+		.lower_margin = 5,
 		.sync = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
 	},
 	[1] = {
