@@ -397,7 +397,7 @@ static void qseven_regulators(void)
 static int qseven_pwm_init(struct device *dev)
 {
 	int lvds_blen, lvds_pplen;
-	if (!cpu_is_mmp3_b0())
+	if (!cpu_is_mmp3_b1())/*replaced with b1*/
 		return 0;
 
 	lvds_blen = mfp_to_gpio(MFP_PIN_GPIO82);
@@ -470,7 +470,7 @@ static int __init qseven_init_mmc(void)
 	mmp3_add_sdh(2, &mmp3_sdh_platdata_mmc2); /* eMMC */
 
 	mfp_config(ARRAY_AND_SIZE(mmc1_pin_config));
-	if (cpu_is_mmp3_b0())
+	if (cpu_is_mmp3_b0())/*replaced with b1*/
 		mmp3_sdh_platdata_mmc0.quirks =
 					SDHCI_QUIRK_INVERTED_WRITE_PROTECT;
 	mmp3_add_sdh(0, &mmp3_sdh_platdata_mmc0); /* SD/MMC */
@@ -549,6 +549,7 @@ static struct uio_hdmi_platform_data mmp3_hdmi_info __initdata = {
 	.sspa_reg_base = 0xD42A0C00,
 	/* Fix me: gpio 81 lpm pull ? */
 	.gpio = mfp_to_gpio(GPIO81_GPIO),
+	.edid_bus_num = 6,
 };
 #endif
 
@@ -682,7 +683,150 @@ static void qseven_update_ddr_info(void)
 	mmp3_pm_update_dram_timing_table(ARRAY_SIZE(khx1600c9s3k_table),
 						khx1600c9s3k_table);
 }
+#ifdef CONFIG_VIDEO_MVISP
+#ifndef CONFIG_VIDEO_MVISP_OV8820
+static struct mvisp_v4l2_subdevs_group dxoisp_subdevs_group[] = {
+	[0] = {
+		.i2c_board_info = NULL,
+		.if_type = 0,
+	},
+};
+#endif
+#endif
 
+#if defined(CONFIG_VIDEO_MV)
+/* soc  camera */
+static int camera_sensor_power(struct device *dev, int on)
+{
+	return 0;
+	int cam_enable = mfp_to_gpio(MFP_PIN_GPIO72);
+
+	if (gpio_request(cam_enable, "CAM_ENABLE_HI_SENSOR")) {
+		printk(KERN_ERR "Request GPIO failed, gpio: %d\n", cam_enable);
+		return -EIO;
+	}
+	if (on)
+		/* pull up camera pwdn pin to enable camera sensor */
+		gpio_direction_output(cam_enable, 1);
+	else
+		/* pull down camera pwdn pin to disable camera sensor */
+		gpio_direction_output(cam_enable, 0);
+
+	gpio_free(cam_enable);
+	mdelay(10);
+	return 0;
+}
+
+static struct i2c_board_info qseven_i2c_camera[] = {
+	{
+		I2C_BOARD_INFO("ov5642", 0x3c),
+	},
+};
+
+static struct soc_camera_link iclink_ov5642 = {
+	.bus_id         = 0,            /* Must match with the camera ID */
+	.power          = camera_sensor_power,
+	.board_info     = &qseven_i2c_camera[0],
+	.i2c_adapter_id = 1,
+	.flags = SOCAM_MIPI,
+	.module_name    = "ov5642",
+	.priv = "pxa2128-mipi",
+};
+
+static struct platform_device qseven_ov5642 = {
+	.name   = "soc-camera-pdrv",
+	.id     = 0,
+	.dev    = {
+		.platform_data = &iclink_ov5642,
+	},
+};
+
+static void pxa2128_cam_ctrl_power(int on)
+{
+	return;
+}
+
+static int pxa2128_cam_clk_init(struct device *dev, int init)
+{
+	struct mv_cam_pdata *data = dev->platform_data;
+	unsigned long tx_clk_esc;
+	struct clk *pll1;
+
+	pll1 = clk_get(dev, "pll1");
+	if (IS_ERR(pll1)) {
+		dev_err(dev, "Could not get pll1 clock\n");
+		return PTR_ERR(pll1);
+	}
+
+	tx_clk_esc = clk_get_rate(pll1) / 1000000 / 12;
+	/* Update dphy6 according to current tx_clk_esc */
+	data->dphy[2] = ((534 * tx_clk_esc / 2000 - 1) & 0xff) << 8
+			| ((38 * tx_clk_esc / 1000 - 1) & 0xff);
+
+	clk_put(pll1);
+	if (init) {
+		if (!data->clk_enabled) {
+			data->clk = clk_get(dev, "CCICRSTCLK");
+			if (IS_ERR(data->clk)) {
+				dev_err(dev, "Could not get rstclk\n");
+				return PTR_ERR(data->clk);
+			}
+			data->clk_enabled = 1;
+
+		}
+	} else {
+		if (data->clk_enabled) {
+			clk_put(data->clk);
+			return 0;
+		}
+	}
+
+	return 0;
+}
+
+static void pxa2128_cam_set_clk(struct device *dev, int on)
+{
+	struct mv_cam_pdata *data = dev->platform_data;
+
+	if (cpu_is_mmp3_b1())
+		isppwr_power_control(on);
+
+	if (on)
+		clk_enable(data->clk);
+	else
+		clk_disable(data->clk);
+}
+
+static int get_mclk_src(int src)
+{
+	switch (src) {
+	case 3:
+		return 400;
+	case 2:
+		return 400;
+	default:
+		BUG();
+	}
+
+	return 0;
+}
+
+static struct mv_cam_pdata mv_cam_data = {
+	.name = "ABILENE",
+	.clk_enabled = 0,
+	.dphy = {0x1b0b, 0x33, 0x1a03},
+	.qos_req_min = 0,
+	.dma_burst = 128,
+	.bus_type = SOCAM_MIPI,
+	.mclk_min = 26,
+	.mclk_src = 3,
+	.controller_power = pxa2128_cam_ctrl_power,
+	.init_clk = pxa2128_cam_clk_init,
+	.enable_clk = pxa2128_cam_set_clk,
+	.get_mclk_src = get_mclk_src,
+};
+/* sensor init over */
+#endif
 static void __init qseven_init(void)
 {
 	mfp_config(ARRAY_AND_SIZE(qseven_pin_config));
@@ -739,6 +883,11 @@ static void __init qseven_init(void)
 	mmp3_add_sspa(1);
 	mmp3_add_sspa(2);
 	mmp3_add_audiosram(&mmp3_audiosram_info);
+
+#if defined(CONFIG_VIDEO_MV_0)
+	platform_device_register(&qseven_ov5642);
+	mmp3_add_cam(0, &mv_cam_data);
+#endif
 
 #ifdef CONFIG_USB_PXA_U2O
 	mmp3_device_u2o.dev.platform_data = (void *)&mmp3_usb_pdata;
