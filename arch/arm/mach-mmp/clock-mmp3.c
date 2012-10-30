@@ -949,7 +949,6 @@ static int clk_ddr_setrate(struct clk *clk, unsigned long val)
 	for (i = 0; mmp3_ddr_freq_table[i+1].frequency != DEVFREQ_TABLE_END;
 		i++)
 		if (mmp3_ddr_freq_table[i].frequency >= val) break;
-
 	target_freq = mmp3_ddr_freq_table[i].frequency;
 	atomic_set(&dfc_trigger, 1);
 	if (atomic_read(&mmp3_fb_is_suspended))
@@ -2752,7 +2751,7 @@ static struct clk *mmp3_clks_ptr[] = {
 	&mmp3_clk_ddr_root,
 	&mmp3_clk_ddr1,
 	&mmp3_clk_ddr2,
-#ifndef CONFIG_MACH_QSEVEN
+#ifdef CONFIG_DDR_DEVFREQ
 	&mmp3_clk_ddr,
 #endif
 	&mmp3_clk_axi_root,
@@ -2786,7 +2785,6 @@ static struct clk *mmp3_clks_ptr[] = {
 static int apbc_clk_enable(struct clk *clk)
 {
 	unsigned long data;
-
 	data = __raw_readl(clk->clk_rst) & ~(APBC_FNCLKSEL(7));
 	data |= APBC_FNCLK | APBC_FNCLKSEL(clk->fnclksel);
 	__raw_writel(data, clk->clk_rst);
@@ -2800,9 +2798,13 @@ static int apbc_clk_enable(struct clk *clk)
 	__raw_writel(data, clk->clk_rst);
 	udelay(10);
 
+	data |= APBC_RST;
+	__raw_writel(data, clk->clk_rst);
+	udelay(100);
+
 	data &= ~APBC_RST;
 	__raw_writel(data, clk->clk_rst);
-
+	udelay(100);
 	return 0;
 }
 
@@ -3330,8 +3332,13 @@ static struct clk mmp3_list_clks[] = {
 			0x1b, 480000000, NULL, &hsic_clk_ops),
 	APMU_CLK_OPS("hsic2", NULL, "HSIC2CLK", USBHSIC2,
 			0x1b, 480000000, NULL, &hsic_clk_ops),
+#ifdef CONFIG_MMP3_QSEVEN_26MHZ
 	APMU_CLK_OPS("fsic", NULL, "FSICCLK", USBFSIC,
 			0x1b, 480000000, NULL, &fsic_clk_ops),
+#else
+	APMU_CLK("fsic", NULL, "FSICCLK", USBFSIC,
+			0x1b, 480000000, NULL),
+#endif
 };
 
 static void mmp3_init_one_clock(struct clk *c)
@@ -3353,8 +3360,8 @@ static int __init mmp3_clk_init(void)
 	for (i = 0; i < ARRAY_SIZE(mmp3_list_clks); i++)
 		mmp3_init_one_clock(&mmp3_list_clks[i]);
 
-#ifndef CONFIG_MACH_QSEVEN
 	register_reboot_notifier(&devfreq_reboot_notifier);
+#ifdef CONFIG_DDR_DEVFREQ
 	clk_set_cansleep(&mmp3_clk_ddr);
 	mutex_init(&disable_ddr_lock);
 #endif

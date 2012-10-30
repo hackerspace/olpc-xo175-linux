@@ -215,11 +215,15 @@ static int usb_phy_init_internal(unsigned int base)
 		u2o_clear(base, USB2_PLL_REG0,
 			USB2_PLL_REFDIV_MASK_MMP3_B0
 			| USB2_PLL_FBDIV_MASK_MMP3_B0);
-
+#ifdef CONFIG_MMP3_QSEVEN_26MHZ
 		u2o_set(base, USB2_PLL_REG0,
 			0xd << USB2_PLL_REFDIV_SHIFT_MMP3_B0
 			| 0xf0 << USB2_PLL_FBDIV_SHIFT_MMP3_B0);
-
+#else
+		u2o_set(base, USB2_PLL_REG0,
+			0x5 << USB2_PLL_REFDIV_SHIFT_MMP3_B0
+			| 0x60 << USB2_PLL_FBDIV_SHIFT_MMP3_B0);
+#endif
 	} else if (cpu_is_mmp3_a0()) {
 		/*USB2_PLL_REG0 = 0x5df0 */
 		u2o_clear(base, USB2_PLL_REG0, (USB2_PLL_FBDIV_MASK_MMP3
@@ -705,6 +709,17 @@ int mmp3_ulpi_init(unsigned int base)
 int mmp3_fsic_phy_init(unsigned int base)
 {
 	pr_info("mmp3_fsic_phy_init !!!\n");
+	unsigned int otgphy;
+	u32 val;
+	otgphy = (unsigned int) ioremap(PXA168_U2O_PHYBASE, USB_PHY_RANGE);
+	if (otgphy == 0) {
+		printk(KERN_ERR "%s: ioremap error\n", __func__);
+		return -ENOMEM;
+	}
+
+	pxa_usb_phy_init(otgphy);
+	iounmap((void __iomem *)otgphy);
+
 
 	/* Enable PMU 60MHz clock to SPH controller */
 	__raw_writel(0x100, base + FSIC_CTRL);
