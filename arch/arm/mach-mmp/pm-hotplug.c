@@ -410,8 +410,6 @@ static int __init mmp_pm_hotplug_init(void)
 	cm_vote_mp1();
 	cm_enable();
 #endif
-
-#if 0
 	printk(KERN_INFO "mmp PM-hotplug init function\n");
 	hotplug_wq = create_singlethread_workqueue("dynamic hotplug");
 	if (!hotplug_wq) {
@@ -449,8 +447,6 @@ static int __init mmp_pm_hotplug_init(void)
 	if (kobject_init_and_add(&hotplug_kobj, &hotplug_dir_ktype,
 				&cpu_sysdev_class.kset.kobj, "hotplug"))
 		pr_err("%s: Failed to add kobject for hotplug\n", __func__);
-
-#endif
 	return 0;
 }
 
