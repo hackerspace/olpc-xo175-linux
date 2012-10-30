@@ -201,6 +201,53 @@ static struct sram_bank mmp3_videosram_info = {
 	.step = VIDEO_SRAM_GRANULARITY,
 };
 
+#if defined(CONFIG_DDR_DEVFREQ)
+struct devfreq_frequency_table *mmp3_ddr_freq_table;
+struct devfreq_pm_qos_table ddr_freq_qos_table[] = {
+	{
+		.freq = 400000,
+		.qos_value = DDR_CONSTRAINT_LVL0,
+	},
+	{
+		.freq = 533333,
+		.qos_value = DDR_CONSTRAINT_LVL1,
+	},
+	{0, 0},
+};
+
+static struct devfreq_platform_data ddr_info = {
+	.clk_name = "ddr",
+	.interleave_is_on = 1,
+};
+
+
+static void ddr_devfreq_init(void)
+{
+	u32 i = 0;
+	u32 ddr_freq_num = mmp3_get_pp_number();
+
+	mmp3_ddr_freq_table = kmalloc(sizeof(struct devfreq_frequency_table) * \
+					(ddr_freq_num + 1), GFP_KERNEL);
+
+	if (!mmp3_ddr_freq_table)
+		return;
+
+	for (i = 0; i < ddr_freq_num; i++) {
+		mmp3_ddr_freq_table[i].index = i;
+		mmp3_ddr_freq_table[i].frequency = mmp3_get_pp_freq(i, MMP3_CLK_DDR_1);
+	}
+	mmp3_ddr_freq_table[i].index = i;
+	mmp3_ddr_freq_table[i].frequency = DEVFREQ_TABLE_END;
+
+
+	ddr_info.freq_table = mmp3_ddr_freq_table;
+	ddr_info.hw_base[0] = DMCU_VIRT_BASE;
+	ddr_info.hw_base[1] = DMCU_VIRT_BASE + 0x10000;
+	ddr_info.qos_list = ddr_freq_qos_table;
+
+}
+#endif
+
 #ifdef CONFIG_UIO_VMETA
 static struct vmeta_plat_data mmp_vmeta_plat_data = {
 	.bus_irq_handler = NULL,
@@ -211,6 +258,19 @@ static struct vmeta_plat_data mmp_vmeta_plat_data = {
 static void __init mmp_init_vmeta(void)
 {
 	mmp_set_vmeta_info(&mmp_vmeta_plat_data);
+}
+#endif
+
+#ifdef CONFIG_VMETA_DEVFREQ
+extern int set_vmeta_freqs_table(struct devfreq *devfreq);
+static struct devfreq_platform_data devfreq_vmeta_pdata = {
+	.clk_name = "VMETA_CLK",
+	.setup_freq_table = set_vmeta_freqs_table,
+};
+
+static void __init mmp_init_devfreq_vmeta(void)
+{
+	mmp_set_devfreq_vmeta_info(&devfreq_vmeta_pdata);
 }
 #endif
 
@@ -568,66 +628,46 @@ static struct uio_hdmi_platform_data mmp3_hdmi_info __initdata = {
 #define ALLBITS (0xFFFFFFFF)
 
 static struct dmc_regtable_entry khx1600c9s3k_2x400mhz[] = {
-	{DMCU_SDRAM_TIMING1, ALLBITS, 0x911403CF},
-	{DMCU_SDRAM_TIMING2, ALLBITS, 0x64660414},
-	{DMCU_SDRAM_TIMING3, ALLBITS, 0xC2003053},
-	{DMCU_SDRAM_TIMING4, ALLBITS, 0x34F4A187},
-	{DMCU_SDRAM_TIMING5, ALLBITS, 0x000F20C1},
+	{DMCU_SDRAM_TIMING1, ALLBITS, 0x911400CA},
+	{DMCU_SDRAM_TIMING2, ALLBITS, 0x64660684},
+	{DMCU_SDRAM_TIMING3, ALLBITS, 0xC2006C53},
+	{DMCU_SDRAM_TIMING4, ALLBITS, 0x44F8A187},
+	{DMCU_SDRAM_TIMING5, ALLBITS, 0x000E2101},
 	{DMCU_SDRAM_TIMING6, ALLBITS, 0x04040200},
-	{DMCU_SDRAM_TIMING7, ALLBITS, 0x00005501},
+	{DMCU_SDRAM_TIMING7, ALLBITS, 0x00008801},
 };
 
 static struct dmc_regtable_entry khx1600c9s3k_2x533mhz[] = {
-	{DMCU_SDRAM_TIMING1, ALLBITS, 0x911B03CF},
-	{DMCU_SDRAM_TIMING2, ALLBITS, 0x74780564},
-	{DMCU_SDRAM_TIMING3, ALLBITS, 0xC200406C},
-	{DMCU_SDRAM_TIMING4, ALLBITS, 0x3694DA09},
-	{DMCU_SDRAM_TIMING5, ALLBITS, 0x00142101},
+	{DMCU_SDRAM_TIMING1, ALLBITS, 0x911A00CA},
+	{DMCU_SDRAM_TIMING2, ALLBITS, 0x848808B4},
+	{DMCU_SDRAM_TIMING3, ALLBITS, 0xC200906C},
+	{DMCU_SDRAM_TIMING4, ALLBITS, 0x4698DA09},
+	{DMCU_SDRAM_TIMING5, ALLBITS, 0x00132161},
 	{DMCU_SDRAM_TIMING6, ALLBITS, 0x04040200},
-	{DMCU_SDRAM_TIMING7, ALLBITS, 0x00006601},
-};
-
-static struct dmc_regtable_entry khx1600c9s3k_2x600mhz[] = {
-	{DMCU_SDRAM_TIMING1, ALLBITS, 0x955E03CF},
-	{DMCU_SDRAM_TIMING2, ALLBITS, 0x84890614},
-	{DMCU_SDRAM_TIMING3, ALLBITS, 0xC200487C},
-	{DMCU_SDRAM_TIMING4, ALLBITS, 0x4762F24A},
-	{DMCU_SDRAM_TIMING5, ALLBITS, 0x00162121},
-	{DMCU_SDRAM_TIMING6, ALLBITS, 0x04040200},
-	{DMCU_SDRAM_TIMING7, ALLBITS, 0x00006601},
-};
-
-static struct dmc_regtable_entry khx1600c9s3k_4x400mhz[] = {
-	{DMCU_SDRAM_TIMING1, ALLBITS, 0x59A803CF},
-	{DMCU_SDRAM_TIMING2, ALLBITS, 0xB5B88812},
-	{DMCU_SDRAM_TIMING3, ALLBITS, 0x610060A5},
-	{DMCU_SDRAM_TIMING4, ALLBITS, 0x59D7430E},
-	{DMCU_SDRAM_TIMING5, ALLBITS, 0x001D2181},
-	{DMCU_SDRAM_TIMING6, ALLBITS, 0x02120501},
 	{DMCU_SDRAM_TIMING7, ALLBITS, 0x00008801},
 };
 
 static struct dmc_regtable_entry khx1600c9s3k_phy[] = {
 	{DMCU_PHY_DQ_BYTE_SEL, ALLBITS, 0x00000000},
-	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00001080},
+	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00002100},
 	{DMCU_PHY_DQ_BYTE_SEL, ALLBITS, 0x00000001},
-	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00001080},
+	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00002100},
 	{DMCU_PHY_DQ_BYTE_SEL, ALLBITS, 0x00000002},
-	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00001080},
+	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00002100},
 	{DMCU_PHY_DQ_BYTE_SEL, ALLBITS, 0x00000003},
-	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00001080},
-	{DMCU_PHY_CTRL3, ALLBITS, 0x00004055},
+	{DMCU_PHY_DLL_CTRL_BYTE1, ALLBITS, 0x00002100},
+	{DMCU_PHY_CTRL3, ALLBITS, 0x20004044},
 };
 
 static struct dmc_regtable_entry khx1600c9s3k_wl[] = {
 	{DMCU_PHY_DLL_WL_SEL, ALLBITS, 0x00000100},
-	{DMCU_PHY_DLL_WL_CTRL0, ALLBITS, 0x001A001A},
+	{DMCU_PHY_DLL_WL_CTRL0, ALLBITS, 0x00040004},
 	{DMCU_PHY_DLL_WL_SEL, ALLBITS, 0x00000101},
-	{DMCU_PHY_DLL_WL_CTRL0, ALLBITS, 0x00160016},
+	{DMCU_PHY_DLL_WL_CTRL0, ALLBITS, 0x00040004},
 	{DMCU_PHY_DLL_WL_SEL, ALLBITS, 0x00000102},
-	{DMCU_PHY_DLL_WL_CTRL0, ALLBITS, 0x001A001A},
+	{DMCU_PHY_DLL_WL_CTRL0, ALLBITS, 0x00080008},
 	{DMCU_PHY_DLL_WL_SEL, ALLBITS, 0x00000103},
-	{DMCU_PHY_DLL_WL_CTRL0, ALLBITS, 0x00190019},
+	{DMCU_PHY_DLL_WL_CTRL0, ALLBITS, 0x00080008},
 
 };
 static struct dmc_timing_entry khx1600c9s3k_table[] = {
@@ -635,7 +675,7 @@ static struct dmc_timing_entry khx1600c9s3k_table[] = {
 		.dsrc = 1,
 		.mode4x = 0,
 		.pre_d = 0,
-		.cas = 0x0008800,
+		.cas = 0x000c800,
 		.table = {
 			DEF_DMC_TAB_ENTRY(DMCRT_TM, khx1600c9s3k_2x400mhz),
 			DEF_DMC_TAB_ENTRY(DMCRT_PH, khx1600c9s3k_phy),
@@ -646,7 +686,7 @@ static struct dmc_timing_entry khx1600c9s3k_table[] = {
 		.dsrc = 3,
 		.mode4x = 0,
 		.pre_d = 0,
-		.cas = 0x0008800,
+		.cas = 0x000c800,
 		.table = {
 			DEF_DMC_TAB_ENTRY(DMCRT_TM, khx1600c9s3k_2x533mhz),
 			DEF_DMC_TAB_ENTRY(DMCRT_PH, khx1600c9s3k_phy),
@@ -677,6 +717,20 @@ static struct dmc_timing_entry khx1600c9s3k_table[] = {
 	},
 */
 };
+
+static void set_ddr_dll(u32 val)
+{
+	u32 tmp;
+#ifdef CONFIG_DDR_DEVFREQ
+	if (val <= 0xf) {
+		tmp = readl(ddr_info.hw_base[0] + 0x248);
+		writel((tmp & ~(0xf << 28)) | (val << 28), \
+			ddr_info.hw_base[0] + 0x248);
+	} else {
+		pr_err("dll timer should be lower than 0xf\n");
+	}
+#endif
+}
 
 static void qseven_update_ddr_info(void)
 {
@@ -846,6 +900,14 @@ static void __init qseven_init(void)
 #ifdef CONFIG_UIO_HDMI
 	mmp3_add_hdmi(&mmp3_hdmi_info);
 #endif
+
+#if defined(CONFIG_DDR_DEVFREQ)
+	ddr_devfreq_init();
+	mmp3_add_ddr_devfreq(&ddr_info);
+#endif
+	/* Change DLL reset timer to 256 cycles
+	set_ddr_dll(2);*/
+
 	/* backlight */
 	mmp3_add_pwm(3);
 	platform_device_register(&qseven_lcd_backlight_devices);
@@ -857,6 +919,10 @@ static void __init qseven_init(void)
 
 #ifdef CONFIG_UIO_VMETA
 	mmp_init_vmeta();
+#endif
+
+#ifdef CONFIG_VMETA_DEVFREQ
+	mmp_init_devfreq_vmeta();
 #endif
 
 #ifdef CONFIG_MMC_SDHCI_PXAV3
