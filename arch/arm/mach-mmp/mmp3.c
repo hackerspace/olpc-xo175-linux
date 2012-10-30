@@ -982,8 +982,8 @@ static void mmp_vmeta_unset_op_constraint_work(struct work_struct *work)
 	struct vmeta_instance *vi = container_of(work, struct vmeta_instance, unset_op_work.work);
 
 	vi->vop_real = VMETA_OP_INVALID;
-#ifndef CONFIG_MACH_QSEVEN
 	pm_qos_update_request(&vi->qos_cpufreq_min, PM_QOS_DEFAULT_VALUE);
+#if	defined(CONFIG_DDR_DEVFREQ)
 	pm_qos_update_request(&vi->qos_ddrfreq_min, PM_QOS_DEFAULT_VALUE);
 #endif
 }
@@ -992,9 +992,9 @@ int vmeta_init_constraint(struct vmeta_instance *vi)
 {
 	mutex_init(&vi->op_mutex);
 	INIT_DELAYED_WORK(&vi->unset_op_work, mmp_vmeta_unset_op_constraint_work);
-#ifndef CONFIG_MACH_QSEVEN
 	pm_qos_add_request(&vi->qos_cpufreq_min, PM_QOS_CPUFREQ_MIN,
 			PM_QOS_DEFAULT_VALUE);
+#if	defined(CONFIG_DDR_DEVFREQ)
 	pm_qos_add_request(&vi->qos_ddrfreq_min, PM_QOS_DDR_DEVFREQ_MIN,
 		PM_QOS_DEFAULT_VALUE);
 #endif
@@ -1004,8 +1004,8 @@ int vmeta_init_constraint(struct vmeta_instance *vi)
 int vmeta_clean_constraint(struct vmeta_instance *vi)
 {
 	cancel_delayed_work_sync(&vi->unset_op_work);
-#ifndef CONFIG_MACH_QSEVEN
 	pm_qos_remove_request(&vi->qos_cpufreq_min);
+#if	defined(CONFIG_DDR_DEVFREQ)
 	pm_qos_remove_request(&vi->qos_ddrfreq_min);
 #endif
 	printk(KERN_INFO "vmeta op clean up\n");
@@ -1029,7 +1029,6 @@ int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
 
 	mutex_lock(&vi->op_mutex);
 
-#if 0
 	if (on) {
 		cancel_delayed_work_sync(&vi->unset_op_work);
 		if (vop < VMETA_OP_MIN || vop > VMETA_OP_MAX) {
@@ -1042,19 +1041,19 @@ int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
 		if (vop >= VMETA_OP_VGA && vop <= VMETA_OP_VGA_MAX) {
 			printk(KERN_DEBUG "VGA!!!\n");
 			pm_qos_update_request(&vi->qos_cpufreq_min, 200);
-#ifndef CONFIG_MACH_QSEVEN
+#ifdef CONFIG_DDR_DEVFREQ
 			pm_qos_update_request(&vi->qos_ddrfreq_min, DDR_CONSTRAINT_LVL0);
 #endif
 		} else if (vop >= VMETA_OP_720P && vop <= VMETA_OP_720P_MAX) {
 			printk(KERN_DEBUG "720P!!!\n");
 			pm_qos_update_request(&vi->qos_cpufreq_min, 200);
-#ifndef CONFIG_MACH_QSEVEN
+#ifdef CONFIG_DDR_DEVFREQ
 			pm_qos_update_request(&vi->qos_ddrfreq_min, DDR_CONSTRAINT_LVL0);
 #endif
 		} else { /* 1080p and default ops */
 			printk(KERN_DEBUG "1080P!!!\n");
 			pm_qos_update_request(&vi->qos_cpufreq_min, 400);
-#ifndef CONFIG_MACH_QSEVEN
+#ifdef CONFIG_DDR_DEVFREQ
 			pm_qos_update_request(&vi->qos_ddrfreq_min, DDR_CONSTRAINT_LVL1);
 #endif
 		}
@@ -1065,8 +1064,6 @@ int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
 			vi->plat_data->power_down_ms = 100;
 		schedule_delayed_work(&vi->unset_op_work, msecs_to_jiffies(vi->plat_data->power_down_ms));
 	}
-
-#endif
 
 out:
 	mutex_unlock(&vi->op_mutex);
