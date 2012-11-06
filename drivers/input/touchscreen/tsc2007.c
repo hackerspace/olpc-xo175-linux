@@ -26,6 +26,9 @@
 #include <linux/interrupt.h>
 #include <linux/i2c.h>
 #include <linux/i2c/tsc2007.h>
+#include <linux/pm_wakeup.h>
+#include <linux/pm.h>
+#include <plat/mfp.h>
 
 #define TSC2007_MEASURE_TEMP0		(0x0 << 4)
 #define TSC2007_MEASURE_AUX		(0x2 << 4)
@@ -56,6 +59,9 @@
 #define READ_Z2		(ADC_ON_12BIT | TSC2007_MEASURE_Z2)
 #define READ_X		(ADC_ON_12BIT | TSC2007_MEASURE_X)
 #define PWRDOWN		(TSC2007_12BIT | TSC2007_POWER_OFF_IRQ_EN)
+
+static bool wake_en;
+#define DEFINE_WAKE_UP
 
 struct ts_event {
 	u16	x;
@@ -107,6 +113,7 @@ static inline int tsc2007_xfer(struct tsc2007 *tsc, u8 cmd)
 
 static void tsc2007_read_values(struct tsc2007 *tsc, struct ts_event *tc)
 {
+	tsc2007_xfer(tsc, PWRDOWN);
 	/* y- still on; turn on only y+ (and ADC) */
 	tc->y = tsc2007_xfer(tsc, READ_Y);
 
@@ -182,7 +189,9 @@ static void tsc2007_work(struct work_struct *work)
 		dev_dbg(&ts->client->dev, "pen is still down\n");
 	}
 
+	disable_irq(ts->irq);
 	tsc2007_read_values(ts, &tc);
+	enable_irq(ts->irq);
 
 	rt = tsc2007_calculate_pressure(ts, &tc);
 	if (rt > ts->max_rt) {
@@ -324,7 +333,13 @@ static int __devinit tsc2007_probe(struct i2c_client *client,
 		dev_err(&client->dev, "irq %d busy?\n", ts->irq);
 		goto err_free_mem;
 	}
-
+#ifdef DEFINE_WAKE_UP
+	err = device_init_wakeup(&client->dev, 1);
+	if (err < 0) {
+		pr_info("Touch screen did not init as wake up source......\n");
+		goto err_free_mem;
+	}
+#endif
 	/* Prepare for touch readings - power down ADC and enable PENIRQ */
 	err = tsc2007_xfer(ts, PWRDOWN);
 	if (err < 0)
@@ -371,10 +386,54 @@ static const struct i2c_device_id tsc2007_idtable[] = {
 
 MODULE_DEVICE_TABLE(i2c, tsc2007_idtable);
 
+#ifdef CONFIG_PM
+static int tsc2007_suspend(struct device *dev)
+{
+	pr_info("Touch screen is going to suspend....\n");
+	struct i2c_client *client = to_i2c_client(dev);
+	struct tsc2007 *ts = i2c_get_clientdata(client);
+
+#ifdef DEFINE_WAKE_UP
+	if (device_may_wakeup(&client->dev) && !wake_en) {
+		if (enable_irq_wake(ts->irq) == 0) {
+			unsigned long val = 0;
+			val = MFPR_SLEEP_OE_N
+				| MFPR_EDGE_FALL_EN | MFPR_SLEEP_SEL;
+			lpm_mfpr_edge_detect_config(MFP_PIN_GPIO78, val);
+			pr_info("Touch screen irq is set as wake up source\n");
+			wake_en = true;
+		} else
+			dev_err(&client->dev, "enable_irq_wake failed\n");
+	}
+#endif
+	return 0;
+}
+static int tsc2007_resume(struct device *dev)
+{
+	pr_info("Touch screen is going to resume....\n");
+	struct i2c_client *client = to_i2c_client(dev);
+	struct tsc2007 *ts = i2c_get_clientdata(client);
+#ifdef DEFINE_WAKE_UP
+	if (device_may_wakeup(&client->dev) && wake_en) {
+		disable_irq_wake(ts->irq);
+		lpm_mfpr_edge_detect_clear_config(MFP_PIN_GPIO78);
+		pr_info("Touch screen irq is disbled as wake up source");
+		wake_en = false;
+	}
+#endif
+	return 0;
+}
+static SIMPLE_DEV_PM_OPS(tsc2007_pm, tsc2007_suspend, tsc2007_resume);
+#endif
+
 static struct i2c_driver tsc2007_driver = {
 	.driver = {
 		.owner	= THIS_MODULE,
-		.name	= "tsc2007"
+		.name	= "tsc2007",
+#ifdef CONFIG_PM
+		.pm	= &tsc2007_pm,
+#endif
+
 	},
 	.id_table	= tsc2007_idtable,
 	.probe		= tsc2007_probe,

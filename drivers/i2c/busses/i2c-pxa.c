@@ -698,7 +698,7 @@ static inline void i2c_pxa_start_message(struct pxa_i2c *i2c)
 	 * Step 2: initiate the write.
 	 */
 	icr = readl(_ICR(i2c)) & ~(ICR_STOP | ICR_ALDIE);
-	writel(icr | ICR_START | ICR_TB, _ICR(i2c));
+	writel(icr | ICR_START | ICR_TB | ICR_ITEIE, _ICR(i2c));
 }
 
 static inline void i2c_pxa_stop_message(struct pxa_i2c *i2c)
@@ -856,7 +856,7 @@ static int i2c_pxa_do_xfer(struct pxa_i2c *i2c, struct i2c_msg *msg, int num)
 
 	if (!timeout && i2c->msg_num) {
 		i2c_pxa_scream_blue_murder(i2c, "timeout");
-		ret = I2C_RETRY;
+		return I2C_RETRY;
 	}
 
  out:
@@ -965,7 +965,7 @@ static void i2c_pxa_irq_txempty(struct pxa_i2c *i2c, u32 isr)
 		 */
 		writel(i2c->msg->buf[i2c->msg_ptr++], _IDBR(i2c));
 
-		icr |= ICR_ALDIE | ICR_TB;
+		icr |= ICR_ALDIE | ICR_TB | ICR_ITEIE;
 
 		/*
 		 * If this is the last byte of the last message, send
@@ -999,7 +999,7 @@ static void i2c_pxa_irq_txempty(struct pxa_i2c *i2c, u32 isr)
 		 * And trigger a repeated start, and send the byte.
 		 */
 		icr &= ~ICR_ALDIE;
-		icr |= ICR_START | ICR_TB;
+		icr |= ICR_START | ICR_TB | ICR_ITEIE;
 	} else {
 		if (i2c->msg->len == 0) {
 			/*

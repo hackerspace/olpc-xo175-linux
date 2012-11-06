@@ -231,7 +231,6 @@ void mfp_config_run(void)
 	for (pin = 0; pin < ARRAY_SIZE(mfp_table); pin++, p++)
 		__mfp_config_run(p);
 }
-
 void lpm_mfpr_edge_config(int mfp, unsigned long val)
 {
 	mfp_cfg_t m;
@@ -239,5 +238,23 @@ void lpm_mfpr_edge_config(int mfp, unsigned long val)
 	m &= ~(MFPR_EDGE_CLEAR | MFPR_EDGE_FALL_EN
 						 | MFPR_EDGE_RISE_EN);
 	m |= mfpr_edge[MFP_LPM_EDGE(val)];
+	mfp_write(mfp, m);
+}
+void lpm_mfpr_edge_detect_config(int mfp, unsigned long val)
+{
+	mfp_cfg_t m;
+	m = mfp_read(mfp);
+	m &= ~(MFPR_EDGE_CLEAR | MFPR_SLEEP_OE_N | MFPR_EDGE_FALL_EN
+				| MFPR_SLEEP_SEL | MFPR_EDGE_RISE_EN);
+	m |= val;
+	mfp_write(mfp, m);
+}
+void lpm_mfpr_edge_detect_clear_config(int mfp)
+{
+	mfp_cfg_t m;
+	m = mfp_read(mfp);
+	m &= ~(MFPR_SLEEP_SEL | MFPR_SLEEP_OE_N | MFPR_EDGE_CLEAR
+			| MFPR_EDGE_FALL_EN | MFPR_EDGE_RISE_EN);
+	m |= MFPR_EDGE_CLEAR;
 	mfp_write(mfp, m);
 }

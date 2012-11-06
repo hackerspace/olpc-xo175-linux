@@ -156,7 +156,7 @@ static void __init mmp3_init_gpio(void)
 	for (i = 0; i < 6; i++)
 		__raw_writel(0xffffffff, APMASK(i));
 
-	pxa_init_gpio(IRQ_MMP3_GPIO, 0, 167, NULL);
+	pxa_init_gpio(IRQ_MMP3_GPIO, 0, 167, mmp3_set_wake);
 }
 
 #ifdef CONFIG_REGDUMP
