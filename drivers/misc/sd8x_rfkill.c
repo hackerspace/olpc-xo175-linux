@@ -139,7 +139,6 @@ static int sd8x_set_block(void *data, bool blocked)
 		ret = sd8x_power_on(sd8x_data->pdata, 0);
 		return 0;
 	}
-
 	pre_blocked = sd8x_data->blocked;
 
 	pr_debug
@@ -159,7 +158,6 @@ static int sd8x_set_block(void *data, bool blocked)
                clk_enable(host->clk);
                mdelay(1);
        }
-
 	if (pdata->set_power)
 		pdata->set_power(on);
 	ret = sd8x_power_on(pdata, on);
@@ -242,7 +240,7 @@ static struct rfkill *sd8x_rfkill_register(struct device *parent,
 		goto err_out;
 
 	/* init device software states, and block it by default */
-	rfkill_init_sw_state(dev, true);
+	rfkill_init_sw_state(dev, false);
 
 	err = rfkill_register(dev);
 	if (err)
@@ -285,7 +283,7 @@ static int sd8x_rfkill_probe(struct platform_device *pdev)
 	if (IS_ERR(rfkill))
 		goto err_out;
 	pdata->wlan_rfkill = rfkill;
-
+	sd8x_power_on(pdata, 1);
 	return 0;
 
 err_out:
@@ -305,11 +303,20 @@ static int sd8x_rfkill_remove(struct platform_device *pdev)
 static int sd8x_rfkill_suspend(struct platform_device *pdev,
 			       pm_message_t pm_state)
 {
+	struct sd8x_rfkill_platform_data *pdata = pdev->dev.platform_data;
+	if (pdata->set_power)
+		pdata->set_power(0);
+	sd8x_power_on(pdata, 0);
 	return 0;
 }
 
 static int sd8x_rfkill_resume(struct platform_device *pdev)
 {
+	struct sd8x_rfkill_platform_data *pdata = pdev->dev.platform_data;
+	if (pdata->set_power)
+		pdata->set_power(1);
+	sd8x_power_on(pdata, 0);
+	sd8x_power_on(pdata, 1);
 	return 0;
 }
 

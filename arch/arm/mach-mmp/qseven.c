@@ -174,7 +174,12 @@ static unsigned long mmc2_pin_config[] __initdata = {
 	GPIO42_MMC2_CLK,
 
 	/* GPIO used for power */
-	GPIO57_GPIO, /* WLAN_PD_N */
+	/*GPIO57_GPIO | MFP_LPM_DRIVE_HIGH, /* WLAN_PD_N */
+#ifdef CONFIG_SD8XXX_RFKILL
+	GPIO57_GPIO | MFP_LPM_DRIVE_LOW,
+#else
+	GPIO57_GPIO | MFP_LPM_DRIVE_HIGH,
+#endif
 	WIFI_32K_CLK_OUT,
 };
 
@@ -501,12 +506,59 @@ static struct platform_device qseven_lcd_backlight_devices = {
 #ifdef CONFIG_MMC_SDHCI_PXAV3
 #include <linux/mmc/host.h>
 
+#ifdef CONFIG_SD8XXX_RFKILL
+/*
+ * during wifi enabled, power should always on and 8787 should always
+ * released from reset. 8787 handle power management by itself.
+*/
+static unsigned long wifi_pin_config_on[] = {
+	GPIO57_GPIO | MFP_LPM_DRIVE_HIGH,
+};
+static unsigned long wifi_pin_config_off[] = {
+	GPIO57_GPIO | MFP_LPM_DRIVE_LOW,
+};
+static void mmp3_8787_set_power(unsigned int on)
+{
+	static int f_enabled = 0;
+	if (on) {
+		f_enabled = 1;
+		pr_info("Turning wifi on\n");
+		mfp_config(ARRAY_AND_SIZE(wifi_pin_config_on));
+	}
+	if ((!on)) {
+		pr_info("Turning wifi off\n");
+		mfp_config(ARRAY_AND_SIZE(wifi_pin_config_off));
+		f_enabled = 0;
+	}
+}
+static void mmp3_8787_set_power_1(unsigned int on)
+{
+	int wlan_pd_n = mfp_to_gpio(MFP_PIN_GPIO57);
+	if (gpio_request(wlan_pd_n, "wifi card power")) {
+		printk(KERN_INFO "gpio %d request failed\n", wlan_pd_n);
+		return -1;
+	}
+	if (on) {
+		pr_info("Turning wifi on\n");
+		gpio_direction_output(wlan_pd_n, 1);
+		gpio_free(wlan_pd_n);
+	} else {
+		pr_info("Turning wifi off\n");
+		gpio_direction_output(wlan_pd_n, 0);
+		gpio_free(wlan_pd_n);
+	}
+	mdelay(100);
+	return 0;
+}
+#endif
+
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc0 = {
 	.clk_delay_cycles	= 0x1F,
 };
 
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc1 = {
 	.flags          = PXA_FLAG_CARD_PERMANENT,
+	.pm_caps	= MMC_PM_KEEP_POWER,
 };
 
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc2 = {
@@ -517,7 +569,11 @@ static int __init qseven_init_mmc(void)
 {
 	int sd_power_gpio = mfp_to_gpio(MFP_PIN_GPIO137);
 	int wlan_pd_n = mfp_to_gpio(MFP_PIN_GPIO57);
-
+	int WIB_RESETn = mfp_to_gpio(GPIO58_GPIO);
+#ifdef CONFIG_SD8XXX_RFKILL
+	add_sd8x_rfkill_device(wlan_pd_n, NULL,\
+			&mmp3_sdh_platdata_mmc1.pmmc, mmp3_8787_set_power);
+#endif
 	if (gpio_request(sd_power_gpio, "sd card power")) {
 		printk(KERN_INFO "gpio %d request failed\n", sd_power_gpio);
 		return -1;
@@ -627,6 +683,33 @@ static struct uio_hdmi_platform_data mmp3_hdmi_info __initdata = {
 #define DMCU_PHY_DLL_WL_CTRL0 0x384
 #define ALLBITS (0xFFFFFFFF)
 
+static struct dmc_regtable_entry khx1600c9s3k_2x133mhz[] = {
+	{DMCU_SDRAM_TIMING1, ALLBITS, 0x911400CA},
+	{DMCU_SDRAM_TIMING2, ALLBITS, 0x64660684},
+	{DMCU_SDRAM_TIMING3, ALLBITS, 0xC2006C53},
+	{DMCU_SDRAM_TIMING4, ALLBITS, 0x44F8A187},
+	{DMCU_SDRAM_TIMING5, ALLBITS, 0x000E2101},
+	{DMCU_SDRAM_TIMING6, ALLBITS, 0x04040200},
+	{DMCU_SDRAM_TIMING7, ALLBITS, 0x00008801},
+};
+static struct dmc_regtable_entry khx1600c9s3k_2x177mhz[] = {
+	{DMCU_SDRAM_TIMING1, ALLBITS, 0x911400CA},
+	{DMCU_SDRAM_TIMING2, ALLBITS, 0x64660684},
+	{DMCU_SDRAM_TIMING3, ALLBITS, 0xC2006C53},
+	{DMCU_SDRAM_TIMING4, ALLBITS, 0x44F8A187},
+	{DMCU_SDRAM_TIMING5, ALLBITS, 0x000E2101},
+	{DMCU_SDRAM_TIMING6, ALLBITS, 0x04040200},
+	{DMCU_SDRAM_TIMING7, ALLBITS, 0x00008801},
+};
+static struct dmc_regtable_entry khx1600c9s3k_2x266mhz[] = {
+	{DMCU_SDRAM_TIMING1, ALLBITS, 0x911400CA},
+	{DMCU_SDRAM_TIMING2, ALLBITS, 0x64660684},
+	{DMCU_SDRAM_TIMING3, ALLBITS, 0xC2006C53},
+	{DMCU_SDRAM_TIMING4, ALLBITS, 0x44F8A187},
+	{DMCU_SDRAM_TIMING5, ALLBITS, 0x000E2101},
+	{DMCU_SDRAM_TIMING6, ALLBITS, 0x04040200},
+	{DMCU_SDRAM_TIMING7, ALLBITS, 0x00008801},
+};
 static struct dmc_regtable_entry khx1600c9s3k_2x400mhz[] = {
 	{DMCU_SDRAM_TIMING1, ALLBITS, 0x911400CA},
 	{DMCU_SDRAM_TIMING2, ALLBITS, 0x64660684},
@@ -636,7 +719,6 @@ static struct dmc_regtable_entry khx1600c9s3k_2x400mhz[] = {
 	{DMCU_SDRAM_TIMING6, ALLBITS, 0x04040200},
 	{DMCU_SDRAM_TIMING7, ALLBITS, 0x00008801},
 };
-
 static struct dmc_regtable_entry khx1600c9s3k_2x533mhz[] = {
 	{DMCU_SDRAM_TIMING1, ALLBITS, 0x911A00CA},
 	{DMCU_SDRAM_TIMING2, ALLBITS, 0x848808B4},
@@ -671,6 +753,35 @@ static struct dmc_regtable_entry khx1600c9s3k_wl[] = {
 
 };
 static struct dmc_timing_entry khx1600c9s3k_table[] = {
+	{
+		.dsrc = 3,
+		.mode4x = 0,
+		.pre_d = 3,
+		.cas = 0x000c800,
+		.table = {
+			DEF_DMC_TAB_ENTRY(DMCRT_TM, khx1600c9s3k_2x133mhz),
+		},
+	},
+
+	{
+		.dsrc = 3,
+		.mode4x = 0,
+		.pre_d = 2,
+		.cas = 0x000c800,
+		.table = {
+			DEF_DMC_TAB_ENTRY(DMCRT_TM, khx1600c9s3k_2x177mhz),
+		},
+	},
+
+	{
+		.dsrc = 3,
+		.mode4x = 0,
+		.pre_d = 1,
+		.cas = 0x000c800,
+		.table = {
+			DEF_DMC_TAB_ENTRY(DMCRT_TM, khx1600c9s3k_2x266mhz),
+		},
+	},
 	{
 		.dsrc = 1,
 		.mode4x = 0,
