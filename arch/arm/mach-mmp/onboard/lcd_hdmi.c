@@ -31,7 +31,7 @@ static struct fb_videomode tv_video_modes[] = {
 		.vsync_len = 4,
 		.upper_margin = 36,
 		.lower_margin = 5,
-		.sync = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
+		.sync = FB_SYNC_VERT_HIGH_ACT,
 	},
 	[1] = {
 		.pixclock = 13149,
