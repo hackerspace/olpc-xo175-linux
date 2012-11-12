@@ -167,9 +167,10 @@ static int dvfs_rail_update(struct dvfs_rail *rail)
 	list_for_each_entry(rel, &rail->relationships_from, from_node)
 		rail->new_millivolts = dvfs_solve_relationship(rel);
 
-	if (rail->new_millivolts != rail->millivolts)
+	if (rail->new_millivolts != rail->millivolts) {
+		pr_info("Voltage updated to %d\n", rail->new_millivolts);
 		ret = dvfs_rail_set_voltage(rail, rail->new_millivolts);
-
+	}
 	return ret;
 }
 
