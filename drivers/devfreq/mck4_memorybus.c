@@ -424,7 +424,7 @@ static DEVICE_ATTR(ddr_profiling, S_IRUGO | S_IWUSR, dp_show, dp_store);
 
 static struct devfreq_dev_profile ddr_devfreq_profile = {
 	/* FIXME turn off profiling until ddr devfreq tests are completed */
-	.polling_ms = 0,
+	.polling_ms = 10,
 	.target = ddr_target,
 	.get_dev_status = ddr_get_dev_status,
 };
