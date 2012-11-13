@@ -23,6 +23,7 @@
 #include <mach/regs-icu.h>
 #include <mach/addr-map.h>
 
+#define CONFIG_MMP3_QSEVEN_26MHZ
 
 int __init pxa_register_device(struct pxa_device_desc *desc,
 				void *data, size_t size)
@@ -717,7 +718,7 @@ int mmp3_fsic_phy_init(unsigned int base)
 		return -ENOMEM;
 	}
 
-	pxa_usb_phy_init(otgphy);
+	/*pxa_usb_phy_init(otgphy);*/
 	iounmap((void __iomem *)otgphy);
 
 

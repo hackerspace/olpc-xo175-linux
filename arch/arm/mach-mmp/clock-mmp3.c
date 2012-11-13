@@ -44,7 +44,7 @@
 #define MMP3_PROTECT_CC3(x)		((x) & 0x0effff1f)
 #define MMP3_PROTECT_BUSCLKRST(x)	((x) & 0x000001c3)
 #define MMP3_PROTECT_FCCR(x)		((x) & 0xff83ffff)
-
+#define CONFIG_MMP3_QSEVEN_26MHZ
 
 /* Dynamic Frequency Change Part */
 enum {
