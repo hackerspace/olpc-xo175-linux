@@ -835,6 +835,13 @@ config PJ4B_ERRATA_6315
           Replace DMB w. DSB when its necessary to enforce an ordering between an
           explicit load/store op and a set/way op.
 
+config PJ4B_ERRATA_6359
+        bool "PJ4B errata 6359"
+        depends on CPU_PJ4B && !PJ4B_ERRATA_6359_LIGHTWEIGHT
+        help
+          Broadcast DMB operations do not fully synchronize local cache hits. This option
+          replaces all occurences of DMB with DSB.
+
 config ARM_ERRATA_326103
 	bool "ARM errata: FSR write bit incorrect on a SWP to read-only memory"
 	depends on CPU_V6
