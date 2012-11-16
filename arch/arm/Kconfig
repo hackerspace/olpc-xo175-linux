@@ -828,6 +828,13 @@ config PJ4B_ERRATA_4742
 	  or Data Memory Barrier (DMB) command immediately after the WFI/WFE
 	  instruction
 
+config PJ4B_ERRATA_6315
+       bool "PJ4B errata 6315"
+       depends on CPU_PJ4B
+       help
+          Replace DMB w. DSB when its necessary to enforce an ordering between an
+          explicit load/store op and a set/way op.
+
 config ARM_ERRATA_326103
 	bool "ARM errata: FSR write bit incorrect on a SWP to read-only memory"
 	depends on CPU_V6
