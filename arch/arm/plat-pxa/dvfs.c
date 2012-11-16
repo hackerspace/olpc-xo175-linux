@@ -20,7 +20,6 @@ static LIST_HEAD(dvfs_rail_list);
 static DEFINE_MUTEX(dvfs_lock);
 
 static int dvfs_rail_update(struct dvfs_rail *rail);
-
 void dvfs_add_relationships(struct dvfs_relationship *rels, int n)
 {
 	int i;
@@ -238,10 +237,12 @@ int dvfs_set_rate(struct clk *c, unsigned long rate)
 	return ret;
 }
 EXPORT_SYMBOL(dvfs_set_rate);
-
 /* May only be called during clock init, does not take any locks on clock c. */
 int __init enable_dvfs_on_clk(struct clk *c, struct dvfs *d)
 {
+	unsigned long rate;
+	int i = 0;
+
 	if (c->dvfs) {
 		pr_err("Error when enabling dvfs on %s for clock %s:\n",
 			d->dvfs_rail->reg_id, c->name);
@@ -251,9 +252,15 @@ int __init enable_dvfs_on_clk(struct clk *c, struct dvfs *d)
 	}
 
 	clk_set_cansleep(c);
-
+	mutex_lock(&c->mutex);
+	rate = clk_get_rate_locked(c);
+	mutex_unlock(&c->mutex);
+	if (rate) {
+		while (i < d->num_freqs && rate > d->vol_freq_table[i].freq)
+			i++;
+		d->millivolts = d->vol_freq_table[i].millivolts;
+	}
 	c->dvfs = d;
-
 	mutex_lock(&dvfs_lock);
 	list_add_tail(&d->dvfs_node, &d->dvfs_rail->dvfs);
 	mutex_unlock(&dvfs_lock);
