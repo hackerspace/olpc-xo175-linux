@@ -423,6 +423,7 @@ __v7_pj4b_setup:
 #define PJ4B_RETURN_STACK (1 << 0) /* Enable Return Stack */
 #define PJ4B_STATIC_BP (1 << 2) /* Enable Static BP */
 #define PJ4B_INTER_PARITY (1 << 8) /* Disable Internal Parity Handling */
+#define PJ4B_NEON (1 << 11) /* Enable NEON instructions */
 #define PJ4B_CLEAN_LINE (1 << 16) /* Disable data transfer for clean line */
 
 /* Auxiliary Debug Modes Control 2 Register */
@@ -450,6 +451,9 @@ __v7_pj4b_setup:
 #ifdef CONFIG_PJ4_RETURNSTACK_ISSUE
         bic     r0, r0, #PJ4B_RETURN_STACK
 #endif
+#ifdef CONFIG_NEON
+        orr     r0, r0, #PJ4B_NEON
+#endif
 	mcr	p15, 1,	r0, c15, c1, 1
 
 	/* Auxiliary Debug Modes Control 2 Register */
@@ -471,6 +475,37 @@ __v7_pj4b_setup:
 	mrc	p15, 1,	r0, c15, c1, 0
 	orr	r0, r0, #PJ4B_WFI_WFE
 	mcr	p15, 1,	r0, c15, c1, 0
+
+#ifdef CONFIG_NEON
+	mrc	p15, 0, r5, c1, c0, 2		@ Read coprocessor access
+	mov	r0, r5
+	orr	r0, r0, #0x00f00000		@ Allow access to cp10 and cp11
+	mcr	p15, 0, r0, c1, c0, 2		@ Enable CP10, CP11 coprocessor access
+	mov	r0, #0
+	mcr	p15, 0, r0, c7, c5, 4		@ Flush prefetch buffer
+	mrc	p10, 7, r0, c8, c0, 0
+	orr	r0, r0, #0x40000000
+	mcr	p10, 7, r0, c8, c0, 0		@ Enable FPEXC.EN bit
+	isb
+	mov	r0, #1
+	mcr	p10, 7, r0, c9, c0, 0		@ Enable dual-issue feature in FPCFG.bit0
+	/* Continuous 6 VMOV instructions to initialize the unused second pipe */
+	.word	0xeeb00b00			@ VMOV.F64 d0, #2.00000000
+	.word	0xeeb00b00
+	.word	0xeeb00b00
+	.word	0xeeb00b00
+	.word	0xeeb00b00
+	.word	0xeeb00b00
+	mov	r0, #0
+	mcr	p10, 7, r0, c9, c0, 0		@ Disable dual-issue feature in FPCFG.bit0
+	isb
+	mrc	p10, 7, r0, c8, c0, 0
+	bic	r0, r0, #0x40000000
+	mcr	p10, 7, r0, c8, c0, 0		@ Disable FPEXC.EN bit
+	mcr	p15, 0, r5, c1, c0, 2		@ Disable CP10, CP11 coprocessor access
+	mov	r0, #0
+	mcr	p15, 0, r0, c7, c5, 4		@ Flush prefetch buffer
+#endif
 
 #endif /* CONFIG_CPU_PJ4B */
 
