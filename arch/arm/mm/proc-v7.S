@@ -420,6 +420,7 @@ __v7_pj4b_setup:
 #ifdef CONFIG_CPU_PJ4B
 
 /* Auxiliary Debug Modes Control 1 Register */
+#define PJ4B_RETURN_STACK (1 << 0) /* Enable Return Stack */
 #define PJ4B_STATIC_BP (1 << 2) /* Enable Static BP */
 #define PJ4B_INTER_PARITY (1 << 8) /* Disable Internal Parity Handling */
 #define PJ4B_CLEAN_LINE (1 << 16) /* Disable data transfer for clean line */
@@ -446,6 +447,9 @@ __v7_pj4b_setup:
 	orr     r0, r0, #PJ4B_CLEAN_LINE
 	orr     r0, r0, #PJ4B_INTER_PARITY
 	bic	r0, r0, #PJ4B_STATIC_BP /* PJ4B erratum 6409 */
+#ifdef CONFIG_PJ4_RETURNSTACK_ISSUE
+        bic     r0, r0, #PJ4B_RETURN_STACK
+#endif
 	mcr	p15, 1,	r0, c15, c1, 1
 
 	/* Auxiliary Debug Modes Control 2 Register */

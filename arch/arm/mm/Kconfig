@@ -1129,3 +1129,11 @@ config DEBUG_ALIGN_RODATA
 	  additional section-aligned split of rodata from kernel text so it
 	  can be made explicitly non-executable. This padding may waste memory
 	  space to gain the additional protection.
+
+config PJ4_RETURNSTACK_ISSUE
+        bool "PJ4 core issue: enable return stack would cause system unstable"
+        depends on CPU_PJ4 || CPU_PJ4B
+        default y
+        help
+          This option enables the workaround for Marvell PJ4 to disable return
+          stack which might cause system unstable.
