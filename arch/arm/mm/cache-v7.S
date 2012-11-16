@@ -131,6 +131,9 @@ start_flush_levels:
 	mov	r10, #0				@ start clean at cache level 0
 flush_levels:
 	add	r2, r10, r10, lsr #1		@ work out 3x current cache level
+#ifdef CONFIG_PJ4B_ERRATA_6315
+	mrc	p15, 1,	r0, c0, c0, 1		@ read clidr
+#endif
 	mov	r1, r0, lsr r2			@ extract cache type bits from clidr
 	and	r1, r1, #7			@ mask of the bits for current cache only
 	cmp	r1, #2				@ see what cache we have at this level
@@ -160,6 +163,12 @@ loop2:
  ARM(	orr	r11, r11, r9, lsl r2	)	@ factor index number into r11
  THUMB(	lsl	r6, r9, r2		)
  THUMB(	orr	r11, r11, r6		)	@ factor index number into r11
+#ifdef CONFIG_PJ4B_ERRATA_6315
+	dsb					@ replace dmb w. dsb to ensure ordering with previous memory accesses
+	mov	r0, #24				@ require approximately a 24 cycle delay to guarantee all outstanding
+1:	subs	r0, r0, #1			@ request to complete
+	bne	1b
+#endif
 	mcr	p15, 0, r11, c7, c14, 2		@ clean & invalidate by set/way
 	subs	r9, r9, #1			@ decrement the index
 	bge	loop2
