@@ -854,6 +854,14 @@ ENDPROC(__switch_to)
 	.globl	__kuser_helper_start
 __kuser_helper_start:
 
+#if defined(CONFIG_PJ4B_ERRATA_6359_LIGHTWEIGHT)
+__kuser_memory_barrier_errata_6359_lightweight:
+        smp_dmb arm
+        usr_ret lr
+
+        .align  5
+#endif
+
 /*
  * Due to the length of some sequences, __kuser_cmpxchg64 spans 2 regular
  * kuser "slots", therefore 0xffff0f80 is not used as a valid entry point.
@@ -930,8 +938,16 @@ kuser_cmpxchg64_fixup:
 	kuser_pad __kuser_cmpxchg64, 64
 
 __kuser_memory_barrier:				@ 0xffff0fa0
-	smp_dmb	arm
-	usr_ret	lr
+#if defined(CONFIG_PJ4B_ERRATA_6359_LIGHTWEIGHT)
+        /*
+         * smp_dmb is now defined as "DMB + 8 NOPs", which exceeds the 8 words
+         * limitation of kuser function. We jump to another place for workaround.
+         */
+        b       __kuser_memory_barrier_errata_6359_lightweight
+#else
+        smp_dmb arm
+        usr_ret lr
+#endif
 
 	kuser_pad __kuser_memory_barrier, 32
 

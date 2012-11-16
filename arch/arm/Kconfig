@@ -842,6 +842,13 @@ config PJ4B_ERRATA_6359
           Broadcast DMB operations do not fully synchronize local cache hits. This option
           replaces all occurences of DMB with DSB.
 
+config PJ4B_ERRATA_6359_LIGHTWEIGHT
+        bool "PJ4B errata 6359 lightweight"
+        depends on CPU_PJ4B
+        help
+          Boradcast DMB operations do not fully synchronize local cache hits. This option
+          add 8 NOP after DMB.
+
 config ARM_ERRATA_326103
 	bool "ARM errata: FSR write bit incorrect on a SWP to read-only memory"
 	depends on CPU_V6
