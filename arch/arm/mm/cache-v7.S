@@ -124,6 +124,11 @@ ENDPROC(v7_flush_dcache_louis)
 ENTRY(v7_flush_dcache_all)
 #if defined(CONFIG_PJ4B_ERRATA_6359)
 	dsb
+#elif defined(CONFIG_PJ4B_ERRATA_6359_LIGHTWEIGHT)
+	dmb
+	.rept 8
+	nop
+	.endr
 #else
 	dmb					@ ensure ordering with previous memory accesses
 #endif
