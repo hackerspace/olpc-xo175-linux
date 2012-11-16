@@ -2041,7 +2041,7 @@ void mmp3_set_wakeup_src(void)
 static void d2(void)
 {
 	u32 reg;
-
+	u32 tmp_gc;
 	/* walk around for B0: program dll table before entering D2 */
 	program_dll_table_b0((u32)mmp3_pmu_config.dmcu[0], 0);
 
@@ -2055,10 +2055,12 @@ static void d2(void)
 
 	ccic = __raw_readl(APMU_CCIC_RST);
 	gc = __raw_readl(APMU_GC);
+	tmp_gc = gc & 0x600 ;
 	vmeta = __raw_readl(APMU_VMETA);
 	/* Disable power to other power islands: ISP, GC and VMeta */
 	__raw_writel(0x00, APMU_CCIC_RST);
-	__raw_writel(0x00, APMU_GC);
+	/*__raw_writel(0x00, APMU_GC);*/
+	__raw_writel(tmp_gc, APMU_GC);
 	__raw_writel(0x00, APMU_VMETA);
 
 	/* Disable power to Audio island */
