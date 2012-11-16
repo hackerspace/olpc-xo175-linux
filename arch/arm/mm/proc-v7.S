@@ -445,7 +445,7 @@ __v7_pj4b_setup:
 	mrc	p15, 1,	r0, c15, c1, 1
 	orr     r0, r0, #PJ4B_CLEAN_LINE
 	orr     r0, r0, #PJ4B_INTER_PARITY
-	bic	r0, r0, #PJ4B_STATIC_BP
+	bic	r0, r0, #PJ4B_STATIC_BP /* PJ4B erratum 6409 */
 	mcr	p15, 1,	r0, c15, c1, 1
 
 	/* Auxiliary Debug Modes Control 2 Register */
