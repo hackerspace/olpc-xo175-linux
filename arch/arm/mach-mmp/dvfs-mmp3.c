@@ -42,7 +42,7 @@ static enum {
 #define VCC_MAIN_MIN		1150
 /* default */
 /*static const int vcc_main_vol_table_def[] = { [V0] = 1150, [V1] = 1150, [V2] = 1150, [V3] = 1200, [V4] = 1250, [V5] = 1300, };*/
-static const int vcc_main_vol_table_def[] = { [V0] = 1150, [V1] = 1175, [V2] = 1200, [V3] = 1250, [V4] = 1300, [V5] = 1300, };
+static const int vcc_main_vol_table_def[] = { [V0] = 1200, [V1] = 1200, [V2] = 1200, [V3] = 1200, [V4] = 1300, [V5] = 1300, };
 /* B0P */
 static const int vcc_main_vol_table_b0p[][MMP3_VM_COL_VOL_NUM] = {
 	[0] = { [V0] = 1150, [V1] = 1150, [V2] = 1250, [V3] = 1250, [V4] = 1325, [V5] = 1325, },
