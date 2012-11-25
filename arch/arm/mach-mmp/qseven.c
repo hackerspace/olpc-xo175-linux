@@ -210,11 +210,11 @@ static struct sram_bank mmp3_videosram_info = {
 struct devfreq_frequency_table *mmp3_ddr_freq_table;
 struct devfreq_pm_qos_table ddr_freq_qos_table[] = {
 	{
-		.freq = 400000,
+		.freq = 533333,
 		.qos_value = DDR_CONSTRAINT_LVL0,
 	},
 	{
-		.freq = 533333,
+		.freq = 800000,
 		.qos_value = DDR_CONSTRAINT_LVL1,
 	},
 	{0, 0},
