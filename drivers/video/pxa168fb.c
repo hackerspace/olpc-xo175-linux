@@ -893,7 +893,7 @@ static int pxa168fb_pan_display(struct fb_var_screeninfo *var,
 static irqreturn_t pxa168fb_threaded_handle_irq(int irq, void *dev_id)
 {
 	if (atomic_read(&framedone)) {
-		wakeup_ddr_fc_seq();
+//		wakeup_ddr_fc_seq();	//paul tmp
 		atomic_set(&framedone, 0);
 	}
 

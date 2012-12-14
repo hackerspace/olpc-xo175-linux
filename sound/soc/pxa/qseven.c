@@ -42,9 +42,11 @@
 #include <mach/regs-mpmu.h>
 #include <mach/regs-apmu.h>
 
+#if 0
 #include <linux/mfd/wm8994/registers.h>
 #include "../codecs/wm8994.h"
 #include "../codecs/wm8731.h"
+#endif 
 #include "mmp2-squ.h"
 #include "mmp2-sspa.h"
 #include <linux/delay.h>
@@ -55,7 +57,7 @@
 #define MMP3ASOC_HS_MIC_FUNC		1
 #define MMP3ASOC_SPK_FUNC		2
 #define MMP3ASOC_MAIN_MIC_FUNC		3
-#define MMP3ASOC_JACK_FUNC		4
+//#define MMP3ASOC_JACK_FUNC		4
 
 #define MMP3ASOC_CTRL_ON	0
 #define MMP3ASOC_CTRL_OFF	1
@@ -71,15 +73,31 @@ static void mmp3asoc_ext_control(struct snd_soc_dapm_context *dapm, int func)
 	switch (func) {
 	case MMP3ASOC_HEADPHONE_FUNC:
 		if (mmp3asoc_headphone_func == MMP3ASOC_CTRL_ON)
-			snd_soc_dapm_enable_pin(dapm, "Headphone Jack");
+			snd_soc_dapm_enable_pin(dapm, "Headset Stereophone");
 		else
-			snd_soc_dapm_disable_pin(dapm, "Headphone Jack");
+			snd_soc_dapm_disable_pin(dapm, "Headset Stereophone");
 		break;
 	case MMP3ASOC_HS_MIC_FUNC:
 		if (mmp3asoc_hs_mic_func == MMP3ASOC_CTRL_ON)
-			snd_soc_dapm_enable_pin(dapm, "Headset Jack");
+			snd_soc_dapm_enable_pin(dapm, "Headset Mic 2");
 		else
-			snd_soc_dapm_disable_pin(dapm, "Headset Jack");
+			snd_soc_dapm_disable_pin(dapm, "Headset Mic 2");
+		break;
+	case MMP3ASOC_SPK_FUNC:
+		if (mmp3asoc_spk_func == MMP3ASOC_CTRL_ON) {
+			snd_soc_dapm_enable_pin(dapm, "Ext Spk");
+		} else {
+			snd_soc_dapm_disable_pin(dapm, "Ext Spk");
+		}
+		break;
+	case MMP3ASOC_MAIN_MIC_FUNC:
+		if (mmp3asoc_main_mic_func == MMP3ASOC_CTRL_ON) {
+			snd_soc_dapm_enable_pin(dapm, "Ext Mic 1");
+			snd_soc_dapm_enable_pin(dapm, "Ext Mic 3");
+		} else {
+			snd_soc_dapm_disable_pin(dapm, "Ext Mic 1");
+			snd_soc_dapm_disable_pin(dapm, "Ext Mic 3");
+		}
 		break;
 	default:
 		pr_err("wrong func type\n");
@@ -217,31 +235,40 @@ static int mmp3asoc_set_main_mic(struct snd_kcontrol *kcontrol,
 }
 
 static const struct snd_soc_dapm_widget mmp3asoc_dapm_widgets[] = {
-	SND_SOC_DAPM_SPK("Ext Left Spk", NULL),
-	SND_SOC_DAPM_SPK("Ext Right Spk", NULL),
-	SND_SOC_DAPM_HP("Headset Stereophone", NULL),
+	SND_SOC_DAPM_HP("Headphone Stereophone", NULL),
+	SND_SOC_DAPM_LINE("Lineout Out 1", NULL),
+	SND_SOC_DAPM_LINE("Lineout Out 2", NULL),
+	SND_SOC_DAPM_SPK("Ext Speaker", NULL),
+	SND_SOC_DAPM_MIC("Ext Mic 1", NULL),
 	SND_SOC_DAPM_MIC("Headset Mic", NULL),
-	SND_SOC_DAPM_MIC("Main Mic", NULL),
+	SND_SOC_DAPM_MIC("Ext Mic 3", NULL),
 };
 
 static const struct snd_soc_dapm_route mmp3asoc_dapm_routes[] = {
-	{"Ext Left Spk", NULL, "SPKOUTLP"},
-	{"Ext Left Spk", NULL, "SPKOUTLN"},
+	{"Headset Stereophone", NULL, "HS1"},
+	{"Headset Stereophone", NULL, "HS2"},
 
-	{"Ext Right Spk", NULL, "SPKOUTRP"},
-	{"Ext Right Spk", NULL, "SPKOUTRN"},
+	{"Ext Speaker", NULL, "LSP"},
+	{"Ext Speaker", NULL, "LSN"},
 
-	{"Headset Stereophone", NULL, "HPOUT1L"},
-	{"Headset Stereophone", NULL, "HPOUT1R"},
+	{"Lineout Out 1", NULL, "LINEOUT1"},
+	{"Lineout Out 2", NULL, "LINEOUT2"},
 
-	{"IN1RN", NULL, "MICBIAS2"},
-	{"MICBIAS2", NULL, "Headset Mic"},
+	{"MIC1P", NULL, "Mic1 Bias"},
+	{"MIC1N", NULL, "Mic1 Bias"},
+	{"Mic1 Bias", NULL, "Ext Mic 1"},
 
-	{"IN1LP", NULL, "MICBIAS1"},
-	{"IN1LN", NULL, "MICBIAS1"},
-	{"MICBIAS1", NULL, "Main Mic"},
+	{"MIC2P", NULL, "Mic1 Bias"},
+	{"MIC2N", NULL, "Mic1 Bias"},
+	{"Mic1 Bias", NULL, "Headset Mic 2"},
+
+	{"MIC3P", NULL, "Mic3 Bias"},
+	{"MIC3N", NULL, "Mic3 Bias"},
+	{"Mic3 Bias", NULL, "Ext Mic 3"},
 };
 
+
+static const char *const jack_function[] = {"Headphone", "Mic", "Headset", "Off" };
 static const char *headphone_function[] = {"On", "Off"};
 static const char *hs_mic_function[] = {"On", "Off"};
 static const char *spk_function[] = {"On", "Off"};
@@ -254,8 +281,7 @@ static const struct soc_enum mmp3asoc_enum[] = {
 	SOC_ENUM_SINGLE_EXT(2, main_mic_function),
 };
 
-
-static const struct snd_kcontrol_new mmp3asoc_wm8994_controls[] = {
+static const struct snd_kcontrol_new mmp3asoc_elba_controls[] = {
 	SOC_ENUM_EXT("Headphone Function", mmp3asoc_enum[0],
 		     mmp3asoc_get_headphone, mmp3asoc_set_headphone),
 	SOC_ENUM_EXT("Headset Mic Function", mmp3asoc_enum[1],
@@ -295,8 +321,6 @@ static const struct snd_soc_dapm_route qseven_audio_map[] = {
 	{"MICIN", NULL, "Line Jack"},*/
 };
 
-static const char *jack_function[] = {"Headphone", "Mic", "Line", "Headset",
-	"Off"};
 static const struct soc_enum qseven_enum[] = {
 	SOC_ENUM_SINGLE_EXT(5, jack_function),
 };
@@ -377,6 +401,7 @@ static void audio_subsystem_poweron(void)
 	udelay(1000);
 }
 
+#if 0
 static void audio_subsystem_poweroff(void)
 {
 	/* enable isolation */
@@ -388,6 +413,7 @@ static void audio_subsystem_poweroff(void)
 	/* power off */
 	__raw_modify(APMU_AUDIO_CLK_RES_CTRL, 0x600, 0);
 }
+#endif
 
 static void audio_subsystem_pll_config(void)
 {
@@ -418,6 +444,7 @@ static void audio_subsystem_pll_config(void)
 
 }
 
+#if 0
 static int codec_wm8731_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
@@ -458,6 +485,90 @@ static int codec_wm8731_init(struct snd_soc_pcm_runtime *rtd)
 
 	return 0;
 }
+#endif
+
+static int codec_elba_init(struct snd_soc_pcm_runtime *rtd)
+{
+	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_dapm_context *dapm = &codec->dapm;
+	int err;
+
+	audio_subsystem_poweron();
+	/* currently the audio pll of mmp3 a0 stepping is not working */
+	audio_subsystem_pll_config();
+
+	/* Open elba speaker power for ThunderstoneM,
+	   recently, other platform need not */
+#if 0	   
+	if (machine_is_thunderstone()) {
+		v_5v = regulator_get(NULL, "V_5V");
+		if (IS_ERR(v_5v)) {
+			pr_err("%s fail to get regulator V_5V speaker\n",
+					__func__);
+			return -EINVAL;
+		}
+
+		regulator_enable(v_5v);
+	}
+#endif
+
+	/* Add mmp3asoc specific controls */
+	err = snd_soc_add_controls(codec, mmp3asoc_elba_controls,
+				   ARRAY_SIZE(mmp3asoc_elba_controls));
+	if (err < 0)
+		return err;
+
+	/* add mmp3asoc specific widgets */
+	snd_soc_dapm_new_controls(dapm, mmp3asoc_dapm_widgets,
+				  ARRAY_SIZE(mmp3asoc_dapm_widgets));
+
+	/* set up mmp3asoc specific audio routes */
+	snd_soc_dapm_add_routes(dapm, mmp3asoc_dapm_routes,
+				ARRAY_SIZE(mmp3asoc_dapm_routes));
+
+#if 0
+	snd_soc_dapm_enable_pin(dapm, "Ext Speaker");
+	snd_soc_dapm_enable_pin(dapm, "Ext Mic 1");
+	snd_soc_dapm_enable_pin(dapm, "Ext Mic 3");
+	snd_soc_dapm_disable_pin(dapm, "Headset Mic 2");
+	snd_soc_dapm_disable_pin(dapm, "Headset Stereophone");
+
+	/* set endpoints to not connected */
+	snd_soc_dapm_nc_pin(dapm, "AUX1");
+	snd_soc_dapm_nc_pin(dapm, "AUX2");
+	snd_soc_dapm_nc_pin(dapm, "MIC1P");
+	snd_soc_dapm_nc_pin(dapm, "MIC1N");
+	snd_soc_dapm_nc_pin(dapm, "MIC2P");
+	snd_soc_dapm_nc_pin(dapm, "MIC2N");
+	snd_soc_dapm_nc_pin(dapm, "MIC3P");
+	snd_soc_dapm_nc_pin(dapm, "MIC3N");
+
+	/* output widget */
+	snd_soc_dapm_nc_pin(dapm, "HS1");
+	snd_soc_dapm_nc_pin(dapm, "HS2");
+	snd_soc_dapm_nc_pin(dapm, "LINEOUT1");
+	snd_soc_dapm_nc_pin(dapm, "LINEOUT2");
+	snd_soc_dapm_nc_pin(dapm, "EARP");
+	snd_soc_dapm_nc_pin(dapm, "EARN");
+	snd_soc_dapm_nc_pin(dapm, "LSP");
+	snd_soc_dapm_nc_pin(dapm, "LSN");
+
+
+	mutex_lock(&codec->mutex);
+	mmp3asoc_headphone_func = MMP3ASOC_CTRL_OFF;
+	mmp3asoc_hs_mic_func = MMP3ASOC_CTRL_OFF;
+	mmp3asoc_spk_func = MMP3ASOC_CTRL_OFF;
+	mmp3asoc_main_mic_func = MMP3ASOC_CTRL_OFF;
+	mmp3asoc_ext_control(dapm, MMP3ASOC_HEADPHONE_FUNC);
+	mmp3asoc_ext_control(dapm, MMP3ASOC_HS_MIC_FUNC);
+	mmp3asoc_ext_control(dapm, MMP3ASOC_SPK_FUNC);
+	mmp3asoc_ext_control(dapm, MMP3ASOC_MAIN_MIC_FUNC);
+	snd_soc_dapm_sync(dapm);
+	mutex_unlock(&codec->mutex);
+#endif
+	return 0;
+}
+
 
 static int mmp3asoc_probe(struct snd_soc_card *card)
 {
@@ -546,6 +657,8 @@ static int mmp3asoc_hdmi_hw_params(struct snd_pcm_substream *substream,
 
 	return 0;
 }
+
+#if 0
 static int mmp3asoc_wm8731_startup(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -571,7 +684,6 @@ static int mmp3asoc_wm8731_startup(struct snd_pcm_substream *substream)
 
 	return 0;
 }
-
 static int mmp3asoc_wm8731_hw_params(struct snd_pcm_substream *substream,
 			      struct snd_pcm_hw_params *params)
 {
@@ -635,7 +747,6 @@ static int mmp3asoc_wm8731_hw_params(struct snd_pcm_substream *substream,
 	default:
 		break;
 	}
-
 	/* set the codec system clock for DAC and ADC */
 	snd_soc_dai_set_pll(cpu_dai, SSPA_AUDIO_PLL, 0, freq_in, freq_out);
 	snd_soc_dai_set_clkdiv(cpu_dai, 0, sspa_div);
@@ -645,6 +756,110 @@ static int mmp3asoc_wm8731_hw_params(struct snd_pcm_substream *substream,
 	snd_soc_dai_set_sysclk(codec_dai, WM8731_SYSCLK_XTAL, sysclk,
 				SND_SOC_CLOCK_IN);
 
+	return 0;
+}
+#endif
+
+static int mmp3asoc_elba_startup(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+
+	cpu_dai->driver->playback.formats = SNDRV_PCM_FMTBIT_S16_LE;
+	cpu_dai->driver->capture.formats = SNDRV_PCM_FMTBIT_S16_LE;
+	cpu_dai->driver->playback.rates = MMP3ASOC_SAMPLE_RATES;
+	cpu_dai->driver->capture.rates = MMP3ASOC_SAMPLE_RATES;
+
+	return 0;
+}
+
+static int mmp3asoc_elba_hw_params(struct snd_pcm_substream *substream,
+			      struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	int freq_in, freq_out, sspa_mclk, sysclk, sspa_div;
+
+	printk("%s: enter, rate %d\n", __func__, params_rate(params));
+
+	freq_in = 26000000;
+	if (params_rate(params) > 11025) {
+		freq_out = params_rate(params) * 512;
+		sysclk = params_rate(params) * 256;
+		sspa_mclk = params_rate(params) * 64;
+	} else {
+		freq_out = params_rate(params) * 1024;
+		sysclk = params_rate(params) * 512;
+		sspa_mclk = params_rate(params) * 64;
+	}
+	sspa_div = freq_out;
+	do_div(sspa_div, sspa_mclk);
+
+#ifdef CONFIG_SND_ELBA_MASTER_MODE
+	snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_I2S |
+			    SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBM_CFM);
+	snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_I2S |
+			    SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBM_CFM);
+#else
+	snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_I2S |
+			    SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBS_CFS);
+	snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_I2S |
+			    SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBS_CFS);
+#endif
+
+	/* workaround for audio PLL, and should be removed after A1 */
+	/* SSPA2 clock formula: sysclk = (PLL1/4) * ISCCR1 Nom/Denom4
+	 * for 48k, the sysclk should be 12.2880MHz, but here we only get
+	 * approximate 12.458MHz */
+	switch (params_rate(params)) {
+	case 48000:
+		__raw_writel(0xd0040040, MPMU_ISCCRX1);
+		break;
+	case 44100:
+		__raw_writel(0xd0040044, MPMU_ISCCRX1);
+		break;
+	case 32000:
+		__raw_writel(0xd00800c0, MPMU_ISCCRX1);
+		break;
+	case 24000:
+		__raw_writel(0xd0020040, MPMU_ISCCRX1);
+		break;
+	case 22050:
+		__raw_writel(0xd0020044, MPMU_ISCCRX1);
+		break;
+	case 16000:
+		__raw_writel(0xd00400c0, MPMU_ISCCRX1);
+		break;
+	case 8000:
+		__raw_writel(0xd00400c0, MPMU_ISCCRX1);
+		break;
+	default:
+		break;
+	}
+
+	/* SSPA clock ctrl register changes, and can't use previous API */
+	snd_soc_dai_set_pll(cpu_dai, SSPA_AUDIO_PLL, 0, freq_in, freq_out);
+	snd_soc_dai_set_clkdiv(cpu_dai, 0, sspa_div);
+	snd_soc_dai_set_sysclk(cpu_dai, 0, sysclk, 0);
+
+/*
+#ifdef CONFIG_SND_ELBA_MASTER_MODE
+        snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_I2S |
+                            SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBM_CFM);
+        snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_I2S |
+                            SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBM_CFM);
+#else
+        snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_I2S |
+                            SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBS_CFM);
+        snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_I2S |
+                            SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBS_CFS);
+#endif
+*/
+
+	/* set elba sysclk */
+	//snd_soc_dai_set_sysclk(codec_dai, 0, 0, PM805_CODEC_CLK_DIR_OUT);
+	//printk("exit %s\n", __func__);
 	return 0;
 }
 
@@ -670,22 +885,22 @@ static struct snd_soc_ops mmp3asoc_machine_ops[] = {
 	 .hw_params = mmp3asoc_hdmi_hw_params,
 	 },
 	{
-	 .startup = mmp3asoc_wm8731_startup,
-	 .hw_params = mmp3asoc_wm8731_hw_params,
+	 .startup = mmp3asoc_elba_startup,
+	 .hw_params = mmp3asoc_elba_hw_params,
 	 },
 };
 
 /* digital audio interface glue - connects codec <--> CPU */
-static struct snd_soc_dai_link mmp3_asoc_wm8731_dai[] = {
+static struct snd_soc_dai_link mmp3_asoc_elba_dai[] = {
 	{
-	 .name = "WM8731",
-	 .stream_name = "WM8731",
-	 .codec_name = "wm8731.2-001a",
+	 .name = "M_CE156",
+	 .stream_name = "Audio CE156",
+	 .codec_name = "ce156.2-0030",
 	 .platform_name = "mmp3-pcm-audio",
 	 .cpu_dai_name = "mmp3-sspa-dai.0",
-	 .codec_dai_name = "wm8731-hifi",
+	 .codec_dai_name = "CE156",
 	 .ops = &mmp3asoc_machine_ops[1],
-	 .init = codec_wm8731_init,
+	 .init = codec_elba_init,
 	 },
 };
 
@@ -706,7 +921,7 @@ static struct snd_soc_dai_link mmp3_asoc_hdmi_dai[] = {
 static struct snd_soc_card snd_soc_mmp3asoc[] = {
 	{
 	 .name = "mmp3 asoc",
-	 .dai_link = &mmp3_asoc_wm8731_dai[0],
+	 .dai_link = &mmp3_asoc_elba_dai[0],
 	 .num_links = 1,
 	 .probe = mmp3asoc_probe,
 #ifdef CONFIG_PM
@@ -722,13 +937,36 @@ static struct snd_soc_card snd_soc_mmp3asoc[] = {
 	 },
 };
 
+#if 0
+static struct i2c_board_info i2c_board_info[] = {
+        {
+                I2C_BOARD_INFO("ce156", 0x30),
+        },
+};
+#endif
+
+
+
 static int __init mmp3asoc_init(void)
 {
 	int i, ret[2];
 
+#if 0	
+	struct i2c_adapter *adapter;
+	struct i2c_client *client;
+	
 	if (!machine_is_qseven())
 		return -ENODEV;
+	
+	adapter = i2c_get_adapter(3);
+        if (!adapter)
+                return -ENODEV;
+        client = i2c_new_device(adapter, i2c_board_info);
+        i2c_put_adapter(adapter);
 
+        if (!client)
+                return -ENODEV;
+#endif
 	for (i = 0; i < 2; i++) {
 		mmp3asoc_snd_device[i] = platform_device_alloc("soc-audio", i);
 		if (!mmp3asoc_snd_device[i])
@@ -739,6 +977,9 @@ static int __init mmp3asoc_init(void)
 		if (ret[i])
 			platform_device_put(mmp3asoc_snd_device[i]);
 	}
+ 	printk(KERN_INFO "CE156: register i2c device successfully\n");               
+
+
 
 	return ret[1];
 }
