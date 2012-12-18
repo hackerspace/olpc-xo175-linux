@@ -923,9 +923,9 @@ int pxa688_lvds_init(struct pxa168fb_info *fbi)
 		| LVDS_SELLV_TXDATA_MASK | LVDS_SELLV_TXCLK_MASK | LVDS_TX_DIF_CM_MASK
 		| LVDS_TX_DIF_AMP_MASK | LVDS_TX_TERM_EN | LVDS_TX_CMFB_EN;
 	val = (0x1 << LVDS_SELLV_OP9_SHIFT) | (0x1 << LVDS_SELLV_OP7_SHIFT)
-		| (0x1 << LVDS_SELLV_OP6_SHIFT) | (0xa << LVDS_SELLV_TXDATA_SHIFT)
-		| (0xa << LVDS_SELLV_TXCLK_SHIFT) | (0x3 << LVDS_TX_DIF_CM_SHIFT)
-		| (0x8 << LVDS_TX_DIF_AMP_SHIFT) | LVDS_TX_CMFB_EN;
+		| (0x1 << LVDS_SELLV_OP6_SHIFT) | (0x5 << LVDS_SELLV_TXDATA_SHIFT)
+		| (0x5 << LVDS_SELLV_TXCLK_SHIFT) | (0x3 << LVDS_TX_DIF_CM_SHIFT)
+		| (0x8 << LVDS_TX_DIF_AMP_SHIFT) | LVDS_TX_TERM_EN;
 	lvds_set(2, mask, val);
 
 	/* Flip all the N\P pins in order to get correct display,
