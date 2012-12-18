@@ -20,6 +20,7 @@
 #include <mach/regs-sspa.h>
 
 #define VCXO 26000000
+#define CRSTL 25000000
 
 static u32 pd[9] = {2, 3, 4, 5, 6, 8, 10, 12, 16};
 static char *ddr_inter[] = {"4k", "16k", "64k", "256k", "1024k", "512m",
@@ -82,20 +83,17 @@ static struct audio_pll_output {
 
 static u32 pll_clk_calculate(u32 refdiv, u32 fbdiv, u32 postdiv)
 {
-	u32 input_clk;
+	u32 input_clk, tmp;
 	u32 output_clk;
 	u32 M, N;
 
-	switch (refdiv) {
-	case 3:
-		M = 3;
+	tmp = (__raw_readl(APMU_FSIC3_CLK_RES_CTRL) >> 8) & 0xF;
+	if (tmp == 0xD)
 		input_clk = VCXO;
-		break;
-	default:
-		pr_debug("The PLL REFDIV should be 0x03\n");
-		return 0;
-	}
+	else
+		input_clk = CRSTL;
 
+	M = refdiv;
 	N = fbdiv;
 
 	/* multiplied by 2 since pd is multiplied by 2 */
