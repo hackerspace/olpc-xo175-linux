@@ -2586,6 +2586,7 @@ static struct clk mmp3_clk_vmeta = {
 	},
 	.clk_rst = (void __iomem *)APMU_VMETA_CLK_RES_CTRL,
 	.ops = &vmeta_clk_ops,
+	.dynamic_change = 1,
 };
 #endif
 
