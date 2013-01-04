@@ -425,44 +425,48 @@ static inline u32 mmp3_fccs_speed(int idx)
 	return mmp3_fccs[idx].frequency;
 }
 
-#define MMP3_TEST_PP 0
+#define MMP3_TEST_PP 1
 #define MMP3_PP_TABLE_DIFF_BYIDX 0
 
 static struct mmp3_freq_plan mmp3_pps[] = {
 	/* DDR will be fixed upon platform init according to DDR module */
 #if MMP3_TEST_PP
 	{
-		.core = {{MMP3_FREQ_OP_GET, 4, 0, 0, 0, 0, 0, 0, 0},},
+		.core = {{MMP3_FREQ_OP_GET, 4, 0, 0, 0, 0, 0, 1, 1},},
 		.axi  = {{MMP3_FREQ_OP_GET, 0, 7, 7},},	/* 50/50 */
 	},
 	{
-		.core = {{MMP3_FREQ_OP_GET, 0, 7, 0, 0, 0, 0, 7, 7},},
-		.axi  = {{MMP3_FREQ_OP_GET, 0, 5, 5},},	/* 66/66 */
+		.core = {{MMP3_FREQ_OP_GET, 0, 7, 0, 0, 0, 0, 1, 2},},/*50*/
+		.axi  = {{MMP3_FREQ_OP_GET, 0, 3, 3},},	/* 100/100 */
 	},
 #endif
 	{
-		.core = {{MMP3_FREQ_OP_GET, 0, 3, 0, 0, 0, 0, 3, 3},},
+		.core = {{MMP3_FREQ_OP_GET, 0, 3, 0, 0, 0, 0, 3, 3},},/*100*/
 		.axi  = {{MMP3_FREQ_OP_GET, 0, 3, 3},},	/* 100/100 */
 	},
 	{
-		.core = {{MMP3_FREQ_OP_GET, 0, 1, 0, 0, 0, 0, 1, 1},},
+		.core = {{MMP3_FREQ_OP_GET, 0, 1, 0, 0, 0, 0, 1, 1},},/*200*/
 		.axi  = {{MMP3_FREQ_OP_GET, 0, 1, 3},},	/* 200/100 */
 	},
 	{
-		.core = {{MMP3_FREQ_OP_GET, 1, 1, 0, 0, 0, 0, 1, 1},},
-		.axi  = {{MMP3_FREQ_OP_GET, 1, 2, 3},},	/* 266/200 */
-	},
-	{
-		.core = {{MMP3_FREQ_OP_GET, 1, 0, 0, 0, 1, 1, 1, 1},},
-		.axi  = {{MMP3_FREQ_OP_GET, 3, 2, 4},},	/* 354/213 */
-	},
-	{
-		.core = {{MMP3_FREQ_OP_GET, 3, 0, 0, 0, 1, 1, 2, 2},},
+		.core = {{MMP3_FREQ_OP_GET, 1, 1, 0, 0, 0, 0, 1, 1},},/*400*/
 		.axi  = {{MMP3_FREQ_OP_GET, 1, 1, 3},},	/* 400/200 */
 	},
-#if MMP3_TEST_PP
 	{
-		.core = {{MMP3_FREQ_OP_GET, 2, 0, 0, 0, 1, 1, 2, 2},},
+		.core = {{MMP3_FREQ_OP_GET, 3, 1, 0, 0, 1, 0, 2, 2},},/*531*/
+		.axi  = {{MMP3_FREQ_OP_GET, 1, 1, 3},},	/* 400/200 */
+	},
+	{
+		.core = {{MMP3_FREQ_OP_GET, 1, 0, 0, 0, 1, 1, 1, 1},},/*800*/
+		.axi  = {{MMP3_FREQ_OP_GET, 1, 1, 3},},	/* 400/200 */
+	},
+	{
+		.core = {{MMP3_FREQ_OP_GET, 3, 0, 0, 0, 1, 1, 2, 2},},/*1066*/
+		.axi  = {{MMP3_FREQ_OP_GET, 1, 1, 3},},	/* 400/200 */
+	},
+#if MMP3_TEST_PP_2GHZ
+	{
+		.core = {{MMP3_FREQ_OP_GET, 2, 0, 0, 0, 1, 1, 2, 2},},/*1200*/
 		.axi  = {{MMP3_FREQ_OP_GET, 1, 1, 3},},	/* 400/200 */
 	},
 #endif

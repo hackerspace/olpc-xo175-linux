@@ -121,12 +121,17 @@ out:
 }
 
 static unsigned int axi_freq[] = {
-	100000,		/* core 100Mhz, axi 100Mhz */
-	200000,		/* core 200Mhz, axi 200Mhz */
-	266000,		/* core 400Mhz, axi 266Mhz */
-	266000,		/* core 800Mhz, axi 266Mhz */
-	266000,		/* core 1Ghz,   axi 266Mhz */
-	266000,		/* core 1.2Ghz, axi 266Mhz */
+	50000,		/* core 26 or 25Mhz, axi 50/50Mhz */
+	100000,		/* core 50Mhz,  axi 100/100Mhz */
+	100000,		/* core 100Mhz, axi 100/100Mhz */
+	200000,		/* core 200Mhz, axi 200/100Mhz */
+	400000,		/* core 400Mhz, axi 400/200Mhz */
+	400000,		/* core 531Mhz,   axi 400/200Mhz */
+	400000,		/* core 800Mhz, axi 400/200Mhz */
+	400000,		/* core 1Ghz,   axi 400/200Mhz */
+#if	defined(MMP3_TEST_PP_2GHZ)
+	400000,		/* core 1.2Ghz, axi 400/200Mhz */
+#endif
 };
 
 static int freq_notify_and_change(unsigned int cpu_idx, unsigned int pp_index)
