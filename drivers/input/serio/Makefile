@@ -25,3 +25,5 @@ obj-$(CONFIG_SERIO_RAW)		+= serio_raw.o
 obj-$(CONFIG_SERIO_AMS_DELTA)	+= ams_delta_serio.o
 obj-$(CONFIG_SERIO_XILINX_XPS_PS2)	+= xilinx_ps2.o
 obj-$(CONFIG_SERIO_ALTERA_PS2)	+= altera_ps2.o
+obj-$(CONFIG_SERIO_ENEEC_KB3930_I2C)    += eneec.o
+obj-$(CONFIG_SERIO_ENEEC_KB3930_SPI)    += eneec_spi.o

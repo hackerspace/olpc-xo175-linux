@@ -522,7 +522,9 @@
 #define HSI_CAFLAG              MFP_CFG(GPIO121, AF2)
 #define HSI_CADATA              MFP_CFG(GPIO122, AF2)
 
+#if 0
 /*ULPI for QSEVEN rev 1 board*/
+
 #define ULPI_DATA_0_GPIO_66	MFP_CFG(GPIO66, AF2)
 #define ULPI_DATA_1_GPIO_65	MFP_CFG(GPIO65, AF2)
 #define ULPI_DATA_2_GPIO_64	MFP_CFG(GPIO64, AF2)
@@ -542,9 +544,12 @@
 
 /* AP CP - Orchid */
 #define AP_RESET_OUT_N		MFP_CFG(GPIO154, AF1) | MFP_PULL_LOW
+#endif
 
 /* smart bat - Orchid */
 #define SMART_BAT		MFP_CFG(GPIO123, AF2) | MFP_PULL_HIGH
 
+/* Ariel ENE EC */
+#define ENE_KB_INT_GPIO_60	MFP_CFG(GPIO60, AF0)
 #endif /* __ASM_MACH_MFP_MMP2_H */
 
