@@ -1034,7 +1034,6 @@ int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
 	if (on) {
 		cancel_delayed_work_sync(&vi->unset_op_work);
 		if (vop < VMETA_OP_MIN || vop > VMETA_OP_MAX) {
-			printk(KERN_DEBUG "unsupport vmeta vop=%d\n", vi->vop);
 			vop = VMETA_OP_1080P_MAX;
 		}
 		if (vop == vi->vop_real)
