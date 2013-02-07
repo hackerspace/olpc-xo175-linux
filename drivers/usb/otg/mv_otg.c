@@ -967,13 +967,13 @@ err_pdata:
 static int mv_otg_suspend(struct platform_device *dev, pm_message_t state)
 {
 	struct mv_otg *mvotg = platform_get_drvdata(dev);
-
+/* dont check otg status. 
 	if (mvotg->otg.state != OTG_STATE_B_IDLE) {
 		dev_info(&dev->dev, "OTG state is not B_IDLE, it is %d!\n",
 			mvotg->otg.state);
 		return -EAGAIN;
 	}
-
+*/
 	if (!mvotg->clock_gating)
 		mv_otg_disable_internal(mvotg);
 
