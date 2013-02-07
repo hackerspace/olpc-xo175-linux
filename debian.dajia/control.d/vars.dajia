@@ -1,0 +1,8 @@
+arch="armel armhf"
+supported="MARVELL PXA2128"
+desc="MARVELL PXA2128-based systems"
+target="Targeted towards Dajia project"
+bootloader="flash-kernel"
+provides=""
+section_image="universe/base"
+do_debug="Yes"

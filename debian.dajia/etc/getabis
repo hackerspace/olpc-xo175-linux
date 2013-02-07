@@ -1,0 +1,7 @@
+repo_list=(
+	"http://ports.ubuntu.com/ubuntu-ports/pool/main/l/linux"
+	"http://ports.ubuntu.com/ubuntu-ports/pool/universe/l/linux"
+)
+
+getall armel dajia
+getall armhf dajia
