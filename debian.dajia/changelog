@@ -1,4 +1,16 @@
+linux-dajia (3.0.31-0.1) precise; urgency=low
+
+  [ Jesse Sung ]
+
+  * bump kernel version
+  * make CONFIG_DRM and CONFIG_DRM_VIVANTE built-in
+  * enable CONFIG_HID_A4TECH and CONFIG_HID_LOGITECH as module
+  * make CONFIG_HID_NTRIG as a module instead
+
+ -- Jesse Sung <jesse.sung@canonical.com>  Fri, 08 Feb 2013 15:06:52 +0800
+
 linux-dajia (3.0.1-0.1) precise; urgency=low
+
   [ Jesse Sung ]
 
   * Initial import
