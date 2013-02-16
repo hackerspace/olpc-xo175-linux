@@ -1471,6 +1471,15 @@ static int lcd_pn1_clk_enable(struct clk *clk)
 		val |= 1 << 8;
 
 		__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
+	} else if (clk->parent == &mmp3_clk_pll2) {
+		/* select PLL2 as clock source and disable unused clocks */
+		val &= ~((3 << 6) | (1 << 12) | (1 << 5) | (1 << 2));
+		/* divider select 1 */
+		val &= ~(3 << 8);
+		val |= 1 << 8;
+		val |= 2 << 6;
+
+		__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
 	} else {
 		pr_err("%s clk->parent not inited\n", __func__);
 		return -EAGAIN;
@@ -1481,7 +1490,7 @@ static int lcd_pn1_clk_enable(struct clk *clk)
 	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
 
 	pr_info("%s PMUA_DISPLAY1 = 0x%x, clk from %s", __func__, val,
-		(clk->parent == &mmp3_clk_vctcxo) ?  "pll3" : "pll1");
+		(clk->parent == &mmp3_clk_pll2) ?  "pll2" : "pll1");
 
 	return 0;
 }
@@ -1499,9 +1508,8 @@ static void lcd_pn1_clk_disable(struct clk *clk)
 		__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
 
 	}
-
 	pr_info("%s PMUA_DISPLAY1 = 0x%x, clk from %s", __func__, val,
-		(clk->parent == &mmp3_clk_vctcxo) ?  "pll3" : "pll1");
+		(clk->parent == &mmp3_clk_pll2) ?  "pll2" : "pll1");
 }
 
 static long lcd_clk_round_rate(struct clk *clk, unsigned long rate)
@@ -1509,6 +1517,9 @@ static long lcd_clk_round_rate(struct clk *clk, unsigned long rate)
 	switch (rate) {
 	case 800000000:
 		clk_reparent(clk, &mmp3_clk_pll1);
+		break;
+	case 1200000000:
+		clk_reparent(clk, &mmp3_clk_pll2);
 		break;
 	default:
 		clk_reparent(clk, &mmp3_clk_vctcxo);
@@ -1529,6 +1540,8 @@ static int lcd_clk_setrate(struct clk *clk, unsigned long rate)
 
 	switch (rate) {
 	case 800000000:
+		break;
+	case 1200000000:
 		break;
 	default:
 		/* lcd clock source is fixed as DSI PLL(PLL3), so set pll3 clk rate */

@@ -132,8 +132,10 @@ void __init mmp3_reserve(void)
 	 */
 	BUG_ON(memblock_reserve(PLAT_PHYS_OFFSET, 0x1000));
 
+#ifdef CONFIG_ANDROID_PMEM
 	/*reserve memory for pmem*/
 	pxa_reserve_pmem_memblock();
+#endif
 #ifdef CONFIG_SMP
 	c2_reserve_pa = memblock_alloc(C2_RESERVE_SIZE, PAGE_SIZE);
 	if (!c2_reserve_pa) {

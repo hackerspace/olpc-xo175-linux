@@ -38,15 +38,66 @@ static int is_qhd_lcd(void)
 static struct fb_videomode video_modes_abilene[] = {
 	[0] = {
 		/* panel refresh rate should <= 55(Hz) */
-		.refresh = 55,
-		.xres = 1280,
-		.yres = 800,
-		.hsync_len = 2,
-		.left_margin = 64,
+		/* used for Wyse configuration same as Ariel 1 */
+
+		/* support resolution changes via IOCTL FBIOPUT_VSCREENINFO */
+		/* pixclock = 1000000000000 /
+		 * ((xres+left_margin+right_margin+hsync_len)*(yres+upper_margin+lower_margin+vsync_len)*refresh)
+		 */
+#if 0  //for 1024x768 79.5MHz.
+		.pixclock = 7220,
+		.refresh = 60,
+		.xres = 1920,
+		.yres = 1080,
+		.hsync_len = 32,
+		.left_margin = 80,
+		.right_margin = 48,
+		.vsync_len = 5,
+		.upper_margin = 23,
+		.lower_margin = 3,
+#endif
+#if 1  //for 1024x768 79.5MHz.
+		.pixclock = 11695,
+		.refresh = 60,
+		.xres = 1360,
+		.yres = 768,
+		.hsync_len = 112,
+		.left_margin = 256,
 		.right_margin = 64,
-		.vsync_len = 2,
-		.upper_margin = 8,
-		.lower_margin = 8,
+		.vsync_len = 6,
+		.upper_margin = 18,
+		.lower_margin = 3,
+#endif
+#if 0 //for 1280X1024 108MHz.
+                .xres = 1280,
+                .yres = 1024,
+                .hsync_len = 112,
+                .left_margin = 48,
+                .right_margin = 248,
+                .vsync_len = 3,
+                .upper_margin = 1,
+                .lower_margin = 38,
+#endif
+#if 0 //for 1600x1200 162MHz.
+                .xres = 1600,
+                .yres = 1200,
+                .hsync_len = 192,
+                .left_margin = 64,
+                .right_margin = 304,
+                .vsync_len = 3,
+                .upper_margin = 1,
+                .lower_margin = 46,
+#endif
+#if 0 //for 1920x1080 148.5MHz.
+                .xres = 1920,
+                .yres = 1080,
+                .hsync_len = 44,
+                .left_margin = 88,
+                .right_margin = 148,
+                .vsync_len = 5,
+                .upper_margin = 4,
+                .lower_margin = 36,
+#endif
 		.sync = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
 		},
 };
@@ -73,6 +124,10 @@ static struct fb_videomode video_modes_yellowstone[] = {
 #ifdef CONFIG_MACH_THUNDERSTONEM
 static struct fb_videomode video_modes_thunderstonem[] = {
 	[0] = {
+		/* pixclock = 1000000000000 /
+		 * ((xres+left_margin+right_margin+hsync_len)*(yres+upper_margin+lower_margin+vsync_len)*refresh)
+		 */
+		.pixclock = 16241,
 		.refresh = 60,
 		.xres = 1024,
 		.yres = 768,
@@ -108,6 +163,10 @@ static struct fb_videomode video_modes_orchid[] = {
 #ifdef CONFIG_MACH_MK2
 static struct fb_videomode video_modes_mk2[] = {
 	[0] = {
+		/* pixclock = 1000000000000 /
+		 * ((xres+left_margin+right_margin+hsync_len)*(yres+upper_margin+lower_margin+vsync_len)*refresh)
+		 */
+		.pixclock = 14833,
 		.refresh = 60,
 		.xres = 1024,
 		.yres = 768,
@@ -1142,8 +1201,10 @@ static struct pxa168fb_mach_info mipi_lcd_info = {
 	.id = "GFX Layer",
 	.num_modes = 0,
 	.modes = NULL,
-	.sclk_div = 0xE0001108,
-	.pix_fmt = PIX_FMT_RGB565,
+	.sclk_div = 0xE0001108,\
+//	.pix_fmt = PIX_FMT_RGB565,
+	.pix_fmt = PIX_FMT_RGBA888,
+	.dumb_mode = DUMB_MODE_RGB888,
 	.isr_clear_mask	= LCD_ISR_CLEAR_MASK_PXA168,
 	/* don't care about io_pin_allocation_mode and dumb_mode
 	 * since the panel is hard connected with lcd panel path and
@@ -1162,7 +1223,7 @@ static struct pxa168fb_mach_info mipi_lcd_info = {
 	.mmap = 1,
 	.vdma_enable = 1,
 	.sram_size  = 30 * 1024,
-	.max_fb_size = 0,
+	.max_fb_size = 1920 * 1200 * 8 + 4096,
 	.phy_type = DSI2DPI,
 	.phy_init = dsi_init,
 #ifdef CONFIG_TC35876X
@@ -1257,7 +1318,7 @@ static void calculate_dsi_clk(struct pxa168fb_mach_info *mi)
 static void calculate_lvds_clk(struct pxa168fb_mach_info *mi)
 {
 	struct fb_videomode *modes = &mi->modes[0];
-	u32 total_w, total_h, pclk, div, use_pll1;
+	u32 total_w, total_h, pclk, div, use_pll1, calc_clk, calc_clk1, calc_div;
 
 	total_w = modes->xres + modes->left_margin +
 		modes->right_margin + modes->hsync_len;
@@ -1269,23 +1330,48 @@ static void calculate_lvds_clk(struct pxa168fb_mach_info *mi)
 	/* use pll1 by default
 	 * we could set a more flexible clocking options by selecting pll3 */
 	use_pll1 = 1;
+	calc_div = 800000000 / pclk;
+	calc_clk = 800000000 / calc_div;
+	pr_info("dipen patel calc_div %u calc_clk %u and pclk was %u\n", calc_div, calc_clk, pclk);
+	if (pclk < (calc_clk - 10000000) ) {
+		use_pll1 = 0;	
+		pr_info("Using pll2 for LCD Controller........\n"); 
+	}
+	else {
+		use_pll1 = 1;
+		pr_info("Using pll1 for LCD Controller.........\n"); 
+	}
+
 	if (use_pll1) {
 		/* src clock is 800MHz */
 		div = 800000000 / pclk;
-		if (div * pclk < 800000000)
+		calc_clk = 800000000 / div;
+		calc_clk1 = 800000000 / (div + 1);
+
+		if ((calc_clk - pclk) < (calc_clk1 - pclk))
+			pr_info("calculated clock final %u\n", calc_clk);
+		else {
+			pr_info("calculated clock final %u\n", calc_clk1);
 			div++;
+		}
 		mi->sclk_src = 800000000;
 		mi->sclk_div = 0x20000000 | div;
 	} else {
-		div = 150000000 / pclk;
-		if (div * pclk < 150000000)
+		div = 1200000000 / pclk;
+		calc_clk = 1200000000 / div;
+		calc_clk1 = 1200000000 / (div + 1);
+		if ((calc_clk - pclk) < (calc_clk1 - pclk))
+			pr_info("calculated clock final %u\n", calc_clk);
+		else {
+			pr_info("calculated clock final %u\n", calc_clk1);
 			div++;
-		mi->sclk_src = pclk * div;
-		mi->sclk_div = 0xe0000000 | div;
+		}
+		mi->sclk_src = 1200000000;
+		mi->sclk_div = 0x20000000 | div;
 	}
 
-	pr_debug("\n%s sclk_src %d sclk_div 0x%x\n", __func__,
-			mi->sclk_src, mi->sclk_div);
+	pr_info("\n%s sclk_src %d sclk_div 0x%x\n", __func__,
+ 			mi->sclk_src, mi->sclk_div);
 }
 
 static void calculate_lcd_sclk(struct pxa168fb_mach_info *mi)
@@ -1333,8 +1419,11 @@ void __init abilene_add_lcd_mipi(void)
 
 	fb->num_modes = ARRAY_SIZE(video_modes_abilene);
 	fb->modes = video_modes_abilene;
+	fb->max_fb_size = 4000 * 1100 * 8 + 4096,
+/*
 	fb->max_fb_size = video_modes_abilene[0].xres *
 		video_modes_abilene[0].yres * 8 + 4096;
+*/
 	ovly->num_modes = fb->num_modes;
 	ovly->modes = fb->modes;
 	ovly->max_fb_size = fb->max_fb_size;
