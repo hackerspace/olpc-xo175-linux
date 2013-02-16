@@ -112,11 +112,11 @@ static void unset_power_constraint(struct hdmi_instance *hi)
 	pm_qos_update_request(&hi->qos_cpufreq_min, PM_QOS_DEFAULT_VALUE);
 	pm_qos_update_request(&hi->qos_cpufreq_disable, PM_QOS_DEFAULT_VALUE);
 #endif
-
+//dipen patel commented out
 #ifdef CONFIG_CPU_MMP3
-	pm_qos_update_request(&hi->qos_cpufreq_min, PM_QOS_DEFAULT_VALUE);
+//	pm_qos_update_request(&hi->qos_cpufreq_min, PM_QOS_DEFAULT_VALUE);
 #ifdef CONFIG_DDR_DEVFREQ
-	pm_qos_update_request(&hi->qos_ddrfreq_min, PM_QOS_DEFAULT_VALUE);
+//	pm_qos_update_request(&hi->qos_ddrfreq_min, PM_QOS_DEFAULT_VALUE);
 #endif
 #endif
 
