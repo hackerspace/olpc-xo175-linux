@@ -487,67 +487,98 @@ static void calculate_dsi_clk(struct pxa168fb_info *fbi)
 	fbi->sclk_div = 0xe0000000 |  DSI1_BITCLK(bitclk_div) | CLK_INT_DIV(pclk_div);
 }
 
-static void calculate_lvds_clk(struct pxa168fb_info *fbi)
-{
-	struct fb_var_screeninfo *var = &fbi->fb_info->var;
-	u32 pclk, div, calc_div, calc_clk, calc_clk1;
-	int use_pll1;
-	u64 div_result;
+static void calculate_lvds_clk(struct pxa168fb_info *fbi) {
+        struct fb_var_screeninfo *var = &fbi->fb_info->var;
+        u32 pclk, div, calc_div, calc_clk, calc_clk1, calc_clk_pll1;
+        u32 calc_clk_pll2;
+        int use_pll1, p1, p2, p3, p4, p5, p6, d1, d2;
+        u64 div_result;
 
-	if (!var->pixclock) {
-		pr_err("Input refresh or pixclock is wrong.\n");
-		return;
-	}
+        if (!var->pixclock) {
+                pr_err("Input refresh or pixclock is wrong.\n");
+                return;
+        }
 
-	div_result = 1000000000000ll;
-	do_div(div_result, var->pixclock);
-	pclk = (u32)div_result;
+        div_result = 1000000000000ll;
+        do_div(div_result, var->pixclock);
+        pclk = (u32)div_result;
 
-	calc_div = 800000000 / pclk;
-	calc_clk = 800000000 / calc_div;
-	pr_info("dipen patel calc_div %u calc_clk %u and pclk was %u\n", calc_div, calc_clk, pclk);
+        calc_div = 800000000 / pclk;
+        calc_clk = 800000000 / calc_div;
+        calc_clk1 = 800000000 / (calc_div + 1);
+        p1 = (int)(calc_clk - pclk);
+        p2 = (int)(calc_clk1 - pclk);
+        if (p1 < 0)
+                p1 = (int)(pclk- calc_clk);
+        if (p2 < 0)
+                p2 = (int)(pclk- calc_clk1);    
+        
+        if (p1 < p2)
+                d1 = calc_div;
+        else
+                d1 = (calc_div + 1);
 
-	if (pclk < (calc_clk - 10000000) ) {
-		use_pll1 = 0;	
-		pr_info("Using pll2 for LCD Controller\n");
-	}
-	else {
-		use_pll1 = 1;
-		pr_info("Using pll1 for LCD Controller\n"); 
-	}
+        calc_clk_pll1 = 800000000 / d1;
 
-	if (use_pll1) {
-		pr_info("dipen patel Using pll1 for LCD Controller.........\n");
-		/* src clock is 800MHz */
-		div = 800000000 / pclk;
-		calc_clk = 800000000 / div;
-		calc_clk1 = 800000000 / (div + 1);
-		if ((calc_clk - pclk) < (calc_clk1 - pclk))
-			pr_info("calculated clock final %u\n", calc_clk);
-		else {
-			pr_info("calculated clock final %u\n", calc_clk1);
-			div++;
-		}
-		fbi->sclk_src = 800000000;
-		fbi->sclk_div = 0x20000000 | div;
-	} else {
-		pr_info("dipen patel Using pll2 for LCD Controller.........\n");
-		div = 1200000000 / pclk;
-		calc_clk = 1200000000 / div;
-		calc_clk1 = 1200000000 / (div + 1);
-		if ((calc_clk - pclk) < (calc_clk1 - pclk))
-			pr_info("calculated clock final %u\n", calc_clk);
-		else {
-			pr_info("calculated clock final %u\n", calc_clk1);
-			div++;
-		}
+        calc_div = 1200000000 / pclk;
+        calc_clk = 1200000000 / calc_div;
+        calc_clk1 = 1200000000 / (calc_div + 1);
+        p3 = (int)(calc_clk - pclk);
+        p4 = (int)(calc_clk1 - pclk);
+        if (p3 < 0)
+                p3 = (int)(pclk- calc_clk);
+        if (p4 < 0)
+                p4 = (int)(pclk- calc_clk1);    
+        
+        if (p3 < p4)
+                d2 = calc_div;
+        else
+                d2 = (calc_div + 1);
 
-		fbi->sclk_src = 1200000000;
-		fbi->sclk_div = 0x20000000 | div;
-	}
+        calc_clk_pll2 = 1200000000 / d2;
+        pr_info("Calculated clock from pll1: %u and pll2: %u for pclk: %u\n", calc_clk_pll1, calc_clk_pll2, pclk);
 
-	pr_info("\n%s sclk_src %d sclk_div 0x%x\n", __func__,
-	fbi->sclk_src, fbi->sclk_div);
+        p5 = (int)(calc_clk_pll1 - pclk);
+        p6 = (int)(calc_clk_pll2 - pclk);
+        if (p5 < 0)
+                p5 = (int)(pclk- calc_clk_pll1);
+        if (p6 < 0)
+                p6 = (int)(pclk- calc_clk_pll2);        
+
+        if (p6 < p5) {
+                use_pll1 = 0;   
+                pr_info("Using pll2 for LCD Controller\n");
+        }
+        else {
+                use_pll1 = 1;
+                pr_info("Using pll1 for LCD Controller\n"); 
+        }
+
+        if (use_pll1) {
+                /* src clock is 800MHz */
+                fbi->sclk_src = 800000000;
+                fbi->sclk_div = 0x20000000 | d1;
+        } else {
+                fbi->sclk_src = 1200000000;
+                fbi->sclk_div = 0x20000000 | d2;
+        }
+
+        pr_info("dipen patel came here for below dynamic resolution change for fbi->id: %d.........\n", fbi->id);
+        pr_info("HActive: %u\n", var->xres);
+        pr_info("VActive: %u\n", var->yres);
+        pr_info("Hvirtual: %u\n", var->xres_virtual);
+        pr_info("Vvirtual: %u\n", var->yres_virtual);
+        pr_info("bits_per_pixel: %u\n", var->bits_per_pixel);
+        pr_info("red.offset: %u\n", var->red.offset);
+        pr_info("red.length: %u\n", var->red.length);
+        pr_info("green.offset: %u\n", var->green.offset);
+        pr_info("green.length: %u\n", var->green.length);
+        pr_info("blue.offset: %u\n", var->blue.offset);
+        pr_info("blue.length: %u\n", var->blue.length);
+        pr_info("transp.offset: %u\n", var->transp.offset);
+        pr_info("transp.length: %u\n", var->transp.length);
+        pr_info("\n%s sclk_src %d sclk_div 0x%x\n", __func__,
+        fbi->sclk_src, fbi->sclk_div);
 }
 
 static void calculate_lcd_sclk(struct pxa168fb_info *fbi)
