@@ -44,17 +44,29 @@ static struct fb_videomode video_modes_abilene[] = {
 		/* pixclock = 1000000000000 /
 		 * ((xres+left_margin+right_margin+hsync_len)*(yres+upper_margin+lower_margin+vsync_len)*refresh)
 		 */
-		//.pixclock = 6734,
+#if 0  //for 1024x768 79.5MHz.
+		.pixclock = 7220,
 		.refresh = 60,
-#if 1 //for 1024x768 79.5MHz.
-		.xres = 1024,
+		.xres = 1920,
+		.yres = 1080,
+		.hsync_len = 32,
+		.left_margin = 80,
+		.right_margin = 48,
+		.vsync_len = 5,
+		.upper_margin = 23,
+		.lower_margin = 3,
+#endif
+#if 1  //for 1024x768 79.5MHz.
+		.pixclock = 11695,
+		.refresh = 60,
+		.xres = 1360,
 		.yres = 768,
-		.hsync_len = 136,
-		.left_margin = 84,
-		.right_margin = 100,
+		.hsync_len = 112,
+		.left_margin = 256,
+		.right_margin = 64,
 		.vsync_len = 6,
-		.upper_margin = 13,
-		.lower_margin = 19,
+		.upper_margin = 18,
+		.lower_margin = 3,
 #endif
 #if 0 //for 1280X1024 108MHz.
                 .xres = 1280,
@@ -1191,7 +1203,7 @@ static struct pxa168fb_mach_info mipi_lcd_info = {
 	.modes = NULL,
 	.sclk_div = 0xE0001108,\
 	.pix_fmt = PIX_FMT_RGB565,
-//	.pix_fmt = PIX_FMT_RGB888PACK,
+//	.pix_fmt = PIX_FMT_RGBA888,
 	.dumb_mode = DUMB_MODE_RGB888,
 	.isr_clear_mask	= LCD_ISR_CLEAR_MASK_PXA168,
 	/* don't care about io_pin_allocation_mode and dumb_mode
@@ -1203,7 +1215,7 @@ static struct pxa168fb_mach_info mipi_lcd_info = {
 	.invert_composite_blank = 0,
 	.invert_pix_val_ena = 0,
 	.invert_pixclock = 0,
-	.panel_rbswap = 0,
+	.panel_rbswap = 1,
 	.active = 1,
 	.enable_lcd = 1,
 	.spi_gpio_cs = -1,
@@ -1232,7 +1244,7 @@ static struct pxa168fb_mach_info mipi_lcd_ovly_info = {
 	.invert_composite_blank = 0,
 	.invert_pix_val_ena = 0,
 	.invert_pixclock = 0,
-	.panel_rbswap = 0,
+	.panel_rbswap = 1,
 	.active = 1,
 	.enable_lcd = 1,
 	.spi_gpio_cs = -1,
@@ -1306,7 +1318,7 @@ static void calculate_dsi_clk(struct pxa168fb_mach_info *mi)
 static void calculate_lvds_clk(struct pxa168fb_mach_info *mi)
 {
 	struct fb_videomode *modes = &mi->modes[0];
-	u32 total_w, total_h, pclk, div, use_pll1;
+	u32 total_w, total_h, pclk, div, use_pll1, calc_clk, calc_clk1, calc_div;
 
 	total_w = modes->xres + modes->left_margin +
 		modes->right_margin + modes->hsync_len;
@@ -1318,23 +1330,48 @@ static void calculate_lvds_clk(struct pxa168fb_mach_info *mi)
 	/* use pll1 by default
 	 * we could set a more flexible clocking options by selecting pll3 */
 	use_pll1 = 1;
+	calc_div = 800000000 / pclk;
+	calc_clk = 800000000 / calc_div;
+	pr_info("dipen patel calc_div %u calc_clk %u and pclk was %u\n", calc_div, calc_clk, pclk);
+	if (pclk < (calc_clk - 10000000) ) {
+		use_pll1 = 0;	
+		pr_info("Using pll2 for LCD Controller........\n"); 
+	}
+	else {
+		use_pll1 = 1;
+		pr_info("Using pll1 for LCD Controller.........\n"); 
+	}
+
 	if (use_pll1) {
 		/* src clock is 800MHz */
 		div = 800000000 / pclk;
-		if (div * pclk < 800000000)
+		calc_clk = 800000000 / div;
+		calc_clk1 = 800000000 / (div + 1);
+
+		if ((calc_clk - pclk) < (calc_clk1 - pclk))
+			pr_info("calculated clock final %u\n", calc_clk);
+		else {
+			pr_info("calculated clock final %u\n", calc_clk1);
 			div++;
+		}
 		mi->sclk_src = 800000000;
 		mi->sclk_div = 0x20000000 | div;
 	} else {
-		div = 150000000 / pclk;
-		if (div * pclk < 150000000)
+		div = 1200000000 / pclk;
+		calc_clk = 1200000000 / div;
+		calc_clk1 = 1200000000 / (div + 1);
+		if ((calc_clk - pclk) < (calc_clk1 - pclk))
+			pr_info("calculated clock final %u\n", calc_clk);
+		else {
+			pr_info("calculated clock final %u\n", calc_clk1);
 			div++;
-		mi->sclk_src = pclk * div;
-		mi->sclk_div = 0xe0000000 | div;
+		}
+		mi->sclk_src = 1200000000;
+		mi->sclk_div = 0x20000000 | div;
 	}
 
-	pr_debug("\n%s sclk_src %d sclk_div 0x%x\n", __func__,
-			mi->sclk_src, mi->sclk_div);
+	pr_info("\n%s sclk_src %d sclk_div 0x%x\n", __func__,
+ 			mi->sclk_src, mi->sclk_div);
 }
 
 static void calculate_lcd_sclk(struct pxa168fb_mach_info *mi)

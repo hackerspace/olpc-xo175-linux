@@ -422,8 +422,182 @@ static void set_mode(struct pxa168fb_info *fbi, struct fb_var_screeninfo *var,
 	var->rotate = FB_ROTATE_UR;
 }
 
+#define     DSI1_BITCLK(div)                   ((div)<<8)
+#define     DSI1_BITCLK_DIV_MASK               0x00000F00
+#define     CLK_INT_DIV(div)                   (div)
+#define     CLK_INT_DIV_MASK                   0x000000FF
+static void calculate_dsi_clk(struct pxa168fb_info *fbi)
+{
+	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
+	struct fb_var_screeninfo *var = &fbi->fb_info->var;
+	struct dsi_info *di = (struct dsi_info *)mi->phy_info;
+	u32 pclk2bclk_rate, byteclk, bitclk, pclk,
+
+	pclk_div, bitclk_div = 1;
+	u64 div_result;
+
+	if (!di)
+		return;
+	if (!var->pixclock) {
+		pr_err("Input refresh or pixclock is wrong.\n");
+		return;
+	}
+
+	/*
+	* When DSI is used to refresh panel, the timing configuration should
+	* follow the rules below:
+	* 1.Because Async fifo exists between the pixel clock and byte clock
+	*   domain, so there is no strict ratio requirement between pix_clk
+	*   and byte_clk, we just need to meet the following inequation to
+	*   promise the data supply from LCD controller:
+	*   pix_clk * (nbytes/pixel) >= byte_clk * lane_num
+	*   (nbyte/pixel: the real byte in DSI transmission)
+	*   a)16-bit format n = 2; b) 18-bit packed format n = 18/8 = 9/4;
+	*   c)18-bit unpacked format  n=3; d)24-bit format  n=3;
+	*   if lane_num = 1 or 2, we can configure pix_clk/byte_clk = 1:1 >
+	*   lane_num/nbytes/pixel
+	*   if lane_num = 3 or 4, we can configure pix_clk/byte_clk = 2:1 >
+	*   lane_num/nbytes/pixel
+	* 2.The horizontal sync for LCD is synchronized from DSI,
+	*    so the refresh rate calculation should base on the
+	*    configuration of DSI.
+	*    byte_clk = (h_total * nbytes/pixel) * v_total * fps / lane_num;
+	*/
+
+	div_result = 1000000000000ll;
+	do_div(div_result, var->pixclock);
+	pclk = (u32)div_result;
+	pclk2bclk_rate = (di->lanes > 2) ? 2 : 1;
+	byteclk = pclk * (di->bpp >> 3) / di->lanes;
+	bitclk = byteclk << 3;
+
+	/* The minimum of DSI pll is 150MHz */
+	if (bitclk < 150000000)
+		bitclk_div = 150000000 / bitclk + 1;
+
+	fbi->sclk_src = bitclk * bitclk_div;
+	/*
+	 * mi->sclk_src = pclk * pclk_div;
+	 * pclk / bitclk  = pclk / (8 * byteclk) = pclk2bclk_rate / 8;
+	 * pclk_div / bitclk_div = 8 / pclk2bclk_rate;
+	 */
+	pclk_div = (bitclk_div << 3) / pclk2bclk_rate;
+
+	fbi->sclk_div &= ~(DSI1_BITCLK_DIV_MASK | CLK_INT_DIV_MASK);
+	fbi->sclk_div = 0xe0000000 |  DSI1_BITCLK(bitclk_div) | CLK_INT_DIV(pclk_div);
+}
+
+static void calculate_lvds_clk(struct pxa168fb_info *fbi)
+{
+        struct fb_var_screeninfo *var = &fbi->fb_info->var;
+        u32 pclk, div, calc_div, calc_clk, calc_clk1, calc_clk_pll1;
+        u32 calc_clk_pll2;
+        int use_pll1, p1, p2, p3, p4, p5, p6, d1, d2;
+        u64 div_result;
+
+        if (!var->pixclock) {
+                pr_err("Input refresh or pixclock is wrong.\n");
+                return;
+        }
+
+        div_result = 1000000000000ll;
+        do_div(div_result, var->pixclock);
+        pclk = (u32)div_result;
+
+        calc_div = 800000000 / pclk;
+        calc_clk = 800000000 / calc_div;
+        calc_clk1 = 800000000 / (calc_div + 1);
+        p1 = (int)(calc_clk - pclk);
+        p2 = (int)(calc_clk1 - pclk);
+        if (p1 < 0)
+                p1 = (int)(pclk- calc_clk);
+        if (p2 < 0)
+                p2 = (int)(pclk- calc_clk1);    
+        
+        if (p1 < p2)
+                d1 = calc_div;
+        else
+                d1 = (calc_div + 1);
+
+        calc_clk_pll1 = 800000000 / d1;
+
+        calc_div = 1200000000 / pclk;
+        calc_clk = 1200000000 / calc_div;
+        calc_clk1 = 1200000000 / (calc_div + 1);
+        p3 = (int)(calc_clk - pclk);
+        p4 = (int)(calc_clk1 - pclk);
+        if (p3 < 0)
+                p3 = (int)(pclk- calc_clk);
+        if (p4 < 0)
+                p4 = (int)(pclk- calc_clk1);    
+        
+        if (p3 < p4)
+                d2 = calc_div;
+        else
+                d2 = (calc_div + 1);
+
+        calc_clk_pll2 = 1200000000 / d2;
+        pr_info("Calculated clock from pll1: %u and pll2: %u for pclk: %u\n", calc_clk_pll1, calc_clk_pll2, pclk);
+
+        p5 = (int)(calc_clk_pll1 - pclk);
+        p6 = (int)(calc_clk_pll2 - pclk);
+        if (p5 < 0)
+                p5 = (int)(pclk- calc_clk_pll1);
+        if (p6 < 0)
+                p6 = (int)(pclk- calc_clk_pll2);        
+
+        if (p6 < p5) {
+                use_pll1 = 0;   
+                pr_info("Using pll2 for LCD Controller\n");
+        }
+        else {
+                use_pll1 = 1;
+                pr_info("Using pll1 for LCD Controller\n"); 
+        }
+
+        if (use_pll1) {
+                /* src clock is 800MHz */
+                fbi->sclk_src = 800000000;
+                fbi->sclk_div = 0x20000000 | d1;
+        } else {
+                fbi->sclk_src = 1200000000;
+                fbi->sclk_div = 0x20000000 | d2;
+        }
+
+#if 0
+        pr_info("dipen patel came here for below dynamic resolution change for fbi->id: %d.........\n", fbi->id);
+        pr_info("HActive: %u\n", var->xres);
+        pr_info("VActive: %u\n", var->yres);
+        pr_info("Hvirtual: %u\n", var->xres_virtual);
+        pr_info("Vvirtual: %u\n", var->yres_virtual);
+        pr_info("bits_per_pixel: %u\n", var->bits_per_pixel);
+        pr_info("red.offset: %u\n", var->red.offset);
+        pr_info("red.length: %u\n", var->red.length);
+        pr_info("green.offset: %u\n", var->green.offset);
+        pr_info("green.length: %u\n", var->green.length);
+        pr_info("blue.offset: %u\n", var->blue.offset);
+        pr_info("blue.length: %u\n", var->blue.length);
+        pr_info("transp.offset: %u\n", var->transp.offset);
+        pr_info("transp.length: %u\n", var->transp.length);
+#endif
+        pr_info("\n%s sclk_src %d sclk_div 0x%x\n", __func__,
+        fbi->sclk_src, fbi->sclk_div);
+}
+
+static void calculate_lcd_sclk(struct pxa168fb_info *fbi)
+{
+	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
+
+	if (mi->phy_type & (DSI | DSI2DPI))
+		calculate_dsi_clk(fbi);
+	else if (mi->phy_type & LVDS)
+		calculate_lvds_clk(fbi);
+	else
+		return;
+}
+
 /*
- * The hardware clock divider has an integer and a fractional
+ The hardware clock divider has an integer and a fractional
  * stage:
  *
  *	clk2 = clk_in / integer_divider
@@ -440,9 +614,18 @@ static void set_clock_divider(struct pxa168fb_info *fbi)
 	u32 divider_int, needed_pixclk, val, x = 0;
 	u64 div_result;
 
+	if (!fbi->id) {
+		calculate_lcd_sclk(fbi);
+		clk_disable(fbi->clk);
+		clk_set_rate(fbi->clk, fbi->sclk_src);
+		clk_enable(fbi->clk);
+	} else
+		fbi->sclk_div = mi->sclk_div;
+	
 	/* check whether divider is fixed by platform */
-	if (mi->sclk_div) {
-		val = mi->sclk_div;
+	if (fbi->sclk_div) {
+		val = fbi->sclk_div;
+
 		/*for 480i and 576i, pixel clock should be half of
 		 * the spec value because of pixel repetition */
 		if ((var->yres == 480 || var->yres == 576) &&
@@ -1537,8 +1720,8 @@ static int _pxa168fb_resume(struct pxa168fb_info *fbi)
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
 
 	/* enable clock */
-	if (mi->sclk_src)
-		clk_set_rate(fbi->clk, mi->sclk_src);
+	if (fbi->sclk_src)
+		clk_set_rate(fbi->clk, fbi->sclk_src);
 	clk_enable(fbi->clk);
 
 	if (fbi->id != 1) {
