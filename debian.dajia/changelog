@@ -1,3 +1,15 @@
+linux-dajia (3.0.31-0.4) precise; urgency=low
+
+  [ Jesse Sung ]
+
+  * Update kernel options
+    + enable DEVTMPFS
+    + enable DEVPTS_MULTIPLE_INSTANCES and LEGACY_PTYS
+    + enable BTRFS
+    + make DRM and VIVANTE modules
+
+ -- Jesse Sung <jesse.sung@canonical.com>  Tue, 19 Feb 2013 21:51:10 +0800
+
 linux-dajia (3.0.31-0.3) precise; urgency=low
 
   [ Jesse Sung ]
