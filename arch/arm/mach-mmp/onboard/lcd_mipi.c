@@ -1202,8 +1202,7 @@ static struct pxa168fb_mach_info mipi_lcd_info = {
 	.num_modes = 0,
 	.modes = NULL,
 	.sclk_div = 0xE0001108,\
-	.pix_fmt = PIX_FMT_RGB565,
-//	.pix_fmt = PIX_FMT_RGBA888,
+	.pix_fmt = PIX_FMT_RGBA888,
 	.dumb_mode = DUMB_MODE_RGB888,
 	.isr_clear_mask	= LCD_ISR_CLEAR_MASK_PXA168,
 	/* don't care about io_pin_allocation_mode and dumb_mode
