@@ -121,12 +121,16 @@ out:
 }
 
 static unsigned int axi_freq[] = {
+#if MMP3_TEST_PP
 	50000,		/* core 26 or 25Mhz, axi 50/50Mhz */
 	100000,		/* core 50Mhz,  axi 100/100Mhz */
+#endif
 	100000,		/* core 100Mhz, axi 100/100Mhz */
 	200000,		/* core 200Mhz, axi 200/100Mhz */
 	400000,		/* core 400Mhz, axi 400/200Mhz */
+#if 0
 	400000,		/* core 531Mhz,   axi 400/200Mhz */
+#endif
 	400000,		/* core 800Mhz, axi 400/200Mhz */
 	400000,		/* core 1Ghz,   axi 400/200Mhz */
 #if	defined(MMP3_TEST_PP_2GHZ)
