@@ -1,3 +1,12 @@
+linux-dajia (3.0.31-0.5) precise; urgency=low
+
+  * remove crda from dependency list (LP: #1131130)
+  * enable initrd kernel options (LP: #1131122)
+  * fix display color setting (LP: #1130977)
+  * cherry-picked ethernet driver updates (LP: #1130466)
+
+ -- Jesse Sung <jesse.sung@canonical.com>  Thu, 21 Feb 2013 20:55:43 +0800
+
 linux-dajia (3.0.31-0.4) precise; urgency=low
 
   [ Jesse Sung ]
