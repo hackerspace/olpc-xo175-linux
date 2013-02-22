@@ -1,3 +1,10 @@
+linux-dajia (3.0.31-0.6) precise; urgency=low
+
+  * enable CONFIG_DM_SNAPSHOT
+  * disable CONFIG_DM_MULTIPATH and CONFIG_DM_DELAY
+
+ -- Jesse Sung <jesse.sung@canonical.com>  Fri, 22 Feb 2013 16:02:07 +0800
+
 linux-dajia (3.0.31-0.5) precise; urgency=low
 
   * remove crda from dependency list (LP: #1131130)
