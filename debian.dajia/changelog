@@ -1,3 +1,9 @@
+linux-dajia (3.0.31-0.7) precise; urgency=low
+
+  * enable SquashFS (LP: #1133218)
+
+ -- Jesse Sung <jesse.sung@canonical.com>  Tue, 26 Feb 2013 18:42:05 +0800
+
 linux-dajia (3.0.31-0.6) precise; urgency=low
 
   * enable CONFIG_DM_SNAPSHOT
