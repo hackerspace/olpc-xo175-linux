@@ -3493,6 +3493,7 @@ static int __init mmp3_clk_init(void)
 	clk_set_cansleep(&mmp3_clk_ddr);
 	mutex_init(&disable_ddr_lock);
 #endif
+	clk_set_cansleep(&mmp3_clk_gc);
 	return 0;
 }
 
