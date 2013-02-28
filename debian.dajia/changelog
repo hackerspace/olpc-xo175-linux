@@ -1,3 +1,17 @@
+linux-dajia (3.0.31-0.9) precise; urgency=low
+
+  [Jesse Sung]
+
+  * Import AUFS and make it a module
+    - LP: #1135600
+
+  [Rex Tsai]
+
+  * Remove SRCPKGNAME-headers-PKGVER-ABINUM dependency
+    - LP: #1135743
+
+ -- Jesse Sung <jesse.sung@canonical.com>  Thu, 28 Feb 2013 22:26:49 +0800
+
 linux-dajia (3.0.31-0.8) precise; urgency=low
 
   * enable support for Winbond W25X SPI flash (LP: #1134566)
