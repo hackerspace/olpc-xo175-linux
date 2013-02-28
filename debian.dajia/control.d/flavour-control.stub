@@ -72,7 +72,7 @@ Package: linux-headers-PKGVER-ABINUM-FLAVOUR
 Architecture: ARCH
 Section: devel
 Priority: optional
-Depends: ${misc:Depends}, SRCPKGNAME-headers-PKGVER-ABINUM, ${shlibs:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}
 Provides: SRCPKGNAME-headers, SRCPKGNAME-headers-3.0
 Description: Linux kernel headers for version PKGVER on DESC
  This package provides kernel header files for version PKGVER on
