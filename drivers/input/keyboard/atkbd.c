@@ -82,6 +82,10 @@ static const unsigned short atkbd_set2_keycode[ATKBD_KEYMAP_SIZE] = {
 
 #include "hpps2atkbd.h"	/* include the keyboard scancodes */
 
+#elif defined(CONFIG_MACH_QSEVEN)
+
+#include "arielatkbd.h" 
+
 #else
 	  0, 67, 65, 63, 61, 59, 60, 88,  0, 68, 66, 64, 62, 15, 41,117,
 	  0, 56, 42, 93, 29, 16,  2,  0,  0,  0, 44, 31, 30, 17,  3,  0,
