@@ -248,9 +248,9 @@ config SERIO_ENEEC_KB3930_I2C
           To compile this driver as a module, choose M here: the
           module will be called ennec.
 
-#config SERIO_ENEEC_KB3930_SPI
-#        tristate "ENE EC serio driver over SPI"
-#        default y
-#        depends on ARM && I2C
+config SERIO_ENEEC_KB3930_SPI
+        tristate "ENE EC serio driver over SPI"
+        default y
+        depends on ARM && SERIO_ENEEC_KB3930_I2C
 
 endif
