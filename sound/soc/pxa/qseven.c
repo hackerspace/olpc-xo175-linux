@@ -510,7 +510,7 @@ static int codec_elba_init(struct snd_soc_pcm_runtime *rtd)
 
 		regulator_enable(v_5v);
 	}
-#endif
+
 
 	/* Add mmp3asoc specific controls */
 	err = snd_soc_add_controls(codec, mmp3asoc_elba_controls,
@@ -526,7 +526,7 @@ static int codec_elba_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_add_routes(dapm, mmp3asoc_dapm_routes,
 				ARRAY_SIZE(mmp3asoc_dapm_routes));
 
-#if 0
+
 	snd_soc_dapm_enable_pin(dapm, "Ext Speaker");
 	snd_soc_dapm_enable_pin(dapm, "Ext Mic 1");
 	snd_soc_dapm_enable_pin(dapm, "Ext Mic 3");

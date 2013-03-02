@@ -5,6 +5,8 @@
  *
  * All rights reserved
  *
+ * Version :
+ * 	2013/02/26 Init. For Ariel EVT 2 Build.
  */
 
 #include <linux/module.h>
@@ -33,7 +35,7 @@
 
 #define AUDIO_NAME "ce156"
 #define CE156_VERSION "a0"
-//#define USE_DAPM_CTRL 1	/* disable for mic recording */
+#define USE_DAPM_CTRL 0  // remove for audio recoder
 
 #define CE156_DAPM_OUTPUT(wname, wevent)	\
 {	.id = snd_soc_dapm_pga, .name = wname, .reg = SND_SOC_NOPM, \
@@ -111,7 +113,7 @@ static unsigned int ce156_read_hw_reg(struct snd_soc_codec *codec,
 		i2c_master_recv(codec->control_data, data, 1);
 		value = data[0];
 
-		pr_info("ce156_read ok, reg 0x%x = %x\n", reg, value);
+		pr_debug("ce156_read ok, reg 0x%x = %x\n", reg, value);
 			
 		return value;
 	}
@@ -125,7 +127,6 @@ static unsigned int ce156_read(struct snd_soc_codec *codec,
 {
 /* need to be fixed here */
 	return ce156_read_hw_reg(codec, reg);
-	//return 0;
 }
 
 static void ce156_write_reg_cache(struct snd_soc_codec *codec,
@@ -142,17 +143,135 @@ static void ce156_write_reg_cache(struct snd_soc_codec *codec,
 	return;
 }
 
+#if defined CONFIG_MACH_QSEVEN
+#define HP_L_EN		1
+#define HP_R_EN		2
+#define SPK_L_EN	32
+#define SPK_R_EN	64
+#endif
 static int ce156_write(struct snd_soc_codec *codec, unsigned int reg,
 	unsigned int value)
 {
 	u8 data[2];
-
+#if defined CONFIG_MACH_QSEVEN
+	u8 mute_data[2];
+	int hp_left = 0, hp_right = 0;
+	int sp_right = 0;
+#endif
 	data[0] = reg;
 	data[1] = value & 0x00ff;
-	//return 0;
+
+	
+#if defined CONFIG_MACH_QSEVEN
+	/* Speaker GAIN control */	
+	if( data[0] == CE156_DAC_SPKR_CTRL && ((data[1] & 0x38) == 0x0) ) {
+		mute_data[0] = CE156_DAC_ANA_ENABLE;
+		mute_data[1] = ce156_read(codec, mute_data[0]);
+		sp_right = mute_data[1] & SPK_R_EN;	/* check Speaker Right channel power state */
+		if( sp_right ) {
+			mute_data[1] = mute_data[1] & 0x2f;	/* Disable Speaker Right channel power */
+			ce156_write_reg_cache(codec, mute_data[0], mute_data[1]);
+			if (i2c_master_send(codec->control_data, mute_data, 2) == 2) {
+                		pr_debug("ce156_write ok, reg = %x, value = %x\n", reg, value);
+        		}
+			else {
+                                printk(KERN_ERR "ce156_write fail, try to write : reg %x, value %x\n", mute_data[0], mute_data[1]);
+                                return -EIO;
+                        }
+		}
+	}
+	else if( data[0] == CE156_DAC_SPKR_CTRL && ((data[1] & 0x38) != 0x0) ) {
+		mute_data[0] = CE156_DAC_ANA_ENABLE;
+		mute_data[1] = ce156_read(codec, mute_data[0]);
+		sp_right = mute_data[1] & SPK_R_EN;	/* check Speaker Right channel power state */
+		if( !sp_right ) {
+			mute_data[1] |= SPK_R_EN;	/* set to enable Speaker Right channel power */
+			ce156_write_reg_cache(codec, mute_data[0], mute_data[1]);
+			if( i2c_master_send(codec->control_data, mute_data, 2) == 2 ) {
+ 	                     	pr_debug("ce156_write ok, reg = %x, value = %x\n", reg, value);
+			}
+                        else {
+                        	printk(KERN_ERR "ce156_write fail, try to write : reg %x, value %x\n", mute_data[0], mute_data[1]);
+                        	return -EIO;
+			}
+
+		}
+	}
+
+	/* Headphone Left channel GAIN output control */
+	if( data[0] == CE156_DAC_HS1_CTRL && data[1] == 0x0 ) {
+		mute_data[0] = CE156_DAC_ANA_ENABLE;
+		mute_data[1] = ce156_read(codec, mute_data[0]);
+		hp_left = mute_data[1] & HP_L_EN;		/* check Headphone Left channel power state */
+		if( hp_left ) {
+			mute_data[1] = mute_data[1] & 0xfe;	/* set to disable Headphone Left channel */ 
+			ce156_write_reg_cache(codec, mute_data[0], mute_data[1]);
+			if( i2c_master_send(codec->control_data, mute_data, 2) == 2 ) {
+ 	                     	pr_debug("ce156_write ok, reg = %x, value = %x\n", reg, value);
+                	}
+			else {
+				printk(KERN_ERR "ce156_write fail, try to write : reg %x, value %x\n", mute_data[0], mute_data[1]);
+				return -EIO;
+			}
+		}
+	}
+
+	if( data[0] == CE156_DAC_HS1_CTRL && data[1] != 0x0 ) {
+		mute_data[0] = CE156_DAC_ANA_ENABLE;
+		mute_data[1] = ce156_read(codec, mute_data[0]);
+		hp_left = mute_data[1] & HP_L_EN;		/* check Headphone Left channel power state */
+		if( !hp_left ) {
+			mute_data[1] |= HP_L_EN;		/* set to enable Headphone Left channel */
+			ce156_write_reg_cache(codec, mute_data[0], mute_data[1]);
+			if( i2c_master_send(codec->control_data, mute_data, 2) == 2 ) {
+	                      	pr_debug("ce156_write ok, reg = %x, value = %x\n", reg, value);
+                	}
+			else {
+				printk(KERN_ERR "ce156_write fail, try to write : reg %x, value %x\n", mute_data[0], mute_data[1]);
+				return -EIO;
+			}
+		}
+	}
+	
+	/* Headphone Right channel GAIN output control */
+	if( data[0] == CE156_DAC_HS2_CTRL && data[1] == 0x0 ) {
+		mute_data[0] = CE156_DAC_ANA_ENABLE;
+		mute_data[1] = ce156_read(codec, mute_data[0]);
+		hp_right = mute_data[1] & HP_R_EN;		/* check Headphone Right channel power state */
+		if( hp_right ) {
+			mute_data[1] = mute_data[1] & 0xfd;	/* set to disable Headphone Right channel */
+			ce156_write_reg_cache(codec, mute_data[0], mute_data[1]);
+			if( i2c_master_send(codec->control_data, mute_data, 2) == 2 ) {
+				pr_debug("ce156_write ok, reg = %x, value = %x\n", reg, value);
+			}
+			else {
+				printk(KERN_ERR "ce156_write fail, try to write : reg %x, value %x\n", mute_data[0], mute_data[1]);
+				return -EIO;
+			}
+		} 
+	}
+
+	if( data[0] == CE156_DAC_HS2_CTRL && data[1] != 0x0 ) {
+		mute_data[0] = CE156_DAC_ANA_ENABLE;
+		mute_data[1] = ce156_read(codec, mute_data[0]);
+		hp_right = mute_data[1] & HP_R_EN;		/* check Headphone Right channel power state */
+		if( !hp_right ) {
+			mute_data[1] |= HP_R_EN;		/* set to enable Headphone Right channel */
+			ce156_write_reg_cache(codec, mute_data[0], mute_data[1]);
+			if( i2c_master_send(codec->control_data, mute_data, 2) == 2) {
+				pr_debug("ce156_write ok, reg = %x, value = %x\n", reg, value);
+			}
+			else {
+				printk(KERN_ERR "ce156_write fail, try to write : reg %x, value %x\n", mute_data[0], mute_data[1]);
+				return -EIO;
+			}
+		} 
+	}
+#endif
+
 	ce156_write_reg_cache(codec, reg, value);
 	if (i2c_master_send(codec->control_data, data, 2) == 2) {
-		pr_info("ce156_write ok, reg = %x, value = %x\n", reg, value);
+		pr_debug("ce156_write ok, reg = %x, value = %x\n", reg, value);
 		return 0;
 	}
 	else {
@@ -590,7 +709,132 @@ static const unsigned int dac_gain_tlv[] = {
 	0, 63, TLV_DB_SCALE_ITEM(-9450, 150, 1),
 };
 
+#if defined CONFIG_MACH_QSEVEN
+static int ce156_mute_mode_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	u8 mute_reg = ce156_read_reg_cache(codec, CE156_DAC_ANA_ENABLE) & 0xff;
+
+	if( mute_reg == 0x00 ) {
+		ucontrol->value.integer.value[0] = 1;
+	}
+	else if( mute_reg == 0x63 ) {
+		ucontrol->value.integer.value[0] = 0;
+	}
+	
+	return 0;
+}
+
+static int ce156_mute_mode_set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	u8 mute_reg = ce156_read_reg_cache(codec, CE156_DAC_ANA_ENABLE) & 0xff;
+	u8 tmp = 0;
+
+	if( ucontrol->value.integer.value[0] == 1 ) {
+		tmp = 0x63;
+		mute_reg &= ~tmp;
+		ce156_write(codec, CE156_DAC_ANA_ENABLE, mute_reg);
+	}
+	else if( ucontrol->value.integer.value[0] == 0 ) {
+		mute_reg |= 0x63;
+		ce156_write(codec, CE156_DAC_ANA_ENABLE, mute_reg);
+	}
+
+	return 0;
+}
+
+#define LEFT_HEADPHONE_PA_ENABLE	0x01
+#define RIGHT_HEADPHONE_PA_ENABLE	1 << LEFT_HEADPHONE_PA_ENABLE
+static int ce156_right_mute_mode_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	u8 mute_reg = ce156_read_reg_cache(codec, CE156_DAC_ANA_ENABLE) & 0xff;
+	
+	if( mute_reg == 0x63 ) {
+		ucontrol->value.integer.value[0] = 0;
+	}
+	else if( mute_reg == 0x61 ) {
+		ucontrol->value.integer.value[0] = 1;
+	}
+	else if( mute_reg == 0x60 ) {		
+		ucontrol->value.integer.value[0] = 1;
+	}	
+	
+	return 0;
+}
+
+static int ce156_right_mute_mode_set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	u8 mute_reg = ce156_read_reg_cache(codec, CE156_DAC_ANA_ENABLE) & 0xff;
+
+	if( ucontrol->value.integer.value[0] == 1 ) {
+		mute_reg &= ~(RIGHT_HEADPHONE_PA_ENABLE);
+		ce156_write(codec, CE156_DAC_ANA_ENABLE, mute_reg);
+		ce156_write_reg_cache(codec, CE156_DAC_ANA_ENABLE, mute_reg);
+	}
+	else if( ucontrol->value.integer.value[0] == 0 ) {
+		mute_reg |= RIGHT_HEADPHONE_PA_ENABLE;
+		ce156_write(codec, CE156_DAC_ANA_ENABLE, mute_reg);
+		ce156_write_reg_cache(codec, CE156_DAC_ANA_ENABLE, mute_reg);
+	}
+
+	return 0;
+}
+
+static int ce156_left_mute_mode_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	u8 mute_reg = ce156_read_reg_cache(codec, CE156_DAC_ANA_ENABLE) & 0xff;
+
+        if( mute_reg == 0x63 ) {
+                ucontrol->value.integer.value[0] = 0;
+	}
+        else if( mute_reg == 0x62 ) {
+                ucontrol->value.integer.value[0] = 1;
+	}
+        else if( mute_reg == 0x60 ) {
+		ucontrol->value.integer.value[0] = 1;
+	}
+	else {
+	}
+		
+	return 0;
+}
+
+static int ce156_left_mute_mode_set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	u8 mute_reg = ce156_read_reg_cache(codec, CE156_DAC_ANA_ENABLE) & 0xff;
+	u8 tmp = 0;
+	
+        if( ucontrol->value.integer.value[0] == 1 ) {
+		tmp = LEFT_HEADPHONE_PA_ENABLE;
+                mute_reg &= ~(LEFT_HEADPHONE_PA_ENABLE);
+		ce156_write(codec, CE156_DAC_ANA_ENABLE, mute_reg);
+		ce156_write_reg_cache(codec, CE156_DAC_ANA_ENABLE, mute_reg);
+        }
+        else if( ucontrol->value.integer.value[0] == 0 ) {
+		mute_reg |= LEFT_HEADPHONE_PA_ENABLE;
+		ce156_write(codec, CE156_DAC_ANA_ENABLE, mute_reg);
+		ce156_write_reg_cache(codec, CE156_DAC_ANA_ENABLE, mute_reg);
+        }
+
+	return 0;
+}
+#endif
+
 static const struct snd_kcontrol_new ce156_snd_controls[] = {
+#if defined CONFIG_MACH_QSEVEN
+	SOC_SINGLE_TLV("HP/L Volume", CE156_DAC_HS1_CTRL, 0, 7, 0, hs_gain_tlv),
+        SOC_SINGLE_TLV("HP/R Volume", CE156_DAC_HS2_CTRL, 0, 7, 0, hs_gain_tlv),
+	SOC_SINGLE_TLV("SPK Volume", CE156_DAC_SPKR_CTRL, 3, 7, 0, spk_gain_tlv),
+	SOC_SINGLE_TLV("MIC1 PGA Volume", CE156_MIC1_PGA_GAIN, 0, 31, 0, mic_pga_tlv),
+	SOC_SINGLE_EXT("HP LEFT Mute", CE156_DAC_ANA_ENABLE, 1, 1, 0, ce156_left_mute_mode_get, ce156_left_mute_mode_set),
+	SOC_SINGLE_EXT("HP RIGHT Mute", CE156_DAC_ANA_ENABLE, 0, 1, 0, ce156_right_mute_mode_get, ce156_right_mute_mode_set),
+	SOC_SINGLE_EXT("Mute", CE156_DAC_DIG_ENABLE, 4, 1, 0, ce156_mute_mode_get, ce156_mute_mode_set),
+#else
 	SOC_SINGLE_TLV("MIC1 PGA Volume", CE156_MIC1_PGA_GAIN, 0, 31, 0, mic_pga_tlv),
 	SOC_SINGLE_TLV("MIC2 PGA Volume", CE156_MIC2_PGA_GAIN, 0, 31, 0, mic_pga_tlv),
 	SOC_SINGLE_TLV("Linein1 PGA Volume", CE156_ADC1_PGA_GAIN, 0, 31, 0, adc_pga_tlv),
@@ -601,6 +845,7 @@ static const struct snd_kcontrol_new ce156_snd_controls[] = {
 	SOC_SINGLE_TLV("SPK2 Gain Volume", CE156_DAC_SPKR_CTRL, 3, 7, 0, spk_gain_tlv),
 	SOC_SINGLE_TLV("DAC LL GAIN Volume", CE156_DAC_GAINLL, 0, 63, 1, dac_gain_tlv),
 	SOC_SINGLE_TLV("DAC RR GAIN Volume", CE156_DAC_GAINRR, 0, 63, 1, dac_gain_tlv),
+#endif
 };
 
 static const struct snd_soc_dapm_widget ce156_dapm_widgets[] = {
@@ -934,7 +1179,7 @@ static int ce156_hw_params(struct snd_pcm_substream *substream,
 	int rate  = params_rate(params);
 	int coeff = ce156_get_coeff(rate);
 
-	printk(KERN_ERR "enter %s, rate is %d\n", __func__, rate);
+	printk(KERN_INFO "enter %s, rate is %d\n", __func__, rate);
 	/* bit size */
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_S16_LE:
@@ -947,7 +1192,7 @@ static int ce156_hw_params(struct snd_pcm_substream *substream,
 		break;
 	}
 	
-	pr_info("rate = %d, iface = %d\n", rate, iface);
+	pr_debug("rate = %d, iface = %d\n", rate, iface);
 	/* set iface */
 	snd_soc_write(codec, CE156_I2S1, iface);
 	snd_soc_write(codec, CE156_ADC_RATE, sample_rate_list[coeff].rate_i2s_pcm);
@@ -965,14 +1210,15 @@ static int ce156_set_dai_fmt(struct snd_soc_dai *codec_dai,
 	struct snd_soc_codec *codec = codec_dai->codec;
 	u8 iface = 0;
 	int ret = 0;	
-	printk(KERN_ERR "enter %s\n", __func__);
-	
+	ce156_write(codec, CE156_DAC_ANA_ENABLE, 0x63);
+/*	
 	ret = ce156_dev_init(codec);
 	if (ret < 0) {
 		dev_err(codec->dev, "Failed to init codec\n");
+		printk("Failed to init codec\n");
 		return ret;
 	}
-
+*/
 	/* set master/slave audio interface */
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
 	case SND_SOC_DAIFMT_CBM_CFM:
@@ -1019,7 +1265,7 @@ static int ce156_set_dai_fmt(struct snd_soc_dai *codec_dai,
 	}
 
 	/* set iface */
-	pr_info("enter %s, iface = %d\n", __func__, iface);
+	pr_debug("enter %s, iface = %d\n", __func__, iface);
 	snd_soc_write(codec, CE156_I2S1, iface);
 
 	printk(KERN_INFO "exit %s\n", __func__);
@@ -1096,23 +1342,23 @@ static int ce156_dev_init(struct snd_soc_codec *codec)
 
 	ce156_reset(codec);
 	mdelay(10);
-	
-        ce156_write(codec, CE156_PLL1, 0xA5);//a4	/* modify 0x83 to 0xA5 for audio output */
-        ce156_write(codec, CE156_PLL2, 0x00);//00	/* modify 0x02 t0 0x00 for audio output */
-        ce156_write(codec, CE156_PLL_FRACT1, 0x08);	/* modify 0x27 t0 0x08 for audio output */
-        ce156_write(codec, CE156_PLL_FRACT2, 0x82);	/* modify 0x25 to 0x82 for audio output */
 
+        ce156_write(codec, CE156_PLL1, 0xA5);//a4
+        ce156_write(codec, CE156_PLL2, 0x00);//00
+        ce156_write(codec, CE156_PLL_FRACT1, 0x08);
+        ce156_write(codec, CE156_PLL_FRACT2, 0x82);
+	
 	ce156_write(codec, CE156_ADC_RATE, 0x9);
 	ce156_write(codec, CE156_I2S1, 0x0);
 	ce156_write(codec, CE156_I2S2, 0x0);
 	ce156_write(codec, CE156_ADC_RSVD, 0x2);
-	ce156_write(codec, CE156_ADC_ANA_ENABLE, 0x3f);	/* modify 0xff to 0x3f for mic recording */ 
+	ce156_write(codec, CE156_ADC_ANA_ENABLE, 0x3f);
 	ce156_write(codec, CE156_ADC_DIG_ENABLE, 0x30);
 	ce156_write(codec, CE156_DAC_DIG_ENABLE, 0x39);
 	ce156_write(codec, CE156_DAC_ANA_MISC, 0xa4);
 	ce156_write(codec, CE156_DAC_ANA_MISC, 0xa0);
-	ce156_write(codec, CE156_HS_MIC_DET, 0x61);	/* modify 0x00 to 0x61 for speaker and headphone audio output auto switch */
-	ce156_write(codec, CE156_MIC_CTRL, 0x2);	
+	ce156_write(codec, CE156_HS_MIC_DET, 0x61);  //paul add for HP detect
+	ce156_write(codec, CE156_MIC_CTRL, 0x2);
 	ce156_write(codec, CE156_DAC_ANA_ENABLE, 0x63);
 	ce156_write(codec, CE156_HS_INPUT_SEL, 0x6);
 	ce156_write(codec, CE156_DAC_DWA_OFST, 0x0);
@@ -1128,10 +1374,13 @@ static int ce156_dev_init(struct snd_soc_codec *codec)
 
 	ce156_dapm_event(codec, SND_SOC_BIAS_PREPARE);
 
-/*	snd_soc_add_controls(codec, ce156_snd_controls,
+#if defined CONFIG_MACH_QSEVEN
+#else
+	snd_soc_add_controls(codec, ce156_snd_controls,
 			     ARRAY_SIZE(ce156_snd_controls));
 	printk(KERN_INFO "controls added finished\n");
-*/
+#endif
+
 #if USE_DAPM_CTRL
 	ce156_add_widgets(codec);
 #endif	
@@ -1156,12 +1405,18 @@ static int ce156_probe(struct snd_soc_codec *codec)
 		return ret;
 	}*/
 
-	/*ret = ce156_dev_init(codec);
+	ret = ce156_dev_init(codec);
 	if (ret < 0) {
-		dev_err(codec->dev, "Failed to reset\n");
+		dev_err(codec->dev, "Failed to Init\n");
 		return ret;
-	}*/
+	}
 
+	ret = snd_soc_add_controls(codec, ce156_snd_controls,
+                                   ARRAY_SIZE(ce156_snd_controls));
+	if( ret != 0 ) {
+		printk("%s snd_soc_add_controls failed. ret = %d\n", __func__, ret);
+	}
+	
 	return ret;
 }
 
@@ -1261,11 +1516,10 @@ static struct i2c_driver ce156_i2c_driver = {
 static int __init ce156_init(void)
 {
 	int ret = 0;
-printk("paul init and register ce156 i2c driver:\n");
+	printk("paul init and register ce156 i2c driver:\n");
 
 #if defined(CONFIG_I2C) || defined(CONFIG_I2C_MODULE)
 	ret = i2c_add_driver(&ce156_i2c_driver);
-//	ret = platform_driver_register(&ce156_i2c_driver);	//test
 	if(ret != 0){
 		printk( "Failed to register ce156 i2c driver: %d\n", 
 			ret);
@@ -1285,6 +1539,6 @@ module_init(ce156_init);
 module_exit(ce156_exit);
 
 MODULE_DESCRIPTION("ASoc Marvell 88CE156 driver");
-MODULE_AUTHOR("Paul.Chen <paul.chen@wtmec.com>");
+MODULE_AUTHOR("Inventec BU3A <webmaster@inventec.com>");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:ce156.2-0030");
