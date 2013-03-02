@@ -41,13 +41,149 @@
 #include <mach/hardware.h>
 #include <mach/regs-rtc.h>
 
+#include <linux/types.h>
+#include <linux/i2c.h>
+#include <linux/slab.h>
+#include <linux/bcd.h>
+
 #define RTC_DEF_DIVIDER		(32768 - 1)
 #define RTC_DEF_TRIM		0
+//#define RTC_DEBUG
 
 void __iomem *rtc_base;
 static int irq_1hz = -1, irq_alrm = -1;
 static struct rtc_time rtc_alarm;
 static DEFINE_SPINLOCK(mmp_rtc_lock);
+
+static struct idt1338_rtc_info *idt1338_rtc_info;
+
+struct idt1338_rtc_info {
+	struct i2c_client *i2c;
+};
+
+#define RTC_SECONDS     0
+#define RTC_MINUTES     1
+#define RTC_HOURS       2
+#define RTC_DAY_OF_WEEK 3
+#define RTC_DATE        4
+#define RTC_MONTH       5
+#define RTC_YEAR        6
+#define BYTE_NUM        8
+
+static DEFINE_SPINLOCK(idt1338_rtc_lock);
+
+#ifdef RTC_DEBUG
+struct idt1338 {
+	struct rtc_device *rtc;
+	struct rtc_time rtc_alarm;
+};
+#endif
+
+static const struct i2c_device_id idt1338_id[] = {
+        { "rtc_idt1338", 0 },
+        { }
+};
+
+static int idt1338_rtc_open(struct device *dev)
+{
+        spin_lock_irq(&idt1338_rtc_lock);
+//      enable_irq(idt_irq_1hz);
+//      enable_irq(idt_irq_alrm);
+        spin_unlock_irq(&idt1338_rtc_lock);
+        return 0;
+}
+
+static void idt1338_rtc_release(struct device *dev)
+{
+        spin_lock_irq(&idt1338_rtc_lock);
+//      disable_irq(idt_irq_1hz);
+//      disable_irq(idt_irq_alrm);
+        spin_unlock_irq(&idt1338_rtc_lock);
+}
+
+static int idt1338_get_time(struct i2c_client *client, struct rtc_time *tm)
+{
+        unsigned int year, month, date, hour, minute, second, week;
+        u8 buf[BYTE_NUM] = {0};
+        int err = 0;
+
+        err = i2c_master_send(client, buf, 1); /* Send 0 */
+        if (err < 0)
+                return (err);
+
+        err = i2c_master_recv(client, buf, BYTE_NUM);
+
+	second  = buf[RTC_SECONDS] & 0x7f;
+	minute  = buf[RTC_MINUTES];
+	hour    = buf[RTC_HOURS] & 0xbf;
+	week    = buf[RTC_DAY_OF_WEEK] & 0x07;
+	date    = buf[RTC_DATE] & 0x3f;
+	month   = buf[RTC_MONTH]; 
+	year    = buf[RTC_YEAR];
+
+#ifdef RTC_DEBUG
+	printk("read time : %d(sec), %d(min), %d(hour), %d(week), %d(date), %d(month), %d(year)\n", second, minute, hour, week, date, month, year);
+#endif
+
+        tm->tm_sec      = bcd2bin(second);
+        tm->tm_min      = bcd2bin(minute);
+        tm->tm_hour     = bcd2bin(hour);
+        tm->tm_wday     = bcd2bin(week);
+        tm->tm_mday     = bcd2bin(date);
+        tm->tm_mon      = bcd2bin(month) - 1;  /* read in 1-12 range */
+        tm->tm_year     = 100 + bcd2bin(year); /* read delta from 2000 */
+
+#ifdef RTC_DEBUG
+	printk("tm read time : %d(sec), %d(min), %d(hour), %d(week), %d(date), %d(month), %d(year)\n", tm->tm_sec, tm->tm_min, tm->tm_hour, tm->tm_wday, tm->tm_mday, tm->tm_mon, tm->tm_year);
+#endif
+
+        err = rtc_valid_tm(tm);
+        if (err < 0)
+                rtc_time_to_tm(0, tm);
+
+        return err;
+}
+
+static int idt1338_read_time(struct device *dev, struct rtc_time *tm)
+{
+        return idt1338_get_time(to_i2c_client(dev), tm);
+}
+
+static int idt_set_time(struct i2c_client *client, struct rtc_time *tm)
+{
+        u8 buf[BYTE_NUM] = {0};
+        int err = 0;
+
+        err = rtc_valid_tm(tm);
+//	printk("%s : valid_tm = %d\n", __func__, err);
+        if (err < 0) {
+                rtc_time_to_tm(0, tm);
+//		printk("%s -- set time failed.\n", __func__);
+                return err;
+        }
+
+        err = i2c_master_send(client, buf, 1); /* Send 0 */
+        if (err < 0)
+                return (err);
+
+        buf[RTC_SECONDS+1]              = bin2bcd(tm->tm_sec) & 0x7f;
+        buf[RTC_MINUTES+1]              = bin2bcd(tm->tm_min) & 0x7f;
+        /* Retain 24 hour mode by keeping bit 6 of HOURS register low */
+        buf[RTC_HOURS+1]                = bin2bcd(tm->tm_hour) & 0x3f;
+        buf[RTC_DAY_OF_WEEK+1]          = bin2bcd(tm->tm_wday) & 0x07;
+        buf[RTC_DATE+1]                 = bin2bcd(tm->tm_mday) & 0x3f;
+        buf[RTC_MONTH+1]                = bin2bcd(tm->tm_mon + 1) & 0x1f;
+        buf[RTC_YEAR+1]                 = bin2bcd((tm->tm_year > 100)?
+                                          tm->tm_year-100:tm->tm_year);
+
+	err = i2c_master_send(client, (char *)buf, BYTE_NUM);
+        return err;
+}
+
+static int idt1338_set_time(struct device *dev, struct rtc_time *tm)
+{
+	return idt_set_time(to_i2c_client(dev), tm);
+}
 
 static inline int rtc_periodic_alarm(struct rtc_time *tm)
 {
@@ -185,6 +321,7 @@ static int mmp_rtc_set_time(struct device *dev, struct rtc_time *tm)
 
 	if (tm->tm_year > 138)
 		return -EINVAL;
+
 	ret = rtc_tm_to_time(tm, &time);
 	if (ret == 0)
 		RCNR = time;
@@ -193,6 +330,9 @@ static int mmp_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	 * than two 32K clock cycles
 	 */
 	udelay(200);
+
+	ret = idt_set_time(idt1338_rtc_info->i2c, tm);
+
 	return ret;
 }
 
@@ -334,7 +474,7 @@ static int mmp_rtc_probe(struct platform_device *pdev)
 		ret = -ENXIO;
 		goto err_noirq_alrm;
 	}
-
+	
 	if (RTTR == 0) {
 		RTTR = RTC_DEF_DIVIDER + (RTC_DEF_TRIM << 16);
 		dev_warn(&pdev->dev, "warning: initializing default clock"
@@ -362,6 +502,8 @@ static int mmp_rtc_probe(struct platform_device *pdev)
 		goto err_nortc;
 	}
 
+	ret = idt1338_get_time(idt1338_rtc_info->i2c, &tm);
+
 	if ((tm.tm_year <= 70) || (tm.tm_year > 138)) {
 		tm.tm_year = 100;
 		tm.tm_mon = 0;
@@ -375,8 +517,12 @@ static int mmp_rtc_probe(struct platform_device *pdev)
 			goto err_nortc;
 		}
 	}
+	else
+		ret = mmp_rtc_set_time(&pdev->dev, &tm);
 
 	platform_set_drvdata(pdev, rtc);
+
+	printk("mmp_rtc_probe End!!!\n");
 
 	return 0;
 
@@ -423,13 +569,90 @@ static struct platform_driver mmp_rtc_driver = {
 	},
 };
 
-static int __init mmp_rtc_init(void)
+static const struct rtc_class_ops idt1338_ops = {
+	.open                   = idt1338_rtc_open,
+	.release                = idt1338_rtc_release,
+	.read_time              = idt1338_read_time,
+	.set_time               = idt1338_set_time,
+};      
+
+static struct i2c_driver idt1338_driver;
+
+static int __devinit idt1338_probe(struct i2c_client *client,
+                                   const struct i2c_device_id *idp)
 {
+	int err = 0; 
+#ifdef RTC_DEBUG
+	struct idt1338 *idt1338;
+#endif
+
+        if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C))
+		                return -ENODEV;
+
+        idt1338_rtc_info = kzalloc(sizeof(struct idt1338_rtc_info), GFP_KERNEL);
+        if (!idt1338_rtc_info)
+                return -ENOMEM;
+
+	i2c_set_clientdata(client, idt1338_rtc_info);
+	idt1338_rtc_info->i2c = client;
+
+#ifdef RTC_DEBUG
+        idt1338 = kzalloc(sizeof(struct idt1338), GFP_KERNEL);
+	if (!idt1338)
+	        return -ENOMEM;
+
+	i2c_set_clientdata(client, idt1338);
+	idt1338->rtc = rtc_device_register(idt1338_driver.driver.name, 
+                                           &client->dev, &idt1338_ops, 
+                                           THIS_MODULE);
+        if (IS_ERR(idt1338->rtc)) {
+                err = PTR_ERR(idt1338->rtc);
+                kfree (idt1338);
+                return err;
+        }
+#endif
+	
+	return err;
+}
+
+static int idt1338_remove(struct i2c_client *client)
+{
+#ifdef RTC_DEBUG
+        struct idt1338 *idt1338 = i2c_get_clientdata(client);
+        if (idt1338->rtc)
+                rtc_device_unregister(idt1338->rtc);
+
+        kfree(idt1338);
+#endif
+        return 0;
+}
+
+static struct i2c_driver idt1338_driver = {
+        .driver = {
+                .name   = "rtc_idt1338",
+        },
+        .probe = idt1338_probe,
+        .remove = __devexit_p(idt1338_remove),
+        .id_table = idt1338_id,
+};
+
+static int __init mmp_rtc_init(void)
+{	
+	int err;
+	/*** add for idt rtc driver ***/
+	err = i2c_add_driver(&idt1338_driver);
+	if (err) {
+		printk(KERN_ERR "IDT1338 RTC init err=%d\n", err);
+		return err;
+	}
+
 	return platform_driver_register(&mmp_rtc_driver);
 }
 
 static void __exit mmp_rtc_exit(void)
 {
+	/*** add for idt rtc driver ***/
+	i2c_del_driver(&idt1338_driver);
 	platform_driver_unregister(&mmp_rtc_driver);
 }
 
