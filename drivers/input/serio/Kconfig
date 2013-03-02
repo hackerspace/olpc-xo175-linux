@@ -234,4 +234,23 @@ config SERIO_PS2MULT
 	  To compile this driver as a module, choose M here: the
 	  module will be called ps2mult.
 
+config SERIO_ENEEC_KB3930_I2C
+        tristate "ENE EC serio driver"
+        default y
+        depends on ARM && I2C
+        help
+          KB3930 is the chip over which the standard AT keyboard and PS/2
+          mouse are connected to the computer. If you use these devices,
+          you'll need to say Y here.
+
+          If unsure, say Y.
+
+          To compile this driver as a module, choose M here: the
+          module will be called ennec.
+
+#config SERIO_ENEEC_KB3930_SPI
+#        tristate "ENE EC serio driver over SPI"
+#        default y
+#        depends on ARM && I2C
+
 endif

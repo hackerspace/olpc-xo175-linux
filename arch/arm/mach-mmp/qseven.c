@@ -64,6 +64,7 @@
 #include <media/soc_camera.h>
 #include <mach/mmp3_pm.h>
 #include <mach/gpio.h>
+#include <linux/i2c/eneec.h>
 
 #include "common.h"
 #include "onboard.h"
@@ -206,6 +207,9 @@ static unsigned long qseven_pin_config[] __initdata = {
 	GPIO99_LCD_DD21,
 	GPIO100_LCD_DD22,
 	GPIO101_LCD_DD23,
+
+	/* ENE EC */
+	ENE_KB_INT_GPIO_60,
 };
 
 static unsigned long mmc1_pin_config[] __initdata = {
@@ -390,10 +394,13 @@ struct tsc2007_platform_data tsc_2007_data = {
 #endif
 #endif
 
-#if 0
 static struct i2c_board_info qseven_twsi4_info[] = {
 	{
+         .type = "KB39XX",
+         .addr = 0x58,
+	 .irq  = IRQ_GPIO(mfp_to_gpio(ENE_KB_INT_GPIO_60)),
 	},
+#if 0
 #if defined(CONFIG_TOUCHSCREEN_TSC2007)
 	{
 		.type		= "tsc2007",
@@ -402,8 +409,8 @@ static struct i2c_board_info qseven_twsi4_info[] = {
 		.platform_data	= &tsc_2007_data,
 	},
 #endif
-};
 #endif
+};
 
 static struct i2c_board_info qseven_twsi3_info[] = {
 	{
@@ -471,6 +478,10 @@ static struct i2c_board_info qseven_twsi1_mar88pm867_info[] = {
 		.type		= "mar88pm867",
 		.addr		= (0x32>>1),
 		.platform_data	= &qseven_mar88pm867_pdata,
+	},
+	{
+		.type	= "rtc_idt1338",
+		.addr 	= 0x68,
 	},
 };
 
@@ -1134,8 +1145,80 @@ static struct mv_cam_pdata mv_cam_data = {
 };
 #endif
 
+/*
+ *	Ariel Power control: ( Power off / Reset )
+ *	Send 10MHz pulse from GPIO 126 to EC When system ready to power off or reboot.
+ *	Power off    : GPIO 127 high
+ * 	System reset : GPIO 127 low
+*/
+#define EC_PW_OFF 1
+#define EC_PW_RESET 0
+extern int (*board_reset)(char mode, const char *cmd);
+static int ariel_board_reset(char mode, const char *cmd)
+{
+        int off_signal,off_control;
+        off_signal  = mfp_to_gpio(MFP_PIN_GPIO126);
+        off_control = mfp_to_gpio(MFP_PIN_GPIO127);
+        if (gpio_request(off_signal, "halt signal")) {
+                pr_err("Failed to request halt signal gpio\n");
+                return -EIO;
+        }
+        if (gpio_request(off_control, "halt_reset pin")) {
+                pr_err("Failed to request halt reset gpio\n");
+                return -EIO;
+        }
+        gpio_direction_output(off_control, EC_PW_RESET);
+        while(1){
+                gpio_direction_output(off_signal, 0);
+                mdelay(50);
+                gpio_direction_output(off_signal, 1);
+                mdelay(50);
+        }
+        /* Rebooting... */
+        return 1;
+}
+
+static void ariel_poweroff(void)
+{
+        int off_signal,off_control;
+        off_signal  = mfp_to_gpio(MFP_PIN_GPIO126);
+        off_control = mfp_to_gpio(MFP_PIN_GPIO127);
+        if (gpio_request(off_signal, "halt signal")) {
+                pr_err("Failed to request halt signal gpio\n");
+                return -EIO;
+        }
+        if (gpio_request(off_control, "halt_reset pin")) {
+                pr_err("Failed to request halt reset gpio\n");
+                return -EIO;
+        }
+        gpio_direction_output(off_control, EC_PW_OFF);
+        while(1){
+                gpio_direction_output(off_signal, 0);
+                mdelay(50);
+                gpio_direction_output(off_signal, 1);
+                mdelay(50);
+        }
+        /* Power off... */
+}
+
+static void eneec_init_gpio_irq(void)
+{
+        int gpio = mfp_to_gpio(ENE_KB_INT_GPIO_60);
+
+        if (gpio_request(gpio, "ENE EC irq")) {
+                        pr_err("gpio %d request failed\n", gpio);
+                        return -1;
+        }
+        gpio_direction_input(gpio);
+        mdelay(100);
+        gpio_free(gpio);
+        return 0;
+
+}
+
 static void __init qseven_init(void)
 {
+
 	mfp_config(ARRAY_AND_SIZE(qseven_pin_config));
 	qseven_update_ddr_info();
 
@@ -1150,6 +1233,8 @@ static void __init qseven_init(void)
 	qseven_power_supply_init();
 	mmp3_add_twsi(1, NULL, ARRAY_AND_SIZE(qseven_twsi1_mar88pm867_info));
 #endif
+        board_reset = ariel_board_reset;
+        pm_power_off = ariel_poweroff;
 
 #if 0
 #if defined(CONFIG_TOUCHSCREEN_TSC2007)
@@ -1157,8 +1242,8 @@ static void __init qseven_init(void)
 #endif
 #endif
 
-#if 0
 	mmp3_add_twsi(4, NULL, ARRAY_AND_SIZE(qseven_twsi4_info));
+#if 0
 	mmp3_add_keypad(&mmp3_keypad_info);
 #endif
 
@@ -1183,8 +1268,8 @@ static void __init qseven_init(void)
 	/* backlight */
 	mmp3_add_pwm(3);
 	platform_device_register(&qseven_lcd_backlight_devices);
-	mmp3_add_thermal();
 #endif
+	mmp3_add_thermal();
 
 #ifdef CONFIG_ANDROID_PMEM
 	pxa_add_pmem();
@@ -1252,6 +1337,7 @@ static void __init qseven_init(void)
 	qseven_regulators();
 #endif
 //	pxa_u3d_phy_disable();		//paul disable due to Ariel2 disable USB3 Power
+	 eneec_init_gpio_irq();
 }
 
 MACHINE_START(QSEVEN, "Qseven")
