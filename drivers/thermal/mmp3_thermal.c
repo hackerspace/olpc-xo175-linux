@@ -47,7 +47,7 @@ static int gray_decode(unsigned int gray)
 unsigned long read_temperature_sensor(int index)
 {
 	int i;
-	unsigned long data;
+	unsigned long data,lower_temp;
 
 	__raw_writel(readl(CPBC_REG(index * 4)) | (1 << 27),
 			CPBC_REG(index * 4));
@@ -63,18 +63,38 @@ unsigned long read_temperature_sensor(int index)
 				index);
 
 	data = readl(CPBC_REG(index * 4)) & 0xf;
+	lower_temp = gray_decode(data) * 5 / 2 + 26;
 
-	return gray_decode(data) * 5 / 2 + 26;
+	if ( lower_temp > 60 ){
+       		__raw_writel(readl(CPBC_REG(index * 4)) & ~(1 << 27),CPBC_REG(index * 4));
+                __raw_writel(readl(CPBC_REG(index * 4)) | (1 << 30),CPBC_REG(index * 4));
+	        for (i = 0; i < 1000; i++) {
+			if (readl(CPBC_REG(index * 4)) & (1 << 29))
+				break;
+			udelay(1000);
+		}
+		if (i == 1000)
+		printk(KERN_EMERG "timeout to get sensor %d temperature!\n",index);
+		data = readl(CPBC_REG(index * 4)) & 0xf;
+		if (data == 0) return lower_temp;
+		else return gray_decode(data) * 5 / 2 + 78;
+	}else {
+		return lower_temp;
+	}
 }
 EXPORT_SYMBOL(read_temperature_sensor);
 
 static int th_sys_get_temp(struct thermal_zone_device *thermal,
 		unsigned long *temp)
 {
+/* return MAX termerature */	
+	*temp = (read_temperature_sensor(0) > read_temperature_sensor(1)) ? read_temperature_sensor(0) : read_temperature_sensor(1);
+	*temp = (*temp > read_temperature_sensor(2)) ? *temp : read_temperature_sensor(2);
+/*	
 	*temp = (read_temperature_sensor(0) +
 			read_temperature_sensor(1) +
 			read_temperature_sensor(2)) / 3;
-
+*/
 	return 0;
 }
 
