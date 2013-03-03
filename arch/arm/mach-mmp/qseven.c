@@ -210,6 +210,8 @@ static unsigned long qseven_pin_config[] __initdata = {
 
 	/* ENE EC */
 	ENE_KB_INT_GPIO_60,
+ 	GPIO126_OFF1,
+	GPIO127_OFF2,
 };
 
 static unsigned long mmc1_pin_config[] __initdata = {
@@ -1185,11 +1187,11 @@ static void ariel_poweroff(void)
         off_control = mfp_to_gpio(MFP_PIN_GPIO127);
         if (gpio_request(off_signal, "halt signal")) {
                 pr_err("Failed to request halt signal gpio\n");
-                return -EIO;
+                return ;
         }
         if (gpio_request(off_control, "halt_reset pin")) {
                 pr_err("Failed to request halt reset gpio\n");
-                return -EIO;
+                return ;
         }
         gpio_direction_output(off_control, EC_PW_OFF);
         while(1){
@@ -1207,12 +1209,12 @@ static void eneec_init_gpio_irq(void)
 
         if (gpio_request(gpio, "ENE EC irq")) {
                         pr_err("gpio %d request failed\n", gpio);
-                        return -1;
+                        return ;
         }
         gpio_direction_input(gpio);
         mdelay(100);
         gpio_free(gpio);
-        return 0;
+        return ;
 
 }
 
