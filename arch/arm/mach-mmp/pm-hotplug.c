@@ -417,11 +417,9 @@ static int __init mmp_pm_hotplug_init(void)
 		return -EFAULT;
 	}
 
-	/*
 	INIT_DELAYED_WORK_DEFERRABLE(&hotplug_work, hotplug_timer);
 
 	queue_delayed_work_on(0, hotplug_wq, &hotplug_work, 60 * HZ);
-	*/
 
 	register_pm_notifier(&mmp_pm_hotplug_notifier);
 	register_reboot_notifier(&hotplug_reboot_notifier);
