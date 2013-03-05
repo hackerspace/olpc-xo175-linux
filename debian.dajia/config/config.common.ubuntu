@@ -435,7 +435,7 @@ CONFIG_CC_STACKPROTECTOR=y
 # CONFIG_USE_OF is not set
 CONFIG_ZBOOT_ROM_TEXT=0x0
 CONFIG_ZBOOT_ROM_BSS=0x0
-CONFIG_CMDLINE="debug loglevel=17 rootdelay=10 rootfstype=ext4 root=/dev/mmcblk1p1 rw console=ttyS2,115200 panic_debug reserve_pmem=0x8000000 "
+CONFIG_CMDLINE="debug loglevel=17 rootfstype=ext4 root=/dev/mmcblk0p2 rw console=ttyS2,115200 panic_debug reserve_pmem=0x8000000 fb_shared"
 CONFIG_CMDLINE_FROM_BOOTLOADER=y
 # CONFIG_CMDLINE_EXTEND is not set
 # CONFIG_CMDLINE_FORCE is not set
