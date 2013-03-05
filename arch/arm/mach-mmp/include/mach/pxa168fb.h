@@ -222,8 +222,6 @@ struct pxa168fb_info {
 
 	/* gamma correction */
 	struct mvdisp_gamma	gamma;
-	u32 sclk_src;
-	u32 sclk_div;
 };
 
 struct dsi_phy {

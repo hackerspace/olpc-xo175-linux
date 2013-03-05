@@ -38,54 +38,15 @@ static int is_qhd_lcd(void)
 static struct fb_videomode video_modes_abilene[] = {
 	[0] = {
 		/* panel refresh rate should <= 55(Hz) */
-		/* used for Wyse configuration same as Ariel 1 */
-
-		/* support resolution changes via IOCTL FBIOPUT_VSCREENINFO */
-		/* pixclock = 1000000000000 /
-		 * ((xres+left_margin+right_margin+hsync_len)*(yres+upper_margin+lower_margin+vsync_len)*refresh)
-		 */
-		//.pixclock = 6734,
-		.refresh = 60,
-#if 1 //for 1024x768 79.5MHz.
-		.xres = 1024,
-		.yres = 768,
-		.hsync_len = 136,
-		.left_margin = 84,
-		.right_margin = 100,
-		.vsync_len = 6,
-		.upper_margin = 13,
-		.lower_margin = 19,
-#endif
-#if 0 //for 1280X1024 108MHz.
-                .xres = 1280,
-                .yres = 1024,
-                .hsync_len = 112,
-                .left_margin = 48,
-                .right_margin = 248,
-                .vsync_len = 3,
-                .upper_margin = 1,
-                .lower_margin = 38,
-#endif
-#if 0 //for 1600x1200 162MHz.
-                .xres = 1600,
-                .yres = 1200,
-                .hsync_len = 192,
-                .left_margin = 64,
-                .right_margin = 304,
-                .vsync_len = 3,
-                .upper_margin = 1,
-                .lower_margin = 46,
-#endif
-#if 0 //for 1920x1080 148.5MHz.
-                .xres = 1920,
-                .yres = 1080,
-                .hsync_len = 44,
-                .left_margin = 88,
-                .right_margin = 148,
-                .vsync_len = 5,
-                .upper_margin = 4,
-                .lower_margin = 36,
-#endif
+		.refresh = 55,
+		.xres = 1280,
+		.yres = 800,
+		.hsync_len = 2,
+		.left_margin = 64,
+		.right_margin = 64,
+		.vsync_len = 2,
+		.upper_margin = 8,
+		.lower_margin = 8,
 		.sync = FB_SYNC_VERT_HIGH_ACT | FB_SYNC_HOR_HIGH_ACT,
 		},
 };
@@ -112,10 +73,6 @@ static struct fb_videomode video_modes_yellowstone[] = {
 #ifdef CONFIG_MACH_THUNDERSTONEM
 static struct fb_videomode video_modes_thunderstonem[] = {
 	[0] = {
-		/* pixclock = 1000000000000 /
-		 * ((xres+left_margin+right_margin+hsync_len)*(yres+upper_margin+lower_margin+vsync_len)*refresh)
-		 */
-		.pixclock = 16241,
 		.refresh = 60,
 		.xres = 1024,
 		.yres = 768,
@@ -151,10 +108,6 @@ static struct fb_videomode video_modes_orchid[] = {
 #ifdef CONFIG_MACH_MK2
 static struct fb_videomode video_modes_mk2[] = {
 	[0] = {
-		/* pixclock = 1000000000000 /
-		 * ((xres+left_margin+right_margin+hsync_len)*(yres+upper_margin+lower_margin+vsync_len)*refresh)
-		 */
-		.pixclock = 14833,
 		.refresh = 60,
 		.xres = 1024,
 		.yres = 768,
@@ -1189,10 +1142,8 @@ static struct pxa168fb_mach_info mipi_lcd_info = {
 	.id = "GFX Layer",
 	.num_modes = 0,
 	.modes = NULL,
-	.sclk_div = 0xE0001108,\
+	.sclk_div = 0xE0001108,
 	.pix_fmt = PIX_FMT_RGB565,
-//	.pix_fmt = PIX_FMT_RGB888PACK,
-	.dumb_mode = DUMB_MODE_RGB888,
 	.isr_clear_mask	= LCD_ISR_CLEAR_MASK_PXA168,
 	/* don't care about io_pin_allocation_mode and dumb_mode
 	 * since the panel is hard connected with lcd panel path and
@@ -1211,7 +1162,7 @@ static struct pxa168fb_mach_info mipi_lcd_info = {
 	.mmap = 1,
 	.vdma_enable = 1,
 	.sram_size  = 30 * 1024,
-	.max_fb_size = 1920 * 1200 * 8 + 4096,
+	.max_fb_size = 0,
 	.phy_type = DSI2DPI,
 	.phy_init = dsi_init,
 #ifdef CONFIG_TC35876X
@@ -1382,11 +1333,8 @@ void __init abilene_add_lcd_mipi(void)
 
 	fb->num_modes = ARRAY_SIZE(video_modes_abilene);
 	fb->modes = video_modes_abilene;
-	fb->max_fb_size = 4000 * 1100 * 8 + 4096,
-/*
 	fb->max_fb_size = video_modes_abilene[0].xres *
 		video_modes_abilene[0].yres * 8 + 4096;
-*/
 	ovly->num_modes = fb->num_modes;
 	ovly->modes = fb->modes;
 	ovly->max_fb_size = fb->max_fb_size;

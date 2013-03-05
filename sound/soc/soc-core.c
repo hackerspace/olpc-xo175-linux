@@ -3798,8 +3798,6 @@ int snd_soc_register_codec(struct device *dev,
 	}
 
 	/* register any DAIs */
-	printk("codec register %s\n", codec->name);	//paul
-	printk("codec num_dai %d\n", codec->num_dai);	//paul
 	if (num_dai) {
 		ret = snd_soc_register_dais(dev, dai_drv, num_dai);
 		if (ret < 0)

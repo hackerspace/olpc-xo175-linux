@@ -35,7 +35,7 @@
 
 #ifndef _DRM_H_
 #define _DRM_H_
-#define __linux__
+
 #if defined(__linux__)
 
 #include <linux/types.h>

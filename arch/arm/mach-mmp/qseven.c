@@ -76,45 +76,33 @@ static unsigned long qseven_pin_config[] __initdata = {
 	GPIO52_UART3_TXD,
 
 	/* TWSI5 not connected in rev 1 carrier board*/
-	GPIO41_TWSI5_SCL,
-	GPIO42_TWSI5_SDA,
+	GPIO99_TWSI5_SCL,
+	GPIO100_TWSI5_SDA,
 
 	/* TWSI6 for HDMI */
-	GPIO47_TWSI6_SCL,
-	GPIO48_TWSI6_SDA,
+	GPIO97_TWSI6_SCL,
+	GPIO98_TWSI6_SDA,
 
-#if 0
 	/* TWSI2 for camera */
 	GPIO55_TWSI2_SCL,
 	GPIO56_TWSI2_SDA,
 	GPIO73_CAM_MCLK,
 	GPIO72_GPIO,
-#endif
 
 	/* TWSI3 for audio codec on carrier card rev 2*/
-//	GPIO95_TWSI3_SCL,
-//	GPIO96_TWSI3_SDA,
-	/* paul for Ariel2 */
-		GPIO71_TWSI3_SCL,	
-		GPIO72_TWSI3_SDA,
-#if 0
+	GPIO95_TWSI3_SCL,
+	GPIO96_TWSI3_SDA,
 	HDA_RST_N_GPIO_79, /*Not connected in carrier rev 1 board*/
-#endif
 
 	/* TWSI4 touch controller on carrier card*/
 	TWSI4_SCL,
 	TWSI4_SDA,
-
-#if 0
 	TSI_INT_N, /*also smb_int_n in the card schema*/
-#endif
 
-#if 0
 	/*PWM3*/
 	GPIO53_PWM3,
 	/*PWM4 for Q7 board rev 1, not connected anywhere*/
 	GPIO54_PWM4,
-#endif
 
 	/* SSPA1 (I2S) */
 	GPIO25_I2S_BITCLK,
@@ -122,16 +110,6 @@ static unsigned long qseven_pin_config[] __initdata = {
 	GPIO27_I2S_DATA_OUT,
 	GPIO28_I2S_SDATA_IN,
 
-        /* HSIC1 reset pin (output) for Ariel 2*/
-        GPIO63_HSIC_RESET,
-
-	/* Headphone Detection GPIO 62 pin (Input) for Ariel 2*/
-	GPIO62_GPIO,
-
- 	/* Microphone Detection GPIO 68 pin (Input) for Ariel 2*/
-	GPIO68_GPIO,
-
-#if 0
 	/*ULPI QSEVEN rev 1*/
 	ULPI_DATA_0_GPIO_66,
 	ULPI_DATA_1_GPIO_65,
@@ -146,7 +124,6 @@ static unsigned long qseven_pin_config[] __initdata = {
 	ULPI_DIR_GPIO_69,
 	ULPI_NXT_GPIO_68,
 	ULPI_STP_GPIO_67,
-#endif
 
 	/* SSP1 FOR NOR FLASH, NOT POPULTAED*/
 	SSP1_RXD_GPIO_43,
@@ -154,10 +131,6 @@ static unsigned long qseven_pin_config[] __initdata = {
 	SSP1_CLK_GPIO_45,
 	SSP1_FRM_GPIO_46,
 
-	/*HDMI_HPD_N for hdmi detect, y no hdmi_cec*/
-	GPIO59_GPIO,
-
-#if 0
 	/* SSP3 FOR CAN*/
 	GPIO74_SSP_CLK,
 	GPIO75_SSP_FRM,
@@ -176,36 +149,7 @@ static unsigned long qseven_pin_config[] __initdata = {
 	GPIO85_GPIO,
 	GPIO86_GPIO,
 	GPIO87_GPIO,
-#endif
-	/*LCD RGB*/
-	GPIO74_LCD_FCLK,
-	GPIO75_LCD_LCLK,
-	GPIO76_LCD_PCLK,
-	GPIO77_LCD_DENA,
-	GPIO78_LCD_DD0,
-	GPIO79_LCD_DD1,
-	GPIO80_LCD_DD2,
-	GPIO81_LCD_DD3,
-	GPIO82_LCD_DD4,
-	GPIO83_LCD_DD5,
-	GPIO84_LCD_DD6,
-	GPIO85_LCD_DD7,
-	GPIO86_LCD_DD8,
-	GPIO87_LCD_DD9,
-	GPIO88_LCD_DD10,
-	GPIO89_LCD_DD11,
-	GPIO90_LCD_DD12,
-	GPIO91_LCD_DD13,
-	GPIO92_LCD_DD14,
-	GPIO93_LCD_DD15,
-	GPIO94_LCD_DD16,
-	GPIO95_LCD_DD17,
-	GPIO96_LCD_DD18,
-	GPIO97_LCD_DD19,
-	GPIO98_LCD_DD20,
-	GPIO99_LCD_DD21,
-	GPIO100_LCD_DD22,
-	GPIO101_LCD_DD23,
+
 };
 
 static unsigned long mmc1_pin_config[] __initdata = {
@@ -220,7 +164,6 @@ static unsigned long mmc1_pin_config[] __initdata = {
 	GPIO137_GPIO, /*drive low to enable power to card*/
 };
 
-#if 0
 /* MMC2 is used for WIB card */
 static unsigned long mmc2_pin_config[] __initdata = {
 	GPIO37_MMC2_DAT3,
@@ -231,10 +174,14 @@ static unsigned long mmc2_pin_config[] __initdata = {
 	GPIO42_MMC2_CLK,
 
 	/* GPIO used for power */
-	GPIO57_GPIO, /* WLAN_PD_N */
+	/*GPIO57_GPIO | MFP_LPM_DRIVE_HIGH, /* WLAN_PD_N */
+#ifdef CONFIG_SD8XXX_RFKILL
+	GPIO57_GPIO | MFP_LPM_DRIVE_LOW,
+#else
+	GPIO57_GPIO | MFP_LPM_DRIVE_HIGH,
+#endif
 	WIFI_32K_CLK_OUT,
 };
-#endif
 
 static unsigned long mmc3_pin_config[] __initdata = {
 	GPIO108_MMC3_DAT7,
@@ -331,7 +278,6 @@ static void __init mmp_init_devfreq_vmeta(void)
 	mmp_set_devfreq_vmeta_info(&devfreq_vmeta_pdata);
 }
 #endif
-#if 0
 
 static struct pxa27x_keypad_platform_data mmp3_keypad_info = {
 	.direct_key_map = {
@@ -388,12 +334,8 @@ struct tsc2007_platform_data tsc_2007_data = {
 
 };
 #endif
-#endif
 
-#if 0
 static struct i2c_board_info qseven_twsi4_info[] = {
-	{
-	},
 #if defined(CONFIG_TOUCHSCREEN_TSC2007)
 	{
 		.type		= "tsc2007",
@@ -403,30 +345,22 @@ static struct i2c_board_info qseven_twsi4_info[] = {
 	},
 #endif
 };
-#endif
 
 static struct i2c_board_info qseven_twsi3_info[] = {
 	{
-	 .type = "ce156",
-	 .addr = 0x30,
+	 .type = "wm8731",
+	 .addr = 0x1a,
 	},
 };
 /*FIXME*/
-#if 1 /* Enable for Ariel */
 static struct i2c_board_info qseven_twsi2_info[] = {
 	{
 	},
-};
-static struct i2c_board_info qseven_twsi5_info[] = {
-        {
-        },
 };
 static struct i2c_board_info qseven_twsi6_info[] = {
 	{
 	},
 };
-#endif
-
 #ifdef CONFIG_REGULATOR_88PM867
 
 #define PMIC_POWER_MAX MAR88PM867_VREG_MAX
@@ -525,7 +459,6 @@ static void qseven_regulators(void)
 #endif /*CONFIG_REGULATOR_88PM867*/
 
 
-#if 0
 static int qseven_pwm_init(struct device *dev)
 {
 	int lvds_blen, lvds_pplen;
@@ -569,7 +502,6 @@ static struct platform_device qseven_lcd_backlight_devices = {
 		.platform_data = &qseven_lcd_backlight_data,
 	},
 };
-#endif
 
 #ifdef CONFIG_MMC_SDHCI_PXAV3
 #include <linux/mmc/host.h>
@@ -624,12 +556,10 @@ static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc0 = {
 	.clk_delay_cycles	= 0x1F,
 };
 
-#if 0
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc1 = {
 	.flags          = PXA_FLAG_CARD_PERMANENT,
 	.pm_caps	= MMC_PM_KEEP_POWER,
 };
-#endif
 
 static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc2 = {
 	.flags		= PXA_FLAG_SD_8_BIT_CAPABLE_SLOT,
@@ -637,11 +567,13 @@ static struct sdhci_pxa_platdata mmp3_sdh_platdata_mmc2 = {
 
 static int __init qseven_init_mmc(void)
 {
-#if 0
-        /* No MMC power enable for Ariel 2 */
-	int sd_power_gpio = mfp_to_gpio(MFP_PIN_GPIO140);/* This Card detection on Ariel 2 */
+	int sd_power_gpio = mfp_to_gpio(MFP_PIN_GPIO137);
 	int wlan_pd_n = mfp_to_gpio(MFP_PIN_GPIO57);
-
+	int WIB_RESETn = mfp_to_gpio(GPIO58_GPIO);
+#ifdef CONFIG_SD8XXX_RFKILL
+	add_sd8x_rfkill_device(wlan_pd_n, NULL,\
+			&mmp3_sdh_platdata_mmc1.pmmc, mmp3_8787_set_power);
+#endif
 	if (gpio_request(sd_power_gpio, "sd card power")) {
 		printk(KERN_INFO "gpio %d request failed\n", sd_power_gpio);
 		return -1;
@@ -649,20 +581,16 @@ static int __init qseven_init_mmc(void)
 
 	gpio_direction_output(sd_power_gpio, 0);
 	gpio_free(sd_power_gpio);
-#endif
 
 	mfp_config(ARRAY_AND_SIZE(mmc3_pin_config));
 	mmp3_add_sdh(2, &mmp3_sdh_platdata_mmc2); /* eMMC */
 
 	mfp_config(ARRAY_AND_SIZE(mmc1_pin_config));
-#if 0 // disable 
 	if (cpu_is_mmp3_b1())/*replaced with b1*/
 		mmp3_sdh_platdata_mmc0.quirks =
 					SDHCI_QUIRK_INVERTED_WRITE_PROTECT;
-#endif
 	mmp3_add_sdh(0, &mmp3_sdh_platdata_mmc0); /* SD/MMC */
 
-#if 0
 	/* SDIO for WIFI card */
 	mfp_config(ARRAY_AND_SIZE(mmc2_pin_config));
 	mmp3_add_sdh(1, &mmp3_sdh_platdata_mmc1);
@@ -675,7 +603,6 @@ static int __init qseven_init_mmc(void)
 	mdelay(100);
 	gpio_direction_output(wlan_pd_n, 1);
 	gpio_free(wlan_pd_n);
-#endif
 	return 0;
 }
 #endif /* CONFIG_MMC_SDHCI_PXAV3 */
@@ -699,85 +626,6 @@ static struct mv_usb_platform_data mmp3_usb_pdata = {
 };
 #endif /*CONFIG_USB_PXA_U20*/
 
-
-#ifdef CONFIG_USB_EHCI_PXA_U2H_HSIC
-static int mmp3_hsic1_reset(void)
-{
-	int reset;
-	reset = mfp_to_gpio(GPIO63_HSIC_RESET);
-
-	if (gpio_request(reset, "hsic reset")) {
-		pr_err("Failed to request hsic reset gpio\n");
-		return -EIO;
-	}
-
-	gpio_direction_output(reset, 0);
-	mdelay(100);
-	gpio_direction_output(reset, 1);
-	mdelay(50);
-
-	gpio_free(reset);
-	return 0;
-}
-
-static int mmp3_hsic1_set_vbus(unsigned int vbus)
-{
-
-#if 0
-	static struct regulator *v_1p2_hsic;
-	printk(KERN_INFO "%s: set %d\n", __func__, vbus);
-#endif
-	if (vbus) {
-
-#if 0
-		if (!v_1p2_hsic) {
-			v_1p2_hsic = regulator_get(NULL, "V_1P2_HSIC");
-			if (IS_ERR(v_1p2_hsic)) {
-				printk(KERN_INFO "V_1P2_HSIC not found\n");
-				return -EIO;
-			}
-		regulator_set_voltage(v_1p2_hsic, 1200000, 1200000);
-		regulator_enable(v_1p2_hsic);
-		printk(KERN_INFO "%s: enable regulator\n", __func__);
-		udelay(2);
-		}
-#endif
-
-		mmp3_hsic1_reset();
-	} else {
-#if 0
-		if (v_1p2_hsic) {
-			regulator_disable(v_1p2_hsic);
-			regulator_put(v_1p2_hsic);
-			v_1p2_hsic = NULL;
-		}
-#endif
-	}
-
-	return 0;
-}
-
-static char *mmp3_hsic1_clock_name[] = {
-        [0] = "U2OCLK",
-        [1] = "HSIC1CLK",
-};
-
-static struct mv_usb_platform_data mmp3_hsic1_pdata = {
-        .clknum         = 2,
-        .clkname        = mmp3_hsic1_clock_name,
-        .vbus           = NULL,
-        .mode           = MV_USB_MODE_HOST,
-        .phy_init       = mmp3_hsic_phy_init,
-        .phy_deinit     = mmp3_hsic_phy_deinit,
-        .set_vbus       = mmp3_hsic1_set_vbus,
-        .private_init   = mmp3_hsic_private_init,
-};
-#endif
-
-
-
-
-#if 0
 #ifdef CONFIG_USB_EHCI_PXA_U2H_FSIC /*Support for ulpi*/
 static int mmp3_fsic_ulpi_phy_reset(void)
 {
@@ -812,12 +660,11 @@ static struct mv_usb_platform_data mmp3_fsic_pdata = {
 #endif
 #endif
 
-#endif /* USB support */
 #ifdef CONFIG_UIO_HDMI
 static struct uio_hdmi_platform_data mmp3_hdmi_info __initdata = {
 	.sspa_reg_base = 0xD42A0C00,
 	/* Fix me: gpio 81 lpm pull ? */
-	.gpio = mfp_to_gpio(GPIO59_GPIO),
+	.gpio = mfp_to_gpio(GPIO81_GPIO),
 	.edid_bus_num = 6,
 };
 #endif
@@ -984,8 +831,8 @@ static struct dmc_timing_entry khx1600c9s3k_table[] = {
 
 static void set_ddr_dll(u32 val)
 {
-#ifdef CONFIG_DDR_DEVFREQ
 	u32 tmp;
+#ifdef CONFIG_DDR_DEVFREQ
 	if (val <= 0xf) {
 		tmp = readl(ddr_info.hw_base[0] + 0x248);
 		writel((tmp & ~(0xf << 28)) | (val << 28), \
@@ -1001,7 +848,6 @@ static void qseven_update_ddr_info(void)
 	mmp3_pm_update_dram_timing_table(ARRAY_SIZE(khx1600c9s3k_table),
 						khx1600c9s3k_table);
 }
-#if 0
 static struct i2c_board_info qseven_i2c_camera[] = {
 	{
 		I2C_BOARD_INFO("ov5642", 0x3c),
@@ -1132,7 +978,6 @@ static struct mv_cam_pdata mv_cam_data = {
 	.enable_clk = pxa2128_cam_set_clk,
 	.get_mclk_src = get_mclk_src,
 };
-#endif
 
 static void __init qseven_init(void)
 {
@@ -1141,26 +986,20 @@ static void __init qseven_init(void)
 
 	/* on-chip devices */
 	mmp3_add_uart(3);
-#if 1 /*Enable for Ariel*/
 	mmp3_add_twsi(2, NULL, ARRAY_AND_SIZE(qseven_twsi2_info));
-	mmp3_add_twsi(5, NULL, ARRAY_AND_SIZE(qseven_twsi5_info));
 	mmp3_add_twsi(6, NULL, ARRAY_AND_SIZE(qseven_twsi6_info));
-#endif
 #ifdef CONFIG_REGULATOR_88PM867
 	qseven_power_supply_init();
 	mmp3_add_twsi(1, NULL, ARRAY_AND_SIZE(qseven_twsi1_mar88pm867_info));
 #endif
 
-#if 0
 #if defined(CONFIG_TOUCHSCREEN_TSC2007)
 	tsc2007_init_gpio_irq();
 #endif
-#endif
 
-#if 0
 	mmp3_add_twsi(4, NULL, ARRAY_AND_SIZE(qseven_twsi4_info));
+
 	mmp3_add_keypad(&mmp3_keypad_info);
-#endif
 
 	mmp3_add_videosram(&mmp3_videosram_info);
 
@@ -1179,12 +1018,11 @@ static void __init qseven_init(void)
 #endif
 	/* Change DLL reset timer to 256 cycles
 	set_ddr_dll(2);*/
-#if 0
+
 	/* backlight */
 	mmp3_add_pwm(3);
 	platform_device_register(&qseven_lcd_backlight_devices);
 	mmp3_add_thermal();
-#endif
 
 #ifdef CONFIG_ANDROID_PMEM
 	pxa_add_pmem();
@@ -1207,17 +1045,14 @@ static void __init qseven_init(void)
 	/* audio sspa support */
 	mmp3_add_twsi(3, NULL, ARRAY_AND_SIZE(qseven_twsi3_info));
 	mmp3_add_sspa(1);
-#if 0
 	mmp3_add_sspa(2);
-#endif
 	mmp3_add_audiosram(&mmp3_audiosram_info);
 
 	/* sensor ov5642 and ccic support */
-#if 0
+
 #if defined(CONFIG_VIDEO_MV)
 	platform_device_register(&qseven_ov5642);
 	mmp3_add_cam(0, &mv_cam_data);
-#endif
 #endif
 
 #ifdef CONFIG_USB_PXA_U2O
@@ -1235,23 +1070,16 @@ static void __init qseven_init(void)
 #endif
 #endif
 
-#ifdef CONFIG_USB_EHCI_PXA_U2H_HSIC
-        mmp3_hsic1_device.dev.platform_data = (void *)&mmp3_hsic1_pdata;
-        platform_device_register(&mmp3_hsic1_device);
-#endif
-
-#if 0
 #ifdef CONFIG_USB_EHCI_PXA_U2H_FSIC
 	mmp3_fsic_ulpi_phy_reset();
 	mmp3_fsic_device.dev.platform_data = (void *)&mmp3_fsic_pdata;
 	platform_device_register(&mmp3_fsic_device);
 #endif
-#endif
 
 #ifdef CONFIG_REGULATOR_88PM867
 	qseven_regulators();
 #endif
-//	pxa_u3d_phy_disable();		//paul disable due to Ariel2 disable USB3 Power
+	pxa_u3d_phy_disable();
 }
 
 MACHINE_START(QSEVEN, "Qseven")

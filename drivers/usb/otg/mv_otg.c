@@ -47,7 +47,7 @@ MODULE_LICENSE("GPL");
 static const char driver_name[] = "mv_otg";
 
 static struct mv_otg *the_transceiver;
-static int otg_force_host_mode=1;
+static int otg_force_host_mode;
 static struct wake_lock suspend_lock;
 #ifdef CONFIG_PXA95x
 static int dvfm_dev_idx;
