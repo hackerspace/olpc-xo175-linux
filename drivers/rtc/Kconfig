@@ -417,16 +417,6 @@ config RTC_DRV_RV3029C2
 	  This driver can also be built as a module. If so, the module
 	  will be called rtc-rv3029c2.
 
-config RTC_DRV_IDT1338
-	tristate "IDT 1338 RTC driver"
-	depends on RTC_CLASS && ARCH_MMP
-	help
-	  If you say yes here you get support for the
-	  IDT 1338 RTC module.
-
-	  This drive can also be built as a module. If so, the module
-	  will be called rtc-idt1338
-
 endif # I2C
 
 comment "SPI RTC drivers"
