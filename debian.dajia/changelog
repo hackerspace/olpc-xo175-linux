@@ -1,3 +1,12 @@
+linux-dajia (3.0.31-0.11) precise; urgency=low
+
+  [Jesse Sung]
+
+  * Disable FRAMEBUFFER_CONSOLE
+    - LP: #1136479
+
+ -- Jesse Sung <jesse.sung@canonical.com>  Thu, 07 Mar 2013 17:35:47 +0800
+
 linux-dajia (3.0.31-0.10) precise; urgency=low
 
   [Jesse Sung]
