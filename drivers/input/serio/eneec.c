@@ -998,6 +998,11 @@ static ssize_t ec_ac_line(struct device *dev, struct device_attribute
 static ssize_t ec_version(struct device *dev, struct device_attribute
 	          *devattr, char *buf) {
 	int count=0;
+	struct eneec *eneec = i2c_get_clientdata(ene_client);
+	eneec_register_update(MB_TYPE);
+	eneec_register_update(VERSION_1);
+	eneec_register_update(VERSION_2);
+
 	switch (ecram_val[MB_TYPE]){
 	case 'M':
 		count = sprintf(buf, "MIMAS Board ");
