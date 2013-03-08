@@ -68,6 +68,7 @@ struct smsc75xx_priv {
 	struct mutex dataport_mutex;
 	spinlock_t rfe_ctl_lock;
 	struct work_struct set_multicast;
+	unsigned char random_ether_addr[8];
 };
 
 struct usb_context {
@@ -603,6 +604,8 @@ static int smsc75xx_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 
 static void smsc75xx_init_mac_address(struct usbnet *dev)
 {
+	struct smsc75xx_priv *pdata = (struct smsc75xx_priv *)(dev->data[0]);
+
 	/* try reading mac address from EEPROM */
 	if (smsc75xx_read_eeprom(dev, EEPROM_MAC_OFFSET, ETH_ALEN,
 			dev->net->dev_addr) == 0) {
@@ -615,7 +618,7 @@ static void smsc75xx_init_mac_address(struct usbnet *dev)
 	}
 
 	/* no eeprom, or eeprom values are invalid. generate random MAC */
-	random_ether_addr(dev->net->dev_addr);
+	memcpy(dev->net->dev_addr, pdata->random_ether_addr, sizeof(dev->net->dev_addr));
 	netif_dbg(dev, ifup, dev->net, "MAC address set to random_ether_addr");
 }
 
@@ -1037,6 +1040,7 @@ static int smsc75xx_bind(struct usbnet *dev, struct usb_interface *intf)
 	}
 
 	pdata->dev = dev;
+	random_ether_addr(pdata->random_ether_addr);
 
 	spin_lock_init(&pdata->rfe_ctl_lock);
 	mutex_init(&pdata->dataport_mutex);
