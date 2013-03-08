@@ -1,3 +1,16 @@
+linux-dajia (3.0.31-0.12) precise; urgency=low
+
+  [Jesse Sung]
+
+  * Merge 2.0b-rc2 kernel source drop
+    - fix EC version read
+    - LP: #1151137
+  * When random MAC addressis ued , do not change the address on each
+    interface up/down
+    - LP: #1152330
+
+ -- Jesse Sung <jesse.sung@canonical.com>  Fri, 08 Mar 2013 17:07:56 +0800
+
 linux-dajia (3.0.31-0.11) precise; urgency=low
 
   [Jesse Sung]
