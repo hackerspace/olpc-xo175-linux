@@ -1,3 +1,11 @@
+linux-dajia (3.0.31-0.13) precise; urgency=low
+
+  [Jesse Sung]
+
+  * Enable some options related to profiling
+
+ -- Jesse Sung <jesse.sung@canonical.com>  Wed, 13 Mar 2013 11:04:42 +0800
+
 linux-dajia (3.0.31-0.12) precise; urgency=low
 
   [Jesse Sung]
