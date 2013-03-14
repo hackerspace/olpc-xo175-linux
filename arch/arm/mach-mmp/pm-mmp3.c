@@ -23,6 +23,7 @@
 #include <linux/clocksource.h>
 #include <linux/time.h>
 #include <linux/cpu.h>
+#include <linux/interrupt.h>
 #include <plat/clock.h>
 #include <asm/mach/map.h>
 #include <asm/proc-fns.h>
@@ -41,6 +42,7 @@
 #include <mach/mmp3_pm.h>
 #include <mach/smp.h>
 #include <mach/mmp_cm.h>
+#include <mach/mmp_events.h>
 #include <linux/fb.h>
 
 static DEFINE_SPINLOCK(dfcsch_lock);

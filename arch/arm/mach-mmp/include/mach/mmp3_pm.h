@@ -91,6 +91,4 @@ union trace_dfc_log {
 	u32 val;
 };
 
-#include <mach/mmp_events.h>
-
 #endif

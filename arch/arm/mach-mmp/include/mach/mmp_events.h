@@ -1,10 +1,10 @@
-#undef TRACE_SYSTEM
-#define TRACE_SYSTEM mmp_events
-
 #if !defined(_TRACE_MMP_EVENTS_H) || defined(TRACE_HEADER_MULTI_READ)
 #define _TRACE_MMP_EVENTS_H
 
 #include <linux/tracepoint.h>
+
+#undef TRACE_SYSTEM
+#define TRACE_SYSTEM mmp_events
 
 TRACE_EVENT(dfc,
 
