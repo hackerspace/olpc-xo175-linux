@@ -1,3 +1,11 @@
+linux-dajia (3.0.31-0.14) precise; urgency=low
+
+  [Jesse Sung]
+
+  * Disable CONFIG_HAVE_HW_BREAKPOINT
+
+ -- Jesse Sung <jesse.sung@canonical.com>  Thu, 14 Mar 2013 14:31:07 +0800
+
 linux-dajia (3.0.31-0.13) precise; urgency=low
 
   [Jesse Sung]
