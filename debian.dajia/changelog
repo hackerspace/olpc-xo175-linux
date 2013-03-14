@@ -1,3 +1,12 @@
+linux-dajia (3.0.31-0.15) precise; urgency=low
+
+  [Jesse Sung]
+
+  * CONFIG: Enable TRACER
+  * Apply ureadahead patches
+
+ -- Jesse Sung <jesse.sung@canonical.com>  Thu, 14 Mar 2013 17:28:24 +0800
+
 linux-dajia (3.0.31-0.14) precise; urgency=low
 
   [Jesse Sung]
