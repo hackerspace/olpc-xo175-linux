@@ -245,8 +245,99 @@ static struct clk mmp3_clk_pll1_d_4 = {
 	.ops = NULL,
 };
 
+static int mmp3_clk_pll3_enable_parallel(struct clk *clk)
+{
+	unsigned int pll3_ctrl1, tmp, pll3_cr, calculated_pclk, CLK_INT_DIV;
+	unsigned long parent_rate, div_result;
+	unsigned int FBDIV;
+	unsigned int REFDIV = 0x3;
+	unsigned int VCODIV_SEL_SE = 2;
+	unsigned int KVCO;
+	unsigned int VCO_VRNG;
+	unsigned int rate = clk->rate;
+
+	tmp = (__raw_readl(APMU_FSIC3_CLK_RES_CTRL) >> 8) & 0xF;
+	if (tmp == 0xD)
+		parent_rate = clk_get_rate(&mmp3_clk_vctcxo);
+	else
+		parent_rate = 25000000;
+	VCODIV_SEL_SE = 0x2;
+	pr_info("Desired clk_rate in Hz = %lu\n", rate);
+	/* PLL3 control register 1 - program ICP = 4 */
+	pll3_ctrl1 = 0x01010099;
+	if ((rate >= 120000000UL) && (rate <= 240000000UL)) {
+		rate = rate * 10;
+		CLK_INT_DIV = 5;
+	} else if ((rate > 60000000UL) && (rate < 120000000UL)) {
+		rate = rate * 20;
+		CLK_INT_DIV = 10;
+	} else if ((rate > 30000000UL) && (rate <= 60000000UL)) {
+		rate = rate * 40;
+		CLK_INT_DIV = 20;
+	} else {
+		rate = rate * 60;
+		CLK_INT_DIV = 30;
+	}
+	if (rate > 1200000000UL && rate <= 1360000000UL)
+		KVCO = 0x1;
+	else if (rate > 1360000000UL && rate <= 1530000000UL)
+		KVCO = 0x2;
+	else if (rate > 1530000000UL && rate <= 1700000000UL)
+		KVCO = 0x3;
+	else if (rate > 1700000000UL && rate <= 1900000000UL)
+		KVCO = 0x4;
+	else if (rate > 1900000000UL && rate <= 2100000000UL)
+		KVCO = 0x5;
+	else if (rate > 2100000000UL && rate <= 2300000000UL)
+		KVCO = 0x6;
+	else if (rate > 2300000000UL && rate <= 2400000000UL)
+		KVCO = 0x7;
+	else
+		KVCO = 0x6;
+	if (KVCO >= 0x1 && KVCO <= 0x6)
+		VCO_VRNG = KVCO - 1;
+	else
+		VCO_VRNG = 0x5;
+	div_result  = rate / parent_rate * REFDIV;
+	FBDIV = div_result & 0x1ff;
+	/* Make sure calculated PCLK is higher than target PCLK */
+	calculated_pclk = (parent_rate/REFDIV*FBDIV/VCODIV_SEL_SE/CLK_INT_DIV);
+	pr_info("Inside %s\n", __func__);
+	pr_info("Calculated pclk from pll3 will be %u\n", calculated_pclk);
+	pr_info("REFDIV=%d\n", REFDIV);
+	pr_info("FBDIV=%d\n", FBDIV);
+	pr_info("CLK_INT_DIV=%d\n", CLK_INT_DIV);
+	pll3_cr = (REFDIV << 19) | (FBDIV << 10) | (0x1 << 9);
+	pll3_ctrl1 |= (VCODIV_SEL_SE << 25 | KVCO << 19 | VCO_VRNG << 8);
+	/* Disable PLL3 */
+	tmp =  __raw_readl(PMUM_PLL3_CR);
+	__raw_writel(tmp & ~(0x00000100), PMUM_PLL3_CR);
+	tmp =  __raw_readl(PMUM_PLL3_CTRL2);
+	/* set SEL_VCO_CLK_SE in PMUM_PLL3_CTRL2 register */
+	__raw_writel(tmp | 0x00000001, PMUM_PLL3_CTRL2);
+	/* PLL3 control register 1 ICP = 4.*/
+	__raw_writel(pll3_ctrl1, PMUM_PLL3_CTRL1);
+	/* MPMU_PLL3CR: Program PLL3 VCO */
+	__raw_writel(pll3_cr, PMUM_PLL3_CR);
+	/* PLL3 Control register -Enable SW PLL3 */
+	tmp =  __raw_readl(PMUM_PLL3_CR);
+	__raw_writel(tmp | 0x00000100, PMUM_PLL3_CR);
+	/* wait for PLLs to lock */
+	udelay(500);
+	/* PMUM_PLL3_CTRL1: take PLL3 out of reset */
+	tmp =  __raw_readl(PMUM_PLL3_CTRL1);
+	__raw_writel(tmp | 0x20000000, PMUM_PLL3_CTRL1);
+	udelay(500);
+	/*clk->div = CLK_INT_DIV;*/
+	return 0;
+}
 static int mmp3_clk_pll3_enable(struct clk *clk)
 {
+#if defined(CONFIG_MACH_QSEVEN)
+	pr_info("calling our customized mmp3_pll3 enable function\n");
+	mmp3_clk_pll3_enable_parallel(clk);
+	return 0;
+#else
 	u64 div_result;
 	u32 tmp, pll3_ctrl1, pll3_cr, FBDIV;
 	u8 VCODIV_SEL_SE, KVCO, VCO_VRNG, REFDIV = 0x3;
@@ -344,6 +435,7 @@ static int mmp3_clk_pll3_enable(struct clk *clk)
 	udelay(500);
 
 	return 0;
+#endif
 }
 
 static void mmp3_clk_pll3_disable(struct clk *clk)
@@ -365,6 +457,11 @@ static void mmp3_clk_pll3_disable(struct clk *clk)
 
 static long mmp3_clk_pll3_round_rate(struct clk *clk, unsigned long rate)
 {
+#if defined(CONFIG_MACH_QSEVEN)
+	pr_info("Returning rate %u from function %s\n", rate, __func__);
+	pr_info("We will not round rate or do anything here...\n");
+	return rate;
+#endif
 	unsigned int fb_div, post_div, ref_div = 0x3;
 	unsigned long parent_rate, rate_rounded;
 	u64 div_result;
@@ -415,6 +512,12 @@ static long mmp3_clk_pll3_round_rate(struct clk *clk, unsigned long rate)
 
 static int mmp3_clk_pll3_setrate(struct clk *clk, unsigned long rate)
 {
+
+#if defined(CONFIG_MACH_QSEVEN)
+	pr_info("Setting pixclk rate as a pll3 desired rate in its clock...\n");
+	clk->rate = rate;
+	return 0;
+#endif
 	unsigned long parent_rate;
 	u64 div_result;
 	unsigned int ref_div = 0x3;
@@ -1442,6 +1545,7 @@ static int lcd_pn1_clk_enable(struct clk *clk)
 	u32 val = __raw_readl(clk->reg_data[SOURCE][CONTROL].reg);
 
 	if (clk->parent == &mmp3_clk_vctcxo) {
+#ifndef CONFIG_MACH_QSEVEN
 		/* enable DSI PHY ESC/SLOW clock */
 		val |= (1 << 12) | (1 << 5);
 		__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
@@ -1463,6 +1567,10 @@ static int lcd_pn1_clk_enable(struct clk *clk)
 		 * display panel parameters. So enable the pll3 clk here.
 		 */
 		mmp3_clk_pll3_enable(clk);
+#else
+		pr_info("We do not need to touch APMU_LCD, just enable pll3\n");
+		mmp3_clk_pll3_enable(clk);
+#endif
 	} else if (clk->parent == &mmp3_clk_pll1) {
 		/* select PLL1 as clock source and disable unused clocks */
 		val &= ~((3 << 6) | (1 << 12) | (1 << 5) | (1 << 2));
@@ -1490,7 +1598,8 @@ static int lcd_pn1_clk_enable(struct clk *clk)
 	__raw_writel(val, clk->reg_data[SOURCE][CONTROL].reg);
 
 	pr_info("%s PMUA_DISPLAY1 = 0x%x, clk from %s", __func__, val,
-		(clk->parent == &mmp3_clk_pll2) ?  "pll2" : "pll1");
+		(clk->parent == &mmp3_clk_pll2) ?  "pll2" :
+		(clk->parent == &mmp3_clk_pll1) ? "pll1" : "pll3");
 
 	return 0;
 }
@@ -1509,7 +1618,8 @@ static void lcd_pn1_clk_disable(struct clk *clk)
 
 	}
 	pr_info("%s PMUA_DISPLAY1 = 0x%x, clk from %s", __func__, val,
-		(clk->parent == &mmp3_clk_pll2) ?  "pll2" : "pll1");
+		(clk->parent == &mmp3_clk_pll2) ?  "pll2" :
+		(clk->parent == &mmp3_clk_pll1) ? "pll1" : "pll3");
 }
 
 static long lcd_clk_round_rate(struct clk *clk, unsigned long rate)
@@ -1527,6 +1637,7 @@ static long lcd_clk_round_rate(struct clk *clk, unsigned long rate)
 			/* remove depend clk disp1 */
 			clk->dependence_count--;
 		rate = mmp3_clk_pll3_round_rate(clk, rate);
+
 		break;
 	}
 	pr_debug("%s line %d rate %lu\n\n", __func__, __LINE__, rate);

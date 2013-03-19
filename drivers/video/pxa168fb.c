@@ -584,13 +584,37 @@ static void calculate_lvds_clk(struct pxa168fb_info *fbi) {
 static void calculate_lcd_sclk(struct pxa168fb_info *fbi)
 {
 	struct pxa168fb_mach_info *mi = fbi->dev->platform_data;
+	struct fb_var_screeninfo *var = &fbi->fb_info->var;
+	u32 pclk;
+	u64 div_result;
+	int div;
 
 	if (mi->phy_type & (DSI | DSI2DPI))
 		calculate_dsi_clk(fbi);
 	else if (mi->phy_type & LVDS)
 		calculate_lvds_clk(fbi);
-	else
-		return;
+	else {
+		pr_info("Interface is parallel\n");
+		if (!var->pixclock) {
+			pr_err("Input refresh or pixclock is wrong.\n");
+			return;
+		}
+		div_result = 1000000000000ll;
+		do_div(div_result, var->pixclock);
+		pclk = (u32)div_result;
+		fbi->sclk_src = pclk;
+		if ((pclk >= 120000000UL) && (pclk <= 240000000UL))
+			div = 5;
+		else if ((pclk > 60000000UL) && (pclk < 120000000UL))
+			div = 10;
+		else if ((pclk > 30000000UL) && (pclk <= 60000000UL))
+			div = 20;
+		else
+			div = 30;
+		fbi->sclk_div = 0xe0000000 | div;
+		pr_info("In the %s func for pclk %u\n", __func__, pclk);
+	}
+	return;
 }
 
 /*
@@ -610,12 +634,32 @@ static void set_clock_divider(struct pxa168fb_info *fbi)
 	struct dsi_info *di = (struct dsi_info *)mi->phy_info;
 	u32 divider_int, needed_pixclk, val, x = 0;
 	u64 div_result;
-
 	if (!fbi->id) {
 		calculate_lcd_sclk(fbi);
 		clk_disable(fbi->clk);
 		clk_set_rate(fbi->clk, fbi->sclk_src);
 		clk_enable(fbi->clk);
+		if ((mi->phy_type & (DSI | DSI2DPI)) || (mi->phy_type & LVDS)) {
+			pr_info("Interface is either DSI or LVDS\n");
+		} else {
+			pr_info("Dynamic resolution change for fbi->id: %d\n",
+				fbi->id);
+			pr_info("HActive: %u\n", var->xres);
+			pr_info("VActive: %u\n", var->yres);
+			pr_info("Hvirtual: %u\n", var->xres_virtual);
+			pr_info("Vvirtual: %u\n", var->yres_virtual);
+			pr_info("bits_per_pixel: %u\n", var->bits_per_pixel);
+			pr_info("red.offset: %u\n", var->red.offset);
+			pr_info("red.length: %u\n", var->red.length);
+			pr_info("green.offset: %u\n", var->green.offset);
+			pr_info("green.length: %u\n", var->green.length);
+			pr_info("blue.offset: %u\n", var->blue.offset);
+			pr_info("blue.length: %u\n", var->blue.length);
+			pr_info("transp.offset: %u\n", var->transp.offset);
+			pr_info("transp.length: %u\n", var->transp.length);
+			pr_info("\n%s sclk_src %d sclk_div 0x%x\n", __func__,
+				fbi->sclk_src, fbi->sclk_div);
+		}
 	} else
 		fbi->sclk_div = mi->sclk_div;
 	
@@ -629,6 +673,7 @@ static void set_clock_divider(struct pxa168fb_info *fbi)
 			(var->vmode == FB_VMODE_INTERLACED)) {
 			val &= ~0xf;
 			val |= (mi->sclk_div & 0xf) << 1;
+			pr_info("480i and 576i, pixel clock should be half.\n");
 		}
 
 		/* for lcd controller */
@@ -648,6 +693,8 @@ static void set_clock_divider(struct pxa168fb_info *fbi)
 			/* for lcd controller, select LVDS clk as clk source */
 			lcd_clk_set(fbi->id, clk_sclk, 0xffffffff, 0x1001);
 			lcd_clk_set(fbi->id, clk_lvds_wr, 0xffffffff, val);
+		} else {
+			lcd_clk_set(fbi->id, clk_sclk, 0xffffffff, val);
 		}
 
 		if (!var->pixclock) {

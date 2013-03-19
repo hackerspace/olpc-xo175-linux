@@ -1201,16 +1201,16 @@ static struct pxa168fb_mach_info mipi_lcd_info = {
 	.id = "GFX Layer",
 	.num_modes = 0,
 	.modes = NULL,
-	.sclk_div = 0xE0001108,\
-//	.pix_fmt = PIX_FMT_RGB565,
-	.pix_fmt = PIX_FMT_RGBA888,
+	.sclk_div = 0xE0000008,
+/*	.pix_fmt = PIX_FMT_RGB565,*/
+	.pix_fmt = PIX_FMT_RGB888UNPACK,
 	.dumb_mode = DUMB_MODE_RGB888,
 	.isr_clear_mask	= LCD_ISR_CLEAR_MASK_PXA168,
 	/* don't care about io_pin_allocation_mode and dumb_mode
 	 * since the panel is hard connected with lcd panel path and
 	 * dsi1 output
 	 */
-	.io_pad_ctrl = CFG_CYC_BURST_LEN16,
+	.io_pad_ctrl = PIN_MODE_DUMB_24 | CFG_CYC_BURST_LEN16,
 	.panel_rgb_reverse_lanes = 0,
 	.invert_composite_blank = 0,
 	.invert_pix_val_ena = 0,
@@ -1224,13 +1224,10 @@ static struct pxa168fb_mach_info mipi_lcd_info = {
 	.vdma_enable = 1,
 	.sram_size  = 30 * 1024,
 	.max_fb_size = 1920 * 1200 * 8 + 4096,
-	.phy_type = DSI2DPI,
-	.phy_init = dsi_init,
 #ifdef CONFIG_TC35876X
 	.dsi2dpi_set = dsi_set_tc358765,
 	.xcvr_reset = tc358765_reset,
 #endif
-	.phy_info = &dsiinfo,
 	.sclk_src = 520000000,
 };
 
@@ -1376,13 +1373,23 @@ static void calculate_lvds_clk(struct pxa168fb_mach_info *mi)
 
 static void calculate_lcd_sclk(struct pxa168fb_mach_info *mi)
 {
+	struct fb_videomode *modes = &mi->modes[0];
+	u32 total_w, total_h, pclk;
+
+	total_w = modes->xres + modes->left_margin +
+		modes->right_margin + modes->hsync_len;
+	total_h = modes->yres + modes->upper_margin +
+		modes->lower_margin + modes->vsync_len;
+
+	pclk = total_w * total_h * modes->refresh;
 
 	if (mi->phy_type & (DSI | DSI2DPI))
 		calculate_dsi_clk(mi);
 	else if (mi->phy_type & LVDS)
 		calculate_lvds_clk(mi);
 	else
-		return;
+		mi->sclk_src = pclk;
+	return;
 }
 #endif
 
@@ -1431,7 +1438,7 @@ void __init abilene_add_lcd_mipi(void)
 
 	/* FIXME: select DSI2LVDS by default on abilene. */
 #ifdef CONFIG_MACH_QSEVEN
-	lvds_en = 1;
+	lvds_en = 0;
 #else
 	lvds_en = 0;
 #endif
