@@ -654,6 +654,10 @@ static void dither_config(struct pxa168fb_mach_info *mi)
 	struct dsi_info *dsi;
 	int bpp;
 
+	if (mi->phy_type != LVDS && !(mi->phy_type & (DSI | DSI2DPI))) {
+		pr_info("Using parallel at 24 bit so not enabling dither\n");
+		return;
+	}
 	if (mi->phy_type == LVDS) {
 		lvds = (struct lvds_info *)mi->phy_info;
 		bpp = (lvds->fmt == LVDS_FMT_18BIT) ? 18 : 24;
@@ -1389,6 +1393,7 @@ static void calculate_lcd_sclk(struct pxa168fb_mach_info *mi)
 		calculate_lvds_clk(mi);
 	else
 		mi->sclk_src = pclk;
+	printk(KERN_INFO "PLL3 DEBUG: %s %d plck=%d\n", __func__, __LINE__, pclk);
 	return;
 }
 #endif
