@@ -1543,6 +1543,7 @@ static struct clk *disp_depend_clk[] = {
 static int lcd_pn1_clk_enable(struct clk *clk)
 {
 	u32 val = __raw_readl(clk->reg_data[SOURCE][CONTROL].reg);
+	printk(KERN_INFO"***Frank %s/%d clk=%p clk->name=%s\n", __func__, __LINE__, clk, clk->name);
 
 	if (clk->parent == &mmp3_clk_vctcxo) {
 #ifndef CONFIG_MACH_QSEVEN
@@ -1607,6 +1608,7 @@ static int lcd_pn1_clk_enable(struct clk *clk)
 static void lcd_pn1_clk_disable(struct clk *clk)
 {
 	u32 val = __raw_readl(clk->reg_data[SOURCE][CONTROL].reg);
+	printk(KERN_INFO"***Frank %s/%d clk=%p clk->name=%s\n", __func__, __LINE__, clk, clk->name);
 
 	if (clk->parent == &mmp3_clk_vctcxo) {
 		/* lcd clock source is fixed as DSI PLL(PLL3), so disable pll3 clk */
@@ -1648,6 +1650,7 @@ static long lcd_clk_round_rate(struct clk *clk, unsigned long rate)
 static int lcd_clk_setrate(struct clk *clk, unsigned long rate)
 {
 	int ret = 0;
+	printk(KERN_INFO"***Frank %s/%d clk=%p clk->name=%s\n", __func__, __LINE__, clk, clk->name);
 
 	switch (rate) {
 	case 800000000:

@@ -38,6 +38,7 @@
 #include <mach/irqs.h>
 #include <mach/gpio.h>
 #include <plat/pm.h>
+#include <plat/clock.h>
 #include "pxa168fb_common.h"
 #include <asm/cacheflush.h>
 
@@ -634,9 +635,13 @@ static void set_clock_divider(struct pxa168fb_info *fbi)
 	struct dsi_info *di = (struct dsi_info *)mi->phy_info;
 	u32 divider_int, needed_pixclk, val, x = 0;
 	u64 div_result;
+	struct clk *fclk = (struct clk *)fbi->clk;
 	if (!fbi->id) {
 		calculate_lcd_sclk(fbi);
+		printk(KERN_INFO"***Frank %s/%d fbi->clk=%p fclk->name=%s\n", __func__, __LINE__, fbi->clk, fclk->name);
+
 		clk_disable(fbi->clk);
+
 		clk_set_rate(fbi->clk, fbi->sclk_src);
 		clk_enable(fbi->clk);
 		if ((mi->phy_type & (DSI | DSI2DPI)) || (mi->phy_type & LVDS)) {
@@ -2239,9 +2244,12 @@ static int __devinit pxa168fb_probe(struct platform_device *pdev)
 	pxa168fb_init_mode(info, mi);
 
 	/* enable controller clock */
-	if (mi->sclk_src)
-		clk_set_rate(fbi->clk, mi->sclk_src);
-	clk_enable(fbi->clk);
+
+//      /* fix duplicate clk_enable() call by dipen */
+//	if (mi->sclk_src)
+//		clk_set_rate(fbi->clk, mi->sclk_src);
+//	clk_enable(fbi->clk);
+
 	pr_info("fb%d: sclk_src %d clk_get_rate = %d\n", fbi->id,
 		mi->sclk_src, (int)clk_get_rate(fbi->clk));
 
