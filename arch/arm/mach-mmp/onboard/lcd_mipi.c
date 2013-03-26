@@ -56,6 +56,18 @@ static struct fb_videomode video_modes_abilene[] = {
 		.upper_margin = 23,
 		.lower_margin = 3,
 #endif
+#if 0
+		.pixclock = 6488,
+		.refresh = 60,
+		.xres = 1920,
+		.yres = 1200,
+		.hsync_len = 32,
+		.left_margin = 80,
+		.right_margin = 48,
+		.vsync_len = 6,
+		.upper_margin = 26,
+		.lower_margin = 3,
+#endif
 #if 1  //for 1024x768 79.5MHz.
 		.pixclock = 11695,
 		.refresh = 60,

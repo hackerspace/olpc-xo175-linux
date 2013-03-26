@@ -653,6 +653,24 @@ static void set_clock_divider(struct pxa168fb_info *fbi)
 			pr_info("VActive: %u\n", var->yres);
 			pr_info("Hvirtual: %u\n", var->xres_virtual);
 			pr_info("Vvirtual: %u\n", var->yres_virtual);
+
+			/* Ariel2 support max 1920x1200 in Single VGA */
+                        /* 1920x1200 doesn't support extended mode    */
+
+#if 0
+			if (var->xres>=1920 && var->yres>=1200)
+			{
+				printk(KERN_INFO"%s/%d ** Frank\n", __func__,__LINE__);
+				if (var->xres_virtual>1920) {
+				printk(KERN_INFO"%s/%d ** Frank\n", __func__,__LINE__);
+					var->xres_virtual=1920;
+				}
+				if (var->yres_virtual>1200) {
+					printk(KERN_INFO"%s/%d ** Frank\n", __func__,__LINE__);
+					var->yres_virtual=1200;
+				}
+			}
+#endif
 			pr_info("bits_per_pixel: %u\n", var->bits_per_pixel);
 			pr_info("red.offset: %u\n", var->red.offset);
 			pr_info("red.length: %u\n", var->red.length);
@@ -662,6 +680,31 @@ static void set_clock_divider(struct pxa168fb_info *fbi)
 			pr_info("blue.length: %u\n", var->blue.length);
 			pr_info("transp.offset: %u\n", var->transp.offset);
 			pr_info("transp.length: %u\n", var->transp.length);
+
+                        pr_info("xres_virtual: %u\n", var->xres_virtual);
+                        pr_info("yres_virtual: %u\n", var->yres_virtual);
+                        pr_info("xoffset: %u\n", var->xoffset);
+                        pr_info("yoffset: %u\n", var->yoffset);
+                        pr_info("bpp: %u\n", var->bits_per_pixel);
+                        pr_info("nonstd: %u\n", var->nonstd);
+                        pr_info("activate: %u\n", var->activate);
+                        pr_info("height: %u\n", var->height);
+                        pr_info("width: %u\n", var->width);
+                        pr_info("accel_flags: %u\n", var->accel_flags);
+
+                        pr_info("pixclock: %u\n", var->pixclock);
+			//var->pixclock = 6488;
+                        pr_info("left_margin: %u\n", var->left_margin);
+                        pr_info("right_margin: %u\n", var->right_margin);
+                        pr_info("upper_margin: %u\n", var->upper_margin);
+                        pr_info("lower_margin: %u\n", var->lower_margin);
+                        pr_info("hsync_len: %u\n", var->hsync_len);
+                        pr_info("vsync_len: %u\n", var->vsync_len);
+                        pr_info("sync: %u\n", var->sync);
+			//var->sync = 3;
+                        pr_info("vmode: %u\n", var->vmode);
+                        pr_info("rotate: %u\n", var->rotate);
+
 			pr_info("\n%s sclk_src %d sclk_div 0x%x\n", __func__,
 				fbi->sclk_src, fbi->sclk_div);
 		}
