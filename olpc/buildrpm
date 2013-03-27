@@ -34,11 +34,11 @@ elif [ "$xo_version" = "1.5" ]; then
 elif [ "$xo_version" = "1.75" ]; then
 	rpm_target="armv7l"
 	xo_version="1.75"
-	defconfig="arch/arm/configs/xo_1.75_defconfig"
+	defconfig="xo_175_defconfig"
 elif [ "$xo_version" = "4" ]; then
 	rpm_target="armv7l"
 	xo_version="4"
-	defconfig="arch/arm/configs/xo_4_defconfig"
+	defconfig="xo_4_defconfig"
 else
 	echo "Usage: $0 <laptop_model>"
 	echo "Available models: 1.0 1.5 1.75"
