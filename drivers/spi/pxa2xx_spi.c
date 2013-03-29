@@ -1152,12 +1152,18 @@ static void pump_transfers(unsigned long data)
 						"DMA burst size reduced to "
 						"match bits_per_word\n");
 		}
-
+#if 1
 		cr0 = clk_div
 			| SSCR0_Motorola
 			| SSCR0_DataSize(bits > 16 ? bits - 16 : bits)
 			| SSCR0_SSE
 			| (bits > 16 ? SSCR0_EDSS : 0);
+#else
+		cr0 = clk_div
+			| SSCR0_DataSize(bits > 16 ? bits - 16 : bits)
+			| SSCR0_SSE
+			| (bits > 16 ? SSCR0_EDSS : 0);
+#endif
 	}
 
 	message->state = RUNNING_STATE;
@@ -1467,13 +1473,20 @@ static int setup(struct spi_device *spi)
 
 	clk_div = ssp_get_clk_div(ssp, spi->max_speed_hz);
 	chip->speed_hz = spi->max_speed_hz;
-
+#if 1
 	chip->cr0 = clk_div
 			| SSCR0_Motorola
 			| SSCR0_DataSize(spi->bits_per_word > 16 ?
 				spi->bits_per_word - 16 : spi->bits_per_word)
 			| SSCR0_SSE
 			| (spi->bits_per_word > 16 ? SSCR0_EDSS : 0);
+#else
+	chip->cr0 = clk_div
+			| SSCR0_DataSize(spi->bits_per_word > 16 ?
+				spi->bits_per_word - 16 : spi->bits_per_word)
+			| SSCR0_SSE
+			| (spi->bits_per_word > 16 ? SSCR0_EDSS : 0);
+#endif
 	chip->cr1 &= ~(SSCR1_SPO | SSCR1_SPH);
 	chip->cr1 |= (((spi->mode & SPI_CPHA) != 0) ? SSCR1_SPH : 0)
 			| (((spi->mode & SPI_CPOL) != 0) ? SSCR1_SPO : 0);
@@ -1745,10 +1758,18 @@ static int __devinit pxa2xx_spi_probe(struct platform_device *pdev)
 	write_SSCR1(SSCR1_RxTresh(RX_THRESH_DFLT) |
 				SSCR1_TxTresh(TX_THRESH_DFLT),
 				drv_data->ioaddr);
+#if 1
 	write_SSCR0(SSCR0_SCR(2)
 			| SSCR0_Motorola
-			| SSCR0_DataSize(8),
+			| SSCR0_DataSize(8)
+			|SSCR0_SSE,
 			drv_data->ioaddr);
+#else
+	write_SSCR0(SSCR0_SCR(2)
+			| SSCR0_DataSize(8)
+			|SSCR0_SSE,
+			drv_data->ioaddr);
+#endif
 	if (!pxa25x_ssp_comp(drv_data))
 		write_SSTO(0, drv_data->ioaddr);
 	write_SSPSP(0, drv_data->ioaddr);

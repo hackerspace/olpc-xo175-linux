@@ -65,6 +65,7 @@
 #include <mach/mmp3_pm.h>
 #include <mach/gpio.h>
 #include <linux/i2c/eneec.h>
+#include <linux/spi/flash.h>
 
 #include "common.h"
 #include "onboard.h"
@@ -210,6 +211,10 @@ static unsigned long qseven_pin_config[] __initdata = {
 
 	/* ENE EC */
 	ENE_KB_INT_GPIO_60,
+	SPI2_CLK_GPIO_55,
+	SPI2_FRM_GPIO_56,
+	SPI2_RXD_GPIO_57,
+	SPI2_TXD_GPIO_58,
  	GPIO126_OFF1,
 	GPIO127_OFF2,
 };
@@ -1217,6 +1222,80 @@ static void eneec_init_gpio_irq(void)
         return ;
 
 }
+static struct pxa2xx_spi_chip flash_spi_device = {
+        .tx_threshold = 8,
+        .rx_threshold = 8,
+        .gpio_cs = 46,
+};
+static struct pxa2xx_spi_chip eneec_spi_device = {
+        .tx_threshold = 8,
+        .rx_threshold = 8,
+        .gpio_cs = 56,
+};
+
+static struct pxa2xx_spi_master pxa_ssp_master_info = {
+				.clock_enable =1,
+        .num_chipselect = -1,
+        .enable_dma = 0,
+};
+
+
+/*****************************************************************************
+ * SPI Devices:
+ *     SPI0: 4M Flash MX25L3205D
+ ****************************************************************************/
+
+
+static struct mtd_partition Ariel2_spi_flash_partitions[] = {
+	{
+		.name = "bootloader(spi)",
+		.size = 0x0100000,
+		.offset = 0,
+	},
+};
+static const struct flash_platform_data spi_flash_data = {
+	.name						= "spi_flash",
+	.parts					= Ariel2_spi_flash_partitions,
+	.nr_parts 			= ARRAY_SIZE(Ariel2_spi_flash_partitions),
+	.type           = "w25q64",
+};
+
+static struct spi_board_info __initdata ariel_board_spi_info[] = {
+	{
+    .modalias       = "m25p80",
+		.bus_num = 2,
+		.chip_select = -1,
+		.mode = SPI_MODE_0,
+	  .platform_data  = &spi_flash_data,
+	  .irq            = -1,
+	  .max_speed_hz   = 1000000,
+	  .controller_data = &flash_spi_device,
+	},
+		{
+	.modalias = "eneec_spi",
+	.bus_num = 3,
+        .chip_select = -1,
+        .mode = SPI_MODE_0,
+        .max_speed_hz = 1000000,
+        .platform_data = NULL,//&ntrig_data,
+        .irq = IRQ_GPIO(mfp_to_gpio(ENE_KB_INT_GPIO_60)),
+        .controller_data = &eneec_spi_device,
+     },
+};
+
+
+
+static void __init mmp3_init_spi(void)
+{
+
+        mmp3_add_ssp(1);
+				mmp3_add_spi(2, &pxa_ssp_master_info);
+
+		mmp3_add_ssp(2);
+        mmp3_add_spi(3, &pxa_ssp_master_info);
+        if ((spi_register_board_info(ariel_board_spi_info, ARRAY_SIZE(ariel_board_spi_info))) != 0)
+		pr_err("%s: spi_register_board_info returned error\n", __func__);
+}
 
 static void __init qseven_init(void)
 {
@@ -1340,6 +1419,7 @@ static void __init qseven_init(void)
 #endif
 //	pxa_u3d_phy_disable();		//paul disable due to Ariel2 disable USB3 Power
 	 eneec_init_gpio_irq();
+	 mmp3_init_spi();
 }
 
 MACHINE_START(QSEVEN, "Qseven")
