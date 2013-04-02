@@ -1155,9 +1155,9 @@ static struct notifier_block devfreq_reboot_notifier = {
 }
 
 struct pm_qos_request_list gc_qos_ddrfreq_min;
-static struct timer_list gc_idle_timer;
 static bool gc_force_high_rate = false;
-static void gc_set_constraint(unsigned long data)
+static struct delayed_work gc_idle_work;
+static void gc_set_constraint(struct work_struct *work)
 {
        gc_force_high_rate = true;
        pm_qos_update_request(&gc_qos_ddrfreq_min, PM_QOS_DEFAULT_VALUE);
@@ -1170,10 +1170,14 @@ static void gc_clk_init(struct clk *clk)
 	clk->div = 2;
 	clk->mul = 1;
 	clk_reparent(clk, &mmp3_clk_pll1_clkoutp);
+
+/*
 	init_timer(&gc_idle_timer);
 	gc_idle_timer.function = gc_set_constraint;
 	gc_idle_timer.data = 1;
 	gc_idle_timer.expires = 1000 + jiffies;
+*/
+	INIT_DELAYED_WORK(&gc_idle_work, gc_set_constraint);
 	gc_force_high_rate = true;
 	pm_qos_add_request(&gc_qos_ddrfreq_min, PM_QOS_DDR_DEVFREQ_MIN,
 	PM_QOS_DEFAULT_VALUE);
@@ -1240,11 +1244,11 @@ static int gc_clk_enable(struct clk *clk)
 	 * different gc clock rate.
 	 */
 
+	cancel_delayed_work_sync(&gc_idle_work);
 	pm_qos_update_request(&gc_qos_ddrfreq_min, DDR_CONSTRAINT_LVL1);
 
 	if (gc_force_high_rate == true)
 		gc_clk_setrate(clk, 533333333);
-	del_timer(&gc_idle_timer);
 	gc_force_high_rate = false;
 
 	i = 0;
@@ -1271,8 +1275,7 @@ static void gc_clk_disable(struct clk *clk)
 {
 	GC_SET_BITS(0, GC2D_AXICLK_EN | GC3D_AXICLK_EN | GC2D3D_CLK_EN\
 			| GC2D_CLK_EN);
-	gc_idle_timer.expires = 1000 + jiffies;
-	add_timer(&gc_idle_timer);
+	schedule_delayed_work(&gc_idle_work, 1000);
 /*
 +       GC_SET_BITS(0,GC2D3D_CLK_EN | GC2D_CLK_EN);
 +       GC_SET_BITS(0, GC2D_AXICLK_EN | GC3D_AXICLK_EN);
