@@ -1630,11 +1630,15 @@ void gc_pwr(int power_on)
 {
 	unsigned long regval;
 	regval = __raw_readl(APMU_GC_CLK_RES_CTRL);
+	pr_err("apmu gc clk register value:%x !!!\n", regval);
+
 	if (power_on) {
-		if (regval & (GC_PWRUP_MSK | GC_ISB))
+		//if (regval & (GC_PWRUP_MSK | GC_ISB))
+		if (regval &  GC_ISB)
 			return; /*Pwr is already on*/
 
-		pr_info("gc_pwr turning it on...\n");
+		pr_err("gc_pwr turning it on...\n");
+
 		/* 0, set to boot default value, source on PLL1*/
 		writel(GC_CLKRST_BOOT_DEFAULT, APMU_GC_CLK_RES_CTRL);
 
@@ -1692,9 +1696,11 @@ void gc_pwr(int power_on)
 		writel(regval, APMU_GC_CLK_RES_CTRL);
 
 	} else {
-		if ((regval & (GC_PWRUP_MSK | GC_ISB)) == 0)
+		//if ((regval & (GC_PWRUP_MSK | GC_ISB)) == 0)
+		if ((regval &  GC_ISB) == 0)
 			return; /*Pwr is already off*/
 
+		pr_err("gc_pwr turning it off...\n");
 		/* 1. isolation */
 		regval = readl(APMU_GC_CLK_RES_CTRL);
 		regval &= ~GC_ISB;
@@ -1709,11 +1715,12 @@ void gc_pwr(int power_on)
 		regval = readl(APMU_GC_CLK_RES_CTRL);
 		regval &= ~(GC2D_AXICLK_EN | GC3D_AXICLK_EN | GC2D3D_CLK_EN | GC2D_CLK_EN);
 		writel(regval, APMU_GC_CLK_RES_CTRL);
-
+#if 0
 		/* 4. turn off power */
 		regval = readl(APMU_GC_CLK_RES_CTRL);
 		regval &= ~GC_PWRUP_MSK;
 		writel(regval, APMU_GC_CLK_RES_CTRL);
+#endif
 	}
 }
 EXPORT_SYMBOL_GPL(gc_pwr);
