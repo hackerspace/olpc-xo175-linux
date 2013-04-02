@@ -1,3 +1,21 @@
+linux-dajia (3.0.31-1.17) precise; urgency=low
+
+  [Jesse Sung]
+
+  * merge marvell's 3.0a-rc1 changes
+    - LP: #1162714
+  * CONFIG: make DRM and VIVANTE builtin
+  * merge SPI flash and EC SPI scan code support from Paul
+    - LP: #1162715
+  * CONFIG: enable CONFIG_SPI_SPIDEV
+  * CONFIG: set CONFIG_DEFAULT_MMAP_MIN_ADDR to 4096 instead
+  * CONFIG: change default cpufreq gov to performance
+    - LP: #1162669
+  * CONFIG: enable CONFIG_USB_VIDEO_CLASS
+    - LP: #1163213
+
+ -- Jesse Sung <jesse.sung@canonical.com>  Tue, 02 Apr 2013 16:28:31 +0800
+
 linux-dajia (3.0.31-0.16) precise; urgency=low
 
   [Jesse Sung]
