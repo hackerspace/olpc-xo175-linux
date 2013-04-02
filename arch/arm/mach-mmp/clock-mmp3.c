@@ -30,6 +30,7 @@
 #include <plat/devfreq.h>
 #include <linux/reboot.h>
 #include "common.h"
+#include <linux/pm_qos_params.h>
 
 #define CORE_NUM			3
 #define PMUA_CC				APMU_REG(0x4)
@@ -1153,6 +1154,15 @@ static struct notifier_block devfreq_reboot_notifier = {
 	__raw_writel(tmp, clk->clk_rst);\
 }
 
+struct pm_qos_request_list gc_qos_ddrfreq_min;
+static struct timer_list gc_idle_timer;
+static bool gc_force_high_rate = false;
+static void gc_set_constraint(unsigned long data)
+{
+       gc_force_high_rate = true;
+       pm_qos_update_request(&gc_qos_ddrfreq_min, PM_QOS_DEFAULT_VALUE);
+}
+
 static void gc_clk_init(struct clk *clk)
 {
 	clk->rate = clk_get_rate(&mmp3_clk_pll1_clkoutp) / 2;
@@ -1160,7 +1170,66 @@ static void gc_clk_init(struct clk *clk)
 	clk->div = 2;
 	clk->mul = 1;
 	clk_reparent(clk, &mmp3_clk_pll1_clkoutp);
+	init_timer(&gc_idle_timer);
+	gc_idle_timer.function = gc_set_constraint;
+	gc_idle_timer.data = 1;
+	gc_idle_timer.expires = 1000 + jiffies;
+	gc_force_high_rate = true;
+	pm_qos_add_request(&gc_qos_ddrfreq_min, PM_QOS_DDR_DEVFREQ_MIN,
+	PM_QOS_DEFAULT_VALUE);
 }
+
+static int gc_clk_setrate(struct clk *clk, unsigned long rate)
+{
+	unsigned long rate1 = rate;
+	if (gc_force_high_rate == true)
+		rate1 = 533333333;
+
+	clk->mul = 1;
+	if (rate1 == clk_get_rate(&mmp3_clk_pll1)/8) {
+		clk->enable_val = PLL1D6;
+		clk->div = 8;
+		clk_reparent(clk, &mmp3_clk_pll1);
+	} else if (rate1 == clk_get_rate(&mmp3_clk_pll1)/4) {
+		clk->enable_val = PLL1D4;
+		clk->div = 4;
+		clk_reparent(clk, &mmp3_clk_pll1);
+	} else if (rate1 == clk_get_rate(&mmp3_clk_pll1_clkoutp)/3) {
+		clk->enable_val = PLL1D2;
+		clk->div = 3;
+		clk_reparent(clk, &mmp3_clk_pll1_clkoutp);
+	} else if (rate1 == clk_get_rate(&mmp3_clk_pll1)/2) {
+		clk->enable_val = PLL1D2;
+		clk->div = 2;
+		clk_reparent(clk, &mmp3_clk_pll1);
+	} else if (rate1 == clk_get_rate(&mmp3_clk_pll2_clkoutp)/2) {
+		clk->enable_val = PLL1D2;
+		clk->div = 2;
+		clk_reparent(clk, &mmp3_clk_pll2_clkoutp);
+	} else if (rate1 == clk_get_rate(&mmp3_clk_pll1_clkoutp)/2) {
+		clk->enable_val = PLL1D2;
+		clk->div = 2;
+		clk_reparent(clk, &mmp3_clk_pll1_clkoutp);
+	} else if (rate1 == clk_get_rate(&mmp3_clk_pll2)/2) {
+		clk->enable_val = PLL2D2;
+		clk->div = 2;
+		clk_reparent(clk, &mmp3_clk_pll2);
+	} else if (rate1 == clk_get_rate(&mmp3_clk_pll1)) {
+		clk->enable_val = PLL1D2;
+		clk->div = 1;
+		clk_reparent(clk, &mmp3_clk_pll1);
+	} else {
+		pr_err("%s: unexpected gc clock rate %ld\n", __func__, rate1);
+		BUG();
+	}
+
+	return 0;
+}
+
+
+
+
+
 
 static int gc_clk_enable(struct clk *clk)
 {
@@ -1170,6 +1239,13 @@ static int gc_clk_enable(struct clk *clk)
 	/* TODO may need to request for different core voltage according to
 	 * different gc clock rate.
 	 */
+
+	pm_qos_update_request(&gc_qos_ddrfreq_min, DDR_CONSTRAINT_LVL1);
+
+	if (gc_force_high_rate == true)
+		gc_clk_setrate(clk, 533333333);
+	del_timer(&gc_idle_timer);
+	gc_force_high_rate = false;
 
 	i = 0;
 	while ((clk->inputs[i].input != clk->parent) && clk->inputs[i].input)
@@ -1195,6 +1271,13 @@ static void gc_clk_disable(struct clk *clk)
 {
 	GC_SET_BITS(0, GC2D_AXICLK_EN | GC3D_AXICLK_EN | GC2D3D_CLK_EN\
 			| GC2D_CLK_EN);
+	gc_idle_timer.expires = 1000 + jiffies;
+	add_timer(&gc_idle_timer);
+/*
++       GC_SET_BITS(0,GC2D3D_CLK_EN | GC2D_CLK_EN);
++       GC_SET_BITS(0, GC2D_AXICLK_EN | GC3D_AXICLK_EN);
+*/
+
 }
 
 static long gc_clk_round_rate(struct clk *clk, unsigned long rate)
@@ -1217,6 +1300,8 @@ static long gc_clk_round_rate(struct clk *clk, unsigned long rate)
 		return clk_get_rate(&mmp3_clk_pll1); /* 800M */
 }
 
+
+/*
 static int gc_clk_setrate(struct clk *clk, unsigned long rate)
 {
 	clk->mul = 1;
@@ -1259,6 +1344,7 @@ static int gc_clk_setrate(struct clk *clk, unsigned long rate)
 
 	return 0;
 }
+*/
 
 int get_gcu_freqs_table(unsigned long *gcu_freqs_table, unsigned int *item_counts,
 		unsigned int max_item_counts)
