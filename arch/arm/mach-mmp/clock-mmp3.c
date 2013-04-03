@@ -1154,13 +1154,17 @@ static struct notifier_block devfreq_reboot_notifier = {
 	__raw_writel(tmp, clk->clk_rst);\
 }
 
+#ifdef CONFIG_DDR_DEVFREQ
 struct pm_qos_request_list gc_qos_ddrfreq_min;
+#endif
 static bool gc_force_high_rate = false;
 static struct delayed_work gc_idle_work;
 static void gc_set_constraint(struct work_struct *work)
 {
        gc_force_high_rate = true;
+#ifdef CONFIG_DDR_DEVFREQ
        pm_qos_update_request(&gc_qos_ddrfreq_min, PM_QOS_DEFAULT_VALUE);
+#endif
 }
 
 static void gc_clk_init(struct clk *clk)
@@ -1179,8 +1183,10 @@ static void gc_clk_init(struct clk *clk)
 */
 	INIT_DELAYED_WORK(&gc_idle_work, gc_set_constraint);
 	gc_force_high_rate = true;
+#ifdef CONFIG_DDR_DEVFREQ
 	pm_qos_add_request(&gc_qos_ddrfreq_min, PM_QOS_DDR_DEVFREQ_MIN,
-	PM_QOS_DEFAULT_VALUE);
+		PM_QOS_DEFAULT_VALUE);
+#endif
 }
 
 static int gc_clk_setrate(struct clk *clk, unsigned long rate)
@@ -1245,7 +1251,9 @@ static int gc_clk_enable(struct clk *clk)
 	 */
 
 	cancel_delayed_work_sync(&gc_idle_work);
+#ifdef CONFIG_DDR_DEVFREQ
 	pm_qos_update_request(&gc_qos_ddrfreq_min, DDR_CONSTRAINT_LVL1);
+#endif
 
 	if (gc_force_high_rate == true)
 		gc_clk_setrate(clk, 533333333);
