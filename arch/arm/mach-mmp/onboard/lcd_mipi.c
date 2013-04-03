@@ -1443,11 +1443,12 @@ void __init abilene_add_lcd_mipi(void)
 
 	fb->num_modes = ARRAY_SIZE(video_modes_abilene);
 	fb->modes = video_modes_abilene;
-	fb->max_fb_size = 4000 * 1100 * 8 + 4096,
-/*
+#ifdef CONFIG_MACH_QSEVEN
+	fb->max_fb_size = 4000 * 1100 * 8 + 4096;
+#else
 	fb->max_fb_size = video_modes_abilene[0].xres *
 		video_modes_abilene[0].yres * 8 + 4096;
-*/
+#endif
 	ovly->num_modes = fb->num_modes;
 	ovly->modes = fb->modes;
 	ovly->max_fb_size = fb->max_fb_size;

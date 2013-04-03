@@ -406,7 +406,12 @@ static void set_mode(struct pxa168fb_info *fbi, struct fb_var_screeninfo *var,
 	var->yres = mode->yres;
 	var->xres_virtual = max(var->xres, var->xres_virtual);
 	if (ystretch && !fb_share)
+#if defined(CONFIG_MACH_QSEVEN) && !defined(CONFIG_ANDROID)
+		/* removed *2 for qseven X window */
+		var->yres_virtual = var->yres;
+#else
 		var->yres_virtual = var->yres * 2;
+#endif
 	else
 		var->yres_virtual = max(var->yres, var->yres_virtual);
 	var->grayscale = 0;
@@ -978,8 +983,14 @@ static int pxa168fb_set_par(struct fb_info *info)
 
 	if (!var->xres_virtual)
 		var->xres_virtual = var->xres;
-	if (!var->yres_virtual)
+	if (!var->yres_virtual) {
+#if defined(CONFIG_MACH_QSEVEN) && !defined(CONFIG_ANDROID)
+		/* removed *2 for qseven X window */
+		var->yres_virtual = var->yres;
+#else
 		var->yres_virtual = var->yres * 2;
+#endif
+	}
 	var->grayscale = 0;
 	var->accel_flags = FB_ACCEL_NONE;
 	var->rotate = FB_ROTATE_UR;
@@ -1658,7 +1669,11 @@ static int pxa168fb_init_mode(struct fb_info *info,
 
 	/* Init settings. */
 	var->xres_virtual = var->xres;
+#if defined(CONFIG_MACH_QSEVEN) && !defined(CONFIG_ANDROID)
+	var->yres_virtual = var->yres; /* removed *2 for qseven X window */
+#else
 	var->yres_virtual = var->yres * 2;
+#endif
 
 #if 0
 	if (!var->pixclock) {
