@@ -1422,7 +1422,7 @@ static void __init qseven_init(void)
 	 mmp3_init_spi();
 }
 
-MACHINE_START(QSEVEN, "Qseven")
+MACHINE_START(QSEVEN, "Ariel")
 	.map_io		= mmp_map_io,
 	.nr_irqs	= QSEVEN_NR_IRQS,
 	.init_irq	= mmp3_init_irq,
