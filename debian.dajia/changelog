@@ -1,3 +1,13 @@
+linux-dajia (3.0.31-1.18) precise; urgency=low
+
+  [Jesse Sung]
+
+  * merge marvell's 20130404 3.0a-rc2 changes
+    - LP: #1166684
+  * Use Ariel instead of Qseven as hardware name
+
+ -- Jesse Sung <jesse.sung@canonical.com>  Wed, 10 Apr 2013 14:54:56 +0800
+
 linux-dajia (3.0.31-1.17) precise; urgency=low
 
   [Jesse Sung]
