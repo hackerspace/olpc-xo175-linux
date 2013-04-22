@@ -482,7 +482,7 @@ static ssize_t mmp3_sysset_read(struct device *dev, struct device_attribute *att
 	int inter;
 
 	char *core_status[3] = {0};
-	char ddr2_str[8];
+	char ddr2_str[12];
 
 	pll1 = pll1_get_clk();
 	pll2 = pll2_get_clk();
