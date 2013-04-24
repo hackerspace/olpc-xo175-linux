@@ -1,3 +1,12 @@
+linux-dajia (3.0.31-1.20) precise; urgency=low
+
+  [Jesse Sung]
+
+  * Fix kernel panic when open mmp3_sysset
+    - LP: #1171356
+
+ -- Jesse Sung <jesse.sung@canonical.com>  Wed, 24 Apr 2013 13:37:49 +0800
+
 linux-dajia (3.0.31-1.19) precise; urgency=low
 
   [Jesse Sung]
