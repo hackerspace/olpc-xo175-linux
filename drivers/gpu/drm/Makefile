@@ -102,6 +102,7 @@ obj-$(CONFIG_DRM_IMX) += imx/
 obj-$(CONFIG_DRM_INGENIC) += ingenic/
 obj-$(CONFIG_DRM_MEDIATEK) += mediatek/
 obj-$(CONFIG_DRM_MESON)	+= meson/
+obj-$(CONFIG_DRM_SIMPLEDRM) += simpledrm/
 obj-y			+= i2c/
 obj-y			+= panel/
 obj-y			+= bridge/

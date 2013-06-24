@@ -14806,6 +14806,14 @@ S:	Maintained
 F:	drivers/video/fbdev/sm712*
 F:	Documentation/fb/sm712fb.rst
 
+SIMPLE DRM DRIVER
+M:	David Herrmann <dh.herrmann@gmail.com>
+L:	dri-devel@lists.freedesktop.org
+T:	git git://people.freedesktop.org/~dvdhrm/linux
+S:	Maintained
+F:	drivers/gpu/drm/simpledrm
+F:	include/linux/platform_data/simpledrm.h
+
 SIMPLE FIRMWARE INTERFACE (SFI)
 M:	Len Brown <lenb@kernel.org>
 L:	sfi-devel@simplefirmware.org
