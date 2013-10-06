@@ -744,6 +744,7 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 	dcrtc->base = base;
 	dcrtc->num = drm->mode_config.num_crtc;
 	dcrtc->clk = ERR_PTR(-EINVAL);
+	/* FIXME: MMP2/MMP3: OLPC panel is RGB666 */
 	dcrtc->cfg_dumb_ctrl = DUMB24_RGB888_0;
 	dcrtc->spu_iopad_ctrl = CFG_VSCALE_LN_EN | CFG_IOPAD_DUMB24;
 	spin_lock_init(&dcrtc->irq_lock);

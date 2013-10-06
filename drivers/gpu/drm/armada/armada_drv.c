@@ -267,6 +267,12 @@ static const struct platform_device_id armada_drm_platform_ids[] = {
 	{
 		.name		= "armada-drm",
 	}, {
+		.name		= "armada-610-drm", /* aka MMP2 */
+		.driver_data	= (unsigned long)&mmp23_ops,
+	}, {
+		.name		= "mmp3-drm",
+		.driver_data	= (unsigned long)&mmp23_ops,
+	}, {
 		.name		= "armada-510-drm",
 	},
 	{ },
