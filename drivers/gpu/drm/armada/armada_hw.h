@@ -74,6 +74,7 @@ enum {
 	LCD_SPU_IOPAD_CONTROL		= 0x01bc,
 	LCD_SPU_IRQ_ENA			= 0x01c0,
 	LCD_SPU_IRQ_ISR			= 0x01c4,
+	LCD_MISC_CNTL			= 0x01c8,	/* Armada 168 */
 };
 
 /* For LCD_SPU_ADV_REG */
@@ -212,6 +213,13 @@ enum {
 	SCLK_16X_PLL		= 0x8 << 28,
 	SCLK_16X_FRAC_DIV_MASK	= 0xfff << 16,
 	SCLK_16X_INT_DIV_MASK	= 0xffff << 0,
+
+	/* PXA910 / MMP2 (Armada 610) / MMP3 / PXA988 */
+	SCLK_MMP_SRC_SEL	= 1 << 31,
+	SCLK_MMP_DISABLE	= 1 << 28,
+	SCLK_MMP_FRAC_DIV_MASK	= 0xfff << 16,
+	SCLK_MMP_DSI_DIV_MASK	= 0xf << 8,
+	SCLK_MMP_INT_DIV_MASK	= 0xff << 0,
 };
 
 /* For LCD_SPU_DUMB_CTRL */
