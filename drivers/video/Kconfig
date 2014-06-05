@@ -37,6 +37,12 @@ config HDMI
 
 endif # HAS_IOMEM
 
+config CH7033
+	tristate "ch7033 support"
+	depends on FB
+	help
+	  This is the ch7033 driver
+
 if VT
 	source "drivers/video/console/Kconfig"
 endif
