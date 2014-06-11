@@ -23,27 +23,32 @@ xo_version=$1
 [ -z "$builddir" ] && builddir="/tmp/olpc-kernel-$(whoami)"
 [ -z "$rpm_outdir" ] && rpm_outdir="$mydir/RPMS"
 
-if [ "$xo_version" = "1.0" ]; then
+case "$xo_version" in
+    1|1.0)
 	rpm_target="i686"
 	xo_version="1"
-	defconfig="arch/x86/configs/xo_1_defconfig"
-elif [ "$xo_version" = "1.5" ]; then
+	defconfig="xo_1_defconfig"
+	;;
+    1.5)
 	rpm_target="i686"
 	xo_version="1.5"
-	defconfig="arch/x86/configs/xo_1.5_defconfig"
-elif [ "$xo_version" = "1.75" ]; then
+	defconfig="xo_1.5_defconfig"
+	;;
+    1.75)
 	rpm_target="armv7l"
 	xo_version="1.75"
 	defconfig="xo_175_defconfig"
-elif [ "$xo_version" = "4" ]; then
+	;;
+    4|4.0)
 	rpm_target="armv7l"
 	xo_version="4"
 	defconfig="xo_4_defconfig"
-else
+	;;
+    *)
 	echo "Usage: $0 <laptop_model>"
-	echo "Available models: 1.0 1.5 1.75"
+	echo "Available models: 1 1.5 1.75 4"
 	exit 1
-fi
+esac
 
 cd ${mydir}/..
 sublevel=$(grep "^SUBLEVEL" Makefile)
