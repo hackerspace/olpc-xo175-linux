@@ -7,6 +7,7 @@
 mydir=$(readlink -f $(dirname $0))
 src_specdir=$mydir/SPECS
 sources=$mydir/SOURCES
+builddir="/var/tmp/olpc-kernel-$(whoami)"
 
 while getopts "m:s" OPTION; do
 	case $OPTION in
@@ -35,12 +36,12 @@ case "$xo_version" in
 	defconfig="xo_1.5_defconfig"
 	;;
     1.75)
-	rpm_target="armv7l"
+	rpm_target="armv7hl"
 	xo_version="1.75"
 	defconfig="xo_175_defconfig"
 	;;
     4|4.0)
-	rpm_target="armv7l"
+	rpm_target="armv7hl"
 	xo_version="4"
 	defconfig="xo_4_defconfig"
 	;;
