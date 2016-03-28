@@ -496,11 +496,6 @@ int usb_submit_urb(struct urb *urb, gfp_t mem_flags)
 	}
 	allowed &= urb->transfer_flags;
 
-	/* warn if submitter gave bogus flags */
-	if (allowed != urb->transfer_flags)
-		dev_WARN(&dev->dev, "BOGUS urb flags, %x --> %x\n",
-			urb->transfer_flags, allowed);
-
 	/*
 	 * Force periodic transfer intervals to be legal values that are
 	 * a power of two (so HCDs don't need to).

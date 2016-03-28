@@ -1,0 +1,100 @@
+#!/bin/bash
+# RPM build script for XO kernels
+# Must be run outside of the kernel's build system (i.e. cannot be invoked
+# by a Makefile), because uninitialized/incorrect variables would be copied
+# from that build environment (see #10994).
+
+mydir=$(readlink -f $(dirname $0))
+src_specdir=$mydir/SPECS
+sources=$mydir/SOURCES
+
+while getopts "m:s" OPTION; do
+	case $OPTION in
+	m) mock=$OPTARG;;
+	s) source_only=1;;
+	\?) exit 1;;
+esac
+done
+
+shift $((OPTIND-1))
+xo_version=$1
+
+# inherit builddir and rpm_outdir from env for olpc-kernel-builder
+[ -z "$builddir" ] && builddir="/tmp/olpc-kernel-$(whoami)"
+[ -z "$rpm_outdir" ] && rpm_outdir="$mydir/RPMS"
+
+if [ "$xo_version" = "1.0" ]; then
+	rpm_target="i686"
+	xo_version="1"
+	defconfig="arch/x86/configs/xo_1_defconfig"
+elif [ "$xo_version" = "1.5" ]; then
+	rpm_target="i686"
+	xo_version="1.5"
+	defconfig="arch/x86/configs/xo_1.5_defconfig"
+elif [ "$xo_version" = "1.75" ]; then
+	rpm_target="armv7l"
+	xo_version="1.75"
+	defconfig="arch/arm/configs/xo_1.75_defconfig"
+elif [ "$xo_version" = "4" ]; then
+	rpm_target="armv7l"
+	xo_version="4"
+	defconfig="arch/arm/configs/xo_4_defconfig"
+else
+	echo "Usage: $0 <laptop_model>"
+	echo "Available models: 1.0 1.5 1.75"
+	exit 1
+fi
+
+cd ${mydir}/..
+sublevel=$(grep "^SUBLEVEL" Makefile)
+sublevel=${sublevel#*=}
+patchlevel=$(grep "^PATCHLEVEL" Makefile)
+patchlevel=${patchlevel#*=}
+extraversion=$(grep "^EXTRAVERSION" Makefile)
+extraversion=${extraversion#*=}
+extraversion=${extraversion/-/_}
+extraversion=${extraversion:-'%{nil}'}
+head=$(git log -n1 --pretty=format:%h)
+tarball=$sources/olpc-kernel-$head.tar.bz2
+timestamp=$(date "+%Y%m%d.%H%M")
+
+mkdir -p $sources
+if ! [ -e "$tarball" ]; then
+	find $sources -type f -name 'olpc-*.tar.bz2' -delete
+	git archive --format=tar --prefix=olpc-kernel/ HEAD | bzip2 > $tarball
+fi
+
+defines="
+%define timestamp $timestamp
+%define patchlevel $patchlevel
+%define sublevel $sublevel
+%define extraversion $extraversion
+%define head $head
+%define xoversion $xo_version
+%define defconfig $defconfig"
+
+specdir=$(mktemp -d)
+trap "rm -rf $specdir" EXIT
+spec=${specdir}/kernel.spec
+echo "$defines" > $spec
+cat ${src_specdir}/kernel.spec >> $spec
+
+rpmbuild_args="--target=$rpm_target --define \"_builddir $builddir\"
+        --define \"_rpmdir $rpm_outdir\" --define \"_sourcedir $sources\"
+        --define \"_specdir $specdir\" --define \"_srcrpmdir $rpm_outdir\""
+
+mkdir -p $builddir $rpm_outdir
+eval rpmbuild -bs ${specdir}/kernel.spec $rpmbuild_args
+retcode=$?
+[ $retcode != 0 ] && exit $retcode
+
+[ -n "$source_only" ] && exit 0
+
+if [ -z "$mock" ]; then
+	eval exec rpmbuild -bb $specdir/kernel.spec $rpmbuild_args
+else
+	# Assume SRPM is the most recent in the dir
+	srpm=$(ls --sort=time ${rpm_outdir}/*.src.rpm | head -n 1)
+	rm -f ${rpm_outdir}/{build,root,state}.log
+	exec mock -r "$mock" --resultdir "$rpm_outdir" "$srpm"
+fi
