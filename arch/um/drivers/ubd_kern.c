@@ -855,9 +855,10 @@ static int ubd_open_dev(struct ubd *ubd_dev)
 static void ubd_device_release(struct device *dev)
 {
 	struct ubd *ubd_dev = dev_get_drvdata(dev);
+	static struct ubd default_ubd = DEFAULT_UBD;
 
 	blk_cleanup_queue(ubd_dev->queue);
-	*ubd_dev = ((struct ubd) DEFAULT_UBD);
+	memcpy (ubd_dev, &default_ubd, sizeof (default_ubd));
 }
 
 static int ubd_disk_register(int major, u64 size, int unit,
