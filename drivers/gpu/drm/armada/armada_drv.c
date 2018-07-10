@@ -234,7 +234,10 @@ static void armada_drm_unbind(struct device *dev)
 
 static int compare_of(struct device *dev, void *data)
 {
-	return dev->of_node == data;
+	struct device_node *np = data;
+	if (of_node_cmp(np->name, "port") == 0)
+		np = np->parent;
+	return dev->of_node == np;
 }
 
 static int compare_dev_name(struct device *dev, void *data)
