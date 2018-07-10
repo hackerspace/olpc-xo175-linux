@@ -5,3 +5,6 @@ armada-y	+= armada_510.o
 armada-$(CONFIG_DEBUG_FS) += armada_debugfs.o
 
 obj-$(CONFIG_DRM_ARMADA) := armada.o
+
+armada-rmem-$(CONFIG_DRM_ARMADA) += armada_rmem.o
+obj-y += $(armada-rmem-y) $(armada-rmem-m)
