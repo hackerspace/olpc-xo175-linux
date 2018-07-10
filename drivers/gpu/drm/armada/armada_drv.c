@@ -10,6 +10,7 @@
 #include <linux/module.h>
 #include <linux/of_graph.h>
 #include <drm/drm_atomic_helper.h>
+#include <linux/of_reserved_mem.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_fb_helper.h>
 #include <drm/drm_of.h>
@@ -74,6 +75,9 @@ static int armada_drm_bind(struct device *dev)
 		else
 			return -EINVAL;
 	}
+
+	if (!mem && dev->of_node)
+		mem = dev->platform_data;
 
 	if (!mem)
 		return -ENXIO;
@@ -226,9 +230,17 @@ static int armada_drm_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	int ret;
 
-	ret = drm_of_component_probe(dev, compare_dev_name, &armada_master_ops);
-	if (ret != -EINVAL)
+	if (dev->of_node) {
+		ret = of_reserved_mem_device_init(dev);
+		if (ret && ret != -ENODEV)
+			return ret;
+
+		ret = drm_of_component_probe(dev, compare_of,
+					     &armada_master_ops);
+		if (ret)
+			of_reserved_mem_device_release(dev);
 		return ret;
+	}
 
 	if (dev->platform_data) {
 		char **devices = dev->platform_data;
@@ -263,6 +275,7 @@ static int armada_drm_probe(struct platform_device *pdev)
 static int armada_drm_remove(struct platform_device *pdev)
 {
 	component_master_del(&pdev->dev, &armada_master_ops);
+	of_reserved_mem_device_release(&pdev->dev);
 	return 0;
 }
 
@@ -276,11 +289,18 @@ static const struct platform_device_id armada_drm_platform_ids[] = {
 };
 MODULE_DEVICE_TABLE(platform, armada_drm_platform_ids);
 
+static const struct of_device_id armada_drm_dt_ids[] = {
+	{ .compatible = "marvell,dove-display-subsystem", },
+	{ /* sentinel */ },
+};
+MODULE_DEVICE_TABLE(of, armada_drm_dt_ids);
+
 static struct platform_driver armada_drm_platform_driver = {
 	.probe	= armada_drm_probe,
 	.remove	= armada_drm_remove,
 	.driver	= {
 		.name	= "armada-drm",
+		.of_match_table = armada_drm_dt_ids,
 	},
 	.id_table = armada_drm_platform_ids,
 };
