@@ -337,6 +337,12 @@ PHONY += bzImage $(BOOT_TARGETS) $(INSTALL_TARGETS)
 bootpImage uImage: zImage
 zImage: Image
 
+olpc-zImage: $(boot)/olpc-zImage
+
+APPEND_DTB := mmp2-olpc-xo-1-75.dtb
+$(boot)/olpc-zImage: zImage $(APPEND_DTB)
+	perl $(srctree)/scripts/append-dtb.pl $(boot)/zImage $(boot)/dts/$(APPEND_DTB) >$@
+
 $(BOOT_TARGETS): vmlinux
 	$(Q)$(MAKE) $(build)=$(boot) MACHINE=$(MACHINE) $(boot)/$@
 	@$(kecho) '  Kernel: $(boot)/$@ is ready'
