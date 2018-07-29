@@ -263,7 +263,7 @@
 				};
 			};
 
-			gpio@d4019000 {
+			gpio: gpio@d4019000 {
 				compatible = "marvell,mmp2-gpio";
 				#address-cells = <1>;
 				#size-cells = <1>;
