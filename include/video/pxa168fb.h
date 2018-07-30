@@ -66,6 +66,7 @@ struct pxa168fb_info {
 	struct device		*dev;
 	struct clk		*clk;
 	struct fb_info		*info;
+	struct pxa168fb_mach_info *mi;
 
 	void __iomem		*reg_base;
 	dma_addr_t		fb_start_dma;
