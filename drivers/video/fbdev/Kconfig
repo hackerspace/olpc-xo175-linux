@@ -1773,7 +1773,7 @@ config FB_68328
 
 config FB_PXA168
 	tristate "PXA168/910 LCD framebuffer support"
-	depends on FB && (CPU_PXA168 || CPU_PXA910)
+	depends on FB && ARCH_MMP
 	select FB_CFB_FILLRECT
 	select FB_CFB_COPYAREA
 	select FB_CFB_IMAGEBLIT

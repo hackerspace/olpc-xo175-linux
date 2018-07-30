@@ -300,7 +300,7 @@ static void set_dma_control0(struct pxa168fb_info *fbi)
 	 */
 	x = readl(fbi->reg_base + LCD_SPU_DMA_CTRL0);
 	x &= ~CFG_GRA_ENA_MASK;
-	x |= fbi->active ? CFG_GRA_ENA(1) : CFG_GRA_ENA(0);
+	x |= fbi->mi->active ? CFG_GRA_ENA(1) : CFG_GRA_ENA(0);
 
 	/*
 	 * If we are in a pseudo-color mode, we need to enable
@@ -321,7 +321,7 @@ static void set_dma_control0(struct pxa168fb_info *fbi)
 	 * 2. panel output data swap
 	 */
 	x &= ~(1 << 12);
-	x |= ((fbi->pix_fmt & 1) ^ (fbi->panel_rbswap)) << 12;
+	x |= ((fbi->pix_fmt & 1) ^ (fbi->mi->panel_rbswap)) << 12;
 
 	writel(x, fbi->reg_base + LCD_SPU_DMA_CTRL0);
 }
@@ -364,7 +364,6 @@ static void set_graphics_start(struct fb_info *info, int xoffset, int yoffset)
 static void set_dumb_panel_control(struct fb_info *info)
 {
 	struct pxa168fb_info *fbi = info->par;
-	struct pxa168fb_mach_info *mi = dev_get_platdata(fbi->dev);
 	u32 x;
 
 	/*
@@ -372,16 +371,16 @@ static void set_dumb_panel_control(struct fb_info *info)
 	 */
 	x = readl(fbi->reg_base + LCD_SPU_DUMB_CTRL) & 0x00000001;
 
-	x |= (fbi->is_blanked ? 0x7 : mi->dumb_mode) << 28;
-	x |= mi->gpio_output_data << 20;
-	x |= mi->gpio_output_mask << 12;
-	x |= mi->panel_rgb_reverse_lanes ? 0x00000080 : 0;
-	x |= mi->invert_composite_blank ? 0x00000040 : 0;
+	x |= (fbi->is_blanked ? 0x7 : fbi->mi->dumb_mode) << 28;
+	x |= fbi->mi->gpio_output_data << 20;
+	x |= fbi->mi->gpio_output_mask << 12;
+	x |= fbi->mi->panel_rgb_reverse_lanes ? 0x00000080 : 0;
+	x |= fbi->mi->invert_composite_blank ? 0x00000040 : 0;
 	x |= (info->var.sync & FB_SYNC_COMP_HIGH_ACT) ? 0x00000020 : 0;
-	x |= mi->invert_pix_val_ena ? 0x00000010 : 0;
+	x |= fbi->mi->invert_pix_val_ena ? 0x00000010 : 0;
 	x |= (info->var.sync & FB_SYNC_VERT_HIGH_ACT) ? 0 : 0x00000008;
 	x |= (info->var.sync & FB_SYNC_HOR_HIGH_ACT) ? 0 : 0x00000004;
-	x |= mi->invert_pixclock ? 0x00000002 : 0;
+	x |= fbi->mi->invert_pixclock ? 0x00000002 : 0;
 
 	writel(x, fbi->reg_base + LCD_SPU_DUMB_CTRL);
 }
@@ -405,9 +404,6 @@ static int pxa168fb_set_par(struct fb_info *info)
 	struct fb_var_screeninfo *var = &info->var;
 	struct fb_videomode mode;
 	u32 x;
-	struct pxa168fb_mach_info *mi;
-
-	mi = dev_get_platdata(fbi->dev);
 
 	/*
 	 * Set additional mode info.
@@ -600,6 +596,42 @@ static int pxa168fb_init_mode(struct fb_info *info,
 	return ret;
 }
 
+/* Video */
+static struct fb_videomode video_modes[] = {
+	/* OLPC DCON panel, 1200x900 */
+	[0] = {
+		.refresh	= 50,
+		.xres		= 1200,
+		.yres		= 900,
+		.left_margin	= 24,
+		.right_margin	= 26,
+		.upper_margin	= 5,
+		.lower_margin	= 4,
+		.hsync_len	= 6,
+		.vsync_len	= 3,
+		.sync		= 0,
+	},
+};
+
+static struct pxa168fb_mach_info *pxa168fb_of_mach_info(struct device *dev)
+{
+	struct pxa168fb_mach_info *mi;
+
+	mi = devm_kzalloc(dev, sizeof(*mi), GFP_KERNEL);
+	if (!mi)
+		return ERR_PTR(-ENOMEM);
+
+	strcpy (mi->id, "OLPC DCON panel");
+	mi->num_modes = ARRAY_SIZE(video_modes);
+	mi->modes = video_modes;
+	mi->pix_fmt = PIX_FMT_RGB565;
+	mi->dumb_mode = PIN_MODE_DUMB_18_GPIO;
+	mi->panel_rbswap = 1;
+	mi->active = 1;
+
+	return mi;
+}
+
 static int pxa168fb_probe(struct platform_device *pdev)
 {
 	struct pxa168fb_mach_info *mi;
@@ -609,15 +641,19 @@ static int pxa168fb_probe(struct platform_device *pdev)
 	struct clk *clk;
 	int irq, ret;
 
-	mi = dev_get_platdata(&pdev->dev);
+	if (pdev->dev.of_node) {
+		mi = pxa168fb_of_mach_info(&pdev->dev);
+	} else {
+		mi = dev_get_platdata(&pdev->dev);
+	}
 	if (mi == NULL) {
 		dev_err(&pdev->dev, "no platform data defined\n");
 		return -EINVAL;
 	}
 
-	clk = devm_clk_get(&pdev->dev, "LCDCLK");
+	clk = devm_clk_get(&pdev->dev, "axiclk");
 	if (IS_ERR(clk)) {
-		dev_err(&pdev->dev, "unable to get LCDCLK");
+		dev_err(&pdev->dev, "unable to get axiclk");
 		return PTR_ERR(clk);
 	}
 
@@ -643,9 +679,8 @@ static int pxa168fb_probe(struct platform_device *pdev)
 	fbi->info = info;
 	fbi->clk = clk;
 	fbi->dev = info->dev = &pdev->dev;
-	fbi->panel_rbswap = mi->panel_rbswap;
 	fbi->is_blanked = 0;
-	fbi->active = mi->active;
+	fbi->mi = mi;
 
 	/*
 	 * Initialise static fb parameters.
@@ -653,7 +688,7 @@ static int pxa168fb_probe(struct platform_device *pdev)
 	info->flags = FBINFO_DEFAULT | FBINFO_PARTIAL_PAN_OK |
 		      FBINFO_HWACCEL_XPAN | FBINFO_HWACCEL_YPAN;
 	info->node = -1;
-	strlcpy(info->fix.id, mi->id, 16);
+	strlcpy(info->fix.id, fbi->mi->id, 16);
 	info->fix.type = FB_TYPE_PACKED_PIXELS;
 	info->fix.type_aux = 0;
 	info->fix.xpanstep = 0;
@@ -693,9 +728,9 @@ static int pxa168fb_probe(struct platform_device *pdev)
 	/*
 	 * Set video mode according to platform data.
 	 */
-	set_mode(fbi, &info->var, mi->modes, mi->pix_fmt, 1);
+	set_mode(fbi, &info->var, fbi->mi->modes, fbi->mi->pix_fmt, 1);
 
-	fb_videomode_to_modelist(mi->modes, mi->num_modes, &info->modelist);
+	fb_videomode_to_modelist(fbi->mi->modes, fbi->mi->num_modes, &info->modelist);
 
 	/*
 	 * init video mode data.
@@ -720,7 +755,7 @@ static int pxa168fb_probe(struct platform_device *pdev)
 	 * Configure default register values.
 	 */
 	writel(0, fbi->reg_base + LCD_SPU_BLANKCOLOR);
-	writel(mi->io_pin_allocation_mode, fbi->reg_base + SPU_IOPAD_CONTROL);
+	writel(fbi->mi->io_pin_allocation_mode, fbi->reg_base + SPU_IOPAD_CONTROL);
 	writel(0, fbi->reg_base + LCD_CFG_GRA_START_ADDR1);
 	writel(0, fbi->reg_base + LCD_SPU_GRA_OVSA_HPXL_VLN);
 	writel(0, fbi->reg_base + LCD_SPU_SRAM_PARA0);
@@ -814,9 +849,17 @@ static int pxa168fb_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct of_device_id pxa168fb_of_dev_id[] = {
+        { .compatible = "marvell,pxa168-lcdc", },
+        { .compatible = "marvell,mmp2-lcd", },
+        { /* sentinel */ }
+};
+MODULE_DEVICE_TABLE(of, pxa168fb_of_dev_id);
+
 static struct platform_driver pxa168fb_driver = {
 	.driver		= {
 		.name	= "pxa168-fb",
+		.of_match_table = pxa168fb_of_dev_id,
 	},
 	.probe		= pxa168fb_probe,
 	.remove		= pxa168fb_remove,
