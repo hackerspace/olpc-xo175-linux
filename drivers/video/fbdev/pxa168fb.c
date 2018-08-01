@@ -263,10 +263,13 @@ static void set_clock_divider(struct pxa168fb_info *fbi,
 		return;
 	}
 
-	/*
-	 * Using PLL/AXI clock.
-	 */
-	x = 0x80000000;
+	if (of_machine_is_compatible("olpc,xo-1.75")) {
+		/* Use AXI bus clock. */
+		x = 0x40000000;
+	} else {
+		/* Use the 312 MHz PLL */
+		x = 0x80000000;
+	}
 
 	/*
 	 * Calc divider according to refresh rate.
