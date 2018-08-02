@@ -109,6 +109,14 @@ config FONT_SUN12x22
 	  big letters (like the letters used in the SPARC PROM). If the
 	  standard font is unreadable for you, say Y, otherwise say N.
 
+config FONT_OLPC15x30
+	bool "OLPC console 15x30 font (not supported by all drivers)"
+	depends on FRAMEBUFFER_CONSOLE && FONTS
+	help
+	  This is the high resolution console font for OLPC machines with very
+	  big letters (like the letters used in the OLPC OpenFirmware). If the
+	  standard font is unreadable for you, say Y, otherwise say N.
+
 config FONT_AUTOSELECT
 	def_bool y
 	depends on !FONT_8x8
@@ -121,6 +129,7 @@ config FONT_AUTOSELECT
 	depends on !FONT_SUN8x16
 	depends on !FONT_SUN12x22
 	depends on !FONT_10x18
+	depends on !FONT_OLPC15x30
 	select FONT_8x16
 
 endif # FONT_SUPPORT
