@@ -20,6 +20,7 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		ranges;
+		bootargs = "console=tty0 console=ttyS2,115200 root=/dev/sda3 fbcon=nodefer rootwait";
 
 		framebuffer@1fc00000 {
 			compatible = "simple-framebuffer";
