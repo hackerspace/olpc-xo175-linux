@@ -1,0 +1,7 @@
+sh ciu.sh
+sh clk3.sh
+sh gpio.sh
+sh intc3.sh
+sh mfpdump.sh
+sh twsidump.sh
+sh lcdc.sh

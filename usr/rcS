@@ -1,0 +1,14 @@
+#!/bin/sh
+
+mount -t devtmpfs nodev /dev
+mount -t proc nodev /proc
+mount -t sysfs nodev /sys
+mount -t debugfs node /sys/kernel/debug
+
+for i in $(seq 0 $(( $(cat /sys/class/gpio/gpiochip0/ngpio) -1 )))
+do
+	echo $i > /sys/class/gpio/export
+done
+
+#echo mmc1:0001:1 >/sys/bus/sdio/drivers/libertas_sdio/unbind
+#echo mmc1:0001:1 >/sys/bus/sdio/drivers/libertas_sdio/bind
