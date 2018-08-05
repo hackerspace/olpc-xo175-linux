@@ -139,6 +139,19 @@
 		reg = <0x68>;
 		status = "okay";
 	};
+
+	regulator@19 {
+		compatible = "marvell,88pg867";
+		reg = <0x19>;
+
+		vcpu: buck1 {
+			regulator-name = "vdd_1v8";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-boot-on;
+			regulator-always-on;
+		};
+	};
 };
 
 &twsi3 {
