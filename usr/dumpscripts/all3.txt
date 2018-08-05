@@ -1,0 +1,1099 @@
+=== ciu ===
+CIU_CHIP_ID                  0xd4282c00 0x00B02128
+CIU_CPU_CONF                 0xd4282c08 0x0F900908
+CIU_CPU_SRAM_SPD             0xd4282c10 0x00000FF1
+CIU_CPU_L2C_SRAM_SPD         0xd4282c18 0x26294631
+CIU_MCB_CONF                 0xd4282c1c 0x00000009
+CIU_SYS_BOOT_CNTRL           0xd4282c20 0x00010001
+CIU_SW_BRANCH_ADDR           0xd4282c24 0x0061FF48
+CIU_PERF_COUNT0_CNTRL        0xd4282c28 0x00099996
+CIU_PERF_COUNT1_CNTRL        0xd4282c2c 0x99999999
+CIU_PERF_COUNT2_CNTRL        0xd4282c30 0x00000000
+CIU_PERF_COUNT0              0xd4282c34 0x00000000
+CIU_PERF_COUNT1              0xd4282c38 0x00000000
+CIU_PERF_COUNT2              0xd4282c3c 0x00000000
+CIU_MC_CONF                  0xd4282c40 0x00000000
+CIU_MCB_SRAM_SPD             0xd4282c44 0x00000000
+CIU_AXI_SRAM_SPD             0xd4282c48 0x0000000C
+CIU_DDR_ILV_CTRL             0xd4282ca0 0x00000008
+CIU_FABRIC_CKGT_CTRL0        0xd4282c64 0x00001000
+CIU_FABRIC_CKGT_CTRL1        0xd4282c68 0x00000000
+CIU_FABRIC_CKGT_CTRL2        0xd4282cdc 0x00000000
+CIU_CA9_CPU_CORE0_CONF       0xd4282cd0 0x00000000
+CIU_CA9_CPU_CORE1_CONF       0xd4282ce0 Bus error
+CIU_WARM_RESET_VECTOR        0xd4282cd8 0x00000000
+CIU_GPU_XTC_REG              0xd4282ca4 0x00000110
+CIU_VPU_XTC_REG              0xd4282ca8 0x00000112
+CIU_CA9_CPU_CONF_SRAM0       0xd4282cc8 0x00000066
+CIU_CA9_CPU_CONF_SRAM1       0xd4282ccc 0x00000000
+
+UNK1 e000.0000               0xd4282c94 0xE0000000
+UNK2 ffffe001 fff0.0001      0xd4282c9c 0xFFFFE001
+
+=== mpmu ===
+MPMU_CPCR              0xd4050000 0xFF086000
+MPMU_FCCR              0xd4050008 0x61800000
+MPMU_POCR              0xd405000c 0x00E50FFF
+MPMU_POSR              0xd4050010 0x11C50000
+MPMU_SUCCR             0xd4050014 0x1FBD0600
+MPMU_VRCR              0xd4050018 0x00000000
+MPMU_OHCR              0xd405001c 0xFF086000
+MPMU_CPRR              0xd4050020 0x00000011
+MPMU_CCGR              0xd4050024 0xDFFEFFFE
+MPMU_GPCR              0xd4050030 0x00000000
+MPMU_PLL2CR            0xd4050034 0x001C5200
+MPMU_SCCR              0xd4050038 0x00000004
+MPMU_ISCCRX0           0xd4050040 0xD3EE2276
+MPMU_ISCCRX1           0xd4050044 0xD0040040
+MPMU_CWUCRM            0xd405004c 0x00000000
+MPMU_PLL1_REG1         0xd4050050 0x001B0F00
+MPMU_PLL1_REG2         0xd4050054 0x000046C3
+MPMU_PLL1_SSC          0xd4050058 0x25210399
+MPMU_PLL2_REG1         0xd4050060 0x00000001
+MPMU_PLL2_REG2         0xd4050064 0x00000000
+MPMU_PLL2_SSC          0xd4050068 0x000004D1
+MPMU_SD_ROT_WAKE_CLR   0xd405007c 0xFF086000
+MPMU_PLL2_CTRL1        0xd4050414 0xDFFFFFFF
+MPMU_PLL2_CTRL2        0xd4050418 0x00000001
+MPMU_PLL1_CTRL         0xd405005c 0x05190299
+MPMU_TS                0xd4050080 0xFF086000
+MPMU_WDTPCR            0xd4050200 0x00000003
+MPMU_APCR              0xd4051000 0x31006000
+MPMU_APSR              0xd4051004 0xA5000000
+MPMU_APRR              0xd4051020 0x00000040
+MPMU_ACGR              0xd4051024 0xDFFEFFFE
+MPMU_ARSR              0xd4051028 0x00000007
+MPMU_AWUCRS            0xd4051048 0x80000400
+MPMU_AWUCRM            0xd405104c 0x00000000
+MPMU_HSI_CLK_RES_CTRL  0xd4051050 0x00000008
+PMUM_PLL3_CR           0xd4050050 0x001B0F00
+PMUM_POSR2             0xd4050054 0x000046C3
+PMUM_PLL3_CTRL1        0xd4050058 0x25210399
+PMUM_PLL3_CTRL2        0xd4050060 0x00000001
+PMUM_PLL3_CTRL3        0xd4050064 0x00000000
+PMUM_PLL_DIFF_CTRL     0xd4050068 0x000004D1
+
+=== apmu ===
+APMU_CC_SP                          0xd4282800 0x88B99001
+APMU_CC_PJ                          0xd4282804 0x00BC8410
+APMU_DM_CC_SP                       0xd4282808 0x02FC80D9
+APMU_DM_CC_PJ                       0xd428280c 0x02FC8010
+APMU_FC_TIMER                       0xd4282810 0x00000000
+APMU_SP_IDLE_CFG                    0xd4282814 0x80300020
+APMU_PJ_IDLE_CFG                    0xd4282818 0x00000400
+APMU_CCIC_CLK_GATE_CTRL             0xd4282828 0x00000000
+APMU_FBRC1_CLK_GATE_CTRL            0xd428282c 0x00000003
+APMU_FBRC2_CLK_GATE_CTRL            0xd4282830 0x00000003
+APMU_PMU_CLK_GATE_CTRL              0xd4282840 0x00300000
+APMU_IRE_CLK_RES_CTRL               0xd4282848 0x00000000
+APMU_DISPLAY1_CLK_RES_CTRL          0xd428284c 0x0000211B
+APMU_CCIC_CLK_RES_CTRL              0xd4282850 0x00020000
+APMU_SDH1_CLK_RES_CTRL              0xd4282854 0x0000081B
+APMU_SDH2_CLK_RES_CTRL              0xd4282858 0x0000001B
+APMU_USB_CLK_RES_CTRL               0xd428285c 0x00000009
+APMU_NF_CLK_RES_CTRL                0xd4282860 0x00000000
+APMU_DMA_CLK_RES_CTRL               0xd4282864 0x0000001F
+APMU_WTM_CLK_RES_CTRL               0xd4282868 0x0000005B
+APMU_BUS_CLK_RES_CTRL               0xd428286c 0x00000643
+APMU_WAKE_CLR_MASK                  0xd428287c 0x00000000
+APMU_PWR_STBL_TIMER                 0xd4282884 0x021A1A9F
+APMU_SRAM_PWR_DWN                   0xd428288c 0x00000000
+APMU_CORE_STATUS                    0xd4282890 0x000001F3
+APMU_RES_FRM_SLP_CLR                0xd4282894 0x00000000
+APMU_AP_IRWC                        0xd428289c 0x00000000
+APMU_AP_ISR                         0xd42828a0 0x00000020
+APMU_VMETA_CLK_RES_CTRL             0xd42828a4 0x00040000
+APMU_MC_HW_SLP_TYPE                 0xd42828b0 0x00000000
+APMU_MC_SLP_REQ_PJ                  0xd42828b4 0x00000000
+APMU_MC_SW_SLP_TYPE                 0xd42828c0 0x00000000
+APMU_PLL_SEL_STATUS                 0xd42828c4 0x000032D8
+APMU_GC_CLK_RES_CTRL                0xd42828cc 0x33000000
+APMU_SMC_CLK_RES_CTRL               0xd42828d4 0x00000000
+APMU_GLB_CLK_CTRL                   0xd42828dc 0x000300FF
+APMU_PWR_ONOFF_CTRL                 0xd42828e0 0x00000000
+APMU_PWR_ISL_TIMER                  0xd42828e4 0x00000000
+APMU_SDH3_CLK_RES_CTRL              0xd42828e8 0x0000001B
+APMU_SDH4_CLK_RES_CTRL              0xd42828ec 0x00000000
+APMU_CCIC2_CLK_RES_CTRL             0xd42828f4 0x00020000
+APMU_HSIC1_CLK_RES_CTRL             0xd42828f8 0x0000001B
+APMU_HSIC2_CLK_RES_CTRL             0xd42828fc 0x00000000
+APMU_FSIC3_CLK_RES_CTRL             0xd4282900 0x00000D1B
+APMU_SLIM_CLK_RES_CTRL              0xd4282904 0x00000000
+APMU_AUDIO_CLK_RES_CTRL             0xd428290c 0x00000712
+APMU_DISPLAY2_CLK_RES_CTRL          0xd4282910 0x0000035B
+APMU_CCIC2_CLK_GATE_CTRL            0xd4282918 0x00000000
+APMU_MC_PAR_CTRL                    0xd428291c 0x00000004
+APMU_SPMI_CLK_RES_CTRL              0xd4282940 0x00000040
+APMU_EPD_CLK_RES_CTRL               0xd4282944 0x00000000
+APMU_USB3SS_CLK_RES_CTRL            0xd4282948 0x00000000
+APMU_CC2_SP                         0xd428294c 0x000000DB
+APMU_CC2_PJ                         0xd4282950 0x8E220003
+APMU_DM2_CC_SP                      0xd4282954 0x000000DB
+APMU_DM2_CC_PJ                      0xd4282958 0x042200DB
+APMU_SDH5_CLK_RES_CTRL              0xd4282960 0x00000000
+APMU_DSA_CLK_RES_CTRL               0xd4282964 0x0000000F
+IOC_CTRL                            0xd4282984 0x00000000
+APMU_CC3_PJ                         0xd4282988 0x0210EC18
+APMU_TPIU_CLK_RES_CTRL              0xd428298c 0x00000000
+APMU_DEBUG2                         0xd4282990 0x00000000
+APMU_RF1P_CTRL                      0xd42829c0 0x00000005
+APMU_RF2P_CTRL                      0xd42829c4 0x00000009
+APMU_SR1P_CTRL                      0xd42829c8 0x00000009
+APMU_SR2P_CTRL                      0xd42829cc 0x00000009
+APMU_SR1P_CTRL                      0xd42829c8 0x00000009
+APMU_BROM_CTRL                      0xd42829d0 0x0000001A
+APMU_ISP_PWR_CTRL                   0xd42829fc 0x00000000
+APMU_PJ_IDLE_CFG2                   0xd4282a00 0x00000062
+APMU_PJ_IDLE_CFG3                   0xd4282a04 0xE0000362
+APMU_FASTENET_CLK_RES_CTRL          0xd4282a10 0x00000000
+APMU_ISLAND_PWR_STATUS              0xd4282a20 0x00001806
+APMU_ISP_CLK_RES_CTRL               0xd4282a24 0x00000000
+APMU_AUDIO_ISLAND_SRAM_PWR_DWN_CTRL 0xd4282a40 0x000000CF
+APMU_GENERIC_CTRL                   0xd4282a44 0x00550070
+APMU_PJ_C0_CC4                      0xd4282a48 0x00000C12
+APMU_PJ_C1_CC4                      0xd4282a4c 0x00000C13
+APMU_PJ_C2_CC4                      0xd4282a50 0x00000C13
+APMU_PJ_MP_SUBSYS_CC                0xd4282a54 0x0000000F
+APMU_MC1_DOUBLER_CTRL               0xd4282a58 0x52E91809
+APMU_MC2_DOUBLER_CTRL               0xd4282a5c 0x52E91809
+APMU_DOUBLER_GENERIC_CTRL           0xd4282a60 0x0000000C
+APMU_MC1_DOUBLER_STAT               0xd4282a64 0x52E91809
+APMU_MC2_DOUBLER_STAT               0xd4282a68 0x52E91809
+APMU_SDHM_DLL_CTRL0                 0xd4282a6c 0x00000000
+APMU_SDHM_DLL_CTRL1                 0xd4282a70 0x00000000
+APMU_SDHM_DLL_STAT0                 0xd4282a74 0x19DCEE77
+APMU_SDHM_DLL_STAT1                 0xd4282a78 0x000000EF
+
+=== apbc ===
+APBC_MMP2_RTC           0xd4015000 0x00000083
+APBC_MMP2_KPC           0xd4015018 0x00000004
+APBC_MMP2_AIB           0xd4015064 0x00000003
+APBC_MMP2_IPC           0xd4015078 0x00000003
+APBC_MMP2_GPIO          0xd4015038 0x00000003
+APBC_MMP2_PWM0          0xd401503c 0x00000004
+APBC_MMP2_PWM1          0xd4015040 0x00000004
+APBC_MMP2_PWM2          0xd4015044 0x00000004
+APBC_MMP2_PWM3          0xd4015048 0x00000004
+APBC_MMP2_SSP0          0xd401504c 0x00000000
+APBC_MMP2_SSP1          0xd4015050 0x00000003
+APBC_MMP2_SSP2          0xd4015054 0x00000003
+APBC_MMP2_SSP3          0xd4015058 0x00000004
+APBC_MMP2_SSP4          0xd401505c 0x00000004
+APBC_MMP2_SSP5          0xd4015060 0x00000000
+APBC_MMP2_USIM          0xd4015070 0x00000004
+APBC_MMP2_MPMU          0xd4015074 0x00000003
+APBC_MMP2_RIPC          0xd401508c 0x00000004
+APBC_MMP2_TWSI1         0xd4015004 0x00000003
+APBC_MMP2_TWSI2         0xd4015008 0x00000003
+APBC_MMP2_TWSI3         0xd401500c 0x00000003
+APBC_MMP2_TWSI4         0xd4015010 0x00000003
+APBC_MMP2_UART1         0xd401502c 0x00000004
+APBC_MMP2_UART2         0xd4015030 0x00000013
+APBC_MMP2_UART3         0xd4015034 0x00000013
+APBC_MMP2_ASFAR         0xd4015068 0x00000000
+APBC_MMP2_ASSAR         0xd401506c 0x00000000
+APBC_MMP2_TWSI5         0xd401507c 0x00000003
+APBC_MMP2_TWSI6         0xd4015080 0x00000003
+APBC_MMP2_UART4         0xd4015088 0x00000004
+APBC_MMP2_TIMERS        0xd4015024 0x00000013
+APBC_MMP2_ONEWIRE       0xd4015014 0x00000004
+APBC_MMP2_SW_JTAG       0xd4015020 0x00000004
+APBC_MMP2_THSENS1       0xd4015090 0x00000003
+APBC_MMP2_TB_ROTARY     0xd401501c 0x00000004
+APBC_MMP2_TWSI_INTSTS   0xd4015084 0x00000000
+APBC_MMP2_THSENS_INTSTS 0xd40150a4 0x000000F0
+
+=== gpio ===
+GPIO_PLR0       0xd4019000 0xE1EC9FFF
+GPIO_PLR1       0xd4019004 0xB96641FF
+GPIO_PLR2       0xd4019008 0x0000027F
+GPIO_PDR0       0xd401900c 0x00000000
+GPIO_PDR1       0xd4019010 0x81004000
+GPIO_PDR2       0xd4019014 0x00040000
+GPIO_PSR0       0xd4019018 0x00000000
+GPIO_PSR1       0xd401901c 0x00000000
+GPIO_PSR2       0xd4019020 0x00000000
+GPIO_RER0       0xd4019030 0x00000000
+GPIO_RER1       0xd4019034 0x18000000
+GPIO_RER2       0xd4019038 0x00000000
+GPIO_FER0       0xd401903c 0x00000000
+GPIO_FER1       0xd4019040 0x08000000
+GPIO_FER2       0xd4019044 0x00000000
+GPIO_EDR0       0xd4019048 0x00000000
+GPIO_EDR1       0xd401904c 0x00000000
+GPIO_EDR2       0xd4019050 0x00000000
+GPIO_SDR0       0xd4019054 0x00000000
+GPIO_SDR1       0xd4019058 0x00000000
+GPIO_SDR2       0xd401905c 0x00000000
+GPIO_CDR0       0xd4019060 0x00000000
+GPIO_CDR1       0xd4019064 0x00000000
+GPIO_CDR2       0xd4019068 0x00000000
+GPIO_SRER0      0xd401906c 0x00000000
+GPIO_SRER1      0xd4019070 0x00000000
+GPIO_SRER2      0xd4019074 0x00000000
+GPIO_SFER0      0xd4019084 0x00000000
+GPIO_SFER1      0xd4019088 0x00000000
+GPIO_SFER2      0xd401908c 0x00000000
+GPIO_CFER0      0xd4019090 0x00000000
+GPIO_CFER1      0xd4019094 0x00000000
+GPIO_CFER2      0xd4019098 0x00000000
+GPIO_APMASK0    0xd401909c 0xFFFFFFFF
+GPIO_APMASK1    0xd40190a0 0xFFFFFFFF
+GPIO_APMASK2    0xd40190a4 0xFFFFFFFF
+GPIO_PLR3       0xd4019100 0xF81C0000
+GPIO_PLR4       0xd4019104 0x00000E07
+GPIO_PLR5       0xd4019108 0x00000800
+GPIO_PDR3       0xd401910c 0x07E00000
+GPIO_PDR4       0xd4019110 0x00000000
+GPIO_PDR5       0xd4019114 0x00000000
+GPIO_PSR3       0xd4019118 0x00000000
+GPIO_PSR4       0xd401911c 0x00000000
+GPIO_PSR5       0xd4019120 0x00000000
+GPIO_RER3       0xd4019130 0x00000000
+GPIO_RER4       0xd4019134 0x00000000
+GPIO_RER5       0xd4019138 0x00000000
+GPIO_FER3       0xd401913c 0x00000000
+GPIO_FER4       0xd4019140 0x00000000
+GPIO_FER5       0xd4019144 0x00000000
+GPIO_EDR3       0xd4019148 0x00000000
+GPIO_EDR4       0xd401914c 0x00000000
+GPIO_EDR5       0xd4019150 0x00000000
+GPIO_SDR3       0xd4019154 0x00000000
+GPIO_SDR4       0xd4019158 0x00000000
+GPIO_SDR5       0xd401915c 0x00000000
+GPIO_CDR3       0xd4019160 0x00000000
+GPIO_CDR4       0xd4019164 0x00000000
+GPIO_CDR5       0xd4019168 0x00000000
+GPIO_SRER3      0xd401916c 0x00000000
+GPIO_SRER4      0xd4019170 0x00000000
+GPIO_SRER5      0xd4019174 0x00000000
+GPIO_SFER3      0xd4019184 0x00000000
+GPIO_SFER4      0xd4019188 0x00000000
+GPIO_SFER5      0xd401918c 0x00000000
+GPIO_CFER3      0xd4019190 0x00000000
+GPIO_CFER4      0xd4019194 0x00000000
+GPIO_CFER5      0xd4019198 0x00000000
+GPIO_APMASK3    0xd401919c 0xFFFFFFFF
+GPIO_APMASK4    0xd40191a0 0xFFFFFFFF
+GPIO_APMASK5    0xd40191a4 0xFFFFFFFF
+
+=== intc ===
+ 0 IRQ_MMP2_SSP1              0xd4282000 0x00000000 0xd4284000 0x00000000
+ 1 IRQ_MMP2_SSP2              0xd4282004 0x00000000 0xd4284004 0x00000000
+ 2 IRQ_MMP2_SSPA1             0xd4282008 0x00000000 0xd4284008 0x00000000
+ 3 IRQ_MMP2_SSPA2             0xd428200c 0x00000000 0xd428400c 0x00000000
+ 4 IRQ_MMP2_PMIC_MUX          0xd4282010 0x00000000 0xd4284010 0x00000000
+ 5 IRQ_MMP2_RTC_MUX           0xd4282014 0x00000000 0xd4284014 0x00000000
+ 6 IRQ_MMP2_IRQ_6             0xd4282018 0x00000000 0xd4284018 0x00000000
+ 7 IRQ_MMP2_TWSI1             0xd428201c 0x00000000 0xd428401c 0x00000000
+ 8 IRQ_MMP2_GPU               0xd4282020 0x00000000 0xd4284020 0x00000000
+ 9 IRQ_MMP2_KEYPAD            0xd4282024 0x00000000 0xd4284024 0x00000000
+10 IRQ_MMP2_ROTARY            0xd4282028 0x00000000 0xd4284028 0x00000000
+11 IRQ_MMP2_TRACKBALL         0xd428202c 0x00000000 0xd428402c 0x00000000
+12 IRQ_MMP2_ONEWIRE           0xd4282030 0x00000000 0xd4284030 0x00000000
+13 IRQ_MMP2_TIMER1            0xd4282034 0x00000000 0xd4284034 0x00000000
+14 IRQ_MMP2_TIMER2            0xd4282038 0x00000000 0xd4284038 0x00000000
+15 IRQ_MMP2_TIMER3            0xd428203c 0x00000000 0xd428403c 0x00000000
+16 IRQ_MMP2_RIPC              0xd4282040 0x00000000 0xd4284040 0x00000000
+17 IRQ_MMP2_TWSI_MUX          0xd4282044 0x00000000 0xd4284044 0x00000000
+18 IRQ_MMP2_IRQ_18            0xd4282048 0x00000000 0xd4284048 0x00000000
+19 IRQ_MMP2_HDMI              0xd428204c 0x00000000 0xd428404c 0x00000000
+20 IRQ_MMP2_SSP3              0xd4282050 0x00000000 0xd4284050 0x00000000
+21 IRQ_MMP2_SSP4              0xd4282054 0x00000000 0xd4284054 0x00000000
+22 IRQ_MMP2_USB_HS1           0xd4282058 0x00000000 0xd4284058 0x00000000
+23 IRQ_MMP2_IO_EDGE_DETECT    0xd428205c 0x00000000 0xd428405c 0x00000000
+24 IRQ_MMP2_UART3             0xd4282060 0x00000000 0xd4284060 0x00000000
+25 IRQ_MMP2_IRQ_25            0xd4282064 0x00000000 0xd4284064 0x00000000
+26 IRQ_MMP2_VMETA             0xd4282068 0x00000000 0xd4284068 0x00000000
+27 IRQ_MMP2_UART1             0xd428206c 0x00000000 0xd428406c 0x00000000
+28 IRQ_MMP2_UART2             0xd4282070 0x0000000F 0xd4284070 0x00000000
+29 IRQ_MMP2_MIPI_DSI          0xd4282074 0x00000000 0xd4284074 0x00000000
+30 IRQ_MMP2_CI2               0xd4282078 0x00000000 0xd4284078 0x00000000
+31 IRQ_MMP2_PMU_TIMER1        0xd428207c 0x00000000 0xd428407c 0x00000000
+32 IRQ_MMP2_PMU_TIMER2        0xd4282080 0x00000000 0xd4284080 0x00000000
+33 IRQ_MMP2_PMU_TIMER3        0xd4282084 0x00000000 0xd4284084 0x00000000
+34 IRQ_MMP2_USB_FS            0xd4282088 0x00000000 0xd4284088 0x00000000
+35 IRQ_MMP2_MISC_MUX          0xd428208c 0x00000000 0xd428408c 0x00000000
+36 IRQ_MMP2_WDT1              0xd4282090 0x00000000 0xd4284090 0x00000000
+37 IRQ_MMP2_NAND_DMA          0xd4282094 0x00000000 0xd4284094 0x00000000
+38 IRQ_MMP2_USIM              0xd4282098 0x00000000 0xd4284098 0x00000000
+39 IRQ_MMP2_MMC               0xd428209c 0x00000000 0xd428409c 0x00000000
+40 IRQ_MMP2_WTM               0xd42820a0 0x00000000 0xd42840a0 0x00000000
+41 IRQ_MMP2_LCD               0xd42820a4 0x00000000 0xd42840a4 0x00000000
+42 IRQ_MMP2_CI                0xd42820a8 0x00000000 0xd42840a8 0x00000000
+43 IRQ_MMP2_IRE               0xd42820ac 0x00000000 0xd42840ac 0x00000000
+44 IRQ_MMP2_USB_OTG           0xd42820b0 0x00000000 0xd42840b0 0x00000000
+45 IRQ_MMP2_NAND              0xd42820b4 0x00000000 0xd42840b4 0x00000000
+46 IRQ_MMP2_UART4             0xd42820b8 0x00000000 0xd42840b8 0x00000000
+47 IRQ_MMP2_DMA_FIQ           0xd42820bc 0x00000000 0xd42840bc 0x00000000
+48 IRQ_MMP2_DMA_RIQ           0xd42820c0 0x00000000 0xd42840c0 0x00000000
+49 IRQ_MMP2_GPIO              0xd42820c4 0x00000000 0xd42840c4 0x00000000
+50 IRQ_MMP2_IRQ_50            0xd42820c8 0x00000000 0xd42840c8 0x00000000
+51 IRQ_MMP2_SSP_MUX           0xd42820cc 0x00000000 0xd42840cc 0x00000000
+52 IRQ_MMP2_MMC2              0xd42820d0 0x00000000 0xd42840d0 0x00000000
+53 IRQ_MMP2_MMC3              0xd42820d4 0x0000000F 0xd42840d4 0x00000000
+54 IRQ_MMP2_MMC4              0xd42820d8 0x00000000 0xd42840d8 0x00000000
+55 IRQ_MMP2_MIPI_HSI          0xd42820dc 0x0000000F 0xd42840dc 0x00000000
+56 IRQ_MMP2_IRQ_56            0xd42820e0 0x00000000 0xd42840e0 0x00000000
+57 IRQ_MMP2_IRQ_57            0xd42820e4 0x00000000 0xd42840e4 0x00000000
+58 IRQ_MMP2_MSP               0xd42820e8 0x00000000 0xd42840e8 0x00000000
+59 IRQ_MMP2_MIPI_SLIM_DMA     0xd42820ec 0x00000000 0xd42840ec 0x00000000
+60 IRQ_MMP2_PJ4_FREQ_CHG      0xd42820f0 0x00000000 0xd42840f0 0x00000000
+61 IRQ_MMP2_IRQ_61            0xd42820f4 0x00000000 0xd42840f4 0x00000000
+62 IRQ_MMP2_MIPI_SLIM         0xd42820f8 0x00000000 0xd42840f8 0x00000000
+63 IRQ_MMP2_SM                0xd42820fc 0x00000000 0xd42840fc 0x00000000
+
+MMP2_ICU_SP_IRQ_SEL           0xd4282100 0x00000000
+MMP2_ICU_PJ4_IRQ_SEL          0xd4282104 0x00000000
+MMP2_ICU_PJ4_FIQ_SEL          0xd4282108 0x00000000
+MMP2_ICU_PJ4_IRQ_GLOBAL_MASK  0xd4282110 0x00000001
+
+MMP3_ICU_GBL_IRQ1_MSK         0xd4282110 0x00000001
+MMP3_ICU_GBL_IRQ2_MSK         0xd4282114 0x00000001
+MMP3_ICU_GBL_IRQ3_MSK         0xd428410C 0x00000001
+MMP3_ICU_GBL_IRQ4_MSK         0xd4284110 0x00000001
+MMP3_ICU_GBL_IRQ5_MSK         0xd4284114 0x00000001
+MMP3_ICU_GBL_IRQ6_MSK         0xd4284190 0x00000001
+
+MMP2_ICU_PJ4_IRQ_STATUS0      0xd4282138 0x00000000
+MMP2_ICU_PJ4_IRQ_STATUS1      0xd428213c 0x00000000
+MMP2_ICU_PJ4_FIQ_STATUS0      0xd4282140 0x00000000
+MMP2_ICU_PJ4_FIQ_STATUS1      0xd4282144 0x00000000
+MMP2_ICU_INT4_STATUS          0xd4282150 0x00000000
+MMP2_ICU_INT5_STATUS          0xd4282154 0x00000000
+MMP2_ICU_INT17_STATUS         0xd4282158 0x00000000
+MMP2_ICU_INT35_STATUS         0xd428215c 0x00000000
+MMP2_ICU_INT51_STATUS         0xd4282160 0x00000000
+MMP2_ICU_INVERT               0xd4282164 0x00000000
+MMP2_ICU_INT4_MASK            0xd4282168 0x000000FF
+MMP2_ICU_INT5_MASK            0xd428216c 0x000000FE
+MMP2_ICU_INT17_MASK           0xd4282170 0x000000FF
+MMP2_ICU_INT35_MASK           0xd4282174 0x7E3FFFFF
+MMP2_ICU_INT51_MASK           0xd4282178 0x000000FF
+
+MMP3_ICU_GBL_FIQ_MSK         0xd4282304 0x00000000
+
+=== mfp ===
+0          GPIO0      0x054      [0x00000000 0] *GPIO        KP_MK       NONE        SPI         NONE        NONE        NONE
+1          GPIO1      0x058      [0x00000000 0] *GPIO        KP_MK       NONE        SPI         NONE        NONE        NONE
+2          GPIO2      0x05C      [0x00000000 0] *GPIO        KP_MK       NONE        SPI         NONE        NONE        NONE
+3          GPIO3      0x060      [0x00000000 0] *GPIO        KP_MK       NONE        SPI         NONE        NONE        NONE
+4          GPIO4      0x064      [0x00000000 0] *GPIO        KP_MK       NONE        NONE        NONE        NONE        NONE
+5          GPIO5      0x068      [0x00000000 0] *GPIO        KP_MK       NONE        SPI         NONE        NONE        NONE
+6          GPIO6      0x06C      [0x00000000 0] *GPIO        KP_MK       NONE        SPI         NONE        NONE        NONE
+7          GPIO7      0x070      [0x00000000 0] *GPIO        KP_MK       NONE        SPI         NONE        NONE        NONE
+8          GPIO8      0x074      [0x00000000 0] *GPIO        KP_MK       NONE        NONE        NONE        NONE        NONE
+9          GPIO9      0x078      [0x00000000 0] *GPIO        KP_MK       NONE        NONE        NONE        NONE        NONE
+10         GPIO10     0x07C      [0x00000000 0] *GPIO        KP_MK       NONE        NONE        NONE        NONE        NONE
+11         GPIO11     0x080      [0x00000000 0] *GPIO        KP_MK       NONE        NONE        NONE        NONE        NONE
+12         GPIO12     0x084      [0x00000000 0] *GPIO        KP_MK       NONE        CCIC1       NONE        NONE        NONE
+13         GPIO13     0x088      [0x00000000 0] *GPIO        KP_MK       NONE        CCIC1       NONE        NONE        NONE
+14         GPIO14     0x08C      [0x00000000 0] *GPIO        KP_MK       NONE        CCIC1       NONE        NONE        NONE
+15         GPIO15     0x090      [0x00000000 0] *GPIO        KP_MK       KP_DK       CCIC1       NONE        NONE        NONE
+16         GPIO16     0x094      [0x00000000 0] *GPIO        KP_DK       ROT         CCIC1       NONE        NONE        NONE
+17         GPIO17     0x098      [0x00000000 0] *GPIO        KP_DK       ROT         CCIC1       NONE        NONE        NONE
+18         GPIO18     0x09C      [0x00000000 0] *GPIO        KP_DK       ROT         CCIC1       NONE        NONE        NONE
+19         GPIO19     0x0A0      [0x00000000 0] *GPIO        KP_DK       ROT         CCIC1       NONE        NONE        NONE
+20         GPIO20     0x0A4      [0x00000000 0] *GPIO        KP_DK       TB          CCIC1       NONE        NONE        NONE
+21         GPIO21     0x0A8      [0x00000000 0] *GPIO        KP_DK       TB          CCIC1       NONE        NONE        NONE
+22         GPIO22     0x0AC      [0x00000000 0] *GPIO        KP_DK       TB          CCIC1       NONE        NONE        NONE
+23         GPIO23     0x0B0      [0x00000000 0] *GPIO        KP_DK       TB          CCIC1       NONE        NONE        NONE
+24         GPIO24     0x0B4      [0x0000D0C0 0] *GPIO        I2S         VCXO_OUT    NONE        NONE        NONE        NONE
+25         GPIO25     0x0B8      [0x000010C1 1]  GPIO       *I2S         HDMI        SSPA2       NONE        NONE        NONE
+26         GPIO26     0x0BC      [0x000010C1 1]  GPIO       *I2S         HDMI        SSPA2       NONE        NONE        NONE
+27         GPIO27     0x0C0      [0x000010C1 1]  GPIO       *I2S         HDMI        SSPA2       NONE        NONE        NONE
+28         GPIO28     0x0C4      [0x000010C1 1]  GPIO       *I2S         NONE        SSPA2       NONE        NONE        NONE
+29         GPIO29     0x0C8      [0x0000D0C0 0] *GPIO        UART1       KP_MK       NONE        NONE        NONE        AAS_SPI
+30         GPIO30     0x0CC      [0x0000D0C0 0] *GPIO        UART1       KP_MK       NONE        NONE        NONE        AAS_SPI
+31         GPIO31     0x0D0      [0x0000D0C0 0] *GPIO        UART1       KP_MK       NONE        NONE        NONE        AAS_SPI
+32         GPIO32     0x0D4      [0x0000D0C0 0] *GPIO        UART1       KP_MK       NONE        NONE        NONE        AAS_SPI
+33         GPIO33     0x0D8      [0x0000D0C0 0] *GPIO        SSPA2       I2S         NONE        NONE        NONE        NONE
+34         GPIO34     0x0DC      [0x0000D0C0 0] *GPIO        SSPA2       I2S         NONE        NONE        NONE        NONE
+35         GPIO35     0x0E0      [0x0000D0C0 0] *GPIO        SSPA2       I2S         NONE        NONE        NONE        NONE
+36         GPIO36     0x0E4      [0x0000D0C0 0] *GPIO        SSPA2       I2S         NONE        NONE        NONE        NONE
+37         GPIO37     0x0E8      [0x0000D0C0 0] *GPIO        MMC2        SSP1        TWSI2       UART2       UART3       AAS_SPI
+38         GPIO38     0x0EC      [0x0000D0C0 0] *GPIO        MMC2        SSP1        TWSI2       UART2       UART3       AAS_SPI
+39         GPIO39     0x0F0      [0x0000D0C0 0] *GPIO        MMC2        SSP1        TWSI2       UART2       UART3       AAS_SPI
+40         GPIO40     0x0F4      [0x0000D0C0 0] *GPIO        MMC2        SSP1        TWSI2       UART2       UART3       AAS_SPI
+41         GPIO41     0x0F8      [0x000008C2 2]  GPIO        MMC2       *TWSI5       NONE        NONE        NONE        NONE
+42         GPIO42     0x0FC      [0x000008C2 2]  GPIO        MMC2       *TWSI5       NONE        NONE        NONE        NONE
+43         GPIO43     0x100      [0x000018C3 3]  GPIO        TWSI2       UART4      *SSP1        UART2       UART3       NONE
+44         GPIO44     0x104      [0x000018C3 3]  GPIO        TWSI2       UART4      *SSP1        UART2       UART3       NONE
+45         GPIO45     0x108      [0x000018C3 3]  GPIO        UART1       UART4      *SSP1        UART2       UART3       NONE
+46         GPIO46     0x10C      [0x000018C0 0] *GPIO        UART1       UART4       SSP1        UART2       UART3       NONE
+47         GPIO47     0x110      [0x000008C3 3]  GPIO        UART2       SSP2       *TWSI6       CAM2        AAS_SPI     AAS_GPIO
+48         GPIO48     0x114      [0x000008C3 3]  GPIO        UART2       SSP2       *TWSI6       CAM2        AAS_SPI     AAS_GPIO
+49         GPIO49     0x118      [0x0000D0C0 0] *GPIO        UART2       SSP2        PWM         CCIC2       AAS_SPI     NONE
+50         GPIO50     0x11C      [0x0000D0C0 0] *GPIO        UART2       SSP2        PWM         CCIC2       AAS_SPI     NONE
+51         GPIO51     0x120      [0x000010C1 1]  GPIO       *UART3       ROT         AAS_GPIO    PWM         NONE        NONE
+52         GPIO52     0x124      [0x000010C1 1]  GPIO       *UART3       ROT         AAS_GPIO    PWM         NONE        NONE
+53         GPIO53     0x128      [0x0000D0C0 0] *GPIO        UART3       TWSI2       VCXO_REQ    NONE        PWM         NONE
+54         GPIO54     0x12C      [0x0000D0C0 0] *GPIO        UART3       TWSI2       VCXO_OUT    HDMI        PWM         NONE
+55         GPIO55     0x130      [0x000018C1 1]  GPIO       *SSP2        SSP1        UART2       ROT         TWSI2       SSP3
+56         GPIO56     0x134      [0x000018C0 0] *GPIO        SSP2        SSP1        UART2       ROT         TWSI2       KP_DK
+57         GPIO57     0x138      [0x000018C1 1]  GPIO       *SSP2_RX     SSP1_TXRX   SSP2_FRM    SSP1_RX     VCXO_REQ    KP_DK
+58         GPIO58     0x13C      [0x000018C1 1]  GPIO       *SSP2        SSP1_RX     SSP1_FRM    SSP1_TXRX   VCXO_REQ    KP_DK
+59         GPIO59     0x280      [0x000010C0 0] *GPIO        CCIC1       ULPI        MMC3        CCIC2       UART3       UART4
+60         GPIO60     0x284      [0x000010C0 0] *GPIO        CCIC1       ULPI        MMC3        CCIC2       UART3       UART4
+61         GPIO61     0x288      [0x0000D0C0 0] *GPIO        CCIC1       ULPI        MMC3        CCIC2       UART3       HDMI
+62         GPIO62     0x28C      [0x000010C0 0] *GPIO        CCIC1       ULPI        MMC3        CCIC2       UART3       NONE
+63         GPIO63     0x290      [0x00003040 0] *GPIO        CCIC1       ULPI        MMC3        CCIC2       MSP         UART4
+64         GPIO64     0x294      [0x0000D0C0 0] *GPIO        CCIC1       ULPI        MMC3        CCIC2       MSP         UART4
+65         GPIO65     0x298      [0x0000D0C0 0] *GPIO        CCIC1       ULPI        MMC3        CCIC2       MSP         UART4
+66         GPIO66     0x29C      [0x0000D0C0 0] *GPIO        CCIC1       ULPI        MMC3        CCIC2       MSP         UART4
+67         GPIO67     0x2A0      [0x0000D0C0 0] *GPIO        CCIC1       ULPI        MMC3        CCIC2       MSP         NONE
+68         GPIO68     0x2A4      [0x000010C0 0] *GPIO        CCIC1       ULPI        MMC3        CCIC2       MSP         LCD
+69         GPIO69     0x2A8      [0x0000D0C0 0] *GPIO        CCIC1       ULPI        MMC3        CCIC2       NONE        LCD
+70         GPIO70     0x2AC      [0x0000D0C0 0] *GPIO        CCIC1       ULPI        MMC3        CCIC2       MSP         LCD
+71         GPIO71     0x2B0      [0x000008C1 1]  GPIO       *TWSI3       NONE        PWM         NONE        NONE        LCD
+72         GPIO72     0x2B4      [0x000008C1 1]  GPIO       *TWSI3       HDMI        PWM         NONE        NONE        LCD
+73         GPIO73     0x2B8      [0x0000D0C0 0] *GPIO        VCXO_REQ    32K_CLKOUT  PWM         VCXO_OUT    NONE        LCD
+74         GPIO74     0x170      [0x000018C1 1]  GPIO       *LCD         SMC         MMC4        SSP3        UART2       UART4
+75         GPIO75     0x174      [0x000018C1 1]  GPIO       *LCD         SMC         MMC4        SSP3        UART2       UART4
+76         GPIO76     0x178      [0x000018C1 1]  GPIO       *LCD         SMC         MMC4        SSP3        UART2       UART4
+77         GPIO77     0x17C      [0x000018C1 1]  GPIO       *LCD         SMC         MMC4        SSP3        UART2       UART4
+78         GPIO78     0x180      [0x000018C1 1]  GPIO       *LCD         HDMI        MMC4        NONE        SSP4        AAS_SPI
+79         GPIO79     0x184      [0x000018C1 1]  GPIO       *LCD         AAS_GPIO    MMC4        NONE        SSP4        AAS_SPI
+80         GPIO80     0x188      [0x000018C1 1]  GPIO       *LCD         AAS_GPIO    MMC4        NONE        SSP4        AAS_SPI
+81         GPIO81     0x18C      [0x000018C1 1]  GPIO       *LCD         AAS_GPIO    MMC4        NONE        SSP4        AAS_SPI
+82         GPIO82     0x190      [0x000018C1 1]  GPIO       *LCD         NONE        MMC4        NONE        NONE        CCIC2
+83         GPIO83     0x194      [0x000018C1 1]  GPIO       *LCD         NONE        MMC4        NONE        NONE        CCIC2
+84         GPIO84     0x198      [0x000018C1 1]  GPIO       *LCD         SMC         MMC2        NONE        TWSI5       AAS_TWSI
+85         GPIO85     0x19C      [0x000018C1 1]  GPIO       *LCD         SMC         MMC2        NONE        TWSI5       AAS_TWSI
+86         GPIO86     0x1A0      [0x000018C1 1]  GPIO       *LCD         SMC         MMC2        NONE        TWSI6       CCIC2
+87         GPIO87     0x1A4      [0x000018C1 1]  GPIO       *LCD         SMC         MMC2        NONE        TWSI6       CCIC2
+88         GPIO88     0x1A8      [0x000018C1 1]  GPIO       *LCD         AAS_GPIO    MMC2        NONE        NONE        CCIC2
+89         GPIO89     0x1AC      [0x000018C1 1]  GPIO       *LCD         AAS_GPIO    MMC2        NONE        NONE        CCIC2
+90         GPIO90     0x1B0      [0x000018C1 1]  GPIO       *LCD         AAS_GPIO    MMC2        NONE        NONE        CCIC2
+91         GPIO91     0x1B4      [0x000018C1 1]  GPIO       *LCD         AAS_GPIO    MMC2        NONE        NONE        CCIC2
+92         GPIO92     0x1B8      [0x000018C1 1]  GPIO       *LCD         AAS_GPIO    MMC2        NONE        NONE        CCIC2
+93         GPIO93     0x1BC      [0x000018C1 1]  GPIO       *LCD         AAS_GPIO    MMC2        NONE        NONE        CCIC2
+94         GPIO94     0x1C0      [0x000018C1 1]  GPIO       *LCD         AAS_GPIO    SPI         NONE        AAS_SPI     CCIC2
+95         GPIO95     0x1C4      [0x000018C1 1]  GPIO       *LCD         TWSI3       SPI         AAS_DEU_EX  AAS_SPI     CCIC2
+96         GPIO96     0x1C8      [0x000018C1 1]  GPIO       *LCD         TWSI3       SPI         AAS_DEU_EX  AAS_SPI     NONE
+97         GPIO97     0x1CC      [0x000018C1 1]  GPIO       *LCD         TWSI6       SPI         AAS_DEU_EX  AAS_SPI     NONE
+98         GPIO98     0x1D0      [0x000018C1 1]  GPIO       *LCD         TWSI6       SPI         ONE_WIRE    NONE        NONE
+99         GPIO99     0x1D4      [0x000018C1 1]  GPIO       *LCD         SMC         SPI         TWSI5       NONE        NONE
+100        GPIO100    0x1D8      [0x000018C1 1]  GPIO       *LCD         SMC         SPI         TWSI5       NONE        NONE
+101        GPIO101    0x1DC      [0x000018C1 1]  GPIO       *LCD         SMC         SPI         NONE        NONE        NONE
+102        GPIO102    0x000      [0x000090C0 0] *USIM        GPIO        FSIC        KP_DK       LCD         NONE        NONE
+103        GPIO103    0x004      [0x0000D0C0 0] *USIM        GPIO        FSIC        KP_DK       LCD         NONE        NONE
+104        GPIO104    0x1FC      [0x00000000 0] *NAND        GPIO        NONE        NONE        NAND        NONE        NONE
+105        GPIO105    0x1F8      [0x00000000 0] *NAND        GPIO        NONE        NONE        NAND        NONE        NONE
+106        GPIO106    0x1F4      [0x00000000 0] *NAND        GPIO        NONE        NONE        NAND        NONE        NONE
+107        GPIO107    0x1F0      [0x00000000 0] *NAND        GPIO        NONE        NONE        NAND        NONE        NONE
+108        GPIO108    0x21C      [0x000018C2 2]  NAND        GPIO       *NONE        NONE        NAND        NONE        NONE
+109        GPIO109    0x218      [0x000018C2 2]  NAND        GPIO       *NONE        NONE        NAND        NONE        NONE
+110        GPIO110    0x214      [0x000018C2 2]  NAND        GPIO       *NONE        NONE        NAND        NONE        NONE
+111        GPIO111    0x200      [0x000018C2 2]  NAND        GPIO       *MMC3        NONE        NONE        NONE        NONE
+112        GPIO112    0x244      [0x00000000 0] *NAND        GPIO        MMC3        SMC         NONE        NONE        NONE
+113        GPIO113    0x25C      [0x0000D8C0 0] *SMC         GPIO        EXT_DMA     MMC3        SMC         HDMI        NONE
+114        GPIO114    0x164      [0x0000D0C0 0] *G_CLKOUT    32K_CLKOUT  HDMI        NONE        NONE        NONE        NONE
+115        GPIO115    0x260      [0x0000D0C0 0] *GPIO        NONE        AC          UART4       UART3       SSP1        NONE
+116        GPIO116    0x264      [0x0000D0C0 0] *GPIO        NONE        AC          UART4       UART3       SSP1        NONE
+117        GPIO117    0x268      [0x0000D0C0 0] *GPIO        NONE        AC          UART4       UART3       SSP1        NONE
+118        GPIO118    0x26C      [0x0000D0C0 0] *GPIO        NONE        AC          UART4       UART3       SSP1        NONE
+119        GPIO119    0x270      [0x0000D0C0 0] *GPIO        NONE        CA          SSP3        NONE        NONE        NONE
+120        GPIO120    0x274      [0x0000D0C0 0] *GPIO        NONE        CA          SSP3        NONE        NONE        NONE
+121        GPIO121    0x278      [0x0000D0C0 0] *GPIO        NONE        CA          SSP3        NONE        NONE        NONE
+122        GPIO122    0x27C      [0x0000D0C0 0] *GPIO        NONE        CA          SSP3        NONE        NONE        NONE
+123        GPIO123    0x148      [0x0000D0C0 0] *GPIO        SLEEP_IND   ONE_WIRE    32K_CLKOUT  NONE        NONE        NONE
+124        GPIO124    0x00C      [0x0000D0C0 0] *GPIO        MMC1        LCD         MMC3        NAND        NONE        NONE
+125        GPIO125    0x010      [0x0000D0C0 0] *GPIO        MMC1        LCD         MMC3        NAND        NONE        NONE
+126        GPIO126    0x014      [0x000051C0 0] *GPIO        MMC1        LCD         MMC3        NAND        NONE        NONE
+127        GPIO127    0x018      [0x000051C0 0] *GPIO        NONE        LCD         MMC3        NAND        NONE        NONE
+128        GPIO128    0x01C      [0x0000D0C0 0] *GPIO        NONE        LCD         MMC3        NAND        NONE        NONE
+129        GPIO129    0x020      [0x0000D0C0 0] *GPIO        MMC1        LCD         MMC3        NAND        NONE        NONE
+130        GPIO130    0x024      [0x0000D0C0 0] *GPIO        MMC1        LCD         MMC3        NAND        NONE        NONE
+131        GPIO131    0x028      [0x000018C1 1]  GPIO       *MMC1        NONE        MSP         NONE        NONE        NONE
+132        GPIO132    0x02C      [0x000018C1 1]  GPIO       *MMC1        PRI_JTAG    MSP         SSP3        AAS_JTAG    NONE
+133        GPIO133    0x030      [0x000018C1 1]  GPIO       *MMC1        PRI_JTAG    MSP         SSP3        AAS_JTAG    NONE
+134        GPIO134    0x034      [0x000018C1 1]  GPIO       *MMC1        PRI_JTAG    MSP         SSP3        AAS_JTAG    NONE
+135        GPIO135    0x038      [0x000018C1 1]  GPIO       *NONE        LCD         MMC3        NAND        NONE        NONE
+136        GPIO136    0x03C      [0x000018C1 1]  GPIO       *MMC1        PRI_JTAG    MSP         SSP3        AAS_JTAG    NONE
+137        GPIO137    0x040      [0x000010C0 0] *GPIO        HDMI        LCD         MSP         NONE        NONE        NONE
+138        GPIO138    0x044      [0x0000D0C0 0] *GPIO        NONE        LCD         MMC3        SMC         NONE        NONE
+139        GPIO139    0x048      [0x0000D0C0 0] *GPIO        MMC1        PRI_JTAG    MSP         NONE        AAS_JTAG    NONE
+140        GPIO140    0x04C      [0x0000D8C1 1]  GPIO       *MMC1        LCD         NONE        NONE        UART2       UART1
+141        GPIO141    0x050      [0x0000D8C1 1]  GPIO       *MMC1        LCD         NONE        NONE        UART2       UART1
+142        GPIO142    0x008      [0x0000D0C0 0] *USIM        GPIO        FSIC        KP_DK       NONE        NONE        NONE
+143        GPIO143    0x220      [0x00000000 0] *NAND        GPIO        SMC         NONE        NAND        NONE        NONE
+144        GPIO144    0x224      [0x00000000 0] *NAND        GPIO        SMC_INT     SMC         NAND        NONE        NONE
+145        GPIO145    0x228      [0x000018C2 2]  SMC         GPIO       *NONE        NONE        SMC         NONE        NONE
+146        GPIO146    0x22C      [0x000018C2 2]  SMC         GPIO       *NONE        NONE        SMC         NONE        NONE
+147        GPIO147    0x230      [0x00000000 0] *NAND        GPIO        NONE        NONE        NAND        NONE        NONE
+148        GPIO148    0x234      [0x00000000 0] *NAND        GPIO        NONE        NONE        NAND        NONE        NONE
+149        GPIO149    0x238      [0x00000000 0] *NAND        GPIO        NONE        NONE        NONE        NONE        NONE
+150        GPIO150    0x23C      [0x00000000 0] *NAND        GPIO        NONE        NONE        NAND        NONE        NONE
+151        GPIO151    0x240      [0x00000000 0] *SMC         GPIO        MMC3        NONE        NONE        NONE        NONE
+152        GPIO152    0x248      [0x00000000 0] *SMC         GPIO        NONE        NONE        SMC         NONE        NONE
+153        GPIO153    0x24C      [0x0000D8C0 0] *SMC         GPIO        NONE        NONE        SMC         NONE        NONE
+154        GPIO154    0x254      [0x00000000 0] *SMC_INT     GPIO        SMC         NONE        NAND        NONE        NONE
+155        GPIO155    0x258      [0x0000D8C0 0] *EXT_DMA     GPIO        SMC         NONE        EXT_DMA     NONE        NONE
+156        GPIO156    0x14C      [0x0000D8C0 0] *PRI_JTAG    GPIO        PWM         NONE        NONE        NONE        NONE
+157        GPIO157    0x150      [0x0000D8C0 0] *PRI_JTAG    GPIO        PWM         NONE        NONE        NONE        NONE
+158        GPIO158    0x154      [0x0000D8C0 0] *PRI_JTAG    GPIO        PWM         NONE        NONE        NONE        NONE
+159        GPIO159    0x158      [0x0000D8C0 0] *PRI_JTAG    GPIO        PWM         NONE        NONE        NONE        NONE
+160        GPIO160    0x250      [0x0000D8C0 0] *NAND        GPIO        SMC         NONE        NAND        NONE        NONE
+161        GPIO161    0x210      [0x000018C2 2]  NAND        GPIO       *NONE        NONE        NAND        NONE        NONE
+162        GPIO162    0x20C      [0x000018C2 2]  NAND        GPIO       *MMC3        NONE        NONE        NONE        NONE
+163        GPIO163    0x208      [0x000018C2 2]  NAND        GPIO       *MMC3        NONE        NONE        NONE        NONE
+164        GPIO164    0x204      [0x000018C2 2]  NAND        GPIO       *MMC3        NONE        NONE        NONE        NONE
+165        GPIO165    0x1EC      [0x00000000 0] *NAND        GPIO        MMC3        NONE        NONE        NONE        NONE
+166        GPIO166    0x1E8      [0x00000000 0] *NAND        GPIO        MMC3        NONE        NONE        NONE        NONE
+167        GPIO167    0x1E4      [0x00000000 0] *NAND        GPIO        MMC3        NONE        NONE        NONE        NONE
+168        GPIO168    0x1E0      [0x00000000 0] *NAND        GPIO        MMC3        NONE        NONE        NONE        NONE
+169        TWSI4_SCL  0x2BC      [0x000008C0 0] *TWSI4       LCD         NONE        NONE        NONE        NONE        NONE
+170        TWSI4_SDA  0x2C0      [0x000008C0 0] *TWSI4       LCD         NONE        NONE        NONE        NONE        NONE
+171        G_CLKREQ   0x160      [0x000090C0 0] *G_CLKREQ    ONE_WIRE    NONE        NONE        NONE        NONE        NONE
+172        VCXO_REQ   0x168      [0x0000B0C0 0] *VCXO_REQ    ONE_WIRE    PLL         NONE        NONE        NONE        NONE
+173        VCXO_OUT   0x16C      [0x000090C0 0] *VCXO_OUT    32K_CLKOUT  NONE        NONE        NONE        NONE        NONE
+
+=== twsi0 ===
+TWSI_BMR0    0xd4011000 0x00000003
+TWSI_DBR0    0xd4011008 0x00000019
+TWSI_CR0     0xd4011010 0x000017E0
+TWSI_SR0     0xd4011018 0x00000000
+TWSI_SAR0    0xd4011020 0x00000001
+TWSI_LCR0    0xd4011028 0x300C3A7E
+TWSI_WCR0    0xd4011030 0x0000143A
+TWSI_WFIFO0  0xd4011040 0x00000000
+WFIFO_WPTR0  0xd4011044 0x00000000
+WFIFO_RPTR0  0xd4011048 0x00000000
+TWSI_RFIFO0  0xd4011050 0x00000000
+RFIFO_WPTR0  0xd4011054 0x00000000
+RFIFO_WPTR0  0xd4011058 0x00000000
+
+=== twsi1 ===
+TWSI_BMR1    0xd4031000 0x00000003
+TWSI_DBR1    0xd4031008 0x00000000
+TWSI_CR1     0xd4031010 0x000007E0
+TWSI_SR1     0xd4031018 0x00000000
+TWSI_SAR1    0xd4031020 0x00000001
+TWSI_LCR1    0xd4031028 0x300C3A7E
+TWSI_WCR1    0xd4031030 0x0000143A
+TWSI_WFIFO1  0xd4031040 0x00000000
+WFIFO_WPTR1  0xd4031044 0x00000000
+WFIFO_RPTR1  0xd4031048 0x00000000
+TWSI_RFIFO1  0xd4031050 0x00000000
+RFIFO_WPTR1  0xd4031054 0x00000000
+RFIFO_WPTR1  0xd4031058 0x00000000
+
+=== twsi3 ===
+TWSI_BMR3    0xd4033000 0x00000003
+TWSI_DBR3    0xd4033008 0x00000003
+TWSI_CR3     0xd4033010 0x000017E0
+TWSI_SR3     0xd4033018 0x00000002
+TWSI_SAR3    0xd4033020 0x00000001
+TWSI_LCR3    0xd4033028 0x300C3A7E
+TWSI_WCR3    0xd4033030 0x0000143A
+TWSI_WFIFO3  0xd4033040 0x00000000
+WFIFO_WPTR3  0xd4033044 0x00000000
+WFIFO_RPTR3  0xd4033048 0x00000000
+TWSI_RFIFO3  0xd4033050 0x00000000
+RFIFO_WPTR3  0xd4033054 0x00000000
+RFIFO_WPTR3  0xd4033058 0x00000000
+
+=== twsi5 ===
+TWSI_BMR5    0xd4034000 0x00000003
+TWSI_DBR5    0xd4034008 0x00000000
+TWSI_CR5     0xd4034010 0x000007E0
+TWSI_SR5     0xd4034018 0x00000000
+TWSI_SAR5    0xd4034020 0x00000001
+TWSI_LCR5    0xd4034028 0x300C3A7E
+TWSI_WCR5    0xd4034030 0x0000143A
+TWSI_WFIFO5  0xd4034040 0x00000000
+WFIFO_WPTR5  0xd4034044 0x00000000
+WFIFO_RPTR5  0xd4034048 0x00000000
+TWSI_RFIFO5  0xd4034050 0x00000000
+RFIFO_WPTR5  0xd4034054 0x00000000
+RFIFO_WPTR5  0xd4034058 0x00000000
+
+=== lcdc ===
+LCD_SPU_ADV_REG            0xd420b084 0x283EFF00
+LCD_SPU_DMA_START_ADDR_Y0  0xd420b0c0 0x00000000
+LCD_SPU_DMA_START_ADDR_U0  0xd420b0c4 0x00012C00
+LCD_SPU_DMA_START_ADDR_V0  0xd420b0c8 0x00017700
+LCD_CFG_DMA_START_ADDR_0   0xd420b0cc 0x00000000
+LCD_SPU_DMA_START_ADDR_Y1  0xd420b0d0 0x00000000
+LCD_SPU_DMA_START_ADDR_U1  0xd420b0d4 0x00000000
+LCD_SPU_DMA_START_ADDR_V1  0xd420b0d8 0x00000000
+LCD_CFG_DMA_START_ADDR_1   0xd420b0dc 0x00000000
+LCD_SPU_DMA_PITCH_YC       0xd420b0e0 0x00000140
+LCD_SPU_DMA_PITCH_UV       0xd420b0e4 0x00A000A0
+LCD_SPU_DMA_OVSA_HPXL_VLN  0xd420b0e8 0x011402E0
+LCD_SPU_DMA_HPXL_VLN       0xd420b0ec 0x00F00140
+LCD_SPU_DZM_HPXL_VLN       0xd420b0f0 0x00F00140
+LCD_CFG_GRA_START_ADDR0    0xd420b0f4 0x18000000
+LCD_CFG_GRA_START_ADDR1    0xd420b0f8 0x00000000
+LCD_CFG_GRA_PITCH          0xd420b0fc 0x00001540
+LCD_SPU_GRA_OVSA_HPXL_VLN  0xd420b100 0x00000000
+LCD_SPU_GRA_HPXL_VLN       0xd420b104 0x03000550
+LCD_SPU_GZM_HPXL_VLN       0xd420b108 0x03000550
+LCD_SPU_HWC_OVSA_HPXL_VLN  0xd420b10c 0x01800200
+LCD_SPU_HWC_HPXL_VLN       0xd420b110 0x00400040
+LCD_SPUT_V_H_TOTAL         0xd420b114 0x031B0700
+LCD_SPU_V_H_ACTIVE         0xd420b118 0x03000550
+LCD_SPU_H_PORCH            0xd420b11c 0x01000040
+LCD_SPU_V_PORCH            0xd420b120 0x00120003
+LCD_SPU_BLANKCOLOR         0xd420b124 0x00000000
+LCD_SPU_ALPHA_COLOR1       0xd420b128 0x00FFFFFF
+LCD_SPU_ALPHA_COLOR2       0xd420b12c 0x00000000
+LCD_SPU_COLORKEY_Y         0xd420b130 0x00000000
+LCD_SPU_COLORKEY_U         0xd420b134 0x00000000
+LCD_SPU_COLORKEY_V         0xd420b138 0x00000000
+LCD_CFG_RDREG4F            0xd420b13c 0x01000100
+LCD_SPU_SPI_RXDATA         0xd420b140 0x00000000
+LCD_SPU_ISA_RSDATA         0xd420b144 0x00000000
+LCD_SPU_HWC_RDDAT          0xd420b158 0x00000000
+LCD_SPU_GAMMA_RDDAT        0xd420b15c 0x00000000
+LCD_SPU_PALETTE_RDDAT      0xd420b160 0x00000000
+LCD_SPU_IOPAD_IN           0xd420b178 0x00000000
+LCD_CFG_RDREG5F            0xd420b17c 0x00800000
+LCD_SPU_SPI_CTRL           0xd420b180 0x00000000
+LCD_SPU_SPI_TXDATA         0xd420b184 0x00000000
+LCD_SPU_SMPN_CTRL          0xd420b188 0x00000000
+LCD_SPU_DMA_CTRL0          0xd420b190 0x08735142
+LCD_SPU_DMA_CTRL1          0xd420b194 0x2832FF81
+LCD_SPU_SRAM_CTRL          0xd420b198 0x000088FF
+LCD_SPU_SRAM_WRDAT         0xd420b19c 0x00000000
+LCD_SPU_SRAM_PARA0         0xd420b1a0 0x00000000
+LCD_SPU_SRAM_PARA1         0xd420b1a4 0x0000FF1F
+LCD_CFG_SCLK_DIV           0xd420b1a8 0xF000000A
+LCD_SPU_CONTRAST           0xd420b1ac 0x00000000
+LCD_SPU_SATURATION         0xd420b1b0 0x00000000
+LCD_SPU_CBSH_HUE           0xd420b1b4 0x00000000
+LCD_SPU_DUMB_CTRL          0xd420b1b8 0x60000001
+LCD_SPU_IOPAD_CONTROL      0xd420b1bc 0x00000000
+LCD_SPU_IRQ_ENA            0xd420b1c0 0x32E13300
+LCD_SPU_IRQ_ISR            0xd420b1c4 0x0C000000
+LCD_MISC_CNTL              0xd420b1c8 0x00000000
+
+=== PXA168_U2O ===
+PXA168_U2O_USB2_PLL_REG0       0xd4207004 0x00005AF0
+PXA168_U2O_USB2_PLL_REG1       0xd4207008 0x0000B337
+PXA168_U2O_USB2_TX_REG0        0xd4207010 0x00000288
+PXA168_U2O_USB2_TX_REG1        0xd4207014 0x000007C4
+PXA168_U2O_USB2_TX_REG2        0xd4207018 0x00000AFF
+PXA168_U2O_USB2_RX_REG0        0xd4207020 0x0000AAA1
+PXA168_U2O_USB2_RX_REG1        0xd4207024 0x00003892
+PXA168_U2O_USB2_RX_REG2        0xd4207028 0x00000125
+PXA168_U2O_USB2_ANA_REG0       0xd4207030 0x00000110
+PXA168_U2O_USB2_ANA_REG1       0xd4207034 0x00005680
+PXA168_U2O_USB2_ANA_REG2       0xd4207038 0x00000000
+PXA168_U2O_USB2_DIG_REG0       0xd420703c 0x00002586
+PXA168_U2O_USB2_DIG_REG1       0xd4207040 0x0000E400
+PXA168_U2O_USB2_DIG_REG2       0xd4207044 0x00000F13
+PXA168_U2O_USB2_DIG_REG3       0xd4207048 0x00000000
+PXA168_U2O_USB2_TEST_REG0      0xd420704c 0x00000000
+PXA168_U2O_USB2_TEST_REG1      0xd4207050 0x0000C060
+PXA168_U2O_USB2_TEST_REG2      0xd4207054 0x00000000
+PXA168_U2O_USB2_CHARGER_REG0   0xd4207058 0x00000000
+PXA168_U2O_USB2_OTG_REG0       0xd420705c 0x00000008
+PXA168_U2O_USB2_PHY_MON0       0xd4207060 0x00000000
+PXA168_U2O_USB2_RESETVE_REG0   0xd4207064 0x00000000
+PXA168_U2O_USB2_ICID_REG0      0xd4207078 0x00009021
+PXA168_U2O_USB2_ICID_REG1      0xd420707c 0x000000C0
+
+=== MMP3_HSIC1 ===
+MMP3_HSIC1_HSIC_PAD_CTRL       0xf0001804 0xF3038787
+MMP3_HSIC1_HSIC_CTRL           0xf0001808 0xD00759BF
+MMP3_HSIC1_TEST_GRP_0          0xf000180c 0x00003925
+MMP3_HSIC1_TEST_GRP_1          0xf0001810 0x00000000
+MMP3_HSIC1_HSIC_INT            0xf0001814 0x0000000C
+MMP3_HSIC1_HSIC_CONFIG         0xf0001818 0x2A00A00A
+MMP3_HSIC1_USBHSIC_CTRL        0xf0001820 0x00000400
+MMP3_HSIC1_HSIC_USB_CTRL       0xf0001828 0x00001000
+
+=== MMP3_FSIC ===
+MMP3_FSIC_FSIC_MISC            0xf0003804 0x00001000
+MMP3_FSIC_FSIC_INT             0xf0003828 0x00000000
+MMP3_FSIC_FSIC_CTRL            0xf0003830 0x00000000
+
+=== gen_tmr ===
+GEN_TMR_CFG  0xd40800b0 0x00000003
+
+=== tmr ===
+TMR_CCR    0xd4014000 0x00000004
+TMR_T1_M0  0xd4014004 0xFFFFFFFF
+TMR_T1_M1  0xd4014008 0xFFFFFFFF
+TMR_T1_M2  0xd401400c 0xFFFFFFFF
+TMR_T2_M0  0xd4014010 0x00000DD0
+TMR_T2_M1  0xd4014014 0xFFFFFFFF
+TMR_T2_M2  0xd4014018 0xFFFFFFFF
+TMR_T3_M0  0xd401401c 0xFFFFFFFF
+TMR_T3_M1  0xd4014020 0xFFFFFFFF
+TMR_T3_M2  0xd4014024 0xFFFFFFFF
+TMR_CR1    0xd4014028 0xC34CD2C2
+TMR_CR2    0xd401402c 0xB479C5A5
+TMR_CR3    0xd4014030 0x0000642B
+TMR_SR1    0xd4014034 0x00000000
+TMR_SR2    0xd4014038 0x00000000
+TMR_SR3    0xd401403c 0x00000000
+TMR_IER1   0xd4014040 0x00000000
+TMR_IER2   0xd4014044 0x00000000
+TMR_IER3   0xd4014048 0x00000000
+TMR_PLVR1  0xd401404c 0x00000000
+TMR_PLVR2  0xd4014050 0x00000000
+TMR_PLVR3  0xd4014054 0x00000000
+TMR_PLCR1  0xd4014058 0x00000000
+TMR_PLCR2  0xd401405c 0x00000000
+TMR_PLCR3  0xd4014060 0x00000000
+TMR_WMER   0xd4014064 0x00000000
+TMR_WMR    0xd4014068 0x0000FFFF
+TMR_WVR    0xd401406c 0x00000000
+TMR_WSR    0xd4014070 0x00000000
+TMR_ICR1   0xd4014074 0x00000000
+TMR_ICR2   0xd4014078 0x00000000
+TMR_ICR3   0xd401407c 0x00000000
+TMR_WICR   0xd4014080 0x00000000
+TMR_CER    0xd4014084 0x00000003
+TMR_CMR    0xd4014088 0x00000003
+TMR_ILR1   0xd401408c 0x00000000
+TMR_ILR2   0xd4014090 0x00000000
+TMR_ILR3   0xd4014094 0x00000000
+TMR_WCR    0xd4014098 0x00000000
+TMR_WFAR   0xd401409c 0x00000000
+TMR_WSAR   0xd40140a0 0x00000000
+TMR_CVWR   0xd40140a4 0x0261377C
+
+=== gic_dist ===
+GIC_DIST_CTRL                  0xe0001000 0x00000001
+GIC_DIST_CTR                   0xe0001004 0x0000FC43
+GIC_DIST_IIDR                  0xe0001008 0x00001369
+GIC_DIST_IGROUP[0]             0xe0001080 0x00000000
+GIC_DIST_IGROUP[1]             0xe0001084 0x00000000
+GIC_DIST_IGROUP[2]             0xe0001088 0x00000000
+GIC_DIST_IGROUP[3]             0xe000108c 0x00000000
+GIC_DIST_IGROUP[4]             0xe0001090 0x00000000
+GIC_DIST_IGROUP[5]             0xe0001094 0x00000000
+GIC_DIST_IGROUP[6]             0xe0001098 0x00000000
+GIC_DIST_IGROUP[7]             0xe000109c 0x00000000
+GIC_DIST_IGROUP[8]             0xe00010a0 0x00000000
+GIC_DIST_IGROUP[9]             0xe00010a4 0x00000000
+GIC_DIST_IGROUP[10]            0xe00010a8 0x00000000
+GIC_DIST_IGROUP[11]            0xe00010ac 0x00000000
+GIC_DIST_IGROUP[12]            0xe00010b0 0x00000000
+GIC_DIST_IGROUP[13]            0xe00010b4 0x00000000
+GIC_DIST_IGROUP[14]            0xe00010b8 0x00000000
+GIC_DIST_IGROUP[15]            0xe00010bc 0x00000000
+GIC_DIST_IGROUP[16]            0xe00010c0 0x00000000
+GIC_DIST_IGROUP[17]            0xe00010c4 0x00000000
+GIC_DIST_IGROUP[18]            0xe00010c8 0x00000000
+GIC_DIST_IGROUP[19]            0xe00010cc 0x00000000
+GIC_DIST_IGROUP[20]            0xe00010d0 0x00000000
+GIC_DIST_IGROUP[21]            0xe00010d4 0x00000000
+GIC_DIST_IGROUP[22]            0xe00010d8 0x00000000
+GIC_DIST_IGROUP[23]            0xe00010dc 0x00000000
+GIC_DIST_IGROUP[24]            0xe00010e0 0x00000000
+GIC_DIST_IGROUP[25]            0xe00010e4 0x00000000
+GIC_DIST_IGROUP[26]            0xe00010e8 0x00000000
+GIC_DIST_IGROUP[27]            0xe00010ec 0x00000000
+GIC_DIST_IGROUP[28]            0xe00010f0 0x00000000
+GIC_DIST_IGROUP[29]            0xe00010f4 0x00000000
+GIC_DIST_IGROUP[30]            0xe00010f8 0x00000000
+GIC_DIST_IGROUP[31]            0xe00010fc 0x00000000
+GIC_DIST_ENABLE_SET[0]         0xe0001100 0x2000FFFF
+GIC_DIST_ENABLE_SET[1]         0xe0001104 0x454661F3
+GIC_DIST_ENABLE_SET[2]         0xe0001108 0x06AB1680
+GIC_DIST_ENABLE_SET[3]         0xe000110c 0x00000000
+GIC_DIST_ENABLE_SET[4]         0xe0001110 0x00000000
+GIC_DIST_ENABLE_SET[5]         0xe0001114 0x00000000
+GIC_DIST_ENABLE_SET[6]         0xe0001118 0x00000000
+GIC_DIST_ENABLE_SET[7]         0xe000111c 0x00000000
+GIC_DIST_ENABLE_SET[8]         0xe0001120 0x00000000
+GIC_DIST_ENABLE_SET[9]         0xe0001124 0x00000000
+GIC_DIST_ENABLE_SET[10]        0xe0001128 0x00000000
+GIC_DIST_ENABLE_SET[11]        0xe000112c 0x00000000
+GIC_DIST_ENABLE_SET[12]        0xe0001130 0x00000000
+GIC_DIST_ENABLE_SET[13]        0xe0001134 0x00000000
+GIC_DIST_ENABLE_SET[14]        0xe0001138 0x00000000
+GIC_DIST_ENABLE_SET[15]        0xe000113c 0x00000000
+GIC_DIST_ENABLE_SET[16]        0xe0001140 0x00000000
+GIC_DIST_ENABLE_SET[17]        0xe0001144 0x00000000
+GIC_DIST_ENABLE_SET[18]        0xe0001148 0x00000000
+GIC_DIST_ENABLE_SET[19]        0xe000114c 0x00000000
+GIC_DIST_ENABLE_SET[20]        0xe0001150 0x00000000
+GIC_DIST_ENABLE_SET[21]        0xe0001154 0x00000000
+GIC_DIST_ENABLE_SET[22]        0xe0001158 0x00000000
+GIC_DIST_ENABLE_SET[23]        0xe000115c 0x00000000
+GIC_DIST_ENABLE_SET[24]        0xe0001160 0x00000000
+GIC_DIST_ENABLE_SET[25]        0xe0001164 0x00000000
+GIC_DIST_ENABLE_SET[26]        0xe0001168 0x00000000
+GIC_DIST_ENABLE_SET[27]        0xe000116c 0x00000000
+GIC_DIST_ENABLE_SET[28]        0xe0001170 0x00000000
+GIC_DIST_ENABLE_SET[29]        0xe0001174 0x00000000
+GIC_DIST_ENABLE_SET[30]        0xe0001178 0x00000000
+GIC_DIST_ENABLE_SET[31]        0xe000117c 0x00000000
+GIC_DIST_ENABLE_CLEAR[0]       0xe0001180 0x2000FFFF
+GIC_DIST_ENABLE_CLEAR[1]       0xe0001184 0x454661F3
+GIC_DIST_ENABLE_CLEAR[2]       0xe0001188 0x06AB1680
+GIC_DIST_ENABLE_CLEAR[3]       0xe000118c 0x00000000
+GIC_DIST_ENABLE_CLEAR[4]       0xe0001190 0x00000000
+GIC_DIST_ENABLE_CLEAR[5]       0xe0001194 0x00000000
+GIC_DIST_ENABLE_CLEAR[6]       0xe0001198 0x00000000
+GIC_DIST_ENABLE_CLEAR[7]       0xe000119c 0x00000000
+GIC_DIST_ENABLE_CLEAR[8]       0xe00011a0 0x00000000
+GIC_DIST_ENABLE_CLEAR[9]       0xe00011a4 0x00000000
+GIC_DIST_ENABLE_CLEAR[10]      0xe00011a8 0x00000000
+GIC_DIST_ENABLE_CLEAR[11]      0xe00011ac 0x00000000
+GIC_DIST_ENABLE_CLEAR[12]      0xe00011b0 0x00000000
+GIC_DIST_ENABLE_CLEAR[13]      0xe00011b4 0x00000000
+GIC_DIST_ENABLE_CLEAR[14]      0xe00011b8 0x00000000
+GIC_DIST_ENABLE_CLEAR[15]      0xe00011bc 0x00000000
+GIC_DIST_ENABLE_CLEAR[16]      0xe00011c0 0x00000000
+GIC_DIST_ENABLE_CLEAR[17]      0xe00011c4 0x00000000
+GIC_DIST_ENABLE_CLEAR[18]      0xe00011c8 0x00000000
+GIC_DIST_ENABLE_CLEAR[19]      0xe00011cc 0x00000000
+GIC_DIST_ENABLE_CLEAR[20]      0xe00011d0 0x00000000
+GIC_DIST_ENABLE_CLEAR[21]      0xe00011d4 0x00000000
+GIC_DIST_ENABLE_CLEAR[22]      0xe00011d8 0x00000000
+GIC_DIST_ENABLE_CLEAR[23]      0xe00011dc 0x00000000
+GIC_DIST_ENABLE_CLEAR[24]      0xe00011e0 0x00000000
+GIC_DIST_ENABLE_CLEAR[25]      0xe00011e4 0x00000000
+GIC_DIST_ENABLE_CLEAR[26]      0xe00011e8 0x00000000
+GIC_DIST_ENABLE_CLEAR[27]      0xe00011ec 0x00000000
+GIC_DIST_ENABLE_CLEAR[28]      0xe00011f0 0x00000000
+GIC_DIST_ENABLE_CLEAR[29]      0xe00011f4 0x00000000
+GIC_DIST_ENABLE_CLEAR[30]      0xe00011f8 0x00000000
+GIC_DIST_ENABLE_CLEAR[31]      0xe00011fc 0x00000000
+GIC_DIST_PENDING_SET[0]        0xe0001200 0x00000000
+GIC_DIST_PENDING_SET[1]        0xe0001204 0x00008000
+GIC_DIST_PENDING_SET[2]        0xe0001208 0x01000000
+GIC_DIST_PENDING_SET[3]        0xe000120c 0x00000000
+GIC_DIST_PENDING_SET[4]        0xe0001210 0x00000000
+GIC_DIST_PENDING_SET[5]        0xe0001214 0x00000000
+GIC_DIST_PENDING_SET[6]        0xe0001218 0x00000000
+GIC_DIST_PENDING_SET[7]        0xe000121c 0x00000000
+GIC_DIST_PENDING_SET[8]        0xe0001220 0x00000000
+GIC_DIST_PENDING_SET[9]        0xe0001224 0x00000000
+GIC_DIST_PENDING_SET[10]       0xe0001228 0x00000000
+GIC_DIST_PENDING_SET[11]       0xe000122c 0x00000000
+GIC_DIST_PENDING_SET[12]       0xe0001230 0x00000000
+GIC_DIST_PENDING_SET[13]       0xe0001234 0x00000000
+GIC_DIST_PENDING_SET[14]       0xe0001238 0x00000000
+GIC_DIST_PENDING_SET[15]       0xe000123c 0x00000000
+GIC_DIST_PENDING_SET[16]       0xe0001240 0x00000000
+GIC_DIST_PENDING_SET[17]       0xe0001244 0x00000000
+GIC_DIST_PENDING_SET[18]       0xe0001248 0x00000000
+GIC_DIST_PENDING_SET[19]       0xe000124c 0x00000000
+GIC_DIST_PENDING_SET[20]       0xe0001250 0x00000000
+GIC_DIST_PENDING_SET[21]       0xe0001254 0x00000000
+GIC_DIST_PENDING_SET[22]       0xe0001258 0x00000000
+GIC_DIST_PENDING_SET[23]       0xe000125c 0x00000000
+GIC_DIST_PENDING_SET[24]       0xe0001260 0x00000000
+GIC_DIST_PENDING_SET[25]       0xe0001264 0x00000000
+GIC_DIST_PENDING_SET[26]       0xe0001268 0x00000000
+GIC_DIST_PENDING_SET[27]       0xe000126c 0x00000000
+GIC_DIST_PENDING_SET[28]       0xe0001270 0x00000000
+GIC_DIST_PENDING_SET[29]       0xe0001274 0x00000000
+GIC_DIST_PENDING_SET[30]       0xe0001278 0x00000000
+GIC_DIST_PENDING_SET[31]       0xe000127c 0x00000000
+GIC_DIST_PENDING_CLEAR[0]      0xe0001280 0x00000000
+GIC_DIST_PENDING_CLEAR[1]      0xe0001284 0x00008000
+GIC_DIST_PENDING_CLEAR[2]      0xe0001288 0x01000000
+GIC_DIST_PENDING_CLEAR[3]      0xe000128c 0x00000000
+GIC_DIST_PENDING_CLEAR[4]      0xe0001290 0x00000000
+GIC_DIST_PENDING_CLEAR[5]      0xe0001294 0x00000000
+GIC_DIST_PENDING_CLEAR[6]      0xe0001298 0x00000000
+GIC_DIST_PENDING_CLEAR[7]      0xe000129c 0x00000000
+GIC_DIST_PENDING_CLEAR[8]      0xe00012a0 0x00000000
+GIC_DIST_PENDING_CLEAR[9]      0xe00012a4 0x00000000
+GIC_DIST_PENDING_CLEAR[10]     0xe00012a8 0x00000000
+GIC_DIST_PENDING_CLEAR[11]     0xe00012ac 0x00000000
+GIC_DIST_PENDING_CLEAR[12]     0xe00012b0 0x00000000
+GIC_DIST_PENDING_CLEAR[13]     0xe00012b4 0x00000000
+GIC_DIST_PENDING_CLEAR[14]     0xe00012b8 0x00000000
+GIC_DIST_PENDING_CLEAR[15]     0xe00012bc 0x00000000
+GIC_DIST_PENDING_CLEAR[16]     0xe00012c0 0x00000000
+GIC_DIST_PENDING_CLEAR[17]     0xe00012c4 0x00000000
+GIC_DIST_PENDING_CLEAR[18]     0xe00012c8 0x00000000
+GIC_DIST_PENDING_CLEAR[19]     0xe00012cc 0x00000000
+GIC_DIST_PENDING_CLEAR[20]     0xe00012d0 0x00000000
+GIC_DIST_PENDING_CLEAR[21]     0xe00012d4 0x00000000
+GIC_DIST_PENDING_CLEAR[22]     0xe00012d8 0x00000000
+GIC_DIST_PENDING_CLEAR[23]     0xe00012dc 0x00000000
+GIC_DIST_PENDING_CLEAR[24]     0xe00012e0 0x00000000
+GIC_DIST_PENDING_CLEAR[25]     0xe00012e4 0x00000000
+GIC_DIST_PENDING_CLEAR[26]     0xe00012e8 0x00000000
+GIC_DIST_PENDING_CLEAR[27]     0xe00012ec 0x00000000
+GIC_DIST_PENDING_CLEAR[28]     0xe00012f0 0x00000000
+GIC_DIST_PENDING_CLEAR[29]     0xe00012f4 0x00000000
+GIC_DIST_PENDING_CLEAR[30]     0xe00012f8 0x00000000
+GIC_DIST_PENDING_CLEAR[31]     0xe00012fc 0x00000000
+GIC_DIST_ACTIVE_SET[0]         0xe0001300 0x00000000
+GIC_DIST_ACTIVE_SET[1]         0xe0001304 0x00000000
+GIC_DIST_ACTIVE_SET[2]         0xe0001308 0x00000000
+GIC_DIST_ACTIVE_SET[3]         0xe000130c 0x00000000
+GIC_DIST_ACTIVE_SET[4]         0xe0001310 0x00000000
+GIC_DIST_ACTIVE_SET[5]         0xe0001314 0x00000000
+GIC_DIST_ACTIVE_SET[6]         0xe0001318 0x00000000
+GIC_DIST_ACTIVE_SET[7]         0xe000131c 0x00000000
+GIC_DIST_ACTIVE_SET[8]         0xe0001320 0x00000000
+GIC_DIST_ACTIVE_SET[9]         0xe0001324 0x00000000
+GIC_DIST_ACTIVE_SET[10]        0xe0001328 0x00000000
+GIC_DIST_ACTIVE_SET[11]        0xe000132c 0x00000000
+GIC_DIST_ACTIVE_SET[12]        0xe0001330 0x00000000
+GIC_DIST_ACTIVE_SET[13]        0xe0001334 0x00000000
+GIC_DIST_ACTIVE_SET[14]        0xe0001338 0x00000000
+GIC_DIST_ACTIVE_SET[15]        0xe000133c 0x00000000
+GIC_DIST_ACTIVE_SET[16]        0xe0001340 0x00000000
+GIC_DIST_ACTIVE_SET[17]        0xe0001344 0x00000000
+GIC_DIST_ACTIVE_SET[18]        0xe0001348 0x00000000
+GIC_DIST_ACTIVE_SET[19]        0xe000134c 0x00000000
+GIC_DIST_ACTIVE_SET[20]        0xe0001350 0x00000000
+GIC_DIST_ACTIVE_SET[21]        0xe0001354 0x00000000
+GIC_DIST_ACTIVE_SET[22]        0xe0001358 0x00000000
+GIC_DIST_ACTIVE_SET[23]        0xe000135c 0x00000000
+GIC_DIST_ACTIVE_SET[24]        0xe0001360 0x00000000
+GIC_DIST_ACTIVE_SET[25]        0xe0001364 0x00000000
+GIC_DIST_ACTIVE_SET[26]        0xe0001368 0x00000000
+GIC_DIST_ACTIVE_SET[27]        0xe000136c 0x00000000
+GIC_DIST_ACTIVE_SET[28]        0xe0001370 0x00000000
+GIC_DIST_ACTIVE_SET[29]        0xe0001374 0x00000000
+GIC_DIST_ACTIVE_SET[30]        0xe0001378 0x00000000
+GIC_DIST_ACTIVE_SET[31]        0xe000137c 0x00000000
+GIC_DIST_ACTIVE_CLEAR[0]       0xe0001380 0x00000000
+GIC_DIST_ACTIVE_CLEAR[1]       0xe0001384 0x00000000
+GIC_DIST_ACTIVE_CLEAR[2]       0xe0001388 0x00000000
+GIC_DIST_ACTIVE_CLEAR[3]       0xe000138c 0x00000000
+GIC_DIST_ACTIVE_CLEAR[4]       0xe0001390 0x00000000
+GIC_DIST_ACTIVE_CLEAR[5]       0xe0001394 0x00000000
+GIC_DIST_ACTIVE_CLEAR[6]       0xe0001398 0x00000000
+GIC_DIST_ACTIVE_CLEAR[7]       0xe000139c 0x00000000
+GIC_DIST_ACTIVE_CLEAR[8]       0xe00013a0 0x00000000
+GIC_DIST_ACTIVE_CLEAR[9]       0xe00013a4 0x00000000
+GIC_DIST_ACTIVE_CLEAR[10]      0xe00013a8 0x00000000
+GIC_DIST_ACTIVE_CLEAR[11]      0xe00013ac 0x00000000
+GIC_DIST_ACTIVE_CLEAR[12]      0xe00013b0 0x00000000
+GIC_DIST_ACTIVE_CLEAR[13]      0xe00013b4 0x00000000
+GIC_DIST_ACTIVE_CLEAR[14]      0xe00013b8 0x00000000
+GIC_DIST_ACTIVE_CLEAR[15]      0xe00013bc 0x00000000
+GIC_DIST_ACTIVE_CLEAR[16]      0xe00013c0 0x00000000
+GIC_DIST_ACTIVE_CLEAR[17]      0xe00013c4 0x00000000
+GIC_DIST_ACTIVE_CLEAR[18]      0xe00013c8 0x00000000
+GIC_DIST_ACTIVE_CLEAR[19]      0xe00013cc 0x00000000
+GIC_DIST_ACTIVE_CLEAR[20]      0xe00013d0 0x00000000
+GIC_DIST_ACTIVE_CLEAR[21]      0xe00013d4 0x00000000
+GIC_DIST_ACTIVE_CLEAR[22]      0xe00013d8 0x00000000
+GIC_DIST_ACTIVE_CLEAR[23]      0xe00013dc 0x00000000
+GIC_DIST_ACTIVE_CLEAR[24]      0xe00013e0 0x00000000
+GIC_DIST_ACTIVE_CLEAR[25]      0xe00013e4 0x00000000
+GIC_DIST_ACTIVE_CLEAR[26]      0xe00013e8 0x00000000
+GIC_DIST_ACTIVE_CLEAR[27]      0xe00013ec 0x00000000
+GIC_DIST_ACTIVE_CLEAR[28]      0xe00013f0 0x00000000
+GIC_DIST_ACTIVE_CLEAR[29]      0xe00013f4 0x00000000
+GIC_DIST_ACTIVE_CLEAR[30]      0xe00013f8 0x00000000
+GIC_DIST_ACTIVE_CLEAR[31]      0xe00013fc 0x00000000
+GIC_DIST_PRI[0]                0xe0001400 0xA0A0A0A0
+GIC_DIST_PRI[1]                0xe0001404 0xA0A0A0A0
+GIC_DIST_PRI[2]                0xe0001408 0xA0A0A0A0
+GIC_DIST_PRI[3]                0xe000140c 0xA0A0A0A0
+GIC_DIST_PRI[4]                0xe0001410 0x00000000
+GIC_DIST_PRI[5]                0xe0001414 0x00000000
+GIC_DIST_PRI[6]                0xe0001418 0xA0A0A0A0
+GIC_DIST_PRI[7]                0xe000141c 0xA0A0A0A0
+GIC_DIST_PRI[8]                0xe0001420 0xA0A0A0A0
+GIC_DIST_PRI[9]                0xe0001424 0xA0A0A0A0
+GIC_DIST_PRI[10]               0xe0001428 0xA0A0A0A0
+GIC_DIST_PRI[11]               0xe000142c 0xA0A0A0A0
+GIC_DIST_PRI[12]               0xe0001430 0xA0A0A0A0
+GIC_DIST_PRI[13]               0xe0001434 0xA0A0A0A0
+GIC_DIST_PRI[14]               0xe0001438 0xA0A0A0A0
+GIC_DIST_PRI[15]               0xe000143c 0xA0A0A0A0
+GIC_DIST_PRI[16]               0xe0001440 0xA0A0A0A0
+GIC_DIST_PRI[17]               0xe0001444 0xA0A0A0A0
+GIC_DIST_PRI[18]               0xe0001448 0xA0A0A0A0
+GIC_DIST_PRI[19]               0xe000144c 0xA0A0A0A0
+GIC_DIST_PRI[20]               0xe0001450 0xA0A0A0A0
+GIC_DIST_PRI[21]               0xe0001454 0xA0A0A0A0
+GIC_DIST_PRI[22]               0xe0001458 0xA0A0A0A0
+GIC_DIST_PRI[23]               0xe000145c 0xA0A0A0A0
+GIC_DIST_PRI[24]               0xe0001460 0xA0A0A0A0
+GIC_DIST_PRI[25]               0xe0001464 0xA0A0A0A0
+GIC_DIST_PRI[26]               0xe0001468 0xA0A0A0A0
+GIC_DIST_PRI[27]               0xe000146c 0xA0A0A0A0
+GIC_DIST_PRI[28]               0xe0001470 0xA0A0A0A0
+GIC_DIST_PRI[29]               0xe0001474 0xA0A0A0A0
+GIC_DIST_PRI[30]               0xe0001478 0xA0A0A0A0
+GIC_DIST_PRI[31]               0xe000147c 0xA0A0A0A0
+GIC_DIST_TARGET[0]             0xe0001800 0x00000000
+GIC_DIST_TARGET[1]             0xe0001804 0x00000000
+GIC_DIST_TARGET[2]             0xe0001808 0x00000000
+GIC_DIST_TARGET[3]             0xe000180c 0x00000000
+GIC_DIST_TARGET[4]             0xe0001810 0x00000000
+GIC_DIST_TARGET[5]             0xe0001814 0x00000000
+GIC_DIST_TARGET[6]             0xe0001818 0x01010101
+GIC_DIST_TARGET[7]             0xe000181c 0x01010101
+GIC_DIST_TARGET[8]             0xe0001820 0x01010101
+GIC_DIST_TARGET[9]             0xe0001824 0x01010101
+GIC_DIST_TARGET[10]            0xe0001828 0x01010101
+GIC_DIST_TARGET[11]            0xe000182c 0x01010101
+GIC_DIST_TARGET[12]            0xe0001830 0x01010101
+GIC_DIST_TARGET[13]            0xe0001834 0x01010101
+GIC_DIST_TARGET[14]            0xe0001838 0x01010101
+GIC_DIST_TARGET[15]            0xe000183c 0x01010101
+GIC_DIST_TARGET[16]            0xe0001840 0x01010101
+GIC_DIST_TARGET[17]            0xe0001844 0x01010101
+GIC_DIST_TARGET[18]            0xe0001848 0x01010101
+GIC_DIST_TARGET[19]            0xe000184c 0x01010101
+GIC_DIST_TARGET[20]            0xe0001850 0x01010101
+GIC_DIST_TARGET[21]            0xe0001854 0x01010101
+GIC_DIST_TARGET[22]            0xe0001858 0x01010101
+GIC_DIST_TARGET[23]            0xe000185c 0x01010101
+GIC_DIST_TARGET[24]            0xe0001860 0x01010101
+GIC_DIST_TARGET[25]            0xe0001864 0x01010101
+GIC_DIST_TARGET[26]            0xe0001868 0x01010101
+GIC_DIST_TARGET[27]            0xe000186c 0x01010101
+GIC_DIST_TARGET[28]            0xe0001870 0x01010101
+GIC_DIST_TARGET[29]            0xe0001874 0x01010101
+GIC_DIST_TARGET[30]            0xe0001878 0x01010101
+GIC_DIST_TARGET[31]            0xe000187c 0x01010101
+GIC_DIST_CONFIG[0]             0xe0001c00 0xAAAAAAAA
+GIC_DIST_CONFIG[1]             0xe0001c04 0x7DFF0000
+GIC_DIST_CONFIG[2]             0xe0001c08 0x55555555
+GIC_DIST_CONFIG[3]             0xe0001c0c 0x55555555
+GIC_DIST_CONFIG[4]             0xe0001c10 0x55555555
+GIC_DIST_CONFIG[5]             0xe0001c14 0x55555555
+GIC_DIST_CONFIG[6]             0xe0001c18 0x55555555
+GIC_DIST_CONFIG[7]             0xe0001c1c 0x55555555
+GIC_DIST_CONFIG[8]             0xe0001c20 0x00000000
+GIC_DIST_CONFIG[9]             0xe0001c24 0x00000000
+GIC_DIST_CONFIG[10]            0xe0001c28 0x00000000
+GIC_DIST_CONFIG[11]            0xe0001c2c 0x00000000
+GIC_DIST_CONFIG[12]            0xe0001c30 0x00000000
+GIC_DIST_CONFIG[13]            0xe0001c34 0x00000000
+GIC_DIST_CONFIG[14]            0xe0001c38 0x00000000
+GIC_DIST_CONFIG[15]            0xe0001c3c 0x00000000
+GIC_DIST_CONFIG[16]            0xe0001c40 0x00000000
+GIC_DIST_CONFIG[17]            0xe0001c44 0x00000000
+GIC_DIST_CONFIG[18]            0xe0001c48 0x00000000
+GIC_DIST_CONFIG[19]            0xe0001c4c 0x00000000
+GIC_DIST_CONFIG[20]            0xe0001c50 0x00000000
+GIC_DIST_CONFIG[21]            0xe0001c54 0x00000000
+GIC_DIST_CONFIG[22]            0xe0001c58 0x00000000
+GIC_DIST_CONFIG[23]            0xe0001c5c 0x00000000
+GIC_DIST_CONFIG[24]            0xe0001c60 0x00000000
+GIC_DIST_CONFIG[25]            0xe0001c64 0x00000000
+GIC_DIST_CONFIG[26]            0xe0001c68 0x00000000
+GIC_DIST_CONFIG[27]            0xe0001c6c 0x00000000
+GIC_DIST_CONFIG[28]            0xe0001c70 0x00000000
+GIC_DIST_CONFIG[29]            0xe0001c74 0x00000000
+GIC_DIST_CONFIG[30]            0xe0001c78 0x00000000
+GIC_DIST_CONFIG[31]            0xe0001c7c 0x00000000
+GIC_DIST_SOFTINT               0xe0001f00 0x00000000
+GIC_DIST_SGI_PENDING_CLEAR[0]  0xe0001f10 0x00000000
+GIC_DIST_SGI_PENDING_CLEAR[1]  0xe0001f14 0x00000000
+GIC_DIST_SGI_PENDING_CLEAR[2]  0xe0001f18 0x00000000
+GIC_DIST_SGI_PENDING_CLEAR[3]  0xe0001f1c 0x00000000
+GIC_DIST_SGI_PENDING_SET[0]    0xe0001f20 0x00000000
+GIC_DIST_SGI_PENDING_SET[1]    0xe0001f24 0x00000000
+GIC_DIST_SGI_PENDING_SET[2]    0xe0001f28 0x00000000
+GIC_DIST_SGI_PENDING_SET[3]    0xe0001f2c 0x00000000
+
+=== twd ===
+TWD_TIMER_LOAD      0xe0000600 0x00004249
+TWD_TIMER_COUNTER   0xe0000604 0x00002656
+TWD_TIMER_CONTROL   0xe0000608 0x00000005
+TWD_TIMER_INTSTAT   0xe000060C 0x00000000
+
