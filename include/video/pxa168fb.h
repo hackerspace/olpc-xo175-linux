@@ -33,7 +33,8 @@
 #define DUMB_MODE_RGB888		6
 
 /* default fb buffer size WVGA-32bits */
-#define DEFAULT_FB_SIZE	(800 * 480 * 4)
+//#define DEFAULT_FB_SIZE (800 * 480 * 4)
+#define DEFAULT_FB_SIZE (1200 * 900 * 4 + 4096)
 
 /*
  * Buffer pixel format
