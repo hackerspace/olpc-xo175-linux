@@ -14,6 +14,17 @@ nod /dev/null 0755 0 0 c 1 3
 file /bin/busybox usr/busybox 0755 0 0
 file /initrc usr/initrc 0755 0 0
 file /etc/init.d/rcS usr/rcS 0755 0 0
+file /etc/mdev.conf usr/mdev.conf 0644 0 0
+
+file /all.sh usr/all.sh 0755 0 0
+file /clk.sh usr/clk.sh 0755 0 0
+file /gpio.sh usr/gpio.sh 0755 0 0
+file /intc.sh usr/intc.sh 0755 0 0
+file /kbdiddle.sh usr/kbdiddle.sh 0755 0 0
+file /mfpdump.sh usr/mfpdump.sh 0755 0 0
+file /twsidump.sh usr/twsidump.sh 0755 0 0
+
+file /all1.txt usr/all1.txt 0644 0 0
 
 #dir /lib 0755 0 0
 #dir /lib/firmware 0755 0 0
