@@ -22,7 +22,7 @@
 		#address-cells = <0x1>;
 		#size-cells = <0x1>;
 		ranges;
-		bootargs = "earlyprintk=ttyS2,115200 console=ttyS2,115200";
+		bootargs = "console=tty0 earlyprintk=ttyS2,115200 console=ttyS2,115200 root=/dev/sda3 fbcon=nodefer rootwait";
 	};
 
 	memory@0 {
@@ -87,6 +87,19 @@
 		compatible = "dallas,ds1338";
 		reg = <0x68>;
 		status = "okay";
+	};
+
+	regulator@19 {
+		compatible = "marvell,88pg867";
+		reg = <0x19>;
+
+		vcpu: buck1 {
+			regulator-name = "vdd_1v8";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-boot-on;
+			regulator-always-on;
+		};
 	};
 };
 
