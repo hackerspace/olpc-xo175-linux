@@ -283,6 +283,10 @@ static void __init ttc_dkb_init(void)
 	platform_add_devices(ARRAY_AND_SIZE(ttc_dkb_devices));
 
 #if IS_ENABLED(CONFIG_USB_MV_UDC)
+	platform_device_register(&pxa168_device_usb_phy);
+#endif
+
+#if IS_ENABLED(CONFIG_USB_MV_UDC)
 	pxa168_device_u2o.dev.platform_data = &ttc_usb_pdata;
 	platform_device_register(&pxa168_device_u2o);
 #endif
