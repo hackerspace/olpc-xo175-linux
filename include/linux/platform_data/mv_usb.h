@@ -45,8 +45,6 @@ struct mv_usb_platform_data {
 	/* Force a_bus_req to be asserted */
 	 unsigned int    otg_force_a_bus_req:1;
 
-	int	(*phy_init)(void __iomem *regbase);
-	void	(*phy_deinit)(void __iomem *regbase);
 	int	(*set_vbus)(unsigned int vbus);
 };
 #endif

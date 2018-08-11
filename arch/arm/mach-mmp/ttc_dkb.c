@@ -171,8 +171,6 @@ static struct mv_usb_platform_data ttc_usb_pdata = {
 	.vbus		= NULL,
 	.mode		= MV_USB_MODE_OTG,
 	.otg_force_a_bus_req = 1,
-	.phy_init	= pxa_usb_phy_init,
-	.phy_deinit	= pxa_usb_phy_deinit,
 	.set_vbus	= NULL,
 };
 #endif
