@@ -124,6 +124,17 @@
 				#phy-cells = <0>;
 				status = "disabled";
 			};
+
+			usb_otg0: usb-otg@d4208000 {
+				compatible = "marvell,pxau2o-ehci";
+				reg = <0xd4208000 0x200>;
+				interrupts = <44>;
+				clocks = <&soc_clocks MMP2_CLK_USB>;
+				clock-names = "USBCLK";
+				phys = <&usb_otg_phy0>;
+				phy-names = "usb";
+				status = "disabled";
+			};
 		};
 
 		apb@d4000000 {	/* APB */
