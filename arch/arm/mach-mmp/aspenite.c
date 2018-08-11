@@ -232,8 +232,6 @@ static struct pxa27x_keypad_platform_data aspenite_keypad_info __initdata = {
 #if IS_ENABLED(CONFIG_USB_EHCI_MV)
 static struct mv_usb_platform_data pxa168_sph_pdata = {
 	.mode           = MV_USB_MODE_HOST,
-	.phy_init	= pxa_usb_phy_init,
-	.phy_deinit	= pxa_usb_phy_deinit,
 	.set_vbus	= NULL,
 };
 #endif
