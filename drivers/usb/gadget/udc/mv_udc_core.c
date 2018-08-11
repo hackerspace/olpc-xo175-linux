@@ -1069,14 +1069,11 @@ static int mv_udc_enable_internal(struct mv_udc *udc)
 	if (retval)
 		return retval;
 
-	if (udc->pdata->phy_init) {
-		retval = udc->pdata->phy_init(udc->phy_regs);
-		if (retval) {
-			dev_err(&udc->dev->dev,
-				"init phy error %d\n", retval);
-			udc_clock_disable(udc);
-			return retval;
-		}
+	retval = phy_init(udc->phy);
+	if (retval) {
+		dev_err(&udc->dev->dev, "init phy error %d\n", retval);
+		udc_clock_disable(udc);
+		return retval;
 	}
 	udc->active = 1;
 
@@ -1095,8 +1092,7 @@ static void mv_udc_disable_internal(struct mv_udc *udc)
 {
 	if (udc->active) {
 		dev_dbg(&udc->dev->dev, "disable udc\n");
-		if (udc->pdata->phy_deinit)
-			udc->pdata->phy_deinit(udc->phy_regs);
+		phy_exit(udc->phy);
 		udc_clock_disable(udc);
 		udc->active = 0;
 	}
@@ -2147,30 +2143,16 @@ static int mv_udc_probe(struct platform_device *pdev)
 	if (IS_ERR(udc->clk))
 		return PTR_ERR(udc->clk);
 
-	r = platform_get_resource_byname(udc->dev, IORESOURCE_MEM, "capregs");
+	r = platform_get_resource(udc->dev, IORESOURCE_MEM, 0);
 	if (r == NULL) {
 		dev_err(&pdev->dev, "no I/O memory resource defined\n");
 		return -ENODEV;
 	}
 
-	udc->cap_regs = (struct mv_cap_regs __iomem *)
-		devm_ioremap(&pdev->dev, r->start, resource_size(r));
-	if (udc->cap_regs == NULL) {
-		dev_err(&pdev->dev, "failed to map I/O memory\n");
-		return -EBUSY;
-	}
+	udc->base = devm_ioremap(&pdev->dev, r->start, resource_size(r));
 
-	r = platform_get_resource_byname(udc->dev, IORESOURCE_MEM, "phyregs");
-	if (r == NULL) {
-		dev_err(&pdev->dev, "no phy I/O memory resource defined\n");
-		return -ENODEV;
-	}
-
-	udc->phy_regs = devm_ioremap(&pdev->dev, r->start, resource_size(r));
-	if (udc->phy_regs == NULL) {
-		dev_err(&pdev->dev, "failed to map phy I/O memory\n");
-		return -EBUSY;
-	}
+	udc->cap_regs =
+		(void __iomem *) ((unsigned long)udc->base + U2x_CAPREGS_OFFSET);
 
 	/* we will acces controller register, so enable the clk */
 	retval = mv_udc_enable_internal(udc);
