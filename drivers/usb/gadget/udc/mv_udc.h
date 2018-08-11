@@ -6,6 +6,9 @@
 #ifndef __MV_UDC_H
 #define __MV_UDC_H
 
+/* registers */
+#define U2x_CAPREGS_OFFSET	0x100
+
 #define VUSBHS_MAX_PORTS	8
 
 #define DQH_ALIGNMENT		2048
@@ -174,9 +177,9 @@ struct mv_udc {
 	struct platform_device		*dev;
 	int				irq;
 
+	void __iomem                    *base;
 	struct mv_cap_regs __iomem	*cap_regs;
 	struct mv_op_regs __iomem	*op_regs;
-	void __iomem                    *phy_regs;
 	unsigned int			max_eps;
 	struct mv_dqh			*ep_dqh;
 	size_t				ep_dqh_size;
@@ -219,6 +222,8 @@ struct mv_udc {
 
 	/* some SOC has mutiple clock sources for USB*/
 	struct clk      *clk;
+
+	struct phy	*phy;
 };
 
 /* endpoint data structure */
