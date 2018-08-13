@@ -260,6 +260,55 @@
 				status = "disabled";
 			};
 
+			pinmux: pinmux@d401e000 {
+				compatible = "pinconf-single";
+				reg = <0xd401e000 0x2c0>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+				ranges;
+				pinctrl-single,register-width = <32>;
+				pinctrl-single,function-mask = <7>;
+				pinctrl-single,gpio-range =
+					<&range 0x000  2  1>, /* GPIO102 - GPIO103 */
+					<&range 0x008  1  1>, /* GPIO142 */
+					<&range 0x00c 18  0>, /* GPIO124 - GPIO141 */
+					<&range 0x054 59  0>, /* GPIO0 - GPIO58 */
+					<&range 0x148  1  0>, /* GPIO123 */
+					<&range 0x14c  4  1>, /* GPIO156 - GPIO159 */
+					<&range 0x160  3 00>, /* G_CLKREQ, VCXO_REQ, VCXO_OUT, */
+					<&range 0x164  1 00>, /* GPIO114 */
+					<&range 0x170 28  0>, /* GPIO74 - GPIO101 */
+					<&range 0x1e0  1  1>, /* GPIO168 */
+					<&range 0x1e4  1  1>, /* GPIO167 */
+					<&range 0x1e8  1  1>, /* GPIO166 */
+					<&range 0x1ec  1  1>, /* GPIO165 */
+					<&range 0x1f0  1  1>, /* GPIO107 */
+					<&range 0x1f4  1  1>, /* GPIO106 */
+					<&range 0x1f8  1  1>, /* GPIO105 */
+					<&range 0x1fc  1  1>, /* GPIO104 */
+					<&range 0x200  1  1>, /* GPIO111 */
+					<&range 0x204  1  1>, /* GPIO164 */
+					<&range 0x208  1  1>, /* GPIO163 */
+					<&range 0x20c  1  1>, /* GPIO162 */
+					<&range 0x210  1  1>, /* GPIO161 */
+					<&range 0x214  1  1>, /* GPIO110 */
+					<&range 0x218  1  1>, /* GPIO109 */
+					<&range 0x21c  1  1>, /* GPIO108 */
+					<&range 0x220  9  1>, /* GPIO143 - GPIO151 */
+					<&range 0x244  1  1>, /* GPIO112 */
+					<&range 0x248  1  1>, /* GPIO152 */
+					<&range 0x250  1  1>, /* GPIO160 */
+					<&range 0x254  2  1>, /* GPIO154 - GPIO155 */
+					<&range 0x25c  1  1>, /* GPIO113 */
+					<&range 0x260  8  0>, /* GPIO115 - GPIO122 */
+					<&range 0x280 15  0>, /* GPIO59 - GPIO73 */
+					<&range 0x2bc  2 00>; /* TWSI4_SCL, TWSI4_SDA */
+
+				range: gpio-range {
+					#pinctrl-single,gpio-range-cells = <3>;
+				};
+			};
+
 			gpio: gpio@d4019000 {
 				compatible = "marvell,mmp2-gpio";
 				#address-cells = <1>;
