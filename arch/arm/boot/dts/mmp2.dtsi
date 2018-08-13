@@ -246,6 +246,38 @@
 				reg = <0xd4019000 0x1000>;
 				gpio-controller;
 				#gpio-cells = <2>;
+				gpio-ranges =
+					<&pinmux   0  21 59>,
+					<&pinmux  59 160 15>,
+					<&pinmux  74  92 28>,
+					<&pinmux 102   0  2>,
+					<&pinmux 104 127  1>,
+					<&pinmux 105 126  1>,
+					<&pinmux 106 125  1>,
+					<&pinmux 107 124  1>,
+					<&pinmux 108 135  1>,
+					<&pinmux 109 134  1>,
+					<&pinmux 110 133  1>,
+					<&pinmux 111 128  1>,
+					<&pinmux 112 145  1>,
+					<&pinmux 113 151  1>,
+					<&pinmux 115 152  8>,
+					<&pinmux 123  82  1>,
+					<&pinmux 124   3 18>,
+					<&pinmux 142   2  1>,
+					<&pinmux 143 136  9>,
+					<&pinmux 152 146  1>,
+					<&pinmux 154 149  2>,
+					<&pinmux 156  83  4>,
+					<&pinmux 160 148  1>,
+					<&pinmux 161 132  1>,
+					<&pinmux 162 131  1>,
+					<&pinmux 163 130  1>,
+					<&pinmux 164 129  1>,
+					<&pinmux 165 123  1>,
+					<&pinmux 166 122  1>,
+					<&pinmux 167 121  1>,
+					<&pinmux 168 120  1>;
 				interrupts = <49>;
 				interrupt-names = "gpio_mux";
 				clocks = <&soc_clocks MMP2_CLK_GPIO>;
