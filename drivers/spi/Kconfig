@@ -815,6 +815,11 @@ config SPI_SLAVE_SYSTEM_CONTROL
 	  SPI slave handler to allow remote control of system reboot, power
 	  off, halt, and suspend.
 
+config SPI_SLAVE_YOLO
+	tristate "Kloakan"
+	help
+	  brm brm
+
 endif # SPI_SLAVE
 
 endif # SPI
