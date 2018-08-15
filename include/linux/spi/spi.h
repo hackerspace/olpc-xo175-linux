@@ -452,6 +452,7 @@ struct spi_controller {
 
 	/* flag indicating this is an SPI slave controller */
 	bool			slave;
+	bool			slave_aborted;
 
 	/*
 	 * on some hardware transfer / message size may be constrained
