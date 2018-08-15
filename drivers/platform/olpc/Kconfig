@@ -8,3 +8,15 @@ config OLPC
 	---help---
 	  Add support for detecting the unique features of the OLPC
 	  XO hardware.
+
+if OLPC
+
+config OLPC_XO175_EC
+        tristate "OLPC XO 1.75 Embedded Controller"
+        depends on ARCH_MMP
+        select SPI_SLAVE
+        help
+          If you say Y here you get support for the OLPC XO Embedded
+          Controller (EC) providing battery and power services.
+
+endif
