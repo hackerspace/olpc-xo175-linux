@@ -1023,6 +1023,7 @@ static int spi_transfer_one_message(struct spi_controller *ctlr,
 
 		if (xfer->tx_buf || xfer->rx_buf) {
 			reinit_completion(&ctlr->xfer_completion);
+			ctlr->slave_aborted = false;
 
 			ret = ctlr->transfer_one(ctlr, msg->spi, xfer);
 			if (ret < 0) {
@@ -1037,26 +1038,35 @@ static int spi_transfer_one_message(struct spi_controller *ctlr,
 
 			if (ret > 0) {
 				ret = 0;
-				ms = 8LL * 1000LL * xfer->len;
-				do_div(ms, xfer->speed_hz);
-				ms += ms + 200; /* some tolerance */
+				if (spi_controller_is_slave(ctlr)) {
+					if (wait_for_completion_interruptible(&ctlr->xfer_completion) ||
+					    ctlr->slave_aborted) {
+						dev_dbg(&msg->spi->dev, "SPI transfer interrupted\n");
+						return -EINTR;
+					}
+				} else {
+					ms = 8LL * 1000LL * xfer->len;
+					do_div(ms, xfer->speed_hz);
+					ms += ms + 200; /* some tolerance */
 
-				if (ms > UINT_MAX)
-					ms = UINT_MAX;
+					if (ms > UINT_MAX)
+						ms = UINT_MAX;
 
-				ms = wait_for_completion_timeout(&ctlr->xfer_completion,
-								 msecs_to_jiffies(ms));
+					ms = wait_for_completion_timeout(&ctlr->xfer_completion,
+									 msecs_to_jiffies(ms));
+
+					if (ms == 0) {
+						SPI_STATISTICS_INCREMENT_FIELD(statm,
+									       timedout);
+						SPI_STATISTICS_INCREMENT_FIELD(stats,
+									       timedout);
+						dev_err(&msg->spi->dev,
+							"SPI transfer timed out\n");
+						msg->status = -ETIMEDOUT;
+					}
+				}
 			}
 
-			if (ms == 0) {
-				SPI_STATISTICS_INCREMENT_FIELD(statm,
-							       timedout);
-				SPI_STATISTICS_INCREMENT_FIELD(stats,
-							       timedout);
-				dev_err(&msg->spi->dev,
-					"SPI transfer timed out\n");
-				msg->status = -ETIMEDOUT;
-			}
 		} else {
 			if (xfer->len)
 				dev_err(&msg->spi->dev,
@@ -1892,7 +1902,9 @@ int spi_slave_abort(struct spi_device *spi)
 	if (spi_controller_is_slave(ctlr) && ctlr->slave_abort)
 		return ctlr->slave_abort(ctlr);
 
-	return -ENOTSUPP;
+	ctlr->slave_aborted = true;
+	complete(&ctlr->xfer_completion);
+	return 0;
 }
 EXPORT_SYMBOL_GPL(spi_slave_abort);
 
