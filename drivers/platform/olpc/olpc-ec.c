@@ -198,8 +198,6 @@ static ssize_t ec_dbgfs_cmd_write(struct file *file, const char __user *buf,
 	olpc_ec_cmd(ec_cmd[0], (ec_cmd_bytes == 0) ? NULL : &ec_cmd[1],
 			ec_cmd_bytes, ec_dbgfs_resp, ec_dbgfs_resp_bytes);
 
-	pr_debug("olpc-ec: response %8ph (%d bytes expected)\n",
-			ec_dbgfs_resp, ec_dbgfs_resp_bytes);
 
 out:
 	mutex_unlock(&ec_dbgfs_lock);
@@ -257,8 +255,10 @@ static int olpc_ec_probe(struct platform_device *pdev)
 	struct olpc_ec_priv *ec;
 	int err;
 
-	if (!ec_driver)
+	if (!ec_driver) {
+		dev_err(&pdev->dev, "no EC registered!\n");
 		return -ENODEV;
+	}
 
 	ec = kzalloc(sizeof(*ec), GFP_KERNEL);
 	if (!ec)
@@ -281,6 +281,8 @@ static int olpc_ec_probe(struct platform_device *pdev)
 	} else {
 		ec->dbgfs_dir = olpc_ec_setup_debugfs();
 	}
+
+	dev_info(&pdev->dev, "OLPC Embedded Controller.\n");
 
 	return err;
 }
