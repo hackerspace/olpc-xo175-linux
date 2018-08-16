@@ -12,13 +12,20 @@
 
 // echo -n 08:1 00 >/sys/kernel/debug/olpc-ec/cmd; cat /sys/kernel/debug/olpc-ec/cmd
 
-#include <linux/completion.h>
-#include <linux/module.h>
-#include <linux/spi/spi.h>
-#include <linux/gpio/consumer.h>
 #include <linux/delay.h>
+#include <linux/gpio/consumer.h>
+#include <linux/spinlock.h>
+#include <linux/completion.h>
+#include <linux/slab.h>
 #include <linux/platform_device.h>
+#include <linux/ctype.h>
 #include <linux/olpc-ec.h>
+#include <linux/spi/spi.h>
+//#include <linux/sched.h>
+//#include <linux/power_supply.h>
+#include <linux/input.h>
+#include <linux/kfifo.h>
+#include <linux/module.h>
 
 #define EC_CMD_LEN              8
 #define EC_MAX_RESP_LEN         16
@@ -31,41 +38,6 @@
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-#include <linux/delay.h>
-#include <linux/io.h>
-#include <linux/gpio.h>
-#include <linux/interrupt.h>
-#include <linux/irq.h>
-#include <linux/spinlock.h>
-#include <linux/completion.h>
-#include <linux/slab.h>
-#include <linux/platform_device.h>
-#include <linux/serio.h>
-#include <linux/ctype.h>
-#include <linux/olpc-ec.h>
-#include <linux/pxa2xx_ssp.h>
-#include <linux/sched.h>
-#include <linux/power_supply.h>
-#include <linux/input.h>
-#include <linux/kfifo.h>
-#include <linux/module.h>
-#include <linux/delay.h>
-
-
-
-
 #if 0
 
 /*
@@ -74,6 +46,8 @@
 void olpc_ec_disable_wakeup(int event);
 void olpc_ec_register_event_callback(void (*f)(int),int);
 void olpc_ec_deregister_event_callback(int);
+
+#endif
 
 /*
  * EC commands (from http://dev.laptop.org/git/users/rsmith/ec-1.75/tree/ec_cmd.h)
@@ -157,12 +131,6 @@ void olpc_ec_deregister_event_callback(int);
 #define CMD_OLS_GET_CEILING              0x6c  // out: u16
 
 
-/*
- * errors reported from the EC
- */
-#define ERR_EC_BAD_COMMAND		1
-
-
 
 /*
  * EC events
@@ -177,7 +145,6 @@ void olpc_ec_deregister_event_callback(int);
 #define EVENT_TIMED_HOST_WAKE      8    // Host wake timer
 #define EVENT_OLS_HIGH_LIMIT       9    // OLS crossed dark threshold
 #define EVENT_OLS_LOW_LIMIT       10    // OLS crossed light threshold
-
 
 
 
@@ -218,8 +185,31 @@ enum ec_state_t {
 	CMD_STATE_ERROR_RECEIVED,
 };
 
-struct olpc_ec_1_75 {
-	void __iomem *base;
+
+static struct platform_device *olpc_ec;
+
+
+
+struct olpc_xo175_ec {
+	struct spi_device *spi;
+
+	struct completion finished;
+	struct spi_transfer xfer;
+	struct spi_message msg;
+
+	u8 tx_buf[EC_CMD_LEN];
+	u8 rx_buf[EC_MAX_RESP_LEN];
+	u8 cmd_buf[EC_CMD_LEN];
+	int cmd_len;
+
+
+
+
+
+
+
+
+
 
 	bool flummoxed;
 	bool suspended;
@@ -279,12 +269,58 @@ struct olpc_ec_1_75 {
 	int logbuf_len;
 };
 
-//static struct olpc_ec_1_75 *olpc_ec;     // only used in one place -- FIXME
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//static struct olpc_xo175_ec *olpc_ec;     // only used in one place -- FIXME
 
 DEFINE_SPINLOCK(olpc_ec_event_callback_lock);
 
 
-static void invoke_olpc_ec_event_callback(struct olpc_ec_1_75 *ec, unsigned int event)
+static void invoke_olpc_ec_event_callback(struct olpc_xo175_ec *ec, unsigned int event)
 {
 	void (*cbk)(int);
 
@@ -299,6 +335,7 @@ static void invoke_olpc_ec_event_callback(struct olpc_ec_1_75 *ec, unsigned int 
 		cbk(event);
 }
 
+#if 0
 /*
  * a driver interested in hearing specific EC events
  * should register for each of those events.
@@ -342,17 +379,19 @@ void olpc_ec_disable_wakeup(int event)
 	//olpc_ec->wakeup_mask &= ~(1 << event);
 }
 EXPORT_SYMBOL_GPL(olpc_ec_disable_wakeup);
+#endif
 
 
-static void olpc_ec_1_75_flush_logbuf(struct olpc_ec_1_75 *ec)
+static void olpc_xo175_ec_flush_logbuf(struct olpc_xo175_ec *ec)
 {
 	ec->logbuf[ec->logbuf_len] = 0;
 	ec->logbuf_len = 0;
 
-	printk(KERN_DEBUG DRIVER_NAME ": got debug string [%s]\n", ec->logbuf);
+	dev_dbg(&ec->spi->dev, "got debug string [%s]\n", ec->logbuf);
 }
 
-static void olpc_ec_1_75_strobe_ack(struct olpc_ec_1_75 *ec)
+#if 0
+static void olpc_xo175_ec_strobe_ack(struct olpc_xo175_ec *ec)
 {
 	u8 txlen = (readl(ec->base + SSSR) >> 8) & 0xf;
 
@@ -365,16 +404,51 @@ static void olpc_ec_1_75_strobe_ack(struct olpc_ec_1_75 *ec)
 	gpiod_set_value_cansleep(ec->gpio_ack, 0);
 }
 
-static void olpc_ec_1_75_reset_sse(struct olpc_ec_1_75 *ec)
+static void olpc_xo175_ec_reset_sse(struct olpc_xo175_ec *ec)
 {
 	writel(SSCR0_Motorola | SSCR0_DataSize(8), ec->base + SSCR0);
 	writel(SSCR1_SCFR | SSCR1_SCLKDIR | SSCR1_SFRMDIR |
 			SSCR1_RxTresh(2) | SSCR1_SPH | SSCR1_RIE, ec->base + SSCR1);
 	writel(SSCR0_SSE | SSCR0_Motorola | SSCR0_DataSize(8), ec->base + SSCR0);
 }
+#endif
 
 
-static void olpc_ec_1_75_send_command(struct olpc_ec_1_75 *ec, u8 *cmd, size_t cmdlen)
+static void olpc_xo175_ec_send_command(struct olpc_xo175_ec *ec, u8 *cmd, size_t cmdlen)
+{
+	printk ("XXX SEND COMMAND!!!\n");
+#if 0
+	int i;
+
+ 	/*
+	 * The falling edge on ACK (below) tells the EC to transfer exactly 8
+	 * bytes over the SPI bus.  This routine puts exactly 2 or 8 bytes into
+	 * the transmit FIFO, and the FIFO must be empty before we do so, otherwise
+	 * the EC will get the wrong bytes.  If the SoC and the EC remain in sync,
+	 * the following clause should not be invoked.  If the EC should time out
+	 * while CMD remains high - which could happen if the kernel ignores interrupts
+	 * for a long time - the EC will re-send a SWITCH packet, probably causing
+	 * a TX underrun and making the FIFO wrap around to not-empty.  In that
+	 * case, the correct recovery is to force-empty the FIFO so we put our
+	 * data in the right place.
+	 */
+	if ((readl(ec->base + SSSR) & (SSSR_TFL_MASK | SSSR_TNF)) != SSSR_TNF) {
+		dev_warn(&ec->spi->dev, "transmit FIFO not empty\n");
+
+		/* clear the fifo by disabling/enabling SSE */
+		olpc_xo175_ec_reset_sse(ec);
+	}
+
+	for (i = 0; i < cmdlen; i++)
+		writel(cmd[i], ec->base + SSDR);
+
+	olpc_xo175_ec_strobe_ack(ec);
+#endif
+}
+
+
+#if 0
+static void olpc_xo175_ec_send_command(struct olpc_xo175_ec *ec, u8 *cmd, size_t cmdlen)
 {
 	int i;
 
@@ -391,30 +465,32 @@ static void olpc_ec_1_75_send_command(struct olpc_ec_1_75 *ec, u8 *cmd, size_t c
 	 * data in the right place.
 	 */
 	if ((readl(ec->base + SSSR) & (SSSR_TFL_MASK | SSSR_TNF)) != SSSR_TNF) {
-		pr_warning(DRIVER_NAME ": transmit FIFO not empty\n");
+		dev_warn(&ec->spi->dev, "transmit FIFO not empty\n");
 
 		/* clear the fifo by disabling/enabling SSE */
-		olpc_ec_1_75_reset_sse(ec);
+		olpc_xo175_ec_reset_sse(ec);
 	}
 
 	for (i = 0; i < cmdlen; i++)
 		writel(cmd[i], ec->base + SSDR);
 
-	olpc_ec_1_75_strobe_ack(ec);
+	olpc_xo175_ec_strobe_ack(ec);
 }
+#endif
 
-static void olpc_ec_1_75_prime_fifo(struct olpc_ec_1_75 *ec)
+
+static void olpc_xo175_ec_prime_fifo(struct olpc_xo175_ec *ec)
 {
 	u8 nonce[] = {0xAA,0xAA};
 
-	olpc_ec_1_75_send_command(ec, nonce, sizeof(nonce));
+	olpc_xo175_ec_send_command(ec, nonce, sizeof(nonce));
 }
 
 static void event_queue_worker(struct work_struct *work)
 {
 	unsigned char ev;
 	int ret;
-	struct olpc_ec_1_75 *ec = container_of(work, struct olpc_ec_1_75,
+	struct olpc_xo175_ec *ec = container_of(work, struct olpc_xo175_ec,
 			event_queue_work);
 
 	// FIXME -- if we don't call out to deliver events, then
@@ -436,7 +512,7 @@ static void event_queue_worker(struct work_struct *work)
 }
 
 static void
-olpc_ec_1_75_received_pkt(struct olpc_ec_1_75 *ec, u8 channel, u8 byte)
+olpc_xo175_ec_received_pkt(struct olpc_xo175_ec *ec, u8 channel, u8 byte)
 {
 	unsigned long flags;
 
@@ -447,7 +523,7 @@ olpc_ec_1_75_received_pkt(struct olpc_ec_1_75 *ec, u8 channel, u8 byte)
 
 		if (!ec->cmd_running || !ec->pkts_to_ignore) {
 			/* we can safely ignore these */
-			pr_err(DRIVER_NAME ": spurious FIFO read packet?\n");
+			dev_err(&ec->spi->dev, "spurious FIFO read packet?\n");
 			spin_unlock_irqrestore(&ec->cmd_state_lock, flags);
 			return;
 		}
@@ -459,7 +535,7 @@ olpc_ec_1_75_received_pkt(struct olpc_ec_1_75 *ec, u8 channel, u8 byte)
 			ec->cmd_state = CMD_STATE_CMD_SENT;
 			if (!ec->expected_resp_len)
 				complete(&ec->cmd_done);
-			olpc_ec_1_75_prime_fifo(ec);
+			olpc_xo175_ec_prime_fifo(ec);
 			ec->pkts_to_ignore = 0;
 		}
 
@@ -471,7 +547,7 @@ olpc_ec_1_75_received_pkt(struct olpc_ec_1_75 *ec, u8 channel, u8 byte)
 
 		if (!ec->cmd_running) {
 			/* just go with the flow */
-			pr_err(DRIVER_NAME ": spurious SWITCH packet?\n");
+			dev_err(&ec->spi->dev, "spurious SWITCH packet?\n");
 			memset(ec->cmd, 0, sizeof(ec->cmd));
 			ec->cmd[0] = CMD_ECHO;
 		}
@@ -481,7 +557,7 @@ olpc_ec_1_75_received_pkt(struct olpc_ec_1_75 *ec, u8 channel, u8 byte)
 
 		/* throw command into TxFIFO */
 		gpiod_set_value_cansleep(ec->gpio_cmd, 0);
-		olpc_ec_1_75_send_command(ec, ec->cmd, sizeof(ec->cmd));
+		olpc_xo175_ec_send_command(ec, ec->cmd, sizeof(ec->cmd));
 
 		spin_unlock_irqrestore(&ec->cmd_state_lock, flags);
 		return;
@@ -490,9 +566,9 @@ olpc_ec_1_75_received_pkt(struct olpc_ec_1_75 *ec, u8 channel, u8 byte)
 		spin_lock_irqsave(&ec->cmd_state_lock, flags);
 
 		if (!ec->cmd_running) {
-			pr_err(DRIVER_NAME ": spurious response packet?\n");
+			dev_err(&ec->spi->dev, "spurious response packet?\n");
 		} else if (ec->resp_len >= ec->expected_resp_len) {
-			pr_err(DRIVER_NAME ": too many response packets from EC?\n");
+			dev_err(&ec->spi->dev, "too many response packets from EC?\n");
 		} else {
 			ec->resp[ec->resp_len++] = byte;
 
@@ -509,7 +585,7 @@ olpc_ec_1_75_received_pkt(struct olpc_ec_1_75 *ec, u8 channel, u8 byte)
 		spin_lock_irqsave(&ec->cmd_state_lock, flags);
 
 		if (!ec->cmd_running) {
-			pr_err(DRIVER_NAME ": spurious cmd error packet?\n");
+			dev_err(&ec->spi->dev, "spurious cmd error packet?\n");
 		} else {
 			ec->resp[0] = byte;
 			ec->resp_len = 1;
@@ -521,12 +597,12 @@ olpc_ec_1_75_received_pkt(struct olpc_ec_1_75 *ec, u8 channel, u8 byte)
 
 	case CHAN_KEYBOARD:
 	case CHAN_TOUCHPAD:
-		printk(KERN_WARNING DRIVER_NAME ": EC-connected kbd/tpad not supported\n");
+		dev_warn(&ec->spi->dev, "EC-connected kbd/tpad not supported\n");
 		break;
 
 	case CHAN_EVENT:
 		if (ec_debug)
-			printk(KERN_DEBUG DRIVER_NAME ": got event %.2x\n", byte);
+			dev_dbg(&ec->spi->dev, "got event %.2x\n", byte);
 		switch (byte) {
 
 		case EVENT_POWER_PRESSED:
@@ -550,24 +626,103 @@ olpc_ec_1_75_received_pkt(struct olpc_ec_1_75 *ec, u8 channel, u8 byte)
 
 	case CHAN_DEBUG:
 		if (byte == '\n') {
-			olpc_ec_1_75_flush_logbuf(ec);
+			olpc_xo175_ec_flush_logbuf(ec);
 		} else if (isprint(byte)) {
 			ec->logbuf[ec->logbuf_len++] = byte;
 			if (ec->logbuf_len == LOG_BUF_SIZE)
-				olpc_ec_1_75_flush_logbuf(ec);
+				olpc_xo175_ec_flush_logbuf(ec);
 		}
 		break;
 
 	default:
-		printk(KERN_WARNING DRIVER_NAME ": got packet for unknown channel: %d, %.2x\n", channel, byte);
+		dev_warn(&ec->spi->dev, "got packet for unknown channel: %d, %.2x\n", channel, byte);
 		break;
 	}
 
 	/* most non-command packets get the TxFIFO refilled and an ACK.. */
-	olpc_ec_1_75_prime_fifo(ec);
+	olpc_xo175_ec_prime_fifo(ec);
 }
 
-static void quiesce_ec(struct olpc_ec_1_75 *ec)
+
+
+
+
+
+
+
+
+
+
+
+static int olpc_xo175_ec_submit(struct olpc_xo175_ec *ec);
+
+static void olpc_xo175_ec_complete(void *arg)
+{
+	struct olpc_xo175_ec *ec = arg;
+	int ret;
+
+	ret = ec->msg.status;
+	if (ret)
+		goto terminate;
+
+	printk ("XXX [%08x] [%08x]\n", ec->rx_buf[0], ec->rx_buf[1]);
+
+
+	olpc_xo175_ec_received_pkt (ec, ec->rx_buf[0], ec->rx_buf[1]);
+
+
+	ec->xfer.len = 2;
+	ret = olpc_xo175_ec_submit(ec);
+	if (ret)
+		goto terminate;
+
+	/* We're ready to get another command. */
+	gpiod_set_value_cansleep(ec->gpio_ack, 1);
+	udelay(1);
+	gpiod_set_value_cansleep(ec->gpio_ack, 0);
+
+
+
+	gpiod_set_value_cansleep(ec->gpio_cmd, 1);
+
+	return;
+
+terminate:
+	dev_info(&ec->spi->dev, "Terminating\n");
+	complete(&ec->finished);
+
+}
+
+static int olpc_xo175_ec_submit(struct olpc_xo175_ec *ec)
+{
+	int ret;
+
+	spi_message_init_with_transfers(&ec->msg, &ec->xfer, 1);
+
+	ec->msg.complete = olpc_xo175_ec_complete;
+	ec->msg.context = ec;
+
+	ret = spi_async(ec->spi, &ec->msg);
+	if (ret)
+		dev_err(&ec->spi->dev, "spi_async() failed %d\n", ret);
+
+	return ret;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if 0
+static void quiesce_ec(struct olpc_xo175_ec *ec)
 {
 	unsigned long flags;
 
@@ -577,7 +732,7 @@ static void quiesce_ec(struct olpc_ec_1_75 *ec)
 	gpiod_set_value_cansleep(ec->gpio_cmd, 0);
 
 	/* allow the EC to move on, if it was waiting on an ACK */
-	olpc_ec_1_75_strobe_ack(ec);
+	olpc_xo175_ec_strobe_ack(ec);
 
 	/*
 	 * Leaving ACK high will tell the EC not to send us anything (so we
@@ -587,14 +742,14 @@ static void quiesce_ec(struct olpc_ec_1_75 *ec)
 	gpiod_set_value_cansleep(ec->gpio_ack, 1);
 
 	/* clear the fifo by disabling/enabling SSE */
-	olpc_ec_1_75_reset_sse(ec);
+	olpc_xo175_ec_reset_sse(ec);
 
 	spin_unlock_irqrestore(&ec->cmd_state_lock, flags);
 }
 
-static irqreturn_t olpc_ec_1_75_ssp_handler(int irq, void *dev_id)
+static irqreturn_t olpc_xo175_ec_ssp_handler(int irq, void *dev_id)
 {
-	struct olpc_ec_1_75 *ec;
+	struct olpc_xo175_ec *ec;
 	u32 sssr;
 	u8 channel, byte;
 
@@ -602,19 +757,19 @@ static irqreturn_t olpc_ec_1_75_ssp_handler(int irq, void *dev_id)
 	sssr = readl(ec->base + SSSR);
 
 	if (sssr & SSSR_TUR) {
-		printk(KERN_WARNING DRIVER_NAME ": SSP reports TX underrun\n");
+		dev_warn(&ec->spi->dev, "SSP reports TX underrun\n");
 		writel(SSSR_TUR, ec->base + SSSR);
 		ec->flummoxed = true;
 	}
 
 	if (sssr & SSSR_ROR) {
-		printk(KERN_WARNING DRIVER_NAME ": SSP reports RX overrun\n");
+		dev_warn(&ec->spi->dev, "SSP reports RX overrun\n");
 		writel(SSSR_ROR, ec->base + SSSR);
 		ec->flummoxed = true;
 	}
 
 	if (!(sssr & SSSR_RNE)) {
-		printk(KERN_WARNING DRIVER_NAME ": received interrupt "
+		dev_warn(&ec->spi->dev, "received interrupt "
 				    "without data waiting\n");
 		ec->flummoxed = true;
 	}
@@ -636,10 +791,11 @@ static irqreturn_t olpc_ec_1_75_ssp_handler(int irq, void *dev_id)
 	channel = readl(ec->base + SSDR);
 	byte = readl(ec->base + SSDR);
 
-	olpc_ec_1_75_received_pkt(ec, channel, byte);
+	olpc_xo175_ec_received_pkt(ec, channel, byte);
 
 	return IRQ_HANDLED;
 }
+#endif
 
 
 struct ec_cmd_t {
@@ -652,7 +808,7 @@ struct ec_cmd_t {
  * of EC commands that are no longer implemented, or are implemented only on
  * certain older boards.
  */
-static const struct ec_cmd_t olpc_ec_1_75_cmds[] = {
+static const struct ec_cmd_t olpc_xo175_ec_cmds[] = {
 	{ CMD_GET_API_VERSION, 1 },
 	{ CMD_READ_VOLTAGE, 2 },
 	{ CMD_READ_CURRENT, 2 },
@@ -715,11 +871,12 @@ static const struct ec_cmd_t olpc_ec_1_75_cmds[] = {
 	{ 0 },
 };
 
-static int olpc_ec_1_75_is_valid_cmd(u8 cmd)
+#if 0
+static int olpc_xo175_ec_is_valid_cmd(u8 cmd)
 {
 	const struct ec_cmd_t *p;
 
-	for (p = olpc_ec_1_75_cmds; p->cmd; p++) {
+	for (p = olpc_xo175_ec_cmds; p->cmd; p++) {
 		if (p->cmd == cmd)
 			return p->bytes_returned;
 	}
@@ -736,18 +893,18 @@ static int olpc_ec_1_75_is_valid_cmd(u8 cmd)
  * old command's response bytes are still incoming).
  */
 static int
-olpc_ec_1_75_cmd(u8 cmd, u8 *inbuf, size_t inlen, u8 *resp, size_t resp_len, void *ec_cb_arg)
+olpc_xo175_ec_cmd(u8 cmd, u8 *inbuf, size_t inlen, u8 *resp, size_t resp_len, void *ec_cb_arg)
 {
-	struct olpc_ec_1_75 *ec = ec_cb_arg;
+	struct olpc_xo175_ec *ec = ec_cb_arg;
 	unsigned long flags;
 	int nr_bytes;
 	int ret = 0;
 
 	if (ec_debug)
-		pr_info(DRIVER_NAME ": CMD %x, %d bytes expected\n", cmd, resp_len);
+		dev_info(&ec->spi->dev, "CMD %x, %d bytes expected\n", cmd, resp_len);
 
 	if (inlen >= EC_CMD_LEN - 1) {
-		pr_err(DRIVER_NAME ": command len %d too big!\n", resp_len);
+		dev_err(&ec->spi->dev, "command len %d too big!\n", resp_len);
 		return -EOVERFLOW;
 	}
 
@@ -759,10 +916,10 @@ olpc_ec_1_75_cmd(u8 cmd, u8 *inbuf, size_t inlen, u8 *resp, size_t resp_len, voi
 	memset(resp, 0, resp_len);
 
 	/* ensure a valid command and return bytes */
-	nr_bytes = olpc_ec_1_75_is_valid_cmd(cmd);
+	nr_bytes = olpc_xo175_ec_is_valid_cmd(cmd);
 	if (nr_bytes < 0) {
 		if (printk_ratelimit())
-			pr_err(DRIVER_NAME ": Unknown EC command 0x%x\n", cmd);
+			dev_err(&ec->spi->dev, "Unknown EC command 0x%x\n", cmd);
 
 		/*
 		 * Assume the best in our callers, and allow unknown commands
@@ -771,7 +928,7 @@ olpc_ec_1_75_cmd(u8 cmd, u8 *inbuf, size_t inlen, u8 *resp, size_t resp_len, voi
 		 */
 
 		if (resp_len > sizeof(ec->resp)) {
-			pr_err(DRIVER_NAME ": response len %d too big!\n", resp_len);
+			dev_err(&ec->spi->dev, "response len %d too big!\n", resp_len);
 			return -EOVERFLOW;
 		}
 		nr_bytes = resp_len;
@@ -811,7 +968,7 @@ olpc_ec_1_75_cmd(u8 cmd, u8 *inbuf, size_t inlen, u8 *resp, size_t resp_len, voi
 	/* the irq handler should do the rest */
 	if (!wait_for_completion_timeout(&ec->cmd_done,
 			msecs_to_jiffies(4000))) {
-		pr_err(DRIVER_NAME ": EC cmd error: timeout in STATE %d\n",
+		dev_err(&ec->spi->dev, "EC cmd error: timeout in STATE %d\n",
 				ec->cmd_state);
 		gpiod_set_value_cansleep(ec->gpio_cmd, 0);
 		return -ETIMEDOUT;
@@ -832,10 +989,10 @@ olpc_ec_1_75_cmd(u8 cmd, u8 *inbuf, size_t inlen, u8 *resp, size_t resp_len, voi
 	/* deal with the results.. */
 	if (ec->cmd_state == CMD_STATE_ERROR_RECEIVED) {
 		/* EC-provided error is in the single response byte */
-		pr_err(DRIVER_NAME ": command 0x%x returned error 0x%x\n", cmd, ec->resp[0]);
+		dev_err(&ec->spi->dev, "command 0x%x returned error 0x%x\n", cmd, ec->resp[0]);
 		ret = -EREMOTEIO;
 	} else if (ec->resp_len != nr_bytes) {
-		pr_err(DRIVER_NAME ": command 0x%x returned %d bytes, expected %d bytes\n", cmd, ec->resp_len, nr_bytes);
+		dev_err(&ec->spi->dev, "command 0x%x returned %d bytes, expected %d bytes\n", cmd, ec->resp_len, nr_bytes);
 		ret = -ETIMEDOUT;
 	} else {
 		/*
@@ -855,8 +1012,9 @@ olpc_ec_1_75_cmd(u8 cmd, u8 *inbuf, size_t inlen, u8 *resp, size_t resp_len, voi
 
 	return ret;
 }
+#endif
 
-static int olpc_ec_1_75_set_event_mask(unsigned int mask)
+static int olpc_xo175_ec_set_event_mask(unsigned int mask)
 {
 	unsigned char args[2];
 	args[0] = mask & 0xff;
@@ -864,8 +1022,9 @@ static int olpc_ec_1_75_set_event_mask(unsigned int mask)
 	return olpc_ec_cmd(CMD_WRITE_EXT_SCI_MASK, args, 2, NULL, 0);
 }
 
-static void olpc_ec_1_75_init_regs(struct olpc_ec_1_75 *ec)
+static void olpc_xo175_ec_init_regs(struct olpc_xo175_ec *ec)
 {
+#if 0
 #if 0
 #define MMP2_GPU_PHYS_BASE		0xd420d000
 #define APB_VIRT_BASE         IOMEM(0xfe000000)
@@ -874,45 +1033,45 @@ static void olpc_ec_1_75_init_regs(struct olpc_ec_1_75 *ec)
 	writel(0x00000003, APBC_SSP3_CLK_RST);
 #endif
 
-	olpc_ec_1_75_reset_sse(ec);
+	olpc_xo175_ec_reset_sse(ec);
 
 	while (readl(ec->base + SSSR) & SSSR_RNE) {
 		u8 c;
 
 		c = readl(ec->base + SSDR);
-		printk(KERN_INFO DRIVER_NAME ": got extra byte %.8x\n", c);
+		dev_info(&ec->spi->dev, "got extra byte %.8x\n", c);
 	}
+#endif
 
-	olpc_ec_1_75_prime_fifo(ec);
+	olpc_xo175_ec_prime_fifo(ec);
 }
 
-static int olpc_ec_1_75_remove(struct platform_device *pdev)
+
+static int olpc_xo175_ec_remove(struct spi_device *spi)
 {
-	struct olpc_ec_1_75 *ec;
-	ec = platform_get_drvdata(pdev);
+	struct olpc_xo175_ec *ec = spi_get_drvdata(spi);
 
-	// olpc_ec_driver_unregister
-	return -EINVAL;
+	platform_device_unregister(olpc_ec);
+	olpc_ec = NULL;
 
-	// olpc_xo_1_75_ec_cmd_handler_clear(); // XXX
-
-	platform_set_drvdata(pdev, NULL);
-
+	// XXX order
 	input_unregister_device(ec->pwrbtn);
 	input_free_device(ec->pwrbtn);
+	spi_slave_abort(spi);
+	wait_for_completion(&ec->finished);
 
 	return 0;
 }
 
 #ifdef CONFIG_PM
-static int olpc_ec_1_75_suspend(struct device *dev)
+static int olpc_xo175_ec_suspend(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
-	struct olpc_ec_1_75 *ec = platform_get_drvdata(pdev);
+	struct olpc_xo175_ec *ec = platform_get_drvdata(pdev);
 	unsigned char hintargs[5];
 	static unsigned int suspend_count;
 	
-	olpc_ec_1_75_set_event_mask(ec->wakeup_mask);
+	olpc_xo175_ec_set_event_mask(ec->wakeup_mask);
 
 	suspend_count++;
 	if (ec_debug)
@@ -932,7 +1091,7 @@ static int olpc_ec_1_75_suspend(struct device *dev)
 	 */
 
 #ifdef NENY
-	if (device_may_wakeup(&pdev->dev)) {
+	if (device_may_wakeup(&ec->spi->dev)) {
 		ec->save_ecirq_mfpr = mfp_setedge(ec->gpio_ecirq, MFP_SETEDGE_FALLING);
 	}
 #endif
@@ -947,20 +1106,20 @@ static int olpc_ec_1_75_suspend(struct device *dev)
 	return 0;
 }
 
-static int olpc_ec_1_75_resume_noirq(struct device *dev)
+static int olpc_xo175_ec_resume_noirq(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
-	struct olpc_ec_1_75 *ec = platform_get_drvdata(pdev);
+	struct olpc_xo175_ec *ec = platform_get_drvdata(pdev);
 
 	ec->suspended = false;
 
 	return 0;
 }
 	
-static int olpc_ec_1_75_resume(struct device *dev)
+static int olpc_xo175_ec_resume(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
-	struct olpc_ec_1_75 *ec = platform_get_drvdata(pdev);
+	struct olpc_xo175_ec *ec = platform_get_drvdata(pdev);
 	
 	ec->suspended = false;	/* just in case.. */
 
@@ -974,7 +1133,7 @@ static int olpc_ec_1_75_resume(struct device *dev)
 #endif
 
 	// enable all EC events while we're awake
-	olpc_ec_1_75_set_event_mask(0xffff);
+	olpc_xo175_ec_set_event_mask(0xffff);
 
 	/* always start the wakeup mask with a clean slate. 
 	 * drivers will express their disinterest in wakeups
@@ -984,26 +1143,183 @@ static int olpc_ec_1_75_resume(struct device *dev)
 	ec->wakeup_mask = 0xffff;
 
 #ifdef NENY
-	if (device_may_wakeup(&pdev->dev)) {
+	if (device_may_wakeup(&ec->spi->dev)) {
 		mfp_write(ec->gpio_ecirq, ec->save_ecirq_mfpr);
 	}
 #endif
 
 	return 0;
 }
+#endif
 
-static struct olpc_ec_driver olpc_xo_1_75_ec_driver = {
-        .ec_cmd = olpc_ec_1_75_cmd,
+static int
+olpc_xo175_ec_cmd(u8 cmd, u8 *inbuf, size_t inlen,
+	u8 *resp, size_t resp_len, void *ec_cb_arg)
+{
+	struct olpc_xo175_ec *ec = ec_cb_arg;
+
+	gpiod_set_value_cansleep(ec->gpio_cmd, 1);
+	dev_info(&ec->spi->dev, "XXX EC CMD: inlen=%d resp_len=%d\n", inlen, resp_len);
+
+	return 0;
+}
+
+
+static struct olpc_ec_driver ec_driver = {
+        .ec_cmd = olpc_xo175_ec_cmd,
 };
 
-static int olpc_ec_1_75_probe(struct platform_device *pdev)
+
+static int olpc_xo175_ec_probe(struct spi_device *spi)
 {
-	//struct olpc_ec_1_75_platform_data *pd;
-	struct resource *res;
-	struct olpc_ec_1_75 *ec;
+	struct olpc_xo175_ec *ec;
 	int ret;
 
-	ec = devm_kzalloc(&pdev->dev, sizeof(*ec), GFP_KERNEL);
+
+	if (olpc_ec) {
+		dev_err(&spi->dev, "OLPC EC already registered.\n");
+		return -EBUSY;
+	}
+
+
+	ec = devm_kzalloc(&spi->dev, sizeof(*ec), GFP_KERNEL);
+	if (!ec)
+		return -ENOMEM;
+
+	ec->gpio_ack = devm_gpiod_get(&spi->dev, "ack", GPIOD_OUT_LOW);
+	if (IS_ERR(ec->gpio_ack)) {
+		dev_err(&spi->dev, "failed to get ack gpio: %ld\n", PTR_ERR(ec->gpio_ack));
+		return PTR_ERR(ec->gpio_ack);
+	}
+
+	ec->gpio_cmd = devm_gpiod_get(&spi->dev, "cmd", GPIOD_OUT_LOW);
+	if (IS_ERR(ec->gpio_cmd)) {
+		dev_err(&spi->dev, "failed to get cmd gpio: %ld\n", PTR_ERR(ec->gpio_cmd));
+		return PTR_ERR(ec->gpio_cmd);
+	}
+
+	ec->spi = spi;
+	init_completion(&ec->finished);
+
+
+
+
+
+
+
+
+
+
+	ec->pkts_to_ignore = 0;
+
+	spin_lock_init(&ec->cmd_state_lock);
+	ec->cmd_state = CMD_STATE_IDLE;
+	init_completion(&ec->cmd_done);
+
+	ec->logbuf_len = 0;
+
+	// shut down the hardware before we start
+	//writel(0, ec->base + SSCR0);
+	//writel(0, ec->base + SSCR1);
+
+
+
+
+	/* set up power button input device */
+	ec->pwrbtn = devm_input_allocate_device(&ec->spi->dev);
+	if (!ec->pwrbtn)
+		return -ENOMEM;
+
+	ec->pwrbtn->name       = "Power Button";
+	ec->pwrbtn->dev.parent = &ec->spi->dev;
+
+	input_set_capability(ec->pwrbtn, EV_KEY, KEY_POWER);
+
+	ret = input_register_device(ec->pwrbtn);
+	if (ret) {
+		dev_err(&ec->spi->dev, "failed to register power button: %d\n", ret);
+		return ret;
+	}
+
+	ret = kfifo_alloc(&ec->event_queue, 32, GFP_KERNEL);
+	if (ret) {
+		dev_err(&ec->spi->dev, "failed to allocate an event queue: %d\n", ret);
+		return ret;
+	}
+
+	INIT_WORK(&ec->event_queue_work, event_queue_worker);
+
+	//device_init_wakeup(&ec->spi->dev, 1);
+
+	olpc_xo175_ec_init_regs(ec);
+
+
+
+
+
+
+
+
+	ec->xfer.rx_buf = ec->rx_buf;
+	ec->xfer.tx_buf = ec->tx_buf;
+#if 0
+	ec->xfer.len = 2;
+	ret = olpc_xo175_ec_submit(ec);
+	if (ret)
+		return ret;
+
+	gpiod_set_value_cansleep(ec->gpio_cmd, 0);
+	gpiod_set_value_cansleep(ec->gpio_ack, 0);
+#endif
+
+
+
+	olpc_ec_driver_register(&ec_driver, ec);
+	olpc_ec = platform_device_register_simple("olpc-ec", -1, NULL, 0);
+
+	dev_info(&spi->dev, "OLPC XO-1.75 Embedded Controller driver\n");
+
+	spi_set_drvdata(spi, ec);
+
+
+
+
+
+
+
+
+
+
+
+
+
+	/*
+	 * prime the initial wakeup mask.  all events cause
+	 * wakeups, unless someone (usually a driver that's
+	 * registered to receive them) tells us otherwise.
+	 */
+	ec->wakeup_mask = 0xffff;
+
+	/* enable all EC events while we're awake */
+	olpc_xo175_ec_set_event_mask(0xffff);
+
+
+
+
+	return 0;
+}
+
+
+
+#if 0
+static int olpc_xo175_ec_probe(struct platform_device *pdev)
+{
+	//struct olpc_xo175_ec_platform_data *pd;
+	struct resource *res;
+	struct olpc_xo175_ec *ec;
+	int ret;
+
+	ec = devm_kzalloc(&ec->spi->dev, sizeof(*ec), GFP_KERNEL);
 	if (ec == NULL)
 		return -ENOMEM;
 
@@ -1011,41 +1327,41 @@ static int olpc_ec_1_75_probe(struct platform_device *pdev)
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
-		dev_err(&pdev->dev, "failed to get memory resource\n");
+		dev_err(&ec->spi->dev, "failed to get memory resource\n");
 		return -ENXIO;
 	}
 
-	ec->base = devm_ioremap_resource(&pdev->dev, res);
+	ec->base = devm_ioremap_resource(&ec->spi->dev, res);
         if (IS_ERR(ec->base))
                 return PTR_ERR(ec->base);
 
 
 	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (!res) {
-		dev_err(&pdev->dev, "failed to get irq resource\n");
+		dev_err(&ec->spi->dev, "failed to get irq resource\n");
 		return -ENXIO;
 	}
 
-	ret = devm_request_irq(&pdev->dev, res->start, olpc_ec_1_75_ssp_handler, 0, "olpc-ec-1.75", ec);
+	ret = devm_request_irq(&ec->spi->dev, res->start, olpc_xo175_ec_ssp_handler, 0, "olpc-ec-1.75", ec);
 	if (ret) {
-		dev_err(&pdev->dev, "failed to request IRQ\n");
+		dev_err(&ec->spi->dev, "failed to request IRQ\n");
 		return ret;
 	}
 
-	ec->gpio_ack = devm_gpiod_get(&pdev->dev, "ack", GPIOD_OUT_LOW);
+	ec->gpio_ack = devm_gpiod_get(&ec->spi->dev, "ack", GPIOD_OUT_LOW);
         if (IS_ERR(ec->gpio_ack)) {
-		dev_err(&pdev->dev, "failed to get ack gpio: %ld\n", PTR_ERR(ec->gpio_ack));
+		dev_err(&ec->spi->dev, "failed to get ack gpio: %ld\n", PTR_ERR(ec->gpio_ack));
                 return PTR_ERR(ec->gpio_ack);
 	}
 
-	ec->gpio_cmd = devm_gpiod_get(&pdev->dev, "cmd", GPIOD_OUT_LOW);
+	ec->gpio_cmd = devm_gpiod_get(&ec->spi->dev, "cmd", GPIOD_OUT_LOW);
         if (IS_ERR(ec->gpio_cmd)) {
-		dev_err(&pdev->dev, "failed to get cmd gpio: %ld\n", PTR_ERR(ec->gpio_cmd));
+		dev_err(&ec->spi->dev, "failed to get cmd gpio: %ld\n", PTR_ERR(ec->gpio_cmd));
                 return PTR_ERR(ec->gpio_cmd);
 	}
 
 #if 0
-	ec->ecirq_gpio = devm_gpiod_get(&pdev->dev, "ecirq", GPIOD_ASIS);
+	ec->ecirq_gpio = devm_gpiod_get(&ec->spi->dev, "ecirq", GPIOD_ASIS);
         if (IS_ERR(ec->ecirq_gpio))
                 return PTR_ERR(ec->ecirq_gpio);
 #endif
@@ -1064,35 +1380,35 @@ static int olpc_ec_1_75_probe(struct platform_device *pdev)
 	writel(0, ec->base + SSCR1);
 
 	/* set up power button input device */
-	ec->pwrbtn = devm_input_allocate_device(&pdev->dev);
+	ec->pwrbtn = devm_input_allocate_device(&ec->spi->dev);
 	if (!ec->pwrbtn)
 		return -ENOMEM;
 
 	ec->pwrbtn->name       = "Power Button";
-	ec->pwrbtn->dev.parent = &pdev->dev;
+	ec->pwrbtn->dev.parent = &ec->spi->dev;
 
 	input_set_capability(ec->pwrbtn, EV_KEY, KEY_POWER);
 
 	ret = input_register_device(ec->pwrbtn);
 	if (ret) {
-		dev_err(&pdev->dev, "failed to register power button: %d\n", ret);
+		dev_err(&ec->spi->dev, "failed to register power button: %d\n", ret);
 		return ret;
 	}
 
 	ret = kfifo_alloc(&ec->event_queue, 32, GFP_KERNEL);
 	if (ret) {
-		dev_err(&pdev->dev, "failed to allocate an event queue: %d\n", ret);
+		dev_err(&ec->spi->dev, "failed to allocate an event queue: %d\n", ret);
 		return ret;
 	}
 
 	INIT_WORK(&ec->event_queue_work, event_queue_worker);
 
 	platform_set_drvdata(pdev, ec);
-	device_init_wakeup(&pdev->dev, 1);
+	device_init_wakeup(&ec->spi->dev, 1);
 
-	olpc_ec_1_75_init_regs(ec);
+	olpc_xo175_ec_init_regs(ec);
 
-	///olpc_xo_1_75_ec_cmd_handler_set(olpc_ec_1_75_cmd, ec);// XXX
+	///olpc_xo_1_75_ec_cmd_handler_set(olpc_xo175_ec_cmd, ec);// XXX
 	olpc_ec_driver_register(&olpc_xo_1_75_ec_driver, ec);
 
 	/*
@@ -1103,222 +1419,41 @@ static int olpc_ec_1_75_probe(struct platform_device *pdev)
 	ec->wakeup_mask = 0xffff;
 
 	/* enable all EC events while we're awake */
-	olpc_ec_1_75_set_event_mask(0xffff);
+	olpc_xo175_ec_set_event_mask(0xffff);
 
-	dev_info(&pdev->dev, "OLPC XO-1.75 Embedded Controller driver\n");
+	dev_info(&ec->spi->dev, "OLPC XO-1.75 Embedded Controller driver\n");
 
 	return 0;
 }
-
-
-static const struct dev_pm_ops olpc_ec_1_75_pm_ops = {
-	.suspend	= olpc_ec_1_75_suspend,
-	.resume_noirq	= olpc_ec_1_75_resume_noirq,
-	.resume		= olpc_ec_1_75_resume,
-};
 #endif
 
-static const struct of_device_id olpc_ec_1_75_dt_ids[] = {
-	{ .compatible = "olpc,ec-spi" },
-	{ }
-};
-MODULE_DEVICE_TABLE(of, olpc_ec_1_75_dt_ids);
-
-static struct platform_driver olpc_ec_1_75_driver = {
-	.driver = {
-		.name = "olpc-ec-1.75",
-		.owner	= THIS_MODULE,
-		.of_match_table = olpc_ec_1_75_dt_ids,
 #ifdef CONFIG_PM
-		.pm = &olpc_ec_1_75_pm_ops,
+ const struct dev_pm_ops olpc_xo175_ec_pm_ops = {
+	.suspend	= olpc_xo175_ec_suspend,
+	.resume_noirq	= olpc_xo175_ec_resume_noirq,
+	.resume		= olpc_xo175_ec_resume,
+};
 #endif
-	},
-	.probe		= olpc_ec_1_75_probe,
-	.remove		= olpc_ec_1_75_remove,
-};
-module_platform_driver(olpc_ec_1_75_driver);
-
-MODULE_AUTHOR("Lennert Buytenhek <buytenh@wantstofly.org>");
-MODULE_LICENSE("GPL");
-
-
-#endif
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-struct olpc_xo175_ec_priv {
-	struct spi_device *spi;
-
-	struct gpio_desc *gpio_ack;
-	struct gpio_desc *gpio_cmd;
-
-	struct completion finished;
-	struct spi_transfer xfer;
-	struct spi_message msg;
-
-	u8 tx_buf[EC_CMD_LEN];
-	u8 rx_buf[EC_MAX_RESP_LEN];
-	u8 cmd_buf[EC_CMD_LEN];
-	int cmd_len;
-};
-
-static int olpc_xo175_ec_submit(struct olpc_xo175_ec_priv *priv);
-
-static void olpc_xo175_ec_complete(void *arg)
-{
-	struct olpc_xo175_ec_priv *priv = arg;
-	int ret;
-
-	ret = priv->msg.status;
-	if (ret)
-		goto terminate;
-
-	printk ("XXX [%08x] [%08x]\n", priv->rx_buf[0], priv->rx_buf[1]);
-
-	priv->xfer.len = 2;
-	ret = olpc_xo175_ec_submit(priv);
-	if (ret)
-		goto terminate;
-
-	/* We're ready to get another command. */
-	gpiod_set_value_cansleep(priv->gpio_ack, 1);
-	udelay(1);
-	gpiod_set_value_cansleep(priv->gpio_ack, 0);
-
-
-
-	gpiod_set_value_cansleep(priv->gpio_cmd, 1);
-
-	return;
-
-terminate:
-	dev_info(&priv->spi->dev, "Terminating\n");
-	complete(&priv->finished);
-}
-
-static int olpc_xo175_ec_submit(struct olpc_xo175_ec_priv *priv)
-{
-	int ret;
-
-	spi_message_init_with_transfers(&priv->msg, &priv->xfer, 1);
-
-	priv->msg.complete = olpc_xo175_ec_complete;
-	priv->msg.context = priv;
-
-	ret = spi_async(priv->spi, &priv->msg);
-	if (ret)
-		dev_err(&priv->spi->dev, "spi_async() failed %d\n", ret);
-
-	return ret;
-}
-
-
-static int
-olpc_xo175_ec_cmd(u8 cmd, u8 *inbuf, size_t inlen,
-	u8 *resp, size_t resp_len, void *ec_cb_arg)
-{
-	struct olpc_xo175_ec_priv *priv = ec_cb_arg;
-
-	gpiod_set_value_cansleep(priv->gpio_cmd, 1);
-	dev_info(&priv->spi->dev, "XXX EC CMD: inlen=%d resp_len=%d\n", inlen, resp_len);
-
-	return 0;
-}
-
-
-static struct olpc_ec_driver ec_driver = {
-        .ec_cmd = olpc_xo175_ec_cmd,
-};
-
-static int olpc_xo175_ec_probe(struct spi_device *spi)
-{
-	struct olpc_xo175_ec_priv *priv;
-	int ret;
-
-	priv = devm_kzalloc(&spi->dev, sizeof(*priv), GFP_KERNEL);
-	if (!priv)
-		return -ENOMEM;
-
-	priv->gpio_ack = devm_gpiod_get(&spi->dev, "ack", GPIOD_OUT_LOW);
-	if (IS_ERR(priv->gpio_ack)) {
-		dev_err(&spi->dev, "failed to get ack gpio: %ld\n", PTR_ERR(priv->gpio_ack));
-		return PTR_ERR(priv->gpio_ack);
-	}
-
-	priv->gpio_cmd = devm_gpiod_get(&spi->dev, "cmd", GPIOD_OUT_LOW);
-	if (IS_ERR(priv->gpio_cmd)) {
-		dev_err(&spi->dev, "failed to get cmd gpio: %ld\n", PTR_ERR(priv->gpio_cmd));
-		return PTR_ERR(priv->gpio_cmd);
-	}
-
-	priv->spi = spi;
-	init_completion(&priv->finished);
-
-	priv->xfer.rx_buf = priv->rx_buf;
-	priv->xfer.tx_buf = priv->tx_buf;
-	priv->xfer.len = 2;
-	ret = olpc_xo175_ec_submit(priv);
-	if (ret)
-		return ret;
-
-	gpiod_set_value_cansleep(priv->gpio_cmd, 0);
-	gpiod_set_value_cansleep(priv->gpio_ack, 0);
-
-	olpc_ec_driver_register(&ec_driver, priv);
-	platform_device_register_simple("olpc-ec", -1, NULL, 0);
-
-	dev_info(&spi->dev, "OLPC XO-1.75 Embedded Controller driver\n");
-
-	spi_set_drvdata(spi, priv);
-	return 0;
-}
-
-static int olpc_xo175_ec_remove(struct spi_device *spi)
-{
-	struct olpc_xo175_ec_priv *priv = spi_get_drvdata(spi);
-
-	spi_slave_abort(spi);
-	wait_for_completion(&priv->finished);
-	return 0;
-}
 
 static const struct of_device_id olpc_xo175_ec_of_match[] = {
         { .compatible = "olpc,xo1.75-ec" },
         { },
 };
-MODULE_DEVICE_TABLE(of, pxa_usb_phy_of_match);
+MODULE_DEVICE_TABLE(of, olpc_xo175_ec_of_match);
 
 static struct spi_driver olpc_xo175_ec_driver = {
 	.driver = {
 		.name	= "olpc-xo175-ec",
 		.of_match_table = olpc_xo175_ec_of_match,
+#ifdef CONFIG_PM
+		.pm = &olpc_xo175_ec_pm_ops,
+#endif
 	},
 	.probe		= olpc_xo175_ec_probe,
 	.remove		= olpc_xo175_ec_remove,
 };
 module_spi_driver(olpc_xo175_ec_driver);
+
 
 MODULE_DESCRIPTION("OLPC XO-1.75 Embedded Controller driver");
 MODULE_AUTHOR("Lubomir Rintel <lkundrak@v3.sk>");
