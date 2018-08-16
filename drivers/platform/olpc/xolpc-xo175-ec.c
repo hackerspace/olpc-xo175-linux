@@ -404,8 +404,7 @@ static void event_queue_worker(struct work_struct *work)
 
 }
 
-static void
-olpc_ec_1_75_received_pkt(struct olpc_ec_1_75 *ec, u8 channel, u8 byte)
+static void olpc_ec_1_75_received_pkt(struct olpc_ec_1_75 *ec, u8 channel, u8 byte)
 {
 	unsigned long flags;
 
@@ -704,8 +703,7 @@ static int olpc_ec_1_75_is_valid_cmd(u8 cmd)
  * the caller requests (otherwise, we might start a new command while an
  * old command's response bytes are still incoming).
  */
-static int
-olpc_ec_1_75_cmd(u8 cmd, u8 *inbuf, size_t inlen, u8 *resp, size_t resp_len, void *ec_cb_arg)
+static int olpc_ec_1_75_cmd(u8 cmd, u8 *inbuf, size_t inlen, u8 *resp, size_t resp_len, void *ec_cb_arg)
 {
 	struct olpc_ec_1_75 *ec = ec_cb_arg;
 	unsigned long flags;

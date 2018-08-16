@@ -199,15 +199,8 @@ struct olpc_xo175_ec {
 
 	u8 tx_buf[EC_CMD_LEN];
 	u8 rx_buf[EC_MAX_RESP_LEN];
-	u8 cmd_buf[EC_CMD_LEN];
-	int cmd_len;
-
-
-
-
-
-
-
+	//u8 cmd_buf[EC_CMD_LEN];
+	//int cmd_len;
 
 
 
@@ -225,7 +218,7 @@ struct olpc_xo175_ec {
 	 * to save pin config when enabling wakeups.
 	 */
 	//int gpio_ecirq;
-	unsigned long save_ecirq_mfpr;
+	//unsigned long save_ecirq_mfpr;
 
 	/*
 	 * Receive state machine state.
@@ -270,53 +263,6 @@ struct olpc_xo175_ec {
 };
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//static struct olpc_xo175_ec *olpc_ec;     // only used in one place -- FIXME
-
 DEFINE_SPINLOCK(olpc_ec_event_callback_lock);
 
 
@@ -335,7 +281,7 @@ static void invoke_olpc_ec_event_callback(struct olpc_xo175_ec *ec, unsigned int
 		cbk(event);
 }
 
-#if 0
+#if 1
 /*
  * a driver interested in hearing specific EC events
  * should register for each of those events.
@@ -390,33 +336,43 @@ static void olpc_xo175_ec_flush_logbuf(struct olpc_xo175_ec *ec)
 	dev_dbg(&ec->spi->dev, "got debug string [%s]\n", ec->logbuf);
 }
 
-#if 0
 static void olpc_xo175_ec_strobe_ack(struct olpc_xo175_ec *ec)
 {
+#if 0
 	u8 txlen = (readl(ec->base + SSSR) >> 8) & 0xf;
-
 	/* before we ACK, we should always have either 2 or 8 bytes in TxFIFO */
 	WARN_ON(txlen != 2 && txlen != 8);
-
+#endif
 
 	gpiod_set_value_cansleep(ec->gpio_ack, 1);
 	udelay(1);
 	gpiod_set_value_cansleep(ec->gpio_ack, 0);
 }
 
-static void olpc_xo175_ec_reset_sse(struct olpc_xo175_ec *ec)
-{
-	writel(SSCR0_Motorola | SSCR0_DataSize(8), ec->base + SSCR0);
-	writel(SSCR1_SCFR | SSCR1_SCLKDIR | SSCR1_SFRMDIR |
-			SSCR1_RxTresh(2) | SSCR1_SPH | SSCR1_RIE, ec->base + SSCR1);
-	writel(SSCR0_SSE | SSCR0_Motorola | SSCR0_DataSize(8), ec->base + SSCR0);
-}
-#endif
-
+static void olpc_xo175_ec_complete(void *arg);
 
 static void olpc_xo175_ec_send_command(struct olpc_xo175_ec *ec, u8 *cmd, size_t cmdlen)
 {
-	printk ("XXX SEND COMMAND!!!\n");
+	int ret;
+
+	printk ("XXX SEND COMMAND!!! [%02x] [%02x] len=%d\n", cmd[0], cmd[1], cmdlen);
+
+	memcpy (ec->tx_buf, cmd, cmdlen);
+	ec->xfer.len = cmdlen;
+
+	spi_message_init_with_transfers(&ec->msg, &ec->xfer, 1);
+
+	ec->msg.complete = olpc_xo175_ec_complete;
+	ec->msg.context = ec;
+
+	ret = spi_async(ec->spi, &ec->msg);
+	if (ret)
+		dev_err(&ec->spi->dev, "spi_async() failed %d\n", ret);
+
+	olpc_xo175_ec_strobe_ack(ec);
+//	return ret;
+
+
 #if 0
 	int i;
 
@@ -445,39 +401,6 @@ static void olpc_xo175_ec_send_command(struct olpc_xo175_ec *ec, u8 *cmd, size_t
 	olpc_xo175_ec_strobe_ack(ec);
 #endif
 }
-
-
-#if 0
-static void olpc_xo175_ec_send_command(struct olpc_xo175_ec *ec, u8 *cmd, size_t cmdlen)
-{
-	int i;
-
- 	/*
-	 * The falling edge on ACK (below) tells the EC to transfer exactly 8
-	 * bytes over the SPI bus.  This routine puts exactly 2 or 8 bytes into
-	 * the transmit FIFO, and the FIFO must be empty before we do so, otherwise
-	 * the EC will get the wrong bytes.  If the SoC and the EC remain in sync,
-	 * the following clause should not be invoked.  If the EC should time out
-	 * while CMD remains high - which could happen if the kernel ignores interrupts
-	 * for a long time - the EC will re-send a SWITCH packet, probably causing
-	 * a TX underrun and making the FIFO wrap around to not-empty.  In that
-	 * case, the correct recovery is to force-empty the FIFO so we put our
-	 * data in the right place.
-	 */
-	if ((readl(ec->base + SSSR) & (SSSR_TFL_MASK | SSSR_TNF)) != SSSR_TNF) {
-		dev_warn(&ec->spi->dev, "transmit FIFO not empty\n");
-
-		/* clear the fifo by disabling/enabling SSE */
-		olpc_xo175_ec_reset_sse(ec);
-	}
-
-	for (i = 0; i < cmdlen; i++)
-		writel(cmd[i], ec->base + SSDR);
-
-	olpc_xo175_ec_strobe_ack(ec);
-}
-#endif
-
 
 static void olpc_xo175_ec_prime_fifo(struct olpc_xo175_ec *ec)
 {
@@ -511,14 +434,16 @@ static void event_queue_worker(struct work_struct *work)
 
 }
 
-static void
-olpc_xo175_ec_received_pkt(struct olpc_xo175_ec *ec, u8 channel, u8 byte)
+static void olpc_xo175_ec_received_pkt(struct olpc_xo175_ec *ec, u8 channel, u8 byte)
 {
 	unsigned long flags;
+
+	printk ("XXX [%02x] [%02x]\n", channel, byte);
 
 	switch (channel) {
 
 	case CHAN_NONE:
+		printk (" * CHAN NONE\n");
 		spin_lock_irqsave(&ec->cmd_state_lock, flags);
 
 		if (!ec->cmd_running || !ec->pkts_to_ignore) {
@@ -528,6 +453,8 @@ olpc_xo175_ec_received_pkt(struct olpc_xo175_ec *ec, u8 channel, u8 byte)
 			return;
 		}
 
+
+#if 0
 		// the EC zero-fills the fifo when expecting our command,
 		// and we toss them as we read them.
 		ec->pkts_to_ignore--;
@@ -538,11 +465,19 @@ olpc_xo175_ec_received_pkt(struct olpc_xo175_ec *ec, u8 channel, u8 byte)
 			olpc_xo175_ec_prime_fifo(ec);
 			ec->pkts_to_ignore = 0;
 		}
+#endif
+printk (">> pkts_to_ignore=%d xfer.len=%d\n", ec->pkts_to_ignore, ec->xfer.len);
+			ec->cmd_state = CMD_STATE_CMD_SENT;
+			if (!ec->expected_resp_len)
+				complete(&ec->cmd_done);
+			olpc_xo175_ec_prime_fifo(ec);
+			ec->pkts_to_ignore = 0;
 
 		spin_unlock_irqrestore(&ec->cmd_state_lock, flags);
 		return;
 
 	case CHAN_SWITCH:
+		printk (" * CHAN SWITCH\n");
 		spin_lock_irqsave(&ec->cmd_state_lock, flags);
 
 		if (!ec->cmd_running) {
@@ -563,6 +498,7 @@ olpc_xo175_ec_received_pkt(struct olpc_xo175_ec *ec, u8 channel, u8 byte)
 		return;
 
 	case CHAN_CMD_RESP:
+		printk (" * CHAN CMD_RESP\n");
 		spin_lock_irqsave(&ec->cmd_state_lock, flags);
 
 		if (!ec->cmd_running) {
@@ -582,6 +518,7 @@ olpc_xo175_ec_received_pkt(struct olpc_xo175_ec *ec, u8 channel, u8 byte)
 		break;
 
 	case CHAN_CMD_ERROR:
+		printk (" * CHAN CMD_ERR\n");
 		spin_lock_irqsave(&ec->cmd_state_lock, flags);
 
 		if (!ec->cmd_running) {
@@ -644,84 +581,6 @@ olpc_xo175_ec_received_pkt(struct olpc_xo175_ec *ec, u8 channel, u8 byte)
 }
 
 
-
-
-
-
-
-
-
-
-
-
-static int olpc_xo175_ec_submit(struct olpc_xo175_ec *ec);
-
-static void olpc_xo175_ec_complete(void *arg)
-{
-	struct olpc_xo175_ec *ec = arg;
-	int ret;
-
-	ret = ec->msg.status;
-	if (ret)
-		goto terminate;
-
-	printk ("XXX [%08x] [%08x]\n", ec->rx_buf[0], ec->rx_buf[1]);
-
-
-	olpc_xo175_ec_received_pkt (ec, ec->rx_buf[0], ec->rx_buf[1]);
-
-
-	ec->xfer.len = 2;
-	ret = olpc_xo175_ec_submit(ec);
-	if (ret)
-		goto terminate;
-
-	/* We're ready to get another command. */
-	gpiod_set_value_cansleep(ec->gpio_ack, 1);
-	udelay(1);
-	gpiod_set_value_cansleep(ec->gpio_ack, 0);
-
-
-
-	gpiod_set_value_cansleep(ec->gpio_cmd, 1);
-
-	return;
-
-terminate:
-	dev_info(&ec->spi->dev, "Terminating\n");
-	complete(&ec->finished);
-
-}
-
-static int olpc_xo175_ec_submit(struct olpc_xo175_ec *ec)
-{
-	int ret;
-
-	spi_message_init_with_transfers(&ec->msg, &ec->xfer, 1);
-
-	ec->msg.complete = olpc_xo175_ec_complete;
-	ec->msg.context = ec;
-
-	ret = spi_async(ec->spi, &ec->msg);
-	if (ret)
-		dev_err(&ec->spi->dev, "spi_async() failed %d\n", ret);
-
-	return ret;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-#if 0
 static void quiesce_ec(struct olpc_xo175_ec *ec)
 {
 	unsigned long flags;
@@ -742,37 +601,41 @@ static void quiesce_ec(struct olpc_xo175_ec *ec)
 	gpiod_set_value_cansleep(ec->gpio_ack, 1);
 
 	/* clear the fifo by disabling/enabling SSE */
-	olpc_xo175_ec_reset_sse(ec);
+	//olpc_xo175_ec_reset_sse(ec);
 
 	spin_unlock_irqrestore(&ec->cmd_state_lock, flags);
 }
 
-static irqreturn_t olpc_xo175_ec_ssp_handler(int irq, void *dev_id)
+static void olpc_xo175_ec_complete(void *arg)
 {
-	struct olpc_xo175_ec *ec;
-	u32 sssr;
-	u8 channel, byte;
+	struct olpc_xo175_ec *ec = arg;
+	int ret;
 
-	ec = dev_id;
-	sssr = readl(ec->base + SSSR);
+	ret = ec->msg.status;
+	if (ret)
+		goto terminate;
 
-	if (sssr & SSSR_TUR) {
-		dev_warn(&ec->spi->dev, "SSP reports TX underrun\n");
-		writel(SSSR_TUR, ec->base + SSSR);
-		ec->flummoxed = true;
-	}
 
-	if (sssr & SSSR_ROR) {
-		dev_warn(&ec->spi->dev, "SSP reports RX overrun\n");
-		writel(SSSR_ROR, ec->base + SSSR);
-		ec->flummoxed = true;
-	}
 
-	if (!(sssr & SSSR_RNE)) {
-		dev_warn(&ec->spi->dev, "received interrupt "
-				    "without data waiting\n");
-		ec->flummoxed = true;
-	}
+#if 0
+	ec->xfer.len = 2;
+	ret = olpc_xo175_ec_submit(ec);
+	if (ret)
+		goto terminate;
+
+	/* We're ready to get another command. */
+	gpiod_set_value_cansleep(ec->gpio_ack, 1);
+	udelay(1);
+	gpiod_set_value_cansleep(ec->gpio_ack, 0);
+
+	gpiod_set_value_cansleep(ec->gpio_cmd, 0);
+
+	return;
+
+terminate:
+	dev_info(&ec->spi->dev, "Terminating\n");
+	complete(&ec->finished);
+#endif
 
 	/*
 	 * If we're confused, ignore all packets, and keep trying to
@@ -782,20 +645,35 @@ static irqreturn_t olpc_xo175_ec_ssp_handler(int irq, void *dev_id)
 	 */
 	if (ec->flummoxed) {
 		quiesce_ec(ec);
-		return IRQ_HANDLED;
+		return;
 	}
 
 	/* the fifo threshold is set to two, so there are (at least)
 	 * two bytes available.  don't read more.
 	 */
-	channel = readl(ec->base + SSDR);
-	byte = readl(ec->base + SSDR);
+	olpc_xo175_ec_received_pkt (ec, ec->rx_buf[0], ec->rx_buf[1]);
 
-	olpc_xo175_ec_received_pkt(ec, channel, byte);
+	return;
 
-	return IRQ_HANDLED;
+terminate:
+	dev_info(&ec->spi->dev, "Terminating\n");
+	complete(&ec->finished);
 }
-#endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 struct ec_cmd_t {
@@ -871,7 +749,6 @@ static const struct ec_cmd_t olpc_xo175_ec_cmds[] = {
 	{ 0 },
 };
 
-#if 0
 static int olpc_xo175_ec_is_valid_cmd(u8 cmd)
 {
 	const struct ec_cmd_t *p;
@@ -884,6 +761,19 @@ static int olpc_xo175_ec_is_valid_cmd(u8 cmd)
 	return -1;
 }
 
+#if 0
+static int olpc_xo175_ec_cmd(u8 cmd, u8 *inbuf, size_t inlen, u8 *resp, size_t resp_len, void *ec_cb_arg)
+{
+	struct olpc_xo175_ec *ec = ec_cb_arg;
+
+	gpiod_set_value_cansleep(ec->gpio_cmd, 1);
+	dev_info(&ec->spi->dev, "XXX EC CMD: inlen=%d resp_len=%d\n", inlen, resp_len);
+
+	return 0;
+}
+#endif
+
+
 /*
  * This function is protected with a mutex.  We can safely assume that
  * there will be only one instance of this function running at a time.
@@ -892,8 +782,7 @@ static int olpc_xo175_ec_is_valid_cmd(u8 cmd)
  * the caller requests (otherwise, we might start a new command while an
  * old command's response bytes are still incoming).
  */
-static int
-olpc_xo175_ec_cmd(u8 cmd, u8 *inbuf, size_t inlen, u8 *resp, size_t resp_len, void *ec_cb_arg)
+static int olpc_xo175_ec_cmd(u8 cmd, u8 *inbuf, size_t inlen, u8 *resp, size_t resp_len, void *ec_cb_arg)
 {
 	struct olpc_xo175_ec *ec = ec_cb_arg;
 	unsigned long flags;
@@ -941,9 +830,11 @@ olpc_xo175_ec_cmd(u8 cmd, u8 *inbuf, size_t inlen, u8 *resp, size_t resp_len, vo
 	if (ec->flummoxed) {
 		ec->flummoxed = false;
 
+#if 0
 		/* the FIFO should have two bytes in it prior to lowering ACK */
 		writel(0, ec->base + SSDR);
 		writel(0, ec->base + SSDR);
+#endif
 
 		gpiod_set_value_cansleep(ec->gpio_ack, 0);
 	}
@@ -1012,40 +903,18 @@ olpc_xo175_ec_cmd(u8 cmd, u8 *inbuf, size_t inlen, u8 *resp, size_t resp_len, vo
 
 	return ret;
 }
-#endif
 
 static int olpc_xo175_ec_set_event_mask(unsigned int mask)
 {
 	unsigned char args[2];
+
+	printk ("XXX EVENT MASK\n");
+	return 0;
+
 	args[0] = mask & 0xff;
 	args[1] = (mask >> 8) & 0xff;
 	return olpc_ec_cmd(CMD_WRITE_EXT_SCI_MASK, args, 2, NULL, 0);
 }
-
-static void olpc_xo175_ec_init_regs(struct olpc_xo175_ec *ec)
-{
-#if 0
-#if 0
-#define MMP2_GPU_PHYS_BASE		0xd420d000
-#define APB_VIRT_BASE         IOMEM(0xfe000000)
-#define APBC_SSP3_CLK_RST  (APB_VIRT_BASE + 0x015058)
-	writel(0x00000007, APBC_SSP3_CLK_RST);
-	writel(0x00000003, APBC_SSP3_CLK_RST);
-#endif
-
-	olpc_xo175_ec_reset_sse(ec);
-
-	while (readl(ec->base + SSSR) & SSSR_RNE) {
-		u8 c;
-
-		c = readl(ec->base + SSDR);
-		dev_info(&ec->spi->dev, "got extra byte %.8x\n", c);
-	}
-#endif
-
-	olpc_xo175_ec_prime_fifo(ec);
-}
-
 
 static int olpc_xo175_ec_remove(struct spi_device *spi)
 {
@@ -1152,19 +1021,6 @@ static int olpc_xo175_ec_resume(struct device *dev)
 }
 #endif
 
-static int
-olpc_xo175_ec_cmd(u8 cmd, u8 *inbuf, size_t inlen,
-	u8 *resp, size_t resp_len, void *ec_cb_arg)
-{
-	struct olpc_xo175_ec *ec = ec_cb_arg;
-
-	gpiod_set_value_cansleep(ec->gpio_cmd, 1);
-	dev_info(&ec->spi->dev, "XXX EC CMD: inlen=%d resp_len=%d\n", inlen, resp_len);
-
-	return 0;
-}
-
-
 static struct olpc_ec_driver ec_driver = {
         .ec_cmd = olpc_xo175_ec_cmd,
 };
@@ -1247,11 +1103,12 @@ static int olpc_xo175_ec_probe(struct spi_device *spi)
 		return ret;
 	}
 
+	dev_info(&spi->dev, "OLPC XO-1.75 Embedded Controller driver\n");
+
 	INIT_WORK(&ec->event_queue_work, event_queue_worker);
 
 	//device_init_wakeup(&ec->spi->dev, 1);
 
-	olpc_xo175_ec_init_regs(ec);
 
 
 
@@ -1259,6 +1116,7 @@ static int olpc_xo175_ec_probe(struct spi_device *spi)
 
 
 
+	spi_set_drvdata(spi, ec);
 
 	ec->xfer.rx_buf = ec->rx_buf;
 	ec->xfer.tx_buf = ec->tx_buf;
@@ -1277,10 +1135,9 @@ static int olpc_xo175_ec_probe(struct spi_device *spi)
 	olpc_ec_driver_register(&ec_driver, ec);
 	olpc_ec = platform_device_register_simple("olpc-ec", -1, NULL, 0);
 
-	dev_info(&spi->dev, "OLPC XO-1.75 Embedded Controller driver\n");
 
-	spi_set_drvdata(spi, ec);
 
+	olpc_xo175_ec_prime_fifo(ec);
 
 
 
