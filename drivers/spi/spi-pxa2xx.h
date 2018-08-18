@@ -90,16 +90,12 @@ struct chip_data {
 static inline u32 pxa2xx_spi_read(const struct driver_data *drv_data,
 				  unsigned reg)
 {
-	u32 val = __raw_readl(drv_data->ioaddr + reg);
-	printk (" * SPI READ reg=%08x val=%08x\n", reg, val);
-	return val;
-	//return __raw_readl(drv_data->ioaddr + reg);
+	return __raw_readl(drv_data->ioaddr + reg);
 }
 
 static  inline void pxa2xx_spi_write(const struct driver_data *drv_data,
 				     unsigned reg, u32 val)
 {
-	printk (" * SPI WRITE reg=%08x val=%08x\n", reg, val);
 	__raw_writel(val, drv_data->ioaddr + reg);
 }
 
