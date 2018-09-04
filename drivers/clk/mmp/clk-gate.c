@@ -35,11 +35,9 @@ static int mmp_clk_gate_enable(struct clk_hw *hw)
 		spin_lock_irqsave(gate->lock, flags);
 
 	tmp = readl(gate->reg);
-printk ("XXX ENABLE ** MMP reg=0x%08x val=0x%08x\n", gate->reg, tmp);
 	tmp &= ~gate->mask;
 	tmp |= gate->val_enable;
 	writel(tmp, gate->reg);
-printk ("XXX ENABLE    MMP reg=0x%08x val=0x%08x\n", gate->reg, tmp);
 
 	if (gate->lock)
 		spin_unlock_irqrestore(gate->lock, flags);
@@ -62,12 +60,10 @@ static void mmp_clk_gate_disable(struct clk_hw *hw)
 	if (gate->lock)
 		spin_lock_irqsave(gate->lock, flags);
 
-printk ("XXX DISABLE ** MMP reg=0x%08x val=0x%08x\n", gate->reg, tmp);
 	tmp = readl(gate->reg);
 	tmp &= ~gate->mask;
 	tmp |= gate->val_disable;
-//	writel(tmp, gate->reg);
-printk ("XXX DISABLE    MMP reg=0x%08x val=0x%08x\n", gate->reg, tmp);
+	writel(tmp, gate->reg);
 
 	if (gate->lock)
 		spin_unlock_irqrestore(gate->lock, flags);

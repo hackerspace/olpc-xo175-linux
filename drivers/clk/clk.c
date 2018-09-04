@@ -884,8 +884,6 @@ static int clk_core_enable(struct clk_core *core)
 	if (!core)
 		return 0;
 
-if (strcmp (core->name, "uart2_clk")) printk ("XXX CLK CORE ENABLE {%s} enable=0x%08x\n", core->name, core->ops->enable);
-
 	if (WARN(core->prepare_count == 0,
 	    "Enabling unprepared %s\n", core->name))
 		return -ESHUTDOWN;
@@ -943,7 +941,6 @@ int clk_enable(struct clk *clk)
 	if (!clk)
 		return 0;
 
-if (strcmp (clk->dev_id, "d4018000.uart")) printk ("XXX CLK ENABLE {%s} {%s}\n", clk->dev_id, clk->con_id);
 	return clk_core_enable_lock(clk->core);
 }
 EXPORT_SYMBOL_GPL(clk_enable);
