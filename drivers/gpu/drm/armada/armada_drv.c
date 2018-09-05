@@ -223,16 +223,19 @@ static int armada_drm_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	int ret;
 
+printk ("AAA 201\n");
 	ret = drm_of_component_probe(dev, compare_dev_name, &armada_master_ops);
 	if (ret != -EINVAL)
 		return ret;
 
+printk ("AAA 202\n");
 	if (dev->platform_data) {
 		char **devices = dev->platform_data;
 		struct device_node *port;
 		struct device *d;
 		int i;
 
+printk ("AAA 203\n");
 		for (i = 0; devices[i]; i++)
 			component_match_add(dev, &match, compare_dev_name,
 					    devices[i]);
@@ -285,6 +288,8 @@ static struct platform_driver armada_drm_platform_driver = {
 static int __init armada_drm_init(void)
 {
 	int ret;
+
+printk ("AAA 200\n");
 
 	armada_drm_driver.num_ioctls = ARRAY_SIZE(armada_ioctls);
 
