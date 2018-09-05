@@ -476,7 +476,6 @@ static int null_writer(struct driver_data *drv_data)
 		|| (drv_data->tx == drv_data->tx_end))
 		return 0;
 
-printk ("XXX NULL WRITER\n");
 	pxa2xx_spi_write(drv_data, SSDR, 0);
 	drv_data->tx += n_bytes;
 
@@ -502,7 +501,6 @@ static int u8_writer(struct driver_data *drv_data)
 		|| (drv_data->tx == drv_data->tx_end))
 		return 0;
 
-printk ("XXX U8 WRITER tx=0x%08x txl=%d\n", drv_data->tx, drv_data->tx_end - drv_data->tx);
 	pxa2xx_spi_write(drv_data, SSDR, *(u8 *)(drv_data->tx));
 	++drv_data->tx;
 
@@ -511,13 +509,11 @@ printk ("XXX U8 WRITER tx=0x%08x txl=%d\n", drv_data->tx, drv_data->tx_end - drv
 
 static int u8_reader(struct driver_data *drv_data)
 {
-printk ("XXX U8 READER rx=0x%08x rxl=%d\n", drv_data->rx, drv_data->rx_end - drv_data->rx);
 	while ((pxa2xx_spi_read(drv_data, SSSR) & SSSR_RNE)
 	       && (drv_data->rx < drv_data->rx_end)) {
 		*(u8 *)(drv_data->rx) = pxa2xx_spi_read(drv_data, SSDR);
 		++drv_data->rx;
 	}
-printk ("  XXX U8 READER rx=0x%08x rxl=%d\n", drv_data->rx, drv_data->rx_end - drv_data->rx);
 
 	return drv_data->rx == drv_data->rx_end;
 }
@@ -528,7 +524,6 @@ static int u16_writer(struct driver_data *drv_data)
 		|| (drv_data->tx == drv_data->tx_end))
 		return 0;
 
-printk ("XXX U16 WRITER tx=0x%08x txl=%d\n", drv_data->tx, drv_data->tx_end - drv_data->tx);
 	pxa2xx_spi_write(drv_data, SSDR, *(u16 *)(drv_data->tx));
 	drv_data->tx += 2;
 
@@ -537,13 +532,11 @@ printk ("XXX U16 WRITER tx=0x%08x txl=%d\n", drv_data->tx, drv_data->tx_end - dr
 
 static int u16_reader(struct driver_data *drv_data)
 {
-printk ("XXX U16 READER rx=0x%08x rxl=%d\n", drv_data->rx, drv_data->rx_end - drv_data->rx);
 	while ((pxa2xx_spi_read(drv_data, SSSR) & SSSR_RNE)
 	       && (drv_data->rx < drv_data->rx_end)) {
 		*(u16 *)(drv_data->rx) = pxa2xx_spi_read(drv_data, SSDR);
 		drv_data->rx += 2;
 	}
-printk ("  XXX U16 READER rx=0x%08x rxl=%d\n", drv_data->rx, drv_data->rx_end - drv_data->rx);
 
 	return drv_data->rx == drv_data->rx_end;
 }
@@ -554,7 +547,6 @@ static int u32_writer(struct driver_data *drv_data)
 		|| (drv_data->tx == drv_data->tx_end))
 		return 0;
 
-printk ("XXX U32 WRITER tx=0x%08x txl=%d\n", drv_data->tx, drv_data->tx_end - drv_data->tx);
 	pxa2xx_spi_write(drv_data, SSDR, *(u32 *)(drv_data->tx));
 	drv_data->tx += 4;
 
@@ -563,13 +555,11 @@ printk ("XXX U32 WRITER tx=0x%08x txl=%d\n", drv_data->tx, drv_data->tx_end - dr
 
 static int u32_reader(struct driver_data *drv_data)
 {
-printk ("XXX U32 READER rx=0x%08x rxl=%d\n", drv_data->rx, drv_data->rx_end - drv_data->rx);
 	while ((pxa2xx_spi_read(drv_data, SSSR) & SSSR_RNE)
 	       && (drv_data->rx < drv_data->rx_end)) {
 		*(u32 *)(drv_data->rx) = pxa2xx_spi_read(drv_data, SSDR);
 		drv_data->rx += 4;
 	}
-printk ("  XXX U32 READER rx=0x%08x rxl=%d\n", drv_data->rx, drv_data->rx_end - drv_data->rx);
 
 	return drv_data->rx == drv_data->rx_end;
 }
@@ -593,7 +583,6 @@ static void reset_sccr1(struct driver_data *drv_data)
 		break;
 	}
 	sccr1_reg |= chip->threshold;
-printk ("XXX RESET CSSR1\n");
 	pxa2xx_spi_write(drv_data, SSCR1, sccr1_reg);
 }
 
@@ -605,7 +594,6 @@ static void int_error_stop(struct driver_data *drv_data, const char* msg)
 	if (!pxa25x_ssp_comp(drv_data))
 		pxa2xx_spi_write(drv_data, SSTO, 0);
 	pxa2xx_spi_flush(drv_data);
-printk ("XXX INT ERROR STOP\n");
 	pxa2xx_spi_write(drv_data, SSCR0,
 			 pxa2xx_spi_read(drv_data, SSCR0) & ~SSCR0_SSE);
 
@@ -620,7 +608,6 @@ static void int_transfer_complete(struct driver_data *drv_data)
 	/* Clear and disable interrupts */
 	write_SSSR_CS(drv_data, drv_data->clear_sr);
 	reset_sccr1(drv_data);
-printk ("XXX INT TRANSFER COMPLETE\n");
 	if (!pxa25x_ssp_comp(drv_data))
 		pxa2xx_spi_write(drv_data, SSTO, 0);
 
@@ -644,12 +631,9 @@ static irqreturn_t interrupt_transfer(struct driver_data *drv_data)
 		return IRQ_HANDLED;
 	}
 
-printk ("XXX INT TRANSFER\n");
 	if (irq_status & SSSR_TINT) {
-printk ("XXX   INT TRANSFER TINT\n");
 		pxa2xx_spi_write(drv_data, SSSR, SSSR_TINT);
 		if (drv_data->read(drv_data)) {
-printk ("XXX   INT TRANSFER TINT RD\n");
 			int_transfer_complete(drv_data);
 			return IRQ_HANDLED;
 		}
@@ -657,18 +641,13 @@ printk ("XXX   INT TRANSFER TINT RD\n");
 
 	/* Drain rx fifo, Fill tx fifo and prevent overruns */
 	do {
-printk ("XXX   INT TRANSFER DRAIN 0\n");
 		if (drv_data->read(drv_data)) {
-printk ("XXX   INT TRANSFER DRAIN 1\n");
 			int_transfer_complete(drv_data);
 			return IRQ_HANDLED;
 		}
 	} while (drv_data->write(drv_data));
 
-printk ("XXX   INT TRANSFER DRAINED\n");
-
 	if (drv_data->read(drv_data)) {
-printk ("XXX   INT TRANSFER READ 0\n");
 		int_transfer_complete(drv_data);
 		return IRQ_HANDLED;
 	}
@@ -676,8 +655,6 @@ printk ("XXX   INT TRANSFER READ 0\n");
 	if (drv_data->tx == drv_data->tx_end) {
 		u32 bytes_left;
 		u32 sccr1_reg;
-
-printk ("XXX   INT TRANSFER TX END\n");
 
 		sccr1_reg = pxa2xx_spi_read(drv_data, SSCR1);
 		sccr1_reg &= ~SSCR1_TIE;
@@ -705,7 +682,6 @@ printk ("XXX   INT TRANSFER TX END\n");
 
 			pxa2xx_spi_set_rx_thre(drv_data, &sccr1_reg, rx_thre);
 		}
-printk ("XXX INT TRANSFER SSCR1\n");
 		pxa2xx_spi_write(drv_data, SSCR1, sccr1_reg);
 	}
 
@@ -715,7 +691,6 @@ printk ("XXX INT TRANSFER SSCR1\n");
 
 static void handle_bad_msg(struct driver_data *drv_data)
 {
-printk ("XXX BAD MSG\n");
 	pxa2xx_spi_write(drv_data, SSCR0,
 			 pxa2xx_spi_read(drv_data, SSCR0) & ~SSCR0_SSE);
 	pxa2xx_spi_write(drv_data, SSCR1,
@@ -734,8 +709,6 @@ static irqreturn_t ssp_int(int irq, void *dev_id)
 	u32 sccr1_reg;
 	u32 mask = drv_data->mask_sr;
 	u32 status;
-
-printk ("*** XXX SSP INT ***\n");
 
 	/*
 	 * The IRQ might be shared with other peripherals so we must first
@@ -769,7 +742,6 @@ printk ("*** XXX SSP INT ***\n");
 	if (!(status & mask))
 		return IRQ_NONE;
 
-printk ("XXX SSP INT\n");
 	pxa2xx_spi_write(drv_data, SSCR1, sccr1_reg & ~drv_data->int_cr1);
 	pxa2xx_spi_write(drv_data, SSCR1, sccr1_reg);
 
@@ -963,7 +935,6 @@ static int pxa2xx_spi_transfer_one(struct spi_controller *master,
 	int err;
 	int dma_mapped;
 
-printk ("XXX SSP TRANSFER ONE\n");
 	/* Check if we can DMA this transfer */
 	if (transfer->len > MAX_DMA_LEN && chip->enable_dma) {
 
@@ -994,14 +965,6 @@ printk ("XXX SSP TRANSFER ONE\n");
 	drv_data->rx_end = drv_data->rx + transfer->len;
 	drv_data->write = drv_data->tx ? chip->write : null_writer;
 	drv_data->read = drv_data->rx ? chip->read : null_reader;
-
-printk ("XXX T nb=%d, txb=0x%08x, rxb=0x%08x, len=%d, bpw=%d, speed=%d\n",
-drv_data->n_bytes,
-transfer->rx_buf,
-transfer->tx_buf,
-transfer->len,
-transfer->bits_per_word,
-transfer->speed_hz);
 
 	/* Change speed and bit per word on a per transfer */
 	bits = transfer->bits_per_word;
@@ -1099,9 +1062,6 @@ transfer->speed_hz);
 	if ((pxa2xx_spi_read(drv_data, SSCR0) != cr0)
 	    || (pxa2xx_spi_read(drv_data, SSCR1) & change_mask)
 	    != (cr1 & change_mask)) {
-
-printk ("XXX SSP RELOAD CONFIG\n");
-
 		/* stop the SSP, and update the other bits */
 		pxa2xx_spi_write(drv_data, SSCR0, cr0 & ~SSCR0_SSE);
 		if (!pxa25x_ssp_comp(drv_data))
@@ -1116,12 +1076,8 @@ printk ("XXX SSP RELOAD CONFIG\n");
 			pxa2xx_spi_write(drv_data, SSTO, chip->timeout);
 	}
 
-printk ("XXX FILL FIFO\n");
-
 	if (spi_controller_is_slave (master))
 		while (drv_data->write(drv_data));
-
-printk ("XXX SSP INT SSCR1\n");
 
 	/*
 	 * Release the data by enabling service requests and interrupts,
@@ -1132,19 +1088,11 @@ printk ("XXX SSP INT SSCR1\n");
 	return 1;
 }
 
-static int pxa2xx_spi_slave_abort(struct spi_controller *master)
-{
-printk ("XXX SSP SLAVE ABORT\n");
-	return 0;
-}
-
 static void pxa2xx_spi_handle_err(struct spi_controller *master,
 				 struct spi_message *msg)
 {
 	struct driver_data *drv_data = spi_controller_get_devdata(master);
 
-WARN_ON(1);
-printk ("XXX SSP HANDLE ERR\n");
 	/* Disable the SSP */
 	pxa2xx_spi_write(drv_data, SSCR0,
 			 pxa2xx_spi_read(drv_data, SSCR0) & ~SSCR0_SSE);
@@ -1171,7 +1119,6 @@ static int pxa2xx_spi_unprepare_transfer(struct spi_controller *master)
 {
 	struct driver_data *drv_data = spi_controller_get_devdata(master);
 
-printk ("XXX SSP UNPREPARE TRANSFER\n");
 	/* Disable the SSP now */
 	pxa2xx_spi_write(drv_data, SSCR0,
 			 pxa2xx_spi_read(drv_data, SSCR0) & ~SSCR0_SSE);
@@ -1660,7 +1607,6 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 	master->setup = setup;
 	master->set_cs = pxa2xx_spi_set_cs;
 	master->transfer_one = pxa2xx_spi_transfer_one;
-	master->slave_abort = pxa2xx_spi_slave_abort;
 	master->handle_err = pxa2xx_spi_handle_err;
 	master->unprepare_transfer_hardware = pxa2xx_spi_unprepare_transfer;
 	master->fw_translate_cs = pxa2xx_spi_fw_translate_cs;
@@ -1750,12 +1696,10 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 			tmp = SSCR1_RxTresh(RX_THRESH_DFLT) |
 			      SSCR1_TxTresh(TX_THRESH_DFLT);
 		}
-printk ("XXX PROBE SSCR1\n");
 		pxa2xx_spi_write(drv_data, SSCR1, tmp);
 		tmp = SSCR0_Motorola | SSCR0_DataSize(8);
 		if (!spi_controller_is_slave (master))
 			tmp |= SSCR0_SCR(2);
-printk ("XXX PROBE SSCR0\n");
 		pxa2xx_spi_write(drv_data, SSCR0, tmp);
 		break;
 	}
@@ -1854,7 +1798,6 @@ static int pxa2xx_spi_remove(struct platform_device *pdev)
 
 	pm_runtime_get_sync(&pdev->dev);
 
-printk ("XXX SPI REMOVE\n");
 	/* Disable the SSP at the peripheral and SOC level */
 	pxa2xx_spi_write(drv_data, SSCR0, 0);
 	clk_disable_unprepare(ssp->clk);
@@ -1893,7 +1836,6 @@ static int pxa2xx_spi_suspend(struct device *dev)
 	status = spi_controller_suspend(drv_data->master);
 	if (status != 0)
 		return status;
-printk ("XXX SPI SUSPEND\n");
 	pxa2xx_spi_write(drv_data, SSCR0, 0);
 
 	if (!pm_runtime_suspended(dev))
