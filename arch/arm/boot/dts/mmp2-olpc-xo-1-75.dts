@@ -17,6 +17,7 @@
 		available = <0x1000 0x1efff000>;
 	};
 
+#if 0
 	dcon_i2c {
 		compatible = "i2c-gpio";
 		gpios = <&gpio 110 GPIO_ACTIVE_HIGH &gpio 161 GPIO_ACTIVE_HIGH>;
@@ -35,6 +36,7 @@
 			status = "okay";
 		};
 	};
+#endif
 
 	panel {
 		compatible = "innolux,ls075at011", "simple-panel";
@@ -127,11 +129,13 @@
 &twsi1 {
 	status = "okay";
 
+#if 0
 	codec: alc5631@1a {
 		compatible = "realtek,alc5631";
 		reg = <0x1a>;
 		status = "okay";
 	};
+#endif
 };
 
 &twsi2 {
@@ -142,11 +146,13 @@
 &twsi6 {
 	status = "okay";
 
+#if 0
         accelerometer: lis3lv02d@1d {
                 compatible = "st,lis331dlh", "st,lis3lv02d";
                 reg = <0x1d>;
 		status = "okay";
         };
+#endif
 };
 
 &lcdc {
@@ -167,6 +173,7 @@
 	status = "okay";
 };
 
+#if 0
 &spi0 {
 	spi-slave;
 	status = "okay";
@@ -177,3 +184,4 @@
 		cmd-gpio = <&gpio 155 GPIO_ACTIVE_HIGH>;
 	};
 };
+#endif
