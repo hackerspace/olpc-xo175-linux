@@ -1076,6 +1076,9 @@ static int pxa2xx_spi_transfer_one(struct spi_controller *master,
 			pxa2xx_spi_write(drv_data, SSTO, chip->timeout);
 	}
 
+	if (spi_controller_is_slave (master))
+		while (drv_data->write(drv_data));
+
 	/*
 	 * Release the data by enabling service requests and interrupts,
 	 * without changing any mode bits
