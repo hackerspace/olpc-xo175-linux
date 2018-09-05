@@ -61,6 +61,7 @@
 struct sdhci_pxa {
 	struct clk *clk_core;
 	struct clk *clk_io;
+	struct gpio_desc *power_gpio;
 	u8	power_mode;
 	void __iomem *sdio3_conf_reg;
 };
@@ -415,6 +416,13 @@ static int sdhci_pxav3_probe(struct platform_device *pdev)
 
 	/* enable 1/8V DDR capable */
 	host->mmc->caps |= MMC_CAP_1_8V_DDR;
+
+	pxa->power_gpio = devm_gpiod_get_optional(&pdev->dev, "power",
+							GPIOD_OUT_HIGH);
+	if (IS_ERR(pxa->power_gpio)) {
+		ret = PTR_ERR(pxa->power_gpio);
+		goto err_mbus_win;
+	}
 
 	if (of_device_is_compatible(np, "marvell,armada-380-sdhci")) {
 		ret = armada_38x_quirks(pdev, host);
