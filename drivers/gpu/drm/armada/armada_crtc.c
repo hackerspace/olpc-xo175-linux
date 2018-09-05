@@ -727,19 +727,23 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 	void __iomem *base;
 	int ret;
 
+printk ("AAA 4\n");
 	base = devm_ioremap_resource(dev, res);
 	if (IS_ERR(base))
 		return PTR_ERR(base);
 
+printk ("AAA 5\n");
 	dcrtc = kzalloc(sizeof(*dcrtc), GFP_KERNEL);
 	if (!dcrtc) {
 		DRM_ERROR("failed to allocate Armada crtc\n");
 		return -ENOMEM;
 	}
 
+printk ("AAA 6\n");
 	if (dev != drm->dev)
 		dev_set_drvdata(dev, dcrtc);
 
+printk ("AAA 7\n");
 	dcrtc->variant = variant;
 	dcrtc->base = base;
 	dcrtc->num = drm->mode_config.num_crtc;
@@ -749,6 +753,7 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 	spin_lock_init(&dcrtc->irq_lock);
 	dcrtc->irq_ena = CLEAN_SPU_IRQ_ISR;
 
+printk ("AAA 8\n");
 	/* Initialize some registers which we don't otherwise set */
 	writel_relaxed(0x00000001, dcrtc->base + LCD_CFG_SCLK_DIV);
 	writel_relaxed(0x00000000, dcrtc->base + LCD_SPU_BLANKCOLOR);
@@ -763,17 +768,20 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 	readl_relaxed(dcrtc->base + LCD_SPU_IRQ_ISR);
 	writel_relaxed(0, dcrtc->base + LCD_SPU_IRQ_ISR);
 
+printk ("AAA 9\n");
 	ret = devm_request_irq(dev, irq, armada_drm_irq, 0, "armada_drm_crtc",
 			       dcrtc);
 	if (ret < 0)
 		goto err_crtc;
 
+printk ("AAA 10\n");
 	if (dcrtc->variant->init) {
 		ret = dcrtc->variant->init(dcrtc, dev);
 		if (ret)
 			goto err_crtc;
 	}
 
+printk ("AAA 11\n");
 	/* Ensure AXI pipeline is enabled */
 	armada_updatel(CFG_ARBFAST_ENA, 0, dcrtc->base + LCD_SPU_DMA_CTRL0);
 
@@ -781,18 +789,21 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 
 	dcrtc->crtc.port = port;
 
+printk ("AAA 12\n");
 	primary = kzalloc(sizeof(*primary), GFP_KERNEL);
 	if (!primary) {
 		ret = -ENOMEM;
 		goto err_crtc;
 	}
 
+printk ("AAA 13\n");
 	ret = armada_drm_primary_plane_init(drm, primary);
 	if (ret) {
 		kfree(primary);
 		goto err_crtc;
 	}
 
+printk ("AAA 14\n");
 	ret = drm_crtc_init_with_planes(drm, &dcrtc->crtc, primary, NULL,
 					&armada_crtc_funcs, NULL);
 	if (ret)
@@ -800,6 +811,7 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 
 	drm_crtc_helper_add(&dcrtc->crtc, &armada_crtc_helper_funcs);
 
+printk ("AAA 15\n");
 	return armada_overlay_plane_create(drm, 1 << dcrtc->num);
 
 err_crtc_init:
@@ -820,12 +832,15 @@ armada_lcd_bind(struct device *dev, struct device *master, void *data)
 	const struct armada_variant *variant;
 	struct device_node *port = NULL;
 
+printk ("AAA 0\n");
+
 	if (irq < 0)
 		return irq;
 
 	if (!dev->of_node) {
 		const struct platform_device_id *id;
 
+printk ("AAA 1\n");
 		id = platform_get_device_id(pdev);
 		if (!id)
 			return -ENXIO;
@@ -835,6 +850,7 @@ armada_lcd_bind(struct device *dev, struct device *master, void *data)
 		const struct of_device_id *match;
 		struct device_node *np, *parent = dev->of_node;
 
+printk ("AAA 2\n");
 		match = of_match_device(dev->driver->of_match_table, dev);
 		if (!match)
 			return -ENXIO;
@@ -849,6 +865,7 @@ armada_lcd_bind(struct device *dev, struct device *master, void *data)
 			return -ENXIO;
 		}
 
+printk ("AAA 3\n");
 		variant = match->data;
 	}
 
@@ -870,6 +887,7 @@ static const struct component_ops armada_lcd_ops = {
 
 static int armada_lcd_probe(struct platform_device *pdev)
 {
+printk ("AAA 666\n");
 	return component_add(&pdev->dev, &armada_lcd_ops);
 }
 
