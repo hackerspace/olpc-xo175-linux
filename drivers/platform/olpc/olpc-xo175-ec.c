@@ -11,6 +11,7 @@
  */
 
 // echo -n 08:1 00 >/sys/kernel/debug/olpc-ec/cmd; cat /sys/kernel/debug/olpc-ec/cmd
+// echo -n 08:1 >/sys/kernel/debug/olpc-ec/cmd; cat /sys/kernel/debug/olpc-ec/cmd
 
 #include <linux/delay.h>
 #include <linux/gpio/consumer.h>
@@ -355,7 +356,14 @@ static void olpc_xo175_ec_send_command(struct olpc_xo175_ec *ec, u8 *cmd, size_t
 {
 	int ret;
 
-	printk ("XXX SEND COMMAND!!! [%02x] [%02x] len=%d\n", cmd[0], cmd[1], cmdlen);
+	{
+		int i;
+
+		printk ("XXX SEND COMMAND!!! len=%d", cmdlen);
+		for (i = 0; i < cmdlen; i++)
+			printk (" [%02x]", cmd[i]);
+		printk ("\n");
+	}
 
 	memcpy (ec->tx_buf, cmd, cmdlen);
 	ec->xfer.len = cmdlen;
@@ -404,7 +412,7 @@ static void olpc_xo175_ec_send_command(struct olpc_xo175_ec *ec, u8 *cmd, size_t
 
 static void olpc_xo175_ec_prime_fifo(struct olpc_xo175_ec *ec)
 {
-	u8 nonce[] = {0xAA,0xAA};
+	u8 nonce[] = {0xAB,0xBA};
 
 	olpc_xo175_ec_send_command(ec, nonce, sizeof(nonce));
 }
