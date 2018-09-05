@@ -544,6 +544,7 @@ int armada_overlay_plane_create(struct drm_device *dev, unsigned long crtcs)
 	struct drm_plane *overlay;
 	int ret;
 
+printk ("AAA 16\n");
 	ret = armada_overlay_create_properties(dev);
 	if (ret)
 		return ret;
@@ -565,6 +566,7 @@ int armada_overlay_plane_create(struct drm_device *dev, unsigned long crtcs)
 		return ret;
 	}
 
+printk ("AAA 17\n");
 	mobj = &overlay->base;
 	drm_object_attach_property(mobj, priv->colorkey_prop,
 				   0x0101fe);
@@ -585,12 +587,14 @@ int armada_overlay_plane_create(struct drm_device *dev, unsigned long crtcs)
 	drm_object_attach_property(mobj, priv->saturation_prop,
 				   DEFAULT_SATURATION);
 
+printk ("AAA 18\n");
 	ret = drm_plane_create_color_properties(overlay,
 						BIT(DRM_COLOR_YCBCR_BT601) |
 						BIT(DRM_COLOR_YCBCR_BT709),
 						BIT(DRM_COLOR_YCBCR_LIMITED_RANGE),
 						DEFAULT_ENCODING,
 						DRM_COLOR_YCBCR_LIMITED_RANGE);
+printk ("AAA 19\n");
 
 	return ret;
 }
