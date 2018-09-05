@@ -109,6 +109,9 @@
 	keep-power-in-suspend;
 	mrvl,clk-delay-cycles = <31>;
 	status = "okay";
+
+	wakeup-source;
+	keep-power-in-suspend;
 };
 
 &mmc3 {
