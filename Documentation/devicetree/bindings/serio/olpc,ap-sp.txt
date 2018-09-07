@@ -5,9 +5,15 @@ Required properties:
 - reg : base address and length of SoC's WTM registers
 - interrupts : SP-AP interrupt
 
+Optional properties:
+- data-gpios : GPIO line used for PS/2 interface data
+- clk-gpios : GPIO line used for PS/2 interface clock
+
 Example:
 	ap-sp@d4290000 {
 		compatible = "olpc,ap-sp";
 		reg = <0xd4290000 0x1000>;
 		interrupts = <40>;
+		data-gpios = <&gpio 72 GPIO_ACTIVE_HIGH>;
+		clk-gpios = <&gpio 71 GPIO_ACTIVE_HIGH>;
 	}
