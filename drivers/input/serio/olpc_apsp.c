@@ -23,6 +23,7 @@
 #include <linux/of.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
+#include <linux/gpio/consumer.h>
 
 /*
  * The OLPC XO-1.75 and XO-4 laptops do not have a hardware PS/2 controller.
@@ -74,6 +75,8 @@ struct olpc_apsp {
 	struct serio *kbio;
 	struct serio *padio;
 	void __iomem *base;
+	struct gpio_desc *clk_gpio;
+	struct gpio_desc *data_gpio;
 	int open_count;
 	int irq;
 };
@@ -197,6 +200,16 @@ static int olpc_apsp_probe(struct platform_device *pdev)
 	priv->irq = platform_get_irq(pdev, 0);
 	if (priv->irq < 0)
 		return priv->irq;
+
+	priv->clk_gpio = devm_gpiod_get_optional(&pdev->dev, "clk",
+							GPIOD_ASIS);
+	if (IS_ERR(priv->clk_gpio))
+		return PTR_ERR(priv->clk_gpio);
+
+	priv->data_gpio = devm_gpiod_get_optional(&pdev->dev, "data",
+							GPIOD_ASIS);
+	if (IS_ERR(priv->data_gpio))
+		return PTR_ERR(priv->data_gpio);
 
 	/* KEYBOARD */
 	kb_serio = kzalloc(sizeof(struct serio), GFP_KERNEL);
