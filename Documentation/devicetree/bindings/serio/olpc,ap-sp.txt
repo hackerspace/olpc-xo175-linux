@@ -7,6 +7,10 @@ Required properties:
 - clocks : phandle + clock-specifier for the clock that drives the WTM
 - clock-names:  should be "sp"
 
+Optional properties:
+- data-gpios : GPIO line used for PS/2 interface data
+- clk-gpios : GPIO line used for PS/2 interface clock
+
 Example:
 	ap-sp@d4290000 {
 		compatible = "olpc,ap-sp";
@@ -14,4 +18,6 @@ Example:
 		interrupts = <40>;
 		clocks = <&soc_clocks MMP2_CLK_SP>;
 		clock-names = "sp";
+		data-gpios = <&gpio 72 GPIO_ACTIVE_HIGH>;
+		clk-gpios = <&gpio 71 GPIO_ACTIVE_HIGH>;
 	}
