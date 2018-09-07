@@ -190,7 +190,7 @@ static const struct mmp_intc_conf mmp_conf = {
 static const struct mmp_intc_conf mmp2_conf = {
 	.conf_enable	= 0x20,
 	.conf_disable	= 0x0,
-	.conf_mask	= 0x7f,
+	.conf_mask	= 0x60,
 };
 
 static void __exception_irq_entry mmp_handle_irq(struct pt_regs *regs)
