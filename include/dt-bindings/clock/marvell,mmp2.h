@@ -26,6 +26,7 @@
 #define MMP2_CLK_VCTCXO_4		25
 #define MMP2_CLK_UART_PLL		26
 #define MMP2_CLK_USB_PLL		27
+#define MMP2_CLK_GPU_PLL		28
 
 /* apb periphrals */
 #define MMP2_CLK_TWSI0			60
@@ -72,6 +73,7 @@
 #define MMP2_CLK_CCIC1_PHY		118
 #define MMP2_CLK_CCIC1_SPHY		119
 #define MMP2_CLK_DISP0_LCDC		120
+#define MMP2_CLK_GPU			121
 
 #define MMP2_NR_CLKS			200
 #endif
