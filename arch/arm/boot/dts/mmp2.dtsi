@@ -18,6 +18,8 @@
 		serial3 = &uart4;
 		i2c0 = &twsi1;
 		i2c1 = &twsi2;
+		spi0 = &ssp1;
+		spi3 = &ssp3;
 	};
 
 	soc {
@@ -237,6 +239,22 @@
 				interrupt-parent = <&intcmux5>;
 				clocks = <&soc_clocks MMP2_CLK_RTC>;
 				resets = <&soc_clocks MMP2_CLK_RTC>;
+				status = "disabled";
+			};
+
+			ssp1: ssp@d4035000 {
+				compatible = "marvell,mmp2-ssp";
+				reg = <0xd4035000 0x1000>;
+				clocks = <&soc_clocks MMP2_CLK_SSP0>;
+				interrupts = <0>;
+				status = "disabled";
+			};
+
+			ssp3: ssp@d4037000 {
+				compatible = "marvell,mmp2-ssp";
+				reg = <0xd4037000 0x1000>;
+				clocks = <&soc_clocks MMP2_CLK_SSP2>;
+				interrupts = <20>;
 				status = "disabled";
 			};
 		};
