@@ -104,7 +104,7 @@ void __init mmp2_init_irq(void)
 
 static int __init mmp2_init(void)
 {
-	if (cpu_is_mmp2()) {
+	if (cpu_is_pj4()) {
 #ifdef CONFIG_CACHE_TAUROS2
 		tauros2_init(0);
 #endif
