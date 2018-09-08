@@ -44,13 +44,4 @@ static inline int cpu_is_pxa910(void)
 #define cpu_is_pxa910()	(0)
 #endif
 
-#ifdef CONFIG_CPU_MMP2
-static inline int cpu_is_mmp2(void)
-{
-	return (((read_cpuid_id() >> 8) & 0xff) == 0x58);
-}
-#else
-#define cpu_is_mmp2()	(0)
-#endif
-
 #endif /* __ASM_MACH_CPUTYPE_H */
