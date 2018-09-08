@@ -41,6 +41,12 @@
 			reg = <0xd4200000 0x00200000>;
 			ranges;
 
+			usb_otg_phy: usb-phy@d4207000 {
+				compatible = "marvell,mmp2-usb-phy";
+				reg = <0xd4207000 0x40>;
+				#phy-cells = <0>;
+			};
+
 			lcdc: lcdc@d420b000 {
 				compatible = "marvell,mmp2-lcd";
 				reg = <0xd420b000 0x1000>;
