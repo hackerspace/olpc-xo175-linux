@@ -45,6 +45,15 @@
 			reg = <0xd4200000 0x00200000>;
 			ranges;
 
+			lcdc: lcdc@d420b000 {
+				compatible = "marvell,mmp2-lcd";
+				reg = <0xd420b000 0x1000>;
+				interrupts = <41>;
+				clocks = <&soc_clocks MMP2_CLK_DISP0>;
+				clock-names = "axiclk";
+				status = "disabled";
+			};
+
 			intc: interrupt-controller@d4282000 {
 				compatible = "mrvl,mmp2-intc";
 				interrupt-controller;
