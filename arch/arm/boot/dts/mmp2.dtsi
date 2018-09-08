@@ -55,6 +55,16 @@
 				};
 			};
 
+			gpu: gpu@d420d000 {
+				compatible = "vivante,gc";
+				reg = <0xd420d000 0x4000>;
+				interrupts = <8>;
+				clocks = <&soc_clocks MMP2_CLK_GPU>;
+				clock-names = "core";
+				/* power-domains = <&gpu_domain>; */
+				status = "disabled";
+			};
+
 			intc: interrupt-controller@d4282000 {
 				compatible = "mrvl,mmp2-intc";
 				interrupt-controller;
