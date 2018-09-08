@@ -53,6 +53,7 @@
 #define APMU_DISP1	0x110
 #define APMU_CCIC0	0x50
 #define APMU_CCIC1	0xf4
+#define APMU_GPU	0xcc
 #define MPMU_UART_PLL	0x14
 
 struct mmp2_clk_unit {
@@ -195,6 +196,8 @@ static struct mmp_clk_mix_config sdh_mix_config = {
 
 static DEFINE_SPINLOCK(usb_lock);
 
+static DEFINE_SPINLOCK(gpu_lock);
+
 static DEFINE_SPINLOCK(disp0_lock);
 static DEFINE_SPINLOCK(disp1_lock);
 static const char *disp_parent_names[] = {"pll1", "pll1_16", "pll2", "vctcxo"};
@@ -224,6 +227,7 @@ static struct mmp_param_div_clk apmu_div_clks[] = {
 
 static struct mmp_param_gate_clk apmu_gate_clks[] = {
 	{MMP2_CLK_USB, "usb_clk", "usb_pll", 0, APMU_USB, 0x9, 0x9, 0x0, 0, &usb_lock},
+	{MMP2_CLK_GPU, "gpu_clk", "usb_pll", 0, APMU_GPU, 0xf, 0xf, 0x0, 0, &gpu_lock},
 	/* The gate clocks has mux parent. */
 	{MMP2_CLK_SDH0, "sdh0_clk", "sdh_mix_clk", CLK_SET_RATE_PARENT, APMU_SDH0, 0x1b, 0x1b, 0x0, 0, &sdh_lock},
 	{MMP2_CLK_SDH1, "sdh1_clk", "sdh_mix_clk", CLK_SET_RATE_PARENT, APMU_SDH1, 0x1b, 0x1b, 0x0, 0, &sdh_lock},
