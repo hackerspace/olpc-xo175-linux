@@ -35,6 +35,7 @@
 #define MMP2_CLK_TWSI3			63
 #define MMP2_CLK_TWSI4			64
 #define MMP2_CLK_TWSI5			65
+#define MMP2_CLK_TWSI6			120
 #define MMP2_CLK_GPIO			66
 #define MMP2_CLK_KPC			67
 #define MMP2_CLK_RTC			68
