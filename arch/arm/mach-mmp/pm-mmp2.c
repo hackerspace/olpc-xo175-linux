@@ -220,7 +220,7 @@ static int __init mmp2_pm_init(void)
 {
 	uint32_t apcr;
 
-	if (!cpu_is_mmp2())
+	if (!cpu_is_pj4())
 		return -EIO;
 
 	suspend_set_ops(&mmp2_pm_ops);
