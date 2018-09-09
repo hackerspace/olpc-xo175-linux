@@ -20,13 +20,15 @@
 #if 0
 	dcon_i2c {
 		compatible = "i2c-gpio";
-		gpios = <&gpio 110 GPIO_ACTIVE_HIGH &gpio 161 GPIO_ACTIVE_HIGH>;
+		gpios = <&gpio 110 GPIO_ACTIVE_HIGH
+		         &gpio 161 GPIO_ACTIVE_HIGH>;
 		#address-cells = <1>;
 		#size-cells = <0>;
 		status = "okay";
 
-		dcon@0d {
-			compatible = "olpc,xo1.75-dcon", "olpc,xo1-dcon";
+		dcon@d {
+			//compatible = "olpc,xo1.75-dcon", "olpc,xo1-dcon";
+			compatible = "himax,hx8837";
 			gpios = <&gpio 100 GPIO_ACTIVE_HIGH
 				 &gpio 101 GPIO_ACTIVE_HIGH
 				 &gpio 142 GPIO_ACTIVE_HIGH

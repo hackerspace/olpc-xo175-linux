@@ -11,8 +11,24 @@
  * License as published by the Free Software Foundation.
  */
 
+#define OLPC_GPIO_DCON_STAT0	100
+#define OLPC_GPIO_DCON_STAT1	101
+#define OLPC_GPIO_DCON_IRQ	124
+#define OLPC_GPIO_DCON_LOAD     142
+
+
+
+
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+//#include <linux/cs5535.h>
+#include <linux/gpio.h>
+#include <linux/delay.h>
+//#include "olpc_dcon.h"
+
+#include <linux/wait.h>
+#include <linux/notifier.h>
+#include <linux/workqueue.h>
 #include <linux/kernel.h>
 #include <linux/fb.h>
 #include <linux/console.h>
@@ -27,17 +43,246 @@
 #include <linux/ctype.h>
 #include <linux/reboot.h>
 #include <linux/olpc-ec.h>
-#include <asm/tsc.h>
-#include <asm/olpc.h>
+//#include <asm/tsc.h>
+//#include <asm/olpc.h>
 
-#include "olpc_dcon.h"
+//#include "olpc_dcon.h"
+
+
+
+
+
+/* DCON registers */
+
+#define DCON_REG_ID		 0
+#define DCON_REG_MODE		 1
+
+#define MODE_PASSTHRU	BIT(0)
+#define MODE_SLEEP	BIT(1)
+#define MODE_SLEEP_AUTO	BIT(2)
+#define MODE_BL_ENABLE	BIT(3)
+#define MODE_BLANK	BIT(4)
+#define MODE_CSWIZZLE	BIT(5)
+#define MODE_COL_AA	BIT(6)
+#define MODE_MONO_LUMA	BIT(7)
+#define MODE_SCAN_INT	BIT(8)
+#define MODE_CLOCKDIV	BIT(9)
+#define MODE_DEBUG	BIT(14)
+#define MODE_SELFTEST	BIT(15)
+
+#define DCON_REG_HRES		0x2
+#define DCON_REG_HTOTAL		0x3
+#define DCON_REG_HSYNC_WIDTH	0x4
+#define DCON_REG_VRES		0x5
+#define DCON_REG_VTOTAL		0x6
+#define DCON_REG_VSYNC_WIDTH	0x7
+#define DCON_REG_TIMEOUT	0x8
+#define DCON_REG_SCAN_INT	0x9
+#define DCON_REG_BRIGHT		0xa
+#define DCON_REG_MEM_OPT_A	0x41
+#define DCON_REG_MEM_OPT_B	0x42
+
+/* Load Delay Locked Loop (DLL) settings for clock delay */
+#define MEM_DLL_CLOCK_DELAY	BIT(0)
+/* Memory controller power down function */
+#define MEM_POWER_DOWN		BIT(8)
+/* Memory controller software reset */
+#define MEM_SOFT_RESET		BIT(0)
+
+/* Status values */
+
+#define DCONSTAT_SCANINT	0
+#define DCONSTAT_SCANINT_DCON	1
+#define DCONSTAT_DISPLAYLOAD	2
+#define DCONSTAT_MISSED		3
+
+/* Source values */
+
+#define DCON_SOURCE_DCON        0
+#define DCON_SOURCE_CPU         1
+
+/* Interrupt */
+#define DCON_IRQ                6
+
+
+
+
+
+
+struct dcon_priv {
+	struct i2c_client *client;
+	struct fb_info *fbinfo;
+	struct backlight_device *bl_dev;
+
+	wait_queue_head_t waitq;
+	struct work_struct switch_source;
+	struct notifier_block reboot_nb;
+
+	/* Shadow register for the DCON_REG_MODE register */
+	u8 disp_mode;
+
+	/* The current backlight value - this saves us some smbus traffic */
+	u8 bl_val;
+
+	/* Current source, initialized at probe time */
+	int curr_src;
+
+	/* Desired source */
+	int pending_src;
+
+	/* Variables used during switches */
+	bool switched;
+	ktime_t irq_time;
+	ktime_t load_time;
+
+	/* Current output type; true == mono, false == color */
+	bool mono;
+	bool asleep;
+	/* This get set while controlling fb blank state from the driver */
+	bool ignore_fb_events;
+};
+
+
+
+
+irqreturn_t dcon_interrupt(int irq, void *id);
+
+
+
+
+
+
+
+
+
+
+
+
+
+static int dcon_init_xo_1_75(struct dcon_priv *dcon)
+{
+
+	if (gpio_request(OLPC_GPIO_DCON_STAT0, "OLPC-DCON")) {
+		printk(KERN_ERR "olpc-dcon: failed to request STAT0 GPIO\n");
+		return -EIO;
+	}
+	if (gpio_request(OLPC_GPIO_DCON_STAT1, "OLPC-DCON")) {
+		printk(KERN_ERR "olpc-dcon: failed to request STAT1 GPIO\n");
+		goto err_gp_stat1;
+	}
+	if (gpio_request(OLPC_GPIO_DCON_IRQ, "OLPC-DCON")) {
+		printk(KERN_ERR "olpc-dcon: failed to request IRQ GPIO\n");
+		goto err_gp_irq;
+	}
+	if (gpio_request(OLPC_GPIO_DCON_LOAD, "OLPC-DCON")) {
+		printk(KERN_ERR "olpc-dcon: failed to request LOAD GPIO\n");
+		goto err_gp_load;
+	}
+
+
+	/*
+	 * Determine the current state by reading the GPIO bit; earlier
+	 * stages of the boot process have established the state.
+	 */
+	dcon->curr_src = gpio_get_value(OLPC_GPIO_DCON_LOAD)
+		? DCON_SOURCE_CPU
+		: DCON_SOURCE_DCON;
+	dcon->pending_src = dcon->curr_src;
+
+	/* Set the directions for the GPIO pins */
+	gpio_direction_input(OLPC_GPIO_DCON_STAT0);
+	gpio_direction_input(OLPC_GPIO_DCON_STAT1);
+	gpio_direction_input(OLPC_GPIO_DCON_IRQ);
+	gpio_direction_output(OLPC_GPIO_DCON_LOAD,
+			dcon->curr_src == DCON_SOURCE_CPU
+			);
+
+	/* Register the interrupt handler */
+	if (request_irq(gpio_to_irq(OLPC_GPIO_DCON_IRQ), &dcon_interrupt,
+		IRQF_TRIGGER_FALLING, "DCON", dcon)) {
+		printk(KERN_ERR "olpc-dcon: failed to request DCON's irq\n");
+		goto err_req_irq;
+	}
+
+
+	return 0;
+
+err_req_irq:
+	gpio_free(OLPC_GPIO_DCON_LOAD);
+err_gp_load:
+	gpio_free(OLPC_GPIO_DCON_IRQ);
+err_gp_irq:
+	gpio_free(OLPC_GPIO_DCON_STAT1);
+err_gp_stat1:
+	gpio_free(OLPC_GPIO_DCON_STAT0);
+	return -EIO;
+}
+
+/* it would be nice if we could fetch these from olpc_xo_1_75_dcon_i2c_data... */
+#define GPIO_SMBCLK	161
+#define GPIO_SMBDATA	110
+
+static void dcon_wiggle_xo_1_75(void)
+{
+	int x;
+
+	/*
+	 * According to HiMax, when powering the DCON up we should hold
+	 * SMB_DATA high for 8 SMB_CLK cycles.  This will force the DCON
+	 * state machine to reset to a (sane) initial state.  Mitch Bradley
+	 * did some testing and discovered that holding for 16 SMB_CLK cycles
+	 * worked a lot more reliably, so that's what we do here.
+	 */
+	gpio_set_value(GPIO_SMBDATA, 1);	/* should be high the entire time */
+
+	for (x = 0; x < 16; x++) {
+		udelay(5);
+		gpio_set_value(GPIO_SMBCLK, 0);
+		udelay(5);
+		gpio_set_value(GPIO_SMBCLK, 1);
+	}
+	udelay(5);
+}
+
+static void dcon_set_dconload_1_75(int val)
+{
+	gpio_set_value(OLPC_GPIO_DCON_LOAD, val);
+}
+
+static u8 dcon_read_status_xo_1_75(void)
+{
+	u8 status;
+
+	status = !!gpio_get_value(OLPC_GPIO_DCON_STAT0);
+	status |= !!gpio_get_value(OLPC_GPIO_DCON_STAT1) << 1;
+
+	return status;
+}
+
+
+
+#if 0
+void dcon_deinit_xo_1_75(struct dcon_priv *dcon)
+{
+	free_irq(gpio_to_irq(OLPC_GPIO_DCON_IRQ), dcon);
+}
+#endif
+
+
+
+
+
+
+
+
+
+
+
 
 /* Module definitions */
 
 static ushort resumeline = 898;
 module_param(resumeline, ushort, 0444);
-
-static struct dcon_platform_data *pdata;
 
 /* I2C structures */
 
@@ -72,7 +317,8 @@ static int dcon_hw_init(struct dcon_priv *dcon, int is_init)
 
 	if (is_init) {
 		pr_info("Discovered DCON version %x\n", ver & 0xFF);
-		rc = pdata->init(dcon);
+		//rc = pdata->init(dcon);
+		rc = dcon_init_xo_1_75(dcon);
 		if (rc != 0) {
 			pr_err("Unable to init.\n");
 			goto err;
@@ -133,7 +379,8 @@ power_up:
 		usleep_range(10000, 11000);  /* we'll be conservative */
 	}
 
-	pdata->bus_stabilize_wiggle();
+	//pdata->bus_stabilize_wiggle();
+	dcon_wiggle_xo_1_75();
 
 	for (x = -1, timeout = 50; timeout && x < 0; timeout--) {
 		usleep_range(1000, 1100);
@@ -141,7 +388,7 @@ power_up:
 	}
 	if (x < 0) {
 		pr_err("unable to stabilize dcon's smbus, reasserting power and praying.\n");
-		BUG_ON(olpc_board_at_least(olpc_board(0xc2)));
+		//BUG_ON(olpc_board_at_least(olpc_board(0xc2)));
 		pm = 0;
 		olpc_ec_cmd(EC_DCON_POWER_MODE, &pm, 1, NULL, 0);
 		msleep(100);
@@ -202,8 +449,8 @@ static void dcon_sleep(struct dcon_priv *dcon, bool sleep)
 	if (dcon->asleep == sleep)
 		return;
 
-	if (!olpc_board_at_least(olpc_board(0xc2)))
-		return;
+	//if (!olpc_board_at_least(olpc_board(0xc2)))
+	//	return;
 
 	if (sleep) {
 		u8 pm = 0;
@@ -321,7 +568,8 @@ static void dcon_source_switch(struct work_struct *work)
 		}
 
 		/* And turn off the DCON */
-		pdata->set_dconload(1);
+		//pdata->set_dconload(1);
+		dcon_set_dconload_1_75(1);
 		dcon->load_time = ktime_get();
 
 		pr_info("The CPU has control\n");
@@ -333,7 +581,8 @@ static void dcon_source_switch(struct work_struct *work)
 		pr_info("%s to DCON\n", __func__);
 
 		/* Clear DCONLOAD - this implies that the DCON is in control */
-		pdata->set_dconload(0);
+		//pdata->set_dconload(0);
+		dcon_set_dconload_1_75(0);
 		dcon->load_time = ktime_get();
 
 		wait_event_timeout(dcon->waitq, dcon->switched, HZ / 2);
@@ -356,9 +605,11 @@ static void dcon_source_switch(struct work_struct *work)
 			if (dcon->switched && ktime_to_ns(delta_t)
 			    < NSEC_PER_MSEC * 20) {
 				pr_err("missed loading, retrying\n");
-				pdata->set_dconload(1);
+				//pdata->set_dconload(1);
+				dcon_set_dconload_1_75(1);
 				mdelay(41);
-				pdata->set_dconload(0);
+				//pdata->set_dconload(0);
+				dcon_set_dconload_1_75(0);
 				dcon->load_time = ktime_get();
 				mdelay(41);
 			}
@@ -573,7 +824,8 @@ static int dcon_reboot_notify(struct notifier_block *nb,
 static int unfreeze_on_panic(struct notifier_block *nb,
 			     unsigned long e, void *p)
 {
-	pdata->set_dconload(1);
+	//pdata->set_dconload(1);
+	dcon_set_dconload_1_75(1);
 	return NOTIFY_DONE;
 }
 
@@ -581,20 +833,17 @@ static struct notifier_block dcon_panic_nb = {
 	.notifier_call = unfreeze_on_panic,
 };
 
-static int dcon_detect(struct i2c_client *client, struct i2c_board_info *info)
+static int hx8837_detect(struct i2c_client *client, struct i2c_board_info *info)
 {
-	strlcpy(info->type, "olpc_dcon", I2C_NAME_SIZE);
+	strlcpy(info->type, "hx8837", I2C_NAME_SIZE);
 
 	return 0;
 }
 
-static int dcon_probe(struct i2c_client *client, const struct i2c_device_id *id)
+static int hx8837_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	struct dcon_priv *dcon;
 	int rc, i, j;
-
-	if (!pdata)
-		return -ENXIO;
 
 	dcon = kzalloc(sizeof(*dcon), GFP_KERNEL);
 	if (!dcon)
@@ -676,7 +925,7 @@ static int dcon_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	return rc;
 }
 
-static int dcon_remove(struct i2c_client *client)
+static int hx8837_remove(struct i2c_client *client)
 {
 	struct dcon_priv *dcon = i2c_get_clientdata(client);
 
@@ -697,7 +946,7 @@ static int dcon_remove(struct i2c_client *client)
 }
 
 #ifdef CONFIG_PM
-static int dcon_suspend(struct device *dev)
+static int hx8837_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct dcon_priv *dcon = i2c_get_clientdata(client);
@@ -710,7 +959,7 @@ static int dcon_suspend(struct device *dev)
 	return 0;
 }
 
-static int dcon_resume(struct device *dev)
+static int hx8837_resume(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct dcon_priv *dcon = i2c_get_clientdata(client);
@@ -735,8 +984,9 @@ irqreturn_t dcon_interrupt(int irq, void *id)
 	struct dcon_priv *dcon = id;
 	u8 status;
 
-	if (pdata->read_status(&status))
-		return IRQ_NONE;
+	//if (pdata->read_status(&status))
+	//	return IRQ_NONE;
+	status = dcon_read_status_xo_1_75();
 
 	switch (status & 3) {
 	case 3:
@@ -771,51 +1021,44 @@ irqreturn_t dcon_interrupt(int irq, void *id)
 	return IRQ_HANDLED;
 }
 
-static const struct dev_pm_ops dcon_pm_ops = {
-	.suspend = dcon_suspend,
-	.resume = dcon_resume,
+static const struct dev_pm_ops hx8837_pm_ops = {
+	.suspend = hx8837_suspend,
+	.resume = hx8837_resume,
 };
 
-static const struct i2c_device_id dcon_idtable[] = {
-	{ "olpc_dcon",  0 },
+
+
+
+static const struct of_device_id hx8837_dt_ids[] = {
+	{ .compatible = "himax,hx8837", },
 	{ }
 };
-MODULE_DEVICE_TABLE(i2c, dcon_idtable);
+MODULE_DEVICE_TABLE(of, hx8837_dt_ids);
 
-static struct i2c_driver dcon_driver = {
+static const struct i2c_device_id hx8837_i2c_ids[] = {
+	{ .name = "hx8837", },
+	{ }
+};
+MODULE_DEVICE_TABLE(i2c, hx8837_i2c_ids);
+
+
+
+
+static struct i2c_driver hx8837_driver = {
 	.driver = {
-		.name	= "olpc_dcon",
-		.pm = &dcon_pm_ops,
+		.name = "hx8837",
+		.pm = &hx8837_pm_ops,
+		.of_match_table = hx8837_dt_ids,
 	},
 	.class = I2C_CLASS_DDC | I2C_CLASS_HWMON,
-	.id_table = dcon_idtable,
-	.probe = dcon_probe,
-	.remove = dcon_remove,
-	.detect = dcon_detect,
+	.id_table = hx8837_i2c_ids,
+	.probe = hx8837_probe,
+	.remove = hx8837_remove,
+	.detect = hx8837_detect,
 	.address_list = normal_i2c,
 };
 
-static int __init olpc_dcon_init(void)
-{
-#ifdef CONFIG_FB_OLPC_DCON_1_5
-	/* XO-1.5 */
-	if (olpc_board_at_least(olpc_board(0xd0)))
-		pdata = &dcon_pdata_xo_1_5;
-#endif
-#ifdef CONFIG_FB_OLPC_DCON_1
-	if (!pdata)
-		pdata = &dcon_pdata_xo_1;
-#endif
+module_i2c_driver(hx8837_driver);
 
-	return i2c_add_driver(&dcon_driver);
-}
-
-static void __exit olpc_dcon_exit(void)
-{
-	i2c_del_driver(&dcon_driver);
-}
-
-module_init(olpc_dcon_init);
-module_exit(olpc_dcon_exit);
-
+MODULE_DESCRIPTION("HX8837 Display Controller Driver");
 MODULE_LICENSE("GPL");
