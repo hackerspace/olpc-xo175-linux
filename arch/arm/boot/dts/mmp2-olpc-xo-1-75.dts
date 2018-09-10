@@ -1,0 +1,177 @@
+/dts-v1/;
+#include "mmp2.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	model = "OLPC XO-1.75";
+	compatible = "olpc,xo-1.75", "mrvl,mmp2";
+
+	chosen {
+		/* bootargs = "console=ttyS2,115200 earlyprintk root=upadol rdinit=/bin/sh"; */
+		/* bootargs = "console=ttyS2,115200 earlyprintk root=/dev/ram0"; */
+		bootargs = "console=tty0 console=ttyS2,115200 earlyprintk root=upadol rdinit=/sbin/init vt.color=0xf0 fbcon=font:OLPC15x30";
+	};
+
+	memory {
+		reg = <0x0 0x20000000>;
+		available = <0x1000 0x1efff000>;
+	};
+
+	dcon_i2c {
+		compatible = "i2c-gpio";
+		gpios = <&gpio 110 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)
+		         &gpio 161 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		i2c-gpio,timeout-ms = <1000>;
+		status = "okay";
+
+		dcon@d {
+			compatible = "himax,hx8837";
+			stat-gpios = <&gpio 100 GPIO_ACTIVE_HIGH
+			              &gpio 101 GPIO_ACTIVE_HIGH>;
+			load-gpio = <&gpio 142 GPIO_ACTIVE_HIGH>;
+			irq-gpio = <&gpio 124 GPIO_ACTIVE_HIGH>;
+			reg = <0x0d>;
+			status = "okay";
+		};
+	};
+
+	panel {
+		compatible = "innolux,ls075at011", "simple-panel";
+		width-mm = <152>;
+		height-mm = <115>;
+
+		panel-timing {
+			/* 1200x900 @50Hz */
+			hactive = <1200>;
+			vactive = <900>;
+			clock-frequency = <56930000>;
+			hback-porch = <24>;
+			hfront-porch = <26>;
+			vback-porch = <5>;
+			vfront-porch = <4>;
+			hsync-len = <6>;
+			vsync-len = <3>;
+		};
+
+		port {
+			panel_in: endpoint {
+				remote-endpoint = <&lcd_out_con>;
+			};
+		};
+	};
+
+	soc {
+		axi@d4200000 {
+			ap-sp@d4290000 {
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				clocks = <&soc_clocks MMP2_CLK_SP>;
+				clock-names = "sp";
+				compatible = "olpc,ap-sp";
+				interrupts = <40>;
+				reg = <0xd4290000 0x1000>;
+				data-gpios = <&gpio 72 GPIO_ACTIVE_HIGH>;
+				clk-gpios = <&gpio 71 GPIO_ACTIVE_HIGH>;
+				status = "okay";
+			};
+		};
+	};
+};
+
+&uart3 {
+	status = "okay";
+};
+
+&rtc {
+	status = "okay";
+};
+
+&mmc1 {
+	clock-frequency = <50000000>;
+	bus-width = <8>;
+	no-1-8-v;
+	power-gpios = <&gpio 35 GPIO_ACTIVE_HIGH>;
+	mrvl,clk-delay-cycles = <31>;
+	broken-cd;
+	status = "okay";
+};
+
+&mmc2 {
+	clock-frequency = <50000000>;
+	bus-width = <8>;
+	non-removable;
+	broken-cd;
+	/*xxx power-delay-ms = <0x32 0x1f4>; */
+	power-gpios = <&gpio 34 GPIO_ACTIVE_HIGH>;
+	reset-gpios = <&gpio 58 GPIO_ACTIVE_LOW>; /* ceck */
+	wakeup-source;
+	keep-power-in-suspend;
+	mrvl,clk-delay-cycles = <31>;
+	status = "okay";
+};
+
+&mmc3 {
+	clock-frequency = <50000000>;
+	bus-width = <8>;
+	non-removable;
+	broken-cd;
+	power-gpios = <&gpio 33 GPIO_ACTIVE_HIGH>;
+	mrvl,clk-delay-cycles = <31>;
+	status = "okay";
+};
+
+&twsi1 {
+	status = "okay";
+
+	codec: alc5631@1a {
+		compatible = "realtek,alc5631";
+		reg = <0x1a>;
+		status = "okay";
+	};
+};
+
+&twsi2 {
+	// rtc
+	status = "okay";
+};
+
+&twsi6 {
+	status = "okay";
+
+        accelerometer: lis3lv02d@1d {
+                compatible = "st,lis331dlh", "st,lis3lv02d";
+                reg = <0x1d>;
+		status = "okay";
+        };
+};
+
+&lcdc {
+	status = "okay";
+
+	port {
+		lcd_out_con: endpoint {
+			remote-endpoint = <&panel_in>;
+		};
+	};
+};
+
+&ehci0 {
+	status = "okay";
+};
+
+&gpu {
+	status = "okay";
+};
+
+&spi0 {
+	spi-slave;
+	status = "okay";
+
+	slave {
+		compatible = "olpc,xo1.75-ec";
+		ack-gpio = <&gpio 125 GPIO_ACTIVE_HIGH>;
+		cmd-gpio = <&gpio 155 GPIO_ACTIVE_HIGH>;
+	};
+};
