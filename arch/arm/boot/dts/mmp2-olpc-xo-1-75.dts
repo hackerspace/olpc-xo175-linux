@@ -29,6 +29,7 @@
 			height = <900>;
 			stride = <(1200 * 2)>;
 			format = "r5g6b5";
+			display = <&lcd0>;
 			clocks = <&soc_clocks MMP2_CLK_DISP0_LCDC>,
 				 <&soc_clocks MMP2_CLK_DISP0>;
 		};
@@ -87,6 +88,56 @@
 		};
 	};
 
+	i2c-1 {
+		compatible = "i2c-gpio";
+		sda-gpios = <&gpio 110 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		scl-gpios = <&gpio 161 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		i2c-gpio,timeout-ms = <1000>;
+		status = "okay";
+
+		dcon@d {
+			compatible = "himax,hx8837";
+			stat-gpios = <&gpio 100 GPIO_ACTIVE_HIGH>,
+				     <&gpio 101 GPIO_ACTIVE_HIGH>;
+			load-gpio = <&gpio 142 GPIO_ACTIVE_HIGH>;
+			interrupt-parent= <&gpio>;
+			interrupts = <124 IRQ_TYPE_EDGE_FALLING>;
+			reg = <0x0d>;
+			status = "okay";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@0 {
+					reg = <0>;
+					dcon_rgb_in: endpoint {
+						remote-endpoint = <&lcd0_rgb_out>;
+					};
+				};
+
+				port@1 {
+					reg = <1>;
+					dcon_gettl_out: endpoint {
+						remote-endpoint = <&panel_dettl_in>;
+					};
+				};
+			};
+		};
+	};
+
+	panel {
+		compatible = "innolux,ls075at011", "simple-panel";
+
+		port {
+			panel_dettl_in: endpoint {
+				remote-endpoint = <&dcon_gettl_out>;
+			};
+		};
+	};
+
 	battery {
 		compatible = "olpc,xo1.5-battery", "olpc,xo1-battery";
 	};
@@ -130,6 +181,20 @@
 				clk-gpios = <&gpio 71 GPIO_ACTIVE_HIGH>;
 				status = "okay";
 			};
+		};
+	};
+
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		display_reserved: framebuffer {
+			compatible = "marvell,mmp2-framebuffer",
+				     "marvell,armada-framebuffer";
+			size = <0x02000000>;
+			alignment = <0x02000000>;
+			no-map;
 		};
 	};
 };
@@ -237,6 +302,17 @@
 		reg = <0x1d>;
 		status = "okay";
 	};
+};
+
+&lcd0 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&lcd0_pins>;
+};
+
+&lcd0_rgb_out {
+	bus-width = <18>;
+	remote-endpoint = <&dcon_rgb_in>;
 };
 
 &ssp3 {
