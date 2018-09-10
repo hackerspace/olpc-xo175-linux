@@ -41,6 +41,20 @@
 			reg = <0xd4200000 0x00200000>;
 			ranges;
 
+			lcd0: lcdc@d420b000 {
+				compatible = "marvell,mmp2-lcd", "marvell,armada-lcdc";
+				reg = <0xd420b000 0x1000>;
+				interrupts = <41>;
+				clocks = <&soc_clocks MMP2_CLK_DISP0>;
+				clock-names = "axiclk";
+				status = "disabled";
+
+				lcd0_port: port {
+					lcd0_rgb_out: endpoint {
+					};
+				};
+			};
+
 			intc: interrupt-controller@d4282000 {
 				compatible = "mrvl,mmp2-intc";
 				interrupt-controller;
@@ -171,6 +185,28 @@
 				clocks = <&soc_clocks MMP2_CLK_SDH3>;
 				clock-names = "io";
 				interrupts = <54>;
+				status = "disabled";
+			};
+
+			camera0: camera@d420a000 {
+				compatible = "marvell,mmp2-ccic";
+				reg = <0xd420a000 0x800>;
+				interrupts = <42>;
+				clocks = <&soc_clocks MMP2_CLK_CCIC0>;
+				clock-names = "axi";
+				#clock-cells = <0>;
+				clock-output-names = "mclk";
+				status = "disabled";
+			};
+
+			camera1: camera@d420a800 {
+				compatible = "marvell,mmp2-ccic";
+				reg = <0xd420a800 0x800>;
+				interrupts = <30>;
+				clocks = <&soc_clocks MMP2_CLK_CCIC1>;
+				clock-names = "axi";
+				#clock-cells = <0>;
+				clock-output-names = "mclk";
 				status = "disabled";
 			};
 		};
