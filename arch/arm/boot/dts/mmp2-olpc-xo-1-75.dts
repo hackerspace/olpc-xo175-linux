@@ -19,6 +19,7 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		ranges;
+		bootargs = "console=tty0 console=ttyS2,115200 earlyprintk root=/dev/mmcblk0p3 fsck.repair=yes rootwait";
 
 		framebuffer@1fc00000 {
 			compatible = "simple-framebuffer";
@@ -27,6 +28,7 @@
 			height = <900>;
 			stride = <(1200 * 2)>;
 			format = "r5g6b5";
+			display = <&lcd0>;
 			clocks = <&soc_clocks MMP2_CLK_DISP0_LCDC>,
 				 <&soc_clocks MMP2_CLK_DISP0>;
 		};
@@ -77,10 +79,51 @@
 		};
 	};
 
+	dcon_i2c {
+		compatible = "i2c-gpio";
+		gpios = <&gpio 110 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>,
+		        <&gpio 161 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		i2c-gpio,timeout-ms = <1000>;
+		status = "okay";
+
+		dcon@d {
+			compatible = "himax,hx8837";
+			stat-gpios = <&gpio 100 GPIO_ACTIVE_HIGH>,
+			             <&gpio 101 GPIO_ACTIVE_HIGH>;
+			load-gpio = <&gpio 142 GPIO_ACTIVE_HIGH>;
+			interrupt-parent= <&gpio>;
+			interrupts = <124 IRQ_TYPE_EDGE_FALLING>;
+			reg = <0x0d>;
+			status = "okay";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@0 {
+					reg = <0>;
+					dcon_rgb_in: endpoint {
+						remote-endpoint = <&lcd0_rgb_out>;
+					};
+				};
+
+				port@1 {
+					reg = <1>;
+					dcon_gettl_out: endpoint {
+						remote-endpoint = <&panel_dettl_in>;
+					};
+				};
+			};
+		};
+	};
+
 	camera_i2c {
 		compatible = "i2c-gpio";
 		gpios = <&gpio 109 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>,
 			<&gpio 108 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+
 		#address-cells = <1>;
 		#size-cells = <0>;
 		i2c-gpio,timeout-ms = <1000>;
@@ -100,6 +143,16 @@
 					vsync-active = <1>;
 					remote-endpoint = <&camera0_0>;
 				};
+			};
+		};
+	};
+
+	panel {
+		compatible = "innolux,ls075at011", "simple-panel";
+
+		port {
+			panel_dettl_in: endpoint {
+				remote-endpoint = <&dcon_gettl_out>;
 			};
 		};
 	};
@@ -135,6 +188,20 @@
 				clk-gpios = <&gpio 71 GPIO_ACTIVE_HIGH>;
 				status = "okay";
 			};
+		};
+	};
+
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		display_reserved: framebuffer {
+			compatible = "marvell,mmp2-framebuffer",
+			             "marvell,armada-framebuffer";
+			size = <0x02000000>;
+			alignment = <0x02000000>;
+			no-map;
 		};
 	};
 };
@@ -220,6 +287,15 @@
 	};
 };
 
+&lcd0 {
+	status = "okay";
+};
+
+&lcd0_rgb_out {
+	bus-width = <18>;
+	remote-endpoint = <&dcon_rgb_in>;
+};
+
 &ssp3 {
 	#address-cells = <0>;
 	spi-slave;
@@ -241,4 +317,12 @@
 			remote-endpoint = <&ov7670_0>;
 		};
 	};
+};
+
+&gpu {
+	status = "okay";
+	assigned-clocks = <&soc_clocks MMP2_CLK_GPU_GC_MUX>,
+			  <&soc_clocks MMP2_CLK_GPU_BUS_MUX>;
+	assigned-clock-parents = <&soc_clocks MMP2_CLK_USB_PLL>,
+				 <&soc_clocks MMP2_CLK_USB_PLL>;
 };
