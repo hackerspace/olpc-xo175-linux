@@ -110,6 +110,31 @@
 		};
 	};
 
+	panel {
+		compatible = "innolux,ls075at011", "simple-panel";
+		width-mm = <152>;
+		height-mm = <115>;
+
+		panel-timing {
+			/* 1200x900 @50Hz */
+			hactive = <1200>;
+			vactive = <900>;
+			clock-frequency = <56930000>;
+			hback-porch = <24>;
+			hfront-porch = <26>;
+			vback-porch = <5>;
+			vfront-porch = <4>;
+			hsync-len = <6>;
+			vsync-len = <3>;
+		};
+
+		port {
+			panel_in: endpoint {
+				remote-endpoint = <&lcd_out_con>;
+			};
+		};
+	};
+
 	battery {
 		compatible = "olpc,xo1.5-battery", "olpc,xo1-battery";
 	};
@@ -225,6 +250,16 @@
 		compatible = "st,lis331dlh", "st,lis3lv02d";
 		reg = <0x1d>;
 		status = "okay";
+	};
+};
+
+&lcdc {
+	status = "okay";
+
+	port {
+		lcd_out_con: endpoint {
+			remote-endpoint = <&panel_in>;
+		};
 	};
 };
 
