@@ -21,6 +21,7 @@
 #include <linux/i2c.h>
 #include <linux/interrupt.h>
 #include <linux/notifier.h>
+#include <linux/olpc-ec.h>
 #include <linux/reboot.h>
 
 /* DCON registers */
@@ -111,6 +112,33 @@ struct dcon_priv {
 
 static irqreturn_t dcon_interrupt(int irq, void *id);
 
+#if 0
+#define GPIO_SMBCLK	161
+#define GPIO_SMBDATA	110
+
+static void dcon_wiggle(void)
+{
+	int x;
+
+	/*
+	 * According to HiMax, when powering the DCON up we should hold
+	 * SMB_DATA high for 8 SMB_CLK cycles.  This will force the DCON
+	 * state machine to reset to a (sane) initial state.  Mitch Bradley
+	 * did some testing and discovered that holding for 16 SMB_CLK cycles
+	 * worked a lot more reliably, so that's what we do here.
+	 */
+	gpio_set_value(GPIO_SMBDATA, 1); /* should be high the entire time */
+
+	for (x = 0; x < 16; x++) {
+		udelay(5);
+		gpio_set_value(GPIO_SMBCLK, 0);
+		udelay(5);
+		gpio_set_value(GPIO_SMBCLK, 1);
+	}
+	udelay(5);
+}
+#endif
+
 /* Module definitions */
 
 static ushort resumeline = 898;
@@ -148,6 +176,54 @@ static void dcon_hw_init(struct dcon_priv *dcon, int is_init)
 
 	/* Set the scanline to interrupt on during resume */
 	dcon_write(dcon, DCON_REG_SCAN_INT, resumeline);
+}
+
+/*
+ * The smbus doesn't always come back due to what is believed to be
+ * hardware (power rail) bugs.  For older models where this is known to
+ * occur, our solution is to attempt to wait for the bus to stabilize;
+ * if it doesn't happen, cut power to the dcon, repower it, and wait
+ * for the bus to stabilize.  Rinse, repeat until we have a working
+ * smbus.  For newer models, we simply BUG(); we want to know if this
+ * still happens despite the power fixes that have been made!
+ */
+static int dcon_bus_stabilize(struct dcon_priv *dcon, int is_powered_down)
+{
+	struct device *dev = &dcon->client->dev;
+	unsigned long timeout;
+	u8 pm;
+	int x;
+
+power_up:
+	if (is_powered_down) {
+		pm = 1;
+		x = olpc_ec_cmd(EC_DCON_POWER_MODE, &pm, 1, NULL, 0);
+		if (x) {
+			dev_warn(dev, "unable to power dcon up: %d!\n", x);
+			return x;
+		}
+		usleep_range(10000, 11000);  /* we'll be conservative */
+	}
+
+	//dcon_wiggle();
+
+	for (x = -1, timeout = 50; timeout && x < 0; timeout--) {
+		usleep_range(1000, 1100);
+		x = dcon_read(dcon, DCON_REG_ID);
+	}
+	if (x < 0) {
+		dev_err(dev, "unable to stabilize smbus, reasserting power.\n");
+		//BUG_ON(olpc_board_at_least(olpc_board(0xc2)));
+		pm = 0;
+		olpc_ec_cmd(EC_DCON_POWER_MODE, &pm, 1, NULL, 0);
+		msleep(100);
+		is_powered_down = 1;
+		goto power_up;	/* argh, stupid hardware.. */
+	}
+
+	if (is_powered_down)
+		dcon_hw_init(dcon, 0);
+	return 0;
 }
 
 static void dcon_set_backlight(struct dcon_priv *dcon, u8 level)
@@ -647,6 +723,7 @@ static int hx8837_suspend(struct device *dev)
 	struct i2c_client *client = to_i2c_client(dev);
 	struct dcon_priv *dcon = i2c_get_clientdata(client);
 
+	/* Set up the DCON to have the source */
 	dcon_set_source_sync(dcon, DCON_SOURCE_DCON);
 
 	return 0;
@@ -657,6 +734,7 @@ static int hx8837_resume(struct device *dev)
 	struct i2c_client *client = to_i2c_client(dev);
 	struct dcon_priv *dcon = i2c_get_clientdata(client);
 
+	dcon_bus_stabilize(dcon, 0);
 	dcon_set_source(dcon, DCON_SOURCE_CPU);
 
 	return 0;
