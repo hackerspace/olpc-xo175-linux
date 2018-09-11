@@ -513,6 +513,22 @@ config MISC_RTSX
 	tristate
 	default MISC_RTSX_PCI || MISC_RTSX_USB
 
+config HX8837_DCON
+        tristate "HiMax HX8837 Display Controller on OLPC"
+        depends on I2C
+        depends on BACKLIGHT_LCD_SUPPORT
+        select BACKLIGHT_CLASS_DEVICE
+        help
+          In order to support very low power operation, the OLPC XO laptop uses a
+          secondary Display Controller, or DCON.  This secondary controller
+          is present in the video pipeline between the primary display
+          controller (integrate into the processor or chipset) and the LCD
+          panel.  It allows the main processor/display controller to be
+          completely powered off while still retaining an image on the display.
+          This controller is only available on OLPC platforms.
+
+          Unless you have an OLPC XO laptop, you will want to say N.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
