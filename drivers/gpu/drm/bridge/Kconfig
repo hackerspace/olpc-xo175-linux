@@ -48,6 +48,23 @@ config DRM_DISPLAY_CONNECTOR
 	  on ARM-based platforms. Saying Y here when this driver is not needed
 	  will not cause any issue.
 
+config DRM_HIMAX_HX8837
+        tristate "HiMax HX8837 OLPC Display Controller"
+	depends on OF
+	depends on OLPC || ARCH_MMP || COMPILE_TEST
+	select DRM_KMS_HELPER
+        select BACKLIGHT_LCD_SUPPORT
+        select BACKLIGHT_CLASS_DEVICE
+        help
+          Support for HiMax HX8837 Display Controller on an OLPC XO laptop.
+
+          The HX8837 encodes R5G6B6 signal from the CRTC for panel's DETTL
+          interface, optionally enabing color swizzling. It is also capable
+          of freezing a single frame with LCD controller turned off for low
+          power operation and controlling the backlight.
+
+          If your laptop doesn't have green ears, say "N"
+
 config DRM_LVDS_CODEC
 	tristate "Transparent LVDS encoders and decoders support"
 	depends on OF
