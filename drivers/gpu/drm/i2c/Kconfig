@@ -32,4 +32,17 @@ config DRM_I2C_NXP_TDA9950
 	select CEC_NOTIFIER
 	select CEC_CORE
 
+config DRM_I2C_HX8837
+	tristate "HiMax HX8837 OLPC Display Controller"
+	select BACKLIGHT_LCD_SUPPORT
+	select BACKLIGHT_CLASS_DEVICE
+	help
+	  Support for HiMax HX8837 Display Controller on an OLPC XO laptop.
+
+	  The HX8837 encodes R5G6B6 signal from the CRTC for panel's DETTL
+	  interface, optionally enabing color swizzling. It is also capable
+	  of freezing a single frame with LCD controller turned off for low
+	  power operation and controlling the backlight.
+
+	  If your laptop doesn't have green ears, say "N"
 endmenu
