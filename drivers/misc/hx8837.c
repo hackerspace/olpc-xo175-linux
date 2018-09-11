@@ -101,6 +101,7 @@ struct dcon_priv {
 
 	/* Current output type; true == mono, false == color */
 	bool mono;
+	bool asleep;
 	/* This get set while controlling fb blank state from the driver */
 	bool ignore_fb_events;
 
@@ -228,10 +229,11 @@ power_up:
 
 static void dcon_set_backlight(struct dcon_priv *dcon, u8 level)
 {
-	dcon_write(dcon, DCON_REG_BRIGHT, level);
+	dcon->bl_val = level;
+	dcon_write(dcon, DCON_REG_BRIGHT, dcon->bl_val);
 
 	/* Purposely turn off the backlight when we go to level 0 */
-	if (level == 0) {
+	if (dcon->bl_val == 0) {
 		dcon->disp_mode &= ~MODE_BL_ENABLE;
 		dcon_write(dcon, DCON_REG_MODE, dcon->disp_mode);
 	} else if (!(dcon->disp_mode & MODE_BL_ENABLE)) {
@@ -258,6 +260,45 @@ static int dcon_set_mono_mode(struct dcon_priv *dcon, bool enable_mono)
 
 	dcon_write(dcon, DCON_REG_MODE, dcon->disp_mode);
 	return 0;
+}
+
+/* For now, this will be really stupid - we need to address how
+ * DCONLOAD works in a sleep and account for it accordingly
+ */
+
+static void dcon_sleep(struct dcon_priv *dcon, bool sleep)
+{
+	struct device *dev = &dcon->client->dev;
+	int x;
+
+	/* Turn off the backlight and put the DCON to sleep */
+
+	if (dcon->asleep == sleep)
+		return;
+
+	if (sleep) {
+		u8 pm = 0;
+
+		x = olpc_ec_cmd(EC_DCON_POWER_MODE, &pm, 1, NULL, 0);
+		if (x)
+			dev_warn(dev, "unable to power dcon down: %d!\n", x);
+		else
+			dcon->asleep = sleep;
+	} else {
+		/* Only re-enable the backlight if the backlight value is set */
+		if (dcon->bl_val != 0)
+			dcon->disp_mode |= MODE_BL_ENABLE;
+		x = dcon_bus_stabilize(dcon, 1);
+		if (x)
+			dev_warn(dev, "unable to reinit dcon: %d!\n", x);
+		else
+			dcon->asleep = sleep;
+
+		/* Restore backlight */
+		dcon_set_backlight(dcon, dcon->bl_val);
+	}
+
+	/* We should turn off some stuff in the framebuffer - but what? */
 }
 
 /* the DCON seems to get confused if we change DCONLOAD too
@@ -429,6 +470,14 @@ static ssize_t dcon_mode_show(struct device *dev,
 	return sprintf(buf, "%4.4X\n", dcon->disp_mode);
 }
 
+static ssize_t dcon_sleep_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct dcon_priv *dcon = dev_get_drvdata(dev);
+
+	return sprintf(buf, "%d\n", dcon->asleep);
+}
+
 static ssize_t dcon_freeze_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -511,8 +560,23 @@ static ssize_t dcon_resumeline_store(struct device *dev,
 	return count;
 }
 
+static ssize_t dcon_sleep_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned long output;
+	int ret;
+
+	ret = kstrtoul(buf, 10, &output);
+	if (ret)
+		return ret;
+
+	dcon_sleep(dev_get_drvdata(dev), output ? true : false);
+	return count;
+}
+
 static struct device_attribute dcon_device_files[] = {
 	__ATTR(mode, 0444, dcon_mode_show, NULL),
+	__ATTR(sleep, 0644, dcon_sleep_show, dcon_sleep_store),
 	__ATTR(freeze, 0644, dcon_freeze_show, dcon_freeze_store),
 	__ATTR(monochrome, 0644, dcon_mono_show, dcon_mono_store),
 	__ATTR(resumeline, 0644, dcon_resumeline_show, dcon_resumeline_store),
@@ -523,15 +587,15 @@ static int dcon_bl_update(struct backlight_device *dev)
 	struct dcon_priv *dcon = bl_get_data(dev);
 	u8 level = dev->props.brightness & 0x0F;
 
-	dcon->bl_val = level;
-
 	if (dev->props.power != FB_BLANK_UNBLANK)
 		level = 0;
 
-	if (dev->props.state & BL_CORE_FBBLANK)
-		level = 0;
+	if (level != dcon->bl_val)
+		dcon_set_backlight(dcon, level);
 
-	dcon_set_backlight(dcon, level);
+	/* power down the DCON when the screen is blanked */
+	if (!dcon->ignore_fb_events)
+		dcon_sleep(dcon, !!(dev->props.state & BL_CORE_FBBLANK));
 
 	return 0;
 }
@@ -723,8 +787,10 @@ static int hx8837_suspend(struct device *dev)
 	struct i2c_client *client = to_i2c_client(dev);
 	struct dcon_priv *dcon = i2c_get_clientdata(client);
 
-	/* Set up the DCON to have the source */
-	dcon_set_source_sync(dcon, DCON_SOURCE_DCON);
+	if (!dcon->asleep) {
+		/* Set up the DCON to have the source */
+		dcon_set_source_sync(dcon, DCON_SOURCE_DCON);
+	}
 
 	return 0;
 }
@@ -734,8 +800,10 @@ static int hx8837_resume(struct device *dev)
 	struct i2c_client *client = to_i2c_client(dev);
 	struct dcon_priv *dcon = i2c_get_clientdata(client);
 
-	dcon_bus_stabilize(dcon, 0);
-	dcon_set_source(dcon, DCON_SOURCE_CPU);
+	if (!dcon->asleep) {
+		dcon_bus_stabilize(dcon, 0);
+		dcon_set_source(dcon, DCON_SOURCE_CPU);
+	}
 
 	return 0;
 }
