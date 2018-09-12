@@ -708,26 +708,11 @@ static const struct i2c_device_id hx8837_i2c_ids[] = {
 };
 MODULE_DEVICE_TABLE(i2c, hx8837_i2c_ids);
 
-DEVICE_ATTR_RO(mode);
-DEVICE_ATTR_RW(freeze);
-DEVICE_ATTR_RW(monochrome);
-DEVICE_ATTR_RW(resumeline);
-
-static struct attribute *hx8837_attrs[] = {
-	&dev_attr_mode.attr,
-	&dev_attr_freeze.attr,
-	&dev_attr_monochrome.attr,
-	&dev_attr_resumeline.attr,
-	NULL,
-};
-ATTRIBUTE_GROUPS(hx8837);
-
 static struct i2c_driver hx8837_driver = {
 	.driver = {
 		.name = "hx8837",
 		.pm = &hx8837_pm_ops,
 		.of_match_table = hx8837_dt_ids,
-		.groups = hx8837_groups,
 	},
 	.class = I2C_CLASS_DDC | I2C_CLASS_HWMON,
 	.id_table = hx8837_i2c_ids,
@@ -738,6 +723,38 @@ static struct i2c_driver hx8837_driver = {
 };
 
 module_i2c_driver(hx8837_driver);
+
+static struct class *dcon_class;
+
+DEVICE_ATTR_RO(mode);
+DEVICE_ATTR_RW(freeze);
+DEVICE_ATTR_RW(monochrome);
+DEVICE_ATTR_RW(resumeline);
+
+static struct attribute *dcon_attrs[] = {
+	&dev_attr_mode.attr,
+	&dev_attr_freeze.attr,
+	&dev_attr_monochrome.attr,
+	&dev_attr_resumeline.attr,
+	NULL,
+};
+ATTRIBUTE_GROUPS(dcon);
+
+static int __init hx8837_init(void)
+{
+	dcon_class = class_create(THIS_MODULE, "dcon");
+	if (IS_ERR(dcon_class))
+		return PTR_ERR(dcon_class);
+	dcon_class->dev_groups = dcon_groups;
+
+}
+module_init(hx8837_init);
+
+static void __exit hx8837_exit(void)
+{
+        class_destroy(dcon_class);
+}
+module_exit(hx8837_exit);
 
 MODULE_DESCRIPTION("HX8837 Display Controller Driver");
 MODULE_LICENSE("GPL v2");
