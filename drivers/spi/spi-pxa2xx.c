@@ -600,6 +600,7 @@ static void int_error_stop(struct driver_data *drv_data, const char* msg)
 	dev_err(&drv_data->pdev->dev, "%s\n", msg);
 
 	drv_data->master->cur_msg->status = -EIO;
+	gpiod_set_value(drv_data->gpiod_ack, 0);
 	spi_finalize_current_transfer(drv_data->master);
 }
 
@@ -611,6 +612,7 @@ static void int_transfer_complete(struct driver_data *drv_data)
 	if (!pxa25x_ssp_comp(drv_data))
 		pxa2xx_spi_write(drv_data, SSTO, 0);
 
+	gpiod_set_value(drv_data->gpiod_ack, 0);
 	spi_finalize_current_transfer(drv_data->master);
 }
 
@@ -646,6 +648,8 @@ static irqreturn_t interrupt_transfer(struct driver_data *drv_data)
 			return IRQ_HANDLED;
 		}
 	} while (drv_data->write(drv_data));
+
+	gpiod_set_value(drv_data->gpiod_ack, 1);
 
 	if (drv_data->read(drv_data)) {
 		int_transfer_complete(drv_data);
@@ -1076,8 +1080,11 @@ static int pxa2xx_spi_transfer_one(struct spi_controller *master,
 			pxa2xx_spi_write(drv_data, SSTO, chip->timeout);
 	}
 
+#if 0
 	if (spi_controller_is_slave (master))
 		while (drv_data->write(drv_data));
+	gpiod_set_value(drv_data->gpiod_ack, 1);
+#endif
 
 	/*
 	 * Release the data by enabling service requests and interrupts,
@@ -1754,6 +1761,15 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 			} else {
 				drv_data->cs_gpiods[i] = gpiod;
 			}
+		}
+	}
+
+	if (platform_info->is_slave) {
+		drv_data->gpiod_ack = devm_gpiod_get_optional(dev, "ack",
+							GPIOD_OUT_LOW);
+		if (IS_ERR(drv_data->gpiod_ack)) {
+			status = (int)PTR_ERR(drv_data->gpiod_ack);
+			goto out_error_clock_enabled;
 		}
 	}
 
