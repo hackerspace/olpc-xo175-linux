@@ -10,4 +10,5 @@ time make ARCH=arm CROSS_COMPILE=arm-linux-gnu- -j$(awk '/^processor/ {n++} END 
 [ -d /run/media/lkundrak/19DE-9DE4 ] && /bin/cp arch/arm/boot/olpc-zImage /run/media/lkundrak/19DE-9DE4/boot/zImage && umount /run/media/lkundrak/*
 [ -d /run/media/lkundrak/XO175 ] && su -c '/bin/cp arch/arm/boot/olpc-zImage /run/media/lkundrak/XO175/boot/zImage' && umount /run/media/lkundrak/*
 # scp arch/arm/boot/olpc-zImage root@172.31.50.116:/boot/zImage
+rsync -avr arch/arm/boot/olpc-zImage v3.sk:public_html/xo175/vmlinuz
 [ -e /dev/xoec ] && echo P1 >/dev/xoec 
