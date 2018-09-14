@@ -23,6 +23,7 @@
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/spi/spi.h>
+#include <asm/system_misc.h>
 
 struct ec_cmd_t {
 	u8 cmd;
@@ -578,6 +579,14 @@ static int olpc_xo175_ec_set_event_mask(unsigned int mask)
 	return olpc_ec_cmd(CMD_WRITE_EXT_SCI_MASK, args, 2, NULL, 0);
 }
 
+static void olpc_xo175_ec_restart(enum reboot_mode mode, const char *cmd)
+{
+	while (1) {
+		olpc_ec_cmd(CMD_POWER_CYCLE, NULL, 0, NULL, 0);
+		mdelay(1000);
+	}
+}
+
 static void olpc_xo175_ec_power_off(void)
 {
 	while (1) {
@@ -649,6 +658,8 @@ static int olpc_xo175_ec_remove(struct spi_device *spi)
 {
 	if (pm_power_off == olpc_xo175_ec_power_off)
 		pm_power_off = NULL;
+	if (arm_pm_restart == olpc_xo175_ec_restart)
+		arm_pm_restart = NULL;
 
 	spi_slave_abort(spi);
 
@@ -716,6 +727,8 @@ static int olpc_xo175_ec_probe(struct spi_device *spi)
 
 	if (pm_power_off == NULL)
 		pm_power_off = olpc_xo175_ec_power_off;
+	if (arm_pm_restart == NULL)
+		arm_pm_restart = olpc_xo175_ec_restart;
 
 	dev_info(&spi->dev, "OLPC XO-1.75 Embedded Controller driver\n");
 
