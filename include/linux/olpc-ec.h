@@ -26,7 +26,7 @@ struct olpc_ec_driver {
 	int (*ec_cmd)(u8, u8 *, size_t, u8 *, size_t, void *);
 };
 
-#ifdef CONFIG_OLPC
+#ifdef CONFIG_OLPC_EC
 
 extern void olpc_ec_driver_register(struct olpc_ec_driver *drv, void *arg);
 
@@ -38,6 +38,6 @@ extern int olpc_ec_cmd(u8 cmd, u8 *inbuf, size_t inlen, u8 *outbuf,
 static inline int olpc_ec_cmd(u8 cmd, u8 *inbuf, size_t inlen, u8 *outbuf,
 		size_t outlen) { return -ENODEV; }
 
-#endif /* CONFIG_OLPC */
+#endif /* CONFIG_OLPC_EC */
 
 #endif /* _LINUX_OLPC_EC_H */
