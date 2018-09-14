@@ -18,6 +18,7 @@ config OLPC_XO175_EC
 	depends on SPI_SLAVE
 	depends on INPUT
 	depends on POWER_SUPPLY
+	depends on ARM && (ARCH_MMP || COMPILE_TEST)
 	select OLPC_EC
 	help
 	  Include support for the OLPC XO Embedded Controller (EC). The EC
