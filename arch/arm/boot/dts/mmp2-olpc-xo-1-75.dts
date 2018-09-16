@@ -14,7 +14,9 @@
 	compatible = "olpc,xo-1.75", "mrvl,mmp2";
 
 	chosen {
-		bootargs = "console=tty0 console=ttyS2,115200 earlyprintk";
+		/* bootargs = "console=ttyS2,115200 earlyprintk root=upadol rdinit=/bin/sh"; */
+		/* bootargs = "console=ttyS2,115200 earlyprintk root=/dev/ram0"; */
+		bootargs = "console=tty0 console=ttyS2,115200 earlyprintk root=/dev/mmcblk0p1 rootwait";
 	};
 
 	memory {
@@ -106,6 +108,7 @@
 	clock-frequency = <50000000>;
 	bus-width = <8>;
 	no-1-8-v;
+	power-gpios = <&gpio 35 GPIO_ACTIVE_HIGH>;
 	mrvl,clk-delay-cycles = <31>;
 	broken-cd;
 	status = "okay";
@@ -116,10 +119,15 @@
 	bus-width = <8>;
 	non-removable;
 	broken-cd;
+	power-gpios = <&gpio 34 GPIO_ACTIVE_HIGH>;
+	reset-gpios = <&gpio 58 GPIO_ACTIVE_LOW>; /* ceck */
 	wakeup-source;
 	keep-power-in-suspend;
 	mrvl,clk-delay-cycles = <31>;
 	status = "okay";
+
+	wakeup-source;
+	keep-power-in-suspend;
 };
 
 &mmc3 {
@@ -127,6 +135,7 @@
 	bus-width = <8>;
 	non-removable;
 	broken-cd;
+	power-gpios = <&gpio 33 GPIO_ACTIVE_HIGH>;
 	mrvl,clk-delay-cycles = <31>;
 	status = "okay";
 };
