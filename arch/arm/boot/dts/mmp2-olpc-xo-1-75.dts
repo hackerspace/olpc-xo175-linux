@@ -13,6 +13,17 @@
 	model = "OLPC XO-1.75";
 	compatible = "olpc,xo-1.75", "mrvl,mmp2";
 
+	chosen {
+		/* bootargs = "console=ttyS2,115200 earlyprintk root=upadol rdinit=/bin/sh"; */
+		/* bootargs = "console=ttyS2,115200 earlyprintk root=/dev/ram0"; */
+		bootargs = "console=tty0 console=ttyS2,115200 earlyprintk root=/dev/mmcblk0p1 rootwait vt.color=0xf0 fbcon=font:OLPC15x30";
+	};
+
+	memory {
+		reg = <0x0 0x20000000>;
+		available = <0x1000 0x1efff000>;
+	};
+
 	dcon_i2c {
 		compatible = "i2c-gpio";
 		gpios = <&gpio 110 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>,
@@ -104,6 +115,7 @@
 	non-removable;
 	broken-cd;
 	power-gpios = <&gpio 34 GPIO_ACTIVE_HIGH>;
+	reset-gpios = <&gpio 58 GPIO_ACTIVE_LOW>; /* ceck */
 	wakeup-source;
 	keep-power-in-suspend;
 	mrvl,clk-delay-cycles = <31>;
