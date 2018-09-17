@@ -239,11 +239,6 @@ void __init olpc_dt_fixup(void)
 
 	pr_info("PROM DT: Old firmware detected, applying fixes\n");
 
-	/* Add olpc,xo1-battery compatible marker to battery node */
-	olpc_dt_interpret("\" /battery@0\" find-device"
-		" \" olpc,xo1-battery\" +compatible"
-		" device-end");
-
 	board_rev = olpc_dt_get_board_revision();
 	if (!board_rev)
 		return;
@@ -254,6 +249,11 @@ void __init olpc_dt_fixup(void)
 			" new-device"
 			" \" dcon\" device-name \" olpc,xo1-dcon\" +compatible"
 			" finish-device device-end");
+
+		/* Add olpc,xo1.5-battery compatible marker to battery node */
+		olpc_dt_interpret("\" /battery@0\" find-device"
+			" \" olpc,xo1.5-battery\" +compatible"
+			" device-end");
 	} else {
 		/* XO-1: add dcon device, mark RTC as olpc,xo1-rtc */
 		olpc_dt_interpret("\" /pci/display@1,1\" find-device"
@@ -264,6 +264,11 @@ void __init olpc_dt_fixup(void)
 			" \" olpc,xo1-rtc\" +compatible"
 			" device-end");
 	}
+
+	/* Add olpc,xo1-battery compatible marker to battery node */
+	olpc_dt_interpret("\" /battery@0\" find-device"
+		" \" olpc,xo1-battery\" +compatible"
+		" device-end");
 }
 
 void __init olpc_dt_build_devicetree(void)
@@ -289,6 +294,7 @@ void __init olpc_dt_build_devicetree(void)
 /* A list of DT node/bus matches that we want to expose as platform devices */
 static struct of_device_id __initdata of_ids[] = {
 	{ .compatible = "olpc,xo1-battery" },
+	{ .compatible = "olpc,xo1.5-battery" },
 	{ .compatible = "olpc,xo1-dcon" },
 	{ .compatible = "olpc,xo1-rtc" },
 	{},
