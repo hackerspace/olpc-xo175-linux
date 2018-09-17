@@ -22,7 +22,6 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 
-#include <asm/cputype.h>
 #include <asm/exception.h>
 #include <asm/hardirq.h>
 
@@ -75,11 +74,11 @@ static void icu_mask_ack_irq(struct irq_data *d)
 		r |= data->conf_disable;
 		writel_relaxed(r, mmp_icu_base + (hwirq << 2));
 	} else {
-		if (cpu_is_pj4()) {
-			if ((data->virq_base == data->clr_mfp_irq_base)
-				&& (hwirq == data->clr_mfp_hwirq))
-				mmp2_clear_pmic_int();
-		}
+#ifdef CONFIG_CPU_MMP2
+		if ((data->virq_base == data->clr_mfp_irq_base)
+			&& (hwirq == data->clr_mfp_hwirq))
+			mmp2_clear_pmic_int();
+#endif
 		r = readl_relaxed(data->reg_mask) | (1 << hwirq);
 		writel_relaxed(r, data->reg_mask);
 	}
