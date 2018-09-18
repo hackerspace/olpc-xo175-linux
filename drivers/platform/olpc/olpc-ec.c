@@ -1,8 +1,6 @@
 /*
  * Generic driver for the OLPC Embedded Controller.
  *
- * Author: Andres Salomon <dilinger@queued.net>
- *
  * Copyright (C) 2011-2012 One Laptop per Child Foundation.
  *
  * Licensed under the GPL v2 or later.
@@ -14,10 +12,9 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>
-#include <linux/init.h>
+#include <linux/module.h>
 #include <linux/list.h>
 #include <linux/olpc-ec.h>
-#include <asm/olpc.h>
 
 struct ec_cmd_desc {
 	u8 cmd;
@@ -33,6 +30,7 @@ struct ec_cmd_desc {
 
 struct olpc_ec_priv {
 	struct olpc_ec_driver *drv;
+	int version;
 	struct work_struct worker;
 	struct mutex cmd_lock;
 
@@ -41,6 +39,12 @@ struct olpc_ec_priv {
 	spinlock_t cmd_q_lock;
 
 	struct dentry *dbgfs_dir;
+
+	/*
+	 * EC event mask to be applied during suspend (defining wakeup
+	 * sources).
+	 */
+	u16 ec_wakeup_mask;
 
 	/*
 	 * Running an EC command while suspending means we don't always finish
@@ -119,8 +123,11 @@ int olpc_ec_cmd(u8 cmd, u8 *inbuf, size_t inlen, u8 *outbuf, size_t outlen)
 	struct olpc_ec_priv *ec = ec_priv;
 	struct ec_cmd_desc desc;
 
-	/* Ensure a driver and ec hook have been registered */
-	if (WARN_ON(!ec_driver || !ec_driver->ec_cmd))
+	/* Driver not yet registered. */
+	if (!ec_driver)
+		return -ENODEV;
+
+	if (WARN_ON(!ec_driver->ec_cmd))
 		return -ENODEV;
 
 	if (!ec)
@@ -149,6 +156,91 @@ int olpc_ec_cmd(u8 cmd, u8 *inbuf, size_t inlen, u8 *outbuf, size_t outlen)
 	return desc.err;
 }
 EXPORT_SYMBOL_GPL(olpc_ec_cmd);
+
+void olpc_ec_wakeup_set(u16 value)
+{
+	struct olpc_ec_priv *ec = ec_priv;
+
+	if (WARN_ON(!ec))
+		return;
+
+	ec->ec_wakeup_mask |= value;
+}
+EXPORT_SYMBOL_GPL(olpc_ec_wakeup_set);
+
+void olpc_ec_wakeup_clear(u16 value)
+{
+	struct olpc_ec_priv *ec = ec_priv;
+
+	if (WARN_ON(!ec))
+		return;
+
+	ec->ec_wakeup_mask &= ~value;
+}
+EXPORT_SYMBOL_GPL(olpc_ec_wakeup_clear);
+
+int olpc_ec_mask_write(u16 bits)
+{
+	struct olpc_ec_priv *ec = ec_priv;
+
+	if (WARN_ON(!ec))
+		return -ENODEV;
+
+	/* EC version 0x5f adds support for wide SCI mask */
+	if (ec->version >= 0x5f) {
+		__be16 ec_word = cpu_to_be16(bits);
+
+		return olpc_ec_cmd(EC_WRITE_EXT_SCI_MASK, (void *) &ec_word, 2,
+				   NULL, 0);
+	} else {
+		unsigned char ec_byte = bits & 0xff;
+
+		return olpc_ec_cmd(EC_WRITE_SCI_MASK, &ec_byte, 1, NULL, 0);
+	}
+}
+EXPORT_SYMBOL_GPL(olpc_ec_mask_write);
+
+/*
+ * Returns true if the compile and runtime configurations allow for EC events
+ * to wake the system.
+ */
+bool olpc_ec_wakeup_available(void)
+{
+	if (WARN_ON(!ec_driver))
+		return false;
+
+	return ec_driver->wakeup_available;
+}
+EXPORT_SYMBOL_GPL(olpc_ec_wakeup_available);
+
+int olpc_ec_sci_query(u16 *sci_value)
+{
+	struct olpc_ec_priv *ec = ec_priv;
+	int ret;
+
+	if (WARN_ON(!ec))
+		return -ENODEV;
+
+	/* EC version 0x5f adds support for wide SCI mask */
+	if (ec->version >= 0x5f) {
+		__be16 ec_word;
+
+		ret = olpc_ec_cmd(EC_EXT_SCI_QUERY,
+			NULL, 0, (void *) &ec_word, 2);
+		if (ret == 0)
+			*sci_value = be16_to_cpu(ec_word);
+	} else {
+		unsigned char ec_byte;
+
+		ret = olpc_ec_cmd(EC_SCI_QUERY,
+			NULL, 0, &ec_byte, 1);
+		if (ret == 0)
+			*sci_value = ec_byte;
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(olpc_ec_sci_query);
 
 #ifdef CONFIG_DEBUG_FS
 
@@ -277,12 +369,15 @@ static int olpc_ec_probe(struct platform_device *pdev)
 	ec_priv = ec;
 	platform_set_drvdata(pdev, ec);
 
-	err = ec_driver->probe ? ec_driver->probe(pdev) : 0;
+	ec->dbgfs_dir = olpc_ec_setup_debugfs();
+
+	/* get the EC revision */
+	err = olpc_ec_cmd(EC_FIRMWARE_REV, NULL, 0,
+		(unsigned char *) &ec->version, 1);
 	if (err) {
 		ec_priv = NULL;
 		kfree(ec);
-	} else {
-		ec->dbgfs_dir = olpc_ec_setup_debugfs();
+		return err;
 	}
 
 	return err;
@@ -293,6 +388,8 @@ static int olpc_ec_suspend(struct device *dev)
 	struct platform_device *pdev = to_platform_device(dev);
 	struct olpc_ec_priv *ec = platform_get_drvdata(pdev);
 	int err = 0;
+
+	olpc_ec_mask_write(ec->ec_wakeup_mask);
 
 	if (ec_driver->suspend)
 		err = ec_driver->suspend(pdev);
@@ -328,4 +425,8 @@ static int __init olpc_ec_init_module(void)
 {
 	return platform_driver_register(&olpc_ec_plat_driver);
 }
+
 arch_initcall(olpc_ec_init_module);
+
+MODULE_AUTHOR("Andres Salomon <dilinger@queued.net>");
+MODULE_LICENSE("GPL");

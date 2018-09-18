@@ -1,0 +1,18 @@
+HX8837 Display Controller
+
+Required properties:
+- compatible: Should be "himax,hx8837".
+- reg: I2C address, must be 0x0d
+- stat-gpios: gpio specifier of DCON_STAT0 and DCON_STAT1 pins (active high)
+- load-gpio: gpio specifier of DCON_LOAD pin (active high)
+- irq-gpio: gpio specifier of DCON_IRQ pin (active high)
+
+Example:
+	dcon@d {
+		compatible = "himax,hx8837";
+		reg = <0x0d>;
+		stat-gpios = <&gpio 100 GPIO_ACTIVE_HIGH
+			      &gpio 101 GPIO_ACTIVE_HIGH>;
+		load-gpio = <&gpio 142 GPIO_ACTIVE_HIGH>;
+		irq-gpio = <&gpio 124 GPIO_ACTIVE_HIGH>;
+	};

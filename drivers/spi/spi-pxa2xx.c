@@ -33,6 +33,7 @@
 #include <linux/clk.h>
 #include <linux/pm_runtime.h>
 #include <linux/acpi.h>
+#include <linux/of_device.h>
 
 #include "spi-pxa2xx.h"
 
@@ -625,6 +626,11 @@ static irqreturn_t interrupt_transfer(struct driver_data *drv_data)
 		return IRQ_HANDLED;
 	}
 
+	if (irq_status & SSSR_TUR) {
+		int_error_stop(drv_data, "interrupt_transfer: fifo underrun");
+		return IRQ_HANDLED;
+	}
+
 	if (irq_status & SSSR_TINT) {
 		pxa2xx_spi_write(drv_data, SSSR, SSSR_TINT);
 		if (drv_data->read(drv_data)) {
@@ -1070,6 +1076,28 @@ static int pxa2xx_spi_transfer_one(struct spi_controller *master,
 			pxa2xx_spi_write(drv_data, SSTO, chip->timeout);
 	}
 
+	if (drv_data->ssp_type == MMP2_SSP) {
+		u8 tx_level = (pxa2xx_spi_read(drv_data, SSSR)
+					& SSSR_TFL_MASK) >> 8;
+
+		if (tx_level) {
+			/* On MMP2, flipping SSE doesn't to empty TXFIFO. */
+			dev_warn(&spi->dev, "%d bytes of garbage in TXFIFO!\n",
+								tx_level);
+			if (tx_level > transfer->len)
+				tx_level = transfer->len;
+			drv_data->tx += tx_level;
+		}
+	}
+
+	if (spi_controller_is_slave(master)) {
+		while (drv_data->write(drv_data))
+			;
+		gpiod_set_value(drv_data->gpiod_ready, 1);
+		udelay(1);
+		gpiod_set_value(drv_data->gpiod_ready, 0);
+	}
+
 	/*
 	 * Release the data by enabling service requests and interrupts,
 	 * without changing any mode bits
@@ -1077,6 +1105,27 @@ static int pxa2xx_spi_transfer_one(struct spi_controller *master,
 	pxa2xx_spi_write(drv_data, SSCR1, cr1);
 
 	return 1;
+}
+
+static int pxa2xx_spi_slave_abort(struct spi_master *master)
+{
+	struct driver_data *drv_data = spi_controller_get_devdata(master);
+
+	/* Stop and reset SSP */
+	write_SSSR_CS(drv_data, drv_data->clear_sr);
+	reset_sccr1(drv_data);
+	if (!pxa25x_ssp_comp(drv_data))
+		pxa2xx_spi_write(drv_data, SSTO, 0);
+	pxa2xx_spi_flush(drv_data);
+	pxa2xx_spi_write(drv_data, SSCR0,
+			 pxa2xx_spi_read(drv_data, SSCR0) & ~SSCR0_SSE);
+
+	dev_dbg(&drv_data->pdev->dev, "transfer aborted\n");
+
+	drv_data->master->cur_msg->status = -EINTR;
+	spi_finalize_current_transfer(drv_data->master);
+
+	return 0;
 }
 
 static void pxa2xx_spi_handle_err(struct spi_controller *master,
@@ -1206,9 +1255,14 @@ static int setup(struct spi_device *spi)
 		rx_thres = config->rx_threshold;
 		break;
 	default:
-		tx_thres = TX_THRESH_DFLT;
 		tx_hi_thres = 0;
-		rx_thres = RX_THRESH_DFLT;
+		if (spi_controller_is_slave(drv_data->master)) {
+			tx_thres = 1;
+			rx_thres = 2;
+		} else {
+			tx_thres = TX_THRESH_DFLT;
+			rx_thres = RX_THRESH_DFLT;
+		}
 		break;
 	}
 
@@ -1252,6 +1306,12 @@ static int setup(struct spi_device *spi)
 		if (chip_info->enable_loopback)
 			chip->cr1 = SSCR1_LBM;
 	}
+	if (spi_controller_is_slave(drv_data->master)) {
+		chip->cr1 |= SSCR1_SCFR;
+		chip->cr1 |= SSCR1_SCLKDIR;
+		chip->cr1 |= SSCR1_SFRMDIR;
+		chip->cr1 |= SSCR1_SPH;
+	}
 
 	chip->lpss_rx_threshold = SSIRF_RxThresh(rx_thres);
 	chip->lpss_tx_threshold = SSITF_TxLoThresh(tx_thres)
@@ -1288,7 +1348,7 @@ static int setup(struct spi_device *spi)
 		break;
 	}
 
-	chip->cr1 &= ~(SSCR1_SPO | SSCR1_SPH);
+	//chip->cr1 &= ~(SSCR1_SPO | SSCR1_SPH);
 	chip->cr1 |= (((spi->mode & SPI_CPHA) != 0) ? SSCR1_SPH : 0)
 			| (((spi->mode & SPI_CPOL) != 0) ? SSCR1_SPO : 0);
 
@@ -1333,9 +1393,6 @@ static void cleanup(struct spi_device *spi)
 	kfree(chip);
 }
 
-#ifdef CONFIG_PCI
-#ifdef CONFIG_ACPI
-
 static const struct acpi_device_id pxa2xx_spi_acpi_match[] = {
 	{ "INT33C0", LPSS_LPT_SSP },
 	{ "INT33C1", LPSS_LPT_SSP },
@@ -1346,23 +1403,6 @@ static const struct acpi_device_id pxa2xx_spi_acpi_match[] = {
 	{ },
 };
 MODULE_DEVICE_TABLE(acpi, pxa2xx_spi_acpi_match);
-
-static int pxa2xx_spi_get_port_id(struct acpi_device *adev)
-{
-	unsigned int devid;
-	int port_id = -1;
-
-	if (adev && adev->pnp.unique_id &&
-	    !kstrtouint(adev->pnp.unique_id, 0, &devid))
-		port_id = devid;
-	return port_id;
-}
-#else /* !CONFIG_ACPI */
-static int pxa2xx_spi_get_port_id(struct acpi_device *adev)
-{
-	return -1;
-}
-#endif
 
 /*
  * PCI IDs of compound devices that integrate both host controller and private
@@ -1410,6 +1450,37 @@ static const struct pci_device_id pxa2xx_spi_pci_compound_match[] = {
 	{ },
 };
 
+static const struct of_device_id pxa2xx_spi_of_match[] = {
+	{ .compatible = "marvell,mmp2-ssp", .data = (void *)MMP2_SSP },
+	{},
+};
+MODULE_DEVICE_TABLE(of, pxa2xx_spi_of_match);
+
+#ifdef CONFIG_ACPI
+
+static int pxa2xx_spi_get_port_id(struct acpi_device *adev)
+{
+	unsigned int devid;
+	int port_id = -1;
+
+	if (adev && adev->pnp.unique_id &&
+	    !kstrtouint(adev->pnp.unique_id, 0, &devid))
+		port_id = devid;
+	return port_id;
+}
+
+#else /* !CONFIG_ACPI */
+
+static int pxa2xx_spi_get_port_id(struct acpi_device *adev)
+{
+	return -1;
+}
+
+#endif /* CONFIG_ACPI */
+
+
+#ifdef CONFIG_PCI
+
 static bool pxa2xx_spi_idma_filter(struct dma_chan *chan, void *param)
 {
 	struct device *dev = param;
@@ -1420,6 +1491,8 @@ static bool pxa2xx_spi_idma_filter(struct dma_chan *chan, void *param)
 	return true;
 }
 
+#endif /* CONFIG_PCI */
+
 static struct pxa2xx_spi_master *
 pxa2xx_spi_init_pdata(struct platform_device *pdev)
 {
@@ -1429,11 +1502,15 @@ pxa2xx_spi_init_pdata(struct platform_device *pdev)
 	struct resource *res;
 	const struct acpi_device_id *adev_id = NULL;
 	const struct pci_device_id *pcidev_id = NULL;
-	int type;
+	const struct of_device_id *of_id = NULL;
+	enum pxa_ssp_type type;
 
 	adev = ACPI_COMPANION(&pdev->dev);
 
-	if (dev_is_pci(pdev->dev.parent))
+	if (pdev->dev.of_node)
+		of_id = of_match_device(pdev->dev.driver->of_match_table,
+					&pdev->dev);
+	else if (dev_is_pci(pdev->dev.parent))
 		pcidev_id = pci_match_id(pxa2xx_spi_pci_compound_match,
 					 to_pci_dev(pdev->dev.parent));
 	else if (adev)
@@ -1443,9 +1520,11 @@ pxa2xx_spi_init_pdata(struct platform_device *pdev)
 		return NULL;
 
 	if (adev_id)
-		type = (int)adev_id->driver_data;
+		type = (enum pxa_ssp_type)adev_id->driver_data;
 	else if (pcidev_id)
-		type = (int)pcidev_id->driver_data;
+		type = (enum pxa_ssp_type)pcidev_id->driver_data;
+	else if (of_id)
+		type = (enum pxa_ssp_type)of_id->data;
 	else
 		return NULL;
 
@@ -1464,11 +1543,20 @@ pxa2xx_spi_init_pdata(struct platform_device *pdev)
 	if (IS_ERR(ssp->mmio_base))
 		return NULL;
 
+#ifdef CONFIG_PCI
 	if (pcidev_id) {
 		pdata->tx_param = pdev->dev.parent;
 		pdata->rx_param = pdev->dev.parent;
 		pdata->dma_filter = pxa2xx_spi_idma_filter;
 	}
+#endif
+
+#if CONFIG_OF
+	if (of_id) {
+		pdata->is_slave = of_property_read_bool(pdev->dev.of_node,
+								"spi-slave");
+	}
+#endif
 
 	ssp->clk = devm_clk_get(&pdev->dev, NULL);
 	ssp->irq = platform_get_irq(pdev, 0);
@@ -1481,14 +1569,6 @@ pxa2xx_spi_init_pdata(struct platform_device *pdev)
 
 	return pdata;
 }
-
-#else /* !CONFIG_PCI */
-static inline struct pxa2xx_spi_master *
-pxa2xx_spi_init_pdata(struct platform_device *pdev)
-{
-	return NULL;
-}
-#endif
 
 static int pxa2xx_spi_fw_translate_cs(struct spi_controller *master,
 				      unsigned int cs)
@@ -1543,7 +1623,11 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	master = spi_alloc_master(dev, sizeof(struct driver_data));
+	if (platform_info->is_slave)
+		master = spi_alloc_slave(dev, sizeof(struct driver_data));
+	else
+		master = spi_alloc_master(dev, sizeof(struct driver_data));
+
 	if (!master) {
 		dev_err(&pdev->dev, "cannot alloc spi_master\n");
 		pxa_ssp_free(ssp);
@@ -1565,6 +1649,7 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 	master->setup = setup;
 	master->set_cs = pxa2xx_spi_set_cs;
 	master->transfer_one = pxa2xx_spi_transfer_one;
+	master->slave_abort = pxa2xx_spi_slave_abort;
 	master->handle_err = pxa2xx_spi_handle_err;
 	master->unprepare_transfer_hardware = pxa2xx_spi_unprepare_transfer;
 	master->fw_translate_cs = pxa2xx_spi_fw_translate_cs;
@@ -1594,7 +1679,8 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 		drv_data->int_cr1 = SSCR1_TIE | SSCR1_RIE | SSCR1_TINTE;
 		drv_data->dma_cr1 = DEFAULT_DMA_CR1;
 		drv_data->clear_sr = SSSR_ROR | SSSR_TINT;
-		drv_data->mask_sr = SSSR_TINT | SSSR_RFS | SSSR_TFS | SSSR_ROR;
+		drv_data->mask_sr = SSSR_TINT | SSSR_RFS | SSSR_TFS
+						| SSSR_ROR | SSSR_TUR;
 	}
 
 	status = request_irq(ssp->irq, ssp_int, IRQF_SHARED, dev_name(dev),
@@ -1642,10 +1728,22 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 		pxa2xx_spi_write(drv_data, SSCR0, tmp);
 		break;
 	default:
-		tmp = SSCR1_RxTresh(RX_THRESH_DFLT) |
-		      SSCR1_TxTresh(TX_THRESH_DFLT);
+
+		if (spi_controller_is_slave(master)) {
+			tmp = SSCR1_SCFR |
+			      SSCR1_SCLKDIR |
+			      SSCR1_SFRMDIR |
+			      SSCR1_RxTresh(2) |
+			      SSCR1_TxTresh(1) |
+			      SSCR1_SPH;
+		} else {
+			tmp = SSCR1_RxTresh(RX_THRESH_DFLT) |
+			      SSCR1_TxTresh(TX_THRESH_DFLT);
+		}
 		pxa2xx_spi_write(drv_data, SSCR1, tmp);
-		tmp = SSCR0_SCR(2) | SSCR0_Motorola | SSCR0_DataSize(8);
+		tmp = SSCR0_Motorola | SSCR0_DataSize(8);
+		if (!spi_controller_is_slave(master))
+			tmp |= SSCR0_SCR(2);
 		pxa2xx_spi_write(drv_data, SSCR0, tmp);
 		break;
 	}
@@ -1700,6 +1798,15 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 			} else {
 				drv_data->cs_gpiods[i] = gpiod;
 			}
+		}
+	}
+
+	if (platform_info->is_slave) {
+		drv_data->gpiod_ready = devm_gpiod_get_optional(dev,
+						"ready", GPIOD_OUT_LOW);
+		if (IS_ERR(drv_data->gpiod_ready)) {
+			status = (int)PTR_ERR(drv_data->gpiod_ready);
+			goto out_error_clock_enabled;
 		}
 	}
 
@@ -1762,14 +1869,6 @@ static int pxa2xx_spi_remove(struct platform_device *pdev)
 	pxa_ssp_free(ssp);
 
 	return 0;
-}
-
-static void pxa2xx_spi_shutdown(struct platform_device *pdev)
-{
-	int status = 0;
-
-	if ((status = pxa2xx_spi_remove(pdev)) != 0)
-		dev_err(&pdev->dev, "shutdown failed with %d\n", status);
 }
 
 #ifdef CONFIG_PM_SLEEP
@@ -1848,10 +1947,10 @@ static struct platform_driver driver = {
 		.name	= "pxa2xx-spi",
 		.pm	= &pxa2xx_spi_pm_ops,
 		.acpi_match_table = ACPI_PTR(pxa2xx_spi_acpi_match),
+		.of_match_table = of_match_ptr(pxa2xx_spi_of_match),
 	},
 	.probe = pxa2xx_spi_probe,
 	.remove = pxa2xx_spi_remove,
-	.shutdown = pxa2xx_spi_shutdown,
 };
 
 static int __init pxa2xx_spi_init(void)

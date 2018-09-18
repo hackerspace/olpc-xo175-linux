@@ -1037,26 +1037,34 @@ static int spi_transfer_one_message(struct spi_controller *ctlr,
 
 			if (ret > 0) {
 				ret = 0;
-				ms = 8LL * 1000LL * xfer->len;
-				do_div(ms, xfer->speed_hz);
-				ms += ms + 200; /* some tolerance */
+				if (spi_controller_is_slave(ctlr)) {
+					if (wait_for_completion_interruptible(&ctlr->xfer_completion)) {
+						dev_dbg(&msg->spi->dev, "SPI transfer interrupted\n");
+						return -EINTR;
+					}
+				} else {
+					ms = 8LL * 1000LL * xfer->len;
+					do_div(ms, xfer->speed_hz);
+					ms += ms + 200; /* some tolerance */
 
-				if (ms > UINT_MAX)
-					ms = UINT_MAX;
+					if (ms > UINT_MAX)
+						ms = UINT_MAX;
 
-				ms = wait_for_completion_timeout(&ctlr->xfer_completion,
-								 msecs_to_jiffies(ms));
+					ms = wait_for_completion_timeout(&ctlr->xfer_completion,
+									 msecs_to_jiffies(ms));
+
+					if (ms == 0) {
+						SPI_STATISTICS_INCREMENT_FIELD(statm,
+									       timedout);
+						SPI_STATISTICS_INCREMENT_FIELD(stats,
+									       timedout);
+						dev_err(&msg->spi->dev,
+							"SPI transfer timed out\n");
+						msg->status = -ETIMEDOUT;
+					}
+				}
 			}
 
-			if (ms == 0) {
-				SPI_STATISTICS_INCREMENT_FIELD(statm,
-							       timedout);
-				SPI_STATISTICS_INCREMENT_FIELD(stats,
-							       timedout);
-				dev_err(&msg->spi->dev,
-					"SPI transfer timed out\n");
-				msg->status = -ETIMEDOUT;
-			}
 		} else {
 			if (xfer->len)
 				dev_err(&msg->spi->dev,
@@ -1212,7 +1220,7 @@ static void __spi_pump_messages(struct spi_controller *ctlr, bool in_kthread)
 
 	if (!was_busy && ctlr->auto_runtime_pm) {
 		ret = pm_runtime_get_sync(ctlr->dev.parent);
-		if (ret < 0) {
+		if (ret < 0 && ret != -EACCES) {
 			pm_runtime_put_noidle(ctlr->dev.parent);
 			dev_err(&ctlr->dev, "Failed to power device: %d\n",
 				ret);
