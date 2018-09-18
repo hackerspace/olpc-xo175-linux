@@ -67,4 +67,8 @@ config LOGO_SUPERH_CLUT224
 	depends on SUPERH
 	default y
 
+config LOGO_BIG_CLUT224
+	bool "Big 224-color Linux logo"
+	default n
+
 endif # LOGO
