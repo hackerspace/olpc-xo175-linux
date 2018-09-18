@@ -16,7 +16,7 @@
 	chosen {
 		/* bootargs = "console=ttyS2,115200 earlyprintk root=upadol rdinit=/bin/sh"; */
 		/* bootargs = "console=ttyS2,115200 earlyprintk root=/dev/ram0"; */
-		bootargs = "console=tty0 console=ttyS2,115200 earlyprintk root=/dev/mmcblk0p1 rootwait vt.color=0xf0 fbcon=font:OLPC15x30 sysrq_always_enabled";
+		bootargs = "console=tty0 console=ttyS2,115200 earlyprintk root=/dev/mmcblk0p1 rootwait vt.color=0xf0 fbcon=font:OLPC15x30";
 	};
 
 	memory {
