@@ -20,6 +20,8 @@
 #include <media/v4l2-device.h>
 #include <linux/platform_data/media/mmp-camera.h>
 #include <linux/device.h>
+#include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/gpio.h>
 #include <linux/io.h>
@@ -331,6 +333,29 @@ static void mcam_init_clk(struct mcam_camera *mcam)
 	}
 }
 
+static struct mmp_camera_platform_data *
+mmpcam_get_pdata(struct platform_device *pdev)
+{
+	struct mmp_camera_platform_data *pdata;
+	struct device_node *adapter_node;
+
+	if (!pdev->dev.of_node)
+		return pdev->dev.platform_data;
+
+	pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
+	if (!pdata)
+		return NULL;
+
+	pdata->bus_type = V4L2_MBUS_PARALLEL;
+	pdata->sensor_power_gpio = 150;
+	pdata->sensor_reset_gpio = 102;
+	adapter_node = of_parse_phandle(pdev->dev.of_node, "sensor-i2c-bus", 0);
+	if (adapter_node)
+		pdata->i2c_adapter = of_get_i2c_adapter_by_node(adapter_node);
+
+	return pdata;
+}
+
 static int mmpcam_probe(struct platform_device *pdev)
 {
 	struct mmp_camera *cam;
@@ -339,7 +364,7 @@ static int mmpcam_probe(struct platform_device *pdev)
 	struct mmp_camera_platform_data *pdata;
 	int ret;
 
-	pdata = pdev->dev.platform_data;
+	pdata = mmpcam_get_pdata(pdev);
 	if (!pdata)
 		return -ENODEV;
 
@@ -393,7 +418,7 @@ static int mmpcam_probe(struct platform_device *pdev)
 	 * Find the i2c adapter.  This assumes, of course, that the
 	 * i2c bus is already up and functioning.
 	 */
-	mcam->i2c_adapter = platform_get_drvdata(pdata->i2c_device);
+	mcam->i2c_adapter = pdata->i2c_adapter;
 	if (mcam->i2c_adapter == NULL) {
 		dev_err(&pdev->dev, "No i2c adapter\n");
 		return -ENODEV;
@@ -503,6 +528,10 @@ static int mmpcam_resume(struct platform_device *pdev)
 
 #endif
 
+static const struct of_device_id mmpcam_of_match[] = {
+	{ .compatible = "marvell,mmp2-ccic", },
+	{},
+};
 
 static struct platform_driver mmpcam_driver = {
 	.probe		= mmpcam_probe,
@@ -513,6 +542,7 @@ static struct platform_driver mmpcam_driver = {
 #endif
 	.driver = {
 		.name	= "mmp-camera",
+		.of_match_table = of_match_ptr(mmpcam_of_match),
 	}
 };
 
