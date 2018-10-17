@@ -83,6 +83,33 @@
 		};
 	};
 
+	ccid_i2c {
+		compatible = "i2c-gpio";
+		gpios = <&gpio 109 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>,
+		        <&gpio 108 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		i2c-gpio,timeout-ms = <1000>;
+		status = "okay";
+
+		ov7670@21 {
+			compatible = "ovti,ov7670";
+			reg = <0x21>;
+			reset-gpios = <&gpio 102 GPIO_ACTIVE_LOW>;
+			powerdown-gpios = <&gpio 150 GPIO_ACTIVE_LOW>;
+			clocks = <&camera0>;
+			clock-names = "xclk";
+
+			port {
+				ov7670_0: endpoint {
+					hsync-active = <1>;
+					vsync-active = <1>;
+					remote-endpoint = <&camera0_0>;
+				};
+			};
+		};
+	};
+
 	panel {
 		compatible = "innolux,ls075at011", "simple-panel";
 		width-mm = <152>;
@@ -245,5 +272,15 @@
 		compatible = "olpc,xo1.75-ec";
 		spi-cpha;
 		cmd-gpio = <&gpio 155 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+&camera0 {
+	status = "okay";
+
+	port {
+		camera0_0: endpoint {
+			remote-endpoint = <&ov7670_0>;
+		};
 	};
 };
