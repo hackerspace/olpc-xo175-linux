@@ -79,7 +79,7 @@ config MAC80211_MESH
 	 The implementation is based on Draft 2.08 of the Mesh Networking
 	 amendment.  However, no compliance with that draft is claimed or even
 	 possible, as drafts leave a number of identifiers to be defined after
-	 ratification.  For more information visit http://o11s.org/.
+	 ratification.  For more information visit http://open80211s.org/.
 
 config MAC80211_LEDS
 	bool "Enable LED triggers"
