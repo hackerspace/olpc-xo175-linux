@@ -421,6 +421,15 @@ static int mmpcam_probe(struct platform_device *pdev)
 	fwnode_handle_put(ep);
 
 	/*
+	 * Add OF clock provider.
+	 */
+        ret = of_clk_add_provider(pdev->dev.of_node, of_clk_src_simple_get, mcam->mclk);
+        if (ret) {
+                dev_err(&pdev->dev, "can't add DT clock provider\n");
+                return ret; // XXX
+        }
+
+	/*
 	 * Finally, set up our IRQ now that the core is ready to
 	 * deal with it.
 	 */

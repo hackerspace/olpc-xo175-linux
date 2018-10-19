@@ -22,6 +22,7 @@
 #include <linux/vmalloc.h>
 #include <linux/io.h>
 #include <linux/clk.h>
+#include <linux/clk-provider.h>
 #include <linux/videodev2.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
@@ -300,8 +301,11 @@ static void mcam_enable_mipi(struct mcam_camera *mcam)
 		 */
 		mcam_reg_write(mcam, REG_CSI2_CTRL0,
 			CSI2_C0_MIPI_EN | CSI2_C0_ACT_LANE(mcam->lane));
+#if 0
+// mclk
 		mcam_reg_write(mcam, REG_CLKCTRL,
 			(mcam->mclk_src << 29) | mcam->mclk_div);
+#endif
 
 		mcam->mipi_enabled = true;
 	}
@@ -847,11 +851,14 @@ static void mcam_ctlr_init(struct mcam_camera *cam)
 	 * but it's good to be sure.
 	 */
 	mcam_reg_clear_bit(cam, REG_CTRL0, C0_ENABLE);
+#if 0
+// mclk
 	/*
 	 * Clock the sensor appropriately.  Controller clock should
 	 * be 48MHz, sensor "typical" value is half that.
 	 */
 	mcam_reg_write_mask(cam, REG_CLKCTRL, 2, CLK_DIV_MASK);
+#endif
 	spin_unlock_irqrestore(&cam->dev_lock, flags);
 }
 
@@ -912,6 +919,7 @@ static int mcam_ctlr_power_up(struct mcam_camera *cam)
 
 static void mcam_ctlr_power_down(struct mcam_camera *cam)
 {
+#if 0
 	unsigned long flags;
 
 	spin_lock_irqsave(&cam->dev_lock, flags);
@@ -923,6 +931,8 @@ static void mcam_ctlr_power_down(struct mcam_camera *cam)
 	mcam_reg_set_bit(cam, REG_CTRL1, C1_PWRDWN);
 	cam->plat_power_down(cam);
 	spin_unlock_irqrestore(&cam->dev_lock, flags);
+#endif
+printk ("XXX NO PWEDOWN\n");
 }
 
 /* -------------------------------------------------------------------- */
@@ -1717,6 +1727,58 @@ EXPORT_SYMBOL_GPL(mccic_irq);
 
 /* ---------------------------------------------------------------------- */
 /*
+ * Master sensor clock.
+ */
+static int mclk_prepare(struct clk_hw *hw)
+{
+	printk("ZZZ 2: %s", __func__);
+	return 0;
+}
+
+static int mclk_enable(struct clk_hw *hw)
+{
+	struct mcam_camera *cam = container_of(hw, struct mcam_camera, mclk_hw);
+        int mclk_src;
+        int mclk_div;
+
+	/*
+	 * Clock the sensor appropriately.  Controller clock should
+	 * be 48MHz, sensor "typical" value is half that.
+	 */
+	if (cam->bus_type == V4L2_MBUS_CSI2) {
+		mclk_src = cam->mclk_src;
+		mclk_div = cam->mclk_div;
+	} else {
+		mclk_src = 3;
+		mclk_div = 2;
+	}
+	
+	mcam_reg_write(cam, REG_CLKCTRL, (mclk_src << 29) | mclk_div);
+	return 0;
+}
+
+static void mclk_disable(struct clk_hw *hw)
+{
+	printk("ZZZ 2: %s", __func__);
+}
+
+static unsigned long mclk_recalc_rate(struct clk_hw *hw,
+				unsigned long parent_rate)
+{
+	printk("ZZZ 2: %s (%ld)", __func__, parent_rate);
+	return 48000000;
+}
+
+static const struct clk_ops mclk_ops = {
+	.prepare = mclk_prepare,
+//	.unprepare = mclk_unprepare,
+	.enable = mclk_enable,
+	.disable = mclk_disable,
+	.recalc_rate = mclk_recalc_rate,
+};
+
+/* ---------------------------------------------------------------------- */
+/*
  * Registration and such.
  */
 
@@ -1849,6 +1911,7 @@ static const struct v4l2_async_notifier_operations mccic_notify_ops = {
 
 int mccic_register(struct mcam_camera *cam)
 {
+	struct clk_init_data mclk_init = { };
 	int ret;
 
 	/*
@@ -1893,6 +1956,9 @@ int mccic_register(struct mcam_camera *cam)
 	cam->v4l2_dev.ctrl_handler = &cam->ctrl_handler;
 #endif
 
+
+
+
 #if 0
 	/*
 	 * Try to find the sensor.
@@ -1920,6 +1986,30 @@ int mccic_register(struct mcam_camera *cam)
 		cam_warn(cam, "failed to register a sensor notifier");
 		goto out_unregister;
 	}
+
+	/*
+	 * Register sensor master clock.
+	 */
+
+        mclk_init.parent_names = NULL;
+        mclk_init.num_parents = 0;
+        mclk_init.ops = &mclk_ops;
+
+	ret = of_property_read_string(cam->dev->of_node, "clock-output-names", &mclk_init.name);
+	if (ret) {
+		dev_warn(cam->dev, "no clock-output-names\n");
+		mclk_init.name = "mclk";
+		//return ret; // XXX
+	}
+
+        cam->mclk_hw.init = &mclk_init;
+
+        cam->mclk = devm_clk_register(cam->dev, &cam->mclk_hw);
+        if (IS_ERR(cam->mclk)) {
+                ret = PTR_ERR(cam->mclk);
+                dev_err(cam->dev, "can't register clock\n");
+                return ret; // XXX
+        }
 
 #if 0
 // NEEDS SENSOR
