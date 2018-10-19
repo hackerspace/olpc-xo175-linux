@@ -8,6 +8,7 @@
 #define _MCAM_CORE_H
 
 #include <linux/list.h>
+#include <linux/clk-provider.h>
 #include <media/v4l2-common.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-dev.h>
@@ -98,6 +99,10 @@ struct mcam_frame_state {
  *          dev_lock is also required for access to device registers.
  */
 struct mcam_camera {
+	struct v4l2_async_notifier notifier;
+	struct clk_hw mclk_hw;
+	// XXX
+
 	/*
 	 * These fields should be set by the platform code prior to
 	 * calling mcam_register().
