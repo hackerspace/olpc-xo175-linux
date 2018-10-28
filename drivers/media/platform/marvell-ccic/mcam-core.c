@@ -669,6 +669,10 @@ static void mcam_dma_sg_done(struct mcam_camera *cam, int frame)
 	 */
 	if (cam->state != S_STREAMING)
 		return;
+	WARN_ONCE(buf == NULL, "NULL buf");
+	if (buf == NULL)
+		return;
+
 	/*
 	 * If we have another buffer available, put it in and
 	 * restart the engine.
