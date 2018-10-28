@@ -795,9 +795,11 @@ static void mcam_ctlr_image(struct mcam_camera *cam)
 	/*
 	 * This field controls the generation of EOF(DVP only)
 	 */
-	if (cam->bus_type != V4L2_MBUS_CSI2)
+	if (cam->bus_type != V4L2_MBUS_CSI2 &&
+	    cam->bus_type != V4L2_MBUS_PARALLEL) {
 		mcam_reg_set_bit(cam, REG_CTRL0,
 				C0_EOF_VSYNC | C0_VEDGE_CTRL);
+	}
 }
 
 
