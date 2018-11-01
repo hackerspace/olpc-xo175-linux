@@ -1,0 +1,30 @@
+Marvell MMP2 camera host interface
+
+Required properties:
+ - compatible: Should be "marvell,mmp2-ccic"
+ - reg: register base and size
+ - interrupts: the interrupt number
+ - any required generic properties defined in video-interfaces.txt
+
+Optional properties:
+ - clocks: input clock (see clock-bindings.txt)
+ - clock-output-names: should contain the name of the clock driving the
+                       sensor master clock MCLK
+
+Example:
+
+	camera0: camera@d420a000 {
+		compatible = "marvell,mmp2-ccic";
+		reg = <0xd420a000 0x800>;
+		interrupts = <42>;
+		clocks = <&soc_clocks MMP2_CLK_CCIC0>;
+		clock-names = "CCICAXICLK";
+		#clock-cells = <0>;
+		clock-output-names = "mclk";
+
+		port {
+			camera0_0: endpoint {
+				remote-endpoint = <&ov7670_0>;
+			};
+		};
+	};
