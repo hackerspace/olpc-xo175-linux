@@ -241,6 +241,7 @@ struct ov7670_info {
 	struct v4l2_mbus_framefmt format;
 	struct ov7670_format_struct *fmt;  /* Current format */
 	struct clk *clk;
+	int on;
 	struct gpio_desc *resetb_gpio;
 	struct gpio_desc *pwdn_gpio;
 	unsigned int mbus_config;	/* Media bus configuration flags */
@@ -1610,15 +1611,26 @@ static int ov7670_s_power(struct v4l2_subdev *sd, int on)
 {
 	struct ov7670_info *info = to_state(sd);
 
+	if (info->on == on)
+		return 0;
+
+	if (on)
+		clk_prepare_enable(info->clk);
+	else
+		clk_disable_unprepare(info->clk);
+
 	if (info->pwdn_gpio)
 		gpiod_set_value(info->pwdn_gpio, !on);
 	if (on && info->resetb_gpio) {
 		gpiod_set_value(info->resetb_gpio, 1);
 		usleep_range(500, 1000);
 		gpiod_set_value(info->resetb_gpio, 0);
-		usleep_range(3000, 5000);
 	}
 
+	if (on && (info->pwdn_gpio || info->resetb_gpio || info->clk))
+		usleep_range(3000, 5000);
+
+	info->on = on;
 	return 0;
 }
 
@@ -1817,23 +1829,19 @@ static int ov7670_probe(struct i2c_client *client,
 		else
 			return ret;
 	}
-	if (info->clk) {
-		ret = clk_prepare_enable(info->clk);
-		if (ret)
-			return ret;
+	ret = ov7670_init_gpio(client, info);
+	if (ret)
+		return ret;
 
+	ov7670_s_power(sd, 1);
+
+	if (info->clk) {
 		info->clock_speed = clk_get_rate(info->clk) / 1000000;
 		if (info->clock_speed < 10 || info->clock_speed > 48) {
 			ret = -EINVAL;
-			goto clk_disable;
+			goto power_off;
 		}
 	}
-
-	ret = ov7670_init_gpio(client, info);
-	if (ret)
-		goto clk_disable;
-
-	ov7670_s_power(sd, 1);
 
 	/* Make sure it's an ov7670 */
 	ret = ov7670_detect(sd);
@@ -1913,6 +1921,7 @@ static int ov7670_probe(struct i2c_client *client,
 	if (ret < 0)
 		goto entity_cleanup;
 
+	ov7670_s_power(sd, 0);
 	return 0;
 
 entity_cleanup:
@@ -1921,11 +1930,8 @@ hdl_free:
 	v4l2_ctrl_handler_free(&info->hdl);
 power_off:
 	ov7670_s_power(sd, 0);
-clk_disable:
-	clk_disable_unprepare(info->clk);
 	return ret;
 }
-
 
 static int ov7670_remove(struct i2c_client *client)
 {
@@ -1934,7 +1940,6 @@ static int ov7670_remove(struct i2c_client *client)
 
 	v4l2_async_unregister_subdev(sd);
 	v4l2_ctrl_handler_free(&info->hdl);
-	clk_disable_unprepare(info->clk);
 	media_entity_cleanup(&info->sd.entity);
 	ov7670_s_power(sd, 0);
 	return 0;
