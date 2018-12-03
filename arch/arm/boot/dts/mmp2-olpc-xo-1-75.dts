@@ -16,12 +16,27 @@
 	compatible = "olpc,xo-1.75", "mrvl,mmp2";
 
 	chosen {
+		#address-cells = <0x1>;
+		#size-cells = <0x1>;
+		ranges;
 		bootargs = "console=tty0 console=ttyS2,115200 earlyprintk root=/dev/mmcblk0p1 rootwait";
+
+		framebuffer@1fc00000 {
+			compatible = "simple-framebuffer";
+			reg = <0x1fc00000 (1200 * 900 * 2)>;
+			width = <1200>;
+			height = <900>;
+			stride = <(1200 * 2)>;
+			format = "r5g6b5";
+			display = <&lcdc>;
+			clocks = <&soc_clocks MMP2_CLK_DISP0>;
+		};
 	};
 
 	memory {
+		linux,usable-memory = <0x0 0x1f800000>;
+		available = <0xcf000 0x1ef31000 0x1000 0xbf000>;
 		reg = <0x0 0x20000000>;
-		available = <0x1000 0x1efff000>;
 	};
 
 	gpio-keys {
