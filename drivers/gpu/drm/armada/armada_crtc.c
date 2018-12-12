@@ -922,6 +922,7 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 	struct device_node *remote;
 	struct armada_crtc *dcrtc;
 	struct drm_plane *primary;
+	u32 bus_width = 24;
 	void __iomem *base;
 	int ret;
 
@@ -949,9 +950,29 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 	dcrtc->variant = variant;
 	dcrtc->base = base;
 	dcrtc->num = drm->mode_config.num_crtc;
-	dcrtc->cfg_dumb_ctrl = DUMB24_RGB888_0;
+	dcrtc->clk = ERR_PTR(-EINVAL);
 	dcrtc->spu_iopad_ctrl = CFG_VSCALE_LN_EN | CFG_IOPAD_DUMB24;
 	dcrtc->spu_dma_ctrl1 = 0x2032ff81;
+
+	of_property_read_u32(ep, "bus-width", &bus_width);
+
+	switch (bus_width) {
+	case 12:
+		dcrtc->cfg_dumb_ctrl = DUMB12_RGB444_0;
+		break;
+	case 16:
+		dcrtc->cfg_dumb_ctrl = DUMB16_RGB565_0;
+		break;
+	case 18:
+		dcrtc->cfg_dumb_ctrl = DUMB18_RGB666_0;
+		break;
+	case 24:
+		dcrtc->cfg_dumb_ctrl = DUMB24_RGB888_0;
+		break;
+	default:
+		DRM_ERROR("unsupported bus width: %d\n", bus_width);
+		return -EINVAL;
+	}
 
 	spin_lock_init(&dcrtc->irq_lock);
 	dcrtc->irq_ena = CLEAN_SPU_IRQ_ISR;
