@@ -40,3 +40,28 @@ Example:
 			};
 		};
 	};
+
+Marvell Armada framebuffer reserved memory
+==========================================
+
+Memory set aside for allocation of Marvell Armada framebuffer objects.
+
+Required properties:
+
+ - compatible: value should be "marvell,dove-framebuffer",
+   "marvell,armada-framebuffer".
+
+This binding is compatible with the binding, specified in
+Documentation/devicetree/bindings/reserved-memory/reserved-memory.txt..
+
+Example:
+
+	reserved-memory {
+		display_reserved: framebuffer {
+			compatible = "marvell,dove-framebuffer",
+			             "marvell,armada-framebuffer";
+			size = <0x02000000>;
+			alignment = <0x02000000>;
+			no-map;
+		};
+	};
