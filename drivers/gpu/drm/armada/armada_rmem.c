@@ -45,5 +45,7 @@ static int __init armada_rmem_init(struct reserved_mem *rmem)
 	return 0;
 }
 
-RESERVEDMEM_OF_DECLARE(armada_rmem, "marvell,dove-framebuffer",
+RESERVEDMEM_OF_DECLARE(armada_dove_rmem, "marvell,dove-framebuffer",
+			armada_rmem_init);
+RESERVEDMEM_OF_DECLARE(armada_mmp2_rmem, "marvell,mmp2-framebuffer",
 			armada_rmem_init);
