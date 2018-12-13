@@ -1,0 +1,22 @@
+Marvell Armada framebuffer reserved memory
+==========================================
+
+Memory set aside for allocation of Marvell Armada framebuffer objects.
+
+Required properties:
+
+ - compatible: must be "marvell,armada-framebuffer"
+
+Please refer to Documentation/devicetree/bindings/reserved-memory/reserved-memory.txt
+for common reserved memory binding usage.
+
+Example:
+
+	reserved-memory {
+		display_reserved: framebuffer {
+			compatible = "marvell,armada-framebuffer";
+			size = <0x02000000>;
+			alignment = <0x02000000>;
+			no-map;
+		};
+	};
