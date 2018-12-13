@@ -1,0 +1,7 @@
+Innolux LS075AT011 7.5" 1200x900 panel
+
+Required properties:
+- compatible: should be "innolux,ls075at011", "simple-panel"
+
+This binding is compatible with the simple-panel binding, which is specified
+in simple-panel.txt in this directory.
