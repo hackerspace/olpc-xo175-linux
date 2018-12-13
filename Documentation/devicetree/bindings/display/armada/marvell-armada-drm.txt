@@ -1,3 +1,27 @@
+Marvell Armada DRM master device
+================================
+
+The Marvell Armada DRM master device is a virtual device needed to list all
+nodes that comprise the graphics subsystem.
+
+Required properties:
+
+ - compatible: value should be "marvell,dove-display-subsystem",
+   "marvell,armada-display-subsystem"
+ - ports: a list of phandles pointing to display interface ports of CRTC
+   devices
+ - memory-region: phandle to a node describing memory to be used for the
+   framebuffer
+
+Example:
+
+	display-subsystem {
+		compatible = "marvell,dove-display-subsystem",
+		             "marvell,armada-display-subsystem";
+		memory-region = <&display_reserved>;
+		ports = <&lcd0_port>;
+	};
+
 Marvell Armada LCD controller
 =============================
 
