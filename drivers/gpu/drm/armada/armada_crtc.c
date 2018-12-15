@@ -679,6 +679,7 @@ static void armada_drm_crtc_destroy(struct drm_crtc *crtc)
 
 	of_node_put(dcrtc->crtc.port);
 
+	clk_disable_unprepare(dcrtc->axiclk);
 	kfree(dcrtc);
 }
 
@@ -747,6 +748,11 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 	dcrtc->num = drm->mode_config.num_crtc;
 	dcrtc->clk = ERR_PTR(-EINVAL);
 	dcrtc->spu_iopad_ctrl = CFG_VSCALE_LN_EN | CFG_IOPAD_DUMB24;
+
+	dcrtc->axiclk = devm_clk_get(dev, "axiclk");
+	if (IS_ERR(dcrtc->axiclk))
+		dcrtc->axiclk = NULL;
+	WARN_ON(clk_prepare_enable(dcrtc->axiclk));
 
 	endpoint = of_get_next_child(port, NULL);
 	of_property_read_u32(endpoint, "bus-width", &bus_width);
@@ -829,6 +835,7 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 err_crtc_init:
 	primary->funcs->destroy(primary);
 err_crtc:
+	clk_disable_unprepare(dcrtc->axiclk);
 	kfree(dcrtc);
 
 	return ret;
