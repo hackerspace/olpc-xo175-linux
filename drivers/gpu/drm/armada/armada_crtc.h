@@ -40,6 +40,7 @@ struct armada_crtc {
 	void			*variant_data;
 	unsigned		num;
 	void __iomem		*base;
+	struct clk		*periphclk;
 	struct clk		*clk;
 	struct {
 		uint32_t	spu_v_h_total;
