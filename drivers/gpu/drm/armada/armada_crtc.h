@@ -39,6 +39,7 @@ struct armada_crtc {
 	const struct armada_variant *variant;
 	unsigned		num;
 	void __iomem		*base;
+	struct clk		*periphclk;
 	struct clk		*clk;
 	struct clk		*extclk[2];
 	struct {
