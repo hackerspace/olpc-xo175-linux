@@ -312,6 +312,7 @@ static void armada_drm_crtc_irq(struct armada_crtc *dcrtc, u32 stat)
 struct armada_crtc_block {
 	void __iomem		*base;
 	struct armada_crtc	*dcrtc[2];
+	struct clk		*periphclk;
 };
 
 static irqreturn_t armada_drm_irq(int irq, void *arg)
@@ -1140,6 +1141,11 @@ armada_lcd_bind(struct device *dev, struct device *master, void *data)
 	if (ret < 0)
 		return ret;
 
+	block->periphclk = devm_clk_get(dev, "periph");
+	if (IS_ERR(block->periphclk))
+		block->periphclk = NULL;
+	WARN_ON(clk_prepare_enable(block->periphclk));
+
 	/* Initialize some registers which we don't otherwise set */
 	writel_relaxed(0x00000000, base + LCD_SPU_SRAM_PARA0);
 	writel_relaxed(CFG_PDWN256x32 | CFG_PDWN256x24 | CFG_PDWN256x8 |
@@ -1197,6 +1203,8 @@ armada_lcd_unbind(struct device *dev, struct device *master, void *data)
 			armada_drm_crtc_destroy(&block->dcrtc[i]->crtc);
 		block->dcrtc[i] = NULL;
 	}
+
+	clk_disable_unprepare(block->periphclk);
 }
 
 static const struct component_ops armada_lcd_ops = {
