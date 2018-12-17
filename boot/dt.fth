@@ -37,7 +37,7 @@ patch phandle>basename phandle>devname flatten-path
 \ It's not clear why is it commented out in OFW, but it claims to implement
 \ the version 17 of the specification, which must supply this field.
 \ Linux won't boot without it.
-: patch-struct-size 
+: patch-struct-size
     fdt-ptr  fdt h# 80 +  -  fdt h# 24 +  be-l!  \ Set struct size
     fdt-strings-len
 ;
@@ -91,6 +91,13 @@ d# 120 constant MMP2_CLK_SP
 4 constant SW_MICROPHONE_INSERT
 
 \ DT patches
+
+: replace-clocks ( clock -- )
+    " clocks" delete-property
+    " /clocks" encode-phandle
+    encode-int encode+
+    " clocks" property
+;
 
 " dev /" evaluate
     \ Be able to boot a generic MMP2 kernel.
@@ -224,9 +231,8 @@ device-end
 device-end
 
 " dev /display@d420b000" evaluate
-    " clocks" delete-property
+    MMP2_CLK_DISP0 replace-clocks
     " clock-names" delete-property
-    " /clocks" encode-phandle  MMP2_CLK_DISP0 encode-int encode+  " clocks" property
     " axiclk" " clock-names" string-property
 device-end
 
@@ -236,18 +242,16 @@ device-end
 device-end
 
 " dev /usb@d4208000" evaluate
-    " clocks" delete-property
+    MMP2_CLK_USB replace-clocks
     " clock-names" delete-property
-    " /clocks" encode-phandle  MMP2_CLK_USB encode-int encode+  " clocks" property
     " USBCLK" " clock-names" string-property
     " /usb2-phy@d4207000" encode-phandle " phys" property
     " usb" " phy-names" string-property
 device-end
 
 " dev /sdhci@d4280000" evaluate
-    " clocks" delete-property
+    MMP2_CLK_SDH0 replace-clocks
     " clock-names" delete-property
-    " /clocks" encode-phandle  MMP2_CLK_SDH0 encode-int encode+  " clocks" property
     " io" " clock-names" string-property
     d# 50000000 " clock-frequency" integer-property
     d# 31 " mrvl,clk-delay-cycles" integer-property
@@ -255,10 +259,9 @@ device-end
 device-end
 
 " dev /sdhci@d4280800" evaluate
-    " clocks" delete-property
+    MMP2_CLK_SDH1 replace-clocks
     " clock-names" delete-property
     " bus-width" delete-property
-    " /clocks" encode-phandle  MMP2_CLK_SDH1 encode-int encode+  " clocks" property
     " io" " clock-names" string-property
     d# 50000000 " clock-frequency" integer-property
     0 0 encode-bytes " no-1-8-v" property
@@ -270,9 +273,8 @@ device-end
 device-end
 
 " dev /sdhci@d4281000" evaluate
-    " clocks" delete-property
+    MMP2_CLK_SDH2 replace-clocks
     " clock-names" delete-property
-    " /clocks" encode-phandle  MMP2_CLK_SDH2 encode-int encode+  " clocks" property
     " io" " clock-names" string-property
     d# 50000000 " clock-frequency" integer-property
     d# 31 " mrvl,clk-delay-cycles" integer-property
@@ -280,109 +282,30 @@ device-end
 device-end
 
 " dev /camera@d420a000" evaluate
-    " clocks" delete-property
+    MMP2_CLK_CCIC0 replace-clocks
     " clock-names" delete-property
-    " /clocks" encode-phandle  MMP2_CLK_CCIC0 encode-int encode+  " clocks" property
     " axi" " clock-names" string-property
 device-end
 
 " dev /ap-sp@d4290000" evaluate
-    " clocks" delete-property
+    MMP2_CLK_SP replace-clocks
     " clock-names" delete-property
-    " /clocks" encode-phandle  MMP2_CLK_SP encode-int encode+  " clocks" property
     " sp" " clock-names" string-property
 device-end
 
-" dev /timer@d4014000" evaluate
-    " clocks" delete-property
-    " /clocks" encode-phandle  MMP2_CLK_TIMER encode-int encode+  " clocks" property
-device-end
-
-" dev /uart@d4030000" evaluate
-    " clocks" delete-property
-    " /clocks" encode-phandle  MMP2_CLK_UART0 encode-int encode+  " clocks" property
-    " /clocks" encode-phandle  MMP2_CLK_UART0 encode-int encode+  " resets" property
-device-end
-
-" dev /uart@d4017000" evaluate
-    " clocks" delete-property
-    " /clocks" encode-phandle  MMP2_CLK_UART1 encode-int encode+  " clocks" property
-    " /clocks" encode-phandle  MMP2_CLK_UART1 encode-int encode+  " resets" property
-device-end
-
-" dev /uart@d4018000" evaluate
-    " clocks" delete-property
-    " /clocks" encode-phandle  MMP2_CLK_UART2 encode-int encode+  " clocks" property
-    " /clocks" encode-phandle  MMP2_CLK_UART2 encode-int encode+  " resets" property
-device-end
-
-" dev /uart@d4016000" evaluate
-    " clocks" delete-property
-    " /clocks" encode-phandle  MMP2_CLK_UART3 encode-int encode+  " clocks" property
-    " /clocks" encode-phandle  MMP2_CLK_UART3 encode-int encode+  " resets" property
-device-end
-
 " dev /gpio@d4019000" evaluate
-    " clocks" delete-property
-    " /clocks" encode-phandle  MMP2_CLK_GPIO encode-int encode+  " clocks" property
-    " /clocks" encode-phandle  MMP2_CLK_GPIO encode-int encode+  " resets" property
+    MMP2_CLK_GPIO replace-clocks
     " marvell,mmp2-gpio" +compatible
     0 0 encode-bytes " ranges" property
 device-end
 
-" dev /i2c@d4011000" evaluate
-    " clocks" delete-property
-    " /clocks" encode-phandle  MMP2_CLK_TWSI0 encode-int encode+  " clocks" property
-    " /clocks" encode-phandle  MMP2_CLK_TWSI0 encode-int encode+  " resets" property
-device-end
-
-" dev /i2c@d4031000" evaluate
-    " clocks" delete-property
-    " /clocks" encode-phandle  MMP2_CLK_TWSI1 encode-int encode+  " clocks" property
-    " /clocks" encode-phandle  MMP2_CLK_TWSI1 encode-int encode+  " resets" property
-device-end
-
-" dev /i2c@d4031000/rtc@68" evaluate
-    " dallas,ds1338" +compatible
-device-end
-
-" dev /battery@0" evaluate
-    " olpc,xo1.5-battery" +compatible
-device-end
-
-" dev /i2c@d4033000" evaluate
-    " clocks" delete-property
-    " /clocks" encode-phandle  MMP2_CLK_TWSI3 encode-int encode+  " clocks" property
-    " /clocks" encode-phandle  MMP2_CLK_TWSI3 encode-int encode+  " resets" property
-device-end
-
-" dev /i2c@d4034000" evaluate
-    " clocks" delete-property
-    " /clocks" encode-phandle  MMP2_CLK_TWSI5 encode-int encode+  " clocks" property
-    " /clocks" encode-phandle  MMP2_CLK_TWSI5 encode-int encode+  " resets" property
-device-end
-
-" dev /i2c@d4034000/accelerometer@1d" evaluate
-\ " dev /i2c@d4034000/accelerometer@19" evaluate
-    " st,lis3lv02d" +compatible
-    " st,lis331dlh" +compatible
-device-end
-
-" dev /wakeup-rtc@d4010000" evaluate
-    " clocks" delete-property
-    " /clocks" encode-phandle  MMP2_CLK_RTC encode-int encode+  " clocks" property
-    " /clocks" encode-phandle  MMP2_CLK_RTC encode-int encode+  " resets" property
-device-end
-
 " dev /flash@d4035000" evaluate
-    " clocks" delete-property
-    " /clocks" encode-phandle  MMP2_CLK_SSP0 encode-int encode+  " clocks" property
+    MMP2_CLK_SSP0 replace-clocks
     " marvell,mmp2-ssp" +compatible
 device-end
 
 " dev /ec-spi@d4037000" evaluate
-    " clocks" delete-property
-    " /clocks" encode-phandle  MMP2_CLK_SSP2 encode-int encode+  " clocks" property
+    MMP2_CLK_SSP2 replace-clocks
     " marvell,mmp2-ssp" +compatible
     0 0 encode-bytes " spi-slave" property
 
@@ -403,17 +326,29 @@ device-end
     finish-device
 device-end
 
-" dev /audio@d42a0c00" evaluate
-    " clocks" delete-property
-device-end
+" dev /timer@d4014000"      evaluate MMP2_CLK_TIMER replace-clocks device-end
+" dev /uart@d4030000"       evaluate MMP2_CLK_UART0 replace-clocks device-end
+" dev /uart@d4017000"       evaluate MMP2_CLK_UART1 replace-clocks device-end
+" dev /uart@d4018000"       evaluate MMP2_CLK_UART2 replace-clocks device-end
+" dev /uart@d4016000"       evaluate MMP2_CLK_UART3 replace-clocks device-end
+" dev /i2c@d4011000"        evaluate MMP2_CLK_TWSI0 replace-clocks device-end
+" dev /i2c@d4031000"        evaluate MMP2_CLK_TWSI1 replace-clocks device-end
+" dev /i2c@d4033000"        evaluate MMP2_CLK_TWSI3 replace-clocks device-end
+" dev /i2c@d4034000"        evaluate MMP2_CLK_TWSI5 replace-clocks device-end
+" dev /wakeup-rtc@d4010000" evaluate MMP2_CLK_RTC   replace-clocks device-end
 
-" dev /sspa@d42a0d00" evaluate
-    " clocks" delete-property
-device-end
+\ FIXME
+" dev /audio@d42a0c00" evaluate " clocks" delete-property device-end
+" dev /sspa@d42a0d00"  evaluate " clocks" delete-property device-end
+" dev /vmeta@f0400000" evaluate " clocks" delete-property device-end
 
-" dev /vmeta@f0400000" evaluate
-    " clocks" delete-property
-device-end
+" dev /i2c@d4031000/rtc@68"        evaluate " dallas,ds1338"      +compatible device-end
+" dev /battery@0"                  evaluate " olpc,xo1.5-battery" +compatible device-end
+" dev /i2c@d4034000/accelerometer" evaluate " st,lis3lv02d"       +compatible device-end
+
+\ " dev /i2c@d4034000/accelerometer@1d" evaluate
+\ " dev /i2c@d4034000/accelerometer@19" evaluate
+
 
 \ The simple-framebuffer node describes the frame buffer set up by the
 \ firmware so that the kernel is able to use it before it loads the
@@ -448,6 +383,6 @@ unselect
 
 	" r5g6b5" " format" string-property
 	" /display@d420b000" encode-phandle " display" property
-        " /clocks" encode-phandle  MMP2_CLK_DISP0 encode-int encode+  " clocks" property
+    MMP2_CLK_DISP0 replace-clocks
     finish-device
 device-end
