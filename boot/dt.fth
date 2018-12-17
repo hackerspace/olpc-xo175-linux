@@ -90,6 +90,8 @@ d# 120 constant MMP2_CLK_SP
 2 constant SW_HEADPHONE_INSERT
 4 constant SW_MICROPHONE_INSERT
 
+2 constant IRQ_TYPE_EDGE_FALLING
+
 \ DT patches
 
 : replace-clocks ( clock -- )
@@ -370,19 +372,119 @@ unselect
         " framebuffer" device-name
         " simple-framebuffer" +compatible
 
-	>physical  encode-int
-	2over * 2 *  encode-int encode+
-	" reg" property
+        >physical  encode-int
+        2over * 2 *  encode-int encode+
+        " reg" property
 
-	2dup
-	" width" integer-property
-	" height" integer-property
+        2dup
+        " width" integer-property
+        " height" integer-property
 
-	2 * " stride" integer-property
-	drop
+        2 * " stride" integer-property
+        drop
 
-	" r5g6b5" " format" string-property
-	" /display@d420b000" encode-phandle " display" property
-    MMP2_CLK_DISP0 replace-clocks
+        " r5g6b5" " format" string-property
+        " /display@d420b000" encode-phandle " display" property
+        MMP2_CLK_DISP0 replace-clocks
     finish-device
+device-end
+
+\ DRM
+
+" dev /" evaluate
+    new-device
+        " dcon" device-name
+        " himax,hx8837" +compatible
+
+        h# 0d " reg" integer-property
+
+        " /gpio@d4019000" encode-phandle
+        d# 100 encode-int encode+
+        d# 0 encode-int encode+
+        " /gpio@d4019000" encode-phandle encode+
+        d# 101 encode-int encode+
+        d# 0 encode-int encode+
+        " stat-gpios" property
+
+        " /gpio@d4019000" encode-phandle
+        d# 142 encode-int encode+
+        d# 0 encode-int encode+
+        " load-gpios" property
+
+        " /gpio@d4019000" encode-phandle " interrupt-parent" property
+
+        d# 124 encode-int
+        d# IRQ_TYPE_EDGE_FALLING encode-int encode+
+        " interrupts" property
+
+        new-device
+            " ports" device-name
+            1 " #address-cells" integer-property
+            0 " #size-cells" integer-property
+
+            new-device
+                " port" device-name
+                0 " reg" integer-property
+                new-device
+                    " endpoint" device-name
+                    " /lcdc@d420b000/port/endpoint" encode-phandle " remote-endpoint" property
+                finish-device
+            finish-device
+
+            new-device
+                " port" device-name
+                1 " reg" integer-property
+                new-device
+                    " endpoint" device-name
+                finish-device
+            finish-device
+        finish-device
+    finish-device
+
+    new-device
+        " panel" device-name
+        " innolux,ls075at011" +compatible
+        " simple-panel" +compatible
+
+        new-device
+            " port" device-name
+            new-device
+                " endpoint" device-name
+                " /dcon/port/endpoint@1" encode-phandle " remote-endpoint" property
+            finish-device
+        finish-device
+    finish-device
+
+    new-device
+        " reserved-memory" device-name
+        1 " #address-cells" integer-property
+        1 " #size-cells" integer-property
+        0 0 encode-bytes " ranges" property
+        " marvell,mmp2-framebuffer" +compatible
+        " marvell,armada-framebuffer" +compatible
+
+        new-device
+            " framebuffer" device-name
+            h# 02000000 " size" integer-property
+            h# 02000000 " alignment" integer-property
+            0 0 encode-bytes " no-map" property
+        finish-device
+    finish-device
+
+    new-device
+        " display-subsystem" device-name
+        " marvell,mmp2-display-subsystem" +compatible
+        " marvell,armada-display-subsystem" +compatible
+
+        " /lcdc@d420b000/port" encode-phandle
+        " ports" property
+    finish-device
+device-end
+
+" dev /dcon/port/endpoint@1" evaluate
+    " /panel/port/endpoint" encode-phandle " remote-endpoint" property
+device-end
+
+" dev /lcdc@d420b000/port/endpoint" evaluate
+    " /dcon/port/endpoint@0" encode-phandle " remote-endpoint" property
 device-end
