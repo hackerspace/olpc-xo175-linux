@@ -58,6 +58,7 @@ patch patch-cdump-cr cdump .fdt-value
 \ include/dt-bindings/gpio/gpio.h
 0 constant GPIO_ACTIVE_HIGH
 1 constant GPIO_ACTIVE_LOW
+6 constant GPIO_OPEN_DRAIN
 
 \ include/dt-bindings/clock/marvell,mmp2.h
 d#  60 constant MMP2_CLK_TWSI0
@@ -90,13 +91,15 @@ d# 120 constant MMP2_CLK_SP
 2 constant SW_HEADPHONE_INSERT
 4 constant SW_MICROPHONE_INSERT
 
+\ include/dt-bindings/interrupt-controller/irq.h
 2 constant IRQ_TYPE_EDGE_FALLING
 
 \ DT patches
 
 : replace-clocks ( clock -- )
     " clocks" delete-property
-    " /clocks" encode-phandle
+    " /clocks" encode-phandle  ( clock addr len )
+    rot			       ( addr len clock )
     encode-int encode+
     " clocks" property
 ;
@@ -232,12 +235,6 @@ device-end
     0 0 encode-bytes " ranges" property
 device-end
 
-" dev /display@d420b000" evaluate
-    MMP2_CLK_DISP0 replace-clocks
-    " clock-names" delete-property
-    " axiclk" " clock-names" string-property
-device-end
-
 " dev /usb2-phy@d4207000" evaluate
     " marvell,mmp2-usb-phy" +compatible
     0 " #phy-cells" integer-property
@@ -259,6 +256,7 @@ device-end
     d# 31 " mrvl,clk-delay-cycles" integer-property
     0 0 encode-bytes " broken-cd" property
 device-end
+
 
 " dev /sdhci@d4280800" evaluate
     MMP2_CLK_SDH1 replace-clocks
@@ -283,12 +281,6 @@ device-end
     0 0 encode-bytes " no-1-8-v" property
 device-end
 
-" dev /camera@d420a000" evaluate
-    MMP2_CLK_CCIC0 replace-clocks
-    " clock-names" delete-property
-    " axi" " clock-names" string-property
-device-end
-
 " dev /ap-sp@d4290000" evaluate
     MMP2_CLK_SP replace-clocks
     " clock-names" delete-property
@@ -299,6 +291,8 @@ device-end
     MMP2_CLK_GPIO replace-clocks
     " marvell,mmp2-gpio" +compatible
     0 0 encode-bytes " ranges" property
+    " #interrupt-cells" delete-property
+    2 " #interrupt-cells" integer-property
 device-end
 
 " dev /flash@d4035000" evaluate
@@ -344,13 +338,9 @@ device-end
 " dev /sspa@d42a0d00"  evaluate " clocks" delete-property device-end
 " dev /vmeta@f0400000" evaluate " clocks" delete-property device-end
 
-" dev /i2c@d4031000/rtc@68"        evaluate " dallas,ds1338"      +compatible device-end
-" dev /battery@0"                  evaluate " olpc,xo1.5-battery" +compatible device-end
-" dev /i2c@d4034000/accelerometer" evaluate " st,lis3lv02d"       +compatible device-end
-
-\ " dev /i2c@d4034000/accelerometer@1d" evaluate
-\ " dev /i2c@d4034000/accelerometer@19" evaluate
-
+" dev /i2c@d4031000/rtc@68" evaluate " dallas,ds1338"      +compatible device-end
+" dev /battery@0"           evaluate " olpc,xo1.5-battery" +compatible device-end
+" dev /i2c@d4034000/accelerometer" evaluate " st,lis3lv02d"+compatible device-end
 
 \ The simple-framebuffer node describes the frame buffer set up by the
 \ firmware so that the kernel is able to use it before it loads the
@@ -391,102 +381,109 @@ device-end
 
 \ DRM
 
+" dev /display@d420b000" evaluate
+    " marvell,mmp2-lcd" +compatible
+    MMP2_CLK_DISP0 replace-clocks
+    " clock-names" delete-property
+    " axiclk" " clock-names" string-property
+
+    new-device
+        " port" device-name
+        new-device
+            " endpoint" device-name
+            d# 18 " bus-width" integer-property
+        finish-device
+    finish-device
+device-end
+
+" dev /dcon-i2c/dcon@d" evaluate
+    " himax,hx8837" +compatible
+
+    h# 0d " reg" integer-property
+
+    " /gpio@d4019000" encode-phandle
+    d# 100 encode-int encode+
+    d# 0 encode-int encode+
+    " /gpio@d4019000" encode-phandle encode+
+    d# 101 encode-int encode+
+    d# 0 encode-int encode+
+    " stat-gpios" property
+
+    " /gpio@d4019000" encode-phandle
+    d# 142 encode-int encode+
+    d# 0 encode-int encode+
+    " load-gpios" property
+
+    " /gpio@d4019000" encode-phandle " interrupt-parent" property
+
+    d# 124 encode-int
+    IRQ_TYPE_EDGE_FALLING encode-int encode+
+    " interrupts" property
+
+    new-device
+        " ports" device-name
+        1 " #address-cells" integer-property
+        0 " #size-cells" integer-property
+
+	: decode-unit  ( adr len -- phys )  $number  if  0  then  ;
+	: encode-unit  ( phys -- adr len )  (u.)  ;
+	: open  ( -- true )  true  ;
+	: close  ( -- )  ;
+
+        new-device
+            " port" device-name
+            0 " reg" integer-property
+            new-device
+                " endpoint" device-name
+                " /display@d420b000/port/endpoint" encode-phandle " remote-endpoint" property
+            finish-device
+        finish-device
+
+        new-device
+            " port" device-name
+            1 " reg" integer-property
+            new-device
+                " endpoint" device-name
+            finish-device
+        finish-device
+    finish-device
+device-end
+
 " dev /" evaluate
     new-device
-        " lcdc" device-name
-        " marvell,mmp2-lcd" +compatible
-
-        h# d420b000 encode-int
-        h# 1000 encode-int encode+
-        " reg" property
-
-        41 " interrupts" integer-property
-
-        106 replace-clocks
-        " axiclk" " clock-names" string-property
-
-        new-device
-            " port" device-name
-            new-device
-                " endpoint" device-name
-                18 " bus-width" integer-property
-            finish-device
-        finish-device
-    finish-device
-
-    new-device
-        " dcon" device-name
-        " himax,hx8837" +compatible
-
-        h# 0d " reg" integer-property
-
-        " /gpio@d4019000" encode-phandle
-        d# 100 encode-int encode+
-        d# 0 encode-int encode+
-        " /gpio@d4019000" encode-phandle encode+
-        d# 101 encode-int encode+
-        d# 0 encode-int encode+
-        " stat-gpios" property
-
-        " /gpio@d4019000" encode-phandle
-        d# 142 encode-int encode+
-        d# 0 encode-int encode+
-        " load-gpios" property
-
-        " /gpio@d4019000" encode-phandle " interrupt-parent" property
-
-        d# 124 encode-int
-        d# IRQ_TYPE_EDGE_FALLING encode-int encode+
-        " interrupts" property
-
-        new-device
-            " ports" device-name
-            1 " #address-cells" integer-property
-            0 " #size-cells" integer-property
-
-            new-device
-                " port" device-name
-                0 " reg" integer-property
-                new-device
-                    " endpoint" device-name
-                    " /lcdc@d420b000/port/endpoint" encode-phandle " remote-endpoint" property
-                finish-device
-            finish-device
-
-            new-device
-                " port" device-name
-                1 " reg" integer-property
-                new-device
-                    " endpoint" device-name
-                finish-device
-            finish-device
-        finish-device
-    finish-device
-
-    new-device
         " panel" device-name
-        " innolux,ls075at011" +compatible
         " simple-panel" +compatible
+        " innolux,ls075at011" +compatible
 
-        new-device
-            " port" device-name
-            new-device
-                " endpoint" device-name
-                " /dcon/port/endpoint@1" encode-phandle " remote-endpoint" property
-            finish-device
-        finish-device
-    finish-device
+         new-device
+             " port" device-name
+             new-device
+                 " endpoint" device-name
+                 " /dcon-i2c/dcon@d/ports/port@1/endpoint" encode-phandle " remote-endpoint" property
+             finish-device
+         finish-device
+     finish-device
+device-end
 
+" dev /dcon-i2c/dcon@d/ports/port@1/endpoint" evaluate
+    " /panel/port/endpoint" encode-phandle " remote-endpoint" property
+device-end
+
+" dev /display@d420b000/port/endpoint" evaluate
+    " /dcon-i2c/dcon@d/ports/port@0/endpoint" encode-phandle " remote-endpoint" property
+device-end
+
+" dev /" evaluate
     new-device
         " reserved-memory" device-name
         1 " #address-cells" integer-property
         1 " #size-cells" integer-property
         0 0 encode-bytes " ranges" property
-        " marvell,mmp2-framebuffer" +compatible
-        " marvell,armada-framebuffer" +compatible
 
         new-device
             " framebuffer" device-name
+            " marvell,armada-framebuffer" +compatible
+            " marvell,mmp2-framebuffer" +compatible
             h# 02000000 " size" integer-property
             h# 02000000 " alignment" integer-property
             0 0 encode-bytes " no-map" property
@@ -498,92 +495,77 @@ device-end
         " marvell,mmp2-display-subsystem" +compatible
         " marvell,armada-display-subsystem" +compatible
 
-        " /lcdc@d420b000/port" encode-phandle
-        " ports" property
+        " /display@d420b000/port" encode-phandle " ports" property
+        " /reserved-memory/framebuffer" encode-phandle " memory-region" property
     finish-device
 device-end
 
-" dev /dcon/port/endpoint@1" evaluate
-    " /panel/port/endpoint" encode-phandle " remote-endpoint" property
-device-end
+" dev /camera@d420a000" evaluate
+    " camera" device-name
+    " marvell,mmp2-ccic" +compatible
 
-" dev /lcdc@d420b000/port/endpoint" evaluate
-    " /dcon/port/endpoint@0" encode-phandle " remote-endpoint" property
-device-end
+    MMP2_CLK_CCIC0 replace-clocks
+    " clock-names" delete-property
+    " axi" " clock-names" string-property
 
-" dev /" evaluate
-    new-device
-        " camera" device-name
-        " marvell,mmp2-ccic" +compatible
-
-        h# d420a000 encode-int
-        h# 800 encode-int encode+
-        " reg" property
-
-        42 " interrupts" integer-property
-
-        112 replace-clocks
-        " axi" " clock-names" string-property
-
-        0 " #clock-cells" integer-property
-        " mclk" " clock-output-names" string-property
-
-        new-device
-            " port" device-name
-            new-device
-                " endpoint" device-name
-            finish-device
-        finish-device
-    finish-device
+    0 " #clock-cells" integer-property
+    " mclk" " clock-output-names" string-property
 
     new-device
-        " camera_i2c" device-name
-        " i2c-gpio" +compatible
-
-        " /gpio@d4019000" encode-phandle
-        d# 109 encode-int encode+
-        d# 6 encode-int encode+
-        " /gpio@d4019000" encode-phandle encode+
-        d# 108 encode-int encode+
-        d# 6 encode-int encode+
-        " gpios" property
-
-        1 " #address-cells" integer-property
-        0 " #size-cells" integer-property
-
-        d# 1000 " i2c-gpio,timeout-ms" integer-property
-
+        " port" device-name
         new-device
-            " camera" device-name
-            " ovti,ov7670" +compatible
-            h# 21 " reg" integer-property
-    
-            " /gpio@d4019000" encode-phandle
-            d# 102 encode-int encode+
-            d# 1 encode-int encode+
-            " reset-gpios" property
-
-            " /gpio@d4019000" encode-phandle
-            d# 150 encode-int encode+
-            d# 1 encode-int encode+
-            " powerdown-gpios" property
-    
-            14 replace-clocks
-            " xclk" " clock-names" string-property
-    
-            new-device
-               " port" device-name
-                new-device
-                    " endpoint" device-name
-                    h# 1 " hsync-active" integer-property
-                    h# 1 " vsync-active" integer-property
-                    " /camera@d420a000" encode-phandle " remote-endpoint" property
-                finish-device
-            finish-device
+            " endpoint" device-name
         finish-device
     finish-device
-end-device
+device-end
 
-" dev /camera@d420a000/port/endpoint"
-    " /camera@21" encode-phandle " remote-endpoint" property
-end-device
+" dev /camera-i2c" evaluate
+    " gpios" delete-property
+    " /gpio@d4019000" encode-phandle
+    d# 109 encode-int encode+
+    GPIO_OPEN_DRAIN encode-int encode+
+    " /gpio@d4019000" encode-phandle encode+
+    d# 108 encode-int encode+
+    GPIO_OPEN_DRAIN encode-int encode+
+    " gpios" property
+
+    " #size-cells" delete-property
+    0 " #size-cells" integer-property
+
+    d# 1000 " i2c-gpio,timeout-ms" integer-property
+device-end
+
+" dev /camera-i2c/image-sensor@21" evaluate
+    " ovti,ov7670" +compatible
+
+    " reg" delete-property
+    h# 21 " reg" integer-property
+
+    " /gpio@d4019000" encode-phandle
+    d# 102 encode-int encode+
+    d# 1 encode-int encode+
+    " reset-gpios" property
+
+    " /gpio@d4019000" encode-phandle
+    d# 150 encode-int encode+
+    d# 1 encode-int encode+
+    " powerdown-gpios" property
+
+    \ 14 replace-clocks
+    " /camera@d420a000" encode-phandle " clocks" property
+    " xclk" " clock-names" string-property
+
+    new-device
+       " port" device-name
+        new-device
+            " endpoint" device-name
+            h# 1 " hsync-active" integer-property
+            h# 1 " vsync-active" integer-property
+            " /camera@d420a000/port/endpoint" encode-phandle " remote-endpoint" property
+        finish-device
+    finish-device
+device-end
+
+" dev /camera@d420a000/port/endpoint" evaluate
+    " /camera-i2c/image-sensor@21/port/endpoint" encode-phandle " remote-endpoint" property
+device-end
