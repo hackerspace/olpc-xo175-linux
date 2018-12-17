@@ -393,6 +393,28 @@ device-end
 
 " dev /" evaluate
     new-device
+        " lcdc" device-name
+        " marvell,mmp2-lcd" +compatible
+
+        h# d420b000 encode-int
+        h# 1000 encode-int encode+
+        " reg" property
+
+        41 " interrupts" integer-property
+
+        106 replace-clocks
+        " axiclk" " clock-names" string-property
+
+        new-device
+            " port" device-name
+            new-device
+                " endpoint" device-name
+                18 " bus-width" integer-property
+            finish-device
+        finish-device
+    finish-device
+
+    new-device
         " dcon" device-name
         " himax,hx8837" +compatible
 
@@ -488,3 +510,80 @@ device-end
 " dev /lcdc@d420b000/port/endpoint" evaluate
     " /dcon/port/endpoint@0" encode-phandle " remote-endpoint" property
 device-end
+
+" dev /" evaluate
+    new-device
+        " camera" device-name
+        " marvell,mmp2-ccic" +compatible
+
+        h# d420a000 encode-int
+        h# 800 encode-int encode+
+        " reg" property
+
+        42 " interrupts" integer-property
+
+        112 replace-clocks
+        " axi" " clock-names" string-property
+
+        0 " #clock-cells" integer-property
+        " mclk" " clock-output-names" string-property
+
+        new-device
+            " port" device-name
+            new-device
+                " endpoint" device-name
+            finish-device
+        finish-device
+    finish-device
+
+    new-device
+        " camera_i2c" device-name
+        " i2c-gpio" +compatible
+
+        " /gpio@d4019000" encode-phandle
+        d# 109 encode-int encode+
+        d# 6 encode-int encode+
+        " /gpio@d4019000" encode-phandle encode+
+        d# 108 encode-int encode+
+        d# 6 encode-int encode+
+        " gpios" property
+
+        1 " #address-cells" integer-property
+        0 " #size-cells" integer-property
+
+        d# 1000 " i2c-gpio,timeout-ms" integer-property
+
+        new-device
+            " camera" device-name
+            " ovti,ov7670" +compatible
+            h# 21 " reg" integer-property
+    
+            " /gpio@d4019000" encode-phandle
+            d# 102 encode-int encode+
+            d# 1 encode-int encode+
+            " reset-gpios" property
+
+            " /gpio@d4019000" encode-phandle
+            d# 150 encode-int encode+
+            d# 1 encode-int encode+
+            " powerdown-gpios" property
+    
+            14 replace-clocks
+            " xclk" " clock-names" string-property
+    
+            new-device
+               " port" device-name
+                new-device
+                    " endpoint" device-name
+                    h# 1 " hsync-active" integer-property
+                    h# 1 " vsync-active" integer-property
+                    " /camera@d420a000" encode-phandle " remote-endpoint" property
+                finish-device
+            finish-device
+        finish-device
+    finish-device
+end-device
+
+" dev /camera@d420a000/port/endpoint"
+    " /camera@21" encode-phandle " remote-endpoint" property
+end-device
