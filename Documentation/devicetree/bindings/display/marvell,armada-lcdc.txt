@@ -25,6 +25,11 @@ Required child nodes:
 
 - port: video output port with endpoints, as described by
   Documentation/devicetree/bindings/graph.txt
+  The endpoints can optionally specify the following property:
+
+  - bus-width: recognized values are <12>, <16>, <18> and <24>, that
+    select "rgb444", "rgb565", "rgb666" or "rgb888" pixel format
+    respectively. Defaults to <24> if unspecified.
 
 Example:
 
@@ -37,6 +42,7 @@ Example:
 
 		lcd0_port: port {
 			lcd0_rgb_out: endpoint {
+				bus-width = <24>;
 				remote-endpoint = <&encoder_rgb_in>;
 			};
 		};
