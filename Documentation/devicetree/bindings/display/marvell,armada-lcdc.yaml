@@ -9,9 +9,59 @@ title: Marvell Armada LCD Controller Bindings
 maintainers:
   - Russell King <linux@armlinux.org.uk>
 
+allOf:
+  - if:
+      properties:
+        compatible:
+          contains:
+            const: marvell,dove-lcd
+    then:
+      properties:
+        clock-names:
+          contains:
+            enum:
+              - axiclk        # AXI bus clock for pixel clock
+              - ext_ref_clk0  # External clock 0 for pixel clock
+              - plldivider    # PLL divider clock for pixel clock
+              - ext_ref_clk1  # External clock 1 for pixel clock
+  - if:
+      properties:
+        compatible:
+          contains:
+            const: marvell,mmp2-lcd
+    then:
+      properties:
+        clock-names:
+          contains:
+            enum:
+              - axiclk        # AXI bus clock for pixel clock
+              - disp0         # LCD Display clock 1 for pixel clock
+              - disp1         # LCD Display clock 2 for pixel clock
+              - hdmi_pll      # HDMI PLL for pixel clock
+  - if:
+      properties:
+        compatible:
+          contains:
+            const: marvell,mmp3-lcd
+    then:
+      properties:
+        clock-names:
+          contains:
+            enum:
+              - axiclk        # AXI bus clock for pixel clock
+              - disp0         # LCD Display clock 1 for pixel clock
+              - disp1         # LCD Display clock 2 for pixel clock
+              - hdmi_pll      # HDMI PLL for pixel clock
+              - pll3          # PLL3 for pixel clock
+
 properties:
   compatible:
-    const: marvell,dove-lcd
+    items:
+      - enum:
+        - marvell,dove-lcd
+        - marvell,mmp2-lcd
+        - marvell,mmp3-lcd
+      - const: marvell,armada-lcdc
 
   reg:
     maxItems: 1
@@ -22,13 +72,7 @@ properties:
   clocks:
     minItems: 1
 
-  clock-names:
-    contains:
-      enum:
-        - axiclk        # AXI bus clock for pixel clock
-        - plldivider    # PLL divider clock for pixel clock
-        - ext_ref_clk0  # External clock 0 for pixel clock
-        - ext_ref_clk1  # External clock 1 for pixel clock
+  clock-names: true
 
   port:
     type: object
@@ -72,7 +116,7 @@ additionalProperties: false
 examples:
   - |
     lcd-controller@820000 {
-        compatible = "marvell,dove-lcd";
+        compatible = "marvell,dove-lcd", "marvell,armada-lcdc";
         reg = <0x820000 0x1000>;
         interrupts = <47>;
         clocks = <&si5351 0>;
