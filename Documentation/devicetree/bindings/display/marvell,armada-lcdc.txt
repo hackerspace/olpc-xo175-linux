@@ -3,7 +3,8 @@ Marvell Armada LCD controller
 
 Required properties:
 
- - compatible: value should be "marvell,dove-lcd".
+ - compatible: value should be "marvell,dove-lcd" or "marvell,mmp2-lcd",
+   depending on the exact SoC model, along with "marvell,armada-lcdc"
  - reg: base address and size of the LCD controller
  - interrupts: single interrupt number for the LCD controller
 
