@@ -6,8 +6,9 @@ nodes that comprise the graphics subsystem.
 
 Required properties:
 
- - compatible: value should be "marvell,dove-display-subsystem",
-   "marvell,armada-display-subsystem"
+ - compatible: value should be one of:
+	- "marvell,dove-display-subsystem", "marvell,armada-display-subsystem"
+	- "marvell,mmp2-display-subsystem", "marvell,armada-display-subsystem"
  - ports: a list of phandles pointing to display interface ports of CRTC
    devices
  - memory-region: phandle to a node describing memory to be used for the
@@ -27,7 +28,7 @@ Marvell Armada LCD controller
 
 Required properties:
 
- - compatible: value should be "marvell,dove-lcd".
+ - compatible: value should be "marvell,dove-lcd" or "marvell,mmp2-lcd"
  - reg: base address and size of the LCD controller
  - interrupts: single interrupt number for the LCD controller
 
@@ -72,8 +73,9 @@ Memory set aside for allocation of Marvell Armada framebuffer objects.
 
 Required properties:
 
- - compatible: value should be "marvell,dove-framebuffer",
-   "marvell,armada-framebuffer".
+ - compatible: value should be one of:
+	- "marvell,dove-framebuffer", "marvell,armada-framebuffer"
+	- "marvell,mmp2-framebuffer", "marvell,armada-framebuffer"
 
 This binding is compatible with the binding, specified in
 Documentation/devicetree/bindings/reserved-memory/reserved-memory.txt..
