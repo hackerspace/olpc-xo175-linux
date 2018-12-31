@@ -57,18 +57,17 @@ variable entries
 
 cr
 
-" No appended DTB" bootentry
-" ext:\boot\zImage-bare" heapstr
-\ " console=tty0 console=ttyS2,115200 earlyprintk root=/dev/mmcblk1p1 ignore_loglevel clk_ignore_unused rootwait" heapstr
-\ " console=tty0 console=ttyS2,115200 earlyprintk root=/dev/mmcblk1p1 clk_ignore_unused rootwait" heapstr
-" console=tty0 console=ttyS2,115200 earlyprintk root=/dev/mmcblk1p1 rootwait" heapstr
-\ " console=tty0 console=ttyS2,115200 earlyprintk root=/dev/mmcblk1p1 rootwait" heapstr
-" " heapstr
-
 " External boot" bootentry
 " ext:\boot\zImage" heapstr
 " " heapstr
 " " heapstr
+
+
+" Fedora" bootentry
+" ext:\boot\vmlinuz-4.20.0-0.rc7.git1.1.lr1.fc29.armv7hl" heapstr
+" console=tty0 console=ttyS2,115200 earlyprintk root=/dev/mmcblk1p1 rootwait" heapstr
+" ext:\boot\initramfs-4.20.0-0.rc7.git1.1.lr1.fc29.armv7hl.img" heapstr
+
 
 " External boot (good)" bootentry
 " ext:\boot\zImage-works" heapstr
