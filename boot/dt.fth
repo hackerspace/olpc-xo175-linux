@@ -74,6 +74,8 @@ d# 120 constant MMP2_CLK_SP
 
         1 " #clock-cells" integer-property
         1 " #reset-cells" integer-property
+
+        MMP2_CLK_SP " protected-clocks" integer-property
     finish-device
 
     new-device
