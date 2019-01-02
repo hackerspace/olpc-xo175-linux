@@ -97,6 +97,46 @@ void drm_of_component_match_add(struct device *master,
 }
 EXPORT_SYMBOL_GPL(drm_of_component_match_add);
 
+int drm_of_component_match_add_crtcs(struct device *dev,
+				     struct component_match **match,
+				     int (*compare_of)(struct device *, void *))
+{
+	struct device_node *port;
+	int i;
+
+	if (!dev->of_node)
+		return -EINVAL;
+
+	/*
+	 * Bind the crtc's ports first, so that drm_of_find_possible_crtcs()
+	 * called from encoder's .bind callbacks works as expected
+	 */
+	for (i = 0; ; i++) {
+		port = of_parse_phandle(dev->of_node, "ports", i);
+		if (!port)
+			break;
+
+		if (of_device_is_available(port->parent))
+			drm_of_component_match_add(dev, match, compare_of,
+						   port);
+
+		of_node_put(port);
+	}
+
+	if (i == 0) {
+		dev_err(dev, "missing 'ports' property\n");
+		return -ENODEV;
+	}
+
+	if (!*match) {
+		dev_err(dev, "no available port\n");
+		return -ENODEV;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(drm_of_component_match_add_crtcs);
+
 /**
  * drm_of_component_probe - Generic probe function for a component based master
  * @dev: master device containing the OF node
@@ -116,36 +156,12 @@ int drm_of_component_probe(struct device *dev,
 {
 	struct device_node *ep, *port, *remote;
 	struct component_match *match = NULL;
+	int ret;
 	int i;
 
-	if (!dev->of_node)
-		return -EINVAL;
-
-	/*
-	 * Bind the crtc's ports first, so that drm_of_find_possible_crtcs()
-	 * called from encoder's .bind callbacks works as expected
-	 */
-	for (i = 0; ; i++) {
-		port = of_parse_phandle(dev->of_node, "ports", i);
-		if (!port)
-			break;
-
-		if (of_device_is_available(port->parent))
-			drm_of_component_match_add(dev, &match, compare_of,
-						   port);
-
-		of_node_put(port);
-	}
-
-	if (i == 0) {
-		dev_err(dev, "missing 'ports' property\n");
-		return -ENODEV;
-	}
-
-	if (!match) {
-		dev_err(dev, "no available port\n");
-		return -ENODEV;
-	}
+	ret = drm_of_component_match_add_crtcs(dev, &match, compare_of);
+	if (ret)
+		return ret;
 
 	/*
 	 * For bound crtcs, bind the encoders attached to their remote endpoint

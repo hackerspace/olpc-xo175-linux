@@ -28,6 +28,9 @@ void drm_of_component_match_add(struct device *master,
 int drm_of_component_probe(struct device *dev,
 			   int (*compare_of)(struct device *, void *),
 			   const struct component_master_ops *m_ops);
+int drm_of_component_match_add_crtcs(struct device *dev,
+				     struct component_match **match,
+				     int (*compare_of)(struct device *, void *));
 int drm_of_encoder_active_endpoint(struct device_node *node,
 				   struct drm_encoder *encoder,
 				   struct of_endpoint *endpoint);
@@ -54,6 +57,14 @@ drm_of_component_match_add(struct device *master,
 			   int (*compare)(struct device *, void *),
 			   struct device_node *node)
 {
+}
+
+static inline int
+drm_of_component_match_add_crtcs(struct device *dev,
+				 struct component_match **match,
+				 int (*compare_of)(struct device *, void *))
+{
+	return -EINVAL;
 }
 
 static inline int
