@@ -244,14 +244,12 @@ static int armada_drm_probe(struct platform_device *pdev)
 		if (ret && ret != -ENODEV)
 			return ret;
 
-		ret = drm_of_component_probe(dev, compare_of,
-					     &armada_master_ops);
-		if (ret)
+		ret = drm_of_component_match_add_crtcs(dev, &match, compare_of);
+		if (ret) {
 			of_reserved_mem_device_release(dev);
-		return ret;
-	}
-
-	if (dev->platform_data) {
+			return ret;
+		}
+	} else if (dev->platform_data) {
 		char **devices = dev->platform_data;
 		struct device_node *port;
 		struct device *d;
