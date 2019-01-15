@@ -12,9 +12,7 @@
 #include <linux/usb.h>
 #include <linux/olpc-ec.h>
 
-#ifdef CONFIG_OLPC
 #include <asm/olpc.h>
-#endif
 
 #define DRV_NAME "usb8xxx"
 
@@ -174,13 +172,11 @@ static void if_usb_fw_timeo(struct timer_list *t)
 	wake_up(&cardp->fw_wq);
 }
 
-#ifdef CONFIG_OLPC
 static void if_usb_reset_olpc_card(struct lbs_private *priv)
 {
 	printk(KERN_CRIT "Resetting OLPC wireless via EC...\n");
 	olpc_ec_cmd(0x25, NULL, 0, NULL, 0);
 }
-#endif
 
 /**
  * if_usb_probe - sets the configuration values
@@ -267,10 +263,8 @@ static int if_usb_probe(struct usb_interface *intf,
 	priv->exit_deep_sleep = NULL;
 	priv->reset_deep_sleep_wakeup = NULL;
 	priv->is_polling = false;
-#ifdef CONFIG_OLPC
 	if (machine_is_olpc())
 		priv->reset_card = if_usb_reset_olpc_card;
-#endif
 
 	cardp->boot2_version = udev->descriptor.bcdDevice;
 
@@ -395,10 +389,8 @@ static int if_usb_reset_device(struct if_usb_card *cardp)
 	ret = usb_reset_device(cardp->udev);
 	msleep(100);
 
-#ifdef CONFIG_OLPC
 	if (ret && machine_is_olpc())
 		if_usb_reset_olpc_card(NULL);
-#endif
 
 	return ret;
 }
@@ -939,14 +931,12 @@ static int if_usb_suspend(struct usb_interface *intf, pm_message_t message)
 		goto out;
 	}
 
-#ifdef CONFIG_OLPC
 	if (machine_is_olpc()) {
 		if (priv->wol_criteria == EHS_REMOVE_WAKEUP)
 			olpc_ec_wakeup_clear(EC_SCI_SRC_WLAN);
 		else
 			olpc_ec_wakeup_set(EC_SCI_SRC_WLAN);
 	}
-#endif
 
 	ret = lbs_suspend(priv);
 	if (ret)
