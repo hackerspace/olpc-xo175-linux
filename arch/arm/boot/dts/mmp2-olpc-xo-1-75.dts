@@ -179,6 +179,8 @@
 			ap-sp@d4290000 {
 				#address-cells = <0x1>;
 				#size-cells = <0x0>;
+				clocks = <&soc_clocks MMP2_CLK_SP>;
+				clock-names = "sp";
 				compatible = "olpc,ap-sp";
 				interrupts = <40>;
 				reg = <0xd4290000 0x1000>;
@@ -321,4 +323,8 @@
 			remote-endpoint = <&ov7670_0>;
 		};
 	};
+};
+
+&soc_clocks {
+	protected-clocks = <MMP2_CLK_SP>;
 };
