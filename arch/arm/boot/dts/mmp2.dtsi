@@ -43,8 +43,8 @@
 				compatible = "marvell,mmp2-lcd";
 				reg = <0xd420b000 0x1000>;
 				interrupts = <41>;
-				clocks = <&soc_clocks MMP2_CLK_DISP0>;
-				clock-names = "axiclk";
+				clocks = <&soc_clocks MMP2_CLK_DISP0_LCDC>;
+				clock-names = "periph";
 				status = "disabled";
 
 				lcd0_port: port {
