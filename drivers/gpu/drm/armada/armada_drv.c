@@ -290,7 +290,7 @@ static const struct platform_device_id armada_drm_platform_ids[] = {
 MODULE_DEVICE_TABLE(platform, armada_drm_platform_ids);
 
 static const struct of_device_id armada_drm_dt_ids[] = {
-	{ .compatible = "marvell,dove-display-subsystem", },
+	{ .compatible = "marvell,armada-display-subsystem", },
 	{ /* sentinel */ },
 };
 MODULE_DEVICE_TABLE(of, armada_drm_dt_ids);
