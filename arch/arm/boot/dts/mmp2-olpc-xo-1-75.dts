@@ -293,6 +293,9 @@
 };
 
 &lcd0 {
+	clocks = <&soc_clocks MMP2_CLK_DISP0_LCDC>,
+	         <&soc_clocks MMP2_CLK_DISP0>;
+	clock-names = "periph", "disp0";
 	status = "okay";
 };
 
