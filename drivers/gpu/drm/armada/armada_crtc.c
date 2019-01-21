@@ -1101,6 +1101,14 @@ static const struct of_device_id armada_lcd_of_match[] = {
 		.compatible	= "marvell,dove-lcd",
 		.data		= &armada510_ops,
 	},
+	{
+		.compatible	= "marvell,mmp2-lcd",
+		.data		= &armada610_ops,
+	},
+	{
+		.compatible	= "marvell,mmp3-lcd",
+		.data		= &armada620_ops,
+	},
 	{}
 };
 MODULE_DEVICE_TABLE(of, armada_lcd_of_match);
