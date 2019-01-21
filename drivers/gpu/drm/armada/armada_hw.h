@@ -219,6 +219,16 @@ enum {
 	SCLK_510_FRAC_DIV_MASK	= 0xfff << 16,
 	SCLK_510_INT_DIV_MASK	= 0xffff << 0,
 
+	/* Armada 610 */
+	SCLK_610_AXI		= 0x0 << 30,
+	SCLK_610_DISP0		= 0x1 << 30,	/* LCD Display 1 */
+	SCLK_610_DISP1		= 0x2 << 30,	/* LCD Display 2 */
+	SCLK_610_PLL		= 0x3 << 30,	/* HDMI PLL clock */
+	SCLK_610_PANEL_CLK_DIS	= 0x1 << 28,	/* 1 = panel clock disabled */
+	SCLK_610_FRAC_DIV_MASK	= 0xfff << 16,
+	SCLK_610_MIPI_DIV_MASK	= 0xf << 8,	/* 0 = off, 1 = bypass, ... */
+	SCLK_610_INT_DIV_MASK	= 0xff << 0,
+
 	/* Armada 16x */
 	SCLK_16X_AHB		= 0x0 << 28,
 	SCLK_16X_PCLK		= 0x1 << 28,
