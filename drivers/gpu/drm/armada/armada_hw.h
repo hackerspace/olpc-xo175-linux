@@ -47,6 +47,7 @@ enum {
 	LCD_SPU_COLORKEY_U		= 0x0134,
 	LCD_SPU_COLORKEY_V		= 0x0138,
 	LCD_CFG_RDREG4F			= 0x013c,	/* Armada 510 */
+	LCD_CFG_VSYNC_CTRL		= 0x013c,	/* Armada 610/620 */
 	LCD_SPU_SPI_RXDATA		= 0x0140,
 	LCD_SPU_ISA_RXDATA		= 0x0144,
 	LCD_SPU_HWC_RDDAT		= 0x0158,
@@ -215,6 +216,23 @@ enum {
 	SCLK_510_DIV_CHANGE	= 1 << 29,
 	SCLK_510_FRAC_DIV_MASK	= 0xfff << 16,
 	SCLK_510_INT_DIV_MASK	= 0xffff << 0,
+
+	/* Armada 610 */
+	SCLK_610_AXI		= 0x0 << 30,
+	SCLK_610_DISP0		= 0x1 << 30,	/* LCD Display 1 */
+	SCLK_610_DISP1		= 0x2 << 30,	/* LCD Display 2 */
+	SCLK_610_HDMI_PLL	= 0x3 << 30,	/* HDMI PLL clock */
+	SCLK_610_PANEL_CLK_DIS	= 0x1 << 28,	/* 1 = panel clock disabled */
+	SCLK_610_FRAC_DIV_MASK	= 0xfff << 16,
+	SCLK_610_MIPI_DIV_MASK	= 0xf << 8,	/* 0 = off, 1 = bypass, ... */
+	SCLK_610_INT_DIV_MASK	= 0xff << 0,
+
+	/* Armada 620 */
+	SCLK_620_AXI		= 0x0 << 29,
+	SCLK_620_DISP0		= 0x1 << 29,	/* LCD Display 1 */
+	SCLK_620_DISP1		= 0x2 << 29,	/* LCD Display 2 */
+	SCLK_620_HDMI_PLL	= 0x3 << 29,	/* HDMI PLL clock */
+	SCLK_620_PLL3		= 0x7 << 29,	/* HDMI PLL clock */
 
 	/* Armada 16x */
 	SCLK_16X_AHB		= 0x0 << 28,
