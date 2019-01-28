@@ -2,7 +2,7 @@
 /*
  * OLPC XO 1.75 Laptop.
  *
- * Copyright (C) 2018 Lubomir Rintel <lkundrak@v3.sk>
+ * Copyright (C) 2018,2019 Lubomir Rintel <lkundrak@v3.sk>
  */
 
 /dts-v1/;
@@ -202,13 +202,6 @@
 			no-map;
 		};
 	};
-
-	display-subsystem {
-		compatible = "marvell,mmp2-display-subsystem",
-		             "marvell,armada-display-subsystem";
-		memory-region = <&display_reserved>;
-		ports = <&lcd0_port>;
-	};
 };
 
 &uart3 {
@@ -295,7 +288,7 @@
 &lcd0 {
 	clocks = <&soc_clocks MMP2_CLK_DISP0_LCDC>,
 	         <&soc_clocks MMP2_CLK_DISP0>;
-	clock-names = "periph", "disp0";
+	clock-names = "periph", "ext_ref_clk0";
 	status = "okay";
 };
 
