@@ -19,7 +19,7 @@
 		#address-cells = <0x1>;
 		#size-cells = <0x1>;
 		ranges;
-		bootargs = "console=tty0 console=ttyS2,115200 earlyprintk root=/dev/mmcblk0p1 rootwait";
+		bootargs = "console=tty0 console=ttyS2,115200 earlyprintk root=/dev/mmcblk0p3 rootwait";
 
 		framebuffer@1fc00000 {
 			compatible = "simple-framebuffer";
