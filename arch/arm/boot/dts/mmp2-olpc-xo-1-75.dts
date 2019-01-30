@@ -29,7 +29,8 @@
 			stride = <(1200 * 2)>;
 			format = "r5g6b5";
 			display = <&lcd0>;
-			clocks = <&soc_clocks MMP2_CLK_DISP0>;
+			clocks = <&soc_clocks MMP2_CLK_DISP0_LCDC>,
+				 <&soc_clocks MMP2_CLK_DISP0>;
 		};
 	};
 

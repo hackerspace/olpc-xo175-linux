@@ -40,7 +40,7 @@
 			ranges;
 
 			lcd0: lcdc@d420b000 {
-				compatible = "marvell,mmp2-lcd";
+				compatible = "marvell,mmp2-lcd", "marvell,armada-lcdc";
 				reg = <0xd420b000 0x1000>;
 				interrupts = <41>;
 				clocks = <&soc_clocks MMP2_CLK_DISP0_LCDC>;
