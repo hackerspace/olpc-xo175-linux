@@ -118,11 +118,6 @@ static void lbtf_cmd_work(struct work_struct *work)
 	priv->cmd_timed_out = 0;
 	spin_unlock_irq(&priv->driver_lock);
 
-	if (!priv->fw_ready) {
-		lbtf_deb_leave_args(LBTF_DEB_CMD, "fw not ready");
-		return;
-	}
-
 	/* Execute the next command */
 	if (!priv->cur_cmd)
 		lbtf_execute_next_command(priv);
@@ -294,15 +289,9 @@ static void lbtf_tx_work(struct work_struct *work)
 static int lbtf_op_start(struct ieee80211_hw *hw)
 {
 	struct lbtf_private *priv = hw->priv;
-	void *card = priv->card;
 	int ret = -1;
 
 	lbtf_deb_enter(LBTF_DEB_MACOPS);
-
-	if (!priv->fw_ready)
-		/* Upload firmware */
-		if (priv->ops->hw_prog_firmware(card))
-			goto err_prog_firmware;
 
 	/* poke the firmware */
 	priv->capability = WLAN_CAPABILITY_SHORT_PREAMBLE;
@@ -310,20 +299,19 @@ static int lbtf_op_start(struct ieee80211_hw *hw)
 	priv->mac_control = CMD_ACT_MAC_RX_ON | CMD_ACT_MAC_TX_ON;
 	ret = lbtf_setup_firmware(priv);
 	if (ret)
-		goto err_prog_firmware;
+		goto err_setup_firmware;
 
 	if ((priv->fwrelease < LBTF_FW_VER_MIN) ||
 	    (priv->fwrelease > LBTF_FW_VER_MAX)) {
 		ret = -1;
-		goto err_prog_firmware;
+		goto err_setup_firmware;
 	}
 
 	lbtf_deb_leave(LBTF_DEB_MACOPS);
 	return 0;
 
-err_prog_firmware:
-	priv->ops->hw_reset_device(card);
-	lbtf_deb_leave_args(LBTF_DEB_MACOPS, "error programming fw; ret=%d", ret);
+err_setup_firmware:
+	lbtf_deb_leave_args(LBTF_DEB_MACOPS, "fw setup error; ret=%d", ret);
 	return ret;
 }
 
@@ -555,6 +543,11 @@ int lbtf_rx(struct lbtf_private *priv, struct sk_buff *skb)
 
 	lbtf_deb_enter(LBTF_DEB_RX);
 
+	if (priv->radioon != RADIO_ON) {
+		lbtf_deb_rx("rx before we turned on the radio");
+		goto done;
+	}
+
 	prxpd = (struct rxpd *) skb->data;
 
 	memset(&stats, 0, sizeof(stats));
@@ -593,13 +586,14 @@ int lbtf_rx(struct lbtf_private *priv, struct sk_buff *skb)
 
 	ieee80211_rx_irqsafe(priv->hw, skb);
 
+done:
 	lbtf_deb_leave(LBTF_DEB_RX);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(lbtf_rx);
 
 /**
- * lbtf_add_card: Add and initialize the card, no fw upload yet.
+ * lbtf_add_card: Add and initialize the card.
  *
  *  @card    A pointer to card
  *
@@ -648,6 +642,19 @@ struct lbtf_private *lbtf_add_card(void *card, struct device *dmdev,
 
 	INIT_WORK(&priv->cmd_work, lbtf_cmd_work);
 	INIT_WORK(&priv->tx_work, lbtf_tx_work);
+
+	if (priv->ops->hw_prog_firmware(priv)) {
+		lbtf_deb_usbd(&udev->dev, "Error programming the firmware\n");
+		priv->ops->hw_reset_device(priv);
+		goto err_init_adapter;
+	}
+
+	/* The firmware seems to start with the radio enabled. Turn it
+	 * off before an actual mac80211 start callback is invoked.
+	 */
+	priv->radioon = RADIO_OFF;
+	lbtf_set_radio_control(priv);
+
 	if (ieee80211_register_hw(hw))
 		goto err_init_adapter;
 
