@@ -1,10 +1,13 @@
-Device Tree bindings for Armada DRM CRTC driver
+Marvell Armada LCD controller
+=============================
 
 Required properties:
- - compatible: value should be "marvell,dove-lcd".
+
+ - compatible: value should be "marvell,armada-lcdc" along with
+   "marvell,dove-lcd" or "marvell,mmp2-lcd", depending on the
+   exact SoC model.
  - reg: base address and size of the LCD controller
  - interrupts: single interrupt number for the LCD controller
- - port: video output port with endpoints, as described by graph.txt
 
 Optional properties:
 
@@ -19,6 +22,16 @@ Note: all clocks are optional but at least one must be specified.
 Further clocks may be added in the future according to requirements of
 different SoCs.
 
+Required child nodes:
+
+- port: video output port with endpoints, as described by
+  Documentation/devicetree/bindings/graph.txt
+  The endpoints can optionally specify the following property:
+
+  - bus-width: recognized values are <12>, <16>, <18> and <24>, that
+    select "rgb444", "rgb565", "rgb666" or "rgb888" pixel format
+    respectively. Defaults to <24> if unspecified.
+
 Example:
 
 	lcd0: lcd-controller@820000 {
@@ -27,4 +40,11 @@ Example:
 		interrupts = <47>;
 		clocks = <&si5351 0>;
 		clock-names = "ext_ref_clk_1";
+
+		lcd0_port: port {
+			lcd0_rgb_out: endpoint {
+				bus-width = <24>;
+				remote-endpoint = <&encoder_rgb_in>;
+			};
+		};
 	};
