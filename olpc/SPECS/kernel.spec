@@ -13,8 +13,8 @@ Summary: The Linux kernel (the core of the Linux operating system)
 # Versions of various parts
 
 %define flavor _xo%{xoversion}
-%define kversion 4.%{patchlevel}.%{sublevel}%{?extraversion}
-%define rpmversion 4.%{patchlevel}.%{sublevel}%{?extraversion}%{flavor}
+%define kversion %{major}.%{patchlevel}.%{sublevel}%{?extraversion}
+%define rpmversion %{major}.%{patchlevel}.%{sublevel}%{?extraversion}%{flavor}
 %define release %{timestamp}.olpc.%{?head}
 %define image_install_path boot
 
