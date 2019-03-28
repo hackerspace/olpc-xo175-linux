@@ -91,6 +91,8 @@ BuildRequires: module-init-tools, patch >= 2.5.4, bash >= 2.03, sh-utils, tar
 BuildRequires: bzip2, findutils, gzip, m4, perl, make >= 3.78, diffutils
 BuildRequires: gcc >= 3.4.2, binutils >= 2.12, redhat-rpm-config
 BuildRequires: unifdef bc
+BuildRequires: flex bison openssl-devel
+
 BuildConflicts: rhbuildsys(DiskFree) < 500Mb
 
 BuildRequires: dracut, dracut-modules-olpc
