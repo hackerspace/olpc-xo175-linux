@@ -26,19 +26,19 @@ xo_version=$1
 if [ "$xo_version" = "1.0" ]; then
 	rpm_target="i686"
 	xo_version="1"
-	defconfig="arch/x86/configs/xo_1_defconfig"
+	defconfig="xo_1_defconfig"
 elif [ "$xo_version" = "1.5" ]; then
 	rpm_target="i686"
 	xo_version="1.5"
-	defconfig="arch/x86/configs/xo_1.5_defconfig"
+	defconfig="xo_1.5_defconfig"
 elif [ "$xo_version" = "1.75" ]; then
 	rpm_target="armv7l"
 	xo_version="1.75"
-	defconfig="arch/arm/configs/xo_1.75_defconfig"
+	defconfig="xo_175_defconfig"
 elif [ "$xo_version" = "4" ]; then
 	rpm_target="armv7l"
 	xo_version="4"
-	defconfig="arch/arm/configs/xo_4_defconfig"
+	defconfig="xo_4_defconfig"
 else
 	echo "Usage: $0 <laptop_model>"
 	echo "Available models: 1.0 1.5 1.75"

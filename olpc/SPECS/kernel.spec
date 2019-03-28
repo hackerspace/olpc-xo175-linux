@@ -168,8 +168,7 @@ BuildKernel() {
     KernelVer=%{version}-%{release}
     echo BUILDING A KERNEL FOR %{_arch}: %{_target_cpu}...
 
-    cp %{defconfig} .config
-    make -s ARCH=%{_arch} olddefconfig
+    make -s ARCH=%{_arch} %{defconfig}
     make -s ARCH=%{_arch} %{?_smp_mflags} $MakeTarget
     make -s ARCH=%{_arch} %{?_smp_mflags} modules || exit 1
 
