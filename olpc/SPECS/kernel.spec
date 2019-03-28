@@ -1,6 +1,9 @@
 # We have to override the new %%install behavior because, well... the kernel is special.
 %global __spec_install_pre %{___build_pre}
 
+%global py_auto_byte_compile %{nil}
+%global __brp_mangle_shebangs %{nil}
+
 Summary: The Linux kernel (the core of the Linux operating system)
 
 # kernel-firmware
@@ -66,6 +69,12 @@ Summary: The Linux kernel (the core of the Linux operating system)
 # Packages that need to be installed before the kernel is, because the %post
 # scripts use them.
 %define kernel_prereq  coreutils, module-init-tools, initscripts >= 8.11.1-1, hostname
+
+# Cross compile
+%if "%{_target}" != "%{_host}"
+%define cross_compile CROSS_COMPILE=%{_build_arch}-%{_target_os}%{?_gnu}-
+%define buildinitramfs 0
+%endif
 
 Name: kernel
 Group: System Environment/Kernel
@@ -171,9 +180,9 @@ BuildKernel() {
     KernelVer=%{version}-%{release}
     echo BUILDING A KERNEL FOR %{_arch}: %{_target_cpu}...
 
-    make -s ARCH=%{_arch} %{defconfig}
-    make -s ARCH=%{_arch} %{?_smp_mflags} $MakeTarget
-    make -s ARCH=%{_arch} %{?_smp_mflags} modules || exit 1
+    make -s ARCH=%{_arch} %{?cross_compile} %{defconfig}
+    make -s ARCH=%{_arch} %{?cross_compile} %{?_smp_mflags} $MakeTarget
+    make -s ARCH=%{_arch} %{?cross_compile} %{?_smp_mflags} modules || exit 1
 
     # Start installing the results
 
