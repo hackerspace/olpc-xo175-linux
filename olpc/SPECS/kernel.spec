@@ -65,7 +65,7 @@ Summary: The Linux kernel (the core of the Linux operating system)
 #
 # Packages that need to be installed before the kernel is, because the %post
 # scripts use them.
-%define kernel_prereq  fileutils, module-init-tools, initscripts >= 8.11.1-1, hostname
+%define kernel_prereq  coreutils, module-init-tools, initscripts >= 8.11.1-1, hostname
 
 Name: kernel
 Group: System Environment/Kernel
@@ -85,7 +85,7 @@ Conflicts: %{package_conflicts}
 AutoReq: no
 AutoProv: yes
 
-BuildRequires: module-init-tools, patch >= 2.5.4, bash >= 2.03, sh-utils, tar
+BuildRequires: module-init-tools, patch >= 2.5.4, bash >= 2.03, tar
 BuildRequires: bzip2, findutils, gzip, m4, perl, make >= 3.78, diffutils
 BuildRequires: gcc >= 3.4.2, binutils >= 2.12, redhat-rpm-config
 BuildRequires: unifdef bc
