@@ -85,8 +85,6 @@ Conflicts: %{package_conflicts}
 AutoReq: no
 AutoProv: yes
 
-BuildRequires: libertas-usb8388-olpc-firmware libertas-sd8686-firmware libertas-sd8787-firmware
-
 BuildRequires: module-init-tools, patch >= 2.5.4, bash >= 2.03, sh-utils, tar
 BuildRequires: bzip2, findutils, gzip, m4, perl, make >= 3.78, diffutils
 BuildRequires: gcc >= 3.4.2, binutils >= 2.12, redhat-rpm-config
@@ -95,7 +93,10 @@ BuildRequires: flex bison openssl-devel
 
 BuildConflicts: rhbuildsys(DiskFree) < 500Mb
 
+%if "%{buildinitramfs}" == "1"
 BuildRequires: dracut, dracut-modules-olpc
+BuildRequires: libertas-usb8388-olpc-firmware libertas-sd8686-firmware libertas-sd8787-firmware
+%endif
 Requires(post): coreutils, module-init-tools
 
 Source0: olpc-kernel-%{head}.tar.bz2
