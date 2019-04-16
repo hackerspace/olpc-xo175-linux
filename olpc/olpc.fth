@@ -45,4 +45,5 @@
    then
 ;
 
+unfreeze visible
 olpc-fth-boot-me
