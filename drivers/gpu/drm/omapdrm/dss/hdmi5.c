@@ -306,18 +306,6 @@ static void hdmi_core_disable(struct omap_hdmi *hdmi)
 	mutex_unlock(&hdmi->lock);
 }
 
-static int hdmi_connect(struct omap_dss_device *src,
-			struct omap_dss_device *dst)
-{
-	return omapdss_device_connect(dst->dss, dst, dst->next);
-}
-
-static void hdmi_disconnect(struct omap_dss_device *src,
-			    struct omap_dss_device *dst)
-{
-	omapdss_device_disconnect(dst, dst->next);
-}
-
 static struct edid *
 hdmi_do_read_edid(struct omap_hdmi *hdmi,
 		  struct edid *(*read)(struct omap_hdmi *hdmi,
@@ -361,11 +349,6 @@ hdmi_do_read_edid(struct omap_hdmi *hdmi,
 
 	return (struct edid *)edid;
 }
-
-static const struct omap_dss_device_ops hdmi_ops = {
-	.connect		= hdmi_connect,
-	.disconnect		= hdmi_disconnect,
-};
 
 /* -----------------------------------------------------------------------------
  * DRM Bridge Operations
@@ -710,7 +693,6 @@ static int hdmi5_init_output(struct omap_hdmi *hdmi)
 	out->type = OMAP_DISPLAY_TYPE_HDMI;
 	out->name = "hdmi.0";
 	out->dispc_channel = OMAP_DSS_CHANNEL_DIGIT;
-	out->ops = &hdmi_ops;
 	out->owner = THIS_MODULE;
 	out->of_port = 0;
 
