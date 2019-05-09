@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2012 Marvell
  * Chao Xie <xiechao.mail@gmail.com>
+ * Copyright (C) 2019 Lubomir Rintel <lkundrak@v3.sk>
  *
  * This file is licensed under the terms of the GNU General Public
  * License version 2. This program is licensed "as is" without any
@@ -16,8 +17,11 @@
 #include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/of_address.h>
+#include <linux/pm_domain.h>
+#include <linux/clk.h>
 
 #include <dt-bindings/clock/marvell,mmp2.h>
+#include <dt-bindings/power/marvell,mmp2.h>
 
 #include "clk.h"
 #include "reset.h"
@@ -66,6 +70,8 @@ enum mmp2_clk_model {
 struct mmp2_clk_unit {
 	struct mmp_clk_unit unit;
 	enum mmp2_clk_model model;
+	struct genpd_onecell_data pd_data;
+	struct generic_pm_domain gpu_pm_domain;
 	void __iomem *mpmu_base;
 	void __iomem *apmu_base;
 	void __iomem *apbc_base;
@@ -386,6 +392,98 @@ static void mmp2_clk_reset_init(struct device_node *np,
 	mmp_clk_reset_register(np, cells, nr_resets);
 }
 
+static int mmp2_gpu_pm_domain_power_on(struct generic_pm_domain *genpd)
+{
+	struct mmp2_clk_unit *pxa_unit = container_of(genpd,
+			struct mmp2_clk_unit, gpu_pm_domain);
+	void __iomem *reg = pxa_unit->apmu_base + APMU_GPU;
+	unsigned long flags = 0;
+	u32 after_power_on;
+	u32 val;
+
+	spin_lock_irqsave(&gpu_lock, flags);
+
+	val = readl(reg);
+
+	/* Turn on the power island */
+	val |= 0x00000600;
+	/* On a MMP2, AXI2MC also needs to be turned on */
+	if (pxa_unit->model == CLK_MODEL_MMP2)
+		val |= 0x00008600;
+	writel(val, reg);
+
+	/* Disable isolation */
+	val |= 0x00000100;
+	writel(val, reg);
+
+	after_power_on = val;
+
+	/* Assert the resets */
+	val &= ~0x00000003;
+	/* MMP3 also has a 2D unit (GC300) */
+	if (pxa_unit->model == CLK_MODEL_MMP3)
+		val &= ~0x00040000;
+	writel(val, reg);
+
+	/* Enable the clocks */
+	val |= 0x000000c;
+	if (pxa_unit->model == CLK_MODEL_MMP3)
+		val |= 0x00180000;
+	writel(val, reg);
+
+	/* Deassert the resets */
+	val |= 0x00000003;
+	if (pxa_unit->model == CLK_MODEL_MMP3)
+		val |= 0x00040003;
+	writel(val, reg);
+
+	writel(after_power_on, reg);
+
+	spin_unlock_irqrestore(&gpu_lock, flags);
+
+	return 0;
+}
+
+static int mmp2_gpu_pm_domain_power_off(struct generic_pm_domain *genpd)
+{
+	struct mmp2_clk_unit *pxa_unit = container_of(genpd,
+			struct mmp2_clk_unit, gpu_pm_domain);
+	void __iomem *reg = pxa_unit->apmu_base + APMU_GPU;
+	unsigned long flags = 0;
+
+	/* Turn off and isolate the the power island. */
+	if (pxa_unit->model == CLK_MODEL_MMP3) {
+		/*
+		 * We can't do this on a MMP2, there's no known way to
+		 * bring the GPU back into a working state afterwards.
+		 */
+		spin_lock_irqsave(&gpu_lock, flags);
+		writel(readl(reg) & ~0x00000700, reg);
+		spin_unlock_irqrestore(&gpu_lock, flags);
+	}
+
+	return 0;
+}
+
+static struct generic_pm_domain *mmp2_pm_onecell_domains[MMP2_NR_POWER_DOMAINS];
+
+static void mmp2_pm_domain_init(struct device_node *np,
+				struct mmp2_clk_unit *pxa_unit)
+{
+	pm_genpd_init(&pxa_unit->gpu_pm_domain, NULL, true);
+	pxa_unit->gpu_pm_domain.name = "GPU";
+
+	pxa_unit->gpu_pm_domain.power_on = mmp2_gpu_pm_domain_power_on;
+	pxa_unit->gpu_pm_domain.power_off = mmp2_gpu_pm_domain_power_off;
+
+	mmp2_pm_onecell_domains[MMP2_POWER_DOMAIN_GPU]
+				= &pxa_unit->gpu_pm_domain;
+
+	pxa_unit->pd_data.domains = mmp2_pm_onecell_domains;
+	pxa_unit->pd_data.num_domains = ARRAY_SIZE(mmp2_pm_onecell_domains);
+	of_genpd_add_provider_onecell(np, &pxa_unit->pd_data);
+}
+
 static void __init mmp2_clk_init(struct device_node *np)
 {
 	struct mmp2_clk_unit *pxa_unit;
@@ -416,6 +514,8 @@ static void __init mmp2_clk_init(struct device_node *np)
 		pr_err("failed to map apbc registers\n");
 		goto unmap_apmu_region;
 	}
+
+	mmp2_pm_domain_init(np, pxa_unit);
 
 	mmp_clk_init(np, &pxa_unit->unit, MMP2_NR_CLKS);
 
