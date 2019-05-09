@@ -16,8 +16,11 @@
 #include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/of_address.h>
+#include <linux/pm_domain.h>
+#include <linux/clk.h>
 
 #include <dt-bindings/clock/marvell,mmp2.h>
+#include <dt-bindings/power/marvell,mmp2.h>
 
 #include "clk.h"
 #include "reset.h"
@@ -58,6 +61,8 @@
 
 struct mmp2_clk_unit {
 	struct mmp_clk_unit unit;
+	struct genpd_onecell_data pd_data;
+	struct generic_pm_domain gpu_pm_domain;
 	void __iomem *mpmu_base;
 	void __iomem *apmu_base;
 	void __iomem *apbc_base;
@@ -325,6 +330,90 @@ static void mmp2_clk_reset_init(struct device_node *np,
 	mmp_clk_reset_register(np, cells, nr_resets);
 }
 
+static int mmp2_gpu_pm_domain_power_on(struct generic_pm_domain *genpd)
+{
+	struct mmp2_clk_unit *pxa_unit = container_of(genpd,
+			struct mmp2_clk_unit, gpu_pm_domain);
+	struct mmp_clk_unit *unit = &pxa_unit->unit;
+	void __iomem *reg = pxa_unit->apmu_base + APMU_GPU;
+	unsigned long flags = 0;
+	u32 tmp;
+	int ret;
+
+	spin_lock_irqsave(&gpu_lock, flags);
+
+	/* Power up the module. */
+	tmp = readl(reg);
+	tmp &= ~0x8700;
+	tmp |= 0x8600;
+	writel(tmp, reg);
+
+	ret = clk_prepare_enable(unit->clk_table[MMP2_CLK_GPU_GC]);
+	if (ret)
+		return ret;
+
+	ret = clk_prepare_enable(unit->clk_table[MMP2_CLK_GPU_BUS]);
+	if (ret) {
+		clk_disable_unprepare(unit->clk_table[MMP2_CLK_GPU_GC]);
+		return ret;
+	}
+
+	/* Disable isolation now that clocks are running. */
+	tmp = readl(reg);
+	tmp |= 0x100;
+	writel(tmp, reg);
+	udelay(1);
+
+	spin_unlock_irqrestore(&gpu_lock, flags);
+
+	return 0;
+}
+
+static int mmp2_gpu_pm_domain_power_off(struct generic_pm_domain *genpd)
+{
+	struct mmp2_clk_unit *pxa_unit = container_of(genpd,
+			struct mmp2_clk_unit, gpu_pm_domain);
+	struct mmp_clk_unit *unit = &pxa_unit->unit;
+	void __iomem *reg = pxa_unit->apmu_base + APMU_GPU;
+	unsigned long flags = 0;
+	u32 tmp;
+
+	spin_lock_irqsave(&gpu_lock, flags);
+
+	/*
+	 * Re-enable isolation. We must not touch the other bits,
+	 * otherwise the * GPU hangs without a known way to recover.
+	 */
+	tmp = readl(reg);
+	tmp &= ~0x100;
+	writel(tmp, reg);
+	udelay(1);
+
+	clk_disable_unprepare(unit->clk_table[MMP2_CLK_GPU_BUS]);
+	clk_disable_unprepare(unit->clk_table[MMP2_CLK_GPU_GC]);
+
+	spin_unlock_irqrestore(&gpu_lock, flags);
+
+	return 0;
+}
+
+static struct generic_pm_domain *mmp2_pm_onecell_domains[MMP2_NR_POWER_DOMAINS];
+
+static void mmp2_pm_domain_init(struct device_node *np,
+			struct mmp2_clk_unit *pxa_unit)
+{
+	pm_genpd_init(&pxa_unit->gpu_pm_domain, NULL, true);
+	pxa_unit->gpu_pm_domain.name = "GPU";
+	pxa_unit->gpu_pm_domain.power_on = mmp2_gpu_pm_domain_power_on;
+	pxa_unit->gpu_pm_domain.power_off = mmp2_gpu_pm_domain_power_off;
+	mmp2_pm_onecell_domains[MMP2_POWER_DOMAIN_GPU]
+				= &pxa_unit->gpu_pm_domain;
+
+	pxa_unit->pd_data.domains = mmp2_pm_onecell_domains;
+	pxa_unit->pd_data.num_domains = ARRAY_SIZE(mmp2_pm_onecell_domains);
+	of_genpd_add_provider_onecell(np, &pxa_unit->pd_data);
+}
+
 static void __init mmp2_clk_init(struct device_node *np)
 {
 	struct mmp2_clk_unit *pxa_unit;
@@ -350,6 +439,8 @@ static void __init mmp2_clk_init(struct device_node *np)
 		pr_err("failed to map apbc registers\n");
 		goto unmap_apmu_region;
 	}
+
+	mmp2_pm_domain_init(np, pxa_unit);
 
 	mmp_clk_init(np, &pxa_unit->unit, MMP2_NR_CLKS);
 
