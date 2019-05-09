@@ -53,6 +53,7 @@
 #define APMU_DISP1	0x110
 #define APMU_CCIC0	0x50
 #define APMU_CCIC1	0xf4
+#define APMU_GPU	0xcc
 #define MPMU_UART_PLL	0x14
 
 struct mmp2_clk_unit {
@@ -202,6 +203,13 @@ static const char *disp_parent_names[] = {"pll1", "pll1_16", "pll2", "vctcxo"};
 static DEFINE_SPINLOCK(ccic0_lock);
 static DEFINE_SPINLOCK(ccic1_lock);
 static const char *ccic_parent_names[] = {"pll1_2", "pll1_16", "vctcxo"};
+
+static DEFINE_SPINLOCK(gpu_lock);
+static const char *gpu_gc_parent_names[] = {"pll1_2", "pll1_3", "pll2_2", "pll2_3", "pll2", "usb_pll"};
+static u32 gpu_gc_parent_table[] =         {0x0000,   0x0040,   0x0080,   0x00c0,   0x1000, 0x1040   };
+static const char *gpu_bus_parent_names[] = {"pll1_4", "pll2", "pll2_2", "usb_pll"};
+static u32 gpu_bus_parent_table[] =         {0x0000,   0x0020, 0x0030,   0x4020   };
+
 static struct mmp_clk_mix_config ccic0_mix_config = {
 	.reg_info = DEFINE_MIX_REG_INFO(4, 17, 2, 6, 32),
 };
@@ -240,6 +248,8 @@ static struct mmp_param_gate_clk apmu_gate_clks[] = {
 	{MMP2_CLK_CCIC1, "ccic1_clk", "ccic1_mix_clk", CLK_SET_RATE_PARENT, APMU_CCIC1, 0x1b, 0x1b, 0x0, 0, &ccic1_lock},
 	{MMP2_CLK_CCIC1_PHY, "ccic1_phy_clk", "ccic1_mix_clk", CLK_SET_RATE_PARENT, APMU_CCIC1, 0x24, 0x24, 0x0, 0, &ccic1_lock},
 	{MMP2_CLK_CCIC1_SPHY, "ccic1_sphy_clk", "ccic1_sphy_div", CLK_SET_RATE_PARENT, APMU_CCIC1, 0x300, 0x300, 0x0, 0, &ccic1_lock},
+	{MMP2_CLK_GPU_GC, "gpu_gc_clk", "gpu_gc_mux", CLK_SET_RATE_PARENT, APMU_GPU, 0x5, 0x5, 0x0, MMP_CLK_GATE_NEED_DELAY, &gpu_lock},
+	{MMP2_CLK_GPU_BUS, "gpu_bus_clk", "gpu_bus_mux", CLK_SET_RATE_PARENT, APMU_GPU, 0xa, 0xa, 0x0, MMP_CLK_GATE_NEED_DELAY, &gpu_lock},
 };
 
 static void mmp2_axi_periph_clk_init(struct mmp2_clk_unit *pxa_unit)
@@ -269,6 +279,22 @@ static void mmp2_axi_periph_clk_init(struct mmp2_clk_unit *pxa_unit)
 
 	mmp_register_mux_clks(unit, apmu_mux_clks, pxa_unit->apmu_base,
 				ARRAY_SIZE(apmu_mux_clks));
+
+	clk = clk_register_mux_table(NULL, "gpu_gc_mux", gpu_gc_parent_names,
+					ARRAY_SIZE(gpu_gc_parent_names),
+					CLK_SET_RATE_PARENT,
+					pxa_unit->apmu_base + APMU_GPU,
+					0, 0x10c0, 0,
+					gpu_gc_parent_table, &gpu_lock);
+	mmp_clk_add(unit, MMP2_CLK_GPU_GC_MUX, clk);
+
+	clk = clk_register_mux_table(NULL, "gpu_bus_mux", gpu_bus_parent_names,
+					ARRAY_SIZE(gpu_bus_parent_names),
+					CLK_SET_RATE_PARENT,
+					pxa_unit->apmu_base + APMU_GPU,
+					0, 0x4030, 0,
+					gpu_bus_parent_table, &gpu_lock);
+	mmp_clk_add(unit, MMP2_CLK_GPU_BUS_MUX, clk);
 
 	mmp_register_div_clks(unit, apmu_div_clks, pxa_unit->apmu_base,
 				ARRAY_SIZE(apmu_div_clks));
