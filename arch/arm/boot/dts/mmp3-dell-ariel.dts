@@ -1,0 +1,207 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+/*
+ * Dell Wyse 3020 a.k.a. "Ariel" a.k.a. Tx0D (T00D, T10D)
+ *
+ * Copyright (C) 2019 Lubomir Rintel <lkundrak@v3.sk>
+ */
+
+/dts-v1/;
+#include "mmp3.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/linux-event-codes.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/ {
+	model = "Dell Ariel";
+	compatible = "dell,wyse-ariel", "marvell,mmp3";
+
+	chosen {
+		#address-cells = <0x1>;
+		#size-cells = <0x1>;
+		ranges;
+		//bootargs = "earlyprintk=ttyS2,115200,keep ignore_loglevel root=/dev/sda4 rootwait clk_ignore_unused xmaxcpus=1 console=ttyS2,115200   irqaffinity=0 isolcpus=domain,1";
+		//bootargs = "earlyprintk=ttyS2,115200,keep ignore_loglevel root=/dev/sda4 rootwait clk_ignore_unused xmaxcpus=1 console=ttyS2,115200   isolcpus=domain,1   dyndbg=\"module irqdomain +p; module irq +p\"    irqpoll";
+		bootargs = "console=ttyS2,115200 rdinit=/bin/init rootwait clk_ignore_unused console=ttyS2,115200";
+	};
+
+	memory {
+		linux,usable-memory = <0x0 0x7f600000>;
+		available = <0x7f700000 0x7ff00000 0x00000000 0x7f600000>;
+		reg = <0x0 0x80000000>;
+		device_type = "memory";
+	};
+};
+
+&uart3 {
+	status = "okay";
+};
+
+&rtc {
+	status = "okay";
+};
+
+&usb_otg0 {
+	status = "okay";
+};
+
+&usb_otg_phy0 {
+	status = "okay";
+};
+
+/*
+&hsic0 {
+	status = "okay";
+};
+
+&hsic_phy0 {
+	status = "okay";
+};
+*/
+
+&mmc3 {
+	status = "okay";
+	max-frequency = <50000000>;
+	status = "okay";
+        bus-width = <8>;
+        non-removable;
+	cap-mmc-highspeed;
+
+/*
+
+[    2.549912] mmc0: SDHCI controller on d4280000.mmc [d4280000.mmc] using ADMA
+[    2.619913] mmc1: SDHCI controller on d4281000.mmc [d4281000.mmc] using ADMA
+
+/sys/kernel/debug/mmc1/mmc1:0001/ext_csd:000000000000000000000000000000000000000000000000000000000000000000010100000000000000000000000000000000000000000000
+0000000a000001ffff37000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000e90000070100000000051f2000000000000001000000000000000100020000000000000600020017010503000000000008080808080800
+00807400001300070710100201062000070a0a550200000000000000000a00000000006464000200000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000030178060001080801030100000000000000
+/sys/kernel/debug/mmc1/mmc1:0001/status:00000900
+/sys/kernel/debug/mmc1/mmc1:0001/state:0x00000005
+/sys/kernel/debug/mmc1/clock:100000000
+/sys/kernel/debug/mmc1/caps2:0x00020020
+/sys/kernel/debug/mmc1/caps:0x439f140f
+/sys/kernel/debug/mmc1/ios:clock:               100000000 Hz
+/sys/kernel/debug/mmc1/ios:actual clock:        100000000 Hz
+/sys/kernel/debug/mmc1/ios:vdd:         21 (3.3 ~ 3.4 V)
+/sys/kernel/debug/mmc1/ios:bus mode:    2 (push-pull)
+/sys/kernel/debug/mmc1/ios:chip select: 0 (don't care)
+/sys/kernel/debug/mmc1/ios:power mode:  2 (on)
+/sys/kernel/debug/mmc1/ios:bus width:   2 (4 bits)
+/sys/kernel/debug/mmc1/ios:timing spec: 9 (mmc HS200)
+/sys/kernel/debug/mmc1/ios:signal voltage:      1 (1.80 V)
+/sys/kernel/debug/mmc1/ios:driver type: 0 (driver type B)
+# 
+
+
+
+root@t00d:/home/lkundrak# find /sys/kernel/debug/mmc0 -type f |xargs grep .
+/sys/kernel/debug/mmc0/mmc0:0001/ext_csd:0000000000000001030108080100067801030000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200646400000000000a000000000000000002550a0a070020060102101007070013000074800000080808080808000000000003050117000200060000000000000100020000000100000000000000000000201f050000000000070000e900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000037ffff0100000a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+/sys/kernel/debug/mmc0/mmc0:0001/status:00000900
+/sys/kernel/debug/mmc0/mmc0:0001/state:0x0000000d
+/sys/kernel/debug/mmc0/clock:50000000
+/sys/kernel/debug/mmc0/ios:clock:		50000000 Hz
+/sys/kernel/debug/mmc0/ios:vdd:		7 (1.65 - 1.95 V)
+/sys/kernel/debug/mmc0/ios:bus mode:	2 (push-pull)
+/sys/kernel/debug/mmc0/ios:chip select:	0 (don't care)
+/sys/kernel/debug/mmc0/ios:power mode:	2 (on)
+/sys/kernel/debug/mmc0/ios:bus width:	3 (8 bits)
+/sys/kernel/debug/mmc0/ios:timing spec:	1 (mmc high-speed)
+root@t00d:/home/lkundrak# 
+
+
+
+lkundrak@t00d:~$ dmesg |grep mmc
+[    3.583068] mmc0: no vmmc regulator found
+[    3.591033] Registered led device: mmc0::
+[    3.598937] mmc0: SDHCI controller on sdhci-pxa.2 [sdhci-pxa.2] using ADMA
+[    3.617126] mmc1: no vmmc regulator found
+[    3.617309] Registered led device: mmc1::
+[    3.617553] mmc1: SDHCI controller on sdhci-pxa.0 [sdhci-pxa.0] using ADMA
+[    3.877624] mmc0: new high speed MMC card at address 0001
+[    3.886566] mmc0: ios: 50000000 Hz, 8 bit width
+[    3.895416] mmcblk0: mmc0:0001 H4G2a\x11 3.64 GiB
+[    3.903839] mmcblk0boot0: mmc0:0001 H4G2a\x11 partition 1 4.00 MiB
+[    3.913696] mmcblk0boot1: mmc0:0001 H4G2a\x11 partition 2 4.00 MiB
+[    3.925933]  mmcblk0: unknown partition table
+[    3.945343]  mmcblk0boot1: unknown partition table
+[    3.964813]  mmcblk0boot0: unknown partition table
+lkundrak@t00d:~$ 
+
+
+*/
+};
+
+&twsi1 {
+	status = "okay";
+
+	/* mar88pm867-regulator */
+        pg868@19 {
+                compatible = "marvell,88pg868";
+                reg = <0x19>;
+                status = "okay";
+        };
+
+	wtf@50 {
+                compatible = "no-idea";
+                reg = <0x50>;
+                status = "okay";
+	};
+
+        rtc@68 {
+                compatible = "dallas,ds1338";
+                reg = <0x68>;
+                status = "okay";
+        };
+};
+
+&twsi3 {
+	status = "okay";
+
+        sound-codec@30 {
+                compatible = "ce156";
+                reg = <0x30>;
+                status = "okay";
+        };
+
+        vga-dvi-encoder@76 {
+                compatible = "ch7033";
+                reg = <0x76>;
+                status = "okay";
+        };
+};
+
+&twsi4 {
+	status = "okay";
+
+        ec@58 {
+                compatible = "eneec";
+                reg = <0x58>;
+                status = "okay";
+        };
+};
+
+&ssp3 {
+	status = "okay";
+	cs-gpios = <&gpio 46 GPIO_ACTIVE_HIGH>;
+
+	flash: firmware-flash@0 {
+		compatible = "st,m25p80", "jedec,spi-nor";
+		reg = <0>;
+		spi-max-frequency = <40000000>;
+		m25p,fast-read;
+	};
+};
+
+&ssp4 {
+	cs-gpios = <&gpio 56 GPIO_ACTIVE_HIGH>;
+	status = "okay";
+
+	ec@0 {
+		compatible = "eneec_spi";
+		reg = <0>;
+		spi-max-frequency = <40000000>;
+	};
+};
