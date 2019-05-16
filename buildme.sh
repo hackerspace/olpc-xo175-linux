@@ -5,10 +5,10 @@ fi
 
 if [ "$ARCH" = arm ]; then
 	[ -n "$CROSS_COMPILE" ]	|| CROSS_COMPILE=arm-linux-gnu-
-	[ -n "$DEFCONFIG" ]	|| DEFCONFIG=olpc_xo175_defconfig
+	[ -n "$DEFCONFIG" ]	|| DEFCONFIG=dell_ariel_defconfig
 	[ -n "$DIR" ]		|| DIR=XO175
 	[ -n "$IMAGE" ]		|| IMAGE=zImage
-	[ -n "$APPEND_DTB" ]	|| APPEND_DTB=mmp2-olpc-xo-1-75.dtb
+	[ -n "$APPEND_DTB" ]	|| APPEND_DTB=mmp3-dell-ariel.dtb
 	[ -n "$XO" ]		|| XO=xo.local
 elif [ "$ARCH" = x86 ]; then
 	[ -n "$CROSS_COMPILE" ]	|| CROSS_COMPILE=
@@ -25,6 +25,7 @@ else
 	echo Bad ARCH >&2
 	exit
 fi
+XO=
 
 [ -n "$INST" ]	|| INST=/boot/$IMAGE
 
@@ -39,6 +40,20 @@ fi
 time make ARCH=$ARCH CROSS_COMPILE=$CROSS_COMPILE savedefconfig
 cp defconfig ./arch/$ARCH/configs/$DEFCONFIG
 time make ARCH=$ARCH CROSS_COMPILE=$CROSS_COMPILE -j$(awk '/^processor/ {n++} END {print n*2}'  /proc/cpuinfo) $IMAGE $APPEND_DTB || exit 1
+
+if [ "$APPEND_DTB" ]; then
+	cat arch/$ARCH/boot/{$IMAGE,dts/$APPEND_DTB} >arch/$ARCH/boot/$IMAGE-dt
+fi
+
+if [ -z "$XO" ]; then
+	mkimage -A arm -O linux -C none  -T kernel -a 0x00008000 -e 0x00008000 -n "Linux-$(git describe --abbrev=7)-dajia" -d \
+		arch/$ARCH/boot/$IMAGE-dt arch/$ARCH/boot/uImage || exit 1
+	[ -d /run/media/lkundrak/DELLWYSEIMG ] && /bin/cp arch/$ARCH/boot/uImage /run/media/lkundrak/DELLWYSEIMG/kernel/TX0D/uImage-new && umount /run/media/lkundrak/*
+	scp arch/$ARCH/boot/uImage root@t00d.local:/boot/kernel/TX0D/uImage-new &&
+	ssh root@t00d.local reboot
+	exit 0
+fi
+
 [ -d /run/media/lkundrak/19DE-9DE4 ] && /bin/cp arch/$ARCH/boot/$IMAGE /run/media/lkundrak/19DE-9DE4/boot/$IMAGE && umount /run/media/lkundrak/*
 [ -d /run/media/lkundrak/$DIR ] && su -c "/bin/cp arch/$ARCH/boot/$IMAGE /run/media/lkundrak/$DIR/boot/$IMAGE" && umount /run/media/lkundrak/*
 if [ "$(git symbolic-ref --short HEAD)" == lr/olpc-xo175 ]; then
@@ -50,9 +65,8 @@ fi
 ssh root@$XO "[ ! -f /etc/olpc-release ] && cp $INST $INST.old"
 
 if [ "$APPEND_DTB" ]; then
-	cat arch/$ARCH/boot/{$IMAGE,dts/$APPEND_DTB} >arch/$ARCH$INST-olpc
-	scp arch/$ARCH/boot/$IMAGE-olpc root@$XO:$INST
-	scp arch/$ARCH/boot/$IMAGE-olpc root@$XO:$INST-olpc
+	scp arch/$ARCH/boot/$IMAGE-dt root@$XO:$INST
+	scp arch/$ARCH/boot/$IMAGE-dt root@$XO:$INST-olpc
 	scp arch/$ARCH/boot/$IMAGE root@$XO:$INST-bare
 else
 	scp arch/$ARCH/boot/$IMAGE root@$XO:$INST
