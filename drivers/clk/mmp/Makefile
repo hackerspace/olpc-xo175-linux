@@ -9,6 +9,7 @@ obj-$(CONFIG_RESET_CONTROLLER) += reset.o
 
 obj-$(CONFIG_MACH_MMP_DT) += clk-of-pxa168.o clk-of-pxa910.o
 obj-$(CONFIG_MACH_MMP2_DT) += clk-of-mmp2.o
+obj-$(CONFIG_MACH_MMP3_DT) += clk-of-mmp2.o
 
 obj-$(CONFIG_CPU_PXA168) += clk-pxa168.o
 obj-$(CONFIG_CPU_PXA910) += clk-pxa910.o
