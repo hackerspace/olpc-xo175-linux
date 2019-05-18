@@ -45,6 +45,37 @@
 			reg = <0xd4200000 0x00200000>;
 			ranges;
 
+			lcd0: lcdc@d420b000 {
+				compatible = "marvell,mmp3-lcd", "marvell,armada-lcdc";
+				reg = <0xd420b000 0x1000>;
+				interrupts = <GIC_SPI 41 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&soc_clocks MMP2_CLK_DISP0_LCDC>,
+					 <&soc_clocks MMP2_CLK_VCTCXO>,
+					 <&soc_clocks MMP2_CLK_DISP0>,
+					 <&soc_clocks MMP2_CLK_DISP1>,
+					 <&soc_clocks MMP3_CLK_PLL3>;
+				clock-names = "periph", "vctcxo",
+					      "disp0", "disp1", "pll3";
+				status = "disabled";
+
+				ports {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					port@0 {
+						reg = <0>;
+						lcd0_out: endpoint {
+						};
+					};
+
+					port@1 {
+						reg = <1>;
+						hdmi0_out: endpoint {
+						};
+					};
+				};
+			};
+
 			interrupt-controller@d4282000 {
 				compatible = "marvell,mmp3-intc";
 				interrupt-controller;
