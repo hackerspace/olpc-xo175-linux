@@ -1,0 +1,78 @@
+	32k
+	├── X keypad
+	└── rtc
+
+
+
+	pll1
+	├── X dxoccic
+	├── X dxoisp
+	├── X hsiclk
+	├── X nand
+	└── pll1_clkoutp
+	    ├── ddr_root
+	    │   ├── ddr1
+	    │   └── ddr2
+	    ├── X gc
+	    └── X vmeta 
+
+
+	pll1_d_2
+	├── axi_root
+	│   ├── axi1
+	│   └── axi2
+	├── X ccic1
+	└── X ccic2
+
+
+	pll1_d_4
+	├── sdh0
+	├── X sdh1
+	├── sdh2
+	└── X sdh3
+
+
+	pll2
+	├── core_root
+	│   ├── atclk
+	│   ├── periph
+	│   └── pj
+	│       ├── aclk
+	│       ├── mm
+	│       ├── mp1
+	│       └── mp2
+	└── X pll2_clkoutp
+
+
+	vctcxo
+	├── lcd1
+	├── X pwm1
+	├── X pwm2
+	├── X pwm3
+	├── X pwm4
+	├── ssp.1
+	├── ssp.2
+	├── X ssp.3
+	├── X ssp.4
+	├── twsi1
+	├── twsi2
+	├── twsi3
+	├── twsi4
+	├── twsi5
+	├── twsi6
+	├── X uart1
+	├── X uart2
+	├── uart3
+	└── X uart4
+
+
+	cpu
+	disp1
+	disp1_axi
+	hdmi
+	mmp-thermal
+	u2o
+	hsic1
+
+	X hsic2
+	X fsic

@@ -1,0 +1,54 @@
+	32k
+	└── rtc
+
+
+
+	pll1
+	└── pll1_clkoutp
+	    └── ddr_root
+		├── ddr1
+		└── ddr2
+
+	pll1_d_2
+	└── axi_root
+	    ├── axi1
+	    └── axi2
+
+	pll1_d_4
+	├── sdh0
+	└── sdh2
+
+
+
+
+	pll2
+	└── core_root
+	    ├── atclk
+	    ├── periph
+	    └── pj
+		├── aclk
+		├── mm
+		├── mp1
+		└── mp2
+
+
+
+	vctcxo
+	├── lcd1
+	├── ssp.1
+	├── ssp.2
+	├── twsi1
+	├── twsi2
+	├── twsi3
+	├── twsi4
+	├── twsi5
+	├── twsi6
+	└── uart3
+
+	cpu
+	disp1
+	disp1_axi
+	hdmi
+	mmp-thermal
+	u2o
+	hsic1
