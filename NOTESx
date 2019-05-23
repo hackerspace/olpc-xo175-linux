@@ -1,0 +1,160 @@
+
+
+
+
+[lkundrak@belphegor x4linux]$ grep phy_init arch/arm/mach-mmp/mk2.c 
+	.phy_init	= pxa_usb_phy_init,
+	.phy_init	= mmp3_hsic_phy_init,
+
+
+CONFIG_USB_SUPPORT
+
+	CONFIG_USB_PXA_U2O || CONFIG_USB_EHCI_PXA_U2O
+		mmp3_u2o_resources CONFIG_USB_PXA_U2O
+			capregs #define PXA168_U2O_REGBASE      (0xd4208000)
+			phyregs #define PXA168_U2O_PHYBASE      (0xd4207000)
+			"pxa-u2o" drivers/usb/gadget/mv_udc_core.c
+
+		mmp3_u2oehci_resources CONFIG_USB_EHCI_PXA CONFIG_USB_EHCI_PXA_U2O
+			capregs #define PXA168_U2O_REGBASE      (0xd4208000)
+			phyregs #define PXA168_U2O_PHYBASE      (0xd4207000)
+			"pxa-u2oehci" drivers/usb/host/ehci-mv.c
+
+		static struct mv_usb_platform_data mmp3_usb_pdata = {
+			.clknum         = 1,
+			.clkname        = mmp3_usb_clock_name,
+					static char *mmp3_usb_clock_name[] = {
+						[0] = "U2OCLK",
+					};
+			.vbus           = NULL,
+			.mode           = MV_USB_MODE_OTG,
+			.phy_init       = pxa_usb_phy_init,
+			.phy_deinit     = pxa_usb_phy_deinit,
+			.set_vbus       = pxa_usb_set_vbus,
+		};
+
+	CONFIG_USB_EHCI_PXA_U2H_HSIC
+
+		#define MMP3_HSIC1_REGBASE      (0xf0001000)		// a0
+		#define MMP3_HSIC1_PHYBASE      (0xf0001800)
+		static struct mv_usb_platform_data mmp3_hsic1_pdata = {
+			.clknum         = 2,
+			.clkname        = mmp3_hsic1_clock_name,
+				static char *mmp3_hsic1_clock_name[] = {
+					[0] = "U2OCLK",
+					[1] = "HSIC1CLK",
+				};
+			.vbus           = NULL,
+			.mode           = MV_USB_MODE_HOST,
+			.phy_init       = mmp3_hsic_phy_init,
+				.phy_init       = pxa_usb_phy_init(PXA168_U2O_PHYBASE)
+					usb_phy_init_internal
+			.phy_deinit     = mmp3_hsic_phy_deinit,
+			.set_vbus       = mmp3_hsic1_set_vbus,
+			.private_init   = mmp3_hsic_private_init,
+
+
+
+
+		#define MMP3_HSIC2_REGBASE      (0xf0002000)		// b0
+		#define MMP3_HSIC2_PHYBASE      (0xf0002800)
+		static struct mv_usb_platform_data mmp3_hsic2_pdata = {
+			.clknum         = 2,
+			.clkname        = mmp3_hsic2_clock_name,
+					static char *mmp3_hsic2_clock_name[] = {
+						[0] = "U2OCLK",
+						[1] = "HSIC2CLK",
+					};
+			.vbus           = NULL,
+			.mode           = MV_USB_MODE_HOST,
+			.phy_init       = mmp3_hsic_phy_init,
+				.phy_init       = pxa_usb_phy_init(PXA168_U2O_PHYBASE)
+			.set_vbus       = mmp3_hsic1_set_vbus,
+			.private_init   = mmp3_hsic_private_init,
+		};
+
+
+
+
+
+
+
+
+
+// NOWHERE
+#define PXA168_U2H_REGBASE      (0xd4209000)
+#define PXA168_U2H_PHYBASE      (0xd4206000)
+
+// NOWHERE
+#define MMP3_FSIC_REGBASE       (0xf0003000)
+#define MMP3_FSIC_PHYBASE       (0xf0003800) 
+
+
+
+
+
+
+----
+#ifdef CONFIG_USB_EHCI_PXA_U2O
+        mmp3_device_u2oehci.dev.platform_data = (void *)&mmp3_usb_pdata;
+        platform_device_register(&mmp3_device_u2oehci);
+#endif
+
+#ifdef CONFIG_USB_EHCI_PXA_U2H_HSIC
+	mmp3_hsic2_device.dev.platform_data = (void *)&mmp3_hsic2_pdata;
+	platform_device_register(&mmp3_hsic2_device);
+#endif
+
+
+
+// mk2, not on yellowstone & abilene
+        fsic3_clk_disable();
+
+// abilene
+        pxa_u3d_phy_disable();
+
+
+
+
+
+
+
+
+
+
+----
+// mk2 abilene
+#ifdef CONFIG_USB_PXA_U2O
+        /* Place VBUS_EN low by default */
+        pxa_usb_set_vbus(0);
+        mmp3_device_u2o.dev.platform_data = (void *)&mmp3_usb_pdata;
+        platform_device_register(&mmp3_device_u2o);
+#endif
+
+#ifdef CONFIG_USB_EHCI_PXA_U2O
+        mmp3_device_u2oehci.dev.platform_data = (void *)&mmp3_usb_pdata;
+        platform_device_register(&mmp3_device_u2oehci);
+
+#ifdef CONFIG_USB_PXA_U2O_OTG
+        mmp3_device_u2ootg.dev.platform_data = (void *)&mmp3_usb_pdata;
+        platform_device_register(&mmp3_device_u2ootg);
+#endif
+#endif
+
+#ifdef CONFIG_USB_EHCI_PXA_U2H_HSIC
+	// abilene
+        if (cpu_is_mmp3_b0()) {
+		// mk2
+                mmp3_hsic2_device.dev.platform_data = (void *)&mmp3_hsic2_pdata;
+                platform_device_register(&mmp3_hsic2_device);
+        } else {
+                mmp3_hsic1_device.dev.platform_data = (void *)&mmp3_hsic1_pdata;
+                platform_device_register(&mmp3_hsic1_device);
+        }
+#endif
+
+// mk2, not on yellowstone & abilene
+        fsic3_clk_disable();
+
+// abilene
+        pxa_u3d_phy_disable();

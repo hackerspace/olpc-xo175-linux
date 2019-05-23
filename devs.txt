@@ -1,0 +1,280 @@
+00000000-7f5fffff : System RAM
+  00050000-00861657 : Kernel text
+  00862000-008fb64f : Kernel data
+7f700000-7fefffff : System RAM
+
+
+
+
+
+
+
+platform/alarm (alarm)
+platform/android_pmem.0 (android_pmem)
+platform/android_pmem.1 (android_pmem)
+platform/android_pmem.2 (android_pmem)
+platform/arm-pmu.0 (arm-pmu)
+
+platform/mmp-rtc (mmp-rtc)
+						d4010000-d40100ff : mmp-rtc
+						  d4010000-d40100ff : mmp-rtcZ
+
+platform/mmp-sram.0 (mmp-sram)
+						d1030000-d104ffff : mmp-sram.0
+
+platform/mmp-sram.1 (mmp-sram)
+						d1020000-d102ffff : mmp-sram.1
+
+platform/mmp-ssp.1 (pxa2xx-ssp)
+						d4035000-d403503f : mmp-ssp.1
+						  d4035000-d403503f : mmp-ssp
+platform/mmp-ssp.2 (pxa2xx-ssp)
+						d4036000-d403603f : mmp-ssp.2
+						  d4036000-d403603f : mmp-ssp
+platform/mmp-thermal (mmp-thermal)
+						d403b000-d403b00f : mmp-thermal
+platform/mmp-vmeta.0 (mmp-vmeta)
+						f0400000-f07fffff : mmp-vmeta.0
+
+platform/mmp2-sspa.0 (mmp2-sspa)
+						c0ffdc00-c0ffdcaf : mmp2-sspa.0
+						  c0ffdc00-c0ffdcaf : mmp2-sspa
+
+platform/mmp3-hsic (pxa-ehci)
+                  /usb1 (usb)
+                       /1-0:1.0 (hub)
+                       /1-1 (usb)
+                           /1-1.1 (usb)
+                                 /1-1.1:1.0 (usb-storage)
+                                           /host0/target0:0:0/0:0:0:0 (sd)
+                           /1-1.2 (usb)
+                                 /1-1.2:1.0 (smsc75xx)
+                           /1-1:1.0 (hub)
+f0001800-f00018ff : phyregs
+[    2.911712] pxa-ehci pxa-u2oehci: successful find EHCI device with regs 0xf686a140 irq 76 working in OTG mode
+[    3.081665] pxa-ehci mmp3-hsic: Marvell EHCI
+[    3.089172] pxa-ehci mmp3-hsic: new USB bus registered, assigned bus number 1
+[    3.127136] pxa-ehci mmp3-hsic: irq 54, io mem 0xf0001800
+[    3.150512] pxa-ehci mmp3-hsic: USB 2.0 started, EHCI 1.00
+[    3.174560] pxa-ehci mmp3-hsic: successful find EHCI device with regs 0xf686e140 irq 54 working in Host mode
+[    3.408355] usb 1-1: new high speed USB device number 2 using pxa-ehci
+[    4.025909] usb 1-1.1: new high speed USB device number 3 using pxa-ehci
+[    4.263763] usb 1-1.2: new high speed USB device number 4 using pxa-ehci
+f0001100-f00011ff : capregs
+
+
+
+platform/mmp3-pcm-audio (mmp3-pcm-audio)
+platform/mmp3-sspa-dai.0 (mmp3-sspa-dai)
+platform/mmp3-sspa-dai.1 (mmp3-sspa-dai)
+platform/mmp3-sysset (mmp3-sysset)
+platform/pxa-otg (pxa-otg)
+platform/pxa-u2o (pxa-u2o)
+
+
+platform/pxa-u2oehci (pxa-ehci)
+                    /usb2 (usb)
+                         /2-0:1.0 (hub)
+                         /2-1 (usb)
+                             /2-1:1.0 (hub)
+                             /2-1.4 (usb)
+                                   /2-1.4:1.0 (usb-storage)
+                                             /host1/target1:0:0/1:0:0:0 (sd)
+d4207000-d42070ff : phyregs
+  d4207000-d42070ff : phyregs
+    d4207000-d42070ff : phyregs
+d4208100-d42081ff : capregs
+  d4208100-d42081ff : capregs
+    d4208100-d42081ff : capregs
+[    4.998291] pxa-ehci pxa-u2oehci: Marvell EHCI
+[    5.022857] pxa-ehci pxa-u2oehci: new USB bus registered, assigned bus number 2
+[    5.080505] pxa-ehci pxa-u2oehci: irq 76, io mem 0xd4207000
+[    5.119476] pxa-ehci pxa-u2oehci: USB 2.0 started, EHCI 1.00
+[    5.518066] usb 2-1: new high speed USB device number 2 using pxa-ehci
+[    6.041992] usb 2-1.2: new high speed USB device number 3 using pxa-ehci
+
+
+
+
+platform/pxa2xx-i2c.0 (pxa2xx-i2c)
+						d4011000-d401106f : pxa2xx-i2c.0
+						  d4011000-d401106f : pxa2xx-i2c.0
+                     /i2c-0/0-0019 (mar88pm867-regulator)	./Documentation/devicetree/bindings/regulator/88pg86x.txt ???
+
+platform/pxa2xx-i2c.0/i2c-0/0-0068 (rtc_idt1338)
+
+platform/pxa2xx-i2c.1 (pxa2xx-i2c)
+						d4031000-d403106f : pxa2xx-i2c.1
+						  d4031000-d403106f : pxa2xx-i2c.1
+
+
+platform/pxa2xx-i2c.2 (pxa2xx-i2c)
+						d4032000-d403206f : pxa2xx-i2c.2
+						  d4032000-d403206f : pxa2xx-i2c.2
+                     /i2c-2/2-0030 (ce156)			sound codec
+                     /i2c-2/2-0076 (ch7033)			vga/dvi encoder
+
+platform/pxa2xx-i2c.3 (pxa2xx-i2c)
+						d4033000-d403306f : pxa2xx-i2c.3
+						  d4033000-d403306f : pxa2xx-i2c.3
+                     /i2c-3/3-0058 (eneec)			embedded control
+
+platform/pxa2xx-i2c.4 (pxa2xx-i2c)
+						d4033800-d403386f : pxa2xx-i2c.4
+						  d4033800-d403386f : pxa2xx-i2c.4
+
+platform/pxa2xx-i2c.5 (pxa2xx-i2c)
+						d4034000-d403406f : pxa2xx-i2c.5
+						  d4034000-d403406f : pxa2xx-i2c.5
+
+
+platform/pxa2xx-spi.2 (pxa2xx-spi)
+                     /spi_master/spi2/spi2.255 (m25p80)		firmware chip
+
+platform/pxa2xx-spi.3 (pxa2xx-spi)
+                     /spi_master/spi3/spi3.255 (eneec_spi)
+                                              /serio0 (atkbd)	keyboard (not actually there)
+
+
+platform/pxa2xx-uart.2 (pxa2xx-uart)
+						d4018000-d401802f : pxa2xx-uart.2
+platform/reg-fixed-voltage.0 (reg-fixed-voltage)
+platform/sdhci-pxa.0 (sdhci-pxa)
+						d4280000-d428011f : sdhci-pxa.0
+						  d4280000-d428011f : mmc1
+platform/sdhci-pxa.2 (sdhci-pxa)
+						d4281000-d428111f : sdhci-pxa.2
+						  d4281000-d428111f : mmc0
+platform/snd-soc-dummy (snd-soc-dummy)
+platform/soc-audio.0 (soc-audio)
+platform/soc-audio.1 (soc-audio)
+
+
+platform/uio-hdmi (uio-hdmi)
+						d420b000-d420cffe : uio-hdmi
+platform/pxa168-v4l2_ovly.1 (pxa168_v4l2_ovly)
+						  d420b000-d420b4ff : pxa168-v4l2_ovly.1
+platform/pxa168-fb.1 (pxa168-fb)
+						    d420b000-d420b4ff : pxa168-fb.1
+platform/pxa168-v4l2_ovly.0 (pxa168_v4l2_ovly)
+						      d420b000-d420b4ff : pxa168-v4l2_ovly.0
+platform/pxa168-fb.0 (pxa168-fb)
+							d420b000-d420b4ff : pxa168-fb.0
+
+
+
+
+ 32:          4       GIC  pxa2xx-spi.2
+ 33:      40914       GIC  pxa2xx-spi.3
+ 39:         55       GIC  pxa_i2c-i2c.0
+ 45:          0       GIC  fast timer
+ 46:         11       GIC  32k timer
+ 54:      94977       GIC  ehci_hcd:usb1
+ 56:         80       GIC  STUART
+ 58:          0       GIC  mmp-vmeta
+ 71:          0       GIC  mmc1
+ 73:     599929       GIC  GFX Layer
+ 76:      57707       GIC  mv_otg, mv_udc, ehci_hcd:usb2
+ 80:          0       GIC  DMA, DMA
+ 85:        480       GIC  mmc0
+132:          0   icu mux  rtc Alrm
+133:          0   icu mux  rtc 1Hz
+140:          0   icu mux  pxa_i2c-i2c.1
+141:       4265   icu mux  pxa_i2c-i2c.2
+142:         10   icu mux  pxa_i2c-i2c.3
+143:          0   icu mux  pxa_i2c-i2c.4
+144:          0   icu mux  pxa_i2c-i2c.5
+199:          5   icu mux  mmp-thermal
+272:          0      GPIO  uio-hdmi
+273:      20210      GPIO  eneec_spi
+IPI0:          0          0  Timer broadcast interrupts
+IPI1:       8266      12379  Rescheduling interrupts
+IPI2:          0          0  Function call interrupts
+IPI3:         75       3855  Single function call interrupts
+IPI4:          0          0  CPU stop interrupts
+IPI5:          0          0  CPU backtrace
+LOC:     332685       6109  Local timer interrupts
+
+
+/sys/kernel/debug/clock/cpu/enable:   1
+/sys/kernel/debug/clock/pll2/pll2_clkoutp/enable:   0
+/sys/kernel/debug/clock/pll2/core_root/pj/mp1/enable:   1
+/sys/kernel/debug/clock/pll2/core_root/pj/mp2/enable:   1
+/sys/kernel/debug/clock/pll2/core_root/pj/mm/enable:   1
+/sys/kernel/debug/clock/pll2/core_root/pj/aclk/enable:   1
+/sys/kernel/debug/clock/pll2/core_root/pj/enable:   1
+/sys/kernel/debug/clock/pll2/core_root/periph/enable:   1
+/sys/kernel/debug/clock/pll2/core_root/atclk/enable:   1
+/sys/kernel/debug/clock/pll2/core_root/enable:   1
+/sys/kernel/debug/clock/pll2/enable:   0
+/sys/kernel/debug/clock/disp1/enable:   1
+/sys/kernel/debug/clock/pll1_d_4/sdh0/enable:   1
+/sys/kernel/debug/clock/pll1_d_4/sdh1/enable:   0
+/sys/kernel/debug/clock/pll1_d_4/sdh2/enable:   1
+/sys/kernel/debug/clock/pll1_d_4/sdh3/enable:   0
+/sys/kernel/debug/clock/pll1_d_4/enable:   3
+/sys/kernel/debug/clock/disp1_axi/enable:   2
+/sys/kernel/debug/clock/hdmi/enable:   1
+/sys/kernel/debug/clock/mmp-thermal/enable:   1
+/sys/kernel/debug/clock/pll1_d_2/axi_root/axi1/enable:   1
+/sys/kernel/debug/clock/pll1_d_2/axi_root/axi2/enable:   1
+/sys/kernel/debug/clock/pll1_d_2/axi_root/enable:   1
+/sys/kernel/debug/clock/pll1_d_2/ccic1/enable:   0
+/sys/kernel/debug/clock/pll1_d_2/ccic2/enable:   0
+/sys/kernel/debug/clock/pll1_d_2/enable:   1
+/sys/kernel/debug/clock/32k/keypad/enable:   0
+/sys/kernel/debug/clock/32k/rtc/enable:   1
+/sys/kernel/debug/clock/32k/enable:   2
+/sys/kernel/debug/clock/vctcxo/lcd1/enable:   1
+/sys/kernel/debug/clock/vctcxo/twsi1/enable:   1
+/sys/kernel/debug/clock/vctcxo/twsi2/enable:   1
+/sys/kernel/debug/clock/vctcxo/twsi3/enable:   1
+/sys/kernel/debug/clock/vctcxo/twsi4/enable:   1
+/sys/kernel/debug/clock/vctcxo/twsi5/enable:   1
+/sys/kernel/debug/clock/vctcxo/twsi6/enable:   1
+/sys/kernel/debug/clock/vctcxo/ssp.1/enable:   1
+/sys/kernel/debug/clock/vctcxo/ssp.2/enable:   1
+/sys/kernel/debug/clock/vctcxo/ssp.3/enable:   0
+/sys/kernel/debug/clock/vctcxo/ssp.4/enable:   0
+/sys/kernel/debug/clock/vctcxo/pwm1/enable:   0
+/sys/kernel/debug/clock/vctcxo/pwm2/enable:   0
+/sys/kernel/debug/clock/vctcxo/pwm3/enable:   0
+/sys/kernel/debug/clock/vctcxo/pwm4/enable:   0
+/sys/kernel/debug/clock/vctcxo/uart1/enable:   0
+/sys/kernel/debug/clock/vctcxo/uart2/enable:   0
+/sys/kernel/debug/clock/vctcxo/uart3/enable:   1
+/sys/kernel/debug/clock/vctcxo/uart4/enable:   0
+/sys/kernel/debug/clock/vctcxo/enable:   b
+/sys/kernel/debug/clock/u2o/enable:   2
+/sys/kernel/debug/clock/pll1/pll1_clkoutp/ddr_root/ddr1/enable:   1
+/sys/kernel/debug/clock/pll1/pll1_clkoutp/ddr_root/ddr2/enable:   1
+/sys/kernel/debug/clock/pll1/pll1_clkoutp/ddr_root/enable:   1
+/sys/kernel/debug/clock/pll1/pll1_clkoutp/gc/enable:   0
+/sys/kernel/debug/clock/pll1/pll1_clkoutp/vmeta/enable:   0
+/sys/kernel/debug/clock/pll1/pll1_clkoutp/enable:   2
+/sys/kernel/debug/clock/pll1/dxoisp/enable:   0
+/sys/kernel/debug/clock/pll1/dxoccic/enable:   0
+/sys/kernel/debug/clock/pll1/hsiclk/enable:   0
+/sys/kernel/debug/clock/pll1/nand/enable:   0
+/sys/kernel/debug/clock/pll1/enable:   3
+/sys/kernel/debug/clock/hsic1/enable:   1
+/sys/kernel/debug/clock/hsic2/enable:   0
+/sys/kernel/debug/clock/fsic/enable:   0
+
+root@t00d:~# cat /sys/kernel/debug/gpio
+GPIOs 0-31, gpio-0:
+
+GPIOs 32-63, gpio-1:
+ gpio-46  (SPI_CS              ) out hi
+ gpio-56  (SPI_CS              ) out hi
+ gpio-59  (uio-hdmi            ) in  hi
+
+GPIOs 64-95, gpio-2:
+
+GPIOs 96-127, gpio-3:
+
+GPIOs 128-159, gpio-4:
+
+GPIOs 160-167, gpio-5:
+root@t00d:~# 
+
