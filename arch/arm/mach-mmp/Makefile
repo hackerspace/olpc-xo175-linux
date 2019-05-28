@@ -54,6 +54,7 @@ obj-$(CONFIG_MACH_MARVELL_JASPER) += jasper.o
 obj-$(CONFIG_MACH_TETON_BGA)	+= teton_bga.o
 obj-$(CONFIG_MACH_ABILENE)	+= abilene.o
 obj-$(CONFIG_MACH_YELLOWSTONE)	+= yellowstone.o
+obj-$(CONFIG_MACH_ARIEL)	+= ariel.o
 ifeq ($(CONFIG_SUSPEND),y)
 obj-$(CONFIG_CPU_PXA910)	+= pxa910_pm.o
 endif
