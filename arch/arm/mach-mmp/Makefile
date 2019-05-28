@@ -58,4 +58,4 @@ ifeq ($(CONFIG_SUSPEND),y)
 obj-$(CONFIG_CPU_PXA910)	+= pxa910_pm.o
 endif
 
-obj-y += modem-power.o
+obj-$(CONFIG_MACH_MK2) += modem-power.o

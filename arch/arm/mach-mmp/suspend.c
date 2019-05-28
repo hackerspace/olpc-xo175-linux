@@ -59,9 +59,13 @@ static int mmp3_pm_enter(suspend_state_t state)
 	 * TODO: If any wakeup source uses thread to handle its interrupt,
 	 * make sure the interrupt is enabled here.
 	 */
+#ifdef CONFIG_MACH_MK2
 	mk2_suspend_enter();	
+#endif
 	mmp3_pm_enter_d2();
+#ifdef CONFIG_MACH_MK2
 	mk2_suspend_finish();
+#endif
 	return 0;
 }
 
