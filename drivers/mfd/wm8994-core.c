@@ -26,6 +26,13 @@
 #include <linux/mfd/wm8994/pdata.h>
 #include <linux/mfd/wm8994/registers.h>
 
+#ifdef CONFIG_PROC_FS
+#include <linux/uaccess.h>
+#include <linux/proc_fs.h>
+#endif
+
+#define pr_info printk
+
 static int wm8994_read(struct wm8994 *wm8994, unsigned short reg,
 		       int bytes, void *dest)
 {
@@ -38,12 +45,12 @@ static int wm8994_read(struct wm8994 *wm8994, unsigned short reg,
 	ret = wm8994->read_dev(wm8994, reg, bytes, dest);
 	if (ret < 0)
 		return ret;
-
+if((reg + i) != 0x900){
 	for (i = 0; i < bytes / 2; i++) {
-		dev_vdbg(wm8994->dev, "Read %04x from R%d(0x%x)\n",
+		printk("Write %04x to R%d(0x%x)\n",
 			 be16_to_cpu(buf[i]), reg + i, reg + i);
 	}
-
+}
 	return 0;
 }
 
@@ -102,12 +109,13 @@ static int wm8994_write(struct wm8994 *wm8994, unsigned short reg,
 
 	BUG_ON(bytes % 2);
 	BUG_ON(bytes <= 0);
-
+#if 1
 	for (i = 0; i < bytes / 2; i++) {
 		dev_vdbg(wm8994->dev, "Write %04x to R%d(0x%x)\n",
 			 be16_to_cpu(buf[i]), reg + i, reg + i);
 	}
-
+#endif
+//	mdelay(10);
 	return wm8994->write_dev(wm8994, reg, bytes, src);
 }
 
@@ -285,14 +293,14 @@ static int wm8994_suspend(struct device *dev)
 	 * the GPIO alternate functions even if we're not using the gpiolib
 	 * driver for them.
 	 */
-	ret = wm8994_read(wm8994, WM8994_GPIO_1, WM8994_NUM_GPIO_REGS * 2,
-			  &wm8994->gpio_regs);
+	ret = wm8994_bulk_read(wm8994, WM8994_GPIO_1, WM8994_NUM_GPIO_REGS,
+			  (u16 *)&wm8994->gpio_regs);
 	if (ret < 0)
 		dev_err(dev, "Failed to save GPIO registers: %d\n", ret);
 
 	/* For similar reasons we also stash the regulator states */
-	ret = wm8994_read(wm8994, WM8994_LDO_1, WM8994_NUM_LDO_REGS * 2,
-			  &wm8994->ldo_regs);
+	ret = wm8994_bulk_read(wm8994, WM8994_LDO_1, WM8994_NUM_LDO_REGS,
+			  (u16 *)&wm8994->ldo_regs);
 	if (ret < 0)
 		dev_err(dev, "Failed to save LDO registers: %d\n", ret);
 
@@ -329,25 +337,30 @@ static int wm8994_resume(struct device *dev)
 		return ret;
 	}
 
-	ret = wm8994_write(wm8994, WM8994_INTERRUPT_STATUS_1_MASK,
-			   WM8994_NUM_IRQ_REGS * 2, &wm8994->irq_masks_cur);
+	ret = wm8994_bulk_write(wm8994, WM8994_INTERRUPT_STATUS_1_MASK,
+			   WM8994_NUM_IRQ_REGS, (u16 *)&wm8994->irq_masks_cur);
 	if (ret < 0)
 		dev_err(dev, "Failed to restore interrupt masks: %d\n", ret);
 
-	ret = wm8994_write(wm8994, WM8994_LDO_1, WM8994_NUM_LDO_REGS * 2,
-			   &wm8994->ldo_regs);
+	ret = wm8994_bulk_write(wm8994, WM8994_LDO_1, WM8994_NUM_LDO_REGS,
+			   (u16 *)&wm8994->ldo_regs);
 	if (ret < 0)
 		dev_err(dev, "Failed to restore LDO registers: %d\n", ret);
 
-	ret = wm8994_write(wm8994, WM8994_GPIO_1, WM8994_NUM_GPIO_REGS * 2,
-			   &wm8994->gpio_regs);
+	ret = wm8994_bulk_write(wm8994, WM8994_GPIO_1, WM8994_NUM_GPIO_REGS,
+			   (u16 *)&wm8994->gpio_regs);
 	if (ret < 0)
 		dev_err(dev, "Failed to restore GPIO registers: %d\n", ret);
-
+	mdelay(100);
 	wm8994->suspended = false;
 
 	return 0;
 }
+
+static const struct dev_pm_ops wm8994_pm_ops = {
+	.suspend	= wm8994_suspend,
+	.resume		= wm8994_resume,
+};
 #endif
 
 #ifdef CONFIG_REGULATOR
@@ -609,6 +622,81 @@ static int wm8994_i2c_write_device(struct wm8994 *wm8994, unsigned short reg,
 
 	return 0;
 }
+#if 0
+#ifdef CONFIG_PROC_FS
+#define PROC_FILE	"driver/wm8994"
+
+static int index = 0xffff;
+static struct proc_dir_entry *proc_file;
+struct wm8994 *G_wm8994 = NULL;
+
+static ssize_t proc_read(struct file *filp, char __user *buffer,
+				size_t length, loff_t *offset)
+{
+	unsigned short reg_val;
+	ssize_t len;
+	const char fmt[] = "register 0x%02x: 0x%02x\n";
+	char buf[sizeof(fmt)];
+
+	if (!G_wm8994)
+		return 0;
+
+	if (index < 0 || index > WM8994_MAX_REGISTER)
+		return 0;
+
+	reg_val = wm8994_reg_read(G_wm8994, index);
+
+	len = sprintf(buf, fmt, index, reg_val);
+	return simple_read_from_buffer(buffer, length, offset, buf, len);
+}
+
+static ssize_t proc_write(struct file *filp, const char *buff,
+				size_t len, loff_t *off)
+{
+	unsigned short reg_val;
+	char messages[256], vol[256];
+
+	if (!G_wm8994)
+		return 0;
+
+	if (len > 256)
+		len = 256;
+
+	if (copy_from_user(messages, buff, len))
+		return -EFAULT;
+
+	if ('-' == messages[0]) {
+		/* set the register index */
+		memcpy(vol, messages+1, len-1);
+		index = (int) simple_strtoul(vol, NULL, 16);
+		pr_info("\nwm8994_reg_write:register # was set = 0x%x\n",
+				index);
+	} else{
+		/* set the register value */
+		reg_val = (int)simple_strtoul(messages, NULL, 16);
+		wm8994_reg_write(G_wm8994, index, reg_val);
+		pr_info("wm8994_reg_write:register write 0x%x <- %x, msg:%s\n",
+				index, reg_val, messages);
+	}
+	return len;
+}
+
+static const struct file_operations proc_ops = {
+	.read   = proc_read,
+	.write  = proc_write,
+};
+
+static void create_proc_file(void)
+{
+	proc_file = create_proc_entry(PROC_FILE, 0644, NULL);
+	if (proc_file) {
+		proc_file->proc_fops = &proc_ops;
+		printk(KERN_ALERT "PMIC proc file created!\n");
+	} else
+		printk(KERN_ALERT "PMIC proc file create failed!\n");
+}
+#endif
+#endif
 
 static int wm8994_i2c_probe(struct i2c_client *i2c,
 			    const struct i2c_device_id *id)
@@ -626,7 +714,12 @@ static int wm8994_i2c_probe(struct i2c_client *i2c,
 	wm8994->write_dev = wm8994_i2c_write_device;
 	wm8994->irq = i2c->irq;
 	wm8994->type = id->driver_data;
-
+#if 0
+	G_wm8994 = wm8994 ;
+#ifdef CONFIG_PROC_FS
+	create_proc_file();
+#endif
+#endif
 	return wm8994_device_init(wm8994, i2c->irq);
 }
 
@@ -646,14 +739,13 @@ static const struct i2c_device_id wm8994_i2c_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, wm8994_i2c_id);
 
-static UNIVERSAL_DEV_PM_OPS(wm8994_pm_ops, wm8994_suspend, wm8994_resume,
-			    NULL);
-
 static struct i2c_driver wm8994_i2c_driver = {
 	.driver = {
 		.name = "wm8994",
 		.owner = THIS_MODULE,
+#ifdef CONFIG_PM
 		.pm = &wm8994_pm_ops,
+#endif
 	},
 	.probe = wm8994_i2c_probe,
 	.remove = wm8994_i2c_remove,

@@ -16,7 +16,9 @@
 #define DCSR_RUN	(1 << 31)	/* Run Bit (read / write) */
 #define DCSR_NODESC	(1 << 30)	/* No-Descriptor Fetch (read / write) */
 #define DCSR_STOPIRQEN	(1 << 29)	/* Stop Interrupt Enable (read / write) */
+#define DCSR_RASIRQEN	(1 << 23)	/* RAS Interrupt enable (read / write)*/
 #define DCSR_REQPEND	(1 << 8)	/* Request Pending (read-only) */
+#define DCSR_RASINTR	(1 << 4)	/* RAS Interrupt status (read / write)*/
 #define DCSR_STOPSTATE	(1 << 3)	/* Stop State (read-only) */
 #define DCSR_ENDINTR	(1 << 2)	/* End Interrupt (read / write) */
 #define DCSR_STARTINTR	(1 << 1)	/* Start Interrupt (read / write) */

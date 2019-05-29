@@ -17,6 +17,10 @@
 
 #include "proc-macros.S"
 
+#ifdef CONFIG_PJ4B_ERRATA_6382
+#include <asm/pj4b-errata-6382.h>
+#endif
+
 /*
  *	v7_flush_icache_all()
  *
@@ -42,7 +46,16 @@ ENDPROC(v7_flush_icache_all)
  *	- mm    - mm_struct describing address space
  */
 ENTRY(v7_flush_dcache_all)
+#if defined(CONFIG_PJ4B_ERRATA_6359)
+	dsb
+#elif defined(CONFIG_PJ4B_ERRATA_6359_LIGHTWEIGHT)
+	dmb
+	.rept 8
+	nop
+	.endr
+#else
 	dmb					@ ensure ordering with previous memory accesses
+#endif
 	mrc	p15, 1, r0, c0, c0, 1		@ read clidr
 	ands	r3, r0, #0x7000000		@ extract loc from clidr
 	mov	r3, r3, lsr #23			@ left align loc bit field
@@ -50,6 +63,9 @@ ENTRY(v7_flush_dcache_all)
 	mov	r10, #0				@ start clean at cache level 0
 loop1:
 	add	r2, r10, r10, lsr #1		@ work out 3x current cache level
+#ifdef CONFIG_PJ4B_ERRATA_6315
+	mrc     p15, 1, r0, c0, c0, 1           @ read clidr
+#endif
 	mov	r1, r0, lsr r2			@ extract cache type bits from clidr
 	and	r1, r1, #7			@ mask of the bits for current cache only
 	cmp	r1, #2				@ see what cache we have at this level
@@ -73,6 +89,12 @@ loop3:
  ARM(	orr	r11, r11, r7, lsl r2	)	@ factor index number into r11
  THUMB(	lsl	r6, r7, r2		)
  THUMB(	orr	r11, r11, r6		)	@ factor index number into r11
+#ifdef CONFIG_PJ4B_ERRATA_6315
+	dsb					@ replace dmb w. dsb to ensure ordering with previous memory accesses
+	mov	r0, #24				@ require approximately a 24 cycle delay to guarantee all outstanding
+1:	subs	r0, r0, #1			@ request to complete
+	bne	1b
+#endif
 	mcr	p15, 0, r11, c7, c14, 2		@ clean & invalidate by set/way
 	subs	r9, r9, #1			@ decrement the way
 	bge	loop3
@@ -179,7 +201,14 @@ ENTRY(v7_coherent_user_range)
 	ALT_UP(W(nop))
 #endif
 1:
+#ifdef CONFIG_PJ4B_ERRATA_6026
+ USER(	mcr	p15, 0, r12, c7, c14, 1	)	@ clean & invalidate D line to the point of unification
+#else
+#ifdef CONFIG_PJ4B_ERRATA_6382
+	pj4b_errata_6382 r3					@ DSB + delay loop before any clean only cache maintenance operations
+#endif
  USER(	mcr	p15, 0, r12, c7, c11, 1	)	@ clean D line to the point of unification
+#endif
 	add	r12, r12, r2
 	cmp	r12, r1
 	blo	1b
@@ -287,7 +316,14 @@ v7_dma_clean_range:
 	ALT_UP(W(nop))
 #endif
 1:
+#ifdef CONFIG_PJ4B_ERRATA_6026
+	mcr	p15, 0, r0, c7, c14, 1		@ clean & invalidate D / U line
+#else
+#ifdef CONFIG_PJ4B_ERRATA_6382
+	pj4b_errata_6382 r3				@ DSB + delay loop before any clean only cache maintenance operations
+#endif
 	mcr	p15, 0, r0, c7, c10, 1		@ clean D / U line
+#endif
 	add	r0, r0, r2
 	cmp	r0, r1
 	blo	1b
@@ -345,16 +381,5 @@ ENDPROC(v7_dma_unmap_area)
 
 	__INITDATA
 
-	.type	v7_cache_fns, #object
-ENTRY(v7_cache_fns)
-	.long	v7_flush_icache_all
-	.long	v7_flush_kern_cache_all
-	.long	v7_flush_user_cache_all
-	.long	v7_flush_user_cache_range
-	.long	v7_coherent_kern_range
-	.long	v7_coherent_user_range
-	.long	v7_flush_kern_dcache_area
-	.long	v7_dma_map_area
-	.long	v7_dma_unmap_area
-	.long	v7_dma_flush_range
-	.size	v7_cache_fns, . - v7_cache_fns
+	@ define struct cpu_cache_fns (see <asm/cacheflush.h> and proc-macros.S)
+	define_cache_functions v7

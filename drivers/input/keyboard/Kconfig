@@ -396,12 +396,21 @@ config KEYBOARD_OPENCORES
 
 config KEYBOARD_PXA27x
 	tristate "PXA27x/PXA3xx keypad support"
-	depends on PXA27x || PXA3xx || ARCH_MMP
+	depends on PXA27x || PXA3xx || PXA95x|| ARCH_MMP
 	help
 	  Enable support for PXA27x/PXA3xx keypad controller.
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called pxa27x_keypad.
+
+config C_TEC_OPTIC_TP
+	tristate "SAAR C optic track pad driver"
+	depends on PXA95x
+	default n
+	help
+	Say Y here if you want to enable support for C Tec optic track pad controller.
+	this will add optical trackpad as keypad input to the system.
+	the driver is i2c based. need to define the i2c slave address in the platform file
 
 config KEYBOARD_PXA930_ROTARY
 	tristate "PXA930/PXA935 Enhanced Rotary Controller Support"
@@ -454,6 +463,10 @@ config KEYBOARD_SUNKBD
 	  To compile this driver as a module, choose M here: the
 	  module will be called sunkbd.
 
+config KEYBOARD_KBDE
+	tristate "KBD emulation driver"
+	help
+	  no help
 config KEYBOARD_SH_KEYSC
 	tristate "SuperH KEYSC keypad support"
 	depends on SUPERH || ARCH_SHMOBILE

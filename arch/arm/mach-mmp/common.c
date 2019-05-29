@@ -13,16 +13,37 @@
 #include <linux/module.h>
 
 #include <asm/page.h>
+#include <asm/setup.h>
 #include <asm/mach/map.h>
 #include <mach/addr-map.h>
 #include <mach/cputype.h>
 
+#ifdef CONFIG_CPU_MMP2
+#include <mach/mmp2_pm.h>
+#endif
+#ifdef CONFIG_CPU_MMP3
+#include <mach/mmp_audisland.h>
+#endif
+
 #include "common.h"
 
 #define MMP_CHIPID	(AXI_VIRT_BASE + 0x82c00)
+#define MMP_FUSEID	(AXI_VIRT_BASE + 0x1498)
 
 unsigned int mmp_chip_id;
 EXPORT_SYMBOL(mmp_chip_id);
+
+unsigned int mmp_fuse_id;
+EXPORT_SYMBOL(mmp_fuse_id);
+
+#ifdef CONFIG_CPU_MMP3
+unsigned int mmp_soc_stepping;
+EXPORT_SYMBOL(mmp_soc_stepping);
+unsigned int mmp_soc_profile;
+EXPORT_SYMBOL(mmp_soc_profile);
+#endif
+
+int mmp2_platform_version;
 
 static struct map_desc standard_io_desc[] __initdata = {
 	{
@@ -35,6 +56,40 @@ static struct map_desc standard_io_desc[] __initdata = {
 		.virtual	= AXI_VIRT_BASE,
 		.length		= AXI_PHYS_SIZE,
 		.type		= MT_DEVICE,
+#ifdef CONFIG_CPU_MMP2
+	}, {
+		.pfn		= __phys_to_pfn(FC_PHYS_BASE),
+		.virtual	= FC_VIRT_BASE,
+		.length		= FC_PHYS_SIZE,
+		.type		= MT_MEMORY_NONCACHED,
+#endif
+	}, {
+		.pfn		= __phys_to_pfn(DMCU_PHYS_BASE),
+		.virtual	= DMCU_VIRT_BASE,
+		.length		= DMCU_PHYS_SIZE,
+		.type		= MT_DEVICE,
+#ifdef CONFIG_CPU_MMP3
+	}, {
+		.pfn		= __phys_to_pfn(PGU_PHYS_BASE),
+		.virtual	= PGU_VIRT_BASE,
+		.length		= PGU_PHYS_SIZE,
+		.type		= MT_DEVICE,
+	}, {
+		.pfn            = __phys_to_pfn(AUD_PHYS_BASE),
+		.virtual        = AUD_VIRT_BASE,
+		.length         = AUD_PHYS_SIZE,
+		.type           = MT_DEVICE,
+	}, {
+		.pfn            = __phys_to_pfn(AUD_PHYS_BASE2),
+		.virtual        = AUD_VIRT_BASE2,
+		.length         = AUD_PHYS_SIZE2,
+		.type           = MT_DEVICE,
+	}, {
+		.pfn            = __phys_to_pfn(TZ_HV_PHYS_BASE),
+		.virtual        = TZ_HV_VIRT_BASE,
+		.length         = TZ_HV_PHYS_SIZE,
+		.type           = MT_MEMORY_NONCACHED,
+#endif
 	},
 };
 
@@ -44,4 +99,17 @@ void __init mmp_map_io(void)
 
 	/* this is early, initialize mmp_chip_id here */
 	mmp_chip_id = __raw_readl(MMP_CHIPID);
+	mmp_fuse_id = __raw_readl(MMP_FUSEID);
 }
+
+#ifdef CONFIG_CPU_MMP3
+static int __init parse_tag_profile(const struct tag *tag)
+{
+	mmp_soc_stepping = tag->u.mv_prof.soc_stepping;
+	mmp_soc_profile = tag->u.mv_prof.soc_prof;
+	if (mmp_soc_profile > 9 || mmp_soc_profile < 0)
+		mmp_soc_profile = 0;
+	return 0;
+}
+__tagtable(ATAG_PROFILE, parse_tag_profile);
+#endif

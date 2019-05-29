@@ -313,6 +313,49 @@ power_attr(wake_lock);
 power_attr(wake_unlock);
 #endif
 
+#ifdef CONFIG_PXA95x_SUSPEND
+int android_freezer_disable;
+
+static ssize_t
+android_freezer_disable_show(struct kobject *kobj, struct kobj_attribute *attr,
+char *buf)
+{
+	return sprintf(buf,
+	"android freezer disable %d (1 - freeze disable, 0 - freeze enable)\n",
+	android_freezer_disable);
+}
+
+static ssize_t
+android_freezer_disable_store(struct kobject *kobj, struct kobj_attribute *attr,
+	const char *buf, size_t n)
+{
+    int val, error = -EINVAL;
+
+    if (sscanf(buf, "%d", &val) != 1) {
+	printk(KERN_WARNING "\n android_freezer: wrong  input received. use 1 - freeze disable or  0 - freeze enable\n");
+      return n;
+    }
+
+    switch (val) {
+    case 1:
+	android_freezer_disable = 1;
+	error = n;
+	break;
+    case 0:
+	android_freezer_disable = 0;
+	error = n;
+	break;
+    default:
+	printk(KERN_WARNING "\n android_freezer: wrong  input received. use 1 - freeze disable or  0 - freeze enable\n");
+	break;
+	}
+	return error;
+}
+
+power_attr(android_freezer_disable);
+
+#endif
+
 static struct attribute * g[] = {
 	&state_attr.attr,
 #ifdef CONFIG_PM_TRACE
@@ -329,6 +372,9 @@ static struct attribute * g[] = {
 	&wake_lock_attr.attr,
 	&wake_unlock_attr.attr,
 #endif
+#endif
+#ifdef CONFIG_PXA95x_SUSPEND
+	&android_freezer_disable_attr.attr,
 #endif
 	NULL,
 };

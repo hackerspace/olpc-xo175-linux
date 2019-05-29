@@ -19,6 +19,10 @@
 
 #include "proc-macros.S"
 
+#ifdef CONFIG_PJ4B_ERRATA_6382
+#include <asm/pj4b-errata-6382.h>
+#endif
+
 #define TTB_S		(1 << 1)
 #define TTB_RGN_NC	(0 << 3)
 #define TTB_RGN_OC_WBWA	(1 << 3)
@@ -72,7 +76,9 @@ ENDPROC(cpu_v7_reset)
  *	IRQs are already disabled.
  */
 ENTRY(cpu_v7_do_idle)
+#ifndef CONFIG_CPU_PJ4B
 	dsb					@ WFI may enter a low-power mode
+#endif
 	wfi
 	mov	pc, lr
 ENDPROC(cpu_v7_do_idle)
@@ -80,7 +86,15 @@ ENDPROC(cpu_v7_do_idle)
 ENTRY(cpu_v7_dcache_clean_area)
 #ifndef TLB_CAN_READ_FROM_L1_CACHE
 	dcache_line_size r2, r3
-1:	mcr	p15, 0, r0, c7, c10, 1		@ clean D entry
+#ifdef CONFIG_PJ4B_ERRATA_6026
+1:	mcr	p15, 0, r0, c7, c14, 1		@ clean & invalidate D / U line
+#else
+1:
+#ifdef CONFIG_PJ4B_ERRATA_6382
+	pj4b_errata_6382 r3				@ DSB + delay loop before any clean only cache maintenance operations
+#endif
+	mcr	p15, 0, r0, c7, c10, 1		@ clean D entry
+#endif
 	add	r0, r0, r2
 	subs	r1, r1, r2
 	bhi	1b
@@ -168,13 +182,19 @@ ENTRY(cpu_v7_set_pte_ext)
  ARM(	str	r3, [r0, #2048]! )
  THUMB(	add	r0, r0, #2048 )
  THUMB(	str	r3, [r0] )
+#ifdef CONFIG_PJ4B_ERRATA_6026
+	mcr	p15, 0, r0, c7, c14, 1		@ clean & invalidate D / U line
+#else
+#ifdef CONFIG_PJ4B_ERRATA_6382
+	pj4b_errata_6382 r3				@ DSB + delay loop before any clean only cache maintenance operations
+#endif
 	mcr	p15, 0, r0, c7, c10, 1		@ flush_pte
+#endif
 #endif
 	mov	pc, lr
 ENDPROC(cpu_v7_set_pte_ext)
 
-cpu_v7_name:
-	.ascii	"ARMv7 Processor"
+	string	cpu_v7_name, "ARMv7 Processor"
 	.align
 
 	/*
@@ -210,56 +230,50 @@ cpu_v7_name:
 
 /* Suspend/resume support: derived from arch/arm/mach-s5pv210/sleep.S */
 .globl	cpu_v7_suspend_size
-.equ	cpu_v7_suspend_size, 4 * 9
+.equ	cpu_v7_suspend_size, 4 * 7
 #ifdef CONFIG_PM_SLEEP
 ENTRY(cpu_v7_do_suspend)
-	stmfd	sp!, {r4 - r11, lr}
+	stmfd	sp!, {r4 - r10, lr}
 	mrc	p15, 0, r4, c13, c0, 0	@ FCSE/PID
-	mrc	p15, 0, r5, c13, c0, 1	@ Context ID
-	mrc	p15, 0, r6, c13, c0, 3	@ User r/o thread ID
-	stmia	r0!, {r4 - r6}
+	mrc	p15, 0, r5, c13, c0, 3	@ User r/o thread ID
+	stmia	r0!, {r4 - r5}
 	mrc	p15, 0, r6, c3, c0, 0	@ Domain ID
-	mrc	p15, 0, r7, c2, c0, 0	@ TTB 0
-	mrc	p15, 0, r8, c2, c0, 1	@ TTB 1
-	mrc	p15, 0, r9, c1, c0, 0	@ Control register
-	mrc	p15, 0, r10, c1, c0, 1	@ Auxiliary control register
-	mrc	p15, 0, r11, c1, c0, 2	@ Co-processor access control
-	stmia	r0, {r6 - r11}
-	ldmfd	sp!, {r4 - r11, pc}
+	mrc	p15, 0, r7, c2, c0, 1	@ TTB 1
+	mrc	p15, 0, r8, c1, c0, 0	@ Control register
+	mrc	p15, 0, r9, c1, c0, 1	@ Auxiliary control register
+	mrc	p15, 0, r10, c1, c0, 2	@ Co-processor access control
+	stmia	r0, {r6 - r10}
+	ldmfd	sp!, {r4 - r10, pc}
 ENDPROC(cpu_v7_do_suspend)
 
 ENTRY(cpu_v7_do_resume)
 	mov	ip, #0
 	mcr	p15, 0, ip, c8, c7, 0	@ invalidate TLBs
 	mcr	p15, 0, ip, c7, c5, 0	@ invalidate I cache
-	ldmia	r0!, {r4 - r6}
+	mcr	p15, 0, ip, c13, c0, 1	@ set reserved context ID
+	ldmia	r0!, {r4 - r5}
 	mcr	p15, 0, r4, c13, c0, 0	@ FCSE/PID
-	mcr	p15, 0, r5, c13, c0, 1	@ Context ID
-	mcr	p15, 0, r6, c13, c0, 3	@ User r/o thread ID
-	ldmia	r0, {r6 - r11}
+	mcr	p15, 0, r5, c13, c0, 3	@ User r/o thread ID
+	ldmia	r0, {r6 - r10}
 	mcr	p15, 0, r6, c3, c0, 0	@ Domain ID
-	mcr	p15, 0, r7, c2, c0, 0	@ TTB 0
-	mcr	p15, 0, r8, c2, c0, 1	@ TTB 1
+	ALT_SMP(orr	r1, r1, #TTB_FLAGS_SMP)
+	ALT_UP(orr	r1, r1, #TTB_FLAGS_UP)
+	mcr	p15, 0, r1, c2, c0, 0	@ TTB 0
+	mcr	p15, 0, r7, c2, c0, 1	@ TTB 1
 	mcr	p15, 0, ip, c2, c0, 2	@ TTB control register
-	mcr	p15, 0, r10, c1, c0, 1	@ Auxiliary control register
-	mcr	p15, 0, r11, c1, c0, 2	@ Co-processor access control
+	mrc	p15, 0, r4, c1, c0, 1	@ Read Auxiliary control register
+	teq	r4, r9			@ Is it already set?
+	mcrne	p15, 0, r9, c1, c0, 1	@ No, so write it
+	mcr	p15, 0, r10, c1, c0, 2	@ Co-processor access control
 	ldr	r4, =PRRR		@ PRRR
 	ldr	r5, =NMRR		@ NMRR
 	mcr	p15, 0, r4, c10, c2, 0	@ write PRRR
 	mcr	p15, 0, r5, c10, c2, 1	@ write NMRR
 	isb
-	mov	r0, r9			@ control register
-	mov	r2, r7, lsr #14		@ get TTB0 base
-	mov	r2, r2, lsl #14
-	ldr	r3, cpu_resume_l1_flags
+	dsb
+	mov	r0, r8			@ control register
 	b	cpu_resume_mmu
 ENDPROC(cpu_v7_do_resume)
-cpu_resume_l1_flags:
-	ALT_SMP(.long PMD_TYPE_SECT | PMD_SECT_AP_WRITE | PMD_FLAGS_SMP)
-	ALT_UP(.long  PMD_TYPE_SECT | PMD_SECT_AP_WRITE | PMD_FLAGS_UP)
-#else
-#define cpu_v7_do_suspend	0
-#define cpu_v7_do_resume	0
 #endif
 
 	__CPUINIT
@@ -270,24 +284,117 @@ cpu_resume_l1_flags:
  *	Initialise TLB, Caches, and MMU state ready to switch the MMU
  *	on.  Return in r0 the new CP15 C1 control register setting.
  *
- *	We automatically detect if we have a Harvard cache, and use the
- *	Harvard cache control instructions insead of the unified cache
- *	control instructions.
- *
  *	This should be able to cover all ARMv7 cores.
  *
  *	It is assumed that:
  *	- cache type register is implemented
  */
 __v7_ca9mp_setup:
+__v7_setup:
+#if defined(CONFIG_CPU_PJ4B) && defined(CONFIG_NEON)
+	mrc	p15, 1, r0, c15, c1, 1
+	orr	r0, r0, #(1 << 11)		@ PJ4B NEON enable bit
+	mcr	p15, 1, r0, c15, c1, 1
+#endif
+#if defined(CONFIG_CPU_MMP3) && defined(CONFIG_NEON)
+	mrc	p15, 0, r5, c1, c0, 2		@ Read coprocessor access
+	mov	r0, r5
+	orr	r0, r0, #0x00f00000		@ Allow access to cp10 and cp11
+	mcr	p15, 0, r0, c1, c0, 2		@ Enable CP10, CP11 coprocessor access
+	mov	r0, #0
+	mcr	p15, 0, r0, c7, c5, 4		@ Flush prefetch buffer
+	mrc	p10, 7, r0, c8, c0, 0
+	orr	r0, r0, #0x40000000
+	mcr	p10, 7, r0, c8, c0, 0		@ Enable FPEXC.EN bit
+	isb
+	mov	r0, #1
+	mcr	p10, 7, r0, c9, c0, 0		@ Enable dual-issue feature in FPCFG.bit0
+	/* Continuous 6 VMOV instructions to initialize the unused second pipe */
+	.word	0xeeb00b00			@ VMOV.F64 d0, #2.00000000
+	.word	0xeeb00b00
+	.word	0xeeb00b00
+	.word	0xeeb00b00
+	.word	0xeeb00b00
+	.word	0xeeb00b00
+	mov	r0, #0
+	mcr	p10, 7, r0, c9, c0, 0		@ Disable dual-issue feature in FPCFG.bit0
+	isb
+	mrc	p10, 7, r0, c8, c0, 0
+	bic	r0, r0, #0x40000000
+	mcr	p10, 7, r0, c8, c0, 0		@ Disable FPEXC.EN bit
+	mcr	p15, 0, r5, c1, c0, 2		@ Disable CP10, CP11 coprocessor access
+	mov	r0, #0
+	mcr	p15, 0, r0, c7, c5, 4		@ Flush prefetch buffer
+#endif
 #ifdef CONFIG_SMP
 	ALT_SMP(mrc	p15, 0, r0, c1, c0, 1)
 	ALT_UP(mov	r0, #(1 << 6))		@ fake it for UP
 	tst	r0, #(1 << 6)			@ SMP/nAMP mode enabled?
+#ifndef CONFIG_DISABLE_CACHE_TLB_OP_BCAST
 	orreq	r0, r0, #(1 << 6) | (1 << 0)	@ Enable SMP/nAMP mode and
+#else
+	biceq	r0, r0, #(1 << 0)		@ clear FW
+	orreq	r0, r0, #(1 << 6)		@ set SMP/nAMP
+#endif
 	mcreq	p15, 0, r0, c1, c0, 1		@ TLB ops broadcasting
 #endif
-__v7_setup:
+#ifdef CONFIG_PJ4_RETURNSTACK_ISSUE
+	mrc	p15, 1, r0, c15, c1, 1
+	bic	r0, r0, #0x1			@disable return stack
+	mcr	p15, 1, r0, c15, c1, 1
+#endif
+#ifdef CONFIG_DISABLE_CWF
+	mrc	p15, 1, r0, c15, c1, 2
+	orr	r0, r0, #(1 << 27)
+	mcr	p15, 1, r0, c15, c1, 2
+#endif
+#ifdef CONFIG_FORCE_SCU_SINGLE_ENTRY
+	mrc	p15, 1, r0, c15, c1, 1
+	orr	r0, r0, #(1 << 15)
+	mcr	p15, 1, r0, c15, c1, 1
+#endif
+#ifdef CONFIG_DISABLE_SCU_PIPELINE
+	mrc	p15, 1, r0, c15, c1, 1
+	orr	r0, r0, #(1 << 4)
+	mcr	p15, 1, r0, c15, c1, 1
+#endif
+
+#ifdef CONFIG_ENABLE_WRITE_EVICTS
+	mrc	p15, 1, r0, c15, c1, 2
+	orr	r0, r0, #(1 << 31)		@ Write evicts
+	mcr	p15, 1, r0, c15, c1, 2
+#endif
+
+#ifdef CONFIG_ENABLE_SNOOP_FILTER
+#ifdef CONFIG_CPU_MMP3
+	#include <mach/addr-map.h>
+	#include <mach/scu.h>
+	ldr	r5, =PGU_PHYS_BASE
+	add	r5, r5, #SNOOP_FILTER_ENABLE
+	mov	r0, #0xffffffff
+	str	r0,[r5]
+#else
+	#error unsupported platform
+#endif
+#endif
+
+#ifdef CONFIG_DISABLE_CLEAN_INTERVENTION
+	mrc	p15, 1, r0, c15, c1, 1
+	orr	r0, r0, #(1 << 16)
+	mcr	p15, 1, r0, c15, c1, 1
+#endif
+
+#ifdef CONFIG_PJ4B_ERRATA_6409
+	mrc	p15, 1, r0, c15, c1, 1
+	bic	r0, r0, #0x4			@ Disable Static BP
+	mcr	p15, 1, r0, c15, c1, 1
+#endif
+
+#ifdef CONFIG_PJ4B_ERRATA_6107
+	mrc	p15, 1, r0, c15, c1, 0
+	orr	r0, r0, #(1 << 0)		@ disable L0
+	mcr	p15, 1, r0, c15, c1, 0
+#endif
 	adr	r12, __v7_setup_stack		@ the local stack
 	stmia	r12, {r0-r5, r7, r9, r11, lr}
 	bl	v7_flush_dcache_all
@@ -363,9 +470,7 @@ __v7_setup:
 #endif
 
 3:	mov	r10, #0
-#ifdef HARVARD_CACHE
 	mcr	p15, 0, r10, c7, c5, 0		@ I+BTB cache invalidate
-#endif
 	dsb
 #ifdef CONFIG_MMU
 	mcr	p15, 0, r10, c8, c7, 0		@ invalidate I + D TLBs
@@ -411,33 +516,13 @@ __v7_setup_stack:
 
 	__INITDATA
 
-	.type	v7_processor_functions, #object
-ENTRY(v7_processor_functions)
-	.word	v7_early_abort
-	.word	v7_pabort
-	.word	cpu_v7_proc_init
-	.word	cpu_v7_proc_fin
-	.word	cpu_v7_reset
-	.word	cpu_v7_do_idle
-	.word	cpu_v7_dcache_clean_area
-	.word	cpu_v7_switch_mm
-	.word	cpu_v7_set_pte_ext
-	.word	cpu_v7_suspend_size
-	.word	cpu_v7_do_suspend
-	.word	cpu_v7_do_resume
-	.size	v7_processor_functions, . - v7_processor_functions
+	@ define struct processor (see <asm/proc-fns.h> and proc-macros.S)
+	define_processor_functions v7, dabort=v7_early_abort, pabort=v7_pabort, suspend=1
 
 	.section ".rodata"
 
-	.type	cpu_arch_name, #object
-cpu_arch_name:
-	.asciz	"armv7"
-	.size	cpu_arch_name, . - cpu_arch_name
-
-	.type	cpu_elf_name, #object
-cpu_elf_name:
-	.asciz	"v7"
-	.size	cpu_elf_name, . - cpu_elf_name
+	string	cpu_arch_name, "armv7"
+	string	cpu_elf_name, "v7"
 	.align
 
 	.section ".proc.info.init", #alloc, #execinstr

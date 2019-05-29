@@ -32,8 +32,14 @@ static int genericbl_send_intensity(struct backlight_device *bd)
 		intensity = 0;
 	if (bd->props.state & BL_CORE_FBBLANK)
 		intensity = 0;
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	if (bd->props.state & BL_CORE_EARLY_SUSPENDED)
+		intensity = 0;
+#else
 	if (bd->props.state & BL_CORE_SUSPENDED)
 		intensity = 0;
+#endif
+
 	if (bd->props.state & GENERICBL_BATTLOW)
 		intensity &= bl_machinfo->limit_mask;
 
@@ -76,6 +82,38 @@ static const struct backlight_ops genericbl_ops = {
 	.update_status  = genericbl_send_intensity,
 };
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void bl_early_suspend(struct early_suspend *h)
+{
+	struct backlight_device *bd = container_of(h,
+		struct backlight_device, early_suspend);
+
+	mutex_lock(&bd->ops_lock);
+	if (bd->ops && bd->ops->options & BL_CORE_SUSPENDRESUME) {
+		bd->props.state |= BL_CORE_EARLY_SUSPENDED;
+		backlight_update_status(bd);
+	}
+	mutex_unlock(&bd->ops_lock);
+
+	return;
+}
+
+static void bl_late_resume(struct early_suspend *h)
+{
+	struct backlight_device *bd = container_of(h,
+		struct backlight_device, early_suspend);
+
+	mutex_lock(&bd->ops_lock);
+	if (bd->ops && bd->ops->options & BL_CORE_SUSPENDRESUME) {
+		bd->props.state &= ~BL_CORE_EARLY_SUSPENDED;
+		backlight_update_status(bd);
+	}
+	mutex_unlock(&bd->ops_lock);
+
+	return;
+}
+#endif
+
 static int genericbl_probe(struct platform_device *pdev)
 {
 	struct backlight_properties props;
@@ -105,6 +143,13 @@ static int genericbl_probe(struct platform_device *pdev)
 	backlight_update_status(bd);
 
 	generic_backlight_device = bd;
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	bd->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
+	bd->early_suspend.suspend = bl_early_suspend;
+	bd->early_suspend.resume = bl_late_resume;
+	register_early_suspend(&bd->early_suspend);
+#endif
 
 	printk("Generic Backlight Driver Initialized.\n");
 	return 0;

@@ -429,6 +429,8 @@ out:
 void
 handle_edge_irq(unsigned int irq, struct irq_desc *desc)
 {
+	if (unlikely(irq >= NR_IRQS))
+		printk(KERN_ERR"Invalid IRQ=%d in %s \n", irq, __FUNCTION__);
 	raw_spin_lock(&desc->lock);
 
 	desc->istate &= ~(IRQS_REPLAY | IRQS_WAITING);

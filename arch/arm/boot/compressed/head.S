@@ -486,7 +486,7 @@ __setup_mmu:	sub	r3, r4, #16384		@ Page directory size
 		bne	1b
 /*
  * If ever we are running from Flash, then we surely want the cache
- * to be enabled also for our execution instance...  We map 2MB of it
+ * to be enabled also for our execution instance...  We map 4MB of it
  * so there is no map overlap problem for up to 1 MB compressed kernel.
  * If the execution is in RAM then we would only be duplicating the above.
  */
@@ -496,6 +496,10 @@ __setup_mmu:	sub	r3, r4, #16384		@ Page directory size
 		mov	r2, r2, lsr #20
 		orr	r1, r1, r2, lsl #20
 		add	r0, r3, r2, lsl #2
+		str	r1, [r0], #4
+		add	r1, r1, #1048576
+		str	r1, [r0], #4
+		add	r1, r1, #1048576
 		str	r1, [r0], #4
 		add	r1, r1, #1048576
 		str	r1, [r0]

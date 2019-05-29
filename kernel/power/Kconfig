@@ -184,6 +184,12 @@ config PM
 	def_bool y
 	depends on PM_SLEEP || PM_RUNTIME
 
+config PXA95x_SUSPEND
+	bool "fake suspend for pxa95x"
+	depends on WAKELOCK && SUSPEND && FREEZER && PXA95x
+	--- help---
+	enable fake suspend for pxa95x
+
 config PM_DEBUG
 	bool "Power Management Debug Support"
 	depends on PM
@@ -301,3 +307,7 @@ config SUSPEND_TIME
 	  Prints the time spent in suspend in the kernel log, and
 	  keeps statistics on the time spent in suspend in
 	  /sys/kernel/debug/suspend_time
+
+config CPU_PM
+	bool
+	depends on SUSPEND || CPU_IDLE

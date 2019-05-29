@@ -320,7 +320,7 @@ static int ptrace_getwmmxregs(struct task_struct *tsk, void __user *ufp)
 
 	if (!test_ti_thread_flag(thread, TIF_USING_IWMMXT))
 		return -ENODATA;
-	iwmmxt_task_disable(thread);  /* force it to ram */
+	iwmmxt_sync_hwstate(thread);
 	return copy_to_user(ufp, &thread->fpstate.iwmmxt, IWMMXT_SIZE)
 		? -EFAULT : 0;
 }
@@ -334,9 +334,13 @@ static int ptrace_setwmmxregs(struct task_struct *tsk, void __user *ufp)
 
 	if (!test_ti_thread_flag(thread, TIF_USING_IWMMXT))
 		return -EACCES;
-	iwmmxt_task_release(thread);  /* force a reload */
-	return copy_from_user(&thread->fpstate.iwmmxt, ufp, IWMMXT_SIZE)
-		? -EFAULT : 0;
+	iwmmxt_sync_hwstate(thread);
+	if (copy_from_user(&thread->fpstate.iwmmxt, ufp, IWMMXT_SIZE))
+		return  -EFAULT;
+
+	iwmmxt_flush_hwstate(thread);
+
+	return 0;
 }
 
 #endif

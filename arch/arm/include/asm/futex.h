@@ -25,6 +25,69 @@
 
 #ifdef CONFIG_SMP
 
+#ifdef CONFIG_PJ4B_ERRATA_6011
+#include <asm/pj4b-errata-6011.h>
+#define __futex_atomic_op(insn, ret, oldval, tmp, uaddr, oparg)	\
+	smp_mb();						\
+	{							\
+		__asm__ __volatile__(				\
+		"	mrs     %2, cpsr\n"			\
+		"	cpsid	i\n"				\
+		"1:	ldrex	%1, [%3]\n"			\
+		"	ldrex	%1, [%3]\n"			\
+		"	ldrex	%1, [%3]\n"			\
+		"	ldrex	%1, [%3]\n"			\
+		"	ldrex	%1, [%3]\n"			\
+		"	msr    cpsr_c, %2\n"			\
+		"	" insn "\n"				\
+		"2:	strex	%2, %0, [%3]\n"			\
+		"	teq	%2, #0\n"			\
+		"	bne	1b\n"				\
+		"	mov	%0, #0\n"			\
+		__futex_atomic_ex_table("%5")			\
+		: "=&r" (ret), "=&r" (oldval), "=&r" (tmp)	\
+		: "r" (uaddr), "r" (oparg), "Ir" (-EFAULT)	\
+		: "cc", "memory");				\
+	}
+
+static inline int
+futex_atomic_cmpxchg_inatomic(u32 *uval, u32 __user *uaddr,
+			      u32 oldval, u32 newval)
+{
+	int ret;
+	u32 val;
+	u32 tmp;
+
+	if (!access_ok(VERIFY_WRITE, uaddr, sizeof(u32)))
+		return -EFAULT;
+
+	smp_mb();
+	__asm__ __volatile__("@futex_atomic_cmpxchg_inatomic\n"
+	"	mrs     %2, cpsr\n"
+	"	cpsid	i\n"
+	"1:	ldrex	%1, [%5]\n"
+	"	ldrex	%1, [%5]\n"
+	"	ldrex	%1, [%5]\n"
+	"	ldrex	%1, [%5]\n"
+	"	ldrex	%1, [%5]\n"
+	"	msr    cpsr_c, %2\n"
+	"	teq	%1, %3\n"
+	"	ite	eq	@ explicit IT needed for the 2b label\n"
+	"2:	strexeq	%0, %4, [%5]\n"
+	"	movne	%0, #0\n"
+	"	teq	%0, #0\n"
+	"	bne	1b\n"
+	__futex_atomic_ex_table("%6")
+	: "=&r" (ret), "=&r" (val), "=&r" (tmp)
+	: "r" (oldval), "r" (newval), "r" (uaddr), "Ir" (-EFAULT)
+	: "cc", "memory");
+	smp_mb();
+
+	*uval = val;
+	return ret;
+}
+#else /* !CONFIG_PJ4B_ERRATA_6011 */
+
 #define __futex_atomic_op(insn, ret, oldval, tmp, uaddr, oparg)	\
 	smp_mb();						\
 	__asm__ __volatile__(					\
@@ -67,6 +130,7 @@ futex_atomic_cmpxchg_inatomic(u32 *uval, u32 __user *uaddr,
 	*uval = val;
 	return ret;
 }
+#endif /* !CONFIG_PJ4B_ERRATA_6011 */
 
 #else /* !SMP, we can work around lack of atomic ops by disabling preemption */
 

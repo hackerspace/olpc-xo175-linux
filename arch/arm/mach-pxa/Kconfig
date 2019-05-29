@@ -53,6 +53,14 @@ config MACH_SAAR
 config MACH_SAARB
 	bool "PXA955 Handheld Platform (aka SAARB)"
 	select CPU_PXA955
+	select HAVE_PWM
+	select USB_ARCH_HAS_EHCI
+
+config MACH_NEVOSAARC
+	bool "PXA978 Handheld Platform (aka SAARC2)"
+	select CPU_PXA978
+	select HAVE_PWM
+	select USB_ARCH_HAS_EHCI
 
 comment "Third Party Dev Platforms (sorted by vendor name)"
 
@@ -658,15 +666,34 @@ config CPU_PXA935
 
 config PXA95x
 	bool
-	select CPU_PJ4
+	select MULTI_IRQ_HANDLER
+	select PXA_SSP
 	help
 	  Select code specific to PXA95x variants
 
 config CPU_PXA955
 	bool
 	select PXA95x
+	select CPU_PJ4 if !(CPU_XSCALE || CPU_XSC3)
+	select PREEMPT_NOTIFIERS
 	help
 	  PXA950 (codename MG1)
+
+config CPU_PXA998
+	bool
+	select PXA95x
+	select CPU_PJ4 if !(CPU_XSCALE || CPU_XSC3)
+	select PREEMPT_NOTIFIERS
+	help
+	  PXA998 (codename Eshel)
+
+config CPU_PXA978
+	bool
+	select PXA95x
+	select CPU_V7 if !(CPU_XSCALE || CPU_XSC3)
+	select PREEMPT_NOTIFIERS
+	help
+	  PXA978 (codename Nevo)
 
 config PXA_SHARP_C7xx
 	bool
@@ -695,5 +722,10 @@ config PXA_HAVE_ISA_IRQS
 
 config PXA310_ULPI
 	bool
+
+config PXA_RAMDUMP
+	default y
+	depends on PXA95x
+	bool "RAMDUMP debug capability"
 
 endif

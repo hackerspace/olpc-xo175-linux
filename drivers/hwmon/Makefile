@@ -40,6 +40,8 @@ obj-$(CONFIG_SENSORS_ADT7475)	+= adt7475.o
 obj-$(CONFIG_SENSORS_APPLESMC)	+= applesmc.o
 obj-$(CONFIG_SENSORS_ASC7621)	+= asc7621.o
 obj-$(CONFIG_SENSORS_ATXP1)	+= atxp1.o
+obj-$(CONFIG_SENSORS_APDS990X_MRVL)	+= apds990x.o
+obj-$(CONFIG_SENSORS_CM3601)	+= cm3601.o
 obj-$(CONFIG_SENSORS_CORETEMP)	+= coretemp.o
 obj-$(CONFIG_SENSORS_DME1737)	+= dme1737.o
 obj-$(CONFIG_SENSORS_DS620)	+= ds620.o
@@ -118,6 +120,19 @@ obj-$(CONFIG_SENSORS_W83L785TS)	+= w83l785ts.o
 obj-$(CONFIG_SENSORS_W83L786NG)	+= w83l786ng.o
 obj-$(CONFIG_SENSORS_WM831X)	+= wm831x-hwmon.o
 obj-$(CONFIG_SENSORS_WM8350)	+= wm8350-hwmon.o
+obj-$(CONFIG_SENSORS_CM3623)	+= cm3623.o
+obj-$(CONFIG_SENSORS_CM3213)	+= cm3213.o
+obj-$(CONFIG_SENSORS_CM3217A)   += cm3217a.o
+obj-$(CONFIG_SENSORS_CWMI)      += cwmi.o
+obj-$(CONFIG_SENSORS_CWGD)      += cwgd.o
+obj-$(CONFIG_SENSORS_MMP2_THERMAL)  += mmp2_thermal.o
+obj-$(CONFIG_SENSORS_LIS331DL)	+= lis331dl.o
+obj-$(CONFIG_SENSORS_YAS529)	+= yas529.o
+obj-$(CONFIG_SENSORS_ORIENTATION)	+= orientation.o
+obj-$(CONFIG_SENSORS_LSM303DLHC_ACC)	+=lsm303dlhc_acc.o
+obj-$(CONFIG_SENSORS_LSM303DLHC_MAG)	+=lsm303dlhc_mag.o
+obj-$(CONFIG_SENSORS_STM8T143)	+= stm8t143.o
+obj-$(CONFIG_SENSORS_L3G4200D_GYR)	+=l3g4200d_gyr.o
 
 # PMBus drivers
 obj-$(CONFIG_PMBUS)		+= pmbus_core.o
@@ -128,6 +143,7 @@ obj-$(CONFIG_SENSORS_MAX34440)	+= max34440.o
 obj-$(CONFIG_SENSORS_MAX8688)	+= max8688.o
 obj-$(CONFIG_SENSORS_UCD9000)	+= ucd9000.o
 obj-$(CONFIG_SENSORS_UCD9200)	+= ucd9200.o
+obj-$(CONFIG_SENSORS_ROHM_BH1772)      += rohm_bh1772_driver.o rohm_als_ps_driver.o
 
 ccflags-$(CONFIG_HWMON_DEBUG_CHIP) := -DDEBUG
 

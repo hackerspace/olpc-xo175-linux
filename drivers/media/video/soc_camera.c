@@ -155,7 +155,7 @@ static int soc_camera_try_fmt(struct soc_camera_device *icd,
 		pixfmtstr(pix->pixelformat), pix->width, pix->height);
 
 	pix->bytesperline = 0;
-	pix->sizeimage = 0;
+/*	pix->sizeimage = 0; */
 
 	ret = ici->ops->try_fmt(icd, f);
 	if (ret < 0)
@@ -558,9 +558,9 @@ static int soc_camera_close(struct file *file)
 		pm_runtime_suspend(&icd->vdev->dev);
 		pm_runtime_disable(&icd->vdev->dev);
 
-		ici->ops->remove(icd);
 		if (ici->ops->init_videobuf2)
 			vb2_queue_release(&icd->vb2_vidq);
+		ici->ops->remove(icd);
 
 		soc_camera_power_set(icd, icl, 0);
 	}
@@ -899,6 +899,11 @@ static int soc_camera_s_crop(struct file *file, void *fh,
 
 	dev_dbg(&icd->dev, "S_CROP(%ux%u@%u:%u)\n",
 		rect->width, rect->height, rect->left, rect->top);
+
+	/* W/R: we have a different understanding of G_CROP from
+	 * soc_camera, and allow changeing SENSOR ZOOM using this CID */
+	ret = ici->ops->set_crop(icd, a);
+	return ret;
 
 	/* If get_crop fails, we'll let host and / or client drivers decide */
 	ret = ici->ops->get_crop(icd, &current_crop);
@@ -1523,7 +1528,7 @@ static int soc_camera_video_start(struct soc_camera_device *icd)
 	    !icd->ops->set_bus_param)
 		return -EINVAL;
 
-	ret = video_register_device(icd->vdev, VFL_TYPE_GRABBER, -1);
+	ret = video_register_device(icd->vdev, VFL_TYPE_GRABBER, icd->iface);
 	if (ret < 0) {
 		dev_err(&icd->dev, "video_register_device failed: %d\n", ret);
 		return ret;

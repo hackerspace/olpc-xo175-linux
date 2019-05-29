@@ -938,6 +938,19 @@ struct kimage *kexec_image;
 struct kimage *kexec_crash_image;
 
 static DEFINE_MUTEX(kexec_mutex);
+void crash_update(struct pt_regs *regs)
+{
+	if (mutex_trylock(&kexec_mutex)) {
+		struct pt_regs fixed_regs;
+
+		crash_setup_regs(&fixed_regs, regs);
+		crash_save_vmcoreinfo();
+		machine_crash_update(&fixed_regs);
+
+		mutex_unlock(&kexec_mutex);
+	}
+}
+
 
 SYSCALL_DEFINE4(kexec_load, unsigned long, entry, unsigned long, nr_segments,
 		struct kexec_segment __user *, segments, unsigned long, flags)
@@ -980,6 +993,11 @@ SYSCALL_DEFINE4(kexec_load, unsigned long, entry, unsigned long, nr_segments,
 	 */
 	if (!mutex_trylock(&kexec_mutex))
 		return -EBUSY;
+
+	if (flags & KEXEC_NEED_UPDATE) {
+		crash_update(NULL);
+		goto out;
+	}
 
 	dest_image = &kexec_image;
 	if (flags & KEXEC_ON_CRASH)
@@ -1082,6 +1100,7 @@ void crash_kexec(struct pt_regs *regs)
 			kmsg_dump(KMSG_DUMP_KEXEC);
 
 			crash_setup_regs(&fixed_regs, regs);
+			vmcoreinfo_append_str("CRASHTIME=%ld", get_seconds());
 			crash_save_vmcoreinfo();
 			machine_crash_shutdown(&fixed_regs);
 			machine_kexec(kexec_crash_image);
@@ -1379,16 +1398,12 @@ int __init parse_crashkernel(char 		 *cmdline,
 	return 0;
 }
 
-
-
 void crash_save_vmcoreinfo(void)
 {
 	u32 *buf;
 
 	if (!vmcoreinfo_size)
 		return;
-
-	vmcoreinfo_append_str("CRASHTIME=%ld", get_seconds());
 
 	buf = (u32 *)vmcoreinfo_note;
 

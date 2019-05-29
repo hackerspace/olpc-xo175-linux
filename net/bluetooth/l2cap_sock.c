@@ -598,7 +598,7 @@ static int l2cap_sock_setsockopt(struct socket *sock, int level, int optname, ch
 		}
 
 		if (sec.level < BT_SECURITY_LOW ||
-					sec.level > BT_SECURITY_HIGH) {
+					sec.level > BT_SECURITY_HIGH_NOBOND) {
 			err = -EINVAL;
 			break;
 		}

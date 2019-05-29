@@ -138,4 +138,17 @@ config FSL_USB2_OTG
 	help
 	  Enable this to support Freescale USB OTG transceiver.
 
+config USB_PXA_U2O_OTG
+	tristate "Marvell PXA9xx USB OTG support"
+	depends on USB_PXA_U2O
+	select USB_OTG
+	select USB_OTG_UTILS
+	help
+	 Say Y here if you want to build Marvell PXA9xx USB OTG
+	 transciever driver in kernel. This driver implements role
+	 switch between EHCI host driver and Langwell USB OTG
+	 client driver.
+
+	 To compile this driver as a module, choose M here.
+
 endif # USB || OTG

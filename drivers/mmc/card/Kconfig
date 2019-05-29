@@ -50,6 +50,18 @@ config MMC_BLOCK_BOUNCE
 
 	  If unsure, say Y here.
 
+config MMC_BLOCK_AUTO_RESUME
+	bool "MMC layer auto resume even under suspend state"
+	depends on MMC_BLOCK
+	default n
+	help
+	Say Y here to enable MMC auto resume even under suspend state.
+	This will fix the issue when file-system flush comes during
+	suspend. At that time, we may need to flush the data to SD/MMC
+	, too. Otherwise, it will block the file-system sync. Usually,
+	this case only happens in "partitial" suspend case, in which,
+	the AP is awake under suspend state.
+
 config MMC_BLOCK_DEFERRED_RESUME
 	bool "Deferr MMC layer resume until I/O is requested"
 	depends on MMC_BLOCK
@@ -58,6 +70,17 @@ config MMC_BLOCK_DEFERRED_RESUME
 	  Say Y here to enable deferred MMC resume until I/O
 	  is requested. This will reduce overall resume latency and
 	  save power when theres an SD card inserted but not being used.
+
+config MMC_BLOCK_CMD13_AFTER_CMD18
+	bool "Add CMD13 after CMD18 immediately"
+	depends on MMC_BLOCK
+	depends on MMC_SDHCI_PXAV3
+	default CPU_PXA978
+	help
+	  Say Y here to enable extra CMD13 after CMD18. This is for Nevo C0
+	  silicon bug workaround.
+
+	  If unsure, say Y here.
 
 config SDIO_UART
 	tristate "SDIO UART/GPS class support"

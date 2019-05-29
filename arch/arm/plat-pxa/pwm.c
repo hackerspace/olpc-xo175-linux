@@ -31,6 +31,8 @@ static const struct platform_device_id pwm_id_table[] = {
 	{ "pxa27x-pwm", 0 | HAS_SECONDARY_PWM },
 	{ "pxa168-pwm", 1 },
 	{ "pxa910-pwm", 1 },
+	{ "mmp2-pwm"  , 0 },
+	{ "pxa95x-pwm", 0 },
 	{ },
 };
 MODULE_DEVICE_TABLE(platform, pwm_id_table);
@@ -91,7 +93,7 @@ int pwm_config(struct pwm_device *pwm, int duty_ns, int period_ns)
 	 * before writing to the registers
 	 */
 	clk_enable(pwm->clk);
-	__raw_writel(prescale, pwm->mmio_base + PWMCR);
+	__raw_writel(prescale | PWMCR_SD, pwm->mmio_base + PWMCR);
 	__raw_writel(dc, pwm->mmio_base + PWMDCR);
 	__raw_writel(pv, pwm->mmio_base + PWMPCR);
 	clk_disable(pwm->clk);

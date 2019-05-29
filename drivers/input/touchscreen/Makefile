@@ -7,6 +7,9 @@
 wm97xx-ts-y := wm97xx-core.o
 
 obj-$(CONFIG_TOUCHSCREEN_88PM860X)	+= 88pm860x-ts.o
+obj-$(CONFIG_TOUCHSCREEN_TPO)		+= tpo_touch.o
+obj-$(CONFIG_TOUCHSCREEN_ELAN)		+= elan_touch.o
+obj-$(CONFIG_TOUCHSCREEN_FT5306)	+= ft5306_touch.o
 obj-$(CONFIG_TOUCHSCREEN_AD7877)	+= ad7877.o
 obj-$(CONFIG_TOUCHSCREEN_AD7879)	+= ad7879.o
 obj-$(CONFIG_TOUCHSCREEN_AD7879_I2C)	+= ad7879-i2c.o
@@ -61,3 +64,7 @@ obj-$(CONFIG_TOUCHSCREEN_WM97XX_MAINSTONE)	+= mainstone-wm97xx.o
 obj-$(CONFIG_TOUCHSCREEN_WM97XX_ZYLONITE)	+= zylonite-wm97xx.o
 obj-$(CONFIG_TOUCHSCREEN_W90X900)	+= w90p910_ts.o
 obj-$(CONFIG_TOUCHSCREEN_TPS6507X)	+= tps6507x-ts.o
+obj-$(CONFIG_TOUCHSCREEN_TPK_R800)	+= tpk_r800.o ts_linear.o
+obj-$(CONFIG_TOUCHSCREEN_SSD2531)		+= SSD2531_touch.o
+obj-$(CONFIG_TOUCHSCREEN_VNC)			+= vnc_touch.o
+obj-$(CONFIG_TOUCHSCREEN_EGALAX_I2C)    += egalax_i2c.o

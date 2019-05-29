@@ -1,7 +1,7 @@
 #ifndef __ASM_MACH_MMP2_H
 #define __ASM_MACH_MMP2_H
 
-#include <plat/sdhci.h>
+#include <linux/platform_data/pxa_sdhci.h>
 
 struct sys_timer;
 
@@ -9,10 +9,17 @@ extern struct sys_timer mmp2_timer;
 extern void __init mmp2_init_icu(void);
 extern void __init mmp2_init_irq(void);
 extern void mmp2_clear_pmic_int(void);
+extern void __init mmp2_reserve(void);
 
 #include <linux/i2c.h>
 #include <linux/i2c/pxa-i2c.h>
 #include <mach/devices.h>
+#include <mach/pxa168fb.h>
+#include <mach/uio_hdmi.h>
+#include <plat/pxa27x_keypad.h>
+#include <linux/spi/pxa2xx_spi.h>
+#include <mach/sram.h>
+#include <mach/camera.h>
 
 extern struct pxa_device_desc mmp2_device_uart1;
 extern struct pxa_device_desc mmp2_device_uart2;
@@ -28,7 +35,38 @@ extern struct pxa_device_desc mmp2_device_sdh0;
 extern struct pxa_device_desc mmp2_device_sdh1;
 extern struct pxa_device_desc mmp2_device_sdh2;
 extern struct pxa_device_desc mmp2_device_sdh3;
+extern struct pxa_device_desc mmp2_device_pwm1;
+extern struct pxa_device_desc mmp2_device_pwm2;
+extern struct pxa_device_desc mmp2_device_pwm3;
+extern struct pxa_device_desc mmp2_device_pwm4;
+extern struct pxa_device_desc mmp2_device_camera;
+extern struct pxa_device_desc mmp2_device_camera2;
+extern struct pxa_device_desc mmp2_device_fb;
+extern struct pxa_device_desc mmp2_device_fb_ovly;
+extern struct pxa_device_desc mmp2_device_fb_tv;
+extern struct pxa_device_desc mmp2_device_fb_tv_ovly;
+extern struct pxa_device_desc mmp2_device_hdmi;
+extern struct pxa_device_desc mmp2_device_keypad;
+extern struct pxa_device_desc mmp2_device_sspa1;
+extern struct pxa_device_desc mmp2_device_sspa2;
+extern struct pxa_device_desc mmp2_device_ssp1;
+extern struct pxa_device_desc mmp2_device_ssp2;
+extern struct pxa_device_desc mmp2_device_ssp3;
+extern struct pxa_device_desc mmp2_device_ssp4;
+extern struct pxa_device_desc mmp2_device_audiosram;
+extern struct pxa_device_desc mmp2_device_fuse;
+extern struct platform_device mmp_device_asoc_sspa1;
+extern struct platform_device mmp_device_asoc_sspa2;
+extern struct platform_device mmp_device_asoc_platform;
+extern struct platform_device mmp_device_asoc_hdmi;
+extern struct pxa_device_desc mmp2_device_thsens;
+extern struct pxa_device_desc mmp2_device_videosram;
 
+extern struct platform_device pxa168_device_u2o;
+extern struct platform_device pxa168_device_u2oehci;
+extern struct platform_device pxa168_device_u2ootg;
+extern struct platform_device mmp2_device_rtc;
+extern void mmp_zsp_platform_device_init(void);
 static inline int mmp2_add_uart(int id)
 {
 	struct pxa_device_desc *d = NULL;
@@ -85,5 +123,135 @@ static inline int mmp2_add_sdhost(int id, struct sdhci_pxa_platdata *data)
 	return pxa_register_device(d, data, sizeof(*data));
 }
 
-#endif /* __ASM_MACH_MMP2_H */
+static inline int mmp2_add_pwm(int id)
+{
+	struct pxa_device_desc *d = NULL;
 
+	switch (id) {
+	case 1: d = &mmp2_device_pwm1; break;
+	case 2: d = &mmp2_device_pwm2; break;
+	case 3: d = &mmp2_device_pwm3; break;
+	case 4: d = &mmp2_device_pwm4; break;
+	default:
+			return -EINVAL;
+	}
+
+	return pxa_register_device(d, NULL, 0);
+}
+
+static inline int mmp2_add_fb(struct pxa168fb_mach_info *mi)
+{
+	return pxa_register_device(&mmp2_device_fb, mi, sizeof(*mi));
+}
+
+static inline int mmp2_add_fb_ovly(struct pxa168fb_mach_info *mi)
+{
+	return pxa_register_device(&mmp2_device_fb_ovly, mi, sizeof(*mi));
+}
+
+static inline int mmp2_add_fb_tv(struct pxa168fb_mach_info *mi)
+{
+       return pxa_register_device(&mmp2_device_fb_tv, mi, sizeof(*mi));
+}
+
+static inline int mmp2_add_fb_tv_ovly(struct pxa168fb_mach_info *mi)
+{
+	return pxa_register_device(&mmp2_device_fb_tv_ovly, mi, sizeof(*mi));
+}
+
+static inline int mmp2_add_ssp(int id)
+{
+	struct pxa_device_desc *d = NULL;
+
+	switch (id) {
+	case 1: d = &mmp2_device_ssp1; break;
+	case 2: d = &mmp2_device_ssp2; break;
+	case 3: d = &mmp2_device_ssp3; break;
+	case 4: d = &mmp2_device_ssp4; break;
+	default:
+		return -EINVAL;
+	}
+
+	return pxa_register_device(d, NULL, 0);
+}
+
+static inline int mmp2_add_spi(int id, struct pxa2xx_spi_master *pdata)
+{
+	struct platform_device *pd;
+	pd = platform_device_alloc("pxa2xx-spi", id);
+	if (pd == NULL) {
+		pr_err("pxa2xx-spi: failed to allocate device (id=%d)\n", id);
+		return -ENOMEM;
+	}
+
+	platform_device_add_data(pd, pdata, sizeof(*pdata));
+
+	return platform_device_add(pd);
+}
+
+
+static inline int mmp2_add_hdmi(struct uio_hdmi_platform_data *data)
+{
+		return pxa_register_device(&mmp2_device_hdmi, data, sizeof(*data));
+}
+
+static inline int mmp2_add_cam(int id, struct mv_cam_pdata *cam)
+{
+       struct pxa_device_desc *d = NULL;
+       switch (id) {
+               case 1: d = &mmp2_device_camera; break;
+               case 2: d = &mmp2_device_camera2; break;
+               default:
+                       return -EINVAL;
+       }
+       return pxa_register_device(d, cam, sizeof(*cam));
+}
+static inline int mmp2_add_keypad(struct pxa27x_keypad_platform_data *data)
+{
+	return pxa_register_device(&mmp2_device_keypad, data, sizeof(*data));
+}
+
+static inline int mmp2_add_thermal_sensor(void)
+{
+	return pxa_register_device(&mmp2_device_thsens, NULL, 0);
+}
+
+static inline int mmp2_add_audiosram(struct sram_bank *data)
+{
+	return pxa_register_device(&mmp2_device_audiosram, data, sizeof(*data));
+}
+
+static inline int mmp2_add_sspa(int id)
+{
+	struct pxa_device_desc *d = NULL;
+
+	switch (id) {
+	case 1: d = &mmp2_device_sspa1; break;
+	case 2: d = &mmp2_device_sspa2; break;
+	default:
+		return -EINVAL;
+	}
+
+	return pxa_register_device(d, NULL, 0);
+}
+
+static inline int mmp2_add_videosram(struct sram_bank *data)
+{
+	return pxa_register_device(&mmp2_device_videosram, data, sizeof(*data));
+}
+
+static inline int mmp2_add_fuse(void)
+{
+	return pxa_register_device(&mmp2_device_fuse, NULL, 0);
+}
+
+static inline void mmp2_add_rtc(void)
+{
+	int ret;
+	ret = platform_device_register(&mmp2_device_rtc);
+	if (ret)
+		dev_err(&mmp2_device_rtc.dev,
+			"unable to register device: %d\n", ret);
+}
+
+#endif /* __ASM_MACH_MMP2_H */

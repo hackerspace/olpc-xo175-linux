@@ -26,6 +26,13 @@ config SND_PXA_SOC_SSP
 	tristate
 	select PXA_SSP
 
+config SND_PXA95X_SOC_ABU
+	tristate "SoC Audio for ABU of Marvell PXA95x chip"
+	depends on PXA95x
+	help
+	  Say Y if you want to add support for the Audio Buffer
+	  Unit(ABU) on Marvell PXA95x chip.
+
 config SND_PXA2XX_SOC_CORGI
 	tristate "SoC Audio support for Sharp Zaurus SL-C7x0"
 	depends on SND_PXA2XX_SOC && PXA_SHARP_C7xx
@@ -120,9 +127,10 @@ config SND_PXA2XX_SOC_PALM27X
 
 config SND_SOC_SAARB
 	tristate "SoC Audio support for Marvell Saarb"
-	depends on SND_PXA2XX_SOC && MACH_SAARB
+	depends on MACH_SAARB
 	select SND_PXA_SOC_SSP
 	select SND_SOC_88PM860X
+	select SND_SOC_HDMI
 	help
 	  Say Y if you want to add support for SoC audio on the
 	  Marvell Saarb reference platform.
@@ -135,6 +143,23 @@ config SND_SOC_TAVOREVB3
 	help
 	  Say Y if you want to add support for SoC audio on the
 	  Marvell Saarb reference platform.
+
+config SND_SOC_PXA978_MACHINE
+	tristate "SoC Audio support for Marvell pxa978 board"
+	depends on SND_PXA2XX_SOC && MACH_NEVOSAARC
+	select SND_PXA_SOC_SSP
+	select SND_SOC_88PM860X if MFD_88PM860X
+	select SND_SOC_88PM805 if MFD_88PM80X
+	select SND_SOC_HDMI
+	help
+	  Say Y if you want to add support for SoC audio on the
+	  Marvell pxa978 reference platform.
+
+config SND_PXA95X_DAPM_ENABLE
+	bool "Enable DAPM for Marvell PXA95x platforms"
+	depends on SND_SOC_SAARB || SND_SOC_TAVOREVB3
+	help
+	  Say Y if you want to enable DAPM on Marvell PXA95x platforms
 
 config SND_SOC_ZYLONITE
 	tristate "SoC Audio support for Marvell Zylonite"
@@ -191,3 +216,114 @@ config SND_PXA2XX_SOC_IMOTE2
        help
          Say Y if you want to add support for SoC audio on the
 	 IMote 2.
+
+menu "SoC Audio for the Marvell PXA910"
+config SND_PXA910_SOC
+	tristate "SoC Audio for the Marvell PXA910 chip"
+	depends on ARCH_MMP && SND
+	select SND_PCM
+	help
+	  Say Y or M if you want to add support for codecs attached to
+	  the PXA3xx AC97, I2S or SSP interface. You will also need
+	  to select the audio interfaces to support below.
+
+config SND_PXA910_SOC_TTC_DKB
+        bool "SoC Audio support for TTC DKB"
+	depends on SND_PXA910_SOC && MACH_TTC_DKB
+	select PXA_SSP
+	select SND_PXA_SOC_SSP
+	select SND_PXA2XX_LIB
+	select SND_SOC_88PM860X
+	help
+	  Say Y if you want to add support for SoC audio on TTC DKB
+
+endmenu
+
+choice
+	prompt "Soc Audio for Marvell MMP"
+	depends on ARCH_MMP && SND
+
+config SND_MMP_LEGACY_SOC
+	bool "Soc Audio With Legacy Mode"
+	select SND_PCM
+	help
+	  Say Y or M if you want to add support for codecs attached to
+	  the MMP2 SSPA interface.
+	  You will also need to select the audio interfaces to
+	  support below.
+
+config SND_MMP_ZSP_SOC
+	bool "Soc Audio With ZSP Mode"
+	depends on MMP_ZSP
+	select SND_PCM
+	help
+	  Say Y if you want to enable the audio ZSP mode.
+	  If ZSP mode is selected, ZSP will control the SSPA & ADMA
+endchoice
+
+menu "SoC Audio for the Marvell MMPx"
+config SND_MMP_SOC
+	tristate "SoC Audio for the Marvell MMPx chip"
+	depends on ARCH_MMP && SND && SND_MMP_LEGACY_SOC
+	select SND_ARM
+	select SND_PCM
+	help
+	  Say Y or M if you want to add support for codecs attached to
+	  the MMP SSPA interface.
+
+config SND_MMP2_SOC
+	tristate "SoC Audio for the Marvell MMP2 chip"
+	depends on SND_MMP_LEGACY_SOC
+	select SND_PCM
+	help
+	  Say Y or M if you want to add support for codecs attached to
+	  the MMP SSPA interface.
+
+config SND_MMP_SOC_BROWNSTONE
+	tristate "SoC Audio support for Marvell Brownstone"
+	depends on SND_MMP2_SOC && MACH_BROWNSTONE && SND_MMP_LEGACY_SOC
+	select MFD_WM8994
+	select SND_SOC_WM8994
+	select SND_SOC_HDMI
+	select REGULATOR_FIXED_VOLTAGE
+	help
+	  Say Y if you want to add support for SoC audio on the
+	  Marvell Brownstone reference platform.
+
+config SND_MMP_SOC_MMP3ASOC
+        bool "SoC Audio support for MMP3 aSoc"
+	depends on SND_MMP_SOC && (MACH_ABILENE || MACH_YELLOWSTONE) && SND_MMP_LEGACY_SOC
+	select MFD_88PM80X
+	select SND_SOC_88PM805
+	select SND_SOC_HDMI
+	select REGULATOR_FIXED_VOLTAGE
+	help
+	  Say Y if you want to add support for SoC audio on MMP3
+
+config SND_MMP_SOC_MK2
+        bool "SoC Audio support for MMP3 MK2"
+	depends on SND_MMP_SOC && SND_MMP_LEGACY_SOC
+        select MFD_WM8994
+        select SND_SOC_WM8994
+        select SND_SOC_HDMI
+        select REGULATOR_FIXED_VOLTAGE
+	help
+	  Say Y if you want to add support for MMP3 audio on MK2
+
+
+config SND_MMP_ZSP_SOC_BROWNSTONE
+	tristate "Audio support for brownstone platform (zsp)"
+	depends on SND_MMP_ZSP_SOC && MACH_BROWNSTONE
+	select SND_SOC_WM8994
+	select SND_SOC_HDMI
+	help
+	  Say Y if you want to add support for SoC audio on MMP ZSP.
+	  MMP ZSP mode will be enabled on Marvell Brownstone
+
+config SND_WM8994_MASTER_MODE
+        bool "Audio wm8994 master mode"
+	depends on SND_MMP_SOC_MMP3ASOC || SND_MMP_ZSP_SOC_BROWNSTONE
+	select SND_SOC_WM8994
+	help
+	  Say Y if you want to add support for SoC audio master mode on MMP3
+endmenu

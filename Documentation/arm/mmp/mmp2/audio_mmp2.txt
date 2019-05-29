@@ -1,0 +1,34 @@
+mmp2 audio source code:
+
+*** platform related files ***
+arch/arm/mach-mmp/sram.c: manage audio sram;
+arch/arm/mach-mmp/mmp2_sspa.c: manage sspa ports;
+arch/arm/mach-mmp/mmp_dma.c: manage adma/mdma channels;
+
+*** asoc related files ***
+sound/soc/pxa/brownstone.c
+sound/soc/pxa/mmp-pcm.c
+sound/soc/pxa/mmp-sspa.c
+sound/soc/codecs/wm8994.c
+
+*** headset switch files ***
+drivers/switch/switch_headset.c
+
+to do list:
+1. on mrvl-3.0, combine mmp2 audio code with mmp3 audio code together
+	mmp3 use sound/soc/pxa/mmp2-squ.c and sound/soc/pxa/mmp2-sspa.c.
+	mmp2 use sound/soc/pxa/mmp-pcm.c and sound/soc/pxa/mmp-sspa.c
+	because their hardware design is very similar,
+	so we can try to combined them together
+	their platform config file is different, mmp2 is brownstone.c
+	mmp3 is mmp3asoc.c,this need not changed.
+
+2. add interface to use dmaengine(drivers/dma/dmaengine.c)
+	dmaengine can use the same interface to manage ADMA, MDMA, VDMA and DMAC;
+	because these three DMA's control register's design is very similar,
+	we can combin them together,it can help us cut off some redundancy code.
+
+3. combin audio sram allocator with video sram allocator together
+	use lib/genalloc.c to allocate sram, include audio sram and
+	video sram. now this has been done.
+

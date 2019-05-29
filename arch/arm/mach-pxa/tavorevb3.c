@@ -119,8 +119,6 @@ static void __init evb3_init(void)
 	/* initialize MFP configurations */
 	pxa3xx_mfp_config(ARRAY_AND_SIZE(evb3_mfp_cfg));
 
-	pxa_set_ffuart_info(NULL);
-
 	evb3_init_i2c();
 }
 

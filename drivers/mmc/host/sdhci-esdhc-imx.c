@@ -18,12 +18,10 @@
 #include <linux/gpio.h>
 #include <linux/slab.h>
 #include <linux/mmc/host.h>
-#include <linux/mmc/sdhci-pltfm.h>
 #include <linux/mmc/mmc.h>
 #include <linux/mmc/sdio.h>
 #include <mach/hardware.h>
 #include <mach/esdhc.h>
-#include "sdhci.h"
 #include "sdhci-pltfm.h"
 #include "sdhci-esdhc.h"
 
@@ -49,6 +47,18 @@ struct pltfm_imx_data {
 	int flags;
 	u32 scratchpad;
 };
+
+static unsigned int esdhc_pltfm_get_max_blk_size(struct sdhci_host *host)
+{
+	/* Force 2048 bytes, which is the maximum supported size in SDHCI. */
+	return 2;
+}
+
+static unsigned int esdhc_pltfm_get_max_blk_count(struct sdhci_host *host)
+{
+	/* Fix errata ENGcm07207 which is present on i.MX25 and i.MX35 */
+	return (cpu_is_mx25() || cpu_is_mx35()) ? 1 : 65535;
+}
 
 static inline void esdhc_clrset_le(struct sdhci_host *host, u32 mask, u32 val, int reg)
 {
@@ -191,16 +201,6 @@ static unsigned int esdhc_pltfm_get_min_clock(struct sdhci_host *host)
 	return clk_get_rate(pltfm_host->clk) / 256 / 16;
 }
 
-static unsigned int esdhc_pltfm_get_ro(struct sdhci_host *host)
-{
-	struct esdhc_platform_data *boarddata = host->mmc->parent->platform_data;
-
-	if (boarddata && gpio_is_valid(boarddata->wp_gpio))
-		return gpio_get_value(boarddata->wp_gpio);
-	else
-		return -ENOSYS;
-}
-
 static struct sdhci_ops sdhci_esdhc_ops = {
 	.read_l = esdhc_readl_le,
 	.read_w = esdhc_readw_le,
@@ -210,7 +210,27 @@ static struct sdhci_ops sdhci_esdhc_ops = {
 	.set_clock = esdhc_set_clock,
 	.get_max_clock = esdhc_pltfm_get_max_clock,
 	.get_min_clock = esdhc_pltfm_get_min_clock,
+	.get_max_blk_size = esdhc_pltfm_get_max_blk_size,
+	.get_max_blk_count = esdhc_pltfm_get_max_blk_count,
 };
+
+static struct sdhci_pltfm_data sdhci_esdhc_imx_pdata = {
+	.quirks = ESDHC_DEFAULT_QUIRKS | SDHCI_QUIRK_BROKEN_ADMA
+			| SDHCI_QUIRK_BROKEN_CARD_DETECTION,
+	/* ADMA has issues. Might be fixable */
+	.ops = &sdhci_esdhc_ops,
+};
+
+static unsigned int esdhc_pltfm_get_ro(struct sdhci_host *host)
+{
+	struct esdhc_platform_data *boarddata =
+			host->mmc->parent->platform_data;
+
+	if (boarddata && gpio_is_valid(boarddata->wp_gpio))
+		return gpio_get_value(boarddata->wp_gpio);
+	else
+		return -ENOSYS;
+}
 
 static irqreturn_t cd_irq(int irq, void *data)
 {
@@ -220,36 +240,39 @@ static irqreturn_t cd_irq(int irq, void *data)
 	return IRQ_HANDLED;
 };
 
-static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pdata)
+static int __devinit sdhci_esdhc_imx_probe(struct platform_device *pdev)
 {
-	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
-	struct esdhc_platform_data *boarddata = host->mmc->parent->platform_data;
+	struct sdhci_pltfm_host *pltfm_host;
+	struct sdhci_host *host;
+	struct esdhc_platform_data *boarddata;
 	struct clk *clk;
 	int err;
 	struct pltfm_imx_data *imx_data;
 
+	host = sdhci_pltfm_init(pdev, &sdhci_esdhc_imx_pdata);
+	if (IS_ERR(host))
+		return PTR_ERR(host);
+
+	pltfm_host = sdhci_priv(host);
+
+	imx_data = kzalloc(sizeof(struct pltfm_imx_data), GFP_KERNEL);
+	if (!imx_data)
+		return -ENOMEM;
+	pltfm_host->priv = imx_data;
+
 	clk = clk_get(mmc_dev(host->mmc), NULL);
 	if (IS_ERR(clk)) {
 		dev_err(mmc_dev(host->mmc), "clk err\n");
-		return PTR_ERR(clk);
+		err = PTR_ERR(clk);
+		goto err_clk_get;
 	}
 	clk_enable(clk);
 	pltfm_host->clk = clk;
-
-	imx_data = kzalloc(sizeof(struct pltfm_imx_data), GFP_KERNEL);
-	if (!imx_data) {
-		clk_disable(pltfm_host->clk);
-		clk_put(pltfm_host->clk);
-		return -ENOMEM;
-	}
-	pltfm_host->priv = imx_data;
 
 	if (!cpu_is_mx25())
 		host->quirks |= SDHCI_QUIRK_BROKEN_TIMEOUT_VAL;
 
 	if (cpu_is_mx25() || cpu_is_mx35()) {
-		/* Fix errata ENGcm07207 present on i.MX25 and i.MX35 */
-		host->quirks |= SDHCI_QUIRK_NO_MULTIBLOCK;
 		/* write_protect can't be routed to controller, use gpio */
 		sdhci_esdhc_ops.get_ro = esdhc_pltfm_get_ro;
 	}
@@ -257,6 +280,7 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 	if (!(cpu_is_mx25() || cpu_is_mx35() || cpu_is_mx51()))
 		imx_data->flags |= ESDHC_FLAG_MULTIBLK_NO_INT;
 
+	boarddata = host->mmc->parent->platform_data;
 	if (boarddata) {
 		err = gpio_request_one(boarddata->wp_gpio, GPIOF_IN, "ESDHC_WP");
 		if (err) {
@@ -289,6 +313,10 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 		host->quirks &= ~SDHCI_QUIRK_BROKEN_CARD_DETECTION;
 	}
 
+	err = sdhci_add_host(host);
+	if (err)
+		goto err_add_host;
+
 	return 0;
 
  no_card_detect_irq:
@@ -297,14 +325,23 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 	boarddata->cd_gpio = err;
  not_supported:
 	kfree(imx_data);
-	return 0;
+ err_add_host:
+	clk_disable(pltfm_host->clk);
+	clk_put(pltfm_host->clk);
+ err_clk_get:
+	sdhci_pltfm_free(pdev);
+	return err;
 }
 
-static void esdhc_pltfm_exit(struct sdhci_host *host)
+static int __devexit sdhci_esdhc_imx_remove(struct platform_device *pdev)
 {
+	struct sdhci_host *host = platform_get_drvdata(pdev);
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct esdhc_platform_data *boarddata = host->mmc->parent->platform_data;
 	struct pltfm_imx_data *imx_data = pltfm_host->priv;
+	int dead = (readl(host->ioaddr + SDHCI_INT_STATUS) == 0xffffffff);
+
+	sdhci_remove_host(host, dead);
 
 	if (boarddata && gpio_is_valid(boarddata->wp_gpio))
 		gpio_free(boarddata->wp_gpio);
@@ -319,13 +356,37 @@ static void esdhc_pltfm_exit(struct sdhci_host *host)
 	clk_disable(pltfm_host->clk);
 	clk_put(pltfm_host->clk);
 	kfree(imx_data);
+
+	sdhci_pltfm_free(pdev);
+
+	return 0;
 }
 
-struct sdhci_pltfm_data sdhci_esdhc_imx_pdata = {
-	.quirks = ESDHC_DEFAULT_QUIRKS | SDHCI_QUIRK_BROKEN_ADMA
-			| SDHCI_QUIRK_BROKEN_CARD_DETECTION,
-	/* ADMA has issues. Might be fixable */
-	.ops = &sdhci_esdhc_ops,
-	.init = esdhc_pltfm_init,
-	.exit = esdhc_pltfm_exit,
+static struct platform_driver sdhci_esdhc_imx_driver = {
+	.driver		= {
+		.name	= "sdhci-esdhc-imx",
+		.owner	= THIS_MODULE,
+	},
+	.probe		= sdhci_esdhc_imx_probe,
+	.remove		= __devexit_p(sdhci_esdhc_imx_remove),
+#ifdef CONFIG_PM
+	.suspend	= sdhci_pltfm_suspend,
+	.resume		= sdhci_pltfm_resume,
+#endif
 };
+
+static int __init sdhci_esdhc_imx_init(void)
+{
+	return platform_driver_register(&sdhci_esdhc_imx_driver);
+}
+module_init(sdhci_esdhc_imx_init);
+
+static void __exit sdhci_esdhc_imx_exit(void)
+{
+	platform_driver_unregister(&sdhci_esdhc_imx_driver);
+}
+module_exit(sdhci_esdhc_imx_exit);
+
+MODULE_DESCRIPTION("SDHCI driver for Freescale i.MX eSDHC");
+MODULE_AUTHOR("Wolfram Sang <w.sang@pengutronix.de>");
+MODULE_LICENSE("GPL v2");

@@ -625,6 +625,20 @@ config RAMOOPS
 	  This enables panic and oops messages to be logged to a circular
 	  buffer in RAM where it can be read back at some later point.
 
+config MMP2_MDMA
+        tristate "MDMA for memcpy and memset"
+        depends on CPU_MMP2
+        help
+          Please say Y here if want to support MDMA for memcpy and memset
+
+config VIBRATOR_88PM8XXX
+        tristate "88pm8XXX based vibrator"
+        depends on MFD_88PM860X || MFD_88PM80X
+	depends on ANDROID_TIMED_OUTPUT
+        default y
+        help
+          Say Y here if you want to enable 88pm860x or 88pm80x vibrator driver
+
 config MSM_SMD_PKT
 	bool "Enable device interface for some SMD packet ports"
 	default n
@@ -633,5 +647,53 @@ config MSM_SMD_PKT
 	  Enables userspace clients to read and write to some packet SMD
 	  ports via device interface for MSM chipset.
 
-endmenu
+config PXA9XX_ACIPC
+	tristate "PXA910,PXA93x,PXA95x AC-IPC Driver"
+	depends on CPU_PXA910 || PXA93x || PXA95x
+	help
+	  Please say Y here if want to support Application to Communication
+	  Intel-Processor Communication on PXA910,PXA93x,PXA95x chip
 
+config PXA910_IRE
+        tristate "image rotation engine"
+        depends on CPU_PXA910
+        help
+          Please say Y here if want to support image rotation engine
+
+config MMP2_SYSSET
+	tristate "Export MMP2 system clock setting"
+	depends on CPU_MMP2
+	default y
+	help
+	 Please say Y here if want to support MMP2 system clock setting export
+
+config MMP3_SYSSET
+	tristate "Export MMP3 system clock setting"
+	depends on CPU_MMP3
+	default y
+	help
+	 Please say Y here if want to support MMP3 system clock setting export
+
+
+config MMP_ZSP
+        tristate "ZSP host driver for MMP ZSP audio processor"
+        depends on CPU_MMP2
+        help
+          Please say Y here if want to support ZSP for MMP
+
+config MMP_ZMQ
+        tristate "PJ-ZSP message queue interface"
+        depends on CPU_MMP2 && MMP_ZSP
+        help
+          Please say Y here if want to support message queue for PJ-ZSP communication
+
+config MMP3_HSI
+	tristate "MMP3 HSI Interface"
+	depends on CPU_MMP3
+	default n
+	help
+	  Please say Y here if want to support MMP3 HSI
+
+source "drivers/char/maxscend/Kconfig"
+
+endmenu

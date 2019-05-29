@@ -532,12 +532,32 @@ static void record_gp_stall_check_time(struct rcu_state *rsp)
 	rsp->jiffies_stall = jiffies + RCU_SECONDS_TILL_STALL_CHECK;
 }
 
+#if defined(CONFIG_CPU_MMP3)
+extern unsigned int irq_count[1024];
+
+void print_irq_count(void)
+{
+	int i;
+
+	for (i = 0; i < 1024; i++) {
+		if (!(i % 16))
+			printk(KERN_ERR "\n%08x", i);
+		printk(KERN_ERR " %08x", irq_count[i]);
+	}
+	printk(KERN_ERR "\n");
+}
+#endif
+
 static void print_other_cpu_stall(struct rcu_state *rsp)
 {
 	int cpu;
 	long delta;
 	unsigned long flags;
 	struct rcu_node *rnp = rcu_get_root(rsp);
+
+#if defined(CONFIG_CPU_MMP3)
+	print_irq_count();
+#endif
 
 	/* Only let one CPU complain about others per time interval. */
 
@@ -588,6 +608,10 @@ static void print_cpu_stall(struct rcu_state *rsp)
 {
 	unsigned long flags;
 	struct rcu_node *rnp = rcu_get_root(rsp);
+
+#if defined(CONFIG_CPU_MMP3)
+	print_irq_count();
+#endif
 
 	/*
 	 * OK, time to rat on ourselves...

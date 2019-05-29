@@ -72,6 +72,15 @@ config REGULATOR_BQ24022
 	  charging select between 100 mA and 500 mA charging current
 	  limit.
 
+config REGULATOR_DS4432
+	tristate "DS4432 regulator"
+	depends on I2C
+	help
+	  This driver controls a DS4432 output regulator via I2C bus. The
+	  driver provides standard current regulator interface. When it works
+	  with another supply DC convertor like MAX17083 to do voltage supply
+	  , additional interface to regulate the voltage.
+
 config REGULATOR_MAX1586
 	tristate "Maxim 1586/1587 voltage regulator"
 	depends on I2C
@@ -124,6 +133,12 @@ config REGULATOR_MAX8998
 	  This driver controls a Maxim 8998 voltage output regulator
 	  via I2C bus. The provided regulator is suitable for S3C6410
 	  and S5PC1XX chips to control VCC_CORE and VCC_USIM voltages.
+
+config REGULATOR_MAX77601
+	tristate "Maxim MAX77601 Power Management IC"
+	depends on MFD_MAX77601
+	help
+	  This driver controls voltage regulaltor of Maxim MAX77601 PMIC.
 
 config REGULATOR_TWL4030
 	bool "TI TWL4030/TWL5030/TWL6030/TPS659x0 PMIC"
@@ -254,6 +269,17 @@ config REGULATOR_88PM8607
 	help
 	  This driver supports 88PM8607 voltage regulator chips.
 
+config REGULATOR_VPMIC
+	bool "Marvell VPMIC Power regulators"
+	help
+	  This driver supports VPMIC voltage regulator, only for NFC test usage.
+
+config REGULATOR_88PM800
+       bool "Marvell 88PM800 Power regulators"
+       depends on MFD_88PM80X=y
+       help
+         This driver supports 88PM800 voltage regulator chips.
+
 config REGULATOR_ISL6271A
 	tristate "Intersil ISL6271A Power regulator"
 	depends on I2C
@@ -302,6 +328,16 @@ config REGULATOR_TPS65910
 	depends on MFD_TPS65910
 	help
 	  This driver supports TPS65910 voltage regulator chips.
+
+config REGULATOR_FAN53555
+	tristate "Fairchild FAN5355 Regulator"
+	depends on I2C
+	help
+	  This driver supports Fairchild FAN5355 Digitally Programmable
+	  TinyBuck Regulator. The FAN53555 is a step-down switching voltage
+	  regulator that delivers a digitally programmable output from an
+	  input voltage supply of 2.5V to 5.5V. The output voltage is
+	  programmed through an I2C interface.
 
 endif
 

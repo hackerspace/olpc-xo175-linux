@@ -153,6 +153,26 @@ config RTC_DRV_88PM860X
 	  This driver can also be built as a module. If so, the module
 	  will be called rtc-88pm860x.
 
+config RTC_DRV_88PM80X
+	tristate "Marvell 88PM80x"
+	depends on RTC_CLASS && I2C && MFD_88PM80X
+	help
+	  If you say yes here you get support for RTC function in Marvell
+	  88PM80x chips.
+
+	  This driver can also be built as a module. If so, the module
+	  will be called rtc-88pm80x.
+
+config RTC_DRV_MAX77601
+	tristate "Maxim MAX77601"
+	depends on RTC_CLASS && I2C && MFD_MAX77601
+	help
+	  If you say yes here you get support for RTC function in Maxim
+	  MAX77601 chips.
+
+	  This driver can also be built as a module. If so, the module
+	  will be called rtc-max77601.
+
 config RTC_DRV_DS1307
 	tristate "Dallas/Maxim DS1307/37/38/39/40, ST M41T00, EPSON RX-8025"
 	help
@@ -800,6 +820,16 @@ config RTC_DRV_SA1100
 	  To compile this driver as a module, choose M here: the
 	  module will be called rtc-sa1100.
 
+config RTC_DRV_MMP
+	tristate "MMP2/MMP3 On-Chip RTC"
+	depends on ARCH_MMP
+	help
+	  If you say Y here you will get access to the real time clock
+	  built into your MMP2/MMP3 CPU.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called rtc-mmp.
+
 config RTC_DRV_SH
 	tristate "SuperH On-Chip RTC"
 	depends on RTC_CLASS && SUPERH && HAVE_CLK
@@ -1031,6 +1061,12 @@ config RTC_DRV_MPC5121
 
 	  This driver can also be built as a module. If so, the module
 	  will be called rtc-mpc5121.
+config RTC_MON
+        tristate "PXA95x CP-AP interface for RTC time"
+        depends on PXA95x && RTC_CLASS
+        help
+          Please say Y here if you want to support RTC MON
+          on PXA95x chips
 
 config RTC_DRV_JZ4740
 	tristate "Ingenic JZ4740 SoC"

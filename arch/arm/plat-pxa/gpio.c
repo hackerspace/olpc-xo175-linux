@@ -19,6 +19,7 @@
 #include <linux/slab.h>
 
 #include <mach/gpio.h>
+#include <asm/mach/irq.h>
 
 int pxa_last_gpio;
 
@@ -81,9 +82,9 @@ static int pxa_gpio_direction_output(struct gpio_chip *chip,
 	uint32_t tmp, mask = 1 << offset;
 	unsigned long flags;
 
-	__raw_writel(mask, base + (value ? GPSR_OFFSET : GPCR_OFFSET));
-
 	spin_lock_irqsave(&gpio_lock, flags);
+
+	__raw_writel(mask, base + (value ? GPSR_OFFSET : GPCR_OFFSET));
 
 	tmp = __raw_readl(base + GPDR_OFFSET);
 	if (__gpio_is_inverted(chip->base + offset))
@@ -98,13 +99,24 @@ static int pxa_gpio_direction_output(struct gpio_chip *chip,
 
 static int pxa_gpio_get(struct gpio_chip *chip, unsigned offset)
 {
-	return __raw_readl(gpio_chip_base(chip) + GPLR_OFFSET) & (1 << offset);
+	int val;
+	unsigned long flags;
+
+	spin_lock_irqsave(&gpio_lock, flags);
+	val = __raw_readl(gpio_chip_base(chip) + GPLR_OFFSET) & (1 << offset);
+	spin_unlock_irqrestore(&gpio_lock, flags);
+
+	return val;
 }
 
 static void pxa_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
 {
+	unsigned long flags;
+
+	spin_lock_irqsave(&gpio_lock, flags);
 	__raw_writel(1 << offset, gpio_chip_base(chip) +
 				(value ? GPSR_OFFSET : GPCR_OFFSET));
+	spin_unlock_irqrestore(&gpio_lock, flags);
 }
 
 static int __init pxa_init_gpio_chip(int gpio_end)
@@ -160,6 +172,7 @@ static int pxa_gpio_irq_type(struct irq_data *d, unsigned int type)
 	struct pxa_gpio_chip *c;
 	int gpio = irq_to_gpio(d->irq);
 	unsigned long gpdr, mask = GPIO_bit(gpio);
+	unsigned long flags;
 
 	c = gpio_to_pxachip(gpio);
 
@@ -175,6 +188,8 @@ static int pxa_gpio_irq_type(struct irq_data *d, unsigned int type)
 
 		type = IRQ_TYPE_EDGE_RISING | IRQ_TYPE_EDGE_FALLING;
 	}
+
+	spin_lock_irqsave(&gpio_lock, flags);
 
 	gpdr = __raw_readl(c->regbase + GPDR_OFFSET);
 
@@ -195,6 +210,8 @@ static int pxa_gpio_irq_type(struct irq_data *d, unsigned int type)
 
 	update_edge_detect(c);
 
+	spin_unlock_irqrestore(&gpio_lock, flags);
+
 	pr_debug("%s: IRQ%d (GPIO%d) - edge%s%s\n", __func__, d->irq, gpio,
 		((type & IRQ_TYPE_EDGE_RISING)  ? " rising"  : ""),
 		((type & IRQ_TYPE_EDGE_FALLING) ? " falling" : ""));
@@ -206,15 +223,17 @@ static void pxa_gpio_demux_handler(unsigned int irq, struct irq_desc *desc)
 	struct pxa_gpio_chip *c;
 	int loop, gpio, gpio_base, n;
 	unsigned long gedr;
+	struct irq_chip *chip = irq_get_chip(irq);
 
+	chained_irq_enter(chip, desc);
 	do {
 		loop = 0;
 		for_each_gpio_chip(gpio, c) {
 			gpio_base = c->chip.base;
 
 			gedr = __raw_readl(c->regbase + GEDR_OFFSET);
-			gedr = gedr & c->irq_mask;
 			__raw_writel(gedr, c->regbase + GEDR_OFFSET);
+			gedr = gedr & c->irq_mask;
 
 			n = find_first_bit(&gedr, BITS_PER_LONG);
 			while (n < BITS_PER_LONG) {
@@ -225,14 +244,18 @@ static void pxa_gpio_demux_handler(unsigned int irq, struct irq_desc *desc)
 			}
 		}
 	} while (loop);
+	chained_irq_exit(chip, desc);
 }
 
 static void pxa_ack_muxed_gpio(struct irq_data *d)
 {
 	int gpio = irq_to_gpio(d->irq);
 	struct pxa_gpio_chip *c = gpio_to_pxachip(gpio);
+	unsigned long flags;
 
+	spin_lock_irqsave(&gpio_lock, flags);
 	__raw_writel(GPIO_bit(gpio), c->regbase + GEDR_OFFSET);
+	spin_unlock_irqrestore(&gpio_lock, flags);
 }
 
 static void pxa_mask_muxed_gpio(struct irq_data *d)
@@ -240,6 +263,9 @@ static void pxa_mask_muxed_gpio(struct irq_data *d)
 	int gpio = irq_to_gpio(d->irq);
 	struct pxa_gpio_chip *c = gpio_to_pxachip(gpio);
 	uint32_t grer, gfer;
+	unsigned long flags;
+
+	spin_lock_irqsave(&gpio_lock, flags);
 
 	c->irq_mask &= ~GPIO_bit(gpio);
 
@@ -247,15 +273,22 @@ static void pxa_mask_muxed_gpio(struct irq_data *d)
 	gfer = __raw_readl(c->regbase + GFER_OFFSET) & ~GPIO_bit(gpio);
 	__raw_writel(grer, c->regbase + GRER_OFFSET);
 	__raw_writel(gfer, c->regbase + GFER_OFFSET);
+
+	spin_unlock_irqrestore(&gpio_lock, flags);
 }
 
 static void pxa_unmask_muxed_gpio(struct irq_data *d)
 {
 	int gpio = irq_to_gpio(d->irq);
 	struct pxa_gpio_chip *c = gpio_to_pxachip(gpio);
+	unsigned long flags;
+
+	spin_lock_irqsave(&gpio_lock, flags);
 
 	c->irq_mask |= GPIO_bit(gpio);
 	update_edge_detect(c);
+
+	spin_unlock_irqrestore(&gpio_lock, flags);
 }
 
 static struct irq_chip pxa_muxed_gpio_chip = {
@@ -263,6 +296,8 @@ static struct irq_chip pxa_muxed_gpio_chip = {
 	.irq_ack	= pxa_ack_muxed_gpio,
 	.irq_mask	= pxa_mask_muxed_gpio,
 	.irq_unmask	= pxa_unmask_muxed_gpio,
+	.irq_enable	= pxa_unmask_muxed_gpio,
+	.irq_disable	= pxa_mask_muxed_gpio,
 	.irq_set_type	= pxa_gpio_irq_type,
 };
 

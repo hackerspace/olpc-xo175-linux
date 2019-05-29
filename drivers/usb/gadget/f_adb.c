@@ -128,7 +128,11 @@ static struct usb_request *adb_request_new(struct usb_ep *ep, int buffer_size)
 		return NULL;
 
 	/* now allocate buffers for the requests */
+#ifdef CONFIG_PXA910_1G_DDR_WORKAROUND
+	req->buf = kmalloc(buffer_size, GFP_KERNEL | GFP_DMA);
+#else
 	req->buf = kmalloc(buffer_size, GFP_KERNEL);
+#endif
 	if (!req->buf) {
 		usb_ep_free_request(ep, req);
 		return NULL;

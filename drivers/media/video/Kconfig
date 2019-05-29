@@ -772,6 +772,20 @@ config VIDEO_OMAP3_DEBUG
 	---help---
 	  Enable debug messages on OMAP 3 camera controller driver.
 
+config VIDEO_MVISP
+	tristate "Marvell ISP support (EXPERIMENTAL)"
+	depends on VIDEO_V4L2 && I2C && VIDEO_V4L2_SUBDEV_API && MEDIA_CONTROLLER && ARCH_MMP && EXPERIMENTAL
+	---help---
+	 Driver for an Marvell ISP 3 camera controller.
+	 Including the ISP IPC,ISP DMA and CCIC control.
+
+config VIDEO_MVISP_OV8820
+	tristate "ov8820 support"
+	depends on VIDEO_MVISP && I2C
+	default y
+	help
+	 Support for the OmniVision OV8820 camera (media-controller arch).
+
 config SOC_CAMERA
 	tristate "SoC camera support"
 	depends on VIDEO_V4L2 && HAS_DMA && I2C
@@ -781,6 +795,48 @@ config SOC_CAMERA
 	  SoC Camera is a common API to several cameras, not connecting
 	  over a bus like PCI or USB. For example some i2c camera connected
 	  directly to the data bus of an SoC.
+
+config SOC_CAMERA_ICPHD
+	tristate "Aptina ICP-HD ISP support"
+	depends on SOC_CAMERA && I2C
+	default n
+	help
+	  Support for the Aptina ICP-HD ISP with MT9E013 (soc-camera arch).
+
+config SOC_CAMERA_M6MO
+	tristate "Fujitsu m6mo ISP support"
+	depends on SOC_CAMERA && I2C
+	default n
+	help
+	  Support for the Fujitsu m6mo ISP with ov8820 (soc-camera arch).
+
+config SOC_CAMERA_OV5642
+	tristate "ov5642 support"
+	depends on SOC_CAMERA && I2C
+	default y
+	help
+	  Support for the OmniVision OV5642 5M camera (soc-camera arch).
+
+config SOC_CAMERA_OV2656
+	tristate "ov2656 support"
+	depends on SOC_CAMERA && I2C
+	default y
+	help
+	  Support for the OmniVision OV2656 2M camera (soc-camera arch).
+
+config SOC_CAMERA_OV5640
+	tristate "ov5640 support"
+	depends on SOC_CAMERA && I2C
+	default n
+	help
+	  This driver supports OmniVision OV5640 5M camera, uses subdev arch.
+
+config SOC_CAMERA_OV7690
+	tristate "ov7690 support"
+	depends on SOC_CAMERA_OV5642 && I2C
+	default n
+	help
+	  Support for the OmniVision OV7690 VGA camera (soc-camera arch).
 
 config SOC_CAMERA_IMX074
 	tristate "imx074 support"
@@ -899,6 +955,25 @@ config VIDEO_PXA27x
 	select VIDEOBUF_DMA_SG
 	---help---
 	  This is a v4l2 driver for the PXA27x Quick Capture Interface
+
+config VIDEO_PXA955
+	tristate "Marvell PXA955 Camera Driver (soc-camera+subdev)"
+	depends on VIDEO_DEV && PXA95x && SOC_CAMERA
+	select VIDEOBUF_DMA_CONTIG
+	default y
+	---help---
+	  This is a v4l2 driver for the Marvell PXA955 Quick Capture
+	  Interface based on SOC_camera/subdev architecture.
+
+config VIDEO_MV
+        tristate "Marvell CCIC driver based on SOC_CAMERA"
+        depends on VIDEO_DEV && SOC_CAMERA
+        select VIDEOBUF2_DMA_CONTIG
+	---help---
+          This is a v4l2 driver for the Marvell CCIC
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called mv_camera.
 
 config VIDEO_SH_MOBILE_CSI2
 	tristate "SuperH Mobile MIPI CSI-2 Interface driver"
@@ -1031,6 +1106,9 @@ config USB_S2255
 	  This driver can be compiled as a module, called s2255drv.
 
 endif # V4L_USB_DRIVERS
+
+source "drivers/media/video/cmmb/Kconfig"
+
 endif # VIDEO_CAPTURE_DRIVERS
 
 menuconfig V4L_MEM2MEM_DRIVERS
@@ -1057,3 +1135,47 @@ config VIDEO_MEM2MEM_TESTDEV
 
 
 endif # V4L_MEM2MEM_DRIVERS
+
+menuconfig VIDEO_DISPLAY_DRIVERS
+	bool "Video display adapters"
+	depends on VIDEO_V4L2
+	default y
+	---help---
+	  Say Y here to enable selecting the video adapters for PXA168.
+
+if VIDEO_DISPLAY_DRIVERS && VIDEO_V4L2
+
+config PXA168_V4L2_OVERLAY
+	tristate "Marvell PXA168 LCD Controller overlay support"
+	select VIDEOBUF2_DMA_CONTIG
+	select VIDEOBUF2_CORE
+	depends on VIDEO_V4L2
+        ---help---
+          This is a video4linux2 driver for the Marvell PXA168 LCD
+          overlay controller.
+
+endif # VIDEO_DISPLAY_DRIVERS
+
+config HDMI_SI9226
+        tristate "hdmi interface chip SI9226 support"
+        depends on I2C && FB_PXA95x
+        ---help---
+          This is a SI9226 hdmi chip driver for PXA95x platform.
+          This chip converts parallel signal to hdmi signal.
+          This chip is registered as an i2c client.
+
+config HDMI_ADV7533
+        tristate "hdmi interface chip ADV7533 support"
+        depends on I2C && FB_PXA95x
+        ---help---
+          This is a ADV7533 hdmi chip driver for PXA95x platform.
+          This chip converts DSI signal to hdmi signal.
+          This chip is registered as an i2c client.
+
+config MV_IHDMI
+        tristate "Marvell internal hdmi support"
+        depends on I2C && FB_PXA95x && CPU_PXA978
+        ---help---
+          This is a Marvell internal hdmi driver.
+          This chip connects directly with internal
+           hdmi of Marvell soc chip.

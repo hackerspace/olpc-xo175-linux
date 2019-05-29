@@ -34,6 +34,16 @@ config MFD_88PM860X
 	  select individual components like voltage regulators, RTC and
 	  battery-charger under the corresponding menus.
 
+config MFD_88PM80X
+	bool "Support Marvell 88PM800/88PM805"
+	depends on I2C=y && GENERIC_HARDIRQS
+	select MFD_CORE
+	help
+	  This supports for Marvell 88PM800/88PM805 Power Management IC.
+	  This includes the I2C driver and the core APIs _only_, you have to
+	  select individual components like voltage regulators and RTC
+	  under the corresponding menus.
+
 config MFD_SM501
 	tristate "Support for Silicon Motion SM501"
 	 ---help---
@@ -43,6 +53,12 @@ config MFD_SM501
 	  asynchronous serial ports, audio functions, and a dual display video
 	  interface. The device may be connected by PCI or local bus with
 	  varying functions enabled.
+
+config WIS_KBC
+        tristate "Wistron KBC Support"
+        depends on I2C
+        help
+          Say yes here if you want to have support for Wistron KBC
 
 config MFD_SM501_GPIO
 	bool "Export GPIO via GPIO layer"
@@ -108,6 +124,15 @@ config HTC_I2CPLD
 	  found on omap850 HTC devices like the HTC Wizard and HTC Herald.
 	  This device provides input and output GPIOs through an I2C
 	  interface to one or more sub-chips.
+
+config PXA_DS1WM
+	tristate "PXA_DS1WM chip support"
+	select MFD_CORE
+	help
+	  This supports for w1 master controller of Marvell PXA9XX processor
+	  IC. The core driver provides register access for PXA_DS1WM, Actual
+	  functionality is handled by the ds1wm drivers, so if activate w1
+	  master ,it also enable ds1wm simutaneously.
 
 config UCB1400_CORE
 	tristate "Philips UCB1400 Core driver"
@@ -348,6 +373,16 @@ config MFD_MAX8998
 	  This driver provies common support for accessing the device,
 	  additional drivers must be enabled in order to use the functionality
 	  of the device.
+
+config MFD_MAX77601
+	  bool "Maxim Semiconductor MAX77601 PMIC Support"
+	  depends on I2C=y && GENERIC_HARDIRQS
+	  select MFD_CORE
+	  help
+	    Say yes here to support for Maxim Semiconductor MAX77601.
+		This is a Power Management IC.This driver provies common support
+		for accessing the device,additional drivers must be enabled in
+		order to use the functionality of the device.
 
 config MFD_WM8400
 	tristate "Support Wolfson Microelectronics WM8400"

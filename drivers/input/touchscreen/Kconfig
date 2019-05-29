@@ -11,6 +11,15 @@ menuconfig INPUT_TOUCHSCREEN
 
 if INPUT_TOUCHSCREEN
 
+config TOUCHSCREEN_SSD2531
+	tristate "ssd2531 i2c based multitouch screen"
+        depends on INPUT_EVDEV
+        default n
+        help
+          this will enable the i2c based ssd2531 multituch driver
+          need to set i2c slave address in board config
+          Say Y here if you want to enable ssd2531 i2c based multitouch driver
+
 config TOUCHSCREEN_88PM860X
 	tristate "Marvell 88PM860x touchscreen"
 	depends on MFD_88PM860X
@@ -22,6 +31,31 @@ config TOUCHSCREEN_88PM860X
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called 88pm860x-ts.
+
+config TOUCHSCREEN_VNC
+       tristate "VNC based touchscreen"
+       help
+        Say Y here to enable support for VNC virtual touch screen driver
+        If unsure, say N.
+        If sure, say Y.
+
+config TOUCHSCREEN_TPO
+	bool "TPO Touchscreen interface support"
+	depends on I2C
+	help
+	  Say Y here to enable support for the TPO touchscreen controller.
+
+config TOUCHSCREEN_FT5306
+	tristate "FT5306 Touchscreen interface support"
+	depends on I2C
+	help
+	  Say Y here if enable support for the FT5306 touchscreen controller.
+
+config TOUCHSCREEN_ELAN
+	bool "ELAN Touchscreen interface support"
+	depends on I2C
+	help
+	Say Y here to enable support for the ELAN touchscreen controller.
 
 config TOUCHSCREEN_ADS7846
 	tristate "ADS7846/TSC2046/AD7873 and AD(S)7843 based touchscreens"
@@ -679,6 +713,17 @@ config TOUCHSCREEN_TSC2007
 	  To compile this driver as a module, choose M here: the
 	  module will be called tsc2007.
 
+config TOUCHSCREEN_TPK_R800
+	tristate "TPK_R800 based touchscreens"
+	depends on I2C
+	help
+	  Say Y here if you have a TPK_R800 based touchscreen.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called tpk_r800.
+
 config TOUCHSCREEN_W90X900
 	tristate "W90P910 touchscreen driver"
 	depends on HAVE_CLK
@@ -731,5 +776,16 @@ config TOUCHSCREEN_TPS6507X
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called tps6507x_ts.
+
+config TOUCHSCREEN_EGALAX_I2C
+	tristate "Midex EXC7200 touchscreen driver"
+	depends on I2C
+	help
+	Say Y here if you have a Midex EXC7200 touchscreen.
+
+	If unsure, say N.
+
+	To compile this driver as a module, choose M here: the
+	module will be called egalax_i2c.
 
 endif

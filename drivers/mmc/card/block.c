@@ -549,10 +549,6 @@ static int get_card_status(struct mmc_card *card, u32 *status, int retries)
 	return err;
 }
 
-#define ERR_RETRY	2
-#define ERR_ABORT	1
-#define ERR_CONTINUE	0
-
 static int mmc_blk_cmd_error(struct request *req, const char *name, int error,
 	bool status_valid, u32 status)
 {
@@ -812,6 +808,16 @@ static inline void mmc_apply_rel_rw(struct mmc_blk_request *brq,
 	}
 }
 
+#ifdef CONFIG_MMC_NONSTANDARD_RECOVERY
+static int mmc_blk_data_recovery(struct mmc_card *card, struct mmc_blk_request *brq)
+{
+	int ret;
+
+	ret = mmc_recovery(card->host, &(brq->mrq));
+	return ret;
+}
+#endif
+
 #define CMD_ERRORS							\
 	(R1_OUT_OF_RANGE |	/* Command argument out of range */	\
 	 R1_ADDRESS_ERROR |	/* Misaligned address */		\
@@ -1010,6 +1016,15 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *req)
 		}
 
 		if (brq.data.error) {
+#ifdef CONFIG_MMC_NONSTANDARD_RECOVERY
+			switch (mmc_blk_data_recovery(card, &brq)) {
+			case ERR_RETRY:
+				continue;
+			case ERR_CONTINUE:
+			default:
+				break;
+			}
+#endif
 			pr_err("%s: error %d transferring data, sector %u, nr %u, cmd response %#x, card status %#x\n",
 				req->rq_disk->disk_name, brq.data.error,
 				(unsigned)blk_rq_pos(req),
@@ -1037,8 +1052,23 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *req)
 			} else {
 				goto cmd_err;
 			}
-		}
+		} else if (disable_multi == 1)
+			disable_multi = 0;
 
+#if defined(CONFIG_SMP) && defined(CONFIG_ARM)
+		/*
+		 * The data may still only in the D-cache for read.
+		 * Here add the D-cache flush to sync the I/D cache.
+		 */
+		if (rq_data_dir(req) == READ) {
+			struct req_iterator iter;
+			struct bio_vec *bvec;
+			rq_for_each_segment(bvec, req, iter)
+				if (!test_and_set_bit(PG_dcache_clean,
+						&bvec->bv_page->flags))
+					flush_dcache_page(bvec->bv_page);
+		}
+#endif
 		/*
 		 * A block was successfully transferred.
 		 */
@@ -1091,6 +1121,10 @@ static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 	struct mmc_blk_data *md = mq->data;
 	struct mmc_card *card = md->queue.card;
 
+#ifdef CONFIG_MMC_BLOCK_AUTO_RESUME
+	mmc_auto_resume(card->host, 1);
+#endif
+
 #ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
 	if (mmc_bus_needs_resume(card->host)) {
 		mmc_resume_bus(card->host);
@@ -1118,6 +1152,10 @@ static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 
 out:
 	mmc_release_host(card->host);
+
+#ifdef CONFIG_MMC_BLOCK_AUTO_RESUME
+	mmc_auto_resume(card->host, 0);
+#endif
 	return ret;
 }
 
@@ -1470,6 +1508,13 @@ static int mmc_blk_suspend(struct mmc_card *card, pm_message_t state)
 	struct mmc_blk_data *part_md;
 	struct mmc_blk_data *md = mmc_get_drvdata(card);
 
+	/* Skip the suspend proccess if the mmc device needs to be accessed during suspend state */
+	BUG_ON(!card || !(card->host));
+	if (card->host->pm_flags & MMC_PM_ALWAYS_ACTIVE){
+		return 0;
+	}
+
+	atomic_inc(&card->suspended);
 	if (md) {
 		mmc_queue_suspend(&md->queue);
 		list_for_each_entry(part_md, &md->part, part) {
@@ -1483,6 +1528,12 @@ static int mmc_blk_resume(struct mmc_card *card)
 {
 	struct mmc_blk_data *part_md;
 	struct mmc_blk_data *md = mmc_get_drvdata(card);
+
+	/* Skip the resume proccess if the mmc device needs to be accessed during suspend state */
+	BUG_ON(!card || !card->host);
+	if (card->host->pm_flags & MMC_PM_ALWAYS_ACTIVE){
+		return 0;
+	}
 
 	if (md) {
 #ifndef CONFIG_MMC_BLOCK_DEFERRED_RESUME
@@ -1499,6 +1550,7 @@ static int mmc_blk_resume(struct mmc_card *card)
 			mmc_queue_resume(&part_md->queue);
 		}
 	}
+	atomic_dec(&card->suspended);
 	return 0;
 }
 #else

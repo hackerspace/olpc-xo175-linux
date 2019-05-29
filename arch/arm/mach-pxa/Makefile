@@ -3,14 +3,25 @@
 #
 
 # Common support (must be linked before board specific support)
-obj-y				+= clock.o devices.o generic.o irq.o \
-				   time.o reset.o
+obj-y				+= devices.o generic.o irq.o \
+				   time.o reset.o rtc_calibrate.o
+obj-$(CONFIG_DVFM)		+= dvfm.o
+ifeq ($(CONFIG_PXA95x), y)
+obj-$(CONFIG_PXA95x_DVFM)	+= pxa95x_dvfm.o pxa95x_dvfm_ll.o
+obj-$(CONFIG_PXA95x_DVFM_STATS)	+= dvfm_stats.o
+obj-$(CONFIG_PXA95x_DVFM_DEBUG)	+= pxa95x_pm_debugfs.o pxa95x_pinmux_debugfs.o pxa9xx_pm_logger.o pxa9xx_pm_parser.o
+obj-$(CONFIG_PM)		+= pxa95x_pm.o pxa95x_pm_ll.o ca9_asm.o cmd_ca9_idle.o
+obj-$(CONFIG_IPM)		+= mspm_idle.o mspm_prof.o
+else
 obj-$(CONFIG_PM)		+= pm.o sleep.o standby.o
+endif
+obj-$(CONFIG_FB_PXA95x)		+= panel_settings.o
 
 ifeq ($(CONFIG_CPU_FREQ),y)
 obj-$(CONFIG_PXA25x)		+= cpufreq-pxa2xx.o
 obj-$(CONFIG_PXA27x)		+= cpufreq-pxa2xx.o
 obj-$(CONFIG_PXA3xx)		+= cpufreq-pxa3xx.o
+obj-$(CONFIG_PXA95x)		+= cpufreq-pxa95x.o
 endif
 
 # Generic drivers that other drivers may depend upon
@@ -19,7 +30,7 @@ endif
 obj-$(CONFIG_PXA25x)		+= mfp-pxa2xx.o clock-pxa2xx.o pxa2xx.o pxa25x.o
 obj-$(CONFIG_PXA27x)		+= mfp-pxa2xx.o clock-pxa2xx.o pxa2xx.o pxa27x.o
 obj-$(CONFIG_PXA3xx)		+= mfp-pxa3xx.o clock-pxa3xx.o pxa3xx.o smemc.o pxa3xx-ulpi.o
-obj-$(CONFIG_PXA95x)		+= mfp-pxa3xx.o clock-pxa3xx.o pxa95x.o smemc.o
+obj-$(CONFIG_PXA95x)		+= clock-pxa3xx.o clock-pxa95x.o pxa95x.o smemc.o entry-pxa95x-intc.o ddr.o
 obj-$(CONFIG_CPU_PXA300)	+= pxa300.o
 obj-$(CONFIG_CPU_PXA320)	+= pxa320.o
 obj-$(CONFIG_CPU_PXA930)	+= pxa930.o
@@ -36,6 +47,7 @@ obj-$(CONFIG_MACH_TAVOREVB)	+= tavorevb.o
 obj-$(CONFIG_MACH_TAVOREVB3)	+= tavorevb3.o
 obj-$(CONFIG_MACH_SAAR)		+= saar.o
 obj-$(CONFIG_MACH_SAARB)	+= saarb.o
+obj-$(CONFIG_MACH_NEVOSAARC)	+= saarc.o
 
 # 3rd Party Dev Platforms
 obj-$(CONFIG_ARCH_PXA_IDP)	+= idp.o
@@ -102,5 +114,7 @@ led-$(CONFIG_MACH_MAINSTONE)	+= leds-mainstone.o
 led-$(CONFIG_ARCH_PXA_IDP)	+= leds-idp.o
 
 obj-$(CONFIG_LEDS)		+= $(led-y)
+
+obj-$(CONFIG_PXA_RAMDUMP)	+= ramdump.o
 
 obj-$(CONFIG_TOSA_BT)		+= tosa-bt.o

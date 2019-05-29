@@ -31,7 +31,7 @@ enum {
 	DEBUG_EXPIRE = 1U << 3,
 	DEBUG_WAKE_LOCK = 1U << 4,
 };
-static int debug_mask = DEBUG_EXIT_SUSPEND | DEBUG_WAKEUP;
+static int debug_mask = DEBUG_EXIT_SUSPEND | DEBUG_WAKEUP | DEBUG_SUSPEND;
 module_param_named(debug_mask, debug_mask, int, S_IRUGO | S_IWUSR | S_IWGRP);
 
 #define WAKE_LOCK_TYPE_MASK              (0x0f)
@@ -45,7 +45,9 @@ static LIST_HEAD(inactive_locks);
 static struct list_head active_wake_locks[WAKE_LOCK_TYPE_COUNT];
 static int current_event_num;
 struct workqueue_struct *suspend_work_queue;
+struct workqueue_struct *sync_work_queue;
 struct wake_lock main_wake_lock;
+struct wake_lock sync_wake_lock;
 suspend_state_t requested_suspend_state = PM_SUSPEND_MEM;
 static struct wake_lock unknown_wakeup;
 static struct wake_lock suspend_backoff_lock;
@@ -230,6 +232,35 @@ static void print_active_locks(int type)
 	}
 }
 
+int dump_active_locks(int type, char *buf)
+{
+	struct wake_lock *lock;
+	bool print_expired = true;
+	int len = 0;
+
+	BUG_ON(type >= WAKE_LOCK_TYPE_COUNT);
+	list_for_each_entry(lock, &active_wake_locks[type], link) {
+		if (lock->flags & WAKE_LOCK_AUTO_EXPIRE) {
+			long timeout = lock->expires - jiffies;
+			if (timeout > 0)
+				len += sprintf(buf + len,
+					"active wake lock %s, time left %ld\n",
+					lock->name, timeout);
+			else if (print_expired)
+				len += sprintf(buf + len,
+					"wake lock %s, expired\n", lock->name);
+		} else {
+			len += sprintf(buf + len, "active wake lock %s\n",
+				lock->name);
+			if (!(debug_mask & DEBUG_EXPIRE))
+				print_expired = false;
+		}
+	}
+
+	return len;
+}
+
+
 static long has_wake_lock_locked(int type)
 {
 	struct wake_lock *lock, *n;
@@ -268,6 +299,7 @@ static void suspend_backoff(void)
 			  msecs_to_jiffies(SUSPEND_BACKOFF_INTERVAL));
 }
 
+#ifndef CONFIG_PXA95x_SUSPEND
 static void suspend(struct work_struct *work)
 {
 	int ret;
@@ -315,6 +347,170 @@ static void suspend(struct work_struct *work)
 	}
 }
 static DECLARE_WORK(suspend_work, suspend);
+#else
+
+#include <linux/kthread.h>
+
+enum {
+	SUSPEND_STATE_ACTIVE,
+	SUSPEND_STATE_SUSPENDED
+};
+
+enum {
+	TRANS_NO_UPDATE,
+	TRANS_NO_CHANGE,
+	TRANS_SUSPEND_TO_ACTIVE,
+	TRANS_ACTIVE_TO_SUSPEND
+};
+
+extern struct mutex pm_mutex;
+
+static struct suspend_thread_t
+{
+	struct	semaphore sem;
+	long	current_state;
+	long	transition;
+	struct	task_struct *suspend_task;
+} suspend_thread_struct;
+
+volatile static int power_state_changed;
+int suspend_entry_in_progress;
+
+static void suspend_func(void)
+{
+	int ret = 0;
+	int error = 0;
+	static int entry_event_num;
+	unsigned long irqflags;
+
+	/* decide according to the transition value if suspend
+	 * entry or exit is performed */
+	switch (suspend_thread_struct.transition) {
+	case TRANS_ACTIVE_TO_SUSPEND:
+
+		if (has_wake_lock(WAKE_LOCK_SUSPEND)) {
+			if (debug_mask & DEBUG_SUSPEND)
+				pr_info("suspend: abort suspend\n");
+			break;
+		} else {
+			suspend_thread_struct.current_state = SUSPEND_STATE_SUSPENDED;
+		}
+		printk(KERN_WARNING "suspend: Enter state SUSPEND_STATE_SUSPENDED\n");
+
+		spin_lock_irqsave(&list_lock, irqflags);
+		entry_event_num = current_event_num;
+		spin_unlock_irqrestore(&list_lock, irqflags);
+		sys_sync();
+
+		if (debug_mask & DEBUG_SUSPEND)
+			pr_info("suspend: enter suspend\n");
+
+		error = freeze_processes();
+		if (!error) {
+			error = dpm_suspend_start(PMSG_SUSPEND);
+			if (error) {
+				printk(KERN_ERR
+				       "PM: Some devices failed to suspend,"
+				       "start to resume suspended devices and"
+				       "thaw processes to exit\n");
+				dpm_resume_end(PMSG_RESUME);
+			}
+		} else
+			printk(KERN_ERR
+			       "PM: Some processes failed to freeze,"
+			       "start to thaw processes to exit\n");
+		if (error) {
+			thaw_processes();
+			suspend_thread_struct.current_state = SUSPEND_STATE_ACTIVE;
+			if (current_event_num == entry_event_num) {
+				if (debug_mask & DEBUG_SUSPEND)
+					pr_info("suspend: pm_suspend returned with no event\n");
+				wake_lock_timeout(&unknown_wakeup, HZ / 2);
+			}
+		}
+		break;
+
+	case TRANS_SUSPEND_TO_ACTIVE:
+
+		/* Do we have wake_lock? if so, exit suspend - else, go back to sleep */
+		if ((has_wake_lock(WAKE_LOCK_SUSPEND)))
+			suspend_thread_struct.current_state = SUSPEND_STATE_ACTIVE;
+		else
+			break;
+
+		if (debug_mask & DEBUG_EXIT_SUSPEND) {
+			struct timespec ts;
+			struct rtc_time tm;
+			getnstimeofday(&ts);
+			rtc_time_to_tm(ts.tv_sec, &tm);
+			pr_info("suspend: exit suspend, ret = %d "
+				"(%d-%02d-%02d %02d:%02d:%02d.%09lu UTC)\n", ret,
+				tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+				tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec);
+		}
+
+		if (current_event_num == entry_event_num) {
+			if (debug_mask & DEBUG_SUSPEND)
+				pr_info("suspend: pm_suspend returned with no event\n");
+			wake_lock_timeout(&unknown_wakeup, HZ / 2);
+		}
+		dpm_resume_end(PMSG_RESUME);
+		thaw_processes();
+		printk(KERN_WARNING "suspend: Enter state SUSPEND_STATE_ACTIVE\n");
+		break;
+
+	}
+
+}
+
+static int suspend_exit_thread(void *arg)
+{
+	struct sched_param schedpar;
+	schedpar.sched_priority = MAX_RT_PRIO - 1;
+	sched_setscheduler(current, SCHED_FIFO, &schedpar);
+	while (1) {
+			down(&(suspend_thread_struct.sem));
+			mutex_lock(&pm_mutex);
+			if (suspend_thread_struct.current_state == SUSPEND_STATE_SUSPENDED) {
+					suspend_thread_struct.transition = TRANS_SUSPEND_TO_ACTIVE;
+					suspend_func();
+			}
+			mutex_unlock(&pm_mutex);
+
+	}
+	return 0;
+}
+
+static void fake_suspend(struct work_struct *work)
+{
+	unsigned long irqflags;
+
+	spin_lock_irqsave(&list_lock, irqflags);
+
+	if (has_wake_lock(WAKE_LOCK_SUSPEND)) {
+		if (debug_mask & DEBUG_SUSPEND)
+			pr_info("suspend: abort suspend\n");
+		spin_unlock_irqrestore(&list_lock, irqflags);
+		return;
+	}
+
+	if (debug_mask & DEBUG_SUSPEND)
+		pr_info("suspend: enter suspend workqueue\n");
+
+	/* detect state change */
+	suspend_entry_in_progress = 1;
+	spin_unlock_irqrestore(&list_lock, irqflags);
+	mutex_lock(&pm_mutex);
+	if (suspend_thread_struct.current_state == SUSPEND_STATE_ACTIVE) {
+			suspend_thread_struct.transition = TRANS_ACTIVE_TO_SUSPEND;
+			suspend_func();
+	}
+	mutex_unlock(&pm_mutex);
+	suspend_entry_in_progress = 0;
+
+}
+static DECLARE_WORK(suspend_work, fake_suspend);
+#endif
 
 static void expire_wake_locks(unsigned long data)
 {
@@ -483,6 +679,17 @@ static void wake_lock_internal(
 			if (expire_in == 0)
 				queue_work(suspend_work_queue, &suspend_work);
 		}
+
+#ifdef CONFIG_PXA95x_SUSPEND
+		if (expire_in != 0) {
+			/* only if current state is suspend or suspend entry has
+			* been triggered, we will trigger suspend exit */
+			if ((suspend_entry_in_progress) ||
+				(suspend_thread_struct.current_state == SUSPEND_STATE_SUSPENDED)) {
+				up(&(suspend_thread_struct.sem));
+			}
+		}
+#endif
 	}
 	spin_unlock_irqrestore(&list_lock, irqflags);
 }
@@ -574,6 +781,7 @@ static int __init wakelocks_init(void)
 	wake_lock_init(&main_wake_lock, WAKE_LOCK_SUSPEND, "main");
 	wake_lock(&main_wake_lock);
 	wake_lock_init(&unknown_wakeup, WAKE_LOCK_SUSPEND, "unknown_wakeups");
+	wake_lock_init(&sync_wake_lock, WAKE_LOCK_SUSPEND, "sync_system");
 	wake_lock_init(&suspend_backoff_lock, WAKE_LOCK_SUSPEND,
 		       "suspend_backoff");
 
@@ -594,18 +802,35 @@ static int __init wakelocks_init(void)
 		goto err_suspend_work_queue;
 	}
 
+	sync_work_queue = create_singlethread_workqueue("sync_system_work");
+	if (sync_work_queue == NULL) {
+		pr_err("%s: failed to create sync_work_queue\n", __func__);
+		ret = -ENOMEM;
+		goto err_sync_work_queue;
+	}
+
 #ifdef CONFIG_WAKELOCK_STAT
 	proc_create("wakelocks", S_IRUGO, NULL, &wakelock_stats_fops);
 #endif
 
+#ifdef CONFIG_PXA95x_SUSPEND
+	sema_init(&(suspend_thread_struct.sem), 0);
+	suspend_thread_struct.current_state = SUSPEND_STATE_ACTIVE;
+	power_state_changed = 0;
+	requested_suspend_state = PM_SUSPEND_STANDBY;
+	kthread_run(suspend_exit_thread, &suspend_thread_struct, "AndroidSuspend_Exit");
+#endif
 	return 0;
 
+err_sync_work_queue:
+	destroy_workqueue(suspend_work_queue);
 err_suspend_work_queue:
 	platform_driver_unregister(&power_driver);
 err_platform_driver_register:
 	platform_device_unregister(&power_device);
 err_platform_device_register:
 	wake_lock_destroy(&suspend_backoff_lock);
+	wake_lock_destroy(&sync_wake_lock);
 	wake_lock_destroy(&unknown_wakeup);
 	wake_lock_destroy(&main_wake_lock);
 #ifdef CONFIG_WAKELOCK_STAT
@@ -619,10 +844,12 @@ static void  __exit wakelocks_exit(void)
 #ifdef CONFIG_WAKELOCK_STAT
 	remove_proc_entry("wakelocks", NULL);
 #endif
+	destroy_workqueue(sync_work_queue);
 	destroy_workqueue(suspend_work_queue);
 	platform_driver_unregister(&power_driver);
 	platform_device_unregister(&power_device);
 	wake_lock_destroy(&suspend_backoff_lock);
+	wake_lock_destroy(&sync_wake_lock);
 	wake_lock_destroy(&unknown_wakeup);
 	wake_lock_destroy(&main_wake_lock);
 #ifdef CONFIG_WAKELOCK_STAT

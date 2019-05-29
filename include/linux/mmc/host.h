@@ -140,6 +140,7 @@ struct mmc_host_ops {
 	int	(*start_signal_voltage_switch)(struct mmc_host *host, struct mmc_ios *ios);
 	int	(*execute_tuning)(struct mmc_host *host);
 	void	(*enable_preset_value)(struct mmc_host *host, bool enable);
+	int	(*recovery)(struct mmc_host *host);
 };
 
 struct mmc_card;
@@ -212,6 +213,8 @@ struct mmc_host {
 #define MMC_CAP_MAX_CURRENT_600	(1 << 28)	/* Host max current limit is 600mA */
 #define MMC_CAP_MAX_CURRENT_800	(1 << 29)	/* Host max current limit is 800mA */
 #define MMC_CAP_CMD23		(1 << 30)	/* CMD23 supported. */
+/* controller should NOT gate bus clock for some device at any time, e.g. SDIO card */
+#define MMC_CAP_ENABLE_BUS_CLK_GATING	(1 << 31)
 
 	mmc_pm_flag_t		pm_caps;	/* supported pm features */
 
@@ -250,6 +253,7 @@ struct mmc_host {
 	/* Only used with MMC_CAP_DISABLE */
 	int			enabled;	/* host is enabled */
 	int			rescan_disable;	/* disable card detection */
+	int                     rescan_delayed; /* card change when detection disabled */
 	int			nesting_cnt;	/* "enable" nesting count */
 	int			en_dis_recurs;	/* detect recursion */
 	unsigned int		disable_delay;	/* disable delay in msecs */
@@ -263,7 +267,8 @@ struct mmc_host {
 
 	struct delayed_work	detect;
 	struct wake_lock	detect_wake_lock;
-
+	void                    *detect_complete;
+	struct wake_lock	auto_resume_wake_lock;	/*wake lock for auto resume*/
 	const struct mmc_bus_ops *bus_ops;	/* current bus driver */
 	unsigned int		bus_refs;	/* reference counter */
 
@@ -296,6 +301,7 @@ struct mmc_host {
 	} embedded_sdio_data;
 #endif
 
+	atomic_t		suspended;
 	unsigned long		private[0] ____cacheline_aligned;
 };
 
@@ -337,6 +343,9 @@ extern int mmc_resume_bus(struct mmc_host *host);
 
 extern int mmc_suspend_host(struct mmc_host *);
 extern int mmc_resume_host(struct mmc_host *);
+#ifdef CONFIG_MMC_BLOCK_AUTO_RESUME
+extern int mmc_auto_resume(struct mmc_host *, int);
+#endif
 
 extern int mmc_power_save_host(struct mmc_host *host);
 extern int mmc_power_restore_host(struct mmc_host *host);
@@ -408,5 +417,4 @@ static inline int mmc_host_cmd23(struct mmc_host *host)
 {
 	return host->caps & MMC_CAP_CMD23;
 }
-#endif
-
+#endif /* LINUX_MMC_HOST_H */

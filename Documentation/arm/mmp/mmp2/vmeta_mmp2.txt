@@ -1,0 +1,65 @@
+Vemta driver is a simple uio driver for physical register/memory map
+and clock/power on/off control and power management.
+
+TODO list
+---------
+Unify vmeta driver for cross platforms.
+
+Source list
+-----------
+- Vmeta uio driver
+  drivers/uio/uio_vmeta.c
+- Vmeta lib for user space
+  shgit/git/ose/linux/vmeta-lib.git, vmeta_lib.c
+
+Memory Maps
+-----------
+- map0: Mapped vmeta register region
+  #define UIO_IO_MEM_ADDR "/sys/class/uio/uio0/maps/map0/addr"
+- map1: Context buffer is associated with Vmeta object, Vmeta firmware
+        use it internally.
+  #define UIO_IO_HW_CONTEXT_ADDR "/sys/class/uio/uio0/maps/map1/addr"
+- map2: The memory of Vmeta object is to save the context of Vmeta HW.
+  #define UIO_IO_VMETA_OBJ_ADDR "/sys/class/uio/uio0/maps/map2/addr"
+- map3: Shared memory between kernel and user space.
+  #define UIO_IO_KERNEL_SHARE_ADDR "/sys/class/uio/uio0/maps/map3/addr"
+
+How To Work
+----------
+   Vmeta UIO driver <=> Vmeta lib <=> Vmeta Codec lib <=> App(Android)
+
+Vmeta Power Profiling
+---------------------
+Vmeta can do profiling with the the vop passed from Codec lib according
+to the performance.
+  - Default Core operation frequency on MMP2:
+    Resolution <= VGA          -- 1~7  200M
+    VGA < Resolution <=720p    -- 8~13 400M
+    Resolution > 720p          -- 14   800M
+  - The woring op can increase automatically if the Codec performance is
+    not good at default OP.
+
+  - Vmeta clock switch cmd bitmap:
+    31~24       23~16   15~8    0~7
+    reserved    vop     step    flags
+    vop:    vmeta op table defined in kernel space
+    step:   delta vop level;
+    flags:  0-set vop for vmeta;
+            1-increase/decrease vop by the value in step;
+            2-max vop;
+            3-min vop
+    e.g.
+    set vmeta as OP3 vco = 0x00030000
+    set vmeta higher vop by 1 step vco = 0x00000101
+
+  - VOP Definition:
+    Resolution <= VGA          -- VOP=[1~7]
+    VGA < resolution <=720p    -- VOP=[8~13]
+    Resolution > 720p          -- VOP=[14]
+    VOP 0/15 are reserved to notify upper layer
+  - For Multi-instants cases:
+    Vmeta is working at VMETA_OP_1080P_MAX.
+  - Vmeta clock:
+    The Vmeta clock source can be PLL1, PLL2 or USB PHY PLL.
+    Vmeta clock is 400MHZ(PLL1 devided by 2) if vop <= VMETA_OP_720P_MAX
+    Vmeta clock is 480MHZ(USB PHY PLL) if vop > VMETA_OP_720P_MAX

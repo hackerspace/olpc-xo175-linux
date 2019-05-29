@@ -1,0 +1,379 @@
+/*
+ * Copyright (C) 2010 Marvell International Ltd.
+ *		Zhangfei Gao <zhangfei.gao@marvell.com>
+ *		Kevin Wang <dwang4@marvell.com>
+ *		Jun Nie <njun@marvell.com>
+ *		Qiming Wu <wuqm@marvell.com>
+ *		Philip Rakity <prakity@marvell.com>
+ *
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ */
+
+#include <linux/err.h>
+#include <linux/init.h>
+#include <linux/platform_device.h>
+#include <linux/clk.h>
+#include <linux/delay.h>
+#include <linux/io.h>
+#include <linux/gpio.h>
+#include <linux/mmc/card.h>
+#include <linux/mmc/host.h>
+#include <linux/platform_data/pxa_sdhci.h>
+#include <linux/slab.h>
+#include "sdhci.h"
+#include "sdhci-pltfm.h"
+
+#define SD_FIFO_PARAM		0xe0
+#define DIS_PAD_SD_CLK_GATE	0x0400 /* Turn on/off Dynamic SD Clock Gating */
+#define CLK_GATE_ON		0x0200 /* Disable/enable Clock Gate */
+#define CLK_GATE_CTL		0x0100 /* Clock Gate Control */
+#define CLK_GATE_SETTING_BITS	(DIS_PAD_SD_CLK_GATE | \
+		CLK_GATE_ON | CLK_GATE_CTL)
+
+#define SD_CLOCK_BURST_SIZE_SETUP	0xe6
+#define SDCLK_SEL_SHIFT		8
+#define SDCLK_SEL_MASK		0x3
+#define SDCLK_DELAY_SHIFT	10
+#define SDCLK_DELAY_MASK	0xf
+
+#define SD_CE_ATA_2		0xea
+#define MMC_CARD		0x1000
+#define MMC_WIDTH		0x0100
+
+static void pxav2_hw_clock_gating(struct sdhci_host *host, int enable)
+{
+	u16 tmp = 0;
+
+	if (enable) {
+		tmp = readw(host->ioaddr + SD_FIFO_PARAM);
+		tmp &= ~CLK_GATE_SETTING_BITS;
+		writew(tmp, host->ioaddr + SD_FIFO_PARAM);
+	} else {
+		tmp = readw(host->ioaddr + SD_FIFO_PARAM);
+		tmp &= ~CLK_GATE_SETTING_BITS;
+		tmp |= CLK_GATE_SETTING_BITS;
+		writew(tmp, host->ioaddr + SD_FIFO_PARAM);
+	}
+}
+
+static void pxav2_set_private_registers(struct sdhci_host *host, u8 mask)
+{
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+
+	if (mask == SDHCI_RESET_ALL) {
+		u16 tmp = 0;
+
+		/*
+		 * tune timing of read data/command when crc error happen
+		 * no performance impact
+		 */
+		if (pdata->clk_delay_sel == 1) {
+			tmp = readw(host->ioaddr + SD_CLOCK_BURST_SIZE_SETUP);
+
+			tmp &= ~(SDCLK_DELAY_MASK << SDCLK_DELAY_SHIFT);
+			tmp |= (pdata->clk_delay_cycles & SDCLK_DELAY_MASK)
+				<< SDCLK_DELAY_SHIFT;
+			tmp &= ~(SDCLK_SEL_MASK << SDCLK_SEL_SHIFT);
+			tmp |= (1 & SDCLK_SEL_MASK) << SDCLK_SEL_SHIFT;
+
+			writew(tmp, host->ioaddr + SD_CLOCK_BURST_SIZE_SETUP);
+		}
+
+		pxav2_hw_clock_gating(host,
+			pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING);
+	}
+}
+
+static int pxav2_mmc_set_width(struct sdhci_host *host, int width)
+{
+	u8 ctrl;
+	u16 tmp;
+
+	ctrl = readb(host->ioaddr + SDHCI_HOST_CONTROL);
+	tmp = readw(host->ioaddr + SD_CE_ATA_2);
+	if (width == MMC_BUS_WIDTH_8) {
+		ctrl &= ~SDHCI_CTRL_4BITBUS;
+		tmp |= MMC_CARD | MMC_WIDTH;
+	} else {
+		tmp &= ~(MMC_CARD | MMC_WIDTH);
+		if (width == MMC_BUS_WIDTH_4)
+			ctrl |= SDHCI_CTRL_4BITBUS;
+		else
+			ctrl &= ~SDHCI_CTRL_4BITBUS;
+	}
+	writew(tmp, host->ioaddr + SD_CE_ATA_2);
+	writeb(ctrl, host->ioaddr + SDHCI_HOST_CONTROL);
+
+	return 0;
+}
+
+static u32 pxav2_get_max_clock(struct sdhci_host *host)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+
+	return clk_get_rate(pltfm_host->clk);
+}
+
+static void pxav2_access_constrain(struct sdhci_host *host, unsigned int ac)
+{
+	struct platform_device *pdev = to_platform_device(mmc_dev(host->mmc));
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+
+	if (!pdata)
+		return;
+
+#ifdef CONFIG_WAKELOCK
+	if (ac)
+		wake_lock(&pdata->idle_lock);
+	else
+		wake_unlock(&pdata->idle_lock);
+#endif
+}
+
+/* special operation to add 8 dummy clock after every command
+ * Before request, disable h/w clock gating; after request done,
+ * delay a specific time accodring to the clock rate and enable
+ * h/w clock gating again.
+ * according to clk_rate, calc the delay time, and use the ndelay function
+ */
+#define DUMMY_CLKS 8
+static void pxav2_8_dummy_clock(struct sdhci_host *host,
+					unsigned int clk_rate, int flag)
+{
+	struct sdhci_pxa *pxa = sdhci_priv(host);
+	struct sdhci_pxa_platdata *pdata = pxa->pdata;
+
+	unsigned long tick_ns;
+
+	if (!pdata)
+		return;
+
+	BUG_ON(clk_rate == 0);
+
+	tick_ns = DIV_ROUND_UP(1000000000, clk_rate);
+
+	if (pdata->flags & PXA_FLAG_ENABLE_CLOCK_GATING) {
+		if (flag)
+			pxav2_hw_clock_gating(host, 0);
+		else {
+			ndelay(DUMMY_CLKS * tick_ns);
+			pxav2_hw_clock_gating(host, 1);
+		}
+	} else {
+		if (!flag)
+			ndelay(DUMMY_CLKS * tick_ns);
+	}
+}
+
+static struct sdhci_ops pxav2_sdhci_ops = {
+	.get_max_clock = pxav2_get_max_clock,
+	.platform_reset_exit = pxav2_set_private_registers,
+	.platform_8bit_width = pxav2_mmc_set_width,
+	.access_constrain = pxav2_access_constrain,
+	.platform_8_dummy_clock = pxav2_8_dummy_clock,
+};
+
+static int __devinit sdhci_pxav2_probe(struct platform_device *pdev)
+{
+	struct sdhci_pltfm_host *pltfm_host;
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	struct device *dev = &pdev->dev;
+	struct sdhci_host *host = NULL;
+	struct sdhci_pxa *pxa = NULL;
+	int ret;
+	struct clk *clk;
+
+	pxa = kzalloc(sizeof(struct sdhci_pxa), GFP_KERNEL);
+	if (!pxa)
+		return -ENOMEM;
+
+	host = sdhci_pltfm_init(pdev, NULL);
+	if (IS_ERR(host)) {
+		kfree(pxa);
+		return PTR_ERR(host);
+	}
+	pltfm_host = sdhci_priv(host);
+	pltfm_host->priv = pxa;
+
+	clk = clk_get(dev, "PXA-SDHCLK");
+	if (IS_ERR(clk)) {
+		dev_err(dev, "failed to get io clock\n");
+		ret = PTR_ERR(clk);
+		goto err_clk_get;
+	}
+	pltfm_host->clk = clk;
+	clk_enable(clk);
+
+	host->quirks = SDHCI_QUIRK_BROKEN_ADMA
+		| SDHCI_QUIRK_BROKEN_TIMEOUT_VAL
+		| SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN;
+
+	if (pdata) {
+		if (pdata->flags & PXA_FLAG_CARD_PERMANENT) {
+			/* on-chip device */
+			host->quirks |= SDHCI_QUIRK_BROKEN_CARD_DETECTION;
+			host->mmc->caps |= MMC_CAP_NONREMOVABLE;
+		}
+
+		/* If slot design supports 8 bit data, indicate this to MMC. */
+		if (pdata->flags & PXA_FLAG_SD_8_BIT_CAPABLE_SLOT)
+			host->mmc->caps |= MMC_CAP_8_BIT_DATA;
+
+		if (pdata->quirks)
+			host->quirks |= pdata->quirks;
+		if (pdata->quirks2)
+			host->quirks2 |= pdata->quirks2;
+		if (pdata->host_caps)
+			host->mmc->caps |= pdata->host_caps;
+		if (pdata->pm_caps)
+			host->mmc->pm_caps |= pdata->pm_caps;
+
+	#ifdef CONFIG_WAKELOCK
+		wake_lock_init(&pdata->idle_lock, WAKE_LOCK_IDLE,
+			(const char *)mmc_hostname(host->mmc));
+	#endif
+	}
+
+	host->ops = &pxav2_sdhci_ops;
+
+	ret = sdhci_add_host(host);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to add host\n");
+		goto err_add_host;
+	}
+
+	platform_set_drvdata(pdev, host);
+	pxa->pdata = pdata;
+
+	device_init_wakeup(&pdev->dev, 0);
+#ifdef CONFIG_SD8XXX_RFKILL
+	if (pxa->pdata->pmmc)
+		*pxa->pdata->pmmc = host->mmc;
+#endif
+	return 0;
+
+err_add_host:
+	clk_disable(clk);
+	clk_put(clk);
+err_clk_get:
+#ifdef CONFIG_WAKELOCK
+	wake_lock_destroy(&pdata->idle_lock);
+#endif
+	sdhci_pltfm_free(pdev);
+	kfree(pxa);
+	return ret;
+}
+
+static int __devexit sdhci_pxav2_remove(struct platform_device *pdev)
+{
+	struct sdhci_host *host = platform_get_drvdata(pdev);
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_pxa *pxa = pltfm_host->priv;
+
+	sdhci_remove_host(host, 1);
+
+#ifdef CONFIG_WAKELOCK
+	wake_lock_destroy(&pxa->pdata->idle_lock);
+#endif
+
+	clk_disable(pltfm_host->clk);
+	clk_put(pltfm_host->clk);
+	sdhci_pltfm_free(pdev);
+	kfree(pxa);
+
+	platform_set_drvdata(pdev, NULL);
+
+	return 0;
+}
+
+#ifdef CONFIG_PM
+static int sdhci_pxav2_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	struct sdhci_host *host = platform_get_drvdata(pdev);
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	int ret = 0;
+
+	if (atomic_read(&host->mmc->suspended)) {
+		printk(KERN_WARNING"%s already suspended\n", mmc_hostname(host->mmc));
+		return ret;
+	}
+	atomic_inc(&host->mmc->suspended);
+
+	if (device_may_wakeup(&pdev->dev))
+		enable_irq_wake(host->irq);
+
+	ret = sdhci_suspend_host(host, state);
+	if (ret) {
+		atomic_dec(&host->mmc->suspended);
+		return ret;
+	}
+
+	if (pdata->lp_switch) {
+		ret = pdata->lp_switch(1, (int)host->mmc->card);
+		if (ret) {
+			atomic_dec(&host->mmc->suspended);
+			sdhci_resume_host(host);
+			dev_err(&pdev->dev, "fail to switch gpio, resume..\n");
+		}
+	}
+
+	return ret;
+}
+
+static int sdhci_pxav2_resume(struct platform_device *pdev)
+{
+	struct sdhci_host *host = platform_get_drvdata(pdev);
+	struct sdhci_pxa_platdata *pdata = pdev->dev.platform_data;
+	int ret = 0;
+
+	if (pdata->lp_switch)
+		pdata->lp_switch(0, (int)host->mmc->card);
+
+	ret = sdhci_resume_host(host);
+
+	if (device_may_wakeup(&pdev->dev))
+		disable_irq_wake(host->irq);
+
+	atomic_dec(&host->mmc->suspended);
+	return ret;
+}
+#endif	/* CONFIG_PM */
+
+static struct platform_driver sdhci_pxav2_driver = {
+	.driver		= {
+		.name	= "sdhci-pxa",
+		.owner	= THIS_MODULE,
+	},
+	.probe		= sdhci_pxav2_probe,
+	.remove		= __devexit_p(sdhci_pxav2_remove),
+#ifdef CONFIG_PM
+	.suspend	= sdhci_pxav2_suspend,
+	.resume		= sdhci_pxav2_resume,
+#endif
+};
+static int __init sdhci_pxav2_init(void)
+{
+	return platform_driver_register(&sdhci_pxav2_driver);
+}
+
+static void __exit sdhci_pxav2_exit(void)
+{
+	platform_driver_unregister(&sdhci_pxav2_driver);
+}
+
+module_init(sdhci_pxav2_init);
+module_exit(sdhci_pxav2_exit);
+
+MODULE_DESCRIPTION("SDHCI driver for pxav2");
+MODULE_AUTHOR("Marvell International Ltd.");
+MODULE_LICENSE("GPL v2");
+

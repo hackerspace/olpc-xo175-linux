@@ -8,8 +8,8 @@
  * the Free Software Foundation; either version 2 of the License, or (at
  * your option) any later version.
  */
-#ifndef __SDHCI_H
-#define __SDHCI_H
+#ifndef LINUX_MMC_SDHCI_H
+#define LINUX_MMC_SDHCI_H
 
 #include <linux/scatterlist.h>
 #include <linux/compiler.h>
@@ -63,10 +63,10 @@ struct sdhci_host {
 #define SDHCI_QUIRK_PIO_NEEDS_DELAY			(1<<18)
 /* Controller losing signal/interrupt enable states after reset */
 #define SDHCI_QUIRK_RESTORE_IRQS_AFTER_RESET		(1<<19)
-/* Controller has to be forced to use block size of 2048 bytes */
-#define SDHCI_QUIRK_FORCE_BLK_SZ_2048			(1<<20)
-/* Controller cannot do multi-block transfers */
-#define SDHCI_QUIRK_NO_MULTIBLOCK			(1<<21)
+/* Reclaimed, available for use */
+#define SDHCI_QUIRK_UNUSED_20				(1<<20)
+/* Reclaimed, available for use */
+#define SDHCI_QUIRK_UNUSED_21				(1<<21)
 /* Controller can only handle 1-bit data transfers */
 #define SDHCI_QUIRK_FORCE_1_BIT_DATA			(1<<22)
 /* Controller needs 10ms delay between applying power and clock */
@@ -88,12 +88,18 @@ struct sdhci_host {
 /* The read-only detection via SDHCI_PRESENT_STATE register is unstable */
 #define SDHCI_QUIRK_UNSTABLE_RO_DETECT			(1<<31)
 
+	unsigned int quirks2;	/* One more quirk */
+/* Controller has to use workaround to add 8 dummy clock after every cmd */
+#define SDHCI_QUIRK2_MISSING_DUMMY_CLK			(1<<0)
+
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */
 
 	const struct sdhci_ops *ops;	/* Low level hw interface */
 
 	struct regulator *vmmc;	/* Power regulator */
+	struct regulator *vsdio;	/* sdio Power regulator */
+	unsigned char power_mode_old;	/* power supply mode */
 
 	/* Internal data */
 	struct mmc_host *mmc;	/* MMC structure */
@@ -146,7 +152,9 @@ struct sdhci_host {
 
 	struct timer_list timer;	/* Timer for timeouts */
 
-	unsigned int caps;	/* Alternative capabilities */
+//	unsigned int caps;	/* Alternative capabilities */
+	unsigned int caps;      /* Alternative CAPABILITY_0 */
+	unsigned int caps1;     /* Alternative CAPABILITY_1 */
 
 	unsigned int            ocr_avail_sdio;	/* OCR bit masks */
 	unsigned int            ocr_avail_sd;
@@ -159,7 +167,9 @@ struct sdhci_host {
 	unsigned int		tuning_mode;	/* Re-tuning mode supported by host */
 #define SDHCI_TUNING_MODE_1	0
 	struct timer_list	tuning_timer;	/* Timer for tuning */
+	struct work_struct	sim_work;	/* Simulation work */
+	int			in_sim;		/* Simulation status flag*/
 
 	unsigned long private[0] ____cacheline_aligned;
 };
-#endif /* __SDHCI_H */
+#endif /* LINUX_MMC_SDHCI_H */

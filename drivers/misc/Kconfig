@@ -64,6 +64,14 @@ config AD525X_DPOT_SPI
 config ANDROID_PMEM
 	bool "Android pmem allocator"
 	default y
+	select PMEM_OOMKILLER
+
+config PMEM_OOMKILLER
+	bool "PMEM out-of-memory killer"
+	depends on ANDROID_PMEM
+	help
+	  Say Y, if you want to active the killer when the system
+	  runs out of pmem.
 
 config ATMEL_PWM
 	tristate "Atmel AT32/AT91 PWM support"
@@ -232,13 +240,6 @@ config ENCLOSURE_SERVICES
 	  contain storage devices).  You also need either a host
 	  driver (SCSI/ATA) which supports enclosures
 	  or a SCSI enclosure device (SES) to use these services.
-
-config KERNEL_DEBUGGER_CORE
-	bool "Kernel Debugger Core"
-	default n
-	---help---
-	  Generic kernel debugging command processor used by low level
-	  (interrupt context) platform-specific debuggers.
 
 config SGI_XP
 	tristate "Support communication between SGI SSIs"
@@ -534,6 +535,27 @@ config APANIC_PLABEL
 	---help---
 	 If your platform uses a different flash partition label for storing
  	 crashdumps, enter it here.
+
+config TC35876X
+	boolean "TC35876X chip"
+	depends on I2C && I2C_PXA
+	default n
+	help
+	  If you say yes here, you support for it.
+
+	  This driver can NOT be built as a module.
+
+config SD8XXX_RFKILL
+        tristate "Rfkill power control for Marvell sd8xxx wlan/bt"
+        depends on MMC_SDHCI_PXAV2 || MMC_SDHCI_PXAV3 || MMC_SDHCI_PXAV2_TAVOR
+        select RFKILL
+	select WIRELESS_EXT
+	select WEXT_PRIV
+	select WEXT_SPY
+        default n
+        ---help---
+         Creates an rfkill entry in sysfs for power control of Marvell
+         sd8xxx wlan/bt chips.
 
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"

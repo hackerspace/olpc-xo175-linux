@@ -15,6 +15,10 @@
 #include <linux/types.h>
 #include <asm/system.h>
 
+#ifdef CONFIG_PJ4B_ERRATA_6011
+#include <asm/pj4b-errata-6011.h>
+#endif
+
 #define ATOMIC_INIT(i)	{ (i) }
 
 #ifdef __KERNEL__
@@ -40,7 +44,12 @@ static inline void atomic_add(int i, atomic_t *v)
 	int result;
 
 	__asm__ __volatile__("@ atomic_add\n"
-"1:	ldrex	%0, [%3]\n"
+"1:		\n"
+#ifdef CONFIG_PJ4B_ERRATA_6011
+	pj4b_6011_ldrex(%0, %3, %1)
+#else
+"	ldrex	%0, [%3]\n"
+#endif
 "	add	%0, %0, %4\n"
 "	strex	%1, %0, [%3]\n"
 "	teq	%1, #0\n"
@@ -58,7 +67,12 @@ static inline int atomic_add_return(int i, atomic_t *v)
 	smp_mb();
 
 	__asm__ __volatile__("@ atomic_add_return\n"
-"1:	ldrex	%0, [%3]\n"
+"1:		\n"
+#ifdef CONFIG_PJ4B_ERRATA_6011
+	pj4b_6011_ldrex(%0, %3, %1)
+#else
+"	ldrex	%0, [%3]\n"
+#endif
 "	add	%0, %0, %4\n"
 "	strex	%1, %0, [%3]\n"
 "	teq	%1, #0\n"
@@ -78,7 +92,12 @@ static inline void atomic_sub(int i, atomic_t *v)
 	int result;
 
 	__asm__ __volatile__("@ atomic_sub\n"
-"1:	ldrex	%0, [%3]\n"
+"1:		\n"
+#ifdef CONFIG_PJ4B_ERRATA_6011
+	pj4b_6011_ldrex(%0, %3, %1)
+#else
+"	ldrex	%0, [%3]\n"
+#endif
 "	sub	%0, %0, %4\n"
 "	strex	%1, %0, [%3]\n"
 "	teq	%1, #0\n"
@@ -96,7 +115,12 @@ static inline int atomic_sub_return(int i, atomic_t *v)
 	smp_mb();
 
 	__asm__ __volatile__("@ atomic_sub_return\n"
-"1:	ldrex	%0, [%3]\n"
+"1:		\n"
+#ifdef CONFIG_PJ4B_ERRATA_6011
+	pj4b_6011_ldrex(%0, %3, %1)
+#else
+"	ldrex	%0, [%3]\n"
+#endif
 "	sub	%0, %0, %4\n"
 "	strex	%1, %0, [%3]\n"
 "	teq	%1, #0\n"
@@ -118,7 +142,11 @@ static inline int atomic_cmpxchg(atomic_t *ptr, int old, int new)
 
 	do {
 		__asm__ __volatile__("@ atomic_cmpxchg\n"
+#ifdef CONFIG_PJ4B_ERRATA_6011
+		pj4b_6011_ldrex(%1, %3, %0)
+#else
 		"ldrex	%1, [%3]\n"
+#endif
 		"mov	%0, #0\n"
 		"teq	%1, %4\n"
 		"strexeq %0, %5, [%3]\n"
@@ -137,7 +165,12 @@ static inline void atomic_clear_mask(unsigned long mask, unsigned long *addr)
 	unsigned long tmp, tmp2;
 
 	__asm__ __volatile__("@ atomic_clear_mask\n"
-"1:	ldrex	%0, [%3]\n"
+"1:     \n"
+#ifdef CONFIG_PJ4B_ERRATA_6011
+	pj4b_6011_ldrex(%0, %3, %1)
+#else
+"	ldrex   %0, [%3]\n"
+#endif
 "	bic	%0, %0, %4\n"
 "	strex	%1, %0, [%3]\n"
 "	teq	%1, #0\n"
@@ -244,19 +277,43 @@ typedef struct {
 
 static inline u64 atomic64_read(atomic64_t *v)
 {
+#ifdef CONFIG_PJ4B_ERRATA_6011
+	u64 result;
+	unsigned long tmp;
+
+	__asm__ __volatile__("@ atomic64_read\n"
+	pj4b_6011_ldrexd(%0, %H0, %2, %1)
+	: "=&r" (result), "=&r" (tmp)
+	: "r" (&v->counter), "Qo" (v->counter)
+	);
+#else
 	u64 result;
 
 	__asm__ __volatile__("@ atomic64_read\n"
-"	ldrexd	%0, %H0, [%1]"
+"	ldrexd  %0, %H0, [%1]"
 	: "=&r" (result)
 	: "r" (&v->counter), "Qo" (v->counter)
 	);
-
+#endif
 	return result;
 }
 
 static inline void atomic64_set(atomic64_t *v, u64 i)
 {
+#ifdef CONFIG_PJ4B_ERRATA_6011
+	u64 tmp;
+	unsigned long tmp1;
+
+	__asm__ __volatile__("@ atomic64_set\n"
+"1:	\n"
+	pj4b_6011_ldrexd(%0, %H0, %3, %1)
+"	strexd	%0, %4, %H4, [%3]\n"
+"	teq	%0, #0\n"
+"	bne	1b"
+	: "=&r" (tmp), "=&r" (tmp1), "=Qo" (v->counter)
+	: "r" (&v->counter), "r" (i)
+	: "cc");
+#else
 	u64 tmp;
 
 	__asm__ __volatile__("@ atomic64_set\n"
@@ -267,6 +324,7 @@ static inline void atomic64_set(atomic64_t *v, u64 i)
 	: "=&r" (tmp), "=Qo" (v->counter)
 	: "r" (&v->counter), "r" (i)
 	: "cc");
+#endif
 }
 
 static inline void atomic64_add(u64 i, atomic64_t *v)
@@ -275,7 +333,12 @@ static inline void atomic64_add(u64 i, atomic64_t *v)
 	unsigned long tmp;
 
 	__asm__ __volatile__("@ atomic64_add\n"
-"1:	ldrexd	%0, %H0, [%3]\n"
+"1:	\n"
+#ifdef CONFIG_PJ4B_ERRATA_6011
+	pj4b_6011_ldrexd(%0, %H0, %3, %1)
+#else
+"	ldrexd	%0, %H0, [%3]\n"
+#endif
 "	adds	%0, %0, %4\n"
 "	adc	%H0, %H0, %H4\n"
 "	strexd	%1, %0, %H0, [%3]\n"
@@ -294,7 +357,12 @@ static inline u64 atomic64_add_return(u64 i, atomic64_t *v)
 	smp_mb();
 
 	__asm__ __volatile__("@ atomic64_add_return\n"
-"1:	ldrexd	%0, %H0, [%3]\n"
+"1:     \n"
+#ifdef CONFIG_PJ4B_ERRATA_6011
+        pj4b_6011_ldrexd(%0, %H0, %3, %1)
+#else
+"	ldrexd	%0, %H0, [%3]\n"
+#endif
 "	adds	%0, %0, %4\n"
 "	adc	%H0, %H0, %H4\n"
 "	strexd	%1, %0, %H0, [%3]\n"
@@ -315,7 +383,12 @@ static inline void atomic64_sub(u64 i, atomic64_t *v)
 	unsigned long tmp;
 
 	__asm__ __volatile__("@ atomic64_sub\n"
-"1:	ldrexd	%0, %H0, [%3]\n"
+"1:     \n"
+#ifdef CONFIG_PJ4B_ERRATA_6011
+        pj4b_6011_ldrexd(%0, %H0, %3, %1)
+#else
+"	ldrexd	%0, %H0, [%3]\n"
+#endif
 "	subs	%0, %0, %4\n"
 "	sbc	%H0, %H0, %H4\n"
 "	strexd	%1, %0, %H0, [%3]\n"
@@ -334,7 +407,12 @@ static inline u64 atomic64_sub_return(u64 i, atomic64_t *v)
 	smp_mb();
 
 	__asm__ __volatile__("@ atomic64_sub_return\n"
-"1:	ldrexd	%0, %H0, [%3]\n"
+"1:     \n"
+#ifdef CONFIG_PJ4B_ERRATA_6011
+        pj4b_6011_ldrexd(%0, %H0, %3, %1)
+#else
+"	ldrexd	%0, %H0, [%3]\n"
+#endif
 "	subs	%0, %0, %4\n"
 "	sbc	%H0, %H0, %H4\n"
 "	strexd	%1, %0, %H0, [%3]\n"
@@ -358,7 +436,11 @@ static inline u64 atomic64_cmpxchg(atomic64_t *ptr, u64 old, u64 new)
 
 	do {
 		__asm__ __volatile__("@ atomic64_cmpxchg\n"
+#ifdef CONFIG_PJ4B_ERRATA_6011
+		pj4b_6011_ldrexd(%1, %H1, %3, %0)
+#else
 		"ldrexd		%1, %H1, [%3]\n"
+#endif
 		"mov		%0, #0\n"
 		"teq		%1, %4\n"
 		"teqeq		%H1, %H4\n"
@@ -381,7 +463,12 @@ static inline u64 atomic64_xchg(atomic64_t *ptr, u64 new)
 	smp_mb();
 
 	__asm__ __volatile__("@ atomic64_xchg\n"
-"1:	ldrexd	%0, %H0, [%3]\n"
+"1:     \n"
+#ifdef CONFIG_PJ4B_ERRATA_6011
+	pj4b_6011_ldrexd(%0, %H0, %3, %1)
+#else
+"	ldrexd	%0, %H0, [%3]\n"
+#endif
 "	strexd	%1, %4, %H4, [%3]\n"
 "	teq	%1, #0\n"
 "	bne	1b"
@@ -402,7 +489,12 @@ static inline u64 atomic64_dec_if_positive(atomic64_t *v)
 	smp_mb();
 
 	__asm__ __volatile__("@ atomic64_dec_if_positive\n"
-"1:	ldrexd	%0, %H0, [%3]\n"
+"1:     \n"
+#ifdef CONFIG_PJ4B_ERRATA_6011
+	pj4b_6011_ldrexd(%0, %H0, %3, %1)
+#else
+"	ldrexd	%0, %H0, [%3]\n"
+#endif
 "	subs	%0, %0, #1\n"
 "	sbc	%H0, %H0, #0\n"
 "	teq	%H0, #0\n"
@@ -429,7 +521,12 @@ static inline int atomic64_add_unless(atomic64_t *v, u64 a, u64 u)
 	smp_mb();
 
 	__asm__ __volatile__("@ atomic64_add_unless\n"
-"1:	ldrexd	%0, %H0, [%4]\n"
+"1:     \n"
+#ifdef CONFIG_PJ4B_ERRATA_6011
+	pj4b_6011_ldrexd(%0, %H0, %4, %2)
+#else
+"	ldrexd	%0, %H0, [%4]\n"
+#endif
 "	teq	%0, %5\n"
 "	teqeq	%H0, %H5\n"
 "	moveq	%1, #0\n"

@@ -36,6 +36,11 @@ config MTD_ONENAND_SAMSUNG
           Support for a OneNAND flash device connected to an Samsung SOC.
           S3C64XX/S5PC100 use command mapping method.
           S5PC110/S5PC210 use generic OneNAND method.
+config MTD_ONENAND_PXA3xx
+	tristate "OneNAND Flash device for PXA3xx"
+	depends on MTD_ONENAND && PXA95x
+	help
+	  Support for OneNAND flash for PXA3xx.
 
 config MTD_ONENAND_OTP
 	bool "OneNAND OTP Support"

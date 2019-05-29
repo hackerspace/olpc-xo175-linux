@@ -14,23 +14,29 @@
 #include <linux/i2c.h>
 #include <linux/mfd/max8925.h>
 #include <linux/slab.h>
+#include <plat/pm.h>
 
 #define RTC_I2C_ADDR		0x68
 #define ADC_I2C_ADDR		0x47
 
+static struct max8925_chip *max8925_chip_p;
 static inline int max8925_read_device(struct i2c_client *i2c,
 				      int reg, int bytes, void *dest)
 {
 	int ret;
 
+	pwr_i2c_conflict_mutex_lock();
 	if (bytes > 1)
 		ret = i2c_smbus_read_i2c_block_data(i2c, reg, bytes, dest);
 	else {
 		ret = i2c_smbus_read_byte_data(i2c, reg);
-		if (ret < 0)
+		if (ret < 0) {
+			pwr_i2c_conflict_mutex_unlock();
 			return ret;
+		}
 		*(unsigned char *)dest = (unsigned char)ret;
 	}
+	pwr_i2c_conflict_mutex_unlock();
 	return ret;
 }
 
@@ -43,7 +49,9 @@ static inline int max8925_write_device(struct i2c_client *i2c,
 	buf[0] = (unsigned char)reg;
 	memcpy(&buf[1], src, bytes);
 
+	pwr_i2c_conflict_mutex_lock();
 	ret = i2c_master_send(i2c, buf, bytes + 1);
+	pwr_i2c_conflict_mutex_unlock();
 	if (ret < 0)
 		return ret;
 	return 0;
@@ -128,6 +136,62 @@ out:
 }
 EXPORT_SYMBOL(max8925_set_bits);
 
+int max8925_pmic_reg_read(int reg)
+{
+	if (!max8925_chip_p)
+		return -EINVAL;
+	return max8925_reg_read(max8925_chip_p->i2c, reg);
+}
+EXPORT_SYMBOL(max8925_pmic_reg_read);
+
+int max8925_pmic_reg_write(int reg, unsigned char data)
+{
+	if (!max8925_chip_p)
+		return -EINVAL;
+	return max8925_reg_write(max8925_chip_p->i2c, reg, data);
+}
+EXPORT_SYMBOL(max8925_pmic_reg_write);
+
+int max8925_pmic_bulk_read(int reg, int count, unsigned char *buf)
+{
+	if (!max8925_chip_p)
+		return -EINVAL;
+	return max8925_bulk_read(max8925_chip_p->i2c, reg, count, buf);
+}
+EXPORT_SYMBOL(max8925_pmic_bulk_read);
+
+int max8925_pmic_bulk_write(int reg, int count, unsigned char *buf)
+{
+	if (!max8925_chip_p)
+		return -EINVAL;
+	return max8925_bulk_write(max8925_chip_p->i2c, reg, count, buf);
+}
+EXPORT_SYMBOL(max8925_pmic_bulk_write);
+
+int max8925_pmic_set_bits(int reg, unsigned char mask,
+		unsigned char data)
+{
+	if (!max8925_chip_p)
+		return -EINVAL;
+	return max8925_set_bits(max8925_chip_p->i2c, reg, mask, data);
+}
+EXPORT_SYMBOL(max8925_pmic_set_bits);
+
+int max8925_adc_reg_write(int reg, unsigned char data)
+{
+	if (!max8925_chip_p)
+		return -EINVAL;
+	return max8925_reg_write(max8925_chip_p->adc, reg, data);
+}
+EXPORT_SYMBOL(max8925_adc_reg_write);
+
+int max8925_adc_bulk_read(int reg, int count, unsigned char *buf)
+{
+	if (!max8925_chip_p)
+		return -EINVAL;
+	return max8925_bulk_read(max8925_chip_p->adc, reg, count, buf);
+}
+EXPORT_SYMBOL(max8925_adc_bulk_read);
 
 static const struct i2c_device_id max8925_id_table[] = {
 	{ "max8925", 0 },
@@ -149,6 +213,7 @@ static int __devinit max8925_probe(struct i2c_client *client,
 	chip = kzalloc(sizeof(struct max8925_chip), GFP_KERNEL);
 	if (chip == NULL)
 		return -ENOMEM;
+	max8925_chip_p = chip;
 	chip->i2c = client;
 	chip->dev = &client->dev;
 	i2c_set_clientdata(client, chip);

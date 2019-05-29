@@ -39,9 +39,13 @@ ssize_t copy_oldmem_page(unsigned long pfn, char *buf,
 	if (!csize)
 		return 0;
 
-	vaddr = ioremap(pfn << PAGE_SHIFT, PAGE_SIZE);
-	if (!vaddr)
-		return -ENOMEM;
+	if (pfn_valid(pfn)) {
+		vaddr = phys_to_virt(pfn << PAGE_SHIFT);
+	} else {
+		vaddr = ioremap(pfn << PAGE_SHIFT, PAGE_SIZE);
+		if (!vaddr)
+			return -ENOMEM;
+	}
 
 	if (userbuf) {
 		if (copy_to_user(buf, vaddr + offset, csize)) {
@@ -52,6 +56,8 @@ ssize_t copy_oldmem_page(unsigned long pfn, char *buf,
 		memcpy(buf, vaddr + offset, csize);
 	}
 
-	iounmap(vaddr);
+	if (!pfn_valid(pfn))
+		iounmap(vaddr);
+
 	return csize;
 }

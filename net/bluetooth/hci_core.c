@@ -40,7 +40,6 @@
 #include <linux/workqueue.h>
 #include <linux/interrupt.h>
 #include <linux/notifier.h>
-#include <linux/rfkill.h>
 #include <linux/timer.h>
 #include <linux/crypto.h>
 #include <net/sock.h>
@@ -510,11 +509,6 @@ int hci_dev_open(__u16 dev)
 
 	hci_req_lock(hdev);
 
-	if (hdev->rfkill && rfkill_blocked(hdev->rfkill)) {
-		ret = -ERFKILL;
-		goto done;
-	}
-
 	if (test_bit(HCI_UP, &hdev->flags)) {
 		ret = -EALREADY;
 		goto done;
@@ -884,24 +878,6 @@ int hci_get_dev_info(void __user *arg)
 }
 
 /* ---- Interface to HCI drivers ---- */
-
-static int hci_rfkill_set_block(void *data, bool blocked)
-{
-	struct hci_dev *hdev = data;
-
-	BT_DBG("%p name %s blocked %d", hdev, hdev->name, blocked);
-
-	if (!blocked)
-		return 0;
-
-	hci_dev_do_close(hdev);
-
-	return 0;
-}
-
-static const struct rfkill_ops hci_rfkill_ops = {
-	.set_block = hci_rfkill_set_block,
-};
 
 /* Alloc HCI device */
 struct hci_dev *hci_alloc_dev(void)
@@ -1439,6 +1415,19 @@ int hci_add_adv_entry(struct hci_dev *hdev,
 	return 0;
 }
 
+static void hci_conn_rs(struct hci_dev *hdev, struct hci_conn *c)
+{
+    hci_conn_switch_role(c, 0);
+}
+
+static void hci_conn_switch_to_master(unsigned long arg)
+{
+	struct hci_dev *hdev = (struct hci_dev *)arg;
+
+	if (hdev->conn_hash.acl_num > 1)
+		hci_conn_hash_walk_through(hdev, hci_conn_rs);
+}
+
 /* Register HCI device */
 int hci_register_dev(struct hci_dev *hdev)
 {
@@ -1460,6 +1449,7 @@ int hci_register_dev(struct hci_dev *hdev)
 		head = p; id++;
 	}
 
+	setup_timer(&hdev->rs_timer, hci_conn_switch_to_master, (unsigned long)hdev);
 	sprintf(hdev->name, "hci%d", id);
 	hdev->id = id;
 	list_add(&hdev->list, head);
@@ -1530,15 +1520,6 @@ int hci_register_dev(struct hci_dev *hdev)
 
 	hci_register_sysfs(hdev);
 
-	hdev->rfkill = rfkill_alloc(hdev->name, &hdev->dev,
-				RFKILL_TYPE_BLUETOOTH, &hci_rfkill_ops, hdev);
-	if (hdev->rfkill) {
-		if (rfkill_register(hdev->rfkill) < 0) {
-			rfkill_destroy(hdev->rfkill);
-			hdev->rfkill = NULL;
-		}
-	}
-
 	set_bit(HCI_AUTO_OFF, &hdev->flags);
 	set_bit(HCI_SETUP, &hdev->flags);
 	queue_work(hdev->workqueue, &hdev->power_on);
@@ -1562,7 +1543,7 @@ int hci_unregister_dev(struct hci_dev *hdev)
 	int i;
 
 	BT_DBG("%p name %s bus %d", hdev, hdev->name, hdev->bus);
-
+	del_timer(&(hdev->rs_timer));
 	write_lock_bh(&hci_dev_list_lock);
 	list_del(&hdev->list);
 	write_unlock_bh(&hci_dev_list_lock);
@@ -1580,11 +1561,6 @@ int hci_unregister_dev(struct hci_dev *hdev)
 		crypto_free_blkcipher(hdev->tfm);
 
 	hci_notify(hdev, HCI_DEV_UNREG);
-
-	if (hdev->rfkill) {
-		rfkill_unregister(hdev->rfkill);
-		rfkill_destroy(hdev->rfkill);
-	}
 
 	hci_unregister_sysfs(hdev);
 

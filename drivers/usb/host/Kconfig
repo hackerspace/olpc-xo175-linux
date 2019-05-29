@@ -217,6 +217,30 @@ config USB_EHCI_ATH79
 	  Enables support for the built-in EHCI controller present
 	  on the Atheros AR7XXX/AR9XXX SoCs.
 
+config USB_EHCI_PXA
+	bool "EHCI support for PXA USB SPH and OTG controller"
+	depends on USB_EHCI_HCD
+	select USB_EHCI_ROOT_HUB_TT
+	---help---
+	  Enables support for PXA USB SPH and OTG controller. SPH is a
+	  single port host, and it can only be EHCI host. OTG is controller
+	  that can switch to be host mode.
+
+config USB_EHCI_PXA_U2O
+	bool "EHCI support for PXA USB OTG controller"
+	depends on USB_EHCI_PXA
+	---help---
+	   Enables support for OTG controller. OTG is controller
+	   that can switch to be host mode.
+
+config USB_EHCI_PXA_U2H_HSIC
+	bool "EHCI support for PXA USB SPH of HSIC"
+	depends on USB_EHCI_PXA
+	---help---
+	  Enables support for PXA USB SPH HSIC. SPH is a
+	  single port host, and it can only be EHCI host. HSIC can only
+	  run in High Speed.
+
 config USB_OXU210HP_HCD
 	tristate "OXU210HP HCD support"
 	depends on USB

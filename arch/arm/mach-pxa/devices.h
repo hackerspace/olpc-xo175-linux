@@ -33,6 +33,12 @@ extern struct platform_device pxa25x_device_pwm0;
 extern struct platform_device pxa25x_device_pwm1;
 extern struct platform_device pxa27x_device_pwm0;
 extern struct platform_device pxa27x_device_pwm1;
+extern struct platform_device pxa95x_device_pwm4;
+extern struct platform_device pxa95x_device_pwm5;
+extern struct platform_device pxa95x_device_pwm6;
+extern struct platform_device pxa95x_device_pwm7;
+
+extern struct platform_device pxa930_acipc_device;
 
 extern struct platform_device pxa3xx_device_nand;
 extern struct platform_device pxa3xx_device_i2c_power;
@@ -40,9 +46,28 @@ extern struct platform_device pxa3xx_device_i2c_power;
 extern struct platform_device pxa3xx_device_gcu;
 
 extern struct platform_device pxa_device_asoc_platform;
+extern struct platform_device pxa_device_asoc_abu_platform;
+extern struct platform_device pxa_device_asoc_hdmi_codec;
 extern struct platform_device pxa_device_asoc_ssp1;
 extern struct platform_device pxa_device_asoc_ssp2;
 extern struct platform_device pxa_device_asoc_ssp3;
 extern struct platform_device pxa_device_asoc_ssp4;
+extern struct platform_device pxa_device_asoc_abu;
+extern struct platform_device pxa95x_device_i2c1;
+extern struct platform_device pxa95x_device_i2c2;
+extern struct platform_device pxa95x_device_i2c3;
+
+extern struct platform_device pxa95x_device_cam0;
+extern struct platform_device pxa95x_device_cam1;
+
+extern struct platform_device pxa9xx_device_u2o;
+extern struct platform_device pxa9xx_device_u2ootg;
+extern struct platform_device pxa9xx_device_u2oehci;
+
+extern struct platform_device vnc_device;
+extern struct platform_device pxa978_device_ihdmi;
+extern struct platform_device pxa978_device_uio_ihdmi;
+extern struct platform_device pxa95x_device_uio_si9226;
 
 void __init pxa_register_device(struct platform_device *dev, void *data);
+extern void __init pxa95x_set_mci_info(int id, void *info);

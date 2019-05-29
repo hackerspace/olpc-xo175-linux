@@ -24,6 +24,7 @@
 #include <linux/sysdev.h>
 #include <linux/uaccess.h>
 #include <linux/wakelock.h>
+#include <linux/mfd/88pm860x.h>
 
 #define ANDROID_ALARM_PRINT_INFO (1U << 0)
 #define ANDROID_ALARM_PRINT_IO (1U << 1)
@@ -88,16 +89,30 @@ static long alarm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	switch (ANDROID_ALARM_BASE_CMD(cmd)) {
 	case ANDROID_ALARM_CLEAR(0):
-		spin_lock_irqsave(&alarm_slock, flags);
-		pr_alarm(IO, "alarm %d clear\n", alarm_type);
-		alarm_try_to_cancel(&alarms[alarm_type]);
-		if (alarm_pending) {
-			alarm_pending &= ~alarm_type_mask;
-			if (!alarm_pending && !wait_pending)
-				wake_unlock(&alarm_wake_lock);
+		switch (alarm_type) {
+		case ANDROID_ALARM_POWER_UP:
+			/* disable power up alarm interrupt */
+			rv = alarm_irq_enable(0);
+			break;
+		case ANDROID_ALARM_RTC_WAKEUP:
+		case ANDROID_ALARM_RTC:
+		case ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP:
+		case ANDROID_ALARM_ELAPSED_REALTIME:
+		case ANDROID_ALARM_SYSTEMTIME:
+			spin_lock_irqsave(&alarm_slock, flags);
+			pr_alarm(IO, "alarm %d clear\n", alarm_type);
+			alarm_try_to_cancel(&alarms[alarm_type]);
+			if (alarm_pending) {
+				alarm_pending &= ~alarm_type_mask;
+				if (!alarm_pending && !wait_pending)
+					wake_unlock(&alarm_wake_lock);
+			}
+			alarm_enabled &= ~alarm_type_mask;
+			spin_unlock_irqrestore(&alarm_slock, flags);
+			break;
+		default:
+			break;
 		}
-		alarm_enabled &= ~alarm_type_mask;
-		spin_unlock_irqrestore(&alarm_slock, flags);
 		break;
 
 	case ANDROID_ALARM_SET_OLD:
@@ -125,6 +140,8 @@ from_old_alarm_set:
 			timespec_to_ktime(new_alarm_time),
 			timespec_to_ktime(new_alarm_time));
 		spin_unlock_irqrestore(&alarm_slock, flags);
+		if (alarm_type == ANDROID_ALARM_POWER_UP)
+			alarm_set_rtc_ring(new_alarm_time);
 		if (ANDROID_ALARM_BASE_CMD(cmd) != ANDROID_ALARM_SET_AND_WAIT(0)
 		    && cmd != ANDROID_ALARM_SET_AND_WAIT_OLD)
 			break;
@@ -163,6 +180,7 @@ from_old_alarm_set:
 	case ANDROID_ALARM_GET_TIME(0):
 		switch (alarm_type) {
 		case ANDROID_ALARM_RTC_WAKEUP:
+		case ANDROID_ALARM_POWER_UP:
 		case ANDROID_ALARM_RTC:
 			getnstimeofday(&tmp_time);
 			break;

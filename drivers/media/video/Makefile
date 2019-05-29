@@ -77,13 +77,20 @@ obj-$(CONFIG_SOC_CAMERA_MT9M111)	+= mt9m111.o
 obj-$(CONFIG_SOC_CAMERA_MT9T031)	+= mt9t031.o
 obj-$(CONFIG_SOC_CAMERA_MT9T112)	+= mt9t112.o
 obj-$(CONFIG_SOC_CAMERA_MT9V022)	+= mt9v022.o
+obj-$(CONFIG_SOC_CAMERA_M6MO)		+= m6mo.o
+obj-$(CONFIG_SOC_CAMERA_ICPHD)		+= icp-hd.o
 obj-$(CONFIG_SOC_CAMERA_OV2640)		+= ov2640.o
+obj-$(CONFIG_SOC_CAMERA_OV5642)		+= ov5642.o ov5642_cfg.o
+obj-$(CONFIG_SOC_CAMERA_OV2656)		+= ov2656.o ov2656_cfg.o
+obj-$(CONFIG_SOC_CAMERA_OV5640)		+= ov5640.o
 obj-$(CONFIG_SOC_CAMERA_OV6650)		+= ov6650.o
+obj-$(CONFIG_SOC_CAMERA_OV7690)		+= ov7690.o
 obj-$(CONFIG_SOC_CAMERA_OV772X)		+= ov772x.o
 obj-$(CONFIG_SOC_CAMERA_OV9640)		+= ov9640.o
 obj-$(CONFIG_SOC_CAMERA_OV9740)		+= ov9740.o
 obj-$(CONFIG_SOC_CAMERA_RJ54N1)		+= rj54n1cb0c.o
 obj-$(CONFIG_SOC_CAMERA_TW9910)		+= tw9910.o
+obj-$(CONFIG_VIDEO_MVISP_OV8820)	+= ov8820.o
 
 # And now the v4l2 drivers:
 
@@ -163,9 +170,13 @@ obj-$(CONFIG_VIDEO_MX1)			+= mx1_camera.o
 obj-$(CONFIG_VIDEO_MX2)			+= mx2_camera.o
 obj-$(CONFIG_VIDEO_MX3)			+= mx3_camera.o
 obj-$(CONFIG_VIDEO_PXA27x)		+= pxa_camera.o
+obj-$(CONFIG_VIDEO_MV)                  += mv_camera.o
+obj-$(CONFIG_VIDEO_PXA955)		+= pxa955_cam.o
 obj-$(CONFIG_VIDEO_SH_MOBILE_CSI2)	+= sh_mobile_csi2.o
 obj-$(CONFIG_VIDEO_SH_MOBILE_CEU)	+= sh_mobile_ceu_camera.o
 obj-$(CONFIG_VIDEO_OMAP1)		+= omap1_camera.o
+
+obj-$(CONFIG_VIDEO_MVISP)               += mvisp/
 
 obj-$(CONFIG_VIDEO_SAMSUNG_S5P_FIMC) 	+= s5p-fimc/
 
@@ -180,9 +191,16 @@ obj-$(CONFIG_VIDEO_SAA7164)     += saa7164/
 
 obj-$(CONFIG_VIDEO_IR_I2C)  += ir-kbd-i2c.o
 
+obj-$(CONFIG_HDMI_SI9226)     += si9226_hdmi.o
+obj-$(CONFIG_HDMI_ADV7533)    += adv7533.o
+obj-$(CONFIG_MV_IHDMI)        += mv_ihdmitx.o
+
 obj-y	+= davinci/
 
+obj-$(CONFIG_CMMB)		+= cmmb/
+
 obj-$(CONFIG_ARCH_OMAP)	+= omap/
+obj-$(CONFIG_PXA168_V4L2_OVERLAY)  += pxa168_overlay.o
 
 EXTRA_CFLAGS += -Idrivers/media/dvb/dvb-core
 EXTRA_CFLAGS += -Idrivers/media/dvb/frontends

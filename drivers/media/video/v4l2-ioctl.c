@@ -1910,9 +1910,11 @@ static long __video_do_ioctl(struct file *file,
 		struct v4l2_dbg_register *p = arg;
 
 		if (ops->vidioc_g_register) {
+/*
 			if (!capable(CAP_SYS_ADMIN))
 				ret = -EPERM;
 			else
+*/
 				ret = ops->vidioc_g_register(file, fh, p);
 		}
 		break;
@@ -1922,9 +1924,11 @@ static long __video_do_ioctl(struct file *file,
 		struct v4l2_dbg_register *p = arg;
 
 		if (ops->vidioc_s_register) {
+/*
 			if (!capable(CAP_SYS_ADMIN))
 				ret = -EPERM;
 			else
+*/
 				ret = ops->vidioc_s_register(file, fh, p);
 		}
 		break;

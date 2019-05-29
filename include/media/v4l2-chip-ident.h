@@ -76,6 +76,13 @@ enum {
 	V4L2_IDENT_OV6650 = 258,
 	V4L2_IDENT_OV2640 = 259,
 	V4L2_IDENT_OV9740 = 260,
+	V4L2_IDENT_OV3640,
+	V4L2_IDENT_OV5642,
+	V4L2_IDENT_OV5640,
+	V4L2_IDENT_OV7690,
+	V4L2_IDENT_OV7692,
+	V4L2_IDENT_OV8820,
+	V4L2_IDENT_OV2656,
 
 	/* module saa7146: reserved range 300-309 */
 	V4L2_IDENT_SAA7146 = 300,
@@ -100,6 +107,9 @@ enum {
 
 	/* module bt866: just ident 866 */
 	V4L2_IDENT_BT866 = 866,
+
+	/* Fujitsu ISPs: reserved range 900-1099 */
+	V4L2_IDENT_M6MO = 915,
 
 	/* module ks0127: reserved range 1120-1129 */
 	V4L2_IDENT_KS0122S = 1122,

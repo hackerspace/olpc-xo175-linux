@@ -125,12 +125,27 @@ static int pca953x_write_reg(struct pca953x_chip *chip, int reg, uint16_t val)
 
 static int pca953x_read_reg(struct pca953x_chip *chip, int reg, uint16_t *val)
 {
-	int ret;
+	int ret = 0, reth, retl;
 
 	if (chip->gpio_chip.ngpio <= 8)
 		ret = i2c_smbus_read_byte_data(chip->client, reg);
-	else
-		ret = i2c_smbus_read_word_data(chip->client, reg << 1);
+	else {
+		switch (chip->chip_type) {
+		case PCA953X_TYPE:
+			ret = i2c_smbus_read_word_data(chip->client, reg << 1);
+			break;
+		case PCA957X_TYPE:
+			retl = i2c_smbus_read_byte_data(chip->client, reg << 1);
+			if (retl < 0)
+				return retl;
+			reth = i2c_smbus_read_byte_data(chip->client,
+						(reg << 1) + 1);
+			if (reth < 0)
+				return reth;
+			ret = (retl & 0xff) | (reth << 8);
+			break;
+		}
+	}
 
 	if (ret < 0) {
 		dev_err(&chip->client->dev, "failed reading register\n");
@@ -587,6 +602,11 @@ pca953x_get_alt_pdata(struct i2c_client *client)
 static int __devinit device_pca953x_init(struct pca953x_chip *chip, int invert)
 {
 	int ret;
+	uint16_t val = 0;
+
+	ret = pca953x_read_reg(chip, PCA953X_INPUT, &val);
+	if (ret)
+		goto out;
 
 	ret = pca953x_read_reg(chip, PCA953X_OUTPUT, &chip->reg_output);
 	if (ret)
@@ -612,9 +632,15 @@ static int __devinit device_pca957x_init(struct pca953x_chip *chip, int invert)
 	uint16_t val = 0;
 
 	/* Let every port in proper state, that could save power */
-	pca953x_write_reg(chip, PCA957X_PUPD, 0x0);
-	pca953x_write_reg(chip, PCA957X_CFG, 0xffff);
-	pca953x_write_reg(chip, PCA957X_OUT, 0x0);
+	ret = pca953x_write_reg(chip, PCA957X_PUPD, 0x0);
+	if (ret)
+		goto out;
+	ret = pca953x_write_reg(chip, PCA957X_CFG, 0xffff);
+	if (ret)
+		goto out;
+	ret = pca953x_write_reg(chip, PCA957X_OUT, 0x0);
+	if (ret)
+		goto out;
 
 	ret = pca953x_read_reg(chip, PCA957X_IN, &val);
 	if (ret)
@@ -627,10 +653,14 @@ static int __devinit device_pca957x_init(struct pca953x_chip *chip, int invert)
 		goto out;
 
 	/* set platform specific polarity inversion */
-	pca953x_write_reg(chip, PCA957X_INVRT, invert);
+	ret = pca953x_write_reg(chip, PCA957X_INVRT, invert);
+	if (ret)
+		goto out;
 
 	/* To enable register 6, 7 to controll pull up and pull down */
-	pca953x_write_reg(chip, PCA957X_BKEN, 0x202);
+	ret = pca953x_write_reg(chip, PCA957X_BKEN, 0x202);
+	if (ret)
+		goto out;
 
 	return 0;
 out:
@@ -679,10 +709,13 @@ static int __devinit pca953x_probe(struct i2c_client *client,
 	pca953x_setup_gpio(chip, id->driver_data & PCA_GPIO_MASK);
 
 	if (chip->chip_type == PCA953X_TYPE)
-		device_pca953x_init(chip, pdata->invert);
+		ret = device_pca953x_init(chip, pdata->invert);
 	else if (chip->chip_type == PCA957X_TYPE)
-		device_pca957x_init(chip, pdata->invert);
+		ret = device_pca957x_init(chip, pdata->invert);
 	else
+		goto out_failed;
+
+	if (ret)
 		goto out_failed;
 
 	ret = pca953x_irq_setup(chip, id);

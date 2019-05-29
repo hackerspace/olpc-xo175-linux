@@ -1,0 +1,74 @@
+ZSP driver notes
+
+1. ZSP driver menuconfig:
+Devices Drivers-->
+Character Devices-->
+<*>ZSP host driver for MMP ZSP audio processor
+
+2. ZSP host driver source Code:
+zsp and message queue driver:
+arch/arm/mach-mmp/include/mach/mmp-zmq.h
+arch/arm/mach-mmp/include/mach/mmp-zsp.h
+drivers/char/mmp_zsp.c
+drivers/char/mmp_zmq.c
+
+3. ZSP firmware binaries and its location:
+the ZSP firmware souce code is put in:
+shgit.marvell.com/git/ose/linux/zsp.git
+the ZSP firmeare binaries are put in:
+shgit.marvell.com/git/ose/linux/zsp_fw.git
+firmware binaries:
+zsp_inits.bin	-consists of interrupt table and debugger monitor
+zsp_text.bin	-consists of text section
+zsp_data.bin	-consists of data setction
+ucode.bin	-consists of codec ACL(audio codec layer)library
+firmware location for general Linux platform:
+/lib/firmware
+firmware location for android platform:
+/system/etc/firmware
+
+4. To do list:
+for MMP2 ZSP firmware and MMP2 ZSP host driver, no new feature development needed,
+just bug fixing if found
+
+
+Notes:
+ZSP firware interface is integrated into ALSA plug in, so ZSP is transparent
+for user. No specific APIs exposed for upper user. user could test ZSP feature
+by stand ALSA APIs
+
+=================================
+ZSP audio driver notes
+
+1. ZSP audio driver menuconfig (it depends on ZSP driver):
+Devices Drivers-->
+<*> Sound card support --->
+  <*> Advanced Linux Sound Architecture --->
+    <*> ALSA for SoC audio support --->
+      Soc Audio for Marvell MMP --->
+        (X) SoC Audio With ZSP Mode
+      Soc Audio for the Marvell MMPX --->
+        <*> Audio support for brownstone platform (zsp)
+        [*] Audio wm8994 master mode
+
+
+2. ZSP host driver source Code:
+zsp audio driver:
+arch/arm/mach-mmp/mmp2_sspa.c
+sound/soc/pxa/brownstone-zsp.c
+sound/soc/pxa/mmp-squ-zsp.c
+sound/soc/pxa/mmp-sspa-zsp.c
+sound/soc/pxa/mmp-squ-zsp.h
+arch/arm/mach-mmp/include/mach/mmp-zsp.h
+arch/arm/mach-mmp/include/mach/regs-sspa.h
+sound/soc/pxa/mmp-zsp-audio.h
+sound/soc/pxa/mmp2-sspa.h
+
+3. To do list:
+1) audio stream latency feature enhancement
+2) bug fixing
+
+Notes:
+ZSP audio driver needs the firware binaries when it handles the audio
+data stream. The binaries location is different in different system.
+Please refer to ZSP driver section for detail.

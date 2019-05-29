@@ -100,8 +100,14 @@ obj-$(CONFIG_FB_GBE)              += gbefb.o
 obj-$(CONFIG_FB_CIRRUS)		  += cirrusfb.o
 obj-$(CONFIG_FB_ASILIANT)	  += asiliantfb.o
 obj-$(CONFIG_FB_PXA)		  += pxafb.o
-obj-$(CONFIG_FB_PXA168)		  += pxa168fb.o
+obj-$(CONFIG_FB_PXA168)		  += pxa168fb.o pxa168fb_ovly.o \
+					pxa168fb_common.o
+obj-$(CONFIG_PXA688_PHY)	  += pxa688_phy.o
+obj-$(CONFIG_PXA688_CMU)	  += pxa688_cmu.o
+obj-$(CONFIG_PXA688_VDMA)	  += pxa688_vdma.o
+obj-$(CONFIG_PXA688_MISC)	  += pxa688_misc.o
 obj-$(CONFIG_PXA3XX_GCU)	  += pxa3xx-gcu.o
+obj-$(CONFIG_FB_PXA95x)		  += pxa95xfb.o pxa95xfb_ovly.o pxa95xfb_ioctls.o
 obj-$(CONFIG_FB_W100)		  += w100fb.o
 obj-$(CONFIG_FB_TMIO)		  += tmiofb.o
 obj-$(CONFIG_FB_AU1100)		  += au1100fb.o

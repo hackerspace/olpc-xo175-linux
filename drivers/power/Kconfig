@@ -62,6 +62,12 @@ config TEST_POWER
 	help
 	  This driver is used for testing. It's safe to say M here.
 
+config BATTERY_88PM860X
+	tristate "Marvell 88PM860x battery driver"
+	depends on MFD_88PM860X
+	help
+	  Say Y here to enable battery monitor for Marvell 88PM860x chip.
+
 config BATTERY_DS2760
 	tristate "DS2760 battery driver (HP iPAQ & others)"
 	depends on W1 && W1_SLAVE_DS2760
@@ -179,6 +185,12 @@ config BATTERY_S3C_ADC
 	help
 	  Say Y here to enable support for iPAQ h1930/h1940/rx1950 battery
 
+config CHARGER_88PM860X
+	tristate "Marvell 88PM860x Charger driver"
+	depends on MFD_88PM860X && BATTERY_88PM860X
+	help
+	  Say Y here to enable charger for Marvell 88PM860x chip.
+
 config CHARGER_PCF50633
 	tristate "NXP PCF50633 MBC"
 	depends on MFD_PCF50633
@@ -202,6 +214,12 @@ config BATTERY_INTEL_MID
 	help
 	  Say Y here to enable the battery driver on Intel MID
 	  platforms.
+
+config BATTERY_FAN4010
+	tristate "Fairchild FAN4010 Current Sensor Battery Support"
+	help
+	  This driver support Fairchild FAN4010 high-side current sense
+	  amplifier designed for battery-powered systems.
 
 config CHARGER_ISP1704
 	tristate "ISP1704 USB Charger Detection"
@@ -234,5 +252,35 @@ config CHARGER_GPIO
 
 	  This driver can be build as a module. If so, the module will be
 	  called gpio-charger.
+
+config CHARGER_ISL9519
+	tristate "ISL9519 battery charger support"
+	depends on I2C
+	help
+	  Say Y here to enable support for isl9519 battery charger.
+	  The ISL9519Q is a highly integrated Narrow VDC system voltage
+	  regulator and battery charger controller. Operating parameters
+	  are programmable over the System Management Bus (SMBus).
+	  The ISL9519Q is designed for applications where the system power
+	  is either the battery pack or the output of the regulator/charger.
+
+config CHARGER_MAX8900
+	tristate "Maxim MAX89000 Charger driver"
+	depends on GPIOLIB
+	help
+	  Say Y to include support for MAX8900 charger driver.
+
+config CHARGER_FAN540X
+	tristate "Fairchild FAN5400 Family Battery Charger Support"
+	depends on I2C
+	help
+	  This driver support Fairchild FAN5400 Family USB-Compliant
+	  Singel-Cell Li-Ion Switching Charger with USB-OTG Boost Regulator.
+
+config WIS_KBC_POWER
+	tristate "Wistron KBC Battery Support"
+	depends on I2C
+	help
+	  This driver support Wistron KBC Battery driver.
 
 endif # POWER_SUPPLY

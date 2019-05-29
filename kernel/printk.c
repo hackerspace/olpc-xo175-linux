@@ -86,6 +86,7 @@ EXPORT_SYMBOL(oops_in_progress);
  * driver system.
  */
 static DEFINE_SEMAPHORE(console_sem);
+static int cont_log_level;
 struct console *console_drivers;
 EXPORT_SYMBOL_GPL(console_drivers);
 
@@ -680,6 +681,8 @@ static void call_console_drivers(unsigned start, unsigned end)
 
 	cur_index = start;
 	start_print = start;
+	if (((cont_log_level >= console_loglevel) && (!ignore_loglevel)) || (!console_drivers))
+		return;
 	while (cur_index != end) {
 		if (msg_level < 0 && ((end - cur_index) > 2)) {
 			/* strip log prefix */
@@ -924,7 +927,8 @@ asmlinkage int vprintk(const char *fmt, va_list args)
 				  sizeof(printk_buf) - printed_len, fmt, args);
 
 #ifdef	CONFIG_DEBUG_LL
-	printascii(printk_buf);
+	if (console_drivers == NULL)
+		printascii(printk_buf);
 #endif
 
 	p = printk_buf;
@@ -947,7 +951,7 @@ asmlinkage int vprintk(const char *fmt, va_list args)
 			}
 		}
 	}
-
+	cont_log_level = current_log_level;
 	/*
 	 * Copy the output into log_buf. If the caller didn't provide
 	 * the appropriate log prefix, we insert them here

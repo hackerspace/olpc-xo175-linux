@@ -1,0 +1,60 @@
+Note: for Kernel 3.0.0
+
+TODO List
+---------
+All basic functions and resolutions are ready. but some bugs are open:
+
+1 Customer Philips and Panasonic report two CTS failures. Give them patch
+to verify and no feedback so far. Since Vizio already pass CTS, so the issues
+may be related to their platforms(except interlace mode, which they didn't test)
+
+
+2 DVI adaptor fails. QA reported when connect TV via DVI adaptor, HDMI fails.
+
+
+Source List
+-----------
+******platform config related files******
+$KERNEL_SOURCE/arch/arm/mach-mmp/include/mach/mfp-mmp2.h
+$KERNEL_SOURCE/arch/arm/mach-mmp/include/mach/mmp2.h
+$KERNEL_SOURCE/arch/arm/mach-mmp/mmp2.c
+$KERNEL_SOURCE/arch/arm/mach-mmp/brownstone.c
+
+******ov5642 sensor driver related files******
+$KERNEL_SOURCE/arch/arm/mach-mmp/include/mach/uio_hdmi.h
+$KERNEL_SOURCE/driver/uio/uio_hdmi.c
+
+How To Work
+----------
+uio_driver mmap register IO to user space, and HDMI stack configure it when hpd
+detected.
+
+All HDMI logic part are done in user space HDMI stack. There is another document dedicated for
+HDMI stack.
+
+How To Use
+----------
+In generic linux, plug HDMI into TV, and run the static binary,
+
+$./main_hdmi.libc
+
+In android, plug HDMI into TV, and HDMI should be configured automatically.
+
+Constraints
+-----------
+HDMI must work at CPU 800M
+
+How To Debug
+----------
+This issues can mainly be divided to two catogeries:
+
+1 HDMI stack doesn't confiure TV. 90% of the issue we can find in our lab (opposed to HDMI CTS lab)
+is of this kind. it is either because EDID reading failure or hpd not generated. For the former one,
+it is supposed to be fixed by Yifan's mmp2: fix twsi6 power always off issue patch; for the latter one,
+it is supposed to be fixed by Yifan's mmp2: remove jitter when plug/unplug HDMI. patch.
+Anyway, if you hears somebady complains of HDMI failure, firstly make sure EDID reading is successful and
+hpd generated.
+
+2 HDMI stack configure successfully but the timing or some other parameters are wrong, it is usually found in
+HDMI CTS test. when meet this error, read the spec related to the failing items. if still can't find answer, you
+may call DE team for help :-)

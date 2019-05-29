@@ -223,7 +223,11 @@ static int mmc_read_ssr(struct mmc_card *card)
 		return 0;
 	}
 
+#ifndef CONFIG_PXA910_1G_DDR_WORKAROUND
 	ssr = kmalloc(64, GFP_KERNEL);
+#else
+	ssr = kmalloc(64, GFP_KERNEL | GFP_DMA);
+#endif
 	if (!ssr)
 		return -ENOMEM;
 
@@ -281,7 +285,11 @@ static int mmc_read_switch(struct mmc_card *card)
 
 	err = -EIO;
 
+#ifndef CONFIG_PXA910_1G_DDR_WORKAROUND
 	status = kmalloc(64, GFP_KERNEL);
+#else
+	status = kmalloc(64, GFP_KERNEL | GFP_DMA);
+#endif
 	if (!status) {
 		printk(KERN_ERR "%s: could not allocate a buffer for "
 			"switch capabilities.\n",
@@ -305,6 +313,10 @@ static int mmc_read_switch(struct mmc_card *card)
 
 		goto out;
 	}
+
+	/* Check whether high speed mode is supported */
+	if (status[13] & 0x02)
+		card->sw_caps.hs_max_dtr = 50000000;
 
 	if (card->scr.sda_spec3) {
 		card->sw_caps.sd3_bus_mode = status[13];
@@ -348,9 +360,6 @@ static int mmc_read_switch(struct mmc_card *card)
 		}
 
 		card->sw_caps.sd3_curr_limit = status[7];
-	} else {
-		if (status[13] & 0x02)
-			card->sw_caps.hs_max_dtr = 50000000;
 	}
 
 out:
@@ -381,7 +390,11 @@ int mmc_sd_switch_hs(struct mmc_card *card)
 
 	err = -EIO;
 
+#ifndef CONFIG_PXA910_1G_DDR_WORKAROUND
 	status = kmalloc(64, GFP_KERNEL);
+#else
+	status = kmalloc(64, GFP_KERNEL | GFP_DMA);
+#endif
 	if (!status) {
 		printk(KERN_ERR "%s: could not allocate a buffer for "
 			"switch capabilities.\n", mmc_hostname(card->host));
@@ -591,7 +604,11 @@ static int mmc_sd_init_uhs_card(struct mmc_card *card)
 	if (!(card->csd.cmdclass & CCC_SWITCH))
 		return 0;
 
+#ifndef CONFIG_PXA910_1G_DDR_WORKAROUND
 	status = kmalloc(64, GFP_KERNEL);
+#else
+	status = kmalloc(64, GFP_KERNEL | GFP_DMA);
+#endif
 	if (!status) {
 		printk(KERN_ERR "%s: could not allocate a buffer for "
 			"switch capabilities.\n", mmc_hostname(card->host));
@@ -700,6 +717,12 @@ int mmc_sd_get_cid(struct mmc_host *host, u32 ocr, u32 *cid, u32 *rocr)
 	 * block-addressed SDHC cards.
 	 */
 	err = mmc_send_if_cond(host, ocr);
+	if (err) {
+		/* Some high capacity SD card may fail to respond first CMD8,
+		 * so re-try it.
+		 */
+		err = mmc_send_if_cond(host, ocr);
+	}
 	if (!err)
 		ocr |= SD_OCR_CCS;
 

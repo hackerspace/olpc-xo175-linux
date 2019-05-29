@@ -215,6 +215,80 @@ enum {
 	MFP_PIN_GPIO189,
 	MFP_PIN_GPIO190,
 	MFP_PIN_GPIO191,
+	MFP_PIN_GPIO_MAX,
+
+	MFP_PIN_RF_MFP0 = MFP_PIN_GPIO133,
+	MFP_PIN_RF_MFP1,
+	MFP_PIN_RF_MFP2,
+	MFP_PIN_RF_MFP3,
+	MFP_PIN_RF_MFP4,
+	MFP_PIN_RF_MFP5,
+	MFP_PIN_RF_MFP6,
+	MFP_PIN_RF_MFP7,
+	MFP_PIN_RF_MFP8,
+	MFP_PIN_RF_MFP9,
+	MFP_PIN_RF_MFP10,
+	MFP_PIN_RF_MFP11,
+	MFP_PIN_RF_MFP12,
+	MFP_PIN_RF_MFP13,
+	MFP_PIN_RF_MFP14,
+	MFP_PIN_RF_MFP15,
+	MFP_PIN_RF_MFP16,
+	MFP_PIN_RF_MFP17,
+	MFP_PIN_RF_MFP18,
+	MFP_PIN_RF_MFP19,
+	MFP_PIN_RF_MFP20,
+	MFP_PIN_RF_MFP21,
+	MFP_PIN_RF_MFP22,
+	MFP_PIN_RF_MFP23,
+	MFP_PIN_RF_MFP24,
+	MFP_PIN_RF_MFP25,
+	MFP_PIN_RF_MFP26,
+	MFP_PIN_RF_MFP27,
+	MFP_PIN_RF_MFP28,
+	MFP_PIN_RF_MFP29,
+	MFP_PIN_RF_MFP30,
+
+	MFP_PIN_MEM_MFP0 = MFP_PIN_GPIO164,
+	MFP_PIN_MEM_MFP1,
+	MFP_PIN_MEM_MFP2,
+	MFP_PIN_MEM_MFP3,
+	MFP_PIN_MEM_MFP4,
+	MFP_PIN_MEM_MFP5,
+	MFP_PIN_MEM_MFP6,
+	MFP_PIN_MEM_MFP7,
+	MFP_PIN_MEM_MFP8,
+	MFP_PIN_MEM_MFP9,
+	MFP_PIN_MEM_MFP10,
+	MFP_PIN_MEM_MFP11,
+	MFP_PIN_MEM_MFP12,
+	MFP_PIN_MEM_MFP13,
+	MFP_PIN_MEM_MFP14,
+	MFP_PIN_MEM_MFP15,
+	MFP_PIN_MEM_MFP16,
+	MFP_PIN_MEM_MFP17,
+	MFP_PIN_MEM_MFP18,
+	MFP_PIN_MEM_MFP19,
+	MFP_PIN_MEM_MFP20,
+	MFP_PIN_MEM_MFP21,
+	MFP_PIN_MEM_MFP22,
+	MFP_PIN_MEM_MFP23,
+	MFP_PIN_MEM_MFP24,
+	MFP_PIN_MEM_MFP25,
+	MFP_PIN_MEM_MFP26,
+	MFP_PIN_MEM_MFP27,
+	MFP_PIN_MEM_MFP28,
+	MFP_PIN_MEM_MFP29,
+	MFP_PIN_MEM_MFP30,
+	MFP_PIN_MEM_MFP31,
+	MFP_PIN_MEM_MFP32,
+	MFP_PIN_MEM_MFP33,
+	MFP_PIN_MEM_MFP34,
+	MFP_PIN_MEM_MFP35,
+	MFP_PIN_MEM_MFP36,
+	MFP_PIN_MEM_MFP37,
+	MFP_PIN_MEM_MFP38,
+	MFP_PIN_MEM_MFP39,
 
 	MFP_PIN_GPIO255 = 255,
 
@@ -308,6 +382,9 @@ enum {
 	MFP_PIN_MMC1_CD,
 	MFP_PIN_MMC1_WP,
 
+	/* additional pins on PXA910 */
+	MFP_PIN_VCXOREQ,
+
 	/* additional pins on PXA930 */
 	MFP_PIN_GSIM_UIO,
 	MFP_PIN_GSIM_UCLK,
@@ -378,6 +455,10 @@ typedef unsigned long mfp_cfg_t;
 #define MFP_DS13X		(0x7 << 13)
 #define MFP_DS_MASK		(0x7 << 13)
 #define MFP_DS(x)		(((x) >> 13) & 0x7)
+#define MFP_VERY_SLOW		MFP_DS01X
+#define MFP_SLOW		MFP_DS02X
+#define MFP_MEDIUM		MFP_DS03X
+#define MFP_FAST		MFP_DS04X
 
 #define MFP_LPM_DEFAULT		(0x0 << 16)
 #define MFP_LPM_DRIVE_LOW	(0x1 << 16)
@@ -385,7 +466,6 @@ typedef unsigned long mfp_cfg_t;
 #define MFP_LPM_PULL_LOW	(0x3 << 16)
 #define MFP_LPM_PULL_HIGH	(0x4 << 16)
 #define MFP_LPM_FLOAT		(0x5 << 16)
-#define MFP_LPM_INPUT		(0x6 << 16)
 #define MFP_LPM_STATE_MASK	(0x7 << 16)
 #define MFP_LPM_STATE(x)	(((x) >> 16) & 0x7)
 
@@ -423,7 +503,12 @@ typedef unsigned long mfp_cfg_t;
 	((MFP_CFG_DEFAULT & ~(MFP_AF_MASK | MFP_DS_MASK | MFP_LPM_STATE_MASK)) |\
 	 (MFP_PIN(MFP_PIN_##pin) | MFP_##af | MFP_##drv | MFP_LPM_##lpm))
 
-#if defined(CONFIG_PXA3xx) || defined(CONFIG_PXA95x) || defined(CONFIG_ARCH_MMP)
+#define MFP_CFG_ALL(pin, af, drv, lpm, pull)    \
+	((MFP_CFG_DEFAULT & ~(MFP_AF_MASK | MFP_DS_MASK | MFP_LPM_STATE_MASK | MFP_PULL_MASK)) |\
+	 (MFP_PIN(MFP_PIN_##pin) | MFP_##af | MFP_##drv | MFP_LPM_##lpm | MFP_##pull))
+
+#if defined(CONFIG_PXA3xx) || defined(CONFIG_PXA93x)			\
+	|| defined(CONFIG_PXA95x) || defined(CONFIG_ARCH_MMP)
 /*
  * each MFP pin will have a MFPR register, since the offset of the
  * register varies between processors, the processor specific code
@@ -456,6 +541,72 @@ struct mfp_addr_map {
 
 #define MFP_ADDR_END	{ MFP_PIN_INVALID, 0 }
 
+#define MFPR_SIZE	(PAGE_SIZE)
+
+/* MFPR register bit definitions */
+#define MFPR_PULL_SEL		(0x1 << 15)
+#define MFPR_PULLUP_EN		(0x1 << 14)
+#define MFPR_PULLDOWN_EN	(0x1 << 13)
+#define MFPR_PULL_MASK		(0x7 << 13)
+#define MFPR_SLEEP_SEL		(0x1 << 9)
+#define MFPR_SLEEP_OE_N		(0x1 << 7)
+#define MFPR_EDGE_CLEAR		(0x1 << 6)
+#define MFPR_EDGE_FALL_EN	(0x1 << 5)
+#define MFPR_EDGE_RISE_EN	(0x1 << 4)
+
+#define MFPR_SLEEP_DATA(x)	(((x) & 0x1) << 8)
+#define MFPR_DRIVE(x)		(((x) & 0x7) << 10)
+#define MFPR_AF_SEL(x)		(((x) & 0x7) << 0)
+#define MFPR_AF_MASK		(0x7 << 0)
+
+#define MFPR_EDGE_NONE		(MFPR_EDGE_CLEAR)
+#define MFPR_EDGE_RISE		(MFPR_EDGE_RISE_EN)
+#define MFPR_EDGE_FALL		(MFPR_EDGE_FALL_EN)
+#define MFPR_EDGE_BOTH		(MFPR_EDGE_RISE | MFPR_EDGE_FALL)
+
+/*
+ * Table that determines the low power modes outputs, with actual settings
+ * used in parentheses for don't-care values. Except for the float output,
+ * the configured driven and pulled levels match, so if there is a need for
+ * non-LPM pulled output, the same configuration could probably be used.
+ *
+ * Output value  sleep_oe_n  sleep_data  pullup_en  pulldown_en  pull_sel
+ *                 (bit 7)    (bit 8)    (bit 14)     (bit 13)   (bit 15)
+ *
+ * Drive 0          0          0           0           X(1)       0
+ * Drive 1          0          1           X(1)        0	  0
+ * Pull hi (1)      1          X(1)        1           0	  0
+ * Pull lo (0)      1          X(0)        0           1	  0
+ * Z (float)        1          X(0)        0           0	  0
+ */
+#define MFPR_LPM_DRIVE_LOW	(MFPR_SLEEP_DATA(0) | MFPR_PULLDOWN_EN)
+#define MFPR_LPM_DRIVE_HIGH	(MFPR_SLEEP_DATA(1) | MFPR_PULLUP_EN)
+#define MFPR_LPM_PULL_LOW	(MFPR_LPM_DRIVE_LOW  | MFPR_SLEEP_OE_N)
+#define MFPR_LPM_PULL_HIGH	(MFPR_LPM_DRIVE_HIGH | MFPR_SLEEP_OE_N)
+#define MFPR_LPM_FLOAT		(MFPR_SLEEP_OE_N)
+#define MFPR_LPM_MASK		(0xe080)
+
+/*
+ * The pullup and pulldown state of the MFP pin at run mode is by default
+ * determined by the selected alternate function. In case that some buggy
+ * devices need to override this default behavior,  the definitions below
+ * indicates the setting of corresponding MFPR bits
+ *
+ * Definition       pull_sel  pullup_en  pulldown_en
+ * MFPR_PULL_NONE       0         0        0
+ * MFPR_PULL_LOW        1         0        1
+ * MFPR_PULL_HIGH       1         1        0
+ * MFPR_PULL_BOTH       1         1        1
+ * MFPR_PULL_FLOAT	1         0        0
+ */
+#define MFPR_PULL_NONE		(0)
+#define MFPR_PULL_LOW		(MFPR_PULL_SEL | MFPR_PULLDOWN_EN)
+#define MFPR_PULL_BOTH		(MFPR_PULL_LOW | MFPR_PULLUP_EN)
+#define MFPR_PULL_HIGH		(MFPR_PULL_SEL | MFPR_PULLUP_EN)
+#define MFPR_PULL_FLOAT		(MFPR_PULL_SEL)
+
+
+
 void __init mfp_init_base(unsigned long mfpr_base);
 void __init mfp_init_addr(struct mfp_addr_map *map);
 
@@ -470,6 +621,6 @@ void mfp_write(int mfp, unsigned long mfpr_val);
 void mfp_config(unsigned long *mfp_cfgs, int num);
 void mfp_config_run(void);
 void mfp_config_lpm(void);
-#endif /* CONFIG_PXA3xx || CONFIG_PXA95x || CONFIG_ARCH_MMP */
+#endif /* CONFIG_PXA3xx || CONFIG_PXA93x || CONFIG_PXA95x || CONFIG_ARCH_MMP */
 
 #endif /* __ASM_PLAT_MFP_H */

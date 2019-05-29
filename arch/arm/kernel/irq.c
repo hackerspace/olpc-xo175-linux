@@ -66,6 +66,10 @@ int arch_show_interrupts(struct seq_file *p, int prec)
 	return 0;
 }
 
+#if defined(CONFIG_CPU_MMP3)
+unsigned int irq_count[1024] = { 0 };
+#endif
+
 /*
  * do_IRQ handles all hardware IRQ's.  Decoded IRQs should not
  * come via this function.  Instead, they should provide their
@@ -75,6 +79,11 @@ asmlinkage void __exception_irq_entry
 asm_do_IRQ(unsigned int irq, struct pt_regs *regs)
 {
 	struct pt_regs *old_regs = set_irq_regs(regs);
+
+#if defined(CONFIG_CPU_MMP3)
+	if (irq < 1024)
+		irq_count[irq]++;
+#endif
 
 	irq_enter();
 

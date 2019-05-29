@@ -38,6 +38,13 @@
 #define CSADRCFG2	(SMEMC_VIRT + 0x88)  /* Address Configuration Register for CS2 */
 #define CSADRCFG3	(SMEMC_VIRT + 0x8C)  /* Address Configuration Register for CS3 */
 
+#define CLK_RET_DEL	(SMEMC_VIRT + 0xB0)
+#define ADV_RET_DEL	(SMEMC_VIRT + 0xB4)
+#define DFCLK_CTL(x)	(x<<24)
+#define DFCLK_CTL_EN	DFCLK_CTL(1)
+#define DFCLK_CTLDIV(x)	(x<<16)
+#define DFCLK_CTL_FRE	DFCLK_CTLDIV(2)
+
 /*
  * More handy macros for PCMCIA
  *

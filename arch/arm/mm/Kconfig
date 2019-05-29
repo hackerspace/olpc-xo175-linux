@@ -388,6 +388,12 @@ config CPU_PJ4
 	select CPU_V7
 	select ARM_THUMBEE
 
+# Marvell PJ4B
+config CPU_PJ4B
+	bool
+	select CPU_V7
+	select ARM_THUMBEE
+
 # ARMv6
 config CPU_V6
 	bool "Support ARM V6 processor" if ARCH_INTEGRATOR || MACH_REALVIEW_EB || MACH_REALVIEW_PBX
@@ -821,12 +827,18 @@ config CACHE_L2X0
 	depends on REALVIEW_EB_ARM11MP || MACH_REALVIEW_PB11MP || MACH_REALVIEW_PB1176 || \
 		   REALVIEW_EB_A9MP || SOC_IMX35 || SOC_IMX31 || MACH_REALVIEW_PBX || \
 		   ARCH_NOMADIK || ARCH_OMAP4 || ARCH_EXYNOS4 || ARCH_TEGRA || \
-		   ARCH_U8500 || ARCH_VEXPRESS_CA9X4 || ARCH_SHMOBILE
+		   ARCH_U8500 || ARCH_VEXPRESS_CA9X4 || ARCH_SHMOBILE || CPU_MMP3 || \
+		   CPU_PXA978
 	default y
 	select OUTER_CACHE
 	select OUTER_CACHE_SYNC
 	help
 	  This option enables the L2x0 PrimeCell.
+
+config CACHE_L2X0_PREFETCH
+       bool "Enable prefetch modes for L2x0 cache"
+       depends on CACHE_L2X0
+       default n
 
 config CACHE_PL310
 	bool
@@ -836,6 +848,17 @@ config CACHE_PL310
 	  This option enables optimisations for the PL310 cache
 	  controller.
 
+config CACHE_TAUROS3_PREFETCH_OFFSET
+	int "Prefetch offset value (0-31)"
+	range 0 31
+	depends on CACHE_L2X0_PREFETCH && CACHE_PL310
+	default "0"
+	help
+	  This value will be set in the L2CC prefetch control register[4:0],
+	  which indicates that the (value+1)th cacheline will be prefetched.
+	  According to the SPEC the valid values can be 0-7, 15, 23 and 31,
+	  other values are not supported by PL310
+
 config CACHE_TAUROS2
 	bool "Enable the Tauros2 L2 cache controller"
 	depends on (ARCH_DOVE || ARCH_MMP || CPU_PJ4)
@@ -844,6 +867,27 @@ config CACHE_TAUROS2
 	help
 	  This option enables the Tauros2 L2 cache controller (as
 	  found on PJ1/PJ4).
+
+config CACHE_TAUROS2_PREFETCH_OFF
+	bool "Disable prefetch mode for L2 cache"
+	depends on CACHE_TAUROS2
+	default y
+	help
+	  Say Y if you want to disable L2 cache prefetch feature
+
+config CACHE_TAUROS2_LINEFILL_BURST8
+	bool "Enable L2 Fill Burst Length 8 of Tauros2 L2 controller"
+	depends on CACHE_TAUROS2 && !CACHE_TAUROS2_PREFETCH_OFF
+	default n
+	help
+	  Say Y if you want to enable L2 line fill burst length to 8
+
+config CACHE_TAUROS2_WRITEBUFFER_COALESCING_OFF
+	bool "Disable write buffer coalescing for L2 cache"
+	depends on CACHE_TAUROS2
+	default n
+	help
+	  Say Y if you want to enable L2 cache write buffer coalescing feature
 
 config CACHE_XSC3L2
 	bool "Enable the L2 cache on XScale3"
@@ -889,3 +933,77 @@ config ARCH_HAS_BARRIERS
 	help
 	  This option allows the use of custom mandatory barriers
 	  included via the mach/barriers.h file.
+
+config PJ4_RETURNSTACK_ISSUE
+	bool "PJ4 core issue: enable return stack would cause system unstable"
+	depends on CPU_PJ4 || CPU_PJ4B
+	default y
+	help
+		This option enables the workaround for Marvell PJ4 to disable return
+		stack which might cause system unstable.
+
+config DISABLE_CWF
+	bool "Disable critical word first sequencing"
+	depends on CPU_PJ4B && SMP
+	default y
+	help
+	  This option disables critical word first sequencing.
+
+config DISABLE_CACHE_TLB_OP_BCAST
+	bool "Disable cache and TLB maintenance broadcast"
+	depends on CPU_PJ4B && SMP
+	default n
+	help
+	  This option disables cache and TLB maintenance broadcast.
+
+config FORCE_SCU_SINGLE_ENTRY
+	bool "Force SCU single entry"
+	depends on CPU_PJ4B && SMP
+	help
+	  This option forces SCU snoop queue to single entry.
+
+config DISABLE_SCU_PIPELINE
+	bool "Disable SCU pipeline"
+	depends on CPU_PJ4B
+	help
+	  This option disables SCU pipeline.
+
+config ENABLE_WRITE_EVICTS
+	bool "Enable the function of write-evicts"
+	depends on CPU_PJ4B
+	default n
+	help
+	  This option enables the function of write-evicts.
+
+config ENABLE_SNOOP_FILTER
+	bool "Enable the function of snoop filter"
+	depends on CPU_PJ4B
+	default n
+	help
+	  This option enables the function of snoop filter.
+
+config DISABLE_CLEAN_INTERVENTION
+	bool "Disable clean intervention"
+	depends on CPU_PJ4B
+	help
+	  This option disables clean intervention.
+
+config CACHE_TAUROS3_WRITETHROUGH
+	bool "Force Tauros3 L2 cache write through"
+	depends on CACHE_L2X0
+	help
+	  Say Y here to use the Tauros3 L2 cache in writethrough mode.
+
+config CACHE_TAUROS3_DISABLE_MEMORY_MAPPED_FUNCTIONS
+	bool "Disable Tauros3 memory mapped cache maintenance functions"
+	depends on CACHE_L2X0
+	help
+	  Say Y here to disable Tauros3 memory mapped cache maintenance functions.
+	  In Tauros3, when "Point of Coherence" cache maintenance operations are
+	  applied on a given address, both the L1 and L2 are automatically taken care of.
+
+config CACHE_TAUROS3_ENABLE_FULL_WRITE_LINE
+	bool "Enable Tauros3 full write line"
+	depends on CACHE_L2X0 && CPU_MMP3
+	help
+	  This option enables Tauros3 L2 cache full write line.

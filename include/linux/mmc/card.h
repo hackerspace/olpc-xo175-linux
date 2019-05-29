@@ -216,6 +216,10 @@ struct mmc_card {
 	unsigned int		sd_bus_speed;	/* Bus Speed Mode set for the card */
 
 	struct dentry		*debugfs_root;
+	/* external interrupt arrived after sdio function suspended */
+	u8			pending_interrupt;
+	u8			disabled;
+	atomic_t		suspended;
 };
 
 /*
@@ -402,5 +406,8 @@ extern void mmc_unregister_driver(struct mmc_driver *);
 
 extern void mmc_fixup_device(struct mmc_card *card,
 			     const struct mmc_fixup *table);
+#define ERR_RETRY	2
+#define ERR_ABORT	1
+#define ERR_CONTINUE	0
 
-#endif
+#endif /* LINUX_MMC_CARD_H */

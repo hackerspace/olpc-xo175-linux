@@ -666,6 +666,8 @@ int efi_partition(struct parsed_partitions *state)
 			info->volname[label_count] = c;
 			label_count++;
 		}
+
+		snprintf(state->pp_buf + strlen(state->pp_buf), PAGE_SIZE, "(%s)", state->parts[i + 1].info.volname);
 		state->parts[i + 1].has_info = true;
 	}
 	kfree(ptes);

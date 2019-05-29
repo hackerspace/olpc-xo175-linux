@@ -16,6 +16,8 @@
 #ifndef _ANDROID_PMEM_H_
 #define _ANDROID_PMEM_H_
 
+#include <linux/dma-mapping.h>
+
 #define PMEM_IOCTL_MAGIC 'p'
 #define PMEM_GET_PHYS		_IOW(PMEM_IOCTL_MAGIC, 1, unsigned int)
 #define PMEM_MAP		_IOW(PMEM_IOCTL_MAGIC, 2, unsigned int)
@@ -34,6 +36,9 @@
  */
 #define PMEM_GET_TOTAL_SIZE	_IOW(PMEM_IOCTL_MAGIC, 7, unsigned int)
 #define PMEM_CACHE_FLUSH	_IOW(PMEM_IOCTL_MAGIC, 8, unsigned int)
+/* Support streaming DMA mapping */
+#define PMEM_MAP_REGION		_IOW(PMEM_IOCTL_MAGIC, 0x10, unsigned int)
+#define PMEM_UNMAP_REGION	_IOW(PMEM_IOCTL_MAGIC, 0x11, unsigned int)
 
 struct android_pmem_platform_data
 {
@@ -48,13 +53,19 @@ struct android_pmem_platform_data
 	 * cached and uncached is desired, set this and open the device with
 	 * O_SYNC to get an uncached region */
 	unsigned cached;
-	/* The MSM7k has bits to enable a write buffer in the bus controller*/
+	/* set to enable write-buffer for the maps of this region */
 	unsigned buffered;
 };
 
 struct pmem_region {
 	unsigned long offset;
 	unsigned long len;
+};
+
+
+struct pmem_sync_region {
+	struct pmem_region region;
+	enum dma_data_direction dir;
 };
 
 #ifdef CONFIG_ANDROID_PMEM
@@ -64,8 +75,15 @@ int get_pmem_file(int fd, unsigned long *start, unsigned long *vstart,
 int get_pmem_user_addr(struct file *file, unsigned long *start,
 		       unsigned long *end);
 void put_pmem_file(struct file* file);
+int get_pmem_area(int minor, struct pmem_region *index,
+	unsigned long *start, void **vstart);
+int put_pmem_area(int minor, struct pmem_region *index, void *vstart);
+void sync_pmem_area(void *vaddr, unsigned long addr, unsigned long len,
+		unsigned int cmd, enum dma_data_direction dir);
+void sync_pmem_file(struct file *file, unsigned long start, unsigned long len,
+		unsigned int cmd, enum dma_data_direction dir);
 void flush_pmem_file(struct file *file, unsigned long start, unsigned long len);
-int pmem_setup(struct android_pmem_platform_data *pdata,
+int pmem_setup(struct android_pmem_platform_data *pdata, struct device *dev,
 	       long (*ioctl)(struct file *, unsigned int, unsigned long),
 	       int (*release)(struct inode *, struct file *));
 int pmem_remap(struct pmem_region *region, struct file *file,
@@ -79,11 +97,22 @@ static inline int get_pmem_file(int fd, unsigned long *start,
 static inline int get_pmem_user_addr(struct file *file, unsigned long *start,
 				     unsigned long *end) { return -ENOSYS; }
 static inline void put_pmem_file(struct file* file) { return; }
+static inline int get_pmem_area(int minor, struct pmem_region *region,
+	unsigned long *start, void **vstart) { return -ENOSYS; }
+static inline int put_pmem_area(int minor, struct pmem_region *region,
+	void *vstart) { return -ENOSYS; }
+static inline void sync_pmem_area(void *vaddr, unsigned long addr,
+		unsigned long len, unsigned int cmd,
+		enum dma_data_direction dir) { return; }
+static inline void sync_pmem_file(struct file *file, unsigned long start,
+		unsigned long len, unsigned int cmd,
+		enum dma_data_direction dir); { return; }
 static inline void flush_pmem_file(struct file *file, unsigned long start,
 				   unsigned long len) { return; }
 static inline int pmem_setup(struct android_pmem_platform_data *pdata,
-	      long (*ioctl)(struct file *, unsigned int, unsigned long),
-	      int (*release)(struct inode *, struct file *)) { return -ENOSYS; }
+		struct device *dev,
+		long (*ioctl)(struct file *, unsigned int, unsigned long),
+		int (*release)(struct inode *, struct file *)) { return -ENOSYS; }
 
 static inline int pmem_remap(struct pmem_region *region, struct file *file,
 			     unsigned operation) { return -ENOSYS; }

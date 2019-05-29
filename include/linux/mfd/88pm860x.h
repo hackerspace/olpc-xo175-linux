@@ -13,15 +13,8 @@
 #define __LINUX_MFD_88PM860X_H
 
 #include <linux/interrupt.h>
-
-#define MFD_NAME_SIZE		(40)
-
-enum {
-	CHIP_INVALID = 0,
-	CHIP_PM8606,
-	CHIP_PM8607,
-	CHIP_MAX,
-};
+#include <linux/switch.h>
+#include "88pm8xxx.h"
 
 enum {
 	PM8606_ID_INVALID,
@@ -140,9 +133,6 @@ enum {
 	PM8607_ID_RG_MAX,
 };
 
-/* 8607 chip ID is 0x40 or 0x50 */
-#define PM8607_VERSION_MASK		(0xF0)	/* 8607 chip ID mask */
-
 /* Interrupt Registers */
 #define PM8607_STATUS_1			(0x01)
 #define PM8607_STATUS_2			(0x02)
@@ -152,6 +142,18 @@ enum {
 #define PM8607_INT_MASK_1		(0x06)
 #define PM8607_INT_MASK_2		(0x07)
 #define PM8607_INT_MASK_3		(0x08)
+
+#define PM8607_INT_STS3_PEN		(1 << 1)
+#define PM8607_INT_EN_PEN		(1 << 1)
+#define PM8607_INT_EN_HEADSET		(1 << 2)
+#define PM8607_INT_EN_HOOK		(1 << 3)
+#define PM8607_INT_EN_MICIN		(1 << 4)
+#define PM8607_INT_EN_CHG_FAIL		(1 << 5)
+#define PM8607_INT_EN_CHG_DONE		(1 << 6)
+#define PM8607_INT_EN_CHG_IOVER		(1 << 7)
+
+/* Wakeup Registers */
+#define PM8607_RESET_OUT		(0x09)
 
 /* Regulator Control Registers */
 #define PM8607_LDO1			(0x10)
@@ -178,6 +180,7 @@ enum {
 #define PM8607_BUCK2			(0x25)
 #define PM8607_BUCK3			(0x26)
 #define PM8607_BUCK_CONTROLS		(0x27)
+#define PM8607_VIBRA_SET		(0x28)
 #define PM8607_SUPPLIES_EN11		(0x2B)
 #define PM8607_SUPPLIES_EN12		(0x2C)
 #define PM8607_GROUP1			(0x2D)
@@ -188,10 +191,53 @@ enum {
 #define PM8607_GROUP6			(0x32)
 #define PM8607_SUPPLIES_EN21		(0x33)
 #define PM8607_SUPPLIES_EN22		(0x34)
+#define PM8607_LP_CONFIG1		(0x35)
+#define PM8607_LP_CONFIG2		(0x36)
+#define PM8607_LP_CONFIG3		(0x39)
+
+/* headset/mic detection Control Registers */
+#define PM8607_MIC_DECTION		(0x37)
+#define PM8607_HEADSET_DECTION	(0x38)
+
+/* bit definitions of  MEAS_EN1*/
+#define PM8607_MIC_DET_EN_MIC_DET	(1 << 0)
+#define PM8607_HEADSET_EN_HS_DET	(1 << 0)
+#define PM8607_ADC_EN_MIC2_BIAS		(0x3 << 5)
+#define PM8607_HEADSET_MIC_DBNC		(0x3 << 5)
+#define PM8607_HEADSET_BTN_DBNC		(0x3 << 3)
+#define PM8607_HEADSET_PERIOD		(0x3 << 1)
+
+/* headset/mic detection Control Registers */
+#define PM8607_MIC_DECTION			(0x37)
+#define PM8607_HEADSET_DECTION			(0x38)
+
+/* bit definitions of  MEAS_EN1*/
+#define PM8607_MIC_DET_EN_MIC_DET		(1 << 0)
+#define PM8607_HEADSET_EN_HS_DET		(1 << 0)
+#define PM8607_ADC_EN_MIC2_BIAS			(0x3 << 5)
+#define PM8607_HEADSET_BTN_DBNC			(0x3 << 3)
+#define PM8607_HEADSET_PERIOD			(0x3 << 1)
+
+#define PM8607_MICBAIS_CURRENT		(0x3 << 0)
 
 /* Vibrator Control Registers */
 #define PM8607_VIBRATOR_SET		(0x28)
 #define PM8607_VIBRATOR_PWM		(0x29)
+
+#define PM8607_MISC2			(0x42)
+
+/* power up log register*/
+#define PM8607_POWER_UP_LOG		(0x3F)
+
+/* Charger Control Registers */
+#define PM8607_CCNT			(0x47)
+#define PM8607_CHG_CTRL1		(0x48)
+#define PM8607_CHG_CTRL2		(0x49)
+#define PM8607_CHG_CTRL3		(0x4A)
+#define PM8607_CHG_CTRL4		(0x4B)
+#define PM8607_CHG_CTRL5		(0x4C)
+#define PM8607_CHG_CTRL6		(0x4D)
+#define PM8607_CHG_CTRL7		(0x4E)
 
 /* GPADC Registers */
 #define PM8607_GP_BIAS1			(0x4F)
@@ -203,6 +249,89 @@ enum {
 #define PM8607_TSI_PREBIAS		(0x55)	/* prebias time */
 #define PM8607_PD_PREBIAS		(0x56)	/* prebias time */
 #define PM8607_GPADC_MISC1		(0x57)
+
+/* bit definitions of  MEAS_EN1*/
+#define PM8607_MEAS_EN1_VBAT           (1 << 0)
+#define PM8607_MEAS_EN1_VCHG           (1 << 1)
+#define PM8607_MEAS_EN1_VSYS           (1 << 2)
+#define PM8607_MEAS_EN1_TINT           (1 << 3)
+#define PM8607_MEAS_EN1_RFTMP          (1 << 4)
+#define PM8607_MEAS_EN1_TBAT           (1 << 5)
+#define PM8607_MEAS_EN1_GPADC2        	(1 << 6)
+#define PM8607_MEAS_EN1_GPADC3         (1 << 7)
+
+
+/* bit definitions of touch meas enable register 3 */
+#define PM8607_MEAS_EN3_PENDET	(1 << 3)
+#define PM8607_MEAS_EN3_TSIX	(1 << 4)
+#define PM8607_MEAS_EN3_TSIY	(1 << 5)
+#define PM8607_MEAS_EN3_TSIZ1	(1 << 6)
+#define PM8607_MEAS_EN3_TSIZ2	(1 << 7)
+
+/* Touch Registers */
+#define PM8607_MEAS_TSIX_1		(0x8D)
+#define PM8607_MEAS_TSIX_2		(0x8E)
+#define PM8607_MEAS_TSIY_1		(0x8F)
+#define PM8607_MEAS_TSIY_2		(0x90)
+#define PM8607_MEAS_TSIZ1_1		(0x91)
+#define PM8607_MEAS_TSIZ1_2		(0x92)
+#define PM8607_MEAS_TSIZ2_1		(0x93)
+#define PM8607_MEAS_TSIZ2_2		(0x94)
+
+/* Battery Monitor Registers */
+#define PM8607_GP_BIAS2			(0x5A)
+#define PM8607_VBAT_LOWTH		(0x5B)
+#define PM8607_VCHG_LOWTH		(0x5C)
+#define PM8607_VSYS_LOWTH		(0x5D)
+#define PM8607_TINT_LOWTH		(0x5E)
+#define PM8607_GPADC0_LOWTH		(0x5F)
+#define PM8607_GPADC1_LOWTH		(0x60)
+#define PM8607_GPADC2_LOWTH		(0x61)
+#define PM8607_GPADC3_LOWTH		(0x62)
+#define PM8607_VBAT_HIGHTH		(0x63)
+#define PM8607_VCHG_HIGHTH		(0x64)
+#define PM8607_VSYS_HIGHTH		(0x65)
+#define PM8607_TINT_HIGHTH		(0x66)
+#define PM8607_GPADC0_HIGHTH		(0x67)
+#define PM8607_GPADC1_HIGHTH		(0x68)
+#define PM8607_GPADC2_HIGHTH		(0x69)
+#define PM8607_GPADC3_HIGHTH		(0x6A)
+#define PM8607_IBAT_MEAS1		(0x6B)
+#define PM8607_IBAT_MEAS2		(0x6C)
+#define PM8607_VBAT_MEAS1		(0x6D)
+#define PM8607_VBAT_MEAS2		(0x6E)
+#define PM8607_VCHG_MEAS1		(0x6F)
+#define PM8607_VCHG_MEAS2		(0x70)
+#define PM8607_VSYS_MEAS1		(0x71)
+#define PM8607_VSYS_MEAS2		(0x72)
+#define PM8607_TINT_MEAS1		(0x73)
+#define PM8607_TINT_MEAS2		(0x74)
+#define PM8607_GPADC0_MEAS1		(0x75)
+#define PM8607_GPADC0_MEAS2		(0x76)
+#define PM8607_GPADC1_MEAS1		(0x77)
+#define PM8607_GPADC1_MEAS2		(0x78)
+#define PM8607_GPADC2_MEAS1		(0x79)
+#define PM8607_GPADC2_MEAS2		(0x7A)
+#define PM8607_GPADC3_MEAS1		(0x7B)
+#define PM8607_GPADC3_MEAS2		(0x7C)
+#define PM8607_CCNT_MEAS1		(0x95)
+#define PM8607_CCNT_MEAS2		(0x96)
+#define PM8607_VBAT_AVG			(0x97)
+#define PM8607_VCHG_AVG			(0x98)
+#define PM8607_VSYS_AVG			(0x99)
+#define PM8607_VBAT_MIN			(0x9A)
+#define PM8607_VCHG_MIN			(0x9B)
+#define PM8607_VSYS_MIN			(0x9C)
+#define PM8607_VBAT_MAX			(0x9D)
+#define PM8607_VCHG_MAX			(0x9E)
+#define PM8607_VSYS_MAX			(0x9F)
+
+#define PM8607_GPADC_MISC2         0x59
+#define PM8607_GPADC0_GP_BIAS_A0	(1 << 0)
+#define PM8607_GPADC1_GP_BIAS_A1	(1 << 1)
+#define PM8607_GPADC2_GP_BIAS_A2	(1 << 2)
+#define PM8607_GPADC3_GP_BIAS_A3	(1 << 3)
+#define PM8607_GPADC2_GP_BIAS_OUT2	(1 << 6)
 
 /* RTC Control Registers */
 #define PM8607_RTC1			(0xA0)
@@ -221,6 +350,68 @@ enum {
 #define PM8607_RTC_MISC1		(0xAD)
 #define PM8607_RTC_MISC2		(0xAE)
 #define PM8607_RTC_MISC3		(0xAF)
+
+/*Audio*/
+#define PM8607_AUDIO_REG_BASE				0xb0
+#define PM8607_AUDIO_REG_LEN				0x3b
+#define PM8607_AUDIO_PCM_INTERFACE_1			0x00
+#define PM8607_AUDIO_PCM_INTERFACE_2			0x01
+#define PM8607_AUDIO_PCM_INTERFACE_3			0x02
+#define PM8607_AUDIO_ADC_PCM				0x03
+#define PM8607_AUDIO_ADC_1				0x04
+#define PM8607_AUDIO_ADC_2				0x05
+#define PM8607_AUDIO_ADC_3				0x06
+#define PM8607_AUDIO_ADC_4				0x07
+#define PM8607_AUDIO_ADC_5				0x08
+#define PM8607_AUDIO_ADC_6				0x09
+#define PM8607_AUDIO_ADC_7				0x0a
+#define PM8607_AUDIO_I2S_INTERFACE_1				0x0b
+#define PM8607_AUDIO_I2S_INTERFACE_2				0x0c
+#define PM8607_AUDIO_I2S_INTERFACE_3				0x0d
+#define PM8607_AUDIO_Equalizer_N0_1				0x0e
+#define PM8607_AUDIO_Equalizer_N0_2				0x0f
+#define PM8607_AUDIO_Equalizer_N1_1				0x11
+#define PM8607_AUDIO_Equalizer_N1_2				0x12
+#define PM8607_AUDIO_Equalizer_D1_1				0x13
+#define PM8607_AUDIO_Equalizer_D1_2				0x14
+#define PM8607_AUDIO_Side_Tone_1				0x15
+#define PM8607_AUDIO_Side_Tone_2				0x16
+#define PM8607_AUDIO_Left_Gain1					0x17
+#define PM8607_AUDIO_Left_Gain2					0x18
+#define PM8607_AUDIO_Right_Gain1				0x19
+#define PM8607_AUDIO_Right_Gain2				0x1a
+#define PM8607_AUDIO_DWA_OFFSET					0x1b
+#define PM8607_AUDIO_OFFSET_LEFT1				0x1c
+#define PM8607_AUDIO_OFFSET_LEFT2				0x1d
+#define PM8607_AUDIO_OFFSET_RIGHT1				0x1e
+#define PM8607_AUDIO_OFFSET_RIGHT2				0x1f
+#define PM8607_AUDIO_ADC_ANALOG_PROGRAM1			0x20
+#define PM8607_AUDIO_ADC_ANALOG_PROGRAM2			0x21
+#define PM8607_AUDIO_ADC_ANALOG_PROGRAM3			0x22
+#define PM8607_AUDIO_ADC_ANALOG_PROGRAM4			0x23
+#define PM8607_AUDIO_A2A_PATH_PROGRAMMING			0x24
+#define PM8607_AUDIO_DAC_HS1_CTRL				0x25
+#define PM8607_AUDIO_DAC_HS2_CTRL				0x26
+#define PM8607_AUDIO_DAC_LO1_CTRL				0x27
+#define PM8607_AUDIO_DAC_LO2_CTRL				0x28
+#define PM8607_AUDIO_DAC_EAR_SPKRPHNE_GAIN			0x29
+#define PM8607_AUDIO_MISC_AUDIO					0x2a
+#define PM8607_AUDIO_AUDIO_SUPPLIES1				0x2b
+#define PM8607_AUDIO_AUDIO_SUPPLIES2				0x2c
+#define PM8607_AUDIO_ADC_ANALOG_ENABLES				0x2d
+#define PM8607_AUDIO_ADC_DIGITAL_ENABLES			0x2e
+#define PM8607_AUDIO_DAC_ANALOG_ENABLES				0x2f
+#define PM8607_AUDIO_DAC_DIGITAL_ENABLES			0x31
+#define PM8607_AUDIO_AUDIO_CAL1					0x32
+#define PM8607_AUDIO_AUDIO_CAL2					0x33
+#define PM8607_AUDIO_AUDIO_CAL3					0x34
+#define PM8607_AUDIO_AUDIO_CAL4					0x35
+#define PM8607_AUDIO_AUDIO_CAL5					0x36
+#define PM8607_AUDIO_ANALOG_INPUT_SEL1				0x37
+#define PM8607_AUDIO_ANALOG_INPUT_SEL2				0x38
+#define PM8607_AUDIO_MIC_BUTTON_DETECTION			0x39
+#define PM8607_AUDIO_HEADSET_DETECTION				0x3a
+#define PM8607_AUDIO_SHORTS					0x3b
 
 /* Misc Registers */
 #define PM8607_CHIP_ID			(0x00)
@@ -263,6 +454,40 @@ enum {
 #define PM8607_PD_PREBIAS_MASK		(0x1F << 0)
 #define PM8607_PD_PRECHG_MASK		(7 << 5)
 
+#define PM8607_DEBOUNCE_REG		0x0A
+#define PM8607_DEBOUNCE_PEN_DET(x) (x << 0)
+#define PM8607_DEBOUNCE_CHG(x)     (x << 2)
+#define PM8607_DEBOUNCE_EXTON(x)   (x << 4)
+#define PM8607_DEBOUNCE_ONKEY(x)   (x << 6)
+
+#define PM8607_PEN_DEBOUNCE_MASK	0x03
+
+#define PM8607_MEASOFFTIME1_BAT_DET_EN_A1 	(1 << 0)
+#define PM8607_MEASOFFTIME1MEAS_OFFTIME1_A1(x)	(x << 1)
+#define PM8607_MEASOFFTIME1MEAS_DOUBLE_TSI_B	(1 << 0)
+#define PM8607_MEASOFFTIME1MEAS_EN_SLP_B	(1 << 1)
+#define PM8607_MEASOFFTIME1MEAS_OFFTIME1_B(x)	(x << 2)
+
+/* bit define RTC_ALARM_WU */
+#define PM8607_RTC_ALARM_WU		(1 << 4)
+
+#define PM860X_TEMP_TINT		(0)
+#define PM860X_TEMP_TBAT		(1)
+
+#define IOCTL_PMIC_ID_GET		_IOR('M', 0xfe, unsigned long)
+
+/* Clients of reference group and 8MHz oscillator in 88PM8606 */
+enum levante_ref_gp_and_osc_clients {
+	REF_GP_NO_CLIENTS       = 0,
+	WLED1_DUTY              = (1<<0), /*PF 0x02.7:0*/
+	WLED2_DUTY              = (1<<1), /*PF 0x04.7:0*/
+	WLED3_DUTY              = (1<<2), /*PF 0x06.7:0*/
+	RGB1_ENABLE             = (1<<3), /*PF 0x07.1*/
+	RGB2_ENABLE             = (1<<4), /*PF 0x07.2*/
+	LDO_VBR_EN              = (1<<5), /*PF 0x12.0*/
+	REF_GP_MAX_CLIENT       = 0xFFFF
+};
+
 /* Interrupt Number in 88PM8607 */
 enum {
 	PM8607_IRQ_ONKEY,
@@ -287,15 +512,18 @@ enum {
 	PM8607_IRQ_CHG_FAIL,
 	PM8607_IRQ_CHG_DONE,
 	PM8607_IRQ_CHG_FAULT,
+	PM8607_MAX_IRQ,
 };
 
-enum {
-	PM8607_CHIP_A0 = 0x40,
-	PM8607_CHIP_A1 = 0x41,
-	PM8607_CHIP_B0 = 0x48,
+enum enum_charger_type {
+	USB_CHARGER		= 0,
+	AC_STANDARD_CHARGER,
+	AC_OTHER_CHARGER,
 };
 
 struct pm860x_chip {
+	/*chip_version can only on the top of the struct*/
+	unsigned char		chip_version;
 	struct device		*dev;
 	struct mutex		io_lock;
 	struct mutex		irq_lock;
@@ -308,31 +536,26 @@ struct pm860x_chip {
 	int			irq_mode;
 	int			irq_base;
 	int			core_irq;
-	unsigned char		chip_version;
-
-};
-
-enum {
-	GI2C_PORT = 0,
-	PI2C_PORT,
+	struct workqueue_struct	*monitor_wqueue;
 };
 
 struct pm860x_backlight_pdata {
 	int		id;
 	int		pwm;
 	int		iset;
-	unsigned long	flags;
+	int		flags;
 };
 
 struct pm860x_led_pdata {
 	int		id;
 	int		iset;
-	unsigned long	flags;
+	int		flags;
 };
 
 struct pm860x_rtc_pdata {
 	int		(*sync)(unsigned int ticks);
 	int		vrtc;
+	int             rtc_wakeup;
 };
 
 struct pm860x_touch_pdata {
@@ -348,7 +571,23 @@ struct pm860x_touch_pdata {
 };
 
 struct pm860x_power_pdata {
-	unsigned	fast_charge;	/* charge current */
+	void (*disable_rf_fn)(void);/* disable rf for battery calibration */
+	int max_capacity;
+	int resistor;
+};
+
+struct pm860x_cm3601_pdata
+{
+	unsigned char gpio_cm3601_enable;
+	unsigned char gpio_ps_output;
+	unsigned char gpio_ps_enable;
+	int		(*request_source)(unsigned char gpio_num, char *name);
+	void 		(*release_source)(unsigned char gpio_num);
+};
+
+struct pm860x_headset_pdata{
+	int		headset_flag;
+	struct gpio_switch_platform_data	headset_data[2];
 };
 
 struct pm860x_platform_data {
@@ -358,6 +597,8 @@ struct pm860x_platform_data {
 	struct pm860x_touch_pdata	*touch;
 	struct pm860x_power_pdata	*power;
 	struct regulator_init_data	*regulator;
+	struct pm860x_cm3601_pdata	*cm3601;
+	struct pm860x_headset_pdata		*headset;
 
 	unsigned short	companion_addr;	/* I2C address of companion chip */
 	int		i2c_port;	/* Controlled by GI2C or PI2C */
@@ -366,10 +607,17 @@ struct pm860x_platform_data {
 	int		num_leds;
 	int		num_backlights;
 	int		num_regulators;
+	int		(*fixup)(struct pm860x_chip *,
+			struct pm860x_platform_data *);
 };
-
+#ifdef CONFIG_MFD_88PM860X
+extern int pm8606_ref_gp_and_osc_get(struct pm860x_chip *, u16);
+extern int pm8606_ref_gp_and_osc_release(struct pm860x_chip *, u16);
 extern int pm860x_reg_read(struct i2c_client *, int);
 extern int pm860x_reg_write(struct i2c_client *, int, unsigned char);
+extern int pm860x_codec_reg_read(int reg);
+extern int pm860x_codec_reg_write(int reg, unsigned char data);
+extern int pm860x_codec_reg_set_bits(int reg, unsigned char mask, unsigned char data);
 extern int pm860x_bulk_read(struct i2c_client *, int, int, unsigned char *);
 extern int pm860x_bulk_write(struct i2c_client *, int, int, unsigned char *);
 extern int pm860x_set_bits(struct i2c_client *, int, unsigned char,
@@ -387,4 +635,122 @@ extern int pm860x_device_init(struct pm860x_chip *chip,
 			      struct pm860x_platform_data *pdata) __devinit ;
 extern void pm860x_device_exit(struct pm860x_chip *chip) __devexit ;
 
+extern int pm860x_calc_resistor(void);
+extern void pm860x_set_charger_type(enum enum_charger_type type );
+extern int pm860x_battery_update_soc(void);
+extern void pm860x_set_vbus_output(int);
+extern int pm860x_read_vbus_val(void);
+extern int pm860x_read_id_val(void);
+extern void pm860x_init_id(void);
+extern int pm860x_set_vbus(unsigned int vbus);
+#else
+static inline int pm8606_ref_gp_and_osc_get(struct pm860x_chip *chip, u16 client)
+{
+	return 0;
+}
+static inline int pm8606_ref_gp_and_osc_release(struct pm860x_chip *chip, u16 client)
+{
+	return 0;
+}
+static inline int pm860x_reg_read(struct i2c_client *i2c, int reg)
+{
+	return 0;
+}
+static inline int pm860x_reg_write(struct i2c_client *i2c, int reg,
+		     unsigned char data)
+{
+	return 0;
+}
+static inline int pm860x_codec_reg_read(int reg)
+{
+	return 0;
+}
+static inline int pm860x_codec_reg_write(int reg, unsigned char data)
+{
+	return 0;
+}
+static inline int pm860x_codec_reg_set_bits(int reg, unsigned char mask, unsigned char data)
+{
+	return 0;
+}
+static inline int pm860x_bulk_read(struct i2c_client *i2c, int reg,
+		     int count, unsigned char *buf)
+{
+	return 0;
+}
+static inline int pm860x_bulk_write(struct i2c_client *i2c, int reg,
+		      int count, unsigned char *buf)
+{
+	return 0;
+}
+static inline int pm860x_set_bits(struct i2c_client *i2c, int reg,
+		    unsigned char mask, unsigned char data)
+{
+	return 0;
+}
+static inline int pm860x_page_reg_read(struct i2c_client *i2c, int reg)
+{
+	return 0;
+}
+static inline int pm860x_page_reg_write(struct i2c_client *i2c, int reg,
+			  unsigned char data)
+{
+	return 0;
+}
+static inline int pm860x_page_bulk_read(struct i2c_client *i2c, int reg,
+			  int count, unsigned char *buf)
+{
+	return 0;
+}
+static inline int pm860x_page_bulk_write(struct i2c_client *i2c, int reg,
+			   int count, unsigned char *buf)
+{
+	return 0;
+}
+static inline int pm860x_page_set_bits(struct i2c_client *i2c, int reg,
+			 unsigned char mask, unsigned char data)
+{
+	return 0;
+}
+static inline int pm860x_device_init(struct pm860x_chip *chip,
+			      struct pm860x_platform_data *pdata)
+{
+	return 0;
+}
+static inline void pm860x_device_exit(struct pm860x_chip *chip)
+{
+	return;
+}
+static inline int pm860x_calc_resistor(void)
+{
+	return 0;
+}
+static inline void pm860x_set_charger_type(enum enum_charger_type type )
+{
+	return;
+}
+static inline int pm860x_battery_update_soc(void)
+{
+	return 0;
+}
+static inline void pm860x_set_vbus_output(int x)
+{
+	return;
+}
+static inline int pm860x_read_vbus_val(void)
+{
+	return 0;
+}
+static inline int pm860x_read_id_val(void)
+{
+	return 0;
+}
+static inline void pm860x_init_id(void)
+{
+}
+static inline int pm860x_set_vbus(unsigned int vbus)
+{
+	return 0;
+}
+#endif
 #endif /* __LINUX_MFD_88PM860X_H */

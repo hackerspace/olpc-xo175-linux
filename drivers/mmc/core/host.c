@@ -202,6 +202,7 @@ unsigned int mmc_host_clk_rate(struct mmc_host *host)
 	spin_unlock_irqrestore(&host->clk_lock, flags);
 	return freq;
 }
+EXPORT_SYMBOL(mmc_host_clk_rate);
 
 /**
  *	mmc_host_clk_init - set up clock gating code
@@ -286,6 +287,8 @@ struct mmc_host *mmc_alloc_host(int extra, struct device *dev)
 	init_waitqueue_head(&host->wq);
 	wake_lock_init(&host->detect_wake_lock, WAKE_LOCK_SUSPEND,
 		kasprintf(GFP_KERNEL, "%s_detect", mmc_hostname(host)));
+	wake_lock_init(&host->auto_resume_wake_lock, WAKE_LOCK_SUSPEND,
+		kasprintf(GFP_KERNEL, "%s_auto_resume", mmc_hostname(host)));
 	INIT_DELAYED_WORK(&host->detect, mmc_rescan);
 	INIT_DELAYED_WORK_DEFERRABLE(&host->disable, mmc_host_deeper_disable);
 #ifdef CONFIG_PM

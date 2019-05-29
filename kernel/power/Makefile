@@ -4,6 +4,7 @@ ccflags-$(CONFIG_PM_DEBUG)	:= -DDEBUG
 obj-$(CONFIG_PM)		+= main.o
 obj-$(CONFIG_PM_SLEEP)		+= console.o
 obj-$(CONFIG_FREEZER)		+= process.o
+obj-$(CONFIG_PXA95x_SUSPEND)	+= pxa95x_freeze.o
 obj-$(CONFIG_SUSPEND)		+= suspend.o
 obj-$(CONFIG_PM_TEST_SUSPEND)	+= suspend_test.o
 obj-$(CONFIG_HIBERNATION)	+= hibernate.o snapshot.o swap.o user.o \

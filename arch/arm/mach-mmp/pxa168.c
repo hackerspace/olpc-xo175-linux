@@ -129,7 +129,7 @@ static void __init pxa168_timer_init(void)
 	/* 3.25MHz, bus/functional clock enabled, release reset */
 	__raw_writel(TIMER_CLK_RST, APBC_PXA168_TIMERS);
 
-	timer_init(IRQ_PXA168_TIMER1);
+	timer_init(IRQ_PXA168_TIMER1, IRQ_PXA168_TIMER2);
 }
 
 struct sys_timer pxa168_timer = {

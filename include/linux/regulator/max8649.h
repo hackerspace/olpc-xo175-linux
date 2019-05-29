@@ -13,6 +13,7 @@
 #define	__LINUX_REGULATOR_MAX8649_H
 
 #include <linux/regulator/machine.h>
+#include <linux/regulator/driver.h>
 
 enum {
 	MAX8649_EXTCLK_26MHZ = 0,
@@ -35,10 +36,21 @@ struct max8649_platform_data {
 	struct regulator_init_data *regulator;
 
 	unsigned	mode:2;		/* bit[1:0] = VID1,VID0 */
+	unsigned	sleep_mode:2;
 	unsigned	extclk_freq:2;
 	unsigned	extclk:1;
 	unsigned	ramp_timing:3;
 	unsigned	ramp_down:1;
+
+	unsigned int	max8649_vmin;
+	unsigned int	max8649_vmax;
+	unsigned int	max8649_step;
+	unsigned int	max8952_vmin;
+	unsigned int	max8952_vmax;
+	unsigned int	max8952_step;
+	unsigned int	sleep_vol;
 };
+
+extern int max8649_calculate_voltage_reg(int uV);
 
 #endif	/* __LINUX_REGULATOR_MAX8649_H */

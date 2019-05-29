@@ -31,6 +31,40 @@
 /*
  * Error-checking SWP macros implemented using ldrex{b}/strex{b}
  */
+#ifdef CONFIG_PJ4B_ERRATA_6011
+#include <asm/pj4b-errata-6011.h>
+#define __user_swpX_asm(data, addr, res, temp, B)			\
+	do {								\
+		unsigned long temp1;					\
+		__asm__ __volatile__(					\
+		"	mov		%2, %1\n"			\
+		"	mrs    %3, cpsr\n"				\
+		"	cpsid  i\n"					\
+		"0:	ldrex"B" %1, [%4]\n"				\
+		"	ldrex"B" %1, [%4]\n"				\
+		"	ldrex"B" %1, [%4]\n"				\
+		"	ldrex"B" %1, [%4]\n"				\
+		"	ldrex"B" %1, [%4]\n"				\
+		"	msr    cpsr_c, %3\n"				\
+		"1:	strex"B"	%0, %2, [%4]\n"			\
+		"	cmp		%0, #0\n"			\
+		"	movne		%0, %5\n"			\
+		"2:\n"							\
+		"	.section	 .fixup,\"ax\"\n"		\
+		"	.align		2\n"				\
+		"3:	mov		%0, %6\n"			\
+		"	b		2b\n"				\
+		"	.previous\n"					\
+		"	.section	 __ex_table,\"a\"\n"		\
+		"	.align		3\n"				\
+		"	.long		0b, 3b\n"			\
+		"	.long		1b, 3b\n"			\
+		"	.previous"					\
+		: "=&r" (res), "+r" (data), "=&r" (temp), "=&r" (temp1)	\
+		: "r" (addr), "i" (-EAGAIN), "i" (-EFAULT)		\
+		: "cc", "memory");					\
+	} while (0)
+#else /* !CONFIG_PJ4B_ERRATA_6011 */
 #define __user_swpX_asm(data, addr, res, temp, B)		\
 	__asm__ __volatile__(					\
 	"	mov		%2, %1\n"			\
@@ -52,6 +86,7 @@
 	: "=&r" (res), "+r" (data), "=&r" (temp)		\
 	: "r" (addr), "i" (-EAGAIN), "i" (-EFAULT)		\
 	: "cc", "memory")
+#endif /* !CONFIG_PJ4B_ERRATA_6011 */
 
 #define __user_swp_asm(data, addr, res, temp) \
 	__user_swpX_asm(data, addr, res, temp, "")

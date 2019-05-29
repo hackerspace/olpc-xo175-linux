@@ -31,7 +31,7 @@ config MACH_TAVOREVB
 	  TavorEVB Development Board.
 
 config MACH_TTC_DKB
-	bool "Marvell's PXA910 TavorEVB Development Board"
+	bool "Marvell's PXA910 TTC_DKB Development Board"
 	select CPU_PXA910
 	help
 	  Say 'Y' here if you want to support the Marvell PXA910-based
@@ -41,6 +41,7 @@ config MACH_BROWNSTONE
 	bool "Marvell's Brownstone Development Platform"
 	depends on !CPU_MOHAWK
 	select CPU_MMP2
+	select HAVE_PWM
 	help
 	  Say 'Y' here if you want to support the Marvell MMP2-based
 	  Brown Development Platform.
@@ -77,6 +78,39 @@ config MACH_TETON_BGA
 	  Say 'Y' here if you want to support the Marvell PXA168-based
 	  Teton BGA Development Board.
 
+config MACH_ABILENE
+	bool "Marvell's MMP3 Abliene Development Board"
+	select CPU_MMP3
+	select HAVE_PWM
+	select ARM_GIC
+
+config MACH_MK2
+	bool "Marvell's MMP3 MK2 Board"
+	select CPU_MMP3
+	select HAVE_PWM
+	select ARM_GIC
+
+
+config MACH_YELLOWSTONE
+	bool "Marvell's MMP3 YellowStone Development Board"
+	select CPU_MMP3
+	select HAVE_PWM
+	select ARM_GIC
+
+config MACH_ORCHID
+	bool "Marvell's MMP3 Orchid Development Board"
+	select CPU_MMP3
+	select HAVE_PWM
+	select ARM_GIC
+
+config PXA910_1G_DDR_WORKAROUND
+	bool "Marvell's PXA910 1G DDR Workaround"
+	depends on CPU_PXA910
+	select DMABOUNCE
+	default y
+	help
+	  Say 'Y' here if more than 512MB DDR is used on PXA910.
+
 endmenu
 
 config CPU_PXA168
@@ -96,4 +130,30 @@ config CPU_MMP2
 	select CPU_PJ4
 	help
 	  Select code specific to MMP2. MMP2 is ARMv7 compatible.
+
+config CPU_MMP3
+	 bool
+	 select CPU_PJ4B
+	 select ARCH_PROVIDES_UDELAY
+	 select SOC_LOCAL_TIMERS if !(LOCAL_TIMERS)
+	 help
+	   Select code specific to MMP3.
+
+config SOC_LOCAL_TIMERS
+	bool
+	help
+		use SOC timers as local timers
+
+config TZ_HYPERVISOR
+	bool
+	help
+		use hypervisor code
+
+config CORE_MORPHING
+	bool "Enable core morphing"
+	depends on CPU_MMP3
+	select TZ_HYPERVISOR
+	help
+	  Say 'Y' here if you want to enable Marvell MMP core morphing.
+
 endif
