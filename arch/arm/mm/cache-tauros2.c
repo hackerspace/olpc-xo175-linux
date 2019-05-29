@@ -15,9 +15,13 @@
  */
 
 #include <linux/init.h>
+#include <linux/io.h>
 #include <asm/cacheflush.h>
+#include <asm/cputype.h>
 #include <asm/hardware/cache-tauros2.h>
-
+#ifdef CONFIG_ARCH_PXA
+#include <mach/hardware.h>
+#endif
 
 /*
  * When Tauros2 is used on a CPU that supports the v7 hierarchical
@@ -123,7 +127,8 @@ static inline void __init write_extra_features(u32 u)
 	__asm__("mcr p15, 1, %0, c15, c1, 0" : : "r" (u));
 }
 
-static void __init disable_l2_prefetch(void)
+/* disable L2 prefetch */
+static void __init tauros2_disable_prefetch(void)
 {
 	u32 u;
 
@@ -133,15 +138,32 @@ static void __init disable_l2_prefetch(void)
 	 */
 	u = read_extra_features();
 	if (!(u & 0x01000000)) {
-		printk(KERN_INFO "Tauros2: Disabling L2 prefetch.\n");
 		write_extra_features(u | 0x01000000);
 	}
+	printk(KERN_INFO "Tauros2: Disabling L2 prefetch.\n");
 }
+
+/* enable L2 prefetch */
+
+
+static void __init tauros2_disable_burst8(void)
+{
+	u32 u;
+
+	/*
+	 * Read the CPU Extra Features register and verify that the
+	 * Enable L2 burst lenght 8 bit is set.
+	 */
+	u = read_extra_features();
+	if (u & 0x00100000) {
+		write_extra_features(u & 0xffefffff);
+	}
+	printk(KERN_INFO "Tauros2: Disable L2 Burst Length 8\n");
+}
+
 
 static inline int __init cpuid_scheme(void)
 {
-	extern int processor_id;
-
 	return !!((processor_id & 0x000f0000) == 0x000f0000);
 }
 
@@ -168,25 +190,53 @@ static inline void __init write_actlr(u32 actlr)
 	__asm__("mcr p15, 0, %0, c1, c0, 1\n" : : "r" (actlr));
 }
 
+static void enable_extra_feature(void)
+{
+
+
+}
+
+#ifdef CONFIG_ARCH_PXA
+static void disable_extra_feature(void)
+{
+	tauros2_disable_prefetch();
+	tauros2_disable_burst8();
+}
+#endif
+
 void __init tauros2_init(void)
 {
-	extern int processor_id;
-	char *mode;
+	char *mode = NULL;
 
-	disable_l2_prefetch();
+#ifdef CONFIG_ARCH_PXA
+	if (cpu_is_pxa95x()) {/* for MG1, MG2, Nevo only */
+		/*
+		 For MG1 >= C2 and MG2 >= B0, enable extra feature by kernel config
+		 Otherwise, disable all extra features in old stepping.
+		 TODO: Add cpu_is_pxa998(), currently, we have issues.
+		 */
+		if (cpu_is_pxa955_C2() || cpu_is_pxa955_Dx() || cpu_is_pxa955_Ex() ||
+			cpu_is_pxa968_Bx() ||
+			cpu_is_pxa978()
+			)
+			enable_extra_feature();
+		else
+			disable_extra_feature();
+	}
+	else
+#endif
+		enable_extra_feature();
 
 #ifdef CONFIG_CPU_32v5
 	if ((processor_id & 0xff0f0000) == 0x56050000) {
-		u32 feat;
-
 		/*
-		 * v5 CPUs with Tauros2 have the L2 cache enable bit
-		 * located in the CPU Extra Features register.
+		 * When Tauros2 is used in an ARMv5 system, the L2
+		 * enable bit is in the ARMv5 ARM-mandated position
+		 * (bit [26] of the System Control Register).
 		 */
-		feat = read_extra_features();
-		if (!(feat & 0x00400000)) {
+		if (!(get_cr() & 0x04000000)) {
 			printk(KERN_INFO "Tauros2: Enabling L2 cache.\n");
-			write_extra_features(feat | 0x00400000);
+			adjust_cr(0x04000000, 0x04000000);
 		}
 
 		mode = "ARMv5";

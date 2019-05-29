@@ -168,7 +168,7 @@ static struct rchan_buf *relay_create_buf(struct rchan *chan)
 	if (!buf)
 		return NULL;
 
-	buf->padding = kmalloc(chan->n_subbufs * sizeof(size_t *), GFP_KERNEL);
+	buf->padding = kmalloc(chan->n_subbufs * sizeof(size_t), GFP_KERNEL);
 	if (!buf->padding)
 		goto free_buf;
 

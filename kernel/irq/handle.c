@@ -20,6 +20,7 @@
 
 #include "internals.h"
 
+
 /**
  * handle_bad_irq - handle spurious and unhandled irqs
  * @irq:       the interrupt number

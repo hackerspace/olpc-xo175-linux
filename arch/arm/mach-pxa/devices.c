@@ -17,7 +17,11 @@
 #include <mach/camera.h>
 #include <mach/audio.h>
 #include <mach/hardware.h>
+#include <mach/soc_vmeta.h>
+#include <mach/usb-regs.h>
+#include <mach/pxa95x_dvfm.h>
 #include <plat/pxa3xx_nand.h>
+#include <plat/pxa3xx_onenand.h>
 
 #include "devices.h"
 #include "generic.h"
@@ -202,7 +206,16 @@ static struct resource pxa_resource_ffuart[] = {
 		.start	= IRQ_FFUART,
 		.end	= IRQ_FFUART,
 		.flags	= IORESOURCE_IRQ,
-	}
+	}, {
+		.start  = 6,
+		.end    = 6,
+		.flags  = IORESOURCE_DMA,
+	}, {
+		.start  = 7,
+		.end    = 7,
+		.flags  = IORESOURCE_DMA,
+	},
+
 };
 
 struct platform_device pxa_device_ffuart = {
@@ -226,7 +239,16 @@ static struct resource pxa_resource_btuart[] = {
 		.start	= IRQ_BTUART,
 		.end	= IRQ_BTUART,
 		.flags	= IORESOURCE_IRQ,
-	}
+	}, {
+		.start  = 4,
+		.end    = 4,
+		.flags  = IORESOURCE_DMA,
+	}, {
+		.start  = 5,
+		.end    = 5,
+		.flags  = IORESOURCE_DMA,
+	},
+
 };
 
 struct platform_device pxa_device_btuart = {
@@ -250,7 +272,16 @@ static struct resource pxa_resource_stuart[] = {
 		.start	= IRQ_STUART,
 		.end	= IRQ_STUART,
 		.flags	= IORESOURCE_IRQ,
-	}
+	}, {
+		.start  = 19,
+		.end    = 19,
+		.flags  = IORESOURCE_DMA,
+	}, {
+		.start  = 20,
+		.end    = 20,
+		.flags  = IORESOURCE_DMA,
+	},
+
 };
 
 struct platform_device pxa_device_stuart = {
@@ -376,8 +407,23 @@ struct platform_device pxa_device_asoc_ssp4 = {
 	.id		= 3,
 };
 
+struct platform_device pxa_device_asoc_abu = {
+	.name		= "pxa95x-abu-dai",
+	.id		= -1,
+};
+
 struct platform_device pxa_device_asoc_platform = {
 	.name		= "pxa-pcm-audio",
+	.id		= -1,
+};
+
+struct platform_device pxa_device_asoc_abu_platform = {
+	.name		= "pxa95x-pcm-abu",
+	.id		= -1,
+};
+
+struct platform_device pxa_device_asoc_hdmi_codec = {
+	.name		= "dummy-codec",
 	.id		= -1,
 };
 
@@ -412,6 +458,11 @@ static struct resource pxa_rtc_resources[] = {
 		.start  = IRQ_RTCAlrm,
 		.end    = IRQ_RTCAlrm,
 		.flags  = IORESOURCE_IRQ,
+	},
+	[3] = {
+		.start  = 0x40F500A0,
+		.end    = 0x40F500A0 + 0x04,
+		.flags  = IORESOURCE_MEM,
 	},
 };
 
@@ -813,7 +864,7 @@ struct platform_device pxa27x_device_ssp3 = {
 static struct resource pxa27x_resource_pwm0[] = {
 	[0] = {
 		.start	= 0x40b00000,
-		.end	= 0x40b0001f,
+		.end	= 0x40b00008,
 		.flags	= IORESOURCE_MEM,
 	},
 };
@@ -828,7 +879,7 @@ struct platform_device pxa27x_device_pwm0 = {
 static struct resource pxa27x_resource_pwm1[] = {
 	[0] = {
 		.start	= 0x40c00000,
-		.end	= 0x40c0001f,
+		.end	= 0x40c00008,
 		.flags	= IORESOURCE_MEM,
 	},
 };
@@ -840,6 +891,70 @@ struct platform_device pxa27x_device_pwm1 = {
 	.num_resources	= ARRAY_SIZE(pxa27x_resource_pwm1),
 };
 #endif /* CONFIG_PXA27x || CONFIG_PXA3xx || CONFIG_PXA95x*/
+
+#if defined(CONFIG_PXA95x)
+static struct resource pxa95x_resource_pwm4[] = {
+	[0] = {
+		.start	= 0x42404020,
+		.end	= 0x42404028,
+		.flags	= IORESOURCE_MEM,
+	},
+};
+
+struct platform_device pxa95x_device_pwm4 = {
+	.name		= "pxa95x-pwm",
+	.id		= 4,
+	.resource	= pxa95x_resource_pwm4,
+	.num_resources	= ARRAY_SIZE(pxa95x_resource_pwm4),
+};
+
+static struct resource pxa95x_resource_pwm5[] = {
+	[0] = {
+		.start	= 0x42404030,
+		.end	= 0x42404038,
+		.flags	= IORESOURCE_MEM,
+	},
+};
+
+struct platform_device pxa95x_device_pwm5 = {
+	.name		= "pxa95x-pwm",
+	.id		= 5,
+	.resource	= pxa95x_resource_pwm5,
+	.num_resources	= ARRAY_SIZE(pxa95x_resource_pwm5),
+};
+
+static struct resource pxa95x_resource_pwm6[] = {
+	[0] = {
+		.start	= 0x42404040,
+		.end	= 0x42404048,
+		.flags	= IORESOURCE_MEM,
+	},
+};
+
+struct platform_device pxa95x_device_pwm6 = {
+	.name		= "pxa95x-pwm",
+	.id		= 6,
+	.resource	= pxa95x_resource_pwm6,
+	.num_resources	= ARRAY_SIZE(pxa95x_resource_pwm6),
+};
+
+static struct resource pxa95x_resource_pwm7[] = {
+	[0] = {
+		.start	= 0x42404050,
+		.end	= 0x42404058,
+		.flags	= IORESOURCE_MEM,
+	},
+};
+
+struct platform_device pxa95x_device_pwm7 = {
+	.name		= "pxa95x-pwm",
+	.id		= 7,
+	.resource	= pxa95x_resource_pwm7,
+	.num_resources	= ARRAY_SIZE(pxa95x_resource_pwm7),
+};
+
+#endif
+
 
 #ifdef CONFIG_PXA3xx
 static struct resource pxa3xx_resources_mci2[] = {
@@ -1011,6 +1126,33 @@ void __init pxa3xx_set_nand_info(struct pxa3xx_nand_platform_data *info)
 	pxa_register_device(&pxa3xx_device_nand, info);
 }
 
+/* pxa3xx onenand resource */
+static u64 pxa3xx_onenand_dma_mask = DMA_BIT_MASK(32);
+
+static struct resource pxa3xx_resources_onenand[] = {
+	[0] = {
+		.start  = 0x10000000,
+		.end    = 0x100fffff,
+		.flags  = IORESOURCE_MEM,
+	},
+};
+
+struct platform_device pxa3xx_device_onenand = {
+	.name		= "pxa3xx-onenand",
+	.id		= -1,
+	.dev		=  {
+		.dma_mask	= &pxa3xx_onenand_dma_mask,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	},
+	.resource	= pxa3xx_resources_onenand,
+	.num_resources	= ARRAY_SIZE(pxa3xx_resources_onenand),
+};
+
+void __init pxa3xx_set_onenand_info(struct pxa3xx_onenand_platform_data *info)
+{
+	pxa_register_device(&pxa3xx_device_onenand, info);
+}
+
 static u64 pxa3xx_ssp4_dma_mask = DMA_BIT_MASK(32);
 
 static struct resource pxa3xx_resource_ssp4[] = {
@@ -1067,3 +1209,566 @@ void __init pxa2xx_set_spi_info(unsigned id, struct pxa2xx_spi_master *info)
 	pd->dev.platform_data = info;
 	platform_device_add(pd);
 }
+
+#if defined(CONFIG_PXA95x)
+
+/*mci0,1,2,3 corresponds to 1,2,3,4 in spec*/
+static struct resource pxa95x_resources_mci0[] = {
+	[0] = {
+		.start	= 0x55000000,
+		.end	= 0x550fffff,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= IRQ_PXA935_MMC0,
+		.end	= IRQ_PXA935_MMC0,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device pxa95x_device_mci0 = {
+	.name		= "sdhci-pxa",
+	.id		= 0,
+	.dev		= {
+		.dma_mask = &pxamci_dmamask,
+		.coherent_dma_mask = 0xffffffff,
+	},
+	.num_resources	= ARRAY_SIZE(pxa95x_resources_mci0),
+	.resource	= pxa95x_resources_mci0,
+};
+
+static struct resource pxa95x_resources_mci1[] = {
+	[0] = {
+		.start	= 0x55100000,
+		.end	= 0x551fffff,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= IRQ_PXA935_MMC1,
+		.end	= IRQ_PXA935_MMC1,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device pxa95x_device_mci1 = {
+	.name		= "sdhci-pxa",
+	.id		= 1,
+	.dev		= {
+		.dma_mask = &pxamci_dmamask,
+		.coherent_dma_mask = 0xffffffff,
+	},
+	.num_resources	= ARRAY_SIZE(pxa95x_resources_mci1),
+	.resource	= pxa95x_resources_mci1,
+};
+
+static struct resource pxa95x_resources_mci2[] = {
+	[0] = {
+		.start	= 0x55200000,
+		.end	= 0x552fffff,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= IRQ_PXA935_MMC2,
+		.end	= IRQ_PXA935_MMC2,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device pxa95x_device_mci2 = {
+	.name		= "sdhci-pxa",
+	.id		= 2,
+	.dev		= {
+		.dma_mask = &pxamci_dmamask,
+		.coherent_dma_mask = 0xffffffff,
+	},
+	.num_resources	= ARRAY_SIZE(pxa95x_resources_mci2),
+	.resource	= pxa95x_resources_mci2,
+};
+
+static struct resource pxa95x_resources_mci3[] = {
+	[0] = {
+		.start	= 0x55300000,
+		.end	= 0x553fffff,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= IRQ_PXA955_MMC3,
+		.end	= IRQ_PXA955_MMC3,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device pxa95x_device_mci3 = {
+	.name		= "sdhci-pxa",
+	.id		= 3,
+	.dev		= {
+		.dma_mask = &pxamci_dmamask,
+		.coherent_dma_mask = 0xffffffff,
+	},
+	.num_resources	= ARRAY_SIZE(pxa95x_resources_mci3),
+	.resource	= pxa95x_resources_mci3,
+};
+
+void __init pxa95x_set_mci_info(int id, void *info)
+{
+	struct platform_device *d = NULL;
+
+	switch (id) {
+	case 0:
+		d = &pxa95x_device_mci0; break;
+	case 1:
+		d = &pxa95x_device_mci1; break;
+	case 2:
+		d = &pxa95x_device_mci2; break;
+	case 3:
+		d = &pxa95x_device_mci3; break;
+	default:
+		return;
+	}
+	pxa_register_device(d, info);
+}
+
+
+
+static u64 pxa95x_i2c1_dma_mask = DMA_BIT_MASK(32);
+static struct resource pxa95x_resources_i2c1[] = {
+	{
+		.start	= 0x40301680,
+		.end	= 0x403016e3,
+		.flags	= IORESOURCE_MEM,
+	}, {
+		.start	= IRQ_I2C,
+		.end	= IRQ_I2C,
+		.flags	= IORESOURCE_IRQ,
+	}, {
+		/* DRCMR for RX */
+		.start	= 43,
+		.end	= 43,
+		.flags	= IORESOURCE_DMA,
+	}, {
+		/* DRCMR for TX */
+		.start	= 44,
+		.end	= 44,
+		.flags	= IORESOURCE_DMA,
+	},
+};
+
+struct platform_device pxa95x_device_i2c1 = {
+	.name		= "pxa95x-i2c",
+	.id		= 0,
+	.dev		= {
+		.dma_mask = &pxa95x_i2c1_dma_mask,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	},
+	.resource	= pxa95x_resources_i2c1,
+	.num_resources	= ARRAY_SIZE(pxa95x_resources_i2c1),
+};
+
+static u64 pxa95x_i2c2_dma_mask = DMA_BIT_MASK(32);
+
+static struct resource pxa95x_resources_i2c2[] = {
+	{
+		.start	= 0x40401680,
+		.end	= 0x404016e3,
+		.flags	= IORESOURCE_MEM,
+	}, {
+		.start	= IRQ_I2C2,
+		.end	= IRQ_I2C2,
+		.flags	= IORESOURCE_IRQ,
+	}, {
+		/* DRCMR for RX */
+		.start	= 41,
+		.end	= 41,
+		.flags	= IORESOURCE_DMA,
+	}, {
+		/* DRCMR for TX */
+		.start	= 42,
+		.end	= 42,
+		.flags	= IORESOURCE_DMA,
+	},
+};
+
+struct platform_device pxa95x_device_i2c2 = {
+	.name		= "pxa95x-i2c",
+	.id		= 1,
+	.dev		= {
+		.dma_mask = &pxa95x_i2c2_dma_mask,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	},
+	.resource	= pxa95x_resources_i2c2,
+	.num_resources	= ARRAY_SIZE(pxa95x_resources_i2c2),
+};
+
+static u64 pxa95x_i2c3_dma_mask = DMA_BIT_MASK(32);
+
+static struct resource pxa95x_resources_i2c3[] = {
+	{
+		.start	= 0x40801680,
+		.end	= 0x408016e3,
+		.flags	= IORESOURCE_MEM,
+	}, {
+		.start	= IRQ_I2C3,
+		.end	= IRQ_I2C3,
+		.flags	= IORESOURCE_IRQ,
+	}, {
+		/* DRCMR for RX */
+		.start	= 39,
+		.end	= 39,
+		.flags	= IORESOURCE_DMA,
+	}, {
+		/* DRCMR for TX */
+		.start	= 40,
+		.end	= 40,
+		.flags	= IORESOURCE_DMA,
+	},
+};
+
+struct platform_device pxa95x_device_i2c3 = {
+	.name		= "pxa95x-i2c",
+	.id		= 2,
+	.dev		= {
+		.dma_mask = &pxa95x_i2c3_dma_mask,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	},
+	.resource	= pxa95x_resources_i2c3,
+	.num_resources	= ARRAY_SIZE(pxa95x_resources_i2c3),
+};
+
+
+static struct resource pxa95xfb_resources[] = {
+	[0] = {
+		.start  = 0x44100000,
+		.end    = 0x4410ffff,
+		.flags  = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start  = IRQ_LCDGLOBAL,
+		.end    = IRQ_LCDGLOBAL,
+		.flags  = IORESOURCE_IRQ,
+	},
+	[2] = {
+		.start  = IRQ_LCDPARALLEL,
+		.end    = IRQ_LCDPARALLEL,
+		.flags  = IORESOURCE_IRQ,
+	},
+	[3] = {
+		.start	= IRQ_DSI0,
+		.end	= IRQ_DSI0,
+		.flags	= IORESOURCE_IRQ,
+	},
+	[4] = {
+		.start	= IRQ_DSI1,
+		.end	= IRQ_DSI1,
+		.flags	= IORESOURCE_IRQ,
+	},
+	[5] = {/*todo: */
+		.start	= IRQ_DSI0,
+		.end	= IRQ_DSI0,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+static struct resource pxa95xfb_ovly_resources[] = {
+	[0] = {
+		.start  = 0x44100000,
+		.end    = 0x4410ffff,
+		.flags  = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start  = IRQ_LCDGLOBAL,
+		.end    = IRQ_LCDGLOBAL,
+		.flags  = IORESOURCE_IRQ,
+	},
+	[2] = {
+		.start  = IRQ_LCDPARALLEL,
+		.end    = IRQ_LCDPARALLEL,
+		.flags  = IORESOURCE_IRQ,
+	},
+	[3] = {
+		.start	= IRQ_DSI0,
+		.end	= IRQ_DSI0,
+		.flags	= IORESOURCE_IRQ,
+	},
+	[4] = {
+		.start	= IRQ_DSI1,
+		.end	= IRQ_DSI1,
+		.flags	= IORESOURCE_IRQ,
+	},
+	[5] = {/*todo: */
+		.start	= IRQ_DSI0,
+		.end	= IRQ_DSI0,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+static struct resource pxa95xfb_hdmi_base_resources[] = {
+	[0] = {
+		.start  = 0x44100000,
+		.end    = 0x4410ffff,
+		.flags  = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start  = IRQ_LCDGLOBAL,
+		.end    = IRQ_LCDGLOBAL,
+		.flags  = IORESOURCE_IRQ,
+	},
+	[2] = {
+		.start  = IRQ_LCDPARALLEL,
+		.end    = IRQ_LCDPARALLEL,
+		.flags  = IORESOURCE_IRQ,
+	},
+	[3] = {
+		.start	= IRQ_DSI0,
+		.end	= IRQ_DSI0,
+		.flags	= IORESOURCE_IRQ,
+	},
+	[4] = {
+		.start	= IRQ_DSI1,
+		.end	= IRQ_DSI1,
+		.flags	= IORESOURCE_IRQ,
+	},
+	[5] = {/*todo: */
+		.start	= IRQ_DSI0,
+		.end	= IRQ_DSI0,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+static struct resource pxa95xfb_hdmi_ovly_resources[] = {
+        [0] = {
+                .start  = 0x44100000,
+                .end    = 0x4410ffff,
+                .flags  = IORESOURCE_MEM,
+        },
+        [1] = {
+                .start  = IRQ_LCDGLOBAL,
+                .end    = IRQ_LCDGLOBAL,
+                .flags  = IORESOURCE_IRQ,
+        },
+        [2] = {
+                .start  = IRQ_LCDPARALLEL,
+                .end    = IRQ_LCDPARALLEL,
+                .flags  = IORESOURCE_IRQ,
+        },
+        [3] = {
+                .start  = IRQ_DSI0,
+                .end    = IRQ_DSI0,
+                .flags  = IORESOURCE_IRQ,
+        },
+        [4] = {
+                .start  = IRQ_DSI1,
+                .end    = IRQ_DSI1,
+                .flags  = IORESOURCE_IRQ,
+        },
+        [5] = {/*todo: */
+                .start  = IRQ_DSI0,
+                .end    = IRQ_DSI0,
+                .flags  = IORESOURCE_IRQ,
+        },
+};
+struct platform_device pxa95x_device_fb = {
+	.name           = "pxa95x-fb",
+	.id             = -1,
+	.dev            = {
+		.dma_mask       = &fb_dma_mask,
+		.coherent_dma_mask = 0xffffffff,
+	},
+	.num_resources  = ARRAY_SIZE(pxa95xfb_resources),
+	.resource       = pxa95xfb_resources,
+};
+
+struct platform_device pxa95x_device_fb_ovly[] = {
+	[0] = {
+		.name           = "pxa95xfb-ovly",
+		.id             = 0,
+		.dev            = {
+			.dma_mask       = &fb_dma_mask,
+			.coherent_dma_mask = 0xffffffff,
+		},
+		.num_resources  = ARRAY_SIZE(pxa95xfb_ovly_resources),
+		.resource       = pxa95xfb_ovly_resources,
+	},
+	[1] = {
+		.name           = "pxa95xfb-ovly",
+		.id             = 1,
+		.dev            = {
+			.dma_mask       = &fb_dma_mask,
+			.coherent_dma_mask = 0xffffffff,
+		},
+		.num_resources  = ARRAY_SIZE(pxa95xfb_hdmi_base_resources),
+		.resource       = pxa95xfb_hdmi_base_resources,
+	},
+        [2] = {
+                .name           = "pxa95xfb-ovly",
+                .id             = 2,
+                .dev            = {
+                        .dma_mask       = &fb_dma_mask,
+                        .coherent_dma_mask = 0xffffffff,
+                },
+                .num_resources  = ARRAY_SIZE(pxa95xfb_hdmi_ovly_resources),
+                .resource       = pxa95xfb_hdmi_ovly_resources,
+        },
+};
+
+void __init set_pxa95x_fb_info(void *info)
+{
+	pxa_register_device(&pxa95x_device_fb, info);
+}
+
+void __init set_pxa95x_fb_ovly_info(void *info, int id)
+{
+	pxa_register_device(&pxa95x_device_fb_ovly[id], info);
+}
+
+void __init set_pxa95x_fb_parent(struct device *parent_dev)
+{
+	pxa95x_device_fb.dev.parent = parent_dev;
+}
+
+/* two cam, to be continued */
+/* IRQ: CI0, 76; CI1, 77*/
+static struct resource pxa95x_resource_cam0[] = {
+	[0] = {
+		.start	= 0x50000000,
+		.end	= 0x5000ffff,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= 76,
+		.end	= 76,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+static struct resource pxa95x_resource_cam1[] = {
+	[0] = {
+		.start	= 0x50010000,
+		.end	= 0x5001ffff,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= 77,
+		.end	= 77,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+static u64 cam_dma_mask = ~(u32)0;
+struct platform_device pxa95x_device_cam0 = {
+	.name		= "pxa95x-camera",
+	.id		= 0,
+	.dev		= {
+		.dma_mask	= &cam_dma_mask,
+		.coherent_dma_mask = 0xffffffff,
+	},
+	.resource	= pxa95x_resource_cam0,
+	.num_resources	= ARRAY_SIZE(pxa95x_resource_cam0),
+};
+struct platform_device pxa95x_device_cam1 = {
+	.name		= "pxa95x-camera",
+	.id		= 1,
+	.dev		= {
+		.dma_mask	= &cam_dma_mask,
+		.coherent_dma_mask = 0xffffffff,
+	},
+	.resource	= pxa95x_resource_cam1,
+	.num_resources	= ARRAY_SIZE(pxa95x_resource_cam1),
+};
+
+static struct resource pxa95x_resource_freq[] = {
+	[0] = {
+		.name   = "clkmgr_regs",
+		.start  = 0x41340000,
+		.end    = 0x41350003,
+		.flags  = IORESOURCE_MEM,
+	},
+	[1] = {
+		.name   = "spmu_regs",
+		.start  = 0x40f50000,
+		.end    = 0x40f50103,
+		.flags  = IORESOURCE_MEM,
+	},
+	[2] = {
+		.name   = "bpmu_regs",
+		.start  = 0x40f40000,
+		.end    = 0x40f4003b,
+		.flags  = IORESOURCE_MEM,
+	},
+	[3] = {
+		.name   = "dmc_regs",
+		.start  = 0x48100000,
+		.end    = 0x4810012f,
+		.flags  = IORESOURCE_MEM,
+	},
+	[4] = {
+		.name   = "smc_regs",
+		.start  = 0x4a000000,
+		.end    = 0x4a00008f,
+		.flags  = IORESOURCE_MEM,
+	}
+};
+
+struct platform_device pxa95x_device_freq = {
+	.name           = "pxa95x-freq",
+	.id             = 0,
+	.num_resources  = ARRAY_SIZE(pxa95x_resource_freq),
+	.resource       = pxa95x_resource_freq,
+};
+
+void __init set_pxa95x_freq_info(struct pxa95x_freq_mach_info *info)
+{
+	pxa_register_device(&pxa95x_device_freq, info);
+}
+
+void __init set_pxa95x_freq_parent(struct device *parent_dev)
+{
+	pxa95x_device_freq.dev.parent = parent_dev;
+}
+
+#endif
+
+
+#ifdef CONFIG_USB_PXA_U2O
+/********************************************************************
+ * The registers read/write routines
+ ********************************************************************/
+
+static u64 u2o_dma_mask = DMA_BIT_MASK(32);
+
+static struct resource pxa9xx_u2o_resources[] = {
+	[0] = {
+		.start	= PXA935_U2O_REGBASE + 0x100,
+		.end	= PXA935_U2O_REGBASE + USB_REG_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "capregs",
+	},
+	[1] = {
+		.start	= PXA935_U2O_PHYBASE,
+		.end	= PXA935_U2O_PHYBASE + USB_PHY_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "phyregs",
+	},
+	[2] = {
+		.start	= IRQ_U2O,
+		.end	= IRQ_U2O,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device pxa9xx_device_u2o = {
+	.name		= "pxa-u2o",
+	.id		= -1,
+	.dev		= {
+		.dma_mask	= &u2o_dma_mask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+	},
+	.num_resources	= ARRAY_SIZE(pxa9xx_u2o_resources),
+	.resource	= pxa9xx_u2o_resources,
+};
+
+
+
+#endif
+
+
+#endif
+

@@ -9,8 +9,8 @@
  * your option) any later version.
  */
 
-#ifndef MMC_SDIO_FUNC_H
-#define MMC_SDIO_FUNC_H
+#ifndef LINUX_MMC_SDIO_FUNC_H
+#define LINUX_MMC_SDIO_FUNC_H
 
 #include <linux/device.h>
 #include <linux/mod_devicetable.h>
@@ -59,6 +59,7 @@ struct sdio_func {
 	const char		**info;		/* info strings */
 
 	struct sdio_func_tuple *tuples;
+	int                     suspended; /* SDIO function driver state */
 };
 
 #define sdio_func_present(f)	((f)->state & SDIO_STATE_PRESENT)
@@ -161,5 +162,12 @@ extern void sdio_f0_writeb(struct sdio_func *func, unsigned char b,
 extern mmc_pm_flag_t sdio_get_host_pm_caps(struct sdio_func *func);
 extern int sdio_set_host_pm_flags(struct sdio_func *func, mmc_pm_flag_t flags);
 
-#endif
+/* It is preferred that sdio function driver call this function to mark its
+ *  * state in order to stop system suspend in the first place if wake up event
+ *   * arrives after sdio function driver suspened. */
+static inline void sdio_func_suspended(struct sdio_func *func)
+{
+	func->suspended = MMC_PM_FUNC_SUSPENDED;
+}
 
+#endif /* LINUX_MMC_SDIO_FUNC_H */

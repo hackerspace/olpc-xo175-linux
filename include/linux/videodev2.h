@@ -643,7 +643,8 @@ struct v4l2_buffer {
 #define V4L2_BUF_FLAG_ERROR	0x0040
 #define V4L2_BUF_FLAG_TIMECODE	0x0100	/* timecode field is valid */
 #define V4L2_BUF_FLAG_INPUT     0x0200  /* input field is valid */
-
+/* Flag for hacking V4L2 userptr mode */
+#define V4L2_BUF_FLAG_PHYADDR   0x80000000 /* userptr is physical address */
 /*
  *	O V E R L A Y   P R E V I E W
  */

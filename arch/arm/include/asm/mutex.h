@@ -13,6 +13,7 @@
 # include <asm-generic/mutex-xchg.h>
 #else
 
+
 /*
  * Attempting to lock a mutex on ARMv6+ can be done with a bastardized
  * atomic decrement (it is not a reliable atomic decrement but it satisfies
@@ -30,7 +31,6 @@ __mutex_fastpath_lock(atomic_t *count, void (*fail_fn)(atomic_t *))
 
 	__asm__ (
 
-		"ldrex	%0, [%2]	\n\t"
 		"sub	%0, %0, #1	\n\t"
 		"strex	%1, %0, [%2]	"
 
@@ -50,7 +50,6 @@ __mutex_fastpath_lock_retval(atomic_t *count, int (*fail_fn)(atomic_t *))
 
 	__asm__ (
 
-		"ldrex	%0, [%2]	\n\t"
 		"sub	%0, %0, #1	\n\t"
 		"strex	%1, %0, [%2]	"
 
@@ -76,7 +75,6 @@ __mutex_fastpath_unlock(atomic_t *count, void (*fail_fn)(atomic_t *))
 
 	__asm__ (
 
-		"ldrex	%0, [%3]	\n\t"
 		"add	%1, %0, #1	\n\t"
 		"strex	%2, %1, [%3]	"
 
@@ -108,8 +106,7 @@ __mutex_fastpath_trylock(atomic_t *count, int (*fail_fn)(atomic_t *))
 	int __ex_flag, __res, __orig;
 
 	__asm__ (
-
-		"1: ldrex	%0, [%3]	\n\t"
+"1:	\n\t"
 		"subs		%1, %0, #1	\n\t"
 		"strexeq	%2, %1, [%3]	\n\t"
 		"movlt		%0, #0		\n\t"

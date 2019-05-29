@@ -28,6 +28,7 @@
 #include "entry-header.S"
 #include <asm/entry-macro-multi.S>
 
+
 /*
  * Interrupt handling.  Preserves r7, r8, r9
  */
@@ -798,6 +799,8 @@ ENDPROC(__switch_to)
 	.globl	__kuser_helper_start
 __kuser_helper_start:
 
+
+
 /*
  * Reference prototype:
  *
@@ -831,8 +834,6 @@ __kuser_helper_start:
  */
 
 __kuser_memory_barrier:				@ 0xffff0fa0
-	smp_dmb	arm
-	usr_ret	lr
 
 	.align	5
 
@@ -948,16 +949,6 @@ kuser_cmpxchg_fixup:
 
 #else
 
-	smp_dmb	arm
-1:	ldrex	r3, [r2]
-	subs	r3, r3, r0
-	strexeq	r3, r1, [r2]
-	teqeq	r3, #1
-	beq	1b
-	rsbs	r0, r3, #0
-	/* beware -- each __kuser slot must be 8 instructions max */
-	ALT_SMP(b	__kuser_memory_barrier)
-	ALT_UP(usr_ret	lr)
 
 #endif
 

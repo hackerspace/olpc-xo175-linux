@@ -134,7 +134,6 @@ extern unsigned int user_debug;
 #if __LINUX_ARM_ARCH__ >= 7
 #define isb() __asm__ __volatile__ ("isb" : : : "memory")
 #define dsb() __asm__ __volatile__ ("dsb" : : : "memory")
-#define dmb() __asm__ __volatile__ ("dmb" : : : "memory")
 #elif defined(CONFIG_CPU_XSC3) || __LINUX_ARM_ARCH__ == 6
 #define isb() __asm__ __volatile__ ("mcr p15, 0, %0, c7, c5, 4" \
 				    : : "r" (0) : "memory")
@@ -262,6 +261,7 @@ do {									\
 #define swp_is_buggy
 #endif
 
+
 static inline unsigned long __xchg(unsigned long x, volatile void *ptr, int size)
 {
 	extern void __bad_xchg(volatile void *, int);
@@ -279,7 +279,7 @@ static inline unsigned long __xchg(unsigned long x, volatile void *ptr, int size
 #if __LINUX_ARM_ARCH__ >= 6
 	case 1:
 		asm volatile("@	__xchg1\n"
-		"1:	ldrexb	%0, [%3]\n"
+		"1:		\n"
 		"	strexb	%1, %2, [%3]\n"
 		"	teq	%1, #0\n"
 		"	bne	1b"
@@ -289,7 +289,7 @@ static inline unsigned long __xchg(unsigned long x, volatile void *ptr, int size
 		break;
 	case 4:
 		asm volatile("@	__xchg4\n"
-		"1:	ldrex	%0, [%3]\n"
+		"1:		\n"
 		"	strex	%1, %2, [%3]\n"
 		"	teq	%1, #0\n"
 		"	bne	1b"
@@ -384,7 +384,6 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 	case 1:
 		do {
 			asm volatile("@ __cmpxchg1\n"
-			"	ldrexb	%1, [%2]\n"
 			"	mov	%0, #0\n"
 			"	teq	%1, %3\n"
 			"	strexbeq %0, %4, [%2]\n"
@@ -396,7 +395,6 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 	case 2:
 		do {
 			asm volatile("@ __cmpxchg1\n"
-			"	ldrexh	%1, [%2]\n"
 			"	mov	%0, #0\n"
 			"	teq	%1, %3\n"
 			"	strexheq %0, %4, [%2]\n"
@@ -409,7 +407,6 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 	case 4:
 		do {
 			asm volatile("@ __cmpxchg4\n"
-			"	ldrex	%1, [%2]\n"
 			"	mov	%0, #0\n"
 			"	teq	%1, %3\n"
 			"	strexeq %0, %4, [%2]\n"
@@ -489,7 +486,6 @@ static inline unsigned long long __cmpxchg64(volatile void *ptr,
 	do {
 		asm volatile(
 		"	@ __cmpxchg8\n"
-		"	ldrexd	%1, %H1, [%2]\n"
 		"	mov	%0, #0\n"
 		"	teq	%1, %3\n"
 		"	teqeq	%H1, %H3\n"

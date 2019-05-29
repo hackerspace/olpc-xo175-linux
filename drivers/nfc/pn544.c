@@ -61,6 +61,7 @@ struct pn544_info {
 	struct miscdevice miscdev;
 	struct i2c_client *i2c_dev;
 	struct regulator_bulk_data regs[3];
+	unsigned int	regs_num;
 
 	enum pn544_state state;
 	wait_queue_head_t read_wait;
@@ -68,13 +69,13 @@ struct pn544_info {
 	enum pn544_irq read_irq;
 	struct mutex read_mutex; /* Serialize read_irq access */
 	struct mutex mutex; /* Serialize info struct access */
-	u8 *buf;
+	u8 *rbuf;	/* buf for read */
+	u8 *wbuf;	/* buf for write */
 	size_t buflen;
-};
 
-static const char reg_vdd_io[]	= "Vdd_IO";
-static const char reg_vbat[]	= "VBat";
-static const char reg_vsim[]	= "VSim";
+	unsigned int remain;	/* remain data in rbuf */
+	unsigned int offset;    /* offset in rbuf */
+};
 
 /* sysfs interface */
 static ssize_t pn544_test(struct device *dev,
@@ -94,7 +95,7 @@ static int pn544_enable(struct pn544_info *info, int mode)
 
 	int r;
 
-	r = regulator_bulk_enable(ARRAY_SIZE(info->regs), info->regs);
+	r = regulator_bulk_enable(info->regs_num, info->regs);
 	if (r < 0)
 		return r;
 
@@ -111,6 +112,8 @@ static int pn544_enable(struct pn544_info *info, int mode)
 		dev_dbg(&client->dev, "now in HCI-mode\n");
 	}
 
+	info->remain = 0;
+	info->offset = 0;
 	usleep_range(10000, 15000);
 
 	return 0;
@@ -132,7 +135,7 @@ static void pn544_disable(struct pn544_info *info)
 	msleep(PN544_RESETVEN_TIME);
 
 	info->read_irq = PN544_NONE;
-	regulator_bulk_disable(ARRAY_SIZE(info->regs), info->regs);
+	regulator_bulk_disable(info->regs_num, info->regs);
 }
 
 static int check_crc(u8 *buf, int buflen)
@@ -329,8 +332,7 @@ static ssize_t pn544_read(struct file *file, char __user *buf,
 	size_t len;
 	int r = 0;
 
-	dev_dbg(&client->dev, "%s: info: %p, count: %zu\n", __func__,
-		info, count);
+	dev_dbg(&client->dev, "%s: count: %zu\n", __func__, count);
 
 	mutex_lock(&info->mutex);
 
@@ -339,61 +341,95 @@ static ssize_t pn544_read(struct file *file, char __user *buf,
 		goto out;
 	}
 
-	irq = pn544_irq_state(info);
-	if (irq == PN544_NONE) {
-		if (file->f_flags & O_NONBLOCK) {
-			r = -EAGAIN;
-			goto out;
-		}
-
-		if (wait_event_interruptible(info->read_wait,
-					     (info->read_irq == PN544_INT))) {
-			r = -ERESTARTSYS;
-			goto out;
-		}
-	}
-
 	if (info->state == PN544_ST_FW_READY) {
 		len = min(count, info->buflen);
 
+		irq = pn544_irq_state(info);
+		if (irq == PN544_NONE) {
+			if (file->f_flags & O_NONBLOCK) {
+				r = -EAGAIN;
+				goto out;
+			}
+
+			mutex_unlock(&info->mutex);
+			if (wait_event_interruptible(info->read_wait,
+					(info->read_irq == PN544_INT))) {
+				return -ERESTARTSYS;
+			}
+			mutex_lock(&info->mutex);
+		}
+
 		mutex_lock(&info->read_mutex);
-		r = pn544_fw_read(info->i2c_dev, info->buf, len);
+		r = pn544_fw_read(info->i2c_dev, info->rbuf, len);
 		info->read_irq = PN544_NONE;
 		mutex_unlock(&info->read_mutex);
 
 		if (r < 0) {
-			dev_err(&info->i2c_dev->dev, "FW read failed: %d\n", r);
+			dev_err(&client->dev, "FW read failed: %d\n", r);
 			goto out;
 		}
 
 		print_hex_dump(KERN_DEBUG, "FW read: ", DUMP_PREFIX_NONE,
-			       16, 2, info->buf, r, false);
+			       16, 2, info->rbuf, r, false);
 
 		*offset += r;
-		if (copy_to_user(buf, info->buf, r)) {
+		if (copy_to_user(buf, info->rbuf, r)) {
 			r = -EFAULT;
 			goto out;
 		}
 	} else {
-		len = min(count, info->buflen);
+		len = count;
 
-		mutex_lock(&info->read_mutex);
-		r = pn544_i2c_read(info->i2c_dev, info->buf, len);
-		info->read_irq = PN544_NONE;
-		mutex_unlock(&info->read_mutex);
+		if (!info->remain) {
+			irq = pn544_irq_state(info);
+			if (irq == PN544_NONE) {
+				if (file->f_flags & O_NONBLOCK) {
+					r = -EAGAIN;
+					goto out;
+				}
 
-		if (r < 0) {
-			dev_err(&info->i2c_dev->dev, "read failed (%d)\n", r);
-			goto out;
+				mutex_unlock(&info->mutex);
+				if (wait_event_interruptible(info->read_wait,
+					(info->read_irq == PN544_INT))) {
+					return -ERESTARTSYS;
+				}
+				mutex_lock(&info->mutex);
+			}
+
+			mutex_lock(&info->read_mutex);
+			r = pn544_i2c_read(info->i2c_dev, info->rbuf,
+					info->buflen);
+			info->read_irq = PN544_NONE;
+			mutex_unlock(&info->read_mutex);
+
+			if (r < 0) {
+				dev_err(&client->dev, "read failed (%d)\n", r);
+				goto out;
+			}
+
+			info->remain = r;
+			info->offset = 0;
+
+			print_hex_dump(KERN_DEBUG, "read: ", DUMP_PREFIX_NONE,
+					16, 2, info->rbuf, r, false);
+
 		}
-		print_hex_dump(KERN_DEBUG, "read: ", DUMP_PREFIX_NONE,
-			       16, 2, info->buf, r, false);
 
-		*offset += r;
-		if (copy_to_user(buf, info->buf, r)) {
+		if (len > info->remain)
+			len = info->remain;
+
+		dev_dbg(&client->dev, "%s: offset: %u, len: %zu\n",
+			__func__, info->offset, len);
+
+		if (copy_to_user(buf, info->rbuf + info->offset, len)) {
 			r = -EFAULT;
 			goto out;
 		}
+
+		info->remain -= len;
+		info->offset += len;
+		*offset += len;
+		r = len;
 	}
 
 out:
@@ -420,7 +456,7 @@ static unsigned int pn544_poll(struct file *file, poll_table *wait)
 
 	poll_wait(file, &info->read_wait, wait);
 
-	if (pn544_irq_state(info) == PN544_INT) {
+	if (info->remain || (pn544_irq_state(info) == PN544_INT)) {
 		r = POLLIN | POLLRDNORM;
 		goto out;
 	}
@@ -462,21 +498,21 @@ static ssize_t pn544_write(struct file *file, const char __user *buf,
 		}
 
 		len = min(count, info->buflen);
-		if (copy_from_user(info->buf, buf, len)) {
+		if (copy_from_user(info->wbuf, buf, len)) {
 			r = -EFAULT;
 			goto out;
 		}
 
 		print_hex_dump(KERN_DEBUG, "FW write: ", DUMP_PREFIX_NONE,
-			       16, 2, info->buf, len, false);
+				16, 2, info->wbuf, len, false);
 
-		fw_len = PN544_FW_HEADER_SIZE + (info->buf[1] << 8) +
-			info->buf[2];
+		fw_len = PN544_FW_HEADER_SIZE + (info->wbuf[1] << 8) +
+			info->wbuf[2];
 
 		if (len > fw_len) /* 1 msg at a time */
 			len = fw_len;
 
-		r = pn544_fw_write(info->i2c_dev, info->buf, len);
+		r = pn544_fw_write(info->i2c_dev, info->wbuf, len);
 	} else {
 		if (count < PN544_LLC_MIN_SIZE) {
 			r = -EINVAL;
@@ -484,18 +520,18 @@ static ssize_t pn544_write(struct file *file, const char __user *buf,
 		}
 
 		len = min(count, info->buflen);
-		if (copy_from_user(info->buf, buf, len)) {
+		if (copy_from_user(info->wbuf, buf, len)) {
 			r = -EFAULT;
 			goto out;
 		}
 
 		print_hex_dump(KERN_DEBUG, "write: ", DUMP_PREFIX_NONE,
-			       16, 2, info->buf, len, false);
+				16, 2, info->wbuf, len, false);
 
-		if (len > (info->buf[0] + 1)) /* 1 msg at a time */
-			len  = info->buf[0] + 1;
+		if (len > (info->wbuf[0] + 1)) /* 1 msg at a time */
+			len  = info->wbuf[0] + 1;
 
-		r = pn544_i2c_write(info->i2c_dev, info->buf, len);
+		r = pn544_i2c_write(info->i2c_dev, info->wbuf, len);
 	}
 out:
 	mutex_unlock(&info->mutex);
@@ -560,6 +596,10 @@ static long pn544_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				goto out;
 		}
 		file->f_pos = info->read_offset;
+		break;
+
+	case PN544_SET_PWR:
+		dev_dbg(&client->dev, "%s:  PN544_SET_PWR\n", __func__);
 		break;
 
 	case TCGETS:
@@ -717,9 +757,16 @@ static int __devinit pn544_probe(struct i2c_client *client,
 	struct pn544_info *info;
 	struct pn544_nfc_platform_data *pdata;
 	int r = 0;
+	int i = 0;
 
 	dev_dbg(&client->dev, "%s\n", __func__);
 	dev_dbg(&client->dev, "IRQ: %d\n", client->irq);
+
+	pdata = client->dev.platform_data;
+	if (!pdata) {
+		dev_err(&client->dev, "No platform data\n");
+		return -EINVAL;
+	}
 
 	/* private data allocation */
 	info = kzalloc(sizeof(struct pn544_info), GFP_KERNEL);
@@ -731,21 +778,26 @@ static int __devinit pn544_probe(struct i2c_client *client,
 	}
 
 	info->buflen = max(PN544_MSG_MAX_SIZE, PN544_MAX_I2C_TRANSFER);
-	info->buf = kzalloc(info->buflen, GFP_KERNEL);
-	if (!info->buf) {
-		dev_err(&client->dev,
-			"Cannot allocate memory for pn544_info->buf.\n");
+	info->rbuf = kzalloc(info->buflen, GFP_KERNEL);
+	info->wbuf = kzalloc(info->buflen, GFP_KERNEL);
+	if (!info->rbuf || !info->rbuf) {
+		dev_err(&client->dev, "failed to allocate buffer.\n");
 		r = -ENOMEM;
 		goto err_buf_alloc;
 	}
 
-	info->regs[0].supply = reg_vdd_io;
-	info->regs[1].supply = reg_vbat;
-	info->regs[2].supply = reg_vsim;
-	r = regulator_bulk_get(&client->dev, ARRAY_SIZE(info->regs),
-				 info->regs);
+	info->regs_num = pdata->regulator_num;
+	if (info->regs_num > 3) {
+		dev_warn(&client->dev, "the regulator should less than 3.\n");
+		info->regs_num = 3;
+	}
+
+	for (i = 0; i < info->regs_num; i++)
+		info->regs[i].supply = pdata->regulator_name[i];
+
+	r = regulator_bulk_get(&client->dev, info->regs_num, info->regs);
 	if (r < 0)
-		goto err_kmalloc;
+		goto err_buf_alloc;
 
 	info->i2c_dev = client;
 	info->state = PN544_ST_COLD;
@@ -754,12 +806,6 @@ static int __devinit pn544_probe(struct i2c_client *client,
 	mutex_init(&info->mutex);
 	init_waitqueue_head(&info->read_wait);
 	i2c_set_clientdata(client, info);
-	pdata = client->dev.platform_data;
-	if (!pdata) {
-		dev_err(&client->dev, "No platform data\n");
-		r = -EINVAL;
-		goto err_reg;
-	}
 
 	if (!pdata->request_resources) {
 		dev_err(&client->dev, "request_resources() missing\n");
@@ -801,8 +847,7 @@ static int __devinit pn544_probe(struct i2c_client *client,
 		goto err_sysfs;
 	}
 
-	dev_dbg(&client->dev, "%s: info: %p, pdata %p, client %p\n",
-		__func__, info, pdata, client);
+	dev_info(&client->dev, "Probe PN544 successfull!!!!!!!!!!!!!!!\n");
 
 	return 0;
 
@@ -815,10 +860,12 @@ err_res:
 	if (pdata->free_resources)
 		pdata->free_resources();
 err_reg:
-	regulator_bulk_free(ARRAY_SIZE(info->regs), info->regs);
-err_kmalloc:
-	kfree(info->buf);
+	regulator_bulk_free(info->regs_num, info->regs);
 err_buf_alloc:
+	if (info->rbuf)
+		kfree(info->rbuf);
+	if (info->wbuf)
+		kfree(info->wbuf);
 	kfree(info);
 err_info_alloc:
 	return r;
@@ -832,6 +879,10 @@ static __devexit int pn544_remove(struct i2c_client *client)
 	dev_dbg(&client->dev, "%s\n", __func__);
 
 	misc_deregister(&info->miscdev);
+
+	mutex_destroy(&info->mutex);
+	mutex_destroy(&info->read_mutex);
+
 	if (pdata->test)
 		device_remove_file(&client->dev, &pn544_attr);
 
@@ -846,8 +897,9 @@ static __devexit int pn544_remove(struct i2c_client *client)
 	if (pdata->free_resources)
 		pdata->free_resources();
 
-	regulator_bulk_free(ARRAY_SIZE(info->regs), info->regs);
-	kfree(info->buf);
+	regulator_bulk_free(info->regs_num, info->regs);
+	kfree(info->rbuf);
+	kfree(info->wbuf);
 	kfree(info);
 
 	return 0;
@@ -855,6 +907,7 @@ static __devexit int pn544_remove(struct i2c_client *client)
 
 static struct i2c_driver pn544_driver = {
 	.driver = {
+		.owner  = THIS_MODULE,
 		.name = PN544_DRIVER_NAME,
 #ifdef CONFIG_PM
 		.pm = &pn544_pm_ops,

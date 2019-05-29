@@ -80,7 +80,7 @@
 #define SSSR_RFS	(1 << 6)	/* Receive FIFO Service Request */
 #define SSSR_ROR	(1 << 7)	/* Receive FIFO Overrun */
 
-#ifdef CONFIG_ARCH_PXA
+#if defined(CONFIG_ARCH_PXA) || defined(CONFIG_ARCH_MMP)
 #define RX_THRESH_DFLT	8
 #define TX_THRESH_DFLT	8
 
@@ -162,6 +162,8 @@ enum pxa_ssp_type {
 	PXA27x_SSP,
 	PXA168_SSP,
 	CE4100_SSP,
+	PXA910_SSP,
+	MMP_SSP,
 };
 
 struct ssp_device {
@@ -206,4 +208,9 @@ static inline u32 pxa_ssp_read_reg(struct ssp_device *dev, u32 reg)
 
 struct ssp_device *pxa_ssp_request(int port, const char *label);
 void pxa_ssp_free(struct ssp_device *);
+int pxa_ssp_write_word(struct ssp_device *ssp, u32 data);
+int pxa_ssp_read_word(struct ssp_device *ssp, u32 *data);
+int pxa_ssp_flush(struct ssp_device *ssp);
+void pxa_ssp_enable(struct ssp_device *ssp);
+void pxa_ssp_disable(struct ssp_device *ssp);
 #endif

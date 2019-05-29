@@ -17,6 +17,7 @@
 #include <linux/delay.h>
 #include <linux/workqueue.h>
 
+
 /* 
  * Timeout for stopping processes
  */
@@ -30,6 +31,9 @@ static inline int freezable(struct task_struct * p)
 		return 0;
 	return 1;
 }
+
+#define MAX_FAILED_TASKS 10
+static struct task_struct *failed_freeze_list[MAX_FAILED_TASKS];
 
 static int try_to_freeze_tasks(bool sig_only)
 {
@@ -72,8 +76,11 @@ static int try_to_freeze_tasks(bool sig_only)
 			 * stop sees TIF_FREEZE.
 			 */
 			if (!task_is_stopped_or_traced(p) &&
-			    !freezer_should_skip(p))
+			    !freezer_should_skip(p)) {
+				if (todo < MAX_FAILED_TASKS)
+					failed_freeze_list[todo] = p;
 				todo++;
+				}
 		} while_each_thread(g, p);
 		read_unlock(&tasklist_lock);
 
@@ -141,16 +148,6 @@ int freeze_processes(void)
 {
 	int error;
 
-	printk("Freezing user space processes ... ");
-	error = try_to_freeze_tasks(true);
-	if (error)
-		goto Exit;
-	printk("done.\n");
-
-	printk("Freezing remaining freezable tasks ... ");
-	error = try_to_freeze_tasks(false);
-	if (error)
-		goto Exit;
 	printk("done.");
 
 	oom_killer_disable();
@@ -183,6 +180,7 @@ static void thaw_tasks(bool nosig_only)
 
 void thaw_processes(void)
 {
+
 	oom_killer_enable();
 
 	printk("Restarting tasks ... ");

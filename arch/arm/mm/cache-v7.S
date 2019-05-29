@@ -17,6 +17,7 @@
 
 #include "proc-macros.S"
 
+
 /*
  *	v7_flush_icache_all()
  *
@@ -42,7 +43,6 @@ ENDPROC(v7_flush_icache_all)
  *	- mm    - mm_struct describing address space
  */
 ENTRY(v7_flush_dcache_all)
-	dmb					@ ensure ordering with previous memory accesses
 	mrc	p15, 1, r0, c0, c0, 1		@ read clidr
 	ands	r3, r0, #0x7000000		@ extract loc from clidr
 	mov	r3, r3, lsr #23			@ left align loc bit field
@@ -179,7 +179,6 @@ ENTRY(v7_coherent_user_range)
 	ALT_UP(W(nop))
 #endif
 1:
- USER(	mcr	p15, 0, r12, c7, c11, 1	)	@ clean D line to the point of unification
 	add	r12, r12, r2
 	cmp	r12, r1
 	blo	1b
@@ -287,7 +286,6 @@ v7_dma_clean_range:
 	ALT_UP(W(nop))
 #endif
 1:
-	mcr	p15, 0, r0, c7, c10, 1		@ clean D / U line
 	add	r0, r0, r2
 	cmp	r0, r1
 	blo	1b
@@ -345,16 +343,5 @@ ENDPROC(v7_dma_unmap_area)
 
 	__INITDATA
 
-	.type	v7_cache_fns, #object
-ENTRY(v7_cache_fns)
-	.long	v7_flush_icache_all
-	.long	v7_flush_kern_cache_all
-	.long	v7_flush_user_cache_all
-	.long	v7_flush_user_cache_range
-	.long	v7_coherent_kern_range
-	.long	v7_coherent_user_range
-	.long	v7_flush_kern_dcache_area
-	.long	v7_dma_map_area
-	.long	v7_dma_unmap_area
-	.long	v7_dma_flush_range
-	.size	v7_cache_fns, . - v7_cache_fns
+	@ define struct cpu_cache_fns (see <asm/cacheflush.h> and proc-macros.S)
+	define_cache_functions v7

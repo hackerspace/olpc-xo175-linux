@@ -87,13 +87,17 @@ phys_addr_t gen_pool_virt_to_phys(struct gen_pool *pool, unsigned long addr)
 {
 	struct list_head *_chunk;
 	struct gen_pool_chunk *chunk;
+	phys_addr_t phys;
 
 	read_lock(&pool->lock);
 	list_for_each(_chunk, &pool->chunks) {
 		chunk = list_entry(_chunk, struct gen_pool_chunk, next_chunk);
 
-		if (addr >= chunk->start_addr && addr < chunk->end_addr)
-			return chunk->phys_addr + addr - chunk->start_addr;
+		if (addr >= chunk->start_addr && addr < chunk->end_addr) {
+			phys = chunk->phys_addr + addr - chunk->start_addr;
+			read_unlock(&pool->lock);
+			return phys;
+		}
 	}
 	read_unlock(&pool->lock);
 

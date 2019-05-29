@@ -11,6 +11,7 @@
 #include <linux/module.h>
 #include <linux/types.h>
 #include <linux/cpu.h>
+#include <linux/cpu_pm.h>
 #include <linux/kernel.h>
 #include <linux/notifier.h>
 #include <linux/signal.h>
@@ -41,6 +42,8 @@ union vfp_state *last_VFP_context[NR_CPUS];
  * After startup, holds VFP architecture
  */
 unsigned int VFP_arch;
+
+extern int mmp3_ddr_devfreq_disable;
 
 /*
  * Per-thread VFP initialization.
@@ -528,6 +531,8 @@ static int __init vfp_init(void)
 	unsigned int vfpsid;
 	unsigned int cpu_arch = cpu_architecture();
 
+	mmp3_ddr_devfreq_disable = 1;
+
 	if (cpu_arch >= CPU_ARCH_ARMv6)
 		vfp_enable(NULL);
 
@@ -595,6 +600,7 @@ static int __init vfp_init(void)
 		}
 #endif
 	}
+	mmp3_ddr_devfreq_disable = 0;
 	return 0;
 }
 

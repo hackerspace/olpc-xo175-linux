@@ -3,6 +3,8 @@
  *
  * Copyright (C) 2011 Samsung Electronics
  * MyungJoo Ham <myungjoo.ham@samsung.com>
+ * Copyright (C) 2011 Marvell Technology Ltd.
+ * Yunfan Zhang <yfzhang@marvell.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,35 +25,51 @@
 #ifndef __MAX8903_CHARGER_H__
 #define __MAX8903_CHARGER_H__
 
-struct max8903_pdata {
-	/*
-	 * GPIOs
-	 * cen, chg, flt, and usus are optional.
-	 * dok, dcm, and uok are not optional depending on the status of
-	 * dc_valid and usb_valid.
-	 */
-	int cen;	/* Charger Enable input */
-	int dok;	/* DC(Adapter) Power OK output */
-	int uok;	/* USB Power OK output */
-	int chg;	/* Charger status output */
-	int flt;	/* Fault output */
-	int dcm;	/* Current-Limit Mode input (1: DC, 2: USB) */
-	int usus;	/* USB Suspend Input (1: suspended) */
+/* Max Charging Current Limitation Map:
+ * -------------------------------------------------
+ * CHARGING |   DCM   |   IUSB  |  USUS   |  CEN_N
+ * ---------|---------|---------|-------------------
+ *   2A     |    1    |    x    |    x    |    0
+ * ---------|---------|---------|-------------------
+ *  500MA   |    0    |    1    |    0    |    0
+ * ---------|---------|---------|-------------------
+ *  100MA   |    0    |    0    |    0    |    0
+ * ---------|---------|---------|-------------------
+ * DISABLED |    0    |    x    |    1    |    0
+ * ---------|---------|---------|-------------------
+ * DISABLED |    x    |    x    |    x    |    1
+ * -------------------------------------------------
+ */
+enum {
+	MAX8903_PIN_UNKNOWN = -1,
+	/* Input Pins(to charger) */
+	MAX8903_PIN_DCM = 0,	/* DC Current-Limit Mode Setting */
+	MAX8903_PIN_IUSB,	/* USB Current-Limit Setting */
+	MAX8903_PIN_USUS,	/* USB Suspend */
+	MAX8903_PIN_CEN_N,	/* Charger Enable */
+	/* Output Pins(from charger) */
+	MAX8903_PIN_DOK_N,	/* DC Power-OK */
+	MAX8903_PIN_UOK_N,	/* USB Power-OK */
+	MAX8903_PIN_CHG_N,	/* Charing */
+	MAX8903_PIN_FLT_N,	/* Fault */
+	MAX8903_PIN_END,	/* End of PIN definition */
+};
 
-	/*
-	 * DC(Adapter/TA) is wired
-	 * When dc_valid is true,
-	 *	dok and dcm should be valid.
-	 *
-	 * At least one of dc_valid or usb_valid should be true.
-	 */
-	bool dc_valid;
-	/*
-	 * USB is wired
-	 * When usb_valid is true,
-	 *	uok should be valid.
-	 */
-	bool usb_valid;
+struct max8903_gpio {
+	int id;
+	int gpio;
+	bool active_low;
+	const char *desc;
+};
+
+struct max8903_pdata {
+	struct max8903_gpio *gpios;
+	unsigned int gpio_nums;
+	bool dc_valid;	/* DC is wired */
+	bool usb_valid;	/* USB is wired */
+
+	char **supplied_to;
+	size_t num_supplicants;
 };
 
 #endif /* __MAX8903_CHARGER_H__ */

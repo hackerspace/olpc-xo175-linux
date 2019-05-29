@@ -1,0 +1,32 @@
+#ifndef __WIS_KBC_H__
+#define __WIS_KBC_H__
+
+static unsigned char Signature[] =
+{
+	0xBE, 0x00, 0x1A, 0x57, 0x49, 0x53, 0x54, 0x52, 0x4F, 0x4E, 0x2E, 0x4D, 0x49, 0x43, 0x52, 0x4F,
+	0x2E, 0x50, 0x2E, 0x32, 0x30, 0x30, 0x38, 0x2E, 0x31, 0x31, 0x2E, 0x31, 0x31, 0x00, 0x00, 0x00
+};
+
+enum{
+	TYPE_BOOTBLOCK = 0,
+	TYPE_USERCODE,
+};
+
+#define SIZE_BOOTBLOCK		(8192)
+#define SIZE_USERCODE		(40960)
+#define BUFFER_SIZE		SIZE_USERCODE	//MAX file size
+
+#define EPF021J_PAGE_SIZE		16
+#define EPF021J_BLOCK_SIZE		512
+
+#define KBC_ENTER_FLASH			0xF0
+#define KBC_PAGE_PROGRAM		0xF6
+#define KBC_ENTER_USR_MODE		0xF7
+#define KBC_SET_BLK_NUM			0xF8
+#define KBC_CALC_CHKSUM			0xF9
+#define KBC_READ_CHK_SUM		0xFA
+#define KBC_READ_CHK_XOR		0xFB
+#define KBC_READ_PAGE			0xFE
+#define KBC_READ_LOCATION		0xFF
+
+#endif /*  __WIS_KBC_H__ */

@@ -2644,6 +2644,12 @@ erase_exit:
 
 	/* Deselect and wake up anyone waiting on the device */
 	nand_release_device(mtd);
+	if (ret && (chip->options & BBT_RELOCATION_IFBAD)) {
+		chip->block_markbad(mtd, (loff_t)(page & chip->pagemask)
+				<< chip->page_shift);
+		instr->state = MTD_ERASE_DONE;
+		ret = 0;
+	}
 
 	/* Do call back function */
 	if (!ret)
@@ -2723,31 +2729,6 @@ static int nand_block_markbad(struct mtd_info *mtd, loff_t ofs)
 	return chip->block_markbad(mtd, ofs);
 }
 
-/**
- * nand_suspend - [MTD Interface] Suspend the NAND flash
- * @mtd:	MTD device structure
- */
-static int nand_suspend(struct mtd_info *mtd)
-{
-	struct nand_chip *chip = mtd->priv;
-
-	return nand_get_device(chip, mtd, FL_PM_SUSPENDED);
-}
-
-/**
- * nand_resume - [MTD Interface] Resume the NAND flash
- * @mtd:	MTD device structure
- */
-static void nand_resume(struct mtd_info *mtd)
-{
-	struct nand_chip *chip = mtd->priv;
-
-	if (chip->state == FL_PM_SUSPENDED)
-		nand_release_device(mtd);
-	else
-		printk(KERN_ERR "%s called for a chip which is not "
-		       "in suspended state\n", __func__);
-}
 
 /*
  * Set default functions
@@ -3151,6 +3132,16 @@ ident_done:
 	if (mtd->writesize > 512 && chip->cmdfunc == nand_command)
 		chip->cmdfunc = nand_command_lp;
 
+	if (is_power_of_2(mtd->erasesize))
+		mtd->erasesize_shift = ffs(mtd->erasesize) - 1;
+	else
+		mtd->erasesize_shift = 0;
+
+	if (is_power_of_2(mtd->writesize))
+		mtd->writesize_shift = ffs(mtd->writesize) - 1;
+	else
+		mtd->writesize_shift = 0;
+
 	/* TODO onfi flash name */
 	printk(KERN_INFO "NAND device: Manufacturer ID:"
 		" 0x%02x, Chip ID: 0x%02x (%s %s)\n", *maf_id, *dev_id,
@@ -3463,8 +3454,6 @@ int nand_scan_tail(struct mtd_info *mtd)
 	mtd->sync = nand_sync;
 	mtd->lock = NULL;
 	mtd->unlock = NULL;
-	mtd->suspend = nand_suspend;
-	mtd->resume = nand_resume;
 	mtd->block_isbad = nand_block_isbad;
 	mtd->block_markbad = nand_block_markbad;
 	mtd->writebufsize = mtd->writesize;

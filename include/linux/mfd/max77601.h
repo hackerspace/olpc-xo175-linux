@@ -1,0 +1,332 @@
+/*
+ * linux/mfd/max77601-core.h
+ *
+ * Copyright 2011 Maxim Integrated Products, Inc.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ */
+
+#ifndef __LINUX_MAX77601_H__
+#define __LINUX_MAX77601_H__
+
+#include <linux/irq.h>
+#include <linux/mfd/core.h>
+
+/* Top level Interrupt */
+enum {
+	MAX77601_IRQTOP_START,
+	MAX77601_IRQTOP_NVER = MAX77601_IRQTOP_START,
+	MAX77601_IRQTOP_ONOFF,
+	MAX77601_IRQTOP_32K,
+	MAX77601_IRQTOP_RTC,
+	MAX77601_IRQTOP_GPIO,
+	MAX77601_IRQTOP_LDO,
+	MAX77601_IRQTOP_SD,
+	MAX77601_IRQTOP_GLBL,
+	MAX77601_IRQTOP_END = MAX77601_IRQTOP_GLBL,
+
+	MAX77601_ONOFFIRQ_START,
+	MAX77601_ONOFFIRQ_ACOK_R = MAX77601_ONOFFIRQ_START,
+	MAX77601_ONOFFIRQ_ACOK_F,
+	MAX77601_ONOFFIRQ_LID_R,
+	MAX77601_ONOFFIRQ_LID_F,
+	MAX77601_ONOFFIRQ_EN0_R,
+	MAX77601_ONOFFIRQ_EN0_F,
+	MAX77601_ONOFFIRQ_EN0_1SEC,
+	MAX77601_ONOFFIRQ_HRDPOWRN,
+	MAX77601_ONOFFIRQ_END = MAX77601_ONOFFIRQ_HRDPOWRN,
+
+	MAX77601_GPIOIRQ_START,
+	MAX77601_GPIOIRQ_EDGE0 = MAX77601_GPIOIRQ_START,
+	MAX77601_GPIOIRQ_EDGE1,
+	MAX77601_GPIOIRQ_EDGE2,
+	MAX77601_GPIOIRQ_EDGE3,
+	MAX77601_GPIOIRQ_EDGE4,
+	MAX77601_GPIOIRQ_EDGE5,
+	MAX77601_GPIOIRQ_EDGE6,
+	MAX77601_GPIOIRQ_EDGE7,
+	MAX77601_GPIOIRQ_END = MAX77601_GPIOIRQ_EDGE7,
+
+	MAX77601_INTLBT_START,
+	MAX77601_INTLBT_TJALRM2_R = MAX77601_INTLBT_START,
+	MAX77601_INTLBT_TJALRM1_R,
+	MAX77601_INTLBT_MBATTLOW_R,
+	MAX77601_INTLBT_END = MAX77601_INTLBT_MBATTLOW_R,
+	MAX77601_MAX_IRQ,
+};
+
+#define MAX77601_IRQTOP_NR_INTS (MAX77601_IRQTOP_END - MAX77601_IRQTOP_START + 1)
+#define MAX77601_ONOFFIRQ_NR_INTS (MAX77601_ONOFFIRQ_END - MAX77601_ONOFFIRQ_START + 1)
+#define MAX77601_GPIOIRQ_NR_INTS (MAX77601_GPIOIRQ_END - MAX77601_GPIOIRQ_START + 1)
+#define MAX77601_INTLBT_NR_INTS (MAX77601_INTLBT_END - MAX77601_INTLBT_START + 1)
+
+/* IRQ */
+#define MAX77601_IRQTOP_REG				0x05
+#define MAX77601_IRQTOPM_REG			0x0D
+#define MAX77601_IRQ_GLBL_MASK			0x80
+#define MAX77601_IRQ_SD_MASK			0x40
+#define MAX77601_IRQ_LDO_MASK			0x20
+#define MAX77601_IRQ_GPIO_MASK			0x10
+#define MAX77601_IRQ_RTC_MASK			0x08
+#define MAX77601_IRQ_32K_MASK			0x04
+#define MAX77601_IRQ_ONOFF_MASK			0x02
+#define MAX77601_IRQ_NVER_MASK			0x01
+
+#define MAX77601_INTLBT_REG				0x06
+#define MAX77601_INTLBTM_REG			0x0E
+#define MAX77601_INTLBT_LB_MASK			0x08
+#define MAX77601_INTLBT_TJALRM1_MASK	0x04
+#define MAX77601_INTLBT_TJALRM2_MASK	0x02
+#define MAX77601_INTLBT_GLB_MASK		0x01
+
+#define MAX77601_ONOFFIRQ_REG			0x0B
+#define MAX77601_ONOFFIRQM_REG			0x12
+#define MAX77601_ONOFFIRQ_EN0_RM		0x08
+#define MAX77601_ONOFFIRQ_EN0_FM		0x04
+
+/* Regulator */
+enum {
+	/* BUCK */
+	MAX77601_ID_SD0 = 0,
+	MAX77601_ID_DVSSD0,
+	MAX77601_ID_SD1,
+	MAX77601_ID_DVSSD1,
+	MAX77601_ID_SD2,
+	MAX77601_ID_SD3,
+	MAX77601_ID_SD4,
+	/* LDO */
+	MAX77601_ID_L0 = 7,
+	MAX77601_ID_L1,
+	MAX77601_ID_L2,
+	MAX77601_ID_L3,
+	MAX77601_ID_L4,
+	MAX77601_ID_L5,
+	MAX77601_ID_L6,
+	MAX77601_ID_L7,
+	MAX77601_ID_L8,
+
+	MAX77601_VREG_MAX,
+};
+
+/* Regulator registers */
+#define MAX77601_VREG_SD0			0x16
+#define MAX77601_VREG_DVSSD0		0x1B
+#define MAX77601_VREG_SD0_CFG		0x1D
+#define MAX77601_VREG_DVSSD0_CFG	0x1D
+
+#define MAX77601_VREG_SD1			0x17
+#define MAX77601_VREG_DVSSD1		0x1C
+#define MAX77601_VREG_SD1_CFG		0x1E
+#define MAX77601_VREG_DVSSD1_CFG	0x1E
+
+#define MAX77601_VREG_SD2			0x18
+#define MAX77601_VREG_SD2_CFG		0x1F
+
+#define MAX77601_VREG_SD3			0x19
+#define MAX77601_VREG_SD4			0x1A
+#define MAX77601_VREG_SD3_CFG		0x20
+#define MAX77601_VREG_SD4_CFG		0x21
+
+#define MAX77601_VREG_LDO0      0x23
+#define MAX77601_VREG_LDO0_CFG2	0x24
+#define MAX77601_VREG_LDO1		0x25
+#define MAX77601_VREG_LDO1_CFG2	0x26
+#define MAX77601_VREG_LDO2		0x27
+#define MAX77601_VREG_LDO2_CFG2	0x28
+#define MAX77601_VREG_LDO3		0x29
+#define MAX77601_VREG_LDO3_CFG2	0x2A
+#define MAX77601_VREG_LDO4		0x2B
+#define MAX77601_VREG_LDO4_CFG2	0x2C
+#define MAX77601_VREG_LDO5		0x2D
+#define MAX77601_VREG_LDO5_CFG2	0x2E
+#define MAX77601_VREG_LDO6		0x2F
+#define MAX77601_VREG_LDO6_CFG2	0x30
+#define MAX77601_VREG_LDO7		0x31
+#define MAX77601_VREG_LDO7_CFG2	0x32
+#define MAX77601_VREG_LDO8		0x33
+#define MAX77601_VREG_LDO8_CFG2	0x34
+
+/* When FPSSRC_Lx[1:0]=0b11 in FPS_x register
+ * not configured as part of a flexible power sequence.
+ */
+#define MAX77601_MODE_NORMAL	0x3
+#define MAX77601_MODE_LPM		0x2
+#define MAX77601_MODE_GLPM		0x1
+#define MAX77601_MODE_DISABLE	0x0
+/* When FPSSRC_Lx[1:0]!=0b11 in FPS_x register */
+#define MAX77601_MODE_FPS_NORMAL	0x3
+#define MAX77601_MODE_FPS_LPM		0x2
+#define MAX77601_MODE_FPS_GLPM		0x1
+
+#define MAX77601_VREG_TYPE_SD		0x00
+#define MAX77601_VREG_TYPE_LDO		0x01
+
+#define MAX77601_SD_MODE_M		0x30
+#define MAX77601_SD_MODE_SHIFT	4
+#define MAX77601_LDO_MODE_M		0xC0
+#define MAX77601_LDO_MODE_SHIFT	6
+
+#define MAX77601_LDO_VOLT_M		0x3F
+
+/* FPS register */
+#define MAX77601_CNFGFPS0		0x43
+#define MAX77601_CNFGFPS1		0x44
+#define MAX77601_CNFGFPS2		0x45
+#define MAX77601_FPS_L0			0x46
+#define MAX77601_FPS_L1			0x47
+#define MAX77601_FPS_L2			0x48
+#define MAX77601_FPS_L3			0x49
+#define MAX77601_FPS_L4			0x4A
+#define MAX77601_FPS_L5			0x4B
+#define MAX77601_FPS_L6			0x4C
+#define MAX77601_FPS_L7			0x4D
+#define MAX77601_FPS_L8			0x4E
+#define MAX77601_FPS_SD0		0x4F
+#define MAX77601_FPS_SD1		0x50
+#define MAX77601_FPS_SD2		0x51
+#define MAX77601_FPS_SD3		0x52
+#define MAX77601_FPS_SD4		0x53
+
+#define MAX77601_FPSSRC_MASK	0xC0
+#define MAX77601_FPSSRC_NOTFPS	(0x3 << 6)
+
+/* GPIO Configuration Register */
+#define MAX77601_CNFG_GPIO0		0x36
+#define MAX77601_CNFG_GPIO1		0x37
+#define MAX77601_CNFG_GPIO2		0x38
+#define MAX77601_CNFG_GPIO3		0x39
+#define MAX77601_CNFG_GPIO4		0x3A
+#define MAX77601_CNFG_GPIO5		0x3B
+#define MAX77601_CNFG_GPIO6		0x3C
+#define MAX77601_CNFG_GPIO7		0x3D
+#define MAX77601_GPIO_DIR		(1 << 1)
+
+/* AME(Altername Mode Enable) GPIO register */
+#define MAX77601_AME_GPIO		0x40
+#define MAX77601_AME7_MASK		(1 << 7)
+#define MAX77601_AME6_MASK		(1 << 6)
+#define MAX77601_AME5_MASK		(1 << 5)
+#define MAX77601_AME4_MASK		(1 << 4)
+#define MAX77601_AME3_MASK		(1 << 3)
+#define MAX77601_AME2_MASK		(1 << 2)
+#define MAX77601_AME1_MASK		(1 << 1)
+#define MAX77601_AME0_MASK		(1 << 0)
+
+/* ROV register */
+#define MAX77601_CNFG2SD		0x22
+#define MAX77601_ROV_EN_SD0		(0x1 << 2)
+
+/* ONOFF register */
+#define MAX77601_ONOFFCNFG2		0x42
+#define MAX77601_ONOFFCNFG1		0x41
+#define MAX77601_SFT_RST_WK		0x80
+#define MAX77601_SFT_RST		0x80
+
+/* RTC registers */
+#define MAX77601_RTCINT		0x00
+#define MAX77601_RTCINTM	0x01
+#define MAX77601_RTCCNTLM	0x02
+#define MAX77601_RTCCNTL	0x03
+#define MAX77601_RTCUPDATE0	0x04
+#define MAX77601_RTCUPDATE1	0x05
+#define MAX77601_RTCSMPL	0x06
+#define MAX77601_RTCSEC		0x07
+#define MAX77601_RTCMIN		0x08
+#define MAX77601_RTCHOUR	0x09
+#define MAX77601_RTCDOW		0x0A
+#define MAX77601_RTCMONTH	0x0B
+#define MAX77601_RTCYEAR	0x0C
+#define MAX77601_RTCDOM		0x0D
+#define MAX77601_RTCSECA1	0x0E
+#define MAX77601_RTCMINA1	0x0F
+#define MAX77601_RTCHOURA1	0x10
+#define MAX77601_RTCDOWA1	0x11
+#define MAX77601_RTCMONTHA1	0x12
+#define MAX77601_RTCYEARA1	0x13
+#define MAX77601_RTCDOMA1	0x14
+#define MAX77601_RTCSECA2	0x15
+#define MAX77601_RTCMINA2	0x16
+#define MAX77601_RTCHOURA2	0x17
+#define MAX77601_RTCDOWA2	0x18
+#define MAX77601_RTCMONTHA2	0x19
+#define MAX77601_RTCYEARA2	0x1A
+#define MAX77601_RTCDOMA2	0x1B
+/* battery */
+#define MAX77601_CNFGBBC	0x04
+
+/* RTCINT */
+#define MAX77601_RTC60S		(1 << 0)
+#define MAX77601_RTCA1		(1 << 1)
+#define MAX77601_RTCA2		(1 << 2)
+#define MAX77601_SMPL		(1 << 3)
+#define MAX77601_RTC1S		(1 << 4)
+
+/* RTCINTM */
+#define MAX77601_RTC60SM	(1 << 0)
+#define MAX77601_RTCA1M		(1 << 1)
+#define MAX77601_RTCA2M		(1 << 2)
+#define MAX77601_SMPLM		(1 << 3)
+#define MAX77601_RTC1SM		(1 << 4)
+
+/* RTCCNTLM */
+#define MAX77601_BCDM		(1 << 0)
+#define MAX77601_HRMODEM	(1 << 1)
+
+/* RTCCNTL */
+#define MAX77601_BCD		(1 << 0)
+#define MAX77601_BCD_BINARY 0
+#define MAX77601_BCD_BCD    MAX77601_BCD
+#define MAX77601_HRMODE		(1 << 1)
+#define MAX77601_HRMODE_12H 0
+#define MAX77601_HRMODE_24H MAX77601_HRMODE
+
+/* RTCUPDATE0 */
+#define MAX77601_UDR		(1 << 0)
+#define MAX77601_FCUR		(1 << 1)
+#define MAX77601_FREEZE_SEC	(1 << 2)
+#define MAX77601_RTCWAKE	(1 << 3)
+#define MAX77601_RBUDR		(1 << 4)
+
+/* RTCUPDATE1 */
+#define MAX77601_UDF		(1 << 0)
+#define MAX77601_RBUDF		(1 << 1)
+
+struct max77601_chip {
+	struct device *dev;
+	struct i2c_client *i2c;
+	struct i2c_client *rtc;
+	struct mutex io_lock;
+	struct mutex irq_lock;
+
+	int irq_base;
+	int core_irq;
+};
+
+struct max77601_platform_data {
+	struct regulator_init_data *regulator;
+	int irq_base;
+	int (*setup) (struct max77601_chip *);
+};
+
+int max77601_read(struct max77601_chip *chip, u8 addr, u8 * values,
+		  unsigned int len);
+int max77601_write(struct max77601_chip *chip, u8 addr, u8 * values,
+		   unsigned int len);
+int max77601_set_bits(struct max77601_chip *chip, u8 addr, u8 mask,
+		      u8 value);
+
+int max77601_pmic_reg_write(int reg, unsigned char data);
+int max77601_pmic_reg_read(int reg);
+int max77601_pmic_set_bits(int reg, unsigned char mask,
+			   unsigned char data);
+
+extern int max77601_device_init(struct max77601_chip *chip,
+				struct max77601_platform_data *pdata);
+extern void max77601_device_exit(struct max77601_chip *chip);
+
+
+#endif				/* __LINUX_MAX77601_H__ */

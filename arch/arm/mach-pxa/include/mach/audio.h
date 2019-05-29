@@ -26,5 +26,9 @@ typedef struct {
 } pxa2xx_audio_ops_t;
 
 extern void pxa_set_ac97_info(pxa2xx_audio_ops_t *ops);
+void __init set_abu_init_func(void (*func)(bool));
+void pxa95x_abu_mfp_init(bool abu);
+void __init set_ssp_init_func(void (*func)(bool));
+void pxa95x_ssp_mfp_init(bool abu);
 
 #endif

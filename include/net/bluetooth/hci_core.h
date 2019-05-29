@@ -195,8 +195,6 @@ struct hci_dev {
 	struct device		*parent;
 	struct device		dev;
 
-	struct rfkill		*rfkill;
-
 	struct module		*owner;
 
 	int (*open)(struct hci_dev *hdev);
@@ -206,6 +204,8 @@ struct hci_dev {
 	void (*destruct)(struct hci_dev *hdev);
 	void (*notify)(struct hci_dev *hdev, unsigned int evt);
 	int (*ioctl)(struct hci_dev *hdev, unsigned int cmd, unsigned long arg);
+
+	struct timer_list rs_timer;
 };
 
 struct hci_conn {
@@ -409,6 +409,22 @@ static inline struct hci_conn *hci_conn_hash_lookup_state(struct hci_dev *hdev,
 	return NULL;
 }
 
+typedef void(*operation_pf)(struct hci_dev *hdev, struct hci_conn *c);
+
+static inline void hci_conn_hash_walk_through(struct hci_dev *hdev, operation_pf op)
+{
+	struct hci_conn_hash *h = &hdev->conn_hash;
+	struct list_head *p;
+	struct hci_conn  *c;
+	int i = 0;
+
+	list_for_each(p, &h->list) {
+		c = list_entry(p, struct hci_conn, list);
+		if (c->link_mode & HCI_LM_MASTER || ++i == hdev->conn_hash.acl_num)
+			continue;
+		op(hdev, c);
+	}
+}
 void hci_acl_connect(struct hci_conn *conn);
 void hci_acl_disconn(struct hci_conn *conn, __u8 reason);
 void hci_add_sco(struct hci_conn *conn, __u16 handle);

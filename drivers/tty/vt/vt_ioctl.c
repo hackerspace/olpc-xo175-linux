@@ -27,6 +27,8 @@
 #include <linux/signal.h>
 #include <linux/timex.h>
 
+#include <linux/delay.h>
+
 #include <asm/io.h>
 #include <asm/uaccess.h>
 
@@ -88,6 +90,8 @@ void vt_event_post(unsigned int event, unsigned int old, unsigned int new)
 	struct list_head *pos, *head;
 	unsigned long flags;
 	int wake = 0;
+
+	msleep(100);
 
 	spin_lock_irqsave(&vt_event_lock, flags);
 	head = &vt_events;

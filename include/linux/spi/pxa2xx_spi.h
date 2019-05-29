@@ -40,10 +40,11 @@ struct pxa2xx_spi_chip {
 	u32 timeout;
 	u8 enable_loopback;
 	int gpio_cs;
+	int using_gpio_cs;
 	void (*cs_control)(u32 command);
 };
 
-#ifdef CONFIG_ARCH_PXA
+#if defined(CONFIG_ARCH_PXA) || defined(CONFIG_ARCH_MMP)
 
 #include <linux/clk.h>
 #include <mach/dma.h>

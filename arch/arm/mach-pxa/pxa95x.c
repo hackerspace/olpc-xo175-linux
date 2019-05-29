@@ -17,21 +17,49 @@
 #include <linux/platform_device.h>
 #include <linux/i2c/pxa-i2c.h>
 #include <linux/irq.h>
-#include <linux/io.h>
 #include <linux/syscore_ops.h>
+#include <linux/memblock.h>
+#include <linux/sysdev.h>
 
+#include <asm/hardware/cache-tauros2.h>
+#ifdef CONFIG_CACHE_L2X0
+#include <asm/hardware/cache-l2x0.h>
+#endif
 #include <mach/hardware.h>
 #include <mach/gpio.h>
 #include <mach/pxa3xx-regs.h>
 #include <mach/pxa930.h>
 #include <mach/reset.h>
-#include <mach/pm.h>
 #include <mach/dma.h>
 #include <mach/regs-intc.h>
+#include <mach/soc_vmeta.h>
+#include <mach/usb-regs.h>
+#include <mach/pxa95x_dvfm.h>
+
+#include <linux/uio_vmeta.h>
+
+#include <plat/pmem.h>
 
 #include "generic.h"
 #include "devices.h"
-#include "clock.h"
+
+#define PECR_IE(n)	((1 << ((n) * 2)) << 28)
+#define PECR_IS(n)	((1 << ((n) * 2)) << 29)
+
+static int boot_flash_type;
+int pxa_boot_flash_type_get(void)
+{
+	return boot_flash_type;
+}
+
+static int __init setup_boot_flash_type(char *p)
+{
+	boot_flash_type  = memparse(p, &p);
+	printk(KERN_INFO "setup_boot_flash_type: boot_flash_type=%d",
+		boot_flash_type);
+	return 1;
+}
+__setup("FLAS=", setup_boot_flash_type);
 
 static struct mfp_addr_map pxa95x_mfp_addr_map[] __initdata = {
 
@@ -132,8 +160,8 @@ static struct mfp_addr_map pxa95x_mfp_addr_map[] __initdata = {
 	MFP_ADDR(GPIO94, 0x068c),
 	MFP_ADDR(GPIO95, 0x06a8),
 	MFP_ADDR(GPIO96, 0x06b8),
-	MFP_ADDR(GPIO97, 0x0410),
-	MFP_ADDR(GPIO98, 0x0418),
+	MFP_ADDR(GPIO97, 0x0418),
+	MFP_ADDR(GPIO98, 0x0410),
 	MFP_ADDR(GPIO99, 0x041c),
 	MFP_ADDR(GPIO100, 0x0414),
 	MFP_ADDR(GPIO101, 0x0408),
@@ -201,43 +229,77 @@ static struct mfp_addr_map pxa95x_mfp_addr_map[] __initdata = {
 	MFP_ADDR_END,
 };
 
-static DEFINE_CK(pxa95x_lcd, LCD, &clk_pxa3xx_hsio_ops);
-static DEFINE_CLK(pxa95x_pout, &clk_pxa3xx_pout_ops, 13000000, 70);
-static DEFINE_PXA3_CKEN(pxa95x_ffuart, FFUART, 14857000, 1);
-static DEFINE_PXA3_CKEN(pxa95x_btuart, BTUART, 14857000, 1);
-static DEFINE_PXA3_CKEN(pxa95x_stuart, STUART, 14857000, 1);
-static DEFINE_PXA3_CKEN(pxa95x_i2c, I2C, 32842000, 0);
-static DEFINE_PXA3_CKEN(pxa95x_keypad, KEYPAD, 32768, 0);
-static DEFINE_PXA3_CKEN(pxa95x_ssp1, SSP1, 13000000, 0);
-static DEFINE_PXA3_CKEN(pxa95x_ssp2, SSP2, 13000000, 0);
-static DEFINE_PXA3_CKEN(pxa95x_ssp3, SSP3, 13000000, 0);
-static DEFINE_PXA3_CKEN(pxa95x_ssp4, SSP4, 13000000, 0);
-static DEFINE_PXA3_CKEN(pxa95x_pwm0, PWM0, 13000000, 0);
-static DEFINE_PXA3_CKEN(pxa95x_pwm1, PWM1, 13000000, 0);
+static struct mfp_addr_map pxa978_mfp_addr_map[] __initdata = {
+	/* MFP Pins*/
+	MFP_ADDR_X(GPIO0, GPIO132, 0x208),
 
-static struct clk_lookup pxa95x_clkregs[] = {
-	INIT_CLKREG(&clk_pxa95x_pout, NULL, "CLK_POUT"),
-	/* Power I2C clock is always on */
-	INIT_CLKREG(&clk_dummy, "pxa3xx-pwri2c.1", NULL),
-	INIT_CLKREG(&clk_pxa95x_lcd, "pxa2xx-fb", NULL),
-	INIT_CLKREG(&clk_pxa95x_ffuart, "pxa2xx-uart.0", NULL),
-	INIT_CLKREG(&clk_pxa95x_btuart, "pxa2xx-uart.1", NULL),
-	INIT_CLKREG(&clk_pxa95x_stuart, "pxa2xx-uart.2", NULL),
-	INIT_CLKREG(&clk_pxa95x_stuart, "pxa2xx-ir", "UARTCLK"),
-	INIT_CLKREG(&clk_pxa95x_i2c, "pxa2xx-i2c.0", NULL),
-	INIT_CLKREG(&clk_pxa95x_keypad, "pxa27x-keypad", NULL),
-	INIT_CLKREG(&clk_pxa95x_ssp1, "pxa27x-ssp.0", NULL),
-	INIT_CLKREG(&clk_pxa95x_ssp2, "pxa27x-ssp.1", NULL),
-	INIT_CLKREG(&clk_pxa95x_ssp3, "pxa27x-ssp.2", NULL),
-	INIT_CLKREG(&clk_pxa95x_ssp4, "pxa27x-ssp.3", NULL),
-	INIT_CLKREG(&clk_pxa95x_pwm0, "pxa27x-pwm.0", NULL),
-	INIT_CLKREG(&clk_pxa95x_pwm1, "pxa27x-pwm.1", NULL),
+	/* RF MFP Pins */
+	MFP_ADDR_X(RF_MFP0, RF_MFP30, 0x460),
+
+	/* MEM MFP Pins */
+	MFP_ADDR_X(MEM_MFP0, MEM_MFP39, 0x500),
+
+	MFP_ADDR_END,
 };
+
+static void pxa_ack_ext_wakeup(struct irq_data *d)
+{
+	PECR |= PECR_IS(d->irq - IRQ_WAKEUP0);
+}
+
+static void pxa_mask_ext_wakeup(struct irq_data *d)
+{
+	ICMR2 &= ~(1 << ((d->irq - PXA_IRQ(0)) & 0x1f));
+	PECR &= ~PECR_IE(d->irq - IRQ_WAKEUP0);
+}
+
+static void pxa_unmask_ext_wakeup(struct irq_data *d)
+{
+	ICMR2 |= 1 << ((d->irq - PXA_IRQ(0)) & 0x1f);
+	PECR |= PECR_IE(d->irq - IRQ_WAKEUP0);
+}
+
+static int pxa_set_ext_wakeup_type(struct irq_data *d, unsigned int flow_type)
+{
+	if (flow_type & IRQ_TYPE_EDGE_RISING)
+		PWER |= 1 << (d->irq - IRQ_WAKEUP0);
+
+	if (flow_type & IRQ_TYPE_EDGE_FALLING)
+		PWER |= 1 << (d->irq - IRQ_WAKEUP0 + 2);
+
+	return 0;
+}
+
+static struct irq_chip pxa_ext_wakeup_chip = {
+	.name           = "WAKEUP",
+	.irq_ack            = pxa_ack_ext_wakeup,
+	.irq_mask           = pxa_mask_ext_wakeup,
+	.irq_unmask         = pxa_unmask_ext_wakeup,
+	.irq_set_type       = pxa_set_ext_wakeup_type,
+};
+
+/*
+ *  * For pxa95x, it's not necessary to use irq to wakeup system.
+ *   */
+int pxa95x_set_wake(struct irq_data *d, unsigned int on)
+{
+	return 0;
+}
+
+static void __init pxa_init_ext_wakeup_irq(set_wake_t fn)
+{
+	irq_set_chip_and_handler(IRQ_WAKEUP0, &pxa_ext_wakeup_chip,
+			handle_edge_irq);
+	set_irq_flags(IRQ_WAKEUP0, IRQF_VALID);
+	pxa_ext_wakeup_chip.irq_set_wake = fn;
+}
 
 void __init pxa95x_init_irq(void)
 {
-	pxa_init_irq(96, NULL);
-	pxa_init_gpio(IRQ_GPIO_2_x, 2, 127, NULL);
+	pxa_init_irq(96, pxa95x_set_wake);
+	if (!cpu_is_pxa978())
+		pxa_init_ext_wakeup_irq(pxa95x_set_wake);
+	pxa_init_gpio(IRQ_GPIO_2_x, 2, 191, pxa95x_set_wake);
 }
 
 /*
@@ -249,6 +311,7 @@ void __init pxa95x_set_i2c_power_info(struct i2c_pxa_platform_data *info)
 	pxa_register_device(&pxa3xx_device_i2c_power, info);
 }
 
+
 static struct platform_device *devices[] __initdata = {
 	&sa1100_device_rtc,
 	&pxa_device_rtc,
@@ -258,39 +321,501 @@ static struct platform_device *devices[] __initdata = {
 	&pxa3xx_device_ssp4,
 	&pxa27x_device_pwm0,
 	&pxa27x_device_pwm1,
+	&pxa95x_device_pwm4,
+	&pxa95x_device_pwm5,
+	&pxa95x_device_pwm6,
+	&pxa95x_device_pwm7,
+	&pxa_device_asoc_abu,
+	&pxa_device_asoc_ssp2,
+	&pxa_device_asoc_ssp3,
+	&pxa_device_asoc_abu_platform,
+	&pxa_device_asoc_platform,
+	&pxa_device_asoc_hdmi_codec,
+};
+
+struct pxa95x_freq_mach_info freq_mach_info = {
+	.flags = PXA95x_USE_POWER_I2C,
 };
 
 static int __init pxa95x_init(void)
 {
-	int ret = 0, i;
+	int ret = 0;
 
-	if (cpu_is_pxa95x()) {
-		mfp_init_base(io_p2v(MFPR_BASE));
+	/* dvfm device */
+#ifdef CONFIG_PXA95x_DVFM
+	set_pxa95x_freq_info(&freq_mach_info);
+#endif
+
+#ifdef CONFIG_CACHE_TAUROS2
+	if (!cpu_is_pxa978_Cx())
+		tauros2_init();
+#endif
+
+#ifdef CONFIG_CACHE_L2X0
+	if (cpu_is_pxa978_Cx()) {
+		void *l2x0_base = ioremap_nocache(0x58120000, 0x1000);
+		if (!l2x0_base)
+			return -ENOMEM;
+		/* Args 1,2: don't change AUX_CTRL */
+		l2x0_init(l2x0_base, 0, ~0);
+	}
+#endif
+	mfp_init_base(io_p2v(MFPR_BASE));
+	if (cpu_is_pxa978())
+		mfp_init_addr(pxa978_mfp_addr_map);
+	else
 		mfp_init_addr(pxa95x_mfp_addr_map);
 
-		reset_status = ARSR;
+	reset_status = ARSR;
 
-		/*
-		 * clear RDH bit every time after reset
-		 *
-		 * Note: the last 3 bits DxS are write-1-to-clear so carefully
-		 * preserve them here in case they will be referenced later
-		 */
-		ASCR &= ~(ASCR_RDH | ASCR_D1S | ASCR_D2S | ASCR_D3S);
+	/*
+	 * clear RDH bit every time after reset
+	 *
+	 * Note: the last 3 bits DxS are write-1-to-clear so carefully
+	 * preserve them here in case they will be referenced later
+	 */
+	ASCR &= ~(ASCR_RDH | ASCR_D1S | ASCR_D2S | ASCR_D3S);
 
-		clkdev_add_table(pxa95x_clkregs, ARRAY_SIZE(pxa95x_clkregs));
+	if ((ret = pxa_init_dma(IRQ_DMA, 32)))
+		return ret;
 
-		if ((ret = pxa_init_dma(IRQ_DMA, 32)))
-			return ret;
+	register_syscore_ops(&pxa_irq_syscore_ops);
+	register_syscore_ops(&pxa_gpio_syscore_ops);
 
-		register_syscore_ops(&pxa_irq_syscore_ops);
-		register_syscore_ops(&pxa_gpio_syscore_ops);
-		register_syscore_ops(&pxa3xx_clock_syscore_ops);
+	ret = platform_add_devices(devices, ARRAY_SIZE(devices));
 
-		ret = platform_add_devices(devices, ARRAY_SIZE(devices));
-	}
+	pxa_set_ffuart_info(NULL);
+	pxa_set_stuart_info(NULL);
 
+#ifdef CONFIG_ANDROID_PMEM
+	pxa_add_pmem();
+#endif
 	return ret;
 }
 
 postcore_initcall(pxa95x_init);
+
+#ifdef CONFIG_USB_PXA_U2O
+unsigned u2o_get(unsigned base, unsigned offset)
+{
+	return readl(base + offset);
+}
+
+void u2o_set(unsigned base, unsigned offset, unsigned value)
+{
+	volatile unsigned int reg;
+	reg = readl(base + offset);
+	reg |= value;
+	writel(reg, base + offset);
+	__raw_readl(base + offset);
+}
+
+void u2o_clear(unsigned base, unsigned offset, unsigned value)
+{
+	volatile unsigned int reg;
+	reg = readl(base + offset);
+	reg &= ~value;
+	writel(reg, base + offset);
+	__raw_readl(base + offset);
+}
+
+void u2o_write(unsigned base, unsigned offset, unsigned value)
+{
+	writel(value, base + offset);
+	__raw_readl(base + offset);
+}
+
+int pxa9xx_usb_phy_init(unsigned int base)
+{
+	/* linux kernel is not allowed to override usb phy settings */
+	/* these settings configured only by obm (or bootrom)       */
+	static int init_done;
+	unsigned int ulTempAccr1;
+	unsigned int ulTempCkenC;
+
+	if (init_done)
+		printk(KERN_DEBUG "re-init phy\n");
+
+	ulTempAccr1 = ACCR1;
+	ulTempCkenC = CKENC;
+
+	ACCR1 |= (1<<10);
+	CKENC |= (1<<10);
+
+	/* Not safe. Sync risk */
+	if ((ulTempAccr1 & (1<<10)) == 0)
+		ACCR1 &= ~(1<<10);
+
+	if ((ulTempCkenC & (1<<10)) == 0)
+		CKENC &= ~(1<<10);
+
+	/* override usb phy setting to mach values set by obm */
+	u2o_write(base, U2PPLL, 0xfe819eeb);
+	u2o_write(base, U2PTX, 0x41c10fc2);
+	u2o_write(base, U2PRX, 0xe31d02e9);
+	u2o_write(base, U2IVREF, 0x2000017e);
+
+	u2o_write(base, U2PRS, 0x00008000);
+
+	init_done = 1;
+	return 0;
+}
+#endif
+/*
+return: -1 -- failure:exceed limit; >=0 -- success;
+These two functions shall be different on different platforms.
+*/
+
+int pxa95x_vmeta_increase_core_freq(const struct vmeta_instance *vi,
+						const int step)
+{
+	if (vi->vop >= VMETA_OP_VGA
+	&& vi->vop <= (VMETA_OP_VGA+2-step)) { /* VGA:1,2,3 */
+		return vi->vop+step;
+	} else if (vi->vop >= VMETA_OP_720P
+		&& vi->vop <= (VMETA_OP_720P+2-step)) {/* 720p: 8,9,10 */
+		return vi->vop+step;
+	}
+
+	return -1;
+}
+
+int pxa95x_vmeta_decrease_core_freq(const struct vmeta_instance *vi,
+					const int step)
+{
+	if (vi->vop >= (VMETA_OP_VGA+step) && vi->vop <= VMETA_OP_VGA+2) {
+		return vi->vop - step;
+	} else if (vi->vop >= (VMETA_OP_720P+step)
+		&& vi->vop <= VMETA_OP_720P+2) {
+		return vi->vop - step;
+	}
+
+	return -1;
+}
+
+int pxa95x_vmeta_clean_dvfm_constraint(struct vmeta_instance *vi, int idx)
+{
+	dvfm_disable_op_name("208M_HF", idx);
+	dvfm_disable_op_name("416M_VGA", idx);
+	dvfm_enable_op_name("416M", idx);
+	return 0;
+}
+
+int pxa95x_vmeta_init_dvfm_constraint(struct vmeta_instance *vi, int idx)
+{
+	dvfm_disable_op_name("208M_HF", idx);
+	dvfm_disable_op_name("416M_VGA", idx);
+	return 0;
+}
+
+/*
+resolution <= VGA          -- 1~3	208M_HF, 416M_VGA, 624M
+VGA < resolution <=720p    -- 8~10	416M, 624M, 806M
+resolution > 720p          -- 806M
+*/
+int pxa95x_vmeta_set_dvfm_constraint(struct vmeta_instance *vi, int idx)
+{
+	if ((vi->vop < VMETA_OP_MIN || vi->vop > VMETA_OP_MAX)
+		&& vi->vop != VMETA_OP_INVALID) {
+		printk(KERN_ERR "unsupport vmeta vop=%d\n", vi->vop);
+		return -1;
+	}
+
+	vi->vop_real = vi->vop;
+
+	if (!cpu_is_pxa978()) {
+		dvfm_disable_op_name("156M", idx);
+		dvfm_disable_op_name("156M_HF", idx);
+		dvfm_disable_op_name("988M", idx);
+
+		switch (vi->vop_real) {
+		case VMETA_OP_VGA:
+			dvfm_enable_op_name("208M_HF", idx);
+			dvfm_enable_op_name("416M_VGA", idx);
+			dvfm_disable_op_name("416M", idx);
+			break;
+		case VMETA_OP_VGA+1:
+			dvfm_disable_op_name("416M", idx);
+			dvfm_enable_op_name("416M_VGA", idx);
+			dvfm_disable_op_name("208M_HF", idx);
+			break;
+		case VMETA_OP_VGA+2:
+			dvfm_disable_op_name("416M", idx);
+			dvfm_disable_op_name("208M_HF", idx);
+			dvfm_disable_op_name("416M_VGA", idx);
+			break;
+		case VMETA_OP_720P:
+		case VMETA_OP_INVALID:
+			dvfm_disable_op_name("208M_HF", idx);
+			dvfm_disable_op_name("416M_VGA", idx);
+			break;
+		case VMETA_OP_720P+1:
+			dvfm_disable_op_name("208M_HF", idx);
+			dvfm_disable_op_name("416M_VGA", idx);
+			dvfm_disable_op_name("416M", idx);
+			break;
+		case VMETA_OP_720P+2:
+		default:
+			dvfm_disable_op_name("208M_HF", idx);
+			dvfm_disable_op_name("416M_VGA", idx);
+			dvfm_disable_op_name("416M", idx);
+			dvfm_disable_op_name("624M", idx);
+			break;
+		}
+	} else {
+		dvfm_disable_op_name("624M", idx);
+		dvfm_disable_op_name("312M", idx);
+		dvfm_disable_op_name("156M", idx);
+	}
+
+	return 0;
+}
+
+int pxa95x_vmeta_unset_dvfm_constraint(struct vmeta_instance *vi, int idx)
+{
+	if (!cpu_is_pxa978()) {
+		dvfm_enable_op_name("156M", idx);
+		dvfm_enable_op_name("156M_HF", idx);
+		dvfm_enable_op_name("624M", idx);
+		dvfm_enable_op_name("988M", idx);
+
+		/* It's already power off, e.g. in pause case */
+		if (vi->power_status == 0)
+			vi->vop_real = VMETA_OP_INVALID;
+
+		switch (vi->vop_real) {
+		case VMETA_OP_VGA:
+		case VMETA_OP_VGA+1:
+		case VMETA_OP_VGA+2:
+			dvfm_disable_op_name("416M", idx);
+			dvfm_enable_op_name("208M_HF", idx);
+			dvfm_enable_op_name("416M_VGA", idx);
+			break;
+		case VMETA_OP_720P:
+		case VMETA_OP_720P+1:
+		case VMETA_OP_720P+2:
+		case VMETA_OP_INVALID:
+		default:
+			dvfm_disable_op_name("208M_HF", idx);
+			dvfm_disable_op_name("416M_VGA", idx);
+			dvfm_enable_op_name("416M", idx);
+			break;
+		}
+	} else {
+		dvfm_enable_op_name("156M", idx);
+		dvfm_enable_op_name("312M", idx);
+		dvfm_enable_op_name("624M", idx);
+	}
+	vi->vop_real = VMETA_OP_INVALID;
+
+	return 0;
+}
+
+irqreturn_t pxa95x_vmeta_bus_irq_handler(int irq, void *dev_id)
+{
+	struct vmeta_instance *vi = (struct vmeta_instance *)dev_id;
+
+	printk(KERN_ERR "VMETA: bus error detected\n");
+	uio_event_notify(&vi->uio_info);
+	return IRQ_HANDLED;
+}
+
+#define CP_MEM_MAX_SEGMENTS 2
+unsigned _cp_area_addr[CP_MEM_MAX_SEGMENTS];
+unsigned _cp_area_size[CP_MEM_MAX_SEGMENTS+1]; /* last entry 0 */
+static int __init setup_cpmem(char *p)
+{
+	unsigned long size, start = 0xa7000000;
+	int seg;
+
+	size  = memparse(p, &p);
+	if (*p == '@')
+		start = memparse(p + 1, &p);
+
+	for (seg = 0; seg < CP_MEM_MAX_SEGMENTS; seg++)
+		if (!_cp_area_size[seg])
+			break;
+	BUG_ON(seg == CP_MEM_MAX_SEGMENTS);
+	_cp_area_addr[seg] = (unsigned)start;
+	_cp_area_size[seg] = (unsigned)size;
+	return 0;
+}
+early_param("cpmem", setup_cpmem);
+
+unsigned cp_area_addr(void)
+{
+	/* _cp_area_addr[] contain actual CP region addresses for reservation.
+	This function returns the address of the first region, which is
+	the main one used for AP-CP interface, aligned to 16MB.
+	The AP-CP interface code takes care of the offsets inside the region,
+	including the non-CP area at the beginning of the 16MB aligned range. */
+	return _cp_area_addr[0]&0xFF000000;
+}
+EXPORT_SYMBOL(cp_area_addr);
+
+void pxa95x_cpmem_reserve(void)
+{
+	int seg;
+
+	/* reserve cpmem */
+	for (seg = 0; seg < CP_MEM_MAX_SEGMENTS; seg++) {
+		if (_cp_area_size[seg] != 0) {
+			BUG_ON(memblock_reserve(_cp_area_addr[seg], _cp_area_size[seg]));
+			memblock_free(_cp_area_addr[seg], _cp_area_size[seg]);
+			memblock_remove(_cp_area_addr[seg], _cp_area_size[seg]);
+			printk(KERN_INFO "Reserving CP memory: %dM at %.8x\n",
+				(unsigned)_cp_area_size[seg]/0x100000,
+				(unsigned)_cp_area_addr[seg]);
+		}
+	}
+
+#ifdef CONFIG_ANDROID_PMEM
+	/* reserve pmem */
+	pxa_reserve_pmem_memblock();
+#endif
+}
+
+void pxa95x_mem_reserve(void)
+{
+	pxa95x_cpmem_reserve();
+}
+
+void pxa_boot_flash_init(int sync_mode)
+{
+	int boot_flash_type;
+
+	/* Get boot flash type from OBM */
+	boot_flash_type = pxa_boot_flash_type_get();
+	switch (boot_flash_type) {
+	case NAND_FLASH:
+#ifdef CONFIG_MTD_NAND
+		nand_init();
+#endif
+		break;
+	case ONENAND_FLASH:
+#ifdef CONFIG_MTD_ONENAND
+		/* 1 sync read, 0  async read */
+		onenand_init(sync_mode);
+#endif
+		break;
+	case SDMMC_FLASH:
+		/* ShukiZ: TODO, check how to init
+			eMMC vs. external MMC device */
+		break;
+	default:
+		printk(KERN_ERR "boot flash type not supported: %d",
+			boot_flash_type);
+	}
+}
+EXPORT_SYMBOL(pxa_boot_flash_init);
+
+static struct dvfm_lock dvfm_lock = {
+	.lock = __SPIN_LOCK_UNLOCKED(dvfm_lock.lock),
+	.dev_idx = -1,
+	.count = 0,
+};
+
+static void vmeta_work_handler(struct work_struct *work)
+{
+	int ret;
+	struct vmeta_instance *vi = container_of(work,
+						 struct vmeta_instance,
+						 unset_op_work.work);
+	spin_lock(&dvfm_lock.lock);
+	if (dvfm_lock.count == 0) {
+		spin_unlock(&dvfm_lock.lock);
+		mutex_lock(&vi->mutex);
+		ret = pxa95x_vmeta_unset_dvfm_constraint(vi, dvfm_lock.dev_idx);
+		if (ret) {
+			printk(KERN_ERR "vmeta dvfm enable error with %d\n",
+			       ret);
+		}
+		vi->power_constraint = 0;
+		mutex_unlock(&vi->mutex);
+		return;
+	}
+	spin_unlock(&dvfm_lock.lock);
+}
+int vmeta_runtime_constraint(struct vmeta_instance *vi, int on)
+{
+	int ret = 0;
+	if (1 == on) {
+		spin_lock(&dvfm_lock.lock);
+		if (dvfm_lock.count++ == 0) {
+			spin_unlock(&dvfm_lock.lock);
+		/* Disable dvfm for now for MG1,
+		 * todo: later should try to restore to optimize for power */
+			ret = pxa95x_vmeta_set_dvfm_constraint(vi,
+						dvfm_lock.dev_idx);
+			if (ret)
+				printk(KERN_ERR
+				"vmeta dvfm disable error with %d\n", ret);
+			vi->power_constraint = 1;
+			cancel_delayed_work(&vi->unset_op_work);
+		} else {
+			dvfm_lock.count--;
+			spin_unlock(&dvfm_lock.lock);
+		}
+	} else if (0 == on) {
+		spin_lock(&dvfm_lock.lock);
+		if (dvfm_lock.count == 0) {
+			spin_unlock(&dvfm_lock.lock);
+			return 0;
+		}
+		if (--dvfm_lock.count == 0) {
+			if (timer_pending(&vi->unset_op_work.timer))
+				mod_timer(&vi->unset_op_work.timer,
+					  jiffies + msecs_to_jiffies
+					  (vmeta_plat_data.power_down_ms));
+			else
+				schedule_delayed_work_on(0,
+							 &vi->unset_op_work,
+							 msecs_to_jiffies(
+							 vmeta_plat_data.
+							 power_down_ms));
+		} else
+			dvfm_lock.count++;
+		spin_unlock(&dvfm_lock.lock);
+	}
+	return 0;
+}
+int vmeta_init_constraint(struct vmeta_instance *vi)
+{
+	int ret;
+	INIT_DELAYED_WORK(&vi->unset_op_work, vmeta_work_handler);
+	vmeta_plat_data.power_down_ms = 10;
+
+	ret = dvfm_register("VMETA", &dvfm_lock.dev_idx);
+	if (ret)
+		printk(KERN_ERR "vmeta dvfm register fail(%d)\n", ret);
+
+	pxa95x_vmeta_init_dvfm_constraint(vi, dvfm_lock.dev_idx);
+	return 0;
+}
+int vmeta_clean_constraint(struct vmeta_instance *vi)
+{
+	pxa95x_vmeta_clean_dvfm_constraint(NULL, dvfm_lock.dev_idx);
+	dvfm_unregister("VMETA", &dvfm_lock.dev_idx);
+	return 0;
+}
+int vmeta_freq_change(struct vmeta_instance *vi, int step)
+{
+	int ret = 0;
+	if (step > 0)
+		ret = pxa95x_vmeta_increase_core_freq(vi, step);
+	else if (step < 0)
+		ret = pxa95x_vmeta_decrease_core_freq(vi, 0 - step);
+	return ret;
+}
+void vmeta_power_switch(unsigned int enable)
+{
+	if (VMETA_PWR_ENABLE == enable) {
+		dvfm_disable_lowpower(dvfm_lock.dev_idx);
+		vmeta_pwr(VMETA_PWR_ENABLE);
+	} else if (VMETA_PWR_DISABLE == enable) {
+		vmeta_pwr(VMETA_PWR_DISABLE);
+		pxa95x_vmeta_clean_dvfm_constraint(NULL, dvfm_lock.dev_idx);
+		printk(KERN_INFO "vmeta op clean up\n");
+		dvfm_enable_lowpower(dvfm_lock.dev_idx);
+	}
+}

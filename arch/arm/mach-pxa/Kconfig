@@ -53,6 +53,8 @@ config MACH_SAAR
 config MACH_SAARB
 	bool "PXA955 Handheld Platform (aka SAARB)"
 	select CPU_PXA955
+	select HAVE_PWM
+	select USB_ARCH_HAS_EHCI
 
 comment "Third Party Dev Platforms (sorted by vendor name)"
 
@@ -658,13 +660,16 @@ config CPU_PXA935
 
 config PXA95x
 	bool
-	select CPU_PJ4
+	select MULTI_IRQ_HANDLER
+	select PXA_SSP
 	help
 	  Select code specific to PXA95x variants
 
 config CPU_PXA955
 	bool
 	select PXA95x
+	select CPU_PJ4 if !(CPU_XSCALE || CPU_XSC3)
+	select PREEMPT_NOTIFIERS
 	help
 	  PXA950 (codename MG1)
 

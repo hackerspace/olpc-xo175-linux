@@ -1284,6 +1284,7 @@ MODULE_LICENSE ("GPL");
 #define PLATFORM_DRIVER		ehci_grlib_driver
 #endif
 
+
 #if !defined(PCI_DRIVER) && !defined(PLATFORM_DRIVER) && \
     !defined(PS3_SYSTEM_BUS_DRIVER) && !defined(OF_PLATFORM_DRIVER) && \
     !defined(XILINX_OF_PLATFORM_DRIVER)
@@ -1365,8 +1366,8 @@ clean2:
 clean1:
 #endif
 #ifdef PLATFORM_DRIVER
-	platform_driver_unregister(&PLATFORM_DRIVER);
 clean0:
+	platform_driver_unregister(&PLATFORM_DRIVER);
 #endif
 #ifdef DEBUG
 	debugfs_remove(ehci_debug_root);

@@ -15,6 +15,7 @@
 
 #define TIMERS1_VIRT_BASE	(APB_VIRT_BASE + 0x14000)
 #define TIMERS2_VIRT_BASE	(APB_VIRT_BASE + 0x16000)
+#define CP_TIMERS2_VIRT_BASE    (APB_VIRT_BASE + 0x80000)
 
 #define TMR_CCR		(0x0000)
 #define TMR_TN_MM(n, m)	(0x0004 + ((n) << 3) + (((n) + (m)) << 2))

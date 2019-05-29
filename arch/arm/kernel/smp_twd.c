@@ -112,7 +112,7 @@ static void __cpuinit twd_calibrate_rate(void)
 
 		count = __raw_readl(twd_base + TWD_TIMER_COUNTER);
 
-		twd_timer_rate = (0xFFFFFFFFU - count) * (HZ / 5);
+		twd_timer_rate = (0xFFFFFFFFU - count) * HZ / 5;
 
 		printk("%lu.%02luMHz.\n", twd_timer_rate / 1000000,
 			(twd_timer_rate / 10000) % 100);

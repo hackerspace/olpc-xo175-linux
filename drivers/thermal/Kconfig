@@ -22,3 +22,4 @@ config THERMAL_HWMON
 	  requires a 2.10.7/3.0.2 or later lm-sensors userspace.
 
 	  Say Y if your user-space is new enough.
+

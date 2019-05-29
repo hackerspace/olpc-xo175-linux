@@ -26,5 +26,8 @@ typedef unsigned int mmc_pm_flag_t;
 
 #define MMC_PM_KEEP_POWER	(1 << 0)	/* preserve card power during suspend */
 #define MMC_PM_WAKE_SDIO_IRQ	(1 << 1)	/* wake up host system on SDIO IRQ assertion */
+#define MMC_PM_FUNC_SUSPENDED   (1 << 3)        /* function is suspended */
+#define MMC_PM_ALWAYS_ACTIVE	(1 << 4)	/* keep host functional during suspend */
+#define MMC_PM_IRQ_ALWAYS_ON	(1 << 5)	/* keep host controller's irq enabled after suspend */
 
-#endif
+#endif /* LINUX_MMC_PM_H */

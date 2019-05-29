@@ -36,6 +36,10 @@ static struct resource led_resources[] __devinitdata = {
 	{PM8606_LED2_BLUE,  PM8606_LED2_BLUE,  "led1-blue",  IORESOURCE_IO,},
 };
 
+static struct resource vbus_resources[] __devinitdata = {
+	{PM8607_IRQ_CHG, PM8607_IRQ_CHG, "88pm860x-vbus", IORESOURCE_IRQ,},
+};
+
 static struct resource regulator_resources[] __devinitdata = {
 	{PM8607_ID_BUCK1, PM8607_ID_BUCK1, "buck-1", IORESOURCE_IO,},
 	{PM8607_ID_BUCK2, PM8607_ID_BUCK2, "buck-2", IORESOURCE_IO,},
@@ -66,14 +70,19 @@ static struct resource onkey_resources[] __devinitdata = {
 };
 
 static struct resource codec_resources[] __devinitdata = {
-	/* Headset microphone insertion or removal */
-	{PM8607_IRQ_MICIN,   PM8607_IRQ_MICIN,   "micin",   IORESOURCE_IRQ,},
-	/* Hook-switch press or release */
-	{PM8607_IRQ_HOOK,    PM8607_IRQ_HOOK,    "hook",    IORESOURCE_IRQ,},
-	/* Headset insertion or removal */
-	{PM8607_IRQ_HEADSET, PM8607_IRQ_HEADSET, "headset", IORESOURCE_IRQ,},
 	/* Audio short */
 	{PM8607_IRQ_AUDIO_SHORT, PM8607_IRQ_AUDIO_SHORT, "audio-short", IORESOURCE_IRQ,},
+};
+
+static struct resource vibrator_resources[] __devinitdata = {
+	{PM8606_VIBRATORA, PM8606_VIBRATORB, "android-vibrator", IORESOURCE_IO,},
+};
+
+static struct resource headset_resources[] __devinitdata = {
+	/* Headset insertion or removal */
+	{PM8607_IRQ_HEADSET, PM8607_IRQ_HEADSET, "headset", IORESOURCE_IRQ,},
+	/* Hook-switch press or release */
+	{PM8607_IRQ_HOOK,    PM8607_IRQ_HOOK,    "hook",    IORESOURCE_IRQ,},
 };
 
 static struct resource battery_resources[] __devinitdata = {
@@ -84,7 +93,8 @@ static struct resource battery_resources[] __devinitdata = {
 static struct resource charger_resources[] __devinitdata = {
 	{PM8607_IRQ_CHG,  PM8607_IRQ_CHG,  "charger detect",  IORESOURCE_IRQ,},
 	{PM8607_IRQ_CHG_DONE,  PM8607_IRQ_CHG_DONE,  "charging done",       IORESOURCE_IRQ,},
-	{PM8607_IRQ_CHG_FAULT, PM8607_IRQ_CHG_FAULT, "charging timeout",    IORESOURCE_IRQ,},
+	{PM8607_IRQ_CHG_FAIL, PM8607_IRQ_CHG_FAIL, "charging timeout",    IORESOURCE_IRQ,},
+	{PM8607_IRQ_CHG_FAULT, PM8607_IRQ_CHG_FAULT, "charging fault",    IORESOURCE_IRQ,},
 	{PM8607_IRQ_GPADC1,    PM8607_IRQ_GPADC1,    "battery temperature", IORESOURCE_IRQ,},
 	{PM8607_IRQ_VBAT, PM8607_IRQ_VBAT, "battery voltage", IORESOURCE_IRQ,},
 	{PM8607_IRQ_VCHG, PM8607_IRQ_VCHG, "vchg voltage",    IORESOURCE_IRQ,},
@@ -107,6 +117,10 @@ static struct mfd_cell led_devs[] = {
 	{"88pm860x-led", 3,},
 	{"88pm860x-led", 4,},
 	{"88pm860x-led", 5,},
+};
+
+static struct mfd_cell vbus_devs[] = {
+	{"88pm860x-vbus", 1,},
 };
 
 static struct mfd_cell regulator_devs[] = {
@@ -135,7 +149,7 @@ static struct mfd_cell touch_devs[] = {
 };
 
 static struct mfd_cell onkey_devs[] = {
-	{"88pm860x-onkey", -1,},
+	{"88pm8xxx-onkey", -1,},
 };
 
 static struct mfd_cell codec_devs[] = {
@@ -151,6 +165,17 @@ static struct mfd_cell rtc_devs[] = {
 	{"88pm860x-rtc", -1,},
 };
 
+static struct mfd_cell cm3601_devs[] = {
+	{"cm3601", -1,},
+};
+
+static struct mfd_cell headset_devs[] = {
+	{"88pm860x-headset", -1,},
+};
+
+static struct mfd_cell vibrator_devs[] = {
+	{"android-vibrator", -1,},
+};
 
 struct pm860x_irq_data {
 	int	reg;
@@ -376,7 +401,7 @@ static int __devinit device_gpadc_init(struct pm860x_chip *chip,
 	/* initialize GPADC without activating it */
 
 	if (!pdata || !pdata->touch)
-		return -EINVAL;
+		return 0;
 
 	/* set GPADC MISC1 register */
 	data = 0;
@@ -419,6 +444,7 @@ static int __devinit device_irq_init(struct pm860x_chip *chip,
 				: chip->companion;
 	unsigned char status_buf[INT_STATUS_NUM];
 	unsigned long flags = IRQF_TRIGGER_FALLING | IRQF_ONESHOT;
+	struct irq_desc *desc;
 	int i, data, mask, ret = -EINVAL;
 	int __irq;
 
@@ -469,6 +495,8 @@ static int __devinit device_irq_init(struct pm860x_chip *chip,
 	chip->core_irq = i2c->irq;
 	if (!chip->core_irq)
 		goto out;
+	desc = irq_to_desc(chip->core_irq);
+	pm860x_irq_chip.irq_set_wake = desc->irq_data.chip->irq_set_wake;
 
 	/* register IRQ by genirq */
 	for (i = 0; i < ARRAY_SIZE(pm860x_irqs); i++) {
@@ -501,6 +529,93 @@ static void device_irq_exit(struct pm860x_chip *chip)
 {
 	if (chip->core_irq)
 		free_irq(chip->core_irq, chip);
+}
+
+static u16 pm8606_ref_gp_and_osc_vote;
+static u8 pm8606_ref_gp_and_osc_status;
+#define PM8606_REF_GP_OSC_OFF         0
+#define PM8606_REF_GP_OSC_ON          1
+#define PM8606_REF_GP_OSC_UNKNOWN     2
+
+int pm8606_ref_gp_and_osc_get(struct pm860x_chip *chip, u16 client)
+{
+	int ret = -EIO;
+	struct i2c_client *i2c = (chip->id == CHIP_PM8606) ?
+		chip->client : chip->companion;
+
+	dev_dbg(chip->dev, "%s(B): client=0x%x\n", __func__, client);
+	dev_dbg(chip->dev, "%s(B): vote=0x%x status=%d\n",
+			__func__, pm8606_ref_gp_and_osc_vote,
+			pm8606_ref_gp_and_osc_status);
+
+	/* Update voting status */
+	pm8606_ref_gp_and_osc_vote |= client;
+	/* If reference group is off - turn on*/
+	if (pm8606_ref_gp_and_osc_status != PM8606_REF_GP_OSC_ON) {
+		do {
+			pm8606_ref_gp_and_osc_status =
+				PM8606_REF_GP_OSC_UNKNOWN;
+
+			/* Enable Reference group Vsys */
+			if (pm860x_set_bits(i2c, PM8606_VSYS,
+					PM8606_VSYS_EN, PM8606_VSYS_EN))
+				break;
+			/*Enable Internal Oscillator */
+			if (pm860x_set_bits(i2c, PM8606_MISC,
+					PM8606_MISC_OSC_EN, PM8606_MISC_OSC_EN))
+				break;
+
+			/* Update status (only if writes succeed) */
+			pm8606_ref_gp_and_osc_status = PM8606_REF_GP_OSC_ON;
+			ret = 0;
+		} while (0);
+	} else
+		ret = 0;
+
+	dev_dbg(chip->dev, "%s(A): vote=0x%x status=%d ret=%d\n",
+			__func__, pm8606_ref_gp_and_osc_vote,
+			pm8606_ref_gp_and_osc_status, ret);
+	return ret;
+}
+
+int pm8606_ref_gp_and_osc_release(struct pm860x_chip *chip, u16 client)
+{
+	int ret = -EIO;
+	struct i2c_client *i2c = (chip->id == CHIP_PM8606) ?
+		chip->client : chip->companion;
+
+	dev_dbg(chip->dev, "%s(B): client=0x%x\n", __func__, client);
+	dev_dbg(chip->dev, "%s(B): vote=0x%x status=%d\n",
+			__func__, pm8606_ref_gp_and_osc_vote,
+			pm8606_ref_gp_and_osc_status);
+
+	/*Update voting status */
+	pm8606_ref_gp_and_osc_vote &= ~(client);
+	/* If reference group is off and this is the last client to release
+	 * - turn off */
+	if ((pm8606_ref_gp_and_osc_status != PM8606_REF_GP_OSC_OFF) &&
+			(pm8606_ref_gp_and_osc_vote == REF_GP_NO_CLIENTS)) {
+		do {
+			pm8606_ref_gp_and_osc_status =
+				PM8606_REF_GP_OSC_UNKNOWN;
+			/* Disable Reference group Vsys */
+			if (pm860x_set_bits(i2c, PM8606_VSYS,
+					PM8606_VSYS_EN, 0))
+				break;
+			/* Disable Internal Oscillator */
+			if (pm860x_set_bits(i2c, PM8606_MISC,
+					PM8606_MISC_OSC_EN, 0))
+				break;
+			pm8606_ref_gp_and_osc_status = PM8606_REF_GP_OSC_OFF;
+			ret = 0;
+		} while (0);
+	} else
+		ret = 0;
+
+	dev_dbg(chip->dev, "%s(A): vote=0x%x status=%d ret=%d\n",
+			__func__, pm8606_ref_gp_and_osc_vote,
+			pm8606_ref_gp_and_osc_status, ret);
+	return ret;
 }
 
 static void __devinit device_bk_init(struct pm860x_chip *chip,
@@ -538,6 +653,32 @@ static void __devinit device_bk_init(struct pm860x_chip *chip,
 	}
 }
 
+static void __devinit device_8606_oscillator_vsys_init(struct i2c_client *i2c)
+{
+	/* init portofino reference group voting and status */
+	/* Disable Reference group Vsys */
+	pm860x_set_bits(i2c, PM8606_VSYS, PM8606_VSYS_EN, 0);
+	/* Disable Internal Oscillator */
+	pm860x_set_bits(i2c, PM8606_MISC, PM8606_MISC_OSC_EN, 0);
+
+	pm8606_ref_gp_and_osc_vote = REF_GP_NO_CLIENTS;
+	pm8606_ref_gp_and_osc_status = PM8606_REF_GP_OSC_OFF;
+}
+
+static void __devinit device_vibrator_init(struct pm860x_chip *chip,
+					struct pm860x_platform_data *pdata)
+{
+	int ret;
+	vibrator_devs[0].num_resources = 1,
+	vibrator_devs[0].resources = &vibrator_resources[0],
+	ret = mfd_add_devices(chip->dev, 0, &vibrator_devs[0],
+				ARRAY_SIZE(vibrator_devs),
+				&vibrator_resources[0], 0);
+	if (ret < 0)
+		dev_err(chip->dev, "Failed to add vibrator subdev\n");
+}
+
+
 static void __devinit device_led_init(struct pm860x_chip *chip,
 				      struct pm860x_platform_data *pdata)
 {
@@ -571,6 +712,22 @@ static void __devinit device_led_init(struct pm860x_chip *chip,
 			}
 		}
 	}
+}
+
+static void __devinit device_vbus_init(struct pm860x_chip *chip,
+				      struct pm860x_platform_data *pdata)
+{
+	int ret;
+
+	vbus_devs[0].num_resources = 1;
+	vbus_devs[0].resources = &vbus_resources[0],
+	ret = mfd_add_devices(chip->dev, 0, &vbus_devs[0],
+			ARRAY_SIZE(vbus_devs), &vbus_resources[0],
+			chip->irq_base);
+	if (ret < 0)
+		dev_err(chip->dev, "Failed to add vbus subdev\n");
+
+	return;
 }
 
 static void __devinit device_regulator_init(struct pm860x_chip *chip,
@@ -617,7 +774,6 @@ static void __devinit device_rtc_init(struct pm860x_chip *chip,
 
 	if ((pdata == NULL))
 		return;
-
 	rtc_devs[0].platform_data = pdata->rtc;
 	rtc_devs[0].pdata_size = sizeof(struct pm860x_rtc_pdata);
 	rtc_devs[0].num_resources = ARRAY_SIZE(rtc_resources);
@@ -702,29 +858,63 @@ static void __devinit device_codec_init(struct pm860x_chip *chip,
 		dev_err(chip->dev, "Failed to add codec subdev\n");
 }
 
+static void __devinit device_cm3601_init(struct pm860x_chip *chip,
+					struct pm860x_platform_data *pdata)
+{
+	int ret;
+
+	if ((pdata == NULL) || (pdata->cm3601 == NULL))
+		return;
+
+	cm3601_devs[0].platform_data = pdata->cm3601;
+        cm3601_devs[0].pdata_size = sizeof(struct pm860x_cm3601_pdata);
+	ret = mfd_add_devices(chip->dev, 0, &cm3601_devs[0],
+			      ARRAY_SIZE(cm3601_devs), NULL,
+			      chip->irq_base);
+	if (ret < 0)
+		dev_err(chip->dev, "Failed to add cm3601 subdev\n");
+}
+
+static void __devinit device_headset_init(struct pm860x_chip *chip,
+						struct pm860x_platform_data *pdata)
+{
+	int ret;
+
+	headset_devs[0].num_resources = ARRAY_SIZE(headset_resources);
+	headset_devs[0].resources = &headset_resources[0];
+	headset_devs[0].platform_data = pdata->headset;
+	headset_devs[0].pdata_size = sizeof(struct pm860x_headset_pdata);
+	ret = mfd_add_devices(chip->dev, 0, &headset_devs[0],
+				ARRAY_SIZE(headset_devs), &headset_resources[0], 0);
+	if (ret < 0)
+		dev_err(chip->dev, "Failed to add headset subdev\n");
+}
+
 static void __devinit device_8607_init(struct pm860x_chip *chip,
 				       struct i2c_client *i2c,
 				       struct pm860x_platform_data *pdata)
 {
-	int data, ret;
+	int data, ret, pmic_id;
 
 	ret = pm860x_reg_read(i2c, PM8607_CHIP_ID);
 	if (ret < 0) {
 		dev_err(chip->dev, "Failed to read CHIP ID: %d\n", ret);
-		goto out;
-	}
-	switch (ret & PM8607_VERSION_MASK) {
-	case 0x40:
-	case 0x50:
-		dev_info(chip->dev, "Marvell 88PM8607 (ID: %02x) detected\n",
-			 ret);
-		break;
-	default:
-		dev_err(chip->dev, "Failed to detect Marvell 88PM8607. "
-			"Chip ID: %02x\n", ret);
+		BUG_ON(1);
 		goto out;
 	}
 
+	pmic_id = ret & PM8XXX_VERSION_MASK;
+
+	if  ((pmic_id >= PM8607_CHIP_A0) && (pmic_id <= PM8607_CHIP_END)) {
+		chip->chip_version = ret;
+		dev_info(chip->dev, "Marvell 88PM8607 (ID: %02x) detected\n",
+				ret);
+	} else {
+		dev_err(chip->dev, "Failed to detect Marvell 88PM8607:Chip ID: %02x\n",
+		ret);
+		BUG_ON(1);
+		goto out;
+	}
 	ret = pm860x_reg_read(i2c, PM8607_BUCK3);
 	if (ret < 0) {
 		dev_err(chip->dev, "Failed to read BUCK3 register: %d\n", ret);
@@ -749,6 +939,20 @@ static void __devinit device_8607_init(struct pm860x_chip *chip,
 		goto out;
 	}
 
+	/*
+	 * alarm wake up bit will be clear in device_irq_init(),
+	 * read before that
+	 */
+	ret = pm860x_reg_read(i2c, PM8607_RTC1);
+	if (ret < 0) {
+		dev_err(chip->dev, "Failed to read RTC register: %d\n", ret);
+		goto out;
+	}
+	if (ret & PM8607_RTC_ALARM_WU) {
+		if (pdata && pdata->rtc)
+			pdata->rtc->rtc_wakeup = 1;
+	}
+
 	ret = device_gpadc_init(chip, pdata);
 	if (ret < 0)
 		goto out;
@@ -757,12 +961,20 @@ static void __devinit device_8607_init(struct pm860x_chip *chip,
 	if (ret < 0)
 		goto out;
 
+	chip->monitor_wqueue = create_singlethread_workqueue("88pm860x");
+	if (!chip->monitor_wqueue) {
+		ret = -ESRCH;
+		goto out;
+	}
+
 	device_regulator_init(chip, pdata);
 	device_rtc_init(chip, pdata);
 	device_onkey_init(chip, pdata);
 	device_touch_init(chip, pdata);
 	device_power_init(chip, pdata);
 	device_codec_init(chip, pdata);
+	device_cm3601_init(chip, pdata);
+	device_headset_init(chip, pdata);
 out:
 	return;
 }
@@ -776,6 +988,9 @@ int __devinit pm860x_device_init(struct pm860x_chip *chip,
 	case CHIP_PM8606:
 		device_bk_init(chip, pdata);
 		device_led_init(chip, pdata);
+		device_vbus_init(chip, pdata);
+		device_vibrator_init(chip, pdata);
+		device_8606_oscillator_vsys_init(chip->client);
 		break;
 	case CHIP_PM8607:
 		device_8607_init(chip, chip->client, pdata);
@@ -787,6 +1002,9 @@ int __devinit pm860x_device_init(struct pm860x_chip *chip,
 		case CHIP_PM8607:
 			device_bk_init(chip, pdata);
 			device_led_init(chip, pdata);
+			device_vbus_init(chip, pdata);
+			device_vibrator_init(chip, pdata);
+			device_8606_oscillator_vsys_init(chip->client);
 			break;
 		case CHIP_PM8606:
 			device_8607_init(chip, chip->companion, pdata);
@@ -799,6 +1017,8 @@ int __devinit pm860x_device_init(struct pm860x_chip *chip,
 
 void __devexit pm860x_device_exit(struct pm860x_chip *chip)
 {
+	flush_workqueue(chip->monitor_wqueue);
+	destroy_workqueue(chip->monitor_wqueue);
 	device_irq_exit(chip);
 	mfd_remove_devices(chip->dev);
 }

@@ -42,6 +42,7 @@
 #define WFE(cond)	ALT_SMP("wfe" cond, "nop")
 #endif
 
+
 static inline void dsb_sev(void)
 {
 #if __LINUX_ARM_ARCH__ >= 7
@@ -78,40 +79,10 @@ static inline void dsb_sev(void)
 
 static inline void arch_spin_lock(arch_spinlock_t *lock)
 {
-	unsigned long tmp;
-
-	__asm__ __volatile__(
-"1:	ldrex	%0, [%1]\n"
-"	teq	%0, #0\n"
-	WFE("ne")
-"	strexeq	%0, %2, [%1]\n"
-"	teqeq	%0, #0\n"
-"	bne	1b"
-	: "=&r" (tmp)
-	: "r" (&lock->lock), "r" (1)
-	: "cc");
-
-	smp_mb();
 }
 
 static inline int arch_spin_trylock(arch_spinlock_t *lock)
 {
-	unsigned long tmp;
-
-	__asm__ __volatile__(
-"	ldrex	%0, [%1]\n"
-"	teq	%0, #0\n"
-"	strexeq	%0, %2, [%1]"
-	: "=&r" (tmp)
-	: "r" (&lock->lock), "r" (1)
-	: "cc");
-
-	if (tmp == 0) {
-		smp_mb();
-		return 1;
-	} else {
-		return 0;
-	}
 }
 
 static inline void arch_spin_unlock(arch_spinlock_t *lock)
@@ -137,40 +108,10 @@ static inline void arch_spin_unlock(arch_spinlock_t *lock)
 
 static inline void arch_write_lock(arch_rwlock_t *rw)
 {
-	unsigned long tmp;
-
-	__asm__ __volatile__(
-"1:	ldrex	%0, [%1]\n"
-"	teq	%0, #0\n"
-	WFE("ne")
-"	strexeq	%0, %2, [%1]\n"
-"	teq	%0, #0\n"
-"	bne	1b"
-	: "=&r" (tmp)
-	: "r" (&rw->lock), "r" (0x80000000)
-	: "cc");
-
-	smp_mb();
 }
 
 static inline int arch_write_trylock(arch_rwlock_t *rw)
 {
-	unsigned long tmp;
-
-	__asm__ __volatile__(
-"1:	ldrex	%0, [%1]\n"
-"	teq	%0, #0\n"
-"	strexeq	%0, %2, [%1]"
-	: "=&r" (tmp)
-	: "r" (&rw->lock), "r" (0x80000000)
-	: "cc");
-
-	if (tmp == 0) {
-		smp_mb();
-		return 1;
-	} else {
-		return 0;
-	}
 }
 
 static inline void arch_write_unlock(arch_rwlock_t *rw)
@@ -206,7 +147,7 @@ static inline void arch_read_lock(arch_rwlock_t *rw)
 	unsigned long tmp, tmp2;
 
 	__asm__ __volatile__(
-"1:	ldrex	%0, [%2]\n"
+"1:		\n"
 "	adds	%0, %0, #1\n"
 "	strexpl	%1, %0, [%2]\n"
 	WFE("mi")
@@ -226,7 +167,7 @@ static inline void arch_read_unlock(arch_rwlock_t *rw)
 	smp_mb();
 
 	__asm__ __volatile__(
-"1:	ldrex	%0, [%2]\n"
+"1:		\n"
 "	sub	%0, %0, #1\n"
 "	strex	%1, %0, [%2]\n"
 "	teq	%1, #0\n"
@@ -244,7 +185,7 @@ static inline int arch_read_trylock(arch_rwlock_t *rw)
 	unsigned long tmp, tmp2 = 1;
 
 	__asm__ __volatile__(
-"1:	ldrex	%0, [%2]\n"
+"1:		\n"
 "	adds	%0, %0, #1\n"
 "	strexpl	%1, %0, [%2]\n"
 	: "=&r" (tmp), "+r" (tmp2)

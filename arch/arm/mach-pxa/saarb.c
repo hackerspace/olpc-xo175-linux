@@ -12,9 +12,19 @@
 
 #include <linux/init.h>
 #include <linux/kernel.h>
+#include <linux/dma-mapping.h>
+#include <linux/platform_device.h>
 #include <linux/i2c.h>
-#include <linux/i2c/pxa-i2c.h>
+#include <linux/i2c/pxa95x-i2c.h>
 #include <linux/mfd/88pm860x.h>
+#include <linux/clk.h>
+#include <linux/delay.h>
+#include <linux/platform_data/pxa_sdhci.h>
+#include <linux/regulator/machine.h>
+#include <linux/sd8x_rfkill.h>
+#include <linux/mmc/host.h>
+#include <linux/mmc/card.h>
+#include <linux/slab.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -24,12 +34,32 @@
 #include <mach/mfp.h>
 #include <mach/mfp-pxa930.h>
 #include <mach/gpio.h>
+#include <mach/pxa95xfb.h>
+#include <mach/pxa95x_dvfm.h>
 
+#include <mach/camera.h>
+#include <media/soc_camera.h>
+#include <linux/switch.h>
+
+#include <mach/pxa3xx-regs.h>
+#include <mach/usb-regs.h>
+#include <mach/audio.h>
+#include <plat/pxa27x_keypad.h>
+
+#include <mach/mspm_prof.h>
+
+#include <plat/usb.h>
+#include "devices.h"
 #include "generic.h"
+
+#include "panel_settings.h"
+#ifdef CONFIG_RTC_DRV_PXA
+#include <linux/rtc-pxa.h>
+#endif
 
 #define SAARB_NR_IRQS	(IRQ_BOARD_START + 40)
 
-static struct pm860x_touch_pdata saarb_touch = {
+static struct pm860x_touch_pdata touch = {
 	.gpadc_prebias	= 1,
 	.slot_cycle	= 1,
 	.tsi_prebias	= 6,
@@ -38,16 +68,21 @@ static struct pm860x_touch_pdata saarb_touch = {
 	.res_x		= 300,
 };
 
-static struct pm860x_backlight_pdata saarb_backlight[] = {
+static struct pm860x_backlight_pdata backlight[] = {
 	{
 		.id	= PM8606_ID_BACKLIGHT,
-		.iset	= PM8606_WLED_CURRENT(24),
+		.iset	= PM8606_WLED_CURRENT(8),
 		.flags	= PM8606_BACKLIGHT1,
 	},
-	{},
+	{
+		/*keypad backlight data*/
+		.id	= PM8606_ID_BACKLIGHT,
+		.iset	= PM8606_WLED_CURRENT(8),
+		.flags	= PM8606_BACKLIGHT2,
+	},
 };
 
-static struct pm860x_led_pdata saarb_led[] = {
+static struct pm860x_led_pdata led[] = {
 	{
 		.id	= PM8606_ID_LED,
 		.iset	= PM8606_LED_CURRENT(12),
@@ -75,39 +110,1117 @@ static struct pm860x_led_pdata saarb_led[] = {
 	},
 };
 
-static struct pm860x_platform_data saarb_pm8607_info = {
-	.touch		= &saarb_touch,
-	.backlight	= &saarb_backlight[0],
-	.led		= &saarb_led[0],
+static void disable_rf(void)
+{
+}
+
+static struct pm860x_power_pdata power = {
+	.disable_rf_fn  = disable_rf,
+};
+
+static void init_rfreset_gpio(void)
+{
+	update_rfreset_gpio_num(MFP_PIN_GPIO112);
+}
+
+
+static struct pm860x_headset_pdata headset_platform_info	 = {
+	.headset_flag = 0,
+	/* headset switch */
+	.headset_data[0].name = "h2w",
+	.headset_data[0].gpio = 0,
+	.headset_data[0].name_on = NULL,
+	.headset_data[0].name_off = NULL,
+	.headset_data[0].state_on = NULL,
+	.headset_data[0].state_off = NULL,
+	/* hook switch */
+	.headset_data[1].name = "h3w",
+	.headset_data[1].gpio = 0,
+	.headset_data[1].name_on = NULL,
+	.headset_data[1].name_off = NULL,
+	.headset_data[1].state_on = NULL,
+	.headset_data[1].state_off = NULL,
+};
+
+/* TODO: check the regulator data carefully */
+static struct regulator_consumer_supply regulator_supply[PM8607_ID_RG_MAX];
+static struct regulator_init_data regulator_data[PM8607_ID_RG_MAX];
+
+static int regulator_index[] = {
+	PM8607_ID_BUCK1,
+	PM8607_ID_BUCK2,
+	PM8607_ID_BUCK3,
+	PM8607_ID_LDO1,
+	PM8607_ID_LDO2,
+	PM8607_ID_LDO3,
+	PM8607_ID_LDO4,
+	PM8607_ID_LDO5,
+	PM8607_ID_LDO6,
+	PM8607_ID_LDO7,
+	PM8607_ID_LDO8,
+	PM8607_ID_LDO9,
+	PM8607_ID_LDO10,
+	PM8607_ID_LDO11,
+	PM8607_ID_LDO12,
+	PM8607_ID_LDO13,
+	PM8607_ID_LDO14,
+	PM8607_ID_LDO15,
+};
+
+#define REG_SUPPLY_INIT(_id, _name, _dev_name)		\
+{							\
+	int _i = _id;				\
+	regulator_supply[_i].supply		= _name;		\
+	regulator_supply[_i].dev_name	= _dev_name;	\
+}
+
+#define REG_INIT(_id, _name, _min, _max, _always, _boot)\
+{									\
+	int _i = _id;				\
+	regulator_data[_i].constraints.name	=	__stringify(_name);	\
+	regulator_data[_i].constraints.min_uV	= _min;	\
+	regulator_data[_i].constraints.max_uV	= _max;	\
+	regulator_data[_i].constraints.always_on	= _always;	\
+	regulator_data[_i].constraints.boot_on	= _boot;	\
+	regulator_data[_i].constraints.valid_ops_mask	=	\
+		REGULATOR_CHANGE_VOLTAGE | REGULATOR_CHANGE_STATUS;	\
+	regulator_data[_i].num_consumer_supplies	= 1;	\
+	regulator_data[_i].consumer_supplies	=	\
+		&regulator_supply[PM8607_ID_##_name];	\
+	regulator_data[_i].driver_data	=	\
+		&regulator_index[PM8607_ID_##_name];	\
+}
+
+static struct pm860x_rtc_pdata rtc = {
+	.vrtc           = 1,
+	.rtc_wakeup     = 0,
+#ifdef CONFIG_RTC_DRV_PXA
+	.sync		= pxa_rtc_sync_time,
+#endif
+};
+
+static struct pm860x_platform_data pm8607_info = {
+	.touch		= &touch,
+	.backlight	= &backlight[0],
+	.led		= &led[0],
+	.power		= &power,
+	.regulator	= regulator_data,
+	.rtc		= &rtc,
+	.headset	= &headset_platform_info,
 	.companion_addr	= 0x10,
 	.irq_mode	= 0,
 	.irq_base	= IRQ_BOARD_START,
 
 	.i2c_port	= GI2C_PORT,
+	.num_leds	= ARRAY_SIZE(led),
+	.num_backlights	= ARRAY_SIZE(backlight),
 };
 
-static struct i2c_board_info saarb_i2c_info[] = {
+extern struct pxa95x_freq_mach_info freq_mach_info;
+static void regulator_init(void)
+{
+	int i = 0;
+
+	if (PXA95x_USE_POWER_I2C != freq_mach_info.flags) {
+		REG_SUPPLY_INIT(PM8607_ID_BUCK1, "v_buck1", "pxa95x-freq");
+		REG_INIT(i++, BUCK1, 1000000, 1500000, 1, 1);
+	}
+
+	switch (get_board_id()) {
+	case OBM_SAAR_B_MG1_C0_V12_BOARD:
+		REG_SUPPLY_INIT(PM8607_ID_LDO12, "v_hdmi", NULL);
+		REG_SUPPLY_INIT(PM8607_ID_LDO13, "v_gps", NULL);
+		REG_SUPPLY_INIT(PM8607_ID_LDO14, "vmmc", "sdhci-pxa.1");
+
+		REG_INIT(i++, LDO12, 1200000, 3300000, 0, 0);
+		REG_INIT(i++, LDO13, 1200000, 3300000, 0, 0);
+		REG_INIT(i++, LDO14, 1800000, 3300000, 0, 0);
+
+		printk(KERN_INFO "%s: select saarb v12 ldo map\n", __func__);
+	break;
+	case OBM_SAAR_B_MG2_A0_V13_BOARD:
+	case OBM_SAAR_B_MG2_A0_V14_BOARD:
+	case OBM_SAAR_B_MG2_B0_V15_BOARD:
+	case OBM_SAAR_B_MG2_C0_V26_BOARD:
+		REG_SUPPLY_INIT(PM8607_ID_LDO9, "vmmc", "sdhci-pxa.1");
+		REG_SUPPLY_INIT(PM8607_ID_LDO13, "v_cam", NULL);
+		REG_SUPPLY_INIT(PM8607_ID_LDO14, "v_gps", NULL);
+
+		REG_INIT(i++, LDO9, 1800000, 3300000, 0, 0);
+		REG_INIT(i++, LDO13, 1200000, 3300000, 0, 0);
+		REG_INIT(i++, LDO14, 1800000, 3300000, 0, 0);
+		printk(KERN_INFO "%s: select saarb v13 ldo map\n", __func__);
+	break;
+	default:
+		printk(KERN_ERR "%s: The board type is not defined!\n ", __func__);
+		BUG();
+	}
+
+	pm8607_info.num_regulators = i;
+}
+
+static struct i2c_pxa_platform_data i2c1_pdata = {
+	.use_pio        = 0,
+	.flags		= PXA_I2C_HIGH_MODE | PXA_I2C_FAST_MODE | PXA_I2C_USING_FIFO_PIO_MODE,
+	.master_code	= (0x08 | 0x06), /*8 -highest, 0xF -lowest arbitration*/
+};
+
+static struct i2c_pxa_platform_data i2c2_pdata = {
+	.use_pio	= 0,
+	.flags		= PXA_I2C_FAST_MODE | PXA_I2C_USING_FIFO_PIO_MODE,
+};
+
+static struct i2c_pxa_platform_data i2c3_pdata = {
+	.use_pio        = 0,
+	.flags          = PXA_I2C_FAST_MODE | PXA_I2C_USING_FIFO_PIO_MODE,
+};
+
+static struct i2c_board_info i2c1_info[] = {
 	{
 		.type		= "88PM860x",
 		.addr		= 0x34,
-		.platform_data	= &saarb_pm8607_info,
-		.irq		= gpio_to_irq(mfp_to_gpio(MFP_PIN_GPIO83)),
+		.platform_data	= &pm8607_info,
+		.irq            = IRQ_PMIC_INT,
 	},
 };
 
-static void __init saarb_init(void)
+static struct platform_device *devices[] __initdata = {
+	&pxa95x_device_i2c1,
+	&pxa95x_device_i2c2,
+	&pxa95x_device_i2c3,
+};
+
+
+#if defined(CONFIG_KEYBOARD_PXA27x) || defined(CONFIG_KEYBOARD_PXA27x_MODULE)
+static unsigned int matrix_key_map[] = {
+	/* KEY(row, col, key_code) */
+	KEY(1, 3, KEY_0), KEY(0, 0, KEY_1), KEY(1, 0, KEY_2), KEY(2, 0, KEY_3),
+	KEY(0, 1, KEY_4), KEY(1, 1, KEY_5), KEY(2, 1, KEY_6), KEY(0, 2, KEY_7),
+	KEY(1, 2, KEY_8), KEY(2, 2, KEY_9),
+
+	KEY(0, 3, KEY_KPASTERISK), 	/* * */
+	KEY(2, 3, KEY_KPDOT),   	/* # */
+
+	KEY(4, 0, KEY_HOME),
+	KEY(3, 3, KEY_END),
+	KEY(4, 1, KEY_BACK),
+
+	KEY(3, 2, KEY_SEND),
+
+	KEY(4, 4, KEY_SELECT),    /* volume rocker push */
+	KEY(3, 4, KEY_VOLUMEUP),
+	KEY(2, 4, KEY_VOLUMEDOWN),
+
+	KEY(3, 0, KEY_F22),	/* soft1 */
+	KEY(3, 1, KEY_F23),	/* soft2 */
+
+	KEY(1, 4, KEY_CAMERA),      /* camera full push */
+	KEY(0, 4, KEY_ZOOM),		/* camera half push */
+
+	KEY(4, 3, KEY_WWW),		/* surf button */
+	KEY(4, 2, KEY_OK),		/* ok button */
+
+	KEY(0, 5, KEY_ENTER),       /* joystick push */
+	KEY(4, 5, KEY_LEFT),
+	KEY(3, 5, KEY_RIGHT),
+	KEY(2, 5, KEY_UP),
+	KEY(1, 5, KEY_DOWN),
+};
+
+static struct pxa27x_keypad_platform_data keypad_info = {
+	.matrix_key_rows	= 5,
+	.matrix_key_cols	= 6,
+	.matrix_key_map		= matrix_key_map,
+	.matrix_key_map_size	= ARRAY_SIZE(matrix_key_map),
+	.debounce_interval	= 30,
+};
+#endif /* CONFIG_KEYBOARD_PXA27x || CONFIG_KEYBOARD_PXA27x_MODULE */
+
+
+static void __init init_cam(void)
 {
-	pxa_set_ffuart_info(NULL);
-	pxa_set_i2c_info(NULL);
-	i2c_register_board_info(0, ARRAY_AND_SIZE(saarb_i2c_info));
+
+	platform_device_register(&pxa95x_device_cam0);
+
+	/* TODO: add sencond camera controller */
+	/*pxa95x_device_cam1.dev.platform_data = &cam_pdata[1];*/
+	/*platform_device_register(&pxa95x_device_cam1);*/
+#endif
 }
 
-MACHINE_START(SAARB, "PXA955 Handheld Platform (aka SAARB)")
+#if defined(CONFIG_FB_PXA95x)
+static void panel_reset(void)
+{
+	int reset_pin;
+	int err;
+
+	reset_pin = mfp_to_gpio(MFP_PIN_GPIO20);
+	err = gpio_request(reset_pin, "DSI Reset");
+	if (err) {
+		gpio_free(reset_pin);
+		pr_err("Request GPIO failed, gpio: %d return :%d\n",
+		       reset_pin, err);
+		return;
+	}
+	gpio_direction_output(reset_pin, 1);
+	mdelay(1);
+	gpio_direction_output(reset_pin, 0);
+	mdelay(1);
+	gpio_direction_output(reset_pin, 1);
+	mdelay(10);
+	gpio_free(reset_pin);
+}
+
+static void panel_power(int on)
+{
+	if (get_board_id() >= OBM_SAAR_B_MG2_B0_V15_BOARD)
+		panel_power_trulywvga(1, on);
+	else
+		panel_power_tc3587(1, on);
+}
+
+static struct pxa95xfb_mach_info lcd_info __initdata = {
+	.id                     = "Base",
+	.modes                  = video_modes_tc3587,
+	.num_modes              = ARRAY_SIZE(video_modes_tc3587),
+	.pix_fmt_in             = PIX_FMTIN_RGB_16,
+	.pix_fmt_out            = PIX_FMTOUT_16_RGB565,
+	.panel_type             = LCD_Controller_Active,
+	.window                 = 0,
+	.mixer_id               = 1,
+	.zorder                 = 1,
+	.converter              = LCD_M2DSI1,
+	.output                 = OUTPUT_PANEL,
+	.active                 = 1,
+	.panel_power            = panel_power,
+	.reset	                = panel_reset,
+	.invert_pixclock        = 1,
+};
+
+static struct pxa95xfb_mach_info lcd_ovly_info __initdata = {
+	.id                     = "Ovly",
+	.modes                  = video_modes_tc3587,
+	.num_modes              = ARRAY_SIZE(video_modes_tc3587),
+	.pix_fmt_in             = PIX_FMTIN_RGB_16,
+	.pix_fmt_out            = PIX_FMTOUT_16_RGB565,
+	.panel_type             = LCD_Controller_Active,
+	.window                 = 4,
+	.mixer_id               = 1,
+	.zorder                 = 0,
+	.converter              = LCD_M2DSI1,
+	.output                 = OUTPUT_PANEL,
+	.active                 = 1,
+	.panel_power            = panel_power,
+	.reset                  = panel_reset,
+	.invert_pixclock	= 1,
+};
+
+static struct pxa95xfb_mach_info lcd_info_wvga /*__initdata*/ = {
+	.id = "Base",
+	.modes = video_modes_trulywvga,
+	.num_modes = ARRAY_SIZE(video_modes_trulywvga),
+	.pix_fmt_in = PIX_FMTIN_RGB_16,
+	.pix_fmt_out = PIX_FMTOUT_24_RGB888,
+	.panel_type = LCD_Controller_Active,
+	.window = 0,
+	.mixer_id = 0,
+	.zorder = 1,
+	.converter = LCD_M2PARALELL_CONVERTER,
+	.output = OUTPUT_PANEL,
+	.active = 1,
+	.panel_power = panel_power,
+	.invert_pixclock = 1,
+	.reset = panel_reset,
+};
+
+static struct pxa95xfb_mach_info lcd_ovly_info_wvga /*__initdata*/ = {
+	.id = "Ovly",
+	.modes = video_modes_trulywvga,
+	.num_modes = ARRAY_SIZE(video_modes_trulywvga),
+	.pix_fmt_in = PIX_FMTIN_RGB_16,
+	.pix_fmt_out = PIX_FMTOUT_24_RGB888,
+	.panel_type = LCD_Controller_Active,
+	.window = 4,
+	.mixer_id = 0,
+	.zorder = 0,
+	.converter = LCD_M2PARALELL_CONVERTER,
+	.output = OUTPUT_PANEL,
+	.active = 1,
+	.panel_power = panel_power,
+	.invert_pixclock = 1,
+	.reset = panel_reset,
+};
+
+static struct pxa95xfb_mach_info hdmi_base_info __initdata = {
+	.id                     = "HDMI-Base",
+	.modes                  = video_modes_si9226,
+	.num_modes              = ARRAY_SIZE(video_modes_si9226),
+	.pix_fmt_in             = PIX_FMTIN_YUV420,
+	.pix_fmt_out            = PIX_FMTOUT_24_RGB888,
+	.panel_type             = LCD_Controller_Active,
+	/*as hdmi-ovly use same win4 with lcd-ovly, they should not open at the same time*/
+	.window                 = 4,
+	.mixer_id               = 0,
+	.zorder                 = 1,
+	.converter              = LCD_M2PARALELL_CONVERTER,
+	.output                 = OUTPUT_HDMI,
+	.active                 = 1,
+	.invert_pixclock        = 1,
+};
+
+static struct pxa95xfb_mach_info hdmi_ovly_info __initdata = {
+	.id                     = "HDMI-Ovly",
+	.modes                  = video_modes_si9226,
+	.num_modes              = ARRAY_SIZE(video_modes_si9226),
+	.pix_fmt_in             = PIX_FMTIN_YUV420,
+	.pix_fmt_out            = PIX_FMTOUT_24_RGB888,
+	.panel_type             = LCD_Controller_Active,
+	/*as hdmi-ovly use same win4 with lcd-ovly, they should not open at the same time*/
+	.window                 = 4,
+	.mixer_id               = 0,
+	.zorder                 = 1,
+	.converter              = LCD_M2PARALELL_CONVERTER,
+	.output                 = OUTPUT_HDMI,
+	.active                 = 1,
+	.invert_pixclock        = 1,
+};
+
+static void __init init_lcd(void)
+{
+	if (get_board_id() == OBM_SAAR_B_MG2_B0_V15_BOARD
+		|| get_board_id() == OBM_SAAR_B_MG2_C0_V26_BOARD) {
+		set_pxa95x_fb_info(&lcd_info_wvga);
+		set_pxa95x_fb_ovly_info(&lcd_ovly_info_wvga, 0);
+	} else {
+		set_pxa95x_fb_info(&lcd_info);
+		set_pxa95x_fb_ovly_info(&lcd_ovly_info, 0);
+	}
+}
+#endif
+
+#ifdef CONFIG_PM
+static int init_wakeup(pm_wakeup_src_t *src)
+{
+	memset(src, 0, sizeof(pm_wakeup_src_t));
+	src->bits.rtc = 1;
+	src->bits.ost = 1;
+	src->bits.ext0 = 1;
+	src->bits.uart1 = 1;
+	src->bits.mkey = 1;
+	src->bits.eth = 1;
+	src->bits.tsi = 1;
+	src->bits.cmwdt = 1;
+	src->bits.mmc1_cd = 1;
+	src->bits.mmc3_dat1 = 1;
+	return 0;
+}
+
+static int query_wakeup(unsigned int reg, pm_wakeup_src_t *src)
+{
+	memset(src, 0, sizeof(pm_wakeup_src_t));
+	if (reg & PXA95x_PM_WE_RTC)
+		src->bits.rtc = 1;
+	if (reg & PXA95x_PM_WE_OST)
+		src->bits.ost = 1;
+	if (reg & PXA95x_PM_WE_MSL0)
+		src->bits.msl = 1;
+	if (reg & PXA95x_PM_WE_EXTERNAL0)
+		src->bits.ext0 = 1;
+	if (reg & PXA95x_PM_WE_KP)
+		src->bits.mkey = 1;
+	if (reg & PXA95x_PM_WE_GENERIC(3))
+		src->bits.tsi = 1;
+	if (reg & PXA95x_PM_WE_GENERIC(9))
+		src->bits.uart1 = 1;
+	if (reg & PXA95x_PM_WE_GENERIC(2))
+		src->bits.uart2 = 1;
+	if (reg & PXA95x_PM_WE_GENERIC(12))
+		src->bits.cmwdt = 1;
+	if (reg & PXA95x_PM_WE_GENERIC(13)) {
+		if (pxa95x_query_gwsr(97))
+			src->bits.eth = 1;
+		if (pxa95x_query_gwsr(53))
+			src->bits.uart1 = 1;
+		if (pxa95x_query_gwsr(47))
+			src->bits.mmc1_cd = 1;
+	}
+
+	return 0;
+}
+
+static int ext_wakeup(pm_wakeup_src_t src, int enable)
+{
+	unsigned int ret = 0;
+	if (enable) {
+		if (src.bits.ext0)
+			ret |= PXA95x_PM_WE_EXTERNAL0;
+		if (src.bits.ext1)
+			ret |= PXA95x_PM_WE_EXTERNAL1;
+	}
+	return ret;
+}
+
+static int key_wakeup(pm_wakeup_src_t src, int enable)
+{
+	unsigned int ret = 0;
+	if (enable) {
+		if (src.bits.mkey) {
+			static mfp_cfg_t key_edgeboth_cfg[] = {
+				GPIO0_KP_MKIN_0 | MFP_LPM_EDGE_BOTH,
+				GPIO2_KP_MKIN_1 | MFP_LPM_EDGE_BOTH,
+				GPIO4_KP_MKIN_2 | MFP_LPM_EDGE_BOTH,
+				GPIO6_KP_MKIN_3 | MFP_LPM_EDGE_BOTH,
+				GPIO8_KP_MKIN_4 | MFP_LPM_EDGE_BOTH,
+			};
+			pxa3xx_mfp_config(ARRAY_AND_SIZE(key_edgeboth_cfg));
+			ret |= PXA95x_PM_WE_KP;
+		}
+	} else {
+		if (src.bits.mkey) {
+			static mfp_cfg_t key_edgenone_cfg[] = {
+				GPIO0_KP_MKIN_0 | MFP_LPM_EDGE_NONE,
+				GPIO2_KP_MKIN_1 | MFP_LPM_EDGE_NONE,
+				GPIO4_KP_MKIN_2 | MFP_LPM_EDGE_NONE,
+				GPIO6_KP_MKIN_3 | MFP_LPM_EDGE_NONE,
+				GPIO8_KP_MKIN_4 | MFP_LPM_EDGE_NONE,
+			};
+			pxa3xx_mfp_config(ARRAY_AND_SIZE(key_edgenone_cfg));
+		}
+	}
+	return ret;
+}
+
+static int mmc1_wakeup(pm_wakeup_src_t src, int enable)
+{
+	unsigned int ret = 0;
+	mfp_cfg_t mfp_c;
+	if (enable) {
+		if (src.bits.mmc1_cd) {
+			mfp_c = GPIO47_GPIO | MFP_LPM_EDGE_BOTH;
+			pxa3xx_mfp_config(&mfp_c, 1);
+			ret |= PXA95x_PM_WE_GENERIC(13);
+		}
+	} else {
+		mfp_c = GPIO47_GPIO | MFP_LPM_EDGE_NONE;
+		pxa3xx_mfp_config(&mfp_c, 1);
+	}
+
+	return ret;
+}
+
+static int mmc3_wakeup(pm_wakeup_src_t src, int enable)
+{
+	unsigned int ret = 0;
+	mfp_cfg_t mfp_c;
+	if (enable) {
+		if (src.bits.mmc3_dat1) {
+			mfp_c = GPIO88_MMC3_DAT1 | MFP_LPM_EDGE_BOTH;
+			pxa3xx_mfp_config(&mfp_c, 1);
+			ret |= PXA95x_PM_WE_MMC3;
+		}
+	} else {
+		mfp_c = GPIO88_MMC3_DAT1 | MFP_LPM_EDGE_NONE;
+		pxa3xx_mfp_config(&mfp_c, 1);
+	}
+
+	return ret;
+}
+
+static int uart_wakeup(pm_wakeup_src_t src, int enable)
+{
+	unsigned int ret = 0;
+	mfp_cfg_t m;
+
+	if (enable) {
+		if (src.bits.uart1) {
+			m = GPIO53_UART1_RXD | MFP_LPM_EDGE_FALL;
+			pxa3xx_mfp_config(&m, 1);
+			ret |= PXA95x_PM_WE_GENERIC(9);
+		}
+		if (src.bits.uart2) {
+			m = GPIO45_UART3_RXD | MFP_LPM_EDGE_FALL;
+			pxa3xx_mfp_config(&m, 1);
+			/* note: on pxa930, uart2 use this bit */
+		}
+	} else {
+		if (src.bits.uart1) {
+			m = GPIO53_UART1_RXD | MFP_LPM_EDGE_NONE;
+			pxa3xx_mfp_config(&m, 1);
+		}
+		if (src.bits.uart2) {
+			m = GPIO45_UART3_RXD | MFP_LPM_EDGE_NONE;
+			pxa3xx_mfp_config(&m, 1);
+		}
+	}
+	return ret;
+}
+
+static int tsi_wakeup(pm_wakeup_src_t src, int enable)
+{
+	unsigned int ret = 0;
+	mfp_cfg_t m;
+	if (enable) {
+		if (src.bits.tsi) {
+			m = PMIC_INT_GPIO83 | MFP_LPM_FLOAT | MFP_LPM_EDGE_FALL;
+			pxa3xx_mfp_config(&m, 1);
+			ret |= PXA95x_PM_WE_GENERIC(3);
+		}
+	} else {
+		if (src.bits.tsi) {
+			m = PMIC_INT_GPIO83 | MFP_LPM_FLOAT | MFP_LPM_EDGE_NONE;
+			pxa3xx_mfp_config(&m, 1);
+		}
+	}
+	return ret;
+}
+
+static int comm_wdt_wakeup(pm_wakeup_src_t src, int enable)
+{
+	unsigned int ret = 0;
+	if (enable) {
+		if (src.bits.cmwdt)
+			ret |= PXA95x_PM_WE_GENERIC(12);
+	}
+	return ret;
+}
+
+static struct pxa95x_peripheral_wakeup_ops wakeup_ops = {
+	.init   = init_wakeup,
+	.query  = query_wakeup,
+	.ext    = ext_wakeup,
+	.key    = key_wakeup,
+	.mmc1    = mmc1_wakeup,
+	.mmc3    = mmc3_wakeup,
+	.uart   = uart_wakeup,
+	.tsi    = tsi_wakeup,
+	.cmwdt  = comm_wdt_wakeup,
+};
+#endif
+
+
+static struct clk *clk_tout_s0;
+
+/* specific 8787 power on/off setting for SAARB */
+static void wifi_set_power(unsigned int on)
+{
+	unsigned long wlan_pd_mfp = 0;
+	int gpio_power_down = mfp_to_gpio(MFP_PIN_GPIO77);
+
+	wlan_pd_mfp = pxa3xx_mfp_read(gpio_power_down);
+
+	if (on) {
+		/* set wlan_pd pin to output high in low power
+			mode to ensure 8787 is not power off in low power mode*/
+		wlan_pd_mfp |= 0x100;
+		pxa3xx_mfp_write(gpio_power_down, wlan_pd_mfp & 0xffff);
+
+		/* enable 32KHz TOUT */
+		clk_enable(clk_tout_s0);
+		}
+	else {
+		/*set wlan_pd pin to output low in low power
+			mode to save power in low power mode */
+		wlan_pd_mfp &= ~0x100;
+		pxa3xx_mfp_write(gpio_power_down, wlan_pd_mfp & 0xffff);
+
+		/* disable 32KHz TOUT */
+		clk_disable(clk_tout_s0);
+	}
+}
+
+/*
+ *In pxa_xxx functions below, do not use spin_lock protection.
+ *It should be protected out of them.
+*/
+static int pxa_sd_recover_init(struct sdhci_host *host, struct sdhci_pxa_platdata *pdata)
+{
+	/*Currently, we only care the clock pin's drive strength*/
+	pdata->ori_ds = (mfp_read(MFP_PIN_GPIO56) >> 11) & 0x3;
+
+	pdata->del_addr = (u32) ioremap(0x5550A204, sizeof(u32));
+	if(!pdata->del_addr) {
+		printk(KERN_ERR"sd recover init fail: ioremap\n");
+	}
+	pdata->ori_del = readl(pdata->del_addr);
+
+	pdata->highspeed = !!(mmc_card_highspeed(host->mmc->card));
+#ifdef CONFIG_MMC_CLKGATE
+	pdata->ori_clk = mmc_host_clk_rate(host->mmc);
+#else
+	pdata->ori_clk = host->mmc->ios.clock;
+#endif
+	printk("recover init del=0x%x, hs=%d, ds=0x%x, bus_clk=%d,\n",
+		pdata->ori_del, pdata->highspeed, pdata->ori_ds,
+		pdata->ori_clk);
+
+	return 0;
+}
+
+#define RETCLK_DEL_NUM		20
+#define RETCLK_DEL_IDX_MAX	(RETCLK_DEL_NUM-1)
+/*
+ The delay values have "optimized order" for high speed and normal speed
+ 0x1000, 0x1001, 0x1002, 0x1003, 0x1004, - 200ps, 400ps,600ps, 800ps, 1000ps
+ 0x2004, 0x200C, 0x2014, 0x201C, 0x2024, - 1.2ns, 1.4ns,1.6ns, 1.8ns, 2ns
+ 0x3024, 0x3064, 0x30A4, 0x30E4, 0x3124, - 2.2ns, 2.4ns,2.6ns, 2.8ns, 3ns
+ 0x4124, 0x4324, 0x4524, 0x4724, 0x4924, - 3.2ns, 3.4ns,3.6ns, 3.8ns, 4ns
+*/
+
+static u32 retclk_del[2][RETCLK_DEL_NUM] =
+{
+ { /* Normal Speed */
+ 0x1001, 0x1000, 0x1002, 0x1003, 0x1004,
+ 0x2004, 0x200C, 0x2014, 0x201C, 0x2024,
+ 0x3024, 0x3064, 0x30A4, 0x30E4, 0x3124,
+ 0x4124, 0x4324, 0x4524, 0x4724, 0x4924,
+ },
+ { /* High Speed */
+ 0x3124, 0x4124, 0x30E4, 0x4924, 0x30A4,
+ 0x4724, 0x4524, 0x4324, 0x3064, 0x3024,
+ 0x2024, 0x201C, 0x2014, 0x200C, 0x2004,
+ 0x1004, 0x1003, 0x1002, 0x1001, 0x1000,
+ }
+};
+
+/*
+* @return:
+* ERR_RETRY -- DEL CLK has been changed. Require upper layer retry
+* ERR_ABORT -- All values have been tried. Goto next recovery state.
+*/
+static int pxa_del_clk_tune(struct sdhci_host *host, struct sdhci_pxa_platdata *pdata)
+{
+	static unsigned int clk_idx = 0;
+	u32 del_val;
+
+	if (clk_idx <= RETCLK_DEL_IDX_MAX) {
+		del_val = pdata->ori_del & 0xFFFF8000;/* bit31~15 reserved */
+		del_val |= del_val | retclk_del[pdata->highspeed][clk_idx];
+		writel(del_val, pdata->del_addr);
+		printk("clk_tune idx=%d del_val=0x%x\n", clk_idx, del_val);
+		clk_idx++;
+		return ERR_RETRY;
+	} else {
+		clk_idx = 0;
+		writel(pdata->ori_del, pdata->del_addr);
+		printk("del_clk_tune finished, restore to orig val\n");
+		return ERR_ABORT;
+	}
+}
+
+static void _set_ds(struct sdhci_host *host, struct sdhci_pxa_platdata *pdata, int ds)
+{
+	int i;
+	u32 val;
+
+	for(i=0; i<pdata->mfp_num;i++) {
+		val = mfp_read(pdata->mfp_start+i);
+		printk("pin[%d] changed from 0x%x", pdata->mfp_start+i, val);
+		val = (val & ~(0x3 << 11)) | ((ds & 0x3) << 11);
+		mfp_write(pdata->mfp_start+i, val);
+		printk("to 0x%x \n", val);
+	}
+}
+
+/*
+* @return:
+* ERR_RETRY -- DS has been changed. Require upper layer retry
+* ERR_ABORT -- All values have been tried. Goto next recovery state.
+*/
+static int pxa_ds_tune(struct sdhci_host *host, struct sdhci_pxa_platdata *pdata)
+{
+	static unsigned int ds_idx = 0;
+
+	/*
+	*Drive Strength has 3 options, slow(00b, 01b), medium(10b), fast(11b)
+	*For MG, we only use medium and fast. And only change once
+	*/
+	if (ds_idx == 0) {
+		printk("change ds ori=%d \n", pdata->ori_ds);
+		if (pdata->ori_ds == 0x2) {
+			_set_ds(host, pdata, 0x3);/* set as fast */
+			ds_idx = 2;
+		}
+		else if(pdata->ori_ds == 0x3) {
+			_set_ds(host, pdata, 0x2);/* set as medium */
+			ds_idx = 2;
+		}
+		else {
+			_set_ds(host, pdata, 0x2);/* set as medium */
+			ds_idx = 1;
+		}
+	} else if(ds_idx == 1) {
+		_set_ds(host, pdata, 0x3);/* set as fast */
+		ds_idx = 2;
+	} else if(ds_idx == 2) {
+		ds_idx = 0;
+		_set_ds(host, pdata, pdata->ori_ds);/* set as default*/
+		printk("restore to orig ds\n");
+		return ERR_ABORT;
+	}
+
+	return ERR_RETRY;
+}
+
+extern void mmc_set_clock(struct mmc_host *host, unsigned int hz);
+
+/*
+* @return:
+* ERR_RETRY -- bus clock has been changed. Require upper layer retry
+* ERR_ABORT -- All values have been tried. Goto next recovery state.
+*/
+static int pxa_bus_clk_tune(struct sdhci_host *host, struct sdhci_pxa_platdata *pdata)
+{
+	static unsigned int bus_clk = 0;
+	if (!bus_clk)
+		bus_clk = pdata->ori_clk/2;
+	else
+		bus_clk = bus_clk/2;
+
+	/* For some SD card, mmc controller cannot work below 24MHz*/
+	if (bus_clk < 24000000) {
+		bus_clk = 0;
+		mmc_set_clock(host->mmc, pdata->ori_clk);
+		printk("restore bus clock as %d\n", pdata->ori_clk);
+		return ERR_ABORT;
+	} else {
+		mmc_set_clock(host->mmc, bus_clk);
+		printk("set bus clock as %d\n", bus_clk);
+		return ERR_RETRY;
+	}
+}
+
+static void sd_sim_work(struct work_struct *work)
+{
+	struct sdhci_host *host;
+	unsigned long flags;
+	host = container_of(work, struct sdhci_host, sim_work);
+
+	/*
+	* Remove the SD card, ensure there are no SD operations in the queue
+	* then insert again after 1 s.
+	* Remember we should execute every steps including power on sequence
+	*/
+	sdhci_pxa_notify_change(host, 0);
+	msleep(5000);
+	sdhci_pxa_notify_change(host, 1);
+
+	spin_lock_irqsave(&host->lock, flags);
+	host->in_sim = 0;
+	spin_unlock_irqrestore(&host->lock, flags);
+}
+/*
+* @return:
+* ERR_RETRY -- S/W remove & insert completed. Require upper layer retry
+* ERR_ABORT -- This way has been tried. Goto next recovery state.
+*/
+static int pxa_remove_insert_sim(struct sdhci_host *host, struct sdhci_pxa_platdata *pdata)
+{
+	static int sim_count = 0;/* We only retry once*/
+
+	if (host->in_sim)
+		return ERR_RETRY;
+
+	if(!sim_count) {
+		INIT_WORK(&(host->sim_work), sd_sim_work);
+		sim_count++;
+		printk("S/W simulation starts\n");
+		host->in_sim = 1;
+		queue_work(system_long_wq, &(host->sim_work));
+		return ERR_RETRY;
+	} else {
+		printk("S/W simulation has been tried\n");
+		return ERR_ABORT;
+	}
+}
+
+static int pxa_remove_sd(struct sdhci_host *host, struct sdhci_pxa_platdata *pdata)
+{
+	printk("recovery: remove_sd\n");
+	sdhci_pxa_notify_change(host, 0);
+
+	return ERR_ABORT;
+}
+
+static int pxa_outer_tune(struct sdhci_host *host, struct sdhci_pxa_platdata *pdata)
+{
+	static int outer_count = 0;
+
+	/*
+	* Out of the code, we may retry by single block read, etc.
+	* so, try it before further recovery.
+	*/
+	if (outer_count++ == 0)
+		return ERR_CONTINUE;
+	else {
+		outer_count = 0;
+		return ERR_ABORT;
+	}
+}
+
+/*
+* recovery process:
+* - Save original parameters
+* - First delay clock calibration
+* - First drive strength switch
+* - Second delay clock calibration
+* - Second drive strength switch -- (optional)
+* - Third delay clock calibration -- depends on second drive strength switch
+* - restore delay clock and drive strength and try 48MHz --> 24MHz.
+* - S/W remove-insert simulation
+*/
+static int pxa_sd_recovery(struct sdhci_host *host, struct sdhci_pxa_platdata *pdata)
+{
+	unsigned long flags;
+	int ret = ERR_CONTINUE;
+
+	spin_lock_irqsave(&host->lock, flags);
+retry:
+	switch (pdata->recovery_status) {
+	case SDHCI_RECOVERY_INIT:
+		pxa_sd_recover_init(host, pdata);
+		pdata->recovery_status = SDHCI_RECOVERY_DEL;
+		printk("recovery[INIT] next=%d \n",pdata->recovery_status);
+		goto retry;
+	case SDHCI_RECOVERY_DEL:
+		ret = pxa_del_clk_tune(host, pdata);
+		if (ret == ERR_RETRY)
+			goto exit;
+		else if (ret == ERR_ABORT) {
+			pdata->recovery_status = SDHCI_RECOVERY_DS;
+			printk("recovery[DEL] next=%d \n",pdata->recovery_status);
+			goto retry;
+		}
+		break;
+	case SDHCI_RECOVERY_DS:
+		ret = pxa_ds_tune(host, pdata);
+		if (ret == ERR_RETRY) {
+			pdata->recovery_status = SDHCI_RECOVERY_DEL;
+			printk("recovery[DS] next=%d \n",pdata->recovery_status);
+			goto retry;
+		} else if (ret == ERR_ABORT) {
+			pdata->recovery_status = SDHCI_RECOVERY_CLK_SLOW;
+			printk("recovery[DS] next=%d \n",pdata->recovery_status);
+			goto retry;
+		}
+		break;
+	case SDHCI_RECOVERY_CLK_SLOW:
+		ret = pxa_bus_clk_tune(host, pdata);
+		if (ret == ERR_RETRY)
+			goto exit;
+		else if (ret == ERR_ABORT) {
+			pdata->recovery_status = SDHCI_RECOVERY_OUTER;
+			printk("recovery_status[clk slow] next =%d \n",pdata->recovery_status);
+			goto retry;
+		}
+		break;
+	case SDHCI_RECOVERY_OUTER:
+		ret = pxa_outer_tune(host, pdata);
+		if (ret == ERR_CONTINUE) {
+			goto exit;
+		}
+		else if (ret == ERR_ABORT) {
+			pdata->recovery_status = SDHCI_RECOVERY_SIM;
+			printk("recovery_status[SDHCI_RECOVERY_OUTER] next =%d \n",pdata->recovery_status);
+			goto retry;
+		}
+	case SDHCI_RECOVERY_SIM:
+		spin_unlock_irqrestore(&host->lock, flags);
+		ret = pxa_remove_insert_sim(host, pdata);
+		spin_lock_irqsave(&host->lock, flags);
+		if (ret == ERR_RETRY)
+			goto exit;
+		else if (ret == ERR_ABORT) {
+			pdata->recovery_status = SDHCI_RECOVERY_REM;
+			printk("recovery_status[sim] next=%d \n",pdata->recovery_status);
+			goto retry;
+		}
+		break;
+	case SDHCI_RECOVERY_REM:
+		spin_unlock_irqrestore(&host->lock, flags);
+		pxa_remove_sd(host, pdata);
+		spin_lock_irqsave(&host->lock, flags);
+		pdata->recovery_status = SDHCI_RECOVERY_FINISH;
+	case SDHCI_RECOVERY_FINISH:
+		/* TODO Any further recovery? */
+		printk("saarb recovery completion\n");
+		break;
+	}
+
+exit:
+	spin_unlock_irqrestore(&host->lock, flags);
+	return ret;
+}
+
+static struct sdhci_pxa_platdata mci1_platform_data = {
+	.flags = PXA_FLAG_ENABLE_CLOCK_GATING |
+			PXA_FLAG_ACITVE_IN_SUSPEND,
+	.ext_cd_gpio = mfp_to_gpio(MFP_PIN_GPIO47),
+	.ext_cd_gpio_invert = 1,
+	.mfp_start = 55,
+	.mfp_num = 6,
+	.pull_up = 0,
+	.check_short_circuit = pxa_check_sd_short_circuit,
+	.safe_regulator_on = pxa_safe_sd_on,
+	.recovery = pxa_sd_recovery,
+};
+
+static struct sdhci_pxa_platdata mci2_platform_data = {
+	.flags  = PXA_FLAG_CARD_PERMANENT |
+				PXA_FLAG_HS_NEED_WAKELOCK,
+	.pm_caps = MMC_PM_KEEP_POWER |
+				MMC_PM_IRQ_ALWAYS_ON,
+};
+
+static void __init init_mmc(void)
+{
+	/*add emmc only, need to add sdcard and sdio later*/
+	pxa95x_set_mci_info(0, &mci0_platform_data);
+	pxa95x_set_mci_info(1, &mci1_platform_data);
+}
+
+#endif
+
+
+/*{ TOUCHSCREEN_INT_GPIO, TOUCHSCREEN_RESET_GPIO };*/
+static int ssd2531_ts_pins[2];
+
+static struct i2c_board_info i2c2_info[] = {
+
+
+
+
+};
+
+static void set_i2c_touch(void)
+{
+	if (get_board_id() == OBM_SAAR_B_MG2_B0_V15_BOARD) {
+		pm8607_info.touch = NULL;
+		ssd2531_ts_pins[0] = MFP_PIN_GPIO144;
+		ssd2531_ts_pins[1] = MFP_PIN_GPIO135;
+	} else if (get_board_id() == OBM_SAAR_B_MG2_C0_V26_BOARD) {
+		pm8607_info.touch = NULL;
+		ssd2531_ts_pins[0] = MFP_PIN_GPIO154;
+		ssd2531_ts_pins[1] = MFP_PIN_GPIO143;
+	}
+};
+
+static mfp_cfg_t pxa95x_abu_mfp_cfg[] = {
+	/* ABU of MG1 */
+	GPIO68_ABU_RXD,
+	GPIO69_ABU_TXD,
+	GPIO70_GPIO,	/* no use for ABU/SSI, and configure GPIO70 to AF0 to save power when using ABU (~0.5mA) */
+	GPIO71_ABU_FRM,
+	GPIO72_ABU_CLK,
+};
+
+static mfp_cfg_t pxa95x_bssp2_mfp_cfg[] = {
+	/* BSSP2 of MG1 */
+	GPIO68_BSSP2_RXD,
+	GPIO69_BSSP2_TXD,
+	GPIO70_BSSP2_SYSCLK,
+	GPIO71_BSSP2_FRM,
+	GPIO72_BSSP2_CLK,
+};
+
+static mfp_cfg_t bssp3_mfp_cfg[] = {
+	/* BSSP3 of MG1*/
+	GPIO63_BSSP3_CLK,
+	GPIO64_BSSP3_FRM,
+	GPIO65_BSSP3_TXD,
+	GPIO66_BSSP3_RXD,
+};
+
+static mfp_cfg_t gssp1_mfp_cfg[] = {
+	/* BSSP3 of MG1*/
+	GPIO63_GSSP1_CLK,
+	GPIO64_GSSP1_FRM,
+	GPIO65_GSSP1_TXD,
+	GPIO66_GSSP1_RXD,
+};
+
+static void abu_mfp_init(bool abu)
+{
+	if (abu)
+		pxa3xx_mfp_config(ARRAY_AND_SIZE(pxa95x_abu_mfp_cfg));
+	else
+		pxa3xx_mfp_config(ARRAY_AND_SIZE(pxa95x_bssp2_mfp_cfg));
+}
+
+static void ssp3_mfp_init(bool bssp)
+{
+	if (bssp)
+		pxa3xx_mfp_config(ARRAY_AND_SIZE(bssp3_mfp_cfg));
+	else
+		pxa3xx_mfp_config(ARRAY_AND_SIZE(gssp1_mfp_cfg));
+}
+
+static void __init saarb_init(void)
+{
+	regulator_init();
+	set_i2c_touch();
+
+	set_abu_init_func(abu_mfp_init);
+	set_ssp_init_func(ssp3_mfp_init);
+
+	platform_device_add_data(&pxa95x_device_i2c1, &i2c1_pdata,
+				 sizeof(i2c1_pdata));
+	platform_device_add_data(&pxa95x_device_i2c2, &i2c2_pdata,
+				 sizeof(i2c2_pdata));
+	platform_device_add_data(&pxa95x_device_i2c3, &i2c3_pdata,
+				 sizeof(i2c3_pdata));
+	platform_add_devices(ARRAY_AND_SIZE(devices));
+	i2c_register_board_info(0, ARRAY_AND_SIZE(i2c1_info));
+	i2c_register_board_info(1, ARRAY_AND_SIZE(i2c2_info));
+
+#if defined(CONFIG_KEYBOARD_PXA27x) || defined(CONFIG_KEYBOARD_PXA27x_MODULE)
+	pxa_set_keypad_info(&keypad_info);
+#endif
+
+
+	init_cam();
+
+#if defined(CONFIG_FB_PXA95x)
+	init_lcd();
+#endif
+
+
+	/* Init boot flash - sync mode in case of ONENAND */
+	pxa_boot_flash_init(1);
+
+#ifdef CONFIG_PM
+	pxa95x_wakeup_register(&wakeup_ops);
+#endif
+
+#ifdef CONFIG_USB_PXA_U2O
+	pxa9xx_device_u2o.dev.platform_data = (void *)&pxa9xx_usb_pdata;
+	platform_device_register(&pxa9xx_device_u2o);
+#endif
+
+
+
+#ifdef CONFIG_PROC_FS
+	create_sirf_proc_file();
+#endif
+	init_rfreset_gpio();
+}
+
+MACHINE_START(SAARB, "PXA968")
 	.boot_params    = 0xa0000100,
 	.map_io         = pxa_map_io,
 	.nr_irqs	= SAARB_NR_IRQS,
 	.init_irq       = pxa95x_init_irq,
+	.handle_irq     = pxa95x_handle_irq_intc,
 	.timer          = &pxa_timer,
+	.reserve	= pxa95x_mem_reserve,
 	.init_machine   = saarb_init,
 MACHINE_END
 
+static int __init saarb_pm_init(void)
+{
+	printk("Enable Power of Saar board.\n");
+	cur_profiler = MSPM_PROFILER;
+
+	return 0;
+}
+
+late_initcall(saarb_pm_init);

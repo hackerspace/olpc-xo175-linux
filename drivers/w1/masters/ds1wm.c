@@ -59,7 +59,7 @@
 
 #define DS1WM_INTEN_NOT_IAS (~DS1WM_INTEN_IAS)	/* all but INTR active state */
 
-#define DS1WM_TIMEOUT (HZ * 5)
+#define DS1WM_TIMEOUT (HZ * 2)
 
 static struct {
 	unsigned long freq;

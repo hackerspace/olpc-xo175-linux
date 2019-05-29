@@ -172,7 +172,8 @@ static int uart_startup(struct tty_struct *tty, struct uart_state *state, int in
 	if (retval == 0) {
 		if (uart_console(uport) && uport->cons->cflag) {
 			tty->termios->c_cflag = uport->cons->cflag;
-			uport->cons->cflag = 0;
+			/* FIXME */
+//                     uport->cons->cflag = 0; 
 		}
 		/*
 		 * Initialise the hardware port settings.
@@ -368,8 +369,9 @@ uart_get_baud_rate(struct uart_port *port, struct ktermios *termios,
 		}
 
 		if (baud >= min && baud <= max)
+		{
 			return baud;
-
+		}
 		/*
 		 * Oops, the quotient was zero.  Try again with
 		 * the old baud rate if possible.
@@ -2003,6 +2005,8 @@ int uart_resume_port(struct uart_driver *drv, struct uart_port *uport)
 		if (port->tty && port->tty->termios && termios.c_cflag == 0)
 			termios = *(port->tty->termios);
 
+		if (console_suspend_enabled)
+      uart_change_pm(state, 0);
 		uport->ops->set_termios(uport, &termios, NULL);
 		if (console_suspend_enabled)
 			console_start(uport->cons);
@@ -2011,8 +2015,8 @@ int uart_resume_port(struct uart_driver *drv, struct uart_port *uport)
 	if (port->flags & ASYNC_SUSPENDED) {
 		const struct uart_ops *ops = uport->ops;
 		int ret;
-
-		uart_change_pm(state, 0);
+               
+    uart_change_pm(state, 0); 
 		spin_lock_irq(&uport->lock);
 		ops->set_mctrl(uport, 0);
 		spin_unlock_irq(&uport->lock);

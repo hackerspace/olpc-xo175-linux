@@ -14,6 +14,7 @@
 
 #include <asm/glue.h>
 
+
 #define TLB_V3_PAGE	(1 << 0)
 #define TLB_V4_U_PAGE	(1 << 1)
 #define TLB_V4_D_PAGE	(1 << 2)
@@ -386,7 +387,6 @@ static inline void local_flush_tlb_mm(struct mm_struct *mm)
 #ifdef CONFIG_ARM_ERRATA_720789
 		asm("mcr p15, 0, %0, c8, c3, 0" : : "r" (zero) : "cc");
 #else
-		asm("mcr p15, 0, %0, c8, c3, 2" : : "r" (asid) : "cc");
 #endif
 
 	if (tlb_flag(TLB_BTB)) {
@@ -436,7 +436,6 @@ local_flush_tlb_page(struct vm_area_struct *vma, unsigned long uaddr)
 #ifdef CONFIG_ARM_ERRATA_720789
 		asm("mcr p15, 0, %0, c8, c3, 3" : : "r" (uaddr & PAGE_MASK) : "cc");
 #else
-		asm("mcr p15, 0, %0, c8, c3, 1" : : "r" (uaddr) : "cc");
 #endif
 
 	if (tlb_flag(TLB_BTB)) {
@@ -480,7 +479,6 @@ static inline void local_flush_tlb_kernel_page(unsigned long kaddr)
 	if (tlb_flag(TLB_V6_I_PAGE))
 		asm("mcr p15, 0, %0, c8, c5, 1" : : "r" (kaddr) : "cc");
 	if (tlb_flag(TLB_V7_UIS_PAGE))
-		asm("mcr p15, 0, %0, c8, c3, 1" : : "r" (kaddr) : "cc");
 
 	if (tlb_flag(TLB_BTB)) {
 		/* flush the branch target cache */
@@ -513,9 +511,8 @@ static inline void flush_pmd_entry(pmd_t *pmd)
 {
 	const unsigned int __tlb_flag = __cpu_tlb_flags;
 
-	if (tlb_flag(TLB_DCLEAN))
-		asm("mcr	p15, 0, %0, c7, c10, 1	@ flush_pmd"
-			: : "r" (pmd) : "cc");
+	if (tlb_flag(TLB_DCLEAN)) {
+	}
 
 	if (tlb_flag(TLB_L2CLEAN_FR))
 		asm("mcr	p15, 1, %0, c15, c9, 1  @ L2 flush_pmd"
@@ -529,9 +526,8 @@ static inline void clean_pmd_entry(pmd_t *pmd)
 {
 	const unsigned int __tlb_flag = __cpu_tlb_flags;
 
-	if (tlb_flag(TLB_DCLEAN))
-		asm("mcr	p15, 0, %0, c7, c10, 1	@ flush_pmd"
-			: : "r" (pmd) : "cc");
+	if (tlb_flag(TLB_DCLEAN)) {
+	}
 
 	if (tlb_flag(TLB_L2CLEAN_FR))
 		asm("mcr	p15, 1, %0, c15, c9, 1  @ L2 flush_pmd"

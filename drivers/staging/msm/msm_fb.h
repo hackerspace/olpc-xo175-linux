@@ -36,7 +36,6 @@
 #include <linux/fb.h>
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
-#include <linux/earlysuspend.h>
 #endif
 
 #include "msm_fb_panel.h"

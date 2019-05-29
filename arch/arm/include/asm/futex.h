@@ -25,48 +25,6 @@
 
 #ifdef CONFIG_SMP
 
-#define __futex_atomic_op(insn, ret, oldval, tmp, uaddr, oparg)	\
-	smp_mb();						\
-	__asm__ __volatile__(					\
-	"1:	ldrex	%1, [%3]\n"				\
-	"	" insn "\n"					\
-	"2:	strex	%2, %0, [%3]\n"				\
-	"	teq	%2, #0\n"				\
-	"	bne	1b\n"					\
-	"	mov	%0, #0\n"				\
-	__futex_atomic_ex_table("%5")				\
-	: "=&r" (ret), "=&r" (oldval), "=&r" (tmp)		\
-	: "r" (uaddr), "r" (oparg), "Ir" (-EFAULT)		\
-	: "cc", "memory")
-
-static inline int
-futex_atomic_cmpxchg_inatomic(u32 *uval, u32 __user *uaddr,
-			      u32 oldval, u32 newval)
-{
-	int ret;
-	u32 val;
-
-	if (!access_ok(VERIFY_WRITE, uaddr, sizeof(u32)))
-		return -EFAULT;
-
-	smp_mb();
-	__asm__ __volatile__("@futex_atomic_cmpxchg_inatomic\n"
-	"1:	ldrex	%1, [%4]\n"
-	"	teq	%1, %2\n"
-	"	ite	eq	@ explicit IT needed for the 2b label\n"
-	"2:	strexeq	%0, %3, [%4]\n"
-	"	movne	%0, #0\n"
-	"	teq	%0, #0\n"
-	"	bne	1b\n"
-	__futex_atomic_ex_table("%5")
-	: "=&r" (ret), "=&r" (val)
-	: "r" (oldval), "r" (newval), "r" (uaddr), "Ir" (-EFAULT)
-	: "cc", "memory");
-	smp_mb();
-
-	*uval = val;
-	return ret;
-}
 
 #else /* !SMP, we can work around lack of atomic ops by disabling preemption */
 

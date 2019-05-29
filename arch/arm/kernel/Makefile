@@ -29,7 +29,7 @@ obj-$(CONFIG_MODULES)		+= armksyms.o module.o
 obj-$(CONFIG_ARTHUR)		+= arthur.o
 obj-$(CONFIG_ISA_DMA)		+= dma-isa.o
 obj-$(CONFIG_PCI)		+= bios32.o isa.o
-obj-$(CONFIG_PM_SLEEP)		+= sleep.o
+obj-$(CONFIG_PM_SLEEP)		+= sleep.o suspend.o
 obj-$(CONFIG_HAVE_SCHED_CLOCK)	+= sched_clock.o
 obj-$(CONFIG_SMP)		+= smp.o smp_tlb.o
 obj-$(CONFIG_HAVE_ARM_SCU)	+= smp_scu.o
@@ -53,11 +53,7 @@ obj-$(CONFIG_HAVE_HW_BREAKPOINT)	+= hw_breakpoint.o
 obj-$(CONFIG_CRUNCH)		+= crunch.o crunch-bits.o
 AFLAGS_crunch-bits.o		:= -Wa,-mcpu=ep9312
 
-obj-$(CONFIG_CPU_XSCALE)	+= xscale-cp0.o
-obj-$(CONFIG_CPU_XSC3)		+= xscale-cp0.o
-obj-$(CONFIG_CPU_MOHAWK)	+= xscale-cp0.o
-obj-$(CONFIG_CPU_PJ4)		+= pj4-cp0.o
-obj-$(CONFIG_IWMMXT)		+= iwmmxt.o
+obj-$(CONFIG_IWMMXT)		+= iwmmxt.o iwmmxtmodule.o
 obj-$(CONFIG_CPU_HAS_PMU)	+= pmu.o
 obj-$(CONFIG_HW_PERF_EVENTS)	+= perf_event.o
 AFLAGS_iwmmxt.o			:= -Wa,-mcpu=iwmmxt

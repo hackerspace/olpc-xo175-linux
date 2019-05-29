@@ -29,6 +29,7 @@ config ARM
 	select HAVE_GENERIC_HARDIRQS
 	select HAVE_SPARSE_IRQ
 	select GENERIC_IRQ_SHOW
+	select CPU_PM if (SUSPEND || CPU_IDLE)
 	help
 	  The ARM series is a line of low-power-consumption RISC chip designs
 	  licensed by ARM Ltd and targeted at embedded applications and
@@ -537,7 +538,7 @@ config ARCH_ORION5X
 	  Orion-2 (5281), Orion-1-90 (6183).
 
 config ARCH_MMP
-	bool "Marvell PXA168/910/MMP2"
+	bool "Marvell PXA168/910/MMP2/MMP3"
 	depends on MMU
 	select ARCH_REQUIRE_GPIOLIB
 	select CLKDEV_LOOKUP
@@ -546,8 +547,11 @@ config ARCH_MMP
 	select TICK_ONESHOT
 	select PLAT_PXA
 	select SPARSE_IRQ
+	select ARCH_HAS_CPUFREQ
+	select ARCH_HAS_DEVFREQ
+	select GENERIC_ALLOCATOR
 	help
-	  Support for Marvell's PXA168/PXA910(MMP) and MMP2 processor line.
+	  Support for Marvell's PXA168/PXA910(MMP), MMP2 and MMP3 processor line.
 
 config ARCH_KS8695
 	bool "Micrel/Kendin KS8695"
@@ -1035,7 +1039,7 @@ source arch/arm/mm/Kconfig
 
 config IWMMXT
 	bool "Enable iWMMXt support"
-	depends on CPU_XSCALE || CPU_XSC3 || CPU_MOHAWK || CPU_PJ4
+	depends on CPU_XSCALE || CPU_XSC3 || CPU_MOHAWK || CPU_PJ4 || CPU_PJ4B
 	default y if PXA27x || PXA3xx || PXA95x || ARCH_MMP
 	help
 	  Enable support for iWMMXt context switching at run time if
@@ -1139,7 +1143,7 @@ config ARM_ERRATA_742231
 	  capabilities of the processor.
 
 config PL310_ERRATA_588369
-	bool "Clean & Invalidate maintenance operations do not invalidate clean lines"
+	bool "PL310 errata: Clean & Invalidate maintenance operations do not invalidate clean lines"
 	depends on CACHE_L2X0
 	help
 	   The PL310 L2 cache controller implements three types of Clean &
@@ -1164,7 +1168,7 @@ config ARM_ERRATA_720789
 	  entries regardless of the ASID.
 
 config PL310_ERRATA_727915
-	bool "Background Clean & Invalidate by Way operation can cause data corruption"
+	bool "PL310 errata: Background Clean & Invalidate by Way operation can cause data corruption"
 	depends on CACHE_L2X0
 	help
 	  PL310 implements the Clean & Invalidate by Way L2 cache maintenance
@@ -1196,21 +1200,6 @@ config ARM_ERRATA_751472
 	  completion of a following broadcasted operation if the second
 	  operation is received by a CPU before the ICIALLUIS has completed,
 	  potentially leading to corrupted entries in the cache or TLB.
-
-config ARM_ERRATA_753970
-	bool "ARM errata: cache sync operation may be faulty"
-	depends on CACHE_PL310
-	help
-	  This option enables the workaround for the 753970 PL310 (r3p0) erratum.
-
-	  Under some condition the effect of cache sync operation on
-	  the store buffer still remains when the operation completes.
-	  This means that the store buffer is always asked to drain and
-	  this prevents it from merging any further writes. The workaround
-	  is to replace the normal offset of cache sync operation (0x730)
-	  by another offset targeting an unmapped PL310 register 0x740.
-	  This has the same effect as the cache sync operation: store buffer
-	  drain and waiting for all buffers empty.
 
 config ARM_ERRATA_754322
 	bool "ARM errata: possible faulty MMU translations following an ASID switch"
@@ -1325,7 +1314,7 @@ config SMP
 	depends on REALVIEW_EB_ARM11MP || REALVIEW_EB_A9MP || \
 		 MACH_REALVIEW_PB11MP || MACH_REALVIEW_PBX || ARCH_OMAP4 || \
 		 ARCH_EXYNOS4 || ARCH_TEGRA || ARCH_U8500 || ARCH_VEXPRESS_CA9X4 || \
-		 ARCH_MSM_SCORPIONMP || ARCH_SHMOBILE
+		 ARCH_MSM_SCORPIONMP || ARCH_SHMOBILE || CPU_MMP3
 	select USE_GENERIC_SMP_HELPERS
 	select HAVE_ARM_SCU if !ARCH_MSM_SCORPIONMP
 	help
@@ -1427,6 +1416,7 @@ config HZ
 	default OMAP_32K_TIMER_HZ if ARCH_OMAP && OMAP_32K_TIMER
 	default AT91_TIMER_HZ if ARCH_AT91
 	default SHMOBILE_TIMER_HZ if ARCH_SHMOBILE
+	default 128 if (ARCH_PXA || ARCH_MMP) && PXA_32KTIMER
 	default 100
 
 config THUMB2_KERNEL
@@ -1557,6 +1547,7 @@ config FORCE_MAX_ZONEORDER
 	int "Maximum zone order" if ARCH_SHMOBILE
 	range 11 64 if ARCH_SHMOBILE
 	default "9" if SA1111
+	default "16" if (ARCH_MMP || ARCH_PXA)
 	default "11"
 	help
 	  The kernel memory allocator divides physically contiguous memory
@@ -2036,8 +2027,21 @@ source "kernel/power/Kconfig"
 config ARCH_SUSPEND_POSSIBLE
 	depends on !ARCH_S5P64X0 && !ARCH_S5PC100
 	depends on CPU_ARM920T || CPU_ARM926T || CPU_SA1100 || \
-		CPU_V6 || CPU_V6K || CPU_V7 || CPU_XSC3 || CPU_XSCALE
+		CPU_V6 || CPU_V6K || CPU_V7 || CPU_XSC3 || CPU_XSCALE || \
+		CPU_PXA910
 	def_bool y
+
+config PXA95x_DVFM
+	bool "PXA95x Processor DVFM support"
+	depends on PM && PXA95x && DVFM
+	help
+	  This implements the dynamical frequency and voltage changes features
+	  for PXA95x Processor particularly.
+
+config IPM
+	bool "Marvell(R) Scalable Power Management"
+	help
+	  Support Profiler and Daemon of Marvell(R) Scalable Power Management
 
 endmenu
 

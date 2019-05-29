@@ -1280,6 +1280,13 @@ static inline void hci_conn_complete_evt(struct hci_dev *hdev, struct sk_buff *s
 
 	conn = hci_conn_hash_lookup_ba(hdev, ev->link_type, &ev->bdaddr);
 	if (!conn) {
+
+		if (!(conn = hci_conn_add(hdev,ev->link_type,0,&ev->bdaddr))) {
+			BT_ERR("No memory for the new connection");
+			goto unlock;
+		}
+		conn->state = BT_CONNECT;
+
 		if (ev->link_type != SCO_LINK)
 			goto unlock;
 
@@ -1319,10 +1326,10 @@ static inline void hci_conn_complete_evt(struct hci_dev *hdev, struct sk_buff *s
 		}
 
 		/* Set packet type for incoming connection */
-		if (!conn->out && hdev->hci_ver < 3) {
+		if (!conn->out && (conn->type == ACL_LINK)) {
 			struct hci_cp_change_conn_ptype cp;
 			cp.handle = ev->handle;
-			cp.pkt_type = cpu_to_le16(conn->pkt_type);
+			cp.pkt_type = cpu_to_le16(conn->pkt_type & ACL_PTYPE_MASK);
 			hci_send_cmd(hdev, HCI_OP_CHANGE_CONN_PTYPE,
 							sizeof(cp), &cp);
 		}
@@ -1341,10 +1348,20 @@ static inline void hci_conn_complete_evt(struct hci_dev *hdev, struct sk_buff *s
 	} else if (ev->link_type != ACL_LINK)
 		hci_proto_connect_cfm(conn, ev->status);
 
+	mod_timer(&hdev->rs_timer, jiffies + msecs_to_jiffies(10*1000));
 unlock:
 	hci_dev_unlock(hdev);
 
 	hci_conn_check_pending(hdev);
+}
+
+static inline bool is_sco_active(struct hci_dev *hdev)
+{
+	if (hci_conn_hash_lookup_state(hdev, SCO_LINK, BT_CONNECTED) ||
+			(hci_conn_hash_lookup_state(hdev, ESCO_LINK,
+						    BT_CONNECTED)))
+		return true;
+	return false;
 }
 
 static inline void hci_conn_request_evt(struct hci_dev *hdev, struct sk_buff *skb)
@@ -1389,7 +1406,8 @@ static inline void hci_conn_request_evt(struct hci_dev *hdev, struct sk_buff *sk
 
 			bacpy(&cp.bdaddr, &ev->bdaddr);
 
-			if (lmp_rswitch_capable(hdev) && (mask & HCI_LM_MASTER))
+			if (lmp_rswitch_capable(hdev) && ((mask & HCI_LM_MASTER)
+						|| is_sco_active(hdev)))
 				cp.role = 0x00; /* Become master */
 			else
 				cp.role = 0x01; /* Remain slave */

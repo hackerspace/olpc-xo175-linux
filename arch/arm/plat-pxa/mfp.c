@@ -18,71 +18,13 @@
 #include <linux/init.h>
 #include <linux/io.h>
 
+#ifdef CONFIG_ARCH_MMP
+#include <mach/cputype.h>
+#elif defined(CONFIG_ARCH_PXA)
+#include <mach/hardware.h>
+#endif
+
 #include <plat/mfp.h>
-
-#define MFPR_SIZE	(PAGE_SIZE)
-
-/* MFPR register bit definitions */
-#define MFPR_PULL_SEL		(0x1 << 15)
-#define MFPR_PULLUP_EN		(0x1 << 14)
-#define MFPR_PULLDOWN_EN	(0x1 << 13)
-#define MFPR_SLEEP_SEL		(0x1 << 9)
-#define MFPR_SLEEP_OE_N		(0x1 << 7)
-#define MFPR_EDGE_CLEAR		(0x1 << 6)
-#define MFPR_EDGE_FALL_EN	(0x1 << 5)
-#define MFPR_EDGE_RISE_EN	(0x1 << 4)
-
-#define MFPR_SLEEP_DATA(x)	((x) << 8)
-#define MFPR_DRIVE(x)		(((x) & 0x7) << 10)
-#define MFPR_AF_SEL(x)		(((x) & 0x7) << 0)
-
-#define MFPR_EDGE_NONE		(0)
-#define MFPR_EDGE_RISE		(MFPR_EDGE_RISE_EN)
-#define MFPR_EDGE_FALL		(MFPR_EDGE_FALL_EN)
-#define MFPR_EDGE_BOTH		(MFPR_EDGE_RISE | MFPR_EDGE_FALL)
-
-/*
- * Table that determines the low power modes outputs, with actual settings
- * used in parentheses for don't-care values. Except for the float output,
- * the configured driven and pulled levels match, so if there is a need for
- * non-LPM pulled output, the same configuration could probably be used.
- *
- * Output value  sleep_oe_n  sleep_data  pullup_en  pulldown_en  pull_sel
- *                 (bit 7)    (bit 8)    (bit 14)     (bit 13)   (bit 15)
- *
- * Input            0          X(0)        X(0)        X(0)       0
- * Drive 0          0          0           0           X(1)       0
- * Drive 1          0          1           X(1)        0	  0
- * Pull hi (1)      1          X(1)        1           0	  0
- * Pull lo (0)      1          X(0)        0           1	  0
- * Z (float)        1          X(0)        0           0	  0
- */
-#define MFPR_LPM_INPUT		(0)
-#define MFPR_LPM_DRIVE_LOW	(MFPR_SLEEP_DATA(0) | MFPR_PULLDOWN_EN)
-#define MFPR_LPM_DRIVE_HIGH    	(MFPR_SLEEP_DATA(1) | MFPR_PULLUP_EN)
-#define MFPR_LPM_PULL_LOW      	(MFPR_LPM_DRIVE_LOW  | MFPR_SLEEP_OE_N)
-#define MFPR_LPM_PULL_HIGH     	(MFPR_LPM_DRIVE_HIGH | MFPR_SLEEP_OE_N)
-#define MFPR_LPM_FLOAT         	(MFPR_SLEEP_OE_N)
-#define MFPR_LPM_MASK		(0xe080)
-
-/*
- * The pullup and pulldown state of the MFP pin at run mode is by default
- * determined by the selected alternate function. In case that some buggy
- * devices need to override this default behavior,  the definitions below
- * indicates the setting of corresponding MFPR bits
- *
- * Definition       pull_sel  pullup_en  pulldown_en
- * MFPR_PULL_NONE       0         0        0
- * MFPR_PULL_LOW        1         0        1
- * MFPR_PULL_HIGH       1         1        0
- * MFPR_PULL_BOTH       1         1        1
- * MFPR_PULL_FLOAT	1         0        0
- */
-#define MFPR_PULL_NONE		(0)
-#define MFPR_PULL_LOW		(MFPR_PULL_SEL | MFPR_PULLDOWN_EN)
-#define MFPR_PULL_BOTH		(MFPR_PULL_LOW | MFPR_PULLUP_EN)
-#define MFPR_PULL_HIGH		(MFPR_PULL_SEL | MFPR_PULLUP_EN)
-#define MFPR_PULL_FLOAT		(MFPR_PULL_SEL)
 
 /* mfp_spin_lock is used to ensure that MFP register configuration
  * (most likely a read-modify-write operation) is atomic, and that
@@ -103,13 +45,12 @@ static struct mfp_pin mfp_table[MFP_PIN_MAX];
 
 /* mapping of MFP_LPM_* definitions to MFPR_LPM_* register bits */
 static const unsigned long mfpr_lpm[] = {
-	MFPR_LPM_INPUT,
+	MFPR_LPM_FLOAT,
 	MFPR_LPM_DRIVE_LOW,
 	MFPR_LPM_DRIVE_HIGH,
 	MFPR_LPM_PULL_LOW,
 	MFPR_LPM_PULL_HIGH,
 	MFPR_LPM_FLOAT,
-	MFPR_LPM_INPUT,
 };
 
 /* mapping of MFP_PULL_* definitions to MFPR_PULL_* register bits */
@@ -164,8 +105,17 @@ static inline void __mfp_config_lpm(struct mfp_pin *p)
 void mfp_config(unsigned long *mfp_cfgs, int num)
 {
 	unsigned long flags;
-	int i;
+	int i, drv_b11 = 0, no_lpm = 0;
 
+#ifdef CONFIG_ARCH_MMP
+	if (cpu_is_pxa910_family() || cpu_is_pxa920_family() || cpu_is_mmp2() || cpu_is_mmp3())
+		drv_b11 = 1;
+	if (cpu_is_pxa168() || cpu_is_pxa910_family() || cpu_is_pxa920_family())
+		no_lpm = 1;
+#elif defined(CONFIG_ARCH_PXA)
+	if (cpu_is_pxa95x())
+		drv_b11 = 1;
+#endif
 	spin_lock_irqsave(&mfp_spin_lock, flags);
 
 	for (i = 0; i < num; i++, mfp_cfgs++) {
@@ -182,20 +132,14 @@ void mfp_config(unsigned long *mfp_cfgs, int num)
 		lpm = MFP_LPM_STATE(c);
 		edge = MFP_LPM_EDGE(c);
 		pull = MFP_PULL(c);
+		if (drv_b11)
+			drv = drv << 1;
+		if (no_lpm)
+			lpm = 0;
 
-		/* run-mode pull settings will conflict with MFPR bits of
-		 * low power mode state,  calculate mfpr_run and mfpr_lpm
-		 * individually if pull != MFP_PULL_NONE
-		 */
 		tmp = MFPR_AF_SEL(af) | MFPR_DRIVE(drv);
-
-		if (likely(pull == MFP_PULL_NONE)) {
-			p->mfpr_run = tmp | mfpr_lpm[lpm] | mfpr_edge[edge];
-			p->mfpr_lpm = p->mfpr_run;
-		} else {
-			p->mfpr_lpm = tmp | mfpr_lpm[lpm] | mfpr_edge[edge];
-			p->mfpr_run = tmp | mfpr_pull[pull];
-		}
+		p->mfpr_run = tmp | mfpr_pull[pull] | mfpr_lpm[lpm] | mfpr_edge[edge];
+		p->mfpr_lpm = p->mfpr_run;
 
 		p->config = c; __mfp_config_run(p);
 	}
@@ -271,6 +215,10 @@ void mfp_config_lpm(void)
 	struct mfp_pin *p = &mfp_table[0];
 	int pin;
 
+#ifdef CONFIG_ARCH_MMP
+	if (cpu_is_pxa168() || cpu_is_pxa910_family() || cpu_is_pxa920_family())
+		return;
+#endif
 	for (pin = 0; pin < ARRAY_SIZE(mfp_table); pin++, p++)
 		__mfp_config_lpm(p);
 }

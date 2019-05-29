@@ -7,7 +7,6 @@
 	mov	r0, r0, lsr #5
 	add	r1, r1, r0, lsl #2	@ Get word offset
 	mov	r3, r2, lsl r3
-1:	ldrex	r2, [r1]
 	\instr	r2, r2, r3
 	strex	r0, r2, [r1]
 	cmp	r0, #0
@@ -24,7 +23,6 @@
 	add	r1, r1, r0, lsl #2	@ Get word offset
 	mov	r3, r2, lsl r3		@ create mask
 	smp_dmb
-1:	ldrex	r2, [r1]
 	ands	r0, r2, r3		@ save old value of bit
 	\instr	r2, r2, r3		@ toggle bit
 	strex	ip, r2, [r1]

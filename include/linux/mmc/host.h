@@ -139,6 +139,7 @@ struct mmc_host_ops {
 	int	(*start_signal_voltage_switch)(struct mmc_host *host, struct mmc_ios *ios);
 	int	(*execute_tuning)(struct mmc_host *host);
 	void	(*enable_preset_value)(struct mmc_host *host, bool enable);
+	int	(*recovery)(struct mmc_host *host);
 };
 
 struct mmc_card;
@@ -211,6 +212,8 @@ struct mmc_host {
 #define MMC_CAP_MAX_CURRENT_600	(1 << 28)	/* Host max current limit is 600mA */
 #define MMC_CAP_MAX_CURRENT_800	(1 << 29)	/* Host max current limit is 800mA */
 #define MMC_CAP_CMD23		(1 << 30)	/* CMD23 supported. */
+/* controller should NOT gate bus clock for some device at any time, e.g. SDIO card */
+#define MMC_CAP_ENABLE_BUS_CLK_GATING	(1 << 31)
 
 	mmc_pm_flag_t		pm_caps;	/* supported pm features */
 
@@ -249,6 +252,7 @@ struct mmc_host {
 	/* Only used with MMC_CAP_DISABLE */
 	int			enabled;	/* host is enabled */
 	int			rescan_disable;	/* disable card detection */
+	int                     rescan_delayed; /* card change when detection disabled */
 	int			nesting_cnt;	/* "enable" nesting count */
 	int			en_dis_recurs;	/* detect recursion */
 	unsigned int		disable_delay;	/* disable delay in msecs */
@@ -261,7 +265,7 @@ struct mmc_host {
 	int			claim_cnt;	/* "claim" nesting count */
 
 	struct delayed_work	detect;
-
+	void                    *detect_complete;
 	const struct mmc_bus_ops *bus_ops;	/* current bus driver */
 	unsigned int		bus_refs;	/* reference counter */
 
@@ -281,6 +285,7 @@ struct mmc_host {
 
 	struct dentry		*debugfs_root;
 
+	atomic_t		suspended;
 	unsigned long		private[0] ____cacheline_aligned;
 };
 
@@ -373,5 +378,4 @@ static inline int mmc_host_cmd23(struct mmc_host *host)
 {
 	return host->caps & MMC_CAP_CMD23;
 }
-#endif
-
+#endif /* LINUX_MMC_HOST_H */

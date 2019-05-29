@@ -210,21 +210,6 @@ static struct max8925_irq_data max8925_irqs[] = {
 		.mask_reg	= MAX8925_CHG_IRQ1_MASK,
 		.offs		= 1 << 2,
 	},
-	[MAX8925_IRQ_VCHG_USB_OVP] = {
-		.reg		= MAX8925_CHG_IRQ1,
-		.mask_reg	= MAX8925_CHG_IRQ1_MASK,
-		.offs		= 1 << 3,
-	},
-	[MAX8925_IRQ_VCHG_USB_F] =  {
-		.reg		= MAX8925_CHG_IRQ1,
-		.mask_reg	= MAX8925_CHG_IRQ1_MASK,
-		.offs		= 1 << 4,
-	},
-	[MAX8925_IRQ_VCHG_USB_R] = {
-		.reg		= MAX8925_CHG_IRQ1,
-		.mask_reg	= MAX8925_CHG_IRQ1_MASK,
-		.offs		= 1 << 5,
-	},
 	[MAX8925_IRQ_VCHG_THM_OK_R] = {
 		.reg		= MAX8925_CHG_IRQ2,
 		.mask_reg	= MAX8925_CHG_IRQ2_MASK,
@@ -355,7 +340,26 @@ static irqreturn_t max8925_irq(int irq, void *data)
 	struct max8925_irq_data *irq_data;
 	struct i2c_client *i2c;
 	int read_reg = -1, value = 0;
-	int i;
+	int i, j = 0;
+	int irq_mask_stored[ARRAY_SIZE(max8925_irqs)];
+
+	/* mask all irqs except for tsc */
+	for (i = 0; i < ARRAY_SIZE(max8925_irqs); i++) {
+		irq_data = &max8925_irqs[i];
+		if (irq_data->tsc_irq)
+			continue;
+		if (irq_data->flags == FLAGS_RTC)
+			i2c = chip->rtc;
+		else if (irq_data->flags == FLAGS_ADC)
+			i2c = chip->adc;
+		else
+			i2c = chip->i2c;
+		if (read_reg != irq_data->mask_reg) {
+			read_reg = irq_data->mask_reg;
+			irq_mask_stored[j++] = max8925_reg_read(i2c, irq_data->mask_reg);
+			max8925_reg_write(chip->i2c, irq_data->mask_reg, 0xff);
+		}
+	}
 
 	for (i = 0; i < ARRAY_SIZE(max8925_irqs); i++) {
 		irq_data = &max8925_irqs[i];
@@ -375,6 +379,25 @@ static irqreturn_t max8925_irq(int irq, void *data)
 		if (value & irq_data->enable)
 			handle_nested_irq(chip->irq_base + i);
 	}
+
+	j = 0;
+	/* unmask all irqs except for tsc */
+	for (i = 0; i < ARRAY_SIZE(max8925_irqs); i++) {
+		irq_data = &max8925_irqs[i];
+		if (irq_data->tsc_irq)
+			continue;
+		if (irq_data->flags == FLAGS_RTC)
+			i2c = chip->rtc;
+		else if (irq_data->flags == FLAGS_ADC)
+			i2c = chip->adc;
+		else
+			i2c = chip->i2c;
+		if (read_reg != irq_data->mask_reg) {
+			read_reg = irq_data->mask_reg;
+			max8925_reg_write(chip->i2c, irq_data->mask_reg, irq_mask_stored[j++]);
+		}
+	}
+
 	return IRQ_HANDLED;
 }
 
@@ -638,6 +661,9 @@ int __devinit max8925_device_init(struct max8925_chip *chip,
 	}
 
 	if (pdata && pdata->backlight) {
+		backlight_devs[0].platform_data = pdata->backlight;
+		backlight_devs[0].pdata_size =
+				sizeof(struct max8925_backlight_pdata);
 		ret = mfd_add_devices(chip->dev, 0, &backlight_devs[0],
 				      ARRAY_SIZE(backlight_devs),
 				      &backlight_resources[0], 0);
@@ -648,6 +674,8 @@ int __devinit max8925_device_init(struct max8925_chip *chip,
 	}
 
 	if (pdata && pdata->power) {
+		power_devs[0].platform_data = pdata->power;
+		power_devs[0].pdata_size = sizeof(struct max8925_power_pdata);
 		ret = mfd_add_devices(chip->dev, 0, &power_devs[0],
 					ARRAY_SIZE(power_devs),
 					&power_supply_resources[0], 0);
@@ -659,6 +687,8 @@ int __devinit max8925_device_init(struct max8925_chip *chip,
 	}
 
 	if (pdata && pdata->touch) {
+		touch_devs[0].platform_data = pdata->touch;
+		touch_devs[0].pdata_size = sizeof(struct max8925_touch_pdata);
 		ret = mfd_add_devices(chip->dev, 0, &touch_devs[0],
 				      ARRAY_SIZE(touch_devs),
 				      &touch_resources[0], 0);

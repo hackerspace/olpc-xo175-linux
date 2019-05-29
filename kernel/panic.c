@@ -24,6 +24,13 @@
 #include <linux/nmi.h>
 #include <linux/dmi.h>
 
+#if defined(CONFIG_CPU_MMP3)
+#include <linux/io.h>
+#include <asm/smp_twd.h>
+#include <mach/regs-apmu.h>
+#include <mach/regs-mpmu.h>
+#endif
+
 #define PANIC_TIMER_STEP 100
 #define PANIC_BLINK_SPD 18
 
@@ -79,6 +86,37 @@ NORET_TYPE void panic(const char * fmt, ...)
 	printk(KERN_EMERG "Kernel panic - not syncing: %s\n",buf);
 #ifdef CONFIG_DEBUG_BUGVERBOSE
 	dump_stack();
+#endif
+
+#if defined(CONFIG_CPU_MMP3)
+#if defined(CONFIG_LOCAL_TIMERS)
+	printk(KERN_EMERG "CURT TLDR %08x TCTR %08x TCTLR %08x TISR %08x\n",
+		 readl(twd_base + TWD_TIMER_LOAD),
+		 readl(twd_base + TWD_TIMER_COUNTER),
+		 readl(twd_base + TWD_TIMER_CONTROL),
+		 readl(twd_base + TWD_TIMER_INTSTAT));
+	printk(KERN_EMERG "CPU0 TLDR %08x TCTR %08x TCTLR %08x TISR %08x\n",
+		 readl(twd_base + 0x100 + TWD_TIMER_LOAD),
+		 readl(twd_base + 0x100 + TWD_TIMER_COUNTER),
+		 readl(twd_base + 0x100 + TWD_TIMER_CONTROL),
+		 readl(twd_base + 0x100 + TWD_TIMER_INTSTAT));
+	printk(KERN_EMERG "CPU1 TLDR %08x TCTR %08x TCTLR %08x TISR %08x\n",
+		 readl(twd_base + 0x200 + TWD_TIMER_LOAD),
+		 readl(twd_base + 0x200 + TWD_TIMER_COUNTER),
+		 readl(twd_base + 0x200 + TWD_TIMER_CONTROL),
+		 readl(twd_base + 0x200 + TWD_TIMER_INTSTAT));
+	printk(KERN_EMERG "CPU2 TLDR %08x TCTR %08x TCTLR %08x TISR %08x\n",
+		 readl(twd_base + 0x300 + TWD_TIMER_LOAD),
+		 readl(twd_base + 0x300 + TWD_TIMER_COUNTER),
+		 readl(twd_base + 0x300 + TWD_TIMER_CONTROL),
+		 readl(twd_base + 0x300 + TWD_TIMER_INTSTAT));
+#endif
+	printk(KERN_EMERG "CORE STATUS%08x\n", readl(APMU_CORE_STATUS));
+	printk(KERN_EMERG "CC %08x CC2 %08x CC3 %08x BUS %08x\n",
+		readl(APMU_CC_PJ),  readl(APMU_CC2_PJ),
+		readl(APMU_CC3_PJ), readl(APMU_BUS));
+	printk(KERN_EMERG "DM_CC %08x DM_CC2 %08x FCCR %08x\n",
+		readl(APMU_DM_CC_PJ), readl(APMU_DM2_CC_PJ), readl(MPMU_FCCR));
 #endif
 
 	/*

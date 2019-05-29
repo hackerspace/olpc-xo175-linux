@@ -53,6 +53,7 @@ enum ipi_msg_type {
 	IPI_CALL_FUNC,
 	IPI_CALL_FUNC_SINGLE,
 	IPI_CPU_STOP,
+	IPI_CPU_SYNC_COHERENCY,
 };
 
 int __cpuinit __cpu_up(unsigned int cpu)
@@ -464,6 +465,22 @@ asmlinkage void __exception_irq_entry do_local_timer(struct pt_regs *regs)
 	set_irq_regs(old_regs);
 }
 
+#if defined(CONFIG_CPU_MMP3)
+extern unsigned int irq_count[1024];
+
+static void print_irq_count(struct seq_file *p)
+{
+	int i;
+
+	for (i = 0; i < 1024; i++) {
+		if (!(i % 16))
+			seq_printf(p, "\n%08x", i);
+		seq_printf(p, " %08x", irq_count[i]);
+	}
+	seq_printf(p, "\n");
+}
+#endif
+
 void show_local_irqs(struct seq_file *p, int prec)
 {
 	unsigned int cpu;
@@ -474,6 +491,33 @@ void show_local_irqs(struct seq_file *p, int prec)
 		seq_printf(p, "%10u ", __get_irq_stat(cpu, local_timer_irqs));
 
 	seq_printf(p, " Local timer interrupts\n");
+
+#if defined(CONFIG_CPU_MMP3)
+	cpu = smp_processor_id();
+	seq_printf(p, "current local timer %d\n", cpu);
+	seq_printf(p, "CURT TLDR %08x TCTR %08x TCTLR %08x TISR %08x\n",
+		 readl(twd_base + TWD_TIMER_LOAD),
+		 readl(twd_base + TWD_TIMER_COUNTER),
+		 readl(twd_base + TWD_TIMER_CONTROL),
+		 readl(twd_base + TWD_TIMER_INTSTAT));
+	seq_printf(p, "CPU0 TLDR %08x TCTR %08x TCTLR %08x TISR %08x\n",
+		 readl(twd_base + 0x100 + TWD_TIMER_LOAD),
+		 readl(twd_base + 0x100 + TWD_TIMER_COUNTER),
+		 readl(twd_base + 0x100 + TWD_TIMER_CONTROL),
+		 readl(twd_base + 0x100 + TWD_TIMER_INTSTAT));
+	seq_printf(p, "CPU1 TLDR %08x TCTR %08x TCTLR %08x TISR %08x\n",
+		 readl(twd_base + 0x200 + TWD_TIMER_LOAD),
+		 readl(twd_base + 0x200 + TWD_TIMER_COUNTER),
+		 readl(twd_base + 0x200 + TWD_TIMER_CONTROL),
+		 readl(twd_base + 0x200 + TWD_TIMER_INTSTAT));
+	seq_printf(p, "CPU2 TLDR %08x TCTR %08x TCTLR %08x TISR %08x\n",
+		 readl(twd_base + 0x300 + TWD_TIMER_LOAD),
+		 readl(twd_base + 0x300 + TWD_TIMER_COUNTER),
+		 readl(twd_base + 0x300 + TWD_TIMER_CONTROL),
+		 readl(twd_base + 0x300 + TWD_TIMER_INTSTAT));
+
+	print_irq_count(p);
+#endif
 }
 #endif
 
@@ -531,7 +575,7 @@ static void percpu_timer_stop(void)
 }
 #endif
 
-static DEFINE_SPINLOCK(stop_lock);
+static DEFINE_RAW_SPINLOCK(stop_lock);
 
 /*
  * ipi_cpu_stop - handle IPI from smp_send_stop()
@@ -540,10 +584,10 @@ static void ipi_cpu_stop(unsigned int cpu)
 {
 	if (system_state == SYSTEM_BOOTING ||
 	    system_state == SYSTEM_RUNNING) {
-		spin_lock(&stop_lock);
+		raw_spin_lock(&stop_lock);
 		printk(KERN_CRIT "CPU%u: stopping\n", cpu);
 		dump_stack();
-		spin_unlock(&stop_lock);
+		raw_spin_unlock(&stop_lock);
 	}
 
 	set_cpu_online(cpu, false);
@@ -554,6 +598,8 @@ static void ipi_cpu_stop(unsigned int cpu)
 	while (1)
 		cpu_relax();
 }
+
+extern void handle_coherency_maint_req(void *p);
 
 /*
  * Main handler for inter-processor interrupts
@@ -576,15 +622,27 @@ asmlinkage void __exception_irq_entry do_IPI(int ipinr, struct pt_regs *regs)
 		break;
 
 	case IPI_CALL_FUNC:
+		irq_enter();
 		generic_smp_call_function_interrupt();
+		irq_exit();
 		break;
 
 	case IPI_CALL_FUNC_SINGLE:
+		irq_enter();
 		generic_smp_call_function_single_interrupt();
+		irq_exit();
 		break;
 
 	case IPI_CPU_STOP:
+		irq_enter();
 		ipi_cpu_stop(cpu);
+		irq_exit();
+		break;
+
+	case IPI_CPU_SYNC_COHERENCY:
+		irq_enter();
+		handle_coherency_maint_req(NULL);
+		irq_exit();
 		break;
 
 	default:

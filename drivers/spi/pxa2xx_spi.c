@@ -35,6 +35,10 @@
 #include <asm/irq.h>
 #include <asm/delay.h>
 
+#ifdef CONFIG_PXA95x
+#include <mach/dvfm.h>
+#else
+#endif
 
 MODULE_AUTHOR("Stephen Street");
 MODULE_DESCRIPTION("PXA2xx SSP SPI Controller");
@@ -47,9 +51,9 @@ MODULE_ALIAS("platform:pxa2xx-spi");
 
 #define DMA_INT_MASK		(DCSR_ENDINTR | DCSR_STARTINTR | DCSR_BUSERR)
 #define RESET_DMA_CHANNEL	(DCSR_NODESC | DMA_INT_MASK)
-#define IS_DMA_ALIGNED(x)	((((u32)(x)) & 0x07) == 0)
+#define IS_DMA_ALIGNED(x)	((((u32)(x)) & 0x3F) == 0)
 #define MAX_DMA_LEN		8191
-#define DMA_ALIGNMENT		8
+#define DMA_ALIGNMENT		64
 
 /*
  * for testing SSCR1 changes that require SSP restart, basically
@@ -105,6 +109,7 @@ struct driver_data {
 	/* DMA setup stuff */
 	int rx_channel;
 	int tx_channel;
+	u32 *alloc_dma_buf;
 	u32 *null_dma_buf;
 
 	/* SSP register addresses */
@@ -148,6 +153,12 @@ struct driver_data {
 	int (*read)(struct driver_data *drv_data);
 	irqreturn_t (*transfer_handler)(struct driver_data *drv_data);
 	void (*cs_control)(u32 command);
+#ifdef CONFIG_PXA95x
+	int dvfm_dev_idx;
+#else
+	struct wake_lock idle_lock;
+#endif
+	int constraint_is_set;
 };
 
 struct chip_data {
@@ -172,6 +183,55 @@ struct chip_data {
 	int (*read)(struct driver_data *drv_data);
 	void (*cs_control)(u32 command);
 };
+
+
+
+static void set_dvfm_constraint(struct driver_data *drv_data)
+{
+	if (drv_data->constraint_is_set == 0) {
+		drv_data->constraint_is_set = 1;
+#ifdef CONFIG_PXA95x
+		/* Disable Low power mode */
+		dvfm_disable_lowpower(drv_data->dvfm_dev_idx);
+#else
+		wake_lock(&(drv_data->idle_lock));
+#endif
+	}
+}
+
+static void unset_dvfm_constraint(struct driver_data *drv_data)
+{
+	if (drv_data->constraint_is_set) {
+		drv_data->constraint_is_set = 0;
+#ifdef CONFIG_PXA95x
+		/* Enable Low power mode*/
+		dvfm_enable_lowpower(drv_data->dvfm_dev_idx);
+#else
+		wake_unlock(&(drv_data->idle_lock));
+#endif
+	}
+}
+
+static void init_dvfm_constraint(struct driver_data *drv_data)
+{
+	drv_data->constraint_is_set = 0;
+#ifdef CONFIG_PXA95x
+	dvfm_register(dev_name(&(drv_data->pdev->dev)),
+		&(drv_data->dvfm_dev_idx));
+#else
+	wake_lock_init(&(drv_data->idle_lock), WAKE_LOCK_IDLE,
+		dev_name(&(drv_data->pdev->dev)));
+#endif
+}
+
+static void deinit_dvfm_constraint(struct driver_data *drv_data)
+{
+#ifdef CONFIG_PXA95x
+	dvfm_unregister("SPI", &(drv_data->dvfm_dev_idx));
+#else
+	wake_lock_destroy(&(drv_data->idle_lock));
+#endif
+}
 
 static void pump_messages(struct work_struct *work);
 
@@ -503,6 +563,8 @@ static void giveback(struct driver_data *drv_data)
 		msg->complete(msg->context);
 
 	drv_data->cur_chip = NULL;
+
+	unset_dvfm_constraint(drv_data);
 }
 
 static int wait_ssp_rx_stall(void const __iomem *ioaddr)
@@ -1169,6 +1231,8 @@ static void pump_transfers(unsigned long data)
 			write_SSTO(chip->timeout, reg);
 	}
 
+	set_dvfm_constraint(drv_data);	/*disable system to idle while DMA */
+
 	cs_assert(drv_data);
 
 	/* after chip select, release the data by enabling service
@@ -1349,6 +1413,8 @@ static int setup(struct spi_device *spi)
 			rx_thres = chip_info->rx_threshold;
 		chip->enable_dma = drv_data->master_info->enable_dma;
 		chip->dma_threshold = 0;
+		if (chip_info->using_gpio_cs == 0 && chip_info->gpio_cs == 0)
+			chip_info->gpio_cs = -1;
 		if (chip_info->enable_loopback)
 			chip->cr1 = SSCR1_LBM;
 	}
@@ -1543,18 +1609,29 @@ static int __devinit pxa2xx_spi_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	/* Allocate master with space for drv_data and null dma buffer */
-	master = spi_alloc_master(dev, sizeof(struct driver_data) + 16);
+	/* Allocate master with space for drv_data*/
+	master = spi_alloc_master(dev, sizeof(struct driver_data));
 	if (!master) {
 		dev_err(&pdev->dev, "cannot alloc spi_master\n");
 		pxa_ssp_free(ssp);
 		return -ENOMEM;
 	}
+
 	drv_data = spi_master_get_devdata(master);
+	/* the null DMA buf should malloc form DMA_ZONE
+	 * and align of DMA_ALIGNMENT
+	 */
+	drv_data->alloc_dma_buf =
+		kzalloc(DMA_ALIGNMENT+4, GFP_KERNEL | GFP_DMA);
+	if (!drv_data->alloc_dma_buf) {
+		status = -ENOMEM;
+		goto out_error_dma_buf;
+	}
 	drv_data->master = master;
 	drv_data->master_info = platform_info;
 	drv_data->pdev = pdev;
 	drv_data->ssp = ssp;
+	init_dvfm_constraint(drv_data);
 
 	master->dev.parent = &pdev->dev;
 	master->dev.of_node = pdev->dev.of_node;
@@ -1569,8 +1646,8 @@ static int __devinit pxa2xx_spi_probe(struct platform_device *pdev)
 	master->transfer = transfer;
 
 	drv_data->ssp_type = ssp->type;
-	drv_data->null_dma_buf = (u32 *)ALIGN((u32)(drv_data +
-						sizeof(struct driver_data)), 8);
+	drv_data->null_dma_buf =
+		(u32 *)ALIGN((u32)drv_data->alloc_dma_buf, DMA_ALIGNMENT);
 
 	drv_data->ioaddr = ssp->mmio_base;
 	drv_data->ssdr_physical = ssp->phys_base + SSDR;
@@ -1676,8 +1753,11 @@ out_error_dma_alloc:
 
 out_error_irq_alloc:
 	free_irq(ssp->irq, drv_data);
+	deinit_dvfm_constraint(drv_data);
 
 out_error_master_alloc:
+	kfree(drv_data->alloc_dma_buf);
+out_error_dma_buf:
 	spi_master_put(master);
 	pxa_ssp_free(ssp);
 	return status;
@@ -1724,7 +1804,8 @@ static int pxa2xx_spi_remove(struct platform_device *pdev)
 
 	/* Release SSP */
 	pxa_ssp_free(ssp);
-
+	kfree(drv_data->alloc_dma_buf);
+	deinit_dvfm_constraint(drv_data);
 	/* Disconnect from the SPI framework */
 	spi_unregister_master(drv_data->master);
 

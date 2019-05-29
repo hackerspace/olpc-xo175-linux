@@ -31,29 +31,58 @@ struct pxa3xx_nand_cmdset {
 
 struct pxa3xx_nand_flash {
 	char		*name;
-	uint32_t	chip_id;
+	uint16_t	chip_id;
+	uint16_t	ext_id;
 	unsigned int	page_per_block; /* Pages per block (PG_PER_BLK) */
 	unsigned int	page_size;	/* Page size in bytes (PAGE_SZ) */
 	unsigned int	flash_width;	/* Width of Flash memory (DWIDTH_M) */
 	unsigned int	dfc_width;	/* Width of flash controller(DWIDTH_C) */
+	unsigned int	ecc_strength;   /* How strong ecc should be applied */
 	unsigned int	num_blocks;	/* Number of physical blocks in Flash */
 
 	struct pxa3xx_nand_timing *timing;	/* NAND Flash timing */
 };
 
+/*
+ * Current pxa3xx_nand controller has two chip select which
+ * both be workable.
+ *
+ * Notice should be taken that:
+ * When you want to use this feature, you should not enable the
+ * keep configuration feature, for two chip select could be
+ * attached with different nand chip. The different page size
+ * and timing requirement make the keep configuration impossible.
+ */
+
+/* The max num of chip select current support */
+#define NUM_CHIP_SELECT		(2)
 struct pxa3xx_nand_platform_data {
 
 	/* the data flash bus is shared between the Static Memory
 	 * Controller and the Data Flash Controller,  the arbiter
 	 * controls the ownership of the bus
 	 */
-	int	enable_arbiter;
-
+#define ARBI_EN		(1 << 0)
 	/* allow platform code to keep OBM/bootloader defined NFC config */
-	int	keep_config;
+#define CONFIG_KEEP	(1 << 1)
+	/* whether disable dma operation by default */
+#define DMA_DIS		(1 << 2)
+	/* whether current nand controller ip support naked command */
+#define NAKED_CMD	(1 << 3)
+	/*
+	 * for the scenario that smc and nand controller share the dfi bus,
+	 * ensure nand cs don't assert when smc has the bus
+	 */
+#define FORCE_CS	(1 << 4)
+	/* whether use polling mode */
+#define POLLING		(1 << 5)
+	int	attr;
 
-	const struct mtd_partition		*parts;
-	unsigned int				nr_parts;
+	/* indicate how many chip selects will be used */
+	int	num_cs;
+
+	const struct mtd_partition		*parts[NUM_CHIP_SELECT];
+	unsigned int				nr_parts[NUM_CHIP_SELECT];
 
 	const struct pxa3xx_nand_flash * 	flash;
 	size_t					num_flash;

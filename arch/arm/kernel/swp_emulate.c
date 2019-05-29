@@ -31,27 +31,6 @@
 /*
  * Error-checking SWP macros implemented using ldrex{b}/strex{b}
  */
-#define __user_swpX_asm(data, addr, res, temp, B)		\
-	__asm__ __volatile__(					\
-	"	mov		%2, %1\n"			\
-	"0:	ldrex"B"	%1, [%3]\n"			\
-	"1:	strex"B"	%0, %2, [%3]\n"			\
-	"	cmp		%0, #0\n"			\
-	"	movne		%0, %4\n"			\
-	"2:\n"							\
-	"	.section	 .fixup,\"ax\"\n"		\
-	"	.align		2\n"				\
-	"3:	mov		%0, %5\n"			\
-	"	b		2b\n"				\
-	"	.previous\n"					\
-	"	.section	 __ex_table,\"a\"\n"		\
-	"	.align		3\n"				\
-	"	.long		0b, 3b\n"			\
-	"	.long		1b, 3b\n"			\
-	"	.previous"					\
-	: "=&r" (res), "+r" (data), "=&r" (temp)		\
-	: "r" (addr), "i" (-EAGAIN), "i" (-EFAULT)		\
-	: "cc", "memory")
 
 #define __user_swp_asm(data, addr, res, temp) \
 	__user_swpX_asm(data, addr, res, temp, "")

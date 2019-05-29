@@ -20,6 +20,9 @@
  */
 
 extern unsigned int mmp_chip_id;
+extern unsigned int mmp_fuse_id;
+extern unsigned int mmp_soc_stepping;
+extern unsigned int mmp_soc_profile;
 
 #ifdef CONFIG_CPU_PXA168
 static inline int cpu_is_pxa168(void)
@@ -31,16 +34,63 @@ static inline int cpu_is_pxa168(void)
 #define cpu_is_pxa168()	(0)
 #endif
 
-/* cpu_is_pxa910() is shared on both pxa910 and pxa920 */
 #ifdef CONFIG_CPU_PXA910
-static inline int cpu_is_pxa910(void)
+static inline int cpu_is_pxa910_family(void)
 {
 	return (((read_cpuid_id() >> 8) & 0xff) == 0x84) &&
-		(((mmp_chip_id & 0xfff) == 0x910) ||
-		 ((mmp_chip_id & 0xfff) == 0x920));
+		(((mmp_chip_id & 0xfff) == 0x910));
 }
+
+static inline int cpu_is_pxa920_family(void)
+{
+	return (((read_cpuid_id() >> 8) & 0xff) == 0x84) &&
+		(((mmp_chip_id & 0xfff) == 0x920));
+}
+
+static inline int cpu_is_pxa910(void)
+{
+	if (cpu_is_pxa910_family() && ((mmp_fuse_id & 0x0000f000) == 0x00003000))
+		return 0;
+	if (cpu_is_pxa910_family())
+		return 1;
+	return 0;
+}
+
+static inline int cpu_is_pxa920(void)
+{
+	if (cpu_is_pxa920_family() && ((mmp_fuse_id & 0x3000000)) == 0x3000000)
+		return 0;
+	if (cpu_is_pxa920_family() && ((mmp_fuse_id & 0x0000f000)) == 0x00003000)
+		return 0;
+	if (cpu_is_pxa920_family())
+		return 1;
+	return 0;
+}
+
+static inline int cpu_is_pxa921(void)
+{
+	if (cpu_is_pxa920_family() && ((mmp_fuse_id & 0x3000000) == 0x3000000))
+		return 0;
+	if (cpu_is_pxa920_family() && ((mmp_fuse_id & 0x0000f000) == 0x00003000))
+		return 1;
+	return 0;
+}
+
+static inline int cpu_is_pxa918(void)
+{
+	return (cpu_is_pxa920_family() &&
+		((mmp_fuse_id & 0x03000000) == 0x03000000));
+}
+
+static inline int cpu_is_pxa910h(void)
+{
+	return (cpu_is_pxa910_family() &&
+		((mmp_fuse_id & 0x0000f000) == 0x00003000));
+}
+
 #else
-#define cpu_is_pxa910()	(0)
+#define cpu_is_pxa910_family()	(0)
+#define cpu_is_pxa920_family()	(0)
 #endif
 
 #ifdef CONFIG_CPU_MMP2
@@ -50,6 +100,40 @@ static inline int cpu_is_mmp2(void)
 }
 #else
 #define cpu_is_mmp2()	(0)
+#endif
+
+#ifdef CONFIG_CPU_MMP3
+static inline int cpu_is_mmp3(void)
+{
+	return (((read_cpuid_id() >> 8) & 0xff) == 0x58);
+}
+
+static inline int cpu_is_mmp3_a0(void)
+{
+	if (cpu_is_mmp3() && ((mmp_chip_id & 0x00ff0000) == 0x00a00000))
+		return 1;
+	else
+		return 0;
+}
+
+static inline int cpu_is_mmp3_b0(void)
+{
+	if (cpu_is_mmp3() && ((mmp_chip_id & 0x00ff0000) == 0x00b00000))
+		return 1;
+	else
+		return 0;
+}
+
+static inline int cpu_is_mmp3_b0p(void)
+{
+	if (cpu_is_mmp3() && mmp_soc_stepping == 0x423050)
+		return 1;
+	else
+		return 0;
+}
+
+#else
+#define cpu_is_mmp3(id)	(0)
 #endif
 
 #endif /* __ASM_MACH_CPUTYPE_H */
