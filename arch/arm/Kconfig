@@ -1223,6 +1223,14 @@ config ARM_ERRATA_754327
 	  This workaround defines cpu_relax() as smp_mb(), preventing correctly
 	  written polling loops from denying visibility of updates to memory.
 
+config PJ4B_ERRATA_6011
+	bool "PJ4B errata 6011"
+	depends on CPU_PJ4B
+	help
+	  Invalidating snoop between LDREX/STREX pair causes STREX to incorrectly succeed
+	  without updated store data. For cacheable, coherent memory, disable interrupt and
+	  replace every occurrence of an LDREX with 5 equivalent LDREX instructions.
+
 endmenu
 
 source "arch/arm/common/Kconfig"

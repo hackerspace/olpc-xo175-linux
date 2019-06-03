@@ -261,6 +261,9 @@ do {									\
 #define swp_is_buggy
 #endif
 
+#ifdef CONFIG_PJ4B_ERRATA_6011
+#include <asm/pj4b-errata-6011.h>
+#endif
 
 static inline unsigned long __xchg(unsigned long x, volatile void *ptr, int size)
 {
@@ -280,6 +283,11 @@ static inline unsigned long __xchg(unsigned long x, volatile void *ptr, int size
 	case 1:
 		asm volatile("@	__xchg1\n"
 		"1:		\n"
+#ifdef CONFIG_PJ4B_ERRATA_6011
+			pj4b_6011_ldrexb(%0, %3, %1)
+#else
+		"	ldrexb	%0, [%3]\n"
+#endif
 		"	strexb	%1, %2, [%3]\n"
 		"	teq	%1, #0\n"
 		"	bne	1b"
@@ -290,6 +298,11 @@ static inline unsigned long __xchg(unsigned long x, volatile void *ptr, int size
 	case 4:
 		asm volatile("@	__xchg4\n"
 		"1:		\n"
+#ifdef CONFIG_PJ4B_ERRATA_6011
+			pj4b_6011_ldrex(%0, %3, %1)
+#else
+		"	ldrex	%0, [%3]\n"
+#endif
 		"	strex	%1, %2, [%3]\n"
 		"	teq	%1, #0\n"
 		"	bne	1b"
@@ -384,6 +397,11 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 	case 1:
 		do {
 			asm volatile("@ __cmpxchg1\n"
+#ifdef CONFIG_PJ4B_ERRATA_6011
+				pj4b_6011_ldrexb(%1, %2, %0)
+#else
+			"	ldrexb	%1, [%2]\n"
+#endif
 			"	mov	%0, #0\n"
 			"	teq	%1, %3\n"
 			"	strexbeq %0, %4, [%2]\n"
@@ -395,6 +413,11 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 	case 2:
 		do {
 			asm volatile("@ __cmpxchg1\n"
+#ifdef CONFIG_PJ4B_ERRATA_6011
+				pj4b_6011_ldrexh(%1, %2, %0)
+#else
+			"	ldrexh	%1, [%2]\n"
+#endif
 			"	mov	%0, #0\n"
 			"	teq	%1, %3\n"
 			"	strexheq %0, %4, [%2]\n"
@@ -407,6 +430,11 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 	case 4:
 		do {
 			asm volatile("@ __cmpxchg4\n"
+#ifdef CONFIG_PJ4B_ERRATA_6011
+				pj4b_6011_ldrex(%1, %2, %0)
+#else
+			"	ldrex	%1, [%2]\n"
+#endif
 			"	mov	%0, #0\n"
 			"	teq	%1, %3\n"
 			"	strexeq %0, %4, [%2]\n"
@@ -486,6 +514,11 @@ static inline unsigned long long __cmpxchg64(volatile void *ptr,
 	do {
 		asm volatile(
 		"	@ __cmpxchg8\n"
+#ifdef CONFIG_PJ4B_ERRATA_6011
+			pj4b_6011_ldrexd(%1, %H1, %2, %0)
+#else
+		"	ldrexd	%1, %H1, [%2]\n"
+#endif
 		"	mov	%0, #0\n"
 		"	teq	%1, %3\n"
 		"	teqeq	%H1, %H3\n"
