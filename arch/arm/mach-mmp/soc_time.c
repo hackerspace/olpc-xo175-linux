@@ -233,9 +233,25 @@ cycle_t timer_read(int counter)
 	volatile int delay __maybe_unused = 2;
 	unsigned long flags;
 	volatile uint32_t val = 0;
+#ifdef CONFIG_PXA_32KTIMER
+	volatile uint32_t val2 = 0;
+#endif
 
 	local_irq_save(flags);
 
+#ifdef CONFIG_PXA_32KTIMER
+	/* 32KHz timer */
+	do {
+		val = __raw_readl(TIMERS_VIRT_BASE + TMR_CR(counter));
+		val2 = __raw_readl(TIMERS_VIRT_BASE + TMR_CR(counter));
+	} while (val2 != val);
+#else
+	__raw_writel(1, TIMERS_VIRT_BASE + TMR_CVWR(counter));
+	while (delay--) {
+		val = __raw_readl(TIMERS_VIRT_BASE + TMR_CVWR(counter));
+	}
+	val = __raw_readl(TIMERS_VIRT_BASE + TMR_CVWR(counter));
+#endif
 	local_irq_restore(flags);
 
 	return val;
@@ -265,6 +281,11 @@ static void __init timer_config(void)
 
 	/* clock frequency from clock/reset control register for Timer 0 */
 	ccr &= ~0x7f;
+#ifdef CONFIG_PXA_32KTIMER
+	ccr |= TMR_CCR_CS_0(1) | TMR_CCR_CS_1(1) | TMR_CCR_CS_2(2);
+#else
+	ccr |= TMR_CCR_CS_0(0) | TMR_CCR_CS_1(0) | TMR_CCR_CS_2(0);
+#endif
 	__raw_writel(ccr, TIMERS_VIRT_BASE + TMR_CCR);
 
 	/* free-running mode for Timer 0 & 1 */
@@ -318,6 +339,17 @@ void __init timer_init(int irq0, int irq1, int irq2)
 {
 	timer_config();
 
+#ifdef CONFIG_PXA_32KTIMER
+	init_sched_clock(&cd, mmp_update_sched_clock, 32, 32768);
+	clocksource_calc_mult_shift(&cksrc, 32768, 4);
+	clockevents_calc_mult_shift(&ckevt0, 32768, 4);
+	clockevents_calc_mult_shift(&ckevt1, 32768, 4);
+#else
+	init_sched_clock(&cd, mmp_update_sched_clock, 32, CLOCK_TICK_RATE);
+	clocksource_calc_mult_shift(&cksrc, CLOCK_TICK_RATE, 4);
+	clockevents_calc_mult_shift(&ckevt0, CLOCK_TICK_RATE, 4);
+	clockevents_calc_mult_shift(&ckevt1, CLOCK_TICK_RATE, 4);
+#endif
 
 	generic_timer_config();
 	set_us2cyc_scale(CLOCK_TICK_RATE / 2);	/* use generic timer */

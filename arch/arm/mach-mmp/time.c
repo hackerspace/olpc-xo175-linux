@@ -99,11 +99,21 @@ static inline uint32_t timer_read(int counter)
 
 unsigned long long notrace sched_clock(void)
 {
+#ifdef CONFIG_PXA_32KTIMER
+	u32 cyc = timer_read(1);
+#else
+	u32 cyc = timer_read(0);
+#endif
 	return cyc_to_sched_clock(&cd, cyc, (u32)~0);
 }
 
 static void notrace mmp_update_sched_clock(void)
 {
+#ifdef CONFIG_PXA_32KTIMER
+	u32 cyc = timer_read(1);
+#else
+	u32 cyc = timer_read(0);
+#endif
 	update_sched_clock(&cd, cyc, (u32)~0);
 }
 
@@ -139,6 +149,21 @@ static int timer_set_next_event(unsigned long delta,
 
 	local_irq_save(flags);
 
+#ifdef CONFIG_PXA_32KTIMER
+	/* clear pending interrupt status and enable */
+	__raw_writel(0x01, TIMERS_VIRT_BASE + TMR_ICR(1));
+	__raw_writel(0x01, TIMERS_VIRT_BASE + TMR_IER(1));
+
+	next = timer_read(1) + delta;
+	__raw_writel(next, TIMERS_VIRT_BASE + TMR_TN_MM(1, 0));
+#else
+	/* clear pending interrupt status and enable */
+	__raw_writel(0x01, TIMERS_VIRT_BASE + TMR_ICR(0));
+	__raw_writel(0x01, TIMERS_VIRT_BASE + TMR_IER(0));
+
+	next = timer_read(0) + delta;
+	__raw_writel(next, TIMERS_VIRT_BASE + TMR_TN_MM(0, 0));
+#endif
 
 	local_irq_restore(flags);
 	return 0;
@@ -155,6 +180,11 @@ static void timer_set_mode(enum clock_event_mode mode,
 	case CLOCK_EVT_MODE_UNUSED:
 	case CLOCK_EVT_MODE_SHUTDOWN:
 		/* disable the matching interrupt */
+#ifdef CONFIG_PXA_32KTIMER
+		__raw_writel(0x00, TIMERS_VIRT_BASE + TMR_IER(1));
+#else
+		__raw_writel(0x00, TIMERS_VIRT_BASE + TMR_IER(0));
+#endif
 		break;
 	case CLOCK_EVT_MODE_RESUME:
 	case CLOCK_EVT_MODE_PERIODIC:
@@ -278,6 +308,13 @@ void __init timer_init(int irq0, int irq1)
 	set_us2cyc_scale(CLOCK_TICK_RATE / 2);
 #endif
 
+#ifdef CONFIG_PXA_32KTIMER
+	init_sched_clock(&cd, mmp_update_sched_clock, 32, 32768);
+	clockevents_calc_mult_shift(&ckevt, 32768, 4);
+#else
+	init_sched_clock(&cd, mmp_update_sched_clock, 32, CLOCK_TICK_RATE);
+	clockevents_calc_mult_shift(&ckevt, CLOCK_TICK_RATE, 4);
+#endif
 
 	clocksource_calc_mult_shift(&cksrc_fast, CLOCK_TICK_RATE, 4);
 	clocksource_calc_mult_shift(&cksrc_32k, 32768, 4);
@@ -289,6 +326,11 @@ void __init timer_init(int irq0, int irq1)
 	setup_irq(irq0, &timer_fast_irq);
 	setup_irq(irq1, &timer_32k_irq);
 
+#ifdef CONFIG_PXA_32KTIMER
+	clocksource_register_hz(&cksrc_32k, 32768);
+#else
+	clocksource_register_hz(&cksrc_fast, CLOCK_TICK_RATE);
+#endif
 
 	clockevents_register_device(&ckevt);
 }

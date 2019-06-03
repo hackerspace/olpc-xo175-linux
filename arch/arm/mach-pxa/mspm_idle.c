@@ -285,6 +285,11 @@ static int update_idle_stats(void)
 
 static unsigned int pxa_ticks_to_msec(unsigned int ticks)
 {
+#ifdef CONFIG_PXA_32KTIMER
+	return (ticks * 5 * 5 * 5) >> 12;
+#else
+	return ticks / 3250;
+#endif
 }
 
 /*
@@ -307,6 +312,13 @@ void mspm_do_idle(void)
 
 #ifdef CONFIG_NO_IDLE_HZ
 	timer_dyn_reprogram();
+#endif
+#ifdef CONFIG_PXA_32KTIMER
+	ticks = (OSMR4 > OSCR4) ? OSMR4 - OSCR4
+		: (0xFFFFFFFF - OSCR4 + OSMR4);
+#else
+	ticks = (OSMR0 > OSCR) ? OSMR0 - OSCR
+		: (0xFFFFFFFF - OSCR + OSMR0);
 #endif
 	msec = pxa_ticks_to_msec(ticks);
 	record_idle_stats(msec);

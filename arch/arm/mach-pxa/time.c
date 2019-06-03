@@ -36,6 +36,11 @@ static DEFINE_CLOCK_DATA(cd);
 
 static inline u32 pxa_timer_read(void)
 {
+#ifdef CONFIG_PXA_32KTIMER
+	return OSCR4;
+#else
+	return OSCR;
+#endif
 }
 
 unsigned long long notrace sched_clock(void)
@@ -84,6 +89,17 @@ pxa_osmr_set_next_event(unsigned long delta, struct clock_event_device *dev)
 {
 	unsigned long next, oscr;
 
+#ifdef CONFIG_PXA_32KTIMER
+	OIER |= OIER_E4;
+	next = OSCR4 + delta;
+	OSMR4 = next;
+	oscr = OSCR4;
+#else
+	OIER |= OIER_E0;
+	next = OSCR + delta;
+	OSMR0 = next;
+	oscr = OSCR;
+#endif
 
 	return (signed)(next - oscr) <= MIN_OSCR_DELTA ? -ETIME : 0;
 }
@@ -96,6 +112,13 @@ pxa_osmr_set_mode(enum clock_event_mode mode, struct clock_event_device *dev)
 	case CLOCK_EVT_MODE_UNUSED:
 	case CLOCK_EVT_MODE_SHUTDOWN:
 		/* initializing, released, or preparing for suspend */
+#ifdef CONFIG_PXA_32KTIMER
+		OIER &= ~OIER_E4;
+		OSSR = OSSR_M4;
+#else
+		OIER &= ~OIER_E0;
+		OSSR = OSSR_M0;
+#endif
 		break;
 
 	case CLOCK_EVT_MODE_RESUME:
@@ -105,6 +128,11 @@ pxa_osmr_set_mode(enum clock_event_mode mode, struct clock_event_device *dev)
 }
 
 static struct clock_event_device ckevt_pxa_osmr = {
+#ifdef CONFIG_PXA_32KTIMER
+	.name		= "osmr4",
+#else
+	.name		= "osmr0",
+#endif
 	.features	= CLOCK_EVT_FEAT_ONESHOT,
 	.rating		= 200,
 	.set_next_event	= pxa_osmr_set_next_event,
@@ -137,6 +165,13 @@ static void __init pxa_timer_init(void)
 	OMCR4 = 0xc1;
 	OSCR4 = 1;
 
+#ifdef CONFIG_PXA_32KTIMER
+	init_sched_clock(&cd, pxa_update_sched_clock, 32, 32768);
+	clockevents_calc_mult_shift(&ckevt_pxa_osmr, 32768, 4);
+#else
+	init_sched_clock(&cd, pxa_update_sched_clock, 32, clock_tick_rate);
+	clockevents_calc_mult_shift(&ckevt_pxa_osmr, clock_tick_rate, 4);
+#endif
 	ckevt_pxa_osmr.max_delta_ns =
 		clockevent_delta2ns(0x7fffffff, &ckevt_pxa_osmr);
 	ckevt_pxa_osmr.min_delta_ns =
@@ -167,6 +202,11 @@ static void pxa_timer_suspend(void)
 	osmr[3] = OSMR3;
 	osmr[4] = OSMR4;
 	oier = OIER;
+#ifdef CONFIG_PXA_32KTIMER
+	oscr = OSCR4;
+#else
+	oscr = OSCR;
+#endif
 }
 
 static void pxa_timer_resume(void)
@@ -177,11 +217,23 @@ static void pxa_timer_resume(void)
 	 * the one-shot timer interrupt.  We adjust OSMR0 in preference
 	 * to OSCR to guarantee that OSCR is monotonically incrementing.
 	 */
+#ifdef CONFIG_PXA_32KTIMER
+	if (osmr[4] - oscr < MIN_OSCR_DELTA)
+		osmr[4] += MIN_OSCR_DELTA;
+#else
+	if (osmr[0] - oscr < MIN_OSCR_DELTA)
+		osmr[0] += MIN_OSCR_DELTA;
+#endif
 	OSMR0 = osmr[0];
 	OSMR1 = osmr[1];
 	OSMR2 = osmr[2];
 	OSMR3 = osmr[3];
 	OIER = oier;
+#ifdef CONFIG_PXA_32KTIMER
+	OSCR4 = oscr;
+#else
+	OSCR = oscr;
+#endif
 }
 #else
 #define pxa_timer_suspend NULL

@@ -125,6 +125,11 @@ static int dvfm_dev_idx;
 static struct ipm_profiler_arg pmu_arg;
 static unsigned int read_time(void)
 {
+#ifdef CONFIG_PXA_32KTIMER
+	return OSCR4;
+#else
+	return OSCR0;
+#endif
 }
 
 /*
