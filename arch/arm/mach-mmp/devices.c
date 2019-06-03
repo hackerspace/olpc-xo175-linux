@@ -117,6 +117,7 @@ void u2o_write(unsigned int base, unsigned int offset, unsigned int value)
 	__raw_readl(base + offset);
 
 }
+#endif
 
 #if defined(CONFIG_USB_PXA_U2O) || defined(CONFIG_USB_EHCI_PXA)
 
