@@ -1231,6 +1231,13 @@ config PJ4B_ERRATA_6011
 	  without updated store data. For cacheable, coherent memory, disable interrupt and
 	  replace every occurrence of an LDREX with 5 equivalent LDREX instructions.
 
+config PJ4B_ERRATA_6359
+	bool "PJ4B errata 6359"
+	depends on CPU_PJ4B && !PJ4B_ERRATA_6359_LIGHTWEIGHT
+	help
+	  Boradcast DMB operations do not fully synchronize local cache hits. This option
+	  replaces all occurences of DMB with DSB.
+
 endmenu
 
 source "arch/arm/common/Kconfig"
