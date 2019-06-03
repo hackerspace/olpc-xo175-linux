@@ -192,8 +192,6 @@ static void set_dvfm_constraint(struct driver_data *drv_data)
 #ifdef CONFIG_PXA95x
 		/* Disable Low power mode */
 		dvfm_disable_lowpower(drv_data->dvfm_dev_idx);
-#else
-		wake_lock(&(drv_data->idle_lock));
 #endif
 	}
 }
@@ -205,8 +203,6 @@ static void unset_dvfm_constraint(struct driver_data *drv_data)
 #ifdef CONFIG_PXA95x
 		/* Enable Low power mode*/
 		dvfm_enable_lowpower(drv_data->dvfm_dev_idx);
-#else
-		wake_unlock(&(drv_data->idle_lock));
 #endif
 	}
 }
@@ -217,9 +213,6 @@ static void init_dvfm_constraint(struct driver_data *drv_data)
 #ifdef CONFIG_PXA95x
 	dvfm_register(dev_name(&(drv_data->pdev->dev)),
 		&(drv_data->dvfm_dev_idx));
-#else
-	wake_lock_init(&(drv_data->idle_lock), WAKE_LOCK_IDLE,
-		dev_name(&(drv_data->pdev->dev)));
 #endif
 }
 
@@ -227,8 +220,6 @@ static void deinit_dvfm_constraint(struct driver_data *drv_data)
 {
 #ifdef CONFIG_PXA95x
 	dvfm_unregister("SPI", &(drv_data->dvfm_dev_idx));
-#else
-	wake_lock_destroy(&(drv_data->idle_lock));
 #endif
 }
 
