@@ -105,7 +105,7 @@ static struct pm_qos_object network_throughput_pm_qos = {
 #ifdef CONFIG_HOTPLUG_CPU
 static BLOCKING_NOTIFIER_HEAD(min_online_cpus_notifier);
 static struct pm_qos_object min_online_cpus_pm_qos = {
-	.requests = PLIST_HEAD_INIT(min_online_cpus_pm_qos.requests),
+	.requests = PLIST_HEAD_INIT(min_online_cpus_pm_qos.requests, pm_qos_lock),
 	.notifiers = &min_online_cpus_notifier,
 	.name = "min_online_cpus",
 	.target_value = PM_QOS_MIN_ONLINE_CPUS_DEFAULT_VALUE,
@@ -115,7 +115,7 @@ static struct pm_qos_object min_online_cpus_pm_qos = {
 
 static BLOCKING_NOTIFIER_HEAD(max_online_cpus_notifier);
 static struct pm_qos_object max_online_cpus_pm_qos = {
-	.requests = PLIST_HEAD_INIT(max_online_cpus_pm_qos.requests),
+	.requests = PLIST_HEAD_INIT(max_online_cpus_pm_qos.requests, pm_qos_lock),
 	.notifiers = &max_online_cpus_notifier,
 	.name = "max_online_cpus",
 	.target_value = PM_QOS_MAX_ONLINE_CPUS_DEFAULT_VALUE,
@@ -125,7 +125,7 @@ static struct pm_qos_object max_online_cpus_pm_qos = {
 
 static BLOCKING_NOTIFIER_HEAD(disable_hotplug_notifier);
 static struct pm_qos_object disable_hotplug_pm_qos = {
-	.requests = PLIST_HEAD_INIT(disable_hotplug_pm_qos.requests),
+	.requests = PLIST_HEAD_INIT(disable_hotplug_pm_qos.requests, pm_qos_lock),
 	.notifiers = &disable_hotplug_notifier,
 	.name = "disable_hotplug",
 	.target_value = 0,
@@ -136,7 +136,7 @@ static struct pm_qos_object disable_hotplug_pm_qos = {
 
 static BLOCKING_NOTIFIER_HEAD(min_ddr_devfreq_notifier);
 static struct pm_qos_object min_ddr_devfreq_pm_qos = {
-	.requests = PLIST_HEAD_INIT(min_ddr_devfreq_pm_qos.requests),
+	.requests = PLIST_HEAD_INIT(min_ddr_devfreq_pm_qos.requests, pm_qos_lock),
 	.notifiers = &min_ddr_devfreq_notifier,
 	.name = "min_ddr_devfreq",
 	.target_value = 0,
@@ -146,7 +146,7 @@ static struct pm_qos_object min_ddr_devfreq_pm_qos = {
 
 static BLOCKING_NOTIFIER_HEAD(disable_ddr_devfreq_notifier);
 static struct pm_qos_object disable_ddr_devfreq_pm_qos = {
-	.requests = PLIST_HEAD_INIT(disable_ddr_devfreq_pm_qos.requests),
+	.requests = PLIST_HEAD_INIT(disable_ddr_devfreq_pm_qos.requests, pm_qos_lock),
 	.notifiers = &disable_ddr_devfreq_notifier,
 	.name = "disable_ddr_devfreq",
 	.target_value = 0,
@@ -157,7 +157,7 @@ static struct pm_qos_object disable_ddr_devfreq_pm_qos = {
 
 static BLOCKING_NOTIFIER_HEAD(cpu_freq_min_notifier);
 static struct pm_qos_object cpu_freq_min_pm_qos = {
-	.requests = PLIST_HEAD_INIT(cpu_freq_min_pm_qos.requests),
+	.requests = PLIST_HEAD_INIT(cpu_freq_min_pm_qos.requests, pm_qos_lock),
 	.notifiers = &cpu_freq_min_notifier,
 	.name = "cpu_freq_min",
 	.default_value = 0,
@@ -168,7 +168,7 @@ static struct pm_qos_object cpu_freq_min_pm_qos = {
 
 static BLOCKING_NOTIFIER_HEAD(cpu_freq_max_notifier);
 static struct pm_qos_object cpu_freq_max_pm_qos = {
-	.requests = PLIST_HEAD_INIT(cpu_freq_max_pm_qos.requests),
+	.requests = PLIST_HEAD_INIT(cpu_freq_max_pm_qos.requests, pm_qos_lock),
 	.notifiers = &cpu_freq_max_notifier,
 	.name = "cpu_freq_max",
 	.default_value = PM_QOS_CPU_FREQ_MAX_DEFAULT_VALUE,
@@ -179,7 +179,7 @@ static struct pm_qos_object cpu_freq_max_pm_qos = {
 
 static BLOCKING_NOTIFIER_HEAD(cpu_freq_disable_notifier);
 static struct pm_qos_object cpu_freq_disable_pm_qos = {
-	.requests = PLIST_HEAD_INIT(cpu_freq_disable_pm_qos.requests),
+	.requests = PLIST_HEAD_INIT(cpu_freq_disable_pm_qos.requests, pm_qos_lock),
 	.notifiers = &cpu_freq_disable_notifier,
 	.name = "cpu_freq_disable",
 	.default_value = 0,
