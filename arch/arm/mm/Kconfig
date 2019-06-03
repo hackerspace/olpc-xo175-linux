@@ -904,3 +904,8 @@ config DISABLE_CACHE_TLB_OP_BCAST
 	help
 	  This option disables cache and TLB maintenance broadcast.
 
+config CACHE_TAUROS3_ENABLE_FULL_WRITE_LINE
+	bool "Enable Tauros3 full write line"
+	depends on CACHE_L2X0 && CPU_MMP3
+	help
+	  This option enables Tauros3 L2 cache full write line.

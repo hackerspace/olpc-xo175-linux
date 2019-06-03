@@ -1,3 +1,72 @@
+/*
+ * arch/arm/mm/cache-l2x0.c - L210/L220 cache controller support
+ *
+ * Copyright (C) 2007 ARM Limited
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ */
+#include <linux/err.h>
+#include <linux/init.h>
+#include <linux/spinlock.h>
+#include <linux/io.h>
+#include <linux/of.h>
+#include <linux/of_address.h>
+
+#include <asm/cacheflush.h>
+#include <asm/hardware/cache-l2x0.h>
+
+#define CACHE_LINE_SIZE		32
+
+static void __iomem *l2x0_base;
+static DEFINE_RAW_SPINLOCK(l2x0_lock);
+static u32 l2x0_way_mask;	/* Bitmask of active ways */
+static u32 l2x0_size;
+static u32 l2x0_cache_id;
+static unsigned int l2x0_sets;
+static unsigned int l2x0_ways;
+
+static inline bool is_pl310_rev(int rev)
+{
+	return (l2x0_cache_id &
+		(L2X0_CACHE_ID_PART_MASK | L2X0_CACHE_ID_REV_MASK)) ==
+			(L2X0_CACHE_ID_PART_L310 | rev);
+}
+
+struct l2x0_regs l2x0_saved_regs;
+
+struct l2x0_of_data {
+	void (*setup)(const struct device_node *, u32 *, u32 *);
+	void (*save)(void);
+	void (*resume)(void);
+};
+
+static inline void cache_wait_way(void __iomem *reg, unsigned long mask)
+{
+	/* wait for cache operation by line or way to complete */
+	while (readl_relaxed(reg) & mask)
+		cpu_relax();
+}
+
+#ifdef CONFIG_CACHE_PL310
+static inline void cache_wait(void __iomem *reg, unsigned long mask)
+{
+	/* cache operations by line are atomic on PL310 */
+}
+#else
+#define cache_wait	cache_wait_way
+#endif
+
 #ifdef CONFIG_PL310_ERRATA_588369
 static inline void l2x0_flush_line(unsigned long addr)
 {
@@ -269,6 +338,11 @@ void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
 
 #ifdef CONFIG_CPU_MMP3
 	aux2 = readl_relaxed(l2x0_base + TAUROS3_SL2_AUX2);
+#ifdef CONFIG_CACHE_TAUROS3_ENABLE_FULL_WRITE_LINE
+	aux2 |= (1 << 13);
+	writel_relaxed(aux2, l2x0_base + TAUROS3_SL2_AUX2);
+	aux2 = readl_relaxed(l2x0_base + TAUROS3_SL2_AUX2);
+#endif
 #endif
 
 	/*
