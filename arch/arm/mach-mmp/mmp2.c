@@ -1180,8 +1180,10 @@ struct sys_timer mmp2_timer = {
 
 void __init mmp2_reserve(void)
 {
+#ifdef CONFIG_ANDROID_PMEM
 	/*reserve memory for pmem*/
 	pxa_reserve_pmem_memblock();
+#endif
 }
 
 /* on-chip devices */
