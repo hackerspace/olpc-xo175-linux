@@ -118,6 +118,145 @@ void u2o_write(unsigned int base, unsigned int offset, unsigned int value)
 
 }
 
+#if defined(CONFIG_USB_PXA_U2O) || defined(CONFIG_USB_EHCI_PXA)
+
+#ifdef CONFIG_CPU_MMP3
+
+static DEFINE_SPINLOCK(phy_lock);
+static int phy_init_cnt;
+
+static int usb_phy_init_internal(unsigned int base)
+{
+	int loops = 0;
+	u32 temp;
+
+	pr_info("Init usb phy!!!\n");
+
+	temp = __raw_readl(PMUA_REG(0x100));
+	temp &= ~0xF00;
+	temp |= 0xd00;
+	__raw_writel(temp, PMUA_REG(0x100));
+
+	udelay(100);
+
+	if (cpu_is_mmp3_b0()) {
+		u2o_clear(base, USB2_PLL_REG0,
+			USB2_PLL_REFDIV_MASK_MMP3_B0
+			| USB2_PLL_FBDIV_MASK_MMP3_B0);
+
+		u2o_set(base, USB2_PLL_REG0,
+			0xd << USB2_PLL_REFDIV_SHIFT_MMP3_B0
+			| 0xf0 << USB2_PLL_FBDIV_SHIFT_MMP3_B0);
+
+	} else if (cpu_is_mmp3_a0()) {
+		/*USB2_PLL_REG0 = 0x5df0 */
+		u2o_clear(base, USB2_PLL_REG0, (USB2_PLL_FBDIV_MASK_MMP3
+			| USB2_PLL_REFDIV_MASK_MMP3));
+		u2o_set(base, USB2_PLL_REG0, 0xd << USB2_PLL_REFDIV_SHIFT_MMP3
+			| 0xf0 << USB2_PLL_FBDIV_SHIFT_MMP3);
+	}
+
+	/* USB2_PLL_REG1 = 0x3333 */
+	u2o_clear(base, USB2_PLL_REG1, USB2_PLL_PU_PLL_MASK
+		| USB2_PLL_ICP_MASK_MMP3
+		| USB2_PLL_KVCO_MASK_MMP3
+		| USB2_PLL_CALI12_MASK_MMP3);
+	u2o_set(base, USB2_PLL_REG1, 1 << USB2_PLL_PU_PLL_SHIFT_MMP3
+		| 1 << USB2_PLL_LOCK_BYPASS_SHIFT_MMP3
+		| 3 << USB2_PLL_ICP_SHIFT_MMP3
+		| 3 << USB2_PLL_KVCO_SHIFT_MMP3
+		| 3 << USB2_PLL_CAL12_SHIFT_MMP3);
+
+	/* USB2_TX_REG0 = 0x288 */
+	u2o_clear(base, USB2_TX_REG0, USB2_TX_IMPCAL_VTH_MASK_MMP3);
+	u2o_set(base, USB2_TX_REG0, 2 << USB2_TX_IMPCAL_VTH_SHIFT_MMP3);
+
+	/* USB2_TX_REG1 = 0x7c4 */
+	u2o_clear(base, USB2_TX_REG1, USB2_TX_VDD12_MASK_MMP3
+		| USB2_TX_AMP_MASK_MMP3
+		| USB2_TX_CK60_PHSEL_MASK_MMP3);
+	u2o_set(base, USB2_TX_REG1, 3 << USB2_TX_VDD12_SHIFT_MMP3
+		| 4 << USB2_TX_AMP_SHIFT_MMP3
+		| 4 << USB2_TX_CK60_PHSEL_SHIFT_MMP3);
+
+	/* USB2_TX_REG2 = 0xaff */
+	u2o_clear(base, USB2_TX_REG2, 3 << USB2_TX_DRV_SLEWRATE_SHIFT);
+	u2o_set(base, USB2_TX_REG2, 2 << USB2_TX_DRV_SLEWRATE_SHIFT);
+
+	/* USB2_RX_REG0 =  0xaaa1 */
+	u2o_clear(base, USB2_RX_REG0, USB2_RX_SQ_THRESH_MASK_MMP3);
+	u2o_set(base, USB2_RX_REG0, 0xa << USB2_RX_SQ_THRESH_SHIFT_MMP3);
+
+	/* USB2_ANA_REG1 =  0x5680 */
+	u2o_set(base, USB2_ANA_REG1, 0x1 << USB2_ANA_PU_ANA_SHIFT_MMP3);
+
+	/* USB2_OTG_REG0 =  0x8 */
+	u2o_set(base, USB2_OTG_REG0, 0x1 << USB2_OTG_PU_OTG_SHIFT_MMP3);
+
+	/* PLL Power up has been done in usb2CIEnableAppSubSysClocks routine
+	*  PLL VCO and TX Impedance Calibration Timing for Eshel & MMP3
+	*		   _____________________________________
+	*  PU   __________|
+	*			   ____________________________
+	*  VCOCAL START	__________|
+	*				  ___
+	*  REG_RCAL_START________________|   |________|_________
+	*		  | 200us |400us |40 | 400us  | USB PHY READY
+	* ------------------------------------------------------------------
+	*/
+	/* Calibrate PHY */
+	udelay(200);
+	u2o_set(base, USB2_PLL_REG1, 1 << USB2_PLL_VCOCAL_START_SHIFT_MMP3);
+	udelay(400);
+	u2o_set(base, USB2_TX_REG0, 1 << USB2_TX_RCAL_START_SHIFT_MMP3);
+	udelay(40);
+	u2o_clear(base, USB2_TX_REG0, 1 << USB2_TX_RCAL_START_SHIFT_MMP3);
+	udelay(400);
+
+	/* Make sure PHY PLL is ready */
+	loops = 0;
+	while ((u2o_get(base, USB2_PLL_REG1) & USB2_PLL_READY_MASK_MMP3) == 0) {
+		mdelay(1);
+		loops++;
+		if (loops > 100) {
+			pr_warn("PLL_READY not set after 100mS.");
+			break;
+		}
+	}
+
+	return 0;
+}
+
+static int usb_phy_deinit_internal(unsigned int base)
+{
+	pr_info("Deinit usb phy!!!\n");
+	return 0;
+}
+
+int pxa_usb_phy_init(unsigned int base)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&phy_lock, flags);
+	if (phy_init_cnt++ == 0)
+		usb_phy_init_internal(base);
+	spin_unlock_irqrestore(&phy_lock, flags);
+	return 0;
+}
+
+void pxa_usb_phy_deinit(unsigned int base)
+{
+	unsigned long flags;
+
+	WARN_ON(phy_init_cnt == 0);
+
+	spin_lock_irqsave(&phy_lock, flags);
+	if (--phy_init_cnt == 0)
+		usb_phy_deinit_internal(base);
+	spin_unlock_irqrestore(&phy_lock, flags);
+}
+
+#endif
 
 #if defined(CONFIG_CPU_PXA168) || defined(CONFIG_CPU_PXA910)
 
@@ -512,6 +651,43 @@ struct platform_device pxa168_device_u2o = {
 
 #endif /* CONFIG_USB_PXA_U2O */
 
+#ifdef CONFIG_USB_EHCI_PXA_U2O
+struct resource pxa168_u2oehci_resources[] = {
+	/* regbase */
+	[0] = {
+		.start	= PXA168_U2O_REGBASE + U2x_CAPREGS_OFFSET,
+		.end	= PXA168_U2O_REGBASE + USB_REG_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "capregs",
+	},
+	/* phybase */
+	[1] = {
+		.start	= PXA168_U2O_PHYBASE,
+		.end	= PXA168_U2O_PHYBASE + USB_PHY_RANGE,
+		.flags	= IORESOURCE_MEM,
+		.name	= "phyregs",
+	},
+	[2] = {
+		.start	= IRQ_PXA168_USB1,
+		.end	= IRQ_PXA168_USB1,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device pxa168_device_u2oehci = {
+	.name		= "pxa-u2oehci",
+	.id		= -1,
+	.dev		= {
+		.dma_mask		= &usb_dma_mask,
+		.coherent_dma_mask	= 0xffffffff,
+	},
+
+	.num_resources	= ARRAY_SIZE(pxa168_u2oehci_resources),
+	.resource	= pxa168_u2oehci_resources,
+};
+
+
+#endif
 #endif
 
 
