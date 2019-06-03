@@ -616,5 +616,6 @@ config MSM_SMD_PKT
 	  Enables userspace clients to read and write to some packet SMD
 	  ports via device interface for MSM chipset.
 
-endmenu
+source "drivers/char/maxscend/Kconfig"
 
+endmenu

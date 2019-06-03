@@ -447,6 +447,30 @@ static void fb_do_show_logo(struct fb_info *info, struct fb_image *image,
 	}
 }
 
+static void fb_do_show_logo_center(struct fb_info *info,
+	struct fb_image *image, int rotate)
+{
+	image->dx = (info->var.xres - image->width) >> 1;
+	image->dy = (info->var.yres - image->height) >> 1;
+
+	if (image->dx < 0)
+		image->dx = 0;
+	if (image->dy < 0)
+		image->dy = 0;
+	if (rotate == FB_ROTATE_UR || rotate == FB_ROTATE_UD) {
+		if (image->dx > info->var.xres)
+			image->dx = info->var.xres;
+		if (image->dy > info->var.yres)
+			image->dy = info->var.yres;
+	} else {
+		if (image->dx > info->var.yres)
+			image->dx = info->var.yres;
+		if (image->dy > info->var.xres)
+			image->dy = info->var.xres;
+	}
+	info->fbops->fb_imageblit(info, image);
+}
+
 static int fb_show_logo_line(struct fb_info *info, int rotate,
 			     const struct linux_logo *logo, int y,
 			     unsigned int n)
@@ -505,7 +529,11 @@ static int fb_show_logo_line(struct fb_info *info, int rotate,
 			fb_rotate_logo(info, logo_rotate, &image, rotate);
 	}
 
+#ifdef CONFIG_ANDROID
+	fb_do_show_logo_center(info, &image, rotate);
+#else
 	fb_do_show_logo(info, &image, rotate, n);
+#endif
 
 	kfree(palette);
 	if (saved_pseudo_palette != NULL)

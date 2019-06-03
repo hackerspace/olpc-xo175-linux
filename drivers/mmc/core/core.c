@@ -132,7 +132,8 @@ void mmc_request_done(struct mmc_host *host, struct mmc_request *mrq)
 		if (mrq->done)
 			mrq->done(mrq);
 
-		mmc_host_clk_release(host);
+		if (host->caps & MMC_CAP_ENABLE_BUS_CLK_GATING)
+			mmc_host_clk_release(host);
 	}
 }
 
@@ -191,7 +192,10 @@ mmc_start_request(struct mmc_host *host, struct mmc_request *mrq)
 			mrq->stop->mrq = mrq;
 		}
 	}
-	mmc_host_clk_hold(host);
+
+	if (host->caps & MMC_CAP_ENABLE_BUS_CLK_GATING)
+		mmc_host_clk_hold(host);
+
 	led_trigger_event(host->led, LED_FULL);
 	host->ops->request(host, mrq);
 }
@@ -224,6 +228,14 @@ void mmc_wait_for_req(struct mmc_host *host, struct mmc_request *mrq)
 
 EXPORT_SYMBOL(mmc_wait_for_req);
 
+int mmc_recovery(struct mmc_host *host, struct mmc_request *mrq)
+{
+	if(host->ops->recovery)
+		return host->ops->recovery(host);
+	else
+		return ERR_CONTINUE;
+}
+EXPORT_SYMBOL(mmc_recovery);
 /**
  *	mmc_wait_for_cmd - start a command and wait for completion
  *	@host: MMC host to start command
@@ -661,6 +673,7 @@ void mmc_set_clock(struct mmc_host *host, unsigned int hz)
 	__mmc_set_clock(host, hz);
 	mmc_host_clk_release(host);
 }
+EXPORT_SYMBOL(mmc_set_clock);
 
 #ifdef CONFIG_MMC_CLKGATE
 /*
@@ -1194,6 +1207,43 @@ void mmc_detect_change(struct mmc_host *host, unsigned long delay)
 
 EXPORT_SYMBOL(mmc_detect_change);
 
+/*
+ *      mmc_detect_change_sync - sync process change of state on a MMC socket
+ *      @host: host which changed state.
+ *      @delay: optional delay to wait before detection (jiffies)
+ *      @timeout: wait timeout value in jiffies
+ *
+ *      MMC drivers should call this when they detect a card has been
+ *      inserted or removed. The MMC layer will confirm that any
+ *      present card is still functional, and initialize any newly
+ *      inserted before return.
+ */
+unsigned long mmc_detect_change_sync(struct mmc_host *host,
+		unsigned long delay, unsigned long timeout)
+{
+	DECLARE_COMPLETION_ONSTACK(complete);
+	unsigned long ret = 0;
+
+#ifdef CONFIG_MMC_DEBUG
+	unsigned long flags;
+	spin_lock_irqsave(&host->lock, flags);
+	WARN_ON(host->removed);
+	spin_unlock_irqrestore(&host->lock, flags);
+#endif
+
+	host->detect_complete = &complete;
+
+	mmc_schedule_delayed_work(&host->detect, delay);
+
+	ret = wait_for_completion_timeout(&complete, timeout);
+	if (ret == 0)
+		cancel_delayed_work(&host->detect);
+
+	host->detect_complete = NULL;
+	return ret;
+}
+EXPORT_SYMBOL(mmc_detect_change_sync);
+
 void mmc_init_erase(struct mmc_card *card)
 {
 	unsigned int sz;
@@ -1596,8 +1646,10 @@ void mmc_rescan(struct work_struct *work)
 		container_of(work, struct mmc_host, detect.work);
 	int i;
 
-	if (host->rescan_disable)
+	if (host->rescan_disable) {
+		host->rescan_delayed = 1;
 		return;
+	}
 
 	mmc_bus_get(host);
 
@@ -1605,8 +1657,7 @@ void mmc_rescan(struct work_struct *work)
 	 * if there is a _removable_ card registered, check whether it is
 	 * still present
 	 */
-	if (host->bus_ops && host->bus_ops->detect && !host->bus_dead
-	    && !(host->caps & MMC_CAP_NONREMOVABLE))
+	if (host->bus_ops && host->bus_ops->detect && !host->bus_dead)
 		host->bus_ops->detect(host);
 
 	/*
@@ -1853,6 +1904,7 @@ int mmc_resume_host(struct mmc_host *host)
 }
 EXPORT_SYMBOL(mmc_resume_host);
 
+
 /* Do the card removal on suspend if card is assumed removeable
  * Do that in pm notifier while userspace isn't yet frozen, so we will be able
    to sync the card.
@@ -1863,7 +1915,7 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 	struct mmc_host *host = container_of(
 		notify_block, struct mmc_host, pm_notify);
 	unsigned long flags;
-
+	u32 rescan_needed = 0;
 
 	switch (mode) {
 	case PM_HIBERNATION_PREPARE:
@@ -1892,10 +1944,14 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 	case PM_POST_RESTORE:
 
 		spin_lock_irqsave(&host->lock, flags);
+		if (host->rescan_delayed) {
+			rescan_needed = 1;
+			host->rescan_delayed = 0;
+		}
 		host->rescan_disable = 0;
 		spin_unlock_irqrestore(&host->lock, flags);
-		mmc_detect_change(host, 0);
-
+		if (rescan_needed)
+			mmc_detect_change(host, 0);
 	}
 
 	return 0;

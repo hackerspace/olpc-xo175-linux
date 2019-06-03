@@ -7,6 +7,9 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/dma-mapping.h>
+#ifdef CONFIG_CPU_PXA910
+#include <linux/wakelock.h>
+#endif
 
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -14,9 +17,39 @@
 #include <sound/pxa2xx-lib.h>
 
 #include <mach/dma.h>
+#ifdef CONFIG_PXA95x
+#include <mach/dvfm.h>
+#endif
 
 #include "pxa2xx-pcm.h"
 
+static void pxa2xx_pcm_enable_lpm(int enable)
+{
+#ifdef CONFIG_PXA95x
+	static int pxa2xx_pcm_dvfm_idx;
+	if (!pxa2xx_pcm_dvfm_idx)
+		dvfm_register("pxa2xx_pcm", &pxa2xx_pcm_dvfm_idx);
+
+	if (enable)
+		dvfm_enable_lowpower(pxa2xx_pcm_dvfm_idx);
+	else
+		dvfm_disable_lowpower(pxa2xx_pcm_dvfm_idx);
+#endif
+#ifdef CONFIG_CPU_PXA910
+	static int pxa2xx_pcm_idle_init;
+	static struct wake_lock pxa2xx_pcm_idle_lock;
+	if (!pxa2xx_pcm_idle_init) {
+		pxa2xx_pcm_idle_init = 1;
+		wake_lock_init(&pxa2xx_pcm_idle_lock, WAKE_LOCK_IDLE,
+					   "pxa2xx_pcm_idle");
+	}
+
+	if (enable)
+		wake_unlock(&pxa2xx_pcm_idle_lock);
+	else
+		wake_lock(&pxa2xx_pcm_idle_lock);
+#endif
+}
 static const struct snd_pcm_hardware pxa2xx_pcm_hardware = {
 	.info			= SNDRV_PCM_INFO_MMAP |
 				  SNDRV_PCM_INFO_MMAP_VALID |
@@ -91,22 +124,18 @@ int pxa2xx_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
+	case SNDRV_PCM_TRIGGER_RESUME:
+	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+		pxa2xx_pcm_enable_lpm(0);
 		DDADR(prtd->dma_ch) = prtd->dma_desc_array_phys;
-		DCSR(prtd->dma_ch) = DCSR_RUN;
+		DCSR(prtd->dma_ch) |= DCSR_RUN;
 		break;
 
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		DCSR(prtd->dma_ch) &= ~DCSR_RUN;
-		break;
-
-	case SNDRV_PCM_TRIGGER_RESUME:
-		DCSR(prtd->dma_ch) |= DCSR_RUN;
-		break;
-	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		DDADR(prtd->dma_ch) = prtd->dma_desc_array_phys;
-		DCSR(prtd->dma_ch) |= DCSR_RUN;
+		pxa2xx_pcm_enable_lpm(1);
 		break;
 
 	default:
@@ -203,9 +232,6 @@ int __pxa2xx_pcm_open(struct snd_pcm_substream *substream)
 	rtd = kzalloc(sizeof(*rtd), GFP_KERNEL);
 	if (!rtd)
 		goto out;
-	rtd->dma_desc_array =
-		dma_alloc_writecombine(substream->pcm->card->dev, PAGE_SIZE,
-				       &rtd->dma_desc_array_phys, GFP_KERNEL);
 	if (!rtd->dma_desc_array)
 		goto err1;
 
@@ -251,8 +277,6 @@ int pxa2xx_pcm_preallocate_dma_buffer(struct snd_pcm *pcm, int stream)
 	buf->dev.type = SNDRV_DMA_TYPE_DEV;
 	buf->dev.dev = pcm->card->dev;
 	buf->private_data = NULL;
-	buf->area = dma_alloc_writecombine(pcm->card->dev, size,
-					   &buf->addr, GFP_KERNEL);
 	if (!buf->area)
 		return -ENOMEM;
 	buf->bytes = size;

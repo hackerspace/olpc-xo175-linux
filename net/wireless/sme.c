@@ -762,6 +762,9 @@ int __cfg80211_connect(struct cfg80211_registered_device *rdev,
 		return -EALREADY;
 
 	if (WARN_ON(wdev->connect_keys)) {
+#else
+	if (wdev->connect_keys) {
+#endif
 		kfree(wdev->connect_keys);
 		wdev->connect_keys = NULL;
 	}

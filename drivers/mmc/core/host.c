@@ -202,6 +202,7 @@ unsigned int mmc_host_clk_rate(struct mmc_host *host)
 	spin_unlock_irqrestore(&host->clk_lock, flags);
 	return freq;
 }
+EXPORT_SYMBOL(mmc_host_clk_rate);
 
 /**
  *	mmc_host_clk_init - set up clock gating code

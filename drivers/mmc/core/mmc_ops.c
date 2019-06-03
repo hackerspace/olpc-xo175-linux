@@ -242,7 +242,6 @@ mmc_send_cxd_data(struct mmc_card *card, struct mmc_host *host,
 	/* dma onto stack is unsafe/nonportable, but callers to this
 	 * routine normally provide temporary on-stack buffers ...
 	 */
-	data_buf = kmalloc(len, GFP_KERNEL);
 	if (data_buf == NULL)
 		return -ENOMEM;
 

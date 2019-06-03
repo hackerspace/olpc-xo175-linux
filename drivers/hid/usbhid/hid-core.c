@@ -44,6 +44,7 @@
 #define DRIVER_DESC "USB HID core driver"
 #define DRIVER_LICENSE "GPL"
 
+#define	RESET_WORK_DELAY	(HZ/3)
 /*
  * Module parameters.
  */
@@ -108,7 +109,7 @@ static void hid_retry_timeout(unsigned long _hid)
 static void hid_reset(struct work_struct *work)
 {
 	struct usbhid_device *usbhid =
-		container_of(work, struct usbhid_device, reset_work);
+		container_of(work, struct usbhid_device, reset_work.work);
 	struct hid_device *hid = usbhid->hid;
 	int rc = 0;
 
@@ -175,7 +176,7 @@ static void hid_io_error(struct hid_device *hid)
 
 		/* Retries failed, so do a port reset */
 		if (!test_and_set_bit(HID_RESET_PENDING, &usbhid->iofl)) {
-			schedule_work(&usbhid->reset_work);
+			schedule_delayed_work(&usbhid->reset_work, 0);
 			goto done;
 		}
 	}
@@ -261,7 +262,7 @@ static void hid_irq_in(struct urb *urb)
 		usbhid_mark_busy(usbhid);
 		clear_bit(HID_IN_RUNNING, &usbhid->iofl);
 		set_bit(HID_CLEAR_HALT, &usbhid->iofl);
-		schedule_work(&usbhid->reset_work);
+		schedule_delayed_work(&usbhid->reset_work, RESET_WORK_DELAY);
 		return;
 	case -ECONNRESET:	/* unlink */
 	case -ENOENT:
@@ -1228,7 +1229,7 @@ static int usbhid_probe(struct usb_interface *intf, const struct usb_device_id *
 	usbhid->ifnum = interface->desc.bInterfaceNumber;
 
 	init_waitqueue_head(&usbhid->wait);
-	INIT_WORK(&usbhid->reset_work, hid_reset);
+	INIT_DELAYED_WORK(&usbhid->reset_work, hid_reset);
 	setup_timer(&usbhid->io_retry, hid_retry_timeout, (unsigned long) hid);
 	spin_lock_init(&usbhid->lock);
 
@@ -1263,7 +1264,7 @@ static void usbhid_disconnect(struct usb_interface *intf)
 static void hid_cancel_delayed_stuff(struct usbhid_device *usbhid)
 {
 	del_timer_sync(&usbhid->io_retry);
-	cancel_work_sync(&usbhid->reset_work);
+	cancel_delayed_work_sync(&usbhid->reset_work);
 }
 
 static void hid_cease_io(struct usbhid_device *usbhid)
@@ -1405,7 +1406,7 @@ static int hid_resume(struct usb_interface *intf)
 
 	if (test_bit(HID_CLEAR_HALT, &usbhid->iofl) ||
 	    test_bit(HID_RESET_PENDING, &usbhid->iofl))
-		schedule_work(&usbhid->reset_work);
+		schedule_delayed_work(&usbhid->reset_work, 0);
 	usbhid->retry_delay = 0;
 	status = hid_start_in(hid);
 	if (status < 0)

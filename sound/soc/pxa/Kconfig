@@ -120,9 +120,10 @@ config SND_PXA2XX_SOC_PALM27X
 
 config SND_SOC_SAARB
 	tristate "SoC Audio support for Marvell Saarb"
-	depends on SND_PXA2XX_SOC && MACH_SAARB
+	depends on MACH_SAARB
 	select SND_PXA_SOC_SSP
 	select SND_SOC_88PM860X
+	select SND_SOC_HDMI
 	help
 	  Say Y if you want to add support for SoC audio on the
 	  Marvell Saarb reference platform.
@@ -191,3 +192,15 @@ config SND_PXA2XX_SOC_IMOTE2
        help
          Say Y if you want to add support for SoC audio on the
 	 IMote 2.
+
+menu "SoC Audio for the Marvell PXA910"
+endmenu
+
+choice
+	prompt "Soc Audio for Marvell MMP"
+	depends on ARCH_MMP && SND
+
+endchoice
+
+menu "SoC Audio for the Marvell MMPx"
+endmenu

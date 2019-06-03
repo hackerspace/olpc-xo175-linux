@@ -212,6 +212,7 @@ rx_submit(struct eth_dev *dev, struct usb_request *req, gfp_t gfp_flags)
 	struct usb_ep	*out;
 	unsigned long	flags;
 
+
 	spin_lock_irqsave(&dev->lock, flags);
 	if (dev->port_usb)
 		out = dev->port_usb->out_ep;

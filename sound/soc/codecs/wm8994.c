@@ -1134,7 +1134,7 @@ static const struct snd_kcontrol_new aif2dacr_src_mux =
 
 static const struct snd_soc_dapm_widget wm8994_lateclk_revd_widgets[] = {
 SND_SOC_DAPM_SUPPLY("AIF1CLK", SND_SOC_NOPM, 0, 0, aif1clk_ev,
-	SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
+	SND_SOC_DAPM_PRE_PMU),
 SND_SOC_DAPM_SUPPLY("AIF2CLK", SND_SOC_NOPM, 0, 0, aif2clk_ev,
 	SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
 
@@ -2370,7 +2370,7 @@ static struct snd_soc_dai_driver wm8994_dai[] = {
 		},
 		.capture = {
 			.stream_name = "AIF1 Capture",
-			.channels_min = 1,
+			.channels_min = 2,
 			.channels_max = 2,
 			.rates = WM8994_RATES,
 			.formats = WM8994_FORMATS,
@@ -2502,6 +2502,37 @@ static int wm8994_resume(struct snd_soc_codec *codec)
 					    WM8958_MICD_ENA, WM8958_MICD_ENA);
 		break;
 	}
+
+	snd_soc_update_bits(codec, WM8994_INTERRUPT_CONTROL,
+			WM8994_IM_IRQ_MASK, WM8994_IM_IRQ);
+
+	snd_soc_update_bits(codec, WM8994_INTERRUPT_STATUS_2_MASK,
+			WM8994_IM_MIC2_DET_EINT_MASK |
+			WM8994_IM_MIC2_SHRT_EINT_MASK,
+			WM8994_IM_MIC2_DET_EINT |
+			WM8994_IM_MIC2_SHRT_EINT);
+
+	snd_soc_update_bits(codec, WM8994_POWER_MANAGEMENT_1,
+			WM8994_MICB2_ENA_MASK |
+			WM8994_VMID_SEL_MASK,
+			0);
+
+	snd_soc_update_bits(codec, WM8994_MICBIAS,
+			WM8994_MICD_ENA_MASK,
+			WM8994_MICD_ENA);
+
+	snd_soc_update_bits(codec, WM8994_POWER_MANAGEMENT_1,
+			WM8994_MICB2_ENA_MASK |
+			WM8994_VMID_SEL_MASK,
+			WM8994_MICB2_ENA |
+			(0x1 << WM8994_VMID_SEL_SHIFT));
+
+	snd_soc_update_bits(codec, WM8994_INTERRUPT_STATUS_2_MASK,
+			WM8994_IM_MIC2_DET_EINT_MASK |
+			WM8994_IM_MIC2_SHRT_EINT_MASK, 0);
+
+	snd_soc_update_bits(codec, WM8994_INTERRUPT_CONTROL,
+			WM8994_IM_IRQ_MASK, 0);
 
 	return 0;
 }

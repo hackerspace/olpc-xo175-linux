@@ -10,7 +10,6 @@
  */
 
 #include <linux/scatterlist.h>
-
 #include <linux/mmc/host.h>
 #include <linux/mmc/card.h>
 #include <linux/mmc/mmc.h>
@@ -86,7 +85,7 @@ static int mmc_io_rw_direct_host(struct mmc_host *host, int write, unsigned fn,
 	cmd.arg |= in;
 	cmd.flags = MMC_RSP_SPI_R5 | MMC_RSP_R5 | MMC_CMD_AC;
 
-	err = mmc_wait_for_cmd(host, &cmd, 0);
+	err = mmc_wait_for_cmd(host, &cmd, MMC_CMD_RETRIES);
 	if (err)
 		return err;
 
@@ -149,6 +148,7 @@ int mmc_io_rw_extended(struct mmc_card *card, int write, unsigned fn,
 	else
 		cmd.arg |= 0x08000000 | blocks;		/* block mode */
 	cmd.flags = MMC_RSP_SPI_R5 | MMC_RSP_R5 | MMC_CMD_ADTC;
+	cmd.retries = MMC_CMD_RETRIES;
 
 	data.blksz = blksz;
 	data.blocks = blocks;
@@ -156,11 +156,11 @@ int mmc_io_rw_extended(struct mmc_card *card, int write, unsigned fn,
 	data.sg = &sg;
 	data.sg_len = 1;
 
-	sg_init_one(&sg, buf, blksz * blocks);
 
 	mmc_set_data_timeout(&data, card);
 
 	mmc_wait_for_req(card->host, &mrq);
+
 
 	if (cmd.error)
 		return cmd.error;
