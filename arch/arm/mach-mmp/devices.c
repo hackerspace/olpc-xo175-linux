@@ -516,6 +516,7 @@ struct platform_device pxa168_device_u2o = {
 
 
 
+#ifdef FUCKING_VMETA
 
 struct platform_device mmp_device_vmeta = {
 	.name           = UIO_VMETA_NAME,
