@@ -411,10 +411,6 @@ void pxa_usb_phy_deinit(unsigned int base)
 #endif
 #endif
 
-#endif
-
-#endif
-
 #ifdef CONFIG_CPU_MMP3
 u32 u3d_phy_read(u32 base, u32 reg)
 {
