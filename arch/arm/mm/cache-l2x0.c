@@ -67,6 +67,44 @@ static inline void cache_wait(void __iomem *reg, unsigned long mask)
 #define cache_wait	cache_wait_way
 #endif
 
+static inline void cache_sync(void)
+{
+	void __iomem *base = l2x0_base;
+
+	cache_wait(base + L2X0_CACHE_SYNC, 1);
+}
+
+static inline void l2x0_clean_line(unsigned long addr)
+{
+	void __iomem *base = l2x0_base;
+	cache_wait(base + L2X0_CLEAN_LINE_PA, 1);
+	writel_relaxed(addr, base + L2X0_CLEAN_LINE_PA);
+}
+
+static inline void l2x0_inv_line(unsigned long addr)
+{
+	void __iomem *base = l2x0_base;
+	cache_wait(base + L2X0_INV_LINE_PA, 1);
+	writel_relaxed(addr, base + L2X0_INV_LINE_PA);
+}
+
+#if defined(CONFIG_PL310_ERRATA_588369) || defined(CONFIG_PL310_ERRATA_727915)
+
+#define debug_writel(val)	outer_cache.set_debug(val)
+
+static void l2x0_set_debug(unsigned long val)
+{
+	writel_relaxed(val, l2x0_base + L2X0_DEBUG_CTRL);
+}
+#else
+/* Optimised out for non-errata case */
+static inline void debug_writel(unsigned long val)
+{
+}
+
+#define l2x0_set_debug	NULL
+#endif
+
 #ifdef CONFIG_PL310_ERRATA_588369
 static inline void l2x0_flush_line(unsigned long addr)
 {
@@ -335,6 +373,10 @@ void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
 
 
 	debug_ctrl = readl_relaxed(l2x0_base + L2X0_DEBUG_CTRL);
+#ifdef CONFIG_CACHE_TAUROS3_WRITETHROUGH
+	debug_ctrl |= (1 << 1);
+	writel_relaxed(debug_ctrl, l2x0_base + L2X0_DEBUG_CTRL);
+#endif
 
 #ifdef CONFIG_CPU_MMP3
 	aux2 = readl_relaxed(l2x0_base + TAUROS3_SL2_AUX2);

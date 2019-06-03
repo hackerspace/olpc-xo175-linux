@@ -909,3 +909,9 @@ config CACHE_TAUROS3_ENABLE_FULL_WRITE_LINE
 	depends on CACHE_L2X0 && CPU_MMP3
 	help
 	  This option enables Tauros3 L2 cache full write line.
+
+config CACHE_TAUROS3_WRITETHROUGH
+	bool "Force Tauros3 L2 cache write through"
+	depends on CACHE_L2X0
+	help
+	  Say Y here to use the Tauros3 L2 cache in writethrough mode.
