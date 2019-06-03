@@ -209,7 +209,6 @@ struct pxa168fb_info {
 	unsigned int	compat_mode;
 
 	/* suspend/resume related */
-	struct early_suspend    early_suspend;
 	unsigned		irq_mask;
 
 	struct fb_var_screeninfo var_bak;
