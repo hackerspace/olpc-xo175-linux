@@ -601,9 +601,6 @@ struct platform_device mmp3_device_u2o = {
 		.coherent_dma_mask	= 0xffffffff,
 	}
 };
-#endif
-
-
 
 #endif  /* CONFIG_USB_EHCI_PXA */
 #endif  /* CONFIG_USB_SUPPORT */
