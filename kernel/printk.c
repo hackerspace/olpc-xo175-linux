@@ -826,6 +826,8 @@ static inline void printk_delay(void)
 	}
 }
 
+extern void printascii(const char *);
+
 asmlinkage int vprintk(const char *fmt, va_list args)
 {
 	int printed_len = 0;
