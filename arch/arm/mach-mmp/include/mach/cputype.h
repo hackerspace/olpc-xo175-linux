@@ -89,6 +89,7 @@ static inline int cpu_is_pxa910h(void)
 }
 
 #else
+#define cpu_is_pxa910()	(0)
 #define cpu_is_pxa910_family()	(0)
 #define cpu_is_pxa920_family()	(0)
 #endif
