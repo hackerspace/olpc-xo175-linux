@@ -1,3 +1,27 @@
+/*
+ *  linux/arch/arm/mm/proc-v7.S
+ *
+ *  Copyright (C) 2001 Deep Blue Solutions Ltd.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ *  This is the "shell" of the ARMv7 processor support.
+ */
+#include <linux/init.h>
+#include <linux/linkage.h>
+#include <asm/assembler.h>
+#include <asm/asm-offsets.h>
+#include <asm/hwcap.h>
+#include <asm/pgtable-hwdef.h>
+#include <asm/pgtable.h>
+
+#include "proc-macros.S"
+
+#ifdef CONFIG_PJ4B_ERRATA_6382
+#include <asm/pj4b-errata-6382.h>
+#endif
 
 #define TTB_S		(1 << 1)
 #define TTB_RGN_NC	(0 << 3)
@@ -289,6 +313,12 @@ __v7_setup:
 	ALT_SMP(mrc	p15, 0, r0, c1, c0, 1)
 	ALT_UP(mov	r0, #(1 << 6))		@ fake it for UP
 	tst	r0, #(1 << 6)			@ SMP/nAMP mode enabled?
+#ifndef CONFIG_DISABLE_CACHE_TLB_OP_BCAST
+	orreq	r0, r0, #(1 << 6) | (1 << 0)	@ Enable SMP/nAMP mode and
+#else
+	biceq	r0, r0, #(1 << 0)		@ clear FW
+	orreq	r0, r0, #(1 << 6)		@ set SMP/nAMP
+#endif
 	mcreq	p15, 0, r0, c1, c0, 1		@ TLB ops broadcasting
 #endif
 
