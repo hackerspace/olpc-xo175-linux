@@ -16,7 +16,6 @@
 #include <mach/regs-timers.h>
 #include <mach/cputype.h>
 #include <linux/delay.h>
-#include <linux/mfd/88pm860x.h>
 
 /* Raw i2c operations __ONLY__ can be used for reboot routine */
 #if defined(CONFIG_CPU_MMP2) || defined(CONFIG_CPU_MMP3)	\
