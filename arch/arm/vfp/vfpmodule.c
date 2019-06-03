@@ -43,7 +43,9 @@ union vfp_state *last_VFP_context[NR_CPUS];
  */
 unsigned int VFP_arch;
 
+#ifdef CONFIG_DDR_DEVFREQ
 extern int mmp3_ddr_devfreq_disable;
+#endif
 
 /*
  * Per-thread VFP initialization.
@@ -531,7 +533,9 @@ static int __init vfp_init(void)
 	unsigned int vfpsid;
 	unsigned int cpu_arch = cpu_architecture();
 
+#ifdef CONFIG_DDR_DEVFREQ
 	mmp3_ddr_devfreq_disable = 1;
+#endif
 
 	if (cpu_arch >= CPU_ARCH_ARMv6)
 		vfp_enable(NULL);
@@ -600,7 +604,9 @@ static int __init vfp_init(void)
 		}
 #endif
 	}
+#ifdef CONFIG_DDR_DEVFREQ
 	mmp3_ddr_devfreq_disable = 0;
+#endif
 	return 0;
 }
 

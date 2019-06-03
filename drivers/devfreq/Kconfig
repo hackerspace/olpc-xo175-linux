@@ -28,4 +28,10 @@ comment "DEVFREQ Governors"
 
 comment "DEVFREQ Drivers"
 
+config DDR_DEVFREQ
+	bool "MMP3 DDR devfreq driver"
+	help
+	  This adds the devfreq driver for MMP3.
+
+
 endif # PM_DEVFREQ
