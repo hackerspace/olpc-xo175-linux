@@ -181,7 +181,6 @@ struct pxa_i2c {
 	unsigned int		fast_mode :1;
 	unsigned int		ilcr;
 	unsigned int		iwcr;
-	struct wake_lock	idle_lock;
 	struct pm_qos_request_list qos_idle;
 };
 

@@ -104,7 +104,6 @@ struct sdhci_pxa_platdata {
 
 	int	suspended;
 #ifdef CONFIG_WAKELOCK
-	struct wake_lock	idle_lock;
 #endif
 	int 	regs_extended;
 };

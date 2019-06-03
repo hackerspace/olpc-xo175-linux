@@ -41,8 +41,6 @@
 
 static int pmic_wakeup_detect;
 static int sdh_wakeup_detect;
-struct wake_lock wakelock_pmic_wakeup;
-struct wake_lock wakelock_sdh_wakeup;
 
 struct mmp2_pm_info *mmp2_pm_info_p;
 #define MMP2_PMUM_BASE	0xd4050000

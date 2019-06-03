@@ -318,7 +318,6 @@ const char *mtd_names[] = {"pxa3xx_nand-0", "pxa3xx_nand-1", NULL};
 #ifdef CONFIG_PXA95x
 static int dvfm_dev_idx;
 #else
-static struct wake_lock idle_lock;
 static struct pm_qos_request_list pxa3xx_nand_qos_disable_cpufreq;
 static struct pm_qos_request_list pxa3xx_nand_qos_req_min;
 #endif

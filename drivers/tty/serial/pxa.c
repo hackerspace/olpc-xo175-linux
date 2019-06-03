@@ -74,7 +74,6 @@ struct uart_pxa_port {
 	struct notifier_block	notifier_freq_block;
 	struct work_struct	uart_rx_lpm_work;
 #else
-	struct wake_lock idle_lock[2];
 	struct pm_qos_request_list qos_idle[2];
 	char idle_lock_name[2][SIZE_OF_NAME];
 #endif

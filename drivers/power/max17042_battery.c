@@ -57,7 +57,6 @@ struct max17042_device_info {
 	struct i2c_client *client;
 	struct max17042_battery_params bat_params;
 	struct delayed_work bat_monitor_work;
-	struct wake_lock alert_wake_lock;
 	unsigned int bat_design_cap;
 	unsigned int bat_ichg_term;
 	unsigned int r_sns;

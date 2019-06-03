@@ -156,7 +156,6 @@ struct driver_data {
 #ifdef CONFIG_PXA95x
 	int dvfm_dev_idx;
 #else
-	struct wake_lock idle_lock;
 #endif
 	int constraint_is_set;
 };

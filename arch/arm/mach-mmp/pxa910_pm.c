@@ -44,7 +44,6 @@
 #include <linux/platform_data/pxa_sdhci.h>
 #include "acpuclock.h"
 
-static struct wake_lock system_wakeup;
 
 #define TDI         0x3
 #define TRST        0x2
@@ -681,7 +680,6 @@ exit_idle:
 }
 
 
-static struct wake_lock user_idle_lock;
 static int disable_idle;
 
 static ssize_t idle_wake_lock_show(struct sys_device *sys_dev,
