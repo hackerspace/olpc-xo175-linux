@@ -70,6 +70,7 @@
 #define   L2X0_STNDBY_MODE_EN		(1 << 0)
 
 /* Registers shifts and masks */
+#define L2X0_CACHE_ID_REV_MASK		(0x3f)
 #define L2X0_CACHE_ID_PART_MASK		(0xf << 6)
 #define L2X0_CACHE_ID_PART_L210		(1 << 6)
 #define L2X0_CACHE_ID_PART_L310		(3 << 6)
@@ -99,6 +100,8 @@
 #define L2X0_AUX_CTRL_DATA_PREFETCH_SHIFT	28
 #define L2X0_AUX_CTRL_INSTR_PREFETCH_SHIFT	29
 #define L2X0_AUX_CTRL_EARLY_BRESP_SHIFT		30
+
+#define REV_PL310_R2P0				4
 
 #define L2X0_LATENCY_CTRL_SETUP_SHIFT	0
 #define L2X0_LATENCY_CTRL_RD_SHIFT	4

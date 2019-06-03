@@ -71,6 +71,12 @@ static inline void cache_sync(void)
 {
 	void __iomem *base = l2x0_base;
 
+#ifdef CONFIG_PL310_ERRATA_753970
+	/* write to an unmmapped register */
+	writel_relaxed(0, base + L2X0_DUMMY_REG);
+#else
+	writel_relaxed(0, base + L2X0_CACHE_SYNC);
+#endif
 	cache_wait(base + L2X0_CACHE_SYNC, 1);
 }
 
@@ -135,6 +141,23 @@ static void l2x0_cache_sync(void)
 	raw_spin_unlock_irqrestore(&l2x0_lock, flags);
 }
 
+#ifdef CONFIG_PL310_ERRATA_727915
+static void l2x0_for_each_set_way(void __iomem *reg)
+{
+	int set;
+	int way;
+	unsigned long flags;
+
+	for (way = 0; way < l2x0_ways; way++) {
+		spin_lock_irqsave(&l2x0_lock, flags);
+		for (set = 0; set < l2x0_sets; set++)
+			writel_relaxed((way << 28) | (set << 5), reg);
+		cache_sync();
+		spin_unlock_irqrestore(&l2x0_lock, flags);
+	}
+}
+#endif
+
 static void __l2x0_flush_all(void)
 {
 	debug_writel(0x03);
@@ -148,6 +171,13 @@ void l2x0_flush_all(void)
 {
 	unsigned long flags;
 
+#ifdef CONFIG_PL310_ERRATA_727915
+	if (is_pl310_rev(REV_PL310_R2P0)) {
+		l2x0_for_each_set_way(l2x0_base + L2X0_CLEAN_INV_LINE_IDX);
+		return;
+	}
+#endif
+
 	/* clean all ways */
 	raw_spin_lock_irqsave(&l2x0_lock, flags);
 	__l2x0_flush_all();
@@ -158,11 +188,20 @@ static void l2x0_clean_all(void)
 {
 	unsigned long flags;
 
+#ifdef CONFIG_PL310_ERRATA_727915
+	if (is_pl310_rev(REV_PL310_R2P0)) {
+		l2x0_for_each_set_way(l2x0_base + L2X0_CLEAN_LINE_IDX);
+		return;
+	}
+#endif
+
 	/* clean all ways */
 	raw_spin_lock_irqsave(&l2x0_lock, flags);
+	debug_writel(0x03);
 	writel_relaxed(l2x0_way_mask, l2x0_base + L2X0_CLEAN_WAY);
 	cache_wait_way(l2x0_base + L2X0_CLEAN_WAY, l2x0_way_mask);
 	cache_sync();
+	debug_writel(0x00);
 	raw_spin_unlock_irqrestore(&l2x0_lock, flags);
 }
 
@@ -338,7 +377,7 @@ void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
 
 	l2x0_base = base;
 
-	cache_id = readl_relaxed(l2x0_base + L2X0_CACHE_ID);
+	l2x0_cache_id = readl_relaxed(l2x0_base + L2X0_CACHE_ID);
 	aux = readl_relaxed(l2x0_base + L2X0_AUX_CTRL);
 
 	/* In case l2x controller is enabled, the aux ctrl register
@@ -350,27 +389,48 @@ void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
 	aux |= aux_val;
 
 	/* Determine the number of ways */
-	switch (cache_id & L2X0_CACHE_ID_PART_MASK) {
+	switch (l2x0_cache_id & L2X0_CACHE_ID_PART_MASK) {
 	case L2X0_CACHE_ID_PART_L310:
 		if (aux & (1 << 16))
-			ways = 16;
+			l2x0_ways = 16;
 		else
-			ways = 8;
+			l2x0_ways = 8;
 		type = "L310";
 		break;
 	case L2X0_CACHE_ID_PART_L210:
-		ways = (aux >> 13) & 0xf;
+		l2x0_ways = (aux >> 13) & 0xf;
 		type = "L210";
 		break;
 	default:
 		/* Assume unknown chips have 8 ways */
-		ways = 8;
+		l2x0_ways = 8;
 		type = "L2x0 series";
 		break;
 	}
 
-	l2x0_way_mask = (1 << ways) - 1;
+	l2x0_way_mask = (1 << l2x0_ways) - 1;
 
+#ifdef CONFIG_CACHE_L2X0_PREFETCH
+	/* Configure double line fill and prefetch */
+
+	prefetch_ctrl = 0;
+	prefetch_ctrl |= (1u << 30); /* DLF (double linefill) enabled*/
+	prefetch_ctrl |= (1u << 29); /* instruction prefetch enabled */
+	prefetch_ctrl |= (1u << 28); /* data prefetch enabled */
+	prefetch_ctrl |= (0u << 27); /* DLF on WRAP read enabled*/
+	prefetch_ctrl |= (0u << 24); /* no discard prefetch reads*/
+	prefetch_ctrl |= (0u << 23); /* no 8x64-bit burst on read miss*/
+	prefetch_ctrl |= (0u << 21); /* use same AXI ID on exclusive seq */
+	if (CONFIG_CACHE_TAUROS3_PREFETCH_OFFSET <= 7)
+		prefetch_ctrl |= CONFIG_CACHE_TAUROS3_PREFETCH_OFFSET;
+	else if (CONFIG_CACHE_TAUROS3_PREFETCH_OFFSET <= 15)
+		prefetch_ctrl |= 15;
+	else if (CONFIG_CACHE_TAUROS3_PREFETCH_OFFSET <= 23)
+		prefetch_ctrl |= 23;
+	else
+		prefetch_ctrl |= 31;
+	writel_relaxed(prefetch_ctrl, l2x0_base + L2X0_PREFETCH_CTRL);
+#endif
 
 	debug_ctrl = readl_relaxed(l2x0_base + L2X0_DEBUG_CTRL);
 #ifdef CONFIG_CACHE_TAUROS3_WRITETHROUGH
@@ -391,8 +451,9 @@ void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
 	 * L2 cache Size =  Way size * Number of ways
 	 */
 	way_size = (aux & L2X0_AUX_CTRL_WAY_SIZE_MASK) >> 17;
-	way_size = 1 << (way_size + 3);
-	l2x0_size = ways * way_size * SZ_1K;
+	way_size = SZ_1K << (way_size + 3);
+	l2x0_size = l2x0_ways * way_size;
+	l2x0_sets = way_size / CACHE_LINE_SIZE;
 
 	/*
 	 * Check if l2x0 controller is already enabled.
@@ -419,6 +480,16 @@ void __init l2x0_init(void __iomem *base, u32 aux_val, u32 aux_mask)
 	writel_relaxed(0x3, l2x0_base + L2X0_POWER_CTRL);
 #endif
 
+#ifndef CONFIG_CACHE_TAUROS3_DISABLE_MEMORY_MAPPED_FUNCTIONS
+	outer_cache.inv_range = l2x0_inv_range;
+	outer_cache.clean_range = l2x0_clean_range;
+	outer_cache.flush_range = l2x0_flush_range;
+	outer_cache.sync = l2x0_cache_sync;
+	outer_cache.flush_all = l2x0_flush_all;
+	outer_cache.inv_all = l2x0_inv_all;
+	outer_cache.disable = l2x0_disable;
+	outer_cache.set_debug = l2x0_set_debug;
+#endif
 
 	printk(KERN_INFO "%s cache controller enabled\n", type);
 	printk(KERN_INFO "l2x0: %d ways, CACHE_ID 0x%08x, AUX_CTRL 0x%08x, Cache size: %d B\n",
