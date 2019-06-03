@@ -75,7 +75,6 @@ struct uart_pxa_port {
 	struct work_struct	uart_rx_lpm_work;
 #else
 	struct pm_qos_request_list qos_idle[2];
-	char idle_lock_name[2][SIZE_OF_NAME];
 #endif
 	int			txdma;
 	int			rxdma;
@@ -425,7 +424,6 @@ static inline irqreturn_t serial_pxa_irq(int irq, void *dev_id)
 #else
 		pm_qos_update_request(&up->qos_idle[PXA_UART_RX],
 						PM_QOS_CONSTRAINT);
-		wake_lock(&up->idle_lock[PXA_UART_RX]);
 #endif
 	}
 
@@ -552,7 +550,6 @@ static void pxa_uart_transmit_dma_start(struct uart_pxa_port *up, int count)
 #else
 	pm_qos_update_request(&up->qos_idle[PXA_UART_TX],
 					PM_QOS_CONSTRAINT);
-	wake_lock(&up->idle_lock[PXA_UART_TX]);
 #endif
 
 	DCSR(up->txdma) |= DCSR_RUN;
@@ -1380,7 +1377,6 @@ static void pxa_timer_handler(unsigned long data)
 	dvfm_enable_lowpower(up->dvfm_dev_idx[PXA_UART_RX]);
 #else
 	pm_qos_update_request(&up->qos_idle[PXA_UART_RX], PM_QOS_DEFAULT_VALUE);
-	wake_unlock(&up->idle_lock[PXA_UART_RX]);
 #endif
 }
 
@@ -1396,7 +1392,6 @@ static void uart_tx_lpm_handler(struct work_struct *work)
 	dvfm_enable_lowpower(up->dvfm_dev_idx[PXA_UART_TX]);
 #else
 	pm_qos_update_request(&up->qos_idle[PXA_UART_TX], PM_QOS_DEFAULT_VALUE);
-	wake_unlock(&up->idle_lock[PXA_UART_TX]);
 #endif
 }
 
@@ -1524,13 +1519,8 @@ static int serial_pxa_probe(struct platform_device *dev)
 	}
 #else
 	for (i = 0; i < 2; i++) {
-		snprintf(sport->idle_lock_name[i], sizeof(sport->idle_lock_name[i]), \
-			"%s.%s.idle", sport->name, (i == PXA_UART_RX) ? "rx" : "tx");
-
 		pm_qos_add_request(&sport->qos_idle[i], PM_QOS_CPU_DMA_LATENCY,
 				PM_QOS_DEFAULT_VALUE);
-		wake_lock_init(&sport->idle_lock[i], WAKE_LOCK_IDLE,
-				(const char *)sport->idle_lock_name[i]);
 	}
 #endif
 
@@ -1568,8 +1558,6 @@ static int serial_pxa_probe(struct platform_device *dev)
 #else
 	pm_qos_remove_request(&sport->qos_idle[PXA_UART_RX]);
 	pm_qos_remove_request(&sport->qos_idle[PXA_UART_TX]);
-	wake_lock_destroy(&sport->idle_lock[PXA_UART_RX]);
-	wake_lock_destroy(&sport->idle_lock[PXA_UART_TX]);
 #endif
 	clk_put(sport->clk);
  err_free:
@@ -1589,8 +1577,6 @@ static int serial_pxa_remove(struct platform_device *dev)
 #else
 	pm_qos_remove_request(&sport->qos_idle[PXA_UART_RX]);
 	pm_qos_remove_request(&sport->qos_idle[PXA_UART_TX]);
-	wake_lock_destroy(&sport->idle_lock[PXA_UART_RX]);
-	wake_lock_destroy(&sport->idle_lock[PXA_UART_TX]);
 #endif
 
 	platform_set_drvdata(dev, NULL);
