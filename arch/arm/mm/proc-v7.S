@@ -88,7 +88,7 @@ ENTRY(cpu_v7_dcache_clean_area)
 	dcache_line_size r2, r3
 	add	r0, r0, r2
 	subs	r1, r1, r2
-	bhi	1b
+//	bhi	1b
 	dsb
 #endif
 	mov	pc, lr
