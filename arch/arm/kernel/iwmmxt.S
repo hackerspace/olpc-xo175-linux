@@ -19,6 +19,13 @@
 #include <asm/thread_info.h>
 #include <asm/asm-offsets.h>
 
+#if defined(CONFIG_CPU_PJ4) || defined(CONFIG_CPU_PJ4B)
+#define PJ4(code...)		code
+#define XSC(code...)
+#else
+#define PJ4(code...)
+#define XSC(code...)		code
+#endif
 
 #define MMX_WR0		 	(0x00)
 #define MMX_WR1		 	(0x08)

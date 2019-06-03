@@ -52,6 +52,9 @@ ENDPROC(cpu_v7_reset)
  *	IRQs are already disabled.
  */
 ENTRY(cpu_v7_do_idle)
+#ifndef CONFIG_CPU_PJ4B
+	dsb					@ WFI may enter a low-power mode
+#endif
 	wfi
 	mov	pc, lr
 ENDPROC(cpu_v7_do_idle)
@@ -247,6 +250,11 @@ ENDPROC(cpu_v7_do_resume)
  */
 __v7_ca9mp_setup:
 __v7_setup:
+#if defined(CONFIG_CPU_PJ4B) && defined(CONFIG_NEON)
+	mrc	p15, 1, r0, c15, c1, 1
+	orr	r0, r0, #(1 << 11)		@ PJ4B NEON enable bit
+	mcr	p15, 1, r0, c15, c1, 1
+#endif
 #if defined(CONFIG_CPU_MMP3) && defined(CONFIG_NEON)
 	mrc	p15, 0, r5, c1, c0, 2		@ Read coprocessor access
 	mov	r0, r5

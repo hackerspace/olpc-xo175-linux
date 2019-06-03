@@ -27,6 +27,15 @@ extern void iwmmxt_save_state(struct iwmmxt_struct *storage);
 static u32 iwmmxt_cp_access_read(void)
 {
 	u32 value;
+#if defined(CONFIG_CPU_PJ4) || defined(CONFIG_CPU_PJ4B)
+	__asm__ __volatile__ (
+		"mrc	p15, 0, %0, c1, c0, 2\n\t"
+		: "=r" (value));
+#else
+	__asm__ __volatile__ (
+		"mrc	p15, 0, %0, c15, c1, 0\n\t"
+		: "=r" (value));
+#endif
 	return value;
 }
 
@@ -34,6 +43,21 @@ static void iwmmxt_cp_access_write(u32 value)
 {
 	u32 temp;
 
+#if defined(CONFIG_CPU_PJ4) || defined(CONFIG_CPU_PJ4B)
+	__asm__ __volatile__ (
+		"mcr	p15, 0, %1, c1, c0, 2\n\t"
+		"mrc	p15, 0, %0, c1, c0, 2\n\t"
+		"mov	%0, %0\n\t"
+		"sub	pc, pc, #4\n\t"
+		: "=r" (temp) : "r" (value));
+#else
+	__asm__ __volatile__ (
+		"mcr	p15, 0, %1, c15, c1, 0\n\t"
+		"mrc	p15, 0, %0, c15, c1, 0\n\t"
+		"mov	%0, %0\n\t"
+		"sub	pc, pc, #4\n\t"
+		: "=r" (temp) : "r" (value));
+#endif
 }
 
 static u32 iwmmxt_enable_cp_access(void)
@@ -41,6 +65,11 @@ static u32 iwmmxt_enable_cp_access(void)
 	u32 value, temp;
 
 	value = temp = iwmmxt_cp_access_read();
+#if defined(CONFIG_CPU_PJ4) || defined(CONFIG_CPU_PJ4B)
+	temp |= 0xf;
+#else
+	temp |= 0x3;
+#endif
 	iwmmxt_cp_access_write(temp);
 
 	return value;
@@ -51,6 +80,11 @@ static u32 iwmmxt_disable_cp_access(void)
 	u32 value, temp;
 
 	value = temp = iwmmxt_cp_access_read();
+#if defined(CONFIG_CPU_PJ4) || defined(CONFIG_CPU_PJ4B)
+	temp &= ~0xf;
+#else
+	temp &= ~0x3;
+#endif
 	iwmmxt_cp_access_write(temp);
 
 	return value;
@@ -62,6 +96,11 @@ static int iwmmxt_is_cp_accessible(void)
 	u32 value, mask;
 
 	value = iwmmxt_cp_access_read();
+#if defined(CONFIG_CPU_PJ4) || defined(CONFIG_CPU_PJ4B)
+	mask = 0xf;
+#else
+	mask = 0x3;
+#endif
 
 	return value & mask;
 }
@@ -106,6 +145,32 @@ static struct notifier_block dsp_notifier_block = {
 
 static int __init cpu_has_iwmmxt(void)
 {
+#if defined(CONFIG_CPU_PJ4) || defined(CONFIG_CPU_PJ4B)
+	return 1;
+#else
+	u32 lo;
+	u32 hi;
+	u32 cp_access;
+
+	cp_access = iwmmxt_enable_cp_access();
+	/*
+	 * This sequence is interpreted by the DSP coprocessor as:
+	 *	mar	acc0, %2, %3
+	 *	mra	%0, %1, acc0
+	 *
+	 * And by the iWMMXt coprocessor as:
+	 *	tmcrr	wR0, %2, %3
+	 *	tmrrc	%0, %1, wR0
+	 */
+	__asm__ __volatile__ (
+		"mcrr	p0, 0, %2, %3, c0\n"
+		"mrrc	p0, 0, %0, %1, c0\n"
+		: "=r" (lo), "=r" (hi)
+		: "r" (0), "r" (0x100));
+
+	iwmmxt_cp_access_write(cp_access);
+	return !!hi;
+#endif
 }
 
 void iwmmxt_sync_hwstate(struct thread_info *thread)
