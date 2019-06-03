@@ -166,7 +166,6 @@
 #define   SDHCI_CTRL_DRV_TYPE_D		0x0030
 #define  SDHCI_CTRL_EXEC_TUNING		0x0040
 #define  SDHCI_CTRL_TUNED_CLK		0x0080
-#define  SDHCI_CTRL_AINT		0x4000
 #define  SDHCI_CTRL_PRESET_VAL_ENABLE	0x8000
 
 #define SDHCI_CAPABILITIES	0x40
@@ -187,7 +186,6 @@
 #define  SDHCI_CAN_VDD_300	0x02000000
 #define  SDHCI_CAN_VDD_180	0x04000000
 #define  SDHCI_CAN_64BIT	0x10000000
-#define  SDHCI_CAN_ASYN_INT	0x20000000
 
 #define  SDHCI_SUPPORT_SDR50	0x00000001
 #define  SDHCI_SUPPORT_SDR104	0x00000002
@@ -267,8 +265,6 @@ struct sdhci_ops {
 	unsigned int	(*get_max_clock)(struct sdhci_host *host);
 	unsigned int	(*get_min_clock)(struct sdhci_host *host);
 	unsigned int	(*get_timeout_clock)(struct sdhci_host *host);
-	unsigned int	(*get_max_blk_size)(struct sdhci_host *host);
-	unsigned int	(*get_max_blk_count)(struct sdhci_host *host);
 	int		(*platform_8bit_width)(struct sdhci_host *host,
 					       int width);
 	void (*platform_send_init_74_clocks)(struct sdhci_host *host,
@@ -277,14 +273,7 @@ struct sdhci_ops {
 	void	(*platform_reset_enter)(struct sdhci_host *host, u8 mask);
 	void	(*platform_reset_exit)(struct sdhci_host *host, u8 mask);
 	int	(*set_uhs_signaling)(struct sdhci_host *host, unsigned int uhs);
-	void	(*signal_vol_change)(struct sdhci_host *host, u8 vol);
-	void	(*access_constrain)(struct sdhci_host *host, unsigned int ac);
-	void	(*handle_cdint)(struct sdhci_host *host);
-	int	(*is_present)(struct sdhci_host *host);
-	int	(*safe_regulator_on)(struct sdhci_host *host);
-	int	(*recovery)(struct sdhci_host *host);
-	void	(*platform_8_dummy_clock)(struct sdhci_host *host,
-				unsigned int clk_rate, int flag);
+
 };
 
 #ifdef CONFIG_MMC_SDHCI_IO_ACCESSORS

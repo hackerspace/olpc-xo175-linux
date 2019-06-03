@@ -25,8 +25,7 @@
 /* SSP audio dividers */
 #define PXA_SSP_AUDIO_DIV_ACDS		0
 #define PXA_SSP_AUDIO_DIV_SCDB		1
-#define PXA_SSP_DIV_SCR			2
-#define PXA_SSP_AUDIO_DIV_ACPS		3
+#define PXA_SSP_DIV_SCR				2
 
 /* SSP ACDS audio dividers values */
 #define PXA_SSP_CLK_AUDIO_DIV_1		0

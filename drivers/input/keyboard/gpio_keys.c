@@ -9,9 +9,6 @@
  */
 
 #include <linux/module.h>
-#include <asm/uaccess.h>
-#include <mach/wistron.h>
-
 
 #include <linux/init.h>
 #include <linux/fs.h>
@@ -28,11 +25,6 @@
 #include <linux/gpio_keys.h>
 #include <linux/workqueue.h>
 #include <linux/gpio.h>
-#include <linux/kthread.h>
-static struct early_suspend gpiokey_early_suspend;
-
-static char pqaakey_status[3] = "0";
-static int flag=0;
 
 struct gpio_button_data {
 	struct gpio_keys_button *button;
@@ -51,55 +43,6 @@ struct gpio_keys_drvdata {
 	void (*disable)(struct device *dev);
 	struct gpio_button_data data[0];
 };
-
-
-#define USERBUTTON_KEY 0
-#define MENUBUTTON_KEY 1
-static bool bKeyState[2];
-static int  startUserButtonTime; 
-static struct task_struct *Userbutton_thread;
-
-static int Userbutton_handler(void *arg)
-{
-
-	struct device *dev = arg;
-
-	while(( bKeyState[USERBUTTON_KEY] == true) ) 
-	{
-		char event_string[20];
-		char *envp[] = { event_string, NULL };
-               
-		msleep(100);
-		if(( ((jiffies*1000) / HZ) - startUserButtonTime >1000 ) 
-			&& (bKeyState[MENUBUTTON_KEY] == false) )
-		{
-			if (strncmp(pqaakey_status, "1", 1) != 0)
-			{		
-				sprintf(event_string, "EVENT=longpress");
-				kobject_uevent_env(&dev->kobj, KOBJ_CHANGE, envp);
-				printk("long press\r\n");
-			}
-			else
-			printk("long but no uevent\r\n");
-		break;
-		}
-		else if (bKeyState[MENUBUTTON_KEY] == true)//user+menu
-		{
-			if (strncmp(pqaakey_status, "1", 1) != 0)
-			{
-				flag=1;
-				sprintf(event_string, "EVENT=menupress");
-				kobject_uevent_env(&dev->kobj, KOBJ_CHANGE, envp);
-				printk("menu press\r\n");
-			}
-			else
-			printk("menu but no uevent\r\n");
-		break;
-		}
-	}
-        return 0;
-}
-
 
 /*
  * SYSFS interface for enabling/disabling keys and switches:
@@ -385,101 +328,16 @@ static void gpio_keys_report_event(struct gpio_button_data *bdata)
 		if (state)
 			input_event(input, type, button->code, button->value);
 	} else {
-//		input_event(input, type, button->code, !!state);
-
-		//User button solution++
-		if( (button->code == KEY_F5) || (button->code == KEY_MENU) )
-		{
-		struct device *dev = &input->dev;
-		char event_string[20];
-		char *envp[] = { event_string, NULL };
-	
-		switch(button->code)
-		{
-			case KEY_F5:
-			if(state)
-			{	
-				flag=0;
-				bKeyState[USERBUTTON_KEY] = true;
-				startUserButtonTime = (jiffies*1000) / HZ;
-				//printk("Press jiffies /HZ is %d\r\n", (jiffies*1000) / HZ);
-				//if(bKeyState[MENUBUTTON_KEY] == false)
-				//{
-			        Userbutton_thread = kthread_create(Userbutton_handler, dev, "user button monitor thread");
-				wake_up_process(Userbutton_thread);
-				//}
-			}
-			else
-			{
-				bKeyState[USERBUTTON_KEY] = false;
-				//printk("Release jiffies /HZ is %d\r\n", (jiffies *1000) / HZ);
-        	        	if( ((jiffies*1000) / HZ) - startUserButtonTime <1000 
-					&& bKeyState[MENUBUTTON_KEY] == false&&flag==0 )
-				{
-					if (strncmp(pqaakey_status, "1", 1) != 0)
-					{
-					sprintf(event_string, "EVENT=shortpress");
-					kobject_uevent_env(&dev->kobj, KOBJ_CHANGE, envp);
-					printk("short press\r\n");
-					}
-					else
-					printk("short but no uevent\r\n");
-				}
-				
-			}
-			break;
-
-			case KEY_MENU:
-			if(state)
-				bKeyState[MENUBUTTON_KEY] = true;
-			else
-				bKeyState[MENUBUTTON_KEY] = false;
-				
-			break;
-
-			default:
-			break;
-		}
-
-		}
-		
-		if(button->code == KEY_MENU)
-		{ 
-			if (bKeyState[USERBUTTON_KEY] == false)//no user button pressed
-			{
-			input_event(input, type, button->code, !!state);
-			input_sync(input);
-			}
-		}
-		else
-		{
-//		if(button->code != KEY_F5)
-//		{
-			if(button->code == KEY_HOME)
-			{
-				if (strncmp(pqaakey_status, "1", 1) != 0)
-					input_event(input, type, button->code, !!state);
-				else
-					input_event(input, type, KEY_F5, !!state);
-
-			}
-			else
-			input_event(input, type, button->code, !!state);
-
-		input_sync(input);
-//		}
-		}
-
+		input_event(input, type, button->code, !!state);
 	}
 	input_sync(input);
 }
 
-static int skip=0;
 static void gpio_keys_work_func(struct work_struct *work)
 {
 	struct gpio_button_data *bdata =
 		container_of(work, struct gpio_button_data, work);
-        if(!skip)
+
 	gpio_keys_report_event(bdata);
 }
 
@@ -586,56 +444,7 @@ static void gpio_keys_close(struct input_dev *input)
 	if (ddata->disable)
 		ddata->disable(input->dev.parent);
 }
-static ssize_t pqaakey_read_proc(char *page, char **start, off_t off,
-		int count, int *eof, void *data)
-{
-	int len = strlen(pqaakey_status);
 
-	sprintf(page, "%s\n", pqaakey_status);
-	return len + 1;
-}
-
-static ssize_t pqaakey_write_proc(struct file *filp,
-		const char *buff, size_t len, loff_t *off)
-{
-	char messages[256];
-	//int flag, ret;
-	//char buffer[7];
-
-	if (len > 256)
-		len = 256;
-
-	if (copy_from_user(messages, buff, len))
-		return -EFAULT;
-
-	if (strncmp(messages, "1", 1) == 0) {//PQAA KEY test start
-		strcpy(pqaakey_status, "1");
-	} else if (strncmp(messages, "0", 1) == 0) {
-		strcpy(pqaakey_status, "0");
-	} else {
-		printk("usage: echo {1/0} > /proc/sysinfo/homebtmode\n");
-	}
-	return len;
-}
-
-static void create_pqaakey_proc_file(void)
-{
-        struct proc_dir_entry *keymode_proc_file =
-                create_proc_entry(PROJ_PROC_KEY_TEST, 0644, NULL);
-
-        if (keymode_proc_file) {
-                keymode_proc_file->read_proc = pqaakey_read_proc;
-                keymode_proc_file->write_proc = (write_proc_t  *)pqaakey_write_proc;
-        } else
-                //printk(KERN_INFO "proc file create failed!\n");
-                printk("proc file create failed! homebtnmode\n");
-}
-
-
-//static int gpio_keys_suspend(struct device *dev);
-static void gpio_keys_suspend(struct early_suspend *dev);
-//static int gpio_keys_resume(struct device *dev);
-static void gpio_keys_resume(struct early_suspend *dev);
 static int __devinit gpio_keys_probe(struct platform_device *pdev)
 {
 	struct gpio_keys_platform_data *pdata = pdev->dev.platform_data;
@@ -654,11 +463,7 @@ static int __devinit gpio_keys_probe(struct platform_device *pdev)
 		error = -ENOMEM;
 		goto fail1;
 	}
-        
-        gpiokey_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
-	gpiokey_early_suspend.suspend =gpio_keys_suspend;
-	gpiokey_early_suspend.resume = gpio_keys_resume;
-	register_early_suspend(&gpiokey_early_suspend); 
+
 	ddata->input = input;
 	ddata->n_buttons = pdata->nbuttons;
 	ddata->enable = pdata->enable;
@@ -720,9 +525,7 @@ static int __devinit gpio_keys_probe(struct platform_device *pdev)
 		gpio_keys_report_event(&ddata->data[i]);
 	input_sync(input);
 
-	device_init_wakeup(&pdev->dev, 0);
-	
-	create_pqaakey_proc_file();
+	device_init_wakeup(&pdev->dev, wakeup);
 
 	return 0;
 
@@ -772,25 +575,50 @@ static int __devexit gpio_keys_remove(struct platform_device *pdev)
 
 
 #ifdef CONFIG_PM
-//static int gpio_keys_suspend(struct device *dev)
-static void gpio_keys_suspend(struct early_suspend *dev)
+static int gpio_keys_suspend(struct device *dev)
 {
-        skip=1;
-	return;
+	struct platform_device *pdev = to_platform_device(dev);
+	struct gpio_keys_platform_data *pdata = pdev->dev.platform_data;
+	int i;
+
+	if (device_may_wakeup(&pdev->dev)) {
+		for (i = 0; i < pdata->nbuttons; i++) {
+			struct gpio_keys_button *button = &pdata->buttons[i];
+			if (button->wakeup) {
+				int irq = gpio_to_irq(button->gpio);
+				enable_irq_wake(irq);
+			}
+		}
+	}
+
+	return 0;
 }
 
-//static int gpio_keys_resume(struct device *dev)
-static void gpio_keys_resume(struct early_suspend *dev)
+static int gpio_keys_resume(struct device *dev)
 {
-        skip=0;
-	return;
+	struct platform_device *pdev = to_platform_device(dev);
+	struct gpio_keys_drvdata *ddata = platform_get_drvdata(pdev);
+	struct gpio_keys_platform_data *pdata = pdev->dev.platform_data;
+	int i;
+
+	for (i = 0; i < pdata->nbuttons; i++) {
+
+		struct gpio_keys_button *button = &pdata->buttons[i];
+		if (button->wakeup && device_may_wakeup(&pdev->dev)) {
+			int irq = gpio_to_irq(button->gpio);
+			disable_irq_wake(irq);
+		}
+
+		gpio_keys_report_event(&ddata->data[i]);
+	}
+	input_sync(ddata->input);
+
+	return 0;
 }
 
 static const struct dev_pm_ops gpio_keys_pm_ops = {
-//	.suspend	= gpio_keys_suspend,
-	.suspend	= NULL,
-//	.resume		= gpio_keys_resume,
-	.resume		= NULL,
+	.suspend	= gpio_keys_suspend,
+	.resume		= gpio_keys_resume,
 };
 #endif
 

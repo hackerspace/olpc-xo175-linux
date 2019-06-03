@@ -534,6 +534,7 @@ static u32 get_card_status(struct mmc_card *card, struct request *req)
 	if (!mmc_host_is_spi(card->host))
 		cmd.arg = card->rca << 16;
 	cmd.flags = MMC_RSP_SPI_R2 | MMC_RSP_R1 | MMC_CMD_AC;
+	err = mmc_wait_for_cmd(card->host, &cmd, 0);
 	if (err)
 		printk(KERN_ERR "%s: error %d sending status command",
 		       req->rq_disk->disk_name, err);
@@ -894,23 +895,8 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *req)
 				continue;
 			}
 			goto cmd_err;
-		} else if (disable_multi == 1)
-			disable_multi = 0;
-
-#if defined(CONFIG_SMP) && defined(CONFIG_ARM)
-		/*
-		 * The data may still only in the D-cache for read.
-		 * Here add the D-cache flush to sync the I/D cache.
-		 */
-		if (rq_data_dir(req) == READ) {
-			struct req_iterator iter;
-			struct bio_vec *bvec;
-			rq_for_each_segment(bvec, req, iter)
-				if (!test_and_set_bit(PG_dcache_clean,
-						&bvec->bv_page->flags))
-					flush_dcache_page(bvec->bv_page);
 		}
-#endif
+
 		/*
 		 * A block was successfully transferred.
 		 */
@@ -979,7 +965,6 @@ static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 
 out:
 	mmc_release_host(card->host);
-
 	return ret;
 }
 
@@ -1325,13 +1310,6 @@ static int mmc_blk_suspend(struct mmc_card *card, pm_message_t state)
 	struct mmc_blk_data *part_md;
 	struct mmc_blk_data *md = mmc_get_drvdata(card);
 
-	/* Skip the suspend proccess if the mmc device needs to be accessed during suspend state */
-	BUG_ON(!card || !(card->host));
-	if (card->host->pm_flags & MMC_PM_ALWAYS_ACTIVE){
-		return 0;
-	}
-
-	atomic_inc(&card->suspended);
 	if (md) {
 		mmc_queue_suspend(&md->queue);
 		list_for_each_entry(part_md, &md->part, part) {
@@ -1346,12 +1324,6 @@ static int mmc_blk_resume(struct mmc_card *card)
 	struct mmc_blk_data *part_md;
 	struct mmc_blk_data *md = mmc_get_drvdata(card);
 
-	/* Skip the resume proccess if the mmc device needs to be accessed during suspend state */
-	BUG_ON(!card || !card->host);
-	if (card->host->pm_flags & MMC_PM_ALWAYS_ACTIVE){
-		return 0;
-	}
-
 	if (md) {
 		mmc_blk_set_blksize(md, card);
 
@@ -1365,7 +1337,6 @@ static int mmc_blk_resume(struct mmc_card *card)
 			mmc_queue_resume(&part_md->queue);
 		}
 	}
-	atomic_dec(&card->suspended);
 	return 0;
 }
 #else

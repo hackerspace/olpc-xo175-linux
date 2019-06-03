@@ -27,134 +27,22 @@
 #include <linux/mfd/max8925.h>
 #include <linux/slab.h>
 
-#include <asm/system.h>
-#include <linux/io.h>
-#include <asm/mach-types.h>
-#include <mach/mfp-mmp2.h>
-#include <mach/mmp2_plat_ver.h>
-
 #define SW_INPUT		(1 << 7)	/* 0/1 -- up/down */
 #define HARDRESET_EN		(1 << 7)
 #define PWREN_EN		(1 << 7)
-#define PWR_OFF			(1 << 6)
-#define SFT_RESET		(1 << 5)
-#define RSTIN_DELAY		(2 << 3)
-#define SFT_DESERTION		(1 << 2)
-
-#define MAX8925_CMD_VCHG	0xd0
-#define MAX8925_ADC_VCHG	0x64
 
 struct max8925_onkey_info {
 	struct input_dev	*idev;
-	struct max8925_chip	*chip;
 	struct i2c_client	*i2c;
 	struct device		*dev;
 	int			irq[2];
-	int			chg_state;
 };
 
-/* reserve this static structure for restart/poweroff interface */
-static struct max8925_onkey_info *onkey_info;
-static struct i2c_client *i2c = NULL;
-
-static void max8925_disable_ldo(int addr)
-{
-	int ldo_seq;
-
-	ldo_seq = (max8925_reg_read(i2c, addr) >> 2) & 0x7;
-	max8925_set_bits(i2c, addr, 1 << 0, 0);
-	if (ldo_seq != 0x7)
-		max8925_set_bits(i2c, addr, 0x7 << 2, 0x7 << 2);
-
-	return ;
-}
-
-static void max8925_disable_all_ldo(void)
-{
-	/*
-	 * disable all the ldos which are not automatically
-	 * powered on at the sequence #1
-	 */
-	max8925_disable_ldo(MAX8925_LDOCTL3);
-	max8925_disable_ldo(MAX8925_LDOCTL5);
-	max8925_disable_ldo(MAX8925_LDOCTL6);
-	max8925_disable_ldo(MAX8925_LDOCTL7);
-	max8925_disable_ldo(MAX8925_LDOCTL8);
-	max8925_disable_ldo(MAX8925_LDOCTL10);
-	max8925_disable_ldo(MAX8925_LDOCTL11);
-	max8925_disable_ldo(MAX8925_LDOCTL13);
-	max8925_disable_ldo(MAX8925_LDOCTL14);
-	max8925_disable_ldo(MAX8925_LDOCTL15);
-	max8925_disable_ldo(MAX8925_LDOCTL16);
-	max8925_disable_ldo(MAX8925_LDOCTL17);
-	max8925_disable_ldo(MAX8925_LDOCTL19);
-
-	return ;
-}
-
-#define REG_RTC_BR0	0xfe010014
-#define REG_RTC_BR1	0xfe010018
-void max8925_system_restart(char mode, const char *cmd)
-{
-	if (!i2c || !onkey_info) {
-		pr_err("max8925_restart: Invalid value.\n");
-		return ;
-	}
-
-	if (board_is_mmp2_brownstone_rev5()) {
-		if (!onkey_info->chg_state) {
-			/*
-			 * set charge bit:
-			 * uboot will try to boot up android in next power cycle
-			 */
-			__raw_writel(0x1, REG_RTC_BR1);
-		} else {
-			/* set charge bit:
-			 * uboot will charge to full in next powe cycle
-			 */
-			__raw_writel(0x2, REG_RTC_BR1);
-		}
-	}
-	/* set recovery bit when enterint recovery mode */
-	if (cmd && !strcmp(cmd, "recovery"))
-		__raw_writel(0x1, REG_RTC_BR0);
-
-	max8925_disable_all_ldo();
-	max8925_reg_write(i2c, MAX8925_RESET_CNFG, SFT_RESET
-			| RSTIN_DELAY | SFT_DESERTION);
-}
-EXPORT_SYMBOL(max8925_system_restart);
-
-void max8925_system_poweroff(void)
-{
-	unsigned char buf[2] = { 0, 0 };
-	int vchg;
-
-	if (!i2c || !onkey_info) {
-		pr_err("max8925_poweroff: Invalid value.\n");
-		return ;
-	}
-
-	if (board_is_mmp2_brownstone_rev5()) {
-		/* if system is in charging, do reboot instead of power off */
-		max8925_reg_write(onkey_info->chip->adc, MAX8925_CMD_VCHG, 0);
-		max8925_bulk_read(onkey_info->chip->adc,
-					MAX8925_ADC_VCHG, 2, buf);
-		vchg = ((buf[0] << 8) | buf[1]) >> 4;
-		if (vchg * 2 > 4500) {
-			onkey_info->chg_state = 1;
-			max8925_system_restart(0, 0);
-			/* should not get here */
-			return ;
-		}
-	}
-
-	max8925_disable_all_ldo();
-	max8925_set_bits(i2c, MAX8925_WLED_MODE_CNTL, 1, 0);
-	max8925_set_bits(i2c, MAX8925_RESET_CNFG, PWR_OFF, PWR_OFF);
-}
-EXPORT_SYMBOL(max8925_system_poweroff);
-
+/*
+ * MAX8925 gives us an interrupt when ONKEY is pressed or released.
+ * max8925_set_bits() operates I2C bus and may sleep. So implement
+ * it in thread IRQ handler.
+ */
 static irqreturn_t max8925_onkey_handler(int irq, void *data)
 {
 	struct max8925_onkey_info *info = data;
@@ -177,35 +65,6 @@ static irqreturn_t max8925_onkey_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-#ifdef CONFIG_PM
-static int max8925_onkey_suspend(struct device *dev)
-{
-	struct platform_device *pdev = to_platform_device(dev);
-	struct max8925_chip *chip = dev_get_drvdata(pdev->dev.parent);
-
-	if (device_may_wakeup(dev))
-		enable_irq_wake(chip->core_irq);
-
-	return 0;
-}
-
-static int max8925_onkey_resume(struct device *dev)
-{
-	struct platform_device *pdev = to_platform_device(dev);
-	struct max8925_chip *chip = dev_get_drvdata(pdev->dev.parent);
-
-	if (device_may_wakeup(dev))
-		disable_irq_wake(chip->core_irq);
-
-	return 0;
-}
-
-static const struct dev_pm_ops max8925_onkey_pm_ops = {
-	.suspend	= max8925_onkey_suspend,
-	.resume		= max8925_onkey_resume,
-};
-#endif
-
 static int __devinit max8925_onkey_probe(struct platform_device *pdev)
 {
 	struct max8925_chip *chip = dev_get_drvdata(pdev->dev.parent);
@@ -227,24 +86,20 @@ static int __devinit max8925_onkey_probe(struct platform_device *pdev)
 	if (!info)
 		return -ENOMEM;
 
-	info->chip = chip;
 	info->i2c = chip->i2c;
 	info->dev = &pdev->dev;
-	info->chg_state = 0;
 	irq[0] += chip->irq_base;
 	irq[1] += chip->irq_base;
 
 	error = request_threaded_irq(irq[0], NULL, max8925_onkey_handler,
-				     IRQF_ONESHOT | IRQF_NO_SUSPEND,
-				     "onkey-down", info);
+				     IRQF_ONESHOT, "onkey-down", info);
 	if (error < 0) {
 		dev_err(chip->dev, "Failed to request IRQ: #%d: %d\n",
 			irq[0], error);
 		goto out;
 	}
 	error = request_threaded_irq(irq[1], NULL, max8925_onkey_handler,
-				     IRQF_ONESHOT | IRQF_NO_SUSPEND,
-				     "onkey-up", info);
+				     IRQF_ONESHOT, "onkey-up", info);
 	if (error < 0) {
 		dev_err(chip->dev, "Failed to request IRQ: #%d: %d\n",
 			irq[1], error);
@@ -275,14 +130,7 @@ static int __devinit max8925_onkey_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, info);
-	device_init_wakeup(&pdev->dev, 1);
 
-	/* reserve this interface for reboot API */
-	i2c = info->i2c;
-	onkey_info = info;
-
-	/* clear recovery bit */
-	__raw_writel(0x0, REG_RTC_BR0);
 	return 0;
 
 out_reg:
@@ -314,9 +162,6 @@ static struct platform_driver max8925_onkey_driver = {
 	.driver		= {
 		.name	= "max8925-onkey",
 		.owner	= THIS_MODULE,
-#ifdef CONFIG_PM
-		.pm	= &max8925_onkey_pm_ops,
-#endif
 	},
 	.probe		= max8925_onkey_probe,
 	.remove		= __devexit_p(max8925_onkey_remove),

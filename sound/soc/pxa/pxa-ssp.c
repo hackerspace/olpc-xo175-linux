@@ -33,6 +33,7 @@
 
 #include <mach/hardware.h>
 #include <mach/dma.h>
+#include <mach/audio.h>
 
 #include "../../arm/pxa2xx-pcm.h"
 #include "pxa-ssp.h"
@@ -61,6 +62,22 @@ static void dump_registers(struct ssp_device *ssp)
 	dev_dbg(&ssp->pdev->dev, "SSPSP 0x%08x SSSR 0x%08x SSACD 0x%08x\n",
 		 pxa_ssp_read_reg(ssp, SSPSP), pxa_ssp_read_reg(ssp, SSSR),
 		 pxa_ssp_read_reg(ssp, SSACD));
+}
+
+static void pxa_ssp_enable(struct ssp_device *ssp)
+{
+	uint32_t sscr0;
+
+	sscr0 = __raw_readl(ssp->mmio_base + SSCR0) | SSCR0_SSE;
+	__raw_writel(sscr0, ssp->mmio_base + SSCR0);
+}
+
+static void pxa_ssp_disable(struct ssp_device *ssp)
+{
+	uint32_t sscr0;
+
+	sscr0 = __raw_readl(ssp->mmio_base + SSCR0) & ~SSCR0_SSE;
+	__raw_writel(sscr0, ssp->mmio_base + SSCR0);
 }
 
 struct pxa2xx_pcm_dma_data {
@@ -178,17 +195,13 @@ static void pxa_ssp_set_scr(struct ssp_device *ssp, u32 div)
 {
 	u32 sscr0 = pxa_ssp_read_reg(ssp, SSCR0);
 
-#if defined(CONFIG_PXA25x)
 	if (cpu_is_pxa25x() && ssp->type == PXA25x_SSP) {
 		sscr0 &= ~0x0000ff00;
 		sscr0 |= ((div - 2)/2) << 8; /* 2..512 */
 	} else {
-#endif
 		sscr0 &= ~0x000fff00;
 		sscr0 |= (div - 1) << 8;     /* 1..4096 */
-#if defined(CONFIG_PXA25x)
 	}
-#endif
 	pxa_ssp_write_reg(ssp, SSCR0, sscr0);
 }
 
@@ -200,11 +213,9 @@ static u32 pxa_ssp_get_scr(struct ssp_device *ssp)
 	u32 sscr0 = pxa_ssp_read_reg(ssp, SSCR0);
 	u32 div;
 
-#if defined(CONFIG_PXA25x)
 	if (cpu_is_pxa25x() && ssp->type == PXA25x_SSP)
 		div = ((sscr0 >> 8) & 0xff) * 2 + 2;
 	else
-#endif
 		div = ((sscr0 >> 8) & 0xfff) + 1;
 	return div;
 }
@@ -232,11 +243,9 @@ static int pxa_ssp_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
 		break;
 	case PXA_SSP_CLK_PLL:
 		/* Internal PLL is fixed */
-#if defined(CONFIG_PXA25x)
 		if (cpu_is_pxa25x())
 			priv->sysclk = 1843200;
 		else
-#endif
 			priv->sysclk = 13000000;
 		break;
 	case PXA_SSP_CLK_EXT:
@@ -258,16 +267,12 @@ static int pxa_ssp_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
 
 	/* The SSP clock must be disabled when changing SSP clock mode
 	 * on PXA2xx.  On PXA3xx it must be enabled when doing so. */
-#if defined(CONFIG_PXA3xx)
 	if (!cpu_is_pxa3xx())
 		clk_disable(ssp->clk);
-#endif
 	val = pxa_ssp_read_reg(ssp, SSCR0) | sscr0;
 	pxa_ssp_write_reg(ssp, SSCR0, val);
-#if defined(CONFIG_PXA3xx)
 	if (!cpu_is_pxa3xx())
 		clk_enable(ssp->clk);
-#endif
 
 	return 0;
 }
@@ -311,13 +316,6 @@ static int pxa_ssp_set_dai_clkdiv(struct snd_soc_dai *cpu_dai,
 		default:
 			return -EINVAL;
 		}
-		pxa_ssp_write_reg(ssp, SSACD, val);
-		break;
-	case PXA_SSP_AUDIO_DIV_ACPS:
-		val = pxa_ssp_read_reg(ssp, SSACD);
-		val &= ~0x70;
-		pxa_ssp_write_reg(ssp, SSACD, val);
-		val |= SSACD_ACPS(div);
 		pxa_ssp_write_reg(ssp, SSACD, val);
 		break;
 	case PXA_SSP_DIV_SCR:
@@ -598,8 +596,8 @@ static int pxa_ssp_hw_params(struct snd_pcm_substream *substream,
 	/* bit size */
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_S16_LE:
-#if defined (CONFIG_PXA3xx) || defined (CONFIG_PXA95x)
-		if (cpu_is_pxa3xx() || cpu_is_pxa95x())
+#ifdef CONFIG_PXA3xx
+		if (cpu_is_pxa3xx())
 			sscr0 |= SSCR0_FPCKE;
 #endif
 		sscr0 |= SSCR0_DataSize(16);
@@ -652,36 +650,6 @@ static int pxa_ssp_hw_params(struct snd_pcm_substream *substream,
 		}
 
 		pxa_ssp_write_reg(ssp, SSPSP, sspsp);
-		break;
-	default:
-		break;
-	}
-
-	switch (params_rate(params)) {
-	case 48000:
-		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_ACPS, 0x2);
-		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_SCDB, PXA_SSP_CLK_SCDB_4);
-		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_ACDS, 0x1);
-		break;
-	case 44100:
-		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_ACPS, 0x1);
-		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_SCDB, PXA_SSP_CLK_SCDB_4);
-		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_ACDS, 0x1);
-		break;
-	case 32000:
-		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_ACPS, 0x4);
-		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_SCDB, PXA_SSP_CLK_SCDB_4);
-		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_ACDS, 0x3);
-		break;
-	case 16000:
-		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_ACPS, 0x4);
-		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_SCDB, PXA_SSP_CLK_SCDB_4);
-		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_ACDS, 0x4);
-		break;
-	case 8000:
-		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_ACPS, 0x4);
-		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_SCDB, PXA_SSP_CLK_SCDB_4);
-		snd_soc_dai_set_clkdiv(cpu_dai, PXA_SSP_AUDIO_DIV_ACDS, 0x5);
 		break;
 	default:
 		break;
@@ -796,8 +764,7 @@ static int pxa_ssp_remove(struct snd_soc_dai *dai)
 
 #define PXA_SSP_RATES (SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_11025 |\
 			  SNDRV_PCM_RATE_16000 | SNDRV_PCM_RATE_22050 |	\
-			  SNDRV_PCM_RATE_32000 | SNDRV_PCM_RATE_44100 |	\
-			  SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_64000 |	\
+			  SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000 |	\
 			  SNDRV_PCM_RATE_88200 | SNDRV_PCM_RATE_96000)
 
 #define PXA_SSP_FORMATS (SNDRV_PCM_FMTBIT_S16_LE |\

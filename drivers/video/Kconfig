@@ -1726,12 +1726,6 @@ config FB_CARMINE
 	  This is the frame buffer device driver for the Fujitsu Carmine chip.
 	  The driver provides two independent frame buffer devices.
 
-config PXA688_MISC
-	tristate "MMP2 MISC features support"
-	depends on FB && (CPU_MMP2 || CPU_MMP3)
-	help
-	  Say Y here if you want to enable vertical smooth, partial display, etc.
-
 choice
 	depends on FB_CARMINE
 	prompt "DRAM timing"
@@ -1862,21 +1856,15 @@ config FB_68328
 	  Say Y here if you want to support the built-in frame buffer of
 	  the Motorola 68328 CPU family.
 
-config FB_PXA95x
-	tristate "PXA95x LCD framebuffer support"
-	depends on FB && PXA95x
+config FB_PXA168
+	tristate "PXA168/910 LCD framebuffer support"
+	depends on FB && (CPU_PXA168 || CPU_PXA910)
 	select FB_CFB_FILLRECT
 	select FB_CFB_COPYAREA
 	select FB_CFB_IMAGEBLIT
 	---help---
 	  Frame buffer driver for the built-in LCD controller in the Marvell
-	  PXA95x processor.
-
-config PXA688_VDMA
-	tristate "MMP VDMA support"
-	depends on FB && (CPU_MMP2 || CPU_MMP3)
-	help
-	  Say Y here if you want to enable VDMA for MMP2 and MMP3
+	  MMP processor.
 
 config FB_PXA
 	tristate "PXA LCD framebuffer support"

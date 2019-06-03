@@ -1031,9 +1031,6 @@ config USB_S2255
 	  This driver can be compiled as a module, called s2255drv.
 
 endif # V4L_USB_DRIVERS
-
-source "drivers/media/video/cmmb/Kconfig"
-
 endif # VIDEO_CAPTURE_DRIVERS
 
 menuconfig V4L_MEM2MEM_DRIVERS
@@ -1060,15 +1057,3 @@ config VIDEO_MEM2MEM_TESTDEV
 
 
 endif # V4L_MEM2MEM_DRIVERS
-
-menuconfig VIDEO_DISPLAY_DRIVERS
-	bool "Video display adapters"
-	depends on VIDEO_V4L2
-	default y
-	---help---
-	  Say Y here to enable selecting the video adapters for PXA168.
-
-if VIDEO_DISPLAY_DRIVERS && VIDEO_V4L2
-
-endif # VIDEO_DISPLAY_DRIVERS
-

@@ -1,9 +1,0 @@
-menuconfig CMMB
-	tristate "China Mobile Multimedia Broadcasting"
-	---help---
-	  CMMB is a mobile television and multimedia standard developed
-	  and specified in China by the State Administration of Radio,
-	  Film, and Television (SARFT).
-
-if CMMB
-endif #CMMB

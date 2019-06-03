@@ -32,8 +32,6 @@
 #define LONG_ONKEY_EN		(1 << 1)
 #define ONKEY_STATUS		(1 << 0)
 
-#define SW_PDOWN		(1 << 7)
-
 struct pm860x_onkey_info {
 	struct input_dev	*idev;
 	struct pm860x_chip	*chip;
@@ -41,21 +39,6 @@ struct pm860x_onkey_info {
 	struct device		*dev;
 	int			irq;
 };
-
-static struct i2c_client *i2c;
-
-/* 88PM860x poweroff function */
-void pm860x_system_poweroff(void)
-{
-	u8 tmp;
-
-	printk(KERN_INFO"turning off power....\n");
-
-	tmp = pm860x_reg_read(i2c, PM8607_RESET_OUT);
-	pm860x_reg_write(i2c, PM8607_RESET_OUT, tmp | SW_PDOWN);
-
-	return;
-}
 
 /* 88PM860x gives us an interrupt when ONKEY is held */
 static irqreturn_t pm860x_onkey_handler(int irq, void *data)
@@ -68,43 +51,10 @@ static irqreturn_t pm860x_onkey_handler(int irq, void *data)
 	input_report_key(info->idev, KEY_POWER, ret);
 	input_sync(info->idev);
 
+	/* Enable 8-second long onkey detection */
+	pm860x_set_bits(info->i2c, PM8607_WAKEUP, 3, LONG_ONKEY_EN);
 	return IRQ_HANDLED;
 }
-
-#ifdef CONFIG_PM
-static int pm860x_onkey_suspend(struct device *dev)
-{
-	struct platform_device *pdev = to_platform_device(dev);
-	struct pm860x_chip *chip = dev_get_drvdata(pdev->dev.parent);
-	int irq;
-
-	irq = platform_get_irq(pdev, 0);
-	if (device_may_wakeup(dev)) {
-		enable_irq_wake(chip->core_irq);
-		enable_irq_wake(irq);
-	}
-	return 0;
-}
-
-static int pm860x_onkey_resume(struct device *dev)
-{
-	struct platform_device *pdev = to_platform_device(dev);
-	struct pm860x_chip *chip = dev_get_drvdata(pdev->dev.parent);
-	int irq;
-
-	irq = platform_get_irq(pdev, 0);
-	if (device_may_wakeup(dev)) {
-		disable_irq_wake(chip->core_irq);
-		disable_irq_wake(irq);
-	}
-	return 0;
-}
-
-static const struct dev_pm_ops pm860x_onkey_pm_ops = {
-	.suspend	= pm860x_onkey_suspend,
-	.resume		= pm860x_onkey_resume,
-};
-#endif
 
 static int __devinit pm860x_onkey_probe(struct platform_device *pdev)
 {
@@ -123,7 +73,6 @@ static int __devinit pm860x_onkey_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	info->chip = chip;
 	info->i2c = (chip->id == CHIP_PM8607) ? chip->client : chip->companion;
-	i2c = info->i2c;
 	info->dev = &pdev->dev;
 	info->irq = irq;
 
@@ -156,10 +105,6 @@ static int __devinit pm860x_onkey_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, info);
-	device_init_wakeup(&pdev->dev, 1);
-	/* Enable 8-second long onkey detection */
-	pm860x_set_bits(info->i2c, PM8607_WAKEUP, 3, LONG_ONKEY_EN);
-
 	return 0;
 
 out_irq:
@@ -188,9 +133,6 @@ static struct platform_driver pm860x_onkey_driver = {
 	.driver		= {
 		.name	= "88pm860x-onkey",
 		.owner	= THIS_MODULE,
-#ifdef CONFIG_PM
-		.pm	= &pm860x_onkey_pm_ops,
-#endif
 	},
 	.probe		= pm860x_onkey_probe,
 	.remove		= __devexit_p(pm860x_onkey_remove),

@@ -329,9 +329,10 @@ config HID_MULTITOUCH
 	  module will be called hid-multitouch.
 
 config HID_NTRIG
-	tristate "NTrig"
+	tristate "N-Trig touch screen"
+	depends on USB_HID
 	---help---
-	Generic support for N-Trig touch screen.
+	Support for N-Trig touch screen.
 
 config HID_ORTEK
 	tristate "Ortek PKB-1700/WKB-2000/Skycable wireless keyboard and mouse trackpad"

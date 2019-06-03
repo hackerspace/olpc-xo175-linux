@@ -33,11 +33,14 @@ static int process_sdio_pending_irqs(struct mmc_card *card)
 	unsigned char pending;
 	struct sdio_func *func;
 
-	if (card->disabled) {
-		printk(KERN_DEBUG "%s: irq arrive after controller is "
-				"disabled, defer it.\n", mmc_card_id(card));
-		card->pending_interrupt = 1;
-		return 0;
+	/*
+	 * Optimization, if there is only 1 function interrupt registered
+	 * call irq handler directly
+	 */
+	func = card->sdio_single_irq;
+	if (func) {
+		func->irq_handler(func);
+		return 1;
 	}
 
 	ret = mmc_io_rw_direct(card, 0, 0, SDIO_CCCR_INTx, 0, &pending);
@@ -45,32 +48,6 @@ static int process_sdio_pending_irqs(struct mmc_card *card)
 		printk(KERN_DEBUG "%s: error %d reading SDIO_CCCR_INTx\n",
 		       mmc_card_id(card), ret);
 		return ret;
-	}
-
-	/*
-	 * Optimization, if there is only 1 function interrupt registered
-	 * call irq handler directly
-	 */
-	func = card->sdio_single_irq;
-	if (func) {
-		if (pending & (1 << func->num)) {
-			if (func->suspended) {
-				card->pending_interrupt = 1;
-				printk(KERN_WARNING "%s: IRQ that "
-					"arrives in suspend mode.\n",
-					sdio_func_id(func));
-			}
-			func->irq_handler(func);
-			return 1;
-		} else {
-			if (pending) {	/* unexpect irq */
-				printk(KERN_WARNING "unexpect IRQ that "
-					"arrives in single irq mode:0x%x.\n",
-					pending);
-				return -EINVAL;
-			}
-			return 0;
-		}
 	}
 
 	count = 0;
@@ -83,12 +60,6 @@ static int process_sdio_pending_irqs(struct mmc_card *card)
 					mmc_card_id(card));
 				ret = -EINVAL;
 			} else if (func->irq_handler) {
-				if (func->suspended) {
-					card->pending_interrupt = 1;
-					printk(KERN_WARNING "%s: IRQ that"
-						"arrives in suspend mode.\n",
-						sdio_func_id(func));
-				}
 				func->irq_handler(func);
 				count++;
 			} else {

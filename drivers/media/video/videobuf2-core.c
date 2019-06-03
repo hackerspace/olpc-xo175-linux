@@ -254,7 +254,6 @@ static void __vb2_queue_free(struct vb2_queue *q)
 
 	q->num_buffers = 0;
 	q->memory = 0;
-	INIT_LIST_HEAD(&q->queued_list);
 }
 
 /**
@@ -758,7 +757,7 @@ static int __qbuf_userptr(struct vb2_buffer *vb, struct v4l2_buffer *b)
 			mem_priv = q->mem_ops->get_userptr(q->alloc_ctx[plane],
 							planes[plane].m.userptr,
 							planes[plane].length,
-							write, b->flags);
+							write);
 			if (IS_ERR(mem_priv)) {
 				dprintk(1, "qbuf: failed acquiring userspace "
 						"memory for plane %d\n", plane);

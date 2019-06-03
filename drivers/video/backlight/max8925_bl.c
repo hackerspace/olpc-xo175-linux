@@ -145,10 +145,7 @@ static int __devinit max8925_backlight_probe(struct platform_device *pdev)
 		kfree(data);
 		return PTR_ERR(bl);
 	}
-	if (pdata->brightness_off)
-		bl->props.brightness = 0;
-	else
-		bl->props.brightness = MAX_BRIGHTNESS;
+	bl->props.brightness = MAX_BRIGHTNESS;
 
 	platform_set_drvdata(pdev, bl);
 
