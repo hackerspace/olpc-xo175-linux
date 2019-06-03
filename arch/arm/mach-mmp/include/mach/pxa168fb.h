@@ -215,7 +215,6 @@ struct pxa168fb_info {
 	struct fb_var_screeninfo var_bak;
 	struct pm_qos_request_list qos_idle_fb;
 	struct pm_qos_request_list qos_min_ddrfreq;
-	struct wake_lock idle_lock;
 
 	/* gamma correction */
 	struct mvdisp_gamma	gamma;
