@@ -137,12 +137,16 @@ struct irq_domain *__irq_domain_add(struct fwnode_handle *fwnode, int size,
 
 	static atomic_t unknown_domains;
 
+printk("XXX __irq_domain_add fwnode=0x%08x XXX\n", fwnode);
+printk("XXX __irq_domain_add fwnode=0x%08x {%s}\n", fwnode, of_node_full_name (of_node));
+WARN_ON(1);
+
 	domain = kzalloc_node(sizeof(*domain) + (sizeof(unsigned int) * size),
 			      GFP_KERNEL, of_node_to_nid(of_node));
 	if (WARN_ON(!domain))
 		return NULL;
 
-	if (fwnode && is_fwnode_irqchip(fwnode)) {
+	if (is_fwnode_irqchip(fwnode)) {
 		fwid = container_of(fwnode, struct irqchip_fwid, fwnode);
 
 		switch (fwid->type) {
@@ -178,6 +182,7 @@ struct irq_domain *__irq_domain_add(struct fwnode_handle *fwnode, int size,
 	} else if (of_node) {
 		char *name;
 
+printk("XXX __irq_domain_add fwnode=0x%08x {%s}\n", fwnode, of_node_full_name (of_node));
 		/*
 		 * DT paths contain '/', which debugfs is legitimately
 		 * unhappy about. Replace them with ':', which does
@@ -771,6 +776,9 @@ unsigned int irq_create_fwspec_mapping(struct irq_fwspec *fwspec)
 	} else {
 		domain = irq_default_domain;
 	}
+
+printk("X1 >0x%08x< >0x%08x< {%s}\n", fwspec->fwnode, domain, of_node_full_name(to_of_node(fwspec->fwnode)));
+WARN_ON(1);
 
 	if (!domain) {
 		pr_warn("no irq domain found for %s !\n",

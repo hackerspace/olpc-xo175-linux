@@ -1,0 +1,38 @@
+NR_IRQS: 16, nr_irqs: 16, preallocated irqs: 16
+
+
+start_kernel
+	init_IRQ
+		of_irq_init
+			gic_of_init
+				__gic_init_bases
+					set_handle_irq
+					gic_init_bases
+						__irq_domain_add
+	timer_probe
+		sp804_of_init
+			irq_of_parse_and_map
+				irq_create_of_mapping
+					irq_create_fwspec_mapping
+
+=== set_handle_irq ===
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 0 at kernel/irq/handle.c:217 set_handle_irq+0x24/0x4c
+Modules linked in:
+CPU: 0 PID: 0 Comm: swapper/0 Not tainted 5.2.0-rc3+ #11
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d914>] (dump_stack+0x88/0x9c)
+[<8071d914>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80a0d6f8>] (set_handle_irq+0x24/0x4c)
+[<80a0d6f8>] (set_handle_irq) from [<80a29550>] (__gic_init_bases+0x94/0x210)
+[<80a29550>] (__gic_init_bases) from [<80a299e8>] (gic_of_init+0x2ec/0x3dc)
+[<80a299e8>] (gic_of_init) from [<80a36d24>] (of_irq_init+0x194/0x2b8)
+[<80a36d24>] (of_irq_init) from [<80a02c80>] (init_IRQ+0x24/0x78)
+[<80a02c80>] (init_IRQ) from [<80a00ce4>] (start_kernel+0x2bc/0x498)
+[<80a00ce4>] (start_kernel) from [<00000000>] (0x0)
+random: get_random_bytes called from print_oops_end_marker+0x24/0x48 with crng_init=0
+---[ end trace 0000000000000000 ]---
+
+

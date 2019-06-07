@@ -1138,6 +1138,7 @@ static int gic_init_bases(struct gic_chip_data *gic,
 	gic->gic_irqs = gic_irqs;
 
 	if (handle) {		/* DT/ACPI */
+printk ("XXX gic_init_bases XXX irq_domain_create_linear\n");
 		gic->domain = irq_domain_create_linear(handle, gic_irqs,
 						       &gic_irq_domain_hierarchy_ops,
 						       gic);
@@ -1148,6 +1149,7 @@ static int gic_init_bases(struct gic_chip_data *gic,
 		 */
 		int irq_base;
 
+printk ("XXX gic_init_bases XXX irq_domain_add_legacy\n");
 		gic_irqs -= 16; /* calculate # of irqs to allocate */
 
 		irq_base = irq_alloc_descs(16, 16, gic_irqs,

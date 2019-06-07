@@ -1,0 +1,1241 @@
+Run /bin/dmesg as init process
+random: crng init done
+Booting Linux on physical CPU 0x0
+Linux version 5.2.0-rc3+ (lkundrak@belphegor) (gcc version 8.2.1 20181105 (Red Hat Cross 8.2.1-1) (GCC)) #14 SMP Fri Jun 7 13:57:49 CEST 2019
+CPU: ARMv7 Processor [410fc090] revision 0 (ARMv7), cr=10c5387d
+CPU: PIPT / VIPT nonaliasing data cache, VIPT nonaliasing instruction cache
+OF: fdt: Machine model: V2P-CA9
+printk: bootconsole [earlycon0] enabled
+Memory policy: Data cache writeback
+Reserved memory: created DMA memory pool at 0x4c000000, size 8 MiB
+OF: reserved mem: initialized node vram@4c000000, compatible id shared-dma-pool
+cma: Reserved 16 MiB at 0x67000000
+On node 0 totalpages: 32768
+  Normal zone: 256 pages used for memmap
+  Normal zone: 0 pages reserved
+  Normal zone: 32768 pages, LIFO batch:7
+CPU: All CPU(s) started in SVC mode.
+percpu: Embedded 20 pages/cpu s49484 r8192 d24244 u81920
+pcpu-alloc: s49484 r8192 d24244 u81920 alloc=20*4096
+pcpu-alloc: [0] 0 [0] 1 [0] 2 [0] 3 
+Built 1 zonelists, mobility grouping on.  Total pages: 32512
+Kernel command line: init=/bin/dmesg root=/dev/mmcblk0 console=ttyAMA0 earlyprintk=ttyAMA0 ro panic=1
+Dentry cache hash table entries: 16384 (order: 4, 65536 bytes)
+Inode-cache hash table entries: 8192 (order: 3, 32768 bytes)
+Memory: 102152K/131072K available (7168K kernel code, 417K rwdata, 1652K rodata, 1024K init, 276K bss, 12536K reserved, 16384K cma-reserved)
+SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=4, Nodes=1
+rcu: Hierarchical RCU implementation.
+rcu: 	RCU event tracing is enabled.
+rcu: 	RCU restricting CPUs from NR_CPUS=8 to nr_cpu_ids=4.
+rcu: RCU calculated value of scheduler-enlistment delay is 10 jiffies.
+rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=4
+NR_IRQS: 16, nr_irqs: 16, preallocated irqs: 16
+=== set_handle_irq ===
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 0 at kernel/irq/handle.c:217 set_handle_irq+0x24/0x4c
+Modules linked in:
+CPU: 0 PID: 0 Comm: swapper/0 Not tainted 5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80a0d6f8>] (set_handle_irq+0x24/0x4c)
+[<80a0d6f8>] (set_handle_irq) from [<80a29550>] (__gic_init_bases+0x94/0x210)
+[<80a29550>] (__gic_init_bases) from [<80a299e8>] (gic_of_init+0x2ec/0x3dc)
+[<80a299e8>] (gic_of_init) from [<80a36d24>] (of_irq_init+0x194/0x2b8)
+[<80a36d24>] (of_irq_init) from [<80a02c80>] (init_IRQ+0x24/0x78)
+[<80a02c80>] (init_IRQ) from [<80a00ce4>] (start_kernel+0x2bc/0x498)
+[<80a00ce4>] (start_kernel) from [<00000000>] (0x0)
+random: get_random_bytes called from print_oops_end_marker+0x24/0x48 with crng_init=0
+---[ end trace 0000000000000000 ]---
+=== set_handle_irq ===
+XXX gic_init_bases XXX irq_domain_create_linear
+XXX __irq_domain_add fwnode=0x86eef688 XXX
+XXX __irq_domain_add fwnode=0x86eef688 {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 0 at kernel/irq/irqdomain.c:142 __irq_domain_add+0x84/0x280
+Modules linked in:
+CPU: 0 PID: 0 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<8017256c>] (__irq_domain_add+0x84/0x280)
+[<8017256c>] (__irq_domain_add) from [<8042ee84>] (gic_init_bases+0x80/0x26c)
+[<8042ee84>] (gic_init_bases) from [<80a296b0>] (__gic_init_bases+0x1f4/0x210)
+[<80a296b0>] (__gic_init_bases) from [<80a299e8>] (gic_of_init+0x2ec/0x3dc)
+[<80a299e8>] (gic_of_init) from [<80a36d24>] (of_irq_init+0x194/0x2b8)
+[<80a36d24>] (of_irq_init) from [<80a02c80>] (init_IRQ+0x24/0x78)
+[<80a02c80>] (init_IRQ) from [<80a00ce4>] (start_kernel+0x2bc/0x498)
+[<80a00ce4>] (start_kernel) from [<00000000>] (0x0)
+---[ end trace f68728a0d3053b52 ]---
+XXX __irq_domain_add fwnode=0x86eef688 {interrupt-controller@1e001000}
+GIC CPU mask not found - kernel will fail to boot.
+GIC CPU mask not found - kernel will fail to boot.
+L2C: platform modifies aux control register: 0x02020000 -> 0x02420000
+L2C: DT/platform modifies aux control register: 0x02020000 -> 0x02420000
+L2C-310 enabling early BRESP for Cortex-A9
+L2C-310 full line of zeros enabled for Cortex-A9
+L2C-310 dynamic clock gating disabled, standby mode disabled
+L2C-310 cache controller enabled, 8 ways, 128 kB
+L2C-310: CACHE_ID 0x410000c8, AUX_CTRL 0x46420001
+sched_clock: 32 bits at 24MHz, resolution 41ns, wraps every 89478484971ns
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 0 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 0 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff1d8>] (irq_of_parse_and_map+0x38/0x54)
+[<805ff1d8>] (irq_of_parse_and_map) from [<80a34eb0>] (sp804_of_init+0x104/0x1f4)
+[<80a34eb0>] (sp804_of_init) from [<80a33d70>] (timer_probe+0x70/0xd8)
+[<80a33d70>] (timer_probe) from [<80a00d50>] (start_kernel+0x328/0x498)
+[<80a00d50>] (start_kernel) from [<00000000>] (0x0)
+---[ end trace f68728a0d3053b53 ]---
+clocksource: arm,sp804: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 1911260446275 ns
+Failed to initialize '/smb@4000000/motherboard/iofpga@7,00000000/timer@12000': -22
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 0 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 0 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff1d8>] (irq_of_parse_and_map+0x38/0x54)
+[<805ff1d8>] (irq_of_parse_and_map) from [<80a04830>] (twd_local_timer_of_register+0x18/0x20c)
+[<80a04830>] (twd_local_timer_of_register) from [<80a33d70>] (timer_probe+0x70/0xd8)
+[<80a33d70>] (timer_probe) from [<80a00d50>] (start_kernel+0x328/0x498)
+[<80a00d50>] (start_kernel) from [<00000000>] (0x0)
+---[ end trace f68728a0d3053b54 ]---
+smp_twd: clock not found -2
+Console: colour dummy device 80x30
+Calibrating local timer... 94.91MHz.
+Calibrating delay loop... 611.94 BogoMIPS (lpj=3059712)
+pid_max: default: 32768 minimum: 301
+Mount-cache hash table entries: 1024 (order: 0, 4096 bytes)
+Mountpoint-cache hash table entries: 1024 (order: 0, 4096 bytes)
+*** VALIDATE proc ***
+*** VALIDATE cgroup1 ***
+*** VALIDATE cgroup2 ***
+CPU: Testing write buffer coherency: ok
+CPU0: Spectre v2: using BPIALL workaround
+CPU0: thread -1, cpu 0, socket 0, mpidr 80000000
+Setting up static identity map for 0x60100000 - 0x60100060
+rcu: Hierarchical SRCU implementation.
+smp: Bringing up secondary CPUs ...
+smp: Brought up 1 node, 1 CPU
+SMP: Total of 1 processors activated (611.94 BogoMIPS).
+CPU: All CPU(s) started in SVC mode.
+devtmpfs: initialized
+VFP support v0.3: implementor 41 architecture 3 part 30 variant 9 rev 0
+clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 19112604462750000 ns
+futex hash table entries: 1024 (order: 4, 65536 bytes)
+NET: Registered protocol family 16
+DMA: preallocated 256 KiB pool for atomic coherent allocations
+cpuidle: using governor ladder
+hw-breakpoint: debug architecture 0x4 unsupported.
+Serial: AMBA PL011 UART driver
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff260>] (of_irq_get+0x6c/0xb8)
+[<805ff260>] (of_irq_get) from [<805ff2d8>] (of_irq_to_resource+0x2c/0xdc)
+[<805ff2d8>] (of_irq_to_resource) from [<805ff3c4>] (of_irq_to_resource_table+0x3c/0x54)
+[<805ff3c4>] (of_irq_to_resource_table) from [<805fb474>] (of_device_alloc+0x100/0x184)
+[<805fb474>] (of_device_alloc) from [<805fb540>] (of_platform_device_create_pdata+0x48/0xbc)
+[<805fb540>] (of_platform_device_create_pdata) from [<805fb798>] (of_platform_bus_create+0x19c/0x380)
+[<805fb798>] (of_platform_bus_create) from [<805fbab4>] (of_platform_populate+0x64/0xac)
+[<805fbab4>] (of_platform_populate) from [<80a35634>] (of_platform_default_populate_init+0xa0/0xb8)
+[<80a35634>] (of_platform_default_populate_init) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b55 ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff260>] (of_irq_get+0x6c/0xb8)
+[<805ff260>] (of_irq_get) from [<805ff2d8>] (of_irq_to_resource+0x2c/0xdc)
+[<805ff2d8>] (of_irq_to_resource) from [<805ff3c4>] (of_irq_to_resource_table+0x3c/0x54)
+[<805ff3c4>] (of_irq_to_resource_table) from [<805fb474>] (of_device_alloc+0x100/0x184)
+[<805fb474>] (of_device_alloc) from [<805fb540>] (of_platform_device_create_pdata+0x48/0xbc)
+[<805fb540>] (of_platform_device_create_pdata) from [<805fb798>] (of_platform_bus_create+0x19c/0x380)
+[<805fb798>] (of_platform_bus_create) from [<805fbab4>] (of_platform_populate+0x64/0xac)
+[<805fbab4>] (of_platform_populate) from [<80a35634>] (of_platform_default_populate_init+0xa0/0xb8)
+[<80a35634>] (of_platform_default_populate_init) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b56 ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff260>] (of_irq_get+0x6c/0xb8)
+[<805ff260>] (of_irq_get) from [<805ff2d8>] (of_irq_to_resource+0x2c/0xdc)
+[<805ff2d8>] (of_irq_to_resource) from [<805ff3c4>] (of_irq_to_resource_table+0x3c/0x54)
+[<805ff3c4>] (of_irq_to_resource_table) from [<805fb474>] (of_device_alloc+0x100/0x184)
+[<805fb474>] (of_device_alloc) from [<805fb540>] (of_platform_device_create_pdata+0x48/0xbc)
+[<805fb540>] (of_platform_device_create_pdata) from [<805fb798>] (of_platform_bus_create+0x19c/0x380)
+[<805fb798>] (of_platform_bus_create) from [<805fbab4>] (of_platform_populate+0x64/0xac)
+[<805fbab4>] (of_platform_populate) from [<80a35634>] (of_platform_default_populate_init+0xa0/0xb8)
+[<80a35634>] (of_platform_default_populate_init) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b57 ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff260>] (of_irq_get+0x6c/0xb8)
+[<805ff260>] (of_irq_get) from [<805ff2d8>] (of_irq_to_resource+0x2c/0xdc)
+[<805ff2d8>] (of_irq_to_resource) from [<805ff3c4>] (of_irq_to_resource_table+0x3c/0x54)
+[<805ff3c4>] (of_irq_to_resource_table) from [<805fb474>] (of_device_alloc+0x100/0x184)
+[<805fb474>] (of_device_alloc) from [<805fb540>] (of_platform_device_create_pdata+0x48/0xbc)
+[<805fb540>] (of_platform_device_create_pdata) from [<805fb798>] (of_platform_bus_create+0x19c/0x380)
+[<805fb798>] (of_platform_bus_create) from [<805fbab4>] (of_platform_populate+0x64/0xac)
+[<805fbab4>] (of_platform_populate) from [<80a35634>] (of_platform_default_populate_init+0xa0/0xb8)
+[<80a35634>] (of_platform_default_populate_init) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b58 ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff260>] (of_irq_get+0x6c/0xb8)
+[<805ff260>] (of_irq_get) from [<805ff2d8>] (of_irq_to_resource+0x2c/0xdc)
+[<805ff2d8>] (of_irq_to_resource) from [<805ff3c4>] (of_irq_to_resource_table+0x3c/0x54)
+[<805ff3c4>] (of_irq_to_resource_table) from [<805fb474>] (of_device_alloc+0x100/0x184)
+[<805fb474>] (of_device_alloc) from [<805fb540>] (of_platform_device_create_pdata+0x48/0xbc)
+[<805fb540>] (of_platform_device_create_pdata) from [<805fb798>] (of_platform_bus_create+0x19c/0x380)
+[<805fb798>] (of_platform_bus_create) from [<805fb7e4>] (of_platform_bus_create+0x1e8/0x380)
+---[ end trace f68728a0d3053b59 ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff260>] (of_irq_get+0x6c/0xb8)
+[<805ff260>] (of_irq_get) from [<805ff2d8>] (of_irq_to_resource+0x2c/0xdc)
+[<805ff2d8>] (of_irq_to_resource) from [<805ff3c4>] (of_irq_to_resource_table+0x3c/0x54)
+[<805ff3c4>] (of_irq_to_resource_table) from [<805fb474>] (of_device_alloc+0x100/0x184)
+[<805fb474>] (of_device_alloc) from [<805fb540>] (of_platform_device_create_pdata+0x48/0xbc)
+[<805fb540>] (of_platform_device_create_pdata) from [<805fb798>] (of_platform_bus_create+0x19c/0x380)
+[<805fb798>] (of_platform_bus_create) from [<805fb7e4>] (of_platform_bus_create+0x1e8/0x380)
+---[ end trace f68728a0d3053b5a ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff1d8>] (irq_of_parse_and_map+0x38/0x54)
+[<805ff1d8>] (irq_of_parse_and_map) from [<805fb8e0>] (of_platform_bus_create+0x2e4/0x380)
+[<805fb8e0>] (of_platform_bus_create) from [<805fb7e4>] (of_platform_bus_create+0x1e8/0x380)
+---[ end trace f68728a0d3053b5b ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff1d8>] (irq_of_parse_and_map+0x38/0x54)
+[<805ff1d8>] (irq_of_parse_and_map) from [<805fb8e0>] (of_platform_bus_create+0x2e4/0x380)
+[<805fb8e0>] (of_platform_bus_create) from [<805fb7e4>] (of_platform_bus_create+0x1e8/0x380)
+---[ end trace f68728a0d3053b5c ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff1d8>] (irq_of_parse_and_map+0x38/0x54)
+[<805ff1d8>] (irq_of_parse_and_map) from [<805fb8e0>] (of_platform_bus_create+0x2e4/0x380)
+[<805fb8e0>] (of_platform_bus_create) from [<805fb7e4>] (of_platform_bus_create+0x1e8/0x380)
+---[ end trace f68728a0d3053b5d ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff1d8>] (irq_of_parse_and_map+0x38/0x54)
+[<805ff1d8>] (irq_of_parse_and_map) from [<805fb8e0>] (of_platform_bus_create+0x2e4/0x380)
+[<805fb8e0>] (of_platform_bus_create) from [<805fb7e4>] (of_platform_bus_create+0x1e8/0x380)
+---[ end trace f68728a0d3053b5e ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff1d8>] (irq_of_parse_and_map+0x38/0x54)
+[<805ff1d8>] (irq_of_parse_and_map) from [<805fb8e0>] (of_platform_bus_create+0x2e4/0x380)
+[<805fb8e0>] (of_platform_bus_create) from [<805fb7e4>] (of_platform_bus_create+0x1e8/0x380)
+---[ end trace f68728a0d3053b5f ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff1d8>] (irq_of_parse_and_map+0x38/0x54)
+[<805ff1d8>] (irq_of_parse_and_map) from [<805fb8e0>] (of_platform_bus_create+0x2e4/0x380)
+[<805fb8e0>] (of_platform_bus_create) from [<805fb7e4>] (of_platform_bus_create+0x1e8/0x380)
+---[ end trace f68728a0d3053b60 ]---
+10009000.uart: ttyAMA0 at MMIO 0x10009000 (irq = 29, base_baud = 0) is a PL011 rev1
+printk: console [ttyAMA0] enabled
+printk: bootconsole [earlycon0] disabled
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff1d8>] (irq_of_parse_and_map+0x38/0x54)
+[<805ff1d8>] (irq_of_parse_and_map) from [<805fb8e0>] (of_platform_bus_create+0x2e4/0x380)
+[<805fb8e0>] (of_platform_bus_create) from [<805fb7e4>] (of_platform_bus_create+0x1e8/0x380)
+---[ end trace f68728a0d3053b61 ]---
+1000a000.uart: ttyAMA1 at MMIO 0x1000a000 (irq = 30, base_baud = 0) is a PL011 rev1
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff1d8>] (irq_of_parse_and_map+0x38/0x54)
+[<805ff1d8>] (irq_of_parse_and_map) from [<805fb8e0>] (of_platform_bus_create+0x2e4/0x380)
+[<805fb8e0>] (of_platform_bus_create) from [<805fb7e4>] (of_platform_bus_create+0x1e8/0x380)
+---[ end trace f68728a0d3053b62 ]---
+1000b000.uart: ttyAMA2 at MMIO 0x1000b000 (irq = 31, base_baud = 0) is a PL011 rev1
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff1d8>] (irq_of_parse_and_map+0x38/0x54)
+[<805ff1d8>] (irq_of_parse_and_map) from [<805fb8e0>] (of_platform_bus_create+0x2e4/0x380)
+[<805fb8e0>] (of_platform_bus_create) from [<805fb7e4>] (of_platform_bus_create+0x1e8/0x380)
+---[ end trace f68728a0d3053b63 ]---
+1000c000.uart: ttyAMA3 at MMIO 0x1000c000 (irq = 32, base_baud = 0) is a PL011 rev1
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff1d8>] (irq_of_parse_and_map+0x38/0x54)
+[<805ff1d8>] (irq_of_parse_and_map) from [<805fb8e0>] (of_platform_bus_create+0x2e4/0x380)
+[<805fb8e0>] (of_platform_bus_create) from [<805fb7e4>] (of_platform_bus_create+0x1e8/0x380)
+---[ end trace f68728a0d3053b64 ]---
+OF: amba_device_add() failed (-19) for /smb@4000000/motherboard/iofpga@7,00000000/wdt@f000
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff1d8>] (irq_of_parse_and_map+0x38/0x54)
+[<805ff1d8>] (irq_of_parse_and_map) from [<805fb8e0>] (of_platform_bus_create+0x2e4/0x380)
+[<805fb8e0>] (of_platform_bus_create) from [<805fb7e4>] (of_platform_bus_create+0x1e8/0x380)
+---[ end trace f68728a0d3053b65 ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff1d8>] (irq_of_parse_and_map+0x38/0x54)
+[<805ff1d8>] (irq_of_parse_and_map) from [<805fb8e0>] (of_platform_bus_create+0x2e4/0x380)
+[<805fb8e0>] (of_platform_bus_create) from [<805fb7e4>] (of_platform_bus_create+0x1e8/0x380)
+---[ end trace f68728a0d3053b66 ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff1d8>] (irq_of_parse_and_map+0x38/0x54)
+[<805ff1d8>] (irq_of_parse_and_map) from [<805fb8e0>] (of_platform_bus_create+0x2e4/0x380)
+[<805fb8e0>] (of_platform_bus_create) from [<805fb7e4>] (of_platform_bus_create+0x1e8/0x380)
+---[ end trace f68728a0d3053b67 ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff1d8>] (irq_of_parse_and_map+0x38/0x54)
+[<805ff1d8>] (irq_of_parse_and_map) from [<805fb8e0>] (of_platform_bus_create+0x2e4/0x380)
+[<805fb8e0>] (of_platform_bus_create) from [<805fb7e4>] (of_platform_bus_create+0x1e8/0x380)
+---[ end trace f68728a0d3053b68 ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff1d8>] (irq_of_parse_and_map+0x38/0x54)
+[<805ff1d8>] (irq_of_parse_and_map) from [<805fb8e0>] (of_platform_bus_create+0x2e4/0x380)
+[<805fb8e0>] (of_platform_bus_create) from [<805fbab4>] (of_platform_populate+0x64/0xac)
+[<805fbab4>] (of_platform_populate) from [<80a35634>] (of_platform_default_populate_init+0xa0/0xb8)
+[<80a35634>] (of_platform_default_populate_init) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b69 ]---
+OF: amba_device_add() failed (-19) for /memory-controller@100e0000
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff1d8>] (irq_of_parse_and_map+0x38/0x54)
+[<805ff1d8>] (irq_of_parse_and_map) from [<805fb8e0>] (of_platform_bus_create+0x2e4/0x380)
+[<805fb8e0>] (of_platform_bus_create) from [<805fbab4>] (of_platform_populate+0x64/0xac)
+[<805fbab4>] (of_platform_populate) from [<80a35634>] (of_platform_default_populate_init+0xa0/0xb8)
+[<80a35634>] (of_platform_default_populate_init) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b6a ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff1d8>] (irq_of_parse_and_map+0x38/0x54)
+[<805ff1d8>] (irq_of_parse_and_map) from [<805fb8e0>] (of_platform_bus_create+0x2e4/0x380)
+[<805fb8e0>] (of_platform_bus_create) from [<805fbab4>] (of_platform_populate+0x64/0xac)
+[<805fbab4>] (of_platform_populate) from [<80a35634>] (of_platform_default_populate_init+0xa0/0xb8)
+[<80a35634>] (of_platform_default_populate_init) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b6b ]---
+OF: amba_device_add() failed (-19) for /memory-controller@100e1000
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff1d8>] (irq_of_parse_and_map+0x38/0x54)
+[<805ff1d8>] (irq_of_parse_and_map) from [<805fb8e0>] (of_platform_bus_create+0x2e4/0x380)
+[<805fb8e0>] (of_platform_bus_create) from [<805fbab4>] (of_platform_populate+0x64/0xac)
+[<805fbab4>] (of_platform_populate) from [<80a35634>] (of_platform_default_populate_init+0xa0/0xb8)
+[<80a35634>] (of_platform_default_populate_init) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b6c ]---
+OF: amba_device_add() failed (-19) for /watchdog@100e5000
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff260>] (of_irq_get+0x6c/0xb8)
+[<805ff260>] (of_irq_get) from [<805ff2d8>] (of_irq_to_resource+0x2c/0xdc)
+[<805ff2d8>] (of_irq_to_resource) from [<805ff3c4>] (of_irq_to_resource_table+0x3c/0x54)
+[<805ff3c4>] (of_irq_to_resource_table) from [<805fb474>] (of_device_alloc+0x100/0x184)
+[<805fb474>] (of_device_alloc) from [<805fb540>] (of_platform_device_create_pdata+0x48/0xbc)
+[<805fb540>] (of_platform_device_create_pdata) from [<805fb798>] (of_platform_bus_create+0x19c/0x380)
+[<805fb798>] (of_platform_bus_create) from [<805fbab4>] (of_platform_populate+0x64/0xac)
+[<805fbab4>] (of_platform_populate) from [<80a35634>] (of_platform_default_populate_init+0xa0/0xb8)
+[<80a35634>] (of_platform_default_populate_init) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b6d ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff260>] (of_irq_get+0x6c/0xb8)
+[<805ff260>] (of_irq_get) from [<805ff2d8>] (of_irq_to_resource+0x2c/0xdc)
+[<805ff2d8>] (of_irq_to_resource) from [<805ff3c4>] (of_irq_to_resource_table+0x3c/0x54)
+[<805ff3c4>] (of_irq_to_resource_table) from [<805fb474>] (of_device_alloc+0x100/0x184)
+[<805fb474>] (of_device_alloc) from [<805fb540>] (of_platform_device_create_pdata+0x48/0xbc)
+[<805fb540>] (of_platform_device_create_pdata) from [<805fb798>] (of_platform_bus_create+0x19c/0x380)
+[<805fb798>] (of_platform_bus_create) from [<805fbab4>] (of_platform_populate+0x64/0xac)
+[<805fbab4>] (of_platform_populate) from [<80a35634>] (of_platform_default_populate_init+0xa0/0xb8)
+[<80a35634>] (of_platform_default_populate_init) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b6e ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff260>] (of_irq_get+0x6c/0xb8)
+[<805ff260>] (of_irq_get) from [<805ff2d8>] (of_irq_to_resource+0x2c/0xdc)
+[<805ff2d8>] (of_irq_to_resource) from [<805ff3c4>] (of_irq_to_resource_table+0x3c/0x54)
+[<805ff3c4>] (of_irq_to_resource_table) from [<805fb474>] (of_device_alloc+0x100/0x184)
+[<805fb474>] (of_device_alloc) from [<805fb540>] (of_platform_device_create_pdata+0x48/0xbc)
+[<805fb540>] (of_platform_device_create_pdata) from [<805fb798>] (of_platform_bus_create+0x19c/0x380)
+[<805fb798>] (of_platform_bus_create) from [<805fbab4>] (of_platform_populate+0x64/0xac)
+[<805fbab4>] (of_platform_populate) from [<80a35634>] (of_platform_default_populate_init+0xa0/0xb8)
+[<80a35634>] (of_platform_default_populate_init) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b6f ]---
+irq: type mismatch, failed to map hwirq-75 for interrupt-controller@1e001000!
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff260>] (of_irq_get+0x6c/0xb8)
+[<805ff260>] (of_irq_get) from [<805ff2d8>] (of_irq_to_resource+0x2c/0xdc)
+[<805ff2d8>] (of_irq_to_resource) from [<805ff3c4>] (of_irq_to_resource_table+0x3c/0x54)
+[<805ff3c4>] (of_irq_to_resource_table) from [<805fb474>] (of_device_alloc+0x100/0x184)
+[<805fb474>] (of_device_alloc) from [<805fb540>] (of_platform_device_create_pdata+0x48/0xbc)
+[<805fb540>] (of_platform_device_create_pdata) from [<805fb798>] (of_platform_bus_create+0x19c/0x380)
+[<805fb798>] (of_platform_bus_create) from [<805fbab4>] (of_platform_populate+0x64/0xac)
+[<805fbab4>] (of_platform_populate) from [<80a35634>] (of_platform_default_populate_init+0xa0/0xb8)
+[<80a35634>] (of_platform_default_populate_init) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b70 ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff260>] (of_irq_get+0x6c/0xb8)
+[<805ff260>] (of_irq_get) from [<805ff2d8>] (of_irq_to_resource+0x2c/0xdc)
+[<805ff2d8>] (of_irq_to_resource) from [<805ff3c4>] (of_irq_to_resource_table+0x3c/0x54)
+[<805ff3c4>] (of_irq_to_resource_table) from [<805fb474>] (of_device_alloc+0x100/0x184)
+[<805fb474>] (of_device_alloc) from [<805fb540>] (of_platform_device_create_pdata+0x48/0xbc)
+[<805fb540>] (of_platform_device_create_pdata) from [<805fb798>] (of_platform_bus_create+0x19c/0x380)
+[<805fb798>] (of_platform_bus_create) from [<805fbab4>] (of_platform_populate+0x64/0xac)
+[<805fbab4>] (of_platform_populate) from [<80a35634>] (of_platform_default_populate_init+0xa0/0xb8)
+[<80a35634>] (of_platform_default_populate_init) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b71 ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff260>] (of_irq_get+0x6c/0xb8)
+[<805ff260>] (of_irq_get) from [<805ff2d8>] (of_irq_to_resource+0x2c/0xdc)
+[<805ff2d8>] (of_irq_to_resource) from [<805ff3c4>] (of_irq_to_resource_table+0x3c/0x54)
+[<805ff3c4>] (of_irq_to_resource_table) from [<805fb474>] (of_device_alloc+0x100/0x184)
+[<805fb474>] (of_device_alloc) from [<805fb540>] (of_platform_device_create_pdata+0x48/0xbc)
+[<805fb540>] (of_platform_device_create_pdata) from [<805fb798>] (of_platform_bus_create+0x19c/0x380)
+[<805fb798>] (of_platform_bus_create) from [<805fbab4>] (of_platform_populate+0x64/0xac)
+[<805fbab4>] (of_platform_populate) from [<80a35634>] (of_platform_default_populate_init+0xa0/0xb8)
+[<80a35634>] (of_platform_default_populate_init) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b72 ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff260>] (of_irq_get+0x6c/0xb8)
+[<805ff260>] (of_irq_get) from [<805ff2d8>] (of_irq_to_resource+0x2c/0xdc)
+[<805ff2d8>] (of_irq_to_resource) from [<805ff3c4>] (of_irq_to_resource_table+0x3c/0x54)
+[<805ff3c4>] (of_irq_to_resource_table) from [<805fb474>] (of_device_alloc+0x100/0x184)
+[<805fb474>] (of_device_alloc) from [<805fb540>] (of_platform_device_create_pdata+0x48/0xbc)
+[<805fb540>] (of_platform_device_create_pdata) from [<805fb798>] (of_platform_bus_create+0x19c/0x380)
+[<805fb798>] (of_platform_bus_create) from [<805fbab4>] (of_platform_populate+0x64/0xac)
+[<805fbab4>] (of_platform_populate) from [<80a35634>] (of_platform_default_populate_init+0xa0/0xb8)
+[<80a35634>] (of_platform_default_populate_init) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b73 ]---
+jitterentropy: Initialization failed with host not compliant with requirements: 2
+SCSI subsystem initialized
+libata version 3.00 loaded.
+usbcore: registered new interface driver usbfs
+usbcore: registered new interface driver hub
+usbcore: registered new device driver usb
+Advanced Linux Sound Architecture Driver Initialized.
+clocksource: Switched to clocksource arm,sp804
+NET: Registered protocol family 2
+tcp_listen_portaddr_hash hash table entries: 512 (order: 0, 6144 bytes)
+TCP established hash table entries: 1024 (order: 0, 4096 bytes)
+TCP bind hash table entries: 1024 (order: 1, 8192 bytes)
+TCP: Hash tables configured (established 1024 bind 1024)
+UDP hash table entries: 256 (order: 1, 8192 bytes)
+UDP-Lite hash table entries: 256 (order: 1, 8192 bytes)
+NET: Registered protocol family 1
+RPC: Registered named UNIX socket transport module.
+RPC: Registered udp transport module.
+RPC: Registered tcp transport module.
+RPC: Registered tcp NFSv4.1 backchannel transport module.
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff260>] (of_irq_get+0x6c/0xb8)
+[<805ff260>] (of_irq_get) from [<804e0a38>] (platform_get_irq+0x1c/0xe8)
+[<804e0a38>] (platform_get_irq) from [<804e0b24>] (platform_irq_count+0x20/0x3c)
+[<804e0b24>] (platform_irq_count) from [<80601610>] (arm_pmu_device_probe+0x3c/0x4ac)
+[<80601610>] (arm_pmu_device_probe) from [<804e06c0>] (platform_drv_probe+0x48/0x98)
+[<804e06c0>] (platform_drv_probe) from [<804de718>] (really_probe+0xe0/0x2ac)
+[<804de718>] (really_probe) from [<804dea44>] (driver_probe_device+0x60/0x16c)
+[<804dea44>] (driver_probe_device) from [<804decf8>] (device_driver_attach+0x58/0x60)
+[<804decf8>] (device_driver_attach) from [<804ded58>] (__driver_attach+0x58/0xcc)
+[<804ded58>] (__driver_attach) from [<804dcbec>] (bus_for_each_dev+0x78/0xb8)
+[<804dcbec>] (bus_for_each_dev) from [<804ddc74>] (bus_add_driver+0x1b8/0x1d8)
+[<804ddc74>] (bus_add_driver) from [<804df7cc>] (driver_register+0x7c/0x114)
+[<804df7cc>] (driver_register) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b74 ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff260>] (of_irq_get+0x6c/0xb8)
+[<805ff260>] (of_irq_get) from [<804e0a38>] (platform_get_irq+0x1c/0xe8)
+[<804e0a38>] (platform_get_irq) from [<804e0b24>] (platform_irq_count+0x20/0x3c)
+[<804e0b24>] (platform_irq_count) from [<80601610>] (arm_pmu_device_probe+0x3c/0x4ac)
+[<80601610>] (arm_pmu_device_probe) from [<804e06c0>] (platform_drv_probe+0x48/0x98)
+[<804e06c0>] (platform_drv_probe) from [<804de718>] (really_probe+0xe0/0x2ac)
+[<804de718>] (really_probe) from [<804dea44>] (driver_probe_device+0x60/0x16c)
+[<804dea44>] (driver_probe_device) from [<804decf8>] (device_driver_attach+0x58/0x60)
+[<804decf8>] (device_driver_attach) from [<804ded58>] (__driver_attach+0x58/0xcc)
+[<804ded58>] (__driver_attach) from [<804dcbec>] (bus_for_each_dev+0x78/0xb8)
+[<804dcbec>] (bus_for_each_dev) from [<804ddc74>] (bus_add_driver+0x1b8/0x1d8)
+[<804ddc74>] (bus_add_driver) from [<804df7cc>] (driver_register+0x7c/0x114)
+[<804df7cc>] (driver_register) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b75 ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff260>] (of_irq_get+0x6c/0xb8)
+[<805ff260>] (of_irq_get) from [<804e0a38>] (platform_get_irq+0x1c/0xe8)
+[<804e0a38>] (platform_get_irq) from [<804e0b24>] (platform_irq_count+0x20/0x3c)
+[<804e0b24>] (platform_irq_count) from [<80601610>] (arm_pmu_device_probe+0x3c/0x4ac)
+[<80601610>] (arm_pmu_device_probe) from [<804e06c0>] (platform_drv_probe+0x48/0x98)
+[<804e06c0>] (platform_drv_probe) from [<804de718>] (really_probe+0xe0/0x2ac)
+[<804de718>] (really_probe) from [<804dea44>] (driver_probe_device+0x60/0x16c)
+[<804dea44>] (driver_probe_device) from [<804decf8>] (device_driver_attach+0x58/0x60)
+[<804decf8>] (device_driver_attach) from [<804ded58>] (__driver_attach+0x58/0xcc)
+[<804ded58>] (__driver_attach) from [<804dcbec>] (bus_for_each_dev+0x78/0xb8)
+[<804dcbec>] (bus_for_each_dev) from [<804ddc74>] (bus_add_driver+0x1b8/0x1d8)
+[<804ddc74>] (bus_add_driver) from [<804df7cc>] (driver_register+0x7c/0x114)
+[<804df7cc>] (driver_register) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b76 ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff260>] (of_irq_get+0x6c/0xb8)
+[<805ff260>] (of_irq_get) from [<804e0a38>] (platform_get_irq+0x1c/0xe8)
+[<804e0a38>] (platform_get_irq) from [<804e0b24>] (platform_irq_count+0x20/0x3c)
+[<804e0b24>] (platform_irq_count) from [<80601610>] (arm_pmu_device_probe+0x3c/0x4ac)
+[<80601610>] (arm_pmu_device_probe) from [<804e06c0>] (platform_drv_probe+0x48/0x98)
+[<804e06c0>] (platform_drv_probe) from [<804de718>] (really_probe+0xe0/0x2ac)
+[<804de718>] (really_probe) from [<804dea44>] (driver_probe_device+0x60/0x16c)
+[<804dea44>] (driver_probe_device) from [<804decf8>] (device_driver_attach+0x58/0x60)
+[<804decf8>] (device_driver_attach) from [<804ded58>] (__driver_attach+0x58/0xcc)
+[<804ded58>] (__driver_attach) from [<804dcbec>] (bus_for_each_dev+0x78/0xb8)
+[<804dcbec>] (bus_for_each_dev) from [<804ddc74>] (bus_add_driver+0x1b8/0x1d8)
+[<804ddc74>] (bus_add_driver) from [<804df7cc>] (driver_register+0x7c/0x114)
+[<804df7cc>] (driver_register) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b77 ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff260>] (of_irq_get+0x6c/0xb8)
+[<805ff260>] (of_irq_get) from [<804e0a38>] (platform_get_irq+0x1c/0xe8)
+[<804e0a38>] (platform_get_irq) from [<806016e4>] (arm_pmu_device_probe+0x110/0x4ac)
+[<806016e4>] (arm_pmu_device_probe) from [<804e06c0>] (platform_drv_probe+0x48/0x98)
+[<804e06c0>] (platform_drv_probe) from [<804de718>] (really_probe+0xe0/0x2ac)
+[<804de718>] (really_probe) from [<804dea44>] (driver_probe_device+0x60/0x16c)
+[<804dea44>] (driver_probe_device) from [<804decf8>] (device_driver_attach+0x58/0x60)
+[<804decf8>] (device_driver_attach) from [<804ded58>] (__driver_attach+0x58/0xcc)
+[<804ded58>] (__driver_attach) from [<804dcbec>] (bus_for_each_dev+0x78/0xb8)
+[<804dcbec>] (bus_for_each_dev) from [<804ddc74>] (bus_add_driver+0x1b8/0x1d8)
+[<804ddc74>] (bus_add_driver) from [<804df7cc>] (driver_register+0x7c/0x114)
+[<804df7cc>] (driver_register) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b78 ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff260>] (of_irq_get+0x6c/0xb8)
+[<805ff260>] (of_irq_get) from [<804e0a38>] (platform_get_irq+0x1c/0xe8)
+[<804e0a38>] (platform_get_irq) from [<806016e4>] (arm_pmu_device_probe+0x110/0x4ac)
+[<806016e4>] (arm_pmu_device_probe) from [<804e06c0>] (platform_drv_probe+0x48/0x98)
+[<804e06c0>] (platform_drv_probe) from [<804de718>] (really_probe+0xe0/0x2ac)
+[<804de718>] (really_probe) from [<804dea44>] (driver_probe_device+0x60/0x16c)
+[<804dea44>] (driver_probe_device) from [<804decf8>] (device_driver_attach+0x58/0x60)
+[<804decf8>] (device_driver_attach) from [<804ded58>] (__driver_attach+0x58/0xcc)
+[<804ded58>] (__driver_attach) from [<804dcbec>] (bus_for_each_dev+0x78/0xb8)
+[<804dcbec>] (bus_for_each_dev) from [<804ddc74>] (bus_add_driver+0x1b8/0x1d8)
+[<804ddc74>] (bus_add_driver) from [<804df7cc>] (driver_register+0x7c/0x114)
+[<804df7cc>] (driver_register) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b79 ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff260>] (of_irq_get+0x6c/0xb8)
+[<805ff260>] (of_irq_get) from [<804e0a38>] (platform_get_irq+0x1c/0xe8)
+[<804e0a38>] (platform_get_irq) from [<806016e4>] (arm_pmu_device_probe+0x110/0x4ac)
+[<806016e4>] (arm_pmu_device_probe) from [<804e06c0>] (platform_drv_probe+0x48/0x98)
+[<804e06c0>] (platform_drv_probe) from [<804de718>] (really_probe+0xe0/0x2ac)
+[<804de718>] (really_probe) from [<804dea44>] (driver_probe_device+0x60/0x16c)
+[<804dea44>] (driver_probe_device) from [<804decf8>] (device_driver_attach+0x58/0x60)
+[<804decf8>] (device_driver_attach) from [<804ded58>] (__driver_attach+0x58/0xcc)
+[<804ded58>] (__driver_attach) from [<804dcbec>] (bus_for_each_dev+0x78/0xb8)
+[<804dcbec>] (bus_for_each_dev) from [<804ddc74>] (bus_add_driver+0x1b8/0x1d8)
+[<804ddc74>] (bus_add_driver) from [<804df7cc>] (driver_register+0x7c/0x114)
+[<804df7cc>] (driver_register) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b7a ]---
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff260>] (of_irq_get+0x6c/0xb8)
+[<805ff260>] (of_irq_get) from [<804e0a38>] (platform_get_irq+0x1c/0xe8)
+[<804e0a38>] (platform_get_irq) from [<806016e4>] (arm_pmu_device_probe+0x110/0x4ac)
+[<806016e4>] (arm_pmu_device_probe) from [<804e06c0>] (platform_drv_probe+0x48/0x98)
+[<804e06c0>] (platform_drv_probe) from [<804de718>] (really_probe+0xe0/0x2ac)
+[<804de718>] (really_probe) from [<804dea44>] (driver_probe_device+0x60/0x16c)
+[<804dea44>] (driver_probe_device) from [<804decf8>] (device_driver_attach+0x58/0x60)
+[<804decf8>] (device_driver_attach) from [<804ded58>] (__driver_attach+0x58/0xcc)
+[<804ded58>] (__driver_attach) from [<804dcbec>] (bus_for_each_dev+0x78/0xb8)
+[<804dcbec>] (bus_for_each_dev) from [<804ddc74>] (bus_add_driver+0x1b8/0x1d8)
+[<804ddc74>] (bus_add_driver) from [<804df7cc>] (driver_register+0x7c/0x114)
+[<804df7cc>] (driver_register) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b7b ]---
+hw perfevents: enabled with armv7_cortex_a9 PMU driver, 1 counters available
+workingset: timestamp_bits=30 max_order=15 bucket_order=0
+squashfs: version 4.0 (2009/01/31) Phillip Lougher
+jffs2: version 2.2. (NAND) © 2001-2006 Red Hat, Inc.
+9p: Installing v9fs 9p2000 file system support
+io scheduler mq-deadline registered
+io scheduler kyber registered
+i2c i2c-0: Added multiplexed i2c bus 2
+drm-clcd-pl111 1001f000.clcd: assigned reserved memory node vram@4c000000
+drm-clcd-pl111 1001f000.clcd: using device-specific reserved memory
+drm-clcd-pl111 1001f000.clcd: initializing Versatile Express PL111
+drm-clcd-pl111 1001f000.clcd: core tile graphics present
+drm-clcd-pl111 1001f000.clcd: this device will be deactivated
+Error: Driver 'vexpress-muxfpga' is already registered, aborting...
+drm-clcd-pl111 10020000.clcd: initializing Versatile Express PL111
+drm-clcd-pl111 10020000.clcd: DVI muxed to daughterboard 1 (core tile) CLCD
+drm-clcd-pl111 10020000.clcd: found bridge on endpoint 0
+drm-clcd-pl111 10020000.clcd: Using non-panel bridge
+[drm] Supports vblank timestamp caching Rev 2 (21.10.2013).
+[drm] No driver support for vblank timestamp query.
+[drm] Initialized pl111 1.0.0 20170317 for 10020000.clcd on minor 0
+Console: switching to colour frame buffer device 128x48
+drm-clcd-pl111 10020000.clcd: fb0: pl111drmfb frame buffer device
+physmap-flash 40000000.flash: physmap platform flash device: [mem 0x40000000-0x43ffffff]
+40000000.flash: Found 2 x16 devices at 0x0 in 32-bit bank. Manufacturer ID 0x000000 Chip ID 0x000000
+Intel/Sharp Extended Query Table at 0x0031
+Using buffer write method
+erase region 0: offset=0x0,size=0x40000,blocks=256
+physmap-flash 40000000.flash: physmap platform flash device: [mem 0x44000000-0x47ffffff]
+40000000.flash: Found 2 x16 devices at 0x0 in 32-bit bank. Manufacturer ID 0x000000 Chip ID 0x000000
+Intel/Sharp Extended Query Table at 0x0031
+Using buffer write method
+erase region 0: offset=0x0,size=0x40000,blocks=256
+Concatenating MTD devices:
+(0): "40000000.flash"
+(1): "40000000.flash"
+into device "40000000.flash"
+physmap-flash 48000000.psram: physmap platform flash device: [mem 0x48000000-0x49ffffff]
+libphy: Fixed MDIO Bus: probed
+X1 >0x86eef688< >0x8680a600< {interrupt-controller@1e001000}
+------------[ cut here ]------------
+WARNING: CPU: 0 PID: 1 at kernel/irq/irqdomain.c:781 irq_create_fwspec_mapping+0x88/0x408
+Modules linked in:
+CPU: 0 PID: 1 Comm: swapper/0 Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80121194>] (__warn.part.3+0xb8/0xd4)
+[<80121194>] (__warn.part.3) from [<80121314>] (warn_slowpath_null+0x44/0x4c)
+[<80121314>] (warn_slowpath_null) from [<80172048>] (irq_create_fwspec_mapping+0x88/0x408)
+[<80172048>] (irq_create_fwspec_mapping) from [<80172428>] (irq_create_of_mapping+0x60/0x7c)
+[<80172428>] (irq_create_of_mapping) from [<805ff260>] (of_irq_get+0x6c/0xb8)
+[<805ff260>] (of_irq_get) from [<804e0a38>] (platform_get_irq+0x1c/0xe8)
+[<804e0a38>] (platform_get_irq) from [<805716ec>] (smsc911x_drv_probe+0x5c/0xb10)
+[<805716ec>] (smsc911x_drv_probe) from [<804e06c0>] (platform_drv_probe+0x48/0x98)
+[<804e06c0>] (platform_drv_probe) from [<804de718>] (really_probe+0xe0/0x2ac)
+[<804de718>] (really_probe) from [<804dea44>] (driver_probe_device+0x60/0x16c)
+[<804dea44>] (driver_probe_device) from [<804decf8>] (device_driver_attach+0x58/0x60)
+[<804decf8>] (device_driver_attach) from [<804ded58>] (__driver_attach+0x58/0xcc)
+[<804ded58>] (__driver_attach) from [<804dcbec>] (bus_for_each_dev+0x78/0xb8)
+[<804dcbec>] (bus_for_each_dev) from [<804ddc74>] (bus_add_driver+0x1b8/0x1d8)
+[<804ddc74>] (bus_add_driver) from [<804df7cc>] (driver_register+0x7c/0x114)
+[<804df7cc>] (driver_register) from [<80102ea8>] (do_one_initcall+0x50/0x230)
+[<80102ea8>] (do_one_initcall) from [<80a01194>] (kernel_init_freeable+0x2d4/0x36c)
+[<80a01194>] (kernel_init_freeable) from [<80735184>] (kernel_init+0x8/0x110)
+[<80735184>] (kernel_init) from [<801010e8>] (ret_from_fork+0x14/0x2c)
+Exception stack(0x86837fb0 to 0x86837ff8)
+7fa0:                                     00000000 00000000 00000000 00000000
+7fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+7fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+---[ end trace f68728a0d3053b7c ]---
+libphy: smsc911x-mdio: probed
+smsc911x 4e000000.ethernet eth0: MAC Address: 52:54:00:12:34:56
+isp1760 4f000000.usb: bus width: 32, oc: digital
+isp1760 4f000000.usb: NXP ISP1760 USB Host Controller
+isp1760 4f000000.usb: new USB bus registered, assigned bus number 1
+isp1760 4f000000.usb: Scratch test failed.
+isp1760 4f000000.usb: can't setup: -19
+isp1760 4f000000.usb: USB bus 1 deregistered
+usbcore: registered new interface driver usb-storage
+rtc-pl031 10017000.rtc: registered as rtc0
+mmci-pl18x 10005000.mmci: Got CD GPIO
+mmci-pl18x 10005000.mmci: Got WP GPIO
+mmci-pl18x 10005000.mmci: mmc0: PL181 manf 41 rev0 at 0x10005000 irq 25,26 (pio)
+ledtrig-cpu: registered to indicate activity on CPUs
+usbcore: registered new interface driver usbhid
+usbhid: USB HID core driver
+aaci-pl041 10004000.aaci: ARM AC'97 Interface PL041 rev0 at 0x10004000, irq 24
+aaci-pl041 10004000.aaci: FIFO 512 entries
+oprofile: using arm/armv7-ca9
+NET: Registered protocol family 17
+9pnet: Installing 9P2000 support
+Registering SWP/SWPB emulation handler
+input: AT Raw Set 2 keyboard as /devices/platform/smb@4000000/smb@4000000:motherboard/smb@4000000:motherboard:iofpga@7,00000000/10006000.kmi/serio0/input/input0
+mmc0: new SD card at address 4567
+rtc-pl031 10017000.rtc: setting system clock to 2019-06-07T12:49:39 UTC (1559911779)
+ALSA device list:
+  #0: ARM AC'97 Interface PL041 rev0 at 0x10004000, irq 24
+mmcblk0: mmc0:4567 QEMU! 8.00 MiB 
+random: fast init done
+input: ImExPS/2 Generic Explorer Mouse as /devices/platform/smb@4000000/smb@4000000:motherboard/smb@4000000:motherboard:iofpga@7,00000000/10007000.kmi/serio1/input/input2
+EXT4-fs (mmcblk0): mounted filesystem with ordered data mode. Opts: (null)
+VFS: Mounted root (ext4 filesystem) readonly on device 179:0.
+devtmpfs: mounted
+Freeing unused kernel memory: 1024K
+Run /bin/dmesg as init process
+random: crng init done
+Kernel panic - not syncing: Attempted to kill init! exitcode=0x00000000
+CPU: 0 PID: 1 Comm: dmesg Tainted: G        W         5.2.0-rc3+ #14
+Hardware name: ARM-Versatile Express
+[<80110af4>] (unwind_backtrace) from [<8010c750>] (show_stack+0x10/0x14)
+[<8010c750>] (show_stack) from [<8071d9d4>] (dump_stack+0x88/0x9c)
+[<8071d9d4>] (dump_stack) from [<80120edc>] (panic+0x108/0x308)
+[<80120edc>] (panic) from [<80125220>] (do_exit+0xaec/0xb04)
+[<80125220>] (do_exit) from [<801260bc>] (do_group_exit+0x3c/0xd0)
+[<801260bc>] (do_group_exit) from [<80126160>] (__wake_up_parent+0x0/0x18)
+Rebooting in 1 seconds..
