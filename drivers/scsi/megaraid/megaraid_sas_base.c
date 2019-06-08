@@ -64,45 +64,45 @@
  * Will be set in megasas_init_mfi if user does not provide
  */
 static unsigned int max_sectors;
-module_param_named(max_sectors, max_sectors, int, 0);
+module_param_named(max_sectors, max_sectors, int, 0444);
 MODULE_PARM_DESC(max_sectors,
 	"Maximum number of sectors per IO command");
 
 static int msix_disable;
-module_param(msix_disable, int, S_IRUGO);
+module_param(msix_disable, int, 0444);
 MODULE_PARM_DESC(msix_disable, "Disable MSI-X interrupt handling. Default: 0");
 
 static unsigned int msix_vectors;
-module_param(msix_vectors, int, S_IRUGO);
+module_param(msix_vectors, int, 0444);
 MODULE_PARM_DESC(msix_vectors, "MSI-X max vector count. Default: Set by FW");
 
 static int allow_vf_ioctls;
-module_param(allow_vf_ioctls, int, S_IRUGO);
+module_param(allow_vf_ioctls, int, 0444);
 MODULE_PARM_DESC(allow_vf_ioctls, "Allow ioctls in SR-IOV VF mode. Default: 0");
 
 static unsigned int throttlequeuedepth = MEGASAS_THROTTLE_QUEUE_DEPTH;
-module_param(throttlequeuedepth, int, S_IRUGO);
+module_param(throttlequeuedepth, int, 0444);
 MODULE_PARM_DESC(throttlequeuedepth,
 	"Adapter queue depth when throttled due to I/O timeout. Default: 16");
 
 unsigned int resetwaittime = MEGASAS_RESET_WAIT_TIME;
-module_param(resetwaittime, int, S_IRUGO);
+module_param(resetwaittime, int, 0444);
 MODULE_PARM_DESC(resetwaittime, "Wait time in (1-180s) after I/O timeout before resetting adapter. Default: 180s");
 
 int smp_affinity_enable = 1;
-module_param(smp_affinity_enable, int, S_IRUGO);
+module_param(smp_affinity_enable, int, 0444);
 MODULE_PARM_DESC(smp_affinity_enable, "SMP affinity feature enable/disable Default: enable(1)");
 
 int rdpq_enable = 1;
-module_param(rdpq_enable, int, S_IRUGO);
+module_param(rdpq_enable, int, 0444);
 MODULE_PARM_DESC(rdpq_enable, "Allocate reply queue in chunks for large queue depth enable/disable Default: enable(1)");
 
 unsigned int dual_qdepth_disable;
-module_param(dual_qdepth_disable, int, S_IRUGO);
+module_param(dual_qdepth_disable, int, 0444);
 MODULE_PARM_DESC(dual_qdepth_disable, "Disable dual queue depth feature. Default: 0");
 
 unsigned int scmd_timeout = MEGASAS_DEFAULT_CMD_TIMEOUT;
-module_param(scmd_timeout, int, S_IRUGO);
+module_param(scmd_timeout, int, 0444);
 MODULE_PARM_DESC(scmd_timeout, "scsi command timeout (10-90s), default 90s. See megasas_reset_timer.");
 
 MODULE_LICENSE("GPL");
@@ -3121,7 +3121,7 @@ megasas_service_aen(struct megasas_instance *instance, struct megasas_cmd *cmd)
 }
 
 static ssize_t
-megasas_fw_crash_buffer_store(struct device *cdev,
+fw_crash_buffer_store(struct device *cdev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct Scsi_Host *shost = class_to_shost(cdev);
@@ -3140,14 +3140,13 @@ megasas_fw_crash_buffer_store(struct device *cdev,
 }
 
 static ssize_t
-megasas_fw_crash_buffer_show(struct device *cdev,
+fw_crash_buffer_show(struct device *cdev,
 	struct device_attribute *attr, char *buf)
 {
 	struct Scsi_Host *shost = class_to_shost(cdev);
 	struct megasas_instance *instance =
 		(struct megasas_instance *) shost->hostdata;
 	u32 size;
-	unsigned long buff_addr;
 	unsigned long dmachunk = CRASH_DMA_BUF_SIZE;
 	unsigned long src_addr;
 	unsigned long flags;
@@ -3163,8 +3162,6 @@ megasas_fw_crash_buffer_show(struct device *cdev,
 		spin_unlock_irqrestore(&instance->crashdump_lock, flags);
 		return -EINVAL;
 	}
-
-	buff_addr = (unsigned long) buf;
 
 	if (buff_offset > (instance->fw_crash_buffer_size * dmachunk)) {
 		dev_err(&instance->pdev->dev,
@@ -3185,7 +3182,7 @@ megasas_fw_crash_buffer_show(struct device *cdev,
 }
 
 static ssize_t
-megasas_fw_crash_buffer_size_show(struct device *cdev,
+fw_crash_buffer_size_show(struct device *cdev,
 	struct device_attribute *attr, char *buf)
 {
 	struct Scsi_Host *shost = class_to_shost(cdev);
@@ -3197,7 +3194,7 @@ megasas_fw_crash_buffer_size_show(struct device *cdev,
 }
 
 static ssize_t
-megasas_fw_crash_state_store(struct device *cdev,
+fw_crash_state_store(struct device *cdev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct Scsi_Host *shost = class_to_shost(cdev);
@@ -3232,7 +3229,7 @@ megasas_fw_crash_state_store(struct device *cdev,
 }
 
 static ssize_t
-megasas_fw_crash_state_show(struct device *cdev,
+fw_crash_state_show(struct device *cdev,
 	struct device_attribute *attr, char *buf)
 {
 	struct Scsi_Host *shost = class_to_shost(cdev);
@@ -3243,14 +3240,14 @@ megasas_fw_crash_state_show(struct device *cdev,
 }
 
 static ssize_t
-megasas_page_size_show(struct device *cdev,
+page_size_show(struct device *cdev,
 	struct device_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%ld\n", (unsigned long)PAGE_SIZE - 1);
 }
 
 static ssize_t
-megasas_ldio_outstanding_show(struct device *cdev, struct device_attribute *attr,
+ldio_outstanding_show(struct device *cdev, struct device_attribute *attr,
 	char *buf)
 {
 	struct Scsi_Host *shost = class_to_shost(cdev);
@@ -3260,7 +3257,7 @@ megasas_ldio_outstanding_show(struct device *cdev, struct device_attribute *attr
 }
 
 static ssize_t
-megasas_fw_cmds_outstanding_show(struct device *cdev,
+fw_cmds_outstanding_show(struct device *cdev,
 				 struct device_attribute *attr, char *buf)
 {
 	struct Scsi_Host *shost = class_to_shost(cdev);
@@ -3270,7 +3267,7 @@ megasas_fw_cmds_outstanding_show(struct device *cdev,
 }
 
 static ssize_t
-megasas_dump_system_regs_show(struct device *cdev,
+dump_system_regs_show(struct device *cdev,
 			       struct device_attribute *attr, char *buf)
 {
 	struct Scsi_Host *shost = class_to_shost(cdev);
@@ -3281,7 +3278,7 @@ megasas_dump_system_regs_show(struct device *cdev,
 }
 
 static ssize_t
-megasas_raid_map_id_show(struct device *cdev, struct device_attribute *attr,
+raid_map_id_show(struct device *cdev, struct device_attribute *attr,
 			  char *buf)
 {
 	struct Scsi_Host *shost = class_to_shost(cdev);
@@ -3292,22 +3289,14 @@ megasas_raid_map_id_show(struct device *cdev, struct device_attribute *attr,
 			(unsigned long)instance->map_id);
 }
 
-static DEVICE_ATTR(fw_crash_buffer, S_IRUGO | S_IWUSR,
-	megasas_fw_crash_buffer_show, megasas_fw_crash_buffer_store);
-static DEVICE_ATTR(fw_crash_buffer_size, S_IRUGO,
-	megasas_fw_crash_buffer_size_show, NULL);
-static DEVICE_ATTR(fw_crash_state, S_IRUGO | S_IWUSR,
-	megasas_fw_crash_state_show, megasas_fw_crash_state_store);
-static DEVICE_ATTR(page_size, S_IRUGO,
-	megasas_page_size_show, NULL);
-static DEVICE_ATTR(ldio_outstanding, S_IRUGO,
-	megasas_ldio_outstanding_show, NULL);
-static DEVICE_ATTR(fw_cmds_outstanding, S_IRUGO,
-	megasas_fw_cmds_outstanding_show, NULL);
-static DEVICE_ATTR(dump_system_regs, S_IRUGO,
-	megasas_dump_system_regs_show, NULL);
-static DEVICE_ATTR(raid_map_id, S_IRUGO,
-	megasas_raid_map_id_show, NULL);
+static DEVICE_ATTR_RW(fw_crash_buffer);
+static DEVICE_ATTR_RO(fw_crash_buffer_size);
+static DEVICE_ATTR_RW(fw_crash_state);
+static DEVICE_ATTR_RO(page_size);
+static DEVICE_ATTR_RO(ldio_outstanding);
+static DEVICE_ATTR_RO(fw_cmds_outstanding);
+static DEVICE_ATTR_RO(dump_system_regs);
+static DEVICE_ATTR_RO(raid_map_id);
 
 struct device_attribute *megaraid_host_attrs[] = {
 	&dev_attr_fw_crash_buffer_size,
@@ -4122,21 +4111,10 @@ static int megasas_create_frame_pool(struct megasas_instance *instance)
 {
 	int i;
 	u16 max_cmd;
-	u32 sge_sz;
 	u32 frame_count;
 	struct megasas_cmd *cmd;
 
 	max_cmd = instance->max_mfi_cmds;
-
-	/*
-	 * Size of our frame is 64 bytes for MFI frame, followed by max SG
-	 * elements and finally SCSI_SENSE_BUFFERSIZE bytes for sense buffer
-	 */
-	sge_sz = (IS_DMA64) ? sizeof(struct megasas_sge64) :
-	    sizeof(struct megasas_sge32);
-
-	if (instance->flag_ieee)
-		sge_sz = sizeof(struct megasas_sge_skinny);
 
 	/*
 	 * For MFI controllers.
@@ -4424,7 +4402,6 @@ megasas_get_pd_list(struct megasas_instance *instance)
 	struct megasas_dcmd_frame *dcmd;
 	struct MR_PD_LIST *ci;
 	struct MR_PD_ADDRESS *pd_addr;
-	dma_addr_t ci_h = 0;
 
 	if (instance->pd_list_not_supported) {
 		dev_info(&instance->pdev->dev, "MR_DCMD_PD_LIST_QUERY "
@@ -4433,7 +4410,6 @@ megasas_get_pd_list(struct megasas_instance *instance)
 	}
 
 	ci = instance->pd_list_buf;
-	ci_h = instance->pd_list_buf_h;
 
 	cmd = megasas_get_cmd(instance);
 
