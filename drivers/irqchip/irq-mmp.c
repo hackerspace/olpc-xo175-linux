@@ -472,8 +472,13 @@ static int __init mmp3_of_init(struct device_node *node,
 	icu_data[0].conf_disable = mmp3_conf.conf_disable;
 	icu_data[0].conf_mask = mmp3_conf.conf_mask;
 	icu_data[0].conf2_mask = mmp3_conf.conf2_mask;
-	irq_set_default_host(icu_data[0].domain);
-	set_handle_irq(mmp2_handle_irq);
+
+	if (!parent) {
+		/* This is the main interrupt controller. */
+		irq_set_default_host(icu_data[0].domain);
+		set_handle_irq(mmp2_handle_irq);
+	}
+
 	max_icu_nr = 1;
 	return 0;
 }
