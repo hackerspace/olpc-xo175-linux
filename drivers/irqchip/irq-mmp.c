@@ -465,8 +465,46 @@ static int __init mmp3_of_init(struct device_node *node,
 	icu_data[0].conf_disable = mmp3_conf.conf_disable;
 	icu_data[0].conf_mask = mmp3_conf.conf_mask;
 	icu_data[0].conf2_mask = mmp3_conf.conf2_mask;
-	irq_set_default_host(icu_data[0].domain);
-	set_handle_irq(mmp2_handle_irq);
+
+	if (!parent) {
+		/* This is the main interrupt controller. */
+		irq_set_default_host(icu_data[0].domain);
+		set_handle_irq(mmp2_handle_irq);
+	} else {
+#if 0
+		/*
+		 * Disable the global IRQs of ICU for MP1, MP2, MM.  Ignore
+		 * IRQ0, as it goes to the SP.
+		 */
+
+		/* PJ4-MP1 */
+		__raw_writel(0x1, MMP3_ICU_GBL_IRQ1_MSK);
+		__raw_writel(0x1, MMP3_ICU_GBL_IRQ2_MSK);
+		/* PJ4-MP2 */
+		__raw_writel(0x1, MMP3_ICU_GBL_IRQ3_MSK);
+		__raw_writel(0x1, MMP3_ICU_GBL_IRQ4_MSK);
+		/* PJ4-MM */
+		__raw_writel(0x1, MMP3_ICU_GBL_IRQ5_MSK);
+		__raw_writel(0x1, MMP3_ICU_GBL_IRQ6_MSK);
+
+		/*
+		* It is required to unmask ICU1_INT_35_MASK_NPMUIRQ_[0-2], 24-2
+		* bit to enable IRQ_MMP3_PMU_CPU[0-2] (via sysint[86-88])
+		*/
+		val = __raw_readl(MMP2_ICU_INT35_MASK);
+		val &= ~((1<<24) | (1<<23) | (1<<22));
+		__raw_writel(val, MMP2_ICU_INT35_MASK);
+
+		gic_arch_extn.irq_set_wake = mmp2_set_wake;
+
+		/*
+		 * Note: IRQ_MMP3_PMIC requires the PMIC MFPR register
+		 * to be written to clear the interrupt.
+		 */
+		pmic_set_ack(IRQ_MMP2_PMIC);
+#endif
+	}
+
 	max_icu_nr = 1;
 	return 0;
 }
@@ -475,6 +513,8 @@ IRQCHIP_DECLARE(mmp3_intc, "marvell,mmp3-intc", mmp3_of_init);
 static int __init mmp2_mux_of_init(struct device_node *node,
 				   struct device_node *parent)
 {
+	// XXX mmp_irq_domain_ops
+
 	int i, ret, irq, j = 0;
 	u32 nr_irqs, mfp_irq;
 	u32 reg[4];
