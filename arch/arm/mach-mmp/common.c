@@ -61,5 +61,10 @@ void __init mmp2_map_io(void)
 
 void mmp_restart(enum reboot_mode mode, const char *cmd)
 {
-	soft_restart(0);
+#if 0
+        if (reboot_mode == REBOOT_SOFT)
+                soft_restart(0);
+	else
+#endif
+		mmp_timer_watchdog_restart();
 }

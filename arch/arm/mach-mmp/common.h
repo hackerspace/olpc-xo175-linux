@@ -2,7 +2,8 @@
 #include <linux/reboot.h>
 #define ARRAY_AND_SIZE(x)	(x), ARRAY_SIZE(x)
 
-extern void mmp_timer_init(int irq, unsigned long rate);
+extern void __init mmp_timer_init(int irq, unsigned long rate);
+extern void mmp_timer_watchdog_restart(void);
 
 extern void __init mmp_map_io(void);
 extern void __init mmp2_map_io(void);

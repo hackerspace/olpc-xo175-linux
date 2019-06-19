@@ -196,6 +196,30 @@ void __init mmp_timer_init(int irq, unsigned long rate)
 	clockevents_config_and_register(&ckevt, rate, MIN_DELTA, MAX_DELTA);
 }
 
+static void mmp_watchdog_writel(u32 value, unsigned offset)
+{
+	__raw_writel(0xbaba, mmp_timer_base + TMR_WFAR);
+	__raw_writel(0xeb10, mmp_timer_base + TMR_WSAR);
+	__raw_writel(value, mmp_timer_base + offset);
+}
+
+void mmp_timer_watchdog_restart(void)
+{
+	uint32_t match;
+	uint32_t count;
+
+	/* clear previous WDT status */
+	mmp_watchdog_writel (0, TMR_WSR);
+
+	match = __raw_readl(mmp_timer_base + TMR_WMR);
+	count = __raw_readl(mmp_timer_base + TMR_WVR);
+
+	if (match - count > 0x20) {
+		/* set match counter */
+		mmp_watchdog_writel(0x20 + count, TMR_WMR);
+	}
+}
+
 static int __init mmp_dt_init_timer(struct device_node *np)
 {
 	struct clk *clk;
