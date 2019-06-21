@@ -76,6 +76,8 @@
 #define MMP2_CLK_GPU_GC			122
 #define MMP2_CLK_GPU_BUS_MUX		123
 #define MMP2_CLK_GPU_BUS		124
+#define MMP2_CLK_USBHSIC0		125
+#define MMP2_CLK_USBHSIC1		126
 
 #define MMP2_NR_CLKS			200
 #endif
