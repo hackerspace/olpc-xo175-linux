@@ -1,0 +1,116 @@
+                                  dell       my
+MPMU_PLL2CR            0xd4050034 0x001C5300 0x001C5300
+MPMU_PLL2_CTRL2        0xd4050418 0x00000001 0x00000001
+MPMU_PLL2_CTRL1        0xd4050414 0x25390699 0x25390699
+MPMU_PLL2_SSC          0xd4050068 0x000004D1 0x000004D1
+MPMU_FCCR              0xd4050008 0x41800000 0x41800000
+APMU_CC_PJ             0xd4282804 0x00BC8410 0x00BC0510
+APMU_CC2_PJ            0xd4282950 0x8E220003 0x8E220001
+APMU_CC3_PJ            0xd4282988 0x0210EC18 0x0210EC18
+APMU_BUS_CLK_RES_CTRL  0xd428286c 0x00000643 0x00000603
+
+
+
+: set-frequency-800m  ( -- )                   |: set-frequency-1g  ( -- )                      |: set-frequency-1.2g  ( -- )
+                                               |                                                |   \  Static Frequency Change
+                                               |                                                |   \ PMUM_CONF_PLL2 - Disable PLL2
+                                               |                                                |   h#      100  h#  34 mpmu-clr
+                                               |                                                |   \ PMUM_PLL2_CTRL - Enable phase
+                                               |                                                |   \    interpolators and set bias
+                                               |                                                |   h#       e8  h# 418 mpmu-set
+                                               |                                                |
+                                               |                                                |   \ PMUM_PLL2_CTRL1 - post-div 2,
+                                               |                                                |   \ 6 uA charge pump,
+                                               |                                                |   \ 2.3-2.4 GHz VCO range
+                                               |                                                |   h# 05390699  h# 414 mpmu!
+                                               |                                                |
+                                               |                                                |   \ PMUM_PLL2CR - ref div 3,
+                                               |                                                |   \ fbdiv 276 (0x114) for 2392 MHz
+                                               |                                                |   h# 001C5200  h#  34 mpmu!
+                                               |                                                |   fc-delay
+                                               |                                                |
+                                               |                                                |   \ PMUM_PLL2CR - Enable PLL2
+                                               |                                                |   h#      100  h#  34 mpmu-set
+                                               |                                                |   fc-delay
+                                               |                                                |
+                                               |                                                |   \ Release PLL2 reset
+                                               |                                                |   h# 20000000  h# 414 mpmu-set
+                                               |                                                |   fc-delay
+                                               |                                                |
+                                               |   \ PMUM_PLL_DIFF_CTRL - Enable PLL1CLKOUTP    |   \ PMUM_PLL_DIFF_CTL - Enable PLL1_CLKOUTP,
+                                               |                                                |   \ postdiv 1.5
+                                               |   h#       10  h# 68 mpmu-set                  |   h#       11  h#  68 mpmu!
+                                               |                                                |   fc-delay
+                                               |                                                |
+                                               |                                                |
+                                               |                                                |
+                                               |                                                |
+   \ pjdiv 0,                                  |   \ pjdiv 0,                                   |   \ pjclk/1
+   \ atdiv 2,                                  |   \ atdiv 2,                                   |   \ atclk/3,
+   \ reserved 3,                               |   \ reserved 3,                                |
+   \ peripheral 1,                             |   \ peripheral 2,                              |   \ periphclk/6,
+   \ ddrdiv 0,                                 |   \ ddrdiv 0,                                  |   \ PMUA_CC_PJ - ddrclk/1,
+   \ axidiv 0,                                 |   \ axidiv 0,                                  |
+   \ mb1 f,                                    |   \ mb1 f,                                     |
+   \ mb1 1                                     |   \ mb1 1                                      |
+                                               |                                                |
+   \ PMUA_CC_PJ  (octal 57001320)              |   \ PMUA_CC_PJ  (octal 57002321)               |
+   h# 00BC02D0  04 pmua!                       |   h# 00BC04D0  h# 004 pmua!                    |   h# 00BC04D0  h#  04 pmua!
+   \ PMUA_CC2_PJ  - clear divisor fields       |   \ PMUA_CC2_PJ  - clear divisor fields        |
+   h# 01fffe07  h# 150 pmua-clr                |   h# 01fffe07  h# 150 pmua-clr                 |   h# 01fffe07  h# 150 pmua-clr
+                                               |                                                |
+                                               |                                                |
+                                               |                                                |
+                                               |                                                |
+                                               |                                                |   \ mp2/1,
+                                               |                                                |   \ mp1/1,
+   \ axi clk2 div = 1 (ratio = 2),             |   \  axi clk2 div = 1 (ratio = 2),             |   \ axiclk/2
+   \ mmcore pclk 1 (ratio = 2),                |   \ mmcore pclk 1 (ratio = 2),                 |   \ mm/1,
+   \ aclk div 1 (ratio = 2)                    |   \ aclk div 1 (ratio = 2)                     |   \ PMUA_CC2_PJ - aclk/2,
+   h# 00220001  h# 150 pmua-set                |   h# 00220001  h# 150 pmua-set                 |   h# 80240001  h# 150 pmua-set
+                                               |                                                |
+                                               |                                                |
+                                               |                                                |
+   \ PMUA_CC3_PJ  clear divisor field          |   \ PMUA_CC3_PJ  clear divisor field           |   \ PMUA_CC3_PJ  clear divisor field
+   h# 01f00000  h# 188 pmua-clr                |   h# 01f00000  h# 188 pmua-clr                 |   h# 01f00000  h# 188 pmua-clr
+   \  set low bit of ATCLK/PCLKDBG ratio field |   \  set low bit of ATCLK/PCLKDBG ratio field  |   \ set low bit of ATCLK/PCLKDBG ratio field
+   h#   100000  h# 188 pmua-set                |   h#   100000  h# 188 pmua-set                 |   h# 00100000  h# 188 pmua-set
+                                               |                                                |
+                                               |                                                |
+                                               |                                                |
+                                               |                                                |
+   \ PMUM_FCCR - PJCLKSEL 1 (use PLL1),        |   \ PMUM_FCCR - PJCLKSEL 3 (use PLL1CLKOUTP),  |   \ PMUM_FCCR - PJCLKSEL 2 (use PLL2),
+   \ SPCLKSEL 0 (PLL1/2),                      |   \ SPCLKSEL 0 (PLL1/2),                       |   \ SPCLKSEL 0 (PLL1/2),
+   \ DDRCLKSEL 0 (PLL1/2),                     |   \ DDRCLKSEL 1 (PLL1),                        |   \ DDRCLKSEL 3,
+   \ PLL1REFD = 0,                             |   \ PLL1REFD = 0,                              |
+   \ PLL1FBD = 8                               |   \ PLL1FBD = 8                                |
+                                               |                                                |   \ PLL1CEN 0
+                                               |                                                |   \ For running memory at 533
+                                               |                                                |   \  h# 41800000  h#  08 mpmu!
+                                               |                                                |   \ For running memory at 400
+   h# 20800000  h# 08 mpmu!                    |   h# 60800000  h# 08 mpmu!                     |   h# 40800000  h#  08 mpmu!
+                                               |                                                |
+                                               |                                                |
+                                               |                                                |
+                                               |                                                |
+                                               |                                                |
+                                               |                                                |
+   \ PMUA_BUS_CLK_RES_CTRL - DCLK2_PLL_SEL     |   \ PMUA_BUS_CLK_RES_CTRL - DCLK2_PLL_SEL      |   \ PMUA_BUS_CLK_RES_CTRL - DCLK2_PLL_SEL
+   \ = 1 (PLL1),                               |   \ = 1 (PLL1),                                |   \ = 3 (PLL1_CLKOUTP),
+   \ SOC_AXI_CLK_PLL_SEL = 0 (PLL1/2),         |   \ SOC_AXI_CLK_PLL_SEL = 0 (PLL1/2),          |   \ SOC_AXI_CLK_PLL_SEL = 0 (PLL1/2),
+   \ unreset both DDR channels                 |   \ unreset both DDR channels                  |   \ unreset both DDR channels
+                                               |                                                |   \ For running memory at 533
+                                               |                                                |   \  h# 00000603  h#  6c pmua!
+                                               |                                                |   \ For running memory at 400
+   h# 00000203  h# 06c pmua!                   |   h# 00000203  h# 06c pmua!                    |   h# 00000203  h#  6c pmua!
+                                               |                                                |
+                                               |                                                |
+                                               |                                                |
+                                               |                                                |
+                                               |                                                |
+                                               |                                                |
+   fc-delay                                    |   fc-delay                                     |   fc-delay
+   h# F0000000  h# 004 pmua-set                |   h# F0000000  h# 004 pmua-set                 |   h# f0000000  h#   4 pmua-set
+   \  force frequency change                   |   \  force frequency change                    |   \  force frequency change
+   fc-delay                                    |   fc-delay                                     |   fc-delay
+;
