@@ -17,7 +17,7 @@
 
 #include "common.h"
 
-static void __init mmp_init_time(void)
+static void __init mmp2_init_time(void)
 {
 #ifdef CONFIG_CACHE_TAUROS2
 	tauros2_init(0);
@@ -33,6 +33,6 @@ static const char *const mmp2_dt_board_compat[] __initconst = {
 
 DT_MACHINE_START(MMP2_DT, "Marvell MMP2 (Device Tree Support)")
 	.map_io		= mmp2_map_io,
-	.init_time	= mmp_init_time,
+	.init_time	= mmp2_init_time,
 	.dt_compat	= mmp2_dt_board_compat,
 MACHINE_END
