@@ -224,6 +224,8 @@ int request_irq(unsigned int irq,
 	struct irq_node *node;
 	int res;
 
+printk("REQUEST_IRQ {%d}\n", irq);
+
 	node = new_irq_node();
 	if (!node)
 		return -ENOMEM;

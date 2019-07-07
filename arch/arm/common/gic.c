@@ -87,6 +87,7 @@ static void gic_mask_irq(struct irq_data *d)
 {
 	u32 mask = 1 << (d->irq % 32);
 
+printk(">>> GIC_MASK_IRQ {%d} 0x%08x -> 0x%08x<<<\n", d->irq, mask, gic_dist_base(d) + GIC_DIST_ENABLE_CLEAR + (gic_irq(d) / 32) * 4);
 	raw_spin_lock(&irq_controller_lock);
 	writel_relaxed(mask, gic_dist_base(d) + GIC_DIST_ENABLE_CLEAR + (gic_irq(d) / 32) * 4);
 	if (gic_arch_extn.irq_mask)
@@ -98,6 +99,8 @@ static void gic_unmask_irq(struct irq_data *d)
 {
 	u32 mask = 1 << (d->irq % 32);
 
+WARN_ON(1);
+printk(">>> GIC_UNMASK_IRQ {%d} 0x%08x -> 0x%08x<<<\n", d->irq, mask, gic_dist_base(d) + GIC_DIST_ENABLE_SET + (gic_irq(d) / 32) * 4);
 	raw_spin_lock(&irq_controller_lock);
 	if (gic_arch_extn.irq_unmask)
 		gic_arch_extn.irq_unmask(d);
@@ -572,6 +575,7 @@ void __cpuinit gic_enable_ppi(unsigned int irq)
 {
 	unsigned long flags;
 
+printk(">>> ENABLE PPI <<<\n");
 	local_irq_save(flags);
 	irq_set_status_flags(irq, IRQ_NOPROBE);
 	gic_unmask_irq(irq_get_irq_data(irq));
