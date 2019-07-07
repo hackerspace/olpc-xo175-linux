@@ -149,10 +149,15 @@ device_initcall(timer_init_syscore_ops);
 
 void __init time_init(void)
 {
+printk("TIME INIT 1\n");
 	system_timer = machine_desc->timer;
+printk("TIME INIT 2 %08x\n", system_timer);
+printk("TIME INIT 3 %08x\n", system_timer->init);
 	system_timer->init();
+printk("TIME INIT 4\n");
 #ifdef CONFIG_HAVE_SCHED_CLOCK
 	sched_clock_postinit();
 #endif
+printk("TIME INIT 5\n");
 }
 

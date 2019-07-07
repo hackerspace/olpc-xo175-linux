@@ -416,7 +416,7 @@ static void __init mmp3_timer_init(void)
 #ifdef CONFIG_SOC_LOCAL_TIMERS
 	timer_init(IRQ_MMP3_TIMER1, IRQ_MMP3_TIMER2, IRQ_MMP3_TIMER3);
 #else
-	timer_init(IRQ_MMP3_TIMER1, IRQ_MMP3_TIMER2);
+	//timer_init(IRQ_MMP3_TIMER1, IRQ_MMP3_TIMER2);
 #endif
 }
 

@@ -540,9 +540,13 @@ asmlinkage void __init start_kernel(void)
 	hrtimers_init();
 	softirq_init();
 	timekeeping_init();
+printk("MEHEH 0\n");
 	time_init();
+printk("MEHEH 1\n");
 	profile_init();
+printk("MEHEH 2\n");
 	call_function_init();
+printk("MEHEH 3\n");
 	if (!irqs_disabled())
 		printk(KERN_CRIT "start_kernel(): bug: interrupts were "
 				 "enabled early\n");
