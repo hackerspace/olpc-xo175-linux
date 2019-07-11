@@ -28,7 +28,9 @@
 		#address-cells = <0x1>;
 		#size-cells = <0x1>;
 		ranges;
-		bootargs = "earlyprintk=ttyS2,115200,keep ignore_loglevel root=/dev/sda4 rootwait clk_ignore_unused irqpoll console=ttyS2,115200";
+		//bootargs = "earlyprintk=ttyS2,115200,keep ignore_loglevel root=/dev/sda4 rootwait clk_ignore_unused xmaxcpus=1 console=ttyS2,115200   irqaffinity=0 isolcpus=domain,1";
+		//bootargs = "earlyprintk=ttyS2,115200,keep ignore_loglevel root=/dev/sda4 rootwait clk_ignore_unused xmaxcpus=1 console=ttyS2,115200   isolcpus=domain,1   dyndbg=\"module irqdomain +p; module irq +p\"    irqpoll";
+		bootargs = "console=ttyS2,115200 rdinit=/bin/init rootwait clk_ignore_unused console=ttyS2,115200";
 	};
 
 	memory {
