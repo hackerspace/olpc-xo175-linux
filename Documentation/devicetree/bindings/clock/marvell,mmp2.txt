@@ -13,7 +13,8 @@ Required Properties:
   "mpmu", "apmu", "apbc". So three reg spaces need to be defined.
 
 - #clock-cells: should be 1.
-- #reset-cells: should be 1.
+- #reset-cells: should be 1
+- #power-domain-cells: should 1
 
 Each clock is assigned an identifier and client nodes use this identifier
 to specify the clock which they consume.

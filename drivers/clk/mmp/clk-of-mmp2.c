@@ -16,8 +16,11 @@
 #include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/of_address.h>
+#include <linux/pm_domain.h>
+#include <linux/clk.h>
 
 #include <dt-bindings/clock/marvell,mmp2.h>
+#include <dt-bindings/power/marvell,mmp2.h>
 
 #include "clk.h"
 #include "reset.h"
@@ -53,10 +56,13 @@
 #define APMU_DISP1	0x110
 #define APMU_CCIC0	0x50
 #define APMU_CCIC1	0xf4
+#define APMU_GPU	0xcc
 #define MPMU_UART_PLL	0x14
 
 struct mmp2_clk_unit {
 	struct mmp_clk_unit unit;
+	struct genpd_onecell_data pd_data;
+	struct generic_pm_domain gpu_pm_domain;
 	void __iomem *mpmu_base;
 	void __iomem *apmu_base;
 	void __iomem *apbc_base;
@@ -202,6 +208,13 @@ static const char *disp_parent_names[] = {"pll1", "pll1_16", "pll2", "vctcxo"};
 static DEFINE_SPINLOCK(ccic0_lock);
 static DEFINE_SPINLOCK(ccic1_lock);
 static const char *ccic_parent_names[] = {"pll1_2", "pll1_16", "vctcxo"};
+
+static DEFINE_SPINLOCK(gpu_lock);
+static const char *gpu_gc_parent_names[] = {"pll1_2", "pll1_3", "pll2_2", "pll2_3", "pll2", "usb_pll"};
+static u32 gpu_gc_parent_table[] =         {0x0000,   0x0040,   0x0080,   0x00c0,   0x1000, 0x1040   };
+static const char *gpu_bus_parent_names[] = {"pll1_4", "pll2", "pll2_2", "usb_pll"};
+static u32 gpu_bus_parent_table[] =         {0x0000,   0x0020, 0x0030,   0x4020   };
+
 static struct mmp_clk_mix_config ccic0_mix_config = {
 	.reg_info = DEFINE_MIX_REG_INFO(4, 17, 2, 6, 32),
 };
@@ -240,6 +253,8 @@ static struct mmp_param_gate_clk apmu_gate_clks[] = {
 	{MMP2_CLK_CCIC1, "ccic1_clk", "ccic1_mix_clk", CLK_SET_RATE_PARENT, APMU_CCIC1, 0x1b, 0x1b, 0x0, 0, &ccic1_lock},
 	{MMP2_CLK_CCIC1_PHY, "ccic1_phy_clk", "ccic1_mix_clk", CLK_SET_RATE_PARENT, APMU_CCIC1, 0x24, 0x24, 0x0, 0, &ccic1_lock},
 	{MMP2_CLK_CCIC1_SPHY, "ccic1_sphy_clk", "ccic1_sphy_div", CLK_SET_RATE_PARENT, APMU_CCIC1, 0x300, 0x300, 0x0, 0, &ccic1_lock},
+	{MMP2_CLK_GPU_GC, "gpu_gc_clk", "gpu_gc_mux", CLK_SET_RATE_PARENT, APMU_GPU, 0x5, 0x5, 0x0, MMP_CLK_GATE_NEED_DELAY, &gpu_lock},
+	{MMP2_CLK_GPU_BUS, "gpu_bus_clk", "gpu_bus_mux", CLK_SET_RATE_PARENT, APMU_GPU, 0xa, 0xa, 0x0, MMP_CLK_GATE_NEED_DELAY, &gpu_lock},
 };
 
 static void mmp2_axi_periph_clk_init(struct mmp2_clk_unit *pxa_unit)
@@ -270,6 +285,22 @@ static void mmp2_axi_periph_clk_init(struct mmp2_clk_unit *pxa_unit)
 	mmp_register_mux_clks(unit, apmu_mux_clks, pxa_unit->apmu_base,
 				ARRAY_SIZE(apmu_mux_clks));
 
+	clk = clk_register_mux_table(NULL, "gpu_gc_mux", gpu_gc_parent_names,
+					ARRAY_SIZE(gpu_gc_parent_names),
+					CLK_SET_RATE_PARENT,
+					pxa_unit->apmu_base + APMU_GPU,
+					0, 0x10c0, 0,
+					gpu_gc_parent_table, &gpu_lock);
+	mmp_clk_add(unit, MMP2_CLK_GPU_GC_MUX, clk);
+
+	clk = clk_register_mux_table(NULL, "gpu_bus_mux", gpu_bus_parent_names,
+					ARRAY_SIZE(gpu_bus_parent_names),
+					CLK_SET_RATE_PARENT,
+					pxa_unit->apmu_base + APMU_GPU,
+					0, 0x4030, 0,
+					gpu_bus_parent_table, &gpu_lock);
+	mmp_clk_add(unit, MMP2_CLK_GPU_BUS_MUX, clk);
+
 	mmp_register_div_clks(unit, apmu_div_clks, pxa_unit->apmu_base,
 				ARRAY_SIZE(apmu_div_clks));
 
@@ -299,6 +330,91 @@ static void mmp2_clk_reset_init(struct device_node *np,
 	mmp_clk_reset_register(np, cells, nr_resets);
 }
 
+static int mmp2_gpu_pm_domain_power_on(struct generic_pm_domain *genpd)
+{
+	struct mmp2_clk_unit *pxa_unit = container_of(genpd,
+			struct mmp2_clk_unit, gpu_pm_domain);
+	struct mmp_clk_unit *unit = &pxa_unit->unit;
+	void __iomem *reg = pxa_unit->apmu_base + APMU_GPU;
+	unsigned long flags = 0;
+	u32 tmp;
+	int ret;
+
+	spin_lock_irqsave(&gpu_lock, flags);
+
+	/* Power up the module. */
+	tmp = readl(reg);
+	tmp &= ~0x8700;
+	tmp |= 0x8600;
+	writel(tmp, reg);
+
+	ret = clk_prepare_enable(unit->clk_table[MMP2_CLK_GPU_GC]);
+	if (ret)
+		goto out;
+
+	ret = clk_prepare_enable(unit->clk_table[MMP2_CLK_GPU_BUS]);
+	if (ret) {
+		clk_disable_unprepare(unit->clk_table[MMP2_CLK_GPU_GC]);
+		goto out;
+	}
+
+	/* Disable isolation now that clocks are running. */
+	tmp = readl(reg);
+	tmp |= 0x100;
+	writel(tmp, reg);
+	udelay(1);
+
+	ret = 0;
+out:
+	spin_unlock_irqrestore(&gpu_lock, flags);
+	return ret;
+}
+
+static int mmp2_gpu_pm_domain_power_off(struct generic_pm_domain *genpd)
+{
+	struct mmp2_clk_unit *pxa_unit = container_of(genpd,
+			struct mmp2_clk_unit, gpu_pm_domain);
+	struct mmp_clk_unit *unit = &pxa_unit->unit;
+	void __iomem *reg = pxa_unit->apmu_base + APMU_GPU;
+	unsigned long flags = 0;
+	u32 tmp;
+
+	spin_lock_irqsave(&gpu_lock, flags);
+
+	/*
+	 * Re-enable isolation. We must not touch the other bits,
+	 * otherwise the * GPU hangs without a known way to recover.
+	 */
+	tmp = readl(reg);
+	tmp &= ~0x100;
+	writel(tmp, reg);
+	udelay(1);
+
+	clk_disable_unprepare(unit->clk_table[MMP2_CLK_GPU_BUS]);
+	clk_disable_unprepare(unit->clk_table[MMP2_CLK_GPU_GC]);
+
+	spin_unlock_irqrestore(&gpu_lock, flags);
+
+	return 0;
+}
+
+static struct generic_pm_domain *mmp2_pm_onecell_domains[MMP2_NR_POWER_DOMAINS];
+
+static void mmp2_pm_domain_init(struct device_node *np,
+			struct mmp2_clk_unit *pxa_unit)
+{
+	pm_genpd_init(&pxa_unit->gpu_pm_domain, NULL, true);
+	pxa_unit->gpu_pm_domain.name = "GPU";
+	pxa_unit->gpu_pm_domain.power_on = mmp2_gpu_pm_domain_power_on;
+	pxa_unit->gpu_pm_domain.power_off = mmp2_gpu_pm_domain_power_off;
+	mmp2_pm_onecell_domains[MMP2_POWER_DOMAIN_GPU]
+				= &pxa_unit->gpu_pm_domain;
+
+	pxa_unit->pd_data.domains = mmp2_pm_onecell_domains;
+	pxa_unit->pd_data.num_domains = ARRAY_SIZE(mmp2_pm_onecell_domains);
+	of_genpd_add_provider_onecell(np, &pxa_unit->pd_data);
+}
+
 static void __init mmp2_clk_init(struct device_node *np)
 {
 	struct mmp2_clk_unit *pxa_unit;
@@ -324,6 +440,8 @@ static void __init mmp2_clk_init(struct device_node *np)
 		pr_err("failed to map apbc registers\n");
 		goto unmap_apmu_region;
 	}
+
+	mmp2_pm_domain_init(np, pxa_unit);
 
 	mmp_clk_init(np, &pxa_unit->unit, MMP2_NR_CLKS);
 
