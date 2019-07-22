@@ -1,0 +1,44 @@
+HX8837 Display Controller
+
+Required properties:
+- compatible: Should be "himax,hx8837".
+- reg: I2C address, must be 0x0d
+- stat-gpios: gpio specifier of DCON_STAT0 and DCON_STAT1 pins (active high)
+- load-gpios: gpio specifier of DCON_LOAD pin (active high)
+- interrupt: interrupt specifier of DCON_IRQ pin (edge falling)
+
+Required nodes:
+- ports: contains port nodes with endpoints, as described in
+  Documentation/devicetree/bindings/graph.txt
+  Port 0's endpoint is connected to the LCD controller's RGB data output
+  endpoint.
+  Port 1's endpoint is connected to the panel's input endpoint.
+
+Example:
+	dcon@d {
+		compatible = "himax,hx8837";
+		reg = <0x0d>;
+		stat-gpios = <&gpio 100 GPIO_ACTIVE_HIGH
+			      &gpio 101 GPIO_ACTIVE_HIGH>;
+		load-gpios = <&gpio 142 GPIO_ACTIVE_HIGH>;
+		interrupts = <&gpio 124 IRQ_TYPE_EDGE_FALLING>;
+
+		ports {
+			#address-cells = <0x01>;
+			#size-cells = <0x00>;
+
+			port@0 {
+				reg = <0x00>;
+				dcon_rgb_in: endpoint {
+					remote-endpoint = <&lcd0_rgb_out>;
+				};
+			};
+
+			port@1 {
+				reg = <0x01>;
+				dcon_gettl_out: endpoint {
+					remote-endpoint = <&panel_dettl_in>;
+				};
+			};
+		};
+	};
