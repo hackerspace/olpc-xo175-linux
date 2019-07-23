@@ -299,8 +299,8 @@ static int ch7033_attach(struct drm_bridge *bridge)
 }
 
 static void ch7033_mode_set(struct drm_bridge *bridge,
-			    struct drm_display_mode *mode,
-			    struct drm_display_mode *adj_mode)
+			    const struct drm_display_mode *mode,
+			    const struct drm_display_mode *adj_mode)
 {
 	struct ch7033 *ch7033 = drm_bridge_to_ch7033(bridge);
 	struct i2c_client *client = ch7033->client;
