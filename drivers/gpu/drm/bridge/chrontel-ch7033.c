@@ -294,8 +294,7 @@ static int ch7033_attach(struct drm_bridge *bridge)
 		return ret;
 	}
 
-	drm_mode_connector_attach_encoder(&ch7033->connector,
-					  bridge->encoder);
+	drm_connector_attach_encoder(&ch7033->connector, bridge->encoder);
 
 	return 0;
 }
