@@ -236,7 +236,7 @@ static int ch7033_get_modes(struct drm_connector *connector)
 	if (!edid)
 		return -ENODEV;
 
-	drm_mode_connector_update_edid_property(connector, edid);
+	drm_connector_update_edid_property(connector, edid);
 	return drm_add_edid_modes(connector, edid);
 }
 
