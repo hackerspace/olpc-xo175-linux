@@ -440,36 +440,10 @@ static struct drm_bridge_funcs ch7033_bridge_funcs = {
 	.post_disable	= ch7033_nop,
 };
 
-static struct drm_display_mode *ch7033_create_mode(void)
-{
-	struct drm_display_mode *mode;
-
-	mode = kzalloc(sizeof(*mode), GFP_KERNEL);
-	strncpy(mode->name, "XP", 3);
-
-	mode->type = DRM_MODE_TYPE_DRIVER;
-	mode->flags = DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC;
-	mode->vrefresh = 60;
-	mode->clock = 65000;
-
-	mode->hdisplay = 1024;
-	mode->hsync_start = 1048;
-	mode->hsync_end = 1184;
-	mode->htotal = 1344;
-
-	mode->vdisplay = 768;
-	mode->vsync_start = 771;
-	mode->vsync_end = 777;
-	mode->vtotal = 806;
-
-	return mode;
-}
-
 static int ch7033_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
 	struct ch7033 *ch7033;
-	struct drm_display_mode *mode;
 
 	ch7033 = devm_kzalloc(&client->dev, sizeof(*ch7033), GFP_KERNEL);
 	if (!ch7033) {
