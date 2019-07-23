@@ -483,7 +483,9 @@ static int ch7033_probe(struct i2c_client *client,
 
 	ch7033_reset(client);
 
-	return drm_bridge_add(&ch7033->bridge);
+	drm_bridge_add(&ch7033->bridge);
+
+	return 0;
 }
 
 static int ch7033_remove(struct i2c_client *client)
