@@ -266,7 +266,6 @@ ch7033_connector_destroy(struct drm_connector *connector)
 }
 
 static struct drm_connector_funcs ch7033_con_funcs = {
-	.dpms			= drm_atomic_helper_connector_dpms,
 	.detect			= ch7033_connector_detect,
 	.fill_modes		= drm_helper_probe_single_connector_modes,
 	.destroy		= ch7033_connector_destroy,
