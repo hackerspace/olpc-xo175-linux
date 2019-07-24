@@ -15,7 +15,7 @@ dvfs-pxa988.o stime.o
 obj-$(CONFIG_CPU_MMP2)		+= mmp2.o irq-mmp2.o clock.o mmp_dma.o \
 sram.o mmp2_sspa.o mmp2_fuse.o clock-audio.o
 obj-$(CONFIG_CPU_MMP3)		+= mmp3.o irq-mmp3.o mmp_dma.o mmp2_sspa.o \
-sram.o delay-mmp3.o clock-mmp3.o dvfs-mmp3.o pm-hotplug.o mmp3_coherent_fix.o
+sram.o delay-mmp3.o clock-mmp3.o dvfs-mmp3.o mmp3_coherent_fix.o
 
 ifeq ($(CONFIG_SMP),y)
 obj-$(CONFIG_CPU_MMP3)		+= platsmp.o mmp3_headsmp.o reset-mmp3.o
