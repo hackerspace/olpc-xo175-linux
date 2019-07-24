@@ -505,7 +505,7 @@ static int __init mmp3_init(void)
 	mmp3_init_pmua_regdump();
 
 	pxa_init_dma(IRQ_MMP3_DMA_RIQ, 16);
-	mmp_init_dma(IRQ_MMP3_DMA_RIQ);
+//	mmp_init_dma(IRQ_MMP3_DMA_RIQ);
 
 	platform_device_register(&mmp3_device_asoc_sspa1);
 	platform_device_register(&mmp3_device_asoc_sspa2);
