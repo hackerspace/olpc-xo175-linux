@@ -64,6 +64,27 @@ static int max_icu_nr;
 
 extern void mmp2_clear_pmic_int(void);
 
+static void mmp_mask_irq(int hwirq)
+{
+	struct icu_chip_data *data = &icu_data[0];
+	u32 r;
+
+	r = readl_relaxed(mmp_icu_base + (hwirq << 2));
+	r &= ~data->conf_mask;
+	r |= data->conf_disable;
+	writel_relaxed(r, mmp_icu_base + (hwirq << 2));
+
+	if (data->conf2_mask) {
+		/*
+		 * ICU1 (above) only controls PJ4 MP1; if using SMP,
+		 * we need to also mask the MP2 and MM cores via ICU2.
+		 */
+		r = readl_relaxed(mmp_icu2_base + (hwirq << 2));
+		r &= ~data->conf2_mask;
+		writel_relaxed(r, mmp_icu2_base + (hwirq << 2));
+	}
+}
+
 static void icu_mask_ack_irq(struct irq_data *d)
 {
 	struct irq_domain *domain = d->domain;
@@ -73,10 +94,7 @@ static void icu_mask_ack_irq(struct irq_data *d)
 
 	hwirq = d->irq - data->virq_base;
 	if (data == &icu_data[0]) {
-		r = readl_relaxed(mmp_icu_base + (hwirq << 2));
-		r &= ~data->conf_mask;
-		r |= data->conf_disable;
-		writel_relaxed(r, mmp_icu_base + (hwirq << 2));
+		mmp_mask_irq(hwirq);
 	} else {
 #ifdef CONFIG_CPU_MMP2
 		if ((data->virq_base == data->clr_mfp_irq_base)
@@ -97,24 +115,22 @@ static void icu_mask_irq(struct irq_data *d)
 
 	hwirq = d->irq - data->virq_base;
 	if (data == &icu_data[0]) {
-		r = readl_relaxed(mmp_icu_base + (hwirq << 2));
-		r &= ~data->conf_mask;
-		r |= data->conf_disable;
-		writel_relaxed(r, mmp_icu_base + (hwirq << 2));
-
-		if (data->conf2_mask) {
-			/*
-			 * ICU1 (above) only controls PJ4 MP1; if using SMP,
-			 * we need to also mask the MP2 and MM cores via ICU2.
-			 */
-			r = readl_relaxed(mmp_icu2_base + (hwirq << 2));
-			r &= ~data->conf2_mask;
-			writel_relaxed(r, mmp_icu2_base + (hwirq << 2));
-		}
+		mmp_mask_irq(hwirq);
 	} else {
 		r = readl_relaxed(data->reg_mask) | (1 << hwirq);
 		writel_relaxed(r, data->reg_mask);
 	}
+}
+
+static void mmp_unmask_irq(int hwirq)
+{
+	struct icu_chip_data *data = &icu_data[0];
+	u32 r;
+
+	r = readl_relaxed(mmp_icu_base + (hwirq << 2));
+	r &= ~data->conf_mask;
+	r |= data->conf_enable;
+	writel_relaxed(r, mmp_icu_base + (hwirq << 2));
 }
 
 static void icu_unmask_irq(struct irq_data *d)
@@ -126,10 +142,7 @@ static void icu_unmask_irq(struct irq_data *d)
 
 	hwirq = d->irq - data->virq_base;
 	if (data == &icu_data[0]) {
-		r = readl_relaxed(mmp_icu_base + (hwirq << 2));
-		r &= ~data->conf_mask;
-		r |= data->conf_enable;
-		writel_relaxed(r, mmp_icu_base + (hwirq << 2));
+		mmp_unmask_irq(hwirq);
 	} else {
 		r = readl_relaxed(data->reg_mask) & ~(1 << hwirq);
 		writel_relaxed(r, data->reg_mask);
