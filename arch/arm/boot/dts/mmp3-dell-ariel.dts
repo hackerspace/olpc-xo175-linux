@@ -19,7 +19,7 @@
 		#address-cells = <0x1>;
 		#size-cells = <0x1>;
 		ranges;
-		bootargs = "console=ttyS2,115200 root=/dev/sda3 rootwait";
+		bootargs = "console=ttyS2,115200 rdinit=/sbin/init";
 	};
 
 	memory {
