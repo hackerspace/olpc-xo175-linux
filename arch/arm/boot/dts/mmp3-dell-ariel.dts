@@ -75,7 +75,7 @@
                 status = "okay";
         };
 
-	wtf@50 {
+	ffff@50 {
                 compatible = "no-idea";
                 reg = <0x50>;
                 status = "okay";
@@ -106,6 +106,12 @@
 
 &twsi4 {
 	status = "okay";
+
+	timeout@8 {
+                compatible = "no-idea";
+                reg = <0x8>;
+                status = "okay";
+	};
 
         ec@58 {
                 compatible = "eneec";
