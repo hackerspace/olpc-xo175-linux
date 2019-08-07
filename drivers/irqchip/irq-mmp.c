@@ -473,7 +473,6 @@ IRQCHIP_DECLARE(mmp2_intc, "mrvl,mmp2-intc", mmp2_of_init);
 static int __init mmp3_of_init(struct device_node *node,
 			       struct device_node *parent)
 {
-	int hwirq;
 	int ret;
 
 	ret = mmp_init_bases(node);
@@ -522,9 +521,6 @@ static int __init mmp3_of_init(struct device_node *node,
 		 */
 		pmic_set_ack(IRQ_MMP2_PMIC);
 #endif
-		for (hwirq = 0; hwirq < nr_irqs; hwirq++)
-			mmp_mask_irq(hwirq);
-
 	}
 
 	max_icu_nr = 1;
@@ -535,10 +531,10 @@ IRQCHIP_DECLARE(mmp3_intc, "marvell,mmp3-intc", mmp3_of_init);
 static int __init mmp2_mux_of_init(struct device_node *node,
 				   struct device_node *parent)
 {
-	struct of_phandle_args oirq;
+	// XXX mmp_irq_domain_ops
+
 	int i, ret, irq, j = 0;
 	u32 nr_irqs, mfp_irq;
-	int hwirq = -1;
 	u32 reg[4];
 
 	if (!parent)
@@ -565,19 +561,7 @@ static int __init mmp2_mux_of_init(struct device_node *node,
 	}
 	icu_data[i].reg_status = mmp_icu_base + reg[0];
 	icu_data[i].reg_mask = mmp_icu_base + reg[2];
-
-        if (of_irq_parse_one(node, 0, &oirq))
-		return -EINVAL;
-
-	if (of_device_is_compatible(oirq.np, "arm,arm11mp-gic")) {
-		if (oirq.args_count < 3) {
-			pr_err("Bad interrupts property\n");
-			return -EINVAL;
-		}
-		hwirq = oirq.args[1];
-	}
-
-	icu_data[i].cascade_irq = irq_create_of_mapping(&oirq);
+	icu_data[i].cascade_irq = irq_of_parse_and_map(node, 0);
 	if (!icu_data[i].cascade_irq)
 		return -EINVAL;
 
@@ -602,10 +586,6 @@ static int __init mmp2_mux_of_init(struct device_node *node,
 	}
 	irq_set_chained_handler(icu_data[i].cascade_irq,
 				icu_mux_irq_demux);
-
-	if (hwirq != -1)
-		mmp_unmask_irq(hwirq);
-
 	max_icu_nr++;
 	return 0;
 err:
