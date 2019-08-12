@@ -48,6 +48,7 @@
 #define APMU_SDH1	0x58
 #define APMU_SDH2	0xe8
 #define APMU_SDH3	0xec
+#define APMU_SDH4	0x15c
 #define APMU_USB	0x5c
 #define APMU_DISP0	0x4c
 #define APMU_DISP1	0x110
@@ -261,6 +262,10 @@ static struct mmp_param_gate_clk apmu_gate_clks[] = {
 	{MMP2_CLK_CCIC1_SPHY, "ccic1_sphy_clk", "ccic1_sphy_div", CLK_SET_RATE_PARENT, APMU_CCIC1, 0x300, 0x300, 0x0, 0, &ccic1_lock},
 };
 
+static struct mmp_param_gate_clk mmp3_apmu_gate_clks[] = {
+	{MMP3_CLK_SDH4, "sdh4_clk", "sdh_mix_clk", CLK_SET_RATE_PARENT, APMU_SDH4, 0x1b, 0x1b, 0x0, 0, &sdh_lock},
+};
+
 static void mmp2_axi_periph_clk_init(struct mmp2_clk_unit *pxa_unit)
 {
 	struct clk *clk;
@@ -294,6 +299,13 @@ static void mmp2_axi_periph_clk_init(struct mmp2_clk_unit *pxa_unit)
 
 	mmp_register_gate_clks(unit, apmu_gate_clks, pxa_unit->apmu_base,
 				ARRAY_SIZE(apmu_gate_clks));
+}
+
+static void mmp3_axi_periph_clk_init(struct mmp2_clk_unit *pxa_unit)
+{
+	mmp_register_gate_clks(&pxa_unit->unit, mmp3_apmu_gate_clks,
+				pxa_unit->apmu_base,
+				ARRAY_SIZE(mmp3_apmu_gate_clks));
 }
 
 static void mmp2_clk_reset_init(struct device_node *np,
@@ -354,8 +366,10 @@ static void __init mmp2_clk_init(struct device_node *np)
 
 	mmp2_clk_reset_init(np, pxa_unit);
 
-	if (of_device_is_compatible(np, "marvell,mmp3-clock"))
+	if (of_device_is_compatible(np, "marvell,mmp3-clock")) {
 		mmp3_apb_periph_clk_init(pxa_unit);
+		mmp3_axi_periph_clk_init(pxa_unit);
+	}
 
 	return;
 
