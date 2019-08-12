@@ -338,7 +338,7 @@ config DA9062_THERMAL
 	  Compatible with the DA9062 and DA9061 PMICs.
 
 config MMP3_THERMAL
-	bool "MMP3 Thermal interface support"
+	tristate "MMP3 Thermal interface support"
 	depends on THERMAL
 	help
 	  Adds thermal management for Marvell MMP3.

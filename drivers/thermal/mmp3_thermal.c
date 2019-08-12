@@ -349,7 +349,7 @@ static int mmp3_thermal_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static struct of_device_id mmp3_thermal_driver_dt_ids[] = {
+static const struct of_device_id mmp3_thermal_driver_dt_ids[] = {
 	{ .compatible = "marvell,mmp3-thermal", },
 	{}
 };
@@ -364,6 +364,8 @@ static struct platform_driver mmp3_thermal_driver = {
 	.probe		= mmp3_thermal_probe,
 	.remove		= mmp3_thermal_remove,
 };
+
+module_platform_driver(mmp3_thermal_driver);
 
 MODULE_AUTHOR("Marvell Semiconductor");
 MODULE_DESCRIPTION("MMP3 SoC thermal driver");
