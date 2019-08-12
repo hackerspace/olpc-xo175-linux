@@ -25,7 +25,6 @@
 #include <linux/syscalls.h>
 #include <linux/cpufreq.h>
 #include <linux/smp.h>
-#include <mach/regs-apbc.h>
 #include <linux/of_address.h>
 
 void mmp3_thermal_modify_watchdog(void);
@@ -223,8 +222,7 @@ static unsigned long read_filtered_temp(int range, int sensor)
 	return medianfilter(tvals);
 }
 
-static int th_sys_get_temp(struct thermal_zone_device *thermal,
-		unsigned long *temp)
+static int th_sys_get_temp(struct thermal_zone_device *thermal, int *temp)
 {
 	unsigned long t, t0, t1, t2;
 
@@ -294,45 +292,34 @@ static int mmp3_thermal_probe(struct platform_device *pdev)
 	int ret = 0, i;
 	struct clk *tclk1, *tclk2, *tclk3, *tclk4;
 	struct device_node *np;
+	struct resource r;
 
 	np = pdev->dev.of_node;
-	if (np) {
-		struct resource r;
+	if (np)
+		return -ENODEV;
 
-		ret = of_address_to_resource(np, 0, &r);
-		if (ret != 0) {
-			printk(KERN_ERR "mmp3_thermal: Could not get i/o memory\n");
-			return ret;
-		}
-		therm_base = ioremap(r.start, r.end - r.start + 1);
-		if (therm_base == NULL) {
-			return -ENOMEM;
-		}
-		tclk1 = clk_get(&pdev->dev, "THSENS1");
-		tclk2 = clk_get(&pdev->dev, "THSENS2");
-		tclk3 = clk_get(&pdev->dev, "THSENS3");
-		tclk4 = clk_get(&pdev->dev, "THSENS4");
-		if (IS_ERR(tclk1) || IS_ERR(tclk2) || IS_ERR(tclk3) || IS_ERR(tclk4)) {
-			printk(KERN_ERR "mmp3_thermal: Could not get all thermal clocks\n");
-			return PTR_ERR(tclk1);
-		}
-		clk_enable(tclk1);
-		clk_enable(tclk2);
-		clk_enable(tclk3);
-		clk_enable(tclk4);
 
-	} else {
-		tclk1 = clk_get(NULL, "THERMALCLK");
-		if (IS_ERR(tclk1)) {
-			printk(KERN_ERR "mmp3_thermal: Could not get thermal clock\n");
-			return PTR_ERR(tclk1);
-		}
-
-		clk_enable(tclk1);
-
-		therm_base = APB_VIRT_BASE + 0x03b000;
-
+	ret = of_address_to_resource(np, 0, &r);
+	if (ret != 0) {
+		printk(KERN_ERR "mmp3_thermal: Could not get i/o memory\n");
+		return ret;
 	}
+	therm_base = ioremap(r.start, r.end - r.start + 1);
+	if (therm_base == NULL) {
+		return -ENOMEM;
+	}
+	tclk1 = clk_get(&pdev->dev, "THSENS1");
+	tclk2 = clk_get(&pdev->dev, "THSENS2");
+	tclk3 = clk_get(&pdev->dev, "THSENS3");
+	tclk4 = clk_get(&pdev->dev, "THSENS4");
+	if (IS_ERR(tclk1) || IS_ERR(tclk2) || IS_ERR(tclk3) || IS_ERR(tclk4)) {
+		printk(KERN_ERR "mmp3_thermal: Could not get all thermal clocks\n");
+		return PTR_ERR(tclk1);
+	}
+	clk_enable(tclk1);
+	clk_enable(tclk2);
+	clk_enable(tclk3);
+	clk_enable(tclk4);
 
 	for (i = 0; i < 3; i++) {
 		mmp3_thermal_clear_bits(i, TEMP_AUTO_READ|TEMP_EN_WDOG|
@@ -343,7 +330,7 @@ static int mmp3_thermal_probe(struct platform_device *pdev)
 
 	therm_dev = thermal_zone_device_register(
 			"mmp3-temp_sens", MMP3_THERMAL_NUM_TRIPS,
-			NULL, &g_dev_ops, 0, 0,
+			0, &g_dev_ops, 0, 0,
 			MMP3_THERMAL_POLLING_PERIOD_MS, 0);
 
 	if (IS_ERR(therm_dev)) {
@@ -378,20 +365,6 @@ static struct platform_driver mmp3_thermal_driver = {
 	.remove		= mmp3_thermal_remove,
 };
 
-static int __init mmp3_thermal_init(void)
-{
-	return platform_driver_register(&mmp3_thermal_driver);
-}
-
-static void __exit mmp3_thermal_exit(void)
-{
-	platform_driver_unregister(&mmp3_thermal_driver);
-}
-
-module_init(mmp3_thermal_init);
-module_exit(mmp3_thermal_exit);
-
 MODULE_AUTHOR("Marvell Semiconductor");
 MODULE_DESCRIPTION("MMP3 SoC thermal driver");
 MODULE_LICENSE("GPL");
-MODULE_ALIAS("platform:mmp3-thermal");
