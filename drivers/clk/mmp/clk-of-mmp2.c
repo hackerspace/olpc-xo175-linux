@@ -53,6 +53,10 @@
 #define APMU_DISP1	0x110
 #define APMU_CCIC0	0x50
 #define APMU_CCIC1	0xf4
+#define APBC_THERMAL0   0x90
+#define APBC_THERMAL1   0x98
+#define APBC_THERMAL2   0x9c
+#define APBC_THERMAL3   0xa0
 #define MPMU_UART_PLL	0x14
 
 struct mmp2_clk_unit {
@@ -176,6 +180,13 @@ static struct mmp_param_gate_clk apbc_gate_clks[] = {
 	{MMP2_CLK_TIMER, "timer_clk", "timer_mux", CLK_SET_RATE_PARENT, APBC_TIMER, 0x7, 0x3, 0x0, 0, &timer_lock},
 };
 
+static struct mmp_param_gate_clk mmp3_apbc_gate_clks[] = {
+	{MMP3_CLK_THERMAL0, "thermal0_clk", "vctcxo", CLK_SET_RATE_PARENT, APBC_THERMAL0, 0x7, 0x3, 0x0, 0, &reset_lock},
+	{MMP3_CLK_THERMAL1, "thermal1_clk", "vctcxo", CLK_SET_RATE_PARENT, APBC_THERMAL1, 0x7, 0x3, 0x0, 0, &reset_lock},
+	{MMP3_CLK_THERMAL2, "thermal2_clk", "vctcxo", CLK_SET_RATE_PARENT, APBC_THERMAL2, 0x7, 0x3, 0x0, 0, &reset_lock},
+	{MMP3_CLK_THERMAL3, "thermal3_clk", "vctcxo", CLK_SET_RATE_PARENT, APBC_THERMAL3, 0x7, 0x3, 0x0, 0, &reset_lock},
+};
+
 static void mmp2_apb_periph_clk_init(struct mmp2_clk_unit *pxa_unit)
 {
 	struct mmp_clk_unit *unit = &pxa_unit->unit;
@@ -185,6 +196,14 @@ static void mmp2_apb_periph_clk_init(struct mmp2_clk_unit *pxa_unit)
 
 	mmp_register_gate_clks(unit, apbc_gate_clks, pxa_unit->apbc_base,
 				ARRAY_SIZE(apbc_gate_clks));
+}
+
+static void mmp3_apb_periph_clk_init(struct mmp2_clk_unit *pxa_unit)
+{
+	struct mmp_clk_unit *unit = &pxa_unit->unit;
+
+	mmp_register_gate_clks(unit, mmp3_apbc_gate_clks, pxa_unit->apbc_base,
+				ARRAY_SIZE(mmp3_apbc_gate_clks));
 }
 
 static DEFINE_SPINLOCK(sdh_lock);
@@ -335,6 +354,9 @@ static void __init mmp2_clk_init(struct device_node *np)
 
 	mmp2_clk_reset_init(np, pxa_unit);
 
+	if (of_device_is_compatible(np, "marvell,mmp3-clock"))
+		mmp3_apb_periph_clk_init(pxa_unit);
+
 	return;
 
 unmap_apmu_region:
@@ -346,3 +368,4 @@ free_memory:
 }
 
 CLK_OF_DECLARE(mmp2_clk, "marvell,mmp2-clock", mmp2_clk_init);
+CLK_OF_DECLARE(mmp3_clk, "marvell,mmp3-clock", mmp2_clk_init);
