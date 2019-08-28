@@ -27,6 +27,7 @@ properties:
       - description: MMP2 based boards
         items:
           - enum:
+              - olpc,xo-1.75
               - mrvl,mmp2-brownstone
           - const: mrvl,mmp2
 ...
