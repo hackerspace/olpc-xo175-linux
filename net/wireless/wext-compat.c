@@ -1408,6 +1408,8 @@ static int cfg80211_wext_siwessid(struct net_device *dev,
 		return cfg80211_ibss_wext_siwessid(dev, info, data, ssid);
 	case NL80211_IFTYPE_STATION:
 		return cfg80211_mgd_wext_siwessid(dev, info, data, ssid);
+	case NL80211_IFTYPE_MESH_POINT:
+		return cfg80211_mesh_wext_siwessid(dev, info, data, ssid);
 	default:
 		return -EOPNOTSUPP;
 	}

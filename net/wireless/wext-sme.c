@@ -197,6 +197,31 @@ int cfg80211_mgd_wext_siwessid(struct net_device *dev,
 	return err;
 }
 
+int cfg80211_mesh_wext_siwessid(struct net_device *dev,
+			        struct iw_request_info *info,
+			        struct iw_point *data, char *ssid)
+{
+	struct wireless_dev *wdev = dev->ieee80211_ptr;
+	struct cfg80211_registered_device *rdev = wiphy_to_rdev(wdev->wiphy);
+	size_t len = data->length;
+
+	if (WARN_ON(wdev->iftype != NL80211_IFTYPE_MESH_POINT))
+		return -EINVAL;
+
+	/* This is specific to the Libertas mesh device. */
+	if (!rdev->ops->libertas_set_mesh_channel)
+		return -EOPNOTSUPP;
+
+	/* iwconfig uses nul termination in SSID.. */
+	if (len > 0 && ssid[len - 1] == '\0')
+		len--;
+
+	memcpy(wdev->ssid, ssid, len);
+	wdev->ssid_len = len;
+
+	return 0;
+}
+
 int cfg80211_mgd_wext_giwessid(struct net_device *dev,
 			       struct iw_request_info *info,
 			       struct iw_point *data, char *ssid)
