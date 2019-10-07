@@ -1,1 +1,65 @@
 https://lore.kernel.org/patchwork/cover/943037/
+
+eneec	EC
+88pm867	REG	marvell,88pg867				88pm867: PMIC driver support for Marvell Buck regulator (88PM867)
+ce156	CODEC	88CE156 ALSA Soc Audio driver
+
+---
+
+drivers/regulator/88pg86x.c:            .name = "88pg86x",
+drivers/regulator/Makefile:obj-$(CONFIG_REGULATOR_88PG86X) += 88pg86x.o
+
+static const struct of_device_id pg86x_dt_ids [] = {
+        { .compatible = "marvell,88pg867" },
+        { .compatible = "marvell,88pg868" },
+        { }
+};
+MODULE_DEVICE_TABLE(of, pg86x_dt_ids);
+
+
+----
+
+&i2c0 {
+        status = "okay";
+
+        /* There are two regulators on the board. One is accessible via I2C,
+         * with buck1 providing SoC power (set up by bootloader to 1.325V or
+         * less depending on leakage value in OTP), and buck2 likely used for
+         * DRAM (providing 1.35V). The other regulator on the opposite side
+         * of the board is probably supplying SDIO and NAND fixed voltages. */
+        regulator@19 {
+                compatible = "marvell,88pg868";
+                reg = <0x19>;
+
+                vcpu: buck1 {
+                        regulator-boot-on;
+                        regulator-always-on;
+                        regulator-min-microvolt = <1000000>;
+                        regulator-max-microvolt = <1325000>;
+                };
+        };
+};
+
+
+---
+
+#define PMIC_REG_INIT(_id, _name, _min, _max, _always, _boot, _supply, _num) \
+static void qseven_power_supply_init(void)
+{
+        REG_SUPPLY_INIT(MAR88PM867_ID_SD0, "vcc_main", NULL);
+        PMIC_REG_INIT(MAR88PM867_ID_SD0, SD0, 775000, 1400000, 1, 1,
+                &qseven_power_supply[MAR88PM867_ID_SD0], 1);
+}
+
+---
+
+        /* HSIC1 reset pin (output) for Ariel 2*/
+        GPIO63_HSIC_RESET,
+
+        /* Headphone Detection GPIO 62 pin (Input) for Ariel 2*/
+        GPIO62_GPIO,
+
+        /* Microphone Detection GPIO 68 pin (Input) for Ariel 2*/
+        GPIO68_GPIO,
+
+
