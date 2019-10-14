@@ -15,6 +15,15 @@
 	model = "Dell Ariel";
 	compatible = "dell,wyse-ariel", "marvell,mmp3";
 
+	aliases {
+		serial0 = &uart1;
+		serial1 = &uart2;
+		serial2 = &uart3;
+		serial3 = &uart4;
+		i2c0 = &twsi1;
+		i2c1 = &twsi2;
+	};
+
 	chosen {
 		#address-cells = <0x1>;
 		#size-cells = <0x1>;
