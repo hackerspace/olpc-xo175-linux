@@ -117,7 +117,7 @@ ENTRY(startup_32)
 	movsl
 1:
 
-#ifdef CONFIG_OLPC
+#if defined(CONFIG_OLPC) && defined(CONFIG_OF_PROMTREE)
 	/* save OFW's pgdir table for later use when calling into OFW */
 	movl %cr3, %eax
 	movl %eax, pa(olpc_ofw_pgd)

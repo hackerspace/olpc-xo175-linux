@@ -2746,7 +2746,7 @@ config OLPC
 	depends on !X86_PAE
 	select GPIOLIB
 	select OF
-	select OF_PROMTREE
+	select OF_EARLY_FLATTREE
 	select IRQ_DOMAIN
 	select OLPC_EC
 	---help---

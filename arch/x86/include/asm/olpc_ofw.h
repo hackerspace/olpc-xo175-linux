@@ -7,7 +7,7 @@
 
 #define OLPC_OFW_SIG 0x2057464F	/* aka "OFW " */
 
-#ifdef CONFIG_OLPC
+#if defined(CONFIG_OLPC) && defined(CONFIG_OF_PROMTREE)
 
 extern bool olpc_ofw_is_installed(void);
 
@@ -33,6 +33,7 @@ extern void olpc_dt_build_devicetree(void);
 static inline void olpc_ofw_detect(void) { }
 static inline void setup_olpc_ofw_pgd(void) { }
 static inline void olpc_dt_build_devicetree(void) { }
+static inline bool olpc_ofw_present(void) { return false; }
 #endif /* !CONFIG_OLPC */
 
 #endif /* _ASM_X86_OLPC_OFW_H */
