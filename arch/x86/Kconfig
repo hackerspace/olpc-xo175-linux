@@ -574,6 +574,7 @@ config X86_INTEL_CE
 	depends on X86_IO_APIC
 	depends on X86_32
 	depends on X86_EXTENDED_PLATFORM
+	depends on !X86_OF_PROMTREE
 	select X86_REBOOTFIXUPS
 	select OF
 	select OF_EARLY_FLATTREE
@@ -2746,7 +2747,6 @@ config OLPC
 	depends on !X86_PAE
 	select GPIOLIB
 	select OF
-	select OF_PROMTREE
 	select IRQ_DOMAIN
 	select OLPC_EC
 	---help---
@@ -2789,6 +2789,28 @@ config OLPC_XO15_SCI
 	   - EC-driven system wakeups
 	   - AC adapter status updates
 	   - Battery status updates
+
+choice
+	prompt "Device Tree provider"
+	depends on OLPC
+	default X86_OF_ANY
+	help
+	  Configure where the Device Tree is obtained from.
+
+config X86_OF_PROMTREE
+	bool "OpenFirmware"
+	select OF_PROMTREE
+
+config X86_OF_EARLY_FLATTREE
+	bool "DTB"
+	select OF_EARLY_FLATTREE
+
+config X86_OF_ANY
+	bool "Any"
+	select OF_EARLY_FLATTREE
+	select OF_PROMTREE
+
+endchoice
 
 config ALIX
 	bool "PCEngines ALIX System Support (LED setup)"

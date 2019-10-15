@@ -7,7 +7,7 @@
 
 #define OLPC_OFW_SIG 0x2057464F	/* aka "OFW " */
 
-#ifdef CONFIG_OLPC
+#if defined(CONFIG_OLPC) && defined(CONFIG_OF_PROMTREE)
 
 extern bool olpc_ofw_is_installed(void);
 
