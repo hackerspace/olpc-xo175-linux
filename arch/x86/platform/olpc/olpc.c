@@ -287,7 +287,7 @@ static int __init olpc_init(void)
 {
 	int r = 0;
 
-	if (!olpc_ofw_present() || !platform_detect())
+	if (!platform_detect())
 		return 0;
 
 	/* register the XO-1 and 1.5-specific EC handler */

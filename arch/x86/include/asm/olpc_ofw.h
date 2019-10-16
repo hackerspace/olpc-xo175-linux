@@ -24,9 +24,6 @@ extern void olpc_ofw_detect(void);
 /* install OFW's pde permanently into the kernel's pgtable */
 extern void setup_olpc_ofw_pgd(void);
 
-/* check if OFW was detected during boot */
-extern bool olpc_ofw_present(void);
-
 extern void olpc_dt_build_devicetree(void);
 
 #else /* !CONFIG_OLPC */
