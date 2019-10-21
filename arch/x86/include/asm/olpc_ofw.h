@@ -7,7 +7,7 @@
 
 #define OLPC_OFW_SIG 0x2057464F	/* aka "OFW " */
 
-#if defined(CONFIG_OLPC) && defined(CONFIG_OF_PROMTREE)
+#ifdef CONFIG_OLPC
 
 extern bool olpc_ofw_is_installed(void);
 
@@ -23,6 +23,9 @@ extern void olpc_ofw_detect(void);
 
 /* install OFW's pde permanently into the kernel's pgtable */
 extern void setup_olpc_ofw_pgd(void);
+
+/* check if OFW was detected during boot */
+extern bool olpc_ofw_present(void);
 
 extern void olpc_dt_build_devicetree(void);
 
