@@ -46,4 +46,9 @@ config DRM_I2C_HX8837
 	  power operation and controlling the backlight.
 
 	  If your laptop doesn't have green ears, say "N"
+
+config DRM_I2C_CH7033
+	tristate "Chrontel CH7033 Encoder"
+	help
+	  Support for Chrontel CH7033 Encoder.
 endmenu
