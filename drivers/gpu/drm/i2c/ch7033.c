@@ -9,6 +9,7 @@
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_probe_helper.h>
+#include <video/display_timing.h>
 
 struct ch7033_priv {
 	struct i2c_client *client;
@@ -60,11 +61,45 @@ static const struct drm_connector_funcs ch7033_connector_funcs = {
 	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
 };
 
+static const struct drm_display_mode ariel_mode = {
+	.clock = 11695,
+
+	.hdisplay = 1360,
+	.hsync_start = 1360 + 64,
+	.hsync_end = 1360 + 64 + 112,
+	.htotal = 1360 + 64 + 112 + 256,
+
+	.vdisplay = 768,
+	.vsync_start = 768 + 3,
+	.vsync_end = 768 + 3 + 6,
+	.vtotal = 768 + 3 + 6 + 18,
+
+	.vrefresh = 60,
+	.flags = DISPLAY_FLAGS_HSYNC_HIGH | DISPLAY_FLAGS_VSYNC_HIGH,
+};
+
 static int ch7033_connector_get_modes(struct drm_connector *connector)
 {
-	struct ch7033_priv *priv = container_of(connector, struct ch7033_priv, connector);
+//	struct ch7033_priv *priv = container_of(connector, struct ch7033_priv, connector);
+	struct drm_device *dev = connector->dev;
+	struct drm_display_mode *mode;
 
-	return priv->panel->funcs->get_modes(priv->panel);
+	mode = drm_mode_duplicate(dev, &ariel_mode);
+	if (!mode) {
+		dev_err(dev->dev, "failed to add mode %ux%u@%u\n",
+			ariel_mode.hdisplay, ariel_mode.vdisplay, ariel_mode.vrefresh);
+		return -1;
+	}
+
+	mode->type |= DRM_MODE_TYPE_DRIVER;
+	mode->type |= DRM_MODE_TYPE_PREFERRED;
+
+	drm_mode_set_name(mode);
+
+	drm_mode_probed_add(connector, mode);
+//	return priv->panel->funcs->get_modes(priv->panel);
+
+	return 1;
 }
 
 static struct drm_encoder *
@@ -162,11 +197,13 @@ static int ch7033_probe(struct i2c_client *client,
 
 
 
+#if 0
         rc = component_add(&client->dev, &ch7033_ops);
         if (rc) {
-		dev_err(&client->dev, "failed to register component\n");
+		dev_err(&client->dev, "failed to register component: %d\n", rc);
 		return rc;
 	}
+#endif
 
 
 	return 0;
