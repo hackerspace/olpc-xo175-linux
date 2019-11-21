@@ -42,6 +42,56 @@
 		available = <0x0 0x7df00000>;
 		device_type = "memory";
 	};
+
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		display_reserved: framebuffer {
+			compatible = "marvell,mmp2-framebuffer",
+				     "marvell,armada-framebuffer";
+			size = <0x02000000>;
+			alignment = <0x02000000>;
+			no-map;
+		};
+	};
+
+/*
+	dvi_i: dvi-connector {
+		compatible = "dvi-connector";
+		ddc-i2c-bus = <&twsi5>;
+		digital;
+		analog;
+
+		port {
+			dvi_d_in: endpoint {
+				remote-endpoint = <&ch7033_out>;
+			};
+		};
+	};
+
+	dvi_d: dvi-connector {
+		compatible = "dvi-connector";
+		ddc-i2c-bus = <&twsi6>;
+		digital;
+
+		port {
+			dvi_d_in: endpoint {
+				remote-endpoint = <&ch7033_out>;
+			};
+		};
+	};
+*/
+	panel {
+		compatible = "innolux,ls075at011", "simple-panel";
+
+		port {
+			panel_vga_in: endpoint {
+				remote-endpoint = <&encoder_vga_out>;
+			};
+		};
+	};
 };
 
 &uart3 {
@@ -179,9 +229,35 @@ lkundrak@t00d:~$
         };
 
         vga-dvi-encoder@76 {
-                compatible = "ch7033";
+                compatible = "chrontel,ch7033";
                 reg = <0x76>;
                 status = "okay";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				encoder_rgb_in: endpoint {
+					remote-endpoint = <&lcd0_rgb_out>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				encoder_vga_out: endpoint {
+					remote-endpoint = <&panel_vga_in>;
+				};
+			};
+
+//			port@2 {
+//				reg = <2>;
+//				encoder_dvi_out: endpoint {
+//					remote-endpoint = <&panel_dvi_in>;
+//				};
+//			};
+		};
         };
 };
 
@@ -193,6 +269,25 @@ lkundrak@t00d:~$
                 reg = <0x58>;
                 status = "okay";
         };
+};
+
+/* dvi-i (vga) connector */
+&twsi5 {
+	status = "okay";
+};
+
+/* dvi-d connector */
+&twsi6 {
+	status = "okay";
+};
+
+&lcd0 {
+	status = "okay";
+};
+
+&lcd0_rgb_out {
+	//bus-width = <18>;
+	remote-endpoint = <&encoder_rgb_in>;
 };
 
 &ssp1 {
