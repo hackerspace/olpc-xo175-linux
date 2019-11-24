@@ -62,20 +62,20 @@ static const struct drm_connector_funcs ch7033_connector_funcs = {
 };
 
 static const struct drm_display_mode ariel_mode = {
-	.clock = 11695,
+	.clock = 65000,
 
-	.hdisplay = 1360,
-	.hsync_start = 1360 + 64,
-	.hsync_end = 1360 + 64 + 112,
-	.htotal = 1360 + 64 + 112 + 256,
+	.hdisplay = 1024,
+	.hsync_start = 1048,
+	.hsync_end = 1184,
+	.htotal = 1344,
 
 	.vdisplay = 768,
-	.vsync_start = 768 + 3,
-	.vsync_end = 768 + 3 + 6,
-	.vtotal = 768 + 3 + 6 + 18,
+	.vsync_start = 771,
+	.vsync_end = 777,
+	.vtotal = 806,
 
+	.flags = DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC,
 	.vrefresh = 60,
-	.flags = DISPLAY_FLAGS_HSYNC_HIGH | DISPLAY_FLAGS_VSYNC_HIGH,
 };
 
 static int ch7033_connector_get_modes(struct drm_connector *connector)
@@ -197,7 +197,7 @@ static int ch7033_probe(struct i2c_client *client,
 
 
 
-#if 0
+#if 1
         rc = component_add(&client->dev, &ch7033_ops);
         if (rc) {
 		dev_err(&client->dev, "failed to register component: %d\n", rc);
