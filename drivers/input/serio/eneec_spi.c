@@ -15,7 +15,6 @@
 #include <linux/cdev.h>
 #include <asm/uaccess.h>
 #include <linux/spi/spi.h>
-#include "eneec_ioc.h"
 
 #define DRIVER_DESC "ENEEC SPI driver"
 
@@ -310,7 +309,7 @@ static void eneec_read_work(struct work_struct *work)
         }
     }
     else {
-        pr_warning(   "WARNING: Not mou or kbd data\n");
+        pr_warn(   "WARNING: Not mou or kbd data\n");
         goto exit_enable_irq;
     }
 
@@ -455,10 +454,12 @@ static int eneec_probe(struct spi_device *spi)
 
     printk("eneec_spi_probe with modalias = %s, irq = %d\n", spi->modalias, spi->irq);
 
+#ifndef POLLING
     if(spi->irq <= 0) {
         pr_err("ERROR: spi->irq is not specified.\n");
         return -ENXIO;
     }
+#endif
 
     if (!(eneec = kzalloc(sizeof(struct eneec), GFP_KERNEL))) {
         return -ENOMEM;
@@ -583,28 +584,26 @@ static int eneec_remove(struct spi_device *spi)
 
 }
 
-static struct spi_driver eneec_driver = {
-    .driver = {
-        .name   = "eneec_spi",
-        .owner  = THIS_MODULE,
-    },
-    .probe      = eneec_probe,
-    .remove     = __devexit_p(eneec_remove),
+
+
+static const struct of_device_id ariel_ec_of_match[] = {
+	{ .compatible = "dell,wyse-ariel-ec-spi" },
+	{ }
 };
+MODULE_DEVICE_TABLE(of, ariel_ec_of_match);
 
-static int __init eneec_init(void)
-{
-    printk("eneec_spi_init\n");
+static const struct spi_device_id ariel_ec_id_table[] = {
+	{ "wyse-ariel-ec-spi", 0 },
+	{}
+};
+MODULE_DEVICE_TABLE(spi, ariel_ec_id_table);
 
-    return spi_register_driver(&eneec_driver);
-}
-
-static void __exit eneec_exit(void)
-{
-    pr_debug("eneec_spi_exit\n");
-    
-    spi_unregister_driver(&eneec_driver);
-}
-
-module_init(eneec_init);
-module_exit(eneec_exit);
+static struct spi_driver ariel_ec_spi_driver = {
+	.driver = {
+		.name	= "dell-wyse-ariel-ec-spi",
+		.of_match_table = ariel_ec_of_match,
+	},
+	.probe		= eneec_probe,
+	.remove		= eneec_remove,
+};
+module_spi_driver(ariel_ec_spi_driver);
