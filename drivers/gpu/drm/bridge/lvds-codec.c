@@ -101,11 +101,10 @@ static int lvds_codec_probe(struct platform_device *pdev)
 
 	/*
 	 * The panel_bridge bridge is attached to the panel's of_node,
-	 * but we need a bridge attached to our of_node for our user
-	 * to look up.
+	 * but we need a bridge attached to our of_node (in dev->of_node)
+	 * for our user to look up.
 	 */
-	lvds_codec->bridge.of_node = dev->of_node;
-	lvds_codec->bridge.funcs = &funcs;
+	drm_bridge_init(&lvds_codec->bridge, dev, &funcs, NULL, NULL);
 	drm_bridge_add(&lvds_codec->bridge);
 
 	platform_set_drvdata(pdev, lvds_codec);
