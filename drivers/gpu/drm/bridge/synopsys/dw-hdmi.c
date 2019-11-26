@@ -3290,11 +3290,8 @@ __dw_hdmi_probe(struct platform_device *pdev,
 			hdmi->ddc = NULL;
 	}
 
-	hdmi->bridge.driver_private = hdmi;
-	hdmi->bridge.funcs = &dw_hdmi_bridge_funcs;
-#ifdef CONFIG_OF
-	hdmi->bridge.of_node = pdev->dev.of_node;
-#endif
+	drm_bridge_init(&hdmi->bridge, &pdev->dev, &dw_hdmi_bridge_funcs,
+			NULL, hdmi);
 
 	if (hdmi->version >= 0x200a)
 		hdmi->connector.ycbcr_420_allowed =
