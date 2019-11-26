@@ -6,10 +6,10 @@
  */
 #include <linux/module.h>
 #include <linux/kernel.h>
+#include <linux/of_graph.h>
 #include <linux/platform_device.h>
-#include <linux/component.h>
 #include <linux/pm_runtime.h>
-#include <drm/drm_of.h>
+#include <drm/drm_bridge.h>
 #include "komeda_dev.h"
 #include "komeda_kms.h"
 
@@ -87,35 +87,29 @@ free_mdrv:
 	return err;
 }
 
-static const struct component_master_ops komeda_master_ops = {
-	.bind	= komeda_bind,
-	.unbind	= komeda_unbind,
-};
-
-static int compare_of(struct device *dev, void *data)
-{
-	return dev->of_node == data;
-}
-
-static void komeda_add_slave(struct device *master,
-			     struct component_match **match,
-			     struct device_node *np,
-			     u32 port, u32 endpoint)
+static int komeda_add_slave(struct device_node *np, u32 port, u32 endpoint)
 {
 	struct device_node *remote;
+	struct drm_bridge *bridge;
+	int ret = 0;
 
 	remote = of_graph_get_remote_node(np, port, endpoint);
-	if (remote) {
-		drm_of_component_match_add(master, match, compare_of, remote);
-		of_node_put(remote);
-	}
+	if (!remote)
+		return 0;
+
+	bridge = of_drm_find_bridge(remote);
+	if (!bridge)
+		ret = -EPROBE_DEFER;
+
+	of_node_put(remote);
+	return ret;
 }
 
 static int komeda_platform_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-	struct component_match *match = NULL;
 	struct device_node *child;
+	int ret;
 
 	if (!dev->of_node)
 		return -ENODEV;
@@ -124,17 +118,25 @@ static int komeda_platform_probe(struct platform_device *pdev)
 		if (of_node_cmp(child->name, "pipeline") != 0)
 			continue;
 
-		/* add connector */
-		komeda_add_slave(dev, &match, child, KOMEDA_OF_PORT_OUTPUT, 0);
-		komeda_add_slave(dev, &match, child, KOMEDA_OF_PORT_OUTPUT, 1);
+		/* attach any remote devices if present */
+		ret = komeda_add_slave(child, KOMEDA_OF_PORT_OUTPUT, 0);
+		if (ret) {
+			of_node_put(child);
+			return ret;
+		}
+		ret = komeda_add_slave(child, KOMEDA_OF_PORT_OUTPUT, 1);
+		if (ret) {
+			of_node_put(child);
+			return ret;
+		}
 	}
 
-	return component_master_add_with_match(dev, &komeda_master_ops, match);
+	return komeda_bind(dev);
 }
 
 static int komeda_platform_remove(struct platform_device *pdev)
 {
-	component_master_del(&pdev->dev, &komeda_master_ops);
+	komeda_unbind(&pdev->dev);
 	return 0;
 }
 

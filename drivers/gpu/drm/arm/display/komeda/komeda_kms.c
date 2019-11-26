@@ -4,8 +4,8 @@
  * Author: James.Qian.Wang <james.qian.wang@arm.com>
  *
  */
-#include <linux/component.h>
 #include <linux/interrupt.h>
+#include <linux/of_graph.h>
 
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
@@ -15,6 +15,7 @@
 #include <drm/drm_gem_framebuffer_helper.h>
 #include <drm/drm_irq.h>
 #include <drm/drm_managed.h>
+#include <drm/drm_bridge.h>
 #include <drm/drm_probe_helper.h>
 #include <drm/drm_vblank.h>
 
@@ -259,6 +260,69 @@ static void komeda_kms_mode_config_init(struct komeda_kms_dev *kms,
 	config->helper_private = &komeda_mode_config_helpers;
 }
 
+static void komeda_encoder_destroy(struct drm_encoder *encoder)
+{
+	drm_encoder_cleanup(encoder);
+}
+
+static const struct drm_encoder_funcs komeda_dummy_enc_funcs = {
+	.destroy = komeda_encoder_destroy,
+};
+
+static int komeda_encoder_attach_bridge(struct komeda_dev *mdev,
+					struct komeda_kms_dev *kms,
+					struct drm_encoder *encoder,
+					struct device_node *np)
+{
+	struct device_node *remote;
+	struct drm_bridge *bridge;
+	u32 crtcs = 0;
+	int ret = 0;
+
+	remote = of_graph_get_remote_node(np, KOMEDA_OF_PORT_OUTPUT, 0);
+	if (!remote)
+		return 0;
+
+	bridge = of_drm_find_bridge_devlink(&kms->base, remote);
+	if (!bridge) {
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	crtcs = drm_of_find_possible_crtcs(&kms->base, remote);
+
+	encoder->possible_crtcs = crtcs ? crtcs : 1;
+
+	ret = drm_encoder_init(&kms->base, encoder, &komeda_dummy_enc_funcs,
+			       DRM_MODE_ENCODER_TMDS, NULL);
+	if (ret)
+		goto exit;
+
+	ret = drm_bridge_attach(encoder, bridge, NULL);
+	if (ret)
+		goto exit;
+
+exit:
+	of_node_put(remote);
+	return ret;
+}
+
+static int komeda_encoder_attach_bridges(struct komeda_kms_dev *kms,
+					 struct komeda_dev *mdev)
+{
+	int i, err;
+
+	for (i = 0; i < kms->n_crtcs; i++) {
+		err = komeda_encoder_attach_bridge(
+			mdev, kms,
+			&kms->encoders[i], mdev->pipelines[i]->of_node);
+		if (err)
+			return err;
+	}
+
+	return 0;
+}
+
 struct komeda_kms_dev *komeda_kms_attach(struct komeda_dev *mdev)
 {
 	struct komeda_kms_dev *kms;
@@ -296,7 +360,7 @@ struct komeda_kms_dev *komeda_kms_attach(struct komeda_dev *mdev)
 	if (err)
 		goto cleanup_mode_config;
 
-	err = component_bind_all(mdev->dev, kms);
+	err = komeda_encoder_attach_bridges(kms, mdev);
 	if (err)
 		goto cleanup_mode_config;
 
@@ -306,7 +370,7 @@ struct komeda_kms_dev *komeda_kms_attach(struct komeda_dev *mdev)
 			       komeda_kms_irq_handler, IRQF_SHARED,
 			       drm->driver->name, drm);
 	if (err)
-		goto free_component_binding;
+		goto cleanup_mode_config;
 
 	drm->irq_enabled = true;
 
@@ -321,8 +385,6 @@ struct komeda_kms_dev *komeda_kms_attach(struct komeda_dev *mdev)
 free_interrupts:
 	drm_kms_helper_poll_fini(drm);
 	drm->irq_enabled = false;
-free_component_binding:
-	component_unbind_all(mdev->dev, drm);
 cleanup_mode_config:
 	drm_mode_config_cleanup(drm);
 	komeda_kms_cleanup_private_objs(kms);
@@ -339,7 +401,6 @@ void komeda_kms_detach(struct komeda_kms_dev *kms)
 	drm_kms_helper_poll_fini(drm);
 	drm_atomic_helper_shutdown(drm);
 	drm->irq_enabled = false;
-	component_unbind_all(mdev->dev, drm);
 	drm_mode_config_cleanup(drm);
 	komeda_kms_cleanup_private_objs(kms);
 	drm->dev_private = NULL;

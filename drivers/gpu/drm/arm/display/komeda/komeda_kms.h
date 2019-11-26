@@ -12,6 +12,7 @@
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_device.h>
+#include <drm/drm_encoder.h>
 #include <drm/drm_writeback.h>
 #include <drm/drm_print.h>
 
@@ -123,6 +124,7 @@ struct komeda_kms_dev {
 	int n_crtcs;
 	/** @crtcs: crtcs list */
 	struct komeda_crtc crtcs[KOMEDA_MAX_PIPELINES];
+	struct drm_encoder encoders[KOMEDA_MAX_PIPELINES];
 };
 
 #define to_kplane(p)	container_of(p, struct komeda_plane, base)
