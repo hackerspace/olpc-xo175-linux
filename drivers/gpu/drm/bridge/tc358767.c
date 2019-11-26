@@ -1678,8 +1678,7 @@ static int tc_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	if (ret)
 		return ret;
 
-	tc->bridge.funcs = &tc_bridge_funcs;
-	tc->bridge.of_node = dev->of_node;
+	drm_bridge_init(&tc->bridge, dev, &tc_bridge_funcs, NULL, NULL);
 	drm_bridge_add(&tc->bridge);
 
 	i2c_set_clientdata(client, tc);
