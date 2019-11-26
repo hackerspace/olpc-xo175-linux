@@ -302,10 +302,10 @@ static int tfp410_init(struct device *dev, bool i2c)
 	dvi->dev = dev;
 	dev_set_drvdata(dev, dvi);
 
-	dvi->bridge.funcs = &tfp410_bridge_funcs;
-	dvi->bridge.of_node = dev->of_node;
-	dvi->bridge.timings = &dvi->timings;
+	drm_bridge_init(&dvi->bridge, dev, &tfp410_bridge_funcs, &dvi->timings,
+			NULL);
 	dvi->bridge.type = DRM_MODE_CONNECTOR_DVID;
+	dvi->dev = dev;
 
 	ret = tfp410_parse_timings(dvi, i2c);
 	if (ret)
