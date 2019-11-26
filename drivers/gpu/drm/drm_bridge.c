@@ -150,6 +150,35 @@ static const struct drm_private_state_funcs drm_bridge_priv_state_funcs = {
 };
 
 /**
+ * drm_bridge_init - initialise a drm_bridge structure
+ *
+ * @bridge: bridge control structure
+ * @funcs: control functions
+ * @dev: device
+ * @timings: timing specification for the bridge; optional (may be NULL)
+ * @driver_private: pointer to the bridge driver internal context (may be NULL)
+ */
+void drm_bridge_init(struct drm_bridge *bridge, struct device *dev,
+		     const struct drm_bridge_funcs *funcs,
+		     const struct drm_bridge_timings *timings,
+		     void *driver_private)
+{
+	WARN_ON(!funcs);
+
+	bridge->dev = NULL;
+	bridge->encoder = NULL;
+	bridge->next = NULL;
+
+#ifdef CONFIG_OF
+	bridge->of_node = dev->of_node;
+#endif
+	bridge->timings = timings;
+	bridge->funcs = funcs;
+	bridge->driver_private = driver_private;
+}
+EXPORT_SYMBOL(drm_bridge_init);
+
+/**
  * drm_bridge_attach - attach the bridge to an encoder's chain
  *
  * @encoder: DRM encoder
