@@ -1023,9 +1023,8 @@ static int sii902x_probe(struct i2c_client *client,
 			return ret;
 	}
 
-	sii902x->bridge.funcs = &sii902x_bridge_funcs;
-	sii902x->bridge.of_node = dev->of_node;
-	sii902x->bridge.timings = &default_sii902x_timings;
+	drm_bridge_init(&sii902x->bridge, dev, &sii902x_bridge_funcs,
+			&default_sii902x_timings, NULL);
 	drm_bridge_add(&sii902x->bridge);
 
 	sii902x_audio_codec_init(sii902x, dev);
