@@ -944,9 +944,8 @@ static int ti_sn_bridge_probe(struct i2c_client *client,
 	pdata->aux.transfer = ti_sn_aux_transfer;
 	drm_dp_aux_register(&pdata->aux);
 
-	pdata->bridge.funcs = &ti_sn_bridge_funcs;
-	pdata->bridge.of_node = client->dev.of_node;
-
+	drm_bridge_init(&pdata->bridge, &client->dev, &ti_sn_bridge_funcs,
+			NULL, NULL);
 	drm_bridge_add(&pdata->bridge);
 
 	ti_sn_debugfs_init(pdata);
