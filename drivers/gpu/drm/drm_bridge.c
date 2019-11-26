@@ -27,6 +27,7 @@
 
 #include <drm/drm_atomic_state_helper.h>
 #include <drm/drm_bridge.h>
+#include <drm/drm_device.h>
 #include <drm/drm_encoder.h>
 
 #include "drm_crtc_internal.h"
@@ -169,6 +170,7 @@ void drm_bridge_init(struct drm_bridge *bridge, struct device *dev,
 	bridge->encoder = NULL;
 	bridge->next = NULL;
 
+	bridge->device = dev;
 #ifdef CONFIG_OF
 	bridge->of_node = dev->of_node;
 #endif
@@ -1221,6 +1223,32 @@ void drm_bridge_hpd_notify(struct drm_bridge *bridge,
 EXPORT_SYMBOL_GPL(drm_bridge_hpd_notify);
 
 #ifdef CONFIG_OF
+static struct drm_bridge *drm_bridge_find(struct drm_device *dev,
+					  struct device_node *np, bool link)
+{
+	struct drm_bridge *bridge, *found = NULL;
+	struct device_link *dl;
+
+	mutex_lock(&bridge_lock);
+
+	list_for_each_entry(bridge, &bridge_list, list)
+		if (bridge->of_node == np) {
+			found = bridge;
+			break;
+		}
+
+	if (found && link) {
+		dl = device_link_add(dev->dev, found->device,
+				     DL_FLAG_AUTOPROBE_CONSUMER);
+		if (!dl)
+			found = NULL;
+	}
+
+	mutex_unlock(&bridge_lock);
+
+	return found;
+}
+
 /**
  * of_drm_find_bridge - find the bridge corresponding to the device node in
  *			the global bridge list
@@ -1232,21 +1260,16 @@ EXPORT_SYMBOL_GPL(drm_bridge_hpd_notify);
  */
 struct drm_bridge *of_drm_find_bridge(struct device_node *np)
 {
-	struct drm_bridge *bridge;
-
-	mutex_lock(&bridge_lock);
-
-	list_for_each_entry(bridge, &bridge_list, list) {
-		if (bridge->of_node == np) {
-			mutex_unlock(&bridge_lock);
-			return bridge;
-		}
-	}
-
-	mutex_unlock(&bridge_lock);
-	return NULL;
+	return drm_bridge_find(NULL, np, false);
 }
 EXPORT_SYMBOL(of_drm_find_bridge);
+
+struct drm_bridge *of_drm_find_bridge_devlink(struct drm_device *dev,
+					      struct device_node *np)
+{
+	return drm_bridge_find(dev, np, true);
+}
+EXPORT_SYMBOL(of_drm_find_bridge_devlink);
 #endif
 
 MODULE_AUTHOR("Ajay Kumar <ajaykumar.rs@samsung.com>");

@@ -710,6 +710,8 @@ struct drm_bridge {
 	struct drm_encoder *encoder;
 	/** @chain_node: used to form a bridge chain */
 	struct list_head chain_node;
+	/** @device: Linux driver model device */
+	struct device *device;
 #ifdef CONFIG_OF
 	/** @of_node: device node pointer to the bridge */
 	struct device_node *of_node;
@@ -773,6 +775,8 @@ void drm_bridge_init(struct drm_bridge *bridge, struct device *dev,
 		     const struct drm_bridge_timings *timings,
 		     void *driver_private);
 struct drm_bridge *of_drm_find_bridge(struct device_node *np);
+struct drm_bridge *of_drm_find_bridge_devlink(struct drm_device *dev,
+					      struct device_node *np);
 int drm_bridge_attach(struct drm_encoder *encoder, struct drm_bridge *bridge,
 		      struct drm_bridge *previous,
 		      enum drm_bridge_attach_flags flags);
