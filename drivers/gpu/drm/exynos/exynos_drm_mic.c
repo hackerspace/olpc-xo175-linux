@@ -309,10 +309,6 @@ static const struct drm_bridge_funcs mic_bridge_funcs = {
 static int exynos_mic_bind(struct device *dev, struct device *master,
 			   void *data)
 {
-	struct exynos_mic *mic = dev_get_drvdata(dev);
-
-	mic->bridge.driver_private = mic;
-
 	return 0;
 }
 
@@ -422,9 +418,7 @@ static int exynos_mic_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, mic);
 
-	mic->bridge.funcs = &mic_bridge_funcs;
-	mic->bridge.of_node = dev->of_node;
-
+	drm_bridge_init(&mic->bridge, dev, &mic_bridge_funcs, NULL, mic);
 	drm_bridge_add(&mic->bridge);
 
 	pm_runtime_enable(dev);
