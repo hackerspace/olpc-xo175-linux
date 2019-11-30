@@ -78,18 +78,45 @@ static const struct drm_display_mode ariel_mode = {
 	.vrefresh = 60,
 };
 
+struct drm_display_mode mode17 = {
+	.clock = 108000,
+	//.clock = 65000,
+
+	.hdisplay = 1280,
+	.hsync_start = 1328,
+	.hsync_end = 1440,
+	.htotal = 1688,
+
+	.vdisplay = 1024,
+	.vsync_start = 1025,
+	.vsync_end = 1028,
+	.vtotal = 1066,
+
+	.flags = DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC,
+};
+
 static int ch7033_connector_get_modes(struct drm_connector *connector)
 {
 //	struct ch7033_priv *priv = container_of(connector, struct ch7033_priv, connector);
 	struct drm_device *dev = connector->dev;
 	struct drm_display_mode *mode;
 
+#if 1
+	mode = drm_mode_duplicate(dev, &mode17);
+	if (!mode) {
+		dev_err(dev->dev, "failed to add mode %ux%u@%u\n",
+			mode17.hdisplay, mode17.vdisplay, mode17.vrefresh);
+		return -1;
+	}
+#endif
+#if 0
 	mode = drm_mode_duplicate(dev, &ariel_mode);
 	if (!mode) {
 		dev_err(dev->dev, "failed to add mode %ux%u@%u\n",
 			ariel_mode.hdisplay, ariel_mode.vdisplay, ariel_mode.vrefresh);
 		return -1;
 	}
+#endif
 
 	mode->type |= DRM_MODE_TYPE_DRIVER;
 	mode->type |= DRM_MODE_TYPE_PREFERRED;
