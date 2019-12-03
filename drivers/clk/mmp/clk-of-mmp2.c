@@ -78,6 +78,14 @@ static struct mmp_param_fixed_rate_clk fixed_rate_clks[] = {
 	{MMP2_CLK_USB_PLL, "usb_pll", NULL, 0, 480000000},
 };
 
+static struct mmp_param_fixed_rate_clk mmp3_fixed_rate_clks[] = {
+	{MMP2_CLK_CLK32, "clk32", NULL, 0, 32768},
+	{MMP2_CLK_VCTCXO, "vctcxo", NULL, 0, 26000000},
+	{MMP2_CLK_PLL1, "pll1", NULL, 0, 800000000},
+	{MMP2_CLK_PLL2, "pll2", NULL, 0, 1200000000},
+	{MMP2_CLK_USB_PLL, "usb_pll", NULL, 0, 480000000},
+};
+
 static struct mmp_param_fixed_factor_clk fixed_factor_clks[] = {
 	{MMP2_CLK_PLL1_2, "pll1_2", "pll1", 1, 2, 0},
 	{MMP2_CLK_PLL1_4, "pll1_4", "pll1_2", 1, 2, 0},
@@ -111,13 +119,19 @@ static struct mmp_clk_factor_tbl uart_factor_tbl[] = {
 	{.num = 3521, .den = 689},	/*19.23MHZ */
 };
 
-static void mmp2_pll_init(struct mmp2_clk_unit *pxa_unit)
+static void mmp2_pll_init(struct device_node *np,
+			  struct mmp2_clk_unit *pxa_unit)
 {
 	struct clk *clk;
 	struct mmp_clk_unit *unit = &pxa_unit->unit;
 
-	mmp_register_fixed_rate_clks(unit, fixed_rate_clks,
-					ARRAY_SIZE(fixed_rate_clks));
+	if (of_device_is_compatible(np, "marvell,mmp3-clock")) {
+		mmp_register_fixed_rate_clks(unit, mmp3_fixed_rate_clks,
+						ARRAY_SIZE(mmp3_fixed_rate_clks));
+	} else {
+		mmp_register_fixed_rate_clks(unit, fixed_rate_clks,
+						ARRAY_SIZE(fixed_rate_clks));
+	}
 
 	mmp_register_fixed_factor_clks(unit, fixed_factor_clks,
 					ARRAY_SIZE(fixed_factor_clks));
@@ -452,7 +466,7 @@ static void __init mmp2_clk_init(struct device_node *np)
 
 	mmp_clk_init(np, &pxa_unit->unit, MMP2_NR_CLKS);
 
-	mmp2_pll_init(pxa_unit);
+	mmp2_pll_init(np, pxa_unit);
 
 	mmp2_apb_periph_clk_init(pxa_unit);
 
@@ -471,3 +485,4 @@ free_memory:
 }
 
 CLK_OF_DECLARE(mmp2_clk, "marvell,mmp2-clock", mmp2_clk_init);
+CLK_OF_DECLARE(mmp3_clk, "marvell,mmp3-clock", mmp2_clk_init);
