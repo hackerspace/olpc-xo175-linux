@@ -17,14 +17,14 @@
 #include "armada_drm.h"
 #include "armada_hw.h"
 
-struct armada610_variant_data {
+struct armada6x0_variant_data {
 	struct clk *clks[4];
 	struct clk *sel_clk;
 };
 
-static int armada610_crtc_init(struct armada_crtc *dcrtc, struct device *dev)
+static int armada6x0_crtc_init(struct armada_crtc *dcrtc, struct device *dev)
 {
-	struct armada610_variant_data *v;
+	struct armada6x0_variant_data *v;
 	struct property *prop;
 	struct clk *clk;
 	const char *s;
@@ -58,18 +58,11 @@ static int armada610_crtc_init(struct armada_crtc *dcrtc, struct device *dev)
 	return 0;
 }
 
-static const u32 armada610_clk_sels[] = {
-	SCLK_610_DISP0,
-	SCLK_610_DISP1,
-	SCLK_610_PLL,
-	SCLK_610_AXI,
-};
-
-static const struct armada_clocking_params armada610_clocking = {
+static const struct armada_clocking_params armada6x0_clocking = {
 	/* HDMI requires -0.6%..+0.5% */
 	.permillage_min = 0,
 	.permillage_max = 2000,
-	.settable = BIT(0) | BIT(1),
+	.settable = BIT(0) | BIT(1) | BIT(2),
 	.div_max = SCLK_610_INT_DIV_MASK,
 };
 
@@ -79,15 +72,16 @@ static const struct armada_clocking_params armada610_clocking = {
  * that.  The former can return an error, but the latter is expected
  * not to.
  */
-static int armada610_crtc_compute_clock(struct armada_crtc *dcrtc,
-	const struct drm_display_mode *mode, uint32_t *sclk)
+static int armada6x0_crtc_compute_clock(struct armada_crtc *dcrtc,
+	const struct drm_display_mode *mode, uint32_t *sclk,
+	const u32 clk_sels[])
 {
-	struct armada610_variant_data *v = dcrtc->variant_data;
+	struct armada6x0_variant_data *v = dcrtc->variant_data;
 	unsigned long desired_khz = mode->crtc_clock;
 	struct armada_clk_result res;
 	int ret, idx;
 
-	idx = armada_crtc_select_clock(dcrtc, &res, &armada610_clocking,
+	idx = armada_crtc_select_clock(dcrtc, &res, &armada6x0_clocking,
 				       v->clks, ARRAY_SIZE(v->clks),
 				       desired_khz);
 	if (idx < 0)
@@ -102,7 +96,7 @@ static int armada610_crtc_compute_clock(struct armada_crtc *dcrtc,
 
 		*sclk = 0x00001000;	/* No idea */
 		*sclk |= 1 << 8;	/* MIPI clock bypass */
-		*sclk |= armada610_clk_sels[idx];
+		*sclk |= clk_sels[idx];
 		*sclk |= res.div;
 
 		/* We are now using this clock */
@@ -115,7 +109,36 @@ static int armada610_crtc_compute_clock(struct armada_crtc *dcrtc,
 	return 0;
 }
 
-static void armada610_crtc_disable(struct armada_crtc *dcrtc)
+static const u32 armada610_clk_sels[] = {
+	SCLK_610_DISP0,
+	SCLK_610_DISP1,
+	SCLK_610_HDMI_PLL,
+	SCLK_610_AXI,
+};
+
+static int armada610_crtc_compute_clock(struct armada_crtc *dcrtc,
+	const struct drm_display_mode *mode, uint32_t *sclk)
+{
+	return armada6x0_crtc_compute_clock(dcrtc, mode, sclk,
+					    armada610_clk_sels);
+}
+
+static const u32 armada620_clk_sels[] = {
+	SCLK_620_DISP0,
+	SCLK_620_DISP1,
+	SCLK_620_HDMI_PLL,
+	SCLK_620_AXI,
+	//SCLK_620_PLL3,
+};
+
+static int armada620_crtc_compute_clock(struct armada_crtc *dcrtc,
+	const struct drm_display_mode *mode, uint32_t *sclk)
+{
+	return armada6x0_crtc_compute_clock(dcrtc, mode, sclk,
+					    armada620_clk_sels);
+}
+
+static void armada6x0_crtc_disable(struct armada_crtc *dcrtc)
 {
 	if (dcrtc->clk) {
 		clk_disable_unprepare(dcrtc->clk);
@@ -123,10 +146,10 @@ static void armada610_crtc_disable(struct armada_crtc *dcrtc)
 	}
 }
 
-static void armada610_crtc_enable(struct armada_crtc *dcrtc,
+static void armada6x0_crtc_enable(struct armada_crtc *dcrtc,
 	const struct drm_display_mode *mode)
 {
-	struct armada610_variant_data *v = dcrtc->variant_data;
+	struct armada6x0_variant_data *v = dcrtc->variant_data;
 
 	if (!dcrtc->clk && v->sel_clk) {
 		if (!WARN_ON(clk_prepare_enable(v->sel_clk)))
@@ -136,8 +159,15 @@ static void armada610_crtc_enable(struct armada_crtc *dcrtc,
 
 
 const struct armada_variant armada610_ops = {
-	.init = armada610_crtc_init,
+	.init = armada6x0_crtc_init,
 	.compute_clock = armada610_crtc_compute_clock,
-	.disable = armada610_crtc_disable,
-	.enable = armada610_crtc_enable,
+	.disable = armada6x0_crtc_disable,
+	.enable = armada6x0_crtc_enable,
+};
+
+const struct armada_variant armada620_ops = {
+	.init = armada6x0_crtc_init,
+	.compute_clock = armada620_crtc_compute_clock,
+	.disable = armada6x0_crtc_disable,
+	.enable = armada6x0_crtc_enable,
 };
