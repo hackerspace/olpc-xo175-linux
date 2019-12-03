@@ -46,7 +46,7 @@
 			ranges;
 
 			lcd0: lcdc@d420b000 {
-				compatible = "marvell,mmp2-lcd", "marvell,armada-lcdc";
+				compatible = "marvell,mmp3-lcd", "marvell,armada-lcdc";
 				reg = <0xd420b000 0x1000>;
 				interrupts = <GIC_SPI 41 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&soc_clocks MMP2_CLK_DISP0_LCDC>,
@@ -556,7 +556,7 @@
 		};
 
 		soc_clocks: clocks@d4050000 {
-			compatible = "marvell,mmp2-clock";
+			compatible = "marvell,mmp3-clock";
 			reg = <0xd4050000 0x1000>,
 			      <0xd4282800 0x400>,
 			      <0xd4015000 0x1000>;
