@@ -78,6 +78,14 @@ static struct mmp_param_fixed_rate_clk fixed_rate_clks[] = {
 	{MMP2_CLK_USB_PLL, "usb_pll", NULL, 0, 480000000},
 };
 
+static struct mmp_param_fixed_rate_clk mmp3_fixed_rate_clks[] = {
+	{MMP2_CLK_CLK32, "clk32", NULL, 0, 32768},
+	{MMP2_CLK_VCTCXO, "vctcxo", NULL, 0, 26000000},
+	{MMP2_CLK_PLL1, "pll1", NULL, 0, 800000000},
+	{MMP2_CLK_PLL2, "pll2", NULL, 0, 1200000000},
+	{MMP2_CLK_USB_PLL, "usb_pll", NULL, 0, 480000000},
+};
+
 static struct mmp_param_fixed_factor_clk fixed_factor_clks[] = {
 	{MMP2_CLK_PLL1_2, "pll1_2", "pll1", 1, 2, 0},
 	{MMP2_CLK_PLL1_4, "pll1_4", "pll1_2", 1, 2, 0},
@@ -116,8 +124,13 @@ static void mmp2_pll_init(struct mmp2_clk_unit *pxa_unit)
 	struct clk *clk;
 	struct mmp_clk_unit *unit = &pxa_unit->unit;
 
-	mmp_register_fixed_rate_clks(unit, fixed_rate_clks,
+	if (pxa_unit->model == CLK_MODEL_MMP3) {
+		mmp_register_fixed_rate_clks(unit, mmp3_fixed_rate_clks,
+					ARRAY_SIZE(mmp3_fixed_rate_clks));
+	} else {
+		mmp_register_fixed_rate_clks(unit, fixed_rate_clks,
 					ARRAY_SIZE(fixed_rate_clks));
+	}
 
 	mmp_register_fixed_factor_clks(unit, fixed_factor_clks,
 					ARRAY_SIZE(fixed_factor_clks));
