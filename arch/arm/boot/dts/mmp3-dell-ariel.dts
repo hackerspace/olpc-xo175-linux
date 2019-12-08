@@ -57,7 +57,6 @@
 		};
 	};
 
-/*
 	dvi_i: dvi-connector {
 		compatible = "dvi-connector";
 		ddc-i2c-bus = <&twsi5>;
@@ -65,12 +64,13 @@
 		analog;
 
 		port {
-			dvi_d_in: endpoint {
-				remote-endpoint = <&ch7033_out>;
+			dvi_i_in: endpoint {
+				remote-endpoint = <&encoder_vga_out>;
 			};
 		};
 	};
 
+/*
 	dvi_d: dvi-connector {
 		compatible = "dvi-connector";
 		ddc-i2c-bus = <&twsi6>;
@@ -83,15 +83,6 @@
 		};
 	};
 */
-	panel {
-		compatible = "innolux,ls075at011", "simple-panel";
-
-		port {
-			panel_vga_in: endpoint {
-				remote-endpoint = <&encoder_vga_out>;
-			};
-		};
-	};
 };
 
 &uart3 {
@@ -247,7 +238,7 @@ lkundrak@t00d:~$
 			port@1 {
 				reg = <1>;
 				encoder_vga_out: endpoint {
-					remote-endpoint = <&panel_vga_in>;
+					remote-endpoint = <&dvi_i_in>;
 				};
 			};
 
