@@ -72,6 +72,10 @@
 #define MMP2_CLK_CCIC1_PHY		118
 #define MMP2_CLK_CCIC1_SPHY		119
 #define MMP2_CLK_DISP0_LCDC		120
+#define MMP2_CLK_GPU_GC_MUX		121
+#define MMP2_CLK_GPU_GC			122
+#define MMP2_CLK_GPU_BUS_MUX		123
+#define MMP2_CLK_GPU_BUS		124
 
 #define MMP2_NR_CLKS			200
 #endif
