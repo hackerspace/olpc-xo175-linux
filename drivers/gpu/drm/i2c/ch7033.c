@@ -8,104 +8,6 @@
 #include <drm/drm_print.h>
 #include <drm/drm_probe_helper.h>
 
-#define CH7033_PAGE_SEL_REG		0x03
-
-#define CH7033_POWER_STATE_4_REG	0x0a
-#define CH7033_POWER_STATE_4_MEM_INIT		BIT(7)
-#define CH7033_POWER_STATE_4_MEM_STOP		BIT(4)
-
-#define CH7033_INPUT_TIMING_1_REG	0x0b
-#define CH7033_INPUT_TIMING_1_HTI(val)		(((val >> 8) & 0xf) << 3)
-#define CH7033_INPUT_TIMING_1_HAI(val)		((val >> 8) & 0x7)
-
-#define CH7033_INPUT_TIMING_2_REG	0x0c
-#define CH7033_INPUT_TIMING_2_HAI(val)		(val & 0xff)
-
-#define CH7033_INPUT_TIMING_3_REG	0x0d
-#define CH7033_INPUT_TIMING_3_HTI(val)		(val & 0xff)
-
-#define CH7033_INPUT_TIMING_4_REG	0x0e
-#define CH7033_INPUT_TIMING_4_HWI(val)		(((val >> 8) & 0x7) << 3)
-#define CH7033_INPUT_TIMING_4_HOI(val)		((val >> 8) & 0x7)
-
-#define CH7033_INPUT_TIMING_5_REG	0x0f
-#define CH7033_INPUT_TIMING_5_HOI(val)		(val & 0xff)
-
-#define CH7033_INPUT_TIMING_6_REG	0x10
-#define CH7033_INPUT_TIMING_6_HWI(val)		(val & 0xff)
-
-#define CH7033_INPUT_TIMING_7_REG	0x11
-#define CH7033_INPUT_TIMING_7_VTI(val)		(((val >> 8) & 0x7) << 3)
-#define CH7033_INPUT_TIMING_7_VAI(val)		((val >> 8) & 0x7)
-
-#define CH7033_INPUT_TIMING_8_REG	0x12
-#define CH7033_INPUT_TIMING_8_VAI(val)		(val & 0xff)
-
-#define CH7033_INPUT_TIMING_9_REG	0x13
-#define CH7033_INPUT_TIMING_9_VTI(val)		(val & 0xff)
-
-#define CH7033_INPUT_TIMING_10_REG	0x14
-#define CH7033_INPUT_TIMING_10_VWI(val)		(((val >> 8) & 0x7) << 3)
-#define CH7033_INPUT_TIMING_10_VOI(val)		((val >> 8) & 0x7)
-
-#define CH7033_INPUT_TIMING_11_REG	0x15
-#define CH7033_INPUT_TIMING_11_VOI(val)		(val & 0xff)
-
-#define CH7033_INPUT_TIMING_12_REG	0x16
-#define CH7033_INPUT_TIMING_12_VWI(val)		(val & 0xff)
-
-#define CH7033_INPUT_POL_REG		0x19
-#define CH7033_INPUT_POL_HSYNC_HI		BIT(5)
-#define CH7033_INPUT_POL_VSYNC_HI		BIT(4)
-#define CH7033_INPUT_POL_DE_HI			BIT(3)
-#define CH7033_INPUT_POL_GCLK(val)		((val >> 16) & 0x3)
-
-#define CH7033_GCLK_1_REG		0x1a
-#define CH7033_GCLK_1_FREQ(val)			((val >> 8) & 0xff)
-
-#define CH7033_GCLK_2_REG		0x1b
-#define CH7033_GCLK_2_FREQ(val)			((val) & 0xff)
-
-#define CH7033_OUTPUT_TIMING_1_REG	0x1f
-#define CH7033_OUTPUT_TIMING_1_HTO(val)		(((val >> 8) & 0xf) << 3)
-#define CH7033_OUTPUT_TIMING_1_HAO(val)		((val >> 8) & 0x7)
-
-#define CH7033_OUTPUT_TIMING_2_REG	0x20
-#define CH7033_OUTPUT_TIMING_2_HAO(val)		(val & 0xff)
-
-#define CH7033_OUTPUT_TIMING_3_REG	0x21
-#define CH7033_OUTPUT_TIMING_3_HTO(val)		(val & 0xff)
-
-#define CH7033_OUTPUT_TIMING_7_REG	0x25
-#define CH7033_OUTPUT_TIMING_7_VTO(val)		(((val >> 8) & 0x7) << 3)
-#define CH7033_OUTPUT_TIMING_7_VAO(val)		((val >> 8) & 0x7)
-
-#define CH7033_OUTPUT_TIMING_8_REG	0x26
-#define CH7033_OUTPUT_TIMING_8_VAO(val)		(val & 0xff)
-
-#define CH7033_OUTPUT_TIMING_9_REG	0x27
-#define CH7033_OUTPUT_TIMING_9_VTO(val)		(val & 0xff)
-
-#define CH7033_OUTPUT_TIMING_4_REG	0x54
-#define CH7033_OUTPUT_TIMING_4_HWO(val)		(((val >> 8) & 0x7) << 3)
-#define CH7033_OUTPUT_TIMING_4_HOO(val)		((val >> 8) & 0x7)
-
-#define CH7033_OUTPUT_TIMING_5_REG	0x55
-#define CH7033_OUTPUT_TIMING_5_HOO(val)		(val & 0xff)
-
-#define CH7033_OUTPUT_TIMING_6_REG	0x56
-#define CH7033_OUTPUT_TIMING_6_HWO(val)		(val & 0xff)
-
-#define CH7033_OUTPUT_TIMING_10_REG	0x57
-#define CH7033_OUTPUT_TIMING_10_VWO(val)	(((val >> 8) & 0x7) << 3)
-#define CH7033_OUTPUT_TIMING_10_VOO(val)	((val >> 8) & 0x7)
-
-#define CH7033_OUTPUT_TIMING_11_REG	0x58
-#define CH7033_OUTPUT_TIMING_11_VOO(val)	(val & 0xff)
-
-#define CH7033_OUTPUT_TIMING_12_REG	0x59
-#define CH7033_OUTPUT_TIMING_12_VWO(val)	(val & 0xff)
-
 struct ch7033_priv {
         struct i2c_client *client;
 	struct i2c_adapter *ddc;
@@ -116,17 +18,8 @@ struct ch7033_priv {
 
 #define conn_to_ch7033_priv(x) \
 	container_of(x, struct ch7033_priv, connector)
-#define enc_to_ch7033_priv(x) \
-	container_of(x, struct ch7033_priv, encoder)
 #define bridge_to_ch7033_priv(x) \
 	container_of(x, struct ch7033_priv, bridge)
-
-static u8 ch7033_write(struct i2c_client *client, u8 page, u8 reg, u8 value)
-{
-	i2c_smbus_write_byte_data(client, CH7033_PAGE_SEL_REG, page);
-
-	return i2c_smbus_write_byte_data(client, reg, value);
-}
 
 static enum drm_connector_status ch7033_connector_detect(struct drm_connector *connector, bool force)
 {
@@ -233,126 +126,177 @@ static void ch7033_bridge_mode_set(struct drm_bridge *bridge,
 				    const struct drm_display_mode *adjusted_mode)
 {
 	struct ch7033_priv *priv = bridge_to_ch7033_priv(bridge);
-	u16 hbp = mode->hsync_start - mode->hdisplay;
-	u16 hsync_len = mode->hsync_end - mode->hsync_start;
-	u16 vbp = mode->vsync_start - mode->vdisplay;
-	u16 vsync_len = mode->vsync_end - mode->vsync_start;
-	u32 val;
 
-	/* Setup the horizontal timings ... */
-	ch7033_write(priv->client, 0, CH7033_INPUT_TIMING_1_REG,
-		     CH7033_INPUT_TIMING_1_HTI(mode->htotal) |
-		     CH7033_INPUT_TIMING_1_HAI(mode->hdisplay));
+	// Mode set 1280x1024@75
 
-	ch7033_write(priv->client, 0, CH7033_INPUT_TIMING_2_REG,
-		     CH7033_INPUT_TIMING_2_HAI(mode->hdisplay));
-
-	ch7033_write(priv->client, 0, CH7033_INPUT_TIMING_3_REG,
-		     CH7033_INPUT_TIMING_3_HTI(mode->htotal));
-
-	ch7033_write(priv->client, 0, CH7033_INPUT_TIMING_4_REG,
-		     CH7033_INPUT_TIMING_4_HOI(hbp) |
-		     CH7033_INPUT_TIMING_4_HWI(hsync_len));
-
-	ch7033_write(priv->client, 0, CH7033_INPUT_TIMING_5_REG,
-		     CH7033_INPUT_TIMING_5_HOI(hbp));
-
-	ch7033_write(priv->client, 0, CH7033_INPUT_TIMING_6_REG,
-		     CH7033_INPUT_TIMING_6_HWI(hsync_len));
-
-	/* ... And the vertical ones */
-	ch7033_write(priv->client, 0, CH7033_INPUT_TIMING_7_REG,
-		     CH7033_INPUT_TIMING_7_VTI(mode->vtotal) |
-		     CH7033_INPUT_TIMING_7_VAI(mode->vdisplay));
-
-	ch7033_write(priv->client, 0, CH7033_INPUT_TIMING_8_REG,
-		     CH7033_INPUT_TIMING_8_VAI(mode->vdisplay));
-
-	ch7033_write(priv->client, 0, CH7033_INPUT_TIMING_9_REG,
-		     CH7033_INPUT_TIMING_9_VTI(mode->vtotal));
-
-	ch7033_write(priv->client, 0, CH7033_INPUT_TIMING_10_REG,
-		     CH7033_INPUT_TIMING_10_VOI(vbp) |
-		     CH7033_INPUT_TIMING_10_VWI(vsync_len));
-
-	ch7033_write(priv->client, 0, CH7033_INPUT_TIMING_11_REG,
-		     CH7033_INPUT_TIMING_11_VOI(vbp));
-
-	ch7033_write(priv->client, 0, CH7033_INPUT_TIMING_12_REG,
-		     CH7033_INPUT_TIMING_12_VWI(vsync_len));
-
-	/* Setup polarities and clock */
-	val = CH7033_INPUT_POL_DE_HI;
-	val |= (mode->flags & DRM_MODE_FLAG_PHSYNC) ? CH7033_INPUT_POL_HSYNC_HI : 0;
-	val |= (mode->flags & DRM_MODE_FLAG_PVSYNC) ? CH7033_INPUT_POL_VSYNC_HI : 0;
-	val |= CH7033_INPUT_POL_GCLK(mode->clock);
-	ch7033_write(priv->client, 0, CH7033_INPUT_POL_REG, val);
-
-	ch7033_write(priv->client, 0, CH7033_GCLK_1_REG,
-		     CH7033_GCLK_1_FREQ(mode->clock));
-
-	ch7033_write(priv->client, 0, CH7033_GCLK_2_REG,
-		     CH7033_GCLK_2_FREQ(mode->clock));
-
-	/* Horizontal output timings ... */
-	ch7033_write(priv->client, 0, CH7033_OUTPUT_TIMING_1_REG,
-		     CH7033_OUTPUT_TIMING_1_HTO(mode->htotal) |
-		     CH7033_OUTPUT_TIMING_1_HAO(mode->hdisplay));
-
-	ch7033_write(priv->client, 0, CH7033_OUTPUT_TIMING_2_REG,
-		     CH7033_OUTPUT_TIMING_2_HAO(mode->hdisplay));
-
-	ch7033_write(priv->client, 0, CH7033_OUTPUT_TIMING_3_REG,
-		     CH7033_OUTPUT_TIMING_3_HTO(mode->htotal));
-
-	ch7033_write(priv->client, 0, CH7033_OUTPUT_TIMING_4_REG,
-		     CH7033_OUTPUT_TIMING_4_HOO(hbp) |
-		     CH7033_OUTPUT_TIMING_4_HWO(hsync_len));
-
-	ch7033_write(priv->client, 0, CH7033_OUTPUT_TIMING_5_REG,
-		     CH7033_OUTPUT_TIMING_5_HOO(hbp));
-
-	ch7033_write(priv->client, 0, CH7033_OUTPUT_TIMING_6_REG,
-		     CH7033_OUTPUT_TIMING_6_HWO(hsync_len));
-
-	/* ... And the vertical ones */
-	ch7033_write(priv->client, 0, CH7033_OUTPUT_TIMING_7_REG,
-		     CH7033_OUTPUT_TIMING_7_VTO(mode->vtotal) |
-		     CH7033_OUTPUT_TIMING_7_VAO(mode->vdisplay));
-
-	ch7033_write(priv->client, 0, CH7033_OUTPUT_TIMING_8_REG,
-		     CH7033_OUTPUT_TIMING_8_VAO(mode->vdisplay));
-
-	ch7033_write(priv->client, 0, CH7033_OUTPUT_TIMING_9_REG,
-		     CH7033_OUTPUT_TIMING_9_VTO(mode->vtotal));
-
-	ch7033_write(priv->client, 0, CH7033_OUTPUT_TIMING_10_REG,
-		     CH7033_OUTPUT_TIMING_10_VOO(vbp) |
-		     CH7033_OUTPUT_TIMING_10_VWO(vsync_len));
-
-	ch7033_write(priv->client, 0, CH7033_OUTPUT_TIMING_11_REG,
-		     CH7033_OUTPUT_TIMING_11_VOO(vbp));
-
-	ch7033_write(priv->client, 0, CH7033_OUTPUT_TIMING_12_REG,
-		     CH7033_OUTPUT_TIMING_12_VWO(vsync_len));
-
-
-	if (mode->hdisplay >= 1280) {
-		i2c_smbus_write_byte_data(priv->client, 0x03, 0x03);
-		// 3: 28 (3 - 3) set_output_info() CHANNEL_VGA bypass ? 1 : 0
-		i2c_smbus_write_byte_data(priv->client, 0x28, 0x0c); //i2cset -f -y 1 0x76 0x28 0x0c # 0x04  weird clocking artifacts
-		// 0: 2b (0 - 3) set_output_info() CHANNEL_VGA bypass ? 9 : 8
-		i2c_smbus_write_byte_data(priv->client, 0x03, 0x00);
-		i2c_smbus_write_byte_data(priv->client, 0x2b, 0x09); //i2cset -f -y 1 0x76 0x2b 0x09 # 0x08 no signal
-	} else {
-		i2c_smbus_write_byte_data(priv->client, 0x03, 0x03);
-		i2c_smbus_write_byte_data(priv->client, 0x28, 0x04); //i2cset -f -y 1 0x76 0x28 0x0c # 0x04  weird clocking artifacts
-		i2c_smbus_write_byte_data(priv->client, 0x03, 0x00);
-		i2c_smbus_write_byte_data(priv->client, 0x2b, 0x08); //i2cset -f -y 1 0x76 0x2b 0x09 # 0x08 no signal
-	}
-
+	// Reset
 	i2c_smbus_write_byte_data(priv->client, 0x03, 0x04);
+	i2c_smbus_write_byte_data(priv->client, 0x52, 0x00);
 	i2c_smbus_write_byte_data(priv->client, 0x52, 0xce);
+
+
+	// Page 0
+	i2c_smbus_write_byte_data(priv->client, 0x03, 0x00);
+
+	// bring up drivers and i/o from power down
+
+#define DRI_PD BIT(3)
+#define IO_PD  BIT(5)
+	//i2c_smbus_write_byte_data(priv->client, 0x07, 0xd0);
+	//i2c_smbus_write_byte_data(priv->client, 0x07, 0xd7); <--
+	i2c_smbus_write_byte_data(priv->client, 0x07, 0xff & ~DRI_PD & ~IO_PD);
+
+#define DRI_PDDRI (BIT(4) | BIT(5) | BIT(6) | BIT(7))
+#define PDDAC (BIT(1) | BIT(2) | BIT(3))
+#define PANEN BIT(0)
+//	i2c_smbus_write_byte_data(priv->client, 0x08, 0x01);
+//	i2c_smbus_write_byte_data(priv->client, 0x08, 0xff & ~DRI_PDDRI & ~PDDAC | PANEN);
+//	i2c_smbus_write_byte_data(priv->client, 0x08, 0x00);
+	i2c_smbus_write_byte_data(priv->client, 0x08, 0xff & ~DRI_PDDRI & ~PDDAC & ~PANEN);
+
+
+#define DRI_PDDRI (BIT(4) | BIT(5) | BIT(6) | BIT(7))
+#define PDDAC (BIT(1) | BIT(2) | BIT(3))
+#define PANEN BIT(0)
+//	i2c_smbus_write_byte_data(priv->client, 0x08, 0x01);
+//	i2c_smbus_write_byte_data(priv->client, 0x08, 0xff & ~DRI_PDDRI & ~PDDAC | PANEN);
+//	i2c_smbus_write_byte_data(priv->client, 0x08, 0x00);
+	i2c_smbus_write_byte_data(priv->client, 0x08, 0xff & ~DRI_PDDRI & ~PDDAC & ~PANEN);
+
+
+#define DPD BIT(7) //
+#define GCKOFF BIT(6) //
+#define TV_BP BIT(5) // ok
+#define SCLPD BIT(4) //xx
+#define SDPD BIT(3) // ok
+#define VGA_PD BIT(2) // ok
+#define HDBKPD BIT(1) //xx
+#define HDMI_PD BIT(0) //
+        //i2c_smbus_write_byte_data(priv->client, 0x09, 0x12);
+	//i2c_smbus_write_byte_data(priv->client, 0x09, 0x3a);
+	i2c_smbus_write_byte_data(priv->client, 0x09, 0xff & ~HDMI_PD & ~VGA_PD & ~DPD & ~GCKOFF);
+
+
+#define MEMINIT BIT(7)
+#define MEMIDLE BIT(6)
+#define MEMPD BIT(5)
+#define STOP BIT(4)
+#define LVDS_PD BIT(3)
+#define HD_DVIB BIT(2) //
+#define HDCP_PD BIT(1)
+#define MCU_PD BIT(0)
+	//i2c_smbus_write_byte_data(priv->client, 0x0a, 0x2a);
+	//i2c_smbus_write_byte_data(priv->client, 0x0a, 0xfb);
+	i2c_smbus_write_byte_data(priv->client, 0x0a, 0xff & ~HD_DVIB);
+
+
+	// input horizontal
+	i2c_smbus_write_byte_data(priv->client, 0x0b, 0x34);
+	i2c_smbus_write_byte_data(priv->client, 0x0c, 0x80);
+	i2c_smbus_write_byte_data(priv->client, 0x0d, 0x40);
+	i2c_smbus_write_byte_data(priv->client, 0x0e, 0x00);
+	i2c_smbus_write_byte_data(priv->client, 0x0f, 0x40);
+	i2c_smbus_write_byte_data(priv->client, 0x10, 0x80);
+
+	// input vertical
+	i2c_smbus_write_byte_data(priv->client, 0x11, 0x1b);
+	i2c_smbus_write_byte_data(priv->client, 0x12, 0x60);
+	i2c_smbus_write_byte_data(priv->client, 0x13, 0x84);
+	i2c_smbus_write_byte_data(priv->client, 0x14, 0x00);
+	i2c_smbus_write_byte_data(priv->client, 0x15, 0x01);
+	i2c_smbus_write_byte_data(priv->client, 0x16, 0x03);
+
+	// color swap
+	i2c_smbus_write_byte_data(priv->client, 0x18, 0x05); // bad colors otherwise
+
+	// input clock
+	i2c_smbus_write_byte_data(priv->client, 0x19, 0xf9);
+	i2c_smbus_write_byte_data(priv->client, 0x1a, 0xa5);
+	i2c_smbus_write_byte_data(priv->client, 0x1b, 0xe0);
+
+	// output vertical
+	i2c_smbus_write_byte_data(priv->client, 0x1f, 0x34);
+	i2c_smbus_write_byte_data(priv->client, 0x20, 0x80);
+	i2c_smbus_write_byte_data(priv->client, 0x21, 0x40);
+	i2c_smbus_write_byte_data(priv->client, 0x25, 0x1b);
+	i2c_smbus_write_byte_data(priv->client, 0x26, 0x60);
+	i2c_smbus_write_byte_data(priv->client, 0x27, 0x84);
+
+	// VGA bypass [NO]
+	i2c_smbus_write_byte_data(priv->client, 0x2b, 0x09);
+
+	// polarity, TE (???) [NO]
+	i2c_smbus_write_byte_data(priv->client, 0x2e, 0x3f);
+
+	// hdmi horizontal output
+	//i2c_smbus_write_byte_data(priv->client, 0x54, 0x70); // vga bad
+	i2c_smbus_write_byte_data(priv->client, 0x54, 0x80); // should be default...
+	//i2cset -f -y 1 0x76 0x54 0x80 # just blue ghosts
+
+	i2c_smbus_write_byte_data(priv->client, 0x55, 0x40);
+	i2c_smbus_write_byte_data(priv->client, 0x56, 0x80);
+
+	// hdmi vertical output
+	i2c_smbus_write_byte_data(priv->client, 0x57, 0x00);
+	i2c_smbus_write_byte_data(priv->client, 0x58, 0x01);
+	i2c_smbus_write_byte_data(priv->client, 0x59, 0x03);
+
+	// hdmi lvds sel [ch7033_unknown_init]
+	i2c_smbus_write_byte_data(priv->client, 0x7e, 0x8f);
+
+
+	// Page 1
+	i2c_smbus_write_byte_data(priv->client, 0x03, 0x01);
+
+	i2c_smbus_write_byte_data(priv->client, 0x07, 0x66); // XXX just turn on CKINV, otherwise we get blue ghost [ch7033_unknown_init]
+	i2c_smbus_write_byte_data(priv->client, 0x08, 0x05); // otherwise shit clock on vga
+
+	// PLLM
+	i2c_smbus_write_byte_data(priv->client, 0x0c, 0x74); // [ch7033_unknown_init]
+	i2c_smbus_write_byte_data(priv->client, 0x12, 0xf6);
+	i2c_smbus_write_byte_data(priv->client, 0x13, 0x28);
+	i2c_smbus_write_byte_data(priv->client, 0x14, 0x81);
+	i2c_smbus_write_byte_data(priv->client, 0x15, 0x23);
+
+	// otherwise different colors are bland on vga
+	i2c_smbus_write_byte_data(priv->client, 0x64, 0x29); // BC1 [blue compensation?, default = 0x40]
+	i2c_smbus_write_byte_data(priv->client, 0x65, 0x29); // GC1
+	i2c_smbus_write_byte_data(priv->client, 0x66, 0x29); // RC1
+
+	i2c_smbus_write_byte_data(priv->client, 0x6b, 0x10); // "Power up DRISER"
+	i2c_smbus_write_byte_data(priv->client, 0x6c, 0x00); // "Power up DRI PLL"
+
+	// Page 3
+	i2c_smbus_write_byte_data(priv->client, 0x03, 0x03);
+	// VGA clock bypass [ch7033_unknown_init]
+	i2c_smbus_write_byte_data(priv->client, 0x28, 0x0c);
+	// HDMI & HDMI clock bypass [ch7033_unknown_init]
+	i2c_smbus_write_byte_data(priv->client, 0x2a, 0x28);
+
+	// Page 4
+	i2c_smbus_write_byte_data(priv->client, 0x03, 0x04);
+
+	// (hdmi?) output clock [NO]
+	i2c_smbus_write_byte_data(priv->client, 0x11, 0xa5);
+	i2c_smbus_write_byte_data(priv->client, 0x12, 0xe0);
+
+	// [HV]D?INC[ABC] what that even is [NO]
+	i2c_smbus_write_byte_data(priv->client, 0x2a, 0x8f);
+	i2c_smbus_write_byte_data(priv->client, 0x2c, 0x8f);
+	i2c_smbus_write_byte_data(priv->client, 0x2e, 0x6b);
+	i2c_smbus_write_byte_data(priv->client, 0x30, 0x6b);
+	i2c_smbus_write_byte_data(priv->client, 0x32, 0x90);
+	i2c_smbus_write_byte_data(priv->client, 0x34, 0x90);
+	i2c_smbus_write_byte_data(priv->client, 0x3c, 0x10);
+
+	// POWON VID IDBD
+	//i2c_smbus_write_byte_data(priv->client, 0x51, 0xc2);
+
+	// DIV4_PD down. sigh. doesn't matter. but also some scaler related clk thing
+	//i2c_smbus_write_byte_data(priv->client, 0x61, 0xe6);
+
+	// Apply
+	i2c_smbus_write_byte_data(priv->client, 0x03, 0x04);
 	i2c_smbus_write_byte_data(priv->client, 0x52, 0xcf);
 }
 
