@@ -221,9 +221,9 @@ static enum drm_mode_status ch7033_bridge_mode_valid(struct drm_bridge *bridge,
 {
 	if (mode->clock > 165000)
 		return MODE_CLOCK_HIGH;
-	if (mode->htotal >= 1920)
+	if (mode->hdisplay >= 1920)
 		return MODE_BAD_HVALUE;
-	if (mode->vtotal >= 1080)
+	if (mode->vdisplay >= 1080)
 		return MODE_BAD_VVALUE;
 	return MODE_OK;
 }
@@ -337,9 +337,11 @@ static void ch7033_bridge_mode_set(struct drm_bridge *bridge,
 		     CH7033_OUTPUT_TIMING_12_VWO(vsync_len));
 
 
-	if (mode->htotal >= 1280) {
+	if (mode->hdisplay >= 1280) {
 		i2c_smbus_write_byte_data(priv->client, 0x03, 0x03);
+		// 3: 28 (3 - 3) set_output_info() CHANNEL_VGA bypass ? 1 : 0
 		i2c_smbus_write_byte_data(priv->client, 0x28, 0x0c); //i2cset -f -y 1 0x76 0x28 0x0c # 0x04  weird clocking artifacts
+		// 0: 2b (0 - 3) set_output_info() CHANNEL_VGA bypass ? 9 : 8
 		i2c_smbus_write_byte_data(priv->client, 0x03, 0x00);
 		i2c_smbus_write_byte_data(priv->client, 0x2b, 0x09); //i2cset -f -y 1 0x76 0x2b 0x09 # 0x08 no signal
 	} else {
