@@ -343,11 +343,13 @@ static enum drm_connector_status ch7033_connector_detect(struct drm_connector *c
 {
 	struct ch7033_priv *priv = conn_to_ch7033_priv(connector);
 
-        if (gpiod_get_value_cansleep(priv->hpd))
-                return connector_status_connected;
-
-        if (drm_probe_ddc(priv->ddc))
-                return connector_status_connected;
+	if (priv->hpd) {
+		if (gpiod_get_value_cansleep(priv->hpd))
+			return connector_status_connected;
+	} else if (priv->ddc) {
+		if (drm_probe_ddc(priv->ddc))
+			return connector_status_connected;
+	}
 
         return connector_status_unknown;
 }
@@ -413,7 +415,12 @@ static int ch7033_bridge_attach(struct drm_bridge *bridge)
 	struct drm_connector *connector = &priv->connector;
 	int ret;
 
-	connector->polled = DRM_CONNECTOR_POLL_HPD;
+	if (priv->hpd) {
+		connector->polled = DRM_CONNECTOR_POLL_HPD;
+	} else if (priv->ddc) {
+		connector->polled = DRM_CONNECTOR_POLL_CONNECT |
+				    DRM_CONNECTOR_POLL_DISCONNECT;
+	}
 
         drm_connector_helper_add(connector,
                                  &ch7033_connector_helper_funcs);
@@ -702,7 +709,6 @@ static const struct component_ops ch7033_ops = {
 	.unbind = ch7033_unbind,
 };
 
-
 static int ch7033_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	struct device_node *ddc_node, *remote;
@@ -718,17 +724,15 @@ static int ch7033_probe(struct i2c_client *client, const struct i2c_device_id *i
 	}
 
 	ddc_node = of_parse_phandle(remote, "ddc-i2c-bus", 0);
-	if (!ddc_node) {
-		dev_err(&client->dev, "XXX NO I2C BUS\n");
-		of_node_put(remote);
-		return -ENODEV;
-	}
-
-	ddc = of_get_i2c_adapter_by_node(ddc_node);
-	if (!ddc) {
-		dev_warn(&client->dev, "DEFER: NO I2C\n");
-		of_node_put(remote);
-		return -EPROBE_DEFER;
+	if (ddc_node) {
+		ddc = of_get_i2c_adapter_by_node(ddc_node);
+		if (!ddc) {
+			dev_warn(&client->dev, "DEFER: NO I2C\n");
+			of_node_put(remote);
+			return -EPROBE_DEFER;
+		}
+	} else {
+		ddc = NULL;
 	}
 
 	ret = i2c_smbus_read_byte_data(client, 0x00);
@@ -762,21 +766,26 @@ static int ch7033_probe(struct i2c_client *client, const struct i2c_device_id *i
         priv->hpd = devm_gpiod_get_from_of_node(dev, remote, "hpd-gpios",
 						0, GPIOD_IN, "HPD");
 	of_node_put(remote);
-	if (IS_ERR(priv->hpd))
-		return PTR_ERR(priv->hpd);
+	if (IS_ERR(priv->hpd)) {
+		if (PTR_ERR(priv->hpd) == -ENOENT)
+			priv->hpd = NULL;
+		else
+			return PTR_ERR(priv->hpd);
+	}
 
-        ret = devm_request_threaded_irq(&client->dev,
-	                                gpiod_to_irq(priv->hpd),
-                                        NULL, ch7033_hpd_irq,
-                                        IRQF_TRIGGER_RISING |
-                                        IRQF_TRIGGER_FALLING |
-                                        IRQF_ONESHOT,
-                                        "HPD", priv);
-        if (ret) {
-                dev_err(&client->dev, "failed to request irq\n");
-                return ret;
-        }
-
+	if (priv->hpd) {
+		ret = devm_request_threaded_irq(&client->dev,
+						gpiod_to_irq(priv->hpd),
+						NULL, ch7033_hpd_irq,
+						IRQF_TRIGGER_RISING |
+						IRQF_TRIGGER_FALLING |
+						IRQF_ONESHOT,
+						"HPD", priv);
+		if (ret) {
+			dev_err(&client->dev, "failed to request irq\n");
+			return ret;
+		}
+	}
 
 	priv->bridge.funcs = &ch7033_bridge_funcs;
 	priv->bridge.of_node = dev->of_node;
