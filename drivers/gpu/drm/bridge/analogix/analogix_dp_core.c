@@ -1735,9 +1735,11 @@ analogix_dp_bind(struct device *dev, struct drm_device *drm_dev,
 	}
 
 	ret = devm_request_threaded_irq(&pdev->dev, dp->irq,
-					analogix_dp_hardirq,
-					analogix_dp_irq_thread,
-					irq_flags, "analogix-dp", dp);
+					NULL, hpd_isr,
+                                        IRQF_TRIGGER_RISING |
+				        IRQF_TRIGGER_FALLING |
+                                        IRQF_ONESHOT,
+					"", dp);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to request irq\n");
 		goto err_disable_pm_runtime;

@@ -2,6 +2,7 @@
 
 #include <linux/component.h>
 #include <linux/module.h>
+#include <linux/gpio/consumer.h>
 
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_bridge.h>
@@ -16,8 +17,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <errno.h>
-
-#define printk printf
 
 #define UL(x)           (x)
 
@@ -311,6 +310,7 @@ enum {
 struct ch7033_priv {
         struct i2c_client *client;
 	struct i2c_adapter *ddc;
+	struct gpio_desc *hpd;
 	struct drm_encoder encoder;
 	struct drm_bridge bridge;
 	struct drm_connector connector;
@@ -342,6 +342,9 @@ static int32_t ch7033_update_reg (struct i2c_client *client,
 static enum drm_connector_status ch7033_connector_detect(struct drm_connector *connector, bool force)
 {
 	struct ch7033_priv *priv = conn_to_ch7033_priv(connector);
+
+        if (gpiod_get_value_cansleep(priv->hpd))
+                return connector_status_connected;
 
         if (drm_probe_ddc(priv->ddc))
                 return connector_status_connected;
@@ -394,14 +397,23 @@ static const struct drm_connector_helper_funcs ch7033_connector_helper_funcs = {
 	.best_encoder = ch7033_connector_best_encoder,
 };
 
+static irqreturn_t ch7033_hpd_irq(int irq, void *data)
+{
+	struct ch7033_priv *priv = data;
+
+	if (priv->connector.dev)
+		drm_helper_hpd_irq_event(priv->connector.dev);
+
+	return IRQ_HANDLED;
+}
+
 static int ch7033_bridge_attach(struct drm_bridge *bridge)
 {
 	struct ch7033_priv *priv = bridge_to_ch7033_priv(bridge);
 	struct drm_connector *connector = &priv->connector;
 	int ret;
 
-	connector->polled = DRM_CONNECTOR_POLL_CONNECT |
-		DRM_CONNECTOR_POLL_DISCONNECT;
+	connector->polled = DRM_CONNECTOR_POLL_HPD;
 
         drm_connector_helper_add(connector,
                                  &ch7033_connector_helper_funcs);
@@ -706,22 +718,23 @@ static int ch7033_probe(struct i2c_client *client, const struct i2c_device_id *i
 	}
 
 	ddc_node = of_parse_phandle(remote, "ddc-i2c-bus", 0);
-	of_node_put(remote);
 	if (!ddc_node) {
 		dev_err(&client->dev, "XXX NO I2C BUS\n");
+		of_node_put(remote);
 		return -ENODEV;
 	}
 
 	ddc = of_get_i2c_adapter_by_node(ddc_node);
 	if (!ddc) {
 		dev_warn(&client->dev, "DEFER: NO I2C\n");
+		of_node_put(remote);
 		return -EPROBE_DEFER;
 	}
 
 	ret = i2c_smbus_read_byte_data(client, 0x00);
-printk ("XXX READ: 0x%02x\n", ret);
 	if ((i2c_smbus_read_byte_data(client, 0x00) & 0xf7) != 0x56) {
 		dev_err(&client->dev, "NOT A CHRONTEL 7033\n");
+		of_node_put(remote);
 		return -ENODEV;
 	}
 
@@ -729,12 +742,15 @@ printk ("XXX READ: 0x%02x\n", ret);
 	ret = i2c_smbus_read_byte_data(client, 0x51) & 0x0f;
 	if (ret != 0x03) {
 		dev_err(&client->dev, "NOT A CHRONTEL 7033: 0x%02x\n", ret);
+		of_node_put(remote);
 		return -ENODEV;
 	}
 
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
-	if (!priv)
+	if (!priv) {
+		of_node_put(remote);
 		return -ENOMEM;
+	}
 
 	dev_set_drvdata(dev, priv);
 
@@ -742,6 +758,25 @@ printk ("XXX READ: 0x%02x\n", ret);
 
 	priv->client = client;
 	priv->ddc = ddc;
+
+        priv->hpd = devm_gpiod_get_from_of_node(dev, remote, "hpd-gpios",
+						0, GPIOD_IN, "HPD");
+	of_node_put(remote);
+	if (IS_ERR(priv->hpd))
+		return PTR_ERR(priv->hpd);
+
+        ret = devm_request_threaded_irq(&client->dev,
+	                                gpiod_to_irq(priv->hpd),
+                                        NULL, ch7033_hpd_irq,
+                                        IRQF_TRIGGER_RISING |
+                                        IRQF_TRIGGER_FALLING |
+                                        IRQF_ONESHOT,
+                                        "HPD", priv);
+        if (ret) {
+                dev_err(&client->dev, "failed to request irq\n");
+                return ret;
+        }
+
 
 	priv->bridge.funcs = &ch7033_bridge_funcs;
 	priv->bridge.of_node = dev->of_node;
