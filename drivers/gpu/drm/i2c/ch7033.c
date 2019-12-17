@@ -8,6 +8,158 @@
 #include <drm/drm_print.h>
 #include <drm/drm_probe_helper.h>
 
+/* Page 0, Register 0x07 */
+enum {
+	DRI_PD		= BIT(3),
+	IO_PD		= BIT(5),
+};
+
+/* Page 0, Register 0x08 */
+enum {
+	DRI_PDDRI	= GENMASK(7, 4),
+	PDDAC		= GENMASK(3, 1),
+	PANEN		= BIT(0),
+};
+
+/* Page 0, Register 0x09 */
+enum {
+	DPD		= BIT(7),
+	GCKOFF		= BIT(6),
+	TV_BP		= BIT(5),
+	SCLPD		= BIT(4),
+	SDPD		= BIT(3),
+	VGA_PD		= BIT(2),
+	HDBKPD		= BIT(1),
+	HDMI_PD		= BIT(0),
+};
+
+/* Page 0, Register 0x0a */
+enum {
+	MEMINIT		= BIT(7),
+	MEMIDLE		= BIT(6),
+	MEMPD		= BIT(5),
+	STOP		= BIT(4),
+	LVDS_PD		= BIT(3),
+	HD_DVIB		= BIT(2),
+	HDCP_PD		= BIT(1),
+	MCU_PD		= BIT(0),
+};
+
+/* Page 0, Register 0x18 */
+enum {
+	IDF		= GENMASK(7, 4),
+	INTEN		= BIT(3),
+	SWAP	 	= GENMASK(2, 0),
+};
+
+enum {
+	BYTE_SWAP_RGB	= 0,
+	BYTE_SWAP_RBG	= 1,
+	BYTE_SWAP_GRB	= 2,
+	BYTE_SWAP_GBR	= 3,
+	BYTE_SWAP_BRG	= 4,
+	BYTE_SWAP_BGR	= 5,
+};
+
+/* Page 0, Register 0x2b */
+enum {
+	SWAPS		= GENMASK(7, 4),
+	VFMT	 	= GENMASK(3, 0),
+};
+
+/* Page 0, Register 0x54 */
+enum {
+	COMP_BP		= BIT(7),
+	DAC_EN_T	= BIT(6),
+	HWO_HDMI_HI	= GENMASK(5, 3),
+	HOO_HDMI_HI	= GENMASK(2, 0),
+};
+
+/* Page 0, Register 0x57 */
+enum {
+	FLDSEN		= BIT(7),
+	VWO_HDMI_HI	= GENMASK(5, 3),
+	VOO_HDMI_HI	= GENMASK(2, 0),
+};
+
+/* Page 0, Register 0x7e */
+enum {
+	HDMI_LVDS_SEL	= BIT(7),
+	DE_GEN		= BIT(6),
+	PWM_INDEX_HI	= BIT(5),
+	USE_DE		= BIT(4),
+	R_INT		= GENMASK(3, 0),
+};
+
+/* Page 1, Register 0x07 */
+enum {
+	BPCKSEL		= BIT(7),
+	DRI_CMFB_EN	= BIT(6),
+	CEC_PUEN	= BIT(5),
+	CEC_T		= BIT(3),
+	CKINV		= BIT(2),
+	CK_TVINV	= BIT(1),
+	DRI_CKS2	= BIT(0),
+};
+
+/* Page 1, Register 0x08 */
+enum {
+	DACG		= BIT(6),
+	DACKTST		= BIT(5),
+	DEDGEB		= BIT(4),
+	SYO		= BIT(3),
+	DRI_IT_LVDS	= GENMASK(2, 1),
+	DISPON		= BIT(0),
+};
+
+/* Page 1, Register 0x0c */
+enum {
+	DRI_PLL_CP	= GENMASK(7, 6),
+	DRI_PLL_DIVSEL	= BIT(5),
+	DRI_PLL_N1_1	= BIT(4),
+	DRI_PLL_N1_0	= BIT(3),
+	DRI_PLL_N3_1	= BIT(2),
+	DRI_PLL_N3_0	= BIT(1),
+	DRI_PLL_CKTSTEN	= BIT(0),
+};
+
+/* Page 1, Register 0x6b */
+enum {
+	VCO3CS		= GENMASK(7, 6),
+	ICPGBK2_0	= GENMASK(5, 3),
+	DRI_VCO357SC	= BIT(2),
+	PDPLL2		= BIT(1),
+	DRI_PD_SER	= BIT(0),
+};
+
+/* Page 1, Register 0x6c */
+enum {
+	PLL2N11		= GENMASK(7, 4),
+	PLL2N5_4	= BIT(3),
+	PLL2N5_TOP	= BIT(2),
+	DRI_PLL_PD	= BIT(1),
+	PD_I2CM		= BIT(0),
+};
+
+/* Page 3, Register 0x28 */
+enum {
+	DIFF_EN		= GENMASK(7, 6),
+	CORREC_EN	= GENMASK(5, 4),
+	VGACLK_BP	= BIT(3),
+	HM_LV_SEL	= BIT(2),
+	HD_VGA_SEL	= BIT(1),
+};
+
+/* Page 3, Register 0x2a */
+enum {
+	LVDSCLK_BP	= BIT(7),
+	HDTVCLK_BP	= BIT(6),
+	HDMICLK_BP	= BIT(5),
+	HDTV_BP		= BIT(4),
+	HDMI_BP		= BIT(3),
+	THRWL		= GENMASK(2, 0),
+};
+
 struct ch7033_priv {
         struct i2c_client *client;
 	struct i2c_adapter *ddc;
@@ -20,6 +172,20 @@ struct ch7033_priv {
 	container_of(x, struct ch7033_priv, connector)
 #define bridge_to_ch7033_priv(x) \
 	container_of(x, struct ch7033_priv, bridge)
+
+static int32_t ch7033_update_reg (struct i2c_client *client,
+				u8 command, u8 value, u8 mask)
+{
+	int ret;
+
+	ret = i2c_smbus_read_byte_data(client, command);
+	if (ret < 0)
+		return ret;
+
+	ret &= ~mask;
+	ret |= value;
+	return i2c_smbus_write_byte_data(client, command, ret);
+}
 
 static enum drm_connector_status ch7033_connector_detect(struct drm_connector *connector, bool force)
 {
@@ -122,181 +288,140 @@ static enum drm_mode_status ch7033_bridge_mode_valid(struct drm_bridge *bridge,
 }
 
 static void ch7033_bridge_mode_set(struct drm_bridge *bridge,
-				    const struct drm_display_mode *mode,
-				    const struct drm_display_mode *adjusted_mode)
+				const struct drm_display_mode *mode,
+				const struct drm_display_mode *adjusted_mode)
 {
 	struct ch7033_priv *priv = bridge_to_ch7033_priv(bridge);
+	int hbporch = mode->hsync_start - mode->hdisplay;
+	int hsynclen = mode->hsync_end - mode->hsync_start;
+	int vbporch = mode->vsync_start - mode->vdisplay;
+	int vsynclen = mode->vsync_end - mode->vsync_start;
 
-	// Mode set 1280x1024@75
-
-	// Reset
+	/*
+	 * Page 4
+	 */
 	i2c_smbus_write_byte_data(priv->client, 0x03, 0x04);
+
+	/* Turn everything off to set all the registers to their defaults. */
 	i2c_smbus_write_byte_data(priv->client, 0x52, 0x00);
+	/* Back up, but keep the display disabled. */
 	i2c_smbus_write_byte_data(priv->client, 0x52, 0xce);
 
-
-	// Page 0
+	/*
+	 * Page 0
+	 */
 	i2c_smbus_write_byte_data(priv->client, 0x03, 0x00);
 
-	// bring up drivers and i/o from power down
+	/* Bring up parts we need from the power down. */
+	ch7033_update_reg(priv->client, 0x07, 0x00, DRI_PD | IO_PD);
+	ch7033_update_reg(priv->client, 0x08, 0x00, DRI_PDDRI | PDDAC | PANEN);
+	ch7033_update_reg(priv->client, 0x09, 0x00, HDMI_PD | VGA_PD | DPD | GCKOFF);
+	ch7033_update_reg(priv->client, 0x0a, 0x00, HD_DVIB);
 
-#define DRI_PD BIT(3)
-#define IO_PD  BIT(5)
-	//i2c_smbus_write_byte_data(priv->client, 0x07, 0xd0);
-	//i2c_smbus_write_byte_data(priv->client, 0x07, 0xd7); <--
-	i2c_smbus_write_byte_data(priv->client, 0x07, 0xff & ~DRI_PD & ~IO_PD);
+	/* Horizontal input timing. */
+	i2c_smbus_write_byte_data(priv->client, 0x0b, ((mode->htotal >> 8) << 3) | (mode->hdisplay >> 8));
+	i2c_smbus_write_byte_data(priv->client, 0x0c, mode->hdisplay & 0xff);
+	i2c_smbus_write_byte_data(priv->client, 0x0d, mode->htotal & 0xff);
+	i2c_smbus_write_byte_data(priv->client, 0x0e, ((hsynclen >> 8) << 3) | (hbporch >> 8));
+	i2c_smbus_write_byte_data(priv->client, 0x0f, hbporch & 0xff);
+	i2c_smbus_write_byte_data(priv->client, 0x10, hsynclen & 0xff);
 
-#define DRI_PDDRI (BIT(4) | BIT(5) | BIT(6) | BIT(7))
-#define PDDAC (BIT(1) | BIT(2) | BIT(3))
-#define PANEN BIT(0)
-//	i2c_smbus_write_byte_data(priv->client, 0x08, 0x01);
-//	i2c_smbus_write_byte_data(priv->client, 0x08, 0xff & ~DRI_PDDRI & ~PDDAC | PANEN);
-//	i2c_smbus_write_byte_data(priv->client, 0x08, 0x00);
-	i2c_smbus_write_byte_data(priv->client, 0x08, 0xff & ~DRI_PDDRI & ~PDDAC & ~PANEN);
+	/* Vertical input timing. */
+	i2c_smbus_write_byte_data(priv->client, 0x11, ((mode->vtotal >> 8) << 3) | (mode->vdisplay >> 8));
+	i2c_smbus_write_byte_data(priv->client, 0x12, mode->vdisplay & 0xff);
+	i2c_smbus_write_byte_data(priv->client, 0x13, mode->vtotal & 0xff);
+	i2c_smbus_write_byte_data(priv->client, 0x14, ((vsynclen >> 8) << 3) | (vbporch >> 8));
+	i2c_smbus_write_byte_data(priv->client, 0x15, vbporch & 0xff);
+	i2c_smbus_write_byte_data(priv->client, 0x16, vsynclen & 0xff);
 
+	/* Input clock. */
+	ch7033_update_reg(priv->client, 0x19, mode->clock >> 16, 0x1);
+	i2c_smbus_write_byte_data(priv->client, 0x1a, (mode->clock >> 8) & 0xff);
+	i2c_smbus_write_byte_data(priv->client, 0x1b, mode->clock & 0xff);
 
-#define DRI_PDDRI (BIT(4) | BIT(5) | BIT(6) | BIT(7))
-#define PDDAC (BIT(1) | BIT(2) | BIT(3))
-#define PANEN BIT(0)
-//	i2c_smbus_write_byte_data(priv->client, 0x08, 0x01);
-//	i2c_smbus_write_byte_data(priv->client, 0x08, 0xff & ~DRI_PDDRI & ~PDDAC | PANEN);
-//	i2c_smbus_write_byte_data(priv->client, 0x08, 0x00);
-	i2c_smbus_write_byte_data(priv->client, 0x08, 0xff & ~DRI_PDDRI & ~PDDAC & ~PANEN);
+	// input color swap
+	ch7033_update_reg(priv->client, 0x18, BYTE_SWAP_BGR, SWAP);
 
+	/* Horizontal output timing. */
+	i2c_smbus_write_byte_data(priv->client, 0x1f, ((mode->htotal >> 8) << 3) | (mode->hdisplay >> 8));
+	i2c_smbus_write_byte_data(priv->client, 0x20, mode->hdisplay & 0xff);
+	i2c_smbus_write_byte_data(priv->client, 0x21, mode->htotal & 0xff);
 
-#define DPD BIT(7) //
-#define GCKOFF BIT(6) //
-#define TV_BP BIT(5) // ok
-#define SCLPD BIT(4) //xx
-#define SDPD BIT(3) // ok
-#define VGA_PD BIT(2) // ok
-#define HDBKPD BIT(1) //xx
-#define HDMI_PD BIT(0) //
-        //i2c_smbus_write_byte_data(priv->client, 0x09, 0x12);
-	//i2c_smbus_write_byte_data(priv->client, 0x09, 0x3a);
-	i2c_smbus_write_byte_data(priv->client, 0x09, 0xff & ~HDMI_PD & ~VGA_PD & ~DPD & ~GCKOFF);
+	/* Vertical output timing. */
+	i2c_smbus_write_byte_data(priv->client, 0x25, ((mode->vtotal >> 8) << 3) | (mode->vdisplay >> 8));
+	i2c_smbus_write_byte_data(priv->client, 0x26, mode->vdisplay & 0xff);
+	i2c_smbus_write_byte_data(priv->client, 0x27, mode->vtotal & 0xff);
 
-
-#define MEMINIT BIT(7)
-#define MEMIDLE BIT(6)
-#define MEMPD BIT(5)
-#define STOP BIT(4)
-#define LVDS_PD BIT(3)
-#define HD_DVIB BIT(2) //
-#define HDCP_PD BIT(1)
-#define MCU_PD BIT(0)
-	//i2c_smbus_write_byte_data(priv->client, 0x0a, 0x2a);
-	//i2c_smbus_write_byte_data(priv->client, 0x0a, 0xfb);
-	i2c_smbus_write_byte_data(priv->client, 0x0a, 0xff & ~HD_DVIB);
-
-
-	// input horizontal
-	i2c_smbus_write_byte_data(priv->client, 0x0b, 0x34);
-	i2c_smbus_write_byte_data(priv->client, 0x0c, 0x80);
-	i2c_smbus_write_byte_data(priv->client, 0x0d, 0x40);
-	i2c_smbus_write_byte_data(priv->client, 0x0e, 0x00);
-	i2c_smbus_write_byte_data(priv->client, 0x0f, 0x40);
-	i2c_smbus_write_byte_data(priv->client, 0x10, 0x80);
-
-	// input vertical
-	i2c_smbus_write_byte_data(priv->client, 0x11, 0x1b);
-	i2c_smbus_write_byte_data(priv->client, 0x12, 0x60);
-	i2c_smbus_write_byte_data(priv->client, 0x13, 0x84);
-	i2c_smbus_write_byte_data(priv->client, 0x14, 0x00);
-	i2c_smbus_write_byte_data(priv->client, 0x15, 0x01);
-	i2c_smbus_write_byte_data(priv->client, 0x16, 0x03);
-
-	// color swap
-	i2c_smbus_write_byte_data(priv->client, 0x18, 0x05); // bad colors otherwise
-
-	// input clock
-	i2c_smbus_write_byte_data(priv->client, 0x19, 0xf9);
-	i2c_smbus_write_byte_data(priv->client, 0x1a, 0xa5);
-	i2c_smbus_write_byte_data(priv->client, 0x1b, 0xe0);
-
-	// output vertical
-	i2c_smbus_write_byte_data(priv->client, 0x1f, 0x34);
-	i2c_smbus_write_byte_data(priv->client, 0x20, 0x80);
-	i2c_smbus_write_byte_data(priv->client, 0x21, 0x40);
-	i2c_smbus_write_byte_data(priv->client, 0x25, 0x1b);
-	i2c_smbus_write_byte_data(priv->client, 0x26, 0x60);
-	i2c_smbus_write_byte_data(priv->client, 0x27, 0x84);
-
-	// VGA bypass [NO]
-	i2c_smbus_write_byte_data(priv->client, 0x2b, 0x09);
+	/* VGA channel bypass */
+	ch7033_update_reg(priv->client, 0x2b, 9, VFMT);
 
 	// polarity, TE (???) [NO]
-	i2c_smbus_write_byte_data(priv->client, 0x2e, 0x3f);
+	// doesn't do anything
+	//i2c_smbus_write_byte_data(priv->client, 0x2e, 0x3f);
 
-	// hdmi horizontal output
-	//i2c_smbus_write_byte_data(priv->client, 0x54, 0x70); // vga bad
-	i2c_smbus_write_byte_data(priv->client, 0x54, 0x80); // should be default...
-	//i2cset -f -y 1 0x76 0x54 0x80 # just blue ghosts
+	/* HDMI horizontal output timing. */
+	ch7033_update_reg(priv->client, 0x54, ((hsynclen >> 8) << 3) | (hbporch >> 8), HWO_HDMI_HI | HOO_HDMI_HI);
+	i2c_smbus_write_byte_data(priv->client, 0x55, hbporch & 0xff);
+	i2c_smbus_write_byte_data(priv->client, 0x56, hsynclen & 0xff);
 
-	i2c_smbus_write_byte_data(priv->client, 0x55, 0x40);
-	i2c_smbus_write_byte_data(priv->client, 0x56, 0x80);
+	/* HDMI vertical output timing. */
+	ch7033_update_reg(priv->client, 0x57, ((vsynclen >> 8) << 3) | (vbporch >> 8), VWO_HDMI_HI | VOO_HDMI_HI);
+	i2c_smbus_write_byte_data(priv->client, 0x58, vbporch & 0xff);
+	i2c_smbus_write_byte_data(priv->client, 0x59, vsynclen & 0xff);
 
-	// hdmi vertical output
-	i2c_smbus_write_byte_data(priv->client, 0x57, 0x00);
-	i2c_smbus_write_byte_data(priv->client, 0x58, 0x01);
-	i2c_smbus_write_byte_data(priv->client, 0x59, 0x03);
+	/* Pick HDMI, not LVDS. */
+	ch7033_update_reg(priv->client, 0x7e, HDMI_LVDS_SEL, HDMI_LVDS_SEL);
 
-	// hdmi lvds sel [ch7033_unknown_init]
-	i2c_smbus_write_byte_data(priv->client, 0x7e, 0x8f);
-
-
-	// Page 1
+	/*
+	 * Page 1
+	 */
 	i2c_smbus_write_byte_data(priv->client, 0x03, 0x01);
 
-	i2c_smbus_write_byte_data(priv->client, 0x07, 0x66); // XXX just turn on CKINV, otherwise we get blue ghost [ch7033_unknown_init]
-	i2c_smbus_write_byte_data(priv->client, 0x08, 0x05); // otherwise shit clock on vga
+	/* No idea what these do, but VGA is wobbly blinky without them. */
+	ch7033_update_reg(priv->client, 0x07, CKINV, CKINV);
+	ch7033_update_reg(priv->client, 0x08, DISPON, DISPON);
 
-	// PLLM
-	i2c_smbus_write_byte_data(priv->client, 0x0c, 0x74); // [ch7033_unknown_init]
-	i2c_smbus_write_byte_data(priv->client, 0x12, 0xf6);
-	i2c_smbus_write_byte_data(priv->client, 0x13, 0x28);
-	i2c_smbus_write_byte_data(priv->client, 0x14, 0x81);
-	i2c_smbus_write_byte_data(priv->client, 0x15, 0x23);
+	/* DRI PLL */
+	ch7033_update_reg(priv->client, 0x0c, DRI_PLL_DIVSEL, DRI_PLL_DIVSEL);
+	if (mode->clock <= 40000) {
+		ch7033_update_reg(priv->client, 0x0c, 0, DRI_PLL_N1_1 | DRI_PLL_N1_0 | DRI_PLL_N3_1 | DRI_PLL_N3_0);
+	} else if(mode->clock < 80000) {
+		ch7033_update_reg(priv->client, 0x0c, DRI_PLL_N3_0 | DRI_PLL_N1_0, DRI_PLL_N1_1 | DRI_PLL_N1_0 | DRI_PLL_N3_1 | DRI_PLL_N3_0);
+	} else {
+		ch7033_update_reg(priv->client, 0x0c, DRI_PLL_N3_1 | DRI_PLL_N1_1, DRI_PLL_N1_1 | DRI_PLL_N1_0 | DRI_PLL_N3_1 | DRI_PLL_N3_0);
+	}
 
-	// otherwise different colors are bland on vga
-	i2c_smbus_write_byte_data(priv->client, 0x64, 0x29); // BC1 [blue compensation?, default = 0x40]
-	i2c_smbus_write_byte_data(priv->client, 0x65, 0x29); // GC1
-	i2c_smbus_write_byte_data(priv->client, 0x66, 0x29); // RC1
+	/* This seems to be color calibration for VGA. */
+	i2c_smbus_write_byte_data(priv->client, 0x64, 0x29); /* LSB Blue */
+	i2c_smbus_write_byte_data(priv->client, 0x65, 0x29); /* LSB Green */
+	i2c_smbus_write_byte_data(priv->client, 0x66, 0x29); /* LSB Red */
+	i2c_smbus_write_byte_data(priv->client, 0x67, 0x00); /* MSB Blue */
+	i2c_smbus_write_byte_data(priv->client, 0x68, 0x00); /* MSB Green */
+	i2c_smbus_write_byte_data(priv->client, 0x69, 0x00); /* MSB Red */
 
-	i2c_smbus_write_byte_data(priv->client, 0x6b, 0x10); // "Power up DRISER"
-	i2c_smbus_write_byte_data(priv->client, 0x6c, 0x00); // "Power up DRI PLL"
+	ch7033_update_reg(priv->client, 0x6b, 0x00, DRI_PD_SER);
+	ch7033_update_reg(priv->client, 0x6c, 0x00, DRI_PLL_PD);
 
-	// Page 3
+	/*
+	 * Page 3
+	 */
 	i2c_smbus_write_byte_data(priv->client, 0x03, 0x03);
-	// VGA clock bypass [ch7033_unknown_init]
-	i2c_smbus_write_byte_data(priv->client, 0x28, 0x0c);
-	// HDMI & HDMI clock bypass [ch7033_unknown_init]
-	i2c_smbus_write_byte_data(priv->client, 0x2a, 0x28);
 
-	// Page 4
+	/* More bypasses and apparently another HDMI/LVDS selector. */
+	ch7033_update_reg(priv->client, 0x28, VGACLK_BP | HM_LV_SEL, VGACLK_BP | HM_LV_SEL);
+	ch7033_update_reg(priv->client, 0x2a, HDMICLK_BP | HDMI_BP, HDMICLK_BP | HDMI_BP);
+
+	/*
+	 * Page 4
+	 */
 	i2c_smbus_write_byte_data(priv->client, 0x03, 0x04);
 
-	// (hdmi?) output clock [NO]
-	i2c_smbus_write_byte_data(priv->client, 0x11, 0xa5);
-	i2c_smbus_write_byte_data(priv->client, 0x12, 0xe0);
+	/* Output clock. */
+	i2c_smbus_write_byte_data(priv->client, 0x10, (mode->clock >> 16) & 0xff);
+	i2c_smbus_write_byte_data(priv->client, 0x11, (mode->clock >> 8) & 0xff);
+	i2c_smbus_write_byte_data(priv->client, 0x12, mode->clock & 0xff);
 
-	// [HV]D?INC[ABC] what that even is [NO]
-	i2c_smbus_write_byte_data(priv->client, 0x2a, 0x8f);
-	i2c_smbus_write_byte_data(priv->client, 0x2c, 0x8f);
-	i2c_smbus_write_byte_data(priv->client, 0x2e, 0x6b);
-	i2c_smbus_write_byte_data(priv->client, 0x30, 0x6b);
-	i2c_smbus_write_byte_data(priv->client, 0x32, 0x90);
-	i2c_smbus_write_byte_data(priv->client, 0x34, 0x90);
-	i2c_smbus_write_byte_data(priv->client, 0x3c, 0x10);
-
-	// POWON VID IDBD
-	//i2c_smbus_write_byte_data(priv->client, 0x51, 0xc2);
-
-	// DIV4_PD down. sigh. doesn't matter. but also some scaler related clk thing
-	//i2c_smbus_write_byte_data(priv->client, 0x61, 0xe6);
-
-	// Apply
-	i2c_smbus_write_byte_data(priv->client, 0x03, 0x04);
+	/* Finally, turn the output back on. */
 	i2c_smbus_write_byte_data(priv->client, 0x52, 0xcf);
 }
 
