@@ -60,7 +60,7 @@
 	dvi_i: dvi-connector {
 		compatible = "dvi-connector";
 		ddc-i2c-bus = <&twsi5>;
-		// hpd-gpios = <&gpio 62 GPIO_ACTIVE_LOW>;
+		hpd-gpios = <&gpio 62 GPIO_ACTIVE_LOW>;
 		digital;
 		analog;
 

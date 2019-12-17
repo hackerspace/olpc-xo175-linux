@@ -709,51 +709,52 @@ static const struct component_ops ch7033_ops = {
 	.unbind = ch7033_unbind,
 };
 
-static int ch7033_probe(struct i2c_client *client, const struct i2c_device_id *id)
+static int ch7033_probe(struct i2c_client *client,
+                        const struct i2c_device_id *id)
 {
-	struct device_node *ddc_node, *remote;
+	struct device_node *ddc_node, *conn_node;
 	struct device *dev = &client->dev;
 	struct ch7033_priv *priv;
 	struct i2c_adapter *ddc;
 	int ret;
 
-	remote = of_graph_get_remote_node(dev->of_node, 1, -1);
-	if (!remote) {
-		dev_err(&client->dev, "XXX MISSING REMOTE\n");
+	conn_node = of_graph_get_remote_node(dev->of_node, 1, -1);
+	if (!conn_node) {
+		dev_err(&client->dev, "unable to get the connector node\n");
 		return -EINVAL;
 	}
 
-	ddc_node = of_parse_phandle(remote, "ddc-i2c-bus", 0);
+	ddc_node = of_parse_phandle(conn_node, "ddc-i2c-bus", 0);
 	if (ddc_node) {
 		ddc = of_get_i2c_adapter_by_node(ddc_node);
 		if (!ddc) {
-			dev_warn(&client->dev, "DEFER: NO I2C\n");
-			of_node_put(remote);
-			return -EPROBE_DEFER;
+			ret = -EPROBE_DEFER;
+			goto out;
 		}
 	} else {
+		dev_info(&client->dev, "no DDC bus for connector\n");
 		ddc = NULL;
 	}
 
 	ret = i2c_smbus_read_byte_data(client, 0x00);
 	if ((i2c_smbus_read_byte_data(client, 0x00) & 0xf7) != 0x56) {
-		dev_err(&client->dev, "NOT A CHRONTEL 7033\n");
-		of_node_put(remote);
-		return -ENODEV;
+		dev_err(&client->dev, "the device is not a ch7033\n");
+		ret = -ENODEV;
+		goto out;
 	}
 
 	i2c_smbus_write_byte_data(client, 0x03, 0x04);
 	ret = i2c_smbus_read_byte_data(client, 0x51) & 0x0f;
-	if (ret != 0x03) {
-		dev_err(&client->dev, "NOT A CHRONTEL 7033: 0x%02x\n", ret);
-		of_node_put(remote);
-		return -ENODEV;
+	if (ret != 3) {
+		dev_err(&client->dev, "unknown revision %d\n", ret);
+		ret = -ENODEV;
+		goto out;
 	}
 
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv) {
-		of_node_put(remote);
-		return -ENOMEM;
+		ret = -ENODEV;
+		goto out;
 	}
 
 	dev_set_drvdata(dev, priv);
@@ -763,14 +764,16 @@ static int ch7033_probe(struct i2c_client *client, const struct i2c_device_id *i
 	priv->client = client;
 	priv->ddc = ddc;
 
-        priv->hpd = devm_gpiod_get_from_of_node(dev, remote, "hpd-gpios",
+        priv->hpd = devm_gpiod_get_from_of_node(dev, conn_node, "hpd-gpios",
 						0, GPIOD_IN, "HPD");
-	of_node_put(remote);
 	if (IS_ERR(priv->hpd)) {
-		if (PTR_ERR(priv->hpd) == -ENOENT)
+		if (PTR_ERR(priv->hpd) == -ENOENT) {
+			dev_info(&client->dev, "no HPD pin\n");
 			priv->hpd = NULL;
-		else
-			return PTR_ERR(priv->hpd);
+		} else {
+			ret = PTR_ERR(priv->hpd);
+			goto out;
+		}
 	}
 
 	if (priv->hpd) {
@@ -783,7 +786,7 @@ static int ch7033_probe(struct i2c_client *client, const struct i2c_device_id *i
 						"HPD", priv);
 		if (ret) {
 			dev_err(&client->dev, "failed to request irq\n");
-			return ret;
+			goto out;
 		}
 	}
 
@@ -794,12 +797,11 @@ static int ch7033_probe(struct i2c_client *client, const struct i2c_device_id *i
 
 	ret = component_add(dev, &ch7033_ops);
 	if (ret)
-		goto fail;
+		drm_bridge_remove(&priv->bridge);
 
-	return 0;
-
-fail:
-	drm_bridge_remove(&priv->bridge);
+	dev_info(dev, "Chrontel CH7033 Video Encoder\n");
+out:
+	of_node_put(conn_node);
 	return ret;
 }
 
@@ -839,9 +841,8 @@ static struct i2c_driver ch7033_driver = {
 module_i2c_driver(ch7033_driver);
 
 MODULE_AUTHOR("Lubomir Rintel <lkundrak@v3.sk>");
-MODULE_DESCRIPTION("Chrontel CH7033 Encoder Driver");
+MODULE_DESCRIPTION("Chrontel CH7033 Video Encoder Driver");
 MODULE_LICENSE("GPL v2");
-
 
 #else // !__KERNEL__
 
