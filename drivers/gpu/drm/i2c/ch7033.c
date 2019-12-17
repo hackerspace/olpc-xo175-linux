@@ -1,3 +1,5 @@
+#ifdef __KERNEL__
+
 #include <linux/component.h>
 #include <linux/module.h>
 
@@ -7,6 +9,122 @@
 #include <drm/drm_of.h>
 #include <drm/drm_print.h>
 #include <drm/drm_probe_helper.h>
+
+#else // !__KERNEL__
+
+#include <stdlib.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <errno.h>
+
+#define printk printf
+
+#define UL(x)           (x)
+
+#define BITS_PER_LONG 32
+
+#define BIT(nr)   (1 << (nr))
+
+#define GENMASK(h, l) \
+        (((~UL(0)) - (UL(1) << (l)) + 1) & \
+         (~UL(0) >> (BITS_PER_LONG - 1 - (h))))
+
+
+#define DRM_MODE_FLAG_PHSYNC                    (1<<0)
+#define DRM_MODE_FLAG_NHSYNC                    (1<<1)
+#define DRM_MODE_FLAG_PVSYNC                    (1<<2)
+#define DRM_MODE_FLAG_NVSYNC                    (1<<3)
+#define DRM_MODE_FLAG_INTERLACE                 (1<<4)
+#define DRM_MODE_FLAG_DBLSCAN                   (1<<5)
+#define DRM_MODE_FLAG_CSYNC                     (1<<6)
+#define DRM_MODE_FLAG_PCSYNC                    (1<<7)
+#define DRM_MODE_FLAG_NCSYNC                    (1<<8)
+#define DRM_MODE_FLAG_HSKEW                     (1<<9) /* hskew provided */
+#define DRM_MODE_FLAG_BCAST                     (1<<10) /* deprecated */
+#define DRM_MODE_FLAG_PIXMUX                    (1<<11) /* deprecated */
+#define DRM_MODE_FLAG_DBLCLK                    (1<<12)
+#define DRM_MODE_FLAG_CLKDIV2                   (1<<13)
+
+typedef uint32_t u32;
+
+struct drm_display_mode {
+        int clock;              /* in kHz */
+        int hdisplay;
+        int hsync_start;
+        int hsync_end;
+        int htotal;
+        int vdisplay;
+        int vsync_start;
+        int vsync_end;
+        int vtotal;
+        unsigned int flags;
+};
+
+struct drm_bridge {
+};
+
+struct ch7033_priv {
+        struct i2c_client *client;
+} glpriv;
+
+
+#ifndef DRY
+#ifdef __x86_64__
+#define DRY 1
+#else
+#define DRY 0
+#endif
+#endif
+
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+
+int bus = 1;
+int addr = 0x76;
+
+#define bridge_to_ch7033_priv(x) (&glpriv)
+
+int32_t
+i2c_smbus_write_byte_data(struct i2c_client *client, u8 command, u8 value)
+{
+	char cmd[sizeof("i2cget -f -y XXX 0xXXXXXXXX 0xXXXXXXXX 0xXXXXXXXX")];
+
+	sprintf (cmd, "i2cset -f -y %d 0x%02x 0x%02x 0x%02x", bus, addr, command, value);
+	printf ( "# %s\n", cmd);
+	//fprintf (stderr, "WRITE ADDR=0x%02x REG=0x%02x <- VAL=0x%02x\n", addr, command, value);
+	if (DRY)
+		return 0;
+
+	system (cmd);
+	return 0;
+}
+
+int32_t
+i2c_smbus_read_byte_data(struct i2c_client *client, u8 command)
+{
+	char cmd[sizeof("i2cget -f -y XXX 0xXXXXXXXX 0xXXXXXXXX")];
+	int value = -1;
+	FILE *f;
+
+	sprintf (cmd, "i2cget -f -y %d 0x%02x 0x%02x", bus, addr, command);
+	if (DRY)
+		return 0x00;
+
+	f = popen (cmd, "r");
+	if (f == NULL) {
+		perror ("popen");
+		return -1;
+	}
+	fscanf (f, "0x%x", &value);
+	fclose (f);
+
+	printf ( "# %s # got 0x%02x\n", cmd, value);
+	//fprintf (stderr, "READ ADDR=0x%02x REG=0x%02x -> VAL=0x%02x\n", addr, command, value);
+	return value;
+}
+
+#endif // !__KERNEL__
 
 /* Page 0, Register 0x07 */
 enum {
@@ -59,6 +177,25 @@ enum {
 	BYTE_SWAP_GBR	= 3,
 	BYTE_SWAP_BRG	= 4,
 	BYTE_SWAP_BGR	= 5,
+};
+
+/* Page 0, Register 0x19 */
+enum {
+	HPO_I		= BIT(5),
+	VPO_I		= BIT(4),
+	DEPO_I		= BIT(3),
+	CRYS_EN		= BIT(2),
+	GCLKFREQ	= GENMASK(2, 0),
+};
+
+/* Page 0, Register 0x2e */
+enum {
+	HFLIP		= BIT(7),
+	VFLIP		= BIT(6),
+	DEPO_O		= BIT(5),
+	HPO_O		= BIT(4),
+	VPO_O		= BIT(3),
+	TE		= GENMASK(2, 0),
 };
 
 /* Page 0, Register 0x2b */
@@ -160,6 +297,17 @@ enum {
 	THRWL		= GENMASK(2, 0),
 };
 
+/* Page 4, Register 0x52 */
+enum {
+	PGM_ARSTB	= BIT(7),
+	MCU_ARSTB	= BIT(6),
+	MCU_RETB	= BIT(2),
+	RESETIB		= BIT(1),
+	RESETDB		= BIT(0),
+};
+
+#ifdef __KERNEL__
+
 struct ch7033_priv {
         struct i2c_client *client;
 	struct i2c_adapter *ddc;
@@ -172,6 +320,8 @@ struct ch7033_priv {
 	container_of(x, struct ch7033_priv, connector)
 #define bridge_to_ch7033_priv(x) \
 	container_of(x, struct ch7033_priv, bridge)
+
+#endif // __KERNEL__
 
 static int32_t ch7033_update_reg (struct i2c_client *client,
 				u8 command, u8 value, u8 mask)
@@ -186,6 +336,8 @@ static int32_t ch7033_update_reg (struct i2c_client *client,
 	ret |= value;
 	return i2c_smbus_write_byte_data(client, command, ret);
 }
+
+#ifdef __KERNEL__
 
 static enum drm_connector_status ch7033_connector_detect(struct drm_connector *connector, bool force)
 {
@@ -287,9 +439,27 @@ static enum drm_mode_status ch7033_bridge_mode_valid(struct drm_bridge *bridge,
 	return MODE_OK;
 }
 
+#endif // __KERNEL__
+
+static void ch7033_bridge_disable(struct drm_bridge *bridge)
+{
+	struct ch7033_priv *priv = bridge_to_ch7033_priv(bridge);
+
+	i2c_smbus_write_byte_data(priv->client, 0x03, 0x04);
+	ch7033_update_reg(priv->client, 0x52, 0x00, RESETDB);
+}
+
+static void ch7033_bridge_enable(struct drm_bridge *bridge)
+{
+	struct ch7033_priv *priv = bridge_to_ch7033_priv(bridge);
+
+	i2c_smbus_write_byte_data(priv->client, 0x03, 0x04);
+	ch7033_update_reg(priv->client, 0x52, RESETDB, RESETDB);
+}
+
 static void ch7033_bridge_mode_set(struct drm_bridge *bridge,
-				const struct drm_display_mode *mode,
-				const struct drm_display_mode *adjusted_mode)
+				   const struct drm_display_mode *mode,
+				   const struct drm_display_mode *adjusted_mode)
 {
 	struct ch7033_priv *priv = bridge_to_ch7033_priv(bridge);
 	int hbporch = mode->hsync_start - mode->hdisplay;
@@ -304,8 +474,8 @@ static void ch7033_bridge_mode_set(struct drm_bridge *bridge,
 
 	/* Turn everything off to set all the registers to their defaults. */
 	i2c_smbus_write_byte_data(priv->client, 0x52, 0x00);
-	/* Back up, but keep the display disabled. */
-	i2c_smbus_write_byte_data(priv->client, 0x52, 0xce);
+	/* Bring I/O block up. */
+	i2c_smbus_write_byte_data(priv->client, 0x52, RESETIB);
 
 	/*
 	 * Page 0
@@ -313,61 +483,79 @@ static void ch7033_bridge_mode_set(struct drm_bridge *bridge,
 	i2c_smbus_write_byte_data(priv->client, 0x03, 0x00);
 
 	/* Bring up parts we need from the power down. */
-	ch7033_update_reg(priv->client, 0x07, 0x00, DRI_PD | IO_PD);
-	ch7033_update_reg(priv->client, 0x08, 0x00, DRI_PDDRI | PDDAC | PANEN);
-	ch7033_update_reg(priv->client, 0x09, 0x00, HDMI_PD | VGA_PD | DPD | GCKOFF);
-	ch7033_update_reg(priv->client, 0x0a, 0x00, HD_DVIB);
+	ch7033_update_reg(priv->client, 0x07, 0, DRI_PD | IO_PD);
+	ch7033_update_reg(priv->client, 0x08, 0, DRI_PDDRI | PDDAC | PANEN);
+	ch7033_update_reg(priv->client, 0x09, 0, HDMI_PD | VGA_PD |
+						 DPD | GCKOFF);
+	ch7033_update_reg(priv->client, 0x0a, 0, HD_DVIB);
 
 	/* Horizontal input timing. */
-	i2c_smbus_write_byte_data(priv->client, 0x0b, ((mode->htotal >> 8) << 3) | (mode->hdisplay >> 8));
-	i2c_smbus_write_byte_data(priv->client, 0x0c, mode->hdisplay & 0xff);
-	i2c_smbus_write_byte_data(priv->client, 0x0d, mode->htotal & 0xff);
-	i2c_smbus_write_byte_data(priv->client, 0x0e, ((hsynclen >> 8) << 3) | (hbporch >> 8));
-	i2c_smbus_write_byte_data(priv->client, 0x0f, hbporch & 0xff);
-	i2c_smbus_write_byte_data(priv->client, 0x10, hsynclen & 0xff);
+	i2c_smbus_write_byte_data(priv->client, 0x0b, (mode->htotal >> 8) << 3 |
+						      (mode->hdisplay >> 8));
+	i2c_smbus_write_byte_data(priv->client, 0x0c, mode->hdisplay);
+	i2c_smbus_write_byte_data(priv->client, 0x0d, mode->htotal);
+	i2c_smbus_write_byte_data(priv->client, 0x0e, (hsynclen >> 8) << 3 |
+						      (hbporch >> 8));
+	i2c_smbus_write_byte_data(priv->client, 0x0f, hbporch);
+	i2c_smbus_write_byte_data(priv->client, 0x10, hsynclen);
 
 	/* Vertical input timing. */
-	i2c_smbus_write_byte_data(priv->client, 0x11, ((mode->vtotal >> 8) << 3) | (mode->vdisplay >> 8));
-	i2c_smbus_write_byte_data(priv->client, 0x12, mode->vdisplay & 0xff);
-	i2c_smbus_write_byte_data(priv->client, 0x13, mode->vtotal & 0xff);
-	i2c_smbus_write_byte_data(priv->client, 0x14, ((vsynclen >> 8) << 3) | (vbporch >> 8));
-	i2c_smbus_write_byte_data(priv->client, 0x15, vbporch & 0xff);
-	i2c_smbus_write_byte_data(priv->client, 0x16, vsynclen & 0xff);
+	i2c_smbus_write_byte_data(priv->client, 0x11, (mode->vtotal >> 8) << 3 |
+						      (mode->vdisplay >> 8));
+	i2c_smbus_write_byte_data(priv->client, 0x12, mode->vdisplay);
+	i2c_smbus_write_byte_data(priv->client, 0x13, mode->vtotal);
+	i2c_smbus_write_byte_data(priv->client, 0x14, ((vsynclen >> 8) << 3) |
+						      (vbporch >> 8));
+	i2c_smbus_write_byte_data(priv->client, 0x15, vbporch);
+	i2c_smbus_write_byte_data(priv->client, 0x16, vsynclen);
 
-	/* Input clock. */
-	ch7033_update_reg(priv->client, 0x19, mode->clock >> 16, 0x1);
-	i2c_smbus_write_byte_data(priv->client, 0x1a, (mode->clock >> 8) & 0xff);
-	i2c_smbus_write_byte_data(priv->client, 0x1b, mode->clock & 0xff);
-
-	// input color swap
+	/* Input color swap. */
 	ch7033_update_reg(priv->client, 0x18, BYTE_SWAP_BGR, SWAP);
 
+	/* Input clock and sync polarity. */
+	ch7033_update_reg(priv->client, 0x19, mode->clock >> 16, 0x1);
+	ch7033_update_reg(priv->client, 0x19,
+			  (mode->flags & DRM_MODE_FLAG_PHSYNC) ? HPO_I : 0 |
+			  (mode->flags & DRM_MODE_FLAG_PVSYNC) ? VPO_I : 0 |
+			  mode->clock >> 16,
+			  HPO_I | VPO_I | GCLKFREQ);
+	i2c_smbus_write_byte_data(priv->client, 0x1a, mode->clock >> 8);
+	i2c_smbus_write_byte_data(priv->client, 0x1b, mode->clock);
+
 	/* Horizontal output timing. */
-	i2c_smbus_write_byte_data(priv->client, 0x1f, ((mode->htotal >> 8) << 3) | (mode->hdisplay >> 8));
-	i2c_smbus_write_byte_data(priv->client, 0x20, mode->hdisplay & 0xff);
-	i2c_smbus_write_byte_data(priv->client, 0x21, mode->htotal & 0xff);
+	i2c_smbus_write_byte_data(priv->client, 0x1f, (mode->htotal >> 8) << 3 |
+						      (mode->hdisplay >> 8));
+	i2c_smbus_write_byte_data(priv->client, 0x20, mode->hdisplay);
+	i2c_smbus_write_byte_data(priv->client, 0x21, mode->htotal);
 
 	/* Vertical output timing. */
-	i2c_smbus_write_byte_data(priv->client, 0x25, ((mode->vtotal >> 8) << 3) | (mode->vdisplay >> 8));
-	i2c_smbus_write_byte_data(priv->client, 0x26, mode->vdisplay & 0xff);
-	i2c_smbus_write_byte_data(priv->client, 0x27, mode->vtotal & 0xff);
+	i2c_smbus_write_byte_data(priv->client, 0x25, (mode->vtotal >> 8) << 3 |
+						      (mode->vdisplay >> 8));
+	i2c_smbus_write_byte_data(priv->client, 0x26, mode->vdisplay);
+	i2c_smbus_write_byte_data(priv->client, 0x27, mode->vtotal);
 
 	/* VGA channel bypass */
 	ch7033_update_reg(priv->client, 0x2b, 9, VFMT);
 
-	// polarity, TE (???) [NO]
-	// doesn't do anything
-	//i2c_smbus_write_byte_data(priv->client, 0x2e, 0x3f);
+	/* Output sync polarity. */
+	ch7033_update_reg(priv->client, 0x2e,
+			  (mode->flags & DRM_MODE_FLAG_PHSYNC) ? HPO_O : 0 |
+			  (mode->flags & DRM_MODE_FLAG_PVSYNC) ? VPO_O : 0,
+			  HPO_O | VPO_O);
 
 	/* HDMI horizontal output timing. */
-	ch7033_update_reg(priv->client, 0x54, ((hsynclen >> 8) << 3) | (hbporch >> 8), HWO_HDMI_HI | HOO_HDMI_HI);
-	i2c_smbus_write_byte_data(priv->client, 0x55, hbporch & 0xff);
-	i2c_smbus_write_byte_data(priv->client, 0x56, hsynclen & 0xff);
+	ch7033_update_reg(priv->client, 0x54, (hsynclen >> 8) << 3 |
+					      (hbporch >> 8),
+					      HWO_HDMI_HI | HOO_HDMI_HI);
+	i2c_smbus_write_byte_data(priv->client, 0x55, hbporch);
+	i2c_smbus_write_byte_data(priv->client, 0x56, hsynclen);
 
 	/* HDMI vertical output timing. */
-	ch7033_update_reg(priv->client, 0x57, ((vsynclen >> 8) << 3) | (vbporch >> 8), VWO_HDMI_HI | VOO_HDMI_HI);
-	i2c_smbus_write_byte_data(priv->client, 0x58, vbporch & 0xff);
-	i2c_smbus_write_byte_data(priv->client, 0x59, vsynclen & 0xff);
+	ch7033_update_reg(priv->client, 0x57, (vsynclen >> 8) << 3 |
+					      (vbporch >> 8),
+					      VWO_HDMI_HI | VOO_HDMI_HI);
+	i2c_smbus_write_byte_data(priv->client, 0x58, vbporch);
+	i2c_smbus_write_byte_data(priv->client, 0x59, vsynclen);
 
 	/* Pick HDMI, not LVDS. */
 	ch7033_update_reg(priv->client, 0x7e, HDMI_LVDS_SEL, HDMI_LVDS_SEL);
@@ -384,11 +572,25 @@ static void ch7033_bridge_mode_set(struct drm_bridge *bridge,
 	/* DRI PLL */
 	ch7033_update_reg(priv->client, 0x0c, DRI_PLL_DIVSEL, DRI_PLL_DIVSEL);
 	if (mode->clock <= 40000) {
-		ch7033_update_reg(priv->client, 0x0c, 0, DRI_PLL_N1_1 | DRI_PLL_N1_0 | DRI_PLL_N3_1 | DRI_PLL_N3_0);
+		ch7033_update_reg(priv->client, 0x0c, 0,
+						      DRI_PLL_N1_1 |
+						      DRI_PLL_N1_0 |
+						      DRI_PLL_N3_1 |
+						      DRI_PLL_N3_0);
 	} else if(mode->clock < 80000) {
-		ch7033_update_reg(priv->client, 0x0c, DRI_PLL_N3_0 | DRI_PLL_N1_0, DRI_PLL_N1_1 | DRI_PLL_N1_0 | DRI_PLL_N3_1 | DRI_PLL_N3_0);
+		ch7033_update_reg(priv->client, 0x0c, DRI_PLL_N3_0 |
+						      DRI_PLL_N1_0,
+						      DRI_PLL_N1_1 |
+						      DRI_PLL_N1_0 |
+						      DRI_PLL_N3_1 |
+						      DRI_PLL_N3_0);
 	} else {
-		ch7033_update_reg(priv->client, 0x0c, DRI_PLL_N3_1 | DRI_PLL_N1_1, DRI_PLL_N1_1 | DRI_PLL_N1_0 | DRI_PLL_N3_1 | DRI_PLL_N3_0);
+		ch7033_update_reg(priv->client, 0x0c, DRI_PLL_N3_1 |
+						      DRI_PLL_N1_1,
+						      DRI_PLL_N1_1 |
+						      DRI_PLL_N1_0 |
+						      DRI_PLL_N3_1 |
+						      DRI_PLL_N3_0);
 	}
 
 	/* This seems to be color calibration for VGA. */
@@ -408,8 +610,10 @@ static void ch7033_bridge_mode_set(struct drm_bridge *bridge,
 	i2c_smbus_write_byte_data(priv->client, 0x03, 0x03);
 
 	/* More bypasses and apparently another HDMI/LVDS selector. */
-	ch7033_update_reg(priv->client, 0x28, VGACLK_BP | HM_LV_SEL, VGACLK_BP | HM_LV_SEL);
-	ch7033_update_reg(priv->client, 0x2a, HDMICLK_BP | HDMI_BP, HDMICLK_BP | HDMI_BP);
+	ch7033_update_reg(priv->client, 0x28, VGACLK_BP | HM_LV_SEL,
+					      VGACLK_BP | HM_LV_SEL);
+	ch7033_update_reg(priv->client, 0x2a, HDMICLK_BP | HDMI_BP,
+					      HDMICLK_BP | HDMI_BP);
 
 	/*
 	 * Page 4
@@ -417,18 +621,19 @@ static void ch7033_bridge_mode_set(struct drm_bridge *bridge,
 	i2c_smbus_write_byte_data(priv->client, 0x03, 0x04);
 
 	/* Output clock. */
-	i2c_smbus_write_byte_data(priv->client, 0x10, (mode->clock >> 16) & 0xff);
-	i2c_smbus_write_byte_data(priv->client, 0x11, (mode->clock >> 8) & 0xff);
-	i2c_smbus_write_byte_data(priv->client, 0x12, mode->clock & 0xff);
-
-	/* Finally, turn the output back on. */
-	i2c_smbus_write_byte_data(priv->client, 0x52, 0xcf);
+	i2c_smbus_write_byte_data(priv->client, 0x10, mode->clock >> 16);
+	i2c_smbus_write_byte_data(priv->client, 0x11, mode->clock >> 8);
+	i2c_smbus_write_byte_data(priv->client, 0x12, mode->clock);
 }
+
+#if __KERNEL__
 
 static const struct drm_bridge_funcs ch7033_bridge_funcs = {
 	.attach = ch7033_bridge_attach,
 	.detach = ch7033_bridge_detach,
 	.mode_valid = ch7033_bridge_mode_valid,
+        .disable = ch7033_bridge_disable,
+        .enable = ch7033_bridge_enable,
 	.mode_set = ch7033_bridge_mode_set,
 };
 
@@ -513,6 +718,20 @@ static int ch7033_probe(struct i2c_client *client, const struct i2c_device_id *i
 		return -EPROBE_DEFER;
 	}
 
+	ret = i2c_smbus_read_byte_data(client, 0x00);
+printk ("XXX READ: 0x%02x\n", ret);
+	if ((i2c_smbus_read_byte_data(client, 0x00) & 0xf7) != 0x56) {
+		dev_err(&client->dev, "NOT A CHRONTEL 7033\n");
+		return -ENODEV;
+	}
+
+	i2c_smbus_write_byte_data(client, 0x03, 0x04);
+	ret = i2c_smbus_read_byte_data(client, 0x51) & 0x0f;
+	if (ret != 0x03) {
+		dev_err(&client->dev, "NOT A CHRONTEL 7033: 0x%02x\n", ret);
+		return -ENODEV;
+	}
+
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;
@@ -578,3 +797,70 @@ module_i2c_driver(ch7033_driver);
 MODULE_AUTHOR("Lubomir Rintel <lkundrak@v3.sk>");
 MODULE_DESCRIPTION("Chrontel CH7033 Encoder Driver");
 MODULE_LICENSE("GPL v2");
+
+
+#else // !__KERNEL__
+
+int
+main ()
+{
+	struct drm_display_mode mode_def = {
+		.clock = 65000,
+
+		.hdisplay = 1024,
+		.hsync_start = 1048,
+		.hsync_end = 1184,
+		.htotal = 1344,
+
+		.vdisplay = 768,
+		.vsync_start = 771,
+		.vsync_end = 777,
+		.vtotal = 806,
+
+		.flags = DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC,
+	};
+
+	struct drm_display_mode mode2 = {
+		.clock = 121750,
+		//.clock = 65000,
+
+		.hdisplay = 1400,
+		.hsync_start = 1488,
+		.hsync_end = 1632,
+		.htotal = 1864,
+
+		.vdisplay = 1050,
+		.vsync_start = 1053,
+		.vsync_end = 1057,
+		.vtotal = 1089,
+
+		.flags = DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC,
+	};
+
+	struct drm_display_mode mode17 = {
+		.clock = 108000,
+		//.clock = 65000,
+
+		.hdisplay = 1280,
+		.hsync_start = 1328,
+		.hsync_end = 1440,
+		.htotal = 1688,
+
+		.vdisplay = 1024,
+		.vsync_start = 1025,
+		.vsync_end = 1028,
+		.vtotal = 1066,
+
+//		.flags = DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC,
+	};
+
+#if 0
+#endif
+//	ch7033_pre_enable();
+	ch7033_bridge_mode_set(NULL, &mode17, NULL);
+	ch7033_bridge_enable(NULL);
+	ch7033_bridge_disable(NULL);
+	ch7033_bridge_enable(NULL);
+}
+
+#endif // !__KERNEL__
