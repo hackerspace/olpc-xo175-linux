@@ -65,11 +65,26 @@
 		analog;
 
 		port {
-			dvi_in: endpoint {
+			dvi_i_in: endpoint {
 				remote-endpoint = <&encoder_out>;
 			};
 		};
 	};
+
+/*
+	dvi_d: dvi-connector {
+		compatible = "dvi-connector";
+		ddc-i2c-bus = <&twsi6>;
+		hpd-gpios = <&gpio 59 GPIO_ACTIVE_LOW>;
+		digital;
+
+		port {
+			dvi_d_in: endpoint {
+				remote-endpoint = <&ch7033_out>;
+			};
+		};
+	};
+*/
 };
 
 &uart3 {
@@ -225,10 +240,16 @@ lkundrak@t00d:~$
 			port@1 {
 				reg = <1>;
 				encoder_out: endpoint {
-					remote-endpoint = <&dvi_in>;
+					remote-endpoint = <&dvi_i_in>;
 				};
 			};
 
+//			port@2 {
+//				reg = <2>;
+//				encoder_dvi_out: endpoint {
+//					remote-endpoint = <&dvi_d_in>;
+//				};
+//			};
 		};
         };
 };
@@ -243,7 +264,13 @@ lkundrak@t00d:~$
         };
 };
 
+/* dvi-i (vga) connector */
 &twsi5 {
+	status = "okay";
+};
+
+/* dvi-d connector */
+&twsi6 {
 	status = "okay";
 };
 
