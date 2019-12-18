@@ -179,4 +179,10 @@
 &ssp2 {
 	cs-gpios = <&gpio 56 GPIO_ACTIVE_LOW>;
 	status = "okay";
+
+	embedded-controller@0 {
+		compatible = "eneec_spi";
+		reg = <0>;
+		spi-max-frequency = <40000000>;
+	};
 };
