@@ -57,8 +57,14 @@
 #define APMU_USBHSIC1	0xfc
 #define MPMU_UART_PLL	0x14
 
+enum mmp2_clk_model {
+	CLK_MODEL_MMP2,
+	CLK_MODEL_MMP3,
+};
+
 struct mmp2_clk_unit {
 	struct mmp_clk_unit unit;
+	enum mmp2_clk_model model;
 	void __iomem *mpmu_base;
 	void __iomem *apmu_base;
 	void __iomem *apbc_base;
@@ -313,6 +319,11 @@ static void __init mmp2_clk_init(struct device_node *np)
 	if (!pxa_unit)
 		return;
 
+	if (of_device_is_compatible(np, "marvell,mmp3-clock"))
+		pxa_unit->model = CLK_MODEL_MMP3;
+	else
+		pxa_unit->model = CLK_MODEL_MMP2;
+
 	pxa_unit->mpmu_base = of_iomap(np, 0);
 	if (!pxa_unit->mpmu_base) {
 		pr_err("failed to map mpmu registers\n");
@@ -352,3 +363,4 @@ free_memory:
 }
 
 CLK_OF_DECLARE(mmp2_clk, "marvell,mmp2-clock", mmp2_clk_init);
+CLK_OF_DECLARE(mmp3_clk, "marvell,mmp3-clock", mmp2_clk_init);
