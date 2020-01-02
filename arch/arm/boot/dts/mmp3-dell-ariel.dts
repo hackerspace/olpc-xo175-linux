@@ -155,6 +155,9 @@
 		compatible = "ene,kb3930", "dell,wyse-ariel-ec";
 		reg = <0x58>;
 		status = "okay";
+
+		off-gpios = <&gpio 126 GPIO_ACTIVE_HIGH>,
+			    <&gpio 127 GPIO_ACTIVE_HIGH>;
 	};
 };
 
