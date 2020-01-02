@@ -9,33 +9,12 @@
 
 static inline int machine_is_qseven(void) { return 1; }
 
-#include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/delay.h>
-#include <linux/slab.h>
 #include <linux/i2c.h>
-#include <linux/i2c-dev.h>
-#include <linux/interrupt.h>
-#include <linux/init.h>
-#include <linux/serio.h>
-#include <linux/workqueue.h>
-#include <linux/mutex.h>
-#include <linux/fs.h>
-#include <linux/platform_device.h>
-#include <linux/proc_fs.h>
-#include <asm/uaccess.h>
-#include <asm/mach-types.h>
-
-#include <linux/param.h>
-#include <linux/pm.h>
 
 MODULE_AUTHOR("Victoria/flychen");
 MODULE_DESCRIPTION("ENEEC i2c driver");
 MODULE_LICENSE("GPL");
-
-#define ENE_DEBUG(format, args...) \
-	 pr_warn("%s(%d): "format"\n", __func__, __LINE__, ##args)
-	 //pr_debug("%s(%d): "format"\n", __func__, __LINE__, ##args)
 
 static const struct i2c_device_id eneec_idtable[] = {
 	//  name      driver_data
@@ -56,11 +35,7 @@ MODULE_DEVICE_TABLE(i2c, eneec_idtable);
  *       =1: keyboard scancode or mouse position data;
  * bit[6:4]=3: from keyboard; =4: from mouse;
  */
-#define PORT_KBD	0x30
-#define PORT_MOU	0x40
 #define PORT_ECRAM	0x80
-#define PORT_XBI	0xF0
-#define DATA_TO_PORT(data)  (data & 0xf0)
 
 /* Define the used RAM register address for reading content purpose */
 //#define MAX_ECRAM_REG		4
@@ -74,14 +49,7 @@ struct eneec {
 	struct i2c_client *client;
 	const u8 *ram_reg;
 	int ram_reg_size;
-	unsigned short chip_id;
-	unsigned char rev_id;
 	int toggle;
-	bool is_37xx;
-// For exposing our userspace API.
-	// The main reason to have this class is to make mdev/udev create the
-	// /dev/eneec character device nodes exposing our userspace API.
-	struct class *eneec_class;
 };
 
 static struct i2c_client *ene_client = NULL ;
@@ -238,9 +206,6 @@ static int eneec_probe(struct i2c_client *client, const struct i2c_device_id *id
                 eneec->ram_reg_size = ARRAY_SIZE(ariel_ram_reg);
 	}
 
-	eneec->chip_id = id->driver_data >> 8;
-	eneec->rev_id = (unsigned char) id->driver_data;
-	eneec->is_37xx = ((eneec->chip_id & 0xFF00) == 0x3700);
 	ene_client = eneec->client;
 
 	// Drain old data out of device.
