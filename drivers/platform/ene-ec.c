@@ -45,10 +45,12 @@ MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("GPL");
 
 //#define POLLING
+#define POLLING
 #define POLL_INTERVAL       100
 //#define EC_BATTERY_SUPPORT
 #define ENE_DEBUG(format, args...) \
-	 pr_debug("%s(%d): "format"\n", __func__, __LINE__, ##args)
+	 pr_warn("%s(%d): "format"\n", __func__, __LINE__, ##args)
+	 //pr_debug("%s(%d): "format"\n", __func__, __LINE__, ##args)
 
 struct battery_device_attribute{
 	struct device_attribute dev_attr;
@@ -84,10 +86,11 @@ struct battery_device_attribute battery_dev_attr_##_name          \
  */
 static const struct i2c_device_id eneec_idtable[] = {
 	//  name      driver_data
-	{ "KB39XX",     0x3926F0 }, // doesn't matter
-	{ "KB9010A",    0x9010A0 },
-	{ "KB9010B",    0x9010B0 },
-	{ "KB37XX",     0x3730A0 },
+	{ "kb3930",     0x3926f0 }, // doesn't matter
+	{ "kb3900",     0x3926f0 }, // doesn't matter
+	{ "kb9010a",    0x9010a0 },
+	{ "kb9010b",    0x9010b0 },
+	{ "kb3700",     0x3730a0 },
 	{ }
 };
 
@@ -1472,8 +1475,19 @@ static int eneec_remove_battery(struct eneec *eneec)
 }
 #endif /*EC_BATTERY_SUPPORT */
 
+static const struct of_device_id eneec_dt_ids[] = {
+	{ .compatible = "ene,kb3930" },
+	{ .compatible = "ene,kb3900" },
+	{ .compatible = "ene,kb9010a" },
+	{ .compatible = "ene,kb9010b" },
+	{ .compatible = "ene,kb3700" },
+	{ }
+};
+MODULE_DEVICE_TABLE(of, eneec_dt_ids);
+
 static struct i2c_driver eneec_driver = {
 	.driver = {
+		.of_match_table = of_match_ptr(eneec_dt_ids),
 		.owner  = THIS_MODULE,
 		.name = "eneec",
 	},
@@ -1486,15 +1500,4 @@ static struct i2c_driver eneec_driver = {
 #endif
 };
 
-static int __init eneec_init(void)
-{
-	return i2c_add_driver(&eneec_driver);
-}
-
-static void __exit eneec_exit(void)
-{
-	i2c_del_driver(&eneec_driver);
-}
-
-module_init(eneec_init);
-module_exit(eneec_exit);
+module_i2c_driver(eneec_driver);
