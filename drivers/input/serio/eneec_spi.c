@@ -13,7 +13,6 @@
 #include <linux/mutex.h>
 #include <linux/fs.h>
 #include <linux/cdev.h>
-#include <linux/reboot.h>
 #include <asm/uaccess.h>
 #include <linux/spi/spi.h>
 
@@ -104,9 +103,6 @@ struct eneec {
     struct class *eneec_class;
     struct cdev cdev;
     dev_t devt;
-
-        struct gpio_desc *off0_gpio;
-        struct gpio_desc *off1_gpio;
 // ~
 };
 
@@ -450,44 +446,6 @@ static int eneec_create_mouse_port(struct eneec *eneec)
     return 0;
 }
 
-
-struct eneec *global_eneec;
-
-static void eneec_off (struct eneec *eneec, int poweroff)
-{
-	gpiod_direction_output(eneec->off1_gpio, poweroff);
-
-	while (1) {
-		gpiod_direction_output(eneec->off0_gpio, 0);
-		mdelay(50);
-		gpiod_direction_output(eneec->off0_gpio, 1);
-		mdelay(50);
-	}
-}
-
-
-static int eneec_reboot(struct notifier_block *this,
-                                   unsigned long mode, void *cmd)
-{
-	eneec_off (global_eneec, 0);
-        return NOTIFY_DONE;
-}
-
-static void eneec_power_off (void)
-{
-	eneec_off (global_eneec, 1);
-}
-
-
-
-static struct notifier_block eneec_reboot_nb = {
-        .notifier_call = eneec_reboot,
-        .priority = 128,
-};
-
-
-
-
 static int eneec_probe(struct spi_device *spi)
 {
     struct eneec *eneec = 0;
@@ -503,7 +461,7 @@ static int eneec_probe(struct spi_device *spi)
     }
 #endif
 
-    if (!(global_eneec = eneec = kzalloc(sizeof(struct eneec), GFP_KERNEL))) {
+    if (!(eneec = kzalloc(sizeof(struct eneec), GFP_KERNEL))) {
         return -ENOMEM;
     }
 
@@ -548,27 +506,6 @@ static int eneec_probe(struct spi_device *spi)
         eneec->irq = spi->irq;
     }
 #endif
-
-
-
-
-
-        eneec->off0_gpio = devm_gpiod_get_index(&spi->dev, "off", 0, GPIOD_IN);
-        if (IS_ERR(eneec->off0_gpio)) {
-                dev_info(&spi->dev, "failed to request OFF0 GPIO\n");
-		eneec->off0_gpio = NULL;
-        };
-        eneec->off1_gpio = devm_gpiod_get_index(&spi->dev, "off", 1, GPIOD_IN);
-        if (IS_ERR(eneec->off1_gpio)) {
-                dev_info(&spi->dev, "failed to request OFF1 GPIO\n");
-		eneec->off1_gpio = NULL;
-        };
-	register_reboot_notifier(&eneec_reboot_nb);
-
-	pm_power_off = eneec_power_off;
-
-
-
 
     if ((err = eneec_create_kbd_port(eneec)))
         goto error_exit;
@@ -622,7 +559,6 @@ static int eneec_remove(struct spi_device *spi)
 
     pr_debug("eneec_spi_remove\n");
 
-	unregister_reboot_notifier(&eneec_reboot_nb);
     eneec_spi_destroy_cdev_node(eneec);
 
     if(eneec->mou_port.serio) {
