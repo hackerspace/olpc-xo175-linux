@@ -1,8 +1,3 @@
-
-/*
- *  ENE EC SPI driver for Linux
- */
-
 #include <linux/delay.h>
 #include <linux/module.h>
 #include <linux/slab.h>
@@ -15,16 +10,11 @@
 #include <asm/uaccess.h>
 #include <linux/spi/spi.h>
 
-#define DRIVER_DESC "ENEEC SPI driver"
-
-MODULE_AUTHOR("Victoria/flychen");
-MODULE_DESCRIPTION(DRIVER_DESC);
-MODULE_LICENSE("GPL");
-
-#define PORT_KBD        0x30
-#define PORT_MOU        0x40
-#define PORT_XBI        0xF0
-#define DATA_TO_PORT(data)  (data & 0x70)
+enum {
+	PORT_KBD = 0x30,
+	PORT_MOU = 0x40,
+	PORT_XBI = 0xF0,
+};
 
 #pragma pack(1)
 struct rspdata {
@@ -49,24 +39,13 @@ enum { RSP_UNKNOWN = 0,
 };
 
 struct eneec {
-    struct spi_device   *client;
+    struct spi_device *client;
     struct mutex lock;
     int irq; // don't remove it although also in client->irq. for indicating if irq requested.
-    unsigned short chip_id;
-    unsigned char rev_id;
     struct workqueue_struct *work_queue;
     struct work_struct read_work;
-
     struct serio *serio;
-
     int toggle;
-
-// For exposing our userspace API.
-    // The main reason to have this class is to make mdev/udev create the
-    // /dev/eneec character device nodes exposing our userspace API.
-    struct class *eneec_class;
-    dev_t devt;
-// ~
 };
 
 static int eneec_read_rspdata(struct eneec *eneec, struct rspdata *rspdata);
@@ -264,10 +243,10 @@ static int eneec_probe(struct spi_device *spi)
     if ((err = request_irq(spi->irq, eneec_interrupt, IRQF_TRIGGER_RISING , "eneec_spi", spi ))) {
         printk("Failed to request IRQ %d -- %d\n", spi->irq, err);
         goto error_exit;
-    } else {
-        printk("IRQ %d requested\n", spi->irq);
-        eneec->irq = spi->irq;
     }
+
+    printk("IRQ %d requested\n", spi->irq);
+    eneec->irq = spi->irq;
 
     serio = kzalloc(sizeof(struct serio), GFP_KERNEL);
     if (!serio)
@@ -354,3 +333,9 @@ static struct spi_driver ariel_ec_spi_driver = {
 	.remove		= eneec_remove,
 };
 module_spi_driver(ariel_ec_spi_driver);
+
+
+
+MODULE_AUTHOR("Victoria/flychen");
+MODULE_DESCRIPTION("ENEEC SPI driver");
+MODULE_LICENSE("GPL");
