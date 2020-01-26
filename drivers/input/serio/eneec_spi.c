@@ -58,7 +58,6 @@ struct eneec {
     struct work_struct read_work;
 
     struct serio *serio;
-    unsigned char port_no;  // PORT_KBD or PORT_MOU.
 
     int toggle;
 
@@ -175,7 +174,6 @@ static irqreturn_t eneec_interrupt(int irq, void *dev_id)
 static int eneec_write(struct serio *serio, unsigned char byte)
 {
 #define WRITE_LEN    4
-    u8    portno;        
     u8    tx_buf[WRITE_LEN] = {0,0,0,0};
     u8    rx_buf[WRITE_LEN] = {0,0,0,0};
     int   ret;
@@ -189,20 +187,7 @@ static int eneec_write(struct serio *serio, unsigned char byte)
     struct spi_device   *spi = eneec->client;
     struct spi_message  m;
 
-    portno = eneec->port_no;
-
-    if(portno == PORT_KBD) {
-        tx_buf[0] = 0x30; // write kbd
-    }
-    else if(portno == PORT_MOU) {
-        tx_buf[0] = 0x40; // write aux
-	mdelay(2);
-    }
-    else {
-        pr_err("ERROR: eneec_write with bad port no\n");
-        return -1;
-    }
-
+    tx_buf[0] = PORT_KBD; // write kbd
     tx_buf[1] = byte;
     tx_buf[2] = 0x00; // dummy
     tx_buf[3] = 0x00; // dummy
@@ -296,7 +281,6 @@ static int eneec_probe(struct spi_device *spi)
     strlcpy(serio->phys, "eneec_spi/serio0", sizeof(serio->phys));
 
     eneec->serio = serio;
-    eneec->port_no = PORT_KBD;
 
     serio_register_port(eneec->serio);
 
