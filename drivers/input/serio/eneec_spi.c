@@ -65,7 +65,6 @@ struct eneec {
     struct eneec_port kbd_port;
     struct eneec_port mou_port;
     int toggle;
-    bool is_37xx;
 
 // For exposing our userspace API.
     // The main reason to have this class is to make mdev/udev create the
@@ -87,7 +86,6 @@ static int eneec_read_rspdata(struct eneec *eneec, struct rspdata *rspdata)
 #define RSP_LEN    5
     u8    tx_buf[RSP_LEN];
     int   ret;
-    int   i;
     struct spi_device   *spi = eneec->client;
     struct spi_transfer t =
     {
