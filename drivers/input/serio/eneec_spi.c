@@ -63,7 +63,6 @@ struct eneec {
     struct workqueue_struct *work_queue;
     struct work_struct read_work;
     struct eneec_port kbd_port;
-    struct eneec_port mou_port;
     int toggle;
 
 // For exposing our userspace API.
@@ -75,7 +74,6 @@ struct eneec {
 };
 
 static int eneec_create_kbd_port(struct eneec *eneec);
-static int eneec_create_mouse_port(struct eneec *eneec);
 static int eneec_read_rspdata(struct eneec *eneec, struct rspdata *rspdata);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -127,7 +125,7 @@ static int eneec_read_rspdata(struct eneec *eneec, struct rspdata *rspdata)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// Codes for interfacing with kernel kbd, mouse.
+// Codes for interfacing with kernel kbd
 
 static void eneec_read_work(struct work_struct *work)
 { 
@@ -155,15 +153,9 @@ static void eneec_read_work(struct work_struct *work)
                 serio_interrupt(eneec->kbd_port.serio, rspdata.data[i], 0);
             }
         }
-    } else if ((rspdata.type == RSP_AUX_RESPONSE) || (rspdata.type == RSP_AUX_DATA)) {   
-        if(eneec->mou_port.serio) { // interrupt might assert before probe() done.
-            for (i = 0; i < rspdata.count; i++) {
-                serio_interrupt(eneec->mou_port.serio, rspdata.data[i], 0);
-            }
-        }
     }
     else {
-        pr_warn(   "WARNING: Not mou or kbd data\n");
+        pr_warn(   "WARNING: Not kbd data\n");
         goto exit_enable_irq;
     }
 
@@ -268,29 +260,6 @@ static int eneec_create_kbd_port(struct eneec *eneec)
 
 }
 
-static int eneec_create_mouse_port(struct eneec *eneec)
-{
-    struct serio *serio;
-    struct spi_device   *client = eneec->client;;
-    
-    serio = kzalloc(sizeof(struct serio), GFP_KERNEL);
-    if (!serio)
-        return -ENOMEM;
-
-    serio->id.type      = SERIO_PS_PSTHRU;//SERIO_8042;
-    serio->write        = eneec_write;
-    serio->port_data    = &eneec->mou_port;
-    serio->dev.parent   = &client->dev;
-    strlcpy(serio->name, "eneec spi mouse port", sizeof(serio->name));
-    strlcpy(serio->phys, "eneec_spi/serio1", sizeof(serio->phys));
-
-    eneec->mou_port.serio = serio;
-    eneec->mou_port.port_no = PORT_MOU;
-    eneec->mou_port.eneec = eneec;
-
-    return 0;
-}
-
 static int eneec_probe(struct spi_device *spi)
 {
     struct eneec *eneec = 0;
@@ -348,11 +317,6 @@ static int eneec_probe(struct spi_device *spi)
 
     serio_register_port(eneec->kbd_port.serio);
 
-    if ((err = eneec_create_mouse_port(eneec)))
-        goto error_exit;
-
-    serio_register_port(eneec->mou_port.serio);
-
     // add by allen for test
     //eneec_read_rspdata(eneec, &rspdata);
 
@@ -360,12 +324,8 @@ static int eneec_probe(struct spi_device *spi)
 
 error_exit:
 
-    if(eneec && eneec->irq) // deregister irq first, so safe once if kbd/mou is sending data.
+    if(eneec && eneec->irq) // deregister irq first, so safe once if kbd is sending data.
         free_irq(eneec->irq, spi);
-
-    if(eneec && eneec->mou_port.serio) {
-        serio_unregister_port(eneec->mou_port.serio);
-    }
 
     if(eneec && eneec->kbd_port.serio) {
         serio_unregister_port(eneec->kbd_port.serio);
@@ -388,9 +348,6 @@ static int eneec_remove(struct spi_device *spi)
 
     pr_debug("eneec_spi_remove\n");
 
-    if(eneec->mou_port.serio) {
-        serio_unregister_port(eneec->mou_port.serio);
-    }
     if(eneec->kbd_port.serio) {
         serio_unregister_port(eneec->kbd_port.serio);
     }
