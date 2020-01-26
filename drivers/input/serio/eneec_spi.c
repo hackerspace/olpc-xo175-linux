@@ -12,7 +12,6 @@
 #include <linux/workqueue.h>
 #include <linux/mutex.h>
 #include <linux/fs.h>
-#include <linux/cdev.h>
 #include <asm/uaccess.h>
 #include <linux/spi/spi.h>
 
@@ -72,14 +71,12 @@ struct eneec {
     // The main reason to have this class is to make mdev/udev create the
     // /dev/eneec character device nodes exposing our userspace API.
     struct class *eneec_class;
-    struct cdev cdev;
     dev_t devt;
 // ~
 };
 
 static int eneec_create_kbd_port(struct eneec *eneec);
 static int eneec_create_mouse_port(struct eneec *eneec);
-static int eneec_spi_create_cdev_node(struct eneec *eneec);
 static int eneec_read_rspdata(struct eneec *eneec, struct rspdata *rspdata);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -129,114 +126,6 @@ static int eneec_read_rspdata(struct eneec *eneec, struct rspdata *rspdata)
 #endif
 
     return 0;
-}
-
-static long eneec_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
-{
-    return 0;
-}
-
-static int eneec_open(struct inode *inode, struct file *filp)
-{
-    return 0;
-}
-
-static int eneec_release(struct inode *inode, struct file *filp)
-{
-    pr_debug("eneec_spi_release()\n");
-    return 0;
-}
-
-static const struct file_operations eneec_fops = {
-    .owner          = THIS_MODULE,
-    .unlocked_ioctl = eneec_ioctl,
-    .open           = eneec_open,
-    .release        = eneec_release,
-};
-
-//
-// Undo eneec_create_cdev_node().
-// Call this only if the char device node was ever created successfully.
-void eneec_spi_destroy_cdev_node(struct eneec *eneec)
-{
-    device_destroy(eneec->eneec_class, eneec->devt);
-    cdev_del(&eneec->cdev);
-    unregister_chrdev_region(eneec->devt, 1);
-    class_destroy(eneec->eneec_class);
-}
-
-int eneec_spi_create_cdev_node(struct eneec *eneec)
-{
-    int status;
-    dev_t devt;
-    struct device *dev;
-    struct class *eneec_class;
-    bool is_class_created = false, is_region_allocated = false, is_cdev_added = false, is_device_created = false;
-
-
-    pr_debug("eneec_spi_create_cdev_node .. \n");
-
-    // Create class
-    eneec_class = class_create(THIS_MODULE, "eneec_spi");
-    status = IS_ERR(eneec_class) ? PTR_ERR(eneec_class) : 0;
-    if (status < 0) {
-        pr_err("eneec_SPI class_create() failed -- %d\n", status);
-        goto error_exit;
-    }
-    is_class_created = true;
-
-    // Alloc chrdev region.
-    status = alloc_chrdev_region(&devt, 0, 1, "eneec_spi");
-    if(status < 0) {
-        pr_err("eneec_spi alloc_chrdev_region() failed -- %d\n", status);
-        goto error_exit;
-    }
-    is_region_allocated = true;
-
-    // Add cdev.
-    cdev_init(&eneec->cdev, &eneec_fops);
-    status = cdev_add(&eneec->cdev, devt, 1);
-    if(status < 0) {
-        pr_err("cdev_add() failed -- %d\n", status);
-        goto error_exit;
-    }
-    is_cdev_added = true;
-
-    // Create device
-    dev = device_create
-                (
-                eneec_class, 
-                &eneec->client->dev, // parent device (struct device *)
-                devt, 
-                eneec,               // caller's context
-                "eneec_spi"
-                );
-    status = IS_ERR(dev) ? PTR_ERR(dev) : 0;
-    if (status < 0) {
-        pr_err("device_create() failed -- %d\n", status);
-        goto error_exit;
-    }
-    is_device_created = true;
-
-    // Succeed.
-    eneec->eneec_class = eneec_class;
-    eneec->devt = devt;
-
-    return 0;
-
-error_exit:
-
-    if(is_device_created)
-        device_destroy(eneec_class, devt);
-    if(is_cdev_added)
-        cdev_del(&eneec->cdev);
-    if(is_region_allocated)
-        unregister_chrdev_region(devt, 1);
-    if(is_class_created)
-        class_destroy(eneec_class);
-
-    return status;
-
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -466,9 +355,6 @@ static int eneec_probe(struct spi_device *spi)
 
     serio_register_port(eneec->mou_port.serio);
 
-    if ((err = eneec_spi_create_cdev_node(eneec)))
-        goto error_exit;
-        
     // add by allen for test
     //eneec_read_rspdata(eneec, &rspdata);
 
@@ -503,8 +389,6 @@ static int eneec_remove(struct spi_device *spi)
     struct eneec *eneec = spi_get_drvdata(spi);
 
     pr_debug("eneec_spi_remove\n");
-
-    eneec_spi_destroy_cdev_node(eneec);
 
     if(eneec->mou_port.serio) {
         serio_unregister_port(eneec->mou_port.serio);
