@@ -41,7 +41,6 @@ enum { RSP_UNKNOWN = 0,
 struct eneec {
     struct spi_device *client;
     struct mutex lock;
-    int irq; // don't remove it although also in client->irq. for indicating if irq requested.
     struct workqueue_struct *work_queue;
     struct work_struct read_work;
     struct serio serio;
@@ -136,7 +135,7 @@ static void eneec_read_work(struct work_struct *work)
 
 exit_enable_irq:
 
-    enable_irq(eneec->irq);
+    enable_irq(eneec->client->irq);
 }
 
 static irqreturn_t eneec_interrupt(int irq, void *dev_id)
@@ -240,14 +239,6 @@ static int eneec_probe(struct spi_device *spi)
         goto error_exit;
 
 
-    if ((err = request_irq(spi->irq, eneec_interrupt, IRQF_TRIGGER_RISING , "eneec_spi", spi ))) {
-        printk("Failed to request IRQ %d -- %d\n", spi->irq, err);
-        goto error_exit;
-    }
-
-    printk("IRQ %d requested\n", spi->irq);
-    eneec->irq = spi->irq;
-
 #if 0
     serio = kzalloc(sizeof(struct serio), GFP_KERNEL);
     if (!serio)
@@ -263,6 +254,12 @@ static int eneec_probe(struct spi_device *spi)
 
     serio_register_port(&eneec->serio);
 
+
+    if ((err = request_irq(spi->irq, eneec_interrupt, IRQF_TRIGGER_RISING , "eneec_spi", spi ))) {
+        printk("Failed to request IRQ %d -- %d\n", spi->irq, err);
+        goto error_exit;
+    }
+
     // add by allen for test
     //eneec_read_rspdata(eneec, &rspdata);
 
@@ -270,9 +267,7 @@ static int eneec_probe(struct spi_device *spi)
 
 error_exit:
 
-    if(eneec && eneec->irq) // deregister irq first, so safe once if kbd is sending data.
-        free_irq(eneec->irq, spi);
-
+    free_irq(spi->irq, spi);
     serio_unregister_port(&eneec->serio);
 
     if(eneec && eneec->work_queue) {
@@ -293,9 +288,8 @@ static int eneec_remove(struct spi_device *spi)
     pr_debug("eneec_spi_remove\n");
 
     serio_unregister_port(&eneec->serio);
-    if(eneec->irq) {
-        free_irq(eneec->irq, spi);
-    }
+    free_irq(spi->irq, spi);
+
     if(eneec->work_queue) {
         destroy_workqueue(eneec->work_queue);
     }
