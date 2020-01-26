@@ -26,12 +26,6 @@ MODULE_LICENSE("GPL");
 #define PORT_XBI        0xF0
 #define DATA_TO_PORT(data)  (data & 0x70)
 
-struct eneec_port {
-    struct serio *serio;
-    struct eneec *eneec;
-    unsigned char port_no;  // PORT_KBD or PORT_MOU.
-};
-
 #pragma pack(1)
 struct rspdata {
     u8 resv;
@@ -62,7 +56,10 @@ struct eneec {
     unsigned char rev_id;
     struct workqueue_struct *work_queue;
     struct work_struct read_work;
-    struct eneec_port kbd_port;
+
+    struct serio *serio;
+    unsigned char port_no;  // PORT_KBD or PORT_MOU.
+
     int toggle;
 
 // For exposing our userspace API.
@@ -73,7 +70,6 @@ struct eneec {
 // ~
 };
 
-static int eneec_create_kbd_port(struct eneec *eneec);
 static int eneec_read_rspdata(struct eneec *eneec, struct rspdata *rspdata);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -147,10 +143,10 @@ static void eneec_read_work(struct work_struct *work)
     eneec->toggle = rspdata.toggle;
 
     if ((rspdata.type == RSP_KB_RESPONSE) || (rspdata.type == RSP_KB_DATA)) {
-        if(eneec->kbd_port.serio) { // interrupt might assert before probe() done.
+        if(eneec->serio) { // interrupt might assert before probe() done.
             for (i = 0; i < rspdata.count; i++) {
 		printk("scan code %02x\n",rspdata.data[i]);
-                serio_interrupt(eneec->kbd_port.serio, rspdata.data[i], 0);
+                serio_interrupt(eneec->serio, rspdata.data[i], 0);
             }
         }
     }
@@ -189,12 +185,11 @@ static int eneec_write(struct serio *serio, unsigned char byte)
             .rx_buf     = rx_buf,
             .len        = WRITE_LEN,
     };
-    struct eneec_port *port = serio->port_data;
-    struct eneec *eneec = port->eneec;      
+    struct eneec *eneec = serio->port_data;
     struct spi_device   *spi = eneec->client;
     struct spi_message  m;
 
-    portno = port->port_no;
+    portno = eneec->port_no;
 
     if(portno == PORT_KBD) {
         tx_buf[0] = 0x30; // write kbd
@@ -236,35 +231,12 @@ static int eneec_write(struct serio *serio, unsigned char byte)
     return 0;
 }
 
-static int eneec_create_kbd_port(struct eneec *eneec)
-{
-    struct spi_device   *client = eneec->client;
-    struct serio *serio;
-
-    serio = kzalloc(sizeof(struct serio), GFP_KERNEL);
-    if (!serio)
-        return -ENOMEM;
-
-    serio->id.type      = SERIO_8042_XL;
-    serio->write        = eneec_write;
-    serio->port_data    = &eneec->kbd_port;
-    serio->dev.parent   = &client->dev;
-    strlcpy(serio->name, "eneec spi kbd port", sizeof(serio->name));
-    strlcpy(serio->phys, "eneec_spi/serio0", sizeof(serio->phys));
-
-    eneec->kbd_port.serio = serio;
-    eneec->kbd_port.port_no = PORT_KBD;
-    eneec->kbd_port.eneec = eneec;
-
-    return 0;
-
-}
-
 static int eneec_probe(struct spi_device *spi)
 {
     struct eneec *eneec = 0;
     struct rspdata rspdata;
     int err = 0 , retry = 0;
+    struct serio *serio; // XXX
 
     printk("eneec_spi_probe with modalias = %s, irq = %d\n", spi->modalias, spi->irq);
 
@@ -312,10 +284,21 @@ static int eneec_probe(struct spi_device *spi)
         eneec->irq = spi->irq;
     }
 
-    if ((err = eneec_create_kbd_port(eneec)))
-        goto error_exit;
+    serio = kzalloc(sizeof(struct serio), GFP_KERNEL);
+    if (!serio)
+        return -ENOMEM;
 
-    serio_register_port(eneec->kbd_port.serio);
+    serio->id.type      = SERIO_8042_XL;
+    serio->write        = eneec_write;
+    serio->port_data    = eneec;
+    serio->dev.parent   = &spi->dev;
+    strlcpy(serio->name, "eneec spi kbd port", sizeof(serio->name));
+    strlcpy(serio->phys, "eneec_spi/serio0", sizeof(serio->phys));
+
+    eneec->serio = serio;
+    eneec->port_no = PORT_KBD;
+
+    serio_register_port(eneec->serio);
 
     // add by allen for test
     //eneec_read_rspdata(eneec, &rspdata);
@@ -327,8 +310,8 @@ error_exit:
     if(eneec && eneec->irq) // deregister irq first, so safe once if kbd is sending data.
         free_irq(eneec->irq, spi);
 
-    if(eneec && eneec->kbd_port.serio) {
-        serio_unregister_port(eneec->kbd_port.serio);
+    if(eneec && eneec->serio) {
+        serio_unregister_port(eneec->serio);
     }
 
     if(eneec && eneec->work_queue) {
@@ -348,8 +331,8 @@ static int eneec_remove(struct spi_device *spi)
 
     pr_debug("eneec_spi_remove\n");
 
-    if(eneec->kbd_port.serio) {
-        serio_unregister_port(eneec->kbd_port.serio);
+    if(eneec->serio) {
+        serio_unregister_port(eneec->serio);
     }
     if(eneec->irq) {
         free_irq(eneec->irq, spi);
