@@ -22,30 +22,6 @@ MODULE_AUTHOR("Victoria/flychen");
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("GPL");
 
-//#define POLLING
-#define POLL_INTERVAL       100
-
-/*
- * Be sure system is added with one SPI board info at mainboard arch_initcall() code, for example,
- *
- * static struct spi_board_info mini2440_spi_board_info[] __initdata = {
- *     { .modalias      = "eneec",
- *       .platform_data = NULL,
- *       .irq           = IRQ_EINT8,   // irq used for EC depending on customer platform.
- *       .max_speed_hz  = 1*1000*1000,
- *       .chip_select   = 0,           // chip-select for EC.
- *       .bus_num       = 0,           // SPI bus number EC attached to.
- *       .mode          = 0
- *     },
- *     ...
- * };
- *
- * static void __init mini2440_machine_init()
- * {
- *     spi_register_board_info(mini2440_spi_board_info, ARRAY_SIZE(mini2440_spi_board_info));
- * }
- */
-
 #define PORT_KBD        0x30
 #define PORT_MOU        0x40
 #define PORT_XBI        0xF0
@@ -86,12 +62,7 @@ struct eneec {
     unsigned short chip_id;
     unsigned char rev_id;
     struct workqueue_struct *work_queue;
-#ifdef POLLING
-    struct delayed_work read_work;
-    bool stop_polling;
-#else
     struct work_struct read_work;
-#endif
     struct eneec_port kbd_port;
     struct eneec_port mou_port;
     int toggle;
@@ -273,11 +244,7 @@ error_exit:
 
 static void eneec_read_work(struct work_struct *work)
 { 
-#ifdef POLLING
-    struct eneec *eneec = container_of(work, struct eneec, read_work.work);
-#else
     struct eneec *eneec = container_of(work, struct eneec, read_work);
-#endif
 
     int i;
     struct rspdata rspdata;
@@ -315,15 +282,8 @@ static void eneec_read_work(struct work_struct *work)
 
 exit_enable_irq:
 
-#ifdef POLLING
-    if(!eneec->stop_polling)
-        queue_delayed_work(eneec->work_queue, &eneec->read_work, msecs_to_jiffies(POLL_INTERVAL));
-#else
     enable_irq(eneec->irq);
-#endif
 }
-
-#ifndef POLLING
 
 static irqreturn_t eneec_interrupt(int irq, void *dev_id)
 {
@@ -336,8 +296,6 @@ static irqreturn_t eneec_interrupt(int irq, void *dev_id)
 
     return IRQ_HANDLED;
 }
-
-#endif
 
 static int eneec_write(struct serio *serio, unsigned char byte)
 {
@@ -454,12 +412,10 @@ static int eneec_probe(struct spi_device *spi)
 
     printk("eneec_spi_probe with modalias = %s, irq = %d\n", spi->modalias, spi->irq);
 
-#ifndef POLLING
     if(spi->irq <= 0) {
         pr_err("ERROR: spi->irq is not specified.\n");
         return -ENXIO;
     }
-#endif
 
     if (!(eneec = kzalloc(sizeof(struct eneec), GFP_KERNEL))) {
         return -ENOMEM;
@@ -487,17 +443,11 @@ static int eneec_probe(struct spi_device *spi)
     }
 
     if((eneec->work_queue = create_singlethread_workqueue("eneec_spi"))) {
-#ifdef POLLING
-        INIT_DELAYED_WORK(&eneec->read_work, eneec_read_work);
-        queue_delayed_work(eneec->work_queue, &eneec->read_work, msecs_to_jiffies(POLL_INTERVAL));
-#else
         INIT_WORK(&eneec->read_work, eneec_read_work);
-#endif
     } else
         goto error_exit;
 
 
-#ifndef POLLING
     if ((err = request_irq(spi->irq, eneec_interrupt, IRQF_TRIGGER_RISING , "eneec_spi", spi ))) {
         printk("Failed to request IRQ %d -- %d\n", spi->irq, err);
         goto error_exit;
@@ -505,7 +455,6 @@ static int eneec_probe(struct spi_device *spi)
         printk("IRQ %d requested\n", spi->irq);
         eneec->irq = spi->irq;
     }
-#endif
 
     if ((err = eneec_create_kbd_port(eneec)))
         goto error_exit;
@@ -539,10 +488,6 @@ error_exit:
     }
 
     if(eneec && eneec->work_queue) {
-#ifdef POLLING
-        eneec->stop_polling = true;
-        cancel_delayed_work_sync(&eneec->read_work);
-#endif
         destroy_workqueue(eneec->work_queue);
     }
 
@@ -571,10 +516,6 @@ static int eneec_remove(struct spi_device *spi)
         free_irq(eneec->irq, spi);
     }
     if(eneec->work_queue) {
-#ifdef POLLING
-        eneec->stop_polling = true;
-        cancel_delayed_work_sync(&eneec->read_work);
-#endif
         destroy_workqueue(eneec->work_queue);
     }
 
