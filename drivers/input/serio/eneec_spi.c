@@ -18,33 +18,34 @@ enum {
 
 #pragma pack(1)
 struct rspdata {
-    u8 resv;
-    u8 toggle : 2;
-    u8 count : 2;
-    u8 type : 4; // RSP_XXX
-    u8 data[3];
+	u8 resv;
+	u8 toggle : 2;
+	u8 count : 2;
+	u8 type : 4; // RSP_XXX
+	u8 data[3];
 };
 #pragma pack()
 
-enum { RSP_UNKNOWN = 0,
-       RSP_WRITE_COMPLETE = 1,
-       RSP_READ           = 2,
-       RSP_KB_RESPONSE    = 3,
-       RSP_AUX_RESPONSE   = 4,
-       RSP_PORT_RESPONSE  = 5,
-       RSP_KB_DATA        = 12,
-       RSP_AUX_DATA       = 13,
-       RSP_PORT_DATA      = 14,
-       RSP_RESET          = 15,
+enum {
+	RSP_UNKNOWN		= 0,
+	RSP_WRITE_COMPLETE	= 1,
+	RSP_READ		= 2,
+	RSP_KB_RESPONSE		= 3,
+	RSP_AUX_RESPONSE	= 4,
+	RSP_PORT_RESPONSE	= 5,
+	RSP_KB_DATA		= 12,
+	RSP_AUX_DATA		= 13,
+	RSP_PORT_DATA		= 14,
+	RSP_RESET		= 15,
 };
 
 struct eneec {
-    struct spi_device *client;
-    struct mutex lock;
-    struct workqueue_struct *work_queue;
-    struct work_struct read_work;
-    struct serio serio;
-    int toggle;
+	struct spi_device *client;
+	struct mutex lock;
+	struct workqueue_struct *work_queue;
+	struct work_struct read_work;
+	struct serio serio;
+	int toggle;
 };
 
 static int eneec_read_rspdata(struct eneec *eneec, struct rspdata *rspdata);
@@ -54,47 +55,46 @@ static int eneec_read_rspdata(struct eneec *eneec, struct rspdata *rspdata);
 
 static int eneec_read_rspdata(struct eneec *eneec, struct rspdata *rspdata)
 {
-#define RSP_LEN    5
-    u8    tx_buf[RSP_LEN];
-    int   ret;
-    struct spi_device   *spi = eneec->client;
-    struct spi_transfer t =
-    {
-        .tx_buf     = tx_buf,
-        .rx_buf     = rspdata,
-        .len        = RSP_LEN,
-    };
-    struct spi_message  m;
+#define RSP_LEN	5
+	u8	tx_buf[RSP_LEN];
+	int   ret;
+	struct spi_device   *spi = eneec->client;
+	struct spi_transfer t = {
+		.tx_buf = tx_buf,
+		.rx_buf = rspdata,
+		.len = RSP_LEN,
+	};
+	struct spi_message  m;
 
-    tx_buf[0] = 0x00; // Read command
-    tx_buf[1] = 0x5A; // Rx1
-    tx_buf[2] = 0xA5; // Rx2
-    tx_buf[3] = 0x00; // Rx3
-    tx_buf[4] = 0x00; // dummy
-    
-    spi_message_init(&m);
-    spi_message_add_tail(&t, &m);
+	tx_buf[0] = 0x00; // Read command
+	tx_buf[1] = 0x5A; // Rx1
+	tx_buf[2] = 0xA5; // Rx2
+	tx_buf[3] = 0x00; // Rx3
+	tx_buf[4] = 0x00; // dummy
+	
+	spi_message_init(&m);
+	spi_message_add_tail(&t, &m);
 
-    mutex_lock(&eneec->lock);
-    ret =spi_sync(spi, &m);
-    mutex_unlock(&eneec->lock);
+	mutex_lock(&eneec->lock);
+	ret =spi_sync(spi, &m);
+	mutex_unlock(&eneec->lock);
 
-    if (ret < 0) {
-        pr_err("ERROR: spi_sync fail\n");
-        return ret;
-    }
+	if (ret < 0) {
+		pr_err("ERROR: spi_sync fail\n");
+		return ret;
+	}
 
 #if 0
-    if (rspdata->type == 12) {
+	if (rspdata->type == 12) {
 	pr_debug("type = %d, toggle = %d, count = %d\n", rspdata->type, rspdata->toggle, rspdata->count);
-    	pr_debug("data = ");
-    	for (i = 0; i < rspdata->count; i++)
-        	pr_debug("%02x ", rspdata->data[i]);
-    	pr_debug("\n");
-    }
+		pr_debug("data = ");
+		for (i = 0; i < rspdata->count; i++)
+			pr_debug("%02x ", rspdata->data[i]);
+		pr_debug("\n");
+	}
 #endif
 
-    return 0;
+	return 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -102,178 +102,169 @@ static int eneec_read_rspdata(struct eneec *eneec, struct rspdata *rspdata)
 
 static void eneec_read_work(struct work_struct *work)
 { 
-    struct eneec *eneec = container_of(work, struct eneec, read_work);
+	struct eneec *eneec = container_of(work, struct eneec, read_work);
 
-    int i;
-    struct rspdata rspdata;
+	int i;
+	struct rspdata rspdata;
 
-    if(eneec_read_rspdata(eneec, &rspdata) < 0) {
-        pr_err("ERROR: eneec_read_rspdata fail \n");
-        goto exit_enable_irq;
-    }
+	if (eneec_read_rspdata(eneec, &rspdata) < 0) {
+		pr_err("ERROR: eneec_read_rspdata fail \n");
+		goto exit_enable_irq;
+	}
 
-    if (eneec->toggle == rspdata.toggle) {
-        printk("WARNING: got the same toggle bit %d\n", rspdata.toggle);
-        goto exit_enable_irq;
-    }
+	if (eneec->toggle == rspdata.toggle) {
+		printk("WARNING: got the same toggle bit %d\n", rspdata.toggle);
+		goto exit_enable_irq;
+	}
 
-    eneec->toggle = rspdata.toggle;
+	eneec->toggle = rspdata.toggle;
 
-    if ((rspdata.type == RSP_KB_RESPONSE) || (rspdata.type == RSP_KB_DATA)) {
-// XXX
-//        if(eneec->serio) { // interrupt might assert before probe() done.
-            for (i = 0; i < rspdata.count; i++) {
+	if ((rspdata.type != RSP_KB_RESPONSE) && (rspdata.type != RSP_KB_DATA)) {
+		pr_warn(   "WARNING: Not kbd data\n");
+		goto exit_enable_irq;
+	}
+
+	for (i = 0; i < rspdata.count; i++) {
 		printk("scan code %02x\n",rspdata.data[i]);
-                serio_interrupt(&eneec->serio, rspdata.data[i], 0);
-            }
-//        }
-    }
-    else {
-        pr_warn(   "WARNING: Not kbd data\n");
-        goto exit_enable_irq;
-    }
+				serio_interrupt(&eneec->serio, rspdata.data[i], 0);
+	}
 
 exit_enable_irq:
-
-    enable_irq(eneec->client->irq);
+	enable_irq(eneec->client->irq);
 }
 
 static irqreturn_t eneec_interrupt(int irq, void *dev_id)
 {
-    struct spi_device *spi = dev_id;
-    struct eneec *eneec = spi_get_drvdata(spi);
+	struct spi_device *spi = dev_id;
+	struct eneec *eneec = spi_get_drvdata(spi);
 
-    disable_irq_nosync(irq);
+	disable_irq_nosync(irq);
 
-    queue_work(eneec->work_queue, &eneec->read_work);
+	queue_work(eneec->work_queue, &eneec->read_work);
 
-    return IRQ_HANDLED;
+	return IRQ_HANDLED;
 }
 
 static int eneec_write(struct serio *serio, unsigned char byte)
 {
-#define WRITE_LEN    4
-    u8    tx_buf[WRITE_LEN] = {0,0,0,0};
-    u8    rx_buf[WRITE_LEN] = {0,0,0,0};
-    int   ret;
-    struct spi_transfer t = 
-    {
-            .tx_buf     = tx_buf,
-            .rx_buf     = rx_buf,
-            .len        = WRITE_LEN,
-    };
-    struct eneec *eneec = serio->port_data;
-    struct spi_device   *spi = eneec->client;
-    struct spi_message  m;
+#define WRITE_LEN	4
+	u8	tx_buf[WRITE_LEN] = {0,0,0,0};
+	u8	rx_buf[WRITE_LEN] = {0,0,0,0};
+	int   ret;
+	struct spi_transfer t = {
+		.tx_buf = tx_buf,
+		.rx_buf = rx_buf,
+		.len = WRITE_LEN,
+	};
+	struct eneec *eneec = serio->port_data;
+	struct spi_device   *spi = eneec->client;
+	struct spi_message  m;
 
-    tx_buf[0] = PORT_KBD; // write kbd
-    tx_buf[1] = byte;
-    tx_buf[2] = 0x00; // dummy
-    tx_buf[3] = 0x00; // dummy
+	tx_buf[0] = PORT_KBD; // write kbd
+	tx_buf[1] = byte;
+	tx_buf[2] = 0x00; // dummy
+	tx_buf[3] = 0x00; // dummy
 
 //TEST  
 //tx_buf[0] = 0x5d; // dummy
 //tx_buf[1] = 0x00; // dummy
-    
-    spi_message_init(&m);
-    spi_message_add_tail(&t, &m);
+	
+	spi_message_init(&m);
+	spi_message_add_tail(&t, &m);
 
-    mutex_lock(&eneec->lock);
-    ret = spi_sync(spi, &m);
-    mutex_unlock(&eneec->lock);
+	mutex_lock(&eneec->lock);
+	ret = spi_sync(spi, &m);
+	mutex_unlock(&eneec->lock);
 
-    if (ret < 0) {
-        pr_err("ERROR: eneec_write() fail ..\n");
-        return ret;
-    }
+	if (ret < 0) {
+		pr_err("ERROR: eneec_write() fail ..\n");
+		return ret;
+	}
 
 #if 0
-    printk( KERN_EMERG  "tx[0] = %02x, tx[1] = %02x, tx[2] = %02x, tx[3] = %02x\n", tx_buf[0], tx_buf[1], tx_buf[2], tx_buf[3]);
-    printk( KERN_EMERG  "rx[0] = %02x, rx[1] = %02x, rx[2] = %02x, rx[3] = %02x\n", rx_buf[0], rx_buf[1], rx_buf[2], rx_buf[3]);
+	printk( KERN_EMERG  "tx[0] = %02x, tx[1] = %02x, tx[2] = %02x, tx[3] = %02x\n", tx_buf[0], tx_buf[1], tx_buf[2], tx_buf[3]);
+	printk( KERN_EMERG  "rx[0] = %02x, rx[1] = %02x, rx[2] = %02x, rx[3] = %02x\n", rx_buf[0], rx_buf[1], rx_buf[2], rx_buf[3]);
 #endif
 
-    return 0;
+	return 0;
 }
 
 static int eneec_probe(struct spi_device *spi)
 {
-    struct eneec *eneec = 0;
-    struct rspdata rspdata;
-    int err = 0 , retry = 0;
+	struct eneec *eneec = 0;
+	struct rspdata rspdata;
+	int err = 0 , retry = 0;
 
-    printk("eneec_spi_probe with modalias = %s, irq = %d\n", spi->modalias, spi->irq);
+	printk("eneec_spi_probe with modalias = %s, irq = %d\n", spi->modalias, spi->irq);
 
-    if(spi->irq <= 0) {
-        pr_err("ERROR: spi->irq is not specified.\n");
-        return -ENXIO;
-    }
+	if (!spi->irq) {
+		pr_err("ERROR: spi->irq is not specified.\n");
+		return -ENXIO;
+	}
+
+	eneec = devm_kzalloc(&spi->dev, (sizeof(struct eneec), GFP_KERNEL));
+	if (!eneec)
+		return -ENOMEM;
 
 
-    eneec = devm_kzalloc(&spi->dev, (sizeof(struct eneec), GFP_KERNEL));
-    if (!eneec)
-        return -ENOMEM;
+	eneec->client = spi;
+	spi_set_drvdata(spi, eneec);
+	mutex_init(&eneec->lock);
 
+	// Read rspdata to sync toggle bit.
+	err = eneec_read_rspdata(eneec, &rspdata);
+	if (err < 0) {
+		printk("eneec_spi_read_rspdata fail \n");
+		return err;
+	}
 
-    eneec->client = spi;
-    spi_set_drvdata(spi, eneec);
-    mutex_init(&eneec->lock);
+	eneec->toggle = rspdata.toggle;
+	printk("Drain data : 0x%04x\n", (u16) rspdata.data[1]);
+	for (retry = 0; retry < 9; retry++) {
+		eneec_read_rspdata(eneec, &rspdata);
+		if (eneec->toggle == rspdata.toggle) // no new data
+			break;
+		printk("Drain data : 0x%04x\n", (u16) rspdata.data[1]);
+		eneec->toggle=rspdata.toggle;
+	}
 
-    // Read rspdata to sync toggle bit.
-    err = eneec_read_rspdata(eneec, &rspdata);
-    if(err < 0) {
-        printk("eneec_spi_read_rspdata fail \n");
-	return err;
-    }
+	eneec->work_queue = create_singlethread_workqueue("eneec_spi");
+	if (!eneec->work_queue)
+		return -ENOMEM;
 
-    eneec->toggle = rspdata.toggle;
-    printk("Drain data : 0x%04x\n", (u16) rspdata.data[1]);
-    for(retry = 0; retry < 9; retry++) {
-	eneec_read_rspdata(eneec, &rspdata);
-        if(eneec->toggle == rspdata.toggle) // no new data
-            break;
-        else {
-            printk("Drain data : 0x%04x\n", (u16) rspdata.data[1]);
-            eneec->toggle=rspdata.toggle;
-        }
-    }
+	INIT_WORK(&eneec->read_work, eneec_read_work);
 
-    eneec->work_queue = create_singlethread_workqueue("eneec_spi");
-    if(!eneec->work_queue)
-        return -ENOMEM;
+	eneec->serio.id.type = SERIO_8042_XL;
+	eneec->serio.write = eneec_write;
+	eneec->serio.port_data = eneec;
+	eneec->serio.dev.parent = &spi->dev;
+	strlcpy(eneec->serio.name, "eneec spi kbd port", sizeof(eneec->serio.name));
+	strlcpy(eneec->serio.phys, "eneec_spi/serio0", sizeof(eneec->serio.phys));
 
-    INIT_WORK(&eneec->read_work, eneec_read_work);
+	serio_register_port(&eneec->serio);
 
-    eneec->serio.id.type      = SERIO_8042_XL;
-    eneec->serio.write        = eneec_write;
-    eneec->serio.port_data    = eneec;
-    eneec->serio.dev.parent   = &spi->dev;
-    strlcpy(eneec->serio.name, "eneec spi kbd port", sizeof(eneec->serio.name));
-    strlcpy(eneec->serio.phys, "eneec_spi/serio0", sizeof(eneec->serio.phys));
+	err = devm_request_irq(&spi->dev, spi->irq, eneec_interrupt, IRQF_TRIGGER_RISING , "eneec_spi", spi );
+	if (err) {
+		printk("Failed to request IRQ %d -- %d\n", spi->irq, err);
+		serio_unregister_port(&eneec->serio);
+		destroy_workqueue(eneec->work_queue);
+		return err;
+	}
 
-    serio_register_port(&eneec->serio);
-
-    err = devm_request_irq(&spi->dev, spi->irq, eneec_interrupt, IRQF_TRIGGER_RISING , "eneec_spi", spi );
-    if (err) {
-        printk("Failed to request IRQ %d -- %d\n", spi->irq, err);
-        serio_unregister_port(&eneec->serio);
-        destroy_workqueue(eneec->work_queue);
-        return err;
-    }
-
-    return 0;
+	return 0;
 }
 
 static int eneec_remove(struct spi_device *spi)
 {
-    struct eneec *eneec = spi_get_drvdata(spi);
+	struct eneec *eneec = spi_get_drvdata(spi);
 
-    pr_debug("eneec_spi_remove\n");
+	pr_debug("eneec_spi_remove\n");
 
-    free_irq(spi->irq, spi);
-    serio_unregister_port(&eneec->serio);
-    destroy_workqueue(eneec->work_queue);
+	free_irq(spi->irq, spi);
+	serio_unregister_port(&eneec->serio);
+	destroy_workqueue(eneec->work_queue);
 
-    return 0;
+	return 0;
 }
 
 static const struct of_device_id ariel_ec_of_match[] = {
