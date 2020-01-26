@@ -208,19 +208,23 @@ static int eneec_probe(struct spi_device *spi)
         return -ENXIO;
     }
 
-    if (!(eneec = kzalloc(sizeof(struct eneec), GFP_KERNEL))) {
+
+    eneec = devm_kzalloc(&spi->dev, (sizeof(struct eneec), GFP_KERNEL));
+    if (!eneec)
         return -ENOMEM;
-    }
+
 
     eneec->client = spi;
     spi_set_drvdata(spi, eneec);
     mutex_init(&eneec->lock);
 
     // Read rspdata to sync toggle bit.
-    if(eneec_read_rspdata(eneec, &rspdata) < 0) {
+    err = eneec_read_rspdata(eneec, &rspdata);
+    if(err < 0) {
         printk("eneec_spi_read_rspdata fail \n");
-        goto error_exit; 
+	return err;
     }
+
     eneec->toggle = rspdata.toggle;
     printk("Drain data : 0x%04x\n", (u16) rspdata.data[1]);
     for(retry = 0; retry < 9; retry++) {
@@ -233,17 +237,11 @@ static int eneec_probe(struct spi_device *spi)
         }
     }
 
-    if((eneec->work_queue = create_singlethread_workqueue("eneec_spi"))) {
-        INIT_WORK(&eneec->read_work, eneec_read_work);
-    } else
-        goto error_exit;
-
-
-#if 0
-    serio = kzalloc(sizeof(struct serio), GFP_KERNEL);
-    if (!serio)
+    eneec->work_queue = create_singlethread_workqueue("eneec_spi");
+    if(!eneec->work_queue)
         return -ENOMEM;
-#endif
+
+    INIT_WORK(&eneec->read_work, eneec_read_work);
 
     eneec->serio.id.type      = SERIO_8042_XL;
     eneec->serio.write        = eneec_write;
@@ -254,31 +252,15 @@ static int eneec_probe(struct spi_device *spi)
 
     serio_register_port(&eneec->serio);
 
-
-    if ((err = request_irq(spi->irq, eneec_interrupt, IRQF_TRIGGER_RISING , "eneec_spi", spi ))) {
+    err = devm_request_irq(&spi->dev, spi->irq, eneec_interrupt, IRQF_TRIGGER_RISING , "eneec_spi", spi );
+    if (err) {
         printk("Failed to request IRQ %d -- %d\n", spi->irq, err);
-        goto error_exit;
+        serio_unregister_port(&eneec->serio);
+        destroy_workqueue(eneec->work_queue);
+        return err;
     }
-
-    // add by allen for test
-    //eneec_read_rspdata(eneec, &rspdata);
 
     return 0;
-
-error_exit:
-
-    free_irq(spi->irq, spi);
-    serio_unregister_port(&eneec->serio);
-
-    if(eneec && eneec->work_queue) {
-        destroy_workqueue(eneec->work_queue);
-    }
-
-    if(eneec)
-        kfree(eneec);
-
-    return err;
-
 }
 
 static int eneec_remove(struct spi_device *spi)
@@ -287,20 +269,12 @@ static int eneec_remove(struct spi_device *spi)
 
     pr_debug("eneec_spi_remove\n");
 
-    serio_unregister_port(&eneec->serio);
     free_irq(spi->irq, spi);
-
-    if(eneec->work_queue) {
-        destroy_workqueue(eneec->work_queue);
-    }
-
-    kfree(eneec);
+    serio_unregister_port(&eneec->serio);
+    destroy_workqueue(eneec->work_queue);
 
     return 0;
-
 }
-
-
 
 static const struct of_device_id ariel_ec_of_match[] = {
 	{ .compatible = "dell,wyse-ariel-ec-spi" },
