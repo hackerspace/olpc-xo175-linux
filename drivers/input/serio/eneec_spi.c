@@ -44,7 +44,7 @@ struct eneec {
     int irq; // don't remove it although also in client->irq. for indicating if irq requested.
     struct workqueue_struct *work_queue;
     struct work_struct read_work;
-    struct serio *serio;
+    struct serio serio;
     int toggle;
 };
 
@@ -121,12 +121,13 @@ static void eneec_read_work(struct work_struct *work)
     eneec->toggle = rspdata.toggle;
 
     if ((rspdata.type == RSP_KB_RESPONSE) || (rspdata.type == RSP_KB_DATA)) {
-        if(eneec->serio) { // interrupt might assert before probe() done.
+// XXX
+//        if(eneec->serio) { // interrupt might assert before probe() done.
             for (i = 0; i < rspdata.count; i++) {
 		printk("scan code %02x\n",rspdata.data[i]);
-                serio_interrupt(eneec->serio, rspdata.data[i], 0);
+                serio_interrupt(&eneec->serio, rspdata.data[i], 0);
             }
-        }
+//        }
     }
     else {
         pr_warn(   "WARNING: Not kbd data\n");
@@ -200,7 +201,6 @@ static int eneec_probe(struct spi_device *spi)
     struct eneec *eneec = 0;
     struct rspdata rspdata;
     int err = 0 , retry = 0;
-    struct serio *serio; // XXX
 
     printk("eneec_spi_probe with modalias = %s, irq = %d\n", spi->modalias, spi->irq);
 
@@ -248,20 +248,20 @@ static int eneec_probe(struct spi_device *spi)
     printk("IRQ %d requested\n", spi->irq);
     eneec->irq = spi->irq;
 
+#if 0
     serio = kzalloc(sizeof(struct serio), GFP_KERNEL);
     if (!serio)
         return -ENOMEM;
+#endif
 
-    serio->id.type      = SERIO_8042_XL;
-    serio->write        = eneec_write;
-    serio->port_data    = eneec;
-    serio->dev.parent   = &spi->dev;
-    strlcpy(serio->name, "eneec spi kbd port", sizeof(serio->name));
-    strlcpy(serio->phys, "eneec_spi/serio0", sizeof(serio->phys));
+    eneec->serio.id.type      = SERIO_8042_XL;
+    eneec->serio.write        = eneec_write;
+    eneec->serio.port_data    = eneec;
+    eneec->serio.dev.parent   = &spi->dev;
+    strlcpy(eneec->serio.name, "eneec spi kbd port", sizeof(eneec->serio.name));
+    strlcpy(eneec->serio.phys, "eneec_spi/serio0", sizeof(eneec->serio.phys));
 
-    eneec->serio = serio;
-
-    serio_register_port(eneec->serio);
+    serio_register_port(&eneec->serio);
 
     // add by allen for test
     //eneec_read_rspdata(eneec, &rspdata);
@@ -273,9 +273,7 @@ error_exit:
     if(eneec && eneec->irq) // deregister irq first, so safe once if kbd is sending data.
         free_irq(eneec->irq, spi);
 
-    if(eneec && eneec->serio) {
-        serio_unregister_port(eneec->serio);
-    }
+    serio_unregister_port(&eneec->serio);
 
     if(eneec && eneec->work_queue) {
         destroy_workqueue(eneec->work_queue);
@@ -294,9 +292,7 @@ static int eneec_remove(struct spi_device *spi)
 
     pr_debug("eneec_spi_remove\n");
 
-    if(eneec->serio) {
-        serio_unregister_port(eneec->serio);
-    }
+    serio_unregister_port(&eneec->serio);
     if(eneec->irq) {
         free_irq(eneec->irq, spi);
     }
