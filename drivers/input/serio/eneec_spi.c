@@ -1,13 +1,5 @@
-#include <linux/delay.h>
 #include <linux/module.h>
-#include <linux/slab.h>
-#include <linux/interrupt.h>
-#include <linux/init.h>
 #include <linux/serio.h>
-#include <linux/workqueue.h>
-#include <linux/mutex.h>
-#include <linux/fs.h>
-#include <asm/uaccess.h>
 #include <linux/spi/spi.h>
 
 enum {
@@ -16,15 +8,13 @@ enum {
 	PORT_XBI = 0xF0,
 };
 
-#pragma pack(1)
 struct rspdata {
 	u8 resv;
 	u8 toggle : 2;
 	u8 count : 2;
 	u8 type : 4; // RSP_XXX
 	u8 data[3];
-};
-#pragma pack()
+} __packed;
 
 enum {
 	RSP_UNKNOWN		= 0,
@@ -202,7 +192,7 @@ static int eneec_probe(struct spi_device *spi)
 		return -ENXIO;
 	}
 
-	eneec = devm_kzalloc(&spi->dev, (sizeof(struct eneec), GFP_KERNEL));
+	eneec = devm_kzalloc(&spi->dev, sizeof(struct eneec), GFP_KERNEL);
 	if (!eneec)
 		return -ENOMEM;
 
