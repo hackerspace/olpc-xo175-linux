@@ -1,97 +1,85 @@
+// SPDX-License-Identifier: BSD-2-Clause OR GPL-2.0-or-later
+
 #include <linux/module.h>
 #include <linux/spi/spi.h>
 #include <linux/interrupt.h>
+#include <linux/input.h>
 
-enum {
-	PORT_KBD = 0x30,
-	PORT_MOU = 0x40,
-	PORT_XBI = 0xF0,
-};
-
-struct rspdata {
-	u8 resv;
-	u8 toggle : 2;
-	u8 count : 2;
-	u8 type : 4; // RSP_XXX
+struct eneec_response {
+	u8 reserved;
+	u8 toggle:2;
+	u8 count:2;
+	u8 type:4;
 	u8 data[3];
 } __packed;
 
-enum {
-	RSP_UNKNOWN		= 0,
-	RSP_WRITE_COMPLETE	= 1,
-	RSP_READ		= 2,
-	RSP_KB_RESPONSE		= 3,
-	RSP_AUX_RESPONSE	= 4,
-	RSP_PORT_RESPONSE	= 5,
-	RSP_KB_DATA		= 12,
-	RSP_AUX_DATA		= 13,
-	RSP_PORT_DATA		= 14,
-	RSP_RESET		= 15,
-};
-
 struct eneec {
 	struct spi_device *client;
+	struct input_dev *input;
 	int toggle;
 };
 
-static int eneec_read_rspdata(struct eneec *eneec, struct rspdata *rspdata)
+static int eneec_read(struct eneec *eneec,
+		      struct eneec_response *response)
 {
-#define RSP_LEN	5
-	u8	tx_buf[RSP_LEN] = { 0x00, 0x5a, 0xa5, 0x00, 0x00 };
-	int   ret;
+	u8 read_request[] = { 0x00, 0x5a, 0xa5, 0x00, 0x00 };
 	struct spi_device   *spi = eneec->client;
 	struct spi_transfer t = {
-		.tx_buf = tx_buf,
-		.rx_buf = rspdata,
-		.len = RSP_LEN,
+		.tx_buf = read_request,
+		.rx_buf = response,
+		.len = sizeof(read_request),
 	};
-#if 0	
-	struct spi_message  m;
 
-	spi_message_init(&m);
-	spi_message_add_tail(&t, &m);
-	ret = spi_sync(spi, &m);
-#endif
-	ret = spi_sync_transfer(spi, &t, 1);
+	compiletime_assert(sizeof(read_request) == sizeof(*response),
+			   "SPI xfer request/response size mismatch");
 
-	if (ret < 0) {
-		pr_err("ERROR: spi_sync fail\n");
-		return ret;
-	}
-
-	return 0;
+	return spi_sync_transfer(spi, &t, 1);
 }
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-// Codes for interfacing with kernel kbd
 
 static irqreturn_t eneec_interrupt(int irq, void *dev_id)
 {
 	struct eneec *eneec = dev_id;
-	struct rspdata rspdata;
+	struct spi_device *spi = eneec->client;
+	struct eneec_response eneec_response;
 	int i;
 
-	printk ("INTERRUPTH\n");
-
-	if (eneec_read_rspdata(eneec, &rspdata) < 0) {
-		pr_err("ERROR: eneec_read_rspdata fail \n");
+	if (eneec_read(eneec, &eneec_response) < 0) {
+		dev_err(&spi->dev, "EC read failed.\n");
 		return IRQ_HANDLED;
 	}
 
-	if (eneec->toggle == rspdata.toggle) {
-		printk("WARNING: got the same toggle bit %d\n", rspdata.toggle);
+	if (eneec->toggle == eneec_response.toggle) {
+		dev_warn(&spi->dev, "No new data to read?\n");
 		return IRQ_HANDLED;
 	}
 
-	eneec->toggle = rspdata.toggle;
+	eneec->toggle = eneec_response.toggle;
 
-	if ((rspdata.type != RSP_KB_RESPONSE) && (rspdata.type != RSP_KB_DATA)) {
-		pr_warn(   "WARNING: Not kbd data\n");
+	if (eneec_response.type != 0x03) {
+		dev_dbg(&spi->dev, "Ignoring message that's not kbd data.\n");
 		return IRQ_HANDLED;
 	}
 
-	for (i = 0; i < rspdata.count; i++) {
-		printk("scan code %02x\n",rspdata.data[i]);
+	if (eneec_response.count > ARRAY_SIZE(eneec_response.data)) {
+		eneec_response.count = ARRAY_SIZE(eneec_response.data);
+		dev_warn(&spi->dev, "Truncating a long response\n");
+	}
+
+	for (i = 0; i < eneec_response.count; i++) {
+		dev_err(&spi->dev, "scan code %02x\n", eneec_response.data[i]);
+		switch (eneec_response.data[i]) {
+		case 0x74:
+			input_report_key(eneec->input, KEY_POWER, 1);
+			input_sync(eneec->input);
+			break;
+		case 0xf4:
+			input_report_key(eneec->input, KEY_POWER, 0);
+			input_sync(eneec->input);
+			break;
+		default:
+			dev_dbg(&spi->dev, "Unknown scan code: %02x\n",
+					   eneec_response.data[i]);
+		}
 	}
 
 	return IRQ_HANDLED;
@@ -100,13 +88,11 @@ static irqreturn_t eneec_interrupt(int irq, void *dev_id)
 static int eneec_probe(struct spi_device *spi)
 {
 	struct eneec *eneec = 0;
-	struct rspdata rspdata;
-	int err;
-
-	printk("eneec_spi_probe with modalias = %s, irq = %d\n", spi->modalias, spi->irq);
+	struct eneec_response eneec_response;
+	int ret;
 
 	if (!spi->irq) {
-		pr_err("ERROR: spi->irq is not specified.\n");
+		dev_err(&spi->dev, "Missing IRQ.\n");
 		return -ENXIO;
 	}
 
@@ -114,26 +100,37 @@ static int eneec_probe(struct spi_device *spi)
 	if (!eneec)
 		return -ENOMEM;
 
-
 	eneec->client = spi;
 	spi_set_drvdata(spi, eneec);
 
-	// Read rspdata to sync toggle bit.
-	err = eneec_read_rspdata(eneec, &rspdata);
-	if (err < 0) {
-		printk("eneec_spi_read_rspdata fail \n");
-		return err;
+	eneec->input = devm_input_allocate_device(&spi->dev);
+	if (!eneec->input)
+		return -ENOMEM;
+	eneec->input->name = "Power Button";
+	eneec->input->dev.parent = &spi->dev;
+	input_set_capability(eneec->input, EV_KEY, KEY_POWER);
+	ret = input_register_device(eneec->input);
+	if (ret) {
+		dev_err(&spi->dev, "error registering input device: %d\n", ret);
+		return ret;
 	}
-	eneec->toggle = rspdata.toggle;
 
-	err = devm_request_threaded_irq(&spi->dev, spi->irq, NULL,
+	ret = eneec_read(eneec, &eneec_response);
+	if (ret < 0) {
+		dev_err(&spi->dev, "EC read failed: %d\n", ret);
+		return ret;
+	}
+	eneec->toggle = eneec_response.toggle;
+
+	ret = devm_request_threaded_irq(&spi->dev, spi->irq, NULL,
 					eneec_interrupt,
 					IRQF_TRIGGER_RISING | IRQF_ONESHOT,
 					"eneec_spi", eneec);
 
-	if (err) {
-		printk("Failed to request IRQ %d -- %d\n", spi->irq, err);
-		return err;
+	if (ret) {
+		dev_err(&spi->dev, "Failed to request IRQ %d: %d\n",
+				   spi->irq, ret);
+		return ret;
 	}
 
 	return 0;
@@ -160,7 +157,6 @@ static struct spi_driver ariel_ec_spi_driver = {
 };
 module_spi_driver(ariel_ec_spi_driver);
 
-
-MODULE_AUTHOR("Victoria/flychen");
+MODULE_AUTHOR("Lubomir Rintel <lkundrak@v3.sk>");
 MODULE_DESCRIPTION("ENEEC SPI driver");
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("Dual BSD/GPL");
