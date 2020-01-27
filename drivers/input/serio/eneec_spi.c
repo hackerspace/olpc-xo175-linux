@@ -1,5 +1,6 @@
 #include <linux/module.h>
 #include <linux/spi/spi.h>
+#include <linux/interrupt.h>
 
 enum {
 	PORT_KBD = 0x30,
@@ -30,21 +31,13 @@ enum {
 
 struct eneec {
 	struct spi_device *client;
-	struct mutex lock;
-	struct workqueue_struct *work_queue;
-	struct work_struct read_work;
 	int toggle;
 };
-
-static int eneec_read_rspdata(struct eneec *eneec, struct rspdata *rspdata);
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-// Utilities
 
 static int eneec_read_rspdata(struct eneec *eneec, struct rspdata *rspdata)
 {
 #define RSP_LEN	5
-	u8	tx_buf[RSP_LEN];
+	u8	tx_buf[RSP_LEN] = { 0x00, 0x5a, 0xa5, 0x00, 0x00 };
 	int   ret;
 	struct spi_device   *spi = eneec->client;
 	struct spi_transfer t = {
@@ -52,35 +45,19 @@ static int eneec_read_rspdata(struct eneec *eneec, struct rspdata *rspdata)
 		.rx_buf = rspdata,
 		.len = RSP_LEN,
 	};
+#if 0	
 	struct spi_message  m;
 
-	tx_buf[0] = 0x00; // Read command
-	tx_buf[1] = 0x5A; // Rx1
-	tx_buf[2] = 0xA5; // Rx2
-	tx_buf[3] = 0x00; // Rx3
-	tx_buf[4] = 0x00; // dummy
-	
 	spi_message_init(&m);
 	spi_message_add_tail(&t, &m);
-
-	mutex_lock(&eneec->lock);
-	ret =spi_sync(spi, &m);
-	mutex_unlock(&eneec->lock);
+	ret = spi_sync(spi, &m);
+#endif
+	ret = spi_sync_transfer(spi, &t, 1);
 
 	if (ret < 0) {
 		pr_err("ERROR: spi_sync fail\n");
 		return ret;
 	}
-
-#if 0
-	if (rspdata->type == 12) {
-	pr_debug("type = %d, toggle = %d, count = %d\n", rspdata->type, rspdata->toggle, rspdata->count);
-		pr_debug("data = ");
-		for (i = 0; i < rspdata->count; i++)
-			pr_debug("%02x ", rspdata->data[i]);
-		pr_debug("\n");
-	}
-#endif
 
 	return 0;
 }
@@ -88,46 +65,34 @@ static int eneec_read_rspdata(struct eneec *eneec, struct rspdata *rspdata)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Codes for interfacing with kernel kbd
 
-static void eneec_read_work(struct work_struct *work)
-{ 
-	struct eneec *eneec = container_of(work, struct eneec, read_work);
-
-	int i;
+static irqreturn_t eneec_interrupt(int irq, void *dev_id)
+{
+	struct eneec *eneec = dev_id;
 	struct rspdata rspdata;
+	int i;
+
+	printk ("INTERRUPTH\n");
 
 	if (eneec_read_rspdata(eneec, &rspdata) < 0) {
 		pr_err("ERROR: eneec_read_rspdata fail \n");
-		goto exit_enable_irq;
+		return IRQ_HANDLED;
 	}
 
 	if (eneec->toggle == rspdata.toggle) {
 		printk("WARNING: got the same toggle bit %d\n", rspdata.toggle);
-		goto exit_enable_irq;
+		return IRQ_HANDLED;
 	}
 
 	eneec->toggle = rspdata.toggle;
 
 	if ((rspdata.type != RSP_KB_RESPONSE) && (rspdata.type != RSP_KB_DATA)) {
 		pr_warn(   "WARNING: Not kbd data\n");
-		goto exit_enable_irq;
+		return IRQ_HANDLED;
 	}
 
 	for (i = 0; i < rspdata.count; i++) {
 		printk("scan code %02x\n",rspdata.data[i]);
 	}
-
-exit_enable_irq:
-	enable_irq(eneec->client->irq);
-}
-
-static irqreturn_t eneec_interrupt(int irq, void *dev_id)
-{
-	struct spi_device *spi = dev_id;
-	struct eneec *eneec = spi_get_drvdata(spi);
-
-	disable_irq_nosync(irq);
-
-	queue_work(eneec->work_queue, &eneec->read_work);
 
 	return IRQ_HANDLED;
 }
@@ -136,7 +101,7 @@ static int eneec_probe(struct spi_device *spi)
 {
 	struct eneec *eneec = 0;
 	struct rspdata rspdata;
-	int err = 0 , retry = 0;
+	int err;
 
 	printk("eneec_spi_probe with modalias = %s, irq = %d\n", spi->modalias, spi->irq);
 
@@ -152,7 +117,6 @@ static int eneec_probe(struct spi_device *spi)
 
 	eneec->client = spi;
 	spi_set_drvdata(spi, eneec);
-	mutex_init(&eneec->lock);
 
 	// Read rspdata to sync toggle bit.
 	err = eneec_read_rspdata(eneec, &rspdata);
@@ -160,41 +124,17 @@ static int eneec_probe(struct spi_device *spi)
 		printk("eneec_spi_read_rspdata fail \n");
 		return err;
 	}
-
 	eneec->toggle = rspdata.toggle;
-	printk("Drain data : 0x%04x\n", (u16) rspdata.data[1]);
-	for (retry = 0; retry < 9; retry++) {
-		eneec_read_rspdata(eneec, &rspdata);
-		if (eneec->toggle == rspdata.toggle) // no new data
-			break;
-		printk("Drain data : 0x%04x\n", (u16) rspdata.data[1]);
-		eneec->toggle=rspdata.toggle;
-	}
 
-	eneec->work_queue = create_singlethread_workqueue("eneec_spi");
-	if (!eneec->work_queue)
-		return -ENOMEM;
+	err = devm_request_threaded_irq(&spi->dev, spi->irq, NULL,
+					eneec_interrupt,
+					IRQF_TRIGGER_RISING | IRQF_ONESHOT,
+					"eneec_spi", eneec);
 
-	INIT_WORK(&eneec->read_work, eneec_read_work);
-
-	err = devm_request_irq(&spi->dev, spi->irq, eneec_interrupt, IRQF_TRIGGER_RISING , "eneec_spi", spi );
 	if (err) {
 		printk("Failed to request IRQ %d -- %d\n", spi->irq, err);
-		destroy_workqueue(eneec->work_queue);
 		return err;
 	}
-
-	return 0;
-}
-
-static int eneec_remove(struct spi_device *spi)
-{
-	struct eneec *eneec = spi_get_drvdata(spi);
-
-	pr_debug("eneec_spi_remove\n");
-
-	free_irq(spi->irq, spi);
-	destroy_workqueue(eneec->work_queue);
 
 	return 0;
 }
@@ -217,10 +157,8 @@ static struct spi_driver ariel_ec_spi_driver = {
 		.of_match_table = ariel_ec_of_match,
 	},
 	.probe		= eneec_probe,
-	.remove		= eneec_remove,
 };
 module_spi_driver(ariel_ec_spi_driver);
-
 
 
 MODULE_AUTHOR("Victoria/flychen");
