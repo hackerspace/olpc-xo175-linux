@@ -1,5 +1,4 @@
 #include <linux/module.h>
-#include <linux/serio.h>
 #include <linux/spi/spi.h>
 
 enum {
@@ -34,7 +33,6 @@ struct eneec {
 	struct mutex lock;
 	struct workqueue_struct *work_queue;
 	struct work_struct read_work;
-	struct serio serio;
 	int toggle;
 };
 
@@ -116,7 +114,6 @@ static void eneec_read_work(struct work_struct *work)
 
 	for (i = 0; i < rspdata.count; i++) {
 		printk("scan code %02x\n",rspdata.data[i]);
-				serio_interrupt(&eneec->serio, rspdata.data[i], 0);
 	}
 
 exit_enable_irq:
@@ -133,50 +130,6 @@ static irqreturn_t eneec_interrupt(int irq, void *dev_id)
 	queue_work(eneec->work_queue, &eneec->read_work);
 
 	return IRQ_HANDLED;
-}
-
-static int eneec_write(struct serio *serio, unsigned char byte)
-{
-#define WRITE_LEN	4
-	u8	tx_buf[WRITE_LEN] = {0,0,0,0};
-	u8	rx_buf[WRITE_LEN] = {0,0,0,0};
-	int   ret;
-	struct spi_transfer t = {
-		.tx_buf = tx_buf,
-		.rx_buf = rx_buf,
-		.len = WRITE_LEN,
-	};
-	struct eneec *eneec = serio->port_data;
-	struct spi_device   *spi = eneec->client;
-	struct spi_message  m;
-
-	tx_buf[0] = PORT_KBD; // write kbd
-	tx_buf[1] = byte;
-	tx_buf[2] = 0x00; // dummy
-	tx_buf[3] = 0x00; // dummy
-
-//TEST  
-//tx_buf[0] = 0x5d; // dummy
-//tx_buf[1] = 0x00; // dummy
-	
-	spi_message_init(&m);
-	spi_message_add_tail(&t, &m);
-
-	mutex_lock(&eneec->lock);
-	ret = spi_sync(spi, &m);
-	mutex_unlock(&eneec->lock);
-
-	if (ret < 0) {
-		pr_err("ERROR: eneec_write() fail ..\n");
-		return ret;
-	}
-
-#if 0
-	printk( KERN_EMERG  "tx[0] = %02x, tx[1] = %02x, tx[2] = %02x, tx[3] = %02x\n", tx_buf[0], tx_buf[1], tx_buf[2], tx_buf[3]);
-	printk( KERN_EMERG  "rx[0] = %02x, rx[1] = %02x, rx[2] = %02x, rx[3] = %02x\n", rx_buf[0], rx_buf[1], rx_buf[2], rx_buf[3]);
-#endif
-
-	return 0;
 }
 
 static int eneec_probe(struct spi_device *spi)
@@ -224,19 +177,9 @@ static int eneec_probe(struct spi_device *spi)
 
 	INIT_WORK(&eneec->read_work, eneec_read_work);
 
-	eneec->serio.id.type = SERIO_8042_XL;
-	eneec->serio.write = eneec_write;
-	eneec->serio.port_data = eneec;
-	eneec->serio.dev.parent = &spi->dev;
-	strlcpy(eneec->serio.name, "eneec spi kbd port", sizeof(eneec->serio.name));
-	strlcpy(eneec->serio.phys, "eneec_spi/serio0", sizeof(eneec->serio.phys));
-
-	serio_register_port(&eneec->serio);
-
 	err = devm_request_irq(&spi->dev, spi->irq, eneec_interrupt, IRQF_TRIGGER_RISING , "eneec_spi", spi );
 	if (err) {
 		printk("Failed to request IRQ %d -- %d\n", spi->irq, err);
-		serio_unregister_port(&eneec->serio);
 		destroy_workqueue(eneec->work_queue);
 		return err;
 	}
@@ -251,7 +194,6 @@ static int eneec_remove(struct spi_device *spi)
 	pr_debug("eneec_spi_remove\n");
 
 	free_irq(spi->irq, spi);
-	serio_unregister_port(&eneec->serio);
 	destroy_workqueue(eneec->work_queue);
 
 	return 0;
