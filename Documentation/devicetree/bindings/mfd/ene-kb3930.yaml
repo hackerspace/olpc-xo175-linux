@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: BSD-2-Clause OR GPL-2.0-or-later
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/mfd/ene-kb3930.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: ENE KB3930 Embedded Controller bindings
+
+description: |
+  This binding describes the ENE KB3930 Embedded Controller attached to a
+  I2C bus.
+
+maintainers:
+  - Lubomir Rintel <lkundrak@v3.sk>
+
+properties:
+  compatible:
+    const: ene,kb3930
+
+  reg:
+    maxItems: 1
+
+  power-gpios:
+    description: GPIO used for the power pin
+    maxItems: 2
+
+  system-power-controller: true
+
+required:
+  - compatible
+  - reg
+
+additionalProperties: false
+
+examples:
+  - |
+    embedded-controller@58 {
+      compatible = "ene,kb3930";
+      reg = <0x58>;
+      system-power-controller;
+
+      off-gpios = <&gpio 126 GPIO_ACTIVE_HIGH>,
+                  <&gpio 127 GPIO_ACTIVE_HIGH>;
+    };
+
+...
