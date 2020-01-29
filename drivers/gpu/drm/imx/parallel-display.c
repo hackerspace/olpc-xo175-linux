@@ -50,7 +50,7 @@ static int imx_pd_connector_get_modes(struct drm_connector *connector)
 	struct device_node *np = imxpd->dev->of_node;
 	int num_modes;
 
-	num_modes = drm_panel_get_modes(imxpd->panel);
+	num_modes = drm_panel_get_modes(imxpd->panel, connector);
 	if (num_modes > 0)
 		return num_modes;
 
@@ -182,7 +182,7 @@ static int imx_pd_register(struct drm_device *drm,
 		drm_panel_attach(imxpd->panel, &imxpd->connector);
 
 	if (imxpd->bridge) {
-		ret = drm_bridge_attach(encoder, imxpd->bridge, NULL);
+		ret = drm_bridge_attach(encoder, imxpd->bridge, NULL, 0);
 		if (ret < 0) {
 			dev_err(imxpd->dev, "failed to attach bridge: %d\n",
 				ret);
