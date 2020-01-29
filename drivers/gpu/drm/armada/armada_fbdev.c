@@ -117,17 +117,57 @@ static const struct drm_fb_helper_funcs armada_fb_helper_funcs = {
 
 int armada_fbdev_init(struct drm_device *dev)
 {
+	struct armada_private *priv = dev->dev_private;
 	struct drm_fb_helper *fbh;
+	int ret;
 
 	fbh = devm_kzalloc(dev->dev, sizeof(*fbh), GFP_KERNEL);
 	if (!fbh)
 		return -ENOMEM;
 
-	return drm_fb_helper_fbdev_setup(dev, fbh, &armada_fb_helper_funcs,
-					 32, 0);
+	priv->fbdev = fbh;
+
+	drm_fb_helper_prepare(dev, fbh, &armada_fb_helper_funcs);
+
+	ret = drm_fb_helper_init(dev, fbh, 1);
+	if (ret) {
+		DRM_ERROR("failed to initialize drm fb helper\n");
+		goto err_fb_helper;
+	}
+
+	ret = drm_fb_helper_single_add_all_connectors(fbh);
+	if (ret) {
+		DRM_ERROR("failed to add fb connectors\n");
+		goto err_fb_setup;
+	}
+
+	ret = drm_fb_helper_initial_config(fbh, 32);
+	if (ret) {
+		DRM_ERROR("failed to set initial config\n");
+		goto err_fb_setup;
+	}
+
+	return 0;
+ err_fb_setup:
+	drm_fb_helper_fini(fbh);
+ err_fb_helper:
+	priv->fbdev = NULL;
+	return ret;
 }
 
 void armada_fbdev_fini(struct drm_device *dev)
 {
-	drm_fb_helper_fbdev_teardown(dev);
+	struct armada_private *priv = dev->dev_private;
+	struct drm_fb_helper *fbh = priv->fbdev;
+
+	if (fbh) {
+		drm_fb_helper_unregister_fbi(fbh);
+
+		drm_fb_helper_fini(fbh);
+
+		if (fbh->fb)
+			fbh->fb->funcs->destroy(fbh->fb);
+
+		priv->fbdev = NULL;
+	}
 }
