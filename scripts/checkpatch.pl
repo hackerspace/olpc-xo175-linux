@@ -3111,6 +3111,11 @@ sub process {
 						WARN("SPDX_LICENSE_TAG",
 						     "'$spdx_license' is not supported in LICENSES/...\n" . $herecurr);
 					}
+					if ($realfile =~ m@^Documentation/devicetree/bindings/@ &&
+					    not $spdx_license =~ /GPL-2\.0.*BSD-2-Clause/) {
+						WARN("SPDX_LICENSE_TAG",
+						     "DT binding documents should be licensed (GPL-2.0-only OR BSD-2-Clause)\n" . $herecurr);
+					}
 				}
 			}
 		}
