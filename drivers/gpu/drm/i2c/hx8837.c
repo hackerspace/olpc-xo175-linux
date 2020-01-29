@@ -468,7 +468,7 @@ static int hx8837_connector_get_modes(struct drm_connector *connector)
 {
 	struct hx8837_priv *priv = container_of(connector, struct hx8837_priv, connector);
 
-	return priv->panel->funcs->get_modes(priv->panel);
+	return priv->panel->funcs->get_modes(priv->panel, connector);
 }
 
 static struct drm_encoder *
