@@ -42,19 +42,21 @@ cp defconfig ./arch/$ARCH/configs/$DEFCONFIG
 time make ARCH=$ARCH CROSS_COMPILE=$CROSS_COMPILE -j$(awk '/^processor/ {n++} END {print n*2}'  /proc/cpuinfo) $IMAGE $APPEND_DTB || exit 1
 
 if [ "$APPEND_DTB" ]; then
-	cat arch/$ARCH/boot/{$IMAGE,dts/$APPEND_DTB} >arch/$ARCH/boot/$IMAGE-dt
+	cat arch/$ARCH/boot/{$IMAGE,dts/$APPEND_DTB} >arch/$ARCH/boot/$IMAGE.dt
 fi
 
 if [ -z "$XO" ]; then
 	mkimage -A arm -O linux -C none  -T kernel -a 0x00008000 -e 0x00008000 -n "Linux-$(git describe --abbrev=7)-dajia" -d \
-		arch/$ARCH/boot/$IMAGE-dt arch/$ARCH/boot/uImage || exit 1
+		arch/$ARCH/boot/$IMAGE.dt arch/$ARCH/boot/uImage || exit 1
 	if [ -d /run/media/lkundrak/DELLWYSEIMG ]; then
 		/bin/cp arch/$ARCH/boot/uImage /run/media/lkundrak/DELLWYSEIMG/kernel/TX0D/uImage-new &&
-		/bin/cp arch/$ARCH/boot/zImage /run/media/lkundrak/DELLWYSEIMG/boot/zImage &&
+		/bin/cp arch/$ARCH/boot/$IMAGE /run/media/lkundrak/DELLWYSEIMG/boot/$IMAGE &&
+		/bin/cp arch/$ARCH/boot/$IMAGE.dt /run/media/lkundrak/DELLWYSEIMG/boot/$IMAGE.dt &&
 		umount /run/media/lkundrak/*
 	fi
 	scp arch/$ARCH/boot/uImage root@t00d.lan:/boot/kernel/TX0D/uImage-new &&
-	scp arch/$ARCH/boot/zImage root@t00d.lan:/boot/boot/zImage &&
+	scp arch/$ARCH/boot/$IMAGE root@t00d.lan:/boot/boot/$IMAGE &&
+	scp arch/$ARCH/boot/$IMAGE.dt root@t00d.lan:/boot/boot/$IMAGE.dt &&
 	ssh root@t00d.lan reboot
 	exit 0
 fi
