@@ -11,7 +11,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "Dell Ariel";
+	model = "Dell Ariel MEH";
 	compatible = "dell,wyse-ariel", "marvell,mmp3";
 
 	aliases {
@@ -22,7 +22,7 @@
 		#address-cells = <0x1>;
 		#size-cells = <0x1>;
 		ranges;
-		bootargs = "earlyprintk=ttyS2,115200 console=ttyS2,115200";
+		bootargs = "earlyprintk=ttyS2,115200,keep console=ttyS2,115200 root=/dev/sda4 maxcpus=1 rootwait";
 	};
 
 	memory@0 {
@@ -88,7 +88,7 @@
 };
 
 &hsic0 {
-	status = "okay";
+//	status = "okay";
 
 	usb1@1 {
 		compatible = "usb424,2640";
@@ -105,7 +105,7 @@
 };
 
 &hsic_phy0 {
-	status = "okay";
+//	status = "okay";
 	reset-gpios = <&gpio 63 GPIO_ACTIVE_HIGH>;
 };
 
