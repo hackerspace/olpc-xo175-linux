@@ -505,6 +505,11 @@ static int __init mmp2_mux_of_init(struct device_node *node,
 		return -ENODEV;
 
 	i = max_icu_nr;
+	if (i >= MAX_ICU_NR) {
+		pr_err("Too many interrupt muxes\n");
+		return -EINVAL;
+	}
+
 	ret = of_property_read_u32(node, "mrvl,intc-nr-irqs",
 				   &nr_irqs);
 	if (ret) {
