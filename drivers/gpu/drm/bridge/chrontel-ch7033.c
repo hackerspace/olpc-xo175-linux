@@ -331,20 +331,39 @@ static enum drm_mode_status ch7033_bridge_mode_valid(struct drm_bridge *bridge,
 	return MODE_OK;
 }
 
+static inline int Xregmap_write(struct regmap *map, unsigned int reg,
+                               unsigned int val)
+{
+	printk ("XXX WRITE %02x <- %02x\n", reg, val);
+	return regmap_write (map, reg, val);
+}
+
+static inline int Xregmap_update_bits(struct regmap *map, unsigned int reg,
+                                          unsigned int mask, unsigned int val)
+{
+	int ret;
+
+	ret = regmap_update_bits(map, reg, mask, val);
+	regmap_read(map, reg, &val);
+	printk ("XXX UPDATE %02x <- %02x\n", reg, val);
+	return ret;
+}
+
+
 static void ch7033_bridge_disable(struct drm_bridge *bridge)
 {
 	struct ch7033_priv *priv = bridge_to_ch7033_priv(bridge);
 
-	regmap_write(priv->regmap, 0x03, 0x04);
-	regmap_update_bits(priv->regmap, 0x52, RESETDB, 0x00);
+	Xregmap_write(priv->regmap, 0x03, 0x04);
+	Xregmap_update_bits(priv->regmap, 0x52, RESETDB, 0x00);
 }
 
 static void ch7033_bridge_enable(struct drm_bridge *bridge)
 {
 	struct ch7033_priv *priv = bridge_to_ch7033_priv(bridge);
 
-	regmap_write(priv->regmap, 0x03, 0x04);
-	regmap_update_bits(priv->regmap, 0x52, RESETDB, RESETDB);
+	Xregmap_write(priv->regmap, 0x03, 0x04);
+	Xregmap_update_bits(priv->regmap, 0x52, RESETDB, RESETDB);
 }
 
 static void ch7033_bridge_mode_set(struct drm_bridge *bridge,
@@ -360,120 +379,120 @@ static void ch7033_bridge_mode_set(struct drm_bridge *bridge,
 	/*
 	 * Page 4
 	 */
-	regmap_write(priv->regmap, 0x03, 0x04);
+	Xregmap_write(priv->regmap, 0x03, 0x04);
 
 	/* Turn everything off to set all the registers to their defaults. */
-	regmap_write(priv->regmap, 0x52, 0x00);
+	Xregmap_write(priv->regmap, 0x52, 0x00);
 	/* Bring I/O block up. */
-	regmap_write(priv->regmap, 0x52, RESETIB);
+	Xregmap_write(priv->regmap, 0x52, RESETIB);
 
 	/*
 	 * Page 0
 	 */
-	regmap_write(priv->regmap, 0x03, 0x00);
+	Xregmap_write(priv->regmap, 0x03, 0x00);
 
 	/* Bring up parts we need from the power down. */
-	regmap_update_bits(priv->regmap, 0x07, DRI_PD | IO_PD, 0);
-	regmap_update_bits(priv->regmap, 0x08, DRI_PDDRI | PDDAC | PANEN, 0);
-	regmap_update_bits(priv->regmap, 0x09, DPD | GCKOFF |
+	Xregmap_update_bits(priv->regmap, 0x07, DRI_PD | IO_PD, 0);
+	Xregmap_update_bits(priv->regmap, 0x08, DRI_PDDRI | PDDAC | PANEN, 0);
+	Xregmap_update_bits(priv->regmap, 0x09, DPD | GCKOFF |
 					       HDMI_PD | VGA_PD, 0);
-	regmap_update_bits(priv->regmap, 0x0a, HD_DVIB, 0);
+	Xregmap_update_bits(priv->regmap, 0x0a, HD_DVIB, 0);
 
 	/* Horizontal input timing. */
-	regmap_write(priv->regmap, 0x0b, (mode->htotal >> 8) << 3 |
+	Xregmap_write(priv->regmap, 0x0b, (mode->htotal >> 8) << 3 |
 					 (mode->hdisplay >> 8));
-	regmap_write(priv->regmap, 0x0c, mode->hdisplay);
-	regmap_write(priv->regmap, 0x0d, mode->htotal);
-	regmap_write(priv->regmap, 0x0e, (hsynclen >> 8) << 3 |
+	Xregmap_write(priv->regmap, 0x0c, mode->hdisplay);
+	Xregmap_write(priv->regmap, 0x0d, mode->htotal);
+	Xregmap_write(priv->regmap, 0x0e, (hsynclen >> 8) << 3 |
 					 (hbporch >> 8));
-	regmap_write(priv->regmap, 0x0f, hbporch);
-	regmap_write(priv->regmap, 0x10, hsynclen);
+	Xregmap_write(priv->regmap, 0x0f, hbporch);
+	Xregmap_write(priv->regmap, 0x10, hsynclen);
 
 	/* Vertical input timing. */
-	regmap_write(priv->regmap, 0x11, (mode->vtotal >> 8) << 3 |
+	Xregmap_write(priv->regmap, 0x11, (mode->vtotal >> 8) << 3 |
 					 (mode->vdisplay >> 8));
-	regmap_write(priv->regmap, 0x12, mode->vdisplay);
-	regmap_write(priv->regmap, 0x13, mode->vtotal);
-	regmap_write(priv->regmap, 0x14, ((vsynclen >> 8) << 3) |
+	Xregmap_write(priv->regmap, 0x12, mode->vdisplay);
+	Xregmap_write(priv->regmap, 0x13, mode->vtotal);
+	Xregmap_write(priv->regmap, 0x14, ((vsynclen >> 8) << 3) |
 					 (vbporch >> 8));
-	regmap_write(priv->regmap, 0x15, vbporch);
-	regmap_write(priv->regmap, 0x16, vsynclen);
+	Xregmap_write(priv->regmap, 0x15, vbporch);
+	Xregmap_write(priv->regmap, 0x16, vsynclen);
 
 	/* Input color swap. */
-	regmap_update_bits(priv->regmap, 0x18, SWAP, BYTE_SWAP_BGR);
+	Xregmap_update_bits(priv->regmap, 0x18, SWAP, BYTE_SWAP_BGR);
 
 	/* Input clock and sync polarity. */
-	regmap_update_bits(priv->regmap, 0x19, 0x1, mode->clock >> 16);
-	regmap_update_bits(priv->regmap, 0x19, HPO_I | VPO_I | GCLKFREQ,
+	Xregmap_update_bits(priv->regmap, 0x19, 0x1, mode->clock >> 16);
+	Xregmap_update_bits(priv->regmap, 0x19, HPO_I | VPO_I | GCLKFREQ,
 			   (mode->flags & DRM_MODE_FLAG_PHSYNC) ? HPO_I : 0 |
 			   (mode->flags & DRM_MODE_FLAG_PVSYNC) ? VPO_I : 0 |
 			   mode->clock >> 16);
-	regmap_write(priv->regmap, 0x1a, mode->clock >> 8);
-	regmap_write(priv->regmap, 0x1b, mode->clock);
+	Xregmap_write(priv->regmap, 0x1a, mode->clock >> 8);
+	Xregmap_write(priv->regmap, 0x1b, mode->clock);
 
 	/* Horizontal output timing. */
-	regmap_write(priv->regmap, 0x1f, (mode->htotal >> 8) << 3 |
+	Xregmap_write(priv->regmap, 0x1f, (mode->htotal >> 8) << 3 |
 					 (mode->hdisplay >> 8));
-	regmap_write(priv->regmap, 0x20, mode->hdisplay);
-	regmap_write(priv->regmap, 0x21, mode->htotal);
+	Xregmap_write(priv->regmap, 0x20, mode->hdisplay);
+	Xregmap_write(priv->regmap, 0x21, mode->htotal);
 
 	/* Vertical output timing. */
-	regmap_write(priv->regmap, 0x25, (mode->vtotal >> 8) << 3 |
+	Xregmap_write(priv->regmap, 0x25, (mode->vtotal >> 8) << 3 |
 					 (mode->vdisplay >> 8));
-	regmap_write(priv->regmap, 0x26, mode->vdisplay);
-	regmap_write(priv->regmap, 0x27, mode->vtotal);
+	Xregmap_write(priv->regmap, 0x26, mode->vdisplay);
+	Xregmap_write(priv->regmap, 0x27, mode->vtotal);
 
 	/* VGA channel bypass */
-	regmap_update_bits(priv->regmap, 0x2b, VFMT, 9);
+	Xregmap_update_bits(priv->regmap, 0x2b, VFMT, 9);
 
 	/* Output sync polarity. */
-	regmap_update_bits(priv->regmap, 0x2e, HPO_O | VPO_O,
+	Xregmap_update_bits(priv->regmap, 0x2e, HPO_O | VPO_O,
 			   (mode->flags & DRM_MODE_FLAG_PHSYNC) ? HPO_O : 0 |
 			   (mode->flags & DRM_MODE_FLAG_PVSYNC) ? VPO_O : 0);
 
 	/* HDMI horizontal output timing. */
-	regmap_update_bits(priv->regmap, 0x54, HWO_HDMI_HI | HOO_HDMI_HI,
+	Xregmap_update_bits(priv->regmap, 0x54, HWO_HDMI_HI | HOO_HDMI_HI,
 					       (hsynclen >> 8) << 3 |
 					       (hbporch >> 8));
-	regmap_write(priv->regmap, 0x55, hbporch);
-	regmap_write(priv->regmap, 0x56, hsynclen);
+	Xregmap_write(priv->regmap, 0x55, hbporch);
+	Xregmap_write(priv->regmap, 0x56, hsynclen);
 
 	/* HDMI vertical output timing. */
-	regmap_update_bits(priv->regmap, 0x57, VWO_HDMI_HI | VOO_HDMI_HI,
+	Xregmap_update_bits(priv->regmap, 0x57, VWO_HDMI_HI | VOO_HDMI_HI,
 					       (vsynclen >> 8) << 3 |
 					       (vbporch >> 8));
-	regmap_write(priv->regmap, 0x58, vbporch);
-	regmap_write(priv->regmap, 0x59, vsynclen);
+	Xregmap_write(priv->regmap, 0x58, vbporch);
+	Xregmap_write(priv->regmap, 0x59, vsynclen);
 
 	/* Pick HDMI, not LVDS. */
-	regmap_update_bits(priv->regmap, 0x7e, HDMI_LVDS_SEL, HDMI_LVDS_SEL);
+	Xregmap_update_bits(priv->regmap, 0x7e, HDMI_LVDS_SEL, HDMI_LVDS_SEL);
 
 	/*
 	 * Page 1
 	 */
-	regmap_write(priv->regmap, 0x03, 0x01);
+	Xregmap_write(priv->regmap, 0x03, 0x01);
 
 	/* No idea what these do, but VGA is wobbly and blinky without them. */
-	regmap_update_bits(priv->regmap, 0x07, CKINV, CKINV);
-	regmap_update_bits(priv->regmap, 0x08, DISPON, DISPON);
+	Xregmap_update_bits(priv->regmap, 0x07, CKINV, CKINV);
+	Xregmap_update_bits(priv->regmap, 0x08, DISPON, DISPON);
 
 	/* DRI PLL */
-	regmap_update_bits(priv->regmap, 0x0c, DRI_PLL_DIVSEL, DRI_PLL_DIVSEL);
+	Xregmap_update_bits(priv->regmap, 0x0c, DRI_PLL_DIVSEL, DRI_PLL_DIVSEL);
 	if (mode->clock <= 40000) {
-		regmap_update_bits(priv->regmap, 0x0c, DRI_PLL_N1_1 |
+		Xregmap_update_bits(priv->regmap, 0x0c, DRI_PLL_N1_1 |
 						       DRI_PLL_N1_0 |
 						       DRI_PLL_N3_1 |
 						       DRI_PLL_N3_0,
 						       0);
 	} else if (mode->clock < 80000) {
-		regmap_update_bits(priv->regmap, 0x0c, DRI_PLL_N1_1 |
+		Xregmap_update_bits(priv->regmap, 0x0c, DRI_PLL_N1_1 |
 						       DRI_PLL_N1_0 |
 						       DRI_PLL_N3_1 |
 						       DRI_PLL_N3_0,
 						       DRI_PLL_N3_0 |
 						       DRI_PLL_N1_0);
 	} else {
-		regmap_update_bits(priv->regmap, 0x0c, DRI_PLL_N1_1 |
+		Xregmap_update_bits(priv->regmap, 0x0c, DRI_PLL_N1_1 |
 						       DRI_PLL_N1_0 |
 						       DRI_PLL_N3_1 |
 						       DRI_PLL_N3_0,
@@ -482,36 +501,36 @@ static void ch7033_bridge_mode_set(struct drm_bridge *bridge,
 	}
 
 	/* This seems to be color calibration for VGA. */
-	regmap_write(priv->regmap, 0x64, 0x29); /* LSB Blue */
-	regmap_write(priv->regmap, 0x65, 0x29); /* LSB Green */
-	regmap_write(priv->regmap, 0x66, 0x29); /* LSB Red */
-	regmap_write(priv->regmap, 0x67, 0x00); /* MSB Blue */
-	regmap_write(priv->regmap, 0x68, 0x00); /* MSB Green */
-	regmap_write(priv->regmap, 0x69, 0x00); /* MSB Red */
+	Xregmap_write(priv->regmap, 0x64, 0x29); /* LSB Blue */
+	Xregmap_write(priv->regmap, 0x65, 0x29); /* LSB Green */
+	Xregmap_write(priv->regmap, 0x66, 0x29); /* LSB Red */
+	Xregmap_write(priv->regmap, 0x67, 0x00); /* MSB Blue */
+	Xregmap_write(priv->regmap, 0x68, 0x00); /* MSB Green */
+	Xregmap_write(priv->regmap, 0x69, 0x00); /* MSB Red */
 
-	regmap_update_bits(priv->regmap, 0x6b, DRI_PD_SER, 0x00);
-	regmap_update_bits(priv->regmap, 0x6c, DRI_PLL_PD, 0x00);
+	Xregmap_update_bits(priv->regmap, 0x6b, DRI_PD_SER, 0x00);
+	Xregmap_update_bits(priv->regmap, 0x6c, DRI_PLL_PD, 0x00);
 
 	/*
 	 * Page 3
 	 */
-	regmap_write(priv->regmap, 0x03, 0x03);
+	Xregmap_write(priv->regmap, 0x03, 0x03);
 
 	/* More bypasses and apparently another HDMI/LVDS selector. */
-	regmap_update_bits(priv->regmap, 0x28, VGACLK_BP | HM_LV_SEL,
+	Xregmap_update_bits(priv->regmap, 0x28, VGACLK_BP | HM_LV_SEL,
 					       VGACLK_BP | HM_LV_SEL);
-	regmap_update_bits(priv->regmap, 0x2a, HDMICLK_BP | HDMI_BP,
+	Xregmap_update_bits(priv->regmap, 0x2a, HDMICLK_BP | HDMI_BP,
 					       HDMICLK_BP | HDMI_BP);
 
 	/*
 	 * Page 4
 	 */
-	regmap_write(priv->regmap, 0x03, 0x04);
+	Xregmap_write(priv->regmap, 0x03, 0x04);
 
 	/* Output clock. */
-	regmap_write(priv->regmap, 0x10, mode->clock >> 16);
-	regmap_write(priv->regmap, 0x11, mode->clock >> 8);
-	regmap_write(priv->regmap, 0x12, mode->clock);
+	Xregmap_write(priv->regmap, 0x10, mode->clock >> 16);
+	Xregmap_write(priv->regmap, 0x11, mode->clock >> 8);
+	Xregmap_write(priv->regmap, 0x12, mode->clock);
 }
 
 static const struct drm_bridge_funcs ch7033_bridge_funcs = {
@@ -609,7 +628,7 @@ static int ch7033_probe(struct i2c_client *client,
 		return -ENODEV;
 	}
 
-	regmap_write(priv->regmap, 0x03, 0x04);
+	Xregmap_write(priv->regmap, 0x03, 0x04);
 	ret = regmap_read(priv->regmap, 0x51, &val);
 	if (ret < 0) {
 		dev_err(&client->dev, "error reading the model id: %d\n", ret);
