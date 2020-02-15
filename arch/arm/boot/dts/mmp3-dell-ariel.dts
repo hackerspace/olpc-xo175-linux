@@ -22,7 +22,7 @@
 		#address-cells = <0x1>;
 		#size-cells = <0x1>;
 		ranges;
-		bootargs = "earlyprintk=ttyS2,115200 console=ttyS2,115200";
+		bootargs = "earlyprintk=ttyS2,115200,keep console=ttyS2,115200 root=/dev/sda2 maxcpus=1 rootwait";
 	};
 
 	memory@0 {
