@@ -54,9 +54,9 @@ if [ -z "$XO" ]; then
 		/bin/cp arch/$ARCH/boot/$IMAGE.dt /run/media/lkundrak/DELLWYSEIMG/boot/$IMAGE.dt &&
 		umount /run/media/lkundrak/*
 	fi
-	scp arch/$ARCH/boot/uImage root@t00d.lan:/boot/kernel/TX0D/uImage-new &&
-	scp arch/$ARCH/boot/$IMAGE root@t00d.lan:/boot/boot/$IMAGE &&
-	scp arch/$ARCH/boot/$IMAGE.dt root@t00d.lan:/boot/boot/$IMAGE.dt &&
+	scp arch/$ARCH/boot/uImage root@t00d.lan:/boot/efi/kernel/TX0D/uImage-new &&
+	scp arch/$ARCH/boot/$IMAGE root@t00d.lan:/boot/efi/boot/$IMAGE &&
+	scp arch/$ARCH/boot/$IMAGE.dt root@t00d.lan:/boot/efi/boot/$IMAGE.dt &&
 	ssh root@t00d.lan reboot
 	exit 0
 fi
