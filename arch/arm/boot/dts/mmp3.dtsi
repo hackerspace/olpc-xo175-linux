@@ -382,6 +382,11 @@
 				power-domains = <&soc_clocks MMP2_POWER_DOMAIN_GPU>;
 			};
 
+			rng@d4292c00 {
+				compatible = "marvell,mmp2-rng";
+				reg = <0xd4292c00 8>;
+			};
+
 			adma0: dma-controller@c0ffd800 {
 				compatible = "marvell,adma-1.0";
 				reg = <0xc0ffd800 0x100>;
