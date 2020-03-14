@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: (GPL-2.0-or-later OR BSD-2-Clause)
+# Copyright 2020 Lubomir Rintel <lkundrak@v3.sk>
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/rng/marvell,mmp2-rng.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: MMP2 Random Number Generator
+
+description: |
+  Random Number Generator hardware found on the Marvell MMP2 and MMP3 SoCs.
+
+maintainers:
+  - Lubomir Rintel <lkundrak@v3.sk>
+
+properties:
+  $nodename:
+    pattern: "^rng(@.*)?"
+
+  compatible:
+    const: marvell,mmp2-rng
+
+  reg:
+    maxItems: 1
+
+  clocks:
+    maxItems: 1
+
+required:
+  - compatible
+  - reg
+
+additionalProperties: false
+
+examples:
+  - |
+    rng@d4292c00 {
+      compatible = "marvell,mmp2-rng";
+      reg = <0xd4292c00 8>;
+    };
+
+...
