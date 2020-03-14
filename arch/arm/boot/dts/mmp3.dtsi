@@ -362,6 +362,11 @@
 				clock-names = "core", "bus";
 				power-domains = <&soc_clocks MMP2_POWER_DOMAIN_GPU>;
 			};
+
+			rng@d4292c00 {
+				compatible = "marvell,mmp2-rng";
+				reg = <0xd4292c00 8>;
+			};
 		};
 
 		apb@d4000000 {
