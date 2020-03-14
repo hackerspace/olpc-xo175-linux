@@ -524,6 +524,20 @@ config HW_RANDOM_XIPHERA
 	  To compile this driver as a module, choose M here: the
 	  module will be called xiphera-trng.
 
+config HW_RANDOM_MMP2
+	tristate "Marvell MMP2 Random Number Generator support"
+	depends on ARCH_MMP || COMPILE_TEST
+	depends on OF
+	default HW_RANDOM
+	help
+	  This driver provides kernel-side support for the Random Number
+	  Generator hardware found on the Marvell MMP2 and MMP3 SoCs.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called mmp2-rng
+
+	  If unsure, say 'N'.
+
 endif # HW_RANDOM
 
 config UML_RANDOM
