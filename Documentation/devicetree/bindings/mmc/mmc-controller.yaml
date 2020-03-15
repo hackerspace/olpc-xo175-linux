@@ -363,7 +363,7 @@ examples:
         keep-power-in-suspend;
         wakeup-source;
         mmc-pwrseq = <&sdhci0_pwrseq>;
-        clk-phase-sd-hs = <63>, <72>;
+        clk-phase-sd-hs = <63 72>;
     };
 
   - |
