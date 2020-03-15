@@ -15,15 +15,26 @@ description: |
   controller may be described for use in SPI master mode or in SPI slave mode,
   but not for both at the same time.
 
+allOf:
+  - if:
+      required:
+        - spi-slave
+    then:
+      properties:
+        "#address-cells":
+          const: 0
+        "#size-cells":
+          const: 0
+    else:
+      properties:
+        "#address-cells":
+          const: 1
+        "#size-cells":
+          const: 0
+
 properties:
   $nodename:
     pattern: "^spi(@.*|-[0-9a-f])*$"
-
-  "#address-cells":
-    const: 1
-
-  "#size-cells":
-    const: 0
 
   cs-gpios:
     description: |
