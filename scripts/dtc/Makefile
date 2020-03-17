@@ -23,7 +23,7 @@ HOSTLDLIBS_dtc	:= $(shell pkg-config yaml-0.1 --libs)
 endif
 
 # Generated files need one more search path to include headers in source tree
-HOSTCFLAGS_dtc-lexer.lex.o := -I $(srctree)/$(src)
+HOSTCFLAGS_dtc-lexer.lex.o := -I $(srctree)/$(src) -fcommon
 HOSTCFLAGS_dtc-parser.tab.o := -I $(srctree)/$(src)
 
 # dependencies on generated files need to be listed explicitly
