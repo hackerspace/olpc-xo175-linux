@@ -207,10 +207,17 @@ static int mmp_tdma_config_chan(struct dma_chan *chan)
 
 	mmp_tdma_disable_chan(chan);
 
-	if (tdmac->dir == DMA_MEM_TO_DEV)
-		tdcr = TDCR_DSTDIR_ADDR_HOLD | TDCR_SRCDIR_ADDR_INC;
-	else if (tdmac->dir == DMA_DEV_TO_MEM)
+	switch (tdmac->dir) {
+	case DMA_DEV_TO_MEM:
 		tdcr = TDCR_SRCDIR_ADDR_HOLD | TDCR_DSTDIR_ADDR_INC;
+		break;
+	case DMA_MEM_TO_DEV:
+		tdcr = TDCR_DSTDIR_ADDR_HOLD | TDCR_SRCDIR_ADDR_INC;
+		break;
+	default:
+		dev_err(tdmac->dev, "invalid transfer direction\n");
+		return -EINVAL;
+	}
 
 	if (tdmac->type == MMP_AUD_TDMA) {
 		tdcr |= TDCR_PACKMOD;
@@ -455,12 +462,18 @@ static struct dma_async_tx_descriptor *mmp_tdma_prep_dma_cyclic(
 			desc->nxt_desc = tdmac->desc_arr_phys +
 				sizeof(*desc) * (i + 1);
 
-		if (direction == DMA_MEM_TO_DEV) {
-			desc->src_addr = dma_addr;
-			desc->dst_addr = tdmac->dev_addr;
-		} else {
+		switch (direction) {
+		case DMA_DEV_TO_MEM:
 			desc->src_addr = tdmac->dev_addr;
 			desc->dst_addr = dma_addr;
+			break;
+		case DMA_MEM_TO_DEV:
+			desc->src_addr = dma_addr;
+			desc->dst_addr = tdmac->dev_addr;
+			break;
+		default:
+			dev_err(tdmac->dev, "invalid transfer direction\n");
+			goto err_out;
 		}
 		desc->byte_cnt = period_len;
 		dma_addr += period_len;
@@ -510,14 +523,20 @@ static int mmp_tdma_config_write(struct dma_chan *chan,
 {
 	struct mmp_tdma_chan *tdmac = to_mmp_tdma_chan(chan);
 
-	if (dir == DMA_DEV_TO_MEM) {
+	switch (dir) {
+	case DMA_DEV_TO_MEM:
 		tdmac->dev_addr = dmaengine_cfg->src_addr;
 		tdmac->burst_sz = dmaengine_cfg->src_maxburst;
 		tdmac->buswidth = dmaengine_cfg->src_addr_width;
-	} else {
+		break;
+	case DMA_MEM_TO_DEV:
 		tdmac->dev_addr = dmaengine_cfg->dst_addr;
 		tdmac->burst_sz = dmaengine_cfg->dst_maxburst;
 		tdmac->buswidth = dmaengine_cfg->dst_addr_width;
+		break;
+	default:
+		dev_err(tdmac->dev, "invalid transfer direction\n");
+		return -EINVAL;
 	}
 	tdmac->dir = dir;
 
