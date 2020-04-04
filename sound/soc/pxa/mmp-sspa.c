@@ -29,7 +29,8 @@
  */
 struct sspa_priv {
 	struct ssp_device *sspa;
-	struct snd_dmaengine_dai_dma_data *dma_params;
+	struct snd_dmaengine_dai_dma_data playback_dma_data;
+	struct snd_dmaengine_dai_dma_data capture_dma_data;
 	struct clk *audio_clk;
 	struct clk *sysclk;
 	int dai_fmt;
@@ -250,11 +251,8 @@ static int mmp_sspa_hw_params(struct snd_pcm_substream *substream,
 			       struct snd_pcm_hw_params *params,
 			       struct snd_soc_dai *dai)
 {
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
 	struct sspa_priv *sspa_priv = snd_soc_dai_get_drvdata(dai);
 	struct ssp_device *sspa = sspa_priv->sspa;
-	struct snd_dmaengine_dai_dma_data *dma_params;
 	u32 sspa_ctrl;
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
@@ -293,11 +291,6 @@ static int mmp_sspa_hw_params(struct snd_pcm_substream *substream,
 		mmp_sspa_write_reg(sspa, SSPA_RXFIFO_UL, 0x0);
 	}
 
-	dma_params = &sspa_priv->dma_params[substream->stream];
-	dma_params->addr = substream->stream == SNDRV_PCM_STREAM_PLAYBACK ?
-				(sspa->phys_base + SSPA_TXD) :
-				(sspa->phys_base + SSPA_RXD);
-	snd_soc_dai_set_dma_data(cpu_dai, substream, dma_params);
 	return 0;
 }
 
@@ -351,6 +344,10 @@ static int mmp_sspa_probe(struct snd_soc_dai *dai)
 {
 	struct sspa_priv *priv = dev_get_drvdata(dai->dev);
 
+	snd_soc_dai_init_dma_data(dai,
+				&priv->playback_dma_data,
+				&priv->capture_dma_data);
+
 	snd_soc_dai_set_drvdata(dai, priv);
 	return 0;
 
@@ -389,8 +386,59 @@ static struct snd_soc_dai_driver mmp_sspa_dai = {
 	.ops = &mmp_sspa_dai_ops,
 };
 
+#define MMP_PCM_INFO (SNDRV_PCM_INFO_MMAP |	\
+		SNDRV_PCM_INFO_MMAP_VALID |	\
+		SNDRV_PCM_INFO_INTERLEAVED |	\
+		SNDRV_PCM_INFO_PAUSE |		\
+		SNDRV_PCM_INFO_RESUME |		\
+		SNDRV_PCM_INFO_NO_PERIOD_WAKEUP)
+
+static const struct snd_pcm_hardware mmp_pcm_hardware[] = {
+	{
+		.info			= MMP_PCM_INFO,
+		.period_bytes_min	= 1024,
+		.period_bytes_max	= 2048,
+		.periods_min		= 2,
+		.periods_max		= 32,
+		.buffer_bytes_max	= 4096,
+		.fifo_size		= 32,
+	},
+	{
+		.info			= MMP_PCM_INFO,
+		.period_bytes_min	= 1024,
+		.period_bytes_max	= 2048,
+		.periods_min		= 2,
+		.periods_max		= 32,
+		.buffer_bytes_max	= 4096,
+		.fifo_size		= 32,
+	},
+};
+
+static const struct snd_dmaengine_pcm_config mmp_pcm_config = {
+	.prepare_slave_config = snd_dmaengine_pcm_prepare_slave_config,
+	.pcm_hardware = mmp_pcm_hardware,
+	.prealloc_buffer_size = 4096,
+};
+
+static int mmp_pcm_mmap(struct snd_soc_component *component,
+			struct snd_pcm_substream *substream,
+			struct vm_area_struct *vma)
+{
+        if (substream->dma_buffer.dev.type != SNDRV_DMA_TYPE_DEV_IRAM) {
+		WARN_ON(1);
+		return -ENOMEM;
+	}
+
+        vma->vm_flags |= VM_DONTEXPAND | VM_DONTDUMP;
+	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+	return remap_pfn_range(vma, vma->vm_start,
+		substream->dma_buffer.addr >> PAGE_SHIFT,
+		vma->vm_end - vma->vm_start, vma->vm_page_prot);
+}
+
 static const struct snd_soc_component_driver mmp_sspa_component = {
 	.name		= "mmp-sspa",
+	.mmap		= mmp_pcm_mmap,
 };
 
 static int asoc_mmp_sspa_probe(struct platform_device *pdev)
@@ -405,12 +453,6 @@ static int asoc_mmp_sspa_probe(struct platform_device *pdev)
 	priv->sspa = devm_kzalloc(&pdev->dev,
 				sizeof(struct ssp_device), GFP_KERNEL);
 	if (priv->sspa == NULL)
-		return -ENOMEM;
-
-	priv->dma_params = devm_kcalloc(&pdev->dev,
-			2, sizeof(struct snd_dmaengine_dai_dma_data),
-			GFP_KERNEL);
-	if (priv->dma_params == NULL)
 		return -ENOMEM;
 
 	priv->sspa->mmio_base = devm_platform_ioremap_resource(pdev, 0);
@@ -433,6 +475,21 @@ static int asoc_mmp_sspa_probe(struct platform_device *pdev)
 	clk_enable(priv->audio_clk);
 	priv->dai_fmt = (unsigned int) -1;
 	platform_set_drvdata(pdev, priv);
+
+	priv->playback_dma_data.maxburst = 4;
+	priv->capture_dma_data.maxburst = 4;
+	/* You know, these addresses are actually ignored. */
+	priv->playback_dma_data.addr = SSPA_TXD;
+	priv->capture_dma_data.addr = SSPA_RXD;
+
+	if (pdev->dev.of_node) {
+		int ret;
+
+		ret = devm_snd_dmaengine_pcm_register(&pdev->dev,
+						      &mmp_pcm_config, 0);
+		if (ret)
+			return ret;
+	}
 
 	return devm_snd_soc_register_component(&pdev->dev, &mmp_sspa_component,
 					       &mmp_sspa_dai, 1);
