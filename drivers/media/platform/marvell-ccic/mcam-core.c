@@ -24,6 +24,7 @@
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/videodev2.h>
+#include <linux/pm_runtime.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-ctrls.h>
@@ -901,6 +902,7 @@ static void mcam_clk_enable(struct mcam_camera *mcam)
 {
 	unsigned int i;
 
+	pm_runtime_get_sync(mcam->dev);
 	for (i = 0; i < NR_MCAM_CLK; i++) {
 		if (!IS_ERR(mcam->clk[i]))
 			clk_prepare_enable(mcam->clk[i]);
@@ -915,6 +917,7 @@ static void mcam_clk_disable(struct mcam_camera *mcam)
 		if (!IS_ERR(mcam->clk[i]))
 			clk_disable_unprepare(mcam->clk[i]);
 	}
+	pm_runtime_put(mcam->dev);
 }
 
 /* ---------------------------------------------------------------------- */

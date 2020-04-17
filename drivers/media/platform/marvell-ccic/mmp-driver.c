@@ -24,6 +24,7 @@
 #include <linux/list.h>
 #include <linux/pm.h>
 #include <linux/clk.h>
+#include <linux/pm_runtime.h>
 
 #include "mcam-core.h"
 
@@ -313,10 +314,12 @@ static int mmpcam_probe(struct platform_device *pdev)
 	cam->irq = res->start;
 	ret = devm_request_irq(&pdev->dev, cam->irq, mmpcam_irq, IRQF_SHARED,
 					"mmp-camera", mcam);
-	if (ret == 0) {
-		mmpcam_add_device(cam);
-		return 0;
-	}
+	if (ret)
+		goto out;
+
+	mmpcam_add_device(cam);
+	pm_runtime_enable(&pdev->dev);
+	return 0;
 
 out:
 	fwnode_handle_put(mcam->asd.match.fwnode);
@@ -332,6 +335,7 @@ static int mmpcam_remove(struct mmp_camera *cam)
 
 	mmpcam_remove_device(cam);
 	mccic_shutdown(mcam);
+	pm_runtime_force_suspend(mcam->dev);
 	return 0;
 }
 
