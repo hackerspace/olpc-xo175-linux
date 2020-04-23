@@ -811,8 +811,6 @@ static int mv_otg_probe(struct platform_device *pdev)
 
 	return 0;
 
-err_remove_phy:
-	usb_remove_phy(&mvotg->usb_phy);
 err_disable_clk:
 	mv_otg_disable_internal(mvotg);
 err_destroy_workqueue:
