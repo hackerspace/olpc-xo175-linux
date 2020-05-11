@@ -113,6 +113,67 @@ static struct resource *armada_drm_get_mem(struct device *dev)
 	return mem ? : ERR_PTR(-ENXIO);
 }
 
+
+
+
+static struct drm_encoder_funcs armada_drm_encoder_funcs = {
+	.destroy = drm_encoder_cleanup,
+};
+
+static int armada_drm_attach_bridge(struct drm_device *drm, struct device_node *np)
+{
+	struct drm_encoder *encoder;
+	struct drm_bridge *bridge;
+	int ret;
+
+	encoder = devm_kzalloc(drm->dev, sizeof(*encoder), GFP_KERNEL);
+	if (encoder == NULL)
+		return -ENOMEM;
+
+	bridge = of_drm_find_bridge(np);
+printk ("XXX   XX %08x %pOFfcF\n", bridge, np);
+	if (!bridge)
+		return -EINVAL;
+
+	encoder->possible_crtcs = drm_of_find_possible_crtcs(drm, np);
+	ret = drm_encoder_init(drm, encoder, &armada_drm_encoder_funcs,
+			       DRM_MODE_ENCODER_TMDS, NULL);
+	if (ret)
+		return ret;
+
+	ret = drm_bridge_attach(encoder, bridge, NULL, 0);
+	if (ret)
+		drm_encoder_cleanup(encoder);
+
+	return ret;
+}
+
+
+static int armada_attach_bridges(struct drm_device *drm, struct device_node *np)
+{
+	struct device_node *ep, *remote;
+	int ret;
+
+	for_each_endpoint_of_node(np, ep) {
+		remote = of_graph_get_remote_port_parent(ep);
+		if (!remote || !of_device_is_available(remote))
+			continue;
+
+		ret = armada_drm_attach_bridge(drm, remote);
+		of_node_put(remote);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+
+
+
+
+
+
 static int armada_drm_bind(struct device *dev)
 {
 	struct armada_private *priv;
@@ -179,8 +240,39 @@ static int armada_drm_bind(struct device *dev)
 	mutex_init(&priv->linear_lock);
 
 	ret = component_bind_all(dev, &priv->drm);
+printk ("XXX X0 %d\n", ret);
 	if (ret)
 		goto err_kms;
+
+	if (dev->platform_data) {
+		char **devices = dev->platform_data;
+		struct device *d;
+		int i;
+
+		for (i = 0; devices[i]; i++) {
+			d = bus_find_device_by_name(&platform_bus_type, NULL,
+						    devices[i]);
+			if (d && d->of_node) {
+				ret = armada_attach_bridges(&priv->drm, d->of_node);
+				if (ret) {
+					put_device(d);
+					goto err_comp;
+				}
+			}
+			put_device(d);
+		}
+	} else {
+		struct device_node *np;
+
+		for_each_compatible_node(np, NULL, "marvell,armada-lcdc") {
+			if (!of_device_is_available(np))
+				continue;
+
+			ret = armada_attach_bridges(&priv->drm, np);
+			if (ret)
+				goto err_comp;
+		}
+	}
 
 	ret = drm_vblank_init(&priv->drm, priv->drm.mode_config.num_crtc);
 	if (ret)
@@ -249,29 +341,34 @@ static int compare_dev_name(struct device *dev, void *data)
 	return !strcmp(dev_name(dev), name);
 }
 
-static void armada_add_endpoints(struct device *dev,
-	struct component_match **match, struct device_node *dev_node)
-{
-	struct device_node *ep, *remote;
-
-	for_each_endpoint_of_node(dev_node, ep) {
-		remote = of_graph_get_remote_port_parent(ep);
-		if (remote && of_device_is_available(remote))
-			drm_of_component_match_add(dev, match, compare_of,
-						   remote);
-		of_node_put(remote);
-	}
-}
-
 static const struct component_master_ops armada_master_ops = {
 	.bind = armada_drm_bind,
 	.unbind = armada_drm_unbind,
 };
 
+
+static int armada_find_bridges(struct device_node *np)
+{
+	struct device_node *ep, *remote;
+
+	for_each_endpoint_of_node(np, ep) {
+		remote = of_graph_get_remote_port_parent(ep);
+		if (remote && of_device_is_available(remote) &&
+		    !of_drm_find_bridge(remote)) {
+			of_node_put(remote);
+			return -EPROBE_DEFER;
+		}
+		of_node_put(remote);
+	}
+
+	return 0;
+}
+
 static int armada_drm_probe(struct platform_device *pdev)
 {
 	struct component_match *match = NULL;
 	struct device *dev = &pdev->dev;
+	int ret;
 
 	if (dev->platform_data) {
 		char **devices = dev->platform_data;
@@ -290,8 +387,13 @@ static int armada_drm_probe(struct platform_device *pdev)
 		for (i = 0; devices[i]; i++) {
 			d = bus_find_device_by_name(&platform_bus_type, NULL,
 						    devices[i]);
-			if (d && d->of_node)
-				armada_add_endpoints(dev, &match, d->of_node);
+			if (d && d->of_node) {
+				ret = armada_find_bridges(d->of_node);
+				if (ret) {
+					put_device(d);
+					return ret;
+				}
+			}
 			put_device(d);
 		}
 	} else {
@@ -308,7 +410,9 @@ static int armada_drm_probe(struct platform_device *pdev)
 			if (!of_device_is_available(np))
 				continue;
 
-			armada_add_endpoints(dev, &match, np);
+			ret = armada_find_bridges(np);
+			if (ret)
+				return ret;
 		}
 	}
 
