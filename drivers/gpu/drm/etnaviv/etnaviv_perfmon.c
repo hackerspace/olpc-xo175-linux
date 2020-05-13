@@ -444,7 +444,6 @@ static unsigned int num_pm_domains(const struct etnaviv_gpu *gpu)
 static const struct etnaviv_pm_domain *pm_domain(const struct etnaviv_gpu *gpu,
 	unsigned int index)
 {
-	const struct etnaviv_pm_domain *domain = NULL;
 	unsigned int offset = 0, i;
 
 	for (i = 0; i < ARRAY_SIZE(doms_meta); i++) {
@@ -453,15 +452,15 @@ static const struct etnaviv_pm_domain *pm_domain(const struct etnaviv_gpu *gpu,
 		if (!(gpu->identity.features & meta->feature))
 			continue;
 
-		if (meta->nr_domains < (index - offset)) {
+		if (meta->nr_domains <= (index - offset)) {
 			offset += meta->nr_domains;
 			continue;
 		}
 
-		domain = meta->domains + (index - offset);
+		return meta->domains + (index - offset);
 	}
 
-	return domain;
+	return NULL;
 }
 
 int etnaviv_pm_query_dom(struct etnaviv_gpu *gpu,
