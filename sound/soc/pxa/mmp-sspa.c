@@ -462,6 +462,7 @@ static const struct snd_soc_component_driver mmp_sspa_component = {
 static int asoc_mmp_sspa_probe(struct platform_device *pdev)
 {
 	struct sspa_priv *sspa;
+	int ret;
 
 	sspa = devm_kzalloc(&pdev->dev,
 				sizeof(struct sspa_priv), GFP_KERNEL);
@@ -485,8 +486,6 @@ static int asoc_mmp_sspa_probe(struct platform_device *pdev)
 		clk_put(sspa->audio_clk);
 		return PTR_ERR(sspa->sysclk);
 	}
-	pm_runtime_enable(&pdev->dev);
-	clk_prepare_enable(sspa->audio_clk);
 	platform_set_drvdata(pdev, sspa);
 
 	sspa->playback_dma_data.maxburst = 4;
@@ -496,16 +495,21 @@ static int asoc_mmp_sspa_probe(struct platform_device *pdev)
 	sspa->capture_dma_data.addr = SSPA_RXD;
 
 	if (pdev->dev.of_node) {
-		int ret;
-
 		ret = devm_snd_dmaengine_pcm_register(&pdev->dev,
 						      &mmp_pcm_config, 0);
 		if (ret)
 			return ret;
 	}
 
-	return devm_snd_soc_register_component(&pdev->dev, &mmp_sspa_component,
-					       &mmp_sspa_dai, 1);
+	ret = devm_snd_soc_register_component(&pdev->dev, &mmp_sspa_component,
+					      &mmp_sspa_dai, 1);
+	if (ret)
+		return ret;
+
+	pm_runtime_enable(&pdev->dev);
+	clk_prepare_enable(sspa->audio_clk);
+
+	return 0;
 }
 
 static int asoc_mmp_sspa_remove(struct platform_device *pdev)
