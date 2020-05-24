@@ -40,7 +40,7 @@
 
 #define CE156_DAPM_OUTPUT(wname, wevent)	\
 {	.id = snd_soc_dapm_pga, .name = wname, .reg = SND_SOC_NOPM, \
-	.shift = 0, .invert = 0, .kcontrols = NULL, \
+	.shift = 0, .kcontrols = NULL, \
 	.num_kcontrols = 0, .event = wevent, \
 	.event_flags = SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_POST_PMD, }
 
@@ -1191,7 +1191,7 @@ static int ce156_dev_init(struct snd_soc_component *component)
 
 static int ce156_probe(struct snd_soc_component *component)
 {
-	struct ce156_private *ce156_priv = snd_soc_component_get_drvdata(component);
+	//struct ce156_private *ce156_priv = snd_soc_component_get_drvdata(component);
 	int ret = 0;	
 
 	/*ret = snd_soc_codec_set_cache_io(component, ce156_priv->control_data);
