@@ -14,7 +14,7 @@ BRANCHES="$BRANCHES xo/lr/olpc-xo175-drm-dt-v7"
 BRANCHES="$BRANCHES xo/lr/olpc-xo175-fixes5-drm"
 BRANCHES="$BRANCHES xo/lr/olpc-xo175-armada-v4"
 BRANCHES="$BRANCHES xo/lr/olpc-xo175-fixes11"
-BRANCHES="$BRANCHES xo/lr/ene-ec-v3"
+BRANCHES="$BRANCHES xo/lr/ene-ec-v4"
 
 git branch -D merged || :
 git checkout -b merged v5.7-rc6
