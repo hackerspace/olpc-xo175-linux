@@ -18,6 +18,7 @@
 #include <linux/i2c.h>
 #include <linux/platform_device.h>
 #include <linux/spi/spi.h>
+#include <linux/regmap.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -45,6 +46,7 @@
 
 struct ce156_private {
 	void *control_data;
+	struct regmap *regmap;
 };
 
 struct ce156_init_reg {
@@ -66,234 +68,80 @@ static struct ce156_init_reg ce156_init_list[] = {
 
 #define CE156_INIT_REG_NUM ARRAY_SIZE(ce156_init_list)
 
-static const u8 ce156_reg[] = {
-	0x00, 0x00, 0x00, 0x00,		/* Reg00 - Reg03 */
-	0x00, 0x00, 0x00, 0x00,		/* Reg04 - Reg07 */
-	0x40, 0x00, 0x00, 0x00,		/* Reg08 - Reg0b */
-	0x00, 0x00, 0x00, 0x3f,		/* Reg0c - Reg0f */
-	0x3f, 0x3f, 0x3f, 0x44,		/* Reg10 - Reg13 */
-	0x00, 0x00, 0x00, 0x00,		/* Reg14 - Reg17 */
-	0xa1, 0x00, 0x08, 0x82,		/* Reg18 - Reg1b */
-	0x00, 0x00, 0x06, 0x00,		/* Reg1c - Reg1e */
-	0x00,				/* filled */
-	0x00, 0x00, 0x00, 0x00,		/* Reg20 - Reg23 */
-	0x00, 0x00, 0x00, 0x00,		/* Reg24 - Reg27 */
-	0x00, 0x00, 0xa0, 0x00,		/* Reg28 - Reg2b */
-	0x00, 0x00, 0x00, 0x00,		/* Reg2c - Reg2f */
-	0x00, 0x00, 0x00, 0x00,		/* Reg30 - Reg33 */
-	0x00, 0x00, 0x00, 0x00,		/* Reg34 - Reg37 */
-	0x20, 0x00, 0x00,		/* Reg38 - Reg3a */
-	0x00,				/* filled */
-	0x00, 0x00, 0x00, 0x00,		/* filled */
-	0x00, 0x00, 0x00, 0x00,		/* Reg40 - Reg43 */
-	0x00, 0x00, 0x00, 0x00,		/* Reg44 - Reg47 */
-	0x03, 0xff, 0x12,		/* Reg48 - Reg4a */
+static const struct reg_default ce156_reg_defaults[] = {
+	{ CE156_ADC_PATH,		0x00 },
+	{ CE156_ADC_RATE,		0x00 },
+	{ CE156_ADCL_ATTN,		0x00 },
+	{ CE156_ADCR_ATTN,		0x00 },
+	{ CE156_CHARGEPUMP_REG,		0x00 },
+	{ CE156_I2S1,			0x00 },
+	{ CE156_I2S2,			0x00 },
+	{ CE156_DAC_DWA,		0x40 },
+	{ CE156_DACEQUL_N0LO,		0x00 },
+	{ CE156_DACEQUL_N0HI,		0x00 },
+	{ CE156_DACEQUL_N1LO,		0x00 },
+	{ CE156_DACEQUL_N1HI,		0x00 },
+	{ CE156_DACEQUL_D1LO,		0x00 },
+	{ CE156_DACEQUL_D1HI,		0x00 },
+	{ CE156_DAC_GAINLL,		0x3f },
+	{ 0x10,				0x3f },
+	{ 0x11,				0x3f },
+	{ CE156_DAC_GAINRR,		0x3f },
+	{ CE156_DAC_DWA_OFST,		0x44 },
+	{ CE156_PLL1,			0xa1 },
+	{ CE156_PLL2,			0x00 },
+	{ CE156_PLL_FRACT1,		0x08 },
+	{ CE156_PLL_FRACT2,		0x82 },
+	{ CE156_PLL_FRACT3,		0x00 },
+	{ CE156_CLKGEN1,		0x00 },
+	{ CE156_CLKGEN2,		0x06 },
+	{ CE156_MIC_CTRL,		0x00 },
+	{ CE156_MIC1_PGA_GAIN,		0x00 },
+	{ CE156_MIC2_PGA_GAIN,		0x00 },
+	{ CE156_ADC1_PGA_GAIN,		0x00 },
+	{ CE156_ADC2_PGA_GAIN,		0x00 },
+	{ CE156_ADC_RSVD,		0x00 },
+	{ CE156_ANALOG_PATH_SEL,	0x00 },
+	{ CE156_DAC_HS1_CTRL,		0x00 },
+	{ CE156_DAC_HS2_CTRL,		0x00 },
+	{ CE156_DAC_SPKR_CTRL,		0x00 },
+	{ CE156_DAC_ANA_MISC,		0xa0 },
+	{ CE156_AUD_PWR_ENABLE,		0x00 },
+	{ CE156_ADC_ANA_ENABLE,		0x00 },
+	{ CE156_ADC_DIG_ENABLE,		0x00 },
+	{ CE156_DAC_ANA_ENABLE,		0x00 },
+	{ CE156_DAC_DIG_ENABLE,		0x00 },
+	{ CE156_HS_INPUT_SEL,		0x00 },
+	{ CE156_SPK_INPUT_SEL,		0x00 },
+	{ CE156_HS_MIC_DET,		0x20 },
+	{ CE156_STATUS1,		0x00 },
+	{ CE156_STATUS2,		0x00 },
+	{ CE156_REVISION,		0x03 },
+	{ CE156_CLKEN,			0xff },
+	{ 0x4a,				0x12 },
 };
 
-static int ce156_read_reg_cache(struct snd_soc_component *component,
-	unsigned int reg)
-{
-	const struct snd_soc_component_driver *componentdrv = component->driver;
-	u8 *cache = (u8*)componentdrv->reg_cache_default;
-	if (reg < 0 || reg > componentdrv->reg_cache_size)
-		return -EIO;
-	return (int)cache[reg];
-}
+static const struct regmap_config ce156_regmap = {
+	.reg_bits = 8,
+	.val_bits = 8,
+	.max_register = 0x9f, // XXX
+	.cache_type = REGCACHE_RBTREE,
+	.reg_defaults = ce156_reg_defaults,
+	.num_reg_defaults = ARRAY_SIZE(ce156_reg_defaults),
+};
 
-static unsigned int ce156_read_hw_reg(struct snd_soc_component *component,
-				       unsigned int reg)
-{
-	u8 data[2] = {0};
-	unsigned int value;
-
-	data[0] = reg;
-
-	if (i2c_master_send(component->control_data, data, 1) == 1) {
-		i2c_master_recv(component->control_data, data, 1);
-		value = data[0];
-
-		pr_debug("ce156_read ok, reg 0x%x = %x\n", reg, value);
-			
-		return value;
-	}
-
-	printk(KERN_ERR "%s: read reg failed\n", __func__);
-	return -EIO;
-}
-
-static unsigned int ce156_read(struct snd_soc_component *component,
-				unsigned int reg)
-{
-/* need to be fixed here */
-	return ce156_read_hw_reg(component, reg);
-}
-
-static void ce156_write_reg_cache(struct snd_soc_component *component,
-	unsigned int reg, unsigned int value)
-{
-	const struct snd_soc_component_driver *componentdrv = component->driver;
-	u8 *cache = (u8*)componentdrv->reg_cache_default;
-	if (reg < 0 || reg > componentdrv->reg_cache_size) {
-		printk(KERN_ERR "%s: out of reg's range address = 0x%x\n",
-			__func__, reg);
-		return;
-	}
-	cache[reg] = value & 0xff;
-	return;
-}
-
-#if defined CONFIG_MACH_QSEVEN
+#ifdef CONFIG_MACH_QSEVEN
 #define HP_L_EN		1
 #define HP_R_EN		2
 #define SPK_L_EN	32
 #define SPK_R_EN	64
 #endif
-static int ce156_write(struct snd_soc_component *component, unsigned int reg,
-	unsigned int value)
-{
-	u8 data[2];
-#if defined CONFIG_MACH_QSEVEN
-	u8 mute_data[2];
-	int hp_left = 0, hp_right = 0;
-	int sp_right = 0;
-#endif
-	data[0] = reg;
-	data[1] = value & 0x00ff;
-
-	
-#if defined CONFIG_MACH_QSEVEN
-	/* Speaker GAIN control */	
-	if( data[0] == CE156_DAC_SPKR_CTRL && ((data[1] & 0x38) == 0x0) ) {
-		mute_data[0] = CE156_DAC_ANA_ENABLE;
-		mute_data[1] = ce156_read(component, mute_data[0]);
-		sp_right = mute_data[1] & SPK_R_EN;	/* check Speaker Right channel power state */
-		if( sp_right ) {
-			mute_data[1] = mute_data[1] & 0x2f;	/* Disable Speaker Right channel power */
-			ce156_write_reg_cache(component, mute_data[0], mute_data[1]);
-			if (i2c_master_send(component->control_data, mute_data, 2) == 2) {
-                		pr_debug("ce156_write ok, reg = %x, value = %x\n", reg, value);
-        		}
-			else {
-                                printk(KERN_ERR "ce156_write fail, try to write : reg %x, value %x\n", mute_data[0], mute_data[1]);
-                                return -EIO;
-                        }
-		}
-	}
-	else if( data[0] == CE156_DAC_SPKR_CTRL && ((data[1] & 0x38) != 0x0) ) {
-		mute_data[0] = CE156_DAC_ANA_ENABLE;
-		mute_data[1] = ce156_read(component, mute_data[0]);
-		sp_right = mute_data[1] & SPK_R_EN;	/* check Speaker Right channel power state */
-		if( !sp_right ) {
-			mute_data[1] |= SPK_R_EN;	/* set to enable Speaker Right channel power */
-			ce156_write_reg_cache(component, mute_data[0], mute_data[1]);
-			if( i2c_master_send(component->control_data, mute_data, 2) == 2 ) {
- 	                     	pr_debug("ce156_write ok, reg = %x, value = %x\n", reg, value);
-			}
-                        else {
-                        	printk(KERN_ERR "ce156_write fail, try to write : reg %x, value %x\n", mute_data[0], mute_data[1]);
-                        	return -EIO;
-			}
-
-		}
-	}
-
-	/* Headphone Left channel GAIN output control */
-	if( data[0] == CE156_DAC_HS1_CTRL && data[1] == 0x0 ) {
-		mute_data[0] = CE156_DAC_ANA_ENABLE;
-		mute_data[1] = ce156_read(component, mute_data[0]);
-		hp_left = mute_data[1] & HP_L_EN;		/* check Headphone Left channel power state */
-		if( hp_left ) {
-			mute_data[1] = mute_data[1] & 0xfe;	/* set to disable Headphone Left channel */ 
-			ce156_write_reg_cache(component, mute_data[0], mute_data[1]);
-			if( i2c_master_send(component->control_data, mute_data, 2) == 2 ) {
- 	                     	pr_debug("ce156_write ok, reg = %x, value = %x\n", reg, value);
-                	}
-			else {
-				printk(KERN_ERR "ce156_write fail, try to write : reg %x, value %x\n", mute_data[0], mute_data[1]);
-				return -EIO;
-			}
-		}
-	}
-
-	if( data[0] == CE156_DAC_HS1_CTRL && data[1] != 0x0 ) {
-		mute_data[0] = CE156_DAC_ANA_ENABLE;
-		mute_data[1] = ce156_read(component, mute_data[0]);
-		hp_left = mute_data[1] & HP_L_EN;		/* check Headphone Left channel power state */
-		if( !hp_left ) {
-			mute_data[1] |= HP_L_EN;		/* set to enable Headphone Left channel */
-			ce156_write_reg_cache(component, mute_data[0], mute_data[1]);
-			if( i2c_master_send(component->control_data, mute_data, 2) == 2 ) {
-	                      	pr_debug("ce156_write ok, reg = %x, value = %x\n", reg, value);
-                	}
-			else {
-				printk(KERN_ERR "ce156_write fail, try to write : reg %x, value %x\n", mute_data[0], mute_data[1]);
-				return -EIO;
-			}
-		}
-	}
-	
-	/* Headphone Right channel GAIN output control */
-	if( data[0] == CE156_DAC_HS2_CTRL && data[1] == 0x0 ) {
-		mute_data[0] = CE156_DAC_ANA_ENABLE;
-		mute_data[1] = ce156_read(component, mute_data[0]);
-		hp_right = mute_data[1] & HP_R_EN;		/* check Headphone Right channel power state */
-		if( hp_right ) {
-			mute_data[1] = mute_data[1] & 0xfd;	/* set to disable Headphone Right channel */
-			ce156_write_reg_cache(component, mute_data[0], mute_data[1]);
-			if( i2c_master_send(component->control_data, mute_data, 2) == 2 ) {
-				pr_debug("ce156_write ok, reg = %x, value = %x\n", reg, value);
-			}
-			else {
-				printk(KERN_ERR "ce156_write fail, try to write : reg %x, value %x\n", mute_data[0], mute_data[1]);
-				return -EIO;
-			}
-		} 
-	}
-
-	if( data[0] == CE156_DAC_HS2_CTRL && data[1] != 0x0 ) {
-		mute_data[0] = CE156_DAC_ANA_ENABLE;
-		mute_data[1] = ce156_read(component, mute_data[0]);
-		hp_right = mute_data[1] & HP_R_EN;		/* check Headphone Right channel power state */
-		if( !hp_right ) {
-			mute_data[1] |= HP_R_EN;		/* set to enable Headphone Right channel */
-			ce156_write_reg_cache(component, mute_data[0], mute_data[1]);
-			if( i2c_master_send(component->control_data, mute_data, 2) == 2) {
-				pr_debug("ce156_write ok, reg = %x, value = %x\n", reg, value);
-			}
-			else {
-				printk(KERN_ERR "ce156_write fail, try to write : reg %x, value %x\n", mute_data[0], mute_data[1]);
-				return -EIO;
-			}
-		} 
-	}
-#endif
-
-	ce156_write_reg_cache(component, reg, value);
-	if (i2c_master_send(component->control_data, data, 2) == 2) {
-		pr_debug("ce156_write ok, reg = %x, value = %x\n", reg, value);
-		return 0;
-	}
-	else {
-		printk(KERN_ERR "ce156_write fail, try to write: reg %x, value %x\n\n",
-					reg, value);
-		return -EIO;
-	}
-}
-
-static int ce156_reg_cache_write(struct snd_soc_component *component, unsigned int reg)
-{
-	int reg_cache_value = ce156_read_reg_cache(component, reg);
-	if(reg_cache_value != -EIO) {
-		return (ce156_write(component, reg, (int)reg_cache_value));
-	}
-	return -EIO;
-}
 
 static int ce156_sync(struct snd_soc_component *component)
 {
-	ce156_write(component, CE156_DAC_ANA_MISC, 0xa0);
-	ce156_write(component, CE156_DAC_ANA_MISC, 0xa4);
-	ce156_write(component, CE156_DAC_ANA_MISC, 0xa0);
+	snd_soc_component_write(component, CE156_DAC_ANA_MISC, 0xa0);
+	snd_soc_component_write(component, CE156_DAC_ANA_MISC, 0xa4);
+	snd_soc_component_write(component, CE156_DAC_ANA_MISC, 0xa0);
 	return 0;
 }
 
@@ -302,7 +150,7 @@ static int ce156_reg_init(struct snd_soc_component *component)
 	int i;
 
 	for (i = 0; i < CE156_INIT_REG_NUM; i++)
-		ce156_write(component,
+		snd_soc_component_write(component,
 			     ce156_init_list[i].reg_index,
 			     ce156_init_list[i].reg_value);
 
@@ -319,62 +167,15 @@ MODULE_PARM_DESC(caps_charge, "CE156 cap charge time (msecs)");
  */
 static int ce156_reset(struct snd_soc_component *component)
 {
-	ce156_write(component, CE156_CLKGEN2, 0x4);
-	ce156_write(component, CE156_AUD_PWR_ENABLE, 0);
+	snd_soc_component_write(component, CE156_CLKGEN2, 0x4);
+	snd_soc_component_write(component, CE156_AUD_PWR_ENABLE, 0);
 
-	ce156_write(component, CE156_CHARGEPUMP_REG, 0x7);
-	ce156_write(component, CE156_CLKGEN1, 0x2);
-	ce156_write(component, CE156_CLKGEN2, 0x7);
-	ce156_write(component, CE156_AUD_PWR_ENABLE, 0x43);
+	snd_soc_component_write(component, CE156_CHARGEPUMP_REG, 0x7);
+	snd_soc_component_write(component, CE156_CLKGEN1, 0x2);
+	snd_soc_component_write(component, CE156_CLKGEN2, 0x7);
+	snd_soc_component_write(component, CE156_AUD_PWR_ENABLE, 0x43);
 	return 0;
 }
-
-static int ce156_reg_setting(struct snd_soc_component *component)
-{
-	ce156_reset(component);
-
-	ce156_reg_cache_write(component, CE156_PLL1);
-	ce156_reg_cache_write(component, CE156_PLL2);
-	ce156_reg_cache_write(component, CE156_PLL_FRACT1);
-	ce156_reg_cache_write(component, CE156_PLL_FRACT2);
-	//ce156_reg_cache_write(component, CE156_PLL_FRACT3);
-	ce156_reg_cache_write(component, CE156_ADC_RATE);
-	ce156_reg_cache_write(component, CE156_I2S1);
-	ce156_reg_cache_write(component, CE156_I2S2);
-	ce156_reg_cache_write(component, CE156_ADC_RSVD);
-	ce156_reg_cache_write(component, CE156_ADC_ANA_ENABLE);
-	ce156_reg_cache_write(component, CE156_ADC_DIG_ENABLE);
-	ce156_reg_cache_write(component, CE156_DAC_DIG_ENABLE);
-	ce156_sync(component);
-	ce156_reg_cache_write(component, CE156_HS_MIC_DET);
-	ce156_reg_cache_write(component, CE156_MIC_CTRL);	
-	ce156_reg_cache_write(component, CE156_DAC_ANA_ENABLE);
-	ce156_reg_cache_write(component, CE156_HS_INPUT_SEL);
-	ce156_reg_cache_write(component, CE156_DAC_DWA_OFST);
-	ce156_reg_cache_write(component, CE156_DAC_GAINLL);
-	ce156_reg_cache_write(component, CE156_DAC_GAINRR);
-	ce156_sync(component);
-	ce156_reg_cache_write(component, CE156_SPK_INPUT_SEL);
-	ce156_reg_cache_write(component, CE156_DAC_SPKR_CTRL);
-	ce156_reg_cache_write(component, CE156_ADC1_PGA_GAIN);
-	ce156_reg_cache_write(component, CE156_ADC2_PGA_GAIN);
-	ce156_reg_cache_write(component, CE156_MIC1_PGA_GAIN);
-	ce156_reg_cache_write(component, CE156_MIC2_PGA_GAIN);
-	ce156_reg_cache_write(component, CE156_DAC_HS1_CTRL);
-	ce156_reg_cache_write(component, CE156_DAC_HS2_CTRL);
-
-	ce156_write(component, CE156_STATUS2, 0x40);
-
-	return 0;
-}
-
-int ce156_hw_init(struct snd_soc_component *component)
-{
-	ce156_reg_setting(component);
-	printk(KERN_INFO "success set the ce156 reg!\n");
-	return 0;
-}
-EXPORT_SYMBOL_GPL(ce156_hw_init);
 
 static int ce156_dapm_event(struct snd_soc_component *component, enum snd_soc_bias_level level)
 {
@@ -384,7 +185,7 @@ static int ce156_dapm_event(struct snd_soc_component *component, enum snd_soc_bi
 		break;
 	case SND_SOC_BIAS_PREPARE:
 		printk(KERN_INFO "SND_SOC_BIAS_PREPARE\n");
-		ce156_hw_init(component);
+// XXX //	ce156_hw_init(component);
 		break;
 	case SND_SOC_BIAS_STANDBY:
 		printk(KERN_INFO "SND_SOC_BIAS_STANDBY\n");
@@ -406,7 +207,8 @@ int ce156_set_sample_rate(struct snd_soc_dai *codec_dai,
 		int div_id, int div)
 {
 	struct snd_soc_component *component = codec_dai->component;
-	u8 rate = ce156_read_reg_cache(component, CE156_ADC_RATE) & 0xf0;
+	// XXX update bits
+	u8 rate = snd_soc_component_read32(component, CE156_ADC_RATE) & 0xf0;
 	switch(div_id){
 	case SAMPLE_RATE_8000:
 		rate |= 0x0;
@@ -445,7 +247,7 @@ int ce156_set_sample_rate(struct snd_soc_dai *codec_dai,
 		printk(KERN_INFO "sample rate set failed!\n");
 		return -EINVAL;
 	}
-	ce156_write(component, CE156_ADC_RATE, rate);
+	snd_soc_component_write(component, CE156_ADC_RATE, rate);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(ce156_set_sample_rate);
@@ -461,13 +263,13 @@ static int ce156_mixer_event(struct snd_soc_dapm_widget *w,
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
 		pr_debug("after power up!\n");
-		val = ce156_read(component,CE156_ADC_ANA_ENABLE);
+		val = snd_soc_component_read32(component,CE156_ADC_ANA_ENABLE);
 		if((val & 0xc0) == 0x40)
-			ce156_write(component, CE156_ADC_ANA_ENABLE, (val & 0xf7));
+			snd_soc_component_write(component, CE156_ADC_ANA_ENABLE, (val & 0xf7));
 		else if((val & 0xc0) == 0x80)
-			ce156_write(component, CE156_ADC_ANA_ENABLE, (val & 0xfb));
+			snd_soc_component_write(component, CE156_ADC_ANA_ENABLE, (val & 0xfb));
 		else if((val & 0xc0) == 0xc0)
-			ce156_write(component, CE156_ADC_ANA_ENABLE, (val & 0xcf));
+			snd_soc_component_write(component, CE156_ADC_ANA_ENABLE, (val & 0xcf));
 		break;
 
 	default:
@@ -494,8 +296,8 @@ static int ce156_rsync_event(struct snd_soc_dapm_widget *w,
 	 * Unmute by DAC_MUTE. It should be unmuted when DAPM sequence is
 	 * finished.
 	 */
-	ce156_write(component, CE156_DAC_ANA_MISC, 0xa4);
-	ce156_write(component, CE156_DAC_ANA_MISC, 0xa0);
+	snd_soc_component_write(component, CE156_DAC_ANA_MISC, 0xa4);
+	snd_soc_component_write(component, CE156_DAC_ANA_MISC, 0xa0);
 
 	return 0;
 }
@@ -708,11 +510,11 @@ static const unsigned int dac_gain_tlv[] = {
 	0, 63, TLV_DB_SCALE_ITEM(-9450, 150, 1),
 };
 
-#if defined CONFIG_MACH_QSEVEN
+#ifdef CONFIG_MACH_QSEVEN
 static int ce156_mute_mode_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
-	u8 mute_reg = ce156_read_reg_cache(component, CE156_DAC_ANA_ENABLE) & 0xff;
+	u8 mute_reg = snd_soc_component_read32(component, CE156_DAC_ANA_ENABLE) & 0xff;
 
 	if( mute_reg == 0x00 ) {
 		ucontrol->value.integer.value[0] = 1;
@@ -727,17 +529,17 @@ static int ce156_mute_mode_get(struct snd_kcontrol *kcontrol, struct snd_ctl_ele
 static int ce156_mute_mode_set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
-	u8 mute_reg = ce156_read_reg_cache(component, CE156_DAC_ANA_ENABLE) & 0xff;
+	u8 mute_reg = snd_soc_component_read32(component, CE156_DAC_ANA_ENABLE) & 0xff;
 	u8 tmp = 0;
 
 	if( ucontrol->value.integer.value[0] == 1 ) {
 		tmp = 0x63;
 		mute_reg &= ~tmp;
-		ce156_write(component, CE156_DAC_ANA_ENABLE, mute_reg);
+		snd_soc_component_write(component, CE156_DAC_ANA_ENABLE, mute_reg);
 	}
 	else if( ucontrol->value.integer.value[0] == 0 ) {
 		mute_reg |= 0x63;
-		ce156_write(component, CE156_DAC_ANA_ENABLE, mute_reg);
+		snd_soc_component_write(component, CE156_DAC_ANA_ENABLE, mute_reg);
 	}
 
 	return 0;
@@ -748,7 +550,7 @@ static int ce156_mute_mode_set(struct snd_kcontrol *kcontrol, struct snd_ctl_ele
 static int ce156_right_mute_mode_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
-	u8 mute_reg = ce156_read_reg_cache(component, CE156_DAC_ANA_ENABLE) & 0xff;
+	u8 mute_reg = snd_soc_component_read32(component, CE156_DAC_ANA_ENABLE) & 0xff;
 	
 	if( mute_reg == 0x63 ) {
 		ucontrol->value.integer.value[0] = 0;
@@ -766,17 +568,15 @@ static int ce156_right_mute_mode_get(struct snd_kcontrol *kcontrol, struct snd_c
 static int ce156_right_mute_mode_set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
-	u8 mute_reg = ce156_read_reg_cache(component, CE156_DAC_ANA_ENABLE) & 0xff;
+	u8 mute_reg = snd_soc_component_read32(component, CE156_DAC_ANA_ENABLE) & 0xff;
 
 	if( ucontrol->value.integer.value[0] == 1 ) {
 		mute_reg &= ~(RIGHT_HEADPHONE_PA_ENABLE);
-		ce156_write(component, CE156_DAC_ANA_ENABLE, mute_reg);
-		ce156_write_reg_cache(component, CE156_DAC_ANA_ENABLE, mute_reg);
+		snd_soc_component_write(component, CE156_DAC_ANA_ENABLE, mute_reg);
 	}
 	else if( ucontrol->value.integer.value[0] == 0 ) {
 		mute_reg |= RIGHT_HEADPHONE_PA_ENABLE;
-		ce156_write(component, CE156_DAC_ANA_ENABLE, mute_reg);
-		ce156_write_reg_cache(component, CE156_DAC_ANA_ENABLE, mute_reg);
+		snd_soc_component_write(component, CE156_DAC_ANA_ENABLE, mute_reg);
 	}
 
 	return 0;
@@ -785,7 +585,7 @@ static int ce156_right_mute_mode_set(struct snd_kcontrol *kcontrol, struct snd_c
 static int ce156_left_mute_mode_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
-	u8 mute_reg = ce156_read_reg_cache(component, CE156_DAC_ANA_ENABLE) & 0xff;
+	u8 mute_reg = snd_soc_component_read32(component, CE156_DAC_ANA_ENABLE) & 0xff;
 
         if( mute_reg == 0x63 ) {
                 ucontrol->value.integer.value[0] = 0;
@@ -805,19 +605,17 @@ static int ce156_left_mute_mode_get(struct snd_kcontrol *kcontrol, struct snd_ct
 static int ce156_left_mute_mode_set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
-	u8 mute_reg = ce156_read_reg_cache(component, CE156_DAC_ANA_ENABLE) & 0xff;
+	u8 mute_reg = snd_soc_component_read32(component, CE156_DAC_ANA_ENABLE) & 0xff;
 	u8 tmp = 0;
 	
         if( ucontrol->value.integer.value[0] == 1 ) {
 		tmp = LEFT_HEADPHONE_PA_ENABLE;
                 mute_reg &= ~(LEFT_HEADPHONE_PA_ENABLE);
-		ce156_write(component, CE156_DAC_ANA_ENABLE, mute_reg);
-		ce156_write_reg_cache(component, CE156_DAC_ANA_ENABLE, mute_reg);
+		snd_soc_component_write(component, CE156_DAC_ANA_ENABLE, mute_reg);
         }
         else if( ucontrol->value.integer.value[0] == 0 ) {
 		mute_reg |= LEFT_HEADPHONE_PA_ENABLE;
-		ce156_write(component, CE156_DAC_ANA_ENABLE, mute_reg);
-		ce156_write_reg_cache(component, CE156_DAC_ANA_ENABLE, mute_reg);
+		snd_soc_component_write(component, CE156_DAC_ANA_ENABLE, mute_reg);
         }
 
 	return 0;
@@ -825,7 +623,7 @@ static int ce156_left_mute_mode_set(struct snd_kcontrol *kcontrol, struct snd_ct
 #endif
 
 static const struct snd_kcontrol_new ce156_snd_controls[] = {
-#if defined CONFIG_MACH_QSEVEN
+#ifdef CONFIG_MACH_QSEVEN
 	SOC_SINGLE_TLV("HP/L Volume", CE156_DAC_HS1_CTRL, 0, 7, 0, hs_gain_tlv),
         SOC_SINGLE_TLV("HP/R Volume", CE156_DAC_HS2_CTRL, 0, 7, 0, hs_gain_tlv),
 	SOC_SINGLE_TLV("SPK Volume", CE156_DAC_SPKR_CTRL, 3, 7, 0, spk_gain_tlv),
@@ -1145,11 +943,11 @@ static int ce156_set_dai_pll(struct snd_soc_dai *codec_dai,
 	pll_fract2 = (pll_fract >> 8) & 0xff;
 	pll_fract3 = (pll_fract >> 16) & 0xff;
 
-	ce156_write(component, CE156_PLL1, pll1);
-	ce156_write(component, CE156_PLL2, pll2);
-	ce156_write(component, CE156_PLL_FRACT1, pll_fract1);
-	ce156_write(component, CE156_PLL_FRACT2, pll_fract2);
-	ce156_write(component, CE156_PLL_FRACT3, pll_fract3);
+	snd_soc_component_write(component, CE156_PLL1, pll1);
+	snd_soc_component_write(component, CE156_PLL2, pll2);
+	snd_soc_component_write(component, CE156_PLL_FRACT1, pll_fract1);
+	snd_soc_component_write(component, CE156_PLL_FRACT2, pll_fract2);
+	snd_soc_component_write(component, CE156_PLL_FRACT3, pll_fract3);
 
 	printk(KERN_INFO "exit %s, PLL1 = %x, PLL2 = %x, "
 		 "FRAC1 = %x, FRAC2 = %x, FRAC3 = %x\n",
@@ -1173,7 +971,8 @@ static int ce156_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_component *component = dai->component;
 	//struct ce156_priv *ce156 = codec->private_data;
 
-	u8 iface = ce156_read_reg_cache(component, CE156_I2S1) & 0xcf;
+	// XXX update bits
+	u8 iface = snd_soc_component_read32(component, CE156_I2S1) & 0xcf;
 	int rate  = params_rate(params);
 	int coeff = ce156_get_coeff(rate);
 
@@ -1208,7 +1007,7 @@ static int ce156_set_dai_fmt(struct snd_soc_dai *codec_dai,
 	struct snd_soc_component *component = codec_dai->component;
 	u8 iface = 0;
 	int ret = 0;	
-	ce156_write(component, CE156_DAC_ANA_ENABLE, 0x63);
+	snd_soc_component_write(component, CE156_DAC_ANA_ENABLE, 0x63);
 /*	
 	ret = ce156_dev_init(component);
 	if (ret < 0) {
@@ -1270,23 +1069,24 @@ static int ce156_set_dai_fmt(struct snd_soc_dai *codec_dai,
 	return ret;
 }
 
+// XXX what
 static int ce156_mute_state = 1;
 
 static int ce156_mute(struct snd_soc_dai *dai, int mute)
 {
 	struct snd_soc_component *component = dai->component;
 	
-	u8 mute_reg = ce156_read_reg_cache(component, CE156_DAC_DWA_OFST) & 0xff;
+	u8 mute_reg = snd_soc_component_read32(component, CE156_DAC_DWA_OFST) & 0xff;
 	
 	ce156_mute_state = mute;
 
 	if (mute) {
-		ce156_write(component, CE156_DAC_ANA_ENABLE, 0x00);
-		ce156_write(component, CE156_DAC_DWA_OFST, mute_reg | 0x44);
+		snd_soc_component_write(component, CE156_DAC_ANA_ENABLE, 0x00);
+		snd_soc_component_write(component, CE156_DAC_DWA_OFST, mute_reg | 0x44);
 		
 		printk(KERN_INFO "start %s\n", __func__);
 	} else {
-		ce156_write(component, CE156_DAC_DWA_OFST, mute_reg & 0xbb);	
+		snd_soc_component_write(component, CE156_DAC_DWA_OFST, mute_reg & 0xbb);	
 		printk(KERN_INFO "stop %s\n", __func__);
 	}
 
@@ -1341,39 +1141,38 @@ static int ce156_dev_init(struct snd_soc_component *component)
 	ce156_reset(component);
 	mdelay(10);
 
-        ce156_write(component, CE156_PLL1, 0xA5);//a4
-        ce156_write(component, CE156_PLL2, 0x00);//00
-        ce156_write(component, CE156_PLL_FRACT1, 0x08);
-        ce156_write(component, CE156_PLL_FRACT2, 0x82);
+        snd_soc_component_write(component, CE156_PLL1, 0xA5);//a4
+        snd_soc_component_write(component, CE156_PLL2, 0x00);//00
+        snd_soc_component_write(component, CE156_PLL_FRACT1, 0x08);
+        snd_soc_component_write(component, CE156_PLL_FRACT2, 0x82);
 	
-	ce156_write(component, CE156_ADC_RATE, 0x9);
-	ce156_write(component, CE156_I2S1, 0x0);
-	ce156_write(component, CE156_I2S2, 0x0);
-	ce156_write(component, CE156_ADC_RSVD, 0x2);
-	ce156_write(component, CE156_ADC_ANA_ENABLE, 0x3f);
-	ce156_write(component, CE156_ADC_DIG_ENABLE, 0x30);
-	ce156_write(component, CE156_DAC_DIG_ENABLE, 0x39);
-	ce156_write(component, CE156_DAC_ANA_MISC, 0xa4);
-	ce156_write(component, CE156_DAC_ANA_MISC, 0xa0);
-	ce156_write(component, CE156_HS_MIC_DET, 0x61);  //paul add for HP detect
-	ce156_write(component, CE156_MIC_CTRL, 0x2);
-	ce156_write(component, CE156_DAC_ANA_ENABLE, 0x63);
-	ce156_write(component, CE156_HS_INPUT_SEL, 0x6);
-	ce156_write(component, CE156_DAC_DWA_OFST, 0x0);
-	ce156_write(component, CE156_DAC_GAINLL, 0x0);
-	ce156_write(component, CE156_DAC_GAINRR, 0x0);
-	ce156_write(component, CE156_DAC_ANA_MISC, 0xa4);
-	ce156_write(component, CE156_DAC_ANA_MISC, 0xa0);
-	ce156_write(component, CE156_DAC_DWA, 0x40);/*by pass equalizer*/
+	snd_soc_component_write(component, CE156_ADC_RATE, 0x9);
+	snd_soc_component_write(component, CE156_I2S1, 0x0);
+	snd_soc_component_write(component, CE156_I2S2, 0x0);
+	snd_soc_component_write(component, CE156_ADC_RSVD, 0x2);
+	snd_soc_component_write(component, CE156_ADC_ANA_ENABLE, 0x3f);
+	snd_soc_component_write(component, CE156_ADC_DIG_ENABLE, 0x30);
+	snd_soc_component_write(component, CE156_DAC_DIG_ENABLE, 0x39);
+	snd_soc_component_write(component, CE156_DAC_ANA_MISC, 0xa4);
+	snd_soc_component_write(component, CE156_DAC_ANA_MISC, 0xa0);
+	snd_soc_component_write(component, CE156_HS_MIC_DET, 0x61);  //paul add for HP detect
+	snd_soc_component_write(component, CE156_MIC_CTRL, 0x2);
+	snd_soc_component_write(component, CE156_DAC_ANA_ENABLE, 0x63);
+	snd_soc_component_write(component, CE156_HS_INPUT_SEL, 0x6);
+	snd_soc_component_write(component, CE156_DAC_DWA_OFST, 0x0);
+	snd_soc_component_write(component, CE156_DAC_GAINLL, 0x0);
+	snd_soc_component_write(component, CE156_DAC_GAINRR, 0x0);
+	snd_soc_component_write(component, CE156_DAC_ANA_MISC, 0xa4);
+	snd_soc_component_write(component, CE156_DAC_ANA_MISC, 0xa0);
+	snd_soc_component_write(component, CE156_DAC_DWA, 0x40);/*by pass equalizer*/
 	ce156_reg_init(component);
-	ce156_write(component, CE156_STATUS2, 0x40);
+	snd_soc_component_write(component, CE156_STATUS2, 0x40);
 
 	printk(KERN_INFO "ce156 reg write finished\n");
 
 	ce156_dapm_event(component, SND_SOC_BIAS_PREPARE);
 
-#if defined CONFIG_MACH_QSEVEN
-#else
+#ifndef CONFIG_MACH_QSEVEN
 	snd_soc_add_component_controls(component, ce156_snd_controls,
 			     ARRAY_SIZE(ce156_snd_controls));
 	printk(KERN_INFO "controls added finished\n");
@@ -1416,16 +1215,13 @@ static int ce156_probe(struct snd_soc_component *component)
 	return ret;
 }
 
-static int ce156_remove(struct snd_soc_component *component)
+static void ce156_remove(struct snd_soc_component *component)
 {
 	ce156_dapm_event(component, SND_SOC_BIAS_OFF);
-
-	return 0;
 }
 
-static int ce156_suspend(struct snd_soc_component *component, pm_message_t state)
+static int ce156_suspend(struct snd_soc_component *component)
 {
-	
 	ce156_dapm_event(component, SND_SOC_BIAS_OFF);
 
 	return 0;
@@ -1445,13 +1241,7 @@ struct snd_soc_component_driver soc_component_dev_ce156 = {
 	.remove  = ce156_remove,
 	.suspend = ce156_suspend,
 	.resume  = ce156_resume,
-	.read = ce156_read,
-	.write = ce156_write,
 	.set_bias_level = ce156_dapm_event,
-	.reg_cache_size = ARRAY_SIZE(ce156_reg),
-	.reg_cache_step = 1,
-	.reg_word_size = sizeof(u8),
-	.reg_cache_default = ce156_reg,
 };
 
 static int ce156_i2c_probe(struct i2c_client *i2c,
@@ -1468,6 +1258,13 @@ static int ce156_i2c_probe(struct i2c_client *i2c,
 
 	i2c_set_clientdata(i2c, ce156_priv);
 	ce156_priv->control_data = i2c;
+
+	ce156_priv->regmap = devm_regmap_init_i2c(i2c, &ce156_regmap);
+	if (IS_ERR(ce156_priv->regmap)) {
+		ret = PTR_ERR(ce156_priv->regmap);
+		dev_err(&i2c->dev, "Failed to allocate regmap (%d)\n", ret);
+		return ret;
+	}
 
 	ret = devm_snd_soc_register_component(&i2c->dev, &soc_component_dev_ce156, &ce156_dai, 1);
 		
@@ -1511,6 +1308,7 @@ static int __init ce156_init(void)
 	int ret = 0;
 	printk("paul init and register ce156 i2c driver:\n");
 
+// XXX driver
 #if defined(CONFIG_I2C) || defined(CONFIG_I2C_MODULE)
 	ret = i2c_add_driver(&ce156_i2c_driver);
 	if(ret != 0){
