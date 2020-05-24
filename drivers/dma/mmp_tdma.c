@@ -207,10 +207,17 @@ static int mmp_tdma_config_chan(struct dma_chan *chan)
 
 	mmp_tdma_disable_chan(chan);
 
-	if (tdmac->dir == DMA_MEM_TO_DEV)
-		tdcr = TDCR_DSTDIR_ADDR_HOLD | TDCR_SRCDIR_ADDR_INC;
-	else if (tdmac->dir == DMA_DEV_TO_MEM)
+	switch (tdmac->dir) {
+	case DMA_DEV_TO_MEM:
 		tdcr = TDCR_SRCDIR_ADDR_HOLD | TDCR_DSTDIR_ADDR_INC;
+		break;
+	case DMA_MEM_TO_DEV:
+		tdcr = TDCR_DSTDIR_ADDR_HOLD | TDCR_SRCDIR_ADDR_INC;
+		break;
+	default:
+		dev_err(tdmac->dev, "invalid transfer direction\n");
+		return -EINVAL;
+	}
 
 	if (tdmac->type == MMP_AUD_TDMA) {
 		tdcr |= TDCR_PACKMOD;
@@ -235,7 +242,7 @@ static int mmp_tdma_config_chan(struct dma_chan *chan)
 			tdcr |= TDCR_BURSTSZ_128B;
 			break;
 		default:
-			dev_err(tdmac->dev, "mmp_tdma: unknown burst size.\n");
+			dev_err(tdmac->dev, "unknown burst size.\n");
 			return -EINVAL;
 		}
 
@@ -250,7 +257,7 @@ static int mmp_tdma_config_chan(struct dma_chan *chan)
 			tdcr |= TDCR_SSZ_32_BITS;
 			break;
 		default:
-			dev_err(tdmac->dev, "mmp_tdma: unknown bus size.\n");
+			dev_err(tdmac->dev, "unknown bus size.\n");
 			return -EINVAL;
 		}
 	} else if (tdmac->type == PXA910_SQU) {
@@ -276,7 +283,7 @@ static int mmp_tdma_config_chan(struct dma_chan *chan)
 			tdcr |= TDCR_BURSTSZ_SQU_32B;
 			break;
 		default:
-			dev_err(tdmac->dev, "mmp_tdma: unknown burst size.\n");
+			dev_err(tdmac->dev, "unknown burst size.\n");
 			return -EINVAL;
 		}
 	}
@@ -429,8 +436,10 @@ static struct dma_async_tx_descriptor *mmp_tdma_prep_dma_cyclic(
 	int num_periods = buf_len / period_len;
 	int i = 0, buf = 0;
 
-	if (tdmac->status != DMA_COMPLETE)
+	if (tdmac->status != DMA_COMPLETE) {
+		dev_err(tdmac->dev, "controller busy");
 		return NULL;
+	}
 
 	if (period_len > TDMA_MAX_XFER_BYTES) {
 		dev_err(tdmac->dev,
@@ -457,12 +466,18 @@ static struct dma_async_tx_descriptor *mmp_tdma_prep_dma_cyclic(
 			desc->nxt_desc = tdmac->desc_arr_phys +
 				sizeof(*desc) * (i + 1);
 
-		if (direction == DMA_MEM_TO_DEV) {
-			desc->src_addr = dma_addr;
-			desc->dst_addr = tdmac->dev_addr;
-		} else {
+		switch (direction) {
+		case DMA_DEV_TO_MEM:
 			desc->src_addr = tdmac->dev_addr;
 			desc->dst_addr = dma_addr;
+			break;
+		case DMA_MEM_TO_DEV:
+			desc->src_addr = dma_addr;
+			desc->dst_addr = tdmac->dev_addr;
+			break;
+		default:
+			dev_err(tdmac->dev, "invalid transfer direction\n");
+			goto err_out;
 		}
 		desc->byte_cnt = period_len;
 		dma_addr += period_len;
@@ -512,14 +527,20 @@ static int mmp_tdma_config_write(struct dma_chan *chan,
 {
 	struct mmp_tdma_chan *tdmac = to_mmp_tdma_chan(chan);
 
-	if (dir == DMA_DEV_TO_MEM) {
+	switch (dir) {
+	case DMA_DEV_TO_MEM:
 		tdmac->dev_addr = dmaengine_cfg->src_addr;
 		tdmac->burst_sz = dmaengine_cfg->src_maxburst;
 		tdmac->buswidth = dmaengine_cfg->src_addr_width;
-	} else {
+		break;
+	case DMA_MEM_TO_DEV:
 		tdmac->dev_addr = dmaengine_cfg->dst_addr;
 		tdmac->burst_sz = dmaengine_cfg->dst_maxburst;
 		tdmac->buswidth = dmaengine_cfg->dst_addr_width;
+		break;
+	default:
+		dev_err(tdmac->dev, "invalid transfer direction\n");
+		return -EINVAL;
 	}
 	tdmac->dir = dir;
 
@@ -703,6 +724,17 @@ static int mmp_tdma_probe(struct platform_device *pdev)
 	tdev->device.device_resume = mmp_tdma_resume_chan;
 	tdev->device.device_terminate_all = mmp_tdma_terminate_all;
 	tdev->device.copy_align = DMAENGINE_ALIGN_8_BYTES;
+
+	tdev->device.directions = BIT(DMA_DEV_TO_MEM) | BIT(DMA_MEM_TO_DEV);
+	if (type == MMP_AUD_TDMA) {
+		tdev->device.max_burst = SZ_128;
+		tdev->device.src_addr_widths = BIT(DMA_SLAVE_BUSWIDTH_4_BYTES);
+		tdev->device.dst_addr_widths = BIT(DMA_SLAVE_BUSWIDTH_4_BYTES);
+	} else if (type == PXA910_SQU) {
+		tdev->device.max_burst = SZ_32;
+	}
+	tdev->device.residue_granularity = DMA_RESIDUE_GRANULARITY_BURST;
+	tdev->device.descriptor_reuse = true;
 
 	dma_set_mask(&pdev->dev, DMA_BIT_MASK(64));
 	platform_set_drvdata(pdev, tdev);
