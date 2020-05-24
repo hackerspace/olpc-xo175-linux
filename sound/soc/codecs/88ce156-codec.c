@@ -45,7 +45,6 @@
 	.event_flags = SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_POST_PMD, }
 
 struct ce156_private {
-	void *control_data;
 	struct regmap *regmap;
 };
 
@@ -1244,20 +1243,16 @@ struct snd_soc_component_driver soc_component_dev_ce156 = {
 	.set_bias_level = ce156_dapm_event,
 };
 
-static int ce156_i2c_probe(struct i2c_client *i2c,
-			    const struct i2c_device_id *id)
+static int ce156_i2c_probe(struct i2c_client *i2c)
 {
 	struct ce156_private *ce156_priv;
 	int ret;
 	
 	printk(KERN_INFO "CE156: register i2c driver successfully\n");
 	
-	ce156_priv = kzalloc(sizeof(struct ce156_private), GFP_KERNEL);
+	ce156_priv = devm_kzalloc(&i2c->dev, sizeof(struct ce156_private), GFP_KERNEL);
 	if (ce156_priv == NULL)
 		return -ENOMEM;
-
-	i2c_set_clientdata(i2c, ce156_priv);
-	ce156_priv->control_data = i2c;
 
 	ce156_priv->regmap = devm_regmap_init_i2c(i2c, &ce156_regmap);
 	if (IS_ERR(ce156_priv->regmap)) {
@@ -1281,53 +1276,22 @@ out:
 }
 
 
-static int ce156_i2c_remove(struct i2c_client *client)
-{
-	kfree(i2c_get_clientdata(client));
-	return 0;
-}
-
-static const struct i2c_device_id ce156_i2c_id[] = {
-	{"ce156", 0},
+#ifdef CONFIG_OF
+static const struct of_device_id ce156_i2c_dt_ids[] = {
+	{ .compatible = "marvell,88ce156"},
 	{ }
 };
-MODULE_DEVICE_TABLE(i2c, ce156_i2c_id);
+MODULE_DEVICE_TABLE(of, ce156_i2c_dt_ids);
+#endif
 
 static struct i2c_driver ce156_i2c_driver = {
 	.driver = {
-		.name  = "ce156",
-		.owner = THIS_MODULE,
+		.name  = "88ce156",
+		.of_match_table = of_match_ptr(ce156_i2c_dt_ids),
 	},
-	.probe    = ce156_i2c_probe,
-	.remove   = ce156_i2c_remove,
-	.id_table = ce156_i2c_id,
+	.probe_new = ce156_i2c_probe,
 };
-
-static int __init ce156_init(void)
-{
-	int ret = 0;
-	printk("paul init and register ce156 i2c driver:\n");
-
-// XXX driver
-#if defined(CONFIG_I2C) || defined(CONFIG_I2C_MODULE)
-	ret = i2c_add_driver(&ce156_i2c_driver);
-	if(ret != 0){
-		printk( "Failed to register ce156 i2c driver: %d\n", 
-			ret);
-	}
-#endif
-	return ret;
-}
-
-static void __exit ce156_exit(void)
-{
-#if defined(CONFIG_I2C) || defined(CONFIG_I2C_MODULE)
-	i2c_del_driver(&ce156_i2c_driver);
-#endif
-}
-
-module_init(ce156_init);
-module_exit(ce156_exit);
+module_i2c_driver(ce156_i2c_driver);
 
 MODULE_DESCRIPTION("ASoc Marvell 88CE156 driver");
 MODULE_AUTHOR("Inventec BU3A <webmaster@inventec.com>");
