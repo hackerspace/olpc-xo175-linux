@@ -294,6 +294,10 @@ config SND_SOC_ALL_CODECS
 
 	  If unsure select "N".
 
+config SND_SOC_88CE156
+	tristate "Marvell 88CE156 CODEC"
+	depends on I2C
+
 config SND_SOC_88PM860X
 	tristate
 	depends on MFD_88PM860X
