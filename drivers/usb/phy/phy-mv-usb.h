@@ -8,6 +8,9 @@
 
 #include <linux/types.h>
 
+/* registers */
+#define U2x_CAPREGS_OFFSET       0x100
+
 /* Command Register Bit Masks */
 #define USBCMD_RUN_STOP			(0x00000001)
 #define USBCMD_CTRL_RESET		(0x00000002)
@@ -132,11 +135,11 @@ struct mv_otg_regs {
 };
 
 struct mv_otg {
-	struct usb_phy phy;
+	struct usb_phy usb_phy;
 	struct mv_otg_ctrl otg_ctrl;
 
 	/* base address */
-	void __iomem *phy_regs;
+	void __iomem *base;
 	void __iomem *cap_regs;
 	struct mv_otg_regs __iomem *op_regs;
 
@@ -155,6 +158,7 @@ struct mv_otg {
 	unsigned int active;
 	unsigned int clock_gating;
 	struct clk *clk;
+	struct phy *phy;
 };
 
 #endif
