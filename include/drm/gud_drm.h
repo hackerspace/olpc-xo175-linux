@@ -358,4 +358,17 @@ static inline void gud_drm_to_display_mode(struct drm_display_mode *dst,
 	drm_mode_set_name(dst);
 }
 
+struct gud_drm_gadget;
+
+struct gud_drm_gadget *gud_drm_gadget_init(unsigned int minor_id, const char *backlight,
+					   size_t *max_buffer_size);
+void gud_drm_gadget_fini(struct gud_drm_gadget *gdg);
+int gud_drm_gadget_disable_pipe(struct gud_drm_gadget *gdg);
+int gud_drm_gadget_ctrl_get(struct gud_drm_gadget *gdg, u8 request,
+			    u16 index, void *data, size_t size);
+int gud_drm_gadget_ctrl_set(struct gud_drm_gadget *gdg, u8 request,
+			    u16 index, void *data, size_t size);
+int gud_drm_gadget_set_buffer(struct gud_drm_gadget *gdg, struct gud_drm_req_set_buffer *req);
+int gud_drm_gadget_write_buffer(struct gud_drm_gadget *gdg, const void *buf, size_t len);
+
 #endif
