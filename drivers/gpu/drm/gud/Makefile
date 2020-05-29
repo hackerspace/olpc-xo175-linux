@@ -2,3 +2,4 @@
 
 gud_drm-objs			:= gud_drm_drv.o gud_drm_pipe.o gud_drm_connector.o
 obj-$(CONFIG_DRM_GUD)		+= gud_drm.o
+obj-$(CONFIG_DRM_GUD_GADGET)	+= gud_drm_gadget.o
