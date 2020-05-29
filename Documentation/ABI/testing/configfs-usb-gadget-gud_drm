@@ -1,0 +1,10 @@
+What:		/config/usb-gadget/gadget/functions/gud_drm.name
+Date:		Dec 2020
+KernelVersion:	5.10
+Description:
+		The attributes:
+
+		drm_dev - DRM device number
+		backlight_dev - Backlight device name (optional)
+				The backlight brightness scale should be
+				perceptual not linear.
