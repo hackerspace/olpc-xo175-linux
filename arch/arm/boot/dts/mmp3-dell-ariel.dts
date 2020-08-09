@@ -2,7 +2,7 @@
 /*
  * Dell Wyse 3020 a.k.a. "Ariel" a.k.a. Tx0D (T00D, T10D)
  *
- * Copyright (C) 2019 Lubomir Rintel <lkundrak@v3.sk>
+ * Copyright (C) 2019,2020 Lubomir Rintel <lkundrak@v3.sk>
  */
 
 /dts-v1/;
@@ -71,6 +71,23 @@
 				remote-endpoint = <&hdmi0_out>;
 			};
 		};
+	};
+
+	sound-card {
+		compatible = "audio-graph-card";
+		label = "Dell Ariel";
+		dais = <&sspa0_dai>;
+		routing = "Headphones", "HPL",
+			  "Headphones", "HPR",
+			  "Speaker External", "SPKLN",
+			  "Speaker External", "SPKLP",
+			  "Speaker External", "SPKRN",
+			  "Speaker External", "SPKRP",
+			  "MIC1N", "Mic Jack",
+			  "MIC1P", "Mic Jack";
+		widgets = "Headphone", "Headphones",
+			  "Speaker", "Speaker External",
+			  "Microphone", "Mic Jack";
 	};
 
 	ec_input_spi: spi {
@@ -189,6 +206,19 @@
 			};
 		};
 	};
+
+	audio-codec@30 {
+		compatible = "marvell,88ce156";
+		reg = <0x30>;
+
+		port {
+			ce156_0: endpoint {
+				mclk-fs = <256>;
+				clocks = <&audio_clk 0>;
+				remote-endpoint = <&sspa0_0>;
+			};
+		};
+	};
 };
 
 &twsi4 {
@@ -258,6 +288,33 @@
 		interrupts = <60 IRQ_TYPE_EDGE_RISING>;
 		compatible = "dell,wyse-ariel-ec-input", "ene,kb3930-input";
 		spi-max-frequency = <33000000>;
+	};
+};
+
+&asram {
+	status = "okay";
+};
+
+&adma0 {
+	status = "okay";
+};
+
+&audio_clk {
+	status = "okay";
+};
+
+&sspa0 {
+	status = "okay";
+	dmas = <&adma0 0>, <&adma0 1>;
+	dma-names = "tx", "rx";
+
+	sspa0_dai: port {
+		sspa0_0: endpoint {
+			remote-endpoint = <&ce156_0>;
+			frame-master;
+			bitclock-master;
+			dai-format = "i2s";
+		};
 	};
 };
 
