@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0+ OR MIT
 /*
- *  Copyright (C) 2019 Lubomir Rintel <lkundrak@v3.sk>
+ *  Copyright (C) 2019,2020 Lubomir Rintel <lkundrak@v3.sk>
  */
 
 #include <dt-bindings/clock/marvell,mmp2.h>
@@ -334,18 +334,6 @@
 				status = "disabled";
 			};
 
-			tsc: temperature-sensor@d403b000 {
-				compatible = "marvell,mmp3-thermal";
-				reg = <0xd403b000 0x1000>;
-				clock-names = "thermal0", "thermal1",
-					      "thermal2", "thermal3";
-				clocks = <&soc_clocks MMP2_CLK_THERMAL0>,
-					 <&soc_clocks MMP3_CLK_THERMAL1>,
-					 <&soc_clocks MMP3_CLK_THERMAL2>,
-					 <&soc_clocks MMP3_CLK_THERMAL3>;
-				#thermal-sensor-cells = <0>;
-			};
-
 			camera1: camera@d420a800 {
 				compatible = "marvell,mmp2-ccic";
 				reg = <0xd420a800 0x800>;
@@ -656,6 +644,18 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 				status = "disabled";
+			};
+
+			tsc: temperature-sensor@d403b000 {
+				compatible = "marvell,mmp3-thermal";
+				reg = <0xd403b000 0x1000>;
+				clock-names = "thermal0", "thermal1",
+					      "thermal2", "thermal3";
+				clocks = <&soc_clocks MMP2_CLK_THERMAL0>,
+					 <&soc_clocks MMP3_CLK_THERMAL1>,
+					 <&soc_clocks MMP3_CLK_THERMAL2>,
+					 <&soc_clocks MMP3_CLK_THERMAL3>;
+				#thermal-sensor-cells = <0>;
 			};
 		};
 
