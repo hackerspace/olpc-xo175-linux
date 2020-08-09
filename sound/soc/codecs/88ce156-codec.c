@@ -1071,7 +1071,7 @@ static int ce156_set_dai_fmt(struct snd_soc_dai *codec_dai,
 // XXX what
 static int ce156_mute_state = 1;
 
-static int ce156_mute(struct snd_soc_dai *dai, int mute)
+static int ce156_mute(struct snd_soc_dai *dai, int mute, int direction)
 {
 	struct snd_soc_component *component = dai->component;
 	
@@ -1105,10 +1105,11 @@ static int ce156_mute(struct snd_soc_dai *dai, int mute)
 
 static struct snd_soc_dai_ops ce156_dai_ops= {
 	.hw_params	= ce156_hw_params,
-	.digital_mute	= ce156_mute,
+	.mute_stream	= ce156_mute,
 	.set_fmt	= ce156_set_dai_fmt,
 	.set_sysclk	= ce156_set_dai_sysclk,
 	.set_pll	= ce156_set_dai_pll,
+	.no_capture_mute = 1,
 };
 
 struct snd_soc_dai_driver ce156_dai = {
