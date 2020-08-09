@@ -8,6 +8,7 @@
 #include <linux/clk-provider.h>
 #include <linux/io.h>
 #include <linux/module.h>
+#include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/pm_clock.h>
 #include <linux/pm_runtime.h>
@@ -31,6 +32,8 @@
 #define SSPA_AUD_CTRL_DIV_MASK			0x7e
 
 /* SSPA Audio PLL Control 0 Register */
+#define SSPA_AUD_PLL_CTRL0_DIV_MCLK1_MASK	(0x1 << 31)
+#define SSPA_AUD_PLL_CTRL0_DIV_MCLK1(x)		((x) << 31)
 #define SSPA_AUD_PLL_CTRL0_DIV_OCLK_MODULO_MASK (0x7 << 28)
 #define SSPA_AUD_PLL_CTRL0_DIV_OCLK_MODULO(x)	((x) << 28)
 #define SSPA_AUD_PLL_CTRL0_FRACT_MASK		(0xfffff << 8)
@@ -48,6 +51,10 @@
 #define SSPA_AUD_PLL_CTRL0_PU			(1 << 0)
 
 /* SSPA Audio PLL Control 1 Register */
+#define SSPA_AUD_PLL_CTRL1_DIV_MCLK2_MASK	(0x3 << 29)
+#define SSPA_AUD_PLL_CTRL1_DIV_MCLK2(x)		((x) << 29)
+#define SSPA_AUD_PLL_CTRL1_DIV_FBCCLK1_MASK	(0xf << 25)
+#define SSPA_AUD_PLL_CTRL1_DIV_FBCCLK1(x)	((x) << 25)
 #define SSPA_AUD_PLL_CTRL1_SEL_FAST_CLK		(1 << 24)
 #define SSPA_AUD_PLL_CTRL1_CLK_SEL_MASK		(1 << 11)
 #define SSPA_AUD_PLL_CTRL1_CLK_SEL_AUDIO_PLL	(1 << 11)
@@ -55,8 +62,17 @@
 #define SSPA_AUD_PLL_CTRL1_DIV_OCLK_PATTERN_MASK (0x7ff << 0)
 #define SSPA_AUD_PLL_CTRL1_DIV_OCLK_PATTERN(x)	((x) << 0)
 
+struct mmp2_audio_predivs {
+	unsigned long parent_rate;
+	unsigned long freq_vco;
+	unsigned char mclk;
+	unsigned char fbcclk;
+	unsigned short fract;
+};
+
 struct mmp2_audio_clk {
 	void __iomem *mmio_base;
+	const struct mmp2_audio_predivs *predivs;
 
 	struct clk_hw audio_pll_hw;
 	struct clk_mux sspa_mux;
@@ -78,17 +94,44 @@ struct mmp2_audio_clk {
 	struct clk_hw_onecell_data clk_data;
 };
 
-static const struct {
-	unsigned long parent_rate;
-	unsigned long freq_vco;
-	unsigned char mclk;
-	unsigned char fbcclk;
-	unsigned short fract;
-} predivs[] = {
+struct mmp2_audio_predivs mmp2_predivs[] = {
 	{ 26000000, 135475200, 0, 0, 0x8a18 },
 	{ 26000000, 147456000, 0, 1, 0x0da1 },
+
 	{ 38400000, 135475200, 1, 2, 0x8208 },
 	{ 38400000, 147456000, 1, 3, 0xaaaa },
+	{ } /* sentinel */
+};
+
+struct mmp2_audio_predivs mmp3_predivs[] = {
+	{ 26000000, 135475200, 6, 31, 0x8a18 },
+	{ 26000000, 147456000, 6, 34, 0x0da1 },
+	{ 26000000, 104000000, 8, 32, 0x0000 },
+
+	{ 38400000, 135475200, 6, 38, 0x8208 },
+	{ 38400000, 147456000, 6, 35, 0xaaaa },
+	{ 38400000, 104000000, 10, 27, 0x3269 },
+
+	{ 11289600, 135475200, 3, 36, 0x0000 },
+	{ 11289600, 147456000, 3, 39, 0x4ccc },
+	{ 11289600, 104000000, 5, 46, 0x155f },
+
+	{ 12288000, 135475200, 3, 33, 0x2526 },
+	{ 12288000, 147456000, 3, 36, 0x0000 },
+	{ 12288000, 104000000, 5, 42, 0x7b01 },
+
+	{ 13000000, 135475200, 3, 31, 0x8a18 },
+	{ 13000000, 147456000, 3, 34, 0x0da1 },
+	{ 13000000, 104000000, 4, 32, 0x0000 },
+
+	{ 19200000, 135475200, 5, 35, 0x8208 },
+	{ 19200000, 147456000, 5, 38, 0xaaaa },
+	{ 19200000, 104000000, 5, 27, 0x3269 },
+
+	{ 25000000, 135475200, 5, 27, 0x3978 },
+	{ 25000000, 147456000, 6, 35, 0xb44b },
+	{ 25000000, 104000000, 7, 29, 0x4384 },
+	{ } /* sentinel */
 };
 
 static const struct {
@@ -126,14 +169,17 @@ static unsigned long audio_pll_recalc_rate(struct clk_hw *hw,
 			 SSPA_AUD_PLL_CTRL0_ENA_DITHER |
 			 SSPA_AUD_PLL_CTRL0_DIV_FBCCLK_MASK |
 			 SSPA_AUD_PLL_CTRL0_DIV_MCLK_MASK |
+			 SSPA_AUD_PLL_CTRL0_DIV_MCLK1_MASK |
 			 SSPA_AUD_PLL_CTRL0_PU;
 
 	aud_pll_ctrl1 = readl(priv->mmio_base + SSPA_AUD_PLL_CTRL1);
 	aud_pll_ctrl1 &= SSPA_AUD_PLL_CTRL1_CLK_SEL_MASK |
-			 SSPA_AUD_PLL_CTRL1_DIV_OCLK_PATTERN_MASK;
+			 SSPA_AUD_PLL_CTRL1_DIV_FBCCLK1_MASK |
+			 SSPA_AUD_PLL_CTRL1_DIV_OCLK_PATTERN_MASK |
+			 SSPA_AUD_PLL_CTRL1_DIV_MCLK2_MASK;
 
-	for (prediv = 0; prediv < ARRAY_SIZE(predivs); prediv++) {
-		if (predivs[prediv].parent_rate != parent_rate)
+	for (prediv = 0; priv->predivs[prediv].parent_rate; prediv++) {
+		if (priv->predivs[prediv].parent_rate != parent_rate)
 			continue;
 		for (postdiv = 0; postdiv < ARRAY_SIZE(postdivs); postdiv++) {
 			unsigned long freq;
@@ -142,19 +188,23 @@ static unsigned long audio_pll_recalc_rate(struct clk_hw *hw,
 			val = SSPA_AUD_PLL_CTRL0_ENA_DITHER;
 			val |= SSPA_AUD_PLL_CTRL0_PU;
 			val |= SSPA_AUD_PLL_CTRL0_DIV_OCLK_MODULO(postdivs[postdiv].modulo);
-			val |= SSPA_AUD_PLL_CTRL0_FRACT(predivs[prediv].fract);
-			val |= SSPA_AUD_PLL_CTRL0_DIV_FBCCLK(predivs[prediv].fbcclk);
-			val |= SSPA_AUD_PLL_CTRL0_DIV_MCLK(predivs[prediv].mclk);
+			val |= SSPA_AUD_PLL_CTRL0_FRACT(priv->predivs[prediv].fract);
+			val |= SSPA_AUD_PLL_CTRL0_DIV_FBCCLK(priv->predivs[prediv].fbcclk & 0x3);
+			val |= SSPA_AUD_PLL_CTRL0_DIV_MCLK(priv->predivs[prediv].mclk & 0x1);
+			val |= SSPA_AUD_PLL_CTRL0_DIV_MCLK1((priv->predivs[prediv].mclk >> 1) & 0x1);
 			if (val != aud_pll_ctrl0)
 				continue;
 
 			val = SSPA_AUD_PLL_CTRL1_CLK_SEL_AUDIO_PLL;
+			val |= SSPA_AUD_PLL_CTRL1_DIV_FBCCLK1(priv->predivs[prediv].fbcclk >> 2);
 			val |= SSPA_AUD_PLL_CTRL1_DIV_OCLK_PATTERN(postdivs[postdiv].pattern);
+			val |= SSPA_AUD_PLL_CTRL1_DIV_MCLK2(priv->predivs[prediv].mclk >> 2);
 			if (val != aud_pll_ctrl1)
 				continue;
 
-			freq = predivs[prediv].freq_vco;
+			freq = priv->predivs[prediv].freq_vco;
 			freq /= postdivs[postdiv].divisor;
+
 			return freq;
 		}
 	}
@@ -165,15 +215,16 @@ static unsigned long audio_pll_recalc_rate(struct clk_hw *hw,
 static long audio_pll_round_rate(struct clk_hw *hw, unsigned long rate,
 				 unsigned long *parent_rate)
 {
+	struct mmp2_audio_clk *priv = container_of(hw, struct mmp2_audio_clk, audio_pll_hw);
 	unsigned int prediv;
 	unsigned int postdiv;
 	long rounded = 0;
 
-	for (prediv = 0; prediv < ARRAY_SIZE(predivs); prediv++) {
-		if (predivs[prediv].parent_rate != *parent_rate)
+	for (prediv = 0; priv->predivs[prediv].parent_rate; prediv++) {
+		if (priv->predivs[prediv].parent_rate != *parent_rate)
 			continue;
 		for (postdiv = 0; postdiv < ARRAY_SIZE(postdivs); postdiv++) {
-			long freq = predivs[prediv].freq_vco;
+			long freq = priv->predivs[prediv].freq_vco;
 
 			freq /= postdivs[postdiv].divisor;
 			if (freq == rate)
@@ -197,24 +248,27 @@ static int audio_pll_set_rate(struct clk_hw *hw, unsigned long rate,
 	unsigned int postdiv;
 	unsigned long val;
 
-	for (prediv = 0; prediv < ARRAY_SIZE(predivs); prediv++) {
-		if (predivs[prediv].parent_rate != parent_rate)
+	for (prediv = 0; priv->predivs[prediv].parent_rate; prediv++) {
+		if (priv->predivs[prediv].parent_rate != parent_rate)
 			continue;
 
 		for (postdiv = 0; postdiv < ARRAY_SIZE(postdivs); postdiv++) {
-			if (rate * postdivs[postdiv].divisor != predivs[prediv].freq_vco)
+			if (rate * postdivs[postdiv].divisor != priv->predivs[prediv].freq_vco)
 				continue;
 
 			val = SSPA_AUD_PLL_CTRL0_ENA_DITHER;
 			val |= SSPA_AUD_PLL_CTRL0_PU;
 			val |= SSPA_AUD_PLL_CTRL0_DIV_OCLK_MODULO(postdivs[postdiv].modulo);
-			val |= SSPA_AUD_PLL_CTRL0_FRACT(predivs[prediv].fract);
-			val |= SSPA_AUD_PLL_CTRL0_DIV_FBCCLK(predivs[prediv].fbcclk);
-			val |= SSPA_AUD_PLL_CTRL0_DIV_MCLK(predivs[prediv].mclk);
+			val |= SSPA_AUD_PLL_CTRL0_FRACT(priv->predivs[prediv].fract);
+			val |= SSPA_AUD_PLL_CTRL0_DIV_FBCCLK(priv->predivs[prediv].fbcclk & 0x3);
+			val |= SSPA_AUD_PLL_CTRL0_DIV_MCLK(priv->predivs[prediv].mclk & 0x1);
+			val |= SSPA_AUD_PLL_CTRL0_DIV_MCLK1((priv->predivs[prediv].mclk >> 1) & 0x1);
 			writel(val, priv->mmio_base + SSPA_AUD_PLL_CTRL0);
 
 			val = SSPA_AUD_PLL_CTRL1_CLK_SEL_AUDIO_PLL;
+			val |= SSPA_AUD_PLL_CTRL1_DIV_FBCCLK1(priv->predivs[prediv].fbcclk >> 2);
 			val |= SSPA_AUD_PLL_CTRL1_DIV_OCLK_PATTERN(postdivs[postdiv].pattern);
+			val |= SSPA_AUD_PLL_CTRL1_DIV_MCLK2(priv->predivs[prediv].mclk >> 2);
 			writel(val, priv->mmio_base + SSPA_AUD_PLL_CTRL1);
 
 			return 0;
@@ -357,6 +411,10 @@ static int mmp2_audio_clk_probe(struct platform_device *pdev)
 	spin_lock_init(&priv->lock);
 	platform_set_drvdata(pdev, priv);
 
+	priv->predivs = of_device_get_match_data(&pdev->dev);
+	if (!priv->predivs)
+		return -EINVAL;
+
 	priv->mmio_base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(priv->mmio_base))
 		return PTR_ERR(priv->mmio_base);
@@ -421,7 +479,8 @@ static const struct dev_pm_ops mmp2_audio_clk_pm_ops = {
 };
 
 static const struct of_device_id mmp2_audio_clk_of_match[] = {
-	{ .compatible = "marvell,mmp2-audio-clock" },
+	{ .compatible = "marvell,mmp2-audio-clock", .data = &mmp2_predivs },
+	{ .compatible = "marvell,mmp3-audio-clock", .data = &mmp3_predivs },
 	{}
 };
 
