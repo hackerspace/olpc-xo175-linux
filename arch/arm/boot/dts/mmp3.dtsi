@@ -42,7 +42,8 @@
 			compatible = "simple-bus";
 			#address-cells = <1>;
 			#size-cells = <1>;
-			reg = <0xd4200000 0x00200000>;
+			reg = <0xd4200000 0x00200000>,
+			      <0xc0ffd000 0x00003000>;
 			ranges;
 
 			lcd0: lcdc@d420b000 {
@@ -83,6 +84,16 @@
 				reg = <0xd4282000 0x1000>,
 				      <0xd4284000 0x100>;
 				mrvl,intc-nr-irqs = <64>;
+			};
+
+			dma_mux: interrupt-controller@d4282128 {
+				compatible = "mrvl,mmp2-mux-intc";
+				interrupts = <GIC_SPI 48 IRQ_TYPE_LEVEL_HIGH>;
+				interrupt-controller;
+				#interrupt-cells = <1>;
+				reg = <0x128 0x04 0x11c 0x04>;
+				reg-names = "mux status", "mux mask";
+				mrvl,intc-nr-irqs = <24>;
 			};
 
 			pmic_mux: interrupt-controller@d4282150 {
@@ -369,6 +380,65 @@
 					 <&soc_clocks MMP3_CLK_GPU_BUS>;
 				clock-names = "core", "bus";
 				power-domains = <&soc_clocks MMP2_POWER_DOMAIN_GPU>;
+			};
+
+			adma0: dma-controller@c0ffd800 {
+				compatible = "marvell,adma-1.0";
+				reg = <0xc0ffd800 0x100>;
+				interrupt-parent = <&dma_mux>;
+				interrupts = <18 19>;
+				#dma-cells = <1>;
+				asram = <&asram>;
+				iram = <&asram>;
+				status = "disabled";
+			};
+
+			adma1: dma-controller@c0ffd900 {
+				compatible = "marvell,adma-1.0";
+				reg = <0xc0ffd900 0x100>;
+				interrupt-parent = <&dma_mux>;
+				interrupts = <20 21>;
+				#dma-cells = <1>;
+				status = "disabled";
+			};
+
+			audio_clk: clocks@c0ffdc30 {
+				compatible = "marvell,mmp3-audio-clock";
+				reg = <0xc0ffdc30 0x10>;
+				clock-names = "audio", "vctcxo", "i2s0", "i2s1";
+				clocks = <&soc_clocks MMP2_CLK_AUDIO>,
+					 <&soc_clocks MMP2_CLK_VCTCXO>,
+					 <&soc_clocks MMP2_CLK_I2S0>,
+					 <&soc_clocks MMP2_CLK_I2S1>;
+				power-domains = <&soc_clocks MMP2_POWER_DOMAIN_AUDIO>;
+				#clock-cells = <1>;
+				status = "disabled";
+			};
+
+			sspa0: audio-controller@c0ffdc00 {
+				compatible = "marvell,mmp-sspa";
+				reg = <0xc0ffdc00 0x30>,
+				      <0xc0ffdc80 0x30>;
+				interrupts = <GIC_SPI 2 IRQ_TYPE_LEVEL_HIGH>;
+				clock-names = "audio", "bitclk";
+				clocks = <&soc_clocks MMP2_CLK_AUDIO>,
+					 <&audio_clk 1>;
+				power-domains = <&soc_clocks MMP2_POWER_DOMAIN_AUDIO>;
+				#sound-dai-cells = <0>;
+				status = "disabled";
+			};
+
+			sspa1: audio-controller@c0ffdd00 {
+				compatible = "marvell,mmp-sspa";
+				reg = <0xc0ffdd00 0x30>,
+				      <0xc0ffdd80 0x30>;
+				interrupts = <GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>;
+				clock-names = "audio", "bitclk";
+				clocks = <&soc_clocks MMP2_CLK_AUDIO>,
+					 <&audio_clk 2>;
+				power-domains = <&soc_clocks MMP2_POWER_DOMAIN_AUDIO>;
+				#sound-dai-cells = <0>;
+				status = "disabled";
 			};
 		};
 
@@ -672,6 +742,15 @@
 			reg = <0xd0020000 0x1000>;
 			cache-unified;
 			cache-level = <2>;
+		};
+
+		asram: sram@d1030000 {
+			compatible = "mmio-sram";
+			reg = <0xd1030000 0x10000>;
+			ranges = <0 0xd1030000 0x10000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			status = "disabled";
 		};
 
 		soc_clocks: clocks@d4050000 {
