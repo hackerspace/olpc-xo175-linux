@@ -207,7 +207,7 @@ int ce156_set_sample_rate(struct snd_soc_dai *codec_dai,
 {
 	struct snd_soc_component *component = codec_dai->component;
 	// XXX update bits
-	u8 rate = snd_soc_component_read32(component, CE156_ADC_RATE) & 0xf0;
+	u8 rate = snd_soc_component_read(component, CE156_ADC_RATE) & 0xf0;
 	switch(div_id){
 	case SAMPLE_RATE_8000:
 		rate |= 0x0;
@@ -262,7 +262,7 @@ static int ce156_mixer_event(struct snd_soc_dapm_widget *w,
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
 		pr_debug("after power up!\n");
-		val = snd_soc_component_read32(component,CE156_ADC_ANA_ENABLE);
+		val = snd_soc_component_read(component,CE156_ADC_ANA_ENABLE);
 		if((val & 0xc0) == 0x40)
 			snd_soc_component_write(component, CE156_ADC_ANA_ENABLE, (val & 0xf7));
 		else if((val & 0xc0) == 0x80)
@@ -513,7 +513,7 @@ static const unsigned int dac_gain_tlv[] = {
 static int ce156_mute_mode_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
-	u8 mute_reg = snd_soc_component_read32(component, CE156_DAC_ANA_ENABLE) & 0xff;
+	u8 mute_reg = snd_soc_component_read(component, CE156_DAC_ANA_ENABLE) & 0xff;
 
 	if( mute_reg == 0x00 ) {
 		ucontrol->value.integer.value[0] = 1;
@@ -528,7 +528,7 @@ static int ce156_mute_mode_get(struct snd_kcontrol *kcontrol, struct snd_ctl_ele
 static int ce156_mute_mode_set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
-	u8 mute_reg = snd_soc_component_read32(component, CE156_DAC_ANA_ENABLE) & 0xff;
+	u8 mute_reg = snd_soc_component_read(component, CE156_DAC_ANA_ENABLE) & 0xff;
 	u8 tmp = 0;
 
 	if( ucontrol->value.integer.value[0] == 1 ) {
@@ -549,7 +549,7 @@ static int ce156_mute_mode_set(struct snd_kcontrol *kcontrol, struct snd_ctl_ele
 static int ce156_right_mute_mode_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
-	u8 mute_reg = snd_soc_component_read32(component, CE156_DAC_ANA_ENABLE) & 0xff;
+	u8 mute_reg = snd_soc_component_read(component, CE156_DAC_ANA_ENABLE) & 0xff;
 	
 	if( mute_reg == 0x63 ) {
 		ucontrol->value.integer.value[0] = 0;
@@ -567,7 +567,7 @@ static int ce156_right_mute_mode_get(struct snd_kcontrol *kcontrol, struct snd_c
 static int ce156_right_mute_mode_set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
-	u8 mute_reg = snd_soc_component_read32(component, CE156_DAC_ANA_ENABLE) & 0xff;
+	u8 mute_reg = snd_soc_component_read(component, CE156_DAC_ANA_ENABLE) & 0xff;
 
 	if( ucontrol->value.integer.value[0] == 1 ) {
 		mute_reg &= ~(RIGHT_HEADPHONE_PA_ENABLE);
@@ -584,7 +584,7 @@ static int ce156_right_mute_mode_set(struct snd_kcontrol *kcontrol, struct snd_c
 static int ce156_left_mute_mode_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
-	u8 mute_reg = snd_soc_component_read32(component, CE156_DAC_ANA_ENABLE) & 0xff;
+	u8 mute_reg = snd_soc_component_read(component, CE156_DAC_ANA_ENABLE) & 0xff;
 
         if( mute_reg == 0x63 ) {
                 ucontrol->value.integer.value[0] = 0;
@@ -604,7 +604,7 @@ static int ce156_left_mute_mode_get(struct snd_kcontrol *kcontrol, struct snd_ct
 static int ce156_left_mute_mode_set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
-	u8 mute_reg = snd_soc_component_read32(component, CE156_DAC_ANA_ENABLE) & 0xff;
+	u8 mute_reg = snd_soc_component_read(component, CE156_DAC_ANA_ENABLE) & 0xff;
 	u8 tmp = 0;
 	
         if( ucontrol->value.integer.value[0] == 1 ) {
@@ -971,7 +971,7 @@ static int ce156_hw_params(struct snd_pcm_substream *substream,
 	//struct ce156_priv *ce156 = codec->private_data;
 
 	// XXX update bits
-	u8 iface = snd_soc_component_read32(component, CE156_I2S1) & 0xcf;
+	u8 iface = snd_soc_component_read(component, CE156_I2S1) & 0xcf;
 	int rate  = params_rate(params);
 	int coeff = ce156_get_coeff(rate);
 
@@ -1075,7 +1075,7 @@ static int ce156_mute(struct snd_soc_dai *dai, int mute)
 {
 	struct snd_soc_component *component = dai->component;
 	
-	u8 mute_reg = snd_soc_component_read32(component, CE156_DAC_DWA_OFST) & 0xff;
+	u8 mute_reg = snd_soc_component_read(component, CE156_DAC_DWA_OFST) & 0xff;
 	
 	ce156_mute_state = mute;
 
