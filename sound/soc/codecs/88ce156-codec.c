@@ -36,7 +36,8 @@
 
 #define AUDIO_NAME "ce156"
 #define CE156_VERSION "a0"
-#define USE_DAPM_CTRL 0  // remove for audio recoder
+#define USE_DAPM_CTRL 1  // remove for audio recoder
+#define CONFIG_MACH_QSEVEN
 
 #define CE156_DAPM_OUTPUT(wname, wevent)	\
 {	.id = snd_soc_dapm_pga, .name = wname, .reg = SND_SOC_NOPM, \
