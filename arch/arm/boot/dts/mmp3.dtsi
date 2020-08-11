@@ -379,6 +379,14 @@
 			reg = <0xd4000000 0x00200000>;
 			ranges;
 
+			dma-controller@d4000000 {
+				compatible = "marvell,pdma-1.0";
+				reg = <0xd4000000 0x10000>;
+				interrupts = <GIC_SPI 48 IRQ_TYPE_LEVEL_HIGH>;
+				#dma-channels = <16>;
+				status = "disabled";
+			};
+
 			timer: timer@d4014000 {
 				compatible = "mrvl,mmp-timer";
 				reg = <0xd4014000 0x100>;
