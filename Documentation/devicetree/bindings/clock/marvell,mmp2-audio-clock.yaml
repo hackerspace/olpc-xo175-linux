@@ -23,6 +23,7 @@ properties:
   compatible:
     enum:
       - marvell,mmp2-audio-clock
+      - marvell,mmp3-audio-clock
 
   reg:
     maxItems: 1
