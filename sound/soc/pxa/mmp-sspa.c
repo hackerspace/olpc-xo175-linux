@@ -46,7 +46,6 @@ static void mmp_sspa_tx_enable(struct sspa_priv *sspa)
 {
 	unsigned int sspa_sp = sspa->sp;
 
-	sspa_sp &= ~SSPA_SP_MSL;
 	sspa_sp |= SSPA_SP_S_EN;
 	sspa_sp |= SSPA_SP_WEN;
 	__raw_writel(sspa_sp, sspa->tx_base + SSPA_SP);
@@ -56,7 +55,6 @@ static void mmp_sspa_tx_disable(struct sspa_priv *sspa)
 {
 	unsigned int sspa_sp = sspa->sp;
 
-	sspa_sp &= ~SSPA_SP_MSL;
 	sspa_sp &= ~SSPA_SP_S_EN;
 	sspa_sp |= SSPA_SP_WEN;
 	__raw_writel(sspa_sp, sspa->tx_base + SSPA_SP);
@@ -433,15 +431,6 @@ static int mmp_sspa_open(struct snd_soc_component *component,
 	sspa->sp &= ~(SSPA_SP_S_RST | SSPA_SP_FFLUSH);
 	__raw_writel(sspa->sp, sspa->tx_base + SSPA_SP);
 	__raw_writel(sspa->sp, sspa->rx_base + SSPA_SP);
-
-	/*
-	 * FIXME: hw issue, for the tx serial port,
-	 * can not config the master/slave mode;
-	 * so must clean this bit.
-	 * The master/slave mode has been set in the
-	 * rx port.
-	 */
-	__raw_writel(sspa->sp & ~SSPA_SP_MSL, sspa->tx_base + SSPA_SP);
 
 	__raw_writel(sspa->ctrl, sspa->tx_base + SSPA_CTL);
 	__raw_writel(sspa->ctrl, sspa->rx_base + SSPA_CTL);
