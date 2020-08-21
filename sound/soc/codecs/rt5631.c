@@ -211,6 +211,18 @@ static SOC_ENUM_SINGLE_DECL(rt5631_mic1_mode_enum, RT5631_MIC_CTRL_1,
 static SOC_ENUM_SINGLE_DECL(rt5631_mic2_mode_enum, RT5631_MIC_CTRL_1,
 			    RT5631_MIC2_DIFF_INPUT_SHIFT, rt5631_input_mode);
 
+/* MIC Bias Voltage */
+static char const *rt5631_micbias_v_sel[] = {
+	"0.9V", "0.75V"};
+
+static SOC_ENUM_SINGLE_DECL(rt5631_micbias1_v_enum, RT5631_MIC_CTRL_2,
+			    RT5631_MICBIAS1_VOLT_CTRL_SHIFT,
+			    rt5631_micbias_v_sel);
+
+static SOC_ENUM_SINGLE_DECL(rt5631_micbias2_v_enum, RT5631_MIC_CTRL_2,
+			    RT5631_MICBIAS2_VOLT_CTRL_SHIFT,
+			    rt5631_micbias_v_sel);
+
 /* MONO Input Type */
 static SOC_ENUM_SINGLE_DECL(rt5631_monoin_mode_enum, RT5631_MONO_INPUT_VOL,
 			    RT5631_MONO_DIFF_INPUT_SHIFT, rt5631_input_mode);
@@ -230,6 +242,8 @@ static const struct snd_kcontrol_new rt5631_snd_controls[] = {
 	SOC_ENUM("MIC2 Mode Control", rt5631_mic2_mode_enum),
 	SOC_SINGLE_TLV("MIC2 Boost Volume", RT5631_MIC_CTRL_2,
 		RT5631_MIC2_BOOST_SHIFT, 8, 0, mic_bst_tlv),
+	SOC_ENUM("MIC1 Bias Voltage", rt5631_micbias1_v_enum),
+	SOC_ENUM("MIC2 Bias Voltage", rt5631_micbias2_v_enum),
 	/* MONO IN */
 	SOC_ENUM("MONOIN Mode Control", rt5631_monoin_mode_enum),
 	SOC_DOUBLE_TLV("MONOIN_RX Capture Volume", RT5631_MONO_INPUT_VOL,
