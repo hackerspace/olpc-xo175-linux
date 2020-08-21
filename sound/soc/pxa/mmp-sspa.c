@@ -238,8 +238,9 @@ static int mmp_sspa_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	sspa_ctrl &= ~SSPA_CTL_XPH;
-	if (dev->of_node || params_channels(params) == 2)
-		sspa_ctrl |= SSPA_CTL_XPH;
+	// XXX no longer necessary ^v^v^v
+	//if (dev->of_node || params_channels(params) == 2)
+	//	sspa_ctrl |= SSPA_CTL_XPH;
 
 	sspa_ctrl &= ~SSPA_CTL_XWDLEN1_MASK;
 	sspa_ctrl |= SSPA_CTL_XWDLEN1(bitval);
