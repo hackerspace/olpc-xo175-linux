@@ -250,6 +250,9 @@ static int mmp_sspa_hw_params(struct snd_pcm_substream *substream,
 	sspa_ctrl &= ~SSPA_CTL_XSSZ1_MASK;
 	sspa_ctrl |= SSPA_CTL_XSSZ1(bitval);
 
+	sspa_ctrl &= ~SSPA_CTL_XWDLEN2_MASK;
+	sspa_ctrl |= SSPA_CTL_XWDLEN2(bitval);
+
 	sspa_ctrl &= ~SSPA_CTL_XSSZ2_MASK;
 	sspa_ctrl |= SSPA_CTL_XSSZ2(bitval);
 
