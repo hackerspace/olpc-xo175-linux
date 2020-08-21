@@ -64,8 +64,10 @@ static void mmp_sspa_rx_enable(struct sspa_priv *sspa)
 {
 	unsigned int sspa_sp = sspa->sp;
 
-	sspa_sp |= SSPA_SP_S_EN;
 	sspa_sp |= SSPA_SP_WEN;
+	__raw_writel(sspa_sp & ~SSPA_SP_MSL, sspa->tx_base + SSPA_SP);
+
+	sspa_sp |= SSPA_SP_S_EN;
 	__raw_writel(sspa_sp, sspa->rx_base + SSPA_SP);
 }
 
@@ -195,6 +197,8 @@ static int mmp_sspa_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 		return -EINVAL;
 	}
 
+	printk("XXX mmp_sspa_set_dai_fmt sspa->ctrl=%08x\n", sspa->ctrl);
+
 	/* Since we are configuring the timings for the format by hand
 	 * we have to defer some things until hw_params() where we
 	 * know parameters like the sample size.
@@ -275,6 +279,9 @@ static int mmp_sspa_hw_params(struct snd_pcm_substream *substream,
 		__raw_writel(sspa_ctrl, sspa->rx_base + SSPA_CTL);
 		__raw_writel(0x10, sspa->rx_base + SSPA_FIFO_UL);
 	}
+
+
+	printk("XXX mmp_sspa_hw_params sspa_ctrl=%08x bitval=%d\n", sspa_ctrl, bitval);
 
 	return 0;
 }
@@ -433,11 +440,13 @@ static int mmp_sspa_open(struct snd_soc_component *component,
 	__raw_writel(sspa->sp, sspa->rx_base + SSPA_SP);
 
 	sspa->sp &= ~(SSPA_SP_S_RST | SSPA_SP_FFLUSH);
-	__raw_writel(sspa->sp, sspa->tx_base + SSPA_SP);
+	__raw_writel(sspa->sp & ~SSPA_SP_MSL, sspa->tx_base + SSPA_SP);
 	__raw_writel(sspa->sp, sspa->rx_base + SSPA_SP);
+	printk("XXX mmp_sspa_open sspa->sp=%08x\n", sspa->sp);
 
 	__raw_writel(sspa->ctrl, sspa->tx_base + SSPA_CTL);
 	__raw_writel(sspa->ctrl, sspa->rx_base + SSPA_CTL);
+	printk("XXX mmp_sspa_open sspa->ctrl=%08x\n", sspa->ctrl);
 
 	return 0;
 }
