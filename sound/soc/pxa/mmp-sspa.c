@@ -64,6 +64,9 @@ static void mmp_sspa_rx_enable(struct sspa_priv *sspa)
 {
 	unsigned int sspa_sp = sspa->sp;
 
+	// XXX
+	sspa_sp &= ~SSPA_SP_MSL;
+
 	sspa_sp |= SSPA_SP_S_EN;
 	sspa_sp |= SSPA_SP_WEN;
 	__raw_writel(sspa_sp, sspa->rx_base + SSPA_SP);
