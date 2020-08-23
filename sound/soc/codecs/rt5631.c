@@ -1422,19 +1422,14 @@ static int rt5631_hifi_codec_set_dai_fmt(struct snd_soc_dai *codec_dai,
 	struct rt5631_priv *rt5631 = snd_soc_component_get_drvdata(component);
 	unsigned int iface = 0;
 
-
-	printk ("XXX SET DAI FMT fmt=%08x (slave=%08x)\n", fmt, RT5631_SDP_MODE_SEL_SLAVE);
-
 	dev_dbg(component->dev, "enter %s\n", __func__);
 
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
 	case SND_SOC_DAIFMT_CBM_CFM:
-		printk ("XXX MASTER\n");
 		rt5631->master = 1;
 		break;
 	case SND_SOC_DAIFMT_CBS_CFS:
 		iface |= RT5631_SDP_MODE_SEL_SLAVE;
-		printk ("XXX SLAVE\n");
 		rt5631->master = 0;
 		break;
 	default:
@@ -1467,7 +1462,6 @@ static int rt5631_hifi_codec_set_dai_fmt(struct snd_soc_dai *codec_dai,
 		return -EINVAL;
 	}
 
-	printk ("XXX SET DAI FMT set RT5631_SDP_CTRL=%08x\n", iface);
 	snd_soc_component_write(component, RT5631_SDP_CTRL, iface);
 
 	return 0;
