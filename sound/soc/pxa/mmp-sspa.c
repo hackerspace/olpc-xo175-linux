@@ -266,10 +266,10 @@ static int mmp_sspa_hw_params(struct snd_pcm_substream *substream,
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		__raw_writel(sspa_ctrl, sspa->tx_base + SSPA_CTL);
-		__raw_writel(0x1, sspa->tx_base + SSPA_FIFO_UL);
+		__raw_writel(0x10, sspa->tx_base + SSPA_FIFO_UL);
 	} else {
 		__raw_writel(sspa_ctrl, sspa->rx_base + SSPA_CTL);
-		__raw_writel(0x0, sspa->rx_base + SSPA_FIFO_UL);
+		__raw_writel(0x10, sspa->rx_base + SSPA_FIFO_UL);
 	}
 
 	return 0;
