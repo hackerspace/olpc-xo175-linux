@@ -61,7 +61,7 @@
 		};
 	};
 
-	i2c {
+	i2c-dcon {
 		compatible = "i2c-gpio";
 		sda-gpios = <&gpio 110 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
 		scl-gpios = <&gpio 161 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
@@ -105,7 +105,7 @@
 		};
 	};
 
-	i2c {
+	i2c-camera {
 		compatible = "i2c-gpio";
 		sda-gpios = <&gpio 109 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
 		scl-gpios = <&gpio 108 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
