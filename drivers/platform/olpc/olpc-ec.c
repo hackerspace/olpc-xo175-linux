@@ -5,6 +5,7 @@
  * Author: Andres Salomon <dilinger@queued.net>
  *
  * Copyright (C) 2011-2012 One Laptop per Child Foundation.
+ * Copyright (C) 2020 Lubomir Rintel <lkundrak@v3.sk>
  */
 #include <linux/completion.h>
 #include <linux/debugfs.h>
@@ -17,6 +18,7 @@
 #include <linux/list.h>
 #include <linux/regulator/driver.h>
 #include <linux/olpc-ec.h>
+#include <linux/of.h>
 
 struct ec_cmd_desc {
 	u8 cmd;
@@ -37,7 +39,7 @@ struct olpc_ec_priv {
 	struct mutex cmd_lock;
 
 	/* DCON regulator */
-	bool dcon_enabled;
+	unsigned int dcon_enable_count;
 
 	/* Pending EC commands */
 	struct list_head cmd_q;
@@ -352,38 +354,45 @@ static struct dentry *olpc_ec_setup_debugfs(void)
 static int olpc_ec_set_dcon_power(struct olpc_ec_priv *ec, bool state)
 {
 	unsigned char ec_byte = state;
-	int ret;
 
-	if (ec->dcon_enabled == state)
-		return 0;
-
-	ret = olpc_ec_cmd(EC_DCON_POWER_MODE, &ec_byte, 1, NULL, 0);
-	if (ret)
-		return ret;
-
-	ec->dcon_enabled = state;
-	return 0;
+	return olpc_ec_cmd(EC_DCON_POWER_MODE, &ec_byte, 1, NULL, 0);
 }
 
 static int dcon_regulator_enable(struct regulator_dev *rdev)
 {
 	struct olpc_ec_priv *ec = rdev_get_drvdata(rdev);
+	int ret;
 
-	return olpc_ec_set_dcon_power(ec, true);
+	if (ec->dcon_enable_count == 0) {
+		ret = olpc_ec_set_dcon_power(ec, true);
+		if (ret)
+			return ret;
+	}
+
+	ec->dcon_enable_count++;
+	return 0;
 }
 
 static int dcon_regulator_disable(struct regulator_dev *rdev)
 {
 	struct olpc_ec_priv *ec = rdev_get_drvdata(rdev);
+	int ret;
 
-	return olpc_ec_set_dcon_power(ec, false);
+	if (ec->dcon_enable_count == 1) {
+		ret = olpc_ec_set_dcon_power(ec, false);
+		if (ret)
+			return ret;
+	}
+
+	ec->dcon_enable_count--;
+	return 0;
 }
 
 static int dcon_regulator_is_enabled(struct regulator_dev *rdev)
 {
 	struct olpc_ec_priv *ec = rdev_get_drvdata(rdev);
 
-	return ec->dcon_enabled ? 1 : 0;
+	return ec->dcon_enable_count ? 1 : 0;
 }
 
 static struct regulator_ops dcon_regulator_ops = {
@@ -392,12 +401,35 @@ static struct regulator_ops dcon_regulator_ops = {
 	.is_enabled	= dcon_regulator_is_enabled,
 };
 
-static const struct regulator_desc dcon_desc = {
-	.name	= "dcon",
-	.id	= 0,
-	.ops	= &dcon_regulator_ops,
-	.type	= REGULATOR_VOLTAGE,
-	.owner	= THIS_MODULE,
+static const struct regulator_desc regulators[] = {
+	{
+		.name		= "v2_5_dcon",
+		.of_match	= of_match_ptr("v2_5_dcon"),
+		.regulators_node = of_match_ptr("regulators"),
+		.n_voltages	= 1,
+		.fixed_uV	= 2500000,
+		.ops		= &dcon_regulator_ops,
+		.type		= REGULATOR_VOLTAGE,
+		.owner		= THIS_MODULE,
+	}, {
+		.name		= "v3_3_dcon",
+		.of_match	= of_match_ptr("v3_3_dcon"),
+		.regulators_node = of_match_ptr("regulators"),
+		.n_voltages	= 1,
+		.fixed_uV	= 3300000,
+		.ops		= &dcon_regulator_ops,
+		.type		= REGULATOR_VOLTAGE,
+		.owner		= THIS_MODULE,
+	}, {
+		.name		= "v1_8_dcon",
+		.of_match	= of_match_ptr("v1_8_dcon"),
+		.regulators_node = of_match_ptr("regulators"),
+		.n_voltages	= 1,
+		.fixed_uV	= 1800000,
+		.ops		= &dcon_regulator_ops,
+		.type		= REGULATOR_VOLTAGE,
+		.owner		= THIS_MODULE,
+	}
 };
 
 static int olpc_ec_probe(struct platform_device *pdev)
@@ -405,6 +437,7 @@ static int olpc_ec_probe(struct platform_device *pdev)
 	struct olpc_ec_priv *ec;
 	struct regulator_config config = { };
 	struct regulator_dev *regulator;
+	int i;
 	int err;
 
 	if (!ec_driver)
@@ -431,12 +464,17 @@ static int olpc_ec_probe(struct platform_device *pdev)
 
 	config.dev = pdev->dev.parent;
 	config.driver_data = ec;
-	ec->dcon_enabled = true;
-	regulator = devm_regulator_register(&pdev->dev, &dcon_desc, &config);
-	if (IS_ERR(regulator)) {
-		dev_err(&pdev->dev, "failed to register DCON regulator\n");
-		err = PTR_ERR(regulator);
-		goto error;
+	ec->dcon_enable_count = ARRAY_SIZE(regulators);
+
+	for (i = 0; i < ARRAY_SIZE(regulators); i++) {
+		regulator = devm_regulator_register(&pdev->dev,
+				&regulators[i], &config);
+		if (IS_ERR(regulator)) {
+			dev_err(&pdev->dev, "failed to register %s regulator\n",
+					regulators[i].name);
+			err = PTR_ERR(regulator);
+			goto error;
+		}
 	}
 
 	ec->dbgfs_dir = olpc_ec_setup_debugfs();
