@@ -16,6 +16,7 @@
 #include <linux/gpio/consumer.h>
 #include <linux/module.h>
 #include <linux/regmap.h>
+#include <linux/regulator/consumer.h>
 
 #define bridge_to_hx8837_priv(x) \
 	container_of(x, struct hx8837_priv, bridge)
@@ -62,6 +63,7 @@ struct hx8837_priv {
 	struct device *dev;
 	struct regmap *regmap;
 	struct gpio_desc *load_gpio;
+	struct regulator_bulk_data supplies[4];
 
 	struct drm_bridge *panel_bridge;
 	struct drm_bridge bridge;
@@ -101,6 +103,18 @@ static enum drm_mode_status hx8837_bridge_mode_valid(
 	return MODE_OK;
 }
 
+static void hx8837_bridge_post_disable(struct drm_bridge *bridge)
+{
+	struct hx8837_priv *priv = bridge_to_hx8837_priv(bridge);
+	int ret;
+
+	ret = regulator_bulk_disable(ARRAY_SIZE(priv->supplies),
+				     priv->supplies);
+	if (ret)
+		dev_err(priv->dev,"cannot disable regulators %d\n", ret);
+
+}
+
 static void hx8837_bridge_disable(struct drm_bridge *bridge)
 {
 	struct hx8837_priv *priv = bridge_to_hx8837_priv(bridge);
@@ -117,6 +131,17 @@ static void hx8837_bridge_disable(struct drm_bridge *bridge)
 					       MODE_SLEEP);
 	if (ret)
 		dev_err(priv->dev, "error disabling the dcon: %d\n", ret);
+}
+
+static void hx8837_bridge_pre_enable(struct drm_bridge *bridge)
+{
+	struct hx8837_priv *priv = bridge_to_hx8837_priv(bridge);
+	int ret;
+
+	ret = regulator_bulk_enable(ARRAY_SIZE(priv->supplies),
+				    priv->supplies);
+	if (ret)
+		dev_err(priv->dev,"cannot enable regulators %d\n", ret);
 }
 
 static void hx8837_bridge_enable(struct drm_bridge *bridge)
@@ -163,7 +188,9 @@ static void hx8837_bridge_mode_set(struct drm_bridge *bridge,
 static const struct drm_bridge_funcs hx8837_bridge_funcs = {
 	.attach = hx8837_bridge_attach,
 	.mode_valid = hx8837_bridge_mode_valid,
+	.post_disable = hx8837_bridge_post_disable,
 	.disable = hx8837_bridge_disable,
+	.pre_enable = hx8837_bridge_pre_enable,
 	.enable = hx8837_bridge_enable,
 	.mode_set = hx8837_bridge_mode_set,
 };
@@ -231,6 +258,15 @@ static int hx8837_probe(struct i2c_client *client,
 
 	dev_set_drvdata(dev, priv);
 	priv->dev = dev;
+
+	priv->supplies[0].supply = "vddp18";
+	priv->supplies[1].supply = "vddm25";
+	priv->supplies[2].supply = "vdd33";
+	priv->supplies[3].supply = "vddk18";
+	ret = devm_regulator_bulk_get(dev, ARRAY_SIZE(priv->supplies),
+				      priv->supplies);
+	if (ret)
+		return ret;
 
 	priv->load_gpio = devm_gpiod_get(dev, "load", GPIOD_ASIS);
 	if (IS_ERR(priv->load_gpio))
