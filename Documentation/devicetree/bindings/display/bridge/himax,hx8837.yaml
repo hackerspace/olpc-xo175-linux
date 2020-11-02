@@ -29,6 +29,18 @@ properties:
     maxItems: 1
     description: Interrupt specifier of DCON_IRQ pin (edge falling)
 
+  vddp18-supply:
+    description: Regulator for 1.8V display interface I/O power.
+
+  vddm25-supply:
+    description: Regulator for 2.5V SDRAM I/O power.
+
+  vdd33-supply:
+    description: Regulator for 3.3V digital I/O power.
+
+  vddk18-supply:
+    description: Regulator for 1.8V internal core power.
+
   ports:
     type: object
 
@@ -53,6 +65,10 @@ required:
   - load-gpios
   - stat-gpios
   - interrupts
+  - vddp18-supply
+  - vddm25-supply
+  - vdd33-supply
+  - vddk18-supply
   - ports
 
 additionalProperties: false

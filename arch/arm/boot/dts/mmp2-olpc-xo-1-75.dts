@@ -72,12 +72,16 @@
 
 		dcon@d {
 			compatible = "himax,hx8837";
+			reg = <0x0d>;
 			stat-gpios = <&gpio 100 GPIO_ACTIVE_HIGH>,
 				     <&gpio 101 GPIO_ACTIVE_HIGH>;
 			load-gpio = <&gpio 142 GPIO_ACTIVE_HIGH>;
 			interrupt-parent= <&gpio>;
 			interrupts = <124 IRQ_TYPE_EDGE_FALLING>;
-			reg = <0x0d>;
+			vddp18-supply = <&lcd_in_reg>;
+			vddm25-supply = <&v2_5_dcon_reg>;
+			vdd33-supply = <&v3_3_dcon_reg>;
+			vddk18-supply = <&v1_8_dcon_reg>;
 			status = "okay";
 
 			ports {
@@ -155,6 +159,13 @@
 		compatible = "mmc-pwrseq-sd8787";
 		powerdown-gpios = <&gpio 57 GPIO_ACTIVE_HIGH>;
 		reset-gpios = <&gpio 58 GPIO_ACTIVE_HIGH>;
+	};
+
+	lcd_in_reg: fixedregulator1 {
+		compatible = "regulator-fixed";
+		regulator-name = "v1_8_lcd";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
 	};
 
 	sound-card {
@@ -327,6 +338,26 @@
 		compatible = "olpc,xo1.75-ec";
 		spi-cpha;
 		cmd-gpios = <&gpio 155 GPIO_ACTIVE_HIGH>;
+
+		regulators {
+			v2_5_dcon_reg: v2_5_dcon {
+				regulator-name = "v2_5_dcon";
+				regulator-min-microvolt = <2500000>;
+				regulator-max-microvolt = <2500000>;
+			};
+
+			v3_3_dcon_reg: v3_3_dcon {
+				regulator-name = "v3_3_dcon";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+			};
+
+			v1_8_dcon_reg: v1_8_dcon {
+				regulator-name = "v1_8_dcon";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+			};
+		};
 	};
 };
 
