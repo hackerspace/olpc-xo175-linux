@@ -429,6 +429,7 @@ static const struct regulator_desc regulators[] = {
 		.ops		= &dcon_regulator_ops,
 		.type		= REGULATOR_VOLTAGE,
 		.owner		= THIS_MODULE,
+		.enable_time	= 25000,
 	}
 };
 
