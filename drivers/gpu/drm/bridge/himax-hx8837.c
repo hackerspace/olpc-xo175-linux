@@ -75,8 +75,19 @@ static int hx8837_bridge_attach(struct drm_bridge *bridge,
 {
 	struct hx8837_priv *priv = bridge_to_hx8837_priv(bridge);
 
+	printk("==== PRE ENABLE ===\n");
+	pm_runtime_get_sync(priv->dev);
+
 	return drm_bridge_attach(bridge->encoder, priv->panel_bridge,
 				 bridge, flags);
+}
+
+static void hx8837_bridge_detach(struct drm_bridge *bridge)
+{
+	struct hx8837_priv *priv = bridge_to_hx8837_priv(bridge);
+
+	printk("==== POST DISABLE ===\n");
+	pm_runtime_put_sync(priv->dev);
 }
 
 static enum drm_mode_status hx8837_bridge_mode_valid(
@@ -104,14 +115,6 @@ static enum drm_mode_status hx8837_bridge_mode_valid(
 	return MODE_OK;
 }
 
-static void hx8837_bridge_post_disable(struct drm_bridge *bridge)
-{
-	struct hx8837_priv *priv = bridge_to_hx8837_priv(bridge);
-
-	printk("==== POST DISABLE ===\n");
-	pm_runtime_put_sync(priv->dev);
-}
-
 static void hx8837_bridge_disable(struct drm_bridge *bridge)
 {
 	struct hx8837_priv *priv = bridge_to_hx8837_priv(bridge);
@@ -129,14 +132,6 @@ static void hx8837_bridge_disable(struct drm_bridge *bridge)
 					       MODE_SLEEP);
 	if (ret)
 		dev_err(priv->dev, "error disabling the dcon: %d\n", ret);
-}
-
-static void hx8837_bridge_pre_enable(struct drm_bridge *bridge)
-{
-	struct hx8837_priv *priv = bridge_to_hx8837_priv(bridge);
-
-	printk("==== PRE ENABLE ===\n");
-	pm_runtime_get_sync(priv->dev);
 }
 
 static void hx8837_bridge_enable(struct drm_bridge *bridge)
@@ -184,10 +179,9 @@ static void hx8837_bridge_mode_set(struct drm_bridge *bridge,
 
 static const struct drm_bridge_funcs hx8837_bridge_funcs = {
 	.attach = hx8837_bridge_attach,
+	.detach = hx8837_bridge_detach,
 	.mode_valid = hx8837_bridge_mode_valid,
-	.post_disable = hx8837_bridge_post_disable,
 	.disable = hx8837_bridge_disable,
-	.pre_enable = hx8837_bridge_pre_enable,
 	.enable = hx8837_bridge_enable,
 	.mode_set = hx8837_bridge_mode_set,
 };
@@ -284,6 +278,7 @@ static int hx8837_probe(struct i2c_client *client,
 
 	//pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
+//pm_runtime_get_sync(priv->dev);
 
 	priv->regmap = devm_regmap_init_i2c(client, &hx8837_regmap_config);
 	if (IS_ERR(priv->regmap)) {
@@ -325,12 +320,13 @@ static int hx8837_probe(struct i2c_client *client,
 	priv->bridge.of_node = dev->of_node;
 	drm_bridge_add(&priv->bridge);
 
-	pm_runtime_idle(dev);
+	//pm_runtime_idle(dev);
 	return 0;
 
 error:
+//pm_runtime_put_sync(priv->dev);
 	pm_runtime_disable(dev);
-	pm_runtime_set_suspended(dev);
+	//pm_runtime_set_suspended(dev);
 	return ret;
 }
 
@@ -339,10 +335,13 @@ static int hx8837_remove(struct i2c_client *client)
 	struct device *dev = &client->dev;
 	struct hx8837_priv *priv = dev_get_drvdata(dev);
 
+	if (priv->bridge.dev)
+		drm_bridge_detach(&priv->bridge);
 	drm_bridge_remove(&priv->bridge);
 
 	printk("=== REMOVE ===\n");
 	//pm_runtime_get_sync(dev);
+//pm_runtime_put_sync(priv->dev);
 	pm_runtime_disable(dev);
 	//pm_runtime_set_suspended(dev);
 	//pm_runtime_put_noidle(dev);
