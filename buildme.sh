@@ -56,6 +56,7 @@ if [ -z "$XO" ]; then
 	XO=butt.lan PART=/
 	XO=xo.local PART=/
 	XO=t00d.lan PART=/boot/efi
+	XO=butt.lan PART=/
 	mkimage -A arm -O linux -C none  -T kernel -a 0x00008000 -e 0x00008000 -n "Linux-$(git describe --abbrev=7)-dajia" -d \
 		arch/$ARCH/boot/$IMAGE.dt arch/$ARCH/boot/uImage || exit 1
 	if [ -d /run/media/lkundrak/DELLWYSEIMG ]; then
