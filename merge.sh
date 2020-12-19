@@ -2,14 +2,14 @@ set -x
 set -e
 
 BRANCHES=""
-BRANCHES="$BRANCHES xo/lr/mmp3-hsic-phy-v3"
+BRANCHES="$BRANCHES xo/lr/mmp-dts"
 BRANCHES="$BRANCHES xo/lr/mmp3-thermal-v1"
-BRANCHES="$BRANCHES xo/lr/olpc-xo175-drm-dt-v7"
+BRANCHES="$BRANCHES xo/lr/olpc-xo175-drm-dt-v8"
 BRANCHES="$BRANCHES xo/lr/olpc-xo175-armada-v4"
 BRANCHES="$BRANCHES xo/lr/olpc-xo175-fixes12"
 
 git branch -D merged || :
-git checkout -b merged v5.10-rc6
+git checkout -b merged 3644e2d2dda78e21edd8f5415b6d7ab03f5f54f3
 
 for B in $BRANCHES; do
 	EDITOR=: git merge --no-ff $B
