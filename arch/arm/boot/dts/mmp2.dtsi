@@ -326,6 +326,31 @@
 				status = "disabled";
 			};
 
+			pinctrl: pinctrl@d401e000 {
+				compatible = "pinconf-single";
+				reg = <0xd401e000 0x2c4>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+				#pinctrl-cells = <1>;
+
+				pinctrl-single,register-width = <32>;
+				pinctrl-single,function-mask = <7>;
+				pinctrl-single,bias-pulldown = <(5 << 13) (5 << 13) 0 (7 << 13)>;
+				pinctrl-single,bias-pullup = <(6 << 13) (6 << 13) 0 (7 << 13)>;
+
+				pinctrl-single,gpio-range = <&pinctrl_gpio_range 0x0 3 1>,
+							    <&pinctrl_gpio_range 0xc 77 0>,
+							    <&pinctrl_gpio_range 0x148 1 0>,
+							    <&pinctrl_gpio_range 0x14c 4 1>,
+							    <&pinctrl_gpio_range 0x170 28 0>,
+							    <&pinctrl_gpio_range 0x1e0 32 1>,
+							    <&pinctrl_gpio_range 0x260 23 0>;
+
+				pinctrl_gpio_range: gpio-range {
+					#pinctrl-single,gpio-range-cells = <3>;
+				};
+			};
+
 			gpio: gpio@d4019000 {
 				compatible = "marvell,mmp2-gpio";
 				#address-cells = <1>;
@@ -340,6 +365,37 @@
 				interrupt-controller;
 				#interrupt-cells = <2>;
 				ranges;
+
+				gpio-ranges = <&pinctrl 0 21 59>,
+					      <&pinctrl 59 160 15>,
+					      <&pinctrl 74 92 28>,
+					      <&pinctrl 102 0 2>,
+					      <&pinctrl 104 127 1>,
+					      <&pinctrl 105 126 1>,
+					      <&pinctrl 106 125 1>,
+					      <&pinctrl 107 124 1>,
+					      <&pinctrl 108 135 1>,
+					      <&pinctrl 109 134 1>,
+					      <&pinctrl 110 133 1>,
+					      <&pinctrl 111 128 1>,
+					      <&pinctrl 112 145 1>,
+					      <&pinctrl 113 151 1>,
+					      <&pinctrl 115 152 8>,
+					      <&pinctrl 123 82 1>,
+					      <&pinctrl 124 3 18>,
+					      <&pinctrl 142 2 1>,
+					      <&pinctrl 143 136 9>,
+					      <&pinctrl 152 146 2>,
+					      <&pinctrl 154 149 6>,
+					      <&pinctrl 160 148 1>,
+					      <&pinctrl 161 132 1>,
+					      <&pinctrl 162 131 1>,
+					      <&pinctrl 163 130 1>,
+					      <&pinctrl 164 129 1>,
+					      <&pinctrl 165 123 1>,
+					      <&pinctrl 166 122 1>,
+					      <&pinctrl 167 121 1>,
+					      <&pinctrl 168 120 1>;
 
 				gcb0: gpio@d4019000 {
 					reg = <0xd4019000 0x4>;
