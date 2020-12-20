@@ -1,0 +1,504 @@
+USIM
+
+GPIO_102   D19   0x000090c0 0 | USIM       edge-clr   sleepi     twsi-on    medium     float      [USIM       GPIO       FSIC       KP_DK      LCD        NONE      ]
+GPIO_103   C19   0x0000d0c0 0 | USIM       edge-clr   sleepi     twsi-on    medium     pull-up    [USIM       GPIO       FSIC       KP_DK      LCD        NONE      ]
+GPIO_142   B19   0x0000d0c0 0 | USIM       edge-clr   sleepi     twsi-on    medium     pull-up    [USIM       GPIO       FSIC       KP_DK      NONE       NONE      ]
+
+MMC1
+
+GPIO_131   D20   0x00001001 1 | MMC1       (edge-0)   sleep0     twsi-on    medium     bias-off   [GPIO       MMC1       NONE       MSP        NONE       NONE      ]
+GPIO_132   B20   0x00001001 1 | MMC1       (edge-0)   sleep0     twsi-on    medium     bias-off   [GPIO       MMC1       PRI_JTAG   MSP        SSP3       AAS_JTAG  ]
+GPIO_133   A21   0x00001001 1 | MMC1       (edge-0)   sleep0     twsi-on    medium     bias-off   [GPIO       MMC1       PRI_JTAG   MSP        SSP3       AAS_JTAG  ]
+GPIO_134   B21   0x00001001 1 | MMC1       (edge-0)   sleep0     twsi-on    medium     bias-off   [GPIO       MMC1       PRI_JTAG   MSP        SSP3       AAS_JTAG  ]
+GPIO_136   C21   0x00001001 1 | MMC1       (edge-0)   sleep0     twsi-on    medium     bias-off   [GPIO       MMC1       PRI_JTAG   MSP        SSP3       AAS_JTAG  ]
+GPIO_140   A22   0x0000c001 1 | MMC1       (edge-0)   sleep0     twsi-on    very-slow  pull-up    [GPIO       MMC1       LCD        NONE       NONE       UART2     ]
+GPIO_141   C22   0x0000c001 1 | MMC1       (edge-0)   sleep0     twsi-on    very-slow  pull-up    [GPIO       MMC1       LCD        NONE       NONE       UART2     ]
+
+TWSI1/twsi1
+
+TWSI1_SCL  L26   0x0000d0c0 0 | TWSI1      edge-clr   sleepi     twsi-on    medium     pull-up    [TWSI1      NONE       NONE       NONE       NONE       NONE      ]
+TWSI1_SDA  K28   0x0000d0c0 0 | TWSI1      edge-clr   sleepi     twsi-on    medium     pull-up    [TWSI1      NONE       NONE       NONE       NONE       NONE      ]
+
+TWSI3/twsi3
+
+GPIO_71    AD11  0x00000801 1 | TWSI3      (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       TWSI3      NONE       PWM        NONE       NONE      ]
+GPIO_72    AG11  0x00000801 1 | TWSI3      (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       TWSI3      HDMI       PWM        NONE       NONE      ]
+
+TWSI4/twsi4
+
+TWSI4_SCL  D18   0x00000800 0 | TWSI4      (edge-0)   sleep0     twsi-on    slow       bias-off   [TWSI4      LCD        NONE       NONE       NONE       NONE      ]
+TWSI4_SDA  A19   0x00000800 0 | TWSI4      (edge-0)   sleep0     twsi-on    slow       bias-off   [TWSI4      LCD        NONE       NONE       NONE       NONE      ]
+
+GPIO/twsi4/embedded-controller
+
+GPIO_126   AF11  0x00004000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bad-bias-2 [GPIO       MMC1       LCD        MMC3       NAND       NONE      ]	off-gpios = <&gpio 126 GPIO_ACTIVE_HIGH>,
+GPIO_127   AE10  0x00004000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bad-bias-2 [GPIO       NONE       LCD        MMC3       NAND       NONE      ]	            <&gpio 127 GPIO_ACTIVE_HIGH>;
+
+TWSI5/twsi5
+
+GPIO_41    N21   0x00000802 2 | TWSI5      (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       MMC2       TWSI5      NONE       NONE       NONE      ]
+GPIO_42    D27   0x00000802 2 | TWSI5      (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       MMC2       TWSI5      NONE       NONE       NONE      ]
+
+TWSI6
+
+GPIO_47    H26   0x00000803 3 | TWSI6      (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       UART2      SSP2       TWSI6      CAM2       AAS_SPI   ]
+GPIO_48    N22   0x00000803 3 | TWSI6      (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       UART2      SSP2       TWSI6      CAM2       AAS_SPI   ]
+
+UART3/uart3
+
+GPIO_51    J25   0x00001001 1 | UART3      (edge-0)   sleep0     twsi-on    medium     bias-off   [GPIO       UART3      ROT        AAS_GPIO   PWM        NONE      ]
+GPIO_52    D28   0x00001001 1 | UART3      (edge-0)   sleep0     twsi-on    medium     bias-off   [GPIO       UART3      ROT        AAS_GPIO   PWM        NONE      ]
+
+
+// arch/arm/boot/dts/pxa3xx.dtsi
+
+	pinctrl: pin-controller@d401e000 {
+		//compatible = "pinctrl-single";
+		compatible = "pinconf-single";
+		reg = <0xd401e000 0x2c4>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		pinctrl-single,register-width = <32>;
+		pinctrl-single,function-mask = <7>;
+
+		//#interrupt-cells = <1>;
+		//interrupt-controller;
+		//pinctrl-single,register-width = <16>;
+		//pinctrl-single,function-mask = <0xffff>;
+
+		pinctrl-single,gpio-range = <&pinctrl_gpio_range 0x0 3 1>,
+					    <&pinctrl_gpio_range 0xc 77 0>,
+					    <&pinctrl_gpio_range 0x148 1 0>,
+					    <&pinctrl_gpio_range 0x14c 4 1>,
+					    <&pinctrl_gpio_range 0x170 28 0>,
+					    <&pinctrl_gpio_range 0x1e0 32 1>,
+					    <&pinctrl_gpio_range 0x260 23 0>;
+
+		pinctrl_gpio_range: gpio-range {
+			#pinctrl-single,gpio-range-cells = <3>;
+		};
+	};
+
+
+	&pinctrl {
+		uart3_pins: pinmux_uart3_pins {
+			pinctrl-single,pins = <
+				J25_OFFSET=0x120 J25_UART3_FUNC=1
+				D28_OFFSET=0x124 D28_UART3_FUNC=1
+			>;
+		};
+	}
+
+
+
+        // uart0_pins: pinmux_uart0_pins {
+        //         pinctrl-single,pins = <
+        //                 0x208 0         /* UART0_RXD (IOCFG138) */
+        //                 0x20c 0         /* UART0_TXD (IOCFG139) */
+        //         >;
+        //         pinctrl-single,bias-pulldown = <0 2 2>;
+        //         pinctrl-single,bias-pullup = <0 1 1>;
+        // };
+
+
+
+
+
+====
+
+[ 0x000, 'D19',   'GPIO_102',     (),   'USIM',      'GPIO',      'FSIC',      'KP_DK',     'LCD',       'NONE',      'NONE',      'NONE' ],
+[ 0x004, 'C19',   'GPIO_103',     (),   'USIM',      'GPIO',      'FSIC',      'KP_DK',     'LCD',       'NONE',      'NONE',      'NONE' ],
+
+[ 0x008, 'B19',   'GPIO_142',     (),   'USIM',      'GPIO',      'FSIC',      'KP_DK',     'NONE',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x00c, 'A20',   'GPIO_124',     (),   'GPIO',      'MMC1',      'LCD',       'MMC3',      'NAND',      'NONE',      'NONE',      'NONE' ],
+[ 0x010, 'E20',   'GPIO_125',     (),   'GPIO',      'MMC1',      'LCD',       'MMC3',      'NAND',      'NONE',      'NONE',      'NONE' ],
+[ 0x014, 'AF11',  'GPIO_126',     (),   'GPIO',      'MMC1',      'LCD',       'MMC3',      'NAND',      'NONE',      'NONE',      'NONE' ],
+[ 0x018, 'AE10',  'GPIO_127',     (),   'GPIO',      'NONE',      'LCD',       'MMC3',      'NAND',      'NONE',      'NONE',      'NONE' ],
+[ 0x01c, 'AH11',  'GPIO_128',     (),   'GPIO',      'NONE',      'LCD',       'MMC3',      'NAND',      'NONE',      'NONE',      'NONE' ],
+[ 0x020, 'AF10',  'GPIO_129',     (),   'GPIO',      'MMC1',      'LCD',       'MMC3',      'NAND',      'NONE',      'NONE',      'NONE' ],
+[ 0x024, 'AD10',  'GPIO_130',     (),   'GPIO',      'MMC1',      'LCD',       'MMC3',      'NAND',      'NONE',      'NONE',      'NONE' ],
+[ 0x028, 'D20',   'GPIO_131',     (),   'GPIO',      'MMC1',      'NONE',      'MSP',       'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x02c, 'B20',   'GPIO_132',     (),   'GPIO',      'MMC1',      'PRI_JTAG',  'MSP',       'SSP3',      'AAS_JTAG',  'NONE',      'NONE' ],
+[ 0x030, 'A21',   'GPIO_133',     (),   'GPIO',      'MMC1',      'PRI_JTAG',  'MSP',       'SSP3',      'AAS_JTAG',  'NONE',      'NONE' ],
+[ 0x034, 'B21',   'GPIO_134',     (),   'GPIO',      'MMC1',      'PRI_JTAG',  'MSP',       'SSP3',      'AAS_JTAG',  'NONE',      'NONE' ],
+[ 0x038, 'F20',   'GPIO_135',     (),   'GPIO',      'NONE',      'LCD',       'MMC3',      'NAND',      'NONE',      'NONE',      'NONE' ],
+[ 0x03c, 'C21',   'GPIO_136',     (),   'GPIO',      'MMC1',      'PRI_JTAG',  'MSP',       'SSP3',      'AAS_JTAG',  'NONE',      'NONE' ],
+[ 0x040, 'D21',   'GPIO_137',     (),   'GPIO',      'HDMI',      'LCD',       'MSP',       'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x044, 'B22',   'GPIO_138',     (),   'GPIO',      'NONE',      'LCD',       'MMC3',      'SMC',       'NONE',      'NONE',      'NONE' ],
+[ 0x048, 'AC10',  'GPIO_139',     (),   'GPIO',      'MMC1',      'PRI_JTAG',  'MSP',       'NONE',      'AAS_JTAG',  'NONE',      'NONE' ],
+[ 0x04c, 'A22',   'GPIO_140',     (),   'GPIO',      'MMC1',      'LCD',       'NONE',      'NONE',      'UART2',     'UART1',     'NONE' ],
+[ 0x050, 'C22',   'GPIO_141',     (),   'GPIO',      'MMC1',      'LCD',       'NONE',      'NONE',      'UART2',     'UART1',     'NONE' ],
+
+[ 0x054, 'G21',   'GPIO_0',       (),   'GPIO',      'KP_MK',     'NONE',      'SPI',       'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x058, 'G22',   'GPIO_1',       (),   'GPIO',      'KP_MK',     'NONE',      'SPI',       'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x05c, 'B23',   'GPIO_2',       (),   'GPIO',      'KP_MK',     'NONE',      'SPI',       'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x060, 'D22',   'GPIO_3',       (),   'GPIO',      'KP_MK',     'NONE',      'SPI',       'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x064, 'A23',   'GPIO_4',       (),   'GPIO',      'KP_MK',     'NONE',      'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x068, 'C23',   'GPIO_5',       (),   'GPIO',      'KP_MK',     'NONE',      'SPI',       'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x06c, 'E23',   'GPIO_6',       (),   'GPIO',      'KP_MK',     'NONE',      'SPI',       'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x070, 'H22',   'GPIO_7',       (),   'GPIO',      'KP_MK',     'NONE',      'SPI',       'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x074, 'F23',   'GPIO_8',       (),   'GPIO',      'KP_MK',     'NONE',      'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x078, 'A24',   'GPIO_9',       (),   'GPIO',      'KP_MK',     'NONE',      'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x07c, 'D23',   'GPIO_10',      (),   'GPIO',      'KP_MK',     'NONE',      'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x080, 'B24',   'GPIO_11',      (),   'GPIO',      'KP_MK',     'NONE',      'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x084, 'D24',   'GPIO_12',      (),   'GPIO',      'KP_MK',     'NONE',      'CCIC1',     'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x088, 'G23',   'GPIO_13',      (),   'GPIO',      'KP_MK',     'NONE',      'CCIC1',     'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x08c, 'J22',   'GPIO_14',      (),   'GPIO',      'KP_MK',     'NONE',      'CCIC1',     'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x090, 'E24',   'GPIO_15',      (),   'GPIO',      'KP_MK',     'KP_DK',     'CCIC1',     'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x094, 'G24',   'GPIO_16',      (),   'GPIO',      'KP_DK',     'ROT',       'CCIC1',     'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x098, 'F24',   'GPIO_17',      (),   'GPIO',      'KP_DK',     'ROT',       'CCIC1',     'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x09c, 'H23',   'GPIO_18',      (),   'GPIO',      'KP_DK',     'ROT',       'CCIC1',     'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x0a0, 'A25',   'GPIO_19',      (),   'GPIO',      'KP_DK',     'ROT',       'CCIC1',     'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x0a4, 'B25',   'GPIO_20',      (),   'GPIO',      'KP_DK',     'TB',        'CCIC1',     'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x0a8, 'K22',   'GPIO_21',      (),   'GPIO',      'KP_DK',     'TB',        'CCIC1',     'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x0ac, 'C25',   'GPIO_22',      (),   'GPIO',      'KP_DK',     'TB',        'CCIC1',     'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x0b0, 'D25',   'GPIO_23',      (),   'GPIO',      'KP_DK',     'TB',        'CCIC1',     'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x0b4, 'E25',   'GPIO_24',      (),   'GPIO',      'I2S',       'VCXO_OUT',  'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x0b8, 'G25',   'GPIO_25',      (),   'GPIO',      'I2S',       'HDMI',      'SSPA2',     'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x0bc, 'J23',   'GPIO_26',      (),   'GPIO',      'I2S',       'HDMI',      'SSPA2',     'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x0c0, 'H24',   'GPIO_27',      (),   'GPIO',      'I2S',       'HDMI',      'SSPA2',     'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x0c4, 'L22',   'GPIO_28',      (),   'GPIO',      'I2S',       'NONE',      'SSPA2',     'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x0c8, 'A26',   'GPIO_29',      (),   'GPIO',      'UART1',     'KP_MK',     'NONE',      'NONE',      'NONE',      'AAS_SPI',   'NONE' ],
+[ 0x0cc, 'B26',   'GPIO_30',      (),   'GPIO',      'UART1',     'KP_MK',     'NONE',      'NONE',      'NONE',      'AAS_SPI',   'NONE' ],
+[ 0x0d0, 'K23',   'GPIO_31',      (),   'GPIO',      'UART1',     'KP_MK',     'NONE',      'NONE',      'NONE',      'AAS_SPI',   'NONE' ],
+[ 0x0d4, 'C26',   'GPIO_32',      (),   'GPIO',      'UART1',     'KP_MK',     'NONE',      'NONE',      'NONE',      'AAS_SPI',   'NONE' ],
+[ 0x0d8, 'D26',   'GPIO_33',      (),   'GPIO',      'SSPA2',     'I2S',       'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x0dc, 'B27',   'GPIO_34',      (),   'GPIO',      'SSPA2',     'I2S',       'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x0e0, 'J24',   'GPIO_35',      (),   'GPIO',      'SSPA2',     'I2S',       'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x0e4, 'M22',   'GPIO_36',      (),   'GPIO',      'SSPA2',     'I2S',       'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x0e8, 'H25',   'GPIO_37',      (),   'GPIO',      'MMC2',      'SSP1',      'TWSI2',     'UART2',     'UART3',     'AAS_SPI',   'AAS_TWSI' ],
+[ 0x0ec, 'C27',   'GPIO_38',      (),   'GPIO',      'MMC2',      'SSP1',      'TWSI2',     'UART2',     'UART3',     'AAS_SPI',   'AAS_TWSI' ],
+[ 0x0f0, 'L23',   'GPIO_39',      (),   'GPIO',      'MMC2',      'SSP1',      'TWSI2',     'UART2',     'UART3',     'AAS_SPI',   'AAS_TWSI' ],
+[ 0x0f4, 'C28',   'GPIO_40',      (),   'GPIO',      'MMC2',      'SSP1',      'TWSI2',     'UART2',     'UART3',     'AAS_SPI',   'AAS_TWSI' ],
+[ 0x0f8, 'N21',   'GPIO_41',      (),   'GPIO',      'MMC2',      'TWSI5',     'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x0fc, 'D27',   'GPIO_42',      (),   'GPIO',      'MMC2',      'TWSI5',     'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x100, 'F26',   'GPIO_43',      (),   'GPIO',      'TWSI2',     'UART4',     'SSP1',      'UART2',     'UART3',     'NONE',      'AAS_TWSI' ],
+[ 0x104, 'G26',   'GPIO_44',      (),   'GPIO',      'TWSI2',     'UART4',     'SSP1',      'UART2',     'UART3',     'NONE',      'AAS_TWSI' ],
+[ 0x108, 'E27',   'GPIO_45',      (),   'GPIO',      'UART1',     'UART4',     'SSP1',      'UART2',     'UART3',     'NONE',      'NONE' ],
+[ 0x10c, 'K24',   'GPIO_46',      (),   'GPIO',      'UART1',     'UART4',     'SSP1',      'UART2',     'UART3',     'NONE',      'NONE' ],
+[ 0x110, 'H26',   'GPIO_47',      (),   'GPIO',      'UART2',     'SSP2',      'TWSI6',     'CAM2',      'AAS_SPI',   'AAS_GPIO',  'NONE' ],
+[ 0x114, 'N22',   'GPIO_48',      (),   'GPIO',      'UART2',     'SSP2',      'TWSI6',     'CAM2',      'AAS_SPI',   'AAS_GPIO',  'NONE' ],
+[ 0x118, 'M23',   'GPIO_49',      (),   'GPIO',      'UART2',     'SSP2',      'PWM',       'CCIC2',     'AAS_SPI',   'NONE',      'NONE' ],
+[ 0x11c, 'F27',   'GPIO_50',      (),   'GPIO',      'UART2',     'SSP2',      'PWM',       'CCIC2',     'AAS_SPI',   'NONE',      'NONE' ],
+[ 0x120, 'J25',   'GPIO_51',      (),   'GPIO',      'UART3',     'ROT',       'AAS_GPIO',  'PWM',       'NONE',      'NONE',      'NONE' ],
+[ 0x124, 'D28',   'GPIO_52',      (),   'GPIO',      'UART3',     'ROT',       'AAS_GPIO',  'PWM',       'NONE',      'NONE',      'NONE' ],
+[ 0x128, 'E28',   'GPIO_53',      (),   'GPIO',      'UART3',     'TWSI2',     'VCXO_REQ',  'NONE',      'PWM',       'NONE',      'AAS_TWSI' ],
+[ 0x12c, 'L24',   'GPIO_54',      (),   'GPIO',      'UART3',     'TWSI2',     'VCXO_OUT',  'HDMI',      'PWM',       'NONE',      'AAS_TWSI' ],
+[ 0x130, 'F28',   'GPIO_55',      (),   'GPIO',      'SSP2',      'SSP1',      'UART2',     'ROT',       'TWSI2',     'SSP3',      'AAS_TWSI' ],
+[ 0x134, 'G27',   'GPIO_56',      (),   'GPIO',      'SSP2',      'SSP1',      'UART2',     'ROT',       'TWSI2',     'KP_DK',     'AAS_TWSI' ],
+[ 0x138, 'P22',   'GPIO_57',      (),   'GPIO',      'SSP2_RX',   'SSP1_TXRX', 'SSP2_FRM',  'SSP1_RX',   'VCXO_REQ',  'KP_DK',     'NONE' ],
+[ 0x13c, 'G28',   'GPIO_58',      (),   'GPIO',      'SSP2',      'SSP1_RX',   'SSP1_FRM',  'SSP1_TXRX', 'VCXO_REQ',  'KP_DK',     'NONE' ],
+
+[ 0x148, 'R23',   'GPIO_123',     (),   'GPIO',      'SLEEP_IND', 'ONE_WIRE',  '32K_CLKOUT','NONE',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x14c, 'L28',   'GPIO_156',     (),   'PRI_JTAG',  'GPIO',      'PWM',       'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x150, 'N25',   'GPIO_157',     (),   'PRI_JTAG',  'GPIO',      'PWM',       'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x154, 'M27',   'GPIO_158',     (),   'PRI_JTAG',  'GPIO',      'PWM',       'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x158, 'N26',   'GPIO_159',     (),   'PRI_JTAG',  'GPIO',      'PWM',       'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x170, 'W23',   'GPIO_74',      (),   'GPIO',      'LCD',       'SMC',       'MMC4',      'SSP3',      'UART2',     'UART4',     'TIPU' ],
+[ 0x174, 'V25',   'GPIO_75',      (),   'GPIO',      'LCD',       'SMC',       'MMC4',      'SSP3',      'UART2',     'UART4',     'TIPU' ],
+[ 0x178, 'W22',   'GPIO_76',      (),   'GPIO',      'LCD',       'SMC',       'MMC4',      'SSP3',      'UART2',     'UART4',     'TIPU' ],
+[ 0x17c, 'Y25',   'GPIO_77',      (),   'GPIO',      'LCD',       'SMC',       'MMC4',      'SSP3',      'UART2',     'UART4',     'TIPU' ],
+[ 0x180, 'W24',   'GPIO_78',      (),   'GPIO',      'LCD',       'HDMI',      'MMC4',      'NONE',      'SSP4',      'AAS_SPI',   'TIPU' ],
+[ 0x184, 'Y22',   'GPIO_79',      (),   'GPIO',      'LCD',       'AAS_GPIO',  'MMC4',      'NONE',      'SSP4',      'AAS_SPI',   'TIPU' ],
+[ 0x188, 'Y23',   'GPIO_80',      (),   'GPIO',      'LCD',       'AAS_GPIO',  'MMC4',      'NONE',      'SSP4',      'AAS_SPI',   'TIPU' ],
+[ 0x18c, 'Y24',   'GPIO_81',      (),   'GPIO',      'LCD',       'AAS_GPIO',  'MMC4',      'NONE',      'SSP4',      'AAS_SPI',   'TIPU' ],
+[ 0x190, 'AA20',  'GPIO_82',      (),   'GPIO',      'LCD',       'NONE',      'MMC4',      'NONE',      'NONE',      'CCIC2',     'TIPU' ],
+[ 0x194, 'AA24',  'GPIO_83',      (),   'GPIO',      'LCD',       'NONE',      'MMC4',      'NONE',      'NONE',      'CCIC2',     'TIPU' ],
+[ 0x198, 'AA23',  'GPIO_84',      (),   'GPIO',      'LCD',       'SMC',       'MMC2',      'NONE',      'TWSI5',     'AAS_TWSI',  'TIPU' ],
+[ 0x19c, 'AB21',  'GPIO_85',      (),   'GPIO',      'LCD',       'SMC',       'MMC2',      'NONE',      'TWSI5',     'AAS_TWSI',  'TIPU' ],
+[ 0x1a0, 'AB24',  'GPIO_86',      (),   'GPIO',      'LCD',       'SMC',       'MMC2',      'NONE',      'TWSI6',     'CCIC2',     'TIPU' ],
+[ 0x1a4, 'AA25',  'GPIO_87',      (),   'GPIO',      'LCD',       'SMC',       'MMC2',      'NONE',      'TWSI6',     'CCIC2',     'TIPU' ],
+[ 0x1a8, 'AB22',  'GPIO_88',      (),   'GPIO',      'LCD',       'AAS_GPIO',  'MMC2',      'NONE',      'NONE',      'CCIC2',     'TIPU' ],
+[ 0x1ac, 'AB25',  'GPIO_89',      (),   'GPIO',      'LCD',       'AAS_GPIO',  'MMC2',      'NONE',      'NONE',      'CCIC2',     'TIPU' ],
+[ 0x1b0, 'AB23',  'GPIO_90',      (),   'GPIO',      'LCD',       'AAS_GPIO',  'MMC2',      'NONE',      'NONE',      'CCIC2',     'TIPU' ],
+[ 0x1b4, 'AB27',  'GPIO_91',      (),   'GPIO',      'LCD',       'AAS_GPIO',  'MMC2',      'NONE',      'NONE',      'CCIC2',     'TIPU' ],
+[ 0x1b8, 'AB28',  'GPIO_92',      (),   'GPIO',      'LCD',       'AAS_GPIO',  'MMC2',      'NONE',      'NONE',      'CCIC2',     'TIPU' ],
+[ 0x1bc, 'AB20',  'GPIO_93',      (),   'GPIO',      'LCD',       'AAS_GPIO',  'MMC2',      'NONE',      'NONE',      'CCIC2',     'TIPU' ],
+[ 0x1c0, 'AC24',  'GPIO_94',      (),   'GPIO',      'LCD',       'AAS_GPIO',  'SPI',       'NONE',      'AAS_SPI',   'CCIC2',     'TIPU' ],
+[ 0x1c4, 'AC21',  'GPIO_95',      (),   'GPIO',      'LCD',       'TWSI3',     'SPI',       'AAS_DEU_EX','AAS_SPI',   'CCIC2',     'TIPU' ],
+[ 0x1c8, 'AC23',  'GPIO_96',      (),   'GPIO',      'LCD',       'TWSI3',     'SPI',       'AAS_DEU_EX','AAS_SPI',   'NONE',      'TIPU' ],
+[ 0x1cc, 'AA19',  'GPIO_97',      (),   'GPIO',      'LCD',       'TWSI6',     'SPI',       'AAS_DEU_EX','AAS_SPI',   'NONE',      'TIPU' ],
+[ 0x1d0, 'EC25',  'GPIO_98',      (),   'GPIO',      'LCD',       'TWSI6',     'SPI',       'ONE_WIRE',  'NONE',      'NONE',      'TIPU' ],
+[ 0x1d4, 'AC27',  'GPIO_99',      (),   'GPIO',      'LCD',       'SMC',       'SPI',       'TWSI5',     'NONE',      'NONE',      'TIPU' ],
+[ 0x1d8, 'AC26',  'GPIO_100',     (),   'GPIO',      'LCD',       'SMC',       'SPI',       'TWSI5',     'NONE',      'NONE',      'TIPU' ],
+[ 0x1dc, 'AB19',  'GPIO_101',     (),   'GPIO',      'LCD',       'SMC',       'SPI',       'NONE',      'NONE',      'NONE',      'TIPU' ],
+
+[ 0x1e0, 'AF28',  'GPIO_168',     (),   'NAND',      'GPIO',      'MMC3',      'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x1e4, 'AF25',  'GPIO_167',     (),   'NAND',      'GPIO',      'MMC3',      'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x1e8, 'AF26',  'GPIO_166',     (),   'NAND',      'GPIO',      'MMC3',      'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x1ec, 'AE23',  'GPIO_165',     (),   'NAND',      'GPIO',      'MMC3',      'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x1f0, 'AE21',  'GPIO_107',     (),   'NAND',      'GPIO',      'NONE',      'NONE',      'NAND',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x1f4, 'AF27',  'GPIO_106',     (),   'NAND',      'GPIO',      'NONE',      'NONE',      'NAND',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x1f8, 'AE22',  'GPIO_105',     (),   'NAND',      'GPIO',      'NONE',      'NONE',      'NAND',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x1fc, 'AE25',  'GPIO_104',     (),   'NAND',      'GPIO',      'NONE',      'NONE',      'NAND',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x200, 'AE26',  'GPIO_111',     (),   'NAND',      'GPIO',      'MMC3',      'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x204, 'AD25',  'GPIO_164',     (),   'NAND',      'GPIO',      'MMC3',      'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x208, 'AD28',  'GPIO_163',     (),   'NAND',      'GPIO',      'MMC3',      'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x20c, 'AD24',  'GPIO_162',     (),   'NAND',      'GPIO',      'MMC3',      'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x210, 'AD26',  'GPIO_161',     (),   'NAND',      'GPIO',      'NONE',      'NONE',      'NAND',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x214, 'AD25',  'GPIO_110',     (),   'NAND',      'GPIO',      'NONE',      'NONE',      'NAND',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x218, 'AD24',  'GPIO_109',     (),   'NAND',      'GPIO',      'NONE',      'NONE',      'NAND',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x21c, 'AD23',  'GPIO_108',     (),   'NAND',      'GPIO',      'NONE',      'NONE',      'NAND',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x220, 'AF23',  'GPIO_143',     (),   'NAND',      'GPIO',      'SMC',       'NONE',      'NAND',      'NONE',      'NONE',      'NONE' ],
+[ 0x224, 'AF24',  'GPIO_144',     (),   'NAND',      'GPIO',      'SMC_INT',   'SMC',       'NAND',      'NONE',      'NONE',      'NONE' ],
+[ 0x228, 'AC19',  'GPIO_145',     (),   'SMC',       'GPIO',      'NONE',      'NONE',      'SMC',       'NONE',      'NONE',      'NONE' ],
+[ 0x22c, 'AC20',  'GPIO_146',     (),   'SMC',       'GPIO',      'NONE',      'NONE',      'SMC',       'NONE',      'NONE',      'NONE' ],
+[ 0x230, 'AG25',  'GPIO_147',     (),   'NAND',      'GPIO',      'NONE',      'NONE',      'NAND',      'NONE',      'NONE',      'NONE' ],
+[ 0x234, 'AG26',  'GPIO_148',     (),   'NAND',      'GPIO',      'NONE',      'NONE',      'NAND',      'NONE',      'NONE',      'NONE' ],
+[ 0x238, 'AA16',  'GPIO_149',     (),   'NAND',      'GPIO',      'NONE',      'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x23c, 'AH26',  'GPIO_150',     (),   'NAND',      'GPIO',      'NONE',      'NONE',      'NAND',      'NONE',      'NONE',      'NONE' ],
+[ 0x240, 'AG24',  'GPIO_151',     (),   'SMC',       'GPIO',      'MMC3',      'NONE',      'NONE',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x244, 'AH25',  'GPIO_112',     (),   'NAND',      'GPIO',      'MMC3',      'SMC',       'NONE',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x248, 'AC18',  'GPIO_152',     (),   'SMC',       'GPIO',      'NONE',      'NONE',      'SMC',       'NONE',      'NONE',      'NONE' ],
+[ 0x24c, 'AD18',  'GPIO_153',     (),   'SMC',       'GPIO',      'NONE',      'NONE',      'SMC',       'NONE',      'NONE',      'NONE' ],
+
+[ 0x250, 'AH24',  'GPIO_160',     (),   'NAND',      'GPIO',      'SMC',       'NONE',      'NAND',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x254, 'AB17',  'GPIO_154',     (),   'SMC_INT',   'GPIO',      'SMC',       'NONE',      'NAND',      'NONE',      'NONE',      'NONE' ],
+[ 0x258, 'AE19',  'GPIO_155',     (),   'EXT_DMA',   'GPIO',      'SMC',       'NONE',      'EXT_DMA',   'NONE',      'NONE',      'NONE' ],
+
+[ 0x25c, 'AC17',  'GPIO_113',     (),   'SMC',       'GPIO',      'EXT_DMA',   'MMC3',      'SMC',       'HDMI',      'NONE',      'NONE' ],
+
+[ 0x260, 'N23',   'GPIO_115',     (),   'GPIO',      'NONE',      'AC',        'UART4',     'UART3',     'SSP1',      'NONE',      'NONE' ],
+[ 0x264, 'H27',   'GPIO_116',     (),   'GPIO',      'NONE',      'AC',        'UART4',     'UART3',     'SSP1',      'NONE',      'NONE' ],
+[ 0x268, 'H28',   'GPIO_117',     (),   'GPIO',      'NONE',      'AC',        'UART4',     'UART3',     'SSP1',      'NONE',      'NONE' ],
+[ 0x26c, 'J28',   'GPIO_118',     (),   'GPIO',      'NONE',      'AC',        'UART4',     'UART3',     'SSP1',      'NONE',      'NONE' ],
+[ 0x270, 'M24',   'GPIO_119',     (),   'GPIO',      'NONE',      'CA',        'SSP3',      'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x274, 'J27',   'GPIO_120',     (),   'GPIO',      'NONE',      'CA',        'SSP3',      'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x278, 'K26',   'GPIO_121',     (),   'GPIO',      'NONE',      'CA',        'SSP3',      'NONE',      'NONE',      'NONE',      'NONE' ],
+[ 0x27c, 'L25',   'GPIO_122',     (),   'GPIO',      'NONE',      'CA',        'SSP3',      'NONE',      'NONE',      'NONE',      'NONE' ],
+
+[ 0x280, 'AD13',  'GPIO_59',      (),   'GPIO',      'CCIC1',     'ULPI',      'MMC3',      'CCIC2',     'UART3',     'UART4',     'NONE' ],
+[ 0x284, 'AE13',  'GPIO_60',      (),   'GPIO',      'CCIC1',     'ULPI',      'MMC3',      'CCIC2',     'UART3',     'UART4',     'NONE' ],
+[ 0x288, 'AF13',  'GPIO_61',      (),   'GPIO',      'CCIC1',     'ULPI',      'MMC3',      'CCIC2',     'UART3',     'HDMI',      'NONE' ],
+[ 0x28c, 'AH13',  'GPIO_62',      (),   'GPIO',      'CCIC1',     'ULPI',      'MMC3',      'CCIC2',     'UART3',     'NONE',      'NONE' ],
+[ 0x290, 'AG13',  'GPIO_63',      (),   'GPIO',      'CCIC1',     'ULPI',      'MMC3',      'CCIC2',     'MSP',       'UART4',     'NONE' ],
+[ 0x294, 'AC12',  'GPIO_64',      (),   'GPIO',      'CCIC1',     'ULPI',      'MMC3',      'CCIC2',     'MSP',       'UART4',     'NONE' ],
+[ 0x298, 'AD12',  'GPIO_65',      (),   'GPIO',      'CCIC1',     'ULPI',      'MMC3',      'CCIC2',     'MSP',       'UART4',     'NONE' ],
+[ 0x29c, 'AE12',  'GPIO_66',      (),   'GPIO',      'CCIC1',     'ULPI',      'MMC3',      'CCIC2',     'MSP',       'UART4',     'NONE' ],
+[ 0x2a0, 'AF12',  'GPIO_67',      (),   'GPIO',      'CCIC1',     'ULPI',      'MMC3',      'CCIC2',     'MSP',       'NONE',      'NONE' ],
+[ 0x2a4, 'AG12',  'GPIO_68',      (),   'GPIO',      'CCIC1',     'ULPI',      'MMC3',      'CCIC2',     'MSP',       'LCD',       'NONE' ],
+[ 0x2a8, 'AH12',  'GPIO_69',      (),   'GPIO',      'CCIC1',     'ULPI',      'MMC3',      'CCIC2',     'NONE',      'LCD',       'NONE' ],
+[ 0x2ac, 'AC11',  'GPIO_70',      (),   'GPIO',      'CCIC1',     'ULPI',      'MMC3',      'CCIC2',     'MSP',       'LCD',       'NONE' ],
+[ 0x2b0, 'AD11',  'GPIO_71',      (),   'GPIO',      'TWSI3',     'NONE',      'PWM',       'NONE',      'NONE',      'LCD',       'AAS_TWSI' ],
+[ 0x2b4, 'AG11',  'GPIO_72',      (),   'GPIO',      'TWSI3',     'HDMI',      'PWM',       'NONE',      'NONE',      'LCD',       'AAS_TWSI' ],
+[ 0x2b8, 'AE11',  'GPIO_73',      (),   'GPIO',      'VCXO_REQ',  '32K_CLKOUT','PWM',       'VCXO_OUT',  'NONE',      'LCD',       'NONE' ],
+
+
+
+
+SSP1/ssp1
+
+GPIO_43    F26   0x00005003 3 | SSP1       (edge-0)   sleep0     twsi-on    medium     bad-bias-2 [GPIO       TWSI2      UART4      SSP1       UART2      UART3     ]
+GPIO_44    G26   0x00005003 3 | SSP1       (edge-0)   sleep0     twsi-on    medium     bad-bias-2 [GPIO       TWSI2      UART4      SSP1       UART2      UART3     ]
+GPIO_45    E27   0x00005003 3 | SSP1       (edge-0)   sleep0     twsi-on    medium     bad-bias-2 [GPIO       UART1      UART4      SSP1       UART2      UART3     ]
+
+GPIO/ssp1/SPI1
+
+GPIO_46    K24   0x000000c0 0 | GPIO       edge-clr   sleepi     twsi-on    very-slow  bias-off   [GPIO       UART1      UART4      SSP1       UART2      UART3     ]	cs-gpios = <&gpio 46 GPIO_ACTIVE_LOW>;
+
+GPIO/ec_input_spi/SSP2
+
+GPIO_55    F28   0x00006400 0 | GPIO       (edge-0)   sleep0     twsi-off   very-slow  bad-bias-3 [GPIO       SSP2       SSP1       UART2      ROT        TWSI2     ]	sck-gpios = <&gpio 55 GPIO_ACTIVE_HIGH>;
+GPIO_56    G27   0x00006000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bad-bias-3 [GPIO       SSP2       SSP1       UART2      ROT        TWSI2     ]	cs-gpios = <&gpio 56 GPIO_ACTIVE_LOW>;
+GPIO_57    P22   0x00006400 0 | GPIO       (edge-0)   sleep0     twsi-off   very-slow  bad-bias-3 [GPIO       SSP2_RX    SSP1_TXRX  SSP2_FRM   SSP1_RX    VCXO_REQ  ]	miso-gpios = <&gpio 57 GPIO_ACTIVE_HIGH>;
+GPIO_58    G28   0x00006000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bad-bias-3 [GPIO       SSP2       SSP1_RX    SSP1_FRM   SSP1_TXRX  VCXO_REQ  ]	mosi-gpios = <&gpio 58 GPIO_ACTIVE_HIGH>;
+
+GPIO/hsic_phy0
+GPIO_63    AG13  0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       CCIC1      ULPI       MMC3       CCIC2      MSP       ]	reset-gpios = <&gpio 63 GPIO_ACTIVE_HIGH>;
+
+JTAG
+
+GPIO_156   L28   0x0000d0c0 0 | PRI_JTAG   edge-clr   sleepi     twsi-on    medium     pull-up    [PRI_JTAG   GPIO       PWM        NONE       NONE       NONE      ]
+GPIO_157   N25   0x0000d0c0 0 | PRI_JTAG   edge-clr   sleepi     twsi-on    medium     pull-up    [PRI_JTAG   GPIO       PWM        NONE       NONE       NONE      ]
+GPIO_158   M27   0x0000d0c0 0 | PRI_JTAG   edge-clr   sleepi     twsi-on    medium     pull-up    [PRI_JTAG   GPIO       PWM        NONE       NONE       NONE      ]
+GPIO_159   N26   0x0000d0c0 0 | PRI_JTAG   edge-clr   sleepi     twsi-on    medium     pull-up    [PRI_JTAG   GPIO       PWM        NONE       NONE       NONE      ]
+TRST       M28   0x0000b0c0 0 | PRI_JTAG   edge-clr   sleepi     twsi-on    medium     pull-dn    [PRI_JTAG   NONE       NONE       NONE       NONE       NONE      ]
+
+CLKXX
+
+171        L27   0x000090c0 0 | G_CLKREQ   edge-clr   sleepi     twsi-on    medium     float      [G_CLKREQ   ONE_WIRE   NONE       NONE       NONE       NONE      ]
+114        U21   0x0000d0c0 0 | G_CLKOUT   edge-clr   sleepi     twsi-on    medium     pull-up    [G_CLKOUT   32K_CLKOUT HDMI       NONE       NONE       NONE      ]
+172        N27   0x0000b0c0 0 | VCXO_REQ   edge-clr   sleepi     twsi-on    medium     pull-dn    [VCXO_REQ   ONE_WIRE   PLL        NONE       NONE       NONE      ]
+173        T24   0x000090c0 0 | VCXO_OUT   edge-clr   sleepi     twsi-on    medium     float      [VCXO_OUT   32K_CLKOUT NONE       NONE       NONE       NONE      ]
+
+LCD/lcd0
+
+GPIO_74    W23   0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        SMC        MMC4       SSP3       UART2     ]
+GPIO_75    V25   0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        SMC        MMC4       SSP3       UART2     ]
+GPIO_76    W22   0x0000d801 1 | LCD        (edge-0)   sleep0     twsi-on    fast       pull-up    [GPIO       LCD        SMC        MMC4       SSP3       UART2     ]
+GPIO_77    Y25   0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        SMC        MMC4       SSP3       UART2     ]
+GPIO_78    W24   0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        HDMI       MMC4       NONE       SSP4      ]
+GPIO_79    Y22   0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        AAS_GPIO   MMC4       NONE       SSP4      ]
+GPIO_80    Y23   0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        AAS_GPIO   MMC4       NONE       SSP4      ]
+GPIO_81    Y24   0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        AAS_GPIO   MMC4       NONE       SSP4      ]
+GPIO_82    AA20  0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        NONE       MMC4       NONE       NONE      ]
+GPIO_83    AA24  0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        NONE       MMC4       NONE       NONE      ]
+GPIO_84    AA23  0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        SMC        MMC2       NONE       TWSI5     ]
+GPIO_85    AB21  0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        SMC        MMC2       NONE       TWSI5     ]
+GPIO_86    AB24  0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        SMC        MMC2       NONE       TWSI6     ]
+GPIO_87    AA25  0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        SMC        MMC2       NONE       TWSI6     ]
+GPIO_88    AB22  0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        AAS_GPIO   MMC2       NONE       NONE      ]
+GPIO_89    AB25  0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        AAS_GPIO   MMC2       NONE       NONE      ]
+GPIO_90    AB23  0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        AAS_GPIO   MMC2       NONE       NONE      ]
+GPIO_91    AB27  0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        AAS_GPIO   MMC2       NONE       NONE      ]
+GPIO_92    AB28  0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        AAS_GPIO   MMC2       NONE       NONE      ]
+GPIO_93    AB20  0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        AAS_GPIO   MMC2       NONE       NONE      ]
+GPIO_94    AC24  0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        AAS_GPIO   SPI        NONE       AAS_SPI   ]
+GPIO_95    AC21  0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        TWSI3      SPI        AAS_DEU_EX AAS_SPI   ]
+GPIO_96    AC23  0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        TWSI3      SPI        AAS_DEU_EX AAS_SPI   ]
+GPIO_97    AA19  0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        TWSI6      SPI        AAS_DEU_EX AAS_SPI   ]
+GPIO_98    EC25  0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        TWSI6      SPI        ONE_WIRE   NONE      ]
+GPIO_99    AC27  0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        SMC        SPI        TWSI5      NONE      ]
+GPIO_100   AC26  0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        SMC        SPI        TWSI5      NONE      ]
+GPIO_101   AB19  0x00000801 1 | LCD        (edge-0)   sleep0     twsi-on    slow       bias-off   [GPIO       LCD        SMC        SPI        NONE       NONE      ]
+
+NAND
+
+GPIO_168   AF28  0x00000000 0 | NAND       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [NAND       GPIO       MMC3       NONE       NONE       NONE      ]
+GPIO_167   AF25  0x00000000 0 | NAND       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [NAND       GPIO       MMC3       NONE       NONE       NONE      ]
+GPIO_166   AF26  0x00000000 0 | NAND       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [NAND       GPIO       MMC3       NONE       NONE       NONE      ]
+GPIO_165   AE23  0x00000000 0 | NAND       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [NAND       GPIO       MMC3       NONE       NONE       NONE      ]
+GPIO_107   AE21  0x00000000 0 | NAND       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [NAND       GPIO       NONE       NONE       NAND       NONE      ]
+GPIO_106   AF27  0x00000000 0 | NAND       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [NAND       GPIO       NONE       NONE       NAND       NONE      ]
+GPIO_105   AE22  0x00000000 0 | NAND       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [NAND       GPIO       NONE       NONE       NAND       NONE      ]
+GPIO_104   AE25  0x00000000 0 | NAND       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [NAND       GPIO       NONE       NONE       NAND       NONE      ]
+GPIO_143   AF23  0x00000000 0 | NAND       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [NAND       GPIO       SMC        NONE       NAND       NONE      ]
+GPIO_144   AF24  0x00000000 0 | NAND       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [NAND       GPIO       SMC_INT    SMC        NAND       NONE      ]
+GPIO_147   AG25  0x00000000 0 | NAND       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [NAND       GPIO       NONE       NONE       NAND       NONE      ]
+GPIO_148   AG26  0x00000000 0 | NAND       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [NAND       GPIO       NONE       NONE       NAND       NONE      ]
+GPIO_149   AA16  0x00000000 0 | NAND       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [NAND       GPIO       NONE       NONE       NONE       NONE      ]
+GPIO_150   AH26  0x00000000 0 | NAND       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [NAND       GPIO       NONE       NONE       NAND       NONE      ]
+GPIO_112   AH25  0x00000000 0 | NAND       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [NAND       GPIO       MMC3       SMC        NONE       NONE      ]
+GPIO_160   AH24  0x0000d8c0 0 | NAND       edge-clr   sleepi     twsi-on    fast       pull-up    [NAND       GPIO       SMC        NONE       NAND       NONE      ]
+
+MMC3/mmc3
+
+GPIO_111   AE26  0x00001002 2 | MMC3       (edge-0)   sleep0     twsi-on    medium     bias-off   [NAND       GPIO       MMC3       NONE       NONE       NONE      ]
+GPIO_164   AD25  0x00001002 2 | MMC3       (edge-0)   sleep0     twsi-on    medium     bias-off   [NAND       GPIO       MMC3       NONE       NONE       NONE      ]
+GPIO_163   AD28  0x00001002 2 | MMC3       (edge-0)   sleep0     twsi-on    medium     bias-off   [NAND       GPIO       MMC3       NONE       NONE       NONE      ]
+GPIO_162   AD24  0x00001002 2 | MMC3       (edge-0)   sleep0     twsi-on    medium     bias-off   [NAND       GPIO       MMC3       NONE       NONE       NONE      ]
+
+SMC
+
+GPIO_151   AG24  0x00000000 0 | SMC        (edge-0)   sleep0     twsi-on    very-slow  bias-off   [SMC        GPIO       MMC3       NONE       NONE       NONE      ]
+GPIO_152   AC18  0x00000000 0 | SMC        (edge-0)   sleep0     twsi-on    very-slow  bias-off   [SMC        GPIO       NONE       NONE       SMC        NONE      ]
+GPIO_153   AD18  0x0000d8c0 0 | SMC        edge-clr   sleepi     twsi-on    fast       pull-up    [SMC        GPIO       NONE       NONE       SMC        NONE      ]
+GPIO_154   AB17  0x00000000 0 | SMC_INT    (edge-0)   sleep0     twsi-on    very-slow  bias-off   [SMC_INT    GPIO       SMC        NONE       NAND       NONE      ]
+GPIO_113   AC17  0x0000d8c0 0 | SMC        edge-clr   sleepi     twsi-on    fast       pull-up    [SMC        GPIO       EXT_DMA    MMC3       SMC        HDMI      ]
+
+EXT_DMA
+
+GPIO_155   AE19  0x0000d8c0 0 | EXT_DMA    edge-clr   sleepi     twsi-on    fast       pull-up    [EXT_DMA    GPIO       SMC        NONE       EXT_DMA    NONE      ]
+
+GPIO
+
+
+GPIO_124   A20   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       MMC1       LCD        MMC3       NAND       NONE      ]
+GPIO_125   E20   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       MMC1       LCD        MMC3       NAND       NONE      ]
+GPIO_128   AH11  0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       NONE       LCD        MMC3       NAND       NONE      ]
+GPIO_129   AF10  0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       MMC1       LCD        MMC3       NAND       NONE      ]
+GPIO_130   AD10  0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       MMC1       LCD        MMC3       NAND       NONE      ]
+GPIO_137   D21   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       HDMI       LCD        MSP        NONE       NONE      ]
+GPIO_138   B22   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       NONE       LCD        MMC3       SMC        NONE      ]
+GPIO_139   AC10  0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       MMC1       PRI_JTAG   MSP        NONE       AAS_JTAG  ]
+GPIO_0     G21   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_MK      NONE       SPI        NONE       NONE      ]
+GPIO_1     G22   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_MK      NONE       SPI        NONE       NONE      ]
+GPIO_2     B23   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_MK      NONE       SPI        NONE       NONE      ]
+GPIO_3     D22   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_MK      NONE       SPI        NONE       NONE      ]
+GPIO_4     A23   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_MK      NONE       NONE       NONE       NONE      ]
+GPIO_5     C23   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_MK      NONE       SPI        NONE       NONE      ]
+GPIO_6     E23   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_MK      NONE       SPI        NONE       NONE      ]
+GPIO_7     H22   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_MK      NONE       SPI        NONE       NONE      ]
+GPIO_8     F23   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_MK      NONE       NONE       NONE       NONE      ]
+GPIO_9     A24   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_MK      NONE       NONE       NONE       NONE      ]
+GPIO_10    D23   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_MK      NONE       NONE       NONE       NONE      ]
+GPIO_11    B24   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_MK      NONE       NONE       NONE       NONE      ]
+GPIO_12    D24   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_MK      NONE       CCIC1      NONE       NONE      ]
+GPIO_13    G23   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_MK      NONE       CCIC1      NONE       NONE      ]
+GPIO_14    J22   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_MK      NONE       CCIC1      NONE       NONE      ]
+GPIO_15    E24   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_MK      KP_DK      CCIC1      NONE       NONE      ]
+GPIO_16    G24   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_DK      ROT        CCIC1      NONE       NONE      ]
+GPIO_17    F24   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_DK      ROT        CCIC1      NONE       NONE      ]
+GPIO_18    H23   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_DK      ROT        CCIC1      NONE       NONE      ]
+GPIO_19    A25   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_DK      ROT        CCIC1      NONE       NONE      ]
+GPIO_20    B25   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_DK      TB         CCIC1      NONE       NONE      ]
+GPIO_21    K22   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_DK      TB         CCIC1      NONE       NONE      ]
+GPIO_22    C25   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_DK      TB         CCIC1      NONE       NONE      ]
+GPIO_23    D25   0x00000000 0 | GPIO       (edge-0)   sleep0     twsi-on    very-slow  bias-off   [GPIO       KP_DK      TB         CCIC1      NONE       NONE      ]
+GPIO_24    E25   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       I2S        VCXO_OUT   NONE       NONE       NONE      ]
+GPIO_25    G25   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       I2S        HDMI       SSPA2      NONE       NONE      ]
+GPIO_26    J23   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       I2S        HDMI       SSPA2      NONE       NONE      ]
+GPIO_27    H24   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       I2S        HDMI       SSPA2      NONE       NONE      ]
+GPIO_28    L22   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       I2S        NONE       SSPA2      NONE       NONE      ]
+GPIO_29    A26   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       UART1      KP_MK      NONE       NONE       NONE      ]
+GPIO_30    B26   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       UART1      KP_MK      NONE       NONE       NONE      ]
+GPIO_31    K23   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       UART1      KP_MK      NONE       NONE       NONE      ]
+GPIO_32    C26   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       UART1      KP_MK      NONE       NONE       NONE      ]
+GPIO_33    D26   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       SSPA2      I2S        NONE       NONE       NONE      ]
+GPIO_34    B27   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       SSPA2      I2S        NONE       NONE       NONE      ]
+GPIO_35    J24   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       SSPA2      I2S        NONE       NONE       NONE      ]
+GPIO_36    M22   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       SSPA2      I2S        NONE       NONE       NONE      ]
+GPIO_37    H25   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       MMC2       SSP1       TWSI2      UART2      UART3     ]
+GPIO_38    C27   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       MMC2       SSP1       TWSI2      UART2      UART3     ]
+GPIO_39    L23   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       MMC2       SSP1       TWSI2      UART2      UART3     ]
+GPIO_40    C28   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       MMC2       SSP1       TWSI2      UART2      UART3     ]
+GPIO_49    M23   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       UART2      SSP2       PWM        CCIC2      AAS_SPI   ]
+GPIO_50    F27   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       UART2      SSP2       PWM        CCIC2      AAS_SPI   ]
+GPIO_53    E28   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       UART3      TWSI2      VCXO_REQ   NONE       PWM       ]
+GPIO_54    L24   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       UART3      TWSI2      VCXO_OUT   HDMI       PWM       ]
+GPIO_123   R23   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       SLEEP_IND  ONE_WIRE   32K_CLKOUT NONE       NONE      ]
+GPIO_115   N23   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       NONE       AC         UART4      UART3      SSP1      ]
+GPIO_116   H27   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       NONE       AC         UART4      UART3      SSP1      ]
+GPIO_117   H28   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       NONE       AC         UART4      UART3      SSP1      ]
+GPIO_118   J28   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       NONE       AC         UART4      UART3      SSP1      ]
+GPIO_119   M24   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       NONE       CA         SSP3       NONE       NONE      ]
+GPIO_120   J27   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       NONE       CA         SSP3       NONE       NONE      ]
+GPIO_121   K26   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       NONE       CA         SSP3       NONE       NONE      ]
+GPIO_122   L25   0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       NONE       CA         SSP3       NONE       NONE      ]
+GPIO_59    AD13  0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       CCIC1      ULPI       MMC3       CCIC2      UART3     ]
+GPIO_60    AE13  0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       CCIC1      ULPI       MMC3       CCIC2      UART3     ]
+GPIO_61    AF13  0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       CCIC1      ULPI       MMC3       CCIC2      UART3     ]
+GPIO_62    AH13  0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       CCIC1      ULPI       MMC3       CCIC2      UART3     ]
+GPIO_64    AC12  0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       CCIC1      ULPI       MMC3       CCIC2      MSP       ]
+GPIO_65    AD12  0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       CCIC1      ULPI       MMC3       CCIC2      MSP       ]
+GPIO_66    AE12  0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       CCIC1      ULPI       MMC3       CCIC2      MSP       ]
+GPIO_67    AF12  0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       CCIC1      ULPI       MMC3       CCIC2      MSP       ]
+GPIO_68    AG12  0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       CCIC1      ULPI       MMC3       CCIC2      MSP       ]
+GPIO_69    AH12  0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       CCIC1      ULPI       MMC3       CCIC2      NONE      ]
+GPIO_70    AC11  0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       CCIC1      ULPI       MMC3       CCIC2      MSP       ]
+GPIO_73    AE11  0x0000d0c0 0 | GPIO       edge-clr   sleepi     twsi-on    medium     pull-up    [GPIO       VCXO_REQ   32K_CLKOUT PWM        VCXO_OUT   NONE      ]
+
+NONE
+
+GPIO_161   AD26  0x00001002 2 | NONE       (edge-0)   sleep0     twsi-on    medium     bias-off   [NAND       GPIO       NONE       NONE       NAND       NONE      ]
+GPIO_110   AD25  0x00001002 2 | NONE       (edge-0)   sleep0     twsi-on    medium     bias-off   [NAND       GPIO       NONE       NONE       NAND       NONE      ]
+GPIO_109   AD24  0x00001002 2 | NONE       (edge-0)   sleep0     twsi-on    medium     bias-off   [NAND       GPIO       NONE       NONE       NAND       NONE      ]
+GPIO_108   AD23  0x00001002 2 | NONE       (edge-0)   sleep0     twsi-on    medium     bias-off   [NAND       GPIO       NONE       NONE       NAND       NONE      ]
+GPIO_145   AC19  0x00001002 2 | NONE       (edge-0)   sleep0     twsi-on    medium     bias-off   [SMC        GPIO       NONE       NONE       SMC        NONE      ]
+GPIO_146   AC20  0x00001002 2 | NONE       (edge-0)   sleep0     twsi-on    medium     bias-off   [SMC        GPIO       NONE       NONE       SMC        NONE      ]
+GPIO_135   F20   0x00001001 1 | NONE       (edge-0)   sleep0     twsi-on    medium     bias-off   [GPIO       NONE       LCD        MMC3       NAND       NONE      ]
+
+
