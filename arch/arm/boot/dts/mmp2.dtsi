@@ -327,7 +327,7 @@
 			};
 
 			pinctrl: pinctrl@d401e000 {
-				compatible = "pinconf-single";
+				compatible = "marvell,mmp2-pinctrl", "pinconf-single";
 				reg = <0xd401e000 0x2c4>;
 				#address-cells = <1>;
 				#size-cells = <0>;
