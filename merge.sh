@@ -9,7 +9,7 @@ BRANCHES="$BRANCHES xo/lr/olpc-xo175-armada-v4"
 BRANCHES="$BRANCHES xo/lr/olpc-xo175-fixes12"
 
 git branch -D merged || :
-git checkout -b merged 3644e2d2dda78e21edd8f5415b6d7ab03f5f54f3
+git checkout -b merged 8653b778e454a
 
 for B in $BRANCHES; do
 	EDITOR=: git merge --no-ff $B
