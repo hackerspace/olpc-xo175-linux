@@ -87,6 +87,8 @@
 
 &uart3 {
 	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart3_pins>;
 };
 
 &rtc {
@@ -125,6 +127,8 @@
 
 &mmc3 {
 	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&mmc3_pins>;
 	max-frequency = <50000000>;
 	status = "okay";
 	bus-width = <8>;
@@ -134,6 +138,8 @@
 
 &twsi1 {
 	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&twsi1_pins>;
 
 	rtc@68 {
 		compatible = "dallas,ds1338";
@@ -157,6 +163,8 @@
 
 &twsi3 {
 	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&twsi3_pins>;
 
 	vga-dvi-encoder@76 {
 		compatible = "chrontel,ch7033";
@@ -185,6 +193,8 @@
 
 &twsi4 {
 	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&twsi4_pins>;
 
 	embedded-controller@58 {
 		compatible = "dell,wyse-ariel-ec", "ene,kb3930";
@@ -206,6 +216,8 @@
 
 &twsi6 {
 	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&twsi6_pins>;
 };
 
 &lcd0 {
@@ -222,6 +234,8 @@
 
 &ssp1 {
 	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&ssp1_pins>;
 	cs-gpios = <&gpio 46 GPIO_ACTIVE_LOW>;
 
 	firmware-flash@0 {
@@ -234,6 +248,8 @@
 
 &ec_input_spi {
 	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&ssp2_pins>;
 	cs-gpios = <&gpio 56 GPIO_ACTIVE_LOW>;
 
 	power-button@0 {
@@ -251,4 +267,52 @@
 
 &gpu_3d {
 	status = "okay";
+};
+
+&pinctrl {
+	uart3_pins: pinmux_uart3_pins {
+		pinctrl-single,pins = <0x120 1>, <0x124 1>;
+	};
+
+	mmc3_pins: pinmux_mmc3_pins {
+		pinctrl-single,pins = <0x200 2>, <0x204 2>, <0x208 2>, <0x20c 2>;
+	};
+
+	twsi1_pins: pinmux_twsi1_pins {
+		pinctrl-single,pins = <0x140 0>, <0x144 0>;
+	};
+
+	twsi3_pins: pinmux_twsi3_pins {
+		pinctrl-single,pins = <0x2b0 1>, <0x2b4 1>;
+	};
+
+	twsi4_pins: pinmux_twsi4_pins {
+		pinctrl-single,pins = <0x2bc 0>, <0x2c0 0>;
+	};
+
+	twsi5_pins: pinmux_twsi5_pins {
+		pinctrl-single,pins = <0x0f8 2>, <0x0fc 2>;
+	};
+
+	twsi6_pins: pinmux_twsi6_pins {
+		pinctrl-single,pins = <0x110 3>, <0x114 3>;
+	};
+
+	lcd0_pins: pinmux_lcd0_pins {
+		pinctrl-single,pins = <0x170 1>, <0x174 1>, <0x178 1>, <0x17c 1>,
+				      <0x180 1>, <0x184 1>, <0x188 1>, <0x18c 1>,
+				      <0x190 1>, <0x194 1>, <0x198 1>, <0x19c 1>,
+				      <0x1a0 1>, <0x1a4 1>, <0x1a8 1>, <0x1ac 1>,
+				      <0x1b0 1>, <0x1b4 1>, <0x1b8 1>, <0x1bc 1>,
+				      <0x1c0 1>, <0x1c4 1>, <0x1c8 1>, <0x1cc 1>,
+				      <0x1d0 1>, <0x1d4 1>, <0x1d8 1>, <0x1dc 1>;
+	};
+
+	ssp1_pins: pinmux_ssp1_pins {
+		pinctrl-single,pins = <0x100 3>, <0x104 3>, <0x108 3>;
+	};
+
+	ssp2_pins: pinmux_ssp2_pins {
+		pinctrl-single,pins = <0x130 1>, <0x138 1>, <0x13c 1>;
+	};
 };
