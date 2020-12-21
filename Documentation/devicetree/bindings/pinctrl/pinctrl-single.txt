@@ -1,9 +1,11 @@
 One-register-per-pin type device tree based pinctrl driver
 
 Required properties:
-- compatible : "pinctrl-single" or "pinconf-single".
-  "pinctrl-single" means that pinconf isn't supported.
-  "pinconf-single" means that generic pinconf is supported.
+- compatible : compatible string for the hardware model followed by either
+  "pinctrl-single" or "pinconf-single":
+  "marvell,mmp2-pinctrl": pin controller on Marvell MMP2 SoC
+  "pinctrl-single": pinconf isn't supported.
+  "pinconf-single": generic pinconf is supported.
 
 - reg : offset and length of the register set for the mux registers
 
