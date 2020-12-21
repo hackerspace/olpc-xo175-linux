@@ -401,6 +401,12 @@ config DA9062_THERMAL
 	  zone.
 	  Compatible with the DA9062 and DA9061 PMICs.
 
+config MMP3_THERMAL
+	tristate "MMP3 Thermal interface support"
+	depends on THERMAL
+	help
+	  Adds thermal management for Marvell MMP3.
+
 config MTK_THERMAL
 	tristate "Temperature sensor driver for mediatek SoCs"
 	depends on ARCH_MEDIATEK || COMPILE_TEST
