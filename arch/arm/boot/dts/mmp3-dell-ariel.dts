@@ -277,10 +277,10 @@
 };
 
 &ec_input_spi {
-	status = "okay";
-	pinctrl-names = "default";
-	pinctrl-0 = <&ssp2_pins>;
 	cs-gpios = <&gpio 56 GPIO_ACTIVE_LOW>;
+	status = "okay";
+//	pinctrl-names = "default";
+//	pinctrl-0 = <&ssp2_pins>;
 
 	power-button@0 {
 		reg = <0>;
