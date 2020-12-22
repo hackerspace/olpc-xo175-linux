@@ -333,6 +333,11 @@
 	my_lovely_pins: pinmux_my_lovely_pins {
 		pinctrl-single,pins =
 			// I2S on GPIO24-GPIO28
+			//        /* SSPA1 (I2S) */
+			//        GPIO25_I2S_BITCLK,
+			//        GPIO26_I2S_SYNC,
+			//        GPIO27_I2S_DATA_OUT,
+			//        GPIO28_I2S_SDATA_IN,
 			<0x0b4 1>, <0x0b8 1>, <0x0bc 1>, <0x0c0 1>, <0x0c4 1>,
 			// I2S on GPIO33-GPIO36
 			<0x0d8 2>, <0x0dc 2>, <0x0e0 2>, <0x0e4 2>,
@@ -383,6 +388,14 @@
 	};
 
 	ssp2_pins: pinmux_ssp2_pins {
+		//        /* ENE EC */
+		//        ENE_KB_INT_GPIO_60,
+		//        SPI2_CLK_GPIO_55,
+		//        SPI2_FRM_GPIO_56,
+		//        SPI2_RXD_GPIO_57,
+		//        SPI2_TXD_GPIO_58,
+		//        GPIO126_OFF1,
+		//        GPIO127_OFF2,
 		pinctrl-single,pins = <0x130 1>, <0x138 1>, <0x13c 1>;
 	};
 };
