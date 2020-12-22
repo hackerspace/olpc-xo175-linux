@@ -287,7 +287,8 @@
 		interrupt-parent = <&gpio>;
 		interrupts = <60 IRQ_TYPE_EDGE_RISING>;
 		compatible = "dell,wyse-ariel-ec-input", "ene,kb3930-input";
-		spi-max-frequency = <33000000>;
+		//spi-max-frequency = <33000000>;
+		spi-max-frequency = <10000>; // 00
 	};
 };
 

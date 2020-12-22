@@ -39,11 +39,21 @@ static int ec_input_read(struct ariel_pwrbutton *priv,
 		.rx_buf = response,
 		.len = sizeof(read_request),
 	};
+	int ret;
 
 	compiletime_assert(sizeof(read_request) == sizeof(*response),
 			   "SPI xfer request/response size mismatch");
 
-	return spi_sync_transfer(spi, &t, 1);
+	//return spi_sync_transfer(spi, &t, 1);
+	ret = spi_sync_transfer(spi, &t, 1);
+	printk("EC RESP: [%02x] [%02x] [%02x] [%02x] [%02x]\n",
+		response->reserved,
+		response->header,
+		response->data[0],
+		response->data[1],
+		response->data[2]);
+
+	return ret;
 }
 
 static irqreturn_t ec_input_interrupt(int irq, void *dev_id)
