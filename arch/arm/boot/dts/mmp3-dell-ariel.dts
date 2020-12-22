@@ -327,6 +327,19 @@
 };
 
 &pinctrl {
+	pinctrl-names = "default";
+	pinctrl-0 = <&my_lovely_pins>;
+
+	my_lovely_pins: pinmux_my_lovely_pins {
+		pinctrl-single,pins =
+			// I2S on GPIO24-GPIO28
+			<0x0b4 1>, <0x0b8 1>, <0x0bc 1>, <0x0c0 1>, <0x0c4 1>,
+			// I2S on GPIO33-GPIO36
+			<0x0d8 2>, <0x0dc 2>, <0x0e0 2>, <0x0e4 2>,
+			// GPIO on GPIO156-GPIO159 instead of JTAG (doesn't work, stays on 0x000090C0)
+			<0x14c 1>, <0x150 1>, <0x154 1>, <0x158 1>;
+	};
+
 	uart3_pins: pinmux_uart3_pins {
 		pinctrl-single,pins = <0x120 1>, <0x124 1>;
 	};
