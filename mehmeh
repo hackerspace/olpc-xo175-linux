@@ -1,0 +1,143 @@
+     54 0x004x
+     40 0x00cx
+     16 0xd0cx
+     13 0x014x
+     12 0x024x
+     10 0x18cx
+      9 0xb0cx
+      5 0x184x
+      3 0xc14x
+      3 0x500x
+      2 0xc0cx
+      2 0xa0cx
+      2 0x90cx
+      2 0x054x
+      1 0xd8cx
+      1 0xc04x
+      1 0xa04x
+      1 0x194x
+
+15   11   7    3
+        S SE   R
+        D OC   V
+1111 1111 1100 0111
+|||``|||| ||||   ```---- 0007 fn
+|||  |||| ||||
+|||  |||| |||`--------- 0010               EDGE_RISE_EN - enable detection of rising edge on this pin
+|||  |||| ||`---------- 0020               EDGE_FALL_EN - enable detection of falling edge on this pin
+|||  |||| |`----------- 0040 edge-clr      EDGE_CLEAR   - disable edge detection on this pin
+|||  |||| |
+|||  |||| `------------ 0080 sleepi        SLEEP_OE_N   - enable outputs during low power modes
+|||  |||`-------------- 0100 sleep0/sleep1 SLEEP_DATA   - output data on the pin during low power modes
+|||  ||`--------------- 0200 sleep-        SLEEP_SEL    - selection control for low power modes signals
+|||  ||
+|||  |`---------------- 0400 twsi
+|||  |
+|||  `----------------- 0000 very-slow	   SLEW RATE
+|||                     0800 slow
+|||                     1000 medium
+|||                     1800 fast
+|||
+||`-------------------- 2000 pull-dn-alt   PULLDOWN_EN  - enable the internal pull-down resistor on this pin
+|`--------------------- 4000 pull-up-alt   PULLUP_EN    - enable the internal pull-up resistor on this pin
+`---------------------- 8000 pull-sel      PULL_SEL     - pull state controlled
+                                                          by selected alternate function (0)
+                                                          or by PULL{UP,DOWN}_EN bits    (1)
+
+
+
+
+
+
+
+
+1111 1111 1100 0111
+|||``|||| ||||   ```---- 0007 fn
+|||  |||| ||||
+|||  |||| |||`--------- 0x0010 WAKE_EDGE_RISING                EDGE_RISE_EN - enable detection of rising edge on this pin
+|||  |||| ||`---------- 0x0020 WAKE_EDGE_FALLING               EDGE_FALL_EN - enable detection of falling edge on this pin
+|||  |||| |`----------- 0x0040 WAKE_EDGE_OFF     edge-clr      EDGE_CLEAR   - disable edge detection on this pin
+|||  |||| |
+|||  |||| `------------ 0x0080 SLEEP_OUTPUT_ON   sleepi        SLEEP_OE_N   - enable outputs during low power modes
+|||  |||`-------------- 0x0100 SLEEP_OUTPUT_HIGH sleep0/sleep1 SLEEP_DATA   - output data on the pin during low power modes
+|||  |||                0x0000 SLEEP_OUTPUT_LOW  sleep0/sleep1 SLEEP_DATA   - output data on the pin during low power modes
+|||  ||`--------------- 0x0200 SLEEP_SEL         sleep-        SLEEP_SEL    - selection control for low power modes signals
+|||  ||
+|||  |`---------------- 0x0400 TWSI              twsi
+|||  |
+|||  `----------------- 0x0000 SLEW_VERY_SLOW    very-slow     SLEW RATE
+|||                     0x0800 SLEW_SLOW         slow
+|||                     0x1000 SLEW_MEDIUM       medium
+|||                     0x1800 SLEW_FAST         fast
+|||
+||`-------------------- 0x2000 BIAS_PULL_DOWN    pull-dn-alt   PULLDOWN_EN  - enable the internal pull-down resistor on this pin
+|`--------------------- 0x4000 BIAS_PULL_UP      pull-up-alt   PULLUP_EN    - enable the internal pull-up resistor on this pin
+`---------------------- 0x8000 BIAS_ON           pull-sel      PULL_SEL     - pull state controlled
+                                                                              by selected alternate function (0)
+                                                                              or by PULL{UP,DOWN}_EN bits    (1)
+
+
+
+
+
+
+[ 0x0010, 'WAKE_EDGE_RISING' ],
+[ 0x0020, 'WAKE_EDGE_FALLING' ],
+[ 0x0040, 'WAKE_EDGE_OFF' ],
+[ 0x0080, 'SLEEP_OUTPUT_ON' ],
+[ 0x0100, 'SLEEP_OUTPUT_HIGH' ],
+[ 0x0000, 'SLEEP_OUTPUT_LOW' ],
+[ 0x0200, 'SLEEP_SEL' ],
+[ 0x0400, 'TWSI' ],
+[ 0x0000, 'SLEW_VERY_SLOW' ],
+[ 0x0800, 'SLEW_SLOW' ],
+[ 0x1000, 'SLEW_MEDIUM' ],
+[ 0x1800, 'SLEW_FAST' ],
+[ 0x2000, 'BIAS_PULL_DOWN' ],
+[ 0x4000, 'BIAS_PULL_UP' ],
+[ 0x8000, 'BIAS_ON' ],
+
+
+
+
+
+
+
+
+
+
+
+
+ffc7
+
+
+     43 0x0041
+     28 0x00c0
+     16 0xd0c0
+     11 0x00c1
+     10 0x18c2
+      9 0xb0c0
+      9 0x0141
+      9 0x0040
+      7 0x0241
+      5 0x1841
+      3 0x5003
+      3 0x0140
+      2 0xc143
+      2 0xa0c0
+      2 0x90c0
+      2 0x0542
+      2 0x0244
+      2 0x0243
+      2 0x0043
+      1 0xd8c0
+      1 0xc141
+      1 0xc0c1
+      1 0xc0c0
+      1 0xc040
+      1 0xa041
+      1 0x1941
+      1 0x0240
+      1 0x0143
+      1 0x00c3
+
