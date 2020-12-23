@@ -301,62 +301,130 @@
 
 &pinctrl {
 	uart3_pins: pinmux_uart3_pins {
-		pinctrl-single,pins = <0x260 4>, <0x264 4>;
+		pinctrl-single,function-mask = <0x1ff7>;
+		pinctrl-single,pins = <0x260 (4 | WAKE_EDGE_OFF | SLEEP_SEL)>,
+				      <0x264 (4 | WAKE_EDGE_OFF | SLEEP_SEL)>;
+
 	};
 
 	uart4_pins: pinmux_uart4_pins {
-		pinctrl-single,pins = <0x268 3>, <0x26c 3>;
+		pinctrl-single,function-mask = <0x1ff7>;
+		pinctrl-single,pins = <0x268 (3 | WAKE_EDGE_OFF | SLEEP_SEL)>,
+				      <0x26c (3 | WAKE_EDGE_OFF | SLEEP_SEL)>;
+
 	};
 
 	mmc1_pins: pinmux_mmc1_pins {
-		pinctrl-single,pins = <0x028 1>, <0x02c 1>, <0x030 1>, <0x034 1>,
-				      <0x03c 1>, <0x048 1>, <0x050 1>;
+		pinctrl-single,function-mask = <0x1ff7>;
+		pinctrl-single,pins = <0x028 (1 | WAKE_EDGE_OFF | SLEW_FAST)>,
+				      <0x02c (1 | WAKE_EDGE_OFF | SLEW_FAST)>,
+				      <0x030 (1 | WAKE_EDGE_OFF | SLEW_FAST)>,
+				      <0x034 (1 | WAKE_EDGE_OFF | SLEW_FAST)>,
+				      <0x03c (1 | WAKE_EDGE_OFF | SLEW_FAST)>,
+				      <0x048 (1 | WAKE_EDGE_OFF | SLEW_FAST)>,
+				      <0x050 (1 | WAKE_EDGE_OFF | SLEEP_OUTPUT_LOW)>; // GPIO_141   C22   0xc0c1 <BIAS_PULL_UP | BIAS_ON)>,
 	};
 
 	mmc2_pins: pinmux_mmc2_pins {
-		pinctrl-single,pins = <0x0e8 1>, <0x0ec 1>, <0x0f0 1>, <0x0f4 1>,
-				      <0x0f8 1>, <0x0fc 1>;
+		pinctrl-single,function-mask = <0x1ff7>;
+		pinctrl-single,pins = <0x0e8 (1 | WAKE_EDGE_OFF | SLEEP_OUTPUT_LOW)>,
+				      <0x0ec (1 | WAKE_EDGE_OFF | SLEEP_OUTPUT_LOW)>,
+				      <0x0f0 (1 | WAKE_EDGE_OFF | SLEEP_OUTPUT_LOW)>,
+				      <0x0f4 (1 | WAKE_EDGE_OFF | SLEEP_OUTPUT_LOW)>,
+				      <0x0f8 (1 | WAKE_EDGE_OFF)>,
+				      <0x0fc (1 | WAKE_EDGE_OFF)>;
 	};
 
 	mmc3_pins: pinmux_mmc3_pins {
-		pinctrl-single,pins = <0x1e0 2>, <0x1e4 2>, <0x1e8 2>, <0x1ec 2>,
-				      <0x200 2>, <0x204 2>, <0x208 2>, <0x20c 2>,
-				      <0x240 2>, <0x244 2>;
+		pinctrl-single,function-mask = <0x1ff7>;
+		pinctrl-single,pins = <0x1e0 (2 | WAKE_EDGE_OFF | SLEEP_OUTPUT_LOW | SLEW_FAST)>,
+				      <0x1e4 (2 | WAKE_EDGE_OFF | SLEEP_OUTPUT_LOW | SLEW_FAST)>,
+				      <0x1e8 (2 | WAKE_EDGE_OFF | SLEEP_OUTPUT_LOW | SLEW_FAST)>,
+				      <0x1ec (2 | WAKE_EDGE_OFF | SLEEP_OUTPUT_LOW | SLEW_FAST)>,
+				      <0x200 (2 | WAKE_EDGE_OFF | SLEEP_OUTPUT_LOW | SLEW_FAST)>,
+				      <0x204 (2 | WAKE_EDGE_OFF | SLEEP_OUTPUT_LOW | SLEW_FAST)>,
+				      <0x208 (2 | WAKE_EDGE_OFF | SLEEP_OUTPUT_LOW | SLEW_FAST)>,
+				      <0x20c (2 | WAKE_EDGE_OFF | SLEEP_OUTPUT_LOW | SLEW_FAST)>,
+				      <0x240 (2 | WAKE_EDGE_OFF | SLEEP_OUTPUT_LOW | SLEW_FAST)>,
+				      <0x244 (2 | WAKE_EDGE_OFF | SLEEP_OUTPUT_LOW | SLEW_FAST)>;
 	};
 
 	twsi1_pins: pinmux_twsi1_pins {
-		pinctrl-single,pins = <0x140 0>, <0x144 0>;
+		pinctrl-single,function-mask = <0x1ff7>;
+		pinctrl-single,pins = <0x140 (0 | WAKE_EDGE_OFF | SLEEP_OUTPUT_LOW | SLEW_MEDIUM)>, // TWSI1_SCL  L26   0xd0c0  <BIAS_PULL_UP | BIAS_ON)>,
+				      <0x144 (0 | WAKE_EDGE_OFF | SLEEP_OUTPUT_LOW | SLEW_MEDIUM)>; // TWSI1_SDA  K28   0xd0c0  <BIAS_PULL_UP | BIAS_ON)>,
+
 	};
 
 	twsi2_pins: pinmux_twsi2_pins {
-		pinctrl-single,pins = <0x128 2>, <0x12c 2>;
+		pinctrl-single,function-mask = <0x1ff7>;
+		pinctrl-single,pins = <0x128 (2 | WAKE_EDGE_OFF | TWSI)>,
+				      <0x12c (2 | WAKE_EDGE_OFF | TWSI)>;
 	};
 
 	twsi6_pins: pinmux_twsi6_pins {
-		pinctrl-single,pins = <0x110 3>, <0x114 3>;
+		pinctrl-single,function-mask = <0x1ff7>;
+		pinctrl-single,pins = <0x110 (3 | WAKE_EDGE_OFF)>, // GPIO_47    H26   0xc143 <BIAS_PULL_UP | BIAS_ON)>,
+				      <0x114 (3 | WAKE_EDGE_OFF)>; // GPIO_48    N22   0xc143 <BIAS_PULL_UP | BIAS_ON)>,
 	};
 
 	lcd0_pins: pinmux_lcd0_pins {
-		pinctrl-single,pins = <0x170 1>, <0x174 1>, <0x178 1>, <0x17c 1>,
-				      <0x180 1>, <0x184 1>, <0x188 1>, <0x18c 1>,
-				      <0x190 1>, <0x194 1>, <0x198 1>, <0x19c 1>,
-				      <0x1a0 1>, <0x1a4 1>, <0x1a8 1>, <0x1ac 1>,
-				      <0x1b0 1>, <0x1b4 1>, <0x1b8 1>, <0x1bc 1>,
-				      <0x1c0 1>, <0x1c4 1>;
+		pinctrl-single,function-mask = <0x1ff7>;
+		pinctrl-single,pins = <0x170 (1 | WAKE_EDGE_OFF)>,
+				      <0x174 (1 | WAKE_EDGE_OFF)>,
+				      <0x178 (1 | WAKE_EDGE_OFF)>,
+				      <0x17c (1 | WAKE_EDGE_OFF)>,
+				      <0x180 (1 | WAKE_EDGE_OFF)>,
+				      <0x184 (1 | WAKE_EDGE_OFF)>,
+				      <0x188 (1 | WAKE_EDGE_OFF)>,
+				      <0x18c (1 | WAKE_EDGE_OFF)>,
+				      <0x190 (1 | WAKE_EDGE_OFF)>,
+				      <0x194 (1 | WAKE_EDGE_OFF)>,
+				      <0x198 (1 | WAKE_EDGE_OFF)>,
+				      <0x19c (1 | WAKE_EDGE_OFF)>,
+				      <0x1a0 (1 | WAKE_EDGE_OFF)>,
+				      <0x1a4 (1 | WAKE_EDGE_OFF)>,
+				      <0x1a8 (1 | WAKE_EDGE_OFF)>,
+				      <0x1ac (1 | WAKE_EDGE_OFF)>,
+				      <0x1b0 (1 | WAKE_EDGE_OFF)>,
+				      <0x1b4 (1 | WAKE_EDGE_OFF)>,
+				      <0x1b8 (1 | WAKE_EDGE_OFF)>,
+				      <0x1bc (1 | WAKE_EDGE_OFF)>,
+				      <0x1c0 (1 | WAKE_EDGE_OFF)>,
+				      <0x1c4 (1 | WAKE_EDGE_OFF)>;
+
 	};
 
 	ssp3_pins: pinmux_ssp3_pins {
-		pinctrl-single,pins = <0x270 3>, <0x274 3>, <0x278 3>, <0x27c 3>;
+		pinctrl-single,function-mask = <0x1ff7>;
+		pinctrl-single,pins = <0x270 (3 | WAKE_EDGE_OFF)>,
+				      <0x274 (3 | WAKE_EDGE_OFF)>,
+				      <0x278 (3 | WAKE_EDGE_OFF)>,
+				      <0x27c (3 | WAKE_EDGE_OFF | SLEEP_OUTPUT_LOW)>;
 	};
 
 	camera0_pins: pinmux_camera0_pins {
-		pinctrl-single,pins = <0x280 1>, <0x284 1>, <0x288 1>, <0x28c 1>,
-				      <0x290 1>, <0x294 1>, <0x298 1>, <0x29c 1>,
-				      <0x2a0 1>, <0x2a4 1>, <0x2a8 1>, <0x2ac 1>;
+		pinctrl-single,function-mask = <0x1ff7>;
+		pinctrl-single,pins = <0x280 (1 | WAKE_EDGE_OFF)>,
+				      <0x284 (1 | WAKE_EDGE_OFF)>,
+				      <0x288 (1 | WAKE_EDGE_OFF)>,
+				      <0x28c (1 | WAKE_EDGE_OFF)>,
+				      <0x290 (1 | WAKE_EDGE_OFF)>,
+				      <0x294 (1 | WAKE_EDGE_OFF)>,
+				      <0x298 (1 | WAKE_EDGE_OFF)>,
+				      <0x29c (1 | WAKE_EDGE_OFF)>,
+				      <0x2a0 (1 | WAKE_EDGE_OFF | SLEEP_OUTPUT_LOW)>,
+				      <0x2a4 (1 | WAKE_EDGE_OFF | SLEEP_OUTPUT_LOW)>,
+				      <0x2a8 (1 | WAKE_EDGE_OFF)>,
+				      <0x2ac (1 | WAKE_EDGE_OFF)>;
 	};
 
 	sspa0_pins: pinmux_sspa0_pins {
-		pinctrl-single,pins = <0x0b4 1>, <0x0b8 1>, <0x0bc 1>, <0x0c0 1>,
-				      <0x0c4 1>;
+		pinctrl-single,function-mask = <0x1ff7>;
+		pinctrl-single,pins = <0x0b4 (1 | WAKE_EDGE_OFF)>,
+				      <0x0b8 (1 | WAKE_EDGE_OFF)>,
+				      <0x0bc (1 | WAKE_EDGE_OFF)>,
+				      <0x0c0 (1 | WAKE_EDGE_OFF)>,
+				      <0x0c4 (1 | WAKE_EDGE_OFF | SLEEP_OUTPUT_LOW)>;
 	};
 };

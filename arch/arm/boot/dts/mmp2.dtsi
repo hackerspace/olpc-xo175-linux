@@ -10,6 +10,21 @@
 #include <dt-bindings/power/marvell,mmp2.h>
 #include <dt-bindings/clock/marvell,mmp2-audio.h>
 
+#define WAKE_EDGE_RISING	0x0010
+#define WAKE_EDGE_FALLING	0x0020
+#define WAKE_EDGE_OFF		0x0040
+#define SLEEP_OUTPUT_HIGH	0x0180
+#define SLEEP_OUTPUT_LOW	0x0080
+#define SLEEP_SEL		0x0200
+#define TWSI			0x0400
+#define SLEW_VERY_SLOW		0x0000
+#define SLEW_SLOW		0x0800
+#define SLEW_MEDIUM		0x1000
+#define SLEW_FAST		0x1800
+#define BIAS_PULL_DOWN		0x2000
+#define BIAS_PULL_UP		0x4000
+#define BIAS_ON			0x8000
+
 / {
 	#address-cells = <1>;
 	#size-cells = <1>;
