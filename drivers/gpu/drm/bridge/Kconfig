@@ -37,6 +37,16 @@ config DRM_CHRONTEL_CH7033
 
 	  If in doubt, say "N".
 
+config DRM_MMP3_HDMI
+	tristate "Marvell MMP3 HDMI Encoder"
+	depends on OF
+	depends on MACH_MMP3_DT || COMPILE_TEST
+	select DRM_KMS_HELPER
+	help
+	  Enable support for HDMI Encoder on Marvell MMP3 SoC.
+
+	  If in doubt, say "N".
+
 config DRM_DISPLAY_CONNECTOR
 	tristate "Display connector support"
 	depends on OF
