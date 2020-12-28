@@ -38,7 +38,23 @@ struct armada_crtc {
 	const struct armada_variant *variant;
 	void			*variant_data;
 	unsigned		num;
+
+	u32			port_num;
 	void __iomem		*base;
+	void __iomem		*disp_regs;
+	void __iomem		*dma_regs;
+	void __iomem		*intf_ctrl_reg;
+	void __iomem		*clk_div_reg;
+
+	uint32_t		vsync_irq_ena;
+	uint32_t		framedone_ena;
+	uint32_t		vsync_irq;
+	uint32_t		framedone;
+	uint32_t		gra_frame_irq;
+	uint32_t		gra_frame_irq0;
+	uint32_t		dma_ff_overflow;
+	uint32_t		gra_ff_overflow;
+
 	struct clk		*periphclk;
 	struct clk		*clk;
 	struct {
