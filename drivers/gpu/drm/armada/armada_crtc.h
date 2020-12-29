@@ -45,6 +45,13 @@ struct armada_crtc {
 	void __iomem		*intf_ctrl_reg;
 	void __iomem		*clk_div_reg;
 
+	uint32_t		vsync_irq_ena;
+	uint32_t		framedone_ena;
+	uint32_t		vsync_irq;
+	uint32_t		framedone;
+	uint32_t		gra_frame_irq;
+	uint32_t		gra_frame_irq0;
+
 	struct clk		*periphclk;
 	struct clk		*clk;
 	struct {

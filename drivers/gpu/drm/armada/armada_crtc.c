@@ -253,12 +253,12 @@ static void armada_drm_crtc_irq(struct armada_crtc *dcrtc, u32 stat)
 	if (stat & GRA_FF_UNDERFLOW)
 		DRM_ERROR("graphics underflow on crtc %u\n", dcrtc->num);
 
-	if (stat & VSYNC_IRQ)
+	if (stat & dcrtc->vsync_irq)
 		drm_crtc_handle_vblank(&dcrtc->crtc);
 
 	spin_lock(&dcrtc->irq_lock);
-	if (stat & GRA_FRAME_IRQ && dcrtc->interlaced) {
-		int i = stat & GRA_FRAME_IRQ0 ? 0 : 1;
+	if (stat & dcrtc->gra_frame_irq && dcrtc->interlaced) {
+		int i = stat & dcrtc->gra_frame_irq0 ? 0 : 1;
 		uint32_t val;
 
 		writel_relaxed(dcrtc->v[i].spu_v_porch, dcrtc->disp_regs + LCD_SPU_V_PORCH);
@@ -270,7 +270,7 @@ static void armada_drm_crtc_irq(struct armada_crtc *dcrtc, u32 stat)
 		writel_relaxed(val, dcrtc->base + LCD_SPU_ADV_REG);
 	}
 
-	if (stat & dcrtc->irq_ena & DUMB_FRAMEDONE) {
+	if (stat & dcrtc->irq_ena & dcrtc->framedone) {
 		if (dcrtc->update_pending) {
 			armada_drm_crtc_update_regs(dcrtc, dcrtc->regs);
 			dcrtc->update_pending = false;
@@ -286,11 +286,11 @@ static void armada_drm_crtc_irq(struct armada_crtc *dcrtc, u32 stat)
 				       dcrtc->dma_regs + LCD_SPU_DMA_CTRL0);
 			dcrtc->cursor_update = false;
 		}
-		armada_drm_crtc_disable_irq(dcrtc, DUMB_FRAMEDONE_ENA);
+		armada_drm_crtc_disable_irq(dcrtc, dcrtc->framedone_ena);
 	}
 	spin_unlock(&dcrtc->irq_lock);
 
-	if (stat & VSYNC_IRQ && !dcrtc->update_pending) {
+	if (stat & dcrtc->vsync_irq && !dcrtc->update_pending) {
 		event = xchg(&dcrtc->event, NULL);
 		if (event) {
 			spin_lock(&dcrtc->crtc.dev->event_lock);
@@ -318,7 +318,7 @@ static irqreturn_t armada_drm_irq(int irq, void *arg)
 	/* Mask out those interrupts we haven't enabled */
 	v = stat & dcrtc->irq_ena;
 
-	if (v & (VSYNC_IRQ|GRA_FRAME_IRQ|DUMB_FRAMEDONE)) {
+	if (v & (dcrtc->vsync_irq|dcrtc->gra_frame_irq|dcrtc->framedone)) {
 		armada_drm_crtc_irq(dcrtc, stat);
 		return IRQ_HANDLED;
 	}
@@ -461,7 +461,7 @@ static void armada_drm_crtc_atomic_flush(struct drm_crtc *crtc,
 		dcrtc->update_pending = true;
 		armada_drm_crtc_queue_state_event(crtc);
 		spin_lock_irq(&dcrtc->irq_lock);
-		armada_drm_crtc_enable_irq(dcrtc, DUMB_FRAMEDONE_ENA);
+		armada_drm_crtc_enable_irq(dcrtc, dcrtc->framedone_ena);
 		spin_unlock_irq(&dcrtc->irq_lock);
 	} else {
 		spin_lock_irq(&dcrtc->irq_lock);
@@ -683,7 +683,7 @@ static int armada_drm_crtc_cursor_update(struct armada_crtc *dcrtc, bool reload)
 	dcrtc->cursor_hw_pos = yscr << 16 | xscr;
 	dcrtc->cursor_hw_sz = h << 16 | w;
 	dcrtc->cursor_update = true;
-	armada_drm_crtc_enable_irq(dcrtc, DUMB_FRAMEDONE_ENA);
+	armada_drm_crtc_enable_irq(dcrtc, dcrtc->framedone_ena);
 	spin_unlock_irq(&dcrtc->irq_lock);
 
 	return 0;
@@ -797,7 +797,7 @@ static int armada_drm_crtc_enable_vblank(struct drm_crtc *crtc)
 	unsigned long flags;
 
 	spin_lock_irqsave(&dcrtc->irq_lock, flags);
-	armada_drm_crtc_enable_irq(dcrtc, VSYNC_IRQ_ENA);
+	armada_drm_crtc_enable_irq(dcrtc, dcrtc->vsync_irq_ena);
 	spin_unlock_irqrestore(&dcrtc->irq_lock, flags);
 	return 0;
 }
@@ -808,7 +808,7 @@ static void armada_drm_crtc_disable_vblank(struct drm_crtc *crtc)
 	unsigned long flags;
 
 	spin_lock_irqsave(&dcrtc->irq_lock, flags);
-	armada_drm_crtc_disable_irq(dcrtc, VSYNC_IRQ_ENA);
+	armada_drm_crtc_disable_irq(dcrtc, dcrtc->vsync_irq_ena);
 	spin_unlock_irqrestore(&dcrtc->irq_lock, flags);
 }
 
@@ -935,12 +935,24 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 		dcrtc->dma_regs = base + LCD0_DMA_REGS;
 		dcrtc->intf_ctrl_reg = base + LCD0_SPU_DUMB_CTRL;
 		dcrtc->clk_div_reg = base + LCD0_CFG_SCLK_DIV;
+		dcrtc->vsync_irq_ena = LCD0_VSYNC_IRQ_ENA;
+		dcrtc->framedone_ena = LCD0_DUMB_FRAMEDONE_ENA;
+		dcrtc->vsync_irq = LCD0_VSYNC_IRQ;
+		dcrtc->framedone = LCD0_DUMB_FRAMEDONE;
+		dcrtc->gra_frame_irq = LCD0_GRA_FRAME_IRQ0 | LCD0_GRA_FRAME_IRQ1;
+		dcrtc->gra_frame_irq0 = LCD0_GRA_FRAME_IRQ0;
 		break;
 	case 1:
 		dcrtc->disp_regs = base + LCD1_DISP_REGS;
 		dcrtc->dma_regs = base + LCD1_DMA_REGS;
 		dcrtc->intf_ctrl_reg = base + LCD1_TVIF_CTRL;
 		dcrtc->clk_div_reg = base + LCD1_TCLK_DIV;
+		dcrtc->vsync_irq_ena = LCD1_VSYNC_IRQ_ENA;
+		dcrtc->framedone_ena = LCD1_FRAMEDONE_ENA;
+		dcrtc->vsync_irq = LCD1_VSYNC_IRQ;
+		dcrtc->framedone = LCD1_FRAMEDONE;
+		dcrtc->gra_frame_irq = LCD1_GRA_FRAME_IRQ0 | LCD1_GRA_FRAME_IRQ1;
+		dcrtc->gra_frame_irq0 = LCD1_GRA_FRAME_IRQ0;
 		break;
 	default:
 		DRM_ERROR("bad port number in device tree\n");
