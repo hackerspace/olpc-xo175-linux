@@ -905,21 +905,16 @@ found:
 }
 
 static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
-	struct resource *res, int irq, const struct armada_variant *variant,
+	void __iomem *base, int irq, const struct armada_variant *variant,
 	struct device_node *port)
 {
 	struct armada_private *priv = drm_to_armada_dev(drm);
 	struct armada_crtc *dcrtc;
 	struct drm_plane *primary;
 	struct device_node *endpoint;
-	const u32 *port_num;
 	u32 bus_width = 24;
-	void __iomem *base;
+	u32 port_num = 0;
 	int ret;
-
-	base = devm_ioremap_resource(dev, res);
-	if (IS_ERR(base))
-		return PTR_ERR(base);
 
 	dcrtc = kzalloc(sizeof(*dcrtc), GFP_KERNEL);
 	if (!dcrtc) {
@@ -933,8 +928,8 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 	dcrtc->variant = variant;
 	dcrtc->base = base; // xxx
 
-	port_num = of_get_property(port, "reg", NULL);
-	switch (port_num ? *port_num : 0) {
+	of_property_read_u32(port, "reg", &port_num);
+	switch (port_num) {
 	case 0:
 		dcrtc->disp_regs = base + LCD0_DISP_REGS;
 		dcrtc->dma_regs = base + LCD0_DMA_REGS;
@@ -944,12 +939,13 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 	case 1:
 		dcrtc->disp_regs = base + LCD1_DISP_REGS;
 		dcrtc->dma_regs = base + LCD1_DMA_REGS;
-		dcrtc->intf_ctrl_reg = base + LCD0_SPU_DUMB_CTRL;
-		dcrtc->clk_div_reg = base + LCD0_CFG_SCLK_DIV;
+		dcrtc->intf_ctrl_reg = base + LCD1_TVIF_CTRL;
+		dcrtc->clk_div_reg = base + LCD1_TCLK_DIV;
 		break;
 	default:
 		DRM_ERROR("bad port number in device tree\n");
-		return -EINVAL;
+		ret = -EINVAL;
+		goto err_port;
 	}
 
 	dcrtc->num = drm->mode_config.num_crtc;
@@ -980,7 +976,8 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 		break;
 	default:
 		DRM_ERROR("unsupported bus width: %d\n", bus_width);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto err_port;
 	}
 
 	spin_lock_init(&dcrtc->irq_lock);
@@ -999,7 +996,7 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 	readl_relaxed(base + LCD_SPU_IRQ_ISR);
 	writel_relaxed(0, base + LCD_SPU_IRQ_ISR);
 
-	ret = devm_request_irq(dev, irq, armada_drm_irq, 0, "armada_drm_crtc",
+	ret = devm_request_irq(dev, irq, armada_drm_irq, IRQF_SHARED, "armada_drm_crtc",
 			       dcrtc);
 	if (ret < 0)
 		goto err_crtc;
@@ -1048,6 +1045,7 @@ err_crtc_init:
 	primary->funcs->destroy(primary);
 err_crtc:
 	clk_disable_unprepare(dcrtc->periphclk);
+err_port:
 	kfree(dcrtc);
 
 	return ret;
@@ -1061,10 +1059,14 @@ armada_lcd_bind(struct device *dev, struct device *master, void *data)
 	struct resource *res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	int irq = platform_get_irq(pdev, 0);
 	const struct armada_variant *variant;
-	struct device_node *port = NULL;
+	void __iomem *base;
 
 	if (irq < 0)
 		return irq;
+
+	base = devm_ioremap_resource(dev, res);
+	if (IS_ERR(base))
+		return PTR_ERR(base);
 
 	if (!dev->of_node) {
 		const struct platform_device_id *id;
@@ -1074,9 +1076,12 @@ armada_lcd_bind(struct device *dev, struct device *master, void *data)
 			return -ENXIO;
 
 		variant = (const struct armada_variant *)id->driver_data;
+		return armada_drm_crtc_create(drm, dev, base, irq, variant, NULL);
 	} else {
 		const struct of_device_id *match;
 		struct device_node *np, *parent = dev->of_node;
+		struct device_node *port;
+		int ret;
 
 		match = of_match_device(dev->driver->of_match_table, dev);
 		if (!match)
@@ -1085,17 +1090,20 @@ armada_lcd_bind(struct device *dev, struct device *master, void *data)
 		np = of_get_child_by_name(parent, "ports");
 		if (np)
 			parent = np;
-		port = of_get_child_by_name(parent, "port");
-		of_node_put(np);
-		if (!port) {
-			dev_err(dev, "no port node found in %pOF\n", parent);
-			return -ENXIO;
-		}
 
 		variant = match->data;
+
+                for_each_child_of_node(parent, port) {
+			ret = armada_drm_crtc_create(drm, dev, base, irq, variant, port);
+			if (ret) {
+				DRM_ERROR("Unable to create crtc for %s: %d\n",
+					  of_node_full_name(port), ret);
+			}
+                }
+		of_node_put(np);
 	}
 
-	return armada_drm_crtc_create(drm, dev, res, irq, variant, port);
+	return 0;
 }
 
 static void
