@@ -89,13 +89,11 @@
 						};
 					};
 
-/*
 					port@1 {
 						reg = <1>;
 						hdmi0_out: endpoint {
 						};
 					};
-*/
 				};
 			};
 

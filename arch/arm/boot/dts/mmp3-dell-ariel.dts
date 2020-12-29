@@ -59,7 +59,6 @@
 		};
 	};
 
-/*
 	dvi1-connector {
 		compatible = "dvi-connector";
 		ddc-i2c-bus = <&twsi6>;
@@ -72,7 +71,6 @@
 			};
 		};
 	};
-*/
 };
 
 &uart3 {
@@ -206,18 +204,16 @@
 };
 
 &hdmi0 {
-//	status = "okay";
+	status = "okay";
 };
 
 &lcd0_out {
 	remote-endpoint = <&encoder_in>;
 };
 
-/*
 &hdmi0_out {
 	remote-endpoint = <&dvi1_in>;
 };
-*/
 
 &ssp1 {
 	status = "okay";
