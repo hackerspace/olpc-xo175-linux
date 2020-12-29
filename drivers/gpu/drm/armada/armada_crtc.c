@@ -81,14 +81,13 @@
 void
 armada_drm_crtc_update_regs(struct armada_crtc *dcrtc, struct armada_regs *regs)
 {
-	while (regs->offset != ~0) {
-		void __iomem *reg = dcrtc->base + regs->offset;
+	while (regs->reg) {
 		uint32_t val;
 
 		val = regs->mask;
 		if (val != 0)
-			val &= readl_relaxed(reg);
-		writel_relaxed(val | regs->val, reg);
+			val &= readl_relaxed(regs->reg);
+		writel_relaxed(val | regs->val, regs->reg);
 		++regs;
 	}
 }
@@ -115,7 +114,7 @@ static void armada_drm_crtc_update(struct armada_crtc *dcrtc, bool enable)
 
 	armada_updatel(dumb_ctrl,
 		       ~(CFG_INV_CSYNC | CFG_INV_HSYNC | CFG_INV_VSYNC),
-		       dcrtc->base + LCD_SPU_DUMB_CTRL);
+		       dcrtc->intf_ctrl_reg);
 }
 
 static void armada_drm_crtc_queue_state_event(struct drm_crtc *crtc)
@@ -134,38 +133,40 @@ static void armada_drm_crtc_queue_state_event(struct drm_crtc *crtc)
 static void armada_drm_update_gamma(struct drm_crtc *crtc)
 {
 	struct drm_property_blob *blob = crtc->state->gamma_lut;
-	void __iomem *base = drm_to_armada_crtc(crtc)->base;
+	struct armada_crtc *dcrtc = drm_to_armada_crtc(crtc);
 	int i;
 
 	if (blob) {
 		struct drm_color_lut *lut = blob->data;
 
 		armada_updatel(CFG_CSB_256x8, CFG_CSB_256x8 | CFG_PDWN256x8,
-			       base + LCD_SPU_SRAM_PARA1);
+			       dcrtc->base + LCD_SPU_SRAM_PARA1);
 
 		for (i = 0; i < 256; i++) {
 			writel_relaxed(drm_color_lut_extract(lut[i].red, 8),
-				       base + LCD_SPU_SRAM_WRDAT);
+				       dcrtc->base + LCD_SPU_SRAM_WRDAT);
 			writel_relaxed(i | SRAM_WRITE | SRAM_GAMMA_YR,
-				       base + LCD_SPU_SRAM_CTRL);
-			readl_relaxed(base + LCD_SPU_HWC_OVSA_HPXL_VLN);
+				       dcrtc->base + LCD_SPU_SRAM_CTRL);
+			readl_relaxed(dcrtc->disp_regs + LCD_SPU_HWC_OVSA_HPXL_VLN);
+
 			writel_relaxed(drm_color_lut_extract(lut[i].green, 8),
-				       base + LCD_SPU_SRAM_WRDAT);
+				       dcrtc->base + LCD_SPU_SRAM_WRDAT);
 			writel_relaxed(i | SRAM_WRITE | SRAM_GAMMA_UG,
-				       base + LCD_SPU_SRAM_CTRL);
-			readl_relaxed(base + LCD_SPU_HWC_OVSA_HPXL_VLN);
+				       dcrtc->base + LCD_SPU_SRAM_CTRL);
+			readl_relaxed(dcrtc->disp_regs + LCD_SPU_HWC_OVSA_HPXL_VLN);
+
 			writel_relaxed(drm_color_lut_extract(lut[i].blue, 8),
-				       base + LCD_SPU_SRAM_WRDAT);
+				       dcrtc->base + LCD_SPU_SRAM_WRDAT);
 			writel_relaxed(i | SRAM_WRITE | SRAM_GAMMA_VB,
-				       base + LCD_SPU_SRAM_CTRL);
-			readl_relaxed(base + LCD_SPU_HWC_OVSA_HPXL_VLN);
+				       dcrtc->base + LCD_SPU_SRAM_CTRL);
+			readl_relaxed(dcrtc->disp_regs + LCD_SPU_HWC_OVSA_HPXL_VLN);
 		}
 		armada_updatel(CFG_GAMMA_ENA, CFG_GAMMA_ENA,
-			       base + LCD_SPU_DMA_CTRL0);
+			       dcrtc->dma_regs + LCD_SPU_DMA_CTRL0);
 	} else {
-		armada_updatel(0, CFG_GAMMA_ENA, base + LCD_SPU_DMA_CTRL0);
+		armada_updatel(0, CFG_GAMMA_ENA, dcrtc->dma_regs + LCD_SPU_DMA_CTRL0);
 		armada_updatel(CFG_PDWN256x8, CFG_CSB_256x8 | CFG_PDWN256x8,
-			       base + LCD_SPU_SRAM_PARA1);
+			       dcrtc->base + LCD_SPU_SRAM_PARA1);
 	}
 }
 
@@ -246,7 +247,6 @@ static void armada_drm_crtc_enable_irq(struct armada_crtc *dcrtc, u32 mask)
 static void armada_drm_crtc_irq(struct armada_crtc *dcrtc, u32 stat)
 {
 	struct drm_pending_vblank_event *event;
-	void __iomem *base = dcrtc->base;
 
 	if (stat & DMA_FF_UNDERFLOW)
 		DRM_ERROR("video underflow on crtc %u\n", dcrtc->num);
@@ -261,14 +261,13 @@ static void armada_drm_crtc_irq(struct armada_crtc *dcrtc, u32 stat)
 		int i = stat & GRA_FRAME_IRQ0 ? 0 : 1;
 		uint32_t val;
 
-		writel_relaxed(dcrtc->v[i].spu_v_porch, base + LCD_SPU_V_PORCH);
-		writel_relaxed(dcrtc->v[i].spu_v_h_total,
-			       base + LCD_SPUT_V_H_TOTAL);
+		writel_relaxed(dcrtc->v[i].spu_v_porch, dcrtc->disp_regs + LCD_SPU_V_PORCH);
+		writel_relaxed(dcrtc->v[i].spu_v_h_total, dcrtc->disp_regs + LCD_SPUT_V_H_TOTAL);
 
-		val = readl_relaxed(base + LCD_SPU_ADV_REG);
+		val = readl_relaxed(dcrtc->base + LCD_SPU_ADV_REG);
 		val &= ~(ADV_VSYNC_L_OFF | ADV_VSYNC_H_OFF | ADV_VSYNCOFFEN);
 		val |= dcrtc->v[i].spu_adv_reg;
-		writel_relaxed(val, base + LCD_SPU_ADV_REG);
+		writel_relaxed(val, dcrtc->base + LCD_SPU_ADV_REG);
 	}
 
 	if (stat & dcrtc->irq_ena & DUMB_FRAMEDONE) {
@@ -278,13 +277,13 @@ static void armada_drm_crtc_irq(struct armada_crtc *dcrtc, u32 stat)
 		}
 		if (dcrtc->cursor_update) {
 			writel_relaxed(dcrtc->cursor_hw_pos,
-				       base + LCD_SPU_HWC_OVSA_HPXL_VLN);
+				       dcrtc->disp_regs + LCD_SPU_HWC_OVSA_HPXL_VLN);
 			writel_relaxed(dcrtc->cursor_hw_sz,
-				       base + LCD_SPU_HWC_HPXL_VLN);
+				       dcrtc->disp_regs + LCD_SPU_HWC_HPXL_VLN);
 			armada_updatel(CFG_HWC_ENA,
 				       CFG_HWC_ENA | CFG_HWC_1BITMOD |
 				       CFG_HWC_1BITENA,
-				       base + LCD_SPU_DMA_CTRL0);
+				       dcrtc->dma_regs + LCD_SPU_DMA_CTRL0);
 			dcrtc->cursor_update = false;
 		}
 		armada_drm_crtc_disable_irq(dcrtc, DUMB_FRAMEDONE_ENA);
@@ -350,7 +349,7 @@ static void armada_drm_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	/* Now compute the divider for real */
 	dcrtc->variant->compute_clock(dcrtc, adj, &sclk);
 
-	armada_reg_queue_set(regs, i, sclk, LCD_CFG_SCLK_DIV);
+	armada_reg_queue_set(regs, i, sclk, dcrtc->clk_div_reg);
 
 	spin_lock_irqsave(&dcrtc->irq_lock, flags);
 
@@ -375,19 +374,18 @@ static void armada_drm_crtc_mode_set_nofb(struct drm_crtc *crtc)
 
 	val = adj->crtc_vdisplay << 16 | adj->crtc_hdisplay;
 
-	armada_reg_queue_set(regs, i, val, LCD_SPU_V_H_ACTIVE);
-	armada_reg_queue_set(regs, i, (lm << 16) | rm, LCD_SPU_H_PORCH);
-	armada_reg_queue_set(regs, i, dcrtc->v[0].spu_v_porch, LCD_SPU_V_PORCH);
-	armada_reg_queue_set(regs, i, dcrtc->v[0].spu_v_h_total,
-			   LCD_SPUT_V_H_TOTAL);
+	armada_reg_queue_set(regs, i, val, dcrtc->disp_regs + LCD_SPU_V_H_ACTIVE);
+	armada_reg_queue_set(regs, i, (lm << 16) | rm, dcrtc->disp_regs + LCD_SPU_H_PORCH);
+	armada_reg_queue_set(regs, i, dcrtc->v[0].spu_v_porch, dcrtc->disp_regs + LCD_SPU_V_PORCH);
+	armada_reg_queue_set(regs, i, dcrtc->v[0].spu_v_h_total, dcrtc->disp_regs + LCD_SPUT_V_H_TOTAL);
 
 	if (dcrtc->variant->has_spu_adv_reg)
 		armada_reg_queue_mod(regs, i, dcrtc->v[0].spu_adv_reg,
 				     ADV_VSYNC_L_OFF | ADV_VSYNC_H_OFF |
-				     ADV_VSYNCOFFEN, LCD_SPU_ADV_REG);
+				     ADV_VSYNCOFFEN, dcrtc->base + LCD_SPU_ADV_REG);
 
 	val = adj->flags & DRM_MODE_FLAG_NVSYNC ? CFG_VSYNC_INV : 0;
-	armada_reg_queue_mod(regs, i, val, CFG_VSYNC_INV, LCD_SPU_DMA_CTRL1);
+	armada_reg_queue_mod(regs, i, val, CFG_VSYNC_INV, dcrtc->dma_regs + LCD_SPU_DMA_CTRL1);
 
 	/*
 	 * The documentation doesn't indicate what the normal state of
@@ -405,7 +403,7 @@ static void armada_drm_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	if (adj->flags & DRM_MODE_FLAG_NVSYNC)
 		val |= CFG_INV_VSYNC;
 	armada_reg_queue_mod(regs, i, val, CFG_INV_CSYNC | CFG_INV_HSYNC |
-			     CFG_INV_VSYNC, LCD_SPU_DUMB_CTRL);
+			     CFG_INV_VSYNC, dcrtc->intf_ctrl_reg);
 	armada_reg_queue_end(regs, i);
 
 	armada_drm_crtc_update_regs(dcrtc, regs);
@@ -548,7 +546,7 @@ static const struct drm_crtc_helper_funcs armada_crtc_helper_funcs = {
 	.atomic_enable	= armada_drm_crtc_atomic_enable,
 };
 
-static void armada_load_cursor_argb(void __iomem *base, uint32_t *pix,
+static void armada_load_cursor_argb(struct armada_crtc *dcrtc, uint32_t *pix,
 	unsigned stride, unsigned width, unsigned height)
 {
 	uint32_t addr;
@@ -573,11 +571,9 @@ static void armada_load_cursor_argb(void __iomem *base, uint32_t *pix,
 			      (val & 0x000000ff) << 16 |
 			      (val & 0x00ff0000) >> 16;
 
-			writel_relaxed(val,
-				       base + LCD_SPU_SRAM_WRDAT);
-			writel_relaxed(addr | SRAM_WRITE,
-				       base + LCD_SPU_SRAM_CTRL);
-			readl_relaxed(base + LCD_SPU_HWC_OVSA_HPXL_VLN);
+			writel_relaxed(val, dcrtc->base + LCD_SPU_SRAM_WRDAT);
+			writel_relaxed(addr | SRAM_WRITE, dcrtc->base + LCD_SPU_SRAM_CTRL);
+			readl_relaxed(dcrtc->disp_regs + LCD_SPU_HWC_OVSA_HPXL_VLN);
 			addr += 1;
 			if ((addr & 0x00ff) == 0)
 				addr += 0xf00;
@@ -646,7 +642,7 @@ static int armada_drm_crtc_cursor_update(struct armada_crtc *dcrtc, bool reload)
 	if (!dcrtc->cursor_obj || !h || !w) {
 		spin_lock_irq(&dcrtc->irq_lock);
 		dcrtc->cursor_update = false;
-		armada_updatel(0, CFG_HWC_ENA, dcrtc->base + LCD_SPU_DMA_CTRL0);
+		armada_updatel(0, CFG_HWC_ENA, dcrtc->dma_regs + LCD_SPU_DMA_CTRL0);
 		spin_unlock_irq(&dcrtc->irq_lock);
 		return 0;
 	}
@@ -669,7 +665,7 @@ static int armada_drm_crtc_cursor_update(struct armada_crtc *dcrtc, bool reload)
 	if (dcrtc->cursor_hw_sz != (h << 16 | w)) {
 		spin_lock_irq(&dcrtc->irq_lock);
 		dcrtc->cursor_update = false;
-		armada_updatel(0, CFG_HWC_ENA, dcrtc->base + LCD_SPU_DMA_CTRL0);
+		armada_updatel(0, CFG_HWC_ENA, dcrtc->dma_regs + LCD_SPU_DMA_CTRL0);
 		spin_unlock_irq(&dcrtc->irq_lock);
 		reload = true;
 	}
@@ -679,7 +675,7 @@ static int armada_drm_crtc_cursor_update(struct armada_crtc *dcrtc, bool reload)
 		/* Set the top-left corner of the cursor image */
 		pix = obj->addr;
 		pix += yoff * s + xoff;
-		armada_load_cursor_argb(dcrtc->base, pix, s, w, h);
+		armada_load_cursor_argb(dcrtc, pix, s, w, h);
 	}
 
 	/* Reload the cursor position, size and enable in the IRQ handler */
@@ -916,6 +912,7 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 	struct armada_crtc *dcrtc;
 	struct drm_plane *primary;
 	struct device_node *endpoint;
+	const u32 *port_num;
 	u32 bus_width = 24;
 	void __iomem *base;
 	int ret;
@@ -934,7 +931,27 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 		dev_set_drvdata(dev, dcrtc);
 
 	dcrtc->variant = variant;
-	dcrtc->base = base;
+	dcrtc->base = base; // xxx
+
+	port_num = of_get_property(port, "reg", NULL);
+	switch (port_num ? *port_num : 0) {
+	case 0:
+		dcrtc->disp_regs = base + LCD0_DISP_REGS;
+		dcrtc->dma_regs = base + LCD0_DMA_REGS;
+		dcrtc->intf_ctrl_reg = base + LCD0_SPU_DUMB_CTRL;
+		dcrtc->clk_div_reg = base + LCD0_CFG_SCLK_DIV;
+		break;
+	case 1:
+		dcrtc->disp_regs = base + LCD1_DISP_REGS;
+		dcrtc->dma_regs = base + LCD1_DMA_REGS;
+		dcrtc->intf_ctrl_reg = base + LCD0_SPU_DUMB_CTRL;
+		dcrtc->clk_div_reg = base + LCD0_CFG_SCLK_DIV;
+		break;
+	default:
+		DRM_ERROR("bad port number in device tree\n");
+		return -EINVAL;
+	}
+
 	dcrtc->num = drm->mode_config.num_crtc;
 	dcrtc->clk = ERR_PTR(-EINVAL);
 	dcrtc->spu_iopad_ctrl = CFG_VSCALE_LN_EN | CFG_IOPAD_DUMB24;
@@ -970,18 +987,17 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 	dcrtc->irq_ena = CLEAN_SPU_IRQ_ISR;
 
 	/* Initialize some registers which we don't otherwise set */
-	writel_relaxed(0x00000001, dcrtc->base + LCD_CFG_SCLK_DIV);
-	writel_relaxed(0x00000000, dcrtc->base + LCD_SPU_BLANKCOLOR);
-	writel_relaxed(dcrtc->spu_iopad_ctrl,
-		       dcrtc->base + LCD_SPU_IOPAD_CONTROL);
-	writel_relaxed(0x00000000, dcrtc->base + LCD_SPU_SRAM_PARA0);
+	writel_relaxed(0x00000001, dcrtc->clk_div_reg);
+	writel_relaxed(0x00000000, dcrtc->disp_regs + LCD_SPU_BLANKCOLOR);
+	writel_relaxed(dcrtc->spu_iopad_ctrl, base + LCD_SPU_IOPAD_CONTROL);
+	writel_relaxed(0x00000000, base + LCD_SPU_SRAM_PARA0);
 	writel_relaxed(CFG_PDWN256x32 | CFG_PDWN256x24 | CFG_PDWN256x8 |
 		       CFG_PDWN32x32 | CFG_PDWN16x66 | CFG_PDWN32x66 |
-		       CFG_PDWN64x66, dcrtc->base + LCD_SPU_SRAM_PARA1);
-	writel_relaxed(0x2032ff81, dcrtc->base + LCD_SPU_DMA_CTRL1);
-	writel_relaxed(dcrtc->irq_ena, dcrtc->base + LCD_SPU_IRQ_ENA);
-	readl_relaxed(dcrtc->base + LCD_SPU_IRQ_ISR);
-	writel_relaxed(0, dcrtc->base + LCD_SPU_IRQ_ISR);
+		       CFG_PDWN64x66, base + LCD_SPU_SRAM_PARA1);
+	writel_relaxed(0x2032ff81, dcrtc->dma_regs + LCD_SPU_DMA_CTRL1);
+	writel_relaxed(dcrtc->irq_ena, base + LCD_SPU_IRQ_ENA);
+	readl_relaxed(base + LCD_SPU_IRQ_ISR);
+	writel_relaxed(0, base + LCD_SPU_IRQ_ISR);
 
 	ret = devm_request_irq(dev, irq, armada_drm_irq, 0, "armada_drm_crtc",
 			       dcrtc);
@@ -995,7 +1011,7 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 	}
 
 	/* Ensure AXI pipeline is enabled */
-	armada_updatel(CFG_ARBFAST_ENA, 0, dcrtc->base + LCD_SPU_DMA_CTRL0);
+	armada_updatel(CFG_ARBFAST_ENA, 0, dcrtc->dma_regs + LCD_SPU_DMA_CTRL0);
 
 	priv->dcrtc[dcrtc->num] = dcrtc;
 
