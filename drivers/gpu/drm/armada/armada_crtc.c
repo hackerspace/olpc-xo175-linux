@@ -998,15 +998,7 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 	/* Initialize some registers which we don't otherwise set */
 	writel_relaxed(0x00000001, dcrtc->clk_div_reg);
 	writel_relaxed(0x00000000, dcrtc->disp_regs + LCD_SPU_BLANKCOLOR);
-	writel_relaxed(dcrtc->spu_iopad_ctrl, base + LCD_SPU_IOPAD_CONTROL);
-	writel_relaxed(0x00000000, base + LCD_SPU_SRAM_PARA0);
-	writel_relaxed(CFG_PDWN256x32 | CFG_PDWN256x24 | CFG_PDWN256x8 |
-		       CFG_PDWN32x32 | CFG_PDWN16x66 | CFG_PDWN32x66 |
-		       CFG_PDWN64x66, base + LCD_SPU_SRAM_PARA1);
 	writel_relaxed(0x2032ff81, dcrtc->dma_regs + LCD_SPU_DMA_CTRL1);
-	writel_relaxed(dcrtc->irq_ena, base + LCD_SPU_IRQ_ENA);
-	readl_relaxed(base + LCD_SPU_IRQ_ISR);
-	writel_relaxed(0, base + LCD_SPU_IRQ_ISR);
 
 	ret = devm_request_irq(dev, irq, armada_drm_irq, IRQF_SHARED, "armada_drm_crtc",
 			       dcrtc);
@@ -1079,6 +1071,16 @@ armada_lcd_bind(struct device *dev, struct device *master, void *data)
 	base = devm_ioremap_resource(dev, res);
 	if (IS_ERR(base))
 		return PTR_ERR(base);
+
+	/* Initialize some registers which we don't otherwise set */
+	writel_relaxed(CFG_VSCALE_LN_EN | CFG_IOPAD_DUMB24, base + LCD_SPU_IOPAD_CONTROL);
+	writel_relaxed(0x00000000, base + LCD_SPU_SRAM_PARA0);
+	writel_relaxed(CFG_PDWN256x32 | CFG_PDWN256x24 | CFG_PDWN256x8 |
+		       CFG_PDWN32x32 | CFG_PDWN16x66 | CFG_PDWN32x66 |
+		       CFG_PDWN64x66, base + LCD_SPU_SRAM_PARA1);
+	writel_relaxed(CLEAN_SPU_IRQ_ISR, base + LCD_SPU_IRQ_ENA);
+	readl_relaxed(base + LCD_SPU_IRQ_ISR);
+	writel_relaxed(0, base + LCD_SPU_IRQ_ISR);
 
 	if (!dev->of_node) {
 		const struct platform_device_id *id;
