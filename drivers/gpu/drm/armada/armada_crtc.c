@@ -915,7 +915,7 @@ found:
 }
 
 static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
-	struct resource *res, int irq, const struct armada_variant *variant,
+	void __iomem *base, int irq, const struct armada_variant *variant,
 	struct device_node *ep)
 {
 	struct drm_bridge *bridge = NULL;
@@ -923,7 +923,6 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 	struct armada_crtc *dcrtc;
 	struct drm_plane *primary;
 	u32 bus_width = 24;
-	void __iomem *base;
 	int ret;
 
 	remote = of_graph_get_remote_port_parent(ep);
@@ -933,10 +932,6 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 		if (!bridge)
 			return -EPROBE_DEFER;
 	}
-
-	base = devm_ioremap_resource(dev, res);
-	if (IS_ERR(base))
-		return PTR_ERR(base);
 
 	dcrtc = kzalloc(sizeof(*dcrtc), GFP_KERNEL);
 	if (!dcrtc) {
@@ -1053,9 +1048,14 @@ armada_lcd_bind(struct device *dev, struct device *master, void *data)
 	int irq = platform_get_irq(pdev, 0);
 	const struct armada_variant *variant;
 	struct device_node *ep = NULL;
+	void __iomem *base;
 
 	if (irq < 0)
 		return irq;
+
+	base = devm_ioremap_resource(dev, res);
+	if (IS_ERR(base))
+		return PTR_ERR(base);
 
 	if (!dev->of_node) {
 		const struct platform_device_id *id;
@@ -1082,7 +1082,7 @@ armada_lcd_bind(struct device *dev, struct device *master, void *data)
 		}
 	}
 
-	return armada_drm_crtc_create(drm, dev, res, irq, variant, ep);
+	return armada_drm_crtc_create(drm, dev, base, irq, variant, ep);
 }
 
 static void
