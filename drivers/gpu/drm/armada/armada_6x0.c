@@ -62,7 +62,7 @@ static int armada6x0_crtc_init(struct armada_crtc *dcrtc, struct device *dev)
 		v->clks[idx] = clk;
 	}
 
-	writel_relaxed(0, dcrtc->base + LCD_CFG_VSYNC_CTRL);
+	writel_relaxed(0, dcrtc->disp_regs + LCD_CFG_VSYNC_CTRL);
 
 	return 0;
 }
@@ -165,7 +165,7 @@ static void armada6x0_crtc_disable(struct armada_crtc *dcrtc)
 		dcrtc->clk = NULL;
 	}
 
-	writel_relaxed(0, dcrtc->base + LCD_CFG_VSYNC_CTRL);
+	writel_relaxed(0, dcrtc->disp_regs + LCD_CFG_VSYNC_CTRL);
 }
 
 static void armada6x0_crtc_enable(struct armada_crtc *dcrtc,
@@ -179,7 +179,7 @@ static void armada6x0_crtc_enable(struct armada_crtc *dcrtc,
 	}
 
 	writel_relaxed(mode->hsync_start << 16 | mode->hsync_start,
-		       dcrtc->base + LCD_CFG_VSYNC_CTRL);
+		       dcrtc->disp_regs + LCD_CFG_VSYNC_CTRL);
 }
 
 const struct armada_variant armada610_ops = {
