@@ -45,7 +45,7 @@
 		};
 	};
 
-	dvi-connector {
+	dvi0-connector {
 		compatible = "dvi-connector";
 		ddc-i2c-bus = <&twsi5>;
 		hpd-gpios = <&gpio 62 GPIO_ACTIVE_LOW>;
@@ -53,8 +53,21 @@
 		analog;
 
 		port {
-			dvi_in: endpoint {
+			dvi0_in: endpoint {
 				remote-endpoint = <&encoder_out>;
+			};
+		};
+	};
+
+	dvi1-connector {
+		compatible = "dvi-connector";
+		ddc-i2c-bus = <&twsi6>;
+		hpd-gpios = <&gpio 59 GPIO_ACTIVE_LOW>;
+		digital;
+
+		port {
+			dvi1_in: endpoint {
+				remote-endpoint = <&hdmi0_out>;
 			};
 		};
 	};
@@ -143,15 +156,15 @@
 
 			port@0 {
 				reg = <0>;
-				encoder_rgb_in: endpoint {
-					remote-endpoint = <&lcd0_rgb_out>;
+				encoder_in: endpoint {
+					remote-endpoint = <&lcd0_out>;
 				};
 			};
 
 			port@1 {
 				reg = <1>;
 				encoder_out: endpoint {
-					remote-endpoint = <&dvi_in>;
+					remote-endpoint = <&dvi0_in>;
 				};
 			};
 
@@ -175,17 +188,31 @@
 &twsi5 {
 	status = "okay";
 	pinctrl-names = "default";
-	pinctrl-0 = <&twsi5_pins>;
+	//pinctrl-0 = <&twsi5_pins>;
+};
+
+&twsi6 {
+	status = "okay";
+	pinctrl-names = "default";
+	//pinctrl-0 = <&twsi6_pins>;
 };
 
 &lcd0 {
 	status = "okay";
 	pinctrl-names = "default";
-	pinctrl-0 = <&lcd0_pins>;
+	//pinctrl-0 = <&lcd0_pins>;
 };
 
-&lcd0_rgb_out {
-	remote-endpoint = <&encoder_rgb_in>;
+&hdmi0 {
+	status = "okay";
+};
+
+&lcd0_out {
+	remote-endpoint = <&encoder_in>;
+};
+
+&hdmi0_out {
+	remote-endpoint = <&dvi1_in>;
 };
 
 &ssp1 {
@@ -220,3 +247,9 @@
 &gpu_3d {
 	status = "okay";
 };
+
+//&pinctrl {
+//	twsi6_pins: pinmux_twsi6_pins {
+//		pinctrl-single,pins = <0x110 3>, <0x114 3>;
+//	};
+//};
