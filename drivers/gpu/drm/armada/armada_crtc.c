@@ -771,12 +771,10 @@ static int armada_drm_crtc_cursor_move(struct drm_crtc *crtc, int x, int y)
 static void armada_drm_crtc_destroy(struct drm_crtc *crtc)
 {
 	struct armada_crtc *dcrtc = drm_to_armada_crtc(crtc);
-	struct armada_private *priv = drm_to_armada_dev(crtc->dev);
 
 	if (dcrtc->cursor_obj)
 		drm_gem_object_put(&dcrtc->cursor_obj->obj);
 
-	priv->dcrtc[dcrtc->num] = NULL;
 	drm_crtc_cleanup(&dcrtc->crtc);
 
 	if (dcrtc->variant->disable)
@@ -915,7 +913,6 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 	struct resource *res, int irq, const struct armada_variant *variant,
 	struct device_node *ep)
 {
-	struct armada_private *priv = drm_to_armada_dev(drm);
 	struct drm_bridge *bridge = NULL;
 	struct device_node *remote;
 	struct armada_crtc *dcrtc;
@@ -983,8 +980,6 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 
 	/* Ensure AXI pipeline is enabled */
 	armada_updatel(CFG_ARBFAST_ENA, 0, dcrtc->base + LCD_SPU_DMA_CTRL0);
-
-	priv->dcrtc[dcrtc->num] = dcrtc;
 
 	dcrtc->crtc.port = of_get_parent(ep);
 
