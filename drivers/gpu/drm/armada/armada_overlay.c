@@ -211,10 +211,10 @@ static void armada_drm_overlay_plane_atomic_update(struct drm_plane *plane,
 	val = drm_to_overlay_state(state)->colorkey_enable;
 	if (((!old_state->visible && state->visible) ||
 	     drm_to_overlay_state(old_state)->colorkey_enable != val) &&
-	    dcrtc->variant->has_spu_adv_reg)
+	    dcrtc->spu_adv_reg)
 		armada_reg_queue_mod(regs, idx, val, ADV_GRACOLORKEY |
 				     ADV_VIDCOLORKEY,
-				     dcrtc->base + LCD_SPU_ADV_REG);
+				     dcrtc->spu_adv_reg);
 
 	dcrtc->regs_idx += idx;
 }

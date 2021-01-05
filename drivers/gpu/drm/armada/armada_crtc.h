@@ -45,6 +45,7 @@ struct armada_crtc {
 	void __iomem		*dma_regs;
 	void __iomem		*intf_ctrl_reg;
 	void __iomem		*clk_div_reg;
+	void __iomem		*spu_adv_reg;
 
 	uint32_t		vsync_irq_ena;
 	uint32_t		framedone_ena;
@@ -60,7 +61,7 @@ struct armada_crtc {
 	struct {
 		uint32_t	spu_v_h_total;
 		uint32_t	spu_v_porch;
-		uint32_t	spu_adv_reg;
+		uint32_t	spu_adv;
 	} v[2];
 	bool			interlaced;
 	bool			cursor_update;

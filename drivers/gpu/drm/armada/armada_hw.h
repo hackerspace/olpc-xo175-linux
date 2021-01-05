@@ -59,7 +59,7 @@ enum {
 enum {
 	LCD1_DISP_REGS			= 0x0000,	/* Armada 620 */
 	LCD1_DMA_REGS			= 0x0080,	/* Armada 620 */
-	LCD_SPU_ADV_REG			= 0x0084,	/* Armada 510 */
+	LCD0_SPU_ADV_REG		= 0x0084,	/* Armada 510 */
 	LCD1_TVIF_CTRL			= 0x0094,	/* Armada 620 */
 	LCD1_TCLK_DIV			= 0x009c,	/* Armada 620 */
 	LCD0_DISP_REGS			= 0x00c0,

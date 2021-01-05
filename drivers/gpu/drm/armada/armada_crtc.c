@@ -185,7 +185,7 @@ static enum drm_mode_status armada_drm_crtc_mode_valid(struct drm_crtc *crtc,
 		return MODE_H_ILLEGAL;
 
 	/* We can't do interlaced modes if we don't have the SPU_ADV_REG */
-	if (!dcrtc->variant->has_spu_adv_reg &&
+	if (!dcrtc->spu_adv_reg &&
 	    mode->flags & DRM_MODE_FLAG_INTERLACE)
 		return MODE_NO_INTERLACE;
 
@@ -266,10 +266,12 @@ static void armada_drm_crtc_irq(struct armada_crtc *dcrtc, u32 stat)
 		writel_relaxed(dcrtc->v[i].spu_v_h_total,
 			       dcrtc->disp_regs + LCD_SPUT_V_H_TOTAL);
 
-		val = readl_relaxed(dcrtc->base + LCD_SPU_ADV_REG);
-		val &= ~(ADV_VSYNC_L_OFF | ADV_VSYNC_H_OFF | ADV_VSYNCOFFEN);
-		val |= dcrtc->v[i].spu_adv_reg;
-		writel_relaxed(val, dcrtc->base + LCD_SPU_ADV_REG);
+		if (dcrtc->spu_adv_reg) {
+			val = readl_relaxed(dcrtc->spu_adv_reg);
+			val &= ~(ADV_VSYNC_L_OFF | ADV_VSYNC_H_OFF | ADV_VSYNCOFFEN);
+			val |= dcrtc->v[i].spu_adv;
+			writel_relaxed(val, dcrtc->spu_adv_reg);
+		}
 	}
 
 	if (stat & dcrtc->irq_ena & dcrtc->framedone) {
@@ -378,12 +380,12 @@ static void armada_drm_crtc_mode_set_nofb(struct drm_crtc *crtc)
 				    adj->crtc_htotal;
 	dcrtc->v[1].spu_v_porch = tm << 16 | bm;
 	val = adj->crtc_hsync_start;
-	dcrtc->v[1].spu_adv_reg = val << 20 | val | ADV_VSYNCOFFEN;
+	dcrtc->v[1].spu_adv = val << 20 | val | ADV_VSYNCOFFEN;
 
 	if (interlaced) {
 		/* Odd interlaced frame */
 		val -= adj->crtc_htotal / 2;
-		dcrtc->v[0].spu_adv_reg = val << 20 | val | ADV_VSYNCOFFEN;
+		dcrtc->v[0].spu_adv = val << 20 | val | ADV_VSYNCOFFEN;
 		dcrtc->v[0].spu_v_h_total = dcrtc->v[1].spu_v_h_total +
 						(1 << 16);
 		dcrtc->v[0].spu_v_porch = dcrtc->v[1].spu_v_porch + 1;
@@ -402,11 +404,11 @@ static void armada_drm_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	armada_reg_queue_set(regs, i, dcrtc->v[0].spu_v_h_total,
 			     dcrtc->disp_regs + LCD_SPUT_V_H_TOTAL);
 
-	if (dcrtc->variant->has_spu_adv_reg)
-		armada_reg_queue_mod(regs, i, dcrtc->v[0].spu_adv_reg,
+	if (dcrtc->spu_adv_reg)
+		armada_reg_queue_mod(regs, i, dcrtc->v[0].spu_adv,
 				     ADV_VSYNC_L_OFF | ADV_VSYNC_H_OFF |
 				     ADV_VSYNCOFFEN,
-				     dcrtc->base + LCD_SPU_ADV_REG);
+				     dcrtc->spu_adv_reg);
 
 	val = adj->flags & DRM_MODE_FLAG_NVSYNC ? CFG_VSYNC_INV : 0;
 	armada_reg_queue_mod(regs, i, val, CFG_VSYNC_INV,
@@ -729,7 +731,7 @@ static int armada_drm_crtc_cursor_set(struct drm_crtc *crtc,
 	int ret;
 
 	/* If no cursor support, replicate drm's return value */
-	if (!dcrtc->variant->has_spu_adv_reg)
+	if (!dcrtc->spu_adv_reg)
 		return -ENXIO;
 
 	if (handle && w > 0 && h > 0) {
@@ -777,7 +779,7 @@ static int armada_drm_crtc_cursor_move(struct drm_crtc *crtc, int x, int y)
 	int ret;
 
 	/* If no cursor support, replicate drm's return value */
-	if (!dcrtc->variant->has_spu_adv_reg)
+	if (!dcrtc->spu_adv_reg)
 		return -EFAULT;
 
 	dcrtc->cursor_x = x;

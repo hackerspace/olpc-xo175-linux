@@ -70,7 +70,7 @@ static int armada510_crtc_init(struct armada_crtc *dcrtc, struct device *dev)
 
 	/* Initialise SPU register */
 	writel_relaxed(ADV_HWC32ENABLE | ADV_HWC32ARGB | ADV_HWC32BLEND,
-		       dcrtc->base + LCD_SPU_ADV_REG);
+		       dcrtc->spu_adv_reg);
 
 	return 0;
 }
@@ -150,7 +150,6 @@ static void armada510_crtc_enable(struct armada_crtc *dcrtc,
 }
 
 const struct armada_variant armada510_ops = {
-	.has_spu_adv_reg = true,
 	.init = armada510_crtc_init,
 	.compute_clock = armada510_crtc_compute_clock,
 	.disable = armada510_crtc_disable,

@@ -36,6 +36,7 @@ static int armada6x0_crtc_init(struct armada_crtc *dcrtc, struct device *dev)
 
 	dcrtc->variant_data = v;
 	dcrtc->spu_iopad_ctrl = CFG_IOPAD_DUMB24;
+	dcrtc->spu_adv_reg = NULL;
 
 	of_property_for_each_string(dev->of_node, "clock-names", prop, s) {
 		if (!strcmp(s, "ext_ref_clk0"))
