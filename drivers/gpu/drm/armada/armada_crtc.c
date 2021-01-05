@@ -975,13 +975,6 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 	/* Initialize some registers which we don't otherwise set */
 	writel_relaxed(0x00000001, dcrtc->base + LCD_CFG_SCLK_DIV);
 	writel_relaxed(0x00000000, dcrtc->base + LCD_SPU_BLANKCOLOR);
-	writel_relaxed(0x00000000, dcrtc->base + LCD_SPU_SRAM_PARA0);
-	writel_relaxed(CFG_PDWN256x32 | CFG_PDWN256x24 | CFG_PDWN256x8 |
-		       CFG_PDWN32x32 | CFG_PDWN16x66 | CFG_PDWN32x66 |
-		       CFG_PDWN64x66, dcrtc->base + LCD_SPU_SRAM_PARA1);
-	writel_relaxed(dcrtc->irq_ena, dcrtc->base + LCD_SPU_IRQ_ENA);
-	readl_relaxed(dcrtc->base + LCD_SPU_IRQ_ISR);
-	writel_relaxed(0, dcrtc->base + LCD_SPU_IRQ_ISR);
 
 	ret = devm_request_irq(dev, irq, armada_drm_irq, 0, "armada_drm_crtc",
 			       dcrtc);
@@ -1056,6 +1049,15 @@ armada_lcd_bind(struct device *dev, struct device *master, void *data)
 	base = devm_ioremap_resource(dev, res);
 	if (IS_ERR(base))
 		return PTR_ERR(base);
+
+	/* Initialize some registers which we don't otherwise set */
+	writel_relaxed(0x00000000, base + LCD_SPU_SRAM_PARA0);
+	writel_relaxed(CFG_PDWN256x32 | CFG_PDWN256x24 | CFG_PDWN256x8 |
+		       CFG_PDWN32x32 | CFG_PDWN16x66 | CFG_PDWN32x66 |
+		       CFG_PDWN64x66, base + LCD_SPU_SRAM_PARA1);
+	writel_relaxed(CLEAN_SPU_IRQ_ISR, base + LCD_SPU_IRQ_ENA);
+	readl_relaxed(base + LCD_SPU_IRQ_ISR);
+	writel_relaxed(0, base + LCD_SPU_IRQ_ISR);
 
 	if (!dev->of_node) {
 		const struct platform_device_id *id;
