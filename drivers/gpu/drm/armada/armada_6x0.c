@@ -42,13 +42,17 @@ static int armada6x0_crtc_init(struct armada_crtc *dcrtc, struct device *dev)
 			idx = 0;
 		else if (!strcmp(s, "ext_ref_clk1"))
 			idx = 1;
-		else if (!strcmp(s, "plldivider"))
+		else if (!strcmp(s, "hdmi"))
 			idx = 2;
 		else if (!strcmp(s, "axibus"))
 			idx = 3;
 		else if (!strcmp(s, "pll3"))
 			idx = 4;
 		else
+			continue;
+
+		/* Use HDMI clock on the HDMI port only. */
+		if ((dcrtc->port_num == 1) != (idx == 2))
 			continue;
 
 		clk = devm_clk_get(dev, s);
@@ -86,9 +90,16 @@ static int armada6x0_crtc_compute_clock(struct armada_crtc *dcrtc,
 	struct armada_clk_result res;
 	int ret, idx;
 
-	idx = armada_crtc_select_clock(dcrtc, &res, &armada6x0_clocking,
-				       v->clks, ARRAY_SIZE(v->clks),
-				       desired_khz);
+	if (dcrtc->port_num == 1) {
+		idx = 2;
+		res.clk = v->clks[idx];
+		res.div = 5;
+		res.desired_clk_hz = mode->crtc_clock * 1000 * res.div;
+	} else {
+		idx = armada_crtc_select_clock(dcrtc, &res, &armada6x0_clocking,
+					       v->clks, ARRAY_SIZE(v->clks),
+					       desired_khz);
+	}
 	if (idx < 0)
 		return idx;
 	if (idx >= num_clk_sels)
