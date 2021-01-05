@@ -912,19 +912,14 @@ found:
 }
 
 static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
-	struct resource *res, int irq, const struct armada_variant *variant,
+	void __iomem *base, int irq, const struct armada_variant *variant,
 	struct device_node *port)
 {
 	struct armada_crtc *dcrtc;
 	struct drm_plane *primary;
 	struct device_node *endpoint;
 	u32 bus_width = 24;
-	void __iomem *base;
 	int ret;
-
-	base = devm_ioremap_resource(dev, res);
-	if (IS_ERR(base))
-		return PTR_ERR(base);
 
 	dcrtc = kzalloc(sizeof(*dcrtc), GFP_KERNEL);
 	if (!dcrtc) {
@@ -1047,9 +1042,14 @@ armada_lcd_bind(struct device *dev, struct device *master, void *data)
 	int irq = platform_get_irq(pdev, 0);
 	const struct armada_variant *variant;
 	struct device_node *port = NULL;
+	void __iomem *base;
 
 	if (irq < 0)
 		return irq;
+
+	base = devm_ioremap_resource(dev, res);
+	if (IS_ERR(base))
+		return PTR_ERR(base);
 
 	if (!dev->of_node) {
 		const struct platform_device_id *id;
@@ -1080,7 +1080,7 @@ armada_lcd_bind(struct device *dev, struct device *master, void *data)
 		variant = match->data;
 	}
 
-	return armada_drm_crtc_create(drm, dev, res, irq, variant, port);
+	return armada_drm_crtc_create(drm, dev, base, irq, variant, port);
 }
 
 static void
