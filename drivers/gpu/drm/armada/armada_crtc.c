@@ -956,8 +956,6 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 	/* Initialize some registers which we don't otherwise set */
 	writel_relaxed(0x00000001, dcrtc->base + LCD_CFG_SCLK_DIV);
 	writel_relaxed(0x00000000, dcrtc->base + LCD_SPU_BLANKCOLOR);
-	writel_relaxed(dcrtc->spu_iopad_ctrl,
-		       dcrtc->base + LCD_SPU_IOPAD_CONTROL);
 	writel_relaxed(0x00000000, dcrtc->base + LCD_SPU_SRAM_PARA0);
 	writel_relaxed(CFG_PDWN256x32 | CFG_PDWN256x24 | CFG_PDWN256x8 |
 		       CFG_PDWN32x32 | CFG_PDWN16x66 | CFG_PDWN32x66 |
@@ -977,6 +975,9 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 		if (ret)
 			goto err_crtc;
 	}
+
+	writel_relaxed(dcrtc->spu_iopad_ctrl,
+		       dcrtc->base + LCD_SPU_IOPAD_CONTROL);
 
 	/* Ensure AXI pipeline is enabled */
 	armada_updatel(CFG_ARBFAST_ENA, 0, dcrtc->base + LCD_SPU_DMA_CTRL0);
