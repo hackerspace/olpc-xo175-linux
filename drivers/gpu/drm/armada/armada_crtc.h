@@ -11,7 +11,7 @@
 struct armada_gem_object;
 
 struct armada_regs {
-	uint32_t offset;
+	__iomem void *reg;
 	uint32_t mask;
 	uint32_t val;
 };
@@ -19,7 +19,7 @@ struct armada_regs {
 #define armada_reg_queue_mod(_r, _i, _v, _m, _o)	\
 	do {					\
 		struct armada_regs *__reg = _r;	\
-		__reg[_i].offset = _o;		\
+		__reg[_i].reg = _o;		\
 		__reg[_i].mask = ~(_m);		\
 		__reg[_i].val = _v;		\
 		_i++;				\
@@ -29,7 +29,7 @@ struct armada_regs {
 	armada_reg_queue_mod(_r, _i, _v, ~0, _o)
 
 #define armada_reg_queue_end(_r, _i)		\
-	armada_reg_queue_mod(_r, _i, 0, 0, ~0)
+	armada_reg_queue_mod(_r, _i, 0, 0, NULL)
 
 struct armada_crtc;
 struct armada_variant;

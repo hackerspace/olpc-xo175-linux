@@ -85,14 +85,13 @@
 void
 armada_drm_crtc_update_regs(struct armada_crtc *dcrtc, struct armada_regs *regs)
 {
-	while (regs->offset != ~0) {
-		void __iomem *reg = dcrtc->base + regs->offset;
+	while (regs->reg) {
 		uint32_t val;
 
 		val = regs->mask;
 		if (val != 0)
-			val &= readl_relaxed(reg);
-		writel_relaxed(val | regs->val, reg);
+			val &= readl_relaxed(regs->reg);
+		writel_relaxed(val | regs->val, regs->reg);
 		++regs;
 	}
 }
@@ -354,7 +353,7 @@ static void armada_drm_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	/* Now compute the divider for real */
 	dcrtc->variant->compute_clock(dcrtc, adj, &sclk);
 
-	armada_reg_queue_set(regs, i, sclk, LCD_CFG_SCLK_DIV);
+	armada_reg_queue_set(regs, i, sclk, dcrtc->base + LCD_CFG_SCLK_DIV);
 
 	spin_lock_irqsave(&dcrtc->irq_lock, flags);
 
@@ -379,19 +378,24 @@ static void armada_drm_crtc_mode_set_nofb(struct drm_crtc *crtc)
 
 	val = adj->crtc_vdisplay << 16 | adj->crtc_hdisplay;
 
-	armada_reg_queue_set(regs, i, val, LCD_SPU_V_H_ACTIVE);
-	armada_reg_queue_set(regs, i, (lm << 16) | rm, LCD_SPU_H_PORCH);
-	armada_reg_queue_set(regs, i, dcrtc->v[0].spu_v_porch, LCD_SPU_V_PORCH);
+	armada_reg_queue_set(regs, i, val,
+			     dcrtc->base + LCD_SPU_V_H_ACTIVE);
+	armada_reg_queue_set(regs, i, (lm << 16) | rm,
+			     dcrtc->base + LCD_SPU_H_PORCH);
+	armada_reg_queue_set(regs, i, dcrtc->v[0].spu_v_porch,
+			     dcrtc->base + LCD_SPU_V_PORCH);
 	armada_reg_queue_set(regs, i, dcrtc->v[0].spu_v_h_total,
-			   LCD_SPUT_V_H_TOTAL);
+			   dcrtc->base + LCD_SPUT_V_H_TOTAL);
 
 	if (dcrtc->variant->has_spu_adv_reg)
 		armada_reg_queue_mod(regs, i, dcrtc->v[0].spu_adv_reg,
 				     ADV_VSYNC_L_OFF | ADV_VSYNC_H_OFF |
-				     ADV_VSYNCOFFEN, LCD_SPU_ADV_REG);
+				     ADV_VSYNCOFFEN,
+				     dcrtc->base + LCD_SPU_ADV_REG);
 
 	val = adj->flags & DRM_MODE_FLAG_NVSYNC ? CFG_VSYNC_INV : 0;
-	armada_reg_queue_mod(regs, i, val, CFG_VSYNC_INV, LCD_SPU_DMA_CTRL1);
+	armada_reg_queue_mod(regs, i, val, CFG_VSYNC_INV,
+			     dcrtc->base + LCD_SPU_DMA_CTRL1);
 
 	/*
 	 * The documentation doesn't indicate what the normal state of
@@ -409,7 +413,8 @@ static void armada_drm_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	if (adj->flags & DRM_MODE_FLAG_NVSYNC)
 		val |= CFG_INV_VSYNC;
 	armada_reg_queue_mod(regs, i, val, CFG_INV_CSYNC | CFG_INV_HSYNC |
-			     CFG_INV_VSYNC, LCD_SPU_DUMB_CTRL);
+			     CFG_INV_VSYNC,
+			     dcrtc->base + LCD_SPU_DUMB_CTRL);
 	armada_reg_queue_end(regs, i);
 
 	armada_drm_crtc_update_regs(dcrtc, regs);
