@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2012 Russell King
- * Copyright (C) 2018,2019,2020 Lubomir Rintel
+ * Copyright (C) 2018,2019,2020,2021 Lubomir Rintel
  *  Largely based on Armada 510 support
  *
  * This program is free software; you can redistribute it and/or modify
