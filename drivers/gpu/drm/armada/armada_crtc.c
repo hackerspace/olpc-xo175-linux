@@ -801,7 +801,7 @@ static void armada_drm_crtc_destroy(struct drm_crtc *crtc)
 	if (dcrtc->variant->disable)
 		dcrtc->variant->disable(dcrtc);
 
-	writel_relaxed(0, dcrtc->base + LCD_SPU_IRQ_ENA);
+	armada_drm_crtc_disable_irq(dcrtc, ~0);
 
 	of_node_put(dcrtc->crtc.port);
 
