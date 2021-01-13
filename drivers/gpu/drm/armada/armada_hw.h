@@ -56,6 +56,15 @@ enum {
 	LCD_SPU_DMA_CTRL1		= 0x04,
 };
 
+/* Offsets from LCD1_HDMI_REGS */
+enum {
+	HDMI_PHY_CFG2			= 0x10,
+	HDMI_PLL_CFG0			= 0x20,
+	HDMI_PLL_CFG1			= 0x24,
+	HDMI_PLL_CFG2			= 0x28,
+	HDMI_PLL_CFG3			= 0x2c,
+};
+
 enum {
 	LCD1_DISP_REGS			= 0x0000,	/* Armada 620 */
 	LCD1_DMA_REGS			= 0x0080,	/* Armada 620 */
@@ -87,6 +96,7 @@ enum {
 	LCD_SPU_IOPAD_CONTROL		= 0x01bc,
 	LCD_SPU_IRQ_ENA			= 0x01c0,
 	LCD_SPU_IRQ_ISR			= 0x01c4,
+	LCD1_HDMI_REGS			= 0x0c00,	/* Armada 620 */
 };
 
 /* For LCD_SPU_ADV_REG */
@@ -371,5 +381,38 @@ enum {
 	GRA_FF_ALLEMPTY			= 1 << 1,
 	PWRDN_IRQ_LEVEL			= 1 << 0,
 };
+
+
+
+
+
+
+
+
+
+
+/* For HDMI_PLL_CFG0 */
+enum {
+	CHICKEN		= BIT(0),
+};
+#define VDDL_SHIFT	6
+
+/* For HDMI_PLL_CFG1 */
+enum {
+	EN_HDMI		= BIT(23),
+	EN_PANEL	= BIT(24),
+};
+
+/* For HDMI_PLL_CFG3 */
+enum {
+	PLL_ON		= BIT(0),
+	PLL_RESET	= BIT(1),
+	PLL_LOCK	= BIT(22),
+};
+
+#define REFDIV_SHIFT	2
+#define FBDIV_SHIFT	7
+#define REFDIV_MASK	0x1f
+#define FBDIV_MASK	0x1ff
 
 #endif

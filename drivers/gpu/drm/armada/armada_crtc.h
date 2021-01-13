@@ -46,6 +46,7 @@ struct armada_crtc {
 	void __iomem		*base;
 	void __iomem		*disp_regs;
 	void __iomem		*dma_regs;
+	void __iomem		*hdmi_regs;
 	void __iomem		*intf_ctrl_reg;
 	void __iomem		*clk_div_reg;
 	void __iomem		*spu_adv_reg;

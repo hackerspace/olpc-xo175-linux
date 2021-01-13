@@ -975,6 +975,7 @@ static struct armada_crtc * armada_drm_crtc_create(struct drm_device *drm,
 		dcrtc->dma_regs = base + LCD0_DMA_REGS;
 		dcrtc->intf_ctrl_reg = base + LCD0_SPU_DUMB_CTRL;
 		dcrtc->clk_div_reg = base + LCD0_CFG_SCLK_DIV;
+
 		dcrtc->vsync_irq_ena = LCD0_VSYNC_IRQ_ENA;
 		dcrtc->framedone_ena = LCD0_DUMB_FRAMEDONE_ENA;
 		dcrtc->vsync_irq = LCD0_VSYNC_IRQ;
@@ -989,6 +990,8 @@ static struct armada_crtc * armada_drm_crtc_create(struct drm_device *drm,
 		dcrtc->dma_regs = base + LCD1_DMA_REGS;
 		dcrtc->intf_ctrl_reg = base + LCD1_TVIF_CTRL;
 		dcrtc->clk_div_reg = base + LCD1_TCLK_DIV;
+		dcrtc->hdmi_regs = base + LCD1_HDMI_REGS;
+
 		dcrtc->vsync_irq_ena = LCD1_VSYNC_IRQ_ENA;
 		dcrtc->framedone_ena = LCD1_FRAMEDONE_ENA;
 		dcrtc->vsync_irq = LCD1_VSYNC_IRQ;
