@@ -200,111 +200,21 @@ struct ch7033_priv {
 	struct regmap *regmap;
 	struct drm_bridge *next_bridge;
 	struct drm_bridge bridge;
-	struct drm_connector connector;
 };
 
-#define conn_to_ch7033_priv(x) \
-	container_of(x, struct ch7033_priv, connector)
 #define bridge_to_ch7033_priv(x) \
 	container_of(x, struct ch7033_priv, bridge)
-
-
-static enum drm_connector_status ch7033_connector_detect(
-	struct drm_connector *connector, bool force)
-{
-	struct ch7033_priv *priv = conn_to_ch7033_priv(connector);
-
-	return drm_bridge_detect(priv->next_bridge);
-}
-
-static const struct drm_connector_funcs ch7033_connector_funcs = {
-	.reset = drm_atomic_helper_connector_reset,
-	.fill_modes = drm_helper_probe_single_connector_modes,
-	.detect = ch7033_connector_detect,
-	.destroy = drm_connector_cleanup,
-	.atomic_duplicate_state = drm_atomic_helper_connector_duplicate_state,
-	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
-};
-
-static int ch7033_connector_get_modes(struct drm_connector *connector)
-{
-	struct ch7033_priv *priv = conn_to_ch7033_priv(connector);
-	struct edid *edid;
-	int ret;
-
-	edid = drm_bridge_get_edid(priv->next_bridge, connector);
-	drm_connector_update_edid_property(connector, edid);
-	if (edid) {
-		ret = drm_add_edid_modes(connector, edid);
-		kfree(edid);
-	} else {
-		ret = drm_add_modes_noedid(connector, 1920, 1080);
-		drm_set_preferred_mode(connector, 1024, 768);
-	}
-
-	return ret;
-}
-
-static struct drm_encoder *ch7033_connector_best_encoder(
-			struct drm_connector *connector)
-{
-	struct ch7033_priv *priv = conn_to_ch7033_priv(connector);
-
-	return priv->bridge.encoder;
-}
-
-static const struct drm_connector_helper_funcs ch7033_connector_helper_funcs = {
-	.get_modes = ch7033_connector_get_modes,
-	.best_encoder = ch7033_connector_best_encoder,
-};
-
-static void ch7033_hpd_event(void *arg, enum drm_connector_status status)
-{
-	struct ch7033_priv *priv = arg;
-
-	if (priv->bridge.dev)
-		drm_helper_hpd_irq_event(priv->connector.dev);
-}
 
 static int ch7033_bridge_attach(struct drm_bridge *bridge,
 				enum drm_bridge_attach_flags flags)
 {
 	struct ch7033_priv *priv = bridge_to_ch7033_priv(bridge);
-	struct drm_connector *connector = &priv->connector;
-	int ret;
 
-	ret = drm_bridge_attach(bridge->encoder, priv->next_bridge, bridge,
-				DRM_BRIDGE_ATTACH_NO_CONNECTOR);
-	if (ret)
-		return ret;
+	if (!(flags & DRM_BRIDGE_ATTACH_NO_CONNECTOR))
+		return -EINVAL;
 
-	if (flags & DRM_BRIDGE_ATTACH_NO_CONNECTOR)
-		return 0;
-
-	if (priv->next_bridge->ops & DRM_BRIDGE_OP_DETECT) {
-		connector->polled = DRM_CONNECTOR_POLL_HPD;
-	} else {
-		connector->polled = DRM_CONNECTOR_POLL_CONNECT |
-				    DRM_CONNECTOR_POLL_DISCONNECT;
-	}
-
-	if (priv->next_bridge->ops & DRM_BRIDGE_OP_HPD) {
-		drm_bridge_hpd_enable(priv->next_bridge, ch7033_hpd_event,
-				      priv);
-	}
-
-	drm_connector_helper_add(connector,
-				 &ch7033_connector_helper_funcs);
-	ret = drm_connector_init_with_ddc(bridge->dev, &priv->connector,
-					  &ch7033_connector_funcs,
-					  priv->next_bridge->type,
-					  priv->next_bridge->ddc);
-	if (ret) {
-		DRM_ERROR("Failed to initialize connector\n");
-		return ret;
-	}
-
-	return drm_connector_attach_encoder(&priv->connector, bridge->encoder);
+	return drm_bridge_attach(bridge->encoder, priv->next_bridge, bridge,
+				 DRM_BRIDGE_ATTACH_NO_CONNECTOR);
 }
 
 static void ch7033_bridge_detach(struct drm_bridge *bridge)
@@ -313,7 +223,6 @@ static void ch7033_bridge_detach(struct drm_bridge *bridge)
 
 	if (priv->next_bridge->ops & DRM_BRIDGE_OP_HPD)
 		drm_bridge_hpd_disable(priv->next_bridge);
-	drm_connector_cleanup(&priv->connector);
 }
 
 static enum drm_mode_status ch7033_bridge_mode_valid(struct drm_bridge *bridge,
