@@ -189,25 +189,25 @@ static void armada_drm_primary_plane_atomic_update(struct drm_plane *plane,
 	val = armada_src_hw(state);
 	if (armada_src_hw(old_state) != val)
 		armada_reg_queue_set(regs, idx, val,
-				     dcrtc->base + LCD_SPU_GRA_HPXL_VLN);
+				     dcrtc->disp_regs + LCD_SPU_GRA_HPXL_VLN);
 	val = armada_dst_yx(state);
 	if (armada_dst_yx(old_state) != val)
 		armada_reg_queue_set(regs, idx, val,
-				     dcrtc->base + LCD_SPU_GRA_OVSA_HPXL_VLN);
+				     dcrtc->disp_regs + LCD_SPU_GRA_OVSA_HPXL_VLN);
 	val = armada_dst_hw(state);
 	if (armada_dst_hw(old_state) != val)
 		armada_reg_queue_set(regs, idx, val,
-				     dcrtc->base + LCD_SPU_GZM_HPXL_VLN);
+				     dcrtc->disp_regs + LCD_SPU_GZM_HPXL_VLN);
 	if (old_state->src.x1 != state->src.x1 ||
 	    old_state->src.y1 != state->src.y1 ||
 	    old_state->fb != state->fb ||
 	    state->crtc->state->mode_changed) {
 		armada_reg_queue_set(regs, idx, armada_addr(state, 0, 0),
-				     dcrtc->base + LCD_CFG_GRA_START_ADDR0);
+				     dcrtc->disp_regs + LCD_CFG_GRA_START_ADDR0);
 		armada_reg_queue_set(regs, idx, armada_addr(state, 1, 0),
-				     dcrtc->base + LCD_CFG_GRA_START_ADDR1);
+				     dcrtc->disp_regs + LCD_CFG_GRA_START_ADDR1);
 		armada_reg_queue_mod(regs, idx, armada_pitch(state, 0), 0xffff,
-				     dcrtc->base + LCD_CFG_GRA_PITCH);
+				     dcrtc->disp_regs + LCD_CFG_GRA_PITCH);
 	}
 	if (old_state->fb != state->fb ||
 	    state->crtc->state->mode_changed) {
@@ -240,7 +240,7 @@ static void armada_drm_primary_plane_atomic_update(struct drm_plane *plane,
 
 	if (cfg_mask)
 		armada_reg_queue_mod(regs, idx, cfg, cfg_mask,
-				     dcrtc->base + LCD_SPU_DMA_CTRL0);
+				     dcrtc->dma_regs + LCD_SPU_DMA_CTRL0);
 
 	dcrtc->regs_idx += idx;
 }
@@ -267,7 +267,7 @@ static void armada_drm_primary_plane_atomic_disable(struct drm_plane *plane,
 
 	/* Disable plane and power down most RAMs and FIFOs */
 	armada_reg_queue_mod(regs, idx, 0, CFG_GRA_ENA,
-			     dcrtc->base + LCD_SPU_DMA_CTRL0);
+			     dcrtc->dma_regs + LCD_SPU_DMA_CTRL0);
 	armada_reg_queue_mod(regs, idx, CFG_PDWN256x32 | CFG_PDWN256x24 |
 			     CFG_PDWN32x32 | CFG_PDWN64x66, 0,
 			     dcrtc->base + LCD_SPU_SRAM_PARA1);
