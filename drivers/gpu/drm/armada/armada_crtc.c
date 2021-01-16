@@ -9,11 +9,15 @@
 #include <linux/module.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
+#include <linux/of_graph.h>
 
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
+#include <drm/drm_bridge_connector.h>
+#include <drm/drm_of.h>
 #include <drm/drm_plane_helper.h>
 #include <drm/drm_probe_helper.h>
+#include <drm/drm_simple_kms_helper.h>
 #include <drm/drm_vblank.h>
 
 #include "armada_crtc.h"
@@ -909,13 +913,23 @@ found:
 
 static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 	struct resource *res, int irq, const struct armada_variant *variant,
-	struct device_node *port)
+	struct device_node *ep)
 {
 	struct armada_private *priv = drm_to_armada_dev(drm);
+	struct drm_bridge *bridge = NULL;
+	struct device_node *remote;
 	struct armada_crtc *dcrtc;
 	struct drm_plane *primary;
 	void __iomem *base;
 	int ret;
+
+	remote = of_graph_get_remote_port_parent(ep);
+	if (remote) {
+		bridge = of_drm_find_bridge(remote);
+		of_node_put(remote);
+		if (!bridge)
+			return -EPROBE_DEFER;
+	}
 
 	base = devm_ioremap_resource(dev, res);
 	if (IS_ERR(base))
@@ -935,6 +949,7 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 	dcrtc->num = drm->mode_config.num_crtc;
 	dcrtc->cfg_dumb_ctrl = DUMB24_RGB888_0;
 	dcrtc->spu_iopad_ctrl = CFG_VSCALE_LN_EN | CFG_IOPAD_DUMB24;
+
 	spin_lock_init(&dcrtc->irq_lock);
 	dcrtc->irq_ena = CLEAN_SPU_IRQ_ISR;
 
@@ -968,7 +983,7 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 
 	priv->dcrtc[dcrtc->num] = dcrtc;
 
-	dcrtc->crtc.port = port;
+	dcrtc->crtc.port = of_get_parent(ep);
 
 	primary = kzalloc(sizeof(*primary), GFP_KERNEL);
 	if (!primary) {
@@ -1013,7 +1028,7 @@ armada_lcd_bind(struct device *dev, struct device *master, void *data)
 	struct resource *res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	int irq = platform_get_irq(pdev, 0);
 	const struct armada_variant *variant;
-	struct device_node *port = NULL;
+	struct device_node *ep = NULL;
 
 	if (irq < 0)
 		return irq;
@@ -1028,26 +1043,22 @@ armada_lcd_bind(struct device *dev, struct device *master, void *data)
 		variant = (const struct armada_variant *)id->driver_data;
 	} else {
 		const struct of_device_id *match;
-		struct device_node *np, *parent = dev->of_node;
+		struct device_node *parent = dev->of_node;
 
 		match = of_match_device(dev->driver->of_match_table, dev);
 		if (!match)
 			return -ENXIO;
 
-		np = of_get_child_by_name(parent, "ports");
-		if (np)
-			parent = np;
-		port = of_get_child_by_name(parent, "port");
-		of_node_put(np);
-		if (!port) {
+		variant = match->data;
+
+		ep = of_graph_get_endpoint_by_regs(parent, -1, -1);
+		if (!ep) {
 			dev_err(dev, "no port node found in %pOF\n", parent);
 			return -ENXIO;
 		}
-
-		variant = match->data;
 	}
 
-	return armada_drm_crtc_create(drm, dev, res, irq, variant, port);
+	return armada_drm_crtc_create(drm, dev, res, irq, variant, ep);
 }
 
 static void
