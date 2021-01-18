@@ -61,6 +61,7 @@ struct armada_crtc {
 
 	uint32_t		cfg_dumb_ctrl;
 	uint32_t		spu_iopad_ctrl;
+	uint32_t		spu_dma_ctrl1;
 
 	spinlock_t		irq_lock;
 	uint32_t		irq_ena;

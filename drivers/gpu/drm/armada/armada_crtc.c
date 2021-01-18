@@ -949,6 +949,7 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 	dcrtc->num = drm->mode_config.num_crtc;
 	dcrtc->cfg_dumb_ctrl = DUMB24_RGB888_0;
 	dcrtc->spu_iopad_ctrl = CFG_VSCALE_LN_EN | CFG_IOPAD_DUMB24;
+	dcrtc->spu_dma_ctrl1 = 0x2032ff81;
 
 	spin_lock_init(&dcrtc->irq_lock);
 	dcrtc->irq_ena = CLEAN_SPU_IRQ_ISR;
@@ -960,7 +961,6 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 	writel_relaxed(CFG_PDWN256x32 | CFG_PDWN256x24 | CFG_PDWN256x8 |
 		       CFG_PDWN32x32 | CFG_PDWN16x66 | CFG_PDWN32x66 |
 		       CFG_PDWN64x66, dcrtc->base + LCD_SPU_SRAM_PARA1);
-	writel_relaxed(0x2032ff81, dcrtc->base + LCD_SPU_DMA_CTRL1);
 	writel_relaxed(dcrtc->irq_ena, dcrtc->base + LCD_SPU_IRQ_ENA);
 	readl_relaxed(dcrtc->base + LCD_SPU_IRQ_ISR);
 	writel_relaxed(0, dcrtc->base + LCD_SPU_IRQ_ISR);
@@ -978,6 +978,8 @@ static int armada_drm_crtc_create(struct drm_device *drm, struct device *dev,
 
 	writel_relaxed(dcrtc->spu_iopad_ctrl,
 		       dcrtc->base + LCD_SPU_IOPAD_CONTROL);
+	writel_relaxed(dcrtc->spu_dma_ctrl1,
+		       dcrtc->base + LCD_SPU_DMA_CTRL1);
 
 	/* Ensure AXI pipeline is enabled */
 	armada_updatel(CFG_ARBFAST_ENA, 0, dcrtc->base + LCD_SPU_DMA_CTRL0);
