@@ -46,7 +46,7 @@
 		};
 	};
 
-	dvi0-connector {
+	dvi-connector-0 {
 		compatible = "dvi-connector";
 		ddc-i2c-bus = <&twsi5>;
 		hpd-gpios = <&gpio 62 GPIO_ACTIVE_LOW>;
@@ -60,7 +60,7 @@
 		};
 	};
 
-	dvi1-connector {
+	dvi-connector-1 {
 		compatible = "dvi-connector";
 		ddc-i2c-bus = <&twsi6>;
 		hpd-gpios = <&gpio 59 GPIO_ACTIVE_LOW>;
