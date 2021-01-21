@@ -2,8 +2,8 @@ set -x
 set -e
 
 BRANCHES=""
-BRANCHES="$BRANCHES xo/lr/mmp-dts"
 BRANCHES="$BRANCHES xo/lr/mmp-armada-drm-5"
+BRANCHES="$BRANCHES xo/lr/mmp-dts"
 BRANCHES="$BRANCHES xo/lr/mmp3-thermal-v1"
 BRANCHES="$BRANCHES xo/lr/olpc-xo175-fixes12"
 
