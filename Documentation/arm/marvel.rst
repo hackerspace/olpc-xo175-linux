@@ -68,8 +68,6 @@ Kirkwood family
                 - Product Brief  : `88F6281-004_ver1.pdf`_
                 - Hardware Spec  : `HW_88F6281_OpenSource.pdf`_
                 - Functional Spec: `FS_88F6180_9x_6281_OpenSource.pdf`_
-  Homepage:
-	http://www.marvell.com/embedded-processors/kirkwood/
   Core:
 	Feroceon 88fr131 ARMv5 compatible
   Linux kernel mach directory:
@@ -153,8 +151,7 @@ EBU Armada family
 	- 88F6820 Armada 385
 	- 88F6828 Armada 388
 
-    - Product infos:   http://www.marvell.com/embedded-processors/armada-38x/
-    - Functional Spec: https://marvellcorp.wufoo.com/forms/marvell-armada-38x-functional-specifications/
+    - Functional Spec: `marvell-embedded-processors-armada-38x-functional-specifications-2015-11.pdf`_
 
   Core:
 	ARM Cortex-A9
@@ -162,8 +159,6 @@ EBU Armada family
   Armada 39x Flavors:
 	- 88F6920 Armada 390
 	- 88F6928 Armada 398
-
-    - Product infos: http://www.marvell.com/embedded-processors/armada-39x/
 
   Core:
 	ARM Cortex-A9
@@ -200,6 +195,7 @@ EBU Armada family
 .. _ARMADA370-datasheet.pdf: http://www.marvell.com/embedded-processors/armada-300/assets/ARMADA370-datasheet.pdf
 .. _ARMADA370-FunctionalSpec-datasheet.pdf: http://www.marvell.com/embedded-processors/armada-300/assets/ARMADA370-FunctionalSpec-datasheet.pdf
 .. _ARMADA_375_SoC-01_product_brief.pdf: http://www.marvell.com/embedded-processors/armada-300/assets/ARMADA_375_SoC-01_product_brief.pdf
+.. _marvell-embedded-processors-armada-38x-functional-specifications-2015-11.pdf: https://www.marvell.com/content/dam/marvell/en/public-collateral/embedded-processors/marvell-embedded-processors-armada-38x-functional-specifications-2015-11.pdf
 .. _Marvell-ArmadaXP-SoC-product%20brief.pdf: http://www.marvell.com/embedded-processors/armada-xp/assets/Marvell-ArmadaXP-SoC-product%20brief.pdf
 .. _ARMADA-XP-Functional-SpecDatasheet.pdf: http://www.marvell.com/embedded-processors/armada-xp/assets/ARMADA-XP-Functional-SpecDatasheet.pdf
 .. _HW_MV78230_OS.PDF: http://www.marvell.com/embedded-processors/armada-xp/assets/HW_MV78230_OS.PDF
@@ -216,9 +212,6 @@ EBU Armada family ARMv8
   Core:
 	ARM Cortex A53 (ARMv8)
 
-  Homepage:
-	http://www.marvell.com/embedded-processors/armada-3700/
-
   Product Brief:
 	`PB-88F3700-FNL.pdf`_
 
@@ -230,9 +223,6 @@ EBU Armada family ARMv8
 	  - 88F7040 (AP806 Quad + one CP110)
 
   Core: ARM Cortex A72
-
-  Homepage:
-	http://www.marvell.com/embedded-processors/armada-70xx/
 
   Product Brief:
 	  - `Armada7020PB-Jan2016.pdf`_
@@ -246,9 +236,6 @@ EBU Armada family ARMv8
 	- 88F8040 (AP806 Quad + two CP110)
   Core:
 	ARM Cortex A72
-
-  Homepage:
-	http://www.marvell.com/embedded-processors/armada-80xx/
 
   Product Brief:
 	  - `Armada8020PB-Jan2016.pdf`_
@@ -272,9 +259,6 @@ Avanta family
        - 88F6550
        - 88F6560
 
-  Homepage:
-	http://www.marvell.com/broadband/
-
   Product Brief:
 	`Marvell_Avanta_88F6510_305_060-001_product_brief.pdf`_
 
@@ -296,9 +280,6 @@ Storage family
   Armada SP:
 	- 88RC1580
 
-  Product infos:
-	http://www.marvell.com/storage/armada-sp/
-
   Core:
 	Sheeva ARMv7 comatible Quad-core PJ4C
 
@@ -318,9 +299,6 @@ Dove family (application processor)
 
   Functional Spec:
 	`Armada-510-Functional-Spec.pdf`_
-
-  Homepage:
-	http://www.marvell.com/application-processors/armada-500/
 
   Core:
 	ARMv7 compatible
@@ -411,7 +389,6 @@ MMP/MMP2/MMP3 family (communication processor)
              - Application processor only
              - Core: ARMv5 compatible Marvell PJ1 88sv331 (Mohawk)
         - PXA910/PXA920
-             - Homepage             : http://www.marvell.com/communication-processors/pxa910/
              - Product Brief        : `Marvell_PXA910_Platform-001_PB_final.pdf`_
              - Application processor with Communication processor
              - Core: ARMv5 compatible Marvell PJ1 88sv331 (Mohawk)
