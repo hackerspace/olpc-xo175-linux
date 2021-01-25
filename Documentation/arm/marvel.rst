@@ -32,10 +32,10 @@ Orion family
   Linux kernel plat directory:
 	arch/arm/plat-orion
 
-.. _MV88F5182-datasheet.pdf: http://www.embeddedarm.com/documentation/third-party/MV88F5182-datasheet.pdf
-.. _MV88F5182-opensource-manual.pdf: http://www.embeddedarm.com/documentation/third-party/MV88F5182-opensource-manual.pdf
-.. _MV88F5182-usermanual.pdf: http://www.embeddedarm.com/documentation/third-party/MV88F5182-usermanual.pdf
-.. _marvel_88f5281_data_sheet.pdf: http://www.ocmodshop.com/images/reviews/networking/qnap_ts409u/marvel_88f5281_data_sheet.pdf
+.. _MV88F5182-datasheet.pdf: http://web.archive.org/web/20210124231420/http://csclub.uwaterloo.ca/~board/ts7800/MV88F5182-datasheet.pdf
+.. _MV88F5182-opensource-manual.pdf: http://web.archive.org/web/20210124231536/http://csclub.uwaterloo.ca/~board/ts7800/MV88F5182-opensource-manual.pdf
+.. _MV88F5182-usermanual.pdf: http://web.archive.org/web/20210124231631/http://csclub.uwaterloo.ca/~board/ts7800/MV88F5182-usermanual.pdf
+.. _marvel_88f5281_data_sheet.pdf: http://web.archive.org/web/20131028144728/http://www.ocmodshop.com/images/reviews/networking/qnap_ts409u/marvel_88f5281_data_sheet.pdf
 
 Kirkwood family
 ---------------
@@ -75,18 +75,18 @@ Kirkwood family
   Linux kernel plat directory:
 	none
 
-.. _armada_310.pdf: http://www.marvell.com/embedded-processors/armada-300/assets/armada_310.pdf
-.. _armada_310.pdf: http://www.marvell.com/embedded-processors/armada-300/assets/armada_310.pdf
+.. _armada_310.pdf: http://web.archive.org/web/20111027032509/http://www.marvell.com/embedded-processors/armada-300/assets/armada_310.pdf
+.. _armada_310.pdf: http://web.archive.org/web/20111027032509/http://www.marvell.com/embedded-processors/armada-300/assets/armada_310.pdf
 .. _88F6190-003_WEB.pdf: http://www.marvell.com/embedded-processors/kirkwood/assets/88F6190-003_WEB.pdf
-.. _HW_88F619x_OpenSource.pdf: http://www.marvell.com/embedded-processors/kirkwood/assets/HW_88F619x_OpenSource.pdf
+.. _HW_88F619x_OpenSource.pdf: http://web.archive.org/web/20121021182835/http://www.marvell.com/embedded-processors/kirkwood/assets/HW_88F619x_OpenSource.pdf
 .. _FS_88F6180_9x_6281_OpenSource.pdf: http://www.marvell.com/embedded-processors/kirkwood/assets/FS_88F6180_9x_6281_OpenSource.pdf
-.. _88F6192-003_ver1.pdf: http://www.marvell.com/embedded-processors/kirkwood/assets/88F6192-003_ver1.pdf
-.. _HW_88F619x_OpenSource.pdf: http://www.marvell.com/embedded-processors/kirkwood/assets/HW_88F619x_OpenSource.pdf
+.. _88F6192-003_ver1.pdf: http://web.archive.org/web/20131113121446/http://www.marvell.com/embedded-processors/kirkwood/assets/88F6192-003_ver1.pdf
+.. _HW_88F619x_OpenSource.pdf: http://web.archive.org/web/20121021182835/http://www.marvell.com/embedded-processors/kirkwood/assets/HW_88F619x_OpenSource.pdf
 .. _FS_88F6180_9x_6281_OpenSource.pdf: http://www.marvell.com/embedded-processors/kirkwood/assets/FS_88F6180_9x_6281_OpenSource.pdf
 .. _88F6180-003_ver1.pdf: http://www.marvell.com/embedded-processors/kirkwood/assets/88F6180-003_ver1.pdf
 .. _HW_88F6180_OpenSource.pdf: http://www.marvell.com/embedded-processors/kirkwood/assets/HW_88F6180_OpenSource.pdf
 .. _FS_88F6180_9x_6281_OpenSource.pdf: http://www.marvell.com/embedded-processors/kirkwood/assets/FS_88F6180_9x_6281_OpenSource.pdf
-.. _88F6281-004_ver1.pdf: http://www.marvell.com/embedded-processors/kirkwood/assets/88F6281-004_ver1.pdf
+.. _88F6281-004_ver1.pdf: http://web.archive.org/web/20120131133709/http://www.marvell.com/embedded-processors/kirkwood/assets/88F6281-004_ver1.pdf
 .. _HW_88F6281_OpenSource.pdf: http://www.marvell.com/embedded-processors/kirkwood/assets/HW_88F6281_OpenSource.pdf
 .. _FS_88F6180_9x_6281_OpenSource.pdf: http://www.marvell.com/embedded-processors/kirkwood/assets/FS_88F6180_9x_6281_OpenSource.pdf
 
@@ -116,10 +116,10 @@ Discovery family
   Linux kernel plat directory:
 	arch/arm/plat-orion
 
-.. _MV78100-003_WEB.pdf: http://www.marvell.com/embedded-processors/discovery-innovation/assets/MV78100-003_WEB.pdf
-.. _HW_MV78100_OpenSource.pdf: http://www.marvell.com/embedded-processors/discovery-innovation/assets/HW_MV78100_OpenSource.pdf
+.. _MV78100-003_WEB.pdf: http://web.archive.org/web/20120616194711/http://www.marvell.com/embedded-processors/discovery-innovation/assets/MV78100-003_WEB.pdf
+.. _HW_MV78100_OpenSource.pdf: http://web.archive.org/web/20141005120451/http://www.marvell.com/embedded-processors/discovery-innovation/assets/HW_MV78100_OpenSource.pdf
 .. _FS_MV76100_78100_78200_OpenSource.pdf: http://www.marvell.com/embedded-processors/discovery-innovation/assets/FS_MV76100_78100_78200_OpenSource.pdf
-.. _MV78200-002_WEB.pdf: http://www.marvell.com/embedded-processors/discovery-innovation/assets/MV78200-002_WEB.pdf
+.. _MV78200-002_WEB.pdf: http://web.archive.org/web/20140801121623/http://www.marvell.com/embedded-processors/discovery-innovation/assets/MV78200-002_WEB.pdf
 .. _HW_MV78200_OpenSource.pdf: http://www.marvell.com/embedded-processors/discovery-innovation/assets/HW_MV78200_OpenSource.pdf
 .. _FS_MV76100_78100_78200_OpenSource.pdf: http://www.marvell.com/embedded-processors/discovery-innovation/assets/FS_MV76100_78100_78200_OpenSource.pdf
 
@@ -191,16 +191,16 @@ EBU Armada family
   Linux kernel plat directory:
 	none
 
-.. _Marvell_ARMADA_370_SoC.pdf: http://www.marvell.com/embedded-processors/armada-300/assets/Marvell_ARMADA_370_SoC.pdf
+.. _Marvell_ARMADA_370_SoC.pdf: http://web.archive.org/web/20121115063038/http://www.marvell.com/embedded-processors/armada-300/assets/Marvell_ARMADA_370_SoC.pdf
 .. _ARMADA370-datasheet.pdf: http://www.marvell.com/embedded-processors/armada-300/assets/ARMADA370-datasheet.pdf
 .. _ARMADA370-FunctionalSpec-datasheet.pdf: http://www.marvell.com/embedded-processors/armada-300/assets/ARMADA370-FunctionalSpec-datasheet.pdf
-.. _ARMADA_375_SoC-01_product_brief.pdf: http://www.marvell.com/embedded-processors/armada-300/assets/ARMADA_375_SoC-01_product_brief.pdf
-.. _marvell-embedded-processors-armada-38x-functional-specifications-2015-11.pdf: https://www.marvell.com/content/dam/marvell/en/public-collateral/embedded-processors/marvell-embedded-processors-armada-38x-functional-specifications-2015-11.pdf
-.. _Marvell-ArmadaXP-SoC-product%20brief.pdf: http://www.marvell.com/embedded-processors/armada-xp/assets/Marvell-ArmadaXP-SoC-product%20brief.pdf
+.. _ARMADA_375_SoC-01_product_brief.pdf: http://web.archive.org/web/20131216023516/http://www.marvell.com/embedded-processors/armada-300/assets/ARMADA_375_SoC-01_product_brief.pdf
+.. _marvell-embedded-processors-armada-38x-functional-specifications-2015-11.pdf: http://web.archive.org/web/20200420191927/https://www.marvell.com/content/dam/marvell/en/public-collateral/embedded-processors/marvell-embedded-processors-armada-38x-functional-specifications-2015-11.pdf
+.. _Marvell-ArmadaXP-SoC-product%20brief.pdf: http://web.archive.org/web/20121021173528/http://www.marvell.com/embedded-processors/armada-xp/assets/Marvell-ArmadaXP-SoC-product%20brief.pdf
 .. _ARMADA-XP-Functional-SpecDatasheet.pdf: http://www.marvell.com/embedded-processors/armada-xp/assets/ARMADA-XP-Functional-SpecDatasheet.pdf
-.. _HW_MV78230_OS.PDF: http://www.marvell.com/embedded-processors/armada-xp/assets/HW_MV78230_OS.PDF
+.. _HW_MV78230_OS.PDF: http://web.archive.org/web/20141127013651/http://www.marvell.com/embedded-processors/armada-xp/assets/HW_MV78230_OS.PDF
 .. _HW_MV78260_OS.PDF: http://www.marvell.com/embedded-processors/armada-xp/assets/HW_MV78260_OS.PDF
-.. _HW_MV78460_OS.PDF: http://www.marvell.com/embedded-processors/armada-xp/assets/HW_MV78460_OS.PDF
+.. _HW_MV78460_OS.PDF: http://web.archive.org/web/20141222000230/http://www.marvell.com/embedded-processors/armada-xp/assets/HW_MV78460_OS.PDF
 
 EBU Armada family ARMv8
 -----------------------
@@ -244,10 +244,10 @@ EBU Armada family ARMv8
   Device tree files:
 	arch/arm64/boot/dts/marvell/armada-80*
 
-.. _PB-88F3700-FNL.pdf: http://www.marvell.com/embedded-processors/assets/PB-88F3700-FNL.pdf
-.. _Armada7020PB-Jan2016.pdf: http://www.marvell.com/embedded-processors/assets/Armada7020PB-Jan2016.pdf
-.. _Armada7040PB-Jan2016.pdf: http://www.marvell.com/embedded-processors/assets/Armada7040PB-Jan2016.pdf
-.. _Armada8020PB-Jan2016.pdf: http://www.marvell.com/embedded-processors/assets/Armada8020PB-Jan2016.pdf
+.. _PB-88F3700-FNL.pdf: http://web.archive.org/web/20160309224849/http://www.marvell.com/embedded-processors/assets/PB-88F3700-FNL.pdf
+.. _Armada7020PB-Jan2016.pdf: http://web.archive.org/web/20161010105541/http://www.marvell.com/embedded-processors/assets/Armada7020PB-Jan2016.pdf
+.. _Armada7040PB-Jan2016.pdf: http://web.archive.org/web/20160928154533/http://www.marvell.com/embedded-processors/assets/Armada7040PB-Jan2016.pdf
+.. _Armada8020PB-Jan2016.pdf: https://web.archive.org/web/20210124233728/https://www.marvell.com/content/dam/marvell/en/public-collateral/embedded-processors/marvell-embedded-processors-armada-8020-product-brief-2017-12.pdf
 .. _Armada8040PB-Jan2016.pdf: http://www.marvell.com/embedded-processors/assets/Armada8040PB-Jan2016.pdf
 
 Avanta family
@@ -272,7 +272,7 @@ Avanta family
   Linux kernel plat directory:
 	no code in mainline yet, planned for the future
 
-.. _Marvell_Avanta_88F6510_305_060-001_product_brief.pdf: http://www.marvell.com/broadband/assets/Marvell_Avanta_88F6510_305_060-001_product_brief.pdf
+.. _Marvell_Avanta_88F6510_305_060-001_product_brief.pdf: http://web.archive.org/web/20180829171057/http://www.marvell.com/broadband/assets/Marvell_Avanta_88F6510_305_060-001_product_brief.pdf
 
 Storage family
 --------------
@@ -307,9 +307,9 @@ Dove family (application processor)
 	- arch/arm/mach-mvebu (DT enabled platforms)
         - arch/arm/mach-dove (non-DT enabled platforms)
 
-.. _Marvell_Armada510_SoC.pdf: http://www.marvell.com/application-processors/armada-500/assets/Marvell_Armada510_SoC.pdf
+.. _Marvell_Armada510_SoC.pdf: http://web.archive.org/web/20111102020643/http://www.marvell.com/application-processors/armada-500/assets/Marvell_Armada510_SoC.pdf
 .. _Armada-510-Hardware-Spec.pdf: http://www.marvell.com/application-processors/armada-500/assets/Armada-510-Hardware-Spec.pdf
-.. _Armada-510-Functional-Spec.pdf: http://www.marvell.com/application-processors/armada-500/assets/Armada-510-Functional-Spec.pdf
+.. _Armada-510-Functional-Spec.pdf: http://web.archive.org/web/20120130172443/http://www.marvell.com/application-processors/armada-500/assets/Armada-510-Functional-Spec.pdf
 
 PXA 2xx/3xx/93x/95x family
 --------------------------
@@ -360,19 +360,19 @@ PXA 2xx/3xx/93x/95x family
    Linux kernel plat directory:
 	arch/arm/plat-pxa
 
-.. _pxa_27x_pb.pdf: http://www.marvell.com/application-processors/pxa-family/assets/pxa_27x_pb.pdf
-.. _pxa_27x_design_guide.pdf: http://www.marvell.com/application-processors/pxa-family/assets/pxa_27x_design_guide.pdf
-.. _pxa_27x_dev_man.pdf: http://www.marvell.com/application-processors/pxa-family/assets/pxa_27x_dev_man.pdf
+.. _pxa_27x_pb.pdf: http://web.archive.org/web/20150927135510/http://www.marvell.com/application-processors/pxa-family/assets/pxa_27x_pb.pdf
+.. _pxa_27x_design_guide.pdf: http://web.archive.org/web/20120111181937/http://www.marvell.com/application-processors/pxa-family/assets/pxa_27x_design_guide.pdf
+.. _pxa_27x_dev_man.pdf: http://web.archive.org/web/20150927164805/http://www.marvell.com/application-processors/pxa-family/assets/pxa_27x_dev_man.pdf
 .. _pxa_27x_emts.pdf: http://www.marvell.com/application-processors/pxa-family/assets/pxa_27x_emts.pdf
 .. _pxa_27x_spec_update.pdf: http://www.marvell.com/application-processors/pxa-family/assets/pxa_27x_spec_update.pdf
-.. _PXA300_PB_R4.pdf: http://www.marvell.com/application-processors/pxa-family/assets/PXA300_PB_R4.pdf
+.. _PXA300_PB_R4.pdf: http://web.archive.org/web/20120111121203/http://www.marvell.com/application-processors/pxa-family/assets/PXA300_PB_R4.pdf
 .. _PXA310_PB_R4.pdf: http://www.marvell.com/application-processors/pxa-family/assets/PXA310_PB_R4.pdf
-.. _PXA320_PB_R4.pdf: http://www.marvell.com/application-processors/pxa-family/assets/PXA320_PB_R4.pdf
+.. _PXA320_PB_R4.pdf: http://web.archive.org/web/20121021182826/http://www.marvell.com/application-processors/pxa-family/assets/PXA320_PB_R4.pdf
 .. _PXA3xx_Design_Guide.pdf: http://www.marvell.com/application-processors/pxa-family/assets/PXA3xx_Design_Guide.pdf
-.. _PXA3xx_Developers_Manual.zip: http://www.marvell.com/application-processors/pxa-family/assets/PXA3xx_Developers_Manual.zip
+.. _PXA3xx_Developers_Manual.zip: http://web.archive.org/web/20130727144605/http://www.marvell.com/application-processors/pxa-family/assets/PXA3xx_Developers_Manual.zip
 .. _PXA3xx_EMTS.pdf: http://www.marvell.com/application-processors/pxa-family/assets/PXA3xx_EMTS.pdf
 .. _PXA3xx_Spec_Update.zip: http://www.marvell.com/application-processors/pxa-family/assets/PXA3xx_Spec_Update.zip
-.. _PXA3xx_TavorP_BootROM_Ref_Manual.pdf: http://www.marvell.com/application-processors/pxa-family/assets/PXA3xx_TavorP_BootROM_Ref_Manual.pdf
+.. _PXA3xx_TavorP_BootROM_Ref_Manual.pdf: http://web.archive.org/web/20120111103844/http://www.marvell.com/application-processors/pxa-family/assets/PXA3xx_TavorP_BootROM_Ref_Manual.pdf
 
 MMP/MMP2/MMP3 family (communication processor)
 ----------------------------------------------
@@ -429,13 +429,13 @@ MMP/MMP2/MMP3 family (communication processor)
 	arch/arm/plat-pxa
 
 .. _armada-168.jsp: http://www.marvell.com/application-processors/armada-100/armada-168.jsp
-.. _pxa_168_pb.pdf: http://www.marvell.com/application-processors/armada-100/assets/pxa_168_pb.pdf
+.. _pxa_168_pb.pdf: http://web.archive.org/web/20111102030100/http://www.marvell.com/application-processors/armada-100/assets/pxa_168_pb.pdf
 .. _armada_16x_datasheet.pdf: http://www.marvell.com/application-processors/armada-100/assets/armada_16x_datasheet.pdf
-.. _armada_16x_software_manual.pdf: http://www.marvell.com/application-processors/armada-100/assets/armada_16x_software_manual.pdf
+.. _armada_16x_software_manual.pdf: http://web.archive.org/web/20160428154454/http://www.marvell.com/application-processors/armada-100/assets/armada_16x_software_manual.pdf
 .. _ARMADA16x_Spec_update.pdf: http://www.marvell.com/application-processors/armada-100/assets/ARMADA16x_Spec_update.pdf
-.. _armada_16x_ref_manual.pdf: http://www.marvell.com/application-processors/armada-100/assets/armada_16x_ref_manual.pdf
-.. _armada_16x_app_note_package.pdf: http://www.marvell.com/application-processors/armada-100/assets/armada_16x_app_note_package.pdf
-.. _Marvell_PXA910_Platform-001_PB_final.pdf: http://www.marvell.com/communication-processors/pxa910/assets/Marvell_PXA910_Platform-001_PB_final.pdf
+.. _armada_16x_ref_manual.pdf: http://web.archive.org/web/20130727205559/http://www.marvell.com/application-processors/armada-100/assets/armada_16x_ref_manual.pdf
+.. _armada_16x_app_note_package.pdf: http://web.archive.org/web/20141005090706/http://www.marvell.com/application-processors/armada-100/assets/armada_16x_app_note_package.pdf
+.. _Marvell_PXA910_Platform-001_PB_final.pdf: https://archive.org/download/marvell-pxa910-pb/Marvell_PXA910_Platform-001_PB.pdf
 .. _armada610_pb.pdf: http://www.marvell.com/application-processors/armada-600/assets/armada610_pb.pdf
 .. _Marvell-ARMADA-PXA2128-SoC-PB.pdf: http://www.marvell.com/application-processors/armada/pxa2128/assets/Marvell-ARMADA-PXA2128-SoC-PB.pdf
 
