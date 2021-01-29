@@ -8,7 +8,7 @@ BRANCHES="$BRANCHES xo/lr/mmp3-thermal-v1"
 BRANCHES="$BRANCHES xo/lr/olpc-xo175-fixes12"
 
 git branch -D merged || :
-git checkout -b merged v5.11-rc4
+git checkout -b merged v5.11-rc5
 
 for B in $BRANCHES; do
 	EDITOR=: git merge --no-ff $B
