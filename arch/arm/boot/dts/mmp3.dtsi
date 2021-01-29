@@ -334,6 +334,18 @@
 				status = "disabled";
 			};
 
+			tsc: temperature-sensor@d403b000 {
+				compatible = "marvell,mmp3-thermal";
+				reg = <0xd403b000 0x1000>;
+				clock-names = "thermal0", "thermal1",
+					      "thermal2", "thermal3";
+				clocks = <&soc_clocks MMP2_CLK_THERMAL0>,
+					 <&soc_clocks MMP3_CLK_THERMAL1>,
+					 <&soc_clocks MMP3_CLK_THERMAL2>,
+					 <&soc_clocks MMP3_CLK_THERMAL3>;
+				#thermal-sensor-cells = <0>;
+			};
+
 			camera1: camera@d420a800 {
 				compatible = "marvell,mmp2-ccic";
 				reg = <0xd420a800 0x800>;
@@ -634,6 +646,29 @@
 			reg = <0xe0000620 0x20>;
 			interrupts = <GIC_PPI 14 (GIC_CPU_MASK_SIMPLE(2) |
 						  IRQ_TYPE_EDGE_RISING)>;
+		};
+	};
+
+	thermal-zones {
+		cpu-thermal {
+			polling-delay = <1000>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&tsc>;
+
+			trips {
+				cpu-crit {
+					temperature	= <100500>;
+					hysteresis	= <0>;
+			/*
+					temperature	= <125000>;
+					hysteresis	= <0>;
+			*/
+					type		= "critical";
+				};
+			};
+
+			cooling-maps {
+			};
 		};
 	};
 };
