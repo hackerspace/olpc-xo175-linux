@@ -250,6 +250,11 @@ void __init icu_init_irq(void)
 	int irq;
 
 	max_icu_nr = 1;
+	if (mmp_icu_base) {
+		pr_err("ICU already initialized\n");
+		return;
+	}
+
 	mmp_icu_base = ioremap(0xd4282000, 0x1000);
 	icu_data[0].conf_enable = mmp_conf.conf_enable;
 	icu_data[0].conf_disable = mmp_conf.conf_disable;
@@ -273,6 +278,11 @@ void __init mmp2_init_icu(void)
 	int irq, end;
 
 	max_icu_nr = 8;
+	if (mmp_icu_base) {
+		pr_err("ICU already initialized\n");
+		return;
+	}
+
 	mmp_icu_base = ioremap(0xd4282000, 0x1000);
 	icu_data[0].conf_enable = mmp2_conf.conf_enable;
 	icu_data[0].conf_disable = mmp2_conf.conf_disable;
@@ -378,6 +388,11 @@ static int __init mmp_init_bases(struct device_node *node)
 	if (ret) {
 		pr_err("Not found mrvl,intc-nr-irqs property\n");
 		return ret;
+	}
+
+	if (mmp_icu_base) {
+		pr_err("ICU already initialized\n");
+		return -EEXIST;
 	}
 
 	mmp_icu_base = of_iomap(node, 0);
@@ -490,6 +505,11 @@ static int __init mmp2_mux_of_init(struct device_node *node,
 		return -ENODEV;
 
 	i = max_icu_nr;
+	if (i >= MAX_ICU_NR) {
+		pr_err("Too many interrupt muxes\n");
+		return -EINVAL;
+	}
+
 	ret = of_property_read_u32(node, "mrvl,intc-nr-irqs",
 				   &nr_irqs);
 	if (ret) {
