@@ -45,6 +45,37 @@
 			reg = <0xd4200000 0x00200000>;
 			ranges;
 
+			lcd0: lcdc@d420b000 {
+				compatible = "marvell,mmp3-lcd", "marvell,armada-lcdc";
+				reg = <0xd420b000 0x1000>;
+				interrupts = <GIC_SPI 41 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&soc_clocks MMP2_CLK_DISP0_LCDC>,
+					 <&soc_clocks MMP2_CLK_VCTCXO>,
+					 <&soc_clocks MMP2_CLK_DISP0>,
+					 <&soc_clocks MMP2_CLK_DISP1>,
+					 <&soc_clocks MMP3_CLK_PLL3>;
+				clock-names = "periph", "vctcxo",
+					      "disp0", "disp1", "pll3";
+				status = "disabled";
+
+				ports {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					port@0 {
+						reg = <0>;
+						lcd0_out: endpoint {
+						};
+					};
+
+					port@1 {
+						reg = <1>;
+						hdmi0_out: endpoint {
+						};
+					};
+				};
+			};
+
 			interrupt-controller@d4282000 {
 				compatible = "marvell,mmp3-intc";
 				interrupt-controller;
@@ -293,7 +324,8 @@
 			camera0: camera@d420a000 {
 				compatible = "marvell,mmp2-ccic";
 				reg = <0xd420a000 0x800>;
-				interrupts = <GIC_SPI 42 IRQ_TYPE_LEVEL_HIGH>;
+				interrupts = <1>;
+				interrupt-parent = <&ci_mux>;
 				clocks = <&soc_clocks MMP2_CLK_CCIC0>;
 				clock-names = "axi";
 				power-domains = <&soc_clocks MMP3_POWER_DOMAIN_CAMERA>;
@@ -305,7 +337,8 @@
 			camera1: camera@d420a800 {
 				compatible = "marvell,mmp2-ccic";
 				reg = <0xd420a800 0x800>;
-				interrupts = <GIC_SPI 30 IRQ_TYPE_LEVEL_HIGH>;
+				interrupts = <2>;
+				interrupt-parent = <&ci_mux>;
 				clocks = <&soc_clocks MMP2_CLK_CCIC1>;
 				clock-names = "axi";
 				power-domains = <&soc_clocks MMP3_POWER_DOMAIN_CAMERA>;
@@ -567,7 +600,7 @@
 
 		soc_clocks: clocks@d4050000 {
 			compatible = "marvell,mmp3-clock";
-			reg = <0xd4050000 0x1000>,
+			reg = <0xd4050000 0x2000>,
 			      <0xd4282800 0x400>,
 			      <0xd4015000 0x1000>;
 			reg-names = "mpmu", "apmu", "apbc";

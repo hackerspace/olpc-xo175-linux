@@ -10590,7 +10590,8 @@ M:	Russell King <linux@armlinux.org.uk>
 S:	Maintained
 T:	git git://git.armlinux.org.uk/~rmk/linux-arm.git drm-armada-devel
 T:	git git://git.armlinux.org.uk/~rmk/linux-arm.git drm-armada-fixes
-F:	Documentation/devicetree/bindings/display/armada/
+F:	Documentation/devicetree/bindings/display/marvell,armada-lcdc.yaml
+F:	Documentation/devicetree/bindings/reserved-memory/marvell,armada-framebuffer.yaml
 F:	drivers/gpu/drm/armada/
 F:	include/uapi/drm/armada_drm.h
 

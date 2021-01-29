@@ -26,10 +26,61 @@
 	};
 
 	memory@0 {
-		linux,usable-memory = <0x0 0x7f600000>;
 		available = <0x7f700000 0x7ff00000 0x00000000 0x7f600000>;
 		reg = <0x0 0x80000000>;
 		device_type = "memory";
+	};
+
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		display_reserved: framebuffer {
+			compatible = "marvell,mmp2-framebuffer",
+				     "marvell,armada-framebuffer";
+			size = <0x02000000>;
+			alignment = <0x02000000>;
+			no-map;
+		};
+	};
+
+	dvi0-connector {
+		compatible = "dvi-connector";
+		ddc-i2c-bus = <&twsi5>;
+		hpd-gpios = <&gpio 62 GPIO_ACTIVE_LOW>;
+		digital;
+		analog;
+
+		port {
+			dvi0_in: endpoint {
+				remote-endpoint = <&encoder_out>;
+			};
+		};
+	};
+
+	dvi1-connector {
+		compatible = "dvi-connector";
+		ddc-i2c-bus = <&twsi6>;
+		hpd-gpios = <&gpio 59 GPIO_ACTIVE_LOW>;
+		digital;
+
+		port {
+			dvi1_in: endpoint {
+				remote-endpoint = <&hdmi0_out>;
+			};
+		};
+	};
+
+	ec_input_spi: spi {
+		compatible = "spi-gpio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		num-chipselects = <0>;
+		sck-gpios = <&gpio 55 GPIO_ACTIVE_HIGH>;
+		miso-gpios = <&gpio 57 GPIO_ACTIVE_HIGH>;
+		mosi-gpios = <&gpio 58 GPIO_ACTIVE_HIGH>;
 	};
 };
 
@@ -92,10 +143,67 @@
 
 &twsi3 {
 	status = "okay";
+
+	vga-dvi-encoder@76 {
+		compatible = "chrontel,ch7033";
+		reg = <0x76>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				encoder_in: endpoint {
+					remote-endpoint = <&lcd0_out>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				encoder_out: endpoint {
+					remote-endpoint = <&dvi0_in>;
+				};
+			};
+		};
+	};
 };
 
 &twsi4 {
 	status = "okay";
+
+	embedded-controller@58 {
+		compatible = "dell,wyse-ariel-ec", "ene,kb3930";
+		reg = <0x58>;
+		system-power-controller;
+
+		off-gpios = <&gpio 126 GPIO_ACTIVE_HIGH>,
+			    <&gpio 127 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+&twsi5 {
+	status = "okay";
+};
+
+&twsi6 {
+	status = "okay";
+};
+
+&twsi6 {
+	status = "okay";
+};
+
+&lcd0 {
+	status = "okay";
+};
+
+&lcd0_out {
+	remote-endpoint = <&encoder_in>;
+};
+
+&hdmi0_out {
+	remote-endpoint = <&dvi1_in>;
 };
 
 &ssp1 {
@@ -110,9 +218,17 @@
 	};
 };
 
-&ssp2 {
-	cs-gpios = <&gpio 56 GPIO_ACTIVE_LOW>;
+&ec_input_spi {
 	status = "okay";
+	cs-gpios = <&gpio 56 GPIO_ACTIVE_LOW>;
+
+	power-button@0 {
+		reg = <0>;
+		interrupt-parent = <&gpio>;
+		interrupts = <60 IRQ_TYPE_EDGE_RISING>;
+		compatible = "dell,wyse-ariel-ec-input", "ene,kb3930-input";
+		spi-max-frequency = <33000000>;
+	};
 };
 
 &gpu_2d {

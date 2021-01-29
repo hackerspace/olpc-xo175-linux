@@ -41,7 +41,7 @@ static inline uint32_t armada_pitch(uint32_t width, uint32_t bpp)
 struct armada_private;
 
 struct armada_variant {
-	bool has_spu_adv_reg;
+	bool has_spu_adv;
 	int (*init)(struct armada_crtc *, struct device *);
 	int (*compute_clock)(struct armada_crtc *,
 			     const struct drm_display_mode *,
@@ -52,11 +52,12 @@ struct armada_variant {
 
 /* Variant ops */
 extern const struct armada_variant armada510_ops;
+extern const struct armada_variant armada610_ops;
+extern const struct armada_variant armada620_ops;
 
 struct armada_private {
 	struct drm_device	drm;
 	struct drm_fb_helper	*fbdev;
-	struct armada_crtc	*dcrtc[2];
 	struct drm_mm		linear; /* protected by linear_lock */
 	struct mutex		linear_lock;
 	struct drm_property	*colorkey_prop;

@@ -6,11 +6,12 @@
 #define ARMADA_CRTC_H
 
 #include <drm/drm_crtc.h>
+#include <drm/drm_encoder.h>
 
 struct armada_gem_object;
 
 struct armada_regs {
-	uint32_t offset;
+	__iomem void *reg;
 	uint32_t mask;
 	uint32_t val;
 };
@@ -18,7 +19,7 @@ struct armada_regs {
 #define armada_reg_queue_mod(_r, _i, _v, _m, _o)	\
 	do {					\
 		struct armada_regs *__reg = _r;	\
-		__reg[_i].offset = _o;		\
+		__reg[_i].reg = _o;		\
 		__reg[_i].mask = ~(_m);		\
 		__reg[_i].val = _v;		\
 		_i++;				\
@@ -28,22 +29,42 @@ struct armada_regs {
 	armada_reg_queue_mod(_r, _i, _v, ~0, _o)
 
 #define armada_reg_queue_end(_r, _i)		\
-	armada_reg_queue_mod(_r, _i, 0, 0, ~0)
+	armada_reg_queue_mod(_r, _i, 0, 0, NULL)
 
 struct armada_crtc;
 struct armada_variant;
 
 struct armada_crtc {
 	struct drm_crtc		crtc;
+	struct drm_encoder	encoder;
+	struct drm_connector	*connector;
 	const struct armada_variant *variant;
 	void			*variant_data;
 	unsigned		num;
+
+	u32			port_num;
 	void __iomem		*base;
+	void __iomem		*disp_regs;
+	void __iomem		*dma_regs;
+	void __iomem		*hdmi_regs;
+	void __iomem		*intf_ctrl_reg;
+	void __iomem		*clk_div_reg;
+	void __iomem		*spu_adv_reg;
+
+	uint32_t		vsync_irq_ena;
+	uint32_t		framedone_ena;
+	uint32_t		vsync_irq;
+	uint32_t		framedone;
+	uint32_t		gra_frame_irq;
+	uint32_t		gra_frame_irq0;
+	uint32_t		dma_ff_overflow;
+	uint32_t		gra_ff_overflow;
+
 	struct clk		*clk;
 	struct {
 		uint32_t	spu_v_h_total;
 		uint32_t	spu_v_porch;
-		uint32_t	spu_adv_reg;
+		uint32_t	spu_adv;
 	} v[2];
 	bool			interlaced;
 	bool			cursor_update;
@@ -58,6 +79,7 @@ struct armada_crtc {
 
 	uint32_t		cfg_dumb_ctrl;
 	uint32_t		spu_iopad_ctrl;
+	uint32_t		spu_dma_ctrl1;
 
 	spinlock_t		irq_lock;
 	uint32_t		irq_ena;

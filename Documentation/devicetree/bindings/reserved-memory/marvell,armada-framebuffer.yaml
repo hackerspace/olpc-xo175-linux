@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: (GPL-2.0+ or BSD-2-Clause)
+# Copyright 2020 Lubomir Rintel <lkundrak@v3.sk>
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/reserved-memory/marvell,armada-framebuffer.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Marvell Armada framebuffer reserved memory
+
+maintainers:
+  - Russell King <linux@armlinux.org.uk>
+
+description:
+  Memory set aside for allocation of Marvell Armada framebuffer objects.
+
+properties:
+  $nodename:
+    const: framebuffer
+
+  compatible:
+    const: marvell,armada-framebuffer
+
+  size:
+    $ref: /schemas/types.yaml#/definitions/uint32
+    description: Size in bytes of memory to reserve
+
+  alignment:
+    $ref: /schemas/types.yaml#/definitions/uint32
+    description: Address boundary for alignment of allocation
+
+  no-map:
+    type: boolean
+    description: |
+      Indicates that a virtual mapping for the reegion should
+      not be created.
+
+additionalProperties: false
+
+examples:
+  - |
+    reserved-memory {
+        framebuffer {
+            compatible = "marvell,armada-framebuffer";
+            size = <0x02000000>;
+            alignment = <0x02000000>;
+            no-map;
+        };
+    };

@@ -1,0 +1,173 @@
+# SPDX-License-Identifier: GPL-2.0
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/display/marvell,armada-lcdc.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Marvell Armada LCD Controller Bindings
+
+maintainers:
+  - Russell King <linux@armlinux.org.uk>
+
+allOf:
+  - if:
+      properties:
+        compatible:
+          contains:
+            const: marvell,dove-lcd
+    then:
+      properties:
+        clock-names:
+          contains:
+            enum:
+              - axiclk        # AXI bus clock for pixel clock
+              - ext_ref_clk0  # External clock 0 for pixel clock
+              - plldivider    # PLL divider clock for pixel clock
+              - ext_ref_clk1  # External clock 1 for pixel clock
+  - if:
+      properties:
+        compatible:
+          contains:
+            const: marvell,mmp2-lcd
+    then:
+      properties:
+        clock-names:
+          contains:
+            enum:
+              - axiclk        # AXI bus clock for pixel clock
+              - disp0         # LCD Display clock 1 for pixel clock
+              - disp1         # LCD Display clock 2 for pixel clock
+              - hdmi_pll      # HDMI PLL for pixel clock
+  - if:
+      properties:
+        compatible:
+          contains:
+            const: marvell,mmp3-lcd
+    then:
+      properties:
+        clock-names:
+          contains:
+            enum:
+              - axiclk        # AXI bus clock for pixel clock
+              - disp0         # LCD Display clock 1 for pixel clock
+              - disp1         # LCD Display clock 2 for pixel clock
+              - hdmi_pll      # HDMI PLL for pixel clock
+              - pll3          # PLL3 for pixel clock
+
+properties:
+  compatible:
+    items:
+      - enum:
+          - marvell,dove-lcd
+          - marvell,mmp2-lcd
+          - marvell,mmp3-lcd
+      - const: marvell,armada-lcdc
+
+  reg:
+    maxItems: 1
+
+  interrupts:
+    maxItems: 1
+
+  clocks:
+    minItems: 1
+
+  clock-names: true
+
+  ports:
+    type: object
+    description:
+      Video output ports with endpoints, as described by
+      Documentation/devicetree/bindings/graph.txt.
+    properties:
+      '#address-cells':
+        const: 1
+
+      '#size-cells':
+        const: 0
+
+      port@0:
+        type: object
+        description:
+          RGB video output port.
+
+        properties:
+          endpoint:
+            type: object
+
+            properties:
+              remote-endpoint: true
+              bus-width:
+                description:
+                  A value of 12, 16, 18 and 24, that select "rgb444", "rgb565",
+                  "rgb666" or "rgb888" pixel format respectively. Defaults to
+                  24 if unspecified.
+                enum: [ 12, 16, 18, 24 ]
+
+            required:
+              - remote-endpoint
+
+            additionalProperties: false
+
+        required:
+          - endpoint
+
+        additionalProperties: false
+
+      port@1:
+        type: object
+        description:
+          HDMI video output port.
+
+        properties:
+          endpoint:
+            type: object
+
+            properties:
+              remote-endpoint: true
+
+            required:
+              - remote-endpoint
+
+            additionalProperties: false
+
+        required:
+          - endpoint
+
+        additionalProperties: false
+
+    required:
+      - port@0
+
+required:
+  - compatible
+  - reg
+  - interrupts
+  - clocks
+  - clock-names
+  - port
+
+additionalProperties: false
+
+examples:
+  - |
+    lcd-controller@820000 {
+        compatible = "marvell,dove-lcd", "marvell,armada-lcdc";
+        reg = <0x820000 0x1000>;
+        interrupts = <47>;
+        clocks = <&si5351 0>;
+        clock-names = "ext_ref_clk1";
+
+        ports {
+            #address-cells = <1>;
+            #size-cells = <0>;
+
+            port@0 {
+                reg = <0>;
+                lcd0_rgb_out: endpoint {
+                    bus-width = <24>;
+                    remote-endpoint = <&encoder_rgb_in>;
+                };
+            };
+        };
+    };
