@@ -2234,30 +2234,6 @@ static const struct panel_desc innolux_g121x1_l03 = {
 	},
 };
 
-static const struct display_timing innolux_ls075at011_timing = {
-	.pixelclock = { 56000000, 57000000, 58000000 },
-	.hactive = { 1200, 1200, 1200 },
-	.hfront_porch = { 26, 26, 26 },
-	.hback_porch = { 24, 24, 24 },
-	.hsync_len = { 6, 6, 6 },
-	.vactive = { 900, 900, 900 },
-	.vfront_porch = { 4, 4, 4 },
-	.vback_porch = { 5, 5, 5 },
-	.vsync_len = { 3, 3, 3 },
-	.flags = DISPLAY_FLAGS_VSYNC_LOW | DISPLAY_FLAGS_HSYNC_LOW,
-};
-
-static const struct panel_desc innolux_ls075at011 = {
-	.timings = &innolux_ls075at011_timing,
-	.num_timings = 1,
-	.bpc = 8,
-	.size = {
-		.width = 152,
-		.height = 115,
-	},
-	.connector_type = DRM_MODE_CONNECTOR_DPI,
-};
-
 /*
  * Datasheet specifies that at 60 Hz refresh rate:
  * - total horizontal time: { 1506, 1592, 1716 }
@@ -4168,9 +4144,6 @@ static const struct of_device_id platform_of_match[] = {
 	}, {
 		.compatible = "innolux,g121x1-l03",
 		.data = &innolux_g121x1_l03,
-	}, {
-		.compatible = "innolux,ls075at011",
-		.data = &innolux_ls075at011,
 	}, {
 		.compatible = "innolux,n116bge",
 		.data = &innolux_n116bge,
