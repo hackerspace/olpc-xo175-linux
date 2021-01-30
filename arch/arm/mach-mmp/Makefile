@@ -15,6 +15,7 @@ obj-$(CONFIG_MMP_SRAM)		+= sram.o
 ifeq ($(CONFIG_PM),y)
 obj-$(CONFIG_CPU_PXA910)	+= pm-pxa910.o
 obj-$(CONFIG_CPU_MMP2)		+= pm-mmp2.o
+obj-$(CONFIG_MACH_MMP2_DT)	+= pm-mmp2.o
 endif
 ifeq ($(CONFIG_SMP),y)
 obj-$(CONFIG_MACH_MMP3_DT)	+= platsmp.o

@@ -22,7 +22,7 @@
 		#address-cells = <0x1>;
 		#size-cells = <0x1>;
 		ranges;
-		bootargs = "console=tty0 earlyprintk=ttyS2,115200 console=ttyS2,115200 root=/dev/sda3 fbcon=nodefer rootwait lockless_register_fb";
+		bootargs = "console=tty0 earlyprintk=ttyS2,115200 console=ttyS2,115200 root=/dev/sda3 fbcon=nodefer rootwait lockless_register_fb no_console_suspend";
 		/* bootargs = "console=tty0 earlyprintk=ttyS2,115200 console=ttyS2,115200 root=/dev/sda3 fbcon=nodefer rootwait debug ignore_loglevel drm.debug=65535"; */
 	};
 

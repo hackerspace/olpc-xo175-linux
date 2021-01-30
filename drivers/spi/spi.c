@@ -1811,9 +1811,11 @@ static int spi_stop_queue(struct spi_controller *ctlr)
 
 	spin_unlock_irqrestore(&ctlr->queue_lock, flags);
 
+	dev_warn(&ctlr->dev, "KEKEK: %d %d\n", ret, limit);
 	if (ret) {
-		dev_warn(&ctlr->dev, "could not stop message queue\n");
-		return ret;
+		WARN_ON(1);
+		dev_warn(&ctlr->dev, "could not stop message queue: %d\n", limit);
+		return 0; //ret;
 	}
 	return ret;
 }

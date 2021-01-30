@@ -494,6 +494,7 @@ static int olpc_xo175_ec_cmd(u8 cmd, u8 *inbuf, size_t inlen, u8 *resp,
 	/* Ensure a valid command and return bytes */
 	ret = olpc_xo175_ec_resp_len(cmd);
 	if (ret < 0) {
+		WARN_ON(1);
 		dev_err_ratelimited(dev, "unknown command 0x%x\n", cmd);
 
 		/*
