@@ -1,0 +1,60 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+/*
+ * OLPC XO-4 Laptop.
+ *
+ * Copyright (C) 2021 Lubomir Rintel <lkundrak@v3.sk>
+ */
+
+/dts-v1/;
+#include "mmp3.dtsi"
+#include "olpc-xo.dtsi"
+
+/ {
+	model = "OLPC XO-4";
+	compatible = "olpc,xo-4", "marvell,mmp3";
+
+	memory {
+		reg = <0x0 0x40000000>;
+	};
+
+	chosen {
+		framebuffer@3fc00000 {
+			compatible = "simple-framebuffer";
+			reg = <0x3fc00000 (1200 * 900 * 2)>;
+			width = <1200>;
+			height = <900>;
+			stride = <(1200 * 2)>;
+			format = "r5g6b5";
+			clocks = <&soc_clocks MMP2_CLK_DISP0_LCDC>,
+				 <&soc_clocks MMP2_CLK_DISP0>;
+		};
+	};
+
+	emmc_reg: fixedregulator1 {
+		compatible = "regulator-fixed";
+		regulator-name = "emmc";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&gpio 34 GPIO_ACTIVE_LOW>;
+	};
+};
+
+&uart2 {
+	status = "okay";
+};
+
+&mmc3 {
+	vmmc-supply = <&emmc_reg>;
+};
+
+&usb_otg_phy0 {
+	status = "okay";
+};
+
+&gpu_2d {
+	status = "okay";
+};
+
+&gpu_3d {
+	status = "okay";
+};
