@@ -357,6 +357,7 @@ dtb-$(CONFIG_ARCH_MMP) += \
 	pxa910-dkb.dtb \
 	mmp2-brownstone.dtb \
 	mmp2-olpc-xo-1-75.dtb \
+	mmp3-olpc-xo-4.dtb \
 	mmp3-dell-ariel.dtb
 dtb-$(CONFIG_ARCH_MPS2) += \
 	mps2-an385.dtb \
