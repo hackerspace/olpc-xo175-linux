@@ -1,0 +1,193 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+/*
+ * Common bits for Arm-based OLPC XO laptops.
+ *
+ * Copyright (C) 2018,2019,2021 Lubomir Rintel <lkundrak@v3.sk>
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/linux-event-codes.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/ {
+	chosen {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+	};
+
+	memory {
+		device_type = "memory";
+	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+
+		lid {
+			label = "Lid";
+			gpios = <&gpio 129 GPIO_ACTIVE_LOW>;
+			linux,input-type = <EV_SW>;
+			linux,code = <SW_LID>;
+			wakeup-source;
+		};
+
+		tablet_mode {
+			label = "E-Book Mode";
+			gpios = <&gpio 128 GPIO_ACTIVE_LOW>;
+			linux,input-type = <EV_SW>;
+			linux,code = <SW_TABLET_MODE>;
+			wakeup-source;
+		};
+	};
+
+	i2c {
+		compatible = "i2c-gpio";
+		sda-gpios = <&gpio 109 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		scl-gpios = <&gpio 108 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		i2c-gpio,timeout-ms = <1000>;
+		status = "okay";
+
+		camera@21 {
+			compatible = "ovti,ov7670";
+			reg = <0x21>;
+			reset-gpios = <&gpio 102 GPIO_ACTIVE_LOW>;
+			powerdown-gpios = <&gpio 150 GPIO_ACTIVE_LOW>;
+			clocks = <&camera0>;
+			clock-names = "xclk";
+
+			port {
+				ov7670_0: endpoint {
+					hsync-active = <1>;
+					vsync-active = <1>;
+					remote-endpoint = <&camera0_0>;
+				};
+			};
+		};
+	};
+
+	battery {
+		compatible = "olpc,xo1.5-battery", "olpc,xo1-battery";
+	};
+
+	wlan_reg: fixedregulator0 {
+		compatible = "regulator-fixed";
+		regulator-name = "wlan";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&gpio 34 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+
+	wlan_pwrseq: pwrseq0 {
+		compatible = "mmc-pwrseq-sd8787";
+		powerdown-gpios = <&gpio 57 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio 58 GPIO_ACTIVE_HIGH>;
+	};
+
+	soc {
+		axi@d4200000 {
+			ap-sp@d4290000 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "olpc,ap-sp";
+				interrupts = <40>;
+				reg = <0xd4290000 0x1000>;
+				data-gpios = <&gpio 72 GPIO_ACTIVE_HIGH>;
+				clk-gpios = <&gpio 71 GPIO_ACTIVE_HIGH>;
+				status = "okay";
+			};
+		};
+	};
+};
+
+&uart4 {
+	status = "okay";
+};
+
+&rtc {
+	status = "okay";
+};
+
+&usb_otg0 {
+	status = "okay";
+};
+
+&mmc1 {
+	clock-frequency = <50000000>;
+	no-1-8-v;
+	mrvl,clk-delay-cycles = <31>;
+	broken-cd;
+	status = "okay";
+};
+
+&mmc2 {
+	clock-frequency = <50000000>;
+	no-1-8-v;
+	bus-width = <4>;
+	non-removable;
+	broken-cd;
+	wakeup-source;
+	keep-power-in-suspend;
+	mmc-pwrseq = <&wlan_pwrseq>;
+	vmmc-supply = <&wlan_reg>;
+	status = "okay";
+};
+
+&mmc3 {
+	clock-frequency = <50000000>;
+	no-1-8-v;
+	bus-width = <8>;
+	non-removable;
+	broken-cd;
+	mrvl,clk-delay-cycles = <31>;
+	status = "okay";
+};
+
+&twsi1 {
+	status = "okay";
+};
+
+&twsi2 {
+	status = "okay";
+
+	rtc@68 {
+		compatible = "dallas,ds1338";
+		reg = <0x68>;
+		status = "okay";
+	};
+};
+
+&twsi6 {
+	status = "okay";
+
+	accelerometer@1d {
+		compatible = "st,lis331dlh", "st,lis3lv02d";
+		reg = <0x1d>;
+		status = "okay";
+	};
+};
+
+&ssp3 {
+	#address-cells = <0>;
+	spi-slave;
+	status = "okay";
+	ready-gpios = <&gpio 125 GPIO_ACTIVE_HIGH>;
+
+	slave {
+		compatible = "olpc,xo1.75-ec";
+		spi-cpha;
+		cmd-gpios = <&gpio 155 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+&camera0 {
+	status = "okay";
+
+	port {
+		camera0_0: endpoint {
+			remote-endpoint = <&ov7670_0>;
+		};
+	};
+};
