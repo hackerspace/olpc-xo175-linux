@@ -62,8 +62,12 @@
 				reg = <0xd420b000 0x1000>;
 				interrupts = <41>;
 				clocks = <&soc_clocks MMP2_CLK_DISP0_LCDC>,
-					 <&soc_clocks MMP2_CLK_DISP0>;
-				clock-names = "periph", "ext_ref_clk0";
+					 <&soc_clocks MMP2_CLK_VCTCXO>,
+					 <&soc_clocks MMP2_CLK_DISP0>,
+					 <&soc_clocks MMP2_CLK_DISP1>;
+				clock-names = "periph", "vctcxo",
+					      "disp0", "disp1";
+
 				status = "disabled";
 
 				lcd0_port: port {
