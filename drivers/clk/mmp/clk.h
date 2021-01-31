@@ -117,6 +117,13 @@ struct mmp_clk_gate {
 	u32 val_disable;
 	unsigned int flags;
 	spinlock_t *lock;
+
+	/*
+	 * The sole purpose of this is to make sure the 3D GPU clock gets
+	 * enabled alongside 2D GPU clock, otherwise the 2D unit wouldn't
+	 * work. It is not know why this needs to be done.
+	 */
+	struct clk *companion;
 };
 
 extern const struct clk_ops mmp_clk_gate_ops;
@@ -124,7 +131,7 @@ extern struct clk *mmp_clk_register_gate(struct device *dev, const char *name,
 			const char *parent_name, unsigned long flags,
 			void __iomem *reg, u32 mask, u32 val_enable,
 			u32 val_disable, unsigned int gate_flags,
-			spinlock_t *lock);
+			spinlock_t *lock, struct clk *companion);
 
 extern struct clk *mmp_clk_register_apbc(const char *name,
 		const char *parent_name, void __iomem *base,
@@ -187,6 +194,7 @@ struct mmp_param_gate_clk {
 	u32 val_disable;
 	unsigned int gate_flags;
 	spinlock_t *lock;
+	unsigned int companion_id;
 };
 void mmp_register_gate_clks(struct mmp_clk_unit *unit,
 			struct mmp_param_gate_clk *clks,

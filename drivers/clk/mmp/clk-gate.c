@@ -9,6 +9,7 @@
  * warranty of any kind, whether express or implied.
  */
 
+#include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/slab.h>
 #include <linux/io.h>
@@ -30,6 +31,8 @@ static int mmp_clk_gate_enable(struct clk_hw *hw)
 	unsigned long flags = 0;
 	unsigned long rate;
 	u32 tmp;
+
+	clk_prepare_enable(gate->companion);
 
 	if (gate->lock)
 		spin_lock_irqsave(gate->lock, flags);
@@ -67,6 +70,8 @@ static void mmp_clk_gate_disable(struct clk_hw *hw)
 
 	if (gate->lock)
 		spin_unlock_irqrestore(gate->lock, flags);
+
+	clk_disable_unprepare(gate->companion);
 }
 
 static int mmp_clk_gate_is_enabled(struct clk_hw *hw)
@@ -95,7 +100,8 @@ const struct clk_ops mmp_clk_gate_ops = {
 struct clk *mmp_clk_register_gate(struct device *dev, const char *name,
 		const char *parent_name, unsigned long flags,
 		void __iomem *reg, u32 mask, u32 val_enable, u32 val_disable,
-		unsigned int gate_flags, spinlock_t *lock)
+		unsigned int gate_flags, spinlock_t *lock,
+		struct clk *companion)
 {
 	struct mmp_clk_gate *gate;
 	struct clk *clk;
@@ -119,6 +125,7 @@ struct clk *mmp_clk_register_gate(struct device *dev, const char *name,
 	gate->val_disable = val_disable;
 	gate->flags = gate_flags;
 	gate->lock = lock;
+	gate->companion = companion;
 	gate->hw.init = &init;
 
 	clk = clk_register(dev, &gate->hw);

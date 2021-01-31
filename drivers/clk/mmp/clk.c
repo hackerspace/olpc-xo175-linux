@@ -109,7 +109,8 @@ void mmp_register_gate_clks(struct mmp_clk_unit *unit,
 					clks[i].val_enable,
 					clks[i].val_disable,
 					clks[i].gate_flags,
-					clks[i].lock);
+					clks[i].lock,
+					unit->clk_table[clks[i].companion_id]);
 
 		if (IS_ERR(clk)) {
 			pr_err("%s: failed to register clock %s\n",
