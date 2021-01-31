@@ -129,7 +129,22 @@
 	};
 
 	panel {
-		compatible = "innolux,ls075at011", "simple-panel";
+		compatible = "innolux,ls075at011", "panel-dpi", "simple-panel";
+		width-mm = <152>;
+		height-mm = <115>;
+		label = "LCD";
+
+		panel-timing {
+			clock-frequency = <56000000 57000000 58000000>;
+			hactive = <1200>;
+			vactive = <900>;
+			hfront-porch = <26>;
+			hback-porch = <24>;
+			hsync-len = <6>;
+			vfront-porch = <4>;
+			vback-porch = <5>;
+			vsync-len = <3>;
+		};
 
 		port {
 			panel_dettl_in: endpoint {
