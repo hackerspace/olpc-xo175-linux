@@ -2930,7 +2930,7 @@ static void intel_read_wm_latency(struct drm_i915_private *dev_priv,
 		 * any underrun. If not able to get Dimm info assume 16GB dimm
 		 * to avoid any underrun.
 		 */
-		if (dev_priv->dram_info.is_16gb_dimm)
+		if (dev_priv->dram_info.wm_lv_0_adjust_needed)
 			wm[0] += 1;
 
 	} else if (IS_HASWELL(dev_priv) || IS_BROADWELL(dev_priv)) {
@@ -7072,7 +7072,7 @@ static void gen12lp_init_clock_gating(struct drm_i915_private *dev_priv)
 			   ILK_DPFC_CHICKEN_COMP_DUMMY_PIXEL);
 
 	/* Wa_1409825376:tgl (pre-prod)*/
-	if (IS_TGL_DISP_REVID(dev_priv, TGL_REVID_A0, TGL_REVID_B1))
+	if (IS_TGL_DISP_STEPPING(dev_priv, STEP_A0, STEP_B1))
 		intel_uncore_write(&dev_priv->uncore, GEN9_CLKGATE_DIS_3, intel_uncore_read(&dev_priv->uncore, GEN9_CLKGATE_DIS_3) |
 			   TGL_VRH_GATING_DIS);
 

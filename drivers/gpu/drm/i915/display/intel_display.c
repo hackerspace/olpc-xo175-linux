@@ -1317,6 +1317,11 @@ static unsigned int intel_linear_alignment(const struct drm_i915_private *dev_pr
 		return 0;
 }
 
+static bool has_async_flips(struct drm_i915_private *i915)
+{
+	return INTEL_GEN(i915) >= 5;
+}
+
 static unsigned int intel_surf_alignment(const struct drm_framebuffer *fb,
 					 int color_plane)
 {
@@ -1331,7 +1336,7 @@ static unsigned int intel_surf_alignment(const struct drm_framebuffer *fb,
 	case DRM_FORMAT_MOD_LINEAR:
 		return intel_linear_alignment(dev_priv);
 	case I915_FORMAT_MOD_X_TILED:
-		if (INTEL_GEN(dev_priv) >= 9)
+		if (has_async_flips(dev_priv))
 			return 256 * 1024;
 		return 0;
 	case I915_FORMAT_MOD_Y_TILED_GEN12_MC_CCS:
@@ -3086,6 +3091,8 @@ static int skl_check_main_surface(struct intel_plane_state *plane_state)
 		}
 	}
 
+	drm_WARN_ON(&dev_priv->drm, x > 8191 || y > 8191);
+
 	plane_state->color_plane[0].offset = offset;
 	plane_state->color_plane[0].x = x;
 	plane_state->color_plane[0].y = y;
@@ -3157,6 +3164,8 @@ static int skl_check_nv12_aux_surface(struct intel_plane_state *plane_state)
 			return -EINVAL;
 		}
 	}
+
+	drm_WARN_ON(&i915->drm, x > 8191 || y > 8191);
 
 	plane_state->color_plane[uv_plane].offset = offset;
 	plane_state->color_plane[uv_plane].x = x;
@@ -3577,6 +3586,8 @@ u32 glk_plane_color_ctl(const struct intel_crtc_state *crtc_state,
 			plane_color_ctl |= PLANE_COLOR_YUV_RANGE_CORRECTION_DISABLE;
 	} else if (fb->format->is_yuv) {
 		plane_color_ctl |= PLANE_COLOR_INPUT_CSC_ENABLE;
+		if (plane_state->hw.color_range == DRM_COLOR_YCBCR_FULL_RANGE)
+			plane_color_ctl |= PLANE_COLOR_YUV_RANGE_CORRECTION_DISABLE;
 	}
 
 	return plane_color_ctl;
@@ -5669,6 +5680,8 @@ bool intel_phy_is_combo(struct drm_i915_private *dev_priv, enum phy phy)
 {
 	if (phy == PHY_NONE)
 		return false;
+	else if (IS_ALDERLAKE_S(dev_priv))
+		return phy <= PHY_E;
 	else if (IS_DG1(dev_priv) || IS_ROCKETLAKE(dev_priv))
 		return phy <= PHY_D;
 	else if (IS_JSL_EHL(dev_priv))
@@ -5681,11 +5694,9 @@ bool intel_phy_is_combo(struct drm_i915_private *dev_priv, enum phy phy)
 
 bool intel_phy_is_tc(struct drm_i915_private *dev_priv, enum phy phy)
 {
-	if (IS_DG1(dev_priv) || IS_ROCKETLAKE(dev_priv))
-		return false;
-	else if (INTEL_GEN(dev_priv) >= 12)
+	if (IS_TIGERLAKE(dev_priv))
 		return phy >= PHY_D && phy <= PHY_I;
-	else if (INTEL_GEN(dev_priv) >= 11 && !IS_JSL_EHL(dev_priv))
+	else if (IS_ICELAKE(dev_priv))
 		return phy >= PHY_C && phy <= PHY_F;
 	else
 		return false;
@@ -5693,7 +5704,9 @@ bool intel_phy_is_tc(struct drm_i915_private *dev_priv, enum phy phy)
 
 enum phy intel_port_to_phy(struct drm_i915_private *i915, enum port port)
 {
-	if ((IS_DG1(i915) || IS_ROCKETLAKE(i915)) && port >= PORT_TC1)
+	if (IS_ALDERLAKE_S(i915) && port >= PORT_TC1)
+		return PHY_B + port - PORT_TC1;
+	else if ((IS_DG1(i915) || IS_ROCKETLAKE(i915)) && port >= PORT_TC1)
 		return PHY_C + port - PORT_TC1;
 	else if (IS_JSL_EHL(i915) && port == PORT_D)
 		return PHY_A;
@@ -8590,20 +8603,27 @@ static void icl_get_ddi_pll(struct drm_i915_private *dev_priv, enum port port,
 	struct intel_shared_dpll *pll;
 	enum intel_dpll_id id;
 	bool pll_active;
+	i915_reg_t reg;
 	u32 temp;
 
 	if (intel_phy_is_combo(dev_priv, phy)) {
 		u32 mask, shift;
 
-		if (IS_ROCKETLAKE(dev_priv)) {
+		if (IS_ALDERLAKE_S(dev_priv)) {
+			reg = ADLS_DPCLKA_CFGCR(phy);
+			mask = ADLS_DPCLKA_CFGCR_DDI_CLK_SEL_MASK(phy);
+			shift = ADLS_DPCLKA_CFGCR_DDI_SHIFT(phy);
+		} else if (IS_ROCKETLAKE(dev_priv)) {
+			reg = ICL_DPCLKA_CFGCR0;
 			mask = RKL_DPCLKA_CFGCR0_DDI_CLK_SEL_MASK(phy);
 			shift = RKL_DPCLKA_CFGCR0_DDI_CLK_SEL_SHIFT(phy);
 		} else {
+			reg = ICL_DPCLKA_CFGCR0;
 			mask = ICL_DPCLKA_CFGCR0_DDI_CLK_SEL_MASK(phy);
 			shift = ICL_DPCLKA_CFGCR0_DDI_CLK_SEL_SHIFT(phy);
 		}
 
-		temp = intel_de_read(dev_priv, ICL_DPCLKA_CFGCR0) & mask;
+		temp = intel_de_read(dev_priv, reg) & mask;
 		id = temp >> shift;
 		port_dpll_id = ICL_PORT_DPLL_DEFAULT;
 	} else if (intel_phy_is_tc(dev_priv, phy)) {
@@ -13900,7 +13920,13 @@ static void intel_setup_outputs(struct drm_i915_private *dev_priv)
 	if (!HAS_DISPLAY(dev_priv))
 		return;
 
-	if (IS_DG1(dev_priv) || IS_ROCKETLAKE(dev_priv)) {
+	if (IS_ALDERLAKE_S(dev_priv)) {
+		intel_ddi_init(dev_priv, PORT_A);
+		intel_ddi_init(dev_priv, PORT_TC1);
+		intel_ddi_init(dev_priv, PORT_TC2);
+		intel_ddi_init(dev_priv, PORT_TC3);
+		intel_ddi_init(dev_priv, PORT_TC4);
+	} else if (IS_DG1(dev_priv) || IS_ROCKETLAKE(dev_priv)) {
 		intel_ddi_init(dev_priv, PORT_A);
 		intel_ddi_init(dev_priv, PORT_B);
 		intel_ddi_init(dev_priv, PORT_TC1);
@@ -14771,8 +14797,7 @@ static void intel_mode_config_init(struct drm_i915_private *i915)
 
 	mode_config->funcs = &intel_mode_funcs;
 
-	if (INTEL_GEN(i915) >= 9)
-		mode_config->async_page_flip = true;
+	mode_config->async_page_flip = has_async_flips(i915);
 
 	/*
 	 * Maximum framebuffer dimensions, chosen to match

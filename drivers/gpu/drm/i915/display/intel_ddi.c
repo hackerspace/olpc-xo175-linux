@@ -3167,25 +3167,30 @@ static void icl_map_plls_to_ports(struct intel_encoder *encoder,
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
 	struct intel_shared_dpll *pll = crtc_state->shared_dpll;
 	enum phy phy = intel_port_to_phy(dev_priv, encoder->port);
-	u32 val;
+	u32 val, mask, sel;
+	i915_reg_t reg;
+
+	if (IS_ALDERLAKE_S(dev_priv)) {
+		reg = ADLS_DPCLKA_CFGCR(phy);
+		mask = ADLS_DPCLKA_CFGCR_DDI_CLK_SEL_MASK(phy);
+		sel = ((pll->info->id) << ADLS_DPCLKA_CFGCR_DDI_SHIFT(phy));
+	} else if (IS_ROCKETLAKE(dev_priv)) {
+		reg = ICL_DPCLKA_CFGCR0;
+		mask = RKL_DPCLKA_CFGCR0_DDI_CLK_SEL_MASK(phy);
+		sel = RKL_DPCLKA_CFGCR0_DDI_CLK_SEL(pll->info->id, phy);
+	} else {
+		reg = ICL_DPCLKA_CFGCR0;
+		mask = ICL_DPCLKA_CFGCR0_DDI_CLK_SEL_MASK(phy);
+		sel = ICL_DPCLKA_CFGCR0_DDI_CLK_SEL(pll->info->id, phy);
+	}
 
 	mutex_lock(&dev_priv->dpll.lock);
 
-	val = intel_de_read(dev_priv, ICL_DPCLKA_CFGCR0);
+	val = intel_de_read(dev_priv, reg);
 	drm_WARN_ON(&dev_priv->drm,
 		    (val & icl_dpclka_cfgcr0_clk_off(dev_priv, phy)) == 0);
 
 	if (intel_phy_is_combo(dev_priv, phy)) {
-		u32 mask, sel;
-
-		if (IS_ROCKETLAKE(dev_priv)) {
-			mask = RKL_DPCLKA_CFGCR0_DDI_CLK_SEL_MASK(phy);
-			sel = RKL_DPCLKA_CFGCR0_DDI_CLK_SEL(pll->info->id, phy);
-		} else {
-			mask = ICL_DPCLKA_CFGCR0_DDI_CLK_SEL_MASK(phy);
-			sel = ICL_DPCLKA_CFGCR0_DDI_CLK_SEL(pll->info->id, phy);
-		}
-
 		/*
 		 * Even though this register references DDIs, note that we
 		 * want to pass the PHY rather than the port (DDI).  For
@@ -3198,12 +3203,12 @@ static void icl_map_plls_to_ports(struct intel_encoder *encoder,
 		 */
 		val &= ~mask;
 		val |= sel;
-		intel_de_write(dev_priv, ICL_DPCLKA_CFGCR0, val);
-		intel_de_posting_read(dev_priv, ICL_DPCLKA_CFGCR0);
+		intel_de_write(dev_priv, reg, val);
+		intel_de_posting_read(dev_priv, reg);
 	}
 
 	val &= ~icl_dpclka_cfgcr0_clk_off(dev_priv, phy);
-	intel_de_write(dev_priv, ICL_DPCLKA_CFGCR0, val);
+	intel_de_write(dev_priv, reg, val);
 
 	mutex_unlock(&dev_priv->dpll.lock);
 }
@@ -3226,12 +3231,19 @@ static void icl_unmap_plls_to_ports(struct intel_encoder *encoder)
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
 	enum phy phy = intel_port_to_phy(dev_priv, encoder->port);
 	u32 val;
+	i915_reg_t reg;
 
 	mutex_lock(&dev_priv->dpll.lock);
 
-	val = intel_de_read(dev_priv, ICL_DPCLKA_CFGCR0);
+	if (IS_ALDERLAKE_S(dev_priv))
+		reg = ADLS_DPCLKA_CFGCR(phy);
+	else
+		reg = ICL_DPCLKA_CFGCR0;
+
+	val = intel_de_read(dev_priv, reg);
 	val |= icl_dpclka_cfgcr0_clk_off(dev_priv, phy);
-	intel_de_write(dev_priv, ICL_DPCLKA_CFGCR0, val);
+
+	intel_de_write(dev_priv, reg, val);
 
 	mutex_unlock(&dev_priv->dpll.lock);
 }
@@ -3271,13 +3283,21 @@ static void icl_sanitize_port_clk_off(struct drm_i915_private *dev_priv,
 				      u32 port_mask, bool ddi_clk_needed)
 {
 	enum port port;
+	bool ddi_clk_off;
 	u32 val;
+	i915_reg_t reg;
 
-	val = intel_de_read(dev_priv, ICL_DPCLKA_CFGCR0);
 	for_each_port_masked(port, port_mask) {
 		enum phy phy = intel_port_to_phy(dev_priv, port);
-		bool ddi_clk_off = val & icl_dpclka_cfgcr0_clk_off(dev_priv,
-								   phy);
+
+		if (IS_ALDERLAKE_S(dev_priv))
+			reg = ADLS_DPCLKA_CFGCR(phy);
+		else
+			reg = ICL_DPCLKA_CFGCR0;
+
+		val = intel_de_read(dev_priv, reg);
+		ddi_clk_off = val & icl_dpclka_cfgcr0_clk_off(dev_priv,
+							      phy);
 
 		if (ddi_clk_needed == !ddi_clk_off)
 			continue;
@@ -3293,7 +3313,7 @@ static void icl_sanitize_port_clk_off(struct drm_i915_private *dev_priv,
 			   "PHY %c is disabled/in DSI mode with an ungated DDI clock, gate it\n",
 			   phy_name(phy));
 		val |= icl_dpclka_cfgcr0_clk_off(dev_priv, phy);
-		intel_de_write(dev_priv, ICL_DPCLKA_CFGCR0, val);
+		intel_de_write(dev_priv, reg, val);
 	}
 }
 
@@ -3443,10 +3463,12 @@ icl_program_mg_dp_mode(struct intel_digital_port *dig_port,
 {
 	struct drm_i915_private *dev_priv = to_i915(dig_port->base.base.dev);
 	enum tc_port tc_port = intel_port_to_tc(dev_priv, dig_port->base.port);
+	enum phy phy = intel_port_to_phy(dev_priv, dig_port->base.port);
 	u32 ln0, ln1, pin_assignment;
 	u8 width;
 
-	if (dig_port->tc_mode == TC_PORT_TBT_ALT)
+	if (!intel_phy_is_tc(dev_priv, phy) ||
+	    dig_port->tc_mode == TC_PORT_TBT_ALT)
 		return;
 
 	if (INTEL_GEN(dev_priv) >= 12) {
@@ -3873,7 +3895,6 @@ static void intel_ddi_pre_enable_hdmi(struct intel_atomic_state *state,
 	struct intel_digital_port *dig_port = enc_to_dig_port(encoder);
 	struct intel_hdmi *intel_hdmi = &dig_port->hdmi;
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
-	int level = intel_ddi_hdmi_level(encoder, crtc_state);
 
 	intel_dp_dual_mode_set_tmds_output(intel_hdmi, true);
 	intel_ddi_clk_select(encoder, crtc_state);
@@ -3883,20 +3904,6 @@ static void intel_ddi_pre_enable_hdmi(struct intel_atomic_state *state,
 							   dig_port->ddi_io_power_domain);
 
 	icl_program_mg_dp_mode(dig_port, crtc_state);
-
-	if (INTEL_GEN(dev_priv) >= 12)
-		tgl_ddi_vswing_sequence(encoder, crtc_state, level);
-	else if (INTEL_GEN(dev_priv) == 11)
-		icl_ddi_vswing_sequence(encoder, crtc_state, level);
-	else if (IS_CANNONLAKE(dev_priv))
-		cnl_ddi_vswing_sequence(encoder, crtc_state, level);
-	else if (IS_GEN9_LP(dev_priv))
-		bxt_ddi_vswing_sequence(encoder, crtc_state, level);
-	else
-		intel_prepare_hdmi_ddi_buffers(encoder, level);
-
-	if (IS_GEN9_BC(dev_priv))
-		skl_ddi_set_iboost(encoder, crtc_state, level);
 
 	intel_ddi_enable_pipe_clock(encoder, crtc_state);
 
@@ -4273,6 +4280,7 @@ static void intel_enable_ddi_hdmi(struct intel_atomic_state *state,
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
 	struct intel_digital_port *dig_port = enc_to_dig_port(encoder);
 	struct drm_connector *connector = conn_state->connector;
+	int level = intel_ddi_hdmi_level(encoder, crtc_state);
 	enum port port = encoder->port;
 
 	if (!intel_hdmi_handle_sink_scrambling(encoder, connector,
@@ -4281,6 +4289,20 @@ static void intel_enable_ddi_hdmi(struct intel_atomic_state *state,
 		drm_dbg_kms(&dev_priv->drm,
 			    "[CONNECTOR:%d:%s] Failed to configure sink scrambling/TMDS bit clock ratio\n",
 			    connector->base.id, connector->name);
+
+	if (INTEL_GEN(dev_priv) >= 12)
+		tgl_ddi_vswing_sequence(encoder, crtc_state, level);
+	else if (INTEL_GEN(dev_priv) == 11)
+		icl_ddi_vswing_sequence(encoder, crtc_state, level);
+	else if (IS_CANNONLAKE(dev_priv))
+		cnl_ddi_vswing_sequence(encoder, crtc_state, level);
+	else if (IS_GEN9_LP(dev_priv))
+		bxt_ddi_vswing_sequence(encoder, crtc_state, level);
+	else
+		intel_prepare_hdmi_ddi_buffers(encoder, level);
+
+	if (IS_GEN9_BC(dev_priv))
+		skl_ddi_set_iboost(encoder, crtc_state, level);
 
 	/* Display WA #1143: skl,kbl,cfl */
 	if (IS_GEN9_BC(dev_priv)) {

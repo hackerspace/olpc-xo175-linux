@@ -382,7 +382,7 @@ int intel_plane_check_src_coordinates(struct intel_plane_state *plane_state)
 
 static u8 icl_nv12_y_plane_mask(struct drm_i915_private *i915)
 {
-	if (IS_ROCKETLAKE(i915))
+	if (HAS_D12_PLANE_MINIMIZATION(i915))
 		return BIT(PLANE_SPRITE2) | BIT(PLANE_SPRITE3);
 	else
 		return BIT(PLANE_SPRITE4) | BIT(PLANE_SPRITE5);
@@ -1851,7 +1851,26 @@ g4x_sprite_max_stride(struct intel_plane *plane,
 		      u32 pixel_format, u64 modifier,
 		      unsigned int rotation)
 {
-	return 16384;
+	const struct drm_format_info *info = drm_format_info(pixel_format);
+	int cpp = info->cpp[0];
+
+	/* Limit to 4k pixels to guarantee TILEOFF.x doesn't get too big. */
+	if (modifier == I915_FORMAT_MOD_X_TILED)
+		return min(4096 * cpp, 16 * 1024);
+	else
+		return 16 * 1024;
+}
+
+static unsigned int
+hsw_sprite_max_stride(struct intel_plane *plane,
+		      u32 pixel_format, u64 modifier,
+		      unsigned int rotation)
+{
+	const struct drm_format_info *info = drm_format_info(pixel_format);
+	int cpp = info->cpp[0];
+
+	/* Limit to 8k pixels to guarantee OFFSET.x doesn't get too big. */
+	return min(8192 * cpp, 16 * 1024);
 }
 
 static u32 g4x_sprite_ctl_crtc(const struct intel_crtc_state *crtc_state)
@@ -2373,8 +2392,8 @@ static int skl_plane_check_fb(const struct intel_crtc_state *crtc_state,
 		return -EINVAL;
 	}
 
-	/* Wa_1606054188:tgl */
-	if (IS_TIGERLAKE(dev_priv) &&
+	/* Wa_1606054188:tgl,adl-s */
+	if ((IS_ALDERLAKE_S(dev_priv) || IS_TIGERLAKE(dev_priv)) &&
 	    plane_state->ckey.flags & I915_SET_COLORKEY_SOURCE &&
 	    intel_format_is_p01x(fb->format->format)) {
 		drm_dbg_kms(&dev_priv->drm,
@@ -3036,7 +3055,7 @@ static bool gen12_plane_supports_mc_ccs(struct drm_i915_private *dev_priv,
 {
 	/* Wa_14010477008:tgl[a0..c0],rkl[all],dg1[all] */
 	if (IS_DG1(dev_priv) || IS_ROCKETLAKE(dev_priv) ||
-	    IS_TGL_DISP_REVID(dev_priv, TGL_REVID_A0, TGL_REVID_C0))
+	    IS_TGL_DISP_STEPPING(dev_priv, STEP_A0, STEP_C0))
 		return false;
 
 	return plane_id < PLANE_SPRITE4;
@@ -3408,11 +3427,11 @@ intel_sprite_plane_create(struct drm_i915_private *dev_priv,
 		return plane;
 
 	if (IS_VALLEYVIEW(dev_priv) || IS_CHERRYVIEW(dev_priv)) {
-		plane->max_stride = i9xx_plane_max_stride;
 		plane->update_plane = vlv_update_plane;
 		plane->disable_plane = vlv_disable_plane;
 		plane->get_hw_state = vlv_plane_get_hw_state;
 		plane->check_plane = vlv_sprite_check;
+		plane->max_stride = i965_plane_max_stride;
 		plane->min_cdclk = vlv_plane_min_cdclk;
 
 		if (IS_CHERRYVIEW(dev_priv) && pipe == PIPE_B) {
@@ -3426,16 +3445,18 @@ intel_sprite_plane_create(struct drm_i915_private *dev_priv,
 
 		plane_funcs = &vlv_sprite_funcs;
 	} else if (INTEL_GEN(dev_priv) >= 7) {
-		plane->max_stride = g4x_sprite_max_stride;
 		plane->update_plane = ivb_update_plane;
 		plane->disable_plane = ivb_disable_plane;
 		plane->get_hw_state = ivb_plane_get_hw_state;
 		plane->check_plane = g4x_sprite_check;
 
-		if (IS_BROADWELL(dev_priv) || IS_HASWELL(dev_priv))
+		if (IS_BROADWELL(dev_priv) || IS_HASWELL(dev_priv)) {
+			plane->max_stride = hsw_sprite_max_stride;
 			plane->min_cdclk = hsw_plane_min_cdclk;
-		else
+		} else {
+			plane->max_stride = g4x_sprite_max_stride;
 			plane->min_cdclk = ivb_sprite_min_cdclk;
+		}
 
 		formats = snb_plane_formats;
 		num_formats = ARRAY_SIZE(snb_plane_formats);
@@ -3443,11 +3464,11 @@ intel_sprite_plane_create(struct drm_i915_private *dev_priv,
 
 		plane_funcs = &snb_sprite_funcs;
 	} else {
-		plane->max_stride = g4x_sprite_max_stride;
 		plane->update_plane = g4x_update_plane;
 		plane->disable_plane = g4x_disable_plane;
 		plane->get_hw_state = g4x_plane_get_hw_state;
 		plane->check_plane = g4x_sprite_check;
+		plane->max_stride = g4x_sprite_max_stride;
 		plane->min_cdclk = g4x_sprite_min_cdclk;
 
 		modifiers = i9xx_plane_format_modifiers;

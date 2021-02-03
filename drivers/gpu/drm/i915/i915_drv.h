@@ -1125,11 +1125,8 @@ struct drm_i915_private {
 	} wm;
 
 	struct dram_info {
-		bool valid;
-		bool is_16gb_dimm;
+		bool wm_lv_0_adjust_needed;
 		u8 num_channels;
-		u8 ranks;
-		u32 bandwidth_kbps;
 		bool symmetric_memory;
 		enum intel_dram_type {
 			INTEL_DRAM_UNKNOWN,
@@ -1138,6 +1135,7 @@ struct drm_i915_private {
 			INTEL_DRAM_LPDDR3,
 			INTEL_DRAM_LPDDR4
 		} type;
+		u8 num_qgv_points;
 	} dram_info;
 
 	struct intel_bw_info {
@@ -1282,7 +1280,7 @@ static inline struct drm_i915_private *pdev_to_i915(struct pci_dev *pdev)
 #define INTEL_DEVID(dev_priv)	(RUNTIME_INFO(dev_priv)->device_id)
 
 #define REVID_FOREVER		0xff
-#define INTEL_REVID(dev_priv)	((dev_priv)->drm.pdev->revision)
+#define INTEL_REVID(dev_priv)	(to_pci_dev((dev_priv)->drm.dev)->revision)
 
 #define INTEL_GEN_MASK(s, e) ( \
 	BUILD_BUG_ON_ZERO(!__builtin_constant_p(s)) + \
@@ -1410,6 +1408,7 @@ IS_SUBPLATFORM(const struct drm_i915_private *i915,
 #define IS_TIGERLAKE(dev_priv)	IS_PLATFORM(dev_priv, INTEL_TIGERLAKE)
 #define IS_ROCKETLAKE(dev_priv)	IS_PLATFORM(dev_priv, INTEL_ROCKETLAKE)
 #define IS_DG1(dev_priv)        IS_PLATFORM(dev_priv, INTEL_DG1)
+#define IS_ALDERLAKE_S(dev_priv) IS_PLATFORM(dev_priv, INTEL_ALDERLAKE_S)
 #define IS_HSW_EARLY_SDV(dev_priv) (IS_HASWELL(dev_priv) && \
 				    (INTEL_DEVID(dev_priv) & 0xFF00) == 0x0C00)
 #define IS_BDW_ULT(dev_priv) \
@@ -1552,54 +1551,60 @@ extern const struct i915_rev_steppings kbl_revids[];
 	(IS_JSL_EHL(p) && IS_REVID(p, since, until))
 
 enum {
-	TGL_REVID_A0,
-	TGL_REVID_B0,
-	TGL_REVID_B1,
-	TGL_REVID_C0,
-	TGL_REVID_D0,
+	STEP_A0,
+	STEP_A2,
+	STEP_B0,
+	STEP_B1,
+	STEP_C0,
+	STEP_D0,
 };
 
-#define TGL_UY_REVIDS_SIZE	4
-#define TGL_REVIDS_SIZE		2
+#define TGL_UY_REVID_STEP_TBL_SIZE	4
+#define TGL_REVID_STEP_TBL_SIZE		2
+#define ADLS_REVID_STEP_TBL_SIZE	13
 
-extern const struct i915_rev_steppings tgl_uy_revids[TGL_UY_REVIDS_SIZE];
-extern const struct i915_rev_steppings tgl_revids[TGL_REVIDS_SIZE];
+extern const struct i915_rev_steppings tgl_uy_revid_step_tbl[TGL_UY_REVID_STEP_TBL_SIZE];
+extern const struct i915_rev_steppings tgl_revid_step_tbl[TGL_REVID_STEP_TBL_SIZE];
+extern const struct i915_rev_steppings adls_revid_step_tbl[ADLS_REVID_STEP_TBL_SIZE];
 
 static inline const struct i915_rev_steppings *
-tgl_revids_get(struct drm_i915_private *dev_priv)
+tgl_stepping_get(struct drm_i915_private *dev_priv)
 {
 	u8 revid = INTEL_REVID(dev_priv);
 	u8 size;
-	const struct i915_rev_steppings *tgl_revid_tbl;
+	const struct i915_rev_steppings *revid_step_tbl;
 
-	if (IS_TGL_U(dev_priv) || IS_TGL_Y(dev_priv)) {
-		tgl_revid_tbl = tgl_uy_revids;
-		size = ARRAY_SIZE(tgl_uy_revids);
+	if (IS_ALDERLAKE_S(dev_priv)) {
+		revid_step_tbl = adls_revid_step_tbl;
+		size = ARRAY_SIZE(adls_revid_step_tbl);
+	} else if (IS_TGL_U(dev_priv) || IS_TGL_Y(dev_priv)) {
+		revid_step_tbl = tgl_uy_revid_step_tbl;
+		size = ARRAY_SIZE(tgl_uy_revid_step_tbl);
 	} else {
-		tgl_revid_tbl = tgl_revids;
-		size = ARRAY_SIZE(tgl_revids);
+		revid_step_tbl = tgl_revid_step_tbl;
+		size = ARRAY_SIZE(tgl_revid_step_tbl);
 	}
 
 	revid = min_t(u8, revid, size - 1);
 
-	return &tgl_revid_tbl[revid];
+	return &revid_step_tbl[revid];
 }
 
-#define IS_TGL_DISP_REVID(p, since, until) \
+#define IS_TGL_DISP_STEPPING(p, since, until) \
 	(IS_TIGERLAKE(p) && \
-	 tgl_revids_get(p)->disp_stepping >= (since) && \
-	 tgl_revids_get(p)->disp_stepping <= (until))
+	 tgl_stepping_get(p)->disp_stepping >= (since) && \
+	 tgl_stepping_get(p)->disp_stepping <= (until))
 
-#define IS_TGL_UY_GT_REVID(p, since, until) \
+#define IS_TGL_UY_GT_STEPPING(p, since, until) \
 	((IS_TGL_U(p) || IS_TGL_Y(p)) && \
-	 tgl_revids_get(p)->gt_stepping >= (since) && \
-	 tgl_revids_get(p)->gt_stepping <= (until))
+	 tgl_stepping_get(p)->gt_stepping >= (since) && \
+	 tgl_stepping_get(p)->gt_stepping <= (until))
 
-#define IS_TGL_GT_REVID(p, since, until) \
+#define IS_TGL_GT_STEPPING(p, since, until) \
 	(IS_TIGERLAKE(p) && \
 	 !(IS_TGL_U(p) || IS_TGL_Y(p)) && \
-	 tgl_revids_get(p)->gt_stepping >= (since) && \
-	 tgl_revids_get(p)->gt_stepping <= (until))
+	 tgl_stepping_get(p)->gt_stepping >= (since) && \
+	 tgl_stepping_get(p)->gt_stepping <= (until))
 
 #define RKL_REVID_A0		0x0
 #define RKL_REVID_B0		0x1
@@ -1613,6 +1618,22 @@ tgl_revids_get(struct drm_i915_private *dev_priv)
 
 #define IS_DG1_REVID(p, since, until) \
 	(IS_DG1(p) && IS_REVID(p, since, until))
+
+#define ADLS_REVID_A0		0x0
+#define ADLS_REVID_A2		0x1
+#define ADLS_REVID_B0		0x4
+#define ADLS_REVID_G0		0x8
+#define ADLS_REVID_C0		0xC /*Same as H0 ADLS SOC stepping*/
+
+#define IS_ADLS_DISP_STEPPING(p, since, until) \
+	(IS_ALDERLAKE_S(p) && \
+	 tgl_stepping_get(p)->disp_stepping >= (since) && \
+	 tgl_stepping_get(p)->disp_stepping <= (until))
+
+#define IS_ADLS_GT_STEPPING(p, since, until) \
+	(IS_ALDERLAKE_S(p) && \
+	 tgl_stepping_get(p)->gt_stepping >= (since) && \
+	 tgl_stepping_get(p)->gt_stepping <= (until))
 
 #define IS_LP(dev_priv)	(INTEL_INFO(dev_priv)->is_lp)
 #define IS_GEN9_LP(dev_priv)	(IS_GEN(dev_priv, 9) && IS_LP(dev_priv))
@@ -1761,6 +1782,9 @@ static inline bool run_as_guest(void)
 {
 	return !hypervisor_is_type(X86_HYPER_NATIVE);
 }
+
+#define HAS_D12_PLANE_MINIMIZATION(dev_priv) (IS_ROCKETLAKE(dev_priv) || \
+					      IS_ALDERLAKE_S(dev_priv))
 
 static inline bool intel_vtd_active(void)
 {
