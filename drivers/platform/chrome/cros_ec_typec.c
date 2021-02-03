@@ -748,7 +748,7 @@ static void cros_typec_parse_pd_identity(struct usb_pd_identity *id,
 		id->vdo[i - 3] = disc->discovery_vdo[i];
 }
 
-static int cros_typec_handle_sop_prime_disc(struct cros_typec_data *typec, int port_num)
+static int cros_typec_handle_sop_prime_disc(struct cros_typec_data *typec, int port_num, u16 pd_revision)
 {
 	struct cros_typec_port *port = typec->ports[port_num];
 	struct ec_response_typec_discovery *disc = port->disc_data;
@@ -794,6 +794,7 @@ static int cros_typec_handle_sop_prime_disc(struct cros_typec_data *typec, int p
 	}
 
 	c_desc.identity = &port->c_identity;
+	c_desc.pd_revision = pd_revision;
 
 	port->cable = typec_register_cable(port->port, &c_desc);
 	if (IS_ERR(port->cable)) {
@@ -823,7 +824,7 @@ sop_prime_disc_exit:
 	return ret;
 }
 
-static int cros_typec_handle_sop_disc(struct cros_typec_data *typec, int port_num)
+static int cros_typec_handle_sop_disc(struct cros_typec_data *typec, int port_num, u16 pd_revision)
 {
 	struct cros_typec_port *port = typec->ports[port_num];
 	struct ec_response_typec_discovery *sop_disc = port->disc_data;
@@ -838,6 +839,12 @@ static int cros_typec_handle_sop_disc(struct cros_typec_data *typec, int port_nu
 			"SOP Discovery received without partner registered, port: %d\n",
 			port_num);
 		ret = -EINVAL;
+		goto disc_exit;
+	}
+
+	ret = typec_partner_set_pd_revision(port->partner, pd_revision);
+	if (ret < 0) {
+		dev_err(typec->dev, "Failed to update partner PD revision, port: %d\n", port_num);
 		goto disc_exit;
 	}
 
@@ -884,16 +891,27 @@ static void cros_typec_handle_status(struct cros_typec_data *typec, int port_num
 
 	/* Handle any events appropriately. */
 	if (resp.events & PD_STATUS_EVENT_SOP_DISC_DONE && !typec->ports[port_num]->sop_disc_done) {
-		ret = cros_typec_handle_sop_disc(typec, port_num);
+		u16 sop_revision;
+
+		/* Convert BCD to the format preferred by the TypeC framework */
+		sop_revision = (le16_to_cpu(resp.sop_revision) & 0xff00) >> 4;
+		ret = cros_typec_handle_sop_disc(typec, port_num, sop_revision);
 		if (ret < 0)
 			dev_err(typec->dev, "Couldn't parse SOP Disc data, port: %d\n", port_num);
 		else
 			typec->ports[port_num]->sop_disc_done = true;
+
+		if (resp.sop_connected)
+			typec_set_pwr_opmode(typec->ports[port_num]->port, TYPEC_PWR_MODE_PD);
 	}
 
 	if (resp.events & PD_STATUS_EVENT_SOP_PRIME_DISC_DONE &&
 	    !typec->ports[port_num]->sop_prime_disc_done) {
-		ret = cros_typec_handle_sop_prime_disc(typec, port_num);
+		u16 sop_prime_revision;
+
+		/* Convert BCD to the format preferred by the TypeC framework */
+		sop_prime_revision = (le16_to_cpu(resp.sop_prime_revision) & 0xff00) >> 4;
+		ret = cros_typec_handle_sop_prime_disc(typec, port_num, sop_prime_revision);
 		if (ret < 0)
 			dev_err(typec->dev, "Couldn't parse SOP' Disc data, port: %d\n", port_num);
 		else
